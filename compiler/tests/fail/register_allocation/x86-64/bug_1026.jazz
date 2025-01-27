@@ -1,0 +1,10 @@
+export fn main(reg u32 x) -> reg u32 {
+  reg u32 y = x;
+  if x <s 0 {
+    y = -x;
+  } else {
+    y = x;
+  }
+  x += y;
+  return x;
+}
