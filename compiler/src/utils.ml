@@ -11,17 +11,8 @@ module Ss = Set.Make(String)
 module Ms = Map.Make(String)
 
 (* -------------------------------------------------------------------- *)
-let timed f x =
-  let t1   = Unix.gettimeofday () in
-  let aout = f x in
-  let t2   = Unix.gettimeofday () in
-  (t2 -. t1, aout)
-
 let identity x = x
 
-let (^~) f = fun x y -> f y x
-
-let (-|) f g = fun x -> f (g x)
 let (|-) g f = fun x -> g (f x)
 
 (* -------------------------------------------------------------------- *)
@@ -29,12 +20,6 @@ type 'a tuple0 = unit
 type 'a tuple1 = 'a
 type 'a tuple2 = 'a * 'a
 type 'a tuple3 = 'a * 'a * 'a
-type 'a tuple4 = 'a * 'a * 'a * 'a
-type 'a tuple5 = 'a * 'a * 'a * 'a * 'a
-type 'a tuple6 = 'a * 'a * 'a * 'a * 'a * 'a
-type 'a tuple7 = 'a * 'a * 'a * 'a * 'a * 'a * 'a
-type 'a tuple8 = 'a * 'a * 'a * 'a * 'a * 'a * 'a * 'a
-type 'a tuple9 = 'a * 'a * 'a * 'a * 'a * 'a * 'a * 'a * 'a
 type 'a pair   = 'a * 'a
 
 (* -------------------------------------------------------------------- *)
@@ -42,29 +27,6 @@ let as_seq0 = function [] -> () | _ -> assert false
 let as_seq1 = function [x] -> x | _ -> assert false
 let as_seq2 = function [x1; x2] -> (x1, x2) | _ -> assert false
 let as_seq3 = function [x1; x2; x3] -> (x1, x2, x3) | _ -> assert false
-
-let as_seq4 = function
-  | [x1; x2; x3; x4] -> (x1, x2, x3, x4)
-  | _ -> assert false
-
-let as_seq5 = function
-  | [x1; x2; x3; x4; x5] -> (x1, x2, x3, x4, x5)
-  | _ -> assert false
-
-let as_seq6 = function
-  | [x1; x2; x3; x4; x5; x6] -> (x1, x2, x3, x4, x5, x6)
-  | _ -> assert false
-
-let as_seq7 = function
-  | [x1; x2; x3; x4; x5; x6; x7] -> (x1, x2, x3, x4, x5, x6, x7)
-  | _ -> assert false
-
-(* -------------------------------------------------------------------- *)
-let fst_map (f : 'a -> 'c) ((x, y) : 'a * 'b) =
-  (f x, y)
-
-let snd_map (f : 'b -> 'c) ((x, y) : 'a * 'b) =
-  (x, f y)
 
 (* -------------------------------------------------------------------- *)
 module Option = BatOption
@@ -89,38 +51,7 @@ module List = struct
   include BatList
 
   (* ------------------------------------------------------------------ *)
-  module Smart = struct
-    let rec map f xs =
-      match xs with
-      | [] -> []
-      | y :: ys ->
-          let z  = f y in
-          let zs = map f ys in
-          if y == z && ys == zs then xs else (z :: zs)
-
-    let map_fold f a xs =
-      let r   = ref a in
-      let f x = let (a, x) = f !r x in r := a; x in
-      let xs  = map f xs in
-      (!r, xs)
-  end
-
-  (* ------------------------------------------------------------------ *)
   let opick = Exceptionless.find_map
-
-  let opicki f xs =
-    let rec loop i f xs =
-      match xs with
-      | [] ->
-          None
-      | x :: xs ->
-          begin
-            match f i x with
-            | None -> loop (i + 1) f xs
-            | Some y -> Some (i, y)
-          end
-    in
-    loop 0 f xs
 
   (* ------------------------------------------------------------------ *)
   module Parallel = struct
@@ -205,26 +136,12 @@ let rec pp_list sep pp fmt xs =
   | x :: xs -> Format.fprintf fmt "%a%(%)%a" pp x sep pp_list xs
 
 (* -------------------------------------------------------------------- *)
-let pp_if c pp1 pp2 fmt x =
-  match c with
-  | true  -> Format.fprintf fmt "%a" pp1 x
-  | false -> Format.fprintf fmt "%a" pp2 x
-
-(* -------------------------------------------------------------------- *)
-let pp_maybe c tx pp fmt x =
-  pp_if c (tx pp) pp fmt x
-
-(* -------------------------------------------------------------------- *)
 let pp_enclose ~pre ~post pp fmt x =
   Format.fprintf fmt "%(%)%a%(%)" pre pp x post
 
 (* -------------------------------------------------------------------- *)
 let pp_paren pp fmt x =
   pp_enclose ~pre:"(" ~post:")" pp fmt x
-
-(* -------------------------------------------------------------------- *)
-let pp_maybe_paren c pp =
-  pp_maybe c pp_paren pp
 
 (* -------------------------------------------------------------------- *)
 let pp_string fmt s =
