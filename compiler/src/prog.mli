@@ -278,7 +278,6 @@ val is_inline : Annotations.annotations -> FInfo.call_conv -> bool
 
 (* -------------------------------------------------------------------- *)
 val clamp : wsize -> Z.t -> Z.t
-val clamp_pe : pelem -> Z.t -> Z.t
 
 (* -------------------------------------------------------------------- *)
 type ('info,'asm) sfundef = Expr.stk_fun_extra * ('info,'asm) func 
