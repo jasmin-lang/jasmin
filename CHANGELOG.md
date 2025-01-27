@@ -38,6 +38,10 @@
   process
   ([PR#989](https://github.com/jasmin-lang/jasmin/pull/989)).
 
+- Incorrect printing of line information in register allocation has been removed
+  ([PR #1027](https://github.com/jasmin-lang/jasmin/pull/1027);
+  fixes [#1026](https://github.com/jasmin-lang/jasmin/issues/1026)).
+
 ## Other changes
 
 - The “allocation” pass now uses the liveness information to reduce the sizes
