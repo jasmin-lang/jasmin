@@ -21,6 +21,10 @@
   therefore old intrinsic `#VPBLENDVB` is deprecated
   ([PR #1010](https://github.com/jasmin-lang/jasmin/pull/1010)).
 
+- Add support for x86 `VPSIGN` instructions
+  ([PR #1030](https://github.com/jasmin-lang/jasmin/pull/1030);
+  fixes [#1029](https://github.com/jasmin-lang/jasmin/issues/1029)).
+
 ## Bug fixes
 
 - Fix EasyCrypt semantics of shift operators
