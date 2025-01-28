@@ -38,6 +38,10 @@
 - Add an option to treat some pre-typing error as warning instead. 
   ([PR #1023](https://github.com/jasmin-lang/jasmin/pull/1023))
 
+- Add support for x86 `VPSIGN` instructions
+  ([PR #1030](https://github.com/jasmin-lang/jasmin/pull/1030);
+  fixes [#1029](https://github.com/jasmin-lang/jasmin/issues/1029)).
+
 ## Bug fixes
 
 - Fix EasyCrypt semantics of shift operators
