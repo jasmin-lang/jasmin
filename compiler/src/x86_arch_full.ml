@@ -182,6 +182,7 @@ module X86_core = struct
     | VPSHUFD _ -> true
     | VPSHUFHW _ -> true
     | VPSHUFLW _ -> true
+    | VPSIGN _ -> true
     | VPSLL _ -> true
     | VPSLLDQ _ -> true
     | VPSLLV _ -> true

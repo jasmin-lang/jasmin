@@ -838,6 +838,7 @@ op VPMOVMSKB_u256u64 (v: W256.t) =
 (*
 | VPCMPEQ of velem & wsize
 | VPCMPGT of velem & wsize
+| VPSIGN of velem & wsize
 *)
 (* FIXME: Add this in ALU *)
 
