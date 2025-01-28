@@ -127,7 +127,7 @@ End ExecT.
 
 
 
-(** (9) definition of Case_Kleisli: depends on 7b (not used) ***********)
+(** (9) definition of Case_Kleisli (not used): depends on 7b ***********)
 
 Import ITree.Basics.CategoryOps. 
 
