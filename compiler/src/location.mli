@@ -26,7 +26,6 @@ val pp_sloc   : Format.formatter -> t -> unit
 val pp_iloc   : Format.formatter -> i_loc -> unit
 val pp_iloc_short : Format.formatter -> i_loc -> unit
 val merge     : t -> t -> t
-val mergeall  : t list -> t
 val isdummy   : t -> bool
 
 (* -------------------------------------------------------------------- *)
@@ -37,17 +36,7 @@ type 'a located = {
 
 val loc    : 'a located -> t
 val unloc  : 'a located -> 'a
-val unlocs : ('a located) list -> 'a list
 val mk_loc : t -> 'a -> 'a located
-val lmap   : ('a -> 'b) -> 'a located -> 'b located
-
-(* -------------------------------------------------------------------- *)
-exception LocError of t * exn
-
-val locate_error : t -> exn -> 'a
-
-val set_loc  : t -> ('a -> 'b) -> 'a -> 'b
-val set_oloc : t option -> ('a -> 'b) -> 'a -> 'b
 
 (* -------------------------------------------------------------------- *)
 val i_loc : t -> t list -> i_loc
