@@ -100,12 +100,6 @@ let merge (p1 : t) (p2 : t) =
       loc_bchar = min p1.loc_bchar p2.loc_bchar;
       loc_echar = max p1.loc_echar p2.loc_echar; }
 
-let mergeall (p : t list) =
-  match p with
-  | []      -> _dummy
-  | t :: ts -> List.fold_left merge t ts
-
-
 (* -------------------------------------------------------------------- *)
 type 'a located = {
   pl_loc  : t;
@@ -115,29 +109,9 @@ type 'a located = {
 (* -------------------------------------------------------------------- *)
 let loc    x = x.pl_loc
 let unloc  x = x.pl_desc
-let unlocs x = List.map unloc x
-
-let lmap f x =
-  { x with pl_desc = f x.pl_desc }
 
 let mk_loc loc x =
   { pl_loc = loc; pl_desc = x; }
-
-(* -------------------------------------------------------------------- *)
-exception LocError of t * exn
-
-let locate_error loc exn =
-  match exn with
-  | LocError _ -> raise exn
-  | _ -> raise (LocError(loc,exn))
-
-let set_loc loc f x =
-  try f x with e -> locate_error loc e
-
-let set_oloc oloc f x =
-  match oloc with
-  | None     -> f x
-  | Some loc -> set_loc loc f x
 
 (* -------------------------------------------------------------------- *)
 let i_loc_uid = ref 0
