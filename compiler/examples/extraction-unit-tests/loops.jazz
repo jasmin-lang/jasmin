@@ -1,0 +1,24 @@
+/* Tests bounds of decreasing for loops */
+export
+fn forty() -> reg u32 {
+  inline int i j = 0;
+  for i = 10 downto 5 {
+    j += i;
+  }
+  reg u32 r = j;
+  return r;
+}
+
+/* Tests nested for loops with non-immediate bounds */
+param int a = 10;
+export
+fn for_nest() -> reg u32 {
+  inline int i j k = 0;
+  for i = 0 to a + a {
+     for j = 0 to a * a {
+       k += 1;
+     }
+  }
+  reg u32 r = k;
+  return r;
+}
