@@ -39,6 +39,7 @@ lang/shift_kind.v
 lang/sem_type_ALT.v
 lang/sem_type.v
 3rdparty/xseq.v
+3rdparty/ssrring.v
 ssrmisc/oseq.v
 lang/utils.v
 
