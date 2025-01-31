@@ -36,7 +36,6 @@ type tyerror =
   | InvalidTypeAlias    of A.symbol * P.pty
   | InvalidCast         of P.pty pair
   | InvalidTypeForGlobal of P.pty
-  | NotAPointer         of P.plval
   | GlobArrayNotWord    
   | GlobWordNotArray
   | EqOpWithNoLValue
@@ -113,10 +112,6 @@ let pp_tyerror fmt (code : tyerror) =
   | InvalidTypeForGlobal ty ->
       F.fprintf fmt "globals should have type word; found: ‘%a’"
         Printer.pp_ptype ty
-
-  | NotAPointer x -> 
-    F.fprintf fmt "The variable %a should be a pointer"
-      Printer. pp_plval x
 
   | GlobArrayNotWord ->
     F.fprintf fmt "the definition is an array and not a word"
@@ -683,22 +678,12 @@ let check_sig_lvs loc sig_ lvs =
 let tt_sign = function
   | `Signed -> W.Signed
   | `Unsigned -> W.Unsigned
-  
-(* -------------------------------------------------------------------- *)
-let tt_as_bool = check_ty TPBool
-let tt_as_int  = check_ty TPInt
 
 (* -------------------------------------------------------------------- *)
 let tt_as_array ((loc, ty) : L.t * P.pty) : P.pty * P.pexpr_ =
   match ty with
   | P.Arr (ws, n) -> P.Bty (P.U ws), n
   | _ -> rs_tyerror ~loc (InvalidType (ty, TPArray))
-
-(* -------------------------------------------------------------------- *)
-let tt_as_word ((loc, ty) : L.t * P.pty) : W.wsize =
-  match ty with
-  | P.Bty (P.U ws) -> ws
-  | _ -> rs_tyerror ~loc (InvalidType (ty, TPWord))
 
 (* -------------------------------------------------------------------- *)
 
@@ -1694,22 +1679,6 @@ let arr_init xi =
 let cassgn_for (x: P.plval) (tg: E.assgn_tag) (ty: P.pty) (e: P.pexpr) :
   (P.pexpr_, unit, 'asm) P.ginstr_r =
   Cassgn (x, tg, ty, e)
-
-let rec is_constant e = 
-  match e with 
-  | P.Pconst _ | P.Pbool _ | P.Parr_init _ -> true
-  | P.Pvar x  -> P.kind_i x.P.gv = W.Const || P.kind_i x.P.gv = W.Inline
-  | P.Pget _ | P.Psub _ | P.Pload _ -> false
-  | P.Papp1 (_, e) -> is_constant e
-  | P.Papp2 (_, e1, e2) -> is_constant e1 && is_constant e2
-  | P.PappN (_, es) -> List.for_all is_constant es
-  | P.Pif(_, e1, e2, e3)   -> is_constant e1 && is_constant e2 && is_constant e3
-
-
-let check_lval_pointer loc x =  
-  match x with
-  | P.Lvar x when P.is_ptr (L.unloc x).P.v_kind -> () 
-  | _ -> rs_tyerror ~loc (NotAPointer x)
 
 let mk_call loc inline lvs f es =
   let open P in
