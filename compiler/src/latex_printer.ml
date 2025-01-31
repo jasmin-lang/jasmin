@@ -236,15 +236,6 @@ let pp_writable = function
 let pp_pointer = function
   | `Pointer w-> pp_writable w ^ " ptr"
   | `Direct  -> ""
-  
-  
-let pp_storage fmt s =
-  latex "storageclass" fmt
-    (match s with
-     | `Reg(ptr) -> "reg" ^ (pp_pointer ptr)
-     | `Stack ptr -> "stack" ^ (pp_pointer ptr)
-     | `Inline -> "inline"
-     | `Global -> "global")
 
 let pp_sto_ty fmt (sto, ty) =
   F.fprintf fmt "%a %a" pp_storage sto pp_type ty
