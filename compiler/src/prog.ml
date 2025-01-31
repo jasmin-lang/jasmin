@@ -484,10 +484,6 @@ let spilled fc = spilled_c Sv.empty fc.f_body
 let clamp (sz : wsize) (z : Z.t) =
   Z.erem z (Z.shift_left Z.one (int_of_ws sz))
 
-let clamp_pe (sz : pelem) (z : Z.t) =
-  Z.erem z (Z.shift_left Z.one (int_of_pe sz))
-
-
 (* --------------------------------------------------------------------- *)
 type ('info,'asm) sfundef = Expr.stk_fun_extra * ('info,'asm) func
 type ('info,'asm) sprog   = ('info,'asm) sfundef list * Expr.sprog_extra

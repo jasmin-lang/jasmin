@@ -274,11 +274,6 @@ let isubst_prog glob prog =
 
 exception NotAConstantExpr
 
-let clamp_k k e = 
-  match k with 
-  | E.Op_w ws -> clamp ws e
-  | E.Op_int  -> e
-
 let rec constant_of_expr (e: Prog.expr) : Z.t =
   let open Prog in
 
