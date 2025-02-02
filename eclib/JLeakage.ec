@@ -11,7 +11,7 @@ type leakage_glob_t = [
 
 type leakages_glob_t = leakage_glob_t list.
 
-type base_leakage = [
+type leakage_value = [
   | Leak_int_ of int
   | Leak_bool_ of bool
   | LeakW8_  of W8.t
@@ -22,20 +22,30 @@ type base_leakage = [
   | LeakW256_  of W256.t
   ].
 
+type base_leakage = [
+  (* branches, for loop iteration counts, etc. *)
+  | ControlFlow of leakage_value
+  (* Array offset possibly combining with other such values and with array access indices *)
+  | Offset of leakage_value
+  (* Memory address or array index *)
+  | Address of leakage_value
+  (* Plain data leakage (e.g.: operand) *)
+  | Data of leakage_value
+].
+
 type leakage = [
   | LeakBase of base_leakage
   | LeakNode of leakage & leakage
   | LeakEmpty
 ].
 
-op [opaque] Leak_int x = LeakBase (Leak_int_ x).
-op [opaque] Leak_bool x = LeakBase (Leak_bool_ x).
-op [opaque] Leak_W8 x = LeakBase (LeakW8_ x).
-op [opaque] Leak_W16 x = LeakBase (LeakW16_ x).
-op [opaque] Leak_W32 x = LeakBase (LeakW32_ x).
-op [opaque] Leak_W64 x = LeakBase (LeakW64_ x).
-op [opaque] Leak_W128 x = LeakBase (LeakW128_ x).
-op [opaque] Leak_W256 x = LeakBase (LeakW256_ x).
+
+op [opaque] Leak_addr x  = LeakBase (Address x).
+op [opaque] Leak_offset x = LeakBase (Offset x).
+op [opaque] Leak_data x = LeakBase (Data x).
+
+op [opaque] Leak_cond x  = LeakBase (ControlFlow (Leak_bool_ x)).
+op [opaque] Leak_bound x = LeakBase (ControlFlow (Leak_int_ x)).
 
 type leakages = leakage list.
 
