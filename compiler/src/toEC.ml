@@ -1470,7 +1470,7 @@ end
 
 module type EcLeakage = sig
   val ec_leaks_es: Env.t -> exprs -> ec_instr list
-  val ec_leaks_opn: Env.t -> exprs -> ec_instr list
+  val ec_leaks_opn: Env.t -> exprs -> 'asm Sopn.sopn -> ec_instr list
   val ec_leaking_if: Env.t -> expr -> (Env.t -> ec_stmt) -> (Env.t -> ec_stmt) -> ec_stmt
   val ec_leaking_while: Env.t -> (Env.t -> ec_stmt) -> expr -> (Env.t -> ec_stmt) -> ec_stmt
   val ec_leaking_for: Env.t -> (Env.t -> ec_stmt) -> expr -> expr -> ec_stmt -> ec_expr -> ec_stmt -> ec_stmt
@@ -1486,7 +1486,7 @@ end
 
 module EcLeakNormal(EE: EcExpression): EcLeakage = struct
   let ec_leaks_es env es = []
-  let ec_leaks_opn env es = []
+  let ec_leaks_opn env op es = []
   let ec_leaking_if env e c1 c2 = [ESif (EE.toec_expr env e, c1 env, c2 env)]
   let ec_leaking_while env c1 e c2 =
     c1 env @ [ESwhile (EE.toec_expr env e, (c2 env @ c1 env))]
@@ -1532,7 +1532,7 @@ module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
 
   let ec_leaks_es env es = ec_leaks (List.map (toec_expr env) (leaks_es (Env.pd env) es))
 
-  let ec_leaks_opn env es =  ec_leaks_es env es
+  let ec_leaks_opn env op es =  ec_leaks_es env es
 
   let leak_cond env e = ec_addleaks [
     Eapp (ec_ident "LeakAddr", [Elist (ece_leaks_e env e)]);
@@ -1598,50 +1598,61 @@ module EcLeakLocal(EE: EcExpression) (LC: LeakageConfig): EcLeakage = struct
 
   let int_of_word ws e = Papp1 (E.Oint_of_word(Unsigned, ws), e)
 
-  let leak_addr e = Eapp (ec_ident "Leak_int", [e])
-
-  let leak_val env ?(ignore_array=false) e =
+  let expr2leak env e =
     let sty = match ty_expr e with
-    | Bty Bool -> Some "bool"
-    | Bty Int  -> Some "int"
-    | Bty (U ws) -> Some (fmt_Wsz ws)
-    | Arr(ws, n) -> if ignore_array then None else assert false
+    | Bty Bool -> "bool"
+    | Bty Int  -> "int"
+    | Bty (U ws) -> fmt_Wsz ws
+    | Arr(_, _) -> assert false
     in
-    match sty with
-    | Some sty ->
-      let leakf = ec_ident (Format.sprintf "Leak_%s" sty) in
-      [Eapp (leakf, [toec_expr env e])]
-    | None -> []
+    let leakf = ec_ident (Format.sprintf "Leak_%s_" sty) in
+    Eapp (leakf, [toec_expr env e])
+
+  let leak_addr env e = Eapp (ec_ident "Leak_addr", [expr2leak env e])
+
+  let leak_offset env e = Eapp (ec_ident "Leak_offset", [expr2leak env e])
+
+  let leak_data env e = Eapp (ec_ident "Leak_data", [expr2leak env e])
+
+  let leak_bound env e = Eapp (ec_ident "Leak_bound", [toec_expr env e])
 
   let leak_addr_mem env e =
     let addr = int_of_ptr (Env.pd env) e in
-    [leak_addr (toec_expr env addr)]
+    [leak_addr env addr]
 
-  let leak_val_valleak env e = if LC.leak_values then leak_val env e else []
+  let leak_data_valleak env e = if LC.leak_values then [leak_data env e] else []
 
-  let leak_var env v = if LC.leak_values then leak_val env ~ignore_array:true (Pvar v) else []
+  let leak_var env v skip_array =
+    if LC.leak_values then
+      let e = Pvar v in
+      match ty_expr e with
+      | Arr(_, _) -> if skip_array then [] else assert false
+      | _ -> [leak_data env e]
+    else
+      []
 
-  let rec leaks_e_rec env leaks e =
+  let rec leaks_e_rec ?(skip_array=true) env leaks e =
     match e with
     | Pconst _ | Pbool _ | Parr_init _ -> leaks
-    | Pvar v -> (leak_var env v) @ leaks
+    | Pvar v -> (leak_var env v skip_array) @ leaks
     | Pload (_,_,e') ->
         (leak_val_valleak env e) @
         (leaks_e_rec env ((leak_addr_mem env e') @ leaks) e')
     | Pget (_,_,_,_, e') ->
-        (leak_val_valleak env e) @
-        (leaks_e_rec env ([leak_addr (toec_expr env e')] @ leaks) e')
-    | Psub (_,_,_,_,e') -> leaks_e_rec env ([leak_addr (toec_expr env e')] @ leaks) e'
+        (leak_data_valleak env e) @
+        (leaks_e_rec env ([leak_addr env e'] @ leaks) e')
+    | Psub (_, _, _, _, e') -> leaks_e_rec env ([leak_offset env e'] @ leaks) e'
     | Papp1 (_, e) -> leaks_e_rec env leaks e
     | Papp2 (_, e1, e2) -> leaks_es_rec env leaks [e1; e2]
     | PappN (_, es) -> leaks_es_rec env leaks es
     | Pif  (_, e1, e2, e3) -> leaks_es_rec env leaks [e1; e2; e3]
 
-  and leaks_es_rec env leaks es = List.fold_left (leaks_e_rec env) leaks es
+  and leaks_es_rec ?(skip_array=true) env leaks es =
+  List.fold_left (leaks_e_rec ~skip_array:skip_array env) leaks es
 
   let leaks_e env e = leaks_e_rec env [] e
 
-  let leaks_es env es = leaks_es_rec env [] es
+  let leaks_es ?(skip_array=true) env es = leaks_es_rec ~skip_array:skip_array env [] es
 
   let leaklist leaks = Eapp (Eident ["LeakList"], [Elist leaks])
 
@@ -1672,16 +1683,46 @@ module EcLeakLocal(EE: EcExpression) (LC: LeakageConfig): EcLeakage = struct
 
   let leaks_lval env = function
     | Lnone _ | Lvar _ -> []
-    | Laset (_,_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec env [leak_addr (toec_expr env e)] e
+    | Laset (_,_,_,_, e) -> leaks_e_rec env [leak_addr env e] e
+    | Lasub (_,_,_,_,e) -> leaks_e_rec env [leak_offset env e] e
     | Lmem (_, _, _,e) -> leaks_e_rec env (leak_addr_mem env e) e
 
   let ec_leaks_lv env lv = ec_addleaks env (leaks_lval env lv)
 
   let ec_leaks_lvs env lvs = List.concat_map (ec_leaks_lv env) lvs
 
-  let ec_leaks_opn env es = ec_addleaks env (leaks_es env es)
+  let ec_leaks_pseudo_op env pseudo_op es =
+    match pseudo_op with
+    | Pseudo_operator.Ospill (_, _)
+    | Pseudo_operator.Ocopy (_, _)
+    | Pseudo_operator.Oswap _
+    | Pseudo_operator.Onop
+    | Pseudo_operator.Omulu _
+    | Pseudo_operator.Oaddcarry _
+    | Pseudo_operator.Osubcarry _
+      (* TODO: figure out and model leakage behavior of pseudo_ops for arrays. *)
+      -> ec_addleaks env (leaks_es ~skip_array:false env es)
 
-  let leak_cond env e = (leaks_e env e) @ (leak_val env e)
+  (* No specific leakge for SLH ops (?) *)
+  let ec_leaks_slh_op env slh_op es = ec_addleaks env (leaks_es env es)
+
+  (* TODO: is this correct, or do we need to dive deeper? (If so, how to implement that?) *)
+  let ec_leaks_asm_op env asm_op es = ec_addleaks env (leaks_es env es)
+
+  let ec_leaks_opn env op es =
+    match op with
+    | Sopn.Opseudo_op pseudo_op -> ec_leaks_pseudo_op env pseudo_op es
+    | Sopn.Oslh slh_op -> ec_leaks_slh_op env slh_op es
+    | Sopn.Oasm asm_op -> ec_leaks_asm_op env asm_op es
+ 
+  let reset_leak vleak = [asgn vleak (Elist [])]
+
+  let nested_block env c =
+    let env = {env with nesting = env.nesting + 1} in
+    reset_leak (leakacc env) @ (c env)
+
+(*  let leak_cond env e = (leaks_e env e) @ (leak_val env e) *)
+  let leak_cond env e = (leaks_e env e) @ [Eapp(ec_ident "Leak_cond", [toec_expr env e])]
 
   let ec_leaking_if env e c1 c2 =
     let acc = leakacc env in
@@ -1718,7 +1759,7 @@ module EcLeakLocal(EE: EcExpression) (LC: LeakageConfig): EcLeakage = struct
     push_leak (leakacc env) (leaklist (c1_leaklist @ [leaklistv vleak_cond; leaklistv leak_c2]))
 
   let leak_for_bounds env e1 e2 =
-    leaks_es env [e1; e2] @ leak_val env e1 @ leak_val env e2
+    leaks_es env [e1; e2] @ [leak_bound env e1; leak_bound env e2]
 
   let ec_leaking_for env c e1 e2 init cond i_upd =
     let leak_c = Env.create_aux env "leak_b" leakv_ty in
@@ -1866,7 +1907,7 @@ struct
           (ec_leaks_es env [e]) @
           ec_expr_assgn env [lv] tys tys (toec_expr env e)
       | Copn ([], _, op, es) ->
-          (ec_leaks_opn env es) @
+          (ec_leaks_opn env op es) @
           [EScomment (Format.sprintf "Erased call to %s" (ec_opn (Env.pd env) asmOp op))]
       | Copn (lvs, _, op, es) ->
           let op' = base_op op in
@@ -1875,7 +1916,7 @@ struct
           let otys', _ = ty_sopn (Env.pd env) asmOp op' es in
           let ec_op op = ec_ident (ec_opn (Env.pd env) asmOp op) in
           let ec_e op = Eapp (ec_op op, List.map (toec_cast env) (List.combine itys es)) in
-          (ec_leaks_opn env es) @
+          (ec_leaks_opn env op es) @
           (ec_expr_assgn env lvs otys otys' (ec_e op'))
       | Ccall (lvs, f, es) ->
           let env = Env.new_aux_range env in
