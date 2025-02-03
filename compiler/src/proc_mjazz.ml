@@ -30,6 +30,7 @@ type mjazzerror =
   | MJazzIncompatibleNS
   | NonToplevelRequire
   | NonExistentMod of M.modulename
+  | InnerPModule of M.modulename
   | MJazzNYS
   | MJazzInternal of string
   | MJazzStringError of string
@@ -58,6 +59,8 @@ let pp_mjazzerror fmt = function
     F.fprintf fmt "'require' clause in MJazz should be at toplevel"
   | NonExistentMod m ->
     F.fprintf fmt "non existent module %s" m
+  | InnerPModule m ->
+    F.fprintf fmt "parametric module (%s) is not supported" m
   | MJazzNYS ->
     F.fprintf fmt "feature not yet supported in MJazz"
   | MJazzInternal s ->
@@ -103,8 +106,12 @@ module MEnv = struct
 
   type 'asm modinfo =
     { mi_store : 'asm Env.global_bindings
-    ; mi_params : P.pexpr M.mparamdecl list
+    ; mi_params: P.pexpr M.mparamdecl list
+    ; mi_ast: (S.pitem L.located) list
     ; mi_decls : (P.pexpr, unit, 'asm) M.gmodule_item list
+    ; mi_opened: M.modulename list
+    ; mi_modules: (M.modulename*(P.pexpr list)) list
+    ; mi_instances : (M.modulename*(P.pexpr list)) list
     }
 
   let functor_from_modinfo modname modinfo =
@@ -116,8 +123,11 @@ module MEnv = struct
 
   type 'asm menv =
     { me_store : 'asm Env.store
-    ; me_ldecls : (P.pexpr, unit, 'asm) M.gmodule_item list list (* declarations from current modules *)
+    ; me_decls : (P.pexpr, unit, 'asm) M.gmodule_item list list (* declarations from current modules *)
+    ; me_gmod  : bool list
+(*
     ; me_gdecls : (P.pexpr, unit, 'asm) M.gmodule_item list (* global declarations *)
+*)
     ; me_env : (M.modulename, 'asm modinfo) Map.t
     ; me_idir : Path.t	(* absolute initial path *)
     ; me_from : (A.symbol, Path.t) Map.t
@@ -126,7 +136,7 @@ module MEnv = struct
     }
 
   let mpath menv =
-    List.map (fun x -> fst x) (fst menv.me_store.s_bindings)
+    List.map (fun x -> let ns,_,_ = x in ns) (fst menv.me_store.s_bindings)
 
   let empty froms =
     let idir = Path.of_string (Sys.getcwd ())
@@ -144,8 +154,9 @@ module MEnv = struct
          end;
          Map.add name ap m
     in { me_store = Env.empty_store
-       ; me_ldecls = []
-       ; me_gdecls = []
+       ; me_decls = [[]]
+       ; me_gmod = []
+(*       ; me_gdecls = [] *)
        ; me_env = Map.empty
        ; me_visiting = []
        ; me_idir = idir
@@ -159,19 +170,19 @@ module MEnv = struct
     = { menv with me_store = f menv.me_store }
 
   (* add declarations to top module *)
-  let add_ldecls menv l =
-    match menv.me_ldecls with
+  let add_decls menv l =
+    match menv.me_decls with
     | [] ->
-      rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "non-existent ldecls")
+      rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "(add) non-existent decls")
     | x::xs -> 
-      { menv with me_ldecls = (l@x)::xs }
+      { menv with me_decls = (l@x)::xs }
 
   let pop_ldecls menv =
-    match menv.me_ldecls with
+    match menv.me_decls with
     | [] ->
-      rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "non-existent ldecls")
+      rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "(pop) non-existent decls")
     | x::xs -> 
-      { menv with me_ldecls = xs }, x
+      { menv with me_decls = xs }, x
     
 
   let upd_storedecls
@@ -179,7 +190,7 @@ module MEnv = struct
       (menv: 'asm menv)
     : 'asm menv =
     let st, l = f menv.me_store
-    in let menv = add_ldecls menv (List.map (fun x->M.MdItem x) l)
+    in let menv = add_decls menv (List.map (fun x->M.MdItem x) l)
     in { menv with  me_store = st }
 
 (*
@@ -230,15 +241,18 @@ module MEnv = struct
     | [] -> st, []
     | x::xs ->
       let st, p = push_modparam pd st x
-      in push_modparams pd st xs
+      in let st, ps = push_modparams pd st xs
+      in st, p::ps
 
   let enter_module pd modname mparams menv =
     let menv = upd_store (Env.enter_namespace modname) menv
     in let st, plist = push_modparams pd menv.me_store mparams
-    in 
+    in if !Glob_options.debug
+      then (Printf.eprintf "\nENTER %s #mparams %d,%d \n%!" (L.unloc modname) (List.length mparams) (List.length plist));
     { menv with 
-      me_store = st;
-      me_ldecls = []::menv.me_ldecls
+      me_store = st
+    ; me_gmod = (mparams=[]) :: menv.me_gmod       
+    ; me_decls = []::menv.me_decls
     }
     , plist
 
@@ -246,51 +260,77 @@ module MEnv = struct
     match st.Env.s_bindings with
     | [], _ -> 
       rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "empty module stack")
-    | x::xs, _ ->
-      List.fold_left (fun nn n -> qualify n nn) (fst x) (List.map fst xs)
+    | (ns,_,_)::xs, _ ->
+      List.fold_left (fun nn (n,_,o) -> if o then nn else qualify n nn) ns xs
 
   (** exit of a non-toplevel module *)
-  let exit_module mparams (menv: 'asm menv): 'asm menv =
-    let modname = fully_qualified_modname menv.me_store
+  let exit_module mname mparams mbody (menv: 'asm menv): 'asm menv =
+    let rec loop = function
+      | [], _ ->
+        rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "empty module stack")
+      | (ns,_,true) :: _, bot ->
+        rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "unexpected opened module at top of stack")
+      | (m1,bs1,false) :: [], bot ->
+        let merged = Env.merge_bindings (m1,bs1) bot
+        in ([], merged), []
+      | top :: (m, _,true) :: stack, bot ->
+        let bs, omods = loop (top::stack, bot)
+        in bs, m::omods
+      | (m1, bs1, false) :: (m2, bs2, false) :: stack, bot ->
+        let merged = Env.merge_bindings (m1,bs1) bs2
+        in ((m2, merged, false) :: stack, bot), []
+    in let modname = fully_qualified_modname menv.me_store
     in if !Glob_options.debug
-    then Printf.eprintf "Exiting module \"%s\" \n%!" modname;
-    let menv, mdecls = pop_ldecls menv
+    then Printf.eprintf "Exiting module \"%s\" (fullname=%s)\n%!" (L.unloc mname) modname;
+    let _, mod_bs, _ = List.hd (fst menv.me_store.s_bindings)
+    in let glob_bs, mod_omods = loop menv.me_store.s_bindings
+    in let menv, mdecls = pop_ldecls menv
     in let modinfo =
-         { mi_store = snd (List.hd (fst menv.me_store.s_bindings)) (* top bs *)
+         { mi_store = mod_bs
          ; mi_params = mparams
+         ; mi_ast = mbody
          ; mi_decls = mdecls
+         ; mi_opened = mod_omods
+         ; mi_modules = [] (* ??? *)
+         ; mi_instances = []
          }
-    in let menv = add_ldecls menv [functor_from_modinfo modname modinfo]
+    in let menv = add_decls menv [functor_from_modinfo modname modinfo]
     in let menv = { menv with
-                    me_env = Map.add modname modinfo menv.me_env 
+                    me_store = {menv.me_store with s_bindings = glob_bs }
+                  ; me_env = Map.add modname modinfo menv.me_env
+                  ; me_gmod = List.tl menv.me_gmod
                   }
-    in upd_store Env.exit_namespace menv
+    in upd_store (fun st -> Pretyping.Env.Modules.push st mname modname) menv
 
+
+  (* suspend processing of current file (if any) *)
   let save_filectxt menv modname =
     if !Glob_options.debug then Printf.eprintf "save filectxt \"%s\" \n%!" modname;
-    let newtopbs = modname, Env.empty_gb
+    let newtopbs = modname, Env.empty_gb, false
     in match menv.me_store.s_bindings with
     | [], bot -> (* no filectxt to save *)
+      if !Glob_options.debug then Printf.eprintf "clean ctxt!\n";
       let menv =
         { menv with 
           me_store = 
             { menv.me_store with
               s_bindings = [newtopbs] , bot
             }
-        ; me_ldecls = [[]]
+        ; me_decls = []::menv.me_decls
         }
       in Some (menv, None)
-    | [topbs], bot -> (* save top ctxt (st & decls) *)
+    | x::xs, bot -> (* save top ctxt (st & decls) *)
       let st = { menv.me_store with
                  s_bindings = [newtopbs], bot }
-      in let topdecls = List.hd menv.me_ldecls
-      in Some ( { menv with
+      in let topdecls = List.hd menv.me_decls
+      in if List.for_all (fun (_,_,b) -> b) xs
+      then Some ( { menv with
                   me_store = st
-                ; me_ldecls = [[]] 
+                ; me_decls = []::List.tl menv.me_decls 
                 }
-              , Some(topbs, topdecls)
-              )
-    | _ -> None
+              , Some(x::xs, topdecls)
+            )
+      else None
 
   let enter_file menv from ploc fname =
     let modname = 
@@ -346,36 +386,64 @@ module MEnv = struct
       | Some (menv, saved) ->
         let menv = { menv with 
                      me_visiting = (modname,p) :: menv.me_visiting
+                   ; me_gmod = true::menv.me_gmod
                    }
         in menv, Some (ast,saved)
 
+let add_opened modname menv =
+  let add_opened_bs minfo st =
+    match st.Env.s_bindings with
+    | [], _ ->
+      rs_mjazzerror ~loc:(L._dummy)
+        (MJazzStringError "(Internal Error) non-existent toplevel module")
+    | x::xs, bot ->
+      if minfo.mi_params = []
+      then { st with
+             s_bindings = x::(modname, minfo.mi_store, true)::xs, bot
+           }
+      else rs_mjazzerror ~loc:(L._dummy)
+          (MJazzStringError "(Internal Error) cannot open parametric module")
+  in match Map.find modname menv.me_env with
+  | exception Not_found ->
+    rs_mjazzerror ~loc:(L._dummy)
+      (NonExistentMod modname)
+  | minfo -> 
+    { menv with
+      me_store = add_opened_bs minfo menv.me_store
+    }
+
+  let rec open_modules l menv =
+    let rec collect_opennings modm l = function
+      | [] -> l
+      | x::xs ->
+        if List.mem x l
+        then collect_opennings modm l xs
+        else collect_opennings modm (collect_opennings modm (x::l) (Map.find x modm).mi_opened) xs
+    in List.fold_left (fun x y -> add_opened y x) menv (collect_opennings menv.me_env [] l)
+
+
   let exit_file menv saved =
     let modname, p = List.hd menv.me_visiting
-    in let modinfo =
-         { mi_store = snd (List.hd (fst menv.me_store.s_bindings))
-         ; mi_params = []
-         ; mi_decls = List.hd menv.me_ldecls
-         }
-    in let menv =
-         { menv with
-           me_env = Map.add modname modinfo menv.me_env
-         ; me_gdecls = functor_from_modinfo modname modinfo :: menv.me_gdecls
-         }
-    in let st = Env.exit_namespace menv.me_store
+    in let menv = exit_module (L.mk_loc L._dummy modname) [] [] menv
     in match saved with
     | None ->
       { menv with
-        me_store = st
-      ; me_processed = (modname,p) :: menv.me_processed
+        me_processed = (modname,p) :: menv.me_processed
       ; me_visiting = List.tl menv.me_visiting
       }
-    | Some (top,decls) ->
-      { menv with
-        me_store = { st with s_bindings = [top], snd st.s_bindings }
-      ; me_ldecls = [decls]
-      ; me_processed = (modname,p) :: menv.me_processed
-      ; me_visiting = List.tl menv.me_visiting
-      }
+    | Some (top,saved_decls) ->
+      let menv = open_modules [modname]
+                    { menv with
+                      me_store = { menv.me_store with
+                                   s_bindings = top, snd menv.me_store.s_bindings
+                                 }
+                    ; me_decls = saved_decls::menv.me_decls
+                    ; me_processed = (modname,p) :: menv.me_processed
+                    ; me_visiting = List.tl menv.me_visiting
+                    }
+      in 
+      Env.dbg_gb (fun bs -> bs.gb_types) menv.me_store;
+      menv
 
 (*
   let unqualify_bindings modname m =
@@ -391,6 +459,8 @@ end
 (*                      Processing                                      *)
 (* -------------------------------------------------------------------- *)
 
+
+
 (*
 
 - "require" só são suportados no top-level
@@ -401,44 +471,151 @@ end
 
 (* -------------------------------------------------------------------- *)
 
+
 let merge_top st modname bs =
   match st.Env.s_bindings with
   | [], _ -> assert false
-  | (m,top)::l, bot ->
+  | (_,_,true)::_, _ -> assert false
+  | (m,top,false)::l, bot ->
     let newtop = Env.merge_bindings (modname, bs) top
-    in (m, newtop)::l, bot
+    in (m, newtop,false)::l, bot
+
+(*
+1) verifica concordância de tipos dos argumentos
+ 1.1) num novo contexto, adiciona args;
+ 1.2) verificando em sequência se tipos (resolvidos) são compatíveis
+2) duplica [minfo] em [menv] com chave [mname] (fully_qualified)
+  - para possibilitar "open" do respectivo módulo
+3) se gound context:
+  3.1) regista ground instance em minfo
+       (obs: se minfo ground, serve apenas para associar mname ao módulo...)
+  3.2) senão, regista submódulo 
+4) adiciona bindings de [minfo] no contexto actual com chave [mname]
+*)
+
+let rec mt_margs pd menv mparams margs =
+  if !Glob_options.debug
+  then (Printf.eprintf "\nTC ModApp %d,%d \n%!" (List.length mparams) (List.length margs));
+  let rec tc_list loc l1 l2 =
+    match l1, l2 with
+    | [], [] -> ()
+    | t1::tl1, t2::tl2 ->
+      if t1 <> t2
+      then rs_tyerror ~loc:loc (TypeMismatch (t1,t2))
+      else tc_list loc tl1 tl2
+    | _, _ ->
+      rs_mjazzerror ~loc:loc (MJazzStringError "Type error: wrong signature in module fn param")
+  in let mt_marg st p pe =
+    match p, L.unloc pe with
+    | M.Param pi, _ ->
+      let _,et,e = Pretyping.tt_expr pd ~mode:`OnlyParam st pe
+      in let e =
+           match e with
+           | None -> assert false
+           | Some e -> e
+      in if pi.P.v_ty <> et
+      then rs_tyerror ~loc:(L.loc pe) (TypeMismatch (pi.P.v_ty,et));
+      let st, _ = Env.Vars.push_param st (pi,e,e)
+      in st, M.MaParam e
+    | M.Glob pg, S.PEVar pv ->
+      let v,vt,_ = Pretyping.tt_var_global `AllVar st pv
+      in if pg.P.v_ty <> vt
+      then rs_tyerror ~loc:(L.loc pe) (TypeMismatch (pg.P.v_ty,vt));
+      st, M.MaGlob v.gv
+    | M.Glob pg, _ ->
+      rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Type error (param glob)")
+    | M.Fun pf, S.PEVar v ->
+      let fsig,_ = Pretyping.tt_fun v st
+      in let tres, targs = f_sig fsig
+      in if !Glob_options.debug
+      then (Printf.eprintf "\nTC FNarg %s (%d,%d) (%d,%d) \n%!"
+              fsig.f_name.fn_name
+              (List.length pf.fs_tyin) (List.length targs)
+              (List.length pf.fs_tyout) (List.length tres));
+      tc_list (L.loc v) pf.fs_tyin targs;
+      tc_list (L.loc v) pf.fs_tyout tres;
+      st, M.MaFun fsig.f_name
+    | M.Fun pf, _ ->
+      rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Type error (param fn)")
+  in let rec doit st mparams margs =
+       match mparams, margs with
+       | [], [] -> []
+       | p::ps, e::es ->
+         let st, a = mt_marg st p e
+         in a::doit st ps es
+       | _, _ -> 
+         rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Typing error: wrong number of module arguments")
+  in let st = Env.enter_namespace (L.mk_loc L._dummy "<tc>") menv.MEnv.me_store
+  in doit st mparams margs
+
+let mt_moduleapp menv mname (funcname, minfo) margs =
+  let cur_modname = MEnv.fully_qualified_modname menv.MEnv.me_store
+  (* 2) add bindings to module-env (to allow opennings) *)
+  in let modname = qualify cur_modname (L.unloc mname)
+  in let menv = { menv with
+                  MEnv.me_env =
+                    Map.add
+                      modname
+                      { minfo with MEnv.mi_params = [] }
+                      menv.MEnv.me_env
+                }
+  in let menv = MEnv.upd_store (fun st -> Pretyping.Env.Modules.push st mname modname) menv
+  in let menv =
+       MEnv.add_decls menv
+         [ M.MdModApp { ma_name = (L.unloc mname)
+                      ; ma_func = funcname
+                      ; ma_args = margs
+                      } ]
+  
+  (* 3) register instance *)
+  in let ground_module = List.for_all identity menv.MEnv.me_gmod
+  in let menv =
+       if ground_module && minfo.MEnv.mi_params = []
+       then (* regist ground instance *)
+(*
+         { menv with
+           me_env = Map.update_stdlib funcname
+               (fun omi -> Some { (Option.get omi) with MEnv.mi_instances = (cur_modname, margs) minfo.mi_instances }) menv.me_env
+         }
+*) menv
+       else (* regist submodule *)
+         menv
+  in { menv with
+       MEnv.me_store =
+         { menv.MEnv.me_store with
+           s_bindings = merge_top menv.MEnv.me_store (L.unloc mname) minfo.MEnv.mi_store
+         }
+     }
 
 let rec mt_item arch_info (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
   match L.unloc mitem with
   | S.PModule (mname, mparams, body) ->
+    (* reject nested parametric modules *)
+    let ground_module = List.for_all (fun x->x) menv.MEnv.me_gmod
+    in if not ground_module && mparams <> []
+    then rs_mjazzerror ~loc:(L.loc mname) (InnerPModule (L.unloc mname));
+    (* proceed... *)
     let menv, mparams = MEnv.enter_module arch_info.pd mname mparams menv
     in let menv = List.fold_left (mt_item arch_info) menv body
-    in let menv = MEnv.exit_module mparams menv
+    in let menv = MEnv.exit_module mname mparams body menv
     in menv
   | S.PModuleApp (mname, modfunc, margs) ->
-    let modinfo =
-      match Map.find (L.unloc modfunc) menv.me_env with
-      | modi -> modi
-      | exception Not_found ->
-        rs_mjazzerror ~loc:(L.loc modfunc)
-          (NonExistentMod (L.unloc modfunc))
-    in (* typecheck args... *)
-    { menv with
-      me_store =
-        { menv.me_store with
-          s_bindings = merge_top menv.me_store (L.unloc mname) modinfo.mi_store
-        }
-    }
-    (* MdModApp modapp *)
+    if !Glob_options.debug
+    then (Printf.eprintf "\nModApp %s=%s(...) \n%!" (L.unloc mname) (L.unloc modfunc));
+    let funcname = L.unloc modfunc
+    in let modfunc = Env.Modules.get menv.me_store modfunc
+    in let modinfo =
+         match Map.find (L.unloc modfunc) menv.me_env with
+         | modi -> modi
+         | exception Not_found ->
+           rs_mjazzerror ~loc:(L.loc modfunc)
+             (NonExistentMod (L.unloc modfunc))
+    in let margs = mt_margs arch_info.pd menv modinfo.mi_params margs
+    in mt_moduleapp menv mname (funcname,modinfo) margs
   | S.POpen (mname, None) ->
-    begin match Map.find (L.unloc mname) menv.me_env with
-      | exception Not_found ->
-        rs_mjazzerror ~loc:(L.loc mname)
-          (NonExistentMod (L.unloc mname))
-      | minfo -> 
-        rs_mjazzerror ~loc:(L.loc mname) MJazzNYS
-    end
-  | S.POpen (mname, qual) ->
+    let m = Env.Modules.get menv.me_store mname
+    in MEnv.open_modules [L.unloc m] menv
+  | S.POpen (mname, Some _) ->
     rs_mjazzerror ~loc:(L.loc mname) MJazzNYS
   | S.Prequire (from, fs) ->
     List.fold_left (mt_file_loc arch_info from) menv fs
@@ -488,5 +665,5 @@ let parse_file arch_info idirs fname =
   let menv = parse_mfile arch_info idirs fname
   in let deps: Path.t list =
        List.map (fun x->snd x) menv.me_processed
-  in deps, [], instantiate_mprog menv, menv.me_gdecls
+  in deps, [], instantiate_mprog menv, List.hd menv.me_decls
 

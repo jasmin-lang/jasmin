@@ -32,7 +32,9 @@ type tyerror =
   | InvalidLvalCount    of int * int
   | DuplicateFun        of A.symbol * L.t
   | DuplicateAlias      of A.symbol * P.pty L.located * P.pty L.located
+  | DuplicateModule	of A.symbol * Mprog.modulename L.located * Mprog.modulename L.located
   | TypeNotFound        of A.symbol
+  | ModuleNotFound      of A.symbol
   | InvalidTypeAlias    of A.symbol * P.pty
   | InvalidCast         of P.pty pair
   | InvalidTypeForGlobal of P.pty
@@ -169,9 +171,22 @@ let pp_tyerror fmt (code : tyerror) =
         (L.tostring (L.loc oldtype))
         Printer.pp_ptype (L.unloc oldtype)
 
+  | DuplicateModule (id, newmod, oldmod) ->
+      F.fprintf fmt
+        "Module '%s' (ie: '%s') is already declared at %s (as module : '%s')"
+        id
+        (L.unloc newmod)
+        (L.tostring (L.loc oldmod))
+        (L.unloc oldmod)
+
   | TypeNotFound (id) ->
       F.fprintf fmt
       "Type '%s' not found"
+      id
+
+  | ModuleNotFound (id) ->
+      F.fprintf fmt
+      "Module '%s' not found"
       id
 
   | InvalidTypeAlias (id,typ) ->
@@ -234,8 +249,12 @@ let pp_tyerror fmt (code : tyerror) =
 (* Utility functions related to name spaces *)
 let qualify ns n = Format.asprintf "%s::%s" ns n
 
-let fully_qualified (stack: (A.symbol * 'a) list) n =
-  List.fold_left (fun n (ns, _) -> qualify ns n) n stack
+let fully_qualified (stack: (A.symbol * 'a * bool) list) n =
+  match stack with
+  | (ns,_,true)::_ -> ns	(*opened namespaces keep their fully qualified name*)
+  | _ ->
+    (* ignoring openend namespaces during transverse *)
+    List.fold_left (fun n (ns, _, ons) -> if ons then n else qualify ns n) n stack 
 
 (* -------------------------------------------------------------------- *)
 module Env (* : sig
@@ -316,12 +335,13 @@ end *) = struct
 
   type 'asm global_bindings = {
       gb_types : (A.symbol, P.pty L.located) Map.t;
-      gb_vars : (A.symbol, P.pvar * E.v_scope) Map.t;
+      gb_vars : (A.symbol, (P.pvar * E.v_scope)) Map.t;
       gb_funs : (A.symbol, 'asm pfuncsig * P.pty list) Map.t;
+      gb_modules: (A.symbol, A.symbol L.located) Map.t
     }
 
   type 'asm store =
-    { s_bindings : (A.symbol * 'asm global_bindings) list * 'asm global_bindings
+    { s_bindings : (A.symbol * 'asm global_bindings * bool) list * 'asm global_bindings
     ; s_params  : (P.pvar, P.pexpr) Map.t (* int-params value *)
     ; s_declared : P.Spv.t ref (* Set of local variables declared somewhere in the function *)
     ; s_reserved : Ss.t     (* Set of string (variable name) declared by the user, 
@@ -359,7 +379,7 @@ end *) = struct
     ; from = Map.empty
     }
 
-  let empty_gb = { gb_vars = Map.empty ; gb_funs = Map.empty; gb_types = Map.empty }
+  let empty_gb = { gb_vars = Map.empty ; gb_funs = Map.empty; gb_types = Map.empty; gb_modules = Map.empty }
 
   let empty_store =
     { s_bindings = [], empty_gb
@@ -389,7 +409,7 @@ end *) = struct
 
   let enter_namespace ns st =
     let stack, bot = st.s_bindings in
-    { st with s_bindings = (L.unloc ns, empty_gb) :: stack, bot }
+    { st with s_bindings = (L.unloc ns, empty_gb, false) :: stack, bot }
 
   let merge_bindings on_duplicate ns =
     Map.foldi (fun n v dst ->
@@ -410,21 +430,31 @@ end *) = struct
   let err_duplicate_type name t1 t2 =
     rs_tyerror ~loc:(L.loc t2) (DuplicateAlias (name,t1,t2))
 
+  let err_duplicate_module name m1 m2 =
+    rs_tyerror ~loc:(L.loc m2) (DuplicateModule (name,m1,m2))
+
+
   let merge_bindings (ns, src) dst =
     { gb_vars = merge_bindings warn_duplicate_var ns src.gb_vars dst.gb_vars
     ; gb_funs = merge_bindings err_duplicate_fun ns src.gb_funs dst.gb_funs
     ; gb_types = merge_bindings err_duplicate_type ns src.gb_types dst.gb_types
+    ; gb_modules = merge_bindings err_duplicate_module ns src.gb_modules dst.gb_modules
     }
 
-  let exit_namespace st =
+  let rec exit_namespace st =
     match st.s_bindings with
     | [], _ -> assert false
-    | top :: [], bot ->
-       let merged = merge_bindings top bot in
-       { st with s_bindings = [], merged }
-    | top :: (ns, next) :: stack, bot ->
-       let merged = merge_bindings top next in
-       { st with s_bindings = (ns, merged) :: stack, bot }
+    | (ns,_,true) :: _, bot ->
+      rs_tyerror ~loc:(L._dummy) (string_error "Internal Error: opened namespace %s only supported in MJazz mode" ns)
+    | (ns1,bs1,_) :: [], bot ->
+      let merged = merge_bindings (ns1,bs1) bot
+      in { st with s_bindings = [], merged }
+    | top :: (_, _,true) :: stack, bot ->
+      (* drops opened namespace *)
+      exit_namespace { st with s_bindings = (top::stack, bot) }
+    | (ns1, bs1, false) :: (ns, next, false) :: stack, bot ->
+       let merged = merge_bindings (ns1,bs1) next
+       in { st with s_bindings = (ns, merged, false) :: stack, bot }
 
   let add_from env (name, filename) = 
     let p = Path.of_string filename in 
@@ -487,7 +517,7 @@ end *) = struct
     let rec loop x =
       function
       | [] -> None
-      | (ns, top) :: stack ->
+      | (ns, top, _) :: stack ->
 (*        if !Glob_options.debug
         then Printf.eprintf "%s:%d \n" ns (Map.cardinal (proj top)); *)
         match Map.find x (proj top) with
@@ -500,100 +530,46 @@ end *) = struct
          Map.Exceptionless.find x (proj bot)
        | r -> r
 
+
+(*
+  let pp_map ppf (m : map) =
+    IntMap.iter (fun k v -> Format.fprintf ppf "%d: -> %s@\n" k v) m
+*)
+
   let dbg_gb (proj: 'asm global_bindings -> (A.symbol, 'a) Map.t) (st: 'asm store) =
     let stack, bot = st.s_bindings
     in let rec loop =
       function
       | [] -> ()
-      | (ns, top) :: stack ->
-        Printf.eprintf "%d " (Map.cardinal (proj top));
+      | (ns, top, _) :: stack ->
+        Printf.eprintf "[";
+        Map.iter (fun k v -> Printf.eprintf "%s," k ) (proj top);
+        Printf.eprintf "]\n";
+        loop stack
+    in loop stack;
+    Printf.eprintf "[";
+    Map.iter (fun k v -> Printf.eprintf "%s," k ) (proj bot);
+    Printf.eprintf "]\n"
+
+  let dbg_modules (st: 'asm store) =
+    let stack, bot = st.s_bindings
+    in let rec loop =
+      function
+      | [] -> ()
+      | (ns, top, _) :: stack ->
+        Map.iter (fun k v -> Printf.eprintf "%s=%s " k (L.unloc v)) top.gb_modules;
+        Printf.eprintf " ; ";
         loop stack
     in 
     Printf.eprintf "[";
     loop stack;
-    Printf.eprintf "%d] " (Map.cardinal (proj bot));
+    Map.iter (fun k v -> Printf.eprintf "%s=%s " k (L.unloc v)) bot.gb_modules
+    
     
 
   (* Local variables *)
-
   module Vars = struct
 
-(*
-    (** lookup a normalized parameter expression from the gvar map *)
-    let findval (x : A.symbol) (st : 'asm store) =
-      Option.map snd (find (fun b -> b.gb_vars) x st)
-*)
-    (** implementation of a naive normalization strategy 
-        obs: the only explicit requirenment is that closed expressions
-        of int-params (used in array sizes) normalizes to integer
-        values. For non-closed expressions, simple syntactical
-        transformations are performed to enhance the precision
-        of syntactic equality on type-checking arrays (but, at
-        least for the moment, without bothering too much -- failure
-        in the check just triggers a warning).
-    *)
-(*
-    let pexpr_norm_neg e =
-      match e with
-      | Expr.Pconst i -> Expr.Pconst (Z.neg i)
-      | Expr.Papp1 (Oneg Op_int, e1) -> e1
-      | _ -> Expr.Papp1 (Oneg Op_int, e)
-
-    let rec pexpr_norm_add e1 e2 =
-      match e1, e2 with
-      | Expr.Pconst i1, Expr.Pconst i2 ->
-        Expr.Pconst (Z.add i1 i2)
-      | e, Expr.Pconst i2 ->
-        pexpr_norm_add (Expr.Pconst i2) e
-      | Expr.Pconst i1, Expr.Papp2 (Oadd Op_int, Expr.Pconst i21, e22) ->
-        Expr.Papp2 (Oadd Op_int, Expr.Pconst (Z.add i1 i21), e22)
-
-    let rec pexpr_normal_osub e1 e2 =
-      Expr.Papp2 (Oadd Op_int, e1, Expr.Papp1 (Oneg Op_int, e2))
-
-    let rec pexpr_normal_oadd e1 e2 =
-      match e1, e2 with
-      | Expr.Pconst i1, Expr.Pconst i2 ->
-        Expr.Pconst (Z.add i1 i2)
-      | e, Expr.Pconst i2 ->
-        pexpr_normal_oadd (Expr.Pconst i2) e
-      | Expr.Pconst i1, Expr.Papp2 (Oadd Op_int, Expr.Pconst i21, e22) ->
-        Expr.Papp2 (Oadd Op_int, Expr.Pconst (Z.add i1 i21), e22)
-
-
-
-
-    let rec pexpr_normalize (st: 'asm_store) ?loc e =
-      match e with
-      | E.Pconst i -> E.Pconst i
-      | E.Pvar v ->
-        match findval 
- E.var_i v
-      | E.Papp1 (o, e) ->
-        let e' = pexpr_normalize e
-        in begin match o, e' with
-          | E.Oneg E.Op_int, E.Pconst i -> E.Pconst (Z.neg i)
-          | E.Oneg E.Op_int, E.Papp1 (E.Oneg E.Op_int, e2) -> e2
-          | _ -> E.Papp1 (o, e')
-        end    
-      | Papp2 (o, e1, e2) ->
-        let e1' = pexpr_normalize e1
-        in let e2' = pexpr_normalize e2
-        in begin match o, e1', e2' with
-          | E.Omul E.Op_int, E.Pconst i1, E.Pconst i2 ->
-            E.Pconst (Z.mul i1 i2)
-          | E.Omul E.Op_int, e1, E.Pconst i2 ->
-            pexpr_normalize 
-        begin match pexpr_normalize st e1, pexpr_normalize st e2 with
-        | Pconst i1, Pconst i2 ->
-          Pconst (Subst.int_of_op2 ?loc i1 i2)
-        | _, Pconst i2 ->
-          pexpr_normalize st ?loc (Papp2 (o, e2, e1))
-        | Pconst i1, Papp2 (o2, Pconst i21, e22) ->
-          if (o1 = Expr.Omul Op_int || o1 = Expr.Oadd Op_int) && o1=o2
-          then Papp2 o1 (Pconst (Z.mul i1 i21)) e22
-          else 
-*)
 
     (** lookup a gvar (signature) *)
     let find (x : A.symbol) (st : 'asm store) =
@@ -614,8 +590,9 @@ end *) = struct
       in let s_bindings =
            match st.s_bindings with
            | [], bot -> [], doit bot
-           | (ns, top) :: stack, bot ->
-             (ns, doit top) :: stack, bot
+           | (_, _, true) :: _, _ -> assert false	(* opened namespaces are readonly *)
+           | (ns, top, false) :: stack, bot ->
+             (ns, doit top, false) :: stack, bot
       in let st = { st with s_bindings = s_bindings }
       in (* if !Glob_options.debug
       then begin
@@ -668,7 +645,8 @@ end *) = struct
 
     let push_implicit (st : 'asm store) (v : P.pvar) =
       let vars = match st.s_bindings with 
-        |(_, b) :: _, _
+        |(_, _, true) :: _, _ -> assert false	(* openend namespaces are readonly *)
+        |(_, b, false) :: _, _
         | [], b -> b.gb_vars
       in assert (not (Map.mem v.P.v_name vars));
       push_core st v.P.v_name v Slocal
@@ -694,7 +672,8 @@ end *) = struct
           in let binds =
           match st.s_bindings with
           | ([],gb) -> [],doit gb
-          | ((ns,gb):: stack, glob) -> (ns,doit gb):: stack , glob
+          | ((_,_,true):: _, _) -> assert false		(* opened namespaces are readonly *)
+          | ((ns,gb,false):: stack, glob) -> (ns,doit gb,false):: stack , glob
           in
           {st with s_bindings = binds}
 
@@ -704,6 +683,45 @@ end *) = struct
       | None ->
         rs_tyerror  ~loc:(L.loc id) (TypeNotFound (L.unloc id))
       | Some e -> e
+
+  end
+
+  module Modules = struct
+
+    let push (st: 'asm store) (id: A.pident) (m: A.symbol) : 'asm store =
+      if !Glob_options.debug
+      then Printf.eprintf "push_module \"%s\" as \"%s\" \n%!" (L.unloc id) m;
+      match find (fun x -> x.gb_modules) (L.unloc id) st with
+      | Some alias ->
+         rs_tyerror  ~loc:(L.loc id)  (DuplicateModule (L.unloc id, (L.mk_loc (L.loc id) m) ,alias) )
+      | None ->
+        let m = L.mk_loc (L.loc id) m in
+        let doit v = if !Glob_options.debug
+          then Printf.eprintf "push_mod_add \"%s\" as \"%s\" \n%!" (L.unloc id) (L.unloc m);
+          {v with gb_modules = Map.add (L.unloc id) m v.gb_modules }
+        in let binds =
+             match st.s_bindings with
+             | ([],gb) -> [],doit gb
+             | ((_,_,true):: _, _) -> assert false		(* opened namespaces are readonly *)
+             | ((ns,gb,false):: stack, glob) -> (ns,doit gb,false):: stack , glob
+        in let st = {st with s_bindings = binds}
+        in if !Glob_options.debug
+        then (Printf.eprintf "NEW MODdb== "; dbg_modules st);
+        st
+
+
+    let get (st: 'asm store) (id: A.pident) : A.symbol L.located =
+      if !Glob_options.debug
+      then (Printf.eprintf "get_module \"%s\" \n%!" (L.unloc id);
+            dbg_modules st);
+      let m = find (fun b -> b.gb_modules) (L.unloc id) st in
+      match m with
+      | None ->
+        rs_tyerror  ~loc:(L.loc id) (ModuleNotFound (L.unloc id))
+      | Some e ->
+        if !Glob_options.debug
+        then Printf.eprintf "got_module \"%s\"\n%!" (L.unloc e);
+        e
 
   end
 
@@ -723,8 +741,9 @@ end *) = struct
          let s_bindings =
            match st.s_bindings with
            | [], bot -> [], doit bot
-           | (ns, top) :: stack, bot ->
-              (ns, doit top) :: stack, bot
+           | (_, _, true) :: _, _ -> assert false 	(* opened namespaces are readonly *)
+           | (ns, top, false) :: stack, bot ->
+              (ns, doit top, false) :: stack, bot
       in
       { st with s_bindings }, [P.MIfun v]
       | Some fd ->
@@ -741,8 +760,9 @@ end *) = struct
          in let s_bindings =
               match st.s_bindings with
               | [], bot -> [], doit bot
-              | (ns, top) :: stack, bot ->
-                (ns, doit top) :: stack, bot
+              | (_, _, true) :: _, _ -> assert false 	(* opened namespaces are readonly *)
+              | (ns, top, false) :: stack, bot ->
+                (ns, doit top, false) :: stack, bot
          in { st with s_bindings }
       | Some fd ->
          err_duplicate_fun name (v, ()) fd
@@ -755,6 +775,71 @@ end *) = struct
   end
 
 end
+
+(*
+(** lookup a normalized parameter expression from the gvar map *)
+let find_pval (x : P.pvar) (st : 'asm Env.store): P.pexpr =
+  Map.find x st.s_params
+
+(** implementation of a naive normalization strategy 
+  obs: the only explicit requirenment is that closed expressions
+  of int-params (used in array sizes) normalizes to integer
+  values. For non-closed expressions, simple syntactical
+  transformations are performed to enhance the precision
+  of syntactic equality on type-checking arrays (but, at
+  least for the moment, without bothering too much -- failure
+  in the check just triggers a warning).
+*)
+let pexpr_norm_neg e =
+  match e with
+  | P.Pconst i -> P.Pconst (Z.neg i)
+  | P.Papp1 (Oneg Op_int, e1) -> e1
+  | _ -> P.Papp1 (Oneg Op_int, e)
+
+let rec pexpr_norm_add e1 e2 =
+  match e1, e2 with
+  | P.Pconst i1, P.Pconst i2 ->
+    P.Pconst (Z.add i1 i2)
+  | e, P.Pconst i2 ->
+    pexpr_norm_add (P.Pconst i2) e
+  | P.Pconst i1, P.Papp2 (Oadd Op_int, P.Pconst i21, e22) ->
+    P.Papp2 (Oadd Op_int, P.Pconst (Z.add i1 i21), e22)
+  | _, _ -> P.Papp2 (Oadd Op_int, e1, e2)
+
+let rec pexpr_normal_osub e1 e2 =
+  P.Papp2 (Oadd Op_int, e1, P.Papp1 (Oneg Op_int, e2))
+
+let rec pexpr_norm_mul e1 e2 =
+  match e1, e2 with
+  | P.Pconst i1, P.Pconst i2 ->
+    P.Pconst (Z.mul i1 i2)
+  | e, P.Pconst i2 ->
+    pexpr_norm_mul (P.Pconst i2) e
+  | P.Pconst i1, P.Papp2 (Omul Op_int, P.Pconst i21, e22) ->
+    P.Papp2 (Omul Op_int, P.Pconst (Z.mul i1 i21), e22)
+  | _, _ -> P.Papp2 (Omul Op_int, e1, e2)
+
+let rec pexpr_normalize (st: 'asm_store) e =
+  match e with
+  | P.Pconst i -> P.Pconst i
+  | P.Pvar v -> find_pval (L.unloc v.gv) st
+  | P.Papp1 (o, e) ->
+    let e' = pexpr_normalize st e
+    in begin match o, e' with
+      | E.Oneg E.Op_int, P.Papp1 (E.Oneg E.Op_int, e2) -> e2
+      | E.Oneg E.Op_int, _ -> pexpr_norm_neg e'
+      | _ -> P.Papp1 (o, e')
+    end
+  | P.Papp2 (o, e1, e2) ->
+    let e1' = pexpr_normalize st e1
+    in let e2' = pexpr_normalize st e2
+    in begin match o, e1', e2' with
+      | E.Omul E.Op_int, _, _ -> pexpr_norm_mul e1' e2'
+      | o, _, _ -> P.Papp2 (o, e1', e2')
+    end
+  | _ -> e
+*)
+
 
 (* -------------------------------------------------------------------- *)
 let tt_pointer dfl_writable (p:S.ptr) : W.reference =
