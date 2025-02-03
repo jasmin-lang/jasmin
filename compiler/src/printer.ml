@@ -333,11 +333,11 @@ let pp_gmparams pp_var pp_size fmt l =
 
 let pp_gmarg pp_var pp_size fmt (arg: 'len modulearg) =
   match arg with
-  | Param pa ->
+  | MaParam pa ->
     F.fprintf fmt "%a" pp_size pa
-  | Glob pa ->
+  | MaGlob pa ->
     F.fprintf fmt "%a" (pp_gvar_i pp_var) pa
-  | Fun pa ->
+  | MaFun pa ->
     F.fprintf fmt "%s" pa.fn_name
       
 let rec pp_gmitem ~debug rr pp_len pp_opn pp_var fmt =
