@@ -225,6 +225,28 @@ module GhostVector = struct
   let unfold_vghosts_epred ghosts pre =
      List.map (unfold_ghosts_epred ghosts) pre
 
+  let unfold_clauses node formals =
+    match node with
+    | {iname = "assert"; iargs = [Pred (ep, rp)]} ->
+      let ep' = unfold_vghosts_epred formals ep in
+      let rp' = unfold_vghosts_rpred formals rp in
+      {iname = "assert"; iargs = [Pred (ep',rp')]}
+    | {iname = "assume"; iargs = [Pred (ep, rp)]} ->
+      let ep' = unfold_vghosts_epred formals ep in
+      let rp' = unfold_vghosts_rpred formals rp in
+      {iname = "assume"; iargs = [Pred (ep',rp')]}
+    | {iname = "cut"; iargs = [Pred (ep, rp)]} ->
+      let ep' = unfold_vghosts_epred formals ep in
+      let rp' = unfold_vghosts_rpred formals rp in
+      {iname = "cut"; iargs = [Pred (ep',rp')]}
+    | _ -> node
+
+  let rec unfold_cfg_clauses cfg formals =
+    match cfg with
+    | h::t ->
+      [unfold_clauses h formals] @ (unfold_cfg_clauses t formals)
+    | [] -> []
+
   let unfold_vectors formals ret_vars =
     let aux ((v,ty) as tv) =
       let mk_vector = Annot.filter_string_list None ["u16x16", U16x16] in
@@ -261,28 +283,6 @@ module GhostVector = struct
         let fs,ispre,ispost = aux tv in
         fs @ acc1, ispre @ acc2, ispost @ acc3)
       ([],[],[]) formals
-
-    let unfold_clauses node formals =
-      match node with
-      | {iname = "assert"; iargs = [Pred (ep, rp)]} ->
-        let ep' = unfold_vghosts_epred formals ep in
-        let rp' = unfold_vghosts_rpred formals rp in
-        {iname = "assert"; iargs = [Pred (ep',rp')]}
-      | {iname = "assume"; iargs = [Pred (ep, rp)]} ->
-        let ep' = unfold_vghosts_epred formals ep in
-        let rp' = unfold_vghosts_rpred formals rp in
-        {iname = "assume"; iargs = [Pred (ep',rp')]}
-      | {iname = "cut"; iargs = [Pred (ep, rp)]} ->
-        let ep' = unfold_vghosts_epred formals ep in
-        let rp' = unfold_vghosts_rpred formals rp in
-        {iname = "cut"; iargs = [Pred (ep',rp')]}
-      | _ -> node
-
-    let rec unfold_cfg_clauses cfg formals =
-      match cfg with
-      | h::t ->
-        [unfold_clauses h formals] @ (unfold_cfg_clauses t formals)
-      | [] -> []
 end
 
 module SimplVector = struct
@@ -337,22 +337,6 @@ module SimplVector = struct
         | None -> None
       in
     match n.nkind with
-    | {iname = "cast"; iargs = [Lval (Llvar (v',ty')); Atom (Avar (v'', ty''))]} ->
-      if v == v' then
-        if is_equiv_type ty' ty'' then
-          aux (v'',ty'') n
-        else
-          Some (v', ty')
-      else
-        aux (v, ty) n
-    | {iname = "cast"; iargs = [Lval (Llvar (v',ty')); Atom (Avatome (Avar (v'', ty'') :: t))]} ->
-      let ll = (List.length t) + 1 in
-      if ll == 1 && v == v' && is_equiv_type ty' ty'' then
-        aux (v'', ty'') n
-      else if v == v' && ((int_of_ty ty'') * ll) == (int_of_ty ty') then (* Since we're not able to reconstruct the list, this is no longer invertible *)
-        Some (v', ty')
-      else
-        aux (v, ty) n
     | {iname = "mov"; iargs = [Lval (Llvar (v',ty')); Atom (Avar (v'', ty''))]} ->
       if v == v' && is_equiv_type ty' ty'' then
         aux (v'',ty'') n
@@ -364,6 +348,22 @@ module SimplVector = struct
       else
         aux (v, ty) n
     | {iname = "mov"; iargs = [Lval (Llvar (v',ty')); Atom (Avatome (Avar (v'', ty'') :: t))]} ->
+      let ll = (List.length t) + 1 in
+      if ll == 1 && v == v' && is_equiv_type ty' ty'' then
+        aux (v'', ty'') n
+      else if v == v' && ((int_of_ty ty'') * ll) == (int_of_ty ty') then (* Since we're not able to reconstruct the list, this is no longer invertible *)
+        Some (v', ty')
+      else
+        aux (v, ty) n
+    | {iname = "cast"; iargs = [Lval (Llvar (v',ty')); Atom (Avar (v'', ty''))]} ->
+      if v == v' then
+        if is_equiv_type ty' ty'' then
+          aux (v'',ty'') n
+        else
+          Some (v', ty')
+      else
+        aux (v, ty) n
+    | {iname = "cast"; iargs = [Lval (Llvar (v',ty')); Atom (Avatome (Avar (v'', ty'') :: t))]} ->
       let ll = (List.length t) + 1 in
       if ll == 1 && v == v' && is_equiv_type ty' ty'' then
         aux (v'', ty'') n
@@ -550,6 +550,7 @@ module SimplVector = struct
 
   let rec nop_uinst cfg ret_vars node =
     let nI = getNextI node in
+    (* TODO: search for unused lval in Lvatome *)
     match node.nkind with
       | {iname = "cast"; iargs = [Lval (Llvar tv); _]}  ->
         if not(List.exists (is_eq_tyvar tv) ret_vars) && unused_lval tv nI then
