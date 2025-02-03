@@ -2,7 +2,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import Lia.
 
-Require Import seq_extra.
 Require Import
   expr
   fexpr
@@ -24,6 +23,7 @@ Require Import
   riscv_instr_decl
   riscv_params_common_proof.
 Require Export riscv_stack_zeroization.
+Import seq_extra.
 
 (* FIXME: We should use the higher-level [eval_lsem] lemmas. *)
 Section FIXME.

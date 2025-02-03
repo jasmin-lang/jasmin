@@ -2,7 +2,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From mathcomp Require Import fintype finfun ssralg.
 From Coq Require Import Relation_Operators.
 Require Import
-  oseq
   compiler_util
   psem
   psem_facts
@@ -20,6 +19,7 @@ Require Import
   sem_params_of_arch_extra.
 Require Export asm_gen.
 Import Utf8.
+Import oseq.
 
 Section ASM_EXTRA.
 

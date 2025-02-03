@@ -1,6 +1,5 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 Require Import
-  oseq
   compiler_util
   expr
   fexpr
@@ -12,7 +11,7 @@ Require Import
   arch_decl
   arch_extra.
 Import Utf8 String.
-Import compiler_util.
+Import compiler_util oseq.
 
 Module E.
 
