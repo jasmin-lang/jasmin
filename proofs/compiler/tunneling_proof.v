@@ -2,13 +2,13 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From Coq Require Import ZArith.
 From Coq Require Import Utf8.
 
-Require Import oseq expr_facts compiler_util label linear linear_sem.
+Require Import expr_facts compiler_util label linear linear_sem.
 Require Import sem_params.
 Import word_ssrZ.
 
 Local Open Scope seq_scope.
 
-Require Import seq_extra unionfind tunneling unionfind_proof.
+Require Import oseq seq_extra unionfind tunneling unionfind_proof.
 Require Import linear_sem.
 
 
