@@ -3,9 +3,9 @@ open Prog
 type modulename = Name.t
 
 type 'len modulearg =
-  | Param of 'len
-  | Glob  of 'len gvar_i
-  | Fun   of funname
+  | MaParam of 'len
+  | MaGlob  of 'len gvar_i
+  | MaFun   of funname
 
 type 'len moduleargs = 'len modulearg list
 

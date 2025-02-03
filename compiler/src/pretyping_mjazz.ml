@@ -1596,9 +1596,6 @@ and norm_omod_expr s e1 e2 =
 
 
 let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe
-  : P.pexpr		(* resultant expression *)
-    * P.epty 		(* resultant type *)
-    * (P.pexpr option)	(* int-param value *)
   =
   match L.unloc pe with
   | S.PEParens pe ->
