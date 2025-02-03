@@ -1,6 +1,6 @@
 
 val parse_file :
-  'asm Prog.arch_info ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Prog.arch_info ->
   (string*string) list ->
   string ->
   string list list

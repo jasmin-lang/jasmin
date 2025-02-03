@@ -1596,9 +1596,6 @@ and norm_omod_expr s e1 e2 =
 
 
 let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe
-  : P.pexpr		(* resultant expression *)
-    * P.epty 		(* resultant type *)
-    * (P.pexpr option)	(* int-param value *)
   =
   match L.unloc pe with
   | S.PEParens pe ->
@@ -2125,9 +2122,10 @@ let pexpr_of_plvalue exn l =
   | S.PLMem(al,ty,e) -> L.mk_loc (L.loc l) (S.PEFetch(al,ty,e))
 
 
-type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {
+type 'asm arch_info = 'asm P.arch_info = {
   pd : Wsize.wsize;
-  asmOp : ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Sopn.sopn Sopn.asmOp;
+  asmOp : 'asm Sopn.sopn Sopn.asmOp;
+  zero_extend_op : 'asm -> Wsize.wsize -> 'asm option;
   known_implicits : (CoreIdent.Name.t * string) list;
   flagnames: CoreIdent.Name.t list;
 }
