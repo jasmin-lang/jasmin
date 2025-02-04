@@ -1,13 +1,11 @@
 open Wsize
 
 type interface_type = 
-| Int of Wsize.wsize 
-| Bool 
-| Array of Wsize.wsize * int
+| U of Wsize.wsize 
 
 type interface_alignment = 
   | Align of Wsize.wsize 
-  | Unaligned
+  | Unaligned (*unaligned is u8*)
 
 (* type interface_call_conv = () *)
 
@@ -27,14 +25,16 @@ type function_interface = {
 
 type program_interface = function_interface list
 
+
+(* assert false on bool and array*)
 let make_type_interface (ty : Prog.ty) = 
   match ty with
-  | Arr (ws, len) -> Array (ws, len)
+  | Arr (ws, len) -> assert false
   | Bty ty -> 
     match ty with 
-    | Bool -> Bool
-    | Int -> Int U64
-    | U ws -> Int ws
+    | Bool -> assert false
+    | Int -> assert false
+    | U ws -> U ws
 
 let make_func_interface 
   (stk_alloc_finder : (CoreIdent.funname -> Stack_alloc.stk_alloc_oracle_t)) 
