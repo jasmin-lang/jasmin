@@ -27,6 +27,12 @@ $(dirname $0)/../jasmin2ec ${ARCH} -o ${EC} "$2"
 $(dirname $0)/../jasmin2ec ${ARCH} -o ${CT} -m CT "$2"
 $(dirname $0)/../jasmin2ec ${ARCH} -o ${CTG} -m CTG "$2"
 
-easycrypt -I Jasmin:${ECLIB} ${ECARGS} ${EC}
-easycrypt -I Jasmin:${ECLIB} ${ECARGS} ${CT}
-easycrypt -I Jasmin:${ECLIB} ${ECARGS} ${CTG}
+function ec_path { echo ${DIR}/jasmin_$1.ec; }
+
+for MODE in "${MODES[@]}"; do
+	$(dirname $0)/../jasmin2ec ${ARCH} -m ${MODE} -o $(ec_path $MODE) "$2"
+done
+
+for MODE in "${MODES[@]}"; do
+	"${EASYCRYPT:-easycrypt}" -I Jasmin:${ECLIB} ${ECARGS} $(ec_path $MODE)
+done
