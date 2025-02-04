@@ -20,13 +20,16 @@ let coqPackages =
     pkgs.coqPackages.overrideScope (self: super: {
       coq = super.coq.override { version = "master"; };
       stdlib = super.stdlib.override { version = "master"; };
+      mathcomp = super.mathcomp.override { version = "master"; };
       coq-elpi = callPackage scripts/coq-elpi.nix {
         version = "master";
         inherit (self) lib mkCoqDerivation coq stdlib;
       };
       hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
     })
-  else coqPackages_8_19
+  else coqPackages_8_19.overrideScope (self: super: {
+      mathcomp = super.mathcomp.override { version = "2.2.0"; };
+  })
 ; in
 
 let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages; }; in
