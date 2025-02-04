@@ -76,14 +76,38 @@ Unset Printing Implicit Defensive.
 
 Obligation Tactic := done || idtac.
 
-(* PROBLEM with sections *)
+Section Identity_monad.
 
-(* This files contains proofs to test the semantic models in
- it_sems. It turns out that double recursion leads to a duplication of
- inductive proofs, and thus that mutual recursion leads to simpler
- proofs. The proofs on the modular model are still based on eutt and
- need to be revised. The proofs on the flat models are much longer and
- more laden with detail than those on the error-aware model. *)
+Global Polymorphic Instance Monad_identity : Monad identity.
+  econstructor.
+  - intros T t. exact t.
+  - intros T U m f. exact (f m). 
+Defined.
+
+Global Polymorphic Instance Eq1_identity : Eq1 identity.
+Proof.
+  unfold Eq1.
+  intro A. exact eq.
+Defined.
+
+Global Polymorphic Instance Eq1Equivalence_identity :
+  @Eq1Equivalence identity _ Eq1_identity.
+Proof.
+  econstructor; simpl; repeat intuition.
+Qed.
+
+Global Polymorphic Instance MonadLaws_identity :
+  @MonadLawsE identity _ Monad_identity.
+Proof.
+  econstructor; simpl; repeat intuition.
+  unfold Proper, respectful.
+  simpl; intros; eauto.
+  rewrite H.
+  rewrite H0; reflexivity.
+Qed.  
+  
+End Identity_monad.  
+
 
 Section Lang.
 Context (asm_op: Type) (asmop: asmOp asm_op).
@@ -134,61 +158,7 @@ Local Notation interp_InstrE := (interp_InstrE dc spp scP ev).
 function application and commands across the translation under the
 appropriate hypothesis. First we specify the translation. *)
 
-(*** TRANSLATION SPEC *******************************************)
-Section TRANSF.
-
-  Check Monad.
-  About Monad.
-  Check stateT.
-  About Monad.
-  About state.
-  About stateT.
-  Check fold_left.
-  About ITree.map.
-
-  Check fold_left.
-  About state.
-  
-(*  Lemma xxx {S} : Monad (state S).
-  auto.
-*)
-
-  (* useless without monad laws *)
-#[global] Instance Monad_state {s} : Monad (state s)
-  := {|
-    ret _ a := fun s => (s, a) ;
-    bind _ _ t k := fun s =>
-      let sa := t s in
-      k (snd sa) (fst sa)
-    |}.
-
-(*
-#[global] Instance Eq1_prod {s} : Eq1 (prod s).
-unfold Eq1.
-intro A.
-exact (eq).
-Defined.
- *)
-
-Global Instance Monad_identity : Monad identity.
-  econstructor.
-  - intros T t. exact t.
-  - intros T U m f. exact (f m). 
-Defined.
-
-Global Instance Eq1_identity : Eq1 identity.
-Proof.
-  unfold Eq1.
-  intro A. exact eq.
-Defined.
-
-Global Instance Eq1Equivalence_identity :
-  @Eq1Equivalence identity _ Eq1_identity.
-Proof.
-  econstructor; simpl; repeat intuition.
-Qed.
-
-Definition stateM := fun S => stateT S identity.
+Notation stateM := (fun S => stateT S identity).
 
 Fixpoint mapS {S A B} (f: A -> stateM S B) (ls: list A) (b: B) :
   stateM S B :=
@@ -196,18 +166,15 @@ Fixpoint mapS {S A B} (f: A -> stateM S B) (ls: list A) (b: B) :
   | nil => ret b
   | x :: xs => bind (f x) (mapS f xs) end.            
 
-(*
-Fixpoint mapL {S A B} (f: A -> stateM S B) (ls: list A) (s: S) :
-  (S * (list B)) :=
-  match ls with
-  | nil => ((ret nil) : stateM S (list B)) s
-  | x :: xs => (x' <- f x ;; xs' <- mapL f xs ;; ret (x' :: xs')) s end.        *)    
-
 Fixpoint mapL {S A B} (f: A -> stateM S B) (ls: list A) :
   stateM S (list B) :=
   match ls with
   | nil => ret nil
   | x :: xs => x' <- f x ;; xs' <- mapL f xs ;; ret (x' :: xs') end.            
+
+
+(*** TRANSLATION SPEC *******************************************)
+Section TRANSF_spec.
 
 Context (I: Type).
 
@@ -266,124 +233,44 @@ Definition Tr_FunDef (f: FunDef) : stateM I FunDef :=
     c' <- Tr_cmd c ;;  
     ret (MkFun i tyin p_xs c' tyout r_xs xtr) end.
 
-(*
-
-We would like to support undefined behaviour, CompCert-style, thus relating by a relation such as eutt or rutt source programs that go wrong with compiled ones that can behave arbitrarily after a source error is thrown.
-
-Of course it is possible to relate 'throw Error' with any visible event, and by interpreting 'Throw' with e.g.
-
-    Definition handle_Err {E} : exceptE Err ~> failT (itree E) :=  fun _ _ => Ret (None).
-
-we could also relate it to any returned value. 
-
-But correct me if I'm wrong, if the compiled program diverges, we would need a further clause in the relation, specifically allowing for 'throw' to be related with a tau transition. 
+End TRANSF_spec.
  
-I was wondering if this problem has already been handled anywhere, either in this or other ways. 
-
-Lemma ggg {S A} : True -> failT (stateT S identity) A.  
-  unfold failT, stateT; simpl.  Abort.
-
-Lemma ggg {S A} : True -> execT (stateT S identity) A.  
-  unfold execT; simpl.  Abort.
-
-Print exec.
-Print result.
-
-Lemma ggg {S A} : True -> (stateT S identity) (exec A).  
-  unfold exec; simpl.  Abort.
-
-Print exec.
-Print result.
-
-Lemma ggg {S A} : stateT S identity (exec A).  
-  unfold execT; simpl.  Abort.
-
-Lemma ggg {S A} : stateT S (failT identity) A.  
-  unfold execT; simpl.  Abort.
-
-Check option.
-Check result.
-
-Check error.
-Print error.
-Check @Ok.
-Check result.
-Print exec.
-Check execT.
-Check failT.
-
-Set Universe Polymorphism.
-
-Definition execTT (m : Type -> Type) (a : Type) : Type :=
-    m (result error a).
-
-Definition failTT (m : Type -> Type) (a : Type) : Type :=
-    m (option a).
-
-Definition execI : Type -> Type := execTT identity.
-
-Definition failI : Type -> Type := failTT identity.
-
-Definition execP {E} (m : Type -> Type) (a : Type) : Type :=
-    m (result E a).
-
-Definition execI' {E} : Type -> Type := @execP E identity.
-
-About stateT.
-
-Check StateMonad.stateT.
-
-About StateMonad.stateT.
-
-
-Lemma ggg (S A: Type) : True -> stateT S (failT identity) A.  
-  unfold failT; simpl. unfold identity; simpl.
-  unfold stateT. Abort.
-
-Lemma ggg (S A: Type) : True -> stateT S identity (option A).  
-  unfold stateT; simpl. unfold identity; simpl. Abort.
-
-Lemma ggg (S A: Type) : True -> S -> exec (S * A).  
-  unfold stateT; simpl. unfold identity; simpl.
-
-  Print Iter.
-  Print Iterative.
-  Print MonadIter.
-*)
-  
-(* 
-
-NEED TO PROVE MORE STUFF ABOUT execT - see FailFacts.v 
-(especially MonadLaws_failE).
-
-*)
-
-  
-  
 (*********************************************************************)
 (*** PROOFS **********************************************************)
 
+Section TRANSF.
+
+Notation stateMM := (stateT estate identity).
+  
+Context (tr_lval : lval -> stateMM lval)
+        (tr_expr : pexpr -> stateMM pexpr)
+        (tr_opn : sopn -> stateMM sopn)
+        (tr_sysc : syscall_t -> stateMM syscall_t).
+  
+Local Notation trn_lvals := (fun ls => mapL tr_lval ls).
+Local Notation trn_exprs := (fun es => mapL tr_expr es).
+
+Local Definition Trn_i := (@Tr_i estate).
+Local Notation Trn_ir := (Tr_ir estate tr_lval tr_expr tr_opn tr_sysc).
+Local Notation Trn_instr := (Trn_i Trn_ir).
+Local Notation Trn_cmd := (fun c => mapL Trn_instr c).
+Local Notation Trn_FunDef :=
+  (Tr_FunDef estate tr_lval tr_expr tr_opn tr_sysc).
+
 (*
-Section GEN_ErrAndFlat.
+Definition TrnM_cmd (c: stateMM cmd) := (bind c (fun x => Trn_cmd x)).
+Definition TrnM_FunDef (f: stateMM FunDef) := (bind f (fun x => Trn_FunDef x)).
 
-Context (E: Type -> Type).   
-
-Local Notation RV := (PR values).
-Local Notation VS := (values * estate)%type.
-Local Notation FVS := (funname * VS)%type.
-
-Notation RVS := (fun (vs_st1 vs_st2 : VS) => 
-  (RV vs_st1.1 vs_st2.1 /\ RS vs_st1.2 vs_st2.2)).
-Notation RFVS := (fun (fvs1 fvs2 : FVS) => 
-  (fvs1.1 = fvs2.1 /\ RVS fvs1.2 fvs2.2)).
-Notation RC := (fun c1 c2: cmd => c2 = Tr_cmd c1).
-Notation RFunDef := (fun f1 f2: FunDef => f2 = Tr_FunDef f1).
-
-Context (rvs_def : PR VS = RVS)
-        (rfvs_def : PR FVS = RFVS)
-        (rc_def : PR cmd = RC)
-        (rfundef_def : PR FunDef = RFunDef).
+Definition trnM_lvals (ls: stateMM lvals) :=
+  (bind ls (fun xs => mapL tr_lval xs)).
+Definition trnM_exprs (es: stateMM pexprs) :=
+  (bind es (fun xs => mapL tr_expr xs)).
 *)
+
+Definition Trn_cmd_rel (c1 c2: cmd) : Prop := (ret c2 = Trn_cmd c1).
+
+Definition Trn_FunDef_rel (f1 f2: FunDef) := (ret f2 = Trn_FunDef f1).
+
 
 Section Sample_proof.
 
@@ -409,43 +296,18 @@ Notation RVS := (fun (vs_st1 vs_st2 : VS) =>
   (RV vs_st1.1 vs_st2.1 /\ RS vs_st1.2 vs_st2.2)).
 Notation RFVS := (fun (fvs1 fvs2 : FVS) => 
   (fvs1.1 = fvs2.1 /\ RVS fvs1.2 fvs2.2)).
-Notation RC := (fun c1 c2: cmd => c2 = Tr_cmd c1).
-Notation RFunDef := (fun f1 f2: FunDef => f2 = Tr_FunDef f1).
+Notation RC := Trn_cmd_rel.
+(*  (fun c1 c2: stateMM cmd => c2 = TrnM_cmd c1). *)
+Notation RFunDef := Trn_FunDef_rel.
+(*  (fun f1 f2: stateMM FunDef => f2 = TrnM_FunDef f1). *)
 
 Context (rvs_def : PR VS = RVS)
         (rfvs_def : PR FVS = RFVS)
-        (rc_def : PR cmd = RC)
-        (rfundef_def : PR FunDef = RFunDef).
+        (rc_def : PR cmd = Trn_cmd_rel)
+        (rfundef_def : PR FunDef = Trn_FunDef_rel).
 
-(*
-(* DE: relation between call events, i.e. over inputs of type 
-# (funname * (values * estate)) *)
-Definition TR_D_DE {T1 T2} (d1 : callE FVS VS T1)
-                           (d2 : callE FVS VS T2) : Prop :=
-  match (d1, d2) with
-  | (Call f1, Call f2) => RFVS f1 f2 end.               
 
-(* DE: relation between call outputs, i.e. (values * estate) *)
-Program Definition VR_D_DE {T1 T2} (d1 : callE FVS VS T1) (t1: T1)
-                                 (d2 : callE FVS VS T2) (t2: T2) : Prop.
-  dependent destruction d1.
-  dependent destruction d2.
-  exact (RVS t1 t2).
-Defined.
-
-Lemma comp_gen_ok_DE (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
-  RV vs1 vs2 ->
-  RS st1 st2 ->
-  @rutt (callE FVS VS +' E) (callE FVS VS +' E) VS VS 
-    (TR_E (callE FVS VS +' E))
-    (VR_E (callE FVS VS +' E))
-    (fun a1 a2 => @VR_D_DE _ _ (Call (fn, (vs1, st1))) a1
-                               (Call (fn, (vs2, st2))) a2)  
-    (evalE_fun pr1 (fn, (vs1, st1))) (evalE_fun pr2 (fn, (vs2, st2))).
-  intros.
-  unfold evalE_fun; simpl.
-Admitted. 
-*)  
+(******************************************************************)
 
 (* ME: relation between FCState events *)
 Definition TR_D_ME {T1 T2} (d1 : FCState T1)
@@ -453,7 +315,8 @@ Definition TR_D_ME {T1 T2} (d1 : FCState T1)
   match (d1, d2) with
   | (FLCode c1 st1, FLCode c2 st2) => RC c1 c2 /\ RS st1 st2
   | (FFCall xs1 fn1 es1 st1, FFCall xs2 fn2 es2 st2) =>
-      xs2 = map tr_lval xs1 /\ fn1 = fn2 /\ es2 = map tr_expr es1 /\ RS st1 st2
+      ret xs2 = trn_lvals xs1 /\ fn1 = fn2 /\
+      ret es2 = trn_exprs es1 /\ RS st1 st2
   | _ => False   
   end.               
 
@@ -482,8 +345,8 @@ Context (fcstate_v_def : VR_E (FCState +' E) = VR_DE_ME).
 
 Lemma comp_gen_ok_ME (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) (st1 st2: estate) :
-  xs2 = map tr_lval xs1 ->
-  es2 = map tr_expr es1 -> 
+  ret xs2 = trn_lvals xs1 ->
+  ret es2 = trn_exprs es1 -> 
   RS st1 st2 ->
   @rutt (FCState +' E) _ _ _ (TR_E _) (VR_E _)
     (fun a1 a2 => @VR_D_ME _ _ (FFCall_ xs1 fn es1 st1) a1
@@ -511,18 +374,17 @@ Lemma comp_gen_ok_ME (fn: funname)
 
   intros.
   inv H4.
-  eapply rutt_bind with (RR := RS).
-  eapply rutt_trigger; simpl.
+  eapply rutt_bind with (RR := RS); intros.
+  eapply rutt_trigger; simpl; intros.
   rewrite fcstate_t_def.
   unfold TR_DE_ME.
   econstructor.
   unfold TR_D_ME.
   split; auto.
 
-  intros.
   (* OK *)
   admit.
-
+  
   intros.
   eapply rutt_bind with (RR := RV).
   unfold err_return_val.
@@ -535,48 +397,80 @@ Lemma comp_gen_ok_ME (fn: funname)
   admit.
 Admitted. 
 
+(*
+Check stateMM.
 
+Definition retMM (c: cmd) : stateMM cmd := ret c.
+
+Print retMM.
+Print stateMM.
+*)
 
 (* Inductive lemma *)
-Lemma rutt_cmd_tr_ME_step (cc: cmd) (st1 st2: estate) : 
+Program Definition rutt_cmd_tr_ME_step (cc1: cmd) (st1 st2: estate) : 
   RS st1 st2 ->
+  forall cc2: cmd, 
+  ret cc2 = Trn_cmd cc1 ->
   @rutt (FCState +' E) _ _ _
     (sum_prerel (@TR_D_ME) (TR_E E))
     (sum_postrel (@VR_D_ME) (VR_E E))
-    RS (st_cmd_map_r (meval_instr pr1) cc st1)
-    (st_cmd_map_r (meval_instr pr2) (Tr_cmd cc) st2).
+    RS 
+    (st_cmd_map_r (meval_instr pr1) cc1 st1)
+    (st_cmd_map_r (meval_instr pr2) cc2 st2).
+
+  unfold ret.
+  destruct Monad_stateT.
+
   simpl; intros.
-
-  set (Pr := fun (i: instr_r) => forall ii st1 st2, RS st1 st2 -> 
+  
+  set (Pr := fun (i1: instr_r) => forall ii st1 st2, RS st1 st2 ->
+   forall i2: instr_r,
+     ret _ i2 = Trn_ir i1 ->       
      @rutt (FCState +' E) _ _ _
     (sum_prerel (@TR_D_ME) (TR_E E))
     (sum_postrel (@VR_D_ME) (VR_E E))
     RS 
-    (st_cmd_map_r (meval_instr pr1) ((MkI ii i) :: nil) st1)
-    (st_cmd_map_r (meval_instr pr2) ((Tr_instr (MkI ii i)) :: nil) st2)).
+    (st_cmd_map_r (meval_instr pr1) ((MkI ii i1) :: nil) st1)
+    (st_cmd_map_r (meval_instr pr2) ((MkI ii i2) :: nil) st2)).
 
-  set (Pi := fun (i: instr) => forall st1 st2, RS st1 st2 -> 
+  set (Pi := fun (i1: instr) => forall st1 st2, RS st1 st2 ->
+   forall i2: instr,
+     ret _ i2 = Trn_instr i1 ->                                                 
      @rutt (FCState +' E) _ _ _
     (sum_prerel (@TR_D_ME) (TR_E E))
     (sum_postrel (@VR_D_ME) (VR_E E))
     RS 
-    (st_cmd_map_r (meval_instr pr1) (i :: nil) st1)
-    (st_cmd_map_r (meval_instr pr2) ((Tr_instr i) :: nil) st2)).
+    (st_cmd_map_r (meval_instr pr1) (i1 :: nil) st1)
+    (st_cmd_map_r (meval_instr pr2) (i2 :: nil) st2)).
 
-  set (Pc := fun (c: cmd) => forall st1 st2, RS st1 st2 -> 
+  set (Pc := fun (c1: cmd) => forall st1 st2, RS st1 st2 ->
+   forall c2: cmd,
+     ret _ c2 = Trn_cmd c1 ->              
      @rutt (FCState +' E) _ _ _
     (sum_prerel (@TR_D_ME) (TR_E E))
     (sum_postrel (@VR_D_ME) (VR_E E))
     RS 
-    (st_cmd_map_r (meval_instr pr1) c st1)
-    (st_cmd_map_r (meval_instr pr2) (Tr_cmd c) st2)).
+    (st_cmd_map_r (meval_instr pr1) c1 st1)
+    (st_cmd_map_r (meval_instr pr2) c2 st2)).
 
+  revert H0.
+  revert cc2.
   revert H.
   revert st1 st2.
-  revert cc.
   apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc; simpl; eauto; intros.
 
-  { eapply rutt_Ret; eauto. }
+(****)
+  
+  eapply equal_f_dep in H0.
+
+(****)
+
+Admitted.
+  
+(*  
+  { simpl in H0.
+    
+     eapply rutt_Ret; eauto. }
   { destruct i; simpl.
     eapply rutt_bind with (RR := RS); simpl in *.
 
@@ -705,13 +599,17 @@ Lemma rutt_cmd_tr_ME_step (cc: cmd) (st1 st2: estate) :
     eapply rutt_Ret; auto.
   }  
 Admitted.     
-  
+
+*)
+
 (* Here we apply the inductive lemma and comp_gen_ok *)
-Lemma rutt_cmd_tr_ME (cc: cmd) (st1 st2: estate) : 
+Lemma rutt_cmd_tr_ME (cc1: cmd) (st1 st2: estate) : 
   RS st1 st2 ->
+  forall cc2: cmd,
+  ret cc2 = Trn_cmd cc1 ->  
   @rutt E _ _ _ 
     (TR_E _) (VR_E _) RS
-    (mevalE_cmd pr1 cc st1) (mevalE_cmd pr2 (Tr_cmd cc) st2).
+    (mevalE_cmd pr1 cc1 st1) (mevalE_cmd pr2 cc2 st2).
   intros.
   unfold mevalE_cmd; simpl.
   eapply interp_mrec_rutt.
@@ -720,15 +618,15 @@ Lemma rutt_cmd_tr_ME (cc: cmd) (st1 st2: estate) :
   instantiate (1 := @VR_D_ME).
   unfold meval_cstate.
   destruct d1.
-  unfold TR_D_ME in H0.
+  unfold TR_D_ME in H1.
   destruct d2; try intuition.
-  inv H1; simpl.
-  eapply rutt_cmd_tr_ME_step; eauto. 
+(*  inv H2; simpl. *)
+  eapply rutt_cmd_tr_ME_step; eauto.
    
-  unfold TR_D_ME in H0.
+  unfold TR_D_ME in H1.
   destruct d2; simpl in *; try intuition.
-  inv H0.  
-  set CC := (comp_gen_ok_ME f0 xs _ es _ _ _ erefl erefl H4).
+  inv H1.  
+  set CC := (comp_gen_ok_ME f0 xs _ es _ _ _ H2 H3 H5).
   setoid_rewrite fcstate_t_def in CC.
   setoid_rewrite fcstate_v_def in CC.
   exact CC.
