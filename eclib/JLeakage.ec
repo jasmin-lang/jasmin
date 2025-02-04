@@ -20,6 +20,7 @@ type leakage_value = [
   | Leak_W64_  of W64.t
   | Leak_W128_  of W128.t
   | Leak_W256_  of W256.t
+  | Leak_array_ of W8.t list
   ].
 
 type base_leakage = [
