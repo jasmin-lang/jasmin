@@ -33,7 +33,10 @@ let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages;
 
 let easycrypt = callPackage scripts/easycrypt.nix {
   inherit ecRef;
-  why3 = pkgs.why3.override { ideSupport = false; };
+  why3 = pkgs.why3.override {
+    ideSupport = false;
+    coqPackages = { coq = null; flocq = null; };
+  };
 }; in
 
 let inherit (coqPackages.coq) ocamlPackages; in
