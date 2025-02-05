@@ -339,7 +339,13 @@ let pp_gmarg pp_var pp_size fmt (arg: 'len modulearg) =
     F.fprintf fmt "%a" (pp_gvar_i pp_var) pa
   | MaFun pa ->
     F.fprintf fmt "%s" pa.fn_name
-      
+
+let pp_gmargs pp_var pp_size fmt = function
+  | [] -> ()
+  | l ->
+    F.fprintf fmt "(@[<v>%a@])"
+      (pp_list ",@," (pp_gmarg pp_var pp_size)) l
+
 let rec pp_gmitem ~debug rr pp_len pp_opn pp_var fmt =
   function
   | MdItem it -> pp_pitem ~debug pp_len pp_opn pp_var fmt it
@@ -351,7 +357,7 @@ let rec pp_gmitem ~debug rr pp_len pp_opn pp_var fmt =
   | MdModApp fa ->
     F.fprintf fmt "@[<v>module %s = %s @[%a@]; @]"
       fa.ma_name fa.ma_func
-      (pp_list ",@ " (pp_gmarg pp_var pp_len)) fa.ma_args
+      (pp_gmargs pp_var pp_len) fa.ma_args
 
 and pp_gmprog ~debug rr pp_len pp_opn pp_var fmt p =
   let p = if rr then List.rev p else p in
