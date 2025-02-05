@@ -80,32 +80,35 @@ abstract theory ByteArray.
       by rewrite _nth_of_list 1:size_map 1:size_iota 1:/# (nth_map 0) 1:size_iota 1:/# nth_iota.
     qed.
 
-    lemma get_set'SE t i j w:
+    lemma get_set'SE_eq t i j w:
       0 <= i => r*(i + 1) <= ByteArray.size =>
-      get'S (set'S t i w) j = if i = j then w else get'S t j.
+      i = j =>
+      get'S (set'S t i w) j = w.
     proof.
-      move=> hx hs; rewrite get_set'SdE.
-      case: (i=j) => [<<- | hne].
-      + have -> /= : !(r * i + r <= r * i \/ r * i + r <= r * i) by smt(_gt0_r).
-        apply _wordP => k hk.
-        by rewrite _nth_of_list 1:size_map 1:size_iota 1:/# (nth_map 0) 1:size_iota 1:/# /= nth_iota // /#.
+      move=> hx hs <<-; rewrite get_set'SdE.
+      have -> /= : !(r * i + r <= r * i \/ r * i + r <= r * i) by smt(_gt0_r).
+      apply _wordP => k hk.
+      by rewrite _nth_of_list 1:size_map 1:size_iota 1:/# (nth_map 0) 1:size_iota 1:/# /= nth_iota // /#.
+    qed.
+
+    lemma get_set'SE_neq t i j w:
+      i <> j =>
+      get'S (set'S t i w) j = get'S t j.
+    proof.
+      move=> hne; rewrite get_set'SdE.
       case: (r * j + r <= r * i \/ r * i + r <= r * j) => //.
       move=> /negb_or [] /ltrNge + /ltrNge.
       have [-> ->] : r * j + r = r * (j + 1) /\ r * i + r = r * (i + 1) by smt().
       move=> /(ltr_pmul2l _ _gt0_r) ? /(ltr_pmul2l _ _gt0_r) ? /#.
     qed.
 
-    lemma get_set'SE_eq t i j w:
+    lemma get_set'SE t i j w:
       0 <= i => r*(i + 1) <= ByteArray.size =>
-      i = j =>
-      get'S (set'S t i w) j = w.
-    proof. by move=> h1 h2; rewrite get_set'SE. qed.
-
-    lemma get_set'SE_neq t i j w:
-      0 <= i => r*(i + 1) <= ByteArray.size =>
-      i <> j =>
-      get'S (set'S t i w) j = get'S t j.
-    proof. by move=> h1 h2 h3; rewrite get_set'SE // h3. qed.
+      get'S (set'S t i w) j = if i = j then w else get'S t j.
+    proof.
+      move=> hx hs.
+      by case (i=j) => heq; [apply get_set'SE_eq | apply get_set'SE_neq].
+    qed.
 
     lemma get_set'SdE_eq t i j w:
       0 <= i => i + r <= ByteArray.size =>
@@ -119,10 +122,9 @@ abstract theory ByteArray.
     qed.
 
     lemma get_set'SdE_neq t i j w:
-      0 <= i => i + r <= ByteArray.size =>
       (j + r <= i \/ i + r <= j) =>
       get'Sd (set'Sd t i w) j = get'Sd t j.
-    proof. by move=> h1 h2 h3; rewrite get_set'SdE // h3. qed.
+    proof. by move => h; rewrite get_set'SdE h. qed.
 
     hint simplify get_set'SdE_eq, get_set'SdE_neq.
 
