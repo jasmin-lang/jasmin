@@ -126,6 +126,19 @@ abstract theory ByteArray.
 
     hint simplify get_set'SdE_eq, get_set'SdE_neq.
 
+    lemma ext_eq'S t1 t2:
+        (forall x, 0 <= r*x < ByteArray.size => get'S t1 x = get'S t2 x) =>
+        t1 = t2.
+    proof.
+    have ? := _gt0_r.
+    move => E.
+    apply ByteArray.ext_eq => x h.
+    rewrite (divz_eq x r).
+    rewrite !(-get'Sd_byte, modz_cmp, _gt0_r).
+    rewrite mulzC E 2://.
+    smt().
+    qed.
+
     op of_list'S (l:B list) =
       init (fun i => if i < List.size l * r then nth _zero l (i%/r) \bits8 (i%%r) else W8.zero).
 
