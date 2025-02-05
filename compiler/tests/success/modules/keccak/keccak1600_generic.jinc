@@ -1,0 +1,11 @@
+param int R72 = 72;
+param int R104 = 104;
+param int R136 = 136;
+param int R144 = 144;
+param int R168 = 168;
+
+param int UNFINISHED = 0;
+param int SHA3 = 0x06;
+param int RAWSHAKE = 0x07;
+param int SHAKE = 0x1F;
+

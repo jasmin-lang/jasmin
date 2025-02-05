@@ -1,0 +1,472 @@
+require "subreadwrite.jinc"
+require "keccakf1600_ref.jinc"
+
+
+require "keccak1600_generic.jinc"
+
+/*
+   STATE INIT
+   ==========
+*/
+inline fn __state_init_ref
+( reg mut ptr u64[25] st
+) -> reg ptr u64[25]
+{
+  reg u64 i;
+  reg u64 z64;
+  z64 = 0;
+  i = 0;
+  while (i < 25) {
+    st[(int) i] = z64;
+    i += 1; 
+  }
+  return st;
+}
+
+/*
+   ADD RATE BIT
+   ============
+*/
+
+inline fn __addratebit_ref
+( reg mut ptr u64[25] st
+, inline int RATE8
+) -> reg ptr u64[25]
+{
+  reg u64 t64;
+  t64 = 1;
+  t64 <<= (8*RATE8-1) % 64; // obs: should be 63 for all admissible rates!
+  t64 ^= st[(RATE8-1)/8];
+  st[(RATE8-1)/8] = t64;
+  return st;
+}
+
+
+module Keccak1600ref_imem
+ with fn KECCAK_F(keccak_state) -> keccak_state;
+{
+
+/*
+   INCREMENTAL (FIXED-SIZE) MEMORY ABSORB
+   ======================================
+*/
+
+
+inline fn __addstate_imem_ref
+( reg mut ptr keccak_state st
+, inline int AT /* bytes (0 <= AT < 200) */
+, reg u64 buf
+, inline int LEN
+, inline int TRAILB
+) -> reg ptr keccak_state /* st */
+   , inline int /* AT */
+   , reg u64 /* buf */
+{
+  inline int LO, ALL;
+  reg u64 at, t;
+
+  ALL = AT+LEN; // total bytes to process (excluding trail byte, if !=0)
+  LO = AT % 8; // leftover bytes
+  at = (AT / 8); // current pstate position (referencing u64 words)
+
+  if ( 0 < LO ) { // process first word...
+    if ( LO+LEN < 8) { // ...not enough to fill a word (just update it)
+      if ( TRAILB != 0 ) { ALL += 1; }
+      buf, _, _, t = __mread_subu64(buf, LEN, TRAILB);
+      t <<= 8*LO;
+      t ^= st[u64 at];
+      st[u64 at] = t;
+      LO = 0;
+      AT = 0;
+      LEN = 0;
+      TRAILB = 0;
+    } else { // process first word
+      if ( 8 <= LEN ) {
+	t = (u64)[buf];
+	buf += 8-LO;
+      } else {
+        buf, _, _, t = __mread_subu64(buf, 8-LO, TRAILB);
+      }
+      LEN -= 8-LO;
+      AT += 8-LO;
+      t <<= 8*LO;
+      t ^= st[u64 at];
+      st[u64 at] = t;
+      at += 1;
+    }
+  }
+
+  // continue processing remaining bytes
+  if (8 <= LEN) {
+    while ( at < (AT/8)+(LEN/8)) {
+      t = (u64)[buf];
+      buf += 8;
+      t ^= st[u64 at];
+      st[u64 at] = t;
+      at += 1;
+    }
+    LEN = (AT+LEN) % 8;
+  }
+
+  // process last word (possibly closing the state)
+  LO = (AT+LEN) % 8;
+  if ( 0 < LO || TRAILB != 0 ) {
+    buf, _, _, t = __mread_subu64(buf, LO, TRAILB);
+    if ( TRAILB != 0 ) { ALL += 1; TRAILB = 0; }
+    t ^= st[u64 at];
+    st[u64 at] = t;
+  }
+    
+  return st, ALL, buf;
+} 
+
+
+inline fn __absorb_imem_ref
+( reg mut ptr keccak_state st
+, inline int AT
+, reg u64 buf
+, inline int LEN
+, inline int RATE8
+, inline int TRAILB /* closes state if !=0 (i.e. adds trailbyte and padding) */
+) -> reg ptr keccak_state /* st */
+   , inline int /* AT */
+   , reg u64 /* buf */
+{
+  reg u64 i;
+  inline int ALL, ITERS;
+
+  ALL = AT + LEN;
+  if ( (AT+LEN) < RATE8 ) { // not enough to fill a block!
+    st, AT, buf = __addstate_imem_ref(st, AT, buf, LEN, TRAILB);
+    if (TRAILB != 0) { // add pstate and closes the state
+      st = __addratebit_ref(st, RATE8);
+    }
+  } else { // at least a block is filled
+    if ( AT != 0 ) { // start by filling the first block
+      st, _, buf = __addstate_imem_ref(st, AT, buf, RATE8-AT, 0);
+      LEN = LEN - (RATE8-AT);
+      () = #spill(buf);
+      st = KECCAK_F(st);
+      () = #unspill(buf);
+      AT = 0;
+    }
+
+    // continue by processing full blocks
+    ITERS = LEN / RATE8; // number of full blocks
+    i = 0;
+    while ( i < ITERS ) {
+      st, _, buf = __addstate_imem_ref(st, 0, buf, RATE8, 0);
+      () = #spill(buf,i);
+      st = KECCAK_F(st);
+      () = #unspill(buf,i);
+      i += 1;
+    }
+
+    // last incomplete block
+    LEN = ALL % RATE8;
+    st, AT, buf = __addstate_imem_ref(st, 0, buf, LEN, TRAILB);
+    if (TRAILB!=0) { st = __addratebit_ref(st, RATE8); }
+  }
+  return st, AT, buf;
+} 
+
+
+/*
+   ONE-SHOT (FIXED-SIZE) MEMORY SQUEEZE
+   ====================================
+*/
+inline fn __dumpstate_imem_ref
+( reg u64 buf
+, inline int LEN
+, reg const ptr keccak_state st
+) -> reg u64 /* buf */
+{
+  reg u64 i, t;
+  i = 0;
+  while (i < (LEN/8)) {
+    t = st[(int) i];
+    i += 1;
+    (u64)[buf] = t;
+    buf += 8;
+  }
+
+  if (0 < LEN%8) {
+    t = st[(int) i];
+    buf, _ = __mwrite_subu64( buf, LEN%8, t);
+  }
+
+  return buf;
+}
+
+inline fn __squeeze_imem_ref
+( reg u64 buf
+, inline int LEN
+, reg mut ptr keccak_state st
+, inline int RATE8
+) -> reg u64 /* buf */
+   , reg ptr keccak_state /* st */
+{
+  reg u64 i;
+  inline int ITERS, LO;
+  ITERS = LEN/RATE8;
+  LO = LEN%RATE8;
+  if (0 < LEN) {
+    if (0 < ITERS) {
+      i = 0;
+      while (i < ITERS) {
+	() = #spill(buf,i);
+        st = KECCAK_F(st);
+	() = #unspill(buf,i);
+        buf = __dumpstate_imem_ref(buf, RATE8, st);
+        i += 1;
+      }
+    }
+    if (0 < LO) {
+	() = #spill(buf);
+        st = KECCAK_F(st);
+	() = #unspill(buf);
+        buf = __dumpstate_imem_ref(buf, LO, st);
+    }
+  }
+  return buf, st;
+}
+
+} // end module Keccak1600ref_imem
+
+
+module Keccak1600ref_array
+ with param int ASIZE;
+      fn KECCAK_F(keccak_state) -> keccak_state;
+{
+
+module SRW = SRW_array(ASIZE);
+
+open SRW
+
+/*
+   INCREMENTAL ARRAY ABSORB
+   ========================
+*/
+
+inline fn __addstate_array_ref
+( reg mut ptr keccak_state st
+, inline int AT /* bytes (0 <= AT < 200) */
+, reg const ptr u8[ASIZE] buf
+, reg u64 offset
+, inline int LEN
+, inline int TRAILB
+) -> reg ptr keccak_state /* st */
+   , inline int /* AT */
+   , reg u64 /* offset */
+{
+  inline int DELTA, LO, ALL;
+  reg u64 at, t;
+
+  ALL = AT+LEN; // total bytes to process (excluding trail byte, if !=0)
+  LO = AT % 8; // leftover bytes
+  at = (AT / 8); // current pstate position (referencing u64 words)
+  DELTA = 0;
+
+  if ( 0 < LO ) { // process first word...
+    if ( LO+LEN < 8) { // ...not enough to fill a word (just update it)
+      if ( TRAILB != 0 ) { ALL += 1; }
+      DELTA, _, _, t = __aread_subu64(buf, offset, DELTA, LEN, TRAILB);
+      t <<= 8*LO;
+      t ^= st[u64 at];
+      st[u64 at] = t;
+      LO = 0;
+      AT = 0;
+      LEN = 0;
+      TRAILB = 0;
+    } else { // process first word
+      if ( 8 <= LEN ) {
+	t = buf.[u64 offset + DELTA];
+	DELTA += 8-LO;
+      } else {
+        DELTA, _, _, t = __aread_subu64(buf, offset, DELTA, 8-LO, TRAILB);
+      }
+      LEN -= 8-LO;
+      AT += 8-LO;
+      t <<= 8*LO;
+      t ^= st[u64 (int) at];
+      st[u64 (int) at] = t;
+      at += 1;
+    }
+    offset += DELTA;
+    DELTA = 0;
+  }
+
+  // continue processing remaining words
+  if (8 <= LEN) {
+    while ( at < (AT/8)+(LEN/8)) {
+      t = buf.[u64 offset];
+      offset += 8;
+      t ^= st[u64 (int) at];
+      st[u64 (int) at] = t;
+      at += 1;
+    }
+    LEN = (AT+LEN) % 8;
+  }
+
+  // process last word (possibly closing the state)
+  LO = (AT+LEN) % 8;
+  if ( 0 < LO || TRAILB != 0 ) {
+    if ( TRAILB != 0 ) { ALL += 1; }
+    DELTA, _, TRAILB, t = __aread_subu64(buf, offset, DELTA, LO, TRAILB);
+    offset += DELTA;
+    t ^= st[u64 (int) at];
+    st[u64 (int) at] = t;
+  }
+    
+  return st, ALL, offset;
+} 
+
+
+inline fn __absorb_array_ref
+( reg mut ptr keccak_state st
+, inline int AT
+, reg const ptr u8[ASIZE] buf
+, reg u64 offset
+, inline int LEN
+, inline int RATE8
+, inline int TRAILB /* closes state if !=0 (i.e. adds trailbyte and padding) */
+) -> reg ptr keccak_state /* st */
+   , inline int /* AT */
+   , reg u64 /* offset */
+{
+  reg u64 i;
+  inline int ALL, ITERS;
+
+  ALL = AT + LEN;
+  if ( (AT+LEN) < RATE8 ) { // not enough to fill a block!
+    st, AT, offset = __addstate_array_ref(st, AT, buf, offset, LEN, TRAILB);
+    if (TRAILB != 0) { // add pstate and closes the state
+      st = __addratebit_ref(st, RATE8);
+    }
+  } else { // at least a block is filled
+    if ( AT != 0 ) { // start by filling the first block
+      st, _, offset = __addstate_array_ref(st, AT, buf, offset, RATE8-AT, 0);
+      LEN = LEN - (RATE8-AT);
+      () = #spill(buf,offset);
+      st = KECCAK_F(st);
+      () = #unspill(buf,offset);
+      AT = 0;
+    }
+
+    // continue by processing full blocks
+    ITERS = LEN / RATE8; // number of full blocks
+    i = 0;
+    while ( i < ITERS ) {
+      st, _, offset = __addstate_array_ref(st, 0, buf, offset, RATE8, 0);
+      () = #spill(buf,offset,i);
+      st = KECCAK_F(st);
+      () = #unspill(buf,offset,i);
+      i += 1;
+    }
+
+    // last incomplete block
+    LEN = ALL % RATE8;
+    st, AT, offset = __addstate_array_ref(st, 0, buf, offset, LEN, TRAILB);
+    if (TRAILB!=0) { st = __addratebit_ref(st, RATE8); }
+  }
+  return st, AT, offset;
+} 
+
+
+/*
+   ONE-SHOT (FIXED-SIZE) MEMORY SQUEEZE
+   ====================================
+*/
+inline fn __dumpstate_array_ref
+( reg mut ptr u8[ASIZE] buf
+, reg u64 offset
+, inline int LEN
+, reg const ptr keccak_state st
+) -> reg ptr u8[ASIZE] /* buf */
+   , reg u64 /* offset */
+{ 
+  reg u64 i, t;
+  i = 0;
+  while (i <s (LEN/8)) {
+    t = st[(int) i];
+    buf.[u64 offset] = t;
+    i += 1;
+    offset += 8;
+  }
+  if (0 < LEN%8) {
+    t = st[(int) i];
+    buf, _, _ = __awrite_subu64( buf, offset, 0, LEN%8, t);
+    offset += LEN%8;
+  }
+
+  return buf, offset;
+}
+
+inline fn __squeeze_array_ref
+( reg mut ptr u8[ASIZE] buf
+, reg u64 offset
+, inline int LEN
+, reg mut ptr keccak_state st
+, inline int RATE8
+) -> reg ptr u8[ASIZE] /* buf */
+   , reg u64           /* offset */
+   , reg ptr keccak_state /* st */
+{
+  reg u64 i;
+  inline int ITERS, LO;
+  ITERS = LEN/RATE8;
+  LO = LEN%RATE8;
+
+  if (0 <s LEN) {
+    if (0 < ITERS) {
+      i = 0;
+      while (i < ITERS) {
+	() = #spill(buf,offset);
+        st = KECCAK_F(st);
+	() = #unspill(buf,offset);
+        buf, offset = __dumpstate_array_ref(buf, offset, RATE8, st);
+        i += 1;
+      }
+    }
+    if (0 < LO) {
+	() = #spill(buf,offset);
+        st = KECCAK_F(st);
+	() = #unspill(buf,offset);
+        buf, offset = __dumpstate_array_ref(buf, offset, LO, st);
+    }
+  }
+
+  return buf, offset, st;
+}
+
+} // end module Keccak1600_array
+
+
+module Keccak1600ref_imem_bmi1 =
+ Keccak1600ref_imem(Keccakf1600_bmi1::_keccakf1600_ref);
+
+module Keccak1600ref_imem_nobmi1 =
+ Keccak1600ref_imem(Keccakf1600_nobmi1::_keccakf1600_ref);
+
+
+module Keccak1600ref_array_bmi1
+ with param int ASIZE;
+{
+
+module K1600ref_array = Keccak1600ref_array(ASIZE, Keccakf1600_bmi1::_keccakf1600_ref);
+
+open K1600ref_array
+
+} // end module Keccak1600ref_array_bmi1
+
+
+module Keccak1600ref_array_nobmi1
+ with param int ASIZE;
+{
+
+module K1600ref_array = Keccak1600ref_array(ASIZE, Keccakf1600_nobmi1::_keccakf1600_ref);
+
+open K1600ref_array
+
+} // end module Keccak1600ref_array_nobmi1
+
