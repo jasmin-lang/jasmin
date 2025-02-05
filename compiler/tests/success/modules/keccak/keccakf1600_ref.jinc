@@ -1,0 +1,216 @@
+require "keccakf1600_generic.jinc"
+
+
+module ANDN {
+
+inline fn __andn_64_bmi1(reg u64 a b) -> reg u64 {
+ reg u64 t;
+ t = !a & b;
+ return t;
+}
+
+inline fn __andn_64_nobmi1(reg u64 a b) -> reg u64 {
+ reg u64 t;
+ t = a;
+ t = !t;
+ t &= b;
+ return t;
+}
+
+} // end module ANDN
+
+
+
+module KeccakF1600
+ with fn ANDN (u64, u64) -> u64;
+{
+
+inline fn __rol_u64_ref( reg u64 x, inline int i) -> reg u64 {
+  if (i != 0) {
+    _, _, x = #ROL_64(x, i);
+  }
+  return x;
+}
+
+
+// C[x] = A[x,0] ^ A[x,1] ^ A[x,2] ^ A[x,3] ^ A[x,4]
+inline fn __theta_sum_ref(reg ptr u64[25] a) -> reg u64[5]
+{
+  inline int x y;
+  reg u64[5] c;
+
+  // C[x] = A[x, 0]
+  for x=0 to 5
+  { c[x] = a[x + 0]; }
+
+  // C[x] ^= A[x,1] ^ A[x,2] ^ A[x,3] ^ A[x,4]
+  for y=1 to 5
+  { for x=0 to 5
+    { c[x] ^= a[x + y*5]; }
+  }
+
+  return c;
+}
+
+// D[x] = C[x-1] ^ ROT(C[x+1], 1) 
+inline fn __theta_rol_ref(reg u64[5] c) -> reg u64[5]
+{
+  inline int x;
+  reg u64[5] d;
+
+  for x = 0 to 5
+  { // D[x] = C[x + 1]
+    d[x] = c[(x + 1) % 5];
+
+    // D[x] = ROT(D[x], 1)
+    d[x] = __rol_u64_ref(d[x], 1);
+
+    // D[x] ^= C[x-1]
+    d[x] ^= c[(x - 1 + 5) % 5];
+  }
+
+  return d;
+}
+
+// B[x] = ROT( (A[x',y'] ^ D[x']), r[x',y'] ) with (x',y') = M^-1 (x,y)
+//
+// M = (0 1)  M^-1 = (1 3)  x' = 1x + 3y
+//     (2 3)         (1 0)  y' = 1x + 0y
+//
+inline fn __rol_sum_ref(
+  reg ptr u64[25] a,
+  reg u64[5] d,
+  inline int y
+) -> reg u64[5]
+{
+  inline int r x x_ y_;
+  reg u64[5] b;
+
+  for x = 0 to 5
+  {
+    x_ = (x + 3*y) % 5;
+    y_ = x;
+    r = keccakf1600_rhotates(x_, y_);
+
+    // B[x] = A[x',y']
+    b[x] = a[x_ + y_*5];
+
+    // B[x] ^= D[x'];
+    b[x] ^= d[x_];
+
+    // B[x] = ROT( B[x], r[x',y'] );
+    b[x] = __rol_u64_ref(b[x], r);
+
+  }
+
+  return b;
+}
+
+// E[x, y] = B[x] ^ ( (!B[x+1]) & B[x+2] )
+// -- when x and y are 0: E[0,0] ^= RC[i];
+inline fn __set_row_ref(
+  reg ptr u64[25] e,
+  reg u64[5] b,
+  inline int y,
+  stack u64 s_rc
+) -> reg ptr u64[25]
+{
+  inline int x x1 x2;
+  reg u64 t;
+
+  for x=0 to 5
+  { 
+    x1 = (x + 1) % 5;
+    x2 = (x + 2) % 5;
+
+    t  = ANDN(b[x1], b[x2]); //!b[x1] & b[x2];
+
+    t ^= b[x];
+    if( x==0 && y==0 ){ t ^= s_rc; }
+    e[x + y*5] = t;
+  }
+
+  return e;
+}
+
+inline fn __round_ref(reg ptr u64[25] e a, stack u64 s_rc) -> reg ptr u64[25]
+{
+  inline int y;
+  reg u64[5] b c d;
+
+  c = __theta_sum_ref(a);
+  d = __theta_rol_ref(c);
+
+  for y = 0 to 5
+  { b = __rol_sum_ref(a, d, y);
+    e = __set_row_ref(e, b, y, s_rc);
+  }
+
+  return e;
+}
+
+inline fn __keccakf1600_ref(reg ptr u64[25] a) -> reg ptr u64[25]
+{
+  reg ptr u64[24] RC;
+  stack ptr u64[24] s_RC;
+  stack u64[25] s_e;
+  reg ptr u64[25] e;
+  reg u64 c rc;
+  stack u64 s_c s_rc;
+
+  RC = KECCAK1600_RC;
+  s_RC = RC;
+  e = s_e;
+
+  c = 0;
+  while
+  {
+    s_c = c;
+
+    RC = s_RC;
+    rc = RC[(int) c];
+    s_rc = rc;
+    e = __round_ref(e, a, s_rc);
+
+    RC = s_RC;
+    rc = RC[(int) c + 1];
+    s_rc = rc;
+    a = __round_ref(a, e, s_rc);
+
+    c = s_c;
+    c += 2;
+  } (c < KECCAK_ROUNDS - 1)
+
+  return a;
+}
+
+#[returnaddress="stack"]
+fn _keccakf1600_ref(reg ptr u64[25] a) -> reg ptr u64[25]
+{
+  a = __keccakf1600_ref(a);
+  return a;
+}
+
+inline fn _keccakf1600_ref_(reg ptr u64[25] a) -> reg ptr u64[25]
+{
+  a = a;
+  a = _keccakf1600_ref(a);
+  a = a;
+  return a;
+}
+
+/**/
+// For testing purposes
+export fn testF_ref(reg mut ptr u64[25] st) -> reg ptr u64[25] {
+ st = _keccakf1600_ref(st);
+ return st;
+}
+/**/
+
+} // end module KeccakF1600
+
+
+module Keccakf1600_bmi1 = KeccakF1600(ANDN::__andn_64_bmi1);
+
+module Keccakf1600_nobmi1 = KeccakF1600(ANDN::__andn_64_nobmi1);
+

@@ -1,0 +1,3 @@
+require "keccak1600_ref.jinc"
+param int ASIZE=999;
+require "keccak1600_array_ref_ASIZE.jinc"
