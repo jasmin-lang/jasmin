@@ -99,8 +99,9 @@ let set_color c =
 let parse_jasmin_path s =
   s |> String.split_on_char ':' |> List.map (String.split ~by:"=")
 
-let idirs =
-  ref (try "JASMINPATH" |> Sys.getenv |> parse_jasmin_path with _ -> [])
+let env_idirs = try "JASMINPATH" |> Sys.getenv |> parse_jasmin_path with _ -> []
+
+let idirs = ref (env_idirs)
 
 let set_idirs s = 
   match String.split_on_char ':' s with
