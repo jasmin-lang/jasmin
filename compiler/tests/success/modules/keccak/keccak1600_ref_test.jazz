@@ -1,0 +1,32 @@
+require "keccak1600_ref.jinc"
+
+module A1234 = Keccak1600ref_array_bmi1(1234);
+
+open Keccak1600ref_imem_bmi1
+open A1234::K1600ref_array
+
+
+export fn test_imem_absorb1234(reg mut ptr u64[25] st, reg u64 in) -> reg ptr u64[25] {
+  st = __state_init_ref(st);
+  st, _, _ = __absorb_imem_ref(st, 0, in, 1234, R136, SHA3);
+  return st;
+}
+
+export fn test_imem_squeeze1234(reg mut ptr u64[25] st, reg u64 out) -> reg ptr u64[25] {
+  out, st = __squeeze_imem_ref(out, 1234, st, R136);
+  return st;
+}
+
+export fn test_array_absorb1234(reg mut ptr u64[25] st, reg const ptr u8[1234] in) -> reg ptr u64[25] {
+  reg u64 offset;
+  st = __state_init_ref(st);
+  offset = 0;
+  st, _, _ = __absorb_array_ref(st, 0, in, offset, 1234, R136, SHA3);
+  return st;
+}
+
+export fn test_array_squeeze1234(reg mut ptr u64[25] st, reg mut ptr u8[1234] out) -> reg ptr u64[25], reg ptr u8[1234] {
+  reg u64 offset = 0;
+  out, _, st = __squeeze_array_ref(out, offset, 1234, st, R136);
+  return st, out;
+}
