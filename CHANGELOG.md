@@ -46,6 +46,10 @@
   ([PR #1027](https://github.com/jasmin-lang/jasmin/pull/1027);
   fixes [#1026](https://github.com/jasmin-lang/jasmin/issues/1026)).
 
+- Fix allocation of dead stack variables
+  ([PR #1044](https://github.com/jasmin-lang/jasmin/pull/1044);
+  fixes [#680](https://github.com/jasmin-lang/jasmin/issues/680)).
+
 ## Other changes
 
 - The “allocation” pass now uses the liveness information to reduce the sizes

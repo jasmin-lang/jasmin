@@ -1,0 +1,28 @@
+/* Check that dead stack variables are properly allocated.
+ * See: https://github.com/jasmin-lang/jasmin/issues/680
+ */
+export
+fn adc_stack(reg u64 x) {
+  stack u64 s;
+  s = 0;
+  _, s += x;
+}
+
+export fn main () -> reg u64 {
+  reg u64 x;
+  stack u64 y;
+
+  x = 0;
+  y = #MOV(x);
+  return x;
+}
+
+/* Variable a must be allocated but its stack slot can be shared with b. */
+#[stacksize = 8] export
+fn share_stack(reg u64 x) -> reg u64 {
+  stack u64 a b;
+  a = #MOV(x);
+  b = #MOV(x);
+  x = b;
+  return x;
+}
