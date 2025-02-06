@@ -40,6 +40,8 @@ let solve_aux sz todo =
 
 let events_of_graph g =
   Mv.fold (fun n (min, max) result ->
+      (* Support empty live-ranges by making them non-empty. *)
+      let max = if min = max then max + 1 else max in
       assert(min < max);
       (min, Start n) :: (max, End n) :: result
     )

@@ -68,6 +68,10 @@
   ([PR#1028](https://github.com/jasmin-lang/jasmin/pull/1028);
   fixes [#18](https://github.com/jasmin-lang/jasmin/issues/18)).
 
+- Fix allocation of dead stack variables
+  ([PR #1044](https://github.com/jasmin-lang/jasmin/pull/1044);
+  fixes [#680](https://github.com/jasmin-lang/jasmin/issues/680)).
+
 ## Other changes
 
 - Adding an annotation to function (`'info` type). Useful to store result of analysis. (see [[#1016](https://github.com/jasmin-lang/jasmin/issues/1016)])
