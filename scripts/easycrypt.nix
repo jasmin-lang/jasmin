@@ -18,15 +18,15 @@ with {
   };
 
   "release" = rec {
-    version = "2024.09";
+    version = "2025.02";
     rev = "r${version}";
     src = fetchFromGitHub {
       owner = "easycrypt";
       repo = "easycrypt";
       inherit rev;
-      hash = "sha256-ZGYklG1eXfytRKzFvRSB6jFrOCm1gjyG8W78eMve5Ng=";
+      hash = "sha256-XkfFCPmc8vd6gGFiz/Lxzk7BtcCQBzPNVPGFdiylZmc=";
     };
-    local_why3 = why3.override { version = "1.7.2"; };
+    local_why3 = why3.override { version = "1.8.0"; };
   };
 
 }."${ecRef}";
