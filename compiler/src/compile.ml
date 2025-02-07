@@ -83,9 +83,12 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   let translate_var = Conv.var_of_cvar in
 
   let memory_analysis up : Compiler.stack_alloc_oracles =
-    StackAlloc.memory_analysis
+    let mem_oracle = StackAlloc.memory_analysis
       (Printer.pp_err ~debug:!debug)
-      ~debug:!debug up
+      ~debug:!debug up in 
+      let interface = Interface.make_prog_interface (mem_oracle.ao_stack_alloc) (Conv.prog_of_cuprog up) in
+      Interface.pp_interface_prog Format.std_formatter interface;
+      mem_oracle
   in
 
   let global_regalloc fds =
