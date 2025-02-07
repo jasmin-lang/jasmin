@@ -237,6 +237,7 @@ let ec_keyword =
  ; "theory"
  ; "abstract"
  ; "section"
+ ; "subtype"
  ; "type"
  ; "class"
  ; "instance"
