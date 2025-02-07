@@ -43,6 +43,9 @@
   ([PR #1030](https://github.com/jasmin-lang/jasmin/pull/1030);
   fixes [#1029](https://github.com/jasmin-lang/jasmin/issues/1029)).
 
+- Extraction as EasyCrypt code targets version 2025.02
+  ([PR #1046](https://github.com/jasmin-lang/jasmin/pull/1046)).
+
 ## Bug fixes
 
 - Fix EasyCrypt semantics of shift operators

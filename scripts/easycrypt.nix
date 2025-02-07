@@ -2,7 +2,6 @@
 , lib
 , stdenv
 , fetchFromGitHub
-, applyPatches
 , fetchpatch
 , ocamlPackages
 , python3
@@ -20,21 +19,15 @@ with {
   };
 
   "release" = rec {
-    version = "2024.09";
+    version = "2025.02";
     rev = "r${version}";
-    src = applyPatches {
-      src = fetchFromGitHub {
-        owner = "easycrypt";
-        repo = "easycrypt";
-        inherit rev;
-        hash = "sha256-ZGYklG1eXfytRKzFvRSB6jFrOCm1gjyG8W78eMve5Ng=";
-      };
-      patches = fetchpatch {
-        url = "https://github.com/EasyCrypt/easycrypt/commit/c8595b5fbb99b215f765b670ce206c235b326133.patch";
-        hash = "sha256-DpCpDzoFW/BZu5doJwM/4iSbkZ085qESUZAdqxRVK3U=";
-      };
+    src = fetchFromGitHub {
+      owner = "easycrypt";
+      repo = "easycrypt";
+      inherit rev;
+      hash = "sha256-XkfFCPmc8vd6gGFiz/Lxzk7BtcCQBzPNVPGFdiylZmc=";
     };
-    local_why3 = why3.override { version = "1.7.2"; };
+    local_why3 = why3.override { version = "1.8.0"; };
   };
 
 }."${ecRef}";
