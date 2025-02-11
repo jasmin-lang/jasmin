@@ -254,10 +254,10 @@ let fdef_of_cufdef (fn, fd) =
     f_name = fn;
     f_tyin = List.map ty_of_cty fd.C.f_tyin;
     f_args = List.map (fun v -> L.unloc (vari_of_cvari v)) fd.C.f_params;
-    f_src_args = [];
+    f_src_args = List.map (fun v -> L.unloc (vari_of_cvari v))fd.C.f_src_params;
     f_body = stmt_of_cstmt fd.C.f_body;
     f_tyout = List.map ty_of_cty fd.C.f_tyout;
-    f_src_tyout = [];
+    f_src_tyout = List.map ty_of_cty fd.C.f_src_tyout;
     f_outannot; 
     f_ret  = List.map (vari_of_cvari) fd.C.f_res;
   }
