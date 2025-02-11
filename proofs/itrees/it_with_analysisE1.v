@@ -217,6 +217,9 @@ Local Notation interp_InstrE := (interp_InstrE dc spp scP ev).
 function application and commands across the translation under the
 appropriate hypothesis. First we specify the translation. *)
 
+(* here we would like to use the state monad to represent the analysis
+that we want to thread through the execution. Here S is the type of
+the analysis information *)
 Notation stateM := (fun S => stateT S identity).
 
 Fixpoint mapS {S A B} (f: A -> stateM S B) (ls: list A) (b: B) :
@@ -235,21 +238,28 @@ Fixpoint mapL {S A B} (f: A -> stateM S B) (ls: list A) :
 (*** TRANSLATION SPEC *******************************************)
 Section TRANSF_spec.
 
-Context (I: Type).
+Context (E2: Type -> Type).
+Context (HasErr2: ErrState -< E2).   
 
-Context (tr_lval : lval -> stateM I lval)
-        (tr_expr : pexpr -> stateM I pexpr)
-        (tr_opn : sopn -> stateM I sopn)
-        (tr_sysc : syscall_t -> stateM I syscall_t).
+Context (tr_lval : lval -> itree E2 lval)
+        (tr_expr : pexpr -> itree E2 pexpr)
+        (tr_opn : sopn -> itree E2 sopn)
+        (tr_sysc : syscall_t -> itree E2 syscall_t).
 
-Local Notation tr_lvals ls := (mapL tr_lval ls).
-Local Notation tr_exprs es := (mapL tr_expr es).
+Fixpoint mapT {A B} (f: A -> itree E2 B) (ls: list A) :
+  itree E2 (list B) :=
+  match ls with
+  | nil => ret nil
+  | x :: xs => x' <- f x ;; xs' <- mapT f xs ;; ret (x' :: xs') end.            
 
-Definition Tr_i (Th: instr_r -> stateM I instr_r) (i: instr) :
-  stateM I instr :=
+Local Notation tr_lvals ls := (mapT tr_lval ls).
+Local Notation tr_exprs es := (mapT tr_expr es).
+
+Definition Tr_i (Th: instr_r -> itree E2 instr_r) (i: instr) :
+  itree E2 instr :=
   match i with MkI ii ir => ir' <- Th ir ;; ret (MkI ii ir') end.  
 
-Fixpoint Tr_ir (i : instr_r) : stateM I instr_r :=
+Fixpoint Tr_ir (i : instr_r) : itree E2 instr_r :=
   let R := Tr_i Tr_ir in 
   match i with
   | Cassgn x tg ty e =>
@@ -267,16 +277,16 @@ Fixpoint Tr_ir (i : instr_r) : stateM I instr_r :=
       ret (Csyscall xs' sc' es')
   | Cif e c1 c2 => 
       e' <- tr_expr e ;;
-      c1' <- mapL R c1 ;;
-      c2' <- mapL R c2 ;;
+      c1' <- mapT R c1 ;;
+      c2' <- mapT R c2 ;;
       ret (Cif e' c1' c2') 
   | Cfor i rg c =>
-      c' <- mapL R c ;;
+      c' <- mapT R c ;;
       ret (Cfor i rg c')                     
   | Cwhile a c1 e c2 =>
-      c1' <- mapL R c1 ;;
+      c1' <- mapT R c1 ;;
       e' <- tr_expr e ;;
-      c2' <- mapL R c2 ;;
+      c2' <- mapT R c2 ;;
       ret (Cwhile a c1' e' c2')
   | Ccall xs fn es =>
       xs' <- tr_lvals xs ;;
@@ -284,19 +294,167 @@ Fixpoint Tr_ir (i : instr_r) : stateM I instr_r :=
       ret (Ccall xs' fn es')
   end.
 Local Notation Tr_instr := (Tr_i Tr_ir).
-Local Notation Tr_cmd c := (mapL Tr_instr c).
+Local Notation Tr_cmd c := (mapT Tr_instr c).
 
-Definition Tr_FunDef (f: FunDef) : stateM I FunDef :=
+Definition Tr_FunDef (f: FunDef) : itree E2 FunDef :=
   match f with
   | MkFun i tyin p_xs c tyout r_xs xtr =>
     c' <- Tr_cmd c ;;  
     ret (MkFun i tyin p_xs c' tyout r_xs xtr) end.
 
-End TRANSF_spec.
- 
+(* End TRANSF_spec. *)
+
 (*********************************************************************)
 (*** PROOFS **********************************************************)
 
+
+Definition Error2false : forall X, exceptE error X -> bool :=
+  fun X m => match m with | Throw _ => false end.                  
+
+Definition ErrorCutoff {E0 E1} (FI: FIso (E0 +' ErrState) E1) :
+  forall X, E1 X -> bool :=
+  fun X m => match (mfun2 _ m) with
+             | inl1 _ => true
+             | inr1 x => Error2false X x end.              
+
+Definition NoCutoff (E: Type -> Type) : forall X, E X -> bool :=
+  fun X m => true.
+
+
+Section TR_MM_L1.
+
+Context (E1: Type -> Type)
+        (HasErr1: ErrState -< E1)    
+        (HasFunE1 : FunE -< E1)
+        (HasInstrE1 : InstrE -< E1).     
+Context (HasFunE2 : FunE -< E2)
+        (HasInstrE2 : InstrE -< E2).     
+
+Context (E0: Type -> Type).
+Context (FI: FIso (E0 +' ErrState) E1).
+
+Notation EE1 := (ErrorCutoff FI).
+Notation EE2 := (NoCutoff E2).
+
+Context (TR_E : forall (E1 E2: Type -> Type) T1 T2,
+            E1 T1 -> E2 T2 -> Prop)
+        (VR_E : forall (E1 E2: Type -> Type) T1 T2,
+            E1 T1 -> T1 -> E2 T2 -> T2 -> Prop).
+
+Context
+  (hinit: forall fn es1 es2,
+    eutt eq (ret es2) (mapT tr_expr es1) ->
+    @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+       (trigger (InitState fn es1)) (trigger (InitState fn es2)))               
+  (hdests: forall fn xs1 xs2,
+    eutt eq (ret xs2) (mapT tr_lval xs1) ->
+    @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (trigger (SetDests fn xs1)) (trigger (SetDests fn xs2))).
+
+
+(** denotational equivalence across the translation; the proof is nice
+ and short, but relies on the toy eutt assumptions; notice that the
+ FunCode event actually hides the fact that the functions on the two
+ sides are actually different, se we don't need induction on commands
+ *)
+Lemma comp_gen_ok_MM2 (fn: funname)
+  (xs1 xs2: lvals) (es1 es2: pexprs) 
+  (hxs: eutt eq (ret xs2) (mapT tr_lval xs1))
+  (hes: eutt eq (ret es2) (mapT tr_expr es1)) :  
+  @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq  
+    (denote_fun _ _ fn xs1 es1) (denote_fun _ _ fn xs2 es2).
+  intros.
+  unfold denote_fun; simpl.
+
+Admitted.   
+(*  
+  eapply eutt_clo_bind with (UU:= eq); eauto.
+  rewrite hes.
+
+  eapply adhoc_hinit; eauto.  
+  
+  intros.
+  eapply eutt_clo_bind with (UU := eq); eauto.
+  reflexivity.
+
+  intros.
+  inv H0.
+  eapply eutt_clo_bind with (UU := eq); eauto.
+  reflexivity.
+  intros.
+  
+  eapply adhoc_hdests; eauto.
+Qed.  
+*)
+
+End TR_MM_L1.
+
+
+Section TR_MM_L2.
+
+Context (E1: Type -> Type)
+        (HasErr1: ErrState -< E1)    
+        (HasFunE1 : FunE -< E1)
+        (HasInstrE1 : InstrE -< E1)     
+        (HasStackE1 : StackE -< E1).     
+Context (HasFunE2 : FunE -< E2)
+        (HasInstrE2 : InstrE -< E2)
+        (HasStackE2 : StackE -< E2).     
+
+Context (E0: Type -> Type).
+Context (FI: FIso (E0 +' ErrState) E1).
+
+Notation EE1 := (ErrorCutoff FI).
+Notation EE2 := (NoCutoff E2).
+
+Context (TR_E : forall (E1 E2: Type -> Type) T1 T2,
+            E1 T1 -> E2 T2 -> Prop)
+        (VR_E : forall (E1 E2: Type -> Type) T1 T2,
+            E1 T1 -> T1 -> E2 T2 -> T2 -> Prop).
+
+Context (assgn_h1 :
+    forall l a s p, @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq  
+                 (trigger (AssgnE l a s p))
+                 (l' <- tr_lval l ;;
+                  p' <- tr_expr p ;;
+                  trigger (AssgnE l' a s p'))).
+
+(* proving toy eutt across the translation for all commands (here we
+need induction). NOTE: this proof is more direct (and harder) than
+that of rutt_cmd_tr_ME, because unlike there here we treat the
+top-level as inductive, and in fact we are not using comp_gen_ok_MM1
+ *)
+
+Check @denote_cmd.
+
+Lemma eutt_cmd_tr_L1 (cc: cmd) :
+  @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq  
+    (denote_cmd _ _ cc)
+    (cc' <- Tr_cmd cc ;; denote_cmd _ _ cc').
+  set (Pr := fun (i: instr_r) => forall ii,
+                 @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+                   (denote_cmd HasFunE1 HasInstrE1 ((MkI ii i) :: nil))
+                   (cc'' <- Tr_instr (MkI ii i) ;;
+                    denote_cmd HasFunE2 _ (cc'' :: nil))).
+  set (Pi := fun i =>
+            @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+               (denote_cmd _ _ (i::nil))
+               (i'' <- Tr_instr i ;;
+                 denote_cmd _ _ (i'' :: nil))).
+  set (Pc := fun c =>
+            @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+               (denote_cmd _ _ c)
+               (c'' <- Tr_cmd c ;; denote_cmd _ _ c'')).
+  revert cc.
+  apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc.
+  
+Admitted. 
+
+End TR_MM_L2.
+
+
+
+(*
 Section TRANSF.
 
 Notation stateMM := (stateT estate identity).
@@ -316,6 +474,7 @@ Local Notation Trn_cmd := (fun c => mapL Trn_instr c).
 Local Notation Trn_FunDef :=
   (Tr_FunDef estate tr_lval tr_expr tr_opn tr_sysc).
 
+*)
 (*
 Definition TrnM_cmd (c: stateMM cmd) := (bind c (fun x => Trn_cmd x)).
 Definition TrnM_FunDef (f: stateMM FunDef) := (bind f (fun x => Trn_FunDef x)).
@@ -326,44 +485,47 @@ Definition trnM_exprs (es: stateMM pexprs) :=
   (bind es (fun xs => mapL tr_expr xs)).
 *)
 
-Definition Trn_cmd_rel (c1 c2: cmd) : Prop := (ret c2 = Trn_cmd c1).
+Definition Trn_cmd_rel (c1 c2: cmd) : Prop :=
+  eutt eq (ret c2) (Tr_cmd c1).
 
-Definition Trn_FunDef_rel (f1 f2: FunDef) := (ret f2 = Trn_FunDef f1).
+Definition Trn_FunDef_rel (f1 f2: FunDef) : Prop :=
+  eutt eq (ret f2) (Tr_FunDef f1).
 
 
 Section Sample_proof.
 
-Context (E: Type -> Type).   
-Context (HasErr: ErrState -< E).   
+Context (E1: Type -> Type).   
+Context (HasErr1: ErrState -< E1).   
 
 Context (E0: Type -> Type).
-Context (FI: FIso (E0 +' ErrState) E).
+Context (FI: FIso (E0 +' ErrState) E1).
 
 Definition Error2false : forall X, exceptE error X -> bool :=
   fun X m => match m with | Throw _ => false end.                  
 
-Definition ErrorCutoff : forall X, E X -> bool :=
+Definition ErrorCutoff : forall X, E1 X -> bool :=
   fun X m => match (mfun2 _ m) with
              | inl1 _ => true
              | inr1 x => Error2false X x end.              
 
-Definition NoCutoff : forall X, E X -> bool :=
+Definition NoCutoff : forall X, E1 X -> bool :=
   fun X m => true.
 
 Notation EE1 := NoCutoff.
 
 Notation EE2 := ErrorCutoff.
 
-Context (pr1 pr2 : prog)
-        (PR : forall T, T -> T -> Prop).
-Context (TR_E : forall (E: Type -> Type) T1 T2,
-            E T1 -> E T2 -> Prop)
-        (VR_E : forall (E: Type -> Type) T1 T2,
-            E T1 -> T1 -> E T2 -> T2 -> Prop).
+(* Context (pr1 pr2 : prog)
+        (PR : forall T, T -> T -> Prop). *)
 
-Local Notation RS := (PR estate).
-Local Notation RV := (PR values).
-Local Notation RV1 := (PR value).
+Context (TR_E : forall (E1 E2: Type -> Type) T1 T2,
+            E1 T1 -> E2 T2 -> Prop)
+        (VR_E : forall (E1 E2: Type -> Type) T1 T2,
+            E1 T1 -> T1 -> E2 T2 -> T2 -> Prop).
+
+Context (RS : estate -> estate -> Prop).
+Context (RV1 : value -> value -> Prop).
+Context (RV : values -> values -> Prop).
 (* Local Notation RSMV := (PR (syscall_state * mem * seq value)). *)
 
 Local Notation VS := (values * estate)%type.
@@ -377,11 +539,6 @@ Notation RC := Trn_cmd_rel.
 (*  (fun c1 c2: stateMM cmd => c2 = TrnM_cmd c1). *)
 Notation RFunDef := Trn_FunDef_rel.
 (*  (fun f1 f2: stateMM FunDef => f2 = TrnM_FunDef f1). *)
-
-Context (rvs_def : PR VS = RVS)
-        (rfvs_def : PR FVS = RFVS)
-        (rc_def : PR cmd = Trn_cmd_rel)
-        (rfundef_def : PR FunDef = Trn_FunDef_rel).
 
 
 (******************************************************************)
