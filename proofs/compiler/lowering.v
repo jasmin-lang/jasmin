@@ -45,8 +45,10 @@ Definition lower_fd (fd : fundef) : fundef :=
     f_info := f_info fd;
     f_tyin := f_tyin fd;
     f_params := f_params fd;
+    f_src_params := fd.(f_src_params);
     f_body := lower_cmd (f_body fd);
     f_tyout := f_tyout fd;
+    f_src_tyout := fd.(f_src_tyout);
     f_res := f_res fd;
     f_extra := f_extra fd;
   |}.

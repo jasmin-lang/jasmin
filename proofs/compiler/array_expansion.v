@@ -326,7 +326,7 @@ Definition expand_tyv m b s ty v :=
 Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef) :=
   Let x := init_map (fi fname fd) in
   match fd with
-  | MkFun _ tyin params c tyout res ef =>
+  | MkFun _ tyin params src_params c tyout src_tyout res ef =>
     let '(m, fi) := x in
     let exp := ~~(fname \in entries) in
     Let ins  := mapM2 length_mismatch (expand_tyv m exp "the parameters") tyin params in
@@ -337,16 +337,16 @@ Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef)
     let tyout  := map (fun x => fst (fst x)) outs in
     let res    := map (fun x => snd (fst x)) outs in
     let outs   := map snd outs in
-    ok (MkFun fi (flatten tyin) (flatten params) c (flatten tyout) (flatten res) ef,
+    ok (MkFun fi (flatten tyin) (flatten params) src_params c (flatten tyout) src_tyout (flatten res) ef,
         m, (ins, outs))
   end.
 
 Definition expand_fbody (fname: funname) (fs: ufundef * t) :=
   let (fd, m) := fs in
   match fd with
-  | MkFun fi tyin params c tyout res ef =>
+  | MkFun fi tyin params src_params c tyout src_tyout res ef =>
     Let c := mapM (expand_i m) c in
-    ok (MkFun fi tyin params c tyout res ef)
+    ok (MkFun fi tyin params src_params c tyout src_tyout res ef)
   end.
 
 End FSIGS.

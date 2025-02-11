@@ -113,10 +113,10 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
 
 Definition inline_fd (p:ufun_decls) (fd:ufundef) :=
   match fd with
-  | MkFun ii tyin params c tyout res ef =>
+  | MkFun ii tyin params src_params c tyout src_tyout res ef =>
     let s := read_es (map Plvar res) in
     Let c := inline_c (inline_i p) c s in
-    ok (MkFun ii tyin params c.2 tyout res ef)
+    ok (MkFun ii tyin params src_params c.2 tyout src_tyout res ef)
   end.
 
 Definition inline_fd_cons (ffd:funname * ufundef) (p:cexec ufun_decls) :=

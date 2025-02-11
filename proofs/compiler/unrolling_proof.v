@@ -175,7 +175,7 @@ Section PROOF.
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
     move => scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
-    case: f=> fi ftyi fparams fc ftyo fres fe /= Hget Htyi Hi Hw _ Hc Hres Htyo Hsys Hfi.
+    case: f=> fi ftyi fparams f_src_params fc ftyo f_src_tyout fres fe /= Hget Htyi Hi Hw _ Hc Hres Htyo Hsys Hfi.
     move/p'_get_fundef: Hget Hc.
     rewrite /Pc /=.
     case: unroll_cmd => c _ /= Hget Hc.

@@ -457,8 +457,10 @@ Record _fundef (extra_fun_t: Type) := MkFun {
   f_info   : fun_info;
   f_tyin   : seq stype;
   f_params : seq var_i;
+  f_src_params : seq var_i;
   f_body   : cmd;
   f_tyout  : seq stype;
+  f_src_tyout : seq stype;
   f_res    : seq var_i;
   f_extra  : extra_fun_t;
 }.
@@ -640,8 +642,10 @@ Definition with_body eft (fd:_fundef eft) body := {|
   f_info   := fd.(f_info);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
+  f_src_params := fd.(f_src_params);
   f_body   := body;
   f_tyout  := fd.(f_tyout);
+  f_src_tyout := fd.(f_src_tyout);
   f_res    := fd.(f_res);
   f_extra  := fd.(f_extra);
 |}.
@@ -650,8 +654,10 @@ Definition swith_extra {_: PointerData} (fd:ufundef) f_extra : sfundef := {|
   f_info   := fd.(f_info);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
+  f_src_params := fd.(f_src_params);
   f_body   := fd.(f_body);
   f_tyout  := fd.(f_tyout);
+  f_src_tyout := fd.(f_src_tyout);
   f_res    := fd.(f_res);
   f_extra  := f_extra;
 |}.

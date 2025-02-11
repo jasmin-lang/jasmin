@@ -64,7 +64,7 @@ stdenv.mkDerivation {
   name = "jasmin-0";
   src = nix-gitignore.gitignoreSource [] ./.;
   buildInputs = []
-    ++ optionals coqDeps [ coqPackages.coq mathcomp-word ]
+    ++ optionals coqDeps [ coqPackages.coq coqPackages.coq-lsp coqPackages.coqide mathcomp-word ]
     ++ optionals testDeps ([ curl.bin oP.apron.out libllvm ] ++ (with python3Packages; [ python pyyaml ]))
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib dune_3
@@ -72,7 +72,7 @@ stdenv.mkDerivation {
          angstrom
          batteries
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
-    ++ optionals devTools (with oP; [ merlin ocaml-lsp ])
+    ++ optionals devTools (with oP; [ merlin ocaml-lsp])
     ++ optionals ecDeps [ easycrypt alt-ergo.bin z3.out ]
     ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
     ;

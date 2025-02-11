@@ -509,7 +509,7 @@ Section PROOF.
     have dcok : map_cfprog_name (dead_code_fd is_move_op do_nop onfun) (p_funcs p) = ok (p_funcs p').
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [f' Hf'1 Hf'2] := get_map_cfprog_name_gen dcok Hfun.
-    case: f Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hscs Hfi => fi ft fp /= c f_tyout res fb
+    case: f Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hscs Hfi => fi ft fp f_src_p /= c f_tyout f_src_tyout res fb
       Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hscs Hfi.
     move: Hf'1; t_xrbindP => -[sv sc] Hd H; subst f'.
     move: Hw; rewrite (write_vars_lvals _ gd) => Hw.
@@ -546,8 +546,10 @@ Section PROOF.
            f_info := fi;
            f_tyin := ft;
            f_params := fp;
+           f_src_params := f_src_p;
            f_body := sc;
            f_tyout := fn_keep_only onfun fn f_tyout;
+           f_src_tyout := f_src_tyout;
            f_res := fn_keep_only onfun fn res;
            f_extra := fb |} vargs1' (with_vm s0 (evm s0)) (with_vm s1 vm1) {| escs := escs2; emem := emem2; evm := vm2' |}
            vres1; eauto=> //=.
@@ -644,10 +646,10 @@ Lemma dead_code_fd_meta do_nop onfun fn (fd fd': sfundef) :
   [/\
    fd'.(f_tyin) = fd.(f_tyin),
    fd'.(f_params) = fd.(f_params) &
-   fd'.(f_extra) = fd.(f_extra)
+   fd'.(f_extra) = fd.(f_extra) 
   ].
 Proof.
-  by case: fd => /= ; t_xrbindP => /= ????????? <-.
+  by case: fd => /= ; t_xrbindP => /= ??????????? <-.
 Qed.
 
 End WITH_PARAMS.

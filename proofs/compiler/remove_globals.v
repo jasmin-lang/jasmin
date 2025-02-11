@@ -323,8 +323,10 @@ Section REMOVE.
         {| f_info   := f.(f_info);
            f_tyin   := f.(f_tyin);
            f_params := f.(f_params);
+           f_src_params := f.(f_src_params);
            f_body   := envc.2;
            f_tyout  := f.(f_tyout);
+           f_src_tyout := f.(f_src_tyout);
            f_res    := f.(f_res);
            f_extra  := f.(f_extra);
         |}.

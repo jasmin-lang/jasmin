@@ -202,9 +202,9 @@ Section Section.
 Context {pT:progT}.
 
 Definition pi_fun  (f:fundef) :=
-  let 'MkFun ii si p c so r ev := f in
+  let 'MkFun ii si p src_p c so src_so r ev := f in
   Let pic := pi_c pi_i piempty c in 
-  ok (MkFun ii si p pic.2 so r ev).
+  ok (MkFun ii si p src_p pic.2 so src_so r ev).
 
 Definition pi_prog (p:prog) := 
   Let funcs := map_cfprog pi_fun (p_funcs p) in

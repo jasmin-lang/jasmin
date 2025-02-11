@@ -831,7 +831,7 @@ Proof.
   have [fd1 [fd2 [m [inout [Hget2 hsigs /=]]]] {Hget}]:= all_checked Hget.
   rewrite /expand_fsig; t_xrbindP => -[mt finf].
   case: f Hca Hw Hc Hres Hcr => /=.
-  move=> finfo ftyin fparams fbody ftyout fres fextra.
+  move=> finfo ftyin fparams f_src_params fbody ftyout f_src_tyout fres fextra.
   set fd := {| f_info := finfo |} => Hca Hw Hc Hres Hcr hinit.
   t_xrbindP => ins hparams outs hres <- ??; subst mt inout.
   t_xrbindP => c hc ?; subst fd1.

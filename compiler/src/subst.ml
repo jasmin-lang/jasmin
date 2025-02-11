@@ -249,12 +249,15 @@ let isubst_prog glob prog =
        We use let-in to enforce the right order *)
     let f_args = List.map dov fc.f_args in
     let f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret in
+    let t_out = List.map isubst_ty fc.f_tyout in
     let fc = {
         fc with
         f_tyin = List.map isubst_ty fc.f_tyin;
         f_args;
         f_body = gsubst_c isubst_len subst_v fc.f_body;
-        f_tyout = List.map isubst_ty fc.f_tyout;
+        f_tyout = t_out;
+        f_src_tyout = t_out;
+        f_src_args = f_args;
         f_ret;
       } in
     fc

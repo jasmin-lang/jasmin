@@ -1476,8 +1476,10 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> Ident.iden
     f_info := f_info fd;
     f_tyin := map2 (fun o ty => if o is Some _ then sword Uptr else ty) sao.(sao_params) fd.(f_tyin);
     f_params := params;
+    f_src_params := fd.(f_src_params) ;
     f_body := flatten body;
     f_tyout := map2 (fun o ty => if o is Some _ then sword Uptr else ty) sao.(sao_return) fd.(f_tyout);
+    f_src_tyout := fd.(f_src_tyout);
     f_res := res;
     f_extra := f_extra fd |}.
 

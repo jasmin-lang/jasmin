@@ -616,7 +616,7 @@ Proof.
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
   have [f' hf'1 hf'2] := get_map_cfprog_name_gen spillok hfun.
   case: f hfun htra hinit hw hsc hc hres hfull hf'1 hf'2 =>
-    fi ft fp /= c f_tyout res fb hfun htra hinit hw hsc [hc_ hc] hres hfull hf'1 hf'2.
+    fi ft fp src_fp /= c f_tyout f_src_tyout res fb hfun htra hinit hw hsc [hc_ hc] hres hfull hf'1 hf'2.
   case: ifP hf'1.
   + by move=> hX [?]; subst f'; econstructor; eauto => //=; rewrite -eq_p_extra.
   t_xrbindP=> _ hcm [env' c'] hc' ?; subst f'.

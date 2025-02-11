@@ -1264,7 +1264,7 @@ Section PROOF.
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
     move => scs1 m1 sc2 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
-    case: f=> fi ftin fparams fc ftout fres fex /= Hget Hargs Hi Hw _ Hc Hres Hfull Hscs Hfi.
+    case: f=> fi ftin fparams f_src_params fc ftout f_src_tyout fres fex /= Hget Hargs Hi Hw _ Hc Hres Hfull Hscs Hfi.
     generalize (get_map_prog (const_prop_fun gd) p fn); rewrite Hget /=.
     have : valid_cpm (evm s1) empty_cpm by move=> x n;rewrite Mvar.get0.
     move=> /Hc [];case: const_prop => m c' /= hcpm hc' hget vargs1 hargs'.

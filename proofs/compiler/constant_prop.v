@@ -544,9 +544,9 @@ Section Section.
 Context {pT: progT}.
 
 Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
-  let 'MkFun ii si p c so r ev := f in
+  let 'MkFun ii si p src_p c so src_so r ev := f in
   let (_, c) := const_prop (const_prop_i gd) empty_cpm c in
-  MkFun ii si p c so r ev.
+  MkFun ii si p src_p c so src_so r ev.
 
 Definition const_prop_prog (p:prog) : prog := map_prog (const_prop_fun p.(p_globs)) p.
 

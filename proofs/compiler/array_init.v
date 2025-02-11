@@ -55,8 +55,10 @@ Definition remove_init_fd (fd:fundef) :=
   {| f_info   := fd.(f_info);
      f_tyin   := fd.(f_tyin);
      f_params := fd.(f_params);
+     f_src_params := fd.(f_src_params);
      f_body   := remove_init_c fd.(f_body);
      f_tyout  := fd.(f_tyout);
+     f_src_tyout := fd.(f_src_tyout);
      f_res    := fd.(f_res);
      f_extra  := fd.(f_extra);
   |}.
@@ -120,8 +122,10 @@ Definition add_init_fd (fd:fundef) :=
   {| f_info   := fd.(f_info);
      f_tyin   := fd.(f_tyin);
      f_params := fd.(f_params);
+     f_src_params := fd.(f_src_params);
      f_body   := f_body;
      f_tyout  := fd.(f_tyout);
+     f_src_tyout := fd.(f_src_tyout);
      f_res    := fd.(f_res);
      f_extra  := fd.(f_extra);
   |}.

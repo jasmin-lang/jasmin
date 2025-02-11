@@ -69,7 +69,7 @@ Section INCL.
     inline_fd' p  fd = ok fd' ->
     inline_fd' p' fd = ok fd'.
   Proof.
-    by case: fd => fi ftin fp fb ftout fr fe /=;apply: rbindP => -[??] /inline_c_incl -> [<-].
+    by case: fd => fi ftin fp f_src_p fb ftout f_src_tout fr fe /=;apply: rbindP => -[??] /inline_c_incl -> [<-].
   Qed.
 
 End INCL.
@@ -524,7 +524,7 @@ Section PROOF.
   Proof.
     move=> scs1 m1 scs2 m2 fn fd vargs vargs' s0 s1 svm2 vres vres' Hget Htin Hi Hw Hsem Hc Hres Htout Hscs Hfi.
     have [fd' [Hfd']{Hget}] := inline_progP' uniq_funname Hp Hget.
-    case: fd Htin Hi Hw Hsem Hc Hres Htout Hfi => /= fi tin fx fc tout fxr fe 
+    case: fd Htin Hi Hw Hsem Hc Hres Htout Hfi => /= fi tin fx f_src_x fc tout src_tout fxr fe 
              Htin Hi Hw Hsem Hc Hres Htout Hfi.
     apply: rbindP => -[X fc'] /Hc{}Hc [] ?;subst fd'.
     move=> vargs1 Hall;move: Hw; rewrite (write_vars_lvals _ gd) => Hw.

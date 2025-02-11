@@ -689,7 +689,7 @@ Section PROOF.
 
   Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
   Proof.
-    move=> scs1 m1 scs2 m2 fn [ii si p c so r ev0] /= vargs' vargs s0 s1 s2 vres vres'.
+    move=> scs1 m1 scs2 m2 fn [ii si p src_p c so src_so r ev0] /= vargs' vargs s0 s1 s2 vres vres'.
     move=> hget htr hinit hwr _ hc hres hrtr hscs hfin.
     have [fd2 /=]:= all_checked hget.
     t_xrbindP => -[pi2 c'] hc_ ? hget2 vargs1 hvargs1; subst fd2.

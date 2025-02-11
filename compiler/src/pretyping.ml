@@ -2136,8 +2136,10 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
       P.f_name  = P.F.mk name;
       P.f_tyin  = List.map (fun { P.v_ty } -> v_ty) args;
       P.f_args  = args;
+      P.f_src_args = [];
       P.f_body  = body;
       P.f_tyout = rty;
+      P.f_src_tyout = [];
       P.f_outannot = oannot;
       P.f_ret   = xret; } in
 
