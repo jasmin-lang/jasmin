@@ -1,3 +1,4 @@
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
 From mathcomp Require Import ssralg.
@@ -78,6 +79,8 @@ End IS_MOVE_OP.
 
 Section COMPILER.
 
+(* To use [Finite.axiom], we need [compiler_step] to be [eqType]. *)
+#[only(eqbOK)] derive
 Variant compiler_step :=
   | Typing                      : compiler_step
   | ParamsExpansion             : compiler_step
@@ -146,16 +149,7 @@ Definition compiler_step_list := [::
   ; Assembly
 ].
 
-(* To use [Finite.axiom], we must first show that [compiler_step] is [eqType]. *)
-Scheme Equality for compiler_step.
-Lemma compiler_step_eq_axiom : Equality.axiom compiler_step_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme
-       internal_compiler_step_dec_bl
-       internal_compiler_step_dec_lb).
-Qed.
-HB.instance Definition _ := hasDecEq.Build compiler_step compiler_step_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build compiler_step compiler_step_eqb_OK.
 
 Lemma compiler_step_list_complete : Finite.axiom compiler_step_list.
 Proof. by case. Qed.

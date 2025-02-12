@@ -1,4 +1,5 @@
 (* -------------------------------------------------------------------- *)
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
@@ -46,6 +47,7 @@ End E.
 
 (* -------------------------------------------------------------------- *)
 
+#[only(eqbOK)] derive
 Variant x86_extra_op : Type :=
 | Oset0     of wsize  (* set register + flags to 0 (implemented using XOR x x or VPXOR x x) *)
 | Oconcat128          (* concatenate 2 128 bits word into 1 256 word register *)
@@ -59,17 +61,7 @@ Variant x86_extra_op : Type :=
 | Ox86SLHprotect of reg_kind & wsize
 .
 
-Scheme Equality for x86_extra_op.
-
-Lemma x86_extra_op_eq_axiom : Equality.axiom x86_extra_op_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme
-       internal_x86_extra_op_dec_bl
-       internal_x86_extra_op_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build x86_extra_op x86_extra_op_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build x86_extra_op x86_extra_op_eqb_OK.
 
 Local Notation E n := (ADExplicit n ACR_any).
 
@@ -342,7 +334,7 @@ Definition assemble_extra ii o outx inx : cexec (seq (asm_op_msb_t * lexprs * re
 
 #[global]
 Instance eqC_x86_extra_op : eqTypeC x86_extra_op :=
-  { ceqP := x86_extra_op_eq_axiom }.
+  { ceqP := x86_extra_op_eqb_OK }.
 
 (* Without priority 1, this instance is selected when looking for an [asmOp],
    meaning that extra ops are the only possible ops. With that priority,

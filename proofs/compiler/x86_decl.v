@@ -1,3 +1,4 @@
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype choice fintype.
 From mathcomp Require Import word_ssrZ.
@@ -21,15 +22,18 @@ Definition x86_reg_size  := U64.
 Definition x86_xreg_size := U256.
 
 (* -------------------------------------------------------------------- *)
+#[only(eqbOK)] derive
 Variant register : Type :=
   | RAX | RCX | RDX | RBX | RSP | RBP | RSI | RDI
   | R8  | R9  | R10 | R11 | R12 | R13 | R14 | R15.
 
 (* -------------------------------------------------------------------- *)
+#[only(eqbOK)] derive
 Variant register_ext : Type :=
   | MM0 | MM1 | MM2 | MM3 | MM4 | MM5 | MM6 | MM7.
 
 (* -------------------------------------------------------------------- *)
+#[only(eqbOK)] derive
 Variant xmm_register : Type :=
   | XMM0 | XMM1 | XMM2 | XMM3
   | XMM4 | XMM5 | XMM6 | XMM7
@@ -37,10 +41,12 @@ Variant xmm_register : Type :=
   | XMM12 | XMM13 | XMM14 | XMM15.
 
 (* -------------------------------------------------------------------- *)
+#[only(eqbOK)] derive
 Variant rflag : Type :=
   | CF | PF | ZF | SF | OF.
 
 (* -------------------------------------------------------------------- *)
+#[only(eqbOK)] derive
 Variant condt : Type :=
 | O_ct                  (* overflow *)
 | NO_ct                 (* not overflow *)
@@ -62,64 +68,15 @@ Variant condt : Type :=
 
 (* -------------------------------------------------------------------- *)
 
-Scheme Equality for register.
+HB.instance Definition _ := hasDecEq.Build register register_eqb_OK.
 
-Lemma reg_eq_axiom : Equality.axiom register_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_register_dec_bl internal_register_dec_lb).
-Qed.
+HB.instance Definition _ := hasDecEq.Build register_ext register_ext_eqb_OK.
 
-HB.instance Definition _ := hasDecEq.Build register reg_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build xmm_register xmm_register_eqb_OK.
 
-(* -------------------------------------------------------------------- *)
+HB.instance Definition _ := hasDecEq.Build rflag rflag_eqb_OK.
 
-Scheme Equality for register_ext.
-
-Lemma regx_eq_axiom : Equality.axiom register_ext_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme
-       internal_register_ext_dec_bl
-       internal_register_ext_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build register_ext regx_eq_axiom.
-
-(* -------------------------------------------------------------------- *)
-
-Scheme Equality for xmm_register.
-
-Lemma xreg_eq_axiom : Equality.axiom xmm_register_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme
-       internal_xmm_register_dec_bl
-       internal_xmm_register_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build xmm_register xreg_eq_axiom.
-
-(* -------------------------------------------------------------------- *)
-
-Scheme Equality for rflag.
-
-Lemma rflag_eq_axiom : Equality.axiom rflag_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_rflag_dec_bl internal_rflag_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build rflag rflag_eq_axiom.
-
-(* -------------------------------------------------------------------- *)
-
-Scheme Equality for condt.
-
-Lemma condt_eq_axiom : Equality.axiom condt_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_condt_dec_bl internal_condt_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build condt condt_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build condt condt_eqb_OK.
 
 (* -------------------------------------------------------------------- *)
 Definition registers :=
@@ -180,7 +137,7 @@ HB.instance Definition _ := isFinite.Build rflag rflags_fin_axiom.
 
 #[global]
 Instance eqTC_register : eqTypeC register :=
-  { ceqP := reg_eq_axiom }.
+  { ceqP := register_eqb_OK }.
 
 #[global]
 Instance finC_register : finTypeC register :=
@@ -215,7 +172,7 @@ Instance x86_reg_toS : ToString (sword x86_reg_size) register :=
 (* -------------------------------------------------------------------- *)
 #[global]
 Instance eqTC_regx : eqTypeC register_ext :=
-  { ceqP := regx_eq_axiom }.
+  { ceqP := register_ext_eqb_OK }.
 
 #[global]
 Instance finC_regx : finTypeC register_ext :=
@@ -242,7 +199,7 @@ Instance x86_regx_toS : ToString (sword x86_reg_size) register_ext :=
 (* -------------------------------------------------------------------- *)
 #[global]
 Instance eqTC_xmm_register : eqTypeC xmm_register :=
-  { ceqP := xreg_eq_axiom }.
+  { ceqP := xmm_register_eqb_OK }.
 
 #[global]
 Instance finC_xmm_register : finTypeC xmm_register :=
@@ -278,7 +235,7 @@ Instance x86_xreg_toS : ToString (sword x86_xreg_size) xmm_register :=
 
 #[global]
 Instance eqTC_rflag : eqTypeC rflag :=
-  { ceqP := rflag_eq_axiom }.
+  { ceqP := rflag_eqb_OK }.
 
 #[global]
 Instance finC_rflag : finTypeC rflag :=
@@ -303,7 +260,7 @@ Instance x86_rflag_toS : ToString sbool rflag :=
 
 #[global]
 Instance eqC_condt : eqTypeC condt :=
-  { ceqP := condt_eq_axiom }.
+  { ceqP := condt_eqb_OK }.
 
 (* -------------------------------------------------------------------- *)
 

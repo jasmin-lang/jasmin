@@ -2279,6 +2279,7 @@ Section PROOF.
   Remark next_lbl_neq (lbl: label) :
     ((lbl + 1)%positive == lbl) = false.
   Proof.
+    clear.
     apply/eqP => k.
     suff : (lbl < lbl)%positive by lia.
     rewrite -{2}k; lia.
@@ -2489,7 +2490,7 @@ Section PROOF.
     move: a => []; last by rewrite cats0 -hpc setpc_id.
     rewrite size_cat /= addn1.
     move=> hbody hpc' /lsem_split_start [? | [ls0 hsem1 hsem]].
-    - subst ls'. move: hpc. rewrite hpc' /addn /addn_rec. lia.
+    - subst ls'. move: hpc. rewrite hpc' /addn /addn_rec. clear; lia.
     apply: (lsem_trans _ hsem).
     move: hsem1.
     rewrite /lsem1 /step (find_instr_skip0 hbody) //= -hpc.
@@ -2506,7 +2507,7 @@ Section PROOF.
     lsem p' (setpc ls (size P).+1) ls'.
   Proof.
     move=> hbody hpc' /lsem_split_start [? | [ls0 hsem1 hsem]].
-    - subst ls'. move: hpc. rewrite hpc' /addn /addn_rec. lia.
+    - subst ls'. move: hpc. rewrite hpc' /addn /addn_rec. clear; lia.
     apply: (lsem_trans _ hsem).
     move: hsem1.
     rewrite /lsem1 /step (find_instr_skip0 hbody) //= -hpc.
@@ -2526,7 +2527,7 @@ Section PROOF.
     lsem p' (setpc ls (size P + size Q).+2) ls'.
   Proof.
     move=> hbody hpc' Dp Dq /lsem_split_start [? | [ls0 hsem1 hsem]].
-    - subst ls'. move: hpc. rewrite hpc' /addn /addn_rec. lia.
+    - subst ls'. move: hpc. rewrite hpc' /addn /addn_rec. clear; lia.
     apply: (lsem_trans _ hsem).
     move: hsem1.
     rewrite /lsem1 /step (find_instr_skip0 hbody) //=.
@@ -2995,7 +2996,7 @@ Section PROOF.
     move=> hsz hextra.
     rewrite /stack_frame_allocation_size.
     have := round_ws_range (sf_align e) (sf_stk_sz e + sf_stk_extra_sz e).
-    by lia.
+    by clear; lia.
   Qed.
 
   Lemma frame_size_bound e :
@@ -3006,7 +3007,7 @@ Section PROOF.
     move=> hsz hextra.
     rewrite /frame_size.
     have := stack_frame_allocation_size_bound hsz hextra.
-    by case: is_RAnone; lia.
+    by case: is_RAnone; clear; lia.
   Qed.
 
   (* If we write in a frame that is itself inside the stack, we can establish

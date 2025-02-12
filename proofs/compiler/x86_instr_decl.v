@@ -1,3 +1,4 @@
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype tuple.
 From mathcomp Require Import ssralg word word_ssrZ.
@@ -9,6 +10,7 @@ Require Import x86_decl.
 
 (* -------------------------------------------------------------------- *)
 
+#[only(eqbOK)] derive
 Variant x86_op : Type :=
   (* Data transfert *)
 | MOV    of wsize              (* copy *)
@@ -201,14 +203,7 @@ Variant x86_op : Type :=
 | SHA256MSG2
 .
 
-Scheme Equality for x86_op.
-
-Lemma x86_op_eq_axiom : Equality.axiom x86_op_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_x86_op_dec_bl internal_x86_op_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build x86_op x86_op_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build x86_op x86_op_eqb_OK.
 
 (* ----------------------------------------------------------------------------- *)
 Definition b_ty             := [:: sbool].
@@ -2442,7 +2437,7 @@ Definition x86_prim_string :=
 
 #[global]
 Instance eqC_x86_op : eqTypeC x86_op :=
-  { ceqP := x86_op_eq_axiom }.
+  { ceqP := x86_op_eqb_OK }.
 
 #[global]
 Instance x86_op_decl : asm_op_decl x86_op := {

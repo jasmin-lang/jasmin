@@ -306,6 +306,7 @@ Definition s_if t e e1 e2 :=
 (* ** constant propagation
  * -------------------------------------------------------------------- *)
 
+(* TODO: elpi.derive is not clever enough to deal with words *)
 Variant const_v :=
   | Cbool of bool
   | Cint of Z

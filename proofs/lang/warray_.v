@@ -1,27 +1,21 @@
 (* * Syntax and semantics of the Jasmin source language *)
 
 (* ** Imports and settings *)
-From Coq Require Export ZArith Setoid Morphisms.
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype div ssralg.
 From mathcomp Require Import word_ssrZ.
+From Coq Require Export ZArith Setoid Morphisms.
 Require Import xseq.
 Require Export utils array gen_map type word memory_model.
 Import Utf8 ZArith Lia.
 
+#[only(eqbOK)] derive
 Variant arr_access := 
   | AAdirect
   | AAscale.
 
-Scheme Equality for arr_access.
-
-Lemma arr_access_eq_axiom : Equality.axiom arr_access_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme internal_arr_access_dec_bl internal_arr_access_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build arr_access arr_access_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build arr_access arr_access_eqb_OK.
 
 Local Open Scope Z_scope.
 

@@ -1,4 +1,5 @@
 (* ** Imports and settings *)
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
@@ -65,6 +66,7 @@ Definition slot := var.
 
 Notation size_slot s := (size_of s.(vtype)).
 
+(* elpi.derive not clever enough to unfold slot *)
 Record region :=
   { r_slot : slot;        (* the name of the region        *)
       (* the size of the region is encoded in the type of [r_slot] *)
@@ -115,6 +117,9 @@ Module Mr := Mmake CmpR.
 (* ------------------------------------------------------------------ *)
 (* Slice and zone *)
 
+(* TODO: to call eqbOK on [sexpr], we need to have it for [var]. Try to use the
+   register equality feature that exists in the latest versions of coq-elpi.
+   For now, we still do it by hand. *)
 Inductive sexpr :=
 | Sconst : Z -> sexpr
 | Svar : var -> sexpr
@@ -124,13 +129,6 @@ Inductive sexpr :=
 | Sadd : op_kind -> sexpr -> sexpr -> sexpr
 | Smul : op_kind -> sexpr -> sexpr -> sexpr
 | Ssub : op_kind -> sexpr -> sexpr -> sexpr.
-
-Lemma op_kind_eq_axiom : Equality.axiom internal_op_kind_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_op_kind_dec_bl internal_op_kind_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build op_kind op_kind_eq_axiom.
 
 Fixpoint sexpr_beq (e1 e2 : sexpr) :=
   match e1, e2 with

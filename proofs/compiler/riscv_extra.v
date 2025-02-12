@@ -1,3 +1,4 @@
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 
@@ -18,26 +19,16 @@ Require Import
 
 Local Notation E n := (sopn.ADExplicit n sopn.ACR_any).
 
-
+#[only(eqbOK)] derive
 Variant riscv_extra_op : Type :=  
   | SWAP of wsize
   | Oriscv_add_large_imm.
 
-Scheme Equality for riscv_extra_op.
-
-Lemma riscv_extra_op_eq_axiom : Equality.axiom riscv_extra_op_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme
-       internal_riscv_extra_op_dec_bl
-       internal_riscv_extra_op_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build riscv_extra_op riscv_extra_op_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build riscv_extra_op riscv_extra_op_eqb_OK.
 
 #[ export ]
 Instance eqTC_riscv_extra_op : eqTypeC riscv_extra_op :=
-  { ceqP := riscv_extra_op_eq_axiom }.
+  { ceqP := riscv_extra_op_eqb_OK }.
 
 (* [conflicts] ensures that the returned register is distinct from the first
    argument. *)

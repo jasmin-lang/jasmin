@@ -6396,6 +6396,7 @@ Proof.
   have := wf_cs1.(wfcs_ofs).
   have := wf_cs2.(wfcs_ofs).
   rewrite heq.
+  clear.
   by split; rewrite ?zify; lia.
 Qed.
 
@@ -6569,7 +6570,7 @@ Proof.
   have ok_off: sem_sexpr vme (Sconst off) >>= to_int = ok off.
   + by [].
   have hoff': 0 <= off ∧ off + size_of sword8 <= size_of ty.
-  + by rewrite /= wsize8; lia.
+  + by rewrite /= wsize8; clear -hoff; lia.
   have hwf' := sub_region_at_ofs_wf hwf ok_off hoff'.
   have haddr' := sub_region_addr_offset hwf ok_off hoff' haddr.
   change (wsize_size U8) with (size_of sword8).
@@ -6583,14 +6584,14 @@ Proof.
     have [cs2 ok_cs2 wf_cs2] := hwf2.(wfsr_zone).
     have hoff'': 0 <= off < cs.(cs_len).
     + have := wf_cs.(wfcs_len).
-      by lia.
+      by clear -hoff; lia.
     have off_nin := hdisj2 _ _ ok_cs2 ok_cs hoff''.
     have [cs' [ok_cs' _ hsub]] := sub_zone_at_ofsP ok_cs wf_cs ok_off hoff'.
     rewrite /disjoint_symbolic_zone ok_cs' ok_cs2 => _ _ [<-] [<-].
     move: hsub; rewrite /sub_concrete_slice /=; case: ifP => // _ [<-].
     move: off_nin;
       rewrite /offset_in_concrete_slice /disjoint_concrete_slice /= wsize8 !zify.
-    by lia.
+    by clear; lia.
   by apply (distinct_regions_disjoint_zrange hwf2 haddr2 hwf' haddr' heqr hw2).
 Qed.
 
@@ -7013,7 +7014,7 @@ Proof.
   have hvp: forall k, 0 <= k < len -> validw (emem s2) Aligned (addr + wrepr _ k)%R U8.
   + move=> k hk.
     apply (validw_sub_region_addr_ofs hvs hwf ok_addr).
-    + by rewrite wsize8 /=; lia.
+    + by rewrite wsize8 /=; clear -hk; lia.
     by apply is_align8.
 
   elim: l (emem s2) hvp 0 (WArray.empty len) {hsize} hfold => [|w l ih] m2 hvp z a0 /=.
@@ -7021,7 +7022,7 @@ Proof.
   t_xrbindP=> _ a' hset <- /ih{}ih.
   move: hset => /WArray.set_bound; rewrite WArray.mk_scale_U8 Z.mul_1_r wsize8 => -[h1 h2 _].
   have hvp2: validw m2 Aligned (addr + wrepr _ z)%R U8.
-  + by apply hvp; lia.
+  + by apply hvp; clear -h1 h2; lia.
   have /writeV -/(_ w) [m2' hm2'] := hvp2.
   rewrite addE hm2' /=.
   apply ih.
@@ -7238,7 +7239,7 @@ Proof.
     move: ok_addrg'; rewrite ok_addrg => -[?]; subst addrg'.
     rewrite (WArray.fill_get8 hfill) (fill_mem_read8_no_overflow _ hfillm)
             -?(WArray.fill_size hfill) ?positive_nat_Z /=;
-      try lia.
+      try (clear -hlen hoff; lia).
     by case: andb.
 
   (* wrap up *)
@@ -7251,7 +7252,7 @@ Proof.
     rewrite (hpk _ ok_addrg) /=.
     by rewrite Vm.setP_eq wt_len vm_truncate_val_eq //; eauto.
   + rewrite /= /exec_syscall_s /= !truncate_word_u /=.
-    rewrite /exec_getrandom_s_core wunsigned_repr_small; last by lia.
+    rewrite /exec_getrandom_s_core wunsigned_repr_small; last by clear -hlen; lia.
     by rewrite -vs_scs hfillm.
   by rewrite /= LetK; apply write_var_eq_type; rewrite // hlocal.(wfr_rtype).
 Qed.

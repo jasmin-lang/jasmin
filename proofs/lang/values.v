@@ -436,6 +436,7 @@ Lemma val_uincl_alt t1 t2 : @val_uincl t1 t2 =
     else fun _ _ => False
   end.
 Proof.
+  have stype_eq_dec := Bool.reflect_dec _ _ (stype_eqb_OK _ _).
   by case: t1; case: t2 => >; rewrite /val_uincl //=;
     case: {-}_/ boolP => // h >;
     rewrite (Eqdep_dec.UIP_dec stype_eq_dec (eqP h)).
