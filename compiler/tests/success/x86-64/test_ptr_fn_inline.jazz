@@ -1,5 +1,5 @@
 inline
-fn init (reg mut ptr u64[3] p) -> reg u64[3] {
+fn init (reg mut ptr u64[3] p) -> reg mut ptr u64[3] {
    inline int i;
    for i = 0 to 3 {
       p[i] = i;

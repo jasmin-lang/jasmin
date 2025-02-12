@@ -50,6 +50,10 @@
   ([PR #1044](https://github.com/jasmin-lang/jasmin/pull/1044);
   fixes [#680](https://github.com/jasmin-lang/jasmin/issues/680)).
 
+- Compiler now enforces coherence between function storage type and return variable storage type
+  ([PR#1028](https://github.com/jasmin-lang/jasmin/pull/1028);
+  fixes [#18](https://github.com/jasmin-lang/jasmin/issues/18)).
+
 ## Other changes
 
 - The “allocation” pass now uses the liveness information to reduce the sizes

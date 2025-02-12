@@ -240,6 +240,21 @@ let string_of_sizetype =
   | TypeWsize ws -> string_of_ws ws
   | TypeSizeAlias pident -> L.unloc pident
 
+let pp_writable = function
+  | Some `Constant -> " const"
+  | Some `Writable -> " mut"
+  | None  -> ""
+
+let pp_pointer = function
+  | `Pointer w-> pp_writable w ^ " ptr"
+  | `Direct  -> ""
+
+let pp_storage = function
+  | `Reg(ptr) -> "reg" ^ (pp_pointer ptr)
+  | `Stack ptr -> "stack" ^ (pp_pointer ptr)
+  | `Inline -> "inline"
+  | `Global -> "global"
+
 (* -------------------------------------------------------------------- *)
 type pparam = {
   ppa_ty   : ptype;
