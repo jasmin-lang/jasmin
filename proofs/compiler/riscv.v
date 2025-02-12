@@ -1,7 +1,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
-Require Import
+From Coq Require Import
   ZArith.
-Require Import 
+Require Import
   utils
   word.
 Require Import arch_decl.

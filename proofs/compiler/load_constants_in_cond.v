@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool.
-Require Import Uint63.
+From Coq Require Import Uint63.
 Require Import expr compiler_util.
 
 Local Open Scope seq_scope.
