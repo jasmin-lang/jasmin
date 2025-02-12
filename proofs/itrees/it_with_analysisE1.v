@@ -304,9 +304,32 @@ Definition Tr_FunDef (f: FunDef) : itree E2 FunDef :=
 
 (* End TRANSF_spec. *)
 
-(*********************************************************************)
-(*** PROOFS **********************************************************)
+Definition Tr_lval_rel (l1 l2: lval) : Prop :=
+  eutt eq (ret l2) (tr_lval l1).
+  
+Definition Tr_lvals_rel (ls1 ls2: lvals) : Prop :=
+  eutt eq (ret ls2) (tr_lvals ls1).
+  
+Definition Tr_expr_rel (e1 e2: pexpr) : Prop :=
+  eutt eq (ret e2) (tr_expr e1).
+  
+Definition Tr_exprs_rel (es1 es2: pexprs) : Prop :=
+  eutt eq (ret es2) (tr_exprs es1).
+  
+Definition Tr_opn_rel (o1 o2: sopn) : Prop :=
+  eutt eq (ret o2) (tr_opn o1).
 
+Definition Tr_sysc_rel (s1 s2: syscall_t) : Prop :=
+  eutt eq (ret s2) (tr_sysc s1).
+
+Definition Tr_ir_rel (i1 i2: instr_r) : Prop :=
+  eutt eq (ret i2) (Tr_ir i1).
+
+Definition Tr_cmd_rel (c1 c2: cmd) : Prop :=
+  eutt eq (ret c2) (Tr_cmd c1).
+
+Definition Tr_FunDef_rel (f1 f2: FunDef) : Prop :=
+  eutt eq (ret f2) (Tr_FunDef f1).
 
 Definition Error2false : forall X, exceptE error X -> bool :=
   fun X m => match m with | Throw _ => false end.                  
@@ -321,6 +344,9 @@ Definition NoCutoff (E: Type -> Type) : forall X, E X -> bool :=
   fun X m => true.
 
 
+(*********************************************************************)
+(*** PROOFS **********************************************************)
+
 Section TR_MM_L1.
 
 Context (E1: Type -> Type)
@@ -331,42 +357,127 @@ Context (HasFunE2 : FunE -< E2)
         (HasInstrE2 : InstrE -< E2).     
 
 Context (E0: Type -> Type).
-Context (FI: FIso (E0 +' ErrState) E1).
+Context (FI1: FIso (E0 +' ErrState) E1).
 
-Notation EE1 := (ErrorCutoff FI).
+Notation EE1 := (ErrorCutoff FI1).
 Notation EE2 := (NoCutoff E2).
 
 Context (TR_E : forall (E1 E2: Type -> Type) T1 T2,
-            E1 T1 -> E2 T2 -> Prop)
-        (VR_E : forall (E1 E2: Type -> Type) T1 T2,
-            E1 T1 -> T1 -> E2 T2 -> T2 -> Prop).
+            E1 T1 -> E2 T2 -> Prop).
+(*        (VR_E : forall (E1 E2: Type -> Type) T1 T2,
+            E1 T1 -> T1 -> E2 T2 -> T2 -> Prop). *)
+
+Definition VR_E (E1 E2: Type -> Type) T1 T2 :
+  E1 T1 -> T1 -> E2 T2 -> T2 -> Prop :=
+  fun _ _ _ _ => True.
 
 Context
-  (hinit: forall fn es1 es2,
+  (init_hyp: forall fn es1 es2,
     eutt eq (ret es2) (mapT tr_expr es1) ->
     @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
        (trigger (InitState fn es1)) (trigger (InitState fn es2)))               
-  (hdests: forall fn xs1 xs2,
+  (dests_hyp: forall fn xs1 xs2,
     eutt eq (ret xs2) (mapT tr_lval xs1) ->
     @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
-      (trigger (SetDests fn xs1)) (trigger (SetDests fn xs2))).
+      (trigger (SetDests fn xs1)) (trigger (SetDests fn xs2)))
+  (fname_hyp: forall fn,
+    @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (trigger (FunCode asmop fn)) (trigger (FunCode asmop fn)))
+  (cmd_hyp: forall c,
+    @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+        (denote_cmd HasFunE1 HasInstrE1 c)
+        (denote_cmd HasFunE2 HasInstrE2 c)).
 
 
 (** denotational equivalence across the translation; the proof is nice
- and short, but relies on the toy eutt assumptions; notice that the
- FunCode event actually hides the fact that the functions on the two
- sides are actually different, se we don't need induction on commands
- *)
-Lemma comp_gen_ok_MM2 (fn: funname)
+ and short, but relies on the assumptions. was comp_gen_ok_MM2. *)
+Lemma rutt_transl_denote_fun_MM (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) 
   (hxs: eutt eq (ret xs2) (mapT tr_lval xs1))
   (hes: eutt eq (ret es2) (mapT tr_expr es1)) :  
   @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq  
     (denote_fun _ _ fn xs1 es1) (denote_fun _ _ fn xs2 es2).
-  intros.
-  unfold denote_fun; simpl.
+Proof.  
+  eapply rutt_bind; eauto.
+  intros [] [] [].
+  
+  eapply rutt_bind with (RR := eq); eauto.
+  intros r1 r2 H; inv H.
 
-Admitted.   
+  eapply rutt_bind with (RR := eq); eauto.
+Qed.  
+
+Definition FI1_MR : FIso ((CState +' E0) +' ErrState) (CState +' E1) :=
+  FIsoTrans (FIsoRAssoc CState E0 ErrState) (FIsoSum (FIsoId CState) FI1). 
+
+Notation EE1_MR := (ErrorCutoff FI1_MR).
+Notation EE2_MR := (NoCutoff (CState +' E2)).
+
+(* ME: relation between FCState events *)
+Definition TR_D {T1 T2} (d1 : CState T1)
+                           (d2 : CState T2) : Prop :=
+  match (d1, d2) with
+  | (LCode c1, LCode c2) => Tr_cmd_rel c1 c2 
+  | (FCall xs1 fn1 es1, FCall xs2 fn2 es2) =>
+      fn1 = fn2  /\
+      Tr_lvals_rel xs1 xs2 /\ 
+      Tr_exprs_rel es1 es2
+  | _ => False   
+  end.               
+
+(* ME: relation between FCState event outputs, i.e. over estate *)
+Definition VR_D {T1 T2}
+  (d1 : CState T1) (t1: T1) (d2 : CState T2) (t2: T2) : Prop := True.
+
+Definition VR_D_alt {T1 T2}
+  (d1 : CState T1) (t1: T1) (d2 : CState T2) (t2: T2) : Prop :=
+  match (d1, d2) with
+  | (LCode c1, LCode c2) => True 
+  | (FCall xs1 fn1 es1, FCall xs2 fn2 es2) => True
+  | _ => False   
+  end.               
+  
+Program Definition TR_DE : prerel (CState +' E1) (CState +' E2) :=
+  sum_prerel (@TR_D) (TR_E E1 E2).
+
+Program Definition VR_DE : postrel (CState +' E1) (CState +' E2) :=
+  sum_postrel (@VR_D) (VR_E E1 E2).
+
+Lemma rutt_transl_denote_fcall_MM (fn: funname)
+  (xs1 xs2: lvals) (es1 es2: pexprs) 
+  (hxs: eutt eq (ret xs2) (mapT tr_lval xs1))
+  (hes: eutt eq (ret es2) (mapT tr_expr es1)) :  
+  @rutt (CState +' E1) (CState +' E2) _ _
+    EE1_MR EE2_MR TR_DE VR_DE eq  
+      (denote_fcall _ _ fn xs1 es1) (denote_fcall _ _ fn xs2 es2).
+Proof.  
+  eapply rutt_bind with (RR := eq); eauto.
+  eapply rutt_trigger.
+  unfold EE1_MR, EE2_MR, TR_DE, VR_DE, TR_D, VR_D, VR_E; simpl; eauto.
+  unfold resum.
+
+  Print error.
+  Check mfun2.
+  Set Printing All.
+
+  (* SOMETHING WRONG *)
+  
+  destruct (mfun2 unit (inr1 (HasInstrE1 unit (InitState fn es1)))); eauto.
+  unfold Error2false.
+  destruct e.
+  inv
+  
+  eapply init_hyp.
+  intros [] [] [].
+  
+  eapply rutt_bind with (RR := eq); eauto.
+  intros r1 r2 H; inv H.
+
+  eapply rutt_bind with (RR := eq); eauto.
+Qed.  
+
+
+
 (*  
   eapply eutt_clo_bind with (UU:= eq); eauto.
   rewrite hes.
@@ -419,15 +530,9 @@ Context (assgn_h1 :
                   p' <- tr_expr p ;;
                   trigger (AssgnE l' a s p'))).
 
-(* proving toy eutt across the translation for all commands (here we
-need induction). NOTE: this proof is more direct (and harder) than
-that of rutt_cmd_tr_ME, because unlike there here we treat the
-top-level as inductive, and in fact we are not using comp_gen_ok_MM1
- *)
-
-Check @denote_cmd.
-
-Lemma eutt_cmd_tr_L1 (cc: cmd) :
+(* proving rutt across the translation for all commands (here we need
+induction). was eutt_cmd_tr_L1 *)
+Lemma rutt_transl_denote_cmd_MM (cc: cmd) :
   @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq  
     (denote_cmd _ _ cc)
     (cc' <- Tr_cmd cc ;; denote_cmd _ _ cc').
@@ -485,11 +590,6 @@ Definition trnM_exprs (es: stateMM pexprs) :=
   (bind es (fun xs => mapL tr_expr xs)).
 *)
 
-Definition Trn_cmd_rel (c1 c2: cmd) : Prop :=
-  eutt eq (ret c2) (Tr_cmd c1).
-
-Definition Trn_FunDef_rel (f1 f2: FunDef) : Prop :=
-  eutt eq (ret f2) (Tr_FunDef f1).
 
 
 Section Sample_proof.

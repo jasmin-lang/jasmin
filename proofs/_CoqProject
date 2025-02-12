@@ -158,6 +158,7 @@ lang/warray_.v
 lang/word.v
 lang/wsize.v
 
+itrees/xrutt_aux.v
 itrees/it_gen_lib.v
 itrees/it_exec.v
 itrees/it_jasmin_lib.v
