@@ -64,6 +64,10 @@
   ([PR #1027](https://github.com/jasmin-lang/jasmin/pull/1027);
   fixes [#1026](https://github.com/jasmin-lang/jasmin/issues/1026)).
 
+- Compiler now enforces coherence between function storage type and return variable storage type
+  ([PR#1028](https://github.com/jasmin-lang/jasmin/pull/1028);
+  fixes [#18](https://github.com/jasmin-lang/jasmin/issues/18)).
+
 ## Other changes
 
 - Adding an annotation to function (`'info` type). Useful to store result of analysis. (see [[#1016](https://github.com/jasmin-lang/jasmin/issues/1016)])
