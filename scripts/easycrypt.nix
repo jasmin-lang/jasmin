@@ -2,7 +2,6 @@
 , lib
 , stdenv
 , fetchFromGitHub
-, applyPatches
 , fetchpatch
 , ocamlPackages
 , python3
@@ -10,43 +9,25 @@
 , fetchurl
 }:
 
-let why3_1_8 = (why3.override {
-  ideSupport = false;
-  coqPackages = { coq = null; flocq = null; };
-  }).overrideAttrs (o: {
-  name = "why3-1.8.0";
-  version = "1.8.0";
-  src = fetchurl {
-    url = "https://why3.gitlabpages.inria.fr/releases/why3-1.8.0.tar.gz";
-    hash = "sha256-gDe4OI0AuoYmJSCg/SMRQYcgelX/SM28ClQfKhnw88E=";
-  };
-}); in
-
 with {
 
   "dev" = {
     version = "main";
     rev = "????";
     src = builtins.fetchTarball "https://api.github.com/repos/easycrypt/easycrypt/tarball/main";
-    local_why3 = why3_1_8;
+    local_why3 = why3.override { version = "1.8.0"; };
   };
 
   "release" = rec {
-    version = "2024.09";
+    version = "2025.02";
     rev = "r${version}";
-    src = applyPatches {
-      src = fetchFromGitHub {
-        owner = "easycrypt";
-        repo = "easycrypt";
-        inherit rev;
-        hash = "sha256-ZGYklG1eXfytRKzFvRSB6jFrOCm1gjyG8W78eMve5Ng=";
-      };
-      patches = fetchpatch {
-        url = "https://github.com/EasyCrypt/easycrypt/commit/c8595b5fbb99b215f765b670ce206c235b326133.patch";
-        hash = "sha256-DpCpDzoFW/BZu5doJwM/4iSbkZ085qESUZAdqxRVK3U=";
-      };
+    src = fetchFromGitHub {
+      owner = "easycrypt";
+      repo = "easycrypt";
+      inherit rev;
+      hash = "sha256-XkfFCPmc8vd6gGFiz/Lxzk7BtcCQBzPNVPGFdiylZmc=";
     };
-    local_why3 = why3;
+    local_why3 = why3.override { version = "1.8.0"; };
   };
 
 }."${ecRef}";

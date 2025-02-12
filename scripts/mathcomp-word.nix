@@ -2,9 +2,6 @@
 
 let inherit (coqPackages) coq; in
 
-let mathcomp = coqPackages.mathcomp.override { version = "2.2.0"; }
-; in
-
 let rev = "1abe5ade5240115aed1e3c140e261f1554af2322"; in
 
 stdenv.mkDerivation rec {
@@ -20,7 +17,7 @@ stdenv.mkDerivation rec {
 
   buildInputs = [ coq ocaml dune_3 ];
 
-  propagatedBuildInputs = [ mathcomp.algebra mathcomp.fingroup mathcomp.ssreflect ];
+  propagatedBuildInputs = with coqPackages.mathcomp; [ algebra fingroup ssreflect ];
 
   buildPhase = ''
     runHook preBuild

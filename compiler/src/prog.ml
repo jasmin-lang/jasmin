@@ -115,6 +115,7 @@ and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
     f_annot: FInfo.f_annot;
+    f_info : 'info;
     f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
@@ -482,10 +483,6 @@ let spilled fc = spilled_c Sv.empty fc.f_body
 (* -------------------------------------------------------------------- *)
 let clamp (sz : wsize) (z : Z.t) =
   Z.erem z (Z.shift_left Z.one (int_of_ws sz))
-
-let clamp_pe (sz : pelem) (z : Z.t) =
-  Z.erem z (Z.shift_left Z.one (int_of_pe sz))
-
 
 (* --------------------------------------------------------------------- *)
 type ('info,'asm) sfundef = Expr.stk_fun_extra * ('info,'asm) func

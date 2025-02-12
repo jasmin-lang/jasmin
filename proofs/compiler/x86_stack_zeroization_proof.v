@@ -2,7 +2,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import Lia.
 
-Require Import seq_extra.
 Require Import
   expr
   fexpr
@@ -23,6 +22,7 @@ Require Import
   x86_extra
   x86_instr_decl.
 Require Export x86_stack_zeroization.
+Import seq_extra.
 
 (* FIXME: We should use the higher-level [eval_lsem] lemmas. *)
 Section FIXME.

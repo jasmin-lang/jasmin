@@ -148,6 +148,7 @@ Variant x86_op : Type :=
 | VPMOVMSKB of wsize & wsize (* source size (U128/256) & dest. size (U32/64) *)
 | VPCMPEQ of velem & wsize
 | VPCMPGT of velem & wsize
+| VPSIGN of velem & wsize
 | VPMADDUBSW of wsize
 | VPMADDWD of wsize
 | VMOVLPD   (* Store low 64-bits from XMM register *)
@@ -1778,6 +1779,25 @@ Definition Ox86_VPCMPGT_instr :=
                 ,("VPCMPGT"%string, primV VPCMPGT)
   ).
 
+Definition x86_VPSIGN (ve: velem) sz (v1 v2: word sz) : tpl (w_ty sz) :=
+  lift2_vec ve (λ x m, match wsigned m with Zpos _ => x | Z0 => 0%R | Zneg _ => (- x)%R end) sz v1 v2.
+
+Definition Ox86_VPSIGN_instr :=
+  (fun (ve: velem) sz => mk_instr_safe
+                  (pp_ve_sz "VPSIGN"%string ve sz)
+                  (w2_ty sz sz)
+                  (w_ty sz)
+                  [:: Ea 1; Eu 2]
+                  [:: Ea 0]
+                  MSB_CLEAR
+                  (@x86_VPSIGN ve sz)
+                  (check_xmm_xmm_xmmm sz)
+                  3
+                  (size_8_32 ve && size_128_256 sz)
+                  (pp_viname "vpsign" ve sz)
+                ,("VPSIGN"%string, primV_8_32 VPSIGN)
+  ).
+
 Definition x86_VPMADDUBSW sz (v v1: word sz) : tpl (w_ty sz) :=
   wpmaddubsw v v1.
 
@@ -2181,6 +2201,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPMOVMSKB sz sz'   => Ox86_PMOVMSKB_instr.1 sz sz'
   | VPCMPEQ ve sz      => Ox86_VPCMPEQ_instr.1 ve sz
   | VPCMPGT ve sz      => Ox86_VPCMPGT_instr.1 ve sz
+  | VPSIGN ve sz       => Ox86_VPSIGN_instr.1 ve sz
   | VPMADDUBSW sz      => Ox86_VPMADDUBSW_instr.1 sz
   | VPMADDWD sz        => Ox86_VPMADDWD_instr.1 sz
   | VMOVLPD            => Ox86_VMOVLPD_instr.1
@@ -2333,6 +2354,7 @@ Definition x86_prim_string :=
    Ox86_PMOVMSKB_instr.2;
    Ox86_VPCMPEQ_instr.2;
    Ox86_VPCMPGT_instr.2;
+   Ox86_VPSIGN_instr.2;
    Ox86_VPMADDUBSW_instr.2;
    Ox86_VPMADDWD_instr.2;
    Ox86_VMOVLPD_instr.2;

@@ -2572,6 +2572,10 @@ abstract theory W_WS.
    op VPCMPEQ_'Ru'S (w1 : WB.t) (w2: WB.t) =
      map2 (wcmp (=)) w1 w2.
 
+  op VPSIGN_'Ru'S (w1 : WB.t) (w2 : WB.t) =
+    let sign = fun x => if x < 0 then -1 else if x = 0 then 0 else 1 in
+    map2 (fun x m => x * WS.of_int (sign (WS.to_sint m))) w1 w2.
+
    op VPMAXU_'Ru'S (w1 : WB.t) (w2 : WB.t) =
      map2 (fun x y => if WS.to_uint x < WS.to_uint y then y else x) w1 w2.
 

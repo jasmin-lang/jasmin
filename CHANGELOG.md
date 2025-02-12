@@ -23,7 +23,8 @@
 - While instructions now have two pieces of information (including locations)
   attached to them: one corresponding to the whole instruction, the other one
   corresponding to the guard condition
-  ([PR #969](https://github.com/jasmin-lang/jasmin/pull/969);
+  ([PR #969](https://github.com/jasmin-lang/jasmin/pull/969),
+  [PR #1015](https://github.com/jasmin-lang/jasmin/pull/1015);
   fixes [#902](https://github.com/jasmin-lang/jasmin/issues/902)).
 
 - Add support for x86 `VPABS` instructions
@@ -34,6 +35,16 @@
   intrinsics `#BLENDV` which also maps to the `VPBLENDVB` instruction;
   therefore old intrinsic `#VPBLENDVB` is deprecated
   ([PR #1010](https://github.com/jasmin-lang/jasmin/pull/1010)).
+
+- Add an option to treat some pre-typing error as warning instead. 
+  ([PR #1023](https://github.com/jasmin-lang/jasmin/pull/1023))
+
+- Add support for x86 `VPSIGN` instructions
+  ([PR #1030](https://github.com/jasmin-lang/jasmin/pull/1030);
+  fixes [#1029](https://github.com/jasmin-lang/jasmin/issues/1029)).
+
+- Extraction as EasyCrypt code targets version 2025.02
+  ([PR #1046](https://github.com/jasmin-lang/jasmin/pull/1046)).
 
 ## Bug fixes
 
@@ -49,7 +60,14 @@
   process
   ([PR#989](https://github.com/jasmin-lang/jasmin/pull/989)).
 
+- Incorrect printing of line information in register allocation has been removed
+  ([PR #1027](https://github.com/jasmin-lang/jasmin/pull/1027);
+  fixes [#1026](https://github.com/jasmin-lang/jasmin/issues/1026)).
+
 ## Other changes
+
+- Adding an annotation to function (`'info` type). Useful to store result of analysis. (see [[#1016](https://github.com/jasmin-lang/jasmin/issues/1016)])
+- ([PR#1021](https://github.com/jasmin-lang/jasmin/issues/1021))
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
   ([PR #869](https://github.com/jasmin-lang/jasmin/pull/869)).

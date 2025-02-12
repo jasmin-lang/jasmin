@@ -111,7 +111,7 @@ let split_live_ranges (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) fun
   in
   let m, f_body = stmt Mv.empty f.f_body in
   let f_ret = List.map (Subst.vsubst_vi m) f.f_ret in
-  { f with f_body ; f_ret }
+  { f with f_body; f_info = () ; f_ret }
 
 let remove_phi_nodes (f: ('info, 'asm) func) : ('info, 'asm) func =
   let rec instr_r =

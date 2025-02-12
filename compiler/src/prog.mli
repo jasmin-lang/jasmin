@@ -79,6 +79,7 @@ and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
     f_annot: FInfo.f_annot;
+    f_info : 'info;
     f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
@@ -277,7 +278,6 @@ val is_inline : Annotations.annotations -> FInfo.call_conv -> bool
 
 (* -------------------------------------------------------------------- *)
 val clamp : wsize -> Z.t -> Z.t
-val clamp_pe : pelem -> Z.t -> Z.t
 
 (* -------------------------------------------------------------------- *)
 type ('info,'asm) sfundef = Expr.stk_fun_extra * ('info,'asm) func 

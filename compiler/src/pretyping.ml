@@ -36,7 +36,6 @@ type tyerror =
   | InvalidTypeAlias    of A.symbol * P.pty
   | InvalidCast         of P.pty pair
   | InvalidTypeForGlobal of P.pty
-  | NotAPointer         of P.plval
   | GlobArrayNotWord    
   | GlobWordNotArray
   | EqOpWithNoLValue
@@ -46,7 +45,6 @@ type tyerror =
   | UnknownPrim of A.symbol * string
   | PrimWrongSuffix of A.symbol * Sopn.prim_x86_suffix list
   | PtrOnlyForArray
-  | WriteToConstantPointer of A.symbol
   | PackSigned
   | PackWrongWS of int
   | PackWrongPE of int
@@ -114,10 +112,6 @@ let pp_tyerror fmt (code : tyerror) =
   | InvalidTypeForGlobal ty ->
       F.fprintf fmt "globals should have type word; found: ‘%a’"
         Printer.pp_ptype ty
-
-  | NotAPointer x -> 
-    F.fprintf fmt "The variable %a should be a pointer"
-      Printer. pp_plval x
 
   | GlobArrayNotWord ->
     F.fprintf fmt "the definition is an array and not a word"
@@ -206,9 +200,6 @@ let pp_tyerror fmt (code : tyerror) =
 
   | PtrOnlyForArray -> 
     F.fprintf fmt "Pointer allowed only on array"
-
-  | WriteToConstantPointer v ->
-    F.fprintf fmt "Cannot write to the constant pointer %s" v
 
   | PackSigned ->
     F.fprintf fmt "packs should be unsigned"
@@ -687,22 +678,12 @@ let check_sig_lvs loc sig_ lvs =
 let tt_sign = function
   | `Signed -> W.Signed
   | `Unsigned -> W.Unsigned
-  
-(* -------------------------------------------------------------------- *)
-let tt_as_bool = check_ty TPBool
-let tt_as_int  = check_ty TPInt
 
 (* -------------------------------------------------------------------- *)
 let tt_as_array ((loc, ty) : L.t * P.pty) : P.pty * P.pexpr_ =
   match ty with
   | P.Arr (ws, n) -> P.Bty (P.U ws), n
   | _ -> rs_tyerror ~loc (InvalidType (ty, TPArray))
-
-(* -------------------------------------------------------------------- *)
-let tt_as_word ((loc, ty) : L.t * P.pty) : W.wsize =
-  match ty with
-  | P.Bty (P.U ws) -> ws
-  | _ -> rs_tyerror ~loc (InvalidType (ty, TPWord))
 
 (* -------------------------------------------------------------------- *)
 
@@ -1279,7 +1260,7 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
   let reject_constant_pointers loc x =
     match x.P.v_kind with
     | Stack (Pointer Constant) | Reg (_, Pointer Constant) ->
-       rs_tyerror ~loc (WriteToConstantPointer x.P.v_name)
+       warning PedanticPretyping (L.i_loc0 loc) "Cannot write to the constant pointer %s" x.P.v_name
     | _ -> ()
   in
 
@@ -1699,22 +1680,6 @@ let cassgn_for (x: P.plval) (tg: E.assgn_tag) (ty: P.pty) (e: P.pexpr) :
   (P.pexpr_, unit, 'asm) P.ginstr_r =
   Cassgn (x, tg, ty, e)
 
-let rec is_constant e = 
-  match e with 
-  | P.Pconst _ | P.Pbool _ | P.Parr_init _ -> true
-  | P.Pvar x  -> P.kind_i x.P.gv = W.Const || P.kind_i x.P.gv = W.Inline
-  | P.Pget _ | P.Psub _ | P.Pload _ -> false
-  | P.Papp1 (_, e) -> is_constant e
-  | P.Papp2 (_, e1, e2) -> is_constant e1 && is_constant e2
-  | P.PappN (_, es) -> List.for_all is_constant es
-  | P.Pif(_, e1, e2, e3)   -> is_constant e1 && is_constant e2 && is_constant e3
-
-
-let check_lval_pointer loc x =  
-  match x with
-  | P.Lvar x when P.is_ptr (L.unloc x).P.v_kind -> () 
-  | _ -> rs_tyerror ~loc (NotAPointer x)
-
 let mk_call loc inline lvs f es =
   let open P in
   begin match f.f_cc with
@@ -1729,7 +1694,7 @@ let mk_call loc inline lvs f es =
     let rec check_e = function
       | Pvar _ | Psub _ -> ()
       | Pif (_, _, e1, e2) -> check_e e1; check_e e2
-      | _ -> rs_tyerror ~loc (string_error "only variables and subarray are allowed in arguments of non-inlined function") in
+      | _ -> warning PedanticPretyping (L.i_loc0 loc)  "only variables and subarray are allowed in arguments of non-inlined function" in
     List.iter check_lval lvs;
     List.iter check_e es
   | Subroutine _ -> ()
@@ -1993,10 +1958,10 @@ let tt_call_conv _loc params returns cc =
   | Some `Export | None ->
     let check s x =
       if not (P.is_reg_kind (L.unloc x).P.v_kind) then 
-        rs_tyerror ~loc:(L.loc x) 
-          (string_error "%a has kind %a, only reg or reg ptr are allowed in %s of non inlined function"
+        warning PedanticPretyping (L.i_loc0 (L.loc x))
+          "%a has kind %a, only reg or reg ptr are allowed in %s of non inlined function"
             Printer.pp_pvar (L.unloc x)
-            PrintCommon.pp_kind (L.unloc x).P.v_kind s) in
+            PrintCommon.pp_kind (L.unloc x).P.v_kind s in
     List.iter (check "parameter") params;
     List.iter (check "result") returns;
     let returned_params =
@@ -2167,6 +2132,7 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
     { P.f_loc   = loc;
       P.f_annot = process_f_annot loc name f_cc pf.pdf_annot;
       P.f_cc    = f_cc;
+      P.f_info  = ();
       P.f_name  = P.F.mk name;
       P.f_tyin  = List.map (fun { P.v_ty } -> v_ty) args;
       P.f_args  = args;

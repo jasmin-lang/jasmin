@@ -12,13 +12,8 @@ module Ms   : Map.S with type key = string
 module Option : sig include module type of BatOption end
 
 (* -------------------------------------------------------------------- *)
-val timed : ('a -> 'b) -> 'a -> float * 'b
-
-(* -------------------------------------------------------------------- *)
 val identity : 'a -> 'a
 
-val (^~) : ('a -> 'b -> 'c) -> ('b -> 'a -> 'c)
-val (-|) : ('a -> 'b) -> ('c -> 'a) -> 'c -> 'b
 val (|-) : ('a -> 'b) -> ('c -> 'a) -> 'c -> 'b
 
 (* -------------------------------------------------------------------- *)
@@ -26,12 +21,6 @@ type 'a tuple0 = unit
 type 'a tuple1 = 'a
 type 'a tuple2 = 'a * 'a
 type 'a tuple3 = 'a * 'a * 'a
-type 'a tuple4 = 'a * 'a * 'a * 'a
-type 'a tuple5 = 'a * 'a * 'a * 'a * 'a
-type 'a tuple6 = 'a * 'a * 'a * 'a * 'a * 'a
-type 'a tuple7 = 'a * 'a * 'a * 'a * 'a * 'a * 'a
-type 'a tuple8 = 'a * 'a * 'a * 'a * 'a * 'a * 'a * 'a
-type 'a tuple9 = 'a * 'a * 'a * 'a * 'a * 'a * 'a * 'a * 'a
 type 'a pair   = 'a tuple2
 
 (* -------------------------------------------------------------------- *)
@@ -39,14 +28,6 @@ val as_seq0 : 'a list -> 'a tuple0
 val as_seq1 : 'a list -> 'a tuple1
 val as_seq2 : 'a list -> 'a tuple2
 val as_seq3 : 'a list -> 'a tuple3
-val as_seq4 : 'a list -> 'a tuple4
-val as_seq5 : 'a list -> 'a tuple5
-val as_seq6 : 'a list -> 'a tuple6
-val as_seq7 : 'a list -> 'a tuple7
-
-(* -------------------------------------------------------------------- *)
-val fst_map : ('a -> 'c) -> 'a * 'b -> 'c * 'b
-val snd_map : ('b -> 'c) -> 'a * 'b -> 'a * 'c
 
 (* -------------------------------------------------------------------- *)
 val oget       : ?exn:exn -> 'a option -> 'a
@@ -82,16 +63,10 @@ end
 module List : sig
   include module type of BatList
 
-  module Smart : sig
-    val map      : ('a -> 'a) -> 'a list -> 'a list
-    val map_fold : ('a -> 'b -> 'a * 'b) -> 'a -> 'b list -> 'a * 'b list
-  end
-
   val find_map_opt : ('a -> 'b option) -> 'a list -> 'b option
 
   (* Aliases to exception-less functions *)
   val opick   : ('a -> 'b option) -> 'a list -> 'b option
-  val opicki  : (int -> 'a -> 'b option) -> 'a list -> (int * 'b) option
 
   (* Functions working on 2 lists in parallel *)
   module Parallel : sig
@@ -114,20 +89,8 @@ type 'a pp = Format.formatter -> 'a -> unit
 
 val pp_list : ('a, 'b, 'c, 'd, 'd, 'a) format6 -> 'e pp -> 'e list pp
 
-val pp_if : bool -> 'a pp -> 'a pp -> 'a pp 
-val pp_maybe :  bool -> ('a pp -> 'a pp) -> 'a pp -> 'a pp
-
-(* -------------------------------------------------------------------- *)
-val pp_enclose : 
-      pre:('a, 'b, 'c, 'd, 'd, 'a) format6
-   -> post:('a, 'b, 'c, 'd, 'd, 'a) format6
-   -> 'a pp -> 'a pp 
-
 (* -------------------------------------------------------------------- *)
 val pp_paren : 'a pp -> 'a pp 
-
-(* -------------------------------------------------------------------- *)
-val pp_maybe_paren : bool -> 'a pp -> 'a pp
 
 (* -------------------------------------------------------------------- *)
 val pp_string : string pp
@@ -186,7 +149,9 @@ type warning =
   | Deprecated
   | Experimental
   | Always
+  | PedanticPretyping
 
+val set_warn_recoverable : bool -> unit
 val nowarning : unit -> unit
 val add_warning : warning -> unit -> unit 
 val warning :

@@ -143,13 +143,20 @@ let asm_equality_constraints ~loc pd reg_size asmOp is_move_op (int_of_var: var_
 type ('info, 'asm) trace = (int, ('info, 'asm) instr list) Hashtbl.t
 
 let pp_trace pd asmOp (i: int) fmt (tr: ('info, 'asm) trace) =
-  let j = try Hashtbl.find tr i with Not_found -> [] in
+  match Hashtbl.find tr i with
+  | exception Not_found -> ()
+  | j ->
+  let pp_i_noloc = Printer.pp_instr ~debug:true pd asmOp in
   let pp_i fmt i =
     Format.fprintf fmt "@[<v>at %a:@;<1 2>%a@]"
       L.pp_iloc i.i_loc
-      (Printer.pp_instr ~debug:true pd asmOp) i
+      pp_i_noloc i
   in
-  Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_i) j
+  let j_noloc, j_loc = List.partition (fun i -> L.isdummy i.i_loc.base_loc) j in
+  Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_i) j_loc;
+  if j_noloc <> [] then
+    Format.fprintf fmt "@;<1 2>and:@;<1 4>@[<v>%a@]"
+      (pp_list "@ " pp_i_noloc) j_noloc
 
 let normalize_trace (eqc: Puf.t) (tr: ('info, 'asm) instr list array) : ('info, 'asm) trace =
   let tbl = Hashtbl.create 97 in
