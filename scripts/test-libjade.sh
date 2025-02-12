@@ -2,7 +2,7 @@
 
 REPO=formosa-crypto
 NAME=libjade
-BRANCH=0534bc5226dca9aa603abd590272637d13b63692
+BRANCH=13a094f740a37e18e8f8cb32630adaa6a3097af6
 
 FILE="$NAME.tar.gz"
 ROOT=$(echo -n $NAME-$BRANCH | tr / -)
@@ -22,5 +22,7 @@ curl -v -o $FILE https://codeload.github.com/$REPO/$NAME/tar.gz/$BRANCH
 tar xvf $FILE
 rm -rf libjade/
 mv $ROOT libjade
+
+mv libjade/oldsrc-should-delete/ libjade/src
 
 make $MAKELINE
