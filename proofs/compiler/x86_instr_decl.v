@@ -638,7 +638,7 @@ Definition Ox86_POR_instr :=
       true
       (pp_name "por" U64)
   in
-  (desc, ("POR", primM POR)).
+  (desc, ("POR"%string, primM POR)).
 
 Definition check_movsx (_ _:wsize) := [:: r_rm ].
 

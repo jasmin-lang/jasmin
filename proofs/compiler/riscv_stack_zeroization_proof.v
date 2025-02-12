@@ -1,6 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Import Lia.
+From Coq Require Import Lia.
 
 Require Import
   expr

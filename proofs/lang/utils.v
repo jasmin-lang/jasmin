@@ -4,7 +4,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype choice.
 From mathcomp Require Import fintype finfun.
 From Coq.Unicode Require Import Utf8.
 From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses.
-From Coq Require Ztac. (* deprecated since 9.0 *)
 Require Import xseq oseq.
 From mathcomp Require Import word_ssrZ.
 
@@ -1687,7 +1686,7 @@ Proof.
   move=> ? /Z2Nat.id <-; elim: (Z.to_nat _).
   + by rewrite Z.add_0_r /= cats0.
   move=> ? hrw; rewrite Nat2Z.inj_succ Z.add_succ_r !ziotaS_cat; last 2 first.
-  + exact: (Ztac.add_le _ _ _ (Zle_0_nat _)).
+  + exact: (Z.add_nonneg_nonneg _ _ _ (Zle_0_nat _)).
   + exact: Zle_0_nat.
   by rewrite catA hrw Z.add_assoc.
 Qed.
