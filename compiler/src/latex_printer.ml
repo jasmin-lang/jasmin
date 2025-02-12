@@ -229,7 +229,7 @@ and pp_arr_access fmt al aa ws x e len=
     (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e pp_olen len
 
 let pp_storage fmt s =
-    latex "storageclass" fmt (pp_storage s)
+  latex "storageclass" fmt (pp_storage s)
 
 let pp_sto_ty fmt (sto, ty) =
   F.fprintf fmt "%a %a" pp_storage sto pp_type ty
