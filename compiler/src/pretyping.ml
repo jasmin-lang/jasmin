@@ -15,14 +15,12 @@ let loc_of_tuples default locs =
   List.fold_left L.merge default locs
 
 (* -------------------------------------------------------------------- *)
-type typattern = TPBool | TPInt | TPWord | TPArray
-
 type sop = [ `Op2 of S.peop2 | `Op1 of S.peop1]
 
 type tyerror =
   | UnknownVar          of A.symbol
   | UnknownFun          of A.symbol
-  | InvalidType         of P.pty * typattern
+  | InvalidArrayType    of P.pty
   | TypeMismatch        of P.pty pair
   | NoOperator          of sop * P.pty list
   | InvalidOperator     of sop
@@ -72,12 +70,6 @@ let rs_tyerror ~loc (code : tyerror) =
   raise (tyerror ~loc code)
 
 (* -------------------------------------------------------------------- *)
-let pp_typat fmt = function
-  | TPBool  -> F.fprintf fmt "bool"
-  | TPInt   -> F.fprintf fmt "int"
-  | TPWord  -> F.fprintf fmt "word (u8, u16, u32, u64)"
-  | TPArray -> F.fprintf fmt "array"
-
 let pp_suffix fmt =
   let open Sopn in
   let open PrintCommon in
@@ -97,9 +89,9 @@ let pp_tyerror fmt (code : tyerror) =
   | UnknownFun x ->
       F.fprintf fmt "unknown function: `%s'" x
 
-  | InvalidType (ty, p) ->
-    F.fprintf fmt "the expression has type %a instead of %a"
-       Printer.pp_ptype ty pp_typat p
+  | InvalidArrayType ty ->
+    F.fprintf fmt "the expression has type %a instead of array"
+       Printer.pp_ptype ty
 
   | TypeMismatch (t1,t2) ->
     F.fprintf fmt
@@ -627,16 +619,6 @@ let tt_fun (env : 'asm Env.env) { L.pl_desc = x; L.pl_loc = loc; } =
   Env.Funs.find x env |> oget ~exn:(tyerror ~loc (UnknownFun x))
 
 (* -------------------------------------------------------------------- *)
-let check_ty (ety : typattern) (loc, ty) =
-  match ety, ty with
-  | TPBool , P.Bty P.Bool  -> ()
-  | TPInt  , P.Bty P.Int   -> ()
-  | TPWord , P.Bty (P.U _) -> ()
-  | TPArray, P.Arr _       -> ()
-
-  | _ -> rs_tyerror ~loc (InvalidType (ty, ety))
-
-(* -------------------------------------------------------------------- *)
 let check_ty_eq ~loc ~(from : P.pty) ~(to_ : P.pty) =
   if not (P.pty_equal from to_) then
     match from, to_ with
@@ -722,7 +704,7 @@ let tt_sign = function
 let tt_as_array ((loc, ty) : L.t * P.pty) : P.pty * P.pexpr_ =
   match ty with
   | P.Arr (ws, n) -> P.Bty (P.U ws), n
-  | _ -> rs_tyerror ~loc (InvalidType (ty, TPArray))
+  | _ -> rs_tyerror ~loc (InvalidArrayType ty)
 
 (* -------------------------------------------------------------------- *)
 
@@ -1713,7 +1695,7 @@ let arr_init xi =
     let size = PE (icnst (size_of_ws ws) ** e) in
     Cassgn (Lvar xi, E.AT_inline, ty, P.Parr_init size)
   | _           -> 
-    rs_tyerror ~loc:(L.loc xi) (InvalidType(x.v_ty, TPArray))
+    rs_tyerror ~loc:(L.loc xi) (InvalidArrayType x.v_ty)
 
 let cassgn_for (x: P.plval) (tg: E.assgn_tag) (ty: P.pty) (e: P.pexpr) :
   (P.pexpr_, unit, 'asm) P.ginstr_r =
