@@ -86,7 +86,8 @@ proof. smt (ge2_modulus). qed.
 lemma max_size : max 0 size = size.
 proof. by rewrite /max gt0_size. qed.
 
-hint exact : ge0_size gt0_size gt0_modulus ge2_modulus ge0_modulus max_size.
+hint exact : ge0_size gt0_size max_size.
+hint [rigid] exact : gt0_modulus ge2_modulus ge0_modulus.
 
 lemma half_modulus : 2 ^ (size -1) = modulus %/ 2.
 proof. rewrite (expr_pred 2 size) // /#. qed.
