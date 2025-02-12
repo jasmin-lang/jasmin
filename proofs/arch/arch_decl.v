@@ -1,4 +1,5 @@
 (* -------------------------------------------------------------------- *)
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
@@ -48,6 +49,7 @@ Definition rtype {t T} `{ToString t T} := t.
    But it definition can be done in the architecture itself
 *)
 
+#[only(eqbOK)] derive
 Inductive caimm_checker_s :=
   | CAimmC_none
   | CAimmC_arm_shift_amout of shift_kind
@@ -56,14 +58,7 @@ Inductive caimm_checker_s :=
   | CAimmC_riscv_12bits_signed
   | CAimmC_riscv_5bits_unsigned.
 
-Scheme Equality for caimm_checker_s.
-
-Lemma caimm_checker_s_eq_axiom : Equality.axiom caimm_checker_s_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_caimm_checker_s_dec_bl internal_caimm_checker_s_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build caimm_checker_s caimm_checker_s_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build caimm_checker_s caimm_checker_s_eqb_OK.
 
 (* -------------------------------------------------------------------- *)
 (* Basic architecture declaration.
@@ -217,18 +212,12 @@ HB.instance Definition _ := hasDecEq.Build asm_arg asm_arg_eq_axiom.
  * When writing to a register, depending on the instruction,
  * the most significant bits are either preserved or cleared.
  *)
+#[only(eqbOK)] derive
 Variant msb_flag : Type :=
 | MSB_CLEAR
 | MSB_MERGE.
 
-Scheme Equality for msb_flag.
-
-Lemma msb_flag_eq_axiom : Equality.axiom msb_flag_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_msb_flag_dec_bl internal_msb_flag_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build msb_flag msb_flag_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build msb_flag msb_flag_eqb_OK.
 
 (* -------------------------------------------------------------------- *)
 (* Implicit arguments.
@@ -239,6 +228,8 @@ Variant implicit_arg : Type :=
 | IArflag of rflag_t  (* Implicit flag. *)
 | IAreg   of reg_t.   (* Implicit register. *)
 
+(* TODO: can we get rid of this if we add the option to register equality to
+   elpi.derive? *)
 Definition implicit_arg_beq (i1 i2 : implicit_arg) :=
   match i1, i2 with
   | IArflag f1, IArflag f2 => f1 == f2 ::>
@@ -306,6 +297,7 @@ Definition check_oreg or ai :=
 (* Argument kinds.
  * Types for arguments of assembly instructions.
  *)
+#[only(eqbOK)] derive
 Variant arg_kind :=
 | CAcond
 | CAreg
@@ -314,15 +306,7 @@ Variant arg_kind :=
 | CAmem of bool (* true if Global is allowed *)
 | CAimm of caimm_checker_s & wsize.
 
-
-Scheme Equality for arg_kind.
-
-Lemma arg_kind_eq_axiom : Equality.axiom arg_kind_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_arg_kind_dec_bl internal_arg_kind_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build arg_kind arg_kind_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build arg_kind arg_kind_eqb_OK.
 
 (* An argument position where different argument kinds are allowed is
  * represented by a list of these kinds.
@@ -482,17 +466,17 @@ Fixpoint apply_lprod (A B : Type) (f : A -> B) (ts:list Type) : lprod ts A -> lp
   end.
 
 Lemma instr_desc_aux1 ws (id_in id_out : list arg_desc) (id_tin id_tout : list stype) :
-  is_true ((size id_in == size id_tin) && (size id_out == size id_tout)) ->
-  is_true ((size id_in == size id_tin) && (size id_out == size (map (extend_size ws) id_tout))).
+  ((size id_in == size id_tin) && (size id_out == size id_tout)) ->
+  ((size id_in == size id_tin) && (size id_out == size (map (extend_size ws) id_tout))).
 Proof. by rewrite size_map. Qed.
 
 Lemma instr_desc_aux2 ws (id_out : list arg_desc) (id_tout : list stype) :
-  is_true (all2 check_arg_dest id_out id_tout) ->
-  is_true (all2 check_arg_dest id_out (map (extend_size ws) id_tout)).
+  all2 check_arg_dest id_out id_tout ->
+  all2 check_arg_dest id_out (map (extend_size ws) id_tout).
 Proof.
-  rewrite /is_true => <-.
   elim: id_out id_tout => [ | a id_out hrec] [ | t id_tout] //=.
-  rewrite hrec; case: t => // ws'.
+  move=> /andP [+ /hrec ->]; rewrite andbT.
+  case: t => // ws'.
   by rewrite /extend_size /check_arg_dest; case: a => //; case: ifP.
 Qed.
 
@@ -716,15 +700,10 @@ End ENUM.
 
 (* -------------------------------------------------------------------- *)
 (* Flag values. *)
+#[only(eqbOK)] derive
 Variant rflagv := Def of bool | Undef.
-Scheme Equality for rflagv.
 
-Lemma rflagv_eq_axiom : Equality.axiom rflagv_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_rflagv_dec_bl internal_rflagv_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build rflagv rflagv_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build rflagv rflagv_eqb_OK.
 
 (* -------------------------------------------------------------------- *)
 (* Assembly declaration. *)

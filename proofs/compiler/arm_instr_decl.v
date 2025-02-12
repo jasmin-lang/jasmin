@@ -3,6 +3,7 @@
    These are the THUMB instructions of ARMv7-M, the instruction set of the M4
    processor. *)
 
+From elpi.apps Require Import derive.std.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
 From mathcomp Require Import ssralg word_ssrZ.
 
@@ -29,6 +30,7 @@ End E.
 (* -------------------------------------------------------------------- *)
 (* ARM instruction options. *)
 
+#[only(eqbOK)] derive
 Record arm_options :=
   {
     set_flags : bool;
@@ -36,37 +38,11 @@ Record arm_options :=
     has_shift : option shift_kind;
   }.
 
-Definition arm_options_beq (ao0 ao1 : arm_options) : bool :=
-  [&& set_flags ao0 == set_flags ao1
-    , is_conditional ao0 == is_conditional ao1
-    & has_shift ao0 == has_shift ao1
-  ].
-
-Lemma arm_options_eq_axiom : Equality.axiom arm_options_beq.
-Proof.
-  move=> [? ? ?] [? ? ?].
-  apply: (iffP idP);
-    last move=> <-;
-    rewrite /arm_options_beq /=.
-  - move=> /and3P [].
-    repeat move=> /eqP ?.
-    by subst.
-  - by apply/and3P.
-Qed.
-
 #[ export ]
 Instance eqTC_arm_options : eqTypeC arm_options :=
-  { ceqP := arm_options_eq_axiom }.
+  { ceqP := arm_options_eqb_OK }.
 
 Canonical arm_options_eqType := @ceqT_eqType _ eqTC_arm_options.
-
-Lemma arm_options_dec_eq (ao0 ao1 : arm_options) :
-  { ao0 = ao1 } + { ao0 <> ao1 }.
-Proof.
-  case: (ao0 == ao1) /arm_options_eq_axiom.
-  - by left.
-  - by right.
-Qed.
 
 Definition default_opts : arm_options :=
   {|
@@ -93,11 +69,13 @@ Definition unset_is_conditional (ao : arm_options) : arm_options :=
 (* -------------------------------------------------------------------- *)
 (* ARM instruction mnemonics. *)
 
+#[only(eqbOK)] derive
 Variant halfword : Type :=
 | HWB
 | HWT
 .
 
+#[only(eqbOK)] derive
 Variant arm_mnemonic : Type :=
 (* Arithmetic *)
 | ADD                            (* Add without carry *)
@@ -171,19 +149,9 @@ Variant arm_mnemonic : Type :=
 | STRB                           (* Store a byte *)
 | STRH.                          (* Store a halfword *)
 
-Scheme Equality for arm_mnemonic.
-
-Lemma arm_mnemonic_eq_axiom : Equality.axiom arm_mnemonic_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme
-       internal_arm_mnemonic_dec_bl
-       internal_arm_mnemonic_dec_lb).
-Qed.
-
 #[ export ]
 Instance eqTC_arm_mnemonic : eqTypeC arm_mnemonic :=
-  { ceqP := arm_mnemonic_eq_axiom }.
+  { ceqP := arm_mnemonic_eqb_OK }.
 
 Canonical arm_mnemonic_eqType := @ceqT_eqType _ eqTC_arm_mnemonic.
 
@@ -331,41 +299,15 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
 (* -------------------------------------------------------------------- *)
 (* ARM operators are pairs of mnemonics and options. *)
 
+#[only(eqbOK)] derive
 Variant arm_op :=
 | ARM_op : arm_mnemonic -> arm_options -> arm_op.
 
-Definition arm_op_beq (op0 op1 : arm_op) : bool :=
-  let '(ARM_op mn0 ao0) := op0 in
-  let '(ARM_op mn1 ao1) := op1 in
-  (mn0 == mn1) && (ao0 == ao1).
-
-Lemma arm_op_eq_axiom : Equality.axiom arm_op_beq.
-Proof.
-  move=> [mn0 ao0] [mn1 ao1].
-  apply: (iffP idP);
-    last move=> <-;
-    rewrite /arm_op_beq /=.
-  - move=> /andP [].
-    move=> /arm_mnemonic_eq_axiom <-.
-    by move=> /arm_options_eq_axiom <-.
-  - apply/andP. split.
-    + by apply/arm_mnemonic_eq_axiom.
-    + by apply/arm_options_eq_axiom.
-Qed.
-
 #[ export ]
 Instance eqTC_arm_op : eqTypeC arm_op :=
-  { ceqP := arm_op_eq_axiom }.
+  { ceqP := arm_op_eqb_OK }.
 
 Canonical arm_op_eqType := @ceqT_eqType _ eqTC_arm_op.
-
-Lemma arm_op_dec_eq (op0 op1 : arm_op) :
-  { op0 = op1 } + { op0 <> op1 }.
-Proof.
-  case: (op0 == op1) /arm_op_eq_axiom.
-  - by left.
-  - by right.
-Qed.
 
 
 (* -------------------------------------------------------------------- *)

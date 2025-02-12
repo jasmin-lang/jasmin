@@ -1,3 +1,4 @@
+From elpi.apps Require Import derive.std.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype fintype ssralg.
 From mathcomp Require Import word_ssrZ.
 
@@ -29,6 +30,7 @@ Definition arm_xreg_size := U64.
 (* -------------------------------------------------------------------- *)
 (* Registers. *)
 
+#[only(eqbOK)] derive
 Variant register : Type :=
 | R00 | R01 | R02 | R03         (* Lower general-purpose registers. *)
 | R04 | R05 | R06 | R07         (* Lower general-purpose registers. *)
@@ -36,16 +38,9 @@ Variant register : Type :=
 | LR                            (* Subroutine link register. *)
 | SP.                           (* Stack pointer. *)
 
-Scheme Equality for register.
-
-Lemma register_eq_axiom : Equality.axiom register_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_register_dec_bl internal_register_dec_lb).
-Qed.
-
 #[ export ]
 Instance eqTC_register : eqTypeC register :=
-  { ceqP := register_eq_axiom }.
+  { ceqP := register_eqb_OK }.
 
 Canonical arm_register_eqType := @ceqT_eqType _ eqTC_register.
 
@@ -92,22 +87,16 @@ Instance reg_toS : ToString (sword arm_reg_size) register :=
 (* -------------------------------------------------------------------- *)
 (* Flags. *)
 
+#[only(eqbOK)] derive
 Variant rflag : Type :=
 | NF    (* Negative condition flag. *)
 | ZF    (* Zero confition flag. *)
 | CF    (* Carry condition flag. *)
 | VF.   (* Overflow condition flag. *)
 
-Scheme Equality for rflag.
-
-Lemma rflag_eq_axiom : Equality.axiom rflag_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_rflag_dec_bl internal_rflag_dec_lb).
-Qed.
-
 #[ export ]
 Instance eqTC_rflag : eqTypeC rflag :=
-  { ceqP := rflag_eq_axiom }.
+  { ceqP := rflag_eqb_OK }.
 
 Canonical rflag_eqType := @ceqT_eqType _ eqTC_rflag.
 
@@ -142,6 +131,7 @@ Instance rflag_toS : ToString sbool rflag :=
 (* -------------------------------------------------------------------- *)
 (* Conditions. *)
 
+#[only(eqbOK)] derive
 Variant condt : Type :=
 | EQ_ct    (* Equal. *)
 | NE_ct    (* Not equal. *)
@@ -158,16 +148,9 @@ Variant condt : Type :=
 | GT_ct    (* Signed greater than. *)
 | LE_ct.   (* Signed less than or equal. *)
 
-Scheme Equality for condt.
-
-Lemma condt_eq_axiom : Equality.axiom condt_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_condt_dec_bl internal_condt_dec_lb).
-Qed.
-
 #[ export ]
 Instance eqTC_condt : eqTypeC condt :=
-  { ceqP := condt_eq_axiom }.
+  { ceqP := condt_eqb_OK }.
 
 Canonical condt_eqType := @ceqT_eqType _ eqTC_condt.
 
@@ -212,17 +195,9 @@ Definition string_of_condt (c : condt) : string :=
  * Some instructions can shift a register before performing an operation.
  *)
 
-Scheme Equality for shift_kind.
-
-Lemma shift_kind_eq_axiom : Equality.axiom shift_kind_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme internal_shift_kind_dec_bl internal_shift_kind_dec_lb).
-Qed.
-
 #[ export ]
 Instance eqTC_shift_kind : eqTypeC shift_kind :=
-  { ceqP := shift_kind_eq_axiom }.
+  { ceqP := shift_kind_eqb_OK }.
 
 Canonical shift_kind_eqType := @ceqT_eqType _ eqTC_shift_kind.
 

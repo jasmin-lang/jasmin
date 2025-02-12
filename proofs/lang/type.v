@@ -1,4 +1,5 @@
 (* ** Imports and settings *)
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From Coq Require Import ZArith.
@@ -9,6 +10,7 @@ Import Utf8.
 (* ** Syntax
  * -------------------------------------------------------------------- *)
 
+#[only(eqbOK)] derive
 Variant stype : Set :=
 | sbool
 | sint
@@ -38,14 +40,7 @@ Notation sword256 := (sword U256).
 Notation ty_msf := (sword msf_size).
 
 (* -------------------------------------------------------------------- *)
-Scheme Equality for stype.
-
-Lemma stype_axiom : Equality.axiom stype_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_stype_dec_bl internal_stype_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build stype stype_axiom.
+HB.instance Definition _ := hasDecEq.Build stype stype_eqb_OK.
 
 
 (* ** Comparison
@@ -159,8 +154,10 @@ Module CEDecStype.
   Proof.
     case: tt.
     elim: n1 n2 => [n1 Hrec|n1 Hrec|] [n2|n2|] //=.
-    + by case: pos_dec (Hrec n2) => //= -[] /(_ (erefl _)).
-    by case: pos_dec (Hrec n2) => //= -[] /(_ (erefl _)).
+    + case: pos_dec (Hrec n2) => //= -[] /(_ (erefl _)) /eqP ? _.
+      by apply /eqP; congruence.
+    case: pos_dec (Hrec n2) => //= -[] /(_ (erefl _)) /eqP ? _.
+    by apply /eqP; congruence.
   Qed.
 
   Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 != t2.
@@ -184,6 +181,11 @@ Notation "m .[ x  <- v ]" := (@Mt.set _ m x v) : mtype_scope.
 Arguments Mt.get P m%_mtype_scope k.
 Arguments Mt.set P m%_mtype_scope k v.
 
+(* A bit hacky: to avoid some nameclashes with the names generated
+   by elpi.derive, we put these definitions in a module.
+   A better solution would be to change elpi.derive to ensure that all
+   names obey the "prefix" parameter. *)
+Module Export OtherDefs.
 
 Definition is_sbool t := t == sbool.
 
@@ -205,6 +207,8 @@ Definition is_word_type (t:stype) :=
 Lemma is_word_typeP ty ws :
   is_word_type ty = Some ws -> ty = sword ws.
 Proof. by case: ty => //= w [->]. Qed.
+
+End OtherDefs.
 
 (* -------------------------------------------------------------------- *)
 Definition subtype (t t': stype) :=
@@ -253,6 +257,7 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------- *)
+#[only(eqbOK)] derive
 Variant extended_type (len:Type) : Type :=
   | ETbool
   | ETint
@@ -278,26 +283,5 @@ Definition to_stype (t:extended_type positive) : stype :=
 Section EQ.
 Context {L : eqType}.
 
-Definition ext_type_beq (ty1 ty2 : extended_type L) :=
-  match ty1, ty2 with
-  | ETbool, ETbool => true
-  | ETint, ETint => true
-  | ETarr len, ETarr len' => len == len'
-  | ETword sg ws, ETword sg' ws' => (sg == sg') && (ws == ws')
-  | _, _ => false
-  end.
-
-Lemma extended_type_axiom : Equality.axiom ext_type_beq.
-Proof.
-  case => [||len|sg ws] [||len'|sg' ws'] /=; try by constructor.
-  + by case: eqP => [-> | h]; constructor => // -[].
-  case: eqP => [-> | h1] /=; last by constructor => -[] /h1.
-  by case: eqP => [-> | h2] /=; constructor => // -[] /h2.
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build (extended_type L) extended_type_axiom.
+HB.instance Definition _ := hasDecEq.Build (extended_type L) (extended_type_eqb_OK (@eqP _)).
 End EQ.
-
-
-
-

@@ -1,3 +1,4 @@
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From mathcomp Require Import word_ssrZ.
@@ -8,20 +9,14 @@ Require Import utils word.
 (* -------------------------------------------------------------------- *)
 (* Valid immediates checks. *)
 
+#[only(eqbOK)] derive
 Variant expand_immediate_kind :=
 | EI_none
 | EI_byte
 | EI_pattern
 | EI_shift.
 
-Scheme Equality for expand_immediate_kind.
-
-Lemma expand_immediate_kind_eq_axiom : Equality.axiom expand_immediate_kind_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_expand_immediate_kind_dec_bl internal_expand_immediate_kind_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build expand_immediate_kind expand_immediate_kind_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build expand_immediate_kind expand_immediate_kind_eqb_OK.
 
 Definition z_to_bytes (n : Z) : Z * Z * Z * Z :=
   let '(n, b0) := Z.div_eucl n 256 in
@@ -55,32 +50,20 @@ Definition ei_kind (n : Z) : expand_immediate_kind :=
   else if is_ei_shift n then EI_shift
   else EI_none.
 
+#[only(eqbOK)] derive
 Variant wencoding :=
   | WE_allowed of bool (* false this encoding is not allowed *)
   | W12_encoding
   | W16_encoding.
 
-Scheme Equality for wencoding.
+HB.instance Definition _ := hasDecEq.Build wencoding wencoding_eqb_OK.
 
-Lemma wencoding_eq_axiom : Equality.axiom wencoding_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_wencoding_dec_bl internal_wencoding_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build wencoding wencoding_eq_axiom.
-
+#[only(eqbOK)] derive
 Record expected_wencoding :=
   { on_shift : wencoding;
     on_none  : wencoding; }.
 
-Scheme Equality for expected_wencoding.
-
-Lemma expected_wencoding_eq_axiom : Equality.axiom expected_wencoding_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_expected_wencoding_dec_bl internal_expected_wencoding_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build expected_wencoding expected_wencoding_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build expected_wencoding expected_wencoding_eqb_OK.
 
 Definition is_w12_encoding (z : Z) : bool := (z <? Z.pow 2 12)%Z.
 Definition is_w16_encoding (z : Z) : bool := (z <? Z.pow 2 16)%Z.

@@ -1,5 +1,6 @@
 (* RISC-V 32I instruction set *)
 
+From elpi.apps Require Import derive.std.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 
@@ -95,6 +96,7 @@ Definition ITypeInstruction_5u  := ITypeInstruction CAimmC_riscv_5bits_unsigned.
 (* -------------------------------------------------------------------- *)
 (* RISC-V 32I Base Integer instructions (operators). *)
 
+#[only(eqbOK)] derive
 Variant riscv_op : Type :=
 (* Arithmetic *)
 | ADD                            (* Add register without carry *)
@@ -151,19 +153,9 @@ Variant riscv_op : Type :=
 | REMU                           (* Remainder for two unsigned registers *)
 .
 
-Scheme Equality for riscv_op.
-
-Lemma riscv_op_eq_axiom : Equality.axiom riscv_op_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme
-       internal_riscv_op_dec_bl
-       internal_riscv_op_dec_lb).
-Qed.
-
 #[ export ]
 Instance eqTC_riscv_op : eqTypeC riscv_op :=
-  { ceqP := riscv_op_eq_axiom }.
+  { ceqP := riscv_op_eqb_OK }.
 
 Canonical riscv_op_eqType := @ceqT_eqType _ eqTC_riscv_op.
 

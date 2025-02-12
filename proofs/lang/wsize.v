@@ -2,6 +2,7 @@
 
 (* ** Imports and settings *)
 
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype fintype.
 From Coq Require Import ZArith.
@@ -10,6 +11,7 @@ Import Utf8.
 Import word_ssrZ.
 
 (* -------------------------------------------------------------- *)
+#[only(eqbOK)] derive
 Variant wsize :=
   | U8
   | U16
@@ -19,6 +21,7 @@ Variant wsize :=
   | U256.
 
 (* Size in bits of the elements of a vector. *)
+#[only(eqbOK)] derive
 Variant velem := VE8 | VE16 | VE32 | VE64.
 
 Coercion wsize_of_velem (ve: velem) : wsize :=
@@ -30,32 +33,28 @@ Coercion wsize_of_velem (ve: velem) : wsize :=
   end.
 
 (* Size in bits of the elements of a pack. *)
+#[only(eqbOK)] derive
 Variant pelem :=
 | PE1 | PE2 | PE4 | PE8 | PE16 | PE32 | PE64 | PE128.
 
+#[only(eqbOK)] derive
 Variant signedness :=
   | Signed
   | Unsigned.
 
 (* -------------------------------------------------------------------- *)
-Scheme Equality for signedness.
-
-Lemma signedness_axiom : Equality.axiom signedness_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_signedness_dec_bl internal_signedness_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build signedness signedness_axiom.
+HB.instance Definition _ := hasDecEq.Build signedness signedness_eqb_OK.
 
 (* -------------------------------------------------------------------- *)
-Scheme Equality for wsize.
+HB.instance Definition _ := hasDecEq.Build wsize wsize_eqb_OK.
 
-Lemma wsize_axiom : Equality.axiom wsize_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_wsize_dec_bl internal_wsize_dec_lb).
-Qed.
+(* We still need the sumbool version *)
+Definition wsize_eq_dec ws1 ws2 := Bool.reflect_dec _ _ (wsize_eqb_OK ws1 ws2).
 
-HB.instance Definition _ := hasDecEq.Build wsize wsize_axiom.
+(* Tactic "injection" treats specially the types for which it knows a decidable
+   equality. This is done automatically in the dev version of elpi.derive, but
+   we have to do it manually in the previous versions. *)
+Register Scheme wsize_eq_dec as eq_dec for wsize.
 
 Definition wsizes :=
   [:: U8 ; U16 ; U32 ; U64 ; U128 ; U256 ].
@@ -162,6 +161,7 @@ Definition pp_sz_sz (s: string) (sign:bool) (sz sz': wsize) (_: unit) : string :
   s ++ "_u" ++ string_of_wsize sz ++ (if sign then "s" else "u")%string ++ string_of_wsize sz'.
 
 (* -------------------------------------------------------------------- *)
+#[only(eqbOK)] derive
 Variant reg_kind : Type :=
 | Normal
 | Extra.

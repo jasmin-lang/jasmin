@@ -1,3 +1,4 @@
+From elpi.apps Require Import derive.std.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype fintype ssralg.
 From mathcomp Require Import word_ssrZ.
 
@@ -22,22 +23,16 @@ Definition riscv_xreg_size := U64. (* Unused *)
 (* Registers. *)
 (* According to the RISC-V ABI, X3/GP and X4/TP are unallocatable, so we do not
    model them. *)
+#[only(eqbOK)] derive
 Variant register : Type :=
 | RA  | SP  | X5  | X6  | X7  | X8              (* General-purpose registers. *)
 | X9  | X10 | X11 | X12 | X13 | X14 | X15 | X16 (* General-purpose registers. *)
 | X17 | X18 | X19 | X20 | X21 | X22 | X23 | X24 (* General-purpose registers. *)
 | X25 | X26 | X27 | X28 | X29 | X30 | X31.      (* General-purpose registers. *)
 
-Scheme Equality for register.
-
-Lemma register_eq_axiom : Equality.axiom register_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_register_dec_bl internal_register_dec_lb).
-Qed.
-
 #[ export ]
 Instance eqTC_register : eqTypeC register :=
-  { ceqP := register_eq_axiom }.
+  { ceqP := register_eqb_OK }.
 
 Canonical riscv_register_eqType := @ceqT_eqType _ eqTC_register.
 
@@ -104,6 +99,7 @@ Instance reg_toS : ToString (sword riscv_reg_size) register :=
 (* -------------------------------------------------------------------- *)
 (* Conditions. *)
 
+#[only(eqbOK)] derive
 Variant condition_kind :=
 | EQ               (* Equal. *)
 | NE               (* Not equal. *)
@@ -111,34 +107,16 @@ Variant condition_kind :=
 | GE of signedness (* Signed / Unsigned greater than or equal to. *)
 .
 
+#[only(eqbOK)] derive
 Record condt := {
   cond_kind : condition_kind;
   cond_fst : option register;
   cond_snd : option register;
 }.
 
-Scheme Equality for condition_kind.
-
-Definition condt_beq c1 c2 : bool :=
-  (condition_kind_beq c1.(cond_kind) c2.(cond_kind)) &&
-  (c1.(cond_fst) == c2.(cond_fst)) && (c1.(cond_snd) == c2.(cond_snd))
-.
-
-Lemma condt_eq_axiom : Equality.axiom condt_beq.
-Proof.
-  move => c1 c2.
-  apply Bool.iff_reflect.
-  split.
-  + move => ->.
-    by rewrite /condt_beq internal_condition_kind_dec_lb// !eqxx.
-  case: c1 c2 => k1 f1 s1 [] k2 f2 s2.
-  rewrite /condt_beq/=.
-  move => /andP[]/andP[] /internal_condition_kind_dec_bl-> /eqP->/eqP->//.
-Qed.
-
 #[ export ]
 Instance eqTC_condt : eqTypeC condt :=
-  { ceqP := condt_eq_axiom }.
+  { ceqP := condt_eqb_OK }.
 
 Canonical condt_eqType := @ceqT_eqType _ eqTC_condt.
 

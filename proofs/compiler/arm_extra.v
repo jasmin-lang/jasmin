@@ -1,3 +1,4 @@
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 
@@ -17,6 +18,7 @@ Require Import
   arm.
 
 
+#[only(eqbOK)] derive
 Variant arm_extra_op : Type :=
   | Oarm_swap of wsize
   | Oarm_add_large_imm
@@ -24,21 +26,11 @@ Variant arm_extra_op : Type :=
   | Osmart_li_cc of wsize (* Conditional [Osmart_li]. *)
 .
 
-Scheme Equality for arm_extra_op.
-
-Lemma arm_extra_op_eq_axiom : Equality.axiom arm_extra_op_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme
-       internal_arm_extra_op_dec_bl
-       internal_arm_extra_op_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build arm_extra_op arm_extra_op_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build arm_extra_op arm_extra_op_eqb_OK.
 
 #[ export ]
 Instance eqTC_arm_extra_op : eqTypeC arm_extra_op :=
-  { ceqP := arm_extra_op_eq_axiom }.
+  { ceqP := arm_extra_op_eqb_OK }.
 
 (* Extra instructions descriptions. *)
 
