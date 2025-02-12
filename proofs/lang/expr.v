@@ -1,6 +1,7 @@
 (* ** Imports and settings *)
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype div ssralg.
+From elpi.apps Require Import derive.std.
 Require Import oseq.
 From Coq Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import word_ssrZ.
@@ -28,6 +29,7 @@ Variant op_kind :=
   | Op_int
   | Op_w of wsize.
 
+#[only(eqbOK)] derive
 Variant sop1 :=
 | Oword_of_int of wsize     (* int → word *)
 | Oint_of_word of wsize     (* word → unsigned int *)

@@ -2,6 +2,7 @@
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype choice.
 From mathcomp Require Import fintype finfun.
+From elpi.apps Require Import derive.std.
 From Coq.Unicode Require Import Utf8.
 From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses.
 From Coq Require Ztac. (* deprecated since 9.0 *)
@@ -1235,15 +1236,9 @@ Notation Lex u v :=
 
 (* -------------------------------------------------------------------- *)
 
-Scheme Equality for comparison.
+#[only(eqbOK)] derive comparison.
 
-Lemma comparison_beqP : Equality.axiom comparison_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme internal_comparison_dec_bl internal_comparison_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build comparison comparison_beqP.
+HB.instance Definition _ := hasDecEq.Build comparison comparison_eqb_OK.
 
 (* -------------------------------------------------------------------- *)
 
@@ -1503,6 +1498,8 @@ Lemma Pos_lt_leb_trans y x z:
   (x <? y)%positive -> (y <=? z)%positive -> (x <? z)%positive.
 Proof. move=> /P_ltP ? /P_leP ?;apply /P_ltP; Lia.lia. Qed.
 
+#[only(eqbOK)] derive positive.
+positive_eqb
 Lemma pos_eqP : Equality.axiom Pos.eqb.
 Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Pos.eqb_eq. Qed.
 

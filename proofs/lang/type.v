@@ -1,6 +1,7 @@
 (* ** Imports and settings *)
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From elpi.apps Require Import derive.std.
 From Coq Require Import ZArith.
 Require Import gen_map utils strings.
 Require Export wsize.
@@ -9,6 +10,11 @@ Import Utf8.
 (* ** Syntax
  * -------------------------------------------------------------------- *)
 
+(* FIXME: sad, since derive uses internally eqb on positives, it should
+   come for free *)
+#[only(eqbOK)] derive positive.
+
+#[only(eqbOK),module] derive
 Variant stype : Set :=
 | sbool
 | sint
@@ -38,14 +44,7 @@ Notation sword256 := (sword U256).
 Notation ty_msf := (sword msf_size).
 
 (* -------------------------------------------------------------------- *)
-Scheme Equality for stype.
-
-Lemma stype_axiom : Equality.axiom stype_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_stype_dec_bl internal_stype_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build stype stype_axiom.
+HB.instance Definition _ := hasDecEq.Build stype stype.eqb_OK.
 
 
 (* ** Comparison
@@ -147,7 +146,7 @@ Module CEDecStype.
     | sword w1 =>
       match t2 as t0 return {sword w1 = t0} + {True} with
       | sword w2 =>
-        match wsize_eq_dec w1 w2 with
+        match Bool.reflect_dec _ _ (wsize_eqb_OK w1 w2) with
         | left eqw => left (f_equal sword eqw)
         | right _ => right I
         end
@@ -169,7 +168,7 @@ Module CEDecStype.
     + case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ] //=.
       move => _; apply/eqP => -[].
       by move/eqP: (neq erefl).
-    case: wsize_eq_dec => // eqw.
+    case: Bool.reflect_dec => // eqw.
     by move=> _;apply /eqP;congruence.
   Qed.
 

@@ -4,12 +4,14 @@
 
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype fintype.
+From elpi.apps Require Import derive.std.
 From Coq Require Import ZArith.
 Require Import strings utils.
 Import Utf8.
 Import word_ssrZ.
 
 (* -------------------------------------------------------------- *)
+#[only(eqbOK)] derive
 Variant wsize :=
   | U8
   | U16
@@ -38,14 +40,7 @@ Variant signedness :=
   | Unsigned.
 
 (* -------------------------------------------------------------------- *)
-Scheme Equality for wsize.
-
-Lemma wsize_axiom : Equality.axiom wsize_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_wsize_dec_bl internal_wsize_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build wsize wsize_axiom.
+HB.instance Definition _ := hasDecEq.Build wsize wsize_eqb_OK.
 
 Definition wsizes :=
   [:: U8 ; U16 ; U32 ; U64 ; U128 ; U256 ].
