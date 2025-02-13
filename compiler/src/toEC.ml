@@ -1779,23 +1779,28 @@ module EcLeakLocal(EE: EcExpression) (EA: EcArray) (LC: LeakageConfig): EcLeakag
 
   let ec_leak_rty env rtys = leak_ret_ty :: rtys
 
-  let var_leaks env leaks var_name =
+  let var_leaks ?(vty="leakage_expr list") ?(l_map=fun l -> l) env leaks var_name =
+    let leaks_mapped = Elist (List.map l_map leaks) in
     if List.for_all (fun l -> l = Elist []) leaks then
-      (Elist leaks, [])
+      (leaks_mapped, [])
     else
-      let vleak = Env.create_aux env var_name "leakage_expr list" in
-      (ec_ident vleak, [ec_asgn vleak (Elist leaks)])
+      let vleak = Env.create_aux env var_name vty in
+      (ec_ident vleak, [ec_asgn vleak leaks_mapped])
 
-  let var_leak_lvs env lvs = var_leaks env (leaks_lvs env lvs) "leak_lvs"
+  let var_leak_lvs ?(vty="leakage_expr list") ?(l_map=fun l -> l) env lvs =
+    var_leaks ~vty:vty ~l_map:l_map env (leaks_lvs env lvs) "leak_lvs"
 
-  let var_leak_es ?(leak_fun=leaks_e) env es =
+  let var_leak_es ?(leak_fun=leaks_e) ?(vty="leakage_expr list") ?(l_map=fun l -> l) env es =
     let leaks = List.map (leakage_e ~leak_fun:leak_fun env) es in
-    var_leaks env leaks "leak_es"
+    var_leaks ~vty:vty ~l_map:l_map env leaks "leak_es"
 
   let ec_leaking_call env lvs es call_leaks call =
     let env = Env.new_aux_range env in
-    let (e_leak_lvs, asgn_leak_lvs) = var_leak_lvs env lvs in
-    let (e_leak_es, asgn_leak_es) = var_leak_es ~leak_fun:leaks_e_internal env es in
+    let l_map_expr l = Eapp (ec_ident "LeakExpr", [l]) in
+    let (e_leak_lvs, asgn_leak_lvs) =
+      var_leak_lvs ~vty:leaksv_ty ~l_map:l_map_expr env lvs in
+    let (e_leak_es, asgn_leak_es) =
+      var_leak_es ~vty:leaksv_ty ~l_map:l_map_expr ~leak_fun:leaks_e_internal env es in
     let call = call env in
     let leak_call_var =
       if call_leaks then
@@ -1804,7 +1809,7 @@ module EcLeakLocal(EE: EcExpression) (EA: EcArray) (LC: LeakageConfig): EcLeakag
         ec_ident "LeakEmpty"
     in
     let leak_call =
-      Eapp (ec_ident "LeakCall", [Etuple [e_leak_lvs; e_leak_es; leak_call_var]]) in
+      Eapp (ec_ident "LeakCall", [e_leak_lvs; e_leak_es; leak_call_var]) in
     asgn_leak_lvs @ asgn_leak_es @ call @ append_list (leakacc env) leak_call
 
   let ec_leaking_opn env op lvs es opn =

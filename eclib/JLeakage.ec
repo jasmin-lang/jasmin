@@ -55,8 +55,6 @@ type leakage_op =
 type leakage = [
   | LeakExpr of leakage_expr
   | LeakOp of leakage_op
-    (* lvs leakage, es leakage, leakage in call *)
-  | LeakCall of (leakage_expr list * leakage_expr list * leakage)
   | LeakNode of leakage & leakage
   | LeakEmpty
 ].
@@ -93,3 +91,5 @@ op [opaque] LeakWhile (c1_leaks: leakages) (cond_leaks: leakages) (c2_leaks: lea
         LeakNIter (size cond_leaks); LeakList cond_leaks; LeakList c1_leaks; LeakList c2_leaks
     ].
 
+op [opaque] LeakCall (lvs_leaks: leakages) (es_leaks: leakages) (call_leaks: leakage) =
+    LeakList [LeakList lvs_leaks; LeakList es_leaks; call_leaks].
