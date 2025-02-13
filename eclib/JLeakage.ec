@@ -53,11 +53,7 @@ type leakage_op =
 
 (* Tree structure of leakage *)
 type leakage = [
-  | LeakBranch of bool
-  | LeakNIter of int
-  | LeakBounds of (int * int)
   | LeakExpr of leakage_expr
-  | LeakExprs of leakage_expr list
   | LeakOp of leakage_op
     (* lvs leakage, es leakage, leakage in call *)
   | LeakCall of (leakage_expr list * leakage_expr list * leakage)
@@ -74,6 +70,12 @@ op LeakList_ (l : leakages) : leakage =
 
 op [opaque] LeakList (l : leakages) = LeakList_ l.
 
+op [opaque] LeakBranch (cond: bool) = LeakExpr ([ControlFlow (Leak_bool_ cond)]).
+
+op [opaque] LeakNIter (n: int) = LeakExpr ([ControlFlow (Leak_int_ n)]).
+
+op [opaque] LeakBounds (b: int * int) =
+    LeakExpr ([ControlFlow (Leak_int_ b.`1); ControlFlow (Leak_int_ b.`2)]).
 
 op [opaque] LeakIf (cond: bool) (cond_leak: leakage_expr) (leak_c: leakage) = 
     LeakList [ LeakBranch cond; LeakExpr cond_leak; leak_c].
@@ -86,8 +88,8 @@ op [opaque] LeakFor (lb: int) (ub: int) (lb_leak: leakage_expr) (ub_leak: leakag
         LeakList leak_cs
     ].
 
-op [opaque] LeakWhile (c1_leaks: leakages) (cond_leaks: leakage_expr list) (c2_leaks: leakages) =
+op [opaque] LeakWhile (c1_leaks: leakages) (cond_leaks: leakages) (c2_leaks: leakages) =
     LeakList [
-        LeakNIter (size cond_leaks); LeakExprs cond_leaks; LeakList c1_leaks; LeakList c2_leaks
+        LeakNIter (size cond_leaks); LeakList cond_leaks; LeakList c1_leaks; LeakList c2_leaks
     ].
 

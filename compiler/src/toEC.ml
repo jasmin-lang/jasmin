@@ -727,7 +727,7 @@ let pp_ec_fun_decl fmt fdecl =
         else Format.fprintf fmt "@[%a@]" (pp_list " *@ " pp_string) rtys
     in
     Format.fprintf fmt
-        "@[proc %s (@[%a@]) : @[%a@]@]"
+        "@[proc %s (@[%a@]) :@ @[%a@]@]"
         fdecl.fname
         (pp_list ",@ " pp_ec_vdecl) fdecl.args
         pp_ec_rty fdecl.rtys
@@ -1720,7 +1720,7 @@ module EcLeakLocal(EE: EcExpression) (EA: EcArray) (LC: LeakageConfig): EcLeakag
 
   let ec_leaking_while env c1 e c2 =
     let env = Env.new_aux_range env in
-    let vleak_cond = Env.create_aux env "leak_cond" "leakage_expr list" in
+    let vleak_cond = Env.create_aux env "leak_cond" leaksv_ty in
     (* We don't use leak_block since we need to check if c1 is empty. *)
     let env_c1 = Env.new_aux_range env in
     let c1 = c1 env_c1 in
@@ -1742,7 +1742,8 @@ module EcLeakLocal(EE: EcExpression) (EA: EcArray) (LC: LeakageConfig): EcLeakag
       ec_ident "LeakWhile",
       [c1_leakexpr; ec_ident vleak_cond; ec_ident leak_c2]
     ) in
-    let leak_cond = append_list vleak_cond (Elist (leaks_e env e)) in
+    let leak_cond =
+      append_list vleak_cond (Eapp (ec_ident "LeakExpr", [Elist (leaks_e env e)])) in
     reset_list vleak_cond @
     reset_c1_leak @
     reset_c2_leak @
