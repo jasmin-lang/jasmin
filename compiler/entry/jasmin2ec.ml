@@ -59,7 +59,7 @@ let model =
     $(b,CT): Functions additionally return timing-observable leakage for
     'cryptographic constant time' (if/while conditions, memory access
     addresses, array indices, for loop bounds).
-    $(b,CTG): Cryptographic constant time leakage is added to a
+    (Deprecated) $(b,CTG): Cryptographic constant time leakage is added to a
     global variable."
   in
   Arg.(value & opt (Arg.enum alts) Normal & info [ "m"; "model" ] ~doc)

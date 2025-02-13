@@ -2073,7 +2073,10 @@ let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp (model: model) amod
   let module EL: EcLeakage = (val match model with
     | Normal -> (module EcLeakNormal(EE): EcLeakage)
     | ConstantTime -> (module EcLeakConstantTime(EE): EcLeakage)
-    | ConstantTimeGlobal -> (module EcLeakConstantTimeGlobal(EE): EcLeakage)
+    | ConstantTimeGlobal ->
+        warning Deprecated Location.i_dummy
+          "EasyCrypt extraction for constant-time in CTG mode is deprecated. Use the CT mode instead.";
+        (module EcLeakConstantTimeGlobal(EE): EcLeakage)
   ) in
   let module E = Extraction(EA)(EL) in
   let prog = E.pp_prog env asmOp fmt globs funcs in
