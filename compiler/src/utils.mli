@@ -42,6 +42,11 @@ module Uniq : sig
 end
 
 (* -------------------------------------------------------------------- *)
+module Option : sig
+  include module type of Option
+  include module type of BatOption
+end
+(* -------------------------------------------------------------------- *)
 module ISet : sig
   include module type of BatISet
 end

@@ -3,14 +3,18 @@ require import JMemory JWord.
 (* ------------------------------------------------------------------- *)
 (* Leakages                                                            *)
 
+(* Legacy global leakge *)
 type leakage_glob_t = [
   | LeakAddr of address list
   | LeakCond of bool
-  | LeakFor  of (int * int)
+  | LeakForBounds  of (int * int)
 ].
 
+(* Legacy global leakge *)
 type leakages_glob_t = leakage_glob_t list.
 
+(* All types that can be leaked. For arrays, we use a byte list to keep the
+number of types bounded. *)
 type leakage_value = [
   | Leak_int_ of int
   | Leak_bool_ of bool
@@ -23,7 +27,8 @@ type leakage_value = [
   | Leak_array_ of W8.t list
   ].
 
-type base_leakage = [
+(* A single leakage element: classify leakage according to their kind, which is useful when considering leakage models. *)
+type leakage_point = [
   (* branches, for loop iteration counts, etc. *)
   | ControlFlow of leakage_value
   (* Array offset possibly combining with other such values and with array access indices *)
@@ -34,19 +39,31 @@ type base_leakage = [
   | Data of leakage_value
 ].
 
+(* Leakage involved in the evaluation of a single expression or lvalue. *)
+type leakage_expr = leakage_point list.
+
+(* Leakage of an operation:
+    - leakage for each lvalue place computation
+    - leakage for each operand evaluation
+    - values of operands
+    - values of operation result values
+*)
+type leakage_op =
+    leakage_expr list * leakage_expr list * leakage_value list * leakage_value list.
+
+(* Tree structure of leakage *)
 type leakage = [
-  | LeakBase of base_leakage
+  | LeakBranch of bool
+  | LeakNIter of int
+  | LeakBounds of (int * int)
+  | LeakExpr of leakage_expr
+  | LeakExprs of leakage_expr list
+  | LeakOp of leakage_op
+    (* lvs leakage, es leakage, leakage in call *)
+  | LeakCall of (leakage_expr list * leakage_expr list * leakage)
   | LeakNode of leakage & leakage
   | LeakEmpty
 ].
-
-
-op [opaque] Leak_addr x  = LeakBase (Address x).
-op [opaque] Leak_offset x = LeakBase (Offset x).
-op [opaque] Leak_data x = LeakBase (Data x).
-
-op [opaque] Leak_cond x  = LeakBase (ControlFlow (Leak_bool_ x)).
-op [opaque] Leak_bound x = LeakBase (ControlFlow (Leak_int_ x)).
 
 type leakages = leakage list.
 
@@ -56,4 +73,21 @@ op LeakList_ (l : leakages) : leakage =
   with l = (::) x xs => LeakNode x (LeakList_ xs).
 
 op [opaque] LeakList (l : leakages) = LeakList_ l.
+
+
+op [opaque] LeakIf (cond: bool) (cond_leak: leakage_expr) (leak_c: leakage) = 
+    LeakList [ LeakBranch cond; LeakExpr cond_leak; leak_c].
+
+op [opaque] LeakFor (lb: int) (ub: int) (lb_leak: leakage_expr) (ub_leak: leakage_expr) (leak_cs: leakages) =
+    LeakList [
+        LeakBounds (lb, ub);
+        LeakExpr lb_leak;
+        LeakExpr ub_leak;
+        LeakList leak_cs
+    ].
+
+op [opaque] LeakWhile (c1_leaks: leakages) (cond_leaks: leakage_expr list) (c2_leaks: leakages) =
+    LeakList [
+        LeakNIter (size cond_leaks); LeakExprs cond_leaks; LeakList c1_leaks; LeakList c2_leaks
+    ].
 
