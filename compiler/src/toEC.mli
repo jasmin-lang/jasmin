@@ -14,5 +14,6 @@ val extract :
   amodel ->
   string list ->
   string option ->
+  bool ->
   Format.formatter ->
   unit

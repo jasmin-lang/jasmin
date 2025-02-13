@@ -364,6 +364,7 @@ type ec_prog = ec_item list
 
 module type EnvT = sig
   type t
+  val comment_source: t -> bool
   val vars: t -> string Mv.t
   val pd: t -> Wsize.wsize
   val arch: t -> architecture
@@ -381,7 +382,7 @@ module type EnvT = sig
   val add_randombytes: t -> int -> unit
   val add_ty: t -> int gty -> unit
   val add_jarray: t -> Wsize.wsize -> int -> unit
-  val empty: architecture -> Wsize.wsize -> Sarraytheory.t ref -> t
+  val empty: architecture -> Wsize.wsize -> Sarraytheory.t ref -> bool -> t
   val create_name: t -> string -> string
   val array_theories: t -> Sarraytheory.t
   val get_funtype: t -> funname -> (ty list * ty list)
@@ -404,6 +405,8 @@ module Env: EnvT = struct
   module Mpty = Map.Make (PTcmp)
 
   type t = {
+      (* add comments with the jasmin instructions in easycrypt code *)
+      comment_source: bool;
       arch: architecture;
       pd: Wsize.wsize;
       (* All names: functions, global variables, arguments, local variables, aux variables *)
@@ -422,6 +425,8 @@ module Env: EnvT = struct
       mutable count: int Mpty.t;
       randombytes: Sint.t ref;
     }
+
+  let comment_source env = env.comment_source
 
   let vars env = env.vars
 
@@ -499,8 +504,9 @@ module Env: EnvT = struct
       | Bty _ -> ()
       | Arr (_ws, n) -> add_Array env n
 
-  let empty arch pd array_theories =
+  let empty arch pd array_theories comment_source =
     {
+      comment_source;
       arch;
       pd;
       alls = ref keywords;
@@ -1812,7 +1818,20 @@ struct
     let s = Format.asprintf "%a" (pp_opn pd asmOp) o in
     if Ss.mem s keywords then s^"_" else s
 
-  let rec toec_cmd asmOp env c = List.flatten (List.map (toec_instr asmOp env) c)
+  let rec toec_cmd asmOp env c =
+    let single_line_fmt fmt =
+      let ofns = Format.pp_get_formatter_out_functions fmt () in
+      let ofns = Format.{ ofns with out_indent = ignore; out_newline = ignore } in
+      Format.pp_set_formatter_out_functions fmt ofns;
+      Format.pp_set_max_boxes fmt 4;
+      Format.pp_set_ellipsis_text fmt "...";
+      fmt
+    in
+    let dbg_comment i =
+      let i_f fmt i =
+        Printer.pp_instr ~debug:false (Env.pd env) asmOp (single_line_fmt fmt) i in
+      if Env.comment_source env then [EScomment (Format.asprintf "%a" i_f i)] else [] in
+    List.concat_map (fun i -> dbg_comment i @ toec_instr asmOp env i) c
 
   and toec_instr asmOp env i =
       match i.i_desc with
@@ -2054,7 +2073,7 @@ and used_func_i used i =
   | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2
   | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
-let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp (model: model) amodel fnames array_dir fmt =
+let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp (model: model) amodel fnames array_dir comment_source fmt =
   let save_array_theories array_theories =
     match array_dir with
     | Some prefix ->
@@ -2076,7 +2095,7 @@ let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp (model: model) amod
     else false in
   let funcs = List.rev (List.filter dofun funcs) in
   let array_theories = ref Sarraytheory.empty in
-  let env = Env.empty arch pd array_theories in
+  let env = Env.empty arch pd array_theories comment_source in
   let module EA: EcArray = (val match amodel with
     | ArrayOld -> (module EcArrayOld: EcArray)
     | WArray   -> (module EcWArray  : EcArray)

@@ -30,7 +30,7 @@ $(dirname $0)/../jasmin2ec ${ARCH} -o ${CTG} -m CTG "$2"
 function ec_path { echo ${DIR}/jasmin_$1.ec; }
 
 for MODE in "${MODES[@]}"; do
-	$(dirname $0)/../jasmin2ec ${ARCH} -m ${MODE} -o $(ec_path $MODE) "$2"
+	$(dirname $0)/../jasmin2ec ${ARCH} -m ${MODE} -o $(ec_path $MODE) --comment-source "$2"
 done
 
 for MODE in "${MODES[@]}"; do
