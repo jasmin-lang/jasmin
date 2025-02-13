@@ -1651,8 +1651,6 @@ module EcLeakLocal(EE: EcExpression) (EA: EcArray) (LC: LeakageConfig): EcLeakag
   let leaks_es env es = leaks_es_rec env [] es
 
   let leakage_e ?(leak_fun=leaks_e) env e = Elist (leaks_e env e)
-  let leakage_es ?(leak_fun=leaks_e) env es =
-    Elist (List.map (leakage_e ~leak_fun:leak_fun env) es)
 
   (* Like leaks_e, but also leaks (sub-)arrays whose full value appears in e
     (i.e., not just through indexing). *)
@@ -1780,17 +1778,18 @@ module EcLeakLocal(EE: EcExpression) (EA: EcArray) (LC: LeakageConfig): EcLeakag
 
   let ec_leak_rty env rtys = leak_ret_ty :: rtys
 
-  let var_leak_lvs env lvs = match lvs with
-    | [] -> (Elist [], [])
-    | _ -> 
-      let vleak_lvs = Env.create_aux env "leak_lvs" "leakage_expr list" in
-      (ec_ident vleak_lvs, [ec_asgn vleak_lvs (Elist (leaks_lvs env lvs))])
+  let var_leaks env leaks var_name =
+    if List.for_all (fun l -> l = Elist []) leaks then
+      (Elist leaks, [])
+    else
+      let vleak = Env.create_aux env var_name "leakage_expr list" in
+      (ec_ident vleak, [ec_asgn vleak (Elist leaks)])
 
-  let var_leak_es ?(leak_fun=leaks_e) env es = match es with
-    | [] -> (Elist [], [])
-    | _ ->
-      let vleak_es = Env.create_aux env "leak_es" "leakage_expr list" in
-      (ec_ident vleak_es, [ec_asgn vleak_es (leakage_es ~leak_fun:leak_fun env es)])
+  let var_leak_lvs env lvs = var_leaks env (leaks_lvs env lvs) "leak_lvs"
+
+  let var_leak_es ?(leak_fun=leaks_e) env es =
+    let leaks = List.map (leakage_e ~leak_fun:leak_fun env) es in
+    var_leaks env leaks "leak_es"
 
   let ec_leaking_call env lvs es call_leaks call =
     let env = Env.new_aux_range env in
