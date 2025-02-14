@@ -1650,7 +1650,7 @@ module EcLeakLocal(EE: EcExpression) (EA: EcArray) (LC: LeakageConfig): EcLeakag
   let leaks_e env e = leaks_e_rec env [] e
   let leaks_es env es = leaks_es_rec env [] es
 
-  let leakage_e ?(leak_fun=leaks_e) env e = Elist (leaks_e env e)
+  let leakage_e ?(leak_fun=leaks_e) env e = Elist (leak_fun env e)
 
   (* Like leaks_e, but also leaks (sub-)arrays whose full value appears in e
     (i.e., not just through indexing). *)
