@@ -188,6 +188,7 @@ Local Notation estack := (estack ep).
 Local Notation FunE := (FunE asmop).
 Local Notation InstrE := (InstrE asmop).
 Local Notation AssgnE := (AssgnE asmop).
+Local Notation FunCode := (FunCode asmop).
 Local Notation WriteIndex := (WriteIndex asmop).
 Local Notation InitState := (InitState asmop).
 Local Notation SetDests := (SetDests asmop).
@@ -356,21 +357,87 @@ Context (E1: Type -> Type)
 Context (HasFunE2 : FunE -< E2)
         (HasInstrE2 : InstrE -< E2).     
 
+(* type family isomorphism for E1 *)
 Context (E0: Type -> Type).
 Context (FI1: FIso (E0 +' ErrState) E1).
 
+(* cutoff functions *)
 Notation EE1 := (ErrorCutoff FI1).
 Notation EE2 := (NoCutoff E2).
 
+(* pre-relation and post-relation between E1 and E2 events *)
 Context (TR_E : forall (E1 E2: Type -> Type) T1 T2,
-            E1 T1 -> E2 T2 -> Prop).
-(*        (VR_E : forall (E1 E2: Type -> Type) T1 T2,
-            E1 T1 -> T1 -> E2 T2 -> T2 -> Prop). *)
+            E1 T1 -> E2 T2 -> Prop)
+        (VR_E : forall (E1 E2: Type -> Type) T1 T2,
+            E1 T1 -> T1 -> E2 T2 -> T2 -> Prop).
 
+(*
+(* trivial post-relation for E1 E2 when the output types are unit *)
 Definition VR_E (E1 E2: Type -> Type) T1 T2 :
   E1 T1 -> T1 -> E2 T2 -> T2 -> Prop :=
   fun _ _ _ _ => True.
+*)
 
+Context
+  (init_hyp: forall fn es1 es2,
+     eutt eq (ret es2) (mapT tr_expr es1) ->
+     TR_E E1 E2 unit unit (HasInstrE1 unit (InitState fn es1))
+                          (HasInstrE2 unit (InitState fn es2)))
+  (dests_hyp: forall fn xs1 xs2,
+     eutt eq (ret xs2) (mapT tr_lval xs1) ->      
+     TR_E E1 E2 unit unit (HasInstrE1 unit (SetDests fn xs1))
+                          (HasInstrE2 unit (SetDests fn xs2)))
+  (fname_pre_hyp: forall fn,
+     TR_E E1 E2 cmd cmd (HasFunE1 cmd (FunCode fn))
+                        (HasFunE2 cmd (FunCode fn)))
+  (fname_post_hyp: forall fn t1 t2,
+     VR_E E1 E2 cmd cmd (HasFunE1 cmd (FunCode fn)) t1
+                        (HasFunE2 cmd (FunCode fn)) t2)  
+  (cmd_hyp: forall c1 c2,
+    Tr_cmd_rel c1 c2 ->  
+    @rutt E1 E2 unit unit EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+        (denote_cmd HasFunE1 HasInstrE1 c1)
+        (denote_cmd HasFunE2 HasInstrE2 c2)).
+
+Context (VR_E_cmd_axiom: forall fn c1 c2,
+       (
+         VR_E E1 E2 cmd cmd (HasFunE1 cmd (FunCode fn)) c1
+           (HasFunE2 cmd (FunCode fn)) c2)
+        -> (Tr_cmd_rel c1 c2)).
+
+(*        ((Tr_cmd_rel c1 c2) ->
+         VR_E E1 E2 cmd cmd (HasFunE1 cmd (FunCode fn)) c1
+                          (HasFunE2 cmd (FunCode fn)) c2)).
+*)
+
+Lemma init_hyp_rutt: forall fn es1 es2,
+    eutt eq (ret es2) (mapT tr_expr es1) ->
+    @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (trigger (InitState fn es1)) (trigger (InitState fn es2)).
+  intros; eapply rutt_trigger; eauto.
+  intros [] [] _; auto.
+Qed.
+
+Lemma dests_hyp_rutt: forall fn xs1 xs2,
+    eutt eq (ret xs2) (mapT tr_lval xs1) ->
+    @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (trigger (SetDests fn xs1)) (trigger (SetDests fn xs2)).
+  intros; eapply rutt_trigger; eauto.
+  intros [] [] _; auto.
+Qed.
+
+
+Lemma fname_hyp_rutt: forall fn,
+    @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) Tr_cmd_rel
+      (trigger (FunCode fn)) (trigger (FunCode fn)).
+  intros; eapply rutt_trigger; eauto.
+Qed.
+(*  intros t1 t2 H.
+  eapply VR_E_cmd_axiom; eauto.
+Qed.
+*)
+
+(*
 Context
   (init_hyp: forall fn es1 es2,
     eutt eq (ret es2) (mapT tr_expr es1) ->
@@ -387,10 +454,10 @@ Context
     @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
         (denote_cmd HasFunE1 HasInstrE1 c)
         (denote_cmd HasFunE2 HasInstrE2 c)).
+*)
 
-
-(** denotational equivalence across the translation; the proof is nice
- and short, but relies on the assumptions. was comp_gen_ok_MM2. *)
+(** denotational equivalence across the translation. was
+comp_gen_ok_MM2. *)
 Lemma rutt_transl_denote_fun_MM (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) 
   (hxs: eutt eq (ret xs2) (mapT tr_lval xs1))
@@ -399,23 +466,32 @@ Lemma rutt_transl_denote_fun_MM (fn: funname)
     (denote_fun _ _ fn xs1 es1) (denote_fun _ _ fn xs2 es2).
 Proof.  
   eapply rutt_bind; eauto.
+  eapply init_hyp_rutt; eauto.
   intros [] [] [].
   
-  eapply rutt_bind with (RR := eq); eauto.
-  intros r1 r2 H; inv H.
+  eapply rutt_bind with (RR := Tr_cmd_rel); eauto.
+  eapply fname_hyp_rutt; eauto.
+  unfold Tr_cmd_rel; intros r1 r2 H.
 
-  eapply rutt_bind with (RR := eq); eauto.
+  eapply rutt_bind.
+  eapply cmd_hyp; eauto.
+
+  intros [] [] [].
+  eapply rutt_trigger; eauto.
+  intros [] [] _; auto.
 Qed.  
 
+(* type family isomorphism for mutually recursive events *)
 Definition FI1_MR : FIso ((CState +' E0) +' ErrState) (CState +' E1) :=
   FIsoTrans (FIsoRAssoc CState E0 ErrState) (FIsoSum (FIsoId CState) FI1). 
 
+(* cutoff functions for mutually recursive events *)
 Notation EE1_MR := (ErrorCutoff FI1_MR).
 Notation EE2_MR := (NoCutoff (CState +' E2)).
 
-(* ME: relation between FCState events *)
+(* MM: pre-relation between CState events *)
 Definition TR_D {T1 T2} (d1 : CState T1)
-                           (d2 : CState T2) : Prop :=
+                        (d2 : CState T2) : Prop :=
   match (d1, d2) with
   | (LCode c1, LCode c2) => Tr_cmd_rel c1 c2 
   | (FCall xs1 fn1 es1, FCall xs2 fn2 es2) =>
@@ -425,10 +501,16 @@ Definition TR_D {T1 T2} (d1 : CState T1)
   | _ => False   
   end.               
 
-(* ME: relation between FCState event outputs, i.e. over estate *)
+Context (TR_D_cmd_axiom: forall c1 c2,
+            Tr_cmd_rel c1 c2 -> TR_D (LCode c1) (LCode c2)).
+
+(* MM: post-relation between CState event outputs (typed as unit,
+hence trivial) *)
 Definition VR_D {T1 T2}
   (d1 : CState T1) (t1: T1) (d2 : CState T2) (t2: T2) : Prop := True.
 
+(*
+(* not needed *)
 Definition VR_D_alt {T1 T2}
   (d1 : CState T1) (t1: T1) (d2 : CState T2) (t2: T2) : Prop :=
   match (d1, d2) with
@@ -436,11 +518,14 @@ Definition VR_D_alt {T1 T2}
   | (FCall xs1 fn1 es1, FCall xs2 fn2 es2) => True
   | _ => False   
   end.               
-  
-Program Definition TR_DE : prerel (CState +' E1) (CState +' E2) :=
+*)
+
+(* disjoint union of the pre-relations for mutual recursion *)
+Definition TR_DE : prerel (CState +' E1) (CState +' E2) :=
   sum_prerel (@TR_D) (TR_E E1 E2).
 
-Program Definition VR_DE : postrel (CState +' E1) (CState +' E2) :=
+(* disjoint union of the post-relations for mutual recursion *)
+Definition VR_DE : postrel (CState +' E1) (CState +' E2) :=
   sum_postrel (@VR_D) (VR_E E1 E2).
 
 Lemma rutt_transl_denote_fcall_MM (fn: funname)
@@ -453,31 +538,73 @@ Lemma rutt_transl_denote_fcall_MM (fn: funname)
 Proof.  
   eapply rutt_bind with (RR := eq); eauto.
   eapply rutt_trigger.
-  unfold EE1_MR, EE2_MR, TR_DE, VR_DE, TR_D, VR_D, VR_E; simpl; eauto.
-  unfold resum.
 
-  Print error.
-  Check mfun2.
-  Set Printing All.
+  unfold TR_DE; simpl.
+  econstructor; eauto.
+  intros [] [] _; auto.
 
-  (* SOMETHING WRONG *)
-  
-  destruct (mfun2 unit (inr1 (HasInstrE1 unit (InitState fn es1)))); eauto.
-  unfold Error2false.
-  destruct e.
-  inv
-  
-  eapply init_hyp.
   intros [] [] [].
+
+(*  
+  eapply rutt_bind with (RR := eq).
+  eapply rutt_trigger; eauto.
+  econstructor; simpl.
+  eapply fname_pre_hyp.
+*)
   
-  eapply rutt_bind with (RR := eq); eauto.
-  intros r1 r2 H; inv H.
+  eapply rutt_bind with (RR := Tr_cmd_rel).
+  eapply rutt_trigger.
+  econstructor; simpl.
+  eapply fname_pre_hyp.
+  intros c1 c2 H.
 
+  inv H.
+  dependent destruction H0.
+  dependent destruction H3.
+  dependent destruction H4.
+  dependent destruction H5.
+  eapply VR_E_cmd_axiom; eassumption.
+
+  intros c1 c2 H.
   eapply rutt_bind with (RR := eq); eauto.
+  eapply rutt_trigger.
+  econstructor; eauto.
+
+  intros [] [] _; auto.
+  intros [] [] [].
+    
+  eapply rutt_trigger; eauto.
+  econstructor; eauto.
+
+  intros [] [] _; auto.
+Qed.
+  
+(*  
+  inv H.
+  dependent destruction H0.
+  dependent destruction H3.
+  dependent destruction H4.
+  dependent destruction H5.
+  eapply VR_E_cmd_axiom; eauto.
+
+  intros c1 c2 H.
+  eapply rutt_bind with (RR := eq).
+  eapply rutt_trigger; eauto.
+  econstructor.
+
+  eapply TR_D_cmd_axiom; auto.
+
+  intros [] [] []; auto.
+
+  intros [] [] [].
+  eapply rutt_trigger; eauto.
+  econstructor; simpl.
+  eapply dests_hyp; eauto.
+
+  intros [] [] _; auto.
 Qed.  
-
-
-
+*)  
+  
 (*  
   eapply eutt_clo_bind with (UU:= eq); eauto.
   rewrite hes.
@@ -500,6 +627,7 @@ Qed.
 
 End TR_MM_L1.
 
+(***)
 
 Section TR_MM_L2.
 
