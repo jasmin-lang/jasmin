@@ -38,7 +38,6 @@ Require Import FunctionalExtensionality.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
 
 From ITree Require Import
-(*     Basics.Tacs *)
      Basics.Category
      Basics.Basics
      Basics.Function
@@ -87,19 +86,6 @@ Global Polymorphic Instance Monad_identity : Monad identity := {
     ret := identity_ret ;
     bind := identity_bind ; }.
 
-(*
-Global Polymorphic Instance Monad_identity : Monad identity := { 
-    ret := fun T: Type => id ;
-    bind := fun (T U: Type) (m: identity T) (f: T -> identity U) =>
-               f m; }.
-  
-Global Polymorphic Instance Monad_identity : Monad identity. 
-  econstructor.
-  - intros T t. exact t.
-  - intros T U m f. exact (f m).
-Defined.
-*)
-
 Global Polymorphic Instance Eq1_identity : Eq1 identity.
 Proof.
   unfold Eq1.
@@ -112,17 +98,6 @@ Proof.
   econstructor; simpl; repeat intuition.
 Qed.
 
-(*
-Global Polymorphic Instance MonadLaws_identity :
-  @MonadLawsE identity _ Monad_identity.
-Proof.
-  econstructor; simpl; repeat intuition.
-  unfold Proper, respectful; simpl; intros; eauto.
-  rewrite H.
-  rewrite H0; reflexivity.
-Qed.  
-*)
-
 Global Polymorphic Instance MonadLaws_identity :
   @MonadLawsE identity _ Monad_identity.
 Proof.
@@ -134,44 +109,13 @@ Qed.
   
 End Identity_monad.  
 
-(*
-Section Id_monad.
-  
-Global Polymorphic Instance Monad_id : Monad id. 
-  econstructor.
-  - intros T t. exact t.
-  - intros T U m f. exact (f m). 
-Defined.
-
-Global Polymorphic Instance Eq1_id : Eq1 id.
-Proof.
-  unfold Eq1.
-  intro A. exact eq.
-Defined.
-
-Global Polymorphic Instance Eq1Equivalence_id :
-  @Eq1Equivalence id _ Eq1_id.
-Proof.
-  econstructor; simpl; repeat intuition.
-Qed.
-
-Global Polymorphic Instance MonadLaws_id :
-  @MonadLawsE id _ Monad_id.
-Proof.
-  econstructor; simpl; repeat intuition.
-  unfold Proper, respectful.
-  simpl; intros; eauto.
-  rewrite H.
-  rewrite H0; reflexivity.
-Qed.  
-  
-End Id_monad.  
-*)
 
 Section Lang.
+
 Context (asm_op: Type) (asmop: asmOp asm_op).
 
 Section WSW.
+
 Context {wsw: WithSubWord}.   
 Context
   (dc: DirectCall)
@@ -218,11 +162,14 @@ Local Notation interp_InstrE := (interp_InstrE dc spp scP ev).
 function application and commands across the translation under the
 appropriate hypothesis. First we specify the translation. *)
 
-(* here we would like to use the state monad to represent the analysis
-that we want to thread through the execution. Here S is the type of
-the analysis information *)
+
+(** Auxiliary stuff *)
+
+(* we use the state monad to thread the analysis through the
+execution. Here S is the type of the analysis information *)
 Notation stateM := (fun S => stateT S identity).
 
+(* auxiliary map functions *)
 Fixpoint mapS {S A B} (f: A -> stateM S B) (ls: list A) (b: B) :
   stateM S B :=
   match ls with
@@ -235,10 +182,24 @@ Fixpoint mapL {S A B} (f: A -> stateM S B) (ls: list A) :
   | nil => ret nil
   | x :: xs => x' <- f x ;; xs' <- mapL f xs ;; ret (x' :: xs') end.            
 
+(* auxiliary cutoff functions *)
+Definition Error2false : forall X, exceptE error X -> bool :=
+  fun X m => match m with | Throw _ => false end.                  
+
+Definition ErrorCutoff {E0 E1} (FI: FIso (E0 +' ErrState) E1) :
+  forall X, E1 X -> bool :=
+  fun X m => match (mfun2 _ m) with
+             | inl1 _ => true
+             | inr1 x => Error2false X x end.              
+
+Definition NoCutoff (E: Type -> Type) : forall X, E X -> bool :=
+  fun X m => true.
+
 
 (*** TRANSLATION SPEC *******************************************)
 Section TRANSF_spec.
 
+(* target events *)  
 Context (E2: Type -> Type).
 Context (HasErr2: ErrState -< E2).   
 
@@ -260,6 +221,7 @@ Definition Tr_i (Th: instr_r -> itree E2 instr_r) (i: instr) :
   itree E2 instr :=
   match i with MkI ii ir => ir' <- Th ir ;; ret (MkI ii ir') end.  
 
+(* the translation is set to preserve events *)
 Fixpoint Tr_ir (i : instr_r) : itree E2 instr_r :=
   let R := Tr_i Tr_ir in 
   match i with
@@ -303,8 +265,6 @@ Definition Tr_FunDef (f: FunDef) : itree E2 FunDef :=
     c' <- Tr_cmd c ;;  
     ret (MkFun i tyin p_xs c' tyout r_xs xtr) end.
 
-(* End TRANSF_spec. *)
-
 Definition Tr_lval_rel (l1 l2: lval) : Prop :=
   eutt eq (ret l2) (tr_lval l1).
   
@@ -332,17 +292,22 @@ Definition Tr_cmd_rel (c1 c2: cmd) : Prop :=
 Definition Tr_FunDef_rel (f1 f2: FunDef) : Prop :=
   eutt eq (ret f2) (Tr_FunDef f1).
 
-Definition Error2false : forall X, exceptE error X -> bool :=
-  fun X m => match m with | Throw _ => false end.                  
+(* MM: pre-relation between CState events *)
+Definition TR_D {T1 T2} (d1 : CState T1)
+                        (d2 : CState T2) : Prop :=
+  match (d1, d2) with
+  | (LCode c1, LCode c2) => Tr_cmd_rel c1 c2 
+  | (FCall xs1 fn1 es1, FCall xs2 fn2 es2) =>
+      fn1 = fn2  /\
+      Tr_lvals_rel xs1 xs2 /\ 
+      Tr_exprs_rel es1 es2
+  | _ => False   
+  end.               
 
-Definition ErrorCutoff {E0 E1} (FI: FIso (E0 +' ErrState) E1) :
-  forall X, E1 X -> bool :=
-  fun X m => match (mfun2 _ m) with
-             | inl1 _ => true
-             | inr1 x => Error2false X x end.              
-
-Definition NoCutoff (E: Type -> Type) : forall X, E X -> bool :=
-  fun X m => true.
+(* MM: post-relation between CState event outputs (typed as unit,
+hence trivial) *)
+Definition VR_D {T1 T2}
+  (d1 : CState T1) (t1: T1) (d2 : CState T2) (t2: T2) : Prop := True.
 
 
 (*********************************************************************)
@@ -350,6 +315,8 @@ Definition NoCutoff (E: Type -> Type) : forall X, E X -> bool :=
 
 Section TR_MM_L1.
 
+(* source events (here we generalize, allowing them to be different
+from the target ones in E2) *)  
 Context (E1: Type -> Type)
         (HasErr1: ErrState -< E1)    
         (HasFunE1 : FunE -< E1)
@@ -419,44 +386,6 @@ Lemma fname_hyp_rutt: forall fn,
   intros; eapply rutt_trigger; eauto.
 Qed.
 
-
-Section Rutt_denote_fun.
-
-(* TO BE PROVED (recursively) *)  
-Context (cmd_hyp: forall c1 c2,
-    Tr_cmd_rel c1 c2 ->  
-    @rutt E1 E2 unit unit EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
-        (denote_cmd HasFunE1 HasInstrE1 c1)
-        (denote_cmd HasFunE2 HasInstrE2 c2)).
-
-(** equivalence of denote_fun across the translation. was
-comp_gen_ok_MM2. *)
-Lemma rutt_transl_denote_fun_MM (fn: funname)
-  (xs1 xs2: lvals) (es1 es2: pexprs) 
-  (hxs: eutt eq (ret xs2) (mapT tr_lval xs1))
-  (hes: eutt eq (ret es2) (mapT tr_expr es1)) :  
-  @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq  
-    (denote_fun _ _ fn xs1 es1) (denote_fun _ _ fn xs2 es2).
-Proof.  
-  eapply rutt_bind; eauto.
-  eapply init_hyp_rutt; eauto.
-  intros [] [] [].
-  
-  eapply rutt_bind with (RR := Tr_cmd_rel); eauto.
-  eapply fname_hyp_rutt; eauto.
-  unfold Tr_cmd_rel; intros r1 r2 H.
-
-  eapply rutt_bind.
-  eapply cmd_hyp; eauto.
-
-  intros [] [] [].
-  eapply rutt_trigger; eauto.
-  intros [] [] _; auto.
-Qed.  
-
-End Rutt_denote_fun.
-
-
 (* type family isomorphism for mutually recursive events *)
 Definition FI1_MR : FIso ((CState +' E0) +' ErrState) (CState +' E1) :=
   FIsoTrans (FIsoRAssoc CState E0 ErrState) (FIsoSum (FIsoId CState) FI1). 
@@ -464,23 +393,6 @@ Definition FI1_MR : FIso ((CState +' E0) +' ErrState) (CState +' E1) :=
 (* cutoff functions for mutually recursive events *)
 Notation EE1_MR := (ErrorCutoff FI1_MR).
 Notation EE2_MR := (NoCutoff (CState +' E2)).
-
-(* MM: pre-relation between CState events *)
-Definition TR_D {T1 T2} (d1 : CState T1)
-                        (d2 : CState T2) : Prop :=
-  match (d1, d2) with
-  | (LCode c1, LCode c2) => Tr_cmd_rel c1 c2 
-  | (FCall xs1 fn1 es1, FCall xs2 fn2 es2) =>
-      fn1 = fn2  /\
-      Tr_lvals_rel xs1 xs2 /\ 
-      Tr_exprs_rel es1 es2
-  | _ => False   
-  end.               
-
-(* MM: post-relation between CState event outputs (typed as unit,
-hence trivial) *)
-Definition VR_D {T1 T2}
-  (d1 : CState T1) (t1: T1) (d2 : CState T2) (t2: T2) : Prop := True.
 
 (* disjoint union of the pre-relations for mutual recursion *)
 Definition TR_DE : prerel (CState +' E1) (CState +' E2) :=
@@ -535,12 +447,48 @@ Proof.
   intros [] [] _; auto.
 Qed.
 
-End TR_MM_L1.
 
-(***)
+Section Rutt_denote_fun.
+
+(* TO BE PROVED (recursively) *)  
+Context (cmd_hyp: forall c1 c2,
+    Tr_cmd_rel c1 c2 ->  
+    @rutt E1 E2 unit unit EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+        (denote_cmd HasFunE1 HasInstrE1 c1)
+        (denote_cmd HasFunE2 HasInstrE2 c2)).
+
+(** equivalence of denote_fun across the translation. was
+comp_gen_ok_MM2. *)
+Lemma rutt_transl_denote_fun_MM (fn: funname)
+  (xs1 xs2: lvals) (es1 es2: pexprs) 
+  (hxs: eutt eq (ret xs2) (mapT tr_lval xs1))
+  (hes: eutt eq (ret es2) (mapT tr_expr es1)) :  
+  @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq  
+    (denote_fun _ _ fn xs1 es1) (denote_fun _ _ fn xs2 es2).
+Proof.  
+  eapply rutt_bind; eauto.
+  eapply init_hyp_rutt; eauto.
+  intros [] [] [].
+  
+  eapply rutt_bind with (RR := Tr_cmd_rel); eauto.
+  eapply fname_hyp_rutt; eauto.
+  unfold Tr_cmd_rel; intros r1 r2 H.
+
+  eapply rutt_bind.
+  eapply cmd_hyp; eauto.
+
+  intros [] [] [].
+  eapply rutt_trigger; eauto.
+  intros [] [] _; auto.
+Qed.  
+
+End Rutt_denote_fun.
+
+End TR_MM_L1.
 
 Section TR_MM_L2.
 
+(* source envents *)  
 Context (E1: Type -> Type)
         (HasErr1: ErrState -< E1)    
         (HasFunE1 : FunE -< E1)
@@ -561,15 +509,193 @@ Context (TR_E : forall (E1 E2: Type -> Type) T1 T2,
         (VR_E : forall (E1 E2: Type -> Type) T1 T2,
             E1 T1 -> T1 -> E2 T2 -> T2 -> Prop).
 
-Context (assgn_h1 :
+(* too strong: in principle, either tr_lval or tr_expr might diverge
+and thus the translation, whereas the source program doesn't *)
+(*
+Context (assgn_h1s :  
     forall l a s p, @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq  
                  (trigger (AssgnE l a s p))
                  (l' <- tr_lval l ;;
                   p' <- tr_expr p ;;
                   trigger (AssgnE l' a s p'))).
 
+Context (assgn_h1 : forall l l' a s p p',
+    Tr_lval_rel l l' ->
+    Tr_expr_rel p p' ->        
+    @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq  
+                 (trigger (AssgnE l a s p)) (trigger (AssgnE l' a s p'))).
+*)
+
+Context (assgn_h1 : forall l l' tg ty p p',
+    TR_E E1 E2 unit unit (HasInstrE1 unit (AssgnE l tg ty p))
+    (HasInstrE2 unit (AssgnE l' tg ty p'))).
+
 (* proving rutt across the translation for all commands (here we need
 induction). was eutt_cmd_tr_L1 *)
+Lemma rutt_transl_denote_cmd_MM (cc: cmd) :
+  forall c2, Tr_cmd_rel cc c2 ->  
+    @rutt E1 E2 unit unit EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+        (denote_cmd HasFunE1 HasInstrE1 cc)
+        (denote_cmd HasFunE2 HasInstrE2 c2).
+Proof.
+  set (Pr := fun (i: instr_r) => forall ii c2,
+                 Tr_cmd_rel ((MkI ii i) :: nil) c2 ->  
+                 @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+                   (denote_cmd _ _ ((MkI ii i) :: nil))
+                   (denote_cmd _ _ c2)).
+  set (Pi := fun i => forall c2,
+               Tr_cmd_rel (i::nil) c2 ->   
+               @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+                 (denote_cmd _ _ (i::nil))
+                 (denote_cmd _ _ c2)).
+  set (Pc := fun c => forall c2,
+               Tr_cmd_rel c c2 ->  
+               @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+                 (denote_cmd _ _ c)
+                 (denote_cmd _ _ c2)).
+  revert cc; unfold Tr_cmd_rel.
+  apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc. 
+
+  { unfold Tr_cmd_rel, Tr_cmd; simpl; intros. 
+    eapply eutt_Ret in H; inv H.
+    pstep; red; simpl.
+    econstructor; auto.
+  }  
+
+  { unfold Tr_cmd_rel; simpl; intros.
+    symmetry in H1.
+    eapply eqit_inv_bind_ret in H1.
+    destruct H1 as [ii [H3 H2]].
+    eapply eqit_inv_bind_ret in H2.
+    destruct H2 as [cc0 [H1 H2]].
+    eapply eutt_Ret in H2; inv H2.
+
+    setoid_rewrite seq_eqtree_gen_lemma; simpl. 
+
+    symmetry in H3, H1.
+    eapply H0 in H1.
+
+    specialize (H [::ii]).
+
+    assert (eqit eq true true (Ret ii) (Tr_instr i) ->
+            Ret [:: ii]
+    ≈ ITree.bind (Tr_instr i)
+        (fun x' : instr =>
+           ITree.bind (Ret [::]) (fun xs' : cmd => Ret (x' :: xs')))) as K1.
+    { admit. }
+
+    specialize (H (K1 H3)).
+    eapply rutt_bind with (RR := eq); auto.
+  }
+    
+  { unfold Tr_cmd_rel; simpl; intros.
+
+    symmetry in H0.
+    eapply eqit_inv_bind_ret in H0.
+    destruct H0 as [i0 [H0 H1]].
+    eapply eqit_inv_bind_ret in H0.
+    destruct H0 as [ir0 [H0 H2]].
+    eapply eqit_inv_bind_ret in H1.
+    destruct H1 as [c0 [H1 H3]].
+    eapply eutt_Ret in H2; inv H2.
+    eapply eutt_Ret in H1; inv H1.
+    eapply eutt_Ret in H3; inv H3.
+
+    specialize (H ii [:: MkI ii ir0]).
+    setoid_rewrite bind_bind in H.
+    setoid_rewrite bind_ret_l in H.
+    setoid_rewrite bind_ret_l in H.
+    symmetry in H0.
+
+    assert (eqit eq true true (Ret ir0) (Tr_ir ir) ->
+          Ret [:: MkI ii ir0]
+            ≈ ITree.bind (Tr_ir ir)
+            (fun r : instr_r => Ret [:: MkI ii r])) as K2.
+    { admit. }
+
+    specialize (H (K2 H0)); auto.
+  }
+  
+  { unfold Tr_cmd_rel; simpl; intros.
+
+    symmetry in H.
+    eapply eqit_inv_bind_ret in H.
+    destruct H as [i0 [H0 H1]].
+    eapply eqit_inv_bind_ret in H1.
+    destruct H1 as [c0 [H1 H2]].
+    setoid_rewrite bind_bind in H0.
+    eapply eqit_inv_bind_ret in H0.
+    destruct H0 as [v0 [H3 H4]].
+    eapply eqit_inv_bind_ret in H4.
+    destruct H4 as [ir0 [H4 H5]].
+    eapply eqit_inv_bind_ret in H4.
+    destruct H4 as [e0 [H4 H6]].
+    eapply eutt_Ret in H6; inv H6.
+    eapply eutt_Ret in H1; inv H1.
+    eapply eutt_Ret in H2; inv H2.
+    eapply eutt_Ret in H5; inv H5.
+    unfold denote_cmd, mrec; simpl.
+    symmetry in H3, H4.
+    
+    eapply interp_mrec_rutt with (RPreInv := @TR_D) (RPostInv := @VR_D).
+    { intros R1 R2 d1 d2 H.
+      unfold TR_D in H; destruct d1.
+
+      2: { destruct d2; try intuition.
+           inv H0; simpl.
+           unfold EE_MR; simpl.              
+           (* eapply rutt_transl_denote_fcall_MM. *)
+           admit. }
+     
+      destruct d2; try intuition.
+      simpl; clear X; unfold Tr_cmd_rel in H.
+      induction c.
+      { simpl; simpl in H.
+        eapply eutt_Ret in H.
+        inv H; simpl.
+        eapply rutt_Ret; unfold VR_D; auto.
+      }  
+      simpl in H.
+      admit.
+    }  
+
+    eapply rutt_bind with (RR := eq); eauto.
+    { eapply rutt_trigger.
+      { econstructor.
+        unfold resum; simpl; eauto. }
+
+      intros [] [] _; auto.
+    }  
+    intros [] [] [].
+    eapply rutt_Ret; auto.
+  }
+    
+Admitted.     
+
+
+End TR_MM_L2.
+
+
+(*
+Context (cmd_hyp: forall c1 c2,
+    Tr_cmd_rel c1 c2 ->  
+    @rutt E1 E2 unit unit EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+        (denote_cmd HasFunE1 HasInstrE1 c1)
+        (denote_cmd HasFunE2 HasInstrE2 c2)).
+
+Lemma rutt_transl_denote_cmd_MM (cc: cmd) :
+  @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq  
+    (denote_cmd _ _ cc)
+    (cc' <- Tr_cmd cc ;; denote_cmd _ _ cc').
+Proof.    
+  specialize (cmd_hyp cc).
+  unfold Tr_cmd_rel in *.
+  revert cmd_hyp.
+  set cct := (Tr_cmd cc).
+  intro cmd_hyp.
+*)  
+
+(*
 Lemma rutt_transl_denote_cmd_MM (cc: cmd) :
   @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq  
     (denote_cmd _ _ cc)
@@ -590,12 +716,28 @@ Lemma rutt_transl_denote_cmd_MM (cc: cmd) :
                (c'' <- Tr_cmd c ;; denote_cmd _ _ c'')).
   revert cc.
   apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc.
+*)
+
+(*  
+  set (Pr := fun (i: instr_r) => forall ii,
+                 @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+                   (denote_cmd HasFunE1 HasInstrE1 ((MkI ii i) :: nil))
+                   (cc'' <- Tr_instr (MkI ii i) ;;
+                    denote_cmd HasFunE2 _ (cc'' :: nil))).
+  set (Pi := fun i =>
+            @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+               (denote_cmd _ _ (i::nil))
+               (i'' <- Tr_instr i ;;
+                 denote_cmd _ _ (i'' :: nil))).
+  set (Pc := fun c =>
+            @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+               (denote_cmd _ _ c)
+               (c'' <- Tr_cmd c ;; denote_cmd _ _ c'')).
+  revert cc.
+  apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc.
   
 Admitted. 
-
-End TR_MM_L2.
-
-
+ *)
 
 (*
 Section TRANSF.
