@@ -3,10 +3,10 @@ open Cmdliner
 open CommonCLI
 open Utils
 
-let parse_and_print arch call_conv =
+let parse_and_print arch call_conv idirs =
   let module A = (val get_arch_module arch call_conv) in
   let parse file =
-    try Compile.parse_file A.arch_info file with
+    try Compile.parse_file A.arch_info file (idirs @ Glob_options.env_idirs) with
     | Annot.AnnotationError (loc, code) ->
         hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
     | Pretyping.TyError (loc, code) ->
@@ -54,6 +54,6 @@ let () =
   let info =
     Cmd.info "jasmin2tex" ~version:Glob_options.version_string ~doc ~man
   in
-  Cmd.v info Term.(const parse_and_print $ arch $ call_conv $ output $ file
+  Cmd.v info Term.(const parse_and_print $ arch $ call_conv $ idirs $ output $ file
     $ warn)
   |> Cmd.eval |> exit
