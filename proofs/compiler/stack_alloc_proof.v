@@ -1224,7 +1224,7 @@ Section EXPR.
       exists (Vword wr); split=> //.
       have := hrec _ _ he1.
       rewrite /truncate_val /= hto /= => /(_ _ erefl) [] v' [] he1'.
-      t_xrbindP=> w hv' ?; subst w.
+      apply: rbindP => w hv' /ok_inj /Vword_inj1 ?; subst w.
       have := get_var_kindP hc hnnew hget; rewrite /get_gvar /= => -> /=.
       rewrite hto' /= he1' /= hv' /=.
       by rewrite -(eq_mem_source_word hvalid (readV hr)) hr.
@@ -1856,7 +1856,7 @@ Proof.
     have {}he1': sem_pexpr true [::] s2 e1' >>= to_pointer = ok w1.
     + have [ws1 [wv1 [? hwv1]]] := to_wordI hv1; subst.
       move: he1'; rewrite /truncate_val /= hwv1 /= => /(_ _ erefl) [] ve1' [] -> /=.
-      by t_xrbindP=> w1' -> ? /=; subst w1'.
+      by apply: rbindP => w1' -> /ok_inj /Vword_inj1 ->.
     rewrite he1' hxp /= hvw /=.
     have hvp1 := write_validw hmem1.
     have /valid_incl_word hvp2 := hvp1.
@@ -2741,7 +2741,8 @@ Lemma alloc_protect_ptrP m0 s1 s2 s1' rmap1 rmap2 ii r tag e msf vmsf v v' n i2 
   ∃ s2' : estate, sem_i P' rip s2 i2 s2' ∧ valid_state rmap2 m0 s1' s2'.
 Proof.
   move=> hvs he hmsf; rewrite /truncate_val /=.
-  t_xrbindP => w /to_wordI [sz' [wmsf [? htr]]] ? a' /to_arrI ? ? hw; subst v v' w vmsf.
+  apply: rbindP => w /to_wordI [sz' [wmsf [? htr]]] /ok_inj /Vword_inj1 ?; subst w vmsf.
+  t_xrbindP=> a' /to_arrI ? ? hw; subst v v'.
   rewrite /alloc_protect_ptr.
   t_xrbindP=> -[x ofsx] hgetr [y ofsy] hgete.
   case hkindy: (get_var_kind pmap y) => [vk|] //.
@@ -2826,7 +2827,7 @@ Proof.
   move: he1; t_xrbindP => ve1 h1 hve1 /=.
   have := alloc_eP hvs hmsf' hmsf.
   rewrite /truncate_val /= htr /= => /(_ _ erefl) [] vmsf' [] ok_vmsf'.
-  t_xrbindP=> z hto ?; subst z.
+  apply: rbindP => z hto /ok_inj /Vword_inj1 ?; subst z.
   move=> /(_ s2 s2' [::] [::ve1; vmsf'] [::Vword (w + wrepr Uptr ofs2)]) /= h.
   have ? : ofs2 = 0%Z; last subst ofs2.
   + by case: (vpky) hvpky hmk_addr => // -[] //= ? _ [] _ <-.
@@ -3929,9 +3930,9 @@ Proof.
   have := Forall3_nth haddr None (Vbool true) (Vbool true).
   move=> /[dup].
   move=> /(_ _ (nth_not_default hsri ltac:(discriminate)) _ _ hsri).
-  rewrite hpi hvai => -[[?] hwfi]; subst pi.
+  rewrite hpi hvai => -[/Vword_inj1 ? hwfi]; subst pi.
   move=> /(_ _ (nth_not_default hsrj ltac:(discriminate)) _ _ hsrj).
-  rewrite hpj hvaj => -[[?] hwfj]; subst pj.
+  rewrite hpj hvaj => -[/Vword_inj1 ? hwfj]; subst pj.
   apply (disj_sub_regions_disjoint_zrange hwfi hwfj) => //.
   by apply: hdisj hsri hsrj neq_ij.
 Qed.
@@ -4239,7 +4240,7 @@ Proof.
   have /is_sarrP [nx hty] := hlocal.(wfr_type).
   have :=
     Forall3_nth haddr None (Vbool true) (Vbool true) (nth_not_default hnth ltac:(discriminate)) _ _ hnth.
-  rewrite -hresp.(wrp_args) => -[[?] hwf]; subst w.
+  rewrite -hresp.(wrp_args) => -[/Vword_inj1 ? hwf]; subst w.
   set vp := Vword (sub_region_addr sr).
   exists (with_vm s2 (evm s2).[p <- vp]).
   have : type_of_val vp = vtype p by rewrite hlocal.(wfr_rtype).

@@ -305,6 +305,7 @@ Definition s_if t e e1 e2 :=
 (* ** constant propagation
  * -------------------------------------------------------------------- *)
 
+(* TODO: elpi.derive is not clever enough to deal with words *)
 Variant const_v :=
   | Cbool of bool
   | Cint of Z
@@ -322,6 +323,19 @@ Definition const_v_beq (c1 c2: const_v) : bool :=
   | _, _ => false
   end.
 
+Lemma Cword_inj sz sz' w w' (e: @Cword sz w = @Cword sz' w') :
+  exists e : sz = sz', eq_rect sz (λ s, (word s)) w sz' e = w'.
+Proof.
+  case: e => ?; subst sz'.
+  move=> /(Eqdep_dec.inj_pair2_eq_dec _ wsize_eq_dec _ _ _ _).
+  by move=> <-; exists erefl.
+Qed.
+
+Lemma Cword_inj1 sz w w' : @Cword sz w = @Cword sz w' -> w = w'.
+Proof.
+  by move=> /Cword_inj [en]; rewrite (Eqdep_dec.UIP_dec wsize_eq_dec en erefl).
+Qed.
+
 Lemma const_v_eq_axiom : Equality.axiom const_v_beq.
 Proof.
 case => [ b1 | z1 | sz1 w1 ] [ b2 | z2 | sz2 w2] /=; try (constructor; congruence).
@@ -329,7 +343,7 @@ case => [ b1 | z1 | sz1 w1 ] [ b2 | z2 | sz2 w2] /=; try (constructor; congruenc
 + case: eqP => [ -> | ne ]; constructor; congruence.
 case: wsize_eq_dec => [ ? | ne ]; last (constructor; congruence).
 subst => /=.
-by apply:(iffP idP) => [ /eqP | [] ] ->.
+by apply:(iffP idP) => [ /eqP | /Cword_inj1 ] ->.
 Qed.
 
 HB.instance Definition _ := hasDecEq.Build const_v const_v_eq_axiom.

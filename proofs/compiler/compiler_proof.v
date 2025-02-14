@@ -1266,7 +1266,7 @@ Proof.
     exists pr; split; first by reflexivity.
     move=> off w /[dup] /get_val_byte_bound hoff /hread ok_w.
     move: (va_wf i); rewrite /wf_arg ok_writable ok_pr.
-    move=> [_ [[<-] hargp]].
+    move=> [_ [/Vword_inj1 <- hargp]].
     rewrite -ok_w; apply (match_mem_read_incl_mem mi2).
     apply hargp.(wap_valid).
     by apply (between_byte hargp.(wap_no_overflow) (zbetween_refl _ _) hoff).

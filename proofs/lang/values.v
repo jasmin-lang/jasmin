@@ -65,7 +65,16 @@ Qed.
 
 Lemma Vword_inj sz sz' w w' (e: @Vword sz w = @Vword sz' w') :
   exists e : sz = sz', eq_rect sz (λ s, (word s)) w sz' e = w'.
-Proof. by case: e => ?; subst sz' => [[<-]]; exists erefl. Qed.
+Proof.
+  case: e => ?; subst sz'.
+  move=> /(Eqdep_dec.inj_pair2_eq_dec _ wsize_eq_dec _ _ _ _).
+  by move=> <-; exists erefl.
+Qed.
+
+Lemma Vword_inj1 sz w w' : @Vword sz w = @Vword sz w' -> w = w'.
+Proof.
+  by move=> /Vword_inj [en]; rewrite (Eqdep_dec.UIP_dec wsize_eq_dec en erefl).
+Qed.
 
 Lemma ok_word_inj E sz sz' w w' :
   ok (@Vword sz w) = Ok E (@Vword sz' w') →
@@ -393,7 +402,7 @@ Definition to_val t : sem_t t -> value :=
   end.
 
 Lemma to_val_inj t (v1 v2: sem_t t) : to_val v1 = to_val v2 -> v1 = v2.
-Proof. by case: t v1 v2 => /= > => [[]|[]| /Varr_inj1 |[]]. Qed.
+Proof. by case: t v1 v2 => /= > => [[]|[]| /Varr_inj1 | /Vword_inj1]. Qed.
 
 Lemma of_val_to_val t (v : sem_t t) : of_val t (to_val v) = ok v.
 Proof.
@@ -436,6 +445,7 @@ Lemma val_uincl_alt t1 t2 : @val_uincl t1 t2 =
     else fun _ _ => False
   end.
 Proof.
+  have stype_eq_dec := Bool.reflect_dec _ _ (stype.eqb_OK _ _).
   by case: t1; case: t2 => >; rewrite /val_uincl //=;
     case: {-}_/ boolP => // h >;
     rewrite (Eqdep_dec.UIP_dec stype_eq_dec (eqP h)).

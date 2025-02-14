@@ -1,4 +1,5 @@
 (* ** Imports and settings *)
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype div ssralg.
 Require Import oseq.
@@ -20,14 +21,17 @@ Local Unset Elimination Schemes.
    - cpu-op: CPU instructions such as addition with carry
 *)
 
+#[only(eqbOK)] derive
 Variant cmp_kind :=
   | Cmp_int
   | Cmp_w of signedness & wsize.
 
+#[only(eqbOK)] derive
 Variant op_kind :=
   | Op_int
   | Op_w of wsize.
 
+#[only(eqbOK)] derive
 Variant sop1 :=
 | Oword_of_int of wsize     (* int → word *)
 | Oint_of_word of wsize     (* word → unsigned int *)
@@ -38,6 +42,7 @@ Variant sop1 :=
 | Oneg  of op_kind          (* Arithmetic negation *)
 .
 
+#[only(eqbOK)] derive
 Variant sop2 :=
 | Obeq                        (* const : sbool -> sbool -> sbool *)
 | Oand                        (* const : sbool -> sbool -> sbool *)
@@ -75,6 +80,7 @@ Variant sop2 :=
 .
 
 (* N-ary operators *)
+#[only(eqbOK)] derive
 Variant combine_flags :=
 | CF_LT    of signedness   (* Alias : signed => L  ; unsigned => B   *) 
 | CF_LE    of signedness   (* Alias : signed => LE ; unsigned => BE  *)
@@ -84,39 +90,17 @@ Variant combine_flags :=
 | CF_GT    of signedness   (* Alias : signed => !LE; unsigned => !BE *)
 .
 
+#[only(eqbOK)] derive
 Variant opN :=
 | Opack of wsize & pelem (* Pack words of size pelem into one word of wsize *)
 | Ocombine_flags of combine_flags
 .
 
-Scheme Equality for sop1.
-(* Definition sop1_beq : sop1 -> sop1 -> bool *)
+HB.instance Definition _ := hasDecEq.Build sop1 sop1_eqb_OK.
 
-Lemma sop1_eq_axiom : Equality.axiom sop1_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_sop1_dec_bl internal_sop1_dec_lb).
-Qed.
+HB.instance Definition _ := hasDecEq.Build sop2 sop2_eqb_OK.
 
-HB.instance Definition _ := hasDecEq.Build sop1 sop1_eq_axiom.
-
-Scheme Equality for sop2.
-(* Definition sop2_beq : sop2 -> sop2 -> bool *)
-
-Lemma sop2_eq_axiom : Equality.axiom sop2_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_sop2_dec_bl internal_sop2_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build sop2 sop2_eq_axiom.
-
-Scheme Equality for opN.
-
-Lemma opN_eq_axiom : Equality.axiom opN_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_opN_dec_bl internal_opN_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build opN opN_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build opN opN_eqb_OK.
 
 (* ----------------------------------------------------------------------------- *)
 
@@ -208,18 +192,12 @@ Definition mk_var_i (x : var) :=
 Notation vid ident :=
   (mk_var_i {| vtype := sword Uptr; vname := ident%string; |}).
 
+#[only(eqbOK)] derive
 Variant v_scope := 
   | Slocal 
   | Sglob.
 
-Scheme Equality for v_scope.
-
-Lemma v_scope_eq_axiom : Equality.axiom v_scope_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_v_scope_dec_bl internal_v_scope_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build v_scope v_scope_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build v_scope v_scope_eqb_OK.
 
 Record gvar := Gvar { gv : var_i; gs : v_scope }.
 
@@ -299,16 +277,10 @@ Definition var_info_of_lval (x: lval) : var_info :=
 (* ** Instructions
  * -------------------------------------------------------------------- *)
 
+#[only(eqbOK)] derive
 Variant dir := UpTo | DownTo.
 
-Scheme Equality for dir.
-
-Lemma dir_eq_axiom : Equality.axiom dir_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_dir_dec_bl internal_dir_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build dir dir_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build dir dir_eqb_OK.
 
 Definition range := (dir * pexpr * pexpr)%type.
 
@@ -341,6 +313,7 @@ Definition ii_with_location (ii : instr_info) : instr_info :=
 Definition ii_is_inline (ii : instr_info) : bool := InstrInfo.is_inline ii.
 Definition var_info_of_ii (ii : instr_info) : var_info := InstrInfo.var_info_of_ii ii.
 
+#[only(eqbOK)] derive
 Variant assgn_tag :=
   | AT_none       (* assignment introduced by the developer that can be removed *)
   | AT_keep       (* assignment that should be kept by the compiler *)
@@ -351,15 +324,7 @@ Variant assgn_tag :=
   | AT_phinode    (* renaming during SSA transformation *)
   .
 
-Scheme Equality for assgn_tag.
-
-Lemma assgn_tag_eq_axiom : Equality.axiom assgn_tag_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme internal_assgn_tag_dec_bl internal_assgn_tag_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build assgn_tag assgn_tag_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build assgn_tag assgn_tag_eqb_OK.
 
 (* -------------------------------------------------------------------- *)
 

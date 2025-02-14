@@ -982,11 +982,11 @@ let cast_int loc e ety =
   cast loc e ety P.tint 
 
 (* -------------------------------------------------------------------- *)
-let conv_ty : T.stype -> P.pty = function
-    | T.Coq_sbool    -> P.tbool
-    | T.Coq_sint     -> P.tint
-    | T.Coq_sword ws -> P.Bty (P.U ws)
-    | T.Coq_sarr p   -> P.Arr (U8, PE (P.icnst (Conv.int_of_pos p)))
+let conv_ty : T.Coq_stype.stype -> P.pty = function
+    | T.Coq_stype.Coq_sbool    -> P.tbool
+    | T.Coq_stype.Coq_sint     -> P.tint
+    | T.Coq_stype.Coq_sword ws -> P.Bty (P.U ws)
+    | T.Coq_stype.Coq_sarr p   -> P.Arr (U8, PE (P.icnst (Conv.int_of_pos p)))
 
 let type_of_op2 op = 
   let (ty1, ty2), tyo = E.type_of_op2 op in
@@ -1835,7 +1835,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
              (string_error "the swap primitive is not available at type %a" PrintCommon.pp_btype ty)
       in
       let es = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args [ty; ty] in
-      let p = Sopn.Opseudo_op (Oswap Type.Coq_sbool) in  (* The type is fixed latter *)
+      let p = Sopn.Opseudo_op (Oswap Type.Coq_stype.Coq_sbool) in  (* The type is fixed latter *)
       [mk_i (P.Copn(lvs, AT_keep, p, es))]
 
   | ls, `Raw, { pl_desc = PEPrim (f, args) }, None ->

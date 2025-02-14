@@ -1,4 +1,5 @@
 (* ** Imports and settings *)
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From Coq Require Import ZArith.
@@ -9,6 +10,8 @@ Import Utf8.
 (* ** Syntax
  * -------------------------------------------------------------------- *)
 
+(* We use arg "module" to avoid a name clash with [is_bool] below *)
+#[only(eqbOK),module] derive
 Variant stype : Set :=
 | sbool
 | sint
@@ -38,14 +41,7 @@ Notation sword256 := (sword U256).
 Notation ty_msf := (sword msf_size).
 
 (* -------------------------------------------------------------------- *)
-Scheme Equality for stype.
-
-Lemma stype_axiom : Equality.axiom stype_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_stype_dec_bl internal_stype_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build stype stype_axiom.
+HB.instance Definition _ := hasDecEq.Build stype stype.eqb_OK.
 
 
 (* ** Comparison
@@ -147,7 +143,7 @@ Module CEDecStype.
     | sword w1 =>
       match t2 as t0 return {sword w1 = t0} + {True} with
       | sword w2 =>
-        match wsize_eq_dec w1 w2 with
+        match Bool.reflect_dec _ _ (wsize_eqb_OK w1 w2) with
         | left eqw => left (f_equal sword eqw)
         | right _ => right I
         end
@@ -159,8 +155,10 @@ Module CEDecStype.
   Proof.
     case: tt.
     elim: n1 n2 => [n1 Hrec|n1 Hrec|] [n2|n2|] //=.
-    + by case: pos_dec (Hrec n2) => //= -[] /(_ (erefl _)).
-    by case: pos_dec (Hrec n2) => //= -[] /(_ (erefl _)).
+    + case: pos_dec (Hrec n2) => //= -[] /(_ (erefl _)) /eqP ? _.
+      by apply /eqP; congruence.
+    case: pos_dec (Hrec n2) => //= -[] /(_ (erefl _)) /eqP ? _.
+    by apply /eqP; congruence.
   Qed.
 
   Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 != t2.
@@ -169,7 +167,7 @@ Module CEDecStype.
     + case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ] //=.
       move => _; apply/eqP => -[].
       by move/eqP: (neq erefl).
-    case: wsize_eq_dec => // eqw.
+    case: Bool.reflect_dec => // eqw.
     by move=> _;apply /eqP;congruence.
   Qed.
 

@@ -2250,7 +2250,7 @@ Proof.
       have [sr hsr] := Forall2_nth (alloc_call_args_aux_not_None hcargsx) None None hi _ hpi.
       rewrite hw in hsr.
       have := Forall3_nth haddr None (Vbool true) (Vbool true) (nth_not_default hsr ltac:(discriminate)) _ _ hsr.
-      rewrite hp2 => -[[?] hwf']; subst p2.
+      rewrite hp2 => -[/Vword_inj1 ? hwf']; subst p2.
       have {}hw := Forall_nth (alloc_call_args_aux_writable hcargsx) None (nth_not_default hsr ltac:(discriminate)) _ hsr.
       have /List.Forall_forall -/(_ (sub_region_at_ofs sr (Some 0) (size_val (nth (Vbool true) vargs1 i)), type_of_val (nth (Vbool true) vargs1 i))) := hdisj'.
       rewrite -sub_region_addr_offset wrepr0 GRing.addr0.
@@ -2416,9 +2416,8 @@ Proof.
   move: ok_writablej; rewrite (nth_map None) //; apply: obindP=> _ -> _.
   rewrite ok_pj ok_pj'.
   rewrite /dc_truncate_val.
-  case: ifP.
-  + by move=> _ [<-].
-  by rewrite /truncate_val /= truncate_word_u => _ [<-].
+  rewrite /truncate_val /= truncate_word_u /= if_same.
+  by move=> /ok_inj.
 Qed.
 
 (* If the parameter is a reg ptr, [varg2] is a pointer, and is equal to [varg2']. *)
@@ -2633,7 +2632,7 @@ Proof.
   rewrite -hfss.(fss_read_old8); first by apply hread.
   move: (hargs j); rewrite /wf_arg (nth_map None) //.
   rewrite hpi /= -hresultp.(wrp_args).
-  move=> [_ [[<-] hargp]].
+  move=> [_ [/Vword_inj1 <- hargp]].
   rewrite -hvalideq.
   apply hargp.(wap_valid).
   have hsub := hresultp.(wrp_subtype).
@@ -2757,7 +2756,7 @@ Proof.
     move=> i hi pi hpi p hp hlt.
     move: (hargs' i); rewrite /wf_arg.
     rewrite (nth_map None) // hpi /=.
-    rewrite hp => -[_ [[<-] hargp]].
+    rewrite hp => -[_ [/Vword_inj1 <- hargp]].
     apply disjoint_zrange_U8 => //.
     + by apply size_of_gt0.
     + by apply hargp.(wap_no_overflow).

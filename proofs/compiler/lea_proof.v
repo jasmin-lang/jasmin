@@ -128,24 +128,33 @@ Section PROOF.
       by rewrite lea_constP.
     move=> [] //= [] //= sz1 e1 He1 e2 He2 l sz' w hsz'.
     + case Heq1: mk_lea_rec => [l1|]//; case Heq2: mk_lea_rec => [l2|]// Hadd.
-      rewrite /sem_sop2 /=; t_xrbindP=> > + ? + ?
-        /to_wordI' [? [? [hsz1 ? ->]]] ?
-        /to_wordI' [? [? [hsz2 ? ->]]] ?.
-      subst=> h1 h2 [<-]; rewrite wadd_zero_extend // !zero_extend_idem //.
+      rewrite /sem_sop2 /=.
+      apply: rbindP => ? h1.
+      apply: rbindP => ? h2.
+      apply: rbindP => ? /to_wordI' [? [? [hsz1 ? ->]]].
+      apply: rbindP => ? /to_wordI' [? [? [hsz2 ? ->]]].
+      move=> /ok_word_inj [??]; subst=> /=.
+      rewrite wadd_zero_extend // !zero_extend_idem //.
       exact (lea_addP hsz (He1 _ _ _ (cmp_le_trans hsz' hsz1) Heq1 h1)
                            (He2 _ _ _ (cmp_le_trans hsz' hsz2) Heq2 h2) Hadd).
     + case Heq1: mk_lea_rec => [l1|]//;case Heq2: mk_lea_rec => [l2|]// Hmul.
-      rewrite /sem_sop2 /=; t_xrbindP=> > + ? + ?
-        /to_wordI' [? [? [hsz1 ? ->]]] ?
-        /to_wordI' [? [? [hsz2 ? ->]]] ?.
-      subst=> h1 h2 [<-]; rewrite wmul_zero_extend // !zero_extend_idem //.
+      rewrite /sem_sop2 /=.
+      apply: rbindP => ? h1.
+      apply: rbindP => ? h2.
+      apply: rbindP => ? /to_wordI' [? [? [hsz1 ? ->]]].
+      apply: rbindP => ? /to_wordI' [? [? [hsz2 ? ->]]].
+      move=> /ok_word_inj [??]; subst=> /=.
+      rewrite wmul_zero_extend // !zero_extend_idem //.
       exact (lea_mulP hsz (He1 _ _ _ (cmp_le_trans hsz' hsz1) Heq1 h1)
                            (He2 _ _ _ (cmp_le_trans hsz' hsz2) Heq2 h2) Hmul).
     case Heq1: mk_lea_rec => [l1|]//;case Heq2: mk_lea_rec => [l2|]// Hsub.
-    rewrite /sem_sop2 /=; t_xrbindP=> > + ? + ?
-        /to_wordI' [? [? [hsz1 ? ->]]] ?
-        /to_wordI' [? [? [hsz2 ? ->]]] ?.
-      subst=> h1 h2 [<-]; rewrite wsub_zero_extend // !zero_extend_idem //.
+    rewrite /sem_sop2 /=.
+    apply: rbindP => ? h1.
+    apply: rbindP => ? h2.
+    apply: rbindP => ? /to_wordI' [? [? [hsz1 ? ->]]].
+    apply: rbindP => ? /to_wordI' [? [? [hsz2 ? ->]]].
+    move=> /ok_word_inj [??]; subst=> /=.
+    rewrite wsub_zero_extend // !zero_extend_idem //.
     exact (lea_subP hsz (He1 _ _ _ (cmp_le_trans hsz' hsz1) Heq1 h1)
                            (He2 _ _ _ (cmp_le_trans hsz' hsz2) Heq2 h2) Hsub).
   Qed.

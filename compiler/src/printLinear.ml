@@ -15,10 +15,10 @@ module F = Format
 (* ---------------------------------------------------------------- *)
 let pp_stype fmt =
   function
-  | T.Coq_sbool  -> F.fprintf fmt "bool"
-  | T.Coq_sint   -> F.fprintf fmt "int"
-  | T.Coq_sarr n -> F.fprintf fmt "u%a[%a]" pp_wsize U8 Z.pp_print (Conv.z_of_pos n)
-  | T.Coq_sword sz -> F.fprintf fmt "u%a" pp_wsize sz
+  | T.Coq_stype.Coq_sbool  -> F.fprintf fmt "bool"
+  | T.Coq_stype.Coq_sint   -> F.fprintf fmt "int"
+  | T.Coq_stype.Coq_sarr n -> F.fprintf fmt "u%a[%a]" pp_wsize U8 Z.pp_print (Conv.z_of_pos n)
+  | T.Coq_stype.Coq_sword sz -> F.fprintf fmt "u%a" pp_wsize sz
 
 (* ---------------------------------------------------------------- *)
 let pp_label fmt lbl =

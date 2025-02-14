@@ -1,4 +1,5 @@
 (* ** Imports and settings *)
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
@@ -58,6 +59,7 @@ Definition slot := var.
 
 Notation size_slot s := (size_of s.(vtype)).
 
+(* elpi.derive not clever enough to unfold slot *)
 Record region :=
   { r_slot : slot;        (* the name of the region        *)
       (* the size of the region is encoded in the type of [r_slot] *)
@@ -105,19 +107,15 @@ End CmpR.
 Module Mr := Mmake CmpR.
 
 (* ------------------------------------------------------------------ *)
+#[only(eqbOK)] derive Z.
+
+#[only(eqbOK)] derive
 Record zone := {
   z_ofs : Z;
   z_len : Z;
 }.
 
-Scheme Equality for zone.
-
-Lemma zone_eq_axiom : Equality.axiom zone_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_zone_dec_bl internal_zone_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build zone zone_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build zone zone_eqb_OK.
 
 Definition disjoint_zones z1 z2 :=
   (((z1.(z_ofs) + z1.(z_len))%Z <= z2.(z_ofs)) ||

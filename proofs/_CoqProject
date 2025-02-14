@@ -15,6 +15,7 @@
 -arg "-w -deprecated-since-mathcomp-2.3.0"
 -arg "-w -deprecated-from-Coq"
 -arg "-w -deprecated-dirpath-Coq"
+-arg "-async-proofs off"
 
 -R 3rdparty Jasmin
 -R arch Jasmin
