@@ -74,8 +74,10 @@
 
 ## Other changes
 
-- Adding an annotation to function (`'info` type). Useful to store result of analysis. (see [[#1016](https://github.com/jasmin-lang/jasmin/issues/1016)])
-- ([PR#1021](https://github.com/jasmin-lang/jasmin/issues/1021))
+- Add an annotation to functions (of type `'info`); this can be useful to store
+  the result of an analysis
+  ([PR#1021](https://github.com/jasmin-lang/jasmin/pull/1021);
+  fixes [#1016](https://github.com/jasmin-lang/jasmin/issues/1016)).
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
   ([PR #869](https://github.com/jasmin-lang/jasmin/pull/869)).
@@ -86,7 +88,8 @@
 
 - Extraction to Easycrypt is now available as a separate `jasmin2ec` tool; the
   `-ec`, `-oec`, `-oecarray` and `-CT` command-line options are deprecated.
-  The `jasmin2ec` tool uses a new set of theories in `eclib` for extracting array operations, and supports a new extraction for leakage based on local variables.
+  The `jasmin2ec` tool uses a new set of theories in `eclib` for extracting array operations,
+  and supports a new extraction for leakage based on local variables.
   ([PR #914](https://github.com/jasmin-lang/jasmin/pull/914),
   [PR #952](https://github.com/jasmin-lang/jasmin/pull/952),
   [PR #967](https://github.com/jasmin-lang/jasmin/pull/967)),
