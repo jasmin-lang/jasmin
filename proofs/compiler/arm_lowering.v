@@ -169,20 +169,6 @@ Definition lower_load (ws: wsize) (e: pexpr) : low_expr :=
   let%opt _ := chk_ws_reg ws in
   le_issue LDR [:: e ].
 
-Definition is_load (e: pexpr) : bool :=
-  match e with
-  | Pconst _ | Pbool _ | Parr_init _
-  | Psub _ _ _ _ _
-  | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pif _ _ _ _
-    => false
-  | Pvar {| gs := Sglob |}
-  | Pget _ _ _ _ _
-  | Pload _ _ _ _
-    => true
-  | Pvar {| gs := Slocal ; gv := x |}
-    => is_var_in_memory x
-  end.
-
 Definition mov_imm_op (e : pexpr) : sopn :=
   if isSome (is_const e)
   then Oasm (ExtOp (Osmart_li U32))
@@ -244,9 +230,9 @@ Definition lower_Papp2_op
       then Some (RSB, e1, [:: e0])
       else
         Some (SUB, e0, [:: e1 ])
-  | Odiv (Cmp_w Signed U32) =>
+  | Odiv Signed (Op_w U32) =>
       Some (SDIV, e0, [:: e1 ])
-  | Odiv (Cmp_w Unsigned U32) =>
+  | Odiv Unsigned (Op_w U32) =>
       Some (UDIV, e0, [:: e1 ])
   | Oland _ =>
       Some (AND, e0, [:: e1 ])

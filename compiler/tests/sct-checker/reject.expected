@@ -5,7 +5,7 @@ Failed as expected missing_update_in_loop: "fail/basic.jazz", line 91 (2) to lin
                                             msf }
 Failed as expected missing_update_after_loop: "fail/basic.jazz", line 84 (18-21):
                                               speculative constant type checker: MSF is Trans
-                                              (! (x >u ((64u) 0)))
+                                              (! (x >u ((64w) 0)))
 Failed as expected outdated_msf: "fail/basic.jazz", line 74 (9-12):
                                  speculative constant type checker: the variable msf is not known to be a msf, only {
                                    } are
@@ -60,15 +60,15 @@ Failed as expected modmsf_trace: "fail/modmsf-trace.jazz", line 17 (2-8):
 File movmsf.jazz:
 Failed as expected overwrite2: "fail/movmsf.jazz", line 29 (4-5):
                                speculative constant type checker: x cannot become an MSF as the current status depends on it (
-                               (x >u ((64u) 0)))
+                               (x >u ((64w) 0)))
 Failed as expected overwrite: "fail/movmsf.jazz", line 21 (4-5):
                               speculative constant type checker: x cannot become an MSF as the current status depends on it (
-                              (x >u ((64u) 0)))
+                              (x >u ((64w) 0)))
 Failed as expected fail: "fail/movmsf.jazz", line 13 (29-32):
                          speculative constant type checker: MSF is not Trans
 File speculative-stack-leak.jazz:
 Failed as expected main: "fail/speculative-stack-leak.jazz", line 32 (2) to line 36 (3):
-                         speculative constant type checker: (pub > ((32u) 0)) has type #secret but should be at most #public
+                         speculative constant type checker: (pub > ((32w) 0)) has type #secret but should be at most #public
 File spill.jazz:
 Failed as expected spill2: "fail/spill.jazz", line 12 (5-8):
                            speculative constant type checker: pub has type #transient but should be at most #public

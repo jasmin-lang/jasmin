@@ -24,6 +24,15 @@ type 'len gty =
            (* invariant only Const variable can be used in expression *)
            (* the type of the expression is [Int] *)
 
+
+type 'len gety =
+  | ETbool
+  | ETint
+  | ETword of signedness option * wsize
+  | ETarr  of wsize * 'len (* Arr(n,de): array of n-bit integers with dim. *)
+           (* invariant only Const variable can be used in expression *)
+           (* the type of the expression is [Int] *)
+
 let u8   = Bty (U U8)
 let u16  = Bty (U U16)
 let u32  = Bty (U U32)
@@ -33,6 +42,28 @@ let u256 = Bty (U U256)
 let tu ws = Bty (U ws)
 let tbool = Bty Bool
 let tint  = Bty Int
+
+let etw ws = ETword (None, ws)
+let etwi s ws = ETword(Some s, ws)
+let etbool = ETbool
+let etint = ETint
+
+let gty_of_gety (t: 'len gety) : 'len gty =
+  match t with
+  | ETbool -> tbool
+  | ETint  -> tint
+  | ETword(_, ws) -> tu ws
+  | ETarr(ws, len) -> Arr(ws, len)
+
+let gety_of_gty (t : 'len gty) : 'len gety =
+  match t with
+  | Arr(ws, len) -> ETarr(ws, len)
+  | Bty t ->
+    match t with
+    | Bool -> etbool
+    | Int  -> etint
+    | U ws -> etw ws
+
 
 (* ------------------------------------------------------------------------ *)
 
