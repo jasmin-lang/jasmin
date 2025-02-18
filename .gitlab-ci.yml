@@ -280,6 +280,7 @@ push-compiler-code:
   - tar xzvf ../compiler/$TARBALL.tgz
   - mv $TARBALL/ compiler
   - mv ../eclib .
-  - git add compiler eclib
+  - mv ../Makefile.compiler Makefile
+  - git add compiler eclib Makefile
   - git commit -m "Jasmin compiler on branch “$CI_COMMIT_REF_NAME” at $CI_COMMIT_SHORT_SHA"  || true
   - git push --set-upstream origin $CI_COMMIT_REF_NAME
