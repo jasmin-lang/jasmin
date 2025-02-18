@@ -19,7 +19,7 @@ fn missing_else(#transient reg u64 a){
     a = m;
     m = #update_msf(b, m);
   }
-  a = not[(int) a];
+  a = not[a];
   a = #protect(a, m);
 }
 
@@ -33,7 +33,7 @@ fn missing_then(#transient reg u64 a){
   } else {
     m = #update_msf(!b, m);
   }
-  a = not[(int) a];
+  a = not[a];
   a = #protect(a, m);
 }
 

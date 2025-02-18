@@ -385,7 +385,7 @@ Lemma eval_assemble_cond_Onot get c v v0 v1 :
 Proof.
   Opaque riscv_eval_cond.
   move=> hv1 hincl.
-  move=> /sem_sop1I /= [b hb ?]; subst v.
+  move=> /sem_sop1I /= [b [b'] [hb [?] ?]]; subst v b'.
 
   have hc := value_uincl_to_bool_value_of_bool hincl hb hv1.
   clear v0 v1 hincl hb hv1.
@@ -418,7 +418,7 @@ Lemma assemble_cond_app2P_aux ck v1 v2 op2 v w1 w2 :
 Proof.
   move=> ok_v hincl1 hincl2 eq1.
   move: ok_v.
-  rewrite /sem_sop2; move: (sem_sop2_typed op2).
+  rewrite /sem_sop2 /=; move: (sem_sop2_typed op2).
   rewrite -> eq1 => /= sem_sop2_typed ok_v.
 
   move: ok_v.

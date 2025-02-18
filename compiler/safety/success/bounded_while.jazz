@@ -7,7 +7,7 @@ fn test() -> reg u64 {
   i = 0;
   #bounded
   while (i < N) {
-    t[(int) i] = i;
+    t[i] = i;
     i += 1;
   }
   i = t[N/2];

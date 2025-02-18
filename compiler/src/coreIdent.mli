@@ -25,6 +25,14 @@ type 'len gty =
            (* invariant only Const variable can be used in expression *)
            (* the type of the expression is [Int] *)
 
+type 'len gety =
+  | ETbool
+  | ETint
+  | ETword of signedness option * wsize
+  | ETarr  of wsize * 'len (* Arr(n,de): array of n-bit integers with dim. *)
+           (* invariant only Const variable can be used in expression *)
+           (* the type of the expression is [Int] *)
+
 val u8    : 'len gty
 val u16   : 'len gty
 val u32   : 'len gty
@@ -34,6 +42,14 @@ val u256  : 'len gty
 val tu    : wsize -> 'len gty
 val tbool : 'len gty
 val tint  : 'len gty
+
+val etw    : wsize -> 'len gety
+val etwi   : signedness -> wsize -> 'len gety
+val etbool : 'len gety
+val etint  : 'len gety
+
+val gty_of_gety : 'len gety -> 'len gty
+val gety_of_gty : 'len gty -> 'len gety
 
 (* ------------------------------------------------------------------------ *)
 

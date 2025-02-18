@@ -81,4 +81,5 @@ Separate Extraction
   riscv_instr_decl
   riscv_extra
   riscv_params
-  compiler.
+  compiler
+  wint_int.

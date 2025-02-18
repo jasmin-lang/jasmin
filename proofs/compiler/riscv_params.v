@@ -33,9 +33,6 @@ Context {atoI : arch_toIdent}.
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc parameters. *)
 
-Definition is_load e :=
-  if e is Pload _ _ _ _ then true else false.
-
 Definition riscv_mov_ofs
   (x : lval) (tag : assgn_tag) (vpk : vptr_kind) (y : pexpr) (ofs : Z) :
   option instr_r :=
@@ -47,7 +44,7 @@ Definition riscv_mov_ofs
   | MK_MOV =>
     match x with
     | Lvar x_ =>
-      if is_load y then
+      if is_Pload y then
         if ofs == Z0 then mk (LOAD Signed U32, [:: y]) else None
       else
         if ofs == Z0 then mk (MV, [:: y])

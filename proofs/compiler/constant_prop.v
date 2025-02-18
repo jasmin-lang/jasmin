@@ -53,7 +53,8 @@ Definition to_expr (t:stype) : sem_t t -> exec pexpr :=
 Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr := 
   let r := 
     Let x := of_expr _ e in
-    to_expr (sem_sop1_typed o x) in
+    Let v := sem_sop1_typed o x in
+    to_expr v in
   match r with 
   | Ok e => e
   | _ => Papp1 o e

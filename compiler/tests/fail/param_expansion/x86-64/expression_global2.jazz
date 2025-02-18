@@ -1,2 +1,2 @@
 param int N = 2;
-u64[(int)(64u)N] g = {1};
+u64[(uint)(64u)N] g = {1};

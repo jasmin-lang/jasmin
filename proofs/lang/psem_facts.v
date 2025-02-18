@@ -708,14 +708,20 @@ Proof.
   3: by move => > _ > _ > _ > -> /= -> > -> /= -> > -> /= -> /= -> ->; eauto.
   - case.
     7: case.
-    1, 3-6, 8: by move => > _ > /= -> /= -> /= ->; eauto.
-    + move => > _ >.
-      case: ifP; last by move => _ /= -> /= -> /= ->; eauto.
-      rewrite /sem_sop1; t_xrbindP => A -> /= ? /to_wordI[] ? [] ? [] -> /truncate_wordP[] B -> <- /=.
-      t_xrbindP => ? <- <-; eexists; first reflexivity.
-      rewrite -/(zero_extend sz _) zero_extend_idem //=.
-      apply: word_uincl_zero_ext.
-      exact: cmp_le_trans A B.
+    1, 3-6, 8-9: by move => > _ > /= -> /= -> /= ->; eauto.
+    + move => [] > _ >; last first.
+      + case: ifP; last by move => _ /= -> /= -> /= ->; eauto.
+        rewrite /sem_sop1 /=; t_xrbindP => A -> /= ? /to_wordI[] ? [] ? [] -> /truncate_wordP[] B -> <- /=.
+        t_xrbindP => ? <- <-; eexists; first reflexivity.
+        rewrite -/(zero_extend sz _) zero_extend_idem //=.
+        apply: word_uincl_zero_ext.
+        exact: cmp_le_trans A B.
+      + case: ifP; last by move => _ /= -> /= -> /= ->; eauto.
+        rewrite /sem_sop1 /=; t_xrbindP => /eqP A -> /= ? /to_wordI[] ? [] ? [] -> /truncate_wordP[] B -> <- /=.
+        t_xrbindP => ? <- <-; eexists; first reflexivity.
+        subst sz.
+        rewrite wrepr_signed /=.
+        by apply: word_uincl_zero_ext.
     rewrite /= /sem_sop1 /=.
     t_xrbindP => e ih > A > B ? > /to_intI h ?; subst; case: h => ?; subst.
     move: ih.

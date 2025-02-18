@@ -66,19 +66,20 @@ Proof.
   apply: eeq_weaken.
   elim: e=> //=;try auto; first by move=> ???.
   + case; auto.
-    move=> e _ rho v /=; t_xrbindP => ?? -> /sem_sop1I /= [b] /to_boolI -> -> /sem_sop1I /= [b'] [<-] ->.
+    move=> e _ rho v /=; t_xrbindP => ?? -> /sem_sop1I /= [b] [nb] [] /to_boolI -> [<-] ->.
+    move=> /sem_sop1I /= [b'] [nb'] [] [<-] [<-] ->.
     by rewrite negbK.
   + case; auto => e1 hrec1 e2 hrec2 rho v /=;
     t_xrbindP => ? ? he1 ? he2 /sem_sop2I /= [b1 [b2 [b]]] [] /to_boolI ? /to_boolI
-      ? [] ?? /sem_sop1I /= [?] /to_boolI h ?; subst; case: h => ?; subst;
+      ? [] ?? /sem_sop1I /= [?] [?] [] /to_boolI h [?]; subst; case: h => ?; subst;
       have := hrec1 rho _; have := hrec2 rho _;
-      rewrite /= he1 he2 /sem_sop1 /= => /(_ _ erefl) -> /(_ _ erefl) -> /=; rewrite /sem_sop2 /=.
+      rewrite /= he1 he2 /sem_sop1 /= => /(_ _ erefl) -> /(_ _ erefl) -> -> /=; rewrite /sem_sop2 /=.
     + by rewrite -negb_and.
     by rewrite negb_or.
   move=> t e _ e1 hrec1 e2 hrec2 rho v /=.
   t_xrbindP => v' be ve he /to_boolI ?; subst.
   move=> tve1 ve1 he1 hte1 tve2 ve2 he2 hte2 ?; subst v'.
-  move=> /sem_sop1I /= [b] /to_boolI h ?; subst.
+  move=> /sem_sop1I /= [b] [?] [] /to_boolI h [?] ?; subst.
   have := hrec1 rho _; have := hrec2 rho _;
   rewrite he /= he1 he2 /= /sem_sop1 /=.
   have [b1 [b2 [??]]]: exists (b1 b2: bool), tve1 = b1 /\ tve2 = b2.
@@ -96,19 +97,19 @@ Qed.
 Lemma sneg_intP e : Papp1 (Oneg Op_int) e =E sneg_int e.
 Proof.
 apply: eeq_weaken; case: e => // [ z s v [] <- // | [] ] // [] // e s v /=; t_xrbindP => ? ? -> /=.
-rewrite /sem_sop1; t_xrbindP => ? /to_intI -> <- /= ? [<-] <-.
+rewrite /sem_sop1 /=; t_xrbindP => ? /to_intI -> <- /= ? [<-] <-.
 by rewrite Z.opp_involutive.
 Qed.
 
-Lemma e2boolP e b : 
+Lemma e2boolP e b :
    e2bool e = ok b -> e = Pbool b.
 Proof. by case: e => //= ? [->]. Qed.
 
-Lemma e2intP e z : 
+Lemma e2intP e z :
    e2int e = ok z -> e = Pconst z.
 Proof. by case: e => //= ? [->]. Qed.
-  
-Lemma of_exprP rho t e v :  
+
+Lemma of_exprP rho t e v :
   of_expr t e = ok v ->
   Let x := sem_pexpr wdb gd rho e in of_val t x = ok v.
 Proof.
@@ -127,13 +128,13 @@ Proof.
   rewrite /ssem_sop1.
   case heq : of_expr => [ v | ] //=.
   apply: eeq_weaken => rho v' /[dup]h1 /=.
-  rewrite /sem_sop1 -Let_Let (of_exprP rho heq) /= => -[?]; subst v'.
+  rewrite /= -Let_Let (of_exprP rho heq) /=;t_xrbindP => ? -> ? /=; subst.
   by case heq' : to_expr => [e' | //]; apply to_exprP.
 Qed.
 
 Lemma s_op1P o e : Papp1 o e =E s_op1 o e.
 Proof.
-  case: o => [?|?|??|??||?|[|?]];
+  case: o => [?|?|??|??||?|[|?]|?];
   eauto using snotP, sneg_intP, ssem_sop1P.
 Qed.
 
@@ -455,7 +456,7 @@ Proof.
   case heq1 : (of_expr _ e1) => [ v1 | ] //=.
   case heq2 : (of_expr _ e2) => [ v2 | ] //=.
   apply: eeq_weaken => rho v' /[dup]h1 /=.
-  rewrite /sem_sop2.
+  rewrite /sem_sop2 /=.
   move: (of_exprP rho heq1) (of_exprP rho heq2).
   t_xrbindP => ? -> he1 ? -> he2 ? [<-] ? [<-]; rewrite he1 he2 => ?[<-] ?[<-] ? -> ? /=; subst v'.
   by case heq' : to_expr => [e' | //]; apply to_exprP.
@@ -639,7 +640,7 @@ Proof.
     rewrite Mvar.setP /=; case: eqP => [<- [<-]| hne]; last by apply hv.
     rewrite hwdb in hw *.
     by have [_ /vm_truncate_valE [hty ->] /get_varP [<-??]] := write_get_varP_eq hw.
-  case: v => //= s ;last by move=> ??/truncate_valE. 
+  case: v => //= s ;last by move=> ??/truncate_valE.
   move=> w /andP[] Ule /eqP -> /truncate_valE [szw [ww [-> /truncate_wordP[hle ->] ->]]] /=.
   rewrite !(zero_extend_wrepr _ Ule, zero_extend_wrepr _ (cmp_le_trans hle Ule), zero_extend_wrepr _ hle).
   move=> hw hv z n.
@@ -1174,10 +1175,10 @@ Section PROOF.
     have H :  forall e0,
       sem_pexpr true gd s2 e0 = ok (Vbool true) ->
       (exists vm2,
-        sem p' ev (with_vm s3 vm3) [:: MkI ii (Cwhile a c0 e0 ei c0')] (with_vm s4 vm2) ∧ 
+        sem p' ev (with_vm s3 vm3) [:: MkI ii (Cwhile a c0 e0 ei c0')] (with_vm s4 vm2) ∧
         vm_uincl (evm s4) vm2) ->
       exists vm2,
-        sem p' ev (with_vm s1 vm1) [:: MkI ii (Cwhile a c0 e0 ei c0')] (with_vm s4 vm2)  ∧ 
+        sem p' ev (with_vm s1 vm1) [:: MkI ii (Cwhile a c0 e0 ei c0')] (with_vm s4 vm2)  ∧
         vm_uincl (evm s4) vm2.
     + move=> e0 He0 [vm5] [] /sem_seq1_iff /sem_IE Hsw hvm5;exists vm5;split => //.
       apply:sem_seq1;constructor.

@@ -13,7 +13,7 @@ fn sum() -> reg u64 {
   j = N;
   for k = 0 to N { a[k] = k; }
   while (j >u 0) {
-    result += a.[u64 (int)i];
+    result += a.[u64 (uint)i];
     i += 8;
     j -= 1;
   }

@@ -1,6 +1,7 @@
-require import AllCore.
+require import AllCore IntDiv.
 from Jasmin require import JUtils JWord.
 
+require Gcd.
 require Loops.
 require Sdiv.
 
@@ -27,4 +28,15 @@ proof.
   rewrite sdivE smodE /slift2 /(\zquot) /(\zrem) /zsign.
   do 4! (rewrite to_sintK_small; first done).
   done.
+qed.
+
+hoare euclid_correct x y :
+  Gcd.M.euclid : x = a /\ y = b ==> `|res| = gcd x y.
+proof.
+  proc.
+  while (gcd a b = gcd x y).
+  - auto => &m /> ih a_nz.
+    by rewrite gcd_modl gcdC.
+  skip => &m [] /= <- <- _ g' ->.
+  by rewrite gcd0z.
 qed.

@@ -4,6 +4,6 @@ export fn test (reg u64 x) -> reg u64 {
   t[0] = 0;
   t[1] = 1;
   p = 0;
-  r = t[(int)p + 1];
+  r = t[(uint)p + 1];
   return r;
 }

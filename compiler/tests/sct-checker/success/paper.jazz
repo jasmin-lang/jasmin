@@ -66,10 +66,10 @@ fn fig4a(
   reg u64 i t1 t2;
   i = 0;
   while (i < N) {
-    t1 = msg[(int) i];
-    t2 = key[(int) i];
+    t1 = msg[i];
+    t2 = key[i];
     t1 ^= t2;
-    msg[(int) i] = t1;
+    msg[i] = t1;
     i += 1;
   }
   return msg;
@@ -87,12 +87,12 @@ fn fig4b(
   i = 0;
   while (i < N) {
     ms = #update_msf(i < N, ms);
-    t1 = msg[(int) i];
+    t1 = msg[i];
     t1 = #protect(t1, ms);
-    t2 = key[(int) i];
+    t2 = key[i];
     t2 = #protect(t2, ms);
     t1 ^= t2;
-    msg[(int) i] = t1;
+    msg[i] = t1;
     i += 1;
   }
   ms = #update_msf(!(i < N), ms);
@@ -111,10 +111,10 @@ fn fig4c(
   i = 0;
   while (i < N) {
     ms = #update_msf(i < N, ms);
-    t1 = msg[(int) i];
-    t2 = key[(int) i];
+    t1 = msg[i];
+    t2 = key[i];
     t1 ^= t2;
-    msg[(int) i] = t1;
+    msg[i] = t1;
     i += 1;
   }
   ms = #update_msf(!(i < N), ms);
@@ -148,7 +148,7 @@ fn fig5b(reg const ptr u64[N] p) -> reg u64 {
   i = 0;
   while (i < N) {
     ms = #update_msf(i < N, ms);
-    t = p[(int) i];
+    t = p[i];
     t = #protect(t, ms);
     s += t;
     i += 1;
@@ -167,7 +167,7 @@ fn fig5c(reg const ptr u64[N] p) -> reg u64 {
   i = 0;
   while (i < N) {
     ms = #update_msf(i < N, ms);
-    t = p[(int) i];
+    t = p[i];
     s += t;
     i += 1;
   }
@@ -185,7 +185,7 @@ fn fig5d(
   s = 0;
   i = 0;
   while (i < N) {
-    t = p[(int) i];
+    t = p[i];
     s += t;
     i += 1;
   }
@@ -209,7 +209,7 @@ fn fig6a(
   b = i < N;
   if b {
     ms = #update_msf(b, ms);
-    s[(int) i] = pub_v;
+    s[i] = pub_v;
   } else {
     ms = #update_msf(!b, ms);
   }

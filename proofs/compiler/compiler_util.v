@@ -175,7 +175,7 @@ Section ASM_OP.
 Context `{asmop:asmOp}.
 Context {pT: progT}.
 
-Definition map_prog_name (F: funname -> fundef -> fundef) (p:prog) :prog :=
+Definition map_prog_name (F: funname -> fundef -> fundef) (p:prog) : prog :=
   {| p_funcs := map (fun f => (f.1, F f.1 f.2)) (p_funcs p);
      p_globs := p_globs p;
      p_extra := p_extra p|}.

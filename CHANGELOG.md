@@ -3,6 +3,15 @@
 
 ## New features
 
+- Introduction of wint types siXX and uiXX (XX in [8,16,32,64,128, 256]). The
+  key feature of this new type are for the extraction to easycrypt. They are
+  extracted to int, removing the need to deal with modulus 2^XX operations.
+  Introduction of a new cast operators: `(sint)` and `(uint)` from words to
+  `int`. The previous cast operator `(int)` stands for one of them if its
+  argument is of wint type: applying it to usual machine words is deprecated.
+  Introduce zquot and zrem operators on int : `e1 /s e2` and `e1 %s e2`.
+  ([PR #1071](https://github.com/jasmin-lang/jasmin/pull/1071)).
+
 - Add support for x86 `SHA256MSG1`, `SHA256MSG2`, and `SHA256RNDS2` instructions
   ([PR #1116](https://github.com/jasmin-lang/jasmin/pull/1116);
   fixes [#1040](https://github.com/jasmin-lang/jasmin/issues/1040)).

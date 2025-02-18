@@ -257,11 +257,11 @@ Proof.
     move: hw0' => /Vword_inj [?]; subst ws0.
     move=> /= ?; subst w0'.
 
-    move: hseme1 => /sem_sop1I /= [w1 [?] hw1']; subst w1.
+    move: hseme1 => /sem_sop1I /= [w1 [?]] [[?] [?] hw1']; subst w1.
     move: hw1' => /Vword_inj [?]; subst ws1.
     move=> /= ?; subst w1'.
 
-    move=> [?]; subst es'.
+    move=> [?]; subst.
     rewrite /=.
 
     rewrite hseme00 hseme01 {hseme00 hseme01} /=.
@@ -417,7 +417,7 @@ Proof.
   case: e hseme hfve h => // op.
   move=> [] //= gx.
   move=> [] //.
-  move=> [[]||||||] //.
+  move=> [[]|||||||] //.
   move=> [] // z.
 
   rewrite /=.
@@ -585,17 +585,17 @@ Proof.
   move: h.
   rewrite /lower_pexpr_aux /lower_Papp1.
   move=> /chk_ws_regP [?]; subst ws.
-  case: op hw hfve => [ ws'' || [] ws'' | [] ws'' || [] |] // hw hfve.
+  case: op hw hfve => [ ws'' || [] ws'' | [] ws'' || [] ||] // hw hfve.
 
   (* Case: [Oword_of_int]. *)
-  - move: hw => /sem_sop1I /= [w' hw' hw].
-    move: hw => /Vword_inj [?]; subst ws'.
+  - move: hw => /sem_sop1I /= [w' [?] [hw' [?] hw]].
+    move: hw => /Vword_inj [?]; subst ws'; subst.
     move=> /= ?; subst w.
     rewrite hws /= /mov_imm_op.
     {
       case: isSome => -[??]; subst op' es.
       all: split; last done.
-      all: eexists; first by [|rewrite /= hseme /= /sem_sop1 /= hw'].
+      all: eexists; first by rewrite /= hseme /= /sem_sop1 /= hw'.
       all: by rewrite /exec_sopn /= truncate_word_u zero_extend_wrepr.
     }
 
@@ -603,9 +603,9 @@ Proof.
 
   (* Case: [Osignext]. *)
   - case: is_load; last by [].
-    move: hw => /sem_sop1I /= [w' hw' hw].
+    move: hw => /sem_sop1I /= [w' [?] [hw' [?] hw]].
     move: hw => /Vword_inj [?]; subst ws'.
-    move=> /= ?; subst w.
+    move=> /= ?; subst.
     {
       case: ws'' hfve w' hw' => //= hfve w' hw'.
       all: move=> [? ?]; subst op' es.
@@ -621,9 +621,9 @@ Proof.
 
   (* Case: [Ozeroext]. *)
   - case: is_load; last by [].
-    move: hw => /sem_sop1I /= [w' hw' hw].
+    move: hw => /sem_sop1I /= [w' [?] [hw' [?] hw]].
     move: hw => /Vword_inj [?]; subst ws'.
-    move=> /= ?; subst w.
+    move=> /= ?; subst.
     {
       case: ws'' hfve w' hw' => //= hfve w' hw'.
       all: move=> [? ?]; subst op' es.
@@ -638,9 +638,9 @@ Proof.
     }
 
   (* Case: [Olnot]. *)
-  move: hw => /sem_sop1I /= [w' hw' hw].
+  move: hw => /sem_sop1I /= [w' [?] [hw' [?] hw]].
   move: hw hws => /Vword_inj [?]; subst ws'.
-  move=> /= ? _; subst w.
+  move=> /= ? _; subst.
 
   rewrite /arg_shift.
   case hshift: get_arg_shift => [[[e' sh] sham]|] /=.
@@ -740,6 +740,7 @@ Proof.
         match goal with
         | [ |- forall (_ : op_kind), _ -> _ ] => move=> [|ws''] //
         | [ |- forall (_ : cmp_kind), _ -> _ ] => move=> [|[] ws''] //
+        | [ |- forall (_ : signedness) (_ : op_kind), _ -> _ ] => move=> [] [|ws''] //
         | [ |- forall (_ : wsize), _ -> _ ] => move=> ws'' //
         end.
 
@@ -832,6 +833,7 @@ Proof.
     match goal with
     | [ |- forall _ : op_kind, _ -> _ ] => move=> [|ws''] //
     | [ |- forall (_ : cmp_kind), _ -> _ ] => move=> [|[] ws''] //
+    | [ |- forall (_ : signedness) (_ : op_kind), _ -> _ ] => move=> [] [|ws''] //
     | [ |- forall _ : wsize, _ -> _ ] => move=> ws'' //
     end.
 
@@ -887,7 +889,7 @@ Proof.
 
   all: rewrite /=.
   all: match goal with
-       | [ h : mk_sem_divmod _ _ _ _ = _ |- _ ] =>
+       | [ hop : mk_sem_divmod _ _ _ _ = _ |- _ ] =>
            move: hop => /mk_sem_divmodP [hdiv0 hdiv1 ?]; subst w2
        end
        || (move: hop => [?]; subst w2).

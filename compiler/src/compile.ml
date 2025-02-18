@@ -66,6 +66,59 @@ let do_spill_unspill asmop ?(debug = false) cp =
   | Utils0.Error msg -> Error (Conv.error_of_cerror (Printer.pp_err ~debug) msg)
   | Utils0.Ok p -> Ok (Conv.prog_of_cuprog p)
 
+let do_wint_int
+   (type reg regx xreg rflag cond asm_op extra_op)
+    (module Arch : Arch_full.Arch
+      with type reg = reg
+       and type regx = regx
+       and type xreg = xreg
+       and type rflag = rflag
+       and type cond = cond
+       and type asm_op = asm_op
+       and type extra_op = extra_op) prog =
+  let fdsi = snd prog in
+  let fv = List.fold_left (fun fv fd -> Sv.union fv (vars_fc fd)) Sv.empty fdsi in
+  let m =
+    Sv.fold (fun x m ->
+          match x.v_ty with
+          | Bty (U _) ->
+            begin match Annotations.has_wint x.v_annot with
+            | None -> m
+            | Some sg ->
+              let annot = Annotations.remove_wint x.v_annot in
+              let xi = V.mk x.v_name x.v_kind tint x.v_dloc annot in
+              Mv.add x (sg, Conv.cvar_of_var xi) m
+            end
+          | _ -> m)
+      fv Mv.empty in
+  let cp = Conv.cuprog_of_prog prog in
+  let info x =
+    let x = Conv.var_of_cvar x in
+     Mv.find_opt x m in
+  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.msf_size info cp in
+  let cp =
+    match cp with
+    | Utils0.Ok cp -> cp
+    | Utils0.Error e ->
+      let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
+      raise (HiError e) in
+  let (gd, fdso) = Conv.prog_of_cuprog cp in
+  (* Restore type of array in the functions signature *)
+  let restore_ty tyi tyo =
+    match tyi, tyo with
+    | Arr(ws1, l1), Arr(ws2, l2) -> assert (arr_size ws1 l1 = arr_size ws2 l2); tyi
+    | Bty (U _), Bty Int -> tyo
+    | _, _ -> assert (tyi = tyo); tyo
+  in
+  let restore_sig fdi fdo =
+    { fdo with
+      f_tyin = List.map2 restore_ty fdi.f_tyin fdo.f_tyin;
+      f_tyout = List.map2 restore_ty fdi.f_tyout fdo.f_tyout;
+    } in
+  let fds = List.map2 restore_sig fdsi fdso in
+  (gd, fds)
+
+
 (*--------------------------------------------------------------------- *)
 
 let compile (type reg regx xreg rflag cond asm_op extra_op)
@@ -227,6 +280,19 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     tokeep
   in
 
+  let remove_wint_annot fd =
+    let vars = Prog.vars_fc fd in
+    let subst =
+      Sv.fold (fun x s ->
+          if Annotations.has_wint x.v_annot = None then s
+          else
+            let annot = Annotations.remove_wint x.v_annot in
+            let x' = V.mk x.v_name x.v_kind x.v_ty x.v_dloc annot in
+            Mv.add x x' s)
+        vars Mv.empty in
+    Subst.vsubst_func subst fd
+  in
+
   let warn_extra s p =
     if s = Compiler.DeadCode_RegAllocation then
       let fds, _ = Conv.prog_of_csprog p in
@@ -319,6 +385,8 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
         Var0.Var.vname (Conv.cvar_of_var Arch.rip);
       Compiler.stackalloc = memory_analysis;
       Compiler.removereturn;
+      Compiler.remove_wint_annot =
+        apply "remove wint annot" remove_wint_annot;
       Compiler.regalloc = global_regalloc;
       Compiler.print_uprog =
         (fun s p ->

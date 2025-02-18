@@ -35,20 +35,6 @@ Definition check_shift_amount e :=
   | _ => None 
   end.
 
-Definition is_load (e: pexpr) : bool :=
-  match e with
-  | Pconst _ | Pbool _ | Parr_init _
-  | Psub _ _ _ _ _
-  | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pif _ _ _ _
-    => false
-  | Pvar {| gs := Sglob |}
-  | Pget _ _ _ _ _
-  | Pload _ _ _ _
-    => true
-  | Pvar {| gs := Slocal ; gv := x |}
-    => is_var_in_memory x
-  end.
-
 Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : option(riscv_extended_op * pexprs) :=
   let%opt _ := chk_ws_reg ws in
   match op with
@@ -112,10 +98,10 @@ Definition lower_Papp2
   | Oadd (Op_w _) => decide_op_reg_imm U32 e0 e1 (BaseOp(None, ADD)) (BaseOp(None, ADDI))
   | Omul (Op_w _) => Some (BaseOp (None, MUL), [:: e0; e1])
   | Osub (Op_w _) => decide_op_reg_imm_neg U32 e0 e1 (BaseOp(None, SUB)) (BaseOp(None, ADDI))
-  | Odiv (Cmp_w sg U32) =>
+  | Odiv sg (Op_w U32) =>
     let o := if sg is Signed then DIV else DIVU in
     Some (BaseOp (None, o), [:: e0; e1])
-  | Omod (Cmp_w sg U32) =>
+  | Omod sg (Op_w U32) =>
     let o := if sg is Signed then REM else REMU in
     Some (BaseOp (None, o), [:: e0; e1])
   | Oland _ => decide_op_reg_imm U32 e0 e1 (BaseOp(None, AND)) (BaseOp(None, ANDI))

@@ -470,7 +470,7 @@ Lemma eval_assemble_cond_Onot rf c v v0 v1 :
        & value_uincl v v'.
 Proof.
   move=> hv1 hincl.
-  move=> /sem_sop1I /= [b hb ?]; subst v.
+  move=> /sem_sop1I /= [b [b'] [hb [?] ? ]]; subst v b'.
 
   have hc := value_uincl_to_bool_value_of_bool hincl hb hv1.
   clear v0 v1 hincl hb hv1.
