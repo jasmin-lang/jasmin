@@ -1,0 +1,10 @@
+all:
+	$(MAKE) -C compiler
+
+clean:
+	$(MAKE) -C compiler clean
+
+install:
+	$(MAKE) -C compiler install
+	$(MAKE) -C eclib install
+
