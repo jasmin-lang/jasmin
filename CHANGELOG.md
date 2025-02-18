@@ -54,6 +54,10 @@
   ([PR#1028](https://github.com/jasmin-lang/jasmin/pull/1028);
   fixes [#18](https://github.com/jasmin-lang/jasmin/issues/18)).
 
+- Fix printing of x86 `CLFLUSH` instruction in “Intel” syntax
+  ([PR #1054](https://github.com/jasmin-lang/jasmin/pull/1054);
+  fixes [#438](https://github.com/jasmin-lang/jasmin/issues/438)).
+
 ## Other changes
 
 - The “allocation” pass now uses the liveness information to reduce the sizes
