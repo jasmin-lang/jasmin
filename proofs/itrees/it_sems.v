@@ -287,8 +287,9 @@ Definition denote_fun (fn: funname) (xs: lvals) (es: pexprs) :
 
 (***************************************************************)
 
-(** denotational compositionality of commands wrt instructions *)
-Lemma seq_eqtree_gen_lemma (c: cmd) (i: instr) :
+(** denotational compositionality of commands wrt instructions.
+    as seq_eqtree_gen_lemma *)
+Lemma denote_cmd_cons_lemma (c: cmd) (i: instr) :
   eq_itree eq (denote_cmd (i :: c))
     (denote_cmd (i :: nil) ;; denote_cmd c).
   unfold denote_cmd.
@@ -300,6 +301,27 @@ Lemma seq_eqtree_gen_lemma (c: cmd) (i: instr) :
   setoid_rewrite bind_ret_l.
   reflexivity.
 Qed.
+
+Lemma denote_cmd_concat_lemma (c1 c2: cmd) :
+  eq_itree eq (denote_cmd (c1 ++ c2))
+    (denote_cmd c1 ;; denote_cmd c2).
+  unfold denote_cmd.
+  unfold mrec.
+  setoid_rewrite <- interp_mrec_bind.
+  simpl.
+  revert c2.
+  induction c1; simpl; intros; eauto.
+  - setoid_rewrite bind_ret_l.
+    reflexivity.
+  - specialize (IHc1 c2).
+    destruct a; simpl.
+    setoid_rewrite bind_bind; simpl.
+    setoid_rewrite interp_mrec_bind.
+    eapply eqit_bind' with (RR := eq).
+    + reflexivity.
+      intros [] [] []; auto.
+Qed.
+
 
 End With_MREC_mod.
 

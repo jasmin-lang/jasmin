@@ -544,7 +544,7 @@ Lemma eutt_cmd_tr_L1 (cc: cmd) :
   apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc.
   - reflexivity.
   - intros; simpl.
-    setoid_rewrite seq_eqtree_gen_lemma.
+    setoid_rewrite denote_cmd_cons_lemma. (* seq_eqtree_gen_lemma. *)
     rewrite H.
     setoid_rewrite H0.
     reflexivity.

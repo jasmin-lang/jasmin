@@ -182,6 +182,19 @@ Fixpoint mapL {S A B} (f: A -> stateM S B) (ls: list A) :
   | nil => ret nil
   | x :: xs => x' <- f x ;; xs' <- mapL f xs ;; ret (x' :: xs') end.            
 
+Fixpoint mapT {E2} {A B} (f: A -> itree E2 B) (ls: list A) :
+  itree E2 (list B) :=
+  match ls with
+  | nil => ret nil
+  | x :: xs => x' <- f x ;; xs' <- mapT f xs ;; ret (x' :: xs') end.            
+
+Fixpoint mapC {E2} {A B} (f: A -> itree E2 (list B)) (ls: list A) :
+  itree E2 (list B) :=
+  match ls with
+  | nil => ret nil
+  | x :: xs => x' <- f x ;; xs' <- mapC f xs ;; ret (x' ++ xs') end.            
+
+
 (* auxiliary cutoff functions *)
 Definition Error2false : forall X, exceptE error X -> bool :=
   fun X m => match m with | Throw _ => false end.                  
@@ -208,56 +221,65 @@ Context (tr_lval : lval -> itree E2 lval)
         (tr_opn : sopn -> itree E2 sopn)
         (tr_sysc : syscall_t -> itree E2 syscall_t).
 
-Fixpoint mapT {A B} (f: A -> itree E2 B) (ls: list A) :
-  itree E2 (list B) :=
-  match ls with
-  | nil => ret nil
-  | x :: xs => x' <- f x ;; xs' <- mapT f xs ;; ret (x' :: xs') end.            
+Context
+  (Cassgn_transl : instr_info ->
+                   lval -> assgn_tag -> stype -> pexpr -> itree E2 cmd)
+  (Copn_transl : instr_info ->
+      lvals -> assgn_tag -> sopn -> pexprs -> itree E2 cmd)
+  (Csyscall_transl : instr_info ->
+    lvals -> syscall_t -> pexprs -> itree E2 cmd)  
+  (Cif_transl : instr_info ->
+    pexpr -> cmd -> cmd -> itree E2 cmd)
+  (Cfor_transl : instr_info ->
+    var_i -> range -> cmd -> itree E2 cmd)  
+  (Cwhile_transl : instr_info ->
+    align -> cmd -> pexpr -> cmd -> itree E2 cmd)
+  (Ccall_transl : instr_info ->
+    lvals -> funname -> pexprs -> itree E2 cmd).
 
 Local Notation tr_lvals ls := (mapT tr_lval ls).
 Local Notation tr_exprs es := (mapT tr_expr es).
 
-Definition Tr_i (Th: instr_r -> itree E2 instr_r) (i: instr) :
-  itree E2 instr :=
-  match i with MkI ii ir => ir' <- Th ir ;; ret (MkI ii ir') end.  
+Definition Tr_i (Th: instr_info -> instr_r -> itree E2 cmd) (i: instr) :
+  itree E2 cmd := match i with MkI ii ir => Th ii ir end.  
 
 (* the translation is set to preserve events *)
-Fixpoint Tr_ir (i : instr_r) : itree E2 instr_r :=
+Fixpoint Tr_ir (ii: instr_info) (i : instr_r) : itree E2 cmd :=
   let R := Tr_i Tr_ir in 
   match i with
   | Cassgn x tg ty e =>
       x' <- tr_lval x ;; e' <- tr_expr e ;;
-      ret (Cassgn x' tg ty e')
+      Cassgn_transl ii x' tg ty e'
   | Copn xs tg o es =>
       xs' <- tr_lvals xs ;;
       o' <- tr_opn o ;;
       es' <- tr_exprs es ;;
-      ret (Copn xs' tg o' es')
+      Copn_transl ii xs' tg o' es'
   | Csyscall xs sc es =>
       xs' <- tr_lvals xs ;;
       sc' <- tr_sysc sc ;;
       es' <- tr_exprs es ;;
-      ret (Csyscall xs' sc' es')
+      Csyscall_transl ii xs' sc' es'
   | Cif e c1 c2 => 
       e' <- tr_expr e ;;
-      c1' <- mapT R c1 ;;
-      c2' <- mapT R c2 ;;
-      ret (Cif e' c1' c2') 
+      c1' <- mapC R c1 ;;
+      c2' <- mapC R c2 ;;
+      Cif_transl ii e' c1' c2' 
   | Cfor i rg c =>
-      c' <- mapT R c ;;
-      ret (Cfor i rg c')                     
+      c' <- mapC R c ;;
+      Cfor_transl ii i rg c'                     
   | Cwhile a c1 e c2 =>
-      c1' <- mapT R c1 ;;
+      c1' <- mapC R c1 ;;
       e' <- tr_expr e ;;
-      c2' <- mapT R c2 ;;
-      ret (Cwhile a c1' e' c2')
+      c2' <- mapC R c2 ;;
+      Cwhile_transl ii a c1' e' c2'
   | Ccall xs fn es =>
       xs' <- tr_lvals xs ;;
       es' <- tr_exprs es ;;
-      ret (Ccall xs' fn es')
+      Ccall_transl ii xs' fn es'
   end.
 Local Notation Tr_instr := (Tr_i Tr_ir).
-Local Notation Tr_cmd c := (mapT Tr_instr c).
+Local Notation Tr_cmd c := (mapC Tr_instr c).
 
 Definition Tr_FunDef (f: FunDef) : itree E2 FunDef :=
   match f with
@@ -283,8 +305,10 @@ Definition Tr_opn_rel (o1 o2: sopn) : Prop :=
 Definition Tr_sysc_rel (s1 s2: syscall_t) : Prop :=
   eutt eq (ret s2) (tr_sysc s1).
 
+(*
 Definition Tr_ir_rel (i1 i2: instr_r) : Prop :=
   eutt eq (ret i2) (Tr_ir i1).
+*)
 
 Definition Tr_cmd_rel (c1 c2: cmd) : Prop :=
   eutt eq (ret c2) (Tr_cmd c1).
@@ -525,10 +549,18 @@ Context (assgn_h1 : forall l l' a s p p',
     @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq  
                  (trigger (AssgnE l a s p)) (trigger (AssgnE l' a s p'))).
 *)
-
+(*
+(* Now this is too weak *)
 Context (assgn_h1 : forall l l' tg ty p p',
     TR_E E1 E2 unit unit (HasInstrE1 unit (AssgnE l tg ty p))
     (HasInstrE2 unit (AssgnE l' tg ty p'))).
+*)
+
+Context (instr_transl_hyp: forall (i: instr_info) (i1: instr_r) (c1: cmd),
+        eqit eq true true (Tr_instr (MkI i i1)) (Ret c1) ->
+        rutt EE1 EE2 (@TR_E E1 E2) (@VR_E E1 E2) eq
+        (denote_cmd HasFunE1 HasInstrE1 ([:: (MkI i i1)]))
+        (denote_cmd HasFunE2 HasInstrE2 c1)).
 
 (* proving rutt across the translation for all commands (here we need
 induction). was eutt_cmd_tr_L1 *)
@@ -556,13 +588,15 @@ Proof.
   revert cc; unfold Tr_cmd_rel.
   apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc. 
 
-  { unfold Tr_cmd_rel, Tr_cmd; simpl; intros. 
+  { (* empty list *)
+    unfold Tr_cmd_rel, Tr_cmd; simpl; intros. 
     eapply eutt_Ret in H; inv H.
     pstep; red; simpl.
     econstructor; auto.
   }  
 
-  { unfold Tr_cmd_rel; simpl; intros.
+  { (* cons list *)
+    unfold Tr_cmd_rel; simpl; intros.
     symmetry in H1.
     eapply eqit_inv_bind_ret in H1.
     destruct H1 as [ii [H3 H2]].
@@ -570,96 +604,331 @@ Proof.
     destruct H2 as [cc0 [H1 H2]].
     eapply eutt_Ret in H2; inv H2.
 
-    setoid_rewrite denote_cmd_cons_lemma; simpl.
-    (* seq_eqtree_gen_lemma; simpl. *)
-
+    setoid_rewrite denote_cmd_cons_lemma; simpl. 
+    setoid_rewrite denote_cmd_concat_lemma; simpl. 
+        
     symmetry in H3, H1.
     eapply H0 in H1.
 
-    specialize (H [::ii]).
+    specialize (H ii).
 
-    assert (eqit eq true true (Ret ii) (Tr_instr i) ->
-            Ret [:: ii]
-    ≈ ITree.bind (Tr_instr i)
-        (fun x' : instr =>
-           ITree.bind (Ret [::]) (fun xs' : cmd => Ret (x' :: xs')))) as K1.
-    { admit. }
+    assert (Tr_instr i ≈ ITree.bind (Tr_instr i)
+              (fun x' : cmd => ITree.bind (Ret [::])
+                   (fun xs' : cmd => Ret (x' ++ xs')))) as K1.
+    { setoid_rewrite bind_ret_l.
+      setoid_rewrite app_nil_r.
+      setoid_rewrite bind_ret_r.
+      reflexivity.
+    }
 
-    specialize (H (K1 H3)).
+    setoid_rewrite K1 in H3.
+    specialize (H H3).
     eapply rutt_bind with (RR := eq); auto.
   }
     
-  { unfold Tr_cmd_rel; simpl; intros.
+  { (* instr_r case *)
+    unfold Tr_cmd_rel; simpl; intros.
 
     symmetry in H0.
     eapply eqit_inv_bind_ret in H0.
     destruct H0 as [i0 [H0 H1]].
-    eapply eqit_inv_bind_ret in H0.
-    destruct H0 as [ir0 [H0 H2]].
     eapply eqit_inv_bind_ret in H1.
-    destruct H1 as [c0 [H1 H3]].
+    destruct H1 as [ir0 [H1 H2]].
     eapply eutt_Ret in H2; inv H2.
     eapply eutt_Ret in H1; inv H1.
-    eapply eutt_Ret in H3; inv H3.
 
-    specialize (H ii [:: MkI ii ir0]).
-    setoid_rewrite bind_bind in H.
-    setoid_rewrite bind_ret_l in H.
+    specialize (H ii i0).
     setoid_rewrite bind_ret_l in H.
     symmetry in H0.
 
-    assert (eqit eq true true (Ret ir0) (Tr_ir ir) ->
-          Ret [:: MkI ii ir0]
-            ≈ ITree.bind (Tr_ir ir)
-            (fun r : instr_r => Ret [:: MkI ii r])) as K2.
-    { admit. }
-
-    specialize (H (K2 H0)); auto.
+    assert ((Tr_ir ii ir) ≈ ITree.bind (Tr_ir ii ir)
+                    (fun x' : cmd => Ret x')) as K2.
+    { setoid_rewrite bind_ret_r; reflexivity. }
+    
+    setoid_rewrite app_nil_r in H.
+    setoid_rewrite K2 in H0.
+    setoid_rewrite app_nil_r.
+    specialize (H H0); auto.
   }
   
-  { unfold Tr_cmd_rel; simpl; intros.
+  { (* Cassgn case *)
+    unfold Tr_cmd_rel; simpl; intros.
 
     symmetry in H.
     eapply eqit_inv_bind_ret in H.
     destruct H as [i0 [H0 H1]].
     eapply eqit_inv_bind_ret in H1.
     destruct H1 as [c0 [H1 H2]].
-    setoid_rewrite bind_bind in H0.
     eapply eqit_inv_bind_ret in H0.
     destruct H0 as [v0 [H3 H4]].
     eapply eqit_inv_bind_ret in H4.
     destruct H4 as [ir0 [H4 H5]].
-    eapply eqit_inv_bind_ret in H4.
-    destruct H4 as [e0 [H4 H6]].
-    eapply eutt_Ret in H6; inv H6.
     eapply eutt_Ret in H1; inv H1.
     eapply eutt_Ret in H2; inv H2.
-    eapply eutt_Ret in H5; inv H5.
-    unfold denote_cmd, mrec; simpl.
-    symmetry in H3, H4.
     
     eapply interp_mrec_rutt with (RPreInv := @TR_D) (RPostInv := @VR_D).
+    
     { intros R1 R2 d1 d2 H.
       unfold TR_D in H; destruct d1.
 
       2: { destruct d2; try intuition.
-           inv H0; simpl.
-           unfold EE_MR; simpl.              
+           inv H0; simpl; clear X.
+           unfold EE_MR; simpl.
+           (* fixme *)
            (* eapply rutt_transl_denote_fcall_MM. *)
            admit. }
      
       destruct d2; try intuition.
       simpl; clear X; unfold Tr_cmd_rel in H.
-      induction c.
-      { simpl; simpl in H.
+      
+      revert H. revert c0.
+      induction c; simpl.
+
+      { simpl; intros c0 H; simpl in H.
+        eapply eutt_Ret in H.
+        inv H; simpl.
+        eapply rutt_Ret; unfold VR_D; auto.
+      }
+
+      { simpl; intros c0 H.
+        destruct a.
+
+        symmetry in H.
+        eapply eqit_inv_bind_ret in H.
+        destruct H as [c1 [H0 H1]].
+        eapply eqit_inv_bind_ret in H1.
+        destruct H1 as [c2 [H2 H6]].
+        eapply eutt_Ret in H6; inv H6.
+
+        cut (rutt (EE_MR EE1 CState) (EE_MR EE2 CState)
+                  (sum_prerel (@TR_D) (TR_E E1 E2))
+                  (sum_postrel (@VR_D) (VR_E E1 E2))
+                  (fun v1 : unit => [eta VR_D (LCode (MkI i i1 :: c)) v1
+                                       (LCode (c1 ++ c2))])
+                 (ITree.bind (denote_instr (Eff:=E1) HasInstrE1 i1)
+                   (fun=> cmd_map_r (denote_instr (Eff:=E1) HasInstrE1) c))
+                 ( _ <- cmd_map_r (denote_instr (Eff:=E2) HasInstrE2) c1 ;;
+                   cmd_map_r (denote_instr (Eff:=E2) HasInstrE2) c2)
+
+            ). intro V2.
+
+        { (* fixme: proof similar to denote_cmd_concat_lemma *)
+          admit.
+        }
+
+        { eapply rutt_bind with (RR:=eq).
+          (* fixme: eapply instr_transl_hyp. *)
+          admit.
+
+          symmetry in H2.
+          eapply IHc in H2.
+
+          intros [] [] []; eauto.
+        }
+      } 
+    }
+
+    { simpl.
+      setoid_rewrite app_nil_r.
+
+      assert ( forall E (it: itree E unit),
+               @eq_itree E unit unit eq
+                 (bind it (fun x0: unit => Ret x0))
+                 (bind it (fun _: unit => Ret tt))) as K1.
+      { intros.
+        eapply eqit_bind' with (RR:=eq).
+        reflexivity.
+        intros [] [] []; reflexivity.
+      }
+
+      setoid_rewrite <- K1.
+      setoid_rewrite bind_ret_r.
+    
+      (* follows from H5 (i0 is the translation of Cassgn) to which we
+       can apply instr_transl_hyp. in fact, trigger AssgnE is the
+       denotation of Cassgn, which is then equivalent to the denotation
+       of i0 *)
+      admit.
+    }
+  }  
+
+Admitted.
+  
+          
+(*        
+Context (instr_transl_hyp: forall (i: instr_info) (i1: instr_r) (c1: cmd),
+        eqit eq true true (Tr_instr (MkI i i1)) (Ret c1) ->
+        rutt EE1 EE2 (@TR_E E1 E2) (@VR_E E1 E2) eq
+        (denote_cmd HasFunE1 HasInstrE1 ([:: (MkI i i1)]))
+        (denote_cmd HasFunE2 HasInstrE2 c1))).
+          
+        }
+           
+        
+        { symmetry in H2.
+          eapply IHc in H2.
+          Check @denote_cmd.
+
+          assert (forall (i: instr_info) (i1: instr_r) (c1: cmd),
+                     eqit eq true true (Tr_instr (MkI i i1)) (Ret c1) ->
+                     rutt EE1 EE2 (@TR_E E1 E2) (@VR_E E1 E2) eq
+                       (denote_cmd HasFunE1 HasInstrE1 ([:: (MkI i i1)]))
+                       (denote_cmd HasFunE2 HasInstrE2 c1)).
+          
+        }      
+        
+        Print denote_cmd.        
+        Check @denote_cmd_concat_lemma.  
+        
+        setoid_rewrite denote_cmd_concat_lemma; simpl. 
+        
+        setoid_rewrite 
+        
+       destruct c0; simpl in *.
+
+     {   assert (Ret [::] ≈ Tr_cmd c) as K3.
+        { (* by inversion on H *)
+          admit. }
+
+        assert (Ret [::] ≈ Tr_ir i i1) as K4.
+        { (* by inversion on H *)
+          admit. }
+
+        specialize (IHc [::] K3).
+        simpl in *.
+     
+        assert (
+    Tr_cmd_rel [:: MkI i i1] [::] ->
+    rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (denote_cmd (Eff:=E1) HasFunE1 HasInstrE1 [:: MkI i i1])
+      (denote_cmd (Eff:=E2) HasFunE2 HasInstrE2 [::]) ) as W.
+        { admit. }
+
+        unfold denote_cmd in W.
+        
+        admit.
+
+      }  
+
+      { destruct i2.
+        
+
+      
+        simpl; intros. 
+        pstep; red.
+        
+        
+     eapply V.
+
+        
+        setoid_rewrite IHc.
+
+
+      
+      { simpl; intros c H; simpl in H.
+        red.
+        destruct c.
+        - simpl in *.
+          eapply rutt_Ret; unfold VR_D; auto.
+        - simpl in *.
+          destruct i; simpl.
+          symmetry in H.
+          eapply eqit_inv_bind_ret in H.
+          destruct H as [c1 [H0 H1]].
+          eapply eqit_inv_bind_ret in H1.
+          destruct H1 as [c2 [H2 H6]].
+          unfold VR_D; simpl.
+          unfold TR_D; simpl.
+
+          assert (Ret [::] )
+          
+           
+        unfold Tr_cmd in H.
+        unfold cmd_map_r.
+
+Check @mapC.
+Check @cmd_map_r.
+        
         eapply eutt_Ret in H.
         inv H; simpl.
         eapply rutt_Ret; unfold VR_D; auto.
       }  
-      simpl in H.
+      simpl; intros c0 H.
+        
+      
+      { simpl; intros c0 H; simpl in H.
+        eapply eutt_Ret in H.
+        inv H; simpl.
+        eapply rutt_Ret; unfold VR_D; auto.
+      }  
+      simpl; intros c0 H.
+      
       admit.
     }  
 
+    setoid_rewrite app_nil_r; simpl.
+
+    revert H5.
+    induction i0; simpl; intros.
+
+    assert ( forall E (it: itree E unit),
+               @eq_itree E unit unit eq
+                 (bind it (fun x0: unit => Ret x0))
+                 (bind it (fun _: unit => Ret tt))) as K1.
+    { intros.
+      eapply eqit_bind' with (RR:=eq).
+      reflexivity.
+      intros [] [] []; reflexivity.
+    }
+
+    setoid_rewrite <- K1.
+    setoid_rewrite bind_ret_r.
+    admit.
+
+    destruct a; simpl.
+    eapply rutt_bind with (RR := eq); simpl; eauto.
+    { eapply rutt_trigger.
+      { econstructor.
+        unfold resum; simpl; eauto. }
+
+      intros [] [] _; auto.
+    }  
+    intros [] [] [].
+    eapply rutt_Ret; auto.
+  }
+    
+
+    
+    Check @eq_itree.
+    
+    Check (trigger (AssgnE x tg ty e)).
+    
+    assert (forall (it: itree _ unit),
+               @eq_itree (sum1 (@it_sems.CState asm_op asmop) E1)
+            unit unit eq 
+           (ITree.bind it (fun => Ret tt)) it) as K0. 
+    { intros.
+    assert ( forall E (it: itree E unit),
+               @eq_itree E unit unit eq
+                 (bind it (fun x0: unit => Ret x0))
+                 (bind it (fun _: unit => Ret tt))) as K1.
+    { intros.
+      eapply eqit_bind' with (RR:=eq).
+      reflexivity.
+      intros [] [] []; reflexivity.
+    }
+
+    setoid_rewrite <- K1.
+    eapply bind_ret_r.
+
+    
+
+    
+    eapply (@bind_ret_r _ unit).  
+    
+      
+
+    
     eapply rutt_bind with (RR := eq); eauto.
     { eapply rutt_trigger.
       { econstructor.
@@ -673,9 +942,10 @@ Proof.
     
 Admitted.     
 
-
 End TR_MM_L2.
+*)
 
+                                             
 
 (*
 Context (cmd_hyp: forall c1 c2,
