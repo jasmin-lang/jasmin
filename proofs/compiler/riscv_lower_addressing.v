@@ -52,10 +52,10 @@ Definition shift_of_scale (z: Z) : option Z :=
 
 (* We introduce these helper functions, else the number of cases in the pattern-
    matching explodes, due to the way Coq handles pattern-matchings. *)
-Definition is_one_Lmem xs :=
+Definition is_one_Lmem (xs : lvals) :=
   if xs is [:: Lmem al ws x e] then Some (al, ws, x, e) else None.
 
-Definition is_one_Pload es :=
+Definition is_one_Pload (es : pexprs) :=
   if es is [:: Pload al ws x e] then Some (al, ws, x, e) else None.
 
 (* Lmem and Pload cases are almost identical, so we factorize both cases. *)

@@ -140,7 +140,7 @@ Definition x86_loparams : lowering_params lowering_options :=
 (* ------------------------------------------------------------------------ *)
 (* Speculative execution operator lowering parameters. *)
 
-Definition lflags := nseq 5 (Lnone dummy_var_info sbool).
+Definition lflags : lvals := nseq 5 (Lnone dummy_var_info sbool).
 
 Definition is_mmx_protect (ws : wsize) (lvs : seq lval) : bool :=
   match ws, lvs with

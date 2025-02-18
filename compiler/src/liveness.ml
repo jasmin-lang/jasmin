@@ -96,9 +96,9 @@ let liveness weak prog =
   let fds = List.map (live_fd weak) (snd prog) in
   fst prog, fds
 
-let iter_call_sites (cbf: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit)
-                    (cbs: L.i_loc -> BinNums.positive Syscall_t.syscall_t -> lvals -> Sv.t * Sv.t -> unit)
-                    (f: (Sv.t * Sv.t, 'asm) func) : unit =
+let iter_call_sites (cbf: L.i_loc -> funname -> ('sop1, 'sop2) lvals -> Sv.t * Sv.t -> unit)
+                    (cbs: L.i_loc -> BinNums.positive Syscall_t.syscall_t -> ('sop1, 'sop2) lvals -> Sv.t * Sv.t -> unit)
+                    (f: ('sop1, 'sop2, Sv.t * Sv.t, 'asm) func) : unit =
   let rec iter_instr_r loc ii =
     function
     | (Cassgn _ | Copn _) -> ()

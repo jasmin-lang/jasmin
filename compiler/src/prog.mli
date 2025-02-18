@@ -15,20 +15,20 @@ type 'len ggvar = {
   gs : E.v_scope;
 }
 
-type 'len gexpr =
+type ('sop1, 'sop2, 'len) gexpr =
   | Pconst of Z.t
   | Pbool  of bool
   | Parr_init of 'len
   | Pvar   of 'len ggvar
-  | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
-  | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr
-  | Pload  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
-  | Papp1  of E.sop1 * 'len gexpr
-  | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
-  | PappN of E.opN * 'len gexpr list
-  | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
+  | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * ('sop1, 'sop2, 'len) gexpr
+  | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * ('sop1, 'sop2, 'len) gexpr
+  | Pload  of Memory_model.aligned * wsize * 'len gvar_i * ('sop1, 'sop2, 'len) gexpr
+  | Papp1  of 'sop1 * ('sop1, 'sop2, 'len) gexpr
+  | Papp2  of 'sop2 * ('sop1, 'sop2, 'len) gexpr * ('sop1, 'sop2, 'len) gexpr
+  | PappN of E.opN * ('sop1, 'sop2, 'len) gexpr list
+  | Pif    of 'len gty * ('sop1, 'sop2, 'len) gexpr * ('sop1, 'sop2, 'len) gexpr * ('sop1, 'sop2, 'len) gexpr
 
-type 'len gexprs = 'len gexpr list
+type ('sop1, 'sop2, 'len) gexprs = ('sop1, 'sop2, 'len) gexpr list
 
 val is_stack_kind   : v_kind -> bool
 val is_reg_kind     : v_kind -> bool
@@ -42,41 +42,43 @@ val is_reg_direct_kind : v_kind -> bool
 
 (* ------------------------------------------------------------------------ *)
 
-type 'len glval =
+type ('sop1, 'sop2, 'len) glval =
  | Lnone of L.t * 'len gty
  | Lvar  of 'len gvar_i
- | Lmem  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
- | Laset of Memory_model.aligned * Warray_.arr_access * wsize * 'len gvar_i * 'len gexpr
- | Lasub of Warray_.arr_access * wsize * 'len * 'len gvar_i * 'len gexpr
+ | Lmem  of Memory_model.aligned * wsize * 'len gvar_i * ('sop1, 'sop2, 'len) gexpr
+ | Laset of Memory_model.aligned * Warray_.arr_access * wsize * 'len gvar_i * ('sop1, 'sop2, 'len) gexpr
+ | Lasub of Warray_.arr_access * wsize * 'len * 'len gvar_i * ('sop1, 'sop2, 'len) gexpr
 
-type 'len glvals = 'len glval list
+type ('sop1, 'sop2, 'len) glvals = ('sop1, 'sop2, 'len) glval list
 
-type 'len grange = E.dir * 'len gexpr * 'len gexpr
+type ('sop1, 'sop2, 'len) grange = E.dir * ('sop1, 'sop2, 'len) gexpr * ('sop1, 'sop2, 'len) gexpr
 
 (* Warning E.sopn (E.Ocopy) contain a 'len without being polymorphic.
    Before instr this information is dummy ...
    This is durty ...
-*)   
-type ('len,'info,'asm) ginstr_r =
-  | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
-  | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
-  | Csyscall of 'len glvals * BinNums.positive Syscall_t.syscall_t * 'len gexprs
-  | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
-  | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
-  | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len,'info,'asm) gstmt
-  | Ccall  of 'len glvals * funname * 'len gexprs
+*)
 
-and ('len,'info,'asm) ginstr = {
-  i_desc : ('len,'info,'asm) ginstr_r;
-  i_loc  : L.i_loc;
-  i_info : 'info;
-  i_annot : Annotations.annotations;
-}
+type ('sop1, 'sop2, 'len, 'info, 'asm) ginstr_r =
+  | Cassgn of ('sop1, 'sop2, 'len) glval * E.assgn_tag * 'len gty * ('sop1, 'sop2, 'len) gexpr
+  (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
+  | Copn   of ('sop1, 'sop2, 'len) glvals * E.assgn_tag * 'asm Sopn.sopn * ('sop1, 'sop2, 'len) gexprs
+  | Csyscall of ('sop1, 'sop2, 'len) glvals * BinNums.positive Syscall_t.syscall_t * ('sop1, 'sop2, 'len) gexprs
+  | Cif    of ('sop1, 'sop2, 'len) gexpr * ('sop1, 'sop2, 'len, 'info, 'asm) gstmt * ('sop1, 'sop2, 'len, 'info, 'asm) gstmt
+  | Cfor   of 'len gvar_i * ('sop1, 'sop2, 'len) grange * ('sop1, 'sop2, 'len, 'info, 'asm) gstmt
+  | Cwhile of E.align * ('sop1, 'sop2, 'len, 'info, 'asm) gstmt * ('sop1, 'sop2, 'len) gexpr * (IInfo.t * 'info) * ('sop1, 'sop2, 'len, 'info, 'asm) gstmt
+  | Ccall  of ('sop1, 'sop2, 'len) glvals * funname * ('sop1, 'sop2, 'len) gexprs
 
-and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
+and ('sop1, 'sop2, 'len,'info,'asm) ginstr = {
+    i_desc : ('sop1, 'sop2, 'len, 'info, 'asm) ginstr_r;
+    i_loc  : L.i_loc;
+    i_info : 'info;
+    i_annot : Annotations.annotations;
+  }
+
+and ('sop1, 'sop2, 'len, 'info, 'asm) gstmt = ('sop1, 'sop2, 'len, 'info, 'asm) ginstr list
 
 (* ------------------------------------------------------------------------ *)
-type ('len,'info,'asm) gfunc = {
+type ('sop1, 'sop2, 'len, 'info, 'asm) gfunc = {
     f_loc  : L.t;
     f_annot: FInfo.f_annot;
     f_info : 'info;
@@ -84,41 +86,40 @@ type ('len,'info,'asm) gfunc = {
     f_name : funname;
     f_tyin : 'len gty list;
     f_args : 'len gvar list;
-    f_body : ('len,'info,'asm) gstmt;
+    f_body : ('sop1, 'sop2, 'len, 'info, 'asm) gstmt;
     f_tyout : 'len gty list;
     f_outannot : Annotations.annotations list; (* annotation attach to return type *)
     f_ret  : 'len gvar_i list
   }
 
-type 'len ggexpr = 
-  | GEword of 'len gexpr
-  | GEarray of 'len gexprs
+type ('sop1, 'sop2, 'len) ggexpr =
+  | GEword of ('sop1, 'sop2, 'len) gexpr
+  | GEarray of ('sop1, 'sop2, 'len) gexprs
 
-type ('len,'info,'asm) gmod_item =
-  | MIfun   of ('len,'info,'asm) gfunc
-  | MIparam of ('len gvar * 'len gexpr)
-  | MIglobal of ('len gvar * 'len ggexpr)
+type ('sop1, 'sop2, 'len, 'info, 'asm) gmod_item =
+  | MIfun   of ('sop1, 'sop2, 'len, 'info, 'asm) gfunc
+  | MIparam of ('len gvar * ('sop1, 'sop2, 'len) gexpr)
+  | MIglobal of ('len gvar * ('sop1, 'sop2, 'len) ggexpr)
 
-type ('len,'info,'asm) gprog = ('len,'info,'asm) gmod_item list
+type ('sop1, 'sop2, 'len, 'info, 'asm) gprog = ('sop1, 'sop2, 'len, 'info, 'asm) gmod_item list
    (* first declaration occur at the end (i.e reverse order) *)
 
 (* ------------------------------------------------------------------------ *)
 (* Parametrized expression *)
+type  pty    = pexpr_ gty
+and   pvar   = pexpr_ gvar
+and   pvar_i = pexpr_ gvar_i
+and   plval  = (E.sop1, E.sop2, pexpr_) glval
+and   plvals = (E.sop1, E.sop2, pexpr_) glvals
+and   pexpr  = (E.sop1, E.sop2, pexpr_) gexpr
+and   pexpr_ = PE of pexpr [@@unboxed]
 
-type pty    = pexpr_ gty
-and  pvar   = pexpr_ gvar
-and  pvar_i = pexpr_ gvar_i
-and  plval  = pexpr_ glval
-and  plvals = pexpr_ glvals
-and  pexpr  = pexpr_ gexpr
-and  pexpr_ = PE of pexpr [@@unboxed]
+type ('info, 'asm) pinstr = (E.sop1, E.sop2, pexpr_,'info,'asm) ginstr
+type ('info, 'asm) pstmt  = (E.sop1, E.sop2, pexpr_,'info,'asm) gstmt
 
-type ('info,'asm) pinstr = (pexpr_,'info,'asm) ginstr
-type ('info,'asm) pstmt  = (pexpr_,'info,'asm) gstmt
-
-type ('info,'asm) pfunc     = (pexpr_,'info,'asm) gfunc
-type ('info,'asm) pmod_item = (pexpr_,'info,'asm) gmod_item
-type ('info,'asm) pprog     = (pexpr_,'info,'asm) gprog
+type ('info, 'asm) pfunc     = (E.sop1, E.sop2, pexpr_,'info,'asm) gfunc
+type ('info, 'asm) pmod_item = (E.sop1, E.sop2, pexpr_,'info,'asm) gmod_item
+type ('info, 'asm) pprog     = (E.sop1, E.sop2, pexpr_,'info,'asm) gprog
 
 (* -------------------------------------------------------------------- *)
 module PV : sig
@@ -151,19 +152,18 @@ val pexpr_equal : pexpr -> pexpr -> bool
 type ty    = int gty
 type var   = int gvar
 type var_i = int gvar_i
-type lval  = int glval
-type lvals = int glval list
-type expr  = int gexpr
-type exprs = int gexpr list
+type ('sop1, 'sop2) lval  = ('sop1, 'sop2, int) glval
+type ('sop1, 'sop2) lvals = ('sop1, 'sop2, int) glval list
+type ('sop1, 'sop2) expr  = ('sop1, 'sop2, int) gexpr
+type ('sop1, 'sop2) exprs = ('sop1, 'sop2, int) gexpr list
 
-type ('info,'asm) instr = (int,'info,'asm) ginstr
-type ('info,'asm) stmt  = (int,'info,'asm) gstmt
+type ('sop1, 'sop2, 'info, 'asm) instr = ('sop1, 'sop2, int, 'info, 'asm) ginstr
+type ('sop1, 'sop2, 'info, 'asm) stmt  = ('sop1, 'sop2, int, 'info, 'asm) gstmt
 
-type ('info,'asm) func     = (int,'info,'asm) gfunc
-type ('info,'asm) mod_item = (int,'info,'asm) gmod_item
+type ('sop1, 'sop2, 'info, 'asm) func     = ('sop1, 'sop2, int, 'info, 'asm) gfunc
+type ('sop1, 'sop2, 'info, 'asm) mod_item = ('sop1, 'sop2, int, 'info, 'asm) gmod_item
 type global_decl           = var * Global.glob_value
-type ('info,'asm) prog     = global_decl list *('info,'asm) func list
-
+type ('sop1, 'sop2, 'info,'asm) prog     = global_decl list * ('sop1, 'sop2, 'info, 'asm) func list
 
 (* -------------------------------------------------------------------- *)
 val var_of_ident : CoreIdent.var -> var
@@ -193,35 +193,35 @@ val is_regx : var -> bool
 
 (* -------------------------------------------------------------------- *)
 val kind_i : 'len gvar_i -> v_kind
-val ty_i   : 'len gvar_i -> 'len gty 
+val ty_i   : 'len gvar_i -> 'len gty
 
 (* -------------------------------------------------------------------- *)
 (* used variables                                                       *)
 
-val fold_vars_fc : ('ty gvar -> 'acc -> 'acc) -> 'acc -> ('ty, 'info, 'asm) gfunc -> 'acc
-val vars_lv : Sv.t -> lval -> Sv.t
-val vars_e  : expr -> Sv.t
-val vars_es : expr list -> Sv.t
-val vars_i  : ('info,'asm) instr -> Sv.t
-val vars_c  : ('info,'asm) stmt  -> Sv.t
-val pvars_c  : ('info,'asm) pstmt  -> Spv.t
-val vars_fc : ('info,'asm) func  -> Sv.t
+val fold_vars_fc : ('ty gvar -> 'acc -> 'acc) -> 'acc -> ('sop1, 'sop2, 'ty, 'info, 'asm) gfunc -> 'acc
+val vars_lv : Sv.t -> ('sop1, 'sop2) lval -> Sv.t
+val vars_e  : ('sop1, 'sop2) expr -> Sv.t
+val vars_es : ('sop1, 'sop2) expr list -> Sv.t
+val vars_i  : ('sop1, 'sop2, 'info, 'asm) instr -> Sv.t
+val vars_c  : ('sop1, 'sop2, 'info, 'asm) stmt  -> Sv.t
+val pvars_c : ('info, 'asm) pstmt  -> Spv.t
+val vars_fc : ('sop1, 'sop2, 'info, 'asm) func  -> Sv.t
 
-val locals  : ('info,'asm) func -> Sv.t
+val locals  : ('sop1, 'sop2, 'info, 'asm) func -> Sv.t
 
-val spilled :  ('info,'asm) func -> Sv.t
+val spilled :  ('sop1, 'sop2, 'info,'asm) func -> Sv.t
 
 (* -------------------------------------------------------------------- *)
 (* Written variables & called functions *)
-val written_vars_fc : ('info,'asm) func -> Sv.t * L.i_loc list Mf.t
+val written_vars_fc : ('sop1, 'sop2, 'info,'asm) func -> Sv.t * L.i_loc list Mf.t
 
 (* -------------------------------------------------------------------- *)
 (* Refresh i_loc, ensure that locations are uniq                        *)
 
-val refresh_i_loc_i : ('info,'asm) instr -> ('info,'asm) instr 
-val refresh_i_loc_c : ('info,'asm) stmt  -> ('info,'asm) stmt 
-val refresh_i_loc_f : ('info,'asm) func  -> ('info,'asm) func 
-val refresh_i_loc_p : ('info,'asm) prog  -> ('info,'asm) prog 
+val refresh_i_loc_i : ('sop1, 'sop2, 'info, 'asm) instr -> ('sop1, 'sop2, 'info, 'asm) instr
+val refresh_i_loc_c : ('sop1, 'sop2, 'info, 'asm) stmt  -> ('sop1, 'sop2, 'info, 'asm) stmt
+val refresh_i_loc_f : ('sop1, 'sop2, 'info, 'asm) func  -> ('sop1, 'sop2, 'info, 'asm) func
+val refresh_i_loc_p : ('sop1, 'sop2, 'info, 'asm) prog  -> ('sop1, 'sop2, 'info, 'asm) prog
 
 (* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)
@@ -235,7 +235,7 @@ val wsize_le : wsize -> wsize -> bool
 
 val int_of_pe  : pelem -> int
 
-val int_of_velem : velem -> int 
+val int_of_velem : velem -> int
 
 val is_ty_arr : 'e gty -> bool
 val array_kind : ty -> wsize * int
@@ -254,24 +254,24 @@ val is_stack_array : var_i -> bool
 (* -------------------------------------------------------------------- *)
 (* Functions over expressions                                           *)
 
-val ( ++ ) : 'len gexpr -> 'len gexpr -> 'len gexpr
-val ( ** ) : 'len gexpr -> 'len gexpr -> 'len gexpr
-val cnst   : Z.t -> 'len gexpr
-val icnst  : int -> 'len gexpr
-val is_var : 'len gexpr -> bool
-val get_ofs : Warray_.arr_access -> Wsize.wsize -> 'len gexpr -> int option
+val ( ++ ) : (E.sop1, E.sop2, 'len) gexpr -> (E.sop1, E.sop2, 'len) gexpr -> (E.sop1, E.sop2, 'len) gexpr
+val ( ** ) : (E.sop1, E.sop2, 'len) gexpr -> (E.sop1, E.sop2, 'len) gexpr -> (E.sop1, E.sop2, 'len) gexpr
+val cnst   : Z.t -> ('sop1, 'sop2, 'len) gexpr
+val icnst  : int -> ('sop1, 'sop2, 'len) gexpr
+val is_var : ('sop1, 'sop2, 'len) gexpr -> bool
+val get_ofs : Warray_.arr_access -> Wsize.wsize -> ('sop1, 'sop2, 'len) gexpr -> int option
 
 (* -------------------------------------------------------------------- *)
 (* Functions over lvalue                                                *)
 
-val expr_of_lval : 'len glval -> 'len gexpr option
+val expr_of_lval :  ('sop1, 'sop2, 'len) glval -> ('sop1, 'sop2, 'len) gexpr option
 
 (* -------------------------------------------------------------------- *)
 (* Functions over instruction                                           *)
 
-val has_syscall : ('len, 'info, 'asm) gstmt -> bool
-val has_call_or_syscall : ('len, 'info, 'asm) gstmt -> bool
-val has_annot : Annotations.symbol -> ('len, 'info, 'asm) ginstr -> bool
+val has_syscall : ('sop1, 'sop2, 'len, 'info, 'asm) gstmt -> bool
+val has_call_or_syscall : ('sop1, 'sop2, 'len, 'info, 'asm) gstmt -> bool
+val has_annot : Annotations.symbol -> ('sop1, 'sop2, 'len, 'info, 'asm) ginstr -> bool
 
 (* -------------------------------------------------------------------- *)
 val is_inline : Annotations.annotations -> FInfo.call_conv -> bool
@@ -280,5 +280,5 @@ val is_inline : Annotations.annotations -> FInfo.call_conv -> bool
 val clamp : wsize -> Z.t -> Z.t
 
 (* -------------------------------------------------------------------- *)
-type ('info,'asm) sfundef = Expr.stk_fun_extra * ('info,'asm) func 
+type ('info,'asm) sfundef = Expr.stk_fun_extra * (E.sop1, E.sop2, 'info,'asm) func
 type ('info,'asm) sprog   = ('info,'asm) sfundef list * Expr.sprog_extra

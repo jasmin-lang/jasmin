@@ -2,7 +2,7 @@ open Prog
 open Wsize
 open Sopn
 
-val preprocess : wsize -> 'asm asmOp -> (unit, 'asm) pprog -> (unit, 'asm) prog
+val preprocess : wsize -> 'asm asmOp -> (unit, 'asm) pprog -> (E.sop1, E.sop2, unit, 'asm) prog
 (** Preprocessing before translation to Coq representation:
   - substitution of parameters;
   - inserts `#copy` operators where needed;
@@ -36,8 +36,8 @@ val parse_file :
 val do_spill_unspill :
   'asm asmOp ->
   ?debug:bool ->
-  (unit, 'asm) prog ->
-  ((unit, 'asm) prog, Utils.hierror) result
+  (E.sop1, E.sop2, unit, 'asm) prog ->
+  ((E.sop1, E.sop2, unit, 'asm) prog, Utils.hierror) result
 (** Removes (aka implements) #spill and #unspill instructions. *)
 
 val compile :
@@ -51,7 +51,7 @@ val compile :
       and type extra_op = 'extra_op) ->
   (debug:bool ->
   Compiler.compiler_step ->
-  ( unit,
+  ( E.sop1, E.sop2, unit,
     ( 'reg,
       'regx,
       'xreg,

@@ -2,7 +2,7 @@ open Utils
 open Prog
 module L = Location
 
-let is_array_copy (x:lval) (e:expr) =
+let is_array_copy (x:('sop1, 'sop2) lval) (e: ('sop1, 'sop2) expr) =
   match x with
   | Lvar x ->
     let x = L.unloc x in
@@ -98,5 +98,5 @@ and iac_instr_r pd loc ir =
 let iac_func pd f =
   { f with f_body = iac_stmt pd f.f_body }
 
-let doit pd (p:(unit, 'asm) Prog.prog) = (fst p, List.map (iac_func pd) (snd p))
+let doit pd (p:('sop1, 'sop2, unit, 'asm) Prog.prog) = (fst p, List.map (iac_func pd) (snd p))
 

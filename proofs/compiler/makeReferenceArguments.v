@@ -22,7 +22,7 @@ Definition with_id vi ii ctr id ty :=
   {| v_var := {| vtype := ty; vname := fresh_reg_ptr ii ctr id ty |};
      v_info := vi |}.
 
-Definition is_reg_ptr_expr doit ii ctr id ty e :=
+Definition is_reg_ptr_expr doit ii ctr id ty (e : pexpr) :=
   match e with
   | Pvar x' =>
     if doit && (is_glob x' || ~~is_reg_ptr x'.(gv)) then
@@ -33,7 +33,7 @@ Definition is_reg_ptr_expr doit ii ctr id ty e :=
   | _      => None
   end.
 
-Definition is_reg_ptr_lval doit ii ctr id ty r :=
+Definition is_reg_ptr_lval doit ii ctr id ty (r : lval) :=
   match r with
   | Lvar x' => if doit && ~~is_reg_ptr x' then Some (with_id x'.(v_info) ii ctr id ty) else None
   | Lasub _ _ _ x' _ =>

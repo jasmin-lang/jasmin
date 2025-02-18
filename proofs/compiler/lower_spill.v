@@ -34,7 +34,7 @@ Definition is_spill_op o :=
   | _ => None
   end.
 
-Definition to_spill_e s e :=
+Definition to_spill_e s (e : pexpr) :=
   match e with
   | Pvar x => Sv.add x.(gv) s
   | _ => s
@@ -213,7 +213,7 @@ Definition check_map (m:Mvar.t var) X :=
   Mvar.fold (fun (x:var) (sx:var) bX =>
     (bX.1 && ~~Sv.mem sx bX.2, Sv.add sx bX.2)) m (true, X).
 
-Definition spill_fd {eft} (fn:funname) (fd: _fundef eft) : cexec (_fundef eft) :=
+Definition spill_fd {eft} (fn:funname) (fd: _fundef sop1 sop2 eft) : cexec (_fundef sop1 sop2 eft) :=
   let 'MkFun ii tyi params c tyo res ef := fd in
   let s := foldl to_spill_i (Sv.empty, false) c in
   if ~~s.2 then ok fd else
@@ -231,6 +231,6 @@ Definition spill_prog (p: prog) : cexec prog :=
 End PROGT.
 
 Definition spill_uprog (p: _uprog) : cexec _uprog :=
-  spill_prog (p: @prog _ _ progUnit).
+  spill_prog (p: @prog_ _ _ _ _ progUnit).
 
 End ASM_OP.

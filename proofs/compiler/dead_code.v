@@ -171,7 +171,7 @@ Section Section.
 
 Context {pT: progT}.
 
-Definition dead_code_fd {eft} fn (fd: _fundef eft) : cexec (_fundef eft) :=
+Definition dead_code_fd {eft} fn (fd: _fundef sop1 sop2 eft) : cexec (_fundef sop1 sop2 eft) :=
   let 'MkFun ii tyi params c tyo res ef := fd in
   let res := fn_keep_only fn res in
   let tyo := fn_keep_only fn tyo in

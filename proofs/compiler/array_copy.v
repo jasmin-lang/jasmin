@@ -40,13 +40,13 @@ Let fresh_temporary (ws: wsize) : Ident.ident := fresh_var_ident (Reg (Normal, D
   Each copied value goes through a temporary variable when both x and y are in memory (stack or global).
 *)
 
-Definition direct_copy ws x y i :=
+Definition direct_copy ws x y (i : pexpr) :=
   [:: Cassgn (Laset Aligned AAscale ws x i) AT_none (sword ws) (Pget Aligned AAscale ws y i) ].
 
 Definition tmp_var ws :=
   {| vtype := sword ws; vname := fresh_temporary ws |}.
 
-Definition indirect_copy ws x y i :=
+Definition indirect_copy ws x y (i : pexpr) :=
   let tmp := {| v_var := tmp_var ws ; v_info := v_info x |} in
   [:: Cassgn (Lvar tmp) AT_none (sword ws) (Pget Aligned AAscale ws y i);
    Cassgn (Laset Aligned AAscale ws x i) AT_none (sword ws) (Pvar (mk_lvar tmp)) ].

@@ -95,20 +95,20 @@ type arr_slice = { as_arr    : var;
                    as_wsize  : wsize;
                    as_len    : int;
                    as_access : Warray_.arr_access;
-                   as_offset : Prog.expr; }
+                   as_offset : (E.sop1, E.sop2) Prog.expr; }
 
 type safe_cond =
   | Initv of var
 
   | Initai  of arr_slice
   | InBound of int * arr_slice
-  | InRange of expr * expr * expr (* InRange a b c ≡ c ∈ [a; b] *)
+  | InRange of (E.sop1, E.sop2) expr * (E.sop1, E.sop2) expr * (E.sop1, E.sop2) expr (* InRange a b c ≡ c ∈ [a; b] *)
 
-  | Valid       of wsize * var * expr (* allocated memory region *)
-  | AlignedPtr  of wsize * var * expr (* aligned pointer *)
-  | AlignedExpr of wsize * expr       (* aligned expression *)
+  | Valid       of wsize * var * (E.sop1, E.sop2) expr (* allocated memory region *)
+  | AlignedPtr  of wsize * var * (E.sop1, E.sop2) expr (* aligned pointer *)
+  | AlignedExpr of wsize * (E.sop1, E.sop2) expr       (* aligned expression *)
 
-  | NotZero of wsize * expr
+  | NotZero of wsize * (E.sop1, E.sop2) expr
   | Termination of bool (* the boolean signals whether this is a severe violation *)
 
 let severe_violation =
@@ -250,7 +250,7 @@ let arr_aligned access ws e = match access with
   | Warray_.AAscale  -> []
   | Warray_.AAdirect ->
      begin match e with
-     | Papp1 (Oint_of_word U64, e) -> [AlignedExpr (ws, e)]
+     | Papp1 (E.Oint_of_word U64, e) -> [AlignedExpr (ws, e)]
      | _ -> [AlignedExpr (ws, Papp1 (Oword_of_int U64, e))]
      end
 
@@ -382,8 +382,8 @@ let safe_opn safe opn es =
         ]
       | Wsize.InRangeMod32(sz, lo, hi, n) ->
          let n = List.nth es (Conv.int_of_nat n) in
-         let n = Papp1 (Oint_of_word sz, n) in
-         let n = Papp2 (Omod Cmp_int, n, Pconst (Z.of_int 32)) in
+         let n = Papp1 (E.Oint_of_word sz, n) in
+         let n = Papp2 (E.Omod Cmp_int, n, Pconst (Z.of_int 32)) in
          [ InRange(Pconst (Conv.z_of_cz lo), Pconst (Conv.z_of_cz hi), n) ]
       | Wsize.AllInit(ws, p, i) ->
         let e = List.nth es (Conv.int_of_nat i) in
@@ -395,21 +395,21 @@ let safe_opn safe opn es =
 
       | ULt (sz, n, z) ->
         let n = List.nth es (Conv.int_of_nat n) in
-        let n = Papp1 (Oint_of_word sz, n) in
+        let n = Papp1 (E.Oint_of_word sz, n) in
         [ InRange(Pconst Z.zero, Pconst (Z.pred (Conv.z_of_cz z)), n)] (* n ∈ [0; z-1] *)
 
       | UGe (sz, z, n) ->
         let n = List.nth es (Conv.int_of_nat n) in
-        let n = Papp1 (Oint_of_word sz, n) in
+        let n = Papp1 (E.Oint_of_word sz, n) in
         let z = Pconst (Conv.z_of_cz z) in
         [ InRange(Pconst Z.zero, n, z) ] (* z ∈ [0; n] *)
 
       | UaddLe(sz, n1, n2, z) ->
         let n1 = List.nth es (Conv.int_of_nat n1) in
-        let n1 = Papp1 (Oint_of_word sz, n1) in
+        let n1 = Papp1 (E.Oint_of_word sz, n1) in
         let n2 = List.nth es (Conv.int_of_nat n2) in
-        let n2 = Papp1 (Oint_of_word sz, n2) in
-        let n12 = Papp2 (Oadd Op_int, n1, n2) in
+        let n2 = Papp1 (E.Oint_of_word sz, n2) in
+        let n12 = Papp2 (E.Oadd Op_int, n1, n2) in
         let z = Pconst (Conv.z_of_cz z) in
         [ InRange(Pconst Z.zero, z, n12) ] (* n1 + n2 ∈ [0; z] *)
 
@@ -571,7 +571,7 @@ end = struct
                   abs : AbsDom.t;
                   cstack : funname list;
                   env : s_env;
-                  prog : (minfo, X86_extra.x86_extended_op) prog;
+                  prog : (E.sop1, E.sop2, minfo, X86_extra.x86_extended_op) prog;
                   s_effects : side_effects;
                   violations : violation list }
 
@@ -582,7 +582,7 @@ end = struct
         | _ -> state )
       state f_args
 
-  let init_env : ('info, 'asm) prog -> mem_loc list -> s_env =
+  let init_env : (E.sop1, E.sop2, 'info, 'asm) prog -> mem_loc list -> s_env =
     fun (glob_decls, _fun_decls) mem_locs ->
     let env = { s_glob = Sv.empty; m_locs = mem_locs } in
     let env =
@@ -597,7 +597,7 @@ end = struct
      *   env fun_decls *)
     env
 
-  let init_state : (unit, 'asm) func -> (minfo, 'asm) func -> (minfo, 'asm) prog -> astate * warnings =
+  let init_state : (E.sop1, E.sop2, unit, 'asm) func -> (E.sop1, E.sop2, minfo, 'asm) func -> (E.sop1, E.sop2, minfo, 'asm) prog -> astate * warnings =
     fun main_source main_decl (glob_decls, fun_decls) ->
       let mem_locs = List.map (fun x -> MemLoc x) main_decl.f_args in
       let env = init_env (glob_decls, fun_decls) mem_locs in
@@ -708,9 +708,9 @@ end = struct
     | InRange(lo, hi, e) ->
        begin
          let out_of_range =
-           Papp2(Oor,
-                 Papp2 (Olt E.Cmp_int, e, lo),
-                 Papp2 (Olt E.Cmp_int, hi, e)) in
+           Papp2(E.Oor,
+                 Papp2 (E.Olt E.Cmp_int, e, lo),
+                 Papp2 (E.Olt E.Cmp_int, hi, e)) in
          let s = state.abs in
          match AbsExpr.bexpr_to_btcons out_of_range s with
          | None -> false
@@ -1701,7 +1701,7 @@ end = struct
 
   let log = timestamp ()
 
-  let rec aeval_ginstr pd asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
+  let rec aeval_ginstr pd asmOp : (E.sop1, E.sop2, 'ty,minfo,'asm) ginstr -> astate -> astate =
     fun ginstr state ->
       debug (fun () ->
         print_ginstr pd asmOp ginstr state.abs);
@@ -1715,7 +1715,7 @@ end = struct
         let state = check_safety state (InProg ginstr.i_loc) conds in
         aeval_ginstr_aux pd asmOp ginstr state
 
-  and aeval_ginstr_aux pd asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
+  and aeval_ginstr_aux pd asmOp : (E.sop1, E.sop2, 'ty,minfo,'asm) ginstr -> astate -> astate =
     fun ginstr state ->
     match ginstr.i_desc with
       | Cassgn (lv,tag,ty1, Pif (ty2, c, el, er))
@@ -2049,7 +2049,7 @@ end = struct
           assert false
         )
 
-  and aeval_call pd asmOp : funname -> (minfo, 'asm) func -> L.i_loc -> astate -> astate =
+  and aeval_call pd asmOp : funname -> (E.sop1, E.sop2, minfo, 'asm) func -> L.i_loc -> astate -> astate =
     fun f f_decl callsite st_in ->
     let itk = ItFunIn (f,callsite) in
 
@@ -2140,7 +2140,7 @@ end = struct
     debug (fun () -> Format.eprintf "Evaluating the body ...@.@.");
     aeval_gstmt pd asmOp f_body state
 
-  and aeval_gstmt pd asmOp : ('ty,'i,'asm) gstmt -> astate -> astate =
+  and aeval_gstmt pd asmOp : (E.sop1, E.sop2, 'ty,'i,'asm) gstmt -> astate -> astate =
     fun gstmt state ->
     let state = List.fold_left (fun state ginstr ->
         aeval_ginstr pd asmOp ginstr state)
@@ -2241,10 +2241,10 @@ end
 
 module type ExportWrap = sig
   (* main function, before any compilation pass *)
-  val main_source : (unit, X86_extra.x86_extended_op) Prog.func
+  val main_source : (E.sop1, E.sop2, unit, X86_extra.x86_extended_op) Prog.func
 
-  val main : (unit, X86_extra.x86_extended_op) Prog.func
-  val prog : (unit, X86_extra.x86_extended_op) Prog.prog
+  val main : (E.sop1, E.sop2, unit, X86_extra.x86_extended_op) Prog.func
+  val prog : (E.sop1, E.sop2, unit, X86_extra.x86_extended_op) Prog.prog
 end
 
 module AbsAnalyzer (EW : ExportWrap) = struct

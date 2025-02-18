@@ -423,7 +423,7 @@ Fixpoint const_prop_rvs globs (m:cpm) (rvs:lvals) : cpm * lvals :=
 Definition wsize_of_stype (ty: stype) : wsize :=
   if ty is sword sz then sz else U64.
 
-Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
+Definition add_cpm (m:cpm) (rv:lval) tag ty (e : pexpr) :=
   if rv is Lvar x then
     if tag is AT_inline then
       match e with
@@ -459,7 +459,7 @@ Section CMD.
 
 End CMD.
 
-Definition is_update_imm (xs:lvals) o es :=
+Definition is_update_imm (xs:lvals) o (es : pexprs) :=
   match o, es, xs with
   | Oslh SLHupdate, [:: Pbool b; e], [:: x] => Some (x, b, e)
   | _, _, _=> None

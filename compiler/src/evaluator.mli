@@ -5,7 +5,7 @@ val exec :
   Sem_params.coq_SemPexprParams ->
   ('asm_op, 'syscall_state) Sem_params.coq_SemInstrParams ->
   'syscall_state ->
-  'asm_op Expr.prog ->
+  ('asm_op, Expr.sop1, Expr.sop2) Expr.prog_ ->
   Expr.instr_info ->
   Prog.funname ->
   Values.values ->

@@ -37,14 +37,14 @@ let of_val_b ii v : bool =
 
 (* ----------------------------------------------------------------- *)
 type 'asm stack = 
-  | Sempty of instr_info * 'asm fundef
+  | Sempty of instr_info * ('asm, sop1, sop2) fundef_
   | Scall of 
-      instr_info * 'asm fundef * lval list * Vm.t * 'asm instr list * 'asm stack
-  | Sfor of instr_info * var_i * coq_Z list * 'asm instr list * 'asm instr list * 'asm stack
+      instr_info *  ('asm, sop1, sop2) fundef_ * (sop1, sop2) lval_ list * Vm.t *  ('asm, sop1, sop2) instr_ list * 'asm stack
+  | Sfor of instr_info * var_i * coq_Z list *  ('asm, sop1, sop2) instr_ list *  ('asm, sop1, sop2) instr_ list * 'asm stack
 
 type ('syscall_state, 'asm) state =
-  { s_prog : 'asm prog;
-    s_cmd  : 'asm instr list;
+  { s_prog : ('asm, sop1, sop2) prog_;
+    s_cmd  : ('asm, sop1, sop2) instr_ list;
     s_estate : 'syscall_state estate;
     s_stk  : 'asm stack;
   }

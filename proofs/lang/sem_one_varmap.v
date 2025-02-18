@@ -71,7 +71,7 @@ Let vrsp : var := vid p.(p_extra).(sp_rsp).
 
 #[local] Notation magic_variables := (magic_variables p).
 
-Definition ra_valid fd (ii:instr_info) (k: Sv.t) : bool :=
+Definition ra_valid (fd:sfundef) (ii:instr_info) (k: Sv.t) : bool :=
   match fd.(f_extra).(sf_return_address) with
   | RAstack ra_call ra_return _ _ =>
     (if ra_call is Some ra_call then (ra_call != vgd) && (ra_call != vrsp)
@@ -93,12 +93,12 @@ Definition ra_undef_vm_none (ss: saved_stack) (tmp: Sv.t) vm : Vm.t :=
 Definition ra_undef_vm fd vm (tmp: Sv.t) : Vm.t :=
   kill_vars (ra_undef fd tmp) vm.
 
-Definition saved_stack_valid fd (k: Sv.t) : bool :=
+Definition saved_stack_valid (fd:sfundef) (k: Sv.t) : bool :=
   if fd.(f_extra).(sf_save_stack) is SavedStackReg r
   then [&& (r != vgd), (r != vrsp) & (~~ Sv.mem r k) ]
   else true.
 
-Definition top_stack_aligned fd m : bool :=
+Definition top_stack_aligned (fd:sfundef) m : bool :=
   is_RAnone (fd.(f_extra).(sf_return_address))
   || is_align (top_stack m) fd.(f_extra).(sf_align).
 

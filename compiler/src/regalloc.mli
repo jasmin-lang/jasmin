@@ -1,6 +1,6 @@
 open Prog
 
-val fill_in_missing_names : ('info, 'asm) Prog.func -> ('info, 'asm) Prog.func
+val fill_in_missing_names : (E.sop1, E.sop2, 'info, 'asm) Prog.func -> (E.sop1, E.sop2, 'info, 'asm) Prog.func
 
 type retaddr = 
   | StackDirect
@@ -16,11 +16,11 @@ type reg_oracle_t = {
 module type Regalloc = sig
   type extended_op
 
-  val split_live_ranges : (unit, extended_op) func -> (unit, extended_op) func
-  val renaming : (unit, extended_op) func -> (unit, extended_op) func
-  val remove_phi_nodes : (unit, extended_op) func -> (unit, extended_op) func
+  val split_live_ranges : (E.sop1, E.sop2, unit, extended_op) func -> (E.sop1, E.sop2, unit, extended_op) func
+  val renaming : (E.sop1, E.sop2, unit, extended_op) func -> (E.sop1, E.sop2, unit, extended_op) func
+  val remove_phi_nodes : (E.sop1, E.sop2, unit, extended_op) func -> (E.sop1, E.sop2, unit, extended_op) func
 
-  val subroutine_ra_by_stack : (unit, extended_op) func -> bool
+  val subroutine_ra_by_stack : (E.sop1, E.sop2, unit, extended_op) func -> bool
 
 
   (** Returns:
@@ -35,10 +35,10 @@ module type Regalloc = sig
    *)
   val alloc_prog :
     (Var0.Var.var -> var) ->
-    ((unit, extended_op) func -> 'a -> bool) ->
-    ((unit, extended_op) func -> 'a -> Z.t) ->
-    ('a * (unit, extended_op) func) list ->
-    ('a * reg_oracle_t * (unit, extended_op) func) list
+    ((E.sop1, E.sop2, unit, extended_op) func -> 'a -> bool) ->
+    ((E.sop1, E.sop2, unit, extended_op) func -> 'a -> Z.t) ->
+    ('a * (E.sop1, E.sop2, unit, extended_op) func) list ->
+    ('a * reg_oracle_t * (E.sop1, E.sop2, unit, extended_op) func) list
 end
 
 module Regalloc (Arch : Arch_full.Arch) :

@@ -367,7 +367,7 @@ module type EnvT = sig
   val pd: t -> Wsize.wsize
   val arch: t -> architecture
   val randombytes: t -> int list
-  val set_fun: t -> (int, 'a, 'b) gfunc -> t
+  val set_fun: t -> (E.sop1, E.sop2, 'a, 'b) func -> t
   val add_Array: t -> int -> unit
   val add_WArray: t -> int -> unit
   val add_ArrayWords: t -> int -> int -> unit
@@ -1355,8 +1355,8 @@ let ty_lval = function
 
 module type EcExpression = sig
   val ec_cast: Env.t -> int gty * int gty -> ec_expr -> ec_expr
-  val toec_cast: Env.t -> int gty * expr -> ec_expr
-  val toec_expr: Env.t -> expr -> ec_expr
+  val toec_cast: Env.t -> int gty * (E.sop1, E.sop2) expr -> ec_expr
+  val toec_expr: Env.t -> (E.sop1, E.sop2) expr -> ec_expr
 end
 (* ------------------------------------------------------------------- *)
 (* Jasmin AST -> Easycrypt AST *)
@@ -1385,7 +1385,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
     | E.Olnot _  -> ec_apps1 "invw" e
     | E.Oneg _   -> ec_apps1 "-" e
 
-  let rec toec_expr env (e: expr) =
+  let rec toec_expr env (e: (E.sop1, E.sop2) expr) =
       match e with
       | Pconst z -> Econst z
       | Pbool b -> Ebool b
@@ -1448,12 +1448,12 @@ module EcExpression(EA: EcArray): EcExpression = struct
 end
 
 module type EcLeakage = sig
-  val ec_leaks_es: Env.t -> exprs -> ec_instr list
-  val ec_leaks_opn: Env.t -> exprs -> ec_instr list
-  val ec_leaking_if: Env.t -> expr -> (Env.t -> ec_stmt) -> (Env.t -> ec_stmt) -> ec_stmt
-  val ec_leaking_while: Env.t -> (Env.t -> ec_stmt) -> expr -> (Env.t -> ec_stmt) -> ec_stmt
-  val ec_leaking_for: Env.t -> (Env.t -> ec_stmt) -> expr -> expr -> ec_stmt -> ec_expr -> ec_stmt -> ec_stmt
-  val ec_leaks_lvs: Env.t -> int glval list -> ec_stmt
+  val ec_leaks_es: Env.t -> (E.sop1, E.sop2) exprs -> ec_instr list
+  val ec_leaks_opn: Env.t -> (E.sop1, E.sop2) exprs -> ec_instr list
+  val ec_leaking_if: Env.t -> (E.sop1, E.sop2) expr -> (Env.t -> ec_stmt) -> (Env.t -> ec_stmt) -> ec_stmt
+  val ec_leaking_while: Env.t -> (Env.t -> ec_stmt) -> (E.sop1, E.sop2) expr -> (Env.t -> ec_stmt) -> ec_stmt
+  val ec_leaking_for: Env.t -> (Env.t -> ec_stmt) -> (E.sop1, E.sop2) expr -> (E.sop1, E.sop2) expr -> ec_stmt -> ec_expr -> ec_stmt -> ec_stmt
+  val ec_leaks_lvs: Env.t -> (E.sop1, E.sop2, int) glval list -> ec_stmt
   val global_leakage_vars: Env.t -> (ec_modty * ec_modty) list
   val leakage_imports: Env.t -> ec_item list
   val ec_fun_leak_init: Env.t -> ec_stmt
@@ -2041,7 +2041,7 @@ and used_func_i used i =
   | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2
   | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
-let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp (model: model) amodel fnames array_dir fmt =
+let extract ((globs,funcs):(E.sop1, E.sop2, 'info, 'asm) prog) arch pd asmOp (model: model) amodel fnames array_dir fmt =
   let save_array_theories array_theories =
     match array_dir with
     | Some prefix ->

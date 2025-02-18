@@ -320,7 +320,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       aeval_cst_zint abs e
     (* No need to check for overflows because we do not allow word operations. *)
 
-    | Papp2 (Oadd Op_int, e1, e2) ->
+    | Papp2 (E.Oadd Op_int, e1, e2) ->
       obind2 (fun x y -> Some (Z.add x y))
         (aeval_cst_zint abs e1) (aeval_cst_zint abs e2)
 
@@ -440,7 +440,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     let lin = Mtexpr.cst (Coeff.Interval Interval.top) in
     wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
 
-  let rec linearize_iexpr abs (e : expr) =
+  let rec linearize_iexpr abs (e : (E.sop1, E.sop2) expr) =
     match aeval_cst_zint abs e with
     | Some c -> mtexpr_of_z c
     | None ->
@@ -622,11 +622,11 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | _ -> print_not_word_expr e;
       assert false
 
-  let rec linearize_smpl_iexpr abs (e : expr) =
+  let rec linearize_smpl_iexpr abs (e : (E.sop1, E.sop2) expr) =
     try Some (linearize_iexpr abs e) with
       Unop_not_supported _ | Binop_not_supported _ -> None
 
-  let rec linearize_smpl_wexpr abs (e : expr) =
+  let rec linearize_smpl_wexpr abs (e : (E.sop1, E.sop2) expr) =
     try Some (linearize_wexpr abs e) with
       Unop_not_supported _ | Binop_not_supported _ -> None
 
@@ -635,8 +635,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | None -> None
     | Some (ty,b,el,er) -> Some (ty, b, f el, f er)
 
-  let rec remove_if_expr_aux : Prog.expr ->
-    (ty * Prog.expr * Prog.expr * Prog.expr) option = function
+  let rec remove_if_expr_aux : (E.sop1, E.sop2) Prog.expr ->
+    (ty * (E.sop1, E.sop2) Prog.expr * (E.sop1, E.sop2) Prog.expr * (E.sop1, E.sop2) Prog.expr) option = function
     | Pif (ty,e1,et,ef) -> Some (ty,e1,et,ef)
 
     | Pconst _  | Pbool _ | Parr_init _ | Pvar _  -> None
@@ -677,7 +677,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         Some (ty, b, PappN (opn, repi el), PappN (opn, repi er))
 
 
-  let rec remove_if_expr (e : 'a Prog.gexpr) = match remove_if_expr_aux e with
+  let rec remove_if_expr (e : (E.sop1, E.sop2, 'a) Prog.gexpr) = match remove_if_expr_aux e with
     | Some (_,b,el,er) ->
       List.map (fun (l_bool,expr) ->
           (b :: l_bool,expr))
@@ -714,7 +714,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | E.Oge   _ -> e2, e1
     | _         -> e1, e2
 
-  let rec bexpr_to_btcons_aux : AbsDom.t -> Prog.expr -> btcons =
+  let rec bexpr_to_btcons_aux : AbsDom.t -> (E.sop1, E.sop2) Prog.expr -> btcons =
     fun abs e ->
     let aux = bexpr_to_btcons_aux abs in
     match e with
@@ -824,7 +824,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       raise Bop_not_supported
 
 
-  let bexpr_to_btcons : 'a Prog.gexpr -> AbsDom.t -> btcons option =
+  let bexpr_to_btcons : (E.sop1, E.sop2, 'a) Prog.gexpr -> AbsDom.t -> btcons option =
     fun e abs ->
     try let c = bexpr_to_btcons_aux abs e in
       (* We substitute variables in [bexpr] using known symbolic 
@@ -833,7 +833,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     with Bop_not_supported -> None
 
 
-  let linearize_if_iexpr : 'a Prog.gexpr -> AbsDom.t -> s_expr =
+  let linearize_if_iexpr : (E.sop1, E.sop2, 'a) Prog.gexpr -> AbsDom.t -> s_expr =
     fun e abs ->
     List.map (fun (bexpr_list, expr) ->
         let f x = bexpr_to_btcons x abs in
@@ -849,7 +849,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         (b_list, lin_expr))
       (remove_if_expr e)
 
-  let linearize_if_wexpr : int -> expr -> AbsDom.t -> s_expr =
+  let linearize_if_wexpr : int -> (E.sop1, E.sop2) expr -> AbsDom.t -> s_expr =
     fun out_sw e abs ->
     List.map (fun (bexpr_list, expr) ->
         let f x = bexpr_to_btcons x abs in
@@ -873,7 +873,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         (b_list, lin_expr))
       (remove_if_expr e)
 
-  let rec linearize_if_expr : int -> 'a Prog.gexpr -> AbsDom.t -> s_expr =
+  let rec linearize_if_expr : int -> (E.sop1, E.sop2, 'a) Prog.gexpr -> AbsDom.t -> s_expr =
     fun out_ws e abs ->
     match ty_expr e with
     | Bty Int ->
@@ -1180,7 +1180,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
   (* Abstract evaluation of an assignment. 
      Also handles variable initialization. *)
   (* FIXME: allow batched assignments *)
-  let abs_assign : AbsDom.t -> 'a gty -> mlvar -> expr -> AbsDom.t =
+  let abs_assign : AbsDom.t -> 'a gty -> mlvar -> (E.sop1, E.sop2) expr -> AbsDom.t =
     fun abs out_ty out_mvar e ->
       assert (not (omvar_is_offset out_mvar));
       match ty_expr e, out_mvar with

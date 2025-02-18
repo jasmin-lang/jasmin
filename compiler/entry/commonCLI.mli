@@ -18,7 +18,7 @@ val parse_and_compile :
       and type xreg = 'xreg) ->
   Compiler.compiler_step ->
   string ->
-  ( unit,
+  (Prog.E.sop1, Prog.E.sop2, unit,
     ( 'reg,
       'regx,
       'xreg,

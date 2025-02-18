@@ -52,7 +52,7 @@ Variant sop2 :=
 | Oland of wsize
 | Olor  of wsize
 | Olxor of wsize
-| Olsr  of wsize 
+| Olsr  of wsize
 | Olsl  of op_kind
 | Oasr  of op_kind
 | Oror  of wsize
@@ -76,7 +76,7 @@ Variant sop2 :=
 
 (* N-ary operators *)
 Variant combine_flags :=
-| CF_LT    of signedness   (* Alias : signed => L  ; unsigned => B   *) 
+| CF_LT    of signedness   (* Alias : signed => L  ; unsigned => B   *)
 | CF_LE    of signedness   (* Alias : signed => LE ; unsigned => BE  *)
 | CF_EQ                    (* Alias : E                              *)
 | CF_NEQ                   (* Alias : !E                             *)
@@ -174,7 +174,7 @@ Definition type_of_opN (op: opN) : seq stype * stype :=
   | Opack ws p =>
     let n := nat_of_wsize ws %/ nat_of_pelem p in
     (nseq n sint, sword ws)
-  | Ocombine_flags c => (tin_combine_flags, sbool) 
+  | Ocombine_flags c => (tin_combine_flags, sbool)
   end.
 
 (* ** Expressions
@@ -208,8 +208,8 @@ Definition mk_var_i (x : var) :=
 Notation vid ident :=
   (mk_var_i {| vtype := sword Uptr; vname := ident%string; |}).
 
-Variant v_scope := 
-  | Slocal 
+Variant v_scope :=
+  | Slocal
   | Sglob.
 
 Scheme Equality for v_scope.
@@ -229,28 +229,37 @@ Definition mk_lvar x := {| gv := x; gs := Slocal |}.
 Definition is_lvar (x:gvar) := x.(gs) == Slocal.
 Definition is_glob (x:gvar) := x.(gs) == Sglob.
 
-Inductive pexpr : Type :=
-| Pconst :> Z -> pexpr
-| Pbool  :> bool -> pexpr
-| Parr_init : positive → pexpr
-| Pvar   :> gvar -> pexpr
-| Pget   : aligned -> arr_access -> wsize -> gvar -> pexpr -> pexpr
-| Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr
-| Pload  : aligned -> wsize -> var_i -> pexpr -> pexpr
-| Papp1  : sop1 -> pexpr -> pexpr
-| Papp2  : sop2 -> pexpr -> pexpr -> pexpr
-| PappN of opN & seq pexpr
-| Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr.
+Section PEXPR.
+Context {sop1 sop2: Type}.
 
+Inductive pexpr_ : Type :=
+| Pconst :> Z -> pexpr_
+| Pbool  :> bool -> pexpr_
+| Parr_init : positive → pexpr_
+| Pvar   :> gvar -> pexpr_
+| Pget   : aligned -> arr_access -> wsize -> gvar -> pexpr_ -> pexpr_
+| Psub   : arr_access -> wsize -> positive -> gvar -> pexpr_ -> pexpr_
+| Pload  : aligned -> wsize -> var_i -> pexpr_ -> pexpr_
+| Papp1  : sop1 -> pexpr_ -> pexpr_
+| Papp2  : sop2 -> pexpr_ -> pexpr_ -> pexpr_
+| PappN of opN & seq pexpr_
+| Pif    : stype -> pexpr_ -> pexpr_ -> pexpr_ -> pexpr_.
+
+End PEXPR.
+Arguments pexpr_ : clear implicits.
+
+Notation pexprs_ sop1 sop2 := (seq (pexpr_ sop1 sop2)).
+
+Notation pexpr := (pexpr_ sop1 sop2).
 Notation pexprs := (seq pexpr).
 
-Definition Plvar x := Pvar (mk_lvar x).
+Definition Plvar x : pexpr := Pvar (mk_lvar x).
 
-Definition enot e := Papp1 Onot e.
-Definition eor e1 e2 := Papp2 Oor e1 e2.
-Definition eand e1 e2 := Papp2 Oand e1 e2.
-Definition eeq e1 e2 := Papp2 Obeq e1 e2.
-Definition eneq e1 e2 := enot (eeq e1 e2).
+Definition enot e : pexpr := Papp1 Onot e.
+Definition eor e1 e2 : pexpr := Papp2 Oor e1 e2.
+Definition eand e1 e2 : pexpr := Papp2 Oand e1 e2.
+Definition eeq e1 e2 : pexpr := Papp2 Obeq e1 e2.
+Definition eneq e1 e2 : pexpr := enot (eeq e1 e2).
 
 Definition cf_of_condition (op : sop2) : option (combine_flags * wsize) :=
   match op with
@@ -267,19 +276,23 @@ Definition pexpr_of_cf (cf : combine_flags) (vi : var_info) (flags : seq var) : 
   let eflags := [seq Plvar {| v_var := x; v_info := vi |} | x <- flags ] in
   PappN (Ocombine_flags cf) eflags.
 
-
 (* ** Left values
  * -------------------------------------------------------------------- *)
 
-Variant lval : Type :=
+Variant lval_ {sop1 sop2:Type} : Type :=
 | Lnone `(var_info) `(stype)
 | Lvar  `(var_i)
-| Lmem  of aligned & wsize & var_i & pexpr
-| Laset of aligned & arr_access & wsize & var_i & pexpr
-| Lasub `(arr_access) `(wsize) `(positive) `(var_i) `(pexpr).
+| Lmem  of aligned & wsize & var_i & pexpr_ sop1 sop2
+| Laset of aligned & arr_access & wsize & var_i & pexpr_ sop1 sop2
+| Lasub of arr_access & wsize & positive & var_i & pexpr_ sop1 sop2.
+
+Arguments lval_ : clear implicits.
+
+Notation lval := (lval_ sop1 sop2).
 
 Coercion Lvar : var_i >-> lval.
 
+Notation lvals_ sop1 sop2 := (seq (lval_ sop1 sop2)).
 Notation lvals := (seq lval).
 
 Definition get_pvar (e: pexpr) : exec var :=
@@ -310,7 +323,9 @@ Qed.
 
 HB.instance Definition _ := hasDecEq.Build dir dir_eq_axiom.
 
-Definition range := (dir * pexpr * pexpr)%type.
+Definition range_ (sop1 sop2 :Type) := (dir * pexpr_ sop1 sop2 * pexpr_ sop1 sop2)%type.
+
+Definition range := range_ sop1 sop2.
 
 Definition wrange d (n1 n2 : Z) :=
   let n := Z.to_nat (n2 - n1) in
@@ -371,21 +386,31 @@ Variant align :=
 
 Section ASM_OP.
 
-Context `{asmop:asmOp}.
+Context `{asmop:asmOp} (sop1 sop2: Type).
 
-Inductive instr_r :=
-| Cassgn   : lval -> assgn_tag -> stype -> pexpr -> instr_r
-| Copn     : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
-| Csyscall : lvals -> syscall_t -> pexprs -> instr_r 
-| Cif      : pexpr -> seq instr -> seq instr  -> instr_r
-| Cfor     : var_i -> range -> seq instr -> instr_r
-| Cwhile   : align -> seq instr -> pexpr -> instr_info -> seq instr -> instr_r
-| Ccall    : lvals -> funname -> pexprs -> instr_r
+Inductive instr_r_ :=
+| Cassgn   : lval_ sop1 sop2 -> assgn_tag -> stype -> pexpr_ sop1 sop2 -> instr_r_
+| Copn     : lvals_ sop1 sop2 -> assgn_tag -> sopn -> pexprs_ sop1 sop2 -> instr_r_
+| Csyscall : lvals_ sop1 sop2 -> syscall_t -> pexprs_ sop1 sop2 -> instr_r_
+| Cif      : pexpr_ sop1 sop2 -> seq instr_ -> seq instr_  -> instr_r_
+| Cfor     : var_i -> range_ sop1 sop2 -> seq instr_ -> instr_r_
+| Cwhile   : align -> seq instr_ -> pexpr_ sop1 sop2 -> instr_info -> seq instr_ -> instr_r_
+| Ccall    : lvals_ sop1 sop2 -> funname -> pexprs_ sop1 sop2 -> instr_r_
 
-with instr := MkI : instr_info -> instr_r ->  instr.
+with instr_ := MkI : instr_info -> instr_r_ ->  instr_.
 
 End ASM_OP.
+Arguments Cassgn { _ asmop _ _}.
+Arguments Copn { _ asmop _ _}.
+Arguments Csyscall { _ asmop _ _}.
+Arguments Cif { _ asmop _ _}.
+Arguments Cfor { _ asmop _ _}.
+Arguments Cwhile { _ asmop _ _}.
+Arguments Ccall { _ asmop _ _}.
 
+Notation instr := (instr_ sop1 sop2).
+Notation instr_r := (instr_r_ sop1 sop2).
+Notation cmd_ sop1 sop2 := (seq (instr_ sop1 sop2)).
 Notation cmd := (seq instr).
 
 Section CMD_RECT.
@@ -440,7 +465,7 @@ End FunInfo.
 
 Section ASM_OP.
 
-Context `{asmop:asmOp}.
+Context `{asmop:asmOp} (sop1 sop2 : Type).
 
 (* ** Functions
  * -------------------------------------------------------------------- *)
@@ -457,7 +482,7 @@ Record _fundef (extra_fun_t: Type) := MkFun {
   f_info   : fun_info;
   f_tyin   : seq stype;
   f_params : seq var_i;
-  f_body   : cmd;
+  f_body   : cmd_ sop1 sop2;
   f_tyout  : seq stype;
   f_res    : seq var_i;
   f_extra  : extra_fun_t;
@@ -475,32 +500,35 @@ Section PROG.
 
 Context {pT: progT}.
 
-Definition fundef := _fundef extra_fun_t.
+Definition fundef_ := _fundef extra_fun_t.
 
 Definition function_signature : Type :=
   (seq stype * seq stype).
 
-Definition signature_of_fundef (fd: fundef) : function_signature :=
+Definition signature_of_fundef (fd: fundef_) : function_signature :=
   (f_tyin fd, f_tyout fd).
 
-Definition fun_decl := (funname * fundef)%type.
+Definition fun_decl_ := (funname * fundef_)%type.
 
-Definition prog := _prog extra_fun_t extra_prog_t.
+Definition prog_ := _prog extra_fun_t extra_prog_t.
 
-Definition Build_prog p_funcs p_globs p_extra : prog := Build__prog p_funcs p_globs p_extra.
+Definition Build_prog p_funcs p_globs p_extra : prog_ := Build__prog p_funcs p_globs p_extra.
 
 End PROG.
 
 End ASM_OP.
 
+Notation fundef := (fundef_ sop1 sop2).
+Notation fun_decl := (fun_decl_ sop1 sop2).
 Notation fun_decls  := (seq fun_decl).
+Notation prog := (prog_ sop1 sop2).
 
 Section ASM_OP.
 
 Context {pd: PointerData}.
 Context `{asmop:asmOp}.
 
-(* ** Programs before stack/memory allocation 
+(* ** Programs before stack/memory allocation
  * -------------------------------------------------------------------- *)
 
 Definition progUnit : progT :=
@@ -509,19 +537,19 @@ Definition progUnit : progT :=
      extra_prog_t := unit;
   |}.
 
-Definition ufundef     := @fundef _ _ progUnit.
-Definition ufun_decl   := @fun_decl _ _ progUnit.
-Definition ufun_decls  := seq (@fun_decl _ _ progUnit).
-Definition uprog       := @prog _ _ progUnit.
+Definition ufundef     := @fundef_ _ _ sop1 sop2 progUnit.
+Definition ufun_decl   := @fun_decl_ _ _ sop1 sop2 progUnit.
+Definition ufun_decls  := seq (@fun_decl_ _ _ sop1 sop2 progUnit).
+Definition uprog       := @prog_ _ _ sop1 sop2 progUnit.
 
 (* For extraction *)
-Definition _ufundef    := _fundef unit.
-Definition _ufun_decl  := _fun_decl unit.
-Definition _ufun_decls :=  seq (_fun_decl unit).
-Definition _uprog      := _prog unit unit.
+Definition _ufundef    := _fundef sop1 sop2 unit.
+Definition _ufun_decl  := _fun_decl sop1 sop2 unit.
+Definition _ufun_decls :=  seq (_fun_decl sop1 sop2 unit).
+Definition _uprog      := _prog sop1 sop2 unit unit.
 Definition to_uprog (p:_uprog) : uprog := p.
 
-(* ** Programs after stack/memory allocation 
+(* ** Programs after stack/memory allocation
  * -------------------------------------------------------------------- *)
 
 Variant saved_stack :=
@@ -622,21 +650,21 @@ Definition progStack : progT :=
      extra_val_t := pointer;
      extra_prog_t := sprog_extra  |}.
 
-Definition sfundef     := @fundef _ _ progStack.
-Definition sfun_decl   := @fun_decl _ _ progStack.
-Definition sfun_decls  := seq (@fun_decl _ _ progStack).
-Definition sprog       := @prog _ _ progStack.
+Definition sfundef     := @fundef_ _ _ sop1 sop2 progStack.
+Definition sfun_decl   := @fun_decl_ _ _ sop1 sop2 progStack.
+Definition sfun_decls  := seq (@fun_decl_ _ _ sop1 sop2 progStack).
+Definition sprog       := @prog_ _ _ sop1 sop2 progStack.
 
 (* For extraction *)
 
-Definition _sfundef    := _fundef stk_fun_extra.
-Definition _sfun_decl  := _fun_decl stk_fun_extra.
-Definition _sfun_decls := seq (_fun_decl stk_fun_extra).
-Definition _sprog      := _prog stk_fun_extra sprog_extra.
+Definition _sfundef    := _fundef sop1 sop2 stk_fun_extra.
+Definition _sfun_decl  := _fun_decl sop1 sop2 stk_fun_extra.
+Definition _sfun_decls := seq (_fun_decl sop1 sop2 stk_fun_extra).
+Definition _sprog      := _prog sop1 sop2 stk_fun_extra sprog_extra.
 Definition to_sprog (p:_sprog) : sprog := p.
 
 (* Update functions *)
-Definition with_body eft (fd:_fundef eft) body := {|
+Definition with_body eft (fd:_fundef sop1 sop2 eft) (body : cmd) := {|
   f_info   := fd.(f_info);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
@@ -681,7 +709,7 @@ Definition is_bool (e:pexpr) :=
 Definition is_Papp2 (e : pexpr) : option (sop2 * pexpr * pexpr) :=
   if e is Papp2 op e0 e1 then Some (op, e0, e1) else None.
 
-Definition is_array_init e :=
+Definition is_array_init (e : pexpr) :=
   match e with
   | Parr_init _ => true
   | _           => false
@@ -764,7 +792,7 @@ Fixpoint write_i_rec s (i:instr_r) :=
   match i with
   | Cassgn x _ _ _  => vrv_rec s x
   | Copn xs _ _ _   => vrvs_rec s xs
-  | Csyscall xs _ _ => vrvs_rec s xs 
+  | Csyscall xs _ _ => vrvs_rec s xs
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
   | Cwhile _ c _ _ c' => foldl write_I_rec (foldl write_I_rec s c') c
@@ -799,7 +827,7 @@ Fixpoint use_mem (e : pexpr) :=
 (* ** Compute read variables
  * -------------------------------------------------------------------- *)
 
-Definition read_gvar (x:gvar) := 
+Definition read_gvar (x:gvar) :=
   if is_lvar x then Sv.singleton x.(gv)
   else Sv.empty.
 
@@ -894,10 +922,10 @@ End ASM_OP.
 (* --------------------------------------------------------------------- *)
 (* Test the equality of two expressions modulo variable info             *)
 
-Definition eq_gvar x x' := 
+Definition eq_gvar x x' :=
   (x.(gs) == x'.(gs)) && (v_var x.(gv) == v_var x'.(gv)).
 
-Fixpoint eq_expr e e' :=
+Fixpoint eq_expr (e e' : pexpr) :=
   match e, e' with
   | Pconst z      , Pconst z'         => z == z'
   | Pbool  b      , Pbool  b'         => b == b'
@@ -915,7 +943,7 @@ Fixpoint eq_expr e e' :=
   end.
 
 (* ------------------------------------------------------------------- *)
-Definition to_lvals (l:seq var) : seq lval := 
+Definition to_lvals (l:seq var) : seq lval :=
   map (fun x => Lvar (mk_var_i x)) l.
 
 (* ------------------------------------------------------------------- *)

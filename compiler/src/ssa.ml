@@ -5,20 +5,20 @@ let hierror = hierror ~kind:"compilation error" ~sub_kind:"SSA"
 
 type names = var Mv.t
 
-let rename_expr (m: names) (e: expr) : expr = Subst.vsubst_e m e
+let rename_expr (m: names) (e: (E.sop1, E.sop2) expr) : (E.sop1, E.sop2) expr = Subst.vsubst_e m e
 
 let fresh_name ~dloc (m: names) (x: var) : var * names =
   let y = V.clone ~dloc x in
   y, Mv.add x y m
 
-let rename_lval (allvars: bool) ((m, xs): names * lval list) : lval -> names * lval list =
+let rename_lval (allvars: bool) ((m, xs): names * (E.sop1, E.sop2) lval list) : (E.sop1, E.sop2) lval -> names * (E.sop1, E.sop2) lval list =
   function
   | Lvar x when allvars || is_reg_kind (L.unloc x).v_kind ->
     let y, m = fresh_name ~dloc:(L.loc x) m (L.unloc x) in
     m, Lvar (L.mk_loc (L.loc x) y) :: xs
   | x -> m, Subst.vsubst_lval m x :: xs
 
-let rename_lvals allvars (m: names) (xs: lval list) : names * lval list =
+let rename_lvals allvars (m: names) (xs: (E.sop1, E.sop2) lval list) : names * (E.sop1, E.sop2) lval list =
   let m, ys = List.fold_left (rename_lval allvars) (m, []) xs in
   m, List.rev ys
 
@@ -46,13 +46,13 @@ and written_vars_instr allvars w { i_desc } = written_vars_instr_r allvars w i_d
 and written_vars_stmt allvars w s = List.fold_left (written_vars_instr allvars) w s
 
 (* Adds rename intruction y = m[x] *)
-let ir (m: names) (x: var) (y: var) : (unit, 'asm) instr =
+let ir (m: names) (x: var) (y: var) : (E.sop1, E.sop2, unit, 'asm) instr =
   let x = Mv.find_default x x m in
   let v u = L.mk_loc L._dummy u in
   let i_desc = Cassgn (Lvar (v y), AT_phinode, y.v_ty, Pvar (gkvar (v x))) in
   { i_desc ; i_info = () ; i_loc = L.i_dummy ; i_annot = [] }
 
-let split_live_ranges (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) func =
+let split_live_ranges (allvars: bool) (f: (E.sop1, E.sop2, 'info, 'asm) func) : (E.sop1, E.sop2, unit, 'asm) func =
   let f = Liveness.live_fd false f in
   let rec instr_r i_loc (li: Sv.t) (lo: Sv.t) (m: names) =
     function
@@ -113,7 +113,7 @@ let split_live_ranges (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) fun
   let f_ret = List.map (Subst.vsubst_vi m) f.f_ret in
   { f with f_body; f_info = () ; f_ret }
 
-let remove_phi_nodes (f: ('info, 'asm) func) : ('info, 'asm) func =
+let remove_phi_nodes (f: (E.sop1, E.sop2, 'info, 'asm) func) : (E.sop1, E.sop2, 'info, 'asm) func =
   let rec instr_r =
     function
     | Cassgn (x, tg, _, e) as i ->

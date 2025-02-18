@@ -30,7 +30,7 @@ Context {atoI : arch_toIdent}.
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc parameters. *)
 
-Definition is_load e :=
+Definition is_load (e : pexpr) :=
   if e is Pload _ _ _ _ then true else false.
 
 Definition arm_mov_ofs

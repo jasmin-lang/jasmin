@@ -47,7 +47,7 @@ Definition unroll_cmd (unroll_i: instr -> cmd * bool) (c:cmd) : cmd * bool :=
        (i' ++ c', a || b))
     ([::], false) c.
 
-Definition assgn ii x e := MkI ii (Cassgn (Lvar x) AT_inline x.(v_var).(vtype) e).
+Definition assgn ii x (e : pexpr) := MkI ii (Cassgn (Lvar x) AT_inline x.(v_var).(vtype) e).
 
 Fixpoint unroll_i (i: instr) : cmd * bool :=
   let (ii, ir) := i in

@@ -15,7 +15,7 @@ val pp_signature : _ prog -> Format.formatter -> funname * signature -> unit
 val ty_prog :
   ('asm -> bool) ->
   infer:bool ->
-  (_, 'asm) prog ->
+  (E.sop1, E.sop2, _, 'asm) prog ->
   Name.t list ->
   (funname * signature) list * (L.t * (Format.formatter -> unit)) option
 (** Type-check (for constant-time) a list of functions in the given program

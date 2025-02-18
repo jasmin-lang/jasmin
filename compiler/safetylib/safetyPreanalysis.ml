@@ -12,7 +12,7 @@ type minfo = { i_instr_number : int; }
 
 module MkUniq : sig
 
-  val mk_uniq : (unit, 'asm) func -> (unit, 'asm) prog -> ((minfo, 'asm) func * (minfo, 'asm) prog)
+  val mk_uniq : (E.sop1, E.sop2, unit, 'asm) func -> (E.sop1, E.sop2, unit, 'asm) prog -> ((E.sop1, E.sop2, minfo, 'asm) func * (E.sop1, E.sop2, minfo, 'asm) prog)
 
 end = struct
   let uniq_i_nb =
@@ -114,7 +114,7 @@ end = struct
 
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
 
-  let mk_uniq main_decl ((glob_decls, fun_decls) : (unit, 'asm) prog) =
+  let mk_uniq main_decl ((glob_decls, fun_decls) : (E.sop1, E.sop2, unit, 'asm) prog) =
     Hashtbl.clear ht_uniq;
     Hashtbl.clear htv;
 
@@ -144,10 +144,10 @@ module Pa : sig
   type pa_res = { pa_dp : dp;
                   pa_cfg : cfg;
                   while_vars : Sv.t;
-                  if_conds : expr list }
+                  if_conds : (E.sop1, E.sop2) expr list }
 
   val dp_v : dp -> var -> Sv.t
-  val pa_make : ('info, X86_extra.x86_extended_op) func -> ('info, X86_extra.x86_extended_op) prog option -> pa_res
+  val pa_make : (E.sop1, E.sop2, 'info, X86_extra.x86_extended_op) func -> (E.sop1, E.sop2, 'info, X86_extra.x86_extended_op) prog option -> pa_res
 
   val print_dp  : Format.formatter -> dp -> unit
   val print_cfg : Format.formatter -> cfg -> unit
@@ -162,7 +162,7 @@ end = struct
   type pa_res = { pa_dp : dp;
                   pa_cfg : cfg;
                   while_vars : Sv.t;
-                  if_conds : expr list }
+                  if_conds : (E.sop1, E.sop2) expr list }
 
   let dp_v dp v = Mv.find_default Sv.empty v dp
 
@@ -206,7 +206,7 @@ end = struct
   type pa_st = { dp : dp;
                  cfg : cfg;
                  while_vars : Sv.t;
-                 if_conds : expr list;
+                 if_conds : (E.sop1, E.sop2) expr list;
                  f_done : Ss.t;
                  ct : Sv.t }
 
@@ -347,7 +347,7 @@ end = struct
     | Ccall (lvs, _, _) | Csyscall(lvs, _, _) ->
       if flag_mem_lvs v lvs then raise Flag_set_from_failure else None
       
-  let rec pa_instr fn (prog : ('info, 'asm) prog option) st instr =
+  let rec pa_instr fn (prog : (E.sop1, E.sop2, 'info, 'asm) prog option) st instr =
     match instr.i_desc with
     | Cassgn (lv, _, _, e) -> pa_lv st lv e
 
@@ -421,12 +421,12 @@ end = struct
 
       List.fold_left2 pa_expr st f_decl.f_args es 
 
-  and pa_func (prog : ('info, 'asm) prog option) st fn =
+  and pa_func (prog : (E.sop1, E.sop2, 'info, 'asm) prog option) st fn =
     let f_decl = get_fun_def (oget prog) fn |> oget in
     let st = { st with f_done = Ss.add fn.fn_name st.f_done } in
     pa_stmt fn prog st f_decl.f_body
 
-  and pa_stmt fn (prog : ('info, 'asm) prog option) st instrs =
+  and pa_stmt fn (prog : (E.sop1, E.sop2, 'info, 'asm) prog option) st instrs =
     List.fold_left (pa_instr fn prog) st instrs
                                   
   let print_dp fmt dp =
@@ -454,7 +454,7 @@ end = struct
                    (List.sort F.compare (Sf.elements fs))))
       (List.sort (fun (v,_) (v',_) -> F.compare v v') (Mf.bindings cfg))
 
-  let pa_make func (prog : ('info, 'asm) prog option) =
+  let pa_make func (prog : (E.sop1, E.sop2, 'info, 'asm) prog option) =
     let st = { dp = Mv.empty;
                cfg = Mf.empty;
                while_vars = Sv.empty;
@@ -476,7 +476,7 @@ end
 
 (* Flow-sensitive Pre-Analysis *)
 module FSPa : sig    
-  val fs_pa_make : Wsize.wsize -> X86_extra.x86_extended_op Sopn.asmOp -> ('info, X86_extra.x86_extended_op) func -> (unit, X86_extra.x86_extended_op) func * Pa.pa_res
+  val fs_pa_make : Wsize.wsize -> X86_extra.x86_extended_op Sopn.asmOp -> (E.sop1, E.sop2, 'info, X86_extra.x86_extended_op) func -> (E.sop1, E.sop2, unit, X86_extra.x86_extended_op) func * Pa.pa_res
 end = struct
   exception Fcall
   let rec collect_vars_e sv = function
@@ -528,7 +528,7 @@ end = struct
     Sv.for_all (fun v -> not (Sv.exists (fun v' ->
         v.v_id <> v'.v_id && v.v_name = v'.v_name) sv)) sv
     
-  let fs_pa_make pd asmOp (f : ('info, 'asm) func) =
+  let fs_pa_make pd asmOp (f : (E.sop1, E.sop2, 'info, 'asm) func) =
     let sv = Sv.of_list f.f_args in
     let vars = try collect_vars_is sv f.f_body with
       | Fcall ->

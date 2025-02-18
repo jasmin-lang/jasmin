@@ -34,7 +34,7 @@ Definition magic_variables : Sv.t :=
 Definition savedstackreg (ss: saved_stack) :=
   if ss is SavedStackReg r then Sv.singleton r else Sv.empty.
 
-Definition saved_stack_vm fd : Sv.t :=
+Definition saved_stack_vm (fd:sfundef) : Sv.t :=
   savedstackreg fd.(f_extra).(sf_save_stack).
 
 Definition ra_vm (e: stk_fun_extra) (tmp: Sv.t) : Sv.t :=

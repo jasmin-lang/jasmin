@@ -83,7 +83,7 @@ Section Section.
 
 End Section.
 
-Definition add_init_aux ii x c :=
+Definition add_init_aux ii x (c : cmd) :=
   match x.(vtype) with
   | sarr n =>
     if ~~ is_ptr x then

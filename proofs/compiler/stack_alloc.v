@@ -410,8 +410,8 @@ Context
   {asmop : asmOp asm_op}
 .
 
-Definition mul := Papp2 (Omul (Op_w Uptr)).
-Definition add := Papp2 (Oadd (Op_w Uptr)).
+Definition mul : pexpr -> pexpr -> pexpr := Papp2 (Omul (Op_w Uptr)).
+Definition add : pexpr -> pexpr -> pexpr := Papp2 (Oadd (Op_w Uptr)).
 
 Definition mk_ofs aa ws e1 ofs :=
   let sz := mk_scale aa ws in
@@ -705,7 +705,7 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
     ok (rmap, Lmem al ws x e1)
   end.
 
-Definition nop := Copn [::] AT_none sopn_nop [::].
+Definition nop : instr_r := Copn [::] AT_none sopn_nop [::].
 
 (* [is_spilling] is used for stack pointers. *)
 Definition is_nop is_spilling rmap (x:var) (sry:sub_region) : bool :=
@@ -984,7 +984,7 @@ Section PROG.
 
 Context (local_alloc: funname -> stk_alloc_oracle_t).
 
-Definition get_Pvar e :=
+Definition get_Pvar (e : pexpr) :=
   match e with
   | Pvar x => ok x
   | _      => Error (stk_ierror_no_var "get_Pvar: variable expected")
@@ -1051,7 +1051,7 @@ Definition alloc_call_arg_aux rmap0 rmap (sao_param: option param_info) (e:pexpr
         set_clear rmap xv sr (Some 0%Z) (size_slot xv)
       else ok rmap
     in
-    ok (rmap, (Some (pi.(pp_writable),sr), Pvar (mk_lvar (with_var xv p))))
+    ok (rmap, (Some (pi.(pp_writable),sr), Pvar (mk_lvar (with_var xv p)) : pexpr))
   | Some _, _ => Error (stk_ierror_basic xv "the argument should be a reg ptr")
   end.
 
@@ -1155,7 +1155,7 @@ Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap rs fn es :=
      xlen := len;
      Csyscall [::xp] (getrandom len) [::p, xlen]
 *)
-Definition alloc_syscall ii rmap rs o es :=
+Definition alloc_syscall ii rmap (rs : lvals) o (es : pexprs) :=
   add_iinfo ii
   match o with
   | RandomBytes len =>
@@ -1185,7 +1185,7 @@ Definition is_swap_array o :=
   | _ => false
   end.
 
-Definition alloc_array_swap rmap rs t es :=
+Definition alloc_array_swap rmap (rs : lvals) t (es : pexprs) :=
   match rs, es with
   | [:: Lvar x; Lvar y], [::Pvar z'; Pvar w'] =>
     let z := z'.(gv) in
@@ -1438,7 +1438,7 @@ Definition init_params mglob stack disj lmap rmap sao_params params :=
   fmapM2 (stk_ierror_no_var "invalid function info")
     (init_param mglob stack) (disj, lmap, rmap) sao_params params.
 
-Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> Ident.ident) (local_alloc: funname -> stk_alloc_oracle_t) sao fd : cexec _ufundef :=
+Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> Ident.ident) (local_alloc: funname -> stk_alloc_oracle_t) sao fd : cexec _ufundef:=
   let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
   let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_rsp) |} in
   let vxlen := {| vtype := sword Uptr; vname := fresh_reg "__len__"%string (sword Uptr) |} in

@@ -1,7 +1,7 @@
 open Utils
 open Prog
 
-let used_results (live: Sv.t) : lvals -> Sint.t =
+let used_results (live: Sv.t) : ('sop1, 'sop2) lvals -> Sint.t =
   List.fold_lefti (fun s i ->
       function
       | Lnone _ -> s
@@ -11,7 +11,7 @@ let used_results (live: Sv.t) : lvals -> Sint.t =
     Sint.empty
 
 let analyse funcs =
-  let liveness_table : (Sv.t * Sv.t, 'asm) func Hf.t = Hf.create 17 in
+  let liveness_table : ('sop1, 'sop2, Sv.t * Sv.t, 'asm) func Hf.t = Hf.create 17 in
   List.iter (fun (_,f) -> Hf.add liveness_table f.f_name (Liveness.live_fd false f)) funcs;
   let live_results =
     let live : Sint.t Hf.t = Hf.create 17 in

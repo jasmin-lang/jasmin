@@ -363,7 +363,7 @@ let pp_iprog ~debug pp_info pd asmOp fmt (gd, funcs) =
      (pp_globs pp_var) gd
      (pp_list "@ @ " (pp_fun ~pp_info pp_opn pp_var)) (List.rev funcs)
 
-let pp_prog ~debug pd asmOp fmt ((gd, funcs):('info, 'asm) Prog.prog) =
+let pp_prog ~debug pd asmOp fmt ((gd, funcs):(E.sop1, E.sop2, 'info, 'asm) Prog.prog) =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"

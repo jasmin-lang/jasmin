@@ -111,7 +111,7 @@ Definition pi_lv (pi:pimap) (lv:lval) :=
 
 Definition pi_lvs (pi:pimap) (xs:lvals) := fmap pi_lv pi xs.
 
-Definition set_lv (pi:pimap) x tag (e:pexpr) :=
+Definition set_lv (pi:pimap) (x:lval) tag (e:pexpr) :=
   if x is Lvar x then
     if tag == AT_inline then set pi x e
     else pi

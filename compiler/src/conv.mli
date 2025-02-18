@@ -40,16 +40,16 @@ val vari_of_cvari :  Expr.var_i -> var L.located
 val csv_of_sv : Sv.t -> Var0.SvExtra.Sv.t
 val sv_of_csv : Var0.SvExtra.Sv.t -> Sv.t
 
-val lval_of_clval :  Expr.lval -> Prog.lval
+val lval_of_clval :  ('sop1, 'sop2) Expr.lval_ -> ('sop1, 'sop2) Prog.lval
 
-val cexpr_of_expr :  expr -> Expr.pexpr
-val expr_of_cexpr :  Expr.pexpr -> expr
+val cexpr_of_expr :  ('sop1, 'sop2) Prog.expr -> ('sop1, 'sop2) Expr.pexpr_
+val expr_of_cexpr :  ('sop1, 'sop2) Expr.pexpr_ -> ('sop1, 'sop2) Prog.expr
 
-val cufdef_of_fdef :  (unit, 'asm) func -> Var0.funname * 'asm Expr._ufundef
-val fdef_of_cufdef :  Var0.funname * 'asm Expr._ufundef -> (unit, 'asm) func
+val cufdef_of_fdef :  ('sop1, 'sop2, unit, 'asm) func -> Var0.funname * ('asm, 'sop1, 'sop2, unit) Expr._fundef
+val fdef_of_cufdef :  Var0.funname * ('asm, 'sop1, 'sop2, unit) Expr._fundef -> ('sop1, 'sop2, unit, 'asm) func
 
-val cuprog_of_prog : (unit, 'asm) prog -> 'asm Expr._uprog
-val prog_of_cuprog :  'asm Expr._uprog -> (unit, 'asm) prog
+val cuprog_of_prog : ('sop1, 'sop2, unit, 'asm) prog -> ('asm, 'sop1, 'sop2, unit, unit) Expr._prog
+val prog_of_cuprog :   ('asm, 'sop1, 'sop2, unit, unit) Expr._prog -> ('sop1, 'sop2, unit, 'asm) prog
 
 val csfdef_of_fdef :  (unit, 'asm) sfundef -> Var0.funname * 'asm Expr._sfundef
 val fdef_of_csfdef :  Var0.funname * 'asm Expr._sfundef -> (unit, 'asm) sfundef

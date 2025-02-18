@@ -225,7 +225,7 @@ Section CHECK_SLHO.
     | _ => Error (E.expr_variable ii e)
     end.
 
-  Definition check_lv ii lv :=
+  Definition check_lv ii (lv : lval) :=
     match lv with
     | Lvar x => ok (Some (v_var x))
     | Lnone _ _ => ok None

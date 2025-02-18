@@ -176,7 +176,7 @@ Definition is_lea sz x e :=
 
 (* -------------------------------------------------------------------- *)
 
-Definition is_lnot a :=
+Definition is_lnot (a : pexpr) :=
   match a with
   | Papp1 (Olnot _) a => Some a
   | _                 => None

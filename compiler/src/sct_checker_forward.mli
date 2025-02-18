@@ -5,7 +5,7 @@ type ty_fun
 val pp_funty : Format.formatter -> Name.t * ty_fun -> unit
 
 val ty_prog :
-  ('asm -> bool) -> ('info, 'asm) prog -> Name.t list -> (Name.t * ty_fun) list
+  ('asm -> bool) -> (E.sop1, E.sop2, 'info, 'asm) prog -> Name.t list -> (Name.t * ty_fun) list
 (** Type-check a program.
 
     A call [ty_prog is_ct_asm p f] type-checks (for Speculative Constant-Time)
@@ -18,4 +18,4 @@ val ty_prog :
     The program must not contain any #spill or #unspill pseudo-operation. *)
 
 val compile_infer_msf :
-  ('info, 'asm) prog -> (Slh_lowering.slh_t list * Slh_lowering.slh_t list) Hf.t
+  (E.sop1, E.sop2, 'info, 'asm) prog -> (Slh_lowering.slh_t list * Slh_lowering.slh_t list) Hf.t
