@@ -14,9 +14,9 @@ inline fn add(reg ptr u64[N] a b) -> reg ptr u64[N]
   reg u64 i t;
   i = 0;
   while(i < N)
-  { t = a[(int)i];
-    t += b[(int)i];
-    a[(int) i] = t;
+  { t = a[i];
+    t += b[i];
+    a[i] = t;
     i += 1;
   }
   return a;
@@ -27,7 +27,7 @@ inline fn store(reg u64 p, reg ptr u64[N] x)
   reg u64 i t;
   i = 0;
   while(i < N)
-  { t = x[(int)i];
+  { t = x[i];
     (u64)[p + 8*i] = t;
     i += 1;
   }

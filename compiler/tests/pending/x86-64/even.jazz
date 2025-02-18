@@ -6,7 +6,7 @@ fn even() -> reg u64 {
   reg u64 i;
   i = 0;
   while (i <u 4) {
-    a.[u8 (int)i] = i;
+    a.[u8 i] = i;
     i += 4;
   }
   return i;
