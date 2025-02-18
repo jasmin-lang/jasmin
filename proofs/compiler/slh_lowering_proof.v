@@ -38,6 +38,7 @@ Section CONST_PROP.
   Proof.
     rewrite /ssem_sop1.
     case h0: of_expr => [v|//] /=.
+    case: sem_sop1_typed => [v'|//] /=.
     case h1: to_expr => //.
     move: h0 => /use_mem_of_expr ->.
     exact: (use_mem_to_expr h1).
@@ -57,7 +58,7 @@ Section CONST_PROP.
   Lemma use_mem_s_op1 op1 e :
     use_mem (s_op1 op1 e) = use_mem e.
   Proof.
-    case: op1 => [||||||[]] * /=.
+    case: op1 => [||||||[]|] * /=.
     all: by rewrite (use_mem_ssem_sop1, use_mem_snot, use_mem_sneg_int).
   Qed.
 

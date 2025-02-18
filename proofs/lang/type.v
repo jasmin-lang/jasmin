@@ -252,3 +252,52 @@ Proof.
   by case: t1 => //= [/eqP <-|/eqP <-|?|?] //;case:t2.
 Qed.
 
+(* -------------------------------------------------------------------- *)
+Variant extended_type (len:Type) : Type :=
+  | ETbool
+  | ETint
+  | ETarr of len
+  | ETword of (option signedness) & wsize.
+
+Definition tbool {len} := ETbool len.
+Definition tint  {len} := ETint len.
+Definition tarr  {len} (l : len) := ETarr l.
+Definition tword {len} ws : extended_type len:= ETword len None ws.
+Definition twint {len} (s : signedness) (ws : wsize) := ETword len (Some s) ws.
+Definition tuint {len} ws : extended_type len := twint Unsigned ws.
+Definition tsint {len} ws : extended_type len := twint Signed ws.
+
+Definition to_stype (t:extended_type positive) : stype :=
+  match t with
+  | ETbool      => sbool
+  | ETint       => sint
+  | ETarr l     => sarr l
+  | ETword _ ws => sword ws
+  end.
+
+Section EQ.
+Context {L : eqType}.
+
+Definition ext_type_beq (ty1 ty2 : extended_type L) :=
+  match ty1, ty2 with
+  | ETbool, ETbool => true
+  | ETint, ETint => true
+  | ETarr len, ETarr len' => len == len'
+  | ETword sg ws, ETword sg' ws' => (sg == sg') && (ws == ws')
+  | _, _ => false
+  end.
+
+Lemma extended_type_axiom : Equality.axiom ext_type_beq.
+Proof.
+  case => [||len|sg ws] [||len'|sg' ws'] /=; try by constructor.
+  + by case: eqP => [-> | h]; constructor => // -[].
+  case: eqP => [-> | h1] /=; last by constructor => -[] /h1.
+  by case: eqP => [-> | h2] /=; constructor => // -[] /h2.
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build (extended_type L) extended_type_axiom.
+End EQ.
+
+
+
+

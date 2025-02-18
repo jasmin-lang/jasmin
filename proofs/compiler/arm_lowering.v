@@ -244,9 +244,9 @@ Definition lower_Papp2_op
       then Some (RSB, e1, [:: e0])
       else
         Some (SUB, e0, [:: e1 ])
-  | Odiv (Cmp_w Signed U32) =>
+  | Odiv Signed (Op_w U32) =>
       Some (SDIV, e0, [:: e1 ])
-  | Odiv (Cmp_w Unsigned U32) =>
+  | Odiv Unsigned (Op_w U32) =>
       Some (UDIV, e0, [:: e1 ])
   | Oland _ =>
       Some (AND, e0, [:: e1 ])

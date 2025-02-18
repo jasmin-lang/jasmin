@@ -128,7 +128,7 @@ let main () =
     in
 
     if !print_dependencies then begin
-      Format.printf "%a" 
+      Format.printf "%a"
         (pp_list " " (fun fmt p -> Format.fprintf fmt "%s" (BatPathGen.OfString.to_string p)))
         (List.tl (List.rev (Pretyping.Env.dependencies env)));
       exit 0
@@ -149,15 +149,19 @@ let main () =
     in
 
     (* The source program, before any compilation pass. *)
-    let source_prog = prog in
+    let _source_prog = prog in
 
     (* This function is called after each compilation pass.
         - Check program safety (and exit) if the time has come
         - Pretty-print the program
         - Add your own checker here!
     *)
+
     let visit_prog_after_pass ~debug s p =
-      if s = SafetyConfig.sc_comp_pass () && !check_safety then
+(* FIXME *)
+(*      if s = SafetyConfig.sc_comp_pass () && !check_safety then
+
+
         check_safety_p
           Arch.reg_size
           Arch.asmOp
@@ -166,13 +170,17 @@ let main () =
           p
           source_prog
         |> fun () -> exit 0
-      else
+
+      else *)
       (
         eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p
       ) in
 
-    visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
+     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) prog;
+(*    visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog; *)
 
+(* FIXME *)
+(*
     if !ec_list <> [] || !ecfile <> "" then begin
       let fmt, close =
         if !ecfile = "" then Format.std_formatter, fun () -> ()
@@ -193,7 +201,7 @@ let main () =
         raise e end;
       exit 0
     end;
-
+*)
     (* Now call the coq compiler *)
     let cprog = Conv.cuprog_of_prog prog in
 

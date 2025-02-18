@@ -3,11 +3,6 @@
   open Syntax
   open Annotations
 
-  let setsign c s =
-    match c with
-    | None -> Some (Location.mk_loc (Location.loc s) (CSS(None, Location.unloc s)))
-    | _    -> c
-
 %}
 
 %token EOF
@@ -20,7 +15,9 @@
 %token RPAREN
 
 %token T_BOOL
-%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
+%token T_INT
+%token <Syntax.swsize> T_W
+%token <Syntax.sign> T_INT_CAST
 
 %token SHARP
 %token ALIGNED
@@ -43,21 +40,21 @@
 %token FOR
 %token FROM
 %token TYPE
-%token <Syntax.sign>GE
+%token <Syntax.sign option>GE
 %token GLOBAL
-%token <Syntax.sign>GT
-%token <Syntax.sign>GTGT
+%token <Syntax.sign option>GT
+%token <Syntax.sign option>GTGT
 %token HAT
 %token IF
 %token INLINE
-%token <Syntax.sign> LE
-%token <Syntax.sign> LT
+%token <Syntax.sign option> LE
+%token <Syntax.sign option> LT
 %token               LTLT
 %token MINUS
 %token MUTABLE
 %token NAMESPACE
 %token PARAM
-%token PERCENT
+%token <Syntax.sign option> PERCENT
 %token PIPE
 %token PIPEPIPE
 %token PLUS
@@ -70,9 +67,9 @@
 %token ROR
 %token ROL
 %token SEMICOLON
-%token <Syntax.swsize>SWSIZE
+%token <Syntax.swsize> SWSIZE
 %token <Syntax.svsize> SVSIZE
-%token SLASH
+%token <Syntax.sign option> SLASH
 %token STACK
 %token STAR
 %token TO
@@ -136,7 +133,7 @@ simple_attribute:
   | id=NID         { Aid id    }
   | s=STRING       { Astring s }
   | s=keyword      { Astring s }
-  | ws=utype       { Aws ws    }
+  | ws=utype       { Aws (fst ws) }
 
 attribute:
   | EQ ap=loc(simple_attribute) { ap }
@@ -160,12 +157,7 @@ annotations:
  * -------------------------------------------------------------------- *)
 
 utype:
-| T_U8   { Wsize.U8   }
-| T_U16  { Wsize.U16  }
-| T_U32  { Wsize.U32  }
-| T_U64  { Wsize.U64  }
-| T_U128 { Wsize.U128 }
-| T_U256 { Wsize.U256 }
+| sw=T_W   { sw }
 
 utype_array:
 | ws=utype {TypeWsize ws}
@@ -195,15 +187,16 @@ svsize:
 | s=SVSIZE { s }
 
 castop1:
-| s=swsize { CSS (Some (fst s), snd s) }
+| s=swsize { CSS s }
 | s=svsize { CVS s }
 
 castop:
 | c=loc(castop1)? { c }
 
 cast:
-| T_INT    { `ToInt }
-| s=swsize { `ToWord s }
+| T_INT        { `ToInt (None) }
+| s=T_INT_CAST { `ToInt (Some s)}
+| s=swsize     { `ToWord s }
 
 (* ** Index expressions
  * -------------------------------------------------------------------- *)
@@ -217,21 +210,21 @@ cast:
 | PLUS        c=castop { `Add  c}
 | MINUS       c=castop { `Sub  c}
 | STAR        c=castop { `Mul  c}
-| SLASH       c=castop { `Div  c}
-| PERCENT     c=castop { `Mod  c}
+| s=SLASH     c=castop { `Div (s,c)}
+| s=PERCENT   c=castop { `Mod (s,c)}
 | AMP         c=castop { `BAnd c}
 | PIPE        c=castop { `BOr  c}
 | HAT         c=castop { `BXOr c}
 | LTLT        c=castop { `ShL  c}
-| s=loc(GTGT) c=castop { `ShR (setsign c s)}
+| s=GTGT      c=castop { `ShR (s,c)}
 | ROR         c=castop { `ROR  c}
 | ROL         c=castop { `ROL  c}
 | EQEQ        c=castop { `Eq   c}
 | BANGEQ      c=castop { `Neq  c}
-| s=loc(LT)   c=castop { `Lt  (setsign c s)}
-| s=loc(LE)   c=castop { `Le  (setsign c s)}
-| s=loc(GT)   c=castop { `Gt  (setsign c s)}
-| s=loc(GE)   c=castop { `Ge  (setsign c s)}
+| s=LT        c=castop { `Lt (s,c)}
+| s=LE        c=castop { `Le (s,c)}
+| s=GT        c=castop { `Gt (s,c)}
+| s=GE        c=castop { `Ge (s,c)}
 
 prim:
 | SHARP x=ident { x }
@@ -245,14 +238,14 @@ prim:
 | UNALIGNED { `Unaligned }
 
 %inline mem_access:
-| ct=parens(utype)? LBRACKET al=unaligned? v=var e=mem_ofs? RBRACKET
+| ct=parens(loc(utype))? LBRACKET al=unaligned? v=var e=mem_ofs? RBRACKET
   { al, ct, v, e }
 
 arr_access_len:
 | COLON e=pexpr { e }
 
 arr_access_i:
-| al=unaligned? ws=utype? e=pexpr len=arr_access_len? {ws, e, len, al }
+| al=unaligned? ws=loc(utype)? e=pexpr len=arr_access_len? {ws, e, len, al }
 
 arr_access:
  | s=DOT?  i=brackets(arr_access_i) {
@@ -276,7 +269,7 @@ pexpr_r:
     { PEInt i }
 
 | ma=mem_access
-    { let ct, v, e, al = ma in PEFetch (ct, v, e, al) }
+    { PEFetch ma }
 
 | ct=parens(svsize) LBRACKET es=rtuple1(pexpr) RBRACKET
     { PEpack(ct,es) }
@@ -311,9 +304,9 @@ peqop:
 | PLUS  c=castop EQ  { `Add  c }
 | MINUS c=castop EQ  { `Sub  c }
 | STAR  c=castop EQ  { `Mul  c }
-| SLASH c=castop EQ  { `Div  c }
-| PERCENT c=castop EQ  { `Mod  c }
-| s=loc(GTGT)  c=castop EQ  { `ShR  (setsign c s) }
+| s=SLASH   c=castop EQ  { `Div  (s, c) }
+| s=PERCENT c=castop EQ  { `Mod (s, c) }
+| s=GTGT    c=castop EQ  { `ShR (s, c) }
 | LTLT  c=castop EQ  { `ShL  c }
 | ROR   c=castop EQ  { `ROR  c }
 | ROL   c=castop EQ  { `ROL  c }
