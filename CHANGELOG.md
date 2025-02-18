@@ -72,6 +72,10 @@
   ([PR #1044](https://github.com/jasmin-lang/jasmin/pull/1044);
   fixes [#680](https://github.com/jasmin-lang/jasmin/issues/680)).
 
+- Fix printing of x86 `CLFLUSH` instruction in “Intel” syntax
+  ([PR #1054](https://github.com/jasmin-lang/jasmin/pull/1054);
+  fixes [#438](https://github.com/jasmin-lang/jasmin/issues/438)).
+
 ## Other changes
 
 - Adding an annotation to function (`'info` type). Useful to store result of analysis. (see [[#1016](https://github.com/jasmin-lang/jasmin/issues/1016)])

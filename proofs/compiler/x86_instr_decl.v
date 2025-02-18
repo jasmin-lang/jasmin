@@ -1956,7 +1956,7 @@ Definition Ox86_RDTSCP_instr :=
 
 (* Fences & cache-related instructions *)
 Definition Ox86_CLFLUSH_instr :=
-  mk_instr_pp "CLFLUSH" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM CLFLUSH) (pp_name "clflush" Uptr).
+  mk_instr_pp "CLFLUSH" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM CLFLUSH) (pp_name "clflush" U8).
 
 Definition Ox86_PREFETCHT0_instr :=
   mk_instr_pp "PREFETCHT0" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM PREFETCHT0) (pp_name "prefetcht0" Uptr).
