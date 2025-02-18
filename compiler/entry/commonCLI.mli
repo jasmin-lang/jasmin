@@ -17,10 +17,11 @@ val parse_and_compile :
       and type regx = 'regx
       and type rflag = 'rflag
       and type xreg = 'xreg) ->
+  wi2i:bool -> (* true => start by replacing wint operation by int operation *)
   Compiler.compiler_step ->
   string ->
   (string * string) list ->
-  ( unit,
+  (unit,
     ( 'reg,
       'regx,
       'xreg,

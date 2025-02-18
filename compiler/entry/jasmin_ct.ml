@@ -6,7 +6,7 @@ open Utils
 let parse_and_check arch call_conv idirs =
   let module A = (val get_arch_module arch call_conv) in
   let check ~doit infer ct_list speculative pass file =
-    let prog = parse_and_compile (module A) pass file idirs in
+    let prog = parse_and_compile (module A) ~wi2i:false pass file idirs in
 
     if speculative then
       let prog =

@@ -3,7 +3,7 @@ module Arch : Arch_full.Arch
 
 val load_file :
   string ->
-  ( unit,
+  (unit,
     ( Arch.reg,
       Arch.regx,
       Arch.xreg,

@@ -20,9 +20,9 @@ type sop = [ `Op2 of S.peop2 | `Op1 of S.peop1]
 type tyerror =
   | UnknownVar          of A.symbol
   | UnknownFun          of A.symbol
-  | InvalidArrayType    of P.pty
-  | TypeMismatch        of P.pty pair
-  | NoOperator          of sop * P.pty list
+  | InvalidArrayType    of P.epty
+  | TypeMismatch        of P.epty pair
+  | NoOperator          of sop * P.epty list
   | InvalidOperator     of sop
   | NoReturnStatement   of P.funname * int
   | InvalidReturnStatement of P.funname * int * int
@@ -30,12 +30,12 @@ type tyerror =
   | InvalidArgCount     of int * int
   | InvalidLvalCount    of int * int
   | DuplicateFun        of A.symbol * L.t
-  | DuplicateAlias      of A.symbol * P.pty L.located * P.pty L.located
+  | DuplicateAlias      of A.symbol * P.epty L.located * P.epty L.located
   | TypeNotFound        of A.symbol
-  | InvalidTypeAlias    of A.symbol * P.pty
-  | InvalidCast         of P.pty pair
-  | InvalidTypeForGlobal of P.pty
-  | GlobArrayNotWord    
+  | InvalidTypeAlias    of A.symbol L.located option * P.epty
+  | InvalidCast         of P.epty pair
+  | InvalidTypeForGlobal of P.epty
+  | GlobArrayNotWord
   | GlobWordNotArray
   | EqOpWithNoLValue
   | CallNotAllowed
@@ -91,20 +91,20 @@ let pp_tyerror fmt (code : tyerror) =
 
   | InvalidArrayType ty ->
     F.fprintf fmt "the expression has type %a instead of array"
-       Printer.pp_ptype ty
+       Printer.pp_eptype ty
 
   | TypeMismatch (t1,t2) ->
     F.fprintf fmt
       "the expression has type %a instead of %a"
-      Printer.pp_ptype t1 Printer.pp_ptype t2
+      Printer.pp_eptype t1 Printer.pp_eptype t2
 
   | InvalidCast (t1,t2) ->
     F.fprintf fmt "can not implicitly cast %a into %a"
-      Printer.pp_ptype t1 Printer.pp_ptype t2        
+      Printer.pp_eptype t1 Printer.pp_eptype t2
 
   | InvalidTypeForGlobal ty ->
       F.fprintf fmt "globals should have type word; found: ‘%a’"
-        Printer.pp_ptype ty
+        Printer.pp_eptype ty
 
   | GlobArrayNotWord ->
     F.fprintf fmt "the definition is an array and not a word"
@@ -112,23 +112,23 @@ let pp_tyerror fmt (code : tyerror) =
   | GlobWordNotArray ->
     F.fprintf fmt "the definition is a word and not an array"
 
-  | InvalidOperator o -> 
-    F.fprintf fmt "invalid operator %s" 
-      (match o with 
-       | `Op2 o -> (S.string_of_peop2 o) 
+  | InvalidOperator o ->
+    F.fprintf fmt "invalid operator %s"
+      (match o with
+       | `Op2 o -> (S.string_of_peop2 o)
        | `Op1 o -> (S.string_of_peop1 o))
 
   | NoOperator (`Op2 o, ts) ->
       F.fprintf fmt
         "no operator %s for these types %a"
         (S.string_of_peop2 o)
-        (pp_list " * " Printer.pp_ptype) ts
+        (pp_list " * " Printer.pp_eptype) ts
 
   | NoOperator (`Op1 o, ts) ->
       F.fprintf fmt
         "no operator %s for these type %a"
         (S.string_of_peop1 o)
-        (pp_list " * " Printer.pp_ptype) ts
+        (pp_list " * " Printer.pp_eptype) ts
 
   | NoReturnStatement (name, expected) ->
      F.fprintf fmt "function “%s” has no return statement (but its signature claims that %d values should be returned)" name.P.fn_name expected
@@ -160,9 +160,9 @@ let pp_tyerror fmt (code : tyerror) =
       F.fprintf fmt
         "Type '%s' (ie: '%a') is already declared at %s (with type : '%a')"
         id
-        Printer.pp_ptype (L.unloc newtype)
+        Printer.pp_eptype (L.unloc newtype)
         (L.tostring (L.loc oldtype))
-        Printer.pp_ptype (L.unloc oldtype)
+        Printer.pp_eptype (L.unloc oldtype)
 
   | TypeNotFound (id) ->
       F.fprintf fmt
@@ -170,9 +170,15 @@ let pp_tyerror fmt (code : tyerror) =
       id
 
   | InvalidTypeAlias (id,typ) ->
+      let pp_id fmt (id, typ) =
+        match id with
+        | None -> F.fprintf fmt "'%a'" Printer.pp_eptype typ
+        | Some id ->
+            F.fprintf fmt "'%s' (ie: '%a'), defined at %s," (L.unloc id) Printer.pp_eptype typ
+               (L.tostring (L.loc id)) in
       F.fprintf fmt
-      "Type '%s' (ie: '%a') is not allowed as array element. Only machine words (u8, u16 ...) allowed"
-      id Printer.pp_ptype typ
+      "Type %a is not allowed as array element. Only machine words (w8, w16 ...) allowed"
+      pp_id (id, typ)
 
   | EqOpWithNoLValue ->
       F.fprintf fmt
@@ -198,7 +204,7 @@ let pp_tyerror fmt (code : tyerror) =
      F.fprintf fmt "primitive “%s” only accepts the following size annotations: %a" s
        (pp_list ",@ " pp_suffix) sfxs
 
-  | PtrOnlyForArray -> 
+  | PtrOnlyForArray ->
     F.fprintf fmt "Pointer allowed only on array"
 
   | PackSigned ->
@@ -230,13 +236,16 @@ let fully_qualified (stack: (A.symbol * 'a) list) n =
   List.fold_left (fun n (ns, _) -> qualify ns n) n stack
 
 (* -------------------------------------------------------------------- *)
+
+type fun_sig = { fs_tin : P.epty list ; fs_tout : P.epty list }
+
 module Env : sig
   type 'asm env
 
   val empty : 'asm env
 
   val decls : 'asm env -> (unit, 'asm) P.pmod_item list
-    
+
   val add_from : 'asm env -> string * string -> 'asm env
 
   val enter_file : 'asm env -> A.pident option -> L.t option -> string -> ('asm env * string) option
@@ -254,25 +263,25 @@ module Env : sig
   val exit_namespace : 'asm env -> 'asm env
 
   module Vars : sig
-    val push_global   : 'asm env -> (P.pvar * P.pexpr_ P.ggexpr) -> 'asm env
-    val push_param    : 'asm env -> (P.pvar * P.pexpr) -> 'asm env
-    val push_local    : 'asm env -> P.pvar -> 'asm env
-    val push_implicit : 'asm env -> P.pvar -> 'asm env
+    val push_global   : 'asm env -> (P.pvar * P.epty * P.pexpr_ P.ggexpr ) -> 'asm env
+    val push_param    : 'asm env -> (P.pvar * P.epty * P.pexpr) -> 'asm env
+    val push_local    : 'asm env -> P.pvar * P.epty -> 'asm env
+    val push_implicit : 'asm env -> P.pvar * P.epty -> 'asm env
 
-    val find : A.symbol -> 'asm env -> (P.pvar * E.v_scope) option
+    val find : A.symbol -> 'asm env -> (P.pvar * P.epty * E.v_scope) option
 
     val iter_locals  : (P.pvar -> unit) -> 'asm env -> unit
     val clear_locals : 'asm env -> 'asm env
   end
 
   module TypeAlias : sig
-    val push : 'asm env -> A.pident -> P.pty -> 'asm env
-    val get : 'asm env -> A.pident -> P.pty L.located
+    val push : 'asm env -> A.pident -> P.epty -> 'asm env
+    val get : 'asm env -> A.pident -> P.epty L.located
   end
 
   module Funs : sig
-    val push : 'asm env -> (unit, 'asm) P.pfunc -> P.pty list -> 'asm env
-    val find : A.symbol -> 'asm env -> ((unit, 'asm) P.pfunc * P.pty list) option
+    val push : 'asm env -> (unit, 'asm) P.pfunc -> fun_sig -> 'asm env
+    val find : A.symbol -> 'asm env -> ((unit, 'asm) P.pfunc * fun_sig) option
   end
 
   module Exec : sig
@@ -282,17 +291,17 @@ module Env : sig
 
 end  = struct
 
-  type loader = 
+  type loader =
     { loaded : (A.symbol, Path.t list) Map.t (* absolute path loaded in each namespace *)
     ; idir   : Path.t      (* absolute initial path *)
-    ; dirs   : Path.t list 
+    ; dirs   : Path.t list
     ; from   : (A.symbol, Path.t) Map.t
-    } 
+    }
 
   type 'asm global_bindings = {
-      gb_types : (A.symbol, P.pty L.located) Map.t;
-      gb_vars : (A.symbol, P.pvar * E.v_scope) Map.t;
-      gb_funs : (A.symbol, (unit, 'asm) P.pfunc * P.pty list) Map.t;
+      gb_types : (A.symbol, P.epty L.located) Map.t;
+      gb_vars : (A.symbol, P.pvar * P.epty * E.v_scope) Map.t;
+      gb_funs : (A.symbol, (unit, 'asm) P.pfunc * fun_sig) Map.t;
     }
 
   type 'asm env = {
@@ -301,9 +310,9 @@ end  = struct
     e_exec    : (P.funname * (Z.t * Z.t) list) L.located list;
     e_loader  : loader;
     e_declared : P.Spv.t ref; (* Set of local variables declared somewhere in the function *)
-    e_reserved : Ss.t;     (* Set of string (variable name) declared by the user, 
-                              fresh variables introduced by the compiler 
-                              should be disjoint from this set *) 
+    e_reserved : Ss.t;     (* Set of string (variable name) declared by the user,
+                              fresh variables introduced by the compiler
+                              should be disjoint from this set *)
     e_known_implicits : (string * string) list;  (* Association list for implicit flags *)
   }
 
@@ -326,10 +335,10 @@ end  = struct
     ; e_known_implicits = [];
     }
 
-  let add_reserved env s = 
+  let add_reserved env s =
     { env with e_reserved = Ss.add s env.e_reserved }
 
-  let is_reserved env s = 
+  let is_reserved env s =
     Ss.mem s env.e_reserved
 
   let set_known_implicits env known_implicits = { env with e_known_implicits = known_implicits }
@@ -347,7 +356,7 @@ end  = struct
         | k -> on_duplicate n v k end;
         Map.add n v dst)
 
-  let warn_duplicate_var name (v, _) (v', _) =
+  let warn_duplicate_var name (v, _, _) (v', _, _) =
     warning DuplicateVar (L.i_loc0 v.P.v_dloc)
       "the variable %s is already declared at %a"
       name L.pp_loc v'.P.v_dloc
@@ -374,41 +383,41 @@ end  = struct
        let merged = merge_bindings top next in
        { env with e_bindings = (ns, merged) :: stack, bot }
 
-  let add_from env (name, filename) = 
-    let p = Path.of_string filename in 
-    let ap = 
+  let add_from env (name, filename) =
+    let p = Path.of_string filename in
+    let ap =
       if Path.is_absolute p then p
-      else Path.concat env.e_loader.idir p in  
+      else Path.concat env.e_loader.idir p in
     begin match Map.find name env.e_loader.from with
-    | ap' -> 
-      if ap <> ap' then 
+    | ap' ->
+      if ap <> ap' then
         hierror ~loc:Lnone ~kind:"compilation" "cannot bind %s with %s it is already bound to %s"
           name (Path.to_string ap) (Path.to_string ap')
     | exception Not_found -> ()
     end;
-    {env with e_loader = 
+    {env with e_loader =
        { env.e_loader with from = Map.add name ap env.e_loader.from }}
-                            
-  let enter_file env from ploc filename = 
+
+  let enter_file env from ploc filename =
     let ploc = match ploc with None -> Lnone | Some l -> Lone l in
     let p = Path.of_string filename in
     let loader = env.e_loader in
     let current_dir =
       match from with
       | None -> List.hd loader.dirs
-      | Some name -> 
-          if Path.is_absolute p then 
-            hierror ~loc:ploc ~kind:"typing" 
-              "cannot use absolute path in from %s require \"%s\"" 
+      | Some name ->
+          if Path.is_absolute p then
+            hierror ~loc:ploc ~kind:"typing"
+              "cannot use absolute path in from %s require \"%s\""
                  (L.unloc name) filename;
-          try Map.find (L.unloc name) env.e_loader.from 
+          try Map.find (L.unloc name) env.e_loader.from
           with Not_found ->
             rs_tyerror ~loc:(L.loc name) (string_error "unknown name %s" (L.unloc name)) in
     let p =
       if Path.is_absolute p then p
       else Path.concat current_dir p in
     let p = Path.normalize_in_tree p in
-    let ap = 
+    let ap =
       if Path.is_absolute p then p
       else Path.concat loader.idir p in
     let ap = Path.normalize_in_tree ap in
@@ -421,11 +430,11 @@ end  = struct
           dirs = List.tl p :: loader.dirs } in
       Some({ env with e_loader }, Path.to_string p)
 
-  let exit_file env = 
-    { env with 
+  let exit_file env =
+    { env with
       e_loader = { env.e_loader with dirs = List.tl env.e_loader.dirs }}
-    
-  let decls env = env.e_decls 
+
+  let decls env = env.e_decls
 
   let dependencies env =
     Map.fold ( @ ) env.e_loader.loaded []
@@ -454,12 +463,12 @@ end  = struct
       let name = v.P.v_name in
       match Map.find name map with
       | exception Not_found -> ()
-      | v' -> warn_duplicate_var name (v, ()) v'
+      | v' -> warn_duplicate_var name (v, (), ()) v'
 
-    let push_core (env : 'asm env) (name: P.Name.t) (v : P.pvar) (s : E.v_scope) =
+    let push_core (env : 'asm env) (name: P.Name.t) (v : P.pvar) (ty: P.epty) (s : E.v_scope)  =
       let doit m =
         warn_double_decl v m.gb_vars;
-        { m with gb_vars = Map.add name (v, s) m.gb_vars }
+        { m with gb_vars = Map.add name (v, ty, s) m.gb_vars }
       in
       let e_bindings =
         match env.e_bindings with
@@ -472,39 +481,38 @@ end  = struct
     let rename_var name x =
       P.GV.mk name x.P.v_kind x.P.v_ty x.P.v_dloc x.P.v_annot
 
-    let push_global env (x, e) =
+    let push_global env (x, ty, e) =
       let name = x.P.v_name in
       let x = rename_var (fully_qualified (fst env.e_bindings) name) x in
-      let env = push_core env name x Sglob in
+      let env = push_core env name x ty Sglob in
       { env with e_decls = P.MIglobal (x, e) :: env.e_decls }
 
-    let push_param env (x, e) =
+    let push_param env (x, ty, e) =
       let name = x.P.v_name in
       let x = rename_var (fully_qualified (fst env.e_bindings) name) x in
-      let env = push_core env name x Slocal in
+      let env = push_core env name x ty Slocal in
       { env with e_decls = P.MIparam (x, e) :: env.e_decls }
 
-    let push_local (env : 'asm env) (v : P.pvar) =
+    let push_local (env : 'asm env) ((v,ty) : P.pvar * P.epty) =
       env.e_declared := P.Spv.add v !(env.e_declared);
-      push_core env v.P.v_name v Slocal
+      push_core env v.P.v_name v ty Slocal
 
-    let push_implicit (env : 'asm env) (v : P.pvar) =
+    let push_implicit (env : 'asm env) ((v,ty) : P.pvar * P.epty) =
       let vars = match env.e_bindings with (_, b) :: _, _ | [], b -> b.gb_vars in
       assert (not (Map.mem v.P.v_name vars));
-      push_core env v.P.v_name v Slocal
+      push_core env v.P.v_name v ty Slocal
 
-    
-    let iter_locals f (env : 'asm env) = 
+    let iter_locals f (env : 'asm env) =
       P.Spv.iter f !(env.e_declared)
 
-    let clear_locals (env : 'asm env) = 
-      { env with e_declared = ref P.Spv.empty } 
+    let clear_locals (env : 'asm env) =
+      { env with e_declared = ref P.Spv.empty }
 
   end
 
   module TypeAlias = struct
 
-    let push (env: 'asm env) (id: A.pident) (ty: P.pty) : 'asm env =
+    let push (env: 'asm env) (id: A.pident) (ty: P.epty) : 'asm env =
       match find (fun x -> x.gb_types) (L.unloc id) env with
       | Some alias ->
          rs_tyerror  ~loc:(L.loc id)  (DuplicateAlias (L.unloc id, (L.mk_loc (L.loc id) ty) ,alias) )
@@ -518,7 +526,7 @@ end  = struct
           in
           {env with e_bindings = binds}
 
-    let get (env: 'asm env) (id: A.pident) : P.pty L.located =
+    let get (env: 'asm env) (id: A.pident) : P.epty L.located =
       let typea = find (fun b -> b.gb_types) (L.unloc id) env in
       match typea with
       | None ->
@@ -563,11 +571,11 @@ let tt_pointer dfl_writable (p:S.ptr) : W.reference =
   match p with
   | `Pointer (Some `Writable) -> W.Pointer W.Writable
   | `Pointer (Some `Constant) -> W.Pointer W.Constant
-  | `Pointer None             -> 
+  | `Pointer None             ->
     W.Pointer (if dfl_writable then W.Writable else W.Constant)
   | `Direct  -> W.Direct
 
-let tt_reg_kind annot = 
+let tt_reg_kind annot =
   match Annot.ensure_uniq1 "mmx" Annot.none annot with
   | Some () -> W.Extra
   | None    -> W.Normal
@@ -587,8 +595,8 @@ type tt_mode = [
 
 (* -------------------------------------------------------------------- *)
 
-let tt_var_core (mode:tt_mode) (env : 'asm Env.env) { L.pl_desc = x; L.pl_loc = lc; } = 
-  let v, _ as vs =
+let tt_var_core (mode:tt_mode) (env : 'asm Env.env) { L.pl_desc = x; L.pl_loc = lc; } =
+  let v, _, _ as vs =
     match Env.Vars.find x env with
     | Some vs -> vs
     | None -> rs_tyerror ~loc:lc (UnknownVar x) in
@@ -596,43 +604,43 @@ let tt_var_core (mode:tt_mode) (env : 'asm Env.env) { L.pl_desc = x; L.pl_loc = 
   | `OnlyParam ->
     if v.P.v_kind <> W.Const then
       rs_tyerror ~loc:lc (StringError "only param variables are allowed here")
-  | `NoParam -> 
+  | `NoParam ->
     if v.P.v_kind = W.Const then
       rs_tyerror ~loc:lc (StringError "param variables are not allowed here")
   | `AllVar -> ()
   end;
   vs
 
-let tt_var (mode:tt_mode) (env : 'asm Env.env) x = 
-  let v, s = tt_var_core mode env x in
-  if s = Sglob then 
+let tt_var (mode:tt_mode) (env : 'asm Env.env) x =
+  let v, ty, s = tt_var_core mode env x in
+  if s = Sglob then
     rs_tyerror ~loc:(L.loc x) (StringError "global variables are not allowed here");
-  v
+  v, ty
 
-let tt_var_global (mode:tt_mode) (env : 'asm Env.env) v = 
+let tt_var_global (mode:tt_mode) (env : 'asm Env.env) v =
   let lc = v.L.pl_loc in
-  let x, s = tt_var_core mode env v in
-  { P.gv = L.mk_loc lc x; P.gs = s }, x.P.v_ty
+  let x, ty, s = tt_var_core mode env v in
+  { P.gv = L.mk_loc lc x; P.gs = s }, ty
 
 (* -------------------------------------------------------------------- *)
 let tt_fun (env : 'asm Env.env) { L.pl_desc = x; L.pl_loc = loc; } =
   Env.Funs.find x env |> oget ~exn:(tyerror ~loc (UnknownFun x))
 
 (* -------------------------------------------------------------------- *)
-let check_ty_eq ~loc ~(from : P.pty) ~(to_ : P.pty) =
-  if not (P.pty_equal from to_) then
+let check_ty_eq ~loc ~(from : P.epty) ~(to_ : P.epty) =
+  if not (P.epty_equal from to_) then
     match from, to_ with
-    | P.Arr _, P.Arr _ -> () (* we delay typechecking until we know the lengths *)
+    | ETarr _, ETarr _ -> () (* we delay typechecking until we know the lengths *)
     | _, _ -> rs_tyerror ~loc (TypeMismatch (from, to_))
 
 let check_ty_ptr pd ~loc ty =
-  check_ty_eq ~loc ~from:ty ~to_:(P.tu pd)
+  check_ty_eq ~loc ~from:ty ~to_:(P.etw pd)
 
 let check_ty_bool ~loc ty =
-  check_ty_eq ~loc ~from:ty ~to_:P.tbool
+  check_ty_eq ~loc ~from:ty ~to_:P.etbool
 
 (* -------------------------------------------------------------------- *)
-let check_return_statement ~loc name (declared : P.pty list) (given : (L.t * P.pty) list) : unit =
+let check_return_statement ~loc name (declared : P.epty list) (given : (L.t * P.epty) list) : unit =
   let given_size = List.length given in
   let declared_size = List.length declared in
   if Stdlib.Int.equal 0 given_size
@@ -684,7 +692,7 @@ let check_sig_lvs loc sig_ lvs =
   let nsig_ = List.length sig_ in
   let nlvs  = List.length lvs  in
 
-  if nlvs <> nsig_ then 
+  if nlvs <> nsig_ then
     rs_tyerror ~loc:(loc ()) (InvalidLvalCount(nlvs, nsig_));
 
   List.iter2
@@ -701,247 +709,298 @@ let tt_sign = function
   | `Unsigned -> W.Unsigned
 
 (* -------------------------------------------------------------------- *)
-let tt_as_array ((loc, ty) : L.t * P.pty) : P.pty * P.pexpr_ =
+let tt_as_array ((loc, ty) : L.t * P.epty) : P.epty * P.pexpr_ =
   match ty with
-  | P.Arr (ws, n) -> P.Bty (P.U ws), n
+  | ETarr (ws, n) -> P.etw ws, n
   | _ -> rs_tyerror ~loc (InvalidArrayType ty)
 
 (* -------------------------------------------------------------------- *)
 
-type ty_op_kind = 
-  | OpKE of E.cmp_kind 
-  | OpKV of W.signedness * W.velem * W.wsize 
-   
 let wsize_le = Utils0.cmp_le W.wsize_cmp
 let wsize_min = Utils0.cmp_min W.wsize_cmp
 let wsize_max s1 s2 = if wsize_le s1 s2 then s2 else s1
 
 let max_ty ty1 ty2 =
-  if P.pty_equal ty1 ty2 then Some ty1 else
+  if P.epty_equal ty1 ty2 then Some ty1 else
   match ty1, ty2 with
-  | P.Bty P.Int, P.Bty (P.U _) -> Some ty2
-  | P.Bty (P.U _), P.Bty P.Int -> Some ty1
-  | P.Bty (P.U w1), P.Bty (P.U w2) -> Some (P.Bty (P.U (Utils0.cmp_min W.wsize_cmp w1 w2)))
-  | _    , _     -> None
+  | ETint, ETword _ -> Some ty2
+  | ETword _, ETint -> Some ty1
+  | ETword(None, w1), ETword(None, w2) ->
+      Some(ETword(None, Utils0.cmp_min W.wsize_cmp w1 w2))
+  (* Do not allow implicite cast on wint, this is important for the pass wint_int *)
+  | ETword(Some _b, w1), ETword(Some _b2, _w2) -> None
+  | _, _ -> None
 
-let tt_vsize_op loc op (vs:S.vsize) (ve:S.vesize)  = 
+let tt_vsize_op loc op (vs:S.vsize) (ve:S.vesize)  =
   match vs, ve with
   (* 128 *)
   | `V16, `W8  -> W.VE8 , W.U128
-  | `V8 , `W16 -> W.VE16, W.U128  
+  | `V8 , `W16 -> W.VE16, W.U128
   | `V4 , `W32 -> W.VE32, W.U128
   | `V2 , `W64 -> W.VE64, W.U128
-  (* 256 *) 
+  (* 256 *)
   | `V32, `W8  -> W.VE8 , W.U256
-  | `V16, `W16 -> W.VE16, W.U256  
+  | `V16, `W16 -> W.VE16, W.U256
   | `V8 , `W32 -> W.VE32, W.U256
   | `V4 , `W64 -> W.VE64, W.U256
   | _   ,  _   -> rs_tyerror ~loc (InvalidOperator op)
 
-let op_info_dfl exn ty s (intok, (minws, maxws)) = 
+type word_kind =
+  | Word
+  | WInt
+
+type eop_kind =
+  | EOp_int
+  | EOp_w of word_kind * W.wsize
+
+type ty_op_kind =
+  | OpKE of W.signedness * eop_kind
+  | OpKV of W.signedness * W.velem * W.wsize
+
+let check_osign exn os (s:W.signedness) =
+  match os with
+  | None -> ()
+  | Some s' -> if s <> s' then raise exn
+
+type op_ok_on = {
+  intok  : bool;
+  wintok : bool;
+}
+
+let op_info_dfl exn ty s ((o_ok : op_ok_on), (minws, maxws)) =
   match ty with
-  | P.Bty (P.U ws) -> 
+  | P.ETword (None, ws) ->
     let ws = wsize_max minws ws in
     let ws = wsize_min ws maxws in
-    OpKE (E.Cmp_w(s, ws))
-  | _          -> 
-    if not intok then raise exn;
-    OpKE (E.Cmp_int)
+    let s = Option.default W.Unsigned s in
+    OpKE (s, EOp_w (Word, ws))
 
-let check_op loc op cmp sz = 
+  | P.ETword (Some s', ws) ->
+    if not (o_ok.wintok) then raise exn;
+    let ws = wsize_max minws ws in
+    let ws = wsize_min ws maxws in
+    check_osign exn s s';
+    OpKE (s', EOp_w (WInt, ws))
+
+  | _          ->
+    if not (o_ok.intok) then raise exn;
+    let s = Option.default W.Unsigned s in
+    OpKE (s, EOp_int)
+
+let check_size_op loc op sz (min, max) =
+  if not (wsize_le min sz && wsize_le sz max) then
+    rs_tyerror ~loc (InvalidOperator op)
+
+let check_op_w loc op ty s (o_ok, cmp) =
+  match ty with
+  | None, ws ->
+    check_size_op loc op ws cmp;
+    let s =  Option.default W.Unsigned s in
+    OpKE (s, EOp_w (Word, ws))
+  | Some s', ws ->
+     if not (o_ok.wintok) then rs_tyerror ~loc (InvalidOperator op);
+     check_osign  (tyerror ~loc (InvalidOperator op)) s s';
+     OpKE (s', EOp_w (WInt, ws))
+
+let check_op_vec loc op cmp sz =
   match cmp with
   | None -> rs_tyerror ~loc (InvalidOperator op)
   | Some (min, max) ->
     if not (wsize_le min sz && wsize_le sz max) then
       rs_tyerror ~loc (InvalidOperator op)
 
-let op_info exn op (castop:S.castop) ty ws_cmp vs_cmp =
+let tt_osign = Option.map tt_sign
+
+let tt_swsize (sz, sg) =
+  match sg with
+  | `Word _ -> P.etw sz
+  | `WInt s -> P.etwi (tt_sign s) sz
+
+let tt_swsize_op (swz:S.swsize) =
+  let (ws, s) = swz in
+  match s with
+  | `Word s -> tt_osign s, (None, ws)
+  | `WInt s -> let s = tt_sign s in Some s, (Some s, ws)
+
+let op_info exn op (s : W.signedness option) (castop:S.castop) ty ws_cmp vs_cmp =
   match castop with
-  | None                -> 
-    let s = W.Unsigned in
+  | None                ->
     op_info_dfl exn ty s ws_cmp
 
-  | Some c -> 
+  | Some c ->
     let loc = L.loc c in
-    match L.unloc c with 
-    | CSS(None, s) -> 
-      let s = tt_sign s in
-      op_info_dfl exn ty s ws_cmp
-
-    | CSS(Some sz, s) -> 
-      let s = tt_sign s in
-      check_op loc op (Some (snd ws_cmp)) sz;
-      OpKE(E.Cmp_w(s, sz))
+    match L.unloc c with
+    | CSS swz ->
+      let s1, ty = tt_swsize_op swz in
+      let s =
+        match s, s1 with
+        | Some s, Some s1 -> if s = s1 then Some s else rs_tyerror ~loc (InvalidOperator op)
+        | Some _, None -> s
+        | None, Some _ -> s1
+        | None, None -> None
+      in
+      check_op_w loc op ty s ws_cmp
 
     | CVS(vs,s,ve) ->
       let s = tt_sign s in
       let ve, ws = tt_vsize_op loc op vs ve in
-      check_op loc op vs_cmp (W.wsize_of_velem ve);
+      check_op_vec loc op vs_cmp (W.wsize_of_velem ve);
       OpKV(s, ve, ws)
 
-  
+
 
 (* -------------------------------------------------------------------- *)
-let op_kind_of_cmp = function
-  | E.Cmp_int     -> E.Op_int
-  | E.Cmp_w(_,ws) -> E.Op_w ws  
-
-type 'o op_info = { 
+type 'o op_info = {
     opi_op   : ty_op_kind -> 'o;
-    opi_wcmp : bool * (W.wsize * W.wsize);  
+    opi_wcmp : op_ok_on * (W.wsize * W.wsize);
     opi_vcmp : (W.wsize * W.wsize) option;
   }
 
 let cmp_8_64 = (W.U8, W.U64)
 let cmp_8_256 = (W.U8, W.U256)
 
-let mk_cmp_kind eop vop = function
-  | OpKE c        -> eop c
-  | OpKV(s,ve,ws) -> vop s ve ws
+let mk_op_kind eop vop = function
+    | OpKE(s, k) -> eop s k
+    | OpKV(s, ve, ws) -> vop s ve ws
 
-let mk_cmp_info eop vop = {
-    opi_op   = mk_cmp_kind eop vop;
-    opi_wcmp = true, cmp_8_256;
-    opi_vcmp = Some cmp_8_64;
-  }
+let mk_op_s_k_info eop =
+  { opi_op = mk_op_kind eop (fun _ _ _ -> assert false)
+  ; opi_wcmp =  {intok = true; wintok = true}, cmp_8_256
+  ; opi_vcmp = None }
 
-let mk_op_of_c op c = op (op_kind_of_cmp c) 
 
-let mk_op_info eop vop = mk_cmp_info (mk_op_of_c eop) vop
+let mk_op_k_info eop vop =
+  { opi_op = mk_op_kind (fun s k -> eop s k) vop
+  ; opi_wcmp =  {intok = true; wintok = true}, cmp_8_256
+  ; opi_vcmp = Some cmp_8_64 }
 
-let mk_cmp_info_nvec eop = {
-    opi_op   = mk_cmp_kind eop (fun _ _ _ -> assert false);
-    opi_wcmp = true, cmp_8_256;
-    opi_vcmp = None;
-  }
+let mk_op_k_info_no_vec eop =
+  { opi_op = mk_op_kind (fun s k -> eop s k) (fun _ _ _ -> assert false)
+  ; opi_wcmp = {intok = true; wintok = true}, cmp_8_256
+  ; opi_vcmp = None }
 
-let mk_op64_info_nvec eop = mk_cmp_info_nvec (mk_op_of_c eop)
+let mk_logic_ws eop = function
+  | OpKE (_, EOp_w (Word, ws))
+  | OpKV (_,_, ws) -> eop ws
+  | _ -> assert false
 
-let mk_logic_info eop = 
-  let mk = function
-    | OpKE (Cmp_int)     -> assert false 
-    | OpKE (Cmp_w(_,ws)) -> eop ws
-    | OpKV (_s,_ve,ws)   -> eop ws in
-  { opi_op = mk;
-    opi_wcmp = false, cmp_8_256;
+let mk_logic_info eop =
+  { opi_op = mk_logic_ws eop;
+    opi_wcmp = {intok = false; wintok = false}, cmp_8_256;
     opi_vcmp = Some (cmp_8_64); }
 
+let mk_rot_info eop =
+  { opi_op = mk_logic_ws eop;
+    opi_wcmp = {intok = false; wintok = false}, cmp_8_64;
+    opi_vcmp = None; }
+
 (* -------------------------------------------------------------------- *)
 
-let op1_of_ty exn op castop ty (info:E.sop1 op_info) = 
-  let tok = op_info exn (`Op1 op) castop ty info.opi_wcmp info.opi_vcmp in
+let op1_of_ty exn op castop ty (info:E.sop1 op_info) =
+  let tok = op_info exn (`Op1 op) None castop ty info.opi_wcmp info.opi_vcmp in
   info.opi_op tok
 
-let lnot_info = mk_logic_info (fun s -> E.Olnot s)
-let  neg_info = mk_op64_info_nvec (fun s -> E.Oneg s)
+let lnot_info = mk_logic_info (fun ws -> E.Olnot ws)
+
+let mk_op1 op_k op_wi s = function
+  | EOp_int -> op_k E.Op_int
+  | EOp_w (Word, sz) -> op_k (E.Op_w sz)
+  | EOp_w (WInt, sz) -> E.Owi1 (s, op_wi sz)
+
+let  neg_info =
+  mk_op_k_info_no_vec (mk_op1 (fun k -> E.Oneg k) (fun sz -> E.WIneg sz))
 
 (* -------------------------------------------------------------------- *)
 
-let add_info = 
-  mk_op_info (fun k -> E.Oadd k) (fun _s ve ws -> E.Ovadd(ve,ws))
+let mk_op2 op_k op_wi s = function
+  | EOp_int -> op_k s E.Op_int
+  | EOp_w (Word, sz) -> op_k s (E.Op_w sz)
+  | EOp_w (WInt, sz) -> E.Owi2 (s, sz, op_wi)
 
-let sub_info = 
-  mk_op_info (fun k -> E.Osub k) (fun _s ve ws -> E.Ovsub(ve,ws))
+let add_info : E.sop2 op_info =
+  mk_op_k_info (mk_op2 (fun _ k -> E.Oadd k) E.WIadd) (fun _s ve ws -> E.Ovadd(ve,ws))
 
-let mul_info = 
-  mk_op_info (fun k -> E.Omul k) (fun _s ve ws -> E.Ovmul(ve,ws))
+let sub_info =
+  mk_op_k_info (mk_op2 (fun _ k -> E.Osub k) E.WIsub) (fun _s ve ws -> E.Ovsub(ve,ws))
 
-let div_info = mk_cmp_info_nvec (fun k -> E.Odiv k) 
-let mod_info = mk_cmp_info_nvec (fun k -> E.Omod k) 
+let mul_info =
+  mk_op_k_info (mk_op2 (fun _ k -> E.Omul k) E.WImul) (fun _s ve ws -> E.Ovmul(ve,ws))
+
+let div_info = mk_op_s_k_info (mk_op2 (fun s k -> E.Odiv(s, k)) E.WIdiv)
+let mod_info = mk_op_s_k_info (mk_op2 (fun s k -> E.Omod(s, k)) E.WImod)
 
 let land_info = mk_logic_info (fun k -> E.Oland k)
 let lor_info  = mk_logic_info (fun k -> E.Olor  k)
 let lxor_info = mk_logic_info (fun k -> E.Olxor k)
 
-let shr_info = 
-  let mk = function
-    | OpKE (Cmp_int)     -> E.Oasr E.Op_int 
-    | OpKE (Cmp_w(s,ws)) -> 
-      if s = W.Unsigned then E.Olsr ws else E.Oasr (E.Op_w ws)
-    | OpKV (s,ve,ws)   -> 
-      if s = W.Unsigned then E.Ovlsr(ve,ws) else E.Ovasr(ve,ws) in
-  { opi_op   = mk;
-    opi_wcmp = true, cmp_8_256;
-    opi_vcmp = Some cmp_8_64;
-  }
+let shr_info =
+  mk_op_k_info
+   (mk_op2
+     (fun s k ->
+       match k with
+       | E.Op_int -> E.Oasr k
+       | E.Op_w ws -> if s = W.Unsigned then E.Olsr ws else E.Oasr k) E.WIshr)
+     (fun s ve ws -> if s = W.Unsigned then E.Ovlsr(ve,ws) else E.Ovasr(ve,ws))
 
-let rot_info exn op =
-  let mk opk =
-    match opk with
-    | OpKE Cmp_int -> raise exn
-    | OpKE (Cmp_w (_, ws)) -> op ws
-    | OpKV _ -> raise exn
-  in
-  {
-    opi_op = mk;
-    opi_wcmp = true, cmp_8_64;
-    opi_vcmp = None;
-  }
+let shl_info =
+  mk_op_k_info (mk_op2 (fun _ k -> E.Olsl k) E.WIshl)  (fun _s ve ws -> E.Ovlsl(ve,ws))
 
-let shl_info = 
-  let mk = function
-    | OpKE (Cmp_int)      -> E.Olsl E.Op_int
-    | OpKE (Cmp_w(_s,ws)) -> E.Olsl (E.Op_w ws)
-    | OpKV (_s,ve,ws)     -> E.Ovlsl(ve,ws) in
-  { opi_op   = mk;
-    opi_wcmp = true, cmp_8_256;
-    opi_vcmp = Some cmp_8_64;
-  } 
+let ror_info = mk_rot_info (fun ws -> E.Oror ws)
+let rol_info = mk_rot_info (fun ws -> E.Orol ws)
 
-let mk_test_info eop2 = 
-  let mk = function
-    | OpKE k          -> eop2 k
-    | OpKV (s,_ve,ws) -> eop2 (E.Cmp_w(s,ws)) in
-  { opi_op = mk;
-    opi_wcmp = true, cmp_8_256;
-    opi_vcmp = Some (cmp_8_64); }
+let eq_info  =  mk_op_k_info_no_vec (mk_op2 (fun _s k -> E.Oeq k) E.WIeq)
+let neq_info =  mk_op_k_info_no_vec (mk_op2 (fun _s k -> E.Oneq k) E.WIneq)
 
-let eq_info  = mk_test_info (fun c -> E.Oeq (op_kind_of_cmp c))
-let neq_info = mk_test_info (fun c -> E.Oneq (op_kind_of_cmp c))
-let lt_info  = mk_test_info (fun c -> E.Olt c)
-let le_info  = mk_test_info (fun c -> E.Ole c)
-let gt_info  = mk_test_info (fun c -> E.Ogt c)
-let ge_info  = mk_test_info (fun c -> E.Oge c)
+let cmp_of_op_k s = function
+  | E.Op_int -> E.Cmp_int
+  | E.Op_w sz -> E.Cmp_w(s, sz)
 
-let op2_of_ty exn op castop ty (info:E.sop2 op_info) = 
-  let tok = op_info exn (`Op2 op) castop ty info.opi_wcmp info.opi_vcmp in
+let lt_info  =  mk_op_k_info_no_vec (mk_op2 (fun s k -> E.Olt (cmp_of_op_k s k)) E.WIlt)
+let le_info  =  mk_op_k_info_no_vec (mk_op2 (fun s k -> E.Ole (cmp_of_op_k s k)) E.WIle)
+let gt_info  =  mk_op_k_info_no_vec (mk_op2 (fun s k -> E.Ogt (cmp_of_op_k s k)) E.WIgt)
+let ge_info  =  mk_op_k_info_no_vec (mk_op2 (fun s k -> E.Oge (cmp_of_op_k s k)) E.WIge)
+
+let op2_of_ty exn op s castop ty (info:E.sop2 op_info) =
+  let tok = op_info exn (`Op2 op) s castop ty info.opi_wcmp info.opi_vcmp in
   info.opi_op tok
+
+let ensure_word exn ty = (max_ty ty (P.etw U256) |> oget ~exn)
 
 let op2_of_pop2 exn ty (op : S.peop2) =
   match op with
   | `And    -> E.Oand
   | `Or     -> E.Oor
 
-  | `Add  c -> op2_of_ty exn op c ty add_info 
-  | `Sub  c -> op2_of_ty exn op c ty sub_info 
-  | `Mul  c -> op2_of_ty exn op c ty mul_info 
-  | `Div  c -> op2_of_ty exn op c ty div_info 
-  | `Mod  c -> op2_of_ty exn op c ty mod_info 
+  | `Add  c -> op2_of_ty exn op None c ty add_info
+  | `Sub  c -> op2_of_ty exn op None c ty sub_info
+  | `Mul  c -> op2_of_ty exn op None c ty mul_info
+  | `Div(s, c) -> op2_of_ty exn op (tt_osign s) c ty div_info
+  | `Mod(s, c) -> op2_of_ty exn op (tt_osign s) c ty mod_info
 
-  | `BAnd c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) land_info
-  | `BOr  c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) lor_info
-  | `BXOr c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) lxor_info
-  | `ShR  c -> op2_of_ty exn op c ty shr_info
-  | `ShL  c -> op2_of_ty exn op c ty shl_info
-  | `ROR  c -> op2_of_ty exn op c ty (rot_info exn (fun x -> E.Oror x))
-  | `ROL  c -> op2_of_ty exn op c ty (rot_info exn (fun x -> E.Orol x))
+  | `BAnd c -> op2_of_ty exn op None c (ensure_word exn ty) land_info
+  | `BOr  c -> op2_of_ty exn op None c (ensure_word exn ty) lor_info
+  | `BXOr c -> op2_of_ty exn op None c (ensure_word exn ty) lxor_info
+  | `ShR(s, c) -> op2_of_ty exn op (tt_osign s) c ty shr_info
+  | `ShL  c -> op2_of_ty exn op None c ty shl_info
+  | `ROR  c -> op2_of_ty exn op None c ty ror_info
+  | `ROL  c -> op2_of_ty exn op None c ty rol_info
 
-  | `Eq   c -> op2_of_ty exn op c ty eq_info 
-  | `Neq  c -> op2_of_ty exn op c ty neq_info
-  | `Lt   c -> op2_of_ty exn op c ty lt_info
-  | `Le   c -> op2_of_ty exn op c ty le_info
-  | `Gt   c -> op2_of_ty exn op c ty gt_info
-  | `Ge   c -> op2_of_ty exn op c ty ge_info
+  | `Eq   c -> op2_of_ty exn op None c ty eq_info
+  | `Neq  c -> op2_of_ty exn op None c ty neq_info
+  | `Lt(s, c) -> op2_of_ty exn op (tt_osign s) c ty lt_info
+  | `Le(s, c) -> op2_of_ty exn op (tt_osign s) c ty le_info
+  | `Gt(s, c) -> op2_of_ty exn op (tt_osign s) c ty gt_info
+  | `Ge(s, c) -> op2_of_ty exn op (tt_osign s) c ty ge_info
 
-let op1_of_pop1 exn ty (op: S.peop1) = 
+let op1_of_pop1 exn ty (op: S.peop1) =
   match op with
-  | `Cast _ -> assert false 
+  | `Cast _ -> assert false
   | `Not c ->
-    if ty = P.tbool then 
+    if ty = P.etbool then
       if c <> None then raise exn
       else E.Onot
     else
-      op1_of_ty exn op c  (max_ty ty P.u256 |> oget ~exn) lnot_info 
+      op1_of_ty exn op c (ensure_word exn ty) lnot_info
 
   | `Neg c -> op1_of_ty exn op c ty neg_info
 
@@ -963,48 +1022,98 @@ let peop2_of_eqop (eqop : S.peqop) =
   | `BOr  s -> Some (`BOr s)
 
 (* -------------------------------------------------------------------- *)
+
+let wk_s_ws (s: W.signedness option) (ws: W.wsize) =
+  let wk = if s = None then Word else WInt in
+  let s = Option.default W.Unsigned s in
+  (wk, s, ws)
+
+let op_word_of_int (wk, s, ws) =
+  match wk with
+  | Word -> E.Oword_of_int ws
+  | WInt -> E.Owi1(s, E.WIword_of_int ws)
+
+let op_int_of_word (wk, s, ws) =
+  match wk with
+  | Word -> E.Oint_of_word (s, ws)
+  | WInt -> E.Owi1(s, E.WIint_of_word ws)
+
 let cast loc e ety ty =
   match ety, ty with
-  | P.Bty P.Int , P.Bty (P.U w) -> P.Papp1 (E.Oword_of_int w, e)
-  | P.Bty (P.U w), P.Bty P.Int -> P.Papp1 (E.Oint_of_word w, e)
-  | P.Bty (P.U w1), P.Bty (P.U w2) when W.wsize_cmp w1 w2 <> Datatypes.Lt -> e
-  | _, _ when P.pty_equal ety ty -> e
-  | P.Arr _, P.Arr _ -> e (* we delay typechecking until we know the lengths *)
+  | P.ETint, P.ETword(s,ws) ->
+    let op = op_word_of_int (wk_s_ws s ws) in
+    P.Papp1(op, e)
+
+  | P.ETword(s, ws), P.ETint ->
+    (* FIXME do we really want to keep this cast word -> int implicit?
+       Since we can use to_uint or to_sint ... *)
+    let op = op_int_of_word (wk_s_ws s ws) in
+    P.Papp1(op, e)
+
+  | P.ETword(None, w1), P.ETword(None, w2) when W.wsize_cmp w1 w2 <> Datatypes.Lt -> e
+  | P.ETword(Some W.Unsigned, w1),  P.ETword(Some W.Unsigned, w2) when W.wsize_cmp w1 w2 <> Datatypes.Lt -> e
+
+  | _, _ when P.epty_equal ety ty -> e
+  | P.ETarr _, P.ETarr _ -> e (* we delay typechecking until we know the lengths *)
   | _  ->  rs_tyerror ~loc (InvalidCast(ety,ty))
 
+(*
 let cast_word loc ws e ety =
   match ety with
-  | P.Bty P.Int   -> P.Papp1 (Oword_of_int ws, e), ws
+  | P.Bty P.Int   -> P.Papp1 (E.Oword_of_int ws, e), ws
   | P.Bty (P.U ws1) -> e, ws1
   | _             ->  rs_tyerror ~loc (InvalidCast(ety,P.Bty (P.U ws)))
+*)
 
-let cast_int loc e ety = 
-  cast loc e ety P.tint 
+let cast_int loc os e ety =
+  match ety with
+  | P.ETint -> e
+  | P.ETword (s, ws) ->
+    let wk, s, ws = wk_s_ws s ws in
+    let s =
+      match wk, os with
+      | _, None -> s
+      | Word, Some s -> tt_sign s
+      | WInt, Some s' ->
+        (* FIXME: Should we do a better error message *)
+        if tt_sign s' <> s then rs_tyerror ~loc (InvalidCast(ety,P.etint));
+        s
+    in
+    let op = op_int_of_word(wk, s, ws) in
+    P.Papp1(op, e)
+  | _ -> rs_tyerror ~loc (InvalidCast(ety,P.etint))
+
 
 (* -------------------------------------------------------------------- *)
-let conv_ty : T.stype -> P.pty = function
-    | T.Coq_sbool    -> P.tbool
-    | T.Coq_sint     -> P.tint
-    | T.Coq_sword ws -> P.Bty (P.U ws)
-    | T.Coq_sarr p   -> P.Arr (U8, PE (P.icnst (Conv.int_of_pos p)))
+let conv_ty : BinNums.positive T.extended_type -> P.epty = function
+    | T.ETbool       -> P.etbool
+    | T.ETint        -> P.etint
+    | T.ETword(s,ws) -> P.ETword(s,ws)
+    | T.ETarr p      -> P.ETarr (U8, PE (P.icnst (Conv.int_of_pos p)))
 
-let type_of_op2 op = 
-  let (ty1, ty2), tyo = E.type_of_op2 op in
+let conv_cty : T.stype -> P.epty = function
+    | T.Coq_sbool    -> P.etbool
+    | T.Coq_sint     -> P.etint
+    | T.Coq_sword ws -> P.etw ws
+    | T.Coq_sarr p   -> P.ETarr (U8, PE (P.icnst (Conv.int_of_pos p)))
+
+let type_of_op2 op =
+  let (ty1, ty2), tyo = E.etype_of_op2 op in
   conv_ty ty1, conv_ty ty2, conv_ty tyo
 
 let tt_op2 (loc1, (e1, ety1)) (loc2, (e2, ety2))
            { L.pl_desc = pop; L.pl_loc = loc } =
 
   match pop with
-  | `Eq None when ety1 = P.tbool && ety2 = P.tbool ->
-    P.Papp2(E.Obeq, e1, e2), P.tbool
-  | `Neq None when ety1 = P.tbool && ety1 = P.tbool ->
-    P.Papp1 (E.Onot, P.Papp2(E.Obeq, e1, e2)), P.tbool
-  | _ -> 
+  | `Eq None when ety1 = P.etbool && ety2 = P.etbool ->
+     P.Papp2(E.Obeq, e1, e2), P.etbool
+  | `Neq None when ety1 = P.etbool && ety1 = P.etbool ->
+    P.Papp1 (E.Onot, P.Papp2(E.Obeq, e1, e2)), P.etbool
+  | _ ->
     let exn = tyerror ~loc (NoOperator (`Op2 pop, [ety1; ety2])) in
-    let ty = 
+    let ty =
       match pop with
-      | `And   | `Or    -> P.tbool 
+      | `And   | `Or    -> P.etbool
       | `ShR _ | `ShL _ | `ROR _ | `ROL _ -> ety1
       | `Add _ | `Sub _ | `Mul _ | `Div _ | `Mod _
         | `BAnd _ | `BOr _ | `BXOr _
@@ -1016,11 +1125,11 @@ let tt_op2 (loc1, (e1, ety1)) (loc2, (e2, ety2))
     let e2 = cast loc2 e2 ety2 ty2 in
     P.Papp2(op, e1, e2), tyo
 
-let type_of_op1 op = 
-  let ty, tyo = E.type_of_op1 op in
+let type_of_op1 op =
+  let ty, tyo = E.etype_of_op1 op in
   conv_ty ty, conv_ty tyo
 
-let tt_op1 (loc1, (e1, ety1)) { L.pl_desc = pop; L.pl_loc = loc } = 
+let tt_op1 (loc1, (e1, ety1)) { L.pl_desc = pop; L.pl_loc = loc } =
   let exn = tyerror ~loc (NoOperator (`Op1 pop, [ety1])) in
   let ty = ety1 in
   let op = op1_of_pop1 exn ty pop in
@@ -1059,22 +1168,16 @@ let tt_pack ~loc nb es =
   wsize_of_bits ~loc (n1 * n2), pelem_of_bits ~loc n2, n1
 
 (* -------------------------------------------------------------------- *)
-let combine_flags = 
+let combine_flags =
   List.map (fun c -> Printer.string_of_combine_flags c, c)
     [E.CF_LT Signed; E.CF_LT Unsigned;
      E.CF_LE Signed; E.CF_LE Unsigned;
-     E.CF_EQ; E.CF_NEQ; 
+     E.CF_EQ; E.CF_NEQ;
      E.CF_GE Signed; E.CF_GE Unsigned;
      E.CF_GT Signed; E.CF_GT Unsigned]
 
 let is_combine_flags id =
   List.mem_assoc (L.unloc id) combine_flags
-
-let ensure_int loc i ty =
-  match ty with
-  | P.Bty Int -> i
-  | P.Bty (P.U ws) -> P.Papp1(E.Oint_of_word ws,i)
-  | _ -> rs_tyerror ~loc (TypeMismatch (ty, P.tint))
 
 (* -------------------------------------------------------------------- *)
 let tt_al aa =
@@ -1090,6 +1193,37 @@ let ignore_align ~loc =
   | Some _al ->
      warning Always (L.i_loc0 loc) "ignored alignment annotation in array slice"
 
+
+(* -------------------------------------------------------------------- *)
+
+let tt_mem_wsize dfl (ct : S.swsize L.located option) =
+  match ct with
+  | None -> dfl
+  | Some ct ->
+      match L.unloc ct with
+      | (_, `WInt _) as a->
+        rs_tyerror ~loc:(L.loc ct)
+          (StringError ("invalid cast annotation "^(S.string_of_swsize_ty a)))
+      | (ws, `Word _) -> ws
+
+(* Precondition e : P.etw ws *)
+(*
+let wint_of_word ws (cast : W.signedness option) e =
+  match cast with
+  | None -> e, P.etw ws
+  | Some s ->
+    let e = P.Papp1 (E.EO.Owint_of_word(s, ws), e) in
+    e, P.etwi s ws
+*)
+(*
+let word_of_wint wint_of_word ws (cast : W.signedness option) e =
+  match cast with
+  | None -> e, P.etw ws
+  | Some s ->
+    let e = P.Papp1 (E.EO.Owint_of_word(s, ws), e) in
+    e, P.etwi s ws
+*)
+
 (* -------------------------------------------------------------------- *)
 let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   match L.unloc pe with
@@ -1097,10 +1231,10 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     tt_expr ~mode pd env pe
 
   | S.PEBool b ->
-    P.Pbool b, P.tbool
+    P.Pbool b, P.etbool
 
   | S.PEInt i ->
-    P.Pconst (S.parse_int i), P.tint
+    P.Pconst (S.parse_int i), P.etint
 
   | S.PEVar x ->
     let x, ty = tt_var_global mode env x in
@@ -1108,15 +1242,15 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
 
   | S.PEFetch me ->
     let ct, x, e, al = tt_mem_access ~mode pd env me in
-    P.Pload (al, ct, x, e), P.Bty (P.U ct)
+    P.Pload (al, ct, x, e), P.etw ct
 
   | S.PEGet (al, aa, ws, ({ L.pl_loc = xlc } as x), pi, olen) ->
     let x, ty = tt_var_global mode env x in
     let ty, _ = tt_as_array (xlc, ty) in
-    let ws = Option.default (P.ws_of_ty ty) ws in
-    let ty = P.tu ws in
+    let ws = tt_mem_wsize (P.ws_of_ety ty) ws in
+    let ty = P.etw ws in
     let i,ity  = tt_expr ~mode pd env pi in
-    let i = ensure_int (L.loc pi) i ity in
+    let i = cast_int (L.loc pi) None i ity in
     begin match olen with
     | None ->
        let al = tt_al aa al in
@@ -1124,8 +1258,8 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     | Some plen ->
        ignore_align ~loc:(L.loc pe) al;
       let len,ity  = tt_expr ~mode:`OnlyParam pd env plen in
-      check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.tint;
-      let ty = P.Arr (ws, P.PE len) in
+      check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.etint;
+      let ty = P.ETarr (ws, P.PE len) in
       P.Psub (aa, ws, P.PE len, x, i), ty
     end
 
@@ -1133,22 +1267,49 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     let e, ety = tt_expr ~mode pd env pe in
 
     begin match op with
-    | `Cast (`ToInt) ->
-      let e = cast_int (L.loc pe) e ety in
-      e, P.tint 
-      
+    | `Cast (`ToInt s) ->
+      let e = cast_int (L.loc pe) s e ety in
+      e, P.etint
+
     | `Cast (`ToWord (sz, sg)) ->
-      let e, ws = cast_word (L.loc pe) sz e ety in
-      let e = 
-        if W.wsize_cmp ws sz = Datatypes.Lt then 
-          let op =
-            match sg with
-            | `Unsigned -> E.Ozeroext (sz, ws)
-            | `Signed   -> E.Osignext (sz, ws)
-          in
-          P.Papp1(op,e)
-        else e in
-      e, P.Bty (P.U sz)
+       let rty = tt_swsize (sz, sg) in
+       (* ensures that the word_kind is the expected *)
+       let s, e, ety =
+         match sg, ety with
+         | `Word s, P.ETword(None, _) ->
+            Option.default W.Unsigned (tt_osign s), e, ety
+         | `Word s, P.ETword(Some s', ws) ->
+            Option.default W.Unsigned (tt_osign s), Papp1(E.Owi1(s', E.WIword_of_wint ws), e), P.etw ws
+         | `Word s, P.ETint ->
+            Option.default W.Unsigned (tt_osign s), Papp1(E.Oword_of_int sz, e), P.etw sz
+         | `WInt s, P.ETword(None, ws) ->
+            let s = tt_sign s in
+            s, Papp1(E.Owi1 (s, E.WIwint_of_word ws), e), P.etwi s ws
+         | `WInt s, P.ETword (Some s', ws) ->
+            let s = tt_sign s in
+            if s = s' then s, e, ety
+            else
+              let we = P.Papp1(E.Owi1(s', E.WIword_of_wint ws), e) in
+              let wie = P.Papp1(E.Owi1(s, E.WIwint_of_word ws), we) in
+              s, wie, P.etwi s ws
+         | `WInt s, P.ETint ->
+             let s = tt_sign s in
+             s, Papp1(E.Owi1(s, E.WIword_of_int sz), e), P.etwi s sz
+         | _ -> rs_tyerror ~loc:(L.loc pe) (InvalidCast(ety,rty))
+       in
+       (* ensures that the size is the expected *)
+       let e =
+         match ety with
+         | P.ETword(None, ws) when W.wsize_cmp ws sz = Datatypes.Lt ->
+           let op = if s = W.Unsigned then E.Ozeroext(sz, ws) else E.Osignext(sz, ws) in
+           P.Papp1(op, e)
+         | P.ETword(Some W.Unsigned, ws) when W.wsize_cmp ws sz = Datatypes.Lt ->
+           P.Papp1(E.Owi1(s, E.WIword_ext(sz, ws)), e)
+         | P.ETword(Some W.Signed, ws) ->
+           P.Papp1(E.Owi1(s, E.WIword_ext(sz, ws)), e)
+         | _ -> e
+       in
+       e, rty
     | _  ->
       let et1 = tt_expr ~mode pd env pe in
       tt_op1 (L.loc pe, et1) (L.mk_loc (L.loc pe) op)
@@ -1168,11 +1329,11 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
         rs_tyerror ~loc:(L.loc pe) (InvalidArgCount(nargs, nexp));
       let tt_expr pe =
         let e, ety = tt_expr ~mode pd env pe in
-        check_ty_eq ~loc:(L.loc pe) ~from:ety ~to_:P.tbool;
+        check_ty_eq ~loc:(L.loc pe) ~from:ety ~to_:P.etbool;
         e in
       let args = List.map tt_expr args in
-      P.PappN (E.Ocombine_flags c, args), P.tbool
-    | exception Not_found -> assert false 
+      P.PappN (E.Ocombine_flags c, args), P.etbool
+    | exception Not_found -> assert false
     end
 
   | S.PECall (id, args) when is_combine_flags id ->
@@ -1189,10 +1350,10 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     if sg <> `Unsigned then rs_tyerror ~loc PackSigned;
     let sz, pz, len = tt_pack ~loc nb es in
     let args = List.map (tt_expr ~mode pd env) args in
-    let args = List.map (fun (a, ty) -> cast loc a ty (P.Bty P.Int)) args in
+    let args = List.map (fun (a, ty) -> cast_int loc None a ty) args in
     let alen = List.length args in
     if alen <> len then rs_tyerror ~loc (PackWrongLength (len, alen));
-    P.PappN (E.Opack (sz, pz), args), P.Bty (P.U sz)
+    P.PappN (E.Opack (sz, pz), args), P.etw sz
 
   | S.PEIf (pe1, pe2, pe3) ->
     let e1, ty1 = tt_expr ~mode pd env pe1 in
@@ -1201,65 +1362,79 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
 
     check_ty_bool ~loc:(L.loc pe1) ty1;
     let ty = max_ty ty2 ty3 |> oget ~exn:(tyerror ~loc:(L.loc pe) (TypeMismatch (ty2, ty3))) in
-    P.Pif(ty, e1, e2, e3), ty
+    P.Pif(P.gty_of_gety ty, e1, e2, e3), ty
 
 and tt_expr_cast pd ?(mode=`AllVar) (env : 'asm Env.env) pe ty =
   let e, ety = tt_expr ~mode pd env pe in
-  cast (L.loc pe) e ety ty 
-  
+  cast (L.loc pe) e ety ty
+
 and tt_mem_access pd ?(mode=`AllVar) (env : 'asm Env.env)
            (al, ct, ({ L.pl_loc = xlc } as x), e) =
-  let x = tt_var `NoParam env x in
-  check_ty_ptr pd ~loc:xlc x.P.v_ty;
-  let e = 
+  let x, ty = tt_var `NoParam env x in
+  check_ty_ptr pd ~loc:xlc ty;
+  let e =
     match e with
-    | None -> P.Papp1 (Oword_of_int pd, P.Pconst (Z.zero)) 
-    | Some(k, e) -> 
-      let e = tt_expr_cast ~mode pd env e (P.tu pd) in
+    | None -> P.Papp1 (op_word_of_int (Word, W.Unsigned, pd), P.Pconst (Z.zero))
+    | Some(k, e) ->
+      let e = tt_expr_cast ~mode pd env e (P.etw pd) in
       match k with
       | `Add -> e
       | `Sub -> Papp1(E.Oneg (E.Op_w pd), e) in
-  let ct = ct |> Option.default pd in
+  let ct = tt_mem_wsize pd ct in
   let al = tt_al AAdirect al in
-  (ct,L.mk_loc xlc x,e, al)
+  (ct, L.mk_loc xlc x, e, al)
 
 (* -------------------------------------------------------------------- *)
-and tt_type pd (env : 'asm Env.env) (pty : S.ptype) : P.pty =
+and tt_type pd (env : 'asm Env.env) (pty : S.ptype) : P.epty =
   match L.unloc pty with
-  | S.TBool     -> P.tbool
-  | S.TInt      -> P.tint
-  | S.TWord  ws -> P.Bty (P.U ws)
+  | S.TBool     -> P.etbool
+  | S.TInt      -> P.etint
+  | S.TWord  ws -> tt_swsize ws
   | S.TArray (ws, e) ->
-     let ws = match ws with
-       | TypeWsize ws -> ws
+     let loc, id, ety =
+       match ws with
+       | TypeWsize ws -> L.loc pty, None, tt_swsize ws
        | TypeSizeAlias id ->
-          let extern_type = Env.TypeAlias.get env id in
-          match L.unloc extern_type with
-          | P.Bty (P.U ws) -> ws
-          | ty -> rs_tyerror  ~loc:(L.loc id) (InvalidTypeAlias ((L.unloc id),ty))
-     in P.Arr (ws, P.PE (fst (tt_expr ~mode:`OnlyParam pd env e)))
+          let ty = Env.TypeAlias.get env id in
+          L.loc id, Some (L.mk_loc (L.loc ty) (L.unloc id)), L.unloc ty in
+     let ws =
+       match ety with
+       | P.ETword(None, ws) -> ws (* wint array are not allowed this is require by wint_int *)
+       | ty -> rs_tyerror ~loc (InvalidTypeAlias (id,ty))
+     in P.ETarr (ws, P.PE (fst (tt_expr ~mode:`OnlyParam pd env e)))
   | S.TAlias id -> L.unloc (Env.TypeAlias.get env id)
 
 (* -------------------------------------------------------------------- *)
 let tt_exprs pd (env : 'asm Env.env) es = List.map (tt_expr ~mode:`AllVar pd env) es
 
 (* -------------------------------------------------------------------- *)
-let tt_expr_bool pd env pe = tt_expr_cast pd env pe P.tbool
-let tt_expr_int  pd env pe = tt_expr_cast pd env pe P.tint
+let tt_expr_bool pd env pe = tt_expr_cast pd env pe P.etbool
+let tt_expr_int  pd env pe = tt_expr_cast pd env pe P.etint
 
 (* -------------------------------------------------------------------- *)
+
+let mk_var x sto xety xlc annot =
+  let annot =
+    match xety with
+    | P.ETword(Some s, ws) ->
+      Annotations.add_symbol ~loc:xlc (if s = W.Signed then "sint" else "uint") annot
+    | _ -> annot
+  in
+  P.PV.mk x sto (P.gty_of_gety xety) xlc annot
+
 let tt_vardecl dfl_writable pd (env : 'asm Env.env) ((annot, (sto, xty)), x) =
   let { L.pl_desc = x; L.pl_loc = xlc; } = x in
   let regkind = tt_reg_kind annot in
-  let (sto, xty) = (tt_sto regkind (dfl_writable x) sto, tt_type pd env xty) in
-  if P.is_ptr sto && not (P.is_ty_arr xty) then
+  let (sto, xety) = (tt_sto regkind (dfl_writable x) sto, tt_type pd env xty) in
+  let x = mk_var x sto xety xlc annot in
+  if P.is_ptr sto && not (P.is_ty_arr x.v_ty) then
     rs_tyerror ~loc:xlc PtrOnlyForArray;
-  L.mk_loc xlc (P.PV.mk x sto xty xlc annot)
+  L.mk_loc xlc (x, xety)
 
 (* -------------------------------------------------------------------- *)
 let tt_vardecls_push dfl_writable pd (env : 'asm Env.env) pxs =
   let xs  = List.map (tt_vardecl dfl_writable pd env) pxs in
-  let env = 
+  let env =
     List.fold_left (fun env x -> Env.Vars.push_local env (L.unloc x)) env xs in
   (env, xs)
 
@@ -1270,8 +1445,8 @@ let tt_param pd (env : 'asm Env.env) _loc (pp : S.pparam) : 'asm Env.env =
 
   check_ty_eq ~loc:(L.loc pp.ppa_init) ~from:ty ~to_:ety;
 
-  let x = P.PV.mk (L.unloc pp.ppa_name) W.Const ty (L.loc pp.ppa_name) [] in
-  let env = Env.Vars.push_param env (x,pe) in
+  let x = mk_var (L.unloc pp.ppa_name) W.Const ty (L.loc pp.ppa_name) [] in
+  let env = Env.Vars.push_param env (x,ety, pe) in
   env
 
 
@@ -1287,20 +1462,20 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
 
   match pl with
   | S.PLIgnore ->
-    loc, (fun ty -> P.Lnone(loc,ty)) , None
+    loc, (fun ety -> P.Lnone(loc, P.gty_of_gety ety)) , None
 
   | S.PLVar x ->
-    let x = tt_var `NoParam env x in
-    loc, (fun _ -> P.Lvar (L.mk_loc loc x)), Some x.P.v_ty
+    let x, xty = tt_var `NoParam env x in
+    loc, (fun _ -> P.Lvar (L.mk_loc loc x)), Some xty
 
   | S.PLArray (al, aa, ws, ({ pl_loc = xlc } as x), pi, olen) ->
-    let x  = tt_var `NoParam env x in
+    let x, xty  = tt_var `NoParam env x in
     reject_constant_pointers xlc x ;
-    let ty,_ = tt_as_array (xlc, x.P.v_ty) in
-    let ws = Option.default (P.ws_of_ty ty) ws in
-    let ty = P.tu ws in
+    let ty,_ = tt_as_array (xlc, xty) in
+    let ws = tt_mem_wsize (P.ws_of_ety ty) ws in
+    let ty = P.etw ws in
     let i,ity  = tt_expr ~mode:`AllVar pd env pi in
-    let i = ensure_int (L.loc pi) i ity in
+    let i = cast_int (L.loc pi) None i ity in
     begin match olen with
     | None ->
       let al = tt_al aa al in
@@ -1308,22 +1483,19 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     | Some plen ->
       ignore_align ~loc al;
       let len,ity  = tt_expr ~mode:`OnlyParam pd env plen in
-      check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.tint;
-      let ty = P.Arr(ws, P.PE len) in
+      check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.etint;
+      let ty = P.ETarr(ws, P.PE len) in
       loc, (fun _ -> P.Lasub (aa, ws, P.PE len, L.mk_loc xlc x, i)), Some ty
     end
 
   | S.PLMem me ->
     let ct, x, e, al = tt_mem_access ~mode:`AllVar pd env me in
-    loc, (fun _ -> P.Lmem (al, ct, x, e)), Some (P.Bty (P.U ct))
+    loc, (fun _ -> P.Lmem (al, ct, x, e)), Some (P.etw ct)
 
 (* -------------------------------------------------------------------- *)
 
-let f_sig f =
-  List.map P.ty_i f.P.f_ret, List.map (fun v -> v.P.v_ty) f.P.f_args
-
-let prim_sig asmOp p : 'a P.gty list * 'a P.gty list * Sopn.arg_desc list =
-  let f = conv_ty in
+let prim_sig asmOp p : 'a P.gety list * 'a P.gety list * Sopn.arg_desc list =
+  let f t = conv_cty t in
   let o = Sopn.asm_op_instr asmOp p in
   List.map f o.tout,
   List.map f o.tin,
@@ -1458,8 +1630,8 @@ let prim_of_op exn loc o =
     function
     | None -> None
     | Some({L.pl_desc = S.CVS _} ) -> raise exn
-    | Some({L.pl_desc = S.CSS(None, _)}) -> None
-    | Some({L.pl_desc = S.CSS(Some sz, _)}) ->  
+    | Some({L.pl_desc = S.CSS(sz, `WInt _)}) -> raise exn
+    | Some({L.pl_desc = S.CSS(sz, _)}) ->
       Some (Annotations.int_of_ws sz)
   in
   let p =
@@ -1489,13 +1661,13 @@ let prim_of_pe pe =
     let desc =
       match o with
       | (`Add _ | `Sub _) as o1 ->
-        let check_size op s1 s2 = 
+        let check_size op s1 s2 =
           match s1, s2 with
           | None, _ -> Some (op s2)
           | _, None -> Some (op s1)
           | Some s1', Some s2' when s1' = s2' -> Some (op s1)
-          | _ -> None in 
-        let check_op o1 o2 = 
+          | _ -> None in
+        let check_op o1 o2 =
           match o1, o2 with
           | `Add s1, `Add s2 -> check_size (fun x -> `Add x) s1 s2
           | `Sub s1, `Sub s2 -> check_size (fun x -> `Sub x) s1 s2
@@ -1513,7 +1685,7 @@ let prim_of_pe pe =
             | None -> o, pe1, pe2, L.mk_loc (L.loc pe2) (S.PEBool false)
             | Some o -> o, pe1, pe2', pe3'
             end
-          | _, _ -> o, pe1, pe2, L.mk_loc (L.loc pe2) (S.PEBool false) 
+          | _, _ -> o, pe1, pe2, L.mk_loc (L.loc pe2) (S.PEBool false)
         in
 
         S.PEPrim(prim_of_op exn loc o, [pe1; pe2; pe3])
@@ -1561,7 +1733,7 @@ let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
   let ignore_ = L.mk_loc loc S.PLIgnore in
 
 
-  let extend_pls n = 
+  let extend_pls n =
      let nargs = List.length pls in
      if nargs < n then
        let nextra = n - nargs in
@@ -1569,7 +1741,7 @@ let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
        List.make nextra ignore_ @ pls
      else pls in
 
-  let combines = 
+  let combines =
         [ "<s" , E.CF_LT Wsize.Signed
         ; "<u" , E.CF_LT Wsize.Unsigned
         ; "<=s", E.CF_LE Wsize.Signed
@@ -1581,17 +1753,17 @@ let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
         ; ">s" , E.CF_GT Wsize.Signed
         ; ">u" , E.CF_GT Wsize.Unsigned ] in
 
-  let pls, pimp_c, implicits = 
+  let pls, pimp_c, implicits =
     match pimp, implicit with
     | None, _ -> extend_pls (List.length tys), [], []
     | Some pimp, None -> rs_tyerror ~loc:(L.loc pimp) (string_error "no implicit argument expected");
     | Some pimp, Some implicit ->
       let pimp = L.unloc pimp in
-      let nb_explicit = 
+      let nb_explicit =
         let open Sopn in
         List.count_matching (function ADExplicit _ -> true | _ -> false) implicit in
       let pls = extend_pls nb_explicit in
-      let arguments = 
+      let arguments =
         (* FIXME this is not generic *)
         let open Sopn in
         List.map
@@ -1601,39 +1773,39 @@ let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
           implicit in
 
       let iargs = List.pmap (Option.map String.uppercase_ascii) arguments in
-    
-      let check (id, _) = 
+
+      let check (id, _) =
         let loc = L.loc id in
         let nid = L.unloc id in
         let nID = String.uppercase_ascii nid in
-        if not (List.mem nID iargs || List.mem_assoc nid combines) then 
+        if not (List.mem nID iargs || List.mem_assoc nid combines) then
           rs_tyerror ~loc (string_error "unknown implicit label %s" nid) in
       List.iter check pimp;
       let pimp_c, pimp_f = List.partition (fun (id,_) -> List.mem_assoc (L.unloc id) combines) pimp in
 
       let implicits = ref [] in
-      let get_implicit i = 
-        let error loc = 
+      let get_implicit i =
+        let error loc =
           rs_tyerror ~loc (string_error "an ident is expected (default is %s)" i) in
-        let mk loc s = 
+        let mk loc s =
           let s = L.mk_loc loc s in
           implicits := (i, L.mk_loc loc (S.PEVar s)) :: !implicits;
           L.mk_loc loc (S.PLVar s) in
-        let a = 
+        let a =
           Annot.ensure_uniq1 ~case_sensitive:false i (Annot.on_attribute ~on_empty:(fun loc nid () -> mk loc nid)
-                                                   ~on_id:(fun loc _nid s -> mk loc s) 
+                                                   ~on_id:(fun loc _nid s -> mk loc s)
                                                    error) pimp_f in
         match a with
-        | None -> 
+        | None ->
           (try mk loc (List.assoc i (Env.get_known_implicits env))
            with Not_found -> L.mk_loc loc (S.PLIgnore))
         | Some a -> a in
 
-      let rec aux arguments pls = 
+      let rec aux arguments pls =
         match arguments, pls with
-        | [], _                      -> pls 
-        | None :: arguments, x :: pls -> x :: aux arguments pls 
-        | None :: _, []              -> assert false  
+        | [], _                      -> pls
+        | None :: arguments, x :: pls -> x :: aux arguments pls
+        | None :: _, []              -> assert false
         | Some i :: arguments, pls    -> get_implicit i :: aux arguments pls in
       let a = aux arguments pls in
       a, pimp_c, !implicits
@@ -1641,25 +1813,25 @@ let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
 
   let ls = List.map (tt_lvalue arch_info.pd env) pls in
   let ls = check_sig_lvs loc tys ls in
-  let li = 
+  let li =
     match pimp_c with
     | [] -> []
     | (id, _) :: _ ->
       let loc = L.loc id in
-      let get_implicit i = 
-        try List.assoc i implicits 
-        with Not_found -> 
+      let get_implicit i =
+        try List.assoc i implicits
+        with Not_found ->
           rs_tyerror ~loc (string_error "implicit label %s need to be defined" i) in
       let pargs = List.map get_implicit arch_info.flagnames in
       let args = List.map (tt_expr_bool arch_info.pd env) pargs in
-      let doc (c, s) = 
+      let doc (c, s) =
         let error loc = rs_tyerror ~loc (string_error " = ident is expected after %s" (L.unloc c)) in
-        let a = 
-         Annot.on_attribute 
+        let a =
+         Annot.on_attribute
             ~on_id:(fun loc _nid s -> L.mk_loc loc (S.PLVar (L.mk_loc loc s)))
             error (c,s) in
         let _, flv, vty = tt_lvalue arch_info.pd env a in
-        let e, ety = P.PappN (E.Ocombine_flags (List.assoc (L.unloc c) combines), args), P.tbool in
+        let e, ety = P.PappN (E.Ocombine_flags (List.assoc (L.unloc c) combines), args), P.etbool in
         let e = vty |> Option.map_default (cast (L.loc a) e ety) e in
         let ety =
           match vty with
@@ -1675,31 +1847,30 @@ let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
       List.map doc pimp_c in
   ls, li
 
-    
+
 
 let tt_exprs_cast pd env loc les tys =
   let loc () = loc_of_tuples loc (List.map L.loc les) in
   let n1 = List.length les in
   let n2 = List.length tys in
-  if n1 <> n2 then 
+  if n1 <> n2 then
     rs_tyerror ~loc:(loc ()) (InvalidArgCount (n1, n2));
   List.map2 (fun le ty ->
     let e, ety = tt_expr ~mode:`AllVar pd env le in
     cast (L.loc le) e ety ty) les tys
 
-let arr_init xi =
+let arr_init (xi, ty) =
   let open P in
-  let x = L.unloc xi in
-  match x.v_ty with
-  | Arr(ws, PE e) as ty ->
+  match ty with
+  | P.ETarr(ws, PE e) as ty ->
     let size = PE (icnst (size_of_ws ws) ** e) in
-    Cassgn (Lvar xi, E.AT_inline, ty, P.Parr_init size)
-  | _           -> 
-    rs_tyerror ~loc:(L.loc xi) (InvalidArrayType x.v_ty)
+    Cassgn (Lvar xi, E.AT_inline, P.gty_of_gety ty, P.Parr_init size)
+  | _           ->
+    rs_tyerror ~loc:(L.loc xi) (InvalidArrayType ty)
 
-let cassgn_for (x: P.plval) (tg: E.assgn_tag) (ty: P.pty) (e: P.pexpr) :
-  (P.pexpr_, unit, 'asm) P.ginstr_r =
-  Cassgn (x, tg, ty, e)
+let cassgn_for (x: P.plval) (tg: E.assgn_tag) (ty: P.epty) (e: P.pexpr) :
+  (unit, 'asm) P.pinstr_r =
+  Cassgn (x, tg, P.gty_of_gety ty, e)
 
 let mk_call loc inline lvs f es =
   let open P in
@@ -1750,7 +1921,7 @@ let assign_from_decl (decl: S.vardecl L.located) =
 let tt_annot_paramdecls dfl_writable pd env (annot, (ty,vs)) =
   let aty = annot, ty in
   let vars = List.map (fun v -> aty, v) vs in
-  tt_vardecls_push dfl_writable pd env vars 
+  tt_vardecls_push dfl_writable pd env vars
 
 let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
   let mk_i ?(annot=annot) instr =
@@ -1761,11 +1932,10 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       tt_assign env_lhs env_rhs ls `Raw (L.mk_loc el (S.PECombF(f, args))) None
 
     | ls, `Raw, { L.pl_desc = S.PECall (f, args); pl_loc = el }, None ->
-      let (f,tlvs) = tt_fun env_rhs f in
-      let _tlvs, tes = f_sig f in
-      let lvs, is = tt_lvalues arch_info env_lhs (L.loc pi) ls None tlvs in
+      let (f,fsig) = tt_fun env_rhs f in
+      let lvs, is = tt_lvalues arch_info env_lhs (L.loc pi) ls None fsig.fs_tout in
       assert (is = []);
-      let es  = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args tes in
+      let es  = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args fsig.fs_tin in
       let is_inline = P.is_inline annot f.P.f_cc in
       let annot =
         if is_inline || FInfo.is_export f.P.f_cc
@@ -1779,13 +1949,13 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
     if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "%s expects no implicit result" op);
     if xs <> [] then rs_tyerror ~loc:(L.loc pi) (string_error "%s expects no result" op);
     let es = tt_exprs arch_info.pd env_rhs args in
-    let doit (e, _) = 
-      match e with 
+    let doit (e, _) =
+      match e with
       | P.Pvar x when P.is_reg_kind (P.kind_i x.gv) -> e
       | _ ->  rs_tyerror ~loc:(L.loc pi) (string_error "%s expects only reg/reg ptr as arguments" op) in
     let es = List.map doit es in
     let op = if op = "spill" then Pseudo_operator.Spill else Pseudo_operator.Unspill in
-    let p = Sopn.Opseudo_op (Ospill(op, [] (* dummy info, will be fixed latter *))) in 
+    let p = Sopn.Opseudo_op (Ospill(op, [] (* dummy info, will be fixed latter *))) in
     [mk_i ~annot (P.Copn([], AT_keep, p, es))]
 
   | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None when L.unloc f = "randombytes" ->
@@ -1819,20 +1989,25 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
             match oxty with
             | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
             | Some ty -> ty in
-          let _ = 
+          let _ =
              match oxty with
             | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
             | Some yty -> check_ty_eq ~loc:yloc ~from:yty ~to_:ty in
           [x ty; y ty], ty
         | _ ->
           rs_tyerror ~loc:(L.loc pi)
-            (string_error "a pair of destination is expected for swap") in
+            (string_error "a pair of destination is expected for swap")
+      in
       let () = match ty with
-        | Arr _ -> ()
-        | Bty (U ws) when ws <= U64 -> ()
-        | Bty ty ->
-           rs_tyerror ~loc:(L.loc pi)
-             (string_error "the swap primitive is not available at type %a" PrintCommon.pp_btype ty)
+        | P.ETarr _ -> ()
+        | P.ETword(None, ws) when ws <= U64 -> ()
+        | _ ->
+          let w = match ty with P.ETword(w, ws) -> w | _ -> None in
+          let ty = match P.gty_of_gety ty with P.Bty ty -> ty | _ -> assert false in
+            rs_tyerror ~loc:(L.loc pi)
+              (string_error "the swap primitive is not available at type %a"
+                 (PrintCommon.pp_btype ?w) ty)
+
       in
       let es = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args [ty; ty] in
       let p = Sopn.Opseudo_op (Oswap Type.Coq_sbool) in  (* The type is fixed latter *)
@@ -1847,8 +2022,11 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
 
   | ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None
       ->
-      let ws, s = ct in
-      assert (s = `Unsigned); (* FIXME *)
+      let ws =
+        match ct with
+        | (ws, `Word s) when Option.default W.Unsigned (tt_osign s) = W.Unsigned -> ws
+        | _ -> assert false (* FIXME *)
+        in
       let p = tt_prim arch_info.asmOp f in
       let id = Sopn.asm_op_instr arch_info.asmOp p in
       let p = cast_opn ~loc:(L.loc pi) id ws p in
@@ -1919,9 +2097,9 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       vds
 
   | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
-    let x = tt_var `AllVar env x in
+    let x, xty = tt_var `AllVar env x in
     let xi = (L.mk_loc lc x) in
-    env, [mk_i (arr_init xi)]
+    env, [mk_i (arr_init (xi, xty))]
 
   | S.PIAssign (ls, eqop, pe, ocp) -> env, tt_assign env env ls eqop pe ocp
 
@@ -1934,8 +2112,8 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
   | PIFor ({ pl_loc = lx } as x, (d, i1, i2), s) ->
       let i1   = tt_expr_int arch_info.pd env i1 in
       let i2   = tt_expr_int arch_info.pd env i2 in
-      let vx   = tt_var `AllVar env x in
-      check_ty_eq ~loc:lx ~from:vx.P.v_ty ~to_:P.tint;
+      let vx, xty = tt_var `AllVar env x in
+      check_ty_eq ~loc:lx ~from:xty ~to_:P.etint;
       let s    = tt_block arch_info env s in
       let d    = match d with `Down -> E.DownTo | `Up -> E.UpTo in
       env, [mk_i (P.Cfor (L.mk_loc lx vx, (d, i1, i2), s))]
@@ -1944,7 +2122,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       let c  = tt_expr_bool arch_info.pd env e in
       let s1 = Option.map_default (tt_block arch_info env) [] s1 in
       let s2 = Option.map_default (tt_block arch_info env) [] s2 in
-      let a = 
+      let a =
         Option.map_default (fun () -> E.Align) E.NoAlign (Annot.ensure_uniq1 "align" Annot.none annot) in
       let annot = Annot.consume "align" annot in
       env, [mk_i ~annot (P.Cwhile (a, s1, c, ((L.of_loc e, []), ()), s2))]
@@ -1956,7 +2134,7 @@ and tt_block arch_info env (pb : S.pblock) =
 and tt_cmd arch_info env c =
   match c with
   | [] -> env, []
-  | i::c -> 
+  | i::c ->
     let env, i = tt_instr arch_info env i in
     let env, c = tt_cmd arch_info env c in
     env, i @ c
@@ -1978,7 +2156,7 @@ let tt_call_conv _loc params returns cc =
 
   | Some `Export | None ->
     let check s x =
-      if not (P.is_reg_kind (L.unloc x).P.v_kind) then 
+      if not (P.is_reg_kind (L.unloc x).P.v_kind) then
         warning PedanticPretyping (L.i_loc0 (L.loc x))
           "%a has kind %a, only reg or reg ptr are allowed in %s of non inlined function"
             Printer.pp_pvar (L.unloc x)
@@ -1997,16 +2175,16 @@ let tt_call_conv _loc params returns cc =
             warning Always (L.i_loc0 loc) "no need to return a [reg const ptr] %a"
               Printer.pp_pvar x;
           let i = List.index_of x args in
-          if i = None then 
+          if i = None then
             rs_tyerror ~loc (string_error "%a should be one of the paramaters"
                                Printer.pp_pvar x);
           i
         | _ -> assert false) returns in
-    let is_writable_ptr k = 
+    let is_writable_ptr k =
       match k with
       | W.Reg(_, Pointer Writable) -> true
       | _ -> false in
-    let check_writable_param i x = 
+    let check_writable_param i x =
       let loc = L.loc x in
       let x = L.unloc x in
       if is_writable_ptr x.P.v_kind then
@@ -2084,19 +2262,19 @@ let process_f_annot loc funname f_cc annot =
 
 (* -------------------------------------------------------------------- *)
 (* Compute the set of declared variables                                *)
-let rec add_reserved_i env (_,i) = 
-  match L.unloc i with 
+let rec add_reserved_i env (_,i) =
+  match L.unloc i with
   | S.PIdecl (_, ids) ->
       List.fold_left (fun env id -> Env.add_reserved env (L.unloc (S.var_decl_id (L.unloc id)))) env ids
   | PIArrayInit _ | PIAssign _ -> env
   | PIIf(_, c, oc) -> add_reserved_oc (add_reserved_c' env c) oc
   | PIFor(_, _, c) -> add_reserved_c' env c
   | PIWhile(oc1, _, oc2) -> add_reserved_oc (add_reserved_oc env oc1) oc2
- 
-and add_reserved_c env c = 
+
+and add_reserved_c env c =
   List.fold_left add_reserved_i env c
 
-and add_reserved_c' env c = add_reserved_c env (L.unloc c) 
+and add_reserved_c' env c = add_reserved_c env (L.unloc c)
 
 and add_reserved_oc env =
   function
@@ -2107,28 +2285,28 @@ and add_reserved_oc env =
 
 let add_known_implicits arch_info env c =
   let env = add_reserved_c env c in
-  let create env s = 
+  let create env s =
     if not (Env.is_reserved env s) then s
     else
-      let rec aux i = 
-        let s' = Format.sprintf "%s_%i" s i in 
-        if not (Env.is_reserved env s') then s' 
+      let rec aux i =
+        let s' = Format.sprintf "%s_%i" s i in
+        if not (Env.is_reserved env s') then s'
         else aux (i+1) in
-      aux 0 in  
-  let env, known_implicits = 
+      aux 0 in
+  let env, known_implicits =
     List.map_fold (fun env (s1, s2) ->
         let s2 = create env s2 in
-        let env = Env.Vars.push_implicit env (P.PV.mk s2 (Reg(Normal, Direct)) P.tbool L._dummy []) in
+        let env = Env.Vars.push_implicit env (mk_var s2 (Reg(Normal, Direct)) P.etbool L._dummy [], P.etbool) in
         env, (s1, s2)) env arch_info.known_implicits in
   Env.set_known_implicits env known_implicits
 
 
-let warn_unused_variables env f = 
+let warn_unused_variables env f =
   let used = List.fold_left (fun s v -> P.Spv.add (L.unloc v) s) P.Spv.empty f.P.f_ret in
   let used = P.Spv.union used (P.pvars_c f.P.f_body) in
   let pp_var fmt x = F.fprintf fmt "%s.%s" x.P.v_name (CoreIdent.string_of_uid x.P.v_id) in
-  Env.Vars.iter_locals (fun x -> 
-   if not (P.Spv.mem x used) then 
+  Env.Vars.iter_locals (fun x ->
+   if not (P.Spv.mem x used) then
      warning UnusedVar (L.i_loc0 x.v_dloc) "unused variable %a" pp_var x)
     env
 
@@ -2138,16 +2316,18 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
     rs_tyerror ~loc:(L.loc pf.pdf_name) (string_error "invalid function name");
   let inret = Option.map_default (List.map L.unloc) [] pf.pdf_body.pdb_ret in
   let dfl_mut x = List.mem x inret in
-  
-  let envb, args = 
+
+  let envb, args =
     let env, args = List.map_fold (tt_annot_paramdecls dfl_mut arch_info.pd) env pf.pdf_args in
     let env = add_known_implicits arch_info env pf.pdf_body.pdb_instr in
     env, List.flatten args in
-  let rty  = Option.map_default (List.map (tt_type arch_info.pd env |- snd |- snd)) [] pf.pdf_rty in
+  let fs_tout = Option.map_default (List.map (tt_type arch_info.pd env |- snd |- snd)) [] pf.pdf_rty in
   let oannot = Option.map_default (List.map fst) [] pf.pdf_rty in
   let body, xret = tt_funbody arch_info envb pf.pdf_body in
-  let f_cc = tt_call_conv loc args xret pf.pdf_cc in
-  let args = List.map L.unloc args in
+  let f_args = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) args in
+  let fs_tin = List.map (fun x -> snd (L.unloc x)) args in
+  let f_ret = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) xret in
+  let f_cc = tt_call_conv loc f_args f_ret pf.pdf_cc in
   let name = L.unloc pf.pdf_name in
   let fdef =
     { P.f_loc   = loc;
@@ -2155,68 +2335,69 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
       P.f_cc    = f_cc;
       P.f_info  = ();
       P.f_name  = P.F.mk name;
-      P.f_tyin  = List.map (fun { P.v_ty } -> v_ty) args;
-      P.f_args  = args;
+      P.f_tyin  = List.map P.gty_of_gety fs_tin;
+      P.f_args  = List.map L.unloc f_args;
       P.f_body  = body;
-      P.f_tyout = rty;
+      P.f_tyout = List.map P.gty_of_gety fs_tout;
       P.f_outannot = oannot;
-      P.f_ret   = xret; } in
+      P.f_ret   = f_ret; } in
 
-  check_return_statement ~loc fdef.P.f_name rty
-    (List.map (fun x -> (L.loc x, (L.unloc x).P.v_ty)) xret);
+  check_return_statement ~loc fdef.P.f_name fs_tout
+    (List.map (fun x -> L.loc x, snd (L.unloc x)) xret);
 
   warn_unused_variables envb fdef;
 
   let return_storage = Option.map_default (List.map (fst |- snd)) [] pf.pdf_rty in
-  check_return_storage ~loc fdef.P.f_name return_storage xret;
+  check_return_storage ~loc fdef.P.f_name return_storage f_ret;
 
-  Env.Funs.push env0 fdef rty
+  Env.Funs.push env0 fdef {fs_tin; fs_tout}
 
 (* -------------------------------------------------------------------- *)
 let tt_global_def pd env (gd:S.gpexpr) =
-  let f e = 
+  let f e =
     let pe,ety = tt_expr ~mode:`AllVar pd env e in
     (L.mk_loc e.pl_loc pe, ety) in
   let array_of_string s =
     L.unloc s |> String.to_list |> List.map @@ fun c ->
     c |> Char.code |> Z.of_int |> fun z ->
-    P.(L.mk_loc (L.loc s) (Papp1 (E.Oword_of_int W.U8, Pconst z)), u8) in
+    P.(L.mk_loc (L.loc s) (Papp1 (op_word_of_int(Word, W.Unsigned, W.U8), Pconst z)), P.etw U8) in
   match gd with
-  | S.GEword e -> 
+  | S.GEword e ->
     `Word (f e)
   | S.GEarray es ->
-    `Array (List.map f es) 
+    `Array (List.map f es)
   | S.GEstring e ->
     `Array (array_of_string e)
 
 let tt_global pd (env : 'asm Env.env) _loc (gd: S.pglobal) : 'asm Env.env =
 
   let open P in
-  let mk_pe ws (pe,ety) = 
+  let mk_pe ws (pe,ety) =
     match ety with
-    | Bty (U ews) when Utils0.cmp_le Wsize.wsize_cmp ws ews -> L.unloc pe
-    | Bty Int -> Papp1 (Oword_of_int ws, L.unloc pe)
-    | _ -> rs_tyerror ~loc:(L.loc pe) (TypeMismatch (ety, Bty (U ws)))
+    | P.ETword(wk, ews) when wk = None && Utils0.cmp_le Wsize.wsize_cmp ws ews ->
+      L.unloc pe
+    | P.ETint -> Papp1 (op_word_of_int(Word, W.Unsigned, ws), L.unloc pe)
+    | _ -> rs_tyerror ~loc:(L.loc pe) (TypeMismatch (ety, P.etw ws))
     in
 
-  let ty, d = 
+  let ty, d =
     match tt_type pd env gd.S.pgd_type, tt_global_def pd env gd.S.pgd_val with
-    | (Bty (U ws)) as ty, `Word (pe,ety) -> 
+    | P.ETword(None, ws) as ty, `Word (pe,ety) ->
       let pe = mk_pe ws (pe,ety) in
       ty, P.GEword pe
-    | Bty _, `Array _ -> 
-      rs_tyerror ~loc:(L.loc gd.S.pgd_type) GlobArrayNotWord 
-    | Arr(ws, _n) as ty, `Array es ->
+    | (P.ETint | P.ETbool | P.ETword _), `Array _ ->
+      rs_tyerror ~loc:(L.loc gd.S.pgd_type) GlobArrayNotWord
+    | P.ETarr(ws, _n) as ty, `Array es ->
       let pes = List.map (mk_pe ws) es in
-      ty, P.GEarray pes 
-    | Arr _, `Word _ ->
+      ty, P.GEarray pes
+    | P.ETarr _, `Word _ ->
       rs_tyerror ~loc:(L.loc gd.S.pgd_type) GlobWordNotArray
     | ty,_ -> rs_tyerror ~loc:(L.loc gd.S.pgd_type) (InvalidTypeForGlobal ty)
   in
 
-  let x = P.PV.mk (L.unloc gd.S.pgd_name) W.Global ty (L.loc gd.S.pgd_name) [] in
+  let x = mk_var (L.unloc gd.S.pgd_name) W.Global ty (L.loc gd.S.pgd_name) [] in
 
-  Env.Vars.push_global env (x,d)
+  Env.Vars.push_global env (x,ty,d)
 
 
 let tt_typealias arch_info env id ty =
