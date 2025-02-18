@@ -72,30 +72,38 @@ let pp_castop fmt =
   | None -> ()
   | Some ty -> ptype fmt (string_of_castop1 (L.unloc ty))
 
+let pp_signcastop fmt (s, c) =
+  match s, c with
+  | None, _ -> pp_castop fmt c
+  | Some s, None -> Format.fprintf fmt "%s" (string_of_sign s)
+  | Some s, Some _ -> Format.fprintf fmt "%s %a" (string_of_sign s) pp_castop c
+
 let pp_op2 fmt =
-  let f s p = F.fprintf fmt "%s%a" p pp_castop s in
+  let f c p = F.fprintf fmt "%s%a" p pp_castop c in
+  let g c p =  F.fprintf fmt "%s%a" p pp_signcastop c in
+
   let ret s = F.fprintf fmt "%s" s in
   function
   | `Add s -> f s "+"
   | `Sub s -> f s "-"
   | `Mul s -> f s "*"
-  | `Div s -> f s "/"
-  | `Mod s -> f s "\\%"
+  | `Div s -> g s "/"
+  | `Mod s -> g s "\\%"
   | `And -> ret "&&"
   | `Or -> ret "||"
   | `BAnd s -> f s "&"
   | `BOr s -> f s "|"
   | `BXOr s -> f s "\\textasciicircum{}"
-  | `ShR s -> f s ">{}>"
+  | `ShR s -> g s ">{}>"
   | `ShL s -> f s "<{}<"
   | `ROR s -> f s ">{}>r"
   | `ROL s -> f s "<{}<r"
   | `Eq s -> f s "=="
   | `Neq s -> f s "!="
-  | `Lt s -> f s "<"
-  | `Le s -> f s "<="
-  | `Gt s -> f s ">"
-  | `Ge s -> f s ">="
+  | `Lt s -> g s "<"
+  | `Le s -> g s "<="
+  | `Gt s -> g s ">"
+  | `Ge s -> g s ">="
   | `Raw -> ret ""
 
 type prio =
@@ -141,7 +149,7 @@ let string_of_wsize w = Format.sprintf "u%d" (bits_of_wsize w)
 
 let pp_svsize fmt (vs,s,ve) =
   Format.fprintf fmt "%d%s%d"
-    (int_of_vsize vs) (suffix_of_sign s) (bits_of_vesize ve)
+    (int_of_vsize vs) (string_of_sign s) (bits_of_vesize ve)
 
 let pp_space fmt _ =
   F.fprintf fmt " "
@@ -228,7 +236,7 @@ and pp_mem_access fmt (al, ty,x,e) =
     | None -> ()
     | Some (`Add, e) -> Format.fprintf fmt " + %a" pp_expr e
     | Some (`Sub, e) -> Format.fprintf fmt " - %a" pp_expr e in
-  F.fprintf fmt "%a[%a%a%a]" (pp_opt (pp_paren pp_ws)) ty pp_aligned al pp_var x pp_e e
+  F.fprintf fmt "%a[%a%a%a]" (pp_opt (pp_paren pp_ws)) (Option.map L.unloc ty) pp_aligned al pp_var x pp_e e
 
 
 and pp_type fmt ty =
@@ -239,11 +247,13 @@ and pp_type fmt ty =
   | TArray (w, e) -> F.fprintf fmt "%a[%a]" ptype (Syntax.string_of_sizetype w) pp_expr e
   | TAlias id -> F.fprintf fmt "%a" ptype (L.unloc id)
 
-and pp_ws fmt w = F.fprintf fmt "%a" ptype (string_of_wsize w)
+and pp_ws fmt w =
+  F.fprintf fmt "%a" ptype (string_of_swsize_ty w)
 
 and pp_expr fmt e = pp_expr_rec Pmin fmt e
 
 and pp_arr_access fmt al aa ws x e len=
+ let ws = Option.map L.unloc ws in
  let pp_olen fmt len =
    match len with
    | None -> ()

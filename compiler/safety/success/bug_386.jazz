@@ -5,7 +5,7 @@ export fn main(){
   while (i < 3 * 3) {
     inline int k;
     for k = 0 to 4 {
-      a[(int) i] = 0;
+      a[i] = 0;
       i += 1;
     }
   }

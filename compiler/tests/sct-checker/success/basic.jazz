@@ -43,7 +43,7 @@ export fn whileloop(#transient reg u64 a) -> #public reg u64 {
   ?{}, i = #set0();
   while (i < 2) {
     msf = #update_msf(i < 2, msf);
-    t = not[(int) i];
+    t = not[i];
     t = #protect(t, msf);
     a ^= t;
     i += 1;
@@ -57,9 +57,9 @@ export fn archetype(#transient reg u64 i) -> #transient reg u64 {
   r = 0;
   if i < 2 {
     msf = #update_msf(i < 2, msf);
-    t = not[(int) i];
+    t = not[i];
     t = #protect(t, msf);
-    r = not[(int) t];
+    r = not[t];
   }
   return r;
 }

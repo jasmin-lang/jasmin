@@ -91,7 +91,7 @@ let rec psubst_e (f: psubst) (e: pexpr) : pexpr =
   gsubst_e (psubst_e_ f) f e
 and psubst_e_ f ?loc:_ (PE e) = PE (psubst_e f e)
 
-let psubst_ty f (ty:pty) : pty =
+let psubst_ty f (ty: pty) : pty =
   match ty with
   | Bty ty -> Bty ty
   | Arr(ty, e) -> Arr(ty, psubst_e_ f e)
@@ -170,8 +170,8 @@ let int_of_op2 ?loc o =
   | Expr.Oadd Op_int -> Z.add
   | Expr.Omul Op_int -> Z.mul
   | Expr.Osub Op_int -> Z.sub
-  | Expr.Odiv Cmp_int -> Z.div
-  | Expr.Omod Cmp_int -> Z.erem
+  | Expr.Odiv(sg, Op_int) -> if sg = Unsigned then Z.ediv else Z.div
+  | Expr.Omod(sg, Op_int) -> if sg = Unsigned then Z.erem else Z.rem
   | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (PrintCommon.string_of_op2 o)
 
 let rec int_of_expr ?loc e =
@@ -274,6 +274,12 @@ let isubst_prog glob prog =
 
 exception NotAConstantExpr
 
+let in_range s sz i =
+  if s = Wsize.Signed &&
+     not (Z.lt i (Z.shift_left Z.one ((int_of_ws sz)/2))) then
+     Z.sub i (Z.shift_left Z.one (int_of_ws sz))
+  else i
+
 let rec constant_of_expr (e: Prog.expr) : Z.t =
   let open Prog in
 
@@ -281,14 +287,14 @@ let rec constant_of_expr (e: Prog.expr) : Z.t =
   | Papp1 (Oword_of_int sz, e) ->
       clamp sz (constant_of_expr e)
 
-  | Papp1(Oint_of_word sz, e) ->
-      clamp sz (constant_of_expr e)
+  | Papp1(Oint_of_word(s, sz), e) ->
+      let i = clamp sz (constant_of_expr e) in
+      in_range s sz i
 
   | Pconst z ->
       z
 
   | _ -> raise NotAConstantExpr
-
 
 let remove_params (prog : ('info, 'asm) pprog) =
   let globals, prog = psubst_prog prog in
@@ -301,6 +307,7 @@ let remove_params (prog : ('info, 'asm) pprog) =
   let mk_word ws e =
     let open Constant_prop in
     let e = Conv.cexpr_of_expr e in
+    let e = Wint_word.wi2w_e e in
     let c = const_prop_e (fun _ -> assert false) (Some get_glob) Var0.Mvar.empty e in
     let z = constant_of_expr (Conv.expr_of_cexpr c) in
     Word0.wrepr ws (Conv.cz_of_z (clamp ws z)) in

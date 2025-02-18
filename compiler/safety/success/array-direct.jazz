@@ -15,13 +15,13 @@ fn array_direct() -> reg u256 {
   a.[u8 i] = b;
   a.[u64 0] = q;
   a.[u64 i] = q;
-  a.[u8 (int)q] = b;
+  a.[u8 q] = b;
   a.[u64 i + 8] = q;
   a.[u64 8 * (i + 1)] = q;
   a.[u64 (i + 1) * 8] = q;
   a.[u64 i * 8 + 8] = q;
-  a.[u8 (int)(q + 1)] = b;
-  a.[u8 (int)q + 1] = b;
+  a.[u8 q + 1] = b;
+  a.[u8 (uint)q + 1] = b;
 
   y = a.[u256 0];
   return y;

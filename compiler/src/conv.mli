@@ -33,28 +33,28 @@ val cty_of_ty : Prog.ty -> Type.stype
 val ty_of_cty : Type.stype -> Prog.ty
 
 (* -------------------------------------------------------------------- *)
-val cvar_of_var :  var -> Var0.Var.var
-val var_of_cvar :  Var0.Var.var -> var
-val vari_of_cvari :  Expr.var_i -> var L.located
+val cvar_of_var : var -> Var0.Var.var
+val var_of_cvar : Var0.Var.var -> var
+val vari_of_cvari : Expr.var_i -> var L.located
 
 val csv_of_sv : Sv.t -> Var0.SvExtra.Sv.t
 val sv_of_csv : Var0.SvExtra.Sv.t -> Sv.t
 
-val lval_of_clval :  Expr.lval -> Prog.lval
+val lval_of_clval : Expr.lval -> Prog.lval
 
-val cexpr_of_expr :  expr -> Expr.pexpr
-val expr_of_cexpr :  Expr.pexpr -> expr
+val cexpr_of_expr : Prog.expr -> Expr.pexpr
+val expr_of_cexpr : Expr.pexpr -> expr
 
-val cufdef_of_fdef :  (unit, 'asm) func -> Var0.funname * 'asm Expr._ufundef
-val fdef_of_cufdef :  Var0.funname * 'asm Expr._ufundef -> (unit, 'asm) func
+val cufdef_of_fdef : (unit, 'asm) func -> Var0.funname * 'asm Expr._ufundef
+val fdef_of_cufdef : Var0.funname * 'asm Expr._ufundef -> (unit, 'asm) func
 
 val cuprog_of_prog : (unit, 'asm) prog -> 'asm Expr._uprog
-val prog_of_cuprog :  'asm Expr._uprog -> (unit, 'asm) prog
+val prog_of_cuprog : 'asm Expr._uprog -> (unit, 'asm) prog
 
-val csfdef_of_fdef :  (unit, 'asm) sfundef -> Var0.funname * 'asm Expr._sfundef
-val fdef_of_csfdef :  Var0.funname * 'asm Expr._sfundef -> (unit, 'asm) sfundef
+val csfdef_of_fdef : (unit, 'asm) sfundef -> Var0.funname * 'asm Expr._sfundef
+val fdef_of_csfdef : Var0.funname * 'asm Expr._sfundef -> (unit, 'asm) sfundef
 
-val prog_of_csprog :  'asm Expr._sprog -> (unit, 'asm) sprog
+val prog_of_csprog : 'asm Expr._sprog -> (unit, 'asm) sprog
 
 val to_array : 
   Prog.ty -> BinNums.positive -> Warray_.WArray.array -> wsize * Z.t array

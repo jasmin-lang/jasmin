@@ -401,10 +401,10 @@ Definition wmulhrs sz (x y: word sz) : word sz :=
   wrepr sz (Z.shiftr p 1).
 
 Definition wmax_unsigned sz := wbase sz - 1.
-Definition wmin_signed (sz: wsize) : Z := - modulus (wsize_size_minus_1 sz).
-Definition wmax_signed (sz: wsize) : Z := modulus (wsize_size_minus_1 sz) - 1.
 
 Definition half_modulus sz : Z := modulus (wsize_size_minus_1 sz).
+Definition wmin_signed (sz: wsize) : Z := -half_modulus sz.
+Definition wmax_signed (sz: wsize) : Z := half_modulus sz - 1.
 
 Lemma wbase_twice_half sz :
   wbase sz = 2 * half_modulus sz.
@@ -430,6 +430,14 @@ Proof.
   rewrite /wmin_signed /wmax_signed -/(half_modulus _) wbase_twice_half.
   lia.
 Qed.
+
+Lemma wsigned_range_m szi szo:
+  (szi ≤ szo)%CMP ->
+  (wmin_signed szo <= wmin_signed szi /\ wmax_signed szi <= wmax_signed szo)%Z.
+Proof. by case: szi; case: szo. Qed.
+
+Lemma half_modulues_pos sz : (0 < half_modulus sz)%Z.
+Proof. by case: sz. Qed.
 
 Notation u8   := (word U8).
 Notation u16  := (word U16).
@@ -2178,3 +2186,79 @@ Proof.
   change (Z.pow_pos 2 128) with (Z.pow_pos 2 64 * Z.pow_pos 2 64).
   lia.
 Qed.
+
+(* ----------------------------------------------- *)
+
+Definition in_uint_range (sz : wsize) z : bool :=
+  (0 <=? z) && (z <=? wmax_unsigned sz).
+
+Definition in_sint_range (sz : wsize) z : bool :=
+  (wmin_signed sz <=? z) && (z <=? wmax_signed sz).
+
+Definition signed {A:Type} (fu fs:A) s :=
+  match s with
+  | Unsigned => fu
+  | Signed => fs
+  end.
+
+Definition in_wint_range (s : signedness) (sz : wsize) z :=
+   assert (signed in_uint_range in_sint_range s sz z) ErrArith.
+
+Definition wint_of_int (s : signedness) (sz : wsize) (z : Z) :=
+  Let _ := in_wint_range s sz z in
+  ok (wrepr sz z).
+
+Definition int_of_word (s : signedness) (sz : wsize) (w : word sz) :=
+  signed wunsigned wsigned s w.
+
+Definition sem_word_extend (s : signedness) (szo szi : wsize) :=
+  signed (@zero_extend szo szi) (@sign_extend szo szi) s.
+
+Lemma wrepr_int_of_word sz si (w:word sz) : wrepr sz (int_of_word si w) = w.
+Proof. case: si => /=; auto using wrepr_signed, wrepr_unsigned. Qed.
+
+Lemma wint_of_intP si sz i w : wint_of_int si sz i = ok w -> w = wrepr sz i /\ in_wint_range si sz i = ok tt.
+Proof. by rewrite /wint_of_int; t_xrbindP => ? <-. Qed.
+
+Lemma wint_of_int_wrepr si sz i w : wint_of_int si sz i = ok w -> w = wrepr sz i.
+Proof. by move=> /wint_of_intP []. Qed.
+
+Lemma int_of_word_eqb si sz (w1 w2 : word sz) :
+  (int_of_word si w1 =? int_of_word si w2)%Z = (w1 == w2).
+Proof.
+  apply Bool.eq_iff_eq_true; rewrite /int_of_word; split.
+  + move=> /word_ssrZ.ZeqbP => h; apply/eqP.
+    case: si h => /= h.
+    + by rewrite -(wrepr_signed w1) -(wrepr_signed w2) h.
+    by rewrite -(wrepr_unsigned w1) -(wrepr_unsigned w2) h.
+  by move=> /eqP ->; apply Z.eqb_refl.
+Qed.
+
+Lemma Z_rem_bound (a b : Z) : (b <> 0 -> - Z.abs b < Z.rem a b < Z.abs b)%Z.
+Proof.
+  move=> hb.
+  case: (ZleP 0 a) => ha.
+  + by have := Zquot.Zrem_lt_pos a b ha hb; Lia.lia.
+  rewrite -(Z.opp_involutive a) Zquot.Zrem_opp_l.
+  have := Zquot.Zrem_lt_pos (-a) b _ hb; Lia.lia.
+Qed.
+
+Lemma Z_quot_bound (B a b : Z) :
+  (0 < B ->
+   -B <= a <= B - 1 ->
+   -B <= b <= B - 1 ->
+   b <> 0 ->
+   ~(a = -B /\ b = -1) ->
+   -B <= Z.quot a b <= B - 1)%Z.
+Proof.
+  move=> hB ha hb hab.
+  case: (ZltP 0 b) => ?.
+  + split.
+    + by apply Z.quot_le_lower_bound => //; Lia.nia.
+    by apply Z.quot_le_upper_bound => //; Lia.nia.
+  rewrite -(Z.opp_involutive b).
+  rewrite Zquot.Zquot_opp_r; split; rewrite Z.opp_le_mono Z.opp_involutive.
+  + apply: Z.quot_le_upper_bound; Lia.nia.
+  apply Z.quot_le_lower_bound; Lia.nia.
+Qed.
+

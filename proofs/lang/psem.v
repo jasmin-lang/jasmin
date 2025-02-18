@@ -16,14 +16,17 @@ Open Scope vm_scope.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
-Lemma sem_sop1I y x f:
+Lemma sem_sop1I y x (f : sop1):
   sem_sop1 f x = ok y →
-  exists2 w : sem_t (type_of_op1 f).1,
-    of_val _ x = ok w &
-    y = to_val (sem_sop1_typed f w).
-Proof. by rewrite /sem_sop1; t_xrbindP => w ok_w <-; eauto. Qed.
+  exists (w1 : sem_t (type_of_op1 f).1) (w2 : sem_t (type_of_op1 f).2) ,
+    [/\ of_val _ x = ok w1
+      , sem_sop1_typed f w1 = ok w2
+      & y = to_val w2].
+Proof.
+  by rewrite /sem_sop1 /=; t_xrbindP => w1 ok_w1 w2 ok_w2 <-; exists w1, w2.
+Qed.
 
-Lemma sem_sop2I v v1 v2 f:
+Lemma sem_sop2I v v1 v2 (f : sop2) :
   sem_sop2 f v1 v2 = ok v →
   ∃ (w1 : sem_t (type_of_op2 f).1.1) (w2 : sem_t (type_of_op2 f).1.2)
     (w3: sem_t (type_of_op2 f).2),
@@ -32,7 +35,7 @@ Lemma sem_sop2I v v1 v2 f:
         sem_sop2_typed f w1 w2 = ok w3 &
         v = to_val w3].
 Proof.
-  by rewrite /sem_sop2; t_xrbindP => w1 ok_w1 w2 ok_w2 w3 ok_w3 <- {v}; exists w1, w2, w3.
+  by rewrite /sem_sop2 /=; t_xrbindP => w1 ok_w1 w2 ok_w2 w3 ok_w3 <- {v}; exists w1, w2, w3.
 Qed.
 
 (* ** Global access
@@ -1314,9 +1317,14 @@ Lemma vuincl_sem_sop1 o ve1 ve1' v1 :
   value_uincl ve1 ve1' -> sem_sop1 o ve1 = ok v1 ->
   sem_sop1 o ve1' = ok v1.
 Proof.
-  rewrite /sem_sop1; t_xrbindP=> /of_value_uincl_te h + /h{h}.
-  by case: o; last case; move=> > -> /= ->.
+  rewrite /sem_sop1 /=; t_xrbindP=> /of_value_uincl_te h + /h{h}.
+  case: o; try by move=> > -> > [] <- <-.
+  + by move=> [] > -> > [] <- <-.
+  move=> s [] > -> > /=.
+  1,6: by move=> -> <-.
+  all: by move=> [] <- <-.
 Qed.
+
 
 Lemma sem_sop1_truncate_val o ve1 v1 :
   sem_sop1 o ve1 = ok v1 ->
@@ -1324,10 +1332,10 @@ Lemma sem_sop1_truncate_val o ve1 v1 :
     truncate_val (type_of_op1 o).1 ve1 = ok ve1' /\
     sem_sop1 o ve1' = ok v1.
 Proof.
-  rewrite /sem_sop1 /truncate_val.
-  t_xrbindP=> w -> <- /=.
+  rewrite /sem_sop1 /= /truncate_val.
+  t_xrbindP=> w -> ? /= h <-.
   eexists; split; first by reflexivity.
-  by rewrite of_val_to_val.
+  by rewrite of_val_to_val /= h.
 Qed.
 
 Lemma vuincl_sem_sop2 o ve1 ve1' ve2 ve2' v1 :
@@ -1341,6 +1349,8 @@ Proof.
     match goal with
     | |- cmp_kind -> _ => case=> /=
     | |- op_kind -> _ => case=> /=
+    | |- signedness -> op_kind -> _ => move=> ?; case=> /=
+    | |- signedness -> wsize -> wiop2 -> _ => move=> ?? [] => /=
     | _ => idtac end => > -> > -> ? /=; (move=> -> || case=> ->) => /= ->.
 Qed.
 
@@ -1351,7 +1361,7 @@ Lemma sem_sop2_truncate_val o ve1 ve2 v1 :
     truncate_val (type_of_op2 o).1.2 ve2 = ok ve2' &
     sem_sop2 o ve1' ve2' = ok v1].
 Proof.
-  rewrite /sem_sop2 /truncate_val.
+  rewrite /sem_sop2 /= /truncate_val.
   t_xrbindP=> w1 -> w2 -> w ho <- /=.
   eexists _, _; split; [by reflexivity..|].
   by rewrite !of_val_to_val /= ho.

@@ -171,7 +171,7 @@ Lemma Hassgn_op2_generic s e1 e2 v1 v2 op2 v ws v' lv s1 (op2' : sopn) :
 Proof.
   move=> ok_v1 ok_v2 ok_v htrunc hwrite hvalid ws1 ws2 ws3 ws1' ws2' eq1 eq2 eq3.
   move: ok_v.
-  rewrite /sem_sop2; move: (sem_sop2_typed op2).
+  rewrite /sem_sop2 /=; move: (sem_sop2_typed op2).
   rewrite -> eq1 => /= sem_sop2_typed ok_v.
   rewrite /sem_sopn /= /exec_sopn /= /sopn_sem /sopn_sem_ hvalid /=.
   move: (semi (sopn.get_instr_desc op2')).
@@ -442,8 +442,8 @@ Proof.
   t_xrbindP=> s e1 e2 v1 ok_v1 v2 ok_v2 ok_v.
   rewrite /lower_Papp2 /chk_ws_reg.
   case: eqP => //= ?; subst.
-  case: s ok_v => //= o ok_v.
-  + case: o ok_v => //= ws ok_v.
+  case: s ok_v => //=.
+  + case => //= ws ok_v.
     rewrite /riscv_lowering.decide_op_reg_imm.
     - case en : is_wconst => [ n | ].
       - case : ifP => //.
@@ -459,13 +459,13 @@ Proof.
       Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
       move=> [<- <- <-].
       by apply sem_correct; rewrite /= wadd_zero_extend.
-  + case: o ok_v => //= ws ok_v.
+  + case => //= ws ok_v.
     move=> [<- <- <-].
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
       Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
     by apply sem_correct; rewrite /= wmul_zero_extend.
-  + case: o ok_v => //= ws ok_v.
+  + case => //= ws ok_v.
     rewrite /riscv_lowering.decide_op_reg_imm_neg.
     case en : is_wconst => [ n | ].
     - case : ifP => //.
@@ -485,7 +485,7 @@ Proof.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
       Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
     by apply sem_correct; rewrite /= wsub_zero_extend.
-  + case: o ok_v => // -[] [] //=.
+  + case => // -[] // [] //=.
     + rewrite /sem_sop2 /=.
       t_xrbindP=> w1 ok_w1 w2 ok_w2.
       rewrite /mk_sem_divmod /=.
@@ -509,7 +509,7 @@ Proof.
     rewrite /riscv_divu_semi w2_nzero.
     rewrite (truncate_val_subtype_eq htrunc) //.
     by rewrite hwrite.
-  + case: o ok_v => // -[] [] //=.
+  + case => // -[] // [] //=.
     + rewrite /sem_sop2 /=.
       t_xrbindP=> w1 ok_w1 w2 ok_w2.
       rewrite /mk_sem_divmod /=.
@@ -533,25 +533,25 @@ Proof.
     rewrite /riscv_div_semi.
     rewrite (truncate_val_subtype_eq htrunc) //.
     by rewrite hwrite.
-  + case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <-].
+  + move=> o ok_v; case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <-].
     apply: (decide_op_reg_immP ok_v1 ok_v2 h erefl).
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
     Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
     by apply sem_correct; rewrite /= -wand_zero_extend.
-  + case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <-].
+  + move=> o ok_v; case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <-].
     apply: (decide_op_reg_immP ok_v1 ok_v2 h erefl).
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
       Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
     by apply sem_correct; rewrite /= -wor_zero_extend.
-  + case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <-].
+  + move=> o ok_v; case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <-].
     apply: (decide_op_reg_immP ok_v1 ok_v2 h erefl).
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
       Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
     by apply sem_correct; rewrite /= -wxor_zero_extend.
-  + case: o ok_v => // ok_v.
+  + case => // ok_v.
     case good_shift: check_shift_amount => [ sa | ] //.
     move=> [<- <- <-].
     rewrite !fun_if if_same.
@@ -561,7 +561,7 @@ Proof.
     have [_ [wa ok_wa eq_shift]] := check_shift_amountP good_shift ok_v2 ok_w2.
     apply (sem_correct _ _ ok_wa).
     by rewrite /= !zero_extend_u /sem_shr eq_shift.
-  + case: o ok_v => // ws ok_v.
+  + case => // ws ok_v.
     case good_shift: check_shift_amount => [ sa | ] //.
     move=> [<- <- <-].
     rewrite !fun_if if_same.
@@ -572,7 +572,7 @@ Proof.
     apply (sem_correct _ _ ok_wa).
     rewrite /= zero_extend_wshl //; last by have [? _] := wunsigned_range w2.
     by rewrite -/(sem_shift _ _ _) eq_shift.
-  case: o ok_v => // -[] // ok_v.
+  case => // -[] // ok_v.
   case good_shift: check_shift_amount => [ sa | ] //.
   move=> [<- <- <-].
   rewrite !fun_if if_same.

@@ -106,7 +106,7 @@ export fn main (reg u64 counter) -> reg u64 {
 
 
 
-  while (i < (int)counter) {
+  while (i < (uint)counter) {
     res = x99;
     x99 = x98;
     x98 = x97;

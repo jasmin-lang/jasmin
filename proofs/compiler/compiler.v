@@ -35,7 +35,9 @@ Require Import
   stack_zeroization
   tunneling
   unrolling
-  wsize.
+  wsize
+  wint_word.
+
 Require
   merge_varmaps.
 
@@ -79,6 +81,7 @@ Section COMPILER.
 Variant compiler_step :=
   | Typing                      : compiler_step
   | ParamsExpansion             : compiler_step
+  | WintWord                    : compiler_step
   | ArrayCopy                   : compiler_step
   | AddArrInit                  : compiler_step
   | LowerSpill                  : compiler_step
@@ -113,6 +116,7 @@ Variant compiler_step :=
 Definition compiler_step_list := [::
     Typing
   ; ParamsExpansion
+  ; WintWord
   ; ArrayCopy
   ; AddArrInit
   ; LowerSpill
@@ -177,6 +181,7 @@ Record compiler_params
   stackalloc       : _uprog → stack_alloc_oracles;
   removereturn     : _sprog -> (funname -> option (seq bool));
   regalloc         : seq _sfun_decl -> seq _sfun_decl;
+  remove_wint_annot: funname -> _ufundef -> _ufundef;
   print_uprog      : compiler_step -> _uprog -> _uprog;
   print_sprog      : compiler_step -> _sprog -> _sprog;
   print_linear     : compiler_step -> lprog -> lprog;
@@ -251,7 +256,10 @@ Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
   let p := cparams.(print_uprog) RemoveUnusedFunction p in
   ok p.
 
-Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
+Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :=
+
+  Let p := wi2w_prog (wsw:=withsubword) cparams.(remove_wint_annot) cparams.(dead_vars_ufd) p in
+  let p := cparams.(print_uprog) WintWord p in
 
   Let p := array_copy_prog (λ k, cparams.(fresh_var_ident) k dummy_instr_info 0) p in
   let p := cparams.(print_uprog) ArrayCopy p in
@@ -357,7 +365,7 @@ Definition allNone {A: Type} (m: seq (option A)) : bool :=
     positions in the return values.
     This is not a constraint coming from the implementation, it is just meant to give
     a readable correctness theorem. *)
-Definition check_wf_ptr entries (p:prog) (ao: funname -> stk_alloc_oracle_t) : cexec unit :=
+Definition check_wf_ptr entries (p:uprog) (ao: funname -> stk_alloc_oracle_t) : cexec unit :=
   Let _ :=
     allM (fun fn =>
       match get_fundef p.(p_funcs) fn with
@@ -388,7 +396,7 @@ Definition check_wf_ptr entries (p:prog) (ao: funname -> stk_alloc_oracle_t) : c
                 pp_s " and be returned first, in the same order, in the results."]))))
       end) entries.
 
-Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
+Definition compiler_front_end (entries: seq funname) (p: uprog) : cexec sprog :=
 
   Let pl := compiler_first_part entries p in
   (* stack + register allocation *)
@@ -464,7 +472,7 @@ Definition compiler_back_end_to_asm (entries: seq funname) (p: sprog) :=
   Let lp := compiler_back_end entries p in
   assemble_prog agparams lp.
 
-Definition compile_prog_to_asm entries (p: prog): cexec asm_prog :=
+Definition compile_prog_to_asm entries (p: uprog): cexec asm_prog :=
   compiler_front_end entries p >>= compiler_back_end_to_asm entries.
 
 End COMPILER.

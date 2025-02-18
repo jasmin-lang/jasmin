@@ -2,7 +2,7 @@ u64[2] g = { 1, 0 };
 
 fn load(reg const ptr u64[2] p, reg u64 i) -> reg u64 {
   reg u64 r;
-  r = p[(int)i];
+  r = p[i];
   return r;
 }
 

@@ -1,0 +1,3 @@
+param int big = 137;
+
+export fn wint_overflow() { reg si8 small = big; }

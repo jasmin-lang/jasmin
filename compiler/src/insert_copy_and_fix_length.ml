@@ -98,5 +98,6 @@ and iac_instr_r pd loc ir =
 let iac_func pd f =
   { f with f_body = iac_stmt pd f.f_body }
 
-let doit pd (p:(unit, 'asm) Prog.prog) = (fst p, List.map (iac_func pd) (snd p))
+let doit pd (p:(unit, 'asm) Prog.prog) : (unit, 'asm) Prog.prog =
+  (fst p, List.map (iac_func pd) (snd p))
 

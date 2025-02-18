@@ -32,7 +32,6 @@ type 'len gexpr =
 
 type 'len gexprs = 'len gexpr list
 
-
 let kind_i v = (L.unloc v).v_kind
 let ty_i v = (L.unloc v).v_ty
 
@@ -92,27 +91,27 @@ type 'len glvals = 'len glval list
 
 type 'len grange = E.dir * 'len gexpr * 'len gexpr
 
-type ('len,'info,'asm) ginstr_r =
+type ('len, 'info, 'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
   | Csyscall of 'len glvals * BinNums.positive Syscall_t.syscall_t * 'len gexprs
-  | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
-  | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
-  | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len,'info,'asm) gstmt
+  | Cif    of 'len gexpr * ('len, 'info, 'asm) gstmt * ('len, 'info, 'asm) gstmt
+  | Cfor   of 'len gvar_i * 'len grange * ('len, 'info, 'asm) gstmt
+  | Cwhile of E.align * ('len, 'info, 'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len, 'info, 'asm) gstmt
   | Ccall  of 'len glvals * funname * 'len gexprs
 
 and ('len,'info,'asm) ginstr = {
-    i_desc : ('len,'info,'asm) ginstr_r;
+    i_desc : ('len, 'info, 'asm) ginstr_r;
     i_loc  : L.i_loc;
     i_info : 'info;
     i_annot : Annotations.annotations;
   }
 
-and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
+and ('len, 'info, 'asm) gstmt = ('len, 'info, 'asm) ginstr list
 
 (* ------------------------------------------------------------------------ *)
-type ('len,'info,'asm) gfunc = {
+type ('len, 'info, 'asm) gfunc = {
     f_loc  : L.t;
     f_annot: FInfo.f_annot;
     f_info : 'info;
@@ -120,7 +119,7 @@ type ('len,'info,'asm) gfunc = {
     f_name : funname;
     f_tyin : 'len gty list;
     f_args : 'len gvar list;
-    f_body : ('len,'info,'asm) gstmt;
+    f_body : ('len, 'info, 'asm) gstmt;
     f_tyout : 'len gty list;
     f_ret_info : FInfo.return_info;
     f_ret  : 'len gvar_i list
@@ -130,12 +129,12 @@ type 'len ggexpr =
   | GEword of 'len gexpr
   | GEarray of 'len gexprs
 
-type ('len,'info,'asm) gmod_item =
-  | MIfun   of ('len,'info,'asm) gfunc
+type ('len, 'info, 'asm) gmod_item =
+  | MIfun   of ('len, 'info, 'asm) gfunc
   | MIparam of ('len gvar * 'len gexpr)
   | MIglobal of ('len gvar * 'len ggexpr)
 
-type ('len,'info,'asm) gprog = ('len,'info,'asm) gmod_item list
+type ('len, 'info, 'asm) gprog = ('len, 'info, 'asm) gmod_item list
    (* first declaration occur at the end (i.e reverse order) *)
 
 (* ------------------------------------------------------------------------ *)
@@ -148,23 +147,26 @@ let is_gkvar x = x.gs = E.Slocal
 (* ------------------------------------------------------------------------ *)
 (* Parametrized expression *)
 
-type pty    = pexpr_ gty
-and  pvar   = pexpr_ gvar
-and  pvar_i = pexpr_ gvar_i
-and  plval  = pexpr_ glval
-and  plvals = pexpr_ glvals
-and  pexpr  = pexpr_ gexpr
-and  pexpr_ = PE of pexpr [@@unboxed]
+type  pty    = pexpr_ gty
+and   pvar   = pexpr_ gvar
+and   pvar_i = pexpr_ gvar_i
+and   plval  = pexpr_ glval
+and   plvals = pexpr_ glvals
+and   pexpr  = pexpr_ gexpr
+and   pexpr_ = PE of pexpr [@@unboxed]
+
 
 type range = int grange
 
-type ('info,'asm) pinstr = (pexpr_,'info,'asm) ginstr
-type ('info,'asm) instr_r = (int,'info,'asm) ginstr_r
-type ('info,'asm) pstmt  = (pexpr_,'info,'asm) gstmt
+type epty   = pexpr_ gety
 
-type ('info,'asm) pfunc     = (pexpr_,'info,'asm) gfunc
-type ('info,'asm) pmod_item = (pexpr_,'info,'asm) gmod_item
-type ('info,'asm) pprog     = (pexpr_,'info,'asm) gprog
+type ('info, 'asm) pinstr_r = (pexpr_, 'info, 'asm) ginstr_r
+type ('info, 'asm) pinstr   = (pexpr_, 'info, 'asm) ginstr
+type ('info, 'asm) pstmt    = (pexpr_, 'info, 'asm) gstmt
+
+type ('info, 'asm) pfunc     = (pexpr_, 'info, 'asm) gfunc
+type ('info, 'asm) pmod_item = (pexpr_, 'info, 'asm) gmod_item
+type ('info, 'asm) pprog     = (pexpr_, 'info, 'asm) gprog
 
 (* ------------------------------------------------------------------------ *)
 module PV = struct
@@ -202,6 +204,18 @@ and pexpr_equal e1 e2 =
 
 and pexpr__equal (PE e1) (PE e2) = pexpr_equal e1 e2
 
+let epty_equal t1 t2 =
+  match t1, t2 with
+  | ETbool, ETbool | ETint, ETint -> true
+  | ETword(s1,sz1), ETword(s2, sz2) -> s1 = s2 && sz1 = sz2
+  | ETarr(b1, e1) , ETarr(b2,e2)    -> b1 = b1 && pexpr__equal e1 e2
+  | _, _ -> false
+
+let ws_of_ety = function
+  | ETword(_, ws) -> ws
+  | _ -> assert false
+
+
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
 
@@ -213,13 +227,14 @@ type lvals = int glval list
 type expr  = int gexpr
 type exprs = int gexpr list
 
-type ('info,'asm) instr = (int,'info,'asm) ginstr
-type ('info,'asm) stmt  = (int,'info,'asm) gstmt
+type ('info, 'asm) instr = (int, 'info, 'asm) ginstr
+type ('info, 'asm) instr_r = (int,'info,'asm) ginstr_r
+type ('info, 'asm) stmt  = (int, 'info, 'asm) gstmt
 
-type ('info,'asm) func     = (int,'info,'asm) gfunc
-type ('info,'asm) mod_item = (int,'info,'asm) gmod_item
+type ('info, 'asm) func     = (int, 'info, 'asm) gfunc
+type ('info, 'asm) mod_item = (int, 'info, 'asm) gmod_item
 type global_decl           = var * Global.glob_value
-type ('info,'asm) prog     = global_decl list * ('info,'asm) func list
+type ('info,'asm) prog     = global_decl list * ('info, 'asm) func list
 
 module Sv = Set.Make  (V)
 module Mv = Map.Make  (V)
@@ -317,7 +332,7 @@ let written_vars_fc fc =
 (* -------------------------------------------------------------------- *)
 (* Refresh i_loc, ensure that locations are uniq                        *)
 
-let rec refresh_i_loc_i (i:('info,'asm) instr) : ('info,'asm) instr =
+let rec refresh_i_loc_i (i:('info, 'asm) instr) : ('info, 'asm) instr =
   let i_desc =
     match i.i_desc with
     | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> i.i_desc
@@ -330,13 +345,13 @@ let rec refresh_i_loc_i (i:('info,'asm) instr) : ('info,'asm) instr =
   in
   { i with i_desc; i_loc = L.refresh_i_loc i.i_loc }
 
-and refresh_i_loc_c (c:('info,'asm) stmt) : ('info,'asm) stmt =
+and refresh_i_loc_c (c:('info, 'asm) stmt) : ('info, 'asm) stmt =
   List.map refresh_i_loc_i c
 
-let refresh_i_loc_f (f:('info,'asm) func) : ('info,'asm) func =
+let refresh_i_loc_f (f:('info, 'asm) func) : ('info, 'asm) func =
   { f with f_body = refresh_i_loc_c f.f_body }
 
-let refresh_i_loc_p (p:('info,'asm) prog) : ('info,'asm) prog =
+let refresh_i_loc_p (p:('info, 'asm) prog) : ('info, 'asm) prog =
   fst p, List.map refresh_i_loc_f (snd p)
 
 
@@ -411,12 +426,12 @@ let is_stack_array x =
 let ( ++ ) e1 e2 =
   match e1, e2 with
   | Pconst n1, Pconst n2 -> Pconst (Z.add n1 n2)
-  | _, _                 -> Papp2(Oadd Op_int, e1, e2)
+  | _, _                 -> Papp2(E.Oadd Op_int, e1, e2)
 
 let ( ** ) e1 e2 =
   match e1, e2 with
   | Pconst n1, Pconst n2 -> Pconst (Z.mul n1 n2)
-  | _, _                 -> Papp2(Omul Op_int, e1, e2)
+  | _, _                 -> Papp2(E.Omul Op_int, e1, e2)
 
 let cnst i = Pconst i
 let icnst i = cnst (Z.of_int i)
@@ -488,5 +503,5 @@ let clamp (sz : wsize) (z : Z.t) =
   Z.erem z (Z.shift_left Z.one (int_of_ws sz))
 
 (* --------------------------------------------------------------------- *)
-type ('info,'asm) sfundef = Expr.stk_fun_extra * ('info,'asm) func
-type ('info,'asm) sprog   = ('info,'asm) sfundef list * Expr.sprog_extra
+type ('info,'asm) sfundef = Expr.stk_fun_extra * ('info, 'asm) func
+type ('info,'asm) sprog   = ('info, 'asm) sfundef list * Expr.sprog_extra

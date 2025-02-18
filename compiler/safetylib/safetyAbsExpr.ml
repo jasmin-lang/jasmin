@@ -74,9 +74,46 @@ let wsize_of_ty ty = match ty with
 (* Expression Linearization *)
 (****************************)
 
+let remove_Owi2 o =
+  match o with
+  | E.Owi2(sg, sz, o) ->
+    begin match o with
+    | E.WIadd -> E.Oadd(Op_w sz)
+    | E.WImul -> E.Omul(Op_w sz)
+    | E.WIsub -> E.Osub(Op_w sz)
+    | E.WImod -> E.Omod(sg, Op_w sz)
+    | E.WIdiv -> E.Odiv(sg, Op_w sz)
+    | E.WIshr -> if sg = Signed then E.Oasr (Op_w sz) else E.Olsr sz
+    | E.WIshl -> E.Olsl(Op_w sz)
+    | E.WIeq  -> E.Oeq(Op_w sz)
+    | E.WIneq -> E.Oneq(Op_w sz)
+    | E.WIlt  -> E.Olt(E.Cmp_w(sg, sz))
+    | E.WIle  -> E.Ole(E.Cmp_w(sg, sz))
+    | E.WIgt  -> E.Ogt(E.Cmp_w(sg, sz))
+    | E.WIge  -> E.Oge(E.Cmp_w(sg, sz))
+    end
+  | _ -> o
+
+let rec remove_Owi1 sg o e =
+  match o with
+  | E.WIwint_of_int sz -> Papp1(E.Oword_of_int sz, e)
+  | E.WIint_of_wint sz -> Papp1(E.Oint_of_word(sg, sz), e)
+  | E.WIword_of_wint _ -> remove_Owi e
+  | E.WIwint_of_word _ -> remove_Owi e
+  | E.WIwint_ext(szo, szi) ->
+    let o = if sg = Signed then E.Osignext(szo, szi) else E.Ozeroext(szo, szi) in
+    Papp1(o, e)
+  | E.WIneg sz -> Papp1(E.Oneg (Op_w sz), e)
+
+and remove_Owi e =
+  match e with
+  | Papp1(E.Owi1(sg, o), e) -> remove_Owi1 sg o e
+  | Papp2(o, e1, e2) -> Papp2(remove_Owi2 o, e1, e2)
+  | _ -> e
+
 let op1_to_abs_unop op1 = match op1 with
   | E.Oneg _   -> Some Texpr1.Neg
-  | E.Oword_of_int _ | E.Oint_of_word _ | E.Ozeroext _ -> assert false
+  | E.Oword_of_int _ | E.Oint_of_word _ | E.Ozeroext _ | E.Owi1 _ -> assert false
   | _ -> None
 
 type shift_kind =
@@ -108,10 +145,10 @@ let op2_to_abs_binop op2 = match op2 with
   | E.Omul _ -> AB_Arith Texpr1.Mul
   | E.Osub _ -> AB_Arith Texpr1.Sub
 
-  | E.Omod (Cmp_w (Signed, _)) -> AB_Unknown
+  | E.Omod (Signed, _) -> AB_Unknown
   | E.Omod _ -> AB_Arith Texpr1.Mod
 
-  | E.Odiv (Cmp_w (Signed, _)) -> AB_Unknown
+  | E.Odiv (Signed, _) -> AB_Unknown
   | E.Odiv _ -> AB_Arith Texpr1.Div
 
   | E.Olsr _ -> AB_Wop (Wshift Unsigned_right)
@@ -133,6 +170,7 @@ let op2_to_abs_binop op2 = match op2 with
   | E.Ovadd (_, _) | E.Ovsub (_, _) | E.Ovmul (_, _)
   | E.Ovlsr (_, _) | E.Ovlsl (_, _) | E.Ovasr (_, _) -> AB_Unknown
 
+  | E.Owi2 _ -> assert false
 
 (* Return lin_expr mod 2^n *)
 let expr_pow_mod n lin_expr =
@@ -313,6 +351,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
     | Pconst c -> Some (Z.of_string (Z.to_string c))
 
+    | Papp1 (E.Owi1(sg, o), e) -> aeval_cst_zint abs (remove_Owi1 sg o e)
+
     | Papp1 (E.Oneg Op_int, e) ->
       Option.map Z.neg (aeval_cst_zint abs e)
 
@@ -320,7 +360,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       aeval_cst_zint abs e
     (* No need to check for overflows because we do not allow word operations. *)
 
-    | Papp2 (Oadd Op_int, e1, e2) ->
+    | Papp2 (E.Oadd Op_int, e1, e2) ->
       obind2 (fun x y -> Some (Z.add x y))
         (aeval_cst_zint abs e1) (aeval_cst_zint abs e2)
 
@@ -332,7 +372,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       obind2 (fun x y -> Some (Z.mul x y))
         (aeval_cst_zint abs e1) (aeval_cst_zint abs e2)
 
-    | Papp2 (Odiv Cmp_int, e1, e2) ->
+    | Papp2 (Odiv (Unsigned, Op_int), e1, e2) ->
         obind2 (fun x y -> Some (Z.div x y))
           (aeval_cst_zint abs e1) (aeval_cst_zint abs e2)
 
@@ -353,6 +393,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
      Superficial checks only. *)
   let rec aeval_cst_w abs e = match e with
     | Pvar x -> aeval_cst_var abs x
+
+    | Papp1 (E.Owi1(sg, o), e) -> aeval_cst_w abs (remove_Owi1 sg o e)
 
     | Papp1 (E.Oword_of_int ws, e) ->
       let c_e = aeval_cst_zint abs e in
@@ -426,7 +468,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
       | Pload _ -> raise Expr_contain_load
 
-      | Pif (_,_,e1,e2) | Papp2 (_, e1, e2) -> aux (aux acc e1) e2 in
+      | Pif (_,_,e1,e2) (* FIXME: why the condition is not added ? *)
+      | Papp2 (_, e1, e2) -> aux (aux acc e1) e2 in
 
     try PtVars (aux [] e) with Expr_contain_load -> PtTopExpr
 
@@ -451,9 +494,11 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       check_is_int x;
       Mtexpr.var (mvar_of_var x)
 
-    | Papp1(E.Oint_of_word sz,e1) ->
+    | Papp1(E.Owi1(sg, o), e1) -> linearize_iexpr abs (remove_Owi1 sg o e1)
+
+    | Papp1(E.Oint_of_word(s, sz),e1) ->
       let abs_expr1 = linearize_wexpr abs e1 in
-      wrap_if_overflow abs abs_expr1 Unsigned (int_of_ws sz)
+      wrap_if_overflow abs abs_expr1 s (int_of_ws sz)
 
     | Papp1 (op1, e1) ->
       begin match op1_to_abs_unop op1 with
@@ -463,7 +508,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         | None -> raise (Unop_not_supported op1) end
 
     | Papp2 (op2, e1, e2) ->
-      begin match op2_to_abs_binop op2 with
+      begin match op2_to_abs_binop (remove_Owi2 op2) with
         | AB_Arith absop ->
           Mtexpr.(binop absop
                     (linearize_iexpr abs e1)
@@ -486,6 +531,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       let lin = Mtexpr.var (mvar_of_var x) in
       wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
 
+    | Papp1(E.Owi1(sg, o), e1) -> linearize_wexpr abs (remove_Owi1 sg o e1)
+
     | Papp1(E.Oword_of_int sz,e1) ->
       assert (ty_expr e1 = tint);
       let abs_expr1 = linearize_iexpr abs e1 in
@@ -505,7 +552,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         | None -> raise (Unop_not_supported op1) end
 
     | Papp2 (op2, e1, e2) ->
-      begin match op2_to_abs_binop op2 with
+      begin match op2_to_abs_binop (remove_Owi2 op2) with
         | AB_Arith Texpr1.Mod
         | AB_Arith Texpr1.Mul as absop->
           let lin = Mtexpr.(binop (abget absop)
@@ -521,7 +568,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
           (* If the expression overflows, we try to rewrite differently *)
           if linexpr_overflow abs lin Unsigned ws_out then
-            let alt_lin = match e2 with
+            let alt_lin = match remove_Owi e2 with
               | Papp1(E.Oword_of_int sz, Pconst z) ->
                 let z = mpqf_of_z z in
                 let mz = Mpqf.add (Mpqf.neg z) (mpq_pow (int_of_ws sz)) in
@@ -658,6 +705,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       |> map_f (fun ex -> Papp1 (op1,ex))
 
     | Papp2 (op2, e1, e2) ->
+      let op2 = remove_Owi2 op2 in
       begin match remove_if_expr_aux e1 with
         | Some _ as e_opt -> map_f (fun ex -> Papp2 (op2, ex, e2)) e_opt
         | None -> remove_if_expr_aux e2
@@ -692,7 +740,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       | E.Op_int -> E.Cmp_int
       | E.Op_w ws -> E.Cmp_w (Unsigned, ws) in
 
-    match op2 with
+    match remove_Owi2 op2 with
     | E.Obeq | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _
     | E.Odiv _ | E.Omod _ | E.Oland _ | E.Olor _
     | E.Oror _ | E.Orol _
@@ -707,11 +755,12 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
     | Ovadd (_, _) | Ovsub (_, _) | Ovmul (_, _)
     | Ovlsr (_, _) | Ovlsl (_, _) | Ovasr (_, _) -> assert false
+    | Owi2 _ -> assert false
 
   let swap_op2 op e1 e2 =
     match op with
-    | E.Ogt   _ -> e2, e1
-    | E.Oge   _ -> e2, e1
+    | E.Ogt _ | E.Owi2(_, _, E.WIgt) -> e2, e1
+    | E.Oge _ | E.Owi2(_, _, E.WIge) -> e2, e1
     | _         -> e1, e2
 
   let rec bexpr_to_btcons_aux : AbsDom.t -> Prog.expr -> btcons =
@@ -744,7 +793,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
             | None -> raise Bop_not_supported end
         | _ -> assert false end
 
-    | Papp2 (op2, e1, e2) -> begin match op2 with
+    | Papp2 (op2, e1, e2) -> begin match remove_Owi2 op2 with
         | E.Oadd _ | E.Omul _ | E.Osub _
         | E.Odiv _ | E.Omod _ | E.Oland _ | E.Olor _
         | E.Oror _ | E.Orol _
@@ -761,9 +810,12 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         | E.Oor -> BOr ( aux e1, aux e2 )
 
         | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ ->
-          match remove_if_expr_aux e with
+          begin match remove_if_expr_aux e with
           | Some (ty,eb,el,er)  -> aux (Pif (ty,eb,el,er))
-          | None -> flat_bexpr_to_btcons abs op2 e1 e2 end
+          | None -> flat_bexpr_to_btcons abs op2 e1 e2
+          end
+        | E.Owi2 _ -> assert false
+        end
 
     | PappN (Ocombine_flags c, [ eof; ecf; esf; ezf ]) ->
       begin match c with
@@ -1061,7 +1113,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         apply_offset_expr abs outv info y o
       else aeval_top_offset abs outv
 
-    | Some outv, Papp2 (op2,el,er) -> begin match op2,el with
+    | Some outv, Papp2 (op2,el,er) -> begin match remove_Owi2 op2, el with
         | E.Oadd ( E.Op_w U64), Pvar y ->
           if valid_offset_var abs ws_o y then
             apply_offset_expr abs outv info y er

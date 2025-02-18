@@ -1,0 +1,30 @@
+export fn syntax() -> reg u32 {
+  reg ui32 a = 42; // immediate
+  reg si32 b = -5;
+  reg si32 c = -b; // negation
+  c *= c; // multiplication
+  reg u32 x = (32u)c; // safe conversion to machine-word
+  x |= (32u)a;
+  return x;
+}
+
+export fn conv(reg u32 x) -> reg u32 {
+  reg ui32 u = (32ui)x;
+  reg si32 s = (32si)x;
+  x = (32u)u;
+  x |= (32u)s;
+  return x;
+}
+
+export fn safe_uint_to_sint() -> reg si32 {
+  reg ui32 u = 1 << 31;
+  reg si32 s = (32si)(32u)u;
+  return s;
+}
+
+fn conv_with_int() -> reg int {
+  reg int i = 127;
+  reg si8 s = (8si)i;
+  i = (int)s;
+  return i;
+}
