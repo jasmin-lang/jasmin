@@ -16,17 +16,24 @@ Open Scope vm_scope.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
+Section SemOp.
+
+Context {sop1 sop2: Type} {sem_op : sem_sop_typed sop1 sop2}.
+
 Definition sem_sop1 (o: sop1) (v: value) : exec value :=
-  let t := type_of_op1 o in
+  let t := _type_of_op1 o in
   Let x := of_val _ v in
-  ok (to_val (sem_sop1_typed o x)).
+  Let r := _sem_sop1_typed (o := o) x in
+  ok (to_val r).
 
 Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
-  let t := type_of_op2 o in
+  let t := _type_of_op2 o in
   Let x1 := of_val _ v1 in
   Let x2 := of_val _ v2 in
-  Let r  := sem_sop2_typed o x1 x2 in
+  Let r  := _sem_sop2_typed (o := o) x1 x2 in
   ok (to_val r).
+
+End SemOp.
 
 Definition sem_opN
   {cfcd : FlagCombinationParams} (op: opN) (vs: values) : exec value :=
@@ -110,13 +117,14 @@ End ESTATE_UTILS.
 Section SEM_PEXPR.
 
 Context
+  {sop1 sop2 : Type} {sem_op : sem_sop_typed sop1 sop2}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   (wdb : bool)
   (gd : glob_decls).
 
-Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
+Fixpoint sem_pexpr (s:estate) (e : pexpr_ sop1 sop2) : exec value :=
   match e with
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
@@ -168,7 +176,7 @@ Definition write_none (s : estate) ty v :=
   Let _ := assert (DB wdb v) ErrAddrUndef in
   ok s.
 
-Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
+Definition write_lval (l : lval_ sop1 sop2) (v : value) (s : estate) : exec estate :=
   match l with
   | Lnone _ ty => write_none s ty v
   | Lvar x => write_var x v s
@@ -201,6 +209,7 @@ End SEM_PEXPR.
 Section EXEC_ASM.
 
 Context
+  {sop1 sop2 : Type} {sem_op : sem_sop_typed sop1 sop2}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}

@@ -48,7 +48,7 @@ let string_of_op_w s ws =
   asprintf "%s %du" s (int_of_ws ws)
 
 let string_of_op1 = function
-  | E.Oint_of_word sz -> asprintf "(int /* of u%d */)" (int_of_ws sz)
+  | E.Oint_of_word (s, sz) -> asprintf "(%sint /* of u%d */)" (string_of_signess s) (int_of_ws sz)
   | E.Osignext (szo, _) -> asprintf "(%ds)" (int_of_ws szo)
   | E.Oword_of_int szo | E.Ozeroext (szo, _) -> asprintf "(%du)" (int_of_ws szo)
   | E.Olnot w -> string_of_op_w "!" w

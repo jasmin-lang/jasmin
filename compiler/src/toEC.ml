@@ -1376,8 +1376,8 @@ module EcExpression(EA: EcArray): EcExpression = struct
   let ec_op1 op e = match op with
     | E.Oword_of_int sz ->
       ec_apps1 (Format.sprintf "%s.of_int" (fmt_Wsz sz)) e
-    | E.Oint_of_word sz ->
-      ec_apps1 (Format.sprintf "%s.to_uint" (fmt_Wsz sz)) e
+    | E.Oint_of_word(s, sz) ->
+      ec_apps1 (Format.sprintf "%s.to_%sint" (string_of_signess s) (fmt_Wsz sz)) e
     | E.Osignext(szo,_szi) ->
       ec_apps1 (Format.sprintf "sigextu%i" (int_of_ws szo)) e
     | E.Ozeroext(szo,szi) -> ec_zeroext_sz (szo, szi) e
@@ -1483,7 +1483,7 @@ end
 module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
   open EE
 
-  let int_of_word ws e = Papp1 (E.Oint_of_word ws, e)
+  let int_of_word ws e = Papp1 (E.Oint_of_word(Unsigned, ws), e)
 
   let rec leaks_e_rec pd leaks e =
     match e with
@@ -1565,7 +1565,7 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
 
   let asgn s e = ESasgn ([LvIdent [s]], e)
 
-  let int_of_word ws e = Papp1 (E.Oint_of_word ws, e)
+  let int_of_word ws e = Papp1 (E.Oint_of_word(Unsigned, ws), e)
 
   let leak_addr e = Eapp (ec_ident "Leak_int", [e])
 

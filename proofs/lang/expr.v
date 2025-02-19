@@ -30,13 +30,16 @@ Variant op_kind :=
 
 Variant sop1 :=
 | Oword_of_int of wsize     (* int → word *)
-| Oint_of_word of wsize     (* word → unsigned int *)
+| Oint_of_word of signedness & wsize (* word → signed/unsigned int *)
 | Osignext of wsize & wsize (* Sign-extension: output-size, input-size *)
 | Ozeroext of wsize & wsize (* Zero-extension: output-size, input-size *)
 | Onot                      (* Boolean negation *)
 | Olnot of wsize            (* Bitwize not: 1s’ complement *)
 | Oneg  of op_kind          (* Arithmetic negation *)
 .
+
+Definition uint_of_word ws := Oint_of_word Unsigned ws.
+Definition sint_of_word ws := Oint_of_word Signed ws.
 
 Variant sop2 :=
 | Obeq                        (* const : sbool -> sbool -> sbool *)
@@ -89,6 +92,7 @@ Variant opN :=
 | Ocombine_flags of combine_flags
 .
 
+
 Scheme Equality for sop1.
 (* Definition sop1_beq : sop1 -> sop1 -> bool *)
 
@@ -124,7 +128,7 @@ HB.instance Definition _ := hasDecEq.Build opN opN_eq_axiom.
 Definition type_of_op1 (o: sop1) : stype * stype :=
   match o with
   | Oword_of_int sz => (sint, sword sz)
-  | Oint_of_word sz => (sword sz, sint)
+  | Oint_of_word _ sz => (sword sz, sint)
   | Osignext szo szi
   | Ozeroext szo szi
     => (sword szi, sword szo)
@@ -176,6 +180,165 @@ Definition type_of_opN (op: opN) : seq stype * stype :=
     (nseq n sint, sword ws)
   | Ocombine_flags c => (tin_combine_flags, sbool)
   end.
+
+
+(* Extended Operators *)
+Module EO.
+
+Variant word_kind :=
+  | Word
+  | WInt.
+
+Variant op_kind :=
+  | Op_int
+  | Op_w of word_kind & signedness & wsize.
+
+Variant sop1 :=
+| Oword_of_int of word_kind & signedness & wsize              (* int → word *)
+| Oint_of_word of word_kind & signedness & wsize (* word/uint/sint → int, signed or unsigned interpretation *)
+
+| Oword_of_wint of signedness & wsize (* uint/sint -> word *)
+| Owint_of_word of signedness & wsize (* word -> uint/sint *)
+
+| Oword_ext of word_kind & signedness & wsize & wsize (* Sign-extension: output-size, input-size *)
+
+| Onot                      (* Boolean negation *)
+| Olnot of wsize            (* Bitwize not: 1s’ complement *)
+| Oneg  of op_kind          (* Arithmetic negation *)
+.
+
+Variant sop2 :=
+| Obeq                        (* const : sbool -> sbool -> sbool *)
+| Oand                        (* const : sbool -> sbool -> sbool *)
+| Oor                         (* const : sbool -> sbool -> sbool *)
+
+| Oadd  of op_kind
+| Omul  of op_kind
+| Osub  of op_kind
+| Odiv  of op_kind
+| Omod  of op_kind
+
+| Oland of wsize
+| Olor  of wsize
+| Olxor of wsize
+| Oshl  of op_kind
+| Oshr  of op_kind
+| Oror  of wsize
+| Orol  of wsize
+
+| Oeq   of op_kind
+| Oneq  of op_kind
+| Olt   of op_kind
+| Ole   of op_kind
+| Ogt   of op_kind
+| Oge   of op_kind
+
+(* vector operation *)
+| Ovadd of velem & wsize (* VPADD   *)
+| Ovsub of velem & wsize (* VPSUB   *)
+| Ovmul of velem & wsize (* VPMULLW *)
+| Ovlsr of velem & wsize
+| Ovlsl of velem & wsize
+| Ovasr of velem & wsize
+.
+
+Scheme Equality for sop1.
+(* Definition sop1_beq : sop1 -> sop1 -> bool *)
+
+Lemma sop1_eq_axiom : Equality.axiom sop1_beq.
+Proof.
+  exact: (eq_axiom_of_scheme internal_sop1_dec_bl0 internal_sop1_dec_lb0).
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build sop1 sop1_eq_axiom.
+
+Scheme Equality for sop2.
+(* Definition sop2_beq : sop2 -> sop2 -> bool *)
+
+Lemma sop2_eq_axiom : Equality.axiom sop2_beq.
+Proof.
+  exact: (eq_axiom_of_scheme internal_sop2_dec_bl0 internal_sop2_dec_lb0).
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build sop2 sop2_eq_axiom.
+
+Definition wk_sign (wk : word_kind) (s: signedness) : option signedness :=
+  match wk with
+  | Word => None
+  | WInt => Some s
+  end.
+
+Definition twus {len : Set} (wk : word_kind) (s : signedness) (ws : wsize): extended_type len :=
+  ETword len (wk_sign wk s) ws.
+
+Definition t_opk {len : Set} (o : op_kind) : extended_type len :=
+  match o with
+  | Op_int => tint
+  | Op_w wk s sz => twus wk s sz
+  end.
+
+Definition opku8 (k : op_kind) :=
+  match k with
+  | Op_int => Op_int
+  | Op_w wk _ _ => Op_w wk Unsigned U8
+  end.
+
+(* Type of unany operators: input, output *)
+Definition etype_of_op1 {len : Set} (o : sop1) : extended_type len * extended_type len :=
+  match o with
+  | Oword_of_int wk s sz => (tint, twus wk s sz)
+
+  | Oint_of_word wk s sz => (twus wk s sz, tint)
+
+  | Oword_of_wint s sz => (twint s sz, tword sz)
+  | Owint_of_word s sz => (tword sz, twint s sz)
+
+  | Oword_ext wk s szo szi => (twus wk s szi, twus wk s szo)
+
+  | Onot => (tbool, tbool)
+  | Olnot sz => let t := tword sz in (t, t)
+  | Oneg k => let t := t_opk k in (t, t)
+  end.
+
+Definition type_of_op1 (o : sop1) : stype * stype :=
+  let t := etype_of_op1 o in
+  (to_stype t.1, to_stype t.2).
+
+(* Type of binany operators: inputs, output *)
+Definition etype_of_op2 {len : Set} (o : sop2) : extended_type len * extended_type len * extended_type len :=
+  match o with
+  | Obeq | Oand | Oor =>
+    (tbool, tbool, tbool)
+
+  | Oadd k | Omul k | Osub k | Odiv k | Omod k =>
+    let t := t_opk k in (t, t, t)
+
+  | Oland sz | Olor sz | Olxor sz =>
+    let t := tword sz in (t, t, t)
+
+  | Ovadd _ s | Ovsub _ s | Ovmul _ s =>
+    let t := tword s in (t, t, t)
+
+  | Oshl k | Oshr k =>
+    let t := t_opk k in
+    let tu8 := t_opk (opku8 k) in
+    (t, tu8, t)
+
+  | Oror sz | Orol sz =>
+    let t := tword sz in (t, tword U8, t)
+
+  | Oeq k | Oneq k | Olt k | Ole k | Ogt k | Oge k =>
+    let t := t_opk k in (t, t, tbool)
+
+  | Ovlsr _ sz | Ovlsl _ sz | Ovasr _ sz
+    => let t := tword sz in (t, tword U128, t)
+  end.
+
+Definition type_of_op2 (o : sop2) : stype * stype * stype :=
+  let t := etype_of_op2 o in
+  (to_stype t.1.1, to_stype t.1.2, to_stype t.2).
+
+End EO.
 
 (* ** Expressions
  * -------------------------------------------------------------------- *)
@@ -250,8 +413,12 @@ Arguments pexpr_ : clear implicits.
 
 Notation pexprs_ sop1 sop2 := (seq (pexpr_ sop1 sop2)).
 
+Notation eexpr := (pexpr_ EO.sop1 EO.sop2).
+Notation eexprs := (seq eexpr).
+
 Notation pexpr := (pexpr_ sop1 sop2).
 Notation pexprs := (seq pexpr).
+
 
 Definition Plvar x : pexpr := Pvar (mk_lvar x).
 
@@ -288,11 +455,13 @@ Variant lval_ {sop1 sop2:Type} : Type :=
 
 Arguments lval_ : clear implicits.
 
+Notation elval := (lval_ EO.sop1 EO.sop2).
 Notation lval := (lval_ sop1 sop2).
 
 Coercion Lvar : var_i >-> lval.
 
 Notation lvals_ sop1 sop2 := (seq (lval_ sop1 sop2)).
+Notation elvals := (seq elval).
 Notation lvals := (seq lval).
 
 Definition get_pvar (e: pexpr) : exec var :=
@@ -537,6 +706,20 @@ Definition progUnit : progT :=
      extra_prog_t := unit;
   |}.
 
+(* Program with extended operators *)
+Definition efundef     := @fundef_ _ _ EO.sop1 EO.sop2 progUnit.
+Definition efun_decl   := @fun_decl_ _ _ EO.sop1 EO.sop2 progUnit.
+Definition efun_decls  := seq (@fun_decl_ _ _ EO.sop1 EO.sop2 progUnit).
+Definition eprog       := @prog_ _ _ EO.sop1 EO.sop2 progUnit.
+
+(* For extraction *)
+Definition _efundef    := _fundef EO.sop1 EO.sop2 unit.
+Definition _efun_decl  := _fun_decl EO.sop1 EO.sop2 unit.
+Definition _efun_decls :=  seq (_fun_decl EO.sop1 EO.sop2 unit).
+Definition _eprog      := _prog EO.sop1 EO.sop2 unit unit.
+Definition to_eprog (p:_eprog) : eprog := p.
+
+(* Program without extended operators *)
 Definition ufundef     := @fundef_ _ _ sop1 sop2 progUnit.
 Definition ufun_decl   := @fun_decl_ _ _ sop1 sop2 progUnit.
 Definition ufun_decls  := seq (@fun_decl_ _ _ sop1 sop2 progUnit).
@@ -732,9 +915,14 @@ Fixpoint cast_w ws (e: pexpr) : pexpr :=
   | Papp1 (Oneg Op_int) e' =>
       let: e' := cast_w ws e' in
       Papp1 (Oneg (Op_w ws)) e'
-  | Papp1 (Oint_of_word ws') e' =>
-      if (ws ≤ ws')%CMP then e'
-      else Papp1 (Oword_of_int ws) e
+  | Papp1 (Oint_of_word sign ws') e' =>
+      if sign is Unsigned then
+        if (ws ≤ ws')%CMP then e'
+        else Papp1 (Oword_of_int ws) e
+      else
+        (* FIXME : can we have (ws ≤ ws')%CMP *)
+        if (ws == ws')%CMP then e'
+        else Papp1 (Oword_of_int ws) e
   | _ => Papp1 (Oword_of_int ws) e
   end.
 

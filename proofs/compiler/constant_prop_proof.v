@@ -96,7 +96,7 @@ Qed.
 Lemma sneg_intP e : Papp1 (Oneg Op_int) e =E sneg_int e.
 Proof.
 apply: eeq_weaken; case: e => // [ z s v [] <- // | [] ] // [] // e s v /=; t_xrbindP => ? ? -> /=.
-rewrite /sem_sop1; t_xrbindP => ? /to_intI -> <- /= ? [<-] <-.
+rewrite /sem_sop1 /=; t_xrbindP => ? /to_intI -> <- /= ? [<-] <-.
 by rewrite Z.opp_involutive.
 Qed.
 
@@ -127,7 +127,7 @@ Proof.
   rewrite /ssem_sop1.
   case heq : of_expr => [ v | ] //=.
   apply: eeq_weaken => rho v' /[dup]h1 /=.
-  rewrite /sem_sop1 -Let_Let (of_exprP rho heq) /= => -[?]; subst v'.
+  rewrite /sem_sop1 /= -Let_Let (of_exprP rho heq) /= => -[?]; subst v'.
   by case heq' : to_expr => [e' | //]; apply to_exprP.
 Qed.
 
@@ -455,7 +455,7 @@ Proof.
   case heq1 : (of_expr _ e1) => [ v1 | ] //=.
   case heq2 : (of_expr _ e2) => [ v2 | ] //=.
   apply: eeq_weaken => rho v' /[dup]h1 /=.
-  rewrite /sem_sop2.
+  rewrite /sem_sop2 /=.
   move: (of_exprP rho heq1) (of_exprP rho heq2).
   t_xrbindP => ? -> he1 ? -> he2 ? [<-] ? [<-]; rewrite he1 he2 => ?[<-] ?[<-] ? -> ? /=; subst v'.
   by case heq' : to_expr => [e' | //]; apply to_exprP.

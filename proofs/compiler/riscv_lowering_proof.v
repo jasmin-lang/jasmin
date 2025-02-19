@@ -171,7 +171,7 @@ Lemma Hassgn_op2_generic s e1 e2 v1 v2 op2 v ws v' lv s1 (op2' : sopn) :
 Proof.
   move=> ok_v1 ok_v2 ok_v htrunc hwrite hvalid ws1 ws2 ws3 ws1' ws2' eq1 eq2 eq3.
   move: ok_v.
-  rewrite /sem_sop2; move: (sem_sop2_typed op2).
+  rewrite /sem_sop2 /=; move: (sem_sop2_typed op2).
   rewrite -> eq1 => /= sem_sop2_typed ok_v.
   rewrite /sem_sopn /= /exec_sopn /= /sopn_sem /sopn_sem_ hvalid /=.
   move: (semi (sopn.get_instr_desc op2')).

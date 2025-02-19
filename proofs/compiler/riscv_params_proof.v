@@ -418,7 +418,7 @@ Lemma assemble_cond_app2P_aux ck v1 v2 op2 v w1 w2 :
 Proof.
   move=> ok_v hincl1 hincl2 eq1.
   move: ok_v.
-  rewrite /sem_sop2; move: (sem_sop2_typed op2).
+  rewrite /sem_sop2 /=; move: (sem_sop2_typed op2).
   rewrite -> eq1 => /= sem_sop2_typed ok_v.
 
   move: ok_v.

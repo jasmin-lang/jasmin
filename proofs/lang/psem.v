@@ -16,14 +16,14 @@ Open Scope vm_scope.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
-Lemma sem_sop1I y x f:
+Lemma sem_sop1I y x (f : sop1):
   sem_sop1 f x = ok y →
   exists2 w : sem_t (type_of_op1 f).1,
     of_val _ x = ok w &
     y = to_val (sem_sop1_typed f w).
-Proof. by rewrite /sem_sop1; t_xrbindP => w ok_w <-; eauto. Qed.
+Proof. by rewrite /sem_sop1 /=; t_xrbindP => w ok_w <-; eauto. Qed.
 
-Lemma sem_sop2I v v1 v2 f:
+Lemma sem_sop2I v v1 v2 (f : sop2) :
   sem_sop2 f v1 v2 = ok v →
   ∃ (w1 : sem_t (type_of_op2 f).1.1) (w2 : sem_t (type_of_op2 f).1.2)
     (w3: sem_t (type_of_op2 f).2),
@@ -32,7 +32,7 @@ Lemma sem_sop2I v v1 v2 f:
         sem_sop2_typed f w1 w2 = ok w3 &
         v = to_val w3].
 Proof.
-  by rewrite /sem_sop2; t_xrbindP => w1 ok_w1 w2 ok_w2 w3 ok_w3 <- {v}; exists w1, w2, w3.
+  by rewrite /sem_sop2 /=; t_xrbindP => w1 ok_w1 w2 ok_w2 w3 ok_w3 <- {v}; exists w1, w2, w3.
 Qed.
 
 (* ** Global access
@@ -129,6 +129,7 @@ Definition direct_c : DirectCall := {| direct_call := true |}.
 Section SEM.
 
 Context
+  {sop1 sop2: Type} {sem_op : sem_sop_typed sop1 sop2}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
@@ -136,7 +137,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
   {scP : semCallParams}
-  (P : prog)
+  (P : prog_ sop1 sop2)
   (ev : extra_val_t).
 
 Notation gd := (p_globs P).
@@ -148,20 +149,20 @@ Definition dc_truncate_val t v :=
   if direct_call then ok v
   else truncate_val t v.
 
-Inductive sem : estate -> cmd -> estate -> Prop :=
+Inductive sem : estate -> cmd_ sop1 sop2 -> estate -> Prop :=
 | Eskip s :
     sem s [::] s
 
 | Eseq s1 s2 s3 i c :
     sem_I s1 i s2 -> sem s2 c s3 -> sem s1 (i::c) s3
 
-with sem_I : estate -> instr -> estate -> Prop :=
+with sem_I : estate -> instr_ sop1 sop2 -> estate -> Prop :=
 | EmkI ii i s1 s2:
     sem_i s1 i s2 ->
     sem_I s1 (MkI ii i) s2
 
-with sem_i : estate -> instr_r -> estate -> Prop :=
-| Eassgn s1 s2 (x:lval) tag ty e v v' :
+with sem_i : estate -> instr_r_ sop1 sop2 -> estate -> Prop :=
+| Eassgn s1 s2 (x:lval_ sop1 sop2) tag ty e v v' :
     sem_pexpr true gd s1 e = ok v ->
     truncate_val ty v = ok v' →
     write_lval true gd x v' s1 = ok s2 ->
@@ -211,7 +212,7 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     write_lvals (~~direct_call) gd (with_scs (with_mem s1 m2) scs2) xs vs = ok s2 ->
     sem_i s1 (Ccall xs f args) s2
 
-with sem_for : var_i -> seq Z -> estate -> cmd -> estate -> Prop :=
+with sem_for : var_i -> seq Z -> estate -> cmd_ sop1 sop2 -> estate -> Prop :=
 | EForDone s i c :
     sem_for i [::] s c s
 
@@ -236,17 +237,17 @@ with sem_call : syscall_state_t -> mem -> funname -> seq value -> syscall_state_
 
 Section SEM_IND.
   Variables
-    (Pc   : estate -> cmd -> estate -> Prop)
-    (Pi_r : estate -> instr_r -> estate -> Prop)
-    (Pi   : estate -> instr -> estate -> Prop)
-    (Pfor : var_i -> seq Z -> estate -> cmd -> estate -> Prop)
+    (Pc   : estate -> cmd_ sop1 sop2 -> estate -> Prop)
+    (Pi_r : estate -> instr_r_ sop1 sop2 -> estate -> Prop)
+    (Pi   : estate -> instr_ sop1 sop2 -> estate -> Prop)
+    (Pfor : var_i -> seq Z -> estate -> cmd_ sop1 sop2 -> estate -> Prop)
     (Pfun : syscall_state_t -> mem -> funname -> seq value -> syscall_state_t -> mem -> seq value -> Prop).
 
   Definition sem_Ind_nil : Prop :=
     forall s : estate, Pc s [::] s.
 
   Definition sem_Ind_cons : Prop :=
-    forall (s1 s2 s3 : estate) (i : instr) (c : cmd),
+    forall (s1 s2 s3 : estate) (i : instr_ sop1 sop2) (c : cmd_ sop1 sop2),
       sem_I s1 i s2 -> Pi s1 i s2 -> sem s2 c s3 -> Pc s2 c s3 -> Pc s1 (i :: c) s3.
 
   Hypotheses
@@ -255,20 +256,20 @@ Section SEM_IND.
   .
 
   Definition sem_Ind_mkI : Prop :=
-    forall (ii : instr_info) (i : instr_r) (s1 s2 : estate),
+    forall (ii : instr_info) (i : instr_r_ sop1 sop2) (s1 s2 : estate),
       sem_i s1 i s2 -> Pi_r s1 i s2 -> Pi s1 (MkI ii i) s2.
 
   Hypothesis HmkI : sem_Ind_mkI.
 
   Definition sem_Ind_assgn : Prop :=
-    forall (s1 s2 : estate) (x : lval) (tag : assgn_tag) ty (e : pexpr) v v',
+    forall (s1 s2 : estate) (x : lval_ sop1 sop2) (tag : assgn_tag) ty (e : pexpr_ sop1 sop2) v v',
       sem_pexpr true gd s1 e = ok v →
       truncate_val ty v = ok v' →
       write_lval true gd x v' s1 = ok s2 →
       Pi_r s1 (Cassgn x tag ty e) s2.
 
   Definition sem_Ind_opn : Prop :=
-    forall (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs),
+    forall (s1 s2 : estate) t (o : sopn) (xs : lvals_ sop1 sop2) (es : pexprs_ sop1 sop2),
       sem_sopn gd o s1 xs es = ok s2 →
       Pi_r s1 (Copn xs t o es) s2.
 
@@ -280,24 +281,24 @@ Section SEM_IND.
       Pi_r s1 (Csyscall xs o es) s2.
 
   Definition sem_Ind_if_true : Prop :=
-    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
+    forall (s1 s2 : estate) (e : pexpr_ sop1 sop2) (c1 c2 : cmd_ sop1 sop2),
     sem_pexpr true gd s1 e = ok (Vbool true) ->
     sem s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
 
   Definition sem_Ind_if_false : Prop :=
-    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
+    forall (s1 s2 : estate) (e : pexpr_ sop1 sop2) (c1 c2 : cmd_ sop1 sop2),
     sem_pexpr true gd s1 e = ok (Vbool false) ->
     sem s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
 
   Definition sem_Ind_while_true : Prop :=
-    forall (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (ei: instr_info) (c' : cmd),
+    forall (s1 s2 s3 s4 : estate) a (c : cmd_ sop1 sop2) (e : pexpr_ sop1 sop2) (ei: instr_info) (c' : cmd_ sop1 sop2),
     sem s1 c s2 -> Pc s1 c s2 ->
     sem_pexpr true gd s2 e = ok (Vbool true) ->
     sem s2 c' s3 -> Pc s2 c' s3 ->
     sem_i s3 (Cwhile a c e ei c') s4 -> Pi_r s3 (Cwhile a c e ei c') s4 -> Pi_r s1 (Cwhile a c e ei c') s4.
 
   Definition sem_Ind_while_false : Prop :=
-    forall (s1 s2 : estate) a (c : cmd) (e : pexpr) (ei: instr_info) (c' : cmd),
+    forall (s1 s2 : estate) a (c : cmd_ sop1 sop2) (e : pexpr_ sop1 sop2) (ei: instr_info) (c' : cmd_ sop1 sop2),
     sem s1 c s2 -> Pc s1 c s2 ->
     sem_pexpr true gd s2 e = ok (Vbool false) ->
     Pi_r s1 (Cwhile a c e ei c') s2.
@@ -314,18 +315,18 @@ Section SEM_IND.
 
   Definition sem_Ind_for : Prop :=
     forall (s1 s2 : estate) (i : var_i) (d : dir)
-           (lo hi : pexpr) (c : cmd) (vlo vhi : Z),
+           (lo hi : pexpr_ sop1 sop2) (c : cmd_ sop1 sop2) (vlo vhi : Z),
       sem_pexpr true gd s1 lo = ok (Vint vlo) ->
       sem_pexpr true gd s1 hi = ok (Vint vhi) ->
       sem_for i (wrange d vlo vhi) s1 c s2 ->
       Pfor i (wrange d vlo vhi) s1 c s2 -> Pi_r s1 (Cfor i (d, lo, hi) c) s2.
 
   Definition sem_Ind_for_nil : Prop :=
-    forall (s : estate) (i : var_i) (c : cmd), Pfor i [::] s c s.
+    forall (s : estate) (i : var_i) (c : cmd_ sop1 sop2), Pfor i [::] s c s.
 
   Definition sem_Ind_for_cons : Prop :=
     forall (s1 s1' s2 s3 : estate) (i : var_i)
-           (w : Z) (ws : seq Z) (c : cmd),
+           (w : Z) (ws : seq Z) (c : cmd_ sop1 sop2),
       write_var true i w s1 = Ok error s1' ->
       sem s1' c s2 -> Pc s1' c s2 ->
       sem_for i ws s2 c s3 -> Pfor i ws s2 c s3 -> Pfor i (w :: ws) s1 c s3.
@@ -338,7 +339,7 @@ Section SEM_IND.
 
   Definition sem_Ind_call : Prop :=
     forall (s1 : estate) (scs2 : syscall_state_t) (m2 : mem) (s2 : estate)
-           (xs : lvals) (fn : funname) (args : pexprs) (vargs vs : seq value),
+           (xs : lvals_ sop1 sop2) (fn : funname) (args : pexprs_ sop1 sop2) (vargs vs : seq value),
       sem_pexprs (~~direct_call) gd s1 args = ok vargs →
       sem_call (escs s1) (emem s1) fn vargs scs2 m2 vs →
       Pfun (escs s1) (emem s1) fn vargs scs2 m2 vs →
@@ -347,7 +348,7 @@ Section SEM_IND.
 
   Definition sem_Ind_proc : Prop :=
     forall (scs1 : syscall_state_t) (m1 : mem) (scs2 : syscall_state_t) (m2 : mem)
-           (fn:funname) (f : fundef) (vargs vargs': seq value)
+           (fn:funname) (f : fundef_ sop1 sop2) (vargs vargs': seq value)
            (s0 s1 s2: estate) (vres vres': seq value),
       get_fundef (p_funcs P) fn = Some f ->
       mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' = ok vargs ->
@@ -366,7 +367,7 @@ Section SEM_IND.
     (Hproc: sem_Ind_proc)
   .
 
-  Fixpoint sem_Ind (e : estate) (l : cmd) (e0 : estate) (s : sem e l e0) {struct s} :
+  Fixpoint sem_Ind (e : estate) (l : cmd_ sop1 sop2) (e0 : estate) (s : sem e l e0) {struct s} :
     Pc e l e0 :=
     match s in sem e1 l0 e2 return Pc e1 l0 e2 with
     | @Eskip s0 => Hnil s0
@@ -374,7 +375,7 @@ Section SEM_IND.
         @Hcons s1 s2 s3 i c s0 (@sem_I_Ind s1 i s2 s0) s4 (@sem_Ind s2 c s3 s4)
     end
 
-  with sem_i_Ind (e : estate) (i : instr_r) (e0 : estate) (s : sem_i e i e0) {struct s} :
+  with sem_i_Ind (e : estate) (i : instr_r_ sop1 sop2) (e0 : estate) (s : sem_i e i e0) {struct s} :
     Pi_r e i e0 :=
     match s in sem_i e1 i0 e2 return Pi_r e1 i0 e2 with
     | @Eassgn s1 s2 x tag ty e1 v v' h1 h2 h3 =>
@@ -400,13 +401,13 @@ Section SEM_IND.
         (@sem_call_Ind (escs s1) (emem s1) f13 vargs scs2 m2 vs s0) e3
     end
 
-  with sem_I_Ind (e : estate) (i : instr) (e0 : estate) (s : sem_I e i e0) {struct s} :
+  with sem_I_Ind (e : estate) (i : instr_ sop1 sop2) (e0 : estate) (s : sem_I e i e0) {struct s} :
     Pi e i e0 :=
     match s in sem_I e1 i0 e2 return Pi e1 i0 e2 with
     | @EmkI ii i0 s1 s2 s0 => @HmkI ii i0 s1 s2 s0 (@sem_i_Ind s1 i0 s2 s0)
     end
 
-  with sem_for_Ind (v : var_i) (l : seq Z) (e : estate) (l0 : cmd) (e0 : estate)
+  with sem_for_Ind (v : var_i) (l : seq Z) (e : estate) (l0 : cmd_ sop1 sop2) (e0 : estate)
          (s : sem_for v l e l0 e0) {struct s} : Pfor v l e l0 e0 :=
     match s in sem_for v0 l1 e1 l2 e2 return Pfor v0 l1 e1 l2 e2 with
     | EForDone s0 i c => Hfor_nil s0 i c
@@ -1314,7 +1315,7 @@ Lemma vuincl_sem_sop1 o ve1 ve1' v1 :
   value_uincl ve1 ve1' -> sem_sop1 o ve1 = ok v1 ->
   sem_sop1 o ve1' = ok v1.
 Proof.
-  rewrite /sem_sop1; t_xrbindP=> /of_value_uincl_te h + /h{h}.
+  rewrite /sem_sop1 /=; t_xrbindP=> /of_value_uincl_te h + /h{h}.
   by case: o; last case; move=> > -> /= ->.
 Qed.
 
@@ -1324,7 +1325,7 @@ Lemma sem_sop1_truncate_val o ve1 v1 :
     truncate_val (type_of_op1 o).1 ve1 = ok ve1' /\
     sem_sop1 o ve1' = ok v1.
 Proof.
-  rewrite /sem_sop1 /truncate_val.
+  rewrite /sem_sop1 /= /truncate_val.
   t_xrbindP=> w -> <- /=.
   eexists; split; first by reflexivity.
   by rewrite of_val_to_val.
@@ -1351,7 +1352,7 @@ Lemma sem_sop2_truncate_val o ve1 ve2 v1 :
     truncate_val (type_of_op2 o).1.2 ve2 = ok ve2' &
     sem_sop2 o ve1' ve2' = ok v1].
 Proof.
-  rewrite /sem_sop2 /truncate_val.
+  rewrite /sem_sop2 /= /truncate_val.
   t_xrbindP=> w1 -> w2 -> w ho <- /=.
   eexists _, _; split; [by reflexivity..|].
   by rewrite !of_val_to_val /= ho.

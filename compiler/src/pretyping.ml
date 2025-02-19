@@ -966,7 +966,7 @@ let peop2_of_eqop (eqop : S.peqop) =
 let cast loc e ety ty =
   match ety, ty with
   | P.Bty P.Int , P.Bty (P.U w) -> P.Papp1 (E.Oword_of_int w, e)
-  | P.Bty (P.U w), P.Bty P.Int -> P.Papp1 (E.Oint_of_word w, e)
+  | P.Bty (P.U w), P.Bty P.Int -> P.Papp1 (E.Oint_of_word(Unsigned, w), e)
   | P.Bty (P.U w1), P.Bty (P.U w2) when W.wsize_cmp w1 w2 <> Datatypes.Lt -> e
   | _, _ when P.pty_equal ety ty -> e
   | P.Arr _, P.Arr _ -> e (* we delay typechecking until we know the lengths *)
@@ -1073,7 +1073,7 @@ let is_combine_flags id =
 let ensure_int loc i ty =
   match ty with
   | P.Bty Int -> i
-  | P.Bty (P.U ws) -> P.Papp1(E.Oint_of_word ws,i)
+  | P.Bty (P.U ws) -> P.Papp1(E.Oint_of_word(Unsigned, ws),i)
   | _ -> rs_tyerror ~loc (TypeMismatch (ty, P.tint))
 
 (* -------------------------------------------------------------------- *)

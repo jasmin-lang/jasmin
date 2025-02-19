@@ -633,14 +633,14 @@ Section PROOF.
         do 3 f_equal.
         exact: zero_extend_cut.
       (* Olnot *)
-      + rewrite /= /sem_sop1 => sz; t_xrbindP => w Hz z' /to_wordI' [sz' [z [Hsz ? ->]]] ?; subst.
+      + rewrite /= /sem_sop1 /= => sz; t_xrbindP => w Hz z' /to_wordI' [sz' [z [Hsz ? ->]]] ?; subst.
         case: andP => // - [hsz] /eqP ?; subst ty.
         rewrite /truncate_val /= truncate_word_u in Hv'.
         case: Hv' => ?; subst v'.
         by rewrite /sem_pexprs /= Hz /exec_sopn /= truncate_word_le // /= /sopn_sem /sopn_sem_ /=
           /x86_NOT /size_8_64 hsz.
       (* Oneg *)
-      + rewrite /= /sem_sop1 => - [] // sz; t_xrbindP => w Hv z' /to_wordI' [sz' [z [Hsz ? ->]]] ?; subst.
+      + rewrite /= /sem_sop1 /= => - [] // sz; t_xrbindP => w Hv z' /to_wordI' [sz' [z [Hsz ? ->]]] ?; subst.
         case: andP => // - [hsz] /eqP ?; subst ty.
         split. reflexivity.
         rewrite /truncate_val /= truncate_word_u in Hv'.
@@ -1041,8 +1041,8 @@ Section PROOF.
         by rewrite !truncate_word_le.
     (* PappN *)
     + case: op => // - [] // - [] //.
-      case: es => // - [] // [] // [] // hi.
-      case => // [] // [] // [] // [] // [] // lo [] //.
+      case: es => // - [] // [] // [] // [] // hi.
+      case => // [] // [] // [] // [] // [] // [] // lo [] //.
       case: ty Hv' => // - [] //= ok_v'.
       rewrite /= /sem_opN /exec_sopn /sem_sop1 /=.
       t_xrbindP => ??? -> _ /to_wordI'[] szhi [] whi [] szhi_ge -> -> <- ??? ->.

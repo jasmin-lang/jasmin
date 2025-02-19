@@ -252,3 +252,26 @@ Proof.
   by case: t1 => //= [/eqP <-|/eqP <-|?|?] //;case:t2.
 Qed.
 
+(* -------------------------------------------------------------------- *)
+Variant extended_type (len:Set) : Set :=
+  | ETbool
+  | ETint
+  | ETarr of len
+  | ETword of (option signedness) & wsize.
+
+Definition tbool {len : Set} := ETbool len.
+Definition tint  {len : Set} := ETint len.
+Definition tarr  {len : Set} (l : len) := ETarr l.
+Definition tword {len : Set} ws : extended_type len:= ETword len None ws.
+Definition twint {len : Set} (s : signedness) (ws : wsize) := ETword len (Some s) ws.
+Definition tuint {len : Set} ws : extended_type len := twint Unsigned ws.
+Definition tsint {len : Set} ws : extended_type len := twint Signed ws.
+
+Definition to_stype (t:extended_type positive) : stype :=
+  match t with
+  | ETbool      => sbool
+  | ETint       => sint
+  | ETarr l     => sarr l
+  | ETword _ ws => sword ws
+  end.
+

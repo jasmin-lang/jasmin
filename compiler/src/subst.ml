@@ -274,6 +274,12 @@ let isubst_prog glob prog =
 
 exception NotAConstantExpr
 
+let in_range s sz i =
+  if s = Wsize.Signed &&
+     not (Z.lt i (Z.shift_left Z.one ((int_of_ws sz)/2))) then
+     Z.sub i (Z.shift_left Z.one (int_of_ws sz))
+  else i
+
 let rec constant_of_expr (e: (E.sop1, E.sop2) Prog.expr) : Z.t =
   let open Prog in
 
@@ -281,14 +287,14 @@ let rec constant_of_expr (e: (E.sop1, E.sop2) Prog.expr) : Z.t =
   | Papp1 (Oword_of_int sz, e) ->
       clamp sz (constant_of_expr e)
 
-  | Papp1(Oint_of_word sz, e) ->
-      clamp sz (constant_of_expr e)
+  | Papp1(Oint_of_word(s, sz), e) ->
+      let i = clamp sz (constant_of_expr e) in
+      in_range s sz i
 
   | Pconst z ->
       z
 
   | _ -> raise NotAConstantExpr
-
 
 let remove_params (prog : ('info, 'asm) pprog) =
   let globals, prog = psubst_prog prog in

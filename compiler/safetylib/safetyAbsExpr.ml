@@ -451,9 +451,9 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       check_is_int x; 
       Mtexpr.var (mvar_of_var x)
 
-    | Papp1(E.Oint_of_word sz,e1) ->
+    | Papp1(E.Oint_of_word(s, sz),e1) ->
       let abs_expr1 = linearize_wexpr abs e1 in
-      wrap_if_overflow abs abs_expr1 Unsigned (int_of_ws sz)
+      wrap_if_overflow abs abs_expr1 s (int_of_ws sz)
 
     | Papp1 (op1, e1) ->
       begin match op1_to_abs_unop op1 with
