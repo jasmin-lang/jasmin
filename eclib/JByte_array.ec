@@ -19,6 +19,50 @@ abstract theory ByteArray.
 
   abbrev [-printing] of_list8 = of_list.
 
+  lemma darray_ll: Distr.is_lossless darray.
+  proof.
+    by rewrite /darray dmap_ll DList.dlist_ll W8.dword_ll.
+  qed.
+
+  lemma darray_uni: is_uniform darray.
+  proof.
+    rewrite /darray /is_uniform => x y hx hy.
+    have hd: forall b a, a \in DList.dlist W8.dword size => of_list a = b => a = to_list b.
+    + move => a b h <-.
+      rewrite of_listK 2://.
+      rewrite DList.supp_dlist 1:ByteArray.ge0_size in h.
+      by move: h => [-> _].
+    rewrite !(Distr.in_dmap1E_can _ _ to_list) 1:to_listK //; 1,2: by apply hd.
+    move: ByteArray.ge0_size => ?.
+    rewrite !DList.dlist1E 1:// /to_list 1://.
+    rewrite !size_mkseq !ler_maxr 1:ByteArray.ge0_size /=.
+    rewrite !StdBigop.Bigreal.BRM.big_mapT.
+    apply StdBigop.Bigreal.BRM.eq_bigr => i _ /=.
+    rewrite /(\o).
+    by apply W8.dword_uni; apply /W8.dword_fu.
+  qed.
+
+  lemma darray_fu: is_full darray.
+  proof.
+    rewrite /darray /is_full => x.
+    rewrite supp_dmap.
+    exists (mkseq (get8 x) size) => /=.
+    split.
+    + move: ByteArray.ge0_size => ?.
+      rewrite DList.supp_dlist 1:// size_mkseq ler_maxr 1:// /=.
+      rewrite allP => xi _.
+      by rewrite Distr.is_fullP W8.dword_fu.
+    apply ext_eq => i hi.
+    by rewrite get_of_list 1:// nth_mkseq.
+  qed.
+
+  lemma darray_funi: Distr.is_funiform darray.
+  proof.
+    apply Distr.is_full_funiform.
+    + by apply darray_fu.
+    by apply darray_uni.
+  qed.
+
   abstract theory WSB.
     type B.
     op r : int.
@@ -174,6 +218,19 @@ abstract theory ByteArray.
         have : (i + 1) * r <= size l * r by apply ler_wpmul2r => /#.
         apply: ler_trans; smt().
       rewrite nth_out 1:// _zero_bits8 /#.
+    qed.
+
+    lemma eq_of_list_get'S x: r %| size => x = of_list'S (mkseq (get'S x) (size %/ r)).
+    proof.
+      move => hr.
+      apply ext_eq'S => i [ige0 ilt].
+      rewrite pmulr_rge0 1:_gt0_r in ige0.
+      rewrite get'S_of_list'S.
+      + rewrite size_mkseq ler_maxr.
+        + by rewrite divz_ge0 1:_gt0_r ge0_size.
+        by apply divzK.
+      rewrite nth_mkseq //.
+      by rewrite ltz_divRL 1:_gt0_r 1:// ige0 mulzC.
     qed.
 
   end WSB.
@@ -400,8 +457,3 @@ abstract theory SubByteArray.
   rename [op, lemma] "'S" as "256".
 
 end SubByteArray.
-
-
-
-
-
