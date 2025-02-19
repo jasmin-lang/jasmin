@@ -404,22 +404,32 @@ Definition wmax_unsigned sz := wbase sz - 1.
 Definition wmin_signed (sz: wsize) : Z := - modulus (wsize_size_minus_1 sz).
 Definition wmax_signed (sz: wsize) : Z := modulus (wsize_size_minus_1 sz) - 1.
 
-Section wsigned_range.
-Local Arguments Z.add: simpl never.
-Local Arguments Z.sub: simpl never.
-Local Arguments Z.opp: simpl never.
+Definition half_modulus sz : Z := modulus (wsize_size_minus_1 sz).
+
+Lemma wbase_twice_half sz :
+  wbase sz = 2 * half_modulus sz.
+Proof. done. Qed.
+
+Lemma wsigned_alt sz (w: word sz) :
+  let m := half_modulus sz in
+  wsigned w = wunsigned (w + wrepr sz m) - m.
+Proof.
+  rewrite /wsigned sreprE /= -/(wunsigned _) wunsigned_add_if wunsigned_repr_small; last first.
+  + by clear; case: sz.
+  rewrite /wbase modulusS mulr2n -/(half_modulus _).
+  move: (half_modulus _) => m.
+  rewrite /Order.lt /GRing.add /GRing.opp /=.
+  case: ltZP; case: ltZP; lia.
+Qed.
 
 Lemma wsigned_range sz (p: word sz) :
   wmin_signed sz <= wsigned p <= wmax_signed sz.
 Proof.
-  have := wunsigned_range p; rewrite /wunsigned.
-  rewrite /wsigned sreprE; case: ltzP => /=; rewrite /wmin_signed /wmax_signed.
-  + lia.
-  rewrite /GRing.add /GRing.opp /= /wbase /modulus two_power_nat_S.
+  rewrite wsigned_alt; set q := (_ + _)%R.
+  have := wunsigned_range q.
+  rewrite /wmin_signed /wmax_signed -/(half_modulus _) wbase_twice_half.
   lia.
 Qed.
-
-End wsigned_range.
 
 Notation u8   := (word U8).
 Notation u16  := (word U16).
