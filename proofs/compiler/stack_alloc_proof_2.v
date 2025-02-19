@@ -9,8 +9,8 @@ From mathcomp Require Import word_ssrZ.
 Require Import psem psem_facts compiler_util.
 Require Export stack_alloc stack_alloc_proof.
 Require Import byteset.
-Import Utf8 Lia.
-
+From mathcomp Require Import ring.
+From Coq Require Import Utf8 Lia.
 
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
@@ -490,6 +490,7 @@ Lemma wunsigned_Addr_globals s ofs ws :
   Mvar.get mglob s = Some (ofs, ws) ->
   wunsigned (Addr_globals s) = wunsigned rip + ofs.
 Proof.
+  clear rsp_align rip_align.
   clear disjoint_zrange_globals_locals.
   move=> hget.
   rewrite /Addr_globals /Offset_slots hget.
@@ -505,6 +506,7 @@ Lemma zbetween_Addr_globals s :
   Sv.In s Slots_globals ->
   zbetween rip glob_size (Addr_globals s) (size_slot s).
 Proof.
+  clear rsp_align rip_align.
   move=> /in_Slots_slots.
   case heq: Mvar.get => [[ofs ws]|//] _.
   rewrite /zbetween !zify (wunsigned_Addr_globals heq).
@@ -516,7 +518,7 @@ Lemma wunsigned_Addr_locals s ofs ws :
   Mvar.get stack s = Some (ofs, ws) ->
   wunsigned (Addr_locals s) = wunsigned rsp + ofs.
 Proof.
-  clear disjoint_zrange_globals_locals.
+  clear disjoint_zrange_globals_locals rsp_align rip_align.
   move=> hget.
   rewrite /Addr_locals /Offset_slots hget.
   rewrite wunsigned_add //.
@@ -531,6 +533,7 @@ Lemma zbetween_Addr_locals s :
   Sv.In s Slots_locals ->
   zbetween rsp sao.(sao_size) (Addr_locals s) (size_slot s).
 Proof.
+  clear rsp_align rip_align.
   move=> /in_Slots_slots.
   case heq: Mvar.get => [[ofs ws]|//] _.
   rewrite /zbetween !zify (wunsigned_Addr_locals heq).
@@ -543,6 +546,7 @@ Lemma zbetween_Addr_locals_ioff s :
   Sv.In s Slots_locals ->
   zbetween (rsp + wrepr _ sao.(sao_ioff)) (sao.(sao_size) - sao.(sao_ioff)) (Addr_locals s) (size_slot s).
 Proof.
+  clear rsp_align rip_align.
   move=> hadd /in_Slots_slots.
   case heq: Mvar.get => [[ofs ws]|//] _.
   rewrite /zbetween !zify (wunsigned_Addr_locals heq).
@@ -1002,6 +1006,7 @@ Lemma init_map_wf_rmap vnew' s1 s2 :
     read (emem s2) Aligned (rip + wrepr Uptr i)%R U8 = ok (nth 0%R global_data (Z.to_nat i))) ->
   wf_rmap (lmap (Mvar.empty _) vnew') Slots Addr Writable Align P empty s1 s2.
 Proof.
+  clear rsp_align rip_align.
   clear disjoint_zrange_globals_locals.
   move=> heqvalg.
   split=> //=.
@@ -1309,6 +1314,7 @@ Lemma init_local_map_wf_rmap s2 :
     read (emem s2) Aligned (rip + wrepr Uptr i)%R U8 = ok (nth 0%R global_data (Z.to_nat i))) ->
   wf_rmap (lmap locals1 vnew1) Slots Addr Writable Align P rmap1 s1 s2.
 Proof.
+  clear rsp_align rip_align.
   move=> heqvalg.
   move: hlocal_map; rewrite /init_local_map.
   set wf_rmap := wf_rmap. (* hack due to typeclass interacting badly *)
@@ -1415,6 +1421,7 @@ Lemma valid_state_init_param wdb rmap m0 s1 s2 vnew1' locals1' sao_param (param:
   write_var wdb alloc_param.2 varg2 s2 = ok s2' /\
   valid_state (lmap locals2' vnew2') glob_size rsp rip Slots Addr Writable Align P rmap2' m0 s1' s2'.
 Proof.
+  clear rsp_align rip_align no_overflow_size.
   move=> hpmap hvs hparam.
   have hpmap2 := init_param_wf_pmap hparam hpmap.
   move: hparam => /=.
@@ -1499,6 +1506,7 @@ Lemma valid_state_init_params wdb m0 vm1 vm2 :
   write_vars wdb (map snd alloc_params) vargs2 s2  = ok s2' /\
   valid_state (lmap locals2 vnew2) glob_size rsp rip Slots Addr Writable Align P rmap2 m0 s1' s2'.
 Proof.
+  clear rsp_align rip_align no_overflow_size.
   move=> hvs.
   have {hvs}:
      wf_pmap (lmap locals1 vnew1) rsp rip Slots Addr Writable Align /\
@@ -1645,7 +1653,7 @@ Lemma init_stk_state_valid_state m3 sz' ws :
   valid_state (lmap locals1 vnew1) glob_size rsp rip Slots Addr Writable Align P rmap1 m2
      {| escs := scs1; evm := Vm.init; emem := m1 |} s2.
 Proof.
-  clear disjoint_zrange_globals_locals.
+  clear disjoint_zrange_globals_locals rsp_align rip_align.
   move=> hext hass hrsp hneq /=.
   constructor=> //=.
   + move=> s w hin hb.

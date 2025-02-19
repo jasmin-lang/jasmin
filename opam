@@ -30,6 +30,7 @@ depends: [
   "coq" {>= "8.18.0" & < "8.21~"}
   "coq-mathcomp-ssreflect" {>= "2.0" & < "2.4~"}
   "coq-mathcomp-algebra"
+  "coq-mathcomp-algebra-tactics"
   "coq-mathcomp-word" {>= "3.2"}
 ]
 conflicts: [
