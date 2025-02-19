@@ -64,7 +64,10 @@ stdenv.mkDerivation {
   name = "jasmin-0";
   src = nix-gitignore.gitignoreSource [] ./.;
   buildInputs = []
-    ++ optionals coqDeps [ coqPackages.coq mathcomp-word ]
+    ++ optionals coqDeps [
+      coqPackages.coq
+      mathcomp-word
+      coqPackages.mathcomp-algebra-tactics ]
     ++ optionals testDeps ([ curl.bin oP.apron.out libllvm ] ++ (with python3Packages; [ python pyyaml ]))
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib dune_3

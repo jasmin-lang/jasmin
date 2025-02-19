@@ -1,4 +1,5 @@
 (* -------------------------------------------------------------------- *)
+From Coq Require Setoid.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 
 (* -------------------------------------------------------------------- *)
