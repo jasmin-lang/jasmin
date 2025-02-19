@@ -233,6 +233,27 @@ abstract theory ByteArray.
       by rewrite ltz_divRL 1:_gt0_r 1:// ige0 mulzC.
     qed.
 
+    op init'S (f: int -> B) = init (fun i => (f (i%/r)) \bits8 (i%%r)).
+
+    lemma get8_init'S f i :
+      (init'S f).[i] =
+         if 0 <= i < ByteArray.size then (f (i%/r)) \bits8 (i%%r) else W8.zero.
+    proof.
+      rewrite /init'S.
+      case: (0 <= i && i < ByteArray.size) => hi; last by rewrite get_out.
+      by rewrite initiE.
+    qed.
+
+    lemma get'S_init'S f i :
+        0 <= i /\ r*(i+1) <= ByteArray.size =>
+        get'S (init'S f) i = f i.
+    proof.
+      move => [i_ge0 hi].
+      apply _wordP => k hk.
+      rewrite get'Sd_byte // get8_init'S.
+      rewrite (mulzC r i) edivz_eq 1:/# emodz_eq 1:/#.
+      smt().
+    qed.
   end WSB.
 
   clone include WSB with
