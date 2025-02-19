@@ -176,6 +176,11 @@ Section PROOF.
     end.
   Qed.
 
+  Lemma cons_inj {A} {x1 x2 : A} (s1 s2 : seq A) :
+    x1 :: s1 = x2 :: s2 ->
+    x1 = x2 /\ s1 = s2.
+  Proof. by case. Qed.
+
   Lemma add_inc_dec_classifyP s sz (a b : pexpr) w1 (z1: word w1) w2 (z2 : word w2) :
     sem_pexprs true gd s [:: a; b] = ok [:: Vword z1; Vword z2] ->
     match add_inc_dec_classify sz a b with
@@ -186,12 +191,18 @@ Section PROOF.
   Proof.
     have := add_inc_dec_classifyP' sz a b.
     case: (add_inc_dec_classify sz a b)=> [y|y|//].
-    + case=> [[??]|[??]]; subst; rewrite /sem_pexprs /=; t_xrbindP.
-      + by move => z -> -> -> [<-]; exists w1, z1; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr mathcomp.word.word.mkword1E.
-      by move => ? z -> <- -> [<-] [->]; exists w2, z2; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr mathcomp.word.word.mkword1E GRing.addrC.
-    + case=> [[??]|[??]]; subst; rewrite /sem_pexprs /=; t_xrbindP.
-      + by move => z -> -> -> [<-]; exists w1, z1; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr mathcomp.word.word.mkwordN1E.
-      by move => ? z -> <- -> [<-] [->]; exists w2, z2; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr mathcomp.word.word.mkwordN1E GRing.addrC.
+    + case=> [[??]|[??]]; subst; rewrite /sem_pexprs /=.
+      + apply: rbindP => z -> /ok_inj /cons_inj [] -> /cons_inj [] /Vword_inj [??] _; subst w2 z2 => /=.
+        by exists w1, z1; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr mathcomp.word.word.mkword1E.
+      apply: rbindP => ?.
+      apply: rbindP => z -> [<-] /ok_inj /cons_inj [] /Vword_inj [??] [->]; subst w1 z1 => /=.
+      by exists w2, z2; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr mathcomp.word.word.mkword1E GRing.addrC.
+    case=> [[??]|[??]]; subst; rewrite /sem_pexprs /=.
+    + apply: rbindP => z -> /ok_inj /cons_inj [] -> /cons_inj [] /Vword_inj [??] _; subst w2 z2 => /=.
+      by exists w1, z1; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr mathcomp.word.word.mkwordN1E.
+    apply: rbindP => ?.
+    apply: rbindP => z -> [<-] /ok_inj /cons_inj [] /Vword_inj [??] [->]; subst w1 z1 => /=.
+    by exists w2, z2; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr mathcomp.word.word.mkwordN1E GRing.addrC.
   Qed.
 
   Lemma sub_inc_dec_classifyP sz e:

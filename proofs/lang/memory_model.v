@@ -1,4 +1,5 @@
 (* ** Imports and settings *)
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq div eqtype.
 From mathcomp Require Import ssralg word_ssrZ.
@@ -112,16 +113,10 @@ End POINTER.
 (** This type describes whether a memory access must check for alignment.
   With Unaligned, there are no particular constraints.
   With Aligned, the pointer must be a multiple of the size of the access. *)
+#[only(eqbOK)] derive
 Variant aligned := Unaligned | Aligned.
 
-Scheme Equality for aligned.
-
-Lemma aligned_eq_axiom : Equality.axiom aligned_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_aligned_dec_bl internal_aligned_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build aligned aligned_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build aligned aligned_eqb_OK.
 
 Definition aligned_le (x y: aligned) : bool :=
   (x == Unaligned) || (y == Aligned).

@@ -3091,7 +3091,7 @@ Section PROOF.
       rewrite /top_stack_aligned (negbTE ok_ra) /= => ok_stk_sz sp_aligned [??]; subst lbli li.
     have s1_rsp : (evm s1).[vrsp] = Vword (top_stack (emem s1)).
     + by move: T; rewrite /valid_RSP /kill_tmp_call /= kill_varsE; case: ifP.
-    move: (s1_rsp); rewrite hsp => -[?]; subst sp.
+    move: (s1_rsp); rewrite hsp => /Vword_inj1 ?; subst sp.
     set rastack_before := is_RAstack_None_call _.
     set rastack_after  := is_RAstack_None_return _.
     set sz := stack_frame_allocation_size _.
@@ -4447,7 +4447,7 @@ Section PROOF.
             by exists caller, lret, cbody, pc, retptr; split.
           move=> [ok_cbody ok_pc mem_lret [retptr ok_retptr ok_ra]].
           exists caller, lret, cbody, pc, retptr; split=> //.
-          move: ok_ra; rewrite ok_rsp => -[_ [<-] +].
+          move: ok_ra; rewrite ok_rsp => -[_ /Vword_inj1 <- +].
           by rewrite wrepr0 GRing.addr0.
 
       (* Initial code that stores the return address on top of the stack if it

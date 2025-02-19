@@ -1,3 +1,4 @@
+From elpi.apps Require Import derive.std.
 From Coq Require Import ZArith.
 From Coq Require Export String.
 From HB Require Import structures.
@@ -5,16 +6,11 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype choice.
 Require Import utils gen_map.
 
 (* -------------------------------------------------------------------- *)
-Scheme Equality for Ascii.ascii.
-(* ascii_beq :  Ascii.ascii ->  Ascii.ascii -> bool *)
-(* ascii_eq_dec *)
+#[only(eqbOK)] derive Ascii.ascii.
+(* ascii_eqb :  Ascii.ascii ->  Ascii.ascii -> bool *)
+(* ascii_eqb_OK *)
 
-Lemma ascii_eqP : Equality.axiom ascii_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_ascii_dec_bl internal_ascii_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build Ascii.ascii ascii_eqP.
+HB.instance Definition _ := hasDecEq.Build Ascii.ascii ascii_eqb_OK.
 HB.instance Definition _ := Countable.copy Ascii.ascii
   (can_type Ascii.ascii_nat_embedding).
 
@@ -43,16 +39,11 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Scheme Equality for String.string.
-(* string_beq is defined
-   string_eq_dec is defined *)
+#[only(eqbOK)] derive string.
+(* string_eqb is defined
+   string_eqb_OK is defined *)
 
-Lemma string_eqP : Equality.axiom string_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_string_dec_bl internal_string_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build string string_eqP.
+HB.instance Definition _ := hasDecEq.Build string string_eqb_OK.
 
 Fixpoint string_cmp s1 s2 :=
   match s1, s2 with
