@@ -1978,13 +1978,13 @@ Definition Ox86_CLFLUSH_instr :=
   mk_instr_pp "CLFLUSH" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (primM CLFLUSH) (pp_name "clflush" U8).
 
 Definition Ox86_PREFETCHT0_instr :=
-  mk_instr_pp "PREFETCHT0" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (primM PREFETCHT0) (pp_name "prefetcht0" Uptr).
+  mk_instr_pp "PREFETCHT0" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (primM PREFETCHT0) (pp_name "prefetcht0" U8).
 Definition Ox86_PREFETCHT1_instr :=
-  mk_instr_pp "PREFETCHT1" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (primM PREFETCHT1) (pp_name "prefetcht1" Uptr).
+  mk_instr_pp "PREFETCHT1" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (primM PREFETCHT1) (pp_name "prefetcht1" U8).
 Definition Ox86_PREFETCHT2_instr :=
-  mk_instr_pp "PREFETCHT2" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (primM PREFETCHT2) (pp_name "prefetcht2" Uptr).
+  mk_instr_pp "PREFETCHT2" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (primM PREFETCHT2) (pp_name "prefetcht2" U8).
 Definition Ox86_PREFETCHNTA_instr :=
-  mk_instr_pp "PREFETCHNTA" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (primM PREFETCHNTA) (pp_name "prefetchnta" Uptr).
+  mk_instr_pp "PREFETCHNTA" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (primM PREFETCHNTA) (pp_name "prefetchnta" U8).
 
 Definition Ox86_LFENCE_instr :=
   mk_instr_pp "LFENCE" [::] [::] [::] [::] MSB_CLEAR (ok tt) [:: [::] ] 0 (primM LFENCE) (pp_name "lfence" U8).

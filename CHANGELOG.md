@@ -54,8 +54,9 @@
   ([PR#1028](https://github.com/jasmin-lang/jasmin/pull/1028);
   fixes [#18](https://github.com/jasmin-lang/jasmin/issues/18)).
 
-- Fix printing of x86 `CLFLUSH` instruction in “Intel” syntax
-  ([PR #1054](https://github.com/jasmin-lang/jasmin/pull/1054);
+- Fix printing of x86 `CLFLUSH` and `PREFETCH` instructions in “Intel” syntax
+  ([PR #1054](https://github.com/jasmin-lang/jasmin/pull/1054),
+  [PR #1057](https://github.com/jasmin-lang/jasmin/pull/1057);
   fixes [#438](https://github.com/jasmin-lang/jasmin/issues/438)).
 
 ## Other changes
