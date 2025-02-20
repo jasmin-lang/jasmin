@@ -311,7 +311,7 @@ let is_ct_op1 (_: Expr.sop1) = true
 
 let is_ct_op2 (o: Expr.sop2) =
   match o with
-  | Omod (Cmp_w _) | Odiv (Cmp_w _) -> false
+  | Omod (_, Op_w _) | Odiv (_, Op_w _) -> false
   | _ -> true
 
 let is_ct_opN (_ : Expr.opN) = true

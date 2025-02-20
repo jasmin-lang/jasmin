@@ -304,7 +304,7 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
         let (op, args) := mulr sz a b in
         LowerFopn sz (Ox86 op) args (Some U32)
       end
-    | Odiv (Cmp_w u sz) =>
+    | Odiv u (Op_w sz) =>
       let opn :=
         match u with
         | Unsigned => Ox86 (DIV sz)
@@ -312,7 +312,7 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
         end in
       k16 sz (LowerDivMod DM_Fst u sz opn a b)
 
-    | Omod (Cmp_w u sz) =>
+    | Omod u (Op_w sz) =>
        let opn :=
         match u with
         | Unsigned => Ox86 (DIV sz)

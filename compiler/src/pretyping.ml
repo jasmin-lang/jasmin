@@ -846,8 +846,12 @@ let sub_info =
 let mul_info =
   mk_op_info (fun k -> E.Omul k) (fun _s ve ws -> E.Ovmul(ve,ws))
 
-let div_info = mk_cmp_info_nvec (fun k -> E.Odiv k)
-let mod_info = mk_cmp_info_nvec (fun k -> E.Omod k)
+let div_kind = function
+  | E.Cmp_int -> (Wsize.Unsigned, E.Op_int)
+  | E.Cmp_w(sg, sz) -> (sg, E.Op_w sz)
+
+let div_info = mk_cmp_info_nvec (fun k -> let (sg, k) = div_kind k in E.Odiv(sg, k))
+let mod_info = mk_cmp_info_nvec (fun k -> let (sg, k) = div_kind k in E.Omod(sg, k))
 
 let land_info = mk_logic_info (fun k -> E.Oland k)
 let lor_info  = mk_logic_info (fun k -> E.Olor  k)

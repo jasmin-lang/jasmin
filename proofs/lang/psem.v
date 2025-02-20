@@ -1342,6 +1342,7 @@ Proof.
     match goal with
     | |- cmp_kind -> _ => case=> /=
     | |- op_kind -> _ => case=> /=
+    | |- signedness -> op_kind -> _ => move=> ?; case=> /=
     | _ => idtac end => > -> > -> ? /=; (move=> -> || case=> ->) => /= ->.
 Qed.
 

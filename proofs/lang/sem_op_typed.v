@@ -71,8 +71,9 @@ Definition signed {A:Type} (fu fs:A) s :=
   | Signed => fs
   end.
 
-Definition mk_sem_divmod sz o (w1 w2: word sz) : exec (word sz) :=
-  if ((w2 == 0) || ((wsigned w1 == wmin_signed sz) && (w2 == -1)))%R then Error ErrArith
+Definition mk_sem_divmod (si:signedness) sz o (w1 w2: word sz) : exec (word sz) :=
+  (* FIXME this is stronger that needed, the second part is not necessary for unsigned *)
+  if ((w2 == 0) || [&& si == Signed, wsigned w1 == wmin_signed sz & w2 == -1])%R then Error ErrArith
   else ok (o w1 w2).
 
 Definition mk_sem_sop2 (t1 t2 t3: Type) (o:t1 -> t2 -> t3) v1 v2 : exec t3 :=
@@ -86,16 +87,16 @@ Definition sem_sop2_typed (o: sop2) :
   | Oand => mk_sem_sop2 andb
   | Oor  => mk_sem_sop2 orb
 
-  | Oadd Op_int      => mk_sem_sop2 Z.add
-  | Oadd (Op_w s)    => mk_sem_sop2 +%R
-  | Omul Op_int      => mk_sem_sop2 Z.mul
-  | Omul (Op_w s)    => mk_sem_sop2 *%R
-  | Osub Op_int      => mk_sem_sop2 Z.sub
-  | Osub (Op_w s)    => mk_sem_sop2 (fun x y =>  x - y)%R
-  | Odiv Cmp_int     => mk_sem_sop2 Z.div
-  | Odiv (Cmp_w u s) => @mk_sem_divmod s (signed wdiv wdivi u)
-  | Omod Cmp_int     => mk_sem_sop2 Z.modulo
-  | Omod (Cmp_w u s) => @mk_sem_divmod s (signed wmod wmodi u)
+  | Oadd Op_int     => mk_sem_sop2 Z.add
+  | Oadd (Op_w s)   => mk_sem_sop2 +%R
+  | Omul Op_int     => mk_sem_sop2 Z.mul
+  | Omul (Op_w s)   => mk_sem_sop2 *%R
+  | Osub Op_int     => mk_sem_sop2 Z.sub
+  | Osub (Op_w s)   => mk_sem_sop2 (fun x y =>  x - y)%R
+  | Odiv u Op_int   => mk_sem_sop2 (signed Z.div Z.quot u)
+  | Odiv u (Op_w s) => @mk_sem_divmod u s (signed wdiv wdivi u)
+  | Omod u Op_int   => mk_sem_sop2 (signed Z.modulo Z.rem u)
+  | Omod u (Op_w s) => @mk_sem_divmod u s (signed wmod wmodi u)
 
   | Oland s       => mk_sem_sop2 wand
   | Olor  s       => mk_sem_sop2 wor
@@ -221,7 +222,7 @@ Definition zshr (x i : Z) : Z :=
   zshl x (-i).
 
 Definition wshr (s : signedness) : forall {s}, word s -> Z -> word s :=
-  signed wshl wsar s.
+  signed wshr wsar s.
 
 Definition sem_shift
   (ow : signedness -> forall {sz}, word sz -> Z -> word sz)
@@ -242,9 +243,6 @@ Definition sem_shift
 
 Definition sem_shl k := @sem_shift (fun _ => @wshl) zshl k.
 Definition sem_shr k := @sem_shift wshr zshr k.
-
-Definition mk_sem_sop2 (t1 t2 t3: Type) (o:t1 -> t2 -> t3) v1 v2 : exec t3 :=
-  ok (o v1 v2).
 
 Definition mk_sem_cmp_w2
   (ow : forall {sz}, signedness -> word sz -> word sz -> bool)
@@ -275,8 +273,10 @@ Definition sem_sop2_typed (o: sop2) :
   | Omul k => @mk_sem_w2 (fun _ sz (w1 w2 : word sz) => ok (w1 * w2))%R Z.mul k
   | Osub k => @mk_sem_w2 (fun _ sz (w1 w2 : word sz) => ok (w1 - w2))%R Z.sub k
 
-  | Odiv k => @mk_sem_w2 (fun sign sz => mk_sem_divmod (signed (@wdiv sz) (@wdivi sz) sign)) Z.div k
-  | Omod k => @mk_sem_w2 (fun sign sz => mk_sem_divmod (signed (@wmod sz) (@wmodi sz) sign)) Z.modulo k
+  | Odiv u Op_int   => mk_sem_sop2 (signed Z.div Z.quot u)
+  | Odiv _ (Op_w _ u s) => @mk_sem_divmod u s (signed wdiv wdivi u)
+  | Omod u Op_int   => mk_sem_sop2 (signed Z.modulo Z.rem u)
+  | Omod _ (Op_w _ u s) => @mk_sem_divmod u s (signed wmod wmodi u)
 
   | Oland sz => mk_sem_sop2 wand
   | Olor  sz => mk_sem_sop2 wor

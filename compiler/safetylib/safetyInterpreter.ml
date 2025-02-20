@@ -262,10 +262,10 @@ let safe_op2 e2 = function
   | E.Oror _ | E.Orol _
   | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ -> []
 
-  | E.Odiv E.Cmp_int -> []
-  | E.Omod Cmp_int  -> []
-  | E.Odiv (E.Cmp_w(_, s)) -> [NotZero (s, e2)]
-  | E.Omod (E.Cmp_w(_, s)) -> [NotZero (s, e2)]
+  | E.Odiv (_, E.Op_int) -> []
+  | E.Omod (_, E.Op_int)  -> []
+  | E.Odiv (_, E.Op_w s) -> [NotZero (s, e2) (* FIXME this is not sufficiant case Signed *) ]
+  | E.Omod (_, E.Op_w s) -> [NotZero (s, e2) (* FIXME this is not sufficiant case Signed *) ]
 
   | E.Ovadd _ | E.Ovsub _ | E.Ovmul _
   | E.Ovlsr _ | E.Ovlsl _ | E.Ovasr _ -> []
@@ -378,12 +378,12 @@ let safe_opn safe opn es =
            | Unsigned ->
              InRange(Pconst Z.zero, Papp2 (E.Osub E.Op_int, Papp2 (E.Omul E.Op_int, Pconst (modulus sz), d), Pconst Z.one), n)
           | Signed ->
-             InRange (Pconst (Z.neg (half_modulus sz)), Pconst (Z.pred (half_modulus sz)), Papp2 (E.Odiv E.Cmp_int, n, d))
+             InRange (Pconst (Z.neg (half_modulus sz)), Pconst (Z.pred (half_modulus sz)), Papp2 (E.Odiv(Unsigned, E.Op_int), n, d))
         ]
       | Wsize.InRangeMod32(sz, lo, hi, n) ->
          let n = List.nth es (Conv.int_of_nat n) in
          let n = Papp1 (E.uint_of_word sz, n) in
-         let n = Papp2 (E.Omod Cmp_int, n, Pconst (Z.of_int 32)) in
+         let n = Papp2 (E.Omod (Unsigned, Op_int), n, Pconst (Z.of_int 32)) in
          [ InRange(Pconst (Conv.z_of_cz lo), Pconst (Conv.z_of_cz hi), n) ]
       | Wsize.AllInit(ws, p, i) ->
         let e = List.nth es (Conv.int_of_nat i) in
@@ -1262,7 +1262,7 @@ end = struct
     | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.DIV ws)) ->
       assert (x = None);
       let n, d = split_div Unsigned ws es in
-      let w = Papp1 (E.Oword_of_int ws, Papp2 (E.Odiv E.Cmp_int, n, d)) in
+      let w = Papp1 (E.Oword_of_int ws, Papp2 (E.Odiv(Unsigned, E.Op_int), n, d)) in
       let rflags = rflags_of_div in
       rflags @ [None; Some w]
 
@@ -1270,7 +1270,7 @@ end = struct
     | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.IDIV ws)) ->
        assert (x = None);
        let n, d = split_div Signed ws es in
-      let w = Papp1 (E.Oword_of_int ws, Papp2 (E.Odiv E.Cmp_int, n, d)) in
+      let w = Papp1 (E.Oword_of_int ws, Papp2 (E.Odiv(Unsigned, E.Op_int), n, d)) in
       let rflags = rflags_of_div in
       rflags @ [None; Some w]
 

@@ -371,7 +371,7 @@ module type EnvT = sig
   val add_Array: t -> int -> unit
   val add_WArray: t -> int -> unit
   val add_ArrayWords: t -> int -> int -> unit
-  val add_BArray: t -> int -> unit 
+  val add_BArray: t -> int -> unit
   val add_SBArray: t -> subarray -> unit
   val add_SubArray: t -> int -> int -> unit
   val add_SubArrayDirect: t -> int -> int -> int -> unit
@@ -438,12 +438,12 @@ module Env: EnvT = struct
 
   let add_BArray env size =
     env.array_theories := Sarraytheory.add (ByteArray size) !(env.array_theories)
-  
+
   let add_SBArray env (s:subarray) =
     add_BArray env s.sizeb;
     add_BArray env s.sizes;
     env.array_theories := Sarraytheory.add (SubByteArray s) !(env.array_theories)
-  
+
   let add_WArray env n =
     env.array_theories := Sarraytheory.add (WArray n) !(env.array_theories)
 
@@ -595,6 +595,14 @@ let fmt_op2 fmt op =
     | E.Cmp_w (Unsigned, _) -> Format.fprintf fmt "\\u%s" ws
     | _                     -> Format.fprintf fmt "%s" is
   in
+  let fmt_div fmt ws is sg k =
+    match sg, k with
+    | Signed, E.Op_w _   -> Format.fprintf fmt "\\s%s" ws
+    | Unsigned, E.Op_w _ -> Format.fprintf fmt "\\u%s" ws
+    | Signed, E.Op_int   -> assert false (* FIXME  *)
+    | Unsigned, E.Op_int -> Format.fprintf fmt "%s" is
+  in
+
   let fmt_vop2 fmt (s,ve,ws) =
     Format.fprintf fmt "\\v%s%iu%i" s (int_of_velem ve) (int_of_ws ws)
   in
@@ -604,8 +612,8 @@ let fmt_op2 fmt op =
   | E.Oor    -> Format.fprintf fmt "\\/"
   | E.Oadd _ -> Format.fprintf fmt "+"
   | E.Omul _ -> Format.fprintf fmt "*"
-  | E.Odiv s -> fmt_signed fmt "div" "%/" s
-  | E.Omod s -> fmt_signed fmt "mod" "%%" s
+  | E.Odiv(sg, k) -> fmt_div fmt "div" "%/" sg k
+  | E.Omod(sg, k) -> fmt_div fmt "mod" "%%" sg k
 
   | E.Osub  _ -> Format.fprintf fmt "-"
 
@@ -1853,7 +1861,7 @@ struct
               match e2 with
               (* Can be generalized to the case where e2 is not modified by c and i *)
               | Pconst _ -> ([], toec_expr env e2)
-              | _ -> 
+              | _ ->
                   let aux = Env.create_aux env "inc" "int" in
                   let init = ESasgn ([LvIdent [aux]], toec_expr env e2) in
                   let ec_e2 = ec_ident aux in
@@ -1910,8 +1918,8 @@ struct
   (* ------------------------------------------------------------------- *)
   (* Program extraction *)
 
-  let add_glob_arrsz env (x,d) = 
-    match d with 
+  let add_glob_arrsz env (x,d) =
+    match d with
     | Global.Gword _ -> ()
     | Global.Garr(p,t) ->
       let ws, t = Conv.to_array x.v_ty p t in

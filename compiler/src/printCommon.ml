@@ -42,6 +42,10 @@ let string_of_op_kind = function
   | E.Op_w ws -> asprintf "%du" (int_of_ws ws)
   | E.Op_int -> ""
 
+let string_of_div_kind sg = function
+  | E.Op_w ws -> asprintf "%d%s" (int_of_ws ws) (string_of_signess sg)
+  | E.Op_int -> if sg = Signed then (string_of_signess sg) else ""
+
 (* -------------------------------------------------------------------- *)
 
 let string_of_op_w s ws =
@@ -62,8 +66,8 @@ let string_of_op2 = function
   | E.Oadd k -> "+" ^ string_of_op_kind k
   | E.Omul k -> "*" ^ string_of_op_kind k
   | E.Osub k -> "-" ^ string_of_op_kind k
-  | E.Odiv k -> "/" ^ string_of_cmp_kind k
-  | E.Omod k -> "%" ^ string_of_cmp_kind k
+  | E.Odiv(s, k) -> "/" ^ string_of_div_kind s k
+  | E.Omod(s, k) -> "%" ^ string_of_div_kind s k
   | E.Oland w -> string_of_op_w "&" w
   | E.Olor w -> string_of_op_w "|" w
   | E.Olxor w -> string_of_op_w "^" w

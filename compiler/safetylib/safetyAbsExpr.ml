@@ -108,10 +108,10 @@ let op2_to_abs_binop op2 = match op2 with
   | E.Omul _ -> AB_Arith Texpr1.Mul                  
   | E.Osub _ -> AB_Arith Texpr1.Sub
 
-  | E.Omod (Cmp_w (Signed, _)) -> AB_Unknown
+  | E.Omod (Signed, _) -> AB_Unknown
   | E.Omod _ -> AB_Arith Texpr1.Mod
 
-  | E.Odiv (Cmp_w (Signed, _)) -> AB_Unknown
+  | E.Odiv (Signed, _) -> AB_Unknown
   | E.Odiv _ -> AB_Arith Texpr1.Div
 
   | E.Olsr _ -> AB_Wop (Wshift Unsigned_right)
@@ -332,7 +332,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       obind2 (fun x y -> Some (Z.mul x y))
         (aeval_cst_zint abs e1) (aeval_cst_zint abs e2)
 
-    | Papp2 (Odiv Cmp_int, e1, e2) ->
+    | Papp2 (Odiv (Unsigned, Op_int), e1, e2) ->
         obind2 (fun x y -> Some (Z.div x y))
           (aeval_cst_zint abs e1) (aeval_cst_zint abs e2)
 

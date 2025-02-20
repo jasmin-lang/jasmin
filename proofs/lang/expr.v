@@ -49,8 +49,8 @@ Variant sop2 :=
 | Oadd  of op_kind
 | Omul  of op_kind
 | Osub  of op_kind
-| Odiv  of cmp_kind
-| Omod  of cmp_kind
+| Odiv  of signedness & op_kind
+| Omod  of signedness & op_kind
 
 | Oland of wsize
 | Olor  of wsize
@@ -146,13 +146,13 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
   | Oadd Op_int
   | Omul Op_int
   | Osub Op_int
-  | Odiv Cmp_int | Omod Cmp_int
+  | Odiv _ Op_int | Omod _ Op_int
   | Olsl Op_int | Oasr Op_int
     => (sint, sint, sint)
   | Oadd (Op_w s)
   | Omul (Op_w s)
   | Osub (Op_w s)
-  | Odiv (Cmp_w _ s) | Omod (Cmp_w _ s)
+  | Odiv _ (Op_w s) | Omod _ (Op_w s)
   | Oland s | Olor s | Olxor s | Ovadd _ s | Ovsub _ s | Ovmul _ s
     => let t := sword s in (t, t, t)
   | Olsr s | Olsl (Op_w s) | Oasr (Op_w s) | Oror s | Orol s
@@ -215,8 +215,8 @@ Variant sop2 :=
 | Oadd  of op_kind
 | Omul  of op_kind
 | Osub  of op_kind
-| Odiv  of op_kind
-| Omod  of op_kind
+| Odiv  of signedness & op_kind (* signedness argument is only used the op_kind = Op_int *)
+| Omod  of signedness & op_kind (* signedness argument is only used the op_kind = Op_int *)
 
 | Oland of wsize
 | Olor  of wsize
@@ -310,7 +310,7 @@ Definition etype_of_op2 {len : Set} (o : sop2) : extended_type len * extended_ty
   | Obeq | Oand | Oor =>
     (tbool, tbool, tbool)
 
-  | Oadd k | Omul k | Osub k | Odiv k | Omod k =>
+  | Oadd k | Omul k | Osub k | Odiv _ k | Omod _ k =>
     let t := t_opk k in (t, t, t)
 
   | Oland sz | Olor sz | Olxor sz =>
@@ -577,9 +577,14 @@ Arguments Cfor { _ asmop _ _}.
 Arguments Cwhile { _ asmop _ _}.
 Arguments Ccall { _ asmop _ _}.
 
+Notation cmd_ sop1 sop2 := (seq (instr_ sop1 sop2)).
+
+Notation einstr := (instr_ EO.sop1 EO.sop2).
+Notation einstr_r := (instr_r_ EO.sop1 EO.sop2).
+Notation ecmd := (seq einstr).
+
 Notation instr := (instr_ sop1 sop2).
 Notation instr_r := (instr_r_ sop1 sop2).
-Notation cmd_ sop1 sop2 := (seq (instr_ sop1 sop2)).
 Notation cmd := (seq instr).
 
 Section CMD_RECT.
