@@ -138,21 +138,61 @@ Defined.
 
 (** instances for mutual recursion *)
 
-Global Instance FIso_MR' E1 E2 E3 :
-  FIso ((E1 +' void1) +' (E2 +' E3)) ((E1 +' E2) +' E3).
-assert (FIso ((E1 +' void1) +' (E2 +' E3)) (E1 +' (E2 +' E3))) as H.
-{ eapply (FIsoSum (FIsoRev (FIsoIdL E1)) (FIsoId (E2 +' E3))). }
-eapply (FIsoTrans H (FIsoLAssoc E1 E2 E3)).
-Defined.
+Definition FIso_MR Em {E1 E0 Er} (X: FIso E1 (E0 +' Er)) :
+  FIso (Em +' E1) ((Em +' E0) +' Er) :=
+  FIsoTrans (FIsoSum (FIsoId Em) X) (FIsoLAssoc Em E0 Er).  
 
-Global Instance FIso_MR E1 {E2 E3 E4} (X: FIso E2 (E3 +' E4)) :
-  FIso (E1 +' E2) ((E1 +' E3) +' E4).
-eapply (FIsoTrans (FIsoSum (FIsoIdL E1) X) (FIso_MR' E1 E3 E4)).
-Defined.
 
+Lemma FIso_MR_proj11' Em {E1 E0 Er} (X: FIso E1 (E0 +' Er)) :
+  let Y:= FIso_MR Em X in 
+  forall A (e: Em A), mfun1 A (inl1 e) = inl1 (inl1 e).
+Proof.
+  simpl; intros.
+  destruct X.
+  unfold mfun1; simpl.
+  unfold ReSum_sum, case_, Case_sum1, case_sum1, resum, ReSum_inl,
+    ReSum_inr, cat, Cat_IFun, inl_, inr_, Inl_sum1, Inr_sum1, resum,
+    ReSum_id, id_, Id_IFun; auto.
+Qed.
+  
+Lemma FIso_MR_proj11 Em {E1 E0 Er} (X: FIso E1 (E0 +' Er)) Y :
+  Y = FIso_MR Em X ->  
+  forall A (e: Em A), mfun1 A (inl1 e) = inl1 (inl1 e).
+Proof.
+  simpl; intros.
+  inv H; eapply FIso_MR_proj11'. 
+Qed.
+
+Lemma FIso_MR_proj12' Em {E1 E0 Er} (X: FIso E1 (E0 +' Er)) :
+  let Y:= FIso_MR Em X in 
+  forall A (e: E1 A), @mfun1 _ _ Y A (inr1 e) = 
+                        match (@mfun1 _ _ X A e) with
+                        | inl1 x => inl1 (inr1 x)
+                        | inr1 x => inr1 x end.                 
+Proof.
+  simpl; intros.
+  destruct X.
+  unfold mfun1; simpl.
+  unfold ReSum_sum, case_, Case_sum1, case_sum1, resum, ReSum_inl,
+    ReSum_inr, cat, Cat_IFun, inl_, inr_, Inl_sum1, Inr_sum1, resum,
+    ReSum_id, id_, Id_IFun; auto.
+Qed.
+  
+Lemma FIso_MR_proj12 Em {E1 E0 Er} (X: FIso E1 (E0 +' Er)) Y :
+  Y = FIso_MR Em X -> 
+  forall A (e: E1 A), @mfun1 _ _ Y A (inr1 e) = 
+                        match (@mfun1 _ _ X A e) with
+                        | inl1 x => inl1 (inr1 x)
+                        | inr1 x => inr1 x end.                 
+Proof.
+  simpl; intros.
+  inv H; eapply FIso_MR_proj12'. 
+Qed.
+  
 Lemma FIso_MR_proj1' E1 {E2 E3 E4} (X: FIso E2 (E3 +' E4)) : 
-  let Y:= FIso_MR E1 X in forall A (e: E1 A), 
-      (mfun2 A (inl1 (inl1 e)) = inl1 e).
+  let Y:= FIso_MR E1 X in
+  forall A (e: E1 A), mfun2 A (inl1 (inl1 e)) = inl1 e.
+Proof.  
   simpl; intros.
   destruct X.
   unfold mfun2; simpl.
@@ -163,15 +203,16 @@ Qed.
 
 Lemma FIso_MR_proj1 E1 {E2 E3 E4} (X: FIso E2 (E3 +' E4)) Y : 
   Y = FIso_MR E1 X ->
-  forall A (e: E1 A), 
-      (mfun2 A (inl1 (inl1 e)) = inl1 e).
+  forall A (e: E1 A), mfun2 A (inl1 (inl1 e)) = inl1 e.
+Proof.  
   simpl; intros.
   inv H; eapply FIso_MR_proj1'. 
 Qed.
 
 Lemma FIso_MR_proj3' E1 {E2 E3 E4} (X: FIso E2 (E3 +' E4)) : 
-  let Y:= FIso_MR E1 X in forall A (e: E3 A), 
-      (mfun2 A (inl1 (inr1 e)) = inr1 (mfun1 A (inl1 e))).
+  let Y:= FIso_MR E1 X in
+  forall A (e: E3 A), mfun2 A (inl1 (inr1 e)) = inr1 (mfun1 A (inl1 e)).
+Proof.  
   simpl; intros.
   destruct X.
   unfold mfun2, mfun1; simpl.
@@ -181,15 +222,17 @@ Lemma FIso_MR_proj3' E1 {E2 E3 E4} (X: FIso E2 (E3 +' E4)) :
 Qed.
 
 Lemma FIso_MR_proj3 E1 {E2 E3 E4} (X: FIso E2 (E3 +' E4)) Y : 
-  Y = FIso_MR E1 X -> forall A (e: E3 A), 
-      (mfun2 A (inl1 (inr1 e)) = inr1 (mfun1 A (inl1 e))).
+  Y = FIso_MR E1 X ->
+  forall A (e: E3 A), mfun2 A (inl1 (inr1 e)) = inr1 (mfun1 A (inl1 e)).
+Proof.  
   simpl; intros.
   inv H; eapply FIso_MR_proj3'. 
 Qed.
 
 Lemma FIso_MR_proj4' E1 {E2 E3 E4} (X: FIso E2 (E3 +' E4)) : 
-  let Y:= FIso_MR E1 X in forall A (e: E4 A), 
-      (mfun2 A (inr1 e) = inr1 (mfun1 A (inr1 e))).
+  let Y:= FIso_MR E1 X in
+  forall A (e: E4 A), mfun2 A (inr1 e) = inr1 (mfun1 A (inr1 e)).
+Proof.  
   simpl; intros.
   destruct X.
   unfold mfun2, mfun1; simpl.
@@ -199,12 +242,32 @@ Lemma FIso_MR_proj4' E1 {E2 E3 E4} (X: FIso E2 (E3 +' E4)) :
 Qed.
 
 Lemma FIso_MR_proj4 E1 {E2 E3 E4} (X: FIso E2 (E3 +' E4)) Y : 
-  Y = FIso_MR E1 X -> forall A (e: E4 A), 
-      (mfun2 A (inr1 e) = inr1 (mfun1 A (inr1 e))).
+  Y = FIso_MR E1 X ->
+  forall A (e: E4 A), mfun2 A (inr1 e) = inr1 (mfun1 A (inr1 e)).
+Proof.  
   simpl; intros.
   inv H; eapply FIso_MR_proj4'. 
 Qed.
-  
+
+
+(** not used *)
+
+Definition FI_MR_rev Em {E1 E0 Er} (X: FIso (E0 +' Er) E1) :
+  FIso ((Em +' E0) +' Er) (Em +' E1) :=
+  FIsoTrans (FIsoRAssoc Em E0 Er) (FIsoSum (FIsoId Em) X). 
+
+Definition FIso_MR_aux E1 E2 E3 :
+  FIso ((E1 +' void1) +' (E2 +' E3)) ((E1 +' E2) +' E3).
+Proof.
+assert (FIso ((E1 +' void1) +' (E2 +' E3)) (E1 +' (E2 +' E3))) as H.
+{ eapply (FIsoSum (FIsoRev (FIsoIdL E1)) (FIsoId (E2 +' E3))). }
+eapply (FIsoTrans H (FIsoLAssoc E1 E2 E3)).
+Defined.
+
+Definition FIso_MR_alt Em {E1 E0 Er} (X: FIso E1 (E0 +' Er)) :
+  FIso (Em +' E1) ((Em +' E0) +' Er) :=
+ FIsoTrans (FIsoSum (FIsoIdL Em) X) (FIso_MR_aux Em E0 Er).  
+
 
 (** FIso projections *)
 

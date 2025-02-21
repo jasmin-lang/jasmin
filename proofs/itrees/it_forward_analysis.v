@@ -199,9 +199,9 @@ Fixpoint mapC {E2} {A B} (f: A -> itree E2 (list B)) (ls: list A) :
 Definition Error2false : forall X, exceptE error X -> bool :=
   fun X m => match m with | Throw _ => false end.                  
 
-Definition ErrorCutoff {E0 E1} (FI: FIso (E0 +' ErrState) E1) :
+Definition ErrorCutoff {E0 E1} (FI: FIso E1 (E0 +' ErrState)) :
   forall X, E1 X -> bool :=
-  fun X m => match (mfun2 _ m) with
+  fun X m => match (mfun1 _ m) with
              | inl1 _ => true
              | inr1 x => Error2false X x end.              
 
@@ -331,7 +331,31 @@ Definition TR_D {T1 T2} (d1 : CState T1)
 (* MM: post-relation between CState event outputs (typed as unit,
 hence trivial) *)
 Definition VR_D {T1 T2}
+  (d1 : CState T1) (t1: T1) (d2 : CState T2) (t2: T2) : Prop := tt = tt.
+
+(*
+Definition VR_D {T1 T2}
   (d1 : CState T1) (t1: T1) (d2 : CState T2) (t2: T2) : Prop := True.
+*)
+(*
+Definition VR_D' {T1 T2}
+  (d1 : CState T1) (t1: T1) (d2 : CState T2) (t2: T2) : Prop :=
+  match ((T1 = unit) * (T2 = unit)) with
+  | (eq_refl, eq_refl) => tt = tt end.
+                                 
+  end.             
+*)
+(*                 
+Definition VR_D' {T1 T2}
+  (d1 : CState T1) (t1: T1) (d2 : CState T2) (t2: T2) : Prop :=
+  match T1 = unit with
+  | _ => match T2 = unit with
+             | _ => tt = tt
+             end
+  end.             
+
+Print VR_D'.                 
+*)
 
 
 (*********************************************************************)
@@ -350,7 +374,7 @@ Context (HasFunE2 : FunE -< E2)
 
 (* type family isomorphism for E1 *)
 Context (E0: Type -> Type).
-Context (FI1: FIso (E0 +' ErrState) E1).
+Context (FI1: FIso E1 (E0 +' ErrState)).
 
 (* cutoff functions *)
 Notation EE1 := (ErrorCutoff FI1).
@@ -366,8 +390,9 @@ Context (TR_E : forall (E1 E2: Type -> Type) T1 T2,
 Context (init_hyp: forall fn es1 es2,
      eutt eq (ret es2) (mapT tr_expr es1) ->
      TR_E E1 E2 unit unit (HasInstrE1 unit (InitState fn es1))
-                          (HasInstrE2 unit (InitState fn es2)))
-       (dests_hyp: forall fn xs1 xs2,
+       (HasInstrE2 unit (InitState fn es2))).
+
+Context (dests_hyp: forall fn xs1 xs2,
      eutt eq (ret xs2) (mapT tr_lval xs1) ->      
      TR_E E1 E2 unit unit (HasInstrE1 unit (SetDests fn xs1))
        (HasInstrE2 unit (SetDests fn xs2))).
@@ -411,8 +436,16 @@ Lemma fname_hyp_rutt: forall fn,
 Qed.
 
 (* type family isomorphism for mutually recursive events *)
-Definition FI1_MR : FIso ((CState +' E0) +' ErrState) (CState +' E1) :=
-  FIsoTrans (FIsoRAssoc CState E0 ErrState) (FIsoSum (FIsoId CState) FI1). 
+Definition FI1_MR :
+  FIso (CState +' E1) ((CState +' E0) +' ErrState) :=
+  FIso_MR CState FI1.
+
+(*
+(* type family isomorphism for mutually recursive events *)
+Definition FI1_MR (FI: FIso (E0 +' ErrState) E1) :
+  FIso ((CState +' E0) +' ErrState) (CState +' E1) :=
+  FIsoTrans (FIsoRAssoc CState E0 ErrState) (FIsoSum (FIsoId CState) FI). 
+*)
 
 (* cutoff functions for mutually recursive events *)
 Notation EE1_MR := (ErrorCutoff FI1_MR).
@@ -508,59 +541,12 @@ Qed.
 
 End Rutt_denote_fun.
 
-End TR_MM_L1.
 
-Section TR_MM_L2.
+Section TR_MM_L2. 
 
-(* source envents *)  
-Context (E1: Type -> Type)
-        (HasErr1: ErrState -< E1)    
-        (HasFunE1 : FunE -< E1)
-        (HasInstrE1 : InstrE -< E1)     
-        (HasStackE1 : StackE -< E1).     
-Context (HasFunE2 : FunE -< E2)
-        (HasInstrE2 : InstrE -< E2)
-        (HasStackE2 : StackE -< E2).     
-
-Context (E0: Type -> Type).
-Context (FI: FIso (E0 +' ErrState) E1).
-
-Notation EE1 := (ErrorCutoff FI).
-Notation EE2 := (NoCutoff E2).
-
-Context (TR_E : forall (E1 E2: Type -> Type) T1 T2,
-            E1 T1 -> E2 T2 -> Prop)
-        (VR_E : forall (E1 E2: Type -> Type) T1 T2,
-            E1 T1 -> T1 -> E2 T2 -> T2 -> Prop).
-
-(* too strong: in principle, either tr_lval or tr_expr might diverge
-and thus the translation, whereas the source program doesn't *)
-(*
-Context (assgn_h1s :  
-    forall l a s p, @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq  
-                 (trigger (AssgnE l a s p))
-                 (l' <- tr_lval l ;;
-                  p' <- tr_expr p ;;
-                  trigger (AssgnE l' a s p'))).
-
-Context (assgn_h1 : forall l l' a s p p',
-    Tr_lval_rel l l' ->
-    Tr_expr_rel p p' ->        
-    @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq  
-                 (trigger (AssgnE l a s p)) (trigger (AssgnE l' a s p'))).
-*)
-(*
-(* Now this is too weak *)
-Context (assgn_h1 : forall l l' tg ty p p',
-    TR_E E1 E2 unit unit (HasInstrE1 unit (AssgnE l tg ty p))
-    (HasInstrE2 unit (AssgnE l' tg ty p'))).
-*)
-
-Context (instr_transl_hyp: forall (i: instr_info) (i1: instr_r) (c1: cmd),
-        eqit eq true true (Tr_instr (MkI i i1)) (Ret c1) ->
-        rutt EE1 EE2 (@TR_E E1 E2) (@VR_E E1 E2) eq
-        (denote_cmd HasFunE1 HasInstrE1 ([:: (MkI i i1)]))
-        (denote_cmd HasFunE2 HasInstrE2 c1)).
+(* additional source envents *)  
+Context (HasStackE1 : StackE -< E1).     
+Context (HasStackE2 : StackE -< E2).     
 
 (* proving rutt across the translation for all commands (here we need
 induction). was eutt_cmd_tr_L1 *)
@@ -657,54 +643,76 @@ Proof.
 
     symmetry in H.
     eapply eqit_inv_bind_ret in H.
-    destruct H as [i0 [H0 H1]].
+    destruct H as [c3 [H0 H1]].   
     eapply eqit_inv_bind_ret in H1.
     destruct H1 as [c0 [H1 H2]].
     eapply eqit_inv_bind_ret in H0.
     destruct H0 as [v0 [H3 H4]].
     eapply eqit_inv_bind_ret in H4.
-    destruct H4 as [ir0 [H4 H5]].
+    destruct H4 as [e0 [H4 H5]].  
     eapply eutt_Ret in H1; inv H1.
     eapply eutt_Ret in H2; inv H2.
     
     eapply interp_mrec_rutt with (RPreInv := @TR_D) (RPostInv := @VR_D).
     
     { intros R1 R2 d1 d2 H.
-      unfold TR_D in H; destruct d1.
+      remember d1 as dd1.
+      remember d2 as dd2.
+      unfold TR_D in H; destruct dd1.
 
-      2: { destruct d2; try intuition.
+      2: { destruct dd2; try intuition.
            inv H0; simpl; clear X.
 
            eapply rutt_transl_denote_fcall_MM
-             with (fn := f0) (HasFunE1 := HasFunE1)
-                  (HasFunE2 := HasFunE2)
-                  (HasInstrE1 := HasInstrE1)
-                  (HasInstrE2 := HasInstrE2)
-             in H as K1;
-             eauto.          
-             instantiate (1:= VR_E) in K1.
-             instantiate (1:= TR_E) in K1.
-             instantiate (2:= E0) in K1.
-             instantiate (1:= FI) in K1.
+             with (fn := f0) in H as K1; eauto.          
 
-             unfold VR_D; simpl.             
-             unfold EE_MR.
-             unfold TR_DE, VR_DE in K1.
+           (* make lemma *)
+           assert (EE1_MR = EE_MR EE1 CState) as I1.  
+           { unfold EE1_MR, EE_MR.
+             eapply functional_extensionality_dep; intro.
+             eapply functional_extensionality_dep; intro.
+             remember x1 as x11.
+             dependent destruction x11.
+             setoid_rewrite FIso_MR_proj11; eauto.
+             unfold FI1_MR; eauto.
+             remember (mfun1 x0 e1) as x2.
+             dependent destruction x2.             
+             setoid_rewrite FIso_MR_proj12; eauto.
+             2: { unfold FI1_MR. eauto. }
+             2: { unfold Error2false.
+                  setoid_rewrite FIso_MR_proj12; eauto.
+                  rewrite <- Heqx2; auto.
+                  unfold FI1_MR; auto. }
+             rewrite <- Heqx2; eauto.
+           }
+           rewrite <- I1.
 
-             (*  unfold FI1_MR in K1.
-               
-                  Print EE_MR.
-           
-                  unfold EE_MR; simpl.
-             *) 
-             (* fixme *)
-             (* eapply rutt_transl_denote_fcall_MM. *)
-             admit.
+           (* make lemma *)
+           assert (EE2_MR = EE_MR EE2 CState) as I2.
+           { unfold NoCutoff, EE_MR.
+             eapply functional_extensionality_dep; intro; eauto.
+             eapply functional_extensionality_dep; intro.
+             destruct x1; eauto.   
+           }
+           rewrite <- I2.
 
-             admit. admit. admit. admit. }
+           (* make lemma *)
+           assert ((fun v1 : unit =>
+                        [eta VR_D (FCall asmop xs f0 es) v1
+                           (FCall asmop xs0 f0 es0)]) = eq) as I3.
+           { unfold VR_D; simpl.
+             eapply functional_extensionality_dep; intro; eauto.
+             eapply functional_extensionality_dep; intro.
+             destruct x0.
+             destruct x1; auto.
+           }  
+           rewrite I3; auto.
+      }   
      
-      destruct d2; try intuition.
+      destruct dd2; try intuition.
       simpl; clear X; unfold Tr_cmd_rel in H.
+
+      clear Heqdd1 Heqdd2. 
       
       revert H. revert c0.
       induction c; simpl.
@@ -728,9 +736,9 @@ Proof.
         cut (rutt (EE_MR EE1 CState) (EE_MR EE2 CState)
                   (sum_prerel (@TR_D) (TR_E E1 E2))
                   (sum_postrel (@VR_D) (VR_E E1 E2))
-                  (fun v1 : unit => [eta VR_D (LCode (MkI i i1 :: c)) v1
+                  (fun v1 : unit => [eta VR_D (LCode (MkI i i0 :: c)) v1
                                        (LCode (c1 ++ c2))])
-                 (ITree.bind (denote_instr (Eff:=E1) HasInstrE1 i1)
+                 (ITree.bind (denote_instr (Eff:=E1) HasInstrE1 i0)
                    (fun=> cmd_map_r (denote_instr (Eff:=E1) HasInstrE1) c))
                  ( _ <- cmd_map_r (denote_instr (Eff:=E2) HasInstrE2) c1 ;;
                    cmd_map_r (denote_instr (Eff:=E2) HasInstrE2) c2)
@@ -779,7 +787,13 @@ Proof.
 
 Admitted.
   
-          
+
+End TR_MM_L2. 
+
+End TR_MM_L1. 
+
+
+
 (*        
 Context (instr_transl_hyp: forall (i: instr_info) (i1: instr_r) (c1: cmd),
         eqit eq true true (Tr_instr (MkI i i1)) (Ret c1) ->

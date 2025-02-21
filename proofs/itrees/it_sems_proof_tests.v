@@ -926,8 +926,6 @@ Section TR_MM_toy4.
 Context (E: Type -> Type)
         (HasErr: ErrState -< E).
 
-Check interp_StackE.
-
 (* here we need rutt *)
 Lemma comp_gen_ok_MM_L3 (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) 
