@@ -1,4 +1,3 @@
 [general]
 provers = Z3@4.8
-provers = Alt-Ergo@2.5
 rdirs = .

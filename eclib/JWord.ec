@@ -2260,7 +2260,8 @@ abstract theory W_WS.
     rewrite bits'SiE 1:// WS.of_intwE /WS.int_bit /= get_to_uint sizeBrS.
     pose x := _ && _; have -> : x = false; last by [].
     have : (i < 0) \/ (r <= i) by smt().
-    case; smt().
+    case => ?; first smt().
+    suff : r * sizeS <= i * sizeS + k; smt().
   qed.
 
   lemma get_zero i : WB.of_int 0 \bits'S i = WS.of_int 0.
