@@ -280,7 +280,7 @@ proof.
   rewrite (exprD_nneg 2 j 1) 1,2:// pow2_1.
   rewrite addzC mulzC b2i_get 1:/#.
   rewrite (modz_small _ (2^j * 2)); last by [].
-  move: (to_uint w) (to_uint_cmp w) => z _.
+  move: (to_uint w) => z.
   split; 1: smt (modz_cmp gt0_pow2).
   have -> : `|2^j*2| = 2^j + 2^j by smt(gt0_pow2).
   rewrite addzC ltr_le_add; smt (modz_cmp gt0_pow2).
