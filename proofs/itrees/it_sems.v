@@ -287,6 +287,20 @@ Definition denote_fun (fn: funname) (xs: lvals) (es: pexprs) :
 
 (***************************************************************)
 
+Lemma map_denote_instr_concat_lemma (c1 c2: cmd) :
+  eq_itree eq
+    (cmd_map_r denote_instr (c1 ++ c2))
+    (cmd_map_r denote_instr c1 ;;
+     cmd_map_r denote_instr c2).
+  simpl.
+  induction c1; simpl.
+  { rewrite bind_ret_l; reflexivity. }
+  { destruct a.
+    setoid_rewrite IHc1.
+    setoid_rewrite bind_bind; reflexivity.
+  }
+Qed.  
+    
 (** denotational compositionality of commands wrt instructions.
     as seq_eqtree_gen_lemma *)
 Lemma denote_cmd_cons_lemma (c: cmd) (i: instr) :

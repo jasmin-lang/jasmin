@@ -542,11 +542,28 @@ Qed.
 End Rutt_denote_fun.
 
 
+
 Section TR_MM_L2. 
 
 (* additional source envents *)  
 Context (HasStackE1 : StackE -< E1).     
 Context (HasStackE2 : StackE -< E2).     
+
+(* rather strong *)
+Context (instr_transl_hyp: forall (i: instr_info) (i1: instr_r) (c1: cmd),
+        eqit eq true true (Tr_instr (MkI i i1)) (Ret c1) ->
+        rutt (EE_MR EE1 CState) (EE_MR EE2 CState)
+          (sum_prerel (@TR_D) (TR_E E1 E2))
+          (sum_postrel (@VR_D) (VR_E E1 E2)) eq
+        (@denote_instr _ _ _ _ i1)
+        (cmd_map_r (@denote_instr _ _ _ _) c1)).
+(*
+Context (instr_transl_hyp: forall (i: instr_info) (i1: instr_r) (c1: cmd),
+        eqit eq true true (Tr_instr (MkI i i1)) (Ret c1) ->
+        rutt EE1 EE2 (@TR_E E1 E2) (@VR_E E1 E2) eq
+        (denote_cmd HasFunE1 HasInstrE1 ([:: (MkI i i1)]))
+        (denote_cmd HasFunE2 HasInstrE2 c1)).
+*)
 
 (* proving rutt across the translation for all commands (here we need
 induction). was eutt_cmd_tr_L1 *)
@@ -707,7 +724,7 @@ Proof.
              destruct x1; auto.
            }  
            rewrite I3; auto.
-      }   
+       }   
      
       destruct dd2; try intuition.
       simpl; clear X; unfold Tr_cmd_rel in H.
@@ -723,42 +740,35 @@ Proof.
         eapply rutt_Ret; unfold VR_D; auto.
       }
 
-      { simpl; intros c0 H.
-        destruct a.
+      simpl; intros c0 H.
+      destruct a.
 
-        symmetry in H.
-        eapply eqit_inv_bind_ret in H.
-        destruct H as [c1 [H0 H1]].
-        eapply eqit_inv_bind_ret in H1.
-        destruct H1 as [c2 [H2 H6]].
-        eapply eutt_Ret in H6; inv H6.
+      symmetry in H.
+      eapply eqit_inv_bind_ret in H.
+      destruct H as [c1 [H0 H1]].
+      eapply eqit_inv_bind_ret in H1.
+      destruct H1 as [c2 [H2 H6]].
+      eapply eutt_Ret in H6; inv H6.
 
-        cut (rutt (EE_MR EE1 CState) (EE_MR EE2 CState)
-                  (sum_prerel (@TR_D) (TR_E E1 E2))
-                  (sum_postrel (@VR_D) (VR_E E1 E2))
-                  (fun v1 : unit => [eta VR_D (LCode (MkI i i0 :: c)) v1
-                                       (LCode (c1 ++ c2))])
-                 (ITree.bind (denote_instr (Eff:=E1) HasInstrE1 i0)
-                   (fun=> cmd_map_r (denote_instr (Eff:=E1) HasInstrE1) c))
-                 ( _ <- cmd_map_r (denote_instr (Eff:=E2) HasInstrE2) c1 ;;
-                   cmd_map_r (denote_instr (Eff:=E2) HasInstrE2) c2)
+      assert ((fun v1 : unit => [eta VR_D (LCode (MkI i i0 :: c))
+                                     v1 (LCode (c1 ++ c2))]) = eq) as I1.
+      { eapply functional_extensionality_dep; intro; eauto.
+        eapply functional_extensionality_dep; intro.
+        unfold VR_D; simpl.
+        destruct x0; destruct x1; auto.
+      }
 
-            ). intro V2.
+      rewrite I1.
 
-        { (* fixme: proof similar to denote_cmd_concat_lemma *)
-          admit.
-        }
+      setoid_rewrite map_denote_instr_concat_lemma.
+        
+      eapply rutt_bind with (RR:=eq); eauto.
+        
+      symmetry in H2.
+      eapply IHc in H2.
+      rewrite I1 in H2.
 
-        { eapply rutt_bind with (RR:=eq).
-          (* fixme: eapply instr_transl_hyp. *)
-          admit.
-
-          symmetry in H2.
-          eapply IHc in H2.
-
-          intros [] [] []; eauto.
-        }
-      } 
+      intros [] [] []; eauto.
     }
 
     { simpl.
@@ -776,14 +786,20 @@ Proof.
 
       setoid_rewrite <- K1.
       setoid_rewrite bind_ret_r.
-    
-      (* follows from H5 (i0 is the translation of Cassgn) to which we
-       can apply instr_transl_hyp. in fact, trigger AssgnE is the
-       denotation of Cassgn, which is then equivalent to the denotation
-       of i0 *)
-      admit.
+
+      assert (eqit eq true true (Tr_instr (MkI ii (Cassgn x tg ty e)))
+                (Cassgn_transl ii v0 tg ty e0)) as K2.
+      { unfold Tr_instr; simpl; eauto.
+        setoid_rewrite H3.
+        setoid_rewrite bind_ret_l.
+        setoid_rewrite H4.
+        setoid_rewrite bind_ret_l.
+        reflexivity.
+      }
+      setoid_rewrite <- K2 in H5.
+      eapply instr_transl_hyp in H5; eauto.
     }
-  }  
+  }
 
 Admitted.
   
