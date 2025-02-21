@@ -555,14 +555,73 @@ Context (instr_transl_hyp: forall (i: instr_info) (i1: instr_r) (c1: cmd),
         rutt (EE_MR EE1 CState) (EE_MR EE2 CState)
           (sum_prerel (@TR_D) (TR_E E1 E2))
           (sum_postrel (@VR_D) (VR_E E1 E2)) eq
-        (@denote_instr _ _ _ _ i1)
-        (cmd_map_r (@denote_instr _ _ _ _) c1)).
+          (@denote_instr _ _ _ _ i1)
+          (cmd_map_r (@denote_instr _ _ _ _) c1)).
+
 (*
-Context (instr_transl_hyp: forall (i: instr_info) (i1: instr_r) (c1: cmd),
+Lemma rutt_transl_denote_cmd_MM (cc: cmd) :
+  forall c2, Tr_cmd_rel cc c2 ->  
+    @rutt E1 E2 unit unit EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+        (denote_cmd HasFunE1 HasInstrE1 cc)
+        (denote_cmd HasFunE2 HasInstrE2 c2).
+Proof.
+  intros.
+  unfold denote_cmd, mrec.
+  eapply  interp_mrec_rutt with (RPreInv:= @TR_D) (RPostInv:= @VR_D); eauto.
+  unfold denote_cstate; simpl.
+  unfold TR_D; simpl; intros.
+  destruct d1; destruct d2; try congruence; try auto with *.
+  (* notice that here we get the bit that cannot be fixed by induction *)
+  2: { unfold denote_fcall. simpl.
+       eapply rutt_bind.
+       (* here we are back in the case analysis situation *)
+*)       
+(*  
+Lemma instr_transl_hyp_L: forall (i: instr_info) (i1: instr_r) (c1: cmd),
         eqit eq true true (Tr_instr (MkI i i1)) (Ret c1) ->
         rutt EE1 EE2 (@TR_E E1 E2) (@VR_E E1 E2) eq
         (denote_cmd HasFunE1 HasInstrE1 ([:: (MkI i i1)]))
-        (denote_cmd HasFunE2 HasInstrE2 c1)).
+        (denote_cmd HasFunE2 HasInstrE2 c1).
+  intros.
+  unfold denote_cmd, mrec.
+  eapply interp_mrec_rutt with (RPreInv:= @TR_D) (RPostInv:= @VR_D); eauto.
+  unfold TR_D; simpl; intros.
+  destruct d1; destruct d2; try congruence.
+  unfold denote_cstate.
+  
+  setoid_rewrite 
+*)
+
+Lemma VR_D_eq_aux_lemma0 i i0 c c1 c2 :
+  (fun v1 : unit => [eta VR_D (LCode (MkI i i0 :: c))
+                       v1 (LCode (c1 ++ c2))]) = eq.
+Proof.
+  unfold VR_D; simpl.
+  eapply functional_extensionality_dep; intro x; eauto.
+  eapply functional_extensionality_dep; intro x0.
+  destruct x; destruct x0; auto.
+Qed.
+
+Lemma VR_D_eq_aux_lemma d1 d2 :
+  (fun v1 : unit => [eta VR_D d1 v1 d2]) = eq.
+Proof.
+  unfold VR_D; simpl.
+  eapply functional_extensionality_dep; intro x; eauto.
+  eapply functional_extensionality_dep; intro x0.
+  destruct x; destruct x0; auto.
+Qed.  
+
+(*
+Lemma VR_D_eq_aux_lemma0 i i0 c c1 c2 :
+  (fun v1 : unit => [eta VR_D (FCall asmop xs f0 es) v1
+                           (FCall asmop xs0 f0 es0)]) = eq.
+           { unfold VR_D; simpl.
+             eapply functional_extensionality_dep; intro; eauto.
+             eapply functional_extensionality_dep; intro.
+             destruct x0.
+             destruct x1; auto.
+           }  
+           rewrite I3; auto.
 *)
 
 (* proving rutt across the translation for all commands (here we need
@@ -713,17 +772,7 @@ Proof.
            }
            rewrite <- I2.
 
-           (* make lemma *)
-           assert ((fun v1 : unit =>
-                        [eta VR_D (FCall asmop xs f0 es) v1
-                           (FCall asmop xs0 f0 es0)]) = eq) as I3.
-           { unfold VR_D; simpl.
-             eapply functional_extensionality_dep; intro; eauto.
-             eapply functional_extensionality_dep; intro.
-             destruct x0.
-             destruct x1; auto.
-           }  
-           rewrite I3; auto.
+           rewrite VR_D_eq_aux_lemma; eauto. 
        }   
      
       destruct dd2; try intuition.
@@ -750,25 +799,15 @@ Proof.
       destruct H1 as [c2 [H2 H6]].
       eapply eutt_Ret in H6; inv H6.
 
-      assert ((fun v1 : unit => [eta VR_D (LCode (MkI i i0 :: c))
-                                     v1 (LCode (c1 ++ c2))]) = eq) as I1.
-      { eapply functional_extensionality_dep; intro; eauto.
-        eapply functional_extensionality_dep; intro.
-        unfold VR_D; simpl.
-        destruct x0; destruct x1; auto.
-      }
-
-      rewrite I1.
-
+      rewrite VR_D_eq_aux_lemma; eauto. 
+      
       setoid_rewrite map_denote_instr_concat_lemma.
         
       eapply rutt_bind with (RR:=eq); eauto.
         
       symmetry in H2.
       eapply IHc in H2.
-      rewrite I1 in H2.
-
-      intros [] [] []; eauto.
+      rewrite VR_D_eq_aux_lemma in H2; eauto.
     }
 
     { simpl.
@@ -800,7 +839,7 @@ Proof.
       eapply instr_transl_hyp in H5; eauto.
     }
   }
-
+    
 Admitted.
   
 
