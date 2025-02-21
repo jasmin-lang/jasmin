@@ -113,6 +113,10 @@
   flow-sensitive type
   ([PR #990](https://github.com/jasmin-lang/jasmin/pull/990)).
 
+- Deprecate the `-I` `jasminc` flag in favor of the `JASMINPATH` environment
+  variable
+  ([PR #1061](https://github.com/jasmin-lang/jasmin/pull/1061)).
+
 # Jasmin 2024.07.2 — Nancy, 2024-11-21
 
 ## New features
