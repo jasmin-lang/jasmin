@@ -26,7 +26,6 @@ let arrow = symbol "arrow"
 let sharp fmt () = F.fprintf fmt "\\#"
 let openbrace fmt () = F.fprintf fmt "\\{"
 let closebrace fmt () = F.fprintf fmt "\\}"
-let ampersand fmt () = F.fprintf fmt "\\&"
 let percent fmt () = F.fprintf fmt "\\%%"
 let dollar fmt () = F.fprintf fmt "\\$"
 let underscore fmt () = F.fprintf fmt "\\_"
@@ -55,7 +54,6 @@ let pp_string fmt s =
   | '#' -> sharp fmt ()
   | '{' -> openbrace fmt ()
   | '}' -> closebrace fmt ()
-  | '&' -> ampersand fmt ()
   | '%' -> percent fmt ()
   | '$' -> dollar fmt ()
   | '_' -> underscore fmt ()
@@ -168,7 +166,8 @@ let pp_aligned =
 let rec pp_simple_attribute fmt a =
   match L.unloc a with
   | Aint i -> Z.pp_print fmt i
-  | Aid s | Astring s -> pannot fmt (Format.asprintf "%a" pp_string s)
+  | Aid s -> pannot fmt s
+  | Astring s -> pannot fmt (Format.asprintf "%a" pp_string s)
   | Aws ws -> Format.fprintf fmt "%a" ptype (string_of_wsize ws)
   | Astruct struct_ -> Format.fprintf fmt "(%a)" pp_struct_attribute struct_
 
