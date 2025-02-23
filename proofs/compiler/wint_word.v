@@ -140,6 +140,6 @@ Definition wi2w_fun (f: efundef) :=
   let 'MkFun ii si p c so r ev := f in
   MkFun ii si p (map wi2w_i c) so r ev.
 
-Definition wi2w_prog (p:eprog) : prog := map_prog wi2w_fun p.
+Definition wi2w_prog (p:eprog) : _uprog := map_prog wi2w_fun p.
 
 End WITH_PARAMS.

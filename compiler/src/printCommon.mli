@@ -7,6 +7,10 @@ val string_of_signess : Wsize.signedness -> string
 val string_of_velem : Wsize.signedness -> Wsize.wsize -> Wsize.velem -> string
 val string_of_op1 : Expr.sop1 -> string
 val string_of_op2 : Expr.sop2 -> string
+
+val string_of_eop1 : Expr.EO.sop1 -> string
+val string_of_eop2 : Expr.EO.sop2 -> string
+
 val pp_opn :
   Wsize.wsize -> 'asm Sopn.asmOp -> Format.formatter -> 'asm Sopn.sopn -> unit
 val pp_syscall : BinNums.positive Syscall_t.syscall_t -> string

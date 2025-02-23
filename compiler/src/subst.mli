@@ -7,7 +7,7 @@ val gsubst_func : (?loc:L.t -> 'ty1 -> 'ty2) -> ('ty1 ggvar -> ('sop1, 'sop2, 't
 val subst_func : ('ty gvar_i -> ('sop1, 'sop2, 'ty) gexpr) -> ('sop1, 'sop2, 'ty, 'info, 'asm) gfunc -> ('sop1, 'sop2, 'ty, 'info, 'asm) gfunc
 
 (* replace parameter by their definition everywhere in the program *)
-val remove_params : ('info, 'asm) pprog -> (E.sop1, E.sop2, 'info, 'asm) prog
+val remove_params : ('info, 'asm) pprog -> ('info, 'asm) eprog
 
 (* rename all variable using fresh variables *)
 val clone_func : ('sop1, 'sop2, 'info, 'asm) func -> ('sop1, 'sop2, 'info, 'asm) func

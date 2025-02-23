@@ -90,6 +90,70 @@ let string_of_op2 = function
   | Ovasr (ve, ws) -> asprintf ">>%s" (string_of_velem Unsigned ws ve)
   | Ovlsl (ve, ws) -> asprintf "<<%s" (string_of_velem Signed ws ve)
 
+let string_of_wk wk sg =
+  match wk with
+  | E.EO.Word -> string_of_signess sg
+  | E.EO.WInt -> asprintf "%si" (string_of_signess sg)
+
+let string_of_wk_ty wk sg ws =
+  match wk with
+  | E.EO.Word -> asprintf "u%d" (int_of_ws ws)
+  | E.EO.WInt -> asprintf "%si%d" (string_of_signess sg) (int_of_ws ws)
+
+let string_of_wk_cast wk sg ws =
+  match wk with
+  | E.EO.Word -> asprintf "%d%s" (int_of_ws ws) (string_of_signess sg)
+  | E.EO.WInt -> asprintf "%d%si" (int_of_ws ws) (string_of_signess sg)
+
+let string_of_eop_kind = function
+  | E.EO.Op_w(wk, sg, ws) -> string_of_wk_cast wk sg ws
+  | E.EO.Op_int -> ""
+
+let string_of_eop1 = function
+  | E.EO.Oword_of_int (wk, sg, ws) -> asprintf "(%d%s)" (int_of_ws ws) (string_of_wk wk sg)
+  | Oint_of_word(wk, sg, ws) -> asprintf "(%sint /* of %s */)" (string_of_signess sg) (string_of_wk_ty wk sg ws)
+  | Oword_of_wint(sg, ws) ->  asprintf "(%s /* of %s */)" (string_of_wk_cast E.EO.Word sg ws) (string_of_wk_ty E.EO.WInt sg ws)
+  | Owint_of_word(sg, ws) ->  asprintf "(%s /* of %s */)" (string_of_wk_cast E.EO.WInt sg ws) (string_of_wk_ty E.EO.Word sg ws)
+  | Oword_ext(wk, sg, szo, _) -> asprintf "(%s)" (string_of_wk_cast wk sg szo)
+  | Onot -> string_of_op1 E.Onot
+  | Olnot sz -> string_of_op1 (E.Olnot sz)
+  | Oneg k ->  "-" ^ string_of_eop_kind k
+
+let string_of_ediv_kind sg k =
+  match k with
+  | E.EO.Op_int -> string_of_signess sg
+  | _ -> string_of_eop_kind k
+
+let string_of_eop2 = function
+  | E.EO.Obeq -> string_of_op2 E.Obeq
+  | Oand -> string_of_op2 E.Oand
+  | Oor  -> string_of_op2 E.Oor
+  | Oadd k -> "+" ^ string_of_eop_kind k
+  | Omul k -> "*" ^ string_of_eop_kind k
+  | Osub k -> "-" ^ string_of_eop_kind k
+  | Odiv (sg, k) -> "/" ^ string_of_ediv_kind sg k
+  | Omod (sg, k) -> "%" ^ string_of_ediv_kind sg k
+  | Oland sz -> string_of_op2 (E.Oland sz)
+  | Olor sz -> string_of_op2 (E.Olor sz)
+  | Olxor sz -> string_of_op2 (E.Olxor sz)
+  | Oshl k -> "<<" ^ string_of_eop_kind k
+  | Oshr k -> ">>" ^ string_of_eop_kind k
+  | Oror sz -> string_of_op2 (E.Oror sz)
+  | Orol sz -> string_of_op2 (E.Orol sz)
+  | Oeq k -> "==" ^ string_of_eop_kind k
+  | Oneq k -> "!=" ^ string_of_eop_kind k
+  | Olt k -> "<" ^ string_of_eop_kind k
+  | Ole k -> "<=" ^ string_of_eop_kind k
+  | Ogt k -> ">" ^ string_of_eop_kind k
+  | Oge k -> ">=" ^ string_of_eop_kind k
+  | Ovadd (ve, sz) -> string_of_op2 (E.Ovadd (ve, sz))
+  | Ovsub (ve, sz) -> string_of_op2 (E.Ovsub (ve, sz))
+  | Ovmul (ve, sz) -> string_of_op2 (E.Ovmul (ve, sz))
+  | Ovlsr (ve, sz) -> string_of_op2 (E.Ovlsr (ve, sz))
+  | Ovlsl (ve, sz) -> string_of_op2 (E.Ovlsl (ve, sz))
+  | Ovasr (ve, sz) -> string_of_op2 (E.Ovasr (ve, sz))
+
+
 (* -------------------------------------------------------------------- *)
 let pp_opn pd asmOp fmt o = pp_string fmt (Sopn.string_of_sopn pd asmOp o)
 

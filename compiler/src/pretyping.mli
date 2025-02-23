@@ -4,6 +4,8 @@ exception TyError of Location.t * tyerror
 
 val pp_tyerror : Format.formatter -> tyerror -> unit
 
+type fun_sig = { fs_tin : Prog.epty list ; fs_tout : Prog.epty list }
+
 module Env : sig
   type 'asm env
 
@@ -22,12 +24,12 @@ module Env : sig
   val exit_file : 'asm env -> 'asm env
 
   module Funs : sig
-    val push : 'asm env -> (unit, 'asm) Prog.pfunc -> Prog.pty list -> 'asm env
+    val push : 'asm env -> (unit, 'asm) Prog.pfunc -> fun_sig -> 'asm env
 
     val find :
       Annotations.symbol ->
       'asm env ->
-      ((unit, 'asm) Prog.pfunc * Prog.pty list) option
+      ((unit, 'asm) Prog.pfunc * fun_sig) option
   end
 
   module Exec : sig
@@ -71,7 +73,7 @@ val tt_global :
 val tt_fun :
   'asm Env.env ->
   Annotations.symbol Location.located ->
-  (unit, 'asm) Prog.pfunc * Prog.pty list
+  (unit, 'asm) Prog.pfunc * fun_sig
 
 val tt_program :
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->

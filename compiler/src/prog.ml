@@ -150,17 +150,20 @@ let is_gkvar x = x.gs = E.Slocal
 type  pty    = pexpr_ gty
 and   pvar   = pexpr_ gvar
 and   pvar_i = pexpr_ gvar_i
-and   plval  = (E.sop1, E.sop2, pexpr_) glval
-and   plvals = (E.sop1, E.sop2, pexpr_) glvals
-and   pexpr  = (E.sop1, E.sop2, pexpr_) gexpr
+and   plval  = (E.EO.sop1, E.EO.sop2, pexpr_) glval
+and   plvals = (E.EO.sop1, E.EO.sop2, pexpr_) glvals
+and   pexpr  = (E.EO.sop1, E.EO.sop2, pexpr_) gexpr
 and   pexpr_ = PE of pexpr [@@unboxed]
 
-type ('info, 'asm) pinstr = (E.sop1, E.sop2, pexpr_,'info,'asm) ginstr
-type ('info, 'asm) pstmt  = (E.sop1, E.sop2, pexpr_,'info,'asm) gstmt
+type epty   = pexpr_ gety
 
-type ('info, 'asm) pfunc     = (E.sop1, E.sop2, pexpr_,'info,'asm) gfunc
-type ('info, 'asm) pmod_item = (E.sop1, E.sop2, pexpr_,'info,'asm) gmod_item
-type ('info, 'asm) pprog     = (E.sop1, E.sop2, pexpr_,'info,'asm) gprog
+type ('info, 'asm) pinstr_r = (E.EO.sop1, E.EO.sop2, pexpr_,'info,'asm) ginstr_r
+type ('info, 'asm) pinstr = (E.EO.sop1, E.EO.sop2, pexpr_,'info,'asm) ginstr
+type ('info, 'asm) pstmt  = (E.EO.sop1, E.EO.sop2, pexpr_,'info,'asm) gstmt
+
+type ('info, 'asm) pfunc     = (E.EO.sop1, E.EO.sop2, pexpr_,'info,'asm) gfunc
+type ('info, 'asm) pmod_item = (E.EO.sop1, E.EO.sop2, pexpr_,'info,'asm) gmod_item
+type ('info, 'asm) pprog     = (E.EO.sop1, E.EO.sop2, pexpr_,'info,'asm) gprog
 
 (* ------------------------------------------------------------------------ *)
 module PV = struct
@@ -198,6 +201,18 @@ and pexpr_equal e1 e2 =
 
 and pexpr__equal (PE e1) (PE e2) = pexpr_equal e1 e2
 
+let epty_equal t1 t2 =
+  match t1, t2 with
+  | ETbool, ETbool | ETint, ETint -> true
+  | ETword(s1,sz1), ETword(s2, sz2) -> s1 = s2 && sz1 = sz2
+  | ETarr(b1, e1) , ETarr(b2,e2)    -> b1 = b1 && pexpr__equal e1 e2
+  | _, _ -> false
+
+let ws_of_ety = function
+  | ETword(_, ws) -> ws
+  | _ -> assert false
+
+
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
 
@@ -223,6 +238,23 @@ module Hv = Hash.Make (V)
 
 let var_of_ident (x: CoreIdent.var) : var = x
 let ident_of_var (x:var) : CoreIdent.var = x
+
+(* ------------------------------------------------------------------------ *)
+(* Non parametrized extended expression                                     *)
+(* The beginning of the certified compilation chaine                        *)
+
+type elval  = (E.EO.sop1, E.EO.sop2) lval
+type elvals = (E.EO.sop1, E.EO.sop2) lvals
+type eexpr  = (E.EO.sop1, E.EO.sop2) expr
+type eexprs = (E.EO.sop1, E.EO.sop2) exprs
+
+
+type ('info, 'asm) einstr = (E.EO.sop1, E.EO.sop2, 'info, 'asm) instr
+type ('info, 'asm) estmt  = (E.EO.sop1, E.EO.sop2, 'info, 'asm) stmt
+
+type ('info, 'asm) efunc     = (E.EO.sop1, E.EO.sop2, 'info, 'asm) func
+type ('info, 'asm) emod_item = (E.EO.sop1, E.EO.sop2, 'info, 'asm) mod_item
+type ('info, 'asm) eprog     = (E.EO.sop1, E.EO.sop2, 'info, 'asm) prog
 
 (* -------------------------------------------------------------------- *)
 (* used variables                                                       *)

@@ -47,7 +47,9 @@ let warn_extra_fd pd asmOp (_, fd) = List.iter (warn_extra_i pd asmOp) fd.f_body
 (* -------------------------------------------------------------------- *)
 
 let do_spill_unspill asmop ?(debug = false) cp =
+
   let p = Conv.cuprog_of_prog cp in
+  let p = Wint_word.wi2w_prog asmop (Expr.to_eprog asmop p) in
   match
     Lower_spill.spill_uprog asmop
       (fun k ii -> Conv.fresh_var_ident k ii (Uint63.of_int 0))
@@ -347,4 +349,4 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
   Compiler.compile_prog_to_asm Arch.asm_e Arch.call_conv Arch.aparams cparams
     export_functions
-    (Expr.to_uprog Arch.asmOp cprog)
+    (Expr.to_eprog Arch.asmOp cprog)

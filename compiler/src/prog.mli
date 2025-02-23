@@ -105,21 +105,24 @@ type ('sop1, 'sop2, 'len, 'info, 'asm) gprog = ('sop1, 'sop2, 'len, 'info, 'asm)
    (* first declaration occur at the end (i.e reverse order) *)
 
 (* ------------------------------------------------------------------------ *)
-(* Parametrized expression *)
+(* Parametrized expression, this is the result after prettyping             *)
 type  pty    = pexpr_ gty
 and   pvar   = pexpr_ gvar
 and   pvar_i = pexpr_ gvar_i
-and   plval  = (E.sop1, E.sop2, pexpr_) glval
-and   plvals = (E.sop1, E.sop2, pexpr_) glvals
-and   pexpr  = (E.sop1, E.sop2, pexpr_) gexpr
+and   plval  = (E.EO.sop1, E.EO.sop2, pexpr_) glval
+and   plvals = (E.EO.sop1, E.EO.sop2, pexpr_) glvals
+and   pexpr  = (E.EO.sop1, E.EO.sop2, pexpr_) gexpr
 and   pexpr_ = PE of pexpr [@@unboxed]
 
-type ('info, 'asm) pinstr = (E.sop1, E.sop2, pexpr_,'info,'asm) ginstr
-type ('info, 'asm) pstmt  = (E.sop1, E.sop2, pexpr_,'info,'asm) gstmt
+type epty   = pexpr_ gety
 
-type ('info, 'asm) pfunc     = (E.sop1, E.sop2, pexpr_,'info,'asm) gfunc
-type ('info, 'asm) pmod_item = (E.sop1, E.sop2, pexpr_,'info,'asm) gmod_item
-type ('info, 'asm) pprog     = (E.sop1, E.sop2, pexpr_,'info,'asm) gprog
+type ('info, 'asm) pinstr_r = (E.EO.sop1, E.EO.sop2, pexpr_,'info,'asm) ginstr_r
+type ('info, 'asm) pinstr = (E.EO.sop1, E.EO.sop2, pexpr_,'info,'asm) ginstr
+type ('info, 'asm) pstmt  = (E.EO.sop1, E.EO.sop2, pexpr_,'info,'asm) gstmt
+
+type ('info, 'asm) pfunc     = (E.EO.sop1, E.EO.sop2, pexpr_,'info,'asm) gfunc
+type ('info, 'asm) pmod_item = (E.EO.sop1, E.EO.sop2, pexpr_,'info,'asm) gmod_item
+type ('info, 'asm) pprog     = (E.EO.sop1, E.EO.sop2, pexpr_,'info,'asm) gprog
 
 (* -------------------------------------------------------------------- *)
 module PV : sig
@@ -146,6 +149,10 @@ module Spv : Set.S  with type elt = pvar
 val pty_equal : pty -> pty -> bool
 val pexpr_equal : pexpr -> pexpr -> bool
 
+val epty_equal : epty -> epty -> bool
+
+val ws_of_ety : epty -> wsize
+
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
 
@@ -163,7 +170,25 @@ type ('sop1, 'sop2, 'info, 'asm) stmt  = ('sop1, 'sop2, int, 'info, 'asm) gstmt
 type ('sop1, 'sop2, 'info, 'asm) func     = ('sop1, 'sop2, int, 'info, 'asm) gfunc
 type ('sop1, 'sop2, 'info, 'asm) mod_item = ('sop1, 'sop2, int, 'info, 'asm) gmod_item
 type global_decl           = var * Global.glob_value
-type ('sop1, 'sop2, 'info,'asm) prog     = global_decl list * ('sop1, 'sop2, 'info, 'asm) func list
+type ('sop1, 'sop2, 'info, 'asm) prog     = global_decl list * ('sop1, 'sop2, 'info, 'asm) func list
+
+
+(* ------------------------------------------------------------------------ *)
+(* Non parametrized extended expression                                     *)
+(* The beginning of the certified compilation chaine                        *)
+
+type elval  = (E.EO.sop1, E.EO.sop2) lval
+type elvals = (E.EO.sop1, E.EO.sop2) lvals
+type eexpr  = (E.EO.sop1, E.EO.sop2) expr
+type eexprs = (E.EO.sop1, E.EO.sop2) exprs
+
+type ('info, 'asm) einstr = (E.EO.sop1, E.EO.sop2, 'info, 'asm) instr
+type ('info, 'asm) estmt  = (E.EO.sop1, E.EO.sop2, 'info, 'asm) stmt
+
+type ('info, 'asm) efunc     = (E.EO.sop1, E.EO.sop2, 'info, 'asm) func
+type ('info, 'asm) emod_item = (E.EO.sop1, E.EO.sop2, 'info, 'asm) mod_item
+type ('info, 'asm) eprog     = (E.EO.sop1, E.EO.sop2, 'info, 'asm) prog
+
 
 (* -------------------------------------------------------------------- *)
 val var_of_ident : CoreIdent.var -> var

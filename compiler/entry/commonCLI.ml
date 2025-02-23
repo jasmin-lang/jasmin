@@ -83,16 +83,19 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
   in
 
   let prog =
-    if pass <= Compiler.ParamsExpansion then prog
+    if pass <= Compiler.LowerSpill then
+      match Compile.do_spill_unspill Arch.asmOp prog with
+      | Ok prog -> prog
+      | Error e -> raise (HiError e)
     else
       let module E = struct
-        exception Found
+        exception Found of
+         (Prog.E.sop1, Prog.E.sop2, unit,
+          (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.prog
       end in
-      let res = ref prog in
       let stop ~debug:_ step prog =
         if step = pass then (
-          res := prog;
-          raise E.Found)
+          raise (E.Found prog))
       in
       let cp = Conv.cuprog_of_prog prog in
       (* We need to avoid catching compilation errors. *)
@@ -101,6 +104,6 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
       | Utils0.Error e ->
           let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
           raise (HiError e)
-      | exception E.Found -> !res
+      | exception (E.Found res) -> res
   in
   prog

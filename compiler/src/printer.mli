@@ -7,18 +7,22 @@ val pp_print_X : Format.formatter -> Z.t -> unit
 
 val pp_pvar  : Format.formatter -> pvar -> unit
 val pp_ptype : Format.formatter -> pty -> unit
+val pp_eptype : Format.formatter -> epty -> unit
 val pp_plval : Format.formatter -> plval -> unit
 val pp_pexpr : Format.formatter -> pexpr -> unit
 val pp_pprog : Wsize.wsize -> ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
                Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) pprog -> unit
 
 val pp_var   : debug:bool -> Format.formatter -> var -> unit
-val pp_dvar   : debug:bool -> Format.formatter -> var -> unit
+val pp_dvar  : debug:bool -> Format.formatter -> var -> unit
 
 val string_of_combine_flags : Expr.combine_flags -> string
 
 val pp_expr  : debug:bool -> Format.formatter -> (E.sop1, E.sop2) expr -> unit
 val pp_lval  : debug:bool -> Format.formatter -> (E.sop1, E.sop2) lval -> unit
+
+val pp_eexpr : debug:bool -> Format.formatter -> eexpr -> unit
+val pp_elval : debug:bool -> Format.formatter -> elval -> unit
 
 val pp_instr : debug:bool ->
                Wsize.wsize ->
@@ -56,6 +60,11 @@ val pp_prog  : debug:bool ->
                Wsize.wsize ->
                ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
                Format.formatter -> (E.sop1, E.sop2, 'info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) prog -> unit
+
+val pp_eprog  : debug:bool ->
+               Wsize.wsize ->
+               ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
+               Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) eprog -> unit
 
 val pp_to_save : debug:bool ->
                  Format.formatter -> Var0.Var.var * BinNums.coq_Z -> unit

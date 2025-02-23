@@ -52,7 +52,7 @@ let subtype t1 t2 =
 let check_type loc e te ty =
   if not (subtype ty te) then
     error loc "the expression %a has type %a while %a is expected"
-        (Printer.pp_expr ~debug:false) e
+        (Printer.pp_eexpr ~debug:false) e
         PrintCommon.pp_ty te PrintCommon.pp_ty ty
 
 let check_int loc e te = check_type loc e te tint
@@ -62,11 +62,11 @@ let check_ptr pd loc e te = check_type loc e te (tu pd)
 (* -------------------------------------------------------------------- *)
 
 let type_of_op1 op =
-  let tin,tout = E.type_of_op1 op in
+  let tin,tout = E.EO.type_of_op1 op in
   Conv.ty_of_cty tin, Conv.ty_of_cty tout
 
 let type_of_op2 op =
-  let (tin1,tin2),tout = E.type_of_op2 op in
+  let (tin1,tin2),tout = E.EO.type_of_op2 op in
   (Conv.ty_of_cty tin1, Conv.ty_of_cty tin2), Conv.ty_of_cty tout
 
 let type_of_opN op =
@@ -81,7 +81,7 @@ let type_of_sopn loc pd asmOp op =
 
 (* -------------------------------------------------------------------- *)
 
-let rec ty_expr pd loc (e:(E.sop1, E.sop2) expr) =
+let rec ty_expr pd loc (e:eexpr) =
   match e with
   | Pconst _    -> tint
   | Pbool _     -> tbool
@@ -157,7 +157,7 @@ let check_lval pd loc x ty =
   let tx = ty_lval pd loc x in
   if not (subtype tx ty) then
     error loc "the left value %a has type %a while %a is expected"
-        (Printer.pp_lval ~debug:false) x
+        (Printer.pp_elval ~debug:false) x
         PrintCommon.pp_ty tx PrintCommon.pp_ty ty
 
 let check_lvals pd loc xs tys =
