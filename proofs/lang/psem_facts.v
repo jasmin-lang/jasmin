@@ -708,7 +708,7 @@ Proof.
   3: by move => > _ > _ > _ > -> /= -> > -> /= -> > -> /= -> /= -> ->; eauto.
   - case.
     7: case.
-    1, 3-6, 8: by move => > _ > /= -> /= -> /= ->; eauto.
+    1, 3-6, 8-9: by move => > _ > /= -> /= -> /= ->; eauto.
     + move => [] > _ >; last first.
       + case: ifP; last by move => _ /= -> /= -> /= ->; eauto.
         rewrite /sem_sop1 /=; t_xrbindP => A -> /= ? /to_wordI[] ? [] ? [] -> /truncate_wordP[] B -> <- /=.

@@ -15,75 +15,48 @@ Section WITH_PARAMS.
 
 Context `{asmop:asmOp}.
 
-Definition wi2w_opk (k : EO.op_kind) : op_kind :=
-  match k with
-  | EO.Op_int => Op_int
-  | EO.Op_w _ _ sz => Op_w sz
-  end.
-
-Definition wi2w_cmpk (k : EO.op_kind) : cmp_kind :=
-  match k with
-  | EO.Op_int => Cmp_int
-  | EO.Op_w _ s sz => Cmp_w s sz
-  end.
-
-Definition wi2w_op1 (o : EO.sop1) (e : pexpr) : pexpr :=
+Definition wi2w_wiop1 s (o : wiop1) (e : pexpr) : pexpr :=
   match o with
-  | EO.Oword_of_int _ _ sz => Papp1 (Oword_of_int sz) e
-  | EO.Oint_of_word _ s sz => Papp1 (Oint_of_word s sz) e
-  | EO.Oword_of_wint _ _ => e
-  | EO.Owint_of_word _ _ => e
-  | EO.Oword_ext _ s sz1 sz2 =>
+  | WIword_of_int sz => Papp1 (Oword_of_int sz) e
+  | WIint_of_word sz => Papp1 (Oint_of_word s sz) e
+  | WIword_of_wint _ => e
+  | WIwint_of_word _ => e
+  | WIword_ext sz1 sz2 =>
     let o := if s is Unsigned then Ozeroext sz1 sz2 else Osignext sz1 sz2 in
     Papp1 o e
-  | EO.Onot => Papp1 Onot e
-  | EO.Olnot sz => Papp1 (Olnot sz) e
-  | EO.Oneg k => Papp1 (Oneg (wi2w_opk k)) e
+  | WIneg sz => Papp1 (Oneg (Op_w sz)) e
   end.
 
-Definition signedness_div si k :=
-  match k with
-  | EO.Op_int => si
-  | EO.Op_w _ si _ => si
-  end.
-
-Definition wi2w_op2 (o : EO.sop2) : sop2 :=
+Definition wi2w_op1 (o : sop1) (e : pexpr) : pexpr :=
   match o with
-  | EO.Obeq => Obeq
-  | EO.Oand => Oand
-  | EO.Oor  => Oor
-  | EO.Oadd k => Oadd (wi2w_opk k)
-  | EO.Omul k => Omul (wi2w_opk k)
-  | EO.Osub k => Osub (wi2w_opk k)
-  | EO.Oeq  k => Oeq  (wi2w_opk k)
-  | EO.Oneq k => Oneq (wi2w_opk k)
-  | EO.Olt  k => Olt  (wi2w_cmpk k)
-  | EO.Ole  k => Ole  (wi2w_cmpk k)
-  | EO.Ogt  k => Ogt  (wi2w_cmpk k)
-  | EO.Oge  k => Oge  (wi2w_cmpk k)
-  | EO.Odiv si k => Odiv (signedness_div si k) (wi2w_opk k)
-  | EO.Omod si k => Omod (signedness_div si k) (wi2w_opk k)
-  | EO.Oshl k => Olsl (wi2w_opk k)
-
-  | EO.Oshr k =>
-    match k with
-    | EO.Op_int => Oasr Op_int
-    | EO.Op_w _ s sz => if s is Signed then Oasr (Op_w sz) else Olsr sz
-    end
-  | EO.Oland sz => Oland sz
-  | EO.Olor  sz => Olor  sz
-  | EO.Olxor sz => Olxor sz
-  | EO.Oror  sz => Oror  sz
-  | EO.Orol  sz => Orol  sz
-  | EO.Ovadd ve sz => Ovadd ve sz
-  | EO.Ovsub ve sz => Ovsub ve sz
-  | EO.Ovmul ve sz => Ovmul ve sz
-  | EO.Ovlsr ve sz => Ovlsr ve sz
-  | EO.Ovlsl ve sz => Ovlsl ve sz
-  | EO.Ovasr ve sz => Ovasr ve sz
+  | Owi1 s o => wi2w_wiop1 s o e
+  | _ => Papp1 o e
   end.
 
-Fixpoint wi2w_e (e:eexpr) : pexpr :=
+Definition wi2w_wiop2 s sz (o : wiop2) : sop2 :=
+  match o with
+  | WIadd => Oadd (Op_w sz)
+  | WImul => Omul (Op_w sz)
+  | WIsub => Osub (Op_w sz)
+  | WIeq  => Oeq  (Op_w sz)
+  | WIneq => Oneq (Op_w sz)
+  | WIlt  => Olt  (Cmp_w s sz)
+  | WIle  => Ole  (Cmp_w s sz)
+  | WIgt  => Ogt  (Cmp_w s sz)
+  | WIge  => Oge  (Cmp_w s sz)
+  | WIdiv => Odiv s (Op_w sz)
+  | WImod => Omod s (Op_w sz)
+  | WIshl => Olsl (Op_w sz)
+  | WIshr => if s is Signed then Oasr (Op_w sz) else Olsr sz
+  end.
+
+Definition wi2w_op2 (o : sop2) : sop2 :=
+  match o with
+  | Owi2 s sz o => wi2w_wiop2 s sz o
+  | _ => o
+  end.
+
+Fixpoint wi2w_e (e:pexpr) : pexpr :=
   match e with
   | Pconst i => Pconst i
   | Pbool b => Pbool b
@@ -98,7 +71,7 @@ Fixpoint wi2w_e (e:eexpr) : pexpr :=
   | Pif ty e1 e2 e3 => Pif ty (wi2w_e e1) (wi2w_e e2) (wi2w_e e3)
   end.
 
-Definition wi2w_lv (x : elval) : lval :=
+Definition wi2w_lv (x : lval) : lval :=
   match x with
   | Lnone vi t => Lnone vi t
   | Lvar x => Lvar x
@@ -107,7 +80,7 @@ Definition wi2w_lv (x : elval) : lval :=
   | Lasub aa ws len x e => Lasub aa ws len x (wi2w_e e)
   end.
 
-Fixpoint wi2w_ir (ir:einstr_r) : instr_r :=
+Fixpoint wi2w_ir (ir:instr_r) : instr_r :=
   match ir with
   | Cassgn x tag ty e =>
     Cassgn (wi2w_lv x) tag ty (wi2w_e e)
@@ -132,14 +105,14 @@ Fixpoint wi2w_ir (ir:einstr_r) : instr_r :=
 
   end
 
-with wi2w_i (i:einstr) : instr :=
+with wi2w_i (i:instr) : instr :=
   let (ii,ir) := i in
   MkI ii (wi2w_ir ir).
 
-Definition wi2w_fun (f: efundef) :=
+Definition wi2w_fun {eft} (f: _fundef eft) :=
   let 'MkFun ii si p c so r ev := f in
   MkFun ii si p (map wi2w_i c) so r ev.
 
-Definition wi2w_prog (p:eprog) : _uprog := map_prog wi2w_fun p.
+Definition wi2w_prog {pT:progT} (p: prog) : prog := map_prog wi2w_fun p.
 
 End WITH_PARAMS.

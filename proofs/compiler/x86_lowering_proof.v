@@ -642,8 +642,9 @@ Section PROOF.
       (* Oneg *)
       + rewrite /= /sem_sop1 /= => - [] // sz; t_xrbindP => w Hv z' /to_wordI' [sz' [z [Hsz ? ->]]] ?; subst.
         case: andP => // - [hsz] /eqP ?; subst ty.
+        move=> [?] ?; subst.
         split. reflexivity.
-        rewrite /truncate_val /= truncate_word_u in Hv'.
+        rewrite /= /truncate_val /= truncate_word_u in Hv'.
         case: Hv' => ?; subst v'.
         by rewrite /sem_pexprs /= Hv /exec_sopn /= truncate_word_le // /sopn_sem /sopn_sem_ /= /x86_NEG /size_8_64 hsz /= Hw.
     + case: o => // [[] sz |[] sz|[] sz|u []// sz| u []// sz|sz|sz|sz|sz|sz|sz|sz|sz| ve sz | ve sz | ve sz | ve sz | ve sz | ve sz] //.

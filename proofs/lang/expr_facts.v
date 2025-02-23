@@ -11,8 +11,7 @@ Proof. by case: x => ? []. Qed.
 
 Section PEXPR_IND.
   Context
-    {sop1 sop2: Type}
-    (P: pexpr_ sop1 sop2 → Prop)
+    (P: pexpr → Prop)
     (Hconst: ∀ z, P (Pconst z))
     (Hbool: ∀ b, P (Pbool b))
     (Harr_init: ∀ n, P (Parr_init n))
@@ -26,26 +25,26 @@ Section PEXPR_IND.
     (Hif: ∀ t e, P e → ∀ e1, P e1 → ∀ e2, P e2 → P (Pif t e e1 e2))
   .
 
-  Definition pexpr_ind_rec (f: ∀ e, P e) : ∀ es : pexprs_ sop1 sop2, ∀ e, List.In e es → P e :=
+  Definition pexpr_ind_rec (f: ∀ e, P e) : ∀ es : pexprs, ∀ e, List.In e es → P e :=
     fix loop es :=
       if es is e' :: es'
-      then λ (e: pexpr_ sop1 sop2) (k: List.In e (e' :: es')),
+      then λ (e: pexpr) (k: List.In e (e' :: es')),
         match  List.in_inv k with or_introl a => ecast x (P x) a (f e') | or_intror b => loop _ _ b end
       else λ e (k: List.In e [::]), False_ind _ (List.in_nil k).
 
-  Fixpoint pexpr__ind (e: pexpr_ sop1 sop2) : P e :=
+  Fixpoint pexpr_ind (e: pexpr) : P e :=
     match e with
     | Pconst z => Hconst z
     | Pbool b => Hbool b
     | Parr_init n => Harr_init n
     | Pvar x => Hvar x
-    | Pget al aa sz x e => Hget al aa sz x (pexpr__ind e)
-    | Psub aa sz len x e => Hsub aa sz len x (pexpr__ind e)
-    | Pload al sz x e => Hload al sz x (pexpr__ind e)
-    | Papp1 op e => Happ1 op (pexpr__ind e)
-    | Papp2 op e1 e2 => Happ2 op (pexpr__ind e1) (pexpr__ind e2)
-    | PappN op es => HappN op (@pexpr_ind_rec pexpr__ind es)
-    | Pif t e e1 e2 => Hif t (pexpr__ind e) (pexpr__ind e1) (pexpr__ind e2)
+    | Pget al aa sz x e => Hget al aa sz x (pexpr_ind e)
+    | Psub aa sz len x e => Hsub aa sz len x (pexpr_ind e)
+    | Pload al sz x e => Hload al sz x (pexpr_ind e)
+    | Papp1 op e => Happ1 op (pexpr_ind e)
+    | Papp2 op e1 e2 => Happ2 op (pexpr_ind e1) (pexpr_ind e2)
+    | PappN op es => HappN op (@pexpr_ind_rec pexpr_ind es)
+    | Pif t e e1 e2 => Hif t (pexpr_ind e) (pexpr_ind e1) (pexpr_ind e2)
     end.
 
 End PEXPR_IND.
@@ -53,9 +52,8 @@ End PEXPR_IND.
 (* Mutual induction scheme for pexpr and pexprs *)
 Section PEXPRS_IND.
   Context
-    {sop1 sop2 : Type}
-    (P: pexpr_ sop1 sop2 → Prop)
-    (Q: pexprs_ sop1 sop2 → Prop)
+    (P: pexpr → Prop)
+    (Q: pexprs → Prop)
   .
 
   Record pexpr_ind_hypotheses : Prop := {

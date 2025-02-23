@@ -218,13 +218,13 @@ Lemma psem_call scs m fn va scs' m' vr :
     exec_syscall (wsw:= nosubword)   scs1 mem1 o ves = ok (scs2, mem2, vs) ->
     exec_syscall (wsw:= withsubword) scs1 mem1 o ves = ok (scs2, mem2, vs)) ->
 
-  (forall (fd : _fundef sop1 sop2 _) scs mem s,
+  (forall (fd : _fundef _) scs mem s,
     init_state (f_extra fd) (p_extra p) ev {| escs := scs; emem := mem; evm := Vm.init |} = ok s ->
     exists2 s',
       init_state (f_extra fd) (p_extra p) ev {| escs := scs; emem := mem; evm := Vm.init |} = ok s' &
       estate_sim s s') ->
 
-  (forall (fd : _fundef sop1 sop2 _) mem, finalize (wsw:= nosubword) (f_extra fd) mem = finalize (wsw:= withsubword) (f_extra fd) mem) ->
+  (forall (fd : _fundef _) mem, finalize (wsw:= nosubword) (f_extra fd) mem = finalize (wsw:= withsubword) (f_extra fd) mem) ->
 
   sem_call (wsw:= nosubword) p ev scs m fn va scs' m' vr →
   sem_call (wsw:= withsubword) p ev scs m fn va scs' m' vr.

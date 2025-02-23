@@ -255,7 +255,7 @@ Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
   let p := cparams.(print_uprog) RemoveUnusedFunction p in
   ok p.
 
-Definition compiler_first_part (to_keep: seq funname) (p: eprog) : cexec uprog :=
+Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :=
 
   let p := wi2w_prog p in
   let p := cparams.(print_uprog) WintWord p in
@@ -364,7 +364,7 @@ Definition allNone {A: Type} (m: seq (option A)) : bool :=
     positions in the return values.
     This is not a constraint coming from the implementation, it is just meant to give
     a readable correctness theorem. *)
-Definition check_wf_ptr entries (p:eprog) (ao: funname -> stk_alloc_oracle_t) : cexec unit :=
+Definition check_wf_ptr entries (p:uprog) (ao: funname -> stk_alloc_oracle_t) : cexec unit :=
   Let _ :=
     allM (fun fn =>
       match get_fundef p.(p_funcs) fn with
@@ -395,7 +395,7 @@ Definition check_wf_ptr entries (p:eprog) (ao: funname -> stk_alloc_oracle_t) : 
                 pp_s " and be returned first, in the same order, in the results."]))))
       end) entries.
 
-Definition compiler_front_end (entries: seq funname) (p: eprog) : cexec sprog :=
+Definition compiler_front_end (entries: seq funname) (p: uprog) : cexec sprog :=
 
   Let pl := compiler_first_part entries p in
   (* stack + register allocation *)
@@ -471,7 +471,7 @@ Definition compiler_back_end_to_asm (entries: seq funname) (p: sprog) :=
   Let lp := compiler_back_end entries p in
   assemble_prog agparams lp.
 
-Definition compile_prog_to_asm entries (p: eprog): cexec asm_prog :=
+Definition compile_prog_to_asm entries (p: uprog): cexec asm_prog :=
   compiler_front_end entries p >>= compiler_back_end_to_asm entries.
 
 End COMPILER.

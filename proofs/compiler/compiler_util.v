@@ -175,16 +175,15 @@ Section ASM_OP.
 Context `{asmop:asmOp}.
 Context {pT: progT}.
 
-Definition map_prog_name {sop1 sop2 sop1' sop2':Type} (F: funname -> fundef_ sop1 sop2 -> fundef_ sop1' sop2')
- (p:prog_ sop1 sop2) : prog_ sop1' sop2' :=
+Definition map_prog_name (F: funname -> fundef -> fundef) (p:prog) : prog :=
   {| p_funcs := map (fun f => (f.1, F f.1 f.2)) (p_funcs p);
      p_globs := p_globs p;
      p_extra := p_extra p|}.
 
-Definition map_prog {sop1 sop2 sop1' sop2':Type} (F: fundef_ sop1 sop2 -> fundef_ sop1' sop2') p :=
+Definition map_prog (F: fundef -> fundef) p :=
   map_prog_name (fun _ => F) p.
 
-Lemma get_map_prog_name {sop1 sop2 sop1' sop2':Type} (F: funname -> fundef_ sop1 sop2 -> fundef_ sop1' sop2') p fn :
+Lemma get_map_prog_name (F: funname -> fundef -> fundef) p fn :
   get_fundef (p_funcs (map_prog_name F p)) fn =
   ssrfun.omap (F fn) (get_fundef (p_funcs p) fn).
 Proof.
@@ -192,7 +191,7 @@ Proof.
   by elim: p_funcs => // -[fn' fd] pfuns /= ->;case:eqP => [-> | ].
 Qed.
 
-Lemma get_map_prog {sop1 sop2 sop1' sop2':Type} (F: fundef_ sop1 sop2 -> fundef_ sop1' sop2') p fn :
+Lemma get_map_prog (F: fundef -> fundef) p fn :
   get_fundef (p_funcs (map_prog F p)) fn = ssrfun.omap F (get_fundef (p_funcs p) fn).
 Proof. apply: get_map_prog_name. Qed.
 
@@ -214,8 +213,8 @@ Definition map_cfprog_gen {T1 T2} (info : T1 -> fun_info) (F: T1 -> cexec T2) :=
   map_cfprog_name_gen info (fun _ t1 => F t1).
 
 (* Some notations to use in the common case where we manipulate [_fundef ?eft]. *)
-Notation map_cfprog_name := (map_cfprog_name_gen (@f_info _ _ _ _ _)).
-Notation map_cfprog := (map_cfprog_gen (@f_info _ _ _ _ _)).
+Notation map_cfprog_name := (map_cfprog_name_gen (@f_info _ _ _)).
+Notation map_cfprog := (map_cfprog_gen (@f_info _ _ _)).
 
 Lemma get_map_cfprog_name_gen {T1 T2} (info : T1 -> fun_info) (F: funname -> T1 -> cexec T2) p p' fn f:
   map_cfprog_name_gen info F p = ok p' ->
