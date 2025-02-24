@@ -1,4 +1,4 @@
-# [unreleased]
+# Jasmin 2024.07.3 — Nancy, 2025-02-25
 
 ## New features
 
@@ -79,8 +79,8 @@
   ([PR #990](https://github.com/jasmin-lang/jasmin/pull/990)).
 
 - Functions can carry information (`'info` type) in a new `f_info` field
-  ([PR #1021](https://github.com/jasmin-lang/jasmin/issues/1021);
-  fixes [PR #1016](https://github.com/jasmin-lang/jasmin/issues/1016)).
+  ([PR #1021](https://github.com/jasmin-lang/jasmin/pull/1021);
+  fixes [#1016](https://github.com/jasmin-lang/jasmin/issues/1016)).
 
 - Add an option to treat some pre-typing error as a warning instead
   ([PR #1023](https://github.com/jasmin-lang/jasmin/pull/1023)).
