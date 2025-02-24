@@ -28,7 +28,6 @@ let openbrace fmt () = F.fprintf fmt "\\{"
 let closebrace fmt () = F.fprintf fmt "\\}"
 let percent fmt () = F.fprintf fmt "\\%%"
 let dollar fmt () = F.fprintf fmt "\\$"
-let underscore fmt () = F.fprintf fmt "\\_"
 let tilde fmt () = F.fprintf fmt "\\textasciitilde{}"
 let caret fmt () = F.fprintf fmt "\\textasciicircum{}"
 let backslash fmt () = F.fprintf fmt "\\textbackslash{}"
@@ -56,7 +55,6 @@ let pp_string fmt s =
   | '}' -> closebrace fmt ()
   | '%' -> percent fmt ()
   | '$' -> dollar fmt ()
-  | '_' -> underscore fmt ()
   | '~' -> tilde fmt ()
   | '^' -> caret fmt ()
   | c -> F.fprintf fmt "%c" c
