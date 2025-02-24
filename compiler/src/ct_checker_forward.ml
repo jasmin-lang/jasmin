@@ -133,7 +133,7 @@ type signature = {
 type ('info, 'asm) fenv = {
     ensure_annot : bool;
     env_ty       : signature Hf.t;
-    env_def      : (E.sop1, E.sop2, 'info, 'asm) func list;
+    env_def      : ('info, 'asm) func list;
   }
 
 (* -----------------------------------------------------------*)
@@ -312,6 +312,7 @@ let is_ct_op1 (_: Expr.sop1) = true
 let is_ct_op2 (o: Expr.sop2) =
   match o with
   | Omod (_, Op_w _) | Odiv (_, Op_w _) -> false
+  | Owi2(_, _, (WImod | WIdiv)) -> false
   | _ -> true
 
 let is_ct_opN (_ : Expr.opN) = true
@@ -329,7 +330,7 @@ let is_ct_sopn is_ct_asm (o : 'a Sopn.sopn) =
    Remark we need the property: [env' <= env => env |- e : lvl => env' |- e : lvl]
  *)
 
-let rec ty_expr ~(public:bool) env (e: (E.sop1, E.sop2) expr) =
+let rec ty_expr ~(public:bool) env (e: expr) =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ -> env, Public
 
@@ -602,7 +603,7 @@ and ty_fun is_ct_asm fenv fn =
   let tyin = List.map (fun lvl -> Env.norm_lvl env lvl) tyin in
   { tyin ; tyout }
 
-let ty_prog (is_ct_asm: 'asm -> bool)  ~infer (prog: (E.sop1, E.sop2, 'info, 'asm) prog) fl =
+let ty_prog (is_ct_asm: 'asm -> bool)  ~infer (prog: ('info, 'asm) prog) fl =
   let prog = snd prog in
   let fenv =
     { ensure_annot = not infer

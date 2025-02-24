@@ -10,7 +10,7 @@ open SafetyPreanalysis
 
 
 (*---------------------------------------------------------------*)
-val pcast : wsize -> (E.sop1, E.sop2) expr -> (E.sop1, E.sop2) expr
+val pcast : wsize -> expr -> expr
 
 val wsize_of_ty : 'a gty -> int
 
@@ -48,18 +48,18 @@ module AbsExpr (AbsDom : SafetyInterfaces.AbsNumBoolType) : sig
   val wrap_if_overflow : AbsDom.t -> Mtexpr.t -> signedness -> int -> Mtexpr.t
   val cast_if_overflows : AbsDom.t -> int -> int -> Mtexpr.t -> Mtexpr.t
 
-  val aeval_cst_zint : AbsDom.t -> (E.sop1, E.sop2) expr -> Z.t option
-  val aeval_cst_int : AbsDom.t -> (E.sop1, E.sop2) expr  -> int option
+  val aeval_cst_zint : AbsDom.t -> expr -> Z.t option
+  val aeval_cst_int : AbsDom.t -> expr  -> int option
 
   val abs_sub_arr_range :
     AbsDom.t -> (var * Expr.v_scope) ->
-    Warray_.arr_access -> wsize -> int -> (E.sop1, E.sop2) expr ->
+    Warray_.arr_access -> wsize -> int -> expr ->
     mvar list
 
-  val linearize_smpl_iexpr : AbsDom.t -> (E.sop1, E.sop2) expr     -> Mtexpr.t option
-  val linearize_smpl_wexpr : AbsDom.t -> (E.sop1, E.sop2) expr -> Mtexpr.t option
+  val linearize_smpl_iexpr : AbsDom.t -> expr -> Mtexpr.t option
+  val linearize_smpl_wexpr : AbsDom.t -> expr -> Mtexpr.t option
 
-  val bexpr_to_btcons : (E.sop1, E.sop2) expr -> AbsDom.t -> btcons option
+  val bexpr_to_btcons : expr -> AbsDom.t -> btcons option
 
   val set_zeros : mvar list -> AbsDom.t -> AbsDom.t
 
@@ -69,17 +69,17 @@ module AbsExpr (AbsDom : SafetyInterfaces.AbsNumBoolType) : sig
 
   val apply_glob : global_decl list -> AbsDom.t -> AbsDom.t
 
-  val mvar_of_lvar : AbsDom.t -> minfo -> (E.sop1, E.sop2) lval -> mlvar
+  val mvar_of_lvar : AbsDom.t -> minfo -> lval -> mlvar
 
   val aeval_offset :
-    AbsDom.t -> 'a gty -> mvar -> minfo option -> (E.sop1, E.sop2) expr -> AbsDom.t
+    AbsDom.t -> 'a gty -> mvar -> minfo option -> expr -> AbsDom.t
 
   val a_init_mlv_no_array : mlvar -> AbsDom.t -> AbsDom.t
 
-  val abs_forget_array_contents : AbsDom.t -> minfo -> (E.sop1, E.sop2) lval -> AbsDom.t
+  val abs_forget_array_contents : AbsDom.t -> minfo -> lval -> AbsDom.t
 
-  val abs_assign : AbsDom.t -> ty -> mlvar -> (E.sop1, E.sop2) expr -> AbsDom.t
+  val abs_assign : AbsDom.t -> ty -> mlvar -> expr -> AbsDom.t
 
   val abs_assign_opn :
-    AbsDom.t -> minfo -> (E.sop1, E.sop2) lval list -> (E.sop1, E.sop2) expr option list -> AbsDom.t
+    AbsDom.t -> minfo -> lval list -> expr option list -> AbsDom.t
 end

@@ -1,2 +1,2 @@
 open Prog
-val slice : string list -> ('sop1, 'sop2, 'info, 'asm) prog -> ('sop1, 'sop2, 'info, 'asm) prog
+val slice : string list -> ('info, 'asm) prog -> ('info, 'asm) prog

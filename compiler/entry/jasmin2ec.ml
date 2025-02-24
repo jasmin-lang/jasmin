@@ -36,7 +36,9 @@ let parse_and_extract arch call_conv =
   let module A = (val get_arch_module arch call_conv) in
 
   let extract model amodel functions array_dir output pass file =
-    let prog = parse_and_compile (module A) pass file in
+    let prog = parse_and_compile (module A) ~wi2i:true pass file in
+
+    Format.eprintf "%a@." (Printer.pp_prog ~debug:false A.reg_size A.asmOp) prog;
 
     extract_to_file prog arch A.reg_size A.asmOp model amodel functions
       array_dir output

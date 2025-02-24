@@ -14,7 +14,7 @@ let gsubst_ty (flen: 'len1 -> 'len2) ty =
   | Bty ty -> Bty ty
   | Arr(ty, e) -> Arr(ty, flen e)
 
-let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> ('sop1, 'sop2, 'len2) gexpr) (e: ('sop1, 'sop2, 'len1) gexpr) : ('sop1, 'sop2, 'len2) gexpr =
+let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gexpr) (e: 'len1 gexpr) : 'len2 gexpr =
   match e with
   | Pconst c -> Pconst c
   | Pbool b  -> Pbool b
@@ -167,12 +167,12 @@ let psubst_prog (prog:('info, 'asm) pprog) =
 
 let int_of_op2 ?loc o =
   match o with
-  | Expr.EO.Oadd Op_int -> Z.add
-  | Expr.EO.Omul Op_int -> Z.mul
-  | Expr.EO.Osub Op_int -> Z.sub
-  | Expr.EO.Odiv(sg, Op_int) -> if sg = Unsigned then Z.ediv else Z.div
-  | Expr.EO.Omod(sg, Op_int) -> if sg = Unsigned then Z.erem else Z.rem
-  | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (PrintCommon.string_of_eop2 o)
+  | Expr.Oadd Op_int -> Z.add
+  | Expr.Omul Op_int -> Z.mul
+  | Expr.Osub Op_int -> Z.sub
+  | Expr.Odiv(sg, Op_int) -> if sg = Unsigned then Z.ediv else Z.div
+  | Expr.Omod(sg, Op_int) -> if sg = Unsigned then Z.erem else Z.rem
+  | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (PrintCommon.string_of_op2 o)
 
 let rec int_of_expr ?loc e =
   match e with
@@ -222,7 +222,7 @@ let isubst_prog glob prog =
       | _      -> e in
     aux in
 
-  let subst : ('sop1, 'sop2) expr Mpv.t ref = ref Mpv.empty in
+  let subst : expr Mpv.t ref = ref Mpv.empty in
 
   let isubst_glob (x, gd) =
     let subst_v = isubst_v subst in
@@ -280,7 +280,7 @@ let in_range s sz i =
      Z.sub i (Z.shift_left Z.one (int_of_ws sz))
   else i
 
-let rec constant_of_expr (e: (E.sop1, E.sop2) Prog.expr) : Z.t =
+let rec constant_of_expr (e: Prog.expr) : Z.t =
   let open Prog in
 
   match e with

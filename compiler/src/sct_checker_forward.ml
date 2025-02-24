@@ -110,7 +110,7 @@ type ty_fun = {
 
 type ('info,'asm) fenv = {
     env_ty     : ty_fun Hf.t;
-    env_def    : (E.sop1, E.sop2, 'info,'asm) func list;
+    env_def    : ('info,'asm) func list;
   }
 
 module FEnv = struct
@@ -624,7 +624,7 @@ let content_ty = function
 (* --------------------------------------------------------- *)
 (* Type checking of expressions                              *)
 
-let rec ty_expr env venv loc (e:(E.sop1, E.sop2) expr) : vty =
+let rec ty_expr env venv loc (e:expr) : vty =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ -> Env.dpublic env
 
@@ -733,11 +733,11 @@ module MSF : sig
   val add : var_i -> t -> t
   val update   : t -> var  -> t
 
-  val enter_if : t -> (E.sop1, E.sop2) expr -> t
+  val enter_if : t -> expr -> t
   val max : t -> t -> t
 
   val check_msf : t -> var_i -> unit
-  val check_msf_trans : t -> var_i -> (E.sop1, E.sop2) expr -> unit
+  val check_msf_trans : t -> var_i -> expr -> unit
   val is_msf    : t -> var_i -> bool
   val is_msf_exact    : t -> var_i -> bool
   val check_msf_exact : t -> var_i -> unit
@@ -748,7 +748,7 @@ module MSF : sig
 
   end = struct
 
-  type t = Sv.t * (E.sop1, E.sop2) expr option
+  type t = Sv.t * expr option
 
   let toinit = (Sv.empty, None)
   let exact xs = (xs, None)
@@ -1473,7 +1473,7 @@ and ty_fun_infer is_ct_asm fenv fn =
   fty
 
 
-let ty_prog is_ct_asm (prog:(E.sop1, E.sop2, 'info, 'asm) prog) fl =
+let ty_prog is_ct_asm (prog:('info, 'asm) prog) fl =
   let prog = Liveness.liveness false prog in
   let prog = snd prog in
   let fenv = { env_ty = Hf.create 101; env_def = prog } in
@@ -1491,7 +1491,7 @@ let ty_prog is_ct_asm (prog:(E.sop1, E.sop2, 'info, 'asm) prog) fl =
 (* ------------------------------------------------------------------------------- *)
 (* Inference of msf_info needed by the compiler                                    *)
 
-let compile_infer_msf (prog:(E.sop1, E.sop2, 'info, 'asm) prog) =
+let compile_infer_msf (prog:('info, 'asm) prog) =
   let prog = snd prog in
   let fenv = { env_ty = Hf.create 101; env_def = prog } in
 

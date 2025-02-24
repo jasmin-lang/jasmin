@@ -5,8 +5,8 @@ open Apron
 module Config = SafetyConfig
 
 (*---------------------------------------------------------------*)
-val ty_expr : (E.sop1, E.sop2) Prog.expr -> Prog.ty
-val ty_lval : (E.sop1, E.sop2) Prog.lval -> Prog.ty
+val ty_expr : Prog.expr -> Prog.ty
+val ty_lval : Prog.lval -> Prog.ty
 
 (*---------------------------------------------------------------*)
 exception Aint_error of string
@@ -36,7 +36,7 @@ type analyzer_param = {
 }
 
 (*------------------------------------------------------------*)
-val get_fun_def : 'a * (E.sop1, E.sop2, 'b, 'c, 'asm) gfunc list -> funname -> (E.sop1, E.sop2, 'b, 'c, 'asm) gfunc option
+val get_fun_def : 'a * ('b, 'c, 'asm) gfunc list -> funname -> ('b, 'c, 'asm) gfunc option
 
 (*------------------------------------------------------------*)
 val wsize_of_int : int -> Wsize.wsize

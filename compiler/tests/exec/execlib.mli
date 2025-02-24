@@ -13,7 +13,7 @@ val load_file :
       Arch.asm_op,
       Arch.extra_op )
     Arch_extra.extended_op
-    Expr._eprog
+    Expr._uprog
 
 val exec :
   (string, funname) Hashtbl.t
@@ -25,7 +25,7 @@ val exec :
       Arch.asm_op,
       Arch.extra_op )
     Arch_extra.extended_op
-    Expr._eprog ->
+    Expr._uprog ->
   (Z.t * Z.t) list ->
   string ->
   Values.value list ->

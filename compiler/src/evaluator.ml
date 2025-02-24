@@ -38,14 +38,14 @@ let of_val_b ii v : bool =
 
 (* ----------------------------------------------------------------- *)
 type 'asm stack = 
-  | Sempty of instr_info * ('asm, EO.sop1, EO.sop2) fundef_
+  | Sempty of instr_info * 'asm fundef
   | Scall of 
-      instr_info *  ('asm, EO.sop1, EO.sop2) fundef_ * (EO.sop1, EO.sop2) lval_ list * Vm.t *  ('asm, EO.sop1, EO.sop2) instr_ list * 'asm stack
-  | Sfor of instr_info * var_i * coq_Z list *  ('asm, EO.sop1, EO.sop2) instr_ list *  ('asm, EO.sop1, EO.sop2) instr_ list * 'asm stack
+      instr_info *  'asm fundef * lval list * Vm.t *  'asm instr list * 'asm stack
+  | Sfor of instr_info * var_i * coq_Z list *  'asm instr list *  'asm instr list * 'asm stack
 
 type ('syscall_state, 'asm) state =
-  { s_prog : ('asm, EO.sop1, EO.sop2) prog_;
-    s_cmd  : ('asm, EO.sop1, EO.sop2) instr_ list;
+  { s_prog : 'asm prog;
+    s_cmd  : 'asm instr list;
     s_estate : 'syscall_state estate;
     s_stk  : 'asm stack;
   }
@@ -69,7 +69,7 @@ let return ep spp s =
     let vres = 
       exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword true vm2 x.v_var) f.f_res) in
     let vres' = exn_exec ii (mapM2 ErrType truncate_val f.f_tyout vres) in
-    let s1 = exn_exec ii (write_lvals nosubword sem_sop_typed_EO ep spp true gd {escs = scs2; emem = m2; evm = vm1 } xs vres') in
+    let s1 = exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs2; emem = m2; evm = vm1 } xs vres') in
     { s with 
       s_cmd = c;
       s_estate = s1;
@@ -94,30 +94,30 @@ let small_step1 ep spp sip s =
     match ir with
 
     | Cassgn(x,_,ty,e) ->
-      let v  = exn_exec ii (sem_pexpr nosubword sem_sop_typed_EO ep spp true gd s1 e) in
+      let v  = exn_exec ii (sem_pexpr nosubword ep spp true gd s1 e) in
       let v' = exn_exec ii (truncate_val ty v) in
-      let s2 = exn_exec ii (write_lval nosubword sem_sop_typed_EO ep spp true gd x v' s1) in
+      let s2 = exn_exec ii (write_lval nosubword ep spp true gd x v' s1) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Copn(xs,_,op,es) ->
-      let s2 = exn_exec ii (sem_sopn nosubword sem_sop_typed_EO ep spp sip._asmop gd op s1 xs es) in
+      let s2 = exn_exec ii (sem_sopn nosubword ep spp sip._asmop gd op s1 xs es) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Csyscall(xs,o, es) ->
-      let ves = exn_exec ii (sem_pexprs nosubword sem_sop_typed_EO ep spp true gd s1 es) in
+      let ves = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
       let ((scs, m), vs) =
         exn_exec ii (syscall_sem__ sip._sc_sem ep._pd s1.escs s1.emem o ves) in
-      let s2 = exn_exec ii (write_lvals nosubword sem_sop_typed_EO ep spp true gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
+      let s2 = exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Cif(e,c1,c2) ->
-      let b = of_val_b ii (exn_exec ii (sem_pexpr nosubword sem_sop_typed_EO ep spp true gd s1 e)) in
+      let b = of_val_b ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 e)) in
       let c = (if b then c1 else c2) @ c in
       { s with s_cmd = c }
 
     | Cfor (i,((d,lo),hi), body) ->
-      let vlo = of_val_z ii (exn_exec ii (sem_pexpr nosubword sem_sop_typed_EO ep spp true gd s1 lo)) in
-      let vhi = of_val_z ii (exn_exec ii (sem_pexpr nosubword sem_sop_typed_EO ep spp true gd s1 hi)) in
+      let vlo = of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 lo)) in
+      let vhi = of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 hi)) in
       let rng = wrange d vlo vhi in
       let s =
         {s with s_cmd = []; s_stk = Sfor(ii, i, rng, body, c, s.s_stk) } in
@@ -127,7 +127,7 @@ let small_step1 ep spp sip s =
       { s with s_cmd = c1 @ MkI(ii, Cif(e, c2@[i],[])) :: c }
 
     | Ccall(xs,fn,es) ->
-      let vargs' = exn_exec ii (sem_pexprs nosubword sem_sop_typed_EO ep spp true gd s1 es) in
+      let vargs' = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
       let f = 
         match get_fundef s.s_prog.p_funcs fn with
         | Some f -> f
@@ -177,7 +177,7 @@ let run (type reg regx xreg rflag cond asm_op extra_op)
                and type extra_op = extra_op)
       (p :
          (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op
-           Expr.eprog) ii fn args m =
+           Expr.prog) ii fn args m =
   let ep = Sem_params_of_arch_extra.ep_of_asm_e A.asm_e Syscall_ocaml.sc_sem in
   let spp = Sem_params_of_arch_extra.spp_of_asm_e A.asm_e in
   let sip =

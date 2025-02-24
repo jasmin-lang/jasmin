@@ -95,20 +95,20 @@ type arr_slice = { as_arr    : var;
                    as_wsize  : wsize;
                    as_len    : int;
                    as_access : Warray_.arr_access;
-                   as_offset : (E.sop1, E.sop2) Prog.expr; }
+                   as_offset : Prog.expr; }
 
 type safe_cond =
   | Initv of var
 
   | Initai  of arr_slice
   | InBound of int * arr_slice
-  | InRange of (E.sop1, E.sop2) expr * (E.sop1, E.sop2) expr * (E.sop1, E.sop2) expr (* InRange a b c ≡ c ∈ [a; b] *)
+  | InRange of expr * expr * expr (* InRange a b c ≡ c ∈ [a; b] *)
 
-  | Valid       of wsize * var * (E.sop1, E.sop2) expr (* allocated memory region *)
-  | AlignedPtr  of wsize * var * (E.sop1, E.sop2) expr (* aligned pointer *)
-  | AlignedExpr of wsize * (E.sop1, E.sop2) expr       (* aligned expression *)
+  | Valid       of wsize * var * expr (* allocated memory region *)
+  | AlignedPtr  of wsize * var * expr (* aligned pointer *)
+  | AlignedExpr of wsize * expr       (* aligned expression *)
 
-  | NotZero of wsize * (E.sop1, E.sop2) expr
+  | NotZero of wsize * expr
   | Termination of bool (* the boolean signals whether this is a severe violation *)
 
 let severe_violation =
@@ -255,6 +255,10 @@ let arr_aligned access ws e = match access with
      end
 
 (*------------------------------------------------------------*)
+let safe_op1 = function
+  | E.Owi1 _ -> assert false (* FIXME *)
+  | _ -> []
+
 let safe_op2 e2 = function
   | E.Obeq | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _
   | E.Oland _ | E.Olor _ | E.Olxor _
@@ -269,6 +273,7 @@ let safe_op2 e2 = function
 
   | E.Ovadd _ | E.Ovsub _ | E.Ovmul _
   | E.Ovlsr _ | E.Ovlsl _ | E.Ovasr _ -> []
+  | E.Owi2 _ -> assert false (* FIXME *)
 
 let safe_var x = match (L.unloc x).v_ty with
     | Arr _ -> []
@@ -307,7 +312,7 @@ let rec safe_e_rec safe = function
     arr_aligned (* x.gv *) access ws e @
     safe
 
-  | Papp1 (_, e) -> safe_e_rec safe e
+  | Papp1 (op, e) -> safe_op1 op @ safe_e_rec safe e
   | Papp2 (op, e1, e2) -> safe_op2 e2 op @ safe_e_rec (safe_e_rec safe e1) e2
   | PappN (_,es) -> List.fold_left safe_e_rec safe es
 
@@ -571,7 +576,7 @@ end = struct
                   abs : AbsDom.t;
                   cstack : funname list;
                   env : s_env;
-                  prog : (E.sop1, E.sop2, minfo, X86_extra.x86_extended_op) prog;
+                  prog : (minfo, X86_extra.x86_extended_op) prog;
                   s_effects : side_effects;
                   violations : violation list }
 
@@ -582,7 +587,7 @@ end = struct
         | _ -> state )
       state f_args
 
-  let init_env : (E.sop1, E.sop2, 'info, 'asm) prog -> mem_loc list -> s_env =
+  let init_env : ('info, 'asm) prog -> mem_loc list -> s_env =
     fun (glob_decls, _fun_decls) mem_locs ->
     let env = { s_glob = Sv.empty; m_locs = mem_locs } in
     let env =
@@ -597,7 +602,7 @@ end = struct
      *   env fun_decls *)
     env
 
-  let init_state : (E.sop1, E.sop2, unit, 'asm) func -> (E.sop1, E.sop2, minfo, 'asm) func -> (E.sop1, E.sop2, minfo, 'asm) prog -> astate * warnings =
+  let init_state : (unit, 'asm) func -> (minfo, 'asm) func -> (minfo, 'asm) prog -> astate * warnings =
     fun main_source main_decl (glob_decls, fun_decls) ->
       let mem_locs = List.map (fun x -> MemLoc x) main_decl.f_args in
       let env = init_env (glob_decls, fun_decls) mem_locs in
@@ -1703,7 +1708,7 @@ end = struct
 
   let log = timestamp ()
 
-  let rec aeval_ginstr pd asmOp : (E.sop1, E.sop2, 'ty,minfo,'asm) ginstr -> astate -> astate =
+  let rec aeval_ginstr pd asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
     fun ginstr state ->
       debug (fun () ->
         print_ginstr pd asmOp ginstr state.abs);
@@ -1717,7 +1722,7 @@ end = struct
         let state = check_safety state (InProg ginstr.i_loc) conds in
         aeval_ginstr_aux pd asmOp ginstr state
 
-  and aeval_ginstr_aux pd asmOp : (E.sop1, E.sop2, 'ty,minfo,'asm) ginstr -> astate -> astate =
+  and aeval_ginstr_aux pd asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
     fun ginstr state ->
     match ginstr.i_desc with
       | Cassgn (lv,tag,ty1, Pif (ty2, c, el, er))
@@ -2051,7 +2056,7 @@ end = struct
           assert false
         )
 
-  and aeval_call pd asmOp : funname -> (E.sop1, E.sop2, minfo, 'asm) func -> L.i_loc -> astate -> astate =
+  and aeval_call pd asmOp : funname -> (minfo, 'asm) func -> L.i_loc -> astate -> astate =
     fun f f_decl callsite st_in ->
     let itk = ItFunIn (f,callsite) in
 
@@ -2142,7 +2147,7 @@ end = struct
     debug (fun () -> Format.eprintf "Evaluating the body ...@.@.");
     aeval_gstmt pd asmOp f_body state
 
-  and aeval_gstmt pd asmOp : (E.sop1, E.sop2, 'ty,'i,'asm) gstmt -> astate -> astate =
+  and aeval_gstmt pd asmOp : ('ty,'i,'asm) gstmt -> astate -> astate =
     fun gstmt state ->
     let state = List.fold_left (fun state ginstr ->
         aeval_ginstr pd asmOp ginstr state)
@@ -2243,10 +2248,10 @@ end
 
 module type ExportWrap = sig
   (* main function, before any compilation pass *)
-  val main_source : (E.sop1, E.sop2, unit, X86_extra.x86_extended_op) Prog.func
+  val main_source : (unit, X86_extra.x86_extended_op) Prog.func
 
-  val main : (E.sop1, E.sop2, unit, X86_extra.x86_extended_op) Prog.func
-  val prog : (E.sop1, E.sop2, unit, X86_extra.x86_extended_op) Prog.prog
+  val main : (unit, X86_extra.x86_extended_op) Prog.func
+  val prog : (unit, X86_extra.x86_extended_op) Prog.prog
 end
 
 module AbsAnalyzer (EW : ExportWrap) = struct

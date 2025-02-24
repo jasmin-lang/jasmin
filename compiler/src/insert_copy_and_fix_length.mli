@@ -1,5 +1,5 @@
 open Prog
-val doit : Wsize.wsize -> (unit, 'asm) Prog.eprog -> (unit, 'asm) Prog.eprog
+val doit : Wsize.wsize -> (unit, 'asm) Prog.prog -> (unit, 'asm) Prog.prog
 (** This step has two purposes:
 1/ Fix the size information (n) in Ocopy(ws, n).
 For the moment pretyping add a dummy value for n, it is fixed here.

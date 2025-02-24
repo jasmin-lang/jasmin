@@ -257,7 +257,7 @@ module Env : sig
   val exit_namespace : 'asm env -> 'asm env
 
   module Vars : sig
-    val push_global   : 'asm env -> (P.pvar * P.epty * (P.E.EO.sop1, P.E.EO.sop2, P.pexpr_) P.ggexpr ) -> 'asm env
+    val push_global   : 'asm env -> (P.pvar * P.epty * P.pexpr_ P.ggexpr ) -> 'asm env
     val push_param    : 'asm env -> (P.pvar * P.epty * P.pexpr) -> 'asm env
     val push_local    : 'asm env -> P.pvar * P.epty -> 'asm env
     val push_implicit : 'asm env -> P.pvar * P.epty -> 'asm env
@@ -739,9 +739,16 @@ let tt_vsize_op loc op (vs:S.vsize) (ve:S.vesize)  =
   | `V4 , `W64 -> W.VE64, W.U256
   | _   ,  _   -> rs_tyerror ~loc (InvalidOperator op)
 
+type word_kind =
+  | Word
+  | WInt
+
+type eop_kind =
+  | EOp_int
+  | EOp_w of word_kind * W.wsize
 
 type ty_op_kind =
-  | OpKE of W.signedness * E.EO.op_kind
+  | OpKE of W.signedness * eop_kind
   | OpKV of W.signedness * W.velem * W.wsize
 
 let check_osign exn os (s:W.signedness) =
@@ -760,19 +767,19 @@ let op_info_dfl exn ty s ((o_ok : op_ok_on), (minws, maxws)) =
     let ws = wsize_max minws ws in
     let ws = wsize_min ws maxws in
     let s = Option.default W.Unsigned s in
-    OpKE (s, E.EO.Op_w (E.EO.Word, s, ws))
+    OpKE (s, EOp_w (Word, ws))
 
   | P.ETword (Some s', ws) ->
     if not (o_ok.wintok) then raise exn;
     let ws = wsize_max minws ws in
     let ws = wsize_min ws maxws in
     check_osign exn s s';
-    OpKE (s', E.EO.Op_w (E.EO.WInt, s', ws))
+    OpKE (s', EOp_w (WInt, ws))
 
   | _          ->
     if not (o_ok.intok) then raise exn;
     let s = Option.default W.Unsigned s in
-    OpKE (s, E.EO.Op_int)
+    OpKE (s, EOp_int)
 
 let check_size_op loc op sz (min, max) =
   if not (wsize_le min sz && wsize_le sz max) then
@@ -783,11 +790,11 @@ let check_op_w loc op ty s (o_ok, cmp) =
   | None, ws ->
     check_size_op loc op ws cmp;
     let s =  Option.default W.Unsigned s in
-    OpKE (s, E.EO.Op_w (E.EO.Word, s, ws))
+    OpKE (s, EOp_w (Word, ws))
   | Some s', ws ->
      if not (o_ok.wintok) then rs_tyerror ~loc (InvalidOperator op);
      check_osign  (tyerror ~loc (InvalidOperator op)) s s';
-     OpKE (s', E.EO.Op_w (E.EO.WInt, s', ws))
+     OpKE (s', EOp_w (WInt, ws))
 
 let check_op_vec loc op cmp sz =
   match cmp with
@@ -857,17 +864,17 @@ let mk_op_s_k_info eop =
 
 
 let mk_op_k_info eop vop =
-  { opi_op = mk_op_kind (fun _s k -> eop k) vop
+  { opi_op = mk_op_kind (fun s k -> eop s k) vop
   ; opi_wcmp =  {intok = true; wintok = true}, cmp_8_256
   ; opi_vcmp = Some cmp_8_64 }
 
 let mk_op_k_info_no_vec eop =
-  { opi_op = mk_op_kind (fun _s k -> eop k) (fun _ _ _ -> assert false)
+  { opi_op = mk_op_kind (fun s k -> eop s k) (fun _ _ _ -> assert false)
   ; opi_wcmp = {intok = true; wintok = true}, cmp_8_256
   ; opi_vcmp = None }
 
 let mk_logic_ws eop = function
-  | OpKE (_, E.EO.Op_w (E.EO.Word, _, ws))
+  | OpKE (_, EOp_w (Word, ws))
   | OpKV (_,_, ws) -> eop ws
   | _ -> assert false
 
@@ -881,84 +888,73 @@ let mk_rot_info eop =
     opi_wcmp = {intok = false; wintok = false}, cmp_8_64;
     opi_vcmp = None; }
 
-
-
-
-
-
-
-
-(*
-let mk_cmp_kind eop vop = function
-  | OpKE c        -> eop c
-  | OpKV(s,ve,ws) -> vop s ve ws
-
-let mk_cmp_info eop vop = {
-    opi_op   = mk_cmp_kind eop vop;
-    opi_wcmp = true, cmp_8_256;
-    opi_vcmp = Some cmp_8_64;
-  }
-
-let mk_op_of_c op c = op (op_kind_of_cmp c)
-
-let mk_op_info eop vop = mk_cmp_info (mk_op_of_c eop) vop
-
-let mk_cmp_info_nvec eop = {
-    opi_op   = mk_cmp_kind eop (fun _ _ _ -> assert false);
-    opi_wcmp = true, cmp_8_256;
-    opi_vcmp = None;
-  }
-
-let mk_op64_info_nvec eop = mk_cmp_info_nvec (mk_op_of_c eop)
-*)
-
-
 (* -------------------------------------------------------------------- *)
 
-let op1_of_ty exn op castop ty (info:E.EO.sop1 op_info) =
+let op1_of_ty exn op castop ty (info:E.sop1 op_info) =
   let tok = op_info exn (`Op1 op) None castop ty info.opi_wcmp info.opi_vcmp in
   info.opi_op tok
 
-let lnot_info = mk_logic_info (fun ws -> E.EO.Olnot ws)
-let  neg_info = mk_op_k_info_no_vec (fun k -> E.EO.Oneg k)
+let lnot_info = mk_logic_info (fun ws -> E.Olnot ws)
+
+let mk_op1 op_k op_wi s = function
+  | EOp_int -> op_k E.Op_int
+  | EOp_w (Word, sz) -> op_k (E.Op_w sz)
+  | EOp_w (WInt, sz) -> E.Owi1 (s, op_wi sz)
+
+let  neg_info =
+  mk_op_k_info_no_vec (mk_op1 (fun k -> E.Oneg k) (fun sz -> E.WIneg sz))
 
 (* -------------------------------------------------------------------- *)
 
-let add_info : E.EO.sop2 op_info =
-  mk_op_k_info (fun k -> E.EO.Oadd k) (fun _s ve ws -> E.EO.Ovadd(ve,ws))
+let mk_op2 op_k op_wi s = function
+  | EOp_int -> op_k s E.Op_int
+  | EOp_w (Word, sz) -> op_k s (E.Op_w sz)
+  | EOp_w (WInt, sz) -> E.Owi2 (s, sz, op_wi)
+
+let add_info : E.sop2 op_info =
+  mk_op_k_info (mk_op2 (fun _ k -> E.Oadd k) E.WIadd) (fun _s ve ws -> E.Ovadd(ve,ws))
 
 let sub_info =
-  mk_op_k_info (fun k -> E.EO.Osub k) (fun _s ve ws -> E.EO.Ovsub(ve,ws))
+  mk_op_k_info (mk_op2 (fun _ k -> E.Osub k) E.WIsub) (fun _s ve ws -> E.Ovsub(ve,ws))
 
 let mul_info =
-  mk_op_k_info (fun k -> E.EO.Omul k) (fun _s ve ws -> E.EO.Ovmul(ve,ws))
+  mk_op_k_info (mk_op2 (fun _ k -> E.Omul k) E.WImul) (fun _s ve ws -> E.Ovmul(ve,ws))
 
-let div_info = mk_op_s_k_info (fun s k -> E.EO.Odiv(s, k))
-let mod_info = mk_op_s_k_info (fun s k -> E.EO.Omod(s, k))
+let div_info = mk_op_s_k_info (mk_op2 (fun s k -> E.Odiv(s, k)) E.WIdiv)
+let mod_info = mk_op_s_k_info (mk_op2 (fun s k -> E.Omod(s, k)) E.WImod)
 
-let land_info = mk_logic_info (fun k -> E.EO.Oland k)
-let lor_info  = mk_logic_info (fun k -> E.EO.Olor  k)
-let lxor_info = mk_logic_info (fun k -> E.EO.Olxor k)
+let land_info = mk_logic_info (fun k -> E.Oland k)
+let lor_info  = mk_logic_info (fun k -> E.Olor  k)
+let lxor_info = mk_logic_info (fun k -> E.Olxor k)
 
 let shr_info =
   mk_op_k_info
-   (fun k -> E.EO.Oshr k)
-   (fun s ve ws -> if s = W.Unsigned then E.EO.Ovlsr(ve,ws) else E.EO.Ovasr(ve,ws))
+   (mk_op2
+     (fun s k ->
+       match k with
+       | E.Op_int -> E.Oasr k
+       | E.Op_w ws -> if s = W.Unsigned then E.Olsr ws else E.Oasr k) E.WIshr)
+     (fun s ve ws -> if s = W.Unsigned then E.Ovlsr(ve,ws) else E.Ovasr(ve,ws))
 
 let shl_info =
-  mk_op_k_info (fun k -> E.EO.Oshl k) (fun _s ve ws -> E.EO.Ovlsl(ve,ws))
+  mk_op_k_info (mk_op2 (fun _ k -> E.Olsl k) E.WIshl)  (fun _s ve ws -> E.Ovlsl(ve,ws))
 
-let ror_info = mk_rot_info (fun ws -> E.EO.Oror ws)
-let rol_info = mk_rot_info (fun ws -> E.EO.Orol ws)
+let ror_info = mk_rot_info (fun ws -> E.Oror ws)
+let rol_info = mk_rot_info (fun ws -> E.Orol ws)
 
-let eq_info  =  mk_op_k_info_no_vec (fun k -> E.EO.Oeq  k)
-let neq_info =  mk_op_k_info_no_vec (fun k -> E.EO.Oneq k)
-let lt_info  =  mk_op_k_info_no_vec (fun k -> E.EO.Olt  k)
-let le_info  =  mk_op_k_info_no_vec (fun k -> E.EO.Ole  k)
-let gt_info  =  mk_op_k_info_no_vec (fun k -> E.EO.Ogt  k)
-let ge_info  =  mk_op_k_info_no_vec (fun k -> E.EO.Oge  k)
+let eq_info  =  mk_op_k_info_no_vec (mk_op2 (fun _s k -> E.Oeq k) E.WIeq)
+let neq_info =  mk_op_k_info_no_vec (mk_op2 (fun _s k -> E.Oneq k) E.WIneq)
 
-let op2_of_ty exn op s castop ty (info:E.EO.sop2 op_info) =
+let cmp_of_op_k s = function
+  | E.Op_int -> E.Cmp_int
+  | E.Op_w sz -> E.Cmp_w(s, sz)
+
+let lt_info  =  mk_op_k_info_no_vec (mk_op2 (fun s k -> E.Olt (cmp_of_op_k s k)) E.WIlt)
+let le_info  =  mk_op_k_info_no_vec (mk_op2 (fun s k -> E.Ole (cmp_of_op_k s k)) E.WIle)
+let gt_info  =  mk_op_k_info_no_vec (mk_op2 (fun s k -> E.Ogt (cmp_of_op_k s k)) E.WIgt)
+let ge_info  =  mk_op_k_info_no_vec (mk_op2 (fun s k -> E.Oge (cmp_of_op_k s k)) E.WIge)
+
+let op2_of_ty exn op s castop ty (info:E.sop2 op_info) =
   let tok = op_info exn (`Op2 op) s castop ty info.opi_wcmp info.opi_vcmp in
   info.opi_op tok
 
@@ -966,8 +962,8 @@ let ensure_word exn ty = (max_ty ty (P.etw U256) |> oget ~exn)
 
 let op2_of_pop2 exn ty (op : S.peop2) =
   match op with
-  | `And    -> E.EO.Oand
-  | `Or     -> E.EO.Oor
+  | `And    -> E.Oand
+  | `Or     -> E.Oor
 
   | `Add  c -> op2_of_ty exn op None c ty add_info
   | `Sub  c -> op2_of_ty exn op None c ty sub_info
@@ -996,7 +992,7 @@ let op1_of_pop1 exn ty (op: S.peop1) =
   | `Not c ->
     if ty = P.etbool then
       if c <> None then raise exn
-      else E.EO.Onot
+      else E.Onot
     else
       op1_of_ty exn op c (ensure_word exn ty) lnot_info
 
@@ -1022,22 +1018,30 @@ let peop2_of_eqop (eqop : S.peqop) =
 (* -------------------------------------------------------------------- *)
 
 let wk_s_ws (s: W.signedness option) (ws: W.wsize) =
-  let wk = if s = None then E.EO.Word else E.EO.WInt in
+  let wk = if s = None then Word else WInt in
   let s = Option.default W.Unsigned s in
   (wk, s, ws)
+
+let op_word_of_int (wk, s, ws) =
+  match wk with
+  | Word -> E.Oword_of_int ws
+  | WInt -> E.Owi1(s, E.WIword_of_int ws)
+
+let op_int_of_word (wk, s, ws) =
+  match wk with
+  | Word -> E.Oint_of_word (s, ws)
+  | WInt -> E.Owi1(s, E.WIint_of_word ws)
 
 let cast loc e ety ty =
   match ety, ty with
   | P.ETint, P.ETword(s,ws) ->
-    let wk, s, ws = wk_s_ws s ws in
-    let op = E.EO.Oword_of_int(wk, s, ws) in
+    let op = op_word_of_int (wk_s_ws s ws) in
     P.Papp1(op, e)
 
   | P.ETword(s, ws), P.ETint ->
     (* FIXME do we really want to keep this cast word -> int implicit?
        Since we can use to_uint or to_sint ... *)
-    let wk, s, ws = wk_s_ws s ws in
-    let op = E.EO.Oint_of_word(wk, s, ws) in
+    let op = op_int_of_word (wk_s_ws s ws) in
     P.Papp1(op, e)
 
   | P.ETword(None, w1), P.ETword(None, w2) when W.wsize_cmp w1 w2 <> Datatypes.Lt -> e
@@ -1063,13 +1067,13 @@ let cast_int loc os e ety =
     let s =
       match wk, os with
       | _, None -> s
-      | E.EO.Word, Some s -> tt_sign s
-      | E.EO.WInt, Some s' ->
+      | Word, Some s -> tt_sign s
+      | WInt, Some s' ->
         (* FIXME: Should we do a better error message *)
         if tt_sign s' <> s then rs_tyerror ~loc (InvalidCast(ety,P.etint));
         s
     in
-    let op = E.EO.Oint_of_word(wk, s, ws) in
+    let op = op_int_of_word(wk, s, ws) in
     P.Papp1(op, e)
   | _ -> rs_tyerror ~loc (InvalidCast(ety,P.etint))
 
@@ -1088,7 +1092,7 @@ let conv_cty : T.stype -> P.epty = function
     | T.Coq_sarr p   -> P.ETarr (U8, PE (P.icnst (Conv.int_of_pos p)))
 
 let type_of_op2 op =
-  let (ty1, ty2), tyo = E.EO.etype_of_op2 op in
+  let (ty1, ty2), tyo = E.etype_of_op2 op in
   conv_ty ty1, conv_ty ty2, conv_ty tyo
 
 let tt_op2 (loc1, (e1, ety1)) (loc2, (e2, ety2))
@@ -1096,9 +1100,9 @@ let tt_op2 (loc1, (e1, ety1)) (loc2, (e2, ety2))
 
   match pop with
   | `Eq None when ety1 = P.etbool && ety2 = P.etbool ->
-     P.Papp2(E.EO.Obeq, e1, e2), P.etbool
+     P.Papp2(E.Obeq, e1, e2), P.etbool
   | `Neq None when ety1 = P.etbool && ety1 = P.etbool ->
-    P.Papp1 (E.EO.Onot, P.Papp2(E.EO.Obeq, e1, e2)), P.etbool
+    P.Papp1 (E.Onot, P.Papp2(E.Obeq, e1, e2)), P.etbool
   | _ ->
     let exn = tyerror ~loc (NoOperator (`Op2 pop, [ety1; ety2])) in
     let ty =
@@ -1116,7 +1120,7 @@ let tt_op2 (loc1, (e1, ety1)) (loc2, (e2, ety2))
     P.Papp2(op, e1, e2), tyo
 
 let type_of_op1 op =
-  let ty, tyo = E.EO.etype_of_op1 op in
+  let ty, tyo = E.etype_of_op1 op in
   conv_ty ty, conv_ty tyo
 
 let tt_op1 (loc1, (e1, ety1)) { L.pl_desc = pop; L.pl_loc = loc } =
@@ -1269,33 +1273,34 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
          | `Word s, P.ETword(None, _) ->
             Option.default W.Unsigned (tt_osign s), e, ety
          | `Word s, P.ETword(Some s', ws) ->
-            Option.default W.Unsigned (tt_osign s), Papp1(E.EO.Oword_of_wint(s', ws), e), P.etw ws
+            Option.default W.Unsigned (tt_osign s), Papp1(E.Owi1(s', E.WIword_of_wint ws), e), P.etw ws
          | `Word s, P.ETint ->
-            Option.default W.Unsigned (tt_osign s), Papp1(E.EO.Oword_of_int(E.EO.Word, W.Unsigned, sz), e), P.etw sz
+            Option.default W.Unsigned (tt_osign s), Papp1(E.Oword_of_int sz, e), P.etw sz
          | `WInt s, P.ETword(None, ws) ->
             let s = tt_sign s in
-            s, Papp1(E.EO.Owint_of_word(s, ws), e), P.etwi s ws
+            s, Papp1(E.Owi1 (s, E.WIwint_of_word ws), e), P.etwi s ws
          | `WInt s, P.ETword (Some s', ws) ->
             let s = tt_sign s in
             if s = s' then s, e, ety
             else
-              let we = P.Papp1(E.EO.Oword_of_wint(s', ws), e) in
-              let wie = P.Papp1(E.EO.Owint_of_word(s, ws), we) in
+              let we = P.Papp1(E.Owi1(s', E.WIword_of_wint ws), e) in
+              let wie = P.Papp1(E.Owi1(s, E.WIwint_of_word ws), we) in
               s, wie, P.etwi s ws
          | `WInt s, P.ETint ->
              let s = tt_sign s in
-             s, Papp1(E.EO.Oword_of_int(E.EO.WInt, s, sz), e), P.etwi s sz
+             s, Papp1(E.Owi1(s, E.WIword_of_int sz), e), P.etwi s sz
          | _ -> rs_tyerror ~loc:(L.loc pe) (InvalidCast(ety,rty))
        in
        (* ensures that the size is the expected *)
        let e =
          match ety with
          | P.ETword(None, ws) when W.wsize_cmp ws sz = Datatypes.Lt ->
-           P.Papp1(E.EO.Oword_ext(E.EO.Word, s, sz, ws), e)
+           let op = if s = W.Unsigned then E.Ozeroext(sz, ws) else E.Osignext(sz, ws) in
+           P.Papp1(op, e)
          | P.ETword(Some W.Unsigned, ws) when W.wsize_cmp ws sz = Datatypes.Lt ->
-           P.Papp1(E.EO.Oword_ext(E.EO.WInt, s, sz, ws), e)
+           P.Papp1(E.Owi1(s, E.WIword_ext(sz, ws)), e)
          | P.ETword(Some W.Signed, ws) ->
-           P.Papp1(E.EO.Oword_ext(E.EO.WInt, s, sz, ws), e)
+           P.Papp1(E.Owi1(s, E.WIword_ext(sz, ws)), e)
          | _ -> e
        in
        e, rty
@@ -1363,12 +1368,12 @@ and tt_mem_access pd ?(mode=`AllVar) (env : 'asm Env.env)
   check_ty_ptr pd ~loc:xlc ty;
   let e =
     match e with
-    | None -> P.Papp1 (E.EO.Oword_of_int(E.EO.Word,W.Unsigned, pd), P.Pconst (Z.zero))
+    | None -> P.Papp1 (op_word_of_int (Word, W.Unsigned, pd), P.Pconst (Z.zero))
     | Some(k, e) ->
       let e = tt_expr_cast ~mode pd env e (P.etw pd) in
       match k with
       | `Add -> e
-      | `Sub -> Papp1(E.EO.Oneg (E.EO.Op_w(E.EO.Word,W.Unsigned, pd)), e) in
+      | `Sub -> Papp1(E.Oneg (E.Op_w pd), e) in
   let ct = tt_mem_wsize pd ct in
   let al = tt_al AAdirect al in
   (ct, L.mk_loc xlc x, e, al)
@@ -1403,8 +1408,7 @@ let mk_var x sto xety xlc annot =
   let annot =
     match xety with
     | P.ETword(Some s, ws) ->
-      let a = L.mk_loc xlc (if s = W.Signed then "sint" else "uint") in
-      (a, None) :: annot
+      Annotations.add_symbol ~loc:xlc (if s = W.Signed then "sint" else "uint") annot
     | _ -> annot
   in
   P.PV.mk x sto (P.gty_of_gety xety) xlc annot
@@ -1850,7 +1854,7 @@ let arr_init (xi, ty) =
   let open P in
   match ty with
   | P.ETarr(ws, PE e) as ty ->
-    let size = PE (Papp2 (E.EO.Omul E.EO.Op_int, icnst (size_of_ws ws), e)) in
+    let size = PE (icnst (size_of_ws ws) ** e) in
     Cassgn (Lvar xi, E.AT_inline, P.gty_of_gety ty, P.Parr_init size)
   | _           ->
     rs_tyerror ~loc:(L.loc xi) (InvalidArrayType ty)
@@ -1987,11 +1991,13 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       in
       let () = match ty with
         | P.ETarr _ -> ()
-        | P.ETword(_, ws) when ws <= U64 -> ()
+        | P.ETword(None, ws) when ws <= U64 -> ()
         | _ ->
+          let w = match ty with P.ETword(w, ws) -> w | _ -> None in
           let ty = match P.gty_of_gety ty with P.Bty ty -> ty | _ -> assert false in
             rs_tyerror ~loc:(L.loc pi)
-              (string_error "the swap primitive is not available at type %a" PrintCommon.pp_btype ty)
+              (string_error "the swap primitive is not available at type %a"
+                 (PrintCommon.pp_btype ?w) ty)
 
       in
       let es = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args [ty; ty] in
@@ -2345,7 +2351,7 @@ let tt_global_def pd env (gd:S.gpexpr) =
   let array_of_string s =
     L.unloc s |> String.to_list |> List.map @@ fun c ->
     c |> Char.code |> Z.of_int |> fun z ->
-    P.(L.mk_loc (L.loc s) (Papp1 (E.EO.Oword_of_int(E.EO.Word, W.Unsigned, W.U8), Pconst z)), P.etw U8) in
+    P.(L.mk_loc (L.loc s) (Papp1 (op_word_of_int(Word, W.Unsigned, W.U8), Pconst z)), P.etw U8) in
   match gd with
   | S.GEword e ->
     `Word (f e)
@@ -2361,7 +2367,7 @@ let tt_global pd (env : 'asm Env.env) _loc (gd: S.pglobal) : 'asm Env.env =
     match ety with
     | P.ETword(wk, ews) when wk = None && Utils0.cmp_le Wsize.wsize_cmp ws ews ->
       L.unloc pe
-    | P.ETint -> Papp1 (E.EO.Oword_of_int(E.EO.Word, W.Unsigned, ws), L.unloc pe)
+    | P.ETint -> Papp1 (op_word_of_int(Word, W.Unsigned, ws), L.unloc pe)
     | _ -> rs_tyerror ~loc:(L.loc pe) (TypeMismatch (ety, P.etw ws))
     in
 

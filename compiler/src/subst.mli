@@ -1,18 +1,18 @@
 open Prog
 
 (* apply a substitution within a function *)
-val gsubst_func : (?loc:L.t -> 'ty1 -> 'ty2) -> ('ty1 ggvar -> ('sop1, 'sop2, 'ty2) gexpr) -> ('sop1, 'sop2, 'ty1, 'info, 'asm) gfunc -> ('sop1, 'sop2, 'ty2, 'info, 'asm) gfunc
+val gsubst_func : (?loc:L.t -> 'ty1 -> 'ty2) -> ('ty1 ggvar -> 'ty2 gexpr) -> ('ty1, 'info, 'asm) gfunc -> ('ty2, 'info, 'asm) gfunc
 
 (* apply a substitution within a function *)
-val subst_func : ('ty gvar_i -> ('sop1, 'sop2, 'ty) gexpr) -> ('sop1, 'sop2, 'ty, 'info, 'asm) gfunc -> ('sop1, 'sop2, 'ty, 'info, 'asm) gfunc
+val subst_func : ('ty gvar_i -> 'ty gexpr) -> ('ty, 'info, 'asm) gfunc -> ('ty, 'info, 'asm) gfunc
 
 (* replace parameter by their definition everywhere in the program *)
-val remove_params : ('info, 'asm) pprog -> ('info, 'asm) eprog
+val remove_params : ('info, 'asm) pprog -> ('info, 'asm) prog
 
 (* rename all variable using fresh variables *)
-val clone_func : ('sop1, 'sop2, 'info, 'asm) func -> ('sop1, 'sop2, 'info, 'asm) func
+val clone_func : ('info, 'asm) func -> ('info, 'asm) func
 
-val extend_iinfo : L.i_loc -> ('sop1, 'sop2, 'info, 'asm) func -> ('sop1, 'sop2, 'info, 'asm) func
+val extend_iinfo : L.i_loc -> ('info, 'asm) func -> ('info, 'asm) func
 (* ---------------------------------------------------------------- *)
 (* Perform a substitution of variable by variable                   *)
 
@@ -22,13 +22,13 @@ val vsubst_v : vsubst -> var -> var
 
 val vsubst_vi : vsubst -> var_i -> var_i
 
-val vsubst_e  : vsubst -> ('sop1, 'sop2) expr  -> ('sop1, 'sop2) expr
-val vsubst_es : vsubst -> ('sop1, 'sop2) exprs -> ('sop1, 'sop2) exprs
+val vsubst_e  : vsubst -> expr  -> expr
+val vsubst_es : vsubst -> exprs -> exprs
 
-val vsubst_lval  : vsubst -> ('sop1, 'sop2) lval  -> ('sop1, 'sop2) lval
-val vsubst_lvals : vsubst -> ('sop1, 'sop2) lvals -> ('sop1, 'sop2) lvals
+val vsubst_lval  : vsubst -> lval  -> lval
+val vsubst_lvals : vsubst -> lvals -> lvals
 
-val vsubst_i : vsubst -> ('sop1, 'sop2, 'info, 'asm) instr -> ('sop1, 'sop2, 'info, 'asm) instr
-val vsubst_c : vsubst -> ('sop1, 'sop2, 'info, 'asm) stmt  -> ('sop1, 'sop2, 'info, 'asm) stmt
+val vsubst_i : vsubst -> ('info, 'asm) instr -> ('info, 'asm) instr
+val vsubst_c : vsubst -> ('info, 'asm) stmt  -> ('info, 'asm) stmt
 
-val vsubst_func : vsubst -> ('sop1, 'sop2, 'info, 'asm) func -> ('sop1, 'sop2, 'info, 'asm) func
+val vsubst_func : vsubst -> ('info, 'asm) func -> ('info, 'asm) func

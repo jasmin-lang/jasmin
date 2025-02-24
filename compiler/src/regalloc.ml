@@ -17,7 +17,7 @@ let make_counter () =
     n),
   (fun () -> !count)
 
-let fill_in_missing_names (f: ('sop1, 'sop2, 'info, 'asm) func) : ('sop1, 'sop2, 'info, 'asm) func =
+let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
   let fresh_name : L.t -> ty -> var_i =
     let fresh, _ = make_counter () in
     fun loc ty ->
@@ -104,7 +104,7 @@ let find_var outs ins ap : _ option =
 
 let asm_equality_constraints ~loc pd reg_size asmOp is_move_op (int_of_var: var_i -> int option) (k: int -> int -> unit)
     (k': int -> int -> unit)
-    (lvs: ('sop1, 'sop2, 'ty) glvals) (op: 'asm sopn) (es:  ('sop1, 'sop2, 'ty) gexprs) : unit =
+    (lvs: 'ty glvals) (op: 'asm sopn) (es:  'ty gexprs) : unit =
   let assert_compatible_types x y =
     let x = L.unloc x and y = L.unloc y in
     if types_cannot_conflict reg_size x.v_kind x.v_ty y.v_kind y.v_ty then
@@ -140,7 +140,7 @@ let asm_equality_constraints ~loc pd reg_size asmOp is_move_op (int_of_var: var_
   end
 
 (* Set of instruction information for each variable equivalence class. *)
-type ('info, 'asm) trace = (int, (E.sop1, E.sop2, 'info, 'asm) instr list) Hashtbl.t
+type ('info, 'asm) trace = (int, ('info, 'asm) instr list) Hashtbl.t
 
 let pp_trace pd asmOp (i: int) fmt (tr: ('info, 'asm) trace) =
   match Hashtbl.find tr i with
@@ -158,7 +158,7 @@ let pp_trace pd asmOp (i: int) fmt (tr: ('info, 'asm) trace) =
     Format.fprintf fmt "@;<1 2>and:@;<1 4>@[<v>%a@]"
       (pp_list "@ " pp_i_noloc) j_noloc
 
-let normalize_trace (eqc: Puf.t) (tr: (E.sop1, E.sop2, 'info, 'asm) instr list array) : ('info, 'asm) trace =
+let normalize_trace (eqc: Puf.t) (tr: ('info, 'asm) instr list array) : ('info, 'asm) trace =
   let tbl = Hashtbl.create 97 in
   let old i = try Hashtbl.find tbl i with Not_found -> [] in
   let union x y = List.sort_uniq compare (List.rev_append x y) in
@@ -179,7 +179,7 @@ let set_friend i j (f: friend) : friend =
   |> IntMap.modify_def IntSet.empty j (IntSet.add i)
 
 type ('info, 'asm) collect_equality_constraints_state =
-  { mutable cac_friends : friend; mutable cac_eqc: Puf.t ; cac_trace: (E.sop1, E.sop2, 'info, 'asm) instr list array }
+  { mutable cac_friends : friend; mutable cac_eqc: Puf.t ; cac_trace: ('info, 'asm) instr list array }
 
 (* Renaming assignments can be removed between variables of compatible kinds,
 where “compatibility” is defined below and allows the promotion of mutable
@@ -210,12 +210,12 @@ let kind_compatible (x: v_kind) (y: v_kind) : bool =
 let collect_equality_constraints_in_func
       (asmOp:'asm Sopn.asmOp)
       is_move_op
-      ~(with_call_sites: (funname -> (E.sop1, E.sop2, 'info, 'asm) func) option)
+      ~(with_call_sites: (funname -> ('info, 'asm) func) option)
       (msg: string)
       (int_of_var: var_i -> int option)
       copn_constraints
       (s: ('info, 'asm) collect_equality_constraints_state)
-      (f: (E.sop1, E.sop2, 'info, 'asm) func)
+      (f: ('info, 'asm) func)
     : unit
   =
   let add ii x y =
@@ -297,7 +297,7 @@ let collect_equality_constraints
     copn_constraints
     (tbl: int Hv.t)
     (nv: int)
-    (f: (E.sop1, E.sop2, 'info, 'asm) func) : Puf.t =
+    (f: ('info, 'asm) func) : Puf.t =
   let int_of_var x = Hv.find_option tbl (L.unloc x) in
   let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
   collect_equality_constraints_in_func asmOp is_move_op ~with_call_sites:None msg int_of_var copn_constraints s f;
@@ -310,7 +310,7 @@ let collect_equality_constraints_in_prog
       copn_constraints
       (tbl: int Hv.t)
       (nv: int)
-      (f: (E.sop1, E.sop2, 'info, 'asm) func list) : Puf.t * ('info, 'asm) trace * friend =
+      (f: ('info, 'asm) func list) : Puf.t * ('info, 'asm) trace * friend =
   let int_of_var x = Hv.find_option tbl (L.unloc x) in
   let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
   let tbl = Hf.create 17 in
@@ -386,7 +386,7 @@ let conflicts_add_one pd reg_size asmOp tbl tr loc (v: var) (w: var) (c: conflic
 (* Some instructions can declare conflicts between the registers appearing
    in the arguments and in the result. We collect all these conflicts. *)
 let collect_opn_conflicts pd reg_size asmOp
-      (tbl: int Hv.t) (tr: ('info, 'asm) trace) (f: (E.sop1, E.sop2, 'info, 'asm) func list) (c: conflicts) : conflicts =
+      (tbl: int Hv.t) (tr: ('info, 'asm) trace) (f: ('info, 'asm) func list) (c: conflicts) : conflicts =
   let add_one = conflicts_add_one pd reg_size asmOp tbl tr in
   let rec collect_opn_conflicts_instr c i =
     begin match i.i_desc with
@@ -411,7 +411,7 @@ let collect_opn_conflicts pd reg_size asmOp
   List.fold_left (fun c f -> collect_opn_conflicts_stmt c f.f_body) c f
 
 let collect_conflicts pd reg_size asmOp
-      (tbl: int Hv.t) (tr: ('info, 'asm) trace) (f: (E.sop1, E.sop2, Sv.t * Sv.t, 'asm) func) (c: conflicts) : conflicts =
+      (tbl: int Hv.t) (tr: ('info, 'asm) trace) (f: (Sv.t * Sv.t, 'asm) func) (c: conflicts) : conflicts =
   let add_one = conflicts_add_one pd reg_size asmOp tbl tr in
   let add (c: conflicts) loc ((i, j): (Sv.t * Sv.t)) : conflicts =
     c
@@ -435,7 +435,7 @@ let collect_conflicts pd reg_size asmOp
   and collect_stmt c s = List.fold_left collect_instr c s in
   collect_stmt c f.f_body
 
-let iter_variables (cb: var -> unit) (f: (E.sop1, E.sop2, 'info, 'asm) func) : unit =
+let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =
   let iter_sv = Sv.iter cb in
   let iter_lv lv = vars_lv Sv.empty lv |> iter_sv in
   let iter_lvs lvs = List.fold_left vars_lv Sv.empty lvs |> iter_sv in
@@ -461,12 +461,12 @@ let collect_variables_cb ~(allvars: bool) (excluded: Sv.t) (fresh: unit -> int) 
       let n = fresh () in
       Hv.add tbl v n
 
-let collect_variables_aux ~(allvars: bool) (excluded: Sv.t) (fresh: unit -> int) (tbl: int Hv.t) (extra: Sv.t) (f: (E.sop1, E.sop2, 'info, 'asm) func) : unit =
+let collect_variables_aux ~(allvars: bool) (excluded: Sv.t) (fresh: unit -> int) (tbl: int Hv.t) (extra: Sv.t) (f: ('info, 'asm) func) : unit =
   let get v = collect_variables_cb ~allvars excluded fresh tbl v in
   iter_variables get f;
   Sv.iter get extra
 
-let collect_variables ~(allvars: bool) (excluded:Sv.t) (f: (E.sop1, E.sop2, 'info, 'asm) func) : int Hv.t * int =
+let collect_variables ~(allvars: bool) (excluded:Sv.t) (f: ('info, 'asm) func) : int Hv.t * int =
   let fresh, total = make_counter () in
   let tbl : int Hv.t = Hv.create 97 in
   collect_variables_aux ~allvars excluded fresh tbl Sv.empty f;
@@ -497,7 +497,7 @@ let collect_variables_in_prog
       (excluded: Sv.t)
       (return_adresses: retaddr Hf.t)
       (all_reg: var list)
-      (f: (E.sop1, E.sop2, 'info, 'asm) func list) : int Hv.t * int =
+      (f: ('info, 'asm) func list) : int Hv.t * int =
   let fresh, total = make_counter () in
   let tbl : int Hv.t = Hv.create 97 in
   List.iter (fun f ->
@@ -578,25 +578,25 @@ type reg_oracle_t = {
 module type Regalloc = sig
   type extended_op
 
-  val split_live_ranges : (E.sop1, E.sop2, unit, extended_op) func -> (E.sop1, E.sop2, unit, extended_op) func
-  val renaming : (E.sop1, E.sop2, unit, extended_op) func -> (E.sop1, E.sop2, unit, extended_op) func
-  val remove_phi_nodes : (E.sop1, E.sop2, unit, extended_op) func -> (E.sop1, E.sop2, unit, extended_op) func
+  val split_live_ranges : (unit, extended_op) func -> (unit, extended_op) func
+  val renaming : (unit, extended_op) func -> (unit, extended_op) func
+  val remove_phi_nodes : (unit, extended_op) func -> (unit, extended_op) func
 
-  val subroutine_ra_by_stack : (E.sop1, E.sop2, unit, extended_op) func -> bool
+  val subroutine_ra_by_stack : (unit, extended_op) func -> bool
 
   val alloc_prog :
     (Var0.Var.var -> var) ->
-    ((E.sop1, E.sop2, unit, extended_op) func -> 'a -> bool) ->
-    ((E.sop1, E.sop2, unit, extended_op) func -> 'a -> Z.t) ->
-    ('a * (E.sop1, E.sop2, unit, extended_op) func) list ->
-    ('a * reg_oracle_t * (E.sop1, E.sop2, unit, extended_op) func) list
+    ((unit, extended_op) func -> 'a -> bool) ->
+    ((unit, extended_op) func -> 'a -> Z.t) ->
+    ('a * (unit, extended_op) func) list ->
+    ('a * reg_oracle_t * (unit, extended_op) func) list
 end
 
 module Regalloc (Arch : Arch_full.Arch)
   : Regalloc with type extended_op := (Arch.reg, Arch.regx, Arch.xreg, Arch.rflag, Arch.cond, Arch.asm_op, Arch.extra_op) Arch_extra.extended_op = struct
 
   let forced_registers translate_var loc nv (vars: int Hv.t) (cnf: conflicts)
-      (lvs: (E.sop1, E.sop2, 'ty) glvals) (op: 'asm sopn) (es: (E.sop1, E.sop2, 'ty) gexprs)
+      (lvs: 'ty glvals) (op: 'asm sopn) (es: 'ty gexprs)
       (a: A.allocation) : unit =
     let allocate_one x y a =
       let x = L.unloc x in
@@ -639,7 +639,7 @@ module Regalloc (Arch : Arch_full.Arch)
         | ADExplicit (_, None) -> ()) id.i_in es
 
 let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t) (cnf: conflicts)
-    (f: (E.sop1, E.sop2, 'info, 'asm) func) (a: A.allocation) : unit =
+    (f: ('info, 'asm) func) (a: A.allocation) : unit =
   let split ~ctxt ~num =
     function
     | hd :: tl -> hd, tl
@@ -892,7 +892,7 @@ let var_subst_of_allocation (vars: int Hv.t)
     oget ~exn:Not_found (A.find i a)
   with Not_found -> v
 
-let subst_of_var_subst (s: var -> var) (v: var L.located) : (E.sop1, E.sop2) expr =
+let subst_of_var_subst (s: var -> var) (v: var L.located) : expr =
   let m = L.loc v in
   let v = L.unloc v in
   Pvar (gkvar (L.mk_loc m (s v)))
@@ -905,10 +905,10 @@ let reverse_varmap nv (vars: int Hv.t) : A.allocation =
   Hv.iter (fun v i -> A.set i v a) vars;
   a
 
-let split_live_ranges (f: (E.sop1, E.sop2, 'info, 'asm) func) : (E.sop1, E.sop2, unit, 'asm) func =
+let split_live_ranges (f: ('info, 'asm) func) : (unit, 'asm) func =
   Ssa.split_live_ranges true f
 
-let renaming (f: (E.sop1, E.sop2, 'info, 'asm) func) : (E.sop1, E.sop2, unit, 'asm) func =
+let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
   let vars, nv = collect_variables ~allvars:true Sv.empty f in
   let eqc =
     collect_equality_constraints
@@ -929,7 +929,7 @@ let renaming (f: (E.sop1, E.sop2, 'info, 'asm) func) : (E.sop1, E.sop2, unit, 'a
   let subst = subst_of_allocation vars a in
   Subst.subst_func subst f
 
-let remove_phi_nodes (f: (E.sop1, E.sop2, 'info, 'asm) func) : (E.sop1, E.sop2, unit, 'asm) func =
+let remove_phi_nodes (f: ('info, 'asm) func) : (unit, 'asm) func =
   Ssa.remove_phi_nodes f
 
 (** Returns extra information (k, rsp) depending on the calling convention.
@@ -1125,8 +1125,8 @@ let pp_liveness vars liveness_per_callsite liveness_table a =
     let extern = !m_word, !m_extra, !m_vector, !m_flag in
     pp_recap Format.std_formatter fn intern extern)
 
-let global_allocation translate_var get_internal_size (funcs: (E.sop1, E.sop2, 'info, 'asm) func list) :
-  (E.sop1, E.sop2, unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * retaddr Hf.t =
+let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func list) :
+  (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * retaddr Hf.t =
   (* Preprocessing of functions:
     - ensure all variables are named (no anonymous assign)
     - generate a fresh variable to hold the return address (if needed)
@@ -1136,7 +1136,7 @@ let global_allocation translate_var get_internal_size (funcs: (E.sop1, E.sop2, '
 
     Initial 'info are preserved in the result.
    *)
-  let liveness_table : (E.sop1, E.sop2, Sv.t * Sv.t, 'asm) func Hf.t = Hf.create 17 in
+  let liveness_table : (Sv.t * Sv.t, 'asm) func Hf.t = Hf.create 17 in
   let return_addresses : retaddr Hf.t = Hf.create 17 in
   let killed_map : Sv.t Hf.t = Hf.create 17 in
   let killed fn = Hf.find killed_map fn in
@@ -1192,7 +1192,7 @@ let global_allocation translate_var get_internal_size (funcs: (E.sop1, E.sop2, '
     Hf.add killed_map f.f_name written;
     f
   in
-  let funcs : (E.sop1, E.sop2, unit, 'asm) func list = funcs |> List.rev |> List.rev_map preprocess in
+  let funcs : (unit, 'asm) func list = funcs |> List.rev |> List.rev_map preprocess in
   if !Glob_options.debug then
     Format.printf "Before REGALLOC:@.%a@."
       Printer.(pp_list "@ @ " (pp_func ~debug:true Arch.reg_size Arch.asmOp)) (List.rev funcs);
@@ -1325,8 +1325,8 @@ let global_allocation translate_var get_internal_size (funcs: (E.sop1, E.sop2, '
   , killed
   , return_addresses
 
-let alloc_prog translate_var (has_stack: (E.sop1, E.sop2, 'info, 'asm) func -> 'a -> bool) get_internal_size (dfuncs: ('a * (E.sop1, E.sop2, 'info, 'asm) func) list)
-    : ('a * reg_oracle_t * (E.sop1, E.sop2, unit, 'asm) func) list =
+let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) get_internal_size (dfuncs: ('a * ('info, 'asm) func) list)
+    : ('a * reg_oracle_t * (unit, 'asm) func) list =
   (* Ensure that instruction locations are really unique,
      so that there is no confusion on the position of the “extra free register”. *)
   let dfuncs =

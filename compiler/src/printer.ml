@@ -26,21 +26,7 @@ let string_of_combine_flags = function
 
 (* -------------------------------------------------------------------- *)
 
-type ('sop1, 'sop2) pp_op =
-  { string_of_op1 : 'sop1 -> string
-  ; string_of_op2 : 'sop2 -> string }
-
-let pp_op : (E.sop1, E.sop2) pp_op =
-  { string_of_op1 = string_of_op1;
-    string_of_op2 = string_of_op2;
-  }
-
-let pp_eop : (E.EO.sop1, E.EO.sop2) pp_op =
-  { string_of_op1 = string_of_eop1;
-    string_of_op2 = string_of_eop2;
-  }
-
-let pp_ge pp_len pp_var pp_op =
+let pp_ge pp_len pp_var =
   let pp_var_i = pp_gvar_i pp_var in
   let pp_gvar fmt x =
     let s = if is_gkvar x then "" else "/* global: */ " in
@@ -57,49 +43,49 @@ let pp_ge pp_len pp_var pp_op =
     pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len
   | Pload(al,ws,x,e) ->
     F.fprintf fmt "@[(%a)[%a%a@ +@ %a]@]"
-      pp_btype (U ws)
+      (pp_btype ?w:None) (U ws)
       pp_aligned al
       pp_var_i x pp_expr e
   | Papp1(o, e) ->
-    F.fprintf fmt "@[(%s@ %a)@]" (pp_op.string_of_op1 o) pp_expr e
+    F.fprintf fmt "@[(%s@ %a)@]" (string_of_op1 o) pp_expr e
   | Papp2(op,e1,e2) ->
     F.fprintf fmt "@[(%a %s@ %a)@]"
-      pp_expr e1 (pp_op.string_of_op2 op) pp_expr e2
+      pp_expr e1 (string_of_op2 op) pp_expr e2
   | PappN (E.Opack(_sz, pe), es) ->
     F.fprintf fmt "@[(%du%n)[%a]@]" (List.length es) (int_of_pe pe) (pp_list ",@ " pp_expr) es
   | PappN (Ocombine_flags c, es) ->
     F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " pp_expr) es
   | Pif(_, e,e1,e2) ->
     F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
-      pp_expr e pp_expr e1  pp_expr e2
+      pp_expr e pp_expr e1 pp_expr e2
   in
   pp_expr
 
 (* -------------------------------------------------------------------- *)
-let pp_glv pp_len pp_var pp_op fmt = function
+let pp_glv pp_len pp_var fmt = function
   | Lnone (_, ty) -> F.fprintf fmt "_ /* %a */" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
   | Lvar x  -> pp_gvar_i pp_var fmt x
   | Lmem (al, ws, x, e) ->
     F.fprintf fmt "@[(%a)[%a%a@ +@ %a]@]"
-     pp_btype (U ws)
+     (pp_btype ?w:None) (U ws)
      pp_aligned al
-     (pp_gvar_i pp_var) x (pp_ge pp_len pp_var pp_op) e
+     (pp_gvar_i pp_var) x (pp_ge pp_len pp_var) e
   | Laset(al, aa, ws, x, e) ->
-    pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var pp_op) fmt al aa ws x e
+    pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var) fmt al aa ws x e
   | Lasub(aa, ws, len, x, e) ->
-    pp_arr_slice (pp_gvar_i pp_var) (pp_ge pp_len pp_var pp_op) pp_len fmt aa ws x e len
+    pp_arr_slice (pp_gvar_i pp_var) (pp_ge pp_len pp_var) pp_len fmt aa ws x e len
 
 
 (* -------------------------------------------------------------------- *)
-let pp_ges pp_len pp_var pp_op fmt es =
-  Format.fprintf fmt "@[%a@]" (pp_list ",@ " (pp_ge pp_len pp_var pp_op)) es
+let pp_ges pp_len pp_var fmt es =
+  Format.fprintf fmt "@[%a@]" (pp_list ",@ " (pp_ge pp_len pp_var)) es
 
 (* -------------------------------------------------------------------- *)
-let pp_glvs pp_len pp_var pp_op fmt lvs =
+let pp_glvs pp_len pp_var fmt lvs =
   match lvs with
   | [] -> F.fprintf fmt "()"
-  | [x] -> pp_glv pp_len pp_var pp_op fmt x
-  | _   -> F.fprintf fmt "(@[%a@])" (pp_list ",@ " (pp_glv pp_len pp_var pp_op)) lvs
+  | [x] -> pp_glv pp_len pp_var fmt x
+  | _   -> F.fprintf fmt "(@[%a@])" (pp_list ",@ " (pp_glv pp_len pp_var)) lvs
 
 (* -------------------------------------------------------------------- *)
 let rec pp_simple_attribute fmt =
@@ -134,21 +120,21 @@ let pp_align fmt = function
   | E.Align -> Format.fprintf fmt "#[align]@ "
   | E.NoAlign -> ()
 
-let rec pp_gi pp_info pp_len pp_opn pp_var pp_op fmt i =
+let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
   F.fprintf fmt "%a" pp_info (i.i_loc, i.i_info);
   F.fprintf fmt "%a" pp_annotations i.i_annot;
   match i.i_desc with
   | Cassgn(x, tg, ty, Parr_init n) ->
     F.fprintf fmt "@[<hov 2>ArrayInit(%a); /* length=%a %a%s */@]"
-      (pp_glv pp_len pp_var pp_op) x
+      (pp_glv pp_len pp_var) x
       pp_len n
       (pp_gtype pp_len) ty
       (pp_tag tg)
 
   | Cassgn(x , tg, ty, e) ->
     F.fprintf fmt "@[<hov 2>%a =@ %a; /* %a%s */@]"
-      (pp_glv pp_len pp_var pp_op) x
-      (pp_ge pp_len pp_var pp_op) e
+      (pp_glv pp_len pp_var) x
+      (pp_ge pp_len pp_var) e
       (pp_gtype pp_len) ty
       (pp_tag tg)
 
@@ -158,70 +144,76 @@ let rec pp_gi pp_info pp_len pp_opn pp_var pp_op fmt i =
       | _ -> () in
 
     F.fprintf fmt "@[<hov 2>%a =@ %a#%a(%a); /* %s */@]"
-      (pp_glvs pp_len pp_var pp_op) x pp_cast o pp_opn o
-      (pp_ges pp_len pp_var pp_op) e
+      (pp_glvs pp_len pp_var) x pp_cast o pp_opn o
+      (pp_ges pp_len pp_var) e
       (pp_tag t)
 
   | Csyscall(x, o, e) ->
       F.fprintf fmt "@[<hov 2>%a =@ %s(%a);@]"
-        (pp_glvs pp_len pp_var pp_op) x (pp_syscall o) (pp_ges pp_len pp_var pp_op) e
+        (pp_glvs pp_len pp_var) x (pp_syscall o) (pp_ges pp_len pp_var) e
 
   | Cif(e, c, []) ->
     F.fprintf fmt "@[<v>if %a %a@]"
-      (pp_ge pp_len pp_var pp_op) e (pp_cblock pp_info pp_len pp_opn pp_var pp_op) c
+      (pp_ge pp_len pp_var) e (pp_cblock pp_info pp_len pp_opn pp_var) c
 
   | Cif(e, c1, c2) ->
     F.fprintf fmt "@[<v>if %a %a else %a@]"
-      (pp_ge pp_len pp_var pp_op) e (pp_cblock pp_info pp_len pp_opn pp_var pp_op) c1
-      (pp_cblock pp_info pp_len pp_opn pp_var pp_op) c2
+      (pp_ge pp_len pp_var) e (pp_cblock pp_info pp_len pp_opn pp_var) c1
+      (pp_cblock pp_info pp_len pp_opn pp_var) c2
 
   | Cfor(i, (dir, lo, hi), c) ->
     let dir, e1, e2 =
       if dir = UpTo then "to", lo, hi else "downto", hi, lo in
     F.fprintf fmt "@[<v>for %a = @[%a %s@ %a@] %a@]"
-      (pp_gvar_i pp_var) i (pp_ge pp_len pp_var pp_op) e1 dir (pp_ge pp_len pp_var pp_op) e2
-      (pp_cblock pp_info pp_len pp_opn pp_var pp_op) c
+      (pp_gvar_i pp_var) i (pp_ge pp_len pp_var) e1 dir (pp_ge pp_len pp_var) e2
+      (pp_cblock pp_info pp_len pp_opn pp_var) c
 
   | Cwhile(a, [], e, ((iloc, _), info), c) ->
     F.fprintf fmt "@[<v>%awhile %a(%a) %a@]"
       pp_align a
       pp_info (iloc, info)
-      (pp_ge pp_len pp_var pp_op) e
-      (pp_cblock pp_info pp_len pp_opn pp_var pp_op) c
+      (pp_ge pp_len pp_var) e
+      (pp_cblock pp_info pp_len pp_opn pp_var) c
 
   | Cwhile(a, c, e, ((iloc, _), info), []) ->
     F.fprintf fmt "@[<v>%awhile %a %a(%a)@]"
       pp_align a
-      (pp_cblock pp_info pp_len pp_opn pp_var pp_op) c
+      (pp_cblock pp_info pp_len pp_opn pp_var) c
       pp_info (iloc, info)
-      (pp_ge pp_len pp_var pp_op) e
+      (pp_ge pp_len pp_var) e
 
   | Cwhile(a, c, e, ((iloc, _), info), c') ->
     F.fprintf fmt "@[<v>%awhile %a %a(%a) %a@]"
       pp_align a
-      (pp_cblock pp_info pp_len pp_opn pp_var pp_op) c
+      (pp_cblock pp_info pp_len pp_opn pp_var) c
       pp_info (iloc, info)
-      (pp_ge pp_len pp_var pp_op) e
-      (pp_cblock pp_info pp_len pp_opn pp_var pp_op) c'
+      (pp_ge pp_len pp_var) e
+      (pp_cblock pp_info pp_len pp_opn pp_var) c'
 
   | Ccall(x, f, e) ->
     let pp_x fmt = function
       | [] -> ()
-      | x -> F.fprintf fmt "%a =@ " (pp_glvs pp_len pp_var pp_op) x in
+      | x -> F.fprintf fmt "%a =@ " (pp_glvs pp_len pp_var) x in
     F.fprintf fmt "@[<hov 2>%a%s(%a);@]"
-      pp_x x f.fn_name (pp_ges pp_len pp_var pp_op) e
+      pp_x x f.fn_name (pp_ges pp_len pp_var) e
 
 (* -------------------------------------------------------------------- *)
-and pp_gc pp_info pp_len pp_opn pp_var pp_op fmt c =
-  F.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_gi pp_info pp_len pp_opn pp_var pp_op)) c
+and pp_gc pp_info pp_len pp_opn pp_var fmt c =
+  F.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_gi pp_info pp_len pp_opn pp_var)) c
 
 (* -------------------------------------------------------------------- *)
-and pp_cblock pp_info pp_len pp_opn pp_var pp_op fmt c =
-  F.fprintf fmt "{@   %a@ }"  (pp_gc pp_info pp_len pp_opn pp_var pp_op) c
+and pp_cblock pp_info pp_len pp_opn pp_var fmt c =
+  F.fprintf fmt "{@   %a@ }"  (pp_gc pp_info pp_len pp_opn pp_var) c
 
 (* -------------------------------------------------------------------- *)
+let get_wint_annot v =
+  if Annotations.has_symbol "sint" v.v_annot then Some W.Signed
+  else if Annotations.has_symbol "uint" v.v_annot then Some W.Unsigned
+  else None
+
 let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
-  F.fprintf fmt "%a %a" pp_kind v.v_kind (pp_gtype pp_size) v.v_ty
+  let w = get_wint_annot v in
+  F.fprintf fmt "%a %a" pp_kind v.v_kind (pp_gtype ?w pp_size) v.v_ty
 
 let pp_var_decl pp_var pp_size fmt v =
   F.fprintf fmt "%a %a" (pp_ty_decl pp_size) v pp_var v
@@ -232,7 +224,7 @@ let pp_call_conv fmt =
   | FInfo.Internal -> Format.fprintf fmt "inline@ "
   | FInfo.Subroutine _ -> ()
 
-let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var pp_op fmt fd =
+let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_size in
   let pp_locals fmt fd =
     let seen = ref Spv.empty in
@@ -250,39 +242,40 @@ let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var pp_op f
     F.fprintf fmt "return @[(%a)@];"
       (pp_list ",@ " pp_var) ret in
 
+
   F.fprintf fmt "@[<v>%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
    pp_call_conv fd.f_cc
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_size)) ret
    pp_locals fd
-   (pp_gc pp_info pp_size pp_opn pp_var pp_op) fd.f_body
+   (pp_gc pp_info pp_size pp_opn pp_var) fd.f_body
    pp_ret ()
 
 let pp_noinfo _ _ = ()
 
-let pp_gexpr pp_len pp_var pp_op fmt = function
-  | GEword e -> pp_ge pp_len pp_var pp_op fmt e
-  | GEarray es -> Format.fprintf fmt "{@[%a@]}" (pp_ges pp_len pp_var pp_op) es
+let pp_gexpr pp_len pp_var fmt = function
+  | GEword e -> pp_ge pp_len pp_var fmt e
+  | GEarray es -> Format.fprintf fmt "{@[%a@]}" (pp_ges pp_len pp_var) es
 
-let pp_pitem pp_len pp_opn pp_var pp_op =
+let pp_pitem pp_len pp_opn pp_var =
   let aux fmt = function
-   | MIfun fd -> pp_gfun pp_noinfo pp_len pp_opn pp_var pp_op fmt fd
+   | MIfun fd -> pp_gfun pp_noinfo pp_len pp_opn pp_var fmt fd
    | MIparam (x,e) ->
       F.fprintf fmt "%a = %a;"
         (pp_var_decl pp_var pp_len) x
-        (pp_ge pp_len pp_var pp_op) e
+        (pp_ge pp_len pp_var) e
    | MIglobal (x, e) ->
       F.fprintf fmt "%a %a = %a;"
         (pp_gtype pp_len) x.v_ty
         pp_var x
-        (pp_gexpr pp_len pp_var pp_op) e
+        (pp_gexpr pp_len pp_var) e
  in
   aux
 
 let pp_pvar fmt x = F.fprintf fmt "%s" x.v_name
 
-let rec pp_pexpr fmt e = pp_ge pp_pexpr_ pp_pvar pp_eop fmt e
+let rec pp_pexpr fmt e = pp_ge pp_pexpr_ pp_pvar fmt e
 and pp_pexpr_ fmt (PE e) = pp_pexpr fmt e
 
 let pp_ptype = pp_gtype pp_pexpr_
@@ -299,17 +292,17 @@ let pp_eptype fmt ty =
         | Some sg -> if sg = Unsigned then "ui" else "si"
       in
       Format.fprintf fmt "%s%i" sg (int_of_ws sz)
-  | ETarr(ws, len) -> Format.fprintf fmt "%a[%a]" pp_btype (U ws) pp_pexpr_ len
+  | ETarr(ws, len) -> Format.fprintf fmt "%a[%a]" (pp_btype ?w:None) (U ws) pp_pexpr_ len
 
 
-let pp_plval = pp_glv pp_pexpr_ pp_pvar pp_eop
+let pp_plval = pp_glv pp_pexpr_ pp_pvar
 
 let pp_pprog pd asmOp fmt p =
   let pp_opn = pp_opn pd asmOp in
   Format.fprintf fmt "@[<v>%a@]"
-    (pp_list "@ @ " (pp_pitem pp_pexpr_ pp_opn pp_pvar pp_eop)) (List.rev p)
+    (pp_list "@ @ " (pp_pitem pp_pexpr_ pp_opn pp_pvar)) (List.rev p)
 
-let pp_fun_ ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var pp_op fmt fd =
+let pp_fun_ ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
   let pp_locals = Option.default (fun fmt -> Sv.iter (F.fprintf fmt "%a;@ " pp_vd)) pp_locals in
   let locals = locals fd in
@@ -324,11 +317,11 @@ let pp_fun_ ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var pp_op fmt fd =
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_len)) ret
    pp_locals locals
-   (pp_gc pp_info pp_len pp_opn pp_var pp_op) fd.f_body
+   (pp_gc pp_info pp_len pp_opn pp_var) fd.f_body
    pp_ret ()
 
 let pp_fun ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
-  pp_fun_ ?pp_locals ~pp_info pp_opn pp_var pp_op fmt fd
+  pp_fun_ ?pp_locals ~pp_info pp_opn pp_var fmt fd
 
 let pp_var ~debug =
     if debug then
@@ -343,36 +336,30 @@ let pp_dvar ~debug fmt x =
   F.fprintf fmt "%a%a" (pp_var ~debug) x pp_dloc x.v_dloc
 
 let pp_expr ~debug fmt e =
-  pp_ge pp_len (pp_var ~debug) pp_op fmt e
-
-let pp_eexpr ~debug fmt e =
-  pp_ge pp_len (pp_var ~debug) pp_eop fmt e
+  pp_ge pp_len (pp_var ~debug) fmt e
 
 let pp_lval ~debug fmt x =
-  pp_glv pp_len (pp_var ~debug) pp_op fmt x
-
-let pp_elval ~debug fmt x =
-  pp_glv pp_len (pp_var ~debug) pp_eop fmt x
+  pp_glv pp_len (pp_var ~debug) fmt x
 
 let pp_instr ~debug pd asmOp fmt i =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
-  pp_gi pp_noinfo pp_len pp_opn pp_var pp_op fmt i
+  pp_gi pp_noinfo pp_len pp_opn pp_var fmt i
 
 let pp_stmt ~debug pd asmOp fmt i =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
-  pp_gc pp_noinfo pp_len pp_opn pp_var pp_op fmt i
+  pp_gc pp_noinfo pp_len pp_opn pp_var fmt i
 
 let pp_ifunc ~debug pp_info pd asmOp fmt fd =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
-  pp_fun_ ~pp_info pp_opn pp_var pp_op fmt fd
+  pp_fun_ ~pp_info pp_opn pp_var fmt fd
 
 let pp_func ~debug pd asmOp fmt fd =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
-  pp_fun_ pp_opn pp_var pp_op fmt fd
+  pp_fun_ pp_opn pp_var fmt fd
 
 let pp_glob pp_var fmt (x, gd) =
   let pp_size fmt i = F.fprintf fmt "%i" i in
@@ -398,21 +385,14 @@ let pp_iprog ~debug pp_info pd asmOp fmt (gd, funcs) =
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
      (pp_globs pp_var) gd
-     (pp_list "@ @ " (pp_fun_ ~pp_info pp_opn pp_var pp_op)) (List.rev funcs)
+     (pp_list "@ @ " (pp_fun_ ~pp_info pp_opn pp_var)) (List.rev funcs)
 
-let pp_prog ~debug pd asmOp fmt ((gd, funcs):(E.sop1, E.sop2, 'info, 'asm) Prog.prog) =
+let pp_prog ~debug pd asmOp fmt ((gd, funcs):('info, 'asm) Prog.prog) =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
      (pp_globs pp_var) gd
-     (pp_list "@ @ " (pp_fun_ pp_opn pp_var pp_op)) (List.rev funcs)
-
-let pp_eprog ~debug pd asmOp fmt ((gd, funcs):('info, 'asm) Prog.eprog) =
-  let pp_opn = pp_opn pd asmOp in
-  let pp_var = pp_var ~debug in
-  Format.fprintf fmt "@[<v>%a@ %a@]"
-     (pp_globs pp_var) gd
-     (pp_list "@ @ " (pp_fun_ pp_opn pp_var pp_eop)) (List.rev funcs)
+     (pp_list "@ @ " (pp_fun_ pp_opn pp_var)) (List.rev funcs)
 
 let pp_to_save ~debug fmt (x, ofs) =
   Format.fprintf fmt "%a/%a" (pp_var ~debug) (Conv.var_of_cvar x) Z.pp_print (Conv.z_of_cz ofs)
@@ -459,7 +439,7 @@ let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
       (pp_return_address ~debug)  (f_extra.Expr.sf_return_address)
   in
   let pp_fun fmt (f_extra,f) =
-    Format.fprintf fmt "@[<v>%a@ %a@]" pp_f_extra f_extra (pp_fun_ pp_opn pp_var pp_op) f in
+    Format.fprintf fmt "@[<v>%a@ %a@]" pp_f_extra f_extra (pp_fun_ pp_opn pp_var) f in
   let pp_p_extra fmt p_extra =
     Format.fprintf fmt "global data:@    %a" pp_datas p_extra.Expr.sp_globs in
   Format.fprintf fmt "@[<v>%a@ %a@]"
@@ -485,7 +465,7 @@ let pp_err ~debug fmt (pp_e : Compiler_util.pp_error) =
       Format.fprintf fmt "%a" L.pp_loc loc
     | Compiler_util.PPElval x ->
        x |> Conv.lval_of_clval |>
-       pp_glv pp_len (pp_dvar ~debug) pp_op fmt
+       pp_glv pp_len (pp_dvar ~debug) fmt
     | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" fn.fn_name
     | Compiler_util.PPEiinfo ii ->
       let i_loc, _ = ii in

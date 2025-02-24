@@ -6,9 +6,17 @@ open Utils
 let parse_and_check arch call_conv =
   let module A = (val get_arch_module arch call_conv) in
   let check ~doit infer ct_list speculative pass file =
-    let prog = parse_and_compile (module A) pass file in
+    let prog = parse_and_compile (module A) ~wi2i:false pass file in
 
     if speculative then
+      let prog =
+        (* Ensure there are no spill/unspill operations left *)
+        if pass < Compiler.LowerSpill then
+          match Compile.do_spill_unspill A.asmOp prog with
+          | Ok p -> p
+          | Error err -> raise (HiError err)
+        else prog
+      in
       match Sct_checker_forward.ty_prog (A.is_ct_sopn ~doit) prog ct_list with
       | exception Annot.AnnotationError (loc, code) ->
           hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
@@ -27,6 +35,7 @@ let parse_and_check arch call_conv =
         hierror ~loc:(Lone loc) ~kind:"constant type checker" "%t" msg
       in
       Stdlib.Option.iter on_err errs
+
   in
   fun infer ct_list speculative compile file doit warn ->
     if not warn then nowarning ();

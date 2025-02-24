@@ -38,8 +38,11 @@ let string_of_cmp_kind = function
   | E.Cmp_w (sg, sz) -> asprintf " %d%s" (int_of_ws sz) (string_of_signess sg)
   | E.Cmp_int -> ""
 
+let string_of_w_cast sz =
+  asprintf "%dw" (int_of_ws sz)
+
 let string_of_op_kind = function
-  | E.Op_w ws -> asprintf "%du" (int_of_ws ws)
+  | E.Op_w ws -> string_of_w_cast ws
   | E.Op_int -> ""
 
 let string_of_div_kind sg = function
@@ -48,16 +51,58 @@ let string_of_div_kind sg = function
 
 (* -------------------------------------------------------------------- *)
 
-let string_of_op_w s ws =
-  asprintf "%s %du" s (int_of_ws ws)
+let string_of_w_ty ws = asprintf "w%d" (int_of_ws ws)
+
+let string_of_wi sg = asprintf "%si" (string_of_signess sg)
+let string_of_wi_ty sg ws = asprintf "%si%d" (string_of_signess sg) (int_of_ws ws)
+
+let string_of_int_cast sg =
+  asprintf "%sint" (string_of_signess sg)
+
+let string_of_wi_cast sg sz =
+  asprintf "%d%s" (int_of_ws sz) (string_of_wi sg)
+
+let string_of_wiop1 sg = function
+  | E.WIword_of_int sz ->
+      asprintf "(%s /* of int */)" (string_of_wi_cast sg sz)
+  | WIint_of_word sz ->
+      asprintf "(%s /* of %s */)" (string_of_int_cast sg) (string_of_wi_ty sg sz)
+  | WIword_of_wint sz ->
+      asprintf "(%s /* of %s */)" (string_of_w_cast sz) (string_of_wi_ty sg sz)
+  | WIwint_of_word sz ->
+      asprintf "(%s /* of %s */)" (string_of_wi_cast sg sz) (string_of_w_ty sz)
+  | WIword_ext(szo, _) ->
+      asprintf "(%s)" (string_of_wi_cast sg szo)
+  | WIneg sz ->
+      asprintf "-%s" (string_of_wi_cast sg sz)
 
 let string_of_op1 = function
-  | E.Oint_of_word (s, sz) -> asprintf "(%sint /* of u%d */)" (string_of_signess s) (int_of_ws sz)
+  | E.Oint_of_word (s, sz) ->
+      asprintf "(%s /* of %s */)" (string_of_int_cast s) (string_of_w_ty sz)
   | E.Osignext (szo, _) -> asprintf "(%ds)" (int_of_ws szo)
   | E.Oword_of_int szo | E.Ozeroext (szo, _) -> asprintf "(%du)" (int_of_ws szo)
-  | E.Olnot w -> string_of_op_w "!" w
+  | E.Olnot sz ->
+      asprintf "!%s" (string_of_w_cast sz)
   | E.Onot -> "!"
   | E.Oneg k -> "-" ^ string_of_op_kind k
+  | E.Owi1(sg, o) -> string_of_wiop1 sg o
+
+let string_of_wiop2 sg sz = function
+  | E.WIadd -> "+" ^ string_of_wi_cast sg sz
+  | E.WImul -> "*" ^ string_of_wi_cast sg sz
+  | E.WIsub -> "-" ^ string_of_wi_cast sg sz
+  | E.WIdiv -> "/" ^ string_of_wi_cast sg sz
+  | E.WImod -> "%" ^ string_of_wi_cast sg sz
+
+  | E.WIshr -> ">>" ^ string_of_wi_cast sg sz
+  | E.WIshl -> "<<" ^ string_of_wi_cast sg sz
+
+  | E.WIeq  -> "==" ^ string_of_wi_cast sg sz
+  | E.WIneq -> "!=" ^ string_of_wi_cast sg sz
+  | E.WIlt  -> "<"  ^ string_of_wi_cast sg sz
+  | E.WIle  -> "<=" ^ string_of_wi_cast sg sz
+  | E.WIgt  -> ">"  ^ string_of_wi_cast sg sz
+  | E.WIge  -> ">=" ^ string_of_wi_cast sg sz
 
 let string_of_op2 = function
   | E.Obeq -> "=="
@@ -68,15 +113,15 @@ let string_of_op2 = function
   | E.Osub k -> "-" ^ string_of_op_kind k
   | E.Odiv(s, k) -> "/" ^ string_of_div_kind s k
   | E.Omod(s, k) -> "%" ^ string_of_div_kind s k
-  | E.Oland w -> string_of_op_w "&" w
-  | E.Olor w -> string_of_op_w "|" w
-  | E.Olxor w -> string_of_op_w "^" w
-  | E.Olsr w -> string_of_op_w ">>" w
+  | E.Oland w -> "&"  ^ string_of_w_cast w
+  | E.Olor  w -> "|"  ^ string_of_w_cast w
+  | E.Olxor w -> "^"  ^ string_of_w_cast w
+  | E.Olsr  w -> ">>" ^ string_of_w_cast w
   | E.Olsl k -> "<<" ^ string_of_op_kind k
   | E.Oasr E.Op_int -> ">>s"
   | E.Oasr (E.Op_w w) -> asprintf ">>%ds" (int_of_ws w)
-  | E.Oror w -> string_of_op_w ">>r" w
-  | E.Orol w -> string_of_op_w "<<r" w
+  | E.Oror w -> ">>r " ^ string_of_w_cast w
+  | E.Orol w -> "<<r " ^ string_of_w_cast w
   | E.Oeq k -> "==" ^ string_of_op_kind k
   | E.Oneq k -> "!=" ^ string_of_op_kind k
   | E.Olt k -> "<" ^ string_of_cmp_ty k
@@ -89,70 +134,7 @@ let string_of_op2 = function
   | Ovlsr (ve, ws) -> asprintf ">>%s" (string_of_velem Unsigned ws ve)
   | Ovasr (ve, ws) -> asprintf ">>%s" (string_of_velem Unsigned ws ve)
   | Ovlsl (ve, ws) -> asprintf "<<%s" (string_of_velem Signed ws ve)
-
-let string_of_wk wk sg =
-  match wk with
-  | E.EO.Word -> string_of_signess sg
-  | E.EO.WInt -> asprintf "%si" (string_of_signess sg)
-
-let string_of_wk_ty wk sg ws =
-  match wk with
-  | E.EO.Word -> asprintf "u%d" (int_of_ws ws)
-  | E.EO.WInt -> asprintf "%si%d" (string_of_signess sg) (int_of_ws ws)
-
-let string_of_wk_cast wk sg ws =
-  match wk with
-  | E.EO.Word -> asprintf "%d%s" (int_of_ws ws) (string_of_signess sg)
-  | E.EO.WInt -> asprintf "%d%si" (int_of_ws ws) (string_of_signess sg)
-
-let string_of_eop_kind = function
-  | E.EO.Op_w(wk, sg, ws) -> string_of_wk_cast wk sg ws
-  | E.EO.Op_int -> ""
-
-let string_of_eop1 = function
-  | E.EO.Oword_of_int (wk, sg, ws) -> asprintf "(%d%s)" (int_of_ws ws) (string_of_wk wk sg)
-  | Oint_of_word(wk, sg, ws) -> asprintf "(%sint /* of %s */)" (string_of_signess sg) (string_of_wk_ty wk sg ws)
-  | Oword_of_wint(sg, ws) ->  asprintf "(%s /* of %s */)" (string_of_wk_cast E.EO.Word sg ws) (string_of_wk_ty E.EO.WInt sg ws)
-  | Owint_of_word(sg, ws) ->  asprintf "(%s /* of %s */)" (string_of_wk_cast E.EO.WInt sg ws) (string_of_wk_ty E.EO.Word sg ws)
-  | Oword_ext(wk, sg, szo, _) -> asprintf "(%s)" (string_of_wk_cast wk sg szo)
-  | Onot -> string_of_op1 E.Onot
-  | Olnot sz -> string_of_op1 (E.Olnot sz)
-  | Oneg k ->  "-" ^ string_of_eop_kind k
-
-let string_of_ediv_kind sg k =
-  match k with
-  | E.EO.Op_int -> string_of_signess sg
-  | _ -> string_of_eop_kind k
-
-let string_of_eop2 = function
-  | E.EO.Obeq -> string_of_op2 E.Obeq
-  | Oand -> string_of_op2 E.Oand
-  | Oor  -> string_of_op2 E.Oor
-  | Oadd k -> "+" ^ string_of_eop_kind k
-  | Omul k -> "*" ^ string_of_eop_kind k
-  | Osub k -> "-" ^ string_of_eop_kind k
-  | Odiv (sg, k) -> "/" ^ string_of_ediv_kind sg k
-  | Omod (sg, k) -> "%" ^ string_of_ediv_kind sg k
-  | Oland sz -> string_of_op2 (E.Oland sz)
-  | Olor sz -> string_of_op2 (E.Olor sz)
-  | Olxor sz -> string_of_op2 (E.Olxor sz)
-  | Oshl k -> "<<" ^ string_of_eop_kind k
-  | Oshr k -> ">>" ^ string_of_eop_kind k
-  | Oror sz -> string_of_op2 (E.Oror sz)
-  | Orol sz -> string_of_op2 (E.Orol sz)
-  | Oeq k -> "==" ^ string_of_eop_kind k
-  | Oneq k -> "!=" ^ string_of_eop_kind k
-  | Olt k -> "<" ^ string_of_eop_kind k
-  | Ole k -> "<=" ^ string_of_eop_kind k
-  | Ogt k -> ">" ^ string_of_eop_kind k
-  | Oge k -> ">=" ^ string_of_eop_kind k
-  | Ovadd (ve, sz) -> string_of_op2 (E.Ovadd (ve, sz))
-  | Ovsub (ve, sz) -> string_of_op2 (E.Ovsub (ve, sz))
-  | Ovmul (ve, sz) -> string_of_op2 (E.Ovmul (ve, sz))
-  | Ovlsr (ve, sz) -> string_of_op2 (E.Ovlsr (ve, sz))
-  | Ovlsl (ve, sz) -> string_of_op2 (E.Ovlsl (ve, sz))
-  | Ovasr (ve, sz) -> string_of_op2 (E.Ovasr (ve, sz))
-
+  | Owi2(sg, ws, o) -> string_of_wiop2 sg ws o
 
 (* -------------------------------------------------------------------- *)
 let pp_opn pd asmOp fmt o = pp_string fmt (Sopn.string_of_sopn pd asmOp o)
@@ -182,15 +164,20 @@ let pp_kind fmt = function
   | Global -> fprintf fmt "global"
 
 (* -------------------------------------------------------------------- *)
-let pp_btype fmt = function
+let w_of_signedess = function
+  | None                -> "w"
+  | Some Wsize.Signed   -> "si"
+  | Some Wsize.Unsigned -> "ui"
+
+let pp_btype ?w fmt = function
   | Bool -> fprintf fmt "bool"
-  | U i -> fprintf fmt "u%i" (int_of_ws i)
+  | U i -> fprintf fmt "%s%i" (w_of_signedess w) (int_of_ws i)
   | Int -> fprintf fmt "int"
 
 (* -------------------------------------------------------------------- *)
-let pp_gtype (pp_size : formatter -> 'size -> unit) fmt = function
-  | Bty ty -> pp_btype fmt ty
-  | Arr (ws, e) -> fprintf fmt "%a[%a]" pp_btype (U ws) pp_size e
+let pp_gtype ?w (pp_size : formatter -> 'size -> unit) fmt = function
+  | Bty ty -> pp_btype ?w fmt ty
+  | Arr (ws, e) -> fprintf fmt "%a[%a]" (pp_btype ?w:None) (U ws) pp_size e
 
 (* -------------------------------------------------------------------- *)
 let pp_arr_access pp_gvar pp_expr fmt al aa ws x e =
@@ -198,12 +185,12 @@ let pp_arr_access pp_gvar pp_expr fmt al aa ws x e =
     pp_gvar x
     (if aa = Warray_.AAdirect then "." else "")
     pp_aligned al
-    pp_btype (U ws) pp_expr e
+    (pp_btype ?w:None) (U ws) pp_expr e
 
 let pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len =
   fprintf fmt "%a%s[%a %a : %a]" pp_gvar x
     (if aa = Warray_.AAdirect then "." else "")
-    pp_btype (U ws) pp_expr e pp_len len
+    (pp_btype ?w:None) (U ws) pp_expr e pp_len len
 
 (* -------------------------------------------------------------------- *)
 let pp_len fmt len = fprintf fmt "%i" len

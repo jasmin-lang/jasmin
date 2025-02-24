@@ -35,7 +35,7 @@ let parse () =
   | infile :: s :: _ -> raise CLI_errors.(CLIerror (RedundantInputFile (infile, s)))
 
 (* -------------------------------------------------------------------- *)
-let check_safety_p pd asmOp analyze s (p : (E.sop1, E.sop2, _, 'asm) Prog.prog) source_p =
+let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
   let () = if SafetyConfig.sc_print_program () then
       let s1,s2 = Glob_options.print_strings s in
       Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
@@ -65,9 +65,9 @@ module type ArchCoreWithAnalyze = sig
   val analyze :
     Wsize.wsize ->
     (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op Sopn.asmOp ->
-    (E.sop1, E.sop2, unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) func ->
-    (E.sop1, E.sop2, unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) func ->
-    (E.sop1, E.sop2, unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) prog -> unit
+    (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) func ->
+    (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) func ->
+    (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) prog -> unit
 end
 
 
@@ -176,7 +176,7 @@ let main () =
         eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p
       ) in
 
-     eprint Compiler.ParamsExpansion (Printer.pp_eprog ~debug:true Arch.reg_size Arch.asmOp) prog;
+     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) prog;
 (*    visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog; *)
 
 (* FIXME *)
@@ -225,7 +225,7 @@ let main () =
                | Utils0.Error err -> raise (Evaluator.Eval_error (ii, err)))
               |> Evaluator.run
                    (module Arch)
-                   (Expr.to_eprog Arch.asmOp cprog)
+                   (Expr.to_uprog Arch.asmOp cprog)
                    ii f []
             in
 
