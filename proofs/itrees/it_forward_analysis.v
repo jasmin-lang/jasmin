@@ -731,6 +731,23 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma Csyscall_transl_eqit ii xs0 xs1 sc0 sc1 es0 es1
+ (H : eqit eq true true (tr_lvals xs0) (Ret xs1))
+ (H0 : eqit eq true true (tr_sysc sc0) (Ret sc1))
+ (H1 : eqit eq true true (tr_exprs es0) (Ret es1)) :
+  eqit eq true true (Tr_instr (MkI ii (Csyscall xs0 sc0 es0)))
+                (Csyscall_transl ii xs1 sc1 es1).
+Proof. 
+  unfold Tr_instr; simpl; eauto.
+  setoid_rewrite H.
+  setoid_rewrite bind_ret_l.
+  setoid_rewrite H0.
+  setoid_rewrite bind_ret_l.
+  setoid_rewrite H1.
+  setoid_rewrite bind_ret_l.
+  reflexivity.
+Qed.
+
 Lemma Copn_transl_eqit ii xs0 xs1 tg op0 op1 es0 es1
  (H : eqit eq true true (tr_lvals xs0) (Ret xs1))
  (H0 : eqit eq true true (tr_opn op0) (Ret op1)) 
@@ -899,14 +916,14 @@ Proof.
     destruct H4 as [e0 [H4 H5]].  
     eapply eutt_Ret in H1; inv H1.
     eapply eutt_Ret in H2; inv H2.
-    
+
+    setoid_rewrite app_nil_r. 
     eapply interp_mrec_rutt
       with (RPreInv := @TR_D) (RPostInv := @VR_D); simpl.
 
     { intros; eapply denote_cstate_rutt; eauto. }
    
-    { setoid_rewrite app_nil_r.
-      setoid_rewrite <- it_unit_elim.
+    { setoid_rewrite <- it_unit_elim.
       setoid_rewrite bind_ret_r.
       setoid_rewrite <- Cassgn_transl_eqit in H5; eauto.
       eapply instr_transl_hyp in H5; eauto.
@@ -930,19 +947,49 @@ Proof.
     eapply eutt_Ret in H1; inv H1.
     eapply eutt_Ret in H2; inv H2.
     
+    setoid_rewrite app_nil_r.
     eapply interp_mrec_rutt
       with (RPreInv := @TR_D) (RPostInv := @VR_D); simpl.
 
     { intros; eapply denote_cstate_rutt; eauto. }
 
-    { setoid_rewrite app_nil_r.
-      setoid_rewrite <- it_unit_elim.
+    { setoid_rewrite <- it_unit_elim.
       setoid_rewrite bind_ret_r.     
       setoid_rewrite <- Copn_transl_eqit in H6; eauto.
       eapply instr_transl_hyp in H6; eauto.
     }
   }
-    
+
+  { (* Csyscall case *)
+    unfold Tr_cmd_rel; simpl; intros xs0 sc0 es0 ii c2 H.
+  
+    symmetry in H.
+    eapply eqit_inv_bind_ret in H.
+    destruct H as [c3 [H0 H1]].   
+    eapply eqit_inv_bind_ret in H1.
+    destruct H1 as [c0 [H1 H2]].
+    eapply eqit_inv_bind_ret in H0.
+    destruct H0 as [xs1 [H3 H4]].
+    eapply eqit_inv_bind_ret in H4.
+    destruct H4 as [sc1 [H4 H5]].
+    eapply eqit_inv_bind_ret in H5.
+    destruct H5 as [es1 [H5 H6]].      
+    eapply eutt_Ret in H1; inv H1.
+    eapply eutt_Ret in H2; inv H2.
+
+    setoid_rewrite app_nil_r. 
+    eapply interp_mrec_rutt
+      with (RPreInv := @TR_D) (RPostInv := @VR_D); simpl.
+
+    { intros; eapply denote_cstate_rutt; eauto. }
+
+    { setoid_rewrite <- it_unit_elim.
+      setoid_rewrite bind_ret_r.     
+      setoid_rewrite <- Csyscall_transl_eqit in H6; eauto.
+      eapply instr_transl_hyp in H6; eauto.
+    }
+  }
+
 Admitted.
   
 
