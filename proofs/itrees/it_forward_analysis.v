@@ -296,46 +296,6 @@ Fixpoint Tr_ir (ii: instr_info) (i : instr_r) : itree E2 cmd :=
 Local Notation Tr_instr := (Tr_i Tr_ir).
 Local Notation Tr_cmd c := (mapC Tr_instr c).
 
-(*
-(* the translation is set to preserve events *)
-Fixpoint Tr_ir (ii: instr_info) (i : instr_r) : itree E2 cmd :=
-  let R := Tr_i Tr_ir in 
-  match i with
-  | Cassgn x tg ty e =>
-      x' <- tr_lval x ;; e' <- tr_expr e ;;
-      Cassgn_transl ii x' tg ty e'
-  | Copn xs tg o es =>
-      xs' <- tr_lvals xs ;;
-      o' <- tr_opn o ;;
-      es' <- tr_exprs es ;;
-      Copn_transl ii xs' tg o' es'
-  | Csyscall xs sc es =>
-      xs' <- tr_lvals xs ;;
-      sc' <- tr_sysc sc ;;
-      es' <- tr_exprs es ;;
-      Csyscall_transl ii xs' sc' es'
-  | Cif e c1 c2 => 
-      e' <- tr_expr e ;;
-      c1' <- mapC R c1 ;;
-      c2' <- mapC R c2 ;;
-      Cif_transl ii e' c1' c2' 
-  | Cfor i rg c =>
-      c' <- mapC R c ;;
-      Cfor_transl ii i rg c'                     
-  | Cwhile a c1 e c2 =>
-      c1' <- mapC R c1 ;;
-      e' <- tr_expr e ;;
-      c2' <- mapC R c2 ;;
-      Cwhile_transl ii a c1' e' c2'
-  | Ccall xs fn es =>
-      xs' <- tr_lvals xs ;;
-      es' <- tr_exprs es ;;
-      Ccall_transl ii xs' fn es'
-  end.
-Local Notation Tr_instr := (Tr_i Tr_ir).
-Local Notation Tr_cmd c := (mapC Tr_instr c).
-*)
-
 Definition Tr_FunDef (f: FunDef) : itree E2 FunDef :=
   match f with
   | MkFun i tyin p_xs c tyout r_xs xtr =>
@@ -360,11 +320,6 @@ Definition Tr_opn_rel (o1 o2: sopn) : Prop :=
 Definition Tr_sysc_rel (s1 s2: syscall_t) : Prop :=
   eutt eq (ret s2) (tr_sysc s1).
 
-(*
-Definition Tr_ir_rel (i1 i2: instr_r) : Prop :=
-  eutt eq (ret i2) (Tr_ir i1).
-*)
-
 Definition Tr_cmd_rel (c1 c2: cmd) : Prop :=
   eutt eq (ret c2) (Tr_cmd c1).
 
@@ -387,30 +342,6 @@ Definition TR_D {T1 T2} (d1 : CState T1)
 hence trivial) *)
 Definition VR_D {T1 T2}
   (d1 : CState T1) (t1: T1) (d2 : CState T2) (t2: T2) : Prop := tt = tt.
-
-(*
-Definition VR_D {T1 T2}
-  (d1 : CState T1) (t1: T1) (d2 : CState T2) (t2: T2) : Prop := True.
-*)
-(*
-Definition VR_D' {T1 T2}
-  (d1 : CState T1) (t1: T1) (d2 : CState T2) (t2: T2) : Prop :=
-  match ((T1 = unit) * (T2 = unit)) with
-  | (eq_refl, eq_refl) => tt = tt end.
-                                 
-  end.             
-*)
-(*                 
-Definition VR_D' {T1 T2}
-  (d1 : CState T1) (t1: T1) (d2 : CState T2) (t2: T2) : Prop :=
-  match T1 = unit with
-  | _ => match T2 = unit with
-             | _ => tt = tt
-             end
-  end.             
-
-Print VR_D'.                 
-*)
 
 
 (*********************************************************************)
@@ -494,13 +425,6 @@ Qed.
 Definition FI1_MR :
   FIso (CState +' E1) ((CState +' E0) +' ErrState) :=
   FIso_MR CState FI1.
-
-(*
-(* type family isomorphism for mutually recursive events *)
-Definition FI1_MR (FI: FIso (E0 +' ErrState) E1) :
-  FIso ((CState +' E0) +' ErrState) (CState +' E1) :=
-  FIsoTrans (FIsoRAssoc CState E0 ErrState) (FIsoSum (FIsoId CState) FI). 
-*)
 
 (* cutoff functions for mutually recursive events *)
 Notation EE1_MR := (ErrorCutoff FI1_MR).
@@ -613,40 +537,6 @@ Context (instr_transl_hyp: forall (i: instr_info) (i1: instr_r) (c1: cmd),
           (@denote_instr _ _ _ _ i1)
           (cmd_map_r (@denote_instr _ _ _ _) c1)).
 
-(*
-Lemma rutt_transl_denote_cmd_MM (cc: cmd) :
-  forall c2, Tr_cmd_rel cc c2 ->  
-    @rutt E1 E2 unit unit EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
-        (denote_cmd HasFunE1 HasInstrE1 cc)
-        (denote_cmd HasFunE2 HasInstrE2 c2).
-Proof.
-  intros.
-  unfold denote_cmd, mrec.
-  eapply  interp_mrec_rutt with (RPreInv:= @TR_D) (RPostInv:= @VR_D); eauto.
-  unfold denote_cstate; simpl.
-  unfold TR_D; simpl; intros.
-  destruct d1; destruct d2; try congruence; try auto with *.
-  (* notice that here we get the bit that cannot be fixed by induction *)
-  2: { unfold denote_fcall. simpl.
-       eapply rutt_bind.
-       (* here we are back in the case analysis situation *)
-*)       
-(*  
-Lemma instr_transl_hyp_L: forall (i: instr_info) (i1: instr_r) (c1: cmd),
-        eqit eq true true (Tr_instr (MkI i i1)) (Ret c1) ->
-        rutt EE1 EE2 (@TR_E E1 E2) (@VR_E E1 E2) eq
-        (denote_cmd HasFunE1 HasInstrE1 ([:: (MkI i i1)]))
-        (denote_cmd HasFunE2 HasInstrE2 c1).
-  intros.
-  unfold denote_cmd, mrec.
-  eapply interp_mrec_rutt with (RPreInv:= @TR_D) (RPostInv:= @VR_D); eauto.
-  unfold TR_D; simpl; intros.
-  destruct d1; destruct d2; try congruence.
-  unfold denote_cstate.
-  
-  setoid_rewrite 
-*)
-
 Lemma VR_D_eq_aux_lemma0 i i0 c c1 c2 :
   (fun v1 : unit => [eta VR_D (LCode (MkI i i0 :: c))
                        v1 (LCode (c1 ++ c2))]) = eq.
@@ -665,19 +555,6 @@ Proof.
   eapply functional_extensionality_dep; intro x0.
   destruct x; destruct x0; auto.
 Qed.  
-
-(*
-Lemma VR_D_eq_aux_lemma0 i i0 c c1 c2 :
-  (fun v1 : unit => [eta VR_D (FCall asmop xs f0 es) v1
-                           (FCall asmop xs0 f0 es0)]) = eq.
-           { unfold VR_D; simpl.
-             eapply functional_extensionality_dep; intro; eauto.
-             eapply functional_extensionality_dep; intro.
-             destruct x0.
-             destruct x1; auto.
-           }  
-           rewrite I3; auto.
-*)
 
 Lemma EE1_MR_eq : EE1_MR = EE_MR EE1 CState.
 Proof.
@@ -764,6 +641,24 @@ Proof.
   setoid_rewrite bind_ret_l.
   reflexivity.
 Qed.
+
+Lemma Cif_transl_eqit ii e0 e1 c0 c1 c2 c3
+ (H : eqit eq true true (tr_expr e0) (Ret e1)) 
+ (H0 : eqit eq true true (Tr_cmd c0) (Ret c1))
+ (H1 : eqit eq true true (Tr_cmd c2) (Ret c3)) :
+  eqit eq true true (Tr_instr (MkI ii (Cif e0 c0 c2)))
+    (Cif_transl ii e1 c1 c3).
+Proof. 
+  unfold Tr_instr; simpl; eauto.
+  setoid_rewrite H.
+  setoid_rewrite bind_ret_l.
+  setoid_rewrite H0.
+  setoid_rewrite bind_ret_l.
+  setoid_rewrite H1.
+  setoid_rewrite bind_ret_l.
+  reflexivity.
+Qed.
+
 
 Lemma map_denote_instr_lemma c (c0 : cmd) (H: ret c0 ≈ Tr_cmd c) :
   rutt (EE_MR EE1 CState) (EE_MR EE2 CState) (sum_prerel (@TR_D) (TR_E E1 E2))
@@ -990,6 +885,42 @@ Proof.
     }
   }
 
+  { (* Cif case *)
+    unfold Tr_cmd_rel; simpl. intros es0 c1 c2 IH1 IH2 ii c3 H.
+    
+    symmetry in H.
+    eapply eqit_inv_bind_ret in H.
+    destruct H as [c4 [H0 H1]].
+    eapply eqit_inv_bind_ret in H0.    
+    destruct H0 as [es1 [H3 H4]].    
+    eapply eqit_inv_bind_ret in H4.
+    destruct H4 as [c5 [H4 H5]].
+    eapply eqit_inv_bind_ret in H5.
+    destruct H5 as [c6 [H5 H6]].
+    setoid_rewrite bind_ret_l in H1.
+    eapply eutt_Ret in H1; inv H1.
+
+    setoid_rewrite app_nil_r. 
+    symmetry in H4, H5.
+    specialize (IH1 c5 H4).
+    specialize (IH2 c6 H5).
+
+    (* clear IH1 IH2. *)
+    
+    eapply interp_mrec_rutt
+      with (RPreInv := @TR_D) (RPostInv := @VR_D); simpl.
+
+    { intros; eapply denote_cstate_rutt; eauto. }
+
+    { setoid_rewrite <- it_unit_elim.
+      setoid_rewrite bind_ret_r.
+      symmetry in H4, H5.
+
+      setoid_rewrite <- Cif_transl_eqit in H6; eauto.
+      eapply instr_transl_hyp in H6; eauto.
+    }            
+  }
+    
 Admitted.
   
 
