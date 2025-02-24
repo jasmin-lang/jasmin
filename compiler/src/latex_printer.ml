@@ -22,9 +22,18 @@ let dname = latex "dname"
 let pannot = latex "annotation"
 let pprim = latex "primitive"
 let arrow = symbol "arrow"
+
 let sharp fmt () = F.fprintf fmt "\\#"
 let openbrace fmt () = F.fprintf fmt "\\{"
 let closebrace fmt () = F.fprintf fmt "\\}"
+let percent fmt () = F.fprintf fmt "\\%%"
+let dollar fmt () = F.fprintf fmt "\\$"
+let underscore fmt () = F.fprintf fmt "\\_"
+let tilde fmt () = F.fprintf fmt "\\textasciitilde{}"
+let caret fmt () = F.fprintf fmt "\\textasciicircum{}"
+let backslash fmt () = F.fprintf fmt "\\textbackslash{}"
+let quotesingle fmt () = F.fprintf fmt "\\textquotesingle{}"
+let quotedouble fmt () = F.fprintf fmt "\\textquotedbl{}"
 
 let indent fmt d = if d > 0 then latex "indent" fmt (string_of_int d)
 
@@ -35,6 +44,24 @@ let pp_opt p fmt =
 
 let pp_paren p fmt =
   F.fprintf fmt "(%a)" p
+
+let pp_string fmt s =
+  F.asprintf "%S" s |>
+  String.iter @@ function
+  | '\\' -> backslash fmt ()
+  | '\'' -> quotesingle fmt ()
+  | '"' -> quotedouble fmt ()
+  | '#' -> sharp fmt ()
+  | '{' -> openbrace fmt ()
+  | '}' -> closebrace fmt ()
+  | '%' -> percent fmt ()
+  | '$' -> dollar fmt ()
+  | '_' -> underscore fmt ()
+  | '~' -> tilde fmt ()
+  | '^' -> caret fmt ()
+  | c -> F.fprintf fmt "%c" c
+
+let pp_loc_string fmt s = L.unloc s |> pp_string fmt
 
 let pp_cc =
     pp_opt (fun fmt x -> F.fprintf fmt "%a " kw (match x with `Inline -> "inline" | `Export -> "export"))
@@ -139,7 +166,8 @@ let pp_aligned =
 let rec pp_simple_attribute fmt a =
   match L.unloc a with
   | Aint i -> Z.pp_print fmt i
-  | Aid s | Astring s -> pannot fmt s
+  | Aid s -> pannot fmt s
+  | Astring s -> pannot fmt (Format.asprintf "%a" pp_string s)
   | Aws ws -> Format.fprintf fmt "%a" ptype (string_of_wsize ws)
   | Astruct struct_ -> Format.fprintf fmt "(%a)" pp_struct_attribute struct_
 
@@ -375,13 +403,6 @@ let pp_fundef fmt { pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body ; pdf_anno
     pp_rty pdf_rty
     (pp_inbraces 0 pp_funbody) pdf_body
 
-let pp_string fmt s =
-  s |> L.unloc |> F.asprintf "%S" |> String.iter @@ function
-  | '\\' -> F.fprintf fmt "\\textbackslash{}"
-  | '\'' -> F.fprintf fmt "\\textquotesingle{}"
-  | '"' -> F.fprintf fmt "\\textquotedbl{}"
-  | c -> F.fprintf fmt "%c" c
-
 let pp_param fmt { ppa_ty ; ppa_name ; ppa_init } =
   F.fprintf fmt "%a %a %a = %a;"
     kw "param"
@@ -396,7 +417,7 @@ let pp_pgexpr fmt = function
       openbrace ()
       (pp_list ",@ " pp_expr) es
       closebrace ()
-  | GEstring e -> pp_string fmt e
+  | GEstring e -> pp_loc_string fmt e
 
 let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
   F.fprintf fmt "%a %a = %a;"
