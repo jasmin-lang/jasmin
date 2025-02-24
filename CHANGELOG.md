@@ -77,6 +77,11 @@
   [PR #1057](https://github.com/jasmin-lang/jasmin/pull/1057);
   fixes [#438](https://github.com/jasmin-lang/jasmin/issues/438)).
 
+- Fix LATEX printing of strings
+  ([PR #1063](https://github.com/jasmin-lang/jasmin/pull/1063),
+  [PR #1064](https://github.com/jasmin-lang/jasmin/pull/1064);
+  fixes [#1060](https://github.com/jasmin-lang/jasmin/issues/1060)).
+
 ## Other changes
 
 - Adding an annotation to function (`'info` type). Useful to store result of analysis. (see [[#1016](https://github.com/jasmin-lang/jasmin/issues/1016)])
