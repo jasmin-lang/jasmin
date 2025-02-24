@@ -109,6 +109,18 @@ Qed.
   
 End Identity_monad.  
 
+(** Auxiliary functions *)
+
+Lemma bind_list_expand2 E V (it: itree E (seq V)) : 
+  it ≈ ITree.bind it (fun x => ITree.bind (Ret [::])
+                                 (fun xs => Ret (x ++ xs))).
+Proof.  
+  setoid_rewrite bind_ret_l.
+  setoid_rewrite app_nil_r.
+  setoid_rewrite bind_ret_r.
+  reflexivity.
+Qed.
+
 
 Section Lang.
 
@@ -231,9 +243,9 @@ Context
   (Cif_transl : instr_info ->
     pexpr -> cmd -> cmd -> itree E2 cmd)
   (Cfor_transl : instr_info ->
-    var_i -> range -> cmd -> itree E2 cmd)  
+    var_i -> range -> cmd -> itree E2 (unit + cmd))  
   (Cwhile_transl : instr_info ->
-    align -> cmd -> pexpr -> cmd -> itree E2 cmd)
+    align -> cmd -> pexpr -> cmd -> itree E2 (unit + cmd))
   (Ccall_transl : instr_info ->
     lvals -> funname -> pexprs -> itree E2 cmd).
 
@@ -243,6 +255,48 @@ Local Notation tr_exprs es := (mapT tr_expr es).
 Definition Tr_i (Th: instr_info -> instr_r -> itree E2 cmd) (i: instr) :
   itree E2 cmd := match i with MkI ii ir => Th ii ir end.  
 
+(* the translation is set to preserve events *)
+Fixpoint Tr_ir (ii: instr_info) (i : instr_r) : itree E2 cmd :=
+  let R := Tr_i Tr_ir in 
+  match i with
+  | Cassgn x tg ty e =>
+      x' <- tr_lval x ;;
+      e' <- tr_expr e ;;
+      Cassgn_transl ii x' tg ty e'
+  | Copn xs tg o es =>
+      xs' <- tr_lvals xs ;;
+      o' <- tr_opn o ;;
+      es' <- tr_exprs es ;;
+      Copn_transl ii xs' tg o' es'
+  | Csyscall xs sc es =>
+      xs' <- tr_lvals xs ;;
+      sc' <- tr_sysc sc ;;
+      es' <- tr_exprs es ;;
+      Csyscall_transl ii xs' sc' es'
+  | Cif e c1 c2 => 
+      e' <- tr_expr e ;;
+      c1' <- mapC R c1 ;;
+      c2' <- mapC R c2 ;;
+      Cif_transl ii e' c1' c2' 
+  | Cfor i rg c =>
+      ITree.iter (fun _ => 
+         c' <- mapC R c ;;
+         Cfor_transl ii i rg c') tt                     
+  | Cwhile a c1 e c2 =>
+      ITree.iter (fun _ =>  
+         c1' <- mapC R c1 ;;
+         e' <- tr_expr e ;;
+         c2' <- mapC R c2 ;;
+         Cwhile_transl ii a c1' e' c2') tt
+  | Ccall xs fn es =>
+      xs' <- tr_lvals xs ;;
+      es' <- tr_exprs es ;;
+      Ccall_transl ii xs' fn es'
+  end.
+Local Notation Tr_instr := (Tr_i Tr_ir).
+Local Notation Tr_cmd c := (mapC Tr_instr c).
+
+(*
 (* the translation is set to preserve events *)
 Fixpoint Tr_ir (ii: instr_info) (i : instr_r) : itree E2 cmd :=
   let R := Tr_i Tr_ir in 
@@ -280,6 +334,7 @@ Fixpoint Tr_ir (ii: instr_info) (i : instr_r) : itree E2 cmd :=
   end.
 Local Notation Tr_instr := (Tr_i Tr_ir).
 Local Notation Tr_cmd c := (mapC Tr_instr c).
+*)
 
 Definition Tr_FunDef (f: FunDef) : itree E2 FunDef :=
   match f with
@@ -624,6 +679,137 @@ Lemma VR_D_eq_aux_lemma0 i i0 c c1 c2 :
            rewrite I3; auto.
 *)
 
+Lemma EE1_MR_eq : EE1_MR = EE_MR EE1 CState.
+Proof.
+  unfold EE1_MR, EE_MR.
+  eapply functional_extensionality_dep; intro.
+  eapply functional_extensionality_dep; intro.
+  remember x0 as x11.
+  dependent destruction x11.
+  setoid_rewrite FIso_MR_proj11; eauto.
+  unfold FI1_MR; eauto.
+  remember (mfun1 x e) as x2.
+  dependent destruction x2.             
+  setoid_rewrite FIso_MR_proj12; eauto.
+  2: { unfold FI1_MR. eauto. }
+  2: { unfold Error2false.
+       setoid_rewrite FIso_MR_proj12; eauto.
+       rewrite <- Heqx2; auto.
+       unfold FI1_MR; auto. }
+       rewrite <- Heqx2; eauto. 
+Qed.
+
+Lemma EE2_MR_eq : EE2_MR = EE_MR EE2 CState.
+Proof.  
+  unfold NoCutoff, EE_MR.
+  eapply functional_extensionality_dep; intro; eauto.
+  eapply functional_extensionality_dep; intro.
+  destruct x0; eauto.   
+Qed.
+
+Lemma it_unit_elim : forall E (it: itree E unit),
+               @eq_itree E unit unit eq
+                 (bind it (fun x0: unit => Ret x0))
+                 (bind it (fun _: unit => Ret tt)).
+Proof.  
+  intros; eapply eqit_bind' with (RR:=eq).
+  reflexivity.
+  intros [] [] []; reflexivity.
+Qed.
+
+Lemma Cassgn_transl_eqit ii x x0 tg ty e e0
+ (H : eqit eq true true (tr_lval x) (Ret x0))
+ (H0 : eqit eq true true (tr_expr e) (Ret e0)) :
+  eqit eq true true (Tr_instr (MkI ii (Cassgn x tg ty e)))
+                (Cassgn_transl ii x0 tg ty e0).
+Proof. 
+  unfold Tr_instr; simpl; eauto.
+  setoid_rewrite H.
+  setoid_rewrite bind_ret_l.
+  setoid_rewrite H0.
+  setoid_rewrite bind_ret_l.
+  reflexivity.
+Qed.
+
+Lemma Copn_transl_eqit ii xs0 xs1 tg op0 op1 es0 es1
+ (H : eqit eq true true (tr_lvals xs0) (Ret xs1))
+ (H0 : eqit eq true true (tr_opn op0) (Ret op1)) 
+ (H1 : eqit eq true true (tr_exprs es0) (Ret es1)) :
+  eqit eq true true (Tr_instr (MkI ii (Copn xs0 tg op0 es0)))
+    (Copn_transl ii xs1 tg op1 es1).
+Proof. 
+  unfold Tr_instr; simpl; eauto.
+  setoid_rewrite H.
+  setoid_rewrite bind_ret_l.
+  setoid_rewrite H0.
+  setoid_rewrite bind_ret_l.
+  setoid_rewrite H1.
+  setoid_rewrite bind_ret_l.
+  reflexivity.
+Qed.
+
+Lemma map_denote_instr_lemma c (c0 : cmd) (H: ret c0 ≈ Tr_cmd c) :
+  rutt (EE_MR EE1 CState) (EE_MR EE2 CState) (sum_prerel (@TR_D) (TR_E E1 E2))
+    (sum_postrel (@VR_D) (VR_E E1 E2))
+    (fun v1 : unit => [eta VR_D (LCode c) v1 (LCode c0)])
+    (cmd_map_r (denote_instr (Eff:=E1) HasInstrE1) c)
+    (cmd_map_r (denote_instr (Eff:=E2) HasInstrE2) c0).
+Proof.
+  revert H. revert c0.
+  induction c; simpl.
+
+  { simpl; intros c0 H; simpl in H.
+    eapply eutt_Ret in H.
+    inv H; simpl.
+    eapply rutt_Ret; unfold VR_D; auto.
+  }
+
+  simpl; intros c0 H.
+  destruct a.
+
+  symmetry in H.
+  eapply eqit_inv_bind_ret in H.
+  destruct H as [c1 [H0 H1]].
+  eapply eqit_inv_bind_ret in H1.
+  destruct H1 as [c2 [H2 H6]].
+  eapply eutt_Ret in H6; inv H6.
+
+  rewrite VR_D_eq_aux_lemma; eauto. 
+      
+  setoid_rewrite map_denote_instr_concat_lemma.
+        
+  eapply rutt_bind with (RR:=eq); eauto.
+        
+  symmetry in H2.
+  eapply IHc in H2.
+  rewrite VR_D_eq_aux_lemma in H2; eauto.
+Qed.
+
+Lemma denote_cstate_rutt (R1 R2 : Type) (d1 : CState R1) (d2 : CState R2)
+  (H: TR_D d1 d2) :
+  rutt (EE_MR EE1 CState) (EE_MR EE2 CState) (sum_prerel (@TR_D) (TR_E E1 E2))
+    (sum_postrel (@VR_D) (VR_E E1 E2)) (fun v1 : R1 => [eta VR_D d1 v1 d2])
+    (denote_cstate (Eff:=E1) HasFunE1 HasInstrE1 d1)
+    (denote_cstate (Eff:=E2) HasFunE2 HasInstrE2 d2).
+Proof.
+  remember d1 as dd1.
+  remember d2 as dd2.
+  unfold TR_D in H; destruct dd1.    
+  { destruct dd2; try intuition.
+    simpl; unfold Tr_cmd_rel in H.
+    eapply map_denote_instr_lemma; eauto.
+  }
+  { destruct dd2; try intuition.
+    inv H0; simpl. 
+    eapply rutt_transl_denote_fcall_MM
+             with (fn := f0) in H as K1; eauto.          
+    rewrite <- EE1_MR_eq.
+    rewrite <- EE2_MR_eq.
+    rewrite VR_D_eq_aux_lemma; eauto. 
+  }   
+Qed.
+
+
 (* proving rutt across the translation for all commands (here we need
 induction). was eutt_cmd_tr_L1 *)
 Lemma rutt_transl_denote_cmd_MM (cc: cmd) :
@@ -647,7 +833,6 @@ Proof.
                @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
                  (denote_cmd _ _ c)
                  (denote_cmd _ _ c2)).
-Proof.  
   revert cc; unfold Tr_cmd_rel.
   apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc. 
 
@@ -674,17 +859,7 @@ Proof.
     eapply H0 in H1.
 
     specialize (H ii).
-
-    assert (Tr_instr i ≈ ITree.bind (Tr_instr i)
-              (fun x' : cmd => ITree.bind (Ret [::])
-                   (fun xs' : cmd => Ret (x' ++ xs')))) as K1.
-    { setoid_rewrite bind_ret_l.
-      setoid_rewrite app_nil_r.
-      setoid_rewrite bind_ret_r.
-      reflexivity.
-    }
-
-    setoid_rewrite K1 in H3.
+    setoid_rewrite bind_list_expand2 at 2 in H3; eauto.    
     specialize (H H3).
     eapply rutt_bind with (RR := eq); auto.
   }
@@ -704,12 +879,8 @@ Proof.
     setoid_rewrite bind_ret_l in H.
     symmetry in H0.
 
-    assert ((Tr_ir ii ir) ≈ ITree.bind (Tr_ir ii ir)
-                    (fun x' : cmd => Ret x')) as K2.
-    { setoid_rewrite bind_ret_r; reflexivity. }
-    
     setoid_rewrite app_nil_r in H.
-    setoid_rewrite K2 in H0.
+    setoid_rewrite <- bind_ret_r at 2 in H0.
     setoid_rewrite app_nil_r.
     specialize (H H0); auto.
   }
@@ -729,114 +900,46 @@ Proof.
     eapply eutt_Ret in H1; inv H1.
     eapply eutt_Ret in H2; inv H2.
     
-    eapply interp_mrec_rutt with (RPreInv := @TR_D) (RPostInv := @VR_D).
-    
-    { intros R1 R2 d1 d2 H.
-      remember d1 as dd1.
-      remember d2 as dd2.
-      unfold TR_D in H; destruct dd1.
+    eapply interp_mrec_rutt
+      with (RPreInv := @TR_D) (RPostInv := @VR_D); simpl.
 
-      2: { destruct dd2; try intuition.
-           inv H0; simpl; clear X.
-
-           eapply rutt_transl_denote_fcall_MM
-             with (fn := f0) in H as K1; eauto.          
-
-           (* make lemma *)
-           assert (EE1_MR = EE_MR EE1 CState) as I1.  
-           { unfold EE1_MR, EE_MR.
-             eapply functional_extensionality_dep; intro.
-             eapply functional_extensionality_dep; intro.
-             remember x1 as x11.
-             dependent destruction x11.
-             setoid_rewrite FIso_MR_proj11; eauto.
-             unfold FI1_MR; eauto.
-             remember (mfun1 x0 e1) as x2.
-             dependent destruction x2.             
-             setoid_rewrite FIso_MR_proj12; eauto.
-             2: { unfold FI1_MR. eauto. }
-             2: { unfold Error2false.
-                  setoid_rewrite FIso_MR_proj12; eauto.
-                  rewrite <- Heqx2; auto.
-                  unfold FI1_MR; auto. }
-             rewrite <- Heqx2; eauto.
-           }
-           rewrite <- I1.
-
-           (* make lemma *)
-           assert (EE2_MR = EE_MR EE2 CState) as I2.
-           { unfold NoCutoff, EE_MR.
-             eapply functional_extensionality_dep; intro; eauto.
-             eapply functional_extensionality_dep; intro.
-             destruct x1; eauto.   
-           }
-           rewrite <- I2.
-
-           rewrite VR_D_eq_aux_lemma; eauto. 
-       }   
-     
-      destruct dd2; try intuition.
-      simpl; clear X; unfold Tr_cmd_rel in H.
-
-      clear Heqdd1 Heqdd2. 
-      
-      revert H. revert c0.
-      induction c; simpl.
-
-      { simpl; intros c0 H; simpl in H.
-        eapply eutt_Ret in H.
-        inv H; simpl.
-        eapply rutt_Ret; unfold VR_D; auto.
-      }
-
-      simpl; intros c0 H.
-      destruct a.
-
-      symmetry in H.
-      eapply eqit_inv_bind_ret in H.
-      destruct H as [c1 [H0 H1]].
-      eapply eqit_inv_bind_ret in H1.
-      destruct H1 as [c2 [H2 H6]].
-      eapply eutt_Ret in H6; inv H6.
-
-      rewrite VR_D_eq_aux_lemma; eauto. 
-      
-      setoid_rewrite map_denote_instr_concat_lemma.
-        
-      eapply rutt_bind with (RR:=eq); eauto.
-        
-      symmetry in H2.
-      eapply IHc in H2.
-      rewrite VR_D_eq_aux_lemma in H2; eauto.
-    }
-
-    { simpl.
-      setoid_rewrite app_nil_r.
-
-      assert ( forall E (it: itree E unit),
-               @eq_itree E unit unit eq
-                 (bind it (fun x0: unit => Ret x0))
-                 (bind it (fun _: unit => Ret tt))) as K1.
-      { intros.
-        eapply eqit_bind' with (RR:=eq).
-        reflexivity.
-        intros [] [] []; reflexivity.
-      }
-
-      setoid_rewrite <- K1.
+    { intros; eapply denote_cstate_rutt; eauto. }
+   
+    { setoid_rewrite app_nil_r.
+      setoid_rewrite <- it_unit_elim.
       setoid_rewrite bind_ret_r.
-
-      assert (eqit eq true true (Tr_instr (MkI ii (Cassgn x tg ty e)))
-                (Cassgn_transl ii v0 tg ty e0)) as K2.
-      { unfold Tr_instr; simpl; eauto.
-        setoid_rewrite H3.
-        setoid_rewrite bind_ret_l.
-        setoid_rewrite H4.
-        setoid_rewrite bind_ret_l.
-        reflexivity.
-      }
-      setoid_rewrite <- K2 in H5.
+      setoid_rewrite <- Cassgn_transl_eqit in H5; eauto.
       eapply instr_transl_hyp in H5; eauto.
+    }
+  }
+
+  { (* Copn case *)
+    unfold Tr_cmd_rel; simpl; intros xs0 tg op0 es0 ii c2 H.
+  
+    symmetry in H.
+    eapply eqit_inv_bind_ret in H.
+    destruct H as [c3 [H0 H1]].   
+    eapply eqit_inv_bind_ret in H1.
+    destruct H1 as [c0 [H1 H2]].
+    eapply eqit_inv_bind_ret in H0.
+    destruct H0 as [xs1 [H3 H4]].
+    eapply eqit_inv_bind_ret in H4.
+    destruct H4 as [op1 [H4 H5]].  
+    eapply eqit_inv_bind_ret in H5.
+    destruct H5 as [es1 [H5 H6]].  
+    eapply eutt_Ret in H1; inv H1.
+    eapply eutt_Ret in H2; inv H2.
+    
+    eapply interp_mrec_rutt
+      with (RPreInv := @TR_D) (RPostInv := @VR_D); simpl.
+
+    { intros; eapply denote_cstate_rutt; eauto. }
+
+    { setoid_rewrite app_nil_r.
+      setoid_rewrite <- it_unit_elim.
+      setoid_rewrite bind_ret_r.     
+      setoid_rewrite <- Copn_transl_eqit in H6; eauto.
+      eapply instr_transl_hyp in H6; eauto.
     }
   }
     
