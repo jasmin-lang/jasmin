@@ -12,80 +12,16 @@
   fixes [#503](https://github.com/jasmin-lang/jasmin/issues/503),
   [#698](https://github.com/jasmin-lang/jasmin/issues/698)).
 
-- ARM now emits two instructions instead of `ADR` to load the low and high
-  parts of global addresses
-  ([PR#921](https://github.com/jasmin-lang/jasmin/pull/921)).
-
 - Extraction to EasyCrypt can now be done after a given compilation pass using
   `--after` command-line argument
   ([PR#972](https://github.com/jasmin-lang/jasmin/pull/972)).
 
-- While instructions now have two pieces of information (including locations)
-  attached to them: one corresponding to the whole instruction, the other one
-  corresponding to the guard condition
-  ([PR #969](https://github.com/jasmin-lang/jasmin/pull/969),
-  [PR #1015](https://github.com/jasmin-lang/jasmin/pull/1015);
-  fixes [#902](https://github.com/jasmin-lang/jasmin/issues/902)).
-
-- Add support for x86 `VPABS` instructions
-  ([PR #1009](https://github.com/jasmin-lang/jasmin/pull/1009);
-  fixes [#1008](https://github.com/jasmin-lang/jasmin/issues/1008)).
-
-- Add support for x86 `VBLENDVPS` and `VBLENDVPD` instructions, through the new
-  intrinsics `#BLENDV` which also maps to the `VPBLENDVB` instruction;
-  therefore old intrinsic `#VPBLENDVB` is deprecated
-  ([PR #1010](https://github.com/jasmin-lang/jasmin/pull/1010)).
-
-- Add an option to treat some pre-typing error as warning instead. 
-  ([PR #1023](https://github.com/jasmin-lang/jasmin/pull/1023))
-
-- Add support for x86 `VPSIGN` instructions
-  ([PR #1030](https://github.com/jasmin-lang/jasmin/pull/1030);
-  fixes [#1029](https://github.com/jasmin-lang/jasmin/issues/1029)).
-
-- Extraction as EasyCrypt code targets version 2025.02
-  ([PR #1046](https://github.com/jasmin-lang/jasmin/pull/1046)).
-
 ## Bug fixes
-
-- Fix EasyCrypt semantics of shift operators
-  ([PR#973](https://github.com/jasmin-lang/jasmin/pull/973),
-  [PR#1001](https://github.com/jasmin-lang/jasmin/pull/1001)).
 
 - Fix EC extraction in case on nested loops
   ([PR #971](https://github.com/jasmin-lang/jasmin/pull/971)).
 
-- The speculative constant-time checker rejects more programs, considering that
-  different source-level local variables may be merged during the compilation
-  process
-  ([PR#989](https://github.com/jasmin-lang/jasmin/pull/989)).
-
-- Incorrect printing of line information in register allocation has been removed
-  ([PR #1027](https://github.com/jasmin-lang/jasmin/pull/1027);
-  fixes [#1026](https://github.com/jasmin-lang/jasmin/issues/1026)).
-
-- Compiler now enforces coherence between function storage type and return variable storage type
-  ([PR#1028](https://github.com/jasmin-lang/jasmin/pull/1028);
-  fixes [#18](https://github.com/jasmin-lang/jasmin/issues/18)).
-
-- Fix allocation of dead stack variables
-  ([PR #1044](https://github.com/jasmin-lang/jasmin/pull/1044);
-  fixes [#680](https://github.com/jasmin-lang/jasmin/issues/680)).
-
-- Fix printing of x86 `CLFLUSH` and `PREFETCH` instructions in “Intel” syntax
-  ([PR #1054](https://github.com/jasmin-lang/jasmin/pull/1054),
-  [PR #1057](https://github.com/jasmin-lang/jasmin/pull/1057);
-  fixes [#438](https://github.com/jasmin-lang/jasmin/issues/438)).
-
-- Fix LATEX printing of strings
-  ([PR #1063](https://github.com/jasmin-lang/jasmin/pull/1063),
-  [PR #1064](https://github.com/jasmin-lang/jasmin/pull/1064);
-  fixes [#1060](https://github.com/jasmin-lang/jasmin/issues/1060)).
-
 ## Other changes
-
-- Adding an annotation to function (`'info` type). Useful to store result of analysis. (see [[#1016](https://github.com/jasmin-lang/jasmin/issues/1016)])
-- ([PR#1021](https://github.com/jasmin-lang/jasmin/issues/1021))
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
   ([PR #869](https://github.com/jasmin-lang/jasmin/pull/869)).
@@ -103,6 +39,82 @@
   [PR #995](https://github.com/jasmin-lang/jasmin/pull/995)),
   [PR #1047](https://github.com/jasmin-lang/jasmin/pull/1047)).
 
+- The printer to LATEX shows a comment informing about jasmin.sty support file
+  ([PR #976](https://github.com/jasmin-lang/jasmin/pull/976) and
+  [PR #986](https://github.com/jasmin-lang/jasmin/pull/986)).
+
+- Deprecate the `-I` `jasminc` flag in favor of the `JASMINPATH` environment
+  variable
+  ([PR #1061](https://github.com/jasmin-lang/jasmin/pull/1061)).
+
+# Jasmin 2024.07.3 — Nancy, 2025-02-25
+
+## New features
+
+- ARM now emits two instructions instead of `ADR` to load the low and high
+  parts of global addresses
+  ([PR#921](https://github.com/jasmin-lang/jasmin/pull/921)).
+
+- While instructions now have two pieces of information (including locations)
+  attached to them: one corresponding to the whole instruction, the other one
+  corresponding to the guard condition
+  ([PR #969](https://github.com/jasmin-lang/jasmin/pull/969),
+  [PR #1015](https://github.com/jasmin-lang/jasmin/pull/1015);
+  fixes [#902](https://github.com/jasmin-lang/jasmin/issues/902)).
+
+- Add support for x86 `VPABS` instructions
+  ([PR #1009](https://github.com/jasmin-lang/jasmin/pull/1009);
+  fixes [#1008](https://github.com/jasmin-lang/jasmin/issues/1008)).
+
+- Add support for x86 `VBLENDVPS` and `VBLENDVPD` instructions, through the new
+  intrinsics `#BLENDV` which also maps to the `VPBLENDVB` instruction;
+  therefore old intrinsic `#VPBLENDVB` is deprecated
+  ([PR #1010](https://github.com/jasmin-lang/jasmin/pull/1010)).
+
+- Add support for x86 `VPSIGN` instructions
+  ([PR #1030](https://github.com/jasmin-lang/jasmin/pull/1030);
+  fixes [#1029](https://github.com/jasmin-lang/jasmin/issues/1029)).
+
+- Extraction as EasyCrypt code targets version 2025.02
+  ([PR #1046](https://github.com/jasmin-lang/jasmin/pull/1046)).
+
+## Bug fixes
+
+- Fix EasyCrypt semantics of shift operators
+  ([PR#973](https://github.com/jasmin-lang/jasmin/pull/973),
+  [PR#1001](https://github.com/jasmin-lang/jasmin/pull/1001))
+  and of `VPCMPGT`
+  ([PR#1018](https://github.com/jasmin-lang/jasmin/pull/1018)).
+
+- The speculative constant-time checker rejects more programs, considering that
+  different source-level local variables may be merged during the compilation
+  process
+  ([PR#989](https://github.com/jasmin-lang/jasmin/pull/989)).
+
+- Incorrect printing of line information in register allocation has been removed
+  ([PR #1027](https://github.com/jasmin-lang/jasmin/pull/1027);
+  fixes [#1026](https://github.com/jasmin-lang/jasmin/issues/1026)).
+
+- Fix allocation of dead stack variables
+  ([PR #1044](https://github.com/jasmin-lang/jasmin/pull/1044);
+  fixes [#680](https://github.com/jasmin-lang/jasmin/issues/680)).
+
+- Compiler now enforces coherence between function storage type and return variable storage type
+  ([PR#1028](https://github.com/jasmin-lang/jasmin/pull/1028);
+  fixes [#18](https://github.com/jasmin-lang/jasmin/issues/18)).
+
+- Fix printing of x86 `CLFLUSH` and `PREFETCH` instructions in “Intel” syntax
+  ([PR #1054](https://github.com/jasmin-lang/jasmin/pull/1054),
+  [PR #1057](https://github.com/jasmin-lang/jasmin/pull/1057);
+  fixes [#438](https://github.com/jasmin-lang/jasmin/issues/438)).
+
+- Fix LATEX printing of strings
+  ([PR #1063](https://github.com/jasmin-lang/jasmin/pull/1063),
+  [PR #1064](https://github.com/jasmin-lang/jasmin/pull/1064);
+  fixes [#1060](https://github.com/jasmin-lang/jasmin/issues/1060)).
+
+## Other changes
+
 - The “allocation” pass now uses the liveness information to reduce the sizes
   of the tables it uses internally; it should be faster on large functions
   ([PR #965](https://github.com/jasmin-lang/jasmin/pull/965)).
@@ -110,18 +122,17 @@
 - Compiling the OCaml source code no longer requires `-rectypes`
   ([PR #980](https://github.com/jasmin-lang/jasmin/pull/980)).
 
-- The printer to LATEX shows a comment informing about jasmin.sty support file
-  ([PR #976](https://github.com/jasmin-lang/jasmin/pull/976) and
-  [PR #986](https://github.com/jasmin-lang/jasmin/pull/986)).
-
 - The (speculative) constant-time checkers now ignores `#strict` and `#flex`
   annotations: all variables are considered “flexible”, i.e., have a
   flow-sensitive type
   ([PR #990](https://github.com/jasmin-lang/jasmin/pull/990)).
 
-- Deprecate the `-I` `jasminc` flag in favor of the `JASMINPATH` environment
-  variable
-  ([PR #1061](https://github.com/jasmin-lang/jasmin/pull/1061)).
+- Functions can carry information (`'info` type) in a new `f_info` field
+  ([PR #1021](https://github.com/jasmin-lang/jasmin/pull/1021);
+  fixes [#1016](https://github.com/jasmin-lang/jasmin/issues/1016)).
+
+- Add an option to treat some pre-typing error as a warning instead
+  ([PR #1023](https://github.com/jasmin-lang/jasmin/pull/1023)).
 
 # Jasmin 2024.07.2 — Nancy, 2024-11-21
 
