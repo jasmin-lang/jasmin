@@ -12,9 +12,15 @@
   fixes [#503](https://github.com/jasmin-lang/jasmin/issues/503),
   [#698](https://github.com/jasmin-lang/jasmin/issues/698)).
 
-- Extraction to EasyCrypt can now be done after a given compilation pass using
-  `--after` command-line argument
-  ([PR#972](https://github.com/jasmin-lang/jasmin/pull/972)).
+- Extraction to Easycrypt is now available as a separate `jasmin2ec` tool; the
+  `-ec`, `-oec`, `-oecarray` and `-CT` command-line options are deprecated.
+  The `jasmin2ec` tool uses a new set of theories in `eclib` for extracting array operations,
+  and supports a new extraction for leakage based on local variables.
+  ([PR #914](https://github.com/jasmin-lang/jasmin/pull/914),
+  [PR #952](https://github.com/jasmin-lang/jasmin/pull/952),
+  [PR #967](https://github.com/jasmin-lang/jasmin/pull/967),
+  [PR #972](https://github.com/jasmin-lang/jasmin/pull/972),
+  [PR #995](https://github.com/jasmin-lang/jasmin/pull/995)).
 
 ## Bug fixes
 
@@ -29,15 +35,6 @@
 - Extraction to EasyCrypt for safety verification is now removed, it was
   deprecated in the previous release
   ([PR #846](https://github.com/jasmin-lang/jasmin/pull/846)).
-
-- Extraction to Easycrypt is now available as a separate `jasmin2ec` tool; the
-  `-ec`, `-oec`, `-oecarray` and `-CT` command-line options are deprecated.
-  The `jasmin2ec` tool uses a new set of theories in `eclib` for extracting array operations, and supports a new extraction for leakage based on local variables.
-  ([PR #914](https://github.com/jasmin-lang/jasmin/pull/914),
-  [PR #952](https://github.com/jasmin-lang/jasmin/pull/952),
-  [PR #967](https://github.com/jasmin-lang/jasmin/pull/967)),
-  [PR #995](https://github.com/jasmin-lang/jasmin/pull/995)),
-  [PR #1047](https://github.com/jasmin-lang/jasmin/pull/1047)).
 
 - The printer to LATEX shows a comment informing about jasmin.sty support file
   ([PR #976](https://github.com/jasmin-lang/jasmin/pull/976) and
