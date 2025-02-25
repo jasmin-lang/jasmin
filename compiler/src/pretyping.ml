@@ -31,6 +31,7 @@ type tyerror =
   | InvalidLvalCount    of int * int
   | DuplicateFun        of A.symbol * L.t
   | DuplicateAlias      of A.symbol * P.pty L.located * P.pty L.located
+  | DuplicateFunLabel   of (L.t * A.symbol) * A.symbol
   | TypeNotFound        of A.symbol
   | InvalidTypeAlias    of A.symbol * P.pty
   | InvalidCast         of P.pty pair
@@ -155,6 +156,13 @@ let pp_tyerror fmt (code : tyerror) =
       F.fprintf fmt
         "The function %s is already declared at %s"
         f (L.tostring loc)
+
+  | DuplicateFunLabel ((dup_loc, dup_full_name), f_full_name) -> 
+      F.fprintf fmt
+        "Function '%s' (declared at %s) and function '%s' have conflicting names."
+        dup_full_name 
+        (L.tostring dup_loc)
+        f_full_name
 
   | DuplicateAlias (id, newtype, oldtype) ->
       F.fprintf fmt
@@ -301,6 +309,7 @@ end  = struct
     e_exec    : (P.funname * (Z.t * Z.t) list) L.located list;
     e_loader  : loader;
     e_declared : P.Spv.t ref; (* Set of local variables declared somewhere in the function *)
+    e_labels : (L.t * A.symbol) Ms.t; (* Map of functions labels as they will appears during assembly generation *)
     e_reserved : Ss.t;     (* Set of string (variable name) declared by the user, 
                               fresh variables introduced by the compiler 
                               should be disjoint from this set *) 
@@ -322,6 +331,7 @@ end  = struct
     ; e_exec    = []
     ; e_loader  = empty_loader
     ; e_declared = ref P.Spv.empty
+    ; e_labels = Ms.empty
     ; e_reserved = Ss.empty
     ; e_known_implicits = [];
     }
@@ -533,7 +543,18 @@ end  = struct
 
     let push env (v : (unit, 'asm) P.pfunc) rty =
       let name = v.P.f_name.P.fn_name in
-      let v = { v with P.f_name = P.F.mk (fully_qualified (fst env.e_bindings) name) } in
+      let full_name = (fully_qualified (fst env.e_bindings) name) in
+      let label = PrintCommon.escape full_name in
+      let env = if v.f_cc != Internal then
+        match Ms.find_opt label env.e_labels with
+        | None -> 
+          {env with e_labels= Ms.add label (v.f_loc ,full_name) env.e_labels} 
+        | Some fdup -> 
+          rs_tyerror ~loc:(v.f_loc) (DuplicateFunLabel (fdup,full_name)) 
+      else 
+        env
+      in 
+      let v = { v with P.f_name = P.F.mk full_name } in
       match find name env with
       | None ->
          let doit m =
