@@ -1,0 +1,9 @@
+export fn ble::e() -> reg u64 {
+    reg u64 x = 0;
+    return x;
+}
+
+export fn ble__e() -> reg u64 {
+    reg u64 x = 1;
+    return x;
+}
