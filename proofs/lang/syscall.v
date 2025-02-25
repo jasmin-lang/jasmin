@@ -1,3 +1,4 @@
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 From Coq Require Import PArith ZArith.
@@ -6,20 +7,11 @@ Require Import
   type
   utils.
 
-Local Unset Elimination Schemes.
-
+#[only(eqbOK)] derive
 Variant syscall_t : Type := 
   | RandomBytes of positive.
 
-Scheme Equality for syscall_t.
-
-Lemma syscall_t_eq_axiom : Equality.axiom syscall_t_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme internal_syscall_t_dec_bl internal_syscall_t_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build syscall_t syscall_t_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build syscall_t syscall_t_eqb_OK.
 
 (* -------------------------------------------------------------------- *)
 (* For typing                                                           *)

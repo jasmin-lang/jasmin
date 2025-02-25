@@ -34,16 +34,16 @@ let z_unsigned_of_word sz z = z_of_cz (Word0.wunsigned sz z)
 (* ------------------------------------------------------------------------ *)
 
 let cty_of_ty = function
-  | Bty Bool      -> T.Coq_sbool
-  | Bty Int       -> T.Coq_sint
-  | Bty (U sz)   -> T.Coq_sword(sz)
-  | Arr (sz, len) -> T.Coq_sarr (pos_of_int (size_of_ws sz * len))
+  | Bty Bool      -> T.Coq_stype.Coq_sbool
+  | Bty Int       -> T.Coq_stype.Coq_sint
+  | Bty (U sz)   -> T.Coq_stype.Coq_sword(sz)
+  | Arr (sz, len) -> T.Coq_stype.Coq_sarr (pos_of_int (size_of_ws sz * len))
 
 let ty_of_cty = function
-  | T.Coq_sbool  ->  Bty Bool
-  | T.Coq_sint   ->  Bty Int
-  | T.Coq_sword sz -> Bty (U sz)
-  | T.Coq_sarr p -> Arr (U8, int_of_pos p)
+  | T.Coq_stype.Coq_sbool  ->  Bty Bool
+  | T.Coq_stype.Coq_sint   ->  Bty Int
+  | T.Coq_stype.Coq_sword sz -> Bty (U sz)
+  | T.Coq_stype.Coq_sarr p -> Arr (U8, int_of_pos p)
 
 (* ------------------------------------------------------------------------ *)
 
