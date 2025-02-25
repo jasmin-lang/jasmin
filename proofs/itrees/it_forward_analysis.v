@@ -528,8 +528,41 @@ Section TR_MM_L2.
 Context (HasStackE1 : StackE -< E1).     
 Context (HasStackE2 : StackE -< E2).     
 
+
+(*
+Lemma instr_transl_hypL (ir: instr_r) : forall (ii: instr_info) (c2: cmd),
+        eqit eq true true (Tr_instr (MkI ii ir)) (Ret c2) ->
+        rutt (EE_MR EE1 CState) (EE_MR EE2 CState)
+          TR_DE VR_DE eq
+          (@denote_instr _ _ _ _ ir)
+          (cmd_map_r (@denote_instr _ _ _ _) c2).
+Proof.
+  set (Pr := fun (i: instr_r) => forall ii c2,
+                 Tr_cmd_rel ((MkI ii i) :: nil) c2 ->  
+                 @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+                   (denote_instr _ i)
+                   (denote_cmd _ _ c2)).
+  set (Pi := fun i => forall c2,
+               Tr_cmd_rel (i::nil) c2 ->   
+               @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+                 (denote_cmd _ _ (i::nil))
+                 (denote_cmd _ _ c2)).
+  set (Pc := fun c => forall c2,
+               Tr_cmd_rel c c2 ->  
+               @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+                 (denote_cmd _ _ c)
+                 (denote_cmd _ _ c2)).
+
+  
+  intros ii ir.
+  induction ir.
+  unfold denote_instr.
+
+*)
+
 (* rather strong *)
-Context (instr_transl_hyp: forall (i: instr_info) (i1: instr_r) (c1: cmd),
+    Context (instr_transl_hyp
+        : forall (i: instr_info) (i1: instr_r) (c1: cmd),
         eqit eq true true (Tr_instr (MkI i i1)) (Ret c1) ->
         rutt (EE_MR EE1 CState) (EE_MR EE2 CState)
           (sum_prerel (@TR_D) (TR_E E1 E2))
