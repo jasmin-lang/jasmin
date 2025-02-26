@@ -96,16 +96,13 @@ let set_color c =
   in
   color := assoc c
 
-let parse_jasmin_path s =
-  s |> String.split_on_char ':' |> List.map (String.split ~by:"=")
+let idirs = ref []
 
-let idirs =
-  ref (try "JASMINPATH" |> Sys.getenv |> parse_jasmin_path with _ -> [])
-
-let set_idirs s = 
-  match String.split_on_char ':' s with
-  | [s1; s2] -> idirs := (s1,s2)::!idirs
-  | _ -> hierror ~loc:Lnone ~kind:"parsing arguments" "bad format for -I : ident:path expected"
+let set_idirs s =
+  try idirs := String.split ~by:":" s :: !idirs
+  with Not_found ->
+    hierror ~loc:Lnone ~kind:"parsing arguments"
+      "bad format for -I : ident:path expected"
 
 type call_conv = Linux | Windows
 

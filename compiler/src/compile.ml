@@ -11,11 +11,21 @@ let preprocess reg_size asmOp p =
 
 (* -------------------------------------------------------------------- *)
 
-let parse_file arch_info fname =
-  let env =
-    List.fold_left Pretyping.Env.add_from Pretyping.Env.empty
-      !Glob_options.idirs
-  in
+let parse_jasmin_path s =
+  s |> String.split_on_char ':' |> List.map (String.split ~by:"=")
+
+let get_jasminpath () =
+  match Sys.getenv "JASMINPATH" with
+  | exception Not_found -> []
+  | path ->
+  try parse_jasmin_path path with
+  | Not_found ->
+  warning Always Location.i_dummy "ill-formed value for the JASMINPATH environment variable";
+  []
+
+let parse_file arch_info ?(idirs=[]) fname =
+  let idirs = idirs @ get_jasminpath () in
+  let env = List.fold_left Pretyping.Env.add_from Pretyping.Env.empty idirs in
   Pretyping.tt_program arch_info env fname
 
 (* -------------------------------------------------------------------- *)
