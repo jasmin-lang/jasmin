@@ -152,6 +152,8 @@ Local Notation CState := (CState asmop).
 Local Notation FFCall_ := (FFCall asmop). 
 Local Notation PFCall_ := (PFCall asmop). 
 Local Notation cmd_Ind := (cmd_Ind asm_op asmop).
+Local Notation instr_Ind := (instr_Ind asm_op asmop).
+Local Notation instr_r_Ind := (instr_r_Ind asm_op asmop).
 Local Notation FunDef := (FunDef asmop pT).
 Local Notation FCState := (FCState asmop ep).
 Local Notation PCState := (PCState asmop ep).
@@ -528,40 +530,129 @@ Section TR_MM_L2.
 Context (HasStackE1 : StackE -< E1).     
 Context (HasStackE2 : StackE -< E2).     
 
-
 (*
-Lemma instr_transl_hypL (ir: instr_r) : forall (ii: instr_info) (c2: cmd),
+Lemma instr_transl_hypL (ir: instr_r) : forall (ii: instr_info) (c1 c2: cmd),
+        c1 = [:: (MkI ii ir)] ->
         eqit eq true true (Tr_instr (MkI ii ir)) (Ret c2) ->
         rutt (EE_MR EE1 CState) (EE_MR EE2 CState)
           TR_DE VR_DE eq
-          (@denote_instr _ _ _ _ ir)
+          (cmd_map_r (@denote_instr _ _ _ _) c1)
           (cmd_map_r (@denote_instr _ _ _ _) c2).
 Proof.
-  set (Pr := fun (i: instr_r) => forall ii c2,
-                 Tr_cmd_rel ((MkI ii i) :: nil) c2 ->  
-                 @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
-                   (denote_instr _ i)
-                   (denote_cmd _ _ c2)).
+
+  revert ir.
+Check @instr_r_Ind.
+
+  set (Pr := fun (ir: instr_r) => forall ii c1 c2,
+               c1 = [:: (MkI ii ir)] ->
+               Tr_cmd_rel ((MkI ii ir) :: nil) c2 ->  
+            (*     eqit eq true true (Tr_instr (MkI ii i)) (Ret c2) ->   *)
+                rutt (EE_MR EE1 CState) (EE_MR EE2 CState)
+                TR_DE VR_DE eq
+                (cmd_map_r (@denote_instr _ _ _ _) c1)
+                (cmd_map_r (@denote_instr _ _ _ _) c2)).
+
   set (Pi := fun i => forall c2,
                Tr_cmd_rel (i::nil) c2 ->   
                @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
                  (denote_cmd _ _ (i::nil))
                  (denote_cmd _ _ c2)).
+ 
   set (Pc := fun c => forall c2,
                Tr_cmd_rel c c2 ->  
                @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
                  (denote_cmd _ _ c)
                  (denote_cmd _ _ c2)).
+(*  revert ir; unfold Tr_cmd_rel. *)
+
+  set (LInd := @instr_r_Ind Pr Pi Pc).
+
+  intros.
+  eapply LInd.
+
+  subst Pc; simpl; intros.
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+  subst Pc.
+  subst Pr.
+  simpl; intros.
+  inv H3.
+  unfold Tr_cmd_rel in H4.
+  simpl in H4.
+  symmetry in H4.
+
+  (* NOTE: here H4 should reduce to something to which it is possible to apply 
+   one of the induction hypothesis !!!!!!!!!!!!!!!!!!!! *)
+  
+    eapply eqit_inv_bind_ret in H4.
+    destruct H4 as [g1 [H4 H5]].
+    eapply eqit_inv_bind_ret in H4.
+    destruct H4 as [g2 [H4 H6]].
+    eapply eqit_inv_bind_ret in H6.
+    destruct H6 as [g3 [H6 H7]].
+    eapply eqit_inv_bind_ret in H7.
+    destruct H7 as [g4 [H7 H8]].
+    eapply eqit_inv_bind_ret in H5.
+    destruct H5 as [g5 [H5 H9]].
+    eapply eutt_Ret in H5; inv H5.
+    eapply eutt_Ret in H9; inv H9.
+    setoid_rewrite app_nil_r.
+
+    unfold Tr_cmd_rel in *.
+    specialize (H1 g3).
+    specialize (H2 g4).
+    
+  (* OK: c0 -> H1 -> g3 ; c3 -> H2 -> g4 ; g3&g4 -> H8 g1 *)
+    
+  
+  admit.
+  admit.
+  admit.
+  admit.
+  eexact H.
+  unfold Tr_cmd_rel.
+  symmetry.
+  simpl.
+  setoid_rewrite bind_ret_l.
+  setoid_rewrite app_nil_r.
+  setoid_rewrite bind_ret_r.
+  exact H0.
+  
+    
+  eapply LInd.
+
+  
+  eapply instr_r_Ind.
+
+  instantiate (1:=Pc).
+  admit.
+  instantiate (1:=Pi).
+  admit.
+  admit.
+  admit.
+  
+  
+  apply (instr_r_Ind Pr Pi Pc).
+  
+
+
+  apply (@instr_r_Ind Pr Pi Pc). rewrite /Pr /Pi /Pc. 
+
+  
 
   
   intros ii ir.
   induction ir.
   unfold denote_instr.
 
-*)
+  
 
 (* rather strong *)
-    Context (instr_transl_hyp
+Context (instr_transl_hyp
         : forall (i: instr_info) (i1: instr_r) (c1: cmd),
         eqit eq true true (Tr_instr (MkI i i1)) (Ret c1) ->
         rutt (EE_MR EE1 CState) (EE_MR EE2 CState)
@@ -569,6 +660,7 @@ Proof.
           (sum_postrel (@VR_D) (VR_E E1 E2)) eq
           (@denote_instr _ _ _ _ i1)
           (cmd_map_r (@denote_instr _ _ _ _) c1)).
+*)
 
 Lemma VR_D_eq_aux_lemma0 i i0 c c1 c2 :
   (fun v1 : unit => [eta VR_D (LCode (MkI i i0 :: c))
@@ -692,7 +784,7 @@ Proof.
   reflexivity.
 Qed.
 
-
+(*
 Lemma map_denote_instr_lemma c (c0 : cmd) (H: ret c0 ≈ Tr_cmd c) :
   rutt (EE_MR EE1 CState) (EE_MR EE2 CState) (sum_prerel (@TR_D) (TR_E E1 E2))
     (sum_postrel (@VR_D) (VR_E E1 E2))
@@ -730,6 +822,7 @@ Proof.
   rewrite VR_D_eq_aux_lemma in H2; eauto.
 Qed.
 
+
 Lemma denote_cstate_rutt (R1 R2 : Type) (d1 : CState R1) (d2 : CState R2)
   (H: TR_D d1 d2) :
   rutt (EE_MR EE1 CState) (EE_MR EE2 CState) (sum_prerel (@TR_D) (TR_E E1 E2))
@@ -753,7 +846,15 @@ Proof.
     rewrite VR_D_eq_aux_lemma; eauto. 
   }   
 Qed.
+*)
 
+Context (Cassgn_hyp : forall ii x0 x1 tg ty e0 e1 c1,
+          eutt eq (tr_lval x0) (Ret x1) ->
+          eutt eq (tr_expr e0) (Ret e1) ->
+          eutt eq (Cassgn_transl ii x1 tg ty e1) (Ret c1) ->
+          rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+    (denote_cmd HasFunE1 HasInstrE1 [:: MkI ii (Cassgn x0 tg ty e0)])
+    (denote_cmd HasFunE2 HasInstrE2 c1)).
 
 (* proving rutt across the translation for all commands (here we need
 induction). was eutt_cmd_tr_L1 *)
@@ -845,17 +946,7 @@ Proof.
     eapply eutt_Ret in H1; inv H1.
     eapply eutt_Ret in H2; inv H2.
 
-    setoid_rewrite app_nil_r. 
-    eapply interp_mrec_rutt
-      with (RPreInv := @TR_D) (RPostInv := @VR_D); simpl.
-
-    { intros; eapply denote_cstate_rutt; eauto. }
-   
-    { setoid_rewrite <- it_unit_elim.
-      setoid_rewrite bind_ret_r.
-      setoid_rewrite <- Cassgn_transl_eqit in H5; eauto.
-      eapply instr_transl_hyp in H5; eauto.
-    }
+    setoid_rewrite app_nil_r; eauto.
   }
 
   { (* Copn case *)
@@ -876,16 +967,8 @@ Proof.
     eapply eutt_Ret in H2; inv H2.
     
     setoid_rewrite app_nil_r.
-    eapply interp_mrec_rutt
-      with (RPreInv := @TR_D) (RPostInv := @VR_D); simpl.
 
-    { intros; eapply denote_cstate_rutt; eauto. }
-
-    { setoid_rewrite <- it_unit_elim.
-      setoid_rewrite bind_ret_r.     
-      setoid_rewrite <- Copn_transl_eqit in H6; eauto.
-      eapply instr_transl_hyp in H6; eauto.
-    }
+    admit.
   }
 
   { (* Csyscall case *)
@@ -905,17 +988,9 @@ Proof.
     eapply eutt_Ret in H1; inv H1.
     eapply eutt_Ret in H2; inv H2.
 
-    setoid_rewrite app_nil_r. 
-    eapply interp_mrec_rutt
-      with (RPreInv := @TR_D) (RPostInv := @VR_D); simpl.
+    setoid_rewrite app_nil_r.
 
-    { intros; eapply denote_cstate_rutt; eauto. }
-
-    { setoid_rewrite <- it_unit_elim.
-      setoid_rewrite bind_ret_r.     
-      setoid_rewrite <- Csyscall_transl_eqit in H6; eauto.
-      eapply instr_transl_hyp in H6; eauto.
-    }
+    admit. 
   }
 
   { (* Cif case *)
@@ -938,24 +1013,155 @@ Proof.
     specialize (IH1 c5 H4).
     specialize (IH2 c6 H5).
 
-    (* clear IH1 IH2. *)
-    
-    eapply interp_mrec_rutt
-      with (RPreInv := @TR_D) (RPostInv := @VR_D); simpl.
-
-    { intros; eapply denote_cstate_rutt; eauto. }
-
-    { setoid_rewrite <- it_unit_elim.
-      setoid_rewrite bind_ret_r.
-      symmetry in H4, H5.
-
-      setoid_rewrite <- Cif_transl_eqit in H6; eauto.
-      eapply instr_transl_hyp in H6; eauto.
-    }            
+    admit.
   }
+
+  { unfold Tr_cmd_rel; simpl. intros.   
+    symmetry in H0.
+    eapply eqit_inv_bind_ret in H0.
+    destruct H0 as [c4 [H0 H1]].
+    eapply eqit_inv_bind_ret in H1.    
+    destruct H1 as [c3 [H1 H2]].
+    eapply eutt_Ret in H2; inv H2.
+    eapply eutt_Ret in H1; inv H1.
+    setoid_rewrite app_nil_r.
+
+    setoid_rewrite unfold_iter in H0.
+    eapply eqit_inv_bind_ret in H0.    
+    destruct H0 as [jj [H0 H1]]. 
+    eapply eqit_inv_bind_ret in H0.    
+    destruct H0 as [c3 [H0 H2]]. 
     
+    destruct jj; simpl in *. 
+
+    { destruct u; simpl in *.
+
+      eapply eqit_inv_Tau_l in H1.
+
+      setoid_rewrite eutt_iter' in H1.
+
+      instantiate (1 := tt) in H1.
+      instantiate (1 := (fun (_: unit) => Cfor_transl ii i rn c3)) in H1.
+    
+      2: { instantiate (2 := eq).
+           intros [] [] [].
+           setoid_rewrite H0.
+           setoid_rewrite bind_ret_l.
+           reflexivity.
+      }
+      { admit. }
+      { auto. }
+    }
+
+    { eapply eutt_Ret in H1; inv H1.
+
+      assert
+        (eqit eq true true (ITree.iter (fun=> Cfor_transl ii i rn c3) tt)
+           (Ret c4)) as K1.
+      { setoid_rewrite eutt_iter'.
+        instantiate (1:= tt).
+        instantiate (1:= (fun (_: unit) => Ret (inr c4))).
+
+        setoid_rewrite unfold_iter.
+        setoid_rewrite bind_ret_l.
+        reflexivity.
+        instantiate (1:= eq).
+        intros [] [] [].
+        setoid_rewrite H2.
+        reflexivity.
+        auto.
+      }
+    
+      admit.
+    }  
+  }
+
+  { unfold Tr_cmd_rel; simpl. intros.    
+    symmetry in H1.
+    eapply eqit_inv_bind_ret in H1.
+    destruct H1 as [c4 [H1 H2]].
+    eapply eqit_inv_bind_ret in H2.    
+    destruct H2 as [c3 [H2 H3]].
+    eapply eutt_Ret in H2; inv H2.
+    eapply eutt_Ret in H3; inv H3.
+    setoid_rewrite app_nil_r.
+    
+    setoid_rewrite unfold_iter in H1.
+    eapply eqit_inv_bind_ret in H1.    
+    destruct H1 as [jj [H1 H2]]. 
+    eapply eqit_inv_bind_ret in H1.    
+    destruct H1 as [c3 [H1 H3]]. 
+    eapply eqit_inv_bind_ret in H3.    
+    destruct H3 as [e1 [H3 H4]]. 
+    eapply eqit_inv_bind_ret in H4.    
+    destruct H4 as [c5 [H4 H5]]. 
+
+    destruct jj; simpl in *. 
+
+    { destruct u; simpl in *.
+
+      eapply eqit_inv_Tau_l in H2.
+
+      setoid_rewrite eutt_iter' in H2.
+
+      instantiate (1 := tt) in H2.
+      instantiate (1 := (fun (_: unit) => Cwhile_transl ii a c3 e1 c5)) in H2.
+    
+      2: { instantiate (2 := eq).
+           intros [] [] [].
+           setoid_rewrite H1.
+           setoid_rewrite bind_ret_l.
+           setoid_rewrite H3.
+           setoid_rewrite bind_ret_l.
+           setoid_rewrite H4.
+           setoid_rewrite bind_ret_l.
+           reflexivity.
+      }
+      { admit. }
+      { auto. }
+    }
+
+    { eapply eutt_Ret in H2; inv H2.
+
+      assert
+        (eqit eq true true (ITree.iter (fun=> Cwhile_transl ii a c3 e1 c5) tt)
+           (Ret c4)) as K1.
+      { setoid_rewrite eutt_iter'.
+        instantiate (1:= tt).
+        instantiate (1:= (fun (_: unit) => Ret (inr c4))).
+
+        setoid_rewrite unfold_iter.
+        setoid_rewrite bind_ret_l.
+        reflexivity.
+        instantiate (1:= eq).
+        intros [] [] [].
+        setoid_rewrite H5.
+        reflexivity.
+        auto.
+      }
+
+      admit.
+    }
+  }  
+
+  { unfold Tr_cmd_rel; simpl. intros.    
+    symmetry in H.
+    eapply eqit_inv_bind_ret in H.
+    destruct H as [c4 [H H0]].
+    eapply eqit_inv_bind_ret in H.    
+    destruct H as [c3 [H H2]].
+    eapply eqit_inv_bind_ret in H2.
+    destruct H2 as [es1 [H2 H1]].
+    eapply eqit_inv_bind_ret in H0.    
+    destruct H0 as [c5 [H0 H3]].
+    eapply eutt_Ret in H0; inv H0.
+    eapply eutt_Ret in H3; inv H3.
+    setoid_rewrite app_nil_r.
+
+    admit.
+   }
 Admitted.
-  
+
 
 End TR_MM_L2. 
 

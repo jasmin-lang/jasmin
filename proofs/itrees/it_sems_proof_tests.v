@@ -558,8 +558,13 @@ Lemma eutt_cmd_tr_L1 (cc: cmd) :
     unfold denote_cmd.
     unfold mrec.
     simpl.
+    setoid_rewrite interp_mrec_bind.
+    eapply eqit_bind' with (RR := eq); eauto.
+    setoid_rewrite interp_mrec_trigger; eauto; simpl.   
     (* Opn hyp missing, simply to be added *)
     admit.
+    intros [] [] [].
+    reflexivity.
   - intros.
     unfold denote_cmd.
     unfold mrec; simpl.
