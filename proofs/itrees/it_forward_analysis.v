@@ -849,12 +849,74 @@ Qed.
 *)
 
 Context (Cassgn_hyp : forall ii x0 x1 tg ty e0 e1 c1,
-          eutt eq (tr_lval x0) (Ret x1) ->
-          eutt eq (tr_expr e0) (Ret e1) ->
-          eutt eq (Cassgn_transl ii x1 tg ty e1) (Ret c1) ->
-          rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
-    (denote_cmd HasFunE1 HasInstrE1 [:: MkI ii (Cassgn x0 tg ty e0)])
-    (denote_cmd HasFunE2 HasInstrE2 c1)).
+    eutt eq (tr_lval x0) (Ret x1) ->
+    eutt eq (tr_expr e0) (Ret e1) ->
+    eutt eq (Cassgn_transl ii x1 tg ty e1) (Ret c1) ->
+    rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (denote_cmd HasFunE1 HasInstrE1 [:: MkI ii (Cassgn x0 tg ty e0)])
+      (denote_cmd HasFunE2 HasInstrE2 c1)).
+
+Context (Copn_hyp : forall ii xs0 xs1 tg op0 op1 es0 es1 c1,
+    eutt eq (tr_lvals xs0) (Ret xs1) ->
+    eutt eq (tr_opn op0) (Ret op1) ->
+    eutt eq (tr_exprs es0) (Ret es1) -> 
+    eutt eq (Copn_transl ii xs1 tg op1 es1) (Ret c1) ->
+    rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (denote_cmd HasFunE1 HasInstrE1 [:: MkI ii (Copn xs0 tg op0 es0)])
+      (denote_cmd HasFunE2 HasInstrE2 c1)).
+
+Context (Csyscall_hyp : forall ii xs0 xs1 sc0 sc1 es0 es1 c1,
+    eutt eq (tr_lvals xs0) (Ret xs1) ->
+    eutt eq (tr_sysc sc0) (Ret sc1) ->
+    eutt eq (tr_exprs es0) (Ret es1) -> 
+    eutt eq (Csyscall_transl ii xs1 sc1 es1) (Ret c1) ->
+    rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (denote_cmd HasFunE1 HasInstrE1 [:: MkI ii (Csyscall xs0 sc0 es0)])
+      (denote_cmd HasFunE2 HasInstrE2 c1)).
+
+Context (Cif_hyp : forall ii e0 e1 c0 c1 c2 c3 c4,
+    eutt eq (tr_expr e0) (Ret e1) ->
+    eutt eq (Cif_transl ii e1 c1 c3) (Ret c4) ->    
+    rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (denote_cmd HasFunE1 HasInstrE1 c0)
+      (denote_cmd HasFunE2 HasInstrE2 c1) ->
+    rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (denote_cmd HasFunE1 HasInstrE1 c2)
+      (denote_cmd HasFunE2 HasInstrE2 c3) ->
+    rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (denote_cmd HasFunE1 HasInstrE1 [:: MkI ii (Cif e0 c0 c2)])
+      (denote_cmd HasFunE2 HasInstrE2 c4)).
+
+Context (Cfor_hyp : forall ii i rn c0 c1 c2,
+    eutt eq (ITree.iter (fun=> Cfor_transl ii i rn c1) tt) (Ret c2) ->    
+    rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (denote_cmd HasFunE1 HasInstrE1 c0)
+      (denote_cmd HasFunE2 HasInstrE2 c1) ->
+    rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (denote_cmd HasFunE1 HasInstrE1 [:: MkI ii (Cfor i rn c0)])
+      (denote_cmd HasFunE2 HasInstrE2 c2)).
+
+Context (Cwhile_hyp : forall ii a e0 e1 c0 c1 c2 c3 c4,
+    eutt eq (tr_expr e0) (Ret e1) ->                    
+    eutt eq (ITree.iter (fun=> Cwhile_transl ii a c1 e1 c3) tt) (Ret c4) ->    
+    rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (denote_cmd HasFunE1 HasInstrE1 c0)
+      (denote_cmd HasFunE2 HasInstrE2 c1) ->
+    rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (denote_cmd HasFunE1 HasInstrE1 c2)
+      (denote_cmd HasFunE2 HasInstrE2 c3) ->
+    rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (denote_cmd HasFunE1 HasInstrE1 [:: MkI ii (Cwhile a c0 e0 c2)])
+      (denote_cmd HasFunE2 HasInstrE2 c4)).
+
+Context (Ccall_hyp : forall ii xs0 xs1 fn es0 es1 c1,
+    eutt eq (tr_lvals xs0) (Ret xs1) ->
+    eutt eq (tr_exprs es0) (Ret es1) -> 
+    eutt eq (Ccall_transl ii xs1 fn es1) (Ret c1) ->
+    rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (denote_cmd HasFunE1 HasInstrE1 [:: MkI ii (Ccall xs0 fn es0)])
+      (denote_cmd HasFunE2 HasInstrE2 c1)).
+
 
 (* proving rutt across the translation for all commands (here we need
 induction). was eutt_cmd_tr_L1 *)
@@ -966,9 +1028,7 @@ Proof.
     eapply eutt_Ret in H1; inv H1.
     eapply eutt_Ret in H2; inv H2.
     
-    setoid_rewrite app_nil_r.
-
-    admit.
+    setoid_rewrite app_nil_r; eauto.
   }
 
   { (* Csyscall case *)
@@ -988,9 +1048,7 @@ Proof.
     eapply eutt_Ret in H1; inv H1.
     eapply eutt_Ret in H2; inv H2.
 
-    setoid_rewrite app_nil_r.
-
-    admit. 
+    setoid_rewrite app_nil_r; eauto.
   }
 
   { (* Cif case *)
@@ -1011,12 +1069,11 @@ Proof.
     setoid_rewrite app_nil_r. 
     symmetry in H4, H5.
     specialize (IH1 c5 H4).
-    specialize (IH2 c6 H5).
-
-    admit.
+    specialize (IH2 c6 H5); eauto.
   }
 
-  { unfold Tr_cmd_rel; simpl. intros.   
+  { (* Cfor case *)
+    unfold Tr_cmd_rel; simpl. intros.   
     symmetry in H0.
     eapply eqit_inv_bind_ret in H0.
     destruct H0 as [c4 [H0 H1]].
@@ -1031,6 +1088,10 @@ Proof.
     destruct H0 as [jj [H0 H1]]. 
     eapply eqit_inv_bind_ret in H0.    
     destruct H0 as [c3 [H0 H2]]. 
+
+    symmetry in H0.
+    specialize (H _ H0).
+    symmetry in H0.
     
     destruct jj; simpl in *. 
 
@@ -1049,7 +1110,7 @@ Proof.
            setoid_rewrite bind_ret_l.
            reflexivity.
       }
-      { admit. }
+      { eauto. } 
       { auto. }
     }
 
@@ -1071,12 +1132,13 @@ Proof.
         reflexivity.
         auto.
       }
-    
-      admit.
+
+      eauto.
     }  
   }
 
-  { unfold Tr_cmd_rel; simpl. intros.    
+  { (* Cwhile case *)
+    unfold Tr_cmd_rel; simpl. intros.    
     symmetry in H1.
     eapply eqit_inv_bind_ret in H1.
     destruct H1 as [c4 [H1 H2]].
@@ -1096,6 +1158,11 @@ Proof.
     eapply eqit_inv_bind_ret in H4.    
     destruct H4 as [c5 [H4 H5]]. 
 
+    symmetry in H1, H4.
+    specialize (H _ H1).
+    specialize (H0 _ H4).
+    symmetry in H1, H4.
+    
     destruct jj; simpl in *. 
 
     { destruct u; simpl in *.
@@ -1117,7 +1184,7 @@ Proof.
            setoid_rewrite bind_ret_l.
            reflexivity.
       }
-      { admit. }
+      { eauto. }
       { auto. }
     }
 
@@ -1140,11 +1207,12 @@ Proof.
         auto.
       }
 
-      admit.
+      eauto.
     }
   }  
 
-  { unfold Tr_cmd_rel; simpl. intros.    
+  { (* Ccall case *)
+    unfold Tr_cmd_rel; simpl. intros.    
     symmetry in H.
     eapply eqit_inv_bind_ret in H.
     destruct H as [c4 [H H0]].
@@ -1157,10 +1225,9 @@ Proof.
     eapply eutt_Ret in H0; inv H0.
     eapply eutt_Ret in H3; inv H3.
     setoid_rewrite app_nil_r.
-
-    admit.
+    eauto.
    }
-Admitted.
+Qed.
 
 
 End TR_MM_L2. 
