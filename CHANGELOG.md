@@ -40,10 +40,6 @@
   ([PR #976](https://github.com/jasmin-lang/jasmin/pull/976) and
   [PR #986](https://github.com/jasmin-lang/jasmin/pull/986)).
 
-- Deprecate the `-I` `jasminc` flag in favor of the `JASMINPATH` environment
-  variable
-  ([PR #1061](https://github.com/jasmin-lang/jasmin/pull/1061)).
-
 # Jasmin 2024.07.3 — Nancy, 2025-02-25
 
 ## New features
