@@ -679,7 +679,9 @@ Proof.
 Qed.
 *)
 
-(* NOTE: here we're trying with an mrec-free conclusion!! *)
+(* NOTE: here we're trying with an mrec-free conclusion!! 
+   We are trying to prove the hyp that we assume further on in the 
+  'deep' version of rutt_transl_denote_cmd_MM *)
 Lemma instr_transl_hypL (ir: instr_r) : forall (ii: instr_info) (c1 c2: cmd),
         c1 = [:: (MkI ii ir)] ->
         eqit eq true true (Tr_instr (MkI ii ir)) (Ret c2) ->
@@ -816,8 +818,9 @@ Abort.
 
 Section Wishful.
 
-(* rather strong: this is actually the coniduction hypothesis we need
- *)
+(* rather strong: this is actually a surrogate of the coniduction
+hypothesis we need; as seen with instr_transl_hypL, we cannot prove it
+without coinduction.  *)
 Context (instr_transl_hyp
         : forall (i: instr_info) (i1: instr_r) (c1: cmd),
         eqit eq true true (Tr_instr (MkI i i1)) (Ret c1) ->
@@ -892,7 +895,8 @@ End Wishful.
 
 
 (* proving rutt across the translation for all commands (here we need
-induction). was eutt_cmd_tr_L1 *)
+induction). was eutt_cmd_tr_L1.  NOTE: fails without using coinduction
+*)
 Lemma rutt_transl_denote_cmd_MM (cc: cmd) :
   forall c2, Tr_cmd_rel cc c2 ->  
     @rutt E1 E2 unit unit EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
@@ -1124,8 +1128,318 @@ Proof.
     }            
   }
     
+Abort.
+
+
+(* trying the same with coinduction *)
+Lemma rutt_transl_denote_cmd_MM (cc: cmd) :
+  forall c2, Tr_cmd_rel cc c2 ->  
+    @rutt E1 E2 unit unit EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+        (denote_cmd HasFunE1 HasInstrE1 cc)
+        (denote_cmd HasFunE2 HasInstrE2 c2).
+Proof.
+  revert cc.
+  ginit. pcofix CIH.
+
+(*  intros cc c2 H.
+  gstep. red.
+  revert H.
+  revert cc c2. *)
+  
+  set (Pr := fun (i: instr_r) => forall ii c2,
+                 Tr_cmd_rel ((MkI ii i) :: nil) c2 ->
+                 gpaco2 (rutt_ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq)
+                 (euttge_trans_clo EE1 EE2 eq) bot2 r
+               (*  @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq *)
+                   (denote_cmd _ _ ((MkI ii i) :: nil))
+                   (denote_cmd _ _ c2)).
+  set (Pi := fun i => forall c2,
+                 Tr_cmd_rel (i::nil) c2 ->
+                 gpaco2 (rutt_ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq)
+                 (euttge_trans_clo EE1 EE2 eq) bot2 r                 
+              (* @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq *)
+                 (denote_cmd _ _ (i::nil))
+                 (denote_cmd _ _ c2)).
+  set (Pc := fun c => forall c2,
+                 Tr_cmd_rel c c2 ->
+                 gpaco2 (rutt_ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq)
+                 (euttge_trans_clo EE1 EE2 eq) bot2 r         
+             (*  @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq *)
+                 (denote_cmd _ _ c)
+                 (denote_cmd _ _ c2)).
+  unfold Tr_cmd_rel.
+  apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc. 
+
+  { (* empty list *)
+    unfold Tr_cmd_rel, Tr_cmd; simpl; intros. 
+    eapply eqit_Ret in H; inv H.
+    econstructor; simpl.
+    left; simpl.
+    left; simpl.
+    pstep.
+    red; simpl; red; simpl.
+    econstructor; auto.
+  }  
+
+  { (* cons list *)
+    unfold Tr_cmd_rel; simpl; intros.
+    symmetry in H1.
+    eapply eqit_inv_bind_ret in H1.
+    destruct H1 as [ii [H3 H2]].
+    eapply eqit_inv_bind_ret in H2.
+    destruct H2 as [cc0 [H1 H2]].
+    eapply eqit_Ret in H2; inv H2.
+
+    setoid_rewrite denote_cmd_cons_lemma; simpl. 
+    setoid_rewrite denote_cmd_concat_lemma; simpl. 
+        
+    symmetry in H3, H1.
+    eapply H0 in H1.
+
+    specialize (H ii).
+    setoid_rewrite bind_list_expand2 at 2 in H3; eauto.    
+    specialize (H H3).
+
+    gstep. red.
+
+(* setoid_rewrite EqAxiom.itree_eta_. *)
+
+(*
+    destruct H.
+    destruct IN.
+    destruct IN.
+    punfold H.
+    red in H.
+    setoid_rewrite H.
+    gunfold H.
+    destruct H; simpl in IN.
+    destruct IN.
+    red in H.
+    
+    simpl in H.
+
+    
+    inversion H; subst.
+    
+    simpl in IN.
+    
+    
+    setoid_rewrite eqitree_inv_Ret_r.
+
+    
+    pclearbot.
+    
+    setoid_rewrite H.
+    
+    econstructor; simpl.
+    left; simpl.
+    left; simpl.
+    
+    pstep; red; red.
+    simpl.
+    destruct i; simpl.
+    gunfold H. 
+    simpl in H.
+    destruct H.
+    simpl in IN.
+    destruct IN.
+    red in H.
+    destruct H.
+    setoid_rewrite H.  
+ *)
+    admit.
+    (* eapply rutt_bind with (RR := eq); auto. *)
+  }
+    
+  { (* instr_r case *)
+    unfold Tr_cmd_rel; simpl; intros.
+
+    symmetry in H0.
+    eapply eqit_inv_bind_ret in H0.
+    destruct H0 as [i0 [H0 H1]].
+    eapply eqit_inv_bind_ret in H1.
+    destruct H1 as [ir0 [H1 H2]].
+    eapply eqit_Ret in H2; inv H2.
+    eapply eqit_Ret in H1; inv H1.
+
+    specialize (H ii i0).
+    setoid_rewrite bind_ret_l in H.
+    symmetry in H0.
+
+    setoid_rewrite app_nil_r in H.
+    setoid_rewrite <- bind_ret_r at 2 in H0.
+    setoid_rewrite app_nil_r.
+    specialize (H H0); auto.
+  }
+  
+  { (* Cassgn case *)
+    unfold Tr_cmd_rel; simpl; intros.
+
+    symmetry in H.
+    eapply eqit_inv_bind_ret in H.
+    destruct H as [c3 [H0 H1]].   
+    eapply eqit_inv_bind_ret in H1.
+    destruct H1 as [c0 [H1 H2]].
+    eapply eqit_inv_bind_ret in H0.
+    destruct H0 as [v0 [H3 H4]].
+    eapply eqit_inv_bind_ret in H4.
+    destruct H4 as [e0 [H4 H5]].  
+    eapply eqit_Ret in H1; inv H1.
+    eapply eqit_Ret in H2; inv H2.
+
+    setoid_rewrite app_nil_r.
+
+    gstep; red.
+    
+(*    
+    eapply interp_mrec_rutt
+      with (RPreInv := @TR_D) (RPostInv := @VR_D); simpl.
+
+    { intros; eapply denote_cstate_rutt; eauto.
+
+      (* Coinductive hyp needed *)
+      admit.
+    }
+ *)
+
+(*    { setoid_rewrite <- it_unit_elim.
+      setoid_rewrite bind_ret_r.      
+      setoid_rewrite <- Cassgn_transl_eqit in H5; eauto.
+    
+      (*  eapply instr_transl_hyp in H5; eauto. *)
+      (* Coinductive hyp needed *)
+*)
+      admit.    
+  }
+
+  { (* Copn case *)
+    unfold Tr_cmd_rel; simpl; intros xs0 tg op0 es0 ii c2 H.
+  
+    symmetry in H.
+    eapply eqit_inv_bind_ret in H.
+    destruct H as [c3 [H0 H1]].   
+    eapply eqit_inv_bind_ret in H1.
+    destruct H1 as [c0 [H1 H2]].
+    eapply eqit_inv_bind_ret in H0.
+    destruct H0 as [xs1 [H3 H4]].
+    eapply eqit_inv_bind_ret in H4.
+    destruct H4 as [op1 [H4 H5]].  
+    eapply eqit_inv_bind_ret in H5.
+    destruct H5 as [es1 [H5 H6]].  
+    eapply eutt_Ret in H1; inv H1.
+    eapply eutt_Ret in H2; inv H2.
+    
+    setoid_rewrite app_nil_r.
+
+    (*
+    eapply interp_mrec_rutt
+      with (RPreInv := @TR_D) (RPostInv := @VR_D); simpl.
+
+    { intros; eapply denote_cstate_rutt; eauto.
+
+      (* Coinductive hyp needed *)
+      admit.
+    }
+
+    { setoid_rewrite <- it_unit_elim.
+      setoid_rewrite bind_ret_r.
+
+      setoid_rewrite <- Copn_transl_eqit in H6; eauto.
+
+      (* eapply instr_transl_hyp in H6; eauto. *)
+      (* Coinductive hyp needed *)
+  *)
+
+      admit.
+  }
+
+  { (* Csyscall case *)
+    unfold Tr_cmd_rel; simpl; intros xs0 sc0 es0 ii c2 H.
+  
+    symmetry in H.
+    eapply eqit_inv_bind_ret in H.
+    destruct H as [c3 [H0 H1]].   
+    eapply eqit_inv_bind_ret in H1.
+    destruct H1 as [c0 [H1 H2]].
+    eapply eqit_inv_bind_ret in H0.
+    destruct H0 as [xs1 [H3 H4]].
+    eapply eqit_inv_bind_ret in H4.
+    destruct H4 as [sc1 [H4 H5]].
+    eapply eqit_inv_bind_ret in H5.
+    destruct H5 as [es1 [H5 H6]].      
+    eapply eutt_Ret in H1; inv H1.
+    eapply eutt_Ret in H2; inv H2.
+
+(*    
+    setoid_rewrite app_nil_r. 
+    eapply interp_mrec_rutt
+      with (RPreInv := @TR_D) (RPostInv := @VR_D); simpl.
+
+    { intros; eapply denote_cstate_rutt; eauto.
+
+      (* Coinductive hyp needed *)
+      admit.
+    }
+
+    { setoid_rewrite <- it_unit_elim.
+      setoid_rewrite bind_ret_r.
+      
+      setoid_rewrite <- Csyscall_transl_eqit in H6; eauto.
+
+      (* eapply instr_transl_hyp in H6; eauto. *)
+      (* Coinductive hyp needed *)
+*)
+      admit.
+  }
+
+  { (* Cif case *)
+    unfold Tr_cmd_rel; simpl. intros es0 c1 c2 IH1 IH2 ii c3 H.
+    
+    symmetry in H.
+    eapply eqit_inv_bind_ret in H.
+    destruct H as [c4 [H0 H1]].
+    eapply eqit_inv_bind_ret in H0.    
+    destruct H0 as [es1 [H3 H4]].    
+    eapply eqit_inv_bind_ret in H4.
+    destruct H4 as [c5 [H4 H5]].
+    eapply eqit_inv_bind_ret in H5.
+    destruct H5 as [c6 [H5 H6]].
+    setoid_rewrite bind_ret_l in H1.
+    eapply eutt_Ret in H1; inv H1.
+
+    setoid_rewrite app_nil_r. 
+    symmetry in H4, H5.
+    specialize (IH1 c5 H4).
+    specialize (IH2 c6 H5).
+
+(*    
+    (* NOTE: Inducive hyps are not used !!!
+       clear IH1 IH2. *)
+
+    eapply interp_mrec_rutt
+      with (RPreInv := @TR_D) (RPostInv := @VR_D); simpl.
+
+    { intros; eapply denote_cstate_rutt; eauto.
+
+      (* Coinductive hyp needed *)
+      admit.
+    }
+
+    { setoid_rewrite <- it_unit_elim.
+      setoid_rewrite bind_ret_r.
+      symmetry in H4, H5.      
+      setoid_rewrite <- Cif_transl_eqit in H6; eauto.
+
+      (* eapply instr_transl_hyp in H6; eauto. *)
+      (* Coinductive hyp needed *)
+
+*)
+      admit.
+  }
+    
 Admitted.
   
+
 
 End TR_MM_L2. 
 
