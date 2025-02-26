@@ -3,10 +3,10 @@ open Cmdliner
 open CommonCLI
 open Utils
 
-let parse_and_check arch call_conv =
+let parse_and_check arch call_conv idirs =
   let module A = (val get_arch_module arch call_conv) in
   let check ~doit infer ct_list speculative pass file =
-    let prog = parse_and_compile (module A) pass file in
+    let prog = parse_and_compile (module A) pass file idirs in
 
     if speculative then
       let prog =
@@ -88,6 +88,6 @@ let () =
   in
   Cmd.v info
     Term.(
-      const parse_and_check $ arch $ call_conv $ infer $ slice $ speculative
+      const parse_and_check $ arch $ call_conv $ idirs $ infer $ slice $ speculative
       $ after_pass $ file $ doit $ warn)
   |> Cmd.eval |> exit
