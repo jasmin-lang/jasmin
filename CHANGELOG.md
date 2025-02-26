@@ -40,6 +40,10 @@
   ([PR #976](https://github.com/jasmin-lang/jasmin/pull/976) and
   [PR #986](https://github.com/jasmin-lang/jasmin/pull/986)).
 
+- The `-I` command-line argument to `jasminc` now uses an equal sign as separator
+  (using a colon is deprecated)
+  ([PR #1068](https://github.com/jasmin-lang/jasmin/pull/1068)).
+
 # Jasmin 2024.07.3 — Nancy, 2025-02-25
 
 ## New features

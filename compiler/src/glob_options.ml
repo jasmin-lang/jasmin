@@ -99,10 +99,20 @@ let set_color c =
 let idirs = ref []
 
 let set_idirs s =
-  try idirs := String.split ~by:":" s :: !idirs
-  with Not_found ->
-    hierror ~loc:Lnone ~kind:"parsing arguments"
-      "bad format for -I : ident:path expected"
+  let colons = String.count_char s ':' in
+  let equals = String.count_char s '=' in
+  let idir =
+    match (equals, colons) with
+    | 1, 0 -> String.split ~by:"=" s
+    | 0, 1 ->
+       warning Deprecated Location.i_dummy
+         "Use of colon in path:ident is deprecated: use an equal sign instead";
+       String.split ~by:":" s
+    | _, _ ->
+       hierror ~loc:Lnone ~kind:"parsing arguments"
+         "bad format for -I : ident=path expected"
+  in
+  idirs := idir :: !idirs
 
 type call_conv = Linux | Windows
 
@@ -169,7 +179,7 @@ let options = [
     "-g"       , Arg.Set dwarf         , " Emit DWARF2 line number information";
     "-debug"   , Arg.Set debug         , " Print debug information";
     "-timings" , Arg.Set timings       , " Print a timestamp and elapsed time after each pass";
-    "-I"       , Arg.String set_idirs  , "[ident:path] Bind ident to path for from ident require ...";
+    "-I"       , Arg.String set_idirs  , "[ident=path] Bind ident to path for from ident require ...";
     "-lea"     , Arg.Set lea           , " Use lea as much as possible (default is nolea)";
     "-nolea"   , Arg.Clear lea         , " Try to use add and mul instead of lea";
     "-set0"     , Arg.Set set0          , " Use [xor x x] to set x to 0 (default is not)";
