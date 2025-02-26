@@ -103,7 +103,6 @@ let idirs =
   ref (try "JASMINPATH" |> Sys.getenv |> parse_jasmin_path with _ -> [])
 
 let set_idirs s = 
-  warning Deprecated Location.i_dummy "-I is deprecated. Use JASMINPATH instead.";
   match String.split_on_char ':' s with
   | [s1; s2] -> idirs := (s1,s2)::!idirs
   | _ -> hierror ~loc:Lnone ~kind:"parsing arguments" "bad format for -I : ident:path expected"
@@ -173,7 +172,7 @@ let options = [
     "-g"       , Arg.Set dwarf         , " Emit DWARF2 line number information";
     "-debug"   , Arg.Set debug         , " Print debug information";
     "-timings" , Arg.Set timings       , " Print a timestamp and elapsed time after each pass";
-    "-I"       , Arg.String set_idirs  , "[ident:path] Bind ident to path for from ident require ... (deprecated)";
+    "-I"       , Arg.String set_idirs  , "[ident:path] Bind ident to path for from ident require ...";
     "-lea"     , Arg.Set lea           , " Use lea as much as possible (default is nolea)";
     "-nolea"   , Arg.Clear lea         , " Try to use add and mul instead of lea";
     "-set0"     , Arg.Set set0          , " Use [xor x x] to set x to 0 (default is not)";
