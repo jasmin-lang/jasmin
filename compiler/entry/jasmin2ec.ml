@@ -32,11 +32,11 @@ let extract_to_file prog arch pd asmOp model amodel fnames array_dir outfile =
 
 
 
-let parse_and_extract arch call_conv =
+let parse_and_extract arch call_conv idirs =
   let module A = (val get_arch_module arch call_conv) in
 
   let extract model amodel functions array_dir output pass file =
-    let prog = parse_and_compile (module A) pass file in
+    let prog = parse_and_compile (module A) pass file idirs in
 
     extract_to_file prog arch A.reg_size A.asmOp model amodel functions
       array_dir output
@@ -122,6 +122,6 @@ let () =
   in
   Cmd.v info
     Term.(
-      const parse_and_extract $ arch $ call_conv $ model $ array_model
+      const parse_and_extract $ arch $ call_conv $ idirs $ model $ array_model
       $ functions $ array_dir $ output $ after_pass $ file $ warn)
   |> Cmd.eval |> exit
