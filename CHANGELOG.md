@@ -44,6 +44,11 @@
   (using a colon is deprecated)
   ([PR #1068](https://github.com/jasmin-lang/jasmin/pull/1068)).
 
+- Include paths used in the resolution of `require` directives can be
+  controlled using the `-I` command-line argument to the various Jasmin tools
+  (`jasminc`, `jasmin2tex`, `jasmin-ct`, and `jasmin2ec`)
+  ([PR #1068](https://github.com/jasmin-lang/jasmin/pull/1068)).
+
 # Jasmin 2024.07.3 — Nancy, 2025-02-25
 
 ## New features

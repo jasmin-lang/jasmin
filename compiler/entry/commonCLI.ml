@@ -39,6 +39,14 @@ let call_conv =
     & opt call_conv Glob_options.Linux
     & info [ "call-conv"; "cc" ] ~docv:"OS" ~doc)
 
+let idirs =
+  let doc =
+    "Bind ident to path for 'from ident require ...'"
+  in
+  let info = Arg.info [ "I"; "include" ] ~docv:"ident=path" ~doc in
+  let conv = Arg.pair ~sep:'=' Arg.string Arg.dir in
+  Arg.value (Arg.opt_all conv [] info)
+
 let warn =
   let doc = "Print warnings" in
   Arg.(value & flag & info [ "warn" ] ~doc)
@@ -65,9 +73,9 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
        and type rflag = rflag
        and type cond = cond
        and type asm_op = asm_op
-       and type extra_op = extra_op) pass file =
+       and type extra_op = extra_op) pass file idirs =
   let _env, pprog, _ast =
-    try Compile.parse_file Arch.arch_info file with
+    try Compile.parse_file Arch.arch_info ~idirs file with
     | Annot.AnnotationError (loc, code) ->
         hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
     | Pretyping.TyError (loc, code) ->
