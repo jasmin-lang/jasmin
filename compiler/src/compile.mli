@@ -14,6 +14,7 @@ val preprocess : wsize -> 'asm asmOp -> (unit, 'asm) pprog -> (unit, 'asm) prog
 
 val parse_file :
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Pretyping.arch_info ->
+  ?idirs: (string * string) list ->
   string ->
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op
   Pretyping.Env.env
@@ -29,7 +30,9 @@ val parse_file :
     pmod_item
     list
   * Syntax.pprogram
-(** Parsing and pre-typing of a complete file.
+(** Parsing and pre-typing of a complete file. Require directives are resolved
+    using named path given through the [idirs] argument and the JASMINPATH
+    environment variable.
 
     Raises `Pretyping.TyError` and `Syntax.ParseError`. *)
 

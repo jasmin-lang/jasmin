@@ -114,7 +114,7 @@ let main () =
         | None -> () in
 
     let env, pprog, _ast =
-      try Compile.parse_file Arch.arch_info infile
+      try Compile.parse_file Arch.arch_info ~idirs:!Glob_options.idirs infile
       with
       | Annot.AnnotationError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
       | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
