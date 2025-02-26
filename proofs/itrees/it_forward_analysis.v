@@ -231,6 +231,7 @@ Context (E2: Type -> Type).
 Context (HasErr2: ErrState -< E2).   
 
 Context (tr_lval : lval -> itree E2 lval)
+        (tr_vari : var_i -> itree E2 var_i)
         (tr_expr : pexpr -> itree E2 pexpr)
         (tr_opn : sopn -> itree E2 sopn)
         (tr_sysc : syscall_t -> itree E2 syscall_t).
@@ -280,10 +281,11 @@ Fixpoint Tr_ir (ii: instr_info) (i : instr_r) : itree E2 cmd :=
       c1' <- mapC R c1 ;;
       c2' <- mapC R c2 ;;
       Cif_transl ii e' c1' c2' 
-  | Cfor i rg c =>
+  | Cfor xi rg c =>
+      xi' <- tr_vari xi ;;  
       ITree.iter (fun _ => 
          c' <- mapC R c ;;
-         Cfor_transl ii i rg c') tt                     
+         Cfor_transl ii xi' rg c') tt                     
   | Cwhile a c1 e c2 =>
       ITree.iter (fun _ =>  
          c1' <- mapC R c1 ;;
@@ -309,6 +311,9 @@ Definition Tr_lval_rel (l1 l2: lval) : Prop :=
   
 Definition Tr_lvals_rel (ls1 ls2: lvals) : Prop :=
   eutt eq (ret ls2) (tr_lvals ls1).
+  
+Definition Tr_vari_rel (l1 l2: var_i) : Prop :=
+  eutt eq (ret l2) (tr_vari l1).
   
 Definition Tr_expr_rel (e1 e2: pexpr) : Prop :=
   eutt eq (ret e2) (tr_expr e1).
@@ -720,13 +725,14 @@ Context (Cif_hyp : forall ii e0 e1 c0 c1 c2 c3 c4,
       (denote_cmd HasFunE1 HasInstrE1 [:: MkI ii (Cif e0 c0 c2)])
       (denote_cmd HasFunE2 HasInstrE2 c4)).
 
-Context (Cfor_hyp : forall ii i rn c0 c1 c2,
-    eutt eq (ITree.iter (fun=> Cfor_transl ii i rn c1) tt) (Ret c2) ->    
+Context (Cfor_hyp : forall ii xi0 xi1 rn c0 c1 c2,
+    eutt eq (tr_vari xi0) (Ret xi1) ->
+    eutt eq (ITree.iter (fun=> Cfor_transl ii xi1 rn c1) tt) (Ret c2) ->    
     rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
       (denote_cmd HasFunE1 HasInstrE1 c0)
       (denote_cmd HasFunE2 HasInstrE2 c1) ->
     rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
-      (denote_cmd HasFunE1 HasInstrE1 [:: MkI ii (Cfor i rn c0)])
+      (denote_cmd HasFunE1 HasInstrE1 [:: MkI ii (Cfor xi0 rn c0)])
       (denote_cmd HasFunE2 HasInstrE2 c2)).
 
 Context (Cwhile_hyp : forall ii a e0 e1 c0 c1 c2 c3 c4,
@@ -912,34 +918,36 @@ Proof.
     destruct H0 as [c4 [H0 H1]].
     eapply eqit_inv_bind_ret in H1.    
     destruct H1 as [c3 [H1 H2]].
+    eapply eqit_inv_bind_ret in H0.    
+    destruct H0 as [xi1 [H0 H3]].    
     eapply eutt_Ret in H2; inv H2.
     eapply eutt_Ret in H1; inv H1.
     setoid_rewrite app_nil_r.
 
-    setoid_rewrite unfold_iter in H0.
-    eapply eqit_inv_bind_ret in H0.    
-    destruct H0 as [jj [H0 H1]]. 
-    eapply eqit_inv_bind_ret in H0.    
-    destruct H0 as [c3 [H0 H2]]. 
+    setoid_rewrite unfold_iter in H3.
+    eapply eqit_inv_bind_ret in H3.    
+    destruct H3 as [jj [H3 H4]]. 
+    eapply eqit_inv_bind_ret in H3.    
+    destruct H3 as [c3 [H3 H5]]. 
 
-    symmetry in H0.
-    specialize (H _ H0).
-    symmetry in H0.
+    symmetry in H3.
+    specialize (H _ H3).
+    symmetry in H3.
     
     destruct jj; simpl in *. 
 
     { destruct u; simpl in *.
 
-      eapply eqit_inv_Tau_l in H1.
+      eapply eqit_inv_Tau_l in H4.
 
-      setoid_rewrite eutt_iter' in H1.
+      setoid_rewrite eutt_iter' in H4.
 
-      instantiate (1 := tt) in H1.
-      instantiate (1 := (fun (_: unit) => Cfor_transl ii i rn c3)) in H1.
+      instantiate (1 := tt) in H4.
+      instantiate (1 := (fun (_: unit) => Cfor_transl ii xi1 rn c3)) in H4.
     
       2: { instantiate (2 := eq).
            intros [] [] [].
-           setoid_rewrite H0.
+           setoid_rewrite H3.
            setoid_rewrite bind_ret_l.
            reflexivity.
       }
@@ -947,10 +955,10 @@ Proof.
       { auto. }
     }
 
-    { eapply eutt_Ret in H1; inv H1.
+    { eapply eutt_Ret in H4; inv H4.
 
       assert
-        (eqit eq true true (ITree.iter (fun=> Cfor_transl ii i rn c3) tt)
+        (eqit eq true true (ITree.iter (fun=> Cfor_transl ii xi1 rn c3) tt)
            (Ret c4)) as K1.
       { setoid_rewrite eutt_iter'.
         instantiate (1:= tt).
@@ -961,7 +969,7 @@ Proof.
         reflexivity.
         instantiate (1:= eq).
         intros [] [] [].
-        setoid_rewrite H2.
+        setoid_rewrite H5.
         reflexivity.
         auto.
       }
@@ -1068,8 +1076,6 @@ End TR_MM_L2.
 
 End TR_MM_L1. 
 
-Check Cfor.
-About var_i.
 
 (*
 Lemma map_denote_instr_lemma c (c0 : cmd) (H: ret c0 ≈ Tr_cmd c) :
