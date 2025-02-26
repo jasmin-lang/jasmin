@@ -679,6 +679,7 @@ Proof.
 Qed.
 *)
 
+(* NOTE: here we're trying with an mrec-free conclusion!! *)
 Lemma instr_transl_hypL (ir: instr_r) : forall (ii: instr_info) (c1 c2: cmd),
         c1 = [:: (MkI ii ir)] ->
         eqit eq true true (Tr_instr (MkI ii ir)) (Ret c2) ->
@@ -757,7 +758,11 @@ Proof.
     setoid_rewrite <- bind_list_expand2 in H1.
     symmetry in H2.
     specialize (H1 H2).
-    
+
+(*    unfold denote_cmd.
+    unfold denote_cstate. *)
+
+(* crucial point: eliminating mrec *)
     eapply interp_mrec_rutt
       with (RPreInv := @TR_D) (RPostInv := @VR_D); simpl; eauto.
 

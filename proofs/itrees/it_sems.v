@@ -242,10 +242,10 @@ Fixpoint denote_instr (i : instr_r) : itree (CState +' Eff) unit :=
       b <- trigger (EvalCond e) ;;
       if b then R c1 else R c2 
 
-  | Cfor i (d, lo, hi) c => 
+  | Cfor xi (d, lo, hi) c => 
           vlo <- trigger (EvalBound lo) ;;
           vhi <- trigger (EvalBound hi) ;;
-          denote_for R i c (wrange d vlo vhi)
+          denote_for R xi c (wrange d vlo vhi)
         
   | Cwhile a c1 e c2 => 
       ITree.iter (fun _ =>

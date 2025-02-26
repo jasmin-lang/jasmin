@@ -530,6 +530,9 @@ Section TR_MM_L2.
 Context (HasStackE1 : StackE -< E1).     
 Context (HasStackE2 : StackE -< E2).     
 
+
+(* does not work without coinduction, see it_with_analysisE2.v *) 
+(*  NOTE: here we're trying with an mrec-free conclusion!! *)
 (*
 Lemma instr_transl_hypL (ir: instr_r) : forall (ii: instr_info) (c1 c2: cmd),
         c1 = [:: (MkI ii ir)] ->
@@ -539,120 +542,11 @@ Lemma instr_transl_hypL (ir: instr_r) : forall (ii: instr_info) (c1 c2: cmd),
           (cmd_map_r (@denote_instr _ _ _ _) c1)
           (cmd_map_r (@denote_instr _ _ _ _) c2).
 Proof.
+*)
 
-  revert ir.
-Check @instr_r_Ind.
-
-  set (Pr := fun (ir: instr_r) => forall ii c1 c2,
-               c1 = [:: (MkI ii ir)] ->
-               Tr_cmd_rel ((MkI ii ir) :: nil) c2 ->  
-            (*     eqit eq true true (Tr_instr (MkI ii i)) (Ret c2) ->   *)
-                rutt (EE_MR EE1 CState) (EE_MR EE2 CState)
-                TR_DE VR_DE eq
-                (cmd_map_r (@denote_instr _ _ _ _) c1)
-                (cmd_map_r (@denote_instr _ _ _ _) c2)).
-
-  set (Pi := fun i => forall c2,
-               Tr_cmd_rel (i::nil) c2 ->   
-               @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
-                 (denote_cmd _ _ (i::nil))
-                 (denote_cmd _ _ c2)).
- 
-  set (Pc := fun c => forall c2,
-               Tr_cmd_rel c c2 ->  
-               @rutt E1 E2 _ _ EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
-                 (denote_cmd _ _ c)
-                 (denote_cmd _ _ c2)).
-(*  revert ir; unfold Tr_cmd_rel. *)
-
-  set (LInd := @instr_r_Ind Pr Pi Pc).
-
-  intros.
-  eapply LInd.
-
-  subst Pc; simpl; intros.
-  admit.
-  admit.
-  admit.
-  admit.
-  admit.
-  admit.
-  subst Pc.
-  subst Pr.
-  simpl; intros.
-  inv H3.
-  unfold Tr_cmd_rel in H4.
-  simpl in H4.
-  symmetry in H4.
-
-  (* NOTE: here H4 should reduce to something to which it is possible to apply 
-   one of the induction hypothesis !!!!!!!!!!!!!!!!!!!! *)
-  
-    eapply eqit_inv_bind_ret in H4.
-    destruct H4 as [g1 [H4 H5]].
-    eapply eqit_inv_bind_ret in H4.
-    destruct H4 as [g2 [H4 H6]].
-    eapply eqit_inv_bind_ret in H6.
-    destruct H6 as [g3 [H6 H7]].
-    eapply eqit_inv_bind_ret in H7.
-    destruct H7 as [g4 [H7 H8]].
-    eapply eqit_inv_bind_ret in H5.
-    destruct H5 as [g5 [H5 H9]].
-    eapply eutt_Ret in H5; inv H5.
-    eapply eutt_Ret in H9; inv H9.
-    setoid_rewrite app_nil_r.
-
-    unfold Tr_cmd_rel in *.
-    specialize (H1 g3).
-    specialize (H2 g4).
-    
-  (* OK: c0 -> H1 -> g3 ; c3 -> H2 -> g4 ; g3&g4 -> H8 g1 *)
-    
-  
-  admit.
-  admit.
-  admit.
-  admit.
-  eexact H.
-  unfold Tr_cmd_rel.
-  symmetry.
-  simpl.
-  setoid_rewrite bind_ret_l.
-  setoid_rewrite app_nil_r.
-  setoid_rewrite bind_ret_r.
-  exact H0.
-  
-    
-  eapply LInd.
-
-  
-  eapply instr_r_Ind.
-
-  instantiate (1:=Pc).
-  admit.
-  instantiate (1:=Pi).
-  admit.
-  admit.
-  admit.
-  
-  
-  apply (instr_r_Ind Pr Pi Pc).
-  
-
-
-  apply (@instr_r_Ind Pr Pi Pc). rewrite /Pr /Pi /Pc. 
-
-  
-
-  
-  intros ii ir.
-  induction ir.
-  unfold denote_instr.
-
-  
-
-(* rather strong *)
-Context (instr_transl_hyp
+(* too strong *)
+(*
+  Context (instr_transl_hyp
         : forall (i: instr_info) (i1: instr_r) (c1: cmd),
         eqit eq true true (Tr_instr (MkI i i1)) (Ret c1) ->
         rutt (EE_MR EE1 CState) (EE_MR EE2 CState)
@@ -784,69 +678,8 @@ Proof.
   reflexivity.
 Qed.
 
-(*
-Lemma map_denote_instr_lemma c (c0 : cmd) (H: ret c0 ≈ Tr_cmd c) :
-  rutt (EE_MR EE1 CState) (EE_MR EE2 CState) (sum_prerel (@TR_D) (TR_E E1 E2))
-    (sum_postrel (@VR_D) (VR_E E1 E2))
-    (fun v1 : unit => [eta VR_D (LCode c) v1 (LCode c0)])
-    (cmd_map_r (denote_instr (Eff:=E1) HasInstrE1) c)
-    (cmd_map_r (denote_instr (Eff:=E2) HasInstrE2) c0).
-Proof.
-  revert H. revert c0.
-  induction c; simpl.
 
-  { simpl; intros c0 H; simpl in H.
-    eapply eutt_Ret in H.
-    inv H; simpl.
-    eapply rutt_Ret; unfold VR_D; auto.
-  }
-
-  simpl; intros c0 H.
-  destruct a.
-
-  symmetry in H.
-  eapply eqit_inv_bind_ret in H.
-  destruct H as [c1 [H0 H1]].
-  eapply eqit_inv_bind_ret in H1.
-  destruct H1 as [c2 [H2 H6]].
-  eapply eutt_Ret in H6; inv H6.
-
-  rewrite VR_D_eq_aux_lemma; eauto. 
-      
-  setoid_rewrite map_denote_instr_concat_lemma.
-        
-  eapply rutt_bind with (RR:=eq); eauto.
-        
-  symmetry in H2.
-  eapply IHc in H2.
-  rewrite VR_D_eq_aux_lemma in H2; eauto.
-Qed.
-
-
-Lemma denote_cstate_rutt (R1 R2 : Type) (d1 : CState R1) (d2 : CState R2)
-  (H: TR_D d1 d2) :
-  rutt (EE_MR EE1 CState) (EE_MR EE2 CState) (sum_prerel (@TR_D) (TR_E E1 E2))
-    (sum_postrel (@VR_D) (VR_E E1 E2)) (fun v1 : R1 => [eta VR_D d1 v1 d2])
-    (denote_cstate (Eff:=E1) HasFunE1 HasInstrE1 d1)
-    (denote_cstate (Eff:=E2) HasFunE2 HasInstrE2 d2).
-Proof.
-  remember d1 as dd1.
-  remember d2 as dd2.
-  unfold TR_D in H; destruct dd1.    
-  { destruct dd2; try intuition.
-    simpl; unfold Tr_cmd_rel in H.
-    eapply map_denote_instr_lemma; eauto.
-  }
-  { destruct dd2; try intuition.
-    inv H0; simpl. 
-    eapply rutt_transl_denote_fcall_MM
-             with (fn := f0) in H as K1; eauto.          
-    rewrite <- EE1_MR_eq.
-    rewrite <- EE2_MR_eq.
-    rewrite VR_D_eq_aux_lemma; eauto. 
-  }   
-Qed.
-*)
+Section TR_MM_L3.
 
 Context (Cassgn_hyp : forall ii x0 x1 tg ty e0 e1 c1,
     eutt eq (tr_lval x0) (Ret x1) ->
@@ -1229,12 +1062,78 @@ Proof.
    }
 Qed.
 
+End TR_MM_L3. 
 
 End TR_MM_L2. 
 
 End TR_MM_L1. 
 
+Check Cfor.
+About var_i.
 
+(*
+Lemma map_denote_instr_lemma c (c0 : cmd) (H: ret c0 ≈ Tr_cmd c) :
+  rutt (EE_MR EE1 CState) (EE_MR EE2 CState) (sum_prerel (@TR_D) (TR_E E1 E2))
+    (sum_postrel (@VR_D) (VR_E E1 E2))
+    (fun v1 : unit => [eta VR_D (LCode c) v1 (LCode c0)])
+    (cmd_map_r (denote_instr (Eff:=E1) HasInstrE1) c)
+    (cmd_map_r (denote_instr (Eff:=E2) HasInstrE2) c0).
+Proof.
+  revert H. revert c0.
+  induction c; simpl.
+
+  { simpl; intros c0 H; simpl in H.
+    eapply eutt_Ret in H.
+    inv H; simpl.
+    eapply rutt_Ret; unfold VR_D; auto.
+  }
+
+  simpl; intros c0 H.
+  destruct a.
+
+  symmetry in H.
+  eapply eqit_inv_bind_ret in H.
+  destruct H as [c1 [H0 H1]].
+  eapply eqit_inv_bind_ret in H1.
+  destruct H1 as [c2 [H2 H6]].
+  eapply eutt_Ret in H6; inv H6.
+
+  rewrite VR_D_eq_aux_lemma; eauto. 
+      
+  setoid_rewrite map_denote_instr_concat_lemma.
+        
+  eapply rutt_bind with (RR:=eq); eauto.
+        
+  symmetry in H2.
+  eapply IHc in H2.
+  rewrite VR_D_eq_aux_lemma in H2; eauto.
+Qed.
+
+
+Lemma denote_cstate_rutt (R1 R2 : Type) (d1 : CState R1) (d2 : CState R2)
+  (H: TR_D d1 d2) :
+  rutt (EE_MR EE1 CState) (EE_MR EE2 CState) (sum_prerel (@TR_D) (TR_E E1 E2))
+    (sum_postrel (@VR_D) (VR_E E1 E2)) (fun v1 : R1 => [eta VR_D d1 v1 d2])
+    (denote_cstate (Eff:=E1) HasFunE1 HasInstrE1 d1)
+    (denote_cstate (Eff:=E2) HasFunE2 HasInstrE2 d2).
+Proof.
+  remember d1 as dd1.
+  remember d2 as dd2.
+  unfold TR_D in H; destruct dd1.    
+  { destruct dd2; try intuition.
+    simpl; unfold Tr_cmd_rel in H.
+    eapply map_denote_instr_lemma; eauto.
+  }
+  { destruct dd2; try intuition.
+    inv H0; simpl. 
+    eapply rutt_transl_denote_fcall_MM
+             with (fn := f0) in H as K1; eauto.          
+    rewrite <- EE1_MR_eq.
+    rewrite <- EE2_MR_eq.
+    rewrite VR_D_eq_aux_lemma; eauto. 
+  }   
+Qed.
+*)
 
 (*        
 Context (instr_transl_hyp: forall (i: instr_info) (i1: instr_r) (c1: cmd),
