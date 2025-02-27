@@ -1439,10 +1439,199 @@ Proof.
     
 Admitted.
   
-
-
 End TR_MM_L2. 
 
+
+Section ExtraTests.
+
+(* is this true? probably not. let's try to prove it. *)  
+Lemma mrec_inv c1 c2 :
+   rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+      (denote_cmd HasFunE1 HasInstrE1 c1)
+      (denote_cmd HasFunE2 HasInstrE2 c2) -> 
+    @rutt (CState +' E1) (CState +' E2) _ _
+            EE1_MR EE2_MR TR_DE VR_DE eq
+      (denote_cstate HasFunE1 HasInstrE1 (LCode c1))
+      (denote_cstate HasFunE2 HasInstrE2 (LCode c2)).
+Proof.
+(*
+  revert c1 c2.
+  ginit.
+  gcofix CIH. intros c1 c2 H.
+
+  setoid_rewrite unfold_interp_mrec in H.  
+  unfold _interp_mrec in H.
+
+  setoid_rewrite EqAxiom.itree_eta_.
+  
+  remember (observe (denote_cstate (Eff:=E1) HasFunE1 HasInstrE1 (LCode c1)))
+    as O1.
+  assert (True -> O1 =
+     observe (denote_cstate (Eff:=E1) HasFunE1 HasInstrE1 (LCode c1))) as HO1.
+  { eauto. }
+  clear HeqO1.
+
+  remember (observe (denote_cstate (Eff:=E2) HasFunE2 HasInstrE2 (LCode c2)))
+    as O2.
+  assert (True -> O2 =
+    observe (denote_cstate (Eff:=E2) HasFunE2 HasInstrE2 (LCode c2))) as HO2.
+  { eauto. }
+  clear HeqO2.
+  
+  punfold H.
+  red in H.
+  dependent induction H; intros.
+
+  { inv x0.
+    dependent destruction x6.
+    inv x.
+    destruct O1; destruct O2; try congruence.
+    { destruct r0.
+      destruct r3.
+      gstep; red.
+      econstructor; auto.
+    }
+    { simpl in x0.
+      dependent destruction x0.
+    }
+    { destruct e.
+      { simpl in x0.
+        dependent destruction x0.
+      }
+      { simpl in x0.
+        dependent destruction x0.
+      }
+    }
+    { simpl in x8.
+      dependent destruction x8.
+    }
+    { simpl in x8.
+      dependent destruction x8.
+    }
+    { simpl in x8.
+      dependent destruction x8.
+    }
+    { destruct e.
+      { simpl in x8.
+        dependent destruction x8.
+      }
+      { simpl in x8.
+        dependent destruction x8.
+      }
+    }
+    { simpl in x0.
+      dependent destruction x0.
+    }
+    { destruct e.
+      { simpl in x8.
+        dependent destruction x8.
+      }
+      { simpl in x8.
+        dependent destruction x8.
+      }
+    }    
+  }
+
+  
+  { inv x0.
+    dependent destruction x6.
+    inv x.
+
+    destruct O1; destruct O2; try congruence.
+    { simpl in x0.
+      dependent destruction x0.
+    }
+    { simpl in x8.
+      dependent destruction x8.
+    }
+    { simpl in x8.
+      dependent destruction x8.
+    }
+    { simpl in x0.
+      dependent destruction x0.
+    }
+    { gstep; red.
+      econstructor.
+      gstep; red.
+      rename H into Hyp.     
+      pclearbot.
+
+      (* etc. - see version without coinduction *)
+*)
+      
+  (* to simplify, we try WITHOUT coinduction *)
+  intro Hyp.
+  setoid_rewrite unfold_interp_mrec in Hyp.  
+  unfold _interp_mrec in Hyp.
+  
+  setoid_rewrite EqAxiom.itree_eta_.
+
+  remember (observe (denote_cstate (Eff:=E1) HasFunE1 HasInstrE1 (LCode c1)))
+    as O1.
+  assert (True -> O1 =
+     observe (denote_cstate (Eff:=E1) HasFunE1 HasInstrE1 (LCode c1))) as HO1.
+  { eauto. }
+  clear HeqO1.
+
+  remember (observe (denote_cstate (Eff:=E2) HasFunE2 HasInstrE2 (LCode c2)))
+    as O2.
+  assert (True -> O2 =
+    observe (denote_cstate (Eff:=E2) HasFunE2 HasInstrE2 (LCode c2))) as HO2.
+  { eauto. }
+  clear HeqO2.
+
+  punfold Hyp. red in Hyp.
+  
+  dependent induction Hyp.
+
+  2: {
+    rename H into Hyp.
+    inv x0.
+    dependent destruction x6.
+    inv x. simpl in *.
+
+    destruct O1; destruct O2; try congruence.
+    admit.
+    admit.
+    admit.
+    admit.
+    pstep; red.
+    econstructor. red.
+    left.
+    pstep; red.
+    pclearbot.
+    punfold Hyp; red in Hyp.
+
+    simpl in *.
+    dependent destruction x8. 
+    inv x.
+    dependent destruction x0.
+    inv x.
+
+    (* here the only way to proceed is to prove the goal from Hyp, but
+ this is basically a generalization of the following *)
+Abort.
+
+(* here basically we want to prove something like
+
+F x = G y -> x = y
+
+but this is too strong.
+*)
+Lemma mrec_inv c1 c2 :
+  let O1 := (denote_cstate HasFunE1 HasInstrE1 (LCode c1)) in
+  let O2 := (denote_cstate HasFunE2 HasInstrE2 (LCode c2)) in 
+  rutt EE1 EE2 (TR_E E1 E2) (VR_E E1 E2) eq
+    (interp_mrec (denote_cstate HasFunE1 HasInstrE1) O1)
+    (interp_mrec (denote_cstate HasFunE2 HasInstrE2) O2) ->
+    @rutt (CState +' E1) (CState +' E2) _ _
+            EE1_MR EE2_MR TR_DE VR_DE eq O1 O2.
+Proof.
+  intros.
+Abort.
+
+End ExtraTests.
+  
 End TR_MM_L1. 
 
 
