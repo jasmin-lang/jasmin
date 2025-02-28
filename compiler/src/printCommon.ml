@@ -79,8 +79,9 @@ let string_of_wiop1 sg = function
 let string_of_op1 = function
   | E.Oint_of_word (s, sz) ->
       asprintf "(%s /* of %s */)" (string_of_int_cast s) (string_of_w_ty sz)
+  | E.Oword_of_int szo  -> asprintf "(%dw)" (int_of_ws szo)
   | E.Osignext (szo, _) -> asprintf "(%ds)" (int_of_ws szo)
-  | E.Oword_of_int szo | E.Ozeroext (szo, _) -> asprintf "(%du)" (int_of_ws szo)
+  | E.Ozeroext (szo, _) -> asprintf "(%du)" (int_of_ws szo)
   | E.Olnot sz ->
       asprintf "!%s" (string_of_w_cast sz)
   | E.Onot -> "!"
