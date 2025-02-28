@@ -156,11 +156,8 @@ let main () =
         - Pretty-print the program
         - Add your own checker here!
     *)
-
     let visit_prog_after_pass ~debug s p =
       if s = SafetyConfig.sc_comp_pass () && !check_safety then
-
-
         check_safety_p
           Arch.reg_size
           Arch.asmOp
@@ -175,10 +172,9 @@ let main () =
         eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p
       ) in
 
-     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) prog;
      visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
 
-    if !ec_list <> [] || !ecfile <> "" then begin
+     if !ec_list <> [] || !ecfile <> "" then begin
       let fmt, close =
         if !ecfile = "" then Format.std_formatter, fun () -> ()
         else
