@@ -166,15 +166,13 @@ let main () =
           p
           source_prog
         |> fun () -> exit 0
-
       else
-      (
         eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p
-      ) in
+    in
 
-     visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
+    visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
 
-     if !ec_list <> [] || !ecfile <> "" then begin
+    if !ec_list <> [] || !ecfile <> "" then begin
       let fmt, close =
         if !ecfile = "" then Format.std_formatter, fun () -> ()
         else
