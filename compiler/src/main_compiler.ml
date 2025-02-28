@@ -149,7 +149,7 @@ let main () =
     in
 
     (* The source program, before any compilation pass. *)
-    let _source_prog = prog in
+    let source_prog = prog in
 
     (* This function is called after each compilation pass.
         - Check program safety (and exit) if the time has come
@@ -158,8 +158,7 @@ let main () =
     *)
 
     let visit_prog_after_pass ~debug s p =
-(* FIXME *)
-(*      if s = SafetyConfig.sc_comp_pass () && !check_safety then
+      if s = SafetyConfig.sc_comp_pass () && !check_safety then
 
 
         check_safety_p
@@ -171,16 +170,14 @@ let main () =
           source_prog
         |> fun () -> exit 0
 
-      else *)
+      else
       (
         eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p
       ) in
 
      eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) prog;
-(*    visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog; *)
+     visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
 
-(* FIXME *)
-(*
     if !ec_list <> [] || !ecfile <> "" then begin
       let fmt, close =
         if !ecfile = "" then Format.std_formatter, fun () -> ()
@@ -192,6 +189,7 @@ let main () =
         BatPervasives.finally
           (fun () -> close ())
           (fun () ->
+            let prog = Compile.do_wint_int (module Arch) prog in
             ToEC.extract prog !Glob_options.target_arch Arch.reg_size Arch.asmOp !model ToEC.ArrayOld !ec_list (Some !ec_array_path) fmt
           )
           ()
@@ -201,7 +199,7 @@ let main () =
         raise e end;
       exit 0
     end;
-*)
+
     (* Now call the coq compiler *)
     let cprog = Conv.cuprog_of_prog prog in
 

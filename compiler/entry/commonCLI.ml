@@ -1,5 +1,4 @@
 open Jasmin
-open Prog
 open Cmdliner
 open Utils
 
@@ -93,34 +92,7 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let prog =
     if not wi2i then prog
-    else
-    let fds = snd prog in
-    let fv = List.fold_left (fun fv fd -> Sv.union fv (vars_fc fd)) Sv.empty fds in
-    let m =
-      Sv.fold (fun x m ->
-            match x.v_ty with
-            | Bty (U _) ->
-              begin match Annotations.has_wint x.v_annot with
-              | None -> m
-              | Some sg ->
-                let annot = Annotations.remove_wint x.v_annot in
-                let xi = V.mk x.v_name x.v_kind tint x.v_dloc annot in
-                Mv.add x (sg, Conv.cvar_of_var xi) m
-              end
-            | _ -> m)
-        fv Mv.empty in
-    let cp = Conv.cuprog_of_prog prog in
-    let info x =
-      let x = Conv.var_of_cvar x in
-       Mv.find_opt x m in
-    let cp = Wint_int.wi2i_prog Arch.asmOp Arch.msf_size info cp in
-    let cp =
-      match cp with
-      | Utils0.Ok cp -> cp
-      | Utils0.Error e ->
-        let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
-        raise (HiError e) in
-    Conv.prog_of_cuprog cp in
+    else Compile.do_wint_int (module Arch) prog in
 
   let prog =
     if pass <= Compiler.ParamsExpansion then prog
