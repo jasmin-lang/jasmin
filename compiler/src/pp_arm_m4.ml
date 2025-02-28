@@ -106,7 +106,7 @@ let pp_asm_arg (arg : (register, Arch_utils.empty, Arch_utils.empty, rflag, cond
 (* -------------------------------------------------------------------- *)
 
 (* TODO_ARM: Review. *)
-let headers = [ LInstr (".thumb", []); LInstr (".syntax unified", []) ]
+let headers = [ LInstr (".thumb", [], []); LInstr (".syntax unified", [], []) ]
 
 (* -------------------------------------------------------------------- *)
 
@@ -145,7 +145,7 @@ let get_IT i =
   | AsmOp (_, args) -> begin
       match List.opick (is_Condt arch) args with
       | None -> []
-      | Some c -> [ LInstr ("it", [ pp_condt c ]) ]
+      | Some c -> [ LInstr ("it", [ pp_condt c ], []) ]
     end
   | _ -> []
 
@@ -235,9 +235,9 @@ let pp_ADR pp opts args =
         (dst :: lo :: rest, dst :: hi :: rest)
     | _ -> assert false
   in
-  [ LInstr(name_lo, args_lo); LInstr(name_hi, args_hi) ]
+  [ LInstr(name_lo, args_lo, []); LInstr(name_hi, args_hi, []) ]
 
-let pp_instr fn i =
+let pp_instr fn i annots =
   match i with
   | ALIGN ->
       failwith "TODO_ARM: pp_instr align"
@@ -246,10 +246,10 @@ let pp_instr fn i =
       [ LLabel (pp_label fn lbl) ]
 
   | STORELABEL (dst, lbl) ->
-      [ LInstr ("adr", [ pp_register dst; string_of_label fn lbl ]) ]
+      [ LInstr ("adr", [ pp_register dst; string_of_label fn lbl ], annots) ]
 
   | JMP lbl ->
-      [ LInstr ("b", [ pp_remote_label lbl ]) ]
+      [ LInstr ("b", [ pp_remote_label lbl ], annots) ]
 
   | JMPI arg ->
       (* TODO_ARM: Review. *)
@@ -258,23 +258,23 @@ let pp_instr fn i =
         | Reg r -> pp_register r
         | _ -> failwith "TODO_ARM: pp_instr jmpi"
       in
-      [ LInstr ("bx", [ lbl ]) ]
+      [ LInstr ("bx", [ lbl ], []) ]
 
   | Jcc (lbl, ct) ->
       let iname = Printf.sprintf "b%s" (pp_condt ct) in
-      [ LInstr (iname, [ pp_label fn lbl ]) ]
+      [ LInstr (iname, [ pp_label fn lbl ], annots) ]
 
   | JAL (LR, lbl) ->
-      [ LInstr ("bl", [ pp_remote_label lbl ]) ]
+      [ LInstr ("bl", [ pp_remote_label lbl ], annots) ]
 
   | CALL _
   | JAL _ -> assert false
 
   | POPPC ->
-      [ LInstr ("pop", [ "{pc}" ]) ]
+      [ LInstr ("pop", [ "{pc}" ], annots) ]
 
   | SysCall op ->
-      [LInstr ("bl", [ pp_syscall op ])]
+      [LInstr ("bl", [ pp_syscall op ], annots)]
 
   | AsmOp (op, args) ->
       let id = instr_desc arm_decl arm_op_decl (None, op) in
@@ -290,18 +290,18 @@ let pp_instr fn i =
             List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
           in
           let args = pp_shift op args in
-          get_IT i @ [ LInstr (name, args) ]
+          get_IT i @ [ LInstr (name, args, annots) ]
 
 (* -------------------------------------------------------------------- *)
 
 let pp_body fn =
   let open List in
-  concat_map @@ fun { asmi_i = i ; asmi_ii = (ii, _) } ->
+  concat_map @@ fun { asmi_i = i ; asmi_ii = (ii, annots) } ->
   let i = 
-    try pp_instr fn i 
+    try pp_instr fn i annots
     with HiError err -> raise (HiError (Utils.add_iloc err ii)) in
   append
-    (map (fun i -> LInstr (i, [])) (DebugInfo.source_positions ii.base_loc))
+    (map (fun i -> LInstr (i, [], annots)) (DebugInfo.source_positions ii.base_loc))
     i
 
 (* -------------------------------------------------------------------- *)
@@ -316,23 +316,23 @@ let pp_fun (fn, fd) =
   let head =
     let fn = escape fn in
     if fd.asm_fd_export then
-      [ LInstr (".global", [ mangle fn ]); LInstr (".global", [ fn ]) ]
+      [ LInstr (".global", [ mangle fn ], []); LInstr (".global", [ fn ], []) ]
     else []
   in
   let pre =
     let fn = escape fn in
-    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("push", [pp_brace (pp_register LR)]) ] else []
+    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("push", [pp_brace (pp_register LR)], []) ] else []
   in
   let body = pp_body fn fd.asm_fd_body in
   (* TODO_ARM: Review. *)
-  let pos = if fd.asm_fd_export then pp_instr fn POPPC else [] in
+  let pos = if fd.asm_fd_export then pp_instr fn POPPC [] else [] in
   head @ pre @ body @ pos
 
 let pp_funcs funs = List.concat_map pp_fun funs
 
 let pp_data globs names =
   if not (List.is_empty globs) then
-    LInstr (".p2align", ["5"]) ::
+    LInstr (".p2align", ["5"], []) ::
     LLabel global_datas ::
     format_glob_data globs names
   else []
@@ -342,5 +342,5 @@ let pp_prog p =
   let data = pp_data p.asm_globs p.asm_glob_names in
   headers @ code @ data
 
-let print_instr s fmt i = print_asm_lines fmt (pp_instr s i)
+let print_instr s fmt i = print_asm_lines fmt (pp_instr s i [])
 let print_prog fmt p = print_asm_lines fmt (pp_prog p)

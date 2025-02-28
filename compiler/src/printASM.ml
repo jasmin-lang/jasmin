@@ -2,10 +2,26 @@ open Utils
 open Prog
 open PrintCommon
 
+
+let pp_asm_comment (fmt : Format.formatter) (annotations : Annotations.annotations) =
+  (* TODO : Check that command is singleline or multiline *)
+  List.iter(
+    fun ((k, a): Annotations.annotation ) ->
+      match (L.unloc k) with 
+      | "comment" -> (
+        match a with
+          | Some ({pl_desc=Astring s;_}) -> 
+            let comment_symbol = Glob_options.get_arch_comment_delimiter () in
+            Format.fprintf fmt "%s %s" comment_symbol s
+          | _ -> ()
+        )
+      | _ -> () 
+  ) annotations
+  
 (** Assembly code lines. *)
 type asm_line =
   | LLabel of string
-  | LInstr of string * string list
+  | LInstr of string * string list * Annotations.annotations
   | LByte of string
 
 let iwidth = 4
@@ -13,9 +29,9 @@ let iwidth = 4
 let print_asm_line fmt ln =
   match ln with
   | LLabel lbl -> Format.fprintf fmt "%s:" lbl
-  | LInstr (s, []) -> Format.fprintf fmt "\t%s" s
-  | LInstr (s, args) ->
-      Format.fprintf fmt "\t%-*s\t%s" iwidth s (String.concat ", " args)
+  | LInstr (s, [],comment) -> Format.fprintf fmt "\t%s %a" s pp_asm_comment comment
+  | LInstr (s, args,comment) ->
+      Format.fprintf fmt "\t%-*s\t%s %a" iwidth s (String.concat ", " args) pp_asm_comment comment
   | LByte n -> Format.fprintf fmt "\t.byte\t%s" n
 
 let print_asm_lines fmt lns =

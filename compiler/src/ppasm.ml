@@ -444,9 +444,9 @@ module Printer (BP:BPrinter) = struct
       `Instr(name, args)
 
   (* -------------------------------------------------------------------- *)
-  let pp_ii ({ Location.base_loc = ii; _}, _) =
+  let pp_ii ({ Location.base_loc = ii; _}, annots) =
     List.map (fun i -> `Instr(i, [])) (DebugInfo.source_positions ii)
-
+  
   (* -------------------------------------------------------------------- *)
   let pp_instr name (fmt : Format.formatter) (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
     let Arch_decl.({ asmi_i = i ; asmi_ii = ii }) = i in
@@ -455,7 +455,7 @@ module Printer (BP:BPrinter) = struct
 
   (* -------------------------------------------------------------------- *)
   let pp_instrs name (fmt : Format.formatter) (is : (_, _, _, _, _, _) Arch_decl.asm_i list) =
-    List.iter (Format.fprintf fmt "%a\n%!" (pp_instr name)) is
+    List.iter (fun i-> Format.fprintf fmt "%a %a\n%!" (pp_instr name) i PrintASM.pp_asm_comment (snd i.asmi_ii)) is
     
   (* -------------------------------------------------------------------- *)  
   let pp_prog (fmt : Format.formatter)

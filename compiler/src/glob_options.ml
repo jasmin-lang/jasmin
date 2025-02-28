@@ -60,6 +60,16 @@ let set_target_arch a =
 type x86_assembly_style = [`ATT | `Intel ]
 let assembly_style : x86_assembly_style ref = ref `ATT
 
+let get_arch_comment_delimiter () = 
+  match !target_arch with
+  | X86_64 -> (
+    match !assembly_style with
+    | `ATT -> "##"
+    | `Intel -> ";"
+  )
+  | ARM_M4 -> "@"
+  | RISCV -> "#" 
+
 let set_syntax style () = assembly_style := style
 
 let set_printing p () =
