@@ -930,7 +930,7 @@ Definition wi2w_callP_aux :=
 
 End M.
 
-Section Final.
+Section FINAL.
 
 Context (info : var → option (signedness * var)).
 
@@ -1037,3 +1037,6 @@ Proof.
     by rewrite -/(get_fundef (p_funcs p) fn) hfn.
   by have /= [] := wi2w_callP_aux hwf_m hsigs hp' hsem hsig hargs.
 Qed.
+
+End FINAL.
+End PROOF.

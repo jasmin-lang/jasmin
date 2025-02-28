@@ -227,6 +227,19 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     tokeep
   in
 
+  let remove_wint_annot fd =
+    let vars = Prog.vars_fc fd in
+    let subst =
+      Sv.fold (fun x s ->
+          if Annotations.has_wint x.v_annot = None then s
+          else
+            let annot = Annotations.remove_wint x.v_annot in
+            let x' = V.mk x.v_name x.v_kind x.v_ty x.v_dloc annot in
+            Mv.add x x' s)
+        vars Mv.empty in
+    Subst.vsubst_func subst fd
+  in
+
   let warn_extra s p =
     if s = Compiler.DeadCode_RegAllocation then
       let fds, _ = Conv.prog_of_csprog p in
@@ -319,6 +332,8 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
         Var0.Var.vname (Conv.cvar_of_var Arch.rip);
       Compiler.stackalloc = memory_analysis;
       Compiler.removereturn;
+      Compiler.remove_wint_annot =
+        apply "remove wint annot" remove_wint_annot;
       Compiler.regalloc = global_regalloc;
       Compiler.print_uprog =
         (fun s p ->
