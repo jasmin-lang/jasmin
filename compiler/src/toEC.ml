@@ -1387,7 +1387,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
     | E.Oword_of_int sz ->
       ec_apps1 (Format.sprintf "%s.of_int" (fmt_Wsz sz)) e
     | E.Oint_of_word(s, sz) ->
-      ec_apps1 (Format.sprintf "%s.to_%sint" (string_of_signess s) (fmt_Wsz sz)) e
+      ec_apps1 (Format.sprintf "%s.to_%sint" (fmt_Wsz sz) (string_of_signess s)) e
     | E.Osignext(szo,_szi) ->
       ec_apps1 (Format.sprintf "sigextu%i" (int_of_ws szo)) e
     | E.Ozeroext(szo,szi) -> ec_zeroext_sz (szo, szi) e
