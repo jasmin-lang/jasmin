@@ -108,6 +108,7 @@ type safe_cond =
   | AlignedPtr  of wsize * var * expr (* aligned pointer *)
   | AlignedExpr of wsize * expr       (* aligned expression *)
 
+  | NotEqual of wsize option * expr * expr (* None equality on int, else equality on word *)
   | NotZero of wsize * expr
   | Termination of bool (* the boolean signals whether this is a severe violation *)
 
@@ -124,6 +125,10 @@ let alignment_violation =
 let pp_var = Printer.pp_var ~debug:false
 let pp_expr = Printer.pp_expr ~debug:false
 let pp_ws fmt ws = Format.fprintf fmt "%i" (int_of_ws ws)
+let pp_ows fmt ws =
+  match ws with
+  | None -> ()
+  | Some ws -> pp_ws fmt ws
 
 let pp_access fmt = function
   | Warray_.AAdirect -> Format.fprintf fmt "direct"
@@ -146,6 +151,7 @@ let pp_safety_cond fmt = function
     Format.fprintf fmt "is_init %a"
       pp_arr_slice slice
 
+  | NotEqual(sz, e1, e2) -> Format.fprintf fmt "%a <>%a %a" pp_expr e1 pp_ows sz pp_expr e2
   | NotZero(sz,e) -> Format.fprintf fmt "%a <>%a zero" pp_expr e pp_ws sz
   | InRange(lo, hi, e) -> Format.fprintf fmt "%a ∈ [%a; %a]" pp_expr e pp_expr lo pp_expr hi
   | InBound(n,slice)  ->
@@ -255,11 +261,41 @@ let arr_aligned access ws e = match access with
      end
 
 (*------------------------------------------------------------*)
-let safe_op1 = function
-  | E.Owi1 _ -> assert false (* FIXME *)
+let pow2 = Z.pow (Z.of_int 2)
+let half_modulus ws = pow2 (int_of_ws ws - 1)
+let modulus ws = pow2 (int_of_ws ws)
+
+let in_wint_range sg sz e =
+  match sg with
+  | Unsigned ->
+    InRange(Pconst Z.zero, Pconst (Z.pred (modulus sz)), e)
+  | Signed ->
+    InRange(Pconst (Z.neg (half_modulus sz)), Pconst (Z.pred (half_modulus sz)), e)
+
+let wint_to_int sg sz e =
+  Papp1(E.Oint_of_word(sg, sz), e)
+
+let safe_op1 o e1 =
+  match o with
+  | E.Owi1(sg, o) ->
+    begin match o with
+    | E.WIword_of_int sz -> [in_wint_range sg sz e1]
+    | E.WIint_of_word sz -> []
+    | E.WIword_of_wint _ -> []
+    | E.WIwint_of_word _ -> []
+    | E.WIword_ext(szo, szi) -> assert false
+    | E.WIneg sz ->
+      if sg = Signed then [NotEqual(None, wint_to_int sg sz e1, Pconst (Z.neg (half_modulus sz)))]
+      else [InRange(Pconst Z.zero, Pconst Z.zero, wint_to_int sg sz e1)]
+    end
   | _ -> []
 
-let safe_op2 e2 = function
+
+let to_int_op2 sg sz op e1 e2 =
+  Papp2 (op, wint_to_int sg sz e1, wint_to_int sg sz e2)
+
+let safe_op2 o e1 e2 =
+  match o with
   | E.Obeq | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _
   | E.Oland _ | E.Olor _ | E.Olxor _
   | E.Olsr _ | E.Olsl _ | E.Oasr _
@@ -273,7 +309,20 @@ let safe_op2 e2 = function
 
   | E.Ovadd _ | E.Ovsub _ | E.Ovmul _
   | E.Ovlsr _ | E.Ovlsl _ | E.Ovasr _ -> []
-  | E.Owi2 _ -> assert false (* FIXME *)
+  | E.Owi2(sg, sz, o) ->
+    match o with
+    | WIadd -> [in_wint_range sg sz (to_int_op2 sg sz (E.Oadd Op_int) e1 e2)]
+    | WImul -> [in_wint_range sg sz (to_int_op2 sg sz (E.Omul Op_int) e1 e2)]
+    | WIsub -> [in_wint_range sg sz (to_int_op2 sg sz (E.Osub Op_int) e1 e2)]
+    | WIdiv -> [NotZero (sz, wint_to_int sg sz e2) (* FIXME this is not sufficiant case Signed *) ]
+    | WImod -> [NotZero (sz, wint_to_int sg sz e2) (* FIXME this is not sufficiant case Signed *) ]
+    | WIshl ->
+        let o = E.Olsl Op_int in
+        let e = Papp2 (o, wint_to_int sg sz e1, wint_to_int Unsigned U8 e2) in
+        [in_wint_range sg sz e]
+    | WIshr -> [] (* shift rigth is allways in the range *)
+    | WIeq | WIneq | WIlt | WIle | WIgt | WIge -> []
+
 
 let safe_var x = match (L.unloc x).v_ty with
     | Arr _ -> []
@@ -312,8 +361,8 @@ let rec safe_e_rec safe = function
     arr_aligned (* x.gv *) access ws e @
     safe
 
-  | Papp1 (op, e) -> safe_op1 op @ safe_e_rec safe e
-  | Papp2 (op, e1, e2) -> safe_op2 e2 op @ safe_e_rec (safe_e_rec safe e1) e2
+  | Papp1 (op, e) -> safe_op1 op e @ safe_e_rec safe e
+  | Papp2 (op, e1, e2) -> safe_op2 op e1 e2 @ safe_e_rec (safe_e_rec safe e1) e2
   | PappN (_,es) -> List.fold_left safe_e_rec safe es
 
   | Pif  (_,e1, e2, e3) ->
@@ -345,10 +394,6 @@ let safe_lval = function
     safe_e_rec [] e
 
 let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
-
-let pow2 = Z.pow (Z.of_int 2)
-let half_modulus ws = pow2 (int_of_ws ws - 1)
-let modulus ws = pow2 (int_of_ws ws)
 
 let int_of_word sg ws e =
   match sg with
@@ -720,6 +765,14 @@ end = struct
          match AbsExpr.bexpr_to_btcons out_of_range s with
          | None -> false
          | Some c -> AbsDom.is_bottom (AbsDom.meet_btcons s c) end
+
+    | NotEqual(ws, e1, e2) ->
+      let k = match ws with Some ws -> E.Op_w ws | None -> E.Op_int in
+      let be = Papp2 (E.Oeq k, e1, e2) in
+      begin match AbsExpr.bexpr_to_btcons be state.abs with
+        | None -> false
+        | Some c ->
+          AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
 
     | NotZero (ws,e) ->
       (* We check that e is never 0 *)
