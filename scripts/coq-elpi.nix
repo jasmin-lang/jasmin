@@ -1,4 +1,4 @@
-{ lib, mkCoqDerivation, coq, version, stdlib }:
+{ lib, mkCoqDerivation, coq, version }:
 
 mkCoqDerivation {
   pname = "elpi";
@@ -6,13 +6,24 @@ mkCoqDerivation {
   owner = "LPCIC";
   inherit version;
 
-  preConfigure = ''
-    make elpi/dune
+  configurePhase = ''
+    patchShebangs etc/with-rocq-wrap.sh
+    make dune-files || true
+  '';
+
+  buildPhase = ''
+    etc/with-rocq-wrap.sh dune build -p rocq-elpi @install ''${enableParallelBuilding:+-j $NIX_BUILD_CORES}
+  '';
+
+  installPhase = ''
+    etc/with-rocq-wrap.sh dune install --root . rocq-elpi --prefix=$out --libdir $OCAMLFIND_DESTDIR
+    mkdir $out/lib/coq/
+    mv $OCAMLFIND_DESTDIR/coq $out/lib/coq/${coq.coq-version}
   '';
 
   mlPlugin = true;
   useDune = true;
-  propagatedBuildInputs = [ stdlib ]
+  propagatedBuildInputs = [ ]
   ++ (with coq.ocamlPackages; [
     (elpi.override { version = "master"; })
     findlib

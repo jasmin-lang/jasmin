@@ -21,9 +21,11 @@ let coqPackages =
       coq = super.coq.override { version = "master"; };
       stdlib = super.stdlib.override { version = "master"; };
       mathcomp = super.mathcomp.override { version = "master"; };
+      mathcomp-algebra-tactics = super.mathcomp-algebra-tactics.override { version = "master"; };
+      mathcomp-zify = super.mathcomp-zify.override { version = "master"; };
       coq-elpi = callPackage scripts/coq-elpi.nix {
         version = "master";
-        inherit (self) lib mkCoqDerivation coq stdlib;
+        inherit (self) lib mkCoqDerivation coq;
       };
       hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
     })
