@@ -1075,7 +1075,7 @@ let cast_int loc os e ety =
       | _, None -> s
       | Word, Some s -> tt_sign s
       | WInt, Some s' ->
-        (* FIXME: Should we do a better error message *)
+        (* FIXME: Should we do a better error message ? *)
         if tt_sign s' <> s then rs_tyerror ~loc (InvalidCast(ety,P.etint));
         s
     in
@@ -2021,12 +2021,12 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       let es  = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args tes in
       mk_i (P.Copn(lvs, AT_keep, p, es)) :: einstr
 
-  | ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None
+  | ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) }); pl_loc = loc} , None
       ->
       let ws =
         match ct with
-        | (ws, `Word s) when Option.default W.Unsigned (tt_osign s) = W.Unsigned -> ws
-        | _ -> assert false (* FIXME *)
+        | (ws, `Word _) -> ws
+        | (ws, `WInt _) -> rs_tyerror ~loc (string_error "invalid cast for asm operator")
         in
       let p = tt_prim arch_info.asmOp f in
       let id = Sopn.asm_op_instr arch_info.asmOp p in
