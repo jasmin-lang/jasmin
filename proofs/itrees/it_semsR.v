@@ -1,6 +1,6 @@
 
 From Jasmin Require Import expr oseq.
-From Jasmin Require Import it_gen_lib it_exec.
+From Jasmin Require Import it_gen_lib.
 From Jasmin Require Import it_jasmin_lib.
 (* problematic *)
 From Jasmin Require Import it_exec.
@@ -68,9 +68,9 @@ From ITree Require Import EqAxiom.
 
 From Jasmin Require Import expr psem_defs psem oseq.
 From Jasmin Require Import it_gen_lib it_jasmin_lib.
-From Jasmin Require Import compiler_util.
-(* problematic *)
-From Jasmin Require Import it_exec.
+From Jasmin Require Import utils compiler_util.
+
+From Jasmin Require Import it_result.
 
 Import Monads.
 Import MonadNotation.
@@ -90,24 +90,33 @@ error; MF: mutual flat; DE: double error; DF double flat) *)
 
 (**** ERROR SEMANTICS *******************************************)
 Section Errors.
+
+Definition execT := @resultT error.
+
+Definition cexecT := @resultT (option pp_error_loc).
+
   
 (* type of errors (this might becom richer) *)
-  (* Variant ErrType : Type := Err : ErrType. *)
+
+(* program error *)
 Notation ErrType1 := (error).
+(* compiler error *)  
 Notation ErrType2 := (option pp_error_loc).
+
+(* 'default' program error *)
 Notation Err := (ErrType).
 
 (* error events *)
-Definition ErrState : Type -> Type := exceptE ErrType1.
+Definition PErrState : Type -> Type := exceptE ErrType1.
 Definition CErrState : Type -> Type := exceptE ErrType2.
 
 (* failT (itree E) R = itree E (option R) *)
-Definition handle_Err {E} : ErrState ~> failT (itree E) :=
+Definition handle_Err {E} : PErrState ~> failT (itree E) :=
   fun _ _ => Ret (None).
 
 (* Err handler *)
 Definition ext_handle_Err {E: Type -> Type} :
-  ErrState +' E ~> failT (itree E) :=
+  PErrState +' E ~> failT (itree E) :=
   fun _ e =>
   match e with
   | inl1 e' => handle_Err e'
@@ -115,10 +124,28 @@ Definition ext_handle_Err {E: Type -> Type} :
 
 (* ErrState interpreter *)
 Definition interp_Err {E: Type -> Type} {A}  
-  (t: itree (ErrState +' E) A) : failT (itree E) A :=
+  (t: itree (PErrState +' E) A) : failT (itree E) A :=
   interp_fail ext_handle_Err t.
 
 (***)
+
+(* failT (itree E) R = itree E (option R) *)
+Definition handle_PErr {E} : PErrState ~> execT (itree E) :=
+  fun _ _ => Ret (None).
+
+(* Err handler *)
+Definition ext_handle_Err {E: Type -> Type} :
+  PErrState +' E ~> failT (itree E) :=
+  fun _ e =>
+  match e with
+  | inl1 e' => handle_Err e'
+  | inr1 e' => Vis e' (pure (fun x => Some x)) end.                        
+
+(* ErrState interpreter *)
+Definition interp_Err {E: Type -> Type} {A}  
+  (t: itree (PErrState +' E) A) : failT (itree E) A :=
+  interp_fail ext_handle_Err t.
+
 
 
 (*** auxiliary error functions *)

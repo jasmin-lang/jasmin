@@ -89,23 +89,24 @@ About mathcomp.ssreflect.seq.
 About result.
 *)
 
-Section ExecT.
+Section ResultT.
 
-  Context {m : Type -> Type} {Fm: Functor.Functor m} {Mm : Monad m}
+  Context {S: Set} {m : Type -> Type}
+    {Fm: Functor.Functor m} {Mm : Monad m}
     {MIm : MonadIter m}.
 
-  Definition execT (m : Type -> Type) (a : Type) : Type :=
-    m (exec a)%type.
-
-  Global Instance execT_fun : Functor.Functor (execT m) :=
+  Definition resultT (a : Type) : Type :=
+    m (result S a)%type.
+  
+  Global Instance resultT_fun : Functor.Functor resultT :=
     {| Functor.fmap :=
         fun X Y (f: X -> Y) => 
-          Functor.fmap (fun x =>
+          @Functor.fmap m Fm (result S X) (result S Y) (fun x =>
                           match x with
                           | Error e => Error e
-                          | Ok x => @Ok error Y (f x) end) |}.
+                          | Ok x => @Ok S Y (f x) end) |}.
 
-  Global Instance execT_monad : Monad (execT m) :=
+  Global Instance resultT_monad : Monad resultT :=
     {| ret := fun _ x => @ret m _ _ (Ok _ x);
        bind := fun _ _ c k =>
                  bind (m := m) c 
@@ -114,8 +115,8 @@ Section ExecT.
                              | Ok x => k x end)
     |}.
 
-  Global Instance execT_iter  : MonadIter (execT m) :=
-    fun A I body i => Basics.iter (M := m) (I := I) (R := exec A) 
+  Global Instance resultT_iter  : MonadIter resultT :=
+    fun A I body i => Basics.iter (M := m) (I := I) (R := result S A) 
       (fun i => bind (m := m)
                (body i)
                (fun x => match x with
@@ -124,59 +125,56 @@ Section ExecT.
                          | Ok (inr a) => @ret m _ _ (inr (Ok _ a))
                          end)) i.
 
-End ExecT.
+End ResultT.
 
 
-Section ExecTLaws. 
+Section ResultTLaws. 
 
 Definition result_rel (W: Set) {X} (R : relation X) (Re : relation W) :
-   relation (result W X) :=
-fun (mx my : result W X) =>
-match mx with
-| Ok x => match my with
+   relation (result W X) := fun (mx my : result W X) =>
+  match mx with
+  | Ok x => match my with
             | Ok y => R x y
             | Error _ => False
             end
-| Error e0 => match my with
+  | Error e0 => match my with
           | Ok _ => False
           | Error e1 => Re e0 e1 
           end
-end.
+  end.
 
-Definition exec_rel {X: Type} (R : relation X) :
-   relation (exec X) := result_rel error R (fun x y => True). 
+Global Instance resultT_Eq1 {W: Set} {E} : Eq1 (@resultT W (itree E)) :=
+  fun _ => eutt (result_rel W eq eq).
 
-(* Universe inconsistency - and can't find a way to fix it *)
-(* Unset Universe Checking.  *)
-Global Instance execT_Eq1 {E} : Eq1 (execT (itree E)) :=
-  fun _ => eutt (exec_rel eq).
-
-Global Instance Reflexive_execT_eq1 {E T} : Reflexive (@execT_Eq1 E T).
+Global Instance Reflexive_resultT_eq1 {W E T} : Reflexive (@resultT_Eq1 W E T).
   Proof.
     apply Reflexive_eqit.
     intros []; reflexivity.
 Qed.
 
-Global Instance Symmetric_execT_eq1 {E T} : Symmetric (@execT_Eq1 E T).
+Global Instance Symmetric_resultT_eq1 {W E T} : Symmetric (@resultT_Eq1 W E T).
   Proof.
     apply Symmetric_eqit.
     unfold Symmetric.
     intros [] [] H; auto; try reflexivity.
     inv H; reflexivity.
+    inv H; reflexivity.
   Qed.
 
-Global Instance Transitive_execT_eq1 {E T} : Transitive (@execT_Eq1 E T).
+Global Instance Transitive_resultT_eq1 {W E T} :
+    Transitive (@resultT_Eq1 W E T).
   Proof.
     apply Transitive_eqit.
     intros [] [] [] ? ?; subst; cbn in *; subst; intuition.
   Qed.
 
-Global Instance Equivalence_execT_eq1 {E T} : Equivalence (@execT_Eq1 E T).
+  Global Instance Equivalence_resultT_eq1 {W E T} :
+    Equivalence (@resultT_Eq1 W E T).
   Proof.
     split; typeclasses eauto.
   Qed.
 
-Global Instance MonadLaws_execE {E} : MonadLawsE (execT (itree E)).
+Global Instance MonadLaws_resultE {W E} : MonadLawsE (@resultT W (itree E)).
   Proof.
     split; cbn.
     - cbn; intros; rewrite bind_ret_l; reflexivity.
@@ -195,5 +193,5 @@ Global Instance MonadLaws_execE {E} : MonadLawsE (execT (itree E)).
         reflexivity.
   Qed.
   
-End ExecTLaws.
+End ResultTLaws.
 

@@ -399,7 +399,9 @@ Fixpoint for_loop {I}
 (*** TRANSLATION SPEC *******************************************)
 Section TRANSF_spec.
 
-Context (I: Type).
+Notation I := estate.  
+
+(* Context (I: Type). *)
 
 Context (tr_lval : lval -> stateM I lval)
         (tr_vari : var_i -> stateM I var_i)
@@ -488,15 +490,222 @@ Definition Tr_FunDef (f: FunDef) : stateM I FunDef :=
     c' <- Tr_cmd c ;;  
     ret (MkFun i tyin p_xs c' tyout r_xs xtr) end.
 
-End TRANSF_spec.
+(* End TRANSF_spec. *)
  
+(*** PROOFS **********************************************************)
 
-About Iter.
-From ITree Require Import MonadState.
+(* 
+Section TRANSF.
 
-Check Iter_stateTM.
+Notation stateMM := (stateT estate identity). *)
+(*  
+Context (tr_lval : lval -> stateMM lval)
+        (tr_expr : pexpr -> stateMM pexpr)
+        (tr_opn : sopn -> stateMM sopn)
+        (tr_sysc : syscall_t -> stateMM syscall_t).
+  
+Local Notation trn_lvals := (fun ls => mapL tr_lval ls).
+Local Notation trn_exprs := (fun es => mapL tr_expr es).
+
+Local Definition Trn_i := (@Tr_i estate).
+Local Notation Trn_ir := (Tr_ir estate tr_lval tr_expr tr_opn tr_sysc).
+Local Notation Trn_instr := (Trn_i Trn_ir).
+Local Notation Trn_cmd := (fun c => mapL Trn_instr c).
+Local Notation Trn_FunDef :=
+  (Tr_FunDef estate tr_lval tr_expr tr_opn tr_sysc).
+
+(*
+Definition TrnM_cmd (c: stateMM cmd) := (bind c (fun x => Trn_cmd x)).
+Definition TrnM_FunDef (f: stateMM FunDef) := (bind f (fun x => Trn_FunDef x)).
+
+Definition trnM_lvals (ls: stateMM lvals) :=
+  (bind ls (fun xs => mapL tr_lval xs)).
+Definition trnM_exprs (es: stateMM pexprs) :=
+  (bind es (fun xs => mapL tr_expr xs)).
+*)
+
+Definition Trn_cmd_rel (c1 c2: cmd) : Prop := (ret c2 = Trn_cmd c1).
+
+Definition Trn_FunDef_rel (f1 f2: FunDef) := (ret f2 = Trn_FunDef f1).
+*)
+
+Section Sample_proof.
+
+  About ErrState.
+  About error.
+  About ErrType.
+
+  Print ErrType.
+
+Require Import dead_code.  
+Check dead_code_c.
+
+Print compiler_util.cexec.
+Print exec.
+
+Require Import compiler_util.
+
+Print cexec.
+
+About ErrType.
+Print ErrType.
+Print pp_error_loc.
+
+Context (E: Type -> Type).   
+Context (HasErr: ErrState -< E).   
+
+Context (E0: Type -> Type).
+Context (FI: FIso (E0 +' ErrState) E).
+
+Definition Error2false : forall X, exceptE error X -> bool :=
+  fun X m => match m with | Throw _ => false end.                  
+
+Definition ErrorCutoff : forall X, E X -> bool :=
+  fun X m => match (mfun2 _ m) with
+             | inl1 _ => true
+             | inr1 x => Error2false X x end.              
+
+Definition NoCutoff : forall X, E X -> bool :=
+  fun X m => true.
+
+Notation EE1 := NoCutoff.
+
+Notation EE2 := ErrorCutoff.
+
+Context (pr1 pr2 : prog)
+        (PR : forall T, T -> T -> Prop).
+Context (TR_E : forall (E: Type -> Type) T1 T2,
+            E T1 -> E T2 -> Prop)
+        (VR_E : forall (E: Type -> Type) T1 T2,
+            E T1 -> T1 -> E T2 -> T2 -> Prop).
+
+Local Notation RS := (PR estate).
+Local Notation RV := (PR values).
+Local Notation RV1 := (PR value).
+(* Local Notation RSMV := (PR (syscall_state * mem * seq value)). *)
+
+Local Notation VS := (values * estate)%type.
+Local Notation FVS := (funname * VS)%type.
+
+Notation RVS := (fun (vs_st1 vs_st2 : VS) => 
+  (RV vs_st1.1 vs_st2.1 /\ RS vs_st1.2 vs_st2.2)).
+Notation RFVS := (fun (fvs1 fvs2 : FVS) => 
+  (fvs1.1 = fvs2.1 /\ RVS fvs1.2 fvs2.2)).
+Notation RC := Trn_cmd_rel.
+(*  (fun c1 c2: stateMM cmd => c2 = TrnM_cmd c1). *)
+Notation RFunDef := Trn_FunDef_rel.
+(*  (fun f1 f2: stateMM FunDef => f2 = TrnM_FunDef f1). *)
+
+Context (rvs_def : PR VS = RVS)
+        (rfvs_def : PR FVS = RFVS)
+        (rc_def : PR cmd = Trn_cmd_rel)
+        (rfundef_def : PR FunDef = Trn_FunDef_rel).
 
 
+(******************************************************************)
+
+(* ME: relation between FCState events *)
+Definition TR_D_ME {T1 T2} (d1 : FCState T1)
+                           (d2 : FCState T2) : Prop :=
+  match (d1, d2) with
+  | (FLCode c1 st1, FLCode c2 st2) => RC c1 c2 /\ RS st1 st2
+  | (FFCall xs1 fn1 es1 st1, FFCall xs2 fn2 es2 st2) =>
+      ret xs2 = trn_lvals xs1 /\ fn1 = fn2 /\
+      ret es2 = trn_exprs es1 /\ RS st1 st2
+  | _ => False   
+  end.               
+
+(* ME: relation between FCState event outputs, i.e. over estate *)
+Program Definition VR_D_ME {T1 T2}
+  (d1 : FCState T1) (t1: T1) (d2 : FCState T2) (t2: T2) : Prop.
+  remember d1 as D1.
+  remember d2 as D2.
+  dependent destruction d1.
+  - dependent destruction d2.
+    + exact (RS t1 t2).
+    + exact (False).
+  - dependent destruction d2.
+    + exact (False).
+    + exact (RS t1 t2).
+Defined.      
+
+Program Definition TR_DE_ME : prerel (FCState +' E) (FCState +' E) :=
+  sum_prerel (@TR_D_ME) (TR_E E).
+
+Program Definition VR_DE_ME : postrel (FCState +' E) (FCState +' E) :=
+  sum_postrel (@VR_D_ME) (VR_E E).
+
+Context (fcstate_t_def : TR_E (FCState +' E) = TR_DE_ME).
+Context (fcstate_v_def : VR_E (FCState +' E) = VR_DE_ME).
+
+Definition RightCutoff (Ev1: Type -> Type) {Ev2: Type -> Type}
+  (F: forall X, Ev2 X -> bool) :
+      forall X, (Ev1 +' Ev2) X -> bool :=
+  fun X m => match m with
+             | inl1 _ => true
+             | inr1 x => F _ x end.              
+
+Definition LeftCutoff (Ev2: Type -> Type) {Ev1: Type -> Type}
+  (F: forall X, Ev1 X -> bool) :
+      forall X, (Ev1 +' Ev2) X -> bool :=
+  fun X m => match m with
+             | inl1 x => F _ x
+             | inr1 _ => true end.              
+
+Notation EED1 := (RightCutoff FCState EE1).
+
+Notation EED2 := (RightCutoff FCState EE2).
+
+
+Lemma comp_gen_ok_ME (fn: funname)
+  (xs1 xs2: lvals) (es1 es2: pexprs) (st1 st2: estate) :
+  ret xs2 = trn_lvals xs1 ->
+  ret es2 = trn_exprs es1 -> 
+  RS st1 st2 ->
+  @rutt (FCState +' E) _ _ _ EED1 EED2 (TR_E _) (VR_E _)
+    (fun a1 a2 => @VR_D_ME _ _ (FFCall_ xs1 fn es1 st1) a1
+                             (FFCall_ xs2 fn es2 st2) a2)  
+    (meval_fcall pr1 xs1 fn es1 st1) (meval_fcall pr2 xs2 fn es2 st2).
+  intros.
+  unfold meval_fcall; simpl.
+  
+  eapply rutt_bind with (RR := RV).
+  
+  { unfold err_eval_Args.    
+    eapply rutt_bind with (RR := RFunDef).
+    (* OK *)
+    { admit. }
+    { intros.
+      eapply rutt_bind with (RR := RV).
+      { admit. }
+      intros.
+      { admit. }
+    }  
+  }
+    
+  { intros.
+    eapply rutt_bind with (RR := RS).
+    { unfold err_init_state.
+      (* OK *)
+    admit.
+    }  
+    { intros.
+      eapply rutt_bind with (RR := RC).
+      { admit. }
+      { intros.
+        eapply rutt_bind with (RR := RS).
+        { admit. }
+        { intros.
+          eapply rutt_bind with (RR := RV).
+          { admit. }
+          { intros.
+            admit.
+          }
+        }
+      }
+    }
+  }
+Admitted. 
 
 
 
@@ -765,6 +974,7 @@ Fixpoint mapL {S A B} (f: A -> stateM S B) (ls: list A) :
 (*** TRANSLATION SPEC *******************************************)
 Section TRANSF_spec.
 
+Notation I := estate.  
 Context (I: Type).
 
 Context (tr_lval : lval -> stateM I lval)
@@ -822,7 +1032,7 @@ Definition Tr_FunDef (f: FunDef) : stateM I FunDef :=
     c' <- Tr_cmd c ;;  
     ret (MkFun i tyin p_xs c' tyout r_xs xtr) end.
 
-End TRANSF_spec.
+(* End TRANSF_spec. *)
  
 (*********************************************************************)
 (*** PROOFS **********************************************************)
