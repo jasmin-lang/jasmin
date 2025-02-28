@@ -109,8 +109,9 @@ type safe_cond =
   | AlignedExpr of wsize * expr       (* aligned expression *)
 
   | NotEqual of wsize option * expr * expr (* None equality on int, else equality on word *)
-  | NotZero of wsize * expr
   | Termination of bool (* the boolean signals whether this is a severe violation *)
+
+let notZero(ws, e) = NotEqual(Some ws, e, pcast ws (Pconst (Z.of_int 0)))
 
 let severe_violation =
   function
@@ -152,7 +153,6 @@ let pp_safety_cond fmt = function
       pp_arr_slice slice
 
   | NotEqual(sz, e1, e2) -> Format.fprintf fmt "%a <>%a %a" pp_expr e1 pp_ows sz pp_expr e2
-  | NotZero(sz,e) -> Format.fprintf fmt "%a <>%a zero" pp_expr e pp_ws sz
   | InRange(lo, hi, e) -> Format.fprintf fmt "%a ∈ [%a; %a]" pp_expr e pp_expr lo pp_expr hi
   | InBound(n,slice)  ->
     Format.fprintf fmt "in_bound: %a (length %i U8)"
@@ -304,8 +304,8 @@ let safe_op2 o e1 e2 =
 
   | E.Odiv (_, E.Op_int) -> []
   | E.Omod (_, E.Op_int)  -> []
-  | E.Odiv (_, E.Op_w s) -> [NotZero (s, e2) (* FIXME this is not sufficiant case Signed *) ]
-  | E.Omod (_, E.Op_w s) -> [NotZero (s, e2) (* FIXME this is not sufficiant case Signed *) ]
+  | E.Odiv (_, E.Op_w s) -> [notZero (s, e2) (* FIXME this is not sufficiant case Signed *) ]
+  | E.Omod (_, E.Op_w s) -> [notZero (s, e2) (* FIXME this is not sufficiant case Signed *) ]
 
   | E.Ovadd _ | E.Ovsub _ | E.Ovmul _
   | E.Ovlsr _ | E.Ovlsl _ | E.Ovasr _ -> []
@@ -314,8 +314,8 @@ let safe_op2 o e1 e2 =
     | WIadd -> [in_wint_range sg sz (to_int_op2 sg sz (E.Oadd Op_int) e1 e2)]
     | WImul -> [in_wint_range sg sz (to_int_op2 sg sz (E.Omul Op_int) e1 e2)]
     | WIsub -> [in_wint_range sg sz (to_int_op2 sg sz (E.Osub Op_int) e1 e2)]
-    | WIdiv -> [NotZero (sz, wint_to_int sg sz e2) (* FIXME this is not sufficiant case Signed *) ]
-    | WImod -> [NotZero (sz, wint_to_int sg sz e2) (* FIXME this is not sufficiant case Signed *) ]
+    | WIdiv -> [notZero (sz, e2) (* FIXME this is not sufficiant case Signed *) ]
+    | WImod -> [notZero (sz, e2) (* FIXME this is not sufficiant case Signed *) ]
     | WIshl ->
         let o = E.Olsl Op_int in
         let e = Papp2 (o, wint_to_int sg sz e1, wint_to_int Unsigned U8 e2) in
@@ -423,7 +423,7 @@ let safe_opn safe opn es =
       match c with
       | Wsize.X86Division(sz, sg) ->
          let n, d = split_div sg sz es in
-         [ NotZero(sz, List.nth es 2)
+         [ notZero(sz, List.nth es 2)
          ; match sg with
            | Unsigned ->
              InRange(Pconst Z.zero, Papp2 (E.Osub E.Op_int, Papp2 (E.Omul E.Op_int, Pconst (modulus sz), d), Pconst Z.one), n)
@@ -441,7 +441,7 @@ let safe_opn safe opn es =
         List.flatten
           (List.init (Conv.int_of_pos p) (fun i -> init_get y Warray_.AAscale ws (Pconst (Z.of_int i)) 1))
       | NotZero (sz, n) ->
-        [ NotZero(sz, List.nth es (Conv.int_of_nat n)) ]
+        [ notZero(sz, List.nth es (Conv.int_of_nat n)) ]
 
       | ULt (sz, n, z) ->
         let n = List.nth es (Conv.int_of_nat n) in
@@ -769,14 +769,6 @@ end = struct
     | NotEqual(ws, e1, e2) ->
       let k = match ws with Some ws -> E.Op_w ws | None -> E.Op_int in
       let be = Papp2 (E.Oeq k, e1, e2) in
-      begin match AbsExpr.bexpr_to_btcons be state.abs with
-        | None -> false
-        | Some c ->
-          AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
-
-    | NotZero (ws,e) ->
-      (* We check that e is never 0 *)
-      let be = Papp2 (E.Oeq (E.Op_w ws), e, pcast ws (Pconst (Z.of_int 0))) in
       begin match AbsExpr.bexpr_to_btcons be state.abs with
         | None -> false
         | Some c ->
