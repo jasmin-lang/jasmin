@@ -3,7 +3,7 @@
 
 (* ** Imports and settings *)
 
-From mathcomp Require Import ssreflect ssrfun ssrbool seq ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq ssralg.
 From mathcomp Require Import word_ssrZ word.
 From Coq Require Import ZArith.
 Require Import utils word.
