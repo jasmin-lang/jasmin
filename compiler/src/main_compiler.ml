@@ -134,6 +134,10 @@ let main () =
       exit 0
     end;
 
+    (* Check if generated assembly labels will generate conflicts*)
+    let label_errors = Label_check.get_labels_errors pprog in 
+    List.iter Label_check.warn_duplicate_label label_errors;
+    
     eprint Compiler.Typing (Printer.pp_pprog Arch.reg_size Arch.asmOp) pprog;
 
     let prog =
