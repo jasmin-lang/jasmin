@@ -283,13 +283,12 @@ let safe_op1 o e1 =
     | E.WIint_of_word sz -> []
     | E.WIword_of_wint _ -> []
     | E.WIwint_of_word _ -> []
-    | E.WIword_ext(szo, szi) -> assert false
+    | E.WIword_ext(szo, szi) -> [] (* Check this ! *)
     | E.WIneg sz ->
       if sg = Signed then [NotEqual(None, wint_to_int sg sz e1, Pconst (Z.neg (half_modulus sz)))]
       else [InRange(Pconst Z.zero, Pconst Z.zero, wint_to_int sg sz e1)]
     end
   | _ -> []
-
 
 let to_int_op2 sg sz op e1 e2 =
   Papp2 (op, wint_to_int sg sz e1, wint_to_int sg sz e2)
@@ -317,9 +316,8 @@ let safe_op2 o e1 e2 =
     | WIdiv -> [notZero (sz, e2) (* FIXME this is not sufficiant case Signed *) ]
     | WImod -> [notZero (sz, e2) (* FIXME this is not sufficiant case Signed *) ]
     | WIshl ->
-        let o = E.Olsl Op_int in
-        let e = Papp2 (o, wint_to_int sg sz e1, wint_to_int Unsigned U8 e2) in
-        [in_wint_range sg sz e]
+        let e = Papp2 (E.Olsl (Op_w sz), e1, e2) in
+        [in_wint_range sg sz (wint_to_int sg sz e)]
     | WIshr -> [] (* shift rigth is allways in the range *)
     | WIeq | WIneq | WIlt | WIle | WIgt | WIge -> []
 
