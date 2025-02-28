@@ -181,6 +181,7 @@ Record compiler_params
   stackalloc       : _uprog → stack_alloc_oracles;
   removereturn     : _sprog -> (funname -> option (seq bool));
   regalloc         : seq _sfun_decl -> seq _sfun_decl;
+  remove_wint_annot: funname -> _ufundef -> _ufundef;
   print_uprog      : compiler_step -> _uprog -> _uprog;
   print_sprog      : compiler_step -> _sprog -> _sprog;
   print_linear     : compiler_step -> lprog -> lprog;
@@ -255,10 +256,16 @@ Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
   let p := cparams.(print_uprog) RemoveUnusedFunction p in
   ok p.
 
+Definition wi2w_prog_remove (p : uprog) :=
+  let p := wi2w_prog p in
+  let pv := map_prog_name (remove_wint_annot cparams) p in
+  Let _ := check_uprog (wsw:= withsubword) cparams.(dead_vars_ufd) p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
+  let p := cparams.(print_uprog) WintWord pv in
+  ok p.
+
 Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :=
 
-  let p := wi2w_prog p in
-  let p := cparams.(print_uprog) WintWord p in
+  Let p := wi2w_prog_remove p in
 
   Let p := array_copy_prog (λ k, cparams.(fresh_var_ident) k dummy_instr_info 0) p in
   let p := cparams.(print_uprog) ArrayCopy p in

@@ -206,13 +206,8 @@ and pp_cblock pp_info pp_len pp_opn pp_var fmt c =
   F.fprintf fmt "{@   %a@ }"  (pp_gc pp_info pp_len pp_opn pp_var) c
 
 (* -------------------------------------------------------------------- *)
-let get_wint_annot v =
-  if Annotations.has_symbol "sint" v.v_annot then Some W.Signed
-  else if Annotations.has_symbol "uint" v.v_annot then Some W.Unsigned
-  else None
-
 let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
-  let w = get_wint_annot v in
+  let w = Annotations.has_wint v.v_annot in
   F.fprintf fmt "%a %a" pp_kind v.v_kind (pp_gtype ?w pp_size) v.v_ty
 
 let pp_var_decl pp_var pp_size fmt v =

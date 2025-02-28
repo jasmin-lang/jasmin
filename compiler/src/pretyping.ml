@@ -1417,7 +1417,8 @@ let mk_var x sto xety xlc annot =
   let annot =
     match xety with
     | P.ETword(Some s, ws) ->
-      Annotations.add_symbol ~loc:xlc (if s = W.Signed then "sint" else "uint") annot
+      let s = if s = W.Signed then Annotations.sint else Annotations.uint in
+      Annotations.add_symbol ~loc:xlc s annot
     | _ -> annot
   in
   P.PV.mk x sto (P.gty_of_gety xety) xlc annot

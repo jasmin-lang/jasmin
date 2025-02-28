@@ -96,25 +96,19 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
     else
     let fds = snd prog in
     let fv = List.fold_left (fun fv fd -> Sv.union fv (vars_fc fd)) Sv.empty fds in
-    let has_wint v =
-       Annotations.has_symbol "uint" v.v_annot || Annotations.has_symbol "sint" v.v_annot in
     let m =
       Sv.fold (fun x m ->
-          if has_wint x then
-            begin match x.v_ty with
+            match x.v_ty with
             | Bty (U _) ->
-              let sg =
-                if Annotations.has_symbol "uint" x.v_annot then Wsize.Unsigned
-                else Wsize.Signed in
-              let annot =
-                List.filter (fun (k,_) ->
-                    let s = Location.unloc k in
-                    not (s = "uint" || s = "sint")) x.v_annot in
-              let xi = V.mk x.v_name Inline tint x.v_dloc annot in
-              Mv.add x (sg, Conv.cvar_of_var xi) m
-            | _ -> assert false
-            end
-          else m) fv Mv.empty in
+              begin match Annotations.has_wint x.v_annot with
+              | None -> m
+              | Some sg ->
+                let annot = Annotations.remove_wint x.v_annot in
+                let xi = V.mk x.v_name x.v_kind tint x.v_dloc annot in
+                Mv.add x (sg, Conv.cvar_of_var xi) m
+              end
+            | _ -> m)
+        fv Mv.empty in
     let cp = Conv.cuprog_of_prog prog in
     let info x =
       let x = Conv.var_of_cvar x in
