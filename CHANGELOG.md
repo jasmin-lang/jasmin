@@ -1,3 +1,9 @@
+# [unreleased]
+
+- Program with conflicting assembly labels print warning when compiled
+  ([PR #1067](https://github.com/jasmin-lang/jasmin/pull/1067);
+  fixes [#993](https://github.com/jasmin-lang/jasmin/issues/993)).
+
 # Jasmin 2025.02.0 — Nancy, 2025-02-28
 
 ## New features
