@@ -595,25 +595,26 @@ let fmt_op2 fmt op =
     | E.Cmp_w (Unsigned, _) -> Format.fprintf fmt "\\u%s" ws
     | _                     -> Format.fprintf fmt "%s" is
   in
-  let fmt_div fmt ws is sg k =
+  let fmt_div fmt ws sints uints sg k =
     match sg, k with
     | Signed, E.Op_w _   -> Format.fprintf fmt "\\s%s" ws
     | Unsigned, E.Op_w _ -> Format.fprintf fmt "\\u%s" ws
-    | Signed, E.Op_int   -> assert false (* FIXME  *)
-    | Unsigned, E.Op_int -> Format.fprintf fmt "%s" is
+    | Signed, E.Op_int   -> Format.fprintf fmt "%s" sints
+    | Unsigned, E.Op_int -> Format.fprintf fmt "%s" uints
   in
 
   let fmt_vop2 fmt (s,ve,ws) =
     Format.fprintf fmt "\\v%s%iu%i" s (int_of_velem ve) (int_of_ws ws)
   in
+
   match op with
   | E.Obeq   -> Format.fprintf fmt "="
   | E.Oand   -> Format.fprintf fmt "/\\"
   | E.Oor    -> Format.fprintf fmt "\\/"
   | E.Oadd _ -> Format.fprintf fmt "+"
   | E.Omul _ -> Format.fprintf fmt "*"
-  | E.Odiv(sg, k) -> fmt_div fmt "div" "%/" sg k
-  | E.Omod(sg, k) -> fmt_div fmt "mod" "%%" sg k
+  | E.Odiv(sg, k) -> fmt_div fmt "div" "%/" "\\zquot" sg k
+  | E.Omod(sg, k) -> fmt_div fmt "mod" "%%" "\\zrem"  sg k
 
   | E.Osub  _ -> Format.fprintf fmt "-"
 
@@ -637,7 +638,7 @@ let fmt_op2 fmt op =
   | Ovlsr(ve,ws) -> fmt_vop2 fmt ("shr", ve, ws)
   | Ovlsl(ve,ws) -> fmt_vop2 fmt ("shl", ve, ws)
   | Ovasr(ve,ws) -> fmt_vop2 fmt ("sar", ve, ws)
-  | Owi2 _ -> assert false (* FIXME *)
+  | Owi2 _ -> assert false (* wint should have been removed by wint_int or wint_word *)
 
 let fmt_access aa = if aa = Warray_.AAdirect then "_direct" else ""
 
@@ -1393,7 +1394,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
     | E.Onot     -> ec_apps1 "!" e
     | E.Olnot _  -> ec_apps1 "invw" e
     | E.Oneg _   -> ec_apps1 "-" e
-    | E.Owi1 _ -> assert false (* FIXME *)
+    | E.Owi1 _ -> assert false (* wint should have been removed by wint_int or wint_word *)
 
   let rec toec_expr env (e: expr) =
       match e with
