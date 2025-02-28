@@ -595,7 +595,7 @@ let fmt_op2 fmt op =
     | E.Cmp_w (Unsigned, _) -> Format.fprintf fmt "\\u%s" ws
     | _                     -> Format.fprintf fmt "%s" is
   in
-  let fmt_div fmt ws sints uints sg k =
+  let fmt_div fmt ws uints sints sg k =
     match sg, k with
     | Signed, E.Op_w _   -> Format.fprintf fmt "\\s%s" ws
     | Unsigned, E.Op_w _ -> Format.fprintf fmt "\\u%s" ws
