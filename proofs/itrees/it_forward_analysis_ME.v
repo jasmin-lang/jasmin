@@ -288,7 +288,113 @@ Fixpoint anls_loop {I}
             if b
             then anls_loop AnlsCall AnlsErr AnlsCond c' n'
             else ret c' end.   
-           
+
+Fixpoint anls_loopA {A C I}
+  (AnlsCall: C -> stateM I C) (AnlsErr: stateM I C)
+  (AnlsCond: A -> stateM I bool) 
+  (a: A) (c: C) (n: nat) : stateM I C :=
+  match n with
+  | 0 => AnlsErr
+  | S n' => c' <- AnlsCall c ;;
+            b <- AnlsCond a ;;
+            if b
+            then anls_loopA AnlsCall AnlsErr AnlsCond a c' n'
+            else ret c' end.   
+
+Fixpoint for_loopA {A C I}
+  (AnlsCall: C -> stateM I C) (AnlsErr: stateM I C)
+  (AnlsCond: stateM I bool) (AnlsRet: A -> C -> stateM I C)
+  (a: A) (c: C) (n: nat) : stateM I C :=
+  match n with
+  | 0 => AnlsErr
+  | S n' => c' <- AnlsCall c ;;
+            b <- AnlsCond ;;
+            if b
+            then for_loopA AnlsCall AnlsErr AnlsCond AnlsRet a c' n'
+            else AnlsRet a c' end.   
+
+Fixpoint while_loopA {A C I}                  
+  (AnlsCall: C -> stateM I C) (AnlsErr: stateM I C)
+  (AnlsCond: stateM I bool)
+  (AnlsRet: A -> C -> pexpr -> C -> stateM I C)
+  (ET: pexpr -> stateM I pexpr) 
+  (a: A) (c1 c2: C) (e: pexpr) (n: nat) : stateM I C :=
+  match n with
+  | 0 => AnlsErr
+  | S n' => c1' <- AnlsCall c1 ;;
+            e' <- ET e ;;
+            c2' <- AnlsCall c2 ;;
+            b <- AnlsCond ;;
+            if b
+            then while_loopA AnlsCall AnlsErr AnlsCond AnlsRet ET
+                   a c1' c2' e' n' 
+            else AnlsRet a c1' e' c2' end.   
+
+Fixpoint for_loopB {A C I}
+  (AnlsCall_c: stateM I C) (AnlsErr: stateM I C)
+  (AnlsCond: stateM I bool) (AnlsRet: A -> C -> stateM I C)
+  (a: A) (n: nat) : stateM I C :=
+  match n with
+  | 0 => AnlsErr
+  | S n' => c' <- AnlsCall_c ;;
+            b <- AnlsCond ;;
+            if b
+            then for_loopB AnlsCall_c AnlsErr AnlsCond AnlsRet a n'
+            else AnlsRet a c' end.   
+
+Fixpoint while_loopB {A C I}                  
+  (AnlsCall_c2: stateM I C) (AnlsErr: stateM I C)
+  (AnlsCond: stateM I bool)
+  (AnlsRet: A -> C -> stateM I C)
+  (a: A) (n: nat) : stateM I C :=
+  match n with
+  | 0 => AnlsErr
+  | S n' => c' <- AnlsCall_c2 ;;
+            b <- AnlsCond ;;
+            if b
+            then while_loopB AnlsCall_c2 AnlsErr AnlsCond AnlsRet a n' 
+            else AnlsRet a c' end.   
+
+Fixpoint Anls_loopB {A C I}
+  (AnlsCall: stateM I C) (AnlsErr: stateM I C)
+  (AnlsCond: stateM I bool) (AnlsRet: A -> C -> stateM I C)
+  (a: A) (n: nat) : stateM I C :=
+  match n with
+  | 0 => AnlsErr
+  | S n' => c' <- AnlsCall ;;
+            b <- AnlsCond ;;
+            if b
+            then Anls_loopB AnlsCall AnlsErr AnlsCond AnlsRet a n'
+            else AnlsRet a c' end.   
+
+Fixpoint Anls_loopC {C I}
+  (AnlsCall: stateM I C) (AnlsErr: stateM I C)
+  (AnlsCond: stateM I bool)
+  (n: nat) : stateM I C :=
+  match n with
+  | 0 => AnlsErr
+  | S n' => c' <- AnlsCall ;;
+            b <- AnlsCond ;;
+            if b
+            then Anls_loopC AnlsCall AnlsErr AnlsCond n'
+            else ret c' end.   
+
+
+
+
+(*
+Fixpoint for_loop {I}
+  (AnlsCall: cmd -> stateM I cmd) (AnlsErr: stateM I cmd)
+  (AnlsCond: stateM I bool) 
+  (c: cmd) (n: nat) : stateM I cmd :=
+  match n with
+  | 0 => AnlsErr
+  | S n' => c' <- AnlsCall c ;;
+            b <- AnlsCond ;;
+            if b
+            then anls_loop AnlsCall AnlsErr AnlsCond c' n'
+            else ret c' end.   
+*)
 
 (*** TRANSLATION SPEC *******************************************)
 Section TRANSF_spec.
@@ -310,10 +416,10 @@ Context
     lvals -> syscall_t -> pexprs -> stateM I cmd)  
   (Cif_transl : instr_info ->
     pexpr -> cmd -> cmd -> stateM I cmd)
-  (Cfor_transl : instr_info ->
-    var_i -> range -> cmd -> stateM I cmd)  
-  (Cwhile_transl : instr_info ->
-    align -> cmd -> pexpr -> cmd -> stateM I cmd)
+  (Cfor_transl : (instr_info *  var_i * range) -> cmd -> stateM I cmd)  
+  (Cwhile_transl : (instr_info * align) -> cmd -> pexpr -> cmd -> stateM I cmd)
+  (Cfor_ret : instr_info -> var_i -> range -> cmd -> stateM I cmd)  
+  (Cwhile_ret : instr_info -> align -> cmd -> pexpr -> cmd -> stateM I cmd)
   (Ccall_transl : instr_info ->
     lvals -> funname -> pexprs -> stateM I cmd).
 
@@ -328,8 +434,7 @@ Definition Tr_i (Th: instr_info -> instr_r -> stateM I cmd) (i: instr) :
   stateM I cmd :=
   match i with MkI ii ir => Th ii ir end.  
 
-
-Fixpoint Tr_ir (n: nat) (ii: instr_info) (i : instr_r) : stateM I cmd :=
+Fixpoint Tr_ir (ii: instr_info) (i : instr_r) : stateM I cmd :=
   let R := Tr_i Tr_ir in 
   match i with
   | Cassgn x tg ty e =>
@@ -351,17 +456,24 @@ Fixpoint Tr_ir (n: nat) (ii: instr_info) (i : instr_r) : stateM I cmd :=
       c1' <- mapML R c1 ;;
       c2' <- mapML R c2 ;;
       Cif_transl ii e' c1' c2' 
-  | Cfor xi rg c =>
+  | Cfor xi rg c => (* ret c *)
       xi' <- tr_vari xi ;;
-      (*      CategoryOps.iter (fun _ => *)
-      
-      c' <- mapML R c ;;
-      Cfor_transl ii xi' rg c')                     
-  | Cwhile a c1 e c2 =>
-      c1' <- mapML R c1 ;;
-      e' <- tr_expr e ;;
-      c2' <- mapML R c2 ;;
-      Cwhile_transl ii a c1' e' c2'
+      Anls_loopC (c' <- mapML R c ;; Cfor_ret ii xi' rg c')
+        Anls_error Anls_cond Anls_fuel                        
+    (* Anls_loopB (mapML R c) Anls_error Anls_cond Cfor_transl 
+        (ii, xi', rg) Anls_fuel *)                       
+    (* xi' <- tr_vari xi ;;
+      for_loopA (mapML R) Anls_error Anls_cond Cfor_transl 
+        (ii, xi', rg) c Anls_fuel *)                   
+  | Cwhile a c1 e c2 => (* ret c2 *)
+      Anls_loopC (c1' <- mapML R c1 ;; e' <- tr_expr e ;;
+                  c2' <- mapML R c2 ;; Cwhile_ret ii a c1' e' c2')
+        Anls_error Anls_cond Anls_fuel                        
+   (*   Anls_loopB (mapML R c1 ;; tr_expr e ;; mapML R c2)
+        Anls_error Anls_cond Cwhile_transl 
+        (ii, a) Anls_fuel *)                       
+    (*  while_loopA (mapML R) Anls_error Anls_cond Cwhile_transl tr_expr
+        (ii, a) c1 c2 e Anls_fuel *) 
   | Ccall xs fn es =>
       xs' <- tr_lvals xs ;;
       es' <- tr_exprs es ;;
