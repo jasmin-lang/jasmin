@@ -74,9 +74,20 @@ let wsize_of_ty ty = match ty with
 (* Expression Linearization *)
 (****************************)
 
+let remove_Ow1 sg o e =
+  match o with
+  | E.WIword_of_int sz -> Papp1(E.Oword_of_int sz, e)
+  | E.WIint_of_word sz -> Papp1(E.Oint_of_word(sg, sz), e)
+  | E.WIword_of_wint _ -> e
+  | E.WIwint_of_word _ -> e
+  | E.WIword_ext(szo, szi) ->
+    let o = if sg = Signed then E.Osignext(szo, szi) else E.Ozeroext(szo, szi) in
+    Papp1(o, e)
+  | E.WIneg sz -> Papp1(E.Oneg (Op_w sz), e)
+
 let op1_to_abs_unop op1 = match op1 with
   | E.Oneg _   -> Some Texpr1.Neg
-  | E.Oword_of_int _ | E.Oint_of_word _ | E.Ozeroext _ -> assert false
+  | E.Oword_of_int _ | E.Oint_of_word _ | E.Ozeroext _ | E.Owi1 _ -> assert false
   | _ -> None
 
 type shift_kind =
@@ -133,8 +144,16 @@ let op2_to_abs_binop op2 = match op2 with
   | E.Ovadd (_, _) | E.Ovsub (_, _) | E.Ovmul (_, _)
   | E.Ovlsr (_, _) | E.Ovlsl (_, _) | E.Ovasr (_, _) -> AB_Unknown
 
-  | E.Owi2 _ -> assert false
-
+  | E.Owi2(sg, sz, o) ->
+    match o with
+    | E.WIadd -> AB_Arith Texpr1.Add
+    | E.WImul -> AB_Arith Texpr1.Mul
+    | E.WIsub -> AB_Arith Texpr1.Sub
+    | E.WImod -> if sg = Signed then AB_Unknown else AB_Arith Texpr1.Mod
+    | E.WIdiv -> if sg = Signed then AB_Unknown else AB_Arith Texpr1.Div
+    | E.WIshr -> AB_Wop (Wshift (if sg = Signed then Signed_right else Unsigned_right))
+    | E.WIshl -> AB_Wop(Wshift Unsigned_left)
+    | E.WIeq | E.WIneq | E.WIlt | E.WIle | E.WIgt | E.WIge -> AB_Unknown
 
 (* Return lin_expr mod 2^n *)
 let expr_pow_mod n lin_expr =
@@ -457,6 +476,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       let abs_expr1 = linearize_wexpr abs e1 in
       wrap_if_overflow abs abs_expr1 s (int_of_ws sz)
 
+    | Papp1(E.Owi1(sg, o), e1) -> linearize_iexpr abs (remove_Ow1 sg o e1)
+
     | Papp1 (op1, e1) ->
       begin match op1_to_abs_unop op1 with
         | Some absop ->
@@ -497,6 +518,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       assert (ty_expr e1 = tu isz);
       let abs_expr1 = linearize_wexpr abs e1 in
       cast_if_overflows abs (int_of_ws osz) (int_of_ws isz) abs_expr1
+
+    | Papp1(E.Owi1(sg, o), e1) -> linearize_wexpr abs (remove_Ow1 sg o e1)
 
     | Papp1 (op1, e1) ->
       begin match op1_to_abs_unop op1 with
