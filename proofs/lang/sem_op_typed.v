@@ -5,31 +5,6 @@ Require Export type expr sem_type.
 Require Export flag_combination.
 Import Utf8.
 
-Definition in_uint_range (sz : wsize) z :=
-  assert (Z.leb 0 z && Z.leb z (wmax_unsigned sz)) (ErrArith).
-
-Definition in_sint_range (sz : wsize) z :=
-  assert (Z.leb (wmin_signed sz) z && Z.leb z (wmax_signed sz)) (ErrArith).
-
-Definition signed {A:Type} (fu fs:A) s :=
-  match s with
-  | Unsigned => fu
-  | Signed => fs
-  end.
-
-Definition in_wi_range (s : signedness) (sz : wsize) z :=
-   signed in_uint_range in_sint_range s sz z.
-
-Definition wint_of_int (s : signedness) (sz : wsize) (z : Z) :=
-  Let _ := in_wi_range s sz z in
-  ok (wrepr sz z).
-
-Definition int_of_word (s : signedness) (sz : wsize) (w : word sz) :=
-  signed wunsigned wsigned s w.
-
-Definition sem_word_extend (s : signedness) (szo szi : wsize) :=
-  signed (@zero_extend szo szi) (@sign_extend szo szi) s.
-
 Definition mk_sem_sop1 (t1 t2 : Type) (o:t1 -> t2) v1 : exec t2 :=
   ok (o v1).
 
