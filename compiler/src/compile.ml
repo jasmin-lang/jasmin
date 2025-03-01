@@ -76,8 +76,8 @@ let do_wint_int
        and type cond = cond
        and type asm_op = asm_op
        and type extra_op = extra_op) prog =
-  let fds = snd prog in
-  let fv = List.fold_left (fun fv fd -> Sv.union fv (vars_fc fd)) Sv.empty fds in
+  let fdsi = snd prog in
+  let fv = List.fold_left (fun fv fd -> Sv.union fv (vars_fc fd)) Sv.empty fdsi in
   let m =
     Sv.fold (fun x m ->
           match x.v_ty with
@@ -102,7 +102,22 @@ let do_wint_int
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
       raise (HiError e) in
-  Conv.prog_of_cuprog cp
+  let (gd, fdso) = Conv.prog_of_cuprog cp in
+  (* Restore type of array in the functions signature *)
+  let restore_ty tyi tyo =
+    match tyi, tyo with
+    | Arr(ws1, l1), Arr(ws2, l2) -> assert (arr_size ws1 l1 = arr_size ws2 l2); tyi
+    | Bty (U _), Bty Int -> tyo
+    | _, _ -> assert (tyi = tyo); tyo
+  in
+  let restore_sig fdi fdo =
+    { fdo with
+      f_tyin = List.map2 restore_ty fdi.f_tyin fdo.f_tyin;
+      f_tyout = List.map2 restore_ty fdi.f_tyout fdo.f_tyout;
+    } in
+  let fds = List.map2 restore_sig fdsi fdso in
+  (gd, fds)
+
 
 (*--------------------------------------------------------------------- *)
 
