@@ -22,26 +22,6 @@ Notation gd := (p_globs p).
 
 #[local]Open Scope vm_scope.
 
-Lemma wrepr_int_of_word sz si (w:word sz) : wrepr sz (int_of_word si w) = w.
-Proof. case: si => /=; auto using wrepr_signed, wrepr_unsigned. Qed.
-
-Lemma wint_of_intP si sz i w : wint_of_int si sz i = ok w -> w = wrepr sz i /\ in_wi_range si sz i = ok tt.
-Proof. by rewrite /wint_of_int; t_xrbindP => ? <-. Qed.
-
-Lemma wint_of_int_wrepr si sz i w : wint_of_int si sz i = ok w -> w = wrepr sz i.
-Proof. by move=> /wint_of_intP []. Qed.
-
-Lemma int_of_word_eqb si sz (w1 w2 : word sz) :
-  (int_of_word si w1 =? int_of_word si w2)%Z = (w1 == w2).
-Proof.
-  apply Bool.eq_iff_eq_true; rewrite /int_of_word; split.
-  + move=> /word_ssrZ.ZeqbP => h; apply/eqP.
-    case: si h => /= h.
-    + by rewrite -(wrepr_signed w1) -(wrepr_signed w2) h.
-    by rewrite -(wrepr_unsigned w1) -(wrepr_unsigned w2) h.
-  by move=> /eqP ->; apply Z.eqb_refl.
-Qed.
-
 Section E.
 
   Context (s:estate) (vm:Vm.t) (hincl : evm s <=1 vm) (wdb : bool).
