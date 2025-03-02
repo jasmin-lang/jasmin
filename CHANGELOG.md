@@ -22,10 +22,42 @@
   [PR #972](https://github.com/jasmin-lang/jasmin/pull/972),
   [PR #995](https://github.com/jasmin-lang/jasmin/pull/995)).
 
+- Introduction of types siXX and uiXX (XX in [8,16,32,64,128, 256]).
+  New notation for type uXX/sXX : wXX.
+  siXX represents signed integer of size XX, i.e in the range [-2^XX/2, 2^XX/2).
+  uiXX represents unsigned integer of size XX, i.e in the range [0, 2^XX).
+  Introduction of a new cast operorators:
+   (sint) e : from wXX/siXX to int, signed interpretation
+   (uint) e : from wXX/uiXX to int, unsigned interpretation
+  The previous cast operator (int) e stand for:
+   (uint) e if e has type wXX/uiXX
+   (sint) e if e has type siXX
+  All basic operations on uiXX/siXX perform the corresponding int operation and check
+  that the result is in the range of uiXX/siXX, if not it is a safety violation.
+  They can be selected explicitly using notation "e1 +XX(ui/si) e2"
+  Introduction of new cast operators:
+   (XXw) e : from siXX/uiXX to wXX
+   (XXsi) e :
+     if e has type wXX it the identity
+     if e has type int ensure that e is in the range of siXX, else it is a safety violation.
+   (XXui) e :
+     if e has type wXX it the identity
+     if e has type int ensure that e is in the range of siXX, else it is a safety violation.
+  The key feature of this new type are for the extraction to easycrypt,
+  they are extracted to int removing the need to deal with modulus 2^XX operations.
+  ([PR #1071](https://github.com/jasmin-lang/jasmin/pull/1071)).
+
+
 ## Bug fixes
 
 - Fix EC extraction in case on nested loops
   ([PR #971](https://github.com/jasmin-lang/jasmin/pull/971)).
+
+- Fix semantics of (e1 /XXu e2) and (e1 %XXu e2), the safety condition only require that e2 <> 0.
+  ([PR #1071](https://github.com/jasmin-lang/jasmin/pull/1071)).
+
+- Fix extraction of (e1 /XXs e2) and (e1 %XXs e2) they are now correctly extracted to zquot and zrem.
+  ([PR #1071](https://github.com/jasmin-lang/jasmin/pull/1071)).
 
 ## Other changes
 
