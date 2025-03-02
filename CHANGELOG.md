@@ -43,10 +43,10 @@
    (XXui) e :
      if e has type wXX it the identity
      if e has type int ensure that e is in the range of siXX, else it is a safety violation.
-  The key feature of this new type are for the extraction to easycrypt,
-  they are extracted to int removing the need to deal with modulus 2^XX operations.
+  Introduce zquot and zrem operators on int : "e1 /s e2" and "e1 %s e2".
+  The key feature of this new type are for the extraction to easycrypt.
+  They are extracted to int, removing the need to deal with modulus 2^XX operations.
   ([PR #1071](https://github.com/jasmin-lang/jasmin/pull/1071)).
-
 
 ## Bug fixes
 
