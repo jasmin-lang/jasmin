@@ -11,6 +11,11 @@ proof.
   proc; wp.
   while (0 <= i <= inc /\ k = 100 * i).
   - wp.
-    while (0 <= j <= inc_0 /\ k = 100 * i + j); by auto => /#.
+    while (0 <= j <= inc_0 /\ k = 100 * i + j); auto => &m /> j_ge0 _ j_lt_inc0.
+    + rewrite addzA /= -ltzE j_lt_inc0 /=.
+      apply: (lez_trans _ _ _ j_ge0).
+      by rewrite lez_addl /=.
+    move => k ? _ ?.
+    have -> : k = 100; smt().
   auto => /#.
 qed.
