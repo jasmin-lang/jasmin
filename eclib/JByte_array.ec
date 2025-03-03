@@ -61,7 +61,7 @@ abstract theory ByteArray.
     lemma get'Sd_byte (t:t) (i k:int) :
       0 <= k < r =>
       get'Sd t i \bits8 k = t.[i+k].
-    proof. by move=> hk; rewrite /get'Sd _nth_of_list 1:size_map 1:size_iota 1:/# nth_sub. qed.
+    proof. by move=> hk; rewrite /get'Sd _nth_of_list 1:size_map 1:size_iota 1:lez_maxr 1:/# 2:nth_sub. qed.
 
     lemma get_set'SdE (t:t) (i:int) (w:B) j :
       get'Sd (set'Sd t i w) j =

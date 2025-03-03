@@ -11,6 +11,8 @@ proof.
   proc; wp.
   while (0 <= i <= inc /\ k = 100 * i).
   - wp.
-    while (0 <= j <= inc_0 /\ k = 100 * i + j); by auto => /#.
+    while (0 <= j <= inc_0 /\ k = 100 * i + j); auto => &m /> ? _ ?; first smt().
+    move => k ? _ ?.
+    have -> : k = 100; smt().
   auto => /#.
 qed.
