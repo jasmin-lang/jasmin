@@ -57,7 +57,8 @@ proof.
   rewrite !storesE iotaredE /= addrC iotaS 1:List.size_ge0. 
   rewrite (addzC 0 1) iota_addl /=.
   rewrite -(revK (iota_ 0 (size ws))) map_rev !foldl_rev foldr_map /=.
-  rewrite -!foldl_rev !revK; apply foldl_in_eq => m0 i /mem_iota /= h /#.
+  rewrite -!foldl_rev !revK; apply foldl_in_eq => m0 i /mem_iota /= h.
+  suff -> /= : (1 + i = 0) = false; smt().
 qed.
 
 lemma allocated8_stores ws a m x : allocated8 (stores m a ws) x = allocated8 m x.
