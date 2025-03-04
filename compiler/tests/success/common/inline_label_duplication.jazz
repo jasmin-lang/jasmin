@@ -1,0 +1,15 @@
+inline fn ble::e () -> reg u32 {
+    reg u32 x = 0;
+    return x;
+}
+
+inline fn ble__e () -> reg u32 {
+    reg u32 x = 1;
+    return x;
+}
+
+export fn out() -> reg u32 {
+    reg u32 x = ble::e();
+    reg u32 y = ble__e();
+    return y;
+} 

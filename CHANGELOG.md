@@ -27,6 +27,10 @@
 - Fix EC extraction in case on nested loops
   ([PR #971](https://github.com/jasmin-lang/jasmin/pull/971)).
 
+- Program with conflicting assembly labels print warning when compiled
+  ([PR #1067](https://github.com/jasmin-lang/jasmin/pull/1067);
+  fixes [#993](https://github.com/jasmin-lang/jasmin/issues/993)).
+
 ## Other changes
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
