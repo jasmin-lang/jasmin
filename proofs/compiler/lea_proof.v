@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssrnat ssralg.
 Require Import oseq.
 Require Import psem compiler_util.
 Require Import fexpr fexpr_sem fexpr_facts.
