@@ -133,7 +133,7 @@ let small_step1 ep spp sip s =
         | None -> assert false in
       let vargs = exn_exec ii (mapM2 ErrType truncate_val f.f_tyin vargs') in
       let {escs; emem = m1; evm = vm1}  = s1 in
-      let stk = Scall(ii,f, xs, vm1, c, s.s_stk) in
+      let stk = Scall(ii, f, xs, vm1, c, s.s_stk) in
       let sf = 
         exn_exec ii (write_vars nosubword ep true f.f_params vargs {escs; emem = m1; evm = Vm.init nosubword}) in
       {s with s_cmd = f.f_body;
