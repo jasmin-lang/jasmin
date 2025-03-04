@@ -120,6 +120,33 @@ Definition interp_Err {E: Type -> Type} {A}
 
 (***)
 
+(*
+Print interp_fail.
+
+Record hhh := hhhMk { hhh_a : bool ; hhh_b : bool }.
+
+Lemma hhh_eq : hhhMk true false = hhhMk false false -> False.
+  intros.
+  dependent destruction H.
+*)
+
+Definition interp_exec : forall {E M : Type -> Type},
+       Functor.Functor M ->
+       Monad M ->
+       MonadIter M ->
+       (forall T : Type, E T -> failT M T) ->
+       forall [T : Type], itree E T -> execT M T :=
+fun (E M : Type -> Type) (FM : Functor.Functor M) (MM : Monad M)
+  (IM : MonadIter M) => [eta interp].
+
+
+(* !!! Universe polymorphism problem *)
+Definition interp_exec {E M}
+           {FM : Functor.Functor M} {MM : Monad M}
+           {IM : MonadIter M} (h : E ~> @execT M) :
+  itree E ~> @execT M := interp h.
+(* Arguments interp_result {_ _ _ _ _ _} h [T]. *)
+
 
 (*** auxiliary error functions *)
 

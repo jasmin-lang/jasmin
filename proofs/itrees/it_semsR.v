@@ -127,14 +127,57 @@ Definition interp_Err {E: Type -> Type} {A}
   (t: itree (PErrState +' E) A) : failT (itree E) A :=
   interp_fail ext_handle_Err t.
 
-(***)
+(***)  
 
+(*
+Print cexecT.
+
+Variable lll: option pp_error_loc.
+
+Lemma zzz {A E} : cexecT (itree E) A = cexecT (itree E) A.
+  unfold cexecT.
+  unfold resultT.
+
+Print result.
+  
+  eapply functional_extensionality.
+  intros.
+*)  
+  
 (* failT (itree E) R = itree E (option R) *)
+Definition handle_CErr {E} : CErrState ~> cexecT (itree E) :=
+  fun T _ => Ret (@Error (option pp_error_loc) T None).
+
 Definition handle_PErr {E} : PErrState ~> execT (itree E) :=
-  fun _ _ => Ret (None).
+  fun T _ => Ret (@Error error T ErrType).
+
+
 
 (* Err handler *)
-Definition ext_handle_Err {E: Type -> Type} :
+Definition ext_handle_PErr {E: Type -> Type} :
+  PErrState +' E ~> execT (itree E) :=
+  fun _ e =>
+  match e with
+  | inl1 e' => handle_PErr e'
+  | inr1 e' => Vis e' (pure (fun x => Ok _ x)) end.                        
+
+
+
+
+Definition interp_result {E M A}
+           {FM : Functor.Functor M} {MM : Monad M}
+           {IM : MonadIter M} (h : E ~> @resultT A M) :
+  itree E ~> @resultT A M := interp h.
+Arguments interp_result {_ _ _ _ _ _} h [T].
+
+
+(* ErrState interpreter *)
+Definition interp_PErr {E: Type -> Type} {A}  
+  (t: itree (PErrState +' E) A) : execT (itree E) A :=
+  interp_fail ext_handle_PErr t.
+
+(* Err handler *)
+Definition ext_handle_PErr {E: Type -> Type} :
   PErrState +' E ~> failT (itree E) :=
   fun _ e =>
   match e with
