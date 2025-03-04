@@ -200,10 +200,8 @@ End ResultTLaws.
    [E ~> state S] define stateful itree morphisms
    [itree E ~> stateT S (itree F)]. *)
 
-(*
 Definition interp_result {E M A}
            {FM : Functor.Functor M} {MM : Monad M}
            {IM : MonadIter M} (h : E ~> @resultT A M) :
   itree E ~> @resultT A M := interp h.
 Arguments interp_result {_ _ _ _ _ _} h [T].
-*)

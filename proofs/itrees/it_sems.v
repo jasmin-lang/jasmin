@@ -1,9 +1,9 @@
 
-From Jasmin Require Import expr oseq.
 From Jasmin Require Import it_gen_lib it_exec.
-From Jasmin Require Import it_jasmin_lib.
+From Jasmin Require Import oseq.
 (* problematic *)
-From Jasmin Require Import it_exec.
+From Jasmin Require Import expr.
+From Jasmin Require Import it_jasmin_lib.
 
 From Coq Require Import
      Arith.PeanoNat
@@ -130,6 +130,8 @@ Lemma hhh_eq : hhhMk true false = hhhMk false false -> False.
   dependent destruction H.
 *)
 
+
+(*
 Definition interp_exec : forall {E M : Type -> Type},
        Functor.Functor M ->
        Monad M ->
@@ -147,7 +149,7 @@ Definition interp_exec {E M}
   itree E ~> @execT M := interp h.
 (* Arguments interp_result {_ _ _ _ _ _} h [T]. *)
 
-
+*)
 (*** auxiliary error functions *)
 
 Definition err_get {E: Type -> Type} `{ErrState -< E} {S} {V}
