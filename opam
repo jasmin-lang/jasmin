@@ -27,9 +27,10 @@ depends: [
   "yojson" {>= "1.6.0"}
   "angstrom" {>= "0.14.0"}
   "ocamlfind" { build }
-  "coq" {>= "8.18.0" & < "8.20~"}
-  "coq-mathcomp-ssreflect" {>= "2.0" & < "2.3~"}
+  "coq" {>= "8.18.0" & < "8.21~"}
+  "coq-mathcomp-ssreflect" {>= "2.0" & < "2.4~"}
   "coq-mathcomp-algebra"
+  "coq-mathcomp-algebra-tactics"
   "coq-mathcomp-word" {>= "3.2"}
 ]
 conflicts: [
