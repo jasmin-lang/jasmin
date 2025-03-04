@@ -2,8 +2,9 @@
 
 set -e
 
-ROOT_DIR=tests/results/check-x86-64
+ARCH=$2
 TEST_FILE=${@: -1}
+ROOT_DIR=tests/results/check-${ARCH}
 # Concatenate all args (except test file name - last arg)
 ARGS_CAT=args-$(
 	IFS=""
@@ -24,16 +25,18 @@ $(dirname $0)/../jasminc -g -o ${ASM} "$@"
 # Succeed early if it’s not the case (i.e., do not try to assemble the result)
 (echo $@ | grep -q fail) && exit 0
 
-cc -c -o ${OBJ} ${ASM}
-
-# Compile as a shared library
-# Add an implementation of Jasmin syscalls to avoid “undefined reference” errors
-if grep -q __jasmin_syscall ${ASM}
+if [ $ARCH = "arm-m4" ]
 then
-	EXT=${DIR}/sys.o
-	cc -c -o ${EXT} $(dirname $0)/../syscall/jasmin_syscall.c
+    ASARGS="--triple=armv7m --mcpu=cortex-m4"
+elif [ $ARCH = "riscv" ]
+then
+     # +m enables integer multiplication
+     ASARGS="--triple=riscv32 --mcpu=generic-rv32 -mattr=+m"
 else
-	EXT=""
+    ASARGS="--triple=x86_64"
 fi
 
-cc -shared -o ${DLL} ${OBJ} ${EXT}
+llvm-mc $ASARGS --filetype=obj -o ${OBJ} ${ASM}
+
+# Compile as a shared library, except for ARMv7 for which it is known not to work
+[ $ARCH = "arm-m4" ] || ld.lld -shared -o ${DLL} ${OBJ}
