@@ -67,6 +67,8 @@ Local Open Scope monad_scope.
 
 Import ITreeNotations.
 
+(* Set Universe Polymorphism. *)
+
 Obligation Tactic := done || idtac.
 
 (************************************************************************)

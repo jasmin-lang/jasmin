@@ -67,6 +67,8 @@ Import MonadNotation.
 Local Open Scope monad_scope.
 Local Open Scope option_scope.
 
+(* Set Universe Polymorphism. *)
+
 Obligation Tactic := done || idtac.
 
 (* This files contains itrees general lemmas that depend on Jasmin

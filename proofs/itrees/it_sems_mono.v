@@ -1,5 +1,4 @@
 
-From Jasmin Require Import it_gen_lib it_exec.
 From Jasmin Require Import oseq.
 (* problematic *)
 From Jasmin Require Import expr.
@@ -70,7 +69,7 @@ From Jasmin Require Import expr psem_defs psem oseq.
 From Jasmin Require Import it_gen_lib it_jasmin_lib.
 From Jasmin Require Import compiler_util.
 (* problematic *)
-From Jasmin Require Import it_exec.
+From Jasmin Require Import it_exec_mono.
 
 Import Monads.
 Import MonadNotation.
@@ -81,7 +80,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Set Universe Polymorphism. 
+(* Set Universe Polymorphism. *)
 
 Obligation Tactic := done || idtac.
 
@@ -1050,7 +1049,6 @@ Fixpoint pmeval_for {E}
                      pmeval_for R i c ws st2
     end st.
 
-(*
 
 (**********************************************************************)
 (** flat interpreter with mutual recursion *)
@@ -1236,8 +1234,6 @@ Definition peval_fun {E} :
 
 End With_REC_flat.
 
-*)
-
 End FlatSem.
 
 End OneProg.
@@ -1246,5 +1242,3 @@ End WSW.
 
 End Lang.
 
-(* PROBLEMATIC *)
-(* Check interp_exec. *)

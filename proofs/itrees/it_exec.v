@@ -125,6 +125,8 @@ Import ITreeNotations.
 Import ITree.Basics.Basics.Monads.
 Local Open Scope itree_scope.
 
+Set Universe Polymorphism.
+
 Import Monads.
 
 Section ExecT.
@@ -200,7 +202,7 @@ Proof.
   intros ?; split; intros [] [] EQ; subst; try inv EQ; cbn; auto.
 Qed.
 
-(* Universe inconsistency - and can't find a way to fix it *)
+(* FIXED: Universe inconsistency (old problem) *)
 (* Unset Universe Checking.  *)
 Global Instance execT_Eq1 {E} : Eq1 (execT (itree E)) :=
   fun _ => eutt (exec_rel eq).
@@ -251,7 +253,6 @@ Global Instance MonadLaws_execE {E} : MonadLawsE (execT (itree E)).
   Qed.
   
 End ExecTLaws.
-
 
 Definition interp_exec {E M}
            {FM : Functor.Functor M} {MM : Monad M}

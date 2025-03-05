@@ -1,3 +1,4 @@
+(*
 From Coq Require Import
      Arith.PeanoNat
      Lists.List
@@ -68,6 +69,9 @@ Local Open Scope option_scope.
 
 Obligation Tactic := done || idtac.
 
+*)
+
+
 (* This files contains the monad transformer associated with exec *)
 
 (*
@@ -89,26 +93,57 @@ About mathcomp.ssreflect.seq.
 About result.
 *)
 
-Set Universe Polymorphism.
+(* begin hide *)
+From Coq Require Import
+  RelationClasses
+  Setoid
+  Morphisms.
 
-Section ResultT.
+From Jasmin Require Import utils. (* expr psem_defs psem oseq. *)
 
-  Context {S: Set} {m : Type -> Type}
-    {Fm: Functor.Functor m} {Mm : Monad m}
+From Paco Require Import paco.
+
+From ITree Require Import
+     Basics.Utils
+     Basics.Basics
+     Basics.Category
+     Basics.CategoryKleisli
+     Basics.HeterogeneousRelations
+     Basics.Monad
+     Core.ITreeDefinition
+     Core.KTree
+     Core.KTreeFacts
+     Eq.Eqit
+     Eq.UpToTaus
+     Eq.Paco2
+     Indexed.Sum
+     Interp.Interp
+     Interp.InterpFacts
+     Interp.RecursionFacts.
+
+Import ITreeNotations.
+Import ITree.Basics.Basics.Monads.
+Local Open Scope itree_scope.
+
+Import Monads.
+
+Section ExecT.
+
+  Context {m : Type -> Type} {Fm: Functor.Functor m} {Mm : Monad m}
     {MIm : MonadIter m}.
 
-  Definition resultT (a : Type) : Type :=
-    m (result S a)%type.
-  
-  Global Instance resultT_fun : Functor.Functor resultT :=
+  Definition execT (m : Type -> Type) (a : Type) : Type :=
+    m (exec a)%type.
+
+  Global Instance execT_fun : Functor.Functor (execT m) :=
     {| Functor.fmap :=
         fun X Y (f: X -> Y) => 
-          @Functor.fmap m Fm (result S X) (result S Y) (fun x =>
+          Functor.fmap (fun x =>
                           match x with
                           | Error e => Error e
-                          | Ok x => @Ok S Y (f x) end) |}.
+                          | Ok x => @Ok error Y (f x) end) |}.
 
-  Global Instance resultT_monad : Monad resultT :=
+  Global Instance execT_monad : Monad (execT m) :=
     {| ret := fun _ x => @ret m _ _ (Ok _ x);
        bind := fun _ _ c k =>
                  bind (m := m) c 
@@ -117,8 +152,8 @@ Section ResultT.
                              | Ok x => k x end)
     |}.
 
-  Global Instance resultT_iter  : MonadIter resultT :=
-    fun A I body i => Basics.iter (M := m) (I := I) (R := result S A) 
+  Global Instance execT_iter  : MonadIter (execT m) :=
+    fun A I body i => Basics.iter (M := m) (I := I) (R := exec A) 
       (fun i => bind (m := m)
                (body i)
                (fun x => match x with
@@ -127,34 +162,56 @@ Section ResultT.
                          | Ok (inr a) => @ret m _ _ (inr (Ok _ a))
                          end)) i.
 
-End ResultT.
+End ExecT.
 
 
-Section ResultTLaws. 
+Section ExecTLaws. 
+
 
 Definition result_rel (W: Set) {X} (R : relation X) (Re : relation W) :
-   relation (result W X) := fun (mx my : result W X) =>
-  match mx with
-  | Ok x => match my with
+   relation (result W X) :=
+fun (mx my : result W X) =>
+match mx with
+| Ok x => match my with
             | Ok y => R x y
             | Error _ => False
             end
-  | Error e0 => match my with
+| Error e0 => match my with
           | Ok _ => False
           | Error e1 => Re e0 e1 
           end
-  end.
+end.
 
-Global Instance resultT_Eq1 {W: Set} {E} : Eq1 (@resultT W (itree E)) :=
-  fun _ => eutt (result_rel W eq eq).
+Lemma result_rel_eq (W: Set) : forall {A : Type},
+    eq_rel (@eq (result W A)) (result_rel W eq eq).
+Proof.
+  intros ?; split; intros [] [] EQ; subst; try inv EQ; cbn; auto.
+Qed.
 
-Global Instance Reflexive_resultT_eq1 {W E T} : Reflexive (@resultT_Eq1 W E T).
+Definition exec_rel' {X: Type} (R : relation X) :
+   relation (exec X) := result_rel error R (fun x y => True). 
+
+Definition exec_rel {X: Type} (R : relation X) :
+   relation (exec X) := result_rel error R eq. 
+
+Lemma exec_rel_eq : forall {A : Type},
+    eq_rel (@eq (exec A)) (exec_rel eq).
+Proof.
+  intros ?; split; intros [] [] EQ; subst; try inv EQ; cbn; auto.
+Qed.
+
+(* FIXED: Universe inconsistency (old problem) *)
+(* Unset Universe Checking.  *)
+Global Instance execT_Eq1 {E} : Eq1 (execT (itree E)) :=
+  fun _ => eutt (exec_rel eq).
+
+Global Instance Reflexive_execT_eq1 {E T} : Reflexive (@execT_Eq1 E T).
   Proof.
     apply Reflexive_eqit.
     intros []; reflexivity.
 Qed.
 
-Global Instance Symmetric_resultT_eq1 {W E T} : Symmetric (@resultT_Eq1 W E T).
+Global Instance Symmetric_execT_eq1 {E T} : Symmetric (@execT_Eq1 E T).
   Proof.
     apply Symmetric_eqit.
     unfold Symmetric.
@@ -163,20 +220,18 @@ Global Instance Symmetric_resultT_eq1 {W E T} : Symmetric (@resultT_Eq1 W E T).
     inv H; reflexivity.
   Qed.
 
-Global Instance Transitive_resultT_eq1 {W E T} :
-    Transitive (@resultT_Eq1 W E T).
+Global Instance Transitive_execT_eq1 {E T} : Transitive (@execT_Eq1 E T).
   Proof.
     apply Transitive_eqit.
     intros [] [] [] ? ?; subst; cbn in *; subst; intuition.
   Qed.
 
-  Global Instance Equivalence_resultT_eq1 {W E T} :
-    Equivalence (@resultT_Eq1 W E T).
+Global Instance Equivalence_execT_eq1 {E T} : Equivalence (@execT_Eq1 E T).
   Proof.
     split; typeclasses eauto.
   Qed.
 
-Global Instance MonadLaws_resultE {W E} : MonadLawsE (@resultT W (itree E)).
+Global Instance MonadLaws_execE {E} : MonadLawsE (execT (itree E)).
   Proof.
     split; cbn.
     - cbn; intros; rewrite bind_ret_l; reflexivity.
@@ -195,15 +250,5 @@ Global Instance MonadLaws_resultE {W E} : MonadLawsE (@resultT W (itree E)).
         reflexivity.
   Qed.
   
-End ResultTLaws.
+End ExecTLaws.
 
-
-(* Failure handlers [E ~> stateT S (itree F)] and morphisms
-   [E ~> state S] define stateful itree morphisms
-   [itree E ~> stateT S (itree F)]. *)
-
-Definition interp_result {E M A}
-           {FM : Functor.Functor M} {MM : Monad M}
-           {IM : MonadIter M} (h : E ~> @resultT A M) :
-  itree E ~> @resultT A M := interp h.
-Arguments interp_result {_ _ _ _ _ _} h [T].

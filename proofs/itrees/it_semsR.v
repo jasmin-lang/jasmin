@@ -1,10 +1,3 @@
-
-From Jasmin Require Import expr oseq.
-From Jasmin Require Import it_gen_lib.
-From Jasmin Require Import it_jasmin_lib.
-(* problematic *)
-From Jasmin Require Import it_exec.
-
 From Coq Require Import
      Arith.PeanoNat
      Lists.List
@@ -66,11 +59,11 @@ From ITree Require Import Rutt RuttFacts.
 
 From ITree Require Import EqAxiom.
 
+From Jasmin Require Import it_result.
+
 From Jasmin Require Import expr psem_defs psem oseq.
 From Jasmin Require Import it_gen_lib it_jasmin_lib.
 From Jasmin Require Import utils compiler_util.
-
-From Jasmin Require Import it_result.
 
 Import Monads.
 Import MonadNotation.
@@ -80,6 +73,8 @@ Local Open Scope option_scope.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+Set Universe Polymorphism.
 
 Obligation Tactic := done || idtac.
 
@@ -162,9 +157,10 @@ Definition ext_handle_PErr {E: Type -> Type} :
   | inr1 e' => Vis e' (pure (fun x => Ok _ x)) end.                        
 
 
+Check @interp_result.
 
 
-Definition interp_result {E M A}
+Definition interp_result' {E M A}
            {FM : Functor.Functor M} {MM : Monad M}
            {IM : MonadIter M} (h : E ~> @resultT A M) :
   itree E ~> @resultT A M := interp h.
