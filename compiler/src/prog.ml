@@ -156,7 +156,10 @@ and  plvals = pexpr_ glvals
 and  pexpr  = pexpr_ gexpr
 and  pexpr_ = PE of pexpr [@@unboxed]
 
+type range = int grange
+
 type ('info,'asm) pinstr = (pexpr_,'info,'asm) ginstr
+type ('info,'asm) instr_r = (int,'info,'asm) ginstr_r
 type ('info,'asm) pstmt  = (pexpr_,'info,'asm) gstmt
 
 type ('info,'asm) pfunc     = (pexpr_,'info,'asm) gfunc

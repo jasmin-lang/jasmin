@@ -156,7 +156,10 @@ type lvals = int glval list
 type expr  = int gexpr
 type exprs = int gexpr list
 
+type range = int grange
+
 type ('info,'asm) instr = (int,'info,'asm) ginstr
+type ('info,'asm) instr_r = (int,'info,'asm) ginstr_r
 type ('info,'asm) stmt  = (int,'info,'asm) gstmt
 
 type ('info,'asm) func     = (int,'info,'asm) gfunc
