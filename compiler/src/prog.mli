@@ -215,6 +215,10 @@ val locals  : ('info,'asm) func -> Sv.t
 val spilled :  ('info,'asm) func -> Sv.t
 
 (* -------------------------------------------------------------------- *)
+(** [written_lv s x] inserts [x] into [s] if [x] is a variable *)
+val written_lv : Sv.t -> lval -> Sv.t
+
+(* -------------------------------------------------------------------- *)
 (* Written variables & called functions *)
 val written_vars_fc : ('info,'asm) func -> Sv.t * L.i_loc list Mf.t
 
