@@ -146,6 +146,7 @@ Variant x86_op : Type :=
 | VPERMD
 | VPERMQ
 | VPMOVMSKB of wsize & wsize (* source size (U128/256) & dest. size (U32/64) *)
+| MOVEMASK of velem & wsize
 | VPCMPEQ of velem & wsize
 | VPCMPGT of velem & wsize
 | VPSIGN of velem & wsize
@@ -1722,9 +1723,11 @@ Definition Ox86_VPERMQ_instr :=
   mk_instr_pp "VPERMQ" w256w8_ty w256_ty [:: Eu 1; Eu 2] [:: Eu 0] MSB_CLEAR x86_VPERMQ
               (check_xmm_xmmm_imm8 U256) 3 (primM VPERMQ) (pp_name_ty "vpermq" [::U256;U256;U8]).
 
+(* TODO: remove *)
 Definition x86_VPMOVMSKB ssz dsz (v : word ssz): tpl (w_ty dsz) :=
-  wpmovmskb dsz v.
+  zero_extend dsz (movemask VE8 v).
 
+(* TODO: remove *)
 Definition Ox86_PMOVMSKB_instr :=
   (fun ssz dsz => mk_instr_safe
     (pp_sz_sz "VPMOVMSKB"%string false ssz dsz) (* Jasmin name *)
@@ -1739,6 +1742,19 @@ Definition Ox86_PMOVMSKB_instr :=
     (size_32_64 dsz && size_128_256 ssz)
     (pp_name_ty "vpmovmskb" [:: dsz; ssz]) (* asm pprinter *)
   , ("VPMOVMSKB"%string, primX VPMOVMSKB) (* jasmin concrete syntax *)
+  ).
+
+Definition Ox86_MOVEMASK_instr :=
+  (fun (ve: velem) sz =>
+     mk_instr_safe (pp_ve_sz "MOVEMASK" ve sz) (w_ty sz) (w_ty U64) [:: Eu 1 ] [:: Eu 0 ] MSB_CLEAR
+       (@movemask ve sz) [:: [:: r ; xmm ] ] 2 (((ve : wsize) \in [:: U8; U32; U64 ]) && size_128_256 sz)
+       (pp_name_ty match ve with
+          | VE8 => "vpmovmskb"
+          | VE32 => "vmovmskps"
+          | VE64 => "vmovmskpd"
+          | _ => "<assert false>"
+          end [:: U64; sz ]),
+     ("MOVEMASK"%string, primV_range [seq PVv ve sz | ve <- [:: VE8; VE32; VE64 ], sz <- [:: U128; U256 ]] MOVEMASK)
   ).
 
 Definition x86_VPCMPEQ (ve: velem) sz (v1 v2: word sz): tpl(w_ty sz) :=
@@ -2199,6 +2215,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VINSERTI128        => Ox86_VINSERTI128_instr.1
   | VPEXTR ve          => Ox86_VPEXTR_instr.1 ve
   | VPMOVMSKB sz sz'   => Ox86_PMOVMSKB_instr.1 sz sz'
+  | MOVEMASK ve sz     => Ox86_MOVEMASK_instr.1 ve sz
   | VPCMPEQ ve sz      => Ox86_VPCMPEQ_instr.1 ve sz
   | VPCMPGT ve sz      => Ox86_VPCMPGT_instr.1 ve sz
   | VPSIGN ve sz       => Ox86_VPSIGN_instr.1 ve sz
@@ -2352,6 +2369,7 @@ Definition x86_prim_string :=
    Ox86_VINSERTI128_instr.2;
    Ox86_VPEXTR_instr.2;
    Ox86_PMOVMSKB_instr.2;
+   Ox86_MOVEMASK_instr.2;
    Ox86_VPCMPEQ_instr.2;
    Ox86_VPCMPGT_instr.2;
    Ox86_VPSIGN_instr.2;
