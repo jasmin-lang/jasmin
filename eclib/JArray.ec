@@ -51,7 +51,8 @@ abstract theory MonoArray.
   lemma get_set_if (t:t) (i j :int) (a:elem) :
     t.[i <- a].[j] = if 0 <= i < size /\ j = i then a else t.[j].
   proof.
-    rewrite setE initE /=; smt (get_out).
+    rewrite setE initE /=.
+    move: (get_out t i) (get_out t j) => /#.
   qed.
 
   lemma get_setE (t:t) (x y:int) (a:elem) :
