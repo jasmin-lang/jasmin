@@ -594,14 +594,14 @@ Proof.
     1-2: by move: hidc; rewrite /check_args_kinds /= andbF.
     rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
     rewrite truncate_word_le; last exact: wsize_ge_U256.
-    rewrite /x86_VPXOR hidc /= /x86_u128_binop /size_128_256 wsize_ge_U256.
+    rewrite /x86_VPXOR hidc /= /size_128_256 wsize_ge_U256.
     have -> /= : (U128 ≤ sz)%CMP by case: (sz) hsz64.
     rewrite wxor_xx; set id := instr_desc_op (VPXOR sz).
     by have [s' -> /= ?] := (@compile_lvals _ _ _ _ _ _ _ _ _ _ _
                rip ii m lvs m' s [:: a0; XReg r; XReg r]
                id.(id_out) id.(id_tout)
                (0%R: word sz)
-               (reg_msb_flag sz) (refl_equal _) hw hlo hcd id.(id_check_dest)); eauto.
+               MSB_CLEAR (refl_equal _) hw hlo hcd id.(id_check_dest)); eauto.
   (* Oconcat128 *)
   + by apply assemble_extra_concat128.
 
@@ -845,7 +845,7 @@ Transparent cat.
       + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v1)).
       + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v2)).
       apply/(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v3)) => //.
-    by rewrite /exec_sopn /= truncate_word_u hw /= /sopn_sem /sopn_sem_ /= /x86_VPOR /x86_u128_binop
+    by rewrite /exec_sopn /= truncate_word_u hw /= /sopn_sem /sopn_sem_ /= /x86_VPOR
          /size_128_256 Hws' /= (wsize_ge_U256 ws) /=.
   exists s' => //; apply: lom_eqv_ext hlo4 => z /=.
   rewrite /vm4; case: (to_var yr =P z) => [ | /eqP] ?;first by subst z; rewrite !Vm.setP_eq.
