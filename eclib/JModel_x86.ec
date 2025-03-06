@@ -836,6 +836,34 @@ op VPMOVMSKB_u256u64 (v: W256.t) =
 
 (* ------------------------------------------------------------------- *)
 (*
+| MOVEMASK of velem & wsize
+*)
+op MOVEMASK_16u8 (v: W128.t) =
+   let vb = W16u8.to_list v in
+   W64.bits2w (map W8.msb vb).
+
+op MOVEMASK_32u8 (v: W256.t) =
+   let vb = W32u8.to_list v in
+   W64.bits2w (map W8.msb vb).
+
+op MOVEMASK_4u32 (v: W128.t) =
+   let vb = W4u32.to_list v in
+   W64.bits2w (map W32.msb vb).
+
+op MOVEMASK_8u32 (v: W256.t) =
+   let vb = W8u32.to_list v in
+   W64.bits2w (map W32.msb vb).
+
+op MOVEMASK_2u64 (v: W128.t) =
+   let vb = W2u64.to_list v in
+   W64.bits2w (map W64.msb vb).
+
+op MOVEMASK_4u64 (v: W256.t) =
+   let vb = W4u64.to_list v in
+   W64.bits2w (map W64.msb vb).
+
+(* ------------------------------------------------------------------- *)
+(*
 | VPCMPEQ of velem & wsize
 | VPCMPGT of velem & wsize
 | VPSIGN of velem & wsize

@@ -1,6 +1,14 @@
 
 # [unreleased]
 
+## New features
+
+- Add support for x86 `VMOVMSKPS` and `VMOVMSKPD` instructions, through the new
+  intrinsics `#MOVEMASK` which also maps to the `VPMOVMSKB` instruction;
+  therefore old intrinsic `#VPMOVMSKB` is deprecated
+  ([PR #1083](https://github.com/jasmin-lang/jasmin/pull/1083);
+  fixes [#1079](https://github.com/jasmin-lang/jasmin/issues/1079)).
+
 ## Bug fixes
 
 - Program with conflicting assembly labels print warning when compiled
