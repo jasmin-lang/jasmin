@@ -1038,6 +1038,56 @@ Program Definition VR_DE_ME : postrel (FCState +' E) (FCState +' E) :=
 Context (fcstate_t_def : TR_E (FCState +' E) = TR_DE_ME).
 Context (fcstate_v_def : VR_E (FCState +' E) = VR_DE_ME).
 
+Lemma rutt_err_eval_Args fn es1 st1 st2 : 
+  RS st1 st2 ->
+  rutt (TR_E (FCState +' E)) (VR_E (FCState +' E)) RV
+    (err_eval_Args dc spp pr1 fn es1 st1)
+    (err_eval_Args dc spp pr2 fn (tr_exprs es1) st2).
+Admitted. 
+
+Lemma rutt_err_init_state fn r1 r2 st1 st2 :
+  RV r1 r2 ->
+  RS st1 st2 ->
+  rutt (TR_E (FCState +' E)) (VR_E (FCState +' E)) RS
+    (err_init_state dc scP ev pr1 fn r1 st1)
+    (err_init_state dc scP ev pr2 fn r2 st2).
+Admitted.   
+
+Lemma rutt_err_get_FunCode fn :
+  rutt (TR_E (FCState +' E)) (VR_E (FCState +' E)) RC
+    (err_get_FunCode pr1 fn)
+    (err_get_FunCode pr2 fn).    
+Admitted. 
+
+Lemma rutt_err_return_val fn st1 st2 :
+  RS st1 st2 ->
+  rutt (TR_E (FCState +' E)) (VR_E (FCState +' E)) RV
+    (err_return_val dc pr1 fn st1)
+    (err_return_val dc pr2 fn st2).    
+Admitted. 
+
+Lemma rutt_err_reinstate_caller fn xs v1 v2 st1 st2 st3 st4 :
+  RV v1 v2 ->
+  RS st1 st2 ->
+  RS st3 st4 ->
+  rutt (TR_E (FCState +' E)) (VR_E (FCState +' E))
+    RS   
+    (* (fun a1 : estate => [eta RS a1]) *)
+    (err_reinstate_caller dc spp scP pr1 fn xs v1
+       st1 st3)
+    (err_reinstate_caller dc spp scP pr2 fn
+       (tr_lvals xs) v2 st2 st4).
+Admitted. 
+
+
+Section Hyp_on_VR_E_FLCode.
+
+Context (VR_E_FLCode_ok : forall c st1 st2 st3 st4,
+   RS st1 st2 ->         
+   VR_E (FCState +' E) estate estate (inl1 (FLCode c st1)) st3
+     (inl1 (FLCode (Tr_cmd c) st2)) st4 ->
+   RS st3 st4).     
+
 Lemma comp_gen_ok_ME (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) (st1 st2: estate) :
   xs2 = map tr_lval xs1 ->
@@ -1050,52 +1100,82 @@ Lemma comp_gen_ok_ME (fn: funname)
   intros.
   unfold meval_fcall; simpl.
   
-  eapply rutt_bind with (RR := RV).
-  unfold err_eval_Args.
-  (* OK *)
-  admit.
+  eapply rutt_bind with (RR := RV); inv H; intros.
 
-  intros.
-  eapply rutt_bind with (RR := RS).
-  unfold err_init_state.
-  (* OK *)
-  admit.
+  { eapply rutt_err_eval_Args; auto. }    
 
-  intros.
-  eapply rutt_bind with (RR := RC).
-  unfold err_get_FunCode.
-  (* OK *)
-  admit.
+  eapply rutt_bind with (RR := RS); intros.
 
-  intros.
-  inv H4.
-  eapply rutt_bind with (RR := RS).
-  eapply rutt_trigger; simpl.
-  rewrite fcstate_t_def.
-  unfold TR_DE_ME.
-  econstructor.
-  unfold TR_D_ME.
-  split; auto.
+  { eapply rutt_err_init_state; auto. }
 
-  intros.
-  (* OK *)
-  admit.
+  eapply rutt_bind with (RR := RC); intros.
 
-  intros.
-  eapply rutt_bind with (RR := RV).
-  unfold err_return_val.
-  (* OK *)
-  admit.
+  { eapply rutt_err_get_FunCode; auto. }
 
-  intros.
-  unfold err_reinstate_caller.
-  (* OK *)
-  admit.
+  inv H2. eapply rutt_bind with (RR := RS); intros.
+  { eapply rutt_trigger; simpl; intros.
+    { rewrite fcstate_t_def. 
+      econstructor.
+      split; auto; intros.
+    }
+    eapply VR_E_FLCode_ok; eauto.
+  }
+
+  eapply rutt_bind with (RR := RV); intros.
+  { eapply rutt_err_return_val; auto. }
+
+  assert ((fun a1 : estate => [eta RS a1]) = RS) as A1.
+  { eauto. } 
+  
+  rewrite A1; eapply rutt_err_reinstate_caller; auto.
+Qed.
+
+End Hyp_on_VR_E_FLCode.
+
+
+Lemma rutt_err_mk_AssgnE x tg ty e st1 st2 :
+  RS st1 st2 ->
+  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
+    (err_mk_AssgnE spp pr1 x tg ty e st1)
+    (err_mk_AssgnE spp pr2 (tr_lval x) tg ty (tr_expr e) st2).
+Admitted.   
+
+Lemma rutt_err_mk_OpnE x tg o e st1 st2 :
+  RS st1 st2 ->
+  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
+    (err_mk_OpnE spp pr1 x tg o e st1)
+    (err_mk_OpnE spp pr2 (tr_lvals x) tg (tr_opn o) (tr_exprs e) st2).
 Admitted. 
 
+Lemma rutt_err_mk_SyscallE x sc e st1 st2 :
+  RS st1 st2 ->
+  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
+    (err_mk_SyscallE spp scP pr1 x sc e st1)
+    (err_mk_SyscallE spp scP pr2 
+       (tr_lvals x) (tr_sysc sc) (tr_exprs e) st2).
+Admitted. 
 
+Lemma rutt_err_mk_EvalCond e st1 st2 :
+  RS st1 st2 ->
+   rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) eq
+    (err_mk_EvalCond spp pr1 e st1)
+    (err_mk_EvalCond spp pr2 (tr_expr e) st2).
+Admitted.  
 
-(* Inductive lemma *)
+Lemma rutt_err_mk_EvalBound e st1 st2 :
+  RS st1 st2 ->
+  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) eq
+    (err_mk_EvalBound spp pr1 e st1)
+    (err_mk_EvalBound spp pr2 e st2).
+Admitted. 
+
+Lemma rutt_err_mk_WriteIndex xi z st1 st2 :
+  RS st1 st2 ->
+   rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
+    (err_mk_WriteIndex xi z st1) (err_mk_WriteIndex xi z st2).
+Admitted. 
+  
+(* Inductive lemma - GOOD *)
 Lemma rutt_cmd_tr_ME_step (cc: cmd) (st1 st2: estate) : 
   RS st1 st2 ->
   @rutt (FCState +' E) _ _ _
@@ -1129,9 +1209,7 @@ Lemma rutt_cmd_tr_ME_step (cc: cmd) (st1 st2: estate) :
     (st_cmd_map_r (meval_instr pr1) c st1)
     (st_cmd_map_r (meval_instr pr2) (Tr_cmd c) st2)).
 
-  revert H.
-  revert st1 st2.
-  revert cc.
+  revert H; revert st1 st2; revert cc.
   apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc; simpl; eauto; intros.
 
   { eapply rutt_Ret; eauto. }
@@ -1139,130 +1217,86 @@ Lemma rutt_cmd_tr_ME_step (cc: cmd) (st1 st2: estate) :
     eapply rutt_bind with (RR := RS); simpl in *.
 
     specialize (H st1 st2 H1).
-    (* PROBLEM: we need to invert H. probably need a coinductive proof *)
-    admit.
 
+    setoid_rewrite bind_ret_r in H; auto.
     intros; auto.
   }
 
-  { eapply rutt_bind with (RR := RS).
-    unfold ret_mk_AssgnE.
-    (* OK admit *)
-    admit.
-
-    intros.
+  { eapply rutt_bind with (RR := RS); intros.
+    eapply rutt_err_mk_AssgnE; auto.     
+    eapply rutt_Ret; eauto. 
+  }
+    
+  { eapply rutt_bind with (RR := RS); intros.
+    eapply rutt_err_mk_OpnE; auto.
     eapply rutt_Ret; eauto.
   }
 
-  { eapply rutt_bind with (RR := RS).
-    (* OK admit *)
-    admit.
-
-    intros.
-    eapply rutt_Ret; eauto.
-  }
-
-  { eapply rutt_bind with (RR := RS).
-    (* OK admit *)
-    admit.
-
-    intros.
+  { eapply rutt_bind with (RR := RS); intros.
+    eapply rutt_err_mk_SyscallE; auto.
     eapply rutt_Ret; eauto.
   }
 
   { intros.
-    eapply rutt_bind with (RR := RS).
-    eapply rutt_bind with (RR := eq).
-    
-    unfold err_mk_EvalCond.
-    (* OK *)
-    admit.
-
-    intros.
-    inv H2; simpl.
-    destruct r2; simpl.
-
-    eapply H; eauto.
-    eapply H0; eauto.
-
-    intros.
+    eapply rutt_bind with (RR := RS); intros.
+    { eapply rutt_bind with (RR := eq); intros.
+      { eapply rutt_err_mk_EvalCond; auto. } 
+      inv H2; destruct r2; simpl.
+      eapply H; eauto.
+      eapply H0; eauto.
+    }  
     eapply rutt_Ret; auto.
   }
 
-  { eapply rutt_bind with (RR := RS); simpl.
-    destruct rn.
-    destruct p; simpl.    
-    eapply rutt_bind with (RR := eq); simpl.
-    unfold err_mk_EvalBound; simpl.
-    (* OK *)
-    admit.
+  { eapply rutt_bind with (RR := RS); simpl; intros.
+    destruct rn; destruct p; simpl.    
+    eapply rutt_bind with (RR := eq); simpl; intros.
+    eapply rutt_err_mk_EvalBound; auto.
 
-    intros.
-    inv H1.
-    eapply rutt_bind with (RR := eq); simpl.
-    unfold err_mk_EvalBound; simpl.
-    (* OK *)
-    admit.
+    inv H1; eapply rutt_bind with (RR := eq); simpl; intros.
+    eapply rutt_err_mk_EvalBound; auto.
 
-    intros.
-    inv H1.
-
-    revert H0.
-    revert st1 st2.
+    inv H1; revert H0; revert st1 st2.
     induction (wrange d r2 r0); simpl; intros.
     { eapply rutt_Ret; eauto. }
-    { eapply rutt_bind with (RR:= RS); simpl.
-      (* OK *)
-      admit.
-
-      intros.
-      eapply rutt_bind with (RR := RS).
-      eapply H; eauto.
-      intros; auto.
+    { eapply rutt_bind with (RR:= RS); simpl; intros.
+      { eapply rutt_err_mk_WriteIndex; auto. } 
+      eapply rutt_bind with (RR := RS); intros; auto.
     }
       
-    intros.
     eapply rutt_Ret; auto.
   }
     
-  { eapply rutt_bind with (RR := RS).
-    eapply rutt_iter with (RI := RS); auto.
-    intros.
-    eapply rutt_bind with (RR := RS).
+  { eapply rutt_bind with (RR := RS); intros.
+    eapply rutt_iter with (RI := RS); intros; auto.
+    eapply rutt_bind with (RR := RS); intros.
     eapply H; auto.
 
-    intros.
-    eapply rutt_bind with (RR := eq).
-    (* OK *)
-    admit.
+    eapply rutt_bind with (RR := eq); intros.
+    eapply rutt_err_mk_EvalCond; auto.
 
-    intros.
-    inv H4.
-    destruct r3.
+    inv H4; destruct r3.
 
-    eapply rutt_bind with (RR := RS); auto.
-    intros.
+    eapply rutt_bind with (RR := RS); intros; auto.
     eapply rutt_Ret; auto.
     eapply rutt_Ret; auto.
-
-    intros.
     eapply rutt_Ret; auto.
   }   
     
-  { eapply rutt_bind with (RR := RS).
-    eapply rutt_trigger; simpl.
+  { eapply rutt_bind with (RR := RS); intros.
+    eapply rutt_trigger; simpl; intros.
     econstructor.
     unfold TR_D_ME; simpl.
     split; eauto.
 
+    simpl in H0.     
+    
     intros; auto.
-    (* OK *)
-    admit.
-
-    intros; auto.
+    simpl in H0.
+    dependent destruction H0; auto.
     eapply rutt_Ret; auto.
   }  
-Admitted.     
+Qed.
   
 (* Here we apply the inductive lemma and comp_gen_ok *)
 Lemma rutt_cmd_tr_ME (cc: cmd) (st1 st2: estate) : 
@@ -1270,30 +1304,46 @@ Lemma rutt_cmd_tr_ME (cc: cmd) (st1 st2: estate) :
   @rutt E _ _ _ 
     (TR_E _) (VR_E _) RS
     (mevalE_cmd pr1 cc st1) (mevalE_cmd pr2 (Tr_cmd cc) st2).
-  intros.
-  unfold mevalE_cmd; simpl.
-  eapply interp_mrec_rutt.
-  intros.
-  instantiate (3 := @TR_D_ME).
-  instantiate (1 := @VR_D_ME).
-  unfold meval_cstate.
-  destruct d1.
-  unfold TR_D_ME in H0.
-  destruct d2; try intuition.
-  inv H1; simpl.
-  eapply rutt_cmd_tr_ME_step; eauto. 
+Proof.  
+  intros; unfold mevalE_cmd; simpl.
+  eapply interp_mrec_rutt; simpl; intros.
+  { instantiate (3 := @TR_D_ME).
+    instantiate (1 := @VR_D_ME).
+    unfold meval_cstate.
+    destruct d1.
+    { unfold TR_D_ME in H0.
+      destruct d2; try intuition.
+      inv H1; simpl.
+      eapply rutt_cmd_tr_ME_step; eauto.
+    }  
    
-  unfold TR_D_ME in H0.
-  destruct d2; simpl in *; try intuition.
-  inv H0.  
-  set CC := (comp_gen_ok_ME f0 xs _ es _ _ _ erefl erefl H4).
-  setoid_rewrite fcstate_t_def in CC.
-  setoid_rewrite fcstate_v_def in CC.
-  exact CC.
-    
-  simpl.
+    { unfold TR_D_ME in H0.
+      destruct d2; simpl in *; try intuition.
+      inv H0.  
+      have CC := (comp_gen_ok_ME _ f0 xs _ es _ _ _ erefl erefl H4).
+      setoid_rewrite fcstate_t_def in CC.
+      setoid_rewrite fcstate_v_def in CC.
+      eapply CC; intros.
+      admit.
+    }  
+  }         
   eapply rutt_cmd_tr_ME_step; eauto. 
-Qed.   
+Admitted.  
+
+(*
+(**)
+
+Context (VR_E_FLCode_ok : forall c st1 st2 st3 st4,
+   RS st1 st2 ->
+@rutt E _ _ _ 
+    (TR_E _) (VR_E _) RS
+    (mevalE_cmd pr1 cc st1) (mevalE_cmd pr2 (Tr_cmd cc) st2)
+            
+   VR_E (FCState +' E) estate estate (inl1 (FLCode c st1)) st3
+     (inl1 (FLCode (Tr_cmd c) st2)) st4 ->
+   RS st3 st4).     
+
+*)
 
 End GEN_Err.
 
