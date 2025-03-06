@@ -1016,19 +1016,37 @@ Definition TR_D_ME {T1 T2} (d1 : FCState T1)
   end.               
 
 (* ME: relation between FCState event outputs, i.e. over estate *)
-Program Definition VR_D_ME {T1 T2}
+Program Definition VR_D_ME' {T1 T2}
   (d1 : FCState T1) (t1: T1) (d2 : FCState T2) (t2: T2) : Prop.
-  remember d1 as D1.
-  remember d2 as D2.
+(*  remember d1 as D1.
+  remember d2 as D2. *)
   dependent destruction d1.
   - dependent destruction d2.
     + exact (RS t1 t2).
     + exact (False).
   - dependent destruction d2.
     + exact (False).
-    + exact (RS t1 t2).
+    + exact (RS t1 t2).     
 Defined.      
+  
+Definition FCState_det {T} (d: FCState T) : T = estate :=
+ match d in (it_sems_mono.FCState _ _ T0) return (T0 = estate) with
+ | FLCode c st => (fun=> (fun=> erefl)) c st
+ | @FFCall _ _ _ _ _ xs f es st =>
+     (fun=> (fun=> (fun=> (fun=> erefl)))) xs f es st
+ end.
 
+Definition st_cast {T} (d: FCState T) (x: T) : estate.
+  rewrite (FCState_det d) in x; exact x.
+Defined.
+
+Definition VR_D_ME {T1 T2}
+  (d1 : FCState T1) (t1: T1) (d2 : FCState T2) (t2: T2) : Prop :=
+  (match (d1, d2) return (estate -> estate -> Prop) with
+  | (FLCode c1 st1, FLCode c2 st2) => RS 
+  | (FFCall xs1 f1 es1 st1, FFCall xs2 f2 es2 st2) => RS 
+  | _ => fun _ _ => False end)
+    (st_cast d1 t1) (st_cast d2 t2).                                                       
 Program Definition TR_DE_ME : prerel (FCState +' E) (FCState +' E) :=
   sum_prerel (@TR_D_ME) (TR_E E).
 
@@ -1175,7 +1193,9 @@ Lemma rutt_err_mk_WriteIndex xi z st1 st2 :
     (err_mk_WriteIndex xi z st1) (err_mk_WriteIndex xi z st2).
 Admitted. 
   
-(* Inductive lemma - GOOD *)
+(* Inductive lemma - GOOD. 
+   however: here we are not typing the coinductive knot, 
+   as st_cmd_map_r is just a map function. *)
 Lemma rutt_cmd_tr_ME_step (cc: cmd) (st1 st2: estate) : 
   RS st1 st2 ->
   @rutt (FCState +' E) _ _ _
@@ -1330,19 +1350,164 @@ Proof.
   eapply rutt_cmd_tr_ME_step; eauto. 
 Admitted.  
 
-(*
-(**)
+(*********************)
 
-Context (VR_E_FLCode_ok : forall c st1 st2 st3 st4,
-   RS st1 st2 ->
-@rutt E _ _ _ 
+Context (VR_E_FLCode_ok : forall c st1 st2,
+  RS st1 st2 ->
+  @rutt E _ _ _ 
     (TR_E _) (VR_E _) RS
-    (mevalE_cmd pr1 cc st1) (mevalE_cmd pr2 (Tr_cmd cc) st2)
-            
+    (mevalE_cmd pr1 c st1) (mevalE_cmd pr2 (Tr_cmd c) st2) ->
+  forall st3 st4,             
    VR_E (FCState +' E) estate estate (inl1 (FLCode c st1)) st3
      (inl1 (FLCode (Tr_cmd c) st2)) st4 ->
    RS st3 st4).     
 
+Lemma rutt_cmd_tr_ME_cind1 (cc: cmd) (st1 st2: estate) : 
+  RS st1 st2 ->
+  @rutt E _ _ _ 
+    (TR_E _) (VR_E _) RS
+    (mevalE_cmd pr1 cc st1) (mevalE_cmd pr2 (Tr_cmd cc) st2).
+Proof.
+  pcofix CIH.
+  intros.
+  pstep; red.
+  
+  destruct cc.
+
+  { simpl. econstructor; auto. }
+
+  destruct i.
+  destruct i0.
+
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+
+  simpl.
+  simpl in CIH.
+  econstructor.
+  red.
+  right.
+Abort.
+  
+(*
+  
+  left.
+
+  (* setoid_rewrite interp_mrec_bind. *)
+  
+  pstep.
+  red.
+  
+  (* setoid_rewrite interp_mrec_bind. *)
+
+  simpl in CIH.
+  specialize (CIH H).
+  unfold mevalE_cmd, mrec in CIH.
+  simpl in CIH.
+  unfold meval_fcall.
+  
+  right.
+
+  unfold meval_fcall. 
+  
+  setoid_rewrite interp_mrec_bind in CIH.
+    
+  intros; unfold mevalE_cmd; simpl.
+
+*)
+
+(*
+Lemma rutt_cmd_tr_ME_cind (cc: cmd) (st1 st2: estate) : 
+  @rutt (FCState +' E) _ _ _
+    (sum_prerel (@TR_D_ME) (TR_E E))
+    (sum_postrel (@VR_D_ME) (VR_E E))
+    RS (st_cmd_map_r (meval_instr pr1) cc st1)
+    (st_cmd_map_r (meval_instr pr2) (Tr_cmd cc) st2) ->
+  RS st1 st2 ->
+  @rutt E _ _ _ 
+    (TR_E _) (VR_E _) RS
+    (mevalE_cmd pr1 cc st1) (mevalE_cmd pr2 (Tr_cmd cc) st2).
+Proof.
+
+  unfold rutt.
+  pcofix CIH.
+
+  revert CIH CIH0.
+  revert r.
+  revert st1 st2.
+  unfold mevalE_cmd.
+  unfold mrec.
+  unfold meval_cstate; simpl.
+  
+  dependent destruction cc.
+  simpl; intros.
+  unfold mevalE_cmd.
+  unfold mrec.
+
+  
+  setoid_rewrite unfold_interp_mrec.
+     
+  intro H1.
+
+  punfold H.
+  red in H.
+  revert H1 CIH. 
+  
+  dependent destruction H.
+  
+  intros H0 CIH. 
+
+  assert (eutt eq (Ret r1) (@it_sems_mono.mevalE_cmd asm_op asmop wsw dc
+                         syscall_state ep spp sip pT
+                           scP ev pr1 E HasErr cc st1)) as A1.
+  admit.
+
+  setoid_rewrite <- A1.
+  
+  unfold mevalE_cmd.
+  unfold mrec.
+  setoid_rewrite unfold_interp_mrec.
+    
+  assert (RetF r1 = observe
+                      (@it_sems_mono.mevalE_cmd asm_op asmop wsw dc
+                         syscall_state ep spp sip pT
+                           scP ev pr1 E HasErr cc st1)) as A1.
+
+  unfold mevalE_cmd.
+  unfold mrec.
+  setoid_rewrite unfold_interp_mrec.
+  
+  dependent induction H.
+  inv x0.
+  dependent destruction x4.
+  dependent destruction x5.
+  inv x.
+  inv x1.
+  dependent destruction x2.
+
+  intros H0 CIH. 
+  unfold mevalE_cmd.
+  unfold meval_cstate.
+ 
+  
+  dependent destruction x.
+  
+  
+  intros; unfold mevalE_cmd; simpl.
+  econstructor; simpl.
+  econstructor; simpl.
+  left.
+  simpl.
+  
+  eapply interp_mrec_rutt; simpl; intros.
+  
+  pcofix CIH. 
+  intros; unfold mevalE_cmd; simpl.
+  eapply interp_mrec_rutt; simpl; intros.
 *)
 
 End GEN_Err.
