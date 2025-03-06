@@ -1,6 +1,14 @@
 
 # [unreleased]
 
+## Bug fixes
+
+- Program with conflicting assembly labels print warning when compiled
+  ([PR #1067](https://github.com/jasmin-lang/jasmin/pull/1067);
+  fixes [#993](https://github.com/jasmin-lang/jasmin/issues/993)).
+
+# Jasmin 2025.02.0 — Nancy, 2025-02-28
+
 ## New features
 
 - Support RISC-V 32IM as target architecture. This comes with two new passes
@@ -26,10 +34,6 @@
 
 - Fix EC extraction in case on nested loops
   ([PR #971](https://github.com/jasmin-lang/jasmin/pull/971)).
-
-- Program with conflicting assembly labels print warning when compiled
-  ([PR #1067](https://github.com/jasmin-lang/jasmin/pull/1067);
-  fixes [#993](https://github.com/jasmin-lang/jasmin/issues/993)).
 
 ## Other changes
 
