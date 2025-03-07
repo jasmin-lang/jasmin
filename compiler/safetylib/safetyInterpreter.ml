@@ -279,11 +279,11 @@ let safe_op1 o e1 =
   match o with
   | E.Owi1(sg, o) ->
     begin match o with
-    | E.WIword_of_int sz -> [in_wint_range sg sz e1]
-    | E.WIint_of_word sz -> []
+    | E.WIwint_of_int sz -> [in_wint_range sg sz e1]
+    | E.WIint_of_wint sz -> []
     | E.WIword_of_wint _ -> []
     | E.WIwint_of_word _ -> []
-    | E.WIword_ext(szo, szi) -> [] (* Check this ! *)
+    | E.WIwint_ext(szo, szi) -> [] (* Check this ! *)
     | E.WIneg sz ->
       if sg = Signed then [NotEqual(None, wint_to_int sg sz e1, Pconst (Z.neg (half_modulus sz)))]
       else [InRange(Pconst Z.zero, Pconst Z.zero, wint_to_int sg sz e1)]

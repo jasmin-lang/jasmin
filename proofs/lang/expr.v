@@ -29,11 +29,11 @@ Variant op_kind :=
   | Op_w of wsize.
 
 Variant wiop1 :=
-| WIword_of_int  of wsize              (* int → word *)
-| WIint_of_word  of wsize (* word/uint/sint → int, signed or unsigned interpretation *)
+| WIwint_of_int  of wsize              (* int → word *)
+| WIint_of_wint  of wsize (* word/uint/sint → int, signed or unsigned interpretation *)
 | WIword_of_wint of wsize (* uint/sint -> word *)
 | WIwint_of_word of wsize (* word -> uint/sint *)
-| WIword_ext     of wsize & wsize (* Sign-extension: output-size, input-size *)
+| WIwint_ext     of wsize & wsize (* Sign-extension: output-size, input-size *)
 | WIneg          of wsize
 .
 
@@ -176,21 +176,21 @@ HB.instance Definition _ := hasDecEq.Build opN opN_eq_axiom.
 (* Type of unany operators: input, output *)
 Definition etype_of_wiop1 {len:Type} (s: signedness) (o:wiop1) : extended_type len * extended_type len :=
   match o with
-  | WIword_of_int  sz => (tint, twint s sz)
-  | WIint_of_word  sz => (twint s sz, tint)
+  | WIwint_of_int  sz => (tint, twint s sz)
+  | WIint_of_wint  sz => (twint s sz, tint)
   | WIword_of_wint sz => (twint s sz, tword sz)
   | WIwint_of_word sz => (tword sz, twint s sz)
-  | WIword_ext szo szi => (twint s szi, twint s szo)
+  | WIwint_ext szo szi => (twint s szi, twint s szo)
   | WIneg          sz => (twint s sz, twint s sz)
   end.
 
 Definition type_of_wiop1 (o:wiop1) : stype * stype :=
   match o with
-  | WIword_of_int  sz => (sint, sword sz)
-  | WIint_of_word  sz => (sword sz, sint)
+  | WIwint_of_int  sz => (sint, sword sz)
+  | WIint_of_wint  sz => (sword sz, sint)
   | WIword_of_wint sz => (sword sz, sword sz)
   | WIwint_of_word sz => (sword sz, sword sz)
-  | WIword_ext szo szi => (sword szi, sword szo)
+  | WIwint_ext szo szi => (sword szi, sword szo)
   | WIneg          sz => (sword sz, sword sz)
   end.
 

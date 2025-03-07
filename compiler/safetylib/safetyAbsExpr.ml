@@ -96,11 +96,11 @@ let remove_Owi2 o =
 
 let rec remove_Owi1 sg o e =
   match o with
-  | E.WIword_of_int sz -> Papp1(E.Oword_of_int sz, e)
-  | E.WIint_of_word sz -> Papp1(E.Oint_of_word(sg, sz), e)
+  | E.WIwint_of_int sz -> Papp1(E.Oword_of_int sz, e)
+  | E.WIint_of_wint sz -> Papp1(E.Oint_of_word(sg, sz), e)
   | E.WIword_of_wint _ -> remove_Owi e
   | E.WIwint_of_word _ -> remove_Owi e
-  | E.WIword_ext(szo, szi) ->
+  | E.WIwint_ext(szo, szi) ->
     let o = if sg = Signed then E.Osignext(szo, szi) else E.Ozeroext(szo, szi) in
     Papp1(o, e)
   | E.WIneg sz -> Papp1(E.Oneg (Op_w sz), e)

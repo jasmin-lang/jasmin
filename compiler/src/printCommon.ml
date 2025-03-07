@@ -63,15 +63,15 @@ let string_of_wi_cast sg sz =
   asprintf "%d%s" (int_of_ws sz) (string_of_wi sg)
 
 let string_of_wiop1 sg = function
-  | E.WIword_of_int sz ->
+  | E.WIwint_of_int sz ->
       asprintf "(%s /* of int */)" (string_of_wi_cast sg sz)
-  | WIint_of_word sz ->
+  | WIint_of_wint sz ->
       asprintf "(%s /* of %s */)" (string_of_int_cast sg) (string_of_wi_ty sg sz)
   | WIword_of_wint sz ->
       asprintf "(%s /* of %s */)" (string_of_w_cast sz) (string_of_wi_ty sg sz)
   | WIwint_of_word sz ->
       asprintf "(%s /* of %s */)" (string_of_wi_cast sg sz) (string_of_w_ty sz)
-  | WIword_ext(szo, _) ->
+  | WIwint_ext(szo, _) ->
       asprintf "(%s)" (string_of_wi_cast sg szo)
   | WIneg sz ->
       asprintf "-%s" (string_of_wi_cast sg sz)

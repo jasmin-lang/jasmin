@@ -78,21 +78,15 @@ Definition esubtype (ty1 ty2 : extended_type positive) :=
  | _, _ => false
  end.
 
-(*Definition word_of_int sg ws e :=
-  match e with
-  | Papp1 (Oint_of_word sg' ws') e1 => if (sg == sg') && (ws == ws') then e1 else Papp1 (Oword_of_int ws) e
-  | _ => Papp1 (Oword_of_int ws) e
-  end.*)
-
 Definition wi2i_op1_e (o : sop1) (e : pexpr) :=
   match is_wi1 o with
   | Some (s, o) =>
     match o with
-    | WIword_of_int ws => e
-    | WIint_of_word ws => e
+    | WIwint_of_int ws => e
+    | WIint_of_wint ws => e
     | WIword_of_wint ws => Papp1 (Oword_of_int ws) e
     | WIwint_of_word ws => Papp1 (Oint_of_word s ws) e
-    | WIword_ext szo szi =>
+    | WIwint_ext szo szi =>
       Papp1 (Oint_of_word s szo)
        (Papp1 (signed (Ozeroext szo szi) (Osignext szo szi) s)
          (Papp1 (Oword_of_int szi) e))

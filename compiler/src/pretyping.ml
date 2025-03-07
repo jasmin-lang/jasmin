@@ -1031,12 +1031,12 @@ let wk_s_ws (s: W.signedness option) (ws: W.wsize) =
 let op_word_of_int (wk, s, ws) =
   match wk with
   | Word -> E.Oword_of_int ws
-  | WInt -> E.Owi1(s, E.WIword_of_int ws)
+  | WInt -> E.Owi1(s, E.WIwint_of_int ws)
 
 let op_int_of_word (wk, s, ws) =
   match wk with
   | Word -> E.Oint_of_word (s, ws)
-  | WInt -> E.Owi1(s, E.WIint_of_word ws)
+  | WInt -> E.Owi1(s, E.WIint_of_wint ws)
 
 let cast loc e ety ty =
   match ety, ty with
@@ -1294,7 +1294,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
               s, wie, P.etwi s ws
          | `WInt s, P.ETint ->
              let s = tt_sign s in
-             s, Papp1(E.Owi1(s, E.WIword_of_int sz), e), P.etwi s sz
+             s, Papp1(E.Owi1(s, E.WIwint_of_int sz), e), P.etwi s sz
          | _ -> rs_tyerror ~loc:(L.loc pe) (InvalidCast(ety,rty))
        in
        (* ensures that the size is the expected *)
@@ -1304,9 +1304,9 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
            let op = if s = W.Unsigned then E.Ozeroext(sz, ws) else E.Osignext(sz, ws) in
            P.Papp1(op, e)
          | P.ETword(Some W.Unsigned, ws) when W.wsize_cmp ws sz = Datatypes.Lt ->
-           P.Papp1(E.Owi1(s, E.WIword_ext(sz, ws)), e)
+           P.Papp1(E.Owi1(s, E.WIwint_ext(sz, ws)), e)
          | P.ETword(Some W.Signed, ws) ->
-           P.Papp1(E.Owi1(s, E.WIword_ext(sz, ws)), e)
+           P.Papp1(E.Owi1(s, E.WIwint_ext(sz, ws)), e)
          | _ -> e
        in
        e, rty

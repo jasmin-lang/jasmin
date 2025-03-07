@@ -17,11 +17,11 @@ Context `{asmop:asmOp}.
 
 Definition wi2w_wiop1 s (o : wiop1) (e : pexpr) : pexpr :=
   match o with
-  | WIword_of_int sz => Papp1 (Oword_of_int sz) e
-  | WIint_of_word sz => Papp1 (Oint_of_word s sz) e
+  | WIwint_of_int sz => Papp1 (Oword_of_int sz) e
+  | WIint_of_wint sz => Papp1 (Oint_of_word s sz) e
   | WIword_of_wint _ => e
   | WIwint_of_word _ => e
-  | WIword_ext sz1 sz2 =>
+  | WIwint_ext sz1 sz2 =>
     let o := if s is Unsigned then Ozeroext sz1 sz2 else Osignext sz1 sz2 in
     Papp1 o e
   | WIneg sz => Papp1 (Oneg (Op_w sz)) e

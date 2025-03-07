@@ -12,13 +12,13 @@ Definition sem_wiop1_typed (sign : signedness) (o: wiop1) :
   let t := type_of_wiop1 o in
   sem_t t.1 → exec (sem_t t.2) :=
   match o return let t := type_of_wiop1 o in sem_t t.1 → exec (sem_t t.2) with
-  | WIword_of_int sz => wint_of_int sign sz
-  | WIint_of_word sz => mk_sem_sop1 (@int_of_word sign sz)
+  | WIwint_of_int sz => wint_of_int sign sz
+  | WIint_of_wint sz => mk_sem_sop1 (@int_of_word sign sz)
 
   | WIword_of_wint sz => mk_sem_sop1 (fun (w:word sz) => w)
   | WIwint_of_word sz => mk_sem_sop1 (fun (w:word sz) => w)
 
-  | WIword_ext szo szi => mk_sem_sop1 (@sem_word_extend sign szo szi)
+  | WIwint_ext szo szi => mk_sem_sop1 (@sem_word_extend sign szo szi)
 
   | WIneg sz => fun (w: word sz) => wint_of_int sign sz (- int_of_word sign w)
   end.
