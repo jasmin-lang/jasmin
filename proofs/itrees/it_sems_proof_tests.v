@@ -1093,6 +1093,92 @@ Qed.
 End TooStrong.
 
 
+Lemma rutt_map_eval_instr_call cc st1 st2 :
+  RS st1 st2 ->
+   rutt (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
+    (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS
+    (st_cmd_map_r (eval_instr_call pr1) cc st1)
+    (st_cmd_map_r (eval_instr_call pr2) (Tr_cmd cc) st2).
+Proof.  
+  simpl; intros.
+  
+  set (Pr := fun (i: instr_r) => forall ii st1 st2, RS st1 st2 -> 
+    rutt 
+    (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
+    (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS 
+    (st_cmd_map_r (eval_instr_call pr1) ((MkI ii i) :: nil) st1)
+    (st_cmd_map_r (eval_instr_call pr2) ((Tr_instr (MkI ii i)) :: nil) st2)).
+
+  set (Pi := fun (i: instr) => forall st1 st2, RS st1 st2 -> 
+    rutt
+    (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
+    (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS 
+    (st_cmd_map_r (eval_instr_call pr1) (i :: nil) st1)
+    (st_cmd_map_r (eval_instr_call pr2) ((Tr_instr i) :: nil) st2)).
+
+  set (Pc := fun (c: cmd) => forall st1 st2, RS st1 st2 -> 
+    rutt
+    (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
+    (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS 
+    (st_cmd_map_r (eval_instr_call pr1) c st1)
+    (st_cmd_map_r (eval_instr_call pr2) (Tr_cmd c) st2)).
+  
+  revert H; revert st1 st2; revert cc.  
+  eapply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc; simpl; eauto; intros.
+
+  { eapply rutt_Ret; eauto. } 
+  { destruct i; simpl.
+    eapply rutt_bind with (RR := RS); simpl in *.
+
+    specialize (H st1 st2 H1).
+
+    setoid_rewrite bind_ret_r in H; auto.
+    intros; auto.
+  }
+
+  { eapply rutt_bind with (RR := RS); intros.
+    eapply rutt_err_mk_AssgnE_D1; auto.     
+    eapply rutt_Ret; eauto. 
+  }
+
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+
+  { eapply rutt_bind with (RR := RS); intros.
+
+    { eapply rutt_bind with (RR := RV); intros.
+
+      admit.
+      
+      eapply rutt_bind with (RR := RVS); intros.
+      
+      { eapply rutt_trigger.
+        simpl.
+        unfold TR_D_DE.
+        simpl.
+        econstructor.
+        simpl.
+        eauto.
+
+        intros.
+        destruct t1, t2.
+        simpl in *.
+        unfold VR_D_DE in H1.
+        dependent destruction H1.
+        simpl in *; auto.
+      }        
+
+      admit.
+    }
+
+    eapply rutt_Ret; auto.
+  }
+Admitted. 
+
+(*
 Section TooStrong2.
   
 Context (rutt_map_eval_instr_call_hyp : forall cc st1 st2,
@@ -1101,6 +1187,7 @@ Context (rutt_map_eval_instr_call_hyp : forall cc st1 st2,
     (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS
     (st_cmd_map_r (eval_instr_call pr1) cc st1)
     (st_cmd_map_r (eval_instr_call pr2) (Tr_cmd cc) st2)).
+*)
 
 Lemma rutt_evalE_err_cmd cc st1 st2 :
   RS st1 st2 ->           
@@ -1193,7 +1280,7 @@ Lemma rutt_evalE_err_cmd cc st1 st2 :
           eapply rutt_bind with (RR := RS); intros.
           inv H4.
 
-          eapply rutt_map_eval_instr_call_hyp; eauto.
+          eapply rutt_map_eval_instr_call; eauto.
           
           eapply rutt_bind with (RR := RV); intros.
           
@@ -1216,7 +1303,7 @@ Lemma rutt_evalE_err_cmd cc st1 st2 :
           eapply rutt_bind with (RR := RS); intros.
           inv H2.
 
-          eapply rutt_map_eval_instr_call_hyp; eauto.
+          eapply rutt_map_eval_instr_call; eauto.
           
           eapply rutt_bind with (RR := RV); intros.
           
@@ -1235,93 +1322,8 @@ Lemma rutt_evalE_err_cmd cc st1 st2 :
   }
 Admitted.      
           
-End TooStrong2.
+(* End TooStrong2. *)
 
-
-Lemma rutt_map_eval_instr_call cc st1 st2 :
-  RS st1 st2 ->
-   rutt (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
-    (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS
-    (st_cmd_map_r (eval_instr_call pr1) cc st1)
-    (st_cmd_map_r (eval_instr_call pr2) (Tr_cmd cc) st2).
-  simpl; intros.
-  
-  set (Pr := fun (i: instr_r) => forall ii st1 st2, RS st1 st2 -> 
-    rutt 
-    (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
-    (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS 
-    (st_cmd_map_r (eval_instr_call pr1) ((MkI ii i) :: nil) st1)
-    (st_cmd_map_r (eval_instr_call pr2) ((Tr_instr (MkI ii i)) :: nil) st2)).
-
-  set (Pi := fun (i: instr) => forall st1 st2, RS st1 st2 -> 
-    rutt
-    (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
-    (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS 
-    (st_cmd_map_r (eval_instr_call pr1) (i :: nil) st1)
-    (st_cmd_map_r (eval_instr_call pr2) ((Tr_instr i) :: nil) st2)).
-
-  set (Pc := fun (c: cmd) => forall st1 st2, RS st1 st2 -> 
-    rutt
-    (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
-    (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS 
-    (st_cmd_map_r (eval_instr_call pr1) c st1)
-    (st_cmd_map_r (eval_instr_call pr2) (Tr_cmd c) st2)).
-  
-  revert H; revert st1 st2; revert cc.  
-  eapply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc; simpl; eauto; intros.
-
-  { eapply rutt_Ret; eauto. } 
-  { destruct i; simpl.
-    eapply rutt_bind with (RR := RS); simpl in *.
-
-    specialize (H st1 st2 H1).
-
-    setoid_rewrite bind_ret_r in H; auto.
-    intros; auto.
-  }
-
-  { eapply rutt_bind with (RR := RS); intros.
-    eapply rutt_err_mk_AssgnE_D1; auto.     
-    eapply rutt_Ret; eauto. 
-  }
-
-  admit.
-  admit.
-  admit.
-  admit.
-  admit.
-
-  { eapply rutt_bind with (RR := RS); intros.
-
-    { eapply rutt_bind with (RR := RV); intros.
-
-      admit.
-      
-      eapply rutt_bind with (RR := RVS); intros.
-      
-      { eapply rutt_trigger.
-        simpl.
-        unfold TR_D_DE.
-        simpl.
-        econstructor.
-        simpl.
-        eauto.
-
-        intros.
-        destruct t1, t2.
-        simpl in *.
-        unfold VR_D_DE in H1.
-        dependent destruction H1.
-        simpl in *; auto.
-      }        
-
-      admit.
-    }
-
-    eapply rutt_Ret; auto.
-  }
-Admitted. 
-  
 End TR_DoubleRec.
 
 
@@ -1338,6 +1340,39 @@ Definition TR_D_ME {T1 T2} (d1 : FCState T1)
   end.               
 
 (* ME: relation between FCState event outputs, i.e. over estate *)
+Program Definition VR_D_ME {T1 T2}
+  (d1 : FCState T1) (t1: T1) (d2 : FCState T2) (t2: T2) : Prop.
+(*  remember d1 as D1.
+  remember d2 as D2. *)
+  dependent destruction d1.
+  - dependent destruction d2.
+    + exact (RS t1 t2).
+    + exact (False).
+  - dependent destruction d2.
+    + exact (False).
+    + exact (RS t1 t2).     
+Defined.      
+
+Definition FCState_det {T} (d: FCState T) : T = estate :=
+ match d in (it_sems_mono.FCState _ _ T0) return (T0 = estate) with
+ | FLCode c st => (fun=> (fun=> erefl)) c st
+ | @FFCall _ _ _ _ _ xs f es st =>
+     (fun=> (fun=> (fun=> (fun=> erefl)))) xs f es st
+ end.
+
+Definition st_cast {T} (d: FCState T) (x: T) : estate.
+  rewrite (FCState_det d) in x; exact x.
+Defined.
+
+Definition VR_D_ME' {T1 T2}
+  (d1 : FCState T1) (t1: T1) (d2 : FCState T2) (t2: T2) : Prop :=
+  (match (d1, d2) return (estate -> estate -> Prop) with
+  | (FLCode c1 st1, FLCode c2 st2) => RS 
+  | (FFCall xs1 f1 es1 st1, FFCall xs2 f2 es2 st2) => RS 
+  | _ => fun _ _ => False end)
+    (st_cast d1 t1) (st_cast d2 t2).
+
+(*
 Program Definition VR_D_ME' {T1 T2}
   (d1 : FCState T1) (t1: T1) (d2 : FCState T2) (t2: T2) : Prop.
 (*  remember d1 as D1.
@@ -1350,25 +1385,47 @@ Program Definition VR_D_ME' {T1 T2}
     + exact (False).
     + exact (RS t1 t2).     
 Defined.      
-  
-Definition FCState_det {T} (d: FCState T) : T = estate :=
- match d in (it_sems_mono.FCState _ _ T0) return (T0 = estate) with
- | FLCode c st => (fun=> (fun=> erefl)) c st
- | @FFCall _ _ _ _ _ xs f es st =>
-     (fun=> (fun=> (fun=> (fun=> erefl)))) xs f es st
- end.
-
-Definition st_cast {T} (d: FCState T) (x: T) : estate.
-  rewrite (FCState_det d) in x; exact x.
-Defined.
-
-Definition VR_D_ME {T1 T2}
+*)  
+(*
+Definition VR_D_ME1 {T1 T2}
   (d1 : FCState T1) (t1: T1) (d2 : FCState T2) (t2: T2) : Prop :=
-  (match (d1, d2) return (estate -> estate -> Prop) with
+  (match d1 in (it_sems_mono.FCState _ _ T10) 
+             return (T10 -> estate -> Prop) with
+   | FLCode c1 st1 =>               
+      (match d2 in (it_sems_mono.FCState _ _ T20)  
+             return (_ -> T20 -> Prop) with
+       | FLCode c2 st2 => RS
+       | _ => fun _ _ => False
+       end)
+   | FFCall xs1 f1 es1 st1 =>
+       (match d2 in (it_sems_mono.FCState _ _ T20)
+             return (estate -> T20 -> Prop) with
+       | FLCode c2 st2 => fun _ _ => False
+       | _ => RS
+        end)
+   end) t1 t2.      
+                      
+                          
+                        it_sems_mono.FCState _ _ estate)
+         return (estate -> estate -> Prop) with
   | (FLCode c1 st1, FLCode c2 st2) => RS 
   | (FFCall xs1 f1 es1 st1, FFCall xs2 f2 es2 st2) => RS 
   | _ => fun _ _ => False end)
-    (st_cast d1 t1) (st_cast d2 t2).                                                       
+    (st_cast d1 t1) (st_cast d2 t2).                                            
+*)
+
+(*
+Definition VR_D_ME1 {T1 T2}
+  (d1 : FCState T1) (t1: T1) (d2 : FCState T2) (t2: T2) : Prop :=
+  (match (d1, d2) in (it_sems_mono.FCState _ _ estate *
+                        it_sems_mono.FCState _ _ estate)
+         return (estate -> estate -> Prop) with
+  | (FLCode c1 st1, FLCode c2 st2) => RS 
+  | (FFCall xs1 f1 es1 st1, FFCall xs2 f2 es2 st2) => RS 
+  | _ => fun _ _ => False end)
+    (st_cast d1 t1) (st_cast d2 t2).                                            
+*)
+
 Program Definition TR_DE_ME : prerel (FCState +' E) (FCState +' E) :=
   sum_prerel (@TR_D_ME) (TR_E E).
 
@@ -1463,14 +1520,14 @@ Lemma rutt_err_mk_WriteIndex xi z st1 st2 :
     (err_mk_WriteIndex xi z st1) (err_mk_WriteIndex xi z st2).
 Admitted. 
 
-
+(*
 Section Hyp_on_VR_E_FLCode.
-
-Context (VR_E_FLCode_ok : forall c st1 st2 st3 st4,
+Context (VR_E_FLCode_hyp : forall c st1 st2 st3 st4,
    RS st1 st2 ->         
    VR_E (FCState +' E) estate estate (inl1 (FLCode c st1)) st3
      (inl1 (FLCode (Tr_cmd c) st2)) st4 ->
    RS st3 st4).     
+*)
 
 Lemma comp_gen_ok_ME (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) (st1 st2: estate) :
@@ -1502,7 +1559,9 @@ Lemma comp_gen_ok_ME (fn: funname)
       econstructor.
       split; auto; intros.
     }
-    eapply VR_E_FLCode_ok; eauto.
+    rewrite fcstate_v_def in H2.
+    dependent destruction H2.    
+    unfold VR_D_ME in H2; auto.
   }
 
   eapply rutt_bind with (RR := RV); intros.
@@ -1514,11 +1573,10 @@ Lemma comp_gen_ok_ME (fn: funname)
   rewrite A1; eapply rutt_err_reinstate_caller; auto.
 Qed.
 
-End Hyp_on_VR_E_FLCode.
+(* End Hyp_on_VR_E_FLCode. *)
 
-  
-(* Inductive lemma - GOOD.  however: here we are not tying the
-   coinductive knot, as st_cmd_map_r is just a map function. *)
+(* Inductive lemma - GOOD. here we are not tying the coinductive knot,
+   as st_cmd_map_r is just a map function. *)
 Lemma rutt_cmd_tr_ME_step (cc: cmd) (st1 st2: estate) : 
   RS st1 st2 ->
   @rutt (FCState +' E) _ _ _
@@ -1641,7 +1699,6 @@ Lemma rutt_cmd_tr_ME_step (cc: cmd) (st1 st2: estate) :
   }  
 Qed.
 
-
 (* Here we apply the inductive lemma and comp_gen_ok *)
 Lemma rutt_cmd_tr_ME (cc: cmd) (st1 st2: estate) : 
   RS st1 st2 ->
@@ -1664,18 +1721,18 @@ Proof.
     { unfold TR_D_ME in H0.
       destruct d2; simpl in *; try intuition.
       inv H0.  
-      have CC := (comp_gen_ok_ME _ f0 xs _ es _ _ _ erefl erefl H4).
+      have CC := (comp_gen_ok_ME f0 xs _ es _ _ _ erefl erefl H4).
       setoid_rewrite fcstate_t_def in CC.
       setoid_rewrite fcstate_v_def in CC.
-      eapply CC; intros.
-      admit.
+      eapply CC.
     }  
   }         
   eapply rutt_cmd_tr_ME_step; eauto. 
-Admitted.  
+Qed.
+
 
 (*********************)
-
+(*
 Context (VR_E_FLCode_ok : forall c st1 st2,
   RS st1 st2 ->
   @rutt E _ _ _ 
@@ -1716,7 +1773,7 @@ Proof.
   red.
   right.
 Abort.
-  
+*)  
 (*
   
   left.

@@ -971,7 +971,7 @@ Fixpoint eval_instr {E} `{ErrState -< E} (i : instr_r) (st: estate) :
 
   | Cwhile a c1 e c2 => 
       ITree.iter (fun st0 =>
-           st1 <- R c1 st0 ;;          
+                st1 <- R c1 st0 ;;          
            b <- err_mk_EvalCond e st1 ;;
            if b then st2 <- R c2 st1 ;; continue_loop st2
            else exit_loop st1) st
