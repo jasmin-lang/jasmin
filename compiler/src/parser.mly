@@ -238,8 +238,13 @@ prim:
 | UNALIGNED { `Unaligned }
 
 %inline mem_access:
-| ct=parens(loc(utype))? LBRACKET al=unaligned? v=var e=mem_ofs? RBRACKET
-  { al, ct, v, e }
+| ct=loc(parens(utype)) LBRACKET al=unaligned? v=var e=mem_ofs? RBRACKET
+  { let s = Syntax.string_of_swsize (L.unloc ct, `Unsigned) in
+    Utils.warning Deprecated (Location.of_loc ct)
+       "Syntax (%s)[x + e] is deprecated. Use [%s x + e] instead" s s ;
+    al, Some (L.unloc ct), v, e }
+|  LBRACKET al=unaligned? ct=utype? v=var e=mem_ofs? RBRACKET
+  {al, ct, v, e }
 
 arr_access_len:
 | COLON e=pexpr { e }

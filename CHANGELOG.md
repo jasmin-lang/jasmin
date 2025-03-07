@@ -1,5 +1,10 @@
 
 # [unreleased]
+## New features
+
+- New syntax for memory load/store (uXX)[aligned? x e] become [aligned? uXX x e],
+  the syntax  (uXX)[aligned? x e] is deprecated.
+  ([PR #1086](https://github.com/jasmin-lang/jasmin/pull/1086)).
 
 ## New features
 
