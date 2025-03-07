@@ -114,7 +114,8 @@ Local Notation cmd_Ind := (cmd_Ind asm_op asmop).
 Local Notation FunDef := (FunDef asmop pT).
 Local Notation FCState := (FCState asmop ep).
 Local Notation PCState := (PCState asmop ep).
-Local Notation eval_instr := (eval_instr dc spp scP ev). 
+Local Notation eval_instr := (eval_instr dc spp scP ev).
+Local Notation eval_instr_call := (eval_instr_call dc spp scP).
 Local Notation meval_instr := (meval_instr spp scP). 
 Local Notation pmeval_instr := (pmeval_instr spp scP). 
 Local Notation peval_instr_call := (peval_instr_call dc spp scP). 
@@ -996,16 +997,32 @@ Program Definition VR_D_DE {T1 T2} (d1 : callE FVS VS T1) (t1: T1)
   exact (RVS t1 t2).
 Defined.
 
-Lemma rutt_err_init_stateD fn r1 r2 st1 st2 :
-  RV r1 r2 ->
+Lemma rutt_err_init_stateD fn v1 v2 st1 st2 :
+  RV v1 v2 ->
   RS st1 st2 ->
   rutt (TR_E (callE FVS VS +' E)) (VR_E (callE FVS VS +' E)) RS
-    (err_init_state dc scP ev pr1 fn r1 st1)
-    (err_init_state dc scP ev pr2 fn r2 st2).
+    (err_init_state dc scP ev pr1 fn v1 st1)
+    (err_init_state dc scP ev pr2 fn v2 st2).
+Admitted.   
+
+Lemma rutt_err_init_stateD1 fn v1 v2 st1 st2 :
+  RV v1 v2 ->
+  RS st1 st2 ->
+  rutt (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
+       (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS
+    (err_init_state dc scP ev pr1 fn v1 st1)
+    (err_init_state dc scP ev pr2 fn v2 st2).
 Admitted.   
 
 Lemma rutt_err_get_FunCodeD fn :
   rutt (TR_E (callE FVS VS +' E)) (VR_E (callE FVS VS +' E)) RC
+    (err_get_FunCode pr1 fn)
+    (err_get_FunCode pr2 fn).    
+Admitted. 
+
+Lemma rutt_err_get_FunCodeD1 fn :
+  rutt (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
+       (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RC
     (err_get_FunCode pr1 fn)
     (err_get_FunCode pr2 fn).    
 Admitted. 
@@ -1026,7 +1043,15 @@ Lemma rutt_err_mk_AssgnE_D x tg ty e st1 st2 :
     (err_mk_AssgnE spp pr2 (tr_lval x) tg ty (tr_expr e) st2).
 Admitted.   
 
+Lemma rutt_err_mk_AssgnE_D1 x tg ty e st1 st2 :
+  RS st1 st2 ->
+  rutt (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
+    (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS
+    (err_mk_AssgnE spp pr1 x tg ty e st1)
+    (err_mk_AssgnE spp pr2 (tr_lval x) tg ty (tr_expr e) st2).
+Admitted.   
 
+ 
 Section TooStrong.
 
 Context (rutt_evalE_err_cmd_hyp : forall cc st1 st2,
@@ -1066,6 +1091,16 @@ Lemma comp_gen_ok_DE (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
 Qed.  
 
 End TooStrong.
+
+
+Section TooStrong2.
+  
+Context (rutt_map_eval_instr_call_hyp : forall cc st1 st2,
+  RS st1 st2 ->
+   rutt (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
+    (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS
+    (st_cmd_map_r (eval_instr_call pr1) cc st1)
+    (st_cmd_map_r (eval_instr_call pr2) (Tr_cmd cc) st2)).
 
 Lemma rutt_evalE_err_cmd cc st1 st2 :
   RS st1 st2 ->           
@@ -1118,29 +1153,174 @@ Lemma rutt_evalE_err_cmd cc st1 st2 :
   admit.
 
   { eapply rutt_bind with (RR := RS); intros.
-    eapply rutt_bind with (RR := RV); intros.
 
-    admit.
+    { eapply rutt_bind with (RR := RV); intros.
 
-    eapply rutt_bind with (RR := RVS); intros.
+      admit.
 
-    unfold rec.
-    unfold mrec.
-    eapply interp_mrec_rutt.
+      eapply rutt_bind with (RR := RVS); intros.
 
-    admit.
-    admit.
+      { unfold rec, mrec.
+        eapply interp_mrec_rutt; intros.
+    
+        { instantiate (3 := @TR_D_DE).
+          instantiate (1 := @VR_D_DE). 
 
-    destruct H1 as [H1 H2].
-    destruct r0.
-    destruct r3.
-    simpl in *.
+          assert ((fun a : A => [eta VR_D_DE d1 a d2]) =
+                    fun a:A => VR_D_DE d1 a d2) as A1.
+          { auto. }
+          setoid_rewrite A1.
+          clear A1.
+    
+          unfold calling'.
+          destruct d1.
+          destruct d2; simpl in *.
+          
+          unfold TR_D_DE in H1.
+          destruct H1 as [H1 [H2 H3]].
+          destruct p, p0.
+          simpl in *.
+          destruct p, p0.
+          inv H1.
+          simpl in *.
 
-    admit.
+          eapply rutt_bind with (RR := RS); intros.
+          eapply rutt_err_init_stateD1; auto.
+
+          eapply rutt_bind with (RR := RC); intros.
+          eapply rutt_err_get_FunCodeD1; auto.
+
+          eapply rutt_bind with (RR := RS); intros.
+          inv H4.
+
+          eapply rutt_map_eval_instr_call_hyp; eauto.
+          
+          eapply rutt_bind with (RR := RV); intros.
+          
+          admit.  
+
+          inv H4.
+          eapply rutt_Ret; eauto.
+          unfold VR_D_DE; simpl.
+          eauto.
+        }
+
+        { unfold calling'; simpl in *.
+ 
+          eapply rutt_bind with (RR := RS); intros.
+          eapply rutt_err_init_stateD1; auto.
+
+          eapply rutt_bind with (RR := RC); intros.
+          eapply rutt_err_get_FunCodeD1; auto.
+
+          eapply rutt_bind with (RR := RS); intros.
+          inv H2.
+
+          eapply rutt_map_eval_instr_call_hyp; eauto.
+          
+          eapply rutt_bind with (RR := RV); intros.
+          
+          admit.  
+
+          inv H2.
+          eapply rutt_Ret; eauto.
+        }
+      }
+
+      admit.
+
+    }
+    
+    eapply rutt_Ret; auto.
+  }
+Admitted.      
+          
+End TooStrong2.
+
+
+Lemma rutt_map_eval_instr_call cc st1 st2 :
+  RS st1 st2 ->
+   rutt (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
+    (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS
+    (st_cmd_map_r (eval_instr_call pr1) cc st1)
+    (st_cmd_map_r (eval_instr_call pr2) (Tr_cmd cc) st2).
+  simpl; intros.
+  
+  set (Pr := fun (i: instr_r) => forall ii st1 st2, RS st1 st2 -> 
+    rutt 
+    (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
+    (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS 
+    (st_cmd_map_r (eval_instr_call pr1) ((MkI ii i) :: nil) st1)
+    (st_cmd_map_r (eval_instr_call pr2) ((Tr_instr (MkI ii i)) :: nil) st2)).
+
+  set (Pi := fun (i: instr) => forall st1 st2, RS st1 st2 -> 
+    rutt
+    (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
+    (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS 
+    (st_cmd_map_r (eval_instr_call pr1) (i :: nil) st1)
+    (st_cmd_map_r (eval_instr_call pr2) ((Tr_instr i) :: nil) st2)).
+
+  set (Pc := fun (c: cmd) => forall st1 st2, RS st1 st2 -> 
+    rutt
+    (sum_prerel (@TR_D_DE) (TR_E (callE FVS VS +' E)))
+    (sum_postrel (@VR_D_DE) (VR_E (callE FVS VS +' E))) RS 
+    (st_cmd_map_r (eval_instr_call pr1) c st1)
+    (st_cmd_map_r (eval_instr_call pr2) (Tr_cmd c) st2)).
+  
+  revert H; revert st1 st2; revert cc.  
+  eapply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc; simpl; eauto; intros.
+
+  { eapply rutt_Ret; eauto. } 
+  { destruct i; simpl.
+    eapply rutt_bind with (RR := RS); simpl in *.
+
+    specialize (H st1 st2 H1).
+
+    setoid_rewrite bind_ret_r in H; auto.
+    intros; auto.
+  }
+
+  { eapply rutt_bind with (RR := RS); intros.
+    eapply rutt_err_mk_AssgnE_D1; auto.     
+    eapply rutt_Ret; eauto. 
+  }
+
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+
+  { eapply rutt_bind with (RR := RS); intros.
+
+    { eapply rutt_bind with (RR := RV); intros.
+
+      admit.
+      
+      eapply rutt_bind with (RR := RVS); intros.
+      
+      { eapply rutt_trigger.
+        simpl.
+        unfold TR_D_DE.
+        simpl.
+        econstructor.
+        simpl.
+        eauto.
+
+        intros.
+        destruct t1, t2.
+        simpl in *.
+        unfold VR_D_DE in H1.
+        dependent destruction H1.
+        simpl in *; auto.
+      }        
+
+      admit.
+    }
 
     eapply rutt_Ret; auto.
-  }  
-Admitted.     
+  }
+Admitted. 
   
 End TR_DoubleRec.
 
