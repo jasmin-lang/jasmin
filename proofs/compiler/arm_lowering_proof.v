@@ -949,16 +949,15 @@ Proof.
   8: rewrite /sem_ror /sem_shift wror0.
   10, 11: have! := (is_wconstP true (p_globs p) s hconst); rewrite hseme1 => /truncate_wordP[] _.
   10: move => <-; rewrite /sem_rol /sem_shift wrol0.
-
-  11: {
-    move => ?; subst c.
-    do 3 f_equal.
-    rewrite /sem_rol /sem_shift !zero_extend_u wrepr_unsigned -wror_opp.
-    apply: wror_m.
-    change (wsize_bits _) with (wsize_size U256).
-    by rewrite wunsigned_sub_mod.
-  }
   all: rewrite /sopn_sem_ /= !zero_extend_u //.
+  all: rewrite /arm_LSR_semi /arm_LSL_semi /arm_ASR_semi /arm_ROR_semi /arm_shift_semi.
+  all: rewrite /arch_utils.semi_drop3 /=.
+  1-4: by case: ifP => //=.
+  move=> ?; subst c.
+  rewrite /sem_rol /sem_shift wrepr_unsigned -wror_opp.
+  case: eqP => /= _; do 3 f_equal; apply: wror_m;
+    change (wsize_bits _) with (wsize_size U256);
+    by rewrite wunsigned_sub_mod.
 Qed.
 
 Lemma lower_pexpr_auxP e :

@@ -27,6 +27,19 @@ op with_nz (r: W32.t) : bool * bool * W32.t =
    r = W32.zero,
    r).
 
+op with_nzc_shift
+   (op_ : W32.t -> int -> W32.t)
+   (opc: W32.t -> int -> bool)
+   (wn: W32.t)
+   (wsham: W8.t)
+   : bool * bool * bool * W32.t =
+  let sham = to_uint wsham in
+  let r = op_ wn sham in
+  (W32.msb r,
+   r = W32.zero,
+   opc wn sham,
+   r).
+
 (* -------------------------------------------------------------------- *)
 op ADDS (x y: W32.t) : bool * bool * bool * bool * W32.t =
   let r = x + y in
@@ -66,11 +79,6 @@ op BIC x y = let (_n, _z, _c, r) = BICS x y in r.
 op BICScc x y g n z c o = if g then BICS x y else (n, z, c, o).
 op BICcc x y g o = if g then BIC x y else o.
 
-op ASRS (x: W32.t) (s: W8.t) : bool * bool * bool * W32.t =
-  with_nzc (x `|>>>` to_uint s).
-op ASR x s = let (_n, _z, _c, r) = ASRS x s in r.
-op ASRScc x s g n z c o = if g then ASRS x s else (n, z, c, o).
-op ASRcc x s g o = if g then ASR x s else o.
 
 op CLZ (x: W32.t) : W32.t =
   W32.of_int (lzcnt (rev (w2bits x))).
@@ -107,14 +115,35 @@ op LDRSBcc x g o = if g then LDRSB x else o.
 op LDRSH (x: W16.t) : W32.t = W32.of_int (W16.to_sint x).
 op LDRSHcc x g o = if g then LDRSH x else o.
 
+op ASR_C (wn : W32.t) (shift : int) =
+  if (32 <= shift) then msb wn
+  else wn.[32 - (shift - 1)].
+
+op ASRS (x: W32.t) (s: W8.t) : bool * bool * bool * W32.t =
+  with_nzc_shift (`|>>>`) ASR_C x s.
+
+op ASR x s = let (_n, _z, _c, r) = ASRS x s in r.
+op ASRScc x s g n z c o = if g then ASRS x s else (n, z, c, o).
+op ASRcc x s g o = if g then ASR x s else o.
+
+op LSL_C (wn : W32.t) (shift : int) =
+  if shift <= 32 then wn.[32 - shift]
+  else false.
+
 op LSLS (x: W32.t) (y: W8.t) : bool * bool * bool * W32.t =
-  with_nzc (x `<<<` to_uint y).
+  with_nzc_shift (`<<<`) LSL_C x y.
+
 op LSL x y = let (_n, _z, _c, r) = LSLS x y in r.
 op LSLScc x y g n z c o = if g then LSLS x y else (n, z, c, o).
 op LSLcc x y g o = if g then LSL x y else o.
 
+op LSR_C (wn : W32.t) (shift : int) =
+  if 32 <= shift then false
+  else wn.[32 - (shift - 1)].
+
 op LSRS (x: W32.t) (y: W8.t) : bool * bool * bool * W32.t =
-  with_nzc (x `>>>` to_uint y).
+  with_nzc_shift (`>>>`) LSR_C x y.
+
 op LSR x y = let (_n, _z, _c, r) = LSRS x y in r.
 op LSRScc x y g n z c o = if g then LSRS x y else (n, z, c, o).
 op LSRcc x y g o = if g then LSR x y else o.
