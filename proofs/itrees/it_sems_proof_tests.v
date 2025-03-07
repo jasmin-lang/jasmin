@@ -114,6 +114,7 @@ Local Notation cmd_Ind := (cmd_Ind asm_op asmop).
 Local Notation FunDef := (FunDef asmop pT).
 Local Notation FCState := (FCState asmop ep).
 Local Notation PCState := (PCState asmop ep).
+Local Notation eval_instr := (eval_instr dc spp scP ev). 
 Local Notation meval_instr := (meval_instr spp scP). 
 Local Notation pmeval_instr := (pmeval_instr spp scP). 
 Local Notation peval_instr_call := (peval_instr_call dc spp scP). 
@@ -949,6 +950,9 @@ Admitted.
 
 End TR_MM_toy4.
 
+(************************************************************************)
+(************************************************************************)
+
 
 Section GEN_ErrAndFlat.
 
@@ -971,9 +975,11 @@ Context (rvs_def : PR VS = RVS)
         (rfundef_def : PR FunDef = RFunDef).
 
 
-Section GEN_Err.
+Section GEN_Error.
 
 Context (HasErr: ErrState -< E).   
+
+Section TR_DoubleRec.
 
 (* DE: relation between call events, i.e. over inputs of type 
 # (funname * (values * estate)) *)
@@ -990,7 +996,46 @@ Program Definition VR_D_DE {T1 T2} (d1 : callE FVS VS T1) (t1: T1)
   exact (RVS t1 t2).
 Defined.
 
-(* not tried yet - but basically, as with double recursion, it
+Lemma rutt_err_init_stateD fn r1 r2 st1 st2 :
+  RV r1 r2 ->
+  RS st1 st2 ->
+  rutt (TR_E (callE FVS VS +' E)) (VR_E (callE FVS VS +' E)) RS
+    (err_init_state dc scP ev pr1 fn r1 st1)
+    (err_init_state dc scP ev pr2 fn r2 st2).
+Admitted.   
+
+Lemma rutt_err_get_FunCodeD fn :
+  rutt (TR_E (callE FVS VS +' E)) (VR_E (callE FVS VS +' E)) RC
+    (err_get_FunCode pr1 fn)
+    (err_get_FunCode pr2 fn).    
+Admitted. 
+
+Lemma rutt_err_return_valD fn st1 st2 :
+  RS st1 st2 ->
+  rutt (TR_E (callE FVS VS +' E)) (VR_E (callE FVS VS +' E)) RV
+    (err_return_val dc pr1 fn st1)
+    (err_return_val dc pr2 fn st2).    
+Admitted. 
+
+(***)
+
+Lemma rutt_err_mk_AssgnE_D x tg ty e st1 st2 :
+  RS st1 st2 ->
+  rutt (TR_E (callE FVS VS +' E)) (VR_E (callE FVS VS +' E)) RS
+    (err_mk_AssgnE spp pr1 x tg ty e st1)
+    (err_mk_AssgnE spp pr2 (tr_lval x) tg ty (tr_expr e) st2).
+Admitted.   
+
+
+Section TooStrong.
+
+Context (rutt_evalE_err_cmd_hyp : forall cc st1 st2,
+  RS st1 st2 ->           
+  rutt (TR_E (callE FVS VS +' E)) (VR_E (callE FVS VS +' E)) RS
+    (evalE_err_cmd dc spp scP ev pr1 cc st1)
+    (evalE_err_cmd dc spp scP ev pr2 (Tr_cmd cc) st2)).
+
+(* (DOUBLE REC) not tried yet - but basically, as with double recursion, it
 requires two inductive proofs *)
 Lemma comp_gen_ok_DE (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
@@ -1003,8 +1048,105 @@ Lemma comp_gen_ok_DE (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
     (evalE_fun pr1 (fn, (vs1, st1))) (evalE_fun pr2 (fn, (vs2, st2))).
   intros.
   unfold evalE_fun; simpl.
-Admitted. 
+
+  eapply rutt_bind with (RR := RS); intros.
+  eapply rutt_err_init_stateD; auto.
+
+  eapply rutt_bind with (RR := RC); intros.
+  eapply rutt_err_get_FunCodeD; auto.
+
+  eapply rutt_bind with (RR := RS); intros.
+  inv H2.
+  eapply rutt_evalE_err_cmd_hyp; auto.
+
+  eapply rutt_bind with (RR := RV); intros.
+  eapply rutt_err_return_valD; auto.  
+
+  eapply rutt_Ret; eauto.
+Qed.  
+
+End TooStrong.
+
+Lemma rutt_evalE_err_cmd cc st1 st2 :
+  RS st1 st2 ->           
+  rutt (TR_E (callE FVS VS +' E)) (VR_E (callE FVS VS +' E)) RS
+    (evalE_err_cmd dc spp scP ev pr1 cc st1)
+    (evalE_err_cmd dc spp scP ev pr2 (Tr_cmd cc) st2).
+  simpl; intros.
+  unfold evalE_err_cmd; simpl.
   
+  set (Pr := fun (i: instr_r) => forall ii st1 st2, RS st1 st2 -> 
+     @rutt (callE FVS VS +' E) _ _ _
+     (TR_E (callE FVS VS +' E)) (VR_E (callE FVS VS +' E)) RS 
+    (st_cmd_map_r (eval_instr pr1) ((MkI ii i) :: nil) st1)
+    (st_cmd_map_r (eval_instr pr2) ((Tr_instr (MkI ii i)) :: nil) st2)).
+
+  set (Pi := fun (i: instr) => forall st1 st2, RS st1 st2 -> 
+     @rutt (callE FVS VS +' E) _ _ _
+     (TR_E (callE FVS VS +' E)) (VR_E (callE FVS VS +' E)) RS 
+    (st_cmd_map_r (eval_instr pr1) (i :: nil) st1)
+    (st_cmd_map_r (eval_instr pr2) ((Tr_instr i) :: nil) st2)).
+
+  set (Pc := fun (c: cmd) => forall st1 st2, RS st1 st2 -> 
+     @rutt (callE FVS VS +' E) _ _ _
+       (TR_E (callE FVS VS +' E)) (VR_E (callE FVS VS +' E)) RS 
+    (st_cmd_map_r (eval_instr pr1) c st1)
+    (st_cmd_map_r (eval_instr pr2) (Tr_cmd c) st2)).
+  
+  revert H; revert st1 st2; revert cc.  
+  eapply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc; simpl; eauto; intros.
+
+  { eapply rutt_Ret; eauto. } 
+  { destruct i; simpl.
+    eapply rutt_bind with (RR := RS); simpl in *.
+
+    specialize (H st1 st2 H1).
+
+    setoid_rewrite bind_ret_r in H; auto.
+    intros; auto.
+  }
+
+  { eapply rutt_bind with (RR := RS); intros.
+    eapply rutt_err_mk_AssgnE_D; auto.     
+    eapply rutt_Ret; eauto. 
+  }
+    
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.
+
+  { eapply rutt_bind with (RR := RS); intros.
+    eapply rutt_bind with (RR := RV); intros.
+
+    admit.
+
+    eapply rutt_bind with (RR := RVS); intros.
+
+    unfold rec.
+    unfold mrec.
+    eapply interp_mrec_rutt.
+
+    admit.
+    admit.
+
+    destruct H1 as [H1 H2].
+    destruct r0.
+    destruct r3.
+    simpl in *.
+
+    admit.
+
+    eapply rutt_Ret; auto.
+  }  
+Admitted.     
+  
+End TR_DoubleRec.
+
+
+Section TR_MutualRec.
+
 (* ME: relation between FCState events *)
 Definition TR_D_ME {T1 T2} (d1 : FCState T1)
                            (d2 : FCState T2) : Prop :=
@@ -1097,6 +1239,50 @@ Lemma rutt_err_reinstate_caller fn xs v1 v2 st1 st2 st3 st4 :
        (tr_lvals xs) v2 st2 st4).
 Admitted. 
 
+(***)
+
+Lemma rutt_err_mk_AssgnE x tg ty e st1 st2 :
+  RS st1 st2 ->
+  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
+    (err_mk_AssgnE spp pr1 x tg ty e st1)
+    (err_mk_AssgnE spp pr2 (tr_lval x) tg ty (tr_expr e) st2).
+Admitted.   
+
+Lemma rutt_err_mk_OpnE x tg o e st1 st2 :
+  RS st1 st2 ->
+  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
+    (err_mk_OpnE spp pr1 x tg o e st1)
+    (err_mk_OpnE spp pr2 (tr_lvals x) tg (tr_opn o) (tr_exprs e) st2).
+Admitted. 
+
+Lemma rutt_err_mk_SyscallE x sc e st1 st2 :
+  RS st1 st2 ->
+  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
+    (err_mk_SyscallE spp scP pr1 x sc e st1)
+    (err_mk_SyscallE spp scP pr2 
+       (tr_lvals x) (tr_sysc sc) (tr_exprs e) st2).
+Admitted. 
+
+Lemma rutt_err_mk_EvalCond e st1 st2 :
+  RS st1 st2 ->
+   rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) eq
+    (err_mk_EvalCond spp pr1 e st1)
+    (err_mk_EvalCond spp pr2 (tr_expr e) st2).
+Admitted.  
+
+Lemma rutt_err_mk_EvalBound e st1 st2 :
+  RS st1 st2 ->
+  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) eq
+    (err_mk_EvalBound spp pr1 e st1)
+    (err_mk_EvalBound spp pr2 e st2).
+Admitted. 
+
+Lemma rutt_err_mk_WriteIndex xi z st1 st2 :
+  RS st1 st2 ->
+   rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
+    (err_mk_WriteIndex xi z st1) (err_mk_WriteIndex xi z st2).
+Admitted. 
+
 
 Section Hyp_on_VR_E_FLCode.
 
@@ -1150,52 +1336,9 @@ Qed.
 
 End Hyp_on_VR_E_FLCode.
 
-
-Lemma rutt_err_mk_AssgnE x tg ty e st1 st2 :
-  RS st1 st2 ->
-  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
-    (err_mk_AssgnE spp pr1 x tg ty e st1)
-    (err_mk_AssgnE spp pr2 (tr_lval x) tg ty (tr_expr e) st2).
-Admitted.   
-
-Lemma rutt_err_mk_OpnE x tg o e st1 st2 :
-  RS st1 st2 ->
-  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
-    (err_mk_OpnE spp pr1 x tg o e st1)
-    (err_mk_OpnE spp pr2 (tr_lvals x) tg (tr_opn o) (tr_exprs e) st2).
-Admitted. 
-
-Lemma rutt_err_mk_SyscallE x sc e st1 st2 :
-  RS st1 st2 ->
-  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
-    (err_mk_SyscallE spp scP pr1 x sc e st1)
-    (err_mk_SyscallE spp scP pr2 
-       (tr_lvals x) (tr_sysc sc) (tr_exprs e) st2).
-Admitted. 
-
-Lemma rutt_err_mk_EvalCond e st1 st2 :
-  RS st1 st2 ->
-   rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) eq
-    (err_mk_EvalCond spp pr1 e st1)
-    (err_mk_EvalCond spp pr2 (tr_expr e) st2).
-Admitted.  
-
-Lemma rutt_err_mk_EvalBound e st1 st2 :
-  RS st1 st2 ->
-  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) eq
-    (err_mk_EvalBound spp pr1 e st1)
-    (err_mk_EvalBound spp pr2 e st2).
-Admitted. 
-
-Lemma rutt_err_mk_WriteIndex xi z st1 st2 :
-  RS st1 st2 ->
-   rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
-    (err_mk_WriteIndex xi z st1) (err_mk_WriteIndex xi z st2).
-Admitted. 
   
-(* Inductive lemma - GOOD. 
-   however: here we are not typing the coinductive knot, 
-   as st_cmd_map_r is just a map function. *)
+(* Inductive lemma - GOOD.  however: here we are not tying the
+   coinductive knot, as st_cmd_map_r is just a map function. *)
 Lemma rutt_cmd_tr_ME_step (cc: cmd) (st1 st2: estate) : 
   RS st1 st2 ->
   @rutt (FCState +' E) _ _ _
@@ -1317,7 +1460,8 @@ Lemma rutt_cmd_tr_ME_step (cc: cmd) (st1 st2: estate) :
     eapply rutt_Ret; auto.
   }  
 Qed.
-  
+
+
 (* Here we apply the inductive lemma and comp_gen_ok *)
 Lemma rutt_cmd_tr_ME (cc: cmd) (st1 st2: estate) : 
   RS st1 st2 ->
@@ -1510,7 +1654,12 @@ Proof.
   eapply interp_mrec_rutt; simpl; intros.
 *)
 
-End GEN_Err.
+End TR_MutualRec.
+
+End GEN_Error.
+
+(******************************************************************)
+(******************************************************************)
 
 
 Section GEN_Flat.
