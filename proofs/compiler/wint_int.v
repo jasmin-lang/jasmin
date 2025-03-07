@@ -87,6 +87,8 @@ Definition wi2i_op1_e (o : sop1) (e : pexpr) :=
     | WIword_of_wint ws => Papp1 (Oword_of_int ws) e
     | WIwint_of_word ws => Papp1 (Oint_of_word s ws) e
     | WIwint_ext szo szi =>
+      if (szi <= szo)%CMP then e
+      else
       Papp1 (Oint_of_word s szo)
        (Papp1 (signed (Ozeroext szo szi) (Osignext szo szi) s)
          (Papp1 (Oword_of_int szi) e))

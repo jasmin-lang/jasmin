@@ -308,12 +308,17 @@ Proof.
       + rewrite he /sign_of_expr hse /=.
         rewrite val_to_int_None /sem_sop1 /=; t_xrbindP.
         by move=> w hw <-; rewrite hw /=.
-      + rewrite he /sign_of_expr hse /=.
-        rewrite /sem_sop1 /=; t_xrbindP.
-        case: (etype_of_expr m e) hte hse htve => //=.
-        move=> [sg' | ] // sz' /andP[] /eqP ? /eqP ? _; subst sg' sz'.
-        move=> /type_of_valI [-> // | [w ->]] /= w'.
-        rewrite truncate_word_u => -[?] ?; subst w' v => /=.
+      + case:ifP => hsz;
+          rewrite /= he /sign_of_expr hse /sem_sop1 /=; t_xrbindP;
+          case: (etype_of_expr m e) hte hse htve => //=;
+          move=> [sg' | ] // sz' /andP[] /eqP ? /eqP ? _; subst sg' sz';
+          move=> /type_of_valI [-> // | [w ->]] /= w';
+          rewrite truncate_word_u => -[?] ?; subst w' v => /=.
+        + rewrite /sem_word_extend; case: sg => /=.
+          + rewrite /sign_extend wsigned_repr //.
+            by move: (wsigned_range_m hsz) (wsigned_range w); Lia.lia.
+          rewrite /zero_extend wunsigned_repr_small //.
+          by move: (wbase_m hsz) (wunsigned_range w); Lia.lia.
         by case: sg => /=; rewrite truncate_word_u /= truncate_word_u /=
            ?wrepr_signed ?wrepr_unsigned.
       rewrite he /sign_of_expr hse /=.
