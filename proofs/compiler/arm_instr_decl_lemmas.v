@@ -41,6 +41,20 @@ Definition truncate_args
   (op : sopn) (vargs : seq value) : exec (seq value) :=
   mapM2 ErrType truncate_val (sopn_tout op) vargs.
 
+Definition cast_op tin1 tin2 tout1 tout2 (h1 : tin1 = tin2) (h2 : tout1 = tout2)
+  (f : sem_prod tin1 (exec (sem_tuple tout1))) :
+    sem_prod tin2 (exec (sem_tuple tout2)) :=
+   eq_rect tout1 (fun tout => sem_prod tin2 (exec (sem_tuple tout)))
+     (eq_rect tin1 (fun tin => sem_prod tin (exec (sem_tuple tout1))) f tin2 h1)
+     tout2 h2.
+
+Lemma sem_prod_ok_comp A B ts (F : sem_prod ts A) (G:A -> B) vs:
+  app_sopn ts (sem_prod_ok ts (sem_prod_app F G)) vs =
+  Let a := app_sopn ts (sem_prod_ok ts F) vs in ok (G a).
+Proof.
+  elim: ts vs F => [ | t ts hrec] [ | v vs] //= F; case: of_val => //=.
+Qed.
+
 Lemma exec_sopn_conditional mn sf osk b vargs vprev vres0 vres1 :
   let opts :=
     {| set_flags := sf; is_conditional := false; has_shift := osk; |}
@@ -53,60 +67,45 @@ Lemma exec_sopn_conditional mn sf osk b vargs vprev vres0 vres1 :
        (vargs ++ Vbool b :: vprev)
        = ok (if b then vres0 else vres1).
 Proof.
-  all: case: sf.
-  all: case: osk => [sk|].
-  all: case: mn => [|||||||||||||||||??|??|?|||||||||||||||||||||||||||||||||].
-  all: rewrite /truncate_args /truncate_val.
-
-  (* Destruct [vprev]. *)
-  all:
-    do 6? (
-      case: vprev => [| ? vprev ] //=;
-      t_xrbindP=> //;
-      repeat
-        match goal with
-        | [ |- forall (_ : value), forall _, _ ] => move=> ? ? ? ? ?
-        | [ |- ([::] = _) -> _ ] => move=> ?
-        | [ |- (_ :: _ = _) -> _ ] => move=> ?
-        end
-    ).
-
-  all: try move=> <-.
-  all: subst.
-
-  (* Destruct [vargs]. *)
-  all: rewrite /exec_sopn /=.
-  all: case: vargs => [| ? vargs ] //; t_xrbindP => // v.
-  all:
-    do 6? (
-      case: vargs => [| ? vargs ] //;
-      t_xrbindP => //;
-      match goal with
-      | [ |- forall _, ((_ = ok _) -> _) ] => move=> ? ?
-      end
-    ).
-  all: move=> hsemop ?; subst vres0.
-  all: rewrite /=.
-  all:
-    repeat (
-      match goal with
-      | [ h : _ = ok _ |- _ ] => rewrite h {h} /=
-      end
-    ).
-
-  (* Introduce and rewrite all semantic checks. *)
-  all: move: hsemop.
-  all: rewrite /sopn_sem_ /= /mk_semi2_2_shifted /mk_semi3_2_shifted /mk_semi1_shifted /=.
-  all: rewrite /=; t_xrbindP=> *; try subst v; t_eq_rewrites.
-  all: case: b; try reflexivity.
-  all: rewrite /mk_semi_cond; cbn.
-  all:
-    try match goal with
-    | [ h : _ = ok _ |- _ ] => by rewrite h
-    end.
-  all: by match goal with
-  | [ h : _ = ok _ |- _ ] => case: h => <-
-  end.
+  rewrite /= /exec_sopn /= /set_is_conditional /= /sem_sopn /= /sopn_sem /= /sopn_sem_ /=.
+  t_xrbindP.
+  set fflags := {| set_flags := sf; is_conditional := false; has_shift := osk |}.
+  set tflags := {| set_flags := sf; is_conditional := true; has_shift := osk |}.
+  have : id_valid (mn_desc fflags mn) = id_valid (mn_desc tflags mn) /\
+         exists (h1 : id_tin (mn_desc fflags mn) = id_tin (mn_desc tflags mn))
+                (h2 : id_tout (mn_desc fflags mn) = id_tout (mn_desc tflags mn)),
+         cast_op h1 h2 (id_semi (mn_desc fflags mn)) = id_semi (mn_desc tflags mn).
+  + by rewrite /fflags /tflags; case: mn; case sf; case osk => [s | ]; split => //;
+         exists erefl, erefl.
+  move=> [-> [hin [hout hcast]]].
+  rewrite /truncate_args /= /sopn_tout /=.
+  move=> htr _ -> <- res hres <- /=.
+  move: (id_tin (mn_desc fflags mn)) (id_tin (mn_desc tflags mn))
+        (id_tout (mn_desc fflags mn)) (id_tout (mn_desc tflags mn))
+        (id_semi (mn_desc fflags mn)) (id_semi (mn_desc tflags mn))
+        hin hout hcast htr res hres => {fflags tflags vres0}.
+  move=> tin tin2 tout tout2 semi semi2 ???; subst tin2 tout2 semi2 => /= hvres1.
+  rewrite /mk_semi_cond.
+  elim: tin vargs semi => [ | ti tin hreci] [ | va vargs] //=.
+  + move=> semi res ->; rewrite /mk_semi_cond /= => {semi}.
+    rewrite add_arguments_nil; case: b.
+    + have -> // : app_sopn tout (sem_prod_const tout (ok res)) vprev = ok res.
+      move: (sem_tuple tout) res => A res.
+      elim: tout vprev vres1 hvres1 => [ | to tout hreco] [ | vp vprev] //=; t_xrbindP.
+      move=> vres1 v; rewrite /truncate_val; t_xrbindP.
+      by move=> vto -> _ vs /hreco ->.
+    rewrite -hvres1 => {hvres1 vres1 res}.
+    elim: tout vprev => [ | to tout hreco] [ | vp vps] //=.
+    rewrite -hreco /truncate_val => {hreco}.
+    case: of_val => //= vt.
+    case: tout; first by move=> //=; case:vps => //; case: to vt.
+    move=> t1 ts; rewrite sem_prod_ok_comp.
+    case: app_sopn => //= tl.
+    have -> : oto_val (sem_prod_id vt) = to_val vt.
+    + by case: to vt.
+    by case: ts tl.
+  move=> semi res; t_xrbindP => v -> /hreci /=.
+  by rewrite add_arguments_app.
 Qed.
 
 (* TODO_ARM: Is this the best way of expressing the [write_val] condition? *)
