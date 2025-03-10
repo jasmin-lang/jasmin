@@ -10,6 +10,10 @@
 
 ## Bug fixes
 
+- Fix EC extraction of signed division and modulo, respectively to `\zquot` and
+  `\zrem`
+  ([PR #1090](https://github.com/jasmin-lang/jasmin/pull/1090)).
+
 - Fix semantics of flags in `#ROR`, `#ASR`, `#LSR`, and `#LSL` arm instructions
   ([PR #1085](https://github.com/jasmin-lang/jasmin/pull/1085),
   ([PR #1091](https://github.com/jasmin-lang/jasmin/pull/1091);
