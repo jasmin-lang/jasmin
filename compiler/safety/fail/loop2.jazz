@@ -10,7 +10,7 @@ fn poly1305(reg u64 in, reg u64 inlen) -> reg u64 {
   while (inlen > 0) {
     if inlen >= 16 {
       for i = 0 to 16 {
-        tmp = (u8)[in + i];
+        tmp = [:u8 in + i];
       }
 
       in += 16;

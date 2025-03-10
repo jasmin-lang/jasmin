@@ -5,7 +5,7 @@ fn main(reg u64 pt) -> reg u64 {
   res = 0;
   i = 0;
   while (i < 16) {
-    tmp = (u64)[pt + 8*i];
+    tmp = [:u64 pt + 8*i];
     res += tmp;
     i += 1;
   }

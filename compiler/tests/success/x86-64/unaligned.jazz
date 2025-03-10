@@ -4,7 +4,7 @@ fn main(reg u64 x) -> reg u128 {
   stack u128[2] a;
   inline int i;
   for i = 0 to 16 {
-    a[u16 i] = (u16)[x + 2 * i];
+    a[:u16 i] = [:u16 x + 2 * i];
   }
   ?{}, r = #set0_128();
   for i = 0 to 3 {
@@ -18,9 +18,9 @@ fn sopndest() -> reg u64 {
   stack u128[2] a;
   reg u128 x;
   x = #set0_128();
-  a.[#unaligned u128 8] = x;
+  a.[#unaligned:u128 8] = x;
   reg u64 r;
-  r = a.[u64 8];
+  r = a.[:u64 8];
   return r;
 }
 

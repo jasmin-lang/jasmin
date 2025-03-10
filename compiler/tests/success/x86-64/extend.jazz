@@ -55,7 +55,7 @@ y = #VMOV(v);
 x ^= y;
 y = #VMOV_32(w);
 x ^= y;
-(u128)[ptr_ + 0] = x;
+[:u128 ptr_ + 0] = x;
 }
 
 
@@ -68,8 +68,8 @@ y = (256u)v;
 x ^= y;
 y = (256u)w;
 x ^= y;
-(u128)[ptr_ + 0] = x;
-(u256)[ptr_ + 32] = x;
+[:u128 ptr_ + 0] = x;
+[:u256 ptr_ + 32] = x;
 }
 
 export
@@ -114,8 +114,8 @@ export
 fn test_avx_to_mem(reg u64 p, reg u256 y) {
   reg u128 x;
   x = y;
-  (u32)[p] = x;
-  (u32)[p + 4] = y;
+  [:u32 p] = x;
+  [:u32 p + 4] = y;
   [p + 8] = x;
   [p + 16] = y;
 }

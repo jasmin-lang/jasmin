@@ -2,17 +2,17 @@ export
 fn load(reg u32 arg) -> reg u32 {
     reg u32 x;
 
-    x = #LOAD((u8)[arg]);
+    x = #LOAD([:u8 arg]);
 
-    x = #LOAD_u8((u8)[arg]);
-    x = #LOAD_s8((u8)[arg]);
+    x = #LOAD_u8([:u8 arg]);
+    x = #LOAD_s8([:u8 arg]);
 
-    x = #LOAD_u16((u16)[arg]);
-    x = #LOAD_s16((u16)[arg]);
+    x = #LOAD_u16([:u16 arg]);
+    x = #LOAD_s16([:u16 arg]);
 
-    x = #LOAD_s32((u32)[arg]);
+    x = #LOAD_s32([:u32 arg]);
 
-    x = #LOAD_s32((u32)[arg + 2]);
+    x = #LOAD_s32([:u32 arg + 2]);
 
     reg u32 res;
     res = x;

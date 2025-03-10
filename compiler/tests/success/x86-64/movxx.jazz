@@ -13,17 +13,17 @@ fn test_movsx(reg u64 x y) {
 
   [y] = c;
 
-  a = #MOVSX_u16u8((u8)[y]);
-  (u16)[y] = a;
-  b = #MOVSX_u32u16((u16)[y]);
-  (u32)[y] = b;
-  b = #MOVSX_u32u8((u8)[y]);
-  (u32)[y] = b;
-  c = #MOVSX_u64u32((u32)[y]);
+  a = #MOVSX_u16u8([:u8 y]);
+  [:u16 y] = a;
+  b = #MOVSX_u32u16([:u16 y]);
+  [:u32 y] = b;
+  b = #MOVSX_u32u8([:u8 y]);
+  [:u32 y] = b;
+  c = #MOVSX_u64u32([:u32 y]);
   [y] = c;
-  c = #MOVSX_u64u16((u16)[y]);
+  c = #MOVSX_u64u16([:u16 y]);
   [y] = c;
-  c = #MOVSX_u64u8((u8)[y]);
+  c = #MOVSX_u64u8([:u8 y]);
   [y] = c;
 
 }
@@ -42,15 +42,15 @@ fn test_movzx(reg u64 x y) {
 
   [y] = c;
 
-  a = #MOVZX_u16u8((u8)[y]);
-  (u16)[y] = a;
-  b = #MOVZX_u32u16((u16)[y]);
-  (u32)[y] = b;
-  b = #MOVZX_u32u8((u8)[y]);
-  (u32)[y] = b;
-  c = #MOVZX_u64u16((u16)[y]);
+  a = #MOVZX_u16u8([:u8 y]);
+  [:u16 y] = a;
+  b = #MOVZX_u32u16([:u16 y]);
+  [:u32 y] = b;
+  b = #MOVZX_u32u8([:u8 y]);
+  [:u32 y] = b;
+  c = #MOVZX_u64u16([:u16 y]);
   [y] = c;
-  c = #MOVZX_u64u8((u8)[y]);
+  c = #MOVZX_u64u8([:u8 y]);
   [y] = c;
 
 }

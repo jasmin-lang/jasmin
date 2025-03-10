@@ -11,7 +11,7 @@ fn strlen(reg u64 str) -> reg u8 {
   reg u8 len c;
   len = 0;
   while {
-    c = (u8)[str];
+    c = [:u8 str];
   } (c != 0) {
     str += 1;
     len += 1;

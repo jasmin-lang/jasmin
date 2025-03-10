@@ -15,7 +15,7 @@ export fn foo2() -> reg u64 {
    reg ptr u8[8] p;
    p = r;
    p = #randombytes(p);
-   res = p[u64 0];
+   res = p[:u64 0];
    return res;
 }
 

@@ -3,7 +3,7 @@ fn test_vmovlpd(reg u64 tmp) {
   reg u128 x;
 
   x = #set0_128();
-  (u64) [tmp] = #VMOVLPD(x);
+  [:u64 tmp] = #VMOVLPD(x);
 }
 
 export

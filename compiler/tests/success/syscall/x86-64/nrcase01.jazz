@@ -12,8 +12,8 @@ export fn test2(reg u64 skp)
 
   for i=0 to KYBER_SYMBYTES/8
   {
-    t64 = rb[u64 i];
-    (u64)[skp] = t64;
+    t64 = rb[:u64 i];
+    [:u64 skp] = t64;
     skp += 8;
   }
 }

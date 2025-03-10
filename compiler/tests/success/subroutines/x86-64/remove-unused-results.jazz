@@ -24,9 +24,9 @@ export
 fn main(reg u64 q) {
 reg u256 u v w;
 
-u = (u256)[q + 0];
-v = (u256)[q + 32];
+u = [:u256 q + 0];
+v = [:u256 q + 32];
 w = f(u, v);
 
-(u256)[q + 64] = w;
+[:u256 q + 64] = w;
 }

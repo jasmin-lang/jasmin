@@ -101,7 +101,7 @@ fn xof_init(
   reg ptr u64[25]
 {
   reg u64 t;
-  t = rho[u64 j];
+  t = rho[:u64 j];
   state[j] = t;
   return state;
 }
