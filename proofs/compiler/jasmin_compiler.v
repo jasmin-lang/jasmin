@@ -5,3 +5,4 @@ Require arm_params.
 Require x86_params.
 Require riscv_params.
 Require sem_params_of_arch_extra.
+Require wint_int.

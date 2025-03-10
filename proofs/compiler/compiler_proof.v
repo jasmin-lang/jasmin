@@ -32,7 +32,8 @@ Require Import
   psem_of_sem_proof
   slh_lowering_proof
   direct_call_proof
-  stack_zeroization_proof.
+  stack_zeroization_proof
+  wint_word_proof.
 
 Require Import
   arch_decl
@@ -174,6 +175,20 @@ Proof.
   exact: (inline_call_errP ok_pa (values_uincl_refl va) h).
 Qed.
 
+Lemma wi2w_prog_remove (p p' : uprog) scs m fn va scs' m' vr :
+  wi2w_prog_remove cparams p = ok p' →
+  sem_call (dc := indirect_c) p tt scs m fn va scs' m' vr →
+  exists2 vr' : seq value,
+    List.Forall2 value_uincl vr vr' &
+    sem_call (dc := indirect_c) p' tt scs m fn va scs' m' vr'.
+Proof.
+  rewrite /wi2w_prog_remove print_uprogP; t_xrbindP => ok_pv <- h.
+  apply: compose_pass_uincl.
+  + by move => vr';
+    apply: (alloc_call_uprogP (sip := sip_of_asm_e) ok_pv).
+  by apply: wi2w_callP; first exact: (List_Forall2_refl _ value_uincl_refl).
+Qed.
+
 Lemma compiler_first_partP entries (p: prog) (p': uprog) scs m fn va scs' m' vr :
   compiler_first_part aparams cparams entries p = ok p' →
   fn \in entries →
@@ -182,10 +197,9 @@ Lemma compiler_first_partP entries (p: prog) (p': uprog) scs m fn va scs' m' vr 
     List.Forall2 value_uincl vr vr' &
     sem_call (dc:=direct_c) p' tt scs m fn va scs' m' vr'.
 Proof.
-  rewrite /compiler_first_part; t_xrbindP => pa0.
-  rewrite print_uprogP => ok_pa0 pb.
-  rewrite print_uprogP => ok_pb pa.
-  rewrite print_uprogP => ok_pa pc ok_pc ok_puc ok_puc'.
+  rewrite /compiler_first_part; t_xrbindP => paw ok_paw pa0.
+  rewrite !print_uprogP => ok_pa0 pb.
+  rewrite print_uprogP => ok_pb pa ok_pa pc ok_pc ok_puc ok_puc'.
   rewrite !print_uprogP => pd ok_pd.
   rewrite !print_uprogP => pe ok_pe.
   rewrite !print_uprogP => pf ok_pf.
@@ -235,7 +249,11 @@ Proof.
   - by move=> vr'; apply: (lower_spill_fdP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_pb).
   apply: compose_pass; first by move => vr'; apply: (add_init_fdP).
   apply: compose_pass_uincl.
-  - by move=> vr'; apply:(array_copy_fdP (sCP := sCP_unit) ok_pa0 va_refl).
+  - move=> vr'.
+    have := [elaborate array_copy_fdP (dc := indirect_c) (sCP := sCP_unit)].
+    by move=> /(_ _ _ _ tt ok_pa0); apply; apply va_refl.
+  apply: compose_pass_uincl'.
+  + by move=> vr'; apply: wi2w_prog_remove; apply ok_paw.
   apply: compose_pass; first by move => vr'; exact: psem_call_u.
   exists vr => //.
   exact: (List_Forall2_refl _ value_uincl_refl).

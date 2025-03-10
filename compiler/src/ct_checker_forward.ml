@@ -311,7 +311,8 @@ let is_ct_op1 (_: Expr.sop1) = true
 
 let is_ct_op2 (o: Expr.sop2) =
   match o with
-  | Omod (Cmp_w _) | Odiv (Cmp_w _) -> false
+  | Omod (_, Op_w _) | Odiv (_, Op_w _) -> false
+  | Owi2(_, _, (WImod | WIdiv)) -> false
   | _ -> true
 
 let is_ct_opN (_ : Expr.opN) = true
@@ -329,7 +330,7 @@ let is_ct_sopn is_ct_asm (o : 'a Sopn.sopn) =
    Remark we need the property: [env' <= env => env |- e : lvl => env' |- e : lvl]
  *)
 
-let rec ty_expr ~(public:bool) env (e:expr) =
+let rec ty_expr ~(public:bool) env (e: expr) =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ -> env, Public
 

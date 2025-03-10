@@ -128,7 +128,7 @@ let main () =
     in
 
     if !print_dependencies then begin
-      Format.printf "%a" 
+      Format.printf "%a"
         (pp_list " " (fun fmt p -> Format.fprintf fmt "%s" (BatPathGen.OfString.to_string p)))
         (List.tl (List.rev (Pretyping.Env.dependencies env)));
       exit 0
@@ -171,9 +171,8 @@ let main () =
           source_prog
         |> fun () -> exit 0
       else
-      (
         eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p
-      ) in
+    in
 
     visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
 
@@ -188,6 +187,7 @@ let main () =
         BatPervasives.finally
           (fun () -> close ())
           (fun () ->
+            let prog = Compile.do_wint_int (module Arch) prog in
             ToEC.extract prog !Glob_options.target_arch Arch.reg_size Arch.asmOp !model ToEC.ArrayOld !ec_list (Some !ec_array_path) fmt
           )
           ()

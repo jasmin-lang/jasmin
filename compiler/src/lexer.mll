@@ -26,15 +26,39 @@
 
   let _keywords = [
     "type"  , TYPE   ;
-    "u8"    , T_U8   ;
-    "u16"   , T_U16  ;
-    "u32"   , T_U32  ;
-    "u64"   , T_U64  ;
-    "u128"  , T_U128 ;
-    "u256"  , T_U256 ;
 
     "bool"  , T_BOOL ;
     "int"   , T_INT  ;
+    "sint"  , T_INT_CAST `Signed;
+    "uint"  , T_INT_CAST `Unsigned;
+
+    "u8"  , T_W (U8  , `Word (Some `Unsigned));
+    "u16" , T_W (U16 , `Word (Some `Unsigned));
+    "u32" , T_W (U32 , `Word (Some `Unsigned));
+    "u64" , T_W (U64 , `Word (Some `Unsigned));
+    "u128", T_W (U128, `Word (Some `Unsigned));
+    "u256", T_W (U256, `Word (Some `Unsigned));
+
+    "w8"  , T_W (U8  , `Word None);
+    "w16" , T_W (U16 , `Word None);
+    "w32" , T_W (U32 , `Word None);
+    "w64" , T_W (U64 , `Word None);
+    "w128", T_W (U128, `Word None);
+    "w256", T_W (U256, `Word None);
+
+    "ui8"  , T_W (U8  , `WInt `Unsigned);
+    "ui16" , T_W (U16 , `WInt `Unsigned);
+    "ui32" , T_W (U32 , `WInt `Unsigned);
+    "ui64" , T_W (U64 , `WInt `Unsigned);
+    "ui128", T_W (U128, `WInt `Unsigned);
+    "ui256", T_W (U256, `WInt `Unsigned);
+
+    "si8"  , T_W (U8  , `WInt `Signed);
+    "si16" , T_W (U16 , `WInt `Signed);
+    "si32" , T_W (U32 , `WInt `Signed);
+    "si64" , T_W (U64 , `WInt `Signed);
+    "si128", T_W (U128, `WInt `Signed);
+    "si256", T_W (U256, `WInt `Signed);
 
     "const" , CONSTANT;
     "downto", DOWNTO ;
@@ -71,10 +95,7 @@
   | 's' -> `Signed
   | _ -> assert false
 
-  let mk_sign : char option -> S.sign =
-  function
-  | Some c -> sign_of_char c
-  | None   -> `Unsigned
+  let mk_sign : char option -> S.sign option = Option.map sign_of_char
 
   let size_of_string =
   function
@@ -86,7 +107,6 @@
   | "256" -> Wsize.U256
   | _ -> assert false
 
-  let mksizesign sw s = size_of_string sw, sign_of_char s
 
   let mk_gensize = function
     | "1"   -> `W1
@@ -110,6 +130,13 @@
 
   let mkvsizesign r s g = mk_vsize r, sign_of_char s, mk_gensize g
 
+  let mkwsign = function
+   | "w"  -> `Word None
+   | "s"  -> `Word (Some `Signed)
+   | "u"  -> `Word (Some `Unsigned)
+   | "si" -> `WInt `Signed
+   | "ui" -> `WInt `Unsigned
+   | _    -> assert false
 }
 
 (* -------------------------------------------------------------------- *)
@@ -129,6 +156,8 @@ let size = "8" | "16" | "32" | "64" | "128" | "256"
 let signletter = ['s' 'u']
 let gensize = "1" | "2" | "4" | "8" | "16" | "32" | "64" | "128"
 let vsize   = "2" | "4" | "8" | "16" | "32"
+
+let wsign = "w" | "s" | "u" | "si" | "ui"
 
 
 (* -------------------------------------------------------------------- *)
@@ -155,8 +184,12 @@ rule main = parse
   | ident as s
       { Option.default (NID s) (Hash.find_option keywords s) }
 
-  | (size as sw) (signletter as s)                { SWSIZE(mksizesign sw s)  }
-  | (vsize as r) (signletter as s) (gensize as g) { SVSIZE(mkvsizesign r s g)}
+  | (size as sw) (wsign as s)
+      { SWSIZE(size_of_string sw, mkwsign s)  }
+
+  | (vsize as r) (signletter as s) (gensize as g)
+      { SVSIZE(mkvsizesign r s g)}
+
   | "#"     { SHARP      }
   | "["     { LBRACKET   }
   | "]"     { RBRACKET   }
@@ -185,8 +218,8 @@ rule main = parse
   | "+"  { PLUS     }
   | "-"  { MINUS    }
   | "*"  { STAR     }
-  | "/"  { SLASH    }
-  | "%"  { PERCENT  }
+  | "/"  (signletter as s)? { SLASH   (mk_sign s) }
+  | "%"  (signletter as s)? { PERCENT (mk_sign s) }
   | "|"  { PIPE     }
   | "&"  { AMP      }
   | "^"  { HAT      }
