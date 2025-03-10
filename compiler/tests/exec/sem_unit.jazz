@@ -20,3 +20,8 @@ fn shrd_16(reg u16 x y, reg u8 c) -> reg u16 {
   ?{}, x = #SHRD_16(x, y, c);
   return x;
 }
+
+fn divu64() -> reg u64, reg u64 {
+  reg u64 x = 1 << 63, y = -1, z = x / y, r = x % y;
+  return z, r;
+}

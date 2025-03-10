@@ -500,10 +500,9 @@ Proof.
       by rewrite hwrite.
     rewrite /sem_sop2 /=.
     t_xrbindP=> w1 ok_w1 w2 ok_w2.
-    rewrite /mk_sem_divmod /=.
+    rewrite /mk_sem_divmod orbF /=.
     case w2_nzero: eq_op => //=.
-    case: andb => //.
-    move=> _ [<-] ?; subst v.
+    move=> _ /ok_inj <- ?; subst v.
     move=> [<- <- <-].
     rewrite /sem_sopn /= ok_v1 ok_v2 /=.
     rewrite /exec_sopn /= ok_w1 ok_w2 /=.
@@ -525,10 +524,9 @@ Proof.
       by rewrite hwrite.
     rewrite /sem_sop2 /=.
     t_xrbindP=> w1 ok_w1 w2 ok_w2.
-    rewrite /mk_sem_divmod /=.
+    rewrite /mk_sem_divmod orbF.
     case: eq_op => //=.
-    case: andb => //.
-    move=> _ [<-] ?; subst v.
+    move=> _ /ok_inj <- ?; subst v.
     move=> [<- <- <-].
     rewrite /sem_sopn /= ok_v1 ok_v2 /=.
     rewrite /exec_sopn /= ok_w1 ok_w2 /=.
