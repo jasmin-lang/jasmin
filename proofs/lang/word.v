@@ -1704,9 +1704,6 @@ Definition wpack sz pe (arg: seq Z) : word sz :=
 Definition movemask (ve: velem) (ssz: wsize) (w : word ssz) : word U64 :=
   wrepr U64 (t2w_def [tuple of map msb (split_vec ve w)]).
 
-Definition wpmovmskb ssz (w: word ssz) : word U64 :=
-  movemask VE8 w.
-
 (* -------------------------------------------------------------------*)
 Definition blendv (ve: velem) sz (w1 w2 m: word sz): word sz :=
   let v1 := split_vec ve w1 in

@@ -1725,7 +1725,7 @@ Definition Ox86_VPERMQ_instr :=
 
 (* TODO: remove *)
 Definition x86_VPMOVMSKB ssz dsz (v : word ssz): tpl (w_ty dsz) :=
-  zero_extend dsz (wpmovmskb v).
+  zero_extend dsz (movemask VE8 v).
 
 (* TODO: remove *)
 Definition Ox86_PMOVMSKB_instr :=
@@ -1744,13 +1744,10 @@ Definition Ox86_PMOVMSKB_instr :=
   , ("VPMOVMSKB"%string, primX VPMOVMSKB) (* jasmin concrete syntax *)
   ).
 
-Definition x86_MOVEMASK (ve: velem) sz (v: word sz) : tpl (w_ty U64) :=
-  movemask ve v.
-
 Definition Ox86_MOVEMASK_instr :=
   (fun (ve: velem) sz =>
      mk_instr_safe (pp_ve_sz "MOVEMASK" ve sz) (w_ty sz) (w_ty U64) [:: Eu 1 ] [:: Eu 0 ] MSB_CLEAR
-       (@x86_MOVEMASK ve sz) [:: [:: r ; xmm ] ] 2 (((ve : wsize) \in [:: U8; U32; U64 ]) && size_128_256 sz)
+       (@movemask ve sz) [:: [:: r ; xmm ] ] 2 (((ve : wsize) \in [:: U8; U32; U64 ]) && size_128_256 sz)
        (pp_name_ty match ve with
           | VE8 => "vpmovmskb"
           | VE32 => "vmovmskps"
