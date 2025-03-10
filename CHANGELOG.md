@@ -11,6 +11,10 @@
 
 ## Bug fixes
 
+- Fix semantics of flags in `#ROR`, `#ASR`, `#LSR`, and `#LSL` arm instructions
+  ([PR #1085](https://github.com/jasmin-lang/jasmin/pull/1085);
+  fixes [#1033](https://github.com/jasmin-lang/jasmin/issues/1033)).
+
 - Program with conflicting assembly labels print warning when compiled
   ([PR #1067](https://github.com/jasmin-lang/jasmin/pull/1067);
   fixes [#993](https://github.com/jasmin-lang/jasmin/issues/993)).
