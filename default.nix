@@ -25,7 +25,15 @@ let coqPackages =
       };
       hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
     })
-  else coqPackages_8_19.overrideScope (self: super: {
+  else coqPackages_8_20.overrideScope (self: super: {
+    paco = super.paco.overrideAttrs (_: {
+      src = fetchFromGitHub {
+        owner = "snu-sf";
+	repo = "paco";
+	tag = "v4.2.3";
+	hash = "sha256-ldUjNd5daUu2B3v4tk20/iXFgyUuW4XHlbubTInpwcs=";
+      };
+    });
     ITree = super.ITree.overrideAttrs (_: {
       src = fetchFromGitHub {
         owner = "ptorrx";
