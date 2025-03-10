@@ -1766,6 +1766,90 @@ Definition arm_ORR_instr : instr_desc_t :=
   then x
   else drop_nzc x.
 
+(*
+// LSL_C() // =======
+(bits(N), bit) LSL_C(bits(N) x, integer shift)
+  assert shift > 0;
+  extended_x = x : Zeros(shift);
+  result = extended_x<N-1:0>;
+  carry_out = extended_x<N>; return (result, carry_out);
+
+// LSL() // =====
+  bits(N) LSL(bits(N) x, integer shift) assert shift >= 0;
+  if shift == 0 then
+    result = x;
+  else
+    (result, -) = LSL_C(x, shift); return result;
+
+// LSR_C() // =======
+  (bits(N), bit) LSR_C(bits(N) x, integer shift) assert shift > 0;
+  extended_x = ZeroExtend(x, shift+N); result = extended_x<shift+N-1:shift>; carry_out = extended_x<shift-1>;
+  return (result, carry_out);
+
+// LSR() // =====
+bits(N) LSR(bits(N) x, integer shift) assert shift >= 0;
+  if shift == 0 then
+  result = x; else
+  (result, -) = LSR_C(x, shift); return result;
+
+// ASR_C() // =======
+(bits(N), bit) ASR_C(bits(N) x, integer shift) assert shift > 0;
+  extended_x = SignExtend(x, shift+N);
+  result = extended_x<shift+N-1:shift>;
+  carry_out = extended_x<shift-1>;
+  return (result, carry_out);
+
+// ASR() // =====
+  bits(N) ASR(bits(N) x, integer shift) assert shift >= 0;
+  if shift == 0 then
+    result = x;
+  else
+    (result, -) = ASR_C(x, shift); return result;
+
+// ROR_C() // =======
+  (bits(N), bit) ROR_C(bits(N) x, integer shift) assert shift != 0;
+  m = shift MOD N;
+  result = LSR(x,m) OR LSL(x,N-m); carry_out = result<N-1>;
+  return (result, carry_out);
+
+// ROR() // =====
+  bits(N) ROR(bits(N) x, integer shift)
+  if shift == 0 then
+    result = x;
+  else
+    (result, -) = ROR_C(x, shift); return result;
+
+// RRX_C() // =======
+(bits(N), bit) RRX_C(bits(N) x, bit carry_in)
+  result = carry_in : x<N-1:1>;
+  carry_out = x<0>;
+  return (result, carry_out);
+
+// RRX() // =====
+bits(N) RRX(bits(N) x, bit carry_in) (result, -) = RRX_C(x, carry_in); return result;
+
+// Shift_C() // =========
+(bits(N), bit) Shift_C(bits(N) value, SRType type, integer amount, bit carry_in)
+
+assert !(type == SRType_RRX && amount != 1);
+  if amount == 0 then
+  (result, carry_out) = (value, carry_in);
+else
+case type of
+when SRType_LSL
+  (result, carry_out) = LSL_C(value, amount);
+when SRType_LSR
+  (result, carry_out) = LSR_C(value, amount);
+when SRType_ASR
+  (result, carry_out) = ASR_C(value, amount);
+when SRType_ROR
+  (result, carry_out) = ROR_C(value, amount);
+when SRType_RRX
+  (result, carry_out) = RRX_C(value, amount);
+return (result, carry_out);
+
+*)
+
 Definition arm_ASR_semi (wn : ty_r) (wsham : word U8) : ty_nzc_r :=
   (* The bounds for [wsham] are different whether it's an immediate or a
      register: if it's an immediate it must be between 0 and 31, but if it's a
@@ -1809,6 +1893,26 @@ Definition arm_ASR_instr : instr_desc_t :=
   if set_flags opts
   then x
   else drop_nzc x.
+
+(* // LSL_C() // =======
+(bits(N), bit) LSL_C(bits(N) x, integer shift)
+  assert shift > 0;
+  extended_x = x : Zeros(shift);
+  result = extended_x<N-1:0>;
+  carry_out = extended_x<N>; return (result, carry_out);
+
+// LSL() // =====
+  bits(N) LSL(bits(N) x, integer shift) assert shift >= 0;
+  if shift == 0 then
+    result = x;
+  else
+    (result, -) = LSL_C(x, shift); return result;
+*)
+
+Definition arm_LSL_C (wn : ty_r) (wsham : word U8) (c:bool) :=
+  let shift := wunsigned wsham in
+  if shift == 0%Z then c
+  else wbit_n wn (Z.to_nat shift).
 
 Definition arm_LSL_semi (wn : ty_r) (wsham : word U8) : ty_nzc_r :=
   let sham := wunsigned wsham in

@@ -431,7 +431,7 @@ Proof.
   lia.
 Qed.
 
-Lemma half_modulues_pos sz : (0 < half_modulus sz)%Z.
+Lemma half_modulus_pos sz : (0 < half_modulus sz)%Z.
 Proof. by case: sz. Qed.
 
 Notation u8   := (word U8).
