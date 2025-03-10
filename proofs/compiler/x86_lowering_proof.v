@@ -753,8 +753,8 @@ Section PROOF.
         + move: he; rewrite /read_e /= /disj_fvars /x86_lowering.disj_fvars !read_eE /disjoint.
           by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
         case: ifP hw3 => // hdiv []; simpl in * => {he}.
-        case/Bool.orb_false_elim: hdiv => /eqP neq hdiv.
-        case: u => /= ?; subst w3;
+        case/Bool.orb_false_elim: hdiv => /eqP neq.
+        case: u => hdiv /= ?; subst w3;
           rewrite /= /exec_sopn /sopn_sem /sopn_sem_ /= /x86_IDIV /x86_DIV !truncate_word_u
              /size_16_64 /= hsz1 hsz2 /= hw2 /=.
         + rewrite hw1 /= wdwords0 (wsigned_quot_bound neq hdiv) /=.
@@ -783,8 +783,8 @@ Section PROOF.
         + move: he; rewrite /read_e /= /disj_fvars /x86_lowering.disj_fvars !read_eE /disjoint.
           by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
         case: ifP hw3 => // hdiv []; simpl in * => {he}.
-        case/Bool.orb_false_elim: hdiv => /eqP neq hdiv.
-        case: u => /= ?; subst w3;
+        case/Bool.orb_false_elim: hdiv => /eqP neq.
+        case: u => hdiv /= ?; subst w3;
           rewrite /= /exec_sopn /sopn_sem /sopn_sem_ /= /x86_IDIV /x86_DIV !truncate_word_u
              /size_16_64 /= hsz1 hsz2 /= hw2 /=.
         + rewrite hw1 /= wdwords0 (wsigned_quot_bound neq hdiv) /=.

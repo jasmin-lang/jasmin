@@ -680,23 +680,16 @@ Proof.
   by rewrite /exec_sopn /= /sopn_sem ok_w' truncate_word_u /= GRing.add0r wnot1_wopp zero_extend_u.
 Qed.
 
-Lemma mk_sem_divmodP ws op (w0 w1 : word ws) w :
-  mk_sem_divmod op w0 w1 = ok w
+Lemma mk_sem_divmodP si ws op (w0 w1 : word ws) w :
+  mk_sem_divmod si op w0 w1 = ok w
   -> [/\ (w1 <> 0%R)
-       , (wsigned w0 <> wmin_signed ws) \/ (w1 <> (-1)%R)
+       , si <> Signed \/ (wsigned w0 <> wmin_signed ws) \/ (w1 <> (-1)%R)
        & w = op w0 w1
      ].
 Proof.
   rewrite /mk_sem_divmod.
-  case: ifP => // hdiv hw.
-  move: hdiv => /Bool.orb_false_elim [h0 h1].
-  move: h0 => /eqP h0.
-  move: h1 => /Bool.andb_false_elim h1.
-  move: hw => [?]; subst w.
-
-  case: h1 => /eqP h1.
-  all: split.
-  all: by auto.
+  case: ifPn => //; rewrite negb_or => /andP [] /eqP ? h [<-]; split => //.
+  move: h; rewrite !negb_and => /or3P [] /eqP; auto.
 Qed.
 
 Section IS_MUL.
@@ -894,7 +887,7 @@ Proof.
 
   all: rewrite /=.
   all: match goal with
-       | [ h : mk_sem_divmod _ _ _ = _ |- _ ] =>
+       | [ h : mk_sem_divmod _ _ _ _ = _ |- _ ] =>
            move: hop => /mk_sem_divmodP [hdiv0 hdiv1 ?]; subst w2
        end
        || (move: hop => [?]; subst w2).
