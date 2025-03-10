@@ -544,7 +544,7 @@ op ulift2 (f : int -> int -> int) (w1 w2 : t) =
   of_int (f (to_uint w1) (to_uint w2)).
 
 op slift2 (f : int -> int -> int) (w1 w2 : t) =
-  of_int (f (to_uint w1) (to_uint w2)).
+  of_int (f (to_sint w1) (to_sint w2)).
 
 op ( + ) = ulift2 Int.( + ) axiomatized by addE.
 op ([-]) = ulift1 Int.([-]) axiomatized by oppE.
@@ -553,9 +553,8 @@ op ( * ) = ulift2 Int.( * ) axiomatized by mulE.
 op (\udiv) = ulift2 IntDiv.( %/) axiomatized by udivE.
 op (\umod) = ulift2 IntDiv.( %%) axiomatized by umodE.
 
-(* TODO check this *)
-op (\sdiv) = slift2 IntDiv.( %/) axiomatized by sdivE.
-op (\smod) = slift2 IntDiv.( %%) axiomatized by smodE.
+op (\sdiv) = slift2 (\zquot) axiomatized by sdivE.
+op (\smod) = slift2 (\zrem) axiomatized by smodE.
 
 (* --------------------------------------------------------------------- *)
 (* Comparisons                                                           *)

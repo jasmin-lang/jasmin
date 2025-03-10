@@ -3,6 +3,10 @@
 
 ## Bug fixes
 
+- Fix EC extraction of signed division and modulo, respectively to `\zquot` and
+  `\zrem`
+  ([PR #1090](https://github.com/jasmin-lang/jasmin/pull/1090)).
+
 - Fix semantics of unsigned division and modulo operators: the safety condition
   only requires that the divisor is non-zero
   ([PR #1088](https://github.com/jasmin-lang/jasmin/pull/1088)).

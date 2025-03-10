@@ -1,7 +1,8 @@
 require import AllCore.
-from Jasmin require import JWord.
+from Jasmin require import JUtils JWord.
 
 require Loops.
+require Sdiv.
 
 lemma loops_forty_correct : hoare [ Loops.M.forty: true ==> res = W32.of_int 40 ].
 proof. by proc; unroll for ^while; auto. qed.
@@ -18,4 +19,12 @@ proof.
     move => k ? _ ?.
     have -> : k = 100; smt().
   auto => /#.
+qed.
+
+lemma sdiv_correct : hoare [ Sdiv.M.main: true ==> res = (W64.of_int (-1), W64.of_int (-1)) ].
+proof.
+  proc; auto => _ _.
+  rewrite sdivE smodE /slift2 /(\zquot) /(\zrem) /zsign.
+  do 4! (rewrite to_sintK_small; first done).
+  done.
 qed.
