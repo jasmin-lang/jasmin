@@ -54,7 +54,7 @@ From ITree Require Import
      Interp.InterpFacts
      Interp.Recursion.
 
-From ITree Require Import XRutt XRuttFacts.
+From ITree Require Import Rutt RuttFacts.
 
 From ITree Require Import MonadState.
 
@@ -359,28 +359,67 @@ Context (RS: estate -> estate -> Prop)
         (RV : values -> values -> Prop)
         (RV1 : value -> value -> Prop).
 
-Definition lift_rel {T} (R: T -> T -> Prop)
+Definition lift2_rel {T}
   (f: T -> stateM I T) (t1 t2: T) (st1 st2: estate) : Prop :=
-  f t1 st1 = (st2, t2) /\ RS st1 st2 /\ R t1 t2.
+  f t1 st1 = (st2, t2) /\ RS st1 st2.
+
+Definition lift1_rel {T}
+  (f g: T -> stateM I T) (t: T) (st: estate) : Prop :=
+  let p1 := f t st in
+  let p2 := g t st in 
+  p1 = p2 /\ RS (fst p1) (fst p2).
+
+Definition lift1_relM {T}
+  (f g: T -> stateM I T) (t: T) : stateM I Prop :=
+  fun st => let p1 := f t st in
+  let p2 := g t st in 
+  (fst p2, p1 = p2 /\ RS (fst p1) (fst p2)).
+
 
 (* not used *)
+Definition lift_relG {T} (R: T -> T -> Prop)
+  (f: T -> stateM I T) (t1 t2: T) (st1 st2: estate) : Prop :=
+  f t1 st1 = (st2, t2) /\ RS st1 st2 /\ R t1 t2.
 Definition st_rel {T} (R: T -> T -> Prop)
   (f g: stateM I T) (st: estate) : Prop :=
   let p1 := f st in
   let p2 := g st in
   RS (fst p1) (fst p2) /\ R (snd p1) (snd p2).  
-Definition mon_rel {T} (R: T -> T -> Prop)
+Definition mon_relG {T} (R: T -> T -> Prop)
   (f: T -> stateM I T) (t1: T) : estate -> Prop :=
   st_rel R (ret t1) (f t1).
+(**)
 
-Definition RC (c1 c2: cmd) (st1 st2: estate) : Prop :=
-  lift_rel (fun _ _ => True) (mapML Tr_instr) c1 c2 st1 st2.
+Definition RC (st1 st2: estate) (c1 c2: cmd) : Prop :=
+  lift2_rel (mapML Tr_instr) c1 c2 st1 st2.
 
-Definition RLFE (xs1 xs2: lvals) (fn1 fn2: funname) (es1 es2: pexprs)
-  (st1 st2: estate) : Prop :=
-  exists st_x, lift_rel (fun _ _ => True) (mapL tr_lval) xs1 xs2 st1 st_x
-  /\  fn1 = fn2 /\                     
-  lift_rel (fun _ _ => True) (mapL tr_expr) es1 es2 st_x st2.  
+Definition RO (st1 st2: estate) (o1 o2: sopn) : Prop :=
+  lift2_rel tr_opn o1 o2 st1 st2.
+
+Definition RY (st1 st2: estate) (sc1 sc2: syscall_t) : Prop :=
+  lift2_rel tr_sysc sc1 sc2 st1 st2.
+
+Definition RI (st1 st2: estate) (vi1 vi2: var_i) : Prop :=
+  lift2_rel tr_vari vi1 vi2 st1 st2.
+
+Definition RE1 (st1 st2: estate) (e1 e2: pexpr) : Prop :=
+  lift2_rel tr_expr e1 e2 st1 st2.
+
+Definition RE (st1 st2: estate) (es1 es2: pexprs) : Prop :=
+  lift2_rel (mapL tr_expr) es1 es2 st1 st2.
+
+Definition RL1 (st1 st2: estate) (x1 x2: lval) : Prop :=
+  lift2_rel tr_lval x1 x2 st1 st2.
+
+Definition RL (st1 st2: estate) (xs1 xs2: lvals) : Prop :=
+  lift2_rel (mapL tr_lval) xs1 xs2 st1 st2.
+
+
+Definition RLFE (st1 st2: estate)
+  (xs1 xs2: lvals) (fn1 fn2: funname) (es1 es2: pexprs) : Prop :=
+  fn1 = fn2 /\
+  exists st_x, lift2_rel (mapL tr_lval) xs1 xs2 st1 st_x /\    
+               lift2_rel (mapL tr_expr) es1 es2 st_x st2.  
 
 (*
 Notation RVS := (fun (vs_st1 vs_st2 : VS) => 
@@ -398,23 +437,21 @@ Context (rvs_def : PR VS = RVS)
         (rc_def : PR cmd = RC)
 *)
 
-
 (* ME: relation between FCState events *)
 Definition TR_D_ME {T1 T2} (d1 : FCState T1)
                            (d2 : FCState T2) : Prop :=
   match (d1, d2) with
-  | (FLCode c1 st1, FLCode c2 st2) => RC c1 c2 st1 st2
+  | (FLCode c1 st1, FLCode c2 st2) => RC st1 st2 c1 c2
   | (FFCall xs1 fn1 es1 st1, FFCall xs2 fn2 es2 st2) =>
-      RLFE xs1 xs2 fn1 fn2 es1 es2 st1 st2
-  (*    xs2 = map tr_lval xs1 /\ fn1 = fn2 /\ es2 = map tr_expr es1 /\ RS st1 st2 *)
+      RLFE st1 st2 xs1 xs2 fn1 fn2 es1 es2 
+  (*    xs2 = map tr_lval xs1 /\ fn1 = fn2 /\ es2 = map tr_expr es1 /\ 
+       RS st1 st2 *)
   | _ => False   
   end.               
 
 (* ME: relation between FCState event outputs, i.e. over estate *)
 Program Definition VR_D_ME {T1 T2}
   (d1 : FCState T1) (t1: T1) (d2 : FCState T2) (t2: T2) : Prop.
-(*  remember d1 as D1.
-  remember d2 as D2. *)
   dependent destruction d1.
   - dependent destruction d2.
     + exact (RS t1 t2).
@@ -424,17 +461,16 @@ Program Definition VR_D_ME {T1 T2}
     + exact (RS t1 t2).     
 Defined.      
 
+(* not used *)
 Definition FCState_det {T} (d: FCState T) : T = estate :=
- match d in (it_sems_mono.FCState _ _ T0) return (T0 = estate) with
+ match d in (it_sems_core.FCState _ _ T0) return (T0 = estate) with
  | FLCode c st => (fun=> (fun=> erefl)) c st
  | @FFCall _ _ _ _ _ xs f es st =>
      (fun=> (fun=> (fun=> (fun=> erefl)))) xs f es st
  end.
-
 Definition st_cast {T} (d: FCState T) (x: T) : estate.
   rewrite (FCState_det d) in x; exact x.
 Defined.
-
 Definition VR_D_ME' {T1 T2}
   (d1 : FCState T1) (t1: T1) (d2 : FCState T2) (t2: T2) : Prop :=
   (match (d1, d2) return (estate -> estate -> Prop) with
@@ -442,7 +478,146 @@ Definition VR_D_ME' {T1 T2}
   | (FFCall xs1 f1 es1 st1, FFCall xs2 f2 es2 st2) => RS 
   | _ => fun _ _ => False end)
     (st_cast d1 t1) (st_cast d2 t2).
+(**)
 
+Program Definition TR_DE_ME : prerel (FCState +' E) (FCState +' E) :=
+  sum_prerel (@TR_D_ME) (TR_E E).
+
+Program Definition VR_DE_ME : postrel (FCState +' E) (FCState +' E) :=
+  sum_postrel (@VR_D_ME) (VR_E E).
+
+Context (fcstate_t_def : TR_E (FCState +' E) = TR_DE_ME).
+Context (fcstate_v_def : VR_E (FCState +' E) = VR_DE_ME).
+
+Lemma rutt_err_eval_Args fn es1 es2 st1 st2 : 
+  RE st1 st2 es1 es2 ->
+  rutt (TR_E (FCState +' E)) (VR_E (FCState +' E)) RV
+    (err_eval_Args dc spp pr1 fn es1 st1)
+    (err_eval_Args dc spp pr2 fn es2 st2).
+Admitted. 
+
+Lemma rutt_err_init_state fn vs1 vs2 st1 st2 :
+  RV vs1 vs2 ->
+  RS st1 st2 ->
+  rutt (TR_E (FCState +' E)) (VR_E (FCState +' E)) RS
+    (err_init_state dc scP ev pr1 fn vs1 st1)
+    (err_init_state dc scP ev pr2 fn vs2 st2).
+Admitted.   
+
+Lemma rutt_err_get_FunCode fn st1 st2 :
+  rutt (TR_E (FCState +' E)) (VR_E (FCState +' E)) (RC st1 st2)
+    (err_get_FunCode pr1 fn)
+    (err_get_FunCode pr2 fn).    
+Admitted. 
+
+Lemma rutt_err_return_val fn st1 st2 :
+  RS st1 st2 ->
+  rutt (TR_E (FCState +' E)) (VR_E (FCState +' E)) RV
+    (err_return_val dc pr1 fn st1)
+    (err_return_val dc pr2 fn st2).    
+Admitted. 
+
+Lemma rutt_err_reinstate_caller fn xs1 xs2 vs1 vs2 st1 st2 st3 st4 :
+  RV vs1 vs2 ->
+  RL st1 st2 xs1 xs2 -> 
+  RS st3 st4 ->
+  rutt (TR_E (FCState +' E)) (VR_E (FCState +' E))
+    RS   
+    (err_reinstate_caller dc spp scP pr1 fn xs1 vs1 st1 st3)
+    (err_reinstate_caller dc spp scP pr2 fn xs2 vs2 st2 st4).
+Admitted. 
+
+(***)
+
+Lemma rutt_err_mk_AssgnE x1 x2 tg ty e1 e2 st1 st2 st3 :
+  RL1 st1 st2 x1 x2 ->
+  RE1 st2 st3 e1 e2 ->
+  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
+    (err_mk_AssgnE spp pr1 x1 tg ty e1 st1)
+    (err_mk_AssgnE spp pr2 x2 tg ty e2 st3).
+Admitted.   
+
+Lemma rutt_err_mk_OpnE xs1 xs2 tg o1 o2 es1 es2 st1 st2 st3 st4 :
+  RO st1 st2 o1 o2 ->
+  RL st2 st3 xs1 xs2 ->
+  RE st3 st4 es1 es2 ->
+  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
+    (err_mk_OpnE spp pr1 xs1 tg o1 es1 st1)
+    (err_mk_OpnE spp pr2 xs2 tg o2 es2 st4).
+Admitted. 
+
+Lemma rutt_err_mk_SyscallE x1 x2 sc1 sc2 e1 e2 st1 st2 st3 :
+  RY st1 st2 sc1 sc2 ->
+  RL st2 st3 x1 x2 ->
+  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
+    (err_mk_SyscallE spp scP pr1 x1 sc1 e1 st1)
+    (err_mk_SyscallE spp scP pr2 x2 sc2 e2 st3).
+Admitted. 
+
+Lemma rutt_err_mk_EvalCond e1 e2 st1 st2 :
+  RE1 st1 st2 e1 e2 ->
+  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) eq
+    (err_mk_EvalCond spp pr1 e1 st1)
+    (err_mk_EvalCond spp pr2 e2 st2).
+Admitted.  
+
+Lemma rutt_err_mk_EvalBound e1 e2 st1 st2 :
+  RE1 st1 st2 e1 e2 ->
+  rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) eq
+    (err_mk_EvalBound spp pr1 e1 st1)
+    (err_mk_EvalBound spp pr2 e2 st2).
+Admitted. 
+
+Lemma rutt_err_mk_WriteIndex xi1 xi2 z st1 st2 :
+  RI st1 st2 xi1 xi2 ->
+   rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
+    (err_mk_WriteIndex xi1 z st1) (err_mk_WriteIndex xi2 z st2).
+Admitted. 
+
+Lemma comp_gen_ok_ME (fn: funname)
+  (xs1 xs2: lvals) (es1 es2: pexprs) (st1 st0 st2: estate) :
+  RL st1 st0 xs1 xs2 ->
+  RE st0 st2 es1 es2 -> 
+  @rutt (FCState +' E) _ _ _ (TR_E _) (VR_E _)
+    (fun a1 a2 => @VR_D_ME _ _ (FFCall_ xs1 fn es1 st1) a1
+                               (FFCall_ xs2 fn es2 st2) a2)  
+    (meval_fcall pr1 xs1 fn es1 st1) (meval_fcall pr2 xs2 fn es2 st2).
+  intros.
+  unfold meval_fcall; simpl.
+  
+  eapply rutt_bind with (RR := RV); inv H; intros.
+
+  { unfold RE, lift2_rel in H0.
+    
+    eapply rutt_err_eval_Args. auto. }    
+
+  eapply rutt_bind with (RR := RS); intros.
+
+  { eapply rutt_err_init_state; auto. }
+
+  eapply rutt_bind with (RR := RC); intros.
+
+  { eapply rutt_err_get_FunCode; auto. }
+
+  inv H2. eapply rutt_bind with (RR := RS); intros.
+  { eapply rutt_trigger; simpl; intros.
+    { rewrite fcstate_t_def. 
+      econstructor.
+      split; auto; intros.
+    }
+    rewrite fcstate_v_def in H2.
+    dependent destruction H2.    
+    unfold VR_D_ME in H2; auto.
+  }
+
+  eapply rutt_bind with (RR := RV); intros.
+  { eapply rutt_err_return_val; auto. }
+
+  assert ((fun a1 : estate => [eta RS a1]) = RS) as A1.
+  { eauto. } 
+  
+  rewrite A1; eapply rutt_err_reinstate_caller; auto.
+Qed.
 
 
 
