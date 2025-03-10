@@ -70,7 +70,7 @@ stdenv.mkDerivation {
       coqPackages.coq
       mathcomp-word
       coqPackages.mathcomp-algebra-tactics ]
-    ++ optionals testDeps ([ curl.bin oP.apron.out llvmPackages.bintools ] ++ (with python3Packages; [ python pyyaml ]))
+    ++ optionals testDeps ([ curl.bin oP.apron.out llvmPackages.bintools-unwrapped ] ++ (with python3Packages; [ python pyyaml ]))
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib dune_3
          cmdliner
