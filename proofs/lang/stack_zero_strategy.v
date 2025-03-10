@@ -10,11 +10,12 @@ Implemented in [compiler/stack_zeroization.v].
 The strategies are not defined in [compiler/stack_zeroization.v] to avoid a
 circular dependency. *)
 
+From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype fintype.
 Require Import utils.
 
-
+#[only(eqbOK)] derive
 Variant stack_zero_strategy :=
 | SZSloop
 | SZSloopSCT
@@ -30,17 +31,7 @@ Definition stack_zero_strategy_list := [::
 ].
 
 (* To use [Finite.axiom], we must first show that [stack_zero_strategy] is [eqType]. *)
-Scheme Equality for stack_zero_strategy.
-
-Lemma stack_zero_strategy_eq_axiom : Equality.axiom stack_zero_strategy_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme
-       internal_stack_zero_strategy_dec_bl
-       internal_stack_zero_strategy_dec_lb).
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build stack_zero_strategy stack_zero_strategy_eq_axiom.
+HB.instance Definition _ := hasDecEq.Build stack_zero_strategy stack_zero_strategy_eqb_OK.
 
 Lemma stack_zero_strategy_list_complete : Finite.axiom stack_zero_strategy_list.
 Proof. by case. Qed.
