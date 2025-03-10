@@ -1052,8 +1052,9 @@ Lemma rutt_err_mk_AssgnE_D1 x tg ty e st1 st2 :
 Admitted.   
 
  
-Section TooStrong.
+Section NotTooStrong.
 
+(* we'll prove this further on *)
 Context (rutt_evalE_err_cmd_hyp : forall cc st1 st2,
   RS st1 st2 ->           
   rutt (TR_E (callE FVS VS +' E)) (VR_E (callE FVS VS +' E)) RS
@@ -1090,7 +1091,7 @@ Lemma comp_gen_ok_DE (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   eapply rutt_Ret; eauto.
 Qed.  
 
-End TooStrong.
+End NotTooStrong.
 
 
 Lemma rutt_map_eval_instr_call cc st1 st2 :
