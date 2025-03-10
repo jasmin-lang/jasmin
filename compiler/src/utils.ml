@@ -331,44 +331,54 @@ let pp_now =
 
 (* -------------------------------------------------------------------- *)
 
-type warning = 
-  | ExtraAssignment 
-  | UseLea
-  | IntroduceNone 
-  | IntroduceArrayCopy
+type warning =
+  | ExtraAssignment (* -wea *)
+  | UseLea (* -wlea *)
+  | IntroduceNone (* -w_ *)
+  | IntroduceArrayCopy (* -winsertarraycopy *)
   | SimplifyVectorSuffix
-  | DuplicateVar 
-  | UnusedVar 
+  | DuplicateVar (* -wduplicatevar *)
+  | UnusedVar (* -wunusedvar *)
   | SCTchecker
   | Deprecated
   | Experimental
   | Always
   | PedanticPretyping
 
-let warns = ref None
+let default_warnings =
+    [
+      SimplifyVectorSuffix;
+      DuplicateVar;
+      UnusedVar;
+      SCTchecker;
+      Deprecated;
+      Experimental;
+      PedanticPretyping;
+    ]
+
+let all_warnings = ExtraAssignment :: UseLea :: IntroduceNone :: IntroduceArrayCopy :: default_warnings
+
+let warns = ref default_warnings
+
 let warn_recoverable = ref false
 
 let set_warn_recoverable b = warn_recoverable := b
 
-let add_warning (w:warning) () = 
-  match !warns with
-  | None -> warns  := Some [w]
-  | Some ws ->
-    if not (List.mem w ws) then
-      warns := Some( w :: ws)
+let add_warning (w: warning) () =
+  let ws = !warns in
+  if not (List.mem w ws) then
+    warns := w :: ws
 
-let nowarning () = warns := Some []
+let set_all_warnings () = warns := all_warnings
 
+let nowarning () = warns := []
 
-let to_warn w = 
-  match !warns with
-  | None -> true
-  | Some ws -> w = Always || List.mem w ws 
+let to_warn w = w = Always || List.mem w !warns
 
 let warning (w:warning) loc =
   Format.kdprintf (fun pp ->
-    match w with 
-    | PedanticPretyping when not !warn_recoverable -> 
+    match w with
+    | PedanticPretyping when not !warn_recoverable ->
       hierror ~loc:(Lmore loc) ~kind:"typing error"
         "%t" pp
     | _ ->
