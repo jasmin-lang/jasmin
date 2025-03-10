@@ -24,4 +24,5 @@ let () =
     ];
   exec prog [] "shrd_16" [ w16 "2"; w16 "9"; w8 "16" ];
   exec prog [] "shrd_16" [ w16 "2"; w16 "9"; w8 "17" ];
+  exec prog [] "divu64" [];
   ()
