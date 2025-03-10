@@ -207,6 +207,7 @@ let options = [
     "-wduplicatevar", Arg.Unit (add_warning DuplicateVar), " Print warning when two variables share the same name";
     "-wunusedvar", Arg.Unit (add_warning UnusedVar), " Print warning when a variable is not used";
     "-noinsertarraycopy", Arg.Clear introduce_array_copy, " Do not automatically insert array copy";
+    "-wall", Arg.Unit (set_all_warnings), " Enable all warnings";
     "-nowarning", Arg.Unit (nowarning), " Do no print warnings";
     "-color", Arg.Symbol (["auto"; "always"; "never"], set_color), " Print messages with color";
     "-help-intrinsics", Arg.Set help_intrinsics, " List the set of intrinsic operators (and exit)";
