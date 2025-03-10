@@ -237,23 +237,51 @@ prim:
 | ALIGNED { `Aligned }
 | UNALIGNED { `Unaligned }
 
+%inline access_type:
+ | c=COLON? ct=loc(utype) { c, ct }
+
 %inline mem_access:
 | ct=loc(parens(utype)) LBRACKET al=unaligned? v=var e=mem_ofs? RBRACKET
-  { let s = Syntax.string_of_swsize (L.unloc ct, `Unsigned) in
+  { let s = Wsize.string_of_wsize (L.unloc ct) in
     Utils.warning Deprecated (Location.of_loc ct)
-       "Syntax (%s)[x + e] is deprecated. Use [%s x + e] instead" s s ;
+       "Syntax (u%s)[x + e] is deprecated. Use [:u%s x + e] instead" s s ;
     al, Some (L.unloc ct), v, e }
-|  LBRACKET al=unaligned? ct=utype? v=var e=mem_ofs? RBRACKET
-  {al, ct, v, e }
+| LBRACKET al=unaligned? ct=access_type? v=var e=mem_ofs? RBRACKET
+  {
+    let ct =
+      match ct with
+      | Some (c, ct) ->
+        if c = None then begin
+          let s = Wsize.string_of_wsize (L.unloc ct) in
+          Utils.warning Deprecated (Location.of_loc ct)
+             "Syntax [u%s x + e] is deprecated. Use [:u%s x + e] instead" s s
+        end;
+        Some (Location.unloc ct)
+      | None -> None in
+    al, ct, v, e }
 
 arr_access_len:
 | COLON e=pexpr { e }
 
 arr_access_i:
-| al=unaligned? ws=loc(utype)? e=pexpr len=arr_access_len? {ws, e, len, al }
+| al=unaligned? ws=access_type? e=pexpr len=arr_access_len? { ws, e, len, al }
 
 arr_access:
  | s=DOT?  i=brackets(arr_access_i) {
+
+   let (ws, e, len, al) = i in
+   let ws =
+      match ws with
+      | Some (c, ct) ->
+        if c = None then begin
+          let sw = Wsize.string_of_wsize (L.unloc ct) in
+          let sd = if s = None then "" else "." in
+          Utils.warning Deprecated (Location.of_loc ct)
+             "Syntax t%s[u%s e] is deprecated. Use t%s[:u%s e] instead" sd sw sd sw
+        end;
+        Some (Location.unloc ct)
+      | None -> None in
+   let i = ws, e, len, al in
    let s = if s = None then Warray_.AAscale else Warray_.AAdirect in
    s, i }
 

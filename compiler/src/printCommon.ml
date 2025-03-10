@@ -181,15 +181,19 @@ let pp_gtype ?w (pp_size : formatter -> 'size -> unit) fmt = function
   | Arr (ws, e) -> fprintf fmt "%a[%a]" (pp_btype ?w:None) (U ws) pp_size e
 
 (* -------------------------------------------------------------------- *)
+let pp_mem_access pp_gvar pp_expr fmt al ws x e =
+  fprintf fmt "[%a:%a %a + %a]"
+    pp_aligned al pp_btype (U ws) pp_gvar x pp_expr e
+
 let pp_arr_access pp_gvar pp_expr fmt al aa ws x e =
-  fprintf fmt "%a%s[%a%a %a]"
+  fprintf fmt "%a%s[%a:%a %a]"
     pp_gvar x
     (if aa = Warray_.AAdirect then "." else "")
     pp_aligned al
     (pp_btype ?w:None) (U ws) pp_expr e
 
 let pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len =
-  fprintf fmt "%a%s[%a %a : %a]" pp_gvar x
+  fprintf fmt "%a%s[:%a %a : %a]" pp_gvar x
     (if aa = Warray_.AAdirect then "." else "")
     (pp_btype ?w:None) (U ws) pp_expr e pp_len len
 

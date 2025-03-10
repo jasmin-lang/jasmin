@@ -2,11 +2,12 @@
 # [unreleased]
 ## New features
 
-- New syntax for memory load/store (uXX)[aligned? x e] become [aligned? uXX x e],
+- New syntax for memory load/store (uXX)[aligned? x e] become [aligned? :uXX x e],
   the syntax  (uXX)[aligned? x e] is deprecated.
+  New syntax for array load/store t DOT? [aligned? uXX e] become t DOT? [aligned? :uXX e],
+  the syntax t DOT? [aligned? uXX e] is deprecated.
+  The scrypt compiler/script/replace.sh allows to perform the change automatically.
   ([PR #1086](https://github.com/jasmin-lang/jasmin/pull/1086)).
-
-## New features
 
 - Introduction of wint types siXX and uiXX (XX in [8,16,32,64,128, 256]). The
   key feature of this new type are for the extraction to easycrypt. They are

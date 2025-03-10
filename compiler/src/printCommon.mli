@@ -22,6 +22,16 @@ val pp_gtype :
   'size Prog.gty ->
   unit
 
+val pp_mem_access :
+  'var Utils.pp ->
+  'expr Utils.pp ->
+  Format.formatter ->
+  Memory_model.aligned ->
+  Wsize.wsize ->
+  'var ->
+  'expr ->
+  unit
+
 val pp_arr_access :
   'var Utils.pp ->
   'expr Utils.pp ->
