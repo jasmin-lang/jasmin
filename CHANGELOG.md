@@ -7,6 +7,14 @@
   ([PR #1067](https://github.com/jasmin-lang/jasmin/pull/1067);
   fixes [#993](https://github.com/jasmin-lang/jasmin/issues/993)).
 
+## Other changes
+
+- Some warnings are now disabled by default: when introducing assignements
+  (`-wea`), destinations (`-w_`), array copies (`-winsertarraycopy`), or `LEA`
+  instructions (`-wlea`); they can be enabled using a new command-line argument
+  `-wall` or individually using the corresponding flag
+  ([PR #1087](https://github.com/jasmin-lang/jasmin/pull/1087)).
+
 # Jasmin 2025.02.0 — Nancy, 2025-02-28
 
 ## New features
