@@ -25,7 +25,24 @@ let coqPackages =
       };
       hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
     })
-  else coqPackages_8_19
+  else coqPackages_8_20.overrideScope (self: super: {
+    paco = super.paco.overrideAttrs (_: {
+      src = fetchFromGitHub {
+        owner = "snu-sf";
+	repo = "paco";
+	tag = "v4.2.3";
+	hash = "sha256-ldUjNd5daUu2B3v4tk20/iXFgyUuW4XHlbubTInpwcs=";
+      };
+    });
+    ITree = super.ITree.overrideAttrs (_: {
+      src = fetchFromGitHub {
+        owner = "ptorrx";
+        repo = "InteractionTrees";
+        rev = "9eb530dc57334df1dbca71fcfdea2f305251159f";
+        hash = "sha256-fQk5qcw0zDOgjrm76k3IPVcfL770AecoMf4awjU2Ks4=";
+      };
+    });
+  })
 ; in
 
 let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages; }; in
@@ -57,7 +74,7 @@ stdenv.mkDerivation {
   name = "jasmin-0";
   src = nix-gitignore.gitignoreSource [] ./.;
   buildInputs = []
-    ++ optionals coqDeps [ coqPackages.coq mathcomp-word ]
+    ++ optionals coqDeps [ coqPackages.coq mathcomp-word coqPackages.ITree ]
     ++ optionals testDeps ([ curl.bin oP.apron.out libllvm ] ++ (with python3Packages; [ python pyyaml ]))
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib dune_3
