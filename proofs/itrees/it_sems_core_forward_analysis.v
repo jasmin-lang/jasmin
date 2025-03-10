@@ -373,8 +373,14 @@ Definition mon_rel {T} (R: T -> T -> Prop)
   (f: T -> stateM I T) (t1: T) : estate -> Prop :=
   st_rel R (ret t1) (f t1).
 
-Definition RC (c1 c2: cmd) (st1 st2: estate) :=
+Definition RC (c1 c2: cmd) (st1 st2: estate) : Prop :=
   lift_rel (fun _ _ => True) (mapML Tr_instr) c1 c2 st1 st2.
+
+Definition RLFE (xs1 xs2: lvals) (fn1 fn2: funname) (es1 es2: pexprs)
+  (st1 st2: estate) : Prop :=
+  exists st_x, lift_rel (fun _ _ => True) (mapL tr_lval) xs1 xs2 st1 st_x
+  /\  fn1 = fn2 /\                     
+  lift_rel (fun _ _ => True) (mapL tr_expr) es1 es2 st_x st2.  
 
 (*
 Notation RVS := (fun (vs_st1 vs_st2 : VS) => 
@@ -398,7 +404,8 @@ Definition TR_D_ME {T1 T2} (d1 : FCState T1)
                            (d2 : FCState T2) : Prop :=
   match (d1, d2) with
   | (FLCode c1 st1, FLCode c2 st2) => RC c1 c2 st1 st2
-  | (FFCall xs1 fn1 es1 st1, FFCall xs2 fn2 es2 st2) => True 
+  | (FFCall xs1 fn1 es1 st1, FFCall xs2 fn2 es2 st2) =>
+      RLFE xs1 xs2 fn1 fn2 es1 es2 st1 st2
   (*    xs2 = map tr_lval xs1 /\ fn1 = fn2 /\ es2 = map tr_expr es1 /\ RS st1 st2 *)
   | _ => False   
   end.               
