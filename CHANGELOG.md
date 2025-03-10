@@ -3,6 +3,10 @@
 
 ## Bug fixes
 
+- Fix semantics of unsigned division and modulo operators: the safety condition
+  only requires that the divisor is non-zero
+  ([PR #1088](https://github.com/jasmin-lang/jasmin/pull/1088)).
+
 - Program with conflicting assembly labels print warning when compiled
   ([PR #1067](https://github.com/jasmin-lang/jasmin/pull/1067);
   fixes [#993](https://github.com/jasmin-lang/jasmin/issues/993)).

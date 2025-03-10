@@ -57,8 +57,8 @@ Definition signed {A:Type} (fu fs:A) s :=
   | Signed => fs
   end.
 
-Definition mk_sem_divmod sz o (w1 w2: word sz) : exec (word sz) :=
-  if ((w2 == 0) || ((wsigned w1 == wmin_signed sz) && (w2 == -1)))%R then Error ErrArith
+Definition mk_sem_divmod (si: signedness) sz o (w1 w2: word sz) : exec (word sz) :=
+  if ((w2 == 0) || [&& si == Signed, wsigned w1 == wmin_signed sz & w2 == -1])%R then Error ErrArith
   else ok (o w1 w2).
 
 Definition mk_sem_sop2 (t1 t2 t3: Type) (o:t1 -> t2 -> t3) v1 v2 : exec t3 :=
@@ -79,9 +79,9 @@ Definition sem_sop2_typed (o: sop2) :
   | Osub Op_int      => mk_sem_sop2 Z.sub
   | Osub (Op_w s)    => mk_sem_sop2 (fun x y =>  x - y)%R
   | Odiv Cmp_int     => mk_sem_sop2 Z.div
-  | Odiv (Cmp_w u s) => @mk_sem_divmod s (signed wdiv wdivi u)
+  | Odiv (Cmp_w u s) => @mk_sem_divmod u s (signed wdiv wdivi u)
   | Omod Cmp_int     => mk_sem_sop2 Z.modulo
-  | Omod (Cmp_w u s) => @mk_sem_divmod s (signed wmod wmodi u)
+  | Omod (Cmp_w u s) => @mk_sem_divmod u s (signed wmod wmodi u)
 
   | Oland s       => mk_sem_sop2 wand
   | Olor  s       => mk_sem_sop2 wor
