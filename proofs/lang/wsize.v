@@ -38,6 +38,16 @@ Variant signedness :=
   | Unsigned.
 
 (* -------------------------------------------------------------------- *)
+Scheme Equality for signedness.
+
+Lemma signedness_axiom : Equality.axiom signedness_beq.
+Proof.
+  exact: (eq_axiom_of_scheme internal_signedness_dec_bl internal_signedness_dec_lb).
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build signedness signedness_axiom.
+
+(* -------------------------------------------------------------------- *)
 Scheme Equality for wsize.
 
 Lemma wsize_axiom : Equality.axiom wsize_beq.
