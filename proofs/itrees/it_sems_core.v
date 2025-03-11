@@ -126,11 +126,12 @@ Definition interp_Err {E: Type -> Type} {A}
 
 (*** auxiliary error functions *)
 (* FIXME: change this name *)
-Definition err_get {E: Type -> Type} `{ErrEvent -< E} {S} {V} (Err: S -> error_data )
-  (f: S -> option V) : stateT S (itree E) V :=
-  fun st => match (f st) with
-            | Some v => Ret (st, v)
-            | None => throw (Err st) end.
+Definition ioget {E: Type -> Type} `{ErrEvent -< E} {V} (err: error_data) (o: option V) : itree E V :=
+  match o with
+  | Some v => Ret v
+  | None => throw err
+  end.
+
 (*
 Definition err_put {E: Type -> Type} `{ErrEvent -< E} {S}
   (f: S -> option S) : stateT S (itree E) unit :=
@@ -217,32 +218,31 @@ Definition mk_error_data (s:estate) (e:error)  := (e, tt).
 Definition mk_errtype := fun s => mk_error_data s ErrType.
 
 Definition iget_fundef {E} `{ErrEvent -< E}
-  (fn: funname) : stateT estate (itree E) fundef :=
-  err_get mk_errtype (fun _ => get_fundef (p_funcs pr) fn).
+  (fn: funname) (s:estate) : itree E fundef :=
+  ioget (mk_errtype s) (get_fundef (p_funcs pr) fn).
 
-Definition iresult  {E} `{ErrEvent -< E} {T} (F : estate -> exec T) (s:estate) : itree E T :=
-  err_result (mk_error_data s) (F s).
-
+Definition iresult  {E} `{ErrEvent -< E} {T} (s:estate) (F : exec T)  : itree E T :=
+  err_result (mk_error_data s) F.
 
 Definition iwrite_var {E} `{ErrEvent -< E}
    (wdb : bool) (x : var_i) (v : value) (s : estate) : itree E estate :=
-  iresult (write_var wdb x v) s.
+  iresult s (write_var wdb x v s).
 
 Definition iwrite_lval {E} `{ErrEvent -< E}
    (wdb : bool) (gd : glob_decls) (x : lval) (v : value) (s : estate) : itree E estate :=
-  iresult (write_lval wdb gd x v) s.
+  iresult s (write_lval wdb gd x v s).
 
 Definition iwrite_lvals {E} `{ErrEvent -< E}
    (wdb : bool) (gd : glob_decls) (s : estate) (xs : lvals) (vs : values) : itree E estate :=
-  iresult (fun s => write_lvals wdb gd s xs vs) s.
+  iresult s (write_lvals wdb gd s xs vs).
 
 Definition isem_pexpr {E} `{ErrEvent -< E}
    (wdb : bool) (gd : glob_decls) (s : estate) (e: pexpr) : itree E value :=
-  iresult (fun s => sem_pexpr wdb gd s e) s.
+  iresult s (sem_pexpr wdb gd s e).
 
 Definition isem_pexprs {E} `{ErrEvent -< E}
    (wdb : bool) (gd : glob_decls) (s : estate) (es: pexprs) : itree E values :=
-  iresult (fun s => sem_pexprs wdb gd s es) s.
+  iresult s (sem_pexprs wdb gd s es).
 
 
 
@@ -388,12 +388,12 @@ Definition eval_assgn
    (Let v := sem_pexpr true (p_globs pr) st1 e in
     Let v' := truncate_val ty v in
     write_lval true (p_globs pr) x v' st1).
-
+(*
 Definition ieval_assgn {E} `{ErrEvent -< E}
  (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr)
   (s: estate) : itree E estate :=
-  iresult (eval_assgn x tg ty e) s.
-
+  iresult s (eval_assgn x tg ty e s).
+*)
 (*
 Definition err_mk_AssgnE {E: Type -> Type} `{ErrEvent -< E}
   (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr)
@@ -451,26 +451,24 @@ Section ErrorAwareSem.
 
 (** Auxiliary functions for recursion on list (seq) *)
 
-Fixpoint st_cmd_map_r {E} (R: instr_r -> estate -> itree E estate)
-  (c: cmd) (st: estate) : itree E estate :=
+Fixpoint sem_cmd_ {E} (sem_i: instr_r -> estate -> itree E estate)
+   (c: cmd) (st: estate) : itree E estate :=
   match c with
   | nil => Ret st
-  | (MkI _ i) :: c' => st' <- R i st ;; st_cmd_map_r R c' st'
+  | (MkI _ i) :: c' => st' <- sem_i i st ;; sem_cmd_ sem_i c' st'
   end.
 
-Fixpoint eval_for {E} `{ErrEvent -< E}
-  (eval_cmd_ : cmd -> estate -> itree E estate)
-  (i: var_i) (c: cmd)
-  (ls: list Z) : estate -> itree E estate :=
-    match ls with
-    | nil => fun s => ret s
-    | (w :: ws) =>
-      fun s =>
-        s <- iwrite_var true i (Vint w) s;;
-        s <- eval_cmd_ c s;;
-        eval_for eval_cmd_ i c ws s
-    end.
-
+Fixpoint sem_for {E} `{ErrEvent -< E}
+   (sem_cmd : cmd -> estate -> itree E estate)
+   (i: var_i) (c: cmd)
+   (ls: list Z) (s: estate) : itree E estate :=
+  match ls with
+  | nil => ret s
+  | (w :: ws) =>
+    s <- iwrite_var true i (Vint w) s;;
+    s <- sem_cmd c s;;
+    sem_for sem_cmd i c ws s
+  end.
 
 (**********************************************************************)
 (** error-aware interpreter with mutual recursion *)
@@ -487,25 +485,23 @@ Local Notation continue_loop st := (ret (inl st)).
 Local Notation exit_loop st := (ret (inr st)).
 Local Notation rec_call := (trigger_inl1).
 
-
 Local Notation gd := (p_globs pr).
 
 Definition sem_cond {E} `{ErrEvent -< E} (e:pexpr) (s: estate) :
    itree E bool :=
-  iresult (fun s => sem_pexpr true gd s e >>r= to_bool) s.
+  iresult s (sem_pexpr true gd s e >>r= to_bool).
 
 Definition sem_bound {E} `{ErrEvent -< E} (e:pexpr) (s: estate) :
    itree E Z :=
-  iresult (fun s => sem_pexpr true gd s e >>r= to_int) s.
+  iresult s (sem_pexpr true gd s e >>r= to_int).
 
-Fixpoint meval_instr {E} `{ErrEvent -< E} (i : instr_r) (s1: estate) :
-  itree (FCState +' E) estate :=
+Definition msem_i {E} `{ErrEvent -< E} (i : instr_r) (s1: estate) : itree (FCState +' E) estate :=
 (*  let R := st_cmd_map_r meval_instr in *)
   let R := (fun c s => rec_call (FLCode c s)) in
   match i with
-  | Cassgn x tg ty e => iresult (eval_assgn x tg ty e) s1
-  | Copn xs tg o es => iresult (fun s1 => sem_sopn gd o s1 xs es) s1
-  | Csyscall xs o es => iresult (eval_syscall xs o es) s1
+  | Cassgn x tg ty e => iresult s1 (eval_assgn x tg ty e s1)
+  | Copn xs tg o es => iresult s1 (sem_sopn gd o s1 xs es)
+  | Csyscall xs o es => iresult s1 (eval_syscall xs o es s1)
   | Cif e c1 c2 =>
       b <- sem_cond e s1;;
       if b then R c1 s1 else R c2 s1
@@ -518,7 +514,7 @@ Fixpoint meval_instr {E} `{ErrEvent -< E} (i : instr_r) (s1: estate) :
   | Cfor i (d, lo, hi) c =>
      vlo <- sem_bound lo s1 ;;
      vhi <- sem_bound hi s1 ;;
-     eval_for R i c (wrange d vlo vhi) s1
+     sem_for R i c (wrange d vlo vhi) s1
 
   | Ccall xs fn args =>
       vargs <- isem_pexprs  (~~direct_call) gd s1 args;;
@@ -527,51 +523,36 @@ Fixpoint meval_instr {E} `{ErrEvent -< E} (i : instr_r) (s1: estate) :
       iwrite_lvals (~~direct_call) gd (with_scs (with_mem s1 m2) scs2) xs vs
 end.
 
+Definition msem_I {E} `{ErrEvent -< E} (i : instr) (s1: estate) : itree (FCState +' E) estate :=
+  let: MkI ii i := i in msem_i i s1.
 
-err_mk_AssgnE x tg ty e st
-  | Copn xs tg o es => err_mk_OpnE xs tg o es st
-  | Csyscall xs o es => err_mk_SyscallE xs o es st
+Definition msem_call {E} `{ErrEvent -< E}
+   (scs1 : syscall_state_t) (m1 : mem)
+   (fn : funname) (vargs' : values) : itree (FCState +' E) (syscall_state_t * mem * values) :=
+  let sinit := (Estate scs1 m1 Vm.init) in
+  f <- iget_fundef fn sinit;;
+  vargs <- iresult sinit (mapM2 ErrType dc_truncate_val f.(f_tyin) vargs');;
+  s0 <- iresult sinit (init_state f.(f_extra) (p_extra pr) ev sinit);;
+  s1 <- iresult s0 (write_vars (~~direct_call) f.(f_params) vargs s0);;
+  s2 <- rec_call (FLCode f.(f_body) s1);;
+  vres <- iresult s2 (get_var_is (~~ direct_call) s2.(evm) f.(f_res));;
+  vres' <- iresult s2 (mapM2 ErrType dc_truncate_val f.(f_tyout) vres);;
+  let scs2 := s2.(escs) in
+  let m2 := finalize f.(f_extra) s2.(emem) in
+  Ret (scs2, m2, vres).
 
-  | Cif e c1 c2 =>
-      b <- err_mk_EvalCond e st ;;
-      if b then R c1 st else R c2 st
+Definition msem_fcstate {E} `{ErrEvent -< E} : FCState ~> itree (FCState +' E) :=
+ fun _ fs =>
+   match fs with
+   | FLCode c st => sem_cmd_ msem_i c st
+   | FFCall scs m fn vs => msem_call scs m fn vs
+   end.
 
-  | Cfor i (d, lo, hi) c =>
-          vlo <- err_mk_EvalBound lo st ;;
-          vhi <- err_mk_EvalBound hi st ;;
-          eval_for R i c (wrange d vlo vhi) st
-
-  | Cwhile a c1 e c2 =>
-      ITree.iter (fun st0 =>
-           st1 <- R c1 st0 ;;
-           b <- err_mk_EvalCond e st1 ;;
-           if b then st2 <- R c2 st1 ;; continue_loop st2
-           else exit_loop st1) st
-
-  | Ccall xs fn es => rec_call (FFCall xs fn es st)
-  end.
-
-Definition meval_fcall {E} `{ErrEvent -< E}
-  (xs: lvals) (fn: funname) (es: pexprs) (st0: estate) :
-  itree (FCState +' E) estate :=
-  va <- err_eval_Args fn es st0 ;;
-  st1 <- err_init_state fn va st0 ;;
-  c <- err_get_FunCode fn ;;
-  st2 <- rec_call (FLCode c st1) ;;
-  vs <- err_return_val fn st2 ;;
-  err_reinstate_caller fn xs vs st2 st0.
-
-Definition meval_cstate {E} `{ErrEvent -< E} :
-  FCState ~> itree (FCState +' E) :=
-  fun _ fs => match fs with
-              | FLCode c st => st_cmd_map_r meval_instr c st
-              | FFCall xs fn es st => meval_fcall xs fn es st
-              end.
-
-Definition mevalE_cmd {E} `{ErrEvent -< E} (c: cmd) (st: estate) :
+Definition msem_cmd {E} `{ErrEvent -< E} (c: cmd) (st: estate) :
   itree E estate :=
-  mrec meval_cstate (FLCode c st).
+  mrec msem_fcstate (FLCode c st).
 
+(*
 Definition meval_cmd {E} (c: cmd) (st: estate) : itree E (option estate) :=
   @interp_Err E estate (mevalE_cmd c st).
 
@@ -594,6 +575,7 @@ Definition meval_fun_ {E} `{ErrEvent -< E}
   st2 <- rec_call (FLCode c st1) ;;
   vs <- err_return_val fn st2 ;;
   ret (vs, st2).
+*)
 
 End With_MREC_error.
 
