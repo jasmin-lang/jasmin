@@ -361,6 +361,10 @@ Context (RS: estate -> estate -> Prop)
 
 Definition lift2_rel {T}
   (f: T -> stateM I T) (t1 t2: T) (st1 st2: estate) : Prop :=
+  f t1 st1 = (st2, t2).
+
+Definition lift2_strong_rel {T}
+  (f: T -> stateM I T) (t1 t2: T) (st1 st2: estate) : Prop :=
   f t1 st1 = (st2, t2) /\ RS st1 st2.
 
 Definition lift1_rel {T}
@@ -391,7 +395,7 @@ Definition mon_relG {T} (R: T -> T -> Prop)
 (**)
 
 Definition RC (st1 st2: estate) (c1 c2: cmd) : Prop :=
-  lift2_rel (mapML Tr_instr) c1 c2 st1 st2.
+  lift2_strong_rel (mapML Tr_instr) c1 c2 st1 st2.
 
 Definition RO (st1 st2: estate) (o1 o2: sopn) : Prop :=
   lift2_rel tr_opn o1 o2 st1 st2.
@@ -441,9 +445,9 @@ Context (rvs_def : PR VS = RVS)
 Definition TR_D_ME {T1 T2} (d1 : FCState T1)
                            (d2 : FCState T2) : Prop :=
   match (d1, d2) with
-  | (FLCode c1 st1, FLCode c2 st2) => RC st1 st2 c1 c2
+  | (FLCode c1 st1, FLCode c2 st2) => RC st1 st2 c1 c2 
   | (FFCall xs1 fn1 es1 st1, FFCall xs2 fn2 es2 st2) =>
-      RLFE st1 st2 xs1 xs2 fn1 fn2 es1 es2 
+      RLFE st1 st2 xs1 xs2 fn1 fn2 es1 es2 /\ RS st1 st2 
   (*    xs2 = map tr_lval xs1 /\ fn1 = fn2 /\ es2 = map tr_expr es1 /\ 
        RS st1 st2 *)
   | _ => False   
@@ -462,6 +466,7 @@ Program Definition VR_D_ME {T1 T2}
 Defined.      
 
 (* not used *)
+(*
 Definition FCState_det {T} (d: FCState T) : T = estate :=
  match d in (it_sems_core.FCState _ _ T0) return (T0 = estate) with
  | FLCode c st => (fun=> (fun=> erefl)) c st
@@ -478,6 +483,7 @@ Definition VR_D_ME' {T1 T2}
   | (FFCall xs1 f1 es1 st1, FFCall xs2 f2 es2 st2) => RS 
   | _ => fun _ _ => False end)
     (st_cast d1 t1) (st_cast d2 t2).
+*)
 (**)
 
 Program Definition TR_DE_ME : prerel (FCState +' E) (FCState +' E) :=
@@ -490,7 +496,7 @@ Context (fcstate_t_def : TR_E (FCState +' E) = TR_DE_ME).
 Context (fcstate_v_def : VR_E (FCState +' E) = VR_DE_ME).
 
 Lemma rutt_err_eval_Args fn es1 es2 st1 st2 : 
-  RE st1 st2 es1 es2 ->
+  RE st1 st2 es1 es2 -> RS st1 st2 ->
   rutt (TR_E (FCState +' E)) (VR_E (FCState +' E)) RV
     (err_eval_Args dc spp pr1 fn es1 st1)
     (err_eval_Args dc spp pr2 fn es2 st2).
@@ -519,7 +525,8 @@ Admitted.
 
 Lemma rutt_err_reinstate_caller fn xs1 xs2 vs1 vs2 st1 st2 st3 st4 :
   RV vs1 vs2 ->
-  RL st1 st2 xs1 xs2 -> 
+  RL st1 st2 xs1 xs2 ->
+  RS st1 st2 ->
   RS st3 st4 ->
   rutt (TR_E (FCState +' E)) (VR_E (FCState +' E))
     RS   
@@ -530,6 +537,7 @@ Admitted.
 (***)
 
 Lemma rutt_err_mk_AssgnE x1 x2 tg ty e1 e2 st1 st2 st3 :
+  RS st1 st3 ->
   RL1 st1 st2 x1 x2 ->
   RE1 st2 st3 e1 e2 ->
   rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
@@ -538,6 +546,7 @@ Lemma rutt_err_mk_AssgnE x1 x2 tg ty e1 e2 st1 st2 st3 :
 Admitted.   
 
 Lemma rutt_err_mk_OpnE xs1 xs2 tg o1 o2 es1 es2 st1 st2 st3 st4 :
+  RS st1 st4 ->
   RO st1 st2 o1 o2 ->
   RL st2 st3 xs1 xs2 ->
   RE st3 st4 es1 es2 ->
@@ -547,6 +556,7 @@ Lemma rutt_err_mk_OpnE xs1 xs2 tg o1 o2 es1 es2 st1 st2 st3 st4 :
 Admitted. 
 
 Lemma rutt_err_mk_SyscallE x1 x2 sc1 sc2 e1 e2 st1 st2 st3 :
+  RS st1 st3 ->
   RY st1 st2 sc1 sc2 ->
   RL st2 st3 x1 x2 ->
   rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
@@ -555,6 +565,7 @@ Lemma rutt_err_mk_SyscallE x1 x2 sc1 sc2 e1 e2 st1 st2 st3 :
 Admitted. 
 
 Lemma rutt_err_mk_EvalCond e1 e2 st1 st2 :
+  RS st1 st2 ->
   RE1 st1 st2 e1 e2 ->
   rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) eq
     (err_mk_EvalCond spp pr1 e1 st1)
@@ -562,6 +573,7 @@ Lemma rutt_err_mk_EvalCond e1 e2 st1 st2 :
 Admitted.  
 
 Lemma rutt_err_mk_EvalBound e1 e2 st1 st2 :
+  RS st1 st2 ->
   RE1 st1 st2 e1 e2 ->
   rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) eq
     (err_mk_EvalBound spp pr1 e1 st1)
@@ -569,6 +581,7 @@ Lemma rutt_err_mk_EvalBound e1 e2 st1 st2 :
 Admitted. 
 
 Lemma rutt_err_mk_WriteIndex xi1 xi2 z st1 st2 :
+  RS st1 st2 ->
   RI st1 st2 xi1 xi2 ->
    rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
     (err_mk_WriteIndex xi1 z st1) (err_mk_WriteIndex xi2 z st2).
@@ -576,6 +589,7 @@ Admitted.
 
 Lemma comp_gen_ok_ME (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) (st1 st0 st2: estate) :
+  RS st1 st2 ->
   RL st1 st0 xs1 xs2 ->
   RE st0 st2 es1 es2 -> 
   @rutt (FCState +' E) _ _ _ (TR_E _) (VR_E _)
@@ -585,7 +599,10 @@ Lemma comp_gen_ok_ME (fn: funname)
   intros.
   unfold meval_fcall; simpl.
   
-  eapply rutt_bind with (RR := RV); inv H; intros.
+  eapply rutt_bind with (RR := RV); eauto; intros.
+
+  eapply rutt_err_eval_Args; eauto.
+  
 
   { unfold RE, lift2_rel in H0.
     
