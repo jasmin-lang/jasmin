@@ -29,6 +29,9 @@
 
 ## Other changes
 
+- Add warning to signal deprecated intrinsic operators
+  ([PR #1092](https://github.com/jasmin-lang/jasmin/pull/1092)).
+
 - Some warnings are now disabled by default: when introducing assignements
   (`-wea`), destinations (`-w_`), array copies (`-winsertarraycopy`), or `LEA`
   instructions (`-wlea`); they can be enabled using a new command-line argument
