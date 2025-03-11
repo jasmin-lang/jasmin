@@ -1862,7 +1862,7 @@ Definition arm_LSL_instr : instr_desc_t :=
   else drop_nzc x.
 
 Definition arm_LSR_C (wn : ty_r) (shift : Z) :=
-  if (32 <=? shift)%Z then false
+  if (32 <? shift)%Z then false
   else wbit_n wn (Z.to_nat (shift - 1)).
 
 Definition arm_LSR_semi (wn : ty_r) (wsham : word U8) : ty_nzc_r :=
