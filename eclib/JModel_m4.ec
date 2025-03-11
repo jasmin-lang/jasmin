@@ -117,7 +117,7 @@ op LDRSHcc x g o = if g then LDRSH x else o.
 
 op ASR_C (wn : W32.t) (shift : int) =
   if (32 <= shift) then msb wn
-  else wn.[32 - (shift - 1)].
+  else wn.[shift - 1].
 
 op ASRS (x: W32.t) (s: W8.t) : bool * bool * bool * W32.t =
   with_nzc_shift (`|>>>`) ASR_C x s.
