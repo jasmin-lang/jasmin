@@ -603,7 +603,6 @@ Lemma comp_gen_ok_ME (fn: funname)
 
   eapply rutt_err_eval_Args; eauto.
   
-
   { unfold RE, lift2_rel in H0.
     
     eapply rutt_err_eval_Args. auto. }    
