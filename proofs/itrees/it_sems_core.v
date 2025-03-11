@@ -523,23 +523,34 @@ Definition msem_i {E} `{ErrEvent -< E} (i : instr_r) (s1: estate) : itree (FCSta
       iwrite_lvals (~~direct_call) gd (with_scs (with_mem s1 m2) scs2) xs vs
 end.
 
+(*
 Definition msem_I {E} `{ErrEvent -< E} (i : instr) (s1: estate) : itree (FCState +' E) estate :=
   let: MkI ii i := i in msem_i i s1.
+*)
+
+Definition initialize_call (scs1 : syscall_state_t) (m1 : mem)
+   (fd : fundef) (vargs : values) : exec estate :=
+  let sinit := (Estate scs1 m1 Vm.init) in
+  Let vargs' := mapM2 ErrType dc_truncate_val fd.(f_tyin) vargs in
+  Let s0 := init_state fd.(f_extra) (p_extra pr) ev sinit in
+  write_vars (~~direct_call) fd.(f_params) vargs' s0.
+
+Definition finalize_call (fd : fundef) (s:estate) :=
+  Let vres := get_var_is (~~ direct_call) s.(evm) fd.(f_res) in
+  Let vres' := mapM2 ErrType dc_truncate_val fd.(f_tyout) vres in
+  let scs := s.(escs) in
+  let m := finalize fd.(f_extra) s.(emem) in
+  ok (scs, m, vres').
 
 Definition msem_call {E} `{ErrEvent -< E}
    (scs1 : syscall_state_t) (m1 : mem)
-   (fn : funname) (vargs' : values) : itree (FCState +' E) (syscall_state_t * mem * values) :=
+   (fn : funname) (vargs : values) : itree (FCState +' E) (syscall_state_t * mem * values) :=
+  (* FIXME: this is durty : sinit*)
   let sinit := (Estate scs1 m1 Vm.init) in
-  f <- iget_fundef fn sinit;;
-  vargs <- iresult sinit (mapM2 ErrType dc_truncate_val f.(f_tyin) vargs');;
-  s0 <- iresult sinit (init_state f.(f_extra) (p_extra pr) ev sinit);;
-  s1 <- iresult s0 (write_vars (~~direct_call) f.(f_params) vargs s0);;
-  s2 <- rec_call (FLCode f.(f_body) s1);;
-  vres <- iresult s2 (get_var_is (~~ direct_call) s2.(evm) f.(f_res));;
-  vres' <- iresult s2 (mapM2 ErrType dc_truncate_val f.(f_tyout) vres);;
-  let scs2 := s2.(escs) in
-  let m2 := finalize f.(f_extra) s2.(emem) in
-  Ret (scs2, m2, vres).
+  fd <- iget_fundef fn sinit;;
+  s1 <- iresult sinit (initialize_call scs1 m1 fd vargs);;
+  s2 <- rec_call (FLCode fd.(f_body) s1);;
+  iresult s2 (finalize_call fd s2).
 
 Definition msem_fcstate {E} `{ErrEvent -< E} : FCState ~> itree (FCState +' E) :=
  fun _ fs =>
@@ -548,9 +559,17 @@ Definition msem_fcstate {E} `{ErrEvent -< E} : FCState ~> itree (FCState +' E) :
    | FFCall scs m fn vs => msem_call scs m fn vs
    end.
 
-Definition msem_cmd {E} `{ErrEvent -< E} (c: cmd) (st: estate) :
+(* This is really needed ? *)
+(*
+Definition sem_cmd {E} `{ErrEvent -< E} (c: cmd) (st: estate) :
   itree E estate :=
   mrec msem_fcstate (FLCode c st).
+*)
+
+Definition sem_call  {E} `{ErrEvent -< E}
+   (scs1 : syscall_state_t) (m1 : mem)
+   (fn : funname) (vargs' : values) : itree E (syscall_state_t * mem * values) :=
+ mrec msem_fcstate (FFCall scs1 m1 fn vargs').
 
 (*
 Definition meval_cmd {E} (c: cmd) (st: estate) : itree E (option estate) :=
