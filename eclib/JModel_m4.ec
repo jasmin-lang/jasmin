@@ -139,7 +139,7 @@ op LSLcc x y g o = if g then LSL x y else o.
 
 op LSR_C (wn : W32.t) (shift : int) =
   if 32 <= shift then false
-  else wn.[32 - (shift - 1)].
+  else wn.[shift - 1].
 
 op LSRS (x: W32.t) (y: W8.t) : bool * bool * bool * W32.t =
   with_nzc_shift (`>>>`) LSR_C x y.
