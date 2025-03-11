@@ -3,7 +3,7 @@
 From Coq Require Import RelationClasses.
 Require memory_example.
 
-From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import Lia.
 Import Utf8 ZArith.
