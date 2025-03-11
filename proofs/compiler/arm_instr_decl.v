@@ -1783,7 +1783,7 @@ Definition arm_shift_semi
 
 Definition arm_ASR_C (wn : ty_r) (shift : Z) :=
   if (32 <=? shift)%Z then msb wn
-  else wbit_n wn (32 - Z.to_nat (shift - 1)).
+  else wbit_n wn (Z.to_nat (shift - 1)).
 
 Definition arm_ASR_semi (wn : ty_r) (wsham : word U8) : ty_nzc_r :=
   (* The bounds for [wsham] are different whether it's an immediate or a
