@@ -1,11 +1,18 @@
-type asm_line =
-  | LLabel of string
-  | LInstr of string * string list
-  | LByte of string
 
-val print_asm_lines : Format.formatter -> asm_line list -> unit
 
-val format_glob_data :
-  Obj.t list -> ((Var0.Var.var * 'a) * BinNums.coq_Z) list -> asm_line list
+(**
+Assembly code type. Common interface produced by all existing architectures
+*)
+type asm_element = 
+| Header of string * string list
+| Label of string
+| Dwarf of string (* Debug info in std dwarf format*)
+| Instr of string * string list
+| Comment of string
+| Byte of string
 
-val string_of_label : string -> Label.label -> string
+
+(** 
+Pretty print assembly code 
+*)
+val pp_asm : Format.formatter -> asm_element list -> unit

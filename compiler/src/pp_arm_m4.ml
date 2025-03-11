@@ -9,7 +9,9 @@ open Utils
 open PrintCommon
 open PrintASM
 open Prog
-open Var0
+open Asm_utils
+
+(* Architecture imports*)
 open Arm_decl
 open Arm_instr_decl
 open Arm_expand_imm
@@ -28,71 +30,28 @@ let imm_pre = "#"
 let pp_reg_address_aux base disp off scal =
   match (disp, off, scal) with
   | None, None, None ->
-      Printf.sprintf "[%s]" base
+      Format.asprintf "[%s]" base
   | Some disp, None, None ->
-      Printf.sprintf "[%s, %s%s]" base imm_pre disp
+      Format.asprintf "[%s, %s%s]" base imm_pre disp
   | None, Some off, None ->
-      Printf.sprintf "[%s, %s]" base off
+      Format.asprintf "[%s, %s]" base off
   | None, Some off, Some scal ->
-      Printf.sprintf "[%s, %s, lsl %s%s]" base off imm_pre scal
+      Format.asprintf "[%s, %s, lsl %s%s]" base off imm_pre scal
   | _, _, _ ->
-     hierror
+    hierror
       ~loc:Lnone
       ~kind:"assembly printing"
       "the address computation is too complex: an intermediate variable might be needed"
 
-let global_datas = "glob_data"
+let pp_imm = pp_imm imm_pre
 
-let pp_rip_address (p : Ssralg.GRing.ComRing.sort) : string =
-  Format.asprintf "%s+%a" global_datas Z.pp_print (Conv.z_of_int32 p)
-
-(* -------------------------------------------------------------------- *)
-(* TODO_ARM: This is architecture-independent. *)
-
-let string_of_label name p =
-  Format.asprintf "L%s$%d" (escape name) (Conv.int_of_pos p)
-
-let pp_label n lbl = string_of_label n lbl
-
-let pp_remote_label (fn, lbl) =
-  string_of_label fn.fn_name lbl
-
-let hash_to_string (to_string : 'a -> string) =
-  let tbl = Hashtbl.create 17 in
-  fun r ->
-     try Hashtbl.find tbl r
-     with Not_found ->
-       let s = to_string r in
-       Hashtbl.add tbl r s;
-       s
-
-let pp_register = hash_to_string arch.toS_r.to_string
-
-let pp_condt = hash_to_string string_of_condt
-
-let pp_imm imm = Printf.sprintf "%s%s" imm_pre (Z.to_string imm)
+let pp_register = pp_register arch
 
 let pp_reg_address addr =
-  match addr.ad_base with
-  | None ->
-      failwith "TODO_ARM: pp_reg_address"
-  | Some r ->
-      let base = pp_register r in
-      let disp = Conv.z_of_word (arch_pd arch) addr.ad_disp in
-      let disp =
-        if Z.equal disp Z.zero then None else Some (Z.to_string disp)
-      in
-      let off = Option.map pp_register addr.ad_offset in
-      let scal = Conv.z_of_nat addr.ad_scale in
-      let scal =
-        if Z.equal scal Z.zero then None else Some (Z.to_string scal)
-      in
-      pp_reg_address_aux base disp off scal
+  let addr = parse_reg_adress arch addr in
+  pp_reg_address_aux addr.base addr.displacement addr.offset addr.scale
 
-let pp_address addr =
-  match addr with
-  | Areg ra -> pp_reg_address ra
-  | Arip r -> pp_rip_address r
+let pp_condt = hash_to_string string_of_condt
 
 let pp_asm_arg (arg : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) asm_arg) =
   match arg with
@@ -100,13 +59,15 @@ let pp_asm_arg (arg : (register, Arch_utils.empty, Arch_utils.empty, rflag, cond
   | Imm (ws, w) -> Some (pp_imm (Conv.z_unsigned_of_word ws w))
   | Reg r -> Some (pp_register r)
   | Regx _ -> .
-  | Addr addr -> Some (pp_address addr)
+  | Addr (Areg ra) ->
+      Some (pp_reg_address ra)
+  | Addr  (Arip r) -> Some (pp_rip_address r)
   | XReg _ -> .
 
 (* -------------------------------------------------------------------- *)
 
 (* TODO_ARM: Review. *)
-let headers = [ LInstr (".thumb", []); LInstr (".syntax unified", []) ]
+let headers = [ Instr (".thumb", []); Instr (".syntax unified", []) ]
 
 (* -------------------------------------------------------------------- *)
 
@@ -127,16 +88,12 @@ let pp_shift (ARM_op (_, opts)) args =
       args
   | Some sk ->
       let sh = pp_shift_kind sk in
-      List.modify_last (Printf.sprintf "%s %s" sh) args
+      List.modify_last (Format.asprintf "%s %s" sh) args
 
 let pp_mnemonic_ext (ARM_op (_, opts) as op) suff args =
   let id = instr_desc Arm_decl.arm_decl Arm_instr_decl.arm_op_decl (None, op) in
   let pp = id.id_pp_asm args in
   Format.asprintf "%s%s%s%s" pp.pp_aop_name suff (pp_set_flags opts) (pp_conditional args)
-
-let pp_syscall (o : _ Syscall_t.syscall_t) =
-  match o with
-  | Syscall_t.RandomBytes _ -> "__jasmin_syscall_randombytes__"
 
 (* To conform to the Unified Assembly Language (UAL) of ARM, IT instructions
    must be introduced *in addition* to conditional suffixes. *)
@@ -145,7 +102,7 @@ let get_IT i =
   | AsmOp (_, args) -> begin
       match List.opick (is_Condt arch) args with
       | None -> []
-      | Some c -> [ LInstr ("it", [ pp_condt c ]) ]
+      | Some c -> [ Instr ("it", [ pp_condt c ]) ]
     end
   | _ -> []
 
@@ -235,7 +192,7 @@ let pp_ADR pp opts args =
         (dst :: lo :: rest, dst :: hi :: rest)
     | _ -> assert false
   in
-  [ LInstr(name_lo, args_lo); LInstr(name_hi, args_hi) ]
+  [ Instr(name_lo, args_lo); Instr(name_hi, args_hi) ]
 
 let pp_instr fn i =
   match i with
@@ -243,13 +200,13 @@ let pp_instr fn i =
       failwith "TODO_ARM: pp_instr align"
 
   | LABEL (_, lbl) ->
-      [ LLabel (pp_label fn lbl) ]
+      [ Label (string_of_label fn lbl) ]
 
   | STORELABEL (dst, lbl) ->
-      [ LInstr ("adr", [ pp_register dst; string_of_label fn lbl ]) ]
+      [ Instr ("adr", [ pp_register dst; string_of_label fn lbl ]) ]
 
   | JMP lbl ->
-      [ LInstr ("b", [ pp_remote_label lbl ]) ]
+      [ Instr ("b", [ pp_remote_label lbl ]) ]
 
   | JMPI arg ->
       (* TODO_ARM: Review. *)
@@ -258,23 +215,23 @@ let pp_instr fn i =
         | Reg r -> pp_register r
         | _ -> failwith "TODO_ARM: pp_instr jmpi"
       in
-      [ LInstr ("bx", [ lbl ]) ]
+      [ Instr ("bx", [ lbl ]) ]
 
   | Jcc (lbl, ct) ->
-      let iname = Printf.sprintf "b%s" (pp_condt ct) in
-      [ LInstr (iname, [ pp_label fn lbl ]) ]
+      let iname = Format.asprintf "b%s" (pp_condt ct) in
+      [ Instr (iname, [ string_of_label fn lbl ]) ]
 
   | JAL (LR, lbl) ->
-      [ LInstr ("bl", [ pp_remote_label lbl ]) ]
+      [ Instr ("bl", [ pp_remote_label lbl ]) ]
 
   | CALL _
   | JAL _ -> assert false
 
   | POPPC ->
-      [ LInstr ("pop", [ "{pc}" ]) ]
+      [ Instr ("pop", [ "{pc}" ]) ]
 
   | SysCall op ->
-      [LInstr ("bl", [ pp_syscall op ])]
+      [Instr ("bl", [ pp_syscall op ])]
 
   | AsmOp (op, args) ->
       let id = instr_desc arm_decl arm_op_decl (None, op) in
@@ -290,50 +247,57 @@ let pp_instr fn i =
             List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
           in
           let args = pp_shift op args in
-          get_IT i @ [ LInstr (name, args) ]
+          get_IT i @ [ Instr (name, args) ]
 
 (* -------------------------------------------------------------------- *)
+let pp_brace s = Format.asprintf "{%s}" s
 
 let pp_body fn =
   let open List in
   concat_map @@ fun { asmi_i = i ; asmi_ii = (ii, _) } ->
-  let i = 
-    try pp_instr fn i 
+  let i =
+    try pp_instr fn i
     with HiError err -> raise (HiError (Utils.add_iloc err ii)) in
   append
-    (map (fun i -> LInstr (i, [])) (DebugInfo.source_positions ii.base_loc))
+    (List.map (fun x -> Dwarf x) (DebugInfo.source_positions ii.base_loc))
     i
 
-(* -------------------------------------------------------------------- *)
-(* TODO_ARM: This is architecture-independent. *)
+let pp_fn_head fn fd =
+  let fn = escape fn in
+  if fd.asm_fd_export then
+    [ Instr (".global", [ mangle fn ]); Instr (".global", [ fn ]) ]
+  else []
 
-let mangle x = Printf.sprintf "_%s" x
+let pp_fn_prefix fn fd =
+  let fn = escape fn in
+  if fd.asm_fd_export then
+    [
+      Label (mangle fn);
+      Label fn;
+      Instr ("push", [pp_brace (pp_register LR)])
+    ]
+  else []
 
-let pp_brace s = Format.sprintf "{%s}" s
+let pp_fn_pos fn fd =
+  (* TODO_ARM: Review. *)
+  if fd.asm_fd_export then
+    pp_instr fn POPPC
+  else []
 
 let pp_fun (fn, fd) =
   let fn = fn.fn_name in
-  let head =
-    let fn = escape fn in
-    if fd.asm_fd_export then
-      [ LInstr (".global", [ mangle fn ]); LInstr (".global", [ fn ]) ]
-    else []
-  in
-  let pre =
-    let fn = escape fn in
-    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("push", [pp_brace (pp_register LR)]) ] else []
-  in
+  let head = pp_fn_head fn fd in
+  let pre = pp_fn_prefix fn fd in
   let body = pp_body fn fd.asm_fd_body in
-  (* TODO_ARM: Review. *)
-  let pos = if fd.asm_fd_export then pp_instr fn POPPC else [] in
+  let pos = pp_fn_pos fn fd in
   head @ pre @ body @ pos
 
 let pp_funcs funs = List.concat_map pp_fun funs
 
 let pp_data globs names =
   if not (List.is_empty globs) then
-    LInstr (".p2align", ["5"]) ::
-    LLabel global_datas ::
+    Instr (".p2align", ["5"]) ::
+    Label global_datas_label ::
     format_glob_data globs names
   else []
 
@@ -342,5 +306,4 @@ let pp_prog p =
   let data = pp_data p.asm_globs p.asm_glob_names in
   headers @ code @ data
 
-let print_instr s fmt i = print_asm_lines fmt (pp_instr s i)
-let print_prog fmt p = print_asm_lines fmt (pp_prog p)
+let print_prog fmt p = PrintASM.pp_asm fmt (pp_prog p)
