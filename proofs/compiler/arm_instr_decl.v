@@ -1766,18 +1766,31 @@ Definition arm_ORR_instr : instr_desc_t :=
   then x
   else drop_nzc x.
 
+Definition arm_shift_semi
+  (op : ty_r -> Z -> ty_r) (op_c : ty_r -> Z -> bool)
+  (wn : ty_r) (wsham : word U8) : ty_nzc_r :=
+  let sham := wunsigned wsham in
+  let res := op wn sham in
+  if sham == 0%Z then
+    (* This is under specified compared to real arm semantics *)
+    (:: None, None, None & res)
+  else
+    (:: Some (NF_of_word res)
+      , Some (ZF_of_word res)
+      , Some (op_c wn sham)
+      & res
+     ).
+
+Definition arm_ASR_C (wn : ty_r) (shift : Z) :=
+  if (32 <=? shift)%Z then msb wn
+  else wbit_n wn (Z.to_nat (shift - 1)).
+
 Definition arm_ASR_semi (wn : ty_r) (wsham : word U8) : ty_nzc_r :=
   (* The bounds for [wsham] are different whether it's an immediate or a
      register: if it's an immediate it must be between 0 and 31, but if it's a
      register it must be between 0 and 255 (the lower byte of the register).
      Since registers only 32 bits it makes no difference. *)
-  let sham := wunsigned wsham in
-  let res := wsar wn sham in
-  (:: Some (NF_of_word res)
-       , Some (ZF_of_word res)
-       , Some (msb res)
-       & res
-     ).
+  arm_shift_semi (@wsar _) arm_ASR_C wn wsham.
 
 Definition arm_ASR_instr : instr_desc_t :=
   let mn := ASR in
@@ -1810,14 +1823,12 @@ Definition arm_ASR_instr : instr_desc_t :=
   then x
   else drop_nzc x.
 
+Definition arm_LSL_C (wn : ty_r) (shift: Z) :=
+  if (shift <=? 32)%Z then wbit_n wn (32-Z.to_nat shift)
+  else false.
+
 Definition arm_LSL_semi (wn : ty_r) (wsham : word U8) : ty_nzc_r :=
-  let sham := wunsigned wsham in
-  let res := wshl wn sham in
-  (:: Some (NF_of_word res)
-       , Some (ZF_of_word res)
-       , Some (msb res)
-       & res
-     ).
+  arm_shift_semi (@wshl _) arm_LSL_C wn wsham.
 
 Definition arm_LSL_instr : instr_desc_t :=
   let mn := LSL in
@@ -1850,14 +1861,12 @@ Definition arm_LSL_instr : instr_desc_t :=
   then x
   else drop_nzc x.
 
+Definition arm_LSR_C (wn : ty_r) (shift : Z) :=
+  if (32 <=? shift)%Z then false
+  else wbit_n wn (Z.to_nat (shift - 1)).
+
 Definition arm_LSR_semi (wn : ty_r) (wsham : word U8) : ty_nzc_r :=
-  let sham := wunsigned wsham in
-  let res := wshr wn sham in
-  (:: Some (NF_of_word res)
-       , Some (ZF_of_word res)
-       , Some (msb res)
-       & res
-     ).
+  arm_shift_semi (@wshr _) arm_LSR_C wn wsham.
 
 Definition arm_LSR_instr : instr_desc_t :=
   let mn := LSR in
@@ -1890,14 +1899,12 @@ Definition arm_LSR_instr : instr_desc_t :=
   then x
   else drop_nzc x.
 
+Definition arm_ROR_C (wn : ty_r) (shift : Z) :=
+  let res := wror wn shift in
+  msb res.
+
 Definition arm_ROR_semi (wn : ty_r) (wsham : word U8) : ty_nzc_r :=
-  let sham := wunsigned wsham in
-  let res := wror wn sham in
-  (:: Some (NF_of_word res)
-       , Some (ZF_of_word res)
-       , Some (msb res)
-       & res
-     ).
+  arm_shift_semi (@wror _) arm_ROR_C wn wsham.
 
 Definition arm_ROR_instr : instr_desc_t :=
   let mn := ROR in

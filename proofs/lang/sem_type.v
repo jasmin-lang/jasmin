@@ -125,21 +125,19 @@ Fixpoint sem_prod_app {A B} (lt: seq stype) :
  * Return a t1 -> ... -> tn -> (t1, ..., tn) function where t1, ..., tn are the
  * semantics of a list of stype.
  *)
+
+Definition add_tuple (t:Type) (ts:seq Type) (x:t) (xs:ltuple ts) : ltuple (t::ts) :=
+  match ts return ltuple ts -> ltuple (t::ts) with
+  | [::] => fun _ => x
+  | _::_ => fun xs => (x, xs)
+  end xs.
+
 Fixpoint sem_prod_tuple (lt: seq stype) : sem_prod lt (sem_tuple lt) :=
   match lt return sem_prod lt (sem_tuple lt) with
-  | [::] =>
-      tt
+  | [::] => tt
   | t :: lt' =>
-      let f := match lt'
-               return sem_prod lt' (sem_tuple lt')
-                      -> sem_prod (t :: lt') (sem_tuple (t :: lt'))
-               with
-               | [::] =>
-                   fun _ => @sem_prod_id t
-               | _ :: _ =>
-                   fun rec_lt' x => sem_prod_app rec_lt' (fun p => (sem_prod_id x, p))
-               end in
-      f (sem_prod_tuple lt')
+      fun v =>
+      sem_prod_app (sem_prod_tuple lt') (fun xs => add_tuple (sem_prod_id v) xs)
   end.
 
 Definition sem_prod_cat lt0 lt1 A :
@@ -157,6 +155,9 @@ Definition add_arguments {A} {lt0 lt1} (f: sem_prod lt0 (sem_prod lt1 A))
   rewrite sem_prod_cat.
   by apply: f.
 Defined.
+
+Lemma add_arguments_nil A lt f: @add_arguments A [::] lt f = f.
+Proof. by rewrite /add_arguments /eq_rect_r /=. Qed.
 
 Definition behead_tuple tin tout :
   sem_prod tin (exec (sem_tuple tout))

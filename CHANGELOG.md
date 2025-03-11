@@ -11,6 +11,10 @@
 
 ## Bug fixes
 
+- Fix semantics of flags in `#ROR`, `#ASR`, `#LSR`, and `#LSL` arm instructions
+  ([PR #1085](https://github.com/jasmin-lang/jasmin/pull/1085);
+  fixes [#1033](https://github.com/jasmin-lang/jasmin/issues/1033)).
+
 - Fix semantics of unsigned division and modulo operators: the safety condition
   only requires that the divisor is non-zero
   ([PR #1088](https://github.com/jasmin-lang/jasmin/pull/1088)).
