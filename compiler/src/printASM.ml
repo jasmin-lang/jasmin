@@ -1,50 +1,59 @@
-open Utils
 open Prog
+open Utils
 open PrintCommon
+open Arch_decl
 
-(** Assembly code lines. *)
-type asm_line =
-  | LLabel of string
-  | LInstr of string * string list
-  | LByte of string
+type asm_element =
+| Header of string * string list
+| Label of string
+| Dwarf of string (* Debug info in std dwarf format*)
+| Instr of string * string list
+| Comment of string
+| Byte of string
 
 let iwidth = 4
 
-let print_asm_line fmt ln =
-  match ln with
-  | LLabel lbl -> Format.fprintf fmt "%s:" lbl
-  | LInstr (s, []) -> Format.fprintf fmt "\t%s" s
-  | LInstr (s, args) ->
-      Format.fprintf fmt "\t%-*s\t%s" iwidth s (String.concat ", " args)
-  | LByte n -> Format.fprintf fmt "\t.byte\t%s" n
+type asm = asm_element list
 
-let print_asm_lines fmt lns =
-  List.iter (Format.fprintf fmt "%a\n%!" print_asm_line) lns
+let pp_header fmt name params =
+  match params with
+  | [] -> Format.fprintf fmt "\t%s" name
+  | _ ->  Format.fprintf fmt "\t%-*s\t%s" iwidth name (String.concat ", " params)
 
-(* -------------------------------------------------------------------- *)
-let string_of_label name p =
-  Format.asprintf "L%s$%d" (escape name) (Conv.int_of_pos p)
+let pp_label fmt name =
+  Format.fprintf fmt "%s:" name
 
-let string_of_glob occurrences x =
-  Hash.modify_def (-1) x.v_name Stdlib.Int.succ occurrences;
-  let count =  Hash.find occurrences x.v_name in
-  (* Adding the number of occurrences to the label to avoid names conflict *)
-  let suffix = if count > 0 then Format.asprintf "$%d" count else "" in
-  Format.asprintf "G$%s%s" (escape x.v_name) suffix
+let pp_instr fmt name params =
+  match params with
+  | [] -> Format.fprintf fmt "\t%s" name (* In case there is no params, we do not print a tab*)
+  | _ ->  Format.fprintf fmt "\t%-*s\t%s" iwidth name (String.concat ", " params)
 
+let pp_comment fmt comment =
+  Format.fprintf fmt "// %s" comment
 
-(* -------------------------------------------------------------------- *)
-let format_glob_data globs names =
-  (* Creating a Hashtable to count occurrences of a label name*)
-  let occurrences = Hash.create 42 in
-  let names =
-    List.map (fun ((x, _), p) -> (Conv.var_of_cvar x, Conv.z_of_cz p)) names
-  in
-  List.flatten
-    (List.mapi
-       (fun i b ->
-         let b = LByte (Z.to_string (Conv.z_of_int8 b)) in
-         match List.find (fun (_, p) -> Z.equal (Z.of_int i) p) names with
-         | exception Not_found -> [ b ]
-         | x, _ -> [ LLabel (string_of_glob occurrences x); b ])
-       globs)
+let pp_byte fmt byte =
+  Format.fprintf fmt "\t.byte\t%s" byte
+
+let pp_dwarf fmt (dwarf: string) =
+  Format.fprintf fmt "\t%s" dwarf
+
+let pp_asm_element fmt asm_element =
+  match asm_element with
+  | Header (name, params) ->
+    pp_header fmt name params
+  | Label name ->
+    pp_label fmt name
+  | Dwarf locs ->
+    pp_dwarf fmt locs
+  | Instr (name, params) ->
+    pp_instr fmt name params
+  | Comment content ->
+    pp_comment fmt content
+  | Byte data ->
+    pp_byte fmt data
+
+let pp_asm_line fmt =
+  Format.fprintf fmt "%a\n%!" pp_asm_element
+
+let pp_asm fmt asm =
+  List.iter (pp_asm_line fmt) asm

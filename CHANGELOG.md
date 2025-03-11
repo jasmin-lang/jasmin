@@ -56,6 +56,9 @@
   `-wall` or individually using the corresponding flag
   ([PR #1087](https://github.com/jasmin-lang/jasmin/pull/1087)).
 
+- Rewriting of assembly printers
+  ([PR #1118](https://github.com/jasmin-lang/jasmin/pull/1118)).
+
 # Jasmin 2025.02.0 — Nancy, 2025-02-28
 
 ## New features
