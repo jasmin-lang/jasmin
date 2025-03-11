@@ -189,6 +189,7 @@ svsize:
 castop1:
 | s=swsize { CSS s }
 | s=svsize { CVS s }
+| COLON s=utype  { CSS(Some s, `Unsigned) }
 
 castop:
 | c=loc(castop1)? { c }

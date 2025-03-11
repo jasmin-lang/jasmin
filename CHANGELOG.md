@@ -7,6 +7,9 @@
   New syntax for array load/store t DOT? [aligned? uXX e] become t DOT? [aligned? :uXX e],
   the syntax t DOT? [aligned? uXX e] is deprecated.
   The scrypt compiler/script/replace.sh allows to perform the change automatically.
+
+  New syntax for infix and prefix operators, the type of the arguments can be provided
+  using :uXX, like in e1 +:u32 e2.
   ([PR #1086](https://github.com/jasmin-lang/jasmin/pull/1086)).
 
 - Introduction of wint types siXX and uiXX (XX in [8,16,32,64,128, 256]). The
