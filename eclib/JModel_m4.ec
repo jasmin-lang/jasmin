@@ -138,7 +138,7 @@ op LSLScc x y g n z c o = if g then LSLS x y else (n, z, c, o).
 op LSLcc x y g o = if g then LSL x y else o.
 
 op LSR_C (wn : W32.t) (shift : int) =
-  if 32 <= shift then false
+  if 32 < shift then false
   else wn.[shift - 1].
 
 op LSRS (x: W32.t) (y: W8.t) : bool * bool * bool * W32.t =
