@@ -103,13 +103,14 @@ Definition rutt_err {E1 E2: Type -> Type}
   (post      : O1 -> O2 -> Prop) :=
   @rutt E1 E2 O1 O2 ErrorCutoff NoCutoff pre_event post_event post.
 
-Instance with_Errorr_suml {E: Type -> Type} {HasErr: ErrEvent -< E} {wE : with_Error E} (T:Type -> Type) :
+Instance with_Error_suml {E: Type -> Type} {HasErr: ErrEvent -< E} {wE : with_Error E} (T:Type -> Type) :
   with_Error (T +' E).
 Proof.
-  apply (@Build_with_Error _ _  (fun X s => match s with | inr1 e => is_error e | _ => false end)).
+  apply (@Build_with_Error _ _  (EE_MR (fun X (e: E X) => is_error e) T)).
   move=> x e => /=.
   apply is_error_has.
-Qed.
+Defined.
+
 
 (*
 Existing Instance HasErr.
@@ -314,10 +315,10 @@ Definition VR_D_ME {T1 T2}
 
 (***)
 
-Program Definition TR_DE : prerel (FCState +' E) (FCState +' E) :=
+Definition TR_DE : prerel (FCState +' E) (FCState +' E) :=
   sum_prerel (@TR_D_ME) TR_E.
 
-Program Definition VR_DE : postrel (FCState +' E) (FCState +' E) :=
+Definition VR_DE : postrel (FCState +' E) (FCState +' E) :=
   sum_postrel (@VR_D_ME) VR_E.
 
 (*
@@ -368,6 +369,45 @@ Admitted.
 (***)
 
 Check @rutt.
+(*
+(m_t : Type)
+(tr_e : m_t -> pexpr -> cexec pexpr)
+(tr_lval : m_t -> lval ->
+
+ dead_code_i i O -> I, c
+
+s     -i-> s'
+={I}       ={O}
+t     -c-> t'
+
+
+s.mem = t.mem
+
+RS X s t : exists2 vm , t = with_vm s vm & s.(evm) <=[X] vm.
+RC I O cs ct = dead_code cs O = ok (I, ct).
+
+fres
+Definition Rfres (fres1 fres2 : syscall_state_t * mem * values) :=
+   [/\ Rscs fres1.1.1 fres2.1.1
+      , Rm fres1.1.2 fres2.1.2
+      & List.Forall2 values_uincl fres1.2 fres2.2].
+
+
+
+
+
+
+Let Pi_r s (i:instr_r) s' :=
+    forall ii s2,
+      match dead_code_i is_move_op do_nop onfun (MkI ii i) s2 with
+      | Ok (s1, c') =>
+        forall vm1', s.(evm) <=[s1] vm1' ->
+          exists vm2', s'.(evm) <=[s2] vm2' /\
+          sem_oi (with_vm s vm1') c' (with_vm s' vm2')
+      | _ => True
+      end.
+
+*)
 
 Lemma rutt_err_assgn x tg ty e st1 st2 :
   RS st1 st2 ->
@@ -385,8 +425,16 @@ Lemma rutt_err_opn x o e st1 st2 :
     (iresult st2 (sem_sopn (p_globs pr2) o st2 (tr_lvals x) (tr_exprs e))).
 Admitted.
 
-
-Lemma rutt_cmd_tr_ME_step (i: instr_r) (st1 st2: estate) :
+(*
+Lemma sum_postrelI (E1 E2 D1 D2 : Type -> Type) (PR1 : postrel E1 D1) (PR2 : postrel E2 D2) :
+  sum_postrel PR1 PR2
+: postrel (E1 +' E2) (D1 +' D2) :=
+    sum_postrel_inl : forall (A B : Type) (e1 : E1 A) (d1 : D1 B) (a : A) (b : B),
+                      PR1 A B e1 a d1 b -> sum_postrel PR1 PR2 A B (inl1 e1) a (inl1 d1) b
+  | sum_postrel_inr : forall (A B : Type) (e2 : E2 A) (d2 : D2 B) (a : A) (b : B),
+                      PR2 A B e2 a d2 b -> sum_postrel PR1 PR2 A B (inr1 e2) a (inr1 d2) b.
+*)
+Lemma rutt_msem_i (i: instr_r) (st1 st2: estate) :
   RS st1 st2 ->
   rutt_err TR_DE VR_DE RS (msem_i pr1 i st1) (msem_i pr2 (Tr_ir i) st2).
 Proof.
@@ -394,36 +442,146 @@ Proof.
   + by move=> x tag ty e hst /=; apply rutt_err_assgn.
   + admit.
   + admit.
-  + move=> e c1 c2 hst /=.
+  + move=> e c1 c2 hst.
+(*
+    Opaque msem_i.
+rewrite /=.
+
+RC_bw I O c1 c2 =  dead_code_c c1 O = ok (I, c2)
+RC_fw I O c1 c2 =  const_prop_c c1 I = ok (O, c2)
+
+TR_D_ME I O =
+fun (T1 T2 : Type) (d1 : FCState T1) (d2 : FCState T2) =>
+match d1 with
+| FLCode c1 st1 => match d2 with
+                   | FLCode c2 st2 => RC I O c1 c2 /\ RS I st1 st2
+                   | FFCall _ _ _ _ => False
+                   end
+| FFCall scs1 m1 fn1 vs1 =>
+    match d2 with
+    | FLCode _ _ => False
+    | FFCall scs2 m2 fn2 vs2 => [/\ Rscs scs1 scs2, Rm m1 m2, fn1 = fn2 & Rvs vs1 vs2]
+    end
+end
+
+VR_D_ME I O =
+fun (T1 T2 : Type) (d1 : FCState T1) (d2 : FCState T2) =>
+match d1 with
+| FLCode c1 st1 => match d2 with
+                   | FLCode c2 st2 => RS O st1 st2
+                   | FFCall _ _ _ _ => False
+                   end
+| FFCall scs1 m1 fn1 vs1 =>
+    match d2 with
+    | FLCode _ _ => False
+    | FFCall scs2 m2 fn2 vs2 => [/\ Rscs scs1 scs2, Rm m1 m2, fn1 = fn2 & Rvs vs1 vs2]
+    end
+end
+
+[/\ Rscs scs1 scs2, Rm m1 m2, fn1 = fn2 & Rvs vs1 vs2]
+Rscs Rm Rvs = eq
+Rscs Rm = eq, Rvs = List.Forall2 value_uincl.
+
+
+
+
+
+
+forall O,
+
+ rutt_err TR_DE VR_DE RS (msem_i pr1 (Cif e c1 c2) st1) (msem_i pr2 (Cif e' c1' c2') st2).
+
+
+ /=.
+*)
     apply rutt_bind with (RR := eq).
     + admit.
     move=> b _ <-.
     apply rutt_trigger => /=.
     + by apply sum_prerel_inl => /=; split => //; case: b.
-    move=> t1 t2; rewrite /VR_DE.
+    by move=> t1 t2 h; dependent destruction h; auto.
+  + admit.
+  + move=> al c1 e c2 hst /=.
+    apply XRuttFacts.rutt_iter with (RI:=RS) => //.
+    move=> s1 s2 hs.
+    apply rutt_bind with (RR := RS).
+    + apply rutt_trigger => /=.
+      + by apply sum_prerel_inl => /=.
+      by move=> t1 t2 h; dependent destruction h; auto.
+    move=> t1 t2 ht.
+    apply rutt_bind with (RR := eq).
+    + admit.
+    move=> b _ <-.
+    case: b.
+    + apply rutt_bind with (RR := RS).
+      + apply rutt_trigger => /=.
+        + by apply sum_prerel_inl.
+        by move=> ?? h; dependent destruction h; auto.
+      by move=> ?? h; apply rutt_Ret; constructor.
+    by apply rutt_Ret; constructor.
+  move=> xs fn es hst /=.
+  apply rutt_bind with (RR := Rvs).
+  + admit.
+  move=> vs1 vs2 hvs.
+  apply rutt_bind with (RR := Rfres).
+  + apply rutt_trigger => /=.
+    + apply sum_prerel_inl => /=; split => //.
+      + admit. (* RS => Rscs *)
+      admit. (* RS => Rmem *)
+    move=> ?? h; dependent destruction h; auto.
+  move=> [[scs2 m2] vs] [[scs2' m2'] vs'] [/=???].
+  admit.
+Admitted.
 
- econstructor.
-apply sum_postrel_inl.
+Lemma rutt_msem_fcstate ev1 ev2 T1 T2 (d1 : FCState T1) (d2: FCState T2) :
+  TR_D_ME d1 d2 ->
+  rutt_err TR_DE VR_DE (fun v1 v2 => VR_D_ME d1 v1 d2 v2) (msem_fcstate pr1 ev1 d1) (msem_fcstate pr2 ev2 d2).
+Proof.
+  case: d1 d2 => [c1 st1 | scs1 m1 f1 vs1]  [c2 st2 | scs2 m2 f2 vs2] //=.
+  + move=> [<- hst].
+    elim: c1 st1 st2 hst => [ | [ii i] c hrec] st1 st2 hst /=.
+    + by apply rutt_Ret.
+    apply rutt_bind with (RR := RS) => //.
+    by apply rutt_msem_i.
+  move=> [hscs hm <- hvs].
+  rewrite /msem_call.
+  apply rutt_bind with (RR := fun fd1 fd2 => fd2 = Tr_FunDef fd1).
+  + admit.
+Admitted.
 
+Lemma rutt_rsem_call ev1 ev2 scs1 m1 fn vs1 scs2 m2 vs2 :
+  Rfres (scs1, m1, vs1)  (scs2, m2, vs2) ->
+  rutt_err TR_E VR_E Rfres (rsem_call pr1 ev1 scs1 m1 fn vs1) (rsem_call pr2 ev2 scs2 m2 fn vs2).
+Proof.
+  move=> hpre; apply interp_mrec_rutt with (RPreInv := @TR_D_ME) (RPostInv := @VR_D_ME).
+  + move=> T1 T2 d1 d2.
 
-Search sum_prerel.
- /sum_prerel /=.
-
-
-
-
-Set Printing All.
-
-
-nstr
-
-
-    (sum_prerel (@TR_D_ME) (TR_E E))
-    (sum_postrel (@VR_D_ME) (VR_E E))
-    RS (st_cmd_map_r (meval_instr pr1) cc st1)
-    (st_cmd_map_r (meval_instr pr2) (Tr_cmd cc) st2).
+have <- : ErrorCutoff =  (EE_MR ErrorCutoff FCState).
+admit.
+have <- : NoCutoff = (EE_MR NoCutoff FCState).
+rewrite /NoCutoff /EE_MR.
+admit.
+    by apply rutt_msem_fcstate.
+have <- : ErrorCutoff =  (EE_MR ErrorCutoff FCState).
+admit.
+have <- : NoCutoff = (EE_MR NoCutoff FCState).
+rewrite /NoCutoff /EE_MR.
+admit.
+  have := @rutt_msem_fcstate ev1 ev2 _ _ (FFCall scs1 m1 fn vs1) (FFCall scs2 m2 fn vs2).
+  apply => /=; case hpre => //.
+Admitted.
 
 (*
+
+Search interp_err.
+
+Definition rsem_call {E} `{ErrEvent -< E}
+   (scs1 : syscall_state_t) (m1 : mem)
+   (fn : funname) (vargs : values) : itree E (syscall_state_t * mem * values) :=
+ mrec msem_fcstate (FFCall scs1 m1 fn vargs).
+
+
+
 Lemma rutt_err_mk_SyscallE x sc e st1 st2 :
   RS st1 st2 ->
   rutt (sum_prerel (@TR_D_ME) (TR_E E)) (sum_postrel (@VR_D_ME) (VR_E E)) RS
@@ -503,6 +661,7 @@ Qed.
 *)
 (* Inductive lemma - GOOD. here we are not tying the coinductive knot,
    as st_cmd_map_r is just a map function. *)
+(*
 Lemma rutt_cmd_tr_ME_step (cc: cmd) (st1 st2: estate) :
   RS st1 st2 ->
   rutt_err (FCState +' E) _ _ _
@@ -655,13 +814,9 @@ Proof.
   }
   eapply rutt_cmd_tr_ME_step; eauto.
 Qed.
-
+*)
 
 End TR_MutualRec.
-
-End GEN_Error.
-
-End GEN_ErrAndFlat.
 
 End TR_tests.
 
@@ -669,6 +824,5 @@ End TRANSF.
 
 End WSW.
 
-End Lang.
 
 
