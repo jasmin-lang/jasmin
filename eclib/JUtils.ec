@@ -459,3 +459,17 @@ op (`<<`) (x i : int) : int =
   else (x %/ 2^(-i)).
 
 op (`|>>`) (x i : int) : int = x `<<` (-i).
+
+(* --------------------------------------------------- *)
+(* signed division *)
+
+op zsign (i:int) =
+  if i < 0 then -1
+  else if i = 0 then 0
+  else 1.
+
+op (\zquot) (a b : int) =
+  zsign a * zsign b * (`|a| %/ `|b|).
+
+op (\zrem) (a b : int) =
+  zsign a * (`|a| %% `|b|).
