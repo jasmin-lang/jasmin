@@ -163,8 +163,3 @@ itrees/it_gen_lib.v
 itrees/it_jasmin_lib.v
 itrees/it_exec.v
 itrees/it_sems_core.v
-itrees/it_exec_mono.v
-itrees/it_result.v
-itrees/it_sems_mono.v
-itrees/it_sems.v 
-itrees/it_semsR.v

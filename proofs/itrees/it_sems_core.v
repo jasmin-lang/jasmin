@@ -125,39 +125,13 @@ Definition interp_Err {E: Type -> Type} {A}
   interp_exec ext_handle_Err t.
 
 (*** auxiliary error functions *)
-(* FIXME: change this name *)
+
 Definition ioget {E: Type -> Type} `{ErrEvent -< E} {V} (err: error_data) (o: option V) : itree E V :=
   match o with
   | Some v => Ret v
   | None => throw err
   end.
 
-(*
-Definition err_put {E: Type -> Type} `{ErrEvent -< E} {S}
-  (f: S -> option S) : stateT S (itree E) unit :=
-  fun st => match (f st) with
-            | Some st' => Ret (st', tt)
-            | None => throw Err end.
-
-Definition err_write {E: Type -> Type} `{ErrEvent -< E} {S}
-  (ms: option S) : stateT S (itree E) unit :=
-  fun st => match ms with
-            | Some st' => Ret (st', tt)
-            | None => throw Err end.
-*)
-(*
-Definition err_opt {E: Type -> Type} `{ErrEvent -< E} :
-  option ~> itree E :=
-  fun _ t => match t with
-             | Some v => Ret v
-             | None => throw Err end.
-
-Definition err_st_opt {E: Type -> Type} `{ErrEvent -< E} {S} :
-  option ~> stateT S (itree E) :=
-  fun _ t st => match t with
-                | Some v => Ret (st, v)
-                | None => throw Err end.
-*)
 Definition err_result {E: Type -> Type} `{ErrEvent -< E} (Err : error -> error_data) :
   result error ~> itree E :=
   fun _ t => match t with
@@ -166,52 +140,20 @@ Definition err_result {E: Type -> Type} `{ErrEvent -< E} (Err : error -> error_d
 
 End Errors.
 
-
-(*********************************************************************)
-(*** LANGUAGE DEFINITIONS *********************************************)
-(* we are exploring more alternatives *)
-Section Lang.
-Context (asm_op: Type) (asmop: asmOp asm_op).
-
-
-(**********************************************************************)
-(********** EVENT SEMANTICS ******************************************)
-
 Section WSW.
-Context {wsw: WithSubWord}.
 Context
-  (dc: DirectCall)
-  (syscall_state : Type)
-  (ep : EstateParams syscall_state)
-  (spp : SemPexprParams)
-  (sip : SemInstrParams asm_op syscall_state)
-  (pT : progT)
-  (scP : semCallParams)
+  {asm_op: Type}
+  {asmop: asmOp asm_op}
+  {wsw: WithSubWord}
+  {dc: DirectCall}
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT : progT}
+  {scP : semCallParams}
+  (pr : prog)
   (ev : extra_val_t).
-
-Section OneProg.
-Context (pr : prog).
-
-
-(***** FUN-READER SEMANTICS ******************************************)
-(* Section ModularSem. *)
-
-(*
-Definition get_FunCode (fn: funname) : option cmd :=
-  opt_lift (@f_body asm_op asmop extra_fun_t) (get_FunDef fn).
-
-Definition get_FunDests (fn: funname) : option lvals :=
-  get_FunDef fn >>o= fun f => Some (map Lvar (f.(f_res))).
-*)
-
-(***** INSTR AUX FUNCTIONS *******************************************)
-
-(** Ccall *)
-(*
-Definition ret_get_FunDef {E: Type -> Type}
-  (fn: funname) : execT (itree E) FunDef :=
-  Ret (o2r ErrType (get_FunDef fn)).
-*)
 
 Definition mk_error_data (s:estate) (e:error)  := (e, tt).
 
@@ -244,181 +186,12 @@ Definition isem_pexprs {E} `{ErrEvent -< E}
    (wdb : bool) (gd : glob_decls) (s : estate) (es: pexprs) : itree E values :=
   iresult s (sem_pexprs wdb gd s es).
 
-
-
-
-
-
-(*Definition ret_get_FunCode {E: Type -> Type}
-  (fn: funname) : execT (itree E) cmd :=
-  f <- ret_get_FunDef fn ;;
-  Ret (ok (funCode f)).
-
-Definition err_get_FunCode {E} `{ErrEvent -< E}
-  (fn: funname) : itree E cmd :=
-  f <- err_get_FunDef fn ;;
-  Ret (funCode f).
-*)
-(*
-Definition pure_eval_Args (args: pexprs) (st: estate) :
-  exec (seq value) :=
-  sem_pexprs (~~direct_call) (p_globs pr) st args.
-
-Definition truncate_Args (f: FunDef) (vargs: seq value) :
-  exec (seq value) :=
-  mapM2 ErrType dc_truncate_val f.(f_tyin) vargs.
-*)
-
-(*
-Definition err_eval_Args {E} `{ErrEvent -< E}
-  (fn: funname) (args: pexprs) (st0: estate) : itree E (seq value) :=
-  f <- err_get_FunDef fn ;;
-  vargs' <- err_result (pure_eval_Args args st0) ;;
-  err_result (truncate_Args f vargs').
-
-Definition err_init_state {E} `{ErrEvent -< E}
-   (fn: funname) (vargs: seq value) (st0: estate) : itree E estate :=
-  let scs1 := st0.(escs) in
-  let m1 := st0.(emem) in
-  f <- err_get_FunDef fn ;;
-  st1 <- err_result
-       (init_state f.(f_extra) (p_extra pr) ev (Estate scs1 m1 Vm.init)) ;;
-  err_result
-      (write_vars (~~direct_call) (f_params f) vargs st1).
-
-Definition err_return_val {E} `{ErrEvent -< E}
-  (fn: funname) (st0: estate) : itree E (seq value) :=
-  f <- err_get_FunDef fn ;;
-  vres <- err_result
-      (get_var_is (~~ direct_call) st0.(evm) f.(f_res)) ;;
-  err_result
-      (mapM2 ErrType dc_truncate_val f.(f_tyout) vres).
-
-Definition err_reinstate_caller {E} `{ErrEvent -< E}
-  (fn: funname) (xs: lvals) (vres: seq value)
-  (st_ee st_er: estate) : itree E estate :=
-  f <- err_get_FunDef fn ;;
-  let scs2 := st_ee.(escs) in
-  let m2 := finalize f.(f_extra) st_ee.(emem) in
-  err_result
-         (write_lvals (~~direct_call) (p_globs pr)
-                      (with_scs (with_mem st_er m2) scs2) xs vres).
-*)
-(*
-Definition ret_eval_Args {E: Type -> Type}
-  (fn: funname) (args: pexprs) (st0: estate) : execT (itree E) (seq value) :=
-  f <- ret_get_FunDef fn ;;
-  Ret (Let vargs' := pure_eval_Args args st0 in truncate_Args f vargs').
-
-Definition ret_init_state {E: Type -> Type}
-   (fn: funname) (vargs: seq value) (st0: estate) : execT (itree E) estate :=
-  let scs1 := st0.(escs) in
-  let m1 := st0.(emem) in
-  f <- ret_get_FunDef fn ;;
-  Ret
-  (Let st1 := init_state f.(f_extra) (p_extra pr) ev (Estate scs1 m1 Vm.init) in
-   write_vars (~~direct_call) (f_params f) vargs st1).
-
-Definition ret_return_val {E: Type -> Type}
-  (fn: funname) (st0: estate) : execT (itree E) (seq value) :=
-  f <- ret_get_FunDef fn ;;
-  Ret
-  (Let vres := get_var_is (~~ direct_call) st0.(evm) f.(f_res) in
-   mapM2 ErrType dc_truncate_val f.(f_tyout) vres).
-
-Definition ret_reinstate_caller {E: Type -> Type}
-  (fn: funname) (xs: lvals) (vres: seq value)
-  (st_ee st_er: estate) : execT (itree E) estate :=
-  f <- ret_get_FunDef fn ;;
-  let scs2 := st_ee.(escs) in
-  let m2 := finalize f.(f_extra) st_ee.(emem) in
-  Ret (write_lvals (~~direct_call) (p_globs pr)
-                      (with_scs (with_mem st_er m2) scs2) xs vres).
-*)
-(** WriteIndex *)
-(*
-Definition ret_mk_WriteIndex {E}
-  (x: var_i) (z: Z) (st1: estate) : execT (itree E) estate :=
-    Ret (write_var true x (Vint z) st1).
-*)
-(*
-Definition err_mk_WriteIndex {E} `{ErrEvent -< E}
-  (x: var_i) (z: Z) (st1: estate) : itree E estate :=
-    err_result (write_var true x (Vint z) st1).
-
-(** EvalCond *)
-Definition ret_mk_EvalCond {E}
-  (e: pexpr) (st1: estate) : execT (itree E) bool :=
-   let vv := sem_pexpr true (p_globs pr) st1 e in
-   match vv with
-   | Ok (Vbool bb) => ret (ok bb)
-   | _ => ret (Error ErrType) end.
-
-Definition err_mk_EvalCond {E} `{ErrEvent -< E}
-  (e: pexpr) (st1: estate) : itree E bool :=
-   let vv := sem_pexpr true (p_globs pr) st1 e in
-   match vv with
-   | Ok (Vbool bb) => ret bb
-   | _ => throw ErrType end.
-
-
-(** EvalBound *)
-Definition ret_mk_EvalBound {E}
-  (e: pexpr) (st1: estate) : execT (itree E) Z :=
-   let vv := sem_pexpr true (p_globs pr) st1 e in
-   match vv with
-   | Ok (Vint zz) => ret (ok zz)
-   | _ => ret (Error ErrType) end.
-
-Definition err_mk_EvalBound {E} `{ErrEvent -< E}
-  (e: pexpr) (st1: estate) : itree E Z :=
-   let vv := sem_pexpr true (p_globs pr) st1 e in
-   match vv with
-   | Ok (Vint zz) => ret zz
-   | _ => throw ErrType end.
-
-*)
-
-(** AssgnE *)
-(* terminating *)
-
 Definition eval_assgn
   (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr)
   (st1: estate) : exec estate :=
    (Let v := sem_pexpr true (p_globs pr) st1 e in
     Let v' := truncate_val ty v in
     write_lval true (p_globs pr) x v' st1).
-(*
-Definition ieval_assgn {E} `{ErrEvent -< E}
- (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr)
-  (s: estate) : itree E estate :=
-  iresult s (eval_assgn x tg ty e s).
-*)
-(*
-Definition err_mk_AssgnE {E: Type -> Type} `{ErrEvent -< E}
-  (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr)
-  (st1: estate) : itree E estate :=
-    v <- err_result (sem_pexpr true (p_globs pr) st1 e) ;;
-    v' <- err_result (truncate_val ty v) ;;
-    err_result (write_lval true (p_globs pr) x v' st1).
-
-
-(** OpnE *)
-(* terminating *)
-Definition ret_mk_OpnE {E: Type -> Type}
-  (xs: lvals) (tg: assgn_tag) (o: sopn)
-  (es : pexprs) (st1: estate) : execT (itree E) estate := Ret
-    (sem_sopn (p_globs pr) o st1 xs es).
-
-Definition err_mk_OpnE {E: Type -> Type} `{ErrEvent -< E}
-  (xs: lvals) (tg: assgn_tag) (o: sopn)
-   (es : pexprs) (st1: estate) : itree E estate :=
-    err_result (sem_sopn (p_globs pr) o st1 xs es).
-
-
-(** SyscallE *)
-(* terminating *)
-*)
 
 Definition eval_syscall
    (xs: lvals) (o: syscall_t)
@@ -427,27 +200,6 @@ Definition eval_syscall
   Let: (scs, m, vs) := exec_syscall s.(escs) s.(emem) o ves in
   write_lvals true (p_globs pr)
      (with_scs (with_mem s m) scs) xs vs.
-
-(*
-Definition ieval_syscall {E} `{ErrEvent -< E}
-   (xs: lvals) (o: syscall_t)
-   (es: pexprs) (s: estate) : exec estate
-  iresult (eval_syscall
-*)
-(*
-Definition err_mk_SyscallE {E: Type -> Type} `{ErrEvent -< E}
-  (xs: lvals) (o: syscall_t) (es: pexprs) (st1: estate) :
-  itree E estate :=
-    ves <- err_result (sem_pexprs true (p_globs pr) st1 es ) ;;
-    r3 <- err_result (exec_syscall st1.(escs) st1.(emem) o ves) ;;
-    match r3 with
-    | (scs, m, vs) =>
-        err_result (write_lvals true (p_globs pr)
-                       (with_scs (with_mem st1 m) scs) xs vs) end.
-*)
-
-(*** INTERPRETERS WITH ERROR (quasi-flat) ******************************)
-Section ErrorAwareSem.
 
 (** Auxiliary functions for recursion on list (seq) *)
 
@@ -472,15 +224,16 @@ Fixpoint sem_for {E} `{ErrEvent -< E}
 
 (**********************************************************************)
 (** error-aware interpreter with mutual recursion *)
-Section With_MREC_error.
 
 (* mutual recursion events *)
 (* FIXME : should we find a better name ? *)
+(* FIXME :  introduce a record for (syscall_state_t * mem * values) *)
 Variant FCState : Type -> Type :=
  | FLCode (c: cmd) (st: estate) : FCState estate
  | FFCall (scs : syscall_state_t) (m:mem)
           (f: funname) (vs:values) : FCState (syscall_state_t * mem * values).
 
+(* Make global definition *)
 Local Notation continue_loop st := (ret (inl st)).
 Local Notation exit_loop st := (ret (inr st)).
 Local Notation rec_call := (trigger_inl1).
@@ -504,7 +257,7 @@ Definition msem_i {E} `{ErrEvent -< E} (i : instr_r) (s1: estate) : itree (FCSta
   | Csyscall xs o es => iresult s1 (eval_syscall xs o es s1)
   | Cif e c1 c2 =>
       b <- sem_cond e s1;;
-      if b then R c1 s1 else R c2 s1
+      R (if b then c1 else c2) s1
   | Cwhile a c1 e c2 =>
       ITree.iter (fun s1 =>
            s2 <- R c1 s1 ;;
@@ -522,11 +275,6 @@ Definition msem_i {E} `{ErrEvent -< E} (i : instr_r) (s1: estate) : itree (FCSta
       let: (scs2, m2, vs) := res in
       iwrite_lvals (~~direct_call) gd (with_scs (with_mem s1 m2) scs2) xs vs
 end.
-
-(*
-Definition msem_I {E} `{ErrEvent -< E} (i : instr) (s1: estate) : itree (FCState +' E) estate :=
-  let: MkI ii i := i in msem_i i s1.
-*)
 
 Definition initialize_call (scs1 : syscall_state_t) (m1 : mem)
    (fd : fundef) (vargs : values) : exec estate :=
@@ -559,50 +307,16 @@ Definition msem_fcstate {E} `{ErrEvent -< E} : FCState ~> itree (FCState +' E) :
    | FFCall scs m fn vs => msem_call scs m fn vs
    end.
 
-(* This is really needed ? *)
-(*
-Definition sem_cmd {E} `{ErrEvent -< E} (c: cmd) (st: estate) :
-  itree E estate :=
-  mrec msem_fcstate (FLCode c st).
-*)
-
-Definition sem_call  {E} `{ErrEvent -< E}
+Definition rsem_call {E} `{ErrEvent -< E}
    (scs1 : syscall_state_t) (m1 : mem)
-   (fn : funname) (vargs' : values) : itree E (syscall_state_t * mem * values) :=
- mrec msem_fcstate (FFCall scs1 m1 fn vargs').
+   (fn : funname) (vargs : values) : itree E (syscall_state_t * mem * values) :=
+ mrec msem_fcstate (FFCall scs1 m1 fn vargs).
 
-(*
-Definition meval_cmd {E} (c: cmd) (st: estate) : itree E (option estate) :=
-  @interp_Err E estate (mevalE_cmd c st).
-
-Definition mevalE_fun {E} `{ErrEvent -< E} :
-  (funname * (values * estate)) ->
-  itree E (values * estate) :=
-  fun fvst =>
-    let '(fn, (va, st)) := fvst in
-    st1 <- err_init_state fn va st ;;
-    c <- err_get_FunCode fn ;;
-    st2 <- mevalE_cmd c st1 ;;
-    vs <- err_return_val fn st2 ;;
-    ret (vs, st2).
-
-Definition meval_fun_ {E} `{ErrEvent -< E}
-  (fn: funname) (va: values) (st0: estate) :
-  itree (FCState +' E) (values * estate) :=
-  st1 <- err_init_state fn va st0 ;;
-  c <- err_get_FunCode fn ;;
-  st2 <- rec_call (FLCode c st1) ;;
-  vs <- err_return_val fn st2 ;;
-  ret (vs, st2).
-*)
-
-End With_MREC_error.
-
-End ErrorAwareSem.
-
-End OneProg.
+(* This should be the final semantics *)
+Definition sem_call (scs1 : syscall_state_t) (m1 : mem)
+   (fn : funname) (vargs : values) : execT (itree void1) (syscall_state_t * mem * values) :=
+  interp_Err (rsem_call scs1 m1 fn vargs).
 
 End WSW.
 
-End Lang.
 
