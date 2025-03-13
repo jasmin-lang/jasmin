@@ -29,7 +29,7 @@ let coqPackages =
       };
       hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
     })
-  else coqPackages_8_19.overrideScope (self: super: {
+  else coqPackages_8_20.overrideScope (self: super: {
       mathcomp = super.mathcomp.override { version = "2.2.0"; };
   })
 ; in
