@@ -105,6 +105,13 @@ Fixpoint pi_e (pi:pimap) (e:pexpr) :=
     let start := pi_e pi start in
     let len   := pi_e pi len in
     Pbig idx op x body start len
+  | Pis_var_init x =>
+    match Mvar.get pi x with
+    | Some c => c.(pi_def)
+    | None => e
+    end
+  | Pis_arr_init x e => Pis_arr_init x (pi_e pi e)
+  | Pis_mem_init e => Pis_mem_init (pi_e pi e)
 
   end.
 

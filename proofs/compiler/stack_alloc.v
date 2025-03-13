@@ -648,6 +648,13 @@ Fixpoint alloc_e (e:pexpr) ty :=
 
   | Pbig _ _ _ _ _ _ => Error (stk_ierror_no_var "Pbig is not supported in stack_alloc")
 
+  | Pis_var_init _ => ok e
+  | Pis_arr_init x e1 => 
+      Let e1 := alloc_e e1 sint in
+      ok (Pis_arr_init x e1)
+  | Pis_mem_init e1 => 
+      Let e1 := alloc_e e1 sint in
+      ok (Pis_mem_init e1)
   end.
 
   Definition alloc_es es ty := mapM2 bad_arg_number alloc_e es ty.
