@@ -452,8 +452,6 @@ Definition expand_ci m exp (insf: seq (seq stype * seq var_i * option (wsize * Z
   | None => ok None
   end.
 
-Search Mvar.fold.
-
 Definition init_array (params:Sv.t) (a:var) (ai:array_info) (all:cmd) :=
   if Sv.mem a params then all else
   let vi := dummy_var_info in
