@@ -284,10 +284,10 @@ Proof.
     move=> k hk.
     apply hsr.(sr_mem_valid).
     rewrite /between /zbetween wsize8 !zify addE /top.
-    rewrite -wrepr_sub -GRing.addrA -wrepr_add.
+    rewrite -wrepr_sub -GRing.addrA -[(_ + wrepr _ k)%R]wrepr_add.
     have hbound := hsr.(sr_bound).
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
-    by rewrite wunsigned_add; last rewrite wunsigned_sub; lia.
+    rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
   eexists (Estate _ _ _); split=> /=.
   apply: lsem_step3.
@@ -516,10 +516,10 @@ Local Opaque wsize_size Z.of_nat.
     move=> k hk.
     apply hsr.(sr_mem_valid).
     rewrite /between /zbetween wsize8 !zify addE /top.
-    rewrite -GRing.addrA -wrepr_add.
+    rewrite -GRing.addrA -[(_ + wrepr _ k)%R]wrepr_add.
     have hbound := hsr.(sr_bound).
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
-    by rewrite wunsigned_add; last rewrite wunsigned_sub; lia.
+    by rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
   eexists (Estate _ _ _); split.
   + apply: lsem_step1.

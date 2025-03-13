@@ -909,8 +909,11 @@ Proof.
   have [hle hlt] := wunsigned_range (p - wrepr Uptr sz).
   have := Z.mod_le _ _ hle (wsize_size_pos ws).
   have := Z_mod_lt (wunsigned (p - wrepr Uptr sz)) (wsize_size ws) ltac:(done).
-  rewrite -[(_ : zmodType -> nmodType) (word Uptr)]/(word Uptr : nmodType).
-  lia.
+  move=> [] mod_ge0 _ hle_mod.
+  split; first exact: Zle_minus_le_0.
+  apply/Z.lt_sub_lt_add_l/(Z.lt_le_trans _ _ _ hlt).
+  rewrite -{1}[wbase _]Z.add_0_l.
+  exact: Zplus_le_compat_r.
 Qed.
 
 Lemma top_stack_after_alloc_bounded p ws sz :
