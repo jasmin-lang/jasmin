@@ -322,7 +322,7 @@ Definition sem_i_call {E} `{ErrEvent -< E}
   s2 <- it_rec_call (LCode fd.(f_body) s1);;
   iresult s2 (finalize_call fd s2).
 
-Definition msem_fcstateF {E} `{ErrEvent -< E}
+Definition sem_fcstateF {E} `{ErrEvent -< E}
    (R : instr_r -> estate -> itree (FCState +' E) estate) :
    FCState ~> itree (FCState +' E) :=
  fun _ fs =>
@@ -331,31 +331,29 @@ Definition msem_fcstateF {E} `{ErrEvent -< E}
    | FCall scs m fn vs => sem_i_call scs m fn vs
    end.
 
-Definition msem_fcstate {E} `{ErrEvent -< E} :
-   FCState ~> itree (FCState +' E) :=
-  msem_fcstateF msem_instr.
-  
-Definition rsem_fcstate {E} `{ErrEvent -< E} :
-   FCState ~> itree (FCState +' E) :=
-  msem_fcstateF rsem_instr.
-
-Definition msem_call {E} `{ErrEvent -< E}
+Definition sem_callF {E} `{ErrEvent -< E}
+   (R : instr_r -> estate -> itree (FCState +' E) estate)                      
    (scs1 : syscall_state_t) (m1 : mem)
    (fn : funname) (vargs : values) : itree E (syscall_state_t * mem * values) :=
- mrec msem_fcstate (FCall scs1 m1 fn vargs).
+ mrec (sem_fcstateF R) (FCall scs1 m1 fn vargs).
 
-Definition rsem_call {E} `{ErrEvent -< E}
-   (scs1 : syscall_state_t) (m1 : mem)
-   (fn : funname) (vargs : values) : itree E (syscall_state_t * mem * values) :=
- mrec rsem_fcstate (FCall scs1 m1 fn vargs).
+(* event-based recursion *)
+Definition msem_call {E} `{ErrEvent -< E} :
+  syscall_state_t -> mem -> funname -> values ->
+           itree E (syscall_state_t * mem * values) := sem_callF msem_instr.
+
+(* fixpoint-based recursion *)
+Definition rsem_call {E} `{ErrEvent -< E} :
+  syscall_state_t -> mem -> funname -> values ->
+           itree E (syscall_state_t * mem * values) := sem_callF rsem_instr.
 
 (* This should be the final semantics *)
-Definition full_msem_call (scs1 : syscall_state_t) (m1 : mem)
+Definition final_msem_call (scs1 : syscall_state_t) (m1 : mem)
   (fn : funname) (vargs : values) :
   execT (itree void1) (syscall_state_t * mem * values) :=
   interp_Err (msem_call scs1 m1 fn vargs).
 
-Definition full_rsem_call (scs1 : syscall_state_t) (m1 : mem)
+Definition final_rsem_call (scs1 : syscall_state_t) (m1 : mem)
   (fn : funname) (vargs : values) :
   execT (itree void1) (syscall_state_t * mem * values) :=
   interp_Err (rsem_call scs1 m1 fn vargs).
