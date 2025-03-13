@@ -19,8 +19,8 @@ let pp_gvar_i pp_var fmt v = pp_var fmt (L.unloc v)
 let string_of_combine_flags = function
   | E.CF_LT s -> Format.sprintf "_%sLT" (string_of_signess s)
   | E.CF_LE s -> Format.sprintf "_%sLE" (string_of_signess s)
-  | E.CF_EQ   -> Format.sprintf "_EQ" 
-  | E.CF_NEQ  -> Format.sprintf "_NEQ" 
+  | E.CF_EQ   -> Format.sprintf "_EQ"
+  | E.CF_NEQ  -> Format.sprintf "_NEQ"
   | E.CF_GE s -> Format.sprintf "_%sGE" (string_of_signess s)
   | E.CF_GT s -> Format.sprintf "_%sGT" (string_of_signess s)
 
@@ -54,7 +54,7 @@ let pp_ge pp_len pp_var =
   | PappN (E.Opack(_sz, pe), es) ->
     F.fprintf fmt "@[(%du%n)[%a]@]" (List.length es) (int_of_pe pe) (pp_list ",@ " pp_expr) es
   | PappN (Ocombine_flags c, es) ->
-    F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " pp_expr) es  
+    F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " pp_expr) es
   | Pif(_, e,e1,e2) ->
     F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
       pp_expr e pp_expr e1  pp_expr e2
@@ -116,7 +116,7 @@ let pp_tag = E.(function
   | AT_inline  -> ":i"
   | AT_phinode -> ":φ")
 
-let pp_align fmt = function 
+let pp_align fmt = function
   | E.Align -> Format.fprintf fmt "#[align]@ "
   | E.NoAlign -> ()
 
@@ -266,7 +266,7 @@ let pp_pitem pp_len pp_opn pp_var =
  in
   aux
 
-let pp_pvar fmt x = F.fprintf fmt "%s" x.v_name 
+let pp_pvar fmt x = F.fprintf fmt "%s" x.v_name
 
 let rec pp_pexpr fmt e = pp_ge pp_pexpr_ pp_pvar fmt e
 and pp_pexpr_ fmt (PE e) = pp_pexpr fmt e
@@ -314,7 +314,7 @@ let pp_expr ~debug fmt e =
   let pp_var = pp_var ~debug in
   pp_ge pp_len pp_var fmt e
 
-let pp_lval ~debug fmt x = 
+let pp_lval ~debug fmt x =
   pp_glv pp_len (pp_var ~debug) fmt x
 
 let pp_instr ~debug pd asmOp fmt i =
@@ -337,22 +337,22 @@ let pp_func ~debug pd asmOp fmt fd =
   let pp_var = pp_var ~debug in
   pp_fun pp_opn pp_var fmt fd
 
-let pp_glob pp_var fmt (x, gd) = 
+let pp_glob pp_var fmt (x, gd) =
   let pp_size fmt i = F.fprintf fmt "%i" i in
   let pp_vd =  pp_var_decl pp_var pp_size in
-  let pp_gd fmt gd = 
+  let pp_gd fmt gd =
     match gd with
-    | Global.Gword(ws,w) -> 
-      Format.fprintf fmt "%a" pp_print_X (Conv.z_of_word ws w) 
+    | Global.Gword(ws,w) ->
+      Format.fprintf fmt "%a" pp_print_X (Conv.z_of_word ws w)
     | Global.Garr(p, t) ->
       let _, t = Conv.to_array x.v_ty p t in
       Format.fprintf fmt "@[{%a}@]"
-        (pp_list ",@ " pp_print_X) 
+        (pp_list ",@ " pp_print_X)
         (Array.to_list t)  in
   Format.fprintf fmt "@[%a =@ %a;@]"
     pp_vd x pp_gd gd
 
-let pp_globs pp_var fmt gds = 
+let pp_globs pp_var fmt gds =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_glob pp_var)) (List.rev gds)
 
@@ -403,7 +403,7 @@ let pp_return_address ~debug fmt = function
 let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
-  let pp_f_extra fmt f_extra = 
+  let pp_f_extra fmt f_extra =
     Format.fprintf fmt "(* @[<v>alignment = %s; stack size = %a + %a; max stack size = %a;@ max call depth = %a;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] *)"
       (string_of_ws f_extra.Expr.sf_align)
       Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_sz)
@@ -416,7 +416,7 @@ let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
   in
   let pp_fun fmt (f_extra,f) =
     Format.fprintf fmt "@[<v>%a@ %a@]" pp_f_extra f_extra (pp_fun pp_opn pp_var) f in
-  let pp_p_extra fmt p_extra = 
+  let pp_p_extra fmt p_extra =
     Format.fprintf fmt "global data:@    %a" pp_datas p_extra.Expr.sp_globs in
   Format.fprintf fmt "@[<v>%a@ %a@]"
      pp_p_extra p_extra
