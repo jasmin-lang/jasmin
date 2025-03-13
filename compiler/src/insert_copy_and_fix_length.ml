@@ -37,11 +37,11 @@ and iac_instr pd i = { i with i_desc = iac_instr_r pd i.i_loc i.i_desc }
 and iac_instr_r pd loc ir =
   match ir with
   | Cassgn (x, t, _, e) ->
-    if !Glob_options.introduce_array_copy then 
+    if !Glob_options.introduce_array_copy then
       match is_array_copy x e with
       | None -> ir
-      | Some (ws, n) -> 
-          warning IntroduceArrayCopy 
+      | Some (ws, n) ->
+          warning IntroduceArrayCopy
             loc "an array copy is introduced";
           let op = Pseudo_operator.Ocopy(ws, Conv.pos_of_int n) in
           Copn([x], t, Sopn.Opseudo_op op, [e])
@@ -53,14 +53,14 @@ and iac_instr_r pd loc ir =
 
     begin match o, xs with
     | Sopn.Opseudo_op(Pseudo_operator.Ospill(o,_)), _ ->
-      let tys = List.map (fun e -> Conv.cty_of_ty (Typing.ty_expr pd loc e)) es in  
+      let tys = List.map (fun e -> Conv.cty_of_ty (Typing.ty_expr pd loc e)) es in
       Copn(xs,t, Sopn.Opseudo_op(Pseudo_operator.Ospill(o, tys)), es)
-                 
+
     | Sopn.Opseudo_op(Pseudo_operator.Ocopy(ws, _)), [x] ->
       (* Fix the size it is dummy for the moment *)
       let xn = size_of_lval x in
       let wsn = size_of_ws ws in
-      if xn mod wsn <> 0 then 
+      if xn mod wsn <> 0 then
         Typing.error loc
           "the destination %a has size %i: it should be a multiple of %i"
           (Printer.pp_lval ~debug:false) x
@@ -71,7 +71,7 @@ and iac_instr_r pd loc ir =
     | Sopn.Opseudo_op(Pseudo_operator.Oswap _), x::_ ->
       (* Fix the type it is dummy for the moment *)
       let ty = Conv.cty_of_ty (Typing.ty_lval pd loc x) in
-      Copn(xs, t, Sopn.Opseudo_op(Pseudo_operator.Oswap ty), es)  
+      Copn(xs, t, Sopn.Opseudo_op(Pseudo_operator.Oswap ty), es)
     | Sopn.Oslh (SLHprotect_ptr _), [Lvar x] ->
       (* Fix the size it is dummy for the moment *)
       let xn = size_of (L.unloc x).v_ty in

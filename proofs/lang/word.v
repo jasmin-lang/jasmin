@@ -285,7 +285,7 @@ Proof. by apply /eqP; case sz. Qed.
 
 Lemma wrepr_opp sz (x: Z) :
   wrepr sz (- x) = (- wrepr sz x)%R.
-Proof. 
+Proof.
   have -> : (- x) = (- x)%R by done.
   by rewrite -(mulN1r x) wrepr_mul wrepr_m1 mulN1r.
 Qed.
@@ -303,13 +303,13 @@ Proof.
 Qed.
 
 Lemma wunsigned_add_if ws (a b : word ws) :
-  wunsigned (a + b) = 
+  wunsigned (a + b) =
    if wunsigned a + wunsigned b <? wbase ws then wunsigned a + wunsigned b
    else wunsigned a + wunsigned b - wbase ws.
 Proof.
   move: (wunsigned_range a) (wunsigned_range b).
   rewrite /wunsigned mathcomp.word.word.addwE /GRing.add /= -/(wbase ws) => ha hb.
-  case: ZltP => hlt. 
+  case: ZltP => hlt.
   + by rewrite Zmod_small //; lia.
   by rewrite -(Z_mod_plus_full _ (-1)) Zmod_small; lia.
 Qed.
@@ -322,20 +322,20 @@ Proof.
   by rewrite -wrepr_sub wunsigned_repr Z.mod_small.
 Qed.
 
-Lemma wunsigned_sub_if ws (a b : word ws) : 
-  wunsigned (a - b) = 
-    if wunsigned b <=? wunsigned a then wunsigned a - wunsigned b 
+Lemma wunsigned_sub_if ws (a b : word ws) :
+  wunsigned (a - b) =
+    if wunsigned b <=? wunsigned a then wunsigned a - wunsigned b
     else  wbase ws + wunsigned a - wunsigned b.
 Proof.
   move: (wunsigned_range a) (wunsigned_range b).
   rewrite /wunsigned mathcomp.word.word.subwE -/(wbase ws) => ha hb.
   have -> : (word.urepr a - word.urepr b)%R = word.urepr a - word.urepr b by done.
-  case: ZleP => hle. 
+  case: ZleP => hle.
   + by rewrite Zmod_small //; lia.
   by rewrite -(Z_mod_plus_full _ 1) Zmod_small; lia.
 Qed.
 
-Lemma wunsigned_opp_if ws (a : word ws) : 
+Lemma wunsigned_opp_if ws (a : word ws) :
   wunsigned (-a) = if wunsigned a == 0 then 0 else wbase ws - wunsigned a.
 Proof.
   have ha := wunsigned_range a.
@@ -870,7 +870,7 @@ Qed.
 
 Lemma zero_extend1 sz sz' :
   @zero_extend sz sz' 1%R = 1%R.
-Proof. 
+Proof.
   apply/eqP/eq_from_wbit => -[i hi].
   have := @wbit_zero_extend sz sz' 1%R i.
   by rewrite /wbit_n => ->; rewrite -ltnS hi.
@@ -1063,18 +1063,18 @@ Lemma zero_extend_m1 sz sz' :
   @zero_extend sz sz' (-1) = (-1)%R.
 Proof. exact: zero_extend_wrepr. Qed.
 
-Lemma wopp_zero_extend sz sz' (x: word sz') : 
+Lemma wopp_zero_extend sz sz' (x: word sz') :
   (sz ≤ sz')%CMP →
   zero_extend sz (-x) = (- zero_extend sz x)%R.
 Proof.
  by move=> hsz; rewrite -(mulN1r x) wmul_zero_extend // zero_extend_m1 // mulN1r.
 Qed.
 
-Lemma wsub_zero_extend sz sz' (x y : word sz'): 
+Lemma wsub_zero_extend sz sz' (x y : word sz'):
   (sz ≤ sz')%CMP →
   zero_extend sz (x - y) = (zero_extend sz x - zero_extend sz y)%R.
 Proof.
-  by move=> hsz; rewrite wadd_zero_extend // wopp_zero_extend. 
+  by move=> hsz; rewrite wadd_zero_extend // wopp_zero_extend.
 Qed.
 
 Lemma zero_extend_wshl sz sz' (x: word sz') c :
@@ -1362,7 +1362,7 @@ Definition pextr sz (w1 w2: word sz) :=
 Fixpoint bitpdep sz (w:word sz) (i:nat) (mask:bitseq) :=
   match mask with
   | [::] => [::]
-  | b :: mask => 
+  | b :: mask =>
       if b then wbit_n w i :: bitpdep w (i.+1) mask
       else false :: bitpdep w i mask
   end.
