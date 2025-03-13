@@ -228,13 +228,18 @@ Fixpoint sem_for {E} `{ErrEvent -< E}
 (**********************************************************************)
 (** error-aware interpreter with mutual recursion *)
 
+Record fc_info : Type := fc_info_mk {
+  fc_scs : syscall_state_t ;
+  fc_m : mem ;
+  fc_vs : values }.                           
+
 (* mutual recursion events *)
 (* FIXME : should we find a better name ? *)
 (* FIXME :  introduce a record for (syscall_state_t * mem * values) *)
 Variant FCState : Type -> Type :=
  | LCode (c: cmd) (st: estate) : FCState estate
  | FCall (scs : syscall_state_t) (m:mem)
-          (f: funname) (vs:values) : FCState (syscall_state_t * mem * values).
+          (f: funname) (vs:values) : FCState fc_info.
 
 (* Make global definition *)
 Notation it_continue_loop st := (ret (inl st)).
@@ -258,6 +263,14 @@ Definition sem_while {E} `{ErrEvent -< E}
            if b then s3 <- R c2 s2 ;; it_continue_loop s3 
            else it_exit_loop s2. 
 
+Definition sem_e_call {E} `{ErrEvent -< E} 
+  (xs: lvals) (fn: funname) (args: pexprs) (s1: estate) :
+  itree (FCState +' E) estate :=
+      vargs <- isem_pexprs  (~~direct_call) pglobs s1 args ;;
+      res <- it_rec_call (FCall (escs s1) (emem s1) fn vargs) ;;
+      iwrite_lvals (~~direct_call) pglobs
+        (with_scs (with_mem s1 res.(fc_m)) res.(fc_scs)) xs res.(fc_vs).
+  
 (* instruction semantic functor *)
 Definition sem_instrF {E} `{ErrEvent -< E}
   (R : cmd -> estate -> itree (FCState +' E) estate)
@@ -278,11 +291,7 @@ Definition sem_instrF {E} `{ErrEvent -< E}
      vlo <- sem_bound lo s1 ;;
      vhi <- sem_bound hi s1 ;;
      sem_for R i c (wrange d vlo vhi) s1
-  | Ccall xs fn args =>
-      vargs <- isem_pexprs  (~~direct_call) pglobs s1 args;;
-      res <- it_rec_call (FCall (escs s1) (emem s1) fn vargs);;
-      let: (scs2, m2, vs) := res in
-      iwrite_lvals (~~direct_call) pglobs (with_scs (with_mem s1 m2) scs2) xs vs
+  | Ccall xs fn args => sem_e_call xs fn args s1 
 end.
 
 (* event-based recursion *)
@@ -309,12 +318,12 @@ Definition finalize_call (fd : fundef) (s:estate) :=
   Let vres' := mapM2 ErrType dc_truncate_val fd.(f_tyout) vres in
   let scs := s.(escs) in
   let m := finalize fd.(f_extra) s.(emem) in
-  ok (scs, m, vres').
+  ok (fc_info_mk scs m vres').
 
 Definition sem_i_call {E} `{ErrEvent -< E}
    (scs1 : syscall_state_t) (m1 : mem)
    (fn : funname) (vargs : values) :
-    itree (FCState +' E) (syscall_state_t * mem * values) :=
+    itree (FCState +' E) fc_info :=
   (* FIXME: this is durty : sinit*)
   let sinit := (Estate scs1 m1 Vm.init) in
   fd <- iget_fundef fn sinit;;
@@ -334,28 +343,28 @@ Definition sem_fcstateF {E} `{ErrEvent -< E}
 Definition sem_callF {E} `{ErrEvent -< E}
    (R : instr_r -> estate -> itree (FCState +' E) estate)                      
    (scs1 : syscall_state_t) (m1 : mem)
-   (fn : funname) (vargs : values) : itree E (syscall_state_t * mem * values) :=
- mrec (sem_fcstateF R) (FCall scs1 m1 fn vargs).
+   (fn : funname) (vargs : values) : itree E fc_info :=
+  mrec (sem_fcstateF R) (FCall scs1 m1 fn vargs).
 
 (* event-based recursion *)
 Definition msem_call {E} `{ErrEvent -< E} :
   syscall_state_t -> mem -> funname -> values ->
-           itree E (syscall_state_t * mem * values) := sem_callF msem_instr.
+           itree E fc_info := sem_callF msem_instr.
 
 (* fixpoint-based recursion *)
 Definition rsem_call {E} `{ErrEvent -< E} :
   syscall_state_t -> mem -> funname -> values ->
-           itree E (syscall_state_t * mem * values) := sem_callF rsem_instr.
+           itree E fc_info := sem_callF rsem_instr.
 
 (* This should be the final semantics *)
 Definition final_msem_call (scs1 : syscall_state_t) (m1 : mem)
   (fn : funname) (vargs : values) :
-  execT (itree void1) (syscall_state_t * mem * values) :=
+  execT (itree void1) fc_info :=
   interp_Err (msem_call scs1 m1 fn vargs).
 
 Definition final_rsem_call (scs1 : syscall_state_t) (m1 : mem)
   (fn : funname) (vargs : values) :
-  execT (itree void1) (syscall_state_t * mem * values) :=
+  execT (itree void1) fc_info :=
   interp_Err (rsem_call scs1 m1 fn vargs).
 
 End WSW.
