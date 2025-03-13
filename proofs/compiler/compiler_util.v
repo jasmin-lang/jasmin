@@ -13,7 +13,7 @@ Variant warning_msg : Set :=
 (* ** Compiler error
  * -------------------------------------------------------------------------- *)
 
-Variant box := 
+Variant box :=
   | Vbox
   | Hbox
   | HoVbox
@@ -101,9 +101,9 @@ Definition pp_at_ii ii (e : pp_error_loc) := {|
   pel_pass := e.(pel_pass);
   pel_internal := e.(pel_internal) |}.
 
-Definition add_iinfo {T} (ii:instr_info) (x : cexec T) := 
+Definition add_iinfo {T} (ii:instr_info) (x : cexec T) :=
   match x with
-  | Ok a => ok a 
+  | Ok a => ok a
   | Error e => Error (pp_at_ii ii e)
   end.
 
@@ -149,17 +149,17 @@ Definition with_pel_msg (e : pp_error_loc) (msg : pp_error) : pp_error_loc :=
   |}.
 
 Lemma add_iinfoP {A a} ii (e:cexec A):
-  add_iinfo ii e = ok a -> 
+  add_iinfo ii e = ok a ->
   e = ok a.
 Proof. by case: e. Qed.
 
 Lemma add_finfoP {A a} fi (e:cexec A):
-  add_finfo fi e = ok a -> 
+  add_finfo fi e = ok a ->
   e = ok a.
 Proof. by case: e. Qed.
 
 Lemma add_funnameP {A a} fn (e:cexec A):
-  add_funname fn e = ok a -> 
+  add_funname fn e = ok a ->
   e = ok a.
 Proof. by case: e. Qed.
 
@@ -297,13 +297,13 @@ Ltac t_xrbindP :=
   | [ |- unit -> _ ] =>
       case; t_xrbindP
 
-  | [ |- add_finfo _ _ = ok _ -> _] => 
+  | [ |- add_finfo _ _ = ok _ -> _] =>
       move=> /add_finfoP; t_xrbindP
 
-  | [ |- add_funname _ _ = ok _ -> _] => 
+  | [ |- add_funname _ _ = ok _ -> _] =>
       move=> /add_funnameP; t_xrbindP
 
-  | [ |- add_iinfo _ _ = ok _ -> _] => 
+  | [ |- add_iinfo _ _ = ok _ -> _] =>
       move=> /add_iinfoP; t_xrbindP
 
   | [ |- ok _ = ok _ -> _ ] =>
@@ -327,10 +327,10 @@ Definition gen_loop_iterator pass_name (ii:option instr_info) :=
    ; pel_internal := true
   |}.
 
-Definition loop_iterator pass_name := 
+Definition loop_iterator pass_name :=
   gen_loop_iterator pass_name None.
 
-Definition ii_loop_iterator pass_name ii := 
+Definition ii_loop_iterator pass_name ii :=
   gen_loop_iterator pass_name (Some ii).
 
 Definition error_copy_remain := "array copy remain"%string.

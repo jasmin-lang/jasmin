@@ -77,7 +77,7 @@ lemma exp_abs (x n:int) : x ^ `|n| = x ^ n.
 proof. by smt (exprV). qed.
 
 lemma modz_mod_pow2 i n k : i %% 2^n %% 2^k = i %% 2^(min `|n| `|k|).
-proof. 
+proof.
   rewrite -(exp_abs 2 n) -(exp_abs 2 k).
   move: `|n| `|k| (IntOrder.normr_ge0 n) (IntOrder.normr_ge0 k) => {n k} n k hn hk.
   rewrite /min;case (n < k) => hnk.
@@ -344,7 +344,7 @@ rewrite bs2int_cat /=; congr.
 by rewrite /bs2int /= big_int1.
 qed.
 
-lemma bs2int_nseq b k: 
+lemma bs2int_nseq b k:
   bs2int (nseq k b) = if b /\ 0 <= k then 2^k - 1 else 0.
 proof.
 case: (0 <= k) => /= hk; last by rewrite nseq0_le 1:/# /bs2int /= big_geq //.
