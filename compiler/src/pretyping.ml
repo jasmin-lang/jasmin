@@ -1429,9 +1429,28 @@ let default_suffix =
   | x :: _ -> x
   | [] -> Sopn.PVp U8
 
-let tt_prim asmOp id =
+(**
+Deprecated intrinsic operators map (old name -> new name)
+*)
+let deprecated_intrinsic = 
+  let m = Ms.empty in 
+  let m = Ms.add "VPBLENDVB" "BLENDV" m in
+  Ms.add "VPMOVMSKB" "MOVEMASK" m
+
+(**
+  Check if intrinsic opperator is deprecated and emit a warning if so.
+*)
+let check_deprecated_intrinsic (old_name: string) (loc:L.t) =
+  match Ms.find_opt old_name deprecated_intrinsic with
+  | None -> ()
+  | Some new_name ->
+    warning Deprecated (L.i_loc0 loc) "Intrinsic operator '%s' is deprecated. Please use '%s' instead." old_name new_name
+
+
+let tt_prim asmOp id = 
   let { L.pl_loc = loc ; L.pl_desc = s } = id in
   let name, sz = extract_size s in
+  check_deprecated_intrinsic name loc;
   let c =
     match List.assoc name asmOp.Sopn.prim_string with
     | PrimX86 (valid_suffixes, preop) ->
