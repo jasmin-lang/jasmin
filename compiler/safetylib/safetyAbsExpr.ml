@@ -18,16 +18,16 @@ type 'a gmsub = { ms_v      : var;
                   ms_offset : 'a; }
 
 (* - [{ms_v; ms_ws; ms_len; Some ms_offset}] is the slice
-     [8*ms_offset; 8*ms_offset + ms_ws * ms_len[ of ms_v. 
-     Note that the offset is not scaled on the word-size. 
+     [8*ms_offset; 8*ms_offset + ms_ws * ms_len[ of ms_v.
+     Note that the offset is not scaled on the word-size.
    - if [ms_offset] is not, the slices starts at an unknown offset. *)
 type msub = int gmsub
-    
+
 (*-------------------------------------------------------------------------*)
 let check_msub ms =
   let gv = ms.ms_v in
   (* array size, in bytes   *)
-  let arr_size = arr_range gv * (size_of_ws (arr_size gv)) in 
+  let arr_size = arr_range gv * (size_of_ws (arr_size gv)) in
   (* sub-array size, in bytes * *)
   let sub_size = ms.ms_len * (size_of_ws ms.ms_ws) in
   let offset = ms.ms_offset in
@@ -37,7 +37,7 @@ let check_msub ms =
 let check_msubo ms = match ms.ms_offset with
   | None -> ()
   | Some off -> check_msub { ms with ms_offset = off }
-                  
+
 let msub_of_arr gv sc =
   let msub = { ms_v      = gv;
                ms_sc     = sc;
@@ -47,7 +47,7 @@ let msub_of_arr gv sc =
   check_msubo msub;
   msub
 
-           
+
 (*-------------------------------------------------------------------------*)
 let get_wsize = function
   | Type.Coq_sword sz -> sz
@@ -90,22 +90,22 @@ type word_op =
   | Wand                        (* supported only for padding with 2^n - 1 *)
   | Wor                         (* currently not-supported *)
   | Wxor                        (* currently not-supported *)
-    
+
   | Wshift of shift_kind
-  (* Remarks: 
+  (* Remarks:
      - signed left is a synonymous for unsigned left.
      - currently, shift-right is not supported. *)
-              
+
 type abs_binop =
   | AB_Unknown
   | AB_Wop   of word_op
   | AB_Arith of Apron.Texpr1.binop
 
 let abget = function AB_Arith a -> a | _ -> assert false
-  
+
 let op2_to_abs_binop op2 = match op2 with
   | E.Oadd _ -> AB_Arith Texpr1.Add
-  | E.Omul _ -> AB_Arith Texpr1.Mul                  
+  | E.Omul _ -> AB_Arith Texpr1.Mul
   | E.Osub _ -> AB_Arith Texpr1.Sub
 
   | E.Omod (Cmp_w (Signed, _)) -> AB_Unknown
@@ -121,7 +121,7 @@ let op2_to_abs_binop op2 = match op2 with
   | E.Oasr Op_int -> AB_Unknown
   | E.Oror _ -> AB_Wop (Wshift Rotation_right)
   | E.Orol _ -> AB_Wop (Wshift Rotation_left)
-      
+
   | E.Obeq | E.Oand | E.Oor                   (* boolean connectives *)
   | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ -> AB_Unknown
 
@@ -129,7 +129,7 @@ let op2_to_abs_binop op2 = match op2 with
   | E.Oland _ -> AB_Wop Wand
   | E.Olor _  -> AB_Wop Wor
   | E.Olxor _ -> AB_Wop Wxor
-      
+
   | E.Ovadd (_, _) | E.Ovsub (_, _) | E.Ovmul (_, _)
   | E.Ovlsr (_, _) | E.Ovlsl (_, _) | E.Ovasr (_, _) -> AB_Unknown
 
@@ -142,9 +142,9 @@ let expr_pow_mod n lin_expr =
 let word_interval sign ws = match sign with
   | Signed ->
     let pow_m_1 = mpq_pow (ws - 1) in
-    let up_mpq = Mpqf.sub pow_m_1 (Mpqf.of_int 1)         
+    let up_mpq = Mpqf.sub pow_m_1 (Mpqf.of_int 1)
     and down_mpq = Mpqf.neg pow_m_1 in
-    Interval.of_mpqf down_mpq up_mpq 
+    Interval.of_mpqf down_mpq up_mpq
 
   | Unsigned ->
     let up_mpq = mpq_pow_minus ws 1 in
@@ -152,11 +152,11 @@ let word_interval sign ws = match sign with
 
 (* We wrap expr as an out_i word.
    On signed words: ((((lin_expr - 2^(n-1)) % 2^n) + 2^n) % 2^n) - 2^(n-1)
-   On unsigned word:  ((lin_expr            % 2^n) + 2^n) % 2^n)             
+   On unsigned word:  ((lin_expr            % 2^n) + 2^n) % 2^n)
 *)
 let wrap_lin_expr sign n expr =
   match sign with
-  | Signed -> 
+  | Signed ->
     let pow_n = cst_pow_minus n 0 in
     let pow_n_minus_1 = cst_pow_minus (n - 1) 0 in
 
@@ -164,11 +164,11 @@ let wrap_lin_expr sign n expr =
     let expr = expr_pow_mod n expr in
     let expr = Mtexpr.binop Texpr1.Add expr pow_n in
     let expr = expr_pow_mod n expr in
-    Mtexpr.binop Texpr1.Sub expr pow_n_minus_1 
+    Mtexpr.binop Texpr1.Sub expr pow_n_minus_1
 
   | Unsigned ->
     let pow_n = cst_pow_minus n 0 in
-    
+
     let expr = expr_pow_mod n expr in
     let expr = Mtexpr.binop Texpr1.Add expr pow_n in
     expr_pow_mod n expr
@@ -206,17 +206,17 @@ type mlvar =
   | MLnone
   | MLvar  of minfo * mvar
   | MLvars of minfo * mvar list
-  (* If there is uncertainty on the lvalue where 
+  (* If there is uncertainty on the lvalue where
      the assignement takes place. *)
-                
+
   | MLasub of minfo * int option gmsub
   (* None is used if the offset is not determined *)
 
 let pp_offset fmt = function
   | None   -> Format.fprintf fmt "??"
   | Some i -> Format.fprintf fmt "%d" i
-                
-let pp_mlvar fmt = function  
+
+let pp_mlvar fmt = function
   | MLnone -> Format.fprintf fmt "MLnone"
   | MLvar (info, mv) ->
     Format.fprintf fmt "MLvar (%d) %a" info.i_instr_number pp_mvar mv
@@ -230,7 +230,7 @@ let pp_mlvar fmt = function
       (Printer.pp_var ~debug:false) msub.ms_v
       (int_of_ws msub.ms_ws)
       pp_offset msub.ms_offset msub.ms_len
-      
+
 
 (*********************)
 (* Abstract Iterator *)
@@ -260,7 +260,7 @@ module ItMap = Map.Make(ItKey)
 let string_of_sign = function
   | Unsigned -> "Unsigned"
   | Signed -> "Signed"
-  
+
 (* Builds and check properties of expressions for the abstract domain [AbsDom]. *)
 module AbsExpr (AbsDom : AbsNumBoolType) = struct
   (* Return true iff the linear expression overflows *)
@@ -299,7 +299,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       let line = Mtexpr.var (mvar_of_var x) in
       if linexpr_overflow abs line Unsigned (int_of_ws ws) then None
       else cst_var ()
-    | _ -> raise (Aint_error "type error in aeval_cst_var") 
+    | _ -> raise (Aint_error "type error in aeval_cst_var")
 
   let zlsl (x: Z.t) (i: Z.t) : Z.t option =
     match Z.to_int i with
@@ -381,7 +381,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
    *   | Some i ->
    *     [AarraySlice (x, ws, access_offset acc ws i)]
    *   | None -> arr_full_range x
-   * 
+   *
    * let abs_arr_range abs x acc ws ei =
    *   let ats = abs_arr_range_at abs (L.unloc x.gv) acc ws ei in
    *   List.map (fun at -> match x.gs with
@@ -418,9 +418,9 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
       | Pget(_, access,ws,x,ei) ->
         abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws 1   ei @ acc
-      | Psub (access, ws, len, x, ei) -> 
+      | Psub (access, ws, len, x, ei) ->
         abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws len ei @ acc
-        
+
       | Papp1 (_, e1) -> aux acc e1
       | PappN (_, es) -> List.fold_left aux acc es
 
@@ -448,7 +448,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | Pconst z -> mtexpr_of_z z
 
     | Pvar x ->
-      check_is_int x; 
+      check_is_int x;
       Mtexpr.var (mvar_of_var x)
 
     | Papp1(E.Oint_of_word sz,e1) ->
@@ -518,7 +518,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           let ws_out = int_of_ws ws_e in
           let lin1, lin2 = linearize_wexpr abs e1, linearize_wexpr abs e2 in
           let lin = Mtexpr.(binop (abget absop) lin1 lin2) in
-          
+
           (* If the expression overflows, we try to rewrite differently *)
           if linexpr_overflow abs lin Unsigned ws_out then
             let alt_lin = match e2 with
@@ -535,12 +535,12 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
                     | _ -> assert false in
                   Some Mtexpr.(binop alt_absop lin1 c')
                 else None
-                  
+
               | _ -> None
             in
-            
+
             if alt_lin <> None &&
-               not (linexpr_overflow abs (oget alt_lin) Unsigned ws_out) 
+               not (linexpr_overflow abs (oget alt_lin) Unsigned ws_out)
             then
               let () = debug (fun () ->
                   Format.eprintf "@[<hov 0>Replaced the expression@   \
@@ -572,7 +572,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
                                   (cst_pow_minus i 0)) in
 
               wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
-                
+
             | _ -> raise (Binop_not_supported op2)
           end
 
@@ -596,13 +596,13 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
                  approximated by the interval [0; 2^n - 1] *)
               let int = Interval.of_mpqf (Mpqf.of_int 0) (mpq_pow_minus n 1) in
               Mtexpr.cst (Coeff.Interval int)
-          in          
+          in
           debug (fun () ->
               Format.eprintf "@[<hov 0>Substituted@,   %a@ by %a@]@."
                 (Printer.pp_expr ~debug:false) e Mtexpr.print lin
-            );         
+            );
           wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
-            
+
         | _ -> raise (Binop_not_supported op2)
       end
 
@@ -630,7 +630,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     try Some (linearize_wexpr abs e) with
       Unop_not_supported _ | Binop_not_supported _ -> None
 
-  
+
   let map_f f e_opt = match e_opt with
     | None -> None
     | Some (ty,b,el,er) -> Some (ty, b, f el, f er)
@@ -648,7 +648,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | Psub(acc,ws,x,len,e1) ->
       remove_if_expr_aux e1
       |> map_f (fun ex -> Psub(acc,ws,x,len,ex))
-      
+
     | Pload (al, sz, x, e1) ->
       remove_if_expr_aux e1
       |> map_f (fun ex -> Pload (al,sz,x,ex))
@@ -753,9 +753,9 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         | Ovadd (_, _) | Ovsub (_, _) | Ovmul (_, _)
         | Ovlsr (_, _) | Ovlsl (_, _) | Ovasr (_, _) -> assert false
 
-        | E.Obeq -> 
+        | E.Obeq ->
           aux (Pif (Prog.tbool, e1, e2, Papp1(E.Onot, e2)))
-         
+
         | E.Oand -> BAnd ( aux e1, aux e2 )
 
         | E.Oor -> BOr ( aux e1, aux e2 )
@@ -812,11 +812,11 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
          [expr lincons 0] must be equivalent to [(Sub lin2 lin1) lincos 0] *)
       let expr = match lincons, lin2, lin1 with
         | (Tcons1.EQ | Tcons1.DISEQ), (Mtexpr.Mcst cst), lin
-        | (Tcons1.EQ | Tcons1.DISEQ), lin, (Mtexpr.Mcst cst) ->      
+        | (Tcons1.EQ | Tcons1.DISEQ), lin, (Mtexpr.Mcst cst) ->
           if Coeff.equal_int cst 0
           then lin
-          else Mtexpr.(binop Sub lin2 lin1) 
-        | _ -> Mtexpr.(binop Sub lin2 lin1) 
+          else Mtexpr.(binop Sub lin2 lin1)
+        | _ -> Mtexpr.(binop Sub lin2 lin1)
       in
       BLeaf (Mtcons.make expr lincons)
 
@@ -827,7 +827,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
   let bexpr_to_btcons : 'a Prog.gexpr -> AbsDom.t -> btcons option =
     fun e abs ->
     try let c = bexpr_to_btcons_aux abs e in
-      (* We substitute variables in [bexpr] using known symbolic 
+      (* We substitute variables in [bexpr] using known symbolic
          equalities in [t.sym] *)
       Some (AbsDom.subst_btcons abs c)
     with Bop_not_supported -> None
@@ -899,14 +899,14 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     Format.fprintf fmt
       "We assume, as in the source program, that only the lower %d \
        bits of [%a] are initially set"
-      (int_of_ws ws) (Printer.pp_var ~debug:false) gv 
+      (int_of_ws ws) (Printer.pp_var ~debug:false) gv
 
   let bound_warning_user gv min max fmt =
     Format.fprintf fmt
       "Input variable [%a] assumed to be initially in [%a; %a]"
       (Printer.pp_var ~debug:false) gv
       Mpqf.print min Mpqf.print max
-    
+
   let input_range_bound gv ws =
     let open Config in
     let ranges = sc_input_ranges () in
@@ -915,21 +915,21 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       let min, max = Mpqf.of_string ir.ir_min, Mpqf.of_string ir.ir_max in
       let ws_max = Mpqf.sub (mpq_pow (ws - 1)) (Mpqf.of_int 1) in
 
-      if Mpqf.cmp (Mpqf.of_int 0) min = 1 
+      if Mpqf.cmp (Mpqf.of_int 0) min = 1
       then begin
         Format.eprintf "Input range bound for [%s]: \"min\" must \
                         be positive" gv.v_name ;
         exit 1 end;
 
-      if Mpqf.cmp max ws_max = 1 
+      if Mpqf.cmp max ws_max = 1
       then begin
         Format.eprintf "Input range bound for [%s]: \"max\" must \
                         be below %a" gv.v_name Mpqf.print ws_max;
         exit 1 end;
-      
+
       Some (Interval.of_mpqf min max, bound_warning_user gv min max)
     with Not_found -> None
-  
+
   (* We set bounds for the arguments, according to the register sizes
      in the source program. E.g., if a U32 register variable is
      allocated to a U64 register, then we assume that it contains a
@@ -950,8 +950,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
                     Some (gv, ws'), Some (bound_warning gv ws')
 
                 | _ -> None, None end
-            | _ -> None, None in          
-          
+            | _ -> None, None in
+
           if gv_ws <> None then
             let gv, ws = oget gv_ws in
             let ws_i = int_of_ws ws in
@@ -1031,7 +1031,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     assert (inv.gs = Expr.Slocal);
     let inv = L.unloc inv.gv in
     let inv_os = Mtexpr.var (MvarOffset inv) in
-    
+
     let off_e = linearize_wexpr abs offset_expr
     and e_ws = ws_of_ty (ty_expr offset_expr) in
     let wrap_off_e = wrap_if_overflow abs off_e Unsigned (int_of_ws e_ws) in
@@ -1083,13 +1083,13 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | _ -> assert false
 
   let slice_subtype lhs rhs =
-    (* left slice size, in bytes *) 
+    (* left slice size, in bytes *)
     let lhs_size = lhs.ms_len * (size_of_ws lhs.ms_ws) in
-    (* right slice slize, in bytes *) 
-    let rhs_size = rhs.ms_len * (size_of_ws rhs.ms_ws) in 
+    (* right slice slize, in bytes *)
+    let rhs_size = rhs.ms_len * (size_of_ws rhs.ms_ws) in
     (* The array on the rhs must be larger than the sub-array to
        be filled on the lhs (extra values are ignored). *)
-    lhs_size <= rhs_size    
+    lhs_size <= rhs_size
 
   let msub_of_sub_expr abs = function
     | Psub (acc, ws, len, ggv, ei) ->
@@ -1107,7 +1107,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
   let assign_slice_aux a (lhs : msub) (rhs : msub) =
     assert (lhs.ms_sc = Expr.Slocal);
     (* We check that [rhs] is larger than [lhs] *)
-    assert (slice_subtype lhs rhs); 
+    assert (slice_subtype lhs rhs);
     let lgv = lhs.ms_v in
     let rgv = rhs.ms_v in
     let ws, len = lhs.ms_ws, lhs.ms_len in
@@ -1137,7 +1137,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           a
           (u8_blast_var ~blast_arrays:true vi)
           (u8_blast_var ~blast_arrays:true eiv)
-      ) a vevs  
+      ) a vevs
 
   (* The variables representing the contents of an array *)
   let array_contents lhs_arr =
@@ -1163,13 +1163,13 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
   (* Array slice assignment. Does the numerical assignments.
      Remark: array elements do not need to be tracked in the point-to
      abstraction. *)
-  let assign_slice abs lhs rhs = 
+  let assign_slice abs lhs rhs =
     match lhs.ms_offset, rhs.ms_offset with
     | Some loff, Some roff ->
       let lhs = { lhs with ms_offset = loff }
       and rhs = { rhs with ms_offset = roff } in
       assign_slice_aux abs lhs rhs
-        
+
     (* If any offset is unknown, we need to forget the array content. *)
     | _, _ -> array_contents lhs.ms_v |> AbsDom.forget_list abs
 
@@ -1177,7 +1177,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | MLvar (_, MvarOffset _) -> true
     | _ -> false
 
-  (* Abstract evaluation of an assignment. 
+  (* Abstract evaluation of an assignment.
      Also handles variable initialization. *)
   (* FIXME: allow batched assignments *)
   let abs_assign : AbsDom.t -> 'a gty -> mlvar -> expr -> AbsDom.t =
@@ -1187,7 +1187,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       | _, MLnone -> abs
 
       (* Here, we have no information on which elements are initialized. *)
-      | _, MLvars (_, vs) -> AbsDom.forget_list abs vs 
+      | _, MLvars (_, vs) -> AbsDom.forget_list abs vs
 
       | Bty Int,   MLvar (loc, mvar)
       | Bty (U _), MLvar (loc, mvar) ->
@@ -1203,12 +1203,12 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
         (* Offset abstraction *)
         let abs = aeval_offset abs out_ty mvar (Some loc) e in
-        
+
         a_init_mlv_no_array out_mvar abs
 
       | Bty Bool, MLvar (_, mvar) ->
         let abs = match bexpr_to_btcons e abs with
-          | None -> AbsDom.forget_bvar abs mvar 
+          | None -> AbsDom.forget_bvar abs mvar
           | Some btcons -> AbsDom.assign_bexpr abs mvar btcons in
         a_init_mlv_no_array out_mvar abs
 
@@ -1223,10 +1223,10 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           | MLasub (_, msub) -> msub
           | _ -> assert false
         in
-        assign_slice abs lhs rhs 
+        assign_slice abs lhs rhs
 
       | _ -> assert false
-        
+
   let abs_assign_opn abs loc lvs assgns =
     let abs, mlvs_forget =
       List.fold_left2 (fun (abs, mlvs_forget) lv e_opt ->
@@ -1246,7 +1246,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
     let mlvs_forget = List.sort_uniq Stdlib.compare mlvs_forget in
 
-    AbsDom.forget_list abs mlvs_forget 
+    AbsDom.forget_list abs mlvs_forget
 
 end
 
