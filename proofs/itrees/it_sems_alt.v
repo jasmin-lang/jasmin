@@ -84,38 +84,41 @@ Definition mk_error_data (s:estate) (e:error) := (e, tt).
 Definition mk_errtype := fun s => mk_error_data s ErrType.
 
 Definition iget_fundef {E} `{ErrEvent -< E}
-  (fn: funname) (s:estate) : itree E fundef :=
+    (fn: funname) (s:estate) : itree E fundef :=
   ioget (mk_errtype s) (get_fundef (p_funcs pr) fn).
 
-Definition iresult {E} `{ErrEvent -< E} {T} (s:estate) (F : exec T)  : itree E T :=
+Definition iresult {E} `{ErrEvent -< E} {T} (s:estate) (F : exec T) :
+    itree E T :=
   err_result (mk_error_data s) F.
 
 Definition iwrite_var {E} `{ErrEvent -< E}
-   (wdb : bool) (x : var_i) (v : value) (s : estate) : itree E estate :=
+    (wdb : bool) (x : var_i) (v : value) (s : estate) : itree E estate :=
   iresult s (write_var wdb x v s).
 
 Definition iwrite_lval {E} `{ErrEvent -< E}
-   (wdb : bool) (gd : glob_decls) (x : lval) (v : value) (s : estate) : itree E estate :=
+    (wdb : bool) (gd : glob_decls) (x : lval) (v : value) (s : estate) :
+    itree E estate :=
   iresult s (write_lval wdb gd x v s).
 
 Definition iwrite_lvals {E} `{ErrEvent -< E}
-   (wdb : bool) (gd : glob_decls) (s : estate) (xs : lvals) (vs : values) : itree E estate :=
+    (wdb : bool) (gd : glob_decls) (s : estate) (xs : lvals) (vs : values) :
+    itree E estate :=
   iresult s (write_lvals wdb gd s xs vs).
 
 Definition isem_pexpr {E} `{ErrEvent -< E}
-   (wdb : bool) (gd : glob_decls) (s : estate) (e: pexpr) : itree E value :=
+    (wdb : bool) (gd : glob_decls) (s : estate) (e: pexpr) : itree E value :=
   iresult s (sem_pexpr wdb gd s e).
 
 Definition isem_pexprs {E} `{ErrEvent -< E}
-   (wdb : bool) (gd : glob_decls) (s : estate) (es: pexprs) : itree E values :=
+    (wdb : bool) (gd : glob_decls) (s : estate) (es: pexprs) : itree E values :=
   iresult s (sem_pexprs wdb gd s es).
 
 Definition eval_assgn
-  (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr)
-  (st1: estate) : exec estate :=
-   (Let v := sem_pexpr true (p_globs pr) st1 e in
-    Let v' := truncate_val ty v in
-    write_lval true (p_globs pr) x v' st1).
+   (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr)
+   (st1: estate) : exec estate :=
+  (Let v := sem_pexpr true (p_globs pr) st1 e in
+   Let v' := truncate_val ty v in
+   write_lval true (p_globs pr) x v' st1).
 
 Definition eval_syscall
    (xs: lvals) (o: syscall_t)
@@ -136,8 +139,7 @@ Fixpoint sem_cmd_map {E} (sem_i: instr_r -> estate -> itree E estate)
 
 Fixpoint sem_for {E} `{ErrEvent -< E}
    (sem_cmd : cmd -> estate -> itree E estate)
-   (i: var_i) (c: cmd)
-   (ls: list Z) (s: estate) : itree E estate :=
+   (i: var_i) (c: cmd) (ls: list Z) (s: estate) : itree E estate :=
   match ls with
   | nil => ret s
   | (w :: ws) =>
@@ -155,47 +157,45 @@ Record fc_info : Type := fc_info_mk {
   fc_vs : values }.                           
 
 (* mutual recursion events *)
-(* FIXME : should we find a better name ? *)
-(* FIXME :  introduce a record for (syscall_state_t * mem * values) *)
 Variant MREvent : Type -> Type :=
  | LCode (c: cmd) (st: estate) : MREvent estate
  | FCall (scs : syscall_state_t) (m:mem)
-          (f: funname) (vs:values) : MREvent fc_info.
+         (f: funname) (vs:values) : MREvent fc_info.
 
 Notation it_continue_loop st := (ret (inl st)).
 Notation it_exit_loop st := (ret (inr st)).
 Notation it_rec_call := (trigger_inl1).
 
 Definition sem_cond {E} `{ErrEvent -< E} (e:pexpr) (s: estate) :
-   itree E bool :=
+    itree E bool :=
   iresult s (sem_pexpr true pglobs s e >>r= to_bool).
 
 Definition sem_bound {E} `{ErrEvent -< E} (e:pexpr) (s: estate) :
-   itree E Z :=
+    itree E Z :=
   iresult s (sem_pexpr true pglobs s e >>r= to_int).
 
 Definition sem_while {E} `{ErrEvent -< E}
-  (R : cmd -> estate -> itree (MREvent +' E) estate)
-  (c1 c2: cmd) (e: pexpr) (s1: estate) :
-  itree (MREvent +' E) (estate + estate) :=
-           s2 <- R c1 s1 ;; 
-           b <- sem_cond e s2 ;; 
-           if b then s3 <- R c2 s2 ;; it_continue_loop s3 
-           else it_exit_loop s2. 
+    (R : cmd -> estate -> itree (MREvent +' E) estate)
+    (c1 c2: cmd) (e: pexpr) (s1: estate) :
+    itree (MREvent +' E) (estate + estate) :=
+  s2 <- R c1 s1 ;; 
+  b <- sem_cond e s2 ;; 
+  if b then s3 <- R c2 s2 ;; it_continue_loop s3 
+  else it_exit_loop s2. 
 
 Definition sem_e_call {E} `{ErrEvent -< E} 
-  (xs: lvals) (fn: funname) (args: pexprs) (s1: estate) :
-  itree (MREvent +' E) estate :=
-      vargs <- isem_pexprs  (~~direct_call) pglobs s1 args ;;
-      res <- it_rec_call (FCall (escs s1) (emem s1) fn vargs) ;;
-      iwrite_lvals (~~direct_call) pglobs
-        (with_scs (with_mem s1 res.(fc_m)) res.(fc_scs)) xs res.(fc_vs).
+    (xs: lvals) (fn: funname) (args: pexprs) (s1: estate) :
+    itree (MREvent +' E) estate :=
+  vargs <- isem_pexprs  (~~direct_call) pglobs s1 args ;;
+  res <- it_rec_call (FCall (escs s1) (emem s1) fn vargs) ;;
+  iwrite_lvals (~~direct_call) pglobs
+       (with_scs (with_mem s1 res.(fc_m)) res.(fc_scs)) xs res.(fc_vs).
   
 (* instruction semantic functor *)
 Definition sem_instrF {E} `{ErrEvent -< E}
-  (R : cmd -> estate -> itree (MREvent +' E) estate)
-  (i : instr_r) (s1: estate) :
-  itree (MREvent +' E) estate :=
+    (R : cmd -> estate -> itree (MREvent +' E) estate)
+    (i : instr_r) (s1: estate) :
+    itree (MREvent +' E) estate :=
 (*  let R := st_cmd_map_r meval_instr in *)
 (*  let R := (fun c s => it_rec_call (LCode c s)) in *)
   match i with
@@ -216,18 +216,16 @@ end.
 
 (* event-based recursion *)
 Definition msem_instr {E} `{ErrEvent -< E}
-  (i : instr_r) (s1: estate) :
-  itree (MREvent +' E) estate :=
+    (i : instr_r) (s1: estate) : itree (MREvent +' E) estate :=
   sem_instrF (fun c s => it_rec_call (LCode c s)) i s1.
 
 (* fixpoint-based recursion *)
 Fixpoint rsem_instr {E} `{ErrEvent -< E}
-  (i : instr_r) (s1: estate) :
-  itree (MREvent +' E) estate :=
+    (i : instr_r) (s1: estate) : itree (MREvent +' E) estate :=
   sem_instrF (sem_cmd_map rsem_instr) i s1.
 
 Definition initialize_call (scs1 : syscall_state_t) (m1 : mem)
-   (fd : fundef) (vargs : values) : exec estate :=
+    (fd : fundef) (vargs : values) : exec estate :=
   let sinit := (Estate scs1 m1 Vm.init) in
   Let vargs' := mapM2 ErrType dc_truncate_val fd.(f_tyin) vargs in
   Let s0 := init_state fd.(f_extra) (p_extra pr) ev sinit in
@@ -268,23 +266,21 @@ Definition sem_callF {E} `{ErrEvent -< E}
 
 (* event-based recursion *)
 Definition msem_call {E} `{ErrEvent -< E} :
-  syscall_state_t -> mem -> funname -> values ->
-           itree E fc_info := sem_callF msem_instr.
+    syscall_state_t -> mem -> funname -> values -> itree E fc_info :=
+  sem_callF msem_instr.
 
 (* fixpoint-based recursion *)
 Definition rsem_call {E} `{ErrEvent -< E} :
-  syscall_state_t -> mem -> funname -> values ->
-           itree E fc_info := sem_callF rsem_instr.
+    syscall_state_t -> mem -> funname -> values -> itree E fc_info :=
+  sem_callF rsem_instr.
 
 (* This should be the final semantics *)
 Definition final_msem_call (scs1 : syscall_state_t) (m1 : mem)
-  (fn : funname) (vargs : values) :
-  execT (itree void1) fc_info :=
+    (fn : funname) (vargs : values) : execT (itree void1) fc_info :=
   interp_Err (msem_call scs1 m1 fn vargs).
 
 Definition final_rsem_call (scs1 : syscall_state_t) (m1 : mem)
-  (fn : funname) (vargs : values) :
-  execT (itree void1) fc_info :=
+    (fn : funname) (vargs : values) : execT (itree void1) fc_info :=
   interp_Err (rsem_call scs1 m1 fn vargs).
 
 End WSW.
