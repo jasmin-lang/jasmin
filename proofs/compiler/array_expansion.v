@@ -174,6 +174,16 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     Let len := expand_e m len in
     ok (Pbig idx op x body s len)
 
+  | Pis_var_init x =>
+    (* FIXME *)
+    Let _ := assert (Sv.mem x m.(svars))
+       (reg_error x "(the array cannot be manipulated alone, you need to access its cells instead)") in
+    ok e
+
+  | Pis_arr_init _ _ => Error (reg_error_expr e "")
+  | Pis_mem_init e1 =>
+    Let e1 := expand_e m e1 in
+    ok (Pis_mem_init e1)
   end.
 
 Definition expand_lv (m : t) (x : lval)  :=

@@ -188,6 +188,20 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
                Let vb := sem_pexpr s body in
                sem_sop2 op acc vb)
       vidx l
+  | Pis_var_init x =>
+    let v := (evm s).[x] in
+    ok (Vbool (is_defined v))
+
+  | Pis_arr_init x e =>
+    Let (n, t) := wdb, s.[x] in
+    Let i := sem_pexpr s e >>= to_int in
+    ok (Vbool (WArray.is_init t i))
+
+  | Pis_mem_init e =>
+    Let w := sem_pexpr s e >>= to_pointer in
+    let b := is_ok (read s.(emem) Unaligned w U8) in
+    ok (Vbool b)
+
   end.
 
 Definition sem_pexprs s :=  mapM (sem_pexpr s).

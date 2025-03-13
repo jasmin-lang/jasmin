@@ -162,6 +162,15 @@ Section REMOVE.
         Let body  := remove_glob_e ii env body in
         ok (Pbig idx op x body start len)
 
+      | Pis_var_init _ => ok e
+
+      | Pis_arr_init x e =>
+        Let e := remove_glob_e ii env e in
+        ok (Pis_arr_init x e)
+
+      | Pis_mem_init e =>
+        Let e := remove_glob_e ii env e in
+        ok (Pis_mem_init e)
       end.
 
     Definition remove_glob_lv ii (env:venv) (lv:lval) :=

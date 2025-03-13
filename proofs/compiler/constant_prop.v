@@ -404,6 +404,17 @@ Fixpoint const_prop_e (m:cpm) e :=
      | _, _ =>
          Pbig idx op x (const_prop_e (Mvar.remove m x) body) s len
      end
+
+   | Pis_var_init _ => e
+
+   | Pis_arr_init x e =>
+     let e := const_prop_e m e in
+     Pis_arr_init x e
+
+   | Pis_mem_init e =>
+     let e := const_prop_e m e in
+     Pis_mem_init e
+
   end.
 
 End GLOBALS.
