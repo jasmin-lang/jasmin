@@ -433,10 +433,19 @@ Section CMD_RECT.
 
 End CMD_RECT.
 
-Module FunInfo : TAG.
+Module Type FunInfoT <: TAG.
+  Include TAG.
+  Parameter ret_info : t -> instr_info.
+End FunInfoT.
+
+Module FunInfo : FunInfoT.
   Definition t := positive.
   Definition witness : t := 1%positive.
+  Definition ret_info of t := dummy_instr_info.
 End FunInfo.
+
+Definition fun_info := FunInfo.t.
+Definition ret_info_of_fun_info (fi: fun_info) : instr_info := FunInfo.ret_info fi.
 
 Section ASM_OP.
 
@@ -444,8 +453,6 @@ Context `{asmop:asmOp}.
 
 (* ** Functions
  * -------------------------------------------------------------------- *)
-
-Definition fun_info := FunInfo.t.
 
 Class progT := {
   extra_fun_t : Type;

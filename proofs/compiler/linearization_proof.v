@@ -69,16 +69,16 @@ Lemma map_li_of_fopn_args_label_in_lcmd ii args :
   label_in_lcmd (map (li_of_fopn_args ii) args) = [::].
 Proof. by elim: args => [|[]]. Qed.
 
-Lemma set_up_sp_register_label_in_lcmd liparams x sf_sz al y tmp:
-  label_in_lcmd (set_up_sp_register liparams x sf_sz al y tmp) = [::].
+Lemma set_up_sp_register_label_in_lcmd liparams ii x sf_sz al y tmp:
+  label_in_lcmd (set_up_sp_register liparams ii x sf_sz al y tmp) = [::].
 Proof. apply map_li_of_fopn_args_label_in_lcmd. Qed.
 
 Lemma map_li_of_fopn_args_has_label lbl ii args :
   has (is_label lbl) (map (li_of_fopn_args ii) args) = false.
 Proof. by elim: args => [|[]]. Qed.
 
-Lemma set_up_sp_register_has_label lbl liparams x sf_sz al y tmp:
-  has (is_label lbl) (set_up_sp_register liparams x sf_sz al y tmp) = false.
+Lemma set_up_sp_register_has_label lbl liparams ii x sf_sz al y tmp:
+  has (is_label lbl) (set_up_sp_register liparams ii x sf_sz al y tmp) = false.
 Proof. apply map_li_of_fopn_args_has_label. Qed.
 
 Lemma align_bind ii a p1 l :
@@ -681,11 +681,11 @@ Section HLIPARAMS.
   Context
     (hliparams : h_linearization_params).
 
-  Lemma spec_lmove {lp ls} {x y:var_i} (w : word Uptr) :
+  Lemma spec_lmove {lp ii ls} {x y:var_i} (w : word Uptr) :
     vtype x = sword Uptr ->
     vtype y = sword Uptr ->
     get_var true (lvm ls) (v_var y) = ok (Vword w) ->
-    let li := lmove liparams x y in
+    let li := lmove liparams ii x y in
     let s := to_estate ls in
     eval_instr lp li ls = ok (lnext_pc (lset_estate' ls (with_vm s (evm s).[x <- Vword w]))).
   Proof.
@@ -694,13 +694,13 @@ Section HLIPARAMS.
     by rewrite (spec_lip_lmove hliparams (s:= to_estate ls) htx hty hget (truncate_word_u w)).
   Qed.
 
-  Lemma spec_lstore {lp ls m ofs} {x y:var_i} {wx ws' wy'} {wy : word ws'} :
+  Lemma spec_lstore {lp ii ls m ofs} {x y:var_i} {wx ws' wy'} {wy : word ws'} :
     vtype y = sword Uptr ->
     get_var true (lvm ls) y = ok (Vword wy) ->
     truncate_word Uptr wy = ok wy' ->
     get_var true (lvm ls) x = ok (Vword wx) ->
     write (lmem ls) Aligned (wx + wrepr Uptr ofs)%R wy' = ok m ->
-    let: li := lstore liparams x ofs y in
+    let: li := lstore liparams ii x ofs y in
     eval_instr lp li ls = ok (lnext_pc (lset_mem ls m)).
   Proof.
     move=> hty hgy htr hgx hw /=.
@@ -710,11 +710,11 @@ Section HLIPARAMS.
     by rewrite hgy /= htr.
   Qed.
 
-  Lemma spec_lload {lp ls ofs} {x y:var_i} {wx wy} :
+  Lemma spec_lload {lp ii ls ofs} {x y:var_i} {wx wy} :
     vtype x = sword Uptr ->
     get_var true (lvm ls) y = ok (Vword wy) ->
     read (lmem ls) Aligned (wy + wrepr Uptr ofs)%R Uptr = ok wx ->
-    let: li := lload liparams x y ofs in
+    let: li := lload liparams ii x y ofs in
     eval_instr lp li ls = ok (lnext_pc (lset_vm ls ls.(lvm).[x <- Vword wx])).
   Proof.
     move=> hty hgy hread /=.
@@ -724,11 +724,11 @@ Section HLIPARAMS.
     by apply set_var_eq_type.
   Qed.
 
-  Lemma set_up_sp_register_ok lp sp_rsp ls r tmp ts al sz P Q :
+  Lemma set_up_sp_register_ok ii lp sp_rsp ls r tmp ts al sz P Q :
     let: vrspi := vid sp_rsp in
     let: vrsp := v_var vrspi in
     let: ts' := align_word al (ts - wrepr Uptr sz) in
-    let: lcmd := set_up_sp_register liparams vrspi sz al r tmp in
+    let: lcmd := set_up_sp_register liparams ii vrspi sz al r tmp in
     is_linear_of lp (lfn ls) (P ++ lcmd ++ Q) ->
     lpc ls = size P ->
     get_var true (lvm ls) vrsp = ok (Vword ts) ->
@@ -1054,12 +1054,12 @@ Section NUMBER_OF_LABELS.
     label_in_lcmd (allocate_stack_frame liparams p b ii z tmp rastack) = [::].
   Proof. rewrite /allocate_stack_frame; case: ifP => // _; apply label_in_lcmd_li_of_fopn_args. Qed.
 
-  Remark label_in_lcmd_push_to_save to_save sp:
-    label_in_lcmd (push_to_save liparams p to_save sp) = [::].
+  Remark label_in_lcmd_push_to_save ii to_save sp:
+    label_in_lcmd (push_to_save liparams p ii to_save sp) = [::].
   Proof. apply label_in_lcmd_li_of_fopn_args. Qed.
 
-  Remark label_in_lcmd_pop_to_save to_save sp :
-    label_in_lcmd (pop_to_save liparams p to_save sp) = [::].
+  Remark label_in_lcmd_pop_to_save ii to_save sp :
+    label_in_lcmd (pop_to_save liparams p ii to_save sp) = [::].
   Proof. apply label_in_lcmd_li_of_fopn_args. Qed.
 
   #[ local ]
@@ -1080,8 +1080,8 @@ Section NUMBER_OF_LABELS.
   Definition linear_i_nb_labels : ∀ i, Pi i :=
     instr_Rect nb_labels_MkI nb_labels_nil nb_labels_cons nb_labels_assign nb_labels_opn nb_labels_syscall nb_labels_if nb_labels_for nb_labels_while nb_labels_call.
 
-  Lemma linear_body_nb_labels fn e body :
-    let: (lbl, lc) := linear_body liparams p fn e body in
+  Lemma linear_body_nb_labels fn fi e body :
+    let: (lbl, lc) := linear_body liparams p fn fi e body in
     (Z.of_nat (size (label_in_lcmd lc)) <= lbl)%Z.
   Proof.
     rewrite /linear_body.
@@ -1313,8 +1313,8 @@ Section PROOF.
   Proof.
     elim: funcs lbl => [|[f fd] funcs ih] lbl //=.
     set linear_f := (fun _ => _).
-    have := ih ((linear_body liparams p f (f_extra fd) (f_body fd)).1)%positive.
-    have := ih (lbl + (linear_body liparams p f (f_extra fd) (f_body fd)).1)%positive.
+    have := ih ((linear_body liparams p f (f_info fd) (f_extra fd) (f_body fd)).1)%positive.
+    have := ih (lbl + (linear_body liparams p f (f_info fd) (f_extra fd) (f_body fd)).1)%positive.
     case: fmap => [nb_lbl' funcs'].
     rewrite Pos.add_assoc => -> ->.
     by rewrite (Pos.add_comm lbl) Pos.add_assoc.
@@ -1331,7 +1331,7 @@ Section PROOF.
     have := fmap_linear_fd_acc ((linear_fd fn f').1)%positive funcs.
     case: fmap ih => [nb_lbl funcs'] /= ih -> /=.
     rewrite size_cat size_map Nat2Z.inj_add.
-    have := linear_body_nb_labels p liparams fn (f_extra f') (f_body f').
+    have := linear_body_nb_labels p liparams fn (f_info f') (f_extra f') (f_body f').
     case: linear_body => [nb_lbl' lc] /=.
     lia.
   Qed.
@@ -2963,8 +2963,8 @@ Section PROOF.
     find_label xH (lfd_body (linear_fd fn fd).2) = ok 0.
   Proof. by rewrite /linear_fd /linear_body; case: sf_return_address. Qed.
 
-  Lemma is_label_lstore lbl x ofs y :
-    is_label lbl (lstore liparams x ofs y) = false.
+  Lemma is_label_lstore ii lbl x ofs y :
+    is_label lbl (lstore liparams ii x ofs y) = false.
   Proof. done. Qed.
 
   Lemma preserved_metadata_store_top_stack m1 ws sz ioff sz' m1' m2 (ptr : word Uptr) m2' :
@@ -3358,8 +3358,8 @@ Section PROOF.
     by etransitivity; [exact: U | exact: U'].
   Qed.
 
-  Lemma push_to_save_has_no_label lbl m sp:
-    ~~ has (is_label lbl) (push_to_save liparams p m sp).
+  Lemma push_to_save_has_no_label ii lbl m sp:
+    ~~ has (is_label lbl) (push_to_save liparams p ii m sp).
   Proof. by rewrite /push_to_save has_map -all_predC allT. Qed.
 
   Lemma all_disjoint_aligned_betweenP (lo hi: Z) (al: wsize) m :
@@ -3943,7 +3943,7 @@ Section PROOF.
             + rewrite  -(get_var_eq_ex _ saved_stack_not_written K2).
               exact: hgetr.
             rewrite (@spec_lmove _
-                 hliparams p'
+                 hliparams p' _
                  (setpc (lset_estate ls1 (escs s2') m2 vm2) (size P + size lbody))
                  (vid (sp_rsp (p_extra p))) (vid saved_stack) _
                  erefl erefl hgetr2) addnS; reflexivity.
@@ -3991,8 +3991,8 @@ Section PROOF.
           apply/eqP.
           by have /= := [elaborate wsize_size_pos Uptr]; lia.
 
-        set cmd_set_up_sp := set_up_sp_register _ _ _ _ _.
-        set cmd_push_to_save := push_to_save _ _ _ _.
+        set cmd_set_up_sp := set_up_sp_register _ _ _ _ _ _.
+        set cmd_push_to_save := push_to_save _ _ _ _ _.
         set P := cmd_set_up_sp ++ cmd_push_to_save.
         set Q := (X in lbody ++ X).
         move => ok_fd' E.
@@ -4786,7 +4786,7 @@ Section PROOF.
       have := [elaborate (wunsigned_range (top_stack m))].
       by lia.
     set ls0 := ls_export_initial scs lm vm fn.
-    case/(_ m0 sp0 max0 _ _ ls0 lm vm (linear_body liparams p fn fd.(f_extra)
+    case/(_ m0 sp0 max0 _ _ ls0 lm vm (linear_body liparams p fn fd.(f_info) fd.(f_extra)
         fd.(f_body)).2 RAnone None (top_stack m)
         (map fst fd.(f_extra).(sf_to_save)) M _ _ erefl).
     - exact: enough_space.
