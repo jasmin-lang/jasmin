@@ -16,39 +16,23 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* Set Universe Polymorphism. *)
-
 (* This files contains semantic models distinguished by use of either
-mutual or double recursion, and by either modular, error-aware or flat
-structure. There are fives models (MM: mutual modular; ME: mutual
-error; MF: mutual flat; DE: double error; DF double flat) *)
-
+event-based or fixpoint-based recursion *)
 
 (**** ERROR SEMANTICS *******************************************)
 Section Errors.
 
-(* type of errors (this might becom richer) *)
-  (* Variant ErrType : Type := Err : ErrType. *)
-(* error events *)
-
-
+(* error events, based on error_data errors *)
 Definition ErrEvent : Type -> Type := exceptE error_data.
 
-(*
-sem_I : prog -> estate -> instr -> itree syscall_Event (state_error + estate)
-sem_i : prog -> estate -> instr_r -> itree syscall_Event (state_error + estate)
-sem_c : prog -> estate -> cmd -> itree syscall_Event (state_error + estate)
-sem_fun : prog -> mem -> syscall -> funname -> values -> itree syscall_Event (state_error + (mem * syscall * values))
-*)
-
-(* failT (itree E) R = itree E (option R) *)
+(* execT (itree E) R = itree E (exec R) *)
 Definition handle_Err {E} : ErrEvent ~> execT (itree E) :=
   fun _ e =>
     match e with
     | Throw e' => Ret (ESerror _ e')
     end.
 
-(* Err handler *)
+(* ErrEvent handler *)
 Definition ext_handle_Err {E: Type -> Type} :
   ErrEvent +' E ~> execT (itree E) :=
   fun _ e =>
@@ -63,14 +47,15 @@ Definition interp_Err {E: Type -> Type} {A}
 
 (*** auxiliary error functions *)
 
-Definition ioget {E: Type -> Type} `{ErrEvent -< E} {V} (err: error_data) (o: option V) : itree E V :=
+Definition ioget {E: Type -> Type} `{ErrEvent -< E} {V}
+  (err: error_data) (o: option V) : itree E V :=
   match o with
   | Some v => Ret v
   | None => throw err
   end.
 
-Definition err_result {E: Type -> Type} `{ErrEvent -< E} (Err : error -> error_data) :
-  result error ~> itree E :=
+Definition err_result {E: Type -> Type} `{ErrEvent -< E}
+  (Err : error -> error_data) : result error ~> itree E :=
   fun _ t => match t with
              | Ok v => Ret v
              | Error e => throw (Err e) end.
@@ -177,7 +162,6 @@ Variant FCState : Type -> Type :=
  | FCall (scs : syscall_state_t) (m:mem)
           (f: funname) (vs:values) : FCState fc_info.
 
-(* Make global definition *)
 Notation it_continue_loop st := (ret (inl st)).
 Notation it_exit_loop st := (ret (inr st)).
 Notation it_rec_call := (trigger_inl1).

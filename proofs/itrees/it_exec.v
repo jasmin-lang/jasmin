@@ -1,44 +1,33 @@
-
-
-(* begin hide *)
 From Coq Require Import
   RelationClasses
   Setoid
-  Morphisms.
+  Morphisms. 
 
-From Jasmin Require Import utils. (* expr psem_defs psem oseq. *)
+From Jasmin Require Import utils. 
 
 From Paco Require Import paco.
 
 From ITree Require Import
-     Basics.Utils
-     Basics.Basics
-     Basics.Category
-     Basics.CategoryKleisli
-     Basics.HeterogeneousRelations
+     Basics.Utils 
+     Basics.Basics 
+     Basics.Category 
+     Basics.CategoryKleisli 
+     Basics.HeterogeneousRelations 
      Basics.Monad
      Core.ITreeDefinition
      Core.KTree
      Core.KTreeFacts
      Eq.Eqit
      Eq.UpToTaus
-     Eq.Paco2
-     Indexed.Sum
-     Interp.Interp
-     Interp.InterpFacts
-     Interp.RecursionFacts.
+     Eq.Paco2 
+     Interp.Interp.
 
-Import ITreeNotations.
-Import ITree.Basics.Basics.Monads.
-Local Open Scope itree_scope.
+Import ITreeNotations. 
+Local Open Scope itree_scope. 
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-(* Set Universe Polymorphism. *)
-
-Import Monads.
 
 Definition error_data := (error * unit)%type.
 
