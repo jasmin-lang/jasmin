@@ -222,59 +222,95 @@ Fixpoint sem_for {E} `{ErrEvent -< E}
     sem_for sem_cmd i c ws s
   end.
 
-(**********************************************************************)
-(** error-aware interpreter with mutual recursion *)
-
-(* mutual recursion events *)
-(* FIXME : should we find a better name ? *)
-(* FIXME :  introduce a record for (syscall_state_t * mem * values) *)
-Variant FCState : Type -> Type :=
- | FLCode (c: cmd) (st: estate) : FCState estate
- | FFCall (scs : syscall_state_t) (m:mem)
-          (f: funname) (vs:values) : FCState (syscall_state_t * mem * values).
-
 (* Make global definition *)
 Local Notation continue_loop st := (ret (inl st)).
 Local Notation exit_loop st := (ret (inr st)).
-Local Notation rec_call := (trigger_inl1).
 
 Local Notation gd := (p_globs pr).
 
-Definition sem_cond {E} `{ErrEvent -< E} (e:pexpr) (s: estate) :
-   itree E bool :=
+Definition sem_cond {E} `{ErrEvent -< E} (e:pexpr) (s: estate) : itree E bool :=
   iresult s (sem_pexpr true gd s e >>r= to_bool).
 
 Definition sem_bound {E} `{ErrEvent -< E} (e:pexpr) (s: estate) :
    itree E Z :=
   iresult s (sem_pexpr true gd s e >>r= to_int).
 
-Definition msem_i {E} `{ErrEvent -< E} (i : instr_r) (s1: estate) : itree (FCState +' E) estate :=
+Definition sem_while_body {E} `{ErrEvent -< E}
+   (sem_cmd : cmd -> estate -> itree E estate)
+   (c1 : cmd) (e:pexpr) (c2: cmd) (s1 : estate) : itree E (estate + estate) :=
+   s2 <- sem_cmd c1 s1 ;;
+   b <- sem_cond e s2 ;;
+   if b then s3 <- sem_cmd c2 s2 ;; continue_loop s3
+   else exit_loop s2.
+
+Definition msem_i_body {E} `{ErrEvent -< E}
+   (sem_cmd : cmd -> estate -> itree E estate)
+   (sem_call : syscall_state_t -> mem -> funname -> values -> itree E (syscall_state_t * mem * values))
+   (i: instr_r) (s1: estate) : itree E estate :=
 (*  let R := st_cmd_map_r meval_instr in *)
-  let R := (fun c s => rec_call (FLCode c s)) in
+(*  let R := (fun c s => rec_call (FLCode c s)) in *)
   match i with
   | Cassgn x tg ty e => iresult s1 (eval_assgn x tg ty e s1)
   | Copn xs tg o es => iresult s1 (sem_sopn gd o s1 xs es)
   | Csyscall xs o es => iresult s1 (eval_syscall xs o es s1)
   | Cif e c1 c2 =>
       b <- sem_cond e s1;;
-      R (if b then c1 else c2) s1
+      sem_cmd (if b then c1 else c2) s1
   | Cwhile a c1 e c2 =>
       ITree.iter (fun s1 =>
-           s2 <- R c1 s1 ;;
+           s2 <- sem_cmd c1 s1 ;;
            b <- sem_cond e s2 ;;
-           if b then s3 <- R c2 s2 ;; continue_loop s3
+           if b then s3 <- sem_cmd c2 s2 ;; continue_loop s3
            else exit_loop s2) s1
   | Cfor i (d, lo, hi) c =>
      vlo <- sem_bound lo s1 ;;
      vhi <- sem_bound hi s1 ;;
-     sem_for R i c (wrange d vlo vhi) s1
+     sem_for sem_cmd i c (wrange d vlo vhi) s1
 
   | Ccall xs fn args =>
       vargs <- isem_pexprs  (~~direct_call) gd s1 args;;
-      res <- rec_call (FFCall (escs s1) (emem s1) fn vargs);;
+      res <- sem_call (escs s1) (emem s1) fn vargs;;
       let: (scs2, m2, vs) := res in
       iwrite_lvals (~~direct_call) gd (with_scs (with_mem s1 m2) scs2) xs vs
 end.
+
+(**********************************************************************)
+(** error-aware interpreter with mutual recursion *)
+
+(* mutual recursion events *)
+(* FIXME : should we find a better name ? *)
+(* FIXME :  introduce a record for (syscall_state_t * mem * values) *)
+(*
+FLCode : RecCode T
+
+FFCall : RecCall T
+
+
+FCState : RecCode +' RecCall
+*)
+
+Variant RecCode : Type -> Type :=
+ | RECCode (c: cmd) (st: estate) : RecCode estate.
+
+Variant RecCall : Type -> Type :=
+ | RECCall (scs : syscall_state_t) (m:mem) (f: funname) (vs:values) : RecCall (syscall_state_t * mem * values).
+
+Definition FCState : Type -> Type := (RecCode +' RecCall).
+
+Definition FLCode c st : FCState estate := inl1 (RECCode c st).
+Definition FFCall scs m f vs : FCState (syscall_state_t * mem * values) := inr1 (RECCall scs m f vs).
+
+(* | FLCode (c: cmd) (st: estate) : FCState estate
+ | FFCall (scs : syscall_state_t) (m:mem)
+          (f: funname) (vs:values) : FCState (syscall_state_t * mem * values).
+*)
+(* Make global definition *)
+
+Local Notation rec_call := (trigger_inl1).
+
+Definition msem_i {E} `{ErrEvent -< E} (i : instr_r) (s1: estate) : itree (FCState +' E) estate :=
+  msem_i_body (fun c s => rec_call (FLCode c s))
+              (fun scs m fn vargs => rec_call (FFCall (escs s1) (emem s1) fn vargs)) i s1.
 
 Definition initialize_call (scs1 : syscall_state_t) (m1 : mem)
    (fd : fundef) (vargs : values) : exec estate :=
@@ -290,27 +326,59 @@ Definition finalize_call (fd : fundef) (s:estate) :=
   let m := finalize fd.(f_extra) s.(emem) in
   ok (scs, m, vres').
 
-Definition msem_call {E} `{ErrEvent -< E}
+Definition msem_call_body {E} `{ErrEvent -< E}
+   (sem_cmd : cmd -> estate -> itree E estate)
    (scs1 : syscall_state_t) (m1 : mem)
-   (fn : funname) (vargs : values) : itree (FCState +' E) (syscall_state_t * mem * values) :=
+   (fn : funname) (vargs : values) : itree E (syscall_state_t * mem * values) :=
   (* FIXME: this is durty : sinit*)
   let sinit := (Estate scs1 m1 Vm.init) in
   fd <- iget_fundef fn sinit;;
   s1 <- iresult sinit (initialize_call scs1 m1 fd vargs);;
-  s2 <- rec_call (FLCode fd.(f_body) s1);;
+  s2 <- sem_cmd fd.(f_body) s1;;
   iresult s2 (finalize_call fd s2).
 
+Definition msem_call {E} `{ErrEvent -< E}
+   (scs1 : syscall_state_t) (m1 : mem)
+   (fn : funname) (vargs : values) : itree (FCState +' E) (syscall_state_t * mem * values) :=
+  msem_call_body (fun c st => rec_call (FLCode c st)) scs1 m1 fn vargs.
+
 Definition msem_fcstate {E} `{ErrEvent -< E} : FCState ~> itree (FCState +' E) :=
- fun _ fs =>
+ fun T (fs : FCState T) =>
    match fs with
-   | FLCode c st => sem_cmd_ msem_i c st
-   | FFCall scs m fn vs => msem_call scs m fn vs
+   | inl1 e =>
+     match e with
+     | RECCode c st => sem_cmd_ msem_i c st
+     end
+   | inr1 e =>
+     match e with
+     | RECCall scs m fn vs => msem_call scs m fn vs
+     end
    end.
 
 Definition rsem_call {E} `{ErrEvent -< E}
    (scs1 : syscall_state_t) (m1 : mem)
    (fn : funname) (vargs : values) : itree E (syscall_state_t * mem * values) :=
  mrec msem_fcstate (FFCall scs1 m1 fn vargs).
+
+Fixpoint msem_i1 {E} `{ErrEvent -< E} (i : instr_r) (s1: estate) : itree (RecCall +' E) estate :=
+  msem_i_body (fun c s => sem_cmd_ msem_i1 c s)
+              (fun scs m fn vargs => rec_call (RECCall (escs s1) (emem s1) fn vargs)) i s1.
+
+Definition msem_fcstate1 {E} `{ErrEvent -< E} : RecCall ~> itree (RecCall +' E) :=
+ fun _ fs =>
+   match fs with
+   | RECCall scs m fn vs => msem_call_body (sem_cmd_ msem_i1) scs m fn vs
+   end.
+
+Definition rsem_call1 {E} `{ErrEvent -< E}
+   (scs1 : syscall_state_t) (m1 : mem)
+   (fn : funname) (vargs : values) : itree E (syscall_state_t * mem * values) :=
+ mrec msem_fcstate1 (RECCall scs1 m1 fn vargs).
+
+(*
+eq rsem_call1 rsem_call.
+*)
+
 
 (* This should be the final semantics *)
 Definition sem_call (scs1 : syscall_state_t) (m1 : mem)

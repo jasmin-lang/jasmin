@@ -111,6 +111,32 @@ Proof.
   apply is_error_has.
 Defined.
 
+Lemma interp_mrec_rutt_err {D1 D2 E1 E2 : Type -> Type}
+   {HasErr1: ErrEvent -< E1} {wE1 : with_Error E1}
+   {HasErr2: ErrEvent -< E2} {wE2 : with_Error E2}
+   (RPre : prerel E1 E2)
+   (RPreInv : prerel D1 D2)
+   (RPost : postrel E1 E2)
+   (RPostInv : postrel D1 D2)
+   (bodies1 : forall T : Type, D1 T -> itree (D1 +' E1) T)
+   (bodies2 : forall T : Type, D2 T -> itree (D2 +' E2) T):
+   (forall (R1 R2 : Type) (d1 : D1 R1) (d2 : D2 R2),
+       RPreInv R1 R2 d1 d2 -> rutt_err (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost) (fun v1 : R1 => [eta RPostInv R1 R2 d1 v1 d2]) (bodies1 R1 d1) (bodies2 R2 d2)) ->
+   (forall (R1 R2 : Type) (RR : R1 -> R2 -> Prop) (t1 : itree (D1 +' E1) R1) (t2 : itree (D2 +' E2) R2),
+       rutt_err (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost) RR t1 t2 ->
+       rutt_err RPre RPost RR (interp_mrec bodies1 t1) (interp_mrec bodies2 t2)).
+Proof.
+  move=> hrec R1 R2 RR t1 t2 ht.
+  apply interp_mrec_rutt with (RPreInv := RPreInv) (RPostInv := RPostInv).
+  + admit. (* this is hrec modulo extentional equality *)
+  admit. (* this is ht modulo extentional equality *)
+Admitted.
+
+
+
+
+
+
 
 (*
 Existing Instance HasErr.
@@ -157,9 +183,9 @@ Context
 
 Section Section.
 
-  Context {E1 E2: Type -> Type}
-          {HasErr1 : ErrEvent -< E1} {HasErr2 : ErrEvent -< E2}
-          {wE1 : with_Error E1} {wE2 : with_Error E2}
+Context {E1 E2: Type -> Type}
+        {HasErr1 : ErrEvent -< E1} {HasErr2 : ErrEvent -< E2}
+        {wE1 : with_Error E1} {wE2 : with_Error E2}
         (TR_E : forall T1 T2,
             E1 T1 -> E2 T2 -> Prop)
         (VR_E : forall T1 T2,
@@ -561,6 +587,17 @@ admit.
 have <- : NoCutoff = (EE_MR NoCutoff FCState).
 rewrite /NoCutoff /EE_MR.
 admit.
+
+interp_mrec_rutt
+     : forall (EE1 : forall X : Type, ?E1 X -> bool) (EE2 : forall X : Type, ?E2 X -> bool) (RPre : prerel ?E1 ?E2) (RPreInv : prerel ?D1 ?D2) (RPost : postrel ?E1 ?E2)
+         (RPostInv : postrel ?D1 ?D2) (bodies1 : forall T : Type, ?D1 T -> itree (?D1 +' ?E1) T) (bodies2 : forall T : Type, ?D2 T -> itree (?D2 +' ?E2) T),
+       (forall (R1 R2 : Type) (d3 : ?D1 R1) (d4 : ?D2 R2),
+        RPreInv R1 R2 d3 d4 ->
+        rutt (EE_MR EE1 ?D1) (EE_MR EE2 ?D2) (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost) (fun v1 : R1 => [eta RPostInv R1 R2 d3 v1 d4]) (bodies1 R1 d3) (bodies2 R2 d4)) ->
+       forall (R1 R2 : Type) (RR : R1 -> R2 -> Prop) (t1 : itree (?D1 +' ?E1) R1) (t2 : itree (?D2 +' ?E2) R2),
+       rutt (EE_MR EE1 ?D1) (EE_MR EE2 ?D2) (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost) RR t1 t2 -> rutt EE1 EE2 RPre RPost RR (interp_mrec bodies1 t1) (interp_mrec bodies2 t2)
+
+
     by apply rutt_msem_fcstate.
 have <- : ErrorCutoff =  (EE_MR ErrorCutoff FCState).
 admit.
