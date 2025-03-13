@@ -737,7 +737,7 @@ Proof.
   move=> hwf hread hmem hofs hbound hget.
   apply read8_read.
   move=> al' k hk.
-  rewrite addE -GRing.addrA -wrepr_add (read8_alignment Aligned).
+  rewrite addE -GRing.addrA -[(_ + wrepr _ k)%R]wrepr_add (read8_alignment Aligned).
   apply hread; last by apply hget.
   rewrite memi_mem_U8; apply: mem_incl_r hmem; rewrite subset_interval_of_zone.
   rewrite -(sub_zone_at_ofs_compose _ _ _ (wsize_size ws)).
@@ -1021,7 +1021,7 @@ Section EXPR.
     have /vs_slot_valid hptr := hwf.(wfr_slot).
     apply /validwP; split=> //.
     move=> k hk; rewrite (validw8_alignment Aligned); apply hptr; move: hk.
-    apply between_byte.
+    apply: between_byte.
     + by apply (no_overflow_sub_region_addr hwf).
     by apply (zbetween_sub_region_addr hwf).
   Qed.
@@ -2607,7 +2607,7 @@ Proof.
       (Varr a').
   + rewrite /= get_var_bytes_set_move_bytes /= !eqxx /=.
     move=> off hmem w' /[dup] /get_val_byte_bound /= hoff /hay.
-    rewrite -sub_region_addr_offset -GRing.addrA -wrepr_add.
+    rewrite -sub_region_addr_offset -GRing.addrA -[(_ + wrepr _ off)%R]wrepr_add.
     assert (hval := wfr_val hgvalidy hgety).
     case: hval => hread _.
     apply hread.
@@ -2780,7 +2780,7 @@ Proof.
       (Varr a').
   + rewrite /= get_var_bytes_set_move_bytes /= !eqxx /=.
     move=> off hmem w' /[dup] /get_val_byte_bound /= hoff /hay.
-    rewrite -sub_region_addr_offset -GRing.addrA -wrepr_add.
+    rewrite -sub_region_addr_offset -GRing.addrA -[(_ + wrepr _ off)%R]wrepr_add.
     assert (hval := wfr_val hgvalidy hgety).
     case: hval => hread _.
     apply hread.
