@@ -1983,10 +1983,11 @@ and tt_cmd arch_info env c =
 (* -------------------------------------------------------------------- *)
 let tt_funbody arch_info env (pb : S.pfunbody) =
   let env, bdy = tt_cmd arch_info env pb.S.pdb_instr in
+  let ret_loc = L.loc pb.pdb_ret in
   let ret =
     let for1 x = L.mk_loc (L.loc x) (tt_var `AllVar env x) in
-    List.map for1 (Option.default [] pb.pdb_ret) in
-  (bdy, ret)
+    List.map for1 (Option.default [] (L.unloc pb.pdb_ret)) in
+  (bdy, ret_loc, ret)
 
 
 (* -------------------------------------------------------------------- *)
@@ -2155,7 +2156,7 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
   let env = Env.Vars.clear_locals env0 in
   if is_combine_flags pf.pdf_name then
     rs_tyerror ~loc:(L.loc pf.pdf_name) (string_error "invalid function name");
-  let inret = Option.map_default (List.map L.unloc) [] pf.pdf_body.pdb_ret in
+  let inret = Option.map_default (List.map L.unloc) [] (L.unloc pf.pdf_body.pdb_ret) in
   let dfl_mut x = List.mem x inret in
 
   let envb, args =
@@ -2163,8 +2164,8 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
     let env = add_known_implicits arch_info env pf.pdf_body.pdb_instr in
     env, List.flatten args in
   let rty  = Option.map_default (List.map (tt_type arch_info.pd env |- snd |- snd)) [] pf.pdf_rty in
-  let oannot = Option.map_default (List.map fst) [] pf.pdf_rty in
-  let body, xret = tt_funbody arch_info envb pf.pdf_body in
+  let ret_annot = Option.map_default (List.map fst) [] pf.pdf_rty in
+  let body, ret_loc, xret = tt_funbody arch_info envb pf.pdf_body in
   let f_cc = tt_call_conv loc args xret pf.pdf_cc in
   let args = List.map L.unloc args in
   let name = L.unloc pf.pdf_name in
@@ -2178,7 +2179,7 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
       P.f_args  = args;
       P.f_body  = body;
       P.f_tyout = rty;
-      P.f_outannot = oannot;
+      P.f_ret_info = { ret_annot; ret_loc };
       P.f_ret   = xret; } in
 
   check_return_statement ~loc fdef.P.f_name rty

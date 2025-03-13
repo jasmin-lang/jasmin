@@ -228,7 +228,7 @@ and stmt_of_cstmt c =
 (* ------------------------------------------------------------------------ *)
 let cufdef_of_fdef fd =
   let fn = fd.f_name in
-  let f_info = fd.f_loc, fd.f_annot, fd.f_cc, fd.f_outannot in
+  let f_info = fd.f_loc, fd.f_annot, fd.f_cc, fd.f_ret_info in
   let f_params =
     List.map (fun x -> cvari_of_vari (L.mk_loc L._dummy x)) fd.f_args in
   let f_body = cstmt_of_stmt fd.f_body in
@@ -244,7 +244,7 @@ let cufdef_of_fdef fd =
 
 
 let fdef_of_cufdef (fn, fd) =
-  let f_loc, f_annot, f_cc, f_outannot = fd.C.f_info in
+  let f_loc, f_annot, f_cc, f_ret_info = fd.C.f_info in
   { f_loc;
     f_annot;
     f_cc;
@@ -254,7 +254,7 @@ let fdef_of_cufdef (fn, fd) =
     f_args = List.map (fun v -> L.unloc (vari_of_cvari v)) fd.C.f_params;
     f_body = stmt_of_cstmt fd.C.f_body;
     f_tyout = List.map ty_of_cty fd.C.f_tyout;
-    f_outannot; 
+    f_ret_info;
     f_ret  = List.map (vari_of_cvari) fd.C.f_res;
   }
 
