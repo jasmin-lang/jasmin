@@ -16,8 +16,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* This files contains semantic models distinguished by use of either
-event-based or fixpoint-based recursion *)
+(**** This files contains semantic models for Jasmin, distinguished by
+use of either event-based or fixpoint-based recursion *)
 
 (**** ERROR SEMANTICS *******************************************)
 Section Errors.
@@ -25,7 +25,8 @@ Section Errors.
 (* error events, based on error_data errors *)
 Definition ErrEvent : Type -> Type := exceptE error_data.
 
-(* execT (itree E) R = itree E (exec R) *)
+(* maps ErrEvent events to the execS datatype *)
+(* execT (itree E) R = itree E (execS R) *)
 Definition handle_Err {E} : ErrEvent ~> execT (itree E) :=
   fun _ e =>
     match e with
@@ -62,6 +63,7 @@ Definition err_result {E: Type -> Type} `{ErrEvent -< E}
 
 End Errors.
 
+(**** JASMIN SEMANTICS *******************************************)
 Section WSW.
 Context
   {asm_op: Type}
@@ -79,9 +81,30 @@ Context
 
 Local Notation pglobs := (p_globs pr).
 
-Definition mk_error_data (s:estate) (e:error) := (e, tt).
+(*** jasmin abbreviations *)
 
+Definition eval_assgn
+   (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr)
+   (st1: estate) : exec estate :=
+  (Let v := sem_pexpr true (p_globs pr) st1 e in
+   Let v' := truncate_val ty v in
+   write_lval true (p_globs pr) x v' st1).
+
+Definition eval_syscall
+   (xs: lvals) (o: syscall_t)
+   (es: pexprs) (s: estate) : exec estate :=
+  Let ves := sem_pexprs true (p_globs pr) s es in
+  Let: (scs, m, vs) := exec_syscall s.(escs) s.(emem) o ves in
+  write_lvals true (p_globs pr)
+     (with_scs (with_mem s m) scs) xs vs.
+
+(* dummy definition to match error_data (the state is not used yet) *)
+Definition mk_error_data (s:estate) (e:error) : error_data := (e, tt).
+
+(* build our state-sensitive errors *)
 Definition mk_errtype := fun s => mk_error_data s ErrType.
+
+(*** lifting instruction to itrees *)
 
 Definition iget_fundef {E} `{ErrEvent -< E}
     (fn: funname) (s:estate) : itree E fundef :=
@@ -113,23 +136,7 @@ Definition isem_pexprs {E} `{ErrEvent -< E}
     (wdb : bool) (gd : glob_decls) (s : estate) (es: pexprs) : itree E values :=
   iresult s (sem_pexprs wdb gd s es).
 
-Definition eval_assgn
-   (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr)
-   (st1: estate) : exec estate :=
-  (Let v := sem_pexpr true (p_globs pr) st1 e in
-   Let v' := truncate_val ty v in
-   write_lval true (p_globs pr) x v' st1).
-
-Definition eval_syscall
-   (xs: lvals) (o: syscall_t)
-   (es: pexprs) (s: estate) : exec estate :=
-  Let ves := sem_pexprs true (p_globs pr) s es in
-  Let: (scs, m, vs) := exec_syscall s.(escs) s.(emem) o ves in
-  write_lvals true (p_globs pr)
-     (with_scs (with_mem s m) scs) xs vs.
-
-(** Auxiliary functions for recursion on list (seq) *)
-
+(* Auxiliary functions for recursion on list (seq) *)
 Fixpoint sem_cmd_map {E} (sem_i: instr_r -> estate -> itree E estate)
    (c: cmd) (st: estate) : itree E estate :=
   match c with
@@ -137,20 +144,11 @@ Fixpoint sem_cmd_map {E} (sem_i: instr_r -> estate -> itree E estate)
   | (MkI _ i) :: c' => st' <- sem_i i st ;; sem_cmd_map sem_i c' st'
   end.
 
-Fixpoint sem_for {E} `{ErrEvent -< E}
-   (sem_cmd : cmd -> estate -> itree E estate)
-   (i: var_i) (c: cmd) (ls: list Z) (s: estate) : itree E estate :=
-  match ls with
-  | nil => ret s
-  | (w :: ws) =>
-    s <- iwrite_var true i (Vint w) s;;
-    s <- sem_cmd c s;;
-    sem_for sem_cmd i c ws s
-  end.
 
 (**********************************************************************)
-(** error-aware interpreter with mutual recursion *)
+(*** error-aware interpreter with mutual recursion *)
 
+(* function call info record *)
 Record fc_info : Type := fc_info_mk {
   fc_scs : syscall_state_t ;
   fc_m : mem ;
@@ -173,6 +171,17 @@ Definition sem_cond {E} `{ErrEvent -< E} (e:pexpr) (s: estate) :
 Definition sem_bound {E} `{ErrEvent -< E} (e:pexpr) (s: estate) :
     itree E Z :=
   iresult s (sem_pexpr true pglobs s e >>r= to_int).
+
+Fixpoint sem_for {E} `{ErrEvent -< E}
+   (sem_cmd : cmd -> estate -> itree E estate)
+   (i: var_i) (c: cmd) (ls: list Z) (s: estate) : itree E estate :=
+  match ls with
+  | nil => ret s
+  | (w :: ws) =>
+    s <- iwrite_var true i (Vint w) s;;
+    s <- sem_cmd c s;;
+    sem_for sem_cmd i c ws s
+  end.
 
 Definition sem_while {E} `{ErrEvent -< E}
     (R : cmd -> estate -> itree (MREvent +' E) estate)
@@ -264,6 +273,8 @@ Definition sem_callF {E} `{ErrEvent -< E}
    (fn : funname) (vargs : values) : itree E fc_info :=
   mrec (sem_mreventF R) (FCall scs1 m1 fn vargs).
 
+(*** the error-aware semantics *)
+
 (* event-based recursion *)
 Definition msem_call {E} `{ErrEvent -< E} :
     syscall_state_t -> mem -> funname -> values -> itree E fc_info :=
@@ -274,7 +285,8 @@ Definition rsem_call {E} `{ErrEvent -< E} :
     syscall_state_t -> mem -> funname -> values -> itree E fc_info :=
   sem_callF rsem_instr.
 
-(* This should be the final semantics *)
+(*** the final semantics *)
+
 Definition final_msem_call (scs1 : syscall_state_t) (m1 : mem)
     (fn : funname) (vargs : values) : execT (itree void1) fc_info :=
   interp_Err (msem_call scs1 m1 fn vargs).
