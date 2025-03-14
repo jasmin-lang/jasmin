@@ -1,0 +1,5 @@
+#!/bin/sh
+for f in $(find . -name "*.jazz" -o -name "*.jinc")
+do
+  sed -i 's/(int)/(uint)/g' "$f"
+done

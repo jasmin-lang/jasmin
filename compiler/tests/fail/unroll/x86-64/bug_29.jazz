@@ -1,7 +1,7 @@
 export fn main (reg u64 io) -> reg u64 {
   inline int i;
   reg u64 res;
-  for i = 0 to (int)io {
+  for i = 0 to (uint)io {
     res = i;
   }
   return res;

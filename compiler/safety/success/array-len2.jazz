@@ -3,7 +3,7 @@ fn fillhalf(stack u64[16] blk, reg u64 cond) -> stack u64[16] {
   inline int i;
 
   for i = 0 to 8 {
-    blk[2*i + (int)cond] = i;
+    blk[2*i + (uint)cond] = i;
   }
   
   return blk;
