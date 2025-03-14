@@ -1,10 +1,10 @@
 export fn minmax(reg u64 inp) {
    reg u128 x1, x2;
    reg u256 y1, y2;
-   x1 = (u128)[inp];
-   x2 = (u128)[inp + 16];
-   y1 = (u256)[inp];
-   y2 = (u256)[inp + 32];
+   x1 = [:u128 inp];
+   x2 = [:u128 inp + 16];
+   y1 = [:u256 inp];
+   y2 = [:u256 inp + 32];
    x1 = #VPMINS_4u32(x1, x2);
    x1 = #VPMINU_4u32(x1, x2);
    x1 = #VPMINS_8u16(x1, x2);
@@ -57,7 +57,7 @@ export fn minmax(reg u64 inp) {
    y1 = #VPMAX_32s8(y1, y2);
    y1 = #VPMAX_32u8(y1, y2);
 
-   (u128)[inp] = x1;
-   (u256)[inp] = y1;
+   [:u128 inp] = x1;
+   [:u256 inp] = y1;
 
 }

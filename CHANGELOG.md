@@ -1,7 +1,16 @@
 
 # [unreleased]
-
 ## New features
+
+- New syntax for memory load/store (uXX)[aligned? x e] become [aligned? :uXX x e],
+  the syntax  (uXX)[aligned? x e] is deprecated.
+  New syntax for array load/store t DOT? [aligned? uXX e] become t DOT? [aligned? :uXX e],
+  the syntax t DOT? [aligned? uXX e] is deprecated.
+  The scrypt compiler/script/replace.sh allows to perform the change automatically.
+
+  New syntax for infix and prefix operators, the type of the arguments can be provided
+  using :uXX, like in e1 +:u32 e2.
+  ([PR #1086](https://github.com/jasmin-lang/jasmin/pull/1086)).
 
 - Add support for x86 `VMOVMSKPS` and `VMOVMSKPD` instructions, through the new
   intrinsics `#MOVEMASK` which also maps to the `VPMOVMSKB` instruction;

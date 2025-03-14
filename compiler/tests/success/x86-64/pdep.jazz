@@ -6,7 +6,7 @@ fn test_pdep32(reg u64 tmp)
   a = 0xFF;
   b = 0x02;
   c = #PDEP_32(a, b);
-  (u32)[tmp] = c;
+  [:u32 tmp] = c;
 }
 
 export
@@ -17,5 +17,5 @@ fn test_pdep64(reg u64 tmp)
   a = 0xFF;
   b = 0x02;
   c = #PDEP_64(a, b);
-  (u64)[tmp] = c;
+  [:u64 tmp] = c;
 }

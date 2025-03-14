@@ -33,6 +33,6 @@ fn foo2() -> reg u64 {
     p = #protect_ptr(p, msf);
 
     reg u64 x;
-    x = p[u64 0];
+    x = p[:u64 0];
     return x;
 }

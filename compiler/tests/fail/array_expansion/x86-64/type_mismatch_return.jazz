@@ -14,7 +14,7 @@ export fn main () -> reg u64 {
   reg u64 res;
 
   r = f();
-  res = r[u64 0];
+  res = r[:u64 0];
 
   return res;
 }
