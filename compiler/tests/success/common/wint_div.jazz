@@ -1,0 +1,52 @@
+fn sdiv (reg si32 x, reg si32 y) -> reg si32 {
+   reg si32 z;
+   z = x /s y;
+   return z;
+}
+
+fn sdiv1 (reg si32 x, reg si32 y) -> reg si32 {
+   reg si32 z;
+   z = x / y;
+   return z;
+}
+
+fn udiv (reg ui32 x, reg ui32 y) -> reg ui32 {
+   reg ui32 z;
+   z = x /u y;
+   return z;
+}
+
+fn udiv1 (reg ui32 x, reg ui32 y) -> reg ui32 {
+   reg ui32 z;
+   z = x /u y;
+   return z;
+}
+
+inline fn isdiv (inline int x, inline int y) -> inline int {
+   inline int z;
+   z = x /s y;
+   return z;
+}
+
+inline fn iudiv (inline int x, inline int y) -> inline int {
+   inline int z;
+   z = x /u y;
+   return z;
+}
+
+
+fn wsdiv (reg w32 x, reg w32 y) -> reg w32 {
+   reg w32 z;
+   z = x /s y;
+   return z;
+}
+
+fn wudiv (reg w32 x, reg w32 y) -> reg w32 {
+   reg w32 z;
+   z = x /u y;
+   return z;
+}
+
+
+
+

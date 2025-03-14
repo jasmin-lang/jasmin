@@ -3,7 +3,7 @@ type symbol = string
 type pident = symbol Location.located
 
 (* -------------------------------------------------------------------- *)
-type wsize = Wsize.wsize 
+type wsize = Wsize.wsize
 
 let int_of_ws = function
   | Wsize.U8 -> 8
@@ -43,3 +43,24 @@ let add_symbol ~loc s annot =
   if has_symbol s annot
   then annot
   else (Location.mk_loc loc s, None) :: annot
+
+let sint = "Internal::sint"
+let uint = "Internal::uint"
+
+let has_sint annot = has_symbol sint annot
+let has_uint annot = has_symbol uint annot
+
+let is_wint (k, _) =
+  let s = Location.unloc k in
+  String.equal s sint || String.equal s uint
+
+let remove_wint annot = List.filter (fun x -> not (is_wint x)) annot
+
+let has_wint annot =
+  BatList.find_map_opt (fun (k, _) ->
+    let s = Location.unloc k in
+    if String.equal s sint then Some Wsize.Signed
+    else if String.equal s uint then Some Unsigned
+    else None) annot
+
+
