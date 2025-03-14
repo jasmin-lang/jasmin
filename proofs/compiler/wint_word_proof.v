@@ -1,20 +1,23 @@
 Require Import compiler_util psem psem_facts.
-Require Import wint_word.
+Require Import wint_word allocation_proof.
 Import Utf8.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 
 Section PROOF.
 
 #[local] Existing Instance progUnit.
+#[local] Existing Instance indirect_c.
+#[local] Existing Instance withsubword.
 
 Context
-  {wsw:WithSubWord}
-  {dc:DirectCall}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
-  {sCP : forall {wsw : WithSubWord}, semCallParams}.
+  {sip : SemInstrParams asm_op syscall_state}.
+
+Context
+  (remove_wint_annot: funname -> fundef -> fundef)
+  (dead_vars_fd : fun_decl → instr_info → Sv.t).
 
 Variable (p:prog) (ev:extra_val_t).
 
@@ -191,7 +194,9 @@ Proof.
   by move=> /(wi2w_lvalP Hvm Hv) []vm2 -> Hvm2 /(Hrec _ _ _ _ Hvm2 Hvs).
 Qed.
 
-Let p' := wi2w_prog p.
+Section Internal.
+
+Let p' := wi2w_prog_internal p.
 
 Lemma eq_globs : gd = p_globs p'.
 Proof. done. Qed.
@@ -349,7 +354,7 @@ Proof.
   exists vres2 => //; econstructor; first (by apply hfun'); eauto.
 Qed.
 
-Lemma wi2w_callP fn scs mem scs' mem' va va' vr:
+Lemma wi2w_call_internalP fn scs mem scs' mem' va va' vr:
   List.Forall2 value_uincl va va' ->
   sem_call p ev scs mem fn va scs' mem' vr ->
   exists2 vr',
@@ -377,6 +382,22 @@ Proof.
        Hsem
        _
        Hall).
+Qed.
+
+End Internal.
+
+Lemma wi2w_progP (p' : uprog) scs m fn va scs' m' vr :
+  wi2w_prog remove_wint_annot dead_vars_fd p = ok p' →
+  sem_call p ev scs m fn va scs' m' vr →
+  exists2 vr' : seq value,
+    List.Forall2 value_uincl vr vr' &
+    sem_call p' ev scs m fn va scs' m' vr'.
+Proof.
+  rewrite /wi2w_prog; t_xrbindP => ok_pv <- h.
+  have [vr1 hu1 {}h]:= wi2w_call_internalP (List_Forall2_refl _ value_uincl_refl) h.
+  have [vr2 [{}h hu2]] := alloc_call_uprogP ok_pv h.
+  exists vr2 => //.
+  apply (Forall2_trans value_uincl_trans hu1 hu2).
 Qed.
 
 End PROOF.

@@ -3,7 +3,7 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
-Require Import expr sem_op_typed compiler_util.
+Require Import expr sem_op_typed compiler_util allocation.
 Import Utf8.
 Import oseq.
 Require Import flag_combination.
@@ -113,6 +113,16 @@ Definition wi2w_fun {eft} (f: _fundef eft) :=
   let 'MkFun ii si p c so r ev := f in
   MkFun ii si p (map wi2w_i c) so r ev.
 
-Definition wi2w_prog {pT:progT} (p: prog) : prog := map_prog wi2w_fun p.
+(* This function is internal, variable annotation still contain "sint" "uint" after this pass *)
+Definition wi2w_prog_internal {pT:progT} (p: prog) : prog := map_prog wi2w_fun p.
+
+Definition wi2w_prog {wsw: WithSubWord}
+   (remove_wint_annot: funname -> fundef -> fundef)
+   (dead_vars_fd : fun_decl → instr_info → Sv.t)
+   (p : prog) :=
+  let p := wi2w_prog_internal p in
+  let pv := map_prog_name remove_wint_annot p in
+  Let _ := allocation.check_uprog dead_vars_fd p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
+  ok pv.
 
 End WITH_PARAMS.
