@@ -1072,7 +1072,12 @@ let cast_int loc os e ety =
     let wk, s, ws = wk_s_ws s ws in
     let s =
       match wk, os with
-      | _, None -> s
+      | _, None ->
+       if wk = Word then
+          Utils.warning Deprecated (L.i_loc0 loc)
+            "Syntax (int)e when e has type %a is deprecated. Use (uint)e of (sint)e instead"
+            (fun fmt -> PrintCommon.pp_btype fmt) (P.U ws);
+        s
       | Word, Some s -> tt_sign s
       | WInt, Some s' ->
         (* FIXME: Should we do a better error message ? *)

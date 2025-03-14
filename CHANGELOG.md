@@ -11,8 +11,9 @@
    (sint) e : from wXX/siXX to int, signed interpretation
    (uint) e : from wXX/uiXX to int, unsigned interpretation
   The previous cast operator (int) e stand for:
-   (uint) e if e has type wXX/uiXX
+   (uint) e if e has type uiXX
    (sint) e if e has type siXX
+   and is deprecated if e has type wXX.
   All basic operations on uiXX/siXX perform the corresponding int operation and check
   that the result is in the range of uiXX/siXX, if not it is a safety violation.
   They can be selected explicitly using notation "e1 +XX(ui/si) e2"
