@@ -579,34 +579,13 @@ Lemma rutt_rsem_call ev1 ev2 scs1 m1 fn vs1 scs2 m2 vs2 :
   Rfres (scs1, m1, vs1)  (scs2, m2, vs2) ->
   rutt_err TR_E VR_E Rfres (rsem_call pr1 ev1 scs1 m1 fn vs1) (rsem_call pr2 ev2 scs2 m2 fn vs2).
 Proof.
-  move=> hpre; apply interp_mrec_rutt with (RPreInv := @TR_D_ME) (RPostInv := @VR_D_ME).
+  move=> hpre; apply interp_mrec_rutt_err with (RPreInv := @TR_D_ME) (RPostInv := @VR_D_ME).
   + move=> T1 T2 d1 d2.
-
-have <- : ErrorCutoff =  (EE_MR ErrorCutoff FCState).
-admit.
-have <- : NoCutoff = (EE_MR NoCutoff FCState).
-rewrite /NoCutoff /EE_MR.
-admit.
-
-interp_mrec_rutt
-     : forall (EE1 : forall X : Type, ?E1 X -> bool) (EE2 : forall X : Type, ?E2 X -> bool) (RPre : prerel ?E1 ?E2) (RPreInv : prerel ?D1 ?D2) (RPost : postrel ?E1 ?E2)
-         (RPostInv : postrel ?D1 ?D2) (bodies1 : forall T : Type, ?D1 T -> itree (?D1 +' ?E1) T) (bodies2 : forall T : Type, ?D2 T -> itree (?D2 +' ?E2) T),
-       (forall (R1 R2 : Type) (d3 : ?D1 R1) (d4 : ?D2 R2),
-        RPreInv R1 R2 d3 d4 ->
-        rutt (EE_MR EE1 ?D1) (EE_MR EE2 ?D2) (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost) (fun v1 : R1 => [eta RPostInv R1 R2 d3 v1 d4]) (bodies1 R1 d3) (bodies2 R2 d4)) ->
-       forall (R1 R2 : Type) (RR : R1 -> R2 -> Prop) (t1 : itree (?D1 +' ?E1) R1) (t2 : itree (?D2 +' ?E2) R2),
-       rutt (EE_MR EE1 ?D1) (EE_MR EE2 ?D2) (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost) RR t1 t2 -> rutt EE1 EE2 RPre RPost RR (interp_mrec bodies1 t1) (interp_mrec bodies2 t2)
-
-
     by apply rutt_msem_fcstate.
-have <- : ErrorCutoff =  (EE_MR ErrorCutoff FCState).
-admit.
-have <- : NoCutoff = (EE_MR NoCutoff FCState).
-rewrite /NoCutoff /EE_MR.
-admit.
   have := @rutt_msem_fcstate ev1 ev2 _ _ (FFCall scs1 m1 fn vs1) (FFCall scs2 m2 fn vs2).
   apply => /=; case hpre => //.
-Admitted.
+Qed.
+
 
 (*
 

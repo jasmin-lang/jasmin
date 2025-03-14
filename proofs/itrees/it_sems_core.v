@@ -203,23 +203,23 @@ Definition eval_syscall
 
 (** Auxiliary functions for recursion on list (seq) *)
 
-Fixpoint sem_cmd_ {E} (sem_i: instr_r -> estate -> itree E estate)
+Fixpoint isem_cmd_body {E} (sem_i: instr -> estate -> itree E estate)
    (c: cmd) (st: estate) : itree E estate :=
   match c with
   | nil => Ret st
-  | (MkI _ i) :: c' => st' <- sem_i i st ;; sem_cmd_ sem_i c' st'
+  | i :: c' => st' <- sem_i i st ;; isem_cmd_body sem_i c' st'
   end.
 
-Fixpoint sem_for {E} `{ErrEvent -< E}
-   (sem_cmd : cmd -> estate -> itree E estate)
+Fixpoint isem_for_body {E} `{ErrEvent -< E}
+   (sem_i : instr -> estate -> itree E estate)
    (i: var_i) (c: cmd)
    (ls: list Z) (s: estate) : itree E estate :=
   match ls with
   | nil => ret s
   | (w :: ws) =>
     s <- iwrite_var true i (Vint w) s;;
-    s <- sem_cmd c s;;
-    sem_for sem_cmd i c ws s
+    s <- isem_cmd_body sem_i c s;;
+    isem_for_body sem_i i c ws s
   end.
 
 (* Make global definition *)
@@ -228,94 +228,77 @@ Local Notation exit_loop st := (ret (inr st)).
 
 Local Notation gd := (p_globs pr).
 
-Definition sem_cond {E} `{ErrEvent -< E} (e:pexpr) (s: estate) : itree E bool :=
+Definition isem_cond {E} `{ErrEvent -< E} (e:pexpr) (s: estate) : itree E bool :=
   iresult s (sem_pexpr true gd s e >>r= to_bool).
 
-Definition sem_bound {E} `{ErrEvent -< E} (e:pexpr) (s: estate) :
+Definition isem_bound {E} `{ErrEvent -< E} (e:pexpr) (s: estate) :
    itree E Z :=
   iresult s (sem_pexpr true gd s e >>r= to_int).
 
-Definition sem_while_body {E} `{ErrEvent -< E}
-   (sem_cmd : cmd -> estate -> itree E estate)
+Definition isem_while_loop {E} `{ErrEvent -< E}
+   (sem_i : instr -> estate -> itree E estate)
    (c1 : cmd) (e:pexpr) (c2: cmd) (s1 : estate) : itree E (estate + estate) :=
-   s2 <- sem_cmd c1 s1 ;;
-   b <- sem_cond e s2 ;;
-   if b then s3 <- sem_cmd c2 s2 ;; continue_loop s3
+   s2 <- isem_cmd_body sem_i c1 s1 ;;
+   b <- isem_cond e s2 ;;
+   if b then s3 <- isem_cmd_body sem_i c2 s2 ;; continue_loop s3
    else exit_loop s2.
 
-Definition msem_i_body {E} `{ErrEvent -< E}
-   (sem_cmd : cmd -> estate -> itree E estate)
-   (sem_call : syscall_state_t -> mem -> funname -> values -> itree E (syscall_state_t * mem * values))
-   (i: instr_r) (s1: estate) : itree E estate :=
-(*  let R := st_cmd_map_r meval_instr in *)
-(*  let R := (fun c s => rec_call (FLCode c s)) in *)
+Definition isem_while_body {E} `{ErrEvent -< E}
+   (sem_i : instr -> estate -> itree E estate)
+   (c1 : cmd) (e:pexpr) (c2: cmd) (s1 : estate) : itree E estate :=
+  ITree.iter (isem_while_loop sem_i c1 e c2) s1.
+
+Record fstate := { fscs : syscall_state_t; fmem : mem; fvals : values }.
+
+Fixpoint isem_i_body {E} `{ErrEvent -< E}
+   (sem_call : funname -> fstate -> itree E fstate)
+   (i: instr) (s1: estate) : itree E estate :=
+  let sem_i := isem_i_body sem_call in
+  let sem_cmd := isem_cmd_body sem_i in
+  let: (MkI _ i) := i in
   match i with
   | Cassgn x tg ty e => iresult s1 (eval_assgn x tg ty e s1)
   | Copn xs tg o es => iresult s1 (sem_sopn gd o s1 xs es)
   | Csyscall xs o es => iresult s1 (eval_syscall xs o es s1)
+
   | Cif e c1 c2 =>
-      b <- sem_cond e s1;;
-      sem_cmd (if b then c1 else c2) s1
+    b <- isem_cond e s1;;
+    sem_cmd (if b then c1 else c2) s1
+
   | Cwhile a c1 e c2 =>
-      ITree.iter (fun s1 =>
-           s2 <- sem_cmd c1 s1 ;;
-           b <- sem_cond e s2 ;;
-           if b then s3 <- sem_cmd c2 s2 ;; continue_loop s3
-           else exit_loop s2) s1
+    isem_while_body sem_i c1 e c2 s1
+
   | Cfor i (d, lo, hi) c =>
-     vlo <- sem_bound lo s1 ;;
-     vhi <- sem_bound hi s1 ;;
-     sem_for sem_cmd i c (wrange d vlo vhi) s1
+    vlo <- isem_bound lo s1 ;;
+    vhi <- isem_bound hi s1 ;;
+    isem_for_body sem_i i c (wrange d vlo vhi) s1
 
   | Ccall xs fn args =>
-      vargs <- isem_pexprs  (~~direct_call) gd s1 args;;
-      res <- sem_call (escs s1) (emem s1) fn vargs;;
-      let: (scs2, m2, vs) := res in
-      iwrite_lvals (~~direct_call) gd (with_scs (with_mem s1 m2) scs2) xs vs
-end.
+    vargs <- isem_pexprs  (~~direct_call) gd s1 args;;
+    r <- sem_call fn {| fscs := escs s1; fmem:= emem s1; fvals := vargs |} ;;
+    iwrite_lvals (~~direct_call) gd (with_scs (with_mem s1 r.(fmem)) r.(fscs)) xs r.(fvals)
+  end.
 
 (**********************************************************************)
 (** error-aware interpreter with mutual recursion *)
 
-(* mutual recursion events *)
-(* FIXME : should we find a better name ? *)
-(* FIXME :  introduce a record for (syscall_state_t * mem * values) *)
-(*
-FLCode : RecCode T
+Variant recCall : Type -> Type :=
+ | RecCall (f:funname) (fs:fstate) : recCall fstate.
 
-FFCall : RecCall T
-
-
-FCState : RecCode +' RecCall
-*)
-
-Variant RecCode : Type -> Type :=
- | RECCode (c: cmd) (st: estate) : RecCode estate.
-
-Variant RecCall : Type -> Type :=
- | RECCall (scs : syscall_state_t) (m:mem) (f: funname) (vs:values) : RecCall (syscall_state_t * mem * values).
-
-Definition FCState : Type -> Type := (RecCode +' RecCall).
-
-Definition FLCode c st : FCState estate := inl1 (RECCode c st).
-Definition FFCall scs m f vs : FCState (syscall_state_t * mem * values) := inr1 (RECCall scs m f vs).
-
-(* | FLCode (c: cmd) (st: estate) : FCState estate
- | FFCall (scs : syscall_state_t) (m:mem)
-          (f: funname) (vs:values) : FCState (syscall_state_t * mem * values).
-*)
 (* Make global definition *)
 
-Local Notation rec_call := (trigger_inl1).
+Definition rec_call  {E} `{ErrEvent -< E} (f:funname) (fs:fstate) : itree (recCall +' E) fstate :=
+ trigger_inl1 (RecCall f fs).
 
-Definition msem_i {E} `{ErrEvent -< E} (i : instr_r) (s1: estate) : itree (FCState +' E) estate :=
-  msem_i_body (fun c s => rec_call (FLCode c s))
-              (fun scs m fn vargs => rec_call (FFCall (escs s1) (emem s1) fn vargs)) i s1.
+Definition isem_i_rec {E} `{ErrEvent -< E} (i : instr) (s1: estate) : itree (recCall +' E) estate :=
+  isem_i_body rec_call i s1.
 
-Definition initialize_call (scs1 : syscall_state_t) (m1 : mem)
-   (fd : fundef) (vargs : values) : exec estate :=
-  let sinit := (Estate scs1 m1 Vm.init) in
-  Let vargs' := mapM2 ErrType dc_truncate_val fd.(f_tyin) vargs in
+Definition estate0 (fs : fstate) :=
+  Estate fs.(fscs) fs.(fmem) Vm.init.
+
+Definition initialize_call (fd:fundef) (fs:fstate) : exec estate :=
+  let sinit := estate0 fs in
+  Let vargs' := mapM2 ErrType dc_truncate_val fd.(f_tyin) fs.(fvals) in
   Let s0 := init_state fd.(f_extra) (p_extra pr) ev sinit in
   write_vars (~~direct_call) fd.(f_params) vargs' s0.
 
@@ -324,66 +307,124 @@ Definition finalize_call (fd : fundef) (s:estate) :=
   Let vres' := mapM2 ErrType dc_truncate_val fd.(f_tyout) vres in
   let scs := s.(escs) in
   let m := finalize fd.(f_extra) s.(emem) in
-  ok (scs, m, vres').
+  ok {| fscs := scs; fmem := m; fvals := vres' |}.
 
-Definition msem_call_body {E} `{ErrEvent -< E}
-   (sem_cmd : cmd -> estate -> itree E estate)
-   (scs1 : syscall_state_t) (m1 : mem)
-   (fn : funname) (vargs : values) : itree E (syscall_state_t * mem * values) :=
+Definition isem_call_body {E} `{ErrEvent -< E}
+   (rec_call : funname -> fstate -> itree E fstate)
+   (fn : funname) (fs:fstate) : itree E fstate :=
   (* FIXME: this is durty : sinit*)
-  let sinit := (Estate scs1 m1 Vm.init) in
+  let sinit := estate0 fs in
   fd <- iget_fundef fn sinit;;
-  s1 <- iresult sinit (initialize_call scs1 m1 fd vargs);;
-  s2 <- sem_cmd fd.(f_body) s1;;
+  s1 <- iresult sinit (initialize_call fd fs);;
+  s2 <- isem_cmd_body (isem_i_body rec_call) fd.(f_body) s1;;
   iresult s2 (finalize_call fd s2).
 
-Definition msem_call {E} `{ErrEvent -< E}
-   (scs1 : syscall_state_t) (m1 : mem)
-   (fn : funname) (vargs : values) : itree (FCState +' E) (syscall_state_t * mem * values) :=
-  msem_call_body (fun c st => rec_call (FLCode c st)) scs1 m1 fn vargs.
+Definition isem_call_rec {E} `{ErrEvent -< E}
+   (fn : funname) (fs:fstate) : itree (recCall +' E) fstate :=
+  isem_call_body rec_call fn fs.
 
-Definition msem_fcstate {E} `{ErrEvent -< E} : FCState ~> itree (FCState +' E) :=
- fun T (fs : FCState T) =>
-   match fs with
-   | inl1 e =>
-     match e with
-     | RECCode c st => sem_cmd_ msem_i c st
-     end
-   | inr1 e =>
-     match e with
-     | RECCall scs m fn vs => msem_call scs m fn vs
-     end
+Definition interp_recCall {E} `{ErrEvent -< E} : recCall ~> itree (recCall +' E) :=
+ fun T (rc : recCall T) =>
+   match rc with
+   | RecCall fn fs => isem_call_rec fn fs
    end.
 
-Definition rsem_call {E} `{ErrEvent -< E}
-   (scs1 : syscall_state_t) (m1 : mem)
-   (fn : funname) (vargs : values) : itree E (syscall_state_t * mem * values) :=
- mrec msem_fcstate (FFCall scs1 m1 fn vargs).
+Definition isem_call {E} `{ErrEvent -< E} (fn : funname) (fs : fstate) : itree E fstate :=
+  mrec interp_recCall (RecCall fn fs).
 
-Fixpoint msem_i1 {E} `{ErrEvent -< E} (i : instr_r) (s1: estate) : itree (RecCall +' E) estate :=
-  msem_i_body (fun c s => sem_cmd_ msem_i1 c s)
-              (fun scs m fn vargs => rec_call (RECCall (escs s1) (emem s1) fn vargs)) i s1.
+Definition isem_i {E} `{ErrEvent -< E} (i : instr) (s : estate) : itree E estate :=
+  isem_i_body isem_call i s.
 
-Definition msem_fcstate1 {E} `{ErrEvent -< E} : RecCall ~> itree (RecCall +' E) :=
- fun _ fs =>
-   match fs with
-   | RECCall scs m fn vs => msem_call_body (sem_cmd_ msem_i1) scs m fn vs
-   end.
+Definition isem_cmd {E} `{ErrEvent -< E} (c : cmd) (s : estate) : itree E estate :=
+  isem_cmd_body isem_i c s.
 
-Definition rsem_call1 {E} `{ErrEvent -< E}
-   (scs1 : syscall_state_t) (m1 : mem)
-   (fn : funname) (vargs : values) : itree E (syscall_state_t * mem * values) :=
- mrec msem_fcstate1 (RECCall scs1 m1 fn vargs).
+Definition sem_call (fn : funname) (fs : fstate) : execT (itree void1) (fstate) :=
+  interp_Err (isem_call fn fs).
 
-(*
-eq rsem_call1 rsem_call.
-*)
+(* Core lemmas about the definition *)
 
+Lemma interp_ioget {E : Type -> Type} `{ErrEvent -< E} Err T (o : option T) :
+  eutt (E:=E) eq (interp (mrecursive interp_recCall) (ioget Err o)) (ioget Err o).
+Proof.
+  case o => /=.
+  + move=> ?; rewrite interp_ret; reflexivity.
+  rewrite interp_vis bind_trigger.
+  by apply eqit_Vis => -[].
+Qed.
 
-(* This should be the final semantics *)
-Definition sem_call (scs1 : syscall_state_t) (m1 : mem)
-   (fn : funname) (vargs : values) : execT (itree void1) (syscall_state_t * mem * values) :=
-  interp_Err (rsem_call scs1 m1 fn vargs).
+Lemma interp_iresult {E : Type -> Type} `{ErrEvent -< E} s T (r : exec T) :
+  eutt (E:=E) eq (interp (mrecursive interp_recCall) (iresult s r)) (iresult s r).
+Proof.
+  case r => /=.
+  + move=> ?; rewrite interp_ret; reflexivity.
+  move=> e; rewrite interp_vis bind_trigger.
+  by apply eqit_Vis => -[].
+Qed.
+
+Lemma interp_isem_cmd {E} `{ErrEvent -< E} c s :
+  eutt (E:=E) eq (interp (mrecursive interp_recCall) (isem_cmd_body (isem_i_body rec_call) c s))
+    (isem_cmd_body (isem_i_body isem_call) c s).
+Proof.
+  apply: (cmd_rect
+    (Pr := fun ir => forall ii s,
+       eutt (E:=E) eq (interp (mrecursive interp_recCall) (isem_i_rec (MkI ii ir) s))
+                      (isem_i (MkI ii ir) s))
+    (Pi := fun i => forall s,
+       eutt (E:=E) eq (interp (mrecursive interp_recCall) (isem_i_rec i s))
+                      (isem_i i s))
+    (Pc := fun c => forall s,
+       eutt (E:=E) eq (interp (mrecursive interp_recCall) (isem_cmd_body isem_i_rec c s))
+                      (isem_cmd c s))) c s => //=.
+  + move=> s; rewrite interp_ret; reflexivity.
+  + move=> i c hi hc s; rewrite interp_bind;apply eqit_bind; first by apply hi.
+    by move=> s'; apply hc.
+  + by move=> >; apply interp_iresult.
+  + by move=> >; apply interp_iresult.
+  + by move=> >; apply interp_iresult.
+  + move=> e c1 c2 hc1 hc2 ii s; rewrite /isem_i /isem_i_rec /=.
+    rewrite interp_bind; apply eqit_bind.
+    + by apply interp_iresult.
+    by move=> []; [apply hc1 | apply hc2].
+  + move=> v dir lo hi c hc ii s; rewrite /isem_i /isem_i_rec /=.
+    rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
+    move=> vlo.
+    rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
+    move=> vhi; elim: wrange s => {vlo vhi ii} //=.
+    + move=> >; rewrite interp_ret; reflexivity.
+    move=> j js hrec s.
+    rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
+    move=> s'; rewrite interp_bind.
+    rewrite hc; setoid_rewrite hrec; reflexivity.
+  + move=> al c1 e c2 hc1 hc2 ii s; rewrite /isem_i /isem_i_rec /= /isem_while_body.
+    rewrite interp_iter; apply eutt_iter => {}s.
+    rewrite /isem_while_loop.
+    rewrite interp_bind; apply eqit_bind; first by apply hc1.
+    move=> s1; rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
+    move=> [].
+    + rewrite interp_bind; apply eqit_bind; first by apply hc2.
+      move=> s2; rewrite interp_ret; reflexivity.
+    rewrite interp_ret; reflexivity.
+  move=> xs f es ii s; rewrite /isem_i /isem_i_rec /=.
+  rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
+  move=> vs.
+  rewrite interp_bind; apply eqit_bind; last by move=> >; apply interp_iresult.
+  rewrite interp_mrecursive; reflexivity.
+Qed.
+
+Lemma isem_call_unfold {E} `{ErrEvent -< E} (fn : funname) (fs : fstate) :
+  isem_call (E:=E) fn fs ≈ isem_call_body isem_call fn fs.
+Proof.
+  rewrite {1}/isem_call.
+  rewrite mrec_as_interp.
+  rewrite {2}/interp_recCall /isem_call_rec /isem_call_body.
+  rewrite interp_bind; apply eqit_bind.
+  + by apply interp_ioget.
+  move=> fd; rewrite interp_bind; apply eqit_bind.
+  + by apply interp_iresult.
+  move=> s1; rewrite interp_bind; apply eqit_bind.
+  + apply interp_isem_cmd.
+  move=> s2; apply interp_iresult.
+Qed.
 
 End WSW.
 
