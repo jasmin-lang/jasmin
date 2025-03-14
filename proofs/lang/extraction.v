@@ -84,4 +84,5 @@ Separate Extraction
   riscv_instr_decl
   riscv_extra
   riscv_params
+  safety_cond
   compiler.
