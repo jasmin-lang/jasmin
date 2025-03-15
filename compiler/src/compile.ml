@@ -196,8 +196,8 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
         let (_, va) = Hv.find harrs (L.unloc x) in
         List.init (Array.length va) (fun _ -> [])
       with Not_found -> [a] in
-    let f_outannot = List.flatten (List.map2 do_outannot fd.f_ret fd.f_outannot) in
-    let finfo = fd.f_loc, fd.f_annot, f_cc, f_outannot in
+    let ret_annot = List.flatten (List.map2 do_outannot fd.f_ret fd.f_ret_info.ret_annot) in
+    let finfo = fd.f_loc, fd.f_annot, f_cc, { fd.f_ret_info with ret_annot } in
     { Array_expansion.vars; arrs = !arrs; finfo }
   in
 

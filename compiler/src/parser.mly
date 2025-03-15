@@ -445,7 +445,7 @@ annot_pparamdecl:
 pfunbody :
 | LBRACE
     is = pinstr*
-    rt = option(RETURN vs=tuple(var) SEMICOLON { vs })
+    rt = loc(option(RETURN vs=tuple(var) SEMICOLON { vs }))
   RBRACE
     { { pdb_instr = is;
         pdb_ret   = rt; } }

@@ -1309,7 +1309,7 @@ let init_constraint fenv f =
     mk_vty ~is_local:false loc ~msf:(not export) x ls an in
 
   (* process function outputs *)
-  let tyout = List.map2i process_return f.f_ret f.f_outannot in
+  let tyout = List.map2i process_return f.f_ret f.f_ret_info.ret_annot in
 
   (* infer msf_oracle info *)
   let msfs =
@@ -1511,7 +1511,7 @@ let compile_infer_msf (prog:('info, 'asm) prog) =
     in
 
     (* process function outputs *)
-    let tyout = List.mapi process_return f.f_outannot in
+    let tyout = List.mapi process_return f.f_ret_info.ret_annot in
 
     (* infer the set of input variables that need to be msf *)
     let msfin =
