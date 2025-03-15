@@ -736,12 +736,13 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   end.
 
 Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) : label * lcmd :=
+  let fentry_ii := entry_info_of_fun_info fi in
   let ret_ii := ret_info_of_fun_info fi in
   let: (tail, head, lbl) :=
      match sf_return_address e with
      | RAreg r _ =>
        ( [:: MkLI ret_ii (Ligoto (Rexpr (Fvar (mk_var_i r)))) ]
-       , [:: MkLI dummy_instr_info (Llabel 1) ]
+       , [:: MkLI fentry_ii (Llabel 1) ]
        , 2%positive
        )
      | RAstack ra_call ra_return z _ =>
@@ -749,9 +750,9 @@ Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) : label * l
          then [:: lload ret_ii (mk_var_i ra_return) rspi z;
                   MkLI ret_ii (Ligoto (Rexpr (Fvar (mk_var_i ra_return)))) ]
          else [:: MkLI ret_ii Lret ]
-       , MkLI dummy_instr_info (Llabel 1) ::
+       , MkLI fentry_ii (Llabel 1) ::
          (if ra_call is Some ra_call
-          then [:: lstore dummy_instr_info rspi z (mk_var_i ra_call) ]
+          then [:: lstore fentry_ii rspi z (mk_var_i ra_call) ]
           else [::])
        , 2%positive
        )
@@ -767,7 +768,7 @@ Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) : label * l
           *)
          let r := mk_var_i x in
          ( [:: lmove ret_ii rspi r ]
-         , set_up_sp_register dummy_instr_info rspi sf_sz (sf_align e) r (mk_var_i var_tmp)
+         , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r (mk_var_i var_tmp)
          , 1%positive
          )
        | SavedStackStk ofs =>
@@ -780,8 +781,8 @@ Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) : label * l
           *)
          let r := mk_var_i var_tmp in
          ( pop_to_save ret_ii e.(sf_to_save) ofs
-         , set_up_sp_register dummy_instr_info rspi sf_sz (sf_align e) r (mk_var_i var_tmp2)
-             ++ push_to_save dummy_instr_info e.(sf_to_save) (var_tmp, ofs)
+         , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r (mk_var_i var_tmp2)
+             ++ push_to_save fentry_ii e.(sf_to_save) (var_tmp, ofs)
          , 1%positive)
        end
      end

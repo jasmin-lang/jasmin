@@ -53,5 +53,8 @@ type return_info = {
 type t =
   Location.t * f_annot * call_conv * return_info
 
+let entry_info (fi: t) : IInfo.t =
+  let (fl, _, _, _) = fi in (Location.i_loc0 fl, [])
+
 let ret_info (fi: t) : IInfo.t =
   let (_, _, _, ri) = fi in (Location.i_loc0 ri.ret_loc, [])
