@@ -1,91 +1,19 @@
-
-From Jasmin Require Import oseq.
-(* problematic *)
-From Jasmin Require Import expr.
-From Jasmin Require Import it_jasmin_lib.
-
-(* FIXME clean this *)
-From Coq Require Import
-     Arith.PeanoNat
-     Lists.List
-     Strings.String
-     Morphisms
-     Setoid
-     RelationClasses
-     EquivDec
-     Equality
-     Program.Tactics.
-
-From ExtLib Require Import
-     Data.String
-     Structures.Monad
-     Structures.Traversable
-     Data.List
-     Core.RelDec
-     Structures.Maps
-     Data.Map.FMapAList.
-
 From ITree Require Import
      ITree
      ITreeFacts
-     Monad
-     Basics.HeterogeneousRelations
-     Events.Map
-     Events.State
-     Events.StateFacts
-     Events.Reader
      Events.Exception
-     Events.FailFacts.
-
-Require Import Paco.paco.
-Require Import Psatz.
-Require Import ProofIrrelevance.
-Require Import FunctionalExtensionality.
-
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
-
-From ITree Require Import
-     Basics.Category
-     Basics.Basics
-     Basics.Function
-     Core.ITreeDefinition
-     Core.KTree
-     Eq.Eqit
-     Eq.UpToTaus
-     Eq.Paco2
-     Indexed.Sum
-     Indexed.Function
-     Indexed.Relation
-     Interp.Handler
-     Interp.Interp
-     Interp.InterpFacts
      Interp.Recursion.
 
-From ITree Require Import Rutt RuttFacts.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
-From ITree Require Import EqAxiom.
+Require Import expr psem_defs psem it_gen_lib it_exec.
 
-From Jasmin Require Import expr psem_defs psem oseq.
-From Jasmin Require Import it_gen_lib it_jasmin_lib it_exec.
-From Jasmin Require Import compiler_util.
-(* problematic *)
-
-(* End FIXME *)
-Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
-Local Open Scope option_scope.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-(* Set Universe Polymorphism. *)
-
-(* This files contains semantic models distinguished by use of either
-mutual or double recursion, and by either modular, error-aware or flat
-structure. There are fives models (MM: mutual modular; ME: mutual
-error; MF: mutual flat; DE: double error; DF double flat) *)
 
 (**** ERROR SEMANTICS *******************************************)
 Section Errors.
