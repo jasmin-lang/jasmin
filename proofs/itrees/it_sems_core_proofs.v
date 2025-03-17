@@ -333,15 +333,6 @@ Lemma iequiv_ret {I1 I2} (Q: rel I1 I2) :
   iequiv Q (fun i => Ret i) (fun i => Ret i) Q.
 Proof. by apply iequiv_io_ret. Qed.
 
-(* comp_pre P Q o1 o2 <-> exists i1 i2, P i1 i2 /\ Q i1 i2 o1 o2 *)
-Variant comp_pre {I1 I2 O1 O2} (P : rel I1 I2) (Q: relIO I1 I2 O1 O2) (o1 : O1) (o2 : O2) : Prop :=
-  | Comp_io : forall i1 i2, P i1 i2 -> Q i1 i2 o1 o2 -> comp_pre P Q o1 o2.
-
-Definition comp_post {I1 I2 T1 T2 O1 O2}
-   (P : rel I1 I2) (R : relIO I1 I2 T1 T2) (Q : relIO I1 I2 O1 O2)
-   (t1 : T1) (t2 : T2) (o1 : O1) (o2 : O2) :=
-  forall i1 i2, P i1 i2 -> R i1 i2 t1 t2 -> Q i1 i2 o1 o2.
-
 Lemma iequiv_io_bind {I1 I2 T1 T2 O1 O2}
   (R : relIO I1 I2 T1 T2)
   (P : rel I1 I2)
