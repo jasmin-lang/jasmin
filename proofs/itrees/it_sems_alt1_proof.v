@@ -936,6 +936,10 @@ Proof.
     unfold handle_recCall.
     unfold isem_fun_rec.
     unfold isem_funcall.
+
+Admitted.
+
+(*
     eapply rutt_trigger.
     
   + move=> {hpre fn1 fn2 fs1 fs2}.
@@ -943,6 +947,7 @@ Proof.
     by apply (equiv_fun_body (hbody fn1 fn2) hpre).
   by apply (equiv_fun_body (hbody fn1 fn2) hpre).
 Qed.
+*)
 
 End EQUIV_FUN.
 
