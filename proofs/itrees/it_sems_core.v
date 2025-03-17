@@ -175,11 +175,21 @@ Definition sem_assgn  (x : lval) (tg : assgn_tag) (ty : stype) (e : pexpr) (s : 
     Let v' := truncate_val ty v in
     write_lval true (p_globs p) x v' s).
 
+Record fstate := { fscs : syscall_state_t; fmem : mem; fvals : values }.
+
+Definition fexec_syscall (o : syscall_t) (fs:fstate) : exec fstate :=
+  Let: (scs, m, vs) := exec_syscall fs.(fscs) fs.(fmem) o fs.(fvals) in
+  ok {| fscs := scs; fmem := m; fvals := vs |}.
+
+Definition mk_fstate (vs:values) (s:estate) := {| fscs := escs s; fmem:= emem s; fvals := vs |}.
+
+Definition upd_estate wdb (gd : glob_decls) (xs:lvals) (fs : fstate) (s:estate) :=
+  write_lvals wdb gd (with_scs (with_mem s fs.(fmem)) fs.(fscs)) xs fs.(fvals).
+
 Definition sem_syscall (xs : lvals) (o : syscall_t) (es : pexprs) (s : estate) : exec estate :=
   Let ves := sem_pexprs true (p_globs p) s es in
-  Let: (scs, m, vs) := exec_syscall s.(escs) s.(emem) o ves in
-  write_lvals true (p_globs p)
-     (with_scs (with_mem s m) scs) xs vs.
+  Let fs := fexec_syscall o (mk_fstate ves s) in
+  upd_estate true (p_globs p) xs fs s.
 
 Definition sem_cond (gd : glob_decls) (e : pexpr) (s : estate) : exec bool :=
   sem_pexpr true gd s e >>r= to_bool.
@@ -235,8 +245,6 @@ Definition isem_while_body (c1 : cmd) (e:pexpr) (c2: cmd) (s1 : estate) : itree 
 
 End SEM_C.
 
-Record fstate := { fscs : syscall_state_t; fmem : mem; fvals : values }.
-
 Section SEM_I.
 
 Context {E} `{ErrEvent -< E} (sem_fun : prog -> extra_val_t -> funname -> fstate -> itree E fstate).
@@ -261,8 +269,8 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s1 : estate) : i
 
   | Ccall xs fn args =>
     vargs <- isem_pexprs  (~~direct_call) (p_globs p) s1 args;;
-    r <- sem_fun p ev fn {| fscs := escs s1; fmem:= emem s1; fvals := vargs |} ;;
-    iwrite_lvals (~~direct_call) (p_globs p) (with_scs (with_mem s1 r.(fmem)) r.(fscs)) xs r.(fvals)
+    fs <- sem_fun p ev fn (mk_fstate vargs s1) ;;
+    iresult s1 (upd_estate (~~direct_call) (p_globs p) xs fs s1)
   end.
 
 Definition isem_cmd_ := isem_cmd_body isem_i_body.
