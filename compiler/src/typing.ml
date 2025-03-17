@@ -84,7 +84,7 @@ let type_of_sopn loc pd asmOp op =
 let rec ty_expr pd loc (e:expr) = 
   match e with
   | Pconst _    -> tint
-  | Pbool _     -> tbool
+  | Pbool _  |Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _ -> tbool
   | Parr_init len -> Arr (U8, len)
   | Pvar x      -> ty_gvar x 
   | Pget(_al, _aa,ws,x,e) ->

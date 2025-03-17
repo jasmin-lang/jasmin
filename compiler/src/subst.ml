@@ -34,6 +34,9 @@ let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gex
          gsubst_e flen f e1,
          gsubst_e flen f e2,
          gsubst_e flen f e0)
+  | Pis_var_init x -> Pis_var_init (gsubst_vdest f x)
+  | Pis_arr_init (x,e) -> Pis_arr_init (gsubst_vdest f x, gsubst_e flen f e)
+  | Pis_mem_init e -> Pis_mem_init (gsubst_e flen f e)
 
 and gsubst_gvar f v =
   match f v with
@@ -213,7 +216,7 @@ let rec int_of_expr ?loc e =
   | Papp2 (o, e1, e2) ->
       let op = int_of_op2 ?loc o in
       op (int_of_expr ?loc e1) (int_of_expr ?loc e2)
-  | Pbool _ | Parr_init _ | Pvar _
+  | Pbool _ | Parr_init _ | Pvar _ | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _
   | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _
   | Pbig _ ->
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" Printer.pp_pexpr e

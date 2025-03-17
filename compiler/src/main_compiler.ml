@@ -156,6 +156,22 @@ let main () =
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
 
+
+    let prog = match prog with
+      | (globals,abstract, funcs) -> 
+        let updated_funcs =
+          List.map (fun f ->
+            let (fn, cfd) = Conv.cufdef_of_fdef f in
+            let new_func = Safety_cond.sc_func Arch.asmOp cfd in
+            Conv.fdef_of_cufdef (fn,new_func)
+          ) funcs
+        in
+        (globals,abstract, updated_funcs)
+    in
+
+    Format.eprintf "@[<v>Modified syntax tree:@;%a@.@]" 
+    (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) prog; 
+
     (* This function is called after each compilation pass.
         - Check program safety (and exit) if the time has come
         - Pretty-print the program

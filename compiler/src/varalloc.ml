@@ -161,6 +161,9 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
     | PappN (_, es) -> add_es es 
     | Pif (_,e1,e2,e3) -> add_e e1; add_e e2; add_e e3
     | Pbig (e, _, _, e1, e2, e0) -> add_e e; add_e e1; add_e e2; add_e e0
+    | Pis_var_init x -> ()
+    | Pis_arr_init (x, e) -> add_e e
+    | Pis_mem_init e -> add_e e 
 
   and add_es es = List.iter add_e es in
 

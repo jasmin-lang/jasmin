@@ -31,6 +31,9 @@ type 'len gexpr =
   | PappN of E.opNA * 'len gexpr list
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
   | Pbig   of 'len gexpr * E.sop2 * 'len gvar_i * 'len gexpr * 'len gexpr * 'len gexpr
+  | Pis_var_init of 'len gvar_i
+  | Pis_arr_init of 'len gvar_i * 'len gexpr
+  | Pis_mem_init of 'len gexpr
 
 type 'len gexprs = 'len gexpr list
 
@@ -263,6 +266,9 @@ let rec rvars_e f s = function
   | PappN (_, es) -> rvars_es f s es
   | Pif(_,e,e1,e2)   -> rvars_e f (rvars_e f (rvars_e f s e) e1) e2
   | Pbig(e, _, _, e1, e2, e0) -> List.fold_left (rvars_e f) s [e; e1; e2; e0;]
+  | Pis_var_init x -> f (L.unloc x) s
+  | Pis_arr_init(x,e) -> rvars_e f (f (L.unloc x) s) e
+  | Pis_mem_init e -> rvars_e f s e
 
 and rvars_es f s es = List.fold_left (rvars_e f) s es
 

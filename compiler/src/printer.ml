@@ -68,6 +68,9 @@ let pp_ge pp_len pp_var =
       pp_expr e1
       pp_expr e2
       pp_expr e0
+  | Pis_var_init x -> F.fprintf fmt "is_var_init: %a" pp_var_i x
+  | Pis_arr_init (x,e) -> F.fprintf fmt "is_arr_init: %a[%a]" pp_var_i x pp_expr e
+  | Pis_mem_init e -> F.fprintf fmt "is_mem_init: %a" pp_expr e
   in
   pp_expr
 

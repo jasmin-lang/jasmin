@@ -115,6 +115,9 @@ end = struct
       Pif (ty, mk_expr fn e, mk_expr fn el, mk_expr fn er)
     | Pbig (e, op, v, e1, e2, e0) ->
       Pbig(mk_expr fn e, op, v, mk_expr fn e1, mk_expr fn e2, mk_expr fn e0)
+    | Pis_var_init x -> Pis_var_init(mk_v_loc fn x)
+    | Pis_arr_init (x,e) -> Pis_arr_init (mk_v_loc fn x, mk_expr fn e)
+    | Pis_mem_init e -> Pis_mem_init (mk_expr fn e)
 
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
 
@@ -202,6 +205,9 @@ end = struct
       app_expr (app_expr (app_expr dp v b ct) v e1 ct) v e2 ct
     | Pbig (e, _, _, e1, e2, e0) ->
       app_expr (app_expr (app_expr (app_expr dp v e ct) v e1 ct) v e2 ct) v e0 ct
+    | Pis_var_init _ 
+    | Pis_arr_init _
+    | Pis_mem_init _ -> dp
 
   (* State while building the dependency graph:
      - dp : dependency graph
@@ -240,6 +246,12 @@ end = struct
       | PappN (_,es) -> List.fold_left aux (acc,st) es
       | Pif (_,b,e1,e2) -> aux (aux (aux (acc,st) e1) e2) b
       | Pbig (e, _, _, e1, e2, e0) -> aux (aux (aux (aux (acc,st) e) e1) e2) e0
+      | Pis_var_init x -> 
+        begin match (L.unloc x).v_ty with
+            | Bty _ -> (L.unloc x) :: acc, st
+            | Arr _ -> acc, st
+        end
+      | Pis_arr_init _ | Pis_mem_init _ -> acc, st  
     in
 
     aux ([],st) e
@@ -265,6 +277,8 @@ end = struct
       | PappN (_,es) -> List.fold_left aux acc es
       | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b
       | Pbig (e, _, _, e1, e2, e0) -> aux (aux (aux (aux acc e) e1) e2) e0
+      | Pis_var_init x -> aux_v acc x
+      | Pis_arr_init (_,e) | Pis_mem_init e -> aux acc e
     in
 
     aux acc e
@@ -507,6 +521,9 @@ end = struct
     | PappN (_, el)  -> collect_vars_es sv el
     | Pif (_, e1, e2, e3) -> collect_vars_es sv [e1;e2;e3]
     | Pbig (e, _, _, e1, e2, e0) -> collect_vars_es sv [e;e1;e2;e0]
+    | Pis_var_init x -> Sv.add(L.unloc x) sv
+    | Pis_arr_init (x,e) -> collect_vars_e (Sv.add (L.unloc x) sv) e
+    | Pis_mem_init e -> collect_vars_e sv e
 
   and collect_vars_es sv es = List.fold_left collect_vars_e sv es
 
