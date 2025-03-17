@@ -315,8 +315,11 @@ Context {pT: progT}.
 
 Definition e_to_assert (e:pexpr) : instr_r := Cassert Assert Cas e.
 
+Definition instrr_to_instr (ii: instr_info) (ir: instr_r) : instr :=
+  MkI ii ir.
+
 Definition sc_e_to_instr (sc_e : pexprs) (ii : instr_info) : seq instr :=
-  map (fun e => MkI ii (e_to_assert e)) sc_e.
+  map (fun e => instrr_to_instr ii (e_to_assert e)) sc_e.
 
 
 Fixpoint sc_instr (i : instr) : cmd :=
@@ -339,16 +342,19 @@ Fixpoint sc_instr (i : instr) : cmd :=
     let sc_e := sc_e e in
     let sc_c1 := conc_map sc_instr c1 in
     let sc_c2 := conc_map sc_instr c2 in
-    sc_e_to_instr (sc_e) ii ++ sc_c1 ++ sc_c2 ++ [::i]
+    let i := instrr_to_instr ii (Cif e sc_c1 sc_c2) in
+    sc_e_to_instr (sc_e) ii ++ [::i]
   | Cfor x (d,e1,e2) c =>
     let sc_c := conc_map sc_instr c in    
     let sc_e := sc_e e1 ++ sc_e e2 in
-    sc_e_to_instr (sc_e) ii ++ sc_c ++ [::i]
-  | Cwhile _ c1 e _ c2 => 
+    let i := instrr_to_instr ii (Cfor x (d,e1,e2) sc_c) in
+    sc_e_to_instr (sc_e) ii ++ [::i]
+  | Cwhile a c1 e ii_w c2 => 
     let sc_c1 := conc_map sc_instr c1 in
     let sc_c2 := conc_map sc_instr c2 in
     let sc_e := sc_e e in
-    sc_e_to_instr (sc_e) ii ++ sc_c1 ++ sc_c2 ++ [::i]
+    let i := instrr_to_instr ii (Cwhile a sc_c1 e ii_w sc_c2) in
+    sc_e_to_instr (sc_e) ii ++ [::i]
   | Cassert _ _ e =>
     let sc_e := sc_e e in
     sc_e_to_instr (sc_e) ii ++ [::i]
