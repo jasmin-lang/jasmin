@@ -282,17 +282,17 @@ Definition isem_fcall_body {E} `{ErrEvent -< E} :
    funname -> fstate -> itree (CALL +' E) fstate :=
   isem_fcall_bodyF trigger_call .
 
-Definition isem_fcall_body' {E} `{ErrEvent -< E} (x: funname * fstate) : itree (CALL +' E) fstate :=
+Definition handle_fcall {E} `{ErrEvent -< E} (x: funname * fstate) : itree (CALL +' E) fstate :=
   isem_fcall_body (fst x) (snd x).
 
 (* interp_recCall *)
-Definition handle_fcall {E} `{ErrEvent -< E} : CALL ~> itree (CALL +' E) :=
-  calling' isem_fcall_body'.
+Definition handle_fcall' {E} `{ErrEvent -< E} : CALL ~> itree (CALL +' E) :=
+  calling' handle_fcall.
 
 (* isem_call *)
 Definition isem_fcall {E} `{ErrEvent -< E}
    (fn : funname) (fs : fstate) : itree E fstate :=
-  rec isem_fcall_body' (fn, fs).
+  rec handle_fcall (fn, fs).
 
 (* isem_i *)
 Definition isem_flat_instr {E} `{ErrEvent -< E} (i : instr) (s : estate) :
@@ -310,7 +310,7 @@ Definition final_isem_call (fn : funname) (fs : fstate) :
   interp_Err (isem_fcall fn fs).
 
 Lemma interp_ioget {E : Type -> Type} `{ErrEvent -< E} Err T (o : option T) :
-  eutt (E:=E) eq (interp (mrecursive (D:=CALL) handle_fcall) (ioget Err o))
+  eutt (E:=E) eq (interp (recursive handle_fcall) (ioget Err o))
                  (ioget Err o).
 Proof.
   case o => /=.
@@ -320,7 +320,7 @@ Proof.
 Qed.
 
 Lemma interp_iresult {E : Type -> Type} `{ErrEvent -< E} s T (r : exec T) :
-  eutt (E:=E) eq (interp (mrecursive (D:=CALL) handle_fcall) (iresult s r)) (iresult s r).
+  eutt (E:=E) eq (interp (recursive handle_fcall) (iresult s r)) (iresult s r).
 Proof.
   case r => /=.
   + move=> ?; rewrite interp_ret; reflexivity.
@@ -330,18 +330,18 @@ Qed.
 
 Lemma interp_isem_cmd {E} `{ErrEvent -< E} c s :
   eutt (E:=E) eq
-    (interp (mrecursive handle_fcall) (isem_cmd c s))
+    (interp (recursive handle_fcall) (isem_cmd c s))
     (isem_flat_cmd c s).
 Proof.
   apply: (cmd_rect
     (Pr := fun ir => forall ii s,
-               eutt (E:=E) eq (interp (mrecursive handle_fcall) (isem_instr (MkI ii ir) s))
+               eutt (E:=E) eq (interp (recursive handle_fcall) (isem_instr (MkI ii ir) s))
                               (isem_flat_instr (MkI ii ir) s))
     (Pi := fun i => forall s,
-       eutt (E:=E) eq (interp (mrecursive handle_fcall) (isem_instr i s))
+       eutt (E:=E) eq (interp (recursive handle_fcall) (isem_instr i s))
                       (isem_flat_instr i s))
     (Pc := fun c => forall s,
-       eutt (E:=E) eq (interp (mrecursive handle_fcall) (isem_cmd c s))
+       eutt (E:=E) eq (interp (recursive handle_fcall) (isem_cmd c s))
                       (isem_flat_cmd c s))) c s => //=.
   + move=> s; rewrite interp_ret; reflexivity.
   + move=> i c hi hc s; rewrite interp_bind;apply eqit_bind; first by apply hi.
@@ -377,6 +377,78 @@ Proof.
   rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
   move=> vs.
   rewrite interp_bind; apply eqit_bind; last by move=> >; apply interp_iresult.
+  rewrite interp_recursive_call; reflexivity.
+Qed.
+  
+
+Lemma interp_ioget' {E : Type -> Type} `{ErrEvent -< E} Err T (o : option T) :
+  eutt (E:=E) eq (interp (mrecursive (D:=CALL) handle_fcall') (ioget Err o))
+                 (ioget Err o).
+Proof.
+  case o => /=.
+  + move=> ?; rewrite interp_ret; reflexivity.
+  rewrite interp_vis bind_trigger.
+  by apply eqit_Vis => -[].
+Qed.
+
+Lemma interp_iresult' {E : Type -> Type} `{ErrEvent -< E} s T (r : exec T) :
+  eutt (E:=E) eq (interp (mrecursive (D:=CALL) handle_fcall') (iresult s r)) (iresult s r).
+Proof.
+  case r => /=.
+  + move=> ?; rewrite interp_ret; reflexivity.
+  move=> e; rewrite interp_vis bind_trigger.
+  by apply eqit_Vis => -[].
+Qed.
+
+Lemma interp_isem_cmd' {E} `{ErrEvent -< E} c s :
+  eutt (E:=E) eq
+    (interp (mrecursive handle_fcall') (isem_cmd c s))
+    (isem_flat_cmd c s).
+Proof.
+  apply: (cmd_rect
+    (Pr := fun ir => forall ii s,
+               eutt (E:=E) eq (interp (mrecursive handle_fcall') (isem_instr (MkI ii ir) s))
+                              (isem_flat_instr (MkI ii ir) s))
+    (Pi := fun i => forall s,
+       eutt (E:=E) eq (interp (mrecursive handle_fcall') (isem_instr i s))
+                      (isem_flat_instr i s))
+    (Pc := fun c => forall s,
+       eutt (E:=E) eq (interp (mrecursive handle_fcall') (isem_cmd c s))
+                      (isem_flat_cmd c s))) c s => //=.
+  + move=> s; rewrite interp_ret; reflexivity.
+  + move=> i c hi hc s; rewrite interp_bind;apply eqit_bind; first by apply hi.
+    by move=> s'; apply hc.
+  + intros.
+    by move=> >; apply interp_iresult'.
+  + by move=> >; apply interp_iresult'.
+  + by move=> >; apply interp_iresult'.
+  + move=> e c1 c2 hc1 hc2 ii s; rewrite /isem_instr /isem_flat_instr /=.
+    rewrite interp_bind; apply eqit_bind.
+    + by apply interp_iresult'.
+    by move=> []; [apply hc1 | apply hc2].
+  + move=> v dir lo hi c hc ii s; rewrite /isem_instr /isem_flat_instr /=.
+    rewrite interp_bind; apply eqit_bind; first by apply interp_iresult'.
+    move=> vlo.
+    rewrite interp_bind; apply eqit_bind; first by apply interp_iresult'.
+    move=> vhi; elim: wrange s => {vlo vhi ii} //=.
+    + move=> >; rewrite interp_ret; reflexivity.
+    move=> j js hrec s.
+    rewrite interp_bind; apply eqit_bind; first by apply interp_iresult'.
+    move=> s'; rewrite interp_bind.
+    rewrite hc; setoid_rewrite hrec; reflexivity.
+  + move=> al c1 e c2 hc1 hc2 ii s; rewrite /isem_instr /isem_flat_instr /= /isem_while.
+    rewrite interp_iter; apply eutt_iter => {}s.
+    rewrite /isem_while_body.
+    rewrite interp_bind; apply eqit_bind; first by apply hc1.
+    move=> s1; rewrite interp_bind; apply eqit_bind; first by apply interp_iresult'.
+    move=> [].
+    + rewrite interp_bind; apply eqit_bind; first by apply hc2.
+      move=> s2; rewrite interp_ret; reflexivity.
+    rewrite interp_ret; reflexivity.
+  move=> xs f es ii s; rewrite /isem_instr /isem_flat_instr /=.
+  rewrite interp_bind; apply eqit_bind; first by apply interp_iresult'.
+  move=> vs.
+  rewrite interp_bind; apply eqit_bind; last by move=> >; apply interp_iresult'.
   rewrite interp_mrecursive; reflexivity.
 Qed.
   
