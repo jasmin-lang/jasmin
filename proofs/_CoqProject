@@ -160,6 +160,8 @@ lang/wsize.v
 
 itrees/it_exec_mono.v
 itrees/it_sems_mono_rev.v
+itrees/it_sems_alt1.v
+itrees/it_sems_alt1_proof.v
 
 itrees/xrutt_aux.v
 itrees/it_gen_lib.v
