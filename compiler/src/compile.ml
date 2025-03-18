@@ -59,7 +59,7 @@ let warn_extra_fd pd asmOp (_, fd) = List.iter (warn_extra_i pd asmOp) fd.f_body
 let do_spill_unspill asmop ?(debug = false) cp =
   let p = Conv.cuprog_of_prog cp in
   match
-    Lower_spill.spill_uprog asmop
+    Lower_spill.spill_uprog Build_Tabstract asmop
       (fun k ii -> Conv.fresh_var_ident k ii (Uint63.of_int 0))
       p
   with
@@ -76,7 +76,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
        and type rflag = rflag
        and type cond = cond
        and type asm_op = asm_op
-       and type extra_op = extra_op) visit_prog_after_pass prog cprog =
+       and type extra_op = extra_op) visit_prog_after_pass (_,_,prog) cprog =
   let module Regalloc = Regalloc.Regalloc (Arch) in
   let module StackAlloc = StackAlloc.StackAlloc (Arch) in
   let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef (fn, cfd) in
@@ -352,9 +352,9 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
         match fd.f_cc with
         | Export _ -> conv fd :: acc
         | Internal | Subroutine _ -> acc)
-      (snd prog) []
+      prog []
   in
 
-  Compiler.compile_prog_to_asm Arch.asm_e Arch.call_conv Arch.aparams cparams
+  Compiler.compile_prog_to_asm Build_Tabstract Arch.asm_e Arch.call_conv Arch.aparams cparams
     export_functions
-    (Expr.to_uprog Arch.asmOp cprog)
+    (Expr.to_uprog Build_Tabstract Arch.asmOp cprog)

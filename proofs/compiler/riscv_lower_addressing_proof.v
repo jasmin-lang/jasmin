@@ -20,6 +20,7 @@ Require Export riscv_lower_addressing.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc : DirectCall}
   {atoI : arch_toIdent}

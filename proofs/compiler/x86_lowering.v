@@ -11,7 +11,7 @@ Require Import x86_decl x86_instr_decl x86_extra.
 
 Section Section.
 
-Context {atoI : arch_toIdent}.
+Context {tabstract : Tabstract} {atoI : arch_toIdent}.
 
 Definition is_regx_e (e:pexpr) := 
   if e is Pvar x then is_regx x.(gv)
@@ -78,7 +78,7 @@ Definition stype_of_lval (x: lval) : stype :=
 Definition wsize_of_stype (ty: stype) : wsize :=
   match ty with
   | sword sz => sz
-  | sbool | sint | sarr _ => U64
+  | sbool | sint | sarr _ | sabstract _ => U64
   end.
 
 Definition wsize_of_lval (lv: lval) : wsize :=

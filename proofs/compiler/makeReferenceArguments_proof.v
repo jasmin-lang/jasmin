@@ -10,6 +10,7 @@ Local Open Scope seq_scope.
 Section SemInversion.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
@@ -49,6 +50,7 @@ End SemInversion.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {asm_op syscall_state : Type}
   {eparams : EstateParams syscall_state}
@@ -62,7 +64,7 @@ Context
     makereference_prog fresh_id p = ok p' ->
       p.(p_globs) = p'.(p_globs).
   Proof.
-    case: p p' => [???] [???]; t_xrbindP.
+    case: p p' => [????] [????]; t_xrbindP.
     by rewrite /makereference_prog; t_xrbindP.
   Qed.
 
@@ -250,7 +252,7 @@ Context
       apply: on_arr_varP => sz t htyx hget.
       rewrite /write_var.
       t_xrbindP=>  zi vi he hvi t1 -> t1' hsub vms3 hset ?; subst s3; rewrite /on_arr_var.
-      rewrite (@get_var_eq_on _ _ (Sv.singleton x) (evm s1)); first last.
+      rewrite (@get_var_eq_on _ _ _ (Sv.singleton x) (evm s1)); first last.
       + by move=> z hz; have := vrvsP hw3; rewrite !evm_with_vm => -> //; SvD.fsetdec.
       + by SvD.fsetdec.
       rewrite hget /=.

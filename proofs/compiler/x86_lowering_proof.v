@@ -21,6 +21,7 @@ Local Open Scope seq_scope.
 
 Section PROOF.
   Context
+    {tabstract : Tabstract}
     {wsw : WithSubWord}
     {dc : DirectCall}
     {atoI : arch_toIdent}
@@ -557,7 +558,7 @@ Section PROOF.
     + case: x => - [] [] [] // sz vn vi vs //= /[dup] ok_v.
       case/type_of_get_gvar => sz' [Hs Hs'].
       have := truncate_val_subtype Hv'. rewrite Hs -(truncate_val_has_type Hv').
-      case hty: (type_of_val v') => [ | | | sz'' ] //= hle.
+      case hty: (type_of_val v') => [ | | | sz'' | ] //= hle.
       case: (write_lval_undef Hw hty) => w ? {hty}; subst v'.
       case/truncate_valI: Hv' => s'' [] w'' [] ? ok_w ?; subst.
       case: Hs => ?; subst s''.
@@ -1434,7 +1435,7 @@ Section PROOF.
   Qed.
 
   Lemma app_wwb_dec T' sz (f:sem_prod [::sword sz; sword sz; sbool] (exec T')) x v :
-    app_sopn _ f x = ok v ->
+    app_sopn f x = ok v ->
     ∃ sz1 (w1: word sz1) sz2 (w2: word sz2) b,
       (sz ≤ sz1)%CMP ∧ (sz ≤ sz2)%CMP ∧
       x = [:: Vword w1; Vword w2; Vbool b] ∧
@@ -1449,7 +1450,7 @@ Section PROOF.
   Qed.
 
   Lemma app_ww_dec T' sz (f:sem_prod [::sword sz; sword sz] (exec T')) x v :
-    app_sopn _ f x = ok v ->
+    app_sopn f x = ok v ->
     exists sz1 (w1: word sz1) sz2 (w2: word sz2),
       (sz ≤ sz1)%CMP ∧ (sz ≤ sz2)%CMP ∧
       x = [:: Vword w1; Vword w2] ∧

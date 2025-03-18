@@ -24,7 +24,7 @@ Require Import
   x86_stack_zeroization.
 
 Section Section.
-Context {atoI : arch_toIdent}.
+Context {tabstract : Tabstract} {atoI : arch_toIdent}.
 
 (* Used to set up stack. *)
 Definition x86_op_align (x : var_i) (ws : wsize) (al : wsize) : fopn_args :=

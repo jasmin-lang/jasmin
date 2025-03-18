@@ -1,5 +1,6 @@
 Require Import
   sem_params
+  sem_type
   syscall.
 Require Import
   arch_decl
@@ -8,6 +9,7 @@ Require Import
 Section SEM_PARAMS.
 
   Context
+    {tabstract : Tabstract}
     {reg regx xreg rflag cond asm_op extra_op : Type}
     {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
     {syscall_state : Type}

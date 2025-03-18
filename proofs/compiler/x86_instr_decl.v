@@ -247,6 +247,10 @@ Definition ZF_of_word sz (w : word sz) :=
 
 (* -------------------------------------------------------------------- *)
   (*  OF; CF; SF;    PF;    ZF  *)
+
+Section Section.
+Context {tabstract : Tabstract}.
+
 Definition rflags_of_bwop sz (w : word sz) : (sem_tuple b5_ty) :=
   (*  OF;  CF;    SF;           PF;           ZF  *)
   (:: Some false, Some false, Some (SF_of_word w), Some (PF_of_word w) & Some (ZF_of_word w)).
@@ -395,6 +399,8 @@ Notation mk_instr str_jas tin tout ain aout msb semi args_kinds nargs safe_cond 
   id_eq_size    := refl_equal;
   id_tin_narr   := refl_equal;
   id_tout_narr  := refl_equal;
+  id_tin_nabst := refl_equal;
+  id_tout_nabst := refl_equal;
   id_check_dest := refl_equal;
   id_str_jas    := str_jas;
   id_safe       := safe_cond;
@@ -406,10 +412,10 @@ Notation mk_instr str_jas tin tout ain aout msb semi args_kinds nargs safe_cond 
 
 (* Can only be use for safe instruction *)
 Notation mk_instr_safe str_jas tin tout ain aout msb semi args_kinds nargs valid pp_asm :=
-  (mk_instr str_jas tin tout ain aout msb (sem_prod_ok tin semi) args_kinds nargs [::] valid pp_asm
+  (mk_instr str_jas tin tout ain aout msb (@sem_prod_ok _ _ tin semi) args_kinds nargs [::] valid pp_asm
     refl_equal
-    (fun _ => (@sem_prod_ok_error _ tin semi ErrType))
-    (fun _ => (@values.sem_prod_ok_safe _ tin semi)))
+    (fun _ => (@sem_prod_ok_error _ _ tin semi ErrType))
+    (fun _ => (@values.sem_prod_ok_safe _ _ tin semi)))
   (only parsing).
 
 (* Can only be use for safe instruction *)
@@ -2422,4 +2428,10 @@ Instance x86_op_decl : asm_op_decl x86_op := {
    prim_string    := x86_prim_string;
 }.
 
-Definition x86_prog := @asm_prog register _ _ _ _ _ _ x86_op_decl.
+Definition x86_prog := @asm_prog _ register _ _ _ _ _ _ x86_op_decl.
+
+End Section.
+
+Notation "'tpl' A" := (@sem_tuple _ A) (at level 200, only parsing).
+
+Notation "'ex_tpl' A" := (exec (@sem_tuple _ A)) (at level 200, only parsing).

@@ -28,6 +28,7 @@ Module RISCVFopn_coreP.
 Section Section.
 
 Context
+  {tabstract : Tabstract}
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {atoI : arch_toIdent}.
@@ -39,7 +40,7 @@ Definition sem_fopn_args (p : seq lexpr * riscv_op * seq rexpr) (s : estate) :=
   Let args := sem_rexprs s es in
   let op := instr_desc_op o in
   Let _ := assert (id_valid op) ErrType in
-  Let t := app_sopn (id_tin op) (id_semi op) args in
+  Let t := @app_sopn _ _ (id_tin op) (id_semi op) args in
   let res := list_ltuple t in
   write_lexprs xs res s.
 
@@ -332,7 +333,7 @@ Proof.
     eexists; split; first reflexivity; last by t_get_var.
     by move=> z hin; rewrite Vm.setP_neq // -/x; apply/eqP; SvD.fsetdec.
   rewrite movi_sem_fopn_args /=.
-  rewrite -(@get_var_neq _ _ vtmp _ _ (Vword (wrepr U32 imm))) // in hgety.
+  rewrite -(@get_var_neq _ _ _ vtmp _ _ (Vword (wrepr U32 imm))) // in hgety.
   rewrite
     (op_sem_fopn_args (with_vm _ _) _ _ _ _ tmp (wrepr reg_size imm) hgety) /with_vm /=; 
     last by rewrite get_var_eq //= truncate_word_u.

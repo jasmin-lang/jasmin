@@ -14,6 +14,7 @@ Local Open Scope Z_scope.
 
 Section WITH_PARAMS.
 
+Context {tabstract: Tabstract}.
 Context {fcp : FlagCombinationParams}.
 
 Definition e2bool (e:pexpr) : exec bool := 
@@ -33,13 +34,14 @@ Definition e2word (sz:wsize) (e:pexpr) : exec (word sz) :=
   | Some w => ok w
   | None   => type_error
   end.
- 
+
 Definition of_expr (t:stype) : pexpr -> exec (sem_t t) :=
   match t return pexpr -> exec (sem_t t) with
   | sbool   => e2bool
   | sint    => e2int
   | sarr n  => fun _ => type_error 
   | sword sz => e2word sz
+  | sabstract _ => fun _ => type_error
   end.
 
 Definition to_expr (t:stype) : sem_t t -> exec pexpr := 
@@ -48,6 +50,7 @@ Definition to_expr (t:stype) : sem_t t -> exec pexpr :=
   | sint  => fun z => ok (Pconst z)
   | sarr _ => fun _ => type_error
   | sword sz => fun w => ok (wconst w)
+  | sabstract _ => fun _ => type_error
   end.
 
 Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr := 

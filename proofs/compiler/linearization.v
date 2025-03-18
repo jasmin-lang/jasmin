@@ -58,6 +58,8 @@ End E.
 
 
 (* --------------------------------------------------------------------------- *)
+Section LINEARIZATION_PARAMS.
+Context {A: Tabstract}.
 
 Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
   {
@@ -165,6 +167,8 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
       -> seq fopn_args;
   }.
 
+End LINEARIZATION_PARAMS.
+
 (* Note on function calls:
 
    + For X86:
@@ -242,6 +246,7 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
    An architecture can define its own functions when there is something more
    efficient to do, and rely on one of these implementations in the default case. *)
 Section DEFAULT.
+Context {AB : Tabstract}.
 Context {asm_op : Type} {pd : PointerData} {asmop : asmOp asm_op}.
 Context (lip_tmp2 : Ident.ident).
 Context (lip_lstore  : var_i -> Z -> var_i -> fopn_args)
@@ -281,6 +286,7 @@ End DEFAULT.
 
 Section WITH_PARAMS.
 
+Context {AC: Tabstract}.
 Context
   {asm_op : Type}
   {pd : PointerData}
@@ -551,6 +557,7 @@ Definition align ii a (p:label * lcmd) : label * lcmd :=
 
 Section FUN.
 
+Context {A: Tabstract}.
 Context
   (fn : funname).
 

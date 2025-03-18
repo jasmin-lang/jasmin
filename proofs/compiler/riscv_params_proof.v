@@ -43,6 +43,7 @@ Require Export riscv_params.
 Section Section.
 
 Context
+  {tabstract : Tabstract}
   {atoI  : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}

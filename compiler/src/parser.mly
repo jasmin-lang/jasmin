@@ -31,6 +31,7 @@
 %token COLON
 %token COLONCOLON
 %token COMMA
+%token ABSTRACT
 %token CONSTANT
 %token DOT
 %token DOWNTO
@@ -502,6 +503,10 @@ from:
 prequire:
 | f=from? REQUIRE x=nonempty_list(prequire1) { f, x }
 
+pabstract_ty:
+| ABSTRACT TYPE pat_name=ident pat_annot=annotations SEMICOLON
+  { {pat_name;   pat_annot } }
+
 (* -------------------------------------------------------------------- *)
 top:
 | x=pfundef  { Syntax.PFundef x }
@@ -511,8 +516,10 @@ top:
 | x=prequire { Syntax.Prequire x}
 | TYPE name = ident EQ ty = ptype SEMICOLON
     { Syntax.PTypeAlias (name, ty)}
+| x=pabstract_ty { Syntax.Pabstract_ty x}
 | NAMESPACE name = ident LBRACE pfs = loc(top)* RBRACE
     { Syntax.PNamespace (name, pfs) }
+
 (* -------------------------------------------------------------------- *)
 module_:
 | pfs=loc(top)* EOF

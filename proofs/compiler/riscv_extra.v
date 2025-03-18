@@ -41,7 +41,7 @@ Instance eqTC_riscv_extra_op : eqTypeC riscv_extra_op :=
 
 (* [conflicts] ensures that the returned register is distinct from the first
    argument. *)
-Definition Oriscv_add_large_imm_instr : instruction_desc :=
+Definition Oriscv_add_large_imm_instr {tabstract : Tabstract} : instruction_desc :=
   let ty := sword riscv_reg_size in
   let tin := [:: ty; ty] in
   let semi := fun (x y : word riscv_reg_size) => (x + y)%R in
@@ -52,7 +52,7 @@ Definition Oriscv_add_large_imm_instr : instruction_desc :=
    ; i_out  := [:: E 0]
    ; conflicts := [:: (APout 0, APin 0)]
    ; semi   := sem_prod_ok tin semi
-   ; semu   := @values.vuincl_app_sopn_v [:: ty; ty] [:: ty] (sem_prod_ok tin semi) refl_equal
+   ; semu   := @values.vuincl_app_sopn_v _ [:: ty; ty] [:: ty] (sem_prod_ok tin semi) refl_equal
    ; i_safe := [::]
    ; i_valid := true
    ; i_safe_wf := refl_equal
@@ -60,7 +60,7 @@ Definition Oriscv_add_large_imm_instr : instruction_desc :=
    ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=tin) semi
  |}.
 
-Definition get_instr_desc (o: riscv_extra_op) : instruction_desc :=
+Definition get_instr_desc {tabstract : Tabstract} (o: riscv_extra_op) : instruction_desc :=
   match o with
   | SWAP ws => Oswap_instr (sword ws)
   | Oriscv_add_large_imm => Oriscv_add_large_imm_instr
@@ -71,7 +71,7 @@ Definition get_instr_desc (o: riscv_extra_op) : instruction_desc :=
  * [arch_extra.asm_opI] is selected first and we have both base and extra ops.
 *)
 #[ export ]
-Instance riscv_extra_op_decl : asmOp riscv_extra_op | 1 :=
+Instance riscv_extra_op_decl {tabstract : Tabstract} : asmOp riscv_extra_op | 1 :=
   {
     asm_op_instr := get_instr_desc;
     prim_string := [::];
@@ -105,11 +105,12 @@ Definition error (ii : instr_info) (msg : string) :=
 
 End E.
 
-Definition asm_args_of_opn_args
+Definition asm_args_of_opn_args {tabstract : Tabstract}
   : seq RISCVFopn_core.opn_args -> seq (asm_op_msb_t * lexprs * rexprs) :=
   map (fun '(les, aop, res) => ((None, aop), les, res)).
 
 Definition assemble_extra
+           {tabstract : Tabstract}
            (ii: instr_info)
            (o: riscv_extra_op)
            (outx: lexprs)
@@ -152,12 +153,13 @@ Definition assemble_extra
   end.
 
 #[ export ]
-Instance riscv_extra {atoI : arch_toIdent} :
+Instance riscv_extra {tabstract : Tabstract} {atoI : arch_toIdent} :
   asm_extra register register_ext xregister rflag condt riscv_op riscv_extra_op :=
   { to_asm := assemble_extra }.
 
 (* This concise name is convenient in OCaml code. *)
-Definition riscv_extended_op {atoI : arch_toIdent} :=
-  @extended_op _ _ _ _ _ _ _ riscv_extra.
+Definition riscv_extended_op {tabstract : Tabstract} {atoI : arch_toIdent} :=
+  @extended_op _ _ _ _ _ _ _ _ riscv_extra.
 
-Definition Oriscv {atoI : arch_toIdent} o : @sopn riscv_extended_op _ := Oasm (BaseOp (None, o)).
+Definition Oriscv {tabstract : Tabstract} {atoI : arch_toIdent} o :
+  @sopn _ riscv_extended_op _ := Oasm (BaseOp (None, o)).

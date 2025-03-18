@@ -440,6 +440,7 @@ End FunInfo.
 
 Section ASM_OP.
 
+Context {A: Tabstract}.
 Context `{asmop:asmOp}.
 
 (* ** Functions
@@ -468,6 +469,7 @@ Definition _fun_decl (extra_fun_t: Type) := (funname * _fundef extra_fun_t)%type
 Record _prog (extra_fun_t: Type) (extra_prog_t: Type):= {
   p_funcs : seq (_fun_decl extra_fun_t);
   p_globs : glob_decls;
+  p_abstr : seq string;
   p_extra : extra_prog_t;
 }.
 
@@ -487,7 +489,8 @@ Definition fun_decl := (funname * fundef)%type.
 
 Definition prog := _prog extra_fun_t extra_prog_t.
 
-Definition Build_prog p_funcs p_globs p_extra : prog := Build__prog p_funcs p_globs p_extra.
+Definition Build_prog p_funcs p_globs p_abstr p_extra : prog :=
+  Build__prog p_funcs p_globs p_abstr p_extra.
 
 End PROG.
 
@@ -497,6 +500,7 @@ Notation fun_decls  := (seq fun_decl).
 
 Section ASM_OP.
 
+Context {A: Tabstract}.
 Context {pd: PointerData}.
 Context `{asmop:asmOp}.
 
@@ -509,10 +513,10 @@ Definition progUnit : progT :=
      extra_prog_t := unit;
   |}.
 
-Definition ufundef     := @fundef _ _ progUnit.
-Definition ufun_decl   := @fun_decl _ _ progUnit.
-Definition ufun_decls  := seq (@fun_decl _ _ progUnit).
-Definition uprog       := @prog _ _ progUnit.
+Definition ufundef     := @fundef _ _ _ progUnit.
+Definition ufun_decl   := @fun_decl  _ _ _ progUnit.
+Definition ufun_decls  := seq (@fun_decl _ _ _ progUnit).
+Definition uprog       := @prog _ _ _ progUnit.
 
 (* For extraction *)
 Definition _ufundef    := _fundef unit.
@@ -622,10 +626,10 @@ Definition progStack : progT :=
      extra_val_t := pointer;
      extra_prog_t := sprog_extra  |}.
 
-Definition sfundef     := @fundef _ _ progStack.
-Definition sfun_decl   := @fun_decl _ _ progStack.
-Definition sfun_decls  := seq (@fun_decl _ _ progStack).
-Definition sprog       := @prog _ _ progStack.
+Definition sfundef     := @fundef _ _ _ progStack.
+Definition sfun_decl   := @fun_decl _ _ _ progStack.
+Definition sfun_decls  := seq (@fun_decl _ _ _ progStack).
+Definition sprog       := @prog _ _ _ progStack.
 
 (* For extraction *)
 
@@ -927,6 +931,10 @@ Definition is_zero sz (e: pexpr) : bool :=
 
 Notation copn_args := (seq lval * sopn * seq pexpr)%type (only parsing).
 
+Section INSTR_COPN.
+
+Context {A: Tabstract}.
+
 Definition instr_of_copn_args
   {asm_op : Type}
   {asmop : asmOp asm_op}
@@ -934,3 +942,5 @@ Definition instr_of_copn_args
   (args : copn_args)
   : instr_r :=
   Copn args.1.1 tg args.1.2 args.2.
+
+End INSTR_COPN.

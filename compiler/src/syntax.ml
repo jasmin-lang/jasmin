@@ -173,7 +173,11 @@ and mem_access = [ `Aligned | `Unaligned ] option * wsize option * pident * ([`A
 
 (* -------------------------------------------------------------------- *)
 and psizetype = TypeWsize of wsize | TypeSizeAlias of pident
-and ptype_r = TBool | TInt | TWord of wsize | TArray of psizetype * pexpr | TAlias of pident
+
+and ptype_r =
+  | TBool | TInt | TWord of wsize | TArray of psizetype * pexpr
+  | TAlias of pident | Tabstract of pident
+
 and ptype   = ptype_r L.located
 
 (* -------------------------------------------------------------------- *)
@@ -309,12 +313,19 @@ type pexec = {
 type prequire = string L.located
 
 (* -------------------------------------------------------------------- *)
+type pabstract_ty = {
+  pat_name : string L.located;
+  pat_annot : annotations;
+}
+
+(* -------------------------------------------------------------------- *)
 type pitem =
   | PFundef of pfundef
   | PParam of pparam
   | PGlobal of pglobal
   | Pexec of pexec
   | Prequire of (pident option * prequire list)
+  | Pabstract_ty of pabstract_ty
   | PNamespace of pident * pitem L.located list
   | PTypeAlias of pident * ptype
 

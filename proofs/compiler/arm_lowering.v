@@ -47,6 +47,7 @@ Definition fvars (fv : fresh_vars) : Sv.t := sv_of_list id (fresh_flags fv).
 Section ARM_LOWERING.
 
 Context
+  {tabstract : Tabstract}
   (fv : fresh_vars).
 
 (* TODO: When this pass is allowed to fail, this should be inside [cexec]. *)

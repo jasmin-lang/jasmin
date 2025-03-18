@@ -17,7 +17,7 @@ Require Import
   riscv_extra.
 
 Section Section.
-Context {atoI : arch_toIdent}.
+Context {tabstract : Tabstract} {atoI : arch_toIdent}.
 
 (* TODO : Review *)
 Definition chk_ws_reg (ws : wsize) : option unit :=

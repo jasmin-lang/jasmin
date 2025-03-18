@@ -25,6 +25,7 @@ Require Import
 Section PROOF.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc : DirectCall}
   {atoI : arch_toIdent}
@@ -625,13 +626,13 @@ Proof.
     by rewrite wrepr_mul !wrepr_unsigned => ->.
 
   move=> ty hsem01.
-  case: ty hsem01 => [|| len | ws ] // hsem01.
+  case: ty hsem01 => [||| len | ws ] // hsem01.
   + rewrite /lower_swap.
-    move => [] <- /=.
+    move => ? [] <- /=.
     apply: sem_seq_ir.
     by apply: Eopn.
   rewrite /lower_swap.
-  case: ifP => // hcmp.
+  case: ifP => //  hcmp.
   move => [] <- /=.
   apply: sem_seq_ir.
   by apply: Eopn.

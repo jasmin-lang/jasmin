@@ -115,27 +115,28 @@ Lemma all2_beheadn
   all2 p (beheadn n xs) (beheadn n ys).
 Proof. move=> h. elim: n => // n'. exact: all2_behead. Qed.
 
-Definition semi_drop1
+Definition semi_drop1 {tabstract : Tabstract}
   {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
   sem_prod tin (exec (sem_tuple (behead1 tout))) :=
   behead_tuple semi.
 
-Definition semi_drop2
+Definition semi_drop2 {tabstract : Tabstract}
   {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
   sem_prod tin (exec (sem_tuple (behead2 tout))) :=
   behead_tuple (behead_tuple semi).
 
-Definition semi_drop3
+Definition semi_drop3 {tabstract : Tabstract}
   {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
   sem_prod tin (exec (sem_tuple (behead3 tout))) :=
   behead_tuple (behead_tuple (behead_tuple semi)).
 
-Definition semi_drop4
+Definition semi_drop4 {tabstract : Tabstract}
   {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
   sem_prod tin (exec (sem_tuple (behead4 tout))) :=
   behead_tuple (behead_tuple (behead_tuple (behead_tuple semi))).
 
-Lemma behead_tuple_errty tout (semi : sem_prod [::] (exec (sem_tuple tout))) :
+Lemma behead_tuple_errty {tabstract : Tabstract}
+  tout (semi : sem_prod [::] (exec (sem_tuple tout))) :
   semi <> Error ErrType -> behead_tuple semi <> Error ErrType.
 Proof.
   case: semi => [t _ | e h].
@@ -143,7 +144,8 @@ Proof.
   by case: tout h => // t1 [ | t2 ts] //= /[swap] -[->].
 Qed.
 
-Lemma behead_tuple_safe tout (semi : sem_prod [::] (exec (sem_tuple tout))) :
+Lemma behead_tuple_safe {tabstract : Tabstract}
+  tout (semi : sem_prod [::] (exec (sem_tuple tout))) :
   (exists t, semi = ok t) -> exists t, behead_tuple semi = ok t.
 Proof.
   move=> [t ->] {semi}; case: tout t => /=; eauto.
@@ -151,20 +153,23 @@ Proof.
   move=> [v1 v2]; eauto.
 Qed.
 
-Lemma behead_tuple_app1 t ts tout (semi : sem_prod (t :: ts) (exec (sem_tuple tout))) (v : sem_t t) :
+Lemma behead_tuple_app1 {tabstract : Tabstract}
+  t ts tout (semi : sem_prod (t :: ts) (exec (sem_tuple tout))) (v : sem_t t) :
   behead_tuple semi v = behead_tuple (semi v).
 Proof. by case: (tout) (semi) => // t1 [ | t2 ts_]. Qed.
 
-Lemma semi_drop1_errty tin tout (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_forall (fun r => r <> Error ErrType) tin semi ->
-  sem_forall (fun r => r <> Error ErrType) tin (semi_drop1 semi).
+Lemma semi_drop1_errty {tabstract : Tabstract}
+  tin tout (semi : sem_prod tin (exec (sem_tuple tout))) :
+  @sem_forall _ _ (fun r => r <> Error ErrType) tin semi ->
+  @sem_forall _ _ (fun r => r <> Error ErrType) tin (semi_drop1 semi).
 Proof.
   rewrite /semi_drop1; elim: tin semi => //=.
   + by apply behead_tuple_errty.
   move=> t ts hrec semi h v; rewrite behead_tuple_app1; apply/hrec/h.
 Qed.
 
-Lemma semi_drop1_sem_safe tin tout sc (semi : sem_prod tin (exec (sem_tuple tout))) :
+Lemma semi_drop1_sem_safe {tabstract : Tabstract}
+  tin tout sc (semi : sem_prod tin (exec (sem_tuple tout))) :
   values.interp_safe_cond_ty sc semi ->
   values.interp_safe_cond_ty sc (semi_drop1 semi).
 Proof.
@@ -174,16 +179,18 @@ Proof.
   move=> h v; rewrite behead_tuple_app1; apply/hrec/h.
 Qed.
 
-Lemma semi_drop2_errty tin tout (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_forall (fun r => r <> Error ErrType) tin semi ->
-  sem_forall (fun r => r <> Error ErrType) tin (semi_drop2 semi).
+Lemma semi_drop2_errty {tabstract : Tabstract}
+  tin tout (semi : sem_prod tin (exec (sem_tuple tout))) :
+  @sem_forall _ _ (fun r => r <> Error ErrType) tin semi ->
+  @sem_forall _ _ (fun r => r <> Error ErrType) tin (semi_drop2 semi).
 Proof.
   rewrite /semi_drop2; elim: tin semi => //=.
   + by move=> ??; do 2! apply behead_tuple_errty.
   move=> t ts hrec semi h v; rewrite !behead_tuple_app1; apply/hrec/h.
 Qed.
 
-Lemma semi_drop2_sem_safe tin tout sc (semi : sem_prod tin (exec (sem_tuple tout))) :
+Lemma semi_drop2_sem_safe {tabstract : Tabstract}
+  tin tout sc (semi : sem_prod tin (exec (sem_tuple tout))) :
   values.interp_safe_cond_ty sc semi ->
   values.interp_safe_cond_ty sc (semi_drop2 semi).
 Proof.
@@ -193,16 +200,18 @@ Proof.
   move=> h v; rewrite !behead_tuple_app1; apply/hrec/h.
 Qed.
 
-Lemma semi_drop3_errty tin tout (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_forall (fun r => r <> Error ErrType) tin semi ->
-  sem_forall (fun r => r <> Error ErrType) tin (semi_drop3 semi).
+Lemma semi_drop3_errty {tabstract : Tabstract}
+  tin tout (semi : sem_prod tin (exec (sem_tuple tout))) :
+  @sem_forall _ _ (fun r => r <> Error ErrType) tin semi ->
+  @sem_forall _ _ (fun r => r <> Error ErrType) tin (semi_drop3 semi).
 Proof.
   rewrite /semi_drop3; elim: tin semi => //=.
   + by move=> ??; do 3! apply behead_tuple_errty.
   move=> t ts hrec semi h v; rewrite !behead_tuple_app1; apply/hrec/h.
 Qed.
 
-Lemma semi_drop3_sem_safe tin tout sc (semi : sem_prod tin (exec (sem_tuple tout))) :
+Lemma semi_drop3_sem_safe {tabstract : Tabstract}
+  tin tout sc (semi : sem_prod tin (exec (sem_tuple tout))) :
   values.interp_safe_cond_ty sc semi ->
   values.interp_safe_cond_ty sc (semi_drop3 semi).
 Proof.
@@ -212,16 +221,18 @@ Proof.
   move=> h v; rewrite !behead_tuple_app1; apply/hrec/h.
 Qed.
 
-Lemma semi_drop4_errty tin tout (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_forall (fun r => r <> Error ErrType) tin semi ->
-  sem_forall (fun r => r <> Error ErrType) tin (semi_drop4 semi).
+Lemma semi_drop4_errty {tabstract : Tabstract}
+  tin tout (semi : sem_prod tin (exec (sem_tuple tout))) :
+  @sem_forall _ _ (fun r => r <> Error ErrType) tin semi ->
+  @sem_forall _ _ (fun r => r <> Error ErrType) tin (semi_drop4 semi).
 Proof.
   rewrite /semi_drop4; elim: tin semi => //=.
   + by move=> ??; do 4! apply behead_tuple_errty.
   move=> t ts hrec semi h v; rewrite !behead_tuple_app1; apply/hrec/h.
 Qed.
 
-Lemma semi_drop4_sem_safe tin tout sc (semi : sem_prod tin (exec (sem_tuple tout))) :
+Lemma semi_drop4_sem_safe {tabstract : Tabstract}
+  tin tout sc (semi : sem_prod tin (exec (sem_tuple tout))) :
   values.interp_safe_cond_ty sc semi ->
   values.interp_safe_cond_ty sc (semi_drop4 semi).
 Proof.
@@ -240,6 +251,7 @@ Proof. move=> /andP [-> hsize]. exact: size_beheadn. Qed.
 Section WITH_ARCH.
 
 Context
+  {tabstract : Tabstract}
   {reg regx xreg rflag cond : Type}
   {ad : arch_decl reg regx xreg rflag cond}.
 
@@ -258,6 +270,8 @@ Notation idt_dropn semi_dropn semi_errtyp semi_safe :=
        id_eq_size := drop_eq_size (id_eq_size idt);
        id_tin_narr := id_tin_narr idt;
        id_tout_narr := all_beheadn (id_tout_narr idt);
+       id_tin_nabst := id_tin_nabst idt;
+       id_tout_nabst := all_beheadn (id_tout_nabst idt);
        id_check_dest := all2_beheadn (id_check_dest idt);
        id_str_jas := id_str_jas idt;
        id_safe := id_safe idt;

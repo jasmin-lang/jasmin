@@ -31,10 +31,10 @@ module X86_core = struct
   type lowering_options = X86_lowering.lowering_options
 
   let atoI = atoI x86_decl
-  let asm_e = X86_extra.x86_extra atoI
-  let aparams = X86_params.x86_params atoI
+  let asm_e = X86_extra.x86_extra Build_Tabstract atoI
+  let aparams = X86_params.x86_params Build_Tabstract atoI
 
-  let not_saved_stack = (X86_params.x86_liparams atoI).lip_not_saved_stack
+  let not_saved_stack = (X86_params.x86_liparams Build_Tabstract atoI).lip_not_saved_stack
 
   let pp_asm = Ppasm.pp_prog
   let callstyle = Arch_full.StackDirect

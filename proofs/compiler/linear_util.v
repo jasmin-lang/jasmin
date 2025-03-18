@@ -8,6 +8,7 @@ Notation map_cflprog := (map_cfprog_gen lfd_info).
 
 Section ASM_OP.
 
+Context {AB : Tabstract}.
 Context {asm_op} {asmop : asmOp asm_op}.
 
 Definition map_lfundef (f : lcmd -> lcmd) (lfd : lfundef) : lfundef :=

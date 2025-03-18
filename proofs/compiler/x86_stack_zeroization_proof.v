@@ -28,6 +28,7 @@ Import seq_extra.
 Section FIXME.
 
 Context
+  {tabstract : Tabstract}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {sip : SemInstrParams asm_op syscall_state}.
@@ -46,7 +47,7 @@ End FIXME.
 
 Section STACK_ZEROIZATION.
 
-Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+Context {tabstract : Tabstract} {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
 Context {call_conv : calling_convention}.
 
 Section RSP.
@@ -105,7 +106,7 @@ Record state_rel_unrolled_small vars s1 s2 n (p:word Uptr) := {
 }.
 
 Record state_rel_unrolled_large vars s1 s2 n p := {
-  srul_vlr : s2.(evm).[vlri] = @Vword ws 0;
+  srul_vlr : s2.(evm).[vlri] = @Vword _ ws 0;
   srul_srs :> state_rel_unrolled_small vars s1 s2 n p
 }.
 
@@ -115,7 +116,7 @@ Record state_rel_loop_small vars s1 s2 n p := {
 }.
 
 Record state_rel_loop_large vars s1 s2 n p := {
-  srll_vlr : s2.(evm).[vlri] = @Vword ws 0;
+  srll_vlr : s2.(evm).[vlri] = @Vword _ ws 0;
   srll_srs :> state_rel_loop_small vars s1 s2 n p
 }.
 
@@ -182,14 +183,14 @@ Proof.
     rewrite (find_instr_skip hlinear) /=.
     rewrite /eval_instr /=.
     rewrite wrepr0.
-    have -> /=: exec_sopn (Ox86 (MOV ws)) [:: @Vword ws 0] = ok [:: @Vword ws 0].
+    have -> /=: exec_sopn (Ox86 (MOV ws)) [:: @Vword _ ws 0] = ok [:: @Vword _ ws 0].
     + rewrite /exec_sopn /= truncate_word_u /sopn_sem /sopn_sem_ /=.
       rewrite /x86_MOV.
       by rewrite /size_8_64 hsmall /=.
-    rewrite (@get_var_neq _ _ _ rspi);
+    rewrite (@get_var_neq _ _ _ _ rspi);
       last by move=> /= h; apply /rsp_nin /sv_of_listP;
       rewrite !in_cons /= -h eqxx /= ?orbT.
-    do 5 rewrite (@get_var_neq _ _ _ rspi) //.
+    do 5 rewrite (@get_var_neq _ _ _ _ rspi) //.
     rewrite [get_var _ _ rspi]/get_var hsr.(sr_rsp) /= (truncate_word_u top) /=.
     rewrite get_var_eq //= !truncate_word_u /=.
     rewrite hm' /=.
@@ -489,7 +490,7 @@ Proof.
     rewrite /lsem1 /step.
     rewrite (find_instr_skip hlinear) /=.
     rewrite /eval_instr /=.
-    do 6 rewrite (@get_var_neq _ _ _ vlri) //.
+    do 6 rewrite (@get_var_neq _ _ _ _ vlri) //.
     rewrite [get_var _ _ vlri]/get_var hsr.(srll_vlr) /=.
     rewrite /exec_sopn /= truncate_word_u /= /sopn_sem /sopn_sem_ /= /x86_VMOVDQ.
     rewrite wsize_nle_u64_size_128_256 /=; last by apply /negbTE /negP.
@@ -641,7 +642,7 @@ Local Opaque wsize_size.
       by rewrite -addnS; reflexivity.
     * rewrite (find_instr_skip hlinear) /=.
       rewrite /eval_instr /=.
-      have -> /=: exec_sopn (Oasm (ExtOp (Oset0 ws))) [::] = ok [:: @Vword ws 0].
+      have -> /=: exec_sopn (Oasm (ExtOp (Oset0 ws))) [::] = ok [:: @Vword _ ws 0].
       + rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /=.
         rewrite /Oset0_instr.
         by move /negP/negPf : hlarge => -> /=.
@@ -866,7 +867,7 @@ Local Opaque wsize_size Z.of_nat.
       by move: halign; rewrite /is_align WArray.p_to_zE => /eqP.
     rewrite /eval_instr /=.
     rewrite wrepr0.
-    have -> /=: exec_sopn (Ox86 (MOV ws)) [:: @Vword ws 0] = ok [:: @Vword ws 0].
+    have -> /=: exec_sopn (Ox86 (MOV ws)) [:: @Vword _ ws 0] = ok [:: @Vword _ ws 0].
     + rewrite /exec_sopn /= truncate_word_u /sopn_sem /sopn_sem_ /=.
       rewrite /x86_MOV.
       by rewrite /size_8_64 hsmall /=.
@@ -1225,7 +1226,7 @@ Local Opaque wsize_size.
       by rewrite -addnS; reflexivity.
     * rewrite (find_instr_skip hlinear) /=.
       rewrite /eval_instr /=.
-      have -> /=: exec_sopn (Oasm (ExtOp (Oset0 ws))) [::] = ok [:: @Vword ws 0].
+      have -> /=: exec_sopn (Oasm (ExtOp (Oset0 ws))) [::] = ok [:: @Vword _ ws 0].
       + rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /=.
         rewrite /Oset0_instr.
         by move /negP/negPf : hlarge => -> /=.

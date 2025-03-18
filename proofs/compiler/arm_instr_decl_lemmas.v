@@ -12,7 +12,7 @@ Require Import
   arm_extra
   arm_instr_decl.
 
-Lemma ignore_has_shift mn sf ic hs hs' :
+Lemma ignore_has_shift {tabstract : Tabstract} mn sf ic hs hs' :
   mn \notin has_shift_mnemonics
   -> let opts :=
        {| set_flags := sf; is_conditional := ic; has_shift := hs; |}
@@ -30,6 +30,7 @@ Proof. by case: mn. Qed.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {atoI : arch_toIdent}
   {syscall_state : Type}
@@ -49,8 +50,8 @@ Definition cast_op tin1 tin2 tout1 tout2 (h1 : tin1 = tin2) (h2 : tout1 = tout2)
      tout2 h2.
 
 Lemma sem_prod_ok_comp A B ts (F : sem_prod ts A) (G:A -> B) vs:
-  app_sopn ts (sem_prod_ok ts (sem_prod_app F G)) vs =
-  Let a := app_sopn ts (sem_prod_ok ts F) vs in ok (G a).
+  @app_sopn _ _ ts (sem_prod_ok ts (sem_prod_app F G)) vs =
+  Let a := @app_sopn _ _ ts (sem_prod_ok ts F) vs in ok (G a).
 Proof.
   elim: ts vs F => [ | t ts hrec] [ | v vs] //= F; case: of_val => //=.
 Qed.
@@ -89,7 +90,7 @@ Proof.
   elim: tin vargs semi => [ | ti tin hreci] [ | va vargs] //=.
   + move=> semi res ->; rewrite /mk_semi_cond /= => {semi}.
     rewrite add_arguments_nil; case: b.
-    + have -> // : app_sopn tout (sem_prod_const tout (ok res)) vprev = ok res.
+    + have -> // : @app_sopn _ _ tout (sem_prod_const tout (ok res)) vprev = ok res.
       move: (sem_tuple tout) res => A res.
       elim: tout vprev vres1 hvres1 => [ | to tout hreco] [ | vp vprev] //=; t_xrbindP.
       move=> vres1 v; rewrite /truncate_val; t_xrbindP.

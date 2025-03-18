@@ -29,6 +29,10 @@ The semantic predicates are indexed by a set of variables which is *precisely* t
 
 #[local] Existing Instance withsubword.
 
+Section Tabstract.
+
+Context {tabstract : Tabstract}.
+
 Definition kill_var (x: var) (vm: Vm.t) : Vm.t :=
   vm.[x <- undef_addr (vtype x)].
 
@@ -487,3 +491,7 @@ Section SEM_IND.
 End SEM_IND.
 
 End SEM.
+
+End Tabstract.
+
+Notation kill_vars := (Sv.fold kill_var).

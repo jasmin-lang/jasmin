@@ -143,6 +143,9 @@ let pp_svsize fmt (vs,s,ve) =
   Format.fprintf fmt "%d%s%d"
     (int_of_vsize vs) (suffix_of_sign s) (bits_of_vesize ve)
 
+let pp_abstract_ty fmt t =
+  F.fprintf fmt "%a" pp_var t
+
 let pp_space fmt _ =
   F.fprintf fmt " "
 
@@ -238,6 +241,7 @@ and pp_type fmt ty =
   | TWord w -> pp_ws fmt w
   | TArray (w, e) -> F.fprintf fmt "%a[%a]" ptype (Syntax.string_of_sizetype w) pp_expr e
   | TAlias id -> F.fprintf fmt "%a" ptype (L.unloc id)
+  | Tabstract s -> F.fprintf fmt "%a[%a]" ptype "abstract" pp_abstract_ty s
 
 and pp_ws fmt w = F.fprintf fmt "%a" ptype (string_of_wsize w)
 
@@ -441,6 +445,7 @@ let rec pp_pitem fmt pi =
           F.fprintf fmt "%a %s " kw "from" (L.unloc name)) in
       F.fprintf fmt "%a%a " pp_from from kw "require";
       List.iter (pp_path fmt) s
+  | Pabstract_ty t ->  pp_abstract_ty fmt t.pat_name
   | PNamespace (ns, pis) ->
      (* TODO: ident within namespaces? *)
      F.fprintf fmt "%a %s " kw "namespace" (L.unloc ns);

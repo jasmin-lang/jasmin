@@ -16,6 +16,9 @@ Local Unset Elimination Schemes.
 
 (* ----------------------------------------------------------------------------- *)
 
+Section SOPN.
+Context {tabstract : Tabstract}.
+
 Variant arg_desc :=
 | ADImplicit  of var
 | ADExplicit  of nat & option var.
@@ -52,28 +55,6 @@ Record instruction_desc := mkInstruction {
 
 Arguments semu _ [vs vs' v] _ _.
 
-Notation mk_instr_desc str tin i_in tout i_out semi safe valid semi_errty semi_safe :=
-  {| str          := str;
-     tin          := tin;
-     i_in         := i_in;
-     tout         := tout;
-     i_out        := i_out;
-     conflicts    := [::];
-     semi         := semi;
-     semu         := @vuincl_app_sopn_v tin tout semi refl_equal;
-     i_safe       := safe;
-     i_valid      := valid;
-     i_safe_wf    := refl_equal;
-     i_semi_errty := semi_errty;
-     i_semi_safe  := semi_safe;
-  |}.
-
-Notation mk_instr_desc_safe str tin i_in tout i_out semi valid :=
-  (mk_instr_desc str tin i_in tout i_out (sem_prod_ok tin semi) [::] valid
-     (fun _ => (@sem_prod_ok_error _ tin semi ErrType))
-     (fun _ => (@sem_prod_ok_safe _ tin semi)))
-  (only parsing).
-
 (* -------------------------------------------------------------------- *)
 
 Variant prim_x86_suffix :=
@@ -103,9 +84,34 @@ Existing Instance _eqT.
 
 Definition asm_op_t {asm_op} {asmop : asmOp asm_op} := asm_op.
 
+End SOPN.
+
+Notation mk_instr_desc str tin i_in tout i_out semi safe valid semi_errty semi_safe :=
+  {| str          := str;
+     tin          := tin;
+     i_in         := i_in;
+     tout         := tout;
+     i_out        := i_out;
+     conflicts    := [::];
+     semi         := semi;
+     semu         := @vuincl_app_sopn_v _ tin tout semi refl_equal;
+     i_safe       := safe;
+     i_valid      := valid;
+     i_safe_wf    := refl_equal;
+     i_semi_errty := semi_errty;
+     i_semi_safe  := semi_safe;
+  |}.
+
+Notation mk_instr_desc_safe str tin i_in tout i_out semi valid :=
+  (mk_instr_desc str tin i_in tout i_out (@sem_prod_ok _ _ tin semi) [::] valid
+     (fun _ => (@sem_prod_ok_error _ _ tin semi ErrType))
+     (fun _ => (@sem_prod_ok_safe _ _ tin semi)))
+  (only parsing).
+
 Section WITH_PARAMS.
 
 Context
+  {A : Tabstract}
   {asm_op : Type}
   {pd : PointerData}
   {msfsz : MSFsize}
@@ -203,7 +209,7 @@ Definition Ocopy_instr ws p :=
      i_out    := [:: E 0];
      conflicts:= [::];
      semi     := @WArray.copy ws p;
-     semu     := @vuincl_copy ws p;
+     semu     := @vuincl_copy _ ws p;
      i_valid  := true;
      i_safe   := [:: AllInit ws p 0];
      i_safe_wf    := refl_equal;
@@ -252,8 +258,8 @@ Fixpoint spill_semi (tys: seq stype) : sem_prod tys (sem_tuple [::]):=
 
 Lemma spill_semu tys (vs vs' : seq value) (v : values) :
    List.Forall2 value_uincl vs vs' ->
-   app_sopn_v (sem_prod_ok tys (spill_semi tys)) vs = ok v ->
-   exists2 v' : values, app_sopn_v (sem_prod_ok tys (spill_semi tys)) vs' = ok v' &
+   app_sopn_v (@sem_prod_ok _ _ tys (spill_semi tys)) vs = ok v ->
+   exists2 v' : values, app_sopn_v (@sem_prod_ok _ _ tys (spill_semi tys)) vs' = ok v' &
                         List.Forall2 value_uincl v v'.
 Proof.
   rewrite /app_sopn_v; elim: tys vs vs' v => /= [ | t tys hrec] ?? v; case => //=.
@@ -276,13 +282,13 @@ Definition Ospill_instr o tys :=
      i_safe   := [:: ];
      i_valid  := true;
      i_safe_wf    := refl_equal;
-     i_semi_errty := fun _ => (@sem_prod_ok_error _ tys semi ErrType);
-     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ tys semi);
+     i_semi_errty := fun _ => (@sem_prod_ok_error _ _ tys semi ErrType);
+     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ _ tys semi);
   |}.
 
 Definition Oswap_instr ty :=
   let tin := [:: ty; ty] in
-  let semi := @swap_semi ty in
+  let semi := @swap_semi _ ty in
   {| str    := (fun _ => "swap"%string);
      tin    := tin;
      i_in   := [:: E 0; E 1]; (* this info is relevant *)
@@ -290,12 +296,12 @@ Definition Oswap_instr ty :=
      i_out  := [:: E 0; E 1]; (* this info is relevant *)
      conflicts:= [::];
      semi   := sem_prod_ok tin semi;
-     semu   := @swap_semu ty;
+     semu   := @swap_semu _ ty;
      i_safe := [::];
      i_valid := true;
      i_safe_wf    := refl_equal;
-     i_semi_errty := fun _ => (@sem_prod_ok_error _ tin semi ErrType);
-     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ tin semi);
+     i_semi_errty := fun _ => (@sem_prod_ok_error _ _ tin semi ErrType);
+     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ _ tin semi);
   |}.
 
 Definition pseudo_op_get_instr_desc (o : pseudo_operator) : instruction_desc :=
@@ -373,9 +379,9 @@ Definition SLHprotect_instr ws :=
 
 Lemma protect_ptr_semu p vs vs' v:
   List.Forall2 value_uincl vs vs' ->
-  @app_sopn_v [::sarr p; ty_msf] [::sarr p] (sem_prod_ok [:: sarr p; ty_msf ] (@se_protect_ptr_sem p)) vs = ok v ->
+  @app_sopn_v _ [::sarr p; ty_msf] [::sarr p] (sem_prod_ok [:: sarr p; ty_msf ] (@se_protect_ptr_sem p)) vs = ok v ->
   exists2 v' : values,
-   @app_sopn_v [::sarr p; ty_msf] [::sarr p] (sem_prod_ok [:: sarr p; ty_msf ] (@se_protect_ptr_sem p)) vs' = ok v' &
+   @app_sopn_v _ [::sarr p; ty_msf] [::sarr p] (sem_prod_ok [:: sarr p; ty_msf ] (@se_protect_ptr_sem p)) vs' = ok v' &
    List.Forall2 value_uincl v v'.
 Proof.
   rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 + + /of_value_uincl_te -/(_ (sarr p)) /= hu.
@@ -400,15 +406,15 @@ Definition SLHprotect_ptr_instr p :=
      i_safe   := [::];
      i_valid  := true;
      i_safe_wf    := refl_equal;
-     i_semi_errty := fun _ => (@sem_prod_ok_error _ tin semi ErrType);
-     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ tin semi);
+     i_semi_errty := fun _ => (@sem_prod_ok_error _ _ tin semi ErrType);
+     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ _ tin semi);
   |}.
 
 Lemma protect_ptr_fail_semu p vs vs' v:
   List.Forall2 value_uincl vs vs' ->
-  @app_sopn_v [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_fail_sem p) vs = ok v ->
+  @app_sopn_v _ [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_fail_sem p) vs = ok v ->
   exists2 v' : values,
-   @app_sopn_v [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_fail_sem p) vs' = ok v' &
+   @app_sopn_v _ [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_fail_sem p) vs' = ok v' &
    List.Forall2 value_uincl v v'.
 Proof.
   rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 + + /of_value_uincl_te -/(_ (sarr p)) /= hu.

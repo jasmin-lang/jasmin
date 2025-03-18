@@ -16,6 +16,9 @@ Open Scope vm_scope.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
+Section SEM_OP.
+Context {abst: Tabstract}.
+
 Definition sem_sop1 (o: sop1) (v: value) : exec value :=
   let t := type_of_op1 o in
   Let x := of_val _ v in
@@ -30,11 +33,17 @@ Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
 
 Definition sem_opN
   {cfcd : FlagCombinationParams} (op: opN) (vs: values) : exec value :=
-  Let w := app_sopn _ (sem_opN_typed op) vs in
+  Let w := app_sopn (@sem_opN_typed _ cfcd op) vs in
   ok (to_val w).
+
+End SEM_OP.
 
 (* ** Global access
  * -------------------------------------------------------------------- *)
+
+Section GLOBAL_ACCESS.
+Context {abst: Tabstract}.
+
 Definition get_global_value (gd: glob_decls) (g: var) : option glob_value :=
   assoc gd g.
 
@@ -51,7 +60,10 @@ Definition get_global gd g : exec value :=
     else type_error
   else type_error.
 
+End GLOBAL_ACCESS.
+
 Section WSW.
+Context {abst: Tabstract}.
 Context {wsw:WithSubWord}.
 
 (* ** State
@@ -136,7 +148,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     Let w1 := get_var wdb s.(evm) x >>= to_pointer in
     Let w2 := sem_pexpr s e >>= to_pointer in
     Let w  := read s.(emem) al (w1 + w2)%R sz in
-    ok (@to_val (sword sz) w)
+    ok (@to_val _ (sword sz) w)
   | Papp1 o e1 =>
     Let v1 := sem_pexpr s e1 in
     sem_sop1 o v1
@@ -184,13 +196,13 @@ Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
     Let i := sem_pexpr s i >>= to_int in
     Let v := to_word ws v in
     Let t := WArray.set t al aa i v in
-    write_var x (@to_val (sarr n) t) s
+    write_var x (@to_val _ (sarr n) t) s
   | Lasub aa ws len x i =>
     Let (n,t) := wdb, s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let t' := to_arr (Z.to_pos (arr_size ws len)) v in
     Let t := @WArray.set_sub n aa ws len t i t' in
-    write_var x (@to_val (sarr n) t) s
+    write_var x (@to_val _ (sarr n) t) s
   end.
 
 Definition write_lvals (s : estate) xs vs :=
@@ -207,8 +219,8 @@ Context
   {asmop : asmOp asm_op}.
 
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=
-  Let semi := sopn_sem o in
-  Let t := app_sopn _ semi vs in
+  Let semi := @sopn_sem _ _ _ _ o in
+  Let t := @app_sopn _ _ _ semi vs in
   ok (list_ltuple t).
 
 Definition sem_sopn gd o m lvs args :=
