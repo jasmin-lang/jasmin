@@ -1,75 +1,65 @@
 From Coq Require Import
-     Arith.PeanoNat
-     Lists.List
-     Strings.String
-     Morphisms
-     Setoid
-     RelationClasses
-     EquivDec
-     Equality
-     Program.Tactics.
+     Equality. 
 
 From ExtLib Require Import
-     Data.String
-     Structures.Monad
-     Structures.Traversable
-     Data.List
-     Core.RelDec
-     Structures.Maps
-     Data.Map.FMapAList.
+     Data.List 
+     Core.RelDec. 
 
 From ITree Require Import
-     ITree
-     ITreeFacts
-     Monad
-     Basics.HeterogeneousRelations
-     Events.Map
-     Events.State
-     Events.StateFacts
-     Events.Reader
-     Events.Exception
-     Events.FailFacts.
-
-Require Import Paco.paco.
-Require Import Psatz.
-Require Import ProofIrrelevance.
-Require Import FunctionalExtensionality.
-
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
-
-From ITree Require Import
-(*     Basics.Tacs *)
-     Basics.Category
-     Basics.Basics
-     Basics.Function
-     Core.ITreeDefinition
-     Core.KTree
-     Eq.Eqit
-     Eq.UpToTaus
-     Eq.Paco2
-     Indexed.Sum
-     Indexed.Function
-     Indexed.Relation
-     Interp.Handler
-     Interp.Interp
-     Interp.InterpFacts
-     Interp.Recursion.
+     ITree 
+     ITreeFacts 
+     Basics.HeterogeneousRelations.
 
 From ITree Require Import XRutt XRuttFacts.
 
-From ITree Require Import EqAxiom.
+From mathcomp Require Import ssreflect ssrfun ssrbool.  
 
-From Jasmin Require Import expr psem_defs psem oseq compiler_util xrutt_aux.
-From Jasmin Require Import it_gen_lib it_jasmin_lib it_sems_alt1.
+From Jasmin Require Import expr psem_defs psem compiler_util xrutt_aux.
+From Jasmin Require Import it_sems_alt1.
 
-Import Monads.
-Import MonadNotation.
+Import MonadNotation. 
 Local Open Scope monad_scope.
-Local Open Scope option_scope.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+
+Section RuttRec.
+  Context (E1 E2 : Type -> Type) {A1 A2 B1 B2: Type}.
+
+  Context (EE1: forall X, E1 X -> bool).
+  Context (EE2: forall X, E2 X -> bool).
+            
+  Context (bodies1 : A1 -> itree (callE A1 B1 +' E1) B1)
+          (bodies2 : A2 -> itree (callE A2 B2 +' E2) B2).
+  
+  Context (RPre : prerel E1 E2) (RPreInv : prerel (callE A1 B1) (callE A2 B2))
+     (RPost : postrel E1 E2) (RPostInv : postrel (callE A1 B1) (callE A2 B2)).
+
+  Context (Hbodies: forall (A B : Type)
+                           (d1 : callE A1 B1 A) (d2 : callE A2 B2 B),
+  @RPreInv A B d1 d2 -> 
+  rutt (EE_MR EE1 (callE A1 B1)) (EE_MR EE2 (callE A2 B2))  
+    (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost)
+    (fun (a : A) (b : B) => @RPostInv A B d1 a d2 b) 
+    (calling' bodies1 A d1) (calling' bodies2 B d2)).
+
+  Lemma rec_rutt (RR : B1 -> B2 -> Prop) a1 a2 : 
+    @RPreInv B1 B2 (Call a1) (Call a2) ->
+    RR = (fun (t1 : B1) (t2 : B2) =>  
+         @RPostInv B1 B2 (Call a1) t1 (Call a2) t2) ->
+    rutt EE1 EE2 RPre RPost RR
+         (rec bodies1 a1) (rec bodies2 a2).
+  Proof.
+    intros.
+    unfold rec, mrec.
+    eapply interp_mrec_rutt with (RPreInv:=RPreInv); eauto.
+    rewrite H0; eauto.
+  Qed.  
+  
+End RuttRec.
+
 
 (* PROBLEM with sections *)
 
@@ -82,15 +72,17 @@ Unset Printing Implicit Defensive.
 
 Class with_Error (E: Type -> Type) {HasErr: ErrEvent -< E} := {
   is_error : forall {X}, E X -> bool;
-  is_error_has : forall {X} (e:ErrEvent X) , is_error (HasErr X e)
+  is_error_has : forall {X} (e: ErrEvent X), is_error (HasErr X e)
 }.
 Arguments with_Error : clear implicits.
 Arguments with_Error E {_}.
 
-Definition ErrorCutoff {E: Type -> Type} {HasErr: ErrEvent -< E} {wE : with_Error E} X (m : E X) :=
+Definition ErrorCutoff {E: Type -> Type}
+  {HasErr: ErrEvent -< E} {wE : with_Error E} X (m : E X) :=
   ~~(is_error m).
 
-Definition NoCutoff {E: Type -> Type} {HasErr: ErrEvent -< E} {wE : with_Error E} X (m : E X) := true.
+Definition NoCutoff {E: Type -> Type}
+  {HasErr: ErrEvent -< E} {wE : with_Error E} X (m : E X) := true.
 
 Definition rutt_err {E1 E2: Type -> Type}
   {HasErr1: ErrEvent -< E1} {wE1 : with_Error E1}
@@ -119,15 +111,46 @@ Lemma interp_mrec_rutt_err {D1 D2 E1 E2 : Type -> Type}
    (bodies1 : forall T : Type, D1 T -> itree (D1 +' E1) T)
    (bodies2 : forall T : Type, D2 T -> itree (D2 +' E2) T):
    (forall (R1 R2 : Type) (d1 : D1 R1) (d2 : D2 R2),
-       RPreInv R1 R2 d1 d2 -> rutt_err (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost) (fun v1 : R1 => [eta RPostInv R1 R2 d1 v1 d2]) (bodies1 R1 d1) (bodies2 R2 d2)) ->
-   (forall (R1 R2 : Type) (RR : R1 -> R2 -> Prop) (t1 : itree (D1 +' E1) R1) (t2 : itree (D2 +' E2) R2),
-       rutt_err (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost) RR t1 t2 ->
-       rutt_err RPre RPost RR (interp_mrec bodies1 t1) (interp_mrec bodies2 t2)).
+       RPreInv R1 R2 d1 d2 ->
+       rutt_err (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost)
+         (fun v1 : R1 => [eta RPostInv R1 R2 d1 v1 d2])
+         (bodies1 R1 d1) (bodies2 R2 d2)) ->
+   (forall (R1 R2 : Type) (RR : R1 -> R2 -> Prop)
+           (t1 : itree (D1 +' E1) R1) (t2 : itree (D2 +' E2) R2),
+    rutt_err (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost) RR t1 t2 ->
+    rutt_err RPre RPost RR (interp_mrec bodies1 t1) (interp_mrec bodies2 t2)).
 Proof.
   move=> hrec R1 R2 RR t1 t2 ht.
   apply interp_mrec_rutt with (RPreInv := RPreInv) (RPostInv := RPostInv).
   + admit. (* this is hrec modulo extentional equality *)
   admit. (* this is ht modulo extentional equality *)
+Admitted.
+
+Lemma interp_rec_rutt_err {E1 E2 : Type -> Type} {A1 A2 B1 B2: Type}
+   {HasErr1: ErrEvent -< E1} {wE1 : with_Error E1}
+   {HasErr2: ErrEvent -< E2} {wE2 : with_Error E2}
+   (RPre : prerel E1 E2)
+   (RPreInv : prerel (callE A1 B1) (callE A2 B2))
+   (RPost : postrel E1 E2)
+   (RPostInv : postrel (callE A1 B1) (callE A2 B2))
+   (bodies1 : A1 -> itree (callE A1 B1 +' E1) B1)
+   (bodies2 : A2 -> itree (callE A2 B2 +' E2) B2):
+   (forall (R1 R2 : Type) d1 d2, (* (d1 : callE A1 B1 R1) (d2 : callE A2 B2 R2),*)
+       RPreInv R1 R2 d1 d2 ->
+       rutt_err (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost)
+         (fun v1 : R1 => [eta RPostInv R1 R2 d1 v1 d2])
+         (calling' bodies1 R1 d1) (calling' bodies2 R2 d2)) ->
+   (forall (RR : B1 -> B2 -> Prop)
+           (t1 : A1) (t2 : A2),
+       RPreInv B1 B2 (Call t1) (Call t2) ->
+       RR = (fun t0 : B1 => [eta RPostInv B1 B2 (Call t1) t0 (Call t2)]) ->
+ (*   rutt_err (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost) RR t1 t2 -> *)
+    rutt_err RPre RPost RR (rec bodies1 t1) (rec bodies2 t2)).
+Proof.
+  move=> hrec RR t1 t2 ht he.
+  apply rec_rutt with (RPreInv := RPreInv) (RPostInv := RPostInv); eauto.
+  + intros; inv he. 
+    admit. (* this is hrec modulo extentional equality *)
 Admitted.
 
 Lemma rutt_err_weaken {E1 E2: Type -> Type}
@@ -423,8 +446,6 @@ Definition RPreD {T1 T2} (d1 : recCall T1)
   match d1, d2 with
   | Call (fn1, fs1), Call (fn2, fs2) => RPreF fn1 fn2 fs1 fs2
   end.
-
-Check @callE.
 
 Definition RPostD {T1 T2} (d1 : recCall T1) (t1: T1) (d2 : recCall T2) (t2: T2) : Prop :=
   match d1 in callE _ _ T1_ return T1_ -> T2 -> Prop with
@@ -918,36 +939,13 @@ Proof.
     by rewrite /RPostInv /= => fr1 fr2 h; dependent destruction h.
     move=> /(_ hrec) hbody fn1 fn2 fs1 fs2 hpre.
 
-    unfold sem_call1, sem_call2. simpl. unfold isem_fun1, isem_fun2. simpl.
-
-    About interp_mrec_rutt.
-
-    unfold rec.
-    unfold mrec.
-    
-    apply interp_mrec_rutt_err with (RPreInv := @RPreD RPreF) (RPostInv := @RPostD RPostF).
-
-    intros.
-    unfold calling'. simpl.
-    destruct d1. destruct d2.
-    destruct p, p0.
-    unfold RPreD in H.
-    
-    unfold handle_recCall.
-    unfold isem_fun_rec.
-    unfold isem_funcall.
-
-Admitted.
-
-(*
-    eapply rutt_trigger.
-    
-  + move=> {hpre fn1 fn2 fs1 fs2}.
-    move=> _ _ [fn1 fs1] [fn2 fs2] /= hpre.
-    by apply (equiv_fun_body (hbody fn1 fn2) hpre).
-  by apply (equiv_fun_body (hbody fn1 fn2) hpre).
-Qed.
-*)
+  apply interp_rec_rutt_err with (RPreInv := @RPreD RPreF) (RPostInv := @RPostD RPostF).
+    + move=> {hpre fn1 fn2 fs1 fs2}.
+      move=> R1 R2 [[fn1 fs1]] [[fn2 fs2]] /=hpre.
+      by apply (equiv_fun_body (hbody fn1 fn2) hpre).
+      unfold RPreD; eauto.
+      unfold RPreD; eauto.
+Qed.       
 
 End EQUIV_FUN.
 
