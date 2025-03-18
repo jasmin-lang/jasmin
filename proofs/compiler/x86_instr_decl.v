@@ -247,6 +247,7 @@ Definition ZF_of_word sz (w : word sz) :=
 
 (* -------------------------------------------------------------------- *)
   (*  OF; CF; SF;    PF;    ZF  *)
+
 Definition rflags_of_bwop sz (w : word sz) : (sem_tuple b5_ty) :=
   (*  OF;  CF;    SF;           PF;           ZF  *)
   (:: Some false, Some false, Some (SF_of_word w), Some (PF_of_word w) & Some (ZF_of_word w)).
@@ -408,7 +409,7 @@ Notation mk_instr str_jas tin tout ain aout msb semi args_kinds nargs safe_cond 
 
 (* Can only be use for safe instruction *)
 Notation mk_instr_safe str_jas tin tout ain aout msb semi args_kinds nargs valid pp_asm :=
-  (mk_instr str_jas tin tout ain aout msb (@sem_prod_ok _ tin semi) args_kinds nargs [::] valid pp_asm
+  (mk_instr str_jas tin tout ain aout msb (sem_prod_ok tin semi) args_kinds nargs [::] valid pp_asm
     refl_equal
     (fun _ => (@sem_prod_ok_error _ tin semi ErrType))
     (fun _ => (@values.sem_prod_ok_safe _ tin semi)))

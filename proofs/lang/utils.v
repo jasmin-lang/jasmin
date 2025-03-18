@@ -216,7 +216,7 @@ Proof. by case: r => //= ? [->]. Qed.
 Arguments map_errP {_ _ _ _ _ _}.
 
 Variant error :=
- | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith | ErrSemUndef.
+ | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith | ErrSemUndef | ErrAbsOp.
 
 Definition exec t := result error t.
 

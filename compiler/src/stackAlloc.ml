@@ -210,7 +210,7 @@ let memory_analysis pp_err ~debug up =
   
   if debug then
     Format.eprintf "After memory analysis@.%a@."
-      (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) ([], [], (List.map snd fds));
+      (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) ([], ([],[]), (List.map snd fds));
   
   (* remove unused result *)
   let tokeep = RemoveUnusedResults.analyse fds in
@@ -239,7 +239,7 @@ let memory_analysis pp_err ~debug up =
   let fds = List.map deadcode fds in
   if debug then
     Format.eprintf "After remove unused return @.%a@."
-      (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) ([], [], (List.map snd fds));
+      (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) ([], ([],[]), (List.map snd fds));
   
   (* register allocation *)
   let translate_var = Conv.var_of_cvar in

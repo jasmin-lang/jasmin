@@ -314,7 +314,7 @@ let is_ct_op2 (o: Expr.sop2) =
   | Omod (Cmp_w _) | Odiv (Cmp_w _) -> false
   | _ -> true
 
-let is_ct_opN (_ : Expr.opN) = true
+let is_ct_opN (_ : Expr.opNA) = true
 
 let is_ct_sopn is_ct_asm (o : 'a Sopn.sopn) =
   match o with
@@ -344,7 +344,6 @@ let rec ty_expr ~(public:bool) env (e:expr) =
     let env, _ = Env.get ~public:true env x in
     let env, _ = ty_expr ~public:true env i in
     env, Secret
-
   | Papp1(o, e)        ->
     let public = public || not (is_ct_op1 o) in
     ty_expr ~public env e

@@ -1040,11 +1040,11 @@ Section PROOF.
         rewrite (size_128_256_ge hle2) hle1 /=.
         by rewrite !truncate_word_le.
     (* PappN *)
-    + case: op => // - [] // - [] //.
+    + case: op => // - [] // - [] // - [] //.
       case: es => // - [] // [] // [] // hi.
       case => // [] // [] // [] // [] // [] // lo [] //.
       case: ty Hv' => // - [] //= ok_v'.
-      rewrite /= /sem_opN /exec_sopn /sem_sop1 /=.
+      rewrite /= /sem_opNA /exec_sopn /sem_sop1 /=.
       t_xrbindP => ??? -> _ /to_wordI'[] szhi [] whi [] szhi_ge -> -> <- ??? ->.
       move => ? /to_wordI'[] szlo [] wlo [] szlo_ge -> -> <- <- <- ?.
       t_xrbindP => _ /to_intI[] <- _ /to_intI[] <- [] <- ?; subst => /=.

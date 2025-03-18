@@ -63,6 +63,15 @@ Definition wsizes :=
 Lemma wsize_fin_axiom : Finite.axiom wsizes.
 Proof. by case. Qed.
 
+Scheme Equality for pelem.
+
+Lemma pelem_axiom : Equality.axiom pelem_beq.
+Proof.
+  exact: (eq_axiom_of_scheme internal_pelem_dec_bl internal_pelem_dec_lb).
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build pelem pelem_axiom.
+
 (* ** Comparison
  * -------------------------------------------------------------------- *)
 Definition wsize_cmp s s' :=

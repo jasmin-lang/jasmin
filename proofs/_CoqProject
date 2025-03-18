@@ -171,6 +171,7 @@ lang/type.v
 lang/utils.v
 lang/values.v
 lang/abstract_type.v
+lang/abstract_pred.v
 lang/var.v
 lang/varmap.v
 lang/waes.v

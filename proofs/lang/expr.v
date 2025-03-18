@@ -74,6 +74,15 @@ Variant sop2 :=
 | Ovasr of velem & wsize
 .
 
+(* Abstract n-ary operators *)
+
+Record opA := MkAbstP {
+  pa_name   : string;
+  pa_tyin   : seq stype;
+  pa_tyout  : stype;
+  pa_tyin_narr : all is_not_sarr pa_tyin;
+}.
+
 (* N-ary operators *)
 Variant combine_flags :=
 | CF_LT    of signedness   (* Alias : signed => L  ; unsigned => B   *) 
@@ -87,6 +96,11 @@ Variant combine_flags :=
 Variant opN :=
 | Opack of wsize & pelem (* Pack words of size pelem into one word of wsize *)
 | Ocombine_flags of combine_flags
+.
+
+Variant opNA :=
+| OopN of opN
+| Oabstract of opA
 .
 
 Scheme Equality for sop1.
@@ -109,6 +123,21 @@ Qed.
 
 HB.instance Definition _ := hasDecEq.Build sop2 sop2_eq_axiom.
 
+Definition opA_beq (o1 o2 : opA) :=
+  [&& o1.(pa_name) == o2.(pa_name)
+    , o1.(pa_tyin) == o2.(pa_tyin)
+    & o1.(pa_tyout) == o2.(pa_tyout)].
+
+Lemma opA_eq_axiom : Equality.axiom opA_beq.
+Proof.
+  move=> x y; apply Bool.iff_reflect; split.
+  + by move=> ->; rewrite /opA_beq !eqxx.
+  case: x => ??? h1; case: y => ??? h2 /and3P [/= /eqP ? /eqP ? /eqP ?]; subst.
+  by rewrite (Eqdep_dec.UIP_dec Bool.bool_dec h1 h2).
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build opA opA_eq_axiom.
+
 Scheme Equality for opN.
 
 Lemma opN_eq_axiom : Equality.axiom opN_beq.
@@ -117,6 +146,22 @@ Proof.
 Qed.
 
 HB.instance Definition _ := hasDecEq.Build opN opN_eq_axiom.
+
+Definition opNA_beq (o1 o2 : opNA) :=
+  match o1, o2 with
+  | OopN o1, OopN o2 => o1 == o2
+  | Oabstract a1, Oabstract a2 => a1 == a2
+  | _, _ => false
+  end.
+
+Lemma opNA_eq_axiom : Equality.axiom opNA_beq.
+Proof.
+  move=> [o1 | a1] [o2 | a2] /=; try by constructor.
+  + by apply: (equivP eqP); split => [-> | [] ->].
+  by apply: (equivP eqP); split => [-> | [] ->].
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build opNA opNA_eq_axiom.
 
 (* ----------------------------------------------------------------------------- *)
 
@@ -169,12 +214,20 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
 
 Definition tin_combine_flags := [:: sbool; sbool; sbool; sbool].
 
+Definition type_of_opA (op: opA) : seq stype * stype := (pa_tyin op, pa_tyout op).
+
 Definition type_of_opN (op: opN) : seq stype * stype :=
   match op with
   | Opack ws p =>
     let n := nat_of_wsize ws %/ nat_of_pelem p in
     (nseq n sint, sword ws)
   | Ocombine_flags c => (tin_combine_flags, sbool) 
+  end.
+
+Definition type_of_opNA (op: opNA) : seq stype * stype :=
+  match op with
+  | OopN o => type_of_opN o
+  | Oabstract o => type_of_opA o
   end.
 
 (* ** Expressions
@@ -239,7 +292,7 @@ Inductive pexpr : Type :=
 | Pload  : aligned -> wsize -> var_i -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
-| PappN of opN & seq pexpr
+| PappN of opNA & seq pexpr
 | Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr.
 
 Notation pexprs := (seq pexpr).
@@ -251,6 +304,8 @@ Definition eor e1 e2 := Papp2 Oor e1 e2.
 Definition eand e1 e2 := Papp2 Oand e1 e2.
 Definition eeq e1 e2 := Papp2 Obeq e1 e2.
 Definition eneq e1 e2 := enot (eeq e1 e2).
+Definition pappN (o : opN) (es : pexprs) :=
+  PappN (OopN o) es.
 
 Definition cf_of_condition (op : sop2) : option (combine_flags * wsize) :=
   match op with
@@ -265,7 +320,7 @@ Definition cf_of_condition (op : sop2) : option (combine_flags * wsize) :=
 
 Definition pexpr_of_cf (cf : combine_flags) (vi : var_info) (flags : seq var) : pexpr :=
   let eflags := [seq Plvar {| v_var := x; v_info := vi |} | x <- flags ] in
-  PappN (Ocombine_flags cf) eflags.
+  pappN (Ocombine_flags cf) eflags.
 
 
 (* ** Left values
@@ -465,10 +520,16 @@ Record _fundef (extra_fun_t: Type) := MkFun {
 
 Definition _fun_decl (extra_fun_t: Type) := (funname * _fundef extra_fun_t)%type.
 
+Definition abstract_type := string.
+
+Definition abstract_pred : Type := (string * seq stype * stype).
+
+Definition glob_abstract :Type := seq abstract_type * seq abstract_pred.
+
 Record _prog (extra_fun_t: Type) (extra_prog_t: Type):= {
   p_funcs : seq (_fun_decl extra_fun_t);
   p_globs : glob_decls;
-  p_abstr : seq string;
+  p_abstr : glob_abstract;
   p_extra : extra_prog_t;
 }.
 

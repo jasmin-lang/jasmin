@@ -51,10 +51,12 @@ let pp_ge pp_len pp_var =
   | Papp2(op,e1,e2) ->
     F.fprintf fmt "@[(%a %s@ %a)@]"
       pp_expr e1 (string_of_op2 op) pp_expr e2
-  | PappN (E.Opack(_sz, pe), es) ->
+  | PappN (OopN(E.Opack(_sz, pe)), es) ->
     F.fprintf fmt "@[(%du%n)[%a]@]" (List.length es) (int_of_pe pe) (pp_list ",@ " pp_expr) es
-  | PappN (Ocombine_flags c, es) ->
-    F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " pp_expr) es  
+  | PappN (OopN(Ocombine_flags c), es) ->
+    F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " pp_expr) es
+  | PappN(Oabstract opA,es) ->
+    F.fprintf fmt "@[%s(%a)@]" opA.pa_name (pp_list ",@ " pp_expr) es
   | Pif(_, e,e1,e2) ->
     F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
       pp_expr e pp_expr e1  pp_expr e2
@@ -251,6 +253,13 @@ let pp_gexpr pp_len pp_var fmt = function
   | GEword e -> pp_ge pp_len pp_var fmt e
   | GEarray es -> Format.fprintf fmt "{@[%a@]}" (pp_ges pp_len pp_var) es
 
+let pp_pvar fmt x = F.fprintf fmt "%s" x.v_name 
+
+let rec pp_pexpr fmt e = pp_ge pp_pexpr_ pp_pvar fmt e
+and pp_pexpr_ fmt (PE e) = pp_pexpr fmt e
+
+let pp_ptype = pp_gtype pp_pexpr_
+
 let pp_pitem pp_len pp_opn pp_var =
   let aux fmt = function
    | MIfun fd -> pp_gfun pp_noinfo pp_len pp_opn pp_var fmt fd
@@ -265,15 +274,13 @@ let pp_pitem pp_len pp_opn pp_var =
         (pp_gexpr pp_len pp_var) e
     | MItypeabstr s ->
       Format.fprintf fmt "type %s;" s
+    | MIpredabstr (name,tyint,tyout) ->
+      Format.fprintf fmt "abstract %a %s@[(%a)@];"
+        pp_ptype tyout
+        name
+        (pp_list ",@ " pp_ptype) tyint
  in
   aux
-
-let pp_pvar fmt x = F.fprintf fmt "%s" x.v_name 
-
-let rec pp_pexpr fmt e = pp_ge pp_pexpr_ pp_pvar fmt e
-and pp_pexpr_ fmt (PE e) = pp_pexpr fmt e
-
-let pp_ptype = pp_gtype pp_pexpr_
 
 let pp_plval = pp_glv pp_pexpr_ pp_pvar
 
@@ -358,27 +365,39 @@ let pp_globs pp_var fmt gds =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_glob pp_var)) (List.rev gds)
 
-let pp_abstr fmt ab =
+let pp_abstr_ty fmt ab =
   Format.fprintf fmt "@[type %s@]" ab
 
-let pp_abstrs fmt abs =
-  Format.fprintf fmt "@[<v>%a@]"
-    (pp_list "@ @ " (pp_abstr)) (List.rev abs)
+let pp_abstr_pred fmt (name, tyint,tyout) =
+  Format.fprintf fmt "@[predicate %a %s@[(%a)@]@]"
+    pp_ty tyout
+    name
+   (pp_list ",@ " pp_ty) tyint
 
-let pp_iprog ~debug pp_info pd asmOp fmt (gd, ad, funcs) =
+let pp_abstrs_pred fmt abs =
+  Format.fprintf fmt "@[<v>%a@]"
+    (pp_list "@ @ " (pp_abstr_pred)) (List.rev abs)
+
+let pp_abstrs_ty fmt abs =
+  Format.fprintf fmt "@[<v>%a@]"
+    (pp_list "@ @ " (pp_abstr_ty)) (List.rev abs)
+
+let pp_iprog ~debug pp_info pd asmOp fmt (gd, (at,ap), funcs) =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
-  Format.fprintf fmt "@[<v>%a@ %a %a@]"
+  Format.fprintf fmt "@[<v>%a@ %a %a %a@]"
     (pp_globs pp_var) gd
-     pp_abstrs ad
+    pp_abstrs_ty at
+    pp_abstrs_pred ap
     (pp_list "@ @ " (pp_fun ~pp_info pp_opn pp_var)) (List.rev funcs)
 
-let pp_prog ~debug pd asmOp fmt ((gd, ad, funcs):('info, 'asm) Prog.prog) =
+let pp_prog ~debug pd asmOp fmt ((gd, (at,ap), funcs):('info, 'asm) Prog.prog) =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
-  Format.fprintf fmt "@[<v>%a@ %a %a@]"
+  Format.fprintf fmt "@[<v>%a@ %a %a %a@]"
      (pp_globs pp_var) gd
-      pp_abstrs ad
+     pp_abstrs_ty at
+     pp_abstrs_pred ap
      (pp_list "@ @ " (pp_fun pp_opn pp_var)) (List.rev funcs)
 
 let pp_to_save ~debug fmt (x, ofs) =

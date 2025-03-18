@@ -30,6 +30,7 @@ Context
   {ep : EstateParams syscall_state}.
 
 #[local] Existing Instance withsubword.
+Set Printing All.
 
 Definition sem_fopn_args (p : seq lexpr * arm_op * seq rexpr) (s : estate) :=
   let: (xs,o,es) := p in

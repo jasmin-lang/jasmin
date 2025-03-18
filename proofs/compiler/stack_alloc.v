@@ -47,6 +47,7 @@ End E.
 (* TODO: could [wsize_size] return a [positive] rather than a [Z]?
    If so, [size_of] could return a positive too.
 *)
+
 Definition size_of (t:stype) :=
   match t with
   | sword sz => wsize_size sz
@@ -636,7 +637,7 @@ Fixpoint alloc_e (e:pexpr) ty :=
     ok (Papp2 o e1 e2)
 
   | PappN o es =>
-    Let es := mapM2 bad_arg_number alloc_e es (type_of_opN o).1 in
+    Let es := mapM2 bad_arg_number alloc_e es (type_of_opNA o).1 in
     ok (PappN o es)
 
   | Pif t e e1 e2 =>

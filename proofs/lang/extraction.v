@@ -54,6 +54,7 @@ Extract Constant ident.Cident.spill_to_mmx => "CoreIdent.Cident.spill_to_mmx".
 (* Module Cabstract *)
 
 Extract Constant abstract_type.Cabstract.iabstract => "AbstractType.Cabstract.iabstract".
+Extract Constant abstract_pred.Cabstract.iabstract => "AbstractPred.Cabstract.iabstract".
 
 Set Extraction Output Directory "lang/ocaml".
 

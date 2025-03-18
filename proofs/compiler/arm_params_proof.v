@@ -185,7 +185,7 @@ Proof.
   set vrsp := {|vname := nrsp|}; set rsp := {|v_var := vrsp|}.
   set ts' := align_word _ _.
   have := ARMFopnP.smart_subi_sem_fopn_args vi3 (y:= rsp) _ (to_word_get_var hget).
-  move=> /(_ arm_linux_call_conv ntmp sz) [].
+  move=> /(_  arm_linux_call_conv ntmp sz) [].
   + by right => /= -[?]; subst ntmp.
   move=> vm1 [] -> heq1 hget1 /=.
   set s1 := with_vm _ _.

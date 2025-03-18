@@ -129,14 +129,14 @@ let psubst_ge f = function
 let psubst_prog (prog:('info, 'asm) pprog) =
   let subst = ref (Mpv.empty : pexpr Mpv.t) in
   let rec aux = function
-    | [] -> [], [], []
+    | [] -> [], [], [], []
     | MIparam(v,e) :: items ->
-        let g, a, p = aux items in
+        let g, at, ap , p = aux items in
         let f = psubst_v !subst in 
         subst := Mpv.add v (psubst_e f e) !subst;
-        g, a, p
+        g, at, ap, p
     | MIglobal (v, e) :: items ->
-      let g, a, p = aux items in
+      let g, at, ap , p = aux items in
       let f = psubst_v !subst in
       let v' =
         let v =
@@ -144,9 +144,9 @@ let psubst_prog (prog:('info, 'asm) pprog) =
         assert (not (is_gkvar v)); L.unloc v.gv in
       let e = psubst_ge f e in
       subst := Mpv.add v (Pvar (gkglob (L.mk_loc L._dummy v'))) !subst;
-      (v', e) :: g, a, p
+      (v', e) :: g, at, ap, p
     | MIfun fc :: items ->
-        let g, a, p = aux items in
+        let g, at, ap, p = aux items in
         let subst_v = psubst_v !subst in
         let subst_ty = psubst_ty subst_v in
         let dov v =
@@ -159,10 +159,13 @@ let psubst_prog (prog:('info, 'asm) pprog) =
             f_tyout = List.map subst_ty fc.f_tyout;
             f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
           } in
-        g, a, fc::p
+        g, at, ap, fc::p
     | MItypeabstr s :: items->
-          let g, a, p = aux items in
-          g, s::a, p in
+          let g, at, ap, p = aux items in
+          g, s::at, ap, p
+    | MIpredabstr (name,tyin,tyout) :: items->
+          let g, at, ap, p = aux items in
+           g, at, (name, tyin,tyout) :: ap, p in
     aux prog
 
 (* ---------------------------------------------------------------- *)
@@ -198,9 +201,13 @@ let isubst_ty ?loc = function
   | Bty ty -> Bty ty
   | Arr(ty, e) -> Arr(ty, isubst_len ?loc e)
 
+let isubs_abstrp (name,tyin, tyout) =
+  let tyin = List.map isubst_ty tyin in
+  let tyout = isubst_ty tyout in
+  (name, tyin, tyout)
 
 let isubst_prog glob prog =
-
+  
   let isubst_v subst =
     let aux v0 =
       let k = v0.gs in
@@ -293,8 +300,8 @@ let rec constant_of_expr (e: Prog.expr) : Z.t =
   | _ -> raise NotAConstantExpr
 
 
-let remove_params (prog : ('info, 'asm) pprog) =
-  let globals, abstr, prog = psubst_prog prog in
+let remove_params (prog : ('info, 'asm) pprog):('info, 'asm) prog =
+  let globals, abstrt, abstrp, prog = psubst_prog prog in
   let globals, prog = isubst_prog globals prog in
 
   let global_tbl = Hv.create 101 in
@@ -341,8 +348,9 @@ let remove_params (prog : ('info, 'asm) pprog) =
     x, gv
   in
   let globals = List.rev_map doglob (List.rev globals) in
+  let abstrp = List.map isubs_abstrp abstrp in
 
-  globals, abstr, prog
+  globals, (abstrt,abstrp), prog
 
 
 (* ---------------------------------------------------------------- *)

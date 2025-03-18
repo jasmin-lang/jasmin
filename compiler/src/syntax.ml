@@ -165,6 +165,7 @@ type pexpr_r =
   | PEPrim   of pident * pexpr list
   | PEOp1    of peop1 * pexpr
   | PEOp2    of peop2 * (pexpr * pexpr)
+  | PEAbstract of pident * pexpr list
   | PEIf of pexpr * pexpr * pexpr
 
 and pexpr = pexpr_r L.located
@@ -314,8 +315,17 @@ type prequire = string L.located
 
 (* -------------------------------------------------------------------- *)
 type pabstract_ty = {
-  pat_name : string L.located;
+  pat_name : pident;
   pat_annot : annotations;
+}
+
+(* -------------------------------------------------------------------- *)
+
+type pabstract_pred = {
+  pap_name : pident;
+  pap_args : (annotations * ptype) list;
+  pap_rty  : annotations * ptype;
+  pap_annot : annotations;
 }
 
 (* -------------------------------------------------------------------- *)
@@ -326,6 +336,7 @@ type pitem =
   | Pexec of pexec
   | Prequire of (pident option * prequire list)
   | Pabstract_ty of pabstract_ty
+  | Pabstract_pre of pabstract_pred
   | PNamespace of pident * pitem L.located list
   | PTypeAlias of pident * ptype
 

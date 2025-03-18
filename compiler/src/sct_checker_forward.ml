@@ -659,7 +659,6 @@ let rec ty_expr env venv loc (e:expr) : vty =
   | PappN(o, es)     ->
     let public = not (CT.is_ct_opN o) in
     ty_exprs_max ~public env venv loc es
-
   | Pif(_, e1, e2, e3) ->
       let ty1 = ty_expr env venv loc e1 in
       let ty2 = ty_expr env venv loc e2 in

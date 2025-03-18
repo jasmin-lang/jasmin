@@ -70,7 +70,7 @@ let type_of_op2 op =
   (Conv.ty_of_cty tin1, Conv.ty_of_cty tin2), Conv.ty_of_cty tout
 
 let type_of_opN op = 
-  let tins, tout = E.type_of_opN op in
+  let tins, tout = E.type_of_opNA op in
   List.map Conv.ty_of_cty tins, Conv.ty_of_cty tout
 
 let type_of_sopn loc pd asmOp op =

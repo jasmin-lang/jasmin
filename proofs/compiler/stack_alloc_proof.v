@@ -1248,7 +1248,7 @@ Section EXPR.
       rewrite -/(sem_pexprs _ _ _ _).
       have [ves' [htr' hves']] := sem_opN_truncate_val hves.
       have [vs' [-> /mapM2_truncate_value_uincl huincl]] := H1 _ _ htr'.
-      by rewrite /= (vuincl_sem_opN huincl hves').
+      by rewrite /= (vuincl_sem_opNA huincl hves').
     move=> t e He e1 H1 e2 H2 ty e' v v2.
     t_xrbindP=> e_ /He he e1_ /H1 hrec1 e2_ /H2 hrec2 <-.
     move=> b vb /he{}he hvb ve1 ve1' /hrec1{}hrec1 htr1 ve2 ve2' /hrec2{}hrec2 htr2 <- htr.

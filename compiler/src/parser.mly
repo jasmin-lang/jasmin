@@ -31,6 +31,7 @@
 %token COLON
 %token COLONCOLON
 %token COMMA
+%token PREDICATE
 %token CONSTANT
 %token DOT
 %token DOWNTO
@@ -408,6 +409,9 @@ stor_type:
 annot_stor_type:
 | a=annotations stoty=stor_type { (a,stoty) }
 
+annot_type:
+| a=annotations ty=ptype { (a,ty) }
+
 writable:
 | CONSTANT    {`Constant }
 | MUTABLE     {`Writable }
@@ -506,6 +510,14 @@ pabstract_ty:
 | TYPE pat_name=ident pat_annot=annotations SEMICOLON
   { {pat_name;   pat_annot } }
 
+pabstract_pa:
+  | PREDICATE
+    pap_rty = annot_type
+    pap_name = ident
+    pap_args = parens_tuple(annot_type)
+    pap_annot = annotations SEMICOLON
+  { {pap_name; pap_args; pap_rty;  pap_annot } }
+
 (* -------------------------------------------------------------------- *)
 top:
 | x=pfundef  { Syntax.PFundef x }
@@ -516,6 +528,7 @@ top:
 | TYPE name = ident EQ ty = ptype SEMICOLON
     { Syntax.PTypeAlias (name, ty)}
 | x=pabstract_ty { Syntax.Pabstract_ty x}
+| x=pabstract_pa { Syntax.Pabstract_pre x}
 | NAMESPACE name = ident LBRACE pfs = loc(top)* RBRACE
     { Syntax.PNamespace (name, pfs) }
 

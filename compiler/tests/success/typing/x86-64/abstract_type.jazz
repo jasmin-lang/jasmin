@@ -1,4 +1,9 @@
 type real;
+
+type truc = int;
+
+predicate bool nonempty(real);
+
 param int test = 3;
 
 export
@@ -6,6 +11,8 @@ fn main() -> reg u64{
   reg u64 a;
   reg real b1;
   reg real b2;
+  reg u64 test2;
+  test2 = 0 if nonempty(b1);
   b2 = b1;
   a = a + test;
   return a;

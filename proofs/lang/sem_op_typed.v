@@ -1,8 +1,9 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype div ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Export type expr sem_type.
+Require Export type expr sem_type warray_.
 Require Export flag_combination.
+Require Import abstract_pred.
 Import Utf8.
 
 Definition sem_sop1_typed (o: sop1) :
@@ -25,7 +26,7 @@ Definition zlsl (x i : Z) : Z :=
   if (0 <=? i)%Z then (x * 2^i)%Z
   else (x / 2^(-i))%Z.
 
-Definition zasr (x i : Z) : Z := 
+Definition zasr (x i : Z) : Z :=
   zlsl x (-i).
 
 Definition sem_shift (shift:forall {s}, word s -> Z -> word s) s (v:word s) (i:u8) :=
@@ -87,13 +88,13 @@ Definition sem_sop2_typed (o: sop2) :
   | Olor  s       => mk_sem_sop2 wor
   | Olxor s       => mk_sem_sop2 wxor
   | Olsr s        => mk_sem_sop2 sem_shr
-  | Olsl Op_int   => mk_sem_sop2 zlsl 
+  | Olsl Op_int   => mk_sem_sop2 zlsl
   | Olsl (Op_w s) => mk_sem_sop2 sem_shl
-  | Oasr Op_int   => mk_sem_sop2 zasr 
+  | Oasr Op_int   => mk_sem_sop2 zasr
   | Oasr (Op_w s) => mk_sem_sop2 sem_sar
   | Oror s        => mk_sem_sop2 sem_ror
   | Orol s        => mk_sem_sop2 sem_rol
- 
+
   | Oeq Op_int    => mk_sem_sop2 Z.eqb
   | Oeq (Op_w s)  => mk_sem_sop2 eq_op
   | Oneq Op_int   => mk_sem_sop2 (fun x y => negb (Z.eqb x y))
@@ -133,6 +134,14 @@ Definition sem_opN_typed (o: opN) :
   | Opack sz pe => curry (A := sint) (sz %/ pe) (λ vs, ok (wpack sz pe vs))
   | Ocombine_flags cf =>
       fun b0 b1 b2 b3 => ok (sem_combine_flags cf b0 b1 b2 b3)
+  end.
+
+Definition sem_opNA_typed (o: opNA) :
+  let t := type_of_opNA o in
+  sem_prod t.1 (exec (sem_t t.2)) :=
+  match o with
+  | OopN o => sem_opN_typed o
+  | Oabstract o => Cabstract.iabstract o
   end.
 
 End WITH_PARAMS.

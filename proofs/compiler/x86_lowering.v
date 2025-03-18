@@ -373,7 +373,7 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
     else
       LowerAssgn
 
-  | PappN (Opack U256 PE128) [:: Papp1 (Oint_of_word U128) h ; Papp1 (Oint_of_word U128) (Pvar _ as l) ] =>
+  | PappN (OopN (Opack U256 PE128)) [:: Papp1 (Oint_of_word U128) h ; Papp1 (Oint_of_word U128) (Pvar _ as l) ] =>
     if ty == sword U256 then LowerConcat h l else LowerAssgn
 
   | _ => LowerAssgn

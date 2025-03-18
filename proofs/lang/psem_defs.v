@@ -33,6 +33,11 @@ Definition sem_opN
   Let w := app_sopn _ (sem_opN_typed op) vs in
   ok (to_val w).
 
+Definition sem_opNA
+  {cfcd : FlagCombinationParams} (op: opNA) (vs: values) : exec value :=
+  Let w := app_sopn _ (@sem_opNA_typed cfcd op) vs in
+  ok (to_val w).
+
 (* ** Global access
  * -------------------------------------------------------------------- *)
 Definition get_global_value (gd: glob_decls) (g: var) : option glob_value :=
@@ -146,7 +151,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     sem_sop2 o v1 v2
   | PappN op es =>
     Let vs := mapM (sem_pexpr s) es in
-    sem_opN op vs
+    sem_opNA op vs
   | Pif t e e1 e2 =>
     Let b := sem_pexpr s e >>= to_bool in
     Let v1 := sem_pexpr s e1 >>= truncate_val t in

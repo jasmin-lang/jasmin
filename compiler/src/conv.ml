@@ -266,17 +266,32 @@ let cgd_of_gd (x, gd) =
 let gd_of_cgd (x, gd) =
   (var_of_cvar x, gd)
 
+let cuabstr_p_of_abstr_p (name, tyin, tyout) =
+  let tyin = List.map cty_of_ty tyin in
+  let tyout = cty_of_ty tyout in
+  ((name,tyin),tyout)
 
-let cuprog_of_prog (g, a, p) =
+let cuabstr_of_abstr ((at,ap ): abstract_decl):C.glob_abstract =
+  at, List.map cuabstr_p_of_abstr_p ap
+
+let cuprog_of_prog ((g, a, p) :(unit, 'asm) prog):'asm Expr._uprog =
   let fds = List.map (cufdef_of_fdef) p in
   let gd  = List.map (cgd_of_gd) g in
+  let a = cuabstr_of_abstr a in
   { C.p_globs = gd; C.p_abstr = a; C.p_funcs = fds; C.p_extra = () }
+
+let abstr_p_of_cuabstr_p ((name, tyin), tyout) =
+  let tyin = List.map ty_of_cty tyin in
+  let tyout = ty_of_cty tyout in
+  (name,tyin,tyout)
+
+let abstr_of_cuabstr ((at,ap ): C.glob_abstract): abstract_decl=
+  at, List.map abstr_p_of_cuabstr_p ap
 
 let prog_of_cuprog p =
   List.map (gd_of_cgd) p.C.p_globs,
-  p.C.p_abstr,
+  abstr_of_cuabstr p.C.p_abstr,
   List.map (fdef_of_cufdef) p.C.p_funcs
-
 
 let csfdef_of_fdef ((fe,fd):('info, 'asm) sfundef) =
   let fn, fd = cufdef_of_fdef fd in
