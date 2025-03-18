@@ -1,0 +1,13 @@
+#[sct="transient × transient -> public"]
+export fn main(reg u64 bound data) -> reg u64 {
+  _ = #init_msf();
+  reg u64 sample;
+  #[no_termination_check]
+  while {
+    sample = [data];
+    #declassify sample = sample;
+    _ = #init_msf();
+  } (sample > bound)
+
+  return sample;
+}

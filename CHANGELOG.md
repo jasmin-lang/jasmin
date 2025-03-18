@@ -11,6 +11,10 @@
 
 ## Bug fixes
 
+- Fix liveness annotation of while loops
+  ([PR #1098](https://github.com/jasmin-lang/jasmin/pull/1098);
+  fixes [#1097](https://github.com/jasmin-lang/jasmin/issues/1097)).
+
 - Fix EC extraction of signed division and modulo, respectively to `\zquot` and
   `\zrem`
   ([PR #1090](https://github.com/jasmin-lang/jasmin/pull/1090)).
