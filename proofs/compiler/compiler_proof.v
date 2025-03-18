@@ -322,7 +322,10 @@ Proof.
   rewrite /check_sprog in check_pa.
   have [fda' [get_fda' check_fda']] := [elaborate
     allocation_proof.all_checked (pT:=progStack)
-      (p2:={| p_funcs := regalloc cparams (p_funcs pa); p_globs := p_globs pa; p_extra := p_extra pa |})
+    (p2:={| p_funcs := regalloc cparams (p_funcs pa);
+            p_globs := p_globs pa;
+            p_abstr := p_abstr pa;
+            p_extra := p_extra pa |})
       check_pa get_fda].
   have [fdb ok_fdb get_fdb] := [elaborate
     dead_code_prog_tokeep_get_fundef hpb get_fda'].

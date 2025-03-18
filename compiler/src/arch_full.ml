@@ -102,8 +102,8 @@ module Arch_from_Core_arch (A : Core_arch) :
   (* not sure it is the best place to define [rip], but we need to know [reg_size] *)
   let rip = V.mk "RIP" (Reg (Normal, Direct)) (tu reg_size) L._dummy []
 
-  let asmOp = Arch_extra.asm_opI A.asm_e
-  let asmOp_sopn = Sopn.asmOp_sopn pointer_data msf_size asmOp
+ let asmOp = Arch_extra.asm_opI A.asm_e
+ let asmOp_sopn = Sopn.asmOp_sopn pointer_data msf_size asmOp
 
   let var_of_reg (r:reg) : var = atoI.toI_r.to_ident r
 

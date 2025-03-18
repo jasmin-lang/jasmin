@@ -170,6 +170,7 @@ lang/tagged.v
 lang/type.v
 lang/utils.v
 lang/values.v
+lang/abstract_type.v
 lang/var.v
 lang/varmap.v
 lang/waes.v

@@ -238,6 +238,7 @@ and pp_type fmt ty =
   | TWord w -> pp_ws fmt w
   | TArray (w, e) -> F.fprintf fmt "%a[%a]" ptype (Syntax.string_of_sizetype w) pp_expr e
   | TAlias id -> F.fprintf fmt "%a" ptype (L.unloc id)
+  | Tabstract s -> F.fprintf fmt "%a" ptype (L.unloc s)
 
 and pp_ws fmt w = F.fprintf fmt "%a" ptype (string_of_wsize w)
 
@@ -429,6 +430,9 @@ let pp_path fmt s =
 let pp_typealias fmt id ty =
   F.fprintf fmt "%a %a = %a;" kw "type" dname (L.unloc id) pp_type ty
 
+let pp_abstract_ty fmt id =
+  F.fprintf fmt "%a %a;" kw "type" dname (L.unloc id)
+
 let rec pp_pitem fmt pi =
   match L.unloc pi with
   | PFundef f -> pp_fundef fmt f
@@ -441,6 +445,7 @@ let rec pp_pitem fmt pi =
           F.fprintf fmt "%a %s " kw "from" (L.unloc name)) in
       F.fprintf fmt "%a%a " pp_from from kw "require";
       List.iter (pp_path fmt) s
+  | Pabstract_ty t -> pp_abstract_ty fmt t.pat_name
   | PNamespace (ns, pis) ->
      (* TODO: ident within namespaces? *)
      F.fprintf fmt "%a %s " kw "namespace" (L.unloc ns);

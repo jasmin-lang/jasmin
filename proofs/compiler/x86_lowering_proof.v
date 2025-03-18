@@ -557,7 +557,7 @@ Section PROOF.
     + case: x => - [] [] [] // sz vn vi vs //= /[dup] ok_v.
       case/type_of_get_gvar => sz' [Hs Hs'].
       have := truncate_val_subtype Hv'. rewrite Hs -(truncate_val_has_type Hv').
-      case hty: (type_of_val v') => [ | | | sz'' ] //= hle.
+      case hty: (type_of_val v') => [ | | | sz'' | ] //= hle.
       case: (write_lval_undef Hw hty) => w ? {hty}; subst v'.
       case/truncate_valI: Hv' => s'' [] w'' [] ? ok_w ?; subst.
       case: Hs => ?; subst s''.

@@ -122,6 +122,9 @@ Definition lower_addressing_prog
       dummy_var_info
   in
   Let funcs := map_cfprog (lower_addressing_fd tmp) p.(p_funcs) in
-  ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
+      ok {| p_extra := p_extra p;
+            p_globs := p_globs p;
+            p_abstr := p_abstr p;
+            p_funcs := funcs |}.
 
 End Section.

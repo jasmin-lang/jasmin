@@ -1,0 +1,12 @@
+type real;
+param int test = 3;
+
+export
+fn main() -> reg u64{
+  reg u64 a;
+  reg real b1;
+  reg real b2;
+  b2 = b1;
+  a = a + test;
+  return a;
+}

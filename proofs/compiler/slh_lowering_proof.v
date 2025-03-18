@@ -30,7 +30,7 @@ Section CONST_PROP.
   Lemma use_mem_to_expr t v e' :
     to_expr (t := t) v = ok e' ->
     use_mem e' = false.
-  Proof. by case: t v => /= [?|?|//|??] [<-]. Qed.
+  Proof. by case: t v => /= [?|?|//|??|//] [<-]. Qed.
 
   #[local]
   Lemma use_mem_ssem_sop1 e op1 :

@@ -255,6 +255,7 @@ module Env : sig
 
   module Vars : sig
     val push_global   : 'asm env -> (P.pvar * P.pexpr_ P.ggexpr) -> 'asm env
+    val push_abstract : 'asm env -> string -> 'asm env
     val push_param    : 'asm env -> (P.pvar * P.pexpr) -> 'asm env
     val push_local    : 'asm env -> P.pvar -> 'asm env
     val push_implicit : 'asm env -> P.pvar -> 'asm env
@@ -266,6 +267,11 @@ module Env : sig
   end
 
   module TypeAlias : sig
+    val push : 'asm env -> A.pident -> P.pty -> 'asm env
+    val get : 'asm env -> A.pident -> P.pty L.located
+  end
+
+  module TypeAbstract : sig
     val push : 'asm env -> A.pident -> P.pty -> 'asm env
     val get : 'asm env -> A.pident -> P.pty L.located
   end
@@ -303,7 +309,7 @@ end  = struct
     e_declared : P.Spv.t ref; (* Set of local variables declared somewhere in the function *)
     e_reserved : Ss.t;     (* Set of string (variable name) declared by the user, 
                               fresh variables introduced by the compiler 
-                              should be disjoint from this set *) 
+                              should be disjoint from this set *)
     e_known_implicits : (string * string) list;  (* Association list for implicit flags *)
   }
 
@@ -478,6 +484,9 @@ end  = struct
       let env = push_core env name x Sglob in
       { env with e_decls = P.MIglobal (x, e) :: env.e_decls }
 
+    let push_abstract env s =
+      { env with e_decls = P.MItypeabstr s :: env.e_decls }
+
     let push_param env (x, e) =
       let name = x.P.v_name in
       let x = rename_var (fully_qualified (fst env.e_bindings) name) x in
@@ -493,7 +502,7 @@ end  = struct
       assert (not (Map.mem v.P.v_name vars));
       push_core env v.P.v_name v Slocal
 
-    
+
     let iter_locals f (env : 'asm env) = 
       P.Spv.iter f !(env.e_declared)
 
@@ -505,6 +514,31 @@ end  = struct
   module TypeAlias = struct
 
     let push (env: 'asm env) (id: A.pident) (ty: P.pty) : 'asm env =
+      match find (fun x -> x.gb_types) (L.unloc id) env with
+      | Some alias ->
+         rs_tyerror  ~loc:(L.loc id)  (DuplicateAlias (L.unloc id, (L.mk_loc (L.loc id) ty) ,alias) )
+      | None ->
+          let ty = L.mk_loc (L.loc id) ty in
+          let doit v = {v with gb_types = Map.add (L.unloc id) ty v.gb_types }
+          in let binds =
+          match env.e_bindings with
+          | ([],gb) -> [],doit gb
+          | ((ns,gb):: stack, glob) -> (ns,doit gb):: stack , glob
+          in
+          {env with e_bindings = binds}
+
+    let get (env: 'asm env) (id: A.pident) : P.pty L.located =
+      let typea = find (fun b -> b.gb_types) (L.unloc id) env in
+      match typea with
+      | None ->
+        rs_tyerror  ~loc:(L.loc id) (TypeNotFound (L.unloc id))
+      | Some e -> e
+
+  end
+
+  module TypeAbstract = struct
+
+    let push (env: 'asm env) (id: A.pident) (ty: P.pty): 'asm env =
       match find (fun x -> x.gb_types) (L.unloc id) env with
       | Some alias ->
          rs_tyerror  ~loc:(L.loc id)  (DuplicateAlias (L.unloc id, (L.mk_loc (L.loc id) ty) ,alias) )
@@ -987,6 +1021,7 @@ let conv_ty : T.stype -> P.pty = function
     | T.Coq_sint     -> P.tint
     | T.Coq_sword ws -> P.Bty (P.U ws)
     | T.Coq_sarr p   -> P.Arr (U8, PE (P.icnst (Conv.int_of_pos p)))
+    | T.Coq_sabstract s -> P.Bty (P.Abstract s)
 
 let type_of_op2 op = 
   let (ty1, ty2), tyo = E.type_of_op2 op in
@@ -1239,6 +1274,7 @@ and tt_type pd (env : 'asm Env.env) (pty : S.ptype) : P.pty =
           | ty -> rs_tyerror  ~loc:(L.loc id) (InvalidTypeAlias ((L.unloc id),ty))
      in P.Arr (ws, P.PE (fst (tt_expr ~mode:`OnlyParam pd env e)))
   | S.TAlias id -> L.unloc (Env.TypeAlias.get env id)
+  | S.Tabstract s -> P.Bty (P.Abstract (L.unloc s))
 
 (* -------------------------------------------------------------------- *)
 let tt_exprs pd (env : 'asm Env.env) es = List.map (tt_expr ~mode:`AllVar pd env) es
@@ -2243,6 +2279,12 @@ let tt_typealias arch_info env id ty =
   Env.TypeAlias.push env id alias
 
 (* -------------------------------------------------------------------- *)
+let tt_abstract_typ arch_info env id =
+  let typ = P.Bty (P.Abstract (L.unloc id)) in
+  let env = Env.Vars.push_abstract env (L.unloc id) in
+  Env.TypeAbstract.push env id typ
+
+(* -------------------------------------------------------------------- *)
 let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
   match L.unloc pt with
   | S.PParam  pp -> tt_param  arch_info.pd env (L.loc pt) pp
@@ -2255,6 +2297,7 @@ let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
       env
   | S.Prequire (from, fs) ->
     List.fold_left (tt_file_loc arch_info from) env fs
+  | S.Pabstract_ty pat -> tt_abstract_typ arch_info env pat.pat_name
   | S.PNamespace (ns, items) ->
      let env = Env.enter_namespace env ns in
      let env = List.fold_left (tt_item arch_info) env items in

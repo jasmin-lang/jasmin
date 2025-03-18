@@ -140,10 +140,10 @@ type ('info, 'asm) fenv = {
 let pp_arg fmt (x, lvl) =
   Format.fprintf fmt "%a %a" Lvl.pp lvl (Printer.pp_var ~debug:false) x
 
-let pp_signature prog fmt (fn, { tyin ; tyout }) =
+let pp_signature (_,_,prog) fmt (fn, { tyin ; tyout }) =
   Format.fprintf fmt "@[<h>@[%s(@[%a@]) ->@ @[%a@]@]@]@."
     fn.fn_name
-    (pp_list ",@ " pp_arg) (List.combine (List.find (fun f -> F.equal f.f_name fn) (snd prog)).f_args tyin)
+    (pp_list ",@ " pp_arg) (List.combine (List.find (fun f -> F.equal f.f_name fn) prog).f_args tyin)
     (pp_list ",@ " Lvl.pp) tyout
 
 (* -----------------------------------------------------------*)
@@ -602,8 +602,7 @@ and ty_fun is_ct_asm fenv fn =
   let tyin = List.map (fun lvl -> Env.norm_lvl env lvl) tyin in
   { tyin ; tyout }
 
-let ty_prog (is_ct_asm: 'asm -> bool)  ~infer (prog: ('info, 'asm) prog) fl =
-  let prog = snd prog in
+let ty_prog (is_ct_asm: 'asm -> bool)  ~infer ((_,_,prog): ('info, 'asm) prog) fl =
   let fenv =
     { ensure_annot = not infer
     ; env_ty       = Hf.create 101

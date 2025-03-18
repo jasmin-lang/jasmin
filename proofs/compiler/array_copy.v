@@ -156,6 +156,7 @@ Definition array_copy_prog (p:prog) :=
   Let fds := map_cfprog (array_copy_fd V) (p_funcs p) in
   ok {| p_funcs := fds;
         p_globs := p_globs p;
+        p_abstr := p_abstr p;
         p_extra := p_extra p|}.
 
 End Section.

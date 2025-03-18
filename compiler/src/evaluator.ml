@@ -193,7 +193,10 @@ let pp_word fmt ws w =
   let z = Word0.wunsigned ws w in
   let z = Conv.z_of_cz z in
   Printer.pp_print_X fmt z
-  
+
+let pp_abstract fmt s =
+  Format.fprintf fmt "abstract<%a>" Utils.pp_string s
+
 let pp_val fmt v = 
   match v with
   | Vbool b -> Format.fprintf fmt "%b" b
@@ -214,11 +217,4 @@ let pp_val fmt v =
     Format.fprintf fmt "]@]";
   | Vword(ws, w) -> pp_word fmt ws w
   | Vundef ty -> pp_undef fmt ty
-
-
- 
-
-      
-
-
-
+  | Vabstract (s, _) -> pp_abstract fmt s

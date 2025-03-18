@@ -6,7 +6,7 @@ let path = "fail"
 
 let load_and_check name =
   Format.printf "File %s:@." name;
-  let ((_, fds) as p) = load_file (Filename.concat path name) in
+  let ((_, _, fds) as p) = load_file (Filename.concat path name) in
   List.iter
     (fun fd ->
       if fd.Prog.f_cc <> Internal then

@@ -112,7 +112,10 @@ Definition load_constants_fd (fd: fundef) :=
 Definition load_constants_prog (doit: bool) p : cexec prog :=
   if doit then
     Let funcs := map_cfprog load_constants_fd p.(p_funcs) in
-    ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}
+      ok {| p_extra := p_extra p;
+            p_globs := p_globs p;
+            p_abstr := p_abstr p;
+            p_funcs := funcs |}
   else ok p.
 
 End ASM_OP.

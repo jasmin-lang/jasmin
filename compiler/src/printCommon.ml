@@ -118,6 +118,7 @@ let pp_btype fmt = function
   | Bool -> fprintf fmt "bool"
   | U i -> fprintf fmt "u%i" (int_of_ws i)
   | Int -> fprintf fmt "int"
+  | Abstract s -> fprintf fmt "%a" pp_string s
 
 (* -------------------------------------------------------------------- *)
 let pp_gtype (pp_size : formatter -> 'size -> unit) fmt = function

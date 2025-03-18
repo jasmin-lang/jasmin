@@ -38,12 +38,14 @@ let cty_of_ty = function
   | Bty Int       -> T.Coq_sint
   | Bty (U sz)   -> T.Coq_sword(sz)
   | Arr (sz, len) -> T.Coq_sarr (pos_of_int (size_of_ws sz * len))
+  | Bty Abstract s -> T.Coq_sabstract s
 
 let ty_of_cty = function
   | T.Coq_sbool  ->  Bty Bool
   | T.Coq_sint   ->  Bty Int
   | T.Coq_sword sz -> Bty (U sz)
   | T.Coq_sarr p -> Arr (U8, int_of_pos p)
+  | T.Coq_sabstract s -> Bty (Abstract s)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -265,13 +267,14 @@ let gd_of_cgd (x, gd) =
   (var_of_cvar x, gd)
 
 
-let cuprog_of_prog p =
-  let fds = List.map (cufdef_of_fdef) (snd p) in
-  let gd  = List.map (cgd_of_gd) (fst p) in
-  { C.p_globs = gd; C.p_funcs = fds; C.p_extra = () }
+let cuprog_of_prog (g, a, p) =
+  let fds = List.map (cufdef_of_fdef) p in
+  let gd  = List.map (cgd_of_gd) g in
+  { C.p_globs = gd; C.p_abstr = a; C.p_funcs = fds; C.p_extra = () }
 
 let prog_of_cuprog p =
   List.map (gd_of_cgd) p.C.p_globs,
+  p.C.p_abstr,
   List.map (fdef_of_cufdef) p.C.p_funcs
 
 

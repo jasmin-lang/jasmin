@@ -114,14 +114,14 @@ end = struct
 
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
 
-  let mk_uniq main_decl ((glob_decls, fun_decls) : (unit, 'asm) prog) =
+  let mk_uniq main_decl ((glob_decls, abstr_decl, fun_decls) : (unit, 'asm) prog) =
     Hashtbl.clear ht_uniq;
     Hashtbl.clear htv;
 
     let m_decl = mk_f main_decl in
     (m_decl,
      (* We use the main function to prefix global variables. *)
-     (mk_globs main_decl.f_name.fn_name glob_decls,
+     (mk_globs main_decl.f_name.fn_name glob_decls, abstr_decl,
       List.map mk_f fun_decls))
 
 end

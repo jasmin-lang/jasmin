@@ -395,6 +395,8 @@ Notation mk_instr str_jas tin tout ain aout msb semi args_kinds nargs safe_cond 
   id_eq_size    := refl_equal;
   id_tin_narr   := refl_equal;
   id_tout_narr  := refl_equal;
+  id_tin_nabst := refl_equal;
+  id_tout_nabst := refl_equal;
   id_check_dest := refl_equal;
   id_str_jas    := str_jas;
   id_safe       := safe_cond;
@@ -406,7 +408,7 @@ Notation mk_instr str_jas tin tout ain aout msb semi args_kinds nargs safe_cond 
 
 (* Can only be use for safe instruction *)
 Notation mk_instr_safe str_jas tin tout ain aout msb semi args_kinds nargs valid pp_asm :=
-  (mk_instr str_jas tin tout ain aout msb (sem_prod_ok tin semi) args_kinds nargs [::] valid pp_asm
+  (mk_instr str_jas tin tout ain aout msb (@sem_prod_ok _ tin semi) args_kinds nargs [::] valid pp_asm
     refl_equal
     (fun _ => (@sem_prod_ok_error _ tin semi ErrType))
     (fun _ => (@values.sem_prod_ok_safe _ tin semi)))

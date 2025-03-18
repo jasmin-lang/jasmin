@@ -583,7 +583,7 @@ end = struct
       state f_args
 
   let init_env : ('info, 'asm) prog -> mem_loc list -> s_env =
-    fun (glob_decls, _fun_decls) mem_locs ->
+    fun (glob_decls, _,  _fun_decls) mem_locs ->
     let env = { s_glob = Sv.empty; m_locs = mem_locs } in
     let env =
       List.fold_left (fun env (x, _) -> add_glob_var env x)
@@ -598,9 +598,9 @@ end = struct
     env
 
   let init_state : (unit, 'asm) func -> (minfo, 'asm) func -> (minfo, 'asm) prog -> astate * warnings =
-    fun main_source main_decl (glob_decls, fun_decls) ->
+    fun main_source main_decl (glob_decls, abstract_decl, fun_decls) ->
       let mem_locs = List.map (fun x -> MemLoc x) main_decl.f_args in
-      let env = init_env (glob_decls, fun_decls) mem_locs in
+      let env = init_env (glob_decls, abstract_decl, fun_decls) mem_locs in
       let it = ItMap.empty in
 
       (* We add the initial variables *)
@@ -646,7 +646,7 @@ end = struct
                     abs = abs;
                     cstack = [main_decl.f_name];
                     env = env;
-                    prog = (glob_decls, fun_decls);
+                    prog = (glob_decls, abstract_decl, fun_decls);
                     s_effects = [];
                     violations = []; } in
 

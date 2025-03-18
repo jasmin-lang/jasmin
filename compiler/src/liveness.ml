@@ -92,9 +92,9 @@ let live_fd weak fd =
   let s_i, c = live_c weak fd.f_body s_o in
   { fd with f_body = c; f_info = (s_i, s_o) }
 
-let liveness weak prog =
-  let fds = List.map (live_fd weak) (snd prog) in
-  fst prog, fds
+let liveness weak (g, a, prog) =
+  let fds = List.map (live_fd weak) prog in
+  g, a, fds
 
 let iter_call_sites (cbf: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit)
                     (cbs: L.i_loc -> BinNums.positive Syscall_t.syscall_t -> lvals -> Sv.t * Sv.t -> unit)

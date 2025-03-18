@@ -1,5 +1,6 @@
 Require Import
   sem_params
+  sem_type
   syscall.
 Require Import
   arch_decl

@@ -468,6 +468,7 @@ Definition _fun_decl (extra_fun_t: Type) := (funname * _fundef extra_fun_t)%type
 Record _prog (extra_fun_t: Type) (extra_prog_t: Type):= {
   p_funcs : seq (_fun_decl extra_fun_t);
   p_globs : glob_decls;
+  p_abstr : seq string;
   p_extra : extra_prog_t;
 }.
 
@@ -487,7 +488,8 @@ Definition fun_decl := (funname * fundef)%type.
 
 Definition prog := _prog extra_fun_t extra_prog_t.
 
-Definition Build_prog p_funcs p_globs p_extra : prog := Build__prog p_funcs p_globs p_extra.
+Definition Build_prog p_funcs p_globs p_abstr p_extra : prog :=
+  Build__prog p_funcs p_globs p_abstr p_extra.
 
 End PROG.
 

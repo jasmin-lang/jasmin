@@ -38,7 +38,7 @@ and inspect_instr_r k = function
   | Cfor (_, (_, e1, e2), s) -> inspect_stmt (inspect_es k [ e1; e2 ]) s
   | Ccall (xs, fn, es) -> with_fun (inspect_lvs (inspect_es k es) xs) fn
 
-let slice fs (gd, fds) =
+let slice fs (gd, ab, fds) =
   let funs =
     List.fold_left
       (fun s n ->
@@ -68,4 +68,4 @@ let slice fs (gd, fds) =
         else { fd with f_cc = Internal })
       fds
   in
-  (gd, fds)
+  (gd, ab, fds)

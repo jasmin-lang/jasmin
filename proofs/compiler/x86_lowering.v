@@ -78,7 +78,7 @@ Definition stype_of_lval (x: lval) : stype :=
 Definition wsize_of_stype (ty: stype) : wsize :=
   match ty with
   | sword sz => sz
-  | sbool | sint | sarr _ => U64
+  | sbool | sint | sarr _ | sabstract _ => U64
   end.
 
 Definition wsize_of_lval (lv: lval) : wsize :=

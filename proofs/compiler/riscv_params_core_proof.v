@@ -39,7 +39,7 @@ Definition sem_fopn_args (p : seq lexpr * riscv_op * seq rexpr) (s : estate) :=
   Let args := sem_rexprs s es in
   let op := instr_desc_op o in
   Let _ := assert (id_valid op) ErrType in
-  Let t := app_sopn (id_tin op) (id_semi op) args in
+  Let t := @app_sopn _ (id_tin op) (id_semi op) args in
   let res := list_ltuple t in
   write_lexprs xs res s.
 

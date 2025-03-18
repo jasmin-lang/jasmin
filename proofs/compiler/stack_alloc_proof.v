@@ -25,7 +25,7 @@ Proof. by apply size_of_gt0. Qed.
 
 Lemma size_of_le ty ty' : subtype ty ty' -> size_of ty <= size_of ty'.
 Proof.
-  case: ty => [||p|ws]; case:ty' => [||p'|ws'] //.
+  case: ty => [||p|ws|]; case:ty' => [||p'|ws'|] //.
   + by move=> /eqP ->; lia.
   move=> /wsize_size_le.
   by apply Z.divide_pos_le.

@@ -76,7 +76,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
        and type rflag = rflag
        and type cond = cond
        and type asm_op = asm_op
-       and type extra_op = extra_op) visit_prog_after_pass prog cprog =
+       and type extra_op = extra_op) visit_prog_after_pass (_,_,prog) cprog =
   let module Regalloc = Regalloc.Regalloc (Arch) in
   let module StackAlloc = StackAlloc.StackAlloc (Arch) in
   let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef (fn, cfd) in
@@ -352,7 +352,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
         match fd.f_cc with
         | Export _ -> conv fd :: acc
         | Internal | Subroutine _ -> acc)
-      (snd prog) []
+      prog []
   in
 
   Compiler.compile_prog_to_asm Arch.asm_e Arch.call_conv Arch.aparams cparams

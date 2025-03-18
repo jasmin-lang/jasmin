@@ -1474,8 +1474,7 @@ and ty_fun_infer is_ct_asm fenv fn =
 
 
 let ty_prog is_ct_asm (prog:('info, 'asm) prog) fl =
-  let prog = Liveness.liveness false prog in
-  let prog = snd prog in
+  let (_, _, prog) = Liveness.liveness false prog in
   let fenv = { env_ty = Hf.create 101; env_def = prog } in
   let fl =
     if fl = [] then
@@ -1491,8 +1490,7 @@ let ty_prog is_ct_asm (prog:('info, 'asm) prog) fl =
 (* ------------------------------------------------------------------------------- *)
 (* Inference of msf_info needed by the compiler                                    *)
 
-let compile_infer_msf (prog:('info, 'asm) prog) =
-  let prog = snd prog in
+let compile_infer_msf ((_, _, prog):('info, 'asm) prog) =
   let fenv = { env_ty = Hf.create 101; env_def = prog } in
 
   let env = Env.init () in
