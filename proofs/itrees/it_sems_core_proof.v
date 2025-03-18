@@ -80,6 +80,72 @@ Unset Printing Implicit Defensive.
  need to be revised. The proofs on the flat models are much longer and
  more laden with detail than those on the error-aware model. *)
 
+Variant prcompose {E1 E2 E3 : Type -> Type}
+  (pre : prerel E1 E2) (pre' : prerel E2 E3) T1 T3 (e1 : E1 T1) (e3 : E3 T3) : Prop :=
+| Cprerel T2 (e2 :E2 T2) (REL1 : pre T1 T2 e1 e2) (REL2 : pre' T2 T3 e2 e3).
+
+Variant pocompose {E1 E2 E3 : Type -> Type}
+  (post : postrel E1 E2) (post' : postrel E2 E3)
+  T1 T3 (e1 : E1 T1) (t1 : T1) (e3 : E3 T3) (t3 : T3) : Prop :=
+| Cpostrel T2 (e2:E2 T2) (t2:T2) (REL1: post T1 T2 e1 t1 e2 t2) (REL2 : post' T2 T3 e2 t2 e3 t3).
+
+(*
+ EE1 e1  EE2 e2   EE3 e3
+ false   _        _      -> done
+ _       _        false  -> done
+ true    true     true   -> transitivity
+ true    false    true   -> this should be rejected.
+*)
+Lemma rutt_trans {E1 E2 E3: Type -> Type}
+  {HasErr1: ErrEvent -< E1} (EE1 : forall X : Type, E1 X -> bool)
+  {HasErr2: ErrEvent -< E2} (EE2 : forall X : Type, E2 X -> bool)
+  {HasErr3: ErrEvent -< E3} (EE3 : forall X : Type, E3 X -> bool)
+  {O1 O2 O3 : Type}
+  (RpreInv12 : prerel E1 E2)
+  (RpreInv23 : prerel E2 E3)
+  (RpostInv12: postrel E1 E2)
+  (RpostInv23: postrel E2 E3)
+  (post12 : O1 -> O2 -> Prop)
+  (post23 : O2 -> O3 -> Prop)
+  t1 t2 t3 :
+  (forall T1 T2 T3 e1 e2 e3, ~[/\ EE1 T1 e1, ~ EE2 T2 e2 & EE3 T3 e3]) ->
+  rutt EE1 EE2 RpreInv12 RpostInv12 post12 t1 t2 ->
+  rutt EE2 EE3 RpreInv23 RpostInv23 post23 t2 t3 ->
+  rutt EE1 EE3 (prcompose RpreInv12 RpreInv23) (pocompose RpostInv12 RpostInv23) (rcompose post12 post23) t1 t3.
+Admitted.
+
+(*
+ EE1 e1  EE1' e1
+ false   false  -> done
+ true    false  -> done
+ false   true   -> this should be rejected
+ true    true   -> done
+EE1' e1 -> EE1 e1
+*)
+
+Lemma rutt_weaken {E1 E2: Type -> Type}
+  {HasErr1: ErrEvent -< E1} (EE1 EE1': forall X : Type, E1 X -> bool)
+  {HasErr2: ErrEvent -< E2} (EE2 EE2': forall X : Type, E2 X -> bool)
+  {O1 O2 : Type}
+  (RpreInv RpreInv': prerel E1 E2)
+  (RpostInv RpostInv': postrel E1 E2)
+  (post post' : O1 -> O2 -> Prop) t1 t2 :
+
+  (forall T (e : E1 T), EE1' T e -> EE1 T e) ->
+  (forall T (e : E2 T), EE2' T e -> EE2 T e) ->
+
+  (forall T1 T2 (e1 : E1 T1) (e2 : E2 T2),
+    RpreInv' T1 T2 e1 e2 -> RpreInv T1 T2 e1 e2) ->
+
+  (forall T1 T2 (e1 : E1 T1) (t1 : T1) (e2 : E2 T2) (t2 : T2) ,
+    RpostInv T1 T2 e1 t1 e2 t2 -> RpostInv' T1 T2 e1 t1 e2 t2) ->
+
+  (forall o1 o2, post o1 o2 -> post' o1 o2) ->
+
+  rutt EE1 EE2 RpreInv RpostInv post t1 t2 ->
+  rutt EE1' EE2' RpreInv' RpostInv' post' t1 t2.
+Admitted.
+
 Class with_Error (E: Type -> Type) {HasErr: ErrEvent -< E} := {
   is_error : forall {X}, E X -> bool;
   is_error_has : forall {X} (e:ErrEvent X) , is_error (HasErr X e)
@@ -101,13 +167,20 @@ Definition rutt_err {E1 E2: Type -> Type}
   (post      : O1 -> O2 -> Prop) :=
   @rutt E1 E2 O1 O2 ErrorCutoff NoCutoff RpreInv RpostInv post.
 
+Definition is_error_suml {E: Type -> Type} {HasErr: ErrEvent -< E} {wE : with_Error E} T X (e: (T +' E) X) :=
+  match e with
+  | inl1 _ => false
+  | inr1 e => is_error e
+  end.
+
+Lemma is_error_sumlP {E : Type -> Type} {HasErr : ErrEvent -< E} {wE : with_Error E} T :
+  forall (X : Type) (e : ErrEvent X), is_error_suml (ReSum_inr IFun sum1 ErrEvent E T X e).
+Proof. move=> X e /=; apply is_error_has. Qed.
+
 Instance with_Error_suml {E: Type -> Type} {HasErr: ErrEvent -< E} {wE : with_Error E} (T:Type -> Type) :
-  with_Error (T +' E).
-Proof.
-  apply (@Build_with_Error _ _  (EE_MR (fun X (e: E X) => is_error e) T)).
-  move=> x e => /=.
-  apply is_error_has.
-Defined.
+  with_Error (T +' E) :=
+  {| is_error := is_error_suml (T:=T)
+   ; is_error_has := is_error_sumlP T |}.
 
 Lemma interp_mrec_rutt_err {D1 D2 E1 E2 : Type -> Type}
    {HasErr1: ErrEvent -< E1} {wE1 : with_Error E1}
@@ -126,6 +199,30 @@ Lemma interp_mrec_rutt_err {D1 D2 E1 E2 : Type -> Type}
 Proof.
   move=> hrec R1 R2 RR t1 t2 ht.
   apply interp_mrec_rutt with (RPreInv := RPreInv) (RPostInv := RPostInv).
+(*
+  + move=> > /hrec.
+    apply: rutt_weaken => //.
+    + by move=> ? [].
+rewrite /ErrorCutoff /is_error => t [] /=.
+
+ t [] => /=.
+rewrite / *)
+
+(* FIXME :
+This need to be generalized to have extantionnal equality over EE1 EE2.
+
+rutt_Proper_R:
+  forall {E1 E2 : Type -> Type} {R1 R2 : Type} (EE1 : forall X : Type, E1 X -> bool)
+    (EE2 : forall X : Type, E2 X -> bool), Proper (eq_REv ==> eq_RAns ==> eq_rel ==> eq ==> eq ==> iff) (rutt EE1 EE2)
+rutt_Proper_R3:
+  forall {E1 E2 : Type -> Type} {R1 R2 : Type} (EE1 : forall X : Type, E1 X -> bool)
+    (EE2 : forall X : Type, E2 X -> bool),
+  Proper (eq_REv ==> eq_RAns ==> eq_rel ==> eutt eq ==> eutt eq ==> iff) (rutt EE1 EE2)
+rutt_Proper_R2:
+  forall {E1 E2 : Type -> Type} {R1 R2 : Type} (EE1 : forall X : Type, E1 X -> bool)
+    (EE2 : forall X : Type, E2 X -> bool),
+  Proper (eq_REv ==> eq_RAns ==> eq_rel ==> eq_itree eq ==> eq_itree eq ==> iff) (rutt EE1 EE2)
+*)
   + admit. (* this is hrec modulo extentional equality *)
   admit. (* this is ht modulo extentional equality *)
 Admitted.
@@ -134,12 +231,33 @@ Lemma rutt_err_weaken {E1 E2: Type -> Type}
   {HasErr1: ErrEvent -< E1} {wE1 : with_Error E1}
   {HasErr2: ErrEvent -< E2} {wE2 : with_Error E2}
   {O1 O2 : Type}
-  (RpreInv : prerel E1 E2)
-  (RpostInv: postrel E1 E2)
+  (RpreInv RpreInv': prerel E1 E2)
+  (RpostInv RpostInv': postrel E1 E2)
   (post post' : O1 -> O2 -> Prop) t1 t2 :
+  (forall T1 T2 (e1 : E1 T1) (e2 : E2 T2),
+    RpreInv' T1 T2 e1 e2 -> RpreInv T1 T2 e1 e2) ->
+  (forall T1 T2 (e1 : E1 T1) (t1 : T1) (e2 : E2 T2) (t2 : T2) ,
+    RpostInv T1 T2 e1 t1 e2 t2 -> RpostInv' T1 T2 e1 t1 e2 t2) ->
   (forall o1 o2, post o1 o2 -> post' o1 o2) ->
   rutt_err RpreInv RpostInv post t1 t2 ->
-  rutt_err RpreInv RpostInv post' t1 t2.
+  rutt_err RpreInv' RpostInv' post' t1 t2.
+Admitted.
+
+Lemma rutt_err_trans {E1 E2 E3: Type -> Type}
+  {HasErr1: ErrEvent -< E1} {wE1 : with_Error E1}
+  {HasErr2: ErrEvent -< E2} {wE2 : with_Error E2}
+  {HasErr3: ErrEvent -< E3} {wE3 : with_Error E3}
+  {O1 O2 O3 : Type}
+  (RpreInv12 : prerel E1 E2)
+  (RpreInv23 : prerel E2 E3)
+  (RpostInv12: postrel E1 E2)
+  (RpostInv23: postrel E2 E3)
+  (post12 : O1 -> O2 -> Prop)
+  (post23 : O2 -> O3 -> Prop)
+  t1 t2 t3 :
+  rutt_err RpreInv12 RpostInv12 post12 t1 t2 ->
+  rutt_err RpreInv23 RpostInv23 post23 t2 t3 ->
+  rutt_err (prcompose RpreInv12 RpreInv23) (pocompose RpostInv12 RpostInv23) (rcompose post12 post23) t1 t3.
 Admitted.
 
 Definition rel (I1 I2 : Type) := I1 -> I2 -> Prop.
@@ -312,7 +430,7 @@ Lemma iequiv_io_weaken {I1 I2 O1 O2} (P P' : rel I1 I2) (Q Q': relIO I1 I2 O1 O2
   iequiv_io P' F1 F2 Q'.
 Proof.
   move=> hP'P hQQ' heqv i1 i2 hP'.
-  apply rutt_err_weaken with (Q i1 i2).
+  apply rutt_err_weaken with RPreInv RPostInv (Q i1 i2) => //.
   + by move=> >; apply hQQ'.
   by apply/heqv/hP'P.
 Qed.
