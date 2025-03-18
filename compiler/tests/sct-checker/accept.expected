@@ -135,6 +135,13 @@ output corruption: #transient
  constraints:
 
 
+File bug_1097.jazz:
+modmsf main : #transient * #transient ->
+#public
+output corruption: #public
+ constraints:
+
+
 File bug_852.jazz:
 nomodmsf reset : #public ->
 
