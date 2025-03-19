@@ -110,8 +110,8 @@ Fixpoint pi_e (pi:pimap) (e:pexpr) :=
     | Some c => c.(pi_def)
     | None => e
     end
-  | Pis_arr_init x e => Pis_arr_init x (pi_e pi e)
-  | Pis_mem_init e => Pis_mem_init (pi_e pi e)
+  | Pis_arr_init x e1 e2 => Pis_arr_init x (pi_e pi e1) (pi_e pi e2)
+  | Pis_mem_init e1 e2 => Pis_mem_init (pi_e pi e1) (pi_e pi e2)
 
   end.
 

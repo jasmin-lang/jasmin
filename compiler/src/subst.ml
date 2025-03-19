@@ -34,9 +34,10 @@ let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gex
          gsubst_e flen f e1,
          gsubst_e flen f e2,
          gsubst_e flen f e0)
-  | Pis_var_init x -> Pis_var_init (gsubst_vdest f x)
-  | Pis_arr_init (x,e) -> Pis_arr_init (gsubst_vdest f x, gsubst_e flen f e)
-  | Pis_mem_init e -> Pis_mem_init (gsubst_e flen f e)
+  | Pis_var_init v -> Pis_var_init (gsubst_vdest f v)
+  | Pis_arr_init (v,e1,e2) -> Pis_arr_init (gsubst_vdest f v, gsubst_e flen f e1,gsubst_e flen f e2)
+  | Pis_mem_init (e1,e2) -> Pis_mem_init (gsubst_e flen f e1,gsubst_e flen f e2)
+
 
 and gsubst_gvar f v =
   match f v with

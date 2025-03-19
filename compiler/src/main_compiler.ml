@@ -156,20 +156,16 @@ let main () =
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
 
-
-    let prog = match prog with
-      | (globals,abstract, funcs) -> 
-        let updated_funcs =
-          List.map (fun f ->
-            let (fn, cfd) = Conv.cufdef_of_fdef f in
-            let new_func = Safety_cond.sc_func Arch.asmOp cfd in
-            Conv.fdef_of_cufdef (fn,new_func)
-          ) funcs
-        in
-        (globals,abstract, updated_funcs)
+    let b (v:Var0.Var.var) = 
+      let v' = Conv.fresh_var_ident (Reg (Normal, Direct)) IInfo.dummy Uint63.(of_int 0) ("b_"^v.vname.v_name) Coq_sbool in
+      Conv.cvar_of_var v'
     in
+    let cprog = Conv.cuprog_of_prog prog in
+    let sc_prog = Safety_cond.sc_prog Arch.reg_size Arch.asmOp cprog in
+    let rm_init_prog = Remove_is_var_init.rm_var_init_prog Arch.asmOp Arch.msf_size b sc_prog in
+    let prog = Conv.prog_of_cuprog rm_init_prog in
 
-    Format.eprintf "@[<v>Modified syntax tree:@;%a@.@]" 
+    Format.eprintf "@[<v>Program after removing is_init_var:@;%a@.@]" 
     (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) prog; 
 
     (* This function is called after each compilation pass.

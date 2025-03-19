@@ -95,6 +95,8 @@ Fixpoint etype (e : pexpr) : result unit stype :=
   | Not of safe_cond                    (* Not sc : !sc *)
   | And of safe_cond & safe_cond        And sc1 sc2 : sc1 && sc2
   .*)
+Section EXPR.
+Context {pd: PointerData}.
 
 
 
@@ -187,6 +189,8 @@ Definition emod e1 e2 := Papp2 (Omod Cmp_int) e1 e2.
 
 Definition ewsize sz := Pconst(wsize_size sz).
 
+Definition eaddptr e1 e2 := Papp2 (Oadd (Op_w Uptr)) e1 e2.
+
 Definition eis_aligned e sz :=
   let sc_align := emod e (ewsize sz) in
   eeq sc_align (Pconst 0).
@@ -212,8 +216,7 @@ Definition sc_in_bound ty aa sz elen e :=
 Definition sc_arr_init (x:gvar) aa sz e :=
   if is_lvar x then
     let lo := emk_scale aa sz e in
-    let conds := map (fun i => Pis_arr_init x.(gv) (eaddi lo (Pconst i))) (ziota 0 (wsize_size sz)) in
-    conds
+   [:: Pis_arr_init x.(gv) lo (Pconst (wsize_size sz))]
   else [::].
 
 Definition sc_arr_get (x:gvar) al aa sz e :=
@@ -231,9 +234,11 @@ Definition sc_is_aligned_if_m al sz e :=
   else
   [:: eis_aligned e sz].
 
+Definition i_to_ptr i := Papp1 (Oword_of_int Uptr) (Pconst i).
+
 
 Definition sc_mem_valid (e: pexpr) sz :=
-  map (fun i => Pis_mem_init (eaddi e (Pconst i))) (ziota 0 (wsize_size sz)).
+  [:: Pis_mem_init e (wsize_size sz)].
 
 Fixpoint sc_e (e : pexpr) : seq pexpr :=
   match e with
@@ -252,7 +257,7 @@ Fixpoint sc_e (e : pexpr) : seq pexpr :=
   | Pload al ws x e =>
     let scx := sc_var_init x in
     let sce := sc_e e in
-    let plo := eaddi (Plvar x) e in
+    let plo :=  eaddptr (Plvar x) e in
     let sca := sc_is_aligned_if_m al ws plo in
     let sc_load := sc_mem_valid plo ws in
 
@@ -284,7 +289,7 @@ Fixpoint sc_e (e : pexpr) : seq pexpr :=
     let sce2 := sc_e e2 in
     let sce3 := sc_e e3 in
     scidx ++ sce1 ++ sce2 ++ sce3 
-  | Pis_var_init _ | Pis_arr_init _ _ | Pis_mem_init _ => [::e]
+  | Pis_var_init _ | Pis_arr_init _ _ _ | Pis_mem_init _ _ => [::e]
   end.
 
 Definition sc_lval (lv : lval) : seq pexpr :=
@@ -294,7 +299,7 @@ Definition sc_lval (lv : lval) : seq pexpr :=
   | Lmem al ws x e =>
     let scx := sc_var_init x in
     let sce := sc_e e in
-    let plo := eaddi (Plvar x) e in
+    let plo:= eaddptr (Plvar x) e in
     let sca := sc_is_aligned_if_m al ws plo in
     let sc_load := sc_mem_valid plo ws in
     scx ++ sce ++ sca ++ sc_load
@@ -350,11 +355,11 @@ Fixpoint sc_instr (i : instr) : cmd :=
     let i := instrr_to_instr ii (Cfor x (d,e1,e2) sc_c) in
     sc_e_to_instr (sc_e) ii ++ [::i]
   | Cwhile a c1 e ii_w c2 => 
-    let sc_c1 := conc_map sc_instr c1 in
+    let sc_e := sc_e_to_instr (sc_e e) ii in
+    let sc_c1 := conc_map sc_instr c1 ++ sc_e in
     let sc_c2 := conc_map sc_instr c2 in
-    let sc_e := sc_e e in
     let i := instrr_to_instr ii (Cwhile a sc_c1 e ii_w sc_c2) in
-    sc_e_to_instr (sc_e) ii ++ [::i]
+    [::i]
   | Cassert _ _ e =>
     let sc_e := sc_e e in
     sc_e_to_instr (sc_e) ii ++ [::i]
@@ -364,6 +369,9 @@ Definition sc_cmd (c : cmd) : cmd := conc_map sc_instr c.
 
 Definition sc_func (f:_ufundef): _ufundef :=
   let sc_body := sc_cmd f.(f_body) in
+  let es := conc_map (fun e => sc_var_init e) f.(f_res) in
+  let sc_res := sc_e_to_instr es dummy_instr_info  in (*FIXME - Fix instruction info*)
+  let sc_body := sc_body ++ sc_res in
   {|
     f_info   := f.(f_info) ;
     f_contra := f.(f_contra) ;
@@ -374,10 +382,21 @@ Definition sc_func (f:_ufundef): _ufundef :=
     f_res    := f.(f_res) ;
     f_extra  := f.(f_extra) ;
   |}.
+
+Definition sc_prog (p:_uprog) : _uprog :=
+  let sc_funcs := map (fun f => 
+    match f with
+     |(fn,fd) => (fn,(sc_func fd))
+    end) p.(p_funcs) in
+  {| p_globs := p.(p_globs) ;
+     p_funcs := sc_funcs ;
+     p_abstr := p.(p_abstr) ;
+     p_extra := p.(p_extra) ;
+  |}.
   
   
 End ASM_OP.
-
+End EXPR.
 (* 
 
 

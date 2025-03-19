@@ -29,8 +29,8 @@ type 'len gexpr =
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
   | Pbig   of 'len gexpr * E.sop2 * 'len gvar_i * 'len gexpr * 'len gexpr * 'len gexpr
   | Pis_var_init of 'len gvar_i
-  | Pis_arr_init of 'len gvar_i * 'len gexpr
-  | Pis_mem_init of 'len gexpr
+  | Pis_arr_init of 'len gvar_i * 'len gexpr * 'len gexpr
+  | Pis_mem_init of 'len gexpr * 'len gexpr
 
 type 'len gexprs = 'len gexpr list
 

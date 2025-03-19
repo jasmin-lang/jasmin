@@ -6,3 +6,4 @@ Require x86_params.
 Require riscv_params.
 Require sem_params_of_arch_extra.
 Require safety_cond.
+Require remove_is_var_init.

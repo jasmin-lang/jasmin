@@ -116,8 +116,8 @@ end = struct
     | Pbig (e, op, v, e1, e2, e0) ->
       Pbig(mk_expr fn e, op, v, mk_expr fn e1, mk_expr fn e2, mk_expr fn e0)
     | Pis_var_init x -> Pis_var_init(mk_v_loc fn x)
-    | Pis_arr_init (x,e) -> Pis_arr_init (mk_v_loc fn x, mk_expr fn e)
-    | Pis_mem_init e -> Pis_mem_init (mk_expr fn e)
+    | Pis_arr_init (x,e1,e2) -> Pis_arr_init (mk_v_loc fn x, mk_expr fn e1,mk_expr fn e2)
+    | Pis_mem_init (e1,e2) -> Pis_mem_init (mk_expr fn e1,mk_expr fn e2)
 
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
 
@@ -278,7 +278,7 @@ end = struct
       | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b
       | Pbig (e, _, _, e1, e2, e0) -> aux (aux (aux (aux acc e) e1) e2) e0
       | Pis_var_init x -> aux_v acc x
-      | Pis_arr_init (_,e) | Pis_mem_init e -> aux acc e
+      | Pis_arr_init (_,e1,e2) | Pis_mem_init (e1,e2) -> aux (aux acc e1) e2
     in
 
     aux acc e
@@ -522,8 +522,8 @@ end = struct
     | Pif (_, e1, e2, e3) -> collect_vars_es sv [e1;e2;e3]
     | Pbig (e, _, _, e1, e2, e0) -> collect_vars_es sv [e;e1;e2;e0]
     | Pis_var_init x -> Sv.add(L.unloc x) sv
-    | Pis_arr_init (x,e) -> collect_vars_e (Sv.add (L.unloc x) sv) e
-    | Pis_mem_init e -> collect_vars_e sv e
+    | Pis_arr_init (x,e1,e2) -> collect_vars_es (Sv.add (L.unloc x) sv) [e1;e2]
+    | Pis_mem_init (e1,e2) -> collect_vars_es sv [e1;e2]
 
   and collect_vars_es sv es = List.fold_left collect_vars_e sv es
 

@@ -664,13 +664,19 @@ let rec ty_expr env venv loc (e:expr) : vty =
     ty_exprs_max ~public env venv loc es
   | Pbig _           -> assert false
   | Pis_var_init x -> Env.get_i venv x
-  | Pis_arr_init (x,e) ->
+  | Pis_arr_init (x,e1,e2) -> 
       ensure_public_address env venv loc x;
-      ensure_public env venv loc e;
-      Env.get_i venv x
-  | Pis_mem_init e ->
-      ensure_public env venv loc e;
-      Env.dsecret env
+      ensure_public env venv loc e1;
+      ensure_public env venv loc e2;
+      let ty = Env.fresh2 env
+      and xty = Env.get_i venv x in
+      VlPairs.add_le (content_ty xty) ty;
+      Direct ty
+  | Pis_mem_init (e1,e2) ->
+    ensure_public env venv loc e1;
+    ensure_public env venv loc e2;
+    Env.dsecret env
+
   | Pif(_, e1, e2, e3) ->
       let ty1 = ty_expr env venv loc e1 in
       let ty2 = ty_expr env venv loc e2 in

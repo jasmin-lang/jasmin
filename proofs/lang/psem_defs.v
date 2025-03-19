@@ -192,14 +192,17 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     let v := (evm s).[x] in
     ok (Vbool (is_defined v))
 
-  | Pis_arr_init x e =>
+  | Pis_arr_init x e1 e2 =>
     Let (n, t) := wdb, s.[x] in
-    Let i := sem_pexpr s e >>= to_int in
-    ok (Vbool (WArray.is_init t i))
+    Let lo := sem_pexpr s e1 >>= to_int in
+    Let sz := sem_pexpr s e2 >>= to_int in
+    let b := all (fun i => WArray.is_init t (lo + i)) (ziota 0 sz) in
+    ok (Vbool b)
 
-  | Pis_mem_init e =>
-    Let w := sem_pexpr s e >>= to_pointer in
-    let b := is_ok (read s.(emem) Unaligned w U8) in
+  | Pis_mem_init e1 e2 =>
+    Let lo := sem_pexpr s e1 >>= to_pointer in
+    Let sz := sem_pexpr s e2 >>= to_int in
+    let b := all (fun i => is_ok (read s.(emem) Unaligned (lo + (wrepr Uptr i))%R U8)) (ziota 0 sz) in
     ok (Vbool b)
 
   end.

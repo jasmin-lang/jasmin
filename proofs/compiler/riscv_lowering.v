@@ -45,8 +45,8 @@ Definition is_load (e: pexpr) : bool :=
   | Pvar {| gs := Sglob |}
   | Pget _ _ _ _ _
   | Pload _ _ _ _
-  | Pis_arr_init _ _ 
-  | Pis_mem_init _
+  | Pis_arr_init _ _ _
+  | Pis_mem_init _ _
     => true
   | Pvar {| gs := Slocal ; gv := x |} | Pis_var_init x
     => is_var_in_memory x

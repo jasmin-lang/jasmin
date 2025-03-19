@@ -19,9 +19,9 @@ let rec inspect_e k = function
   | Pif (_, e1, e2, e3) -> inspect_e (inspect_e (inspect_e k e1) e2) e3
   | Pbig(e, op2, x, e1, e2, e0) ->
     List.fold_left inspect_e k [e;e1;e2; e0]
-  | Pis_var_init x -> with_var k (L.unloc x)
-  | Pis_arr_init (x, e) -> with_var (inspect_e k e) (L.unloc x)
-  | Pis_mem_init x -> inspect_e k x
+  | Pis_var_init _ -> k
+  | Pis_arr_init (_,e1,e2) -> inspect_e (inspect_e k e1) e2
+  | Pis_mem_init (e1,e2) -> inspect_e (inspect_e k e1) e2
 
 and inspect_es k es = List.fold_left inspect_e k es
 

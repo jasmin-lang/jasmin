@@ -180,10 +180,11 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
        (reg_error x "(the array cannot be manipulated alone, you need to access its cells instead)") in
     ok e
 
-  | Pis_arr_init _ _ => Error (reg_error_expr e "")
-  | Pis_mem_init e1 =>
+  | Pis_arr_init _ _ _ => Error (reg_error_expr e "")
+  | Pis_mem_init e1 e2 =>
     Let e1 := expand_e m e1 in
-    ok (Pis_mem_init e1)
+    Let e2 := expand_e m e2 in
+    ok (Pis_mem_init e1 e2)
   end.
 
 Definition expand_lv (m : t) (x : lval)  :=

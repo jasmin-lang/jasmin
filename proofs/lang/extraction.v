@@ -85,4 +85,5 @@ Separate Extraction
   riscv_extra
   riscv_params
   safety_cond
+  remove_is_var_init
   compiler.
