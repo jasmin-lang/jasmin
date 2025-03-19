@@ -89,16 +89,58 @@ Variant pocompose {E1 E2 E3 : Type -> Type}
   T1 T3 (e1 : E1 T1) (t1 : T1) (e3 : E3 T3) (t3 : T3) : Prop :=
 | Cpostrel T2 (e2:E2 T2) (t2:T2) (REL1: post T1 T2 e1 t1 e2 t2) (REL2 : post' T2 T3 e2 t2 e3 t3).
 
+
 (*
  EE1 e1  EE2 e2   EE3 e3
  false   _        _      -> done
  _       _        false  -> done
- true    true     true   -> transitivity
- true    false    true   -> this should be rejected.
+ true    true   false  true   -> transitivity
+ true    false  false  true   -> this should be rejected.
+*)
+(*
+Lemma eqit_trans {E R1 R2 R3} (RR1: R1->R2->Prop) (RR2: R2->R3->Prop) b1 b2 t1 t2 t3
+      (INL: eqit RR1 b1 b2 t1 t2)
+      (INR: eqit RR2 b1 b2 t2 t3):
+  @eqit E _ _ (rcompose RR1 RR2) b1 b2 t1 t3.
+Proof.
+  revert_until b2. pcofix CIH. intros.
+  pstep. punfold INL. punfold INR. red in INL, INR |- *. genobs_clear t3 ot3.
+  hinduction INL before CIH; intros; subst; clear t1 t2.
+  - remember (RetF r2) as ot.
+    hinduction INR before CIH; intros; inv Heqot; eauto with paco itree.
+  - assert (DEC: (exists m3, ot3 = TauF m3) \/ (forall m3, ot3 <> TauF m3)).
+    { destruct ot3; eauto; right; red; intros; inv H. }
+    destruct DEC as [EQ | EQ].
+    + destruct EQ as [m3 ?]; subst.
+      econstructor. right. pclearbot. eapply CIH; eauto with paco.
+      eapply eqit_inv_Tau. eauto with itree.
+    + inv INR; try (exfalso; eapply EQ; eauto; fail).
+      econstructor; eauto.
+      pclearbot. punfold REL. red in REL.
+      hinduction REL0 before CIH; intros; try (exfalso; eapply EQ; eauto; fail).
+      * remember (RetF r1) as ot.
+        hinduction REL0 before CIH; intros; inv Heqot; eauto with paco itree.
+      * remember (VisF e k1) as ot.
+        hinduction REL0 before CIH; intros; try discriminate; [ inv_Vis | eauto with itree ].
+        econstructor. intros. right.
+        destruct (REL v), (REL0 v); try contradiction. eauto.
+      * eapply IHREL0; eauto. pstep_reverse.
+        destruct b1; inv CHECK0.
+        apply eqit_inv_Tau_r. eauto with itree.
+  - remember (VisF e k2) as ot.
+    hinduction INR before CIH; intros; try discriminate; [ inv_Vis | eauto with itree ].
+    econstructor. intros.
+    destruct (REL v), (REL0 v); try contradiction; eauto with itree.
+  - eauto with itree.
+  - remember (TauF t0) as ot.
+    hinduction INR before CIH; intros; try inversion Heqot; subst.
+    2,3: eauto 3 with itree.
+    eapply IHINL. pclearbot. punfold REL. eauto with itree.
+Qed.
 *)
 Lemma rutt_trans {E1 E2 E3: Type -> Type}
   {HasErr1: ErrEvent -< E1} (EE1 : forall X : Type, E1 X -> bool)
-  {HasErr2: ErrEvent -< E2} (EE2 : forall X : Type, E2 X -> bool)
+  {HasErr2: ErrEvent -< E2} (EE2 EE2': forall X : Type, E2 X -> bool)
   {HasErr3: ErrEvent -< E3} (EE3 : forall X : Type, E3 X -> bool)
   {O1 O2 O3 : Type}
   (RpreInv12 : prerel E1 E2)
@@ -108,10 +150,49 @@ Lemma rutt_trans {E1 E2 E3: Type -> Type}
   (post12 : O1 -> O2 -> Prop)
   (post23 : O2 -> O3 -> Prop)
   t1 t2 t3 :
-  (forall T1 T2 T3 e1 e2 e3, ~[/\ EE1 T1 e1, ~ EE2 T2 e2 & EE3 T3 e3]) ->
-  rutt EE1 EE2 RpreInv12 RpostInv12 post12 t1 t2 ->
-  rutt EE2 EE3 RpreInv23 RpostInv23 post23 t2 t3 ->
+  (forall T1 T2 T3 e1 e2 e3, ~[/\ EE1 T1 e1, ~ EE2 T2 e2, EE2' T2 e2 & EE3 T3 e3]) ->
+  forall (INL : rutt EE1 EE2 RpreInv12 RpostInv12 post12 t1 t2)
+         (INR : rutt EE2' EE3 RpreInv23 RpostInv23 post23 t2 t3),
   rutt EE1 EE3 (prcompose RpreInv12 RpreInv23) (pocompose RpostInv12 RpostInv23) (rcompose post12 post23) t1 t3.
+Proof.
+(*
+  move=> hEE; move: t1 t2 t3.
+  pcofix CIH. intros.
+  pstep. punfold INL. punfold INR. red in INL, INR |- *. genobs_clear t3 ot3.
+  hinduction INL before CIH; intros; subst; clear t1 t2.
+  - remember (RetF r2) as ot.
+    hinduction INR before CIH; intros; inv Heqot; eauto with paco itree.
+    + constructor. econstructor; eauto.
+
+  - assert (DEC: (exists m3, ot3 = TauF m3) \/ (forall m3, ot3 <> TauF m3)).
+    { destruct ot3; eauto; right; red; intros; inv H. }
+    destruct DEC as [EQ | EQ].
+    + destruct EQ as [m3 ?]; subst.
+      econstructor. right. pclearbot. eapply CIH; eauto with paco.
+      eapply eqit_inv_Tau. eauto with itree.
+    + inv INR; try (exfalso; eapply EQ; eauto; fail).
+      econstructor; eauto.
+      pclearbot. punfold REL. red in REL.
+      hinduction REL0 before CIH; intros; try (exfalso; eapply EQ; eauto; fail).
+      * remember (RetF r1) as ot.
+        hinduction REL0 before CIH; intros; inv Heqot; eauto with paco itree.
+      * remember (VisF e k1) as ot.
+        hinduction REL0 before CIH; intros; try discriminate; [ inv_Vis | eauto with itree ].
+        econstructor. intros. right.
+        destruct (REL v), (REL0 v); try contradiction. eauto.
+      * eapply IHREL0; eauto. pstep_reverse.
+        destruct b1; inv CHECK0.
+        apply eqit_inv_Tau_r. eauto with itree.
+  - remember (VisF e k2) as ot.
+    hinduction INR before CIH; intros; try discriminate; [ inv_Vis | eauto with itree ].
+    econstructor. intros.
+    destruct (REL v), (REL0 v); try contradiction; eauto with itree.
+  - eauto with itree.
+  - remember (TauF t0) as ot.
+    hinduction INR before CIH; intros; try inversion Heqot; subst.
+    2,3: eauto 3 with itree.
+    eapply IHINL. pclearbot. punfold REL. eauto with itree.
+*)
 Admitted.
 
 (*
@@ -121,6 +202,11 @@ Admitted.
  false   true   -> this should be rejected
  true    true   -> done
 EE1' e1 -> EE1 e1
+*)
+(*
+post
+postEL
+postER
 *)
 
 Lemma rutt_weaken {E1 E2: Type -> Type}
@@ -135,15 +221,47 @@ Lemma rutt_weaken {E1 E2: Type -> Type}
   (forall T (e : E2 T), EE2' T e -> EE2 T e) ->
 
   (forall T1 T2 (e1 : E1 T1) (e2 : E2 T2),
-    RpreInv' T1 T2 e1 e2 -> RpreInv T1 T2 e1 e2) ->
+    RpreInv T1 T2 e1 e2 -> RpreInv' T1 T2 e1 e2) ->
 
   (forall T1 T2 (e1 : E1 T1) (t1 : T1) (e2 : E2 T2) (t2 : T2) ,
-    RpostInv T1 T2 e1 t1 e2 t2 -> RpostInv' T1 T2 e1 t1 e2 t2) ->
+    RpostInv' T1 T2 e1 t1 e2 t2 -> RpostInv T1 T2 e1 t1 e2 t2) ->
 
   (forall o1 o2, post o1 o2 -> post' o1 o2) ->
 
   rutt EE1 EE2 RpreInv RpostInv post t1 t2 ->
   rutt EE1' EE2' RpreInv' RpostInv' post' t1 t2.
+Proof.
+  move=> hEE1 hEE2 hpreinv hpostinv hpost. move: t1 t2.
+  pcofix CIH.
+
+ move=> t1 t2 h.
+  pstep. punfold h. red in h |- *.
+  have up_bot_r: forall m1 m2,
+    upaco2 (rutt_ EE1 EE2 RpreInv RpostInv post) bot2 m1 m2 ->
+    upaco2 (rutt_ EE1' EE2' RpreInv' RpostInv' post') r m1 m2.
+  + by move=> m1 m2 hm; right; case: hm; [ apply CIH | apply CIH0].
+  hinduction h before CIH; intros; subst.
+  + by apply EqRet; auto.
+  + by apply EqTau; eauto.
+  + case heq1: (EE1' A e1); last by apply EqCutL.
+    case heq2 : (EE2' B e2); last by apply EqCutR.
+    apply EqVis => //.
+    + by apply hpreinv.
+    by move=> a b hpi; have /H2 := hpostinv _ _ _ _ _ _ hpi; auto.
+  + by apply EqCutL; apply: contraFF H; apply hEE1.
+  + by apply EqCutR; apply: contraFF H; apply hEE2.
+  + by apply EqTauL; eauto.
+  by apply EqTauR; eauto.
+Qed.
+
+Definition prerel_eq (E : Type -> Type) (T1 T2 : Type) (e1 : E T1) (e2 : E T2) :=
+  exists h : T1 = T2, e2 = eq_rect T1 E e1 T2 h.
+
+Definition postrel_eq (E : Type -> Type) (T1 T2 : Type) (e1 : E T1) (t1:T1) (e2 : E T2) (t2:T2) :=
+  exists h : T1 = T2, t2 = eq_rect T1 id t1 T2 h.
+
+Lemma rutt_refl (E : Type -> Type) {HasErr: ErrEvent -< E} (EE: forall X : Type, E X -> bool) O t :
+  rutt EE EE (@prerel_eq E) (@postrel_eq E) (@eq O) t t.
 Admitted.
 
 Class with_Error (E: Type -> Type) {HasErr: ErrEvent -< E} := {
@@ -199,33 +317,9 @@ Lemma interp_mrec_rutt_err {D1 D2 E1 E2 : Type -> Type}
 Proof.
   move=> hrec R1 R2 RR t1 t2 ht.
   apply interp_mrec_rutt with (RPreInv := RPreInv) (RPostInv := RPostInv).
-(*
-  + move=> > /hrec.
-    apply: rutt_weaken => //.
-    + by move=> ? [].
-rewrite /ErrorCutoff /is_error => t [] /=.
-
- t [] => /=.
-rewrite / *)
-
-(* FIXME :
-This need to be generalized to have extantionnal equality over EE1 EE2.
-
-rutt_Proper_R:
-  forall {E1 E2 : Type -> Type} {R1 R2 : Type} (EE1 : forall X : Type, E1 X -> bool)
-    (EE2 : forall X : Type, E2 X -> bool), Proper (eq_REv ==> eq_RAns ==> eq_rel ==> eq ==> eq ==> iff) (rutt EE1 EE2)
-rutt_Proper_R3:
-  forall {E1 E2 : Type -> Type} {R1 R2 : Type} (EE1 : forall X : Type, E1 X -> bool)
-    (EE2 : forall X : Type, E2 X -> bool),
-  Proper (eq_REv ==> eq_RAns ==> eq_rel ==> eutt eq ==> eutt eq ==> iff) (rutt EE1 EE2)
-rutt_Proper_R2:
-  forall {E1 E2 : Type -> Type} {R1 R2 : Type} (EE1 : forall X : Type, E1 X -> bool)
-    (EE2 : forall X : Type, E2 X -> bool),
-  Proper (eq_REv ==> eq_RAns ==> eq_rel ==> eq_itree eq ==> eq_itree eq ==> iff) (rutt EE1 EE2)
-*)
-  + admit. (* this is hrec modulo extentional equality *)
-  admit. (* this is ht modulo extentional equality *)
-Admitted.
+  + by move=> > /hrec; apply: rutt_weaken => // ? [].
+  by apply: rutt_weaken ht => // ? [].
+Qed.
 
 Lemma rutt_err_weaken {E1 E2: Type -> Type}
   {HasErr1: ErrEvent -< E1} {wE1 : with_Error E1}
@@ -241,23 +335,54 @@ Lemma rutt_err_weaken {E1 E2: Type -> Type}
   (forall o1 o2, post o1 o2 -> post' o1 o2) ->
   rutt_err RpreInv RpostInv post t1 t2 ->
   rutt_err RpreInv' RpostInv' post' t1 t2.
-Admitted.
+Proof. by apply: rutt_weaken => //. Qed.
 
-Lemma rutt_err_trans {E1 E2 E3: Type -> Type}
-  {HasErr1: ErrEvent -< E1} {wE1 : with_Error E1}
-  {HasErr2: ErrEvent -< E2} {wE2 : with_Error E2}
-  {HasErr3: ErrEvent -< E3} {wE3 : with_Error E3}
+Lemma rutt_err_trans {E : Type -> Type}
+  {HasErr: ErrEvent -< E} {wE : with_Error E}
   {O1 O2 O3 : Type}
-  (RpreInv12 : prerel E1 E2)
-  (RpreInv23 : prerel E2 E3)
-  (RpostInv12: postrel E1 E2)
-  (RpostInv23: postrel E2 E3)
+  (RpreInv12 : prerel E E)
+  (RpreInv23 : prerel E E)
+  (RpostInv12: postrel E E)
+  (RpostInv23: postrel E E)
   (post12 : O1 -> O2 -> Prop)
   (post23 : O2 -> O3 -> Prop)
   t1 t2 t3 :
   rutt_err RpreInv12 RpostInv12 post12 t1 t2 ->
   rutt_err RpreInv23 RpostInv23 post23 t2 t3 ->
   rutt_err (prcompose RpreInv12 RpreInv23) (pocompose RpostInv12 RpostInv23) (rcompose post12 post23) t1 t3.
+Proof.
+  move=> h12.
+  have : rutt ErrorCutoff ErrorCutoff RpreInv12 RpostInv12 post12 t1 t2.
+  + by apply: rutt_weaken h12.
+  apply: rutt_trans.
+
+  apply
+
+  move=> h12 h23.
+  have
+
+  apply: rutt_trans.
+  2: apply h12.
+  + by rewrite /NoCutoff => > _ _ [].
+
+
+Search (prerel _ _).
+
+  have := rutt ErrorCutoff ErrorCutOff (fun T1 T2 (e1 : E T1) (e2 : E T2) => T1 = T2 /\ e1 = e2) (fun T (e1 : E1 T
+  have := rutt_trans _ _ h23.
+
+  apply: rutt_weaken h23 => //.
+Search Rutt.rutt.
+
+  1 2 cut nocut
+  2 2 nocut nocut
+  2 2 notcut cut
+  2 3
+
+ /andP.
+Set Printing Implicit.
+apply rutt_trans.
+
 Admitted.
 
 Definition rel (I1 I2 : Type) := I1 -> I2 -> Prop.
