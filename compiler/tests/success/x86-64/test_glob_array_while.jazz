@@ -9,12 +9,12 @@ export fn sum (reg u64 x) -> reg u64 {
   r = 0; 
   i = 0;
   while (i < 4) {
-    r += gt1[(int)i];
+    r += gt1[i];
     i += 1;
   }
   i = 0;
   while (i < 4) {
-    r += gt2[(int)i];
+    r += gt2[i];
     i += 1;
   }   
   return r;
