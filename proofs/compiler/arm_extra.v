@@ -63,6 +63,7 @@ Definition Oarm_add_large_imm_instr : instruction_desc :=
    ; i_safe_wf := refl_equal
    ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=tin) semi _
    ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=tin) semi
+   ; i_init := [:: IBool true]
  |}.
 
 Definition smart_li_instr (ws : wsize) : instruction_desc :=
@@ -71,7 +72,7 @@ Definition smart_li_instr (ws : wsize) : instruction_desc :=
     [:: sword ws ] [:: E 0 ]
     [:: sword ws ] [:: E 1 ]
     (fun x => x)
-    true.
+    true [:: IBool true].
 
 Definition smart_li_instr_cc (ws : wsize) : instruction_desc :=
   mk_instr_desc_safe
@@ -79,7 +80,7 @@ Definition smart_li_instr_cc (ws : wsize) : instruction_desc :=
     [:: sword ws; sbool; sword ws ] [:: E 0; E 2; E 1 ]
     [:: sword ws ] [:: E 1 ]
     (fun x b y => if b then x else y)
-    true.
+    true [:: IBool true].
 
 Definition get_instr_desc (o: arm_extra_op) : instruction_desc :=
   match o with

@@ -357,9 +357,15 @@ Let without_globals : globals := None.
 Let with_globals (gd: glob_decls) (tag: assgn_tag) : globals :=
   if tag is AT_inline then Some (assoc gd) else None.
 
+
+
+
 Section GLOBALS.
 
 Context (globs: globals).
+
+
+
 
 Let pget_global al aa sz x e : pexpr :=
   if globs is Some f then if f x.(gv) is Some (Garr len a) then if e is Pconst i then if WArray.get al aa sz a i is Ok w then wconst w
@@ -368,7 +374,7 @@ Let pget_global al aa sz x e : pexpr :=
   else Pget al aa sz x e
   else Pget al aa sz x e.
 
-Fixpoint const_prop_e (m:cpm) e :=
+Fixpoint const_prop_e (m:cpm) e  :=
   match e with
   | Pconst _
   | Pbool  _
@@ -434,6 +440,15 @@ Definition merge_cpm : cpm -> cpm -> cpm :=
    | _, _ => None
    end).
 
+Definition includes_cpm (m1:cpm) (m2:cpm): bool :=
+  Mvar.fold (fun x n1 b =>
+    match Mvar.get m2 x with
+    | Some n2 => (n1 == n2)%Z && b
+    | None => true
+    end) m1 true.
+
+
+
 Definition remove_cpm (m:cpm) (s:Sv.t): cpm :=
   Sv.fold (fun x m => Mvar.remove m x) s m.
 
@@ -458,28 +473,49 @@ Fixpoint const_prop_rvs globs (m:cpm) (rvs:lvals) : cpm * lvals :=
 Definition wsize_of_stype (ty: stype) : wsize :=
   if ty is sword sz then sz else U64.
 
-Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
-  if rv is Lvar x then
-    if tag is AT_inline then
-      match e with
-      | Pbool b  => Mvar.set m x (Cbool b)
-      | Pconst z =>  Mvar.set m x (Cint z)
-      | Papp1 (Oword_of_int _) (Pconst z) =>
-        let szty := wsize_of_stype ty in
-        let szx := wsize_of_stype (vtype x) in
-        let sz := cmp_min szty szx in
-        let w := Cword (wrepr sz z) in
-        Mvar.set m x w
-      | _ => m
-      end
-    else m
-  else m.
+Section LOOP.
+  Context `{asmop : asmOp}.
+
+  Variable cp_c2 : cpm ->  cpm * (cpm * (cmd*cmd)).
+
+  Variable wloop_fallback: cpm * (cmd * cmd).
+
+  
+  Fixpoint wloop (n:nat) (m:cpm) :=
+    match n with
+    | O => wloop_fallback
+    | S n => 
+      let: (m2,(m1,cs)) := cp_c2 m in
+      if includes_cpm m2 m then (m1,cs) 
+      else wloop n (merge_cpm m2 m)
+    end.
+
+End LOOP.
+
 
 Section ASM_OP.
 
 Context {msfsz : MSFsize} `{asmop:asmOp}.
 
 Section CMD.
+
+
+Definition add_cpm (m:cpm) (rv:lval) (ir:instr_r) cpf ty e :=
+if rv is Lvar x then
+  if cpf ir then
+    match e with
+    | Pbool b  => Mvar.set m x (Cbool b)
+    | Pconst z =>  Mvar.set m x (Cint z)
+    | Papp1 (Oword_of_int _) (Pconst z) =>
+      let szty := wsize_of_stype ty in
+      let szx := wsize_of_stype (vtype x) in
+      let sz := cmp_min szty szx in
+      let w := Cword (wrepr sz z) in
+      Mvar.set m x w
+    | _ => m
+    end
+  else m
+else m.
 
   Variable const_prop_i : cpm -> instr -> cpm * cmd.
 
@@ -504,15 +540,15 @@ Section GLOBALS.
 
 Context (gd: glob_decls).
 
-Fixpoint const_prop_ir with_globals without_globals (m:cpm) ii (ir:instr_r) : cpm * cmd :=
-  let const_prop_i :=  const_prop_i with_globals without_globals in
+Fixpoint const_prop_ir with_globals without_globals cpf (m:cpm) ii (ir:instr_r) : cpm * cmd :=
+  let const_prop_i :=  const_prop_i with_globals without_globals cpf in
   match ir with
 
   | Cassgn x tag ty e =>
     let globs := with_globals gd tag in
     let e := const_prop_e globs m e in
     let (m,x) := const_prop_rv globs m x in
-    let m := add_cpm m x tag ty e in
+    let m := add_cpm m x ir cpf ty e in
     (m, [:: MkI ii (Cassgn x tag ty e)])
 
   | Copn xs t o es =>
@@ -533,8 +569,13 @@ Fixpoint const_prop_ir with_globals without_globals (m:cpm) ii (ir:instr_r) : cp
     (m, [:: MkI ii (Csyscall xs o es) ])
 
   | Cassert t p b =>
-      let b := const_prop_e without_globals m b in
-      (m, [:: MkI ii (Cassert t p b) ])
+    let b := const_prop_e without_globals m b in
+    match is_bool b with
+      | Some b =>
+        let c := if b then [::] else [:: MkI ii (Cassert t p b)] in
+        (m, c)
+      | None => (m, [:: MkI ii (Cassert t p b) ])
+    end
 
   | Cif b c1 c2 =>
     let b := const_prop_e without_globals m b in
@@ -556,16 +597,27 @@ Fixpoint const_prop_ir with_globals without_globals (m:cpm) ii (ir:instr_r) : cp
     (m, [:: MkI ii (Cfor x (dir, e1, e2) c) ])
 
   | Cwhile a c e info c' =>
-    let m := remove_cpm m (write_i ir) in
-    let (m',c) := const_prop const_prop_i m c in
-    let e := const_prop_e without_globals m' e in
-    let (_,c') := const_prop const_prop_i m' c' in
+    let wloop_fallback :=
+      let m := remove_cpm m (write_i ir) in
+      let (m',c) := const_prop const_prop_i m c in
+      let (_,c') := const_prop const_prop_i m' c' in
+      (m',(c,c'))
+    in
+    let dobody m' :=
+      let (m1,c1) := const_prop const_prop_i m' c in
+      let (m2,c2) := const_prop const_prop_i m1 c' in
+      (m2,(m1,(c1,c2)))
+    in
+    let (m,cs) := wloop dobody wloop_fallback Loop.nb m in
+    let e := const_prop_e without_globals m e in
     let cw :=
-      match is_bool e with
-      | Some false => c
-      | _          => [:: MkI ii (Cwhile a c e info c')]
-      end in
-    (m', cw)
+        match is_bool e with
+        | Some false => cs.1
+        | _          => 
+          [:: MkI ii (Cwhile a cs.1 e info cs.2)]
+        end
+      in
+    (m, cw)
 
   | Ccall xs f es =>
     let es := map (const_prop_e without_globals m) es in
@@ -574,9 +626,9 @@ Fixpoint const_prop_ir with_globals without_globals (m:cpm) ii (ir:instr_r) : cp
 
   end
 
-with const_prop_i with_globals without_globals (m:cpm) (i:instr) : cpm * cmd :=
+with const_prop_i with_globals without_globals cpf (m:cpm) (i:instr) : cpm * cmd :=
   let (ii,ir) := i in
-  const_prop_ir with_globals without_globals m ii ir.
+  const_prop_ir with_globals without_globals cpf m ii ir.
 
 End GLOBALS.
 
@@ -597,16 +649,25 @@ Definition const_prop_ci without_globals ci :=
   in
   MkContra ci.(f_iparams) ci.(f_ires) ci_pre ci_post.
 
-Definition const_prop_fun (cl: bool) (gd: glob_decls) (f: fundef) :=
+Definition const_prop_fun (cl: bool) (gd: glob_decls) cpf (f: fundef) :=
   let with_globals := if cl then (fun _ _ => with_globals_cl gd) else with_globals in
   let without_globals := if cl then with_globals_cl gd else without_globals in
   let 'MkFun ii ci si p c so r ev := f in
-  let mc := const_prop (const_prop_i gd with_globals without_globals) empty_cpm c in
+  let mc := const_prop (const_prop_i gd with_globals without_globals cpf) empty_cpm c in
   let ci := Option.map (const_prop_ci without_globals) ci in
   MkFun ii ci si p mc.2 so r ev.
+  
+Definition const_prop_prog_fun (cl:bool) (p:prog) (cpf:instr_r -> bool) : prog :=
+  map_prog (const_prop_fun cl p.(p_globs) cpf) p.
+ 
 
 Definition const_prop_prog (cl: bool) (p:prog) : prog :=
-  map_prog (const_prop_fun cl p.(p_globs)) p.
+  const_prop_prog_fun cl p (fun f => 
+    match f with
+    |(Cassgn _ tag _ _ ) => (tag == AT_inline)
+    | _ => false
+    end
+  ).
 
 End Section.
 

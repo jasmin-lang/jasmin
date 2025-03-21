@@ -208,7 +208,7 @@ Definition sc_in_bound ty aa sz elen e :=
   match ty with
   | sarr len =>
     let i := emk_scale aa sz e in
-    [:: sc_le ezero i; sc_le (eaddi i elen) (Pconst len)]
+    [:: eand (sc_le ezero i) (sc_le (eaddi i elen) (Pconst len))]
   | _ => [::] (* assert false *)
   end.
 
@@ -232,7 +232,7 @@ Definition sc_arr_set (x:var_i) al aa sz e :=
 Definition sc_is_aligned_if_m al sz e :=
   if (al == Unaligned) then [::]
   else
-  [:: eis_aligned e sz].
+  [:: eis_aligned (eint_of_word Unsigned Uptr e) sz].
 
 Definition i_to_ptr i := Papp1 (Oword_of_int Uptr) (Pconst i).
 

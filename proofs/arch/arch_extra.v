@@ -305,6 +305,7 @@ Definition get_instr_desc (o: extended_op) : instruction_desc :=
     ; i_safe_wf := id.(id_safe_wf)
     ; i_semi_errty := id.(id_semi_errty)
     ; i_semi_safe := id.(id_semi_safe)
+    ; i_init  := id.(id_init) 
    |}
  | ExtOp o => asm_op_instr o
  end.

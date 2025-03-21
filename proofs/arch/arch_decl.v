@@ -409,6 +409,7 @@ Record instr_desc_t := {
   id_str_jas    : unit -> string;
   id_check_dest : all2 check_arg_dest id_out id_tout;
   id_safe       : seq safe_cond;
+  id_init      : seq init_cond;
   id_pp_asm     : asm_args -> pp_asm_op;
   (* Extra properties ensuring that previous information are consistent *)
   id_safe_wf    : all (fun sc => values.sc_needed_args sc <= size id_tin) id_safe;
@@ -585,6 +586,7 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_safe       := d.(id_safe);
        id_pp_asm     := d.(id_pp_asm);
        id_safe_wf    := d.(id_safe_wf);
+       id_init       := d.(id_init);
        id_semi_errty := fun h => extend_sem_errty ws (d.(id_semi_errty) h);
        id_semi_safe  := fun h => extend_sem_safe ws (d.(id_semi_safe) h);
  |}

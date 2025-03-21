@@ -160,9 +160,15 @@ let main () =
       let v' = Conv.fresh_var_ident (Reg (Normal, Direct)) IInfo.dummy Uint63.(of_int 0) ("b_"^v.vname.v_name) Coq_sbool in
       Conv.cvar_of_var v'
     in
+    let fcp =
+      let open Glob_options in
+      match !target_arch with
+      | X86_64 -> X86_decl.x86_fcp
+      | ARM_M4 -> Arm_decl.arm_fcp
+      | RISCV -> Riscv_decl.riscv_fcp in
     let cprog = Conv.cuprog_of_prog prog in
-    let sc_prog = Safety_cond.sc_prog Arch.reg_size Arch.asmOp cprog in
-    let rm_init_prog = Remove_is_var_init.rm_var_init_prog Arch.asmOp Arch.msf_size b sc_prog in
+    let sc_prog = Safety_cond.sc_prog Arch.reg_size  Arch.asmOp cprog in
+    let rm_init_prog = Remove_is_var_init.rm_var_init_prog_prop Arch.asmOp Arch.msf_size fcp b sc_prog in
     let prog = Conv.prog_of_cuprog rm_init_prog in
 
     Format.eprintf "@[<v>Program after removing is_init_var:@;%a@.@]" 
