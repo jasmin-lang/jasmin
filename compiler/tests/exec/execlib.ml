@@ -8,11 +8,11 @@ module Arch : Arch_full.Arch =
        in
        (module Arch_full.Arch_from_Core_arch (C) : Arch_full.Arch))
 
-let funnames prog =
+let funnames (_,_,prog) =
   let tbl = Hashtbl.create 17 in
   List.iter
     (fun { Prog.f_name; _ } -> Hashtbl.add tbl f_name.fn_name f_name)
-    (snd prog);
+    prog;
   tbl
 
 let load_file name =
@@ -37,7 +37,7 @@ let exec (fs, prog) ms f args =
     match
       Evaluator.run
         (module Arch)
-        (Expr.to_uprog Arch.asmOp prog)
+        (Expr.to_uprog Build_Tabstract Arch.asmOp prog)
         IInfo.dummy f args m
     with
     | _m, res -> Ok res

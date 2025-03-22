@@ -26,17 +26,19 @@ Module ARMFopn_coreP.
 Section Section.
 
 Context
+  {tabstract : Tabstract}
   {syscall_state : Type}
   {ep : EstateParams syscall_state}.
 
 #[local] Existing Instance withsubword.
+Set Printing All.
 
 Definition sem_fopn_args (p : seq lexpr * arm_op * seq rexpr) (s : estate) :=
   let: (xs,o,es) := p in
   Let args := sem_rexprs s es in
   let op := instr_desc_op o in
   Let _ := assert (id_valid op) ErrType in
-  Let t := app_sopn (id_tin op) (id_semi op) args in
+  Let t := app_sopn (ts:=id_tin op) (id_semi op) args in
   let res := list_ltuple t in
   write_lexprs xs res s.
 

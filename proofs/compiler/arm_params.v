@@ -25,7 +25,7 @@ Require Import
   arm_stack_zeroization.
 
 Section Section.
-Context {atoI : arch_toIdent}.
+Context {tabstract : Tabstract} {atoI : arch_toIdent}.
 
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc parameters. *)

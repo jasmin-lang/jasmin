@@ -260,6 +260,7 @@ Definition expand_return m ex x :=
 
 Section ASM_OP.
 
+Context {A: Tabstract}.
 Context `{asmop : asmOp}.
 
 Section FSIGS.
@@ -351,12 +352,12 @@ Definition expand_fbody (fname: funname) (fs: ufundef * t) :=
 
 End FSIGS.
 
-Notation map_cfprog_name_cdata := (map_cfprog_name_gen (fun x => @f_info _ _ _ (fst (fst x)))).
+Notation map_cfprog_name_cdata := (map_cfprog_name_gen (fun x => @f_info _ _ _ _ (fst (fst x)))).
 
 Definition expand_prog (fi : funname -> ufundef -> expand_info) (entries : seq funname) (p: uprog) : cexec uprog :=
   Let step1 := map_cfprog_name (expand_fsig fi entries) (p_funcs p) in
   let fsigs := foldr (fun x y => Mf.set y x.1 x.2.2) (Mf.empty _) step1 in
   Let funcs := map_cfprog_name_cdata (fun fn x => expand_fbody fsigs fn (fst x)) step1 in
-  ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
+  ok {| p_extra := p_extra p; p_globs := p_globs p; p_abstr := p_abstr p; p_funcs := funcs |}.
 
 End ASM_OP.

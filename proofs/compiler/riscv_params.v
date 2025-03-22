@@ -28,7 +28,7 @@ Require Import
   riscv_lower_addressing.
 
 Section Section.
-Context {atoI : arch_toIdent}.
+Context {tabstract : Tabstract} {atoI : arch_toIdent}.
 
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc parameters. *)

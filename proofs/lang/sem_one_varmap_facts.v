@@ -11,6 +11,7 @@ Import psem psem_facts sem_one_varmap.
 Section PROG.
 
 Context
+  {tabstract : Tabstract}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}

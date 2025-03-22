@@ -47,23 +47,27 @@ End E.
 
 (* -------------------------------------------------------------------- *)
 (* Architecture-specific parameters. *)
-Record stack_zeroization_params {asm_op : Type} {asmop : asmOp asm_op} :=
-  {
-    szp_cmd :
-      stack_zero_strategy -> (* zeroization strategy *)
-      Ident.ident ->         (* RSP *)
-      label ->               (* fresh label *)
-      wsize ->               (* stack alignment *)
-      wsize ->               (* clearing step *)
-      Z ->                   (* stack size to be zeroized *)
-      cexec (lcmd * Sv.t);
-        (* the command and the set of written variables in the command (except RSP) *)
-  }.
+Section STACK_ZEROIZATION_PARAM.
+    Context {AB : Tabstract}.
 
+    Record stack_zeroization_params {asm_op : Type} {asmop : asmOp asm_op} :=
+      {
+        szp_cmd :
+        stack_zero_strategy -> (* zeroization strategy *)
+        Ident.ident ->         (* RSP *)
+        label ->               (* fresh label *)
+        wsize ->               (* stack alignment *)
+        wsize ->               (* clearing step *)
+        Z ->                   (* stack size to be zeroized *)
+        cexec (lcmd * Sv.t);
+        (* the command and the set of written variables in the command (except RSP) *)
+      }.
+End STACK_ZEROIZATION_PARAM.
 
 Section STACK_ZEROIZATION.
 
 Context
+  {AB : Tabstract}
   {pd: PointerData}
   {asm_op : Type} {asmop: asmOp asm_op}
   {ovmi : one_varmap_info}

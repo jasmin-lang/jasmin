@@ -23,7 +23,7 @@ Module RISCVFopn.
 
   Section WITH_PARAMS.
 
-  Context {atoI : arch_toIdent}.
+  Context {tabstract : Tabstract} {atoI : arch_toIdent}.
 
   Definition to_opn '(d, o, e) : fopn_args := (d, Oasm (BaseOp(None, o)), e).
   Definition to_opn_ext '(d, o, e) : fopn_args := (d, Oasm (ExtOp o), e).

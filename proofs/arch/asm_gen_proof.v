@@ -370,7 +370,7 @@ Proof.
   + move=> i {}ty /is_implicitP[] vi -> vt /=.
     case: i => /= [f | r]; first by apply: var_of_flagP eqm.
     by apply: var_of_regP eqm.
-  move=> k n o a a' [ | | | ws] //= ->.
+  move=> k n o a a' [ | | | ws | ] //= ->.
   + case: e; first by [].
     t_xrbindP => e _ <- c hac <-.
     rewrite /compat_imm orbF => /eqP <- -> /= b hb.
@@ -659,7 +659,7 @@ Proof.
   move: vt Hvt Hm'; rewrite /sopn_sem /sopn_sem_ /get_instr_desc /= -/id => {Hid}.
   case: id Hargs Hdest => /= id_safe_ msb_flag id_tin
    id_in id_tout id_out id_semi id_args_kinds id_nargs /andP[] /eqP hsin /eqP hsout
-   _ id_str_jas id_check_dest id_safe id_wsize id_pp _ _ _ Hargs Hdest vt happ Hm'.
+   _ id_str_jas _ _ id_check_dest id_safe id_wsize id_pp _ _ _ Hargs Hdest vt happ Hm'.
   elim: id_in id_tin hsin id_semi args xs Hargs happ Hxs; rewrite /sem_prod.
   + move=> [] //= _ id_semi [|a1 args] [|v1 vs] //= _ -> _ /=.
     exact: (compile_lvals _ hsout Hm' Hlomeqv Hdest).
@@ -717,7 +717,7 @@ Lemma compile_asm_opn rip ii (loargs : seq asm_arg) op m s args lvs xs ys m' :
 Proof. apply (compile_asm_opn_aux (hagp_eval_assemble_cond hagparams)). Qed.
 
 Lemma app_sopn_apply_lprod T1 T2 tys (f : T1 -> T2) g vs :
-  app_sopn tys (apply_lprod (rmap f) g) vs = rmap f (app_sopn tys g vs).
+  app_sopn (ts:=tys) (apply_lprod (rmap f) g) vs = rmap f (app_sopn (ts:=tys) g vs).
 Proof. elim: tys vs g => [ | ty tys hrec] [ | v vs] //= g; case: of_val => //=. Qed.
 
 Definition check_not_mem_args_kinds (d : arg_desc) (cond : args_kinds) :=

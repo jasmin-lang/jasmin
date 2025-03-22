@@ -245,10 +245,12 @@ Definition sopn_arg_desc (ad:arg_desc) :=
 
 End ARCH.
 
+Section ASM_EXTRA.
 (* Extra ops are non-existing architecture-specific asm instructions that we
  * replace by real asm instructions during the asmgen pass.
  *)
-Class asm_extra (reg regx xreg rflag cond asm_op extra_op : Type) :=
+
+Class asm_extra {tabstract : Tabstract} (reg regx xreg rflag cond asm_op extra_op : Type) :=
   { _asm   : asm reg regx xreg rflag cond asm_op
   ; _atoI  : arch_toIdent
   ; _extra : asmOp extra_op (* description of extra ops *)
@@ -261,10 +263,12 @@ Class asm_extra (reg regx xreg rflag cond asm_op extra_op : Type) :=
     -> cexec (seq (asm_op_msb_t * lexprs * rexprs))
   }.
 
+Definition extra_op_t {tabstract : Tabstract} {reg regx xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op} := extra_op.
+
+End ASM_EXTRA.
+
 #[global]
 Existing Instances _asm _atoI _extra.
-
-Definition extra_op_t {reg regx xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op} := extra_op.
 
 Section AsmOpI.
 
@@ -299,7 +303,7 @@ Definition get_instr_desc (o: extended_op) : instruction_desc :=
     ; conflicts:= [::]
     ; tout     := id.(id_tout)
     ; semi     := id.(id_semi)
-    ; semu     := @vuincl_app_sopn_v _ _ id.(id_semi) id.(id_tin_narr)
+    ; semu     := @vuincl_app_sopn_v _ _ _ id.(id_semi) id.(id_tin_narr)
     ; i_safe   := id.(id_safe)
     ; i_valid  := id.(id_valid)
     ; i_safe_wf := id.(id_safe_wf)

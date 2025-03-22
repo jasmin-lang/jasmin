@@ -10,6 +10,7 @@ Local Open Scope seq_scope.
 Section WITH_PARAMS.
 
 Context
+  {A : Tabstract}
   {wsw : WithSubWord}
   {asm_op syscall_state : Type}
   {dc:DirectCall}

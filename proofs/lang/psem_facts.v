@@ -6,6 +6,7 @@ Import Memory low_memory.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw:WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
@@ -746,7 +747,8 @@ End WITH_PARAMS.
 
 Section EQ_EX.
 
-Context
+  Context
+  {tabstract : Tabstract}
   {wsw:WithSubWord}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}

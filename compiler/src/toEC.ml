@@ -949,6 +949,7 @@ let toec_ty onarray env ty = match ty with
     | Bty Int  -> "int"
     | Bty (U ws) -> Format.sprintf "%s.t" (fmt_Wsz ws)
     | Arr(ws,n) -> onarray env ws n
+    | Bty Abstract s -> Format.sprintf "%s" s
 
 let onarray_ty_dfl env ws n =
   Format.sprintf "%s.t %s.t" (fmt_Wsz ws) (ec_Array env n)
@@ -1302,8 +1303,8 @@ let ty_sopn pd asmOp op es =
     let l = List.map ty_expr es in
     l, l
   | _ ->
-    List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op),
-    List.map Conv.ty_of_cty (Sopn.sopn_tin pd asmOp op)
+    List.map Conv.ty_of_cty (Sopn.sopn_tout Build_Tabstract pd asmOp op),
+    List.map Conv.ty_of_cty (Sopn.sopn_tin Build_Tabstract pd asmOp op)
 
 (* This code replaces for loop that modify the loop counter by while loop,
    it would be nice to prove in Coq the validity of the transformation *)
@@ -1575,6 +1576,7 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
     | Bty Int  -> "int"
     | Bty (U ws) -> fmt_Wsz ws
     | Arr(ws, n) -> assert false
+    | Bty Abstract _ -> assert false
     in
     let leakf = ec_ident (Format.sprintf "Leak_%s" sty) in
     [Eapp (leakf, [toec_expr env e])]
@@ -2041,7 +2043,7 @@ and used_func_i used i =
   | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2
   | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
-let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp (model: model) amodel fnames array_dir fmt =
+let extract ((globs,_,funcs):('info, 'asm) prog) arch pd asmOp (model: model) amodel fnames array_dir fmt =
   let save_array_theories array_theories =
     match array_dir with
     | Some prefix ->

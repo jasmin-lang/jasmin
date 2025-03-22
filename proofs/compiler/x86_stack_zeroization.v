@@ -13,7 +13,7 @@ Require Import compiler_util.
 
 Section STACK_ZEROIZATION.
 
-Context {atoI : arch_toIdent}.
+Context {tabstract : Tabstract} {atoI : arch_toIdent}.
 
 Let vflags := map (fun f => mk_var_i (to_var f)) [:: OF; CF; SF; PF; ZF ].
 Let flags_lexprs := map LLvar vflags.

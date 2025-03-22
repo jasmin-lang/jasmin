@@ -63,6 +63,7 @@ Definition incl (pi1 pi2:pimap) :=
 
 Section WITH_PARAMS.
 
+Context {A: Tabstract}.
 Context
   {asm_op syscall_state : Type}
   {asmop:asmOp asm_op}
@@ -208,7 +209,10 @@ Definition pi_fun  (f:fundef) :=
 
 Definition pi_prog (p:prog) := 
   Let funcs := map_cfprog pi_fun (p_funcs p) in
-  ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
+      ok {| p_extra := p_extra p;
+            p_globs := p_globs p;
+            p_abstr := p_abstr p;
+            p_funcs := funcs |}.
 
 End Section.
 

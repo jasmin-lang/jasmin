@@ -178,6 +178,7 @@ Context {pT: progT}.
 Definition map_prog_name (F: funname -> fundef -> fundef) (p:prog) :prog :=
   {| p_funcs := map (fun f => (f.1, F f.1 f.2)) (p_funcs p);
      p_globs := p_globs p;
+     p_abstr := p_abstr p;
      p_extra := p_extra p|}.
 
 Definition map_prog (F: fundef -> fundef) (p:prog) :=
@@ -213,8 +214,8 @@ Definition map_cfprog_gen {T1 T2} (info : T1 -> fun_info) (F: T1 -> cexec T2) :=
   map_cfprog_name_gen info (fun _ t1 => F t1).
 
 (* Some notations to use in the common case where we manipulate [_fundef ?eft]. *)
-Notation map_cfprog_name := (map_cfprog_name_gen (@f_info _ _ _)).
-Notation map_cfprog := (map_cfprog_gen (@f_info _ _ _)).
+Notation map_cfprog_name := (map_cfprog_name_gen (@f_info _ _ _ _)).
+Notation map_cfprog := (map_cfprog_gen (@f_info _ _ _ _)).
 
 Lemma get_map_cfprog_name_gen {T1 T2} (info : T1 -> fun_info) (F: funname -> T1 -> cexec T2) p p' fn f:
   map_cfprog_name_gen info F p = ok p' ->

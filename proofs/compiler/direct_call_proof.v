@@ -11,6 +11,7 @@ Import Utf8.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw:WithSubWord}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
@@ -174,6 +175,7 @@ Section EXPR.
     move=> /vm_truncate_valE; case: v.
     1-3: by move=> > [] ->.
     + by move=> > [] > [-> /= ->]; rewrite orbT.
+    + by move=> > [-> /=]; case: ifP.
     by move=> > [].
   Qed.
 

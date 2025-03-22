@@ -10,6 +10,7 @@ Local Open Scope seq_scope.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
@@ -293,7 +294,7 @@ Proof.
     case: (s1) Hvm1 Hr2 => scs1 sm1 svm1 /= Hvm1 Hr2.
     have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP wdb gd Hce Hr2.
     by move=> /of_value_uincl_te h/(h (sword _) _){h} /= -> ?
-      /(@of_value_uincl_te (sword _) _ _ _ Hv) /= -> ? /= -> <-; eexists.
+      /(@of_value_uincl_te _ (sword _) _ _ _ Hv) /= -> ? /= -> <-; eexists.
   + t_xrbindP => r2 r3 /andP [] /andP[] /eqP -> /eqP -> /eqP -> Hcv Hce Hcva Hvm1 Hv Happ.
     apply: on_arr_varP => n t Htx;rewrite /on_arr_var /=.
     have [Hr3 H/H{H} [vx2 [->]]]:= check_vP wdb Hcv Hvm1.
@@ -302,10 +303,10 @@ Proof.
     case: (s1) Hvm1 Hr3 => scs1 sm1 svm1 /= Hvm1 Hr3.
     have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP wdb gd Hce Hr3.
     move=> /of_value_uincl_te h/(h sint _){h} /= -> ?
-      /(@of_value_uincl_te (sword _) _ _ _ Hv) /= -> ?
+      /(@of_value_uincl_te _ (sword _) _ _ _ Hv) /= -> ?
       /(WArray.uincl_set Ht) [? [/= -> Ht2']].
-    have: value_uincl (Varr _) (Varr _) := Ht2'.
-    by rewrite /write_var; t_xrbindP=> /(check_varcP Hr1' Hcva) h ?
+    have: value_uincl (tabstract:= tabstract) (Varr _) (Varr _) := Ht2'.
+    by rewrite /write_var; t_xrbindP => /(check_varcP Hr1' Hcva) h ?
       /h{h} [vm2' /= -> ?] <-; eexists.
   t_xrbindP=> r2 r3 /and3P[]/eqP -> /eqP -> /eqP -> Hcv Hce Hcva Hvm1 Hv Happ.
   apply: on_arr_varP => n t Htx;rewrite /on_arr_var /=.
@@ -315,9 +316,9 @@ Proof.
   case: (s1) Hvm1 Hr3 => scs1 sm1 svm1 /= Hvm1 Hr3.
   have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP wdb gd Hce Hr3.
     move=> /of_value_uincl_te h/(h sint _){h} /= -> ?
-      /(@of_value_uincl_te (sarr _) _ _ _ Hv) [? /= -> ]
+      /(@of_value_uincl_te _ (sarr _) _ _ _ Hv) [? /= -> ]
       /(WArray.uincl_set_sub Ht) h ? /h{h} [? /= -> Ht2'].
-  have: value_uincl (Varr _) (Varr _) := Ht2'.
+  have: value_uincl (tabstract:= tabstract) (Varr _) (Varr _) := Ht2'.
   by rewrite /write_var; t_xrbindP=> /(check_varcP Hr1' Hcva) h ?
     /h{h} [vm2' /= -> ?] <-; eexists.
 Qed.
@@ -733,10 +734,10 @@ Section PROOF.
 
 End PROOF.
 
-Lemma alloc_callP ev gd ep1 p1 ep2 p2 (H: check_prog ep1 p1 ep2 p2 = ok tt) f scs mem scs' mem' va vr:
-    sem_call {|p_globs := gd; p_funcs := p1; p_extra := ep1; |} ev scs mem f va scs' mem' vr ->
+Lemma alloc_callP ev gd ab ep1 p1 ep2 p2 (H: check_prog ep1 p1 ep2 p2 = ok tt) f scs mem scs' mem' va vr:
+    sem_call {|p_globs := gd; p_abstr := ab; p_funcs := p1; p_extra := ep1; |} ev scs mem f va scs' mem' vr ->
     exists vr', 
-     sem_call {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev scs mem f va scs' mem' vr' /\
+     sem_call {|p_globs := gd; p_abstr := ab; p_funcs := p2; p_extra := ep2; |} ev scs mem f va scs' mem' vr' /\
                 List.Forall2 value_uincl vr vr'.
 Proof.
   by apply alloc_callP_aux.
@@ -781,11 +782,11 @@ Proof.
   by move=> /= ??? _ ???? [<-] [<-]; exists Vm.init; split => //=; apply eq_alloc_empty.
 Qed.
 
-Lemma alloc_call_uprogP dead_vars_fd ev gd ep1 p1 ep2 p2
+Lemma alloc_call_uprogP dead_vars_fd ev gd ab ep1 p1 ep2 p2
   (H: check_prog init_alloc_uprog check_f_extra_u dead_vars_fd ep1 p1 ep2 p2 = ok tt) f scs mem scs' mem' va vr:
-    sem_call {|p_globs := gd; p_funcs := p1; p_extra := ep1; |} ev scs mem f va scs' mem' vr ->
+    sem_call {|p_globs := gd; p_abstr := ab; p_funcs := p1; p_extra := ep1; |} ev scs mem f va scs' mem' vr ->
     exists vr', 
-     sem_call {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev scs mem f va scs' mem' vr' /\
+     sem_call {|p_globs := gd; p_abstr := ab;p_funcs := p2; p_extra := ep2; |} ev scs mem f va scs' mem' vr' /\
                 List.Forall2 value_uincl vr vr'.
 Proof.
   apply: (alloc_callP init_alloc_uprogP _ H).
@@ -848,18 +849,18 @@ Lemma init_alloc_sprogP :
       eq_alloc r s1.(evm) vm2.
 Proof.
   rewrite /init_alloc_sprog /init_state /= /init_stk_state /check_vars.
-  t_xrbindP => ef ep1 ep2 ev s1 scs m r hc m' ha; rewrite (@write_vars_lvals _ _ _ _ _ [::]) => hw.
+  t_xrbindP => ef ep1 ep2 ev s1 scs m r hc m' ha; rewrite (@write_vars_lvals _ _ _ _ _ _ [::]) => hw.
   have [vm2 ]:= check_lvalsP (s1 := (Estate scs m' Vm.init)) hc eq_alloc_empty
-                         (List_Forall2_refl _ (@value_uincl_refl)) hw.
+                         (List_Forall2_refl _ (@value_uincl_refl _)) hw.
   rewrite ha -write_vars_lvals => ??.
   by exists vm2.
 Qed.
 
-Lemma alloc_call_sprogP dead_vars_fd ev gd ep1 p1 ep2 p2
+Lemma alloc_call_sprogP dead_vars_fd ev gd ab ep1 p1 ep2 p2
   (H: check_prog init_alloc_sprog check_f_extra_s dead_vars_fd ep1 p1 ep2 p2 = ok tt) f scs mem scs' mem' va vr:
-    sem_call {|p_globs := gd; p_funcs := p1; p_extra := ep1; |} ev scs mem f va scs' mem' vr ->
+    sem_call {|p_globs := gd; p_abstr := ab; p_funcs := p1; p_extra := ep1; |} ev scs mem f va scs' mem' vr ->
     exists vr', 
-     sem_call {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev scs mem f va scs' mem' vr' /\
+     sem_call {|p_globs := gd; p_abstr := ab; p_funcs := p2; p_extra := ep2; |} ev scs mem f va scs' mem' vr' /\
                 List.Forall2 value_uincl vr vr'.
 Proof.
   apply: (alloc_callP init_alloc_sprogP _ H).

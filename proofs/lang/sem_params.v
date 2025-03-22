@@ -13,6 +13,7 @@ Require Import
   flag_combination
   sopn
   type
+  values
   syscall
   wsize.
 
@@ -46,7 +47,7 @@ Arguments mk_spp {_}.
 (* Parameters needed to execute programs.
    This gets extracted and used in OCaml (in the evaluator), so [asm_op] and
    [syscall_state] are parameters instead of record fields. *)
-Class SemInstrParams (asm_op syscall_state : Type) := mk_sip
+Class SemInstrParams {tabstract : Tabstract} (asm_op syscall_state : Type) := mk_sip
   {
     _asmop : asmOp asm_op;
     _sc_sem : syscall_sem syscall_state;

@@ -10,6 +10,7 @@ Require Import
 Section ESTATE_EQ_EXCEPT.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
@@ -163,6 +164,7 @@ End ESTATE_EQ_EXCEPT.
 Section DISJ_FVARS.
 
 Context
+  {tabstract : Tabstract}
   {pT : progT}
   {asmop : Type}
   {asm_op : asmOp asmop}

@@ -164,6 +164,7 @@ Record stack_alloc_oracles : Type :=
   }.
 
 Record compiler_params
+  {tabstract : Tabstract}
   {asm_op : Type}
   {asmop : asmOp asm_op}
   (lowering_options : Type) := {
@@ -198,6 +199,7 @@ Record compiler_params
 }.
 
 Context
+  {tabstract : Tabstract}
   {reg regx xreg rflag cond asm_op extra_op : Type}
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {syscall_state : Type}.
@@ -332,7 +334,11 @@ Definition compiler_third_part (returned_params: funname -> option (seq (option 
   Let pr := dead_code_prog_tokeep (ap_is_move_op aparams) false rminfo ps in
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
-  let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
+  let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs);
+               p_globs := pr.(p_globs);
+               p_abstr := pr.(p_abstr);
+               p_extra := pr.(p_extra) |}
+  in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in
   Let _ := check_sprog (wsw:= withsubword) cparams.(dead_vars_sfd) pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 

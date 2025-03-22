@@ -99,7 +99,7 @@ type analyzer_param = { relationals : string list option;
                         pointers : string list option }
 
 (*------------------------------------------------------------*)
-let get_fun_def prog f = List.find_opt (fun x -> x.f_name = f) (snd prog)
+let get_fun_def (_, _, prog) f = List.find_opt (fun x -> x.f_name = f) prog
 
 
 (*------------------------------------------------------------*)

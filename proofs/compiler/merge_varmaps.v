@@ -39,6 +39,7 @@ Definition ii_loop_iterator :=
 End E.
 
 Section PROG.
+Context {A: Tabstract}.
 Context {pd: PointerData} {syscall_state : Type} {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap_info}.
 Context (p: sprog).
 Context (var_tmp : Sv.t).

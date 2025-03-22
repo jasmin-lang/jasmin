@@ -29,6 +29,7 @@ Import seq_extra.
 Section FIXME.
 
 Context
+  {tabstract : Tabstract}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {sip : SemInstrParams asm_op syscall_state}.
@@ -46,7 +47,12 @@ End FIXME.
 
 Section STACK_ZEROIZATION.
 
-Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+Context
+  {tabstract : Tabstract}
+  {atoI : arch_toIdent}
+  {syscall_state : Type}
+  {sc_sem : syscall_sem syscall_state}.
+
 Context {call_conv : calling_convention}.
 
 Section RSP.
@@ -61,7 +67,7 @@ Let vtemp := mk_var_i (to_var X12).
 
 Lemma store_zero_eval_instr lp ii ws (v: var_i) off (ls:lstate) (w1 w2 : word Uptr) m' :
   (ws <= U32)%CMP ->
-  get_var true (lvm ls) vzero = ok (@Vword Uptr 0) ->
+  get_var true (lvm ls) vzero = ok (@Vword _ Uptr 0) ->
   get_var true (lvm ls) v = ok (Vword w1) ->
   write (lmem ls) Aligned (w1 + wrepr _ off)%R (sz:=ws) 0 = ok m' ->
   let i := MkLI ii (store_zero ws v off) in
@@ -106,7 +112,7 @@ Record state_rel_unrolled vars s1 s2 n (p:word Uptr) := {
   sr_vm : s1.(evm) =[\ Sv.add rspi vars] s2.(evm) ;
   sr_vsaved : s2.(evm).[vsaved_sp] = Vword ptr;
   sr_rsp : s2.(evm).[rspi] = Vword p;
-  sr_vzero : s2.(evm).[vzero] = @Vword Uptr 0; (* contrary to x86, not ws but U32 *)
+  sr_vzero : s2.(evm).[vzero] = @Vword _ Uptr 0; (* contrary to x86, not ws but U32 *)
   sr_aligned : is_align n ws;
   sr_bound : (0 <= n <= stk_max)%Z;
 }.
@@ -306,7 +312,7 @@ Proof.
     by rewrite /of_estate /lnext_pc /=; reflexivity.
   + rewrite /lsem1 /step -addn1 -addnA (find_instr_skip hbody) /= -(addn1 3) (addnA _ 3) addn1 addn1.
     apply: store_zero_eval_instr => //=.
-    + do 2 (rewrite (@get_var_neq _ _ _ vzero);
+    + do 2 (rewrite (@get_var_neq _ _ _ _ vzero);
         last by [|move=> /(@inj_to_var _ _ _ _ _ _)]).
       by rewrite /get_var hsr.(sr_vzero).
     + rewrite get_var_eq //= truncate_word_u; reflexivity.
