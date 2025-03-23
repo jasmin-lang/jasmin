@@ -1,0 +1,545 @@
+From Coq Require Import
+     Arith.PeanoNat
+     Lists.List
+     Strings.String
+     Morphisms
+     Setoid
+     RelationClasses
+     EquivDec
+     Equality
+     Program.Tactics.
+
+From ExtLib Require Import
+     Data.String
+     Structures.Monad
+     Structures.Traversable
+     Data.List
+     Core.RelDec
+     Structures.Maps
+     Data.Map.FMapAList.
+
+From ITree Require Import
+     ITree
+     ITreeFacts
+     Monad
+     Basics.HeterogeneousRelations
+     Events.Map
+     Events.State
+     Events.StateFacts
+     Events.Reader
+     Events.Exception
+     Events.FailFacts.
+
+Require Import Paco.paco.
+Require Import Psatz.
+Require Import ProofIrrelevance.
+Require Import FunctionalExtensionality.
+
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
+
+From ITree Require Import
+(*     Basics.Tacs *)
+     Basics.Category
+     Basics.Basics
+     Basics.Function
+     Core.ITreeDefinition
+     Core.KTree
+     Eq.Eqit
+     Eq.UpToTaus
+     Eq.Paco2
+     Indexed.Sum
+     Indexed.Function
+     Indexed.Relation
+     Interp.Handler
+     Interp.Interp
+     Interp.InterpFacts
+     Interp.Recursion.
+
+From ITree Require Import XRutt XRuttFacts.
+From ITree Require Import Rutt RuttFacts.
+
+Import Monads.
+Import MonadNotation.
+Local Open Scope monad_scope.
+
+Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
+
+Lemma rutt_weaken {E1 E2: Type -> Type} {O1 O2 : Type}
+  (REv REv' : prerel E1 E2)
+  (RAns RAns' : postrel E1 E2)
+  (RR RR' : O1 -> O2 -> Prop) t1 t2 :
+  (forall T1 T2 e1 e2,
+     REv T1 T2 e1 e2 -> REv' T1 T2 e1 e2) ->
+  (forall T1 T2 e1 t1 e2 t2 ,
+    REv T1 T2 e1 e2 -> RAns' T1 T2 e1 t1 e2 t2 -> RAns T1 T2 e1 t1 e2 t2) ->
+  (forall o1 o2, RR o1 o2 -> RR' o1 o2) ->
+  rutt REv RAns RR t1 t2 ->
+  rutt REv' RAns' RR' t1 t2.
+Proof.
+  move=> hEv hAns hR; move: t1 t2.
+  pcofix CIH => t1 t2 h.
+  pstep. punfold h. red in h |- *.
+  elim: h => {t1 t2}.
+  + by move=> r1 r2 /hR; apply EqRet.
+  + by move=> t1 t2 h; constructor; pclearbot; right; auto.
+  + move=> T1 T2 e1 e2 k1 k2 hREv hrec.
+    apply EqVis.
+    + by apply hEv.
+    move=> a b hab; right.
+    have h1 := hAns _ _ _ _ _ _ hREv hab.
+    have ? := hrec _ _ h1.
+    pclearbot; auto.
+  + by move=> ?? _; apply EqTauL.
+  by move=> ?? _; apply EqTauR.
+Qed.
+
+Lemma xrutt_weaken {E1 E2: Type -> Type} {O1 O2 : Type}
+  (EE1 EE1' : forall X : Type, E1 X -> bool)
+  (EE2 EE2' : forall X : Type, E2 X -> bool)
+  (REv REv' : prerel E1 E2)
+  (RAns RAns' : postrel E1 E2)
+  (RR RR' : O1 -> O2 -> Prop) t1 t2 :
+  (forall T1 e1, EE1 T1 e1 = EE1' T1 e1) ->
+  (forall T2 e2, EE2 T2 e2 = EE2' T2 e2) ->
+  (forall T1 T2 e1 e2,
+    REv T1 T2 e1 e2 -> REv' T1 T2 e1 e2) ->
+  (forall T1 T2 e1 t1 e2 t2 ,
+    EE1 T1 e1 -> EE2 T2 e2 -> REv T1 T2 e1 e2 -> RAns' T1 T2 e1 t1 e2 t2 -> RAns T1 T2 e1 t1 e2 t2) ->
+  (forall o1 o2, RR o1 o2 -> RR' o1 o2) ->
+  XRutt.rutt EE1 EE2 REv RAns RR t1 t2 ->
+  XRutt.rutt EE1' EE2' REv' RAns' RR' t1 t2.
+Proof.
+  move=> hEE1_w hEE2_w hEv hAns hR; move: t1 t2.
+  pcofix CIH => t1 t2 h.
+  pstep. punfold h. red in h |- *.
+  elim: h => {t1 t2}.
+  + by move=> r1 r2 /hR; apply XRutt.EqRet.
+  + by move=> t1 t2 h; constructor; pclearbot; right; auto.
+  + move=> T1 T2 e1 e2 k1 k2 hEE1 hEE2 hREv hrec.
+    apply XRutt.EqVis.
+    + by rewrite -hEE1_w. + by rewrite -hEE2_w.
+    + by apply hEv.
+    move=> a b hab; right.
+    have h1 := hAns _ _ _ _ _ _ hEE1 hEE2 hREv hab.
+    have ? := hrec _ _ h1.
+    pclearbot; auto.
+  + by move=> T e1 k1 ot2 hEE1; apply XRutt.EqCutL; rewrite -hEE1_w.
+  + by move=> T e2 k2 ot1 hEE2; apply XRutt.EqCutR; rewrite -hEE2_w.
+  + by move=> ?? _; apply XRutt.EqTauL.
+  by move=> ?? _; apply XRutt.EqTauR.
+Qed.
+
+Variant prcompose {E1 E2 E3 : Type -> Type}
+  (pre : prerel E1 E2) (pre' : prerel E2 E3) T1 T3 (e1 : E1 T1) (e3 : E3 T3) : Prop :=
+| Cprerel T2 (e2 :E2 T2) (REL1 : pre T1 T2 e1 e2) (REL2 : pre' T2 T3 e2 e3).
+
+Definition pocompose {E1 E2 E3 : Type -> Type}
+   (pre : prerel E1 E2) (pre' : prerel E2 E3) (post : postrel E1 E2) (post' : postrel E2 E3)
+  T1 T3 (e1 : E1 T1) (t1 : T1) (e3 : E3 T3) (t3 : T3) : Prop :=
+  forall T2 (e2: E2 T2),
+    pre T1 T2 e1 e2 -> pre' T2 T3 e2 e3 ->
+    exists2 t2, post T1 T2 e1 t1 e2 t2 & post' T2 T3 e2 t2 e3 t3.
+
+Lemma rutt_trans {E1 E2 E3: Type -> Type} {R1 R2 R3 : Type}
+  (REv12 : prerel E1 E2)
+  (REv23 : prerel E2 E3)
+  (RAns12: postrel E1 E2)
+  (RAns23: postrel E2 E3)
+  (RR12 : R1 -> R2 -> Prop)
+  (RR23 : R2 -> R3 -> Prop) :
+  forall t1 t2 t3,
+  rutt REv12 RAns12 RR12 t1 t2 ->
+  rutt REv23 RAns23 RR23 t2 t3 ->
+  rutt (prcompose REv12 REv23) (pocompose REv12 REv23 RAns12 RAns23) (rcompose RR12 RR23) t1 t3.
+Proof.
+  pcofix CIH. intros t1 t2 t3 INL INR.
+  pstep. punfold INL. punfold INR. red in INL, INR |- *. genobs_clear t3 ot3.
+  hinduction INL before CIH; intros; subst; clear t1 t2.
+  - remember (RetF r2) as ot.
+    hinduction INR before CIH; intros; inv Heqot; eauto with paco itree.
+    + by constructor; econstructor; eauto.
+    by constructor; eauto.
+  - assert (DEC: (exists m3, ot3 = TauF m3) \/ (forall m3, ot3 <> TauF m3)).
+    + by destruct ot3; eauto; right; red; intros; inv H.
+    destruct DEC as [EQ | EQ].
+    + destruct EQ as [m3 ?]; subst.
+      econstructor. right. pclearbot. eapply CIH; eauto with paco.
+      eapply rutt_inv_Tau. by eapply fold_ruttF; first eapply INR.
+    + inv INR; try (exfalso; eapply EQ; eauto; fail).
+      econstructor; eauto.
+      pclearbot. punfold H. red in H.
+      hinduction H1 before CIH; intros; try (exfalso; eapply EQ; eauto; fail).
+      * remember (RetF r1) as ot.
+        hinduction H0 before CIH; intros; inv Heqot; eauto with paco itree.
+        + by constructor; econstructor; eauto.
+        by constructor; eapply IHruttF; eauto.
+      * remember (VisF e1 k1) as ot.
+        hinduction H1 before CIH; intros; try discriminate; [ inv_Vis | ].
+        + constructor.
+          + by econstructor; eauto.
+          move=> a b /(_ _ _ H H1) [t2 HA12 HA23].
+          move: H3 => /= ?; subst.
+          by destruct (H0 _ _ HA12), (H2 _ _ HA23); try contradiction; eauto.
+        by constructor; eauto.
+      * eapply IHruttF; eauto. pstep_reverse.
+        by apply rutt_inv_Tau_r; eapply fold_ruttF; eauto.
+  - remember (VisF e2 k2) as ot.
+    hinduction INR before CIH; intros; try discriminate; [ inv_Vis | ].
+    + constructor.
+      + by econstructor; eauto.
+      move: H3 => /= ?; subst.
+      move=> a b /(_ _ _ H1 H) [t2 HA12 HA23].
+      by destruct (H2 _ _ HA12), (H0 _ _ HA23); try contradiction; eauto.
+    by constructor; eauto.
+  - by constructor; eauto.
+  remember (TauF t0) as ot.
+  hinduction INR before CIH; intros; try inversion Heqot; subst.
+  + by constructor; eapply IHINL; pclearbot; punfold H.
+  + eauto with itree.
+  constructor; eauto.
+Qed.
+
+Notation prepred E := (forall T, E T -> Prop).
+Notation postpred E := (forall T, E T -> T -> Prop).
+
+Variant sum_prepred (E1 E2 : Type -> Type) (PR1 : prepred E1) (PR2 : prepred E2) : prepred (E1 +' E2) :=
+  | sum_prepred_inl : forall (A : Type) (e1 : E1 A),
+     PR1 A e1 -> sum_prepred PR1 PR2 (inl1 e1)
+  | sum_prepred_inr : forall (A : Type) (e2 : E2 A),
+     PR2 A e2 -> sum_prepred PR1 PR2 (inr1 e2).
+
+Variant sum_postpred (E1 E2 : Type -> Type)
+  (PR1 : postpred E1) (PR2 : postpred E2) : postpred (E1 +' E2) :=
+  | sum_postpred_inl : forall (A : Type) (e1 : E1 A) (a : A),
+     PR1 A e1 a -> sum_postpred PR1 PR2 (inl1 e1) a
+  | sum_postpred_inr : forall (A : Type) (e2 : E2 A) (a : A),
+     PR2 A e2 a -> sum_postpred PR1 PR2 (inr1 e2) a.
+
+Section LOGIC.
+
+Context {E : Type -> Type} (PEv : prepred E) (PAns : postpred E).
+
+Definition REv_eq T1 T2 (e1 : E T1) (e2 : E T2) :=
+  PEv e1 /\ exists (h : T1 = T2), e2 = eq_rect T1 E e1 T2 h.
+
+Definition RAns_eq T1 T2 (e1 : E T1) (t1 : T1) (e2 : E T2) (t2 : T2) :=
+  PAns e1 t1 /\ forall (h : T1 = T2), t2 = eq_rect T1 id t1 T2 h.
+
+Definition lutt (T : Type) (R : T -> Prop) (t : itree E T) :=
+  exists (t' : itree E T),
+    rutt REv_eq RAns_eq (fun r1 r2 => R r1) t t'.
+
+#[global] Instance lutt_Proper T :
+  Proper (eq ==> eutt eq ==> iff) (@lutt T).
+Proof. by move=> R R' -> t t' heq; rewrite /lutt; setoid_rewrite heq. Qed.
+
+Lemma lutt_Ret (T : Type) (R : T -> Prop) (r : T) : R r <-> lutt R (Ret r).
+Proof.
+  split.
+  + by move=> ?; exists (Ret r); apply rutt_Ret.
+  by move=> [t] h; have [? []] := rutt_inv_Ret_l _ _ _ _ _ _ _ _ _ h.
+Qed.
+
+Lemma lutt_Tau (T : Type) (R : T -> Prop) (t : itree E T) : lutt R t <-> lutt R (Tau t).
+Proof. by rewrite tau_eutt. Qed.
+
+Lemma lutt_Vis (T1 T2 : Type) (R : T2 -> Prop) (e : E T1) (k: T1 -> itree E T2) :
+  PEv e ->
+  (forall t, PAns e t -> lutt R (k t)) ->
+  lutt R (Vis e k).
+Proof.
+  move=> he hk; exists (Vis e k).
+  apply rutt_Vis => //.
+  + by split => //; exists erefl.
+  move=> t1 t2 [hAns] /(_ erefl) -> /=.
+  have [k1 h1] := hk t1 hAns.
+  have /rutt_flip h2 := h1.
+  have := rutt_trans h1 h2.
+  apply rutt_weaken => //.
+  + move=> T1' T3' e1 e3 [] T2' e2 [he1 [?]]; subst T2' => -> /=.
+    by move=> [_ [?]]; subst T3' => /= <-; split => //; exists erefl.
+  + move=> T1' T3' e1 r1 e3 r3 _ [{}hAns heq].
+    move=> T2' e2 [_ [?]]; subst T2' => -> /=.
+    move=> [? [?]]; subst T3' => /= ?; subst e3; exists r1.
+    + by split => // ?; rewrite -eq_rect_eq.
+    by have /= -> := heq erefl; split => // h; rewrite -eq_rect_eq.
+  by move=> o1 o2 [].
+Qed.
+
+Lemma lutt_inv_Vis (T1 T2 : Type) (R : T2 -> Prop) (e : E T1) (k : T1 -> itree E T2) :
+  lutt R (Vis e k) -> PEv e /\ forall r, PAns e r -> lutt R (k r).
+Proof.
+  move=> [t h]; have := rutt_inv_Vis_l E E _ _ _ _ _ _ _ _ h.
+  move=> [T1'] [e'] [k'] []heq [][]herr [?]; subst T1' => /= ? hk; subst e'.
+  split => // r hAns.
+  by exists (k' r); apply (hk r r); split => // ?; rewrite -eq_rect_eq.
+Qed.
+(*
+
+Lemma lutt_bind (T1 T2 : Type) (R : T1 -> Prop) (Q : T2 -> Prop) (t : itree E T1) (k : T1 -> itree E T2) :
+  lutt R t ->
+  (forall t1, R t1 -> lutt Q (k t1)) ->
+  lutt Q (ITree.bind t k).
+Proof.
+  move=> [t' htt'] hk. exists (ITree.bind t' k).
+(*  move: t t' htt'; pcofix CIH => t t' htt'.
+  pstep. punfold htt'. red in htt' |- *; rewrite !observe_bind.
+  elim: htt' => // {t t'}. *)
+
+
+  apply rutt_bind with (fun r1 _ => R r1).
+  + by apply htt'.
+  move=> t1 t2 ht1.
+ /hk [k'].
+  have := hk
+  lutt
+       rutt REv RAns RR t1 t2 ->
+       (forall (r1 : ?R1) (r2 : ?R2), RR r1 r2 -> rutt REv RAns RT (k1 r1) (k2 r2)) ->
+       rutt REv RAns RT (ITree.bind t1 k1) (ITree.bind t2 k2)
+*)
+End LOGIC.
+
+Lemma lutt_weaken {E : Type -> Type} (T : Type)
+  (PEv PEv' : prepred E) (PAns PAns': postpred E)
+  (R R': T -> Prop) t :
+  (forall T e,
+     PEv T e -> PEv' T e) ->
+  (forall T e t,
+    PEv T e -> PAns' T e t -> PAns T e t) ->
+  (forall r, R r -> R' r) ->
+  lutt PEv PAns R t ->
+  lutt PEv' PAns' R' t.
+Proof.
+  move=> hEv hAns hR [t'] hrutt; exists t'.
+  apply: rutt_weaken hrutt.
+  + by move=> T1 T2 e1 e2 [] /hEv ??.
+  + by move=> T1 T2 e1 t1 e2 t2 [h1 heq1] [h2 heq2]; split; auto.
+  move=> ??; apply hR.
+Qed.
+
+Section SAFE.
+Context {E : Type -> Type}.
+Context (is_error : forall T, E T -> bool).
+
+Definition safe (T : Type) (t : itree E T) :=
+  lutt (fun T e => ~~is_error e) (fun T e r => True) (fun _ => True) t.
+
+#[global] Instance safe_Proper T :
+  Proper (eutt eq ==> iff) (@safe T).
+Proof. by apply lutt_Proper. Qed.
+
+Lemma safe_Ret (T:Type) (r:T) : safe (Ret r).
+Proof. by apply lutt_Ret. Qed.
+
+Lemma safe_Tau (T:Type) (t:itree E T) : safe t <-> safe (Tau t).
+Proof. apply lutt_Tau. Qed.
+
+Lemma safe_Vis (T1 T2:Type) (e:E T1) (k: T1 -> itree E T2) :
+  ~~(is_error e) ->
+  (forall t, safe (k t)) ->
+  safe (Vis e k).
+Proof. move=> h1 h2; apply lutt_Vis => // t _; apply h2. Qed.
+
+Lemma safe_inv_Vis (T1 T2:Type) (e:E T1) (k: T1 -> itree E T2) :
+  safe (Vis e k) -> ~~(is_error e) /\ forall r, safe (k r).
+Proof.
+  move=> h; have [h1 h2]:= lutt_inv_Vis h; split => //.
+  by move=> r; apply h2.
+Qed.
+
+End SAFE.
+
+Section SAFE_XRUTT_RUTT.
+
+Context {E1 E2 : Type -> Type}.
+Context (is_error : forall T, E1 T -> bool).
+
+Definition errcutoff T (e : E1 T) := ~~(is_error e).
+Definition nocutoff T (e : E2 T) := true.
+
+Lemma safe_xrutt_rutt {R1 R2 : Type}
+  (REv : prerel E1 E2)
+  (RAns: postrel E1 E2)
+  (RR : R1 -> R2 -> Prop)
+  (t1 : itree E1 R1) t2 :
+  safe is_error t1 ->
+  XRutt.rutt errcutoff nocutoff REv RAns RR t1 t2 ->
+  rutt REv RAns RR t1 t2.
+Proof.
+  move: t1 t2; pcofix CIH => t1 t2 hsafe hxrutt.
+  pstep. punfold hxrutt. red in hxrutt |- *.
+  move: hsafe; rewrite {1}(itree_eta t1).
+  elim: hxrutt => // {t1 t2}.
+  + by move=> r1 r2 hRR _; constructor.
+  + move=> t1 t2 hxrutt hsafe; constructor.
+    by pclearbot; right; apply CIH => //; apply safe_Tau.
+  + move=> T1 T2 e1 e2 k1 k2 _ _ hREv hAns hsafe.
+    constructor => // r1 r2 /hAns hxrutt.
+    have [hnerr /(_ r1){}hsafe]:= safe_inv_Vis hsafe.
+    by pclearbot; right; eauto.
+  + move=> T e1 k1 ot2 + hsafe.
+    have [hnerr _]:= safe_inv_Vis hsafe.
+    by rewrite /errcutoff hnerr.
+  + move=> t1 ot2 _ hrec.
+    by rewrite -safe_Tau {1}(itree_eta t1) => /hrec; apply EqTauL.
+  by move=> ot1 t2 _ hrec /hrec; apply EqTauR.
+Qed.
+
+End SAFE_XRUTT_RUTT.
+
+Section LUTT_RUTT_LUTT.
+
+Context {E1 E2 : Type -> Type}
+        (REv : prerel E1 E2) (RAns : postrel E1 E2)
+        (PEv1 : prepred E1) (PEv2 : prepred E2)
+        (PAns1 : postpred E1) (PAns2 : postpred E2)
+        {R1 R2 : Type}
+        (RR : R1 -> R2 -> Prop) (P1 : R1 -> Prop) (P2 : R2 -> Prop) .
+
+Lemma lutt_rutt_lutt t1 t2 :
+  (forall T1 T2 (e1 : E1 T1) (e2 : E2 T2), REv e1 e2 -> PEv1 e1 -> PEv2 e2) ->
+  (forall T1 T2 (e1 : E1 T1) (e2 : E2 T2) r2, REv e1 e2 -> PEv1 e1 -> PAns2 e2 r2 ->
+      exists2 r1, PAns1 e1 r1 & RAns e1 r1 e2 r2) ->
+  (forall r1 r2, RR r1 r2 -> P1 r1 -> P2 r2) ->
+  lutt PEv1 PAns1 P1 t1 ->
+  rutt REv RAns RR t1 t2 ->
+  lutt PEv2 PAns2 P2 t2.
+Proof.
+  move=> hREv_i hAns_err hRRP hlutt hrutt; exists t2.
+  move: t1 t2 hlutt hrutt. pcofix CIH.
+  move=> t1 t2 hlutt hrutt.
+  pstep. punfold hrutt. red in hrutt |- *.
+  move: hlutt; rewrite {1}(itree_eta t1).
+  elim: hrutt => // {t1 t2}.
+  + by move=> r1 r2 hRR; rewrite -lutt_Ret => hP1; constructor; eauto.
+  + move=> t1 t2 hrutt hlutt; constructor.
+    by pclearbot; right; apply CIH with t1 => //; apply lutt_Tau.
+  + move=> T1 T2 e1 e2 k1 k2 hREv hk hlutt.
+    have [hPEv1 {}hlutt] := lutt_inv_Vis hlutt.
+    constructor.
+    + by split; eauto; exists erefl.
+    move=> r2 ? [] hAns2 /(_ erefl) -> /=; right.
+    have [r1 /hlutt ? /hk ?] := hAns_err _ _ _ _ r2 hREv hPEv1 hAns2.
+    by pclearbot; apply CIH with (k1 r1).
+  + move=> t1 ot2 _ hrec.
+    by rewrite -lutt_Tau {1}(itree_eta t1).
+  by move=> ot1 t2 _ hrec /hrec ?; apply EqTauR; apply EqTauL.
+Qed.
+
+End LUTT_RUTT_LUTT.
+
+Lemma safe_rutt_safe {E1 E2 : Type -> Type} {R1 R2 : Type}
+  (is_error1 : forall T, E1 T -> bool)
+  (is_error2 : forall T, E2 T -> bool)
+  (REv : prerel E1 E2)
+  (RAns: postrel E1 E2)
+  (RR : R1 -> R2 -> Prop)
+  (t1 : itree E1 R1) t2 :
+  (forall T1 T2 e1 e2, REv T1 T2 e1 e2 -> ~~is_error1 T1 e1 -> ~~ is_error2 T2 e2) ->
+  (forall T1 T2 e1 e2 r2, REv T1 T2 e1 e2 -> ~~ is_error1 T1 e1 -> exists r1, RAns T1 T2 e1 r1 e2 r2) ->
+  safe is_error1 t1 ->
+  rutt REv RAns RR t1 t2 ->
+  safe is_error2 t2.
+Proof.
+  move=> hREv_err hAns_err.
+  apply lutt_rutt_lutt => //.
+  move=> T1 T2 e1 e2 r2 hREv herr _.
+  by have [r1 ?] := hAns_err _ _ _ _ r2 hREv herr; exists r1.
+Qed.
+
+Section LUTT_RUTT_TRANS.
+
+Context {E1 E2 : Type -> Type}
+        (REv : prerel E1 E2) (RAns : postrel E1 E2)
+        (PEv : prepred E1) (PAns : postpred E1) {R1 R2 : Type}
+        (RR : R1 -> R2 -> Prop) (P : R1 -> Prop).
+
+Lemma lutt_rutt_trans_l t1 t2 :
+  lutt PEv PAns P t1 ->
+  rutt REv RAns RR t1 t2 ->
+  rutt (fun T1 T2 e1 e2 => PEv e1 /\ REv e1 e2)
+       (fun T1 T2 e1 t1 e2 t2 => PAns e1 t1 /\ RAns e1 t1 e2 t2)
+       (fun r1 r2 => P r1 /\ RR r1 r2) t1 t2.
+Proof.
+  move: t1 t2; pcofix CIH => t1 t2 hlutt hrutt.
+  pstep. punfold hrutt. red in hrutt |- *.
+  move: hlutt; rewrite {1}(itree_eta t1).
+  elim: hrutt => // {t1 t2}.
+  + by move=> r1 r2 hRR; rewrite -lutt_Ret => hP1; constructor.
+  + move=> t1 t2 hrutt hlutt; constructor.
+    by pclearbot; right; apply CIH => //; apply lutt_Tau.
+  + move=> T1 T2 e1 e2 k1 k2 hREv hk hlutt.
+    have [hPEv {}hlutt]:= lutt_inv_Vis hlutt.
+    constructor => // r1 r2 [/hlutt ? /hk ?].
+    by pclearbot; right; eauto.
+  + move=> t1 ot2 _ hrec.
+    by rewrite -lutt_Tau {1}(itree_eta t1) => /hrec; apply EqTauL.
+  by move=> ot1 t2 _ hrec /hrec; apply EqTauR.
+Qed.
+
+Context (is_error1 : forall T, E1 T -> bool).
+
+Lemma lutt_xrutt_trans_l t1 t2 :
+  lutt PEv PAns P t1 ->
+  XRutt.rutt (errcutoff is_error1) nocutoff REv RAns RR t1 t2 ->
+  XRutt.rutt (errcutoff is_error1) nocutoff (fun T1 T2 e1 e2 => PEv e1 /\ REv e1 e2)
+       (fun T1 T2 e1 t1 e2 t2 => PAns e1 t1 /\ RAns e1 t1 e2 t2)
+       (fun r1 r2 => P r1 /\ RR r1 r2) t1 t2.
+Proof.
+  move: t1 t2; pcofix CIH => t1 t2 hlutt hrutt.
+  pstep. punfold hrutt. red in hrutt |- *.
+  move: hlutt; rewrite {1}(itree_eta t1).
+  elim: hrutt => // {t1 t2}.
+  + by move=> r1 r2 hRR; rewrite -lutt_Ret => hP1; constructor.
+  + move=> t1 t2 hrutt hlutt; constructor.
+    by pclearbot; right; apply CIH => //; apply lutt_Tau.
+  + move=> T1 T2 e1 e2 k1 k2 ?? hREv hk hlutt.
+    have [hPEv {}hlutt]:= lutt_inv_Vis hlutt.
+    constructor => // r1 r2 [/hlutt ? /hk ?].
+    by pclearbot; right; eauto.
+  + by move=> T1 e1 k1 ot2 ? _; apply EqCutL.
+  + move=> t1 ot2 _ hrec.
+    by rewrite -lutt_Tau {1}(itree_eta t1) => /hrec; apply XRutt.EqTauL.
+  by move=> ot1 t2 _ hrec /hrec; apply XRutt.EqTauR.
+Qed.
+
+End LUTT_RUTT_TRANS.
+
+Section SAFE_RUTT.
+
+Context {E : Type -> Type}.
+
+Context (is_error : forall T, E T -> bool).
+
+Definition safe_rutt {R1 R2 : Type} (REv : prerel E E) (RAns: postrel E E) (RR : R1 -> R2 -> Prop) t1 t2 :=
+  safe is_error t1 ->
+  rutt REv RAns RR t1 t2.
+
+Definition weak_rutt {R1 R2 : Type} (REv : prerel E E) (RAns: postrel E E) (RR : R1 -> R2 -> Prop) t1 t2 :=
+  XRutt.rutt (errcutoff is_error) nocutoff REv RAns RR t1 t2.
+
+Lemma weak_rutt_safe_rutt {R1 R2 : Type} (REv : prerel E E) (RAns: postrel E E) (RR : R1 -> R2 -> Prop) t1 t2 :
+  weak_rutt REv RAns RR t1 t2 ->
+  safe_rutt REv RAns RR t1 t2.
+Proof. move=> hw hsafe; apply: safe_xrutt_rutt hsafe hw. Qed.
+
+Lemma safe_rutt_trans {R1 R2 R3: Type}
+  (REv12 REv23 : prerel E E) (RAns12 RAns23: postrel E E)
+  (RR12 : R1 -> R2 -> Prop) (RR23 : R2 -> R3 -> Prop)
+  t1 t2 t3 :
+  (forall T1 T2 e1 e2, REv12 T1 T2 e1 e2 -> ~~is_error e1 -> ~~ is_error e2) ->
+  (forall T1 T2 e1 e2 r2, REv12 T1 T2 e1 e2 -> ~~ is_error e1 -> exists r1, RAns12 T1 T2 e1 r1 e2 r2) ->
+  safe_rutt REv12 RAns12 RR12 t1 t2 ->
+  safe_rutt REv23 RAns23 RR23 t2 t3 ->
+  safe_rutt (prcompose REv12 REv23) (pocompose REv12 REv23 RAns12 RAns23) (rcompose RR12 RR23) t1 t3.
+Proof.
+  move=> hREv_err hAns_err h12 h23 hsafe1.
+  have h1 := h12 hsafe1.
+  have hsafe2 := safe_rutt_safe hREv_err hAns_err hsafe1 h1.
+  have h2 := h23 hsafe2.
+  apply: rutt_trans h1 h2.
+Qed.
+
+End SAFE_RUTT.
