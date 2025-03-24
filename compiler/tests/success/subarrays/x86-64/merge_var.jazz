@@ -1,0 +1,23 @@
+// checks that the merge operation is decently precise
+export fn main (reg u64 i) -> reg u64 {
+  stack u64[4] s;
+  reg ptr u64[2] r;
+  reg u64 res;
+
+  s[i] = 1;
+  r = s[i:2];
+
+  // s is valid
+  if (i <= 2) {
+    r[0] = 0;
+    // s is borrowed on [i:2]
+  } else {
+    // s is valid
+  }
+  // s is borrowed on [i:2]
+
+  s[i:2] = r; // s is valid
+  res = s[i]; // reading is ok
+
+  return res;
+}

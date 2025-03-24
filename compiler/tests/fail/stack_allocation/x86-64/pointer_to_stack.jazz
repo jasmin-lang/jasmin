@@ -1,8 +1,0 @@
-fn f (reg ptr u64[2] r) -> reg u64 {
-  reg u64 res;
-  stack u64[1] a;
-  a[0]=0;
-  r[0:1] = a[0:1];
-  res = r[0];
-  return res;
-}

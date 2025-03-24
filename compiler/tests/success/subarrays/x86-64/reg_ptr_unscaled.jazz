@@ -1,0 +1,11 @@
+// sub-reg ptr with variable index (unscaled)
+
+export fn main (reg ptr u32[2] r, reg u64 i) -> reg u32 {
+  reg ptr u32[1] r2;
+  reg u32 res;
+
+  r2 = r.[i:1]; // LEA
+  res = r2.[0];
+
+  return res;
+}

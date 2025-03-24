@@ -1,0 +1,15 @@
+export fn main () -> reg u32 {
+  reg u32 res tmp;
+  stack u32[4] s;
+  reg ptr u32[2] r;
+
+  s[0] = 0;
+  r = s[2:2];
+  r[0] = 0;
+  tmp = r[0];
+  r = s[2:2]; // r is not valid
+  res = r[0]; // reading is ko
+  res += tmp;
+
+  return res;
+}

@@ -32,3 +32,7 @@ let to_string i = Int64.to_string (to_uint64 i)
 
 let add x y = x + y
 [@@ocaml.inline always]
+
+let le (x : int) (y : int) =
+  (x lxor 0x4000000000000000) <= (y lxor 0x4000000000000000)
+[@@ocaml.inline always]

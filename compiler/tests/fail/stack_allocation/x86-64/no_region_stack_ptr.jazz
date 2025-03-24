@@ -1,0 +1,10 @@
+export
+fn g () -> reg u64 {
+  stack ptr u64[1] sp;
+  reg u64 res;
+
+  sp[0] = 0;
+  res = sp[0];
+
+  return res;
+}

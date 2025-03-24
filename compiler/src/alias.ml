@@ -1,14 +1,21 @@
 open Utils
 open Printer
 open Prog
+open Wsize
 
 let hierror = hierror ~kind:"compilation error" ~sub_kind:"stack allocation"
 (* Most of the errors have no location initially, but they are added later
    by catching the exception and reemiting it with more information. *)
 let hierror_no_loc ?funname = hierror ~loc:Lnone ?funname
 
-(* Interval within a variable; [lo; hi[ *)
-type slice = { in_var : var ; scope : E.v_scope ; range : int * int }
+type sub_slice_kind =
+  | Exact
+    (* the range is exact *)
+  | Sub of Wsize.wsize
+    (* the precise offset is not known, we remember that it is a subpart
+       and its alignment *)
+
+type slice = { in_var : var ; scope : E.v_scope ; range : int * int; kind : sub_slice_kind }
 
 type alias = slice Mv.t
 
@@ -22,7 +29,11 @@ let pp_range fmt (lo, hi) =
   Format.fprintf fmt "%d; %d" lo hi
 
 let pp_slice fmt s =
-  Format.fprintf fmt "%a%a[%a[" pp_scope s.scope pp_var s.in_var pp_range s.range
+  match s.kind with
+  | Exact ->
+    Format.fprintf fmt "%a%a[%a[" pp_scope s.scope pp_var s.in_var pp_range s.range
+  | Sub ws ->
+   Format.fprintf fmt "%a%a ⊆ [%a[ (aligned on %a)" pp_scope s.scope pp_var s.in_var pp_range s.range PrintCommon.pp_wsize ws
 
 let pp_binding fmt x s =
   Format.fprintf fmt "%a ↦ %a;@ " pp_var x pp_slice s
@@ -37,28 +48,47 @@ let pp_alias fmt a =
 (* --------------------------------------------------- *)
 let size_of_range (lo, hi) = hi - lo
 
-let range_in_slice (lo, hi) s =
-  let (u, v) = s.range in
-  if u + hi <= v
-  then { s with range = u + lo, u + hi }
-  else hierror_no_loc "range [%a[ overflows slice %a" pp_range (lo, hi) pp_slice s
+let align_of_offset lo =
+  if lo land 0x1f = 0 then U256
+  else if lo land 0xf = 0 then U128
+  else if lo land 0x7 = 0 then U64
+  else if lo land 0x3 = 0 then U32
+  else if lo land 0x1 = 0 then U16
+  else U8
+
+let wsize_min = Utils0.cmp_min wsize_cmp
+
+let range_in_slice (lo, hi) kind s =
+  match kind, s.kind with
+  | Exact, Exact ->
+      let (u, v) = s.range in
+      if u + hi <= v
+      then { s with range = u + lo, u + hi }
+      else
+        hierror_no_loc "cannot access the subarray [%a[ of %a, the access overflows, your program is probably unsafe"
+          pp_range (lo, hi) pp_slice s
+  | Sub ws, Exact ->
+      { s with kind = Sub (wsize_min ws (align_of_offset (fst s.range))) }
+  | Exact, Sub ws ->
+      { s with kind = Sub (wsize_min ws (align_of_offset lo)) }
+  | Sub ws1, Sub ws2 ->
+      { s with kind = Sub (wsize_min ws1 ws2) }
 
 let range_of_var x =
   0, size_of x.v_ty
 
 let slice_of_var ?(scope=E.Slocal) in_var =
   let range = range_of_var in_var in
-  { in_var ; scope ; range }
+  { in_var ; scope ; range; kind = Exact }
 
 let rec normalize_var a x =
   match Mv.find x a with
   | exception Not_found -> slice_of_var x
   | s -> normalize_slice a s
-and normalize_slice a =
-  function
-  | { scope = E.Sglob } as s -> s
-  | { in_var ; range } ->
-     range_in_slice range (normalize_var a in_var)
+and normalize_slice a s =
+  if s.scope = E.Sglob then s
+  else
+    range_in_slice s.range s.kind (normalize_var a s.in_var)
 
 let normalize_gvar a { gv ; gs } =
   let x = L.unloc gv in
@@ -90,9 +120,12 @@ let incl a1 a2 =
 
 (* Partial order on variables, by scope and size *)
 let compare_gvar params x gx y gy =
-  let check_size x1 s1 x2 s2 =
-    if not (s1 <= s2) then hierror_no_loc "cannot merge variables %a (of size %i) and %a (of size %i): %a is too large" pp_var x1 s1 pp_var x2 s2 pp_var x1 in
-      
+  let check_size kind x1 s1 x2 s2 =
+    if not (s1 <= s2) then
+      hierror_no_loc "cannot merge a %s and a local that is larger (%a of size %i, and %a of size %i)"
+        kind pp_var x2 s2 pp_var x1 s1
+  in
+
   if V.equal x y
   then (assert (gx = gy); 0)
   else
@@ -102,19 +135,19 @@ let compare_gvar params x gx y gy =
     | E.Sglob, E.Sglob -> 
       hierror_no_loc "cannot merge two globals (%a and %a)" pp_var x pp_var y
     | E.Sglob, E.Slocal -> 
-      check_size y sy x sx;
       if (Sv.mem y params) then hierror_no_loc "cannot merge a global and a param (%a and %a)" pp_var x pp_var y;
+      check_size "global" y sy x sx;
       1
     | E.Slocal, E.Sglob -> 
-      check_size x sx y sy; 
       if (Sv.mem x params) then hierror_no_loc "cannot merge a param and a global (%a and %a)" pp_var x pp_var y;
+      check_size "global" x sx y sy;
       -1
     | E.Slocal, E.Slocal ->
       match Sv.mem x params, Sv.mem y params with
       | true, true -> 
         hierror_no_loc "cannot merge two params (%a and %a)" pp_var x pp_var y;
-      | true, false -> check_size y sy x sx; 1
-      | false, true -> check_size x sx y sy; -1
+      | true, false -> check_size "param" y sy x sx; 1
+      | false, true -> check_size "param" x sx y sy; -1
       | false, false ->
         let c = Stdlib.Int.compare sx sy in
         if c = 0 then V.compare x y
@@ -123,12 +156,14 @@ let compare_gvar params x gx y gy =
 (* Precondition: s1 and s2 are normal forms (aka roots) in a *)
 (* x1[e1:n1] = x2[e2:n2] *)
 let merge_slices params a s1 s2 =
-  if size_of_range s1.range <> size_of_range s2.range
-     then hierror_no_loc "slices %a and %a do not have the same size: the cannot be merged@." pp_slice s1 pp_slice s2;
   let c = compare_gvar params s1.in_var s1.scope s2.in_var s2.scope in
   if c = 0 then
-    if s1 = s2 then a
-    else hierror_no_loc "cannot merge distinct slices of the same array: %a and %a" pp_slice s1 pp_slice s2
+    (* in particular, s1.in_var and s2.in_var are the same variable *)
+    if s1 = s2 || s1.kind <> Exact || s2.kind <> Exact then
+      (* when s1.kind or s2.kind is Sub _, we cannot be precise, we prefer not to fail, and we don't update a *)
+      a
+    else
+      hierror_no_loc "cannot merge distinct slices of the same array: %a and %a" pp_slice s1 pp_slice s2
   else
     let s1, s2 = if c < 0 then s1, s2 else s2, s1 in
     let x = s1.in_var in
@@ -137,7 +172,7 @@ let merge_slices params a s1 s2 =
     let hi = lo + size_of x.v_ty in
     if lo < 0 || size_of y.v_ty < hi
     then hierror_no_loc "merging slices %a and %a may introduce invalid accesses; consider declaring variable %a smaller" pp_slice s1 pp_slice s2 pp_var x;
-    Mv.add x { s2 with range = lo, hi } a
+    Mv.add x { s2 with range = lo, hi; kind = s1.kind } a
 
 (* Precondition: both maps are normalized *)
 let merge params a1 a2 =
@@ -147,14 +182,23 @@ let merge params a1 a2 =
       merge_slices params a s1 s2
     ) a1 a2
 
-let range_of_asub aa ws len gv i =
+let range_of_asub aa ws len _gv i =
   match get_ofs aa ws i with
-  | None -> hierror ~loc:(Lone (L.loc gv)) "cannot compile sub-array %a that has a non-constant start index" pp_var (L.unloc gv)
-  | Some start -> start, start + arr_size ws len
+  | None ->
+      let range = (0, arr_size ws len) in
+      let kind =
+        begin match aa with
+        | AAscale -> Sub ws
+        | AAdirect -> Sub U8
+        end
+      in
+      range, kind
+  | Some start -> (start, start + arr_size ws len), Exact
 
 let normalize_asub a aa ws len x i =
   let s = normalize_gvar a x in
-  range_in_slice (range_of_asub aa ws len x.gv i) s
+  let range, kind = range_of_asub aa ws len x.gv i in
+  range_in_slice range kind s
 
 let slice_of_pexpr a =
   function
@@ -236,6 +280,7 @@ let analyze_fd_ignore cc fd =
   Format.eprintf "Aliasing forest for function %s:@.%a@." fd.f_name.fn_name pp_alias a
 
 let analyze_prog fds =
+  let _ = assert false in
   let cc : int option list Hf.t = Hf.create 17 in
   let get_cc = Hf.find cc in
   List.fold_right (fun fd () ->
