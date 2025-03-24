@@ -1,3 +1,6 @@
+// With the current implementation, this fails. We could imagine a different
+// implementation where this works.
+
 export
 fn main () -> reg u64 {
   reg u64 res;

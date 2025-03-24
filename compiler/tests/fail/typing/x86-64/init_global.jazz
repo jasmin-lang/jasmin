@@ -1,0 +1,5 @@
+u64[1] g = {1};
+
+export fn main () {
+  ArrayInit(g);
+}

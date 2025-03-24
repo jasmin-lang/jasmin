@@ -146,10 +146,17 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
       begin
         let c = Alias.normalize_var alias x' in
         set al c.in_var c.scope ws;
-        if al == Aligned && (fst c.range + i) land (size_of_ws ws - 1) <> 0 then
+        if al == Aligned then
+         match c.kind with
+         | Exact ->
+             if (fst c.range + i) land (size_of_ws ws - 1) <> 0 then
             hierror ~loc:(Lone (L.loc x.gv)) "bad range alignment for %a[%d]/%s in %a"
               (Printer.pp_var ~debug:true) x' i (string_of_ws ws)
               Alias.pp_slice c
+         | Sub ws' ->
+             if not (wsize_le ws ws') then
+               hierror ~loc:(Lone (L.loc x.gv)) "bad alignment for var %a: %a (expected: %a)"
+                 (Printer.pp_var ~debug:true) x' PrintCommon.pp_wsize ws' PrintCommon.pp_wsize ws
       end
     else set al x' E.Sglob ws in
 
@@ -234,11 +241,13 @@ let init_slots pd stack_pointers alias coloring fv =
       if is_ty_arr v.v_ty then
         let c = Alias.normalize_var alias v in
         if c.scope = E.Sglob then
+          (* TODO: do we need to check that we are exact and fail otherwise? *)
           add_local v (Direct (c.in_var, r2i c.range, E.Sglob))
         else
           begin
             let slot = get_slot coloring c.in_var in
             add_slot slot;
+            (* TODO: do we need to check that we are exact and fail otherwise? *)
             add_local v (Direct (slot, r2i c.range, E.Slocal))
           end
       else

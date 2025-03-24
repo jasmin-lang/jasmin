@@ -1,0 +1,13 @@
+// checks that using a variable as index in a subarray is ok
+export fn main (reg u32 i) -> reg u32 {
+  stack u32[4] s;
+  reg ptr u32[1] r;
+  reg u32 res tmp;
+
+  tmp = 0;
+  s[i] = tmp;
+  r = s[i:1];
+  res = r[0];
+
+  return res;
+}

@@ -165,12 +165,9 @@ Notation assemble_cond := (agp_assemble_cond agparams).
 
 (* -------------------------------------------------------------------- *)
 Definition scale_of_z ii (z: Z) : cexec nat :=
-  match z with
-  | 1%Z => ok 0
-  | 2%Z => ok 1
-  | 4%Z => ok 2
-  | 8%Z => ok 3
-  | _ =>
+  match shift_of_scale z with
+  | Some n => ok n
+  | None =>
       let box :=
         [:: pp_s "Invalid scale: "; pp_z z; pp_s " (should be 1, 2, 4, or 8)" ]
       in

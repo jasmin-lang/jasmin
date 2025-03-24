@@ -1,0 +1,11 @@
+// sub-reg ptr with large constant index
+
+export fn main (reg ptr u32[6000] r) -> reg u32 {
+  reg ptr u32[1] r2;
+  reg u32 res;
+
+  r2 = r[5000:1];
+  res = r2[0];
+
+  return res;
+}

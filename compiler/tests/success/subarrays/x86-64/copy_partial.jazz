@@ -1,22 +1,20 @@
 export fn test () -> reg u64 {
   stack u64[2] s;
-  reg ptr u64[2] r1 r2;
+  reg ptr u64[1] r1;
+  reg ptr u64[2] r2;
 
   s[0] = 0;
   s[1] = 1;
 
-  r1 = s;
+  r1 = s[0:1];
   r1[0] = 2;
 
   r2 = s; // we copy s while it is not fully valid
-  r2[1] = 3;
 
-  s[0:1] = r1[0:1];
-  s[1:1] = r2[1:1];
+  r2[0:1] = r1; // r2 is valid
 
   reg u64 res;
-  res = s[0];
-  res += s[1];
+  res = r2[0]; // reading is ok
 
   return res;
 }

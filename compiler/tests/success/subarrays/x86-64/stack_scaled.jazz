@@ -1,0 +1,21 @@
+// sub-stack with variable index (scaled)
+
+export fn main (reg u64 i) -> reg u64 {
+  stack u64[10] s;
+  reg ptr u64[1] r;
+  reg u64 res;
+  inline int j;
+
+  // the spill and unspill are there so that s is not at RSP but at RSP + k
+  // this allows to check the most complex addressing mode
+  () = #spill(i);
+  () = #unspill(i);
+
+  for j = 0 to 10 {
+    s[j] = 0;
+  }
+  r = s[i:1]; // LEA
+  res = r[0];
+
+  return res;
+}
