@@ -58,70 +58,93 @@ Context
 
 Section STACK_ALLOC.
 
-Context (P': sprog).
-
-Lemma arm_mov_ofsP s1 e i x tag ofs w vpk s2 ins :
-  p_globs P' = [::]
-  -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
-  -> sap_mov_ofs arm_saparams x tag vpk e ofs = Some ins
-  -> write_lval true [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
-  -> exists2 vm2, psem.sem_i (pT := progStack) P' w s1 ins (with_vm s2 vm2) & evm s2 =1 vm2.
+Lemma arm_mov_ofsP : mov_ofs_correct arm_saparams.(sap_mov_ofs).
 Proof.
-  rewrite /sap_mov_ofs /= /arm_mov_ofs => P'_globs.
-  t_xrbindP => z ok_z ok_i.
-  case: (mk_mov vpk).
-  + move => /Some_inj <-{ins} hx /=; exists (evm s2) => //.
+  move=> P' ev s1 e w ofs pofs x tag mk ins s2 P'_globs.
+  t_xrbindP=> ve ok_ve ok_w vofs ok_vofs ok_pofs.
+  rewrite /sap_mov_ofs /= /arm_mov_ofs.
+  case: mk.
+  + move=> [<-] hw; exists (evm s2) => //.
+    rewrite with_vm_same.
     constructor.
-    rewrite /sem_sopn /= P'_globs /exec_sopn with_vm_same.
-    case: eqP hx.
-    - by move => -> {ofs}; rewrite wrepr0 GRing.addr0 ok_z /= ok_i /= => ->.
-    by move => _ hx; rewrite /= /sem_sop2 ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx.
+    rewrite /sem_sopn /= P'_globs /exec_sopn.
+    case: is_zeroP.
+    + move=> hofs.
+      rewrite ok_ve /= ok_w /=.
+      move: hofs ok_vofs ok_pofs hw => -> /=.
+      rewrite /sem_sop1 /= => -[<-] /=.
+      rewrite truncate_word_u wrepr0 => -[<-].
+      by rewrite GRing.addr0 => -> /=.
+    move=> _ /=.
+    rewrite ok_ve ok_vofs /= /sem_sop2 /= ok_w ok_pofs /= truncate_word_u /=.
+    by rewrite hw.
   case: x => //.
   + move=> x_; set x := Lvar x_.
-    case: ifP.
-    + case: eqP => [-> | _ ] _ // /Some_inj <-{ins} hx; exists (evm s2) => //.
-      constructor.
-      rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= zero_extend_u with_vm_same.
-      by move: hx; rewrite /= wrepr0 GRing.addr0 => ->.
-    case: eqP => [-> | _] _ .
-    + move=> [<-] hx; exists (evm s2) => //.
-      constructor.
-      rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= with_vm_same.
-      by move: hx; rewrite /= wrepr0 GRing.addr0 => ->.
     case: ifP => _.
-    + move=> [<-] /= hx; exists (evm s2) => //.
+    + case: is_zeroP => // hofs [<-] hw; exists (evm s2) => //.
+      rewrite with_vm_same.
       constructor.
-      by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx with_vm_same.
-    case: e ok_z => // y /= hget.
-    case: andb => // -[<-] hw.
-    exists (evm s2) => //.
+      rewrite /sem_sopn /= P'_globs /exec_sopn ok_ve /= ok_w /= zero_extend_u.
+      move: hofs ok_vofs ok_pofs hw => -> /=.
+      rewrite /sem_sop1 /= => -[<-] /=.
+      rewrite truncate_word_u wrepr0 => -[<-].
+      by rewrite GRing.addr0 => -> /=.
+    case: is_zeroP.
+    + move=> hofs [<-] hw; exists (evm s2) => //.
+      rewrite with_vm_same.
+      constructor.
+      rewrite /sem_sopn /= P'_globs /exec_sopn ok_ve /= ok_w /=.
+      move: hofs ok_vofs ok_pofs hw => -> /=.
+      rewrite /sem_sop1 /= => -[<-] /=.
+      rewrite truncate_word_u wrepr0 => -[<-].
+      by rewrite GRing.addr0 => -> /=.
+    move=> _.
+    case: is_wconst_of_sizeP ok_vofs => [zofs|{}ofs] ok_vofs.
+    + case: ifP => _.
+      + move=> [<-] hw; exists (evm s2) => //.
+        rewrite with_vm_same.
+        constructor.
+        rewrite /sem_sopn P'_globs /exec_sopn /= ok_ve /= ok_w /= truncate_word_u /=.
+        move: ok_vofs ok_pofs hw.
+        rewrite /= /sem_sop1 /= => -[<-] /=.
+        by rewrite truncate_word_u => -[<-] ->.
+      case: e ok_ve => //= y ok_ve.
+      case: ifP => // _.
+      move=> [<-] hw; exists (evm s2) => //.
+      rewrite with_vm_same.
+      constructor.
+      rewrite /sem_sopn P'_globs /exec_sopn /= ok_ve /= ok_w /= truncate_word_u /=.
+      move: ok_vofs ok_pofs hw.
+      rewrite /= /sem_sop1 /= => -[<-] /=.
+      by rewrite truncate_word_u => -[<-] ->.
+    move=> [<-] /= hw; exists (evm s2) => //.
+    rewrite with_vm_same.
     constructor.
-    by rewrite /sem_sopn /= P'_globs /exec_sopn hget /= ok_i /= truncate_word_u /= hw with_vm_same.
+    rewrite /sem_sopn P'_globs /exec_sopn /= ok_ve ok_vofs /=.
+    rewrite /sem_sop2 /= ok_w ok_pofs /= truncate_word_u /=.
+    by rewrite hw.
   move=> al ws_ x_ e_; move: (Lmem al ws_ x_ e_) => {al ws_ x_ e_} x.
-  case: eqP => [-> | _ ] // /Some_inj <-{ins} hx; exists (evm s2) => //.
+  case: is_zeroP => // hofs [<-] hw; exists (evm s2) => //.
+  rewrite with_vm_same.
   constructor.
-  rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= zero_extend_u.
-  by move: hx; rewrite wrepr0 GRing.addr0 with_vm_same => ->.
+  rewrite /sem_sopn /= P'_globs /exec_sopn ok_ve /= ok_w /= zero_extend_u.
+  move: hofs ok_vofs ok_pofs hw => -> /=.
+  rewrite /sem_sop1 /= => -[<-] /=.
+  rewrite truncate_word_u wrepr0 => -[<-].
+  by rewrite GRing.addr0 => -> /=.
 Qed.
 
-Lemma arm_immediateP w s (x: var_i) z :
-  vtype x = sword Uptr
-  -> psem.sem_i (pT := progStack) P' w s (arm_immediate x z) (with_vm s (evm s).[x <- Vword (wrepr Uptr z)]).
+Lemma arm_immediateP : immediate_correct arm_saparams.(sap_immediate).
 Proof.
+  move=> P' ev s x z.
   case: x => - [] [] // [] // x xi _ /=.
   constructor.
   by rewrite /sem_sopn /= /exec_sopn /= truncate_word_u.
 Qed.
 
-Lemma arm_swapP rip s tag (x y z w : var_i) (pz pw: pointer):
-  vtype x = spointer -> vtype y = spointer ->
-  vtype z = spointer -> vtype w = spointer ->
-  (evm s).[z] = Vword pz ->
-  (evm s).[w] = Vword pw ->
-  psem.sem_i (pT := progStack) P' rip s (arm_swap tag x y z w)
-       (with_vm s ((evm s).[x <- Vword pw]).[y <- Vword pz]).
+Lemma arm_swapP : swap_correct arm_saparams.(sap_swap).
 Proof.
-  move=> hxty hyty hzty hwty hz hw.
+  move=> P' ev s tag x y z w pz pw hxty hyty hzty hwty hz hw.
   constructor; rewrite /sem_sopn /= /get_gvar /= /get_var /= hz hw /=.
   rewrite /exec_sopn /= !truncate_word_u /= /write_var /set_var /=.
   rewrite hxty hyty //=.
@@ -130,7 +153,7 @@ Qed.
 End STACK_ALLOC.
 
 Definition arm_hsaparams :
-  h_stack_alloc_params (ap_sap arm_params)  :=
+  h_stack_alloc_params (ap_sap arm_params) :=
   {|
     mov_ofsP := arm_mov_ofsP;
     sap_immediateP := arm_immediateP;
@@ -920,17 +943,21 @@ Definition arm_is_move_opP op vx v :
   -> exec_sopn (Oasm op) [:: vx ] = ok v
   -> List.Forall2 value_uincl v [:: vx ].
 Proof.
-  case: op => //.
-  move=> [[]] //.
-  move=> [] //.
-  move=> [] //.
-  move=> [[] [] [?|]] _ //.
-  rewrite /exec_sopn /=.
-  t_xrbindP=> w w'' hvx.
-  have [ws' [w' [-> /truncate_wordP [hws' ->]]]] := to_wordI hvx.
-  move=> [<-] <-.
-  apply: List.Forall2_cons; last done.
-  exact: (word_uincl_zero_ext w' hws').
+  case: op => // -[[] // [mn opt]] /=.
+  case: ifP => // hmn /and3P [/negPf hf /negPf hc /negPf hs].
+  rewrite /exec_sopn /sopn_sem /= hc.
+  (* To avoid duplication, we prove that [mn] returns [to_word ws vx] for some [ws] *)
+  have ->:
+    Let t := app_sopn (id_tin (mn_desc opt mn)) (id_semi (mn_desc opt mn)) [:: vx] in
+    ok (list_ltuple t) =
+      Let ws := if head sbool (id_tout (mn_desc opt mn)) is sword ws then ok ws else type_error in
+      Let wx := to_word ws vx in
+      ok [:: Vword wx].
+  + case: mn hmn => //= _; [rewrite /arm_MOV_instr /= hf /=|..];
+      by case: to_word => //= ?; rewrite zero_extend_u.
+  t_xrbindP=> ws' _ w' /to_wordI [ws [w [-> htr]]] <-.
+  constructor=> //=.
+  by apply (truncate_word_uincl htr).
 Qed.
 
 

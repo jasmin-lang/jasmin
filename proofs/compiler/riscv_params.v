@@ -34,33 +34,36 @@ Context {atoI : arch_toIdent}.
 (* Stack alloc parameters. *)
 
 Definition riscv_mov_ofs
-  (x : lval) (tag : assgn_tag) (vpk : vptr_kind) (y : pexpr) (ofs : Z) :
+  (x : lval) (tag : assgn_tag) (movk : mov_kind) (y : pexpr) (ofs : pexpr) :
   option instr_r :=
   let mk oa :=
     let: (op, args) := oa in
      Some (Copn [:: x ] tag (Oriscv op) args) in
-  match mk_mov vpk with
-  | MK_LEA => mk (LA, [:: if ofs == Z0 then y else add y (eword_of_int reg_size ofs) ])
+  match movk with
+  | MK_LEA => mk (LA, [:: if is_zero Uptr ofs then y else add y ofs ])
   | MK_MOV =>
     match x with
     | Lvar x_ =>
       if is_Pload y then
-        if ofs == Z0 then mk (LOAD Signed U32, [:: y]) else None
+        if is_zero Uptr ofs then mk (LOAD Signed U32, [:: y]) else None
       else
-        if ofs == Z0 then mk (MV, [:: y])
+        if is_zero Uptr ofs then mk (MV, [:: y])
         else
-          (* This allows to remove constraint in register allocation *)
-          if is_arith_small ofs then mk (ADDI, [::y; eword_of_int reg_size ofs ])
-          else
-            (* These checks are not needed for the proof, but it is probably better
-               to fail here than in asm_gen. *)
-            if y is Pvar y_ then
-              if [&& vtype x_ == sword U32 & vtype y_.(gv) == sword U32] then
-                Some (Copn [::x] tag (Oasm (ExtOp Oriscv_add_large_imm)) [::y; eword_of_int reg_size ofs ])
+          if is_wconst_of_size Uptr ofs is Some zofs then
+            (* This allows to remove constraint in register allocation *)
+            if is_arith_small zofs then mk (ADDI, [::y; ofs ])
+            else
+              (* These checks are not needed for the proof, but it is probably better
+                 to fail here than in asm_gen. *)
+              if y is Pvar y_ then
+                if [&& vtype x_ == sword U32 & vtype y_.(gv) == sword U32] then
+                  Some (Copn [::x] tag (Oasm (ExtOp Oriscv_add_large_imm)) [::y; ofs ])
+                else None
               else None
-            else None
+          else
+            mk (LA, [:: add y ofs])
     | Lmem _ _ _ _ =>
-      if ofs == Z0 then mk (STORE U32, [:: y]) else None
+      if is_zero Uptr ofs then mk (STORE U32, [:: y]) else None
     | _ => None
     end
   end.

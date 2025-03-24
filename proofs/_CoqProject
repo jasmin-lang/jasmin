@@ -110,6 +110,7 @@ compiler/remove_globals_proof.v
 compiler/slh_lowering.v
 compiler/slh_lowering_proof.v
 compiler/stack_alloc.v
+compiler/stack_alloc_params.v
 compiler/stack_alloc_proof.v
 compiler/stack_alloc_proof_2.v
 compiler/stack_zeroization.v

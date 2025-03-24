@@ -50,54 +50,52 @@ Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem sysca
 (* Stack alloc hypotheses. *)
 
 Section STACK_ALLOC.
-Context (P' : sprog).
 
-Lemma lea_ptrP s1 e i x tag ofs w s2 :
+Lemma lea_ptrP P' s1 e i x tag ofs w s2 pofs :
   P'.(p_globs) = [::]
   -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
-  -> write_lval true [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2
+  -> (Let i' := sem_pexpr true [::] s1 ofs in to_pointer i') = ok pofs
+  -> write_lval true [::] x (Vword (i + pofs)) s1 = ok s2
   -> psem.sem_i (pT := progStack) P' w s1 (lea_ptr x e tag ofs) s2.
 Proof.
-  move=> P'_globs he hx.
+  move=> P'_globs he ok_pofs hx.
   constructor.
   rewrite /sem_sopn /= P'_globs /sem_sop2 /=.
   move: he; t_xrbindP=> _ -> /= -> /=.
-  by rewrite /exec_sopn truncate_word_u /= truncate_word_u /= hx.
+  move: ok_pofs; t_xrbindP=> _ -> /= -> /=.
+  by rewrite /exec_sopn /= truncate_word_u /= hx.
 Qed.
 
-Lemma x86_mov_ofsP_aux s1 e i x tag ofs w vpk s2 ins :
+Lemma x86_mov_ofsP_aux P' s1 e i x tag ofs w mk s2 ins pofs :
   p_globs P' = [::]
   -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
-  -> sap_mov_ofs x86_saparams x tag vpk e ofs = Some ins
-  -> write_lval true [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
+  -> (Let i' := sem_pexpr true [::] s1 ofs in to_pointer i') = ok pofs
+  -> sap_mov_ofs x86_saparams x tag mk e ofs = Some ins
+  -> write_lval true [::] x (Vword (i + pofs)) s1 = ok s2
   -> psem.sem_i (pT := progStack) P' w s1 ins s2.
 Proof.
-  move=> P'_globs he.
+  move=> P'_globs he ok_pofs.
   rewrite /x86_saparams /= /x86_mov_ofs => -[<-] /=.
-  case: (mk_mov vpk).
+  case: mk.
   - exact: lea_ptrP.
-  case: eqP => [-> | _].
-  + rewrite wrepr0 GRing.addr0 -P'_globs.
-    by apply :(mov_wsP (sCP := sCP_stack)); rewrite // P'_globs.
-  exact: lea_ptrP.
+  case: is_zeroP => [hofs|_]; last exact: lea_ptrP.
+  move: hofs ok_pofs => -> /=.
+  rewrite truncate_word_u wrepr0 => -[<-].
+  rewrite GRing.addr0 -P'_globs.
+  by apply: (mov_wsP (sCP := sCP_stack)); rewrite // P'_globs.
 Qed.
 
-Lemma x86_mov_ofsP s1 e i x tag ofs w vpk s2 ins :
-  p_globs P' = [::]
-  -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
-  -> sap_mov_ofs x86_saparams x tag vpk e ofs = Some ins
-  -> write_lval true [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
-  -> exists2 vm2, psem.sem_i (pT := progStack) P' w s1 ins (with_vm s2 vm2) & evm s2 =1 vm2.
+Lemma x86_mov_ofsP : mov_ofs_correct x86_saparams.(sap_mov_ofs).
 Proof.
-  move=> heq he hmov hw; exists (evm s2) => //.
+  move=> P' ev s1 e w ofs pofs x tag mk ins s2.
+  move=> heq he ok_pofs hmov hw; exists (evm s2) => //.
   rewrite with_vm_same.
-  apply: x86_mov_ofsP_aux heq he hmov hw.
+  apply: x86_mov_ofsP_aux heq he ok_pofs hmov hw.
 Qed.
 
-Lemma x86_immediateP w s (x: var_i) z :
-  vtype x = sword Uptr
-  -> psem.sem_i (pT := progStack) P' w s (x86_immediate x z) (with_vm s (evm s).[x <- Vword (wrepr Uptr z)]).
+Lemma x86_immediateP : immediate_correct x86_saparams.(sap_immediate).
 Proof.
+  move=> P' ev s x z.
   case: x => - [] [] // [] // x xi _ /=.
   have := mov_wsP (pT := progStack) AT_none _ (cmp_le_refl _).
   move => /(_ _ _ _ _ _ _ _ P').
@@ -105,14 +103,9 @@ Proof.
   by rewrite /= truncate_word_u.
 Qed.
 
-Lemma x86_swapP rip s tag (x y z w : var_i) (pz pw: pointer):
-  vtype x = spointer -> vtype y = spointer ->
-  vtype z = spointer -> vtype w = spointer ->
-  (evm s).[z] = Vword pz ->
-  (evm s).[w] = Vword pw ->
-  psem.sem_i (pT := progStack) P' rip s (x86_swap tag x y z w)
-       (with_vm s ((evm s).[x <- Vword pw]).[y <- Vword pz]).
+Lemma x86_swapP : swap_correct x86_saparams.(sap_swap).
 Proof.
+  move=> P' rip s tag x y z w pz pw.
   move=> hxty hyty hzty hwty hz hw.
   constructor; rewrite /sem_sopn /= /get_gvar /= /get_var /= hz hw /=.
   rewrite /exec_sopn /= !truncate_word_u /= /write_var /set_var /=.

@@ -18,3 +18,5 @@ val hash : t -> int
 val to_string : t -> string
 
 val add     : t -> t -> t
+
+val le      : t -> t -> bool
