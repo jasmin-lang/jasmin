@@ -22,6 +22,6 @@ fn mod4p1(reg u32 i) -> reg u32 {
   reg ptr u8[4] p;
   p = t;
   i &= 3;
-  r = (32u)p[(int) i];
+  r = (32u)p[i];
   return r;
 }

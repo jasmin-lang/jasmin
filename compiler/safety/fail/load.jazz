@@ -12,11 +12,11 @@ fn load_last(reg u64 ptr, reg u64 len) -> reg u64[2]
   j = 0;
   while(j < len)
   { c = (u8)[ptr + j];
-    s[u8 (int)j] = c;
+    s[u8 j] = c;
     j += 1;
   }
 
-  s[u8 (int)j] = 0x1;
+  s[u8 j] = 0x1;
 
   x[0] = s[0];
   x[1] = s[1];
