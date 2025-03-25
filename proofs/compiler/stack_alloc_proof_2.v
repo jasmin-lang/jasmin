@@ -1,4 +1,4 @@
-(* This file is the second part of [stack_alloc_proof.v] that was split to
+(* This file is the second part of [stack_alloc_proof_1.v] that was split to
    ease the development process.
 *)
 
@@ -8,7 +8,7 @@ From mathcomp Require Import ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import Uint63.
 Require Import psem psem_facts compiler_util.
-Require Export stack_alloc stack_alloc_proof.
+Require Export stack_alloc stack_alloc_proof_1.
 From mathcomp Require Import ring.
 From Coq Require Import Utf8 Lia.
 
@@ -2574,7 +2574,7 @@ Definition alloc_ok (SP:sprog) fn m2 :=
   allocatable_stack m2 (sf_total_stack fd.(f_extra)) /\
   (~ is_RAnone fd.(f_extra).(sf_return_address) -> is_align (top_stack m2) fd.(f_extra).(sf_align)).
 
-(* [glob_size] and [rip] were section variables in stack_alloc_proof.v, they
+(* [glob_size] and [rip] were section variables in stack_alloc_proof_1.v, they
    are section variables in this file too. Can we put everything in the same
    section? Probably not if the file is split.
 *)

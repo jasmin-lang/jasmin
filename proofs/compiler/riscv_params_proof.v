@@ -18,7 +18,7 @@ Require Import
   linearization_proof
   lowering
   stack_alloc
-  stack_alloc_proof
+  stack_alloc_proof_1
   stack_zeroization_proof.
 Require
   arch_sem.
