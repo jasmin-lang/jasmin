@@ -58,6 +58,8 @@ From ITree Require Import
 From ITree Require Import XRutt XRuttFacts.
 From ITree Require Import Rutt RuttFacts.
 
+Require it_gen_lib.
+
 Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
@@ -227,9 +229,12 @@ Definition REv_eq T1 T2 (e1 : E T1) (e2 : E T2) :=
 Definition RAns_eq T1 T2 (e1 : E T1) (t1 : T1) (e2 : E T2) (t2 : T2) :=
   PAns e1 t1 /\ forall (h : T1 = T2), t2 = eq_rect T1 id t1 T2 h.
 
+Definition R_eq T (R : T -> Prop) (t1 : T) (t2 : T) :=
+  R t1 /\ t1 = t2.
+
 Definition lutt (T : Type) (R : T -> Prop) (t : itree E T) :=
   exists (t' : itree E T),
-    rutt REv_eq RAns_eq (fun r1 r2 => R r1) t t'.
+    rutt REv_eq RAns_eq (R_eq R) t t'.
 
 #[global] Instance lutt_Proper T :
   Proper (eq ==> eutt eq ==> iff) (@lutt T).
@@ -239,22 +244,18 @@ Lemma lutt_Ret (T : Type) (R : T -> Prop) (r : T) : R r <-> lutt R (Ret r).
 Proof.
   split.
   + by move=> ?; exists (Ret r); apply rutt_Ret.
-  by move=> [t] h; have [? []] := rutt_inv_Ret_l _ _ _ _ _ _ _ _ _ h.
+  by move=> [r'] h; have [? [? [??]]]:= rutt_inv_Ret_l _ _ _ _ _ _ _ _ _ h.
 Qed.
 
 Lemma lutt_Tau (T : Type) (R : T -> Prop) (t : itree E T) : lutt R t <-> lutt R (Tau t).
 Proof. by rewrite tau_eutt. Qed.
 
-Lemma lutt_Vis (T1 T2 : Type) (R : T2 -> Prop) (e : E T1) (k: T1 -> itree E T2) :
-  PEv e ->
-  (forall t, PAns e t -> lutt R (k t)) ->
-  lutt R (Vis e k).
+
+Lemma rutt_eq_trans_refl (T : Type) (R : T -> Prop) (t t' : itree E T) :
+  rutt REv_eq RAns_eq (R_eq R) t t' ->
+  rutt REv_eq RAns_eq (R_eq R) t t.
 Proof.
-  move=> he hk; exists (Vis e k).
-  apply rutt_Vis => //.
-  + by split => //; exists erefl.
-  move=> t1 t2 [hAns] /(_ erefl) -> /=.
-  have [k1 h1] := hk t1 hAns.
+  move=> h1.
   have /rutt_flip h2 := h1.
   have := rutt_trans h1 h2.
   apply rutt_weaken => //.
@@ -265,7 +266,20 @@ Proof.
     move=> [? [?]]; subst T3' => /= ?; subst e3; exists r1.
     + by split => // ?; rewrite -eq_rect_eq.
     by have /= -> := heq erefl; split => // h; rewrite -eq_rect_eq.
-  by move=> o1 o2 [].
+  by move=> o1 o2 [o1_ [??]] [_ ?]; subst.
+Qed.
+
+Lemma lutt_Vis (T1 T2 : Type) (R : T2 -> Prop) (e : E T1) (k: T1 -> itree E T2) :
+  PEv e ->
+  (forall t, PAns e t -> lutt R (k t)) ->
+  lutt R (Vis e k).
+Proof.
+  move=> he hk; exists (Vis e k).
+  apply rutt_Vis => //.
+  + by split => //; exists erefl.
+  move=> t1 t2 [hAns] /(_ erefl) -> /=.
+  have [k1] := hk t1 hAns.
+  apply rutt_eq_trans_refl.
 Qed.
 
 Lemma lutt_inv_Vis (T1 T2 : Type) (R : T2 -> Prop) (e : E T1) (k : T1 -> itree E T2) :
@@ -276,47 +290,88 @@ Proof.
   split => // r hAns.
   by exists (k' r); apply (hk r r); split => // ?; rewrite -eq_rect_eq.
 Qed.
-(*
 
 Lemma lutt_bind (T1 T2 : Type) (R : T1 -> Prop) (Q : T2 -> Prop) (t : itree E T1) (k : T1 -> itree E T2) :
   lutt R t ->
   (forall t1, R t1 -> lutt Q (k t1)) ->
   lutt Q (ITree.bind t k).
 Proof.
-  move=> [t' htt'] hk. exists (ITree.bind t' k).
-(*  move: t t' htt'; pcofix CIH => t t' htt'.
-  pstep. punfold htt'. red in htt' |- *; rewrite !observe_bind.
-  elim: htt' => // {t t'}. *)
-
-
-  apply rutt_bind with (fun r1 _ => R r1).
+  move=> [t' htt'] hk; exists (ITree.bind t' k).
+  apply rutt_bind with (R_eq R).
   + by apply htt'.
-  move=> t1 t2 ht1.
- /hk [k'].
-  have := hk
-  lutt
-       rutt REv RAns RR t1 t2 ->
-       (forall (r1 : ?R1) (r2 : ?R2), RR r1 r2 -> rutt REv RAns RT (k1 r1) (k2 r2)) ->
-       rutt REv RAns RT (ITree.bind t1 k1) (ITree.bind t2 k2)
-*)
+  move=> t1 t1' [/hk [k' ht1] <-].
+  apply: rutt_eq_trans_refl ht1.
+Qed.
+
+Lemma lutt_iter (IT T : Type) (I : IT -> Prop) (Q : T -> Prop) (body : IT -> itree E (IT + T)) :
+  (forall (i : IT),
+    I i -> lutt (sum_pred I Q) (body i)) ->
+  forall (i : IT),
+    I i -> lutt Q (ITree.iter body i).
+Proof.
+  move=> hbody i hI; exists (ITree.iter body i).
+  apply it_gen_lib.rutt_iter with (RI := R_eq I) => //.
+  move=> j ? [{}/hbody [b' hrec] <-].
+  apply: rutt_weaken (rutt_eq_trans_refl hrec) => //.
+  by move=> [it | t] _ [/= h <-]; constructor.
+Qed.
+
+Lemma lutt_trigger (R : Type) (e : E R) (Q : R -> Prop) :
+  PEv e ->
+  (forall r, PAns e r -> Q r) ->
+  lutt Q (trigger e).
+Proof.
+  move=> he hr; apply lutt_Vis => // r /hr; apply lutt_Ret.
+Qed.
+
 End LOGIC.
 
 Lemma lutt_weaken {E : Type -> Type} (T : Type)
   (PEv PEv' : prepred E) (PAns PAns': postpred E)
-  (R R': T -> Prop) t :
+  (Q Q': T -> Prop) t :
   (forall T e,
      PEv T e -> PEv' T e) ->
   (forall T e t,
     PEv T e -> PAns' T e t -> PAns T e t) ->
-  (forall r, R r -> R' r) ->
-  lutt PEv PAns R t ->
-  lutt PEv' PAns' R' t.
+  (forall r, Q r -> Q' r) ->
+  lutt PEv PAns Q t ->
+  lutt PEv' PAns' Q' t.
 Proof.
   move=> hEv hAns hR [t'] hrutt; exists t'.
   apply: rutt_weaken hrutt.
   + by move=> T1 T2 e1 e2 [] /hEv ??.
   + by move=> T1 T2 e1 t1 e2 t2 [h1 heq1] [h2 heq2]; split; auto.
-  move=> ??; apply hR.
+  by move=> ?? [/hR].
+Qed.
+
+Lemma interp_mrec_lutt (D E : Type -> Type) (bodies : forall T : Type, D T -> itree (D +' E) T)
+  (PEv : prepred E) (DPEv : prepred D)
+  (PAns : postpred E) (DPAns : postpred D) :
+  (forall (A : Type) (d : D A),
+     DPEv A d ->
+     lutt (sum_prepred DPEv PEv) (sum_postpred DPAns PAns) (DPAns A d) (bodies A d)) ->
+  forall (R : Type) (Q : R -> Prop) (t : itree (D +' E) R),
+    lutt (sum_prepred DPEv PEv) (sum_postpred DPAns PAns) Q t ->
+    lutt PEv PAns Q (interp_mrec bodies t).
+Proof.
+  move=> hbodies R Q t hrec; exists (interp_mrec bodies t).
+  apply interp_mrec_rutt with (REv_eq DPEv) (RAns_eq DPAns).
+  + move=> A A_ d _ [hd [?]] ->; subst A_ => /=.
+    have [t' /rutt_eq_trans_refl] := hbodies _ _ hd.
+    apply rutt_weaken.
+    + move=> T1 T2 e1 _ [he1 [? ->]]; subst T2.
+      by dependent destruction he1; constructor; split => //; exists erefl.
+    + move=> T1 T2 e1 t1 _ t2 [he1 [? ->]] ht; subst T2.
+      by dependent destruction ht; move: H => -[hPAns /(_ erefl) -> /=];
+        (split => //; [constructor | move=> ?; rewrite -eq_rect_eq]).
+    by move=> o _ [ho <-]; split => // ?; rewrite -eq_rect_eq.
+  case: hrec => t' /rutt_eq_trans_refl.
+  apply rutt_weaken => //.
+  + move=> T1 T2 e1 ? [he1 [? ->]]; subst T2 => /=.
+    by dependent destruction he1; constructor; split => //; exists erefl.
+  move=> T1 T2 e1 t1 e2 t2 [he1 [? ->]] ht; subst T2 => //.
+  by dependent destruction ht; move: H => -[hPAns /(_ erefl) -> /=];
+   (split => //; [ constructor| move=> ?; rewrite -eq_rect_eq]).
 Qed.
 
 Section SAFE.
@@ -413,7 +468,8 @@ Proof.
   pstep. punfold hrutt. red in hrutt |- *.
   move: hlutt; rewrite {1}(itree_eta t1).
   elim: hrutt => // {t1 t2}.
-  + by move=> r1 r2 hRR; rewrite -lutt_Ret => hP1; constructor; eauto.
+  + move=> r1 r2 hRR; rewrite -lutt_Ret => hP1.
+    by constructor; split => //; eauto.
   + move=> t1 t2 hrutt hlutt; constructor.
     by pclearbot; right; apply CIH with t1 => //; apply lutt_Tau.
   + move=> T1 T2 e1 e2 k1 k2 hREv hk hlutt.

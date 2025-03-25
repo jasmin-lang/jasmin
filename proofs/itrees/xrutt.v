@@ -66,12 +66,6 @@ Section RuttF.
   | EqVisRet : forall (e1 : E1 void) (k1 : void -> itree E1 R1) (r2 : R2),
       ER e1 r2 ->
       ruttF sim (VisF e1 k1) (RetF r2)
-  | EqVisTau : forall (e1 : E1 void) (k1 : void -> itree E1 R1) (m2 : itree E2 R2),
-     sim (Vis e1 k1) m2 ->
-     ruttF sim (VisF e1 k1) (TauF m2)
-  | EqTauVis : forall (e2 : E2 void) (k2 : void -> itree E2 R2) (m1 : itree E1 R1),
-     sim m1 (Vis e2 k2) ->
-     ruttF sim (TauF m1) (VisF e2 k2)
   | EqRetVis : forall (e2 : E2 void) (k2 : void -> itree E2 R2) (r1 : R1),
       RE r1 e2 ->
       ruttF sim (RetF r1) (VisF e2 k2)
@@ -574,23 +568,21 @@ Lemma rutt_trans {E1 E2 E3: Type -> Type} {R1 R2 R3 : Type}
        (recompose REv23 RR12 RE12 RE23)
        (rrcompose  RE12 ER23 RR12 RR23) t1 t3.
 Proof.
-Admitted.
-(*
-
- revert_until b2. pcofix CIH. intros.
+  move: t1 t2 t3. pcofix CIH => t1 t2 t3 INL INR.
   pstep. punfold INL. punfold INR. red in INL, INR |- *. genobs_clear t3 ot3.
   hinduction INL before CIH; intros; subst; clear t1 t2.
   - remember (RetF r2) as ot.
-    hinduction INR before CIH; intros; inv Heqot; eauto with paco itree.
-  - assert (DEC: (exists m3, ot3 = TauF m3) \/ (forall m3, ot3 <> TauF m3)).
-    { destruct ot3; eauto; right; red; intros; inv H. }
-    destruct DEC as [EQ | EQ].
-    + destruct EQ as [m3 ?]; subst.
-      econstructor. right. pclearbot. eapply CIH; eauto with paco.
-      eapply eqit_inv_Tau. eauto with itree.
+    hinduction INR before CIH; intros; inv Heqot.
+    + by constructor; econstructor; eauto.
+    + by constructor; econstructor; eauto.
+    by constructor; apply (IHINR r1 r2).
+  - have [[m3 ?] | EQ]: (exists m3, ot3 = TauF m3) \/ (forall m3, ot3 <> TauF m3).
+    + by case ot3; eauto; right; red.
+    + subst; econstructor. right. pclearbot. eapply CIH; eauto with paco.
+      by apply rutt_inv_Tau; apply (fold_ruttF _ _ _ _ _ _ _ _ _ INR).
     + inv INR; try (exfalso; eapply EQ; eauto; fail).
       econstructor; eauto.
-      pclearbot. punfold REL. red in REL.
+      pclearbot.
       hinduction REL0 before CIH; intros; try (exfalso; eapply EQ; eauto; fail).
       * remember (RetF r1) as ot.
         hinduction REL0 before CIH; intros; inv Heqot; eauto with paco itree.
