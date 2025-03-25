@@ -5721,7 +5721,7 @@ Proof.
   by case: clear_status_map_aux.
 Qed.
 
-(* If we used the optim "do not put empty bytesets in the map", then I think
+(* If we used the optim "do not put empty status_map in the map", then I think
    we could remove the condition. *)
 Lemma incl_set_clear_pure (rmap:region_map) sr :
   Mr.get rmap sr.(sr_region) <> None ->

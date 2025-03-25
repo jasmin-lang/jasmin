@@ -9,7 +9,6 @@ From mathcomp Require Import word_ssrZ.
 Require Import Uint63.
 Require Import psem psem_facts compiler_util.
 Require Export stack_alloc stack_alloc_proof.
-Require Import byteset.
 From mathcomp Require Import ring.
 From Coq Require Import Utf8 Lia.
 

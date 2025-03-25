@@ -58,7 +58,6 @@ compiler/array_copy.v
 compiler/array_copy_proof.v
 compiler/array_init.v
 compiler/array_init_proof.v
-compiler/byteset.v
 compiler/compiler_util.v
 compiler/compiler.v
 compiler/compiler_proof.v
