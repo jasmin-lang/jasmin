@@ -945,11 +945,12 @@ Definition arm_is_move_opP op vx v :
 Proof.
   case: op => // -[[] // [mn opt]] /=.
   case: ifP => // hmn /and3P [/negPf hf /negPf hc /negPf hs].
-  rewrite /exec_sopn /sopn_sem /= hc.
+  rewrite /exec_sopn /sopn_sem  /sopn_sem_ /= hc.
   (* To avoid duplication, we prove that [mn] returns [to_word ws vx] for some [ws] *)
   have ->:
-    Let t := app_sopn (id_tin (mn_desc opt mn)) (id_semi (mn_desc opt mn)) [:: vx] in
-    ok (list_ltuple t) =
+    Let semi := assert (id_valid (mn_desc opt mn)) ErrType >> ok (id_semi (mn_desc opt mn)) in
+    (Let t := app_sopn (id_tin (mn_desc opt mn)) semi [:: vx] in
+    ok (list_ltuple t)) =
       Let ws := if head sbool (id_tout (mn_desc opt mn)) is sword ws then ok ws else type_error in
       Let wx := to_word ws vx in
       ok [:: Vword wx].
