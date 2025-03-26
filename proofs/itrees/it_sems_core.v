@@ -12,6 +12,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import expr psem_defs psem (* it_gen_lib *) it_exec.
 
 Import MonadNotation.
+(* FIXME : This can be removed using %monad *)
 Local Open Scope monad_scope.
 
 Set Implicit Arguments.
@@ -59,25 +60,76 @@ Definition err_result {E: Type -> Type} `{ErrEvent -< E} (Err : error -> error_d
 
 End Errors.
 
-Class with_Error (E: Type -> Type) :=
- { HasErr :: ErrEvent -< E
- ; is_error : forall {T}, E T -> bool
- ; is_error_has : forall {T} (e : ErrEvent T) , is_error (HasErr e)
- }.
+(** Type function isomorphism class *)
+Class FIso (E1 E2: Type -> Type) : Type := FI {
+    mfun1 : E1 -< E2 ;
+    mfun2 : E2 -< E1 ;
+    mid12 : forall T (x : E2 T), mfun1 (mfun2 x) = x ;
+    mid21 : forall T (x : E1 T), mfun2 (mfun1 x) = x ;
+}.
 
-Arguments with_Error : clear implicits.
-Arguments with_Error E.
+Notation with_Error E E0 := (FIso E (ErrEvent +' E0)).
 
-Definition is_error_void T (e : (ErrEvent +' void1) T) :=
-  match e with inl1 _ => true | _ => false end.
+#[global] Instance fromErr E E0 {wE : with_Error E E0} : ErrEvent -< E :=
+  fun T (e:ErrEvent T) => mfun2 (inl1 e).
 
-Lemma is_error_void_has (T : Type) (e : ErrEvent T) :
-  is_error_void (ReSum_inl IFun sum1 ErrEvent ErrEvent void1 T e).
-Proof. done. Qed.
+Definition is_error {E E0 : Type -> Type} (wE : with_Error E E0) (T : Type) (e : E T) :=
+  match mfun1 e with
+  | inl1 _ => true
+  | inr1 _ => false
+  end.
 
-Instance with_Error_void : with_Error (ErrEvent +' void1) :=
-  {| is_error := is_error_void;
-     is_error_has := is_error_void_has |}.
+(* with_Error (ErrEvent +' void1) void1 *)
+#[global]
+Instance FIsoId E : FIso E E :=
+  {| mfun1 := fun T x => x
+   ; mfun2 := fun T x => x
+   ; mid12 := fun T x => erefl
+   ; mid21 := fun T x => erefl |}.
+
+(* with_Error E E0 -> with_Error (E1 +' E) (E1 +' E0) *)
+Section FIso_suml.
+Context (E1 E E0 Err : Type -> Type) {FI : FIso E (Err +' E0)}.
+
+Definition mfun1_suml T (e : (E1 +' E) T) : (Err +' (E1 +' E0)) T :=
+  match e with
+  | inl1 e1 => inr1 (inl1 e1)
+  | inr1 e =>
+    match mfun1 e with
+    | inl1 err => inl1 err
+    | inr1 e0  => inr1 (inr1 e0)
+    end
+  end.
+
+Definition mfun2_suml T (e : (Err +' (E1 +' E0)) T) : (E1 +' E) T :=
+  match e with
+  | inl1 err => inr1 (mfun2 (inl1 err))
+  | inr1 e10 =>
+    match e10 with
+    | inl1 e1 => inl1 e1
+    | inr1 e0  => inr1 (mfun2 (inr1 e0))
+    end
+  end.
+
+Lemma mfun_suml_12 T (x : (Err +' (E1 +' E0)) T) :
+  mfun1_suml (mfun2_suml x) = x.
+Proof. by case: x => [err | [e1 | e0]] //=; rewrite ?(mid12, mid21). Qed.
+
+Lemma mfun_suml_21 T (x : (E1 +' E) T) :
+  mfun2_suml (mfun1_suml x) = x.
+Proof.
+  case: x => [e1 | e] //=.
+  by case heq : (mfun1 e) => [err | e0] /=; rewrite -heq ?(mid12, mid21).
+Qed.
+
+#[global]
+Instance FIso_suml : FIso (E1 +' E) (Err +' (E1 +' E0)) :=
+  {| mfun1 := mfun1_suml
+   ; mfun2 := mfun2_suml
+   ; mid12 := mfun_suml_12
+   ; mid21 := mfun_suml_21 |}.
+
+End FIso_suml.
 
 Section WSW.
 Context
@@ -96,33 +148,13 @@ Record fstate := { fscs : syscall_state_t; fmem : mem; fvals : values }.
 Variant recCall : Type -> Type :=
  | RecCall (f:funname) (fs:fstate) : recCall fstate.
 
-Section wE_recCall.
-
-Context (E : Type -> Type) {wE : with_Error E}.
-
-Definition is_error_recCall T (e : (recCall +' E) T) :=
-  match e with
-  | inl1 _ => false
-  | inr1 e' => is_error e'
-  end.
-
-Lemma is_error_recCall_has (T : Type) (e : ErrEvent T) :
-  is_error_recCall (ReSum_inr IFun sum1 ErrEvent E recCall T e).
-Proof. by rewrite /= is_error_has. Qed.
-
-#[global]
-Instance with_Error_recCall : with_Error (recCall +' E) :=
-  {| is_error := is_error_recCall; is_error_has := is_error_recCall_has |}.
-
-End wE_recCall.
-
 Definition mk_error_data (s:estate) (e:error)  := (e, tt).
 
 Definition mk_errtype := fun s => mk_error_data s ErrType.
 
 Section CORE.
 
-Context {E} {wE : with_Error E} (p : prog) (ev : extra_val_t).
+Context {E E0} {wE : with_Error E E0} (p : prog) (ev : extra_val_t).
 
 Definition kget_fundef (funcs: fun_decls) (fn: funname) : ktree E fstate fundef :=
   fun _ => ioget (ErrType, tt) (get_fundef funcs fn).
@@ -184,7 +216,7 @@ End CORE.
 
 Section SEM_C.
 
-Context {E} {wE : with_Error E}
+Context {E E0} {wE : with_Error E E0}
         (sem_i: prog -> extra_val_t -> instr -> estate -> itree E estate)
         (p : prog) (ev : extra_val_t).
 
@@ -227,7 +259,7 @@ Instance sem_fun_rec (E : Type -> Type) : sem_Fun (recCall +' E) | 0 :=
 
 Section SEM_I.
 
-Context {E} {wE : with_Error E} {sem_F : sem_Fun E }.
+Context {E E0} {wE : with_Error E E0} {sem_F : sem_Fun E }.
 
 Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) : itree E estate :=
   let: (MkI _ i) := i in
@@ -299,7 +331,7 @@ End SEM_I.
 
 Section SEM_F.
 
-Context {E} {wE : with_Error E}.
+Context {E E0} {wE : with_Error E E0}.
 
 Definition isem_i_rec (p : prog) (ev : extra_val_t) (i : instr) (s : estate)
   : itree (recCall +' E) estate :=
@@ -342,7 +374,7 @@ Definition err_sem_fun (p : prog) (ev : extra_val_t) (fn : funname) (fs : fstate
 
 Section Section.
 
-Context {E : Type -> Type} {wE : with_Error E}.
+Context {E E0: Type -> Type} {wE : with_Error E E0}.
 Context (p : prog) (ev : extra_val_t).
 
 Notation interp_rec := (interp (mrecursive (interp_recCall p ev))).
