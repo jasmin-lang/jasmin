@@ -305,6 +305,8 @@ abstract theory PolyArray.
 
   op init : (int -> 'a) -> 'a t.
 
+  op is_init : 'a t -> int -> int -> bool.
+
   axiom get_out (t:'a t) i : !(0 <= i < size) => t.[i] = witness.
 
   axiom initE (f:int -> 'a) i :

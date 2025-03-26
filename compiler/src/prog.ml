@@ -2,6 +2,7 @@
 (* ------------------------------------------------------------------------ *)
 open Utils
 open Wsize
+open Operators
 
 (* ------------------------------------------------------------------------ *)
 
@@ -26,11 +27,11 @@ type 'len gexpr =
   | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr
   | Pload  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
-  | Papp1  of E.sop1 * 'len gexpr
-  | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
+  | Papp1  of sop1 * 'len gexpr
+  | Papp2  of sop2 * 'len gexpr * 'len gexpr
   | PappN of E.opNA * 'len gexpr list
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
-  | Pbig   of 'len gexpr * E.sop2 * 'len gvar_i * 'len gexpr * 'len gexpr * 'len gexpr
+  | Pbig   of 'len gexpr * sop2 * 'len gvar_i * 'len gexpr * 'len gexpr * 'len gexpr
   | Pis_var_init of 'len gvar_i
   | Pis_arr_init of 'len gvar_i * 'len gexpr * 'len gexpr
   | Pis_mem_init of 'len gexpr * 'len gexpr

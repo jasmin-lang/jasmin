@@ -17,6 +17,9 @@ type global_mem_t.
 op "_.[_]" : global_mem_t -> address -> W8.t.
 op "_.[_<-_]" : global_mem_t -> address -> W8.t -> global_mem_t.
 
+op is_valid : address -> int -> bool.
+
+
 axiom mem_eq_ext (m1 m2:global_mem_t) : (forall j, m1.[j] = m2.[j]) => m1 = m2.
 
 axiom get_setE m x y w :

@@ -4,6 +4,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 
 Require Import
   pseudo_operator
+  operators
   sem_type
   shift_kind
   strings

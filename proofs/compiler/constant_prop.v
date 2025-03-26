@@ -500,9 +500,9 @@ Context {msfsz : MSFsize} `{asmop:asmOp}.
 Section CMD.
 
 
-Definition add_cpm (m:cpm) (rv:lval) (ir:instr_r) cpf ty e :=
+Definition add_cpm (m:cpm) (rv:lval) (tag:assgn_tag) e cpf ty :=
 if rv is Lvar x then
-  if cpf ir then
+  if cpf rv tag e then
     match e with
     | Pbool b  => Mvar.set m x (Cbool b)
     | Pconst z =>  Mvar.set m x (Cint z)
@@ -548,7 +548,7 @@ Fixpoint const_prop_ir with_globals without_globals cpf (m:cpm) ii (ir:instr_r) 
     let globs := with_globals gd tag in
     let e := const_prop_e globs m e in
     let (m,x) := const_prop_rv globs m x in
-    let m := add_cpm m x ir cpf ty e in
+    let m := add_cpm m x tag e cpf ty in
     (m, [:: MkI ii (Cassgn x tag ty e)])
 
   | Copn xs t o es =>
@@ -570,6 +570,13 @@ Fixpoint const_prop_ir with_globals without_globals cpf (m:cpm) ii (ir:instr_r) 
 
   | Cassert t p b =>
     let b := const_prop_e without_globals m b in
+    let m := match b with
+      | Pvar x => Mvar.set m x.(gv) (Cbool true)
+      | Papp2 (Oeq ty) (Pvar x) (Pconst c) 
+      | Papp2 (Oeq ty) (Pconst c) (Pvar x) => 
+        Mvar.set m x.(gv) (Cint c)
+      | _ => m 
+    end in
     match is_bool b with
       | Some b =>
         let c := if b then [::] else [:: MkI ii (Cassert t p b)] in
@@ -657,17 +664,12 @@ Definition const_prop_fun (cl: bool) (gd: glob_decls) cpf (f: fundef) :=
   let ci := Option.map (const_prop_ci without_globals) ci in
   MkFun ii ci si p mc.2 so r ev.
   
-Definition const_prop_prog_fun (cl:bool) (p:prog) (cpf:instr_r -> bool) : prog :=
+Definition const_prop_prog_fun (cl:bool) (p:prog) (cpf:lval -> assgn_tag -> pexpr -> bool) : prog :=
   map_prog (const_prop_fun cl p.(p_globs) cpf) p.
  
 
 Definition const_prop_prog (cl: bool) (p:prog) : prog :=
-  const_prop_prog_fun cl p (fun f => 
-    match f with
-    |(Cassgn _ tag _ _ ) => (tag == AT_inline)
-    | _ => false
-    end
-  ).
+  const_prop_prog_fun cl p (fun _ tag _ =>  (tag == AT_inline)).
 
 End Section.
 

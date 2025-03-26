@@ -52,6 +52,7 @@ module type Arch = sig
   val reg_size : Wsize.wsize
   val pointer_data : Wsize.wsize
   val msf_size : Wsize.wsize
+  val fcp: Flag_combination.coq_FlagCombinationParams
   val rip : var
 
   val asmOp      : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op Sopn.asmOp
@@ -97,6 +98,7 @@ module Arch_from_Core_arch (A : Core_arch) :
   let xreg_size = arch_decl.xreg_size
   let pointer_data = arch_pd A.asm_e._asm._arch_decl
   let msf_size = arch_msfsz A.asm_e._asm._arch_decl
+  let fcp = arch_decl.ad_fcp
 
   let atoI = A.asm_e._atoI
   (* not sure it is the best place to define [rip], but we need to know [reg_size] *)

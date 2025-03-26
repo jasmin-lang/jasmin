@@ -204,11 +204,11 @@ let psubst_prog (prog:('info, 'asm) pprog) =
 
 let int_of_op2 ?loc o =
   match o with
-  | Expr.Oadd Op_int -> Z.add
-  | Expr.Omul Op_int -> Z.mul
-  | Expr.Osub Op_int -> Z.sub
-  | Expr.Odiv Cmp_int -> Z.div
-  | Expr.Omod Cmp_int -> Z.erem
+  | Operators.Oadd Op_int -> Z.add
+  | Operators.Omul Op_int -> Z.mul
+  | Operators.Osub Op_int -> Z.sub
+  | Operators.Odiv Cmp_int -> Z.div
+  | Operators.Omod Cmp_int -> Z.erem
   | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (PrintCommon.string_of_op2 o)
 
 let rec int_of_expr ?loc e =

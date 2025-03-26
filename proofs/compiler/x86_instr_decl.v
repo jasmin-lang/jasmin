@@ -1,7 +1,7 @@
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype tuple.
 From mathcomp Require Import ssralg word word_ssrZ.
-Require Import utils strings word waes sem_type global oseq sopn.
+Require Import utils strings word waes sem_type global oseq sopn operators.
 Import Utf8 Relation_Operators ZArith.
 
 Require Export arch_decl.
@@ -389,27 +389,27 @@ Definition x86_shift_mask_int (s:wsize) : Z :=
 Definition x86_shift_mask (s:wsize) : u8 :=
   wrepr U8 (x86_shift_mask_int s).
 
-Definition iweq sz ic1 ic2:= IOp2 (IOeq (IOp_w sz)) ic1 ic2.
-Definition iwneq sz ic1 ic2:= IOp2 (IOneq (IOp_w sz)) ic1 ic2.
+Definition iweq sz ic1 ic2:= IOp2 (Oeq (Op_w sz)) ic1 ic2.
+Definition iwneq sz ic1 ic2:= IOp2 (Oneq (Op_w sz)) ic1 ic2.
 
 Definition get_init_cond_x86_shift_mask (s:wsize) n :=
-  IOp2 (IOland s) (IVar n) (IConst (x86_shift_mask_int s)).
+  IOp2 (Oland s) (IVar n) (IConst (x86_shift_mask_int s)).
 
 Definition get_init_cond_x86_rotate_with_carry (s:wsize) n :=
   let i := get_init_cond_x86_shift_mask s n in
   match s with
-    | U8 => IOp2 (IOmod ICmp_int) (IOp1 (IOint_of_word s) (IVar n)) (IConst 9)
-    | U16 => IOp2 (IOmod ICmp_int) (IOp1 (IOint_of_word s) (IVar n)) (IConst 17)
-    | _  => IOp1 (IOint_of_word s) (IVar n)
+    | U8 => IOp2 (Omod Cmp_int) (IOp1 (Oint_of_word s) (IVar n)) (IConst 9)
+    | U16 => IOp2 (Omod Cmp_int) (IOp1 (Oint_of_word s) (IVar n)) (IConst 17)
+    | _  => IOp1 (Oint_of_word s) (IVar n)
   end.
 
 Definition x_86_shift_mask_OF_condition (s:wsize) n :=
   let i := get_init_cond_x86_shift_mask s n in
-  iweq s i (IOp1 (IOword_of_int s) (IConst 1)).
+  iweq s i (IOp1 (Oword_of_int s) (IConst 1)).
 
 Definition x_86_shift_mask_other_flags_condition (s:wsize) n :=
   let i := get_init_cond_x86_shift_mask s n in
-  iwneq s i (IOp1 (IOword_of_int s) (IConst 0)).
+  iwneq s i (IOp1 (Oword_of_int s) (IConst 0)).
 (* -------------------------------------------------------------------- *)
 
 Definition reg_msb_flag (sz : wsize) :=

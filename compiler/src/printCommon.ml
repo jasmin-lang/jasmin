@@ -2,6 +2,7 @@ open Format
 open Utils
 open Prog
 open Wsize
+open Operators
 module E = Expr
 
 (* -------------------------------------------------------------------- *)
@@ -32,15 +33,15 @@ let string_of_velem s ws ve =
 
 (* -------------------------------------------------------------------- *)
 
-let string_of_cmp_ty = function E.Cmp_w (Unsigned, _) -> "u" | _ -> ""
+let string_of_cmp_ty = function Cmp_w (Unsigned, _) -> "u" | _ -> ""
 
 let string_of_cmp_kind = function
-  | E.Cmp_w (sg, sz) -> asprintf " %d%s" (int_of_ws sz) (string_of_signess sg)
-  | E.Cmp_int -> ""
+  | Cmp_w (sg, sz) -> asprintf " %d%s" (int_of_ws sz) (string_of_signess sg)
+  | Cmp_int -> ""
 
 let string_of_op_kind = function
-  | E.Op_w ws -> asprintf "%du" (int_of_ws ws)
-  | E.Op_int -> ""
+  | Op_w ws -> asprintf "%du" (int_of_ws ws)
+  | Op_int -> ""
 
 (* -------------------------------------------------------------------- *)
 
@@ -48,37 +49,37 @@ let string_of_op_w s ws =
   asprintf "%s %du" s (int_of_ws ws)
 
 let string_of_op1 = function
-  | E.Oint_of_word sz -> asprintf "(int /* of u%d */)" (int_of_ws sz)
-  | E.Osignext (szo, _) -> asprintf "(%ds)" (int_of_ws szo)
-  | E.Oword_of_int szo | E.Ozeroext (szo, _) -> asprintf "(%du)" (int_of_ws szo)
-  | E.Olnot w -> string_of_op_w "!" w
-  | E.Onot -> "!"
-  | E.Oneg k -> "-" ^ string_of_op_kind k
+  | Oint_of_word sz -> asprintf "(int /* of u%d */)" (int_of_ws sz)
+  | Osignext (szo, _) -> asprintf "(%ds)" (int_of_ws szo)
+  | Oword_of_int szo | Ozeroext (szo, _) -> asprintf "(%du)" (int_of_ws szo)
+  | Olnot w -> string_of_op_w "!" w
+  | Onot -> "!"
+  | Oneg k -> "-" ^ string_of_op_kind k
 
 let string_of_op2 = function
-  | E.Obeq -> "=="
-  | E.Oand -> "&&"
-  | E.Oor -> "||"
-  | E.Oadd k -> "+" ^ string_of_op_kind k
-  | E.Omul k -> "*" ^ string_of_op_kind k
-  | E.Osub k -> "-" ^ string_of_op_kind k
-  | E.Odiv k -> "/" ^ string_of_cmp_kind k
-  | E.Omod k -> "%" ^ string_of_cmp_kind k
-  | E.Oland w -> string_of_op_w "&" w
-  | E.Olor w -> string_of_op_w "|" w
-  | E.Olxor w -> string_of_op_w "^" w
-  | E.Olsr w -> string_of_op_w ">>" w
-  | E.Olsl k -> "<<" ^ string_of_op_kind k
-  | E.Oasr E.Op_int -> ">>s"
-  | E.Oasr (E.Op_w w) -> asprintf ">>%ds" (int_of_ws w)
-  | E.Oror w -> string_of_op_w ">>r" w
-  | E.Orol w -> string_of_op_w "<<r" w
-  | E.Oeq k -> "==" ^ string_of_op_kind k
-  | E.Oneq k -> "!=" ^ string_of_op_kind k
-  | E.Olt k -> "<" ^ string_of_cmp_ty k
-  | E.Ole k -> "<=" ^ string_of_cmp_ty k
-  | E.Ogt k -> ">" ^ string_of_cmp_ty k
-  | E.Oge k -> ">=" ^ string_of_cmp_ty k
+  | Obeq -> "=="
+  | Oand -> "&&"
+  | Oor -> "||"
+  | Oadd k -> "+" ^ string_of_op_kind k
+  | Omul k -> "*" ^ string_of_op_kind k
+  | Osub k -> "-" ^ string_of_op_kind k
+  | Odiv k -> "/" ^ string_of_cmp_kind k
+  | Omod k -> "%" ^ string_of_cmp_kind k
+  | Oland w -> string_of_op_w "&" w
+  | Olor w -> string_of_op_w "|" w
+  | Olxor w -> string_of_op_w "^" w
+  | Olsr w -> string_of_op_w ">>" w
+  | Olsl k -> "<<" ^ string_of_op_kind k
+  | Oasr Op_int -> ">>s"
+  | Oasr (Op_w w) -> asprintf ">>%ds" (int_of_ws w)
+  | Oror w -> string_of_op_w ">>r" w
+  | Orol w -> string_of_op_w "<<r" w
+  | Oeq k -> "==" ^ string_of_op_kind k
+  | Oneq k -> "!=" ^ string_of_op_kind k
+  | Olt k -> "<" ^ string_of_cmp_ty k
+  | Ole k -> "<=" ^ string_of_cmp_ty k
+  | Ogt k -> ">" ^ string_of_cmp_ty k
+  | Oge k -> ">=" ^ string_of_cmp_ty k
   | Ovadd (ve, ws) -> asprintf "+%s" (string_of_velem Unsigned ws ve)
   | Ovsub (ve, ws) -> asprintf "-%s" (string_of_velem Unsigned ws ve)
   | Ovmul (ve, ws) -> asprintf "*%s" (string_of_velem Unsigned ws ve)

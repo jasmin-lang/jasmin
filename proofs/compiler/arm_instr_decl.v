@@ -7,6 +7,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
 From mathcomp Require Import ssralg word_ssrZ.
 
 Require Import
+  operators
   sem_type
   shift_kind
   strings

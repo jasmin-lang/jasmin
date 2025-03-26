@@ -2,6 +2,9 @@ Require Import expr.
 Require Import safety_cond.
 Require Import constant_prop.
 Require Import flag_combination.
+Require Import dead_code.
+Require Import operators.
+
 
 
 Section EXPR.
@@ -9,9 +12,11 @@ Context `{asmop:asmOp}.
 Context {msfsz : MSFsize}.
 Context {fcp : FlagCombinationParams}.
 Context {pT: progT}.
+Context (is_move_op : asm_op_t -> bool).
 
 
 Context (B : var -> var).
+
 
 Definition not_array (var:var) : bool :=
   match var.(vtype) with
@@ -19,54 +24,6 @@ Definition not_array (var:var) : bool :=
   | _ => true
   end.
 
-Definition iop_kind_to_op_kind (o: iop_kind) : op_kind :=
-  match o with
-  | IOp_int => Op_int
-  | IOp_w s => Op_w s
-  end.
-
-Definition icmp_kind_to_cmp_kind (o: icmp_kind) : cmp_kind :=
-  match o with
-  | ICmp_int => Cmp_int
-  | ICmp_w s w => Cmp_w s w
-  end.
-
-Definition iop1_to_sop1 (op: iop1) : sop1 :=
- match op with
- | IOword_of_int s => Oword_of_int s
- | IOint_of_word s => Oint_of_word s
- | IOsignext s1 s2 => Osignext s1 s2
- | IOzeroext s1 s2 => Ozeroext s1 s2
- | IOnot => Onot   
- | IOlnot s => Olnot s
- | IOneg o => Oneg (iop_kind_to_op_kind o)
- end.
-
-Definition iop2_to_sop2 (op: iop2): sop2 :=
-  match op with
-  | IObeq => Obeq
-  | IOand => Oand
-  | IOor => Oor
-  | IOadd o => Oadd (iop_kind_to_op_kind o)
-  | IOmul o => Omul (iop_kind_to_op_kind o)
-  | IOsub o => Osub (iop_kind_to_op_kind o)
-  | IOdiv o => Odiv (icmp_kind_to_cmp_kind o)
-  | IOmod o => Omod (icmp_kind_to_cmp_kind o)
-  | IOland s => Oland s
-  | IOlor s => Olor s
-  | IOlxor s => Olxor s
-  | IOlsr s => Olsr s
-  | IOlsl o => Olsl (iop_kind_to_op_kind o)
-  | IOasr o => Oasr (iop_kind_to_op_kind o)
-  | IOror s => Oror s
-  | IOrol s => Orol s
-  | IOeq o => Oeq (iop_kind_to_op_kind o)
-  | IOneq o => Oneq (iop_kind_to_op_kind o)
-  | IOlt o => Olt (icmp_kind_to_cmp_kind o)
-  | IOle o => Ole (icmp_kind_to_cmp_kind o)
-  | IOgt o => Ogt (icmp_kind_to_cmp_kind o)
-  | IOge o => Oge (icmp_kind_to_cmp_kind o)
-  end.
 
 Fixpoint ic_to_e vs ic: pexpr :=
   match ic with
@@ -77,15 +34,8 @@ Fixpoint ic_to_e vs ic: pexpr :=
     | Some x => x
     | None => Pbool false
     end
-  | IOp1 op e1 =>
-    let e1 := ic_to_e vs e1 in
-    let op := iop1_to_sop1 op in
-    Papp1 op e1
-  | IOp2 op e1 e2 =>
-    let e1 := ic_to_e vs e1 in
-    let e2 := ic_to_e vs e2 in
-    let op := iop2_to_sop2 op in
-    Papp2 op e1 e2
+  | IOp1 op e1 => Papp1 op (ic_to_e vs e1)
+  | IOp2 op e1 e2 => Papp2 op (ic_to_e vs e1) (ic_to_e vs e2)
   end.
 
 Definition expr_true := Pbool true.
@@ -159,12 +109,18 @@ Definition rm_var_init_f (f:ufundef): _ufundef :=
   let body := rm_var_init_cmd f.(f_body) in
   let X := Sv.elements (vars_fd f) in
   let args_varsL := vars_l f.(f_params) in
-  let init_bvars := conc_map (fun v =>
-    if not_array v then
-      let expr := if (Sv.mem v args_varsL) then expr_true else expr_false in
-      assign_bvar_e dummy_instr_info expr v
-    else [::]
-  ) X in
+
+  let init_bvars := 
+    match f.(f_body) with
+    | [::] => [::]
+    | (MkI ii ir) :: t => 
+      conc_map (fun v =>
+        if not_array v then
+          let expr := if (Sv.mem v args_varsL) then expr_true else expr_false in
+          assign_bvar_e ii expr v
+        else [::]
+      ) X
+    end in
   {|
     f_info   := f.(f_info) ;
     f_contra := f.(f_contra) ;
@@ -191,20 +147,26 @@ Definition rm_var_init_prog (p:_uprog) : uprog :=
 Definition all_b_vars vars := Sv.fold (fun x acc => Sv.add (B x) acc) vars Sv.empty.
 
 
-Definition rm_var_init_prog_prop (p: _uprog) : _uprog :=
+Definition rm_var_init_prog_prop (p: _uprog) : uprog :=
   let p := rm_var_init_prog p in
-  let fun_cp := fun i =>
-          match i with
-          | Cassgn lv _ _ e =>
-              let value := get_lv_lval lv in
-              let X := vars_p (p_funcs p) in
-              match value with
-              | Some x => Sv.mem x (all_b_vars X)
+  let bX := all_b_vars(vars_p (p_funcs p)) in
+  let fun_cp := fun lv _ _ =>
+              let x := get_lv_lval lv in
+              match x with
+              | Some x => Sv.mem x bX
               | None => false
               end
-          | _ => false
-          end in
-  const_prop_prog_fun false p fun_cp. (*FIXME: see what the bool stands for*)
+  in
+  const_prop_prog_fun false p fun_cp
+.
+
+Definition rm_var_init_prog_dc (p: _uprog) : _uprog :=
+  let p:prog := rm_var_init_prog_prop p in
+  match dead_code_prog is_move_op p false with
+    | Ok p => p
+    | Error e => p
+  end.
+
   
   
 

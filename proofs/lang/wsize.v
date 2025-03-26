@@ -207,60 +207,7 @@ Variant safe_cond :=
   (* Unsatisfiable safe_cond *)
   | ScFalse.
 
-Variant icmp_kind :=
-| ICmp_int
-| ICmp_w of signedness & wsize.
 
-Variant iop_kind :=
-  | IOp_int
-  | IOp_w of wsize.
-
-Variant iop1 :=
-| IOword_of_int of wsize     (* int → word *)
-| IOint_of_word of wsize     (* word → unsigned int *)
-| IOsignext of wsize & wsize (* Sign-extension: output-size, input-size *)
-| IOzeroext of wsize & wsize (* Zero-extension: output-size, input-size *)
-| IOnot                      (* Boolean negation *)
-| IOlnot of wsize            (* Bitwize not: 1s’ complement *)
-| IOneg  of iop_kind          (* Arithmetic negation *)
-.
-
-Variant iop2 :=
-| IObeq                        (* const : sbool -> sbool -> sbool *)
-| IOand                        (* const : sbool -> sbool -> sbool *)
-| IOor                         (* const : sbool -> sbool -> sbool *)
-
-| IOadd  of iop_kind
-| IOmul  of iop_kind
-| IOsub  of iop_kind
-| IOdiv  of icmp_kind
-| IOmod  of icmp_kind
-
-| IOland of wsize
-| IOlor  of wsize
-| IOlxor of wsize
-| IOlsr  of wsize
-| IOlsl  of iop_kind
-| IOasr  of iop_kind
-| IOror  of wsize
-| IOrol  of wsize
-
-| IOeq   of iop_kind
-| IOneq  of iop_kind
-| IOlt   of icmp_kind
-| IOle   of icmp_kind
-| IOgt   of icmp_kind
-| IOge   of icmp_kind
-.
-
-
-Inductive init_cond :=
-  | IBool of bool
-  | IConst of Z
-  | IVar of nat
-  | IOp1 of iop1 & init_cond
-  | IOp2 of iop2 & init_cond & init_cond
-.
 (* -------------------------------------------------------------------- *)
 Class PointerData := {
   Uptr : wsize;

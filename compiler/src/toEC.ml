@@ -1,5 +1,6 @@
 open Utils
 open Wsize
+open Operators
 open Prog
 open PrintCommon
 module E = Expr
@@ -753,37 +754,37 @@ let fmt_Wsz sz = Format.asprintf "W%i" (int_of_ws sz)
 
 let fmt_op2 fmt op =
   let fmt_signed fmt ws is = function
-    | E.Cmp_w (Signed, _)   -> Format.fprintf fmt "\\s%s" ws
-    | E.Cmp_w (Unsigned, _) -> Format.fprintf fmt "\\u%s" ws
+    | Cmp_w (Signed, _)   -> Format.fprintf fmt "\\s%s" ws
+    | Cmp_w (Unsigned, _) -> Format.fprintf fmt "\\u%s" ws
     | _                     -> Format.fprintf fmt "%s" is
   in
   let fmt_vop2 fmt (s,ve,ws) =
     Format.fprintf fmt "\\v%s%iu%i" s (int_of_velem ve) (int_of_ws ws)
   in
   match op with
-  | E.Obeq   -> Format.fprintf fmt "="
-  | E.Oand   -> Format.fprintf fmt "/\\"
-  | E.Oor    -> Format.fprintf fmt "\\/"
-  | E.Oadd _ -> Format.fprintf fmt "+"
-  | E.Omul _ -> Format.fprintf fmt "*"
-  | E.Odiv s -> fmt_signed fmt "div" "%/" s
-  | E.Omod s -> fmt_signed fmt "mod" "%%" s
+  | Obeq   -> Format.fprintf fmt "="
+  | Oand   -> Format.fprintf fmt "/\\"
+  | Oor    -> Format.fprintf fmt "\\/"
+  | Oadd _ -> Format.fprintf fmt "+"
+  | Omul _ -> Format.fprintf fmt "*"
+  | Odiv s -> fmt_signed fmt "div" "%/" s
+  | Omod s -> fmt_signed fmt "mod" "%%" s
 
-  | E.Osub  _ -> Format.fprintf fmt "-"
+  | Osub  _ -> Format.fprintf fmt "-"
 
-  | E.Oland _ -> Format.fprintf fmt "`&`"
-  | E.Olor  _ -> Format.fprintf fmt "`|`"
-  | E.Olxor _ -> Format.fprintf fmt "`^`"
-  | E.Olsr  _ -> Format.fprintf fmt "`>>`"
-  | E.Olsl  _ -> Format.fprintf fmt "`<<`"
-  | E.Oasr  _ -> Format.fprintf fmt "`|>>`"
-  | E.Orol _ -> Format.fprintf fmt "`|<<|`"
-  | E.Oror _ -> Format.fprintf fmt "`|>>|`"
+  | Oland _ -> Format.fprintf fmt "`&`"
+  | Olor  _ -> Format.fprintf fmt "`|`"
+  | Olxor _ -> Format.fprintf fmt "`^`"
+  | Olsr  _ -> Format.fprintf fmt "`>>`"
+  | Olsl  _ -> Format.fprintf fmt "`<<`"
+  | Oasr  _ -> Format.fprintf fmt "`|>>`"
+  | Orol _ -> Format.fprintf fmt "`|<<|`"
+  | Oror _ -> Format.fprintf fmt "`|>>|`"
 
-  | E.Oeq   _ -> Format.fprintf fmt "="
-  | E.Oneq  _ -> Format.fprintf fmt "<>"
-  | E.Olt s| E.Ogt s -> fmt_signed fmt "lt" "<" s
-  | E.Ole s | E.Oge s -> fmt_signed fmt "le" "<=" s
+  | Oeq   _ -> Format.fprintf fmt "="
+  | Oneq  _ -> Format.fprintf fmt "<>"
+  | Olt s| Ogt s -> fmt_signed fmt "lt" "<" s
+  | Ole s | Oge s -> fmt_signed fmt "le" "<=" s
 
   | Ovadd(ve,ws) -> fmt_vop2 fmt ("add", ve, ws)
   | Ovsub(ve,ws) -> fmt_vop2 fmt ("sub", ve, ws)
@@ -1126,7 +1127,7 @@ let save_array_theory ~prefix at =
 (* Easycrypt AST construction helpers *)
 
 let add_ptr pd x e =
-  (Prog.tu pd, Papp2 (E.Oadd ( E.Op_w pd), Pvar x, e))
+  (Prog.tu pd, Papp2 (Oadd ( Op_w pd), Pvar x, e))
 
 let ec_ident s = Eident [s]
 let ec_aget a i = Eop2 (ArrayGet, a, i)
@@ -1613,16 +1614,16 @@ module EcExpression(EA: EcArray): EcExpression = struct
               EA.ec_cast_array env (ws, n) (wse, ne) e
 
   let ec_op1 op e = match op with
-    | E.Oword_of_int sz ->
+    | Oword_of_int sz ->
       ec_apps1 (Format.sprintf "%s.of_int" (fmt_Wsz sz)) e
-    | E.Oint_of_word sz ->
+    | Oint_of_word sz ->
       ec_apps1 (Format.sprintf "%s.to_uint" (fmt_Wsz sz)) e
-    | E.Osignext(szo,_szi) ->
+    | Osignext(szo,_szi) ->
       ec_apps1 (Format.sprintf "sigextu%i" (int_of_ws szo)) e
-    | E.Ozeroext(szo,szi) -> ec_zeroext_sz (szo, szi) e
-    | E.Onot     -> ec_apps1 "!" e
-    | E.Olnot _  -> ec_apps1 "invw" e
-    | E.Oneg _   -> ec_apps1 "-" e
+    | Ozeroext(szo,szi) -> ec_zeroext_sz (szo, szi) e
+    | Onot     -> ec_apps1 "!" e
+    | Olnot _  -> ec_apps1 "invw" e
+    | Oneg _   -> ec_apps1 "-" e
 
   let rec toec_expr env (e: expr) =
       match e with
@@ -1646,7 +1647,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
           let te1 = (Conv.ty_of_cty t1, e1) in
           let te2 = (Conv.ty_of_cty t2, e2) in
           let te1, te2 = match op2 with
-            | E.Ogt _ | E.Oge _ -> te2, te1
+            | Ogt _ | Oge _ -> te2, te1
             | _ -> te1, te2
           in
           let op = Infix (Format.asprintf "%a" fmt_op2 op2) in
@@ -1750,7 +1751,7 @@ end
 module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
   open EE
 
-  let int_of_word ws e = Papp1 (E.Oint_of_word ws, e)
+  let int_of_word ws e = Papp1 (Oint_of_word ws, e)
 
   let rec leaks_e_rec pd leaks e =
     match e with
@@ -1835,7 +1836,7 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
 
   let asgn s e = ESasgn ([LvIdent [s]], e)
 
-  let int_of_word ws e = Papp1 (E.Oint_of_word ws, e)
+  let int_of_word ws e = Papp1 (Oint_of_word ws, e)
 
   let leak_addr e = Eapp (ec_ident "Leak_int", [e])
 

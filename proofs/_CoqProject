@@ -152,6 +152,7 @@ lang/lowering_lemmas.v
 lang/memory_example.v
 lang/memory_model.v
 lang/one_varmap.v
+lang/operators.v
 lang/psem.v
 lang/psem_defs.v
 lang/psem_of_sem_proof.v

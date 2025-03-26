@@ -360,9 +360,7 @@ Fixpoint sc_instr (i : instr) : cmd :=
     let sc_c2 := conc_map sc_instr c2 in
     let i := instrr_to_instr ii (Cwhile a sc_c1 e ii_w sc_c2) in
     [::i]
-  | Cassert _ _ e =>
-    let sc_e := sc_e e in
-    sc_e_to_instr (sc_e) ii ++ [::i]
+  | Cassert _ _ e => [::i]
   end.
 
 Definition sc_cmd (c : cmd) : cmd := conc_map sc_instr c.

@@ -11,6 +11,7 @@ Require Import
   word.
 Require xseq.
 Require Import
+  operators
   sopn
   arch_decl
   arch_utils.

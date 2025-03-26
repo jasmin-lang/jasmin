@@ -1,7 +1,7 @@
 open Prog
 
-val is_ct_op1 : Expr.sop1 -> bool
-val is_ct_op2 : Expr.sop2 -> bool
+val is_ct_op1 : Operators.sop1 -> bool
+val is_ct_op2 : Operators.sop2 -> bool
 val is_ct_opN : Expr.opNA -> bool
 val is_ct_sopn : ('asm -> bool) -> 'asm Sopn.sopn -> bool
 

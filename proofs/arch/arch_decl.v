@@ -19,6 +19,7 @@ Require Import
   word.
 
 Require Import
+  operators
   sopn
   flag_combination
   shift_kind
