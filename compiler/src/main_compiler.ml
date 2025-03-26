@@ -179,7 +179,7 @@ let main () =
     visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
 
     if !ec_list <> [] || !ecfile <> "" then begin
-      let memo = Hashtbl.create 1 in
+      let memo = Hashtbl.create 5 in
       let b (cv:Var0.Var.var) = 
           match Hashtbl.find memo cv with
           | x -> x

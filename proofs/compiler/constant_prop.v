@@ -664,6 +664,9 @@ Definition const_prop_fun (cl: bool) (gd: glob_decls) cpf (f: fundef) :=
   let ci := Option.map (const_prop_ci without_globals) ci in
   MkFun ii ci si p mc.2 so r ev.
   
+(* cpf is a function that indicates what should be propagated,
+receiving the paraments of the Cassgn (with the exception of the type)
+and returning a bool that indicates whether to propagate or not*)
 Definition const_prop_prog_fun (cl:bool) (p:prog) (cpf:lval -> assgn_tag -> pexpr -> bool) : prog :=
   map_prog (const_prop_fun cl p.(p_globs) cpf) p.
  

@@ -24,7 +24,7 @@ Definition not_array (var:var) : bool :=
   | _ => true
   end.
 
-
+(* Transforms an init_cond to an equivalent pexpr *)
 Fixpoint ic_to_e vs ic: pexpr :=
   match ic with
   | IBool b => Pbool b
@@ -44,6 +44,7 @@ Definition expr_false := Pbool false.
 Definition var_i_to_bvar x := {| v_var:= B x.(v_var) ; v_info:=x.(v_info)|}.
 Definition var_to_bvar x := {| v_var:= B x ; v_info:=dummy_var_info|}.
 
+(* Receives an expression, if it is [is_var_init x] it substitutes it by its corresponding boolean variable *)
 Definition rm_var_init_e (e : pexpr) : pexpr :=
   match e with
   | Pis_var_init x => Plvar (var_i_to_bvar x)
@@ -56,21 +57,24 @@ Definition get_lv_lval (lv : lval) : option var_i  :=
   | _ => None
   end.
 
-Definition assign_bvar_i_e (ii:instr_info) (c: pexpr) (x : var_i) : cmd :=
+(* Creates an instruction that assigns the boolean variable of x to a given expression e *)
+Definition assign_bvar_i_e (ii:instr_info) (e: pexpr) (x : var_i) : cmd :=
     let x := Lvar(var_i_to_bvar x) in
-    [:: (instrr_to_instr ii (Cassgn x AT_inline sbool c))].
+    [:: (instrr_to_instr ii (Cassgn x AT_inline sbool e))].
 
-Definition assign_bvar_e (ii:instr_info) (c: pexpr) (x : var) : cmd :=
+Definition assign_bvar_e (ii:instr_info) (e: pexpr) (x : var) : cmd :=
     let x := Lvar(var_to_bvar x) in
-    [:: (instrr_to_instr ii (Cassgn x AT_inline sbool c))].
+    [:: (instrr_to_instr ii (Cassgn x AT_inline sbool e))].
 
-
+(* Check if there is an assignment to a variable and if so, change the corresponding boolean variable *)
 Definition assign_bvar_lval (ii:instr_info) (e:pexpr) (lv: lval)  : cmd :=
     match get_lv_lval lv with
     | Some x => assign_bvar_i_e ii e x
     | None => [::]
     end.
 
+  
+(* Get a list with a initialization condition for each output of the given operation *)
 Definition get_sopn_init_conds es (o: sopn) : seq pexpr :=
   let instr_descr := get_instr_desc o in
   map (ic_to_e es) instr_descr.(i_init).
@@ -109,7 +113,10 @@ Definition rm_var_init_f (f:ufundef): _ufundef :=
   let body := rm_var_init_cmd f.(f_body) in
   let X := Sv.elements (vars_fd f) in
   let args_varsL := vars_l f.(f_params) in
-
+  (*
+   For each variable in the function, initializes the correspondent boolean variable
+   with true if it is in the parameters otherwise to false
+  *)
   let init_bvars := 
     match f.(f_body) with
     | [::] => [::]
@@ -146,10 +153,11 @@ Definition rm_var_init_prog (p:_uprog) : uprog :=
 
 Definition all_b_vars vars := Sv.fold (fun x acc => Sv.add (B x) acc) vars Sv.empty.
 
-
+(* Remove is_var_init and then use constant prop to remove trivial assertions *)
 Definition rm_var_init_prog_prop (p: _uprog) : uprog :=
   let p := rm_var_init_prog p in
   let bX := all_b_vars(vars_p (p_funcs p)) in
+  (* Function for const_prop to only propagate the B variables *)
   let fun_cp := fun lv _ _ =>
               let x := get_lv_lval lv in
               match x with
