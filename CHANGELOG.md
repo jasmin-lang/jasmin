@@ -10,6 +10,9 @@
 
 ## Bug fixes
 
+- Improve memory usage in safety pre-analysis
+  ([PR #1103](https://github.com/jasmin-lang/jasmin/pull/1103)).
+
 - Fix liveness annotation of while loops
   ([PR #1098](https://github.com/jasmin-lang/jasmin/pull/1098);
   fixes [#1097](https://github.com/jasmin-lang/jasmin/issues/1097)).
