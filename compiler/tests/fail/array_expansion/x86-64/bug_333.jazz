@@ -1,6 +1,6 @@
 inline
 fn bar(reg u64 o, reg u256 v) {
-    (u256) [o] = v;
+    [:u256 o] = v;
 }
 
 export

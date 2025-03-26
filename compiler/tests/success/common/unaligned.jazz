@@ -16,7 +16,7 @@ fn instack(reg u32 x) -> reg u32 {
   stack u8[3] s;
   r = 0;
   s[0] = r;
-  s.[u16 1] = (16u)x;
-  r = (32s)s[u8 1];
+  s.[:u16 1] = (16u)x;
+  r = (32s)s[:u8 1];
   return r;
 }

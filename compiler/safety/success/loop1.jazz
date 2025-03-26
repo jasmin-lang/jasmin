@@ -7,7 +7,7 @@ fn poly1305(reg u64 in, reg u64 inlen) -> reg u64 {
   r = 0;
 
   while (inlen > 0 ) {
-    tmp = (u8)[in + 0];
+    tmp = [:u8 in + 0];
     in += 1;
     inlen -= 1;
   }

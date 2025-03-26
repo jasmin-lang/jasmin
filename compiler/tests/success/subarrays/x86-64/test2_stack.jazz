@@ -17,15 +17,15 @@ inline fn test2 () -> stack u64[m * n] {
   stack u64[n] s1;
   stack u64[n] s2;
   stack u64[n] aux;
-  s0 = s[u64 0*n:n];
-  s1 = s[u64 1*n:n];
-  s2 = s[u64 2*n:n];
+  s0 = s[:u64 0*n:n];
+  s1 = s[:u64 1*n:n];
+  s2 = s[:u64 2*n:n];
   aux = s0; aux = init(aux); s0 = aux;
   aux = s1; aux = init(aux); s1 = aux;
   aux = s2; aux = init(aux); s2 = aux;
-  s[u64 0*n:n] = s0;
-  s[u64 1*n:n] = s1;
-  s[u64 2*n:n] = s2;
+  s[:u64 0*n:n] = s0;
+  s[:u64 1*n:n] = s1;
+  s[:u64 2*n:n] = s2;
   return s;
 }
 
@@ -42,7 +42,7 @@ inline fn test2_ () -> stack u64[m * n] {
   reg u64 r;
   stack u64[m * n] s;
   for i = 0 to m {
-    s[u64 i*n:n] = init(s[u64 i*n:n]);
+    s[:u64 i*n:n] = init(s[:u64 i*n:n]);
   }
   return s;
 }
