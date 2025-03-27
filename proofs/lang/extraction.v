@@ -51,7 +51,7 @@ Extract Constant ident.Cident.id_kind => "CoreIdent.Cident.id_kind".
 
 Extract Constant ident.Cident.spill_to_mmx => "CoreIdent.Cident.spill_to_mmx".
 
-Cd  "lang/ocaml".
+Set Extraction Output Directory "lang/ocaml".
 
 Extraction Blacklist String List Nat Uint63 Utils Var Array.
 
@@ -80,5 +80,3 @@ Separate Extraction
   riscv_extra
   riscv_params
   compiler.
-
-Cd  "../..".
