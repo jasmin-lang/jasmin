@@ -580,3 +580,18 @@ let flowing_to (dp : Pa.dp) (sv_ini : Sv.t) =
         if Sv.mem v acc then acc
         else Sv.union acc sv
     ) dp sv_ini
+
+(** Set of variables reachable from [s] in the [dp] graph. *)
+let leads_to (dp: Pa.dp) (s: Sv.t) =
+  let rec loop acc visited workset =
+    (* Invariant: no visited variable is in the workset *)
+    match Sv.choose workset with
+    | exception Not_found -> acc
+    | x ->
+     let visited = Sv.add x visited in
+     let succ = Pa.dp_v dp x in
+     let acc = Sv.union acc succ in
+     let workset = Sv.remove x workset in
+     let workset = Sv.union workset (Sv.diff succ visited) in
+     loop acc visited workset
+  in loop Sv.empty Sv.empty s

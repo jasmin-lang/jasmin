@@ -1,0 +1,13 @@
+param int SHAKE128_RATE=168;
+
+export
+fn test() -> reg u64 {
+  reg bool cond;
+  reg u64 pos = 0, res = 0;
+  while { cond = (pos < SHAKE128_RATE - 2); } (cond) {
+  //while (pos < SHAKE128_RATE - 2) {
+    pos += 3;
+    res += 1;
+  }
+  return res;
+}
