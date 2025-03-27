@@ -107,6 +107,24 @@ Definition postInv {E E0: Type -> Type} {wE : with_Error E E0} {iE0 : InvEvent E
     | inr1 e0 => postInv0 e0 t
     end.
 
+
+Section TRIVIAL.
+
+Context {E E0: Type -> Type} {wE : with_Error E E0}.
+
+Definition trivial_invEvent (E0 : Type -> Type) : InvEvent E0 :=
+  {| preInv0_ := fun _ _ => True
+   ; postInv0_ := fun _ _ _ => True |}.
+
+Definition trivial_invErr : InvErr :=
+  {| invErr_ := fun _ => True |}.
+
+Lemma preInv_trivial T (e : E T) :
+  preInv (iE0:= trivial_invEvent E0) (iEr := trivial_invErr) e.
+Proof. by rewrite /preInv; case: mfun1. Qed.
+
+End TRIVIAL.
+
 Section Section.
 
 Context
@@ -400,6 +418,13 @@ Lemma khoare_iter (IT T : Type) (I : Pred IT) (Q : Pred T) (body : ktree E IT (I
 Proof. move=> hbody i hI; apply: lutt_iter hI => {}i; apply hbody. Qed.
 
 End KHOARE.
+
+Lemma khoare_io_true {E E0: Type -> Type} {wE: with_Error E E0} {I O} (P: Pred I) (F : ktree E I O) :
+  khoare_io (iE0 := trivial_invEvent E0) (iEr := trivial_invErr) P F (fun _ _ => True).
+Proof.
+  move=> i _; apply: lutt_weaken (lutt_true (F i)) => //.
+  move=> ?? _; apply preInv_trivial.
+Qed.
 
 Section KHOARE_WEAKEN.
 
@@ -698,6 +723,29 @@ Qed.
 
 End HOARE_CORE.
 
+Section TRIVIAL.
+
+Context {E E0: Type -> Type}  {sem_F : sem_Fun E} {wE: with_Error E E0}.
+
+Context (p : prog) (ev: extra_val_t).
+
+#[local] Existing Instance trivial_invErr.
+#[local] Existing Instance trivial_invEvent.
+
+Lemma hoare_f_true (P : PreF) (fn : funname) : hoare_f p ev P fn (fun _ _ _ => True).
+Proof. apply khoare_io_true. Qed.
+
+Lemma hoare_f_body_true (P : PreF) (fn : funname) : hoare_f_body p ev P fn (fun _ _ _ => True).
+Proof. apply khoare_io_true. Qed.
+
+Lemma hoare_io_true (P : Pred_c) (c : cmd) : hoare_io p ev P c (fun _ _ => True).
+Proof. apply khoare_io_true. Qed.
+
+Lemma hoare_true (P : Pred_c) (c : cmd) : hoare p ev P c PredT.
+Proof. apply khoare_io_true. Qed.
+
+End TRIVIAL.
+
 Notation ihoare_f := (hoare_f (sem_F := sem_fun_full)).
 Notation ihoare   := (hoare (sem_F := sem_fun_full)).
 
@@ -926,9 +974,12 @@ Context
   {scP : semCallParams}
   {dc : DirectCall}.
 
-Context {E E0: Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {iE0 : InvEvent E0} {iEr : InvErr}.
+Context {E E0: Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0}.
 
 Context (p : prog) (ev : extra_val_t).
+
+#[local] Existing Instance trivial_invErr.
+#[local] Existing Instance trivial_invEvent.
 
 #[local]
 Notation pre := (fun s0 s => s = s0).
@@ -997,11 +1048,11 @@ Proof.
     by apply (eq_exT hs1); apply: eq_exI h; SvD.fsetdec.
   move=> xs fn es ii s0.
   apply whoare_call with preF postF PredT; try auto using rhoare_true.
-  + admit. (* whoare_f_trivial *)
+  + by apply hoare_f_true.
   move=> fs fr _ _; apply wrhoareP => s s' <-.
   by rewrite write_Ii write_i_call => /vrvsP /=.
-Admitted.
+Qed.
 
-
+End Test.
 
 

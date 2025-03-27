@@ -250,7 +250,6 @@ Qed.
 Lemma lutt_Tau (T : Type) (R : T -> Prop) (t : itree E T) : lutt R t <-> lutt R (Tau t).
 Proof. by rewrite tau_eutt. Qed.
 
-
 Lemma rutt_eq_trans_refl (T : Type) (R : T -> Prop) (t t' : itree E T) :
   rutt REv_eq RAns_eq (R_eq R) t t' ->
   rutt REv_eq RAns_eq (R_eq R) t t.
@@ -325,6 +324,38 @@ Proof.
 Qed.
 
 End LOGIC.
+
+Lemma eutt_rutt {E : Type -> Type} {R1 R2 : Type}
+  (RR : R1 -> R2 -> Prop) t1 t2 :
+  eutt RR t1 t2 ->
+  rutt (E1 := E) (E2 := E) (REv_eq (fun _ _ => True))
+       (RAns_eq (fun _ _ _ => True))
+       RR t1 t2.
+Proof.
+  move: t1 t2. pcofix CIH => t1 t2 heutt.
+  pstep. punfold heutt. red in heutt |- *.
+  elim: heutt => // {t1 t2}.
+  + by move=> r1 r2 hRR; constructor.
+  + move=> t1 t2 heutt; constructor.
+    by pclearbot; right; apply CIH.
+  + move=> U e k1 k2 heutt.
+    constructor => //.
+    + by split => //; exists erefl.
+    move=> u1 u2 [_ /(_ erefl) -> /=].
+    by pclearbot; right; apply CIH.
+  + by move=> t1 ot2 _ _ hrec; constructor.
+  by move=> ot1 t2 _ _ hrec; constructor.
+Qed.
+
+Lemma lutt_true {E : Type -> Type} {T : Type} (t : itree E T) :
+  lutt (fun _ _ => True) (fun _ _ _ => True) (fun _ => True) t.
+Proof.
+  exists t; apply eutt_rutt.
+  rewrite -(Monad.bind_ret_r _ t).
+  apply HasPost.eutt_post_bind_eq with (fun=>True).
+  + by apply HasPost.has_post_True.
+  by move=> u _; apply eutt_Ret.
+Qed.
 
 Lemma lutt_weaken {E : Type -> Type} (T : Type)
   (PEv PEv' : prepred E) (PAns PAns': postpred E)
