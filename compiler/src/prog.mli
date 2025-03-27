@@ -98,6 +98,7 @@ type ('len,'info,'asm) gmod_item =
   | MIfun   of ('len,'info,'asm) gfunc
   | MIparam of ('len gvar * 'len gexpr)
   | MIglobal of ('len gvar * 'len ggexpr)
+  | MItypeabstr of string
 
 type ('len,'info,'asm) gprog = ('len,'info,'asm) gmod_item list
    (* first declaration occur at the end (i.e reverse order) *)
@@ -165,7 +166,10 @@ type ('info,'asm) stmt  = (int,'info,'asm) gstmt
 type ('info,'asm) func     = (int,'info,'asm) gfunc
 type ('info,'asm) mod_item = (int,'info,'asm) gmod_item
 type global_decl           = var * Global.glob_value
-type ('info,'asm) prog     = global_decl list *('info,'asm) func list
+type abstract_decl         = string
+type ('info,'asm) prog     =
+  global_decl list * abstract_decl list * ('info,'asm) func list
+
 
 
 (* -------------------------------------------------------------------- *)

@@ -437,7 +437,10 @@ module Printer (BP:BPrinter) = struct
       `Instr(name, args)
 
     | AsmOp(op, args) ->
-      let id = instr_desc X86_decl.x86_decl X86_instr_decl.x86_op_decl (None, op) in
+      let id =
+        instr_desc X86_decl.x86_decl
+          (X86_instr_decl.x86_op_decl) (None, op)
+      in
       let pp = id.id_pp_asm args in
       let name = pp_name_ext pp in
       let args = pp_asm_args pp.pp_aop_args in

@@ -4,7 +4,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import xseq.
-Require Export strings warray_.
+Require Export strings warray_ abstract_type.
 Import Utf8.
 
 (* ----------------------------------------------------------- *)
@@ -18,12 +18,12 @@ Definition compat_type (sw:bool) :=
   if sw then subtype else eq_op.
 
 Lemma compat_type_refl b ty : compat_type b ty ty.
-Proof. by rewrite /compat_type; case: b. Qed.
+Proof.  rewrite /compat_type;case: b =>  //=. Qed.
 #[global]Hint Resolve compat_type_refl : core.
 
 Lemma compat_type_subtype b t1 t2:
   compat_type b t1 t2 -> subtype t1 t2.
-Proof. by case: b => //= /eqP ->. Qed.
+Proof. by case: b  => //=;  destruct (is_not_sabstract t1) => //= /eqP ->. Qed.
 
 Lemma compat_typeE b ty ty' :
   compat_type b ty ty' →
@@ -47,8 +47,8 @@ Lemma compat_typeEl b ty ty' :
   end.
 Proof.
   rewrite /compat_type; case: b => [/subtypeEl|/eqP ->].
-  + by case: ty => // ws [ws' [*]]; eauto.
-  by case: ty'; eauto.
+  + by case: ty => // ws [ws' [*]] ; eauto.
+  by case: ty'; eauto  => s; case s ; eauto.
 Qed.
 
 (* ----------------------------------------------------------- *)
@@ -58,6 +58,7 @@ Definition sem_t (t : stype) : Type :=
   | sint     => Z
   | sarr n   => WArray.array n
   | sword s  => word s
+  | sabstract s => Cabstract.iabstract s
   end.
 
 Definition sem_prod ts tr := lprod (map sem_t ts) tr.

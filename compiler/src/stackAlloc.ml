@@ -91,7 +91,7 @@ let pp_oracle up fmt saos =
     let sao = ao_stack_alloc f.f_name in
     Format.fprintf fmt "@[<v 2>%s@;%a@]" f.f_name.fn_name pp_sao sao
   in
-  let _, fs = Conv.prog_of_cuprog up in
+  let _, _, fs = Conv.prog_of_cuprog up in
   Format.fprintf fmt "@[<v>Global data:@;<2 2>@[<hov>%a@]@;Global slots:@;<2 2>@[<v>%a@]@;Stack alloc:@;<2 2>@[<v>%a@]@]"
     (pp_list "@;" pp_global) ao_globals
     (pp_list "@;" pp_slot) ao_global_alloc
@@ -210,7 +210,7 @@ let memory_analysis pp_err ~debug up =
   
   if debug then
     Format.eprintf "After memory analysis@.%a@."
-      (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) ([], (List.map snd fds));
+      (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) ([], [], (List.map snd fds));
   
   (* remove unused result *)
   let tokeep = RemoveUnusedResults.analyse fds in
@@ -239,7 +239,7 @@ let memory_analysis pp_err ~debug up =
   let fds = List.map deadcode fds in
   if debug then
     Format.eprintf "After remove unused return @.%a@."
-      (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) ([], (List.map snd fds));
+      (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) ([], [], (List.map snd fds));
   
   (* register allocation *)
   let translate_var = Conv.var_of_cvar in

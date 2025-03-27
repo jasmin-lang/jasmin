@@ -131,7 +131,10 @@ Definition inline_prog (p:ufun_decls) :=
 Definition inline_prog_err (p:uprog) :=
   if uniq [seq x.1 | x <- p_funcs p] then
     Let fds := inline_prog (p_funcs p) in
-    ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := fds |}
+      ok {| p_extra := p_extra p;
+            p_globs := p_globs p;
+            p_abstr := p_abstr p;
+            p_funcs := fds |}
   else Error (inline_error (pp_s "two function declarations with the same name")).
 
 End INLINE.

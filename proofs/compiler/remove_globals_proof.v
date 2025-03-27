@@ -87,7 +87,10 @@ Module INCL. Section INCL.
 
   Hypothesis hincl : gd_incl gd gd2.
 
-  Let P2 := {| p_globs := gd2; p_funcs := P1.(p_funcs); p_extra := P1.(p_extra) |}.
+  Let P2 := {| p_globs := gd2;
+               p_funcs := P1.(p_funcs);
+               p_abstr := P1.(p_abstr);
+               p_extra := P1.(p_extra) |}.
 
   Let Pc s1 c s2 := sem P2 ev s1 c s2.
 
@@ -330,7 +333,10 @@ Module RGP. Section PROOFS.
 
   Hypothesis fds_ok : map_cfprog (remove_glob_fundef gd) (p_funcs P) = ok fds.
   Hypothesis uniq_gd : uniq (map fst gd).
-  Notation P' := {|p_globs := gd; p_funcs := fds; p_extra := p_extra P |}.
+  Notation P' := {|p_globs := gd;
+                   p_funcs := fds;
+                   p_abstr := p_abstr P;
+                   p_extra := p_extra P |}.
 
   Definition valid (m:venv) (s1 s2:estate) :=
     [/\ s1.(escs) = s2.(escs), s1.(emem) = s2.(emem),

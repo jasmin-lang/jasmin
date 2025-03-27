@@ -229,7 +229,7 @@ let check_fun pd asmOp env fd =
 
 (* -------------------------------------------------------------------- *)
 
-let check_prog pd asmOp (_,funcs) = 
+let check_prog pd asmOp (_,_,funcs) = 
   let env = Hf.create 107 in
   List.iter (check_fun pd asmOp env) (List.rev funcs)
 

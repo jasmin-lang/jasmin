@@ -40,6 +40,7 @@ Definition of_expr (t:stype) : pexpr -> exec (sem_t t) :=
   | sint    => e2int
   | sarr n  => fun _ => type_error 
   | sword sz => e2word sz
+  | sabstract _ => fun _ => type_error
   end.
 
 Definition to_expr (t:stype) : sem_t t -> exec pexpr := 
@@ -48,6 +49,7 @@ Definition to_expr (t:stype) : sem_t t -> exec pexpr :=
   | sint  => fun z => ok (Pconst z)
   | sarr _ => fun _ => type_error
   | sword sz => fun w => ok (wconst w)
+  | sabstract _ => fun _ => type_error
   end.
 
 Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr := 

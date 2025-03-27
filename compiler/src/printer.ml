@@ -263,6 +263,8 @@ let pp_pitem pp_len pp_opn pp_var =
         (pp_gtype pp_len) x.v_ty
         pp_var x
         (pp_gexpr pp_len pp_var) e
+    | MItypeabstr s ->
+      Format.fprintf fmt "type %s;" s
  in
   aux
 
@@ -356,18 +358,27 @@ let pp_globs pp_var fmt gds =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_glob pp_var)) (List.rev gds)
 
-let pp_iprog ~debug pp_info pd asmOp fmt (gd, funcs) =
-  let pp_opn = pp_opn pd asmOp in
-  let pp_var = pp_var ~debug in
-  Format.fprintf fmt "@[<v>%a@ %a@]"
-     (pp_globs pp_var) gd
-     (pp_list "@ @ " (pp_fun ~pp_info pp_opn pp_var)) (List.rev funcs)
+let pp_abstr fmt ab =
+  Format.fprintf fmt "@[type %s@]" ab
 
-let pp_prog ~debug pd asmOp fmt ((gd, funcs):('info, 'asm) Prog.prog) =
+let pp_abstrs fmt abs =
+  Format.fprintf fmt "@[<v>%a@]"
+    (pp_list "@ @ " (pp_abstr)) (List.rev abs)
+
+let pp_iprog ~debug pp_info pd asmOp fmt (gd, ad, funcs) =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
-  Format.fprintf fmt "@[<v>%a@ %a@]"
+  Format.fprintf fmt "@[<v>%a@ %a %a@]"
+    (pp_globs pp_var) gd
+     pp_abstrs ad
+    (pp_list "@ @ " (pp_fun ~pp_info pp_opn pp_var)) (List.rev funcs)
+
+let pp_prog ~debug pd asmOp fmt ((gd, ad, funcs):('info, 'asm) Prog.prog) =
+  let pp_opn = pp_opn pd asmOp in
+  let pp_var = pp_var ~debug in
+  Format.fprintf fmt "@[<v>%a@ %a %a@]"
      (pp_globs pp_var) gd
+      pp_abstrs ad
      (pp_list "@ @ " (pp_fun pp_opn pp_var)) (List.rev funcs)
 
 let pp_to_save ~debug fmt (x, ofs) =
@@ -400,7 +411,7 @@ let pp_return_address ~debug fmt = function
 
   | Expr.RAnone   -> Format.fprintf fmt "_"
 
-let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
+let pp_sprog ~debug pd asmOp fmt ((funcs,p_extra):('info, 'asm) Prog.sprog) =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
   let pp_f_extra fmt f_extra = 

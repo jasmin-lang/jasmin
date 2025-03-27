@@ -399,7 +399,6 @@ Definition ad_nz : seq arg_desc := map F [:: NF; ZF ].
 Definition ad_nzc : seq arg_desc := map F [:: NF; ZF; CF ].
 Definition ad_nzcv : seq arg_desc := map F [:: NF; ZF; CF; VF ].
 
-
 (* -------------------------------------------------------------------- *)
 (* Common flag definitions. *)
 
@@ -413,6 +412,7 @@ Definition ZF_of_word (ws : wsize) (w : word ws) := w == 0%R.
      res_unsigned = wunsigned w Z.<+> wunsigned w'
      res_signed = wsigned w Z.<+> wsigned w'
 *)
+
 Definition nzcv_of_aluop
   {ws : wsize}
   (res : word ws)     (* Actual result. *)
@@ -501,8 +501,8 @@ Qed.
 
 Lemma mk_semi_cond_errty tin tout (semi : sem_prod tin (exec (sem_tuple tout))) :
   sem_forall (fun r : result error (sem_tuple tout) => r <> Error ErrType) tin semi ->
-  sem_forall (fun r : result error (sem_tuple tout) => r <> Error ErrType) (tin ++ sbool :: tout)
-                                      (mk_semi_cond semi).
+  sem_forall (fun r : result error (sem_tuple tout) => r <> Error ErrType)
+    (tin ++ sbool :: tout) (mk_semi_cond semi).
 Proof.
   rewrite /mk_semi_cond.
   elim: tin semi => /= [ | ti tin hrec] semi /=.
@@ -563,6 +563,12 @@ Definition mk_cond (idt : instr_desc_t) : instr_desc_t :=
         (id_tin_narr idt)
         (id_tout_narr idt);
     id_tout_narr := id_tout_narr idt;
+    id_tin_nabst   :=
+      mk_cond_tin_narr
+        (is_true_true: is_not_sabstract sbool)
+        (id_tin_nabst idt)
+        (id_tout_nabst idt);
+    id_tout_nabst  := id_tout_nabst idt;
     id_check_dest := id_check_dest idt;
     id_str_jas := id_str_jas idt;
     id_safe := id_safe idt;
@@ -662,6 +668,20 @@ Lemma mk_semi3_2_shifted_safe A sk t1 t2 (semi : sem_prod [:: t1; sreg; t2] (exe
   interp_safe_cond_ty [::] (mk_semi3_2_shifted sk semi).
 Proof. move=> h > _; apply h; constructor. Qed.
 
+#[ local ]
+Lemma mk_shifted_tin_nabstr {A} {p : A -> bool} {x} {xs : seq A} :
+  p x
+  -> all p xs
+  -> all p (xs ++ [:: x ]).
+Proof.
+  move=> hx hxs.
+  rewrite all_cat.
+  apply/andP.
+  split; first exact: hxs.
+  rewrite /= andbT.
+  exact: hx.
+Qed.
+
 Definition mk_shifted
   (sk : shift_kind) (idt : instr_desc_t) semi' semi_errty' semi_safe' : instr_desc_t :=
   {|
@@ -680,6 +700,11 @@ Definition mk_shifted
         (is_true_true: is_not_sarr sword8)
         (id_tin_narr idt);
     id_tout_narr := id_tout_narr idt;
+    id_tin_nabst :=
+      mk_shifted_tin_nabstr
+        (is_true_true: is_not_sabstract sword8)
+        (id_tin_nabst idt);
+    id_tout_nabst := id_tout_nabst idt;
     id_check_dest := id_check_dest idt;
     id_str_jas := id_str_jas idt;
     id_safe := id_safe idt;
@@ -791,6 +816,8 @@ Definition arm_ADD_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -838,6 +865,8 @@ Definition arm_ADC_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -880,6 +909,8 @@ Definition arm_MUL_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -912,6 +943,8 @@ Definition arm_MLA_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -940,6 +973,8 @@ Definition arm_MLS_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -970,6 +1005,8 @@ Definition arm_SDIV_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [:: ];
@@ -1007,6 +1044,8 @@ Definition arm_SUB_instr : instr_desc_t :=
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
       id_check_dest := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
       id_pp_asm := pp_arm_op mn opts;
@@ -1047,6 +1086,8 @@ Definition arm_SBC_instr : instr_desc_t :=
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
       id_check_dest := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
       id_pp_asm := pp_arm_op mn opts;
@@ -1086,6 +1127,8 @@ Definition arm_RSB_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -1126,6 +1169,8 @@ Definition arm_UDIV_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [:: ];
@@ -1155,6 +1200,8 @@ Definition arm_UMULL_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -1184,6 +1231,8 @@ Definition arm_UMAAL_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -1213,6 +1262,8 @@ Definition arm_UMLAL_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -1242,6 +1293,8 @@ Definition arm_SMULL_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -1271,6 +1324,8 @@ Definition arm_SMLAL_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -1299,6 +1354,8 @@ Definition arm_SMMUL_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -1327,6 +1384,8 @@ Definition arm_SMMULR_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -1364,6 +1423,8 @@ Definition arm_smul_hw_instr hwn hwm : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -1397,6 +1458,8 @@ Definition arm_smla_hw_instr hwn hwm : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -1429,6 +1492,8 @@ Definition arm_smulw_hw_instr hw : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -1469,6 +1534,8 @@ Definition arm_AND_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -1538,6 +1605,8 @@ Definition arm_BFC_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := arm_BFC_semi_sc;
@@ -1596,6 +1665,8 @@ Definition arm_BFI_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := arm_BFI_semi_sc;
@@ -1623,6 +1694,8 @@ Definition arm_BIC_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -1661,6 +1734,8 @@ Definition arm_EOR_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -1707,6 +1782,8 @@ Definition arm_MVN_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -1745,6 +1822,8 @@ Definition arm_ORR_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -1809,6 +1888,8 @@ Definition arm_ASR_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -1847,6 +1928,8 @@ Definition arm_LSL_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -1885,6 +1968,8 @@ Definition arm_LSR_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -1923,6 +2008,8 @@ Definition arm_ROR_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -1950,6 +2037,8 @@ Definition mk_rev_instr mn semi :=
    ; id_eq_size := refl_equal
    ; id_tin_narr := refl_equal
    ; id_tout_narr := refl_equal
+   ; id_tin_nabst := refl_equal
+   ; id_tout_nabst := refl_equal
    ; id_check_dest := refl_equal
    ; id_str_jas := pp_s (string_of_arm_mnemonic mn)
    ; id_safe := [::]
@@ -1992,6 +2081,8 @@ Definition arm_ADR_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -2022,6 +2113,8 @@ Definition arm_MOV_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -2057,6 +2150,8 @@ Definition arm_MOVT_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -2109,6 +2204,8 @@ Definition arm_UBFX_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := bit_field_extract_semi_sc;
@@ -2145,6 +2242,8 @@ Definition arm_UXTB_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -2172,6 +2271,8 @@ Definition arm_UXTH_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -2201,6 +2302,8 @@ Definition arm_SBFX_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := bit_field_extract_semi_sc;
@@ -2235,6 +2338,8 @@ Definition arm_CMP_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -2275,6 +2380,8 @@ Definition arm_TST_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -2308,6 +2415,8 @@ Definition arm_CMN_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
@@ -2349,6 +2458,8 @@ Definition arm_load_instr mn : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -2381,6 +2492,8 @@ Definition arm_store_instr mn : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];
@@ -2407,6 +2520,8 @@ Definition arm_CLZ_instr :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::];

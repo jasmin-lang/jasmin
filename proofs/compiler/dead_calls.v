@@ -52,7 +52,10 @@ Definition dead_calls_err (c : Sf.t) (p : prog) : cexec prog :=
   let fds := p_funcs p in
   let k := live_calls c fds in
   if Sf.subset (live_calls k fds) k then
-  ok {| p_funcs := dead_calls k fds; p_globs := p_globs p; p_extra := p_extra p |}
+    ok {| p_funcs := dead_calls k fds;
+         p_globs := p_globs p;
+         p_abstr := p_abstr p;
+         p_extra := p_extra p |}
   else Error (dead_calls_error "program is not a topological sorting of the call-graph").
 
 (* -------------------------------------------------------------------- *)

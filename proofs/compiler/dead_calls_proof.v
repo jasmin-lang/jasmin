@@ -186,7 +186,10 @@ Section PROOF.
   Variables (K : Sf.t) (p: prog) (ev:extra_val_t).
   Notation gd := (p_globs p).
 
-  Let p' := {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := dead_calls K (p_funcs p) |}.
+  Let p' := {| p_extra := p_extra p;
+               p_globs := p_globs p;
+               p_abstr := p_abstr p;
+               p_funcs := dead_calls K (p_funcs p) |}.
 
   Context (pfxp: Sf.Subset (live_calls K (p_funcs p)) K).
 

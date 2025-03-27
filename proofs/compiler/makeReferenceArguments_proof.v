@@ -62,7 +62,7 @@ Context
     makereference_prog fresh_id p = ok p' ->
       p.(p_globs) = p'.(p_globs).
   Proof.
-    case: p p' => [???] [???]; t_xrbindP.
+    case: p p' => [????] [????]; t_xrbindP.
     by rewrite /makereference_prog; t_xrbindP.
   Qed.
 

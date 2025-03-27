@@ -52,6 +52,7 @@ Definition size_of (t:stype) :=
   | sword sz => wsize_size sz
   | sarr n   => Zpos n
   | sbool | sint => 1%Z
+  | sabstract _ => (1)%Z
   end.
 
 Definition slot := var.
@@ -1587,6 +1588,7 @@ Definition alloc_prog (fresh_reg : string -> stype -> Ident.ident)
   Let p_funs := map_cfprog_name (alloc_fd  p_extra mglob fresh_reg local_alloc) P.(p_funcs) in
   ok  {| p_funcs  := p_funs;
          p_globs := [::];
+         p_abstr := P.(p_abstr);
          p_extra := p_extra;
       |}.
 

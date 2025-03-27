@@ -129,14 +129,14 @@ let psubst_ge f = function
 let psubst_prog (prog:('info, 'asm) pprog) =
   let subst = ref (Mpv.empty : pexpr Mpv.t) in
   let rec aux = function
-    | [] -> [], []
+    | [] -> [], [], []
     | MIparam(v,e) :: items ->
-        let g, p = aux items in
+        let g, a, p = aux items in
         let f = psubst_v !subst in 
         subst := Mpv.add v (psubst_e f e) !subst;
-        g, p
+        g, a, p
     | MIglobal (v, e) :: items ->
-      let g, p = aux items in
+      let g, a, p = aux items in
       let f = psubst_v !subst in
       let v' =
         let v =
@@ -144,9 +144,9 @@ let psubst_prog (prog:('info, 'asm) pprog) =
         assert (not (is_gkvar v)); L.unloc v.gv in
       let e = psubst_ge f e in
       subst := Mpv.add v (Pvar (gkglob (L.mk_loc L._dummy v'))) !subst;
-      (v', e) :: g, p
+      (v', e) :: g, a, p
     | MIfun fc :: items ->
-        let g, p = aux items in
+        let g, a, p = aux items in
         let subst_v = psubst_v !subst in
         let subst_ty = psubst_ty subst_v in
         let dov v =
@@ -159,7 +159,10 @@ let psubst_prog (prog:('info, 'asm) pprog) =
             f_tyout = List.map subst_ty fc.f_tyout;
             f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
           } in
-        g, fc::p in
+        g, a, fc::p
+    | MItypeabstr s :: items->
+          let g, a, p = aux items in
+          g, s::a, p in
     aux prog
 
 (* ---------------------------------------------------------------- *)
@@ -291,7 +294,7 @@ let rec constant_of_expr (e: Prog.expr) : Z.t =
 
 
 let remove_params (prog : ('info, 'asm) pprog) =
-  let globals, prog = psubst_prog prog in
+  let globals, abstr, prog = psubst_prog prog in
   let globals, prog = isubst_prog globals prog in
 
   let global_tbl = Hv.create 101 in
@@ -338,7 +341,8 @@ let remove_params (prog : ('info, 'asm) pprog) =
     x, gv
   in
   let globals = List.rev_map doglob (List.rev globals) in
-  globals, prog
+
+  globals, abstr, prog
 
 
 (* ---------------------------------------------------------------- *)

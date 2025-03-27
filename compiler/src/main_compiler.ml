@@ -35,7 +35,8 @@ let parse () =
   | infile :: s :: _ -> raise CLI_errors.(CLIerror (RedundantInputFile (infile, s)))
 
 (* -------------------------------------------------------------------- *)
-let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
+let check_safety_p pd asmOp analyze s ((_,_,f) as p : (_, 'asm) Prog.prog)
+    ((_,_,source_p): (_, 'asm) Prog.prog) =
   let () = if SafetyConfig.sc_print_program () then
       let s1,s2 = Glob_options.print_strings s in
       Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
@@ -54,9 +55,9 @@ let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
 
           let source_f_decl = List.find (fun source_f_decl ->
               f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
-            ) (snd source_p) in
+            ) source_p in
           analyze source_f_decl f_decl p)
-      (List.rev (snd p)) in
+      (List.rev f) in
   ()
 
 (* -------------------------------------------------------------------- *)

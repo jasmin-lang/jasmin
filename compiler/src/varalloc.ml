@@ -464,7 +464,7 @@ let alloc_mem (gtbl: wsize Hv.t) globs =
   List.iter doslot gao_slots;
   { gao_data = Array.to_list t; gao_align; gao_slots; gao_size }
 
-let alloc_stack_prog callstyle pd (globs, fds) =
+let alloc_stack_prog callstyle pd (globs, _, fds) =
   let gtbl = Hv.create 107 in
   let ftbl = Hf.create 107 in
   let get_info fn = Hf.find ftbl fn in

@@ -238,12 +238,14 @@ Definition assemble_extra
   end.
 
 #[ export ]
-Instance arm_extra {atoI : arch_toIdent} :
+Instance arm_extra
+  {atoI : arch_toIdent} :
   asm_extra register register_ext xregister rflag condt arm_op arm_extra_op :=
   { to_asm := assemble_extra }.
 
 (* This concise name is convenient in OCaml code. *)
-Definition arm_extended_op {atoI : arch_toIdent} :=
+Definition arm_extended_op
+  {atoI : arch_toIdent} :=
   @extended_op _ _ _ _ _ _ _ arm_extra.
 
 Definition Oarm {atoI : arch_toIdent} o : @sopn arm_extended_op _ := Oasm (BaseOp (None, o)).
