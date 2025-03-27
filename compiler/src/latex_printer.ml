@@ -387,7 +387,7 @@ let pp_funbody fmt { pdb_instr ; pdb_ret } =
         indent 1
         kw "return"
         (pp_list ", " pp_var) ret;
-  ) fmt pdb_ret
+  ) fmt (L.unloc pdb_ret)
 
 let pp_fundef fmt { pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body ; pdf_annot } =
   F.fprintf
