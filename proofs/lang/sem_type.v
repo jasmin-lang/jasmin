@@ -73,14 +73,14 @@ Fixpoint sem_prod_ok {T: Type} (tin : seq stype) : sem_prod tin T -> sem_prod ti
   | [::] => fun o => ok o
   | t :: ts => fun o v => @sem_prod_ok T ts (o v)
   end.
-Arguments sem_prod_ok {T}%type_scope tin%seq_scope _.
+Arguments sem_prod_ok {T}%_type_scope tin%_seq_scope _.
 
 Fixpoint sem_forall {T: Type} (P: T -> Prop) (tin : seq stype) : sem_prod tin T -> Prop :=
   match tin return sem_prod tin T -> Prop with
   | [::] => P
   | t :: ts => fun o => forall v, @sem_forall T P ts (o v)
   end.
-Arguments sem_forall {T}%type_scope P%function_scope tin%seq_scope _.
+Arguments sem_forall {T}%_type_scope P%_function_scope tin%_seq_scope _.
 
 Lemma sem_prod_ok_ok {T: Type} (tin : seq stype) (o : sem_prod tin T) :
   sem_forall (fun et => exists t, et = ok t) tin (sem_prod_ok tin o).

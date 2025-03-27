@@ -1171,6 +1171,6 @@ End REL_EQUIV.
 #[export] Existing Instance po_uincl_ex.
 #[export] Existing Instance uincl_ex_trans.
 
-#[ global ]Arguments get_var {wsw} wdb vm%vm_scope x.
-#[ global ]Arguments set_var {wsw} wdb vm%vm_scope x v.
+#[ global ]Arguments get_var {wsw} wdb vm%_vm_scope x.
+#[ global ]Arguments set_var {wsw} wdb vm%_vm_scope x v.
 

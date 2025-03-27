@@ -104,7 +104,7 @@ Definition top_stack_aligned fd m : bool :=
 
 Definition set_RSP m vm : Vm.t :=
   vm.[vrsp <- Vword (top_stack m)].
-#[global] Arguments set_RSP _ _%vm_scope.
+#[global] Arguments set_RSP _ _%_vm_scope.
 
 Definition valid_RSP m (vm: Vm.t) : Prop :=
   vm.[vrsp] = Vword (top_stack m).

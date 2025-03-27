@@ -181,8 +181,8 @@ Declare Scope mtype_scope.
 Delimit Scope mtype_scope with mt.
 Notation "m .[ x ]" := (@Mt.get _ m x) : mtype_scope.
 Notation "m .[ x  <- v ]" := (@Mt.set _ m x v) : mtype_scope.
-Arguments Mt.get P m%mtype_scope k.
-Arguments Mt.set P m%mtype_scope k v.
+Arguments Mt.get P m%_mtype_scope k.
+Arguments Mt.set P m%_mtype_scope k v.
 
 
 Definition is_sbool t := t == sbool.

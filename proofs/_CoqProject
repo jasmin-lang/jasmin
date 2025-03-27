@@ -6,7 +6,6 @@
 -arg "-w -extraction-reserved-identifier"
 -arg "-w -extraction-opaque-accessed"
 -arg "-w -ambiguous-paths"
--arg "-w -argument-scope-delimiter"
 -arg "-w -redundant-canonical-projection"
 -arg "-w -projection-no-head-constant"
 -arg "-w -postfix-notation-not-level-1"
