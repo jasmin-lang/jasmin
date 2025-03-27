@@ -66,7 +66,7 @@ Record estate
     evm  : Vm.t
   }.
 
-Arguments Estate {syscall_state}%type_scope {ep} _ _ _%vm_scope.
+Arguments Estate {syscall_state}%_type_scope {ep} _ _ _%_vm_scope.
 
 (* ** Variable map
  * -------------------------------------------------------------------- *)

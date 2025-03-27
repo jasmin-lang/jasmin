@@ -255,7 +255,7 @@ Qed.
 Definition disjoint_labels (lo hi: label) (c: lcmd) : Prop :=
   ∀ lbl, (lo <= lbl < hi)%positive → ~~ has (is_label lbl) c.
 
-Arguments disjoint_labels _%positive _%positive _.
+Arguments disjoint_labels _%_positive _%_positive _.
 
 Lemma disjoint_labels_cat lo hi P Q :
   disjoint_labels lo hi P →

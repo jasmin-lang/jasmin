@@ -61,9 +61,9 @@ Proof.
 Qed.
 
 End ToIdent.
-Arguments ToIdent [t] T%type_scope {tS}.
-Arguments of_var {t} {T}%type_scope {tS toI} v.
-Arguments to_var {t} {T}%type_scope {tS toI} r.
+Arguments ToIdent [t] T%_type_scope {tS}.
+Arguments of_var {t} {T}%_type_scope {tS toI} v.
+Arguments to_var {t} {T}%_type_scope {tS toI} r.
 
 Module Type MkToIdent_T.
 
