@@ -13,7 +13,7 @@ Require Import
 Require
   linearization_proof
   lowering
-  stack_alloc_proof
+  stack_alloc_proof_1
   stack_zeroization_proof
   slh_lowering_proof.
 Require Export arch_params.
@@ -93,9 +93,9 @@ Record h_architecture_params
   (lowering_options : Type)
   (aparams : architecture_params lowering_options) :=
   {
-    (* Stack alloc hypotheses. See [stack_alloc_proof.v]. *)
+    (* Stack alloc hypotheses. See [stack_alloc_proof_1.v]. *)
     hap_hsap :
-        stack_alloc_proof.h_stack_alloc_params (ap_sap aparams);
+        stack_alloc_proof_1.h_stack_alloc_params (ap_sap aparams);
 
     (* Linearization hypotheses. See [linearization_proof.v]. *)
     hap_hlip :

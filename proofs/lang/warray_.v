@@ -31,7 +31,7 @@ Definition arr_size (ws:wsize) (len:positive)  :=
 Lemma arr_sizeE ws len : arr_size ws len = (wsize_size ws * len).
 Proof. done. Qed.
 
-Lemma ge0_arr_size ws len : 0 <= arr_size ws len.
+Lemma gt0_arr_size ws len : 0 < arr_size ws len.
 Proof. rewrite arr_sizeE; have := wsize_size_pos ws; nia. Qed.
 
 Opaque arr_size.
@@ -460,8 +460,9 @@ Module WArray.
       if (0 <=? i) && (i <? arr_size ws len) then Mz.get t i 
       else Mz.get a k.
   Proof.
-    rewrite /set_sub_data. 
-    elim /natlike_ind: (arr_size ws len) a; last by apply ge0_arr_size.
+    rewrite /set_sub_data.
+    elim /natlike_ind: (arr_size ws len) a;
+      last by apply: Z.lt_le_incl (gt0_arr_size _ _).
     + move=> data; rewrite ziota0 /=; case: andP => // -[]; rewrite !zify; lia.
     move=> sz hsz ih data; rewrite ziotaS_cat // foldr_cat Z.add_0_l /= ih.
     case: ifPn; rewrite !zify => h3; case: ifPn; rewrite !zify => h4 //.
@@ -535,7 +536,8 @@ Module WArray.
       else None.
   Proof.
     rewrite /get_sub_data -(Mz.get0 u8 k).
-    elim /natlike_ind: (arr_size ws len) (Mz.empty u8); last by apply ge0_arr_size.
+    elim /natlike_ind: (arr_size ws len) (Mz.empty u8);
+      last by apply: Z.lt_le_incl (gt0_arr_size _ _).
     + move => b; rewrite ziota0 /=; case: andP => //; rewrite !zify; lia.
     move=> sz hsz ih b; rewrite ziotaS_cat // foldr_cat Z.add_0_l /= ih.
     case: ifPn; rewrite !zify => h3; case: ifPn; rewrite !zify => h4 //.

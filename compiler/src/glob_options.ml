@@ -28,6 +28,7 @@ let lea = ref false
 let set0 = ref false
 let model = ref Normal
 let print_stack_alloc = ref false
+let print_stack_alloc_checker = ref false
 let introduce_array_copy = ref true
 let print_dependencies = ref false 
 let lazy_regalloc = ref false
@@ -212,6 +213,7 @@ let options = [
     "-color", Arg.Symbol (["auto"; "always"; "never"], set_color), " Print messages with color";
     "-help-intrinsics", Arg.Set help_intrinsics, " List the set of intrinsic operators (and exit)";
     "-print-stack-alloc", Arg.Set print_stack_alloc, " Print the results of the stack allocation OCaml oracle";
+    "-print-stack-alloc-checker", Arg.Set print_stack_alloc_checker, ": print some information about the stack allocation Coq checker";
     "-lazy-regalloc", Arg.Set lazy_regalloc, " Allocate variables to registers in program order";
     "-pall"    , Arg.Unit set_all_print, " Print program after each compilation steps";
     "-print-dependencies", Arg.Set print_dependencies, " Print dependencies and exit";

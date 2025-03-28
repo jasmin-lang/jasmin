@@ -1,0 +1,24 @@
+param int n = 4;
+param int m = 5;
+
+fn init (reg ptr u64[n] t) -> reg ptr u64[n] {
+  inline int i;
+  for i = 0 to n {
+    t[i] = 0;
+  }
+  return t;
+}
+
+// does not pass safety
+export fn test () -> reg u64 {
+  stack u64[m * n] s;
+  reg u64 i;
+  reg u64 r;
+  i = 0;
+  while (i < m*n) {
+    s[u64 i:n] = init(s[u64 i:n]);
+    i += n;
+  }
+  r = s[m * n - 1];
+  return r;
+}

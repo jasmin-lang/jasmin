@@ -9,7 +9,7 @@ Require Import
 Require Import
   linearization
   lowering
-  stack_alloc
+  stack_alloc_params
   stack_zeroization
   slh_lowering.
 Require Import
@@ -38,15 +38,15 @@ Definition x86_op_align (x : var_i) (ws : wsize) (al : wsize) : fopn_args :=
 (* Stack alloc parameters. *)
 
 Definition lea_ptr x y tag ofs : instr_r :=
-  Copn [:: x] tag (Ox86 (LEA Uptr)) [:: add y (cast_const ofs)].
+  Copn [:: x] tag (Ox86 (LEA Uptr)) [:: add y ofs].
 
-Definition x86_mov_ofs x tag vpk y ofs :=
+Definition x86_mov_ofs x tag movk y ofs :=
   let addr :=
-    if mk_mov vpk is MK_LEA
+    if movk is MK_LEA
     then
       lea_ptr x y tag ofs
     else
-      if ofs == 0%Z
+      if is_zero Uptr ofs
       then mov_ws Uptr x y tag
       else lea_ptr x y tag ofs
   in

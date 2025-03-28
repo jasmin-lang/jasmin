@@ -1,0 +1,10 @@
+export fn main (reg u64 i) -> reg u64 {
+  stack u64[2] s;
+  reg ptr u64[1] r;
+
+  s[0] = 0;
+  r = s[i/(i+1):1];
+
+  reg u64 res = r[0];
+  return res;
+}

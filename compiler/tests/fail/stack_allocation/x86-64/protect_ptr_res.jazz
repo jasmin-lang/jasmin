@@ -1,0 +1,13 @@
+export fn main () -> reg u64 {
+  stack u64[1] s;
+  reg ptr u64[1] r;
+  reg u64 msf;
+
+  msf = #init_msf();
+  s[0] = 0;
+  r = s;
+  s = #protect_ptr(r, msf);
+
+  reg u64 res = s[0];
+  return res;
+}

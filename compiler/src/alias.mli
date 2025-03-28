@@ -1,6 +1,10 @@
 open Prog
 
-type slice = { in_var : var ; scope : E.v_scope; range : int * int }
+type kind =
+  | Range of (int * int)
+  | Align of Wsize.wsize
+
+type slice = { in_var : var ; scope : E.v_scope; kind : kind }
 
 type alias = slice Mv.t
 

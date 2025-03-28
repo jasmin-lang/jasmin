@@ -1,0 +1,35 @@
+param int N = 10;
+
+fn double (reg ptr u32[N] a) -> reg ptr u32[N] {
+  inline int i;
+  reg u32 tmp;
+  for i = 0 to N {
+    tmp = a[i];
+    tmp *= 2;
+    a[i] = tmp;
+  }
+  return a;
+}
+
+export fn main () -> reg u32 {
+  reg u64 i;
+  stack u32[4*N] a;
+  reg ptr u32[N] p;
+  i = 0;
+  while (i < 4 * N) {
+    a[i] = i;
+    i += 1;
+  }
+  i = 0;
+  while (i < 4*N) {
+    p = a[i:N];
+    reg u64 j;
+    j = i;
+    p = double(p);
+    a[j:N] = p;
+    i += N;
+  }
+  reg u32 res;
+  res = a[4*N-1];
+  return res;
+}

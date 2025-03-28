@@ -7,8 +7,13 @@ let hierror = hierror ~kind:"compilation error" ~sub_kind:"stack allocation"
    by catching the exception and reemiting it with more information. *)
 let hierror_no_loc ?funname = hierror ~loc:Lnone ?funname
 
-(* Interval within a variable; [lo; hi[ *)
-type slice = { in_var : var ; scope : E.v_scope ; range : int * int }
+type kind =
+  | Range of (int * int)
+    (* Interval within a variable; [lo; hi[ *)
+  | Align of Wsize.wsize
+    (* subarray with non-constant index, we know only the alignment *)
+
+type slice = { in_var : var ; scope : E.v_scope ; kind : kind }
 
 type alias = slice Mv.t
 
@@ -22,7 +27,11 @@ let pp_range fmt (lo, hi) =
   Format.fprintf fmt "%d; %d" lo hi
 
 let pp_slice fmt s =
-  Format.fprintf fmt "%a%a[%a[" pp_scope s.scope pp_var s.in_var pp_range s.range
+  match s.kind with
+  | Range i ->
+    Format.fprintf fmt "%a%a[%a[" pp_scope s.scope pp_var s.in_var pp_range i
+  | Align ws ->
+   Format.fprintf fmt "%a%a[?; ?[ (aligned on %a)" pp_scope s.scope pp_var s.in_var PrintCommon.pp_wsize ws
 
 let pp_binding fmt x s =
   Format.fprintf fmt "%a ↦ %a;@ " pp_var x pp_slice s
@@ -37,18 +46,27 @@ let pp_alias fmt a =
 (* --------------------------------------------------- *)
 let size_of_range (lo, hi) = hi - lo
 
-let range_in_slice (lo, hi) s =
-  let (u, v) = s.range in
-  if u + hi <= v
-  then { s with range = u + lo, u + hi }
-  else hierror_no_loc "range [%a[ overflows slice %a" pp_range (lo, hi) pp_slice s
+let range_in_slice kind s =
+  match kind, s.kind with
+  | Range (lo, hi), Range (u, v) ->
+    if u + hi <= v
+    then { s with kind = Range (u + lo, u + hi) }
+    else hierror_no_loc "range [%a[ overflows slice %a" pp_range (lo, hi) pp_slice s
+  | Align ws, Range (lo, hi) | Range (lo, hi), Align ws ->
+    (* FIXME: the two cases are probably not symmetrical *)
+    if lo mod size_of_ws ws = 0 then { s with kind = Align ws }
+    else hierror_no_loc "starting index %d is not a multiple of alignment %a, don't know what to do" lo PrintCommon.pp_wsize ws
+  | Align ws1, Align ws2 ->
+    (* we take the max alignment *)
+    let ws = if wsize_le ws1 ws2 then ws2 else ws1 in
+    { s with kind = Align ws }
 
 let range_of_var x =
   0, size_of x.v_ty
 
 let slice_of_var ?(scope=E.Slocal) in_var =
   let range = range_of_var in_var in
-  { in_var ; scope ; range }
+  { in_var ; scope ; kind = Range range }
 
 let rec normalize_var a x =
   match Mv.find x a with
@@ -57,8 +75,8 @@ let rec normalize_var a x =
 and normalize_slice a =
   function
   | { scope = E.Sglob } as s -> s
-  | { in_var ; range } ->
-     range_in_slice range (normalize_var a in_var)
+  | { in_var ; kind } ->
+     range_in_slice kind (normalize_var a in_var)
 
 let normalize_gvar a { gv ; gs } =
   let x = L.unloc gv in
@@ -120,11 +138,11 @@ let compare_gvar params x gx y gy =
         if c = 0 then V.compare x y
         else c
 
+(* FIXME: probably, we should distinghish between stack and reg ptr *)
 (* Precondition: s1 and s2 are normal forms (aka roots) in a *)
 (* x1[e1:n1] = x2[e2:n2] *)
 let merge_slices params a s1 s2 =
-  if size_of_range s1.range <> size_of_range s2.range
-     then hierror_no_loc "slices %a and %a do not have the same size: the cannot be merged@." pp_slice s1 pp_slice s2;
+  
   let c = compare_gvar params s1.in_var s1.scope s2.in_var s2.scope in
   if c = 0 then
     if s1 = s2 then a
@@ -133,11 +151,28 @@ let merge_slices params a s1 s2 =
     let s1, s2 = if c < 0 then s1, s2 else s2, s1 in
     let x = s1.in_var in
     let y = s2.in_var in
-    let lo = fst s2.range - fst s1.range in
-    let hi = lo + size_of x.v_ty in
-    if lo < 0 || size_of y.v_ty < hi
-    then hierror_no_loc "merging slices %a and %a may introduce invalid accesses; consider declaring variable %a smaller" pp_slice s1 pp_slice s2 pp_var x;
-    Mv.add x { s2 with range = lo, hi } a
+    let kind =
+      match s1.kind, s2.kind with
+      | Range r1, Range r2 ->
+        if size_of_range r1 <> size_of_range r2
+           then hierror_no_loc "slices %a and %a do not have the same size: they cannot be merged@." pp_slice s1 pp_slice s2;
+        let lo = fst r2 - fst r1 in
+        let hi = lo + size_of x.v_ty in
+        if lo < 0 || size_of y.v_ty < hi
+        then hierror_no_loc "merging slices %a and %a may introduce invalid accesses; consider declaring variable %a smaller" pp_slice s1 pp_slice s2 pp_var x;
+        Range (lo, hi)
+      | Range r1, Align ws2 ->
+        (* TODO: we can be more precise than that *)
+        if fst r1 mod size_of_ws ws2 = 0 then Align ws2
+        else hierror_no_loc "merge_slice erro 0"
+      | Align ws1, Range r2 ->
+        if fst r2 mod size_of_ws ws1 = 0 then Align ws1
+        else hierror_no_loc "merge_slice erro"
+      | Align ws1, Align ws2 ->
+        let ws = if wsize_le ws1 ws2 then ws2 else ws1 in
+        Align ws
+    in
+    Mv.add x { s2 with kind } a
 
 (* Precondition: both maps are normalized *)
 let merge params a1 a2 =
@@ -147,11 +182,19 @@ let merge params a1 a2 =
       merge_slices params a s1 s2
     ) a1 a2
 
-let range_of_asub aa ws len gv i =
+let range_of_asub aa ws len _gv i =
   match get_ofs aa ws i with
-  | None -> hierror ~loc:(Lone (L.loc gv)) "cannot compile sub-array %a that has a non-constant start index" pp_var (L.unloc gv)
-  | Some start -> start, start + arr_size ws len
+  | None ->
+    begin match aa with
+    | AAscale -> Align ws
+    | AAdirect -> hierror_no_loc "unscaled access, don't know what to do"
+    end
+  | Some start -> Range (start, start + arr_size ws len)
 
+(* FIXME: we don't do anything when the offset is not known. This may cause a
+   miscomputation of the alignment of the function. We should certainly still
+   put arrays in the same class.
+*)
 let normalize_asub a aa ws len x i =
   let s = normalize_gvar a x in
   range_in_slice (range_of_asub aa ws len x.gv i) s
@@ -236,6 +279,7 @@ let analyze_fd_ignore cc fd =
   Format.eprintf "Aliasing forest for function %s:@.%a@." fd.f_name.fn_name pp_alias a
 
 let analyze_prog fds =
+  let _ = assert false in
   let cc : int option list Hf.t = Hf.create 17 in
   let get_cc = Hf.find cc in
   List.fold_right (fun fd () ->

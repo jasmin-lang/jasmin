@@ -1,0 +1,17 @@
+// this should probably work
+
+export fn test () -> reg u64 {
+  stack u64[10] s;
+  stack u64[9] s2;
+  reg ptr u64[1] t t2;
+  reg u64 r;
+reg u64 i;
+  i = 0;
+  //s[0] = 0; // this bugs if we remove this line
+  t = s[i:1];
+  t.[0] = 0;
+  t2 = t;
+  s2[i:1] = t2;  
+  r = s2[0];
+  return r;
+}

@@ -9,7 +9,7 @@ u64[2] g = { 42, 137 };
 
 export
 fn mem2mem(reg u64 m) -> reg u64 {
-  stack u64[2] s;
+  stack u64[2] s s2;
   reg ptr u64[1] p q;
   reg u64 r;
   // init
@@ -38,7 +38,7 @@ fn mem2mem(reg u64 m) -> reg u64 {
   s[0] = p[0];
   r += s[0];
 
-  q = s[1:1];
+  q = s2[1:1];
   // external → pointer
   q[0] = [m];
   r += q[0];
