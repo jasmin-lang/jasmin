@@ -949,6 +949,7 @@ let toec_ty onarray env ty = match ty with
     | Bty Int  -> "int"
     | Bty (U ws) -> Format.sprintf "%s.t" (fmt_Wsz ws)
     | Arr(ws,n) -> onarray env ws n
+    | Bty Abstract s -> Format.sprintf "%s" s
 
 let onarray_ty_dfl env ws n =
   Format.sprintf "%s.t %s.t" (fmt_Wsz ws) (ec_Array env n)
@@ -1289,7 +1290,7 @@ let ty_expr = function
   | Psub (_,ws, len, _, _) -> Arr(ws, len)
   | Papp1 (op,_)   -> Conv.ty_of_cty (snd (E.type_of_op1 op))
   | Papp2 (op,_,_) -> Conv.ty_of_cty (snd (E.type_of_op2 op))
-  | PappN (op, _)  -> Conv.ty_of_cty (snd (E.type_of_opN op))
+  | PappN (op, _)  -> Conv.ty_of_cty (snd (E.type_of_opNA op))
   | Pif (ty,_,_,_) -> ty
 
 let ty_sopn pd asmOp op es =
@@ -1412,7 +1413,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
           in
           let op = Infix (Format.asprintf "%a" fmt_op2 op2) in
           Eop2 (op, (toec_cast env te1), (toec_cast env te2))
-      | PappN (op, es) ->
+      | PappN (OopN op, es) ->
           begin match op with
           | Opack (ws, we) ->
               let i = int_of_pe we in
@@ -1435,6 +1436,9 @@ module EcExpression(EA: EcArray): EcExpression = struct
                   List.map (toec_expr env) es
               )
           end
+      | PappN (Oabstract op, es) ->
+              Eapp (ec_ident (op.pa_name), List.map (toec_expr env) es)
+
       | Pif(_,e1,et,ef) ->
           let ty = ty_expr e in
           Eop3 (
@@ -1575,6 +1579,7 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
     | Bty Int  -> "int"
     | Bty (U ws) -> fmt_Wsz ws
     | Arr(ws, n) -> assert false
+    | Bty Abstract _ -> assert false
     in
     let leakf = ec_ident (Format.sprintf "Leak_%s" sty) in
     [Eapp (leakf, [toec_expr env e])]
@@ -2041,7 +2046,7 @@ and used_func_i used i =
   | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2
   | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
-let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp (model: model) amodel fnames array_dir fmt =
+let extract ((globs,_,funcs):('info, 'asm) prog) arch pd asmOp (model: model) amodel fnames array_dir fmt =
   let save_array_theories array_theories =
     match array_dir with
     | Some prefix ->

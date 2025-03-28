@@ -147,6 +147,7 @@ Section REMOVE.
       | PappN op es =>
         Let es := mapM (remove_glob_e ii env) es in
         ok (PappN op es)
+
       | Pif t e e1 e2 =>
         Let e := remove_glob_e ii env e in
         Let e1 := remove_glob_e ii env e1 in
@@ -334,7 +335,10 @@ Section REMOVE.
     Let gd := extend_glob_prog p in
     if uniq (map fst gd) then
       Let fs := map_cfprog (remove_glob_fundef gd) (p_funcs p) in
-      ok {| p_extra := p_extra p; p_globs := gd; p_funcs := fs |}
+        ok {| p_extra := p_extra p;
+              p_globs := gd;
+              p_abstr := p_abstr p;
+              p_funcs := fs |}
     else Error (rm_glob_ierror "Two global declarations have the same name").
 
 End REMOVE.

@@ -36,6 +36,8 @@
     "bool"  , T_BOOL ;
     "int"   , T_INT  ;
 
+    "predicate", PREDICATE;
+
     "const" , CONSTANT;
     "downto", DOWNTO ;
     "else"  , ELSE   ;

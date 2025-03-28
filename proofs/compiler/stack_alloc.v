@@ -47,11 +47,13 @@ End E.
 (* TODO: could [wsize_size] return a [positive] rather than a [Z]?
    If so, [size_of] could return a positive too.
 *)
+
 Definition size_of (t:stype) :=
   match t with
   | sword sz => wsize_size sz
   | sarr n   => Zpos n
   | sbool | sint => 1%Z
+  | sabstract _ => (1)%Z
   end.
 
 Definition slot := var.
@@ -635,7 +637,7 @@ Fixpoint alloc_e (e:pexpr) ty :=
     ok (Papp2 o e1 e2)
 
   | PappN o es =>
-    Let es := mapM2 bad_arg_number alloc_e es (type_of_opN o).1 in
+    Let es := mapM2 bad_arg_number alloc_e es (type_of_opNA o).1 in
     ok (PappN o es)
 
   | Pif t e e1 e2 =>
@@ -1587,6 +1589,7 @@ Definition alloc_prog (fresh_reg : string -> stype -> Ident.ident)
   Let p_funs := map_cfprog_name (alloc_fd  p_extra mglob fresh_reg local_alloc) P.(p_funcs) in
   ok  {| p_funcs  := p_funs;
          p_globs := [::];
+         p_abstr := P.(p_abstr);
          p_extra := p_extra;
       |}.
 

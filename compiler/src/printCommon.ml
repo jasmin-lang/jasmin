@@ -90,6 +90,9 @@ let string_of_op2 = function
 let pp_opn pd asmOp fmt o = pp_string fmt (Sopn.string_of_sopn pd asmOp o)
 
 (* -------------------------------------------------------------------- *)
+let pp_opA fmt (op: E.opA) = pp_string fmt op.pa_name
+
+(* -------------------------------------------------------------------- *)
 let pp_syscall (o : 'a Syscall_t.syscall_t) =
   match o with Syscall_t.RandomBytes _ -> "#randombytes"
 
@@ -118,6 +121,7 @@ let pp_btype fmt = function
   | Bool -> fprintf fmt "bool"
   | U i -> fprintf fmt "u%i" (int_of_ws i)
   | Int -> fprintf fmt "int"
+  | Abstract s -> fprintf fmt "%a" pp_string s
 
 (* -------------------------------------------------------------------- *)
 let pp_gtype (pp_size : formatter -> 'size -> unit) fmt = function

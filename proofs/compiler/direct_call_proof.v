@@ -174,6 +174,7 @@ Section EXPR.
     move=> /vm_truncate_valE; case: v.
     1-3: by move=> > [] ->.
     + by move=> > [] > [-> /= ->]; rewrite orbT.
+    + by move=> > [-> /=]; case: ifP.
     by move=> > [].
   Qed.
 

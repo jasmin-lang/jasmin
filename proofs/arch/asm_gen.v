@@ -276,6 +276,7 @@ Definition arg_of_rexpr k rip ii (ty: stype) (e: rexpr) :=
   | sword sz => assemble_word k rip ii sz e
   | sint  => Error (E.werror ii e "not able to assemble an expression of type int")
   | sarr _ => Error (E.werror ii e "not able to assemble an expression of type array _")
+  | sabstract _ => Error (E.werror ii e "not able to assemble an expression of type abstract type _")
   end.
 
 Definition rexpr_of_lexpr (lv: lexpr) : rexpr :=

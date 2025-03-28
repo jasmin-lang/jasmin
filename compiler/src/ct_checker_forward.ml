@@ -140,10 +140,10 @@ type ('info, 'asm) fenv = {
 let pp_arg fmt (x, lvl) =
   Format.fprintf fmt "%a %a" Lvl.pp lvl (Printer.pp_var ~debug:false) x
 
-let pp_signature prog fmt (fn, { tyin ; tyout }) =
+let pp_signature (_,_,prog) fmt (fn, { tyin ; tyout }) =
   Format.fprintf fmt "@[<h>@[%s(@[%a@]) ->@ @[%a@]@]@]@."
     fn.fn_name
-    (pp_list ",@ " pp_arg) (List.combine (List.find (fun f -> F.equal f.f_name fn) (snd prog)).f_args tyin)
+    (pp_list ",@ " pp_arg) (List.combine (List.find (fun f -> F.equal f.f_name fn) prog).f_args tyin)
     (pp_list ",@ " Lvl.pp) tyout
 
 (* -----------------------------------------------------------*)
@@ -314,7 +314,7 @@ let is_ct_op2 (o: Expr.sop2) =
   | Omod (Cmp_w _) | Odiv (Cmp_w _) -> false
   | _ -> true
 
-let is_ct_opN (_ : Expr.opN) = true
+let is_ct_opN (_ : Expr.opNA) = true
 
 let is_ct_sopn is_ct_asm (o : 'a Sopn.sopn) =
   match o with
@@ -344,7 +344,6 @@ let rec ty_expr ~(public:bool) env (e:expr) =
     let env, _ = Env.get ~public:true env x in
     let env, _ = ty_expr ~public:true env i in
     env, Secret
-
   | Papp1(o, e)        ->
     let public = public || not (is_ct_op1 o) in
     ty_expr ~public env e
@@ -602,8 +601,7 @@ and ty_fun is_ct_asm fenv fn =
   let tyin = List.map (fun lvl -> Env.norm_lvl env lvl) tyin in
   { tyin ; tyout }
 
-let ty_prog (is_ct_asm: 'asm -> bool)  ~infer (prog: ('info, 'asm) prog) fl =
-  let prog = snd prog in
+let ty_prog (is_ct_asm: 'asm -> bool)  ~infer ((_,_,prog): ('info, 'asm) prog) fl =
   let fenv =
     { ensure_annot = not infer
     ; env_ty       = Hf.create 101

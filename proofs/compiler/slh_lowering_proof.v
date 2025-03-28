@@ -30,7 +30,7 @@ Section CONST_PROP.
   Lemma use_mem_to_expr t v e' :
     to_expr (t := t) v = ok e' ->
     use_mem e' = false.
-  Proof. by case: t v => /= [?|?|//|??] [<-]. Qed.
+  Proof. by case: t v => /= [?|?|//|??|//] [<-]. Qed.
 
   #[local]
   Lemma use_mem_ssem_sop1 e op1 :
@@ -142,15 +142,13 @@ Section CONST_PROP.
     - move: h => /norP [] /hinde0 h0 /hinde1 h1.
       by rewrite (use_mem_s_op2 _ h0 h1).
 
-    - rewrite /s_opN.
-      case: app_sopn; first by case: opn.
-      move=> _.
-      elim: es h hindes => //= e es hind /norP [he hes] hindes.
-      rewrite negb_or.
-      rewrite (hindes _ _ he) /=; last by left.
-      apply: (hind hes) => e' he'.
-      apply: hindes.
-      by right.
+    - have hes: ~~ has use_mem [seq const_prop_e None cpm i | i <- es].
+      + elim: es h hindes => //= e es hind /norP [he hes] hindes.
+        rewrite negb_or (hindes _ _ he) /=; last by left.
+        apply: (hind hes) => e' he'.
+        by apply: hindes; right.
+      case: opn => //= opn.
+      by rewrite /s_opN; case: app_sopn => //; case: opn.
 
     rewrite /s_if /=.
     move: h => /norP [] /norP [] /hinde h /hinde0 h0 /hinde1 h1.

@@ -143,6 +143,9 @@ let pp_svsize fmt (vs,s,ve) =
   Format.fprintf fmt "%d%s%d"
     (int_of_vsize vs) (suffix_of_sign s) (bits_of_vesize ve)
 
+let pp_abstract_ty fmt t =
+  F.fprintf fmt "%a" pp_var t
+
 let pp_space fmt _ =
   F.fprintf fmt " "
 
@@ -216,6 +219,7 @@ let rec pp_expr_rec prio fmt pe =
     optparent fmt prio p "(";
     F.fprintf fmt "%a %a %a" (pp_expr_rec p) e pp_op2 op (pp_expr_rec p) r;
     optparent fmt prio p ")"
+  | PEAbstract (p, args) -> F.fprintf fmt "%a(%a)" pp_var p (pp_list ", " pp_expr) args
   | PEIf (e1, e2, e3) ->
     let p = Pternary in
     optparent fmt prio p "(";
@@ -238,6 +242,7 @@ and pp_type fmt ty =
   | TWord w -> pp_ws fmt w
   | TArray (w, e) -> F.fprintf fmt "%a[%a]" ptype (Syntax.string_of_sizetype w) pp_expr e
   | TAlias id -> F.fprintf fmt "%a" ptype (L.unloc id)
+  | Tabstract s -> F.fprintf fmt "%a" ptype (L.unloc s)
 
 and pp_ws fmt w = F.fprintf fmt "%a" ptype (string_of_wsize w)
 
@@ -429,6 +434,20 @@ let pp_path fmt s =
 let pp_typealias fmt id ty =
   F.fprintf fmt "%a %a = %a;" kw "type" dname (L.unloc id) pp_type ty
 
+let pp_abstract_ty fmt id =
+  F.fprintf fmt "%a %a;" kw "type" dname (L.unloc id)
+
+let pp_abstract_pre fmt { pap_name ; pap_args ; pap_rty; pap_annot } =
+  F.fprintf
+    fmt
+    "%a%a %a(%a)%a"
+    pp_top_annotations pap_annot
+    kw "abstract"
+    dname (L.unloc pap_name)
+    (pp_list ", " (fun fmt (_annot, d) -> pp_type fmt d)) pap_args
+    (fun fmt (_annot, d) -> pp_type fmt d) pap_rty;
+  F.fprintf fmt eol
+
 let rec pp_pitem fmt pi =
   match L.unloc pi with
   | PFundef f -> pp_fundef fmt f
@@ -441,6 +460,8 @@ let rec pp_pitem fmt pi =
           F.fprintf fmt "%a %s " kw "from" (L.unloc name)) in
       F.fprintf fmt "%a%a " pp_from from kw "require";
       List.iter (pp_path fmt) s
+  | Pabstract_ty t -> pp_abstract_ty fmt t.pat_name
+  | Pabstract_pre p -> pp_abstract_pre fmt p
   | PNamespace (ns, pis) ->
      (* TODO: ident within namespaces? *)
      F.fprintf fmt "%a %s " kw "namespace" (L.unloc ns);

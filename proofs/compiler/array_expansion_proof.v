@@ -113,7 +113,6 @@ Lemma expand_vP n a ws l :
     ok (map (fun i => rdflt undef_w (rmap (@Vword _) (WArray.get Aligned AAscale ws a i)))  l).
 Proof. by elim: l => // *; simpl map; rewrite -mapM_cons. Qed.
 
-
 Section WITH_PARAMS.
 
 Context

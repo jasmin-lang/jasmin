@@ -165,6 +165,7 @@ type pexpr_r =
   | PEPrim   of pident * pexpr list
   | PEOp1    of peop1 * pexpr
   | PEOp2    of peop2 * (pexpr * pexpr)
+  | PEAbstract of pident * pexpr list
   | PEIf of pexpr * pexpr * pexpr
 
 and pexpr = pexpr_r L.located
@@ -173,7 +174,11 @@ and mem_access = [ `Aligned | `Unaligned ] option * wsize option * pident * ([`A
 
 (* -------------------------------------------------------------------- *)
 and psizetype = TypeWsize of wsize | TypeSizeAlias of pident
-and ptype_r = TBool | TInt | TWord of wsize | TArray of psizetype * pexpr | TAlias of pident
+
+and ptype_r =
+  | TBool | TInt | TWord of wsize | TArray of psizetype * pexpr
+  | TAlias of pident | Tabstract of pident
+
 and ptype   = ptype_r L.located
 
 (* -------------------------------------------------------------------- *)
@@ -309,12 +314,29 @@ type pexec = {
 type prequire = string L.located
 
 (* -------------------------------------------------------------------- *)
+type pabstract_ty = {
+  pat_name : pident;
+  pat_annot : annotations;
+}
+
+(* -------------------------------------------------------------------- *)
+
+type pabstract_pred = {
+  pap_name : pident;
+  pap_args : (annotations * ptype) list;
+  pap_rty  : annotations * ptype;
+  pap_annot : annotations;
+}
+
+(* -------------------------------------------------------------------- *)
 type pitem =
   | PFundef of pfundef
   | PParam of pparam
   | PGlobal of pglobal
   | Pexec of pexec
   | Prequire of (pident option * prequire list)
+  | Pabstract_ty of pabstract_ty
+  | Pabstract_pre of pabstract_pred
   | PNamespace of pident * pitem L.located list
   | PTypeAlias of pident * ptype
 

@@ -746,7 +746,7 @@ End WITH_PARAMS.
 
 Section EQ_EX.
 
-Context
+  Context
   {wsw:WithSubWord}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}

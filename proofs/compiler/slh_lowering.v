@@ -113,7 +113,6 @@ End E.
 Module Env.
 
   Section WITH_PARAMS.
-
   Context {fcparams : flag_combination.FlagCombinationParams}.
 
   (* We keep track of the condition of the last conditional we entered, and of
@@ -544,6 +543,7 @@ Definition lower_slh_prog (entries : seq funname) (p : prog) : cexec prog :=
    Let p_funcs := map_cfprog_name lower_fd (p_funcs p) in
    ok  {| p_funcs  := p_funcs;
           p_globs := p_globs p;
+          p_abstr := p_abstr p;
           p_extra := p_extra p;
         |}.
 

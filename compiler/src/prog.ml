@@ -27,7 +27,7 @@ type 'len gexpr =
   | Pload  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
   | Papp1  of E.sop1 * 'len gexpr
   | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
-  | PappN of E.opN * 'len gexpr list
+  | PappN of E.opNA * 'len gexpr list
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
 
 type 'len gexprs = 'len gexpr list
@@ -134,6 +134,8 @@ type ('len,'info,'asm) gmod_item =
   | MIfun   of ('len,'info,'asm) gfunc
   | MIparam of ('len gvar * 'len gexpr)
   | MIglobal of ('len gvar * 'len ggexpr)
+  | MItypeabstr of string
+  | MIpredabstr of (string * 'len gty list * 'len gty)
 
 type ('len,'info,'asm) gprog = ('len,'info,'asm) gmod_item list
    (* first declaration occur at the end (i.e reverse order) *)
@@ -219,7 +221,11 @@ type ('info,'asm) stmt  = (int,'info,'asm) gstmt
 type ('info,'asm) func     = (int,'info,'asm) gfunc
 type ('info,'asm) mod_item = (int,'info,'asm) gmod_item
 type global_decl           = var * Global.glob_value
-type ('info,'asm) prog     = global_decl list * ('info,'asm) func list
+type abstract_pred         = (string * int gty list * int gty)
+type abstract_type         = string
+type abstract_decl         = abstract_type list * abstract_pred list
+type ('info,'asm) prog     =
+  global_decl list * abstract_decl * ('info,'asm) func list
 
 module Sv = Set.Make  (V)
 module Mv = Map.Make  (V)
@@ -336,8 +342,8 @@ and refresh_i_loc_c (c:('info,'asm) stmt) : ('info,'asm) stmt =
 let refresh_i_loc_f (f:('info,'asm) func) : ('info,'asm) func =
   { f with f_body = refresh_i_loc_c f.f_body }
 
-let refresh_i_loc_p (p:('info,'asm) prog) : ('info,'asm) prog =
-  fst p, List.map refresh_i_loc_f (snd p)
+let refresh_i_loc_p ((g,a,p):('info,'asm) prog) : ('info,'asm) prog =
+  g, a, List.map refresh_i_loc_f  p
 
 
 (* -------------------------------------------------------------------- *)

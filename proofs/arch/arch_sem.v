@@ -362,6 +362,7 @@ Definition mem_write_ty (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) (t
   | sbool    => mem_write_bool s args ad
   | sint     => fun _ => type_error
   | sarr _   => fun _ => type_error
+  | sabstract _ => fun _ => type_error
   end.
 
 Definition oof_val (ty: stype) (v:value) : exec (sem_ot ty) :=

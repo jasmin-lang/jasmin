@@ -160,4 +160,5 @@ Instance riscv_extra {atoI : arch_toIdent} :
 Definition riscv_extended_op {atoI : arch_toIdent} :=
   @extended_op _ _ _ _ _ _ _ riscv_extra.
 
-Definition Oriscv {atoI : arch_toIdent} o : @sopn riscv_extended_op _ := Oasm (BaseOp (None, o)).
+Definition Oriscv {atoI : arch_toIdent} o :
+  @sopn riscv_extended_op _ := Oasm (BaseOp (None, o)).

@@ -247,6 +247,7 @@ Definition ZF_of_word sz (w : word sz) :=
 
 (* -------------------------------------------------------------------- *)
   (*  OF; CF; SF;    PF;    ZF  *)
+
 Definition rflags_of_bwop sz (w : word sz) : (sem_tuple b5_ty) :=
   (*  OF;  CF;    SF;           PF;           ZF  *)
   (:: Some false, Some false, Some (SF_of_word w), Some (PF_of_word w) & Some (ZF_of_word w)).
@@ -395,6 +396,8 @@ Notation mk_instr str_jas tin tout ain aout msb semi args_kinds nargs safe_cond 
   id_eq_size    := refl_equal;
   id_tin_narr   := refl_equal;
   id_tout_narr  := refl_equal;
+  id_tin_nabst := refl_equal;
+  id_tout_nabst := refl_equal;
   id_check_dest := refl_equal;
   id_str_jas    := str_jas;
   id_safe       := safe_cond;

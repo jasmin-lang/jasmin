@@ -557,7 +557,7 @@ Section PROOF.
     + case: x => - [] [] [] // sz vn vi vs //= /[dup] ok_v.
       case/type_of_get_gvar => sz' [Hs Hs'].
       have := truncate_val_subtype Hv'. rewrite Hs -(truncate_val_has_type Hv').
-      case hty: (type_of_val v') => [ | | | sz'' ] //= hle.
+      case hty: (type_of_val v') => [ | | | sz'' | ] //= hle.
       case: (write_lval_undef Hw hty) => w ? {hty}; subst v'.
       case/truncate_valI: Hv' => s'' [] w'' [] ? ok_w ?; subst.
       case: Hs => ?; subst s''.
@@ -1040,11 +1040,11 @@ Section PROOF.
         rewrite (size_128_256_ge hle2) hle1 /=.
         by rewrite !truncate_word_le.
     (* PappN *)
-    + case: op => // - [] // - [] //.
+    + case: op => // - [] // - [] // - [] //.
       case: es => // - [] // [] // [] // hi.
       case => // [] // [] // [] // [] // [] // lo [] //.
       case: ty Hv' => // - [] //= ok_v'.
-      rewrite /= /sem_opN /exec_sopn /sem_sop1 /=.
+      rewrite /= /sem_opNA /exec_sopn /sem_sop1 /=.
       t_xrbindP => ??? -> _ /to_wordI'[] szhi [] whi [] szhi_ge -> -> <- ??? ->.
       move => ? /to_wordI'[] szlo [] wlo [] szlo_ge -> -> <- <- <- ?.
       t_xrbindP => _ /to_intI[] <- _ /to_intI[] <- [] <- ?; subst => /=.
