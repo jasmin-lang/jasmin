@@ -272,7 +272,8 @@ end = struct
       cfg = mcfg st1.cfg st2.cfg;
       while_vars = Sv.union st1.while_vars st2.while_vars;
       f_done = Ss.union st1.f_done st2.f_done;
-      if_conds = List.rev_append st1.if_conds st2.if_conds;
+      if_conds = List.rev_append st1.if_conds st2.if_conds
+                 |> List.sort_uniq Stdlib.compare;
       ct = ct }
 
   let set_ct ct st = { st with ct = ct }
