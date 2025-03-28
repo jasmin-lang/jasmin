@@ -1045,6 +1045,7 @@ Context (p1 : prog) (ev:extra_val_t).
 
 Let p2 := map_prog tr_fundef p1.
 
+(* FIXME move this elsewhere *)
 Definition eq_spec : EquivSpec :=
   {| rpreF_ := fun (fn1 fn2 : funname) (fs1 fs2 : fstate) => fn1 = fn2 /\ fs1 = fs2
    ; rpostF_ := fun (fn1 fn2 : funname) (fs1 fs2 fr1 fr2: fstate) => fr1 = fr2 |}.
