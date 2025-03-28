@@ -1,0 +1,11 @@
+export fn main (reg ptr u32[2] r) -> reg u32 {
+  stack ptr u32[1] sp;
+  reg ptr u32[1] r1;
+  reg u32 res;
+
+  sp = r[1:1];
+  r1 = sp;
+  res = r1[0];
+
+  return res;
+}

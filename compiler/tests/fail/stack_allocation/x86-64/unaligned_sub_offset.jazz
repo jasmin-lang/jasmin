@@ -1,10 +1,10 @@
 // FIXME: double check
 export fn main (reg u64 i) -> reg u64 {
-  stack u64[4] s;
+  stack u32[4] s;
   reg ptr u64[2] r;
 
-  r = s[u32 i:4];
-  reg u64 res = r[1];
+  r = s[i:4];
+  reg u64 res = r[2];
 
   return res;
 }
