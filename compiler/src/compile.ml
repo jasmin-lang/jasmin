@@ -145,8 +145,18 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let translate_var = Conv.var_of_cvar in
 
-  let string_of_sr sr =
-    Format.asprintf "%a" Pp_stack_alloc.pp_sub_region sr
+  (* Kind of duplicate of pp_sub_region... *)
+  let pp_sr sr =
+    let open Compiler_util in
+    pp_vbox [
+      pp_nobox [
+        PPEstring "{ region = ";
+        PPEstring (Format.asprintf "%a" Pp_stack_alloc.pp_region sr.Stack_alloc.sr_region);
+        PPEstring ";"];
+      pp_nobox [
+        PPEstring "  zone = ";
+        PPEstring (Format.asprintf "%a" Pp_stack_alloc.pp_symbolic_zone sr.Stack_alloc.sr_zone);
+        PPEstring " }"]];
   in
 
   let print_trmap ii table rmap =
@@ -166,7 +176,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   let memory_analysis up : Compiler.stack_alloc_oracles =
     StackAlloc.memory_analysis
       print_trmap
-      string_of_sr
+      pp_sr
       (Printer.pp_err ~debug:!debug)
       ~debug:!debug up
   in
@@ -431,7 +441,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.dead_vars_ufd;
       Compiler.dead_vars_sfd;
       Compiler.print_trmap;
-      Compiler.string_of_sr;
+      Compiler.pp_sr;
     }
   in
 

@@ -9,7 +9,7 @@ Require Import
 Require Import
   linearization
   lowering
-  stack_alloc
+  stack_alloc_params
   stack_zeroization
   slh_lowering.
 Require Import

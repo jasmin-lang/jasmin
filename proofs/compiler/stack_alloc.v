@@ -803,7 +803,7 @@ Fixpoint symbolic_of_pexpr t e : cexec (option (table * sexpr)) :=
 (* A version of symbolic_of_pexpr that fails. *)
 Definition get_symbolic_of_pexpr t e :=
   Let ote := symbolic_of_pexpr t e in
-  o2r (stk_ierror_no_var "expression too complex") ote.
+  o2r (stk_error_no_var "expression too complex") ote.
 
 Definition remove_binding table x :=
   {| bindings := Mvar.remove table.(bindings) x;
@@ -876,7 +876,7 @@ Context
   (is_move_op : asm_op_t -> bool)
   (fresh_var_ident  : v_kind -> Uint63.int -> string -> stype -> Ident.ident)
   (print_trmap : instr_info -> table -> region_map -> table * region_map)
-  (string_of_sr : sub_region -> string)
+  (pp_sr : sub_region -> pp_error)
 .
 
 Definition clone (x:var) n :=
@@ -1138,6 +1138,19 @@ Definition mk_mov vpk :=
   | _ => MK_MOV
   end.
 
+Definition regions_are_not_equal (kind:string) x sry sr :=
+  stk_error x
+    (pp_nobox [::
+       pp_box [::
+         pp_s "the assignment to"; pp_s kind; pp_var x;
+         pp_s "cannot be turned into a nop"]; PPEbreak;
+       pp_vbox [::
+         pp_s "source";
+         pp_box [:: pp_s "  "; pp_sr sry];
+         pp_s "and destination";
+         pp_box [:: pp_s "  "; pp_sr sr];
+         pp_s "regions are not equal"]]).
+
 (* Precondition is_sarr ty *)
 Definition alloc_array_move table rmap r tag e :=
   Let: (table, sry, statusy, mk, ey, ofs) :=
@@ -1181,14 +1194,7 @@ Definition alloc_array_move table rmap r tag e :=
         let sr := sub_region_direct s ws cs sc in
         Let _  :=
           assert (sry == sr)
-                 (stk_ierror x
-                    (pp_box [::
-                      pp_s "the assignment to array"; pp_var x;
-                      pp_s "cannot be turned into a nop: source (";
-                      pp_s (string_of_sr sry);
-                      pp_s ") and destination (";
-                      pp_s (string_of_sr sr);
-                      pp_s ") regions are not equal"]))
+                 (regions_are_not_equal "array" x sry sr)
         in
         let rmap := set_move rmap x sry statusy in (* TODO: we always do set_move -> factorize *)
         ok (table, rmap, nop)
@@ -1225,16 +1231,7 @@ Definition alloc_array_move table rmap r tag e :=
       let (sr', _) := sub_region_status_at_ofs x sr status ofs len in
       Let _ :=
         assert (sry == sr')
-               (stk_ierror x
-                 (pp_box [::
-                   pp_s "the assignment to sub-array"; pp_var x;
-                   pp_s "cannot be turned into a nop: source (";
-                   pp_vbox [::
-                   pp_s (string_of_sr sry);
-                   pp_s ") and destination (";
-                   pp_s (string_of_sr sr')
-                   ];
-                   pp_s ") regions are not equal"]))
+               (regions_are_not_equal "sub-array" x sry sr')
       in
       let rmap := set_move_sub rmap sr.(sr_region) x status ofs len statusy in
       ok (table, rmap, nop)
@@ -1687,7 +1684,7 @@ Definition alloc_array_swap rmap rs t es :=
               (stk_ierror_no_var "global reg ptr ...") in
     ok (rmap, saparams.(sap_swap) t px py pz pw)
   | _, _ =>
-    Error (stk_error_no_var "swap: invalid args or result, only reg ptr are accepted")
+    Error (stk_ierror_no_var "swap: invalid args or result, only reg ptr are accepted")
   end.
 
 Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region_map * cmd) :=

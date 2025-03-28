@@ -7,9 +7,9 @@ let pp_expr fmt x =
   Printer.pp_expr ~debug:true fmt (Conv.expr_of_cexpr x)
 
 let pp_region fmt r =
-  Format.fprintf fmt "{ slot = %a; align = %a; writable = %b }"
+  Format.fprintf fmt "{ slot = %a; align = %s; writable = %b }"
     pp_var r.r_slot
-    PrintCommon.pp_wsize r.r_align
+    (Prog.string_of_ws r.r_align)
     r.r_writable
 
 let pp_sexpr fmt e =
@@ -36,7 +36,7 @@ let pp_symbolic_zone fmt z =
   Format.fprintf fmt "@[<hv>%a@]" (Format.pp_print_list pp_symbolic_slice) z
 
 let pp_sub_region fmt sr =
-  Format.fprintf fmt "@[<hv>{ region = %a;@;<2 2>zone = %a }@]" pp_region sr.sr_region pp_symbolic_zone sr.sr_zone
+  Format.fprintf fmt "@[<v>{ region = %a;@;<2 2>zone = %a }@]" pp_region sr.sr_region pp_symbolic_zone sr.sr_zone
 
 let pp_var_region fmt vr =
   Format.fprintf fmt "@[<v>";

@@ -200,8 +200,8 @@ Record compiler_params
        body; the result is a function from instr_info to sets of variables. *)
   dead_vars_sfd    : _sfun_decl -> instr_info -> Sv.t;
     (* Same as dead_vars_ufd, but for _sfun_decl instead of _ufun_decl. *)
-  print_trmap       : instr_info -> table -> region_map -> table * region_map;
-  string_of_sr     : sub_region -> string;
+  print_trmap      : instr_info -> table -> region_map -> table * region_map;
+  pp_sr            : sub_region -> pp_error;
 }.
 
 Context
@@ -412,7 +412,7 @@ Definition compiler_front_end (entries: seq funname) (p: uprog) : cexec sprog :=
       (ap_is_move_op aparams)
       (fun vk => fresh_var_ident cparams vk dummy_instr_info)
       (print_trmap cparams)
-      (string_of_sr cparams)
+      (pp_sr cparams)
       (global_static_data_symbol cparams)
       (stack_register_symbol cparams)
       (ao_globals ao)
