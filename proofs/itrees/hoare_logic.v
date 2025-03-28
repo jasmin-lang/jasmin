@@ -180,26 +180,26 @@ End TR_MutualRec.
 
 Section RHOARE.
 
-Context {Err : Set}.
+Definition fresult (Err : Set) T1 T2 := T1 -> result Err T2.
 
-Definition fresult T1 T2 := T1 -> result Err T2.
+Context {Err : Set}.
 
 (* P : precondition
    Q : postcondition
    QE : postcondition for error *)
 
 Definition rhoare_io {I O}
-   (P : Pred I) (F : fresult I O) (Q : Pred_io I O) (QE : I -> Pred Err) :=
+   (P : Pred I) (F : fresult Err I O) (Q : Pred_io I O) (QE : I -> Pred Err) :=
   forall i, P i ->
     match F i with
     | Ok o => Q i o
     | Error e => QE i e
     end.
 
-Definition rhoare {I O} (P : Pred I) (F : fresult I O) (Q : Pred O) (QE : Pred Err) :=
+Definition rhoare {I O} (P : Pred I) (F : fresult Err I O) (Q : Pred O) (QE : Pred Err) :=
   rhoare_io P F (fun _ => Q) (fun _ => QE).
 
-Lemma rhoare_ioP {I O} (P : Pred I) (F : fresult I O) (Q : Pred_io I O) (QE : I -> Pred Err) :
+Lemma rhoare_ioP {I O} (P : Pred I) (F : fresult Err I O) (Q : Pred_io I O) (QE : I -> Pred Err) :
   rhoare_io P F Q QE <-> (forall i0, P i0 -> rhoare (fun i => i = i0) F (Q i0) (QE i0)).
 Proof.
   split.
@@ -207,7 +207,7 @@ Proof.
   by move=> h i hP; apply (h i hP i).
 Qed.
 
-Lemma rhoare_io_weaken {I O} (F : fresult I O)
+Lemma rhoare_io_weaken {I O} (F : fresult Err I O)
   (P P' : Pred I) (Q Q': Pred_io I O) (QE QE' : I -> Pred Err) :
   (forall i, P' i -> P i) ->
   (forall i o, P' i -> Q i o -> Q' i o) ->
@@ -221,7 +221,7 @@ Proof.
   by move=> e; apply hEE'.
 Qed.
 
-Lemma rhoare_weaken {I O} (F : fresult I O) (P P' : Pred I) (Q Q': Pred O) (QE QE' : Pred Err) :
+Lemma rhoare_weaken {I O} (F : fresult Err I O) (P P' : Pred I) (Q Q': Pred O) (QE QE' : Pred Err) :
   (forall i, P' i -> P i) ->
   (forall o, Q o -> Q' o) ->
   (forall e, QE e -> QE' e) ->
@@ -229,13 +229,13 @@ Lemma rhoare_weaken {I O} (F : fresult I O) (P P' : Pred I) (Q Q': Pred O) (QE Q
   rhoare P' F Q' QE'.
 Proof. move=> hP hQQ' hEE'; apply rhoare_io_weaken => // > ?; auto. Qed.
 
-Lemma rhoare_true {I O} P (F : fresult I O) : rhoare P F PredT PredT.
+Lemma rhoare_true {I O} P (F : fresult Err I O) : rhoare P F PredT PredT.
 Proof. by move=> ??; case: F. Qed.
 
-Lemma rhoare_false {I O} (F : fresult I O) Q Qerr : rhoare (fun=>False) F Q Qerr.
+Lemma rhoare_false {I O} (F : fresult Err I O) Q Qerr : rhoare (fun=>False) F Q Qerr.
 Proof. by move=> ?. Qed.
 
-Lemma wrhoareP {I O} P (F : fresult I O) Q :
+Lemma wrhoareP {I O} P (F : fresult Err I O) Q :
   rhoare P F Q PredT <->
   (forall i o, P i -> F i = ok o -> Q o).
 Proof.
@@ -249,11 +249,11 @@ Lemma rhoare_ok {T} (P Q : Pred T) (QE : Pred Err) :
   rhoare P (fun t => ok t) Q QE.
 Proof. done. Qed.
 
-Lemma rhoare_Error {T} (P Q : Pred T) (QE : Pred Err) e:
+Lemma rhoare_err {T} (P Q : Pred T) (QE : Pred Err) e:
   (forall i, P i -> QE e) <-> rhoare P (fun i => Error e) Q QE.
 Proof. done. Qed.
 
-Lemma rhoare_bind {I T O} (F1 : fresult I T) (F2 : fresult T O)
+Lemma rhoare_bind {I T O} (F1 : fresult Err I T) (F2 : fresult Err T O)
   (P : Pred I) (R : Pred T) (Q : Pred O) (QE : Pred Err) (QET : Pred Err) :
   (forall i t e , P i -> R t -> QET e -> QE e) ->
   rhoare P F1 R QE ->
@@ -266,7 +266,7 @@ Proof.
   by move=> e; apply: hQE hP hR.
 Qed.
 
-Lemma rhoare_read {S T O} (F1 : fresult S T) (F2 : T -> fresult S O)
+Lemma rhoare_read {S T O} (F1 : fresult Err S T) (F2 : T -> fresult Err S O)
   (P : Pred S) (R : Pred T) (Q : Pred O) (QE : Pred Err) :
   rhoare P F1 R QE ->
   (forall t, R t -> rhoare P (F2 t) Q QE) ->
@@ -277,7 +277,7 @@ Proof.
   move=> t hR; case: (F2 t s) (hF2 t hR s hP) => //=.
 Qed.
 
-Lemma rhoare_bind_eval {S I T O} (F1 : fresult I T) (F2 : T -> fresult S O)
+Lemma rhoare_bind_eval {S I T O} (F1 : fresult Err I T) (F2 : T -> fresult Err S O)
   (P : Pred S) (R : Pred T) (Q : Pred O) (QE : Pred Err) i :
   (forall s, P s -> rhoare (fun i' => i' = i) F1 R QE) ->
   (forall t, R t -> rhoare P (F2 t) Q QE) ->
@@ -288,20 +288,20 @@ Proof.
   move=> t hR; case: (F2 t s) (hF2 t hR s hP) => //=.
 Qed.
 
-Lemma rhoare_eval {S I O} (F : fresult I O)
+Lemma rhoare_eval {S I O} (F : fresult Err I O)
   (P : Pred S) (Q : Pred O) (QE : Pred Err) i :
   (forall s, P s -> rhoare (fun i' => i' = i) F Q QE) ->
   rhoare P (fun s => F i) Q QE.
 Proof. by move=> hF s hP; case: (F i) (hF s hP i erefl). Qed.
 
-Lemma rhoare_write {S O} (F1 : fresult S S) (F2 : fresult S O)
+Lemma rhoare_write {S O} (F1 : fresult Err S S) (F2 : fresult Err S O)
   (P R : Pred S) (Q : Pred O) (QE : Pred Err) :
   rhoare P F1 R QE ->
   rhoare R F2 Q QE ->
   rhoare P (fun s => Let s := F1 s in F2 s) Q QE.
 Proof. by move=> hF1 hF2 s hP; case: (F1 s) (hF1 s hP). Qed.
 
-Lemma rhoare_id {I O} (F : fresult I O) i0 (P : Pred I) (QE : Pred Err):
+Lemma rhoare_id {I O} (F : fresult Err I O) i0 (P : Pred I) (QE : Pred Err):
   rhoare (fun i => i = i0 /\ P i) F (fun=> True) QE ->
   rhoare (fun i => i = i0 /\ P i) F (fun o => F i0 = ok o) QE.
 Proof. by move=> h i hP; have := h i hP; case: hP => ? _; subst i0; case: (F i). Qed.
