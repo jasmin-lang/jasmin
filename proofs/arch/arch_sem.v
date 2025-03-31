@@ -250,7 +250,7 @@ Definition eval_instr_op idesc args (s:asmmem) :=
   Let _   := assert (idesc.(id_valid)) ErrType in
   Let _   := assert (check_i_args_kinds idesc.(id_args_kinds) args) ErrType in
   Let vs  := eval_args_in s args idesc.(id_in) idesc.(id_tin) in
-  Let t   := app_sopn _ idesc.(id_semi) vs in
+  Let t   := @app_sopn _ _ idesc.(id_semi) vs in
   ok (list_ltuple t).
 
 (* -------------------------------------------------------------------- *)

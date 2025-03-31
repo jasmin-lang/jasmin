@@ -13,6 +13,8 @@ let int_of_ws = function
   | U128 -> 128
   | U256 -> 256
 
+let z_of_ws ws = Z.of_int @@ int_of_ws ws
+
 let string_of_ws ws = Format.sprintf "u%i" (int_of_ws ws)
 
 (* -------------------------------------------------------------------- *)

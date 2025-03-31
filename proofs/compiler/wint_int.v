@@ -139,6 +139,7 @@ Fixpoint etype_of_expr (e:pexpr) : extended_type positive :=
   | Papp2 o e1 e2 => (etype_of_op2 o).2
   | PappN o es => to_etype None (type_of_opN o).2
   | Pif ty e1 e2 e3 => to_etype (sign_of_etype (etype_of_expr e2)) ty
+  | Pbig ei o v e es el => (etype_of_op2 o).2
   end.
 
 Definition sign_of_expr (e:pexpr) : option signedness :=
@@ -216,6 +217,20 @@ Fixpoint wi2i_e (e0:pexpr) : cexec pexpr :=
     Let e2 := wi2i_e e2 in
     Let e3 := wi2i_e e3 in
     ok (Pif ty e1 e2 e3)
+
+   | Pbig ei o v e es el =>
+                   (* Let _ := assert (in_FV_var x) (E.ierror_s "invalid loop counter") in *)
+     let ty := etype_of_op2 o in
+     Let _ := assert [&& esubtype ty.2 (etype_of_expr ei),
+                         esubtype ty.1.1 ty.2 &
+                         esubtype ty.1.2 (etype_of_expr e)]
+                     (E.ierror_e e0) in
+     Let ei := wi2i_e ei in
+     Let e := wi2i_e e in
+     Let es := wi2i_e es in
+     Let el := wi2i_e el in
+     Let v := wi2i_vari v in
+     ok (Pbig ei (wi2i_op2 o) v e es el)
   end.
 
 Definition wi2i_lvar (ety : extended_type positive) (x : var_i) : cexec var_i :=
@@ -290,6 +305,10 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec instr_r :=
     Let xs := mapM2 (E.ierror_s "invalid dest in Copn") wi2i_lv xtys xs in
     ok (Csyscall xs o es)
 
+  | Cassert k p e =>
+    Let e := wi2i_e e in
+    ok (Cassert k p e)
+
   | Cif b c1 c2 =>
     Let b := wi2i_e b in
     Let c1 := mapM wi2i_i c1 in
@@ -323,11 +342,35 @@ with wi2i_i (i:instr) : cexec instr :=
   Let ir := add_iinfo ii (wi2i_ir ir) in
   ok (MkI ii ir).
 
+Definition wi2i_ci ci sig :=
+  Let ci_pre := mapM (fun c =>
+                        Let truc := wi2i_e (snd c) in
+                        ok (fst c, truc)) ci.(f_pre)
+  in
+  Let ci_post := mapM (fun c =>
+                        Let truc := wi2i_e (snd c) in
+                        ok (fst c, truc)) ci.(f_post)
+        in
+  Let p := mapM2 (E.ierror_s "bad params in fun") wi2i_lvar sig.1 ci.(f_iparams) in
+  Let r := mapM2 (E.ierror_s "bad return in fun") (fun ety x =>
+                    Let _ := assert (esubtype ety (etype_of_var x))
+                                    (E.ierror_e (Plvar x)) in
+                    wi2i_vari x) sig.2 ci.(f_ires) in
+
+  ok (MkContra p r ci_pre ci_post).
 
 Definition wi2i_fun (fn:funname) (f: fundef) :=
   add_funname fn (
   Let sig := get_sig fn in
-  let 'MkFun ii si p c so r ev := f in
+  let 'MkFun ii ci si p c so r ev := f in
+  Let ci :=
+      match ci with
+      | None => ok None
+      | Some ci =>
+          Let ci := wi2i_ci ci sig in
+          ok (Some ci)
+      end
+    in
   Let p := mapM2 (E.ierror_s "bad params in fun") wi2i_lvar sig.1 p in
   Let c := mapM wi2i_i c in
   Let r := mapM2 (E.ierror_s "bad return in fun") (fun ety x =>
@@ -337,10 +380,10 @@ Definition wi2i_fun (fn:funname) (f: fundef) :=
   let mk := map (fun ety => wi2i_type (sign_of_etype ety) (to_stype ety)) in
   let tin := mk sig.1 in
   let tout := mk sig.2 in
-  ok (MkFun ii tin p c tout r ev)).
+  ok (MkFun ii ci tin p c tout r ev)).
 
 Definition build_sig (fd : funname * fundef) :=
- let 'MkFun ii si p c so r ev := fd.2 in
+ let 'MkFun ii ci si p c so r ev := fd.2 in
  let mk := map2 (fun (x:var_i) ty => to_etype (sign_of_var x) ty) in
  (fd.1, (mk p si, mk r so)).
 

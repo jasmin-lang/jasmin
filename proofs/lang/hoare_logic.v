@@ -663,10 +663,10 @@ Proof.
 Qed.
 
 Definition hoare_fun_body_hyp (Pf : PreF) fn (Qf : PostF) Qerr :=
-  forall fs,
+  forall fs tr,
   Pf fn fs ->
-  (forall e, Qerr e -> rInvErr (estate0 fs) e) /\
-  match get_fundef (p_funcs p) fn with
+  (forall e, Qerr e -> rInvErr (estate0 fs tr) e) /\
+  match get_fundef (p_funcs p) fn withx
   | None => Qerr ErrType
   | Some fd =>
     exists (P Q : Pred_c),

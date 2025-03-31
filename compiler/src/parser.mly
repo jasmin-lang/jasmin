@@ -23,11 +23,17 @@
 %token ALIGNED
 %token AMP
 %token AMPAMP
+%token ASSERT
+%token ALL
 %token BANG
 %token BANGEQ
+%token BIG
 %token COLON
 %token COLONCOLON
 %token COMMA
+%token REQUIRES
+%token ENSURES
+%token RESULT
 %token CONSTANT
 %token DOT
 %token DOWNTO
@@ -35,6 +41,7 @@
 %token EQ
 %token EQEQ
 %token EXEC
+%token EXISTS
 %token FALSE
 %token FN
 %token FOR
@@ -46,6 +53,7 @@
 %token <Syntax.sign option>GTGT
 %token HAT
 %token IF
+%token IN
 %token INLINE
 %token <Syntax.sign option> LE
 %token <Syntax.sign option> LT
@@ -67,7 +75,8 @@
 %token ROR
 %token ROL
 %token SEMICOLON
-%token <Syntax.swsize> SWSIZE
+%token SUM
+%token <Syntax.swsize>SWSIZE
 %token <Syntax.svsize> SVSIZE
 %token <Syntax.sign option> SLASH
 %token STACK
@@ -325,8 +334,25 @@ pexpr_r:
 | e1=pexpr QUESTIONMARK e2=pexpr COLON e3=pexpr
     { PEIf(e1, e2, e3) }
 
+| bo= big LPAREN v=var IN e1=pexpr COLON e2=pexpr RPAREN LPAREN b=pexpr RPAREN
+    { PEbig (bo, e1, e2, v, b) }
+
+| RESULT DOT i=INT
+    { PEResult i}
+
+| RESULT DOT index=INT i=arr_access
+    { let aa, (ws, e, len, al) = i in PEResultGet (al, aa, ws, index, e, len) }
+
+
 pexpr:
 | e=loc(pexpr_r) { e }
+
+%inline big:
+| BIG LBRACKET o=peop2 SLASH e0=pexpr RBRACKET   { PEBop(o,e0) }
+| SUM                                            { PESum }
+| ALL                                            { PEAll }
+| EXISTS                                         { PEExists }
+
 
 (* -------------------------------------------------------------------- *)
 peqop:
@@ -372,8 +398,9 @@ plvalues:
 | LPAREN RPAREN { None, [] }
 | s=implicites { Some s, [] }
 | s=implicites COMMA lv=rtuple1(plvalue) { Some s, lv }
-
+  
 pinstr_r:
+
 | ARRAYINIT x=parens(var) SEMICOLON
     { PIArrayInit x }
 
@@ -384,6 +411,8 @@ pinstr_r:
     c=prefix(IF, pexpr)? SEMICOLON
     { let { Location.pl_loc = loc; Location.pl_desc = (f, args) } = fc in
       PIAssign ((None, []), `Raw, Location.mk_loc loc (PECall (f, args)), c) }
+
+| ASSERT e=pexpr SEMICOLON { PIAssert e }
 
 | s=pif { s }
 
@@ -477,6 +506,12 @@ call_conv :
 | EXPORT { `Export }
 | INLINE { `Inline }
 
+requires:
+| REQUIRES a=annotations LBRACE pe=pexpr RBRACE { (a,pe) }
+
+ensures:
+| ENSURES a=annotations LBRACE pe=pexpr RBRACE { (a,pe) }
+
 pfundef:
 |  pdf_annot = annotations
     cc=call_conv?
@@ -484,9 +519,12 @@ pfundef:
     name = ident
     args = parens_tuple(annot_pparamdecl)
     rty  = prefix(RARROW, tuple(annot_stor_type))?
+    pre = requires*
+    post = ensures*
     body = pfunbody
 
   { { pdf_annot;
+      pdf_contra = {pdc_pre=pre; pdc_post=post};
       pdf_cc   = cc;
       pdf_name = name;
       pdf_args = args;

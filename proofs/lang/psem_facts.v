@@ -177,7 +177,8 @@ Let Pc s1 (_: cmd) s2 : Prop := emem s1 ≡ emem s2.
 Let Pi s1 (_: instr) s2 : Prop := emem s1 ≡ emem s2.
 Let Pi_r s1 (_: instr_r) s2 : Prop := emem s1 ≡ emem s2.
 Let Pfor (_: var_i) (_: seq Z) s1 (_: cmd) s2 : Prop := emem s1 ≡ emem s2.
-Let Pfun (scs1:syscall_state) m1 (_: funname) (_: seq value) (scs2:syscall_state) m2 (_: seq value) : Prop := m1 ≡ m2.
+Let Pfun (scs1:syscall_state) m1 (_: funname) (_: seq value) (scs2:syscall_state) m2 (_: seq value)
+         (tr : contracts_trace) : Prop := m1 ≡ m2.
 
 Lemma mem_equiv_nil : sem_Ind_nil Pc.
 Proof. by []. Qed.
@@ -201,6 +202,9 @@ Proof.
   move=> /[dup] /write_lvals_validw ho3 /write_lvals_stack_stable ?.
   split; [rewrite ho1 | move=> ???; rewrite ho2] => //; exact: ho3.
 Qed.
+
+Lemma mem_equiv_assert : sem_Ind_assert P Pi_r.
+Proof. by []. Qed.
 
 Lemma mem_equiv_if_true : sem_Ind_if_true P ev Pc Pi_r.
 Proof. by []. Qed.
@@ -233,14 +237,14 @@ Qed.
 
 Lemma mem_equiv_call : sem_Ind_call P ev Pi_r Pfun.
 Proof.
-  move=> s1 scs2 m2 s2 xs fn args vargs vres _ _
-    ? /[dup] /write_lvals_validw ? /write_lvals_stack_stable ?.
+  move=> s1 scs2 m2 s2 s3 xs fn args vargs vres vpr vpo tr _ hpr _
+    ? /[dup] /write_lvals_validw ? /write_lvals_stack_stable ? hpo ->.
   red. etransitivity; by eauto.
 Qed.
 
 Lemma mem_equiv_proc : sem_Ind_proc P ev Pc Pfun.
 Proof.
-  move=> scs1 m1 scs2 m2 fn fd vargs vargs' s0 s1 s2 vres vres' ok_fd ok_vargs ok_s0 ok_s1 _ Hc _ _ -> ->.
+  move=> scs1 m1 scs2 m2 fn fd vargs vargs' s0 s1 s2 vres vres' vpr vpo tr ok_fd ok_vargs ok_s0 ok_s1 hpr _ Hc _ _ -> -> hpo ->.
   rewrite /Pc -(write_vars_memP ok_s1) in Hc.
   by apply (init_finalize_mem_equiv ok_s0 Hc).
 Qed.
@@ -256,6 +260,7 @@ Proof.
        mem_equiv_assgn
        mem_equiv_opn
        mem_equiv_syscall
+       mem_equiv_assert
        mem_equiv_if_true
        mem_equiv_if_false
        mem_equiv_while_true
@@ -278,6 +283,7 @@ Proof.
        mem_equiv_assgn
        mem_equiv_opn
        mem_equiv_syscall
+       mem_equiv_assert
        mem_equiv_if_true
        mem_equiv_if_false
        mem_equiv_while_true
@@ -300,6 +306,7 @@ Proof.
        mem_equiv_assgn
        mem_equiv_opn
        mem_equiv_syscall
+       mem_equiv_assert
        mem_equiv_if_true
        mem_equiv_if_false
        mem_equiv_while_true
@@ -311,8 +318,8 @@ Proof.
        mem_equiv_proc).
 Qed.
 
-Lemma sem_call_mem_equiv scs1 m1 fn vargs scs2 m2 vres :
-  sem_call P ev scs1 m1 fn vargs scs2 m2 vres → m1 ≡ m2.
+Lemma sem_call_mem_equiv scs1 m1 fn vargs scs2 m2 vres tr :
+  sem_call P ev scs1 m1 fn vargs scs2 m2 vres tr → m1 ≡ m2.
 Proof.
   exact:
     (sem_call_Ind
@@ -322,6 +329,7 @@ Proof.
        mem_equiv_assgn
        mem_equiv_opn
        mem_equiv_syscall
+       mem_equiv_assert
        mem_equiv_if_true
        mem_equiv_if_false
        mem_equiv_while_true
@@ -377,15 +385,15 @@ Proof.
   by move=> s1 s2 m2 ef /= [<-].
 Qed.
 
-Lemma sem_call_stack_stable_uprog (p : uprog) (ev : unit) scs1 m1 fn vargs scs2 m2 vres :
-  sem_call p ev scs1 m1 fn vargs scs2 m2 vres -> stack_stable m1 m2.
+Lemma sem_call_stack_stable_uprog (p : uprog) (ev : unit) scs1 m1 fn vargs scs2 m2 vres tr :
+  sem_call p ev scs1 m1 fn vargs scs2 m2 vres tr -> stack_stable m1 m2.
 Proof.
   apply sem_call_mem_equiv => {scs1 m1 fn vargs scs2 m2 vres}.
   by move=> s1 s2 m2 ef /= [<-].
 Qed.
 
-Lemma sem_call_validw_stable_uprog (p : uprog) (ev : unit) scs1 m1 fn vargs scs2 m2 vres :
-  sem_call p ev scs1 m1 fn vargs scs2 m2 vres -> validw m1 =3 validw m2.
+Lemma sem_call_validw_stable_uprog (p : uprog) (ev : unit) scs1 m1 fn vargs scs2 m2 vres tr :
+  sem_call p ev scs1 m1 fn vargs scs2 m2 vres tr -> validw m1 =3 validw m2.
 Proof.
   apply sem_call_mem_equiv => {scs1 m1 fn vargs scs2 m2 vres}.
   by move=> s1 s2 m2 ef /= [<-].
@@ -469,8 +477,8 @@ Proof.
   by apply (alloc_free_validw_stable hass hss hvalid).
 Qed.
 
-Lemma sem_call_stack_stable_sprog (p : sprog) (gd : pointer) scs1 m1 fn vargs scs2 m2 vres :
-  sem_call p gd scs1 m1 fn vargs scs2 m2 vres -> stack_stable m1 m2.
+Lemma sem_call_stack_stable_sprog (p : sprog) (gd : pointer) scs1 m1 fn vargs scs2 m2 vres tr :
+  sem_call p gd scs1 m1 fn vargs scs2 m2 vres tr -> stack_stable m1 m2.
 Proof.
   apply sem_call_mem_equiv => {scs1 m1 fn vargs scs2 m2 vres}.
   move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.
@@ -482,8 +490,8 @@ Proof.
   by apply (alloc_free_validw_stable hass hss hvalid).
 Qed.
 
-Lemma sem_call_validw_stable_sprog (p : sprog) (gd : pointer) scs1 m1 fn vargs scs2 m2 vres :
-  sem_call p gd scs1 m1 fn vargs scs2 m2 vres ->
+Lemma sem_call_validw_stable_sprog (p : sprog) (gd : pointer) scs1 m1 fn vargs scs2 m2 vres tr :
+  sem_call p gd scs1 m1 fn vargs scs2 m2 vres tr ->
   validw m1 =3 validw m2.
 Proof.
   apply sem_call_mem_equiv => {scs1 m1 fn vargs scs2 m2 vres}.
@@ -517,8 +525,8 @@ Let Pi_r s1 i s2 :=
 Let Pfor i r s1 c s2 :=
   ∀ s2', sem_for p ev i r s1 c s2' → s2 = s2'.
 
-Let Pfun scs1 m1 fn args scs2 m2 res :=
-  ∀ scs2' m2' res', sem_call p ev scs1 m1 fn args scs2' m2' res' → [/\ scs2 = scs2', m2 =  m2' & res = res'].
+Let Pfun scs1 m1 fn args scs2 m2 res tr :=
+  ∀ scs2' m2' res' tr', sem_call p ev scs1 m1 fn args scs2' m2' res' tr' → [/\ scs2 = scs2', m2 =  m2', res = res' & tr = tr'].
 
 Local Lemma sem_deter_nil : sem_Ind_nil Pc.
 Proof. by move => s s' /semE. Qed.
@@ -552,6 +560,11 @@ Local Lemma sem_deter_syscall : sem_Ind_syscall p Pi_r.
 Proof.
   red => s1 scs m s2 o xs es ves vs hes ho hw s2' /sem_iE [scs'] [m'] [ves'] [vs'] [].
   by rewrite hes => -[<-]; rewrite ho => -[<- <- <-]; rewrite hw => -[].
+Qed.
+
+Local Lemma sem_deter_assert : sem_Ind_assert p Pi_r.
+Proof.
+  by move=> s t pt e b eval_e s2 /sem_iE; rewrite eval_e => -[] ? [] [] -> ->.
 Qed.
 
 Local Lemma sem_deter_if_true : sem_Ind_if_true p ev Pc Pi_r.
@@ -597,23 +610,25 @@ Qed.
 
 Local Lemma sem_deter_call : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  red=> s1 scs2 m2 s2 xs fn args vargs vs ok_vargs _
-    ih ok_s2 s2' /sem_iE[] ? [] ? [] ? [] ?[].
-  rewrite ok_vargs => /ok_inj <- /ih[] <- <- <-.
-  rewrite ok_s2.
-  exact: ok_inj.
+  red=> s1 scs2 m2 s2 s3 xs fn args vargs vs vpr vpo tr ok_vargs hpr _
+    ih ok_s2 hpo -> s2' /sem_iE[] ? [] ? [] ? [] ? [] ? [] ? [] ? [] ? [].
+  rewrite ok_vargs => /ok_inj <-; rewrite hpr => -[<-] /ih[] <- <- <- <-.
+  by rewrite ok_s2 hpo => -[<-] [<-] ->.
 Qed.
 
 Local Lemma sem_deter_proc : sem_Ind_proc p ev Pc Pfun.
 Proof.
-  red => scs1 m1 scs2 m2 fn fd va va' s1 s2 s3 vr vr' ok_fd ok_va ok_s1 ok_s2 _ ih ok_vr ok_vr' -> -> scs3 m3 vres h.
+  red => scs1 m1 scs2 m2 fn fd va va' s1 s2 s3 vr vr' vpr vpo tr ok_fd ok_va ok_s1 ok_s2 hpr _ ih ok_vr ok_vr' -> ->
+   hpo -> scs3 m3 vres tr' h.
   have := sem_callE h; move=> [] ? [].
-  rewrite ok_fd => /Some_inj <- [] ? [] ? [] ? [] ? [] ? [].
+  rewrite ok_fd => /Some_inj <- [] ? [] ? [] ? [] ? [] ? [] ? [] ? [].
   rewrite ok_va => /ok_inj <- [].
   rewrite ok_s1 => /ok_inj <-.
-  rewrite ok_s2 => /ok_inj <- /ih <- [].
+  rewrite ok_s2 => /ok_inj <-.
+  rewrite hpr => /ok_inj <- /ih <- [].
   rewrite ok_vr => /ok_inj <-.
-  by rewrite ok_vr' => /ok_inj <- [] -> ->.
+  rewrite ok_vr' => /ok_inj <- [] -> ->.
+  by rewrite hpo => /ok_inj <- ->.
 Qed.
 
 Lemma sem_deterministic s1 c s2 s2' :
@@ -630,6 +645,7 @@ Proof.
        sem_deter_asgn
        sem_deter_opn
        sem_deter_syscall
+       sem_deter_assert
        sem_deter_if_true
        sem_deter_if_false
        sem_deter_while_true
@@ -656,6 +672,7 @@ Proof.
        sem_deter_asgn
        sem_deter_opn
        sem_deter_syscall
+       sem_deter_assert
        sem_deter_if_true
        sem_deter_if_false
        sem_deter_while_true
@@ -668,10 +685,10 @@ Proof.
        h).
 Qed.
 
-Lemma sem_call_deterministic scs1 m1 fn va scs2 m2 vr scs2' m2' vr' :
-  sem_call p ev scs1 m1 fn va scs2 m2 vr →
-  sem_call p ev scs1 m1 fn va scs2' m2' vr' →
-  [/\ scs2 = scs2', m2 = m2' & vr = vr'].
+Lemma sem_call_deterministic scs1 m1 fn va scs2 m2 vr tr scs2' m2' vr' tr' :
+  sem_call p ev scs1 m1 fn va scs2 m2 vr tr →
+  sem_call p ev scs1 m1 fn va scs2' m2' vr' tr' →
+  [/\ scs2 = scs2', m2 = m2', vr = vr' & tr = tr'].
 Proof.
   move => h.
   exact:
@@ -682,6 +699,7 @@ Proof.
        sem_deter_asgn
        sem_deter_opn
        sem_deter_syscall
+       sem_deter_assert
        sem_deter_if_true
        sem_deter_if_false
        sem_deter_while_true
@@ -706,6 +724,7 @@ Proof.
   1, 2, 6: by move => > _ > -> /= ->; eauto.
   1: by move => > _ > -> /= -> > -> /= -> > /= -> /= -> ->; eauto.
   3: by move => > _ > _ > _ > -> /= -> > -> /= -> > -> /= -> /= -> ->; eauto.
+  3: by move=> > _ > _ > _ > _ > -> /= -> > -> /= -> > /= -> /= -> /= ->; eauto.
   - case.
     7: case.
     1, 3-6, 8-9: by move => > _ > /= -> /= -> /= ->; eauto.

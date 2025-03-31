@@ -40,8 +40,8 @@ Record h_lowering_params
         (f : funname)
         (scs: syscall_state_t) (mem : low_memory.mem)
         (scs': syscall_state_t) (mem' : low_memory.mem)
-        (va vr : seq value),
-        sem_call (dc:= direct_c) p ev scs mem f va scs' mem' vr
+        (va vr : seq value) (tr : contracts_trace),
+        sem_call (dc:= direct_c) p ev scs mem f va scs' mem' vr tr
         -> let lprog :=
              lowering.lower_prog
                (lop_lower_i loparams)
@@ -50,7 +50,7 @@ Record h_lowering_params
                fv
                p
            in
-           sem_call lprog ev scs mem f va scs' mem' vr;
+           sem_call lprog ev scs mem f va scs' mem' vr tr;
   }.
 
 (* Lowering of complex addressing mode for RISC-V.
@@ -82,14 +82,15 @@ Record h_lower_addressing_params
     hlap_lower_addressP :
       forall fresh_reg (p p':_sprog),
       lap_lower_address laparams fresh_reg p = ok p' ->
-      forall ev scs mem f vs scs' mem' vr,
-      sem_call (pT:=progStack) p ev scs mem f vs scs' mem' vr ->
-      sem_call (pT:=progStack) p' ev scs mem f vs scs' mem' vr
+      forall ev scs mem f vs scs' mem' vr tr,
+      sem_call (pT:=progStack) p ev scs mem f vs scs' mem' vr tr ->
+      sem_call (pT:=progStack) p' ev scs mem f vs scs' mem' vr tr
   }.
 
 Record h_architecture_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
-  `{asm_e : asm_extra} {call_conv:calling_convention}
+  `{asm_e : asm_extra}
+  {call_conv:calling_convention}
   (lowering_options : Type)
   (aparams : architecture_params lowering_options) :=
   {

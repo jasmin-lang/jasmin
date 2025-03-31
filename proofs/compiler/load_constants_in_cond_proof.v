@@ -258,6 +258,15 @@ Proof.
   by apply/sem_seq1/EmkI/Eif_false.
 Qed.
 
+Local Lemma Hassert : sem_Ind_assert p Pi_r.
+Proof.
+  move => s t pt e b He Hs ii c' [<-] H vm Hvm.
+  exists vm => //.
+  apply/sem_seq1/EmkI; apply: Eassert.
+  rewrite eq_globs  -He -read_e_eq_on_empty //.
+  by apply: (eq_onI _ Hvm); SvD.fsetdec.
+Qed.
+
 Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
 Proof.
   move=> s1 s2 s3 s4 a c e info c' sem_s1_s2 H_s1_s2.
@@ -335,20 +344,48 @@ Proof.
   by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
 Qed.
 
+Local Lemma sem_pre_ok scs m fn vargs v:
+    sem_pre p scs m fn vargs = ok v ->
+    sem_pre p' scs m fn vargs = ok v.
+  Proof.
+  rewrite /sem_pre.
+  move: Hp ; rewrite /load_constants_prog.
+  apply: rbindP => funcs hmap [?]; subst p'.
+  case H: (get_fundef (p_funcs p) fn) => //=.
+  case : (get_map_cfprog_gen hmap H) => fd' /[swap] -> /=.
+  by rewrite /load_constants_fd; apply: rbindP => c' ? [<-].
+Qed.
+
+Local Lemma sem_post_ok scs m fn vargs vres vpo :
+  sem_post p scs m fn vargs vres = ok vpo ->
+  sem_post p' scs m fn vargs vres = ok vpo.
+Proof.
+  rewrite /sem_post.
+  move: Hp ; rewrite /load_constants_prog.
+  apply: rbindP => funcs hmap [?]; subst p'.
+  case H: (get_fundef (p_funcs p) fn) => //=.
+  case : (get_map_cfprog_gen hmap H) => fd' /[swap] -> /=.
+  by rewrite /load_constants_fd; apply: rbindP => c' ? [<-].
+Qed.
+
 Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s1 scs m s2 lv fn args vargs aout eval_args h1 h2 h3.
+  move=> s1 scs m s2 s3 lv fn args vargs aout vpre vpost tr eval_args.
+  move => Hpre ? Hfun Hlval Hpost Htrace; subst s3.
   move=> ii' X c' /= [<-]; rewrite !(read_Ii, write_Ii).
   rewrite !(read_i_call, write_i_call) => le_X vm1 eq_s1_vm1.
   have h : evm s1 =[read_es args] evm (with_vm s1 vm1).
   + by apply: eq_onI eq_s1_vm1; SvD.fsetdec.
   rewrite (eq_on_sem_pexprs _ _ _ h) in eval_args => //.
   rewrite -eq_globs in eval_args.
-  have []:= write_lvals_eq_on _ h3 eq_s1_vm1; first by SvD.fsetdec.
+  have []:= write_lvals_eq_on _ Hlval eq_s1_vm1; first by SvD.fsetdec.
   move=> vm2 hw eq_s2_vm2; exists vm2.
-  + by apply: eq_onI eq_s2_vm2; SvD.fsetdec.
-  apply/sem_seq1/EmkI; apply:(Ecall eval_args h2).
-  rewrite eq_globs; exact hw.
+  + apply: eq_onI eq_s2_vm2; SvD.fsetdec.
+  apply/sem_seq1/EmkI; apply:(Ecall eval_args _ Hfun).
+  + apply : sem_pre_ok Hpre.
+  + rewrite eq_globs; exact hw.
+  + apply : sem_post_ok Hpost.
+ done.
 Qed.
 
 Lemma eq_extra : p_extra p = p_extra p'.
@@ -358,29 +395,39 @@ Qed.
 
 Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
 Proof.
-  move=> sc1 m1 sc2 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hf Hvargs.
-  move=> Hs0 Hs1 Hsem_s2 Hs2 Hvres Hvres' Hscs2 Hm2; rewrite /Pfun.
-  have H := (all_progP _ Hf).
-  rewrite eq_extra in Hs0.
+  move=> sc1 m1 sc2 m2 fn f vargs vargs' s0 s1 s2 vres vres' vpre vpost tr.
+  move=>  Hf Hvargs Hs0 Hs1 Hpre Hsem_s2 Hs2 Hvres Hvres' Hscs2 Hm2 Hpost Htr.
+  rewrite /Pfun; rewrite eq_extra in Hs0.
   move : Hp; rewrite /load_constants_prog; t_xrbindP => y Hmap ?.
-  subst p'.
   case : (get_map_cfprog_gen Hmap Hf) => x Hupdate Hy.
   move : Hupdate.
   rewrite /load_constants_fd.
   t_xrbindP => z Hupdate_c Hwith_body.
   subst x => /=.
-  have [||x Hevms2 Hsem] := (Hs2 _ _ Hupdate_c _ (evm s1)) => //; first by SvD.fsetdec.
+  have [||x Hevms2 Hsem] := (Hs2 _ _ Hupdate_c _ (evm s1)) => //;
+                                     first by SvD.fsetdec.
   rewrite with_vm_same in Hsem.
-  eapply EcallRun ; try by eassumption.
-  rewrite -Hvres -!(sem_pexprs_get_var _ (p_globs p)).
-  symmetry; move : Hevms2; rewrite -read_esE; apply : read_es_eq_on.
+  apply: (EcallRun (vres:=vres)).
+  + subst p'. exact: Hy.
+  + exact: Hvargs.
+  + exact: Hs0.
+  + exact: Hs1.
+  + apply : sem_pre_ok Hpre.
+  + exact: Hsem.
+  + rewrite -Hvres  -!(sem_pexprs_get_var _ (p_globs p)).
+    symmetry; move : Hevms2; rewrite -read_esE; apply : read_es_eq_on.
+  + exact: Hvres'.
+  + assumption.
+  + assumption.
+  + apply: sem_post_ok Hpost.
+ done.
 Qed.
 
-Lemma load_constants_progP_aux f scs mem scs' mem' va vr:
-  sem_call p ev scs mem f va scs' mem' vr ->
-  sem_call p' ev scs mem f va scs' mem' vr.
+Lemma load_constants_progP_aux f scs mem scs' mem' va vr tr:
+  sem_call p ev scs mem f va scs' mem' vr tr ->
+  sem_call p' ev scs mem f va scs' mem' vr tr.
 Proof.
-  exact:
+  exact :
     (sem_call_Ind
        Hskip
        Hcons
@@ -388,6 +435,7 @@ Proof.
        Hassgn
        Hopn
        Hsyscall
+       Hassert
        Hif_true
        Hif_false
        Hwhile_true
@@ -405,9 +453,9 @@ Lemma load_constants_progP (p p' : prog) doit:
   load_constants_prog fresh_reg doit p = ok p' →
   ∀ (ev : extra_val_t) (f : funname) (scs : syscall_state_t)
     (mem : low_memory.mem) (scs' : syscall_state_t)
-    (mem' : low_memory.mem) (va vr : seq value),
-  sem_call p ev scs mem f va scs' mem' vr →
-  sem_call p' ev scs mem f va scs' mem' vr.
+    (mem' : low_memory.mem) (va vr : seq value) (tr: contracts_trace),
+  sem_call p ev scs mem f va scs' mem' vr tr →
+  sem_call p' ev scs mem f va scs' mem' vr tr.
 Proof.
   case: doit; first by apply load_constants_progP_aux.
   by move=> [<-].

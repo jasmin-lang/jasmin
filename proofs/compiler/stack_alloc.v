@@ -1046,6 +1046,9 @@ Fixpoint alloc_e (e:pexpr) ty :=
     Let e1 := alloc_e e1 ty in
     Let e2 := alloc_e e2 ty in
     ok (Pif ty e e1 e2)
+
+  | Pbig _ _ _ _ _ _ => Error (stk_ierror_no_var "Pbig is not supported in stack_alloc")
+
   end.
 
 Definition alloc_es es ty := mapM2 bad_arg_number alloc_e es ty.
@@ -1776,6 +1779,9 @@ Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region
     Let ri := add_iinfo ii (alloc_call sao rmap rs fn es) in
     ok (table, ri.1, [::MkI ii ri.2])
 
+  | Cassert t p e =>
+      Error (pp_at_ii ii (stk_ierror_no_var "don't deal with assert"))
+
   | Cfor _ _ _  => Error (pp_at_ii ii (stk_ierror_no_var "don't deal with for loop"))
 
   end.
@@ -2009,6 +2015,7 @@ Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_
       check_results pmap rmap paramsi fd.(f_params) sao.(sao_return) fd.(f_res) in
   ok {|
     f_info := f_info fd;
+    f_contra := None;
     f_tyin := map2 (fun o ty => if o is Some _ then sword Uptr else ty) sao.(sao_params) fd.(f_tyin);
     f_params := params;
     f_body := flatten body;

@@ -61,6 +61,7 @@ Fixpoint wi2w_e (e: pexpr) : pexpr :=
   | Papp2 o e1 e2 => Papp2 (wi2w_op2 o) (wi2w_e e1) (wi2w_e e2)
   | PappN o es => PappN o (map wi2w_e es)
   | Pif ty e1 e2 e3 => Pif ty (wi2w_e e1) (wi2w_e e2) (wi2w_e e3)
+  | Pbig ei o v e es el => Pbig (wi2w_e ei) o v (wi2w_e e) (wi2w_e es) (wi2w_e el)
   end.
 
 Definition wi2w_lv (x : lval) : lval :=
@@ -85,7 +86,10 @@ Fixpoint wi2w_ir (ir:instr_r) : instr_r :=
     Copn (map wi2w_lv xs) t o (map wi2w_e es)
 
   | Csyscall xs o es =>
-    Csyscall (map wi2w_lv xs) o (map wi2w_e es)
+      Csyscall (map wi2w_lv xs) o (map wi2w_e es)
+
+  | Cassert k p e =>
+      Cassert k p (wi2w_e e)
 
   | Cif b c1 c2 =>
     Cif (wi2w_e b) (map wi2w_i c1) (map wi2w_i c2)
@@ -105,9 +109,21 @@ with wi2w_i (i:instr) : instr :=
   let (ii,ir) := i in
   MkI ii (wi2w_ir ir).
 
+Definition wi2w_ci ci :=
+  let ci_pre := map (fun c =>
+                        let truc := wi2w_e (snd c) in
+                        (fst c, truc)) ci.(f_pre)
+  in
+  let ci_post := map (fun c =>
+                        let truc := wi2w_e (snd c) in
+                        (fst c, truc)) ci.(f_post)
+  in
+  MkContra ci.(f_iparams) ci.(f_ires) ci_pre ci_post.
+
 Definition wi2w_fun {eft} (f: _fundef eft) :=
-  let 'MkFun ii si p c so r ev := f in
-  MkFun ii si p (map wi2w_i c) so r ev.
+  let 'MkFun ii ci si p c so r ev := f in
+  let ci := Option.map wi2w_ci ci in
+  MkFun ii ci si p (map wi2w_i c) so r ev.
 
 (* This function is internal, variable annotation still contain "sint" "uint" after this pass *)
 Definition wi2w_prog_internal {pT:progT} (p: prog) : prog := map_prog wi2w_fun p.

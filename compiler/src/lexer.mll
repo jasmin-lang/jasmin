@@ -53,6 +53,10 @@
     "si128", T_W (U128, `WInt `Signed);
     "si256", T_W (U256, `WInt `Signed);
 
+    "requires" , REQUIRES;
+    "ensures", ENSURES;
+    "result", RESULT;
+
     "const" , CONSTANT;
     "downto", DOWNTO ;
     "else"  , ELSE   ;
@@ -63,6 +67,7 @@
     "from"  , FROM   ;
     "global", GLOBAL ;
     "if"    , IF     ;
+    "assert", ASSERT ;
     "inline", INLINE ;
     "mut"   , MUTABLE;
     "namespace", NAMESPACE;
@@ -81,6 +86,16 @@
   ]
 
   let keywords = Hash.of_enum (List.enum _keywords)
+
+  let _big = [ 
+    "all"   , ALL    ;
+    "big"   , BIG    ; 
+    "exists", EXISTS ;
+    "in"    , IN     ;
+    "sum"   , SUM    ;
+  ]
+
+  let big = Hash.of_enum (List.enum _big)
 
   let sign_of_char =
   function

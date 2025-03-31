@@ -353,8 +353,8 @@ Lemma riscv_lower_callP
   (_ : lop_fvars_correct riscv_loparams fv (p_funcs p))
   (f : funname)
   scs mem scs' mem'
-  (va vr : seq value) :
-  psem.sem_call p ev scs mem f va scs' mem' vr
+  (va vr : seq value) tr :
+  psem.sem_call p ev scs mem f va scs' mem' vr tr
   -> let lprog :=
        lowering.lower_prog
          (lop_lower_i riscv_loparams)
@@ -363,7 +363,7 @@ Lemma riscv_lower_callP
          fv
          p
      in
-     psem.sem_call lprog ev scs mem f va scs' mem' vr.
+     psem.sem_call lprog ev scs mem f va scs' mem' vr tr.
 Proof.
   exact: lower_callP.
 Qed.
@@ -380,8 +380,15 @@ Lemma riscv_hlaparams : h_lower_addressing_params (ap_lap riscv_params).
 Proof.
   split=> /=.
   + exact: (lower_addressing_prog_invariants (pT:=progStack)).
-  + exact: (lower_addressing_fd_invariants (pT:=progStack)).
-  exact: (lower_addressing_progP (pT:=progStack)).
+  + move => hreg  p p' ok_p'.
+    move=> fn fd get_fd.
+    move: ok_p'; rewrite /lower_addressing_prog.
+    t_xrbindP=> funcs ok_funcs <-.
+    have [fd' ok_fd' get_fd'] := get_map_cfprog_gen ok_funcs get_fd.
+    exists fd' => //.
+    move: ok_fd'; rewrite /lower_addressing_fd.
+    by t_xrbindP=> _ _ <- /=.
+    exact: (lower_addressing_progP (pT:=progStack)).
 Qed.
 
 (* ------------------------------------------------------------------------ *)

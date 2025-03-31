@@ -55,6 +55,14 @@ let pp_ge ~debug pp_len pp_var =
   | Pif(_, e,e1,e2) ->
     F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
       pp_expr e pp_expr e1 pp_expr e2
+  | Pbig(e, op, x, e1, e2, e0) ->
+    F.fprintf fmt "@[(\\big[%s/%a]@ (%a \\in %a:%a)@ (%a))@]"
+      (string_of_op2 op)
+      pp_expr e
+      pp_var_i x
+      pp_expr e1
+      pp_expr e2
+      pp_expr e0
   in
   pp_expr
 
@@ -117,6 +125,8 @@ let pp_align fmt = function
   | E.Align -> Format.fprintf fmt "#[align]@ "
   | E.NoAlign -> ()
 
+let pp_prover fmt s =  Format.fprintf fmt "%s"
+
 let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
   F.fprintf fmt "%a" pp_info (i.i_loc, i.i_info);
   F.fprintf fmt "%a" pp_annotations i.i_annot;
@@ -148,6 +158,10 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
   | Csyscall(x, o, e) ->
       F.fprintf fmt "@[<hov 2>%a =@ %s(%a);@]"
         (pp_glvs ~debug pp_len pp_var) x (pp_syscall o) (pp_ges ~debug pp_len pp_var) e
+
+  | Cassert(t, p, e) ->
+    F.fprintf fmt "@[<hov 2>assert@ %a;@]"
+     (pp_ge ~debug pp_len pp_var) e
 
   | Cif(e, c, []) ->
     F.fprintf fmt "@[<v>if %a %a@]"
@@ -216,11 +230,30 @@ let pp_call_conv fmt =
   | FInfo.Internal -> Format.fprintf fmt "inline@ "
   | FInfo.Subroutine _ -> ()
 
+<<<<<<< HEAD
 let pp_return_type pp_size fmt =
   let pp fmt (a, d) =
     F.fprintf fmt "%a%a" pp_annotations a (pp_ty_decl pp_size) d
   in
   F.fprintf fmt "%a" (pp_list ",@ " pp)
+=======
+let pp_clause ~debug pp_size pp_var fmt f = Format.fprintf fmt "%a" (pp_ge ~debug pp_size pp_var) f
+
+let rec pp_clauses ~debug pp_size pp_var prepost fmt cs =
+  match cs with
+  | [] -> Format.fprintf fmt ""
+  | (s,c)::q -> Format.fprintf fmt "@[%s #[prover=%s] {%a}@ %a@]" prepost s
+                   (pp_clause ~debug pp_size pp_var) c
+                   (pp_clauses ~debug pp_size pp_var prepost) q
+
+let pp_contra ~debug pp_size pp_var fmt fd =
+  match fd.f_contra with
+  | None -> ()
+  | Some  ct ->
+    F.fprintf fmt "%a@ %a"
+      (pp_clauses ~debug pp_size pp_var "requires") ct.f_pre
+      (pp_clauses ~debug pp_size pp_var "ensures") ct.f_post
+>>>>>>> 1786885dd (Add support for annotations)
 
 let pp_gfun ~debug pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_size in
@@ -241,6 +274,7 @@ let pp_gfun ~debug pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var 
     F.fprintf fmt "return @[(%a)@];"
       (pp_list ",@ " pp_var) ret in
 
+<<<<<<< HEAD
 
   F.fprintf fmt "@[<v>%a%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
    pp_annotations fd.f_annot.f_user_annot
@@ -248,6 +282,14 @@ let pp_gfun ~debug pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var 
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_return_type pp_size) (List.combine fd.f_ret_info.ret_annot (List.map2 set_var_type ret fd.f_tyout))
+=======
+  F.fprintf fmt "@[<v>%afn %s @[(%a)@] -> @[(%a)@]@ %a@ {@   @[<v>%a@ %a@ %a@]@ }@]"
+   pp_call_conv fd.f_cc
+   fd.f_name.fn_name
+   (pp_list ",@ " pp_vd) fd.f_args
+   (pp_list ",@ " (pp_ty_decl pp_size)) ret
+   (pp_contra ~debug pp_size pp_var) fd
+>>>>>>> 1786885dd (Add support for annotations)
    pp_locals fd
    (pp_gc ~debug pp_info pp_size pp_opn pp_var) fd.f_body
    pp_ret ()
@@ -312,11 +354,12 @@ let pp_fun_ ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
     F.fprintf fmt "return @[(%a)@];"
       (pp_list ",@ " pp_var) ret in
 
-  F.fprintf fmt "@[<v>%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>%afn %s @[(%a)@] -> @[(%a)@]@ %a@ {@   @[<v>%a@ %a@ %a@]@ }@]"
    pp_call_conv fd.f_cc
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_len)) ret
+   (pp_contra ~debug pp_len pp_var) fd
    pp_locals locals
    (pp_gc ~debug pp_info pp_len pp_opn pp_var) fd.f_body
    pp_ret ()

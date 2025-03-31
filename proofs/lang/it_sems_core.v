@@ -206,6 +206,26 @@ Definition sem_cond (gd : glob_decls) (e : pexpr) (s : estate) : exec bool :=
 Definition isem_cond (e : pexpr) (s : estate) : itree E bool :=
   iresult s (sem_cond (p_globs p) e s).
 
+Definition sem_assert (e : pexpr) (s : estate) : exec unit :=
+  Let b := sem_cond (p_globs p) e s in
+  Let _ := assert (b == true) ErrAssert in
+  ok tt.
+
+Definition isem_assert (e: pexpr) (s: estate) : itree E unit :=
+  iresult s (sem_assert e s).
+
+(* Definition sem_pre {dc: DirectCall} (scs: syscall_state) (m:mem) *)
+(*   (fn:funname) (vargs' : values) : exec unit := *)
+(*   if get_fundef (p_funcs P) fn is Some f then *)
+(*     match f.(f_contra) with *)
+(*     | Some ci => *)
+(*       Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in *)
+(*       Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate scs m Vm.init [::]) in *)
+(*       foldM (fun (p:_ * _) => sem_pexpr true gd s p.2 >>= to_bool) ci.(f_pre) *)
+(*     | None => ok tt *)
+(*     end *)
+(*   else Error ErrUnknowFun. *)
+
 Definition sem_bound (gd : glob_decls) (lo hi : pexpr) (s : estate) :
     exec (Z * Z) :=
   (Let vlo := sem_pexpr true gd s lo >>= to_int in
@@ -266,7 +286,7 @@ Class sem_Fun (E : Type -> Type) :=
 
 #[global]
 Instance sem_fun_rec (E : Type -> Type) : sem_Fun (recCall +' E) | 0 :=
-  {| sem_fun := fun _ _ => rec_call (E:=E) |}.
+  {| sem_fun := fun _ _  => rec_call (E:=E)|}.
 
 Section SEM_I.
 
@@ -284,6 +304,12 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
 
   | Csyscall xs o es => iresult s (sem_syscall p xs o es s)
 
+  | Cassert k pr e =>
+      (* b <- isem_cond p e s;; *)
+      (* iresult s (ok (add_contract s (k, b))) *)
+      _ <- isem_assert p e s;;
+      iresult s (ok s)
+
   | Cif e c1 c2 =>
     b <- isem_cond p e s;;
     isem_foldr isem_i_body p ev (if b then c1 else c2) s
@@ -297,7 +323,10 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
 
   | Ccall xs fn args =>
     vargs <- isem_pexprs  (~~direct_call) (p_globs p) args s;;
+    (* vpre <- sem_pre p s.(escs) s.(emem) fn vargs;; *)
     fs <- sem_fun p ev fn (mk_fstate vargs s) ;;
+    (* vpost <- sem_post P scs2 m2 f vargs vs ;; *)
+    (* s3 <- add_assumes (add_contracts (add_asserts s2 vpre) tr) vpost;; *)
     iresult s (upd_estate (~~direct_call) (p_globs p) xs fs s)
   end.
 (* similar, for commands *)
@@ -328,8 +357,8 @@ Qed.
 Definition estate0 (fs : fstate) :=
   Estate fs.(fscs) fs.(fmem) Vm.init.
 
-Definition initialize_funcall (p : prog) (ev : extra_val_t) (fd : fundef) (fs : fstate) : exec estate :=
-  let sinit := estate0 fs in
+Definition initialize_funcall (p : prog) (ev : extra_val_t) (fd : fundef) (fs : fstate) tr : exec estate :=
+  let sinit := estate0 fs tr in
   Let vargs' := mapM2 ErrType dc_truncate_val fd.(f_tyin) fs.(fvals) in
   Let s0 := init_state fd.(f_extra) (p_extra p) ev sinit in
   write_vars (~~direct_call) fd.(f_params) vargs' s0.
@@ -348,8 +377,8 @@ Definition ifinalize_funcall (fd : fundef) (s:estate) : itree E fstate :=
 Definition isem_fun_body (p : prog) (ev : extra_val_t)
    (fn : funname) (fs : fstate) :=
    fd <- kget_fundef (p_funcs p) fn fs;;
-   let sinit := estate0 fs in
-   s1 <- iresult sinit (initialize_funcall p ev fd fs);;
+   let sinit := estate0 fs [::] in
+   s1 <- iresult sinit (initialize_funcall p ev fd fs [::]);;
    s2 <- isem_cmd_ p ev fd.(f_body) s1;;
    iresult s2 (finalize_funcall fd s2).
 
@@ -371,8 +400,8 @@ Definition isem_cmd_rec (p : prog) (ev : extra_val_t) (c : cmd) (s : estate)
   isem_cmd_ p ev c s.
 
 (* similar, for function calls *)
-Definition isem_fun_rec (p : prog) (ev : extra_val_t)
-   (fn : funname) (fs : fstate) : itree (recCall +' E) fstate :=
+Definition isem_fun_rec (p : prog) (ev : extra_val_t) (fn : funname)
+  (fs : fstate) : itree (recCall +' E) fstate :=
   isem_fun_body p ev fn fs.
 
 (* handler of recCall events *)
@@ -385,7 +414,7 @@ Definition handle_recCall (p : prog) (ev : extra_val_t) :
 
 (* intepreter of recCall events for functions, giving us the recursive
    semantics of functions *)
-Definition isem_fun (p : prog) (ev : extra_val_t) (fn : funname) (fs : fstate) : itree E fstate :=
+Definition isem_fun (p : prog) (ev : extra_val_t) (fn : funname) (fs : fstate): itree E fstate :=
   mrec (handle_recCall p ev) (RecCall fn fs).
 
 #[global]
@@ -458,10 +487,15 @@ Proof.
     (Pc := fun c => forall s,
        eutt (E:=E) eq (interp_rec (isem_foldr isem_i_rec p ev c s))
                       (isem_cmd p ev c s))) => // {c s}.
-  + move=> s /=; rewrite interp_ret; reflexivity.
+  + move=> s /=; rewrite interp_ret ; reflexivity.
   + move=> i c hi hc s; rewrite interp_bind;apply eqit_bind; first by apply hi.
     by move=> s'; apply hc.
-  1-3: by move=> >; apply interp_iresult.
+    1-3: move=> > ; apply interp_iresult.
+  + move => k ap e ii s /=.
+    rewrite interp_bind.
+    apply eqit_bind.
+    by apply interp_iresult.
+    move => ?; rewrite interp_ret; reflexivity.
   + move=> e c1 c2 hc1 hc2 ii s; rewrite /isem_i /isem_i_rec /=.
     rewrite interp_bind; apply eqit_bind.
     + by apply interp_iresult.

@@ -9,7 +9,7 @@ Import Utf8.
 Definition gd_incl (gd1 gd2: glob_decls) :=
   forall g v, get_global gd1 g = ok v -> get_global gd2 g = ok v.
 
-Lemma gd_inclT gd3 gd1 gd2 :  gd_incl gd1 gd3 -> gd_incl gd3 gd2 -> gd_incl gd1 gd2.
+Lemma gd_inclT  gd3 gd1 gd2 :  gd_incl gd1 gd3 -> gd_incl gd3 gd2 -> gd_incl gd1 gd2.
 Proof. by move=> h1 h2 g v /h1 /h2. Qed.
 
 Module INCL. Section INCL.
@@ -23,41 +23,43 @@ Module INCL. Section INCL.
     {sip : SemInstrParams asm_op syscall_state}.
 
   Section INCL_E.
-    Context (wdb : bool) (gd1 gd2 : glob_decls) (s : estate) (hincl : gd_incl gd1 gd2).
+    Context (wdb : bool) (gd1 gd2 : glob_decls) (hincl : gd_incl gd1 gd2).
     Let P e : Prop :=
-      ∀ v, sem_pexpr wdb gd1 s e = ok v → sem_pexpr wdb gd2 s e = ok v.
+      ∀ s v, sem_pexpr wdb gd1 s e = ok v → sem_pexpr wdb gd2 s e = ok v.
     Let Q es : Prop :=
-      ∀ vs, sem_pexprs wdb gd1 s es = ok vs → sem_pexprs wdb gd2 s es = ok vs.
+      ∀ s vs, sem_pexprs wdb gd1 s es = ok vs → sem_pexprs wdb gd2 s es = ok vs.
 
-    Lemma gd_incl_gvar (x : gvar) (v : value) :
+    Lemma gd_incl_gvar s (x : gvar) (v : value) :
       get_gvar wdb gd1 (evm s) x = ok v → get_gvar wdb gd2 (evm s) x = ok v.
     Proof. by rewrite /get_gvar; case: x => x [] //=; apply: hincl. Qed.
 
     Lemma gd_incl_e_es : (∀ e, P e) ∧ (∀ es, Q es).
     Proof.
       apply: pexprs_ind_pair; split; subst P Q => //=.
-      - move => e rec es ih q; t_xrbindP => v ok_v vs ok_vs <- {q}.
-        by rewrite (rec _ ok_v) /= (ih _ ok_vs).
-      - by apply gd_incl_gvar.
-      - move => al aa sz x e rec v; apply: on_arr_gvarP => n t h1 h2; t_xrbindP => z v1 /rec -> hz w.
+      - move => e rec es ih s q; t_xrbindP => v ok_v vs ok_vs <- {q}.
+        by rewrite (rec _ _ ok_v) /= (ih _ _ ok_vs).
+      - by move=> /[swap]; apply gd_incl_gvar.
+      - move => al aa sz x e rec s v; apply: on_arr_gvarP => n t h1 h2; t_xrbindP => z v1 /rec -> hz w.
         by rewrite /on_arr_var (gd_incl_gvar h2) /= hz /= => -> <-.
-      - move=> aa sz len x e rec v; apply: on_arr_gvarP => n t h1 h2; t_xrbindP => z v1 /rec -> hz w.
+      - move=> aa sz len x e rec s v; apply: on_arr_gvarP => n t h1 h2; t_xrbindP => z v1 /rec -> hz w.
         by rewrite /on_arr_var  (gd_incl_gvar h2) /= hz /= => -> <-.
-      - by move => al sz x e hrec v; t_xrbindP => ?? -> /= -> ?? /hrec -> /= -> ? /= -> <-.
-      - by move=> ? e hrec v; t_xrbindP => ? /hrec -> <-.
-      - by move=> ? e1 hrec1 e2 hrec2 v; t_xrbindP => ? /hrec1 -> ? /= /hrec2 -> <-.
-      - by move => op es rec v; rewrite -!/(sem_pexprs _ _ _); t_xrbindP => vs /rec ->.
-      move=> t e1 hrec1 e2 hrec2 e3 hrec3 v.
-      by t_xrbindP => ?? /hrec1 -> /= -> ?? /hrec2 -> /= -> ?? /hrec3 -> /= -> /= <-.
+      - by move => al sz x e hrec s v; t_xrbindP => ?? -> /= -> ?? /hrec -> /= -> ? /= -> <-.
+      - by move=> ? e hrec s v; t_xrbindP => ? /hrec -> <-.
+      - by move=> ? e1 hrec1 e2 hrec2 s v; t_xrbindP => ? /hrec1 -> ? /= /hrec2 -> <-.
+      - by move => op es rec s v; rewrite -!/(sem_pexprs _ _ _); t_xrbindP => vs /rec ->.
+      - move=> t e1 hrec1 e2 hrec2 e3 hrec3 s v.
+        by t_xrbindP => ?? /hrec1 -> /= -> ?? /hrec2 -> /= -> ?? /hrec3 -> /= -> /= <-.
+      move=> > hi > hb > hs > hl s v; t_xrbindP => > /hs -> /= -> /= > /hl -> /= -> /= vi ? /hi -> /= ->  /=.
+      by elim: ziota vi => [ | j js hrec] vi //=; t_xrbindP => > -> /= > /hb -> /= ->; apply: hrec.
     Qed.
 
   End INCL_E.
 
   Definition gd_incl_e wdb gd1 gd2 s e v h :=
-    (@gd_incl_e_es wdb gd1 gd2 s h).1 e v.
+    (@gd_incl_e_es wdb gd1 gd2 h).1 e s v.
 
   Definition gd_incl_es wdb gd1 gd2 s es vs h :=
-    (@gd_incl_e_es wdb gd1 gd2 s h).2 es vs.
+    (@gd_incl_e_es wdb gd1 gd2 h).2 es s vs.
 
   Lemma gd_incl_wl wdb gd1 gd2 x v (s1 s2:estate) :
     gd_incl gd1 gd2 ->
@@ -133,6 +135,11 @@ Module INCL. Section INCL.
     econstructor; eauto.
   Qed.
 
+  Local Lemma Hassert : sem_Ind_assert P1 Pi_r.
+  Proof.
+    by move=> s1 t p e b he; apply: Eassert; apply (gd_incl_e hincl).
+  Qed.
+
   Local Lemma Hif_true : forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
     sem_pexpr true gd s1 e = ok (Vbool true) ->
     sem P1 ev s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
@@ -170,17 +177,37 @@ Module INCL. Section INCL.
   Local Lemma Hfor_cons : sem_Ind_for_cons P1 ev Pc Pfor.
   Proof. move=> ???????? h1 ? h2 h3 h4;econstructor;eauto. Qed.
 
+  Local Lemma sem_pre_ok scs m fn vargs v:
+    sem_pre P1 scs m fn vargs = ok v ->
+    sem_pre P2 scs m fn vargs = ok v.
+  Proof.
+    rewrite /sem_pre /P2 /=; case: get_fundef => fd //; t_xrbindP.
+    case: f_contra => // ?; t_xrbindP.
+    move=> > -> /= s1 -> /=.
+    by elim: f_pre v => //= j js hrec v; t_xrbindP => > /(gd_incl_e hincl) -> /= -> /= > /hrec -> <-.
+  Qed.
+
+  Local Lemma sem_post_ok scs m fn vargs vres v:
+    sem_post P1 scs m fn vargs vres = ok v ->
+    sem_post P2 scs m fn vargs vres = ok v.
+  Proof.
+    rewrite /sem_post /P2; case: get_fundef => fd //; t_xrbindP.
+    case: f_contra => // ?; t_xrbindP.
+    move=> > -> /= s1 -> /= > -> /=.
+    by elim: f_post v => //= j js hrec v; t_xrbindP => > /(gd_incl_e hincl) -> /= -> /= > /hrec -> <-.
+  Qed.
+
   Local Lemma Hcall : sem_Ind_call P1 ev Pi_r Pfun.
   Proof.
-    move=> ????????? /(gd_incl_es hincl) h1 ? h2 /(gd_incl_wls hincl) h3.
+    move=> > /(gd_incl_es hincl) h1 /sem_pre_ok hpr ? h2 /(gd_incl_wls hincl) h3 /sem_post_ok hpo ->.
     econstructor;eauto.
   Qed.
 
   Local Lemma Hproc : sem_Ind_proc P1 ev Pc Pfun.
-  Proof. move=> ?????????? h1 h2 h3 ? h4 h5 h6; econstructor;eauto. Qed.
+  Proof. move=> > ???? /sem_pre_ok hpr ?????? /sem_post_ok hpo ->; econstructor;eauto. Qed.
 
-  Lemma gd_incl_fun scs m (fn : funname) (l : seq value) scs0 m0 vs:
-      sem_call P1 ev scs m fn l scs0 m0 vs -> Pfun scs m fn l scs0 m0 vs.
+  Lemma gd_incl_fun scs m (fn : funname) (l : seq value) scs0 m0 vs tr:
+      sem_call P1 ev scs m fn l scs0 m0 vs tr -> Pfun scs m fn l scs0 m0 vs tr.
   Proof.
     exact:
       (sem_call_Ind
@@ -190,6 +217,7 @@ Module INCL. Section INCL.
          Hasgn
          Hopn
          Hsyscall
+         Hassert
          Hif_true
          Hif_false
          Hwhile_true
@@ -237,7 +265,7 @@ Section PROOFS.
   (* TODO: Move *)
   Lemma hasPP T (a : pred T) (s : seq T): reflect (exists2 x : T, List.In x s & a x) (has a s).
   Proof.
-    elim: s => /=;first by constructor => -[]. 
+    elim: s => /=;first by constructor => -[].
     move=> x l ih; apply (equivP orP);split.
     + by move=> [ h| /ih []];eauto.
     move=> [x' [<- ?| ??]];first by auto.
@@ -274,6 +302,13 @@ Section PROOFS.
     by t_xrbindP => gd3 /hc1 h1 /hc2; apply: gd_inclT.
   Qed.
 
+  Local Lemma Hassert  : forall t p e, Pr (Cassert t p e).
+  Proof.
+    move=> t p e ii gd1 gd2 /=.
+    t_xrbindP => gd3 h1 v h.
+    by rewrite <- gd3.
+  Qed.
+
   Local Lemma Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Proof. by move=> ????? hc ii gd1 gd2 /= /hc. Qed.
 
@@ -290,7 +325,7 @@ Section PROOFS.
     foldM (extend_glob_i fresh_id) gd1 c = ok gd2 ->
     gd_incl gd1 gd2.
   Proof.
-    exact: (cmd_rect Hmk Hnil Hcons Hasgn Hopn Hsyscall Hif Hfor Hwhile Hcall).
+    exact: (cmd_rect Hmk Hnil Hcons Hasgn Hopn Hsyscall Hassert Hif Hfor Hwhile Hcall).
   Qed.
 
 End PROOFS.
@@ -333,7 +368,7 @@ Module RGP. Section PROOFS.
   Notation P' := {|p_globs := gd; p_funcs := fds; p_extra := p_extra P |}.
 
   Definition valid (m:venv) (s1 s2:estate) :=
-    [/\ s1.(escs) = s2.(escs), s1.(emem) = s2.(emem),
+    [/\ s1.(escs) = s2.(escs), s1.(emem) = s2.(emem), s1.(eassert) = s2.(eassert),
         (forall x, ~~is_glob_var x -> (evm s1).[x] = (evm s2).[x]),
         (forall x g, Mvar.get m x = Some g -> is_glob_var x) &
         (forall x g,
@@ -341,86 +376,91 @@ Module RGP. Section PROOFS.
            get_global gd g = ok (evm s1).[x]) ].
 
   Section REMOVE_GLOB_E.
-    Context (wdb : bool) (m: venv) (ii: instr_info) (s1 s2: estate) (hvalid: valid m s1 s2).
+    Context (wdb : bool) (ii: instr_info) .
 
     Let Pe e : Prop :=
-      ∀ e' v,
+      ∀ (m: venv) (s1 s2: estate) (hvalid: valid m s1 s2) e' v,
         remove_glob_e ii m e = ok e' →
         sem_pexpr wdb gd s1 e = ok v →
         sem_pexpr wdb gd s2 e' = ok v.
 
     Let Pes es : Prop :=
-      ∀ es' vs,
+      ∀ (m: venv) (s1 s2: estate) (hvalid: valid m s1 s2) es' vs,
         mapM (remove_glob_e ii m) es = ok es' →
         sem_pexprs wdb gd s1 es = ok vs →
         sem_pexprs wdb gd s2 es' = ok vs.
 
+    Lemma write_var_remove (x:var_i) m s1 s2 v s1' :
+      ~~ is_glob_var x ->
+      valid m s1 s2 ->
+      write_var wdb x v s1 = ok s1' ->
+      exists s2', valid m s1' s2' /\ write_var wdb x v s2 = ok s2'.
+    Proof.
+      move=> hglob hval /write_varP [-> hdb htr].
+      rewrite (write_var_truncate hdb htr); eexists; split; eauto.
+      case: hval => hsc hmem heassert h1 h2 h3; split => //= z hz.
+      + by rewrite !Vm.setP h1.
+      move=> hv1; rewrite Vm.setP_neq; first by apply h3.
+      by apply/eqP => ?; subst z; rewrite (h2 _ _ hv1) in hglob.
+    Qed.
+
     Lemma remove_glob_e_esP : (∀ e, Pe e) ∧ (∀ es, Pes es).
     Proof.
-      case: hvalid => hscs hmem hm1 hm2 hm3.
       apply: pexprs_ind_pair; subst Pe Pes; split => //=.
-      - by move => _ _ [<-] [<-].
-      - move => e he es hes q qs; t_xrbindP => e' ok_e' es' ok_es' <- {q} v ok_v vs ok_vs <- {qs} /=.
-        by rewrite (he _ _ ok_e' ok_v) (hes _ _ ok_es' ok_vs).
-      - by move => z _ _ [<-] [<-].
-      - by move => b _ _ [<-] [<-].
-      - by move => n _ _ [<-] [<-].
-      - move => [x []] e' v /=; rewrite /get_gvar /get_var_ /=.
+      - by move => m s1 s2 hval _ _ [<-] [<-].
+      - move => e he es hes m s1 s2 hval q qs; t_xrbindP => e' ok_e' es' ok_es' <- {q} v ok_v vs ok_vs <- {qs} /=.
+        by rewrite (he _ _ _ hval _ _ ok_e' ok_v) (hes _ _ _ hval _ _ ok_es' ok_vs).
+      1-3: by move => > ? > [<-] [<-].
+      - move => [x []] m s1 s2 [hscs hmem hassert hm1 hm2 hm3] e' v /=; rewrite /get_gvar /get_var_ /=.
         + case : ifP => hx.
           + case heq: (Mvar.get _ _) => [ g | // ] [<-] /=.
             by rewrite /get_gvar /get_var /=; t_xrbindP => hdef <-; apply hm3.
           by move=> [<-] h; rewrite /= /get_gvar /get_var -hm1 // hx.
         by case => [<-] h;rewrite /= /get_gvar /=.
-      - move => al aa ws [x []] e he q v; rewrite /get_var_ /=; t_xrbindP => e' ok_e'; last first.
+      - move => al aa ws [x []] e he m s1 s2 hval q v; rewrite /get_var_ /=; t_xrbindP => e' ok_e'; last first.
         + move=> <- /=; apply: on_arr_gvarP; rewrite /on_arr_var /get_gvar /= => n t heq ->.
-          by t_xrbindP => ?? /(he _ _ ok_e') -> /= -> ? /= -> <-.
+          by t_xrbindP => ?? /(he _ _ _ hval _ _ ok_e') -> /= -> ? /= -> <-.
+        case hval => hscs hmem hassert hm1 hm2 hm3.
         move=> gx; case: ifPn => // hx; last first.
         + move=> [<-] <-;apply: on_arr_gvarP; rewrite /= /on_arr_var /get_gvar /= => n t heq.
-          by rewrite /get_var -hm1 // => -> /=; t_xrbindP => ?? /(he _ _ ok_e') -> /= -> ? /= -> <-.
+          by rewrite /get_var -hm1 // => -> /=; t_xrbindP => ?? /(he _ _ _ hval _ _ ok_e') -> /= -> ? /= -> <-.
         case heq: (Mvar.get _ _) => [ g | // ] [<-] <-.
         apply: on_arr_gvarP; rewrite /= /on_arr_var /get_gvar /get_var /= => n t ?.
-        by t_xrbindP => hdef; have:= hm3 _ _ heq => -> -> /= ?? /(he _ _ ok_e') -> /= -> ? /= -> <-.
-      - move => aa ws len [x []] e he q v; rewrite /get_var_ /=; t_xrbindP => e' ok_e'; last first.
+        by t_xrbindP => hdef; have:= hm3 _ _ heq => -> -> /= ?? /(he _ _ _ hval _ _ ok_e') -> /= -> ? /= -> <-.
+      - move => aa ws len [x []] e he m s1 s2 hval q v; rewrite /get_var_ /=; t_xrbindP => e' ok_e'; last first.
         + move=> <- /=; apply: on_arr_gvarP; rewrite /on_arr_var /get_gvar /= => n t heq ->.
-          by t_xrbindP => ?? /(he _ _ ok_e') -> /= -> ? /= -> <-.
+          by t_xrbindP => ?? /(he _ _ _ hval _ _ ok_e') -> /= -> ? /= -> <-.
+        case hval => hscs hmem hassert hm1 hm2 hm3.
         move=> gx; case: ifPn => // hx; last first.
         + move=> [<-] <-;apply: on_arr_gvarP; rewrite /= /on_arr_var /get_gvar /get_var /= => n t heq.
-          by rewrite -hm1 // => -> /=; t_xrbindP => ?? /(he _ _ ok_e') -> /= -> ? /= -> <-.
+          by rewrite -hm1 // => -> /=; t_xrbindP => ?? /(he _ _ _ hval _ _ ok_e') -> /= -> ? /= -> <-.
         case heq: (Mvar.get _ _) => [ g | // ] [<-] <-.
         apply: on_arr_gvarP; rewrite /= /on_arr_var /get_gvar /get_var /= => n t ?.
-        by t_xrbindP; have := hm3 _ _ heq => -> ? -> /= ?? /(he _ _ ok_e') -> /= -> ? /= -> <-.
-      - move => ???? ih ??; case: ifPn => // hn; rewrite /get_gvar /get_var.
-        t_xrbindP => ? /ih h <- /= ??; rewrite (hm1 _ hn) /get_var => -> -> /= -> ?? /h -> /= -> ? /=.
+        by t_xrbindP; have := hm3 _ _ heq => -> ? -> /= ?? /(he _ _ _ hval _ _ ok_e') -> /= -> ? /= -> <-.
+      - move => ???? ih m s1 s2 hval ??; rewrite /get_gvar /get_var.
+        case hval => hscs hmem hassert hm1 hm2 hm3.
+        t_xrbindP => hn ? /(ih _ _ _ hval) h <- /= ??; rewrite (hm1 _ hn) /get_var => -> -> /= -> ?? /h -> /= -> ? /=.
         by rewrite hmem => -> <-.
-      - by move=> ?? hrec ??; t_xrbindP => ? /hrec h <- /= ? /h -> /=.
-      - by move=> ?? hrec1 ? hrec2 ??; t_xrbindP=> ? /hrec1 h1 ? /hrec2 h2 <- ? /= /h1 -> ? /h2 ->.
-      - move => ?? ih ??; t_xrbindP => ? /ih{}ih <- ? /ih /=.
+      - by move=> ?? hrec m s1 s2 hval ??; t_xrbindP => ? /(hrec _ _ _ hval) h <- /= ? /h -> /=.
+      - by move=> ?? hrec1 ? hrec2 m s1 s2 hval ??; t_xrbindP=> ? /(hrec1 _ _ _ hval) h1 ? /(hrec2 _ _ _ hval) h2 <- ? /= /h1 -> ? /h2 ->.
+      - move => ?? ih m s1 s2 hval ??; t_xrbindP => ? /(ih _ _ _ hval) {ih} ih <- ? /ih /=.
         by rewrite -/(sem_pexprs _ _ _) => ->.
-      move=> ? ? hrec1 ? hrec2 ? hrec3 ??.
-      by t_xrbindP => ? /hrec1 h1 ? /hrec2 h2 ? /hrec3 h3 <- ?? /= /h1 -> /= -> ?? /h2 -> /= -> ?? /h3 -> /= -> <-.
+      - move=> ? ? hrec1 ? hrec2 ? hrec3 m s1 s2 hval ??.
+        by t_xrbindP => ? /(hrec1 _ _ _ hval) h1 ? /(hrec2 _ _ _ hval) h2 ? /(hrec3 _ _ _ hval) h3 <- ?? /= /h1 -> /= -> ?? /h2 -> /= -> ?? /h3 -> /= -> <-.
+      move=> > hi > hb > hs > hl m s1 s2 hval ??; t_xrbindP.
+      move=> hn > /(hi _ _ _ hval){}hi > /(hs _ _ _ hval){}hs > /(hl _ _ _ hval){}hl > /hb{}hb <- /= > /hs -> /= ->.
+      move=> > /hl -> /= -> /= v1 ? /hi -> /= -> /=.
+      elim: ziota v1 => //= j js hrec v1; t_xrbindP => vf > /(write_var_remove hn hval) [s2' [hval' -> /=]].
+      by move=> > /(hb _ _ hval') -> /= -> /=; apply hrec.
     Qed.
 
   End REMOVE_GLOB_E.
 
   Definition remove_glob_eP wdb m ii s1 s2 e e' v h :=
-    (@remove_glob_e_esP wdb m ii s1 s2 h).1 e e' v.
+    (@remove_glob_e_esP wdb ii).1 e m s1 s2 h e' v.
 
   Definition remove_glob_esP wdb m ii s1 s2 es es' vs h :=
-    (@remove_glob_e_esP wdb m ii s1 s2 h).2 es es' vs.
-
-  Lemma write_var_remove wdb (x:var_i) m s1 s2 v s1' :
-    ~~ is_glob_var x ->
-    valid m s1 s2 ->
-    write_var wdb x v s1 = ok s1' ->
-    exists s2', valid m s1' s2' /\ write_var wdb x v s2 = ok s2'.
-  Proof.
-    move=> hglob hval /write_varP [-> hdb htr].
-    rewrite (write_var_truncate hdb htr); eexists; split; eauto.
-    case: hval => hsc hmem h1 h2 h3; split => //= z hz.
-    + by rewrite !Vm.setP h1.
-    move=> hv1; rewrite Vm.setP_neq; first by apply h3.
-    by apply/eqP => ?; subst z; rewrite (h2 _ _ hv1) in hglob.
-  Qed.
+    (@remove_glob_e_esP wdb ii).2 es m s1 s2 h es' vs.
 
   Lemma remove_glob_lvP wdb m ii s1 s1' s2 lv lv' v :
     valid m s1 s2 ->
@@ -429,7 +469,7 @@ Module RGP. Section PROOFS.
     exists s2',
       valid m s1' s2' /\ write_lval wdb gd lv' v s2 = ok s2'.
   Proof.
-    move=> hval; case:(hval) => hscs hmem hm1 hm2 hm3; case:lv => [vi ty|x|al ws x e|al aa ws x e|aa ws len x e] /=.
+    move=> hval; case:(hval) => hscs hmem heassert hm1 hm2 hm3; case:lv => [vi ty|x|al ws x e|al aa ws x e|aa ws len x e] /=.
     + by move=> [<-] /write_noneP; rewrite /= /write_none => -[-> -> ->]; eauto.
     + by case: ifPn => // hg [<-] /=; apply write_var_remove.
     + case: ifPn => hg //.
@@ -535,7 +575,7 @@ Module RGP. Section PROOFS.
     move: hv; rewrite /truncate_val /= truncate_word_u /= => -[?]; subst v'.
     t_xrbindP => h hfind <- <-; exists s1'; split; last by constructor.
     move/write_varP: hxi => [-> hdb htr].
-    case: hval => hscs hm hm1 hm2 hm3; split => //=.
+    case: hval => hscs hm heassert hm1 hm2 hm3; split => //=.
     + move=> y hy; rewrite Vm.setP_neq; first by apply hm1.
       by apply/eqP => ?;subst y;move: hy;rewrite hglob.
     + by move=> y gy;rewrite Mvar.setP; case:eqP => [<- // | ?]; apply hm2.
@@ -582,7 +622,7 @@ Module RGP. Section PROOFS.
     valid m2 s s' ->
     valid m1 s s'.
   Proof.
-    move=> hincl [hscs hmem hm1 hm2 hm3];split => //.
+    move=> hincl [hscs hmem heassert hm1 hm2 hm3];split => //.
     + by move=> x g /(MinclP hincl) -/hm2.
     by move=> x g /(MinclP hincl); apply hm3.
   Qed.
@@ -601,6 +641,16 @@ Module RGP. Section PROOFS.
     rewrite /merge_env => /Mvar.elementsP /=.
     rewrite Mvar.map2P //. case: Mvar.get => // g1.
     by case: Mvar.get => //= g2; case:ifP => // /eqP <- [<-].
+  Qed.
+
+  Local Lemma Hassert : sem_Ind_assert P Pi_r.
+  Proof.
+    move => s1 t p e b he ii m m' c' /= hrm s1' hval.
+    move: hrm; t_xrbindP => e' /(remove_glob_eP hval) -/(_ _ _ he) he' => hm hc'.
+    subst.
+    exists (add_contract s1' (t,b)) ;split.
+    + by case: hval => ?? h * ; split => //; rewrite /add_contract h.
+    by apply sem_seq1;constructor; apply: Eassert.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true P ev Pc Pi_r.
@@ -720,20 +770,6 @@ Module RGP. Section PROOFS.
     exists s4'; split => //; econstructor; eauto.
   Qed.
 
-  Local Lemma Hcall : sem_Ind_call P ev Pi_r Pfun.
-  Proof.
-    move=> s1 scs2 m2 s2 xs fn args vargs rvs hargs _ hfun hres ii m m' c' /=
-      hrm s1' hval.
-    move: hrm; t_xrbindP => xs' hxs es' hes ??;subst m' c'.
-    have hes' := remove_glob_esP hval hes hargs.
-    have hval' : valid m (with_scs (with_mem s1 m2) scs2) (with_scs (with_mem s1' m2) scs2).
-    + by case: hval;split.
-    have [s2' [hs2' hxs']]:= remove_glob_lvsP hval' hxs hres.
-    exists s2';split => //.
-    apply sem_seq1;constructor;econstructor;eauto.
-    by case: hval => <- <-.
-  Qed.
-
   Local Lemma get_fundefP fn f:
     get_fundef (p_funcs P) fn = Some f ->
     exists f',
@@ -745,24 +781,62 @@ Module RGP. Section PROOFS.
     by exists f'.
   Qed.
 
+  Local Lemma sem_pre_ok scs mem fn vargs vpr :
+    sem_pre P scs mem fn vargs = ok vpr ->
+    sem_pre P' scs mem fn vargs = ok vpr.
+  Proof.
+    rewrite /sem_pre; case hfd: get_fundef => [fd|//].
+    have [fd' [->]] := get_fundefP hfd.
+    by rewrite /remove_glob_fundef; t_xrbindP => ? hp ? hr ? _  <-.
+  Qed.
+
+  Local Lemma sem_post_ok scs mem fn vargs vres vpo :
+    sem_post P scs mem fn vargs vres = ok vpo ->
+    sem_post P' scs mem fn vargs vres = ok vpo.
+  Proof.
+    rewrite /sem_post; case hfd: get_fundef => [fd|//].
+    have [fd' [->]] := get_fundefP hfd.
+    by rewrite /remove_glob_fundef; t_xrbindP => ? hp ? hr ? _  <-.
+  Qed.
+
+  Local Lemma Hcall : sem_Ind_call P ev Pi_r Pfun.
+  Proof.
+    move=> s1 scs2 m2 s2 s3 xs fn args vargs rvs  vpr vpo tr hargs hpr _ hfun hres hpo -> ii m m' c' /=
+      hrm s1' hval.
+    move: hrm; t_xrbindP => xs' hxs es' hes ??;subst m' c'.
+    have hes' := remove_glob_esP hval hes hargs.
+    have hval' : valid m (with_scs (with_mem s1 m2) scs2) (with_scs (with_mem s1' m2) scs2).
+    + by case: hval;split.
+    have [s2' [hs2' hxs']]:= remove_glob_lvsP hval' hxs hres.
+    exists (add_assumes (add_contracts (add_asserts s2' vpr) tr) vpo);split.
+    + by case: hs2' => ?? h; split => //=; rewrite h.
+    apply sem_seq1;constructor; econstructor;eauto.
+    + by case: hval => <- <- *; apply: sem_pre_ok hpr.
+    + by case: hval => <- <-.
+    by apply: sem_post_ok hpo.
+  Qed.
+
   Local Lemma Hproc : sem_Ind_proc P ev Pc Pfun.
   Proof.
-    move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' hget hargs hwa hi _ hc hres hres' hscs hfi.
+    move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' vpr vpo tr hget hargs hwa hi hpr _ hc hres hres' hscs hfi hpo ->.
     rewrite /Pfun; have [f' [hget']]:= get_fundefP hget.
     rewrite /remove_glob_fundef; t_xrbindP => ? hparams res1 hres1 [m' c'] hrm ?;subst f'.
-    have hval: valid (Mvar.empty var) s1 s1 by split.
+    have hval: valid (Mvar.empty var) (add_assumes s1 vpr) (add_assumes s1 vpr) by split.
     have [s2' [hs2' ws2]] := hc _ _ _ hrm _ hval.
-    subst m2; case: (hs2') => /= hscse hmem hm _ _.
+    subst m2; case: (hs2') => /= hscse hmem heassert hm _ _.
     have hres2 : get_var_is (~~ direct_call) (evm s2') (f_res f) = ok vres.
     + elim: (f_res f) (vres) res1 hres1 hres => //= x xs hrec vres0 res1.
       t_xrbindP; case: ifPn => hglob // _ ? /hrec hres1 ? v.
       by rewrite /get_var hm // => -> vs /hres1 hxs <-; rewrite /= hxs.
-    subst scs2; econstructor; eauto.
+    subst scs2; econstructor; eauto => /=.
+    + by apply: sem_pre_ok hpr.
+    + by apply: sem_post_ok hpo.
+    by rewrite heassert.
   Qed.
 
-  Local Lemma remove_glob_call scs1 m1 f vargs scs2 m2 vres :
-     sem_call P ev scs1 m1 f vargs scs2 m2 vres ->
-     Pfun scs1 m1 f vargs scs2 m2 vres.
+  Local Lemma remove_glob_call scs1 m1 f vargs scs2 m2 vres tr :
+     sem_call P ev scs1 m1 f vargs scs2 m2 vres tr ->
+     Pfun scs1 m1 f vargs scs2 m2 vres tr.
   Proof.
     exact:
       (sem_call_Ind
@@ -772,6 +846,7 @@ Module RGP. Section PROOFS.
          Hasgn
          Hopn
          Hsyscall
+         Hassert
          Hif_true
          Hif_false
          Hwhile_true
@@ -785,10 +860,10 @@ Module RGP. Section PROOFS.
 
   End FDS.
 
-  Lemma remove_globP P P' f ev scs mem scs' mem' va vr :
+  Lemma remove_globP P P' f ev scs mem scs' mem' va vr tr :
     remove_glob_prog fresh_id P = ok P' ->
-    sem_call P ev scs mem f va scs' mem' vr ->
-    sem_call P' ev scs mem f va scs' mem' vr.
+    sem_call P ev scs mem f va scs' mem' vr tr ->
+    sem_call P' ev scs mem f va scs' mem' vr tr.
   Proof.
     rewrite /remove_glob_prog; t_xrbindP => gd' /extend_glob_progP hgd.
     case: ifP => // huniq; t_xrbindP => fds hfds <- h; have hf := gd_incl_fun hgd h.

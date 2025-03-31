@@ -473,6 +473,7 @@ Hypothesis wf_pmap0 : wf_pmap.
 *)
 Class valid_state table (rmap : region_map) vme (m0 : mem) (s1 s2 : estate) := {
   vs_scs         : s1.(escs) = s2.(escs);
+  vs_eassert     : s2.(eassert) = [::];
   vs_slot_valid  : slot_valid s2.(emem);
     (* slots are valid in the target *)
   vs_disjoint    : disjoint_source s1.(emem);
@@ -2286,6 +2287,14 @@ Proof.
   by apply wf_table_set_var.
 Qed.
 
+Lemma valid_state_eassert table rmap vme m0 s1 s2 tr :
+  valid_state table rmap vme m0 s1 s2 ->
+  valid_state table rmap vme m0 (with_eassert s1 tr) s2.
+Proof.
+  case => hscs hass hvalid hdisj hincl hincl2 hunch' hrip hrsp heqvm hvem hwfr heqmem hglobv htop; constructor => //.
+  case: hwfr => hWF hVAL hPTR; constructor => //.
+Qed.
+
 Lemma valid_state_set_var table rmap vme m0 s1 s2 x v :
   valid_state table rmap vme m0 s1 s2 ->
   get_local pmap x = None ->
@@ -2293,9 +2302,8 @@ Lemma valid_state_set_var table rmap vme m0 s1 s2 x v :
   valid_state (remove_binding table x) rmap vme m0
     (with_vm s1 (evm s1).[x <- v]) (with_vm s2 (evm s2).[x <- v]).
 Proof.
-  case: s1 s2 => scs1 mem1 vm1 [scs2 mem2 vm2].
-  case=>
-    /= hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem
+  case: s1 s2 => scs1 mem1 vm1 tr1 [scs2 mem2 vm2 tr2] [/=]
+    hscs htrace hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem
     hglobv htop hget hnin.
   constructor => //=.
   + by rewrite Vm.setP_neq //; assert (h:=rip_in_new); apply/eqP => ?; subst x; apply hnin.
@@ -3266,7 +3274,7 @@ Proof.
   move=> hvs hsr haddr hss hvalideq hreadeq hwfs hvars hset htr heqval.
   have /wfr_wf hwf := hsr.
   have /wfr_ptr [pk [hlx hpk]] := hsr.
-  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hass hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
   constructor => //=.
   + by move=> ??; rewrite hvalideq; apply hvalid.
   + by move=> ??; rewrite hvalideq; apply hincl.
@@ -3499,7 +3507,7 @@ Proof.
     have /writeV -/(_ w) [mem2 hmem2] := hvp2.
     rewrite hmem2 /=; eexists; first by reflexivity.
     (* valid_state update mem *)
-    case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
+    case:(hvs) => hscs hass hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
     constructor => //=.
     + move=> ??; rewrite (write_validw_eq hmem2); apply hvalid.
     + by move=> ???; rewrite (write_validw_eq hmem1); apply hdisj.
@@ -3842,7 +3850,7 @@ Lemma valid_state_set_move table rmap vme m0 s1 s2 x sr status pk v :
   valid_state (remove_binding table x) (set_move rmap x sr status) vme m0 (with_vm s1 (evm s1).[x <- v]) s2.
 Proof.
   move=> hvs hwf hwfs sr_vars status_vars hlx hpk htr heqval.
-  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hass hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
   constructor=> //=.
   + move=> y hget; rewrite Vm.setP_neq; first by apply heqvm.
     by apply /eqP; rewrite /get_local in hlx; congruence.
@@ -3872,7 +3880,7 @@ Lemma valid_state_set_move_regptr table rmap vme m0 s1 s2 x sr status v p addr :
 Proof.
   move=> hvs hwf haddr hwfs sr_vars status_vars hlx htr heqval.
   have /wf_locals /= hlocal := hlx.
-  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hass hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
   constructor=> //=.
   + rewrite Vm.setP_neq //; apply /eqP.
     by apply hlocal.(wfr_not_vrip).
@@ -4004,7 +4012,7 @@ Proof.
   move=> hvs hwf haddr hwfs sr_vars status_vars hlx hpaddr hss hvalideq hreadeq hreadptr htr heqval.
   have /wf_locals hlocal := hlx.
   have hwf' := sub_region_stkptr_wf vme hlocal.
-  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hass hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
   constructor=> //=.
   + by move=> ??; rewrite hvalideq; apply hvalid.
   + by move=> ??; rewrite hvalideq; apply hincl.
@@ -4408,7 +4416,7 @@ Proof.
   + by rewrite (mk_ofs_intP aa ws ok_i').
   have ok_leni: sem_sexpr vme len' >>= to_int = ok (arr_size ws len).
   + by [].
-  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hass hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
   constructor => //=.
   + move=> y hgety; rewrite Vm.setP_neq; first by apply heqvm.
     by apply/eqP; rewrite /get_local in hlx; congruence.
@@ -4486,7 +4494,7 @@ Lemma valid_state_vm_eq s2 vm2 table rmap vme mem s1 :
   valid_state table rmap vme mem s1 s2 ->
   valid_state table rmap vme mem s1 (with_vm s2 vm2).
 Proof.
-  move=> heq [hscs hsl hdisj hincl hincl' hunch hrip hrsp heqvm hwft hwfr heqsource hbetw htop].
+  move=> heq [hscs hass hsl hdisj hincl hincl' hunch hrip hrsp heqvm hwft hwfr heqsource hbetw htop].
   constructor => //=.
   1,2: by rewrite -heq.
   + by move=> ???; rewrite -heq; apply heqvm.
@@ -5447,7 +5455,7 @@ Lemma valid_state_incl rmap1 rmap2 vme table m0 s s' :
   valid_state table rmap1 vme m0 s s'.
 Proof.
   move=> hincl hwfst hvarss hvs.
-  case:(hvs) => hscs hvalid hdisj hincl' hincl2 hunch hrip hrsp heqvm hwft' hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hass hvalid hdisj hincl' hincl2 hunch hrip hrsp heqvm hwft' hwfr heqmem hglobv htop.
   constructor=> //.
   by apply (wf_rmap_incl hincl hwfst hvarss hwfr).
 Qed.
@@ -5499,7 +5507,7 @@ Lemma valid_state_Incl_gen rmap1 rmap2 vme table1 table2 m0 s s' :
   valid_state table2 rmap2 vme m0 s s'.
 Proof.
   move=> hwft2 hincl hwfst2 hvarsz2 hvarss2 hvs1.
-  case:(hvs1) => hscs hvalid hdisj hincl' hincl2 hunch hrip hrsp heqvm hwft' hwfr heqmem hglobv htop.
+  case:(hvs1) => hscs hass hvalid hdisj hincl' hincl2 hunch hrip hrsp heqvm hwft' hwfr heqmem hglobv htop.
   constructor=> //.
   by apply (wf_rmap_Incl hincl hwfst2 hvarsz2 hvarss2 hwfr).
 Qed.
@@ -6551,7 +6559,7 @@ Lemma eq_read_holed_rmap table rmap vme m0 s1 s2 mem2 l sr ty addr off :
   read mem2 Aligned (addr + wrepr _ off)%R U8 = read (emem s2) Aligned (addr + wrepr _ off)%R U8.
 Proof.
   move=> hvs hlwf hlunch hldisj hwf haddr hoff off_valid.
-  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr hwft heqmem hglobv htop.
+  case:(hvs) => hscs hass hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr hwft heqmem hglobv htop.
   apply hlunch.
   + apply (hvalid _ _ hwf.(wfr_slot)).
     apply: between_byte hoff.
@@ -6669,7 +6677,7 @@ Lemma valid_state_holed_rmap table rmap vme m0 s1 s2 mem1 mem2 l :
   valid_state table rmap vme m0 (with_mem s1 mem1) (with_mem s2 mem2).
 Proof.
   move=> hvs hvalideq1 hss2 hvalideq2 heqmem_ hlwf hlunch hlincl.
-  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hass hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
   constructor=> //=.
   + by move=> ??; rewrite -hvalideq2; apply hvalid.
   + by move=> ??; rewrite -hvalideq1; apply hdisj.
@@ -6986,7 +6994,7 @@ Lemma valid_state_distinct_reg table rmap vme m0 s1 s2 x v :
   valid_state table rmap vme m0 s1 (with_vm s2 (evm s2).[x <- v]).
 Proof.
   move=> hvs hnrip hnrsp hnew hneq.
-  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hass hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
   constructor=> //=.
   + by rewrite Vm.setP_neq //; apply /eqP.
   + by rewrite Vm.setP_neq //; apply /eqP.
@@ -7036,7 +7044,7 @@ Lemma valid_state_scs table rmap vme m0 s1 s2 scs :
   valid_state table rmap vme m0 (with_scs s1 scs) (with_scs s2 scs).
 Proof.
   move=> hvs.
-  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hass hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwft hwfr heqmem hglobv htop.
   constructor=> //=.
   case: (hwfr) => hwfsr hwfst hval hptr.
   by split.

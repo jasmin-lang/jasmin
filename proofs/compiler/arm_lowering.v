@@ -464,6 +464,9 @@ Fixpoint lower_i (i : instr) : cmd :=
       in
       [:: MkI ii ir' ]
 
+  | Cassert t p e =>
+      [:: MkI ii (Cassert t p e)]
+
   | Cif e c1 c2  =>
       let '(pre, e') := lower_condition (var_info_of_ii ii) e in
       let c1' := conc_map lower_i c1 in

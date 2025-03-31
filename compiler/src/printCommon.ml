@@ -169,7 +169,7 @@ let pp_kind fmt = function
   | Stack ptr -> fprintf fmt "stack%a" pp_pointer ptr
   | Reg (k, ptr) -> fprintf fmt "reg%a" pp_pointer ptr
   | Inline -> fprintf fmt "inline"
-  | Global -> fprintf fmt "global"
+  | Global -> fprintf fmt "/* global */"
 
 (* -------------------------------------------------------------------- *)
 let w_of_signedess = function

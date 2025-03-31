@@ -36,8 +36,8 @@ Context
 #[local]
 Lemma find_instr_skip p fn P Q :
   is_linear_of p fn (P ++ Q) ->
-  forall scs m vm n,
-  find_instr p (Lstate scs m vm fn (size P + n)) = oseq.onth Q n.
+  forall scs m vm n tr,
+  find_instr p (Lstate scs m vm fn (size P + n) tr) = oseq.onth Q n.
 Proof. by eauto using find_instr_skip'. Qed.
 
 End FIXME.
@@ -166,7 +166,7 @@ Proof.
   move=> hbody'.
   rewrite /of_estate.
 
-  eexists (Estate _ _ _); split=> /=.
+  eexists (Estate _ _ _ _); split=> /=.
   apply: lsem_trans6; apply: lsem_step1.
 
   + apply: (eval_lsem1 hbody) => //.
@@ -289,7 +289,7 @@ Proof.
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
     rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
-  eexists (Estate _ _ _); split=> /=.
+  eexists (Estate _ _ _ _); split=> /=.
   apply: lsem_step3.
   + rewrite
       /lsem1 /step (find_instr_skip hbody) /= /eval_instr /=
@@ -466,7 +466,7 @@ Lemma restore_spP vars (s1 s2 : estate) :
     state_rel_unrolled vars s1 s3 0 ptr.
 Proof.
   move=> hsr.
-  eexists (Estate _ _ _); split=> /=.
+  eexists (Estate _ _ _ _); split=> /=.
   + apply: (eval_lsem_step1 hbody) => //.
     rewrite addn1.
     apply: RISCVFopnP.mov_eval_instr.
@@ -521,7 +521,7 @@ Local Opaque wsize_size Z.of_nat.
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
     by rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
-  eexists (Estate _ _ _); split.
+  eexists (Estate _ _ _ _); split.
   + apply: lsem_step1.
     rewrite /lsem1 /step (find_instr_skip hbody) /=.
     rewrite oseq.onth_cat !size_map size_rev size_ziota.
@@ -787,7 +787,8 @@ Proof.
       by rewrite -{1}hfn -{1}hpc of_estate_to_estate.
 
   exists (emem s2), (evm s2); split=> //.
-  + by rewrite -hfn /of_estate -hsr.(sr_scs) in hsem.
+      +  rewrite -hfn /of_estate -hsr.(sr_scs) in hsem.
+         by have /= h := lsem_tr hsem; rewrite -h in hsem.
   + move=> x hin.
     case: (x =P vid rspn) => [->|hneq].
     + by rewrite hsr.(sr_rsp).
