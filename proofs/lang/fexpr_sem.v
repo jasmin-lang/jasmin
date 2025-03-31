@@ -28,8 +28,7 @@ End SEM_EXPR.
 Section SEM.
 
 Context
-  {wsw : WithSubWord} {syscall_state : Type}
-  {ep : EstateParams syscall_state}.
+  {wsw : WithSubWord} {syscall_state : Type}  {ep : EstateParams syscall_state}.
 
 Definition write_lexpr e v (s: estate) : exec estate :=
   match e with

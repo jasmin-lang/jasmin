@@ -89,6 +89,7 @@ compiler/merge_varmaps_proof.v
 compiler/post_unrolling_check.v
 compiler/propagate_inline.v
 compiler/propagate_inline_proof.v
+<<<<<<< HEAD
 compiler/riscv.v
 compiler/riscv_decl.v
 compiler/riscv_instr_decl.v
@@ -105,6 +106,10 @@ compiler/riscv_params_common.v
 compiler/riscv_params_common_proof.v
 compiler/riscv_stack_zeroization.v
 compiler/riscv_stack_zeroization_proof.v
+=======
+compiler/remove_assert.v
+compiler/remove_assert_proof.v
+>>>>>>> feature-annotation
 compiler/remove_globals.v
 compiler/remove_globals_proof.v
 compiler/slh_lowering.v

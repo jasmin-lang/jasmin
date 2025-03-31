@@ -54,7 +54,8 @@ Lemma lower_addressing_fd_invariants :
   get_fundef p.(p_funcs) fn = Some fd ->
   exists2 fd',
     get_fundef p'.(p_funcs) fn = Some fd' &
-    [/\ fd.(f_info) = fd'.(f_info),
+      [/\ fd.(f_info) = fd'.(f_info),
+        fd.(f_contra) = fd'.(f_contra),
         fd.(f_tyin) = fd'.(f_tyin),
         fd.(f_params) = fd'.(f_params),
         fd.(f_tyout) = fd'.(f_tyout),
@@ -246,7 +247,9 @@ Proof.
       m2 ok_m2 <- /= [eq_scs ??]; subst vm2 m2.
     have /(_ (with_vm s1 vm1) wx we) := compute_addrP ii _ _ tmp_ty hcompute.
     rewrite ok_vx ok_ve /= ok_wx ok_we.
-    move=> /(_ erefl erefl) [vm1' [wtmp [wdisp [hsem1' eq_vm1' ok_wtmp ok_wdisp w_eq]]]].
+    move=> /(_ erefl erefl)
+            [vm1' [wtmp [wdisp [hsem1' eq_vm1' ok_wtmp ok_wdisp w_eq]]]]
+            hassert.
     exists vm1'.
     + rewrite map_cat; apply (sem_app hsem1').
       apply: sem_seq_ir; apply: Eopn.
@@ -259,7 +262,7 @@ Proof.
       move: ok_wdisp; t_xrbindP=> vdisp ok_vdisp ok_wdisp.
       rewrite ok_vtmp ok_vdisp /= ok_wtmp ok_wdisp /= ok_w /=.
       rewrite -w_eq ok_m2 /=.
-      by rewrite /with_mem /with_vm /= eq_scs.
+      by rewrite /with_mem /with_vm /= eq_scs hassert.
     by transitivity vm1.
 
   case hes: is_one_Pload => [[[[al ws] x] e]|//].
@@ -296,6 +299,20 @@ Proof.
   rewrite -eq_globs.
   rewrite -(eq_on_sem_pexprs _ _ (s:=s1)) //=.
   by apply (eq_ex_disjoint_eq_on eq_vm1 hdisj2).
+Qed.
+
+#[ local ]
+Lemma Hassert : sem_Ind_assert p Pi_r.
+Proof.
+  move => s t pt e b he.
+  move => ii tmp vm1 tmp_ty tmp_nin eq_vm1.
+  exists vm1 => //.
+  apply: sem_seq_ir ; apply: Eassert => //.
+  rewrite -eq_globs.
+  rewrite -(eq_on_sem_pexpr _ _ (s:=s)) //=.
+  apply (eq_ex_disjoint_eq_on eq_vm1).
+  rewrite disjoint_singleton; apply /Sv_memP.
+  move: tmp_nin; rewrite read_Ii  read_i_assert; clear; SvD.fsetdec.
 Qed.
 
 Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
@@ -399,51 +416,91 @@ Proof.
   by exists vm4 => //; apply: EForOne Hw2 hsem3 hsem4.
 Qed.
 
+#[ local ]
+Lemma lower_pre scs m fn vargs v :
+  sem_pre p scs m fn vargs = ok v ->
+  sem_pre p' scs m fn vargs = ok v.
+Proof.
+  rewrite /sem_pre.
+  case hdef: get_fundef.
+  + have [fd' -> [_ -> ->]] := lower_addressing_fd_invariants hdef.
+    by have [-> _] := lower_addressing_prog_invariants.
+  done.
+Qed.
+
+#[ local ]
+Lemma lower_post scs m fn vargs vres v :
+  sem_post p scs m fn vargs vres = ok v ->
+  sem_post p' scs m fn vargs vres = ok v.
+Proof.
+  rewrite /sem_post.
+  case hdef: get_fundef.
+  + have [fd' -> [_ -> ->]] := lower_addressing_fd_invariants hdef.
+    by have [-> _] := lower_addressing_prog_invariants.
+  done.
+Qed.
+
 Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s1 scs2 m2 s2 xs fn args vargs vs Hargs Hcall Hfun Hvs
-    ii tmp vm1 tmp_ty tmp_nin eq_vm1.
+  move=> s1 scs2 m2 s2 s3 xs fn args vargs vs vpre vpost tr hes hpre  _ hf hws
+          hpost htr.
+  move =>  ii tmp vm1 tmp_ty tmp_nin eq_vm1; subst s3.
   have [hdisj1 hdisj2]:
     disjoint (Sv.singleton tmp) (read_rvs xs) /\
     disjoint (Sv.singleton tmp) (read_es args).
   + rewrite 2!disjoint_singleton.
     move: tmp_nin; rewrite read_Ii read_i_call => tmp_nin.
     by split; apply /Sv_memP; clear -tmp_nin; SvD.fsetdec.
-  have [vm2 Hvs2 eq_vm2] := write_lvals_eq_ex hdisj1 Hvs eq_vm1.
+  have [vm2 Hvs2 eq_vm2] := write_lvals_eq_ex hdisj1 hws eq_vm1.
   rewrite eq_globs in Hvs2.
   exists vm2 => //.
-  apply: sem_seq_ir; apply: (Ecall (s1:=with_vm _ _) _ Hfun Hvs2).
+  apply: sem_seq_ir ; apply: (Ecall (s1:=with_vm _ _) _ _ hf Hvs2).
   rewrite -eq_globs.
   rewrite -(eq_on_sem_pexprs _ _ (s:=s1)) //=.
-  by apply (eq_ex_disjoint_eq_on eq_vm1 hdisj2).
+  + by apply (eq_ex_disjoint_eq_on eq_vm1 hdisj2).
+  + rewrite escs_with_vm emem_with_vm; apply: lower_pre hpre.
+  + apply: lower_post hpost.
+  done.
 Qed.
 
 Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
 Proof.
-  move=> scs1 m1 sc2 m2 fn f vargs vargs' s0 s1 s2 vres vres'
-    Hget Hargs Hi Hw _ Hc Hres Hfull Hscs Hfi.
+  move=> scs0 m0 scs1 m1 fn fd vargs vargs' s0 s1 s2 vres vres' vpr vpo tr.
+  move=> hget htruncargs hinit hwrite hpr _ hc hres htruncres hscs hfin hpo ->.
   rewrite /Pfun.
   move: ok_p'; rewrite /lower_addressing_prog.
   set tmp := {| v_var := _; v_info := _ |}.
-  t_xrbindP=> funcs ok_funcs ?; subst p'.
-  have [f' ok_f' Hget'] := get_map_cfprog_gen ok_funcs Hget.
+  t_xrbindP=> funcs ok_funcs ?.
+  have [f' ok_f' Hget'] := get_map_cfprog_gen ok_funcs hget.
   move: ok_f'; rewrite /lower_addressing_fd.
   t_xrbindP=> /Sv_memP tmp_nin1 /Sv_memP tmp_nin2 ?; subst f'.
-  have [vm2 hsem2 eq_vm2] := Hc tmp (evm s1) erefl tmp_nin1 (eq_ex_refl _).
+  have [vm2 hsem2 eq_vm2] := hc tmp (evm s1) erefl tmp_nin1 (eq_ex_refl _).
   rewrite with_vm_same in hsem2.
-  move: Hres.
+  move: hres.
   rewrite -(sem_pexprs_get_var _ p.(p_globs)).
   rewrite (eq_on_sem_pexprs _ (s' := with_vm s2 vm2)) //=; last first.
   + apply: (eq_ex_disjoint_eq_on eq_vm2).
     rewrite disjoint_singleton; apply /Sv_memP.
     by rewrite vars_l_read_es.
   rewrite sem_pexprs_get_var => Hres.
-  by apply: EcallRun; eassumption.
+  apply: EcallRun.
+  - subst p'; exact Hget'.
+  - exact: htruncargs.
+  - subst p'; exact: hinit.
+  - exact: hwrite.
+  - exact: lower_pre hpr.
+  - exact hsem2.
+  - exact Hres.
+  - exact: htruncres.
+  - assumption.
+  - assumption.
+  - exact: lower_post hpo.
+  done.
 Qed.
 
-Lemma lower_addressing_progP scs mem f va scs' mem' vr:
-  sem_call p ev scs mem f va scs' mem' vr ->
-  sem_call p' ev scs mem f va scs' mem' vr.
+Lemma lower_addressing_progP scs mem f va scs' mem' vr tr:
+  sem_call p ev scs mem f va scs' mem' vr tr ->
+  sem_call p' ev scs mem f va scs' mem' vr tr.
 Proof.
   exact:
     (sem_call_Ind
@@ -453,6 +510,7 @@ Proof.
        Hassgn
        Hopn
        Hsyscall
+       Hassert
        Hif_true
        Hif_false
        Hwhile_true

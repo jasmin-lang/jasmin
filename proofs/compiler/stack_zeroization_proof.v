@@ -362,7 +362,7 @@ Proof.
   have [m'' [vm'' [hsem' heqvm' hvalid'' hzero huntouched]]] :=
     hszp_cmdP
       hszparams hcmd rsp_nin hlt halign2 hle (next_lfd_lblP (lfd := lfd)) hlfd'
-      hbody (ls := {| lscs := scs'; |}) erefl erefl enough_stk' hrsp hvalid'.
+      hbody (ls := {| lscs := scs'; ltr := [::] |}) erefl erefl enough_stk' hrsp hvalid'.
 
   exists m'', vm''; split=> //.
   + econstructor; eauto.

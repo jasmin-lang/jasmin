@@ -80,6 +80,7 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
   | Cassgn _ _ _ _
   | Copn _ _ _ _
   | Csyscall _ _ _
+  | Cassert _ _ _
     => ok (Sv.union (read_i ir) X, [::i])
   | Cif e c1 c2  =>
     Let c1 := inline_c (inline_i p) c1 X in
@@ -98,8 +99,12 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
     let X := Sv.union (read_i ir) X in
     if ii_is_inline iinfo then
       Let fd := add_iinfo iinfo (get_fun p f) in
+      Let _ := add_iinfo iinfo
+               (assert (if fd.(f_contra) is None then true else false)
+                  (inline_error (pp_s "can not inline function with spec"))) in
       let fd' := rename_fd iinfo f fd in
-      Let _ := add_iinfo iinfo (check_rename f fd fd' (Sv.union (vrvs xs) X)) in
+      let s := Sv.union (vrvs xs) X in
+      Let s2 := add_iinfo iinfo (check_rename f fd fd' s) in
       let ii := ii_with_location iinfo in
       let rename_args :=
         assgn_tuple ii (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es
@@ -113,10 +118,10 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
 
 Definition inline_fd (p:ufun_decls) (fd:ufundef) :=
   match fd with
-  | MkFun ii tyin params c tyout res ef =>
+  | MkFun ii ci tyin params c tyout res ef =>
     let s := read_es (map Plvar res) in
     Let c := inline_c (inline_i p) c s in
-    ok (MkFun ii tyin params c.2 tyout res ef)
+    ok (MkFun ii ci tyin params c.2 tyout res ef)
   end.
 
 Definition inline_fd_cons (ffd:funname * ufundef) (p:cexec ufun_decls) :=

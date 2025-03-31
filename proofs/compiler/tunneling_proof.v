@@ -351,14 +351,14 @@ Section TunnelingProps.
       rewrite !labels_of_body_rcons /= rcons_uniq => /andP [Hnotin' Huniq].
       case: ifP; last by rewrite IHlc // labels_of_body_rcons /= rcons_uniq Hnotin'.
       by move => /eqP ?; subst fn'; rewrite eq_refl in Hneqfn.
-    move: Hnor (IHlc c'' l) => {Heq IHlc}; case: c''' c'' => [ii' i'] [ii i].
-    by case: i => [? ? ?|?|? ?| | |? ?|[? ?]|?|? ?|? ?]; (case: i' => [? ? ?|?|? ?| | |? ?|[? ?]|?|? ?|? ?] //= _ IHlc);
-    rewrite labels_of_body_rcons //= => Hnotin; (try by rewrite rcons_uniq => /andP [_]; apply IHl);
-    (try by move: Hnotin; rewrite mem_rcons in_cons negb_or => /andP /= [_ Hnotin]; apply IHlc);
-    rewrite rcons_uniq => /andP [_]; apply IHlc => //;
-    move: Hnotin; rewrite mem_rcons in_cons negb_or => /andP [].
+      move: Hnor (IHlc c'' l) => {Heq IHlc}; case: c''' c'' => [ii' i'] [ii i].
+      case: i => [? ? ?|?|? ?| | |? ?|[? ?]|?|? ?|? ?]; (case: i' => [? ? ?|?|? ?| | |? ?|[? ?]|?|? ?|? ?]  //= _ IHlc);
+      rewrite labels_of_body_rcons //= => Hnotin; (try by rewrite rcons_uniq => /andP [_]; apply IHl);
+      (try by move: Hnotin; rewrite mem_rcons in_cons negb_or => /andP /= [_ Hnotin]; apply IHlc);
+      rewrite rcons_uniq => /andP [_]; apply IHlc => //;
+      move: Hnotin; rewrite mem_rcons in_cons negb_or => /andP [] => //.
   Qed.
-
+  
   Variant tunnel_bore_weak_spec fn uf : linstr -> linstr -> Type :=
   | TBW_GotoEq ii l :
       tunnel_bore_weak_spec (MkLI ii (Lgoto (fn, l))) (MkLI ii (Lgoto (fn, LUF.find uf l)))
@@ -516,7 +516,7 @@ Section TunnelingProps.
       rewrite /pair_pc (@nth_default _ _ _ (pc.+1)) /=; last first.
       - by rewrite size_tunnel_head //; apply/leqW.
       rewrite tunnel_plan_cons_cons tunnel_plan1 /= /tunnel_chart /=.
-      by case: (nth _ _ _) => _ [ | | | | |[] l| | | | ]; rewrite /= tunnel_head_empty.
+      by case: (nth _ _ _) => _ [ | | | | | [] l| | | | ]; rewrite /= tunnel_head_empty.
     rewrite (take_nth Linstr_align) //; case: pc Hsize => [|pc] Hsize.
     + rewrite take0 /= tunnel_plan1 tunnel_plan_nil.
       rewrite tunnel_head_empty /= /pair_pc /=.
@@ -551,8 +551,8 @@ Section TunnelingProps.
     + case: ifP; first by move => /eqP ?; subst fn'; rewrite eq_refl in Hneqfn. 
       by move => -> /= {Heq}; rewrite tunnel_head_empty.
     move: Hnor {Heq}; case c'' => [ii i]; case c''' => [ii' i'].
-    by case i => [? ? ?|?|? ?| | |[] ?|[? ?]|?|? ?|? ?]; (case i' => [? ? ?|? ?|?| | |[] ?|[? ?]|?|? ?|? ?] //=);
-    rewrite ?tunnel_head_empty //; case: ifP; rewrite tunnel_head_empty.
+    by case i => [? ? ?|? ?|? ?| | |[] ?|[? ?]|?|? ?|? ?]; (case i' => [? ? ?|? ?| | | |[] ?|[? ?]|?|? ?|? ?] //=);
+    rewrite ?tunnel_head_empty //=; case: ifP ; rewrite tunnel_head_empty.
   Qed.
 
   Lemma tunnel_lcmd_fn_partial_eq fn lc :
@@ -978,7 +978,7 @@ Section TunnelingSem.
       by rewrite eq_refl /= => HFT; apply: HFT.
     + rewrite /tunnel_head onth_map; case Honth: (onth _ _) => [[ii i]|]; last first.
       - by move => Hpc HSpc; apply FT_Otherwise; rewrite Hgfd eq_refl.
-      case: i Honth => [? ? ?|?|? ?| | |? ?|[fn l'']|?|? ?|pe l''] /= Honth Hpc HSpc /=.
+      case: i Honth => [? ? ?|?|? ?| |  |? ?|[fn l'']|?|? ?|pe l''] /= Honth Hpc HSpc /=.
       1-6,8-9:
         by apply FT_Otherwise; rewrite Hgfd eq_refl.
       - case: ifP => [/eqP ?|Hneq]; last first.
@@ -1138,7 +1138,7 @@ Section TunnelingSem.
     move: (IHlc pc) => {IHlc}; rewrite Hislabel => {Hislabel}.
     case: ifP; last first.
     + move => _; have ->: uniq (labels_of_body lc); last by move => /(_ isT isT).
-      by move: Huniq; case: i => [? ? ?|?|?| | |? l'|[? ?]|?|? ?|? ?] //= /andP [].
+      by move: Huniq; case: i => [? ? ?|?| | | |? l'|[? ?]|?|? ?|? ?] //= /andP [].
     move => Hfind /(_ _ isT) IHlc; f_equal; rewrite addn1; f_equal.
     have {}Huniq: uniq (labels_of_body lc); last by case: (IHlc Huniq).
     by move: Huniq {Hfind IHlc}; case: i => //= ? l' /andP [].

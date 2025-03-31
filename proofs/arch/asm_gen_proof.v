@@ -27,7 +27,8 @@ Section ASM_EXTRA.
 
 Context {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
         `{asm_e : asm_extra} {call_conv: calling_convention}
-         {asm_scsem : asm_syscall_sem}.
+         {asm_scsem : asm_syscall_sem}
+.
 
 (* -------------------------------------------------------------------- *)
 Lemma xreg_of_varI {ii x y} :
@@ -717,7 +718,7 @@ Lemma compile_asm_opn rip ii (loargs : seq asm_arg) op m s args lvs xs ys m' :
 Proof. apply (compile_asm_opn_aux (hagp_eval_assemble_cond hagparams)). Qed.
 
 Lemma app_sopn_apply_lprod T1 T2 tys (f : T1 -> T2) g vs :
-  app_sopn tys (apply_lprod (rmap f) g) vs = rmap f (app_sopn tys g vs).
+  @app_sopn _ tys (apply_lprod (rmap f) g) vs = rmap f (@app_sopn _ tys g vs).
 Proof. elim: tys vs g => [ | ty tys hrec] [ | v vs] //= g; case: of_val => //=. Qed.
 
 Definition check_not_mem_args_kinds (d : arg_desc) (cond : args_kinds) :=
@@ -1747,7 +1748,7 @@ Proof.
     move=> []; by eauto.
 
   - move=> sc ok_i [?]; subst aci. by eauto using match_state_SysCall.
-
+ 
   - move=> [xlr | ] r ok_i.
     + case heqlr: to_reg => [lr /= | //] [?]; subst aci.
       rewrite /linear_sem.eval_instr => /=; t_xrbindP => l hgetpc.
@@ -1759,7 +1760,7 @@ Proof.
       rewrite -assemble_prog_labels -heqf ptr_eq.
       apply: eval_jumpP; last by apply hjump.
       rewrite /st_update_next /=.
-      have : write_var true xlr (Vword ptr) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := vm |}.
+      have : write_var true xlr (Vword ptr) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := vm; eassert := ltr ls |}.
       + by rewrite /write_var /= hset.
       have {}heqlr := of_varI heqlr.
       by move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ _ heqlr).
@@ -1779,7 +1780,7 @@ Proof.
     rewrite hm1 /=; apply: eval_jumpP; last by apply hjump.
     set vi := {| v_var := to_var ad_rsp; v_info := dummy_var_info |}.
     set ls1 := (X in to_estate X).
-    have : write_var true vi (Vword (wsp -  wrepr reg_size (wsize_size reg_size))) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := lvm ls1 |}.
+    have : write_var true vi (Vword (wsp -  wrepr reg_size (wsize_size reg_size))) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := lvm ls1; eassert := ltr ls |}.
     + rewrite /write_var /= /to_estate //= /with_vm /=.
       by have [ ->] := to_var_rsp.
     move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ ad_rsp erefl).
@@ -1798,7 +1799,7 @@ Proof.
     apply: eval_jumpP; last by apply hjump.
     set vi := {| v_var := to_var ad_rsp; v_info := dummy_var_info |}.
     set ls1 := (X in to_estate X).
-    have : write_var true vi (Vword (wsp +  wrepr reg_size (wsize_size reg_size))) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := lvm ls1 |}.
+    have : write_var true vi (Vword (wsp +  wrepr reg_size (wsize_size reg_size))) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := lvm ls1; eassert := ltr ls |}.
     + rewrite /write_var /= /to_estate //= /with_vm /=.
       by have [ ->] := to_var_rsp.
     move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ ad_rsp erefl).
@@ -1887,10 +1888,10 @@ Lemma asm_gen_exportcall fn scs m vm scs' m' vm' :
   lsem_exportcall p scs m fn vm scs' m' vm'
   -> vm_initialized_on vm (map var_of_asm_typed_reg callee_saved)
   -> forall xm,
-      lom_eqv rip {| escs := scs; emem := m; evm := vm; |} xm
+      lom_eqv rip {| escs := scs; emem := m; evm := vm; eassert := [::] |} xm
       -> exists2 xm',
            asmsem_exportcall p' fn xm xm'
-           & lom_eqv rip {| escs := scs'; emem := m'; evm := vm'; |} xm'.
+           & lom_eqv rip {| escs := scs'; emem := m'; evm := vm'; eassert := [::] |} xm'.
 Proof.
   case=> fd ok_fd export lexec saved_registers /allP ok_vm xm M.
   have [ fd' ok_fd' ] := ok_get_fundef ok_fd.
@@ -2017,7 +2018,7 @@ Qed.
 
 Definition estate_of_asm_mem
   (sp : word Uptr) (rip rsp : Ident.ident) (s : asmmem) : estate :=
-  {| escs := asm_scs s; emem := asm_mem s; evm := vmap_of_asm_mem sp rip rsp s; |}.
+  {| escs := asm_scs s; emem := asm_mem s; evm := vmap_of_asm_mem sp rip rsp s; eassert := [::] |}.
 
 Lemma lom_eqv_estate_of_asm_mem sp rip rsp s :
   disj_rip (mk_ptr rip)

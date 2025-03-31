@@ -47,7 +47,7 @@ Section CONST_PROP.
   #[local]
   Lemma use_mem_snot e :
     use_mem (snot e) = use_mem e.
-  Proof. elim: e => [||||||| [] | [] ||] //=; congruence. Qed.
+  Proof. elim: e => [||||||| [] | [] |||] //=; congruence. Qed.
 
   #[local]
   Lemma use_mem_sneg_int e :
@@ -125,22 +125,23 @@ Section CONST_PROP.
     ~~ use_mem e ->
     ~~ use_mem (const_prop_e None cpm e).
   Proof.
-    elim: e =>
+    elim: e cpm =>
       [||| x
       | al aa sz x e hinde
       ||| op1 e hinde
       | op2 e0 hinde0 e1 hinde1
       | opn es hindes
       | ty e hinde e0 hinde0 e1 hinde1
-      ] //= h.
+      | i hi op x b hb start hstart l hl
+      ] //= cpm h.
 
     - by case: x => x [] //; case: Mvar.get => // - [].
 
     - by case: x =>  - x [] /=; auto.
 
-    - rewrite use_mem_s_op1. exact: (hinde h).
+    - rewrite use_mem_s_op1. exact: (hinde _ h).
 
-    - move: h => /norP [] /hinde0 h0 /hinde1 h1.
+    - move: h => /norP [] /(hinde0 cpm) h0 /(hinde1 cpm) h1.
       by rewrite (use_mem_s_op2 _ h0 h1).
 
     - rewrite /s_opN.
@@ -148,15 +149,25 @@ Section CONST_PROP.
       move=> _.
       elim: es h hindes => //= e es hind /norP [he hes] hindes.
       rewrite negb_or.
-      rewrite (hindes _ _ he) /=; last by left.
+      rewrite (hindes _ _ _ he) /=; last by left.
       apply: (hind hes) => e' he'.
       apply: hindes.
       by right.
 
-    rewrite /s_if /=.
-    move: h => /norP [] /norP [] /hinde h /hinde0 h0 /hinde1 h1.
-    case: is_bool => [[]|] //.
-    by rewrite !negb_or h h0 h1.
+    - rewrite /s_if /=.
+      move: h => /norP [] /norP [] /(hinde cpm) h /(hinde0 cpm) h0 /(hinde1 cpm) h1.
+      case: is_bool => [[]|] //.
+      by rewrite !negb_or h h0 h1.
+
+    move: h => /norP [] /norP [] /norP [] /hi h /hb h0 /hstart h1 /hl h2.
+    have hdfl : ~~
+      use_mem
+       (Pbig (const_prop_e None cpm i) op x (const_prop_e None (Mvar.remove cpm x) b) (const_prop_e None cpm start)
+          (const_prop_e None cpm l)).
+    + by rewrite /= !negb_or h h0 h1 h2.
+    case: is_const => // ?; case: is_const => // ?.
+    elim: ziota (const_prop_e _ _ _) (h cpm) => // j js hrec e he.
+    by apply hrec; rewrite /= negb_or he h0.
   Qed.
 
 End CONST_PROP.
@@ -839,11 +850,12 @@ Definition Pfun
   (args : seq value)
   (scs' : syscall_state)
   (m' : mem)
-  (res : seq value) :
+  (res : seq value)
+  (tr : contracts_trace) :
   Prop :=
     let '(tin, tout) := fun_info fn in
     List.Forall2 slh_t_spec args tin
-    -> sem_call p' ev scs m fn args scs' m' res /\ List.Forall2 slh_t_spec res tout.
+    -> sem_call p' ev scs m fn args scs' m' res tr /\ List.Forall2 slh_t_spec res tout.
 
 Lemma Hnil : sem_Ind_nil Pc.
 Proof.
@@ -955,6 +967,15 @@ Proof.
   - rewrite (lower_prog_globs hp). exact: hsemes.
   rewrite (lower_prog_globs hp).
   exact: hwrite.
+Qed.
+
+Lemma Hassert : sem_Ind_assert p Pi_r.
+Proof.
+  move=> s ak ap e b he ii env env' c hwf /= [<-] [<-]; split => //.
+  + by constructor; apply: Eassert; rewrite (lower_prog_globs hp).
+  rewrite (lower_prog_globs hp); case: (s) hwf; rewrite /add_contract /= => > -[] /= h1 h2; split => //.
+  move: h2; rewrite /wf_cond. case: Env.cond => // ? [<- h3]; split => //.
+  by apply sem_pexpr_vm_mem.
 Qed.
 
 (* The resulting environment is well-formed because we start with [env]
@@ -1118,13 +1139,60 @@ Proof.
   exact: (EForOne hwrite hsem0 hsem1).
 Qed.
 
+Local Lemma get_fundef_p' f fd :
+  get_fundef (p_funcs p) f = Some fd ->
+  exists fd', [/\ get_fundef (p_funcs p') f = Some fd',
+                  f_contra fd = f_contra fd',
+                  f_params fd = f_params fd',
+                  f_res fd = f_res fd',
+                  f_tyin fd = f_tyin fd' &
+                  f_tyout fd = f_tyout fd'].
+Proof.
+  move=> hf; move: (hp); rewrite /lower_slh_prog; t_xrbindP => hent fds hmap <-.
+  have [fd' + ->]:= get_map_cfprog_name_gen hmap hf.
+  rewrite /lower_fd /=; t_xrbindP.
+  by case fd => > /= _; t_xrbindP => ? _ h; exists fd'; rewrite -h.
+Qed.
+
+Local Lemma sem_pre_ok scs m fn vargs v:
+  sem_pre p scs m fn vargs = ok v ->
+  sem_pre p' scs m fn vargs = ok v.
+Proof.
+  rewrite /sem_pre.
+  case: get_fundef (@get_fundef_p' fn) => // fd /(_ _ erefl) [fd'] [->] <- _ _ <- _.
+  by rewrite (lower_prog_globs hp).
+Qed.
+
+Local Lemma sem_post_ok scs m fn vargs vres v:
+  sem_post p scs m fn vargs vres = ok v ->
+  sem_post p' scs m fn vargs vres = ok v.
+Proof.
+  rewrite /sem_post.
+  case: get_fundef (@get_fundef_p' fn) => // fd /(_ _ erefl) [fd'] [->] <- _ _ <- _.
+  by rewrite (lower_prog_globs hp).
+Qed.
+
+Local Lemma wf_env_add_contracts env g s tr :
+  wf_env env g s ->
+  wf_env env g (add_contracts s tr).
+Proof.
+  move=> [h1 h2]; split.
+  + by rewrite evm_add_contracts.
+  move: h2; rewrite /wf_cond; case: Env.cond => // ? [<-]; split => //.
+  by apply sem_pexpr_vm_mem.
+Qed.
+
 Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s scs2 m2 s' lvs fn args vargs vargs' hsemargs _ hrec hwrite.
+  move=> s scs2 m2 s' s3 lvs fn args vargs vargs' vpr vpo tr hsemargs hpr _ hrec hwrite hpo ->.
   move=> ? env env' c hwf /=.
   case heq: fun_info => [tin tout]; t_xrbindP => t hargs hres <-.
   move: hrec; rewrite /Pfun heq => /(_ (check_f_argsP hwf hargs hsemargs)) [h1 h2].
-  split; first by constructor; econstructor; eauto; rewrite (lower_prog_globs hp).
+  split.
+  + constructor; econstructor; eauto; rewrite ?(lower_prog_globs hp) //.
+    + by apply sem_pre_ok.
+    by apply sem_post_ok.
+  repeat apply wf_env_add_contracts.
   move: hwf hwrite; rewrite -(lower_prog_globs hp) => hwf hwrite.
   apply: check_f_lvsP hres h2 hwrite.
   case: hwf => /= h3 h4; split => //=.
@@ -1134,25 +1202,28 @@ Qed.
 
 Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
 Proof.
-  move=> scs1 m1 _ _ fn [f_i f_tyi f_p f_b f_tyo f_r f_e] /= vargs vargs' s0 s1 s2 vres vres'
-    hf htargs hinit hwargs _ hrec hrres htres -> ->.
+  move=> scs1 m1 _ _ fn [f_i f_tyi f_p f_b f_tyo f_r f_e] /= vargs vargs' s0 s1 s2 s3 vres vres' vpr vpo tr
+    hf htargs hinit hwargs hpr _ hrec hrres htres -> -> hpo ->.
   move: (hp); rewrite /lower_slh_prog; t_xrbindP => hent fds hmap heq.
   have [fd' + hget]:= get_map_cfprog_name_gen hmap hf.
   rewrite /lower_fd /check_fd /= /Pfun.
   case hinfo : fun_info => [tin tout]; t_xrbindP.
   move=> env1 hcp env2 hcb hcr _ c' hc ? hall; subst fd'.
   have [| hsem' hwf2]:= hrec _ _ _ _ hcb hc.
-  + by apply: (init_envP hall hcp htargs hwargs); apply wf_env_empty.
+  + by apply/wf_env_add_contracts/(init_envP hall hcp htargs hwargs)/wf_env_empty.
   split; last by apply: check_resP hwf2 hcr hrres htres.
   econstructor; first (by rewrite -heq /=; apply hget); eauto.
-  by rewrite /= -heq.
+  + by rewrite /= -heq.
+  + by apply sem_pre_ok.
+  + by apply sem_post_ok; rewrite hpo.
+  by case s3.
 Qed.
 
 Lemma lower_slh_prog_sem_call
-  (f : funname) scs mem scs' mem' (va vr : seq value) :
+  (f : funname) scs mem scs' mem' (va vr : seq value) tr :
   f \in entries
-  -> sem_call p ev scs mem f va scs' mem' vr
-  -> sem_call p' ev scs mem f va scs' mem' vr.
+  -> sem_call p ev scs mem f va scs' mem' vr tr
+  -> sem_call p' ev scs mem f va scs' mem' vr tr.
 Proof.
   move=> hent hsem.
   have :=
@@ -1163,6 +1234,7 @@ Proof.
        Hassgn
        Hopn
        Hsyscall
+       Hassert
        Hif_true
        Hif_false
        Hwhile_true
@@ -1173,7 +1245,8 @@ Proof.
        Hcall
        Hproc hsem.
    rewrite /Pfun. case heq: fun_info => [tin tout] [] //.
-   have [fd [hget [vargs [_ [_ [_ [_ [hm _ _ _ _ ]]]]] ]]] := sem_callE hsem.
+   have := sem_callE hsem.
+   move=> []fd []hget []vargs [] ? [] ? [] ? [] ? [] ? [] ? [] hm _ _ _ _.
    move: (hp); rewrite /lower_slh_prog; t_xrbindP => /allP -/(_ _ hent).
    rewrite heq => /= hall fds hmap heq1.
    have [fd' + hget'] := get_map_cfprog_name_gen hmap hget.

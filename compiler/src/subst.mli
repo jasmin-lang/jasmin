@@ -1,5 +1,8 @@
 open Prog
 
+(* apply a substitution within a expression *)
+val gsubst_e: (?loc:L.t -> 'len1 -> 'len2) -> ('len1 ggvar -> 'len2 gexpr) -> 'len1 gexpr -> 'len2 gexpr
+
 (* apply a substitution within a function *)
 val gsubst_func : (?loc:L.t -> 'ty1 -> 'ty2) -> ('ty1 ggvar -> 'ty2 gexpr) -> ('ty1, 'info, 'asm) gfunc -> ('ty2, 'info, 'asm) gfunc
 
@@ -13,6 +16,7 @@ val remove_params : ('info, 'asm) pprog -> ('info, 'asm) prog
 val clone_func : ('info, 'asm) func -> ('info, 'asm) func
 
 val extend_iinfo : L.i_loc -> ('info, 'asm) func -> ('info, 'asm) func
+
 (* ---------------------------------------------------------------- *)
 (* Perform a substitution of variable by variable                   *)
 

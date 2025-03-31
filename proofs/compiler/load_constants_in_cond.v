@@ -81,6 +81,7 @@ Fixpoint load_constants_i (i : instr) :=
   | Cassgn _ _ _ _
   | Copn _ _ _ _
   | Csyscall _ _ _
+  | Cassert _ _ _
   | Ccall _ _ _
     => ok [::i]
   | Cif e c1 c2  =>

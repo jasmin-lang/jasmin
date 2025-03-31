@@ -23,6 +23,7 @@ let pp_error fmt err =
   | ErrType  -> "type error"
   | ErrArith -> "arithmetic error"
   | ErrSemUndef -> "undefined semantics"
+  | ErrUnknowFun -> "unknow function"
 
 let exn_exec (ii:instr_info) (r: 't exec) = 
   match r with
@@ -64,11 +65,15 @@ let return ep spp s =
     
   | Scall(ii,f,xs,vm1,c,stk) ->
     let gd = s.s_prog.p_globs in
-    let {escs = scs2; emem = m2; evm = vm2} = s.s_estate in
+    let {escs = scs2; emem = m2; evm = vm2; eassert} = s.s_estate in
     let vres = 
       exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword true vm2 x.v_var) f.f_res) in
     let vres' = exn_exec ii (mapM2 ErrType truncate_val f.f_tyout vres) in
-    let s1 = exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs2; emem = m2; evm = vm1 } xs vres') in
+    let s1 =
+      exn_exec ii
+        (write_lvals nosubword
+           ep spp true gd {escs = scs2; emem = m2; evm = vm1; eassert } xs vres')
+    in
     { s with 
       s_cmd = c;
       s_estate = s1;
@@ -106,8 +111,16 @@ let small_step1 ep spp sip s =
       let ves = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
       let ((scs, m), vs) =
         exn_exec ii (syscall_sem__ sip._sc_sem ep._pd s1.escs s1.emem o ves) in
-      let s2 = exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
+      let s2 =
+        exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs; emem = m; evm = s1.evm;eassert = s1.eassert} xs vs)
+      in
       { s with s_cmd = c; s_estate = s2 }
+
+    | Cassert(t, p, e) ->
+      (* let v = exn_exec ii (sem_pexpr ep spp gd s1 e) in *)
+      (* let b = of_val_b ii v in *)
+      (* if not b then raise (Eval_error(ii, Aerror e)); *)
+      { s with s_cmd = c }
 
     | Cif(e,c1,c2) ->
       let b = of_val_b ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 e)) in
@@ -134,8 +147,9 @@ let small_step1 ep spp sip s =
       let vargs = exn_exec ii (mapM2 ErrType truncate_val f.f_tyin vargs') in
       let {escs; emem = m1; evm = vm1}  = s1 in
       let stk = Scall(ii,f, xs, vm1, c, s.s_stk) in
-      let sf = 
-        exn_exec ii (write_vars nosubword ep true f.f_params vargs {escs; emem = m1; evm = Vm.init nosubword}) in
+      let sf =
+        exn_exec ii (write_vars nosubword ep true f.f_params vargs {escs; emem = m1; evm = Vm.init nosubword; eassert = s1.eassert})
+      in
       {s with s_cmd = f.f_body;
               s_estate = sf;
               s_stk = stk }
@@ -147,7 +161,7 @@ let rec small_step ep spp sip s =
 let init_state ep scs0 p ii fn args m =
   let f = BatOption.get (get_fundef p.p_funcs fn) in
   let vargs = exn_exec ii (mapM2 ErrType truncate_val f.f_tyin args) in
-  let s_estate = { escs = scs0; emem = m; evm = Vm.init nosubword} in
+  let s_estate = { escs = scs0; emem = m; evm = Vm.init nosubword; eassert = []} in
   let s_estate = exn_exec ii (write_vars nosubword ep true f.f_params vargs s_estate) in
   { s_prog = p; s_cmd = f.f_body; s_estate; s_stk = Sempty (ii, f) }
 

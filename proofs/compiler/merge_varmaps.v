@@ -67,6 +67,7 @@ Section WRITE1.
     | Cassgn x _ _ _  => vrv_rec s x
     | Copn xs _ _ _   => vrvs_rec s xs
     | Csyscall xs o _ => vrvs_rec (Sv.union s syscall_kill) (to_lvals (syscall_sig o).(scs_vout))
+    | Cassert _ _ _   => s
     | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
     | Cwhile _ c _ _ c' => foldl write_I_rec (foldl write_I_rec s c') c
@@ -173,6 +174,8 @@ Section CHECK.
         (E.internal_error ii "bad syscall dests") in
       let W := syscall_kill in
       ok (Sv.diff (Sv.union D W) (vrvs (to_lvals (syscall_sig o).(scs_vout))))
+    | Cassert t p b =>
+      Error (E.internal_error ii "assert remain")
     | Cif b c1 c2 =>
       Let _ := check_e ii D b in
       Let D1 := check_c (check_i sz) D c1 in
@@ -232,6 +235,8 @@ Section CHECK.
                     (E.gen_error true None (pp_s "the function returns RSP")) in
     Let _ := assert (disjoint W' magic_variables)
                     (E.gen_error true None (pp_s "the function writes to RSP or global-data")) in
+    Let _ := assert (if fd.(f_contra) is Some _ then false else true)
+                    (E.gen_error true None (pp_s "fun contract remain")) in
     let W := writefun fn in
     let J := Sv.union magic_variables params in
     let e := fd.(f_extra) in

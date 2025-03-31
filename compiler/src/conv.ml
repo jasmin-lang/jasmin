@@ -98,6 +98,8 @@ let rec cexpr_of_expr = function
                                 cexpr_of_expr e,
                                 cexpr_of_expr e1,
                                 cexpr_of_expr e2)
+  | Pbig(e, o, x, e1, e2, e0) ->
+    C.Pbig(cexpr_of_expr e, o, cvari_of_vari x, cexpr_of_expr e1, cexpr_of_expr e2, cexpr_of_expr e0)
 
 let rec expr_of_cexpr = function
   | C.Pconst z          -> Pconst (z_of_cz z)
@@ -113,7 +115,8 @@ let rec expr_of_cexpr = function
   | C.Pif (ty, e, e1, e2) -> Pif(ty_of_cty ty, expr_of_cexpr e,
                                expr_of_cexpr e1,
                                expr_of_cexpr e2)
-
+  | C.Pbig(e, o, x, e1, e2, e0) ->
+    Pbig(expr_of_cexpr e, o, vari_of_cvari x, expr_of_cexpr e1, expr_of_cexpr e2, expr_of_cexpr e0)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -164,6 +167,10 @@ and cinstr_r_of_instr_r p i =
       C.Csyscall(clval_of_lvals x, o, cexpr_of_exprs e) in
     C.MkI(p, ir)
 
+  | Cassert(t, pt, e) ->
+    let ir = C.Cassert(t, pt, cexpr_of_expr e) in
+    C.MkI(p, ir) 
+
   | Cif(e,c1,c2) ->
     let c1 = cstmt_of_stmt c1 in
     let c2 = cstmt_of_stmt c2 in
@@ -204,6 +211,9 @@ and instr_r_of_cinstr_r = function
   | C.Csyscall(x,o,e) ->
     Csyscall(lval_of_clvals x, o, expr_of_cexprs e)
 
+  | C.Cassert(t, p, e) ->
+    Cassert(t, p, expr_of_cexpr e)
+
   | C.Cif(e,c1,c2) ->
     let c1 = stmt_of_cstmt c1 in
     let c2 = stmt_of_cstmt c2 in
@@ -224,8 +234,20 @@ and instr_r_of_cinstr_r = function
 and stmt_of_cstmt c =
   List.map instr_of_cinstr c
 
-
 (* ------------------------------------------------------------------------ *)
+
+let contra_of_ccontra c =
+  let aux =
+    List.map (fun (prover,clause) -> prover,cexpr_of_expr clause)
+  in
+  Some
+  {
+    C.f_iparams =  List.map cvari_of_vari c.f_iparams;
+    C.f_ires = List.map cvari_of_vari c.f_ires;
+    C.f_pre = aux c.f_pre;
+    C.f_post = aux c.f_post;
+  }
+
 let cufdef_of_fdef fd =
   let fn = fd.f_name in
   let f_info = fd.f_loc, fd.f_annot, fd.f_cc, fd.f_ret_info in
@@ -234,6 +256,7 @@ let cufdef_of_fdef fd =
   let f_body = cstmt_of_stmt fd.f_body in
   let f_res = List.map cvari_of_vari fd.f_ret in
   fn, { C.f_info   = f_info;
+        C.f_contra = Option.bind fd.f_contra contra_of_ccontra;
         C.f_tyin   = List.map cty_of_ty fd.f_tyin;
         C.f_params = f_params;
         C.f_body   = f_body;
@@ -242,11 +265,23 @@ let cufdef_of_fdef fd =
         C.f_extra  = ();
       }
 
+let ccontra_of_contra c =
+  let aux =
+    List.map (fun (prover,clause) -> prover,expr_of_cexpr clause)
+  in
+  Some
+  {
+    f_iparams = List.map vari_of_cvari C.(c.f_iparams);
+    f_ires = List.map vari_of_cvari C.(c.f_ires);
+    f_pre = aux C.(c.f_pre);
+    f_post = aux C.(c.f_post);
+  }
 
 let fdef_of_cufdef (fn, fd) =
   let f_loc, f_annot, f_cc, f_ret_info = fd.C.f_info in
   { f_loc;
     f_annot;
+    f_contra = Option.bind fd.f_contra ccontra_of_contra;
     f_cc;
     f_info = ();
     f_name = fn;

@@ -83,7 +83,8 @@ Fixpoint lower_addressing_i (i: instr) :=
       if compute_addr x e is Some (prelude, disp) then
         map (MkI ii) (prelude ++ [:: Copn xs t o [:: Pload al ws tmp disp]])
       else [:: i]
-    else [:: i]
+         else [:: i]
+  | Cassert _ _ _
   | Cassgn _ _ _ _
   | Csyscall _ _ _
   | Ccall _ _ _ => [:: i]

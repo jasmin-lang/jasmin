@@ -167,7 +167,7 @@ let pp_kind fmt = function
   | Reg (k, ptr) ->
       fprintf fmt "%sreg%a" (if k = Normal then "" else "#mmx ") pp_pointer ptr
   | Inline -> fprintf fmt "inline"
-  | Global -> fprintf fmt "global"
+  | Global -> fprintf fmt "/* global */"
 
 (* -------------------------------------------------------------------- *)
 let w_of_signedess = function

@@ -646,6 +646,14 @@ Proof.
 Qed.
 
 #[ local ]
+Lemma Hassert : sem_Ind_assert p Pi_r.
+Proof.
+  move => s t pt e b he ii.
+  apply: sem_seq_ir.
+  by apply: Eassert; eassumption.
+Qed.
+
+#[ local ]
 Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
 Proof.
   move=> s0 s1 e c0 c1 hseme _ hc ii.
@@ -708,28 +716,57 @@ Proof.
 Qed.
 
 #[ local ]
+Lemma lower_pre scs m fn vargs v :
+  sem_pre p scs m fn vargs = ok v ->
+  sem_pre p' scs m fn vargs = ok v.
+ Proof. by rewrite /sem_pre/lower_prog get_map_prog; case: get_fundef. Qed.
+
+#[ local ]
+Lemma lower_post scs m fn vargs vres v :
+  sem_post p scs m fn vargs vres = ok v ->
+  sem_post p' scs m fn vargs vres = ok v.
+Proof. by rewrite /sem_post/lower_prog get_map_prog; case: get_fundef. Qed.
+
+#[ local ]
 Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s0 scs0 m0 s1 lvs fn args vargs vs hsemargs _ hfun hwrite ii.
+  move=> s1 scs2 m2 s2 s3 xs fn args vargs vs vpre vpost tr hes hpre  _ hf hws
+          hpost htr ii.
   rewrite /Pi /=.
   apply: sem_seq_ir.
-  by apply: Ecall; eassumption.
+  apply: Ecall ; eauto.
+  + exact : lower_pre hpre.
+  exact : lower_post hpost.
 Qed.
 
 #[ local ]
 Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
 Proof.
-  move=> scs0 m0 scs1 m1 fn fd vargs vargs' s0 s1 s2 vres vres'.
-  move=> hget htruncargs hinit hwrite _ hc hres htruncres hscs hfin.
+  move=> scs0 m0 scs1 m1 fn fd vargs vargs' s0 s1 s2 vres vres' vpr vpo tr.
+  move=> hget htruncargs hinit hwrite hpr _ hc hres htruncres hscs hfin hpo ->.
+
+  (* move=> scs0 m0 scs1 m1 fn fd vargs vargs' s0 s1 s2 vres vres'. *)
+  (* move=> hget htruncargs hinit hwrite _ hc hres htruncres hscs hfin. *)
   rewrite /Pfun.
-  by apply: EcallRun; first (by rewrite get_map_prog hget /=; reflexivity); eassumption.
+  apply: EcallRun; first (by rewrite get_map_prog hget /=; reflexivity).
+  - exact: htruncargs.
+  - exact: hinit.
+  - exact: hwrite.
+  - exact: lower_pre hpr.
+  - exact hc.
+  - exact hres.
+  - exact: htruncres.
+  - assumption.
+  - assumption.
+  - exact: lower_post hpo.
+  done.
 Qed.
 
 Lemma lower_callP
-  (f : funname) scs mem scs' mem' (va vr : seq value) :
+  (f : funname) scs mem scs' mem' (va vr : seq value) tr :
   (* Calling f in a given context implies calling f in the same context except p -> p compiled. *)
-  sem_call p ev scs mem f va scs' mem' vr
-  -> sem_call (lower_prog p) ev scs mem f va scs' mem' vr.
+  sem_call p ev scs mem f va scs' mem' vr tr
+  -> sem_call (lower_prog p) ev scs mem f va scs' mem' vr tr.
 Proof.
   (* <=> by apply: *)
   exact:
@@ -740,6 +777,7 @@ Proof.
        Hassgn
        Hopn
        Hsyscall
+       Hassert
        Hif_true
        Hif_false
        Hwhile_true

@@ -25,12 +25,11 @@ let weak_dep_lvs s lvs = List.fold_left weak_dep_lv s lvs
 the variables that are used for evaluating LHS expressions. *)
 let rec live_i weak i s_o =
   let s_i, s_o, d = live_d weak i.i_desc s_o in
-  s_i, { i with i_desc = d; i_info = (s_i, s_o); }
+  s_i, { i with i_desc = d; i_info = (s_i, s_o); i_annot = i.i_annot}
 
 and live_d weak d (s_o: Sv.t) =
   match d with
   | Cassgn(x, tg, ty, e) ->
-
     let s_i = Sv.union (vars_e e) (dep_lv s_o x) in
     let s_o =
       if weak then weak_dep_lv s_o x
@@ -44,6 +43,10 @@ and live_d weak d (s_o: Sv.t) =
      then weak_dep_lvs s_o xs
      else s_o in
     s_i, s_o, Copn(xs,t,o,es)
+
+  | Cassert(t, p, e) ->
+    let s_i = Sv.union (vars_e e) s_o in
+    s_i, s_o, Cassert(t, p, e)
 
   | Cif(e,c1,c2) ->
     let s1, c1 = live_c weak c1 s_o in
@@ -101,7 +104,7 @@ let iter_call_sites (cbf: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit)
                     (f: (Sv.t * Sv.t, 'asm) func) : unit =
   let rec iter_instr_r loc ii =
     function
-    | (Cassgn _ | Copn _) -> ()
+    | (Cassgn _ | Copn _ | Cassert _ ) -> ()
     | (Cif (_, s1, s2) | Cwhile (_, s1, _, _, s2)) -> iter_stmt s1; iter_stmt s2
     | Cfor (_, _, s) -> iter_stmt s
     | Ccall (xs, fn, _) ->
@@ -128,7 +131,7 @@ let rec conflicts_i cf i =
   let cf = merge_class cf s1 in
 
   match i.i_desc with
-  | Cassgn _ | Copn _ | Csyscall _ | Ccall _ ->
+  | Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _ ->
     merge_class cf s2
   | Cfor( _, _, c) ->
     conflicts_c (merge_class cf s2) c
