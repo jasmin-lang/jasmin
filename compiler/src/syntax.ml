@@ -271,7 +271,7 @@ type pparam = {
 (* -------------------------------------------------------------------- *)
 type pfunbody = {
   pdb_instr : pinstr list;
-  pdb_ret   : pident list option;
+  pdb_ret   : pident list option L.located;
 }
 
 (* -------------------------------------------------------------------- *)

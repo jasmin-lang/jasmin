@@ -42,5 +42,19 @@ let is_export = function
   | Export _ -> true
   | _ -> false
 
+(* ------------------------------------------------------------------------ *)
+type return_info = {
+    ret_annot : Annotations.annotations list;
+    (* annotation attached to return type *)
+    ret_loc : Location.t; (* location of the return statement *)
+  }
+
+(* ------------------------------------------------------------------------ *)
 type t =
-  Location.t * f_annot * call_conv * Annotations.annotations list
+  Location.t * f_annot * call_conv * return_info
+
+let entry_info (fi: t) : IInfo.t =
+  let (fl, _, _, _) = fi in (Location.i_loc0 fl, [])
+
+let ret_info (fi: t) : IInfo.t =
+  let (_, _, _, ri) = fi in (Location.i_loc0 ri.ret_loc, [])

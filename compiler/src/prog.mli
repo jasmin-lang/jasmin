@@ -86,7 +86,7 @@ type ('len,'info,'asm) gfunc = {
     f_args : 'len gvar list;
     f_body : ('len,'info,'asm) gstmt;
     f_tyout : 'len gty list;
-    f_outannot : Annotations.annotations list; (* annotation attach to return type *)
+    f_ret_info : FInfo.return_info;
     f_ret  : 'len gvar_i list
   }
 

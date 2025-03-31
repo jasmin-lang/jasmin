@@ -292,36 +292,40 @@ Context
            R[rd] := (Uptr)R[rs]
  *)
 Definition lmove
+  (ii: instr_info)
   (rd : var_i)      (* Destination register. *)
   (rs : var_i)       (* Source register. *)
   : linstr :=
-  li_of_fopn_args dummy_instr_info (lip_lmove liparams rd rs).
+  li_of_fopn_args ii (lip_lmove liparams rd rs).
 
 (* Return a linear instruction that corresponds to loading from memory.
    The linear instruction [lload rd rs ofs] corresponds to
            R[rd] := M[R[rs] + ofs]
  *)
 Definition lload
+  (ii: instr_info)
   (rd : var_i) (* Destination register. *)
   (rs : var_i) (* Base register. *)
   (ofs : Z)    (* Offset. *)
   : linstr :=
-  li_of_fopn_args dummy_instr_info (lip_lload liparams rd rs ofs).
+  li_of_fopn_args ii (lip_lload liparams rd rs ofs).
 
 (* Return a linear instruction that corresponds to storing to memory.
    The linear instruction [lstore rd ofs rs] corresponds to
            M[R[rd] + ofs] := R[rs]
  *)
 Definition lstore
+  (ii: instr_info)
   (rd : var_i)      (* Base register. *)
   (ofs : Z)         (* Offset. *)
   (rs : var_i)      (* Source register. *)
   : linstr :=
-  li_of_fopn_args dummy_instr_info (lip_lstore liparams rd ofs rs).
+  li_of_fopn_args ii (lip_lstore liparams rd ofs rs).
 
 Definition set_up_sp_register
+  (ii: instr_info)
   (vrspi : var_i) (sf_sz : Z) (al : wsize) (r : var_i) (tmp : var_i) : lcmd :=
-  map (li_of_fopn_args dummy_instr_info) (lip_set_up_sp_register liparams vrspi sf_sz al r tmp).
+  map (li_of_fopn_args ii) (lip_set_up_sp_register liparams vrspi sf_sz al r tmp).
 
 (* -------------------------------------------------------------------------- *)
 Section CHECK_SOME.
@@ -400,10 +404,11 @@ Definition frame_size (e: stk_fun_extra) : Z :=
  * for each (x, o) in to_save.
  *)
 Definition push_to_save
+  (ii: instr_info)
   (to_save: seq (var * Z)) (* Variables to save and offsets in the stack. *)
   (sp : var * Z)           (* Variable to save containing the initial value of sp *)
   : lcmd :=
-  map (li_of_fopn_args dummy_instr_info)
+  map (li_of_fopn_args ii)
       (lip_lstores liparams rspi (to_save ++ [::sp])).
 
 (* Return a linear command that loads variables from the stack.
@@ -415,10 +420,11 @@ Definition push_to_save
  * for each (x, o) in to_save.
  *)
 Definition pop_to_save
+  (ii: instr_info)
   (to_save: seq (var * Z)) (* Variables to load and offsets in the stack. *)
   (sp : Z)                 (* Offset for restoring the stack pointer *)
   : lcmd :=
-  map (li_of_fopn_args dummy_instr_info)
+  map (li_of_fopn_args ii)
       (lip_lloads liparams rspi to_save sp).
 
   Section CHECK_c.
@@ -729,22 +735,24 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Cfor _ _ _ => (lbl, lc)
   end.
 
-Definition linear_body (e: stk_fun_extra) (body: cmd) : label * lcmd :=
+Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) : label * lcmd :=
+  let fentry_ii := entry_info_of_fun_info fi in
+  let ret_ii := ret_info_of_fun_info fi in
   let: (tail, head, lbl) :=
      match sf_return_address e with
      | RAreg r _ =>
-       ( [:: MkLI dummy_instr_info (Ligoto (Rexpr (Fvar (mk_var_i r)))) ]
-       , [:: MkLI dummy_instr_info (Llabel 1) ]
+       ( [:: MkLI ret_ii (Ligoto (Rexpr (Fvar (mk_var_i r)))) ]
+       , [:: MkLI fentry_ii (Llabel 1) ]
        , 2%positive
        )
      | RAstack ra_call ra_return z _ =>
        ( if ra_return is Some ra_return
-         then [:: lload (mk_var_i ra_return) rspi z;
-                  MkLI dummy_instr_info (Ligoto (Rexpr (Fvar (mk_var_i ra_return)))) ]
-         else [:: MkLI dummy_instr_info Lret ]
-       , MkLI dummy_instr_info (Llabel 1) ::
+         then [:: lload ret_ii (mk_var_i ra_return) rspi z;
+                  MkLI ret_ii (Ligoto (Rexpr (Fvar (mk_var_i ra_return)))) ]
+         else [:: MkLI ret_ii Lret ]
+       , MkLI fentry_ii (Llabel 1) ::
          (if ra_call is Some ra_call
-          then [:: lstore rspi z (mk_var_i ra_call) ]
+          then [:: lstore fentry_ii rspi z (mk_var_i ra_call) ]
           else [::])
        , 2%positive
        )
@@ -759,8 +767,8 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : label * lcmd :=
           *       Setup stack.
           *)
          let r := mk_var_i x in
-         ( [:: lmove rspi r ]
-         , set_up_sp_register rspi sf_sz (sf_align e) r (mk_var_i var_tmp)
+         ( [:: lmove ret_ii rspi r ]
+         , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r (mk_var_i var_tmp)
          , 1%positive
          )
        | SavedStackStk ofs =>
@@ -772,9 +780,9 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : label * lcmd :=
           *       Push registers to save to the stack.
           *)
          let r := mk_var_i var_tmp in
-         ( pop_to_save e.(sf_to_save) ofs
-         , set_up_sp_register rspi sf_sz (sf_align e) r (mk_var_i var_tmp2)
-             ++ push_to_save e.(sf_to_save) (var_tmp, ofs)
+         ( pop_to_save ret_ii e.(sf_to_save) ofs
+         , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r (mk_var_i var_tmp2)
+             ++ push_to_save fentry_ii e.(sf_to_save) (var_tmp, ofs)
          , 1%positive)
        end
      end
@@ -786,7 +794,7 @@ Definition linear_fd (fd: sfundef) :=
   let e := fd.(f_extra) in
   let is_export := is_RAnone (sf_return_address e) in
   let res := if is_export then f_res fd else [::] in
-  let body := linear_body e fd.(f_body) in
+  let body := linear_body fd.(f_info) e fd.(f_body) in
   (body.1,
     {| lfd_info := f_info fd
     ; lfd_align := sf_align e

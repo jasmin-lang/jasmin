@@ -415,7 +415,7 @@ let get_annot ensure_annot f =
   in
   let ain  = List.mapi process_argument f.f_args in
   let ainlevels = List.map (fun (_, x) -> x) ain in
-  let aout = List.mapi process_result f.f_outannot in
+  let aout = List.mapi process_result f.f_ret_info.ret_annot in
 
   let check_defined msg l =
     if List.exists (fun a -> a = None) l then
