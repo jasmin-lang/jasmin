@@ -81,6 +81,7 @@ let set_slice f =
   slice := f :: !slice
 
 let set_constTime () = model := ConstantTime
+let set_annotations () = model := Annotations
 
 let set_checksafety () = check_safety := true
 let set_safetyparam s = safety_param := Some s
@@ -127,6 +128,7 @@ let set_cc cc =
   in call_conv := cc
 
 let print_strings = function
+  | Compiler.RemoveAssert                -> "rmassert", "remove logical assertion"
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
   | Compiler.ArrayCopy                   -> "arraycopy", "array copy"
@@ -188,6 +190,7 @@ let options = [
     "-oec"     ,  Arg.Set_string ecfile , "[filename] Use filename as output destination for easycrypt extraction (deprecated)";
     "-oecarray" , Arg.String set_ec_array_path, "[dir] Output easycrypt array theories to the given path (deprecated)";
     "-CT" , Arg.Unit set_constTime      , " Generate model for constant time verification (deprecated)";
+    "-Annotations" , Arg.Unit set_annotations      , " Generate model for annotations verification";
     "-slice"    , Arg.String set_slice  , "[f] Keep function [f] and everything it needs";
     "-checksafety", Arg.Unit set_checksafety, " Automatically check for safety";
     "-safetyparam", Arg.String set_safetyparam,

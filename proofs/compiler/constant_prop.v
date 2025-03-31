@@ -385,11 +385,25 @@ Fixpoint const_prop_e (m:cpm) e :=
       then pget_global al aa sz x e
       else Pget al aa sz x e
   | Psub aa sz len x e => Psub aa sz len x (const_prop_e m e)
-  | Pload al sz x e => Pload al sz x (const_prop_e m e)
+  | Pload al sz x e  => Pload al sz x (const_prop_e m e)
   | Papp1 o e     => s_op1 o (const_prop_e m e)
   | Papp2 o e1 e2 => s_op2 o (const_prop_e m e1)  (const_prop_e m e2)
   | PappN op es   => s_opNA op (map (const_prop_e m) es)
   | Pif t e e1 e2 => s_if t (const_prop_e m e) (const_prop_e m e1) (const_prop_e m e2)
+  | Pbig idx op x body s len =>
+     let s   := const_prop_e m s in
+     let len := const_prop_e m len in
+     let idx := const_prop_e m idx in
+     match is_const s, is_const len with
+     | Some s, Some len =>
+       foldl (fun acc i =>
+               let m := Mvar.set m x (Cint i) in
+               let b := const_prop_e m body in
+               Papp2 op acc b)
+             idx (ziota s len)
+     | _, _ =>
+         Pbig idx op x (const_prop_e (Mvar.remove m x) body) s len
+     end
   end.
 
 End GLOBALS.
@@ -477,8 +491,10 @@ Section GLOBALS.
 
 Context (gd: glob_decls).
 
-Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
+Fixpoint const_prop_ir with_globals without_globals (m:cpm) ii (ir:instr_r) : cpm * cmd :=
+  let const_prop_i :=  const_prop_i with_globals without_globals in
   match ir with
+
   | Cassgn x tag ty e =>
     let globs := with_globals gd tag in
     let e := const_prop_e globs m e in
@@ -502,6 +518,10 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let es := map (const_prop_e without_globals m) es in
     let (m,xs) := const_prop_rvs without_globals m xs in
     (m, [:: MkI ii (Csyscall xs o es) ])
+
+  | Cassert t p b =>
+      let b := const_prop_e without_globals m b in
+      (m, [:: MkI ii (Cassert t p b) ])
 
   | Cif b c1 c2 =>
     let b := const_prop_e without_globals m b in
@@ -541,9 +561,9 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
 
   end
 
-with const_prop_i (m:cpm) (i:instr) : cpm * cmd :=
+with const_prop_i with_globals without_globals (m:cpm) (i:instr) : cpm * cmd :=
   let (ii,ir) := i in
-  const_prop_ir m ii ir.
+  const_prop_ir with_globals without_globals m ii ir.
 
 End GLOBALS.
 
@@ -551,12 +571,29 @@ Section Section.
 
 Context {pT: progT}.
 
-Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
-  let 'MkFun ii si p c so r ev := f in
-  let (_, c) := const_prop (const_prop_i gd) empty_cpm c in
-  MkFun ii si p c so r ev.
+Let with_globals_cl (gd: glob_decls) : globals := Some (assoc gd).
 
-Definition const_prop_prog (p:prog) : prog := map_prog (const_prop_fun p.(p_globs)) p.
+Definition const_prop_ci without_globals ci :=
+  let ci_pre := map (fun c =>
+                        let truc := const_prop_e without_globals empty_cpm (snd c) in
+                        (fst c, truc)) ci.(f_pre)
+  in
+  let ci_post := map (fun c =>
+                        let truc := const_prop_e without_globals empty_cpm (snd c) in
+                        (fst c, truc)) ci.(f_post)
+  in
+  MkContra ci.(f_iparams) ci.(f_ires) ci_pre ci_post.
+
+Definition const_prop_fun (cl: bool) (gd: glob_decls) (f: fundef) :=
+  let with_globals := if cl then (fun _ _ => with_globals_cl gd) else with_globals in
+  let without_globals := if cl then with_globals_cl gd else without_globals in
+  let 'MkFun ii ci si p c so r ev := f in
+  let mc := const_prop (const_prop_i gd with_globals without_globals) empty_cpm c in
+  let ci := Option.map (const_prop_ci without_globals) ci in
+  MkFun ii ci si p mc.2 so r ev.
+
+Definition const_prop_prog (cl: bool) (p:prog) : prog :=
+  map_prog (const_prop_fun cl p.(p_globs)) p.
 
 End Section.
 

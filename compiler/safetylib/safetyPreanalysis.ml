@@ -87,7 +87,9 @@ end = struct
     | Copn (lvls, tag, opn, exprs) ->
       Copn (mk_lvals fn lvls, tag, opn, mk_exprs fn exprs)
     | Csyscall (lvls, o, exprs) ->
-        Csyscall(mk_lvals fn lvls, o, mk_exprs fn exprs)
+      Csyscall(mk_lvals fn lvls, o, mk_exprs fn exprs)
+    | Cassert (t, p, e) ->
+      Cassert (t, p, mk_expr fn e)
     | Cif (e, st, st') ->
       Cif (mk_expr fn e, mk_stmt fn st, mk_stmt fn st')
     | Cfor (v, r, st) ->
@@ -111,6 +113,8 @@ end = struct
     | PappN (op,es) -> PappN (op, List.map (mk_expr fn) es)
     | Pif (ty, e, el, er)  ->
       Pif (ty, mk_expr fn e, mk_expr fn el, mk_expr fn er)
+    | Pbig (e, op, v, e1, e2, e0) ->
+      Pbig(mk_expr fn e, op, v, mk_expr fn e1, mk_expr fn e2, mk_expr fn e0)
 
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
 
@@ -196,6 +200,8 @@ end = struct
     | PappN (_,es) -> List.fold_left (fun dp e -> app_expr dp v e ct) dp es
     | Pif (_,b,e1,e2) ->
       app_expr (app_expr (app_expr dp v b ct) v e1 ct) v e2 ct
+    | Pbig (e, _, _, e1, e2, e0) ->
+      app_expr (app_expr (app_expr (app_expr dp v e ct) v e1 ct) v e2 ct) v e0 ct
 
   (* State while building the dependency graph:
      - dp : dependency graph
@@ -224,7 +230,6 @@ end = struct
             | Bty _ -> (L.unloc v'.gv) :: acc, st
             | Arr _ -> acc, st
         end
-
       (* We ignore loads for v, but we compute dependencies of v' in ei *)
       | Pload (_, _,v',ei) ->
         let dp = app_expr st.dp (L.unloc v') ei st.ct in
@@ -233,7 +238,9 @@ end = struct
       | Papp1 (_,e1) -> aux (acc,st) e1
       | Papp2  (_,e1,e2) -> aux (aux (acc,st) e1) e2
       | PappN (_,es) -> List.fold_left aux (acc,st) es
-      | Pif (_,b,e1,e2) -> aux (aux (aux (acc,st) e1) e2) b in
+      | Pif (_,b,e1,e2) -> aux (aux (aux (acc,st) e1) e2) b
+      | Pbig (e, _, _, e1, e2, e0) -> aux (aux (aux (aux (acc,st) e) e1) e2) e0
+    in
 
     aux ([],st) e
 
@@ -253,11 +260,12 @@ end = struct
       | Pvar v' -> aux_gv acc v'
       (* We ignore loads for v, but we compute dependencies of v' in ei *)
       | Pload (_, _,v',ei) -> aux (aux_v acc v') ei
-
       | Papp1 (_,e1) -> aux acc e1
       | Papp2  (_,e1,e2) -> aux (aux acc e1) e2
       | PappN (_,es) -> List.fold_left aux acc es
-      | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b in
+      | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b
+      | Pbig (e, _, _, e1, e2, e0) -> aux (aux (aux (aux acc e) e1) e2) e0
+    in
 
     aux acc e
 
@@ -311,7 +319,7 @@ end = struct
       if Option.is_none i_opt then pa_flag_setfrom v t else i_opt
   
   and pa_flag_setfrom_i v i = match i.i_desc with
-    | Cassgn _ -> None
+    | Cassgn _ | Cassert _ -> None
 
     | Copn (lvs, _, Sopn.Oasm (Arch_extra.BaseOp (_, X86_instr_decl.CMP _)), es) ->
       if flag_mem_lvs v lvs then
@@ -353,6 +361,10 @@ end = struct
 
     | Copn (lvs, _, _, es) | Csyscall(lvs, _, es) -> List.fold_left (fun st lv ->
         List.fold_left (fun st e -> pa_lv st lv e) st es) st lvs
+
+    | Cassert (t, p, b) ->
+      let _vs,st = expr_vars st b in
+      st
 
     | Cif (b, c1, c2) ->
       let vs,st = expr_vars st b in 
@@ -494,6 +506,8 @@ end = struct
     | Papp2 (_,e1,e2) -> collect_vars_es sv [e1;e2]
     | PappN (_, el)  -> collect_vars_es sv el
     | Pif (_, e1, e2, e3) -> collect_vars_es sv [e1;e2;e3]
+    | Pbig (e, _, _, e1, e2, e0) -> collect_vars_es sv [e;e1;e2;e0]
+
   and collect_vars_es sv es = List.fold_left collect_vars_e sv es
 
   let collect_vars_lv sv = function
@@ -518,6 +532,8 @@ end = struct
       collect_vars_es sv es
     | Cassgn (lv, _, _, e) ->
       let sv = collect_vars_lv sv lv in
+      collect_vars_e sv e
+    | Cassert (_, _, e) ->
       collect_vars_e sv e
     | Ccall _ -> raise Fcall
 

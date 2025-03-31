@@ -35,8 +35,10 @@ Qed.
 Section Section.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {syscall_state : Type}
+  {absp: Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   (wdb : bool)
@@ -47,11 +49,12 @@ Lemma fexpr_of_pexprP s e f v :
   sem_pexpr true gd s e = ok v →
   sem_fexpr (evm s) f = ok v.
 Proof.
-  elim: e f v => //=.
+  rewrite /sem_pexpr.
+    elim: e f v => //=.
   - by move => > /Some_inj <- /ok_inj <-.
   - by case => x [] // > /Some_inj <-.
-  - move => op e ih ? v /obindI[] f [] /ih{}ih /Some_inj <- /=.
-    by t_xrbindP => > /ih ->.
+  - move => op e ih ? v /obindI [] f [] /ih{}ih /Some_inj <- /=.
+    by t_xrbindP => >  /ih ->.
   - move => op e1 ih1 e2 ih2 f v /obindI[] f1 [] /ih1{}ih1 /obindI[] f2 [] /ih2{}ih2 /Some_inj <- /=.
     by t_xrbindP => > /ih1 -> > /ih2 ->.
   case => // e1 ih1 e2 ih2 e3 ih3 f v /obindI[] f1 [] /ih1{}ih1 /obindI[] f2 [] /ih2{}ih2 /obindI[] f3 [] /ih3{}ih3 /Some_inj <- /=.
@@ -160,6 +163,21 @@ Proof.
   + by move=> [<-].
   t_xrbindP=> s1' /write_lexpr_validw hvalid1 /ih hvalid2.
   by move=> ???; rewrite hvalid1 hvalid2.
+Qed.
+
+Lemma write_lexpr_eassert e v s1 s2 :
+  write_lexpr e v s1 = ok s2 -> eassert s1 = eassert s2.
+Proof.
+  case e => /=; t_xrbindP.
+  + by move=> > _ _ > _ _ > _ > _ <-.
+  by move=> > _ <-.
+Qed.
+
+Lemma write_lexprs_eassert e v s1 s2 :
+  write_lexprs e v s1 = ok s2 -> eassert s1 = eassert s2.
+Proof.
+  elim: e v s1 => [ | e es hrec] [ | v vs] s1 //=; first by move=> [<-].
+  t_xrbindP => ? /write_lexpr_eassert ->; apply hrec.
 Qed.
 
 End Section.

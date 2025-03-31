@@ -34,6 +34,7 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
     | Cassgn (lv, tg, ty, e) -> Cassgn (fill_lv lv, tg, ty, e)
     | Copn (lvs, tg, op, es) -> Copn (fill_lvs lvs, tg, op, es)
     | Csyscall (lvs, op, es) -> Csyscall(fill_lvs lvs, op, es)
+    | Cassert (t, p, e) -> Cassert (t, p, e)
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
     | Cfor (i, r, s) -> Cfor (i, r, fill_stmt s)
     | Cwhile (a, s, e, loc, s') -> Cwhile (a, fill_stmt s, e, loc, fill_stmt s')
@@ -259,6 +260,7 @@ let collect_equality_constraints_in_func
        | (None, _) | (_, None) -> ()
        end
     | Cassgn _ -> ()
+    | Cassert _ -> ()
     | Ccall (xs, fn, es) ->
       let get_Pvar a =
         match a with
@@ -426,6 +428,7 @@ let collect_conflicts pd reg_size asmOp
     | Copn _
     | Csyscall _
     | Ccall _
+    | Cassert _
       -> c
     | Cwhile (_, s1, _, _, s2)
     | Cif (_, s1, s2)
@@ -443,6 +446,7 @@ let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =
   let iter_exprs es = vars_es es |> iter_sv in
   let rec iter_instr_r =
     function
+    | Cassert(t, p, e) -> iter_expr e
     | Cassgn (lv, _, _, e) -> iter_lv lv; iter_expr e
     | (Ccall (lvs, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _ , es) -> iter_lvs lvs; iter_exprs es
     | (Cwhile (_, s1, e, _, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
@@ -692,7 +696,7 @@ let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t)
     | Cwhile (_, s1, _, _, s2)
     | Cif (_, s1, s2)
         -> alloc_stmt s1; alloc_stmt s2
-    | Cassgn _
+    | Cassgn _ | Cassert _
       -> ()
     | Ccall (lvs, _, es) ->
        (* TODO: check this *)

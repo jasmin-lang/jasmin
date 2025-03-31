@@ -154,6 +154,7 @@ let rec modmsf_i fenv i =
   let modified_here = Modified(i.i_loc, []) in
   match i.i_desc with
   | Csyscall _ | Cwhile _ -> modified_here
+  | Cassert _ -> NotModified
   | Cif(_, c0, c1) ->
     if is_inline i
     then
@@ -267,6 +268,8 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
         error ~loc "syscalls destroy msf variables, %a are required" pp_vset ms;
       (* withcheck => is_empty ms *)
       ms
+
+  | Cassert _ -> ms
 
   | Cif (_, c1, c2) ->
     let ms1 = infer_msf_c ~withcheck fenv tbl c1 ms in
@@ -659,6 +662,7 @@ let rec ty_expr env venv loc (e:expr) : vty =
   | PappN(o, es)     ->
     let public = not (CT.is_ct_opN o) in
     ty_exprs_max ~public env venv loc es
+  | Pbig _           -> assert false
   | Pif(_, e1, e2, e3) ->
       let ty1 = ty_expr env venv loc e1 in
       let ty2 = ty_expr env venv loc e2 in
@@ -1025,6 +1029,7 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
       ty_lvals1 env msf_e xs (declassify_ty env i.i_annot ety)
     end
 
+  | Cassert _ -> assert false
   | Cif(e, c1, c2) ->
     let msf1, msf2 =
       if is_inline i then

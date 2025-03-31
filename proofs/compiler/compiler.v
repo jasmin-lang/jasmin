@@ -29,6 +29,7 @@ Require Import
   makeReferenceArguments
   post_unrolling_check
   propagate_inline
+  remove_assert
   slh_lowering
   remove_globals
   stack_alloc
@@ -51,26 +52,26 @@ Context
   {fcp : FlagCombinationParams}
   (is_move_op : asm_op_t -> bool).
 
-Let postprocess (p: uprog) : cexec uprog :=
-  let p := const_prop_prog p in
+Let postprocess (cl: bool) (p: uprog) : cexec uprog :=
+  let p := const_prop_prog cl p in
   dead_code_prog is_move_op p false.
 
 (* FIXME: error really not clear for the user *)
 (* TODO: command line option to specify the unrolling depth,
    the error should suggest increasing the number
 *)
-Fixpoint unroll (n: nat) (p: uprog) : cexec uprog :=
+Fixpoint unroll (cl:bool)(n: nat) (p: uprog) : cexec uprog :=
   if n is S n' then
     let: (p', repeat) := unroll_prog p in
     if repeat then
-      Let: p'' := postprocess p' in
-      unroll n' p''
+      Let: p'' := postprocess cl p' in
+      unroll cl n' p''
     else ok p
   else Error (loop_iterator "unrolling").
 
-Definition unroll_loop (p: uprog) :=
-  Let p := postprocess p in
-  unroll Loop.nb p.
+Definition unroll_loop (cl: bool) (p: uprog) :=
+  Let p := postprocess cl p in
+  unroll cl Loop.nb p.
 
 End IS_MOVE_OP.
 
@@ -79,6 +80,7 @@ Section COMPILER.
 Variant compiler_step :=
   | Typing                      : compiler_step
   | ParamsExpansion             : compiler_step
+  | RemoveAssert                : compiler_step
   | ArrayCopy                   : compiler_step
   | AddArrInit                  : compiler_step
   | LowerSpill                  : compiler_step
@@ -113,6 +115,7 @@ Variant compiler_step :=
 Definition compiler_step_list := [::
     Typing
   ; ParamsExpansion
+  ; RemoveAssert
   ; ArrayCopy
   ; AddArrInit
   ; LowerSpill
@@ -253,6 +256,9 @@ Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
 
 Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
+  let p := remove_assert_prog p in
+  let p := cparams.(print_uprog) RemoveAssert p in
+
   Let p := array_copy_prog (λ k, cparams.(fresh_var_ident) k dummy_instr_info 0) p in
   let p := cparams.(print_uprog) ArrayCopy p in
 
@@ -267,7 +273,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   Let p := inlining to_keep p in
 
-  Let p := unroll_loop (ap_is_move_op aparams) p in
+  Let p := unroll_loop (ap_is_move_op aparams) false p in
   Let: tt := check_no_for_loop p in
   Let: tt := check_no_inline_instr p in
   let p := cparams.(print_uprog) Unrolling p in

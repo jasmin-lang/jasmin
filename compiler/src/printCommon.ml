@@ -93,6 +93,9 @@ let pp_opn pd asmOp fmt o = pp_string fmt (Sopn.string_of_sopn pd asmOp o)
 let pp_opA fmt (op: E.opA) = pp_string fmt op.pa_name
 
 (* -------------------------------------------------------------------- *)
+let pp_opA fmt (op: E.opA) = pp_string fmt op.pa_name
+
+(* -------------------------------------------------------------------- *)
 let pp_syscall (o : 'a Syscall_t.syscall_t) =
   match o with Syscall_t.RandomBytes _ -> "#randombytes"
 
@@ -114,7 +117,7 @@ let pp_kind fmt = function
   | Reg (k, ptr) ->
       fprintf fmt "%sreg%a" (if k = Normal then "" else "#mmx ") pp_pointer ptr
   | Inline -> fprintf fmt "inline"
-  | Global -> fprintf fmt "global"
+  | Global -> fprintf fmt "/* global */"
 
 (* -------------------------------------------------------------------- *)
 let pp_btype fmt = function

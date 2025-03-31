@@ -32,9 +32,11 @@ Variable global_alloc : seq (var * wsize * Z).
 Let glob_size := Z.of_nat (size global_data).
 
 Context
+  {tabstract : Tabstract }
   {wsw : WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -46,37 +48,37 @@ Context
 
 Notation gd := (p_globs P).
 
-Lemma ztakeP (A:Type) z (l l1 l2:list A) : 
+Lemma ztakeP (A:Type) z (l l1 l2:list A) :
   ztake z l = Some(l1, l2) -> l = l1 ++ l2 /\ size l1 = Z.to_nat z.
 Proof.
   case: z => //= [ [<- <-] // | p ].
-  case heq: (ptake p [::] l) => [ [r l2']| //]. 
+  case heq: (ptake p [::] l) => [ [r l2']| //].
   move=> [<- <- {l1 l2}].
   suff : rev [::] ++ l = rev r ++ l2' ∧ size (rev r) = (Pos.to_nat p + size (@nil A))%nat.
   + by rewrite /= addn0.
   elim: p [::] l r l2' heq => /= [p hp | p hp | ] acc l r l2.
   + case: l => // x l.
     case: ptake (hp (x::acc) l) => // -[r1 l21] /(_ _ _ erefl) [h1 h2] /hp [h3 h4].
-    rewrite -cat_rcons -rev_cons h1 h3 h4 -(size_rev r1) h2; split => //=. 
-    rewrite Pos2Nat.inj_xI. 
+    rewrite -cat_rcons -rev_cons h1 h3 h4 -(size_rev r1) h2; split => //=.
+    rewrite Pos2Nat.inj_xI.
     change ((Pos.to_nat p + (Pos.to_nat p + (size acc).+1))%nat = ((2 * Pos.to_nat p).+1 + size acc)%nat); ring.
   + case: ptake (hp acc l) => // -[r1 l21] /(_ _ _ erefl) [h1 h2] /hp [h3 h4].
-    rewrite h1 h3 h4 -(size_rev r1) h2; split => //=. 
-    rewrite Pos2Nat.inj_xO. 
+    rewrite h1 h3 h4 -(size_rev r1) h2; split => //=.
+    rewrite Pos2Nat.inj_xO.
     change ((Pos.to_nat p + (Pos.to_nat p + (size acc)))%nat = ((2 * Pos.to_nat p) + size acc)%nat); ring.
-  by case: l => // x l [<- <-]; rewrite rev_cons cat_rcons size_rcons size_rev. 
+  by case: l => // x l [<- <-]; rewrite rev_cons cat_rcons size_rcons size_rev.
 Qed.
 
-Lemma check_globP data gv tt : 
+Lemma check_globP data gv tt :
   check_glob data gv = ok tt -> size data = Z.to_nat (size_glob gv) ->
   forall k w, get_val_byte (gv2val gv) k = ok w -> nth 0%R data (Z.to_nat k) = w.
 Proof.
-  case: gv; rewrite /check_glob. 
+  case: gv; rewrite /check_glob.
   + move=> ws s; t_xrbindP => /eqP <- hsz k w /=.
-    case:ifP => // ? [] <-. 
+    case:ifP => // ? [] <-.
     rewrite /LE.wread8; f_equal.
     apply (LE.decode_inj (sz:=ws)) => //.
-    + by rewrite LE.size_encode. 
+    + by rewrite LE.size_encode.
     by rewrite LE.decodeK.
   move=> p t /=.
   set test := λ (wd : u8) (i : Z),
@@ -84,26 +86,26 @@ Proof.
        | ok _ w => if wd == w then ok (i + 1) else Error (E.stk_ierror_no_var "bad decode array eq")
        | Error _ => Error (E.stk_ierror_no_var "bad decode array len")
        end.
-  t_xrbindP => z hf _ hsz. 
+  t_xrbindP => z hf _ hsz.
   assert (H : forall data' i l z,
-    foldM test i data' = ok z → 
+    foldM test i data' = ok z →
     data = l ++ data' →
-    Z.of_nat (size l) = i → 
-    (∀ (k : Z) (w : u8), 0%Z <= k < i -> read t Aligned k U8 = ok w → (data`_(Z.to_nat k))%R = w) → 
+    Z.of_nat (size l) = i →
+    (∀ (k : Z) (w : u8), 0%Z <= k < i -> read t Aligned k U8 = ok w → (data`_(Z.to_nat k))%R = w) →
     ∀ (k : Z) (w : u8), read t Aligned k U8 = ok w → (data`_(Z.to_nat k))%R = w); last first.
   + by move=> hfold hsize; apply (H data 0%Z [::] z) => //; lia.
   move=> {z hf }; elim => [ | w data' hrec] i l z /=.
   + rewrite cats0 => _ <- <- h k w hr.
-    have /= ? := @get_val_byte_bound (Varr t) k _ hr.
+    have /= ? := @get_val_byte_bound tabstract (Varr t) k _ hr.
     by apply h => //; rewrite hsz positive_nat_Z.
   rewrite {2}/test; t_xrbindP => i'.
-  case heq: read => [ wp | ] //.  
+  case heq: read => [ wp | ] //.
   case: eqP => [? | //] [?] h heq' hi hr; subst wp i' i.
   apply (hrec _ (rcons l w) _ h).
   + by rewrite cat_rcons.
   + by rewrite size_rcons Nat2Z.inj_succ.
   move=> k w0 hk.
-  case (k =P  Z.of_nat (size l)) => [-> | ]. 
+  case (k =P  Z.of_nat (size l)) => [-> | ].
   + by rewrite heq heq' Nat2Z.id => -[<-]; rewrite nth_cat ltnn subnn.
   move=> ?; apply hr; lia.
 Qed.
@@ -122,7 +124,7 @@ Proof.
   move: hmap; rewrite /init_map.
   t_xrbindP=> -[[mglob' size] data'] hfold; t_xrbindP => /= _ ? x1 ofs1 ws1 hget; subst mglob'.
   move: hfold x1 ofs1 ws1 hget.
-  have : [/\ 
+  have : [/\
     0 <= (Mvar.empty (Z * wsize), 0, global_data).1.2,
     (exists l, seq.size l = Z.to_nat (Mvar.empty (Z * wsize), 0, global_data).1.2 /\
        global_data = l ++ (Mvar.empty (Z * wsize), 0, global_data).2) &
@@ -176,7 +178,7 @@ Proof.
       have heqo : Z.to_nat ofsx = seq.size (l0 ++ rdata).
       + rewrite size_cat heqsz hsz1 Z2Nat.inj_sub // subnKC //.
         by apply /leP; apply Z2Nat.inj_le => //; lia.
-      have /negP/negbTE-> : ~((Z.to_nat ofsx + Z.to_nat k)%coq_nat < seq.size (l0 ++ rdata))%nat. 
+      have /negP/negbTE-> : ~((Z.to_nat ofsx + Z.to_nat k)%coq_nat < seq.size (l0 ++ rdata))%nat.
       + by rewrite -heqo => /ltP; lia.
       rewrite -heqo sub_nmn.
       have hh : seq.size vdata = Z.to_nat (size_glob gv) by rewrite hsz2 heqszg.
@@ -184,7 +186,7 @@ Proof.
       rewrite nth_cat.
       have ? : size_glob gv = size_val (gv2val gv) by case: (gv).
       have -> // : (Z.to_nat k < seq.size vdata)%nat.
-      by apply/ltP; rewrite Nat2Z.inj_lt hsz2 !Z2Nat.id; lia. 
+      by apply/ltP; rewrite Nat2Z.inj_lt hsz2 !Z2Nat.id; lia.
     move=> x2 ofs2 ws2.
     rewrite Mvar.setP.
     case: eqP => [//|_].
@@ -213,7 +215,7 @@ Proof.
   move: hmap; rewrite /init_map.
   t_xrbindP=> -[[mglob' size] data'] hfold; t_xrbindP => /= /SvD.F.subset_iff hsub ? x gv h; subst mglob'.
   move: hfold.
-  have : x \in (map (fun t => t.1.1) global_alloc) \/ 
+  have : x \in (map (fun t => t.1.1) global_alloc) \/
          ∃ (ofs : Z) (ws : wsize), Mvar.get (Mvar.empty (Z * wsize), 0, global_data).1.1 x = Some (ofs, ws).
   + left; apply /sv_of_listP/hsub/sv_of_listP.
     by apply: assoc_mem_dom' h.
@@ -1197,10 +1199,10 @@ Proof.
   by move=> /SvD.F.add_3; auto.
 Qed.
 
-Lemma add_alloc_wf_rmap locals1' rmap1' vnew1' x pki locals2' rmap2' vnew2' s2 :
+Lemma add_alloc_wf_rmap locals1' rmap1' vnew1' x pki locals2' rmap2' vnew2' eass1 s2 :
   wf_pmap (lmap locals1' vnew1') rsp rip Slots Addr Writable Align ->
   add_alloc mglob stack (x, pki) (locals1', rmap1', vnew1') = ok (locals2', rmap2', vnew2') ->
-  let: s1 := {| escs := scs1; emem := m1; evm := Vm.init |} in
+  let: s1 := {| escs := scs1; emem := m1; evm := Vm.init; eassert := eass1 |} in
   wf_rmap (lmap locals1' vnew1') Slots Addr Writable Align P rmap1' s1 s2 ->
   wf_rmap (lmap locals2' vnew2') Slots Addr Writable Align P rmap2' s1 s2.
 Proof.
@@ -1308,8 +1310,8 @@ Proof.
   by apply (add_alloc_wf_pmap halloc hpmap).
 Qed.
 
-Lemma init_local_map_wf_rmap s2 :
-  let: s1 := {| escs := scs1; emem := m1; evm := Vm.init |} in
+Lemma init_local_map_wf_rmap s2 eass1 :
+  let: s1 := {| escs := scs1; emem := m1; evm := Vm.init; eassert := eass1 |} in
   (forall i, 0 <= i < glob_size ->
     read (emem s2) Aligned (rip + wrepr Uptr i)%R U8 = ok (nth 0%R global_data (Z.to_nat i))) ->
   wf_rmap (lmap locals1 vnew1) Slots Addr Writable Align P rmap1 s1 s2.
@@ -1325,13 +1327,13 @@ Proof.
                       Slots Addr Writable Align
      /\ wf_rmap (lmap (Mvar.empty ptr_kind, empty, Sv.add vxlen0 (Sv.add vrip0 (Sv.add vrsp0 Sv.empty))).1.1
                       (Mvar.empty ptr_kind, empty, Sv.add vxlen0 (Sv.add vrip0 (Sv.add vrsp0 Sv.empty))).2)
-                Slots Addr Writable Align P (Mvar.empty ptr_kind, empty, Sv.add vxlen0 (Sv.add vrip0 (Sv.add vrsp0 Sv.empty))).1.2 
-            {| escs := scs1; emem := m1; evm := Vm.init |} s2.
+                Slots Addr Writable Align P (Mvar.empty ptr_kind, empty, Sv.add vxlen0 (Sv.add vrip0 (Sv.add vrsp0 Sv.empty))).1.2
+            {| escs := scs1; emem := m1; evm := Vm.init; eassert := eass1 |} s2.
   + split.
     + split=> //=.
       + by apply/SvD.F.add_1.
       + by apply/SvD.F.add_2/SvD.F.add_1.
-      + by apply/SvD.F.add_2/SvD.F.add_2/SvD.F.add_1. 
+      + by apply/SvD.F.add_2/SvD.F.add_2/SvD.F.add_1.
       by apply init_map_wf.
     by apply init_map_wf_rmap.
   elim: sao.(sao_alloc) (Mvar.empty _, _, _).
@@ -1466,7 +1468,7 @@ Proof.
   + by rewrite /truncatable heq hty2 /= eqxx.
   + by rewrite /get_local /= Mvar.setP_eq.
   + by rewrite hty2.
-  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hass hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
   split=> //.
   + move=> x /=;rewrite Mvar.setP.
     case: eqP => // ? hlx hnnew3; apply heqvm => // ?.
@@ -1496,9 +1498,9 @@ Proof.
   by apply (init_param_wf_pmap hparam).
 Qed.
 
-Lemma valid_state_init_params wdb m0 vm1 vm2 :
-  let: s1 := {| escs := scs1; emem := m1; evm := vm1 |} in
-  let: s2 := {| escs := scs1; emem := m2; evm := vm2 |} in
+Lemma valid_state_init_params wdb m0 vm1 vm2 eass1 eass2:
+  let: s1 := {| escs := scs1; emem := m1; evm := vm1; eassert := eass1 |} in
+  let: s2 := {| escs := scs1; emem := m2; evm := vm2; eassert := eass2 |} in
   valid_state (lmap locals1 vnew1) glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s2 ->
   forall s1',
   write_vars wdb params vargs1 s1 = ok s1' ->
@@ -1510,8 +1512,8 @@ Proof.
   move=> hvs.
   have {hvs}:
      wf_pmap (lmap locals1 vnew1) rsp rip Slots Addr Writable Align /\
-     valid_state (lmap locals1 vnew1) glob_size rsp rip Slots Addr Writable Align P rmap1 m0 
-        {| escs := scs1; emem := m1; evm := vm1 |} {| escs := scs1; emem := m2; evm := vm2 |}.
+     valid_state (lmap locals1 vnew1) glob_size rsp rip Slots Addr Writable Align P rmap1 m0
+        {| escs := scs1; emem := m1; evm := vm1; eassert := eass1 |} {| escs := scs1; emem := m2; evm := vm2; eassert := eass2  |}.
   + split=> //.
     by apply init_local_map_wf_pmap.
   elim: Huincl params get_pi_Forall vnew1
@@ -1642,16 +1644,16 @@ Record extend_mem (m1 m2:mem) (rip:pointer) (data:seq u8) := {
    of alloc_stack_spec to reason with. The advantages are not clear. For now, I leave it like this.
 *)
 (* cf. init_stk_stateI in merge_varmaps_proof *)
-Lemma init_stk_state_valid_state m3 sz' ws :
+Lemma init_stk_state_valid_state m3 sz' ws eass:
   extend_mem m1 m2 rip global_data ->
   alloc_stack_spec m2 ws sao.(sao_size) sao.(sao_ioff) sz' m3 ->
   rsp = top_stack m3 ->
   vripn <> vrspn ->
-  let s2 := {| escs := scs1; emem := m3; evm :=
+  let s2 := {| escs := scs1; emem := m3; eassert := [::]; evm :=
        Vm.init.[vrsp0 <- Vword rsp ]
               .[vrip0 <- Vword rip ] |} in
   valid_state (lmap locals1 vnew1) glob_size rsp rip Slots Addr Writable Align P rmap1 m2
-     {| escs := scs1; evm := Vm.init; emem := m1 |} s2.
+     {| escs := scs1; evm := Vm.init; eassert := eass; emem := m1 |} s2.
 Proof.
   clear disjoint_zrange_globals_locals rsp_align rip_align.
   move=> hext hass hrsp hneq /=.
@@ -1736,7 +1738,7 @@ Qed.
    At least, it works with the current formulation.
 *)
 Definition disjoint_from_writable_param p wptr varg1 varg2 :=
-  forall p2, wptr = Some true -> varg2 = @Vword Uptr p2 ->
+  forall p2, wptr = Some true -> varg2 = @Vword _ Uptr p2 ->
   disjoint_zrange p2 (size_val varg1) p (wsize_size U8).
 
 (* [disjoint_from_writable_params] correctly captures the notion of being
@@ -1936,15 +1938,15 @@ Notation mem_unchanged_params_fn ms m0 m fn vargs1 vargs2 :=
   (mem_unchanged_params ms m0 m
     (map (omap pp_writable) (local_alloc fn).(sao_params)) vargs1 vargs2).
 
-Let Pfun (scs1: syscall_state) (m1: mem) (fn: funname) (vargs: seq value) 
-         (scs2: syscall_state) (m2: mem) (vres: seq value) :=
+Let Pfun (scs1: syscall_state) (m1: mem) (fn: funname) (vargs: seq value)
+         (scs2: syscall_state) (m2: mem) (vres: seq value) (tr: contracts_trace) :=
   forall m1' vargs',
     extend_mem m1 m1' rip global_data ->
     wf_args m1 m1' fn vargs vargs' ->
     value_eq_or_in_mem_args m1' fn vargs vargs' ->
     alloc_ok P' fn m1' ->
     exists m2' vres',
-      sem_call P' rip scs1 m1' fn vargs' scs2 m2' vres' /\
+      sem_call P' rip scs1 m1' fn vargs' scs2 m2' vres' [::] /\
       extend_mem m2 m2' rip global_data /\
       wf_results vargs vargs' fn vres vres' /\
       value_eq_or_in_mem_res m2' fn vres vres' /\
@@ -1988,7 +1990,7 @@ Proof.
   by apply sem_seq1; constructor; apply: Eassgn; eauto; rewrite P'_globs; auto.
 Qed.
 
-Lemma is_swap_arrayP o : 
+Lemma is_swap_arrayP o :
   reflect (exists n,  o = Opseudo_op (pseudo_operator.Oswap (sarr n))) (is_swap_array o).
 Proof.
   case: o => /=; try by constructor => -[].
@@ -2034,6 +2036,9 @@ Proof.
   by apply (alloc_syscallP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hpmap P' hsaparams hsyscall hvs hves hvxs hs2).
 Qed.
 
+Local Lemma Hassert : sem_Ind_assert P Pi_r.
+Proof. move=> ? //. Qed.
+
 Local Lemma Hif_true : sem_Ind_if_true P ev Pc Pi_r.
 Proof.
   move=> s1 s2 e c1 c2 Hse _ Hc pmap rsp Slots Addr Writable Align rmap1 rmap2 ii1 c hpmap hwf sao /=.
@@ -2056,7 +2061,7 @@ Proof.
   by apply: valid_state_Incl Hvalid'; apply incl_Incl; apply incl_merge_r.
 Qed.
 
-Lemma loop2P ii check_c2 n rmap rmap' e' c1' c2': 
+Lemma loop2P ii check_c2 n rmap rmap' e' c1' c2':
   loop2 ii check_c2 n rmap = ok (rmap', (e', (c1', c2'))) ->
   exists rmap1 rmap2, Incl rmap1 rmap /\ check_c2 rmap1 = ok ((rmap', rmap2), (e', (c1', c2'))) /\ incl rmap1 rmap2.
 Proof.
@@ -2156,14 +2161,33 @@ Proof.
   by rewrite ByteSet.fullE ByteSet.removeE => /andP [_ /negP ?].
 Qed.
 
-Lemma wf_rmap_scs pmap Slots Addr Writable Align rmap s1 s2 scs: 
+Lemma wf_rmap_scs pmap Slots Addr Writable Align rmap s1 s2 scs:
   wf_rmap pmap Slots Addr Writable Align P rmap s1 s2 ->
   wf_rmap pmap Slots Addr Writable Align P rmap (with_scs s1 scs) (with_scs s2 scs).
 Proof. by case. Qed.
 
+Lemma sem_pre_ok fn fd scs m vargs :
+  get_fundef (p_funcs P) fn = Some fd ->
+  sem_pre P' scs m fn vargs = ok [::].
+Proof.
+  rewrite /sem_pre => hfd1; have [fd2 /[swap] ->] := Halloc_fd hfd1.
+  rewrite /alloc_fd /alloc_fd_aux; t_xrbindP => > ? [[??]?] ?.
+  by t_xrbindP => -[[[??] ?] ?]; t_xrbindP => _ _ _ [??] _; t_xrbindP => ? _ <- <-.
+Qed.
+
+Lemma sem_post_ok fn fd scs m vargs vres:
+  get_fundef (p_funcs P) fn = Some fd ->
+  sem_post P' scs m fn vargs vres = ok [::].
+Proof.
+  rewrite /sem_post => hfd1; have [fd2 /[swap] ->] := Halloc_fd hfd1.
+  rewrite /alloc_fd /alloc_fd_aux; t_xrbindP => > ? [[??]?] ?.
+  by t_xrbindP => -[[[??] ?] ?]; t_xrbindP => _ _ _ [??] _; t_xrbindP => ? _ <- <-.
+Qed.
+
+
 Local Lemma Hcall : sem_Ind_call P ev Pi_r Pfun.
 Proof.
-  move=> s1 scs2 m1 s1' rs fn args vargs1 vres1 hvargs1 hsem1 Hf hs1'.
+  move=> s1 scs2 m1 s1' s3 rs fn args vargs1 vres1 vpr vpo tr hvargs1 hpr hsem1 Hf hs1' hpo ->.
   move=> pmap rsp Slots Addr Writable Align rmap0 rmap2 ii1 c hpmap hwfsl sao /=.
   t_xrbindP => -[rmap2' i2'] /= halloc ?? m0 s2 hvs hext hsao; subst rmap2' c.
   move: halloc; rewrite /alloc_call /assert_check.
@@ -2269,8 +2293,13 @@ Proof.
     have hincl := Forall2_nth hclear None (Vbool true) (nth_not_default hsr' ltac:(discriminate)) _ hsr'.
     apply (disjoint_incl_l (incl_get_var_bytes _ _ hincl)) => /=.
     by apply disjoint_set_clear.
+<<<<<<< HEAD
   have {}hvs' :
     valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 (with_scs (with_mem s1 m1) scs2) 
+=======
+  have {hvs'} hvs' :
+    valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 (with_scs (with_mem s1 m1) scs2)
+>>>>>>> feature-annotation
                                                                             (with_scs (with_mem s2 m2) scs2).
   + by case: hvs' => *; split => //; apply wf_rmap_scs.
   (* writing of the returned values *)
@@ -2280,7 +2309,11 @@ Proof.
 
   exists s2'; split=> //.
   apply sem_seq1; constructor; econstructor; rewrite ?P'_globs; eauto.
-  by case: hvs => <- *.
+  + by apply: sem_pre_ok hfd1.
+  + by case: hvs => <- *; apply: hsem2.
+  + by apply: sem_post_ok hfd1.
+  + by case s2'.
+  by apply: valid_state_eassert hvs''.
 Qed.
 
 (* Actually, I think we could have proved something only for arrays, since we
@@ -2685,7 +2718,7 @@ Qed.
 
 Local Lemma Hproc : sem_Ind_proc P ev Pc Pfun.
 Proof.
-  move=> scs1 m1 _ _ fn fd vargs1' vargs1 _ s1 s1' vres1 vres1' hfd hvargs1' /= [<-] hs1 hsem1 Hc hvres1 hvres1' -> ->.
+  move=> scs1 m1 _ _ fn fd vargs1' vargs1 _ s1 s1' vres1 vres1' vpr vpo _ hfd hvargs1' /= [<-] hs1 _ hsem1 Hc hvres1 hvres1' -> -> _ ->.
   move=> m2 vargs2 hext hargs heqinmem_args hok.
   have [fd2 halloc hfd2] := Halloc_fd hfd.
   move: halloc; rewrite /alloc_fd /alloc_fd_aux /=.
@@ -2724,7 +2757,7 @@ Proof.
   set vrip' := {| vtype := spointer; vname := P'.(p_extra).(sp_rip); |}.
 
   have hinit:
-    init_stk_state fex (p_extra P') rip {| escs := scs1; emem := m2; evm := Vm.init |} =
+    init_stk_state fex (p_extra P') rip {| escs := scs1; emem := m2; evm := Vm.init; eassert := [::] |} =
     ok
       {|
         escs := scs1;
@@ -2732,6 +2765,7 @@ Proof.
         evm := Vm.init
           .[ vrsp' <- Vword rsp]
           .[ vrip' <- Vword rip];
+        eassert := [::]
       |}.
   + by rewrite /init_stk_state halloc_stk /= write_var_eq_type //= write_var_eq_type.
   have hover := ass_no_overflow hass.
@@ -2782,7 +2816,7 @@ Proof.
   have hsub := write_vars_subtype (init_params_sarr hparams) hs1. (* 'backported' from write_vars of args *)
   set vxlen := (fresh_reg_ _ _) in halloc.
   have /= hvs := init_stk_state_valid_state hlayout hover
-    scs1 hargs' hsub hlocal_map hparams hext hass refl_equal rip_rsp_neq.
+    scs1 hargs' hsub hlocal_map hparams [::] hext hass refl_equal rip_rsp_neq.
   have hpmap := init_params_wf_pmap hlayout rsp vargs1' vargs2' hlocal_map hparams.
   have hslots := Hwf_Slots hlayout hover hdisj_glob_locals hext.(em_align)
     hass.(ass_align_stk) hargs' hsub hparams hdisj_locals_params.
@@ -2821,7 +2855,8 @@ Proof.
    by apply hass.(ass_align_stk).
 
   (* execution of the body *)
-  have [s2' [hsem2 hvs''']] := Hc _ _ _ _ _ _ _ _ _ hpmap hslots _ halloc _ _ hvs' hext'' hsao.
+  have hvs__ := valid_state_eassert (eassert (add_assumes s1 vpr)) hvs'.
+  have [s2' [hsem2 hvs''']] := Hc _ _ _ _ _ _ _ _ _ hpmap hslots _ halloc _ _ hvs__ hext'' hsao.
   have hext''' := valid_state_extend_mem hslots hvs' hext'' hvs''' (sem_validw_stable_uprog hsem1) (sem_validw_stable_sprog hsem2).
 
   (* get_var of results *)
@@ -2835,7 +2870,7 @@ Proof.
   (* truncate_val of results *)
   have [vres2' [hvres2' heqinmem_res']] :=
     mapM2_truncate_val_value_eq_or_in_mem hvres1' heqinmem_res.
-  have hresults' := mapM2_truncate_val_wf_results hvres1' hvres2' heqinmem_res hresults. 
+  have hresults' := mapM2_truncate_val_wf_results hvres1' hvres2' heqinmem_res hresults.
   have hnnone: List.Forall (fun oi => forall i, oi = Some i -> nth None (sao_params (local_alloc fn)) i <> None)
                            (sao_return (local_alloc fn)).
   + apply: List.Forall_impl (check_results_alloc_params_not_None hcresults).
@@ -2863,7 +2898,12 @@ Proof.
 
   exists (free_stack (emem s2')), vres2'.
   split.
-  + by econstructor; eauto; case: hvs'''.
+  + econstructor; eauto.
+    + by apply: sem_pre_ok hfd.
+    + by have /= -> : add_assumes s2 [::] = s2 by case s2.
+    + by case: hvs'''.
+    + by apply: sem_post_ok hfd.
+    + by rewrite /=; case: hvs''' => _ ->.
   split.
   + apply (free_stack_spec_extend_mem hext''' hfss).
     move=> p.
@@ -2885,8 +2925,8 @@ Proof.
   by apply or_comm.
 Qed.
 
-Lemma check_cP scs1 m1 fn vargs scs2 m2 vres : sem_call P ev scs1 m1 fn vargs scs2 m2 vres -> 
-   Pfun scs1 m1 fn vargs scs2 m2 vres.
+Lemma check_cP scs1 m1 fn vargs scs2 m2 vres tr : sem_call P ev scs1 m1 fn vargs scs2 m2 vres tr ->
+   Pfun scs1 m1 fn vargs scs2 m2 vres tr.
 Proof.
   exact:
     (sem_call_Ind
@@ -2896,6 +2936,7 @@ Proof.
        Hassgn
        Hopn
        Hsyscall
+       Hassert
        Hif_true
        Hif_false
        Hwhile_true
@@ -2914,9 +2955,11 @@ End INIT.
 Section HSAPARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc : DirectCall}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -2967,8 +3010,8 @@ Qed.
 *)
 Theorem alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn:
   alloc_prog shparams saparams fresh_reg_ nrip nrsp data oracle_g oracle P = ok SP ->
-  forall ev scs1 m1 vargs1 scs1' m1' vres1,
-    sem_call P ev scs1 m1 fn vargs1 scs1' m1' vres1 ->
+  forall ev scs1 m1 vargs1 scs1' m1' vres1 tr,
+    sem_call P ev scs1 m1 fn vargs1 scs1' m1' vres1 tr ->
     forall rip m2 vargs2,
       extend_mem m1 m2 rip data ->
       wf_args (Z.of_nat (size data)) rip m1 m2
@@ -2977,14 +3020,14 @@ Theorem alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn:
       Forall3 (value_eq_or_in_mem m2) (oracle fn).(sao_params) vargs1 vargs2 ->
       alloc_ok SP fn m2 ->
       exists m2' vres2, [/\
-        sem_call SP rip scs1 m2 fn vargs2 scs1' m2' vres2,
+        sem_call SP rip scs1 m2 fn vargs2 scs1' m2' vres2 [::],
         extend_mem m1' m2' rip data,
         Forall3 (wf_result vargs1 vargs2) (oracle fn).(sao_return) vres1 vres2,
         Forall3 (value_eq_or_in_mem m2') (oracle fn).(sao_return) vres1 vres2 &
         mem_unchanged_params m1 m2 m2'
           (map (omap pp_writable) (oracle fn).(sao_params)) vargs1 vargs2].
 Proof.
-  move=> hprog ev scs1 m1 vargs1 scs1' m1' vres1 hsem1 rip m2 vargs2 hext hargs heqinmems halloc.
+  move=> hprog ev scs1 m1 vargs1 scs1' m1' vres1 tr hsem1 rip m2 vargs2 hext hargs heqinmems halloc.
   move: hprog; rewrite /alloc_prog.
   t_xrbindP=> mglob hmap /eqP hneq.
   t_xrbindP=> fds hfds.

@@ -5,7 +5,7 @@ Require Import psem.
 Section SEM_EXPR.
 (* Semantic of expressions *)
 
-  Context {wsw : WithSubWord} {pd: PointerData}.
+  Context {tabstract : Tabstract} {wsw : WithSubWord} {pd: PointerData}.
   Context (m: mem) (vm: Vm.t).
 
   Fixpoint sem_fexpr (e: fexpr) : exec value :=
@@ -19,11 +19,15 @@ Section SEM_EXPR.
 
   Definition sem_rexpr (e: rexpr) : exec value :=
     match e with
+<<<<<<< HEAD
     | Load al ws x a =>
         Let p := get_var true vm x >>= to_pointer in
         Let off := sem_fexpr a >>= to_pointer in
         Let v := read m al (p + off)%R ws in
         ok (@to_val (sword ws) v)
+=======
+    | Load al ws x a => Let p := get_var true vm x >>= to_pointer in Let off := sem_fexpr a >>= to_pointer in Let v := read m al (p + off)%R ws in ok (@to_val _ (sword ws) v)
+>>>>>>> feature-annotation
     | Rexpr a => sem_fexpr a
     end.
 
@@ -32,7 +36,7 @@ End SEM_EXPR.
 Section SEM.
 
 Context
-  {wsw : WithSubWord} {syscall_state : Type}
+  {tabstract : Tabstract} {wsw : WithSubWord} {syscall_state : Type}
   {ep : EstateParams syscall_state}.
 
 Definition write_lexpr e v (s: estate) : exec estate :=

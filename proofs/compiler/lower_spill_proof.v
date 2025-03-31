@@ -9,9 +9,11 @@ Local Open Scope seq_scope.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc  : DirectCall}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep  : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -129,7 +131,7 @@ Qed.
 
 (* TODO: Move this ? *)
 Lemma app_sopn_truncate_val T ts (f:sem_prod ts (exec T)) vs r :
-  app_sopn ts f vs = ok r ->
+  app_sopn (ts:=ts) f vs = ok r ->
   exists vs', mapM2 ErrType truncate_val ts vs = ok vs'.
 Proof.
   elim: ts f vs => [ | t ts hrec] f [ | v vs] //=; first by eauto.
@@ -354,6 +356,19 @@ Proof.
   by apply sem_seq1; constructor; econstructor; eauto; rewrite -eq_globs.
 Qed.
 
+Local Lemma Hassert : sem_Ind_assert p Pi_r.
+Proof.
+  move=> s t pt e b he ii; split => //.
+  + by constructor; apply Eassert => //; rewrite -eq_globs.
+  move => S env env' c vm /=.
+  rewrite vars_I_assert ; t_xrbindP  => <- <-  hX hval.
+  rewrite (valid_env_e true gd hval) in he; last by SvD.fsetdec.
+  exists vm => //=.
+  by apply sem_seq1; constructor;
+  rewrite <- add_contract_with_vm;
+  apply Eassert  => //; rewrite -eq_globs.
+Qed.
+
 Lemma valid_env_sub S env1 env2 vm vm' :
   Sv.Subset env1 env2 -> valid_env S env2 vm vm' -> valid_env S env1 vm vm'.
 Proof. move=> hsub [heq hval]; split => // x hx; apply hval; SvD.fsetdec. Qed.
@@ -366,7 +381,7 @@ Proof. rewrite /merge_env; SvD.fsetdec. Qed.
 
 Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 e c1 c2 he _ [hrec0 hrec] ii; split.
+  move=> s1 s2 e c1 c2 he  _  [hrec0 hrec] ii; split.
   + by constructor; apply: Eif_true => //; rewrite -eq_globs.
   move=> S env env' c vm /=.
   rewrite vars_I_if; t_xrbindP => -[env1 c1'] hc1 [env2 c2'] hc2 <- <- hX hval.
@@ -503,17 +518,55 @@ Proof.
   exists vm3 => //; econstructor; eauto.
 Qed.
 
+Local Lemma sem_pre_ok scs m fn vargs v:
+  sem_pre p scs m fn vargs = ok v → sem_pre p' scs m fn vargs = ok v.
+Proof.
+  rewrite /sem_pre.
+  have spillok : map_cfprog_name (spill_fd fresh_var_ident) (p_funcs p) = ok (p_funcs p').
+  + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
+  case hfun : get_fundef => [fd |] //.
+  have [f' hf'1 -> /=] := get_map_cfprog_name_gen spillok hfun.
+  move : hf'1; rewrite /spill_fd -eq_globs.
+  case : (fd) => ? ci > /=.
+  case : ifP => //=; first by move => _ [<-].
+  by t_xrbindP => _ _ ? _ <- /=; case: ci.
+Qed.
+
+
+Local Lemma sem_post_ok scs m fn vargs vres v:
+  sem_post p scs m fn vargs vres = ok v → sem_post p' scs m fn vargs vres = ok v.
+Proof.
+  rewrite /sem_post.
+  have spillok : map_cfprog_name (spill_fd fresh_var_ident) (p_funcs p) = ok (p_funcs p').
+  + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
+  case hfun : get_fundef => [fd |] //.
+  have [f' hf'1 -> /=] := get_map_cfprog_name_gen spillok hfun.
+  move : hf'1; rewrite /spill_fd -eq_globs.
+  case : (fd) => ? ci >.
+  case : ifP => //=; first by move => _ [<-].
+  by t_xrbindP => _ _ ? _ <- /=; case: ci.
+Qed.
+
 Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s1 scs2 m2 s2 xs fn args vargs vs hargs _ hfun hw ii; split.
-  + by constructor; econstructor; eauto; rewrite -eq_globs.
-  move=> S env env' c vm [<- <-].
+  move=> s1 scs2 m2 s2 s3 xs fn args vargs vs vpr vpo tr he hpr _ hfun hw hpo -> ii ;split.
+  + constructor; econstructor; eauto.
+    by rewrite <- eq_globs.
+    by apply sem_pre_ok.
+    by rewrite <- eq_globs.
+    by apply sem_post_ok.
+    move=> S env env' c vm [<- <-].
   rewrite vars_I_call => hX hval.
-  rewrite (valid_env_es (~~ direct_call) gd hval) in hargs; last by SvD.fsetdec.
   have hval1 : valid_env S env (evm (with_scs (with_mem s1 m2) scs2)) vm by done.
   case: (update_lvsP hval1 hw); first by SvD.fsetdec.
   move=> vm' hws' hval'; exists vm' => //.
-  by apply sem_seq1; constructor; econstructor; eauto; rewrite -eq_globs.
+  apply sem_seq1; constructor; econstructor; eauto.
+  rewrite <- eq_globs.
+  by rewrite <- (valid_env_es (~~ direct_call) gd hval) ; last by SvD.fsetdec.
+  + by apply : sem_pre_ok hpr.
+    rewrite <- eq_globs. apply hws'.
+  + by apply : sem_post_ok hpo.
+    by case s2.
 Qed.
 
 Lemma init_map_ty toS :
@@ -610,15 +663,19 @@ Qed.
 
 Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
 Proof.
-  move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' hfun htra hinit hw hsc hc hres hfull ??.
+  move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' vpr vpo tr hfun htra hinit hw hpre hsc hc hres hfull ??.
   rewrite /Pfun; subst scs2 m2.
   have spillok : map_cfprog_name (spill_fd fresh_var_ident) (p_funcs p) = ok (p_funcs p').
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
   have [f' hf'1 hf'2] := get_map_cfprog_name_gen spillok hfun.
-  case: f hfun htra hinit hw hsc hc hres hfull hf'1 hf'2 =>
-    fi ft fp /= c f_tyout res fb hfun htra hinit hw hsc [hc_ hc] hres hfull hf'1 hf'2.
+  case: f hfun htra hinit hw hsc hpre hc hres hfull hf'1  =>
+    fi fc ft fp /=  c f_tyout res fb hfun htra hinit hw hsc hpre [hc_ hc] hres hfull hf'1 hpost htr.
   case: ifP hf'1.
-  + by move=> hX [?]; subst f'; econstructor; eauto => //=; rewrite -eq_p_extra.
+  + move=> hX [?]; subst f'; econstructor; eauto => //=.
+    + by rewrite - eq_p_extra.
+    + by apply: sem_pre_ok hpre.
+    + by apply: sem_post_ok hpost.
+    auto.
   t_xrbindP=> _ hcm [env' c'] hc' ?; subst f'.
   pose m := init_map fresh_var_ident (foldl to_spill_i (Sv.empty, false) c).1.
   pose X := Sv.union (vars_l fp) (Sv.union (vars_l res) (vars_c c)).
@@ -633,18 +690,21 @@ Proof.
   + by split => // x /Sv_memP.
   move=> vm2; rewrite with_vm_same => ? [hval _].
   econstructor; eauto => /=; first by rewrite -eq_p_extra.
-  rewrite /get_var_is.
+  + by apply: sem_pre_ok hpre.
+  + rewrite /get_var_is.
   rewrite (@mapM_ext _ _ _ _ (λ (x : var_i), get_var (~~direct_call) (evm s2) x)) //.
   move=> x hx; apply (get_var_eq_on _ (s:=vars_l res)).
   + elim: (res) hx => //= r rs hrec [] h.
     + by subst r; SvD.fsetdec.
     by have := hrec h; SvD.fsetdec.
   by apply/eq_onS; apply: eq_onI hval => /=; rewrite /X; SvD.fsetdec.
+  by apply: sem_post_ok hpost.
+  auto.
 Qed.
 
-Lemma lower_spill_fdP fn scs mem scs' mem' va vr:
-  sem_call p ev scs mem fn va scs' mem' vr ->
-  sem_call p' ev scs mem fn va scs' mem' vr.
+Lemma lower_spill_fdP fn scs mem scs' mem' va vr tr:
+  sem_call p ev scs mem fn va scs' mem' vr tr ->
+  sem_call p' ev scs mem fn va scs' mem' vr tr.
 Proof.
   move=> Hsem.
   exact:
@@ -655,6 +715,7 @@ Proof.
        Hassgn
        Hopn
        Hsyscall
+       Hassert
        Hif_true
        Hif_false
        Hwhile_true

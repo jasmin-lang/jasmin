@@ -23,6 +23,8 @@ Section PEXPR_IND.
     (Happ2: ∀ op e1, P e1 → ∀ e2, P e2 → P (Papp2 op e1 e2))
     (HappN: ∀ op es, (∀ e, List.In e es → P e) → P (PappN op es))
     (Hif: ∀ t e, P e → ∀ e1, P e1 → ∀ e2, P e2 → P (Pif t e e1 e2))
+    (Hbig: forall idx, P idx -> forall op x body, P body -> forall start, P start -> forall len, P len ->
+            P (Pbig idx op x body start len))
   .
 
   Definition pexpr_ind_rec (f: ∀ e, P e) : ∀ es : pexprs, ∀ e, List.In e es → P e :=
@@ -45,6 +47,8 @@ Section PEXPR_IND.
     | Papp2 op e1 e2 => Happ2 op (pexpr_ind e1) (pexpr_ind e2)
     | PappN op es => HappN op (@pexpr_ind_rec pexpr_ind es)
     | Pif t e e1 e2 => Hif t (pexpr_ind e) (pexpr_ind e1) (pexpr_ind e2)
+    | Pbig idx op x body start len =>
+      Hbig (pexpr_ind idx) op x (pexpr_ind body) (pexpr_ind start) (pexpr_ind len)
     end.
 
 End PEXPR_IND.
@@ -70,6 +74,9 @@ Section PEXPRS_IND.
     pexprs_app2: ∀ op e1, P e1 → ∀ e2, P e2 → P (Papp2 op e1 e2);
     pexprs_appN: ∀ op es, Q es → P (PappN op es);
     pexprs_if: ∀ t e, P e → ∀ e1, P e1 → ∀ e2, P e2 → P (Pif t e e1 e2);
+    pexprs_big:
+      forall idx, P idx -> forall op x body, P body -> forall start, P start -> forall len, P len ->
+          P (Pbig idx op x body start len);
   }.
 
   Context (h: pexpr_ind_hypotheses).
@@ -93,6 +100,8 @@ Section PEXPRS_IND.
     | Papp2 op e1 e2 => pexprs_app2 h op (pexpr_mut_ind e1) (pexpr_mut_ind e2)
     | PappN op es => pexprs_appN h op (pexprs_ind pexpr_mut_ind es)
     | Pif t e e1 e2 => pexprs_if h t (pexpr_mut_ind e) (pexpr_mut_ind e1) (pexpr_mut_ind e2)
+    | Pbig idx op x body start len =>
+      pexprs_big h (pexpr_mut_ind idx) op x (pexpr_mut_ind body) (pexpr_mut_ind start) (pexpr_mut_ind len)
     end.
 
   Definition pexprs_ind_pair :=
@@ -249,10 +258,15 @@ Let Pc c := forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)).
 Lemma write_c_recE s c : Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
 Proof.
   apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s}
+<<<<<<< HEAD
     [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | a c e ii c' Hc Hc' | ii xs f es ] s;
+=======
+    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | t p e | e c1 c2 Hc1 Hc2
+    | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s;
+>>>>>>> feature-annotation
     rewrite /write_I /write_I_rec /write_i /write_i_rec -/write_i_rec -/write_I_rec /write_c /=
-    ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //;
+      ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //;
     by clear; SvD.fsetdec.
 Qed.
 
@@ -321,8 +335,10 @@ Lemma read_e_esE :
   (∀ es s, Sv.Equal (read_es_rec s es) (Sv.union (read_es es) s)).
 Proof.
   apply: pexprs_ind_pair;
-  split => //= [ e He es Hes | v | al aa w v e He | aa w len v e He | al w v e He | o e1 He1 e2 He2 | t e He e1 He1 e2 He2 ] s;
-    rewrite /read_e /= ?He ?He1 ?He2; try (clear; SvD.fsetdec).
+  split => //=
+    [ e He es Hes | v | al aa w v e He | aa w len v e He | al w v e He | o e1 He1 e2 He2 | t e He e1 He1 e2 He2
+    | idx He op x body He1 start He2 len He3] s;
+    rewrite /read_e /= ?He ?He1 ?He2 ?He3; try (clear; SvD.fsetdec).
   rewrite /read_es /= -/read_e Hes He Hes; clear; SvD.fsetdec.
 Qed.
 
@@ -363,6 +379,18 @@ Lemma read_e_PappN_cons opn e es :
   Sv.Equal (read_e (PappN opn (e :: es))) (Sv.union (read_e e) (read_es es)).
 Proof. by rewrite -[read_e (PappN _ _)]/(read_es _) read_es_cons. Qed.
 
+Lemma read_e_Pbig idx op x body s len :
+  Sv.Equal (read_e (Pbig idx op x body s len))
+           (Sv.union (read_e idx) (Sv.union (Sv.remove x (read_e body))
+              (Sv.union (read_e s) (read_e len)))).
+Proof. rewrite {1}/read_e /= !read_eE; clear; SvD.fsetdec. Qed.
+
+Lemma read_e_Pif ty e e0 e1 :
+  Sv.Equal
+    (read_e (Pif ty e e0 e1))
+    (Sv.union (read_e e) (Sv.union (read_e e0) (read_e e1))).
+Proof. by rewrite {1}/read_e /= 2!read_eE. Qed.
+
 Lemma read_rvE s x: Sv.Equal (read_rv_rec s x) (Sv.union s (read_rv x)).
 Proof.
   case: x => //= *; rewrite /read_rv /= ?read_eE; clear; SvD.fsetdec.
@@ -381,12 +409,6 @@ Proof.
   rewrite {1}/read_rvs /= read_rvsE read_rvE; clear; SvD.fsetdec.
 Qed.
 
-Lemma read_e_Pif ty e e0 e1 :
-  Sv.Equal
-    (read_e (Pif ty e e0 e1))
-    (Sv.union (read_e e) (Sv.union (read_e e0) (read_e e1))).
-Proof. by rewrite {1}/read_e /= 2!read_eE. Qed.
-
 Let Pr i := forall s, Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)).
 Let Pi i := forall s, Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)).
 Let Pc c := forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c)).
@@ -394,11 +416,16 @@ Let Pc c := forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c)).
 Lemma read_cE s c : Sv.Equal (read_c_rec s c) (Sv.union s (read_c c)).
 Proof.
   apply (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s}
+<<<<<<< HEAD
    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | a c e ii c' Hc Hc' | ii xs f es ] s;
+=======
+   [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | t p e | e c1 c2 Hc1 Hc2
+    | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s;
+>>>>>>> feature-annotation
     rewrite /read_I /read_I_rec /read_i /read_i_rec -/read_i_rec -/read_I_rec /read_c /=
      ?read_rvE ?read_eE ?read_esE ?read_rvE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc' ?Hc ?Hi //;
-    by clear; SvD.fsetdec.
+  by clear; SvD.fsetdec.
 Qed.
 
 Lemma read_IE s i : Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)).
@@ -424,6 +451,12 @@ Proof. by rewrite /read_i /read_i_rec read_esE read_rvsE; clear; SvD.fsetdec. Qe
 Lemma read_i_syscall xs o es:
   Sv.Equal (read_i (Csyscall xs o es)) (Sv.union (read_rvs xs) (read_es es)).
 Proof. rewrite /read_i /write_i /read_i_rec read_esE read_rvsE; clear; SvD.fsetdec. Qed.
+
+Lemma read_i_assert t p e :
+  Sv.Equal (read_i (Cassert t p e)) (read_e e).
+Proof.
+  rewrite /read_i /read_i_rec read_eE;SvD.fsetdec.
+Qed.
 
 Lemma read_i_if e c1 c2 :
    Sv.Equal (read_i (Cif e c1 c2)) (Sv.union (read_e e) (Sv.union (read_c c1) (read_c c2))).
@@ -483,6 +516,15 @@ Lemma vars_I_syscall ii xs o es:
   Sv.Equal (vars_I (MkI ii (Csyscall xs o es))) (Sv.union (vars_lvals xs) (read_es es)).
 Proof. by rewrite /vars_I read_Ii write_Ii read_i_syscall write_i_syscall /vars_lvals; clear; SvD.fsetdec. Qed.
 
+Lemma vars_I_assert ii t p e:
+  Sv.Equal (vars_I (MkI ii (Cassert t p e))) (read_e e).
+Proof.
+  rewrite /vars_I read_Ii write_Ii //=.
+  rewrite /read_i /read_i_rec  - /read_c_rec read_eE.
+  rewrite /write_i /write_i_rec -/write_I_rec.
+  SvD.fsetdec.
+Qed.
+
 Lemma vars_I_if ii e c1 c2:
   Sv.Equal (vars_I (MkI ii (Cif e c1 c2))) (Sv.union (read_e e) (Sv.union (vars_c c1) (vars_c c2))).
 Proof.
@@ -500,7 +542,7 @@ Proof.
 Qed.
 
 Lemma vars_I_for ii i d lo hi c:
-  Sv.Equal (vars_I (MkI ii (Cfor i (d, lo, hi) c)))
+Sv.Equal (vars_I (MkI ii (Cfor i (d, lo, hi) c)))
            (Sv.union (Sv.union (vars_c c) (Sv.singleton i)) (Sv.union (read_e lo) (read_e hi))).
 Proof. rewrite /vars_I read_Ii write_Ii read_i_for write_i_for /vars_c; clear; SvD.fsetdec. Qed.
 
@@ -536,7 +578,8 @@ Proof. by rewrite /eq_gvar ?eqxx. Qed.
 Lemma eq_expr_refl e : eq_expr e e.
 Proof.
   suff : (∀ e, eq_expr e e) ∧ (∀ es, all2 eq_expr es es) by case.
-  apply: pexprs_ind_pair; split => //= [ ? -> ? -> | ? | ????? -> | ????? -> | ???? -> | ?? -> | ?? -> ? -> | ?? -> | ?? -> ? -> ];
+  apply: pexprs_ind_pair; split => //=
+   [ ? -> ? -> | ? | ????? -> | ????? -> | ???? -> | ?? -> | ?? -> ? -> | ?? -> | ?? -> ? -> | ? -> ??? -> ? -> ? ->];
   rewrite ?eqxx ?eq_gvar_refl //.
 Qed.
 
@@ -549,8 +592,8 @@ Lemma eq_expr_symm e0 e1 :
 Proof.
   suff : (∀ e0 e1, eq_expr e0 e1 -> eq_expr e1 e0) ∧ (∀ es es', all2 eq_expr es es' → all2 eq_expr es' es).
   - case=> h _; exact: h.
-  apply: pexprs_ind_pair; split => //= [ [] |????[]|?[]|?[]|?[]|?[]|??????[]|??????[]|?????[]|???[]|?????[]|???[]|???????[]] //= *.
-
+  apply: pexprs_ind_pair; split => //=
+    [ [] |????[]|?[]|?[]|?[]|?[]|??????[]|??????[]|?????[]|???[]|?????[]|???[]|???????[]|??????????[]]//= *.
   all:
     repeat
       match goal with
@@ -576,6 +619,9 @@ Qed.
 
 Lemma eq_gvar_trans x2 x1 x3 : eq_gvar x1 x2 → eq_gvar x2 x3 → eq_gvar x1 x3.
 Proof. by rewrite /eq_gvar => /andP[] /eqP -> /eqP -> /andP[] /eqP -> /eqP ->; rewrite !eqxx. Qed.
+
+Lemma eq_var_trans (x2 x1 x3: var) : x1 == x2 → x2 == x3 → x1 == x3.
+Proof. by move => /eqP -> /eqP ->; rewrite !eqxx. Qed.
 
 Lemma eq_expr_trans e2 e1 e3 :
   eq_expr e1 e2 -> eq_expr e2 e3 -> eq_expr e1 e3.
@@ -605,10 +651,13 @@ Proof.
     move=> /andP[]/andP[]/eqP-> /hrec1 h1 /hrec2 h2.
     by move=> /andP[]/andP[]/eqP-> /h1 -> /h2 ->; rewrite !eqxx.
   + move=> o es1 hrec [] //= ? es2 [] ? es3 //=.
-    move=> /andP[]/eqP-> h1 /andP[]/eqP-> h2;rewrite eqxx /=; eauto.
-  move=> ?? hrec ? hrec1 ? hrec2 []//= ???? []//= ????.
-  move=> /andP[]/andP[]/andP[] /eqP-> /hrec h /hrec1 h1 /hrec2 h2.
-  by move=> /andP[]/andP[]/andP[] /eqP-> /h -> /h1 -> /h2 ->; rewrite eqxx.
+    by move=> /andP[]/eqP-> h1 /andP[]/eqP-> h2;rewrite eqxx /=; eauto.
+  + move=> ?? hrec ? hrec1 ? hrec2 []//= ???? []//= ????.
+    move=> /andP[]/andP[]/andP[] /eqP-> /hrec h /hrec1 h1 /hrec2 h2.
+    by move=> /andP[]/andP[]/andP[] /eqP-> /h -> /h1 -> /h2 ->; rewrite eqxx.
+  move => ? hrec ??? hrec1 ? hrec2 ? hrec3 []//= ?????? [] //= > /andP[] /andP[] /andP[] /andP[] /andP[].
+  move=> h /eqP -> /eqP -> h1 h2 h3 /andP[] /andP[] /andP[] /andP[] /andP[].
+  by move=> /hrec -> // /eqP -> /eqP -> /hrec1 -> // /hrec2 -> // /hrec3 -> //; rewrite !eqxx.
 Qed.
 
 #[export]
@@ -629,7 +678,7 @@ Proof.
   suff : (∀ e e', eq_expr e e' → use_mem e = use_mem e') ∧
            (∀ es es', all2 eq_expr es es' → has use_mem es = has use_mem es') by case; eauto.
   clear; apply: pexprs_ind_pair; split => //=
-    [ | e he es hes |?|?|?|?|??????|??????|?????|???|?????|???|???????] [] //.
+    [ | e he es hes |?|?|?|?|??????|??????|?????|???|?????|???|???????|??????????] [] //.
   - by move => ?? /andP[] /he -> /hes ->.
   all: move => *.
 
@@ -692,7 +741,8 @@ Section EQ_EXPR_READ_E.
       ?read_e_Pload
       ?read_e_Papp1
       ?read_e_Papp2
-      ?read_e_Pif;
+      ?read_e_Pif
+      ?read_e_Pbig;
     (repeat move=> /andP []);
     move=> /= *;
     t_eq_rewrites;
@@ -705,7 +755,7 @@ Section EQ_EXPR_READ_E.
     suff : (∀ e e', eq_expr e e' → Sv.Equal (read_e e) (read_e e'))
            ∧ (∀ es es', all2 eq_expr es es' → Sv.Equal (read_es es) (read_es es')) by case; eauto.
     clear; apply: pexprs_ind_pair; split => //
-    [|e he es hes|?|?|?|?|??????|??????|?????|???|?????|? es hes|???????] [] //= >;
+    [|e he es hes|?|?|?|?|??????|??????|?????|???|?????|? es hes|???????|? hi ??? hb ? hs ? hl] [] //= >;
     try by t_solve.
     - by rewrite !read_es_cons => /andP[] /he -> /hes ->.
     - by move => /eq_gvar_read_gvar; rewrite /read_e /= => ->.

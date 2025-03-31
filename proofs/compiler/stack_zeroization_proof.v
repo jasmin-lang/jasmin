@@ -16,7 +16,9 @@ Require Export stack_zeroization.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -308,7 +310,7 @@ Definition match_mem_zero_export (m m' : mem) top stk_max (szs : option (stack_z
 Lemma stack_zeroization_lprogP lp lp' scs m fn vm scs' m' vm' ptr lfd :
   stack_zeroization_lprog lp = ok lp' ->
   lsem_exportcall lp scs m fn vm scs' m' vm' ->
-  vm'.[vid (lp_rsp lp')] = @Vword Uptr ptr ->
+  vm'.[vid (lp_rsp lp')] = @Vword _ Uptr ptr ->
   get_fundef lp.(lp_funcs) fn = Some lfd ->
   (lfd.(lfd_stk_max) + wsize_size lfd.(lfd_align) - 1 <= wunsigned ptr)%Z ->
   let bottom := (align_word lfd.(lfd_align) ptr - wrepr _ lfd.(lfd_stk_max))%R in
@@ -362,7 +364,7 @@ Proof.
   have [m'' [vm'' [hsem' heqvm' hvalid'' hzero huntouched]]] :=
     hszp_cmdP
       hszparams hcmd rsp_nin hlt halign2 hle (next_lfd_lblP (lfd := lfd)) hlfd'
-      hbody (ls := {| lscs := scs'; |}) erefl erefl enough_stk' hrsp hvalid'.
+      hbody (ls := {| lscs := scs'; ltr := [::] |}) erefl erefl enough_stk' hrsp hvalid'.
 
   exists m'', vm''; split=> //.
   + econstructor; eauto.

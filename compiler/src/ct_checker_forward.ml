@@ -354,6 +354,7 @@ let rec ty_expr ~(public:bool) env (e:expr) =
     let public = public || not (is_ct_opN o) in
     ty_exprs_max ~public env es
   | Pif(_, e1, e2, e3) -> ty_exprs_max ~public env [e1; e2; e3]
+  | Pbig _ -> assert false
 
 and ty_exprs ~public env es =
   List.map_fold (ty_expr ~public) env es
@@ -514,6 +515,10 @@ let rec ty_instr is_ct_asm fenv env i =
   | Csyscall(xs, RandomBytes _, es) ->
     let env, _ = ty_exprs_max ~public:true env es in
     ty_lvals1 env xs (declassify_lvl i.i_annot Secret)
+
+  | Cassert (t,p,e) ->
+    let env, _ = ty_expr ~public:true env e in
+    env
 
   | Cif(e, c1, c2) ->
     let env, _ = ty_expr ~public:true env e in

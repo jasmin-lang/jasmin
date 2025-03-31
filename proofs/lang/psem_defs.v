@@ -40,6 +40,7 @@ Definition sem_opNA
 
 (* ** Global access
  * -------------------------------------------------------------------- *)
+
 Definition get_global_value (gd: glob_decls) (g: var) : option glob_value :=
   assoc gd g.
 
@@ -56,11 +57,14 @@ Definition get_global gd g : exec value :=
     else type_error
   else type_error.
 
+
 Section WSW.
 Context {wsw:WithSubWord}.
 
 (* ** State
  * ------------------------------------------------------------------------- *)
+
+Definition contracts_trace := seq (annotation_kind * bool).
 
 Record estate
   {syscall_state : Type}
@@ -68,7 +72,8 @@ Record estate
   {
     escs : syscall_state;
     emem : mem;
-    evm  : Vm.t
+    evm  : Vm.t;
+    eassert : contracts_trace; (* assertion in reverse order *)
   }.
 
 Arguments Estate {syscall_state}%_type_scope {ep} _ _ _%_vm_scope.
@@ -102,13 +107,25 @@ Context
   {ep : EstateParams syscall_state}.
 
 Definition with_vm (s:estate) vm :=
-  {| escs := s.(escs); emem := s.(emem); evm := vm |}.
+  {| escs := s.(escs); emem := s.(emem); evm := vm; eassert := s.(eassert) |}.
 
 Definition with_mem (s:estate) m :=
-  {| escs := s.(escs); emem := m; evm := s.(evm) |}.
+  {| escs := s.(escs); emem := m; evm := s.(evm); eassert := s.(eassert) |}.
 
 Definition with_scs (s:estate) scs :=
-  {| escs := scs; emem := s.(emem); evm := s.(evm) |}.
+  {| escs := scs; emem := s.(emem); evm := s.(evm); eassert := s.(eassert) |}.
+
+Definition with_eassert (s:estate) (a:contracts_trace) :=
+   {| escs := s.(escs); emem := s.(emem); evm := s.(evm); eassert := a |}.
+
+Definition add_contract (s:estate) (a:annotation_kind * bool) :=
+  with_eassert s (a::s.(eassert)).
+
+Definition add_contracts (s:estate) (a:contracts_trace) :=
+  with_eassert s (a ++ s.(eassert)).
+
+Definition add_asserts (s:estate) (bs:seq bool) := add_contracts s [seq (Assert,b) | b <- bs].
+Definition add_assumes (s:estate) (bs:seq bool) := add_contracts s [seq (Assume,b) | b <- bs].
 
 End ESTATE_UTILS.
 
@@ -120,6 +137,10 @@ Context
   {spp : SemPexprParams}
   (wdb : bool)
   (gd : glob_decls).
+
+Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
+  Let vm := set_var wdb s.(evm) x v in
+  ok (with_vm s vm).
 
 Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
@@ -153,17 +174,23 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     Let vs := mapM (sem_pexpr s) es in
     sem_opNA op vs
   | Pif t e e1 e2 =>
-    Let b := sem_pexpr s e >>= to_bool in
+    Let b  := sem_pexpr s e >>= to_bool in
     Let v1 := sem_pexpr s e1 >>= truncate_val t in
     Let v2 := sem_pexpr s e2 >>= truncate_val t in
-    ok (if b then v1 else v2)
+                                    ok (if b then v1 else v2)
+  | Pbig idx op x body start len =>
+    Let vs   := sem_pexpr s start >>= to_int in
+    Let vlen := sem_pexpr s len >>= to_int in
+    Let vidx := sem_pexpr s idx in
+    let l := ziota vs vlen in
+    foldM (fun i acc =>
+               Let s := write_var x (Vint i) s in
+               Let vb := sem_pexpr s body in
+               sem_sop2 op acc vb)
+      vidx l
   end.
 
-Definition sem_pexprs s := mapM (sem_pexpr s).
-
-Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
-  Let vm := set_var wdb s.(evm) x v in
-  ok (with_vm s vm).
+Definition sem_pexprs s :=  mapM (sem_pexpr s).
 
 Definition write_vars xs vs s :=
   fold2 ErrType write_var xs vs s.
@@ -222,6 +249,62 @@ Definition sem_sopn gd o m lvs args :=
 End EXEC_ASM.
 
 End WSW.
+
+Section CONTRA.
+
+Context
+  {wsw:WithSubWord}
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT : progT}
+  (P : prog).
+
+Notation gd := (p_globs P).
+
+(** Switch for the semantics of function calls:
+  - when false, arguments and returned values are truncated to the declared type of the called function;
+  - when true, arguments and returned values are allowed to be undefined.
+
+Informally, “direct call” means that passing arguments and returned value does not go through an assignment;
+indeed, assignments truncate and fail on undefined values.
+*)
+Class DirectCall := {
+  direct_call : bool;
+}.
+
+Definition indirect_c : DirectCall := {| direct_call := false |}.
+Definition direct_c : DirectCall := {| direct_call := true |}.
+
+Definition dc_truncate_val {dc: DirectCall} t v :=
+  if direct_call then ok v
+  else truncate_val t v.
+
+Definition sem_pre {dc: DirectCall} (scs: syscall_state) (m:mem) (fn:funname) (vargs' : values) :=
+  if get_fundef (p_funcs P) fn is Some f then
+    match f.(f_contra) with
+    | Some ci =>
+      Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
+      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate scs m Vm.init [::]) in
+      mapM (fun (p:_ * _) => sem_pexpr true gd s p.2 >>= to_bool) ci.(f_pre)
+    | None => ok [::]
+    end
+  else Error ErrUnknowFun.
+
+Definition sem_post {dc: DirectCall} (scs: syscall_state) (m:mem) (fn:funname) (vargs' : values) (vres : values) :=
+ if get_fundef (p_funcs P) fn is Some f then
+   match f.(f_contra) with
+   | Some ci =>
+     Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
+     Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate scs m Vm.init [::]) in
+     Let s :=  write_vars (~~direct_call) ci.(f_ires) vres s in
+     mapM (fun (p:_ * _) => sem_pexpr true gd s p.2 >>= to_bool) ci.(f_post)
+   | None => ok [::]
+   end
+  else Error ErrUnknowFun.
+
+End CONTRA.
 
 (* Just for extraction *)
 Definition syscall_sem__ := @syscall_sem.exec_syscall_u.

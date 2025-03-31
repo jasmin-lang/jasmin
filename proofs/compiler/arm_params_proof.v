@@ -48,6 +48,8 @@ Section Section.
 #[local] Existing Instance direct_c.
 
 Context
+  {tabstract : Tabstract}
+  {absp : Prabstract}
   {atoI  : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
@@ -185,7 +187,11 @@ Proof.
   set vrsp := {|vname := nrsp|}; set rsp := {|v_var := vrsp|}.
   set ts' := align_word _ _.
   have := ARMFopnP.smart_subi_sem_fopn_args vi3 (y:= rsp) _ (to_word_get_var hget).
+<<<<<<< HEAD
   move=> /(_  arm_linux_call_conv ntmp sz) [].
+=======
+  move=> /(_ absp arm_linux_call_conv ntmp sz) [].
+>>>>>>> feature-annotation
   + by right => /= -[?]; subst ntmp.
   move=> vm1 [] -> heq1 hget1 /=.
   set s1 := with_vm _ _.
@@ -260,8 +266,14 @@ Qed.
 
 Lemma arm_lload_correct : lload_correct_aux (lip_check_ws arm_liparams) arm_lload.
 Proof.
+<<<<<<< HEAD
   move=> xd xs ofs ws top s w vm heq hcheck hgets hread hset.
   move/eqP: hcheck => ?; subst ws.
+=======
+  move=> xd xs ofs s vm top hgets.
+  case heq: vtype => [|||ws|] //; t_xrbindP.
+  move=> _ <- /eqP ? w hread hset; subst ws.
+>>>>>>> feature-annotation
   rewrite /arm_lload /= hgets /= truncate_word_u /= hread /=.
   by rewrite /exec_sopn /= truncate_word_u /= zero_extend_u hset.
 Qed.
@@ -318,8 +330,8 @@ Lemma arm_lower_callP
   (_ : lop_fvars_correct arm_loparams fv (p_funcs p))
   (f : funname)
   scs mem scs' mem'
-  (va vr : seq value) :
-  psem.sem_call p ev scs mem f va scs' mem' vr
+  (va vr : seq value) tr :
+  psem.sem_call p ev scs mem f va scs' mem' vr tr
   -> let lprog :=
        lowering.lower_prog
          (lop_lower_i arm_loparams)
@@ -328,7 +340,7 @@ Lemma arm_lower_callP
          fv
          p
      in
-     psem.sem_call lprog ev scs mem f va scs' mem' vr.
+     psem.sem_call lprog ev scs mem f va scs' mem' vr tr.
 Proof.
   exact: lower_callP.
 Qed.
@@ -659,7 +671,7 @@ Proof.
   move/get_varP: (hvy) => [_ _ /compat_valE] /=; rewrite hyty => -[_ [] <- hle2].
   have ? := cmp_le_antisym hle1 hle2; subst ws => {hle1 hle2}.
   have := ARMFopnP.smart_addi_sem_fopn_args xi (y:= y) (or_intror _ hne) (to_word_get_var hvy).
-  move=> /(_ _ imm) [vm []]; rewrite -sem_sopns_fopns_args => hsem heqex /get_varP [hvmx _ _].
+  move=> /(_ absp _ imm) [vm []]; rewrite -sem_sopns_fopns_args => hsem heqex /get_varP [hvmx _ _].
   have [] := (assemble_opsP arm_eval_assemble_cond hmap _ hsem hlom).
   + by rewrite all_map; apply/allT => -[[]].
   move=> s' -> hlo; exists s' => //.

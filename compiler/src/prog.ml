@@ -1,3 +1,4 @@
+
 (* ------------------------------------------------------------------------ *)
 open Utils
 open Wsize
@@ -29,6 +30,7 @@ type 'len gexpr =
   | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
   | PappN of E.opNA * 'len gexpr list
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
+  | Pbig   of 'len gexpr * E.sop2 * 'len gvar_i * 'len gexpr * 'len gexpr * 'len gexpr
 
 type 'len gexprs = 'len gexpr list
 
@@ -97,6 +99,7 @@ type ('len,'info,'asm) ginstr_r =
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
   | Csyscall of 'len glvals * BinNums.positive Syscall_t.syscall_t * 'len gexprs
+  | Cassert of E.annotation_kind * E.assertion_prover * 'len gexpr
   | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
   | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len,'info,'asm) gstmt
@@ -112,10 +115,19 @@ and ('len,'info,'asm) ginstr = {
 and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 
 (* ------------------------------------------------------------------------ *)
+
+type 'len gfcontract = {
+  f_iparams : 'len gvar_i list;
+  f_ires : 'len gvar_i list;
+  f_pre : (E.assertion_prover * 'len gexpr) list;
+  f_post : (E.assertion_prover * 'len gexpr) list;
+}
+
 type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
     f_annot: FInfo.f_annot;
     f_info : 'info;
+    f_contra: 'len gfcontract option ;
     f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
@@ -250,6 +262,7 @@ let rec rvars_e f s = function
   | Papp2(_,e1,e2) -> rvars_e f (rvars_e f s e1) e2
   | PappN (_, es) -> rvars_es f s es
   | Pif(_,e,e1,e2)   -> rvars_e f (rvars_e f (rvars_e f s e) e1) e2
+  | Pbig(e, _, _, e1, e2, e0) -> List.fold_left (rvars_e f) s [e; e1; e2; e0;]
 
 and rvars_es f s es = List.fold_left (rvars_e f) s es
 
@@ -266,6 +279,7 @@ let rec rvars_i f s i =
   match i.i_desc with
   | Cassgn(x, _, _, e)  -> rvars_e f (rvars_lv f s x) e
   | Copn(x,_,_,e)  | Csyscall (x, _, e) -> rvars_es f (rvars_lvs f s x) e
+  | Cassert(t, p, e) -> rvars_e f s e
   | Cif(e,c1,c2)   -> rvars_c f (rvars_c f (rvars_e f s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
     rvars_c f (rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2) c
@@ -310,6 +324,7 @@ let rec written_vars_i ((v, f) as acc) i =
     -> List.fold_left written_lv v xs, f
   | Ccall(xs, fn, _) ->
      List.fold_left written_lv v xs, Mf.modify_def [] fn (fun old -> i.i_loc :: old) f
+  | Cassert(_, _, _) -> v, f
   | Cif(_, s1, s2)
   | Cwhile(_, s1, _, _, s2)
     -> written_vars_stmt (written_vars_stmt acc s1) s2
@@ -326,7 +341,7 @@ let written_vars_fc fc =
 let rec refresh_i_loc_i (i:('info,'asm) instr) : ('info,'asm) instr =
   let i_desc =
     match i.i_desc with
-    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> i.i_desc
+    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _ -> i.i_desc
     | Cif(e, c1, c2) ->
         Cif(e, refresh_i_loc_c c1, refresh_i_loc_c c2)
     | Cfor(x, r, c) ->
@@ -350,6 +365,7 @@ let refresh_i_loc_p ((g,a,p):('info,'asm) prog) : ('info,'asm) prog =
 (* Functions on types                                                   *)
 
 let int_of_ws = Annotations.int_of_ws
+let z_of_ws = Annotations.z_of_ws
 
 let size_of_ws = function
   | U8   -> 1
@@ -411,6 +427,9 @@ let is_stack_array x =
   let x = L.unloc x in
   is_ty_arr x.v_ty && x.v_kind = Stack Direct
 
+let is_arr v =
+  is_ty_arr v.v_ty
+
 (* -------------------------------------------------------------------- *)
 (* Functions over expressions                                           *)
 
@@ -457,7 +476,7 @@ let expr_of_lval = function
 let rec has_syscall_i i =
   match i.i_desc with
   | Csyscall _ -> true
-  | Cassgn _ | Copn _ | Ccall _ -> false
+  | Cassgn _ | Copn _ | Ccall _ | Cassert _ -> false
   | Cif (_, c1, c2) | Cwhile(_, c1, _, _, c2) -> has_syscall c1 || has_syscall c2
   | Cfor (_, _, c) -> has_syscall c
 
@@ -466,7 +485,7 @@ and has_syscall c = List.exists has_syscall_i c
 let rec has_call_or_syscall_i i =
   match i.i_desc with
   | Csyscall _ | Ccall _ -> true
-  | Cassgn _ | Copn _ -> false
+  | Cassert _ | Cassgn _ | Copn _ -> false
   | Cif (_, c1, c2) | Cwhile(_, c1, _, _, c2) -> has_call_or_syscall c1 || has_call_or_syscall c2
   | Cfor (_, _, c) -> has_call_or_syscall c
 
@@ -480,7 +499,7 @@ let is_inline annot cc =
 let rec spilled_i s i =
   match i.i_desc with
   | Copn(_, _, Sopn.Opseudo_op (Pseudo_operator.Ospill _), es) -> rvars_es Sv.add s es
-  | Cassgn _ | Csyscall _ | Ccall _ | Copn _-> s
+  | Cassgn _ | Csyscall _ | Ccall _ | Copn _ | Cassert _ -> s
   | Cif(_e, c1, c2)  -> spilled_c (spilled_c s c1) c2
   | Cfor(_, _, c)    -> spilled_c s c
   | Cwhile(_, c, _, _, c') -> spilled_c (spilled_c s c) c'

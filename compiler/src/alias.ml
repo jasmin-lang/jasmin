@@ -164,6 +164,7 @@ let slice_of_pexpr a =
   | Pconst _ | Pbool _ | Pget _ | Pload _ | Papp1 _ | Papp2 _
   | PappN _ -> assert false
   | Pif _ -> hierror_no_loc "conditional move of (ptr) arrays is not supported yet"
+  | Pbig _ -> None
 
 let slice_of_lval a =
   function
@@ -200,6 +201,8 @@ let rec analyze_instr_r params cc a =
   | Ccall (xs, fn, es) -> link_array_return params a xs es (cc fn)
   | Csyscall (xs, o, es) -> link_array_return params a xs es (syscall_cc o)
   | Cassgn (x, _, ty, e) -> if is_ty_arr ty then assign_arr params a x e else a
+  | Cassert _ -> a
+  (* A special case for protect_ptr which is a kind of move *)
   | Copn (xs, _, o, es) -> 
     (* A special case for operators that can return array *)
     begin match opn_cc o with 

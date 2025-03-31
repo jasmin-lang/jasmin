@@ -12,8 +12,10 @@ Local Open Scope seq_scope.
 
 Section PROOF.
   Context
+    {tabstract : Tabstract}
     {wsw : WithSubWord}
     {asm_op syscall_state : Type}
+    {absp : Prabstract}
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
     {sip : SemInstrParams asm_op syscall_state}
@@ -151,14 +153,18 @@ Section PROOF.
   Qed.
 
   Lemma mk_leaP s e l sz sz' (w: word sz') :
-    (sz <= Uptr)%CMP -> 
+    (sz <= Uptr)%CMP ->
     (sz ≤ sz')%CMP →
     mk_lea sz e = Some l ->
     sem_pexpr true gd s e = ok (Vword w) ->
     sem_lea sz (evm s) l = ok (zero_extend sz w).
   Proof.
-    rewrite /mk_lea => h1 h2 /obindI[] f [] /fexpr_of_pexprP h hrec /h.
-    exact: mk_lea_recP.
+    rewrite /mk_lea => h1 h2 /obindI [] f [] /fexpr_of_pexprP h hrec /h => h3.
+    eapply mk_lea_recP.
+    apply h1.
+    apply h2.
+    apply hrec.
+    apply h3.
   Qed.
 
   Definition read_ovar (o: option var_i) : Sv.t :=

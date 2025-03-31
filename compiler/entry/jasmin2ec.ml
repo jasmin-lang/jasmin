@@ -51,7 +51,11 @@ let parse_and_extract arch call_conv idirs =
 
 let model =
   let alts =
-    [ ("normal", Normal); ("CT", ConstantTime); ("CTG", ConstantTimeGlobal) ]
+    [ ("normal", Normal);
+      ("CT", ConstantTime);
+      ("CTG", ConstantTimeGlobal);
+      ("Annotations", Annotations)
+    ]
   in
   let doc =
     "Extraction model.

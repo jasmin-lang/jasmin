@@ -21,7 +21,7 @@ Require Import
 
 Module RegMap. Section Section.
 
-  Context `{arch : arch_decl }.
+  Context {tabstract : Tabstract} `{arch : arch_decl }.
 
   Definition map := (* {ffun reg_t -> wreg}. *)
     FinMap.map (T:= reg_t) wreg.
@@ -33,7 +33,7 @@ End Section. End RegMap.
 
 Module RegXMap. Section Section.
 
-  Context `{arch : arch_decl }.
+  Context {tabstract : Tabstract} `{arch : arch_decl }.
 
   Definition map := (* {ffun reg_t -> wreg}. *)
     FinMap.map (T:= regx_t) wreg.
@@ -46,7 +46,7 @@ End Section. End RegXMap.
 (* -------------------------------------------------------------------- *)
 
 Module XRegMap. Section Section.
-  Context `{arch : arch_decl}.
+  Context {tabstract : Tabstract} `{arch : arch_decl}.
 
   Definition map := (* {ffun xreg_t -> wxreg }. *)
     FinMap.map (T:= xreg_t) wxreg.
@@ -59,7 +59,7 @@ End Section. End XRegMap.
 (* -------------------------------------------------------------------- *)
 
 Module RflagMap. Section Section.
-  Context `{arch : arch_decl}.
+  Context {tabstract : Tabstract} `{arch : arch_decl}.
 
   Definition map := (* {ffun rflag_t -> rflagv}. *)
     FinMap.map (T:= rflag_t) rflagv.
@@ -78,7 +78,7 @@ Notation rflagmap := RflagMap.map.
 (* -------------------------------------------------------------------- *)
 Section SEM.
 
-Context {syscall_state : Type} {sc_sem : syscall_sem syscall_state} `{asm_d : asm} {call_conv: calling_convention}.
+Context {tabstract : Tabstract} {syscall_state : Type} {sc_sem : syscall_sem syscall_state} `{asm_d : asm} {call_conv: calling_convention}.
 
 Record asmmem : Type := AsmMem {
   asm_rip  : pointer;
@@ -250,7 +250,7 @@ Definition eval_instr_op idesc args (s:asmmem) :=
   Let _   := assert (idesc.(id_valid)) ErrType in
   Let _   := assert (check_i_args_kinds idesc.(id_args_kinds) args) ErrType in
   Let vs  := eval_args_in s args idesc.(id_in) idesc.(id_tin) in
-  Let t   := app_sopn _ idesc.(id_semi) vs in
+  Let t   := app_sopn idesc.(id_semi) vs in
   ok (list_ltuple t).
 
 (* -------------------------------------------------------------------- *)

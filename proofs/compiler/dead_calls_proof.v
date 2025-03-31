@@ -7,9 +7,11 @@ Import Utf8 xseq.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
@@ -30,6 +32,7 @@ with i_Calls_r (i : instr_r) {struct i} : Sf.t :=
   | Cassgn _ _ _ _
   | Copn   _ _ _ _
   | Csyscall _ _ _
+  | Cassert _ _ _
     => Sf.empty
   | Cif    _  c1 c2   => Sf.union (c_Calls c1) (c_Calls c2)
   | Cfor   _  _  c1   => c_Calls c1
@@ -55,6 +58,10 @@ Proof. by []. Qed.
 
 Lemma i_Calls_syscall lv op es :
   i_Calls_r (Csyscall lv op es) = Sf.empty.
+Proof. by []. Qed.
+
+Lemma i_Calls_assert t p e :
+  i_Calls_r (Cassert t p e) = Sf.empty.
 Proof. by []. Qed.
 
 Lemma i_Calls_if e c1 c2 :
@@ -85,7 +92,7 @@ Hint Rewrite i_Calls_call c_Calls_nil  c_Calls_cons  : calls.
 
 Definition CallsE :=
   (i_Calls_MkI , i_Calls_asgn, i_Calls_opn  , i_Calls_syscall,
-   i_Calls_if  , i_Calls_for , i_Calls_while,
+   i_Calls_assert, i_Calls_if  , i_Calls_for , i_Calls_while,
    i_Calls_call, c_Calls_nil , c_Calls_cons ).
 
 (* -------------------------------------------------------------------- *)
@@ -98,11 +105,17 @@ Lemma c_callsE c i : Sf.Equal (c_calls c i) (Sf.union c (c_Calls i)).
 Proof.
 move: c.
 apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /=
+<<<<<<< HEAD
   [ i0 ii Hi | | i0 c0 Hi Hc | x t ty e | xs t o es | xs o es | e c1 c2 Hc1 Hc2
     | v dir lo hi c0 Hc | a c0 e ei c' Hc Hc' | ii xs f es ] c /=.
+=======
+  [ i0 ii Hi | | i0 c0 Hi Hc | x t ty e | xs t o es | xs o es | t p e | e c1 c2 Hc1 Hc2
+    | v dir lo hi c0 Hc | a c0 e c' Hc Hc' | ii xs f es ] c /=.
+>>>>>>> feature-annotation
 + by apply Hi.
 + rewrite CallsE; SfD.fsetdec.
 + rewrite CallsE Hc Hi; SfD.fsetdec.
++ SfD.fsetdec.
 + SfD.fsetdec.
 + SfD.fsetdec.
 + SfD.fsetdec.
@@ -213,8 +226,8 @@ Section PROOF.
   Let Pfor (i:var_i) vs s c s' :=
     def_incl (c_Calls c) -> sem_for p' ev i vs s c s'.
 
-  Let Pfun scs1 m1 fn vargs scs2 m2 vres :=
-    def_incl (Sf.singleton fn) -> sem_call p' ev scs1 m1 fn vargs scs2 m2 vres.
+  Let Pfun scs1 m1 fn vargs scs2 m2 vres tr :=
+    def_incl (Sf.singleton fn) -> sem_call p' ev scs1 m1 fn vargs scs2 m2 vres tr.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof. move=> s _; exact: Eskip. Qed.
@@ -249,6 +262,12 @@ Section PROOF.
   Proof.
     move=> s1 scs m s2 o xs es ves vs he ho hw H.
     by apply: Esyscall; eauto.
+  Qed.
+
+  Local Lemma Hassert : sem_Ind_assert p Pi_r.
+  Proof.
+    move => s t pt e b he hincl.
+    by apply: Eassert; eauto.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
@@ -304,27 +323,49 @@ Section PROOF.
     exact: (EForOne H (Hc Hincl) (Hf Hincl)).
   Qed.
 
+  Local Lemma sem_pre_ok scs m fn vargs v :
+    def_incl (Sf.singleton fn) ->
+    sem_pre p scs m fn vargs = ok v ->
+    sem_pre p' scs m fn vargs = ok v.
+  Proof.
+    move=> /(_ _ (SfD.F.singleton_2 erefl)) hin.
+    rewrite /sem_pre; case hget: get_fundef => [fd|//].
+    by have -> := get_dead_calls hin hget.
+  Qed.
+
+  Local Lemma sem_post_ok scs m fn vargs vres v :
+    def_incl (Sf.singleton fn) ->
+    sem_post p scs m fn vargs vres = ok v ->
+    sem_post p' scs m fn vargs vres = ok v.
+  Proof.
+    move=> /(_ _ (SfD.F.singleton_2 erefl)) hin.
+    rewrite /sem_post; case hget: get_fundef => [fd|//].
+    by have -> := get_dead_calls hin hget.
+  Qed.
+
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 scs2 m2 s2 xs fn args vargs vs Hargs Hcall Hfun Hres Hincl.
+    move=> s1 scs2 m2 s2 s3 xs fn args vargs vs vpr vpo tr Hargs hpr Hcall Hfun Hres hpo -> Hincl.
     econstructor; eauto.
+    + by apply: sem_pre_ok.
+    by apply: sem_post_ok.
   Qed.
 
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
-    move=> scs1 m1 scs2 m2 fn fd vargs vargs' s0 s1 s2 vres vres'
-           Hget Htyin Hi Hvargs Hsem Hc Hvres Htyout Hscs Hfi Hin.
+    move=> scs1 m1 scs2 m2 fn fd vargs vargs' s0 s1 s2 vres vres' vpr vpo tr
+           Hget Htyin Hi Hvargs hpr Hsem Hc Hvres Htyout Hscs Hfi hpo -> Hin.
     have Hin' := Hin _ (SfD.F.singleton_2 erefl).
     have Hfd := get_dead_calls Hin' Hget.
-    refine (EcallRun (P:=p') Hfd Htyin Hi Hvargs _ Hvres Htyout Hscs Hfi).
+    refine (EcallRun (P:=p') Hfd Htyin Hi Hvargs (sem_pre_ok Hin hpr) _ Hvres Htyout Hscs Hfi (sem_post_ok Hin hpo) erefl).
     apply: Hc=> // n hn; apply: pfxp.
     by apply: live_calls_in Hget n hn.
   Qed.
 
-  Lemma dead_calls_callP fd scs mem scs' mem' va vr :
+  Lemma dead_calls_callP fd scs mem scs' mem' va vr tr:
     Sf.In fd K ->
-    sem_call p ev scs mem fd va scs' mem' vr ->
-    sem_call p' ev scs mem fd va scs' mem' vr.
+    sem_call p ev scs mem fd va scs' mem' vr tr ->
+    sem_call p' ev scs mem fd va scs' mem' vr tr.
   Proof.
     move=> Hincl H.
     apply:
@@ -335,6 +376,7 @@ Section PROOF.
          Hassgn
          Hopn
          Hsyscall
+         Hassert
          Hif_true
          Hif_false
          Hwhile_true
@@ -372,23 +414,23 @@ Qed.
 (* -------------------------------------------------------------------- *)
 Lemma dead_calls_errP (s : Sf.t) (p p': prog) :
   dead_calls_err s p = ok p' →
-  ∀ f ev scs m args scs' m' res, Sf.In f s →
-    sem_call p ev scs m f args scs' m' res →
-    sem_call p' ev scs m f args scs' m' res.
+  ∀ f ev scs m args scs' m' res tr, Sf.In f s →
+    sem_call p ev scs m f args scs' m' res tr →
+    sem_call p' ev scs m f args scs' m' res tr.
 Proof.
-rewrite /dead_calls_err; case: ifP => // /SfD.F.subset_2 pfx [] <- f ev scs m args scs' m' res fins Hcall.
+rewrite /dead_calls_err; case: ifP => // /SfD.F.subset_2 pfx [] <- f ev scs m args scs' m' res tr fins Hcall.
 apply: dead_calls_callP=> //.
 apply: live_calls_subset fins.
 Qed.
 
 Theorem dead_calls_err_seqP (s : seq funname) (p p': prog) :
   dead_calls_err_seq s p = ok p' →
-  ∀ f ev scs m args scs' m' res, f \in s →
-    sem_call p ev scs m f args scs' m' res →
-    sem_call p' ev scs m f args scs' m' res.
+  ∀ f ev scs m args scs' m' res tr, f \in s →
+    sem_call p ev scs m f args scs' m' res tr →
+    sem_call p' ev scs m f args scs' m' res tr.
 Proof.
   rewrite /dead_calls_err_seq.
-  move=> h f ev scs m args scs' m' res fins; apply: (dead_calls_errP h).
+  move=> h f ev scs m args scs' m' res tr fins; apply: (dead_calls_errP h).
   elim: {h} s fins=> // a l IH Hin.
   rewrite foldlE.
   rewrite in_cons in Hin; case/orP: Hin=> [/eqP ->|/IH Hin]; SfD.fsetdec.

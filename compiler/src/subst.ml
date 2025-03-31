@@ -9,7 +9,7 @@ let hierror ?loc fmt =
   | None -> h ~loc:Lnone ~internal:true fmt
   | Some loc -> h ~loc:(Lone loc) fmt
 
-let gsubst_ty (flen: 'len1 -> 'len2) ty = 
+let gsubst_ty (flen: 'len1 -> 'len2) ty =
   match ty with
   | Bty ty -> Bty ty
   | Arr(ty, e) -> Arr(ty, flen e)
@@ -27,8 +27,15 @@ let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gex
   | Papp2 (o, e1, e2)-> Papp2 (o, gsubst_e flen f e1, gsubst_e flen f e2)
   | PappN (o, es) -> PappN (o, List.map (gsubst_e flen f) es)
   | Pif   (ty, e, e1, e2)-> Pif(gsubst_ty (flen ?loc:None) ty, gsubst_e flen f e, gsubst_e flen f e1, gsubst_e flen f e2)
+  | Pbig (e, o, x, e1, e2, e0) ->
+    Pbig(gsubst_e flen f e,
+         o,
+         gsubst_vdest f x,
+         gsubst_e flen f e1,
+         gsubst_e flen f e2,
+         gsubst_e flen f e0)
 
-and gsubst_gvar f v = 
+and gsubst_gvar f v =
   match f v with
   | Pvar v -> v
   | _      -> assert false
@@ -59,6 +66,7 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
       Cassgn(x, tg, ty, e)
     | Copn(x,t,o,e)   -> Copn(gsubst_lvals flen f x, t, o, gsubst_es flen f e)
     | Csyscall(x,o,e)   -> Csyscall(gsubst_lvals flen f x, o, gsubst_es flen f e)
+    | Cassert(t, p, e) -> Cassert (t, p, (gsubst_e flen f e))
     | Cif(e,c1,c2)  -> Cif(gsubst_e flen f e, gsubst_c flen f c1, gsubst_c flen f c2)
     | Cfor(x,(d,e1,e2),c) ->
         Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), gsubst_c flen f c)
@@ -69,10 +77,23 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
 
 and gsubst_c flen f c = List.map (gsubst_i flen f) c
 
-let gsubst_func (flen: ?loc:L.t -> 'len1 -> 'len2) f fc =
+let gsubst_cf_cond flen f =
+  List.map (fun (prover,clause) -> prover, gsubst_e flen f clause)
+
+let gsubst_cf_contra flen f c =
+  Some
+  {
+    f_iparams = List.map (gsubst_vdest f) c.f_iparams;
+    f_ires = List.map (gsubst_vdest f) c.f_ires;
+    f_pre = gsubst_cf_cond flen f c.f_pre;
+    f_post = gsubst_cf_cond flen f c.f_post;
+  }
+
+let gsubst_func flen f fc =
   let dov v = L.unloc (gsubst_vdest f (L.mk_loc L._dummy v)) in
   { fc with
     f_tyin = List.map (gsubst_ty (flen ?loc:None)) fc.f_tyin;
+    f_contra = Option.bind fc.f_contra (gsubst_cf_contra flen f);
     f_args = List.map dov fc.f_args;
     f_body = gsubst_c flen f fc.f_body;
     f_tyout = List.map (gsubst_ty (flen ?loc:None)) fc.f_tyout;
@@ -91,7 +112,8 @@ let rec psubst_e (f: psubst) (e: pexpr) : pexpr =
   gsubst_e (psubst_e_ f) f e
 and psubst_e_ f ?loc:_ (PE e) = PE (psubst_e f e)
 
-let psubst_ty f (ty:pty) : pty = 
+
+let psubst_ty f (ty:pty) : pty =
   match ty with
   | Bty ty -> Bty ty
   | Arr(ty, e) -> Arr(ty, psubst_e_ f e)
@@ -102,7 +124,7 @@ let psubst_v subst =
     let k = v.gs in
     let v = v.gv in
     let v_ = v.L.pl_desc in
-    let e = 
+    let e =
       try Mpv.find v_ !subst
       with Not_found ->
         assert (not (PV.is_glob v_));
@@ -114,7 +136,7 @@ let psubst_v subst =
         subst := Mpv.add v_ e !subst;
         e in
     match e with
-    | Pvar x -> 
+    | Pvar x ->
       let k = x.gs in
       let x = {x.gv with L.pl_loc = L.loc v} in
       let x = {gv = x; gs = k} in
@@ -150,10 +172,15 @@ let psubst_prog (prog:('info, 'asm) pprog) =
         let subst_v = psubst_v !subst in
         let subst_ty = psubst_ty subst_v in
         let dov v =
-          L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
+          L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v))
+        in
+        let aux =
+          gsubst_cf_contra (psubst_e_ subst_v) subst_v
+        in
         let fc = {
             fc with
             f_tyin = List.map subst_ty fc.f_tyin;
+            f_contra = Option.bind fc.f_contra aux;
             f_args = List.map dov fc.f_args;
             f_body = gsubst_c (psubst_e_ subst_v) subst_v fc.f_body;
             f_tyout = List.map subst_ty fc.f_tyout;
@@ -186,10 +213,10 @@ let rec int_of_expr ?loc e =
   | Papp2 (o, e1, e2) ->
       let op = int_of_op2 ?loc o in
       op (int_of_expr ?loc e1) (int_of_expr ?loc e2)
-  | Pbool _ | Parr_init _ | Pvar _ 
-  | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _ ->
+  | Pbool _ | Parr_init _ | Pvar _
+  | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _
+  | Pbig _ ->
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" Printer.pp_pexpr e
-
 
 let isubst_len ?loc (PE e) =
   let z = int_of_expr ?loc e in
@@ -207,7 +234,8 @@ let isubs_abstrp (name,tyin, tyout) =
   (name, tyin, tyout)
 
 let isubst_prog glob prog =
-  
+
+
   let isubst_v subst =
     let aux v0 =
       let k = v0.gs in
@@ -224,24 +252,24 @@ let isubst_prog glob prog =
           subst := Mpv.add v_ e !subst;
           e in
       match e with
-      | Pvar x -> 
+      | Pvar x ->
         let k = x.gs in
         let x = {x.gv with L.pl_loc = L.loc v} in
         let x = {gv = x; gs = k} in
         Pvar x
       | _      -> e in
-    aux in 
+    aux in
 
   let subst : expr Mpv.t ref = ref Mpv.empty in
   
   let isubst_glob (x, gd) = 
     let subst_v = isubst_v subst in
-    let x = 
-      let x = 
+    let x =
+      let x =
         gsubst_gvar subst_v {gv = L.mk_loc L._dummy x; gs = Expr.Sglob} in
       assert (not (is_gkvar x)); L.unloc x.gv in
 
-    let gd = 
+    let gd =
       match gd with
       | GEword e -> GEword (gsubst_e isubst_len subst_v e)
       | GEarray es -> GEarray (List.map (gsubst_e isubst_len subst_v) es) in
@@ -250,7 +278,7 @@ let isubst_prog glob prog =
 
   let subst = !subst in
 
-  let isubst_item fc = 
+  let isubst_item fc =
     let subst = ref subst in
     let subst_v = isubst_v subst in
     let dov v =
@@ -262,6 +290,7 @@ let isubst_prog glob prog =
     let fc = {
         fc with
         f_tyin = List.map isubst_ty fc.f_tyin;
+        f_contra =  Option.bind fc.f_contra (gsubst_cf_contra isubst_len subst_v);
         f_args;
         f_body = gsubst_c isubst_len subst_v fc.f_body;
         f_tyout = List.map isubst_ty fc.f_tyout;
@@ -275,7 +304,7 @@ let isubst_prog glob prog =
   in
 
   let prog = List.map isubst_item prog in
-  glob, prog 
+  glob, prog
 
 
 
@@ -362,7 +391,7 @@ let csubst_v () =
     if not (is_gkvar v) then Pvar v
     else
       let v_ = v.gv.L.pl_desc in
-      let v' = 
+      let v' =
         try Hv.find tbl v_
         with Not_found ->
           let v' = V.clone v_ in
@@ -378,12 +407,12 @@ let clone_func fc =
 (* extend instruction info                                          *)
 
 let rec extend_iinfo_i pre i =
-  let i_desc = 
+  let i_desc =
     match i.i_desc with
-    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> i.i_desc
-    | Cif(e,c1,c2) -> 
+    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _ -> i.i_desc
+    | Cif(e,c1,c2) ->
       Cif(e, extend_iinfo_c pre c1, extend_iinfo_c pre c2)
-    | Cfor(x,r,c) -> 
+    | Cfor(x,r,c) ->
       Cfor(x,r, extend_iinfo_c pre c)
     | Cwhile (a, c1, e, loc, c2) ->
       Cwhile(a, extend_iinfo_c pre c1, e, loc, extend_iinfo_c pre c2) in
@@ -393,13 +422,13 @@ let rec extend_iinfo_i pre i =
 
 and extend_iinfo_c pre c = List.map (extend_iinfo_i pre) c
 
-let extend_iinfo {L.base_loc = i; L.stack_loc = l} fd = 
+let extend_iinfo {L.base_loc = i; L.stack_loc = l} fd =
   { fd with f_body = extend_iinfo_c (i::l) fd.f_body }
 
 (* ---------------------------------------------------------------- *)
-(* Perform a substitution of variable by variable                   *) 
+(* Perform a substitution of variable by variable                   *)
 
-type vsubst = var Mv.t 
+type vsubst = var Mv.t
 
 let vsubst_v s v = try Mv.find v s with Not_found -> v
 
@@ -407,8 +436,8 @@ let vsubst_vi s v = {v with L.pl_desc = vsubst_v s (L.unloc v) }
 
 let vsubst_gv s v = { v with gv = vsubst_vi s v.gv }
 
-let vsubst_ve s v = Pvar (vsubst_gv s v) 
-  
+let vsubst_ve s v = Pvar (vsubst_gv s v)
+
 let vsubst_e  s = gsubst_e  (fun ?loc:_ ty -> ty) (vsubst_ve s)
 let vsubst_es s = gsubst_es (fun ?loc:_ ty -> ty) (vsubst_ve s)
 
@@ -419,4 +448,3 @@ let vsubst_i s = gsubst_i (fun ?loc:_ ty -> ty) (vsubst_ve s)
 let vsubst_c s = gsubst_c (fun ?loc:_ ty -> ty) (vsubst_ve s)
 
 let vsubst_func s = gsubst_func (fun ?loc:_ ty -> ty) (vsubst_ve s)
-

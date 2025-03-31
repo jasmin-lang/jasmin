@@ -40,6 +40,7 @@ Definition is_load (e: pexpr) : bool :=
   | Pconst _ | Pbool _ | Parr_init _
   | Psub _ _ _ _ _
   | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pif _ _ _ _
+  | Pbig _ _ _ _ _ _
     => false
   | Pvar {| gs := Sglob |}
   | Pget _ _ _ _ _

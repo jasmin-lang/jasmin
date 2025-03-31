@@ -165,12 +165,21 @@ type pexpr_r =
   | PEPrim   of pident * pexpr list
   | PEOp1    of peop1 * pexpr
   | PEOp2    of peop2 * (pexpr * pexpr)
+  | PEIf     of pexpr * pexpr * pexpr
+  | PEbig    of pbig * pexpr * pexpr * pident * pexpr
   | PEAbstract of pident * pexpr list
-  | PEIf of pexpr * pexpr * pexpr
+  | PEResult of int_representation
+  | PEResultGet of [`Aligned|`Unaligned] option * arr_access * wsize option * int_representation * pexpr * pexpr option
 
 and pexpr = pexpr_r L.located
 
 and mem_access = [ `Aligned | `Unaligned ] option * wsize option * pident * ([`Add | `Sub] * pexpr) option
+
+and pbig = 
+  | PEAll 
+  | PEExists 
+  | PESum
+  | PEBop of peop2 * pexpr
 
 (* -------------------------------------------------------------------- *)
 and psizetype = TypeWsize of wsize | TypeSizeAlias of pident
@@ -226,11 +235,18 @@ type vardecls = pstotype * vardecl L.located list
 
 let var_decl_id (v, _ : vardecl) : pident = v
 
+type assert_kind =
+  [ `Assert | `Assume | `Cut ]
+
+type assert_prover = pident
+
 type pinstr_r =
   | PIArrayInit of pident
       (** ArrayInit(x); *)
   | PIAssign    of plvals * peqop * pexpr * pexpr option
       (** x, y += z >> 4 if c; *)
+  | PIAssert    of pexpr
+      (** assert (x > 0); *)
   | PIIf        of pexpr * pblock * pblock option
       (** if e { … } else { … } *)
   | PIFor       of pident * (fordir * pexpr * pexpr) * pblock
@@ -287,8 +303,14 @@ type pcall_conv = [
 
 type paramdecls = pstotype * pident list
 
+type pfcontract = {
+  pdc_pre : (annotations * pexpr) list;
+  pdc_post : (annotations * pexpr) list;
+}
+
 type pfundef = {
   pdf_annot : annotations;
+  pdf_contra : pfcontract;
   pdf_cc   : pcall_conv option;
   pdf_name : pident;
   pdf_args : (annotations * paramdecls) list;

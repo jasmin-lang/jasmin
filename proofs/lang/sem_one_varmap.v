@@ -29,6 +29,10 @@ The semantic predicates are indexed by a set of variables which is *precisely* t
 
 #[local] Existing Instance withsubword.
 
+Section Tabstract.
+
+Context {tabstract : Tabstract}.
+
 Definition kill_var (x: var) (vm: Vm.t) : Vm.t :=
   vm.[x <- undef_addr (vtype x)].
 
@@ -57,6 +61,7 @@ Section SEM.
 
 Context
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -145,7 +150,7 @@ with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
 | Esyscall ii s1 scs m s2 o xs es ves vs:
     get_vars true s1.(evm) (syscall_sig o).(scs_vin) = ok ves ->
     exec_syscall (semCallParams:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
-    write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |}
+    write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm); eassert := s1.(eassert) |}
        (to_lvals (syscall_sig o).(scs_vout)) vs = ok s2 →
     sem_i ii (Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout)))) s1 (Csyscall xs o es) s2
 
@@ -193,13 +198,19 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
       f.(f_extra).(sf_stk_extra_sz)
       = ok m1 →
     let vm1 := ra_undef_vm f s1.(evm) var_tmp in
-    sem k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; |} f.(f_body) s2' →
+    sem k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; eassert := s1.(eassert) |} f.(f_body) s2' →
     valid_RSP s2'.(emem) s2'.(evm) →
     let m2 := free_stack s2'.(emem) in
+<<<<<<< HEAD
     let vm2 := kill_vars (ra_vm_return f.(f_extra)) s2'.(evm) in
     s2 = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 vm2 |} →
     let k' := Sv.union (ra_undef f var_tmp) (ra_vm_return f.(f_extra)) in
     sem_call ii (Sv.union k k') s1 fn s2.
+=======
+    s2 = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 s2'.(evm); eassert := s2'.(eassert) |} →
+    let vm := Sv.union (ra_vm f.(f_extra) var_tmp) (saved_stack_vm f) in
+    sem_call ii (Sv.union k vm) s1 fn s2.
+>>>>>>> feature-annotation
 
 Variant sem_export_call_conclusion (scs: syscall_state_t) (m: mem) (fd: sfundef) (args: values) (vm: Vm.t) (scs': syscall_state_t) (m': mem) (res: values) : Prop :=
   | SemExportCallConclusion (m1: mem) (k: Sv.t) (m2: mem) (vm2: Vm.t) (res':values) of
@@ -207,7 +218,9 @@ Variant sem_export_call_conclusion (scs: syscall_state_t) (m: mem) (fd: sfundef)
     Sv.Subset (Sv.inter callee_saved (Sv.union k (ra_undef fd var_tmp))) (sv_of_list fst fd.(f_extra).(sf_to_save)) &
     alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_ioff) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
 (*    all2 check_ty_val fd.(f_tyin) args & *)
-    sem k {| escs := scs; emem := m1 ; evm := set_RSP m1 (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm) |} fd.(f_body) {| escs:= scs'; emem := m2 ; evm := vm2 |} &
+    sem k {| escs := scs; emem := m1 ; evm := set_RSP m1 (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm); eassert := [::] |}
+          fd.(f_body)
+          {| escs:= scs'; emem := m2 ; evm := vm2; eassert := [::] |} &
     get_var_is false vm2 fd.(f_res) = ok res' &
     List.Forall2 value_uincl res res' &
  (*   all2 check_ty_val fd.(f_tyout) res' & *)
@@ -260,13 +273,14 @@ Lemma sem_iE ii k s i s' :
     k = vrv x ∧
     exists2 v', sem_pexpr true gd s e >>= truncate_val ty = ok v' & write_lval true gd x v' s = ok s'
   | Copn xs t o es => k = vrvs xs ∧ sem_sopn gd o s xs es = ok s'
-  | Csyscall xs o es => 
-    k = Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) /\  
+  | Csyscall xs o es =>
+    k = Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) /\
     ∃ scs m ves vs,
      [/\ get_vars true s.(evm) (syscall_sig o).(scs_vin) = ok ves,
          exec_syscall (semCallParams:= sCP_stack) s.(escs) s.(emem) o ves = ok (scs, m, vs) &
-         write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s.(evm) |}
+         write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s.(evm); eassert := s.(eassert) |}
            (to_lvals (syscall_sig o).(scs_vout)) vs = ok s']
+  | Cassert t p e => False
   | Cif e c1 c2 =>
     exists2 b, sem_pexpr true gd s e = ok (Vbool b) & sem k s (if b then c1 else c2) s'
   | Cwhile a c e ei c' =>
@@ -304,12 +318,16 @@ Lemma sem_callE ii k s fn s' :
     (λ f m1 _ _, alloc_stack s.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_ioff) f.(f_extra).(sf_stk_extra_sz) = ok m1)
     (λ f m1 s2' k',
      let vm := ra_undef_vm f s.(evm) var_tmp in
-     sem k' {| escs := s.(escs); emem := m1 ; evm := set_RSP m1 vm; |} f.(f_body) s2')
+     sem k' {| escs := s.(escs); emem := m1 ; evm := set_RSP m1 vm; eassert := s.(eassert)|} f.(f_body) s2')
     (λ _ _ s2' _, valid_RSP s2'.(emem) s2'.(evm))
     (λ f _ s2' _,
       let vm2 := kill_vars (ra_vm_return f.(f_extra)) s2'.(evm) in
       let m2 := free_stack s2'.(emem) in
+<<<<<<< HEAD
       s' = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 vm2 |})
+=======
+      s' = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 (evm s2'); eassert := s2'.(eassert) |})
+>>>>>>> feature-annotation
     (λ f _ _ k',
      k = Sv.union k' (Sv.union (ra_undef f var_tmp) (ra_vm_return f.(f_extra)))).
 Proof.
@@ -365,7 +383,7 @@ Section SEM_IND.
     ∀ (ii: instr_info) (s1 s2 : estate) (o : syscall_t) (xs : lvals) (es : pexprs) scs m ves vs,
       get_vars true s1.(evm) (syscall_sig o).(scs_vin) = ok ves ->
       exec_syscall (semCallParams:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
-      write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |}
+      write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm); eassert := s1.(eassert) |}
         (to_lvals (syscall_sig o).(scs_vout)) vs = ok s2 →
       Pi_r ii (Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout)))) s1 (Csyscall xs o es) s2.
 
@@ -422,14 +440,20 @@ Section SEM_IND.
       valid_RSP s1.(emem) s1.(evm) →
       alloc_stack s1.(emem) fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_ioff) fd.(f_extra).(sf_stk_extra_sz) = ok m1 →
       let vm1 := ra_undef_vm fd s1.(evm) var_tmp in
-      sem k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; |} fd.(f_body) s2' →
-      Pc  k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; |} fd.(f_body) s2' →
+      sem k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; eassert := s1.(eassert) |} fd.(f_body) s2' →
+      Pc  k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; eassert := s1.(eassert) |} fd.(f_body) s2' →
       valid_RSP s2'.(emem) s2'.(evm) →
       let vm2 := kill_vars (ra_vm_return fd.(f_extra)) s2'.(evm) in
       let m2 := free_stack s2'.(emem) in
+<<<<<<< HEAD
       s2 = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 vm2 |} →
       let k' := Sv.union (ra_undef fd var_tmp) (ra_vm_return fd.(f_extra)) in
       Pfun ii (Sv.union k k') s1 fn s2.
+=======
+      s2 = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 (evm s2'); eassert := s2'.(eassert) |} →
+      let vm := Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd)) in
+      Pfun ii vm s1 fn s2.
+>>>>>>> feature-annotation
 
   Hypotheses
     (Hcall: sem_Ind_call)
@@ -487,3 +511,7 @@ Section SEM_IND.
 End SEM_IND.
 
 End SEM.
+
+End Tabstract.
+
+Notation kill_vars := (Sv.fold kill_var).

@@ -27,6 +27,7 @@ type 'len gexpr =
   | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
   | PappN of E.opNA * 'len gexpr list
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
+  | Pbig   of 'len gexpr * E.sop2 * 'len gvar_i * 'len gexpr * 'len gexpr * 'len gexpr
 
 type 'len gexprs = 'len gexpr list
 
@@ -61,6 +62,7 @@ type ('len,'info,'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
   | Csyscall of 'len glvals * BinNums.positive Syscall_t.syscall_t * 'len gexprs
+  | Cassert of E.annotation_kind * E.assertion_prover * 'len gexpr
   | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
   | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len,'info,'asm) gstmt
@@ -76,10 +78,19 @@ and ('len,'info,'asm) ginstr = {
 and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 
 (* ------------------------------------------------------------------------ *)
+
+type 'len gfcontract = {
+  f_iparams : 'len gvar_i list;
+  f_ires : 'len gvar_i list;
+  f_pre : (E.assertion_prover * 'len gexpr) list;
+  f_post : (E.assertion_prover * 'len gexpr) list;
+}
+
 type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
     f_annot: FInfo.f_annot;
     f_info : 'info;
+    f_contra: 'len gfcontract option;
     f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
@@ -241,6 +252,7 @@ val refresh_i_loc_p : ('info,'asm) prog  -> ('info,'asm) prog
 (* Functions on types                                                   *)
 
 val int_of_ws  : wsize -> int
+val z_of_ws  : wsize -> Z.t
 val string_of_ws : wsize -> string
 val size_of_ws : wsize -> int
 
@@ -264,6 +276,7 @@ val access_offset : Warray_.arr_access -> wsize -> int -> int
 val is_stack_var : var -> bool
 val is_reg_arr   : var -> bool
 val is_stack_array : var_i -> bool
+val is_arr       : var -> bool
 
 (* -------------------------------------------------------------------- *)
 (* Functions over expressions                                           *)

@@ -12,9 +12,11 @@ Local Open Scope Z_scope.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
+  {absp: Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -70,7 +72,7 @@ Let Pi s1 (i1:instr) s2 :=
   Sv.Subset (vars_I i1) X ->
   forall i2, array_copy_i fresh_var_ident X i1 = ok i2 ->
   forall vm1, evm s1 <=[X] vm1 ->
-  exists2 vm2, evm s2 <=[X] vm2 & 
+  exists2 vm2, evm s2 <=[X] vm2 &
       sem p2 ev (with_vm s1 vm1) i2 (with_vm s2 vm2).
 
 Let Pi_r s1 (i:instr_r) s2 := forall ii, Pi s1 (MkI ii i) s2.
@@ -79,19 +81,19 @@ Let Pc s1 (c1:cmd) s2 :=
   Sv.Subset (vars_c c1) X ->
   forall c2, array_copy_c X (array_copy_i fresh_var_ident) c1 = ok c2 ->
   forall vm1, evm s1 <=[X] vm1 ->
-  exists2 vm2, evm s2 <=[X] vm2  & 
+  exists2 vm2, evm s2 <=[X] vm2  &
     sem p2 ev (with_vm s1 vm1) c2 (with_vm s2 vm2).
 
 Let Pfor (i:var_i) vs s1 c1 s2 :=
   Sv.Subset (Sv.add i (vars_c c1)) X ->
   forall c2, array_copy_c X (array_copy_i fresh_var_ident) c1 = ok c2 ->
   forall vm1, evm s1 <=[X] vm1  ->
-  exists2 vm2, evm s2 <=[X] vm2 & 
+  exists2 vm2, evm s2 <=[X] vm2 &
     sem_for p2 ev i vs (with_vm s1 vm1) c2 (with_vm s2 vm2).
 
-Let Pfun sc1 m1 fn vargs sc2 m2 vres :=
+Let Pfun sc1 m1 fn vargs sc2 m2 vres tr :=
   forall vargs', List.Forall2 value_uincl vargs vargs' ->
-  exists2 vres', sem_call p2 ev sc1 m1 fn vargs' sc2 m2 vres' & List.Forall2 value_uincl vres vres'.
+  exists2 vres', sem_call p2 ev sc1 m1 fn vargs' sc2 m2 vres' tr & List.Forall2 value_uincl vres vres'.
 
 Local Lemma Hskip : sem_Ind_nil Pc.
 Proof. move=> s hsub c2 [] <- vm1 hvm1; exists vm1 => //; constructor. Qed.
@@ -212,7 +214,7 @@ Proof.
   set cond := needs_temporary _ _.
   set c := map (MkI ii) _.
   have [vm1' [hvm1' [tx0 htx0]] hipre] : exists2 vm1',
-    vm1 <=[Sv.union (read_gvar src) (Sv.remove x X)]  vm1' /\ exists tx, vm1'.[x] = @Varr len tx &
+    vm1 <=[Sv.union (read_gvar src) (Sv.remove x X)]  vm1' /\ exists tx, vm1'.[x] = @Varr _ len tx &
     sem_I p2 ev (with_vm s vm1) (MkI ii ipre) (with_vm s vm1').
   + rewrite /ipre; case: ifPn => hxy.
     + exists vm1; last by constructor; econstructor.
@@ -225,7 +227,7 @@ Proof.
       by case/norP: hxy; rewrite /eq_gvar /= /read_gvar; case: (src) => /= vy [/= /eqP | /=]; SvD.fsetdec.
     constructor; apply: Eassgn => //=; first by rewrite /truncate_val /= WArray.castK.
     by rewrite write_var_eq_type.
-  move: hcopy; rewrite /WArray.copy -/len => /(WArray.fcopy_uincl (WArray.uincl_empty tx0 erefl)) 
+  move: hcopy; rewrite /WArray.copy -/len => /(WArray.fcopy_uincl (WArray.uincl_empty tx0 erefl))
     => -[tx'] hcopy hutx.
   have :
     forall (j:Z), 0 <= j -> j <= n ->
@@ -280,7 +282,7 @@ Proof.
     { apply: Eseq; last apply: sem_seq1; constructor; apply: Eassgn.
       + rewrite /= get_gvar_neq //.
         rewrite -eq_globs; move: hv => /= => -> /=.
-        by rewrite (@get_gvar_eq _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget).
+        by rewrite (@get_gvar_eq _ _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget).
       + by rewrite /truncate_val /= truncate_word_u.
       + by rewrite /= write_var_eq_type.
       + by rewrite /mk_lvar /= /get_gvar get_var_eq /= cmp_le_refl orbT.
@@ -292,9 +294,9 @@ Proof.
     apply: Eassgn.
     + rewrite /= get_gvar_neq //.
       rewrite -eq_globs; move: hv => /= => -> /=.
-      by rewrite (@get_gvar_eq _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget).
+      by rewrite (@get_gvar_eq _ _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget).
     + by rewrite /truncate_val /= truncate_word_u.
-    rewrite /= get_var_neq //= /get_var hx /= (@get_gvar_eq _ _ _ (mk_lvar i)) //= truncate_word_u /=.
+    rewrite /= get_var_neq //= /get_var hx /= (@get_gvar_eq _ _ _ _ (mk_lvar i)) //= truncate_word_u /=.
     by rewrite hset /= write_var_eq_type.
   move=> /(_ n _ _ vm1' tx0 hvm1' htx0) [] => //;first by lia.
   + by rewrite Z.sub_diag.
@@ -402,6 +404,16 @@ Proof.
   by apply sem_seq1; constructor; econstructor; eauto; rewrite -eq_globs.
 Qed.
 
+Local Lemma Hassert : sem_Ind_assert p1 Pi_r.
+Proof.
+  move => s t p e b he ii; rewrite /Pi vars_I_assert => hsub c /=.
+  t_xrbindP =>  hc vm1 hvm1.
+  have [|v hv /value_uinclE ?]:= sem_pexpr_uincl_on (uincl_onI _ hvm1) he; first by SvD.fsetdec.
+  subst c v.
+  exists vm1 => //=. apply sem_seq1.
+  by constructor; apply: Eassert; rewrite -eq_globs.
+Qed.
+
 Local Lemma Hif_true : sem_Ind_if_true p1 ev Pc Pi_r.
 Proof.
   move => s1 s2 e c1 c2 he _ hc ii; rewrite /Pi vars_I_if => hsub c /=.
@@ -467,21 +479,43 @@ Proof.
   exists vm4 => //=; econstructor; eauto.
 Qed.
 
+Local Lemma sem_pre_ok scs m fn vargs v:
+  sem_pre p1 scs m fn vargs = ok v ->
+  sem_pre p2 scs m fn vargs = ok v.
+Proof.
+  rewrite /sem_pre.
+  case: get_fundef (@all_checked fn) => // -[] /= ? ci > /(_ _ erefl) [fd2].
+  by rewrite /array_copy_fd eq_globs; t_xrbindP => ?? <- -> /=; case: ci.
+Qed.
+
+Local Lemma sem_post_ok scs m fn vargs vres v:
+  sem_post p1 scs m fn vargs vres = ok v ->
+  sem_post p2 scs m fn vargs vres = ok v.
+Proof.
+  rewrite /sem_post.
+  case: get_fundef (@all_checked fn) => // -[] /= ? ci > /(_ _ erefl) [fd2].
+  by rewrite /array_copy_fd eq_globs; t_xrbindP => ?? <- -> /=; case: ci.
+Qed.
+
 Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
 Proof.
-  move=> s1 scs2 m2 s2 xs fn args vargs vs he _ hfun hw ii.
+  move=> s1 scs2 m2 s2 s3 xs fn args vargs vs vpr vpo tr he hpr _ hfun hw hpo -> ii.
   rewrite /Pi vars_I_call /vars_lvals => hsub _ [<-] vm1 hvm1.
   have [|vargs' he' uvars]:= sem_pexprs_uincl_on (uincl_onI _ hvm1) he; first by SvD.fsetdec.
   have [vs' hfun' uvs']:= hfun _ uvars.
   have [| vm2 hvm2 hw']:= write_lvals_uincl_on _ uvs' hw hvm1; first by SvD.fsetdec.
   exists vm2; first by apply: uincl_onI hvm2; SvD.fsetdec.
-  apply sem_seq1; constructor; econstructor; rewrite -?eq_globs; eauto.
+  apply sem_seq1; constructor; econstructor; rewrite -?eq_globs; eauto;
+   rewrite ?(escs_with_vm, emem_with_vm).
+  + by have /sem_pre_ok := sem_pre_uincl uvars hpr; apply.
+  + by have /sem_post_ok := sem_post_uincl uvars uvs' hpo; apply.
+  by case s2.
 Qed.
 
 Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
 Proof.
-  move=> scs1 m1 scs2 m2 fn [fi tin params body tout res extra] /=.
-  move=> vargs vargs' s0 s1 s2 vres vres' hget hca hi hw _ hc hres hcr hscs hfi vargs1 hva.
+  move=> scs1 m1 scs2 m2 fn [fi fcon tin params body tout res extra] /=.
+  move=> vargs vargs' s0 s1 s2 vres vres' vpr vpo tr hget hca hi hw hpr _ hc hres hcr hscs hfi hpo -> vargs1 hva.
   have [fd2 hfd hget']:= all_checked hget.
   have hpex : p_extra p1 = p_extra p2.
   + by move: Hp; rewrite /array_copy_prog; t_xrbindP => ??? <-.
@@ -499,13 +533,17 @@ Proof.
   move: hi hget' hca' hw' hc' hres' hcr' hscs hfi.
   rewrite (sem_pexprs_get_var _ gd) => hi hget' hca' hw' hc' hres' hcr' hscs hfi.
   exists vres1' => //; econstructor; eauto => /=.
-  by rewrite -hpex; case: (s0) hi.
+  + by rewrite -hpex; case: (s0) hi.
+  + by have /sem_pre_ok := sem_pre_uincl hva hpr; apply.
+  + by rewrite add_assumes_with_vm.
+  + have /sem_post_ok := sem_post_uincl hva uvres1' hpo; apply.
+  by case s2.
 Qed.
 
-Lemma array_copy_fdP f scs mem scs' mem' va va' vr:
+Lemma array_copy_fdP f scs mem scs' mem' va va' vr tr:
   List.Forall2 value_uincl va va' ->
-  sem_call p1 ev scs mem f va scs' mem' vr ->
-  exists vr', sem_call p2 ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+  sem_call p1 ev scs mem f va scs' mem' vr tr ->
+  exists vr', sem_call p2 ev scs mem f va' scs' mem' vr' tr /\ List.Forall2 value_uincl vr vr'.
 Proof.
   move=> Hall Hsem.
   have [vr' ??] :=
@@ -516,6 +554,7 @@ Proof.
        Hassgn
        Hopn
        Hsyscall
+       Hassert
        Hif_true
        Hif_false
        Hwhile_true
