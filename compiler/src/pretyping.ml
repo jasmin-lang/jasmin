@@ -428,7 +428,8 @@ end  = struct
   let decls env = env.e_decls 
 
   let dependencies env =
-    Map.fold ( @ ) env.e_loader.loaded []
+    let mk_rel = Path.relative_to_any env.e_loader.idir in
+    Map.fold (fun ps acc -> List.rev_map mk_rel ps @ acc) env.e_loader.loaded []
 
   let find (proj: 'asm global_bindings -> (A.symbol, 'a) Map.t) (x: A.symbol) (env: 'asm env) : 'a option =
     let stack, bot = env.e_bindings in

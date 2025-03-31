@@ -34,6 +34,9 @@
 
 ## Other changes
 
+- Option `-print-dependencies` now uses relative paths
+  ([PR #1107](https://github.com/jasmin-lang/jasmin/pull/1107)).
+
 - Add warning to signal deprecated intrinsic operators 
   ([PR #1092](https://github.com/jasmin-lang/jasmin/pull/1092)).
 
