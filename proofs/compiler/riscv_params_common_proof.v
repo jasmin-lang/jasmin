@@ -77,7 +77,7 @@ Notation next_mem_ls ls m := (lnext_pc (lset_mem ls m)) (only parsing).
 
 Lemma addi_sem_fopn_args {s xname vi y imm wy} :
   let: (xi, x) := mkv xname vi in
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy
+  get_var true (evm s) (v_var y) >>r= to_word Uptr = ok wy
   -> let: wx' := Vword (wy + wrepr reg_size imm)in
      let: vm' := (evm s).[x <- wx'] in
      sem_fopn_args (RISCVFopn.addi xi y imm) s = ok (with_vm s vm').
@@ -85,14 +85,14 @@ Proof. by move=> h; rewrite -sem_fopn_equiv; apply RISCVFopn_coreP.addi_sem_fopn
 
 Lemma mov_sem_fopn_args {s xname vi y} {wy : word Uptr} :
   let: (xi, x) := mkv xname vi in
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var true (evm s) (v_var y) >>r= to_word Uptr = ok wy ->
   let: vm' := (evm s).[x <- Vword wy] in
   sem_fopn_args (RISCVFopn.mov xi y) s = ok (with_vm s vm').
 Proof. by move=> h; rewrite -sem_fopn_equiv; apply RISCVFopn_coreP.mov_sem_fopn_args. Qed.
 
 Lemma align_sem_fopn_args xname vi y al s (wy : word Uptr) :
   let: (xi, x) := mkv xname vi in
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var true (evm s) (v_var y) >>r= to_word Uptr = ok wy ->
   let: wx' := Vword (align_word al wy) in
   let: vm' := (evm s).[x <- wx'] in
   sem_fopn_args (RISCVFopn.align xi y al) s = ok (with_vm s vm').
@@ -184,7 +184,7 @@ Lemma smart_addi_sem_fopn_args xname vi y imm s (w : wreg) :
   let: (xi, x) := mkv xname vi in
   let: lc := RISCVFopn.smart_addi xi y imm in
   is_arith_small imm \/ x <> v_var y ->
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok w -> 
+  get_var true (evm s) (v_var y) >>r= to_word Uptr = ok w -> 
   exists vm',
     [/\ sem_fopns_args s lc = ok (with_vm s vm')
       , vm' =[\ Sv.singleton x ] evm s
@@ -204,7 +204,7 @@ Lemma smart_subi_sem_fopn_args xname vi y imm s (w : wreg) :
   let: (xi, x) := mkv xname vi in
   let: lc := RISCVFopn.smart_subi xi y imm in
   is_arith_small_neg imm \/ x <> v_var y ->
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok w ->
+  get_var true (evm s) (v_var y) >>r= to_word Uptr = ok w ->
   exists vm',
     [/\ sem_fopns_args s lc = ok (with_vm s vm')
       , vm' =[\ Sv.singleton x ] evm s
@@ -225,7 +225,7 @@ Lemma smart_addi_tmp_sem_fopn_args s (tmp : var_i) xname vi imm w :
   let: lcmd := RISCVFopn.smart_addi_tmp xi tmp imm in
   x <> v_var tmp -> 
   vtype tmp = sword U32 ->
-  get_var true (evm s) x >>= to_word Uptr = ok w ->
+  get_var true (evm s) x >>r= to_word Uptr = ok w ->
   exists vm',
     [/\ sem_fopns_args s lcmd = ok (with_vm s vm')
       , evm s =[\ Sv.add x (Sv.singleton tmp) ] vm'
@@ -247,7 +247,7 @@ Lemma smart_subi_tmp_sem_fopn_args s (tmp : var_i) xname vi imm w :
   let: lcmd := RISCVFopn.smart_subi_tmp xi tmp imm in
   x <> v_var tmp ->
   vtype tmp = sword Uptr ->
-  get_var true (evm s) x >>= to_word Uptr = ok w ->
+  get_var true (evm s) x >>r= to_word Uptr = ok w ->
   exists vm',
     [/\ sem_fopns_args s lcmd = ok (with_vm s vm')
       , evm s =[\ Sv.add x (Sv.singleton tmp) ] vm'

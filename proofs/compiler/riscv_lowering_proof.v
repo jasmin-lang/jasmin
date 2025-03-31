@@ -113,7 +113,7 @@ Lemma check_shift_amountP e sa s z w :
   sem_pexpr true (p_globs p) s e = ok z ->
   to_word U8 z = ok w ->
   Sv.Subset (read_e sa) (read_e e) /\
-  exists2 n, sem_pexpr true (p_globs p) s sa >>= to_word U8 = ok n & forall f (a: word U32), sem_shift f a w = sem_shift f a (wand n (wrepr U8 31)).
+  exists2 n, sem_pexpr true (p_globs p) s sa >>r= to_word U8 = ok n & forall f (a: word U32), sem_shift f a w = sem_shift f a (wand n (wrepr U8 31)).
 Proof.
   rewrite /check_shift_amount.
   case en: is_wconst => [ n | ].
@@ -159,8 +159,8 @@ Lemma Hassgn_op2_generic s e1 e2 v1 v2 op2 v ws v' lv s1 (op2' : sopn) :
       forall e1' e2' w1' w2'
         (hcmp1 : (ws1' <= ws1)%CMP)
         (hcmp2 : (ws2' <= ws2)%CMP),
-        sem_pexpr true (p_globs p) s e1' >>= to_word ws1 = ok w1' ->
-        sem_pexpr true (p_globs p) s e2' >>= to_word ws2 = ok w2' ->
+        sem_pexpr true (p_globs p) s e1' >>r= to_word ws1 = ok w1' ->
+        sem_pexpr true (p_globs p) s e2' >>r= to_word ws2 = ok w2' ->
         Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed op2) w1 w2 in
         ok (zero_extend ws w)
         = ecast l (sem_prod l _) eq2
@@ -239,7 +239,7 @@ Lemma Hassgn_op2_shift s e1 e2 v1 v2 op2 v v' lv s1 (op2' : sopn) :
       to_word ws v1 = ok w1,
       to_word U8 v2 = ok w2 &
       forall e2' w2',
-        sem_pexpr true (p_globs p) s e2' >>= to_word U8 = ok w2' ->
+        sem_pexpr true (p_globs p) s e2' >>r= to_word U8 = ok w2' ->
         Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed op2) w1 w2 in
         ok (zero_extend U32 w)
         = ecast l (sem_prod l _) eq2

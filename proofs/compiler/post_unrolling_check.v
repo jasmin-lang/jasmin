@@ -43,7 +43,7 @@ Fixpoint check_no_for_loop_instr_r i : cexec unit :=
   | (Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _ | Ccall _ _ _)
     => ok tt
   | (Cif _ c c' | Cwhile _ c _ _ c') =>
-      check_no_for_loop_cmd check_no_for_loop_instr c >> check_no_for_loop_cmd check_no_for_loop_instr c'
+      check_no_for_loop_cmd check_no_for_loop_instr c >>r check_no_for_loop_cmd check_no_for_loop_instr c'
   | Cfor _ _ _ => Error E.for_loop_remains
   end
 with check_no_for_loop_instr i : cexec unit :=
@@ -64,12 +64,12 @@ Fixpoint check_no_inline_instr_instr_r i : cexec unit :=
   | (Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _ | Cfor _ _ _ | Ccall _ _ _)
       => ok tt
   | (Cif _ c c' | Cwhile _ c _ _ c') =>
-      check_no_inline_instr_cmd check_no_inline_instr_instr c >> check_no_inline_instr_cmd check_no_inline_instr_instr c'
+      check_no_inline_instr_cmd check_no_inline_instr_instr c >>r check_no_inline_instr_cmd check_no_inline_instr_instr c'
   end
 with check_no_inline_instr_instr i : cexec unit :=
   let: MkI ii i := i in
   add_iinfo ii (
-      assert (negb (ii_is_inline ii)) E.inline_instr_remains >>
+      assert (negb (ii_is_inline ii)) E.inline_instr_remains >>r
       check_no_inline_instr_instr_r i).
 
 Definition check_no_inline_instr_fd (f : funname * ufundef) :=

@@ -540,7 +540,7 @@ Definition get_var wdb vm x :=
 Definition get_vars wdb vm := mapM (get_var wdb vm).
 
 Definition vm_initialized_on vm : seq var → Prop :=
-  all (λ x, is_ok (get_var true vm x >>= of_val (vtype x))).
+  all (λ x, is_ok (get_var true vm x >>r= of_val (vtype x))).
 
 Lemma set_varP wdb vm x v vm' :
   set_var wdb vm x v = ok vm' <-> [/\ DB wdb v, truncatable wdb (vtype x) v & vm' = vm.[x <- v]].

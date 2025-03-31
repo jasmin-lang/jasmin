@@ -152,15 +152,15 @@ Proof.
 Qed.
 
 Lemma compute_addrP ii (tmp x:var_i) e prelude disp s1 wx we :
-  get_var true (evm s1) x >>= to_pointer = ok wx ->
-  sem_pexpr true p'.(p_globs) s1 e >>= to_pointer = ok we ->
+  get_var true (evm s1) x >>r= to_pointer = ok wx ->
+  sem_pexpr true p'.(p_globs) s1 e >>r= to_pointer = ok we ->
   vtype tmp = sword Uptr ->
   compute_addr tmp x e = Some (prelude, disp) ->
   exists vm1 wtmp wdisp, [/\
     sem p' ev s1 (map (MkI ii) prelude) (with_vm s1 vm1),
     evm s1 =[\Sv.singleton tmp] vm1,
-    get_var true vm1 tmp >>= to_pointer = ok wtmp,
-    sem_pexpr true p'.(p_globs) (with_vm s1 vm1) disp >>= to_pointer = ok wdisp &
+    get_var true vm1 tmp >>r= to_pointer = ok wtmp,
+    sem_pexpr true p'.(p_globs) (with_vm s1 vm1) disp >>r= to_pointer = ok wdisp &
     (wx + we = wtmp + wdisp)%R].
 Proof.
   move=> ok_wx ok_we tmp_ty.

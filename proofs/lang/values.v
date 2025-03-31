@@ -511,7 +511,7 @@ Qed.
   * -------------------------------------------------------------------- *)
 
 Definition truncate_val (ty: stype) (v: value) : exec value :=
-  of_val ty v >>= λ x, ok (to_val x).
+  of_val ty v >>r= λ x, ok (to_val x).
 
 Lemma truncate_val_typeE ty v vt :
   truncate_val ty v = ok vt ->

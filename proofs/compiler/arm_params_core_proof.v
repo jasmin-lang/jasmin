@@ -57,8 +57,8 @@ Let mkv xname vi :=
 
 Lemma add_sem_fopn_args {s xname vi y} {wy : word Uptr} {z} {wz : word Uptr} :
   let: (xi, x) := mkv xname vi in
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
-  get_var true (evm s) (v_var z) >>= to_word Uptr = ok wz ->
+  get_var true (evm s) (v_var y) >>r= to_word Uptr = ok wy ->
+  get_var true (evm s) (v_var z) >>r= to_word Uptr = ok wz ->
   let: wx' := Vword (wy + wz)in
   let: vm' := (evm s).[x <- wx'] in
   sem_fopn_args (ARMFopn_core.add xi y z) s = ok (with_vm s vm').
@@ -66,7 +66,7 @@ Proof. by rewrite /=; t_xrbindP => *; t_arm_op. Qed.
 
 Lemma addi_sem_fopn_args {s xname vi y imm wy} :
   let: (xi, x) := mkv xname vi in
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var true (evm s) (v_var y) >>r= to_word Uptr = ok wy ->
   let: wx' := Vword (wy + wrepr reg_size imm)in
   let: vm' := (evm s).[x <- wx'] in
   sem_fopn_args (ARMFopn_core.addi xi y imm) s = ok (with_vm s vm').
@@ -74,8 +74,8 @@ Proof. by rewrite /=; t_xrbindP => *; t_arm_op. Qed.
 
 Lemma sub_sem_fopn_args {s xname vi y} {wy : word Uptr} {z} {wz : word Uptr} :
   let: (xi, x) := mkv xname vi in
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
-  get_var true (evm s) (v_var z) >>= to_word Uptr = ok wz ->
+  get_var true (evm s) (v_var y) >>r= to_word Uptr = ok wy ->
+  get_var true (evm s) (v_var z) >>r= to_word Uptr = ok wz ->
   let: wx' := Vword (wy - wz)in
   let: vm' := (evm s).[x <- wx'] in
   sem_fopn_args (ARMFopn_core.sub xi y z) s = ok (with_vm s vm').
@@ -83,7 +83,7 @@ Proof. by red; t_xrbindP => *; t_arm_op; rewrite /= wsub_wnot1. Qed.
 
 Lemma subi_sem_fopn_args {s xname vi y imm wy} :
   let: (xi, x) := mkv xname vi in
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var true (evm s) (v_var y) >>r= to_word Uptr = ok wy ->
   let: wx' := Vword (wy - wrepr reg_size imm)in
   let: vm' := (evm s).[x <- wx'] in
   sem_fopn_args (ARMFopn_core.subi xi y imm) s = ok (with_vm s vm').
@@ -91,7 +91,7 @@ Proof. by red; t_xrbindP => *; t_arm_op; rewrite /= wsub_wnot1. Qed.
 
 Lemma mov_sem_fopn_args {s xname vi y} {wy : word Uptr} :
   let: (xi, x) := mkv xname vi in
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var true (evm s) (v_var y) >>r= to_word Uptr = ok wy ->
   let: vm' := (evm s).[x <- Vword wy] in
   sem_fopn_args (ARMFopn_core.mov xi y) s = ok (with_vm s vm').
 Proof. by rewrite /=; t_xrbindP => *; t_arm_op. Qed.
@@ -302,11 +302,11 @@ Opaque ARMFopn_core.li.
 Lemma smart_mov_sem_fopns_args s (w : wreg) xname vi y :
   let: (xi, x) := mkv xname vi in
   let: lc := ARMFopn_core.smart_mov xi y in
-  get_var true (evm s) y >>= to_word Uptr = ok w ->
+  get_var true (evm s) y >>r= to_word Uptr = ok w ->
   exists vm,
     [/\ sem_fopns_args s lc = ok (with_vm s vm)
       , vm =[\ Sv.singleton x ] evm s
-      & get_var true vm x >>= to_word Uptr = ok w ].
+      & get_var true vm x >>r= to_word Uptr = ok w ].
 Proof.
   move=> hgety.
   rewrite /ARMFopn_core.smart_mov /=.
@@ -328,15 +328,15 @@ Lemma gen_smart_opi_sem_fopn_args
   (op_sem_fopn_args :
     forall {s xname vi y} {wy : word Uptr} {z} {wz : word Uptr},
       let: (xi, x) := mkv xname vi in
-      get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy
-      -> get_var true (evm s) (v_var z) >>= to_word Uptr = ok wz
+      get_var true (evm s) (v_var y) >>r= to_word Uptr = ok wy
+      -> get_var true (evm s) (v_var z) >>r= to_word Uptr = ok wz
       -> let: wx' := Vword (op wy wz)in
       let: vm' := (evm s).[x <- wx'] in
       sem_fopn_args (on_reg xi y z) s = ok (with_vm s vm'))
   (opi_sem_fopn_args :
     forall {s xname vi y imm wy},
     let: (xi, x) := mkv xname vi in
-      get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy
+      get_var true (evm s) (v_var y) >>r= to_word Uptr = ok wy
       -> let: wx' := Vword (op wy (wrepr reg_size imm)) in
      let: vm' := (evm s).[x <- wx'] in
      sem_fopn_args (on_imm xi y imm) s = ok (with_vm s vm'))
@@ -346,7 +346,7 @@ Lemma gen_smart_opi_sem_fopn_args
   let: (xi, x) := mkv xname vi in
   let: lc := ARMFopn_core.gen_smart_opi on_reg on_imm is_arith_small neutral tmp xi y imm in
   is_arith_small imm \/ v_var tmp <> v_var y -> 
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok w -> 
+  get_var true (evm s) (v_var y) >>r= to_word Uptr = ok w -> 
   exists vm',
     [/\ sem_fopns_args s lc = ok (with_vm s vm')
       , vm' =[\ Sv.add x (Sv.singleton tmp) ] evm s

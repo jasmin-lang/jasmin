@@ -177,17 +177,17 @@ Qed.
 Declare Scope option_scope.
 Delimit Scope option_scope with O.
 
-Notation "m >>= f" := (ssrfun.Option.bind f m)
+Notation "m >>o= f" := (ssrfun.Option.bind f m)
   (at level 25, left associativity) : option_scope.
 
 Local Open Scope option_scope.
 
 Lemma foldl_bind_None {A B: Type} (f: A -> B -> option B) m :
-  foldl (fun a b => a >>= f b) None m = None.
+  foldl (fun a b => a >>o= f b) None m = None.
 Proof. by elim: m. Qed.
 
 (* -------------------------------------------------------------------- *)
 
 Lemma obindI {T1 T2:Type} {f:T1 -> option T2} {o t2} :
-  (o >>= f) = Some t2 -> exists t1, o = Some t1 /\ f t1 = Some t2.
+  (o >>o= f) = Some t2 -> exists t1, o = Some t1 /\ f t1 = Some t2.
 Proof. by case: o => [t1|]//=;exists t1. Qed.

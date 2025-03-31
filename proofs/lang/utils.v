@@ -181,17 +181,17 @@ Notation rbind := Result.bind.
 Notation rmap  := Result.map.
 Notation ok    := (@Ok _).
 
-Notation "m >>= f" := (rbind f m) (at level 25, left associativity).
-Notation "'Let' x ':=' m 'in' body" := (m >>= (fun x => body)) (x name, at level 25).
-Notation "'Let:' x ':=' m 'in' body" := (m >>= (fun x => body)) (x strict pattern, at level 25).
-Notation "m >> n" := (rbind (λ _, n) m) (at level 30, right associativity, n at next level).
+Notation "m >>r= f" := (rbind f m) (at level 25, left associativity).
+Notation "'Let' x ':=' m 'in' body" := (m >>r= (fun x => body)) (x name, at level 25).
+Notation "'Let:' x ':=' m 'in' body" := (m >>r= (fun x => body)) (x strict pattern, at level 25).
+Notation "m >>r n" := (rbind (λ _, n) m) (at level 30, right associativity, n at next level).
 
 Lemma bindA eT aT bT cT (f : aT -> result eT bT) (g: bT -> result eT cT) m:
-  m >>= f >>= g = m >>= (fun a => f a >>= g).
+  m >>r= f >>r= g = m >>r= (fun a => f a >>r= g).
 Proof. case:m => //=. Qed.
 
 Lemma bind_eq eT aT rT (f1 f2 : aT -> result eT rT) m1 m2 :
-   m1 = m2 -> f1 =1 f2 -> m1 >>= f1 = m2 >>= f2.
+   m1 = m2 -> f1 =1 f2 -> m1 >>r= f1 = m2 >>r= f2.
 Proof. move=> <- Hf; case m1 => //=. Qed.
 
 Definition ok_inj {E A} {a a': A} (H: Ok E a = ok a') : a = a' :=
@@ -224,12 +224,12 @@ Definition type_error {t} := @Error _ t ErrType.
 Definition undef_error {t} := @Error error t ErrAddrUndef.
 
 Lemma bindW {T U} (v : exec T) (f : T -> exec U) r :
-  v >>= f = ok r -> exists2 a, v = ok a & f a = ok r.
+  v >>r= f = ok r -> exists2 a, v = ok a & f a = ok r.
 Proof. by case E: v => [a|//] /= <-; exists a. Qed.
 
 Lemma rbindP eT aT rT (e:result eT aT) (body:aT -> result eT rT) v (P:Type):
   (forall z, e = ok z -> body z = Ok _ v -> P) ->
-  e >>= body = Ok _ v -> P.
+  e >>r= body = Ok _ v -> P.
 Proof. by case: e=> //= a H /H H';apply H'. Qed.
 
 Ltac t_rbindP := do? (apply: rbindP => ??).
@@ -260,7 +260,7 @@ Ltac clarify :=
   end.
 
 Lemma Let_Let {eT A B C} (a:result eT A) (b:A -> result eT B) (c: B -> result eT C) :
-  ((a >>= b) >>= c) = a >>= (fun a => b a >>= c).
+  ((a >>r= b) >>r= c) = a >>r= (fun a => b a >>r= c).
 Proof. by case: a. Qed.
 
 Lemma LetK {eT T} (r : result eT T) : Let x := r in ok x = r.
@@ -272,8 +272,8 @@ Definition mapM eT aT bT (f : aT -> result eT bT)  : seq aT → result eT (seq b
   | [::] =>
       Ok eT [::]
   | [:: x & xs] =>
-      f x >>= fun y =>
-      mapM xs >>= fun ys =>
+      f x >>r= fun y =>
+      mapM xs >>r= fun ys =>
       Ok eT [:: y & ys]
   end.
 
@@ -508,13 +508,13 @@ Section FOLDM.
   Fixpoint foldM (acc : bT) (l : seq aT) :=
     match l with
     | [::]         => Ok eT acc
-    | [:: a & la ] => f a acc >>= fun acc => foldM acc la
+    | [:: a & la ] => f a acc >>r= fun acc => foldM acc la
     end.
 
   Fixpoint foldrM (acc : bT) (l : seq aT) :=
     match l with
     | [::]         => Ok eT acc
-    | [:: a & la ] => foldrM acc la >>= f a
+    | [:: a & la ] => foldrM acc la >>r= f a
     end.
 
   Lemma foldM_cat acc l1 l2 :
@@ -535,7 +535,7 @@ Section FOLD2.
     match la, lb with
     | [::]  , [::]   => Ok E r
     | a::la, b::lb =>
-      f a b r >>= (fold2 la lb)
+      f a b r >>r= (fold2 la lb)
     | _     , _      => Error e
     end.
 
@@ -1170,7 +1170,7 @@ End FIND_MAP.
  * -------------------------------------------------------------------- *)
 
 Lemma isSome_obind (aT bT: Type) (f: aT → option bT) (o: option aT) :
-  reflect (exists2 a, o = Some a & isSome (f a)) (isSome (o >>= f)%O).
+  reflect (exists2 a, o = Some a & isSome (f a)) (isSome (o >>o= f)%O).
 Proof.
   apply: Bool.iff_reflect; split.
   - by case => a ->.

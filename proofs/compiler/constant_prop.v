@@ -229,7 +229,7 @@ Definition is_cmp_const (ty: cmp_kind) (e: pexpr) : option Z :=
   match ty with
   | Cmp_int => is_const e
   | Cmp_w sg sz =>
-    is_wconst sz e >>= λ w,
+    is_wconst sz e >>o= λ w,
     Some match sg with
     | Signed => wsigned w
     | Unsigned => wunsigned w

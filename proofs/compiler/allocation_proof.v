@@ -254,7 +254,7 @@ Lemma check_lvalP wdb gd r1 r1' x1 x2 e2 s1 s1' vm1 v1 v2 :
   eq_alloc r1 s1.(evm) vm1 ->
   value_uincl v1 v2 ->
   oapp (fun te2 =>
-      sem_pexpr wdb gd (with_vm s1 vm1) te2.2 >>= truncate_val te2.1 = ok v2) true e2 ->
+      sem_pexpr wdb gd (with_vm s1 vm1) te2.2 >>r= truncate_val te2.1 = ok v2) true e2 ->
   write_lval wdb gd x1 v1 s1 = ok s1' ->
   exists2 vm1',
     write_lval wdb gd x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') &

@@ -435,7 +435,7 @@ Definition eval_instr (i : asm_i_r) (s: asm_state) : exec asm_state :=
     else type_error
   | JMP lbl   => eval_JMP p lbl s
   | JMPI d =>
-    Let v := eval_asm_arg (AK_mem Aligned) s d (sword Uptr) >>= to_pointer in
+    Let v := eval_asm_arg (AK_mem Aligned) s d (sword Uptr) >>r= to_pointer in
     if decode_label labels v is Some lbl then
       eval_JMP p lbl s
     else type_error
@@ -447,7 +447,7 @@ Definition eval_instr (i : asm_i_r) (s: asm_state) : exec asm_state :=
       else type_error
   | CALL lbl =>
       if return_address_from s is Some ra then
-        eval_PUSH ra s >>= eval_JMP p lbl
+        eval_PUSH ra s >>r= eval_JMP p lbl
       else type_error
   | POPPC =>
     Let: (s', dst) := eval_POP s in

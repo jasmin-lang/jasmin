@@ -65,7 +65,7 @@ Lemma store_zero_eval_instr lp ii ws e (ls:lstate) (w1 w2 : word Uptr) m' :
   (ws <= U32)%CMP ->
   get_var true (lvm ls) vzero = ok (@Vword Uptr 0) ->
   get_var true (lvm ls) rspi = ok (Vword w1) ->
-  sem_fexpr (lvm ls) e >>= to_word Uptr = ok w2 ->
+  sem_fexpr (lvm ls) e >>r= to_word Uptr = ok w2 ->
   write (lmem ls) Aligned (w1 + w2)%R (sz:=ws) 0 = ok m' ->
   let i := MkLI ii (store_zero rspi ws e) in
   eval_instr lp i ls = ok (lnext_pc (lset_mem ls m')).

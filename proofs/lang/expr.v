@@ -729,7 +729,7 @@ Definition is_wconst (sz: wsize) (e: pexpr) : option (word sz) :=
   match e with
   | Papp1 (Oword_of_int sz') e =>
     if (sz ≤ sz')%CMP then
-      is_const e >>= λ n, Some (wrepr sz n)
+      is_const e >>o= λ n, Some (wrepr sz n)
     else None
   | _       => None
   end%O.

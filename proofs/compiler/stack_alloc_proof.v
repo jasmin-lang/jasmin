@@ -780,7 +780,7 @@ Proof.
 Qed.
 
 Lemma cast_ptrP wdb gd s e i :
-  sem_pexpr wdb gd s e >>= to_int = ok i ->
+  sem_pexpr wdb gd s e >>r= to_int = ok i ->
   exists2 v, sem_pexpr wdb gd s (cast_ptr e) = ok v & value_uincl (Vword (wrepr Uptr i)) v.
 Proof.
   t_xrbindP => v he hi.
@@ -789,7 +789,7 @@ Proof.
 Qed.
 
 Lemma mk_ofsP wdb aa sz gd s2 ofs e i :
-  sem_pexpr wdb gd s2 e >>= to_int = ok i ->
+  sem_pexpr wdb gd s2 e >>r= to_int = ok i ->
   sem_pexpr wdb gd s2 (mk_ofs aa sz e ofs) = ok (Vword (wrepr Uptr (i * mk_scale aa sz + ofs)%Z)).
 Proof.
   rewrite /mk_ofs; case is_constP => /= [? [->] //| {}e he] /=.
@@ -943,7 +943,7 @@ Section EXPR.
     valid_pk rmap s' sr pk ->
     addr_from_pk pmap x pk = ok (xi, ofs) ->
     exists w,
-      get_var wdb (evm s') xi >>= to_pointer = ok w /\
+      get_var wdb (evm s') xi >>r= to_pointer = ok w /\
       sub_region_addr sr = (w + wrepr _ ofs)%R.
   Proof.
     case: pk => //.
@@ -959,7 +959,7 @@ Section EXPR.
 
   (* If [x] is a local variable *)
   Lemma check_mk_addr_ptr (x:var_i) aa ws xi ei e1 i1 pk sr :
-    sem_pexpr true [::] s' e1 >>= to_int = ok i1 ->
+    sem_pexpr true [::] s' e1 >>r= to_int = ok i1 ->
     wf_local x pk ->
     valid_pk rmap s' sr pk ->
     mk_addr_ptr pmap x aa ws pk e1 = ok (xi, ei) ->
@@ -982,7 +982,7 @@ Section EXPR.
     valid_vpk rmap s' x sr vpk ->
     addr_from_vpk pmap x vpk = ok (xi, ofs) ->
     exists w,
-      get_var wdb (evm s') xi >>= to_pointer = ok w /\
+      get_var wdb (evm s') xi >>r= to_pointer = ok w /\
       sub_region_addr sr = (w + wrepr _ ofs)%R.
   Proof.
     case: vpk => [[ofs' ws]|pk].
@@ -994,7 +994,7 @@ Section EXPR.
   Qed.
 
   Lemma check_mk_addr (x:var_i) aa ws xi ei e1 i1 vpk sr :
-    sem_pexpr true [::] s' e1 >>= to_int = ok i1 ->
+    sem_pexpr true [::] s' e1 >>r= to_int = ok i1 ->
     wf_vpk x vpk ->
     valid_vpk rmap s' x sr vpk ->
     mk_addr pmap x aa ws vpk e1 = ok (xi, ei) ->
@@ -1194,7 +1194,7 @@ Section EXPR.
       move: he'; t_xrbindP => e1' /he1{he1}.
       rewrite /truncate_val /= hvi /= => /(_ _ erefl) [] v' [] he1'.
       t_xrbindP=> i' hv' ?; subst i'.
-      have h0 : sem_pexpr true [::] s' e1' >>= to_int = ok i.
+      have h0 : sem_pexpr true [::] s' e1' >>r= to_int = ok i.
       + by rewrite he1' /= hv'.
       move=> [vpk | ]; last first.
       + t_xrbindP => h /check_diffP h1 <- /=.
@@ -1820,7 +1820,7 @@ Proof.
     case heq: is_word_type => [ws | //]; move /is_word_typeP : heq => hty.
     case htyv: subtype => //.
     t_xrbindP => -[xi ei] ha sr hsr rmap2 hsetw <- /= s1' /write_varP [-> hdb htr] /=.
-    have he1 : sem_pexpr true [::] s2 0 >>= to_int = ok 0 by done.
+    have he1 : sem_pexpr true [::] s2 0 >>r= to_int = ok 0 by done.
     have hpk := sub_region_pk_valid rmap s2 hsr.
     have [wx [wi [-> -> /= <-]]]:= check_mk_addr_ptr hvs he1 (wf_locals hlx) hpk ha.
     have := htr; rewrite {1}hty => /(vm_truncate_val_subtype_word hdb htyv) [w htrw -> /=].
@@ -1853,7 +1853,7 @@ Proof.
   + move=> al ws x e1 /=; t_xrbindP => /check_varP hx /check_diffP hnnew e1' /(alloc_eP hvs) he1 <-.
     move=> s1' xp ? hgx hxp w1 v1 /he1 he1' hv1 w hvw mem1 hmem1 <- /=.
     have := get_var_kindP hvs hx hnnew; rewrite /get_gvar /= => /(_ _ _ hgx) -> /=.
-    have {}he1': sem_pexpr true [::] s2 e1' >>= to_pointer = ok w1.
+    have {}he1': sem_pexpr true [::] s2 e1' >>r= to_pointer = ok w1.
     + have [ws1 [wv1 [? hwv1]]] := to_wordI hv1; subst.
       move: he1'; rewrite /truncate_val /= hwv1 /= => /(_ _ erefl) [] ve1' [] -> /=.
       by t_xrbindP=> w1' -> ? /=; subst w1'.
@@ -1898,7 +1898,7 @@ Proof.
   move=> al aa ws x e1 /=; t_xrbindP => e1' /(alloc_eP hvs) he1.
   move=> hr2 s1'; apply on_arr_varP => n t hty hxt.
   t_xrbindP => i1 v1 /he1 he1' hi1 w hvw t' htt' /write_varP [? hdb htr]; subst s1'.
-  have {}he1 : sem_pexpr true [::] s2 e1' >>= to_int = ok i1.
+  have {}he1 : sem_pexpr true [::] s2 e1' >>r= to_int = ok i1.
   + have ? := to_intI hi1; subst.
     move: he1'; rewrite /truncate_val /= => /(_ _ erefl) [] ve1' [] -> /=.
     by t_xrbindP=> i1' -> ? /=; subst i1'.
@@ -1978,7 +1978,7 @@ Hypothesis P'_globs : P'.(p_globs) = [::].
 Local Opaque arr_size.
 
 Lemma get_ofs_subP wdb gd s i aa ws x e ofs :
-  sem_pexpr wdb gd s e >>= to_int = ok i ->
+  sem_pexpr wdb gd s e >>r= to_int = ok i ->
   get_ofs_sub aa ws x e = ok ofs ->
   ofs = i * mk_scale aa ws.
 Proof.
@@ -2086,7 +2086,7 @@ Proof.
   t_xrbindP=> n _ hty _ i v' he' hv' _ /WArray.get_sub_bound hbound _ ofs' hofs' <- <- [<- <-].
   split=> //.
   rewrite hty.
-  have {hv'}he' : sem_pexpr wdb gd s1 e' >>= to_int = ok i by rewrite he'.
+  have {hv'}he' : sem_pexpr wdb gd s1 e' >>r= to_int = ok i by rewrite he'.
   by move: hofs' => /(get_ofs_subP he') ->.
 Qed.
 
@@ -2141,7 +2141,7 @@ Lemma mk_addr_pexprP wdb rmap m0 s1 s2 (x : var_i) vpk sr e1 ofs :
   valid_vpk rmap s2 x sr vpk ->
   mk_addr_pexpr pmap rmap x vpk = ok (e1, ofs) ->
   exists w,
-    sem_pexpr wdb [::] s2 e1 >>= to_pointer = ok w /\
+    sem_pexpr wdb [::] s2 e1 >>r= to_pointer = ok w /\
     sub_region_addr sr = (w + wrepr _ ofs)%R.
 Proof.
   move=> hvs hwfpk hpk.
@@ -2481,7 +2481,7 @@ Proof.
   t_xrbindP=> aa ws {}len x' e ofs' hofs ? <- [? <-]; subst x' ofs'.
   apply: on_arr_varP; t_xrbindP => nx ax htyx hxa i v he hv a2 ha2 a3 ha3 /write_varP [ -> hdb h].
   have /vm_truncate_valE [hty heq]:= h.
-  have {hv}he : sem_pexpr true gd s1 e >>= to_int = ok i.
+  have {hv}he : sem_pexpr true gd s1 e >>r= to_int = ok i.
   + by rewrite he.
   have {hofs} -> := get_ofs_subP he hofs.
   move=> hlx hget hsub hread.
