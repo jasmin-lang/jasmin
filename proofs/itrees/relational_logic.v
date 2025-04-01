@@ -1,61 +1,20 @@
 From Coq Require Import
-     Arith.PeanoNat
-     Lists.List
-     Strings.String
-     Morphisms
-     Setoid
-     RelationClasses
-     EquivDec
-     Equality
-     Program.Tactics.
+  Program
+  Setoid
+  Morphisms
+  RelationClasses.
 
-From ExtLib Require Import
-     Data.String
-     Structures.Monad
-     Structures.Traversable
-     Data.List
-     Core.RelDec
-     Structures.Maps
-     Data.Map.FMapAList.
+From ExtLib Require Import Data.List.
 
 From ITree Require Import
-     ITree
-     ITreeFacts
-     Monad
-     Basics.HeterogeneousRelations
-     Events.Map
-     Events.State
-     Events.StateFacts
-     Events.Reader
-     Events.Exception
-     Events.FailFacts.
+  ITree
+  ITreeFacts
+  Basics.HeterogeneousRelations
+  Interp.Recursion
+  Eq.Rutt
+  Eq.RuttFacts.
 
-Require Import Paco.paco.
-Require Import Psatz.
-Require Import ProofIrrelevance.
-Require Import FunctionalExtensionality.
-
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
-
-From ITree Require Import
-(*     Basics.Tacs *)
-     Basics.Category
-     Basics.Basics
-     Basics.Function
-     Core.ITreeDefinition
-     Core.KTree
-     Eq.Eqit
-     Eq.UpToTaus
-     Eq.Paco2
-     Indexed.Sum
-     Indexed.Function
-     Indexed.Relation
-     Interp.Handler
-     Interp.Interp
-     Interp.InterpFacts
-     Interp.Recursion.
-
-From ITree Require Import Rutt RuttFacts.
+From mathcomp Require Import ssreflect ssrfun ssrbool.
 
 Import Monads.
 Import MonadNotation.
@@ -141,7 +100,7 @@ Lemma wrequiv_io_bind {I1 I2 T1 T2 O1 O2}
   (Q : rel_io I1 I2 O1 O2) F1 F1' F2 F2' :
   wrequiv_io P F1 F2 R ->
   (forall i1 i2, P i1 i2 -> wrequiv (R i1 i2) F1' F2' (Q i1 i2)) ->
-  wrequiv_io P (fun i => F1 i >>r= F1') (fun i => F2 i >>r= F2') Q.
+  wrequiv_io P (fun i => F1 i >>= F1') (fun i => F2 i >>= F2') Q.
 Proof.
   move=> h h' i1 i2 o1 hP; t_xrbindP => t1 /(h _ _ _ hP) [t2 -> /= hR].
   by apply: h'.
@@ -153,7 +112,7 @@ Lemma wrequiv_bind {I1 I2 T1 T2 O1 O2}
   (Q : rel O1 O2) F1 F1' F2 F2' :
   wrequiv P F1 F2 R ->
   wrequiv R F1' F2' Q ->
-  wrequiv P (fun i => F1 i >>r= F1') (fun i => F2 i >>r= F2') Q.
+  wrequiv P (fun i => F1 i >>= F1') (fun i => F2 i >>= F2') Q.
 Proof. by move=> h h'; apply wrequiv_io_bind with (R:= fun _ _ => R). Qed.
 
 Lemma wrequiv_read {S1 S2 T1 T2 O1 O2} F1 F1' F2 F2' (P : rel S1 S2) (R : rel T1 T2) (Q : rel O1 O2) :
@@ -212,8 +171,8 @@ Proof. move=> v1 v2 v1'; apply value_uincl_truncate. Qed.
 (* ------------------------------------------------- *)
 
 Class RelEvent (E0 : Type -> Type) :=
-  { RPreInv0_  :: prerel E0 E0
-  ; RPostInv0_ :: postrel E0 E0 }.
+  { RPreInv0_  : prerel E0 E0
+  ; RPostInv0_ : postrel E0 E0 }.
 
 Definition RPreInv0 {E0} {rE0 : RelEvent E0} := RPreInv0_.
 Definition RPostInv0 {E0} {rE0 : RelEvent E0} := RPostInv0_.
@@ -420,7 +379,7 @@ Definition RPostD {T1 T2} (d1 : recCall T1) (t1: T1) (d2 : recCall T2) (t2: T2) 
     end
   end t1 t2.
 
-Definition relEvent_recCall {rE0 : RelEvent E0} : RelEvent (recCall +' E0) :=
+Instance relEvent_recCall {rE0 : RelEvent E0} : RelEvent (recCall +' E0) :=
   {| RPreInv0_  := sum_prerel (@RPreD) RPreInv0
    ; RPostInv0_ := sum_postrel (@RPostD) RPostInv0
   |}.
@@ -729,8 +688,8 @@ Proof.
   have h : forall e1 e2,
     wrequiv P (fun (s:estate1) => sem_pexpr true (p_globs p1) s e1)
              (fun (s:estate2) => sem_pexpr true (p_globs p2) s e2) value_uincl ->
-    wrequiv P (fun (s:estate1) => sem_pexpr true (p_globs p1) s e1 >>r= to_int)
-             (fun (s:estate2) => sem_pexpr true (p_globs p2) s e2 >>r= to_int) eq.
+    wrequiv P (fun (s:estate1) => sem_pexpr true (p_globs p1) s e1 >>= to_int)
+             (fun (s:estate2) => sem_pexpr true (p_globs p2) s e2 >>= to_int) eq.
   + by move=> e1 e2 he; apply: wrequiv_bind wrequiv_to_int; apply he.
   move=> s1 s2 lh1 hP.
   apply rbindP => vlo /(h _ _ hlo _ _ _ hP) [_ -> <-].
@@ -944,14 +903,15 @@ Lemma xrutt_weaken_aux post (sem1 : itree (recCall +' E) fstate) (sem2 : itree (
   xrutt (errcutoff (is_error (FIso_suml recCall (Err:=ErrEvent)))) nocutoff
     (RPreInv (rE0 := relEvent_recCall spec)) (RPostInv (rE0 := relEvent_recCall spec))
    post sem1 sem2 ->
-  xrutt (EE_MR (errcutoff (is_error wE)) recCall) (EE_MR nocutoff recCall)
-      (sum_prerel (@RPreD spec) RPreInv) (sum_postrel (@RPostD spec) RPostInv)
-      post sem1 sem2.
+  xrutt (@EE_MR _ (@errcutoff _ (is_error wE)) recCall)
+        (@EE_MR _ nocutoff recCall)
+        (sum_prerel (@RPreD spec) RPreInv)
+        (sum_postrel (@RPostD spec) RPostInv)
+        post sem1 sem2.
 Proof.
   apply xrutt_weaken => //.
-  + move=> T1 e1; rewrite /errcutoff /= /XRuttFacts.EE_MR.
+  + move=> T1 e1; rewrite /errcutoff /= /EE_MR.
     by case: e1 => //= e; rewrite /is_error /=; case: mfun1.
-  + by move=> T2 [].
   + move=> T1 T2 e1 e2; rewrite /RPreInv !sum_prerelP.
     case: e1 e2 => [ [fn1 fs1] | e1] [ [fn2 fs2] | e2] //=.
     + by rewrite sum_prerelP.
@@ -972,12 +932,12 @@ Lemma wequiv_fun_ind :
   wiequiv_f p1 p2 ev1 ev2 rpreF fn1 fn2 rpostF.
 Proof.
   have hrec : (forall fn1 fn2, wequiv_f_rec rpreF fn1 fn2 rpostF).
-  + move=> fn1' fn2' fs1' fs2' hpre'; apply XRuttFacts.rutt_trigger => //.
+  + move=> fn1' fn2' fs1' fs2' hpre'; apply xrutt_trigger => //.
     + by constructor; constructor.
     rewrite /RPostInv /= => fr1 fr2 h; dependent destruction h.
     by dependent destruction H.
   move=> /(_ hrec) hbody fn1 fn2 fs1 fs2 hpre.
-  apply XRuttFacts.interp_mrec_rutt with (RPreInv := (@RPreD spec))
+  apply interp_mrec_xrutt with (RPreInv := (@RPreD spec))
                                          (RPostInv := (@RPostD spec)).
   + move=> {hpre fn1 fn2 fs1 fs2}.
     move=> _ _ [fn1 fs1] [fn2 fs2] hpre.
@@ -989,119 +949,13 @@ Qed.
 
 End WEQUIV_FUN.
 
+Definition eq_spec : EquivSpec :=
+  {| rpreF_ := fun (fn1 fn2 : funname) (fs1 fs2 : fstate) => fn1 = fn2 /\ fs1 = fs2
+   ; rpostF_ := fun (fn1 fn2 : funname) (fs1 fs2 fr1 fr2: fstate) => fr1 = fr2 |}.
+
 End RELATIONAL.
 
 Notation wiequiv_f := (wequiv_f (sem_F1 := sem_fun_full) (sem_F2 := sem_fun_full)).
 Notation wiequiv   := (wequiv (sem_F1 := sem_fun_full) (sem_F2 := sem_fun_full)).
 
-Section TEST.
-
-Context
-  {syscall_state : Type}
-  {ep : EstateParams syscall_state}
-  {spp : SemPexprParams}
-  {asm_op: Type}
-  {sip : SemInstrParams asm_op syscall_state}
-  {pT : progT}
-  {wsw: WithSubWord}
-  {scP : semCallParams}
-  {dc: DirectCall}.
-
-Context {E E0: Type -> Type} {wE :with_Error E E0} {rE : RelEvent E0}.
-
-Context (tr_lval : lval -> lval)
-        (tr_expr : pexpr -> pexpr).
-
-Local Notation tr_lvals ls := (map tr_lval ls).
-Local Notation tr_exprs es := (map tr_expr es).
-
-Fixpoint tr_i (i : instr) : instr :=
-  let: (MkI ii i) := i in
-  let i' :=
-    match i with
-    | Cassgn x tg ty e => Cassgn (tr_lval x) tg ty (tr_expr e)
-    | Copn xs tg o es =>
-        Copn (tr_lvals xs) tg o (tr_exprs es)
-    | Csyscall xs sc es =>
-        Csyscall (tr_lvals xs) sc (tr_exprs es)
-    | Cif e c1 c2 => Cif (tr_expr e) (map tr_i c1) (map tr_i c2)
-    | Cfor i (d, lo, hi) c => Cfor i (d, tr_expr lo, tr_expr hi) (map tr_i c)
-    | Cwhile a c1 e c2 => Cwhile a (map tr_i c1) (tr_expr e) (map tr_i c2)
-    | Ccall xs fn es => Ccall (tr_lvals xs) fn (tr_exprs es)
-    end in
-  MkI ii i'.
-
-Local Notation tr_c := (map tr_i).
-
-Definition tr_fundef (f: fundef) : fundef :=
-  {| f_info := f_info f
-   ; f_tyin := f_tyin f
-   ; f_params := f_params f
-   ; f_body := tr_c (f_body f)
-   ; f_tyout := f_tyout f
-   ; f_res := f_res f
-   ; f_extra := f_extra f |}.
-
-Context (p1 : prog) (ev:extra_val_t).
-
-Let p2 := map_prog tr_fundef p1.
-
-(* FIXME move this elsewhere *)
-Definition eq_spec : EquivSpec :=
-  {| rpreF_ := fun (fn1 fn2 : funname) (fs1 fs2 : fstate) => fn1 = fn2 /\ fs1 = fs2
-   ; rpostF_ := fun (fn1 fn2 : funname) (fs1 fs2 fr1 fr2: fstate) => fr1 = fr2 |}.
-
-Context (tr_exprP : forall wdb gd e,
-  wrequiv eq (fun s => sem_pexpr wdb gd s e) (fun s => sem_pexpr wdb gd s (tr_expr e)) eq).
-
-Context (tr_lvalP : forall wdb gd x v,
-   wrequiv eq (write_lval wdb gd x v) (write_lval wdb gd (tr_lval x) v) eq).
-
-Context (tr_exprsP : forall wdb gd es,
-   wrequiv eq ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ (tr_exprs es)) eq).
-
-Context (tr_lvalsP : forall wdb gd x v,
-   wrequiv eq (fun s => write_lvals wdb gd s x v) (fun s => write_lvals wdb gd s (tr_lvals x) v) eq).
-
-Lemma eq_globs : p_globs p1 = p_globs p2.
-Proof. done. Qed.
-
-Lemma tr_updP wdb xs fs :
-  wrequiv eq (upd_estate wdb (p_globs p1) xs fs) (upd_estate wdb (p_globs p2) (tr_lvals xs) fs) eq.
-Admitted.
-
-Lemma Tr_fundefP fn : wiequiv_f p1 p2 ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof.
- apply wequiv_fun_ind => hrec {fn}.
- move=> fn _ fs _ [<- <-] fd hget.
- exists (tr_fundef fd).
- + by rewrite get_map_prog hget.
- move=> {hget}; exists eq, eq => s1 hinit.
- exists s1; split => //; last first.
- + by move=> s1' _ fr1 <- hfinal; exists fr1.
- set Pi := fun (i:instr) => wequiv_rec p1 p2 ev ev eq_spec eq [::i] [::tr_i i] eq.
- set Pr := fun (i:instr_r) => forall ii, Pi (MkI ii i).
- set Pc := fun (c:cmd) => wequiv_rec p1 p2 ev ev eq_spec eq c (tr_c c) eq.
- move=> {fn fs hinit}.
- apply (cmd_rect (Pr := Pr) (Pi:=Pi) (Pc:=Pc)) => // {fd}.
- + by apply wequiv_nil.
- + by move=> i c; apply wequiv_cons.
- + by move=> x tg ty e ii; apply wequiv_assgn_eq.
- + by move=> xs t o es ii; apply wequiv_opn_eq.
- + move=> xs o es ii; apply wequiv_syscall_eq => //.
-   + by move=> > <-.
-   + by apply wrequiv_eq.
-   by apply tr_updP.
- + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_eq => // -[].
- + move=> j d lo hi c hc ii; apply wequiv_for_eq with eq => //.
-   by move=> i s _ s' <-; eauto.
- + by move=> al c e c' hc hc' ii; apply wequiv_while_eq.
- move=> xs f es ii; apply wequiv_call with (rpreF (eS:=eq_spec)) (rpostF (eS:=eq_spec)) eq => //.
- + by move=> > <- <-.
- + by apply hrec.
- move=> fs1 fs2 fr _ _ <-.
- by apply tr_updP.
-Qed.
-
-End TEST.
 
