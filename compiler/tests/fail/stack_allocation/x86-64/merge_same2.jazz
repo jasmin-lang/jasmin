@@ -1,0 +1,18 @@
+// FIXME: this fails due to the current bad implementation in alias.ml/varalloc.ml
+// this should not fail
+
+param int N = 1;
+
+fn f (reg ptr u32[N] a) -> reg ptr u32[N] {
+  a[0] = 1;
+  return a;
+}
+
+export fn main (reg u64 i) -> reg u32 {
+  stack u32[N] s;
+  reg u32 res;
+
+  s[i:N] = f (s[i:N]);
+  res = s[0];
+  return res;
+}

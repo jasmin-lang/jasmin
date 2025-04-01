@@ -1146,9 +1146,9 @@ Definition regions_are_not_equal (kind:string) x sry sr :=
          pp_s "cannot be turned into a nop"]; PPEbreak;
        pp_vbox [::
          pp_s "source";
-         pp_box [:: pp_s "  "; pp_sr sry];
+         pp_nobox [:: pp_s "  "; pp_sr sry];
          pp_s "and destination";
-         pp_box [:: pp_s "  "; pp_sr sr];
+         pp_nobox [:: pp_s "  "; pp_sr sr];
          pp_s "regions are not equal"]]).
 
 (* Precondition is_sarr ty *)
