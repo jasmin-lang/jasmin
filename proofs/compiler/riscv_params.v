@@ -250,8 +250,11 @@ Definition riscv_laparams : lower_addressing_params :=
 
 Definition riscv_is_move_op (o : asm_op_t) : bool :=
   match o with
-  | BaseOp (None, MV) =>
-     true
+  | BaseOp (None, o) =>
+    match o with
+    | MV | LOAD _ U32 | STORE _ => true
+    | _ => false
+    end
   | _ =>
       false
   end.

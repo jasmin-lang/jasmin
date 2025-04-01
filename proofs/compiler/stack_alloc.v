@@ -1899,7 +1899,13 @@ Definition check_result pmap rmap paramsi params oi (x:var_i) :=
                       (stk_ierror_no_var "reg ptr in result not corresponding to a parameter") in
       Let: (sr, status) := get_sub_region_status rmap x in
       Let _ := check_valid x status in
-      Let _  := assert (sr_param == sr) (stk_ierror_no_var "invalid reg ptr in result") in
+      Let _  :=
+        assert (sr_param == sr)
+               (stk_error x (pp_box [::
+                 pp_s "the returned pointer";
+                 pp_nobox [:: pp_s "("; pp_var x; pp_s ")"];
+                 pp_s "is one of the parameters,";
+                 pp_s "but it does not point to the region it pointed to initially"])) in
       Let p  := get_regptr pmap x in
       ok p
     | None => Error (stk_ierror_no_var "invalid function info")

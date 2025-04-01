@@ -1936,7 +1936,7 @@ Context
   (is_move_op : asm_op_t -> bool)
   (fresh_var_ident  : v_kind -> Uint63.int -> string -> stype -> Ident.ident)
   (print_trmap : instr_info -> table -> region_map -> table * region_map)
-  (string_of_sr : sub_region -> string).
+  (pp_sr : sub_region -> pp_error).
 
 Context
   (print_trmapP :
@@ -1950,9 +1950,9 @@ Context
 Local Lemma clone_ty : forall x n, vtype (clone fresh_var_ident x n) = vtype x.
 Proof. by []. Qed.
 
-Notation alloc_fd   := (alloc_fd shparams saparams is_move_op fresh_var_ident print_trmap string_of_sr).
-Notation alloc_i    := (alloc_i shparams saparams is_move_op fresh_var_ident print_trmap string_of_sr).
-Notation alloc_prog := (alloc_prog shparams saparams is_move_op fresh_var_ident print_trmap string_of_sr).
+Notation alloc_fd   := (alloc_fd shparams saparams is_move_op fresh_var_ident print_trmap pp_sr).
+Notation alloc_i    := (alloc_i shparams saparams is_move_op fresh_var_ident print_trmap pp_sr).
+Notation alloc_prog := (alloc_prog shparams saparams is_move_op fresh_var_ident print_trmap pp_sr).
 
 Variable (local_alloc : funname -> stk_alloc_oracle_t).
 Hypothesis Halloc_fd : forall fn fd,
@@ -4175,7 +4175,7 @@ Context
   (is_move_op : asm_op_t -> bool)
   (fresh_var_ident  : v_kind -> Uint63.int -> string -> stype -> Ident.ident)
   (print_trmap : instr_info -> table -> region_map -> table * region_map)
-  (string_of_sr : sub_region -> string).
+  (pp_sr : sub_region -> pp_error).
 
 Context
   (print_trmapP :
@@ -4187,10 +4187,10 @@ Context
       List.Forall2 value_uincl v [:: vx ]).
 
 Lemma get_alloc_fd p_extra mglob oracle fds1 fds2 :
-  map_cfprog_name (alloc_fd shparams saparams is_move_op fresh_var_ident print_trmap string_of_sr p_extra mglob oracle) fds1 = ok fds2 ->
+  map_cfprog_name (alloc_fd shparams saparams is_move_op fresh_var_ident print_trmap pp_sr p_extra mglob oracle) fds1 = ok fds2 ->
   forall fn fd1,
   get_fundef fds1 fn = Some fd1 ->
-  exists2 fd2, alloc_fd shparams saparams is_move_op fresh_var_ident print_trmap string_of_sr p_extra mglob oracle fn fd1 = ok fd2 &
+  exists2 fd2, alloc_fd shparams saparams is_move_op fresh_var_ident print_trmap pp_sr p_extra mglob oracle fn fd1 = ok fd2 &
                get_fundef fds2 fn = Some fd2.
 Proof.
   move=> hmap fn fd1.
@@ -4226,7 +4226,7 @@ Qed.
       except for the regions pointed to by the writable [reg ptr]s given as arguments.
 *)
 Theorem alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn:
-  alloc_prog shparams saparams is_move_op fresh_var_ident print_trmap string_of_sr nrip nrsp data oracle_g oracle P = ok SP ->
+  alloc_prog shparams saparams is_move_op fresh_var_ident print_trmap pp_sr nrip nrsp data oracle_g oracle P = ok SP ->
   forall ev scs1 m1 vargs1 scs1' m1' vres1,
     sem_call P ev scs1 m1 fn vargs1 scs1' m1' vres1 ->
     forall rip m2 vargs2,
@@ -4274,13 +4274,13 @@ Proof.
 Qed.
 
 Lemma alloc_prog_get_fundef nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) :
-  alloc_prog shparams saparams is_move_op fresh_var_ident print_trmap string_of_sr nrip nrsp data oracle_g oracle P = ok SP →
+  alloc_prog shparams saparams is_move_op fresh_var_ident print_trmap pp_sr nrip nrsp data oracle_g oracle P = ok SP →
   exists2 mglob,
     init_map oracle_g data (p_globs P) = ok mglob &
     ∀ fn fd,
     get_fundef (p_funcs P) fn = Some fd →
     exists2 fd',
-      alloc_fd shparams saparams is_move_op fresh_var_ident print_trmap string_of_sr
+      alloc_fd shparams saparams is_move_op fresh_var_ident print_trmap pp_sr
         {| sp_rsp := nrsp ; sp_rip := nrip ; sp_globs := data ; sp_glob_names := oracle_g |} mglob oracle fn fd = ok fd' &
       get_fundef (p_funcs SP) fn = Some fd'.
 Proof.
@@ -4290,7 +4290,7 @@ Proof.
 Qed.
 
 Lemma alloc_fd_checked_sao p_extra mglob oracle fn fd fd' :
-  alloc_fd shparams saparams is_move_op fresh_var_ident print_trmap string_of_sr p_extra mglob oracle fn fd = ok fd' →
+  alloc_fd shparams saparams is_move_op fresh_var_ident print_trmap pp_sr p_extra mglob oracle fn fd = ok fd' →
   [/\ size (sao_params (oracle fn)) = size (f_params fd) & size (sao_return (oracle fn)) = size (f_res fd) ].
 Proof.
   rewrite /alloc_fd/alloc_fd_aux/check_results.
@@ -4304,7 +4304,7 @@ Proof.
 Qed.
 
 Remark alloc_prog_sp_globs nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) :
-  alloc_prog shparams saparams is_move_op fresh_var_ident print_trmap string_of_sr nrip nrsp data oracle_g oracle P = ok SP →
+  alloc_prog shparams saparams is_move_op fresh_var_ident print_trmap pp_sr nrip nrsp data oracle_g oracle P = ok SP →
   sp_globs (p_extra SP) = data.
 Proof.
   by rewrite /alloc_prog; t_xrbindP => ???? _ <-.

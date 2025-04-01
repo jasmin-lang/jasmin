@@ -4554,7 +4554,7 @@ Qed.
 (* TODO: move? *)
 Context
   (fresh_var_ident : v_kind -> PrimInt63.int -> string -> stype -> Ident.ident)
-  (string_of_sr : sub_region -> string).
+  (pp_sr : sub_region -> pp_error).
 
 Local Lemma clone_ty : forall x n, vtype (clone fresh_var_ident x n) = vtype x.
 Proof. by []. Qed.
@@ -4654,7 +4654,7 @@ Lemma alloc_array_moveP vme m0 s1 s2 s1' table1 rmap1 table2 rmap2 r tag e v v' 
   sem_pexpr true gd s1 e = ok v ->
   truncate_val (sarr n) v = ok v' ->
   write_lval true gd r v' s1 = ok s1' ->
-  alloc_array_move saparams fresh_var_ident string_of_sr pmap table1 rmap1 r tag e = ok (table2, rmap2, i2) →
+  alloc_array_move saparams fresh_var_ident pp_sr pmap table1 rmap1 r tag e = ok (table2, rmap2, i2) →
   ∃ (s2' : estate) (vme' : Vm.t), [/\
     sem_i P' rip s2 i2 s2',
     valid_state (remove_binding_lval table2 r) rmap2 vme' m0 s1' s2' &
@@ -5125,7 +5125,7 @@ Lemma alloc_array_move_initP vme m0 s1 s2 s1' table1 table2 rmap1 rmap2 r tag e 
   sem_pexpr true gd s1 e = ok v ->
   truncate_val (sarr n) v = ok v' ->
   write_lval true gd r v' s1 = ok s1' ->
-  alloc_array_move_init saparams fresh_var_ident string_of_sr pmap table1 rmap1 r tag e = ok (table2, rmap2, i2) →
+  alloc_array_move_init saparams fresh_var_ident pp_sr pmap table1 rmap1 r tag e = ok (table2, rmap2, i2) →
   ∃ (s2' : estate) vme', [/\
     sem_i P' rip s2 i2 s2',
     valid_state (remove_binding_lval table2 r) rmap2 vme' m0 s1' s2' &

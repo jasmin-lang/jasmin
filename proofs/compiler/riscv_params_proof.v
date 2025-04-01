@@ -615,15 +615,25 @@ Definition riscv_is_move_opP op vx v :
   -> exec_sopn (Oasm op) [:: vx ] = ok v
   -> List.Forall2 value_uincl v [:: vx ].
 Proof.
-  case: op => //.
-  move=> [[]] //.
-  move=> [] //= _.
-  rewrite /exec_sopn /=.
-  t_xrbindP=> w w'' hvx.
-  have [ws' [w' [-> /truncate_wordP [hws' ->]]]] := to_wordI hvx.
-  move=> [<-] <-.
-  apply: List.Forall2_cons; last done.
-  exact: (word_uincl_zero_ext w' hws').
+  case: op => // -[[] // op] /= hop.
+  rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
+  move=> ok_v.
+  (* To avoid duplication, we prove that [op] returns [to_word ws vx] for some [ws] *)
+  have {ok_v}:
+    Let ws := if head sbool (id_tout (riscv_instr_desc op)) is sword ws then ok ws else type_error in
+    (Let wx := to_word ws vx in
+      ok [:: Vword wx]) = ok v.
+  + case: op hop ok_v => //=.
+    + by t_xrbindP=> _ ?? -> <- <- /=.
+    + t_xrbindP=> sg [] //= _ _ _ <- _ w -> [<-] <- /=.
+      case: sg => /=.
+      + by rewrite sign_extend_u.
+      by rewrite zero_extend_u.
+    t_xrbindP=> ws _ _ hcmp <- _ w -> [<-] <- /=.
+    by rewrite zero_extend_u.
+  t_xrbindP=> ws' _ w' /to_wordI [ws [w [-> htr]]] <-.
+  constructor=> //=.
+  by apply (truncate_word_uincl htr).
 Qed.
 
 
