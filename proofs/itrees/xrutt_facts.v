@@ -418,7 +418,7 @@ Definition EE_MR {E: Type -> Type}
   (EE: forall X, E X -> bool) (D: Type -> Type) :
   forall X, (D +' E) X -> bool :=
   fun X m => match m with
-             | inl1 _ => true
+             | inl1 _ => false
              | inr1 e => EE X e end.             
 
 Section XRuttMrec.
@@ -593,7 +593,6 @@ Qed.
 
 End XRuttIter.
 
-
 Lemma xrutt_weaken (E1 E2: Type -> Type) (R1 R2 : Type)
        (EE1 EE1': forall X, E1 X -> bool)
        (EE2 EE2': forall X, E2 X -> bool)
@@ -601,14 +600,15 @@ Lemma xrutt_weaken (E1 E2: Type -> Type) (R1 R2 : Type)
        {RAns RAns': forall A B, E1 A -> A -> E2 B -> B -> Prop} 
        {RR RR': R1 -> R2 -> Prop} (t1: itree E1 R1) (t2: itree E2 R2) :
 
-  (forall A (e1: E1 A), (EE1 _ e1 = false) -> (EE1' _ e1 = false)) ->
-  (forall A (e2: E2 A), (EE2 _ e2 = false) -> (EE2' _ e2 = false)) ->
+  (forall A (e1: E1 A), (IsCut_ EE1 _ e1) -> (IsCut_ EE1' _ e1)) ->
+  (forall A (e2: E2 A), (IsCut_ EE2 _ e2) -> (IsCut_ EE2' _ e2)) ->
   
   (forall T1 T2 (e1 : E1 T1) (e2 : E2 T2),
-    REv T1 T2 e1 e2 -> REv' T1 T2 e1 e2) ->
+    REv T1 T2 e1 e2 -> REv' T1 T2 e1 e2) -> 
 
-  (forall T1 T2 (e1 : E1 T1) (t1 : T1) (e2 : E2 T2) (t2 : T2) ,
-    RAns' T1 T2 e1 t1 e2 t2 -> RAns T1 T2 e1 t1 e2 t2) ->
+  (forall T1 T2 e1 t1 e2 t2 ,
+    IsNoCut_ EE1 _ e1 -> IsNoCut_ EE2 _ e2 ->
+    REv T1 T2 e1 e2 -> RAns' T1 T2 e1 t1 e2 t2 -> RAns T1 T2 e1 t1 e2 t2) -> 
 
   (forall r1 r2, RR r1 r2 -> RR' r1 r2) ->
 
@@ -622,23 +622,74 @@ Proof.
   hinduction h before CIH; intros; subst.
   + eapply EqRet; auto.
   + econstructor; eauto with paco itree. right. eapply CIH; eauto. red in H.
-    pclearbot; auto.
+    pclearbot; auto. 
   + remember (EE1' A e1) as Er1.
     remember (EE2' B e2) as Er2.
     destruct Er1.
-    destruct Er2.
-    eapply EqVis; eauto; intros.
-    right. eapply CIH; eauto.
-    eapply hRAns in H3; eauto.
-    specialize (H2 a b H3).
-    pclearbot; auto.
-    eapply EqCutR; auto.
-    eapply EqCutL; auto.
+    * destruct Er2.
+      -- eapply EqCutR; auto.
+      -- eapply EqCutL; auto.
+    * destruct Er2.
+      -- eapply EqCutR; auto.
+      -- eapply EqVis; eauto; intros.
+         right. eapply CIH; eauto.
+         eapply hRAns in H3; eauto.
+         specialize (H2 a b H3).
+         pclearbot; auto.
   + eapply EqCutL; auto. 
   + eapply EqCutR; auto.  
   + eapply EqTauL; eauto.  
   + eapply EqTauR; eauto.  
 Qed.
+
+Lemma xrutt_weaken_v1 (E1 E2: Type -> Type) (R1 R2 : Type)
+       (EE1 EE1': forall X, E1 X -> bool)
+       (EE2 EE2': forall X, E2 X -> bool)
+       {REv REv': forall A B, E1 A -> E2 B -> Prop}
+       {RAns RAns': forall A B, E1 A -> A -> E2 B -> B -> Prop} 
+       {RR RR': R1 -> R2 -> Prop} (t1: itree E1 R1) (t2: itree E2 R2) :
+
+  (forall A (e1: E1 A), (IsCut_ EE1 _ e1) -> (IsCut_ EE1' _ e1)) ->
+  (forall A (e2: E2 A), (IsCut_ EE2 _ e2) -> (IsCut_ EE2' _ e2)) ->
+  
+  (forall T1 T2 (e1 : E1 T1) (e2 : E2 T2),
+    REv T1 T2 e1 e2 -> REv' T1 T2 e1 e2) ->
+
+  (forall T1 T2 (e1 : E1 T1) (t1 : T1) (e2 : E2 T2) (t2 : T2) ,
+    RAns' T1 T2 e1 t1 e2 t2 -> RAns T1 T2 e1 t1 e2 t2) ->
+
+  (forall r1 r2, RR r1 r2 -> RR' r1 r2) ->
+
+  xrutt (@EE1) (@EE2) REv RAns RR t1 t2 ->
+  xrutt (@EE1') (@EE2') REv' RAns' RR' t1 t2.
+Proof.
+  intros. eapply xrutt_weaken in H4; eauto.
+Qed.  
+
+Lemma xrutt_weaken_v2 {E1 E2: Type -> Type} {O1 O2 : Type}
+       (EE1 EE1' : forall X : Type, E1 X -> bool)
+      (EE2 EE2' : forall X : Type, E2 X -> bool)
+      (REv REv' : prerel E1 E2)
+      (RAns RAns' : postrel E1 E2)
+      (RR RR' : O1 -> O2 -> Prop) t1 t2 :
+  
+  (forall T1 e1, EE1 T1 e1 = EE1' T1 e1) ->
+  (forall T2 e2, EE2 T2 e2 = EE2' T2 e2) ->
+  
+  (forall T1 T2 e1 e2,
+      REv T1 T2 e1 e2 -> REv' T1 T2 e1 e2) ->
+  
+  (forall T1 T2 e1 t1 e2 t2 ,
+      IsNoCut_ EE1 _ e1 -> IsNoCut_ EE2 _ e2 ->
+      REv T1 T2 e1 e2 -> RAns' T1 T2 e1 t1 e2 t2 -> RAns T1 T2 e1 t1 e2 t2) ->
+  
+  (forall o1 o2, RR o1 o2 -> RR' o1 o2) ->
+  xrutt EE1 EE2 REv RAns RR t1 t2 ->
+  xrutt EE1' EE2' REv' RAns' RR' t1 t2.
+Proof.
+  intros. eapply xrutt_weaken in H4; eauto.
+Qed.  
+
 
 #[local] Notation prerel E D := (forall A B : Type, E A -> D B -> Prop).
 #[local] Notation postrel E D := (forall A B : Type, E A -> A -> D B -> B -> Prop).
@@ -655,7 +706,7 @@ Definition pocompose {E1 E2 E3 : Type -> Type}
     exists2 t2, post T1 T2 e1 t1 e2 t2 & post' T2 T3 e2 t2 e3 t3.
 
 
-Definition NoCut_ {E: Type -> Type} {T: Type} (e : E T) := true. 
+Definition NoCut_ {E: Type -> Type} {T: Type} (e : E T) := false. 
 
 Lemma xrutt_trans {E1 E2 E3: Type -> Type} {R1 R2 R3 : Type}
   (EE1: forall X, E1 X -> bool)

@@ -1,21 +1,21 @@
 From Coq Require Import
   Setoid
-  Morphisms. 
+  Morphisms.
 
-From Jasmin Require Import utils.  
+Require Import utils.
 
-From Paco Require Import paco. 
+From Paco Require Import paco.
 
 From ITree Require Import
-     ITree      
+     ITree
      Basics.Utils
-     Basics.HeterogeneousRelations 
+     Basics.HeterogeneousRelations
      Basics.Monad
      Eq.Eqit
-     Eq.Paco2. 
-     
-Import ITreeNotations. 
-Local Open Scope itree_scope. 
+     Eq.Paco2.
+
+Import ITreeNotations.
+Local Open Scope itree_scope.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -24,7 +24,7 @@ Unset Printing Implicit Defensive.
 Definition error_data := (error * unit)%type.
 
 Variant execS (A:Type) :=
-  | ESok : A -> execS 
+  | ESok : A -> execS
   | ESerror : error_data -> execS.
 
 Section ExecT.

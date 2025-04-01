@@ -27,9 +27,12 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Require Import expr psem_defs oseq compiler_util.
+(* needed for the last lemma *)
+Require Import psem. 
 
-Require Import expr psem_defs psem oseq compiler_util.
 Require Import it_sems_core core_logics.
+
 
 Notation PredT := (fun=>True).
 
@@ -960,6 +963,7 @@ Definition trivial_spec : HoareSpec :=
 
 #[local]Existing Instance trivial_spec.
 
+(** psem needed *)
 Lemma writeP c : Pc c.
 Proof.
   apply: (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c} //.

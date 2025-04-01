@@ -29,18 +29,16 @@ From ITree Require Import
 
 From Paco Require Import paco.
 
-Require Import List.
-
 Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
 
 (** Auxiliary notation *)
 
-Notation IsCut EE e := (EE e = false).
-Notation IsEff EE e := (EE e = true).
-Notation IsCut_ EE A e := (EE A e = false).
-Notation IsEff_ EE A e := (EE A e = true).
+Notation IsCut EE e := (EE e = true).
+Notation IsNoCut EE e := (EE e = false).
+Notation IsCut_ EE A e := (EE A e = true).
+Notation IsNoCut_ EE A e := (EE A e = false).
 
 Notation DoCutoffF EE t := 
  (exists T (e: _ T) k, IsCut EE e /\ t = VisF e k).
@@ -91,8 +89,8 @@ Section XRuttF.
   | EqVis : forall (A B : Type) (e1 : E1 A) (e2 : E2 B)
                    (k1 : A -> itree E1 R1)
                    (k2 : B -> itree E2 R2),
-      IsEff EE1 e1 ->
-      IsEff EE2 e2 -> 
+      IsNoCut EE1 e1 ->
+      IsNoCut EE2 e2 -> 
       REv e1 e2 ->
       (forall (a : A) (b : B), RAns e1 a e2 b -> sim (k1 a) (k2 b)) ->
       xruttF (VisF e1 k1) (VisF e2 k2)
@@ -133,7 +131,7 @@ Section XRuttF.
   Hint Unfold xrutt : itree.
 
   Lemma xruttF_inv_VisF_r {sim} t1 U2 (e2: E2 U2) (k2: U2 -> _)
-    (hh: IsEff EE2 e2) :
+    (hh: IsNoCut EE2 e2) :
     xruttF sim t1 (VisF e2 k2) ->
     (exists U1 (e1: E1 U1) k1,
         t1 = VisF e1 k1 /\
@@ -378,17 +376,17 @@ Proof.
   remember (EE1 e1) as ee1.
   remember (EE2 e2) as ee2.
   destruct ee1; destruct ee2; intros He Hk.
+  { eapply xrutt_CutL; eauto. }
+  { eapply xrutt_CutL; eauto. }
+  { eapply xrutt_CutR; eauto. }
   { pstep; constructor; auto.
     intros; left. apply Hk; auto. }
-  { eapply xrutt_CutR; eauto. }
-  { eapply xrutt_CutL; eauto. }
-  { eapply xrutt_CutL; eauto. }
 Qed.
 
 Lemma xrutt_inv_Vis_l {U1} (e1: E1 U1) k1 t2:
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR
     (Vis e1 k1) t2 ->
-  IsEff_ EE1 _ e1 ->    
+  IsNoCut_ EE1 _ e1 ->    
   (exists U2 (e2: E2 U2) k2,
     t2 ≈ Vis e2 k2 /\
     REv e1 e2 /\
@@ -421,7 +419,7 @@ Qed.
 Lemma xrutt_inv_Vis_r {U2} t1 (e2: E2 U2) k2:
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR
     t1 (Vis e2 k2) ->
-  IsEff_ EE2 _ e2 ->    
+  IsNoCut_ EE2 _ e2 ->    
   (exists U1 (e1: E1 U1) k1,
     t1 ≈ Vis e1 k1 /\
     REv e1 e2 /\
@@ -455,8 +453,8 @@ Lemma xrutt_inv_Vis U1 U2 (e1: E1 U1) (e2: E2 U2)
     (k1: U1 -> itree E1 R1) (k2: U2 -> itree E2 R2):
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR
     (Vis e1 k1) (Vis e2 k2) ->
-  IsEff_ EE1 _ e1 ->
-  IsEff_ EE2 _ e2 ->
+  IsNoCut_ EE1 _ e1 ->
+  IsNoCut_ EE2 _ e2 ->
   (forall u1 u2, RAns e1 u1 e2 u2 ->
      @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (k1 u1) (k2 u2)). 
 Proof.

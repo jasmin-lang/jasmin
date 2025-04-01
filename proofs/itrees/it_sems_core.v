@@ -9,7 +9,7 @@ Import Basics.Monads.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
-Require Import expr psem_defs psem it_exec.
+Require Import expr psem_defs it_exec.
 
 Import MonadNotation.
 (* FIXME : This can be removed using %monad *)

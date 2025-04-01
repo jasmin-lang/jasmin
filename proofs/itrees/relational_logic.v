@@ -2,9 +2,8 @@ From Coq Require Import
   Program
   Setoid
   Morphisms
-  RelationClasses.
-
-From ExtLib Require Import Data.List.
+  RelationClasses
+  List.
 
 From ITree Require Import
   ITree
@@ -24,9 +23,9 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-From Jasmin Require Import xrutt xrutt_facts.
-From Jasmin Require Import expr psem_defs psem oseq compiler_util.
-From Jasmin Require Import it_sems_core core_logics hoare_logic.
+Require Import xrutt xrutt_facts.
+Require Import expr psem_defs psem oseq compiler_util.
+Require Import it_sems_core core_logics hoare_logic.
 
 Definition rel (I1 I2 : Type) := I1 -> I2 -> Prop.
 
@@ -292,7 +291,7 @@ Lemma wkequiv_io_weaken {I1 I2 O1 O2} (P P' : rel I1 I2) (Q Q' : rel_io I1 I2 O1
 Proof.
   move=> hpreI hpostI hP'P hQQ' heqv i1 i2 hP'.
   have := heqv _ _ (hP'P _ _ hP').
-  apply xrutt_weaken1 => //.
+  apply xrutt_weaken_v2 => //.
   + move=> T1 T2 e1 e2; rewrite /RPreInv.
     by case => {}T1 {}T2 {}e1 {}e2 ?; constructor; auto.
   + move=> T1 T2 e1 t1 e2 t2 _ _; rewrite /RPreInv /RPostInv => h1 h2.
@@ -532,7 +531,7 @@ Proof.
   by move=> > <-; apply hx.
 Qed.
 
-(* FIXME: move this *)
+(* FIXME: move this (depends on psem.v) *)
 Lemma wrequiv_exec_sopn o :
   wrequiv (Forall2 value_uincl) (exec_sopn o) (exec_sopn o) (Forall2 value_uincl).
 Proof. move=> vs1 vs2 vs1'; apply vuincl_exec_opn. Qed.

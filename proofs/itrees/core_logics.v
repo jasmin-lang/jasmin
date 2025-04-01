@@ -144,42 +144,6 @@ Proof.
   constructor; eauto.
 Qed.
 
-Lemma xrutt_weaken1 {E1 E2: Type -> Type} {O1 O2 : Type}
-  (EE1 EE1' : forall X : Type, E1 X -> bool)
-  (EE2 EE2' : forall X : Type, E2 X -> bool)
-  (REv REv' : prerel E1 E2)
-  (RAns RAns' : postrel E1 E2)
-  (RR RR' : O1 -> O2 -> Prop) t1 t2 :
-  (forall T1 e1, EE1 T1 e1 = EE1' T1 e1) ->
-  (forall T2 e2, EE2 T2 e2 = EE2' T2 e2) ->
-  (forall T1 T2 e1 e2,
-    REv T1 T2 e1 e2 -> REv' T1 T2 e1 e2) ->
-  (forall T1 T2 e1 t1 e2 t2 ,
-    EE1 T1 e1 -> EE2 T2 e2 -> REv T1 T2 e1 e2 -> RAns' T1 T2 e1 t1 e2 t2 -> RAns T1 T2 e1 t1 e2 t2) ->
-  (forall o1 o2, RR o1 o2 -> RR' o1 o2) ->
-  xrutt EE1 EE2 REv RAns RR t1 t2 ->
-  xrutt EE1' EE2' REv' RAns' RR' t1 t2.
-Proof.
-  move=> hEE1_w hEE2_w hEv hAns hR; move: t1 t2.
-  pcofix CIH => t1 t2 h.
-  pstep. punfold h. red in h |- *.
-  elim: h => {t1 t2}.
-  + by move=> r1 r2 /hR; apply EqRet.
-  + by move=> t1 t2 h; constructor; pclearbot; right; auto.
-  + move=> T1 T2 e1 e2 k1 k2 hEE1 hEE2 hREv hrec.
-    apply EqVis.
-    + by rewrite -hEE1_w. + by rewrite -hEE2_w.
-    + by apply hEv.
-    move=> a b hab; right.
-    have h1 := hAns _ _ _ _ _ _ hEE1 hEE2 hREv hab.
-    have ? := hrec _ _ h1.
-    pclearbot; auto.
-  + by move=> T e1 k1 ot2 hEE1; apply EqCutL; rewrite -hEE1_w.
-  + by move=> T e2 k2 ot1 hEE2; apply EqCutR; rewrite -hEE2_w.
-  + by move=> ?? _; apply EqTauL.
-  by move=> ?? _; apply EqTauR.
-Qed.
-
 Notation prepred E := (forall T, E T -> Prop).
 Notation postpred E := (forall T, E T -> T -> Prop).
 
@@ -419,8 +383,8 @@ Section SAFE_XRUTT_RUTT.
 Context {E1 E2 : Type -> Type}.
 Context (is_error : forall T, E1 T -> bool).
 
-Definition errcutoff T (e : E1 T) := ~~(is_error e).
-Definition nocutoff T (e : E2 T) := true.
+Definition errcutoff T (e : E1 T) := is_error e.
+Definition nocutoff T (e : E2 T) := false.
 
 Lemma safe_xrutt_rutt {R1 R2 : Type}
   (REv : prerel E1 E2)
@@ -442,9 +406,15 @@ Proof.
     constructor => // r1 r2 /hAns hxrutt.
     have [hnerr /(_ r1){}hsafe]:= safe_inv_Vis hsafe.
     by pclearbot; right; eauto.
-  + move=> T e1 k1 ot2 + hsafe.
+  + move=> T e1 k1 ot2 + hsafe.    
     have [hnerr _]:= safe_inv_Vis hsafe.
-    by rewrite /errcutoff hnerr.
+    rewrite /errcutoff.
+    move => H.    
+    have: (is_error e1 = false).
+    { simpl in hnerr. red in hnerr.
+      rewrite /negb in hnerr.
+      rewrite H in hnerr. auto with *. }
+    eauto with *.
   + move=> t1 ot2 _ hrec.
     by rewrite -safe_Tau {1}(itree_eta t1) => /hrec; apply Rutt.EqTauL.
   by move=> ot1 t2 _ hrec /hrec; apply Rutt.EqTauR.
