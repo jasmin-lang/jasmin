@@ -1,0 +1,26 @@
+// checks that the symbolic analysis is able to detect that copies
+// preserve the value of the index
+
+param int N = 10;
+
+export fn main (reg u64 i) -> reg u32 {
+  stack u32[N] s;
+  reg ptr u32[1] r;
+  reg u64 i2;
+  reg u32 res;
+  inline int j;
+
+  for j = 0 to N {
+    s[j] = 0;
+  }
+
+  r = s[i:1];
+  () = #spill(i);
+  () = #unspill(i);
+  i2 = i;
+  s[i2:1] = r; // i2 is detected as equal to i
+
+  res = s[i];
+
+  return res;
+}
