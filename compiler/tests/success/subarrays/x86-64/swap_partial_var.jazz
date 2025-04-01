@@ -1,21 +1,18 @@
-export fn test () -> reg u64 {
+export fn test (reg u64 i1 i2) -> reg u64 {
   stack u64[4] s1 s2;
   reg ptr u64[4] r1 r2;
   reg ptr u64[2] r11 r22;
   inline int i;
-  reg u64 i1 i2;
 
   for i = 0 to 4 {
     s1[i] = i;
     s2[i] = i;
   }
 
-  i1 = 0;
   r1 = s1;
   r11 = r1[i1:2];
   r11[0] = 2;
 
-  i2 = 2;
   r2 = s2;
   r22 = r2[i2:2];
   r22[0] = 3;
@@ -23,13 +20,13 @@ export fn test () -> reg u64 {
   // we swap two arrays that are both not fully valid
   (r1, r2) = #swap(r1, r2);
 
-  r1[i2:2] = r22;
-  r2[i1:2] = r11;
+  r1[i2:2] = r22; // r1 is valid
+  r2[i1:2] = r11; // r2 is valid
 
   reg u64 res;
   res = 0;
-  res += r1[0];
-  res += r2[0];
+  res += r1[0]; // reading is ok
+  res += r2[0]; // reading is ok
 
   return res;
 }

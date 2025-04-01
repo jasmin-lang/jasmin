@@ -20,13 +20,13 @@ export fn test () -> reg u64 {
   // we swap two arrays that are both not fully valid
   (r1, r2) = #swap(r1, r2);
 
-  r1[2:2] = r22;
-  r2[0:2] = r11;
+  r1[2:2] = r22; // r1 is valid
+  r2[0:2] = r11; // r2 is valid
 
   reg u64 res;
   res = 0;
-  res += r1[0];
-  res += r2[0];
+  res += r1[0]; // reading is ok
+  res += r2[0]; // reading is ok
 
   return res;
 }

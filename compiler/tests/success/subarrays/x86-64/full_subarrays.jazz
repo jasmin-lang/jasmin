@@ -1,13 +1,13 @@
+// a full subarray is treated as the whole array
 export fn main (reg u64 i) -> reg u64 {
   stack u64[10] s;
   reg ptr u64[2] r1 r2;
   reg u64 res;
 
-  s[0] = 0;
   r1 = s[i:2];
-  r2 = r1[0:2];
-  r1[0:2] = r2[0:2];
-  r1[0:2] = r1;
+  r2 = r1[0:2]; // <=> r2 = r1;
+  r2[0] = 0;
+  s[i:2] = r2[0:2]; // <=> s[i:2] = r2;
 
   res = r1[0];
 

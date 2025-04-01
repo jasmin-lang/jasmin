@@ -3,19 +3,17 @@ fn f (reg ptr u64[2] r) -> reg ptr u64[2] {
   return r;
 }
 
-export fn test (reg ptr u64[4] r) -> reg ptr u64[4], reg u64 {
+export fn test (reg ptr u64[4] r, reg u64 i) -> reg ptr u64[4], reg u64 {
   reg ptr u64[2] r2;
-  reg u64 i;
 
-  i = 1;
   r2 = r[i:2];
   () = #spill(r);
   r2 = f(r2);
   () = #unspill(r); // we unspill r, while it is not fully valid
-  r[i:2] = r2;
+  r[i:2] = r2; // r is valid
 
   reg u64 res;
-  res = r[1];
+  res = r[1]; // reading is ok
 
   return r, res;
 }

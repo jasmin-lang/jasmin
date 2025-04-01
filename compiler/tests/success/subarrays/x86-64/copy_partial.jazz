@@ -11,10 +11,10 @@ export fn test () -> reg u64 {
 
   r2 = s; // we copy s while it is not fully valid
 
-  r2[0:1] = r1;
+  r2[0:1] = r1; // r2 is valid
 
   reg u64 res;
-  res = r2[0];
+  res = r2[0]; // reading is ok
 
   return res;
 }

@@ -1,0 +1,20 @@
+// checks that using a variable as index in a subarray is ok
+// FIXME:
+// - the direct access does not work (should we extend lower_addr to deal with subarrays?)
+// - for now, alias.ml fails on the unscaled access
+export fn main (reg u32 i) -> reg u32 {
+  stack u32[4] s;
+  reg ptr u32[4] rs;
+  reg ptr u32[1] r;
+  reg u32 res tmp index;
+
+  tmp = 0;
+  s[i] = tmp; // works thanks to lower complex addr
+  rs = s;     // reg + constant
+  tmp = 4;
+  index = tmp * i;
+  r = rs.[index:1];
+  res = r[0];
+
+  return res;
+}

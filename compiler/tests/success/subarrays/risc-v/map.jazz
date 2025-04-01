@@ -1,21 +1,24 @@
 // checks that we can implement a map operation on an array
 // using a while loop
+// FIXME: fails with unscaled access, don't know what to do
 
 param int N = 10;
 
 fn double (reg ptr u32[N] a) -> reg ptr u32[N] {
   inline int i;
-  reg u32 tmp;
+  reg u32 tmp tmp2;
   for i = 0 to N {
     tmp = a[i];
-    tmp *= 2;
+    tmp2 = 2;
+    tmp *= tmp2;
     a[i] = tmp;
   }
   return a;
 }
 
+// It works only because array a is put at offset 0
 export fn main () -> reg u32 {
-  reg u64 i;
+  reg u32 i;
   stack u32[4*N] a;
   reg ptr u32[N] p;
   i = 0;
@@ -26,9 +29,10 @@ export fn main () -> reg u32 {
   i = 0;
   // this while loop is a map on array a
   while (i < 4*N) {
-    p = a[i:N];
+    reg u32 j = 4*i;
+    p = a.[j:N];
     p = double(p);
-    a[i:N] = p;
+    a.[j:N] = p;
     i += N;
   }
   reg u32 res;
