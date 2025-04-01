@@ -185,3 +185,4 @@ itrees/xrutt_facts.v
 itrees/core_logics.v
 itrees/hoare_logic.v
 itrees/relational_logic.v
+itrees/it_psem_of_sem_proof.v
