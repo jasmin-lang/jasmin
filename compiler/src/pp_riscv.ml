@@ -52,7 +52,7 @@ let print_asm_line fmt ln =
   | LLabel lbl ->
       Format.fprintf fmt "%s:" lbl
   | LInstr (s, []) ->
-      Format.fprintf fmt "\t%-*s" iwidth s
+      Format.fprintf fmt "\t%s" s
   | LInstr (s, args) ->
       Format.fprintf fmt "\t%-*s\t%s" iwidth s (String.concat ", " args)
   | LByte n -> Format.fprintf fmt "\t.byte\t%s" n
