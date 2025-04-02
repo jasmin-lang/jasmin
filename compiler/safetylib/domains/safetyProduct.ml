@@ -505,6 +505,7 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
   let v_rel : Sv.t =
     let v_rel = flow_to dp sv_ini in
     let v_while = flow_to dp pa_res.while_vars in
+    let v_while = Sv.union (leads_to dp pa_res.while_vars) v_while in
     (* let v_while = pa_res.while_vars in *)
     Sv.union v_rel v_while
 
@@ -606,6 +607,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
   let ssa_v_rel : Sv.t =
     let v_rel = flow_to dp ssa_sv_ini in
     let v_while = flow_to dp pa_res.while_vars in
+    let v_while = Sv.union (leads_to dp pa_res.while_vars) v_while in
     (* let v_while = pa_res.while_vars in *)
     Sv.union v_rel v_while
 
