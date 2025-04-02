@@ -10,6 +10,9 @@
 
 ## Bug fixes
 
+- Improve heuristic for relational variables in safety analysis
+  ([PR #1109](https://github.com/jasmin-lang/jasmin/pull/1109)).
+
 - Improve memory usage in safety pre-analysis
   ([PR #1103](https://github.com/jasmin-lang/jasmin/pull/1103)).
 
