@@ -211,19 +211,19 @@ Proof. move=> v1 v2 v1'; apply value_uincl_truncate. Qed.
 (* ------------------------------------------------- *)
 
 Class RelEvent (E0 : Type -> Type) :=
-  { RPreInv0_  :: prerel E0 E0
-  ; RPostInv0_ :: postrel E0 E0 }.
+  { RPreInv0_  : prerel E0 E0
+  ; RPostInv0_ : postrel E0 E0 }.
 
 Definition RPreInv0 {E0} {rE0 : RelEvent E0} := RPreInv0_.
 Definition RPostInv0 {E0} {rE0 : RelEvent E0} := RPostInv0_.
 
 Definition RPreInv {E E0 : Type -> Type} {wE : with_Error E E0} {rE0 : RelEvent E0} : prerel E E :=
   fun T1 T2 (e1 : E T1) (e2 : E T2) =>
-    sum_prerel (fun _ _ _ _ => True) RPreInv0 _ _ (mfun1 e1) (mfun1 e2).
+    sum_prerelF (fun _ _ _ _ => True) RPreInv0 (mfun1 e1) (mfun1 e2).
 
 Definition RPostInv {E E0 : Type -> Type} {wE : with_Error E E0} {rE0 : RelEvent E0} : postrel E E :=
   fun T1 T2 (e1 : E T1) (t1 : T1) (e2 : E T2) (t2 : T2) =>
-    sum_postrel (fun _ _ _ _ _ _ => True) RPostInv0 _ _ (mfun1 e1) t1 (mfun1 e2) t2.
+    sum_postrelF (fun _ _ _ _ _ _ => True) RPostInv0 (mfun1 e1) t1 (mfun1 e2) t2.
 
 Section WKEQUIV.
 
@@ -308,6 +308,15 @@ Lemma wkequiv_eq_pred {I1 I2 O1 O2} F1 F2 (P : rel I1 I2) (Q : rel O1 O2) :
   wkequiv P F1 F2 Q.
 Proof. by move=> h i1 i2 hP; apply (h i1 i2 hP). Qed.
 
+Lemma wkequivP' {I1 I2 O1 O2} F1 F2 (P : rel I1 I2) (Q : rel O1 O2) :
+  (forall i1 i2, wkequiv (fun i1' i2' => eq_init i1 i2 i1' i2' /\ P i1' i2') F1 F2 Q) <->
+  wkequiv P F1 F2 Q.
+Proof.
+  rewrite /wkequiv wkequiv_ioP; split.
+  + by move=> h i1 i2 hP i1' i2' [??]; subst i1' i2'; apply (h i1 i2).
+  by move=> h i1 i2 i1' i2' [[??] hP]; subst i1' i2'; apply (h i1 i2).
+Qed.
+
 Lemma wkequiv_iter (IT1 IT2 T1 T2 : Type) (I : rel IT1 IT2) (Q : rel T1 T2) body1 body2 :
   wkequiv I body1 body2 (sum_rel I Q) ->
   wkequiv I (ITree.iter body1) (ITree.iter body2) Q.
@@ -334,10 +343,9 @@ Proof.
   have := heqv _ _ (hP'P _ _ hP').
   apply xrutt_weaken => //.
   + move=> T1 T2 e1 e2; rewrite /RPreInv.
-    by case => {}T1 {}T2 {}e1 {}e2 ?; constructor; auto.
-  + move=> T1 T2 e1 t1 e2 t2 _ _; rewrite /RPreInv /RPostInv => h1 h2.
-    case: h2 h1 => {}T1 {}T2 {}e1 {}t1 {}e2 {}t2 ?; constructor => //.
-    by dependent destruction h1; eauto.
+    by rewrite -sum_prerelP; case.
+  + move=> T1 T2 e1 t1 e2 t2 _ _; rewrite /RPreInv /RPostInv => h1 /sum_postrelP h2.
+    by case: h2 h1 => //=; eauto.
   by move=> o1 o2; apply hQQ'.
 Qed.
 
@@ -420,8 +428,8 @@ Definition RPostD {T1 T2} (d1 : recCall T1) (t1: T1) (d2 : recCall T2) (t2: T2) 
   end t1 t2.
 
 Definition relEvent_recCall {rE0 : RelEvent E0} : RelEvent (recCall +' E0) :=
-  {| RPreInv0_  := sum_prerel (@RPreD) RPreInv0
-   ; RPostInv0_ := sum_postrel (@RPostD) RPostInv0
+  {| RPreInv0_  := sum_prerelF (@RPreD) RPreInv0
+   ; RPostInv0_ := sum_postrelF (@RPostD) RPostInv0
   |}.
 
 End TR_MutualRec.
@@ -505,6 +513,16 @@ Lemma wequiv_cons (R P Q : rel_c) (i1 i2 : instr) (c1 c2 : cmd) :
   wequiv P (i1 :: c1) (i2 :: c2) Q.
 Proof. rewrite -(cat1s i1 c1) -(cat1s i2 c2); apply wequiv_cat. Qed.
 
+(* Lemma wequiv_assgn_core *)
+Lemma wequiv_assgn_core (P Q : rel_c) ii1 x1 tg1 ty1 e1 ii2 x2 tg2 ty2 e2 :
+  wrequiv P (sem_assgn p1 x1 tg1 ty1 e1) (sem_assgn p2 x2 tg2 ty2 e2) Q ->
+  wequiv P [:: MkI ii1 (Cassgn x1 tg1 ty1 e1)] [:: MkI ii2 (Cassgn x2 tg2 ty2 e2)] Q.
+Proof.
+  move=> h; rewrite /wequiv /isem_cmd_ /=.
+  apply wkequiv_bind with Q; last by apply wkequiv_ret.
+  by apply wkequiv_iresult.
+Qed.
+
 Lemma wequiv_assgn (Rv Rtr: rel_v) (P Q : rel_c) ii1 x1 tg1 ty1 e1 ii2 x2 tg2 ty2 e2 :
   wrequiv P (fun s => sem_pexpr true (p_globs p1) s e1)
            (fun s => sem_pexpr true (p_globs p2) s e2) Rv ->
@@ -513,9 +531,7 @@ Lemma wequiv_assgn (Rv Rtr: rel_v) (P Q : rel_c) ii1 x1 tg1 ty1 e1 ii2 x2 tg2 ty
     wrequiv P (write_lval true (p_globs p1) x1 v1) (write_lval true (p_globs p2) x2 v2) Q) ->
   wequiv P [:: MkI ii1 (Cassgn x1 tg1 ty1 e1)] [:: MkI ii2 (Cassgn x2 tg2 ty2 e2)] Q.
 Proof.
-  move=> he htr hwr; rewrite /wequiv /isem_cmd_ /=.
-  apply wkequiv_bind with Q; last by apply wkequiv_ret.
-  apply wkequiv_iresult; rewrite /sem_assgn.
+  move=> he htr hwr; apply wequiv_assgn_core; rewrite /sem_assgn.
   apply: (wrequiv_read he) => v1 v2 hv.
   apply wrequiv_bind_eval with Rtr.
   + by move=> s1 s2 /htr; apply wrequiv_weaken => // > [-> ->].
@@ -700,17 +716,35 @@ Lemma wequiv_if_eq P Q ii1 e1 c1 c1' ii2 e2 c2 c2' :
   wequiv P [:: MkI ii1 (Cif e1 c1 c1')] [:: MkI ii2 (Cif e2 c2 c2')] Q.
 Proof. by move=> he; apply wequiv_if_uincl; apply: wrequiv_weaken he => // > <-. Qed.
 
-Lemma wequiv_for P Pi ii1 i1 d lo1 hi1 c1 ii2 i2 lo2 hi2 c2 :
-  wrequiv P (sem_bound (p_globs p1) lo1 hi1) (sem_bound (p_globs p2) lo2 hi2) eq ->
+Lemma wequiv_if_rcond P Q ii1 e1 c1 c1' c2 b :
+  (forall s1 s2 v, P s1 s2 -> sem_cond (p_globs p1) e1 s1 = ok v -> v = b) ->
+  wequiv P (if b then c1 else c1') c2 Q ->
+  wequiv P [:: MkI ii1 (Cif e1 c1 c1')] c2 Q.
+Proof.
+  move=> he1 hc2 s1 s2 hP /=.
+  rewrite /isem_cond.
+  case heq: (sem_cond (p_globs p1) e1 s1) => [b' | err] /=.
+  + rewrite bind_ret_r bind_ret_l.
+    rewrite (he1 _ _ _ hP heq); apply: hc2 hP.
+  rewrite bind_bind bind_vis.
+  apply XRutt.rutt_CutL => //.
+  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
+Qed.
+
+Lemma wequiv_for P0 P Pi ii1 i1 d lo1 hi1 c1 ii2 i2 lo2 hi2 c2 :
+  (forall s1 s2, P0 s1 s2 -> P s1 s2) ->
+  wrequiv P0 (sem_bound (p_globs p1) lo1 hi1) (sem_bound (p_globs p2) lo2 hi2) eq ->
   (forall i : Z, wrequiv P (write_var true i1 (Vint i)) (write_var true i2 (Vint i)) Pi) ->
   wequiv Pi c1 c2 P ->
-  wequiv P [:: MkI ii1 (Cfor i1 (d, lo1, hi1) c1)] [:: MkI ii2 (Cfor i2 (d, lo2, hi2) c2)] P.
+  wequiv P0 [:: MkI ii1 (Cfor i1 (d, lo1, hi1) c1)] [:: MkI ii2 (Cfor i2 (d, lo2, hi2) c2)] P.
 Proof.
-  move=> hbound hwi hc; rewrite /wequiv /isem_cmd_ /=.
+  move=> hP0P hbound hwi hc; rewrite /wequiv /isem_cmd_ /=.
   apply wkequiv_bind with P; last by apply wkequiv_ret.
   apply wkequiv_read with eq.
   + by apply wkequiv_iresult.
-  move=> bounds _ <-; elim: wrange => /= [| j js hrec].
+  move=> bounds _ <-.
+  apply wkequiv_weaken with P P => //.
+  elim: wrange => /= [| j js hrec].
   + by apply wkequiv_ret.
   apply wkequiv_bind with Pi.
   + by apply wkequiv_iresult.
@@ -736,26 +770,28 @@ Proof.
   apply rbindP => vhi /(h _ _ hhi _ _ _ hP) [_ -> <-] [<-] /=; eauto.
 Qed.
 
-Lemma wequiv_for_uincl P Pi ii1 i1 d lo1 hi1 c1 ii2 i2 lo2 hi2 c2 :
-  wrequiv P (fun (s:estate1) => sem_pexpr true (p_globs p1) s lo1)
-           (fun (s:estate2) => sem_pexpr true (p_globs p2) s lo2) value_uincl ->
-  wrequiv P (fun (s:estate1) => sem_pexpr true (p_globs p1) s hi1)
-           (fun (s:estate2) => sem_pexpr true (p_globs p2) s hi2) value_uincl ->
+Lemma wequiv_for_uincl P0 P Pi ii1 i1 d lo1 hi1 c1 ii2 i2 lo2 hi2 c2 :
+  (forall s1 s2, P0 s1 s2 -> P s1 s2) ->
+  wrequiv P0 (fun (s:estate1) => sem_pexpr true (p_globs p1) s lo1)
+             (fun (s:estate2) => sem_pexpr true (p_globs p2) s lo2) value_uincl ->
+  wrequiv P0 (fun (s:estate1) => sem_pexpr true (p_globs p1) s hi1)
+             (fun (s:estate2) => sem_pexpr true (p_globs p2) s hi2) value_uincl ->
   (forall i : Z, wrequiv P (write_var true i1 (Vint i)) (write_var true i2 (Vint i)) Pi) ->
   wequiv Pi c1 c2 P ->
-  wequiv P [:: MkI ii1 (Cfor i1 (d, lo1, hi1) c1)] [:: MkI ii2 (Cfor i2 (d, lo2, hi2) c2)] P.
-Proof. by move=> hlo hhi; apply/wequiv_for/wrequiv_sem_bound. Qed.
+  wequiv P0 [:: MkI ii1 (Cfor i1 (d, lo1, hi1) c1)] [:: MkI ii2 (Cfor i2 (d, lo2, hi2) c2)] P.
+Proof. by move=> hP0P hlo hhi; apply/wequiv_for/wrequiv_sem_bound. Qed.
 
-Lemma wequiv_for_eq P Pi ii1 i1 d lo1 hi1 c1 ii2 i2 lo2 hi2 c2 :
-  wrequiv P (fun (s:estate1) => sem_pexpr true (p_globs p1) s lo1)
-           (fun (s:estate2) => sem_pexpr true (p_globs p2) s lo2) eq ->
-  wrequiv P (fun (s:estate1) => sem_pexpr true (p_globs p1) s hi1)
-           (fun (s:estate2) => sem_pexpr true (p_globs p2) s hi2) eq ->
+Lemma wequiv_for_eq P0 P Pi ii1 i1 d lo1 hi1 c1 ii2 i2 lo2 hi2 c2 :
+  (forall s1 s2, P0 s1 s2 -> P s1 s2) ->
+  wrequiv P0 (fun (s:estate1) => sem_pexpr true (p_globs p1) s lo1)
+             (fun (s:estate2) => sem_pexpr true (p_globs p2) s lo2) eq ->
+  wrequiv P0 (fun (s:estate1) => sem_pexpr true (p_globs p1) s hi1)
+             (fun (s:estate2) => sem_pexpr true (p_globs p2) s hi2) eq ->
   (forall i : Z, wrequiv P (write_var true i1 (Vint i)) (write_var true i2 (Vint i)) Pi) ->
   wequiv Pi c1 c2 P ->
-  wequiv P [:: MkI ii1 (Cfor i1 (d, lo1, hi1) c1)] [:: MkI ii2 (Cfor i2 (d, lo2, hi2) c2)] P.
+  wequiv P0 [:: MkI ii1 (Cfor i1 (d, lo1, hi1) c1)] [:: MkI ii2 (Cfor i2 (d, lo2, hi2) c2)] P.
 Proof.
-  move=> hlo hhi; apply wequiv_for_uincl.
+  move=> hP0P hlo hhi; apply wequiv_for_uincl => //.
   + by apply: wrequiv_weaken hlo => // > <-.
   by apply: wrequiv_weaken hhi => // > <-.
 Qed.
@@ -816,6 +852,14 @@ Lemma wequiv_while_eq I I' ii1 al1 e1 c1 c1' ii2 al2 e2 c2 c2' :
   wequiv I' c1' c2' I ->
   wequiv I [:: MkI ii1 (Cwhile al1 c1 e1 c1')] [:: MkI ii2 (Cwhile al2 c2 e2 c2')] I'.
 Proof. by move=> he; apply wequiv_while_uincl; apply: wrequiv_weaken he => // > <-. Qed.
+
+Lemma wequiv_while_unroll P Q ii1 al e1 c1 c1' c2 :
+  let w := [:: MkI ii1 (Cwhile al c1 e1 c1')] in
+  wequiv P (c1 ++ [:: MkI ii1 (Cif e1 (c1' ++ w) [::])]) c2 Q ->
+  wequiv P [:: MkI ii1 (Cwhile al c1 e1 c1')] c2 Q.
+Proof.
+  by move=> /= h s1 s2 hP; rewrite isem_cmd_while; apply h.
+Qed.
 
 Lemma wequiv_call (Pf : relPreF) (Qf : relPostF) Rv P Q ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
   wrequiv P (fun s => sem_pexprs (~~ (@direct_call dc1)) (p_globs p1) s es1)
@@ -883,6 +927,63 @@ Qed.
 
 End WEQUIV_CORE.
 
+Section WEQUIV_WHOARE.
+
+Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
+    {wE: with_Error E E0} {iE0 : InvEvent E0} {rE0 : RelEvent E0}.
+
+Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
+
+Definition RelEvent_and1 : RelEvent E0 :=
+  {| RPreInv0_ := fun T1 T2 (e1 : E0 T1) (e2 : E0 T2) => preInv0 e1 /\ RPreInv0 e1 e2
+   ; RPostInv0_ := fun T1 T2 (e1 : E0 T1) t1 (e2 : E0 T2) t2 => postInv0 e1 t1 /\ RPostInv0 e1 t1 e2 t2 |}.
+
+Lemma whoare_wequiv (P Q : rel_c) (P1 Q1 : Pred_c (wsw:=wsw1)) c1 c2:
+  (forall s1 s2, P s1 s2 -> P1 s1) ->
+  hoare (wsw:=wsw1) (dc:=dc1) (iEr := invErrT) p1 ev1 P1 c1 Q1 ->
+  wequiv p1 p2 ev1 ev2 P c1 c2 Q ->
+  wequiv (rE0 := RelEvent_and1) p1 p2 ev1 ev2 P c1 c2 (fun s1 s2 => Q1 s1 /\ Q s1 s2).
+Proof.
+  move=> hPP1 hh he s1 s2 hP.
+  have {}hh := hh s1 (hPP1 _ _ hP).
+  have {}he := he _ _ hP.
+  have := lutt_xrutt_trans_l hh he.
+  apply xrutt_weaken => //.
+  + move=> T1 T2 e1 e2 []; rewrite /preInv /RPreInv /=.
+    by case: (mfun1 e1); case: (mfun1 e2).
+  move=> T1 T2 e1 t1 e2 t2 + _ [].
+  rewrite /errcutoff /is_error /preInv /RPreInv /RPostInv /postInv /=.
+  case: (mfun1 e1); case: (mfun1 e2) => //=.
+Qed.
+
+End WEQUIV_WHOARE.
+
+Section WEQUIV_WRITE.
+Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
+    {wE: with_Error E E0} {rE0 : RelEvent E0}.
+
+Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
+
+Lemma wequiv_write (P Q : rel_c) c1 c2:
+  wequiv p1 p2 ev1 ev2 P c1 c2 Q ->
+  (forall s1_,
+    wequiv p1 p2 ev1 ev2
+     (fun s1 s2 => s1 = s1_ /\ P s1 s2)
+     c1 c2
+     (fun s1 s2 => s1_.(evm) =[\ write_c c1] s1.(evm) /\ Q s1 s2)).
+Proof.
+  move=> /wkequivP' h s1_; apply/wkequivP' => s1__ s2_.
+  have /(_ s1_) hw := [elaborate writeP (dc:=dc1) p1 ev1 c1 ].
+  have h_ : forall s1 s2, (s1 = s1_ /\ s2 = s2_) /\ P s1 s2 -> s1 = s1_.
+  + by move=> ?? [] [].
+  have {h_ h}:= whoare_wequiv h_ hw (h s1_ s2_).
+  apply wkequiv_weaken => //.
+  + by move=> > [].
+  by move=> ?? [] [] ?? [].
+Qed.
+
+End WEQUIV_WRITE.
+
 Notation sem_fun_full1 := (sem_fun_full (wsw:=wsw1) (dc:=dc1) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT1) (scP:= scP1)).
 Notation sem_fun_full2 := (sem_fun_full (wsw:=wsw2) (dc:=dc2) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT2) (scP:= scP2)).
 
@@ -914,29 +1015,6 @@ Definition wequiv_fun_body_hyp_rec (RPreF:relPreF) fn1 fn2 (RPostF:relPostF) :=
           , wequiv_rec P fd1.(f_body) fd2.(f_body) Q
           & wrequiv Q (finalize_funcall (dc:=dc1) fd1) (finalize_funcall (dc:=dc2) fd2) (RPostF fn1 fn2 fs1 fs2)].
 
-Lemma sum_prerelP (E1 E2 D1 D2 : Type -> Type) (PR1 : prerel E1 D1) (PR2 : prerel E2 D2) T1 T2 e1 e2 :
-  sum_prerel PR1 PR2 T1 T2 e1 e2 <->
-  match e1, e2 with
-  | inl1 e1, inl1 e2 => PR1 T1 T2 e1 e2
-  | inr1 e1, inr1 e2 => PR2 T1 T2 e1 e2
-  | _, _ => False
-  end.
-Proof.
-  split; first by case.
-  by case: e1 e2 => // e1 [] e2 //; constructor.
-Qed.
-
-Lemma sum_postrelP (E1 E2 D1 D2 : Type -> Type) (PR1 : postrel E1 D1) (PR2 : postrel E2 D2) T1 T2 e1 t1 e2 t2 :
-  sum_postrel PR1 PR2 T1 T2 e1 t1 e2 t2 <->
-  match e1, e2 with
-  | inl1 e1, inl1 e2 => PR1 T1 T2 e1 t1 e2 t2
-  | inr1 e1, inr1 e2 => PR2 T1 T2 e1 t1 e2 t2
-  | _, _ => False
-  end.
-Proof.
-  split; first by case.
-  by case: e1 e2 => // e1 [] e2 //; constructor.
-Qed.
 
 #[local]
 Lemma xrutt_weaken_aux post (sem1 : itree (recCall +' E) fstate) (sem2 : itree (recCall +' E) fstate) :
@@ -951,17 +1029,13 @@ Proof.
   + move=> T1 e1; rewrite /errcutoff /= /XRuttFacts.EE_MR.
     by case: e1 => //= e; rewrite /is_error /=; case: mfun1.
   + by move=> T2 [].
-  + move=> T1 T2 e1 e2; rewrite /RPreInv !sum_prerelP.
+  + move=> T1 T2 e1 e2; rewrite /RPreInv sum_prerelP.
     case: e1 e2 => [ [fn1 fs1] | e1] [ [fn2 fs2] | e2] //=.
-    + by rewrite sum_prerelP.
-    + by case : mfun1 => // ?; rewrite sum_prerelP.
-    + by case : mfun1 => // ?; rewrite sum_prerelP.
-    by case: mfun1 => // ?; case: mfun1 => // ?; rewrite !sum_prerelP.
-  move=> T1 T2 e1 t1 e2 t2.
-  rewrite /RPostInv !sum_postrelP.
+    + by case : mfun1. + by case : mfun1.
+    by case: mfun1 => // ?; case: mfun1.
+  move=> T1 T2 e1 t1 e2 t2; rewrite /RPostInv sum_postrelP.
   case: e1 t1 e2 t2 => [ [fn1 fs1] | e1] t1 [ [fn2 fs2] | e2] t2 //=.
-  + by rewrite sum_postrelP.
-  by case: mfun1 => // ?; case: mfun1 => // ?; rewrite !sum_postrelP.
+  by case: mfun1 => // ?; case: mfun1.
 Qed.
 
 Lemma wequiv_fun_ind :
@@ -971,10 +1045,7 @@ Lemma wequiv_fun_ind :
   wiequiv_f p1 p2 ev1 ev2 rpreF fn1 fn2 rpostF.
 Proof.
   have hrec : (forall fn1 fn2, wequiv_f_rec rpreF fn1 fn2 rpostF).
-  + move=> fn1' fn2' fs1' fs2' hpre'; apply XRuttFacts.rutt_trigger => //.
-    + by constructor; constructor.
-    rewrite /RPostInv /= => fr1 fr2 h; dependent destruction h.
-    by dependent destruction H.
+  + by move=> fn1' fn2' fs1' fs2' hpre'; apply XRuttFacts.rutt_trigger.
   move=> /(_ hrec) hbody fn1 fn2 fs1 fs2 hpre.
   apply XRuttFacts.interp_mrec_rutt with (RPreInv := (@RPreD spec))
                                          (RPostInv := (@RPostD spec)).

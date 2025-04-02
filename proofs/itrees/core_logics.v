@@ -206,18 +206,52 @@ Qed.
 Notation prepred E := (forall T, E T -> Prop).
 Notation postpred E := (forall T, E T -> T -> Prop).
 
-Variant sum_prepred (E1 E2 : Type -> Type) (PR1 : prepred E1) (PR2 : prepred E2) : prepred (E1 +' E2) :=
-  | sum_prepred_inl : forall (A : Type) (e1 : E1 A),
-     PR1 A e1 -> sum_prepred PR1 PR2 (inl1 e1)
-  | sum_prepred_inr : forall (A : Type) (e2 : E2 A),
-     PR2 A e2 -> sum_prepred PR1 PR2 (inr1 e2).
+Definition sum_prepred (E1 E2 : Type -> Type) (PR1 : prepred E1) (PR2 : prepred E2) : prepred (E1 +' E2) :=
+  fun T e =>
+    match e with
+    | inl1 e1 => PR1 T e1
+    | inr1 e2 => PR2 T e2
+    end.
 
-Variant sum_postpred (E1 E2 : Type -> Type)
-  (PR1 : postpred E1) (PR2 : postpred E2) : postpred (E1 +' E2) :=
-  | sum_postpred_inl : forall (A : Type) (e1 : E1 A) (a : A),
-     PR1 A e1 a -> sum_postpred PR1 PR2 (inl1 e1) a
-  | sum_postpred_inr : forall (A : Type) (e2 : E2 A) (a : A),
-     PR2 A e2 a -> sum_postpred PR1 PR2 (inr1 e2) a.
+Definition sum_postpred (E1 E2 : Type -> Type) (PR1 : postpred E1) (PR2 : postpred E2) : postpred (E1 +' E2) :=
+  fun T e t =>
+    match e with
+    | inl1 e1 => PR1 T e1 t
+    | inr1 e2 => PR2 T e2 t
+    end.
+
+
+Definition sum_prerelF (E1 E2 D1 D2 : Type -> Type) (PR1 : prerel E1 D1) (PR2 : prerel E2 D2) :
+    prerel (E1 +' E2) (D1 +' D2) :=
+  fun T1 T2 e d =>
+    match e, d with
+    | inl1 e1, inl1 d1 => PR1 T1 T2 e1 d1
+    | inr1 e2, inr1 d2 => PR2 T1 T2 e2 d2
+    | _, _ => False
+    end.
+
+Definition sum_postrelF (E1 E2 D1 D2 : Type -> Type) (PR1 : postrel E1 D1) (PR2 : postrel E2 D2) :
+    postrel (E1 +' E2) (D1 +' D2) :=
+  fun T1 T2 e t1 d t2 =>
+    match e, d with
+    | inl1 e1, inl1 d1 => PR1 T1 T2 e1 t1 d1 t2
+    | inr1 e2, inr1 d2 => PR2 T1 T2 e2 t1 d2 t2
+    | _, _ => False
+    end.
+
+Lemma sum_prerelP (E1 E2 D1 D2 : Type -> Type) (PR1 : prerel E1 D1) (PR2 : prerel E2 D2) T1 T2 e1 e2 :
+  sum_prerel PR1 PR2 T1 T2 e1 e2 <-> sum_prerelF PR1 PR2 e1 e2.
+Proof.
+  split; first by case.
+  by case: e1 e2 => // e1 [] e2 //; constructor.
+Qed.
+
+Lemma sum_postrelP (E1 E2 D1 D2 : Type -> Type) (PR1 : postrel E1 D1) (PR2 : postrel E2 D2) T1 T2 e1 t1 e2 t2 :
+  sum_postrel PR1 PR2 T1 T2 e1 t1 e2 t2 <-> sum_postrelF PR1 PR2 e1 t1 e2 t2.
+Proof.
+  split; first by case.
+  by case: e1 e2 => // e1 [] e2 //; constructor.
+Qed.
 
 Section LOGIC.
 
@@ -391,18 +425,16 @@ Proof.
     have [t' /rutt_eq_trans_refl] := hbodies _ _ hd.
     apply rutt_weaken.
     + move=> T1 T2 e1 _ [he1 [? ->]]; subst T2.
-      by dependent destruction he1; constructor; split => //; exists erefl.
-    + move=> T1 T2 e1 t1 _ t2 [he1 [? ->]] ht; subst T2.
-      by dependent destruction ht; move: H => -[hPAns /(_ erefl) -> /=];
-        (split => //; [constructor | move=> ?; rewrite -eq_rect_eq]).
+      by case: e1 he1 => e h; constructor; split => //; exists erefl.
+    + move=> T1 T2 e1 t1 _ t2 [he1 [? ->]]; rewrite sum_postrelP => ht; subst T2.
+      by case: e1 he1 ht => e /= he1 [hPAns /(_ erefl) -> /=]; split => // ?; rewrite -eq_rect_eq.
     by move=> o _ [ho <-]; split => // ?; rewrite -eq_rect_eq.
   case: hrec => t' /rutt_eq_trans_refl.
   apply rutt_weaken => //.
   + move=> T1 T2 e1 ? [he1 [? ->]]; subst T2 => /=.
-    by dependent destruction he1; constructor; split => //; exists erefl.
-  move=> T1 T2 e1 t1 e2 t2 [he1 [? ->]] ht; subst T2 => //.
-  by dependent destruction ht; move: H => -[hPAns /(_ erefl) -> /=];
-   (split => //; [ constructor| move=> ?; rewrite -eq_rect_eq]).
+    by case: e1 he1; constructor; split => //; exists erefl.
+  move=> T1 T2 e1 t1 e2 t2 [he1 [? ->]]; rewrite sum_postrelP => ht; subst T2 => //.
+  by case: e1 he1 ht => e /= he1 [hPAns /(_ erefl) -> /=]; split => // ?; rewrite -eq_rect_eq.
 Qed.
 
 Section SAFE.

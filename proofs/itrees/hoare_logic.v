@@ -780,10 +780,8 @@ Lemma weak_pre  (T : Type) (e : (recCall +' E) T) :
   sum_prepred (preD spec) preInv e.
 Proof.
   rewrite /preInv /=.
-  case: e => [[fn fs] | e] /= h; constructor.
-  + by dependent destruction h.
-  move: h; case: mfun1 => //.
-  by move=> e0 h; dependent destruction h.
+  case: e => [[fn fs] | e] //=.
+  by case: mfun1.
 Qed.
 
 Lemma weak_post (T : Type) (e : (recCall +' E) T) (t : T) :
@@ -791,9 +789,8 @@ Lemma weak_post (T : Type) (e : (recCall +' E) T) (t : T) :
   sum_postpred (postD spec) postInv  e t ->
   postInv (iE0 := invEvent_recCall spec) e t.
 Proof.
-  move=> _; case: e t => [[fn fs] fr | e t] h; dependent destruction h; rewrite /postInv /=.
-  + by constructor.
-  by move: H; rewrite /postInv; case: mfun1 => // *; constructor.
+  move=> _; case: e t => [[fn fs] fr | e t] //=.
+  by rewrite /postInv /=; case: mfun1.
 Qed.
 
 Lemma ihoare_fun Qerr :
@@ -802,9 +799,7 @@ Lemma ihoare_fun Qerr :
   forall fn, ihoare_f p ev preF fn postF.
 Proof.
   have hrec : (forall fn, hoare_f_rec preF fn postF).
-  + move=> fn' fs' hpre' /=; apply lutt_trigger.
-    + by apply sum_prepred_inl.
-    by rewrite /postInv /= => fr h; dependent destruction h.
+  + by move=> fn' fs' hpre' /=; apply lutt_trigger.
   move=> /(_ hrec) hbody {hrec}.
   move=> fn fs hpre.
   apply interp_mrec_lutt with (DPEv := preD spec) (DPAns := postD spec).

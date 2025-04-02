@@ -172,3 +172,4 @@ itrees/hoare_logic.v
 itrees/relational_logic.v
 
 itrees/it_psem_of_sem_proof.v
+itrees/it_constant_prop_proof.v

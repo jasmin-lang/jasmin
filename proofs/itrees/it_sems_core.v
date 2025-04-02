@@ -297,6 +297,20 @@ Proof.
   rewrite bind_bind; setoid_rewrite hc; reflexivity.
 Qed.
 
+Lemma isem_cmd_while p ev ii al c e c' s:
+  isem_cmd_ p ev [:: MkI ii (Cwhile al c e c')] s
+  ≈
+ isem_cmd_ p ev (c ++ [:: MkI ii (Cif e (c' ++ [:: MkI ii (Cwhile al c e c')]) [::])]) s.
+Proof.
+  rewrite /= isem_cmd_cat.
+  rewrite /isem_while_body unfold_iter bind_ret_r.
+  rewrite /isem_while_loop bind_bind /isem_cmd_.
+  apply eutt_eq_bind => {}s /=; rewrite !bind_bind.
+  apply eutt_eq_bind => -[] /=; last by rewrite !bind_ret_l; reflexivity.
+  rewrite -/isem_cmd_ isem_cmd_cat; rewrite !bind_bind.
+  apply eutt_eq_bind => {}s /= ; rewrite bind_ret_l !bind_ret_r tau_eutt; reflexivity.
+Qed.
+
 (**********************************************************************)
 (** error-aware interpreter with mutual recursion *)
 
