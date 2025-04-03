@@ -108,10 +108,10 @@ type safe_cond =
   | AlignedPtr  of wsize * var * expr (* aligned pointer *)
   | AlignedExpr of wsize * expr       (* aligned expression *)
 
-  | NotEqual of wsize option * expr * expr (* None equality on int, else equality on word *)
+  | NotEqual of E.op_kind * expr * expr
   | Termination of bool (* the boolean signals whether this is a severe violation *)
 
-let notZero(ws, e) = NotEqual(Some ws, e, pcast ws (Pconst (Z.of_int 0)))
+let notZero(ws, e) = NotEqual(Op_w ws, e, pcast ws (Pconst (Z.of_int 0)))
 
 let severe_violation =
   function
@@ -128,8 +128,8 @@ let pp_expr = Printer.pp_expr ~debug:false
 let pp_ws fmt ws = Format.fprintf fmt "%i" (int_of_ws ws)
 let pp_ows fmt ws =
   match ws with
-  | None -> ()
-  | Some ws -> pp_ws fmt ws
+  | E.Op_int -> ()
+  | E.Op_w ws -> pp_ws fmt ws
 
 let pp_access fmt = function
   | Warray_.AAdirect -> Format.fprintf fmt "direct"
@@ -285,7 +285,7 @@ let safe_op1 o e1 =
     | E.WIwint_of_word _ -> []
     | E.WIwint_ext(szo, szi) -> [] (* Check this ! *)
     | E.WIneg sz ->
-      if sg = Signed then [NotEqual(None, wint_to_int sg sz e1, Pconst (Z.neg (half_modulus sz)))]
+      if sg = Signed then [NotEqual(Op_int, wint_to_int sg sz e1, Pconst (Z.neg (half_modulus sz)))]
       else [InRange(Pconst Z.zero, Pconst Z.zero, wint_to_int sg sz e1)]
     end
   | _ -> []
@@ -764,8 +764,7 @@ end = struct
          | None -> false
          | Some c -> AbsDom.is_bottom (AbsDom.meet_btcons s c) end
 
-    | NotEqual(ws, e1, e2) ->
-      let k = match ws with Some ws -> E.Op_w ws | None -> E.Op_int in
+    | NotEqual(k, e1, e2) ->
       let be = Papp2 (E.Oeq k, e1, e2) in
       begin match AbsExpr.bexpr_to_btcons be state.abs with
         | None -> false
