@@ -304,7 +304,7 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
         let (op, args) := mulr sz a b in
         LowerFopn sz (Ox86 op) args (Some U32)
       end
-    | Odiv (Cmp_w u sz) =>
+    | Odiv u (Op_w sz) =>
       let opn :=
         match u with
         | Unsigned => Ox86 (DIV sz)
@@ -312,7 +312,7 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
         end in
       k16 sz (LowerDivMod DM_Fst u sz opn a b)
 
-    | Omod (Cmp_w u sz) =>
+    | Omod u (Op_w sz) =>
        let opn :=
         match u with
         | Unsigned => Ox86 (DIV sz)
@@ -373,7 +373,7 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
     else
       LowerAssgn
 
-  | PappN (Opack U256 PE128) [:: Papp1 (Oint_of_word U128) h ; Papp1 (Oint_of_word U128) (Pvar _ as l) ] =>
+  | PappN (Opack U256 PE128) [:: Papp1 (Oint_of_word Unsigned U128) h ; Papp1 (Oint_of_word Unsigned U128) (Pvar _ as l) ] =>
     if ty == sword U256 then LowerConcat h l else LowerAssgn
 
   | _ => LowerAssgn

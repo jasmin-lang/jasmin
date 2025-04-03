@@ -120,6 +120,10 @@ compiler/unionfind.v
 compiler/unionfind_proof.v
 compiler/unrolling.v
 compiler/unrolling_proof.v
+compiler/wint_int.v
+compiler/wint_int_proof.v
+compiler/wint_word.v
+compiler/wint_word_proof.v
 compiler/x86_decl.v
 compiler/x86_extra.v
 compiler/x86_instr_decl.v

@@ -3,11 +3,11 @@ Failed as expected syscall: speculative constant type checker: syscalls destroy 
                              x } are required
 Failed as expected update_msf_not_trans: speculative constant type checker: MSF is not Trans
 Failed as expected update_msf_wrong_expr: speculative constant type checker: the expression false need to be equal to
-                                          (x ==64u ((64u) 0))
+                                          (x ==64w ((64w) 0))
 Failed as expected update_msf_not_msf: speculative constant type checker: 
                                        the variables { x } need to be MSFs.
 Failed as expected msf_trans: speculative constant type checker: MSF is Trans
-                              (x ==64u ((64u) 0))
+                              (x ==64w ((64w) 0))
 Failed as expected not_known_as_msf: speculative constant type checker: 
                                      the variables { x } need to be MSFs.
 Failed as expected msf_in_export: speculative constant type checker: 

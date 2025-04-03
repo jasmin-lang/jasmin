@@ -9,7 +9,7 @@ fn uninit(reg u64 bound) -> reg u64 {
   i = 0;
   #bounded
   while (i < max) {
-    t[(int) i] = i;
+    t[i] = i;
     i += 1;
   }
   max = t[N - 1];
