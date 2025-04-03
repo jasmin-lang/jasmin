@@ -17,9 +17,14 @@ From ITree Require Import
 
 Require Import xrutt.
 
-(* Morphisms related to [REv] and [RAns]. Both behave nicely up to quantified
-   relation equality. There are also symmetry results when flipped.
-*)
+(* Morphisms related to [REv] and [RAns]. Symmetry results when
+flipped. Note: the first section is copied from RuttFacts.v in ITree;
+we prefer not to import Rutt.v and RuttFacts.v, as in xrutt we are
+reusing the rutt constructor names (to be fixed later on, one way or
+another). Most proofs, save for the last lemmas, are basically
+refactoring of those in RuttFacts.v. *)
+
+Section FromRuttFacts.
 
 Definition eq_tfun (E1 E2: Type -> Type) : Prop :=
   forall A, E1 A = E2 A.
@@ -39,7 +44,6 @@ Proof.
   eapply (@forall_extensionality Type F1 F2) in A1; auto.
 Qed.
 
-(* We can't use eq_rel directly due to dependent quantification *)
 Definition eq_REv {E1 E2: Type -> Type}
   (REv1 REv2 : forall A B, E1 A -> E2 B -> Prop) : Prop := 
   forall A B, eq_rel (REv1 A B) (REv2 A B).
@@ -104,8 +108,10 @@ Lemma flip_flip_RAns {E1 E2}
   eq_RAns (flip_RAns (flip_RAns RAns)) RAns.
 Proof. reflexivity. Qed.
 
+End FromRuttFacts.
 
-(* Specifically about [X-rutt] ******************************************)
+
+(* Specifically about [X-rutt] ****************************************)
 
 Lemma xrutt_trigger {E1 E2 R1 R2}
   (EE1: forall X, E1 X -> bool)
@@ -215,6 +221,7 @@ Proof.
     * intros. inv H; auto.  
 Qed.
 
+(* Similar to RuttFacts.rutt_cong_eutt *)
 Lemma xrutt_cong_eutt {E1 E2 R1 R2}
   (EE1: forall X, E1 X -> bool)
   (EE2: forall X, E2 X -> bool) :
@@ -224,33 +231,36 @@ Lemma xrutt_cong_eutt {E1 E2 R1 R2}
   t1 ≈ t1' ->
   xrutt EE1 EE2 REv RAns RR t1' t2.
 Proof.
-  (* First by coinduction; then do an induction on Hrutt to expose the xruttF
-     linking t1 and t2; then an induction on Heutt to expose the relation
-     between t1 and t1'. Finally, explore xruttF until landing on an xrutt where
-     the t1/t1' relation can be substituted by CIH, and conclude. *)
+  (* First by coinduction; then by induction on Hrutt (xruttF t1 t2);
+     then (on some cases) by induction on Heutt (equitF t1 t1'). *)
   intros * Hrutt Heutt; revert t1 t1' Heutt t2 Hrutt.
   ginit; gcofix CIH; intros t1 t1' Heutt t2 Hrutt.
-  punfold Hrutt; red in Hrutt.
-  
-  rewrite (itree_eta t1) in Heutt.
-  rewrite (itree_eta t2).
-  
+  punfold Hrutt; red in Hrutt.  
+  rewrite (itree_eta t1) in Heutt; rewrite (itree_eta t2).
   move Hrutt before CIH. revert_until Hrutt.
   induction Hrutt as [ r1 r2 | m1 m2 | | | | m1 ot2 | ot1 m2 ];
     clear t1 t2; intros t1' Heutt.
 
-  (* EqRet: t1 = Ret r1 ≈ t1'; we can rewrite away the Taus with the euttge
-     closure and finish immediately with EqRet. *)
+  (* EqRet: t1 = Ret r1 ≈ t1'; rewrite with the euttge closure and
+     finish with EqRet. *)
   - apply eutt_inv_Ret_l in Heutt. rewrite Heutt.
     gfinal; right; pstep. now apply EqRet.
 
-  (* EqTau: The hardest case. When Heutt is EqTauL then we lack information to
-     proceed, which requires that [desobs m1]. We then have to restart
-     analyzing based on m1; the Ret case repeats EqRet above, while the Vis
-     case repeats EqVis below. *)
+  (* EqTau: by induction on Heutt (eqitF ot1 ot1'), remembering ot1 =
+     Tau m1. The Eqit.EqTau case is straightforward by CIH. In the
+     Eqit.EqTauL case, we lack information to proceed, which requires
+     the destruction of m1 [desobs m1]. The Ret case repeats EqRet
+     above concluding by CIH, the Tau case requires rolling back teh
+     Tau in Hrutt and applying IHHeutt. The Vis case requires a new
+     induction on Heutt to analyse ot1. The 'ot1 = Vis' case requires
+     a new induction on Hrutt to analyse m2. The EqVis case goes
+     through by CIH. The EqCutL and EqCutR cases are immediate. The
+     EqTauR goes through by IHHrutt. Finally, the Eqit.EqTau case goes
+     through by CIH. *)
   - punfold Heutt; red in Heutt; cbn in Heutt.
     rewrite itree_eta. pclearbot. fold_xruttF H.
     remember (TauF m1) as ot1; revert m1 m2 H Heqot1.
+    
     induction Heutt as [|m1_bis m1'| |m1_bis ot1' _|t1_bis m1'];
     intros * Hrutt Heqot1; clear t1'; try discriminate.
     + inv Heqot1. pclearbot. gfinal; right; pstep; red.
@@ -282,10 +292,10 @@ Proof.
     + inv Heqot1. gfinal; right. pstep; red. apply EqTau. right.
       fold_eqitF Heutt. rewrite tau_euttge in Heutt. now apply (CIH m1).
 
-  (* EqVis: Similar to EqRet, but we don't have t1' ≳ Vis e1 k1 because the
-     continuations are "only" ≈. The up-to-eutt principle that enforces Vis
-     steps could work, but we don't have it for xrutt. Instead we peel the Tau
-     layers off t1' with a manual induction. *)
+  (* EqVis: Similar to EqRet, but we don't have t1' ≳ Vis e1 k1
+     because the continuations are "only" ≈. We use induction on Heutt
+     to analyse t1', resulting in two cases: EqVis (by CIH) and EqTauL
+     (by IHHeutt). *)
   - rewrite itree_eta. gfinal; right; pstep.
     rename H2 into HAns. punfold Heutt; red in Heutt; cbn in Heutt.
     remember (VisF e1 k1) as m1; revert Heqm1.
@@ -295,7 +305,9 @@ Proof.
       hnf in HAns; hnf. pclearbot; right. apply (CIH (k1 a)); auto. apply REL.
     + now apply EqTauL, IHHeutt.
       
-  (* left cutoff *)    
+  (* EqCutL (left cutoff): we need induction on Heutt to analyse t1',
+     in case eutt has introduced some Taus. Then we apply EqTauL and
+     IHHeutt. Otherwise immediate. *)    
   - rewrite itree_eta. gfinal; right; pstep.
     remember (VisF e1 k1) as m1; revert Heqm1.
     punfold Heutt; red in Heutt; cbn in Heutt.
@@ -304,15 +316,14 @@ Proof.
       apply EqCutL; auto.
     + apply EqTauL. eapply IHHeutt; auto.
 
-  (* right cutoff *)  
+  (* EqCutR (right cutoff): immediate. *)  
   - gstep; red. econstructor; auto.
     
-  (* EqTauL: We get a very strong IHHrutt at the xruttF level, which we can
-     apply immediately; then handle the added Tau in ≈, which is trivial. *)
+  (* EqTauL: immediate by IHHrutt, handling the added Tau in ≈ by an
+     eutt rewrite. *)
   - apply IHHrutt. rewrite <- itree_eta. now rewrite <- tau_eutt.
     
-  (* EqTauR: Adding a Tau on the side of t2 changes absolutely nothing to the
-     way we rewrite t1, so we can follow down and recurse. *)
+  (* EqTauR: rewriting away the added Tau, concluding by IHHrutt. *)
   - rewrite tau_euttge. rewrite (itree_eta m2). now apply IHHrutt.
 Qed.    
     
@@ -408,18 +419,20 @@ Lemma xrutt_bind {E1 E2 R1 R2}
     xrutt EE1 EE2 REv RAns RT (ITree.bind t1 k1) (ITree.bind t2 k2).
 Proof.
   intros. ginit.
-  (* For some reason [guclo] fails, apparently trying to infer the type in a
-     context with less information? *)
   eapply gpaco2_uclo; [|eapply xrutt_clo_bind|]; eauto with paco.
   econstructor; eauto. intros; subst. gfinal. right. apply H0. eauto.
 Qed.
 
+(* Used to build the cutoff predicate for itrees with recursion *)
 Definition EE_MR {E: Type -> Type}
   (EE: forall X, E X -> bool) (D: Type -> Type) :
   forall X, (D +' E) X -> bool :=
   fun X m => match m with
              | inl1 _ => false
              | inr1 e => EE X e end.             
+
+(* Relating xrutt and generalized recursion: mutual (mrec) and simple
+(rec). *)
 
 Section XRuttMrec.
   Context {D1 D2 E1 E2 : Type -> Type}.
@@ -593,6 +606,9 @@ Qed.
 
 End XRuttIter.
 
+
+(* weakening lemmas *)
+
 Lemma xrutt_weaken (E1 E2: Type -> Type) (R1 R2 : Type)
        (EE1 EE1': forall X, E1 X -> bool)
        (EE2 EE2': forall X, E2 X -> bool)
@@ -691,6 +707,8 @@ Proof.
 Qed.  
 
 
+(** Transitivity *)
+
 #[local] Notation prerel E D := (forall A B : Type, E A -> D B -> Prop).
 #[local] Notation postrel E D := (forall A B : Type, E A -> A -> D B -> B -> Prop).
 
@@ -736,9 +754,7 @@ Proof.
   pstep. red.
   remember (observe t3) as ot3.
   clear Heqot3 t3.
-
   hinduction INL before CIH; intros; subst. 
-  
   (* 1 : ret1 ret2 *)  
   { remember (RetF r2) as ot2.
     hinduction INR before CIH; intros; inv Heqot2; eauto with paco itree.
@@ -746,7 +762,6 @@ Proof.
     + eapply EqCutR; eauto.
     + constructor; eauto. 
   }
-
   (* 2: tau1 tau2 *)
   { assert (DEC: (exists m3, ot3 = TauF m3) \/ (forall m3, ot3 <> TauF m3)).
       { destruct ot3; eauto; right; red; intros; inv H0. }
@@ -761,14 +776,12 @@ Proof.
       * econstructor; eauto.  
         pclearbot. punfold H. red in H.
         hinduction H1 before CIH; intros; try (exfalso; eapply EQ; eauto; fail).
-
       (* ret3 *)
       { remember (RetF r1) as ot2.
         hinduction H0 before CIH; intros; inv Heqot2; eauto with paco itree.
         + constructor. econstructor; eauto.
         + eapply EqCutL; eauto.  
         + constructor; eapply IHxruttF; eauto. }
-
       (* vis3 *)
       { remember (VisF e1 k1) as ot2.
         hinduction H3 before CIH; intros; try discriminate.
@@ -785,7 +798,6 @@ Proof.
         { eapply EqCutL; eauto. }
         { eapply EqTauL; eauto. }
       }
-
       (* cut2 *)
       { clear EQ; remember (VisF e1 k1) as ot4.
         hinduction H0 before CIH; intros; try discriminate.
@@ -795,26 +807,20 @@ Proof.
         - eapply EqCutL; eauto.
         - eapply EqTauL; eauto.  
       }
-
       (* cut3 *)
       { eapply EqCutR; eauto. }
-
       (* tau2 *)
       { eapply IHxruttF; eauto. pstep_reverse.
         apply xrutt_inv_Tau_r; eapply fold_xruttF; eauto.
       }  
   }
-
   (* 3: vis1 vis2 *)
   { remember (VisF e2 k2) as ot2.
     hinduction INR before CIH; intros; try discriminate.
-
     (* vis3 *)
     { dependent destruction Heqot2.
       constructor; eauto.
-
       + econstructor; eauto.
-
       + intros a b H7.
         destruct (H7 _ _ H5 H1) as [t4 HA12 HA23].
         specialize (H6 a t4 HA12).
@@ -822,29 +828,22 @@ Proof.
         pclearbot. right.
         eapply (CIH (k0 a) (k3 t4) (k2 b)); eauto.
     }
-
     (* cut2 *)
     { dependent destruction Heqot2.
       specialize (CND _ _ e0 e2 H2 H).
       eapply EqCutL; eauto.
     }
-
     (* cut3 *)
     { eapply EqCutR; eauto. }
-
     (* tau3 *)
     { eapply EqTauR; eauto. }
   }
-
   (* 4: cut1 *)
   { eapply EqCutL; eauto. }
-
   (* 5: cut2 *)
   { unfold NoCut_ in *. auto with *. }
-  
   (* 6: tau1 *)
   { constructor. eapply IHINL; eauto. }
-
   (* 7: tau2 *)
   { remember (TauF t0) as ot2.
     hinduction INR before CIH; intros; try inversion Heqot2; subst.

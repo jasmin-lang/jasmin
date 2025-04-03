@@ -1,16 +1,18 @@
-(** * Undefined-behaviour-sensitive relation up to tau *)
+(** * Cutoff-sensitive relation up to tau *)
 
 (** [X-rutt] is a generalization of [rutt] that supports the
-representation of undefined behavior. It may also be regarded as a
+representation of undefined behavior. More precisely, it is a
 generalization of rutt that can relate tree prefixes, i.e. trees up to
-triggered events called cutoff points, beyond which the relation holds
-trivially. The definition of [X-rutt] adds two extra clauses to those
-of [rutt]. Most of the associated boilerplate comes from the
-refactoring of Rutt.v. *)
+triggered events that we call cutoff points, beyond which the relation
+holds trivially. The definition of [X-rutt] adds two extra clauses to
+those of [rutt]. Most of the associated boilerplate comes from the
+refactoring of Rutt.v and RuttFacts.v in ITree. Note: we use 'xrutt'
+rather than 'crutt' to avoid any association with ctrees and
+concurrency. *)
 
 (** Boolean predicates, given as additional parameters, are used to
-partition events into cutoff events (if false) and regular,
-interpretable ones (if true). Cutoff events can be used to represent
+partition events into cutoff events (if true) and regular,
+interpretable ones (if false). Cutoff events can be used to represent
 the semantics of undefined behaviour associated to source code
 errors. *)
 
@@ -215,11 +217,6 @@ Section ConstructionInversion.
   Context (REv : forall (A B : Type), E1 A -> E2 B -> Prop).
   Context (RAns : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop).
   Context (RR : R1 -> R2 -> Prop).
-
-(*  Arguments EE1 {X}.
-  Arguments EE2 {X}. *)
-(*  Arguments REv {A} {B}.
-  Arguments RAns {A} {B}. *)
   
 Lemma xrutt_Ret r1 r2:
   RR r1 r2 ->
@@ -478,10 +475,7 @@ Section euttge_trans_clo.
 
   Context (RR : R1 -> R2 -> Prop).
   
-  (* Closing a relation over itrees under [euttge].
-     Essentially the same closure as [eqit_trans_clo], but heterogeneous
-     in the interface argument [E].
-   *)
+  (* Closing a relation over itrees under [euttge]. *)
 
   (* A transitivity functor *)
   Variant euttge_trans_clo (r : itree E1 R1 -> itree E2 R2 -> Prop) :
@@ -599,7 +593,7 @@ Proof.
     try eapply eqit_mon; try apply H; try apply H0; auto.
 Qed.
   
-Global Instance gxrutt_cong_euttge {E1 E2 R1 R2}
+#[global] Instance gxrutt_cong_euttge {E1 E2 R1 R2}
   (EE1: forall X, E1 X -> bool)
   (EE2: forall X, E2 X -> bool)
   (REv : forall A B, E1 A -> E2 B -> Prop)

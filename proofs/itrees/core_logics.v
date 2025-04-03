@@ -147,18 +147,64 @@ Qed.
 Notation prepred E := (forall T, E T -> Prop).
 Notation postpred E := (forall T, E T -> T -> Prop).
 
-Variant sum_prepred (E1 E2 : Type -> Type) (PR1 : prepred E1) (PR2 : prepred E2) : prepred (E1 +' E2) :=
+Variant sum_prepredI (E1 E2 : Type -> Type) (PR1 : prepred E1) (PR2 : prepred E2) : prepred (E1 +' E2) :=
   | sum_prepred_inl : forall (A : Type) (e1 : E1 A),
-     PR1 A e1 -> sum_prepred (inl1 e1)
+     PR1 A e1 -> sum_prepredI (inl1 e1)
   | sum_prepred_inr : forall (A : Type) (e2 : E2 A),
-     PR2 A e2 -> sum_prepred (inr1 e2).
+     PR2 A e2 -> sum_prepredI (inr1 e2).
 
-Variant sum_postpred (E1 E2 : Type -> Type)
+Variant sum_postpredI (E1 E2 : Type -> Type)
   (PR1 : postpred E1) (PR2 : postpred E2) : postpred (E1 +' E2) :=
   | sum_postpred_inl : forall (A : Type) (e1 : E1 A) (a : A),
-     PR1 A e1 a -> sum_postpred (inl1 e1) a
+     PR1 A e1 a -> sum_postpredI (inl1 e1) a
   | sum_postpred_inr : forall (A : Type) (e2 : E2 A) (a : A),
-     PR2 A e2 a -> sum_postpred (inr1 e2) a.
+     PR2 A e2 a -> sum_postpredI (inr1 e2) a.
+
+Definition sum_prepred (E1 E2 : Type -> Type) (PR1 : prepred E1) (PR2 : prepred E2) : prepred (E1 +' E2) :=
+  fun T e =>
+    match e with
+    | inl1 e1 => PR1 T e1
+    | inr1 e2 => PR2 T e2
+    end.
+
+Definition sum_postpred (E1 E2 : Type -> Type) (PR1 : postpred E1) (PR2 : postpred E2) : postpred (E1 +' E2) :=
+  fun T e t =>
+    match e with
+    | inl1 e1 => PR1 T e1 t
+    | inr1 e2 => PR2 T e2 t
+    end.
+
+Definition sum_prerelF (E1 E2 D1 D2 : Type -> Type) (PR1 : prerel E1 D1) (PR2 : prerel E2 D2) :
+    prerel (E1 +' E2) (D1 +' D2) :=
+  fun T1 T2 e d =>
+    match e, d with
+    | inl1 e1, inl1 d1 => PR1 T1 T2 e1 d1
+    | inr1 e2, inr1 d2 => PR2 T1 T2 e2 d2
+    | _, _ => False
+    end.
+
+Definition sum_postrelF (E1 E2 D1 D2 : Type -> Type) (PR1 : postrel E1 D1) (PR2 : postrel E2 D2) :
+    postrel (E1 +' E2) (D1 +' D2) :=
+  fun T1 T2 e t1 d t2 =>
+    match e, d with
+    | inl1 e1, inl1 d1 => PR1 T1 T2 e1 t1 d1 t2
+    | inr1 e2, inr1 d2 => PR2 T1 T2 e2 t1 d2 t2
+    | _, _ => False
+    end.
+
+Lemma sum_prerelP (E1 E2 D1 D2 : Type -> Type) (PR1 : prerel E1 D1) (PR2 : prerel E2 D2) T1 T2 e1 e2 :
+  sum_prerel PR1 PR2 T1 T2 e1 e2 <-> sum_prerelF PR1 PR2 e1 e2.
+Proof.
+  split; first by case.
+  by case: e1 e2 => // e1 [] e2 //; constructor.
+Qed.
+
+Lemma sum_postrelP (E1 E2 D1 D2 : Type -> Type) (PR1 : postrel E1 D1) (PR2 : postrel E2 D2) T1 T2 e1 t1 e2 t2 :
+  sum_postrel PR1 PR2 T1 T2 e1 t1 e2 t2 <-> sum_postrelF PR1 PR2 e1 t1 e2 t2.
+Proof.
+  split; first by case.
+  by case: e1 e2 => // e1 [] e2 //; constructor.
+Qed.
 
 Section LOGIC.
 
@@ -170,9 +216,11 @@ Definition REv_eq T1 T2 (e1 : E T1) (e2 : E T2) :=
 Definition RAns_eq T1 T2 (e1 : E T1) (t1 : T1) (e2 : E T2) (t2 : T2) :=
   PAns e1 t1 /\ forall (h : T1 = T2), t2 = eq_rect T1 id t1 T2 h.
 
+(* turns a predicate into a binary relation *)
 Definition R_eq T (R : T -> Prop) (t1 : T) (t2 : T) :=
   R t1 /\ t1 = t2.
 
+(* turns rutt wrt R_eq into an itree predicate *)
 Definition lutt (T : Type) (R : T -> Prop) (t : itree E T) :=
   exists (t' : itree E T),
     rutt REv_eq RAns_eq (R_eq R) t t'.
@@ -332,24 +380,26 @@ Proof.
     have [t' /rutt_eq_trans_refl] := hbodies _ _ hd.
     apply rutt_weaken.
     + move=> T1 T2 e1 _ [he1 [? ->]]; subst T2.
-      by dependent destruction he1; constructor; split => //; exists erefl.
-    + move=> T1 T2 e1 t1 _ t2 [he1 [? ->]] ht; subst T2.
-      by dependent destruction ht; move: H => -[hPAns /(_ erefl) -> /=];
-        (split => //; [constructor | move=> ?; rewrite -eq_rect_eq]).
+      by case: e1 he1 => e h; constructor; split => //; exists erefl.
+    + move=> T1 T2 e1 t1 _ t2 [he1 [? ->]]; rewrite sum_postrelP => ht; subst T2.
+    by case: e1 he1 ht => e /= he1 [hPAns /(_ erefl) -> /=]; split => // ?; rewrite -eq_rect_eq.                                                           
     by move=> o _ [ho <-]; split => // ?; rewrite -eq_rect_eq.
   case: hrec => t' /rutt_eq_trans_refl.
   apply rutt_weaken => //.
-  + move=> T1 T2 e1 ? [he1 [? ->]]; subst T2 => /=.
-    by dependent destruction he1; constructor; split => //; exists erefl.
-  move=> T1 T2 e1 t1 e2 t2 [he1 [? ->]] ht; subst T2 => //.
-  by dependent destruction ht; move: H => -[hPAns /(_ erefl) -> /=];
-   (split => //; [ constructor| move=> ?; rewrite -eq_rect_eq]).
+    + move=> T1 T2 e1 ? [he1 [? ->]]; subst T2 => /=.
+    by case: e1 he1; constructor; split => //; exists erefl.
+  move=> T1 T2 e1 t1 e2 t2 [he1 [? ->]]; rewrite sum_postrelP => ht; subst T2 => //.
+  by case: e1 he1 ht => e /= he1 [hPAns /(_ erefl) -> /=]; split => // ?; rewrite -eq_rect_eq.
 Qed.
 
 Section SAFE.
 Context {E : Type -> Type}.
 Context (is_error : forall T, E T -> bool).
 
+(* use lutt to make a corecursive check that there are no error events
+in t. this gives safety (lack of errors) provided the interpretation
+of no other events introduce errors. in our semantics this is the case
+of course, because we have only errors and recursion events. *)
 Definition safe (T : Type) (t : itree E T) :=
   lutt (fun T e => ~~is_error e) (fun T e r => True) (fun _ => True) t.
 
@@ -386,6 +436,8 @@ Context (is_error : forall T, E1 T -> bool).
 Definition errcutoff T (e : E1 T) := is_error e.
 Definition nocutoff T (e : E2 T) := false.
 
+(* equivalence of rutt and an instantiation of xrutt for safe source
+   programs *)
 Lemma safe_xrutt_rutt {R1 R2 : Type}
   (REv : prerel E1 E2)
   (RAns: postrel E1 E2)
@@ -547,17 +599,23 @@ Context {E : Type -> Type}.
 
 Context (is_error : forall T, E T -> bool).
 
+(* conditional rutt: t1 and t2 are rutt-related if t1 contains no
+   error. *)
 Definition safe_rutt {R1 R2 : Type} (REv : prerel E E) (RAns: postrel E E) (RR : R1 -> R2 -> Prop) t1 t2 :=
   safe is_error t1 ->
   rutt REv RAns RR t1 t2.
 
+(* cutoff rutt: t1 and t2 are rutt-related up to t1 errors *)
 Definition weak_rutt {R1 R2 : Type} (REv : prerel E E) (RAns: postrel E E) (RR : R1 -> R2 -> Prop) t1 t2 :=
   xrutt (errcutoff is_error) nocutoff REv RAns RR t1 t2.
 
+(* weak_rutt is actually stronger than safe_rutt *)
 Lemma weak_rutt_safe_rutt {R1 R2 : Type} (REv : prerel E E) (RAns: postrel E E) (RR : R1 -> R2 -> Prop) t1 t2 :
   weak_rutt REv RAns RR t1 t2 ->
   safe_rutt REv RAns RR t1 t2.
 Proof. move=> hw hsafe; apply: safe_xrutt_rutt hsafe hw. Qed.
+(* Remark - we can further expect: 
+   safe t1 <-> (forall t2, xrutt t1 t2 -> rutt t1 t2) *)
 
 Lemma safe_rutt_trans {R1 R2 R3: Type}
   (REv12 REv23 : prerel E E) (RAns12 RAns23: postrel E E)

@@ -2,8 +2,6 @@ From Coq Require Import
   Setoid
   Morphisms.
 
-Require Import utils.
-
 From Paco Require Import paco.
 
 From ITree Require Import
@@ -13,6 +11,8 @@ From ITree Require Import
      Basics.Monad
      Eq.Eqit
      Eq.Paco2.
+
+Require Import utils.
 
 Import ITreeNotations.
 Local Open Scope itree_scope.
@@ -35,7 +35,7 @@ Section ExecT.
   Definition execT (m : Type -> Type) (a : Type) : Type :=
     m (execS a)%type.
 
-  Global Instance execT_fun : Functor.Functor (execT m) :=
+  #[global] Instance execT_fun : Functor.Functor (execT m) :=
     {| Functor.fmap :=
         fun X Y (f: X -> Y) =>
           Functor.fmap (fun x =>
@@ -43,7 +43,7 @@ Section ExecT.
                           | ESerror e => ESerror _ e
                           | ESok x => ESok (f x) end) |}.
 
-  Global Instance execT_monad : Monad (execT m) :=
+  #[global] Instance execT_monad : Monad (execT m) :=
     {| ret := fun _ x => @ret m _ _ (ESok x);
        bind := fun _ _ c k =>
                  bind (m := m) c
@@ -52,7 +52,7 @@ Section ExecT.
                              | ESok x => k x end)
     |}.
 
-  Global Instance execT_iter  : MonadIter (execT m) :=
+  #[global] Instance execT_iter  : MonadIter (execT m) :=
     fun A I body i => Basics.iter (M := m) (I := I) (R := execS A)
       (fun i => bind (m := m)
                (body i)
@@ -98,16 +98,16 @@ Qed.
 
 (* FIXED: Universe inconsistency (old problem) *)
 (* Unset Universe Checking.  *)
-Global Instance execT_Eq1 {E} : Eq1 (execT (itree E)) :=
+#[global] Instance execT_Eq1 {E} : Eq1 (execT (itree E)) :=
   fun _ => eutt (exec_rel eq).
 
-Global Instance Reflexive_execT_eq1 {E T} : Reflexive (@execT_Eq1 E T).
+#[global] Instance Reflexive_execT_eq1 {E T} : Reflexive (@execT_Eq1 E T).
   Proof.
     apply Reflexive_eqit.
     intros []; reflexivity.
 Qed.
 
-Global Instance Symmetric_execT_eq1 {E T} : Symmetric (@execT_Eq1 E T).
+#[global] Instance Symmetric_execT_eq1 {E T} : Symmetric (@execT_Eq1 E T).
   Proof.
     apply Symmetric_eqit.
     unfold Symmetric.
@@ -116,18 +116,18 @@ Global Instance Symmetric_execT_eq1 {E T} : Symmetric (@execT_Eq1 E T).
     inv H; reflexivity.
   Qed.
 
-Global Instance Transitive_execT_eq1 {E T} : Transitive (@execT_Eq1 E T).
+#[global] Instance Transitive_execT_eq1 {E T} : Transitive (@execT_Eq1 E T).
   Proof.
     apply Transitive_eqit.
     intros [] [] [] ? ?; subst; cbn in *; subst; intuition.
   Qed.
 
-Global Instance Equivalence_execT_eq1 {E T} : Equivalence (@execT_Eq1 E T).
+#[global] Instance Equivalence_execT_eq1 {E T} : Equivalence (@execT_Eq1 E T).
   Proof.
     split; typeclasses eauto.
   Qed.
 
-Global Instance MonadLaws_execE {E} : MonadLawsE (execT (itree E)).
+#[global] Instance MonadLaws_execE {E} : MonadLawsE (execT (itree E)).
   Proof.
     split; cbn.
     - cbn; intros; rewrite bind_ret_l; reflexivity.
@@ -180,7 +180,7 @@ Proof.
   - rewrite bind_ret_l; reflexivity.
 Qed.
 
-Global Instance interp_exec_eq_itree {X E F} {R : X -> X -> Prop}
+#[global] Instance interp_exec_eq_itree {X E F} {R : X -> X -> Prop}
   (h : E ~> execT (itree F)) :
   Proper (eq_itree R ==> eq_itree (exec_rel R)) (@interp_exec _ _ _ _ _ h X).
 Proof.
@@ -196,8 +196,7 @@ Proof.
   unfold exec_rel, execS_rel; auto.
 Qed.
 
-(* Convenient special case: [option_rel eq eq] is equivalent to [eq], so we can avoid bothering *)
-Global Instance interp_exec_eq_itree_eq {X E F} (h : E ~> execT (itree F)) :
+#[global] Instance interp_exec_eq_itree_eq {X E F} (h : E ~> execT (itree F)) :
   Proper (eq_itree eq ==> eq_itree eq) (@interp_exec _ _ _ _ _ h X).
 Proof.
   repeat intro.
@@ -205,7 +204,7 @@ Proof.
   apply interp_exec_eq_itree; auto.
 Qed.
 
-Global Instance interp_exec_eutt {X E F R} (h : E ~> execT (itree F)) :
+#[global] Instance interp_exec_eutt {X E F R} (h : E ~> execT (itree F)) :
   Proper (eutt R ==> eutt (exec_rel R)) (@interp_exec _ _ _ _ _ h X).
 Proof.
   repeat red.
@@ -224,8 +223,7 @@ Proof.
   - rewrite tau_euttge, unfold_interp_exec; eauto.
 Qed.
 
-(* Convenient special case: [option_rel eq eq] is equivalent to [eq], so we can avoid bothering *)
-Global Instance interp_exec_eutt_eq {X E F} (h : E ~> execT (itree F)) :
+#[global] Instance interp_exec_eutt_eq {X E F} (h : E ~> execT (itree F)) :
   Proper (eutt eq ==> eutt eq) (@interp_exec _ _ _ _ _ h X).
 Proof.
   repeat intro.
@@ -249,13 +247,6 @@ Proof.
   rewrite unfold_interp_exec. reflexivity.
 Qed.
 
-(* YZ: as with state, there is this tension between "inlining" the monad transformer
-     in order to rewrite at the itree level, and develop the infrastructure to "properly"
-     work in the transformed monad.
-     With the former style, we pay by systematically exposing what should be handled internally
-     (threading the state, checking on failure).
-     With the latter, we need to be more rigorous with the infrastructure.
- *)
 Lemma interp_exec_Ret : forall {X E F} (h : E ~> execT (itree F)) (x : X),
     interp_exec h (Ret x) ≅ Ret (ESok x).
 Proof.

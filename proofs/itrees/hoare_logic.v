@@ -31,7 +31,7 @@ Require Import expr psem_defs oseq compiler_util.
 (* needed for the last lemma *)
 Require Import psem. 
 
-Require Import it_sems_core core_logics.
+Require Import it_sems_core core_logics. 
 
 
 Notation PredT := (fun=>True).
@@ -50,9 +50,9 @@ Class InvErr :=
 
 Definition invErr {iEr : InvErr} := invErr_.
 
-Definition get_error T (e : ErrEvent T) :=
+Definition get_error T (e : ErrEvent T) : it_exec.error_data :=
   match e with
-  | Throw e => e
+  | Throw e' => e'
   end.
 
 Definition preInvErr {iEr : InvErr} : prepred ErrEvent :=
@@ -153,6 +153,9 @@ Context {Err : Set}.
    Q : postcondition
    QE : postcondition for error *)
 
+(* generic (independent of itrees), error-sensitive and
+   input-sensitive (by fresult) Hoare triples; postconditions are
+   relations between input and output *)
 Definition rhoare_io {I O}
    (P : Pred I) (F : fresult Err I O) (Q : Pred_io I O) (QE : I -> Pred Err) :=
   forall i, P i ->
@@ -161,10 +164,13 @@ Definition rhoare_io {I O}
     | Error e => QE i e
     end.
 
-Definition rhoare {I O} (P : Pred I) (F : fresult Err I O) (Q : Pred O) (QE : Pred Err) :=
+(* similar, with input-independent postconditions *)
+Definition rhoare {I O}
+  (P : Pred I) (F : fresult Err I O) (Q : Pred O) (QE : Pred Err) :=
   rhoare_io P F (fun _ => Q) (fun _ => QE).
 
-Lemma rhoare_ioP {I O} (P : Pred I) (F : fresult Err I O) (Q : Pred_io I O) (QE : I -> Pred Err) :
+Lemma rhoare_ioP {I O}
+  (P : Pred I) (F : fresult Err I O) (Q : Pred_io I O) (QE : I -> Pred Err) :
   rhoare_io P F Q QE <-> (forall i0, P i0 -> rhoare (fun i => i = i0) F (Q i0) (QE i0)).
 Proof.
   split.
@@ -277,10 +283,13 @@ Section KHOARE.
 
 Context {E E0: Type -> Type} {wE: with_Error E E0} {iE0 : InvEvent E0} {iEr : InvErr}.
 
+(* input-sensitive Hoare triple on ktrees; the post-condition is a
+   relation between input and output *)
 Definition khoare_io {I O}
    (P : Pred I) (F : ktree E I O) (Q : Pred_io I O) :=
   forall i, P i -> lutt preInv postInv (Q i) (F i).
 
+(* similar, with input-independent post-condition *)
 Definition khoare {I O} (P : Pred I) (F : ktree E I O) (Q : Pred O) :=
   khoare_io P F (fun i => Q).
 
@@ -327,6 +336,7 @@ Proof. by move=> h h'; apply khoare_io_bind with (R := fun t => R). Qed.
 
 Definition rInvErr := fun s e => invErr (mk_error_data s e).
 
+(* switches error handling from rInvErr to iresult (with lifting to itree) *)
 Lemma khoare_io_iresult (T : Type) F (P : Pred_c) (Q: Pred_io estate T) :
   rhoare_io P F Q rInvErr ->
   khoare_io P (fun s => iresult s (F s)) Q.
@@ -338,6 +348,7 @@ Proof.
   by rewrite /preInv /= /subevent /= /resum /= /fromErr mid12.
 Qed.
 
+(* similarly, switches error handling from Qerr to iresult *)
 Lemma khoare_iresult (T : Type) F (P : Pred_c) (Q: Pred T) (Qerr: Pred error) :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
   rhoare P F Q Qerr ->
@@ -370,7 +381,7 @@ Proof.
   by move=> t hR; apply hF2.
 Qed.
 
-(* Dead we really want this? or
+(* Do we really want this? or
    (forall i0, P i0 -> khoare (fun i => i = i0) F Q) *)
 Lemma khoare_eq_pred {I O} (F : ktree E I O) (P : Pred I) (Q : Pred O) :
   (forall i0, khoare (fun i => i = i0 /\ P i) F Q) ->
@@ -428,15 +439,19 @@ Context {E E0: Type -> Type}  {sem_F : sem_Fun E} {wE: with_Error E E0} {iE0 : I
 
 Context (p : prog) (ev: extra_val_t).
 
+(* Hoare triples with relational post-conditions on itree semantics,
+   based on khoare triples *)
+
 Definition hoare_f (P : PreF) (fn : funname) (Q: PostF) :=
   khoare_io (P fn) (sem_fun p ev fn) (Q fn).
 
-Definition hoare_f_body (P : PreF) (fn : funname) (Q:PostF) :=
+Definition hoare_f_body (P : PreF) (fn : funname) (Q: PostF) :=
   khoare_io (P fn) (isem_fun_body p ev fn) (Q fn).
 
 Definition hoare_io (P : Pred_c) (c : cmd) (Q : Pred_io estate estate) :=
   khoare_io P (isem_cmd_ p ev c) Q.
 
+(* similar, with predicate postcondition *)
 Definition hoare (P : Pred_c) (c : cmd) (Q : Pred_c) :=
   khoare P (isem_cmd_ p ev c) Q.
 
@@ -745,10 +760,8 @@ Lemma weak_pre  (T : Type) (e : (recCall +' E) T) :
   sum_prepred (preD spec) preInv e.
 Proof.
   rewrite /preInv /=.
-  case: e => [[fn fs] | e] /= h; constructor.
-  + by dependent destruction h.
-  move: h; case: mfun1 => //.
-  by move=> e0 h; dependent destruction h.
+  case: e => [[fn fs] | e] //=.
+  by case: mfun1.
 Qed.
 
 Lemma weak_post (T : Type) (e : (recCall +' E) T) (t : T) :
@@ -756,9 +769,8 @@ Lemma weak_post (T : Type) (e : (recCall +' E) T) (t : T) :
   sum_postpred (postD spec) postInv  e t ->
   postInv (iE0 := invEvent_recCall spec) e t.
 Proof.
-  move=> _; case: e t => [[fn fs] fr | e t] h; dependent destruction h; rewrite /postInv /=.
-  + by constructor.
-  by move: H; rewrite /postInv; case: mfun1 => // *; constructor.
+  move=> _; case: e t => [[fn fs] fr | e t] //=.
+  by rewrite /postInv /=; case: mfun1.
 Qed.
 
 Lemma ihoare_fun Qerr :
@@ -767,9 +779,7 @@ Lemma ihoare_fun Qerr :
   forall fn, ihoare_f p ev preF fn postF.
 Proof.
   have hrec : (forall fn, hoare_f_rec preF fn postF).
-  + move=> fn' fs' hpre' /=; apply lutt_trigger.
-    + by apply sum_prepred_inl.
-    by rewrite /postInv /= => fr h; dependent destruction h.
+  + by move=> fn' fs' hpre' /=; apply lutt_trigger.
   move=> /(_ hrec) hbody {hrec}.
   move=> fn fs hpre.
   apply interp_mrec_lutt with (DPEv := preD spec) (DPAns := postD spec).
