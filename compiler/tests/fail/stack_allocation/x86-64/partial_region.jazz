@@ -1,0 +1,14 @@
+export fn main () -> reg u64 {
+  stack u64[2] s;
+  reg ptr u64[1] r;
+  reg u64 tmp res;
+
+  s[0] = 0; s[1] = 1;
+  r = s[0:1];
+  r[0] = 1; // after writing to r, s is partial
+  tmp = s[1]; // error
+  res = r[0];
+  res += tmp;
+
+  return res;
+}

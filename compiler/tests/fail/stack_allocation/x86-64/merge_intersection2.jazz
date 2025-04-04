@@ -1,0 +1,25 @@
+// If an array maps to two different regions in the branches of an if,
+// it is considered mapping to no region after the if
+
+export fn main (reg u64 b, reg u64 i) -> reg u64 {
+  stack u64[10] s;
+  reg ptr u64[1] r;
+  reg u64 res;
+
+  s[0] = 1;
+
+  if (b != 0) {
+    r = s[i:1];
+    r[0] = 1;
+    // r points to a subregion of s
+  } else {
+    r = s[i+1:1];
+    r[0] = 1;
+    // r points to a different subregion of s
+  }
+  // r points to no region
+  s[i:1] = r; // no region associated to variable r
+
+  res = s[0];
+  return res;
+}

@@ -58,6 +58,8 @@ Context
 Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
 Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
+Hypothesis print_trmapP :
+  forall ii table rmap, cparams.(print_trmap) ii table rmap = (table, rmap).
 
 #[local]
 Existing Instance progUnit.
@@ -333,14 +335,6 @@ Proof.
   done.
 Qed.
 
-(* TODO: move *)
-Remark sp_globs_stack_alloc rip rsp data ga la (p: uprog) (p': sprog) :
-  alloc_prog (ap_shp aparams) (ap_sap aparams) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) rip rsp data ga la p = ok p' →
-  sp_globs (p_extra p') = data.
-Proof.
-  by rewrite /alloc_prog; t_xrbindP => ???? _ <-.
-Qed.
-
 Lemma compiler_third_part_alloc_ok entries (p p' : sprog) (fn: funname) (m: mem) :
   compiler_third_part aparams cparams entries p = ok p' →
   alloc_ok p' fn m →
@@ -479,7 +473,7 @@ Proof.
   have [fd [get_fd _]] := sem_callE exec_p.
   have [vr1 vr_vr1 exec_p1] := compiler_first_partP ok_p1 ok_fn exec_p.
   case/sem_call_length: (exec_p1) => fd1 [] get_fd1 size_params size_tyin size_tyout size_res.
-  have gd2 := sp_globs_stack_alloc ok_p2.
+  have gd2 := [elaborate alloc_prog_sp_globs (ep := ep_of_asm_e) (sip:=sip_of_asm_e) ok_p2].
   rewrite -gd2 in ok_p2.
   have! [mglob ok_mglob] := (alloc_prog_get_fundef ok_p2).
   move=> /(_ _ _ get_fd1)[] fd2 /[dup] ok_fd2 /alloc_fd_checked_sao[] ok_sao_p ok_sao_r get_fd2.
@@ -525,7 +519,7 @@ Proof.
     have := compiler_third_part_alloc_ok ok_p4 ok_mi.
     move=> /(_ _ get_fd3).
     by rewrite -fd2_fd3_extra.
-  have := alloc_progP _ (hap_hsap haparams) ok_p2 exec_p1 m_mi.
+  have := alloc_progP _ (hap_hsap haparams) print_trmapP haparams.(hap_is_move_opP) ok_p2 exec_p1 m_mi.
   move => /(_ (hap_hshp haparams) va' hargs heqinmem ok_mi').
   case => mi' [] vr2 [] exec_p2 m'_mi' vr2_wf vr2_eqinmem U.
   have exec_p3 :=

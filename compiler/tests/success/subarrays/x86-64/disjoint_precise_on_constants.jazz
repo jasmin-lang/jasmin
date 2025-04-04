@@ -1,0 +1,14 @@
+// When the offset is constant, we are precise
+export fn main () -> reg u64 {
+  stack u64[5] s;
+  reg ptr u64[1] r1 r2;
+  reg u64 res;
+
+  r1 = s[0:1];
+  r2 = s[1:1];
+  r1[0] = 3; // we know r2 is still valid
+  res = r1[0];
+  r2[0] = 4;
+  res += r2[0];
+  return res;
+}

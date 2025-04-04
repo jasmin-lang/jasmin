@@ -1,0 +1,13 @@
+export fn foo () -> reg u64 {
+  reg u64 r;
+  stack u64[4] s;
+  reg ptr u64[4] rt;
+  stack ptr u64[4] st;
+
+  s[2] = 0;
+  rt = s;
+  st = rt;
+  rt[0:2] = st[2:2];
+  r = rt[0];
+  return r;
+}

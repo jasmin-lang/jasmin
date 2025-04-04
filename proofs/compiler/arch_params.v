@@ -7,7 +7,7 @@ Require Import
 Require
   linearization
   lowering
-  stack_alloc
+  stack_alloc_params
   stack_zeroization
   slh_lowering
   asm_gen.
@@ -47,7 +47,7 @@ Record architecture_params
   (lowering_options : Type) :=
   {
     (* Stack alloc parameters. See stack_alloc.v. *)
-    ap_sap : stack_alloc.stack_alloc_params;
+    ap_sap : stack_alloc_params.stack_alloc_params;
 
     (* Linearization parameters. See linearization.v. *)
     ap_lip : linearization.linearization_params;
