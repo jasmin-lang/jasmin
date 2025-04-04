@@ -28,10 +28,10 @@ export fn sum1 (reg u64 x) -> reg u64 {
 export fn sum32 (reg u64 x) -> reg u64 {
   reg u64 r;
   r = x;
-  r += t32[u64 0];
-  r += t32[u64 1];
-  r += t32[u64 2];
-  r += t32[u64 3];
+  r += t32[:u64 0];
+  r += t32[:u64 1];
+  r += t32[:u64 2];
+  r += t32[:u64 3];
   return r;
 }
 

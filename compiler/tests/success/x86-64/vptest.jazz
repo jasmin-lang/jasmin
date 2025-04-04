@@ -11,10 +11,10 @@ fn test_ptest(reg u64 rp) {
   g = #set0_256();
   _, _, _, _, zf = #VPTEST_256(g, g);
   r = f if !zf;
-  (u64)[rp] = r;
+  [:u64 rp] = r;
 
   h = #set0_128();
   _, _, _, _, zf = #VPTEST_128(h, h);
   r = f if !zf;
-  (u64)[rp] = r;
+  [:u64 rp] = r;
 }

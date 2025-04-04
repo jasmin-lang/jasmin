@@ -28,6 +28,6 @@ fn test(reg u64 p) {
   tab = copy(tab);
   for i = 0 to full {
     z = tab[0];
-    (u8)[p + i] = z;
+    [:u8 p + i] = z;
   }
 }

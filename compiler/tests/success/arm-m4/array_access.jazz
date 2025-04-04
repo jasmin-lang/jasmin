@@ -21,7 +21,7 @@ fn test_u16 () -> reg u32 {
    t = 3;
    pa[i] = t;
    reg u32 r;
-   r = (32u) pa[u16 i];
+   r = (32u) pa[:u16 i];
 
    return r;
 }

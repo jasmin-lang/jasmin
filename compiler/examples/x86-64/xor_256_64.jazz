@@ -14,9 +14,9 @@ export
 fn test(reg u64 p) {
 reg u256 a;
 
-a = (u256)[p + 0];
+a = [:u256 p + 0];
 
 a = xor64(a, 1, 0xaabbccdd00112233);
 
-(u256)[p + 0] = a;
+[:u256 p + 0] = a;
 }

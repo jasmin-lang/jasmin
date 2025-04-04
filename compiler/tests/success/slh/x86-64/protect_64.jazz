@@ -7,5 +7,5 @@ fn foo(reg u64 p) -> {
     x = 0;
     x = #protect(x, msf);
 
-    (u64)[p] = x;
+    [:u64 p] = x;
 }
