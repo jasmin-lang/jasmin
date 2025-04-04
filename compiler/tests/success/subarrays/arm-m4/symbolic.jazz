@@ -16,7 +16,9 @@ export fn main (reg u32 i) -> reg u32 {
     s[j] = tmp;
   }
 
-  r = s[i:1];
+  rs = s;
+  r = rs[i:1];
+  tmp = r[0];
   () = #spill(i); // STR
   () = #unspill(i); // LDR
   i2 = i; // MOV
@@ -24,6 +26,7 @@ export fn main (reg u32 i) -> reg u32 {
 
   rs = s;
   res = rs[i];
+  res += tmp;
 
   return res;
 }
