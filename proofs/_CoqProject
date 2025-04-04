@@ -18,6 +18,7 @@
 -R compiler Jasmin
 -R lang Jasmin
 -R ssrmisc Jasmin
+-R itrees Jasmin 
 
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
@@ -151,6 +152,7 @@ lang/memory_model.v
 lang/one_varmap.v
 lang/psem.v
 lang/psem_defs.v
+lang/psem_core.v
 lang/psem_of_sem_proof.v
 lang/pseudo_operator.v
 lang/psem_facts.v
@@ -176,3 +178,11 @@ lang/waes.v
 lang/warray_.v
 lang/word.v
 lang/wsize.v
+
+itrees/it_exec.v
+itrees/it_sems_core.v
+itrees/xrutt.v
+itrees/xrutt_facts.v
+itrees/core_logics.v
+itrees/hoare_logic.v
+itrees/relational_logic.v

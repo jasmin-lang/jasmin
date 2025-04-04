@@ -68,6 +68,8 @@ stdenv.mkDerivation {
   buildInputs = []
     ++ optionals coqDeps [
       coqPackages.coq
+      coqPackages.paco
+      coqPackages.ITree
       mathcomp-word
       coqPackages.mathcomp-algebra-tactics ]
     ++ optionals testDeps ([ curl.bin oP.apron.out llvmPackages.bintools-unwrapped ] ++ (with python3Packages; [ python pyyaml ]))
