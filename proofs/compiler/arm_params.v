@@ -5,8 +5,10 @@ Require Import
   arch_params
   compiler_util
   expr
-  fexpr.
+  fexpr
+  shift_kind.
 Require Import
+  lea
   linearization
   lowering
   stack_alloc_params
@@ -33,6 +35,15 @@ Context {atoI : arch_toIdent}.
 Definition is_load e :=
   if e is Pload _ _ _ _ then true else false.
 
+(* copied from riscv_lower_addressing, TODO: factor *)
+Definition shift_of_scale (z: Z) : option Z :=
+  match z with
+  | 1%Z => Some 0
+  | 2%Z => Some 1
+  | 4%Z => Some 2
+  | _ => None
+  end%Z.
+
 Definition arm_mov_ofs
   (x : lval) (tag : assgn_tag) (movk : mov_kind) (y : pexpr) (ofs : pexpr) :
   option instr_r :=
@@ -45,25 +56,32 @@ Definition arm_mov_ofs
     match x with
     | Lvar x_ =>
       if is_load y then
-        if is_zero Uptr ofs then mk (LDR, [:: y]) else None
+        if is_zero Uptr ofs then mk (LDR, [:: y ]) else None
       else
-        if is_zero Uptr ofs then mk (MOV, [:: y])
-        else
-          if is_wconst_of_size Uptr ofs is Some zofs then
-            (* This allows to remove constraint in register allocation *)
-            if is_arith_small zofs then mk (ADD, [::y; ofs ])
+        match mk_lea Uptr (add y ofs) with
+        | None => None
+        | Some lea =>
+          match lea.(lea_base), lea.(lea_offset) with
+          | None, _ => None (* impossible *)
+          | Some base, None =>
+            if lea.(lea_disp) == 0%Z then mk (MOV, [:: Plvar base ])
             else
-              (* These checks are not needed for the proof, but it is probably better
-                 to fail here than in asm_gen. *)
-              if y is Pvar y_ then
-                if [&& vtype x_ == sword U32 & vtype y_.(gv) == sword U32] then
-                  Some (Copn [::x] tag (Oasm (ExtOp Oarm_add_large_imm)) [::y; ofs ])
-                else None
-              else None
-          else
-            mk (ADR, [:: add y ofs ])
+              (* This allows to remove constraint in register allocation *)
+              if is_arith_small lea.(lea_disp) then mk (ADD, [:: Plvar base; cast_const lea.(lea_disp) ])
+              else
+                Some (Copn [:: x ] tag (Oasm (ExtOp Oarm_add_large_imm)) [:: Plvar base; cast_const lea.(lea_disp) ])
+          | Some base, Some off =>
+            if lea.(lea_disp) == 0%Z then
+              let%opt scale := shift_of_scale lea.(lea_scale) in
+              let opts :=
+                {| set_flags := false; is_conditional := false; has_shift := Some SLSL |}
+              in
+              Some (Copn [:: x ] tag (Oarm (ARM_op ADD opts)) [:: Plvar base; Plvar off; eword_of_int U8 scale ])
+            else None
+          end
+        end
     | Lmem _ _ _ _ =>
-      if is_zero Uptr ofs then mk (STR, [:: y]) else None
+      if is_zero Uptr ofs then mk (STR, [:: y ]) else None
     | _ => None
     end
   end.

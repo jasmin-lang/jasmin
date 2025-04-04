@@ -15,10 +15,12 @@ Require Import
   psem_facts
   sem_one_varmap.
 Require Import
+  lea_proof
   linearization
   linearization_proof
   lowering
   stack_alloc
+  stack_alloc_params
   stack_alloc_proof_1
   stack_zeroization_proof.
 Require
@@ -58,6 +60,14 @@ Context
 
 Section STACK_ALLOC.
 
+(* TODO: we may want to factor this (cf. riscv_lower_addressing_proof) *)
+Lemma shift_of_scaleP scale shift w :
+  shift_of_scale scale = Some shift ->
+  wshl w (wunsigned (wrepr U8 shift)) = (wrepr Uptr scale * w)%R.
+Proof.
+  by case: scale => // -[|[|[]|]|] //= [<-]; rewrite wshl_sem /=.
+Qed.
+
 Lemma arm_mov_ofsP : mov_ofs_correct arm_saparams.(sap_mov_ofs).
 Proof.
   move=> P' ev s1 e w ofs pofs x tag mk ins s2 P'_globs.
@@ -89,40 +99,54 @@ Proof.
       rewrite /sem_sop1 /= => -[<-] /=.
       rewrite truncate_word_u wrepr0 => -[<-].
       by rewrite GRing.addr0 => -> /=.
-    case: is_zeroP.
-    + move=> hofs [<-] hw; exists (evm s2) => //.
-      rewrite with_vm_same.
+    case hlea: mk_lea => [[disp base scale offset]|//] /=.
+    case: base hlea => [base|//] hlea.
+    have lea_sem: sem_pexpr true [::] s1 (add e ofs) = ok (Vword (w + pofs)).
+    + by rewrite /= ok_ve ok_vofs /= /sem_sop2 /= ok_w ok_pofs /=.
+    have /(_ (cmp_le_refl _)) /(_ (cmp_le_refl _)) := mk_leaP _ _ hlea lea_sem.
+    rewrite zero_extend_u /sem_lea /=.
+    (* t_xrbindP too aggressive *)
+    apply: rbindP => wb.
+    apply: rbindP => vb ok_vb ok_wb.
+    apply: rbindP => wo ok_wo.
+    move=> /ok_inj; rewrite GRing.addrC => {}lea_sem.
+    case: offset {hlea} ok_wo => [offset|] /=.
+    + t_xrbindP=> vo ok_vo ok_wo.
+      case: eqP => // ?; subst disp.
+      apply: obindP => shift hshift.
+      move=> [<-] hw.
+      exists (evm s2) => //.
       constructor.
-      rewrite /sem_sopn /= P'_globs /exec_sopn ok_ve /= ok_w /=.
-      move: hofs ok_vofs ok_pofs hw => -> /=.
-      rewrite /sem_sop1 /= => -[<-] /=.
-      rewrite truncate_word_u wrepr0 => -[<-].
-      by rewrite GRing.addr0 => -> /=.
-    move=> _.
-    case: is_wconst_of_sizeP ok_vofs => [zofs|{}ofs] ok_vofs.
-    + case: ifP => _.
-      + move=> [<-] hw; exists (evm s2) => //.
-        rewrite with_vm_same.
-        constructor.
-        rewrite /sem_sopn P'_globs /exec_sopn /= ok_ve /= ok_w /= truncate_word_u /=.
-        move: ok_vofs ok_pofs hw.
-        rewrite /= /sem_sop1 /= => -[<-] /=.
-        by rewrite truncate_word_u => -[<-] ->.
-      case: e ok_ve => //= y ok_ve.
-      case: ifP => // _.
-      move=> [<-] hw; exists (evm s2) => //.
-      rewrite with_vm_same.
+      rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb ok_vo /=
+        /exec_sopn /= ok_wb ok_wo truncate_word_u /=.
+      rewrite (shift_of_scaleP wo hshift).
+      move: lea_sem; rewrite wrepr0 GRing.addr0 => ->.
+      by rewrite hw /= with_vm_same.
+    move=> [?]; subst wo.
+    case: eqP => [|_].
+    + move=> ?; subst disp.
+      move=> [<-] hw.
+      exists s2.(evm) => //.
       constructor.
-      rewrite /sem_sopn P'_globs /exec_sopn /= ok_ve /= ok_w /= truncate_word_u /=.
-      move: ok_vofs ok_pofs hw.
-      rewrite /= /sem_sop1 /= => -[<-] /=.
-      by rewrite truncate_word_u => -[<-] ->.
-    move=> [<-] /= hw; exists (evm s2) => //.
-    rewrite with_vm_same.
+      rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
+        /exec_sopn /= ok_wb /=.
+      move: lea_sem; rewrite wrepr0 GRing.mulr0 !GRing.addr0 => ->.
+      by rewrite hw /= with_vm_same.
+    case: ifP => _.
+    + move=> [<-] hw.
+      exists s2.(evm) => //.
+      constructor.
+      rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
+        /exec_sopn /= ok_wb truncate_word_u /=.
+      move: lea_sem; rewrite GRing.mulr0 GRing.addr0 => ->.
+      by rewrite hw /= with_vm_same.
+    move=> [<-] hw.
+    exists s2.(evm) => //.
     constructor.
-    rewrite /sem_sopn P'_globs /exec_sopn /= ok_ve ok_vofs /=.
-    rewrite /sem_sop2 /= ok_w ok_pofs /= truncate_word_u /=.
-    by rewrite hw.
+    rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
+      /exec_sopn /= ok_wb truncate_word_u /=.
+    move: lea_sem; rewrite GRing.mulr0 GRing.addr0 => ->.
+    by rewrite hw /= with_vm_same.
   move=> al ws_ x_ e_; move: (Lmem al ws_ x_ e_) => {al ws_ x_ e_} x.
   case: is_zeroP => // hofs [<-] hw; exists (evm s2) => //.
   rewrite with_vm_same.

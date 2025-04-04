@@ -7,6 +7,7 @@ Require Import
   expr
   fexpr.
 Require Import
+  lea
   linearization
   lowering
   stack_alloc_params
@@ -48,25 +49,28 @@ Definition riscv_mov_ofs
     match x with
     | Lvar x_ =>
       if is_load y then
-        if is_zero Uptr ofs then mk (LOAD Signed U32, [:: y]) else None
+        if is_zero Uptr ofs then mk (LOAD Signed U32, [:: y ]) else None
       else
-        if is_zero Uptr ofs then mk (MV, [:: y])
-        else
-          if is_wconst_of_size Uptr ofs is Some zofs then
-            (* This allows to remove constraint in register allocation *)
-            if is_arith_small zofs then mk (ADDI, [::y; ofs ])
+        match mk_lea Uptr (add y ofs) with
+        | None => None
+        | Some lea =>
+          match lea.(lea_base), lea.(lea_offset) with
+          | None, _ => None (* impossible *)
+          | Some base, None =>
+            if lea.(lea_disp) == 0%Z then mk (MV, [:: Plvar base ])
             else
-              (* These checks are not needed for the proof, but it is probably better
-                 to fail here than in asm_gen. *)
-              if y is Pvar y_ then
-                if [&& vtype x_ == sword U32 & vtype y_.(gv) == sword U32] then
-                  Some (Copn [::x] tag (Oasm (ExtOp Oriscv_add_large_imm)) [::y; ofs ])
-                else None
-              else None
-          else
-            mk (LA, [:: add y ofs])
+              (* This allows to remove constraint in register allocation *)
+              if is_arith_small lea.(lea_disp) then mk (ADDI, [:: Plvar base; cast_const lea.(lea_disp) ])
+              else
+                Some (Copn [:: x ] tag (Oasm (ExtOp Oriscv_add_large_imm)) [:: Plvar base; cast_const lea.(lea_disp) ])
+          | Some base, Some off =>
+            if (lea.(lea_disp) == 0%Z) && (lea.(lea_scale) == 1%Z) then
+              mk (ADD, [:: Plvar base; Plvar off ])
+            else None
+          end
+        end
     | Lmem _ _ _ _ =>
-      if is_zero Uptr ofs then mk (STORE U32, [:: y]) else None
+      if is_zero Uptr ofs then mk (STORE U32, [:: y ]) else None
     | _ => None
     end
   end.
