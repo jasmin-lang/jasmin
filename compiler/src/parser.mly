@@ -21,8 +21,6 @@
 
 %token T_BOOL
 %token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
-%token T_TYPE
-
 
 %token SHARP
 %token ALIGNED
