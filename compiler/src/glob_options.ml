@@ -8,9 +8,6 @@ let debug = ref false
 let timings = ref false
 let print_list = ref []
 let print_liveness = ref false
-let ecfile = ref ""
-let ec_list = ref []
-let ec_array_path = ref Filename.current_dir_name
 let slice = ref []
 let check_safety = ref false
 let safety_param = ref None
@@ -26,7 +23,6 @@ let color = ref Auto
 
 let lea = ref false
 let set0 = ref false
-let model = ref Normal
 let print_stack_alloc = ref false
 let introduce_array_copy = ref true
 let print_dependencies = ref false 
@@ -71,16 +67,8 @@ let set_stop_after p () =
 let set_all_print () =
   print_list := Compiler.compiler_step_list
 
-let set_ec f =
-  ec_list := f :: !ec_list
-
-let set_ec_array_path p =
-  ec_array_path := p
-
 let set_slice f =
   slice := f :: !slice
-
-let set_constTime () = model := ConstantTime
 
 let set_checksafety () = check_safety := true
 let set_safetyparam s = safety_param := Some s
@@ -184,10 +172,6 @@ let options = [
     "-nolea"   , Arg.Clear lea         , " Try to use add and mul instead of lea";
     "-set0"     , Arg.Set set0          , " Use [xor x x] to set x to 0 (default is not)";
     "-noset0"   , Arg.Clear set0        , " Do not use set0 option";
-    "-ec"       , Arg.String  set_ec    , "[f] Extract function [f] and its dependencies to an easycrypt file (deprecated)";
-    "-oec"     ,  Arg.Set_string ecfile , "[filename] Use filename as output destination for easycrypt extraction (deprecated)";
-    "-oecarray" , Arg.String set_ec_array_path, "[dir] Output easycrypt array theories to the given path (deprecated)";
-    "-CT" , Arg.Unit set_constTime      , " Generate model for constant time verification (deprecated)";
     "-slice"    , Arg.String set_slice  , "[f] Keep function [f] and everything it needs";
     "-checksafety", Arg.Unit set_checksafety, " Automatically check for safety";
     "-safetyparam", Arg.String set_safetyparam,

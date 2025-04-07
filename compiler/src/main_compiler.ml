@@ -177,27 +177,6 @@ let main () =
 
     visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
 
-    if !ec_list <> [] || !ecfile <> "" then begin
-      let fmt, close =
-        if !ecfile = "" then Format.std_formatter, fun () -> ()
-        else
-          let out = open_out !ecfile in
-          let fmt = Format.formatter_of_out_channel out in
-          fmt, fun () -> close_out out in
-      begin try
-        BatPervasives.finally
-          (fun () -> close ())
-          (fun () ->
-            ToEC.extract prog !Glob_options.target_arch Arch.reg_size Arch.asmOp !model ToEC.ArrayOld !ec_list (Some !ec_array_path) fmt
-          )
-          ()
-      with e ->
-        BatPervasives.ignore_exceptions
-          (fun () -> if !ecfile <> "" then Unix.unlink !ecfile) ();
-        raise e end;
-      exit 0
-    end;
-
     (* Now call the coq compiler *)
     let cprog = Conv.cuprog_of_prog prog in
 
