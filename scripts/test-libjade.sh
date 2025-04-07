@@ -11,7 +11,7 @@ ROOT=$(echo -n $NAME-$BRANCH | tr / -)
 
 DIR="libjade/$1"
 
-MAKELINE="-C $DIR CI=1 JASMIN=$PWD/compiler/jasminc"
+MAKELINE="-C $DIR CI=1 JASMIN=$PWD/compiler/jasminc JASMIN2EC=$PWD/compiler/jasmin2ec"
 
 # Exclude primitives that are known not to build
 export EXCLUDE=""
