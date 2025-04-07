@@ -119,6 +119,8 @@ module X86_core = struct
     | SBB _ -> true
     | SETcc -> true
     | SFENCE -> false (* Not DOIT *)
+    | SHA256MSG1 -> true
+    | SHA256MSG2 -> true
     | SHL _ -> true
     | SHLD _ -> false (* Not DOIT *)
     | SHLX _ -> true
