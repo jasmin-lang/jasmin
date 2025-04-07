@@ -191,7 +191,8 @@ let main () =
               cbv
       in
       let cprog = Conv.cuprog_of_prog prog in
-      let sc_prog = Safety_cond.sc_prog Arch.reg_size  Arch.asmOp cprog in
+      let fresh_var_ident vk ii name t = Conv.fresh_var_ident vk ii (Uint63.of_int 0) name t in      
+      let sc_prog = Safety_cond.sc_prog Arch.reg_size  Arch.asmOp fresh_var_ident cprog in
       let rm_init_prog = Remove_is_var_init.rm_var_init_prog_dc Arch.asmOp Arch.msf_size Arch.fcp Arch.aparams.ap_is_move_op b sc_prog in
       let prog = Conv.prog_of_cuprog rm_init_prog in
       Format.eprintf "@[<v>Program after removing is_init_var:@;%a@.@]" 

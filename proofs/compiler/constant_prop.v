@@ -476,10 +476,21 @@ Definition wsize_of_stype (ty: stype) : wsize :=
 Section LOOP.
   Context `{asmop : asmOp}.
 
+  Variable cp_c : cpm ->  cpm * cmd.
   Variable cp_c2 : cpm ->  cpm * (cpm * (cmd*cmd)).
+
+  Variable loop_fallback: cpm * cmd.
 
   Variable wloop_fallback: cpm * (cmd * cmd).
 
+  Fixpoint loop (n:nat) (m:cpm) :=
+    match n with
+    | O => loop_fallback
+    | S n =>
+      let: (m', c'):= cp_c m in
+      if includes_cpm m' m then (m,c')
+      else loop n (merge_cpm m' m)
+    end.
   
   Fixpoint wloop (n:nat) (m:cpm) :=
     match n with
@@ -599,8 +610,16 @@ Fixpoint const_prop_ir with_globals without_globals cpf (m:cpm) ii (ir:instr_r) 
   | Cfor x (dir, e1, e2) c =>
     let e1 := const_prop_e without_globals m e1 in
     let e2 := const_prop_e without_globals m e2 in
-    let m := remove_cpm m (write_i ir) in
-    let (_,c) := const_prop const_prop_i m c in
+    let loop_fallback := 
+      let m := remove_cpm m (write_i ir) in
+      let (_,c) := const_prop const_prop_i m c in
+      (m,c)
+    in
+    let dobody m' :=
+      let (m1,c1) := const_prop const_prop_i m' c in
+      (m1,c1)
+    in
+    let (m,c) := loop dobody loop_fallback Loop.nb m in
     (m, [:: MkI ii (Cfor x (dir, e1, e2) c) ])
 
   | Cwhile a c e info c' =>

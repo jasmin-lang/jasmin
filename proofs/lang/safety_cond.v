@@ -317,14 +317,16 @@ Section ASM_OP.
 
 Context `{asmop:asmOp}.
 Context {pT: progT}.
+Context (fresh_var_ident : v_kind -> instr_info -> string -> stype -> Ident.ident).
 
-Definition e_to_assert (e:pexpr) : instr_r := Cassert Assert Cas e.
+
+Definition e_to_assert (e:pexpr) t : instr_r := Cassert t Cas e.
 
 Definition instrr_to_instr (ii: instr_info) (ir: instr_r) : instr :=
   MkI ii ir.
 
-Definition sc_e_to_instr (sc_e : pexprs) (ii : instr_info) : seq instr :=
-  map (fun e => instrr_to_instr ii (e_to_assert e)) sc_e.
+Definition sc_e_to_instr (sc_e : pexprs) (ii : instr_info): seq instr :=
+  map (fun e => instrr_to_instr ii (e_to_assert e Assert)) sc_e.
 
 
 Fixpoint sc_instr (i : instr) : cmd :=
@@ -365,14 +367,86 @@ Fixpoint sc_instr (i : instr) : cmd :=
 
 Definition sc_cmd (c : cmd) : cmd := conc_map sc_instr c.
 
+Definition create_new_var (x:var_i) :=
+  let x_info := x.(v_info) in
+  let x := x.(v_var) in
+  let x_type := x.(vtype) in
+  let x_var := x.(vname) in
+  let x := fresh_var_ident (Ident.id_kind x_var) dummy_instr_info (Ident.id_name x_var) x_type in
+  let x := {| vtype := x_type; vname := x; |} in
+  {|v_var:= x ; v_info:= x_info|}.
+
+Definition generate_new_vars (x:seq var_i) : seq var_i :=
+  map create_new_var x.
+
+Definition create_new_var_range (name:string):=
+  let x := fresh_var_ident (Reg (Normal, Direct)) dummy_instr_info name sint in
+  let x := {| vtype := sint; vname := x; |} in
+  {|v_var:= x ; v_info:= dummy_var_info|}.
+
+
+Definition generate_assume_postc (x:var_i) (x':var_i): option pexpr :=
+  match x.(v_var).(vtype) with
+    | sarr n => 
+      let i := create_new_var_range "k" in
+      let ie := Plvar i in
+      let body := Pif sbool ((Pis_arr_init x ie 1)) (Pis_arr_init x ie 1) (Pbool(true)) in
+      Some (Pbig (Pbool true) Oand i body (Pconst 0) (Pconst n))    
+    | _ => None
+  end
+.
+
+Fixpoint get_index (x:var_i) (l:seq var_i) i :=
+  match l with
+    | nil => None
+    | h :: t => if var_beq x.(v_var) h.(v_var) then Some i
+                  else get_index x t (S i)
+  end.
+
+Definition create_post_condition_array (f:_ufundef) : option fun_contract  :=
+  let: (iparams,ires,pre,post) := 
+    match f.(f_contra) with
+    | None => 
+      let iparams := generate_new_vars(f.(f_params)) in
+      let ires := generate_new_vars(f.(f_res)) in
+      (iparams, ires, [::], [::])
+    | Some c => (c.(f_iparams), c.(f_ires), c.(f_pre), c.(f_post))
+    end
+  in
+  let (postc_arrays,_) := foldl (fun acc x =>
+    let: (acc,i') := acc in
+    match get_index x f.(f_params) 0 with
+      | None => (acc,S i')
+      | Some i =>
+        let x' := nth x ires i' in
+        let x := nth x iparams i in
+        let e := generate_assume_postc x x' in
+        match e with
+          | Some e => (acc ++ [::(Cas,e)], S i')
+          | None => (acc, S i')
+        end
+    end
+  ) ([::],Nat.zero) f.(f_res) in
+  if Nat.eqb (List.length postc_arrays) Nat.zero then
+    f.(f_contra) 
+  else
+    Some {|
+      f_iparams := iparams;
+      f_ires    := ires;
+      f_pre := pre;
+      f_post := post ++ postc_arrays
+    |}
+.
+
 Definition sc_func (f:_ufundef): _ufundef :=
   let sc_body := sc_cmd f.(f_body) in
   let es := conc_map (fun e => sc_var_init e) f.(f_res) in
   let sc_res := sc_e_to_instr es dummy_instr_info  in (*FIXME - Fix instruction info*)
   let sc_body := sc_body ++ sc_res in
+  let new_contra := create_post_condition_array f in
   {|
     f_info   := f.(f_info) ;
-    f_contra := f.(f_contra) ;
+    f_contra := new_contra ;
     f_tyin   := f.(f_tyin) ;
     f_params := f.(f_params) ;
     f_body   := sc_body ;

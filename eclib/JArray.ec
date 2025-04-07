@@ -305,7 +305,6 @@ abstract theory PolyArray.
 
   op init : (int -> 'a) -> 'a t.
 
-  op is_init : 'a t -> int -> int -> bool.
 
   axiom get_out (t:'a t) i : !(0 <= i < size) => t.[i] = witness.
 
@@ -330,6 +329,16 @@ abstract theory PolyArray.
   op "_.[_<-_]" (t:'a t) (i:int) (e:'a) =
     init (fun j => if j = i then e else t.[j])
   axiomatized by setE.
+
+  op is_init_cell : 'a t -> int -> bool.
+
+  op is_init (t:  'a t) (k l : int): bool = forall i, k <= i => i < k + l => is_init_cell t i.
+
+
+  axiom is_init_cellP (t:  'a t) (i j: int) (v: 'a):
+      is_init_cell t.[i<-v] j = ( i=j \/ is_init_cell t j).
+
+  hint simplify is_init_cellP.
 
   lemma get_set_if (t:'a t) (i j :int) (a:'a) :
     t.[i <- a].[j] = if 0 <= i < size /\ j = i then a else t.[j].

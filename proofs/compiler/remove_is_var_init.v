@@ -79,11 +79,22 @@ Definition get_sopn_init_conds es (o: sopn) : seq pexpr :=
   let instr_descr := get_instr_desc o in
   map (ic_to_e es) instr_descr.(i_init).
 
+
+Definition assume_e_to_instr (e : pexpr) (ii : instr_info): seq instr :=
+  [::instrr_to_instr ii (e_to_assert e Assume)].
+
+
 Fixpoint rm_var_init_i (i : instr) : cmd :=
   let: (MkI ii ir) := i in
   match ir with
-  | Cassgn lv _ _ e => assign_bvar_lval ii expr_true lv ++ [::i]
-  | Csyscall lvs _ es | Ccall lvs _ es => conc_map (assign_bvar_lval ii expr_true) lvs  ++ [::i]
+  | Cassgn (Lvar x1) _ (sarr l) (Pvar x2) => 
+    if (is_lvar x2) then 
+    [::] (*TODO: assume that if is_arr_init x2 i l => is_arr_init x1 i l*)
+    else
+    let e := Pis_arr_init x1 (Pconst 0) (Pconst l) in
+    assume_e_to_instr e ii
+  | Cassgn lv _ _ _ => assign_bvar_lval ii expr_true lv ++ [::i]
+  | Csyscall lvs _ _ | Ccall lvs _ _ => conc_map (assign_bvar_lval ii expr_true) lvs  ++ [::i]
   | Copn lvs _ o es  => 
     flatten (map2 (assign_bvar_lval ii) (get_sopn_init_conds es o) lvs) ++ [::i] 
   | Cif e c1 c2 =>
