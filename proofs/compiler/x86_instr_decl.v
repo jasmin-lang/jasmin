@@ -1,7 +1,7 @@
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype tuple.
 From mathcomp Require Import ssralg word word_ssrZ.
-Require Import utils strings word waes sem_type global oseq sopn.
+Require Import utils strings word waes sha256 sem_type global oseq sopn.
 Import Utf8 Relation_Operators ZArith.
 
 Require Export arch_decl.
@@ -194,6 +194,11 @@ Variant x86_op : Type :=
 (* PCLMULQDQ instructions *)
 | PCLMULQDQ
 | VPCLMULQDQ of wsize
+
+(* SHA instructions *)
+| SHA256RNDS2
+| SHA256MSG1
+| SHA256MSG2
 .
 
 Scheme Equality for x86_op.
@@ -2099,6 +2104,23 @@ Definition Ox86_VPCLMULQDQ_instr :=
        (check_xmm_xmm_xmmm_imm8 sz) 4 (size_128_256 sz) (pp_name "vpclmulqdq" sz)
  , ("VPCLMULQDQ"%string, prim_128_256 VPCLMULQDQ)).
 
+(* -------------------------------------------------------------------------------------- *)
+(* SHA instructions *)
+Definition Ox86_SHA256RNDS2_instr :=
+  mk_instr_pp "SHA256RNDS2" (w3_ty U128) (w_ty U128)
+    [:: Eu 0; Eu 1; ADExplicit (AK_mem Unaligned) 2 (ACR_vector XMM0)]
+    [:: Eu 0] MSB_MERGE sha256rnds2
+    [:: [:: xmm; xmmm true; xmm ]] 3 (primM SHA256RNDS2) (pp_name_ty "sha256rnds2" [:: U128; U128; U128 ]).
+
+Definition Ox86_SHA256MSG1_instr :=
+  mk_instr_pp "SHA256MSG1" (w2_ty U128 U128) (w_ty U128) [:: Eu 0; Eu 1] [:: Eu 0] MSB_MERGE sha256msg1
+    (check_xmm_xmmm U128) 2 (primM SHA256MSG1) (pp_name_ty "sha256msg1" [::U128;U128]).
+
+Definition Ox86_SHA256MSG2_instr :=
+  mk_instr_pp "SHA256MSG2" (w2_ty U128 U128) (w_ty U128) [:: Eu 0; Eu 1] [:: Eu 0] MSB_MERGE sha256msg2
+         (check_xmm_xmmm U128) 2 (primM SHA256MSG2) (pp_name_ty "sha256msg2" [::U128;U128]).
+
+(* -------------------------------------------------------------------------------------- *)
 
 Definition x86_instr_desc o : instr_desc_t :=
   match o with
@@ -2250,6 +2272,9 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VAESKEYGENASSIST   => Ox86_VAESKEYGENASSIST_instr.1
   | PCLMULQDQ          => Ox86_PCLMULQDQ_instr.1
   | VPCLMULQDQ sz      => Ox86_VPCLMULQDQ_instr.1 sz
+  | SHA256RNDS2        => Ox86_SHA256RNDS2_instr.1
+  | SHA256MSG1         => Ox86_SHA256MSG1_instr.1
+  | SHA256MSG2         => Ox86_SHA256MSG2_instr.1
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -2404,6 +2429,9 @@ Definition x86_prim_string :=
    Ox86_VAESKEYGENASSIST_instr.2;
    Ox86_PCLMULQDQ_instr.2;
    Ox86_VPCLMULQDQ_instr.2;
+   Ox86_SHA256RNDS2_instr.2;
+   Ox86_SHA256MSG1_instr.2;
+   Ox86_SHA256MSG2_instr.2;
    ("VPMAX"%string,
      primSV_8_32 (fun signedness ve sz =>
               if signedness is Signed then VPMAXS ve sz else VPMAXU ve sz));

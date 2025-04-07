@@ -1,6 +1,7 @@
 (* -------------------------------------------------------------------- *)
 require import AllCore IntDiv List.
 require export JModel_common JArray JWord_array Jslh JMemory AES.
+require SHA.
 
 
 (* ------------------------------------------------------------------- *)
@@ -1021,6 +1022,17 @@ abbrev [-printing] VPCLMULQDQ_128 = PCLMULQDQ.
 op VPCLMULQDQ_256 (v1 v2: W256.t) (k: W8.t): W256.t =
  pack2 [ PCLMULQDQ (v1 \bits128 0) (v2 \bits128 0) k
        ; PCLMULQDQ (v1 \bits128 1) (v2 \bits128 1) k ].
+
+(* ------------------------------------------------------------------- *)
+(* SHA instructions *)
+(*
+| SHA256RNDS2
+| SHA256MSG1
+| SHA256MSG2
+*)
+op SHA256RNDS2 (v1 v2 v3: W128.t) : W128.t = SHA.rnds2 v1 v2 v3.
+op SHA256MSG1 (v1 v2: W128.t) : W128.t = SHA.msg1 v1 v2.
+op SHA256MSG2 (v1 v2: W128.t) : W128.t = SHA.msg2 v1 v2.
 
 (* -------------------------------------------------------------------- *)
 
