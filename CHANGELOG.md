@@ -40,6 +40,9 @@
 
 ## Other changes
 
+- The deprecated legacy interface to extract to EasyCrypt has been removed
+  ([PR #1114](https://github.com/jasmin-lang/jasmin/pull/1114)).
+
 - Add warning to signal deprecated intrinsic operators 
   ([PR #1092](https://github.com/jasmin-lang/jasmin/pull/1092)).
 
