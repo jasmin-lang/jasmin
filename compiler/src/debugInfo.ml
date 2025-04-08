@@ -22,5 +22,5 @@ let source_positions ii =
   else
     let n, isFresh = internFile ii.loc_fname in
     let line, col = ii.loc_start in
-    let loc = [ asprintf ".loc %d %d %d\n" n line col ] in
-    if isFresh then asprintf ".file %d %S\n" n ii.loc_fname :: loc else loc
+    let loc = [ asprintf ".loc %d %d %d" n line col ] in
+    if isFresh then asprintf ".file %d %S" n ii.loc_fname :: loc else loc

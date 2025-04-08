@@ -450,7 +450,7 @@ module Printer (BP:BPrinter) = struct
   (* -------------------------------------------------------------------- *)
   let pp_instr name (fmt : Format.formatter) (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
     let Arch_decl.({ asmi_i = i ; asmi_ii = ii }) = i in
-    List.iter (pp_gen fmt) (pp_ii ii);
+    (pp_gens fmt) (pp_ii ii);
     pp_gen fmt (pp_instr name i)
 
   (* -------------------------------------------------------------------- *)
