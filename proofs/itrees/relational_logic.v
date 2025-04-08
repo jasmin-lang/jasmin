@@ -173,11 +173,7 @@ Proof. move=> v1 v2 v1'; apply value_uincl_truncate. Qed.
 
 (* ------------------------------------------------- *)
 
-(* was :
-Class RelEvent (E0 : Type -> Type) :=
-  { RPreInv0_  : prerel E0 E0
-  ; RPostInv0_ : postrel E0 E0 }.
-*)
+(* pre-relation and postrelation associated with an event type *)
 Class EventRels (E0 : Type -> Type) :=
   { EPreRel0_  : prerel E0 E0
   ; EPostRel0_ : postrel E0 E0 }.
@@ -185,11 +181,13 @@ Class EventRels (E0 : Type -> Type) :=
 Definition EPreRel0 {E0} {rE0 : EventRels E0} := EPreRel0_.
 Definition EPostRel0 {E0} {rE0 : EventRels E0} := EPostRel0_.
 
+(* pre-relation associated with an event type extended with errors *)
 Definition EPreRel {E E0 : Type -> Type} {wE : with_Error E E0}
   {rE0 : EventRels E0} : prerel E E :=
   fun T1 T2 (e1 : E T1) (e2 : E T2) =>
     sum_prerelF (fun _ _ _ _ => True) EPreRel0 (mfun1 e1) (mfun1 e2).
 
+(* post-relation associated with an event type extended with errors *)
 Definition EPostRel {E E0 : Type -> Type} {wE : with_Error E E0}
   {rE0 : EventRels E0} : postrel E E :=
   fun T1 T2 (e1 : E T1) (t1 : T1) (e2 : E T2) (t2 : T2) =>
