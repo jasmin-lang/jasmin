@@ -3,8 +3,9 @@
 
 ## New features
 
-- Add support for x86 `SHA256MSG1` and `SHA256MSG2` instructions
-  ([PR #11XX](https://github.com/jasmin-lang/jasmin/pull/11XX).
+- Add support for x86 `SHA256MSG1`, `SHA256MSG2`, and `SHA256RNDS2` instructions
+  ([PR #1116](https://github.com/jasmin-lang/jasmin/pull/1116);
+  fixes [#1040](https://github.com/jasmin-lang/jasmin/issues/1040)).
 
 - Add support for x86 `VMOVMSKPS` and `VMOVMSKPD` instructions, through the new
   intrinsics `#MOVEMASK` which also maps to the `VPMOVMSKB` instruction;
