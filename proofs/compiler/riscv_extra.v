@@ -16,7 +16,7 @@ Require Import
   riscv_instr_decl
   riscv.
 
-Local Notation E n := (sopn.ADExplicit n None).
+Local Notation E n := (sopn.ADExplicit n sopn.ACR_any).
 
 
 Variant riscv_extra_op : Type :=  

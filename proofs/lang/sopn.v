@@ -15,10 +15,16 @@ Require Import
 Local Unset Elimination Schemes.
 
 (* ----------------------------------------------------------------------------- *)
+Variant arg_constrained_register :=
+| ACR_any
+| ACR_exact of var
+| ACR_vector of var
+| ACR_subset of seq var
+.
 
 Variant arg_desc :=
 | ADImplicit  of var
-| ADExplicit  of nat & option var.
+| ADExplicit  of nat & arg_constrained_register.
 
 Variant arg_position :=
 | APout of nat
@@ -148,7 +154,7 @@ Definition sopn_subcarry (ws : wsize) : sopn := Opseudo_op (Osubcarry ws).
    of in- and out- arguments, but apart from that, we give some trivial values.
 *)
 
-Local Notation E n := (ADExplicit n None).
+Local Notation E n := (ADExplicit n ACR_any).
 
 Lemma array_copy_errty ws p:
   let sz := Z.to_pos (arr_size ws p) in
