@@ -71,7 +71,7 @@ Qed.
 
 HB.instance Definition _ := hasDecEq.Build x86_extra_op x86_extra_op_eq_axiom.
 
-Local Notation E n := (ADExplicit n None).
+Local Notation E n := (ADExplicit n ACR_any).
 
 Section Section.
 Context {atoI : arch_toIdent}.

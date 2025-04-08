@@ -267,27 +267,39 @@ Variant addr_kind : Type :=
 (* -------------------------------------------------------------------- *)
 (* Argument description.
  * An argument may be either implicit or explicit.
+ * Registers may be constrained to a specific one or a subset
  *)
+Variant arg_constrained_register :=
+| ACR_any
+| ACR_exact of reg_t
+| ACR_vector of xreg_t
+| ACR_subset of seq reg_t
+.
+
 Variant arg_desc :=
 | ADImplicit of implicit_arg
 | ADExplicit
     of addr_kind      (* If argument is an address, should it be loaded? *)
      & nat            (* Position of the argument in assembly syntax. *)
-     & option reg_t.  (* Set if there is only one valid register. *)
+     & arg_constrained_register. (* Constraints on valid registers. *)
 
 Definition F  f   := ADImplicit (IArflag f).
 Definition R  r   := ADImplicit (IAreg   r).
-Definition Ea n   := ADExplicit (AK_mem Aligned) n None.
-Definition Eu n   := ADExplicit (AK_mem Unaligned) n None.
-Definition Ec n   := ADExplicit AK_compute n None.
-Definition Ef n r := ADExplicit (AK_mem Aligned) n (Some  r).
+Definition Ea n   := ADExplicit (AK_mem Aligned) n ACR_any.
+Definition Eu n   := ADExplicit (AK_mem Unaligned) n ACR_any.
+Definition Ec n   := ADExplicit AK_compute n ACR_any.
+Definition Ef n r := ADExplicit (AK_mem Aligned) n (ACR_exact  r).
 
 Definition check_oreg or ai :=
   match or, ai with
-  | Some r, Reg r'  => r == r' ::>
-  | Some _, Imm _ _ => true
-  | Some _, _       => false
-  | None, _         => true
+  | ACR_exact r, Reg r'  => r == r' ::>
+  | ACR_exact _, Imm _ _ => true
+  | ACR_exact _, _       => false
+  | ACR_vector x, XReg r => x == r ::>
+  | ACR_vector _, _      => false
+  | ACR_subset s, Reg r  => r \in (s : seq ceqT_eqType)
+  | ACR_subset _, _      => false
+  | ACR_any, _           => true
   end.
 
 (* -------------------------------------------------------------------- *)

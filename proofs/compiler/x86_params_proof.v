@@ -461,7 +461,7 @@ Qed.
 Lemma check_sopn_dests_xmm rip ii oargs xs ads cond n al k ws:
   check_sopn_dests x86_agparams rip ii oargs xs ads ->
   check_i_args_kinds [::cond] oargs ->
-  nth (Ea 0, sword8) ads n = (ADExplicit (AK_mem al) k None, sword ws) ->
+  nth (Ea 0, sword8) ads n = (ADExplicit (AK_mem al) k ACR_any, sword ws) ->
   nth xmm cond k = xmm ->
   n < size xs ->
   exists (r: xreg_t),
