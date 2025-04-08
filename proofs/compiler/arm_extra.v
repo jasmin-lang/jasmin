@@ -42,7 +42,7 @@ Instance eqTC_arm_extra_op : eqTypeC arm_extra_op :=
 
 (* Extra instructions descriptions. *)
 
-Local Notation E n := (sopn.ADExplicit n None).
+Local Notation E n := (sopn.ADExplicit n sopn.ACR_any).
 
 (* [conflicts] ensures that the returned register is distinct from the first
    argument. *)
