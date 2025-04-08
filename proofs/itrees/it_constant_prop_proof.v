@@ -970,7 +970,7 @@ Qed.
 
 Section PROOF.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : RelEvent E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
 Variable (p:prog) (ev:extra_val_t).
 Notation gd := (p_globs p).

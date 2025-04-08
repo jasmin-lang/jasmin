@@ -173,31 +173,40 @@ Proof. move=> v1 v2 v1'; apply value_uincl_truncate. Qed.
 
 (* ------------------------------------------------- *)
 
+(* was :
 Class RelEvent (E0 : Type -> Type) :=
   { RPreInv0_  : prerel E0 E0
   ; RPostInv0_ : postrel E0 E0 }.
+*)
+Class EventRels (E0 : Type -> Type) :=
+  { EPreRel0_  : prerel E0 E0
+  ; EPostRel0_ : postrel E0 E0 }.
 
-Definition RPreInv0 {E0} {rE0 : RelEvent E0} := RPreInv0_.
-Definition RPostInv0 {E0} {rE0 : RelEvent E0} := RPostInv0_.
+Definition EPreRel0 {E0} {rE0 : EventRels E0} := EPreRel0_.
+Definition EPostRel0 {E0} {rE0 : EventRels E0} := EPostRel0_.
 
-Definition RPreInv {E E0 : Type -> Type} {wE : with_Error E E0} {rE0 : RelEvent E0} : prerel E E :=
+Definition EPreRel {E E0 : Type -> Type} {wE : with_Error E E0}
+  {rE0 : EventRels E0} : prerel E E :=
   fun T1 T2 (e1 : E T1) (e2 : E T2) =>
-    sum_prerelF (fun _ _ _ _ => True) RPreInv0 (mfun1 e1) (mfun1 e2).
+    sum_prerelF (fun _ _ _ _ => True) EPreRel0 (mfun1 e1) (mfun1 e2).
 
-Definition RPostInv {E E0 : Type -> Type} {wE : with_Error E E0} {rE0 : RelEvent E0} : postrel E E :=
+Definition EPostRel {E E0 : Type -> Type} {wE : with_Error E E0}
+  {rE0 : EventRels E0} : postrel E E :=
   fun T1 T2 (e1 : E T1) (t1 : T1) (e2 : E T2) (t2 : T2) =>
-    sum_postrelF (fun _ _ _ _ _ _ => True) RPostInv0 (mfun1 e1) t1 (mfun1 e2) t2.
+    sum_postrelF (fun _ _ _ _ _ _ => True) EPostRel0
+      (mfun1 e1) t1 (mfun1 e2) t2.
 
 Section WKEQUIV.
   
-Context {E E0: Type -> Type} {wE: with_Error E E0} {rE0 : RelEvent E0}.
+Context {E E0: Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 (* alternative version of wrequiv, directly specialized to itrees and
    based on xrutt *)
 Definition wkequiv_io {I1 I2 O1 O2}
    (P : rel I1 I2) (F1 : ktree E I1 O1) (F2 : ktree E I2 O2) (Q : rel_io I1 I2 O1 O2) :=
   forall i1 i2, P i1 i2 ->
-  xrutt (errcutoff (is_error wE)) nocutoff RPreInv RPostInv (Q i1 i2) (F1 i1) (F2 i2).
+    xrutt (errcutoff (is_error wE)) nocutoff EPreRel EPostRel (Q i1 i2)
+          (F1 i1) (F2 i2).
 
 (* similar, with input-independent post-conditions *)
 Definition wkequiv {I1 I2 O1 O2}
@@ -292,14 +301,15 @@ End WKEQUIV.
 
 Section WKEQUIV_WEAKEN.
 
-Context {E E0: Type -> Type} {wE: with_Error E E0} {rE0 rE0': RelEvent E0}.
+Context {E E0: Type -> Type} {wE: with_Error E E0} {rE0 rE0': EventRels E0}.
 
-Lemma wkequiv_io_weaken {I1 I2 O1 O2} (P P' : rel I1 I2) (Q Q' : rel_io I1 I2 O1 O2) F1 F2 :
+Lemma wkequiv_io_weaken {I1 I2 O1 O2} (P P' : rel I1 I2)
+  (Q Q' : rel_io I1 I2 O1 O2) F1 F2 :
   (forall T1 T2 (e1 : E0 T1) (e2 : E0 T2),
-    RPreInv0 (rE0:=rE0) e1 e2 -> RPreInv0 (rE0:=rE0') e1 e2) ->
+    EPreRel0 (rE0:=rE0) e1 e2 -> EPreRel0 (rE0:=rE0') e1 e2) ->
   (forall T1 T2 (e1 : E0 T1) (t1 : T1) (e2 : E0 T2) (t2 : T2),
-    RPreInv0 (rE0:=rE0) e1 e2 ->
-    RPostInv0 (rE0:=rE0') e1 t1 e2 t2 -> RPostInv0 (rE0:=rE0) e1 t1 e2 t2) ->
+    EPreRel0 (rE0:=rE0) e1 e2 ->
+    EPostRel0 (rE0:=rE0') e1 t1 e2 t2 -> EPostRel0 (rE0:=rE0) e1 t1 e2 t2) ->
   (forall i1 i2, P' i1 i2 -> P i1 i2) ->
   (forall i1 i2 o1 o2, P' i1 i2 -> Q i1 i2 o1 o2 -> Q' i1 i2 o1 o2) ->
   wkequiv_io (rE0:=rE0)  P F1 F2 Q ->
@@ -308,19 +318,19 @@ Proof.
   move=> hpreI hpostI hP'P hQQ' heqv i1 i2 hP'.
   have := heqv _ _ (hP'P _ _ hP').
   apply xrutt_weaken => //.
-  + move=> T1 T2 e1 e2; rewrite /RPreInv.
+  + move=> T1 T2 e1 e2; rewrite /EPreRel.
     by rewrite -sum_prerelP; case.
-  + move=> T1 T2 e1 t1 e2 t2 _ _; rewrite /RPreInv /RPostInv => h1 /sum_postrelP h2.
+  + move=> T1 T2 e1 t1 e2 t2 _ _; rewrite /EPreRel /EPostRel => h1 /sum_postrelP h2.
     by case: h2 h1 => //=; eauto.
   by move=> o1 o2; apply hQQ'.
 Qed.
 
 Lemma wkequiv_weaken {I1 I2 O1 O2} (P P' : rel I1 I2) (Q Q' : rel O1 O2) F1 F2 :
   (forall T1 T2 (e1 : E0 T1) (e2 : E0 T2),
-    RPreInv0 (rE0:=rE0) e1 e2 -> RPreInv0 (rE0:=rE0') e1 e2) ->
+    EPreRel0 (rE0:=rE0) e1 e2 -> EPreRel0 (rE0:=rE0') e1 e2) ->
   (forall T1 T2 (e1 : E0 T1) (t1 : T1) (e2 : E0 T2) (t2 : T2),
-    RPreInv0 (rE0:=rE0) e1 e2 ->
-    RPostInv0 (rE0:=rE0') e1 t1 e2 t2 -> RPostInv0 (rE0:=rE0) e1 t1 e2 t2) ->
+    EPreRel0 (rE0:=rE0) e1 e2 ->
+    EPostRel0 (rE0:=rE0') e1 t1 e2 t2 -> EPostRel0 (rE0:=rE0) e1 t1 e2 t2) ->
   (forall i1 i2, P' i1 i2 -> P i1 i2) ->
   (forall i1 i2 o1 o2, P' i1 i2 -> Q o1 o2 -> Q' o1 o2) ->
   wkequiv (rE0:=rE0)  P F1 F2 Q ->
@@ -393,20 +403,20 @@ Definition RPostD {T1 T2} (d1 : recCall T1) (t1: T1) (d2 : recCall T2) (t2: T2) 
     end
   end t1 t2.
 
-Instance relEvent_recCall {rE0 : RelEvent E0} : RelEvent (recCall +' E0) :=
-  {| RPreInv0_  := sum_prerelF (@RPreD) RPreInv0
-   ; RPostInv0_ := sum_postrelF (@RPostD) RPostInv0
+Instance relEvent_recCall {rE0 : EventRels E0} : EventRels (recCall +' E0) :=
+  {| EPreRel0_  := sum_prerelF (@RPreD) EPreRel0
+   ; EPostRel0_ := sum_postrelF (@RPostD) EPostRel0
   |}.
 
 End TR_MutualRec.
 
 Section IRESULT.
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : RelEvent E0}.
+Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 Lemma rutt_iresult (T1 T2:Type) (s1 : estate1) (s2 : estate2) (x1 : exec T1) (x2 : exec T2) (R : T1 -> T2 -> Prop) :
   (forall v1, x1 = ok v1 -> exists2 v2, x2 = ok v2 & R v1 v2) ->
-  xrutt (errcutoff (is_error wE)) nocutoff RPreInv RPostInv R (iresult s1 x1) (iresult s2 x2).
+  xrutt (errcutoff (is_error wE)) nocutoff EPreRel EPostRel R (iresult s1 x1) (iresult s2 x2).
 Proof.
   case: x1 => [ v1 | e1] hok.
   + have [v2 -> /=] := hok _ erefl.
@@ -425,7 +435,7 @@ End IRESULT.
 Section WEQUIV_CORE.
 
 Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
-    {wE: with_Error E E0} {rE0 : RelEvent E0}.
+    {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
 
@@ -899,29 +909,29 @@ End WEQUIV_CORE.
 Section WEQUIV_WHOARE.
 
 Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
-    {wE: with_Error E E0} {iE0 : InvEvent E0} {rE0 : RelEvent E0}.
+    {wE: with_Error E E0} {iE0 : InvEvent E0} {rE0 : EventRels E0}.
 
 Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
 
-Definition RelEvent_and1 : RelEvent E0 :=
-  {| RPreInv0_ := fun T1 T2 (e1 : E0 T1) (e2 : E0 T2) => preInv0 e1 /\ RPreInv0 e1 e2
-   ; RPostInv0_ := fun T1 T2 (e1 : E0 T1) t1 (e2 : E0 T2) t2 => postInv0 e1 t1 /\ RPostInv0 e1 t1 e2 t2 |}.
+Definition EventRels_and1 : EventRels E0 :=
+  {| EPreRel0_ := fun T1 T2 (e1 : E0 T1) (e2 : E0 T2) => preInv0 e1 /\ EPreRel0 e1 e2
+   ; EPostRel0_ := fun T1 T2 (e1 : E0 T1) t1 (e2 : E0 T2) t2 => postInv0 e1 t1 /\ EPostRel0 e1 t1 e2 t2 |}.
 
 Lemma whoare_wequiv (P Q : rel_c) (P1 Q1 : Pred_c (wsw:=wsw1)) c1 c2:
   (forall s1 s2, P s1 s2 -> P1 s1) ->
   hoare (wsw:=wsw1) (dc:=dc1) (iEr := invErrT) p1 ev1 P1 c1 Q1 ->
   wequiv p1 p2 ev1 ev2 P c1 c2 Q ->
-  wequiv (rE0 := RelEvent_and1) p1 p2 ev1 ev2 P c1 c2 (fun s1 s2 => Q1 s1 /\ Q s1 s2).
+  wequiv (rE0 := EventRels_and1) p1 p2 ev1 ev2 P c1 c2 (fun s1 s2 => Q1 s1 /\ Q s1 s2).
 Proof.
   move=> hPP1 hh he s1 s2 hP.
   have {}hh := hh s1 (hPP1 _ _ hP).
   have {}he := he _ _ hP.
   have := lutt_xrutt_trans_l hh he.
   apply xrutt_weaken => //.
-  + move=> T1 T2 e1 e2 []; rewrite /preInv /RPreInv /=.
+  + move=> T1 T2 e1 e2 []; rewrite /preInv /EPreRel /=.
     by case: (mfun1 e1); case: (mfun1 e2).
   move=> T1 T2 e1 t1 e2 t2 + _ [].
-  rewrite /errcutoff /is_error /preInv /RPreInv /RPostInv /postInv /=.
+  rewrite /errcutoff /is_error /preInv /EPreRel /EPostRel /postInv /=.
   case: (mfun1 e1); case: (mfun1 e2) => //=.
 Qed.
 
@@ -929,7 +939,7 @@ End WEQUIV_WHOARE.
 
 Section WEQUIV_WRITE.
 Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
-    {wE: with_Error E E0} {rE0 : RelEvent E0}.
+    {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
 
@@ -961,7 +971,7 @@ Notation wiequiv   := (wequiv (sem_F1 := sem_fun_full1) (sem_F2 := sem_fun_full2
 
 Section WEQUIV_FUN.
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : RelEvent E0}.
+Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2)  (spec : EquivSpec).
 
@@ -988,20 +998,20 @@ Definition wequiv_fun_body_hyp_rec (RPreF:relPreF) fn1 fn2 (RPostF:relPostF) :=
 #[local]
 Lemma xrutt_weaken_aux post (sem1 : itree (recCall +' E) fstate) (sem2 : itree (recCall +' E) fstate) :
   xrutt (errcutoff (is_error (FIso_suml recCall (Err:=ErrEvent)))) nocutoff
-    (RPreInv (rE0 := relEvent_recCall spec)) (RPostInv (rE0 := relEvent_recCall spec))
+    (EPreRel (rE0 := relEvent_recCall spec)) (EPostRel (rE0 := relEvent_recCall spec))
    post sem1 sem2 ->
   xrutt (@EE_MR _ (@errcutoff _ (is_error wE)) recCall) (@EE_MR _ nocutoff recCall)
-      (sum_prerel (@RPreD spec) RPreInv) (sum_postrel (@RPostD spec) RPostInv)
+      (sum_prerel (@RPreD spec) EPreRel) (sum_postrel (@RPostD spec) EPostRel)
       post sem1 sem2.
 Proof.
   apply xrutt_weaken => //.
   + move=> T1 e1; rewrite /errcutoff /= /EE_MR.
     by case: e1 => //= e; rewrite /is_error /=; case: mfun1.
-  + move=> T1 T2 e1 e2; rewrite /RPreInv sum_prerelP.
+  + move=> T1 T2 e1 e2; rewrite /EPreRel sum_prerelP.
     case: e1 e2 => [ [fn1 fs1] | e1] [ [fn2 fs2] | e2] //=.
     + by case : mfun1. + by case : mfun1.
     by case: mfun1 => // ?; case: mfun1.
-  move=> T1 T2 e1 t1 e2 t2; rewrite /RPostInv sum_postrelP.
+  move=> T1 T2 e1 t1 e2 t2; rewrite /EPostRel sum_postrelP.
   case: e1 t1 e2 t2 => [ [fn1 fs1] | e1] t1 [ [fn2 fs2] | e2] t2 //=.
   by case: mfun1 => // ?; case: mfun1.
 Qed.
@@ -1016,7 +1026,7 @@ Proof.
   + by move=> fn1' fn2' fs1' fs2' hpre'; apply xrutt_trigger.
   move=> /(_ hrec) hbody fn1 fn2 fs1 fs2 hpre.
   apply interp_mrec_xrutt with (RPreInv := (@RPreD spec))
-                                         (RPostInv := (@RPostD spec)).
+                               (RPostInv := (@RPostD spec)).
   + move=> {hpre fn1 fn2 fs1 fs2}.
     move=> _ _ [fn1 fs1] [fn2 fs2] hpre.
     have := wequiv_fun_body (hbody fn1 fn2) hpre.

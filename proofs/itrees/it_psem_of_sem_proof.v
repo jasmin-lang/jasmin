@@ -191,7 +191,7 @@ move => x xs ih [] // v vs s1 s1' h /=; apply: rbindP => s' /(write_lval_sim h) 
 exact: (ih _ _ _ h').
 Qed.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : RelEvent E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 (*
 #[local] Instance SC_nosubword_withsubword : sem_call_2 :=
   sc2_full (wsw1:= nosubword) (wsw2:= withsubword).
@@ -247,9 +247,6 @@ Lemma psem_call :
   forall fn,
     wiequiv_f p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
-
-About eq_spec.
-  
 move=> hsyscall hinitstate hfinal fn.
 apply wequiv_fun_ind => hrec {fn}.
 move=> fn _ fs _ [<- <-] fd ->; exists fd => //.
@@ -299,7 +296,7 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : RelEvent E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
 Notation wiequiv_f := (wequiv_f (sem_F1 := sem_fun_full (wsw:=nosubword)) (sem_F2:= sem_fun_full (wsw:=withsubword))).
 

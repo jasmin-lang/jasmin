@@ -308,7 +308,7 @@ Qed.
 
 Section IT_SEM.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : RelEvent E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
 Lemma wrequiv_sim_expr e :
   wrequiv estate_sim ((sem_pexpr true gd)^~ e) ((sem_pexpr true gd)^~ e) eq.
@@ -429,7 +429,7 @@ Qed.
 
 Section IT_SEM.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : RelEvent E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
 Notation wiequiv_f := (wequiv_f (sem_F1 := sem_fun_full (wsw:=nosubword)) (sem_F2:= sem_fun_full (wsw:=withsubword))).
 
