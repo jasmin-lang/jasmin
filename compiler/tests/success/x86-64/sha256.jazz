@@ -4,5 +4,7 @@ export fn test_sha256(reg ptr u128[2] t) -> reg u128 {
   a = #SHA256MSG1(a, b);
   b = #SHA256MSG2(b, t[1]);
   a = #SHA256MSG2(a, b);
+  b = #SHA256RNDS2(b, t[0], a);
+  a = #SHA256RNDS2(a, b, a);
   return a;
 }

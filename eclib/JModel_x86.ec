@@ -1026,9 +1026,11 @@ op VPCLMULQDQ_256 (v1 v2: W256.t) (k: W8.t): W256.t =
 (* ------------------------------------------------------------------- *)
 (* SHA instructions *)
 (*
+| SHA256RNDS2
 | SHA256MSG1
 | SHA256MSG2
 *)
+op SHA256RNDS2 (v1 v2 v3: W128.t) : W128.t = SHA.rnds2 v1 v2 v3.
 op SHA256MSG1 (v1 v2: W128.t) : W128.t = SHA.msg1 v1 v2.
 op SHA256MSG2 (v1 v2: W128.t) : W128.t = SHA.msg2 v1 v2.
 
