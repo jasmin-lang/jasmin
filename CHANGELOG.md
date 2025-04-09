@@ -3,15 +3,15 @@
 ## New features
 
 - New syntax
-  - for memory load/store: `(uXX)[aligned? x e]` become `[aligned? :uXX x e]`,
-  the syntax  `(uXX)[aligned? x e]` is deprecated.
-  - for array load/store: `t DOT? [aligned? uXX e]` become `t DOT? [aligned? :uXX e]`,
-  the syntax `t DOT? [aligned? uXX e]` is deprecated.
+  - for memory load/store: `(uXX)[aligned? x e]` becomes `[aligned? :uXX x e]`,
+    the syntax  `(uXX)[aligned? x e]` is deprecated.
+  - for array load/store: `t DOT? [aligned? uXX e]` becomes `t DOT? [aligned? :uXX e]`,
+    the syntax `t DOT? [aligned? uXX e]` is deprecated.
   
-  The script compiler/script/replace-new-memory-syntax.sh allows to perform the change automatically.
+  The script `compiler/script/replace-new-memory-syntax.sh` allows to perform the change automatically.
 
   New syntax for infix and prefix operators, the type of the arguments can be provided
-  using `:uXX`, like in `e1 +:u32 e2`. The previous syntax is not deprecated.
+  using `:uXX`, like in `e1 +:u32 e2`. The previous syntax is **not** deprecated.
   ([PR #1086](https://github.com/jasmin-lang/jasmin/pull/1086)).
 
 - Introduction of wint types siXX and uiXX (XX in [8,16,32,64,128, 256]). The
