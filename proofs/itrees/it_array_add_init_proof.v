@@ -91,6 +91,114 @@ Definition RecPostRel :=
            match e2 in recCall T2_ return fstate -> T2_ -> Prop with
            | RecCall _ _ => fs_uincl end end v1 v2.
 
+Lemma xrutt_match_option R1 R2 (RR: R1 -> R2 -> Prop)
+  (e1 e2: it_exec.error_data)                       
+  (obj1: option R1) (obj2: option R2) 
+  (A: forall v1, obj1 = Some v1 -> exists v2, obj2 = Some v2 /\ RR v1 v2) :   
+  xrutt (EE_MR (core_logics.errcutoff (is_error wE)) (D:=recCall))
+    (EE_MR core_logics.nocutoff (D:=recCall))
+    (HeterogeneousRelations.sum_prerel RecPreRel EPreRel)
+    (HeterogeneousRelations.sum_postrel RecPostRel EPostRel) RR
+    match obj1 with
+    | Some v => {| ITreeDefinition._observe := ITreeDefinition.RetF v |}
+    | None => Exception.throw e1 (* (ErrType, tt) *)
+    end
+    match obj2 with
+    | Some v => {| ITreeDefinition._observe := ITreeDefinition.RetF v |}
+    | None => Exception.throw e2 (* (ErrType, tt) *)
+    end.
+Proof.
+  destruct obj1 as [r1 | ].
+  - destruct obj2 as [r2 | ] ; try auto with *.
+    + specialize (A r1 erefl).
+      destruct A as [v2 [A1 A2]].
+      inversion A1; subst.
+      eapply xrutt_Ret; auto.
+    + specialize (A r1 erefl).
+      destruct A as [v2 [A1 A2]]; inversion A1.
+  - pstep; red. econstructor; eauto.
+    unfold EE_MR, core_logics.errcutoff, is_error; simpl.
+    rewrite mid12; auto.  
+Qed.
+
+Lemma xrutt_match_option_with_eq R (e1 e2: it_exec.error_data)                  
+  (obj1 obj2: option R) 
+  (A: forall v, obj1 = Some v -> obj2 = Some v) :    
+  xrutt (EE_MR (core_logics.errcutoff (is_error wE)) (D:=recCall))
+    (EE_MR core_logics.nocutoff (D:=recCall))
+    (HeterogeneousRelations.sum_prerel RecPreRel EPreRel)
+    (HeterogeneousRelations.sum_postrel RecPostRel EPostRel) eq
+    match obj1 with
+    | Some v => {| ITreeDefinition._observe := ITreeDefinition.RetF v |}
+    | None => Exception.throw e1 (* (ErrType, tt) *)
+    end
+    match obj2 with
+    | Some v => {| ITreeDefinition._observe := ITreeDefinition.RetF v |}
+    | None => Exception.throw e2 (* (ErrType, tt) *)
+    end.
+Proof.
+  eapply xrutt_match_option; eauto.
+Qed.
+
+Lemma xrutt_match_exec R1 R2 (RR: R1 -> R2 -> Prop)
+  (ef1 ef2: error -> it_exec.error_data)                                
+  (obj1: exec R1) (obj2: exec R2) 
+  (A: forall v1, obj1 = ok v1 -> exists v2, obj2 = ok v2 /\ RR v1 v2) :   
+  xrutt (EE_MR (core_logics.errcutoff (is_error wE)) (D:=recCall))
+    (EE_MR core_logics.nocutoff (D:=recCall))
+    (HeterogeneousRelations.sum_prerel RecPreRel EPreRel)
+    (HeterogeneousRelations.sum_postrel RecPostRel EPostRel) RR
+    match obj1 with
+    | ok _ v => {| ITreeDefinition._observe := ITreeDefinition.RetF v |}
+    | Error e => Exception.throw (ef1 e) (* (ErrType, tt) *)
+    end
+    match obj2 with
+    | ok _ v => {| ITreeDefinition._observe := ITreeDefinition.RetF v |}
+    | Error e => Exception.throw (ef2 e) (* (ErrType, tt) *)
+    end.
+Proof.
+  destruct obj1 as [r1 | ].
+  - destruct obj2 as [r2 | ] ; try auto with *.
+    + specialize (A r1 erefl); destruct A as [v2 [A1 A2]].
+      inversion A1; subst; auto.
+      eapply xrutt_Ret; auto.
+    + specialize (A r1 erefl); destruct A as [v2 [A1 A2]]; inversion A1.
+  - pstep; red. econstructor; eauto.
+    unfold EE_MR, core_logics.errcutoff, is_error; simpl.
+    rewrite mid12; auto.  
+Qed.
+
+Lemma add_init_fd_Prsrv_assoc_p_funcs (fn: funname) :
+       forall fd, assoc (p_funcs p) fn = Some fd ->
+         assoc (p_funcs (map_prog add_init_fd p)) fn = Some fd.
+Admitted.       
+
+Lemma add_init_fd_Prsrv_initialize_funcall
+  (f: fundef) (fs1 fs2: fstate) :
+  fs_uincl fs1 fs2 ->
+  forall st1, initialize_funcall p ev f fs1 = ok st1 ->
+         exists st2,  
+           initialize_funcall (map_prog add_init_fd p) ev f fs2 = ok st2 /\
+           estate_uincl st1 st2.
+Admitted. 
+
+Lemma estate_uincl_Prsrv_finalize_funcall (fn: funname) (f:
+    @fundef asm_op (@_asmop asm_op syscall_state sip) progUnit)
+  (s1 s2: estate) :
+  estate_uincl s1 s2 ->       
+  forall fs1 : fstate,
+    finalize_funcall f s1 = ok fs1 ->
+    exists fs2 : fstate,
+        finalize_funcall f s2 = ok fs2
+        /\ RecPostRel (RecCall fn fs1) fs1 (RecCall fn fs2) fs2.
+Admitted. 
+
+Lemma add_init_fd_Prsrv_get_fundef (fn: funname) : 
+  forall fd : fundef,
+    get_fundef (p_funcs p) fn = Some fd
+    -> get_fundef (p_funcs (map_prog add_init_fd p)) fn = Some fd.
+Admitted.
+
 Lemma it_add_init_fdP fn : (* scs mem scs' mem' va vr: *)
   wiequiv_f p (add_init_prog p) ev ev
     (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
@@ -109,26 +217,8 @@ Proof.
     eapply xrutt_bind with (RR:= eq); eauto. (* is eq too strong here? *)
 
     { unfold kget_fundef, ioget, get_fundef.
-
-      assert (forall fd, assoc (p_funcs p) fn1 = Some fd ->
-                assoc (p_funcs (map_prog add_init_fd p)) fn1 = Some fd) as A1.
-      { admit. }
-      
-      remember (assoc (p_funcs p) fn1) as pp1.
-      setoid_rewrite <- Heqpp1.
-      
-      remember (assoc (p_funcs (map_prog add_init_fd p)) fn1) as pp2.
-      setoid_rewrite <- Heqpp2.
-      
-      destruct pp1.
-      - destruct pp2; try auto with *.
-        + specialize (A1 _f erefl).
-          dependent destruction A1.
-          pstep; red. econstructor; auto.
-        + specialize (A1 _f erefl). inversion A1.
-      - pstep; red. econstructor; eauto.
-        unfold EE_MR, core_logics.errcutoff, is_error; simpl.
-        rewrite mid12; auto.  
+      eapply xrutt_match_option_with_eq; eauto. 
+      eapply add_init_fd_Prsrv_assoc_p_funcs; eauto.
     }
         
     { intros f1 f2 H0. 
@@ -136,29 +226,75 @@ Proof.
       eapply xrutt_bind with (RR:= estate_uincl). 
 
       { unfold iresult, err_result; simpl.
-
-        admit.
+        eapply xrutt_match_exec; eauto.
+        eapply add_init_fd_Prsrv_initialize_funcall; eauto.
       }  
 
       { intros s1 s2 H0.
         dependent destruction H0.
         eapply xrutt_bind with (RR:= estate_uincl). 
 
-        { admit. }
+        { unfold isem_cmd_, isem_foldr; simpl.
+          destruct f1. simpl.
+          revert H2 H0 H. revert s1 s2.
+          induction f_body.
+
+          - simpl; intros; eapply xrutt_Ret; eauto.
+            unfold estate_uincl; split; eauto.
+
+          - simpl; intros. eapply xrutt_bind with (RR:= estate_uincl).
+            admit.
+
+            simpl; intros; simpl in *.
+            dependent destruction H3.
+            specialize (IHf_body r1 r2 H5 H4 H3).
+            exact IHf_body.
+        }
 
         { clear H0 H2 H; clear s1 s2.
           intros s1 s2 H0.
-          dependent destruction H0.
-          admit.
+          unfold iresult, err_result.
+
+          eapply xrutt_match_exec; eauto.
+          eapply estate_uincl_Prsrv_finalize_funcall; eauto.
         }
       }
     }
   }
   
-  { admit. }
+  { unfold isem_fun_rec, isem_fun_body.
+    eapply xrutt_bind with (RR:= eq).
+
+    { unfold kget_fundef, ioget.
+      eapply xrutt_match_option_with_eq; eauto. 
+      eapply add_init_fd_Prsrv_get_fundef; eauto.
+    }
+
+    { intros r1 r2 H0; subst.
+      eapply xrutt_bind with (RR:= estate_uincl).
+
+      { unfold iresult, err_result.
+        eapply xrutt_match_exec; eauto.
+        eapply add_init_fd_Prsrv_initialize_funcall; eauto.
+      }
+
+      { intros st1 st2 H0.
+        eapply xrutt_bind with (RR:= estate_uincl).
+
+        { unfold isem_cmd_.
+          admit.
+        }
+
+        { intros s1 s2 H1.
+          unfold iresult, err_result.
+          eapply xrutt_match_exec; eauto.
+          eapply estate_uincl_Prsrv_finalize_funcall; eauto.
+         } 
+      }
+  }
 Admitted. 
   
-      
+
 (*
 
   }  
