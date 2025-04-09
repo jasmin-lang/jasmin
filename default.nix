@@ -28,6 +28,9 @@ let coqPackages =
         inherit (self) lib mkCoqDerivation coq;
       };
       hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
+      ExtLib = super.ExtLib.override { version = "master"; };
+      paco = super.paco.override { version = "master"; };
+      ITree = super.ITree.override { version = "master"; };
     })
   else coqPackages_8_20.overrideScope (self: super: {
       mathcomp = super.mathcomp.override { version = "2.2.0"; };
