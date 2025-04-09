@@ -199,6 +199,16 @@ Lemma add_init_fd_Prsrv_get_fundef (fn: funname) :
     -> get_fundef (p_funcs (map_prog add_init_fd p)) fn = Some fd.
 Admitted.
 
+Lemma it_add_init_instr_xrutt (i: instr) (s1 s2: estate) :
+  xrutt (EE_MR (core_logics.errcutoff (is_error wE)) (D:=recCall))
+    (EE_MR core_logics.nocutoff (D:=recCall))
+    (HeterogeneousRelations.sum_prerel RecPreRel EPreRel)
+    (HeterogeneousRelations.sum_postrel RecPostRel EPostRel) estate_uincl
+    (isem_i_body p ev i s1) (isem_i_body (map_prog add_init_fd p) ev i s2).
+Admitted. 
+  
+
+
 Lemma it_add_init_fdP fn : (* scs mem scs' mem' va vr: *)
   wiequiv_f p (add_init_prog p) ev ev
     (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
@@ -243,12 +253,14 @@ Proof.
             unfold estate_uincl; split; eauto.
 
           - simpl; intros. eapply xrutt_bind with (RR:= estate_uincl).
-            admit.
 
-            simpl; intros; simpl in *.
-            dependent destruction H3.
-            specialize (IHf_body r1 r2 H5 H4 H3).
-            exact IHf_body.
+            { eapply it_add_init_instr_xrutt; eauto. }
+
+            { simpl; intros; simpl in *.
+              dependent destruction H3.
+              specialize (IHf_body r1 r2 H5 H4 H3).
+              exact IHf_body.
+            }  
         }
 
         { clear H0 H2 H; clear s1 s2.
@@ -256,7 +268,7 @@ Proof.
           unfold iresult, err_result.
 
           eapply xrutt_match_exec; eauto.
-          eapply estate_uincl_Prsrv_finalize_funcall; eauto.
+          eapply estate_uincl_Prsrv_finalize_funcall with (fn := fn1); eauto.
         }
       }
     }
@@ -282,18 +294,33 @@ Proof.
         eapply xrutt_bind with (RR:= estate_uincl).
 
         { unfold isem_cmd_.
-          admit.
+          destruct r2. simpl.
+          revert H0. revert st1 st2.
+          induction f_body.
+
+          - simpl; intros; eapply xrutt_Ret; eauto.
+            unfold estate_uincl; split; eauto.
+
+          - simpl; intros. eapply xrutt_bind with (RR:= estate_uincl).
+
+            { eapply it_add_init_instr_xrutt; eauto. }
+
+            { simpl; intros; simpl in *.
+              specialize (IHf_body r1 r2 H1).
+              exact IHf_body.
+            }  
         }
 
         { intros s1 s2 H1.
           unfold iresult, err_result.
           eapply xrutt_match_exec; eauto.
-          eapply estate_uincl_Prsrv_finalize_funcall; eauto.
+          eapply estate_uincl_Prsrv_finalize_funcall with (fn := fn); eauto.
          } 
       }
-  }
-Admitted. 
-  
+    }
+ }   
+Qed.
+
 
 (*
 
