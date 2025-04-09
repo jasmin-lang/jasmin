@@ -1,0 +1,20 @@
+// FIXME: is the error/the error message correct?
+
+export fn main (reg u64 b, reg u64 i) -> reg u64 {
+  stack u64[10] s;
+  reg ptr u64[1] r;
+  reg u64 res;
+
+  s[0] = 1;
+
+  if (b != 0) {
+    r = s[i:1];
+    r[0] = 1;
+  } else {
+    r = s[0:1];
+    r[0] = 1;
+  }
+
+  res = r[0];
+  return res;
+}

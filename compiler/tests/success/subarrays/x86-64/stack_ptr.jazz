@@ -1,0 +1,13 @@
+// spill and unspill of reg ptr
+
+export fn main (reg ptr u32[2] r) -> reg u32 {
+  stack ptr u32[2] s;
+  reg u32 res;
+
+  s = r; // MOV
+  r = s; // MOV
+
+  res = r[0];
+
+  return res;
+}

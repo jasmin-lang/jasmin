@@ -1,0 +1,16 @@
+fn f (reg ptr u64[1] r1, reg ptr u64[1] r2) -> reg ptr u64[1] {
+  r1[0] = r2[0];
+  return r1;
+}
+
+export fn main () -> reg u64 {
+  stack u64[1] s;
+  reg ptr u64[1] r;
+
+  s[0] = 0;
+  r = s;
+  r = f (r, r);
+
+  reg u64 res = r[0];
+  return res;
+}

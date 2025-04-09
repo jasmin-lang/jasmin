@@ -1,0 +1,17 @@
+// should this succeed?
+
+param int N = 10;
+
+export fn main (reg u32 i) -> reg u32 {
+  stack u32[N] s;
+  stack u32[5] s2;
+  reg u32 res;
+  inline int j;
+
+  for j = 0 to N {
+    s[j] = 0;
+  }
+  s2 = s.[i:5];
+  res = s2[0];
+  return res;
+}

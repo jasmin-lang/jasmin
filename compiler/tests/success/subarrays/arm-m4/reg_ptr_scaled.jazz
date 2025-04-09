@@ -1,0 +1,11 @@
+// sub-reg ptr with variable index (scaled)
+
+export fn main (reg ptr u32[2] r, reg u32 i) -> reg u32 {
+  reg ptr u32[1] r2;
+  reg u32 res;
+
+  r2 = r[i:1]; // ADD with shift of operand
+  res = r2[0];
+
+  return res;
+}
