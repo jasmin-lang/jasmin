@@ -267,12 +267,34 @@ Lemma estate_uincl_Prsrv_write_var (s1 s2: estate) v z :
     -> exists s4, write_var true v z s2 = ok s4 /\ estate_uincl s3 s4.
 Admitted.     
 
+(* too strong *)
 Lemma estate_uincl_Prsrv_sem_pexprs (s1 s2: estate) es :
   estate_uincl s1 s2 ->       
   forall vs: values,
     sem_pexprs (~~ direct_call) gd s1 es = ok vs
     -> sem_pexprs (~~ direct_call) gd s2 es = ok vs.
 Admitted.     
+
+(* Check @sem_cond_uincl. *)
+(* Check @sem_pexpr_uincl. *)
+(* this should be right *)
+Lemma estate_uincl_Prsrv_sem_pexpr_ok (s1 s2: estate) e :
+  estate_uincl s1 s2 ->       
+  forall v1: value,
+    sem_pexpr (~~ direct_call) gd s1 e = ok v1
+    -> exists v2, 
+      sem_pexpr (~~ direct_call) gd s2 e = ok v2 /\ value_uincl v1 v2.
+Proof.
+Admitted.   
+(*  intros. have @X := sem_pexpr_uincl.
+  have @Y := sem_cond_uincl. *) 
+(*  intros.
+  unfold sem_pexprs in *.
+  revert H H0. revert vs. revert s1 s2. 
+  induction es; simpl; intros.
+  - dependent destruction H0; auto.
+  - destruct vs; simpl in *.
+*)    
 
 Lemma estate_uincl_Prsrv_upd_estate s1 s2 fs1 fs2 xs :
   estate_uincl s1 s2 ->
@@ -311,7 +333,7 @@ Proof.
     (isem_cmd_ (map_prog add_init_fd p) ev c s2).
   eapply (cmd_rect (Pr := Pr) (Pi:=Pi) (Pc:=Pc)).
   { intros; eauto. }
-  { subst Pc. simpl. intros. eapply xrutt_Ret; eauto. }
+  { subst Pc; simpl; intros. eapply xrutt_Ret; eauto. }
   { subst Pc; simpl; intros.  
     eapply xrutt_bind with (RR:= estate_uincl); eauto. }
 
@@ -336,7 +358,7 @@ Proof.
       destruct p; simpl.
       eapply xrutt_match_exec_with_eq.
       eapply estate_uincl_Prsrv_sem_cond; eauto. 
-    - intros b1 b2 H0; inversion H0; subst.
+    - intros b1 b2 H0; subst. 
       destruct b2; eauto.
   }
 
@@ -346,10 +368,8 @@ Proof.
       destruct p; simpl.
       eapply xrutt_match_exec_with_eq.
       + eapply estate_uincl_Prsrv_sem_bound; eauto.
-      + intros zz1 zz2 H1; inversion H1; subst.
-        destruct zz2 as [z1 z2]; simpl.
-        clear H2.
-        revert H0. revert s1 s2. 
+      + intros zz1 [z1 z2] H1; subst; simpl. 
+        revert H0; revert s1 s2.  
         induction (wrange dir z1 z2); simpl; intros.
         * eapply xrutt_Ret; eauto.
         * unfold isem_for_round.
@@ -372,31 +392,28 @@ Proof.
     - unfold isem_cond, iresult, err_result.
       eapply xrutt_match_exec_with_eq. 
       eapply estate_uincl_Prsrv_sem_cond; eauto. 
-    - intros s7 s8 H2.
-      inversion H2; subst. clear H3.
+    - intros s7 s8 H2; subst.
       destruct s8; eauto.
       + eapply xrutt_bind with (RR:= estate_uincl); eauto.
         intros s7 s8 H2.
         eapply xrutt_Ret; eauto.
       + eapply xrutt_Ret; eauto.
   }
-
-  { subst Pc Pr Pi; simpl. intros xs fn es inf s1 s2 H.
+  
+  { subst Pc Pr Pi; simpl; intros xs fn es inf s1 s2 H.
+    (* eq is not right, should be values_uincl *)
     eapply xrutt_bind with (RR := eq).
     unfold isem_pexprs, iresult, err_result.
     eapply xrutt_match_exec_with_eq. 
     - eapply estate_uincl_Prsrv_sem_pexprs; eauto.
     - intros vs1 vs2 H0. inversion H0; subst. clear H1.
       eapply xrutt_bind with (RR:= fs_uincl).
-      + unfold rec_call.
-        eapply xrutt_trigger; eauto.
+      + eapply xrutt_trigger; eauto.
         * econstructor; eauto.
           unfold RecPreRel.
-          split; eauto.
-          unfold fs_uincl.
-          destruct H. repeat (split; eauto).
-          induction vs2. simpl; auto.
-          simpl. econstructor; auto.
+          split; auto.
+          destruct H; split; auto.
+          induction vs2; simpl; auto.
         * intros fs1 fs2 H0.
           dependent destruction H0; auto.
       + intros fs1 fs2 H0.
@@ -411,16 +428,12 @@ Lemma it_add_init_fdP fn : (* scs mem scs' mem' va vr: *)
     (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   unfold wequiv_f, wkequiv_io, add_init_prog, isem_fun; simpl.
-  intros fs1 fs2 H; destruct H as [H0 H]; clear H0.
+  intros fs1 fs2 H; destruct H as [_ H]. 
   eapply interp_mrec_xrutt 
     with (RPreInv := RecPreRel) (RPostInv := RecPostRel); simpl.
 
-  { intros T1 T2 d1 d2 H0.
-    clear H fs1 fs2.
-    destruct d1 as [fn1 fs1].
-    destruct d2 as [fn2 fs2].
-    destruct H0 as [H0 H1].
-    dependent destruction H0.
+  { clear H fs1 fs2.
+    intros T1 T2 [fn1 fs1] [fn2 fs2] [H0 H1]; subst.
     eapply xrutt_bind with (RR:= eq); eauto. (* is eq too strong here? *)
 
     { unfold kget_fundef, ioget, get_fundef.
@@ -428,8 +441,7 @@ Proof.
       eapply add_init_fd_Prsrv_assoc_p_funcs; eauto.
     }
         
-    { intros f1 f2 H0. 
-      dependent destruction H0.
+    { intros f1 f2 H0; subst.
       eapply xrutt_bind with (RR:= estate_uincl). 
 
       { unfold iresult, err_result; simpl.
@@ -441,15 +453,14 @@ Proof.
         eapply xrutt_bind with (RR:= estate_uincl). 
 
         { unfold isem_cmd_, isem_foldr; simpl.
-          destruct f1. simpl.
+          destruct f2; simpl.
           eapply it_add_init_cmd_xrutt; eauto.
         }  
 
         { intros s3 s4 H2.
           unfold iresult, err_result.
-
           eapply xrutt_match_exec; eauto.
-          eapply estate_uincl_Prsrv_finalize_funcall with (fn := fn1); eauto.
+          eapply estate_uincl_Prsrv_finalize_funcall with (fn := fn2); eauto.
         }
       }
     }
@@ -476,18 +487,17 @@ Proof.
 
         { unfold isem_cmd_.
           destruct r2. simpl.
-
           eapply it_add_init_cmd_xrutt; eauto.
-      }
+        }
           
-      { intros s1 s2 H1.
-        unfold iresult, err_result.
-        eapply xrutt_match_exec; eauto.
-        eapply estate_uincl_Prsrv_finalize_funcall with (fn := fn); eauto.
-      } 
+        { intros s1 s2 H1.
+          unfold iresult, err_result.
+          eapply xrutt_match_exec; eauto.
+          eapply estate_uincl_Prsrv_finalize_funcall with (fn := fn); eauto.
+        } 
+      }
     }
-  }
-}   
+  }   
 Qed.
 
 
