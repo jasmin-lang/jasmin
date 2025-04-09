@@ -8,7 +8,7 @@ Require Import Coq.Program.Equality.
 
 From Paco Require Import paco.
 
-Require Import psem_of_sem_proof
+Require Import (* psem_of_sem_proof *)
                it_sems_core relational_logic.
 
 Require Import xrutt xrutt_facts.
@@ -168,6 +168,26 @@ Proof.
     rewrite mid12; auto.  
 Qed.
 
+Lemma xrutt_match_exec_with_eq R 
+  (ef1 ef2: error -> it_exec.error_data)                                
+  (obj1 obj2: exec R) 
+  (A: forall v, obj1 = ok v -> obj2 = ok v) :   
+  xrutt (EE_MR (core_logics.errcutoff (is_error wE)) (D:=recCall))
+    (EE_MR core_logics.nocutoff (D:=recCall))
+    (HeterogeneousRelations.sum_prerel RecPreRel EPreRel)
+    (HeterogeneousRelations.sum_postrel RecPostRel EPostRel) eq
+    match obj1 with
+    | ok _ v => {| ITreeDefinition._observe := ITreeDefinition.RetF v |}
+    | Error e => Exception.throw (ef1 e) (* (ErrType, tt) *)
+    end
+    match obj2 with
+    | ok _ v => {| ITreeDefinition._observe := ITreeDefinition.RetF v |}
+    | Error e => Exception.throw (ef2 e) (* (ErrType, tt) *)
+    end.
+Proof.
+  eapply xrutt_match_exec; eauto.
+Qed.  
+
 Lemma add_init_fd_Prsrv_assoc_p_funcs (fn: funname) :
        forall fd, assoc (p_funcs p) fn = Some fd ->
          assoc (p_funcs (map_prog add_init_fd p)) fn = Some fd.
@@ -199,16 +219,138 @@ Lemma add_init_fd_Prsrv_get_fundef (fn: funname) :
     -> get_fundef (p_funcs (map_prog add_init_fd p)) fn = Some fd.
 Admitted.
 
-Lemma it_add_init_instr_xrutt (i: instr) (s1 s2: estate) :
+Lemma add_init_fd_Prsrv_sem_assgn (s1 s2: estate) x tg ty e :
+  estate_uincl s1 s2 ->       
+  forall s3 : estate,
+    sem_assgn p x tg ty e s1 = ok s3
+    -> exists s4 : estate,
+        sem_assgn (map_prog add_init_fd p) x tg ty e s2 = ok s4
+        /\ estate_uincl s3 s4.
+Admitted. 
+
+Lemma estate_uincl_Prsrv_sem_sopn (s1 s2: estate) o xs es :
+  estate_uincl s1 s2 ->       
+  forall s3 : estate,
+    sem_sopn gd o s1 xs es = ok s3
+    -> exists s4 : estate,
+        sem_sopn gd o s2 xs es = ok s4
+        /\ estate_uincl s3 s4.
+Admitted. 
+
+Lemma add_init_fd_Prsrv_sem_syscall (s1 s2: estate) xs o es :
+  estate_uincl s1 s2 ->       
+  forall s3 : estate,
+    sem_syscall p xs o es s1 = ok s3
+    -> exists s4 : estate,
+        sem_syscall (map_prog add_init_fd p) xs o es s2 = ok s4
+        /\ estate_uincl s3 s4.
+Admitted. 
+
+Lemma estate_uincl_Prsrv_sem_cond (s1 s2: estate) p_globs e :
+  estate_uincl s1 s2 ->       
+  forall b: bool,
+    sem_cond p_globs e s1 = ok b
+    -> sem_cond p_globs e s2 = ok b.
+Admitted.     
+
+Lemma estate_uincl_Prsrv_sem_bound (s1 s2: estate) p_globs lo hi :
+  estate_uincl s1 s2 ->       
+  forall zz: Z * Z,
+    sem_bound p_globs lo hi s1 = ok zz
+    -> sem_bound p_globs lo hi s2 = ok zz.
+Admitted.     
+
+Lemma estate_uincl_Prsrv_write_var (s1 s2: estate) v z :
+  estate_uincl s1 s2 ->       
+  forall s3: estate,
+    write_var true v z s1 = ok s3
+    -> exists s4, write_var true v z s2 = ok s4 /\ estate_uincl s3 s4.
+Admitted.     
+
+Lemma it_add_init_cmd_xrutt (c: cmd) (s1 s2: estate)
+  (H: estate_uincl s1 s2) :
   xrutt (EE_MR (core_logics.errcutoff (is_error wE)) (D:=recCall))
     (EE_MR core_logics.nocutoff (D:=recCall))
     (HeterogeneousRelations.sum_prerel RecPreRel EPreRel)
     (HeterogeneousRelations.sum_postrel RecPostRel EPostRel) estate_uincl
+    (isem_cmd_ p ev c s1)
+    (isem_cmd_ (map_prog add_init_fd p) ev c s2).
+Proof.
+  revert H. revert s1 s2.
+  set Pi := fun (i: instr) =>
+    forall s1 s2, estate_uincl s1 s2 ->
+    xrutt (EE_MR (core_logics.errcutoff (is_error wE)) (D:=recCall))
+    (EE_MR core_logics.nocutoff (D:=recCall))
+    (HeterogeneousRelations.sum_prerel RecPreRel EPreRel)
+    (HeterogeneousRelations.sum_postrel RecPostRel EPostRel) estate_uincl
     (isem_i_body p ev i s1) (isem_i_body (map_prog add_init_fd p) ev i s2).
-Admitted. 
+  set Pr := fun (i:instr_r) => forall ii, Pi (MkI ii i).
+  set Pc := fun (c: cmd) =>
+    forall s1 s2, estate_uincl s1 s2 ->
+    xrutt (EE_MR (core_logics.errcutoff (is_error wE)) (D:=recCall))
+    (EE_MR core_logics.nocutoff (D:=recCall))
+    (HeterogeneousRelations.sum_prerel RecPreRel EPreRel)
+    (HeterogeneousRelations.sum_postrel RecPostRel EPostRel) estate_uincl
+    (isem_cmd_ p ev c s1)
+    (isem_cmd_ (map_prog add_init_fd p) ev c s2).
+  eapply (cmd_rect (Pr := Pr) (Pi:=Pi) (Pc:=Pc)).
+  { intros; eauto. }
+  { subst Pc. simpl. intros. eapply xrutt_Ret; eauto. }
+  { subst Pc; simpl; intros.  
+    eapply xrutt_bind with (RR:= estate_uincl); eauto. }
+
+  { subst Pr; subst Pi; simpl; intros.
+    unfold iresult, err_result.
+    eapply xrutt_match_exec.
+    eapply add_init_fd_Prsrv_sem_assgn; eauto. }
+
+  { subst Pr; subst Pi; simpl; intros.
+    unfold iresult, err_result.
+    eapply xrutt_match_exec.
+    eapply estate_uincl_Prsrv_sem_sopn; eauto. }
+
+  { subst Pr; subst Pi; simpl; intros.
+    unfold iresult, err_result.
+    eapply xrutt_match_exec.
+    eapply add_init_fd_Prsrv_sem_syscall; eauto. }
+
+  { subst Pc Pr Pi; simpl; intros e c1 c2 Hc1 Hc2 inf s1 s2 H.
+    eapply xrutt_bind with (RR:= eq); simpl; eauto.
+    - unfold isem_cond, iresult, err_result.
+      destruct p; simpl.
+      eapply xrutt_match_exec_with_eq.
+      eapply estate_uincl_Prsrv_sem_cond; eauto. 
+    - intros b1 b2 H0; inversion H0; subst.
+      destruct b2; eauto.
+  }
+
+  { subst Pc Pr Pi; simpl. intros v dir lo hi c0 H inf s1 s2 H0.
+    eapply xrutt_bind with (RR:= eq); simpl; eauto.
+    - unfold isem_bound, iresult, err_result.
+      destruct p; simpl.
+      eapply xrutt_match_exec_with_eq.
+      + eapply estate_uincl_Prsrv_sem_bound; eauto.
+      + intros zz1 zz2 H1; inversion H1; subst.
+        destruct zz2 as [z1 z2]; simpl.
+        clear H2.
+        revert H0. revert s1 s2. 
+        induction (wrange dir z1 z2); simpl; intros.
+        * eapply xrutt_Ret; eauto.
+        * unfold isem_for_round.
+          eapply xrutt_bind with (RR:= estate_uincl); simpl; eauto.
+          -- unfold iwrite_var, iresult, err_result.
+             eapply xrutt_match_exec.
+             eapply estate_uincl_Prsrv_write_var; eauto.
+          -- intros s3 s4 H1.
+             eapply xrutt_bind with (RR:= estate_uincl); eauto.
+  }
+          
+  { admit. }
+
+  { admit. }
+Admitted.   
   
-
-
+  
 Lemma it_add_init_fdP fn : (* scs mem scs' mem' va vr: *)
   wiequiv_f p (add_init_prog p) ev ev
     (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
@@ -241,30 +383,14 @@ Proof.
       }  
 
       { intros s1 s2 H0.
-        dependent destruction H0.
         eapply xrutt_bind with (RR:= estate_uincl). 
 
         { unfold isem_cmd_, isem_foldr; simpl.
           destruct f1. simpl.
-          revert H2 H0 H. revert s1 s2.
-          induction f_body.
+          eapply it_add_init_cmd_xrutt; eauto.
+        }  
 
-          - simpl; intros; eapply xrutt_Ret; eauto.
-            unfold estate_uincl; split; eauto.
-
-          - simpl; intros. eapply xrutt_bind with (RR:= estate_uincl).
-
-            { eapply it_add_init_instr_xrutt; eauto. }
-
-            { simpl; intros; simpl in *.
-              dependent destruction H3.
-              specialize (IHf_body r1 r2 H5 H4 H3).
-              exact IHf_body.
-            }  
-        }
-
-        { clear H0 H2 H; clear s1 s2.
-          intros s1 s2 H0.
+        { intros s3 s4 H2.
           unfold iresult, err_result.
 
           eapply xrutt_match_exec; eauto.
@@ -295,33 +421,31 @@ Proof.
 
         { unfold isem_cmd_.
           destruct r2. simpl.
-          revert H0. revert st1 st2.
-          induction f_body.
 
-          - simpl; intros; eapply xrutt_Ret; eauto.
-            unfold estate_uincl; split; eauto.
-
-          - simpl; intros. eapply xrutt_bind with (RR:= estate_uincl).
-
-            { eapply it_add_init_instr_xrutt; eauto. }
-
-            { simpl; intros; simpl in *.
-              specialize (IHf_body r1 r2 H1).
-              exact IHf_body.
-            }  
-        }
-
-        { intros s1 s2 H1.
-          unfold iresult, err_result.
-          eapply xrutt_match_exec; eauto.
-          eapply estate_uincl_Prsrv_finalize_funcall with (fn := fn); eauto.
-         } 
+          eapply it_add_init_cmd_xrutt; eauto.
       }
+          
+      { intros s1 s2 H1.
+        unfold iresult, err_result.
+        eapply xrutt_match_exec; eauto.
+        eapply estate_uincl_Prsrv_finalize_funcall with (fn := fn); eauto.
+      } 
     }
- }   
+  }
+}   
 Qed.
 
 
+(*
+Lemma it_add_init_instr_xrutt (i: instr) (s1 s2: estate) :
+  xrutt (EE_MR (core_logics.errcutoff (is_error wE)) (D:=recCall))
+    (EE_MR core_logics.nocutoff (D:=recCall))
+    (HeterogeneousRelations.sum_prerel RecPreRel EPreRel)
+    (HeterogeneousRelations.sum_postrel RecPostRel EPostRel) estate_uincl
+    (isem_i_body p ev i s1) (isem_i_body (map_prog add_init_fd p) ev i s2).
+  destruct i.
+Admitted.
+*)
 (*
 
   }  
