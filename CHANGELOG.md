@@ -2,10 +2,12 @@
 # [unreleased]
 ## New features
 
-- New syntax for memory load/store (uXX)[aligned? x e] become [aligned? :uXX x e],
+- New syntax
+  - for memory load/store: `(uXX)[aligned? x e] become [aligned? :uXX x e]`,
   the syntax  (uXX)[aligned? x e] is deprecated.
-  New syntax for array load/store t DOT? [aligned? uXX e] become t DOT? [aligned? :uXX e],
+  - for array load/store: `t DOT? [aligned? uXX e]` become `t DOT? [aligned? :uXX e]`,
   the syntax t DOT? [aligned? uXX e] is deprecated.
+  
   The script compiler/script/replace.sh allows to perform the change automatically.
 
   New syntax for infix and prefix operators, the type of the arguments can be provided
