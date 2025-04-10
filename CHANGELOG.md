@@ -12,6 +12,18 @@
   Introduce zquot and zrem operators on int : `e1 /s e2` and `e1 %s e2`.
   ([PR #1071](https://github.com/jasmin-lang/jasmin/pull/1071)).
 
+## Other changes
+
+- The deprecated legacy interface to extract to EasyCrypt has been removed
+  ([PR #1114](https://github.com/jasmin-lang/jasmin/pull/1114)).
+
+- Rewriting of assembly printers
+  ([PR #1118](https://github.com/jasmin-lang/jasmin/pull/1118)).
+
+# Jasmin 2025.02.1 — Nancy, 2025-04-10
+
+## New features
+
 - Add support for x86 `SHA256MSG1`, `SHA256MSG2`, and `SHA256RNDS2` instructions
   ([PR #1116](https://github.com/jasmin-lang/jasmin/pull/1116);
   fixes [#1040](https://github.com/jasmin-lang/jasmin/issues/1040)).
@@ -53,10 +65,7 @@
 
 ## Other changes
 
-- The deprecated legacy interface to extract to EasyCrypt has been removed
-  ([PR #1114](https://github.com/jasmin-lang/jasmin/pull/1114)).
-
-- Add warning to signal deprecated intrinsic operators 
+- Add warning to signal deprecated intrinsic operators
   ([PR #1092](https://github.com/jasmin-lang/jasmin/pull/1092)).
 
 - Some warnings are now disabled by default: when introducing assignements
@@ -64,9 +73,6 @@
   instructions (`-wlea`); they can be enabled using a new command-line argument
   `-wall` or individually using the corresponding flag
   ([PR #1087](https://github.com/jasmin-lang/jasmin/pull/1087)).
-
-- Rewriting of assembly printers
-  ([PR #1118](https://github.com/jasmin-lang/jasmin/pull/1118)).
 
 # Jasmin 2025.02.0 — Nancy, 2025-02-28
 
