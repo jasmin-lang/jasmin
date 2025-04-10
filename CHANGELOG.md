@@ -65,7 +65,7 @@
 
 ## Other changes
 
-- Add warning to signal deprecated intrinsic operators 
+- Add warning to signal deprecated intrinsic operators
   ([PR #1092](https://github.com/jasmin-lang/jasmin/pull/1092)).
 
 - Some warnings are now disabled by default: when introducing assignements
