@@ -18,8 +18,7 @@ Require Import
   lowering
   slh_lowering
   slh_lowering_proof
-  stack_alloc
-  stack_alloc_proof_1
+  stack_alloc_params_proof
   stack_zeroization_proof.
 Require
   arch_sem.
