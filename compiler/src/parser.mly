@@ -252,7 +252,7 @@ prim:
     let ct =
       match ct with
       | Some (c, ct) ->
-        if c = None then Syntax.parse_error ~msg:"`:` excepted" (L.loc ct);
+        if c = None then Syntax.parse_error ~msg:"`:` expected" (L.loc ct);
         Some ct
       | None -> None in
     al, ct, v, e }
@@ -271,7 +271,7 @@ arr_access:
       match ws with
       | Some (c, ct) ->
         if c = None then begin
-          let sw =  string_of_swsize_ty (L.unloc ct) in
+          let sw = string_of_swsize_ty (L.unloc ct) in
           let sd = if s = None then "" else "." in
           Utils.warning Deprecated (Location.of_loc ct)
              "Syntax t%s[%s e] is deprecated. Use t%s[:%s e] instead" sd sw sd sw
