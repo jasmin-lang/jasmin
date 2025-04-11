@@ -57,7 +57,7 @@ let pp_register ~(reg_pre:string) (ws : rsize) (reg : register) =
     | `RSrcIdx -> "si"
     | `RDstIdx -> "di" in
 
-  let s = 
+  let s =
     match lreg_of_reg reg, ws with
     | RNumeric i, `U8  -> Format.asprintf "r%d%s" i "b"
     | RNumeric i, `U16 -> Format.asprintf "r%d%s" i "w"
@@ -93,7 +93,7 @@ let pp_xmm_register ~(reg_pre:string) (ws: wsize) (r: xmm_register) : string =
   Format.asprintf "%s%smm%d"
     reg_pre
     (match ws with
-     | U8 
+     | U8
      | U16
      | U32
      | U64
@@ -217,7 +217,7 @@ module ATTSyntax : X86AsmSyntax = struct
     let base = addr.ad_base in
     let off  = addr.ad_offset in
     let scal = addr.ad_scale in
-  
+
     if Option.is_none base && Option.is_none off then
       Z.to_string disp
     else begin
@@ -225,7 +225,7 @@ module ATTSyntax : X86AsmSyntax = struct
       let disp = Option.map_default Z.to_string "" disp in
       let base = Option.map_default (pp_register ~reg_pre `U64) "" base in
       let off  = Option.map (pp_register ~reg_pre `U64) off in
-  
+
       match off, scal with
       | None, _ ->
           Format.asprintf "%s(%s)" disp base
@@ -234,30 +234,29 @@ module ATTSyntax : X86AsmSyntax = struct
       | Some off, _ ->
           Format.asprintf "%s(%s,%s,%s)" disp base off (pp_scale scal)
     end
-  
+
   let pp_adress _ws (addr : (_, _, _, _, _) Arch_decl.address) =
     match addr with
     | Areg ra -> pp_reg_address ra
     | Arip d ->
       let disp = Z.to_string (Conv.z_of_int64 d) in
       Format.asprintf "%s + %s(%%rip)" global_datas_label disp
-  
-  let rev_args = List.rev 
+
+  let rev_args = List.rev
 
   (* -------------------------------------------------------------------- *)
-  
+
   let pp_iname_ext ws = pp_instr_wsize ws
   let pp_iname2_ext _ ws1 ws2 = Format.asprintf "%s%s" (pp_instr_wsize ws1) (pp_instr_wsize ws2)
 
-  let pp_storelabel name dst lbl = 
+  let pp_storelabel name dst lbl =
       let op = Format.asprintf "lea%s" (pp_instr_wsize U64) in
       let load = Format.asprintf "%s(%%rip)" (string_of_label name lbl) in
       let storage = (pp_register ~reg_pre `U64 dst) in
     [Instr (op, [load; storage])]
 
   let asm_syntax = Header(".att_syntax", [])
-end 
-
+end
 
 module IntelSyntax : X86AsmSyntax = struct
 
@@ -271,21 +270,21 @@ module IntelSyntax : X86AsmSyntax = struct
     let base = addr.ad_base in
     let off  = addr.ad_offset in
     let scal = addr.ad_scale in
-  
+
     if Option.is_none base && Option.is_none off then
       Z.to_string disp
-    else 
+    else
       let disp = if Z.equal disp Z.zero then None else Some disp in
       let disp = Option.map Z.to_string disp in
       let base = Option.map (pp_register ~reg_pre `U64) base in
       let off  = Option.map (pp_register ~reg_pre `U64) off in
-      let off = 
+      let off =
         match off with
         | Some so when scal <> O -> Some (Format.asprintf "%s * %s" so (pp_scale scal))
         | _ -> off in
       String.concat " + " (List.pmap (fun x -> x) [base; off; disp])
-  
-    let pp_address_size (ws:wsize) = 
+
+    let pp_address_size (ws:wsize) =
       match ws with
       | U8   -> "byte"
       | U16  -> "word"
@@ -300,14 +299,14 @@ module IntelSyntax : X86AsmSyntax = struct
     | Arip d ->
       let disp = Z.to_string (Conv.z_of_int64 d) in
       Format.asprintf "%s ptr [rip + %s + %s]" (pp_address_size ws) global_datas_label disp
-  
+
   let rev_args args = args
 
   let pp_iname_ext _ = ""
 
   let pp_iname2_ext ext _ _ = ext
 
-  let pp_storelabel name dst lbl = 
+  let pp_storelabel name dst lbl =
       let reg = pp_register ~reg_pre `U64 dst in
       let storage = Format.asprintf "[rip + %s]" (string_of_label name lbl) in
       [Instr ("lea", [reg ; storage])]
@@ -316,7 +315,21 @@ module IntelSyntax : X86AsmSyntax = struct
 
 end
 
-module X86AsmTranslate (AsmSyntax: X86AsmSyntax) = struct
+module X86AsmTranslate (AsmSyntax: X86AsmSyntax) : AsmTargetBuilder.AsmTarget
+with type reg = X86_decl.register
+and type regx = X86_decl.register_ext
+and type xreg = X86_decl.xmm_register
+and type rflag = X86_decl.rflag
+and type cond = X86_decl.condt
+and type asm_op = X86_instr_decl.x86_op
+= struct
+
+  type reg = X86_decl.register
+  type regx = X86_decl.register_ext
+  type xreg = X86_decl.xmm_register
+  type rflag = X86_decl.rflag
+  type cond = X86_decl.condt
+  type asm_op = X86_instr_decl.x86_op
 
   open AsmSyntax
 
@@ -356,7 +369,7 @@ module X86AsmTranslate (AsmSyntax: X86AsmSyntax) = struct
   let pp_name_ext pp_op =
     Format.asprintf "%s%s" pp_op.pp_aop_name (pp_ext pp_op.pp_aop_ext)
 
-  let asm_instr_r name (instr_r : (_, _, _, _, _, _) Arch_decl.asm_i_r) =
+  let pp_instr_r name (instr_r : (_, _, _, _, _, _) Arch_decl.asm_i_r) =
     match instr_r with
     | ALIGN ->
       [Instr (".p2align", ["5"])]
@@ -385,108 +398,39 @@ module X86AsmTranslate (AsmSyntax: X86AsmSyntax) = struct
       let pp = id.id_pp_asm args in
       let name = pp_name_ext pp in
       [Instr(name, (pp_asm_args pp.pp_aop_args))]
-  
-  let asm_debug_info ({Location.base_loc = ii; _}, _) =
-    List.map (fun x -> Dwarf x) (DebugInfo.source_positions ii)
 
-  let pp_instr name instr =
-    let Arch_decl.({ asmi_i = i; asmi_ii = ii}) = instr in
-    asm_debug_info ii @ asm_instr_r name i
+  let function_header = []
 
-  let pp_instrs name instrs =
-    List.fold_left (fun acc instr ->
-      acc @ (pp_instr name instr)
-    ) [] instrs
+  let function_tail = [Instr ("ret", [])]
 
-  let pp_function_body (n,d) =
-    let name = n.fn_name in
-    let export = d.asm_fd_export in
-    let function_label = if export then
-      let name = escape name in
-      [
-        Label (mangle (name));
-        Label (name);
-      ]
-    else
-      []
-    in
-    let function_body =
-      pp_instrs name d.asm_fd_body in
-    let function_tail = if export then
-      [
-        Instr ("ret", []);
-      ]
-    else
-      []
-    in
-    function_label @ function_body @ function_tail
-
-  let pp_functions_body funcs =
-    List.fold_left (fun acc (func) ->
-      acc @ (pp_function_body func)
-    ) [] funcs
-
-  let asm_function_head (n,d) =
-    if d.asm_fd_export then
-      let fn = escape n.fn_name in
-    [
-      Instr (".global", [mangle fn]);
-      Instr (".global", [fn])
-    ]
-    else []
-
-  let pp_functions_head (funcs) =
-    List.fold_left (fun acc (func) ->
-      acc @ (asm_function_head func)
-    ) [] funcs
-
-  let asm_headers =
+  let headers =
     [
       asm_syntax;
       Header (".text", []);
       Header (".p2align", ["5"]); (* Need to determine what 5 is*)
     ]
 
-  let pp_data_segment_header globs names =
-
-      let name = global_datas_label in
-      let mname = mangle name in
-      [
-        Header (".data", []);
-        Header (".p2align", [pp_align U256]);
-        Label (mname);
-        Label (name);
-      ]
-
-  let pp_data_segment_body globs names =
-    let datas = Asm_utils.format_glob_data globs names in
-    List.fold_left (fun acc data ->
-      acc @ [(data)]
-    ) [] datas
-
-  let pp_data_segment globs names =
-    if not (List.is_empty globs) then
-      let headers = pp_data_segment_header globs names in
-      let data = pp_data_segment_body globs names in
-      headers @ data
-    else
-      []
-
-  let asm_of_prog (asm : X86_instr_decl.x86_prog) =
-    let headers = asm_headers in
-    let functions_head = pp_functions_head asm.asm_funcs in
-    let functions_body = pp_functions_body asm.asm_funcs in
-    let data_segment = pp_data_segment asm.asm_globs asm.asm_glob_names in
-    headers @ functions_head @ functions_body @ data_segment
+  let data_segment_header =
+    let name = global_datas_label in
+    let mname = mangle name in
+    [
+      Header (".data", []);
+      Header (".p2align", [pp_align U256]);
+      Label (mname);
+      Label (name);
+    ]
 
 end
 
 module TranslateATT = X86AsmTranslate(ATTSyntax)
 module TranslateIntel = X86AsmTranslate(IntelSyntax)
 
+module ATTPrinter = AsmTargetBuilder.Make(TranslateATT)
+module InterPrinter = AsmTargetBuilder.Make(TranslateIntel)
+
 let asm_of_prog (asm : X86_instr_decl.x86_prog) =
   match !Glob_options.assembly_style with
-  | `ATT -> TranslateATT.asm_of_prog asm
-  | `Intel -> TranslateIntel.asm_of_prog asm
+  | `ATT -> ATTPrinter.asm_of_prog asm
+  | `Intel -> InterPrinter.asm_of_prog asm
 
 let print_prog fmt p = PrintASM.pp_asm fmt (asm_of_prog p)

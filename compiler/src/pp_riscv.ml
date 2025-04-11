@@ -1,7 +1,5 @@
-(* Assembly printer for RISC-V.
-*)
-
 open Arch_decl
+open AsmTargetBuilder
 open Utils
 open PrintCommon
 open Prog
@@ -65,13 +63,6 @@ let pp_asm_arg (arg : (register, Arch_utils.empty, Arch_utils.empty, Arch_utils.
   | Addr  (Arip r) -> Some (pp_rip_address r)
   | XReg _ -> .
 
-(* -------------------------------------------------------------------- *)
-
-(* TODO_RISCV: Review. *)
-let headers = []
-
-(* -------------------------------------------------------------------- *)
-
 let pp_iname_ext _ = ""
 let pp_iname2_ext ext _ _ = ext
 
@@ -87,111 +78,93 @@ let pp_ext = function
 let pp_name_ext pp_op =
   Format.asprintf "%s%s" pp_op.pp_aop_name (pp_ext pp_op.pp_aop_ext)
 
-let pp_instr fn i =
-  match i with
-  | ALIGN ->
-      failwith "TODO_RISCV: pp_instr align"
+module RiscVTarget: AsmTarget
+  with type reg = Riscv_decl.register
+  and type regx = Arch_utils.empty
+  and type xreg = Arch_utils.empty
+  and type rflag = Arch_utils.empty
+  and type cond = Riscv_decl.condt
+  and type asm_op = Riscv_instr_decl.riscv_op
+= struct
 
-  | LABEL (_, lbl) ->
-      [ Label (string_of_label fn lbl) ]
+  type reg   = Riscv_decl.register
+  type regx  = Arch_utils.empty
+  type xreg  = Arch_utils.empty
+  type rflag = Arch_utils.empty
+  type cond  = Riscv_decl.condt
+  type asm_op = Riscv_instr_decl.riscv_op
 
-  | STORELABEL (dst, lbl) ->
-      [ Instr ("adr", [ pp_register dst; string_of_label fn lbl ]) ]
 
-  | JMP lbl ->
-      [ Instr ("j", [ pp_remote_label lbl ]) ]
+  (* TODO_RISCV: Review. *)
+  let headers = []
 
-  | JMPI arg ->
-      begin match arg with
-      | Reg RA -> [Instr ("ret", [])]
-      | Reg r -> [ Instr ("jr", [ pp_register r ]) ]
-      | _ -> failwith "TODO_RISCV: pp_instr jmpi"
-      end
-
-  | Jcc (lbl, ct) ->
-      let iname = pp_condition_kind ct.cond_kind in
-      let cond_fst = pp_cond_arg ct.cond_fst in
-      let cond_snd = pp_cond_arg ct.cond_snd in
-      [ Instr (iname, [ cond_fst; cond_snd; string_of_label fn lbl ]) ]
-
-  | JAL (RA, lbl) ->
-      [Instr ("call", [pp_remote_label lbl])]
-
-  | JAL _
-  | CALL _
-  | POPPC ->
-      assert false
-
-  | SysCall op ->
-      [Instr ("call", [ pp_syscall op ])]
-
-  | AsmOp (op, args) ->
-      let id = instr_desc riscv_decl riscv_op_decl (None, op) in
-      let pp = id.id_pp_asm args in
-      let name = pp_name_ext pp in
-      let args = List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args in
-      [ Instr (name, args) ]
-
-(* -------------------------------------------------------------------- *)
-
-let pp_body fn =
-  let open List in
-  concat_map @@ fun { asmi_i = i ; asmi_ii = (ii, _) } ->
-  let i =
-    try pp_instr fn i
-    with HiError err -> raise (HiError (Utils.add_iloc err ii)) in
-  append
-    (List.map (fun x -> Dwarf x) (DebugInfo.source_positions ii.base_loc))
-    i
-
-let pp_fn_prefix fn fd =
-  let fn = escape fn in
-  if fd.asm_fd_export then
+  let data_segment_header =
     [
-      Label (mangle fn);
-      Label fn;
+      Instr (".p2align", ["5"]) ;
+      Label global_datas_label
+    ]
+
+  let function_header =
+    [
       Instr ("addi", [ pp_register SP; pp_register SP; "-4"]);
       Instr ("sw", [ pp_register RA;  pp_reg_address_aux (pp_register SP) None None None])
     ]
-  else []
 
-let pp_fn_pos fn fd =
-  if fd.asm_fd_export then
+  let function_tail =
     [
       Instr ("lw", [ pp_register RA;  pp_reg_address_aux (pp_register SP) None None None]);
       Instr ("addi", [ pp_register SP; pp_register SP; "4"]);
       Instr ("ret", [ ])
     ]
-  else []
 
-let pp_fun (fn, fd) =
-  let fn = fn.fn_name in
-  let pre = pp_fn_prefix fn fd in
-  let body = pp_body fn fd.asm_fd_body in
-  let pos = pp_fn_pos fn fd in
-  pre @ body @ pos
 
-let pp_funcs funs = List.concat_map pp_fun funs
+  let pp_instr_r fn instr =
+    match instr with
+    | ALIGN ->
+        failwith "TODO_RISCV: pp_instr align"
 
-let pp_data globs names =
-  if not (List.is_empty globs) then
-    Instr (".p2align", ["5"]) ::
-    Label global_datas_label :: format_glob_data globs names
-  else []
+    | LABEL (_, lbl) ->
+        [ Label (string_of_label fn lbl) ]
 
-let pp_fn_decl (fn,fd) =
-  let fn = escape fn.fn_name in
-  if fd.asm_fd_export then
-    [ Instr (".global", [ mangle fn ]); Instr (".global", [ fn ]) ]
-  else []
-  
-let pp_decls funcs = 
-  List.concat_map pp_fn_decl funcs
+    | STORELABEL (dst, lbl) ->
+        [ Instr ("adr", [ pp_register dst; string_of_label fn lbl ]) ]
 
-let pp_prog p =
-  let decls = pp_decls p.asm_funcs in
-  let code = pp_funcs p.asm_funcs in
-  let data = pp_data p.asm_globs p.asm_glob_names in
-  headers @ decls @ code @ data
+    | JMP lbl ->
+        [ Instr ("j", [ pp_remote_label lbl ]) ]
 
-let print_prog fmt p = PrintASM.pp_asm fmt (pp_prog p)
+    | JMPI arg ->
+        begin match arg with
+        | Reg RA -> [Instr ("ret", [])]
+        | Reg r -> [ Instr ("jr", [ pp_register r ]) ]
+        | _ -> failwith "TODO_RISCV: pp_instr jmpi"
+        end
+
+    | Jcc (lbl, ct) ->
+        let iname = pp_condition_kind ct.cond_kind in
+        let cond_fst = pp_cond_arg ct.cond_fst in
+        let cond_snd = pp_cond_arg ct.cond_snd in
+        [ Instr (iname, [ cond_fst; cond_snd; string_of_label fn lbl ]) ]
+
+    | JAL (RA, lbl) ->
+        [Instr ("call", [pp_remote_label lbl])]
+
+    | JAL _
+    | CALL _
+    | POPPC ->
+        assert false
+
+    | SysCall op ->
+        [Instr ("call", [ Asm_utils.pp_syscall op ])]
+
+    | AsmOp (op, args) ->
+        let id = instr_desc riscv_decl riscv_op_decl (None, op) in
+        let pp = id.id_pp_asm args in
+        let name = pp_name_ext pp in
+        let args = List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args in
+        [ Instr (name, args) ]
+
+end
+
+module RiscVPrinter = AsmTargetBuilder.Make(RiscVTarget)
+
+let print_prog fmt prog = PrintASM.pp_asm fmt (RiscVPrinter.asm_of_prog prog)
