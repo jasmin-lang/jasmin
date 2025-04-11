@@ -8,11 +8,11 @@ fn test_pmovmskb(reg u64 tmp) {
   x = #set0_128();
   y = #set0_256();
   a = #VPMOVMSKB_u128u32(x);
-  (u32) [tmp] = a;
+  [:u32 tmp] = a;
   b = #VPMOVMSKB_u128u64(x);
   [tmp] = b;
   a = #VPMOVMSKB_u256u32(y);
-  (u32) [tmp] = a;
+  [:u32 tmp] = a;
   b = #VPMOVMSKB_u256u64(y);
   [tmp] = b;
 }

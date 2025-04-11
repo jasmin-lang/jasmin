@@ -8,7 +8,7 @@ fn poly1305(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k) -> reg u64 {
   stack u32[17] r, h, c;
 
   for i = 0 to 16 {
-    tmp = (u8)[k + i];
+    tmp = [:u8 k + i];
     if i % 4 == 3 { tmp &= 15; }
     if i == 4 || i == 8 || i == 12 { tmp &= 252; }
     tmp32 = (32u) tmp;
@@ -22,7 +22,7 @@ fn poly1305(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k) -> reg u64 {
   while (inlen > 0) {
     if inlen >= 16 {
       for i = 0 to 16 {
-        tmp = (u8)[in + i];
+        tmp = [:u8 in + i];
         tmp32 = (32u) tmp;
         c[i] = tmp32;
       }
@@ -36,7 +36,7 @@ fn poly1305(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k) -> reg u64 {
         tmp32 = #set0_32();
         of, cf, sf, _, zf = #CMP(inlen, i);
         if inlen > i { // inlen > i
-          tmp = (u8)[in + i];
+          tmp = [:u8 in + i];
           tmp32 = (32u) tmp;
         }
         tmp32 = one if zf; // inlen == i

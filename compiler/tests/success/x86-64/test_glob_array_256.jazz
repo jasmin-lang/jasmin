@@ -37,13 +37,13 @@ export fn sum1 (reg u64 x) -> reg u64 {
   reg u128 aux;
 
   gt1 = glob_t; 
-  aux = glob_t[u128 0];
+  aux = glob_t[:u128 0];
 
   i = 16;
   
   while (i <= 7 * 16) {
     
-    aux ^= gt1.[u128 i];
+    aux ^= gt1.[:u128 i];
     i += 16;
   }
 
@@ -51,7 +51,7 @@ export fn sum1 (reg u64 x) -> reg u64 {
   
   while (i <= 3 * 4) {
     
-    aux ^= gt1.[u128 8 * i];
+    aux ^= gt1.[:u128 8 * i];
     i += 4;
   }
 

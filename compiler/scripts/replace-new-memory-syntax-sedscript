@@ -1,0 +1,6 @@
+s/( *\(u[0-9]*\) *) *\[ *#aligned/[#aligned:\1/g
+s/( *\(u[0-9]*\) *) *\[ *#unaligned/[#unaligned:\1/g
+s/( *\(u[0-9]*\) *) *\[/[:\1 /g
+s/\[ *#aligned *\(u[0-9]*\)/[#aligned:\1/g
+s/\[ *#unaligned *\(u[0-9]*\)/[#unaligned:\1/g
+s/\[ *\(u[0-9]*\)/[:\1/g

@@ -85,10 +85,10 @@ inline fn _aes_enc(reg u128 key, reg u128 in) -> reg u128 {
   
 export fn aes_enc(reg u64 pkey, reg u64 pin, reg u64 pout) {
   reg u128 in, key, out;
-  in  = (u128)[pin];
-  key = (u128)[pkey];
+  in  = [:u128 pin];
+  key = [:u128 pkey];
   out = _aes_enc(key, in);
-  (u128)[pout] = out;
+  [:u128 pout] = out;
 }
 
 

@@ -16,7 +16,7 @@ fn test_u16 () -> reg u16 {
    i = 0;
    a[i] = 3;
    reg u16 r;
-   r = a[u16 i];
+   r = a[:u16 i];
 
    return r;
 }

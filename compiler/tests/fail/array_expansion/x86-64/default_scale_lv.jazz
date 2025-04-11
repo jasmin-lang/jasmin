@@ -7,8 +7,8 @@ export fn main () -> reg u64 {
     r[i] = 0;
   }
 
-  r[u32 0] = 2;
-  r[u32 1] = 1;
+  r[:u32 0] = 2;
+  r[:u32 1] = 1;
   res = r[0];
 
   return res;

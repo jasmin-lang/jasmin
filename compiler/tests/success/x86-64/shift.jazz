@@ -5,24 +5,24 @@ reg u16 a, b;
 reg u32 c, d;
 reg u64 e, f;
 
-a = (u16)[p + 0];
-b = (u16)[p + 2];
+a = [:u16 p + 0];
+b = [:u16 p + 2];
 
 ?{}, a = #SHLD_16(a, b, 3);
 n = a;
 n &= 0x0f;
 ?{}, a = #SHLD_16(a, b, n);
 
-(u16)[p + 0] = a;
+[:u16 p + 0] = a;
 
-c = (u32)[p + 0];
-d = (u32)[p + 4];
+c = [:u32 p + 0];
+d = [:u32 p + 4];
 
 ?{}, c = #SHLD_32(c, d, 17);
 n = 9;
 ?{}, c = #SHLD_32(c, d, n);
 
-(u32)[p + 0] = c;
+[:u32 p + 0] = c;
 
 e = [p + 0];
 f = [p + 8];
@@ -41,24 +41,24 @@ reg u16 a, b;
 reg u32 c, d;
 reg u64 e, f;
 
-a = (u16)[p + 0];
-b = (u16)[p + 2];
+a = [:u16 p + 0];
+b = [:u16 p + 2];
 
 ?{}, a = #SHRD_16(a, b, 3);
 n = a;
 n &= 0xf;
 ?{}, a = #SHRD_16(a, b, n);
 
-(u16)[p + 0] = a;
+[:u16 p + 0] = a;
 
-c = (u32)[p + 0];
-d = (u32)[p + 4];
+c = [:u32 p + 0];
+d = [:u32 p + 4];
 
 ?{}, c = #SHRD_32(c, d, 17);
 n = 9;
 ?{}, c = #SHRD_32(c, d, n);
 
-(u32)[p + 0] = c;
+[:u32 p + 0] = c;
 
 e = [p + 0];
 f = [p + 8];
@@ -90,7 +90,7 @@ fn test_bmi_shifts(reg u64 x) -> reg u32 {
   x = #SARX_64(g[0], x);
   x = #SHRX_64(y, x);
   x = #SHLX_64(x, x);
-  z = #SARX_32(g[u32 0], x);
+  z = #SARX_32(g[:u32 0], x);
   z = #SHRX_32(z, x);
   z = #SHLX_32(x, z);
   return z;

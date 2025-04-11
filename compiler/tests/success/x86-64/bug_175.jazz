@@ -28,7 +28,7 @@ inline fn store(reg u64 p, reg ptr u64[N] x)
   i = 0;
   while(i < N)
   { t = x[i];
-    (u64)[p + 8*i] = t;
+    [:u64 p + 8*i] = t;
     i += 1;
   }
 }

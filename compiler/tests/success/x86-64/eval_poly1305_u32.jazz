@@ -37,7 +37,7 @@ fn add_and_store(reg u64 out, stack u32[17] h, stack u32[17] c) {
   for j = 0 to 16 {
     u += h[j];
     u += c[j];
-    tmp = u; tmp &= 255; (u8)[out + j] = tmp;
+    tmp = u; tmp &= 255; [:u8 out + j] = tmp;
     u >>= 8;
   }
 }
@@ -127,7 +127,7 @@ fn poly1305(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k) -> reg u64 {
   stack u32[17] r, h, c;
 
   for i = 0 to 16 {
-    tmp = (u8)[k + i];
+    tmp = [:u8 k + i];
     if i % 4 == 3 { tmp &= 15; }
     if i == 4 || i == 8 || i == 12 { tmp &= 252; }
     tmp32 = (32u) tmp;
@@ -141,7 +141,7 @@ fn poly1305(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k) -> reg u64 {
   while (inlen > 0) {
     if inlen >= 16 {
       for i = 0 to 16 {
-        tmp = (u8)[in + i];
+        tmp = [:u8 in + i];
         tmp32 = (32u) tmp;
         c[i] = tmp32;
       }
@@ -156,7 +156,7 @@ fn poly1305(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k) -> reg u64 {
         ?{}, tmp32 = #set0_32();
         ?{ "==" = eq, ">s" = gt} = #CMP(inlen, i);
         if gt { // inlen > i
-          tmp = (u8)[in + i];
+          tmp = [:u8 in + i];
           tmp32 = (32u) tmp;
         }
         tmp32 = one if eq; // inlen == i
@@ -172,7 +172,7 @@ fn poly1305(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k) -> reg u64 {
   h = freeze(h);
 
   for i = 0 to 16 {
-    tmp = (u8)[k + i + 16];
+    tmp = [:u8 k + i + 16];
     tmp32 = (32u) tmp;
     c[i] = tmp32;
   }

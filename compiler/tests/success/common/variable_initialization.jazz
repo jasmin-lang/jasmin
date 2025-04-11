@@ -43,6 +43,6 @@ export fn whitespace() -> reg u32 {
 export fn rand() -> reg u32 {
   stack u8[4] _x x = #randombytes(_x);
   reg u32 r;
-  r = x[u32 0];
+  r = x[:u32 0];
   return r;
 }

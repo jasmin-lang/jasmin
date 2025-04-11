@@ -189,6 +189,7 @@ svsize:
 castop1:
 | s=swsize { CSS s }
 | s=svsize { CVS s }
+| COLON s=utype { CSS s }
 
 castop:
 | c=loc(castop1)? { c }
@@ -237,18 +238,47 @@ prim:
 | ALIGNED { `Aligned }
 | UNALIGNED { `Unaligned }
 
+%inline access_type:
+ | c=COLON? ct=loc(utype) { c, ct }
+
 %inline mem_access:
-| ct=parens(loc(utype))? LBRACKET al=unaligned? v=var e=mem_ofs? RBRACKET
-  { al, ct, v, e }
+| ct=loc(parens(utype)) LBRACKET al=unaligned? v=var e=mem_ofs? RBRACKET
+  { let s = string_of_swsize_ty (L.unloc ct) in
+    Utils.warning Deprecated (Location.of_loc ct)
+       "Syntax (%s)[x + e] is deprecated. Use [:%s x + e] instead" s s ;
+    al, Some ct, v, e }
+| LBRACKET al=unaligned? ct=access_type? v=var e=mem_ofs? RBRACKET
+  {
+    let ct =
+      match ct with
+      | Some (c, ct) ->
+        if c = None then Syntax.parse_error ~msg:"`:` expected" (L.loc ct);
+        Some ct
+      | None -> None in
+    al, ct, v, e }
 
 arr_access_len:
 | COLON e=pexpr { e }
 
 arr_access_i:
-| al=unaligned? ws=loc(utype)? e=pexpr len=arr_access_len? {ws, e, len, al }
+| al=unaligned? ws=access_type? e=pexpr len=arr_access_len? { ws, e, len, al }
 
 arr_access:
  | s=DOT?  i=brackets(arr_access_i) {
+
+   let (ws, e, len, al) = i in
+   let ws =
+      match ws with
+      | Some (c, ct) ->
+        if c = None then begin
+          let sw = string_of_swsize_ty (L.unloc ct) in
+          let sd = if s = None then "" else "." in
+          Utils.warning Deprecated (Location.of_loc ct)
+             "Syntax t%s[%s e] is deprecated. Use t%s[:%s e] instead" sd sw sd sw
+        end;
+        Some ct
+      | None -> None in
+   let i = ws, e, len, al in
    let s = if s = None then Warray_.AAscale else Warray_.AAdirect in
    s, i }
 
