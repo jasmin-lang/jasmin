@@ -430,8 +430,8 @@ module X86AsmTranslate (AsmSyntax: X86AsmSyntax) = struct
     if d.asm_fd_export then
       let fn = escape n.fn_name in
     [
-      Instr (".globl", [mangle fn]);
-      Instr (".globl", [fn])
+      Instr (".global", [mangle fn]);
+      Instr (".global", [fn])
     ]
     else []
 
