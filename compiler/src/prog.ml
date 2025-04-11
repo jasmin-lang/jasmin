@@ -283,10 +283,15 @@ let rec rvars_i f s i =
 
 and rvars_c f s c =  List.fold_left (rvars_i f) s c
 
+let fold_vars_ret f init fd =
+  List.fold_left (fun a x -> f (L.unloc x) a) init fd.f_ret
+
 let fold_vars_fc f z fc =
-  let a  = List.fold_left (fun a x -> f (L.unloc x) a) z fc.f_ret in
+  let a = fold_vars_ret f z fc in
   rvars_c f a fc.f_body
 
+
+let vars_ret fd = fold_vars_ret Sv.add Sv.empty fd
 let vars_lv z x = rvars_lv Sv.add z x
 let vars_e e = rvars_e Sv.add Sv.empty e
 let vars_es es = rvars_es Sv.add Sv.empty es

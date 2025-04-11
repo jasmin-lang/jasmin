@@ -209,7 +209,10 @@ val ty_i   : 'len gvar_i -> 'len gty
 (* -------------------------------------------------------------------- *)
 (* used variables                                                       *)
 
+val fold_vars_ret : ('ty gvar -> 'acc -> 'acc) -> 'acc -> ('ty, 'info, 'asm) gfunc -> 'acc
 val fold_vars_fc : ('ty gvar -> 'acc -> 'acc) -> 'acc -> ('ty, 'info, 'asm) gfunc -> 'acc
+
+val vars_ret : ('info, 'asm) func -> Sv.t
 val vars_lv : Sv.t -> lval -> Sv.t
 val vars_e  : expr -> Sv.t
 val vars_es : expr list -> Sv.t
