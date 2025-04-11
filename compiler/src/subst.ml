@@ -182,7 +182,7 @@ let rec int_of_expr ?loc e =
       op (int_of_expr ?loc e1) (int_of_expr ?loc e2)
   | Pbool _ | Parr_init _ | Pvar _
   | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _ ->
-      hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" Printer.pp_pexpr e
+      hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" (Printer.pp_pexpr ~debug:false) e
 
 
 let isubst_len ?loc (PE e) =

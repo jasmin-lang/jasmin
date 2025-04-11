@@ -62,23 +62,28 @@ let string_of_int_cast sg =
 let string_of_wi_cast sg sz =
   asprintf "%d%s" (int_of_ws sz) (string_of_wi sg)
 
-let string_of_wiop1 sg = function
+let string_of_wiop1 ~debug sg = function
   | E.WIwint_of_int sz ->
-      asprintf "(%s /* of int */)" (string_of_wi_cast sg sz)
+      asprintf "(%s%s)" (string_of_wi_cast sg sz)
+        (if debug then " /* of int */" else "")
   | WIint_of_wint sz ->
-      asprintf "(%s /* of %s */)" (string_of_int_cast sg) (string_of_wi_ty sg sz)
+      asprintf "(%s%s)" (string_of_int_cast sg)
+        (if debug then " /* of " ^ (string_of_wi_ty sg sz) ^ " */" else "")
   | WIword_of_wint sz ->
-      asprintf "(%s /* of %s */)" (string_of_w_cast sz) (string_of_wi_ty sg sz)
+      asprintf "(%s%s)" (string_of_w_cast sz)
+        (if debug then " /* of " ^ (string_of_wi_ty sg sz) ^ " */" else "")
   | WIwint_of_word sz ->
-      asprintf "(%s /* of %s */)" (string_of_wi_cast sg sz) (string_of_w_ty sz)
+      asprintf "(%s%s)" (string_of_wi_cast sg sz)
+        (if debug then " /* of " ^ (string_of_w_ty sz) ^ " */" else "")
   | WIwint_ext(szo, _) ->
       asprintf "(%s)" (string_of_wi_cast sg szo)
   | WIneg sz ->
       asprintf "-%s" (string_of_wi_cast sg sz)
 
-let string_of_op1 = function
+let string_of_op1 ~debug = function
   | E.Oint_of_word (s, sz) ->
-      asprintf "(%s /* of %s */)" (string_of_int_cast s) (string_of_w_ty sz)
+      asprintf "(%s%s)" (string_of_int_cast s)
+        (if debug then " /* of " ^ (string_of_w_ty sz) ^ " */" else "")
   | E.Oword_of_int szo  -> asprintf "(%du)" (int_of_ws szo)
   | E.Osignext (szo, _) -> asprintf "(%ds)" (int_of_ws szo)
   | E.Ozeroext (szo, _) -> asprintf "(%du)" (int_of_ws szo)
@@ -86,7 +91,7 @@ let string_of_op1 = function
       asprintf "!%s" (string_of_w_cast sz)
   | E.Onot -> "!"
   | E.Oneg k -> "-" ^ string_of_op_kind k
-  | E.Owi1(sg, o) -> string_of_wiop1 sg o
+  | E.Owi1(sg, o) -> string_of_wiop1 ~debug sg o
 
 let string_of_wiop2 sg sz = function
   | E.WIadd -> "+" ^ string_of_wi_cast sg sz

@@ -137,8 +137,8 @@ let main () =
     (* Check if generated assembly labels will generate conflicts*)
     let label_errors = Label_check.get_labels_errors pprog in 
     List.iter Label_check.warn_duplicate_label label_errors;
-    
-    eprint Compiler.Typing (Printer.pp_pprog Arch.reg_size Arch.asmOp) pprog;
+
+    eprint Compiler.Typing (Printer.pp_pprog ~debug:true Arch.reg_size Arch.asmOp) pprog;
 
     let prog =
       try Compile.preprocess Arch.reg_size Arch.asmOp pprog
