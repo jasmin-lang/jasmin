@@ -9,9 +9,7 @@ module type AsmTarget = sig
 
     val headers : asm_element list
     val pp_data_segment_header : Obj.t list -> ((Var0.Var.var * Wsize.wsize) * BinNums.coq_Z) list -> asm_element list
-
     val pp_function_tail : (_,_,_,_,_,_) asm_fundef -> asm_element list
-
     val pp_instr_align      : funname -> asm_element list
     val pp_instr_label      : funname -> Label.label_kind -> BinNums.positive -> asm_element list
     val pp_instr_storelabel : funname -> 'reg -> BinNums.positive -> asm_element list
