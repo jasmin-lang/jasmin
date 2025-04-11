@@ -218,6 +218,9 @@ let main () =
       let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug) e in
       raise (HiError e)
     | Utils0.Ok asm ->
+      if !Glob_options.print_export_info then begin
+        Format.printf "%a" Printer.pp_export_info_asm_prog asm
+      end;
       if !outfile <> "" then begin
         BatFile.with_file_out !outfile (fun out ->
           let fmt = BatFormat.formatter_of_out_channel out in

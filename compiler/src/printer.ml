@@ -423,8 +423,9 @@ let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
   let pp_f_extra fmt f_extra =
-    Format.fprintf fmt "(* @[<v>alignment = %s; stack size = %a + %a; max stack size = %a;@ max call depth = %a;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] *)"
+    Format.fprintf fmt "(* @[<v>alignment = %s; argument alignment = [%a];@ stack size = %a + %a; max stack size = %a;@ max call depth = %a;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] *)"
       (string_of_ws f_extra.Expr.sf_align)
+      (pp_list ", " pp_wsize) (f_extra.Expr.sf_align_args)
       Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_sz)
       Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_extra_sz)
       Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_max)
@@ -440,6 +441,25 @@ let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
   Format.fprintf fmt "@[<v>%a@ %a@]"
      pp_p_extra p_extra
      (pp_list "@ @ " pp_fun) (List.rev funcs)
+  
+(** Pretty printer for displaying export inforamation after compilation *)
+let pp_export_info_asm_prog fmt asm_prog =
+  let open Arch_decl in 
+  (* filter only export functions *)
+  let funcs = List.filter (fun (_,f) -> f.asm_fd_export ) asm_prog.asm_funcs in
+
+  let pp_funname fmt fname =
+    Format.fprintf fmt "%s" fname.fn_name
+  in
+
+  let pp_funcs fmt (fname,f) =
+    Format.fprintf fmt "@[<v>%a:@ @[<hv>@ argument alignment = [%a]@]@]"
+      pp_funname fname
+      (pp_list ", " pp_wsize) (f.asm_fd_align_args)
+  
+  in
+  Format.fprintf fmt "@[<v>%a@]@."
+    (pp_list "@ " pp_funcs) (List.rev funcs)
 
 (* ----------------------------------------------------------------------- *)
 
