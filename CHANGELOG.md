@@ -31,7 +31,8 @@
 - Rewriting of assembly printers
   ([PR #1118](https://github.com/jasmin-lang/jasmin/pull/1118),
   [PR #1125](https://github.com/jasmin-lang/jasmin/pull/1125),
-  [PR #1128](https://github.com/jasmin-lang/jasmin/pull/1128)).
+  [PR #1128](https://github.com/jasmin-lang/jasmin/pull/1128),
+  [PR #1130](https://github.com/jasmin-lang/jasmin/pull/1130)).
 
 # Jasmin 2025.02.1 — Nancy, 2025-04-10
 

@@ -43,6 +43,8 @@ let pp_reg_address_aux base disp off scal =
       ~kind:"assembly printing"
       "the address computation is too complex: an intermediate variable might be needed"
 
+let pp_brace s = Format.asprintf "{%s}" s
+
 let pp_imm = pp_imm imm_pre
 
 let pp_register = pp_register arch
@@ -105,7 +107,6 @@ let get_IT i =
       | Some c -> [ Instr ("it", [ pp_condt c ]) ]
     end
   | _ -> []
-
 
 module ArgChecker : sig
   (* Return the (possibly empty) suffix for the mnemonic according to its
@@ -194,119 +195,99 @@ let pp_ADR pp opts args =
   in
   [ Instr(name_lo, args_lo); Instr(name_hi, args_hi) ]
 
-let pp_instr fn i =
-  match i with
-  | ALIGN ->
-      failwith "TODO_ARM: pp_instr align"
+let arch = arm_decl
 
-  | LABEL (_, lbl) ->
-      [ Label (string_of_label fn lbl) ]
+module ArmTarget : AsmTargetBuilder.AsmTarget with
+type reg = Arm_decl.register
+and type regx = Arch_utils.empty
+and type xreg = Arch_utils.empty
+and type rflag = Arm_decl.rflag
+and type cond = Arm_decl.condt
+and type asm_op = arm_op
+= struct
 
-  | STORELABEL (dst, lbl) ->
-      [ Instr ("adr", [ pp_register dst; string_of_label fn lbl ]) ]
+  type reg = Arm_decl.register
+  type regx = Arch_utils.empty
+  type xreg = Arch_utils.empty
+  type rflag = Arm_decl.rflag
+  type cond = Arm_decl.condt
+  type asm_op = arm_op
 
-  | JMP lbl ->
-      [ Instr ("b", [ pp_remote_label lbl ]) ]
+  let headers = [ Instr (".thumb", []); Instr (".syntax unified", []) ]
 
-  | JMPI arg ->
-      (* TODO_ARM: Review. *)
-      let lbl =
-        match arg with
-        | Reg r -> pp_register r
-        | _ -> failwith "TODO_ARM: pp_instr jmpi"
-      in
-      [ Instr ("bx", [ lbl ]) ]
-
-  | Jcc (lbl, ct) ->
-      let iname = Format.asprintf "b%s" (pp_condt ct) in
-      [ Instr (iname, [ string_of_label fn lbl ]) ]
-
-  | JAL (LR, lbl) ->
-      [ Instr ("bl", [ pp_remote_label lbl ]) ]
-
-  | CALL _
-  | JAL _ -> assert false
-
-  | POPPC ->
-      [ Instr ("pop", [ "{pc}" ]) ]
-
-  | SysCall op ->
-      [Instr ("bl", [ pp_syscall op ])]
-
-  | AsmOp (op, args) ->
-      let id = instr_desc arm_decl arm_op_decl (None, op) in
-      let pp = id.id_pp_asm args in
-      (* We need to perform the check even if we don't use the suffix, for
-         instance for [LDR] or [STR]. *)
-      let suff = ArgChecker.check_args op pp.pp_aop_args in
-      match op, args with
-      | ARM_op(ADR, opts), _ :: Addr (Arip _) :: _ -> pp_ADR pp opts args
-      | _, _ ->
-          let name = pp_mnemonic_ext op suff args in
-          let args =
-            List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
-          in
-          let args = pp_shift op args in
-          get_IT i @ [ Instr (name, args) ]
-
-(* -------------------------------------------------------------------- *)
-let pp_brace s = Format.asprintf "{%s}" s
-
-let pp_body fn =
-  let open List in
-  concat_map @@ fun { asmi_i = i ; asmi_ii = (ii, _) } ->
-  let i =
-    try pp_instr fn i
-    with HiError err -> raise (HiError (Utils.add_iloc err ii)) in
-  append
-    (List.map (fun x -> Dwarf x) (DebugInfo.source_positions ii.base_loc))
-    i
-
-let pp_fn_prefix fn fd =
-  let fn = escape fn in
-  if fd.asm_fd_export then
+  let data_segment_header =
     [
-      Label (mangle fn);
-      Label fn;
-      Instr ("push", [pp_brace (pp_register LR)])
+      Instr (".p2align", ["5"]) ;
+      Label global_datas_label
     ]
-  else []
 
-let pp_fn_pos fn fd =
-  (* TODO_ARM: Review. *)
-  if fd.asm_fd_export then
-    pp_instr fn POPPC
-  else []
+  let function_tail =
+    (* TODO_ARM: Review. *)
+    [ Instr ("pop", [ "{pc}" ]) ]
 
-let pp_fun (fn, fd) =
-  let fn = fn.fn_name in
-  let pre = pp_fn_prefix fn fd in
-  let body = pp_body fn fd.asm_fd_body in
-  let pos = pp_fn_pos fn fd in
-  pre @ body @ pos
 
-let pp_funcs funs = List.concat_map pp_fun funs
+  let function_header =
+    [
+        Instr ("push", [pp_brace (pp_register LR)])
+    ]
 
-let pp_data globs names =
-  if not (List.is_empty globs) then
-    Instr (".p2align", ["5"]) ::
-    Label global_datas_label ::
-    format_glob_data globs names
-  else []
+  let pp_instr_r fn i =
+    match i with
+    | ALIGN ->
+        failwith "TODO_ARM: pp_instr align"
 
-let pp_fn_decl (fn,fd) =
-  let fn = escape fn.fn_name in
-  if fd.asm_fd_export then
-    [ Instr (".global", [ mangle fn ]); Instr (".global", [ fn ]) ]
-  else []
-  
-let pp_decls funcs = 
-  List.concat_map pp_fn_decl funcs
+    | LABEL (_, lbl) ->
+        [ Label (string_of_label fn lbl) ]
 
-let pp_prog p =
-  let decls = pp_decls p.asm_funcs in 
-  let code = pp_funcs p.asm_funcs in
-  let data = pp_data p.asm_globs p.asm_glob_names in
-  headers @ decls @ code @ data
+    | STORELABEL (dst, lbl) ->
+        [ Instr ("adr", [ pp_register dst; string_of_label fn lbl ]) ]
 
-let print_prog fmt p = PrintASM.pp_asm fmt (pp_prog p)
+    | JMP lbl ->
+        [ Instr ("b", [ pp_remote_label lbl ]) ]
+
+    | JMPI arg ->
+        (* TODO_ARM: Review. *)
+        let lbl =
+          match arg with
+          | Reg r -> pp_register r
+          | _ -> failwith "TODO_ARM: pp_instr jmpi"
+        in
+        [ Instr ("bx", [ lbl ]) ]
+
+    | Jcc (lbl, ct) ->
+        let iname = Format.asprintf "b%s" (pp_condt ct) in
+        [ Instr (iname, [ string_of_label fn lbl ]) ]
+
+    | JAL (LR, lbl) ->
+        [ Instr ("bl", [ pp_remote_label lbl ]) ]
+
+    | CALL _
+    | JAL _ -> assert false
+
+    | POPPC ->
+        [ Instr ("pop", [ "{pc}" ]) ]
+
+    | SysCall op ->
+        [Instr ("bl", [ pp_syscall op ])]
+
+    | AsmOp (op, args) ->
+        let id = instr_desc arm_decl arm_op_decl (None, op) in
+        let pp = id.id_pp_asm args in
+        (* We need to perform the check even if we don't use the suffix, for
+           instance for [LDR] or [STR]. *)
+        let suff = ArgChecker.check_args op pp.pp_aop_args in
+        match op, args with
+        | ARM_op(ADR, opts), _ :: Addr (Arip _) :: _ -> pp_ADR pp opts args
+        | _, _ ->
+            let name = pp_mnemonic_ext op suff args in
+            let args =
+              List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
+            in
+            let args = pp_shift op args in
+            get_IT i @ [ Instr (name, args) ]
+
+end
+
+module ArmBuilder = AsmTargetBuilder.Make(ArmTarget)
+
+let print_prog fmt prog = PrintASM.pp_asm fmt (ArmBuilder.asm_of_prog prog)
