@@ -82,6 +82,8 @@ let pp_suffix fmt =
   | PVvv (ve, sz, ve', sz') -> F.fprintf fmt "_%s_%s" (string_of_velem Unsigned sz ve) (string_of_velem Unsigned sz' ve')
 
 let pp_tyerror fmt (code : tyerror) =
+  (* We do not need the extra verbosity of [debug] in this context *)
+  let pp_eptype = Printer.pp_eptype ~debug:false in
   match code with
   | UnknownVar x ->
       F.fprintf fmt "unknown variable: `%s'" x
@@ -91,20 +93,20 @@ let pp_tyerror fmt (code : tyerror) =
 
   | InvalidArrayType ty ->
     F.fprintf fmt "the expression has type %a instead of array"
-       Printer.pp_eptype ty
+       pp_eptype ty
 
   | TypeMismatch (t1,t2) ->
     F.fprintf fmt
       "the expression has type %a instead of %a"
-      Printer.pp_eptype t1 Printer.pp_eptype t2
+      pp_eptype t1 pp_eptype t2
 
   | InvalidCast (t1,t2) ->
     F.fprintf fmt "can not implicitly cast %a into %a"
-      Printer.pp_eptype t1 Printer.pp_eptype t2
+      pp_eptype t1 pp_eptype t2
 
   | InvalidTypeForGlobal ty ->
       F.fprintf fmt "globals should have type word; found: ‘%a’"
-        Printer.pp_eptype ty
+        pp_eptype ty
 
   | GlobArrayNotWord ->
     F.fprintf fmt "the definition is an array and not a word"
@@ -122,13 +124,13 @@ let pp_tyerror fmt (code : tyerror) =
       F.fprintf fmt
         "no operator %s for these types %a"
         (S.string_of_peop2 o)
-        (pp_list " * " Printer.pp_eptype) ts
+        (pp_list " * " pp_eptype) ts
 
   | NoOperator (`Op1 o, ts) ->
       F.fprintf fmt
         "no operator %s for these type %a"
         (S.string_of_peop1 o)
-        (pp_list " * " Printer.pp_eptype) ts
+        (pp_list " * " pp_eptype) ts
 
   | NoReturnStatement (name, expected) ->
      F.fprintf fmt "function “%s” has no return statement (but its signature claims that %d values should be returned)" name.P.fn_name expected
@@ -160,9 +162,9 @@ let pp_tyerror fmt (code : tyerror) =
       F.fprintf fmt
         "Type '%s' (ie: '%a') is already declared at %s (with type : '%a')"
         id
-        Printer.pp_eptype (L.unloc newtype)
+        pp_eptype (L.unloc newtype)
         (L.tostring (L.loc oldtype))
-        Printer.pp_eptype (L.unloc oldtype)
+        pp_eptype (L.unloc oldtype)
 
   | TypeNotFound (id) ->
       F.fprintf fmt
@@ -172,9 +174,9 @@ let pp_tyerror fmt (code : tyerror) =
   | InvalidTypeAlias (id,typ) ->
       let pp_id fmt (id, typ) =
         match id with
-        | None -> F.fprintf fmt "'%a'" Printer.pp_eptype typ
+        | None -> F.fprintf fmt "'%a'" pp_eptype typ
         | Some id ->
-            F.fprintf fmt "'%s' (ie: '%a'), defined at %s," (L.unloc id) Printer.pp_eptype typ
+            F.fprintf fmt "'%s' (ie: '%a'), defined at %s," (L.unloc id) pp_eptype typ
                (L.tostring (L.loc id)) in
       F.fprintf fmt
       "Type %a is not allowed as array element. Only machine words (w8, w16 ...) allowed"
