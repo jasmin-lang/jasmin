@@ -1,6 +1,6 @@
 (** More properties of the Rutt relation, defined in ITree.Rutt.v, not
 found in ITree.RuttFacts.v. Some of the proofs are partly built as a
-refactoring of proofs in ITree.Eq.v. *)
+refactoring of proofs in ITree.Eqit.v. *)
 
 From Coq Require Import
   Program 
