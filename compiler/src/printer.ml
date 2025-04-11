@@ -444,20 +444,19 @@ let pp_warning_msg fmt = function
   | Compiler_util.Use_lea -> Format.fprintf fmt "LEA instruction is used"
 
 let pp_err ~debug fmt (pp_e : Compiler_util.pp_error) =
-  let pp_var fmt v =
-    let v = Conv.var_of_cvar v in
-    Format.fprintf fmt "%a" (pp_dvar ~debug) v
+  let pp_var =
+    if debug then pp_dvar ~debug else pp_var ~debug
   in
   let rec pp_err fmt pp_e =
     match pp_e with
     | Compiler_util.PPEstring s -> Format.fprintf fmt "%s" s
     | Compiler_util.PPEz z -> Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_cz z)
-    | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" pp_var v
+    | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" pp_var (Conv.var_of_cvar v)
     | Compiler_util.PPEvarinfo loc ->
       Format.fprintf fmt "%a" L.pp_loc loc
     | Compiler_util.PPElval x ->
        x |> Conv.lval_of_clval |>
-       pp_glv ~debug pp_len (pp_dvar ~debug) fmt
+       pp_glv ~debug pp_len pp_var fmt
     | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" fn.fn_name
     | Compiler_util.PPEiinfo ii ->
       let i_loc, _ = ii in
