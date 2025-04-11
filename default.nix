@@ -28,6 +28,9 @@ let coqPackages =
         inherit (self) lib mkCoqDerivation coq;
       };
       hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
+      ExtLib = super.ExtLib.override { version = "master"; };
+      paco = super.paco.override { version = "master"; };
+      ITree = super.ITree.override { version = "master"; };
     })
   else coqPackages_8_20.overrideScope (self: super: {
       mathcomp = super.mathcomp.override { version = "2.2.0"; };
@@ -69,7 +72,9 @@ stdenv.mkDerivation {
     ++ optionals coqDeps [
       coqPackages.coq
       mathcomp-word
-      coqPackages.mathcomp-algebra-tactics ]
+      coqPackages.mathcomp-algebra-tactics
+      coqPackages.ITree
+    ]
     ++ optionals testDeps ([ curl.bin oP.apron.out llvmPackages.bintools-unwrapped ] ++ (with python3Packages; [ python pyyaml ]))
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib dune_3
