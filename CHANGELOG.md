@@ -20,6 +20,9 @@
 - Rewriting of assembly printers
   ([PR #1118](https://github.com/jasmin-lang/jasmin/pull/1118)).
 
+- Moving export directive (`.global`) after file headers in ARM and Risc-V assembly printing
+  ([PR #1125](https://github.com/jasmin-lang/jasmin/pull/1125)).
+
 # Jasmin 2025.02.1 — Nancy, 2025-04-10
 
 ## New features

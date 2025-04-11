@@ -262,12 +262,6 @@ let pp_body fn =
     (List.map (fun x -> Dwarf x) (DebugInfo.source_positions ii.base_loc))
     i
 
-let pp_fn_head fn fd =
-  let fn = escape fn in
-  if fd.asm_fd_export then
-    [ Instr (".global", [ mangle fn ]); Instr (".global", [ fn ]) ]
-  else []
-
 let pp_fn_prefix fn fd =
   let fn = escape fn in
   if fd.asm_fd_export then
@@ -286,11 +280,10 @@ let pp_fn_pos fn fd =
 
 let pp_fun (fn, fd) =
   let fn = fn.fn_name in
-  let head = pp_fn_head fn fd in
   let pre = pp_fn_prefix fn fd in
   let body = pp_body fn fd.asm_fd_body in
   let pos = pp_fn_pos fn fd in
-  head @ pre @ body @ pos
+  pre @ body @ pos
 
 let pp_funcs funs = List.concat_map pp_fun funs
 
@@ -301,9 +294,19 @@ let pp_data globs names =
     format_glob_data globs names
   else []
 
+let pp_fn_decl (fn,fd) =
+  let fn = escape fn.fn_name in
+  if fd.asm_fd_export then
+    [ Instr (".global", [ mangle fn ]); Instr (".global", [ fn ]) ]
+  else []
+  
+let pp_decls funcs = 
+  List.concat_map pp_fn_decl funcs
+
 let pp_prog p =
+  let decls = pp_decls p.asm_funcs in 
   let code = pp_funcs p.asm_funcs in
   let data = pp_data p.asm_globs p.asm_glob_names in
-  headers @ code @ data
+  headers @ decls @ code @ data
 
 let print_prog fmt p = PrintASM.pp_asm fmt (pp_prog p)
