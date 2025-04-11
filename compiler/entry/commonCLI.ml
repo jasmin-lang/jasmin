@@ -79,7 +79,7 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
     | Annot.AnnotationError (loc, code) ->
         hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
     | Pretyping.TyError (loc, code) ->
-        hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror
+        hierror ~loc:(Lone loc) ~kind:"typing error" "%a" (Pretyping.pp_tyerror ~debug:true)
           code
     | Syntax.ParseError (loc, msg) ->
         hierror ~loc:(Lone loc) ~kind:"parse error" "%s" (Option.default "" msg)

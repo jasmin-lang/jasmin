@@ -187,7 +187,9 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     Printer.pp_sprog ~debug:true Arch.pointer_data Arch.asmOp fmt p
   in
 
-  let pp_linear fmt lp = PrintLinear.pp_prog Arch.pointer_data Arch.asmOp fmt lp in
+  let pp_linear fmt lp =
+    PrintLinear.pp_prog ~debug:true Arch.pointer_data Arch.asmOp fmt lp
+  in
 
   let rename_fd ii fn cfd =
     let ii, _ = ii in

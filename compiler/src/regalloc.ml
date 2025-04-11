@@ -1121,7 +1121,7 @@ let pp_liveness vars liveness_per_callsite liveness_table a =
   printf "/* Ready to allocate variables to registers: */@.";
   liveness_table |> Hf.iter (fun fn fd ->
     reset_max();
-    printf "%a@." (pp_fun ~pp_locals ~pp_info (pp_opn Arch.reg_size Arch.asmOp) pp_var) fd;
+    printf "%a@." (pp_fun ~debug:!Glob_options.debug ~pp_locals ~pp_info (pp_opn Arch.reg_size Arch.asmOp) pp_var) fd;
     let intern = !m_word, !m_extra, !m_vector, !m_flag in
     reset_max();
     printf "%a@." pp_callsites fn;

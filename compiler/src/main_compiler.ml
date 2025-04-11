@@ -117,7 +117,7 @@ let main () =
       try Compile.parse_file Arch.arch_info ~idirs:!Glob_options.idirs infile
       with
       | Annot.AnnotationError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
-      | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
+      | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" (Pretyping.pp_tyerror ~debug:!debug) code
       | Syntax.ParseError (loc, msg) ->
           let msg =
             match msg with
@@ -137,8 +137,8 @@ let main () =
     (* Check if generated assembly labels will generate conflicts*)
     let label_errors = Label_check.get_labels_errors pprog in 
     List.iter Label_check.warn_duplicate_label label_errors;
-    
-    eprint Compiler.Typing (Printer.pp_pprog Arch.reg_size Arch.asmOp) pprog;
+
+    eprint Compiler.Typing (Printer.pp_pprog ~debug:true Arch.reg_size Arch.asmOp) pprog;
 
     let prog =
       try Compile.preprocess Arch.reg_size Arch.asmOp pprog

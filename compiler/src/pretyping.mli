@@ -2,7 +2,7 @@ type tyerror
 
 exception TyError of Location.t * tyerror
 
-val pp_tyerror : Format.formatter -> tyerror -> unit
+val pp_tyerror : debug:bool -> Format.formatter -> tyerror -> unit
 
 type fun_sig = { fs_tin : Prog.epty list ; fs_tout : Prog.epty list }
 

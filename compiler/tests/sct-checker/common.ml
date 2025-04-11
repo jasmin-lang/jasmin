@@ -18,7 +18,7 @@ let load_file name =
     |> Compile.do_spill_unspill Arch.asmOp
   with
   | exception TyError (loc, e) ->
-      Format.eprintf "%a: %a@." Location.pp_loc loc pp_tyerror e;
+      Format.eprintf "%a: %a@." Location.pp_loc loc (pp_tyerror ~debug:true) e;
       assert false
   | exception Syntax.ParseError (loc, None) ->
       Format.eprintf "Parse error: %a@." Location.pp_loc loc;
