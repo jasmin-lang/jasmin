@@ -245,7 +245,7 @@ prim:
 | ct=loc(parens(utype)) LBRACKET al=unaligned? v=var e=mem_ofs? RBRACKET
   { let s = string_of_swsize_ty (L.unloc ct) in
     Utils.warning Deprecated (Location.of_loc ct)
-       "Syntax (u%s)[x + e] is deprecated. Use [:u%s x + e] instead" s s ;
+       "Syntax (%s)[x + e] is deprecated. Use [:%s x + e] instead" s s ;
     al, Some ct, v, e }
 | LBRACKET al=unaligned? ct=access_type? v=var e=mem_ofs? RBRACKET
   {
@@ -274,7 +274,7 @@ arr_access:
           let sw =  string_of_swsize_ty (L.unloc ct) in
           let sd = if s = None then "" else "." in
           Utils.warning Deprecated (Location.of_loc ct)
-             "Syntax t%s[u%s e] is deprecated. Use t%s[:u%s e] instead" sd sw sd sw
+             "Syntax t%s[%s e] is deprecated. Use t%s[:%s e] instead" sd sw sd sw
         end;
         Some ct
       | None -> None in
