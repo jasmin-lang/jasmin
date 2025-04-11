@@ -3,9 +3,27 @@ open Arch_decl
 open Utils
 open Asm_utils
 open PrintCommon
+open CoreIdent
 
 module type AsmTarget = sig 
 
+    val headers : asm_element list
+    val pp_data_segment_header : Obj.t list -> ((Var0.Var.var * Wsize.wsize) * BinNums.coq_Z) list -> asm_element list
+
+    val pp_function_tail : (_,_,_,_,_,_) asm_fundef -> asm_element list
+
+    val pp_instr_align      : funname -> asm_element list
+    val pp_instr_label      : funname -> Label.label_kind -> BinNums.positive -> asm_element list
+    val pp_instr_storelabel : funname -> 'reg -> BinNums.positive -> asm_element list
+    val pp_instr_jmp        : funname -> Label.remote_label -> asm_element list
+    val pp_instr_jmpi       : funname -> (BinNums.positive,_,_,_,_) asm_arg -> asm_element list
+    val pp_instr_jcc        : funname -> BinNums.positive -> 'cond -> asm_element list
+    val pp_instr_jal        : funname -> 'reg -> Label.remote_label -> asm_element list
+    val pp_instr_call       : funname -> Label.remote_label -> asm_element list
+    val pp_instr_pop_pc     : funname -> asm_element list
+    val pp_instr_syscall    : funname -> BinNums.positive Syscall_t.syscall_t -> asm_element list
+    val pp_instr_op         : funname -> 'asm_op -> ('reg, 'regx, 'xreg, 'rflag, 'cond) asm_args -> asm_element list
+        
 
 end
 
@@ -19,7 +37,7 @@ module AsmTargetBuilder = struct
             match instr_r with 
             | ALIGN                     -> Target.pp_instr_align        name
             | LABEL (kind, label)       -> Target.pp_instr_label        name kind label
-            | STORELABEL (dst, label)   -> Target.pp_instr_storelabel v name dst label
+            | STORELABEL (dst, label)   -> Target.pp_instr_storelabel   name dst label
             | JMP label                 -> Target.pp_instr_jmp          name label
             | JMPI label                -> Target.pp_instr_jmpi         name label
             | Jcc (label, condt)        -> Target.pp_instr_jcc          name label condt
@@ -27,7 +45,7 @@ module AsmTargetBuilder = struct
             | CALL (label)              -> Target.pp_instr_call         name label
             | POPPC                     -> Target.pp_instr_pop_pc       name
             | SysCall (op)              -> Target.pp_instr_syscall      name op
-            |AsmOp (op,args)            -> Target.pp_instr_op           name op args
+            | AsmOp (op,args)           -> Target.pp_instr_op           name op args
 
         let asm_debug_info ({Location.base_loc = ii; _}, _) =
             List.map (fun x -> Dwarf x) (DebugInfo.source_positions ii)
