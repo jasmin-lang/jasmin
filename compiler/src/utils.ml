@@ -122,6 +122,16 @@ module List = struct
   let map_fold f a xs =
     mapi_fold (fun (_ : int) x -> f x) a xs
 
+  let[@tail_mod_cons] rec filter_map2 f l1 l2 =
+    match (l1, l2) with
+    | ([], []) -> []
+    | (a1::l1, a2::l2) -> begin
+        match f a1 a2 with
+        | None -> filter_map2 f l1 l2
+        | Some v -> v :: filter_map2 f l1 l2
+      end
+    | (_, _) -> invalid_arg "List.filter_map2"
+
   (* ------------------------------------------------------------------ *)
   let modify_last f xs = modify_at (length xs - 1) f xs
 
