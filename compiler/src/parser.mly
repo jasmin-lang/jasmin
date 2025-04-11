@@ -252,11 +252,7 @@ prim:
     let ct =
       match ct with
       | Some (c, ct) ->
-        if c = None then begin
-          let s = string_of_swsize_ty (L.unloc ct) in
-          Utils.warning Deprecated (Location.of_loc ct)
-             "Syntax [u%s x + e] is deprecated. Use [:u%s x + e] instead" s s
-        end;
+        if c = None then Syntax.parse_error ~msg:"`:` excepted" (L.loc ct);
         Some ct
       | None -> None in
     al, ct, v, e }
