@@ -10,7 +10,7 @@ let parse_and_print arch call_conv idirs =
     | Annot.AnnotationError (loc, code) ->
         hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
     | Pretyping.TyError (loc, code) ->
-        hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror
+        hierror ~loc:(Lone loc) ~kind:"typing error" "%a" (Pretyping.pp_tyerror ~debug:true)
           code
     | Syntax.ParseError (loc, msg) ->
         hierror ~loc:(Lone loc) ~kind:"parse error" "%s"
