@@ -58,12 +58,13 @@ Context
 
 Section STACK_ALLOC.
 
-(* TODO: we may want to factor this (cf. riscv_lower_addressing_proof) *)
+(* TODO: we may want to factor this (cf. riscv_lower_addressing_proof)
+   but not that simple *)
 Lemma shift_of_scaleP scale shift w :
   shift_of_scale scale = Some shift ->
-  wshl w (wunsigned (wrepr U8 shift)) = (wrepr Uptr scale * w)%R.
+  wshl w (wunsigned (wrepr U8 (Z.of_nat shift))) = (wrepr Uptr scale * w)%R.
 Proof.
-  by case: scale => // -[|[|[]|]|] //= [<-]; rewrite wshl_sem /=.
+  by case: scale => // -[|[|[|[]|]|]|] //= [<-]; rewrite wshl_sem /=.
 Qed.
 
 Lemma arm_mov_ofsP : mov_ofs_correct arm_saparams.(sap_mov_ofs).
@@ -111,7 +112,7 @@ Proof.
     case: offset {hlea} ok_wo => [offset|] /=.
     + t_xrbindP=> vo ok_vo ok_wo.
       case: eqP => // ?; subst disp.
-      apply: obindP => shift hshift.
+      case hshift: shift_of_scale => [shift|//] /=.
       move=> [<-] hw.
       exists (evm s2) => //.
       constructor.

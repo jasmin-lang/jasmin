@@ -32,15 +32,6 @@ Context {atoI : arch_toIdent}.
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc parameters. *)
 
-(* copied from riscv_lower_addressing, TODO: factor *)
-Definition shift_of_scale (z: Z) : option Z :=
-  match z with
-  | 1%Z => Some 0
-  | 2%Z => Some 1
-  | 4%Z => Some 2
-  | _ => None
-  end%Z.
-
 Definition arm_mov_ofs
   (x : lval) (tag : assgn_tag) (movk : mov_kind) (y : pexpr) (ofs : pexpr) :
   option instr_r :=
@@ -69,7 +60,7 @@ Definition arm_mov_ofs
                 Some (Copn [:: x ] tag (Oasm (ExtOp Oarm_add_large_imm)) [:: Plvar base; cast_const lea.(lea_disp) ])
           | Some base, Some off =>
             if lea.(lea_disp) == 0%Z then
-              let%opt scale := shift_of_scale lea.(lea_scale) in
+              let%opt scale := Option.map Z.of_nat (shift_of_scale lea.(lea_scale)) in
               let opts :=
                 {| set_flags := false; is_conditional := false; has_shift := Some SLSL |}
               in
