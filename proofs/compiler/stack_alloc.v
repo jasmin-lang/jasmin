@@ -170,7 +170,6 @@ Definition is_const e :=
   slices are used in the analysis, since we do not necessarily know the
   offsets statically.
 *)
-(* We reuse [pexpr], but only the arithmetic part is of interest here. *)
 Record symbolic_slice := {
   ss_ofs : sexpr;
   ss_len : sexpr;
