@@ -36,7 +36,7 @@ module X86_core = struct
 
   let not_saved_stack = (X86_params.x86_liparams atoI).lip_not_saved_stack
 
-  let pp_asm = Pp_x86.print_prog
+  let pp_asm = Pp_x86_v3.print_prog
 
   let callstyle = Arch_full.StackDirect
 

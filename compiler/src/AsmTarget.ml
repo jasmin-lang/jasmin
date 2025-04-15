@@ -75,53 +75,53 @@ module AsmTargetBuilder = struct
             let tail = Target.pp_function_tail name decl in 
             headers @ body @ tail
 
+    
+        let pp_functions funcs =
+        List.fold_left (fun acc (func) ->
+            acc @ (pp_function func)
+        ) [] funcs
+    
         
-            let pp_functions funcs =
-            List.fold_left (fun acc (func) ->
-                acc @ (pp_function func)
-            ) [] funcs
+        let pp_function_decl (name, decl : CoreIdent.funname * (_,_,_,_,_,_) asm_fundef) =
+        if decl.asm_fd_export then
+            let fn = escape name.fn_name in
+            (* Same as .globl, see : 
+            - https://stackoverflow.com/questions/50568399/what-is-the-difference-between-global-and-globl
+            - https://sourceware.org/binutils/docs/as/Global.html
+            *)
+        [
+            Instr (".global", [mangle fn]);
+            Instr (".global", [fn])
+        ]
+        else []
+    
+        let pp_functions_decl (funcs) =
+        List.fold_left (fun acc (func) ->
+            acc @ (pp_function_decl func)
+        ) [] funcs
+    
         
-            
-            let pp_function_decl (name, decl : CoreIdent.funname * (_,_,_,_,_,_) asm_fundef) =
-            if decl.asm_fd_export then
-                let fn = escape name.fn_name in
-                (* Same as .globl, see : 
-                - https://stackoverflow.com/questions/50568399/what-is-the-difference-between-global-and-globl
-                - https://sourceware.org/binutils/docs/as/Global.html
-                *)
-            [
-                Instr (".global", [mangle fn]);
-                Instr (".global", [fn])
-            ]
-            else []
-        
-            let pp_functions_decl (funcs) =
-            List.fold_left (fun acc (func) ->
-                acc @ (pp_function_decl func)
-            ) [] funcs
-        
-            
-            let pp_data_segment_body globs names =
-            let datas = Asm_utils.format_glob_data globs names in
-            List.fold_left (fun acc data ->
-                acc @ [(data)]
-            ) [] datas
-        
-            let pp_data_segment globs names =
-            if not (List.is_empty globs) then
-                let headers = Target.pp_data_segment_header globs names in
-                let data = pp_data_segment_body globs names in
-                headers @ data
-            else
-                []
-        
-            let asm_of_prog (asm: (reg,regx,xreg,rflag,cond,asm_op) asm_prog) : asm_element list =
-            let headers = Target.headers in
-            let functions_head = pp_functions_decl asm.asm_funcs in
-            let functions_body = pp_functions asm.asm_funcs in
-            let data_segment = pp_data_segment asm.asm_globs asm.asm_glob_names in
-            headers @ functions_head @ functions_body @ data_segment
-        
+        let pp_data_segment_body globs names =
+        let datas = Asm_utils.format_glob_data globs names in
+        List.fold_left (fun acc data ->
+            acc @ [(data)]
+        ) [] datas
+    
+        let pp_data_segment globs names =
+        if not (List.is_empty globs) then
+            let headers = Target.pp_data_segment_header globs names in
+            let data = pp_data_segment_body globs names in
+            headers @ data
+        else
+            []
+    
+        let asm_of_prog (asm: (reg,regx,xreg,rflag,cond,asm_op) asm_prog) : asm_element list =
+        let headers = Target.headers in
+        let functions_head = pp_functions_decl asm.asm_funcs in
+        let functions_body = pp_functions asm.asm_funcs in
+        let data_segment = pp_data_segment asm.asm_globs asm.asm_glob_names in
+        headers @ functions_head @ functions_body @ data_segment
+    
 
     end
 
