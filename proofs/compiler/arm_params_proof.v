@@ -113,6 +113,16 @@ Proof.
     + t_xrbindP=> vo ok_vo ok_wo.
       case: eqP => // ?; subst disp.
       case hshift: shift_of_scale => [shift|//] /=.
+      case: eqP => [heq|_].
+      + move=> [<-] hw.
+        exists (evm s2) => //.
+        constructor.
+        rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb ok_vo /=
+          /exec_sopn /= ok_wb ok_wo /=.
+        have := shift_of_scaleP wo hshift.
+        rewrite heq wrepr0 wunsigned0 wshl_sem //= wrepr1 GRing.mul1r => ->.
+        move: lea_sem; rewrite wrepr0 GRing.addr0 => ->.
+        by rewrite hw /= with_vm_same.
       move=> [<-] hw.
       exists (evm s2) => //.
       constructor.

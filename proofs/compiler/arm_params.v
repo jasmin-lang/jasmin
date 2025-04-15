@@ -61,10 +61,14 @@ Definition arm_mov_ofs
           | Some base, Some off =>
             if lea.(lea_disp) == 0%Z then
               let%opt scale := Option.map Z.of_nat (shift_of_scale lea.(lea_scale)) in
-              let opts :=
-                {| set_flags := false; is_conditional := false; has_shift := Some SLSL |}
-              in
-              Some (Copn [:: x ] tag (Oarm (ARM_op ADD opts)) [:: Plvar base; Plvar off; eword_of_int U8 scale ])
+              if scale == 0%Z then
+                (* we have a special case to avoid a trivial shift of 0 *)
+                mk (ADD, [:: Plvar base; Plvar off ])
+              else
+                let opts :=
+                  {| set_flags := false; is_conditional := false; has_shift := Some SLSL |}
+                in
+                Some (Copn [:: x ] tag (Oarm (ARM_op ADD opts)) [:: Plvar base; Plvar off; eword_of_int U8 scale ])
             else None
           end
         end
