@@ -2416,14 +2416,13 @@ Proof.
   by apply (distinct_regions_disjoint_zrange hwf haddr hwfy haddry).
 Qed.
 
+Lemma disjoint_slices_sym s1 s2 : disjoint_slices s1 s2 = disjoint_slices s2 s1.
+Proof. by rewrite /disjoint_slices orbC. Qed.
+
 Lemma disjoint_zones_sym z1 z2 : disjoint_zones z1 z2 = disjoint_zones z2 z1.
 Proof.
   elim: z1 z2 => [|s1 z1 ih] [|s2 z2] //=.
-  rewrite eq_sym.
-  case: eqP => _ //.
-  case: symbolic_slice_ble => // b1.
-  case: symbolic_slice_ble => // b2.
-  by case: b1 b2 => [] [].
+  by rewrite eq_sym ih disjoint_slices_sym.
 Qed.
 
 Lemma incl_interval_refl : Reflexive incl_interval.
@@ -2676,22 +2675,6 @@ Proof.
   by rewrite /= ok_cs2' /= ok_cs2'' /=.
 Qed.
 
-(* under-specification *)
-(* TODO: remove disjoint_symbolic_slice and reason on concrete_slice only *)
-Lemma symbolic_slice_ble_disjoint vme s1 s2 :
-  odflt false (symbolic_slice_ble s1 s2) ->
-  disjoint_symbolic_slice vme s1 s2.
-Proof.
-  move=> + cs1 cs2.
-  rewrite /symbolic_slice_ble /sem_slice.
-  case: is_constP => //= ofs1.
-  case: is_constP => //= len1.
-  case: is_constP => //= ofs2.
-  move=> hle [<-].
-  t_xrbindP=> len2 vlen2 ok_vlen2 ok_len2 <-.
-  by rewrite /disjoint_concrete_slice /= hle.
-Qed.
-
 Lemma disjoint_symbolic_slice_zone vme s1 s2 z1 z2 :
   disjoint_symbolic_slice vme s1 s2 ->
   disjoint_symbolic_zone vme (s1 :: z1) (s2 :: z2).
@@ -2703,8 +2686,27 @@ Proof.
   by apply hdisj.
 Qed.
 
-(* La fonction [disjoint_zones] n'a pas de cas particulier pour les constantes ?
-   pourrait-on réécrire en fonction de get_suffix ? *)
+(* TODO: remove disjoint_symbolic_slice and reason on concrete_slice only *)
+Lemma disjoint_slicesP vme s1 s2 :
+  disjoint_slices s1 s2 ->
+  disjoint_symbolic_slice vme s1 s2.
+Proof.
+  have symbolic_slice_ble_disjoint:
+    forall s1 s2, odflt false (symbolic_slice_ble s1 s2) -> disjoint_symbolic_slice vme s1 s2.
+  + move=> {}s1 {}s2 + cs1 cs2.
+    rewrite /symbolic_slice_ble /sem_slice.
+    case: is_constP => //= ofs1.
+    case: is_constP => //= len1.
+    case: is_constP => //= ofs2.
+    move=> hle [<-].
+    t_xrbindP=> len2 vlen2 ok_vlen2 ok_len2 <-.
+    by rewrite /disjoint_concrete_slice /= hle.
+  move=> /orP[] hle.
+  + by apply symbolic_slice_ble_disjoint.
+  apply disjoint_symbolic_slice_sym.
+  by apply symbolic_slice_ble_disjoint.
+Qed.
+
 Lemma get_suffix_Some_None vme z1 z2 :
   get_suffix z1 z2 = Some None ->
   disjoint_symbolic_zone vme z1 z2.
@@ -2717,13 +2719,9 @@ Proof.
     + by case: (z1) (z2) hsuffix => [//|??] [].
     by apply ih1.
   move=> hsuffix; apply disjoint_symbolic_slice_zone; move: hsuffix.
-  case hle1: (odflt _ _).
+  case: ifP => [hdisj|_].
   + move=> _.
-    by apply symbolic_slice_ble_disjoint.
-  case hle2: (odflt _ _).
-  + move=> _.
-    apply disjoint_symbolic_slice_sym.
-    by apply symbolic_slice_ble_disjoint.
+    by apply disjoint_slicesP.
   case: z1 {ih1} => //.
   case: is_const => // ?.
   case: is_const => // ?.
@@ -2785,8 +2783,7 @@ Proof.
     case: ifP => // _ [<-] /=.
     rewrite Z.sub_add_distr.
     by apply hoff.
-  case hle1: (odflt _ _) => //.
-  case hle2: (odflt _ _) => //.
+  case: ifP => // _.
   case: z1 {ih1} => //.
   move=> hsuffix ok_cs1 ok_cs2.
   have [cs2' ok_cs2' hincl2] := sem_zone_cons_incl ok_cs2.
@@ -2816,7 +2813,6 @@ Proof.
   case: eqP => _.
   + move=> /ih1 /=.
     by clear; SvD.fsetdec.
-  case: ifP => _ //.
   case: ifP => _ //.
   case: z1 {ih1} => [|//].
   case: is_const => // ofs1.
@@ -4101,8 +4097,6 @@ Proof.
   elim: i => [//|s1 i ih] /=.
   case: eqP => _.
   + by apply incl_interval_cons.
-  case: ifP => _.
-  + by apply incl_interval_refl.
   have hsub: incl_interval (s1 :: remove_sub_interval i s) (s1 :: i).
   + rewrite /= mem_head /=.
     apply: (incl_interval_trans ih (incl_interval_cons _ _)).
@@ -4170,8 +4164,6 @@ Proof.
     move: ok_cs'; rewrite ok_cs => -[<-].
     rewrite ok_ci => -[<-].
     by case/orP.
-  case: (@idP (odflt _ _)) => [hle|_].
-  + by rewrite /= ok_cs' ok_ci /= => -[<-] /=.
   have h:
     mapM (sem_slice vme) (s' :: remove_sub_interval i s) = ok ci2 ->
     offset_in_concrete_slice cs' off || offset_in_concrete_interval ci off ->
@@ -4281,19 +4273,11 @@ Proof.
   elim: i hget ci ok_ci => [|s' i ih] /=.
   + by move=> _ _ [<-] /=.
   case: eqP => _ //.
-  case hle1: (odflt _ _).
-  + move=> hget.
-    t_xrbindP=> _ cs' ok_cs' ci ok_ci <-.
-    move=> /= /orP [off_in_cs'|off_in_ci].
-    + have hdisj := symbolic_slice_ble_disjoint hle1 ok_cs ok_cs'.
-      by apply (disjoint_concrete_sliceP hdisj off_in_cs off_in_cs').
-    by apply (ih hget ci ok_ci off_in_ci).
-  case hle2: (odflt _ _) => //.
-  move=> hget.
+  case: ifP => // hdisj hget.
   t_xrbindP=> _ cs' ok_cs' ci ok_ci <-.
   move=> /= /orP [off_in_cs'|off_in_ci].
-  + have hdisj := symbolic_slice_ble_disjoint hle2 ok_cs' ok_cs.
-    by apply (disjoint_concrete_sliceP hdisj off_in_cs' off_in_cs).
+  + have {}hdisj := disjoint_slicesP hdisj ok_cs ok_cs'.
+    by apply (disjoint_concrete_sliceP hdisj off_in_cs off_in_cs').
   by apply (ih hget ci ok_ci off_in_ci).
 Qed.
 
@@ -6381,14 +6365,9 @@ Proof.
     have z2_nnil: z2 <> [::].
     + by case: (z1) (z2) hdisj => [|??] [|??] /=.
     by apply (disjoint_symbolic_zone_cons z1_nnil z2_nnil (ih1 _ hdisj)).
-  case hle1: (odflt _ _).
-  + move=> _.
-    apply disjoint_symbolic_slice_zone.
-    by apply symbolic_slice_ble_disjoint.
-  case hle2: (odflt _ _) => // _.
+  case: ifP => // hdisj _.
   apply disjoint_symbolic_slice_zone.
-  apply disjoint_symbolic_slice_sym.
-  by apply symbolic_slice_ble_disjoint.
+  by apply disjoint_slicesP.
 Qed.
 
 Lemma disjoint_symbolic_zone_disjoint_zrange vme sr1 ty1 sr2 ty2 addr1 addr2 :
@@ -7161,7 +7140,6 @@ Proof.
   apply wfr_VARS_STATUS_set_clear_status => //.
   by apply (hvarsz1 _ _ hsrg).
 Qed.
-
 
 (* TODO: in the long term, try to merge with what is proved about calls *)
 Lemma alloc_syscallP ii rmap rs o es rmap2 c table vme m0 s1 s2 ves scs m vs s1' :

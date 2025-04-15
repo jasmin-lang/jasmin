@@ -234,7 +234,14 @@ Definition symbolic_slice_ble (s1 s2 : symbolic_slice) :=
   let%opt ofs2 := is_const s2.(ss_ofs) in
   Some (ofs1 + len1 <=? ofs2)%Z.
 
-(* true : Valid, false : Unknown *)
+(* Conservative disjoint test on symbolic slices.
+   If [true] is returned, the slices are disjoint. If [false] is returned,
+   we cannot conclude. *)
+Definition disjoint_slices (s1 s2 : symbolic_slice) : bool :=
+  odflt false (symbolic_slice_ble s1 s2) || odflt false (symbolic_slice_ble s2 s1).
+
+(* We look whether slice [s] has some intersection with intervals [i].
+   true : Valid, false : Unknown *)
 (* With just one-level precision, a sub-status is either fully Valid
    or fully Unknown (actually, we could be a bit more precise, especially
    with constants, but currently we stay simple). *)
@@ -243,18 +250,19 @@ Fixpoint get_sub_interval (i : intervals) s : bool :=
   | [::] => true (* valid *)
   | s' :: i =>
     if s == s' then false (* fully borrowed: unknown *)
-    else if odflt false (symbolic_slice_ble s s') then
-      (* valid; we don't maintain that the list is sorted, so we make a
-         recursive call  *)
+    else if disjoint_slices s s' then
+      (* we don't maintain that the list is sorted, so we always make a
+         recursive call *)
       get_sub_interval i s
-    else if odflt false (symbolic_slice_ble s' s) then
-      get_sub_interval i s (* valid *)
     else
       false (* non-disjoint: unknown *)
   end.
 
 (* We add a slice, meaning we get closer to Unknown.
-  [None] as a return value means Unknown *)
+  [None] as a return value means Unknown.
+  We use [symbolic_slice_ble] rather than [disjoint_slices] because
+  we implictly maintain the fact that intervals are sorted. This is not proved
+  nor used, though. *)
 Fixpoint add_sub_interval (i : intervals) s : option intervals :=
   match i with
   | [::] => Some [:: s]
@@ -274,7 +282,6 @@ Fixpoint remove_sub_interval (i : intervals) s : intervals :=
   | [::] => [::]
   | s' :: i' =>
     if s == s' then i'
-    else if odflt false (symbolic_slice_ble s s') then i
     else
       (* special case: everything is constant
          -> we check inclusion of s' in s and if ok, we remove [s']
@@ -517,7 +524,8 @@ Definition sub_region_status_at_ofs (x:var_i) sr status ofs len :=
     in
     (sr, status).
 
-(* None => non-disjoint zones, error
+(* Returns a zone [z] such that z2 = z1 ++ z, if possible.
+   None => non-disjoint zones, error
    Some None => disjoint zones
    Some z => suffix *)
 Fixpoint get_suffix (z1 z2 : symbolic_zone) : option (option symbolic_zone) :=
@@ -528,8 +536,7 @@ Fixpoint get_suffix (z1 z2 : symbolic_zone) : option (option symbolic_zone) :=
     | [::] => None
     | s2 :: z2 =>
       if s1 == s2 then get_suffix z1 z2
-      else if odflt false (symbolic_slice_ble s1 s2) then Some None
-      else if odflt false (symbolic_slice_ble s2 s1) then Some None
+      else if disjoint_slices s1 s2 then Some None
       else
         (* special case: z1 is nil and s1 is made up of constants *)
         if z1 is [::] then
@@ -1532,8 +1539,7 @@ Fixpoint disjoint_zones z1 z2 : bool :=
   | [::], _ | _, [::] => false
   | s1 :: z1, s2 :: z2 =>
     if s1 == s2 then disjoint_zones z1 z2
-    else if odflt false (symbolic_slice_ble s1 s2) then true
-    else if odflt false (symbolic_slice_ble s2 s1) then true
+    else if disjoint_slices s1 s2 then true
     else (* not disjoint (or at least it was not proved) *)
       false
   end.
