@@ -1,4 +1,8 @@
 // This is just a copy of bug_54.jazz, but easier to find
+
+// With the current implementation, this fails. We could imagine a different
+// implementation where this works.
+
 export
 fn main () -> reg u64 {
   reg u64 res;

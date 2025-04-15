@@ -1,5 +1,7 @@
 fn f (reg ptr u64[1] r1, reg ptr u64[1] r2) -> reg ptr u64[1] {
-  r1[0] = r2[0];
+  reg u64 tmp;
+  tmp = r2[0];
+  r1[0] = tmp;
   return r1;
 }
 

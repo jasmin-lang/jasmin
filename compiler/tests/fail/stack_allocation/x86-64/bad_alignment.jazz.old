@@ -1,0 +1,10 @@
+export fn f (reg u64 i) -> reg u32 {
+  reg u32 res;
+  stack u64[20] a;
+  stack u32[10] b;
+  a[0]=0;
+  a[u32 0:2] = b[i:2];
+  b[i:2] = a[u32 0:2];
+  res = b[u128 1];
+  return res;
+}
