@@ -41,7 +41,8 @@ Module Import E.
     pel_internal := internal
   |}.
 
-  Definition stk_error_no_var s := stk_error_no_var_gen false (pp_s s).
+  Definition stk_error_no_var_box := stk_error_no_var_gen false.
+  Definition stk_error_no_var s := stk_error_no_var_box (pp_s s).
   Definition stk_ierror_no_var s := stk_error_no_var_gen true (pp_s s).
 
 End E.
@@ -459,7 +460,10 @@ Definition check_align al x (sr:sub_region) ws :=
   Let _ := assert ((al == Unaligned) || (ws <= sr.(sr_region).(r_align))%CMP)
                   (stk_ierror_basic x "unaligned offset") in
   assert ((al == Unaligned) || divide_zone sr.(sr_zone) ws)
-         (stk_ierror_basic x "unaligned sub offset").
+         (stk_error x (pp_hov
+           [:: pp_s "the access to array"; pp_var x; pp_s "could not be proved to be aligned;";
+               pp_s "if you know what you are doing or want to perform an unaligned access,";
+               pp_s "you can use “#unaligned”"])).
 
 Definition check_writable (x:var_i) (r:region) :=
   assert r.(r_writable)
@@ -809,7 +813,13 @@ Fixpoint symbolic_of_pexpr t e : cexec (option (table * sexpr)) :=
 (* A version of symbolic_of_pexpr that fails. *)
 Definition get_symbolic_of_pexpr t e :=
   Let ote := symbolic_of_pexpr t e in
-  o2r (stk_error_no_var "expression too complex") ote.
+  let err :=
+    stk_error_no_var_box (pp_hov [::
+      pp_s "do not know how to compile this array access into a memory access,";
+      pp_s "the expression"; pp_e e;
+      pp_s "must contain only the operators “+” and “*”"])
+  in
+  o2r err ote.
 
 Definition remove_binding table x :=
   {| bindings := Mvar.remove table.(bindings) x;
@@ -965,7 +975,7 @@ Definition addr_from_pk (x:var_i) (pk:ptr_kind) :=
   | Pregptr p             => ok (with_var x p,             0)
   | Pstkptr _ _ _ _ _     =>
     Error (stk_error x (pp_box [::
-      pp_var x; pp_s "is a stack pointer, it should not appear in an expression"]))
+      pp_var x; pp_s "is a stack ptr, it should not appear in a sub-expression"]))
   end%Z.
 
 Definition addr_from_vpk x (vpk:vptr_kind) :=
@@ -1562,10 +1572,12 @@ Fixpoint check_all_disj (notwritables writables:seq sub_region) (srs:seq (option
     else false
   end.
 
-Definition alloc_call_args rmap (sao_params: seq (option param_info)) (es:seq pexpr) :=
+Definition alloc_call_args rmap fn (sao_params: seq (option param_info)) (es:seq pexpr) :=
   Let es := alloc_call_args_aux rmap sao_params es in
   Let _  := assert (check_all_disj [::] [::] es.2)
-                   (stk_error_no_var "some writable reg ptr are not disjoints") in
+                   (stk_error_no_var_box (pp_hov
+                     [:: pp_s "in the call to function"; pp_nobox [:: pp_fn fn; pp_s ","];
+                         pp_s "some writable reg ptr are not disjoint"])) in
   ok es.
 
 Definition check_lval_reg_call (r:lval) :=
@@ -1615,7 +1627,7 @@ Definition alloc_call_res rmap srs ret_pos rs :=
 
 Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap rs fn es :=
   let sao_callee := local_alloc fn in
-  Let es  := alloc_call_args rmap sao_callee.(sao_params) es in
+  Let es  := alloc_call_args rmap fn sao_callee.(sao_params) es in
   let '(rmap, es) := es in
   Let rs  := alloc_call_res rmap es sao_callee.(sao_return) rs in
   Let _   := assert_check (~~ is_RAnone sao_callee.(sao_return_address))

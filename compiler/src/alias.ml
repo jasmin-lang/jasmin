@@ -64,7 +64,9 @@ let range_in_slice (lo, hi) kind s =
       let (u, v) = s.range in
       if u + hi <= v
       then { s with range = u + lo, u + hi }
-      else hierror_no_loc "range [%a[ overflows slice %a" pp_range (lo, hi) pp_slice s
+      else
+        hierror_no_loc "cannot access the subarray [%a[ of %a, the access overflows, your program is probably unsafe"
+          pp_range (lo, hi) pp_slice s
   | Sub ws, Exact ->
       { s with kind = Sub (wsize_min ws (align_of_offset (fst s.range))) }
   | Exact, Sub ws ->
@@ -118,9 +120,12 @@ let incl a1 a2 =
 
 (* Partial order on variables, by scope and size *)
 let compare_gvar params x gx y gy =
-  let check_size x1 s1 x2 s2 =
-    if not (s1 <= s2) then hierror_no_loc "cannot merge variables %a (of size %i) and %a (of size %i): %a is too large" pp_var x1 s1 pp_var x2 s2 pp_var x1 in
-      
+  let check_size kind x1 s1 x2 s2 =
+    if not (s1 <= s2) then
+      hierror_no_loc "cannot merge a %s and a local that is larger (%a of size %i, and %a of size %i)"
+        kind pp_var x2 s2 pp_var x1 s1
+  in
+
   if V.equal x y
   then (assert (gx = gy); 0)
   else
@@ -130,19 +135,19 @@ let compare_gvar params x gx y gy =
     | E.Sglob, E.Sglob -> 
       hierror_no_loc "cannot merge two globals (%a and %a)" pp_var x pp_var y
     | E.Sglob, E.Slocal -> 
-      check_size y sy x sx;
       if (Sv.mem y params) then hierror_no_loc "cannot merge a global and a param (%a and %a)" pp_var x pp_var y;
+      check_size "global" y sy x sx;
       1
     | E.Slocal, E.Sglob -> 
-      check_size x sx y sy; 
       if (Sv.mem x params) then hierror_no_loc "cannot merge a param and a global (%a and %a)" pp_var x pp_var y;
+      check_size "global" x sx y sy;
       -1
     | E.Slocal, E.Slocal ->
       match Sv.mem x params, Sv.mem y params with
       | true, true -> 
         hierror_no_loc "cannot merge two params (%a and %a)" pp_var x pp_var y;
-      | true, false -> check_size y sy x sx; 1
-      | false, true -> check_size x sx y sy; -1
+      | true, false -> check_size "param" y sy x sx; 1
+      | false, true -> check_size "param" x sx y sy; -1
       | false, false ->
         let c = Stdlib.Int.compare sx sy in
         if c = 0 then V.compare x y

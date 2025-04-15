@@ -6462,8 +6462,8 @@ Proof.
   by apply: hdisj hsri hsrj neq_ij.
 Qed.
 
-Lemma alloc_call_argsE rmap sao_params args rmap2 l :
-  alloc_call_args pmap rmap sao_params args = ok (rmap2, l) ->
+Lemma alloc_call_argsE rmap fn sao_params args rmap2 l :
+  alloc_call_args pmap rmap fn sao_params args = ok (rmap2, l) ->
   alloc_call_args_aux pmap rmap sao_params args = ok (rmap2, l) /\
   check_all_disj [::] [::] l.
 Proof.
@@ -6472,9 +6472,9 @@ Proof.
 Qed.
 
 (* Full spec *)
-Lemma alloc_call_argsP table rmap vme m0 s1 s2 sao_params args rmap2 l wdb vargs1 :
+Lemma alloc_call_argsP table rmap vme m0 s1 s2 fn sao_params args rmap2 l wdb vargs1 :
   valid_state table rmap vme m0 s1 s2 ->
-  alloc_call_args pmap rmap sao_params args = ok (rmap2, l) ->
+  alloc_call_args pmap rmap fn sao_params args = ok (rmap2, l) ->
   sem_pexprs wdb gd s1 args = ok vargs1 ->
   exists vargs2, [/\
     sem_pexprs wdb [::] s2 (map snd l) = ok vargs2,
