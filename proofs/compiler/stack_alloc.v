@@ -1496,15 +1496,7 @@ Definition get_Pvar e :=
   | _      => Error (stk_ierror_no_var "get_Pvar: variable expected")
   end.
 
-(* We clear the arguments. This is not necessary in the classic case, because
-   we also clear them when assigning the results in alloc_call_res
-   (this works if each writable reg ptr is returned (which is currently
-   checked by the pretyper) and if each result variable has the same size
-   as the corresponding input variable).
-   But this complexifies the proof and needs a few more
-   checks in stack_alloc to be valid. Thus, for the sake of simplicity, it was
-   decided to make the clearing of the arguments twice : here and in
-   alloc_call_res.
+(* We clear the arguments.
 
    We use two rmaps:
    - the initial rmap [rmap0] is used to check the validity of the sub-regions;
@@ -1610,7 +1602,7 @@ Definition alloc_lval_call (srs:seq (option (bool * sub_region) * pexpr)) rmap (
       | Lnone i _ => ok (rmap, Lnone i (sword Uptr))
       | Lvar x =>
         Let p := get_regptr x in
-        let rmap := set_move rmap x sr Valid in (* FIXME: no align check *)
+        let rmap := set_move rmap x sr Valid in
         (* TODO: Lvar p or Lvar (with_var x p) like in alloc_call_arg? *)
         ok (rmap, Lvar p)
       | Laset _ aa ws x e1 => Error (stk_ierror_basic x "array assignement in lval of a call")
