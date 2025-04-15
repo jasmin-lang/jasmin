@@ -151,11 +151,11 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     pp_vbox [
       pp_nobox [
         PPEstring "{ region = ";
-        PPEstring (Format.asprintf "%a" Pp_stack_alloc.pp_region sr.Stack_alloc.sr_region);
+        PPEstring (Format.asprintf "%a" (Pp_stack_alloc.pp_region ~debug:!debug) sr.Stack_alloc.sr_region);
         PPEstring ";"];
       pp_nobox [
         PPEstring "  zone = ";
-        PPEstring (Format.asprintf "%a" Pp_stack_alloc.pp_symbolic_zone sr.Stack_alloc.sr_zone);
+        PPEstring (Format.asprintf "%a" (Pp_stack_alloc.pp_symbolic_zone ~debug:!debug) sr.Stack_alloc.sr_zone);
         PPEstring " }"]];
   in
 
@@ -165,7 +165,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       let (loc, _) = ii in
       Format.fprintf fmt "==========@,%a@,==========" Location.pp_iloc loc
     in
-    Format.eprintf "@[<v>%a@,%a@,%a@]@." pp_ii ii pp_table table pp_rmap rmap
+    Format.eprintf "@[<v>%a@,%a@,%a@]@." pp_ii ii (pp_table ~debug:!debug) table (pp_rmap ~debug:!debug) rmap
   in
 
   let print_trmap ii table rmap =
