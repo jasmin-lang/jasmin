@@ -891,7 +891,6 @@ Context
   (saparams : stack_alloc_params)
   (is_move_op : asm_op_t -> bool)
   (fresh_var_ident  : v_kind -> Uint63.int -> string -> stype -> Ident.ident)
-  (print_trmap : instr_info -> table -> region_map -> table * region_map)
   (pp_sr : sub_region -> pp_error)
 .
 
@@ -1707,93 +1706,89 @@ Definition alloc_array_swap rmap rs t es :=
 Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region_map * cmd) :=
   let (table, rmap) := trmap in
   let (ii, ir) := i in
-  Let: (table, rmap, c) :=
-    match ir with
-    | Cassgn r t ty e =>
-      if is_sarr ty then
-        Let: (table, rmap, ir) := add_iinfo ii (alloc_array_move_init table rmap r t e) in
-        let table := remove_binding_lval table r in
-        ok (table, rmap, [:: MkI ii ir])
-      else
-        Let ote := symbolic_of_pexpr table e in
-        let (table, oe) :=
-          match ote with
-          | Some (table, e) => (table, Some e)
-          | None => (table, None)
-          end
-        in
-        let table := remove_binding_lval table r in
-        let table := update_table table r oe in
-        Let e := add_iinfo ii (alloc_e rmap e ty) in
-        Let r := add_iinfo ii (alloc_lval rmap r ty) in
-        ok (table, r.1, [:: MkI ii (Cassgn r.2 t ty e)])
-
-    | Copn rs t o e =>
-      if is_protect_ptr_fail rs o e is Some (r, e, msf) then
-         let table := remove_binding_lval table r in
-         Let rs := alloc_protect_ptr rmap ii r t e msf in
-         ok (table, rs.1, [:: MkI ii rs.2])
-      else
-      if is_swap_array o then
-        let table := remove_binding_lvals table rs in
-        Let rs := add_iinfo ii (alloc_array_swap rmap rs t e) in
-        ok (table, rs.1, [:: MkI ii rs.2])
-      else
-      Let table :=
-        match rs, o, e with
-        | [:: r], Oasm op, [:: e] =>
-          if is_move_op op then
-            Let ote := symbolic_of_pexpr table e in
-            let (table, oe) :=
-              match ote with
-              | Some (table, e) => (table, Some e)
-              | None => (table, None)
-              end
-            in
-            let table := remove_binding_lval table r in
-            ok (update_table table r oe)
-          else ok (remove_binding_lvals table rs)
-        | _, _, _ => ok (remove_binding_lvals table rs)
+  match ir with
+  | Cassgn r t ty e =>
+    if is_sarr ty then
+      Let: (table, rmap, ir) := add_iinfo ii (alloc_array_move_init table rmap r t e) in
+      let table := remove_binding_lval table r in
+      ok (table, rmap, [:: MkI ii ir])
+    else
+      Let ote := symbolic_of_pexpr table e in
+      let (table, oe) :=
+        match ote with
+        | Some (table, e) => (table, Some e)
+        | None => (table, None)
         end
       in
-      Let e  := add_iinfo ii (alloc_es rmap e (sopn_tin o)) in
-      Let rs := add_iinfo ii (alloc_lvals rmap rs (sopn_tout o)) in
-      ok (table, rs.1, [:: MkI ii (Copn rs.2 t o e)])
+      let table := remove_binding_lval table r in
+      let table := update_table table r oe in
+      Let e := add_iinfo ii (alloc_e rmap e ty) in
+      Let r := add_iinfo ii (alloc_lval rmap r ty) in
+      ok (table, r.1, [:: MkI ii (Cassgn r.2 t ty e)])
 
-    | Csyscall rs o es =>
+  | Copn rs t o e =>
+    if is_protect_ptr_fail rs o e is Some (r, e, msf) then
+       let table := remove_binding_lval table r in
+       Let rs := alloc_protect_ptr rmap ii r t e msf in
+       ok (table, rs.1, [:: MkI ii rs.2])
+    else
+    if is_swap_array o then
       let table := remove_binding_lvals table rs in
-      Let: (rmap, c) := alloc_syscall ii rmap rs o es in
-      ok (table, rmap, c)
-
-    | Cif e c1 c2 =>
-      Let e := add_iinfo ii (alloc_e rmap e sbool) in
-      Let: (table1, rmap1, c1) := fmapM (alloc_i sao) (table, rmap) c1 in
-      Let: (table2, rmap2, c2) := fmapM (alloc_i sao) (table, rmap) c2 in
-      let table := merge_table table1 table2 in
-      let rmap := merge table.(vars) rmap1 rmap2 in
-      ok (table, rmap, [:: MkI ii (Cif e (flatten c1) (flatten c2))])
-
-    | Cwhile a c1 e info c2 =>
-      let check_c table rmap :=
-        Let: (table1, rmap1, c1) := fmapM (alloc_i sao) (table, rmap) c1 in
-        Let e := add_iinfo ii (alloc_e rmap1 e sbool) in
-        Let: (table2, rmap2, c2) := fmapM (alloc_i sao) (table1, rmap1) c2 in
-        ok ((table1, rmap1), (table2, rmap2), (e, c1, c2))
-      in
-      Let: (table, rmap, (e, c1, c2)) := loop2 ii check_c Loop.nb table rmap in
-      ok (table, rmap, [:: MkI ii (Cwhile a (flatten c1) e info (flatten c2))])
-
-    | Ccall rs fn es =>
-      let table := remove_binding_lvals table rs in
-      Let ri := add_iinfo ii (alloc_call sao rmap rs fn es) in
-      ok (table, ri.1, [::MkI ii ri.2])
-
-    | Cfor _ _ _  => Error (pp_at_ii ii (stk_ierror_no_var "don't deal with for loop"))
-
-    end
+      Let rs := add_iinfo ii (alloc_array_swap rmap rs t e) in
+      ok (table, rs.1, [:: MkI ii rs.2])
+    else
+    Let table :=
+      match rs, o, e with
+      | [:: r], Oasm op, [:: e] =>
+        if is_move_op op then
+          Let ote := symbolic_of_pexpr table e in
+          let (table, oe) :=
+            match ote with
+            | Some (table, e) => (table, Some e)
+            | None => (table, None)
+            end
+          in
+          let table := remove_binding_lval table r in
+          ok (update_table table r oe)
+        else ok (remove_binding_lvals table rs)
+      | _, _, _ => ok (remove_binding_lvals table rs)
+      end
     in
-    let (table, rmap) := print_trmap ii table rmap in
-    ok (table, rmap, c).
+    Let e  := add_iinfo ii (alloc_es rmap e (sopn_tin o)) in
+    Let rs := add_iinfo ii (alloc_lvals rmap rs (sopn_tout o)) in
+    ok (table, rs.1, [:: MkI ii (Copn rs.2 t o e)])
+
+  | Csyscall rs o es =>
+    let table := remove_binding_lvals table rs in
+    Let: (rmap, c) := alloc_syscall ii rmap rs o es in
+    ok (table, rmap, c)
+
+  | Cif e c1 c2 =>
+    Let e := add_iinfo ii (alloc_e rmap e sbool) in
+    Let: (table1, rmap1, c1) := fmapM (alloc_i sao) (table, rmap) c1 in
+    Let: (table2, rmap2, c2) := fmapM (alloc_i sao) (table, rmap) c2 in
+    let table := merge_table table1 table2 in
+    let rmap := merge table.(vars) rmap1 rmap2 in
+    ok (table, rmap, [:: MkI ii (Cif e (flatten c1) (flatten c2))])
+
+  | Cwhile a c1 e info c2 =>
+    let check_c table rmap :=
+      Let: (table1, rmap1, c1) := fmapM (alloc_i sao) (table, rmap) c1 in
+      Let e := add_iinfo ii (alloc_e rmap1 e sbool) in
+      Let: (table2, rmap2, c2) := fmapM (alloc_i sao) (table1, rmap1) c2 in
+      ok ((table1, rmap1), (table2, rmap2), (e, c1, c2))
+    in
+    Let: (table, rmap, (e, c1, c2)) := loop2 ii check_c Loop.nb table rmap in
+    ok (table, rmap, [:: MkI ii (Cwhile a (flatten c1) e info (flatten c2))])
+
+  | Ccall rs fn es =>
+    let table := remove_binding_lvals table rs in
+    Let ri := add_iinfo ii (alloc_call sao rmap rs fn es) in
+    ok (table, ri.1, [::MkI ii ri.2])
+
+  | Cfor _ _ _  => Error (pp_at_ii ii (stk_ierror_no_var "don't deal with for loop"))
+
+  end.
 
 End PROG.
 

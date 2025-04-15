@@ -159,23 +159,8 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
         PPEstring " }"]];
   in
 
-  let print_trmap ii table rmap =
-    let open Pp_stack_alloc in
-    let pp_ii fmt ii =
-      let (loc, _) = ii in
-      Format.fprintf fmt "==========@,%a@,==========" Location.pp_iloc loc
-    in
-    Format.eprintf "@[<v>%a@,%a@,%a@]@." pp_ii ii (pp_table ~debug:!debug) table (pp_rmap ~debug:!debug) rmap
-  in
-
-  let print_trmap ii table rmap =
-    if !Glob_options.print_stack_alloc_checker then print_trmap ii table rmap;
-    (table, rmap)
-  in
-
   let memory_analysis up : Compiler.stack_alloc_oracles =
     StackAlloc.memory_analysis
-      print_trmap
       pp_sr
       (Printer.pp_err ~debug:!debug)
       ~debug:!debug up
@@ -440,7 +425,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.stack_zero_info = szs_of_fn;
       Compiler.dead_vars_ufd;
       Compiler.dead_vars_sfd;
-      Compiler.print_trmap;
       Compiler.pp_sr;
     }
   in

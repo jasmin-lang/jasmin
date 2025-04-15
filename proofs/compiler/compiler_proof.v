@@ -59,8 +59,6 @@ Context
 Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
 Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
-Hypothesis print_trmapP :
-  forall ii table rmap, cparams.(print_trmap) ii table rmap = (table, rmap).
 
 #[local]
 Existing Instance progUnit.
@@ -523,7 +521,7 @@ Proof.
     have := compiler_third_part_alloc_ok ok_p4 ok_mi.
     move=> /(_ _ get_fd3).
     by rewrite -fd2_fd3_extra.
-  have := alloc_progP _ (hap_hsap haparams) print_trmapP haparams.(hap_is_move_opP) ok_p2 exec_p1 m_mi.
+  have := alloc_progP _ (hap_hsap haparams) haparams.(hap_is_move_opP) ok_p2 exec_p1 m_mi.
   move => /(_ (hap_hshp haparams) va' hargs heqinmem ok_mi').
   case => mi' [] vr2 [] exec_p2 m'_mi' vr2_wf vr2_eqinmem U.
   have exec_p3 :=
