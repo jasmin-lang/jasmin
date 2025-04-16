@@ -15,10 +15,6 @@ Import MonadNotation.
 (* FIXME : This can be removed using %monad *)
 Local Open Scope monad_scope.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (**** Error semantics ******************************************)
 Section Errors.
 

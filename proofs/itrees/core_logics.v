@@ -19,10 +19,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool.
 
 Require Import xrutt xrutt_facts rutt_extras.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Notation prepred E := (forall T, E T -> Prop).
 Notation postpred E := (forall T, E T -> T -> Prop).
 

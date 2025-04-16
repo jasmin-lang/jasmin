@@ -22,10 +22,6 @@ Require Import utils.
 Import ITreeNotations.
 Local Open Scope itree_scope.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Definition error_data := (error * unit)%type.
 
 Variant execS (A:Type) :=

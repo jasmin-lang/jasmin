@@ -23,10 +23,6 @@ Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Require Import expr psem_defs oseq compiler_util.
 (* needed for the last lemma *)
 Require Import psem.

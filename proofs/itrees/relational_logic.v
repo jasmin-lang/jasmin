@@ -19,10 +19,6 @@ Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Require Import xrutt xrutt_facts.
 Require Import expr psem_defs psem oseq compiler_util.
 Require Import it_sems_core core_logics hoare_logic.

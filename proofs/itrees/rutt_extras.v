@@ -23,10 +23,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool.
 
 Require Import xrutt xrutt_facts.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Lemma rutt_iter (E1 E2 : Type -> Type) {I1 I2 R1 R2}
       (RI : I1 -> I2 -> Prop)
       (RR : R1 -> R2 -> Prop)
