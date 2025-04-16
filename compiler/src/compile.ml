@@ -145,8 +145,23 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let translate_var = Conv.var_of_cvar in
 
+  (* Kind of duplicate of pp_sub_region... *)
+  let pp_sr sr =
+    let open Compiler_util in
+    pp_vbox [
+      pp_nobox [
+        PPEstring "{ region = ";
+        PPEstring (Format.asprintf "%a" (Pp_stack_alloc.pp_region ~debug:!debug) sr.Stack_alloc.sr_region);
+        PPEstring ";"];
+      pp_nobox [
+        PPEstring "  zone = ";
+        PPEstring (Format.asprintf "%a" (Pp_stack_alloc.pp_symbolic_zone ~debug:!debug) sr.Stack_alloc.sr_zone);
+        PPEstring " }"]];
+  in
+
   let memory_analysis up : Compiler.stack_alloc_oracles =
     StackAlloc.memory_analysis
+      pp_sr
       (Printer.pp_err ~debug:!debug)
       ~debug:!debug up
   in
@@ -410,6 +425,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.stack_zero_info = szs_of_fn;
       Compiler.dead_vars_ufd;
       Compiler.dead_vars_sfd;
+      Compiler.pp_sr;
     }
   in
 

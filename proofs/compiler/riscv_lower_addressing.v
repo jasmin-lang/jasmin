@@ -41,15 +41,6 @@ Section tmp.
 
 Context (tmp: var_i).
 
-(* inspired from scale_of_z in asm_gen *)
-Definition shift_of_scale (z: Z) : option Z :=
-  match z with
-  | 1%Z => Some 0
-  | 2%Z => Some 1
-  | 4%Z => Some 2
-  | _ => None
-  end.
-
 (* We introduce these helper functions, else the number of cases in the pattern-
    matching explodes, due to the way Coq handles pattern-matchings. *)
 Definition is_one_Lmem xs :=
@@ -65,7 +56,7 @@ Definition compute_addr x e :=
   let%opt off := lea.(lea_offset) in
   if tmp == base :> var then None
   else
-    let%opt shift := shift_of_scale lea.(lea_scale) in
+    let%opt shift := Option.map Z.of_nat (shift_of_scale lea.(lea_scale)) in
     Some ([::
       Copn [:: Lvar tmp] AT_none (Oriscv SLLI) [:: Pvar (mk_lvar off); wconst (wrepr Uptr shift)];
       Copn [:: Lvar tmp] AT_none (Oriscv ADD) [:: Pvar (mk_lvar base); Pvar (mk_lvar tmp)]],

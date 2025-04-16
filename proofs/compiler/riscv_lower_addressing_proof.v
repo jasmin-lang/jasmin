@@ -146,9 +146,9 @@ Qed.
 
 Lemma shift_of_scaleP scale shift w :
   shift_of_scale scale = Some shift ->
-  riscv_sll_semi w (wrepr U8 shift) = (wrepr Uptr scale * w)%R.
+  riscv_sll_semi w (wrepr U8 (Z.of_nat shift)) = (wrepr Uptr scale * w)%R.
 Proof.
-  by case: scale => // -[|[|[]|]|] //= [<-]; rewrite /riscv_sll_semi wshl_sem.
+  by case: scale => // -[|[|[|[]|]|]|] //= [<-]; rewrite /riscv_sll_semi wshl_sem.
 Qed.
 
 Lemma compute_addrP ii (tmp x:var_i) e prelude disp s1 wx we :
@@ -170,7 +170,7 @@ Proof.
   case: base hlea => [base|//] hlea.
   case: offset hlea => [offset|//] hlea.
   case: eqP => [//|hneq] /=.
-  case hshift: shift_of_scale => [shift|//].
+  case hshift: shift_of_scale => [shift|//] /=.
   move=> [<- <-] {prelude disp'}.
   have lea_sem:
     sem_pexpr true p'.(p_globs) s1 (Papp2 (Oadd (Op_w Uptr)) (mk_lvar x) e) = ok (Vword (wx + we)).

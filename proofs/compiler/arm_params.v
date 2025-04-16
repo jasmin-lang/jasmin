@@ -5,11 +5,13 @@ Require Import
   arch_params
   compiler_util
   expr
-  fexpr.
+  fexpr
+  shift_kind.
 Require Import
+  lea
   linearization
   lowering
-  stack_alloc
+  stack_alloc_params
   stack_zeroization
   slh_lowering.
 Require Import
@@ -31,33 +33,47 @@ Context {atoI : arch_toIdent}.
 (* Stack alloc parameters. *)
 
 Definition arm_mov_ofs
-  (x : lval) (tag : assgn_tag) (vpk : vptr_kind) (y : pexpr) (ofs : Z) :
+  (x : lval) (tag : assgn_tag) (movk : mov_kind) (y : pexpr) (ofs : pexpr) :
   option instr_r :=
   let mk oa :=
     let: (op, args) := oa in
      Some (Copn [:: x ] tag (Oarm (ARM_op op default_opts)) args) in
-  match mk_mov vpk with
-  | MK_LEA => mk (ADR, [:: if ofs == Z0 then y else add y (eword_of_int reg_size ofs) ])
+  match movk with
+  | MK_LEA => mk (ADR, [:: if is_zero Uptr ofs then y else add y ofs ])
   | MK_MOV =>
     match x with
     | Lvar x_ =>
       if is_Pload y then
-        if ofs == Z0 then mk (LDR, [:: y]) else None
+        if is_zero Uptr ofs then mk (LDR, [:: y ]) else None
       else
-        if ofs == Z0 then mk (MOV, [:: y])
-        else
-          (* This allows to remove constraint in register allocation *)
-          if is_arith_small ofs then mk (ADD, [::y; eword_of_int reg_size ofs ])
-          else
-            (* These checks are not needed for the proof, but it is probably better
-               to fail here than in asm_gen. *)
-            if y is Pvar y_ then
-              if [&& vtype x_ == sword U32 & vtype y_.(gv) == sword U32] then
-                Some (Copn [::x] tag (Oasm (ExtOp Oarm_add_large_imm)) [::y; eword_of_int reg_size ofs ])
-              else None
+        match mk_lea Uptr (add y ofs) with
+        | None => None
+        | Some lea =>
+          match lea.(lea_base), lea.(lea_offset) with
+          | None, _ => None (* impossible *)
+          | Some base, None =>
+            if lea.(lea_disp) == 0%Z then mk (MOV, [:: Plvar base ])
+            else
+              (* This allows to remove constraint in register allocation *)
+              if is_arith_small lea.(lea_disp) then mk (ADD, [:: Plvar base; cast_const lea.(lea_disp) ])
+              else
+                Some (Copn [:: x ] tag (Oasm (ExtOp Oarm_add_large_imm)) [:: Plvar base; cast_const lea.(lea_disp) ])
+          | Some base, Some off =>
+            if lea.(lea_disp) == 0%Z then
+              let%opt scale := Option.map Z.of_nat (shift_of_scale lea.(lea_scale)) in
+              if scale == 0%Z then
+                (* we have a special case to avoid a trivial shift of 0 *)
+                mk (ADD, [:: Plvar base; Plvar off ])
+              else
+                let opts :=
+                  {| set_flags := false; is_conditional := false; has_shift := Some SLSL |}
+                in
+                Some (Copn [:: x ] tag (Oarm (ARM_op ADD opts)) [:: Plvar base; Plvar off; eword_of_int U8 scale ])
             else None
+          end
+        end
     | Lmem _ _ _ _ =>
-      if ofs == Z0 then mk (STR, [:: y]) else None
+      if is_zero Uptr ofs then mk (STR, [:: y ]) else None
     | _ => None
     end
   end.
@@ -276,11 +292,13 @@ Definition arm_szparams : stack_zeroization_params :=
 
 Definition arm_is_move_op (o : asm_op_t) : bool :=
   match o with
-  | BaseOp (None, ARM_op MOV opts) =>
+  | BaseOp (None, ARM_op o opts) =>
+    if o \in [:: MOV; LDR; STR; STRH; STRB ] then
       [&& ~~ set_flags opts
         , ~~ is_conditional opts
         & ~~ has_shift opts
       ]
+    else false
 
   | _ =>
       false

@@ -86,3 +86,13 @@ Fixpoint mk_lea_rec (sz: wsize) e :=
 
 Definition mk_lea sz e :=
   obind (mk_lea_rec sz) (fexpr_of_pexpr e).
+
+(* This function is useful to turn a product into a shift *)
+Definition shift_of_scale (z: Z) : option nat :=
+  match z with
+  | 1%Z => Some 0
+  | 2%Z => Some 1
+  | 4%Z => Some 2
+  | 8%Z => Some 3
+  | _ => None
+  end.

@@ -7,9 +7,10 @@ Require Import
   expr
   fexpr.
 Require Import
+  lea
   linearization
   lowering
-  stack_alloc
+  stack_alloc_params
   stack_zeroization
   slh_lowering.
 Require Import
@@ -34,33 +35,39 @@ Context {atoI : arch_toIdent}.
 (* Stack alloc parameters. *)
 
 Definition riscv_mov_ofs
-  (x : lval) (tag : assgn_tag) (vpk : vptr_kind) (y : pexpr) (ofs : Z) :
+  (x : lval) (tag : assgn_tag) (movk : mov_kind) (y : pexpr) (ofs : pexpr) :
   option instr_r :=
   let mk oa :=
     let: (op, args) := oa in
      Some (Copn [:: x ] tag (Oriscv op) args) in
-  match mk_mov vpk with
-  | MK_LEA => mk (LA, [:: if ofs == Z0 then y else add y (eword_of_int reg_size ofs) ])
+  match movk with
+  | MK_LEA => mk (LA, [:: if is_zero Uptr ofs then y else add y ofs ])
   | MK_MOV =>
     match x with
     | Lvar x_ =>
       if is_Pload y then
-        if ofs == Z0 then mk (LOAD Signed U32, [:: y]) else None
+        if is_zero Uptr ofs then mk (LOAD Signed U32, [:: y ]) else None
       else
-        if ofs == Z0 then mk (MV, [:: y])
-        else
-          (* This allows to remove constraint in register allocation *)
-          if is_arith_small ofs then mk (ADDI, [::y; eword_of_int reg_size ofs ])
-          else
-            (* These checks are not needed for the proof, but it is probably better
-               to fail here than in asm_gen. *)
-            if y is Pvar y_ then
-              if [&& vtype x_ == sword U32 & vtype y_.(gv) == sword U32] then
-                Some (Copn [::x] tag (Oasm (ExtOp Oriscv_add_large_imm)) [::y; eword_of_int reg_size ofs ])
-              else None
+        match mk_lea Uptr (add y ofs) with
+        | None => None
+        | Some lea =>
+          match lea.(lea_base), lea.(lea_offset) with
+          | None, _ => None (* impossible *)
+          | Some base, None =>
+            if lea.(lea_disp) == 0%Z then mk (MV, [:: Plvar base ])
+            else
+              (* This allows to remove constraint in register allocation *)
+              if is_arith_small lea.(lea_disp) then mk (ADDI, [:: Plvar base; cast_const lea.(lea_disp) ])
+              else
+                Some (Copn [:: x ] tag (Oasm (ExtOp Oriscv_add_large_imm)) [:: Plvar base; cast_const lea.(lea_disp) ])
+          | Some base, Some off =>
+            if (lea.(lea_disp) == 0%Z) && (lea.(lea_scale) == 1%Z) then
+              mk (ADD, [:: Plvar base; Plvar off ])
             else None
+          end
+        end
     | Lmem _ _ _ _ =>
-      if ofs == Z0 then mk (STORE U32, [:: y]) else None
+      if is_zero Uptr ofs then mk (STORE U32, [:: y ]) else None
     | _ => None
     end
   end.
@@ -247,8 +254,11 @@ Definition riscv_laparams : lower_addressing_params :=
 
 Definition riscv_is_move_op (o : asm_op_t) : bool :=
   match o with
-  | BaseOp (None, MV) =>
-     true
+  | BaseOp (None, o) =>
+    match o with
+    | MV | LOAD _ U32 | STORE _ => true
+    | _ => false
+    end
   | _ =>
       false
   end.

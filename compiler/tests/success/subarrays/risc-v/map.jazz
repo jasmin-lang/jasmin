@@ -1,0 +1,40 @@
+// checks that we can implement a map operation on an array
+// using a while loop
+
+param int L = 5;
+param int N = 10;
+
+fn double (reg ptr u32[N] a) -> reg ptr u32[N] {
+  inline int i;
+  reg u32 tmp tmp2;
+  for i = 0 to N {
+    tmp = a[#unaligned i]; // #unaligned needed because the call in function main passes an unaligned array
+    tmp2 = 2;
+    tmp *= tmp2;
+    a[#unaligned i] = tmp;
+  }
+  return a;
+}
+
+// It works only because array a is put at offset 0
+export fn main () -> reg u32 {
+  reg u32 i;
+  stack u32[L*N] a;
+  reg ptr u32[N] p;
+  i = 0;
+  while (i < L * N) {
+    a[i] = i;
+    i += 1;
+  }
+  i = 0;
+  // this while loop is a map on array a
+  while (i < 4*L*N) {
+    p = a.[i:N];
+    p = double(p);
+    a.[i:N] = p;
+    i += 4*N;
+  }
+  reg u32 res;
+  res = a[L*N-1];
+  return res;
+}

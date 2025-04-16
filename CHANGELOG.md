@@ -23,6 +23,12 @@
   Introduce zquot and zrem operators on int : `e1 /s e2` and `e1 %s e2`.
   ([PR #1071](https://github.com/jasmin-lang/jasmin/pull/1071)).
 
+- Add support for subarrays with non-constant indices. The compiler
+  was made more powerful, and now accepts subarrays `a[ofs:len]` where `ofs`
+  is not a constant (`len` must still be a constant). This in particular
+  enables the use of subarrays in while loops.
+  ([PR #1101](https://github.com/jasmin-lang/jasmin/pull/1101)).
+
 ## Other changes
 
 - The deprecated legacy interface to extract to EasyCrypt has been removed

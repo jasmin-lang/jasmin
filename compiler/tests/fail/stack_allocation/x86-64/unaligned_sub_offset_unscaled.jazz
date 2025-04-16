@@ -1,0 +1,11 @@
+export fn main (reg u64 i) -> reg u64 {
+  stack u64[4] s;
+  reg ptr u64[2] r;
+  reg u64 res;
+
+  s[i] = 0;
+  r = s.[i:2]; // unscaled access: r is known to be aligned on U8
+  res = r[0]; // but not to be aligned on U64 -> error
+
+  return res;
+}

@@ -1,0 +1,13 @@
+// sub-reg ptr with constant index 0
+
+export fn main (reg ptr u32[2] r) -> reg u32 {
+  reg ptr u32[1] r2;
+  reg u32 tmp res;
+
+  r2 = r[0:1]; // MV
+  tmp = r[0];
+  res = r2[0];
+  res += tmp;
+
+  return res;
+}
