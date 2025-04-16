@@ -3,7 +3,7 @@ export fn f (reg u64 i) -> reg u32 {
   stack u64[2] a;
   stack u32[10] b;
   a[i]=0;
-  b[1:2] = a[u32 i:2];
+  b[1:2] = a[:u32 i:2];
   res = b[1];
   return res;
 }

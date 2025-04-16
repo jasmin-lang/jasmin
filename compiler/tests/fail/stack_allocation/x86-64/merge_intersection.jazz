@@ -1,4 +1,5 @@
-// If an array maps to a region only in one branch of an if,
+// Currently (we could be more clever),
+// if an array maps to a region only in one branch of an if,
 // it is considered mapping to no region after the if
 
 export fn main (reg u64 b) -> reg u64 {

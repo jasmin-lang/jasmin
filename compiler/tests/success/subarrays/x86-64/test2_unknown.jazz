@@ -16,7 +16,7 @@ export fn test () -> reg u64 {
   reg u64 r;
   i = 0;
   while (i < m*n) {
-    s[u64 i:n] = init(s[u64 i:n]);
+    s[:u64 i:n] = init(s[:u64 i:n]);
     i += n;
   }
   r = s[m * n - 1];

@@ -3,11 +3,11 @@ export fn main (reg u64 i) -> reg u32 {
   reg ptr u8[8] r;
   reg u32 res;
 
-  s[u32 0] = 0;
+  s[:u32 0] = 0;
   r = s[i:1];
-  r[u64 0] = 1;
+  r[:u64 0] = 1;
   s[i:1] = r;
 
-  res = s[u32 0];
+  res = s[:u32 0];
   return res;
 }
