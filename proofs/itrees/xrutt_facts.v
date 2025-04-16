@@ -1,7 +1,7 @@
 (** * Properties of X-rutt *)
 
 From Coq Require Import
-  Program 
+  Program
   Setoid
   Morphisms
   RelationClasses.
@@ -36,7 +36,7 @@ Proof.
   intros x y H x0 y0 H0.
   assert (forall T : Type, (x T -> x0 T) = (y T -> y0 T)) as A1.
   { intro T; rewrite <- H0.
-    rewrite <- H; auto. }  
+    rewrite <- H; auto. }
   set (F1 := fun t => x t -> x0 t).
   set (F2 := fun t => y t -> y0 t).
   assert (forall T, F1 T = F2 T) as A2.
@@ -45,7 +45,7 @@ Proof.
 Qed.
 
 Definition eq_REv {E1 E2: Type -> Type}
-  (REv1 REv2 : forall A B, E1 A -> E2 B -> Prop) : Prop := 
+  (REv1 REv2 : forall A B, E1 A -> E2 B -> Prop) : Prop :=
   forall A B, eq_rel (REv1 A B) (REv2 A B).
 
 #[global] Instance eq_REv_Equivalence {E1 E2} : Equivalence (@eq_REv E1 E2).
@@ -118,22 +118,22 @@ Lemma xrutt_trigger {E1 E2 R1 R2}
   (EE2: forall X, E2 X -> bool)
   (REv : forall A B, E1 A -> E2 B -> Prop)
   (RAns : forall A B, E1 A -> A -> E2 B -> B -> Prop)
-  {RR : R1 -> R2 -> Prop} 
+  {RR : R1 -> R2 -> Prop}
   (e1: E1 R1) (e2: E2 R2) :
-  (REv _ _ e1 e2: Prop) -> 
-  (forall t1 t2, (RAns _ _ e1 t1 e2 t2: Prop) -> (RR t1 t2: Prop)) -> 
+  (REv _ _ e1 e2: Prop) ->
+  (forall t1 t2, (RAns _ _ e1 t1 e2 t2: Prop) -> (RR t1 t2: Prop)) ->
   xrutt EE1 EE2 REv RAns RR (trigger e1) (trigger e2).
 Proof.
   intros. apply xrutt_Vis; auto.
   intros. apply xrutt_Ret; auto.
 Qed.
-       
+
 Lemma xrutt_flip {E1 E2 R1 R2}
   (EE1: forall X, E1 X -> bool)
   (EE2: forall X, E2 X -> bool)
   (REv : forall A B, E1 A -> E2 B -> Prop)
   (RAns : forall A B, E1 A -> A -> E2 B -> B -> Prop )
-  {RR : R1 -> R2 -> Prop} 
+  {RR : R1 -> R2 -> Prop}
   (t1: itree E1 R1) (t2: itree E2 R2) :
   xrutt EE1 EE2 REv RAns RR t1 t2 <->
     xrutt EE2 EE1 (flip_REv REv) (flip_RAns RAns) (flip RR) t2 t1.
@@ -156,7 +156,7 @@ Qed.
   (EE1: forall X, E1 X -> bool)
   (EE2: forall X, E2 X -> bool) :
   Proper (eq_REv         (* REv *)
-      ==> eq_RAns        (* RAns *)       
+      ==> eq_RAns        (* RAns *)
       ==> @eq_rel R1 R2  (* RR *)
       ==> eq             (* t1 *)
       ==> eq             (* t2 *)
@@ -177,7 +177,7 @@ Proof.
       red in H2. now pclearbot.
     * apply EqCutL; auto.
     * apply EqCutR; auto.
-      
+
   - revert t1 t2 Hrutt; pcofix CIH; intros t1 t2 Hrutt.
     pstep. punfold Hrutt. red in Hrutt; red.
     hinduction Hrutt before CIH; intros; eauto using EqTauL, EqTauR.
@@ -189,7 +189,7 @@ Proof.
       intros. specialize (H2 a b H4). red. right. apply CIH.
       red in H2. now pclearbot.
     * apply EqCutL; auto.
-    * apply EqCutR; auto.  
+    * apply EqCutR; auto.
 Qed.
 
 #[global] Instance xrutt_Proper_R2 {E1 E2 R1 R2}
@@ -218,7 +218,7 @@ Proof.
     * apply eq_sub_euttge in Ht1. apply Ht1.
     * apply eq_sub_euttge in Ht2. apply Ht2.
     * intros. inv H; auto.
-    * intros. inv H; auto.  
+    * intros. inv H; auto.
 Qed.
 
 (* Similar to RuttFacts.rutt_cong_eutt *)
@@ -235,7 +235,7 @@ Proof.
      then (on some cases) by induction on Heutt (equitF t1 t1'). *)
   intros * Hrutt Heutt; revert t1 t1' Heutt t2 Hrutt.
   ginit; gcofix CIH; intros t1 t1' Heutt t2 Hrutt.
-  punfold Hrutt; red in Hrutt.  
+  punfold Hrutt; red in Hrutt.
   rewrite (itree_eta t1) in Heutt; rewrite (itree_eta t2).
   move Hrutt before CIH. revert_until Hrutt.
   induction Hrutt as [ r1 r2 | m1 m2 | | | | m1 ot2 | ot1 m2 ];
@@ -260,12 +260,12 @@ Proof.
   - punfold Heutt; red in Heutt; cbn in Heutt.
     rewrite itree_eta. pclearbot. fold_xruttF H.
     remember (TauF m1) as ot1; revert m1 m2 H Heqot1.
-    
+
     induction Heutt as [|m1_bis m1'| |m1_bis ot1' _|t1_bis m1'];
     intros * Hrutt Heqot1; clear t1'; try discriminate.
     + inv Heqot1. pclearbot. gfinal; right; pstep; red.
       apply EqTau. right. now apply (CIH m1).
-    + inv Heqot1. rewrite (itree_eta m1) in Hrutt.      
+    + inv Heqot1. rewrite (itree_eta m1) in Hrutt.
       desobs m1 Hm1; clear m1 Hm1.
       { fold_eqitF Heutt. apply eutt_inv_Ret_l in Heutt.
         rewrite Heutt, tau_euttge.
@@ -273,7 +273,7 @@ Proof.
       { apply xrutt_inv_Tau_l in Hrutt. eapply IHHeutt; eauto. }
       { clear IHHeutt. remember (VisF e k) as m1; revert Heqm1.
         induction Heutt as [| |U1 e1 k1 k1' Hk1k1'| |]; intros;
-          try discriminate.        
+          try discriminate.
         - symmetry in Heqm1; dependent destruction Heqm1.
           rewrite tau_euttge, (itree_eta m2).
           punfold Hrutt; red in Hrutt; cbn in Hrutt.
@@ -301,13 +301,13 @@ Proof.
     remember (VisF e1 k1) as m1; revert Heqm1.
     induction Heutt; intros; try discriminate.
     + dependent destruction Heqm1.
-      apply EqVis; auto. intros a b HAns'. specialize (HAns a b HAns').      
+      apply EqVis; auto. intros a b HAns'. specialize (HAns a b HAns').
       hnf in HAns; hnf. pclearbot; right. apply (CIH (k1 a)); auto. apply REL.
     + now apply EqTauL, IHHeutt.
-      
+
   (* EqCutL (left cutoff): we need induction on Heutt to analyse t1',
      in case eutt has introduced some Taus. Then we apply EqTauL and
-     IHHeutt. Otherwise immediate. *)    
+     IHHeutt. Otherwise immediate. *)
   - rewrite itree_eta. gfinal; right; pstep.
     remember (VisF e1 k1) as m1; revert Heqm1.
     punfold Heutt; red in Heutt; cbn in Heutt.
@@ -316,17 +316,17 @@ Proof.
       apply EqCutL; auto.
     + apply EqTauL. eapply IHHeutt; auto.
 
-  (* EqCutR (right cutoff): immediate. *)  
+  (* EqCutR (right cutoff): immediate. *)
   - gstep; red. econstructor; auto.
-    
+
   (* EqTauL: immediate by IHHrutt, handling the added Tau in ≈ by an
      eutt rewrite. *)
   - apply IHHrutt. rewrite <- itree_eta. now rewrite <- tau_eutt.
-    
+
   (* EqTauR: rewriting away the added Tau, concluding by IHHrutt. *)
   - rewrite tau_euttge. rewrite (itree_eta m2). now apply IHHrutt.
-Qed.    
-    
+Qed.
+
 #[global] Instance xrutt_Proper_R3 {E1 E2 R1 R2}
   (EE1: forall X, E1 X -> bool)
   (EE2: forall X, E2 X -> bool) :
@@ -341,13 +341,13 @@ Proof.
          t1 t1' Ht1 t2 t2' Ht2.
   rewrite <- HREv, <- HRAns, <- HRR; clear HREv REv2 HRAns RAns2 HRR RR2.
   split; intros Hrutt.
-  
-  - eapply xrutt_cong_eutt; eauto.    
+
+  - eapply xrutt_cong_eutt; eauto.
     rewrite xrutt_flip in *; eauto.
     rewrite xrutt_flip in Hrutt; eauto.
     eapply xrutt_cong_eutt; eauto.
     rewrite xrutt_flip; eauto.
-    
+
   - symmetry in Ht1, Ht2.
     eapply xrutt_cong_eutt; eauto.
     rewrite xrutt_flip in *; eauto.
@@ -395,7 +395,7 @@ Proof.
   - gstep. econstructor; eauto 7 with paco.
     intros. specialize (H2 a b H3). pclearbot. eauto 7 with paco.
   - gstep. econstructor; auto.
-  - gstep. econstructor; auto.  
+  - gstep. econstructor; auto.
   - gclo. econstructor; auto_ctrans_eq; cycle -1; eauto; try reflexivity.
     eapply eqit_Tau_l. rewrite unfold_bind. reflexivity.
   - gclo. econstructor; auto_ctrans_eq; cycle -1; eauto; try reflexivity.
@@ -429,7 +429,7 @@ Definition EE_MR {E: Type -> Type}
   forall X, (D +' E) X -> bool :=
   fun X m => match m with
              | inl1 _ => false
-             | inr1 e => EE X e end.             
+             | inr1 e => EE X e end.
 
 (* Relating xrutt and generalized recursion: mutual (mrec) and simple
 (rec). *)
@@ -439,19 +439,19 @@ Section XRuttMrec.
 
   Context (EE1: forall X, E1 X -> bool).
   Context (EE2: forall X, E2 X -> bool).
-            
+
   Context (RPre : prerel E1 E2) (RPreInv : prerel D1 D2)
           (RPost : postrel E1 E2) (RPostInv : postrel D1 D2).
 
   Context (bodies1 : D1 ~> itree (D1 +' E1))
           (bodies2 : D2 ~> itree (D2 +' E2)).
-  
-  Context (Hbodies : forall R1 R2 (d1 : D1 R1) (d2 : D2 R2), 
-              @RPreInv R1 R2 d1 d2 -> 
+
+  Context (Hbodies : forall R1 R2 (d1 : D1 R1) (d2 : D2 R2),
+              @RPreInv R1 R2 d1 d2 ->
               @xrutt (D1 +' E1) (D2 +' E2)
                 R1 R2
                 (@EE_MR _ EE1 D1)
-                (@EE_MR _ EE2 D2)               
+                (@EE_MR _ EE2 D2)
                 (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost)
                 (fun (v1 : R1) (v2 : R2) =>
                    @RPostInv R1 R2 d1 v1 d2 v2)
@@ -461,7 +461,7 @@ Section XRuttMrec.
     forall (t1 : itree (D1 +' E1) R1) (t2 : itree (D2 +' E2) R2),
       xrutt (@EE_MR _ EE1 D1) (@EE_MR _ EE2 D2)
         (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost)
-               RR t1 t2 -> 
+               RR t1 t2 ->
       xrutt EE1 EE2 RPre RPost
         RR (interp_mrec bodies1 t1) (interp_mrec bodies2 t2).
   Proof.
@@ -485,25 +485,25 @@ Section XRuttMrec.
         specialize (H2 r1 r2 (sum_postrel_inl _ _ _ _ _ _ _ _ H1)).
         pclearbot. auto.
       + gstep. red. constructor; eauto.
-        intros. 
+        intros.
         gstep. constructor.
         gfinal. left. eapply CIH.
         specialize (H2 a b (sum_postrel_inr _ _ _ _ _ _ _ _ H1)).
         pclearbot. eauto.
     - apply simpobs in Heqot1.
-      rewrite Heqot1. 
-      rewrite unfold_interp_mrec at 1. 
+      rewrite Heqot1.
+      rewrite unfold_interp_mrec at 1.
       cbn.
       destruct e1; simpl in H; try congruence.
       gstep. red.
-      econstructor; auto.        
+      econstructor; auto.
     - apply simpobs in Heqot2.
-      rewrite Heqot2. 
-      setoid_rewrite unfold_interp_mrec at 2. 
+      rewrite Heqot2.
+      setoid_rewrite unfold_interp_mrec at 2.
       cbn.
       destruct e2; simpl in H; try congruence.
       gstep. red.
-      econstructor; auto.        
+      econstructor; auto.
     - apply simpobs in Heqot1. rewrite Heqot1.
       rewrite unfold_interp_mrec at 1. cbn.
       rewrite tau_euttge. auto.
@@ -511,15 +511,15 @@ Section XRuttMrec.
       setoid_rewrite unfold_interp_mrec at 2.
       cbn. rewrite tau_euttge. auto.
   Qed.
-  
-  Lemma mrec_xrutt (A B : Type) (d1 : D1 A) (d2 : D2 B) : 
+
+  Lemma mrec_xrutt (A B : Type) (d1 : D1 A) (d2 : D2 B) :
     @RPreInv A B d1 d2 ->
-    xrutt EE1 EE2 RPre RPost (fun (a : A) (b : B) => @RPostInv A B d1 a d2 b) 
+    xrutt EE1 EE2 RPre RPost (fun (a : A) (b : B) => @RPostInv A B d1 a d2 b)
          (mrec bodies1 d1) (mrec bodies2 d2).
   Proof.
     intros. apply interp_mrec_xrutt. auto.
   Qed.
- 
+
 End XRuttMrec.
 
 Section XRuttRec.
@@ -527,32 +527,32 @@ Section XRuttRec.
 
   Context (EE1: forall X, E1 X -> bool).
   Context (EE2: forall X, E2 X -> bool).
-            
+
   Context (bodies1 : A1 -> itree (callE A1 B1 +' E1) B1)
           (bodies2 : A2 -> itree (callE A2 B2 +' E2) B2).
-  
+
   Context (RPre : prerel E1 E2) (RPreInv : prerel (callE A1 B1) (callE A2 B2))
      (RPost : postrel E1 E2) (RPostInv : postrel (callE A1 B1) (callE A2 B2)).
 
   Context (Hbodies: forall (A B : Type)
                            (d1 : callE A1 B1 A) (d2 : callE A2 B2 B),
-  @RPreInv A B d1 d2 -> 
-  xrutt (@EE_MR _ EE1 (callE A1 B1)) (@EE_MR _ EE2 (callE A2 B2))  
+  @RPreInv A B d1 d2 ->
+  xrutt (@EE_MR _ EE1 (callE A1 B1)) (@EE_MR _ EE2 (callE A2 B2))
     (sum_prerel RPreInv RPre) (sum_postrel RPostInv RPost)
-    (fun (a : A) (b : B) => @RPostInv A B d1 a d2 b) 
+    (fun (a : A) (b : B) => @RPostInv A B d1 a d2 b)
     (calling' bodies1 A d1) (calling' bodies2 B d2)).
 
-  Lemma rec_xrutt a1 a2 : 
-    @RPreInv B1 B2 (Call a1) (Call a2) -> 
+  Lemma rec_xrutt a1 a2 :
+    @RPreInv B1 B2 (Call a1) (Call a2) ->
     xrutt EE1 EE2 RPre RPost
-      (fun (t1 : B1) (t2 : B2) =>  
-         @RPostInv B1 B2 (Call a1) t1 (Call a2) t2) 
+      (fun (t1 : B1) (t2 : B2) =>
+         @RPostInv B1 B2 (Call a1) t1 (Call a2) t2)
                    (rec bodies1 a1) (rec bodies2 a2).
   Proof.
     unfold rec.
     eapply mrec_xrutt with (RPreInv:=RPreInv). eauto.
-  Qed.  
-  
+  Qed.
+
 End XRuttRec.
 
 (** Relating [X-rutt] and [iter] *)
@@ -568,7 +568,7 @@ Section XRuttIter.
                          E1 A -> A -> E2 B -> B -> Prop).
 
   Context {I1 I2 R1 R2: Type}.
-  
+
   Context (RI : I1 -> I2 -> Prop)
           (RR : R1 -> R2 -> Prop).
 
@@ -582,7 +582,7 @@ Lemma xrutt_iter :
   forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
     @xrutt E1 E2 R1 R2 EE1 EE2 RPreE RPostE RR
       (ITree.iter body1 i1) (ITree.iter body2 i2).
-Proof.  
+Proof.
   ginit. gcofix CIH.
   intros.
   rewrite !unfold_iter.
@@ -602,7 +602,7 @@ Proof.
   pstep; red.
   econstructor.
   inversion H; subst; auto.
-Qed.  
+Qed.
 
 End XRuttIter.
 
@@ -613,18 +613,18 @@ Lemma xrutt_weaken (E1 E2: Type -> Type) (R1 R2 : Type)
        (EE1 EE1': forall X, E1 X -> bool)
        (EE2 EE2': forall X, E2 X -> bool)
        {REv REv': forall A B, E1 A -> E2 B -> Prop}
-       {RAns RAns': forall A B, E1 A -> A -> E2 B -> B -> Prop} 
+       {RAns RAns': forall A B, E1 A -> A -> E2 B -> B -> Prop}
        {RR RR': R1 -> R2 -> Prop} (t1: itree E1 R1) (t2: itree E2 R2) :
 
   (forall A (e1: E1 A), (IsCut_ EE1 _ e1) -> (IsCut_ EE1' _ e1)) ->
   (forall A (e2: E2 A), (IsCut_ EE2 _ e2) -> (IsCut_ EE2' _ e2)) ->
-  
+
   (forall T1 T2 (e1 : E1 T1) (e2 : E2 T2),
-    REv T1 T2 e1 e2 -> REv' T1 T2 e1 e2) -> 
+    REv T1 T2 e1 e2 -> REv' T1 T2 e1 e2) ->
 
   (forall T1 T2 e1 t1 e2 t2 ,
     IsNoCut_ EE1 _ e1 -> IsNoCut_ EE2 _ e2 ->
-    REv T1 T2 e1 e2 -> RAns' T1 T2 e1 t1 e2 t2 -> RAns T1 T2 e1 t1 e2 t2) -> 
+    REv T1 T2 e1 e2 -> RAns' T1 T2 e1 t1 e2 t2 -> RAns T1 T2 e1 t1 e2 t2) ->
 
   (forall r1 r2, RR r1 r2 -> RR' r1 r2) ->
 
@@ -638,7 +638,7 @@ Proof.
   hinduction h before CIH; intros; subst.
   + eapply EqRet; auto.
   + econstructor; eauto with paco itree. right. eapply CIH; eauto. red in H.
-    pclearbot; auto. 
+    pclearbot; auto.
   + remember (EE1' A e1) as Er1.
     remember (EE2' B e2) as Er2.
     destruct Er1.
@@ -652,22 +652,22 @@ Proof.
          eapply hRAns in H3; eauto.
          specialize (H2 a b H3).
          pclearbot; auto.
-  + eapply EqCutL; auto. 
-  + eapply EqCutR; auto.  
-  + eapply EqTauL; eauto.  
-  + eapply EqTauR; eauto.  
+  + eapply EqCutL; auto.
+  + eapply EqCutR; auto.
+  + eapply EqTauL; eauto.
+  + eapply EqTauR; eauto.
 Qed.
 
 Lemma xrutt_weaken_v1 (E1 E2: Type -> Type) (R1 R2 : Type)
        (EE1 EE1': forall X, E1 X -> bool)
        (EE2 EE2': forall X, E2 X -> bool)
        {REv REv': forall A B, E1 A -> E2 B -> Prop}
-       {RAns RAns': forall A B, E1 A -> A -> E2 B -> B -> Prop} 
+       {RAns RAns': forall A B, E1 A -> A -> E2 B -> B -> Prop}
        {RR RR': R1 -> R2 -> Prop} (t1: itree E1 R1) (t2: itree E2 R2) :
 
   (forall A (e1: E1 A), (IsCut_ EE1 _ e1) -> (IsCut_ EE1' _ e1)) ->
   (forall A (e2: E2 A), (IsCut_ EE2 _ e2) -> (IsCut_ EE2' _ e2)) ->
-  
+
   (forall T1 T2 (e1 : E1 T1) (e2 : E2 T2),
     REv T1 T2 e1 e2 -> REv' T1 T2 e1 e2) ->
 
@@ -680,7 +680,7 @@ Lemma xrutt_weaken_v1 (E1 E2: Type -> Type) (R1 R2 : Type)
   xrutt (@EE1') (@EE2') REv' RAns' RR' t1 t2.
 Proof.
   intros. eapply xrutt_weaken in H4; eauto.
-Qed.  
+Qed.
 
 Lemma xrutt_weaken_v2 {E1 E2: Type -> Type} {O1 O2 : Type}
        (EE1 EE1' : forall X : Type, E1 X -> bool)
@@ -688,23 +688,23 @@ Lemma xrutt_weaken_v2 {E1 E2: Type -> Type} {O1 O2 : Type}
       (REv REv' : prerel E1 E2)
       (RAns RAns' : postrel E1 E2)
       (RR RR' : O1 -> O2 -> Prop) t1 t2 :
-  
+
   (forall T1 e1, EE1 T1 e1 = EE1' T1 e1) ->
   (forall T2 e2, EE2 T2 e2 = EE2' T2 e2) ->
-  
+
   (forall T1 T2 e1 e2,
       REv T1 T2 e1 e2 -> REv' T1 T2 e1 e2) ->
-  
+
   (forall T1 T2 e1 t1 e2 t2 ,
       IsNoCut_ EE1 _ e1 -> IsNoCut_ EE2 _ e2 ->
       REv T1 T2 e1 e2 -> RAns' T1 T2 e1 t1 e2 t2 -> RAns T1 T2 e1 t1 e2 t2) ->
-  
+
   (forall o1 o2, RR o1 o2 -> RR' o1 o2) ->
   xrutt EE1 EE2 REv RAns RR t1 t2 ->
   xrutt EE1' EE2' REv' RAns' RR' t1 t2.
 Proof.
   intros. eapply xrutt_weaken in H4; eauto.
-Qed.  
+Qed.
 
 
 (** Transitivity *)
@@ -724,7 +724,7 @@ Definition pocompose {E1 E2 E3 : Type -> Type}
     exists2 t2, post T1 T2 e1 t1 e2 t2 & post' T2 T3 e2 t2 e3 t3.
 
 
-Definition NoCut_ {E: Type -> Type} {T: Type} (e : E T) := false. 
+Definition NoCut_ {E: Type -> Type} {T: Type} (e : E T) := false.
 
 Lemma xrutt_trans {E1 E2 E3: Type -> Type} {R1 R2 R3 : Type}
   (EE1: forall X, E1 X -> bool)
@@ -738,13 +738,13 @@ Lemma xrutt_trans {E1 E2 E3: Type -> Type} {R1 R2 R3 : Type}
   (RR23 : R2 -> R3 -> Prop)
   (CND: forall T1 T2 (e1: E1 T1) (e2: E2 T2),
       REv12 T1 T2 e1 e2 -> IsCut_ EE2 T2 e2 -> IsCut_ EE1 T1 e1)
-  t1 t2 t3 : 
-  forall (INL : xrutt (@EE1) (@NoCut_ E2) REv12 RAns12 RR12 t1 t2) 
+  t1 t2 t3 :
+  forall (INL : xrutt (@EE1) (@NoCut_ E2) REv12 RAns12 RR12 t1 t2)
          (INR : xrutt (@EE2) (@EE3) REv23 RAns23 RR23 t2 t3),
     xrutt (@EE1) (@EE3)
       (prcompose REv12 REv23)
       (pocompose REv12 REv23 RAns12 RAns23)
-      (rcompose RR12 RR23) t1 t3. 
+      (rcompose RR12 RR23) t1 t3.
 Proof.
   revert t1 t2 t3.
   pcofix CIH; intros t1 t2 t3 INL INR.
@@ -754,33 +754,33 @@ Proof.
   pstep. red.
   remember (observe t3) as ot3.
   clear Heqot3 t3.
-  hinduction INL before CIH; intros; subst. 
-  (* 1 : ret1 ret2 *)  
+  hinduction INL before CIH; intros; subst.
+  (* 1 : ret1 ret2 *)
   { remember (RetF r2) as ot2.
     hinduction INR before CIH; intros; inv Heqot2; eauto with paco itree.
-    + constructor; econstructor; eauto. 
+    + constructor; econstructor; eauto.
     + eapply EqCutR; eauto.
-    + constructor; eauto. 
+    + constructor; eauto.
   }
   (* 2: tau1 tau2 *)
   { assert (DEC: (exists m3, ot3 = TauF m3) \/ (forall m3, ot3 <> TauF m3)).
       { destruct ot3; eauto; right; red; intros; inv H0. }
-      destruct DEC as [EQ | EQ].      
+      destruct DEC as [EQ | EQ].
     + destruct EQ as [m3 ?]; subst.
       econstructor. right. pclearbot.
       eapply CIH; eauto with paco.
       eapply xrutt_inv_Tau.
-      eapply fold_xruttF; try eapply INR; eauto. 
-    + inv INR; try (exfalso; eapply EQ; eauto; fail). 
+      eapply fold_xruttF; try eapply INR; eauto.
+    + inv INR; try (exfalso; eapply EQ; eauto; fail).
       * econstructor; eauto.
-      * econstructor; eauto.  
+      * econstructor; eauto.
         pclearbot. punfold H. red in H.
         hinduction H1 before CIH; intros; try (exfalso; eapply EQ; eauto; fail).
       (* ret3 *)
       { remember (RetF r1) as ot2.
         hinduction H0 before CIH; intros; inv Heqot2; eauto with paco itree.
         + constructor. econstructor; eauto.
-        + eapply EqCutL; eauto.  
+        + eapply EqCutL; eauto.
         + constructor; eapply IHxruttF; eauto. }
       (* vis3 *)
       { remember (VisF e1 k1) as ot2.
@@ -789,11 +789,11 @@ Proof.
         { dependent destruction Heqot2.
           constructor; eauto.
           + econstructor; eauto.
-          
+
           + intros a b H7.
             destruct (H7 _ _ H1 H5) as [t4 HA12 HA23].
             destruct (H2 _ _ HA12), (H6 _ _ HA23); try contradiction; eauto.
-        }    
+        }
 
         { eapply EqCutL; eauto. }
         { eapply EqTauL; eauto. }
@@ -805,14 +805,14 @@ Proof.
         - dependent destruction Heqot4.
           eapply EqCutL; eauto.
         - eapply EqCutL; eauto.
-        - eapply EqTauL; eauto.  
+        - eapply EqTauL; eauto.
       }
       (* cut3 *)
       { eapply EqCutR; eauto. }
       (* tau2 *)
       { eapply IHxruttF; eauto. pstep_reverse.
         apply xrutt_inv_Tau_r; eapply fold_xruttF; eauto.
-      }  
+      }
   }
   (* 3: vis1 vis2 *)
   { remember (VisF e2 k2) as ot2.
@@ -848,7 +848,7 @@ Proof.
   { remember (TauF t0) as ot2.
     hinduction INR before CIH; intros; try inversion Heqot2; subst.
     + constructor; eapply IHINL; pclearbot; punfold H.
-    + eapply EqCutR; eauto.  
+    + eapply EqCutR; eauto.
     + eauto with itree.
     + constructor; eauto.
   }

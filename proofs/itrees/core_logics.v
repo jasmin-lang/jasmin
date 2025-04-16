@@ -1,5 +1,5 @@
 From Coq Require Import
-  Program 
+  Program
   Setoid
   Morphisms
   RelationClasses.
@@ -8,16 +8,16 @@ From Paco Require Import paco.
 
 From ITree Require Import
   ITree
-  ITreeFacts 
-  Basics.HeterogeneousRelations 
+  ITreeFacts
+  Basics.HeterogeneousRelations
   Interp.Recursion
   Eq.Paco2
   Eq.Rutt
   Eq.RuttFacts.
- 
+
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 
-Require Import xrutt xrutt_facts rutt_extras. 
+Require Import xrutt xrutt_facts rutt_extras.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -251,7 +251,7 @@ Proof.
     + move=> T1 T2 e1 _ [he1 [? ->]]; subst T2.
       by case: e1 he1 => e h; constructor; split => //; exists erefl.
     + move=> T1 T2 e1 t1 _ t2 [he1 [? ->]]; rewrite sum_postrelP => ht; subst T2.
-    by case: e1 he1 ht => e /= he1 [hPAns /(_ erefl) -> /=]; split => // ?; rewrite -eq_rect_eq.                                                           
+    by case: e1 he1 ht => e /= he1 [hPAns /(_ erefl) -> /=]; split => // ?; rewrite -eq_rect_eq.
     by move=> o _ [ho <-]; split => // ?; rewrite -eq_rect_eq.
   case: hrec => t' /rutt_eq_trans_refl.
   apply rutt_weaken => //.
@@ -327,10 +327,10 @@ Proof.
     constructor => // r1 r2 /hAns hxrutt.
     have [hnerr /(_ r1){}hsafe]:= safe_inv_Vis hsafe.
     by pclearbot; right; eauto.
-  + move=> T e1 k1 ot2 + hsafe.    
+  + move=> T e1 k1 ot2 + hsafe.
     have [hnerr _]:= safe_inv_Vis hsafe.
     rewrite /errcutoff.
-    move => H.    
+    move => H.
     have: (is_error e1 = false).
     { simpl in hnerr. red in hnerr.
       rewrite /negb in hnerr.
@@ -483,7 +483,7 @@ Lemma weak_rutt_safe_rutt {R1 R2 : Type} (REv : prerel E E) (RAns: postrel E E) 
   weak_rutt REv RAns RR t1 t2 ->
   safe_rutt REv RAns RR t1 t2.
 Proof. move=> hw hsafe; apply: safe_xrutt_rutt hsafe hw. Qed.
-(* Remark - we can further expect: 
+(* Remark - we can further expect:
    safe t1 <-> (forall t2, xrutt t1 t2 -> rutt t1 t2) *)
 
 Lemma safe_rutt_trans {R1 R2 R3: Type}

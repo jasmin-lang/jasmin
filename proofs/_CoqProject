@@ -18,7 +18,7 @@
 -R compiler Jasmin
 -R lang Jasmin
 -R ssrmisc Jasmin
--R itrees Jasmin 
+-R itrees Jasmin
 
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v

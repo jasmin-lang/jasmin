@@ -1,5 +1,5 @@
 From Coq Require Import
-  Program 
+  Program
   Setoid
   Morphisms
   RelationClasses.
@@ -8,15 +8,15 @@ From Paco Require Import paco.
 
 From ITree Require Import
   ITree
-  ITreeFacts 
-  Basics.HeterogeneousRelations 
+  ITreeFacts
+  Basics.HeterogeneousRelations
   Interp.Recursion
   Eq.Paco2
   Events.Exception
   Events.FailFacts
   Eq.Rutt
   Eq.RuttFacts.
- 
+
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 
 Import Monads.
@@ -29,9 +29,9 @@ Unset Printing Implicit Defensive.
 
 Require Import expr psem_defs oseq compiler_util.
 (* needed for the last lemma *)
-Require Import psem. 
+Require Import psem.
 
-Require Import it_sems_core core_logics. 
+Require Import it_sems_core core_logics.
 
 
 Notation PredT := (fun=>True).

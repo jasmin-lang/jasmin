@@ -42,20 +42,20 @@ Notation IsNoCut EE e := (EE e = false).
 Notation IsCut_ EE A e := (EE A e = true).
 Notation IsNoCut_ EE A e := (EE A e = false).
 
-Notation DoCutoffF EE t := 
+Notation DoCutoffF EE t :=
  (exists T (e: _ T) k, IsCut EE e /\ t = VisF e k).
 
 Notation DoCutoff EE t := (DoCutoffF EE (observe t)).
 
-Notation WillCutoff EE t := 
+Notation WillCutoff EE t :=
  (exists T (e: _ T) k, IsCut EE e /\ @eutt _ _ _ eq t (Vis e k)).
 
-Notation DoCutoffF_ EE A t := 
+Notation DoCutoffF_ EE A t :=
  (exists T (e: _ T) k, IsCut_ EE A e /\ t = VisF e k).
 
 Notation DoCutoff_ EE A t := (DoCutoffF_ EE A (observe t)).
 
-Notation WillCutoff_ EE A t := 
+Notation WillCutoff_ EE A t :=
  (exists T (e: _ T) k, IsCut_ EE A e /\ @eutt _ _ _ eq t (Vis e k)).
 
 
@@ -65,19 +65,19 @@ Section XRuttF.
 
   Context {E1 E2: Type -> Type}.
   Context {R1 R2 : Type}.
-  
+
   Context (EE1: forall X, E1 X -> bool).
   Context (EE2: forall X, E2 X -> bool).
- 
+
   Context (REv : forall (A B : Type), E1 A -> E2 B -> Prop).
   Context (RAns : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop).
   Context (RR : R1 -> R2 -> Prop).
-  
+
   Arguments EE1 {X}.
   Arguments EE2 {X}.
   Arguments REv {A} {B}.
   Arguments RAns {A} {B}.
-  
+
   Inductive xruttF
     (sim : itree E1 R1 -> itree E2 R2 -> Prop) :
     itree' E1 R1 -> itree' E2 R2 -> Prop :=
@@ -92,20 +92,20 @@ Section XRuttF.
                    (k1 : A -> itree E1 R1)
                    (k2 : B -> itree E2 R2),
       IsNoCut EE1 e1 ->
-      IsNoCut EE2 e2 -> 
+      IsNoCut EE2 e2 ->
       REv e1 e2 ->
       (forall (a : A) (b : B), RAns e1 a e2 b -> sim (k1 a) (k2 b)) ->
       xruttF (VisF e1 k1) (VisF e2 k2)
   | EqCutL: forall A (e1 : E1 A)
                    (k1: A -> itree E1 R1)
                    (ot2: itree' E2 R2),
-      IsCut EE1 e1 ->    
-      xruttF (VisF e1 k1) ot2            
+      IsCut EE1 e1 ->
+      xruttF (VisF e1 k1) ot2
   | EqCutR: forall A (e2 : E2 A)
                    (k2: A -> itree E2 R2)
                    (ot1: itree' E1 R1),
-      IsCut EE2 e2 ->      
-      xruttF ot1 (VisF e2 k2)             
+      IsCut EE2 e2 ->
+      xruttF ot1 (VisF e2 k2)
   | EqTauL : forall (t1 : itree E1 R1)
                     (ot2 : itree' E2 R2),
       xruttF (observe t1) ot2 ->
@@ -113,7 +113,7 @@ Section XRuttF.
   | EqTauR : forall (ot1 : itree' E1 R1)
                     (t2 : itree E2 R2),
       xruttF ot1 (observe t2) ->
-      xruttF ot1 (TauF t2).  
+      xruttF ot1 (TauF t2).
   Hint Constructors xruttF : itree.
 
   Definition xrutt_
@@ -139,14 +139,14 @@ Section XRuttF.
         t1 = VisF e1 k1 /\
           forall v1 v2, RAns e1 v1 e2 v2 -> sim (k1 v1) (k2 v2))
     \/
-    DoCutoffF EE1 t1   
+    DoCutoffF EE1 t1
     \/
-    (exists t1', t1 = TauF t1' /\ xruttF sim (observe t1') (VisF e2 k2)).        
+    (exists t1', t1 = TauF t1' /\ xruttF sim (observe t1') (VisF e2 k2)).
   Proof.
     intros.
     remember t1 as t0.
-    destruct t0. 
- 
+    destruct t0.
+
     - dependent destruction H; try congruence.
     - dependent destruction H; try congruence.
       repeat right; eauto.
@@ -154,20 +154,20 @@ Section XRuttF.
       + left; eauto.
       + right; left; eauto.
   Qed.
-          
+
   Lemma xruttF_inv_VisF {sim} U1 U2
     (e1 : E1 U1) (e2 : E2 U2)
     (k1 : U1 -> itree E1 R1) (k2 : U2 -> itree E2 R2) :
       xruttF sim (VisF e1 k1) (VisF e2 k2) ->
       (forall v1 v2, RAns e1 v1 e2 v2 -> sim (k1 v1) (k2 v2))
       \/
-        IsCut EE1 e1 
+        IsCut EE1 e1
       \/
         IsCut EE2 e2.
   Proof.
-    intros H. dependent destruction H; eauto. 
+    intros H. dependent destruction H; eauto.
   Qed.
-  
+
   Lemma fold_xruttF:
     forall (t1: itree E1 R1) (t2: itree E2 R2) ot1 ot2,
     xruttF (upaco2 xrutt_ bot2) ot1 ot2 ->
@@ -206,7 +206,7 @@ Tactic Notation "fold_xruttF" hyp(H) :=
 
 #[global] Hint Resolve xrutt_monot : paco.
 
-  
+
 Section ConstructionInversion.
   Context {E1 E2: Type -> Type}.
   Context {R1 R2 : Type}.
@@ -217,10 +217,10 @@ Section ConstructionInversion.
   Context (REv : forall (A B : Type), E1 A -> E2 B -> Prop).
   Context (RAns : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop).
   Context (RR : R1 -> R2 -> Prop).
-  
+
 Lemma xrutt_Ret r1 r2:
   RR r1 r2 ->
-  @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR 
+  @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR
     (Ret r1: itree E1 R1) (Ret r2: itree E2 R2).
 Proof. intros. pstep; constructor; auto. Qed.
 
@@ -240,7 +240,7 @@ Proof.
   remember (RetF r1) as ot1; revert Heqot1.
   induction Hrutt; intros; try discriminate.
   - left. inversion Heqot1; subst. exists r2. split; [reflexivity|auto].
-  - right. exists A, e2, k2. split; eauto. reflexivity.     
+  - right. exists A, e2, k2. split; eauto. reflexivity.
   - destruct (IHHrutt Heqot1) as [[r2 [H1 H2]] | H1].
     + left; exists r2; split; auto.
       rewrite <- itree_eta in H1. now rewrite tau_euttge.
@@ -251,7 +251,7 @@ Proof.
       setoid_rewrite <- H2.
       setoid_rewrite <- itree_eta.
       eapply tau_eutt.
-Qed.      
+Qed.
 
 Lemma xrutt_inv_Ret_r t1 r2:
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 (Ret r2) ->
@@ -261,7 +261,7 @@ Proof.
   setoid_rewrite (itree_eta t1). remember (RetF r2) as ot2; revert Heqot2.
   induction Hrutt; intros; try discriminate.
   - left. inversion Heqot2; subst. exists r1. split; [reflexivity|auto].
-  - right. exists A, e1, k1. split; eauto. reflexivity.      
+  - right. exists A, e1, k1. split; eauto. reflexivity.
   - destruct (IHHrutt Heqot2) as [[r1 [H1 H2]] | H].
     + left. exists r1; split; auto.
       rewrite <- itree_eta in H1. now rewrite tau_euttge.
@@ -271,7 +271,7 @@ Proof.
       split; auto.
       setoid_rewrite <- H2.
       setoid_rewrite <- itree_eta.
-      eapply tau_eutt.      
+      eapply tau_eutt.
 Qed.
 
 Lemma break_inv_l t1 t2 :
@@ -283,7 +283,7 @@ Proof.
   pstep; red.
   setoid_rewrite H2.
   econstructor; eauto.
-Qed.  
+Qed.
 
 Lemma break_inv_r t1 t2 :
   DoCutoff_ EE2 _ t2 ->
@@ -294,7 +294,7 @@ Proof.
   pstep; red.
   setoid_rewrite H2.
   econstructor; auto.
-Qed.  
+Qed.
 
 Lemma xrutt_inv_Tau_l t1 t2 :
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (Tau t1) t2 ->
@@ -311,7 +311,7 @@ Proof.
   - inv Heqtt1. punfold_reverse H.
   - red in IHxruttF. pstep. red; simpobs. econstructor; eauto. pstep_reverse.
 Qed.
-  
+
 Lemma xrutt_add_Tau_l t1 t2 :
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 t2 ->
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (Tau t1) t2.
@@ -383,7 +383,7 @@ Qed.
 Lemma xrutt_inv_Vis_l {U1} (e1: E1 U1) k1 t2:
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR
     (Vis e1 k1) t2 ->
-  IsNoCut_ EE1 _ e1 ->    
+  IsNoCut_ EE1 _ e1 ->
   (exists U2 (e2: E2 U2) k2,
     t2 ≈ Vis e2 k2 /\
     REv e1 e2 /\
@@ -401,12 +401,12 @@ Proof.
     exists U2, e2, k2; split. reflexivity. split; auto.
     intros v1 v2 HAns. specialize (H2 v1 v2 HAns). red in H2. now pclearbot.
   - left. dependent destruction Heqot1; try congruence.
-  - right. exists A, e2, k2; split; auto. reflexivity.  
+  - right. exists A, e2, k2; split; auto. reflexivity.
   - destruct (IHHrutt eq_refl) as [[U2 [e2 [k2 [Ht0 HAns]]]] | H0]; auto.
     + left.
       rewrite <- itree_eta in Ht0.
       exists U2, e2, k2; split; auto. now rewrite tau_eutt.
-    + right. 
+    + right.
       destruct H0 as [T [e0 [k0 [H0 H1]]]].
       exists T, e0, k0; split; auto.
       eapply eqit_Tau_l.
@@ -416,7 +416,7 @@ Qed.
 Lemma xrutt_inv_Vis_r {U2} t1 (e2: E2 U2) k2:
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR
     t1 (Vis e2 k2) ->
-  IsNoCut_ EE2 _ e2 ->    
+  IsNoCut_ EE2 _ e2 ->
   (exists U1 (e1: E1 U1) k1,
     t1 ≈ Vis e1 k1 /\
     REv e1 e2 /\
@@ -433,13 +433,13 @@ Proof.
     repeat left.
     exists U1, e1, k1; split. reflexivity. split; auto.
     intros v1 v2 HAns. specialize (H2 v1 v2 HAns). red in H2. now pclearbot.
-  - right. exists A, e1, k1; split; auto. reflexivity.  
+  - right. exists A, e1, k1; split; auto. reflexivity.
   - left. dependent destruction Heqot2; try congruence.
   - destruct (IHHrutt eq_refl) as [[U1 [e1 [k1 [Ht0 HAns]]]] | H0]; auto.
     + left.
       rewrite <- itree_eta in Ht0.
       exists U1, e1, k1; split; auto. now rewrite tau_eutt.
-    + right. 
+    + right.
       destruct H0 as [T [e0 [k0 [H0 H1]]]].
       exists T, e0, k0; split; auto.
       eapply eqit_Tau_l.
@@ -453,7 +453,7 @@ Lemma xrutt_inv_Vis U1 U2 (e1: E1 U1) (e2: E2 U2)
   IsNoCut_ EE1 _ e1 ->
   IsNoCut_ EE2 _ e2 ->
   (forall u1 u2, RAns e1 u1 e2 u2 ->
-     @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (k1 u1) (k2 u2)). 
+     @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (k1 u1) (k2 u2)).
 Proof.
   intros H H0 H1. punfold H. red in H.
   apply xruttF_inv_VisF in H.
@@ -462,7 +462,7 @@ Proof.
   eapply H in Hans.
   pclearbot; auto.
   destruct H; try congruence.
-Qed.  
+Qed.
 End ConstructionInversion.
 
 Section euttge_trans_clo.
@@ -474,7 +474,7 @@ Section euttge_trans_clo.
   Context (EE2: forall {X}, E2 X -> bool).
 
   Context (RR : R1 -> R2 -> Prop).
-  
+
   (* Closing a relation over itrees under [euttge]. *)
 
   (* A transitivity functor *)
@@ -592,7 +592,7 @@ Proof.
   repeat intro. gclo. econstructor; eauto;
     try eapply eqit_mon; try apply H; try apply H0; auto.
 Qed.
-  
+
 #[global] Instance gxrutt_cong_euttge {E1 E2 R1 R2}
   (EE1: forall X, E1 X -> bool)
   (EE2: forall X, E2 X -> bool)

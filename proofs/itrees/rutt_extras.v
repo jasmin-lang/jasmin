@@ -3,7 +3,7 @@ found in ITree.RuttFacts.v. Some of the proofs are partly built as a
 refactoring of proofs in ITree.Eqit.v. *)
 
 From Coq Require Import
-  Program 
+  Program
   Setoid
   Morphisms
   RelationClasses.
@@ -12,16 +12,16 @@ From Paco Require Import paco.
 
 From ITree Require Import
   ITree
-  ITreeFacts 
-  Basics.HeterogeneousRelations 
+  ITreeFacts
+  Basics.HeterogeneousRelations
   Interp.Recursion
   Eq.Paco2
   Eq.Rutt
   Eq.RuttFacts.
- 
+
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 
-Require Import xrutt xrutt_facts. 
+Require Import xrutt xrutt_facts.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -38,7 +38,7 @@ Lemma rutt_iter (E1 E2 : Type -> Type) {I1 I2 R1 R2}
                  rutt RPreE RPostE (sum_rel RI RR) (body1 j1) (body2 j2)) ->
   forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
     @rutt E1 E2 R1 R2 RPreE RPostE RR
-      (ITree.iter body1 i1) (ITree.iter body2 i2). 
+      (ITree.iter body1 i1) (ITree.iter body2 i2).
   ginit. gcofix CIH.
   intros.
   rewrite !unfold_iter.
@@ -58,8 +58,8 @@ Lemma rutt_iter (E1 E2 : Type -> Type) {I1 I2 R1 R2}
   pstep; red.
   econstructor.
   inversion H; subst; auto.
-Qed.  
-  
+Qed.
+
 Lemma rutt_weaken {E1 E2: Type -> Type} {O1 O2 : Type}
   (REv REv' : prerel E1 E2)
   (RAns RAns' : postrel E1 E2)
@@ -156,7 +156,7 @@ Lemma gen_eutt_rutt {E : Type -> Type} {R1 R2 : Type}
   (RH2: forall u e a b, RPost u u e a e b -> a = b)
   t1 t2 :
   eutt RR t1 t2 ->
-  rutt (E1 := E) (E2 := E) RPre RPost RR t1 t2.  
+  rutt (E1 := E) (E2 := E) RPre RPost RR t1 t2.
 Proof.
   revert t1 t2; pcofix CIH.
   intros t1 t2 H; pstep; red; punfold H; red in H.

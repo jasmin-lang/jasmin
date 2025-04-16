@@ -195,7 +195,7 @@ Definition EPostRel {E E0 : Type -> Type} {wE : with_Error E E0}
       (mfun1 e1) t1 (mfun1 e2) t2.
 
 Section WKEQUIV.
-  
+
 Context {E E0: Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 (* alternative version of wrequiv, directly specialized to itrees and
