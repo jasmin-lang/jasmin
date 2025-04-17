@@ -1,3 +1,6 @@
+(* This file incorporates work from the Interaction Trees
+library subject to the MIT license (see [`LICENSE.itrees`](LICENSE.itrees)). *)
+
 (** * Cutoff-sensitive relation up to tau *)
 
 (** [X-rutt] is a generalization of [rutt] that supports the

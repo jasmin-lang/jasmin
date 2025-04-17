@@ -1,3 +1,6 @@
+(* This file incorporates work from the Interaction Trees
+library subject to the MIT license (see [`LICENSE.itrees`](LICENSE.itrees)). *)
+
 (** Failure effects associated with the execS datatype, which used in
 the language semantics. The proofs in this file are basically a
 refactoring of those in ITree.FailFacts.v, where failures are defined

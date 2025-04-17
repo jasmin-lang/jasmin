@@ -1,3 +1,6 @@
+(* This file incorporates work from the Interaction Trees
+library subject to the MIT license (see [`LICENSE.itrees`](LICENSE.itrees)). *)
+
 (** * Properties of X-rutt *)
 
 From Coq Require Import

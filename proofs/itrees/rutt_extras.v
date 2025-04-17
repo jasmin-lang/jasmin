@@ -1,3 +1,6 @@
+(* This file incorporates work from the Interaction Trees
+library subject to the MIT license (see [`LICENSE.itrees`](LICENSE.itrees)). *)
+
 (** More properties of the Rutt relation, defined in ITree.Rutt.v, not
 found in ITree.RuttFacts.v. Some of the proofs are partly built as a
 refactoring of proofs in ITree.Eqit.v. *)
