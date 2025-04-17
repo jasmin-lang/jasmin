@@ -2136,7 +2136,7 @@ and used_func_i used i =
   | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2
   | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
-let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp (model: model) amodel fnames array_dir fmt =
+let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp (model: (model * decl_model)) amodel fnames array_dir fmt =
   let save_array_theories array_theories =
     match array_dir with
     | Some prefix ->
@@ -2164,8 +2164,12 @@ let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp (model: model) amod
     | WArray   -> (module EcWArray  : EcArray)
     | BArray   -> (module EcBArray  : EcArray)
   ) in
+  let (leakage_model, decl_model) = model in
   let module EE = EcExpression(EA) in
-  let module EL: EcLeakage = (val match model with
+  let module ED : EcDeclassify = (val match decl_model with
+    | Normal -> (module EcNoDeclassify : EcDeclassify)
+    | DeclassifyConstant -> (module EcDeclassifyConstantTime(EE) : EcDeclassify)) in
+  let module EL: EcLeakage = (val match leakage_model with
     | Normal -> (module EcLeakNormal(EE): EcLeakage)
     | ConstantTime -> (module EcLeakConstantTime(EE): EcLeakage)
     | ConstantTimeGlobal ->
@@ -2173,7 +2177,7 @@ let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp (model: model) amod
           "EasyCrypt extraction for constant-time in CTG mode is deprecated. Use the CT mode instead.";
         (module EcLeakConstantTimeGlobal(EE): EcLeakage)
   ) in
-  let module E = Extraction(EA)(EcDeclassifyConstantTime(EE))(EL) in
+  let module E = Extraction(EA)(ED)(EL) in
   let prog = E.pp_prog env asmOp fmt globs funcs in
   save_array_theories (Env.array_theories env);
   prog

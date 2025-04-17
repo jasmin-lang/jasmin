@@ -10,7 +10,7 @@ val extract :
   Utils.architecture ->
   Wsize.wsize ->
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
-  Utils.model ->
+  (Utils.model * Utils.decl_model) ->
   amodel ->
   string list ->
   string option ->
