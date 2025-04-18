@@ -572,7 +572,7 @@ module Env: EnvT = struct
     n |> String.uncapitalize_ascii |> escape
 
   let set_var_prefix_u env x s =
-    let s = normalize_name s in
+    let s = String.uncapitalize_ascii s in
     { env with vars = Mv.add x s env.vars }
 
   let set_name_prefix env s =
@@ -1555,7 +1555,7 @@ let rec is_write_i x i =
     is_write_lv x lv
   | Copn(lvs,_,_,_) | Ccall(lvs, _, _) | Csyscall(lvs,_,_) ->
     is_write_lvs x lvs
-  | Cassert _ -> assert false
+  | Cassert _ -> false
   | Cif(_, c1, c2) | Cwhile(_, c1, _, _, c2) ->
     is_write_c x c1 || is_write_c x c2
   | Cfor(x',_,c) ->
@@ -1994,7 +1994,7 @@ module type Model = sig
     var L.located ->
     E.dir * expr * expr -> (Env.t -> ec_stmt) -> ec_stmt
   val fun_init: Env.t -> (int, 'a, 'b) gfunc -> ec_stmt * ec_stmt * (ec_modty * ec_ty) list * Env.t
-  val fun_ret: Env.t -> ec_expr list -> ec_expr list
+  val fun_ret: Env.t -> funname -> ec_expr list -> ec_expr list
   val fun_rty: Env.t -> ec_ty list -> ec_ty list
   val global_vars: Env.t -> (ec_modty * ec_ty) list
   val import: Env.t -> ec_item list
@@ -2118,7 +2118,7 @@ module Normal (EA: EcArray):Model = struct
     init @ [ESwhile (cond, c env @ i_upd)]
 
   let fun_init env f = [],[],[],env
-  let fun_ret env ret = ret
+  let fun_ret env _ ret = ret
   let fun_rty env rtys = rtys
   let global_vars env = []
   let import env = []
@@ -2133,6 +2133,12 @@ struct
 
   let fand a b = Eop2 (Infix "/\\", a, b)
 
+  let fun_ret env name ret = 
+    let trace = Env.get_proofv env name in
+    Etuple(ret) :: [Eident [trace]]
+
+  let fun_rty env rtyps = Tuple(rtyps) :: [Base "trace"]
+
   let ec_kind = function
     | Expr.Assume -> ["Assume"]
     | Assert -> ["Assert"]
@@ -2146,6 +2152,9 @@ struct
     let e1 = Eop2 (Infix "++", Eident [p], Elist [Etuple [Eident k;e]]) in
     let i = ESasgn ([LvIdent ([p])],e1) in
     [i]
+  
+  let toec_assert env k e =
+    ec_trace env k e 
 
   let sub_contra args params =
     let aux f =
@@ -2295,7 +2304,7 @@ struct
     in
 
     let old = Env.get_old env f.f_name in
-    let e = var_eq vars old in
+    let e = var_eq vars (List.rev old) in
 
     let tactic2 = {
       tname = "conseq";
@@ -2359,8 +2368,10 @@ struct
       targs = []
     }
     in
-
-    Lemma (prop, [tactic; tactic1; tactic2; tactic3; tactic4;
+    if List.is_empty (get_post f.f_contra) then
+      Lemma (prop, [tactic;tactic6;tactic10])
+    else
+      Lemma (prop, [tactic; tactic1; tactic2; tactic3; tactic4;
                   tactic5; tactic7; tactic9; tactic10])
 
   let pp_valid_assume_ env f =
@@ -2520,7 +2531,10 @@ struct
     }
     in
 
-    Lemma (prop, [tactic1;tactic2;tactic3])
+    if post == (Ebool true) then 
+      Lemma (prop, [tactic1; tactic3])
+    else
+      Lemma (prop, [tactic1;tactic2;tactic3])
 
   let final env funcs =
     let aux f =
@@ -2628,12 +2642,12 @@ struct
       ) env old
     in
     let init = List.flatten init in
-    let old = List.map (fun (_,o) -> o) old in
+    let old_vars = List.map (fun (_,o) -> o) old in
 
     let vars = Env.vars env in
-    let old_v = List.map (fun x -> Mv.find x vars) old in
+    let old_v = List.map (fun x -> Mv.find x vars) old_vars in
     Env.add_old env old_v f.f_name;
-    let old = List.map (var2ec_var env) old in
+    let old = List.map (var2ec_var env) old_vars in
 
     let clone x =
       let aux v = L.mk_loc L._dummy (V.clone v) in
@@ -2660,9 +2674,10 @@ struct
         assume
     in
     let assume = List.flatten assume in
+    let es = List.map (fun x -> Pvar (gkvar (L.mk_loc L._dummy x))) (List.rev old_vars) in
+    let assert_ = sub_contra iparam es contra.f_post in
     let es = List.map (fun x -> Pvar (gkvar x)) f.f_ret in
     let ires = List.map L.unloc contra.f_ires in
-    let assert_ = sub_contra iparam es contra.f_post in
     let assert_ = sub_contra ires es assert_ in
     let assert_ = List.map
         (fun (prover,exp) -> ec_trace env Assert exp)
@@ -2728,7 +2743,7 @@ struct
   let global_vars env =
     let tmp = Env.get_all_tmplvs env in
     let tmp = List.map (fun (v,typ) -> v.v_name,typ) tmp in
-    tmp @ Env.get_all_ttmplvs env
+    [("tmp__trace",Base "trace")] @ tmp @ Env.get_all_ttmplvs env
 end
 
 module Model_EcLeak (EA: EcArray) (EL:EcLeakage) : Model =
@@ -2858,7 +2873,7 @@ struct
     ec_leaking_for env c e1 e2 init cond i_upd
 
   let fun_init env f = ec_fun_leak_init env,[],[],env
-  let fun_ret = ec_leak_ret
+  let fun_ret env _ ret = ec_leak_ret env ret
   let fun_rty = ec_leak_rty
   let global_vars = global_leakage_vars
   let import = leakage_imports
@@ -2927,7 +2942,7 @@ struct
       in
       let ret =
           let ec_var x = ec_vari env (L.unloc x) in
-          match M.fun_ret env (List.map ec_var f.f_ret) with
+          match M.fun_ret env f.f_name (List.map ec_var f.f_ret) with
           | [x] -> ESreturn x
           | xs -> ESreturn (Etuple xs)
       in
