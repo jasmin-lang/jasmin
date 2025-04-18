@@ -115,6 +115,9 @@ Class HoareSpec :=
   { preF_  : PreF
   ; postF_ : PostF }.
 
+Definition trivial_spec : HoareSpec :=
+  {| preF_ := fun _ _ => True; postF_ := fun _ _ _ => True |}.
+
 Definition preF {hS : HoareSpec} := preF_.
 Definition postF {hS : HoareSpec} := postF_.
 
@@ -927,9 +930,8 @@ Notation iwhoare   := (hoare (sem_F := sem_fun_full) (iEr := invErrT)).
 (* Should we do that in core ? *)
 Hint Immediate rhoare_true rhoare_false : core.
 
-(* A test *)
+Section WRITEP.
 
-Section Test.
 Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
@@ -959,13 +961,9 @@ Let Pi i := forall s0, whoare p ev (pre s0) [::i] (post (write_I i) s0).
 
 Let Pi_r ir := forall ii, Pi (MkI ii ir).
 
-(* FIXME: move this *)
-Definition trivial_spec : HoareSpec :=
-  {| preF_ := fun _ _ => True; postF_ := fun _ _ _ => True |}.
 
 #[local]Existing Instance trivial_spec.
 
-(** psem needed *)
 Lemma it_writeP c : Pc c.
 Proof.
   apply: (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c} //.
@@ -1021,6 +1019,6 @@ Proof.
   by rewrite write_Ii write_i_call => /vrvsP /=.
 Qed.
 
-End Test.
+End WRITEP.
 
 
