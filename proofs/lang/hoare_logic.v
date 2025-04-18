@@ -25,10 +25,7 @@ Import MonadNotation.
 Local Open Scope monad_scope.
 
 
-Require Import expr psem_defs oseq compiler_util.
-(* needed for the last lemma *)
-Require Import psem.
-
+Require Import expr psem_defs psem_core oseq compiler_util.
 Require Import it_sems_core core_logics.
 
 Notation PredT := (fun=>True).
