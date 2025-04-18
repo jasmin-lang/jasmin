@@ -178,7 +178,7 @@ Declare Scope option_scope.
 Delimit Scope option_scope with O.
 
 Notation "m >>= f" := (ssrfun.Option.bind f m)
-  (at level 25, left associativity) : option_scope.
+  (at level 58, left associativity) : option_scope.
 
 Local Open Scope option_scope.
 

@@ -18,6 +18,7 @@
 -R compiler Jasmin
 -R lang Jasmin
 -R ssrmisc Jasmin
+-R itrees Jasmin
 
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
@@ -134,7 +135,12 @@ compiler/x86_params_proof.v
 compiler/x86_stack_zeroization.v
 compiler/x86_stack_zeroization_proof.v
 compiler/x86.v
+itrees/it_exec.v
+itrees/rutt_extras.v
+itrees/xrutt.v
+itrees/xrutt_facts.v
 lang/array.v
+lang/core_logics.v
 lang/expr.v
 lang/expr_facts.v
 lang/extraction.v
@@ -144,7 +150,9 @@ lang/fexpr_sem.v
 lang/flag_combination.v
 lang/gen_map.v
 lang/global.v
+lang/hoare_logic.v
 lang/ident.v
+lang/it_sems_core.v
 lang/linear.v
 lang/linear_facts.v
 lang/linear_sem.v
@@ -155,9 +163,11 @@ lang/memory_model.v
 lang/one_varmap.v
 lang/psem.v
 lang/psem_defs.v
+lang/psem_core.v
 lang/psem_of_sem_proof.v
 lang/pseudo_operator.v
 lang/psem_facts.v
+lang/relational_logic.v
 lang/sem_one_varmap.v
 lang/sem_op_typed.v
 lang/sem_one_varmap_facts.v
