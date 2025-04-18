@@ -1,3 +1,4 @@
+
 From Coq Require Import
   Program
   Setoid
@@ -17,18 +18,18 @@ From ITree Require Import
   Eq.Rutt
   Eq.RuttFacts.
 
-From mathcomp Require Import ssreflect ssrfun ssrbool.
+From mathcomp Require Import word_ssrZ ssreflect ssrfun ssrbool eqtype.
 
 Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
+
 
 Require Import expr psem_defs oseq compiler_util.
 (* needed for the last lemma *)
 Require Import psem.
 
 Require Import it_sems_core core_logics.
-
 
 Notation PredT := (fun=>True).
 
@@ -460,7 +461,7 @@ Lemma hoareP P c Q :
   hoare P c Q <-> (forall s0, P s0 -> hoare (fun s => s = s0) c Q).
 Proof. apply hoare_ioP. Qed.
 
-(* FIXME allow to weaken the inv *)
+(* TODO: allow to weaken the inv *)
 Lemma hoare_weaken1 P1 P2 Q1 Q2 c :
   (forall s, P1 s -> P2 s) ->
   (forall s, Q2 s -> Q1 s) ->
@@ -571,8 +572,7 @@ Lemma hoare_for_full P Pb Pi Qerr ii i d lo hi c :
   rhoare P (sem_bound (p_globs p) lo hi) Pb Qerr ->
   (forall bounds (j:Z),
     Pb bounds ->
-    (* FIXME : j \in (wrange d bounds.1 bounds.2) *)
-    List.In j (wrange d bounds.1 bounds.2) ->
+    j \in wrange d bounds.1 bounds.2 ->
     rhoare P (write_var true i (Vint j)) Pi Qerr) ->
   hoare Pi c P ->
   hoare P [:: MkI ii (Cfor i (d, lo, hi) c)] P.
@@ -584,8 +584,8 @@ Proof.
   move=> bounds {}/hwi; elim (wrange _ _) => /= [ | j js hrec] hwi.
   + by apply khoare_ret.
   eapply khoare_bind.
-  + by apply (khoare_iresult herr); apply hwi; left.
-  by apply: (khoare_bind hc); apply hrec => z hz; apply hwi; right.
+  + by apply (khoare_iresult herr); apply/hwi/mem_head.
+  by apply: (khoare_bind hc); apply hrec => z hz; apply hwi; rewrite in_cons hz orbT.
 Qed.
 
 Lemma hoare_for P Pi Qerr ii i d lo hi c :
@@ -842,8 +842,7 @@ Lemma whoare_for_full P Pb Pi ii i d lo hi c :
   rhoare P (sem_bound (p_globs p) lo hi) Pb PredT ->
   (forall bounds (j:Z),
     Pb bounds ->
-    (* FIXME : j \in (wrange d bounds.1 bounds.2) *)
-    List.In j (wrange d bounds.1 bounds.2) ->
+    j \in (wrange d bounds.1 bounds.2) ->
     rhoare P (write_var true i (Vint j)) Pi PredT) ->
   whoare p ev Pi c P ->
   whoare p ev P [:: MkI ii (Cfor i (d, lo, hi) c)] P.
@@ -970,7 +969,7 @@ Definition trivial_spec : HoareSpec :=
 #[local]Existing Instance trivial_spec.
 
 (** psem needed *)
-Lemma writeP c : Pc c.
+Lemma it_writeP c : Pc c.
 Proof.
   apply: (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c} //.
   + by move=> s0; apply hoare_skip => _ ->.

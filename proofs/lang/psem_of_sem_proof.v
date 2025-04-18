@@ -122,7 +122,7 @@ Section SEM_PEXPR_SIM.
     by move=> > he > he1 > he2 > /he -> /= -> > /he1 -> /= -> > /he2 -> /= -> <-.
   Qed.
 
-  End SEM_PEXPR_SIM.
+End SEM_PEXPR_SIM.
 
 Definition sem_pexpr_sim s e v s' h :=
   (@sem_pexpr_s_sim s s' h).1 e v.
@@ -352,43 +352,43 @@ Lemma it_psem_call :
   forall fn,
     wiequiv_f p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
-move=> hsyscall hinitstate hfinal fn.
-apply wequiv_fun_ind => hrec {fn}.
-move=> fn _ fs _ [<- <-] fd ->; exists fd => //.
-exists estate_sim, estate_sim => s1 hinit.
-have : exists2 s2 : estate_s, initialize_funcall p ev fd fs = ok s2 & estate_sim s1 s2.
-+ move: hinit; rewrite /initialize_funcall.
-  t_xrbindP => > -> s1' /hinitstate [s2'] /= -> hs hw.
-  have [s2'' [] /=]:= write_vars_sim hs hw; eauto.
-move=> [s2 h1 h2]; exists s2; split => //; last first.
-+ move=> s1' s2' fs1' [hscs hmem hvm]; rewrite /finalize_funcall.
-  t_xrbindP => vs.
-  rewrite /get_var_is (mapM_ext (λ (x : var_i) _, get_var_sim hvm x)) hfinal hscs hmem => -> /=.
-  move=> ? -> <- /=; eauto.
- set Pi_ := fun (i:instr) => wequiv_rec (wsw1:= nosubword) (wsw2:= withsubword)
-                p p ev ev eq_spec estate_sim [::i] [::i] estate_sim.
- set Pr_ := fun (i:instr_r) => forall ii, Pi_ (MkI ii i).
- set Pc_ := fun (c:cmd) => wequiv_rec (wsw1:= nosubword) (wsw2:= withsubword)
-                          p p ev ev eq_spec estate_sim c c estate_sim.
- move=> {fn fs hinit h1 h2 s1 s2 hfinal hinitstate}.
- apply (cmd_rect (Pr := Pr_) (Pi:=Pi_) (Pc:=Pc_)) => // {fd}.
- + by apply wequiv_nil.
- + by move=> i c; apply wequiv_cons.
- + by move=> x tg ty e ii; apply wequiv_assgn_eq.
- + by move=> xs t o es ii; apply wequiv_opn_eq.
- + move=> xs o es ii; apply wequiv_syscall_eq => //.
-   + by move=> > [].
-   move=> [???] [???] ? [<- <- <-]; rewrite /fexec_syscall /=.
-   by t_xrbindP => -[[??]?] /= /hsyscall -> [<-] /=; eauto.
- + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_eq => // -[].
- + move=> j d lo hi c hc ii; apply wequiv_for_eq with estate_sim => //.
-   move=> i s1 s2 s1' hsim hw; have [?[]]:= write_var_sim hsim hw; eauto.
- + by move=> al c e inf c' hc hc' ii; apply wequiv_while_eq.
- move=> xs f es ii; apply wequiv_call with  (rpreF (eS:=eq_spec)) (rpostF (eS:=eq_spec)) eq => //.
- + by rewrite /mk_fstate => > [<- <- _] <-.
- + by apply hrec.
- move=> fs1 fs2 fr _ _ <-.
- by apply wrequiv_sim_upd.
+  move=> hsyscall hinitstate hfinal fn.
+  apply wequiv_fun_ind => hrec {fn}.
+  move=> fn _ fs _ [<- <-] fd ->; exists fd => //.
+  exists estate_sim, estate_sim => s1 hinit.
+  have : exists2 s2 : estate_s, initialize_funcall p ev fd fs = ok s2 & estate_sim s1 s2.
+  + move: hinit; rewrite /initialize_funcall.
+    t_xrbindP => > -> s1' /hinitstate [s2'] /= -> hs hw.
+    have [s2'' [] /=]:= write_vars_sim hs hw; eauto.
+  move=> [s2 h1 h2]; exists s2; split => //; last first.
+  + move=> s1' s2' fs1' [hscs hmem hvm]; rewrite /finalize_funcall.
+    t_xrbindP => vs.
+    rewrite /get_var_is (mapM_ext (λ (x : var_i) _, get_var_sim hvm x)) hfinal hscs hmem => -> /=.
+    by move=> ? -> <- /=; eauto.
+  set Pi_ := fun (i:instr) => wequiv_rec (wsw1:= nosubword) (wsw2:= withsubword)
+                  p p ev ev eq_spec estate_sim [::i] [::i] estate_sim.
+  set Pr_ := fun (i:instr_r) => forall ii, Pi_ (MkI ii i).
+  set Pc_ := fun (c:cmd) => wequiv_rec (wsw1:= nosubword) (wsw2:= withsubword)
+                            p p ev ev eq_spec estate_sim c c estate_sim.
+  move=> {fn fs hinit h1 h2 s1 s2 hfinal hinitstate}.
+  apply (cmd_rect (Pr := Pr_) (Pi:=Pi_) (Pc:=Pc_)) => // {fd}.
+  + by apply wequiv_nil.
+  + by move=> i c; apply wequiv_cons.
+  + by move=> x tg ty e ii; apply wequiv_assgn_eq.
+  + by move=> xs t o es ii; apply wequiv_opn_eq.
+  + move=> xs o es ii; apply wequiv_syscall_eq => //.
+    + by move=> > [].
+    move=> [???] [???] ? [<- <- <-]; rewrite /fexec_syscall /=.
+    by t_xrbindP => -[[??]?] /= /hsyscall -> [<-] /=; eauto.
+  + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_eq => // -[].
+  + move=> j d lo hi c hc ii; apply wequiv_for_eq with estate_sim => //.
+    move=> i s1 s2 s1' hsim hw; have [?[]]:= write_var_sim hsim hw; eauto.
+  + by move=> al c e inf c' hc hc' ii; apply wequiv_while_eq.
+  move=> xs f es ii; apply wequiv_call with  (rpreF (eS:=eq_spec)) (rpostF (eS:=eq_spec)) eq => //.
+  + by rewrite /mk_fstate => > [<- <- _] <-.
+  + by apply hrec.
+  move=> fs1 fs2 fr _ _ <-.
+  by apply wrequiv_sim_upd.
 Qed.
 
 End IT_SEM.

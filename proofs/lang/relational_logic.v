@@ -148,6 +148,19 @@ Qed.
 
 End WREQUIV.
 
+Section SOPN.
+
+Context
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {asm_op}  {sip : SemInstrParams asm_op syscall_state}.
+
+Lemma wrequiv_exec_sopn o :
+  wrequiv (Forall2 value_uincl) (exec_sopn o) (exec_sopn o) (Forall2 value_uincl).
+Proof. move=> vs1 vs2 vs1'; apply vuincl_exec_opn. Qed.
+
+End SOPN.
+
 Lemma wrequiv_eq {I O Err} (F: fresult Err I O) : wrequiv eq F F eq.
 Proof. move=> i _ o <-; eauto. Qed.
 
@@ -381,6 +394,10 @@ Class EquivSpec :=
 Definition rpreF {eS : EquivSpec} := rpreF_.
 Definition rpostF {eS : EquivSpec} := rpostF_.
 
+Definition eq_spec : EquivSpec :=
+  {| rpreF_ := fun (fn1 fn2 : funname) (fs1 fs2 : fstate) => fn1 = fn2 /\ fs1 = fs2
+   ; rpostF_ := fun (fn1 fn2 : funname) (fs1 fs2 fr1 fr2: fstate) => fr1 = fr2 |}.
+
 Context (spec : EquivSpec) {E0: Type -> Type}.
 
 Definition RPreD {T1 T2} (d1 : recCall T1)
@@ -486,7 +503,6 @@ Lemma wequiv_cons (R P Q : rel_c) (i1 i2 : instr) (c1 c2 : cmd) :
   wequiv P (i1 :: c1) (i2 :: c2) Q.
 Proof. rewrite -(cat1s i1 c1) -(cat1s i2 c2); apply wequiv_cat. Qed.
 
-(* Lemma wequiv_assgn_core *)
 Lemma wequiv_assgn_core (P Q : rel_c) ii1 x1 tg1 ty1 e1 ii2 x2 tg2 ty2 e2 :
   wrequiv P (sem_assgn p1 x1 tg1 ty1 e1) (sem_assgn p2 x2 tg2 ty2 e2) Q ->
   wequiv P [:: MkI ii1 (Cassgn x1 tg1 ty1 e1)] [:: MkI ii2 (Cassgn x2 tg2 ty2 e2)] Q.
@@ -560,11 +576,6 @@ Proof.
   + by move=> *; apply wrequiv_eq.
   by move=> > <-; apply hx.
 Qed.
-
-(* FIXME: move this *)
-Lemma wrequiv_exec_sopn o :
-  wrequiv (Forall2 value_uincl) (exec_sopn o) (exec_sopn o) (Forall2 value_uincl).
-Proof. move=> vs1 vs2 vs1'; apply vuincl_exec_opn. Qed.
 
 Lemma wequiv_opn_uincl P Q ii1 xs1 at1 o es1 ii2 xs2 at2 es2 :
   wrequiv P (fun s => sem_pexprs true (p_globs p1) s es1)
@@ -1028,11 +1039,6 @@ Proof.
   have := wequiv_fun_body (hbody fn1 fn2) hpre.
   apply xrutt_weaken_aux.
 Qed.
-
-(* FIXME move this elsewhere *)
-Definition eq_spec : EquivSpec :=
-  {| rpreF_ := fun (fn1 fn2 : funname) (fs1 fs2 : fstate) => fn1 = fn2 /\ fs1 = fs2
-   ; rpostF_ := fun (fn1 fn2 : funname) (fs1 fs2 fr1 fr2: fstate) => fr1 = fr2 |}.
 
 End WEQUIV_FUN.
 

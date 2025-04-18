@@ -100,8 +100,6 @@ Proof.
   intros ?; split; intros [] [] EQ; subst; try inv EQ; cbn; auto.
 Qed.
 
-(* FIXED: Universe inconsistency (old problem) *)
-(* Unset Universe Checking.  *)
 #[global] Instance execT_Eq1 {E} : Eq1 (execT (itree E)) :=
   fun _ => eutt (exec_rel eq).
 

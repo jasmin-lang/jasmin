@@ -12,7 +12,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import expr psem_defs psem_core it_exec.
 
 Import MonadNotation.
-(* FIXME : This can be removed using %monad *)
 Local Open Scope monad_scope.
 
 (**** Error semantics ******************************************)
