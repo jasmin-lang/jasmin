@@ -36,7 +36,6 @@ abstract theory ByteArray.
       w1 = w2.
     axiom _zero_bits8 i : _zero \bits8 i = W8.zero.
 
-
     op get'Sd (t:t) (i:int) : B =
       _of_list (sub t i r)
     axiomatized by get'SdE.
@@ -52,6 +51,12 @@ abstract theory ByteArray.
       abbrev "_.[_<-_]" = set'S.
     end Notation'S.
     export Notation'S.
+
+    axiom is_init_cell_set'Sd (t:t) (i j: int) (w:B):
+      is_init_cell (set'Sd t i w) j =  ((i <= j /\ j < i + r) \/ is_init_cell t j).
+
+    hint simplify is_init_cell_set'Sd.
+
 
     lemma get8_set'SdE (t:t) (i:int) (w:B) j :
       (set'Sd t i w).[j] =
@@ -150,6 +155,11 @@ abstract theory ByteArray.
     op of_list'S (l:B list) =
       init (fun i => if i < List.size l * r then nth _zero l (i%/r) \bits8 (i%%r) else W8.zero).
 
+
+    axiom is_init_cell_of_list'S l (k:int):
+      0<=k<ByteArray.size => is_init_cell (of_list'S l) k.
+   (*is_init_cell (of_list'S l) k = 0<=k<ByteArray.size *)
+
     lemma get8_of_list'S l i :
       (of_list'S l).[i] =
          if (0 <= i < ByteArray.size) /\ i < List.size l * r then nth _zero l (i%/r) \bits8 (i%%r) else W8.zero.
@@ -171,7 +181,12 @@ abstract theory ByteArray.
       rewrite nth_out 1:// _zero_bits8 /#.
     qed.
 
+
   end WSB.
+
+    axiom is_init_cell_of_list a l:
+      (a = of_list l) => (forall k, 0<=k /\ k<List.size l => is_init_cell a k).
+
 
   clone include WSB with
     type B <- W16.t,

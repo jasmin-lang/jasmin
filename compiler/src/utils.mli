@@ -107,6 +107,7 @@ type model =
   | ConstantTimeGlobal
   | Normal
   | Annotations
+  | SafetyAnnotations
 
 (* -------------------------------------------------------------------- *)
 (* Enables colors in errors and warnings.                               *)

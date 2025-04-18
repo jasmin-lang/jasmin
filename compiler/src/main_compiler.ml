@@ -179,24 +179,6 @@ let main () =
     visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
 
     if !ec_list <> [] || !ecfile <> "" then begin
-      let memo = Hashtbl.create 5 in
-      let b (cv:Var0.Var.var) = 
-          match Hashtbl.find memo cv with
-          | x -> x
-          | exception Not_found ->
-              let v = Conv.var_of_cvar cv in
-              let bv = V.mk ("b_"^v.v_name) (Reg (Normal, Direct)) tbool v.v_dloc [] in
-              let cbv = Conv.cvar_of_var bv in
-              Hashtbl.add memo cv cbv;
-              cbv
-      in
-      let cprog = Conv.cuprog_of_prog prog in
-      let fresh_var_ident vk ii name t = Conv.fresh_var_ident vk ii (Uint63.of_int 0) name t in      
-      let sc_prog = Safety_cond.sc_prog Arch.reg_size  Arch.asmOp fresh_var_ident cprog in
-      let rm_init_prog = Remove_is_var_init.rm_var_init_prog_dc Arch.asmOp Arch.msf_size Arch.fcp Arch.aparams.ap_is_move_op b sc_prog in
-      let prog = Conv.prog_of_cuprog rm_init_prog in
-      Format.eprintf "@[<v>Program after removing is_init_var:@;%a@.@]" 
-      (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) prog; 
       let fmt, close =
         if !ecfile = "" then Format.std_formatter, fun () -> ()
         else

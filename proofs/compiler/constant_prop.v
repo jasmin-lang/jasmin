@@ -358,6 +358,9 @@ Let with_globals (gd: glob_decls) (tag: assgn_tag) : globals :=
   if tag is AT_inline then Some (assoc gd) else None.
 
 
+Section CL_FLAG.
+
+Context (cl : bool).
 
 
 Section GLOBALS.
@@ -400,14 +403,14 @@ Fixpoint const_prop_e (m:cpm) e  :=
      let s   := const_prop_e m s in
      let len := const_prop_e m len in
      let idx := const_prop_e m idx in
-     match is_const s, is_const len with
-     | Some s, Some len =>
+     match is_const s, is_const len, cl with
+     | Some s, Some len, true=>
        foldl (fun acc i =>
                let m := Mvar.set m x (Cint i) in
                let b := const_prop_e m body in
                Papp2 op acc b)
              idx (ziota s len)
-     | _, _ =>
+     | _, _ , _ =>
          Pbig idx op x (const_prop_e (Mvar.remove m x) body) s len
      end
 
@@ -675,7 +678,7 @@ Definition const_prop_ci without_globals ci :=
   in
   MkContra ci.(f_iparams) ci.(f_ires) ci_pre ci_post.
 
-Definition const_prop_fun (cl: bool) (gd: glob_decls) cpf (f: fundef) :=
+Definition const_prop_fun (gd: glob_decls) cpf (f: fundef) :=
   let with_globals := if cl then (fun _ _ => with_globals_cl gd) else with_globals in
   let without_globals := if cl then with_globals_cl gd else without_globals in
   let 'MkFun ii ci si p c so r ev := f in
@@ -686,14 +689,15 @@ Definition const_prop_fun (cl: bool) (gd: glob_decls) cpf (f: fundef) :=
 (* cpf is a function that indicates what should be propagated,
 receiving the paraments of the Cassgn (with the exception of the type)
 and returning a bool that indicates whether to propagate or not*)
-Definition const_prop_prog_fun (cl:bool) (p:prog) (cpf:lval -> assgn_tag -> pexpr -> bool) : prog :=
-  map_prog (const_prop_fun cl p.(p_globs) cpf) p.
+Definition const_prop_prog_fun (p:prog) (cpf:lval -> assgn_tag -> pexpr -> bool) : prog :=
+  map_prog (const_prop_fun p.(p_globs) cpf) p.
  
 
-Definition const_prop_prog (cl: bool) (p:prog) : prog :=
-  const_prop_prog_fun cl p (fun _ tag _ =>  (tag == AT_inline)).
+Definition const_prop_prog (p:prog) : prog :=
+  const_prop_prog_fun p (fun _ tag _ =>  (tag == AT_inline)).
 
 End Section.
 
 End ASM_OP.
+End CL_FLAG.
 End WITH_PARAMS.

@@ -68,6 +68,39 @@ let do_spill_unspill asmop ?(debug = false) cp =
 
 (*--------------------------------------------------------------------- *)
 
+let create_safety_asserts
+   (type reg regx xreg rflag cond asm_op extra_op)
+    (module Arch : Arch_full.Arch
+      with type reg = reg
+       and type regx = regx
+       and type xreg = xreg
+       and type rflag = rflag
+       and type cond = cond
+       and type asm_op = asm_op
+       and type extra_op = extra_op) prog =
+        
+  let memo = Hashtbl.create 5 in
+  let b (cv:Var0.Var.var) = 
+      match Hashtbl.find memo cv with
+      | x -> x
+      | exception Not_found ->
+          let v = Conv.var_of_cvar cv in
+          let bv = V.mk ("b_"^v.v_name) (Reg (Normal, Direct)) tbool v.v_dloc [] in
+          let cbv = Conv.cvar_of_var bv in
+          Hashtbl.add memo cv cbv;
+          cbv
+  in
+  let cprog = Conv.cuprog_of_prog prog in
+  let sc_prog = Safety_cond.sc_prog Arch.reg_size  Arch.asmOp Arch.msf_size cprog in
+  let rm_init_prog = Remove_is_var_init.rm_var_init_prog_dc Arch.asmOp Arch.msf_size Arch.fcp Arch.aparams.ap_is_move_op b sc_prog in
+  let prog = Conv.prog_of_cuprog rm_init_prog in
+  Format.eprintf "@[<v>Program after removing is_init_var:@;%a@.@]" 
+  (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) prog; 
+  prog
+
+
+(*--------------------------------------------------------------------- *)
+
 let compile (type reg regx xreg rflag cond asm_op extra_op)
     (module Arch : Arch_full.Arch
       with type reg = reg

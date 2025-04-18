@@ -473,13 +473,13 @@ Notation mk_instr_w_b5w name semi ain aout nargs check prc valid pp_asm init_con
   mk_instr_safe (pp_sz name sz) (w_ty sz) (b5w_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi sz) (check sz) nargs (valid sz) (pp_asm sz) init_cond), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w_b4w_00 name semi check prc valid pp_asm := ((fun sz =>
-  mk_instr_safe (pp_sz name sz) (w_ty sz) (b4w_ty sz) [:: Eu 0] (implicit_flags_noCF ++ [:: Eu 0]) (reg_msb_flag sz) (semi sz) (check sz) 1 (valid sz) (pp_asm sz) [::IBool true; IBool true; IBool true; IBool true]), (name%string,prc))  (only parsing).
+  mk_instr_safe (pp_sz name sz) (w_ty sz) (b4w_ty sz) [:: Eu 0] (implicit_flags_noCF ++ [:: Eu 0]) (reg_msb_flag sz) (semi sz) (check sz) 1 (valid sz) (pp_asm sz) [::IBool true; IBool true; IBool true; IBool true ; IBool true]), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_b name semi ain aout nargs check prc valid pp_asm := ((fun sz =>
   mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (b_ty) ain aout (reg_msb_flag sz) (semi sz) (check sz) nargs (valid sz)(pp_asm sz) [::IBool true]), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_b5 name semi ain nargs check prc valid pp_asm := ((fun sz =>
-  mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (b5_ty) ain implicit_flags (reg_msb_flag sz) (semi sz) (check sz) nargs (valid sz) (pp_asm sz) [::IBool true]), (name%string,prc))  (only parsing).
+  mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (b5_ty) ain implicit_flags (reg_msb_flag sz) (semi sz) (check sz) nargs (valid sz) (pp_asm sz) [::IBool true; IBool true; IBool true; IBool true; IBool true]), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_b5w name semi ain aout nargs check prc valid pp_asm init_cond := ((fun sz =>
   mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (b5w_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi sz) (check sz) nargs (valid sz) (pp_asm sz) init_cond), (name%string,prc))  (only parsing).
@@ -494,13 +494,13 @@ Notation mk_instr_w2_bw name semi check prc valid pp_asm := ((fun sz =>
   mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (bw_ty sz) [:: Ea 0; Eu 1] [::F CF; Ea 0] MSB_MERGE (semi sz) (check sz) 2 (valid sz) (pp_asm sz) [::IBool true; IBool true]), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2b_bw name semi flag check prc valid pp_asm := ((fun sz =>
-  mk_instr_safe (pp_sz name sz) (w2b_ty sz sz) (bw_ty sz) ([:: Ea 0; Eu 1] ++ [::F flag]) ([::F flag; Ea 0]) (reg_msb_flag sz) (semi sz) (check sz) 2 (valid sz) (pp_asm sz) [::IBool true]), (name%string,prc))  (only parsing).
+  mk_instr_safe (pp_sz name sz) (w2b_ty sz sz) (bw_ty sz) ([:: Ea 0; Eu 1] ++ [::F flag]) ([::F flag; Ea 0]) (reg_msb_flag sz) (semi sz) (check sz) 2 (valid sz) (pp_asm sz) [::IBool true; IBool true]), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_b5w2 name semi ain aout nargs check prc valid pp_asm := ((fun sz =>
-  mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (b5w2_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi sz) (check sz) nargs (valid sz) (pp_asm sz) [::IBool true; IBool true; IBool false; IBool false; IBool false; IBool true]), (name%string,prc))  (only parsing).
+  mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (b5w2_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi sz) (check sz) nargs (valid sz) (pp_asm sz) [::IBool true; IBool true; IBool false; IBool false; IBool false; IBool true; IBool true]), (name%string,prc))  (only parsing).
 
 Notation mk_instr_division sg name semi check prc valid pp_asm semi_errty semi_safe := ((fun sz =>
-  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; Eu 0]  (implicit_flags ++ [:: R RAX; R RDX]) (reg_msb_flag sz) (semi sz) (check sz) 1 [::X86Division sz sg] [::IBool false; IBool false; IBool false; IBool false; IBool false; IBool true]  (valid sz) (pp_asm sz) refl_equal (semi_errty sz) (semi_safe sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; Eu 0]  (implicit_flags ++ [:: R RAX; R RDX]) (reg_msb_flag sz) (semi sz) (check sz) 1 [::X86Division sz sg] [::IBool false; IBool false; IBool false; IBool false; IBool false; IBool true; IBool true]  (valid sz) (pp_asm sz) refl_equal (semi_errty sz) (semi_safe sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_w_120 name semi check prc valid pp_asm := ((fun sz =>
   mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (w_ty sz) [:: Ea 1 ; Eu 2] [:: Ea 0] MSB_CLEAR (semi sz) (check sz) 3 (valid sz) (pp_asm sz) [::IBool true]), (name%string,prc))  (only parsing).

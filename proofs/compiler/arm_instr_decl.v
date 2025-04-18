@@ -1890,6 +1890,11 @@ Definition arm_shift_semi
       & res
      ).
 
+Definition arm_shift_semi_ic n :=
+  let x := IOp1 (Oint_of_word U8) (IVar n) in
+  let c := IOp2 (Oneq (Op_int)) x (IConst 0) in
+  [:: c;c;c;IBool true].
+
 Definition arm_ASR_C (wn : ty_r) (shift : Z) :=
   if (32 <=? shift)%Z then msb wn
   else wbit_n wn (Z.to_nat (shift - 1)).
@@ -1923,7 +1928,7 @@ Definition arm_ASR_instr : instr_desc_t :=
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
-      id_init := [:: IBool true; IBool true; IBool true; IBool true];
+      id_init := arm_shift_semi_ic 1;
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_safe_wf := refl_equal;
@@ -1964,7 +1969,7 @@ Definition arm_LSL_instr : instr_desc_t :=
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
-      id_init := [:: IBool true; IBool true; IBool true; IBool true];
+      id_init := arm_shift_semi_ic 1;
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_safe_wf := refl_equal;
@@ -2005,7 +2010,7 @@ Definition arm_LSR_instr : instr_desc_t :=
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
-      id_init := [:: IBool true; IBool true; IBool true; IBool true];
+      id_init := arm_shift_semi_ic 1;
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_safe_wf := refl_equal;
@@ -2046,7 +2051,7 @@ Definition arm_ROR_instr : instr_desc_t :=
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
-      id_init := [:: IBool true; IBool true; IBool true; IBool true];
+      id_init := arm_shift_semi_ic 1;
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_safe_wf := refl_equal;

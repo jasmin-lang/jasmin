@@ -148,7 +148,7 @@ Module Env.
     |}.
 
   Definition update_cond (env : t) (c : pexpr) : t :=
-    let c := constant_prop.empty_const_prop_e c in
+    let c := constant_prop.empty_const_prop_e false c in
     {| cond := Some c; msf_vars := msf_vars env; |}.
 
   Definition meet (env0 env1 : t) : t :=
@@ -181,7 +181,7 @@ Module Env.
      branch. *)
   Definition is_cond (env : t) (c : pexpr) : bool :=
     eq_expr c (Pbool true) ||
-    let c := constant_prop.empty_const_prop_e c in
+    let c := constant_prop.empty_const_prop_e false c in
     if cond env is Some c' then eq_expr c c' else false.
 
   Definition after_SLHmove (env : t) (ox : option var) : t :=

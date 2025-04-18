@@ -20,8 +20,9 @@ op "_.[_<-_]" : global_mem_t -> address -> W8.t -> global_mem_t.
 op is_valid : address -> int -> bool.
 
 axiom is_validP (a: address) (l : int):
-  is_valid a l <=> (forall a' l' , a <= a' =>  a' + l' < a + l => is_valid a' l').
+  is_valid a l <=> (forall a' l' , a <= a' =>  a' + l' <= a + l => is_valid a' l').
 
+axiom is_valid_bound : forall i l, is_valid i l => i + l <= W64.modulus. (*FIXME: ptr size*)
 
 axiom mem_eq_ext (m1 m2:global_mem_t) : (forall j, m1.[j] = m2.[j]) => m1 = m2.
 

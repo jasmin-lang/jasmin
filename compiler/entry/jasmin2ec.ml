@@ -36,7 +36,12 @@ let parse_and_extract arch call_conv idirs =
   let module A = (val get_arch_module arch call_conv) in
 
   let extract model amodel functions array_dir output pass file =
-    let prog = parse_and_compile (module A) pass file idirs in
+    let safety =
+      match model with
+       | SafetyAnnotations -> true
+       | _ -> false 
+    in
+    let prog = parse_and_compile (module A) ~safety:safety pass file idirs in
 
     extract_to_file prog arch A.reg_size A.asmOp model amodel functions
       array_dir output
@@ -54,7 +59,8 @@ let model =
     [ ("normal", Normal);
       ("CT", ConstantTime);
       ("CTG", ConstantTimeGlobal);
-      ("Annotations", Annotations)
+      ("Annotations", Annotations);
+      ("SafetyAnnotations", SafetyAnnotations)
     ]
   in
   let doc =

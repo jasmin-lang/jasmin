@@ -17,6 +17,7 @@ val parse_and_compile :
       and type regx = 'regx
       and type rflag = 'rflag
       and type xreg = 'xreg) ->
+  safety:bool ->
   Compiler.compiler_step ->
   string ->
   (string * string) list ->

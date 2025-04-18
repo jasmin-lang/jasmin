@@ -98,6 +98,22 @@ Fixpoint etype (e : pexpr) : result unit stype :=
 Section EXPR.
 Context {pd: PointerData}.
 
+(* Transforms an init_cond to an equivalent pexpr *)
+Fixpoint ic_to_e vs ic: pexpr :=
+  match ic with
+  | IBool b => Pbool b
+  | IConst c => Pconst c
+  | IVar n => 
+    match List.nth_error vs n with
+    | Some x => x
+    | None => Pbool false
+    end
+  | IOp1 op e1 => Papp1 op (ic_to_e vs e1)
+  | IOp2 op e1 e2 => Papp2 op (ic_to_e vs e1) (ic_to_e vs e2)
+  end.
+
+
+
 
 
 Definition emin_signed sz := Pconst (wmin_signed sz).
@@ -240,6 +256,73 @@ Definition i_to_ptr i := Papp1 (Oword_of_int Uptr) (Pconst i).
 Definition sc_mem_valid (e: pexpr) sz :=
   [:: Pis_mem_init e (wsize_size sz)].
 
+
+Definition safe_cond_to_e vs sc: pexpr :=
+  match sc with
+  | NotZero ws k =>
+      match List.nth_error vs k with
+      | Some x => sc_neq x ezero 
+      | None => Pbool true
+      end
+  | InRangeMod32 ws i j k =>
+      match List.nth_error vs k with
+      | Some x =>
+         let e := emod x (Pconst 32) in
+         let e1 := sc_lt (Pconst i) e in
+         let e2 := sc_lt e (Pconst j) in
+         eand e1 e2
+      | None => Pbool true
+      end
+  | ULt ws k z =>
+      match List.nth_error vs k with
+      | Some x => sc_lt x (Pconst z)
+      | None => Pbool true
+      end
+  | UGe ws z k =>
+      match List.nth_error vs k with
+      | Some x => sc_le (Pconst z) x
+      | None => Pbool true
+      end
+  | UaddLe ws k1 k2 z =>
+      match List.nth_error vs k1 with
+      | Some x => 
+          match List.nth_error vs k1 with
+          | Some y => sc_le (eaddi x y) (Pconst z)
+          | None => Pbool true
+          end
+      | None => Pbool true
+      end
+  | AllInit ws p k =>
+      match List.nth_error vs k with
+      | Some (Pvar x) => Pis_arr_init x.(gv) (Pconst 0) (Pconst (arr_size ws p)) 
+      | _ => Pbool true
+      end
+  | X86Division sz sign =>
+    match (List.firstn 3 vs),sign with
+      | [:: hi; lo; dv],Signed =>
+        sc_neq dv ezero 
+       (*   
+            let dd := wdwords hi lo in
+            let dv := wsigned dv in
+            let q  := (Z.quot dd dv)%Z in
+            let r  := (Z.rem  dd dv)%Z in
+            let ov := (q <? wmin_signed sz)%Z || (q >? wmax_signed sz)%Z in
+            ~((dv == 0)%Z || ov)*)
+      | [:: hi; lo; dv],Unsigned =>
+        sc_neq dv ezero
+               (*
+        let dd := wdwordu hi lo in
+        let dv := wunsigned dv in
+        let q  := (dd  /  dv)%Z in
+        let r  := (dd mod dv)%Z in
+        let ov := (q >? wmax_unsigned sz)%Z in
+        ~( (dv == 0)%Z || ov)
+        *)
+      | _,_ => Pbool true 
+    end
+  | ScFalse => Pbool false
+  end.
+
 Fixpoint sc_e (e : pexpr) : seq pexpr :=
   match e with
   | Pconst _ | Pbool _  | Parr_init _ => [::]
@@ -317,7 +400,7 @@ Section ASM_OP.
 
 Context `{asmop:asmOp}.
 Context {pT: progT}.
-Context (fresh_var_ident : v_kind -> instr_info -> string -> stype -> Ident.ident).
+Context {msfsz : MSFsize}.
 
 
 Definition e_to_assert (e:pexpr) t : instr_r := Cassert t Cas e.
@@ -328,6 +411,10 @@ Definition instrr_to_instr (ii: instr_info) (ir: instr_r) : instr :=
 Definition sc_e_to_instr (sc_e : pexprs) (ii : instr_info): seq instr :=
   map (fun e => instrr_to_instr ii (e_to_assert e Assert)) sc_e.
 
+Definition get_sopn_safe_conds (es: pexprs) (o: sopn) :=
+  let instr_descr := get_instr_desc o in
+  map (safe_cond_to_e es) instr_descr.(i_safe).
+
 
 Fixpoint sc_instr (i : instr) : cmd :=
   let: (MkI ii ir) := i in
@@ -336,10 +423,11 @@ Fixpoint sc_instr (i : instr) : cmd :=
     let sc_lv := sc_lval lv in
     let sc_e := sc_e e in
     sc_e_to_instr (sc_lv ++ sc_e) ii ++ [::i]
-  | Copn lvs _ o es  => (*FIXME - Add safety conditions for o*)  
+  | Copn lvs _ o es  =>
     let sc_lvs := conc_map sc_lval lvs in
     let sc_es := conc_map sc_e es in
-    sc_e_to_instr (sc_lvs ++ sc_es) ii ++ [::i]
+    let sc_op := get_sopn_safe_conds es o in
+    sc_e_to_instr (sc_lvs ++ sc_es ++ sc_op) ii ++ [::i]
   | Csyscall lvs _ es
   | Ccall lvs _ es =>
     let sc_lvs := conc_map sc_lval lvs in
@@ -367,86 +455,14 @@ Fixpoint sc_instr (i : instr) : cmd :=
 
 Definition sc_cmd (c : cmd) : cmd := conc_map sc_instr c.
 
-Definition create_new_var (x:var_i) :=
-  let x_info := x.(v_info) in
-  let x := x.(v_var) in
-  let x_type := x.(vtype) in
-  let x_var := x.(vname) in
-  let x := fresh_var_ident (Ident.id_kind x_var) dummy_instr_info (Ident.id_name x_var) x_type in
-  let x := {| vtype := x_type; vname := x; |} in
-  {|v_var:= x ; v_info:= x_info|}.
-
-Definition generate_new_vars (x:seq var_i) : seq var_i :=
-  map create_new_var x.
-
-Definition create_new_var_range (name:string):=
-  let x := fresh_var_ident (Reg (Normal, Direct)) dummy_instr_info name sint in
-  let x := {| vtype := sint; vname := x; |} in
-  {|v_var:= x ; v_info:= dummy_var_info|}.
-
-
-Definition generate_assume_postc (x:var_i) (x':var_i): option pexpr :=
-  match x.(v_var).(vtype) with
-    | sarr n => 
-      let i := create_new_var_range "k" in
-      let ie := Plvar i in
-      let body := Pif sbool ((Pis_arr_init x ie 1)) (Pis_arr_init x ie 1) (Pbool(true)) in
-      Some (Pbig (Pbool true) Oand i body (Pconst 0) (Pconst n))    
-    | _ => None
-  end
-.
-
-Fixpoint get_index (x:var_i) (l:seq var_i) i :=
-  match l with
-    | nil => None
-    | h :: t => if var_beq x.(v_var) h.(v_var) then Some i
-                  else get_index x t (S i)
-  end.
-
-Definition create_post_condition_array (f:_ufundef) : option fun_contract  :=
-  let: (iparams,ires,pre,post) := 
-    match f.(f_contra) with
-    | None => 
-      let iparams := generate_new_vars(f.(f_params)) in
-      let ires := generate_new_vars(f.(f_res)) in
-      (iparams, ires, [::], [::])
-    | Some c => (c.(f_iparams), c.(f_ires), c.(f_pre), c.(f_post))
-    end
-  in
-  let (postc_arrays,_) := foldl (fun acc x =>
-    let: (acc,i') := acc in
-    match get_index x f.(f_params) 0 with
-      | None => (acc,S i')
-      | Some i =>
-        let x' := nth x ires i' in
-        let x := nth x iparams i in
-        let e := generate_assume_postc x x' in
-        match e with
-          | Some e => (acc ++ [::(Cas,e)], S i')
-          | None => (acc, S i')
-        end
-    end
-  ) ([::],Nat.zero) f.(f_res) in
-  if Nat.eqb (List.length postc_arrays) Nat.zero then
-    f.(f_contra) 
-  else
-    Some {|
-      f_iparams := iparams;
-      f_ires    := ires;
-      f_pre := pre;
-      f_post := post ++ postc_arrays
-    |}
-.
-
 Definition sc_func (f:_ufundef): _ufundef :=
   let sc_body := sc_cmd f.(f_body) in
   let es := conc_map (fun e => sc_var_init e) f.(f_res) in
-  let sc_res := sc_e_to_instr es dummy_instr_info  in (*FIXME - Fix instruction info*)
+  let sc_res := sc_e_to_instr es dummy_instr_info  in
   let sc_body := sc_body ++ sc_res in
-  let new_contra := create_post_condition_array f in
   {|
     f_info   := f.(f_info) ;
-    f_contra := new_contra ;
+    f_contra := f.(f_contra) ;
     f_tyin   := f.(f_tyin) ;
     f_params := f.(f_params) ;
     f_body   := sc_body ;

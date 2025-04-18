@@ -87,12 +87,6 @@ Definition assume_e_to_instr (e : pexpr) (ii : instr_info): seq instr :=
 Fixpoint rm_var_init_i (i : instr) : cmd :=
   let: (MkI ii ir) := i in
   match ir with
-  | Cassgn (Lvar x1) _ (sarr l) (Pvar x2) => 
-    if (is_lvar x2) then 
-    [::] (*TODO: assume that if is_arr_init x2 i l => is_arr_init x1 i l*)
-    else
-    let e := Pis_arr_init x1 (Pconst 0) (Pconst l) in
-    assume_e_to_instr e ii
   | Cassgn lv _ _ _ => assign_bvar_lval ii expr_true lv ++ [::i]
   | Csyscall lvs _ _ | Ccall lvs _ _ => conc_map (assign_bvar_lval ii expr_true) lvs  ++ [::i]
   | Copn lvs _ o es  => 
