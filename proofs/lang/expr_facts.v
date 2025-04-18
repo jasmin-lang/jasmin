@@ -25,6 +25,9 @@ Section PEXPR_IND.
     (Hif: ∀ t e, P e → ∀ e1, P e1 → ∀ e2, P e2 → P (Pif t e e1 e2))
     (Hbig: forall idx, P idx -> forall op x body, P body -> forall start, P start -> forall len, P len ->
             P (Pbig idx op x body start len))
+    (His_var_init: ∀ x, P (Pis_var_init x))
+    (His_arr_init: ∀ x  e1, P e1 → ∀ e2, P e2 → P (Pis_arr_init x e1 e2 ))
+    (His_mem_init: ∀ e1, P e1 → ∀ e2, P e2 → P (Pis_mem_init e1 e2 ))
   .
 
   Definition pexpr_ind_rec (f: ∀ e, P e) : ∀ es : pexprs, ∀ e, List.In e es → P e :=
@@ -49,6 +52,9 @@ Section PEXPR_IND.
     | Pif t e e1 e2 => Hif t (pexpr_ind e) (pexpr_ind e1) (pexpr_ind e2)
     | Pbig idx op x body start len =>
       Hbig (pexpr_ind idx) op x (pexpr_ind body) (pexpr_ind start) (pexpr_ind len)
+    | Pis_var_init x => His_var_init x
+    | Pis_arr_init x e1 e2 => His_arr_init x (pexpr_ind e1) (pexpr_ind e2)
+    | Pis_mem_init e1 e2 => His_mem_init (pexpr_ind e1) (pexpr_ind e2)
     end.
 
 End PEXPR_IND.
@@ -77,6 +83,9 @@ Section PEXPRS_IND.
     pexprs_big:
       forall idx, P idx -> forall op x body, P body -> forall start, P start -> forall len, P len ->
           P (Pbig idx op x body start len);
+    pexprs_is_var_init: ∀ x, P (Pis_var_init x);
+    pexprs_is_arr_init: ∀ x e1 e2, P e1 → P e2 → P (Pis_arr_init x e1 e2);
+    pexprs_is_mem_init: ∀ e1 e2, P e1 → P e2 → P (Pis_mem_init e1 e2)
   }.
 
   Context (h: pexpr_ind_hypotheses).
@@ -102,6 +111,9 @@ Section PEXPRS_IND.
     | Pif t e e1 e2 => pexprs_if h t (pexpr_mut_ind e) (pexpr_mut_ind e1) (pexpr_mut_ind e2)
     | Pbig idx op x body start len =>
       pexprs_big h (pexpr_mut_ind idx) op x (pexpr_mut_ind body) (pexpr_mut_ind start) (pexpr_mut_ind len)
+    | Pis_var_init x => pexprs_is_var_init h x
+    | Pis_arr_init x e1 e2 => pexprs_is_arr_init h x (pexpr_mut_ind e1) (pexpr_mut_ind e2)
+    | Pis_mem_init e1 e2 => pexprs_is_mem_init h (pexpr_mut_ind e1) (pexpr_mut_ind e2)
     end.
 
   Definition pexprs_ind_pair :=

@@ -490,6 +490,10 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
     Let mx := check_varc x1 x2 m in
     Let _ := check_e b1 b2 mx in
     ok m
+  | Pis_var_init x1 , Pis_var_init x2 => check_v x1 x2 m
+  | Pis_arr_init x1 e1 e2, Pis_arr_init x2 e1' e2'  => 
+      check_v x1 x2 m >>= check_e e1 e1' >>= check_e e2 e2'
+  | Pis_mem_init e1 e2 , Pis_mem_init e1' e2' => check_e e1 e1' m >>= check_e e2 e2'
   | _, _ => Error error_e
   end.
 
