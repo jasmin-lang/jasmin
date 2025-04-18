@@ -909,7 +909,7 @@ Proof.
   have [hle hlt] := wunsigned_range (p - wrepr Uptr sz).
   have := Z.mod_le _ _ hle (wsize_size_pos ws).
   have := Z_mod_lt (wunsigned (p - wrepr Uptr sz)) (wsize_size ws) ltac:(done).
-  rewrite -[(_ : zmodType -> nmodType) (word Uptr)]/(word Uptr : nmodType).
+  move: (wunsigned (p - wrepr Uptr sz)) hlt.
   lia.
 Qed.
 
