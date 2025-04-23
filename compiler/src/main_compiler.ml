@@ -46,8 +46,8 @@ let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
 
   let () = SafetyConfig.pp_current_config_diff () in
 
-  let () =
-    List.iter (fun f_decl ->
+  let is_safe =
+    List.fold_left (fun res f_decl ->
         if FInfo.is_export f_decl.f_cc then
           let () = Format.eprintf "@[<v>Analyzing function %s@]@."
               f_decl.f_name.fn_name in
@@ -55,9 +55,11 @@ let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
           let source_f_decl = List.find (fun source_f_decl ->
               f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
             ) (snd source_p) in
-          analyze source_f_decl f_decl p)
+          analyze source_f_decl f_decl p && res
+        else res)
+      true
       (List.rev (snd p)) in
-  ()
+  if not is_safe then exit(2)
 
 (* -------------------------------------------------------------------- *)
 module type ArchCoreWithAnalyze = sig
@@ -67,7 +69,8 @@ module type ArchCoreWithAnalyze = sig
     (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op Sopn.asmOp ->
     (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) func ->
     (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) func ->
-    (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) prog -> unit
+    (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) prog ->
+    bool
 end
 
 

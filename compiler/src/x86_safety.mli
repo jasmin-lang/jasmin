@@ -7,4 +7,4 @@ val analyze :
   (unit, x86_extended_op) Prog.func ->
   (unit, x86_extended_op) Prog.func ->
   (unit, x86_extended_op) Prog.prog ->
-  unit
+  bool
