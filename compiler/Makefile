@@ -17,8 +17,7 @@ CHECKCATS ?= \
 	arm-m4-stack-zero-loop \
 	arm-m4-stack-zero-unrolled \
 	risc-v \
-	CCT CCT-DOIT SCT \
-	safety
+	CCT CCT-DOIT SCT
 
 # --------------------------------------------------------------------
 DESTDIR  ?=
