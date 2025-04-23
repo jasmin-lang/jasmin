@@ -2333,7 +2333,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           | [ps] -> (None, parse_pt_rels ps)
           | _ -> raise (Failure "-safetyparam ill-formed (too many '>' ?)"))
 
-  let analyze pd asmOp () =
+  let analyze ?(fmt=Format.err_formatter) pd asmOp () =
     try
     let ps_assoc = Option.map_default parse_params
         [ None, [ { relationals = None; pointers = None } ]]
@@ -2369,7 +2369,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
       let pp_mem_range fmt = match npt with
         | [] -> Format.fprintf fmt ""
         | _ ->
-          Format.eprintf "@[<v 2>Memory ranges:@;%a@]@;"
+          Format.fprintf fmt "@[<v 2>Memory ranges:@;%a@]@;"
             (pp_list res.print_var_interval) npt in
 
       let violations, assumptions = List.partition (fun (_, v) -> severe_violation v) res.violations in
@@ -2383,7 +2383,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           Format.fprintf fmt "@[<v 2>Warnings:@;%a@]@;"
             (pp_list (fun fmt x -> x fmt)) warns in
 
-      Format.eprintf "@?@[<v>%a@;\
+      Format.fprintf fmt "@?@[<v>%a@;\
                       %a@;\
                       %a@;\
                       %a@;\
@@ -2396,9 +2396,9 @@ module AbsAnalyzer (EW : ExportWrap) = struct
         pp_mem_range
         (pp_list (fun fmt res -> res.mem_ranges_printer fmt ())) l_res;
 
-      if violations <> [] then begin
-        Format.eprintf "@[<v>Program is not safe!@;@]@.";
-        exit(2)
+      violations = [] || begin
+        Format.fprintf fmt "@[<v>Program is not safe!@;@]@.";
+        false
       end;
     with | Manager.Error _ as e -> hndl_apr_exc e
 end
