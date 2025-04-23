@@ -394,6 +394,129 @@ Lemma xxx s1 c s2 :
 *)  
 
 From ITree Require Import Eqit.
+Require Import FunctionalExtensionality.
+
+Lemma fold_left_aux_lemma (R T : Type) (f : T → seq R) (ls: seq T) :
+  exists rs1: seq R, 
+  forall rs0: seq R, @List.fold_left (seq R) T (fun rs t => f t ++ rs) ls rs0 =
+                     rs1 ++ rs0.  
+  induction ls; simpl.
+  exists nil. intros; simpl; eauto.
+  destruct IHls as [rs1 IH].
+  exists (rs1 ++ f a).
+  intro rs0.
+  specialize (IH (f a ++ rs0)).
+  rewrite IH.
+  rewrite <- List.app_assoc; reflexivity.
+Qed.  
+
+Definition add_init_aux_nil0 ii (x: var) : cmd :=
+  match x.(vtype) with
+  | sarr n =>
+    if ~~ is_ptr x then
+      let x := VarI x (var_info_of_ii ii) in
+      MkI ii (Cassgn (Lvar x) AT_none (sarr n) (Parr_init n)) :: nil
+    else nil
+  | _ => nil
+  end.
+
+Definition add_init_aux_nil {asm_op : Type} {asmop : asmOp asm_op}
+  ii (x: var) : list (@instr asm_op asmop) :=
+  match x.(vtype) with
+  | sarr n =>
+    if ~~ is_ptr x then
+      let x := VarI x (var_info_of_ii ii) in
+      MkI ii (Cassgn (Lvar x) AT_none (sarr n) (Parr_init n)) :: nil
+    else nil
+  | _ => nil
+  end.
+
+Definition add_init_aux1 {asm_op : Type} {asmop : asmOp asm_op}
+  ii (x: var) (c: cmd) : cmd :=
+  @add_init_aux_nil asm_op asmop ii x ++ c.
+
+(*
+Set Printing All.
+Check @add_init_aux.
+Check @add_init_aux1.
+
+@add_init_aux
+     : forall (asm_op : Type) (asmop : asmOp asm_op) 
+         (_ : instr_info) (_ : var) (_ : list (@instr asm_op asmop)),
+       list (@instr asm_op asmop)
+
+add_init_aux1
+     : forall (_ : instr_info) (_ : var)
+         (_ : list (@instr asm_op (@_asmop asm_op syscall_state sip))),
+       list (@instr asm_op (@_asmop asm_op syscall_state sip))
+
+
+Definition add_init_aux1 (asm_op : Type) (asmop : asmOp asm_op) 
+  ii (x: var) (c: list (@instr asm_op asmop)) : cmd :=
+  add_init_aux_nil ii x ++ c.
+*)
+
+Lemma add_init_aux_eq_lemma ii (x: var) (c: cmd) :
+  add_init_aux ii x c = add_init_aux_nil ii x ++ c.
+  unfold add_init_aux, add_init_aux_nil.
+  destruct x; simpl; eauto.
+  destruct vtype0; simpl; eauto.
+  destruct (is_ptr {| vtype := sarr p0; vname := vname0 |}); simpl; eauto.
+Qed.  
+
+Lemma add_init_aux_feq_lemma ii :
+  (fun c x => add_init_aux ii x c) = (fun c x => add_init_aux_nil ii x ++ c).
+  eapply functional_extensionality; intros.
+  eapply functional_extensionality; intros.
+  eapply add_init_aux_eq_lemma; auto.
+Qed.  
+
+(*
+Lemma isem_cmd_append_xrutt cc1 cc2 cc3 cc4 :
+  (forall s1 s3, estate_uincl s1 s3 ->
+  xrutt (EE_MR (core_logics.errcutoff (is_error wE)) (D:=recCall))
+      (EE_MR core_logics.nocutoff (D:=recCall))
+      (HeterogeneousRelations.sum_prerel RecPreRel EPreRel)
+      (HeterogeneousRelations.sum_postrel RecPostRel EPostRel) estate_uincl
+      (isem_cmd_ p ev cc1 s1) (isem_cmd_ p ev cc3 s3)) ->
+  (forall s2 s4, estate_uincl s2 s4 ->  
+    xrutt (EE_MR (core_logics.errcutoff (is_error wE)) (D:=recCall))
+      (EE_MR core_logics.nocutoff (D:=recCall))
+      (HeterogeneousRelations.sum_prerel RecPreRel EPreRel)
+      (HeterogeneousRelations.sum_postrel RecPostRel EPostRel) estate_uincl
+      (isem_cmd_ p ev cc2 s2) (isem_cmd_ p ev cc4 s4)) ->
+  forall s1 s3, estate_uincl s1 s3 ->
+    xrutt (EE_MR (core_logics.errcutoff (is_error wE)) (D:=recCall))
+      (EE_MR core_logics.nocutoff (D:=recCall))
+      (HeterogeneousRelations.sum_prerel RecPreRel EPreRel)
+      (HeterogeneousRelations.sum_postrel RecPostRel EPostRel) estate_uincl
+      (isem_cmd_ p ev (cc1 ++ cc2) s1) (isem_cmd_ p ev (cc3 ++ cc4) s3). 
+Admitted. 
+*)
+
+Lemma isem_cmd_append_eutt_G cc1 cc2 cc3 cc4 :
+  (forall s1 s3, estate_uincl s1 s3 ->
+  eutt estate_uincl
+      (isem_cmd_ p ev cc1 s1) (isem_cmd_ p ev cc3 s3)) ->
+  (forall s2 s4, estate_uincl s2 s4 ->  
+    eutt estate_uincl
+      (isem_cmd_ p ev cc2 s2) (isem_cmd_ p ev cc4 s4)) ->
+  forall s1 s3, estate_uincl s1 s3 ->
+    eutt estate_uincl
+      (isem_cmd_ p ev (cc1 ++ cc2) s1) (isem_cmd_ p ev (cc3 ++ cc4) s3). 
+Admitted. 
+
+Lemma isem_cmd_append_eutt cc1 cc2 cc3 cc4 :
+  (forall s0,
+  eutt eq
+      (isem_cmd_ p ev cc1 s0) (isem_cmd_ p ev cc3 s0)) ->
+  (forall s0, 
+    eutt eq
+      (isem_cmd_ p ev cc2 s0) (isem_cmd_ p ev cc4 s0)) ->
+  forall s0, 
+    eutt eq
+      (isem_cmd_ p ev (cc1 ++ cc2) s0) (isem_cmd_ p ev (cc3 ++ cc4) s0). 
+Admitted. 
 
 Lemma instr_add_init_lemma f1 f2 s1 s2 
   (Hyp0 : fundef_add_init_fd_rel f1 f2)
@@ -412,34 +535,146 @@ Proof.
                              (evm s1).[x] = undef_addr (vtype x).
   { by move=> x /Sv_elemsP hx; rewrite hu //; SvD.fsetdec. }
 
-  revert hu.
-  revert Hyp1.
-  revert s1.
-  rename i into AAAA.
+  generalize (Sv.elements (Sv.diff X I)) as L1.
+  intros L1 H.
+    
+  assert ( (List.fold_left
+                  (λ (a : cmd) (e : Sv.elt), add_init_aux ii1 e a) L1 [:: i])
+               =
+         
+               (List.fold_left
+                  (λ (a : cmd) (e : Sv.elt), add_init_aux1 ii1 e a) L1 [:: i])
+         ) as A1.
   
+  { rewrite (add_init_aux_feq_lemma ii1). reflexivity. }
+  rewrite A1.
+  unfold add_init_aux1.
+    
+  revert hu Hyp1 H.
+  revert s1.
+  clear A1.
   revert i ii1.
 
-  generalize (Sv.elements (Sv.diff X I)) as L1.
   induction L1.
-  intros i ii1 s1 H H0 H1; simpl.
-  setoid_rewrite bind_ret_r.
-  unfold iresult, err_result.
-  admit.
+  
+  { intros i ii1 s1 H H0 H1; simpl.
+    setoid_rewrite bind_ret_r.
+    unfold iresult, err_result.
+    admit.
+  }
+    
+  { intros i ii1 s1 H H0 H1. simpl.
+    destruct a.
+    destruct vtype0; simpl.
+    { eapply IHL1; eauto.
+      admit. }
+    { eapply IHL1; eauto.
+      admit. }
 
-  intros i ii1 s1 H H0 H1. simpl.
-  destruct a.
-  destruct vtype0; simpl.
-  eapply IHL1; eauto.
-  admit.
-  eapply IHL1; eauto.
-  admit.
-  unfold add_init_aux; simpl.
+    { remember (is_ptr {| vtype := sarr p0; vname := vname0 |}) as W.
+      destruct W; simpl.
+      
+      {  unfold add_init_aux_nil. unfold add_init_aux_nil in IHL1; simpl in *.
+         rewrite <- HeqW; simpl.
+         eapply IHL1; eauto.
+         admit.
+      }
 
-  remember (is_ptr {| vtype := sarr p0; vname := vname0 |}) as W.
-  destruct W; simpl.
-  eapply IHL1; eauto.
-  admit.
+      { specialize (IHL1 i ii1 s1 H H0).
 
+        assert (∀ x : var, x \in L1 → (evm s1).[x] = undef_addr (vtype x))
+          as A1.
+        { admit. }
+
+        specialize (IHL1 A1).
+
+        assert (exists cc1, forall cc0, 
+         (List.fold_left
+            (λ (a : cmd) (e : Sv.elt), add_init_aux_nil ii1 e ++ a)
+            L1 cc0) = (cc1 ++ cc0) ) as A2.
+        { eapply (@fold_left_aux_lemma _ _
+                    (λ (e : Sv.elt), add_init_aux_nil ii1 e) L1); eauto. }
+
+        destruct A2 as [cc1 A2].
+        
+        specialize (A2 [:: i]) as A3.
+        specialize (A2 (add_init_aux_nil ii1
+                 {| vtype := sarr p0; vname := vname0 |} ++
+                 [:: i])) as A4.
+        rewrite A3 in IHL1.
+        rewrite A4.
+
+        assert (forall s0,
+  (*                (@isem_cmd_ asm_op wsw dc syscall_state ep spp sip progUnit
+    (@sCP_unit wsw asm_op syscall_state ep sip)
+    (Sum.sum1 (@recCall asm_op syscall_state ep sip) E)
+    (Sum.sum1 (@recCall asm_op syscall_state ep sip) E0)
+    (@FIso_suml (@recCall asm_op syscall_state ep sip) E E0 ErrEvent wE)
+     cc1 s0)
+                             (isem_cmd_ p ev cc1 s0)) as G1.*)
+
+@eutt (Sum.sum1 (@recCall asm_op syscall_state ep sip) E)
+    (@estate wsw syscall_state ep) (@estate wsw syscall_state ep)
+    (@eq (@estate wsw syscall_state ep))
+           (isem_cmd_ p ev cc1 s0)
+                             (isem_cmd_ p ev cc1 s0)) as G1.
+                   
+(*                   eutt eq (isem_cmd_ p ev cc1 s0)
+                             (isem_cmd_ p ev cc1 s0)) as G1. *)
+        { admit. }
+
+        assert (forall s0,
+@eutt (Sum.sum1 (@recCall asm_op syscall_state ep sip) E)
+    (@estate wsw syscall_state ep) (@estate wsw syscall_state ep)
+    (@eq (@estate wsw syscall_state ep))
+(isem_cmd_ p ev [:: i] s0)
+         (isem_cmd_ p ev
+   (add_init_aux_nil ii1 {| vtype := sarr p0; vname := vname0 |} ++ [:: i])
+   s0)) as G2.
+
+(*
+                   eutt eq (isem_cmd_ p ev [:: i] s0)
+         (isem_cmd_ p ev
+   (add_init_aux_nil ii1 {| vtype := sarr p0; vname := vname0 |} ++ [:: i])
+   s0)) as G2.
+*)
+        { admit. }
+        
+        assert (@eutt (Sum.sum1 (@recCall asm_op syscall_state ep sip) E)
+    (@estate wsw syscall_state ep) (@estate wsw syscall_state ep)
+    (@eq (@estate wsw syscall_state ep))
+(isem_cmd_ p ev (cc1 ++ [:: i]) s2)
+               (isem_cmd_ p ev (cc1 ++
+        add_init_aux_nil ii1 {| vtype := sarr p0; vname := vname0 |} ++ [:: i])
+                  s2)) as G3.
+
+(*
+            eutt eq (isem_cmd_ p ev (cc1 ++ [:: i]) s2)
+               (isem_cmd_ p ev (cc1 ++
+        add_init_aux_nil ii1 {| vtype := sarr p0; vname := vname0 |} ++ [:: i])
+                  s2)) as G3.
+*)
+       admit.
+      (*  eapply isem_cmd_append_eutt; eauto. *)
+
+       rewrite xrutt_flip; eauto.
+       rewrite xrutt_flip in IHL1; eauto.
+       eapply xrutt_cong_eutt; eauto.
+
+(*       
+       clear IHL1 G1 G2.
+Set Printing All.
+     
+       exact G3.
+*)        
+
+(*******************************************************************)
+       
+        unfold isem_i_body in *.
+           
+        
+       
+         
   unfold isem_cmd_; simpl.
   
 
