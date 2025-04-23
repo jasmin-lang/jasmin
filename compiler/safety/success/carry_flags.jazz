@@ -1,7 +1,7 @@
 export
 fn test() -> reg u64 {
-  reg bool cf, zf;
-  reg u64 i, acc;
+  reg bool cf;
+  reg u64 i;
 
   i = 1;
   cf, i -= 1;

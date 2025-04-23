@@ -2,9 +2,7 @@ export
 fn poly1305(reg u64 in, reg u64 inlen) -> reg u64 {
   inline int i;
   reg u8 tmp;
-  reg u64 ret, one;
-  reg bool of, cf, sf, zf;
-  stack u32[17] r, h, c;
+  reg u64 one;
 
   one = 1;
   while (inlen > 0) {

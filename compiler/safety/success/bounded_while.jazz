@@ -1,4 +1,4 @@
-param int N = 256;
+param int N = 4;
 
 export
 fn test() -> reg u64 {

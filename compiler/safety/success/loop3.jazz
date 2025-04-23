@@ -1,5 +1,5 @@
 export
-fn poly1305(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k) -> reg u32 {
+fn poly1305(reg u64 in inlen k) -> reg u32 {
   inline int i;
   reg u8 tmp;
   reg u32 tmp32, one;
