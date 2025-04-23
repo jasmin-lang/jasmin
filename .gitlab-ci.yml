@@ -158,7 +158,7 @@ build-from-tarball:
   - tarball
   script:
   - tar xvf compiler/$TARBALL.tgz
-  - nix-build -o out $TARBALL
+  - nix-build -o out $TARBALL/compiler
   - ./out/bin/jasminc -version
 
 check:
@@ -276,11 +276,9 @@ push-compiler-code:
   - git clone git@gitlab.com:jasmin-lang/jasmin-compiler.git _deploy
   - cd _deploy
   - git checkout $CI_COMMIT_REF_NAME || git checkout --orphan $CI_COMMIT_REF_NAME
-  - rm -rf compiler eclib
+  - rm -rf compiler eclib Makefile
   - tar xzvf ../compiler/$TARBALL.tgz
-  - mv $TARBALL/ compiler
-  - mv ../eclib .
-  - mv ../Makefile.compiler Makefile
+  - mv $TARBALL/* .
   - git add compiler eclib Makefile
   - git commit -m "Jasmin compiler on branch “$CI_COMMIT_REF_NAME” at $CI_COMMIT_SHORT_SHA"  || true
   - git push --set-upstream origin $CI_COMMIT_REF_NAME
