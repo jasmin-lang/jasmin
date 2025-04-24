@@ -504,8 +504,15 @@ Proof.
   dependent destruction Hyp0.
   rename f_body into cc.
   unfold isem_cmd_.
-  unfold add_init_c.
-Abort.
+
+  revert s1 s2 Hyp1.
+  induction cc; simpl; intros.
+
+  { eapply xrutt_Ret; auto. }
+
+  (* there should be a bind in the second term... *)
+
+Admitted.   
 
 (*
 Definition lift_vm2 s1 c s2 :=
