@@ -197,41 +197,26 @@ let pp_ADR pp opts args =
 
 let arch = arm_decl
 
-module ArmTarget : AsmTargetBuilder.AsmTarget with
-type reg = Arm_decl.register
-and type regx = Arch_utils.empty
-and type xreg = Arch_utils.empty
-and type rflag = Arm_decl.rflag
-and type cond = Arm_decl.condt
-and type asm_op = arm_op
-= struct
+let arm_printer = {
+    AsmTargetBuilder.headers = [ Instr (".thumb", []); Instr (".syntax unified", []) ];
 
-  type reg = Arm_decl.register
-  type regx = Arch_utils.empty
-  type xreg = Arch_utils.empty
-  type rflag = Arm_decl.rflag
-  type cond = Arm_decl.condt
-  type asm_op = arm_op
-
-  let headers = [ Instr (".thumb", []); Instr (".syntax unified", []) ]
-
-  let data_segment_header =
+  data_segment_header =
     [
       Instr (".p2align", ["5"]) ;
       Label global_datas_label
-    ]
+    ];
 
-  let function_tail =
+  function_tail =
     (* TODO_ARM: Review. *)
-    [ Instr ("pop", [ "{pc}" ]) ]
+    [ Instr ("pop", [ "{pc}" ]) ];
 
 
-  let function_header =
+  function_header =
     [
         Instr ("push", [pp_brace (pp_register LR)])
-    ]
+    ];
 
-  let pp_instr_r fn i =
+  pp_instr_r = fun fn i ->
     match i with
     | ALIGN ->
         failwith "TODO_ARM: pp_instr align"
@@ -286,8 +271,6 @@ and type asm_op = arm_op
             let args = pp_shift op args in
             get_IT i @ [ Instr (name, args) ]
 
-end
+}
 
-module ArmBuilder = AsmTargetBuilder.Make(ArmTarget)
-
-let print_prog fmt prog = PrintASM.pp_asm fmt (ArmBuilder.asm_of_prog prog)
+let print_prog fmt prog = PrintASM.pp_asm fmt (AsmTargetBuilder.asm_of_prog arm_printer prog)

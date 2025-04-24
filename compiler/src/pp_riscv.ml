@@ -78,47 +78,31 @@ let pp_ext = function
 let pp_name_ext pp_op =
   Format.asprintf "%s%s" pp_op.pp_aop_name (pp_ext pp_op.pp_aop_ext)
 
-module RiscVTarget: AsmTarget
-  with type reg = Riscv_decl.register
-  and type regx = Arch_utils.empty
-  and type xreg = Arch_utils.empty
-  and type rflag = Arch_utils.empty
-  and type cond = Riscv_decl.condt
-  and type asm_op = Riscv_instr_decl.riscv_op
-= struct
-
-  type reg   = Riscv_decl.register
-  type regx  = Arch_utils.empty
-  type xreg  = Arch_utils.empty
-  type rflag = Arch_utils.empty
-  type cond  = Riscv_decl.condt
-  type asm_op = Riscv_instr_decl.riscv_op
-
-
+let riscv_target = {
   (* TODO_RISCV: Review. *)
-  let headers = []
+  headers = [];
 
-  let data_segment_header =
+  data_segment_header =
     [
       Instr (".p2align", ["5"]) ;
       Label global_datas_label
-    ]
+    ];
 
-  let function_header =
+  function_header =
     [
       Instr ("addi", [ pp_register SP; pp_register SP; "-4"]);
       Instr ("sw", [ pp_register RA;  pp_reg_address_aux (pp_register SP) None None None])
-    ]
+    ];
 
-  let function_tail =
+  function_tail =
     [
       Instr ("lw", [ pp_register RA;  pp_reg_address_aux (pp_register SP) None None None]);
       Instr ("addi", [ pp_register SP; pp_register SP; "4"]);
       Instr ("ret", [ ])
-    ]
+    ];
 
 
-  let pp_instr_r fn instr =
+  pp_instr_r = fun fn instr ->
     match instr with
     | ALIGN ->
         failwith "TODO_RISCV: pp_instr align"
@@ -163,8 +147,6 @@ module RiscVTarget: AsmTarget
         let args = List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args in
         [ Instr (name, args) ]
 
-end
+  }
 
-module RiscVPrinter = AsmTargetBuilder.Make(RiscVTarget)
-
-let print_prog fmt prog = PrintASM.pp_asm fmt (RiscVPrinter.asm_of_prog prog)
+let print_prog fmt prog = PrintASM.pp_asm fmt (AsmTargetBuilder.asm_of_prog riscv_target prog)

@@ -315,26 +315,11 @@ module IntelSyntax : X86AsmSyntax = struct
 
 end
 
-module X86AsmTranslate (AsmSyntax: X86AsmSyntax) : AsmTargetBuilder.AsmTarget
-with type reg = X86_decl.register
-and type regx = X86_decl.register_ext
-and type xreg = X86_decl.xmm_register
-and type rflag = X86_decl.rflag
-and type cond = X86_decl.condt
-and type asm_op = X86_instr_decl.x86_op
-= struct
-
-  type reg = X86_decl.register
-  type regx = X86_decl.register_ext
-  type xreg = X86_decl.xmm_register
-  type rflag = X86_decl.rflag
-  type cond = X86_decl.condt
-  type asm_op = X86_instr_decl.x86_op
-
-  open AsmSyntax
-
+let x86_target (module AsmSyntax: X86AsmSyntax) =
+  let open AsmSyntax in
   let pp_imm (imm : Z.t) =
     Format.asprintf "%s%s" imm_pre (Z.to_string imm)
+in
 
   let pp_asm_arg ((ws,op) : (wsize * (_, _, _, _, _) Arch_decl.asm_arg)) =
     match op with
@@ -344,12 +329,15 @@ and type asm_op = X86_instr_decl.x86_op
     | Regx r     -> pp_register_ext ~reg_pre ws r
     | Addr addr  -> pp_adress ws addr
     | XReg r     -> pp_xmm_register ~reg_pre ws r
+in
 
   let pp_asm_args args = List.map pp_asm_arg (rev_args args)
+in
 
   (* -------------------------------------------------------------------- *)
   let pp_indirect_label lbl =
     Format.sprintf "%s%s" indirect_pre (pp_asm_arg (U64, lbl))
+in
 
   let pp_ext = function
     | PP_error             -> assert false
@@ -365,11 +353,35 @@ and type asm_op = X86_instr_decl.x86_op
       Format.asprintf "%s%s" (pp_instr_velem ve1) (pp_instr_velem ve2)
     | PP_ct ct       ->
       pp_ct (match ct with Condt ct -> ct | _ -> assert false)
+in
 
   let pp_name_ext pp_op =
     Format.asprintf "%s%s" pp_op.pp_aop_name (pp_ext pp_op.pp_aop_ext)
+in
 
-  let pp_instr_r name (instr_r : (_, _, _, _, _, _) Arch_decl.asm_i_r) =
+  {
+  AsmTargetBuilder.function_header = [];
+
+  function_tail = [Instr ("ret", [])];
+
+  headers =
+    [
+      asm_syntax;
+      Header (".text", []);
+      Header (".p2align", ["5"]); (* Need to determine what 5 is*)
+    ];
+
+  data_segment_header =
+    (let name = global_datas_label in
+    let mname = mangle name in
+    [
+      Header (".data", []);
+      Header (".p2align", [pp_align U256]);
+      Label (mname);
+      Label (name)
+    ]);
+
+    pp_instr_r = fun name (instr_r : (_, _, _, _, _, _) Arch_decl.asm_i_r) ->
     match instr_r with
     | ALIGN ->
       [Instr (".p2align", ["5"])]
@@ -399,38 +411,14 @@ and type asm_op = X86_instr_decl.x86_op
       let name = pp_name_ext pp in
       [Instr(name, (pp_asm_args pp.pp_aop_args))]
 
-  let function_header = []
-
-  let function_tail = [Instr ("ret", [])]
-
-  let headers =
-    [
-      asm_syntax;
-      Header (".text", []);
-      Header (".p2align", ["5"]); (* Need to determine what 5 is*)
-    ]
-
-  let data_segment_header =
-    let name = global_datas_label in
-    let mname = mangle name in
-    [
-      Header (".data", []);
-      Header (".p2align", [pp_align U256]);
-      Label (mname);
-      Label (name);
-    ]
-
-end
-
-module TranslateATT = X86AsmTranslate(ATTSyntax)
-module TranslateIntel = X86AsmTranslate(IntelSyntax)
-
-module ATTPrinter = AsmTargetBuilder.Make(TranslateATT)
-module InterPrinter = AsmTargetBuilder.Make(TranslateIntel)
+  }
 
 let asm_of_prog (asm : X86_instr_decl.x86_prog) =
-  match !Glob_options.assembly_style with
-  | `ATT -> ATTPrinter.asm_of_prog asm
-  | `Intel -> InterPrinter.asm_of_prog asm
+  AsmTargetBuilder.asm_of_prog
+    (x86_target
+       (match !Glob_options.assembly_style with
+       | `ATT -> (module ATTSyntax)
+       | `Intel -> (module IntelSyntax)
+    )) asm
 
 let print_prog fmt p = PrintASM.pp_asm fmt (asm_of_prog p)
