@@ -15,6 +15,7 @@ Section PEXPR_IND.
     (Hconst: ∀ z, P (Pconst z))
     (Hbool: ∀ b, P (Pbool b))
     (Harr_init: ∀ n, P (Parr_init n))
+    (Hbarr_init: ∀ b n, P (Pbarr_init b n))
     (Hvar: ∀ x, P (Pvar x))
     (Hget: ∀ al aa sz x e, P e → P (Pget al aa sz x e))
     (Hsub:  ∀ aa sz len x e, P e  → P (Psub aa sz len x e))
@@ -27,6 +28,7 @@ Section PEXPR_IND.
             P (Pbig idx op x body start len))
     (His_var_init: ∀ x, P (Pis_var_init x))
     (His_arr_init: ∀ x  e1, P e1 → ∀ e2, P e2 → P (Pis_arr_init x e1 e2 ))
+    (His_barr_init: ∀ x  e1, P e1 → ∀ e2, P e2 → P (Pis_barr_init x e1 e2 ))
     (His_mem_init: ∀ e1, P e1 → ∀ e2, P e2 → P (Pis_mem_init e1 e2 ))
   .
 
@@ -42,6 +44,7 @@ Section PEXPR_IND.
     | Pconst z => Hconst z
     | Pbool b => Hbool b
     | Parr_init n => Harr_init n
+    | Pbarr_init b n => Hbarr_init b n
     | Pvar x => Hvar x
     | Pget al aa sz x e => Hget al aa sz x (pexpr_ind e)
     | Psub aa sz len x e => Hsub aa sz len x (pexpr_ind e)
@@ -54,6 +57,7 @@ Section PEXPR_IND.
       Hbig (pexpr_ind idx) op x (pexpr_ind body) (pexpr_ind start) (pexpr_ind len)
     | Pis_var_init x => His_var_init x
     | Pis_arr_init x e1 e2 => His_arr_init x (pexpr_ind e1) (pexpr_ind e2)
+    | Pis_barr_init x e1 e2 => His_barr_init x (pexpr_ind e1) (pexpr_ind e2)
     | Pis_mem_init e1 e2 => His_mem_init (pexpr_ind e1) (pexpr_ind e2)
     end.
 
@@ -72,6 +76,7 @@ Section PEXPRS_IND.
     pexprs_const: ∀ z, P (Pconst z);
     pexprs_bool: ∀ b, P (Pbool b);
     pexprs_arr_init: ∀ n, P (Parr_init n);
+    pexprs_barr_init: ∀ b n, P (Pbarr_init b n);
     pexprs_var: ∀ x, P (Pvar x);
     pexprs_get: ∀ al aa sz x e, P e → P (Pget al aa sz x e);
     pexprs_sub: ∀ aa sz len x e, P e → P (Psub aa sz len x e);
@@ -85,6 +90,7 @@ Section PEXPRS_IND.
           P (Pbig idx op x body start len);
     pexprs_is_var_init: ∀ x, P (Pis_var_init x);
     pexprs_is_arr_init: ∀ x e1 e2, P e1 → P e2 → P (Pis_arr_init x e1 e2);
+    pexprs_is_barr_init: ∀ x e1 e2, P e1 → P e2 → P (Pis_barr_init x e1 e2);
     pexprs_is_mem_init: ∀ e1 e2, P e1 → P e2 → P (Pis_mem_init e1 e2)
   }.
 
@@ -101,6 +107,7 @@ Section PEXPRS_IND.
     | Pconst z => pexprs_const h z
     | Pbool b => pexprs_bool h b
     | Parr_init n => pexprs_arr_init h n
+    | Pbarr_init b n => pexprs_barr_init h b n
     | Pvar x => pexprs_var h x
     | Pget al aa sz x e => pexprs_get h al aa sz x (pexpr_mut_ind e)
     | Psub aa sz len x e => pexprs_sub h aa sz len x (pexpr_mut_ind e)
@@ -113,6 +120,7 @@ Section PEXPRS_IND.
       pexprs_big h (pexpr_mut_ind idx) op x (pexpr_mut_ind body) (pexpr_mut_ind start) (pexpr_mut_ind len)
     | Pis_var_init x => pexprs_is_var_init h x
     | Pis_arr_init x e1 e2 => pexprs_is_arr_init h x (pexpr_mut_ind e1) (pexpr_mut_ind e2)
+    | Pis_barr_init x e1 e2 => pexprs_is_barr_init h x (pexpr_mut_ind e1) (pexpr_mut_ind e2)
     | Pis_mem_init e1 e2 => pexprs_is_mem_init h (pexpr_mut_ind e1) (pexpr_mut_ind e2)
     end.
 

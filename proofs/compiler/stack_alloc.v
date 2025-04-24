@@ -589,6 +589,9 @@ Definition bad_arg_number := stk_ierror_no_var "invalid number of args".
 Fixpoint alloc_e (e:pexpr) ty :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ => ok e
+  | Pbarr_init e l => 
+    Let e := alloc_e e sint in
+    ok (Pbarr_init e l)
   | Pvar   x =>
     let xv := x.(gv) in
     Let vk := get_var_kind x in
@@ -653,6 +656,10 @@ Fixpoint alloc_e (e:pexpr) ty :=
       Let e1 := alloc_e e1 sint in
       Let e2 := alloc_e e2 sint in
       ok (Pis_arr_init x e1 e2)
+  | Pis_barr_init x e1 e2 => 
+      Let e1 := alloc_e e1 sint in
+      Let e2 := alloc_e e2 sint in
+      ok (Pis_barr_init x e1 e2)
   | Pis_mem_init e1 e2 => 
       Let e1 := alloc_e e1 sint in
       Let e2 := alloc_e e2 sint in

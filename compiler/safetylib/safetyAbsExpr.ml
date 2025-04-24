@@ -350,7 +350,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | Parr_init _ | Pget _ | Psub _
     | Pload _ | PappN _ | Pif _
     | Pbig _ 
-    |Pis_var_init _ | Pis_mem_init _ | Pis_arr_init _-> None
+    | Pis_var_init _ | Pis_mem_init _ | Pis_arr_init _
+    | Pbarr_init _ | Pis_barr_init _ -> None
 
   (* Try to evaluate e to a constant expression (of type word) in abs.
      Superficial checks only. *)
@@ -432,7 +433,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       | Pif (_,_,e1,e2) | Papp2 (_, e1, e2) -> aux (aux acc e1) e2
       | Pbig (e, _, _, e1, e2, e0) ->
         aux (aux (aux (aux acc e1) e2) e0) e
-      | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _ -> acc
+      | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _ 
+      | Pbarr_init _ | Pis_barr_init _ -> acc
     in
 
     try PtVars (aux [] e) with Expr_contain_load -> PtTopExpr
@@ -687,7 +689,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
     | Pbig _ -> assert false
 
-    | Pis_arr_init _ | Pis_mem_init _ | Pis_var_init _ ->
+    | Pis_arr_init _ | Pis_mem_init _ | Pis_var_init _
+    | Pbarr_init _ | Pis_barr_init _ ->
       assert false
 
   let rec remove_if_expr (e : 'a Prog.gexpr) = match remove_if_expr_aux e with

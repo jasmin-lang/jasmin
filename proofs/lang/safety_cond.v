@@ -325,7 +325,7 @@ Definition safe_cond_to_e vs sc: pexpr :=
 
 Fixpoint sc_e (e : pexpr) : seq pexpr :=
   match e with
-  | Pconst _ | Pbool _  | Parr_init _ => [::]
+  | Pconst _ | Pbool _  | Parr_init _ | Pbarr_init _ _ => [::]
   | Pvar x => sc_gvar_init x
   | Pget al aa ws x e =>
     let sce := sc_e e in
@@ -372,7 +372,7 @@ Fixpoint sc_e (e : pexpr) : seq pexpr :=
     let sce2 := sc_e e2 in
     let sce3 := sc_e e3 in
     scidx ++ sce1 ++ sce2 ++ sce3 
-  | Pis_var_init _ | Pis_arr_init _ _ _ | Pis_mem_init _ _ => [::e]
+  | Pis_var_init _ | Pis_arr_init _ _ _ | Pis_barr_init _ _ _ | Pis_mem_init _ _ => [::e]
   end.
 
 Definition sc_lval (lv : lval) : seq pexpr :=

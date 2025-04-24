@@ -117,6 +117,9 @@ Section REMOVE.
       match e with
       | Pconst _ | Pbool _ => ok e
       | Parr_init _ => ok e
+      | Pbarr_init e l => 
+        Let e  := remove_glob_e ii env e in
+        ok (Pbarr_init e l)
       | Pvar xi =>
         Let xi := get_var_ ii env xi in
         ok (Pvar xi)
@@ -168,6 +171,11 @@ Section REMOVE.
         Let e1 := remove_glob_e ii env e1 in
         Let e2 := remove_glob_e ii env e2 in
         ok (Pis_arr_init x e1 e2)
+      
+      | Pis_barr_init x e1 e2 =>
+        Let e1 := remove_glob_e ii env e1 in
+        Let e2 := remove_glob_e ii env e2 in
+        ok (Pis_barr_init x e1 e2)
 
       | Pis_mem_init e1 e2 =>
         Let e1 := remove_glob_e ii env e1 in

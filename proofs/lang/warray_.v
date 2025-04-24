@@ -169,6 +169,13 @@ Module WArray.
   Definition copy ws p (a:array (Z.to_pos (arr_size ws p))) := 
     fcopy ws a (WArray.empty _) 0 p.
 
+  Definition fill_elem len (x:u8) : exec (array len) :=
+  Let pt := 
+    foldM (fun _ pt =>
+         Let t := set pt.2 Aligned AAscale pt.1 x in
+         ok (pt.1 + 1, t)) (0%Z, empty len) (ziota 0 len) in
+  ok pt.2.
+
   Definition fill len (l:list u8) : exec (array len) :=
     Let _ := assert (Pos.to_nat len == size l) ErrType in 
     Let pt := 

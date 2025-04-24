@@ -158,12 +158,12 @@ let normalize_asub a aa ws len x i =
 
 let slice_of_pexpr a =
   function
-  | Parr_init _ -> None
+  | Parr_init _ | Pbarr_init _ -> None
   | Pvar x -> Some (normalize_gvar a x)
   | Pis_var_init x -> Some (normalize_var a (L.unloc x))
   | Psub (aa, ws, len, x, i) -> Some (normalize_asub a aa ws len x i)
   | Pconst _ | Pbool _ | Pget _ | Pload _ | Papp1 _ | Papp2 _
-  | Pis_arr_init _ | Pis_mem_init _
+  | Pis_arr_init _ | Pis_mem_init _ | Pis_barr_init _
   | PappN _ -> assert false
   | Pif _ -> hierror_no_loc "conditional move of (ptr) arrays is not supported yet"
   | Pbig _ -> None

@@ -226,6 +226,7 @@ Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
 | Parr_init : positive → pexpr
+| Pbarr_init : pexpr → positive → pexpr
 | Pvar   :> gvar -> pexpr
 | Pget   : aligned -> arr_access -> wsize -> gvar -> pexpr -> pexpr
 | Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr
@@ -238,12 +239,19 @@ Inductive pexpr : Type :=
   (* Pbig idx op x e start len = big idx op (fun x => e) [iota start len] *)
 | Pis_var_init : var_i → pexpr
 | Pis_arr_init : var_i → pexpr → pexpr → pexpr
+| Pis_barr_init : var_i → pexpr → pexpr → pexpr 
 | Pis_mem_init : pexpr → pexpr → pexpr
 .
 
 Notation pexprs := (seq pexpr).
 
 Definition Plvar x := Pvar (mk_lvar x).
+
+Definition Pbfull_init x :=
+  match x.(v_var).(vtype) with
+    | sarr n => Pis_barr_init x (Pconst 0) (Pconst n)
+    | _ => Pbool false  
+  end.
 
 Definition enot e := Papp1 Onot e.
 Definition eor e1 e2 := Papp2 Oor e1 e2.
@@ -735,7 +743,7 @@ Definition is_Papp2 (e : pexpr) : option (sop2 * pexpr * pexpr) :=
 
 Definition is_array_init e :=
   match e with
-  | Parr_init _ => true
+  | Parr_init _ | Pbarr_init _ _=> true
   | _           => false
   end.
 
@@ -843,8 +851,8 @@ Fixpoint use_mem (e : pexpr) :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ | Pvar _ | Pis_var_init _ => false
   | Pload _ _ _ _ | Pis_mem_init _ _ => true
-  | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e  => use_mem e
-  | Papp2 _ e1 e2 | Pis_arr_init _ e1 e2 => use_mem e1 || use_mem e2
+  | Pbarr_init e _ | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e  => use_mem e
+  | Papp2 _ e1 e2 | Pis_arr_init _ e1 e2 | Pis_barr_init _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
   | Pbig idx _ _ body start len => use_mem idx || use_mem body || use_mem start || use_mem len
@@ -862,6 +870,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pconst _
   | Pbool  _
   | Parr_init _    => s
+  | Pbarr_init e _   => read_e_rec s e
   | Pvar   x       => Sv.union (read_gvar x) s
   | Pget _ _ _ x e   => read_e_rec (Sv.union (read_gvar x) s) e
   | Psub _ _ _ x e => read_e_rec (Sv.union (read_gvar x) s) e
@@ -874,7 +883,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
       Sv.union (Sv.remove x (read_e_rec Sv.empty body))
                (read_e_rec (read_e_rec (read_e_rec s len) start) idx)
   | Pis_var_init x => Sv.add x s
-  | Pis_arr_init x e1 e2 => read_e_rec (read_e_rec (Sv.add x s) e2) e1
+  | Pis_arr_init x e1 e2 | Pis_barr_init x e1 e2 => read_e_rec (read_e_rec (Sv.add x s) e2) e1
   | Pis_mem_init e1 e2 => read_e_rec (read_e_rec s e2) e1
   end.
 
@@ -963,6 +972,7 @@ Fixpoint eq_expr e e' :=
   | Pconst z      , Pconst z'         => z == z'
   | Pbool  b      , Pbool  b'         => b == b'
   | Parr_init n   , Parr_init n'      => n == n'
+  | Pbarr_init e n   , Pbarr_init e' n'      =>  (eq_expr e e')  && (n == n')
   | Pvar   x      , Pvar   x'         => eq_gvar x x'
   | Pget al aa w x e , Pget al' aa' w' x' e' => (al == al') && (aa==aa') && (w == w') && (eq_gvar x x') && eq_expr e e'
   | Psub aa w len x e , Psub aa' w' len' x' e' => (aa==aa') && (w == w') && (len == len') && (eq_gvar x x') && eq_expr e e'
@@ -977,7 +987,8 @@ Fixpoint eq_expr e e' :=
     eq_expr body body' &&
     eq_expr start start' && eq_expr len len'
   | Pis_var_init x  , Pis_var_init x' => v_var x == v_var x'
-  | Pis_arr_init x e1 e2, Pis_arr_init x' e1' e2' => (v_var x == v_var x') && eq_expr e1 e1' && eq_expr e2 e2'
+  | Pis_arr_init x e1 e2, Pis_arr_init x' e1' e2'
+  | Pis_barr_init x e1 e2, Pis_barr_init x' e1' e2' => (v_var x == v_var x') && eq_expr e1 e1' && eq_expr e2 e2'
   | Pis_mem_init e1 e2  , Pis_mem_init e1' e2' =>  eq_expr e1 e1' && eq_expr e2 e2'
   | _             , _                 => false
   end.

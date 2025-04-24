@@ -103,6 +103,7 @@ end = struct
 
   and mk_expr fn expr = match expr with
     | Pconst _ | Pbool _ | Parr_init _ -> expr
+    | Pbarr_init (e,l) -> Pbarr_init (mk_expr fn e, l)
     | Pvar v -> Pvar (mk_gvar fn v)
     | Pget (al, acc, ws, v, e) -> Pget (al, acc, ws, mk_gvar fn v, mk_expr fn e)
     | Psub (acc, ws, len, v, e) ->
@@ -117,6 +118,7 @@ end = struct
       Pbig(mk_expr fn e, op, v, mk_expr fn e1, mk_expr fn e2, mk_expr fn e0)
     | Pis_var_init x -> Pis_var_init(mk_v_loc fn x)
     | Pis_arr_init (x,e1,e2) -> Pis_arr_init (mk_v_loc fn x, mk_expr fn e1,mk_expr fn e2)
+    | Pis_barr_init (x,e1,e2) -> Pis_barr_init (mk_v_loc fn x, mk_expr fn e1,mk_expr fn e2)
     | Pis_mem_init (e1,e2) -> Pis_mem_init (mk_expr fn e1,mk_expr fn e2)
 
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
@@ -207,7 +209,9 @@ end = struct
       app_expr (app_expr (app_expr (app_expr dp v e ct) v e1 ct) v e2 ct) v e0 ct
     | Pis_var_init _ 
     | Pis_arr_init _
-    | Pis_mem_init _ -> dp
+    | Pis_mem_init _ 
+    | Pbarr_init _ 
+    | Pis_barr_init _-> dp
 
   (* State while building the dependency graph:
      - dp : dependency graph
@@ -251,7 +255,8 @@ end = struct
             | Bty _ -> (L.unloc x) :: acc, st
             | Arr _ -> acc, st
         end
-      | Pis_arr_init _ | Pis_mem_init _ -> acc, st  
+      | Pis_arr_init _ | Pis_mem_init _ 
+      | Pbarr_init _ | Pis_barr_init _ -> acc, st  
     in
 
     aux ([],st) e
@@ -268,7 +273,7 @@ end = struct
     
     let rec aux acc = function
       | Pconst _ | Pbool _ | Parr_init _ | Pget _ | Psub _ -> acc
-
+      | Pbarr_init (e,l) -> aux acc e
       | Pvar v' -> aux_gv acc v'
       (* We ignore loads for v, but we compute dependencies of v' in ei *)
       | Pload (_, _,v',ei) -> aux (aux_v acc v') ei
@@ -278,7 +283,7 @@ end = struct
       | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b
       | Pbig (e, _, _, e1, e2, e0) -> aux (aux (aux (aux acc e) e1) e2) e0
       | Pis_var_init x -> aux_v acc x
-      | Pis_arr_init (_,e1,e2) | Pis_mem_init (e1,e2) -> aux (aux acc e1) e2
+      | Pis_barr_init (_,e1,e2) | Pis_arr_init (_,e1,e2) | Pis_mem_init (e1,e2) -> aux (aux acc e1) e2
     in
 
     aux acc e
@@ -506,7 +511,8 @@ module FSPa : sig
 end = struct
   exception Fcall
   let rec collect_vars_e sv = function
-    | Pconst _ | Pbool _ | Parr_init _ -> sv
+    | Pconst _ | Pbool _ | Parr_init _  -> sv
+    | Pbarr_init (e, _ ) -> collect_vars_e sv e
     | Pvar v ->
       begin
         match v.gs with
@@ -522,7 +528,8 @@ end = struct
     | Pif (_, e1, e2, e3) -> collect_vars_es sv [e1;e2;e3]
     | Pbig (e, _, _, e1, e2, e0) -> collect_vars_es sv [e;e1;e2;e0]
     | Pis_var_init x -> Sv.add(L.unloc x) sv
-    | Pis_arr_init (x,e1,e2) -> collect_vars_es (Sv.add (L.unloc x) sv) [e1;e2]
+    | Pis_arr_init (x,e1,e2)
+    | Pis_barr_init (x,e1,e2) -> collect_vars_es (Sv.add (L.unloc x) sv) [e1;e2]
     | Pis_mem_init (e1,e2) -> collect_vars_es sv [e1;e2]
 
   and collect_vars_es sv es = List.fold_left collect_vars_e sv es

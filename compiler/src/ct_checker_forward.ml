@@ -332,7 +332,8 @@ let is_ct_sopn is_ct_asm (o : 'a Sopn.sopn) =
 let rec ty_expr ~(public:bool) env (e:expr) =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ -> env, Public
-
+  | Pbarr_init (e,_) ->
+    ty_expr ~public env e
   | Pvar x -> Env.gget ~public env x
 
   | Pget (_, _, _, x, i) | Psub (_, _, _, x, i) ->
@@ -356,7 +357,8 @@ let rec ty_expr ~(public:bool) env (e:expr) =
   | Pif(_, e1, e2, e3) -> ty_exprs_max ~public env [e1; e2; e3]
   | Pbig _ -> assert false
   | Pis_var_init x -> Env.get ~public env x
-  | Pis_arr_init (x,e1,e2) ->
+  | Pis_arr_init (x,e1,e2)
+  | Pis_barr_init (x,e1,e2) ->
     let env, ty = Env.get ~public env x in
     ty_exprs_max ~public env [e1; e2]
   | Pis_mem_init (e1,e2) -> 

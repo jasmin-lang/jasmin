@@ -77,6 +77,7 @@ Definition scfc (cf : combine_flags) (es : seq pexpr) : pexpr :=
 Fixpoint pi_e (pi:pimap) (e:pexpr) :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ => e
+  | Pbarr_init e l => Pbarr_init (pi_e pi e) l
   | Pvar x =>
     if is_lvar x then
       match Mvar.get pi x.(gv) with
@@ -111,6 +112,7 @@ Fixpoint pi_e (pi:pimap) (e:pexpr) :=
     | None => e
     end
   | Pis_arr_init x e1 e2 => Pis_arr_init x (pi_e pi e1) (pi_e pi e2)
+  | Pis_barr_init x e1 e2 => Pis_barr_init x (pi_e pi e1) (pi_e pi e2)
   | Pis_mem_init e1 e2 => Pis_mem_init (pi_e pi e1) (pi_e pi e2)
 
   end.
