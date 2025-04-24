@@ -23,6 +23,7 @@ type 'len gexpr =
   | Pconst of Z.t
   | Pbool  of bool
   | Parr_init of 'len
+  | Pbarr_init of 'len gexpr * 'len
   | Pvar   of 'len ggvar
   | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr
@@ -34,6 +35,7 @@ type 'len gexpr =
   | Pbig   of 'len gexpr * sop2 * 'len gvar_i * 'len gexpr * 'len gexpr * 'len gexpr
   | Pis_var_init of 'len gvar_i
   | Pis_arr_init of 'len gvar_i * 'len gexpr * 'len gexpr
+  | Pis_barr_init of 'len gvar_i * 'len gexpr * 'len gexpr
   | Pis_mem_init of 'len gexpr * 'len gexpr
 
 type 'len gexprs = 'len gexpr list
@@ -259,6 +261,7 @@ let rvars_v f x s =
 
 let rec rvars_e f s = function
   | Pconst _ | Pbool _ | Parr_init _ -> s
+  | Pbarr_init (e,_) -> rvars_e f s e
   | Pvar x         -> rvars_v f x s
   | Pget(_,_,_,x,e) | Psub (_, _, _, x, e) -> rvars_e f (rvars_v f x s) e
   | Pload(_,_,x,e)   -> rvars_e f (f (L.unloc x) s) e
@@ -269,6 +272,7 @@ let rec rvars_e f s = function
   | Pbig(e, _, _, e1, e2, e0) -> List.fold_left (rvars_e f) s [e; e1; e2; e0;]
   | Pis_var_init x -> f (L.unloc x) s
   | Pis_arr_init(x,e1,e2) -> rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2
+  | Pis_barr_init(x,e1,e2) -> rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2
   | Pis_mem_init (e1,e2) -> rvars_e f (rvars_e f s e1) e2
 
 and rvars_es f s es = List.fold_left (rvars_e f) s es

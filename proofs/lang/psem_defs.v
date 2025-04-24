@@ -147,6 +147,10 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
   | Parr_init n => ok (Varr (WArray.empty n))
+  | Pbarr_init e n => 
+    Let x := sem_pexpr s e >>= to_word U8 in
+    Let t := WArray.fill_elem n x in
+    ok (Varr t)
   | Pvar v => get_gvar wdb gd s.(evm) v
   | Pget al aa ws x e =>
       Let (n, t) := wdb, gd, s.[x] in
@@ -197,6 +201,18 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     Let lo := sem_pexpr s e1 >>= to_int in
     Let sz := sem_pexpr s e2 >>= to_int in
     let b := all (fun i => WArray.is_init t (lo + i)) (ziota 0 sz) in
+    ok (Vbool b)
+  
+  | Pis_barr_init x e1 e2 =>
+    Let (n, t) := wdb, s.[x] in
+    Let lo := sem_pexpr s e1 >>= to_int in
+    Let sz := sem_pexpr s e2 >>= to_int in
+    let b := all (fun i => 
+      match WArray.get Aligned AAscale U8 t (lo + i) with
+      | Ok w => (wrepr U8 0) == w
+      | Error _ => false
+      end
+      ) (ziota 0 sz) in
     ok (Vbool b)
 
   | Pis_mem_init e1 e2 =>

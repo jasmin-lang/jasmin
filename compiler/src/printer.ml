@@ -36,6 +36,9 @@ let pp_ge pp_len pp_var =
   | Pconst i    -> Z.pp_print fmt i
   | Pbool  b    -> F.fprintf fmt "%b" b
   | Parr_init _ -> assert false (* This case is handled in pp_gi *)
+  | Pbarr_init (e,n) -> 
+    F.fprintf fmt "ArrayInit(%a, %a)"
+      pp_expr e pp_len n
   | Pvar v      -> pp_gvar fmt v
   | Pget(al,aa,ws,x,e) ->
     pp_arr_access pp_gvar pp_expr fmt al aa ws x e
@@ -70,6 +73,7 @@ let pp_ge pp_len pp_var =
       pp_expr e0
   | Pis_var_init x -> F.fprintf fmt "is_var_init(%a)" pp_var_i x
   | Pis_arr_init (x,e1,e2) -> F.fprintf fmt "is_arr_init(%a,%a,%a)" pp_var_i x pp_expr e1 pp_expr e2
+  | Pis_barr_init (x,e1,e2) -> F.fprintf fmt "is_barr_init(%a,%a,%a)" pp_var_i x pp_expr e1 pp_expr e2
   | Pis_mem_init (e1,e2) -> F.fprintf fmt "is_mem_init(%a,%a)" pp_expr e1 pp_expr e2
   in
   pp_expr

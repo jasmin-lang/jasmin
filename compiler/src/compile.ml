@@ -85,14 +85,19 @@ let create_safety_asserts
       | x -> x
       | exception Not_found ->
           let v = Conv.var_of_cvar cv in
-          let bv = V.mk ("b_"^v.v_name) (Reg (Normal, Direct)) tbool v.v_dloc [] in
+          let t = match v.v_ty with
+            |Arr (ws, x) ->  Arr(U8, (size_of_ws ws) * x)
+            | _ ->  tbool
+          in
+          let bv = V.mk ("b_"^v.v_name) (Reg (Normal, Direct)) t v.v_dloc [] in
           let cbv = Conv.cvar_of_var bv in
           Hashtbl.add memo cv cbv;
           cbv
   in
+  let create_var vk ii name t l =  V.mk name vk (Conv.ty_of_cty t) l [] in      
   let cprog = Conv.cuprog_of_prog prog in
-  let sc_prog = Safety_cond.sc_prog Arch.reg_size  Arch.asmOp Arch.msf_size cprog in
-  let rm_init_prog = Remove_is_var_init.rm_var_init_prog_dc Arch.asmOp Arch.msf_size Arch.fcp Arch.aparams.ap_is_move_op b sc_prog in
+  let sc_prog = Safety_cond.sc_prog Arch.reg_size Arch.asmOp Arch.msf_size cprog in
+  let rm_init_prog = Remove_is_var_init.rm_var_init_prog_dc Arch.asmOp Arch.msf_size Arch.fcp Arch.aparams.ap_is_move_op create_var b sc_prog in
   let prog = Conv.prog_of_cuprog rm_init_prog in
   Format.eprintf "@[<v>Program after removing is_init_var:@;%a@.@]" 
   (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) prog; 

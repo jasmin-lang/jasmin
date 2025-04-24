@@ -19,6 +19,7 @@ let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gex
   | Pconst c -> Pconst c
   | Pbool b  -> Pbool b
   | Parr_init n -> Parr_init (flen n)
+  | Pbarr_init (e,n) -> Pbarr_init (gsubst_e flen f e,flen n)
   | Pvar v -> f v
   | Pget (al, aa, ws, v, e) -> Pget(al, aa, ws, gsubst_gvar f v, gsubst_e flen f e)
   | Psub (aa, ws, len, v, e) -> Psub(aa,ws,flen ~loc:(L.loc v.gv) len, gsubst_gvar f v, gsubst_e flen f e)
@@ -36,6 +37,7 @@ let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gex
          gsubst_e flen f e0)
   | Pis_var_init v -> Pis_var_init (gsubst_vdest f v)
   | Pis_arr_init (v,e1,e2) -> Pis_arr_init (gsubst_vdest f v, gsubst_e flen f e1,gsubst_e flen f e2)
+  | Pis_barr_init (v,e1,e2) -> Pis_barr_init (gsubst_vdest f v, gsubst_e flen f e1,gsubst_e flen f e2)
   | Pis_mem_init (e1,e2) -> Pis_mem_init (gsubst_e flen f e1,gsubst_e flen f e2)
 
 
@@ -217,7 +219,8 @@ let rec int_of_expr ?loc e =
   | Papp2 (o, e1, e2) ->
       let op = int_of_op2 ?loc o in
       op (int_of_expr ?loc e1) (int_of_expr ?loc e2)
-  | Pbool _ | Parr_init _ | Pvar _ | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _
+  | Pbool _ | Parr_init _ | Pbarr_init _ | Pvar _ | Pis_var_init _ 
+  | Pis_arr_init _  | Pis_barr_init _ | Pis_mem_init _
   | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _
   | Pbig _ ->
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" Printer.pp_pexpr e

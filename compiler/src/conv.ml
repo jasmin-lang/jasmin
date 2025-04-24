@@ -88,6 +88,7 @@ let rec cexpr_of_expr = function
   | Pconst z          -> C.Pconst (cz_of_z z)
   | Pbool  b          -> C.Pbool  b
   | Parr_init n       -> C.Parr_init (pos_of_int n)
+  | Pbarr_init (e,n)     -> C.Pbarr_init (cexpr_of_expr e ,pos_of_int n)
   | Pvar x            -> C.Pvar (cgvari_of_gvari x)
   | Pget (al, aa,ws, x,e) -> C.Pget (al, aa, ws, cgvari_of_gvari x, cexpr_of_expr e)
   | Psub (aa,ws,len, x,e) -> 
@@ -104,12 +105,14 @@ let rec cexpr_of_expr = function
     C.Pbig(cexpr_of_expr e, o, cvari_of_vari x, cexpr_of_expr e1, cexpr_of_expr e2, cexpr_of_expr e0)
   | Pis_var_init x -> C.Pis_var_init (cvari_of_vari x)
   | Pis_arr_init (x,e1,e2) -> C.Pis_arr_init (cvari_of_vari x, cexpr_of_expr e1,cexpr_of_expr e2)
+  | Pis_barr_init (x,e1,e2) -> C.Pis_barr_init (cvari_of_vari x, cexpr_of_expr e1,cexpr_of_expr e2)
   | Pis_mem_init (e1,e2) -> C.Pis_mem_init (cexpr_of_expr e1,cexpr_of_expr e2)
 
 let rec expr_of_cexpr = function
   | C.Pconst z          -> Pconst (z_of_cz z)
   | C.Pbool  b          -> Pbool  b
   | C.Parr_init n       -> Parr_init (int_of_pos n)
+  | C.Pbarr_init (e,n)      -> Pbarr_init (expr_of_cexpr e,int_of_pos n)
   | C.Pvar x            -> Pvar (gvari_of_cgvari x)
   | C.Pget (al, aa,ws, x,e) -> Pget (al, aa, ws, gvari_of_cgvari x, expr_of_cexpr e)
   | C.Psub (aa,ws,len,x,e) -> Psub (aa, ws, int_of_pos len, gvari_of_cgvari x, expr_of_cexpr e)
@@ -124,6 +127,7 @@ let rec expr_of_cexpr = function
     Pbig(expr_of_cexpr e, o, vari_of_cvari x, expr_of_cexpr e1, expr_of_cexpr e2, expr_of_cexpr e0)
   | C.Pis_var_init x -> Pis_var_init (vari_of_cvari x)
   | C.Pis_arr_init (x,e1,e2) -> Pis_arr_init (vari_of_cvari x, expr_of_cexpr e1,expr_of_cexpr e2)
+  | C.Pis_barr_init (x,e1,e2) -> Pis_barr_init (vari_of_cvari x, expr_of_cexpr e1,expr_of_cexpr e2)
   | C.Pis_mem_init (e1,e2) -> Pis_mem_init (expr_of_cexpr e1,expr_of_cexpr e2)
 (* ------------------------------------------------------------------------ *)
 

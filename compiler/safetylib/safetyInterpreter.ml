@@ -316,7 +316,8 @@ let rec safe_e_rec safe = function
         (safe_e_rec (safe_e_rec safe e1) e2) implies it *)
     safe_e_rec (safe_e_rec (safe_e_rec safe e1) e2) e3
   | Pbig (e1, e2, op2, v, e3, e4) -> assert false 
-  | Pis_var_init _ |Pis_arr_init _ |Pis_mem_init _ -> assert false
+  | Pis_var_init _ |Pis_arr_init _ |Pis_mem_init _ 
+  | Pbarr_init _ | Pis_barr_init _ -> assert false
 
 let safe_e = safe_e_rec []
 
@@ -1570,7 +1571,8 @@ end = struct
       | Papp2 (_, e1, e2)  -> nm_es vs_for [e1; e2]
       | PappN (_,es)       -> nm_es vs_for es
       | Pif (_, e, el, er) -> nm_es vs_for [e; el; er]
-      | Pbig _ | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _ -> assert false
+      | Pbig _ | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _ 
+      | Pbarr_init _ | Pis_barr_init _ -> assert false
 
     and nm_es vs_for es = List.for_all (nm_e vs_for) es
 

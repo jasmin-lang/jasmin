@@ -171,7 +171,7 @@ Definition lower_load (ws: wsize) (e: pexpr) : low_expr :=
 
 Definition is_load (e: pexpr) : bool :=
   match e with
-  | Pconst _ | Pbool _ | Parr_init _
+  | Pconst _ | Pbool _ | Parr_init _ | Pbarr_init _ _
   | Psub _ _ _ _ _
   | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pif _ _ _ _
   | Pbig _ _ _ _ _ _
@@ -180,6 +180,7 @@ Definition is_load (e: pexpr) : bool :=
   | Pget _ _ _ _ _
   | Pload _ _ _ _
   | Pis_arr_init _ _ _
+  | Pis_barr_init _ _ _
   | Pis_mem_init _ _
     => true
   | Pvar {| gs := Slocal ; gv := x |}

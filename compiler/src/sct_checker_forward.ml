@@ -631,6 +631,10 @@ let rec ty_expr env venv loc (e:expr) : vty =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ -> Env.dpublic env
 
+  | Pbarr_init (e,_) ->
+      ensure_public env venv loc e;
+      Env.dpublic env
+
   | Pvar x -> Env.gget venv x
 
   | Pget (_, aa, ws, x, i) ->
@@ -664,7 +668,8 @@ let rec ty_expr env venv loc (e:expr) : vty =
     ty_exprs_max ~public env venv loc es
   | Pbig _           -> assert false
   | Pis_var_init x -> Env.get_i venv x
-  | Pis_arr_init (x,e1,e2) -> 
+  | Pis_arr_init (x,e1,e2)
+  | Pis_barr_init (x,e1,e2) -> 
       ensure_public_address env venv loc x;
       ensure_public env venv loc e1;
       ensure_public env venv loc e2;

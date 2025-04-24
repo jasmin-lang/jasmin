@@ -115,7 +115,9 @@ Definition nelem (ty: stype) (ws: wsize) : Z :=
 Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ => ok e
-
+  | Pbarr_init e l => 
+    Let e := expand_e m e in
+    ok (Pbarr_init e l)
   | Pvar x =>
     Let _ := assert (check_gvar m x) (reg_error x.(gv) "(the array cannot be manipulated alone, you need to access its cells instead)") in
     ok e
@@ -181,6 +183,7 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     ok e
 
   | Pis_arr_init _ _ _ => Error (reg_error_expr e "")
+  | Pis_barr_init _ _ _ => Error (reg_error_expr e "")
   | Pis_mem_init e1 e2 =>
     Let e1 := expand_e m e1 in
     Let e2 := expand_e m e2 in
