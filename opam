@@ -32,6 +32,8 @@ depends: [
   "coq-mathcomp-algebra"
   "coq-mathcomp-algebra-tactics"
   "coq-mathcomp-word" {>= "3.2"}
+  "coq-paco"
+  "coq-itree"
 ]
 conflicts: [
   "ez-conf-lib"
