@@ -7,7 +7,7 @@
     the syntax  `(uXX)[aligned? x e]` is deprecated.
   - for array load/store: `t DOT? [aligned? uXX e]` becomes `t DOT? [aligned? :uXX e]`,
     the syntax `t DOT? [aligned? uXX e]` is deprecated.
-  
+
   The script `compiler/script/replace-new-memory-syntax.sh` allows to perform the change automatically.
 
   New syntax for infix and prefix operators, the type of the arguments can be provided
@@ -33,6 +33,9 @@
   [PR #1125](https://github.com/jasmin-lang/jasmin/pull/1125),
   [PR #1128](https://github.com/jasmin-lang/jasmin/pull/1128),
   [PR #1130](https://github.com/jasmin-lang/jasmin/pull/1130)).
+
+- Making initialisation syntax more sound
+  ([PR #1133](https://github.com/jasmin-lang/jasmin/pull/1133)).
 
 # Jasmin 2025.02.1 — Nancy, 2025-04-10
 

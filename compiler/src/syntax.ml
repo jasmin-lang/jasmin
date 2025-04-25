@@ -231,7 +231,7 @@ type plvals = annotations L.located option * plvalue list
 
 
 type vardecl = pident * pexpr option
-type vardecls = pstotype * vardecl L.located list
+type vardecls = pstotype * vardecl list
 
 let var_decl_id (v, _ : vardecl) : pident = v
 

@@ -280,8 +280,7 @@ let pp_args fmt (sty, xs) =
     pp_sto_ty sty
     (pp_list " " pp_var) xs
 
-let pp_decl fmt (x: vardecl L.located) =
-  let x, e = L.unloc x in
+let pp_decl fmt ((x,e): vardecl) =
   let pp fmt = F.fprintf fmt " = %a" pp_expr in
   F.fprintf fmt "%s%a" (L.unloc x) (pp_opt pp) e
 
