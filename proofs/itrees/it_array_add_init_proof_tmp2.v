@@ -346,7 +346,8 @@ Admitted.
   - destruct vs; simpl in *.
 *)    
 
-      
+Check @fundef_add_init_fd_rel.
+
 Lemma it_add_init_fdP fn : (* scs mem scs' mem' va vr: *)
   wiequiv_f p (add_init_prog p) ev ev
     (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
@@ -384,9 +385,6 @@ Proof.
           unfold fundef_add_init_fd_rel in H0. simpl in *.
           unfold add_init_fd in H0. simpl in *.
           dependent destruction H0. simpl.
-
-          
-
           
           admit. 
         (*  eapply it_add_init_cmd_xrutt; eauto. *)

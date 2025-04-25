@@ -430,13 +430,7 @@ Proof.
   unfold sem_fun in H.
   unfold sem_fun_rec in H.
   unfold rec_call in H.
-  
-  Print monotone2.
-Print xrutt_monot.
-Print wcompatible2.
-
-
-  
+    
   specialize (H fs1 fs2).
   have X : fn2 = fn2 ∧ fs_uincl fs1 fs2.
   { split; eauto. }

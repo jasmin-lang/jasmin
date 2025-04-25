@@ -416,7 +416,7 @@ Proof.
   
   { intros i ii1 s1 H H0 H1; simpl.
     setoid_rewrite bind_ret_r.
-    admit. (* OK *)
+    admit. (* OK NO PROBLEM *)
   }
     
   { intros i ii1 s1 H H0 H1; simpl.
@@ -468,7 +468,7 @@ Proof.
                   (add_init_core ii1
                   {| vtype := sarr p0; vname := vname0 |} ++ [:: i]) s0)
           ) as G2.
-        { admit. } (* CRUCIAL ADMIT *)
+        { admit. } (* STILL TODO, SHOULD BE OK *)
         
         assert (@eutt (Sum.sum1 (@recCall asm_op syscall_state ep sip) E)
            (@estate wsw syscall_state ep) (@estate wsw syscall_state ep)
@@ -510,9 +510,91 @@ Proof.
 
   { eapply xrutt_Ret; auto. }
 
-  (* there should be a bind in the second term... *)
+  (* PROBLEMATIC: we need a bind in the second term, and there could be! *)
 
 Admitted.   
+
+Check @fundef_add_init_fd_rel.
+
+Lemma it_add_init_fdP fn : (* scs mem scs' mem' va vr: *)
+  wiequiv_f p (add_init_prog p) ev ev
+    (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+Proof.
+  unfold wequiv_f, wkequiv_io, add_init_prog, isem_fun; simpl.
+  intros fs1 fs2 H; destruct H as [_ H]. 
+  eapply interp_mrec_xrutt 
+    with (RPreInv := RecPreRel) (RPostInv := RecPostRel); simpl.
+
+  { clear H fs1 fs2.
+    intros T1 T2 [fn1 fs1] [fn2 fs2] [H0 H1]; subst.    
+    eapply xrutt_bind with (RR:= @fundef_add_init_fd_rel); eauto.
+    (* eq was too strong here *)
+    { unfold kget_fundef, ioget, get_fundef.
+      eapply xrutt_match_option; eauto.
+      intros. unfold fundef_add_init_fd_rel.
+      exists (add_init_fd v1). split; eauto.
+      eapply add_init_fd_Prsrv_assoc_p_funcs; eauto.
+    }
+        
+    { intros f1 f2 H0; subst.
+      eapply xrutt_bind with (RR:= estate_uincl). 
+
+      { unfold iresult, err_result; simpl.
+        eapply xrutt_match_exec; eauto.
+        eapply add_init_fd_Prsrv_initialize_funcall; eauto.
+      }  
+
+      { intros s1 s2 H2.
+        eapply xrutt_bind with (RR:= estate_uincl). 
+
+        { eapply rec_add_init_lemma; eauto. }  
+
+        { intros s3 s4 H3.
+          unfold iresult, err_result.
+          eapply xrutt_match_exec; eauto.
+          eapply estate_uincl_Prsrv_finalize_funcall with (fn := fn2); eauto.
+        }
+      }
+    }
+  }
+  
+  { unfold isem_fun_rec, isem_fun_body.
+    eapply xrutt_bind with (RR:= @fundef_add_init_fd_rel).
+
+    { unfold kget_fundef, ioget.
+      eapply xrutt_match_option; eauto.
+      intros. unfold fundef_add_init_fd_rel.
+      exists (add_init_fd v1). split; eauto.
+      eapply add_init_fd_Prsrv_assoc_p_funcs; eauto.
+    }
+
+    { intros r1 r2 H0; subst.
+      eapply xrutt_bind with (RR:= estate_uincl).
+
+      { unfold iresult, err_result.
+        eapply xrutt_match_exec; eauto.
+        eapply add_init_fd_Prsrv_initialize_funcall; eauto.
+      }
+
+      { intros st1 st2 H1.
+        eapply xrutt_bind with (RR:= estate_uincl).
+
+        { eapply rec_add_init_lemma; eauto. }
+          
+        { intros s1 s2 H2.
+          unfold iresult, err_result.
+          eapply xrutt_match_exec; eauto.
+          eapply estate_uincl_Prsrv_finalize_funcall with (fn := fn); eauto.
+        } 
+      }
+    }
+  }   
+Qed.
+
+
+
+
+
 
 (*
 Definition lift_vm2 s1 c s2 :=
