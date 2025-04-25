@@ -631,7 +631,7 @@ let rec ty_expr env venv loc (e:expr) : vty =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ -> Env.dpublic env
 
-  | Pbarr_init (e,_) ->
+  | Parr_init_elem (e,_) ->
       ensure_public env venv loc e;
       Env.dpublic env
 

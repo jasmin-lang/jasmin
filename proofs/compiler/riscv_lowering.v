@@ -37,7 +37,7 @@ Definition check_shift_amount e :=
 
 Definition is_load (e: pexpr) : bool :=
   match e with
-  | Pconst _ | Pbool _ | Parr_init _ | Pbarr_init _ _
+  | Pconst _ | Pbool _ | Parr_init _ | Parr_init_elem _ _
   | Psub _ _ _ _ _
   | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pif _ _ _ _
   | Pbig _ _ _ _ _ _

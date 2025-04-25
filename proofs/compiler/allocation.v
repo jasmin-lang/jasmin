@@ -463,7 +463,7 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
     Let _ := assert (b1 == b2) error_e in ok m
   | Parr_init n1, Parr_init n2 =>
     Let _  := assert (n1 == n2) error_e in ok m
-  | Pbarr_init e n1, Pbarr_init e' n2 =>
+  | Parr_init_elem e n1, Parr_init_elem e' n2 =>
     Let _  := assert ((n1==n2)) error_e in
     check_e e e' m
   | Pvar   x1, Pvar   x2 => check_gv x1 x2 m

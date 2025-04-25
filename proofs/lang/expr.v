@@ -226,7 +226,7 @@ Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
 | Parr_init : positive → pexpr
-| Pbarr_init : pexpr → positive → pexpr
+| Parr_init_elem : pexpr → positive → pexpr
 | Pvar   :> gvar -> pexpr
 | Pget   : aligned -> arr_access -> wsize -> gvar -> pexpr -> pexpr
 | Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr
@@ -743,7 +743,7 @@ Definition is_Papp2 (e : pexpr) : option (sop2 * pexpr * pexpr) :=
 
 Definition is_array_init e :=
   match e with
-  | Parr_init _ | Pbarr_init _ _=> true
+  | Parr_init _ | Parr_init_elem _ _=> true
   | _           => false
   end.
 
@@ -851,7 +851,7 @@ Fixpoint use_mem (e : pexpr) :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ | Pvar _ | Pis_var_init _ => false
   | Pload _ _ _ _ | Pis_mem_init _ _ => true
-  | Pbarr_init e _ | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e  => use_mem e
+  | Parr_init_elem e _ | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e  => use_mem e
   | Papp2 _ e1 e2 | Pis_arr_init _ e1 e2 | Pis_barr_init _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
@@ -870,7 +870,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pconst _
   | Pbool  _
   | Parr_init _    => s
-  | Pbarr_init e _   => read_e_rec s e
+  | Parr_init_elem e _   => read_e_rec s e
   | Pvar   x       => Sv.union (read_gvar x) s
   | Pget _ _ _ x e   => read_e_rec (Sv.union (read_gvar x) s) e
   | Psub _ _ _ x e => read_e_rec (Sv.union (read_gvar x) s) e
@@ -972,7 +972,7 @@ Fixpoint eq_expr e e' :=
   | Pconst z      , Pconst z'         => z == z'
   | Pbool  b      , Pbool  b'         => b == b'
   | Parr_init n   , Parr_init n'      => n == n'
-  | Pbarr_init e n   , Pbarr_init e' n'      =>  (eq_expr e e')  && (n == n')
+  | Parr_init_elem e n   , Parr_init_elem e' n'      =>  (eq_expr e e')  && (n == n')
   | Pvar   x      , Pvar   x'         => eq_gvar x x'
   | Pget al aa w x e , Pget al' aa' w' x' e' => (al == al') && (aa==aa') && (w == w') && (eq_gvar x x') && eq_expr e e'
   | Psub aa w len x e , Psub aa' w' len' x' e' => (aa==aa') && (w == w') && (len == len') && (eq_gvar x x') && eq_expr e e'

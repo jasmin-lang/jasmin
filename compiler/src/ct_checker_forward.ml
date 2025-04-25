@@ -332,7 +332,7 @@ let is_ct_sopn is_ct_asm (o : 'a Sopn.sopn) =
 let rec ty_expr ~(public:bool) env (e:expr) =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ -> env, Public
-  | Pbarr_init (e,_) ->
+  | Parr_init_elem (e,_) ->
     ty_expr ~public env e
   | Pvar x -> Env.gget ~public env x
 

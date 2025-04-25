@@ -158,7 +158,7 @@ let normalize_asub a aa ws len x i =
 
 let slice_of_pexpr a =
   function
-  | Parr_init _ | Pbarr_init _ -> None
+  | Parr_init _ | Parr_init_elem _ -> None
   | Pvar x -> Some (normalize_gvar a x)
   | Pis_var_init x -> Some (normalize_var a (L.unloc x))
   | Psub (aa, ws, len, x, i) -> Some (normalize_asub a aa ws len x i)

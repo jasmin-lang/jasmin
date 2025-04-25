@@ -94,11 +94,13 @@ let create_safety_asserts
           Hashtbl.add memo cv cbv;
           cbv
   in
-  let create_var vk ii name t l =  V.mk name vk (Conv.ty_of_cty t) l [] in      
-  let cprog = Conv.cuprog_of_prog prog in
-  let sc_prog = Safety_cond.sc_prog Arch.reg_size Arch.asmOp Arch.msf_size cprog in
-  let rm_init_prog = Remove_is_var_init.rm_var_init_prog_dc Arch.asmOp Arch.msf_size Arch.fcp Arch.aparams.ap_is_move_op create_var b sc_prog in
-  let prog = Conv.prog_of_cuprog rm_init_prog in
+  let create_var vk ii name t l =  V.mk name vk (Conv.ty_of_cty t) l [] in 
+  let cprog = Conv.cuprog_of_prog prog in     
+  let cprog = Obj.magic Safety_cond.sc_prog Arch.reg_size Arch.asmOp Arch.msf_size cprog in
+  let cprog = Remove_is_var_init.rm_var_init_prog Arch.asmOp Arch.msf_size create_var b cprog in
+  let cprog = Remove_is_var_init.rm_var_init_const_prop Arch.asmOp Arch.msf_size Arch.fcp b cprog in
+  let cprog = Remove_is_var_init.rm_var_init_dc Arch.asmOp  Arch.aparams.ap_is_move_op cprog in
+  let prog = Obj.magic Conv.prog_of_cuprog cprog in
   Format.eprintf "@[<v>Program after removing is_init_var:@;%a@.@]" 
   (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) prog; 
   prog

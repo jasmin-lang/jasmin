@@ -15,7 +15,7 @@ Section PEXPR_IND.
     (Hconst: ∀ z, P (Pconst z))
     (Hbool: ∀ b, P (Pbool b))
     (Harr_init: ∀ n, P (Parr_init n))
-    (Hbarr_init: ∀ b n, P (Pbarr_init b n))
+    (Hbarr_init: ∀ b n, P (Parr_init_elem b n))
     (Hvar: ∀ x, P (Pvar x))
     (Hget: ∀ al aa sz x e, P e → P (Pget al aa sz x e))
     (Hsub:  ∀ aa sz len x e, P e  → P (Psub aa sz len x e))
@@ -44,7 +44,7 @@ Section PEXPR_IND.
     | Pconst z => Hconst z
     | Pbool b => Hbool b
     | Parr_init n => Harr_init n
-    | Pbarr_init b n => Hbarr_init b n
+    | Parr_init_elem b n => Hbarr_init b n
     | Pvar x => Hvar x
     | Pget al aa sz x e => Hget al aa sz x (pexpr_ind e)
     | Psub aa sz len x e => Hsub aa sz len x (pexpr_ind e)
@@ -76,7 +76,7 @@ Section PEXPRS_IND.
     pexprs_const: ∀ z, P (Pconst z);
     pexprs_bool: ∀ b, P (Pbool b);
     pexprs_arr_init: ∀ n, P (Parr_init n);
-    pexprs_barr_init: ∀ b n, P (Pbarr_init b n);
+    pexprs_barr_init: ∀ b n, P (Parr_init_elem b n);
     pexprs_var: ∀ x, P (Pvar x);
     pexprs_get: ∀ al aa sz x e, P e → P (Pget al aa sz x e);
     pexprs_sub: ∀ aa sz len x e, P e → P (Psub aa sz len x e);
@@ -107,7 +107,7 @@ Section PEXPRS_IND.
     | Pconst z => pexprs_const h z
     | Pbool b => pexprs_bool h b
     | Parr_init n => pexprs_arr_init h n
-    | Pbarr_init b n => pexprs_barr_init h b n
+    | Parr_init_elem b n => pexprs_barr_init h b n
     | Pvar x => pexprs_var h x
     | Pget al aa sz x e => pexprs_get h al aa sz x (pexpr_mut_ind e)
     | Psub aa sz len x e => pexprs_sub h aa sz len x (pexpr_mut_ind e)

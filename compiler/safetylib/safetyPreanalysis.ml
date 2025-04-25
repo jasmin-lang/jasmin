@@ -103,7 +103,7 @@ end = struct
 
   and mk_expr fn expr = match expr with
     | Pconst _ | Pbool _ | Parr_init _ -> expr
-    | Pbarr_init (e,l) -> Pbarr_init (mk_expr fn e, l)
+    | Parr_init_elem (e,l) -> Parr_init_elem (mk_expr fn e, l)
     | Pvar v -> Pvar (mk_gvar fn v)
     | Pget (al, acc, ws, v, e) -> Pget (al, acc, ws, mk_gvar fn v, mk_expr fn e)
     | Psub (acc, ws, len, v, e) ->
@@ -210,7 +210,7 @@ end = struct
     | Pis_var_init _ 
     | Pis_arr_init _
     | Pis_mem_init _ 
-    | Pbarr_init _ 
+    | Parr_init_elem _ 
     | Pis_barr_init _-> dp
 
   (* State while building the dependency graph:
@@ -256,7 +256,7 @@ end = struct
             | Arr _ -> acc, st
         end
       | Pis_arr_init _ | Pis_mem_init _ 
-      | Pbarr_init _ | Pis_barr_init _ -> acc, st  
+      | Parr_init_elem _ | Pis_barr_init _ -> acc, st  
     in
 
     aux ([],st) e
@@ -273,7 +273,7 @@ end = struct
     
     let rec aux acc = function
       | Pconst _ | Pbool _ | Parr_init _ | Pget _ | Psub _ -> acc
-      | Pbarr_init (e,l) -> aux acc e
+      | Parr_init_elem (e,l) -> aux acc e
       | Pvar v' -> aux_gv acc v'
       (* We ignore loads for v, but we compute dependencies of v' in ei *)
       | Pload (_, _,v',ei) -> aux (aux_v acc v') ei
@@ -512,7 +512,7 @@ end = struct
   exception Fcall
   let rec collect_vars_e sv = function
     | Pconst _ | Pbool _ | Parr_init _  -> sv
-    | Pbarr_init (e, _ ) -> collect_vars_e sv e
+    | Parr_init_elem (e, _ ) -> collect_vars_e sv e
     | Pvar v ->
       begin
         match v.gs with

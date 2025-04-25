@@ -117,9 +117,9 @@ Section REMOVE.
       match e with
       | Pconst _ | Pbool _ => ok e
       | Parr_init _ => ok e
-      | Pbarr_init e l => 
+      | Parr_init_elem e l => 
         Let e  := remove_glob_e ii env e in
-        ok (Pbarr_init e l)
+        ok (Parr_init_elem e l)
       | Pvar xi =>
         Let xi := get_var_ ii env xi in
         ok (Pvar xi)

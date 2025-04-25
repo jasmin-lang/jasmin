@@ -1517,7 +1517,7 @@ let ty_expr = function
   | Pconst _       -> tint
   | Pbool _        -> tbool
   | Parr_init len  -> Arr (U8, len)
-  | Pbarr_init (_,len)  -> Arr (U8, len)
+  | Parr_init_elem (_,len)  -> Arr (U8, len)
   | Pvar x         -> x.gv.L.pl_desc.v_ty
   | Pload (_, sz,_,_) -> tu sz
   | Pget  (_,_, sz,_,_) -> tu sz
@@ -1632,7 +1632,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
       | Pconst z -> Econst z
       | Pbool b -> Ebool b
       | Parr_init n -> ec_ident "witness"
-      | Pbarr_init (e,l) -> Eapp (ec_ident "init_arr",[toec_expr env e; Econst (Z.of_int l)] )
+      | Parr_init_elem (e,l) -> Eapp (Eident [ec_BArray env l; "init_arr"],[toec_expr env e; Econst (Z.of_int l)] )
       | Pvar x -> ec_vari env (L.unloc x.gv)
       | Pget (a, aa, ws, y, e) ->
           EA.toec_pget env (a, aa, ws, L.unloc y.gv, toec_expr env e)
@@ -1762,7 +1762,7 @@ module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
     | Pconst _ | Pbool _ | Parr_init _ | Pvar _ | Pis_var_init _ -> leaks
     | Pload (_,_,x,e) -> leaks_e_rec pd (int_of_word pd (snd (add_ptr pd (gkvar x) e)) :: leaks) e
     | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec pd (e::leaks) e
-    | Pbarr_init (e,_) | Papp1 (_, e) -> leaks_e_rec pd leaks e
+    | Parr_init_elem (e,_) | Papp1 (_, e) -> leaks_e_rec pd leaks e
     | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
     | PappN (_, es) -> leaks_es_rec pd leaks es
     | Pif  (_, e1, e2, e3) -> leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) e3
@@ -1866,7 +1866,7 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
     | Pconst _ | Pbool _ | Parr_init _ |Pvar _ | Pis_var_init _ -> leaks
     | Pload (_,_,x,e) -> leaks_e_rec env ((leak_addr_mem env x e) @ leaks) e
     | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec env ([leak_addr (toec_expr env e)] @ leaks) e
-    | Pbarr_init (e,_) | Papp1 (_, e) -> leaks_e_rec env leaks e
+    | Parr_init_elem (e,_) | Papp1 (_, e) -> leaks_e_rec env leaks e
     | Papp2 (_, e1, e2) -> leaks_es_rec env leaks [e1; e2]
     | PappN (_, es) -> leaks_es_rec env leaks es
     | Pif  (_, e1, e2, e3) -> leaks_es_rec env leaks [e1; e2; e3]

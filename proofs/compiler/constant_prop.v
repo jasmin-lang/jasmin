@@ -227,6 +227,8 @@ Definition sneq ty e1 e2 :=
   | None      => Papp2 (Oneq ty) e1 e2
   end.
 
+Definition int_to_w x sz : pexpr := Papp1 (Oword_of_int sz) (Pconst x).
+
 Definition is_cmp_const (ty: cmp_kind) (e: pexpr) : option Z :=
   match ty with
   | Cmp_int => is_const e
@@ -350,7 +352,7 @@ Definition const v :=
   | Cbool b => Pbool b
   | Cint z  => Pconst z
   | Cword sz z => wconst z
-  | Cfull_init l => Pbarr_init (Pconst 1) l
+  | Cfull_init l => Parr_init_elem (int_to_w 1 U8) l
   end.
 
 Definition globals : Type := option (var → option glob_value).
@@ -463,9 +465,9 @@ Fixpoint const_prop_e (m:cpm) e  :=
      let e2 := const_prop_e m e2 in
      Pis_mem_init e1 e2
    
-   | Pbarr_init e l => 
+   | Parr_init_elem e l => 
      let e := const_prop_e m e in
-     Pbarr_init e l
+     Parr_init_elem e l
   
   end.
 
@@ -625,7 +627,7 @@ if rv is Lvar x then
       let sz := cmp_min szty szx in
       let w := Cword (wrepr sz z) in
       Mvar.set m x w
-    | Pbarr_init (Pconst 1) l =>
+    | Parr_init_elem (Papp1 (Oword_of_int U8) (Pconst 1)) l =>
         Mvar.set m x (Cfull_init l)
     | _ => m
     end
@@ -655,18 +657,24 @@ Section GLOBALS.
 
 Context (gd: glob_decls).
 
-Fixpoint translate_vars_contract (p:seq var_i) (p':seq var_i) (m:cpm) : cpm :=
+Definition get_arr_lvar lv :=
+  match lv with
+  | Lvar {|v_var:={|vtype:=sarr _|}|} => Some lv
+  | _ => None
+  end.
+
+Fixpoint translate_vars_ccall (p:seq var_i) (p': lvals) (m:cpm) : cpm :=
   match p, p' with
   | x::p, x'::p' =>
-    if Mvar.get m x is Some n then
-      translate_vars_contract p p' (Mvar.set m x' n)
-    else
-      translate_vars_contract p p' m
+    match Mvar.get m x, get_arr_lvar x' with
+    | Some n, Some (Lvar x') => translate_vars_ccall p p' (Mvar.set m x' n)
+    | _ , _ => translate_vars_ccall p p' m
+    end
   | _ , _ => m
 end.
 
-Fixpoint const_prop_ir with_globals without_globals cpf  (m:cpm) ii (ir:instr_r) : cpm * cmd :=
-  let const_prop_i :=  const_prop_i with_globals without_globals cpf  in
+Fixpoint const_prop_ir with_globals without_globals cpf gc (m:cpm) ii (ir:instr_r) : cpm * cmd :=
+  let const_prop_i :=  const_prop_i with_globals without_globals cpf gc in
   match ir with
 
   | Cassgn x tag ty e =>
@@ -755,13 +763,21 @@ Fixpoint const_prop_ir with_globals without_globals cpf  (m:cpm) ii (ir:instr_r)
   | Ccall xs f es =>
     let es := map (const_prop_e without_globals m) es in
     let (m,xs) := const_prop_rvs without_globals m xs in
+    let m:= match gc f with
+    | Some contra =>
+      foldl (fun m pc => 
+        let (m,_) := const_prop_e_assert without_globals m pc.2 in
+        translate_vars_ccall contra.(f_ires) xs m
+      ) m contra.(f_post)
+    | None => m
+    end in
     (m, [:: MkI ii (Ccall xs f es) ])
 
   end
 
-with const_prop_i with_globals without_globals cpf  (m:cpm) (i:instr) : cpm * cmd :=
+with const_prop_i with_globals without_globals cpf gc (m:cpm) (i:instr) : cpm * cmd :=
   let (ii,ir) := i in
-  const_prop_ir with_globals without_globals cpf  m ii ir.
+  const_prop_ir with_globals without_globals cpf gc m ii ir.
 
 End GLOBALS.
 
@@ -771,16 +787,15 @@ Context {pT: progT}.
 
 Let with_globals_cl (gd: glob_decls) : globals := Some (assoc gd).
 
-Definition const_prop_ci without_globals ci :=
-  let ci_pre := map (fun c =>
-                        let truc := const_prop_e without_globals empty_cpm (snd c) in
-                        (fst c, truc)) ci.(f_pre)
-  in
-  let ci_post := map (fun c =>
-                        let truc := const_prop_e without_globals empty_cpm (snd c) in
-                        (fst c, truc)) ci.(f_post)
-  in
-  MkContra ci.(f_iparams) ci.(f_ires) ci_pre ci_post.
+Fixpoint translate_vars_contract (p:seq var_i) (p':seq var_i) (m:cpm) : cpm :=
+  match p, p' with
+  | x::p, x'::p' =>
+    if Mvar.get m x is Some n then
+      translate_vars_contract p p' (Mvar.set m x' n)
+    else
+      translate_vars_contract p p' m
+  | _ , _ => m
+end.
 
 
 Definition const_prop_pre without_globals (f:fundef) (ci:fun_contract) :=
@@ -794,37 +809,80 @@ Definition const_prop_pre without_globals (f:fundef) (ci:fun_contract) :=
   let ci := MkContra ci.(f_iparams) ci.(f_ires) ci_pre ci.(f_post) in
   (m,Some ci).
 
+Fixpoint get_var_contract (v: var_i) (vs: seq var_i) (vs': seq var_i) : option var_i :=
+  match vs, vs' with
+    | x::vs, x'::vs' =>
+      if var_beq v x then Some x' else get_var_contract v vs vs'
+    | _, _ => None
+  end.
+
+Fixpoint const_prop_epost without_globals (m:cpm) (e:pexpr) (f:fundef) (ci:fun_contract) :=
+  match e with
+  | Papp1 o e     => 
+    if o is Onot then [::]
+    else const_prop_epost without_globals m e f ci
+  | Papp2 o e1 e2 => 
+    if o is Oand then const_prop_epost without_globals m e1 f ci ++ const_prop_epost without_globals m e2 f ci
+    else [::]
+  | Pif t e e1 e2 =>
+    let e := const_prop_e without_globals m e in
+    let eb1 := const_prop_epost without_globals m e1 f ci in
+    let eb2 := const_prop_epost without_globals m e2 f ci in
+    match is_bool e with
+    | Some b =>
+      if b then eb1 else eb2
+    | None => [::]
+    end
+  | Pis_barr_init x e1 e2 => 
+    if Mvar.get m x is Some (Cfull_init n) then
+      if get_var_contract x ci.(f_ires) f.(f_res) is Some x' then
+        [:: MkI dummy_instr_info (Cassgn x' AT_inline (sarr n) (const (Cfull_init n)))]
+      else [::]
+    else [::]
+  | _ => [::]
+  end.
+
 Definition const_prop_post without_globals (m:cpm) (f:fundef) (ci:fun_contract) :=
   (*translate both the params and return vars to the contract variables*)
   let m := translate_vars_contract f.(f_params) ci.(f_iparams) m in
   let m := translate_vars_contract f.(f_res) ci.(f_ires) m in
-  let (extra_body,ci_post) := foldl (fun (acc: cmd * seq (assertion_prover * pexpr)) (e:assertion_prover * pexpr)  =>
-    let (extra_body,es) := acc in
+  let ci_post := map (fun (p:assertion_prover * pexpr) =>
+    let (ap,e) := p in
+    (ap,const_prop_e without_globals empty_cpm e)
+  ) ci.(f_post) in
+  let extra_body := foldl (fun (eb: cmd) (e:assertion_prover * pexpr)  =>
     let (ap,e) := e in
-    let (_,e) := const_prop_e_assert without_globals m e in
-    (extra_body,es ++ [::(ap,e)])
-  ) ([::],[::])  ci.(f_post) in
+    let eb' := const_prop_epost without_globals m e f ci in
+    eb ++ eb'
+  )  [::] ci_post in
   let ci := MkContra ci.(f_iparams) ci.(f_ires) ci.(f_pre) ci_post in
-  (extra_body,Some ci ).
+  (extra_body,Some ci).
 
-Definition const_prop_fun (gd: glob_decls) cpf  (f: fundef) :=
+Definition get_fun_contract (p: prog) (fn: funname) : option fun_contract :=
+  let f := List.find (fun f => f.1 == fn) p.(p_funcs) in
+  if f is Some f then
+    f.2.(f_contra)
+  else None.
+
+
+Definition const_prop_fun (gd: glob_decls) cpf gc (f: fundef) :=
   let with_globals := if cl then (fun _ _ => with_globals_cl gd) else with_globals in
   let without_globals := if cl then with_globals_cl gd else without_globals in
   let 'MkFun ii ci si p c so r ev := f in
   let ci := Option.map (const_prop_pre without_globals f) ci in
   let (m,ci) := if ci is Some ci then ci else (empty_cpm, None) in
-  let mc := const_prop (const_prop_i gd with_globals without_globals cpf ) m c in
-  (*FIXME - receives the current state but does not replace, only adds intructions to the body*)
-  let ci := Option.map (const_prop_post without_globals empty_cpm f) ci in
+  let mc := const_prop (const_prop_i gd with_globals without_globals cpf gc) m c in
+  let ci := Option.map (const_prop_post without_globals mc.1 f) ci in
   let (extra_body,ci) := if ci is Some ci then ci else ([::],None) in
-  let c:= c ++ extra_body in
-  MkFun ii ci si p mc.2 so r ev.
+  let c:= mc.2 ++ extra_body in
+  MkFun ii ci si p c so r ev.
   
 (* cpf is a function that indicates what should be propagated,
 receiving the paraments of the Cassgn (with the exception of the type)
 and returning a bool that indicates whether to propagate or not*)
 Definition const_prop_prog_fun (p:prog) (cpf:lval -> assgn_tag -> pexpr -> bool) : prog :=
-  map_prog (const_prop_fun p.(p_globs) cpf ) p.
+  let gc := get_fun_contract p in
+  map_prog (const_prop_fun p.(p_globs) cpf gc) p.
 
 
 Definition const_prop_prog (p:prog) : prog :=

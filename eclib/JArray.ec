@@ -20,6 +20,9 @@ abstract theory MonoArray.
 
   op init : (int -> elem) -> t.
 
+  op init_arr (b : elem) (l:int) : t =
+    init (fun _ => b).
+
   axiom get_out (t:t) i : !(0 <= i < size) => t.[i] = dfl.
 
   axiom initE (f:int -> elem) i :

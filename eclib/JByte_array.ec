@@ -19,12 +19,16 @@ abstract theory ByteArray.
 
   abbrev [-printing] of_list8 = of_list.
 
+  axiom init_arrP (t:t) (l:int) : t = init_arr W8.one l <=> is_init t 0 l.
+
   abstract theory WSB.
     type B.
     op r : int.
     op _zero : B.
     op _of_list : W8.t list -> B.
     op (\bits8) : B -> int -> W8.t.
+
+
 
     axiom _gt0_r : 0 < r.
     axiom _nth_of_list (l: W8.t list) k :
@@ -260,6 +264,13 @@ abstract theory SubByteArray.
 
   op set_sub (a:Abig.t) (i:int) (s:Asmall.t) =
     Abig.fill (fun k => Asmall.get8 s (k - i)) i Asmall.size a.
+
+  axiom is_init_cell_get (t: Abig.t) (i j: int):
+    (Asmall.is_init_cell (get_sub t j) i)  = Abig.is_init_cell t (j+i).
+  
+  axiom is_init_cell_set  (t1: Abig.t) (t2: Asmall.t) (i j:int):
+    Abig.is_init_cell(set_sub t1 i t2) j =
+    (i <= j  < (Asmall.size+i) => Asmall.is_init_cell t2 (j-i) /\ ((j < i \/ (i+Asmall.size) <=j ) => Abig.is_init_cell t1 j)).
 
   abbrev [-printing] get_sub8   a i = get_sub a       i.
   abbrev [-printing] get_sub16  a i = get_sub a ( 2 * i).

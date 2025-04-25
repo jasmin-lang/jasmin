@@ -36,7 +36,7 @@ let pp_ge pp_len pp_var =
   | Pconst i    -> Z.pp_print fmt i
   | Pbool  b    -> F.fprintf fmt "%b" b
   | Parr_init _ -> assert false (* This case is handled in pp_gi *)
-  | Pbarr_init (e,n) -> 
+  | Parr_init_elem (e,n) -> 
     F.fprintf fmt "ArrayInit(%a, %a)"
       pp_expr e pp_len n
   | Pvar v      -> pp_gvar fmt v

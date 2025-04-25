@@ -23,7 +23,7 @@ type 'len gexpr =
   | Pconst of Z.t
   | Pbool  of bool
   | Parr_init of 'len
-  | Pbarr_init of 'len gexpr * 'len
+  | Parr_init_elem of 'len gexpr * 'len
   | Pvar   of 'len ggvar
   | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr
@@ -261,7 +261,7 @@ let rvars_v f x s =
 
 let rec rvars_e f s = function
   | Pconst _ | Pbool _ | Parr_init _ -> s
-  | Pbarr_init (e,_) -> rvars_e f s e
+  | Parr_init_elem (e,_) -> rvars_e f s e
   | Pvar x         -> rvars_v f x s
   | Pget(_,_,_,x,e) | Psub (_, _, _, x, e) -> rvars_e f (rvars_v f x s) e
   | Pload(_,_,x,e)   -> rvars_e f (f (L.unloc x) s) e

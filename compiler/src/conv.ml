@@ -88,7 +88,7 @@ let rec cexpr_of_expr = function
   | Pconst z          -> C.Pconst (cz_of_z z)
   | Pbool  b          -> C.Pbool  b
   | Parr_init n       -> C.Parr_init (pos_of_int n)
-  | Pbarr_init (e,n)     -> C.Pbarr_init (cexpr_of_expr e ,pos_of_int n)
+  | Parr_init_elem (e,n)     -> C.Parr_init_elem (cexpr_of_expr e ,pos_of_int n)
   | Pvar x            -> C.Pvar (cgvari_of_gvari x)
   | Pget (al, aa,ws, x,e) -> C.Pget (al, aa, ws, cgvari_of_gvari x, cexpr_of_expr e)
   | Psub (aa,ws,len, x,e) -> 
@@ -112,7 +112,7 @@ let rec expr_of_cexpr = function
   | C.Pconst z          -> Pconst (z_of_cz z)
   | C.Pbool  b          -> Pbool  b
   | C.Parr_init n       -> Parr_init (int_of_pos n)
-  | C.Pbarr_init (e,n)      -> Pbarr_init (expr_of_cexpr e,int_of_pos n)
+  | C.Parr_init_elem (e,n)      -> Parr_init_elem (expr_of_cexpr e,int_of_pos n)
   | C.Pvar x            -> Pvar (gvari_of_cgvari x)
   | C.Pget (al, aa,ws, x,e) -> Pget (al, aa, ws, gvari_of_cgvari x, expr_of_cexpr e)
   | C.Psub (aa,ws,len,x,e) -> Psub (aa, ws, int_of_pos len, gvari_of_cgvari x, expr_of_cexpr e)

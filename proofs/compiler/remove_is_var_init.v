@@ -3,6 +3,7 @@ Require Import safety_cond.
 Require Import constant_prop.
 Require Import flag_combination.
 Require Import dead_code.
+Require Import compiler_util.
 Require Import operators.
 
 
@@ -118,7 +119,7 @@ Definition assign_arr_bvar (ii:instr_info) (lv: lval) (t:stype) (e:pexpr)  : cmd
       match e with
       | Pvar x' =>
             let e :=
-              if is_glob x' then Pbarr_init (Pconst 1) n 
+              if is_glob x' then Parr_init_elem (int_to_w 1 U8) n 
               else
                 let x' := x'.(gv) in
                 Plvar(var_i_to_bvar x')
@@ -126,7 +127,7 @@ Definition assign_arr_bvar (ii:instr_info) (lv: lval) (t:stype) (e:pexpr)  : cmd
             [:: instrr_to_instr ii (Cassgn lv AT_inline t e)]
       | Psub aa ws len x' i =>
             let e := 
-              if is_glob x' then Pbarr_init (Pconst 1) n
+              if is_glob x' then Parr_init_elem (int_to_w 1 U8) n
               else
                 let x' := x'.(gv) in
                 let x' := Plvar (var_i_to_bvar x') in
@@ -177,22 +178,32 @@ Fixpoint rm_var_init_i (i : instr) : cmd :=
   | Ccall lvs n es => 
     let lvs :=  foldl (fun acc lv => 
         match lv with
-        | Lvar x => 
-           if not_array x.(v_var) then
-             acc ++ [:: lv]
-           else
-             acc ++ [:: lv; Lvar (var_i_to_bvar x)]
-         | _ => acc ++ [:: lv]
-        end
+          | Lnone _ (sarr _)  => 
+            acc ++ [:: lv;lv]
+          | Lvar x => 
+             if not_array x.(v_var) then
+               acc ++ [:: lv]
+             else
+               acc ++ [:: lv; Lvar (var_i_to_bvar x)]
+          | Lasub aa ws len x i =>
+            let x := var_i_to_bvar x in
+            let blv := Lasub aa ws len x i in
+            acc ++ [:: lv; blv]
+          | _ => acc ++ [:: lv]
+          end
     ) [::] lvs in
     let es := foldl (fun acc e => 
         match e with
-         | Pvar x => 
-            if not_array x.(gv).(v_var) then
-              acc ++ [:: e]
-            else
-              acc ++ [:: e; Plvar (var_i_to_bvar x.(gv))]
-          | _ => acc ++ [:: e]
+        | Pvar x => 
+          if not_array x.(gv).(v_var) then
+            acc ++ [:: e]
+          else
+            acc ++ [:: e; Plvar (var_i_to_bvar x.(gv))]
+        | Psub aa ws len x i =>
+          let x := Plvar (var_i_to_bvar x.(gv)) in
+          let be := Psub aa ws len x i in
+          acc ++ [:: e; be]
+        | _ => acc ++ [:: e]
         end
     ) [::] es in
     let i := instrr_to_instr ii (Ccall lvs n es) in
@@ -221,7 +232,7 @@ Fixpoint rm_var_init_i (i : instr) : cmd :=
 
 Definition rm_var_init_cmd (c : cmd) : cmd := conc_map rm_var_init_i c.
 
-Definition add_barray_fun_decl (f:_ufundef) :=
+Definition add_barray_fun_decl (f:ufundef) :=
   let tyin := foldl (fun acc x => 
       match x with
         | sarr n => acc ++ [:: x; x]
@@ -262,7 +273,7 @@ Definition create_new_var (x:var_i) :=
 Definition generate_new_vars (x:seq var_i) : seq var_i :=
   map create_new_var x.
 
-Definition generate_fun_contra_array (f:_ufundef) : fun_contract :=
+Definition generate_fun_contra_array (f:ufundef) : fun_contract :=
   let iparams := generate_new_vars f.(f_params) in
   let ires := generate_new_vars f.(f_res) in
   let aux l tl := flatten(map2 (fun x ty =>
@@ -281,7 +292,7 @@ Definition generate_fun_contra_array (f:_ufundef) : fun_contract :=
     f_post    := post
   |}.
 
-Definition add_default_contra (f:_ufundef): option fun_contract :=
+Definition add_default_contra (f:ufundef): option fun_contract :=
   match f.(f_contra) with
     | None =>
       let without_array := all (fun t => 
@@ -299,7 +310,7 @@ Definition add_default_contra (f:_ufundef): option fun_contract :=
 
 (* Update the function contract if there are arrays in the input or output types *)
 
-Definition update_fun_contra (f:_ufundef) fc: option fun_contract :=
+Definition update_fun_contra (f:ufundef) fc: option fun_contract :=
   match fc with
     | None => None
     | Some c => 
@@ -332,7 +343,7 @@ Definition update_fun_contra (f:_ufundef) fc: option fun_contract :=
 
 
 (* Remove is_var_init and then use constant prop to remove trivial assertions *)
-Definition rm_var_init_f (f:ufundef): _ufundef :=
+Definition rm_var_init_f (f:ufundef): ufundef :=
   let body := rm_var_init_cmd f.(f_body) in
   let X := Sv.elements (vars_fd f) in
   let args_varsL := vars_l f.(f_params) in
@@ -357,7 +368,7 @@ Definition rm_var_init_f (f:ufundef): _ufundef :=
             match arr_size v with
             | Error _ => [::]
             | Ok sz =>
-              let e:= Pbarr_init (Pconst 0) (sz) in
+              let e:= Parr_init_elem (int_to_w 0 U8) (sz) in
               assign_bvar_e ii e v
             end
       ) X
@@ -373,23 +384,15 @@ Definition rm_var_init_f (f:ufundef): _ufundef :=
     f_extra  := f.(f_extra) ;
   |}.
 
-Definition rm_var_init_prog (p:_uprog) : uprog :=
-  let sc_funcs := map (fun f => 
-    match f with
-     |(fn,fd) => (fn,(rm_var_init_f fd))
-    end
-  ) p.(p_funcs) in
-  {| p_globs := p.(p_globs) ;
-     p_funcs := sc_funcs ;
-     p_abstr := p.(p_abstr) ;
-     p_extra := p.(p_extra) ;
-  |}.
+(* Remove is_var_init and then use constant prop to remove trivial assertions *)
+
+Definition rm_var_init_prog (p:uprog) : uprog :=
+  map_prog rm_var_init_f p.
 
 Definition all_b_vars vars := Sv.fold (fun x acc => Sv.add (B x) acc) vars Sv.empty.
 
 (* Remove is_var_init and then use constant prop to remove trivial assertions *)
-Definition rm_var_init_prog_prop (p: _uprog) : uprog :=
-  let p := rm_var_init_prog p in
+Definition rm_var_init_const_prop (p: uprog) : uprog :=
   let bX := all_b_vars(vars_p (p_funcs p)) in
   (* Function for const_prop to only propagate the B variables *)
   let fun_cp := fun lv _ _ =>
@@ -402,8 +405,7 @@ Definition rm_var_init_prog_prop (p: _uprog) : uprog :=
   const_prop_prog_fun false p fun_cp
 .
 
-Definition rm_var_init_prog_dc (p: _uprog) : _uprog :=
-  let p:prog := rm_var_init_prog_prop p in
+Definition rm_var_init_dc (p: uprog) : uprog :=
   match dead_code_prog is_move_op p false with
     | Ok p => p
     | Error e => p

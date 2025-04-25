@@ -20,6 +20,7 @@ type 'len gexpr =
   | Pconst of Z.t
   | Pbool  of bool
   | Parr_init of 'len
+  | Parr_init_elem of 'len gexpr * 'len
   | Pvar   of 'len ggvar
   | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr
@@ -31,6 +32,7 @@ type 'len gexpr =
   | Pbig   of 'len gexpr * sop2 * 'len gvar_i * 'len gexpr * 'len gexpr * 'len gexpr
   | Pis_var_init of 'len gvar_i
   | Pis_arr_init of 'len gvar_i * 'len gexpr * 'len gexpr
+  | Pis_barr_init of 'len gvar_i * 'len gexpr * 'len gexpr
   | Pis_mem_init of 'len gexpr * 'len gexpr
 
 type 'len gexprs = 'len gexpr list

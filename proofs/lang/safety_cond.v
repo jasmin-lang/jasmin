@@ -5,7 +5,7 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 (* Require Export psem. *)
-Require Import expr.
+Require Import expr compiler_util.
 
 Import Utf8.
 
@@ -325,7 +325,7 @@ Definition safe_cond_to_e vs sc: pexpr :=
 
 Fixpoint sc_e (e : pexpr) : seq pexpr :=
   match e with
-  | Pconst _ | Pbool _  | Parr_init _ | Pbarr_init _ _ => [::]
+  | Pconst _ | Pbool _  | Parr_init _ | Parr_init_elem _ _ => [::]
   | Pvar x => sc_gvar_init x
   | Pget al aa ws x e =>
     let sce := sc_e e in
@@ -455,7 +455,7 @@ Fixpoint sc_instr (i : instr) : cmd :=
 
 Definition sc_cmd (c : cmd) : cmd := conc_map sc_instr c.
 
-Definition sc_func (f:_ufundef): _ufundef :=
+Definition sc_func (f:ufundef): ufundef :=
   let sc_body := sc_cmd f.(f_body) in
   let es := conc_map (fun e => sc_var_init e) f.(f_res) in
   let sc_res := sc_e_to_instr es dummy_instr_info  in
@@ -471,16 +471,8 @@ Definition sc_func (f:_ufundef): _ufundef :=
     f_extra  := f.(f_extra) ;
   |}.
 
-Definition sc_prog (p:_uprog) : _uprog :=
-  let sc_funcs := map (fun f => 
-    match f with
-     |(fn,fd) => (fn,(sc_func fd))
-    end) p.(p_funcs) in
-  {| p_globs := p.(p_globs) ;
-     p_funcs := sc_funcs ;
-     p_abstr := p.(p_abstr) ;
-     p_extra := p.(p_extra) ;
-  |}.
+Definition sc_prog (p:uprog) : uprog :=
+  map_prog sc_func p.
   
   
 End ASM_OP.

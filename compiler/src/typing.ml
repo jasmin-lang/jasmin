@@ -86,7 +86,7 @@ let rec ty_expr pd loc (e:expr) =
   | Pconst _    -> tint
   | Pbool _  |Pis_var_init _ | Pis_arr_init _ | Pis_barr_init _ | Pis_mem_init _ -> tbool
   | Parr_init len -> Arr (U8, len)
-  | Pbarr_init (_,len) -> Arr (U8, len)
+  | Parr_init_elem (_,len) -> Arr (U8, len)
   | Pvar x      -> ty_gvar x 
   | Pget(_al, _aa,ws,x,e) ->
     ty_get_set pd loc ws x e

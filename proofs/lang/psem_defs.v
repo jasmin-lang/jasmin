@@ -147,7 +147,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
   | Parr_init n => ok (Varr (WArray.empty n))
-  | Pbarr_init e n => 
+  | Parr_init_elem e n => 
     Let x := sem_pexpr s e >>= to_word U8 in
     Let t := WArray.fill_elem n x in
     ok (Varr t)
