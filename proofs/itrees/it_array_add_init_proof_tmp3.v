@@ -371,8 +371,6 @@ Lemma isem_cmd_append_eutt1 cc1 cc2 cc3 :
   intros; reflexivity.
 Qed.
 
-Locate "\in".
-
 Lemma str_in_list_pres (P: Sv.elt -> Prop) (a: Sv.elt) (ls: seq Sv.elt) :
   (forall x: Sv.elt, x \in a :: ls -> P x) ->
   (forall x: Sv.elt, x \in ls -> P x).
@@ -510,11 +508,11 @@ Proof.
 
   { eapply xrutt_Ret; auto. }
 
-  (* PROBLEMATIC: we need a bind in the second term, and there could be! *)
+  (* PROBLEMATIC: we need a bind in the second term - and actually
+  there could be one... *)
 
 Admitted.   
 
-Check @fundef_add_init_fd_rel.
 
 Lemma it_add_init_fdP fn : (* scs mem scs' mem' va vr: *)
   wiequiv_f p (add_init_prog p) ev ev
