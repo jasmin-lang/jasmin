@@ -337,6 +337,7 @@ Proof.
   rewrite IH; rewrite <- List.app_assoc; reflexivity.
 Qed.  
 
+(* actually problematic, because of state *)
 Lemma isem_cmd_append_eutt cc1 cc2 cc3 cc4 :
   (forall s0, @eutt
            (Sum.sum1 (@recCall asm_op syscall_state ep sip) E)
@@ -381,6 +382,7 @@ Lemma str_in_list_pres (P: Sv.elt -> Prop) (a: Sv.elt) (ls: seq Sv.elt) :
   apply H; auto.
 Qed.  
 
+(* too strong *)
 Lemma add_init_skip i ii1 p0 vname0 (s0 : estate) :
     isem_cmd_ p ev [:: i] s0
     ≈ isem_cmd_ p ev
