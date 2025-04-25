@@ -381,6 +381,13 @@ Lemma str_in_list_pres (P: Sv.elt -> Prop) (a: Sv.elt) (ls: seq Sv.elt) :
   apply H; auto.
 Qed.  
 
+Lemma add_init_skip i ii1 p0 vname0 (s0 : estate) :
+    isem_cmd_ p ev [:: i] s0
+    ≈ isem_cmd_ p ev
+        (add_init_core ii1 {| vtype := sarr p0; vname := vname0 |} ++ [:: i])
+        s0.
+Admitted. 
+
 Lemma instr_add_init_lemma f1 f2 s1 s2 
   (Hyp0 : fundef_add_init_fd_rel f1 f2)
   (Hyp1 : estate_uincl s1 s2) I X i ii1 :
@@ -418,7 +425,7 @@ Proof.
   }
     
   { intros i ii1 s1 H H0 H1; simpl.
-    destruct a.
+    destruct a as [vtype0 vname0].
     destruct vtype0; simpl.
     { eapply IHels; eauto.
       eapply str_in_list_pres; eauto. }
@@ -466,7 +473,8 @@ Proof.
                   (add_init_core ii1
                   {| vtype := sarr p0; vname := vname0 |} ++ [:: i]) s0)
           ) as G2.
-        { admit. } (* STILL TODO, SHOULD BE OK *)
+          { admit. } 
+          (*  eapply (add_init_skip i ii1 p0 vname0); eauto. } *)
         
         assert (@eutt (Sum.sum1 (@recCall asm_op syscall_state ep sip) E)
            (@estate wsw syscall_state ep) (@estate wsw syscall_state ep)
