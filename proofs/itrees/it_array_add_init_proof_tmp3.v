@@ -509,18 +509,98 @@ Proof.
   unfold add_init_fd in Hyp0; simpl in *.
   dependent destruction Hyp0.
   rename f_body into cc.
-  unfold isem_cmd_.
+ (*  unfold isem_cmd_. *)
 
   revert s1 s2 Hyp1.
   induction cc; simpl; intros.
 
   { eapply xrutt_Ret; auto. }
 
+  remember (add_init_i (vrvs [seq (Lvar i) | i <- f_params]) a) as i1.
+  destruct i1; simpl.
+  remember (add_init_c add_init_i t cc) as cc1.
+  destruct cc1; simpl.
+  setoid_rewrite isem_cmd_cat.
+
+  (* the one on the left is not the right bind; it should include the
+  analysis, instead it just covers the program state *)
+  eapply xrutt_bind.
+                                                                
   (* PROBLEMATIC: we need a bind in the second term - and actually
   there could be one... *)
 
-Admitted.   
+Abort.   
 
+Lemma rec_add_init_lemma f1 f2 s1 s2 
+  (Hyp0 : fundef_add_init_fd_rel f1 f2)
+  (Hyp1 : estate_uincl s1 s2) :
+  xrutt (EE_MR (core_logics.errcutoff (is_error wE)) (D:=recCall))
+    (EE_MR core_logics.nocutoff (D:=recCall))
+    (HeterogeneousRelations.sum_prerel RecPreRel EPreRel)
+    (HeterogeneousRelations.sum_postrel RecPostRel EPostRel) estate_uincl
+    (isem_cmd_ p ev (f_body f1) s1)
+    (isem_cmd_ (map_prog add_init_fd p) ev (f_body f2) s2).
+Proof.
+(*  unfold isem_cmd_, isem_foldr; simpl. *)
+  destruct f1, f2; simpl in *.
+  unfold fundef_add_init_fd_rel in Hyp0; simpl in *.
+  unfold add_init_fd in Hyp0; simpl in *.
+  dependent destruction Hyp0; simpl.
+
+  remember (vrvs [seq (Lvar i) | i <- f_params]) as vs.
+  clear Heqvs.
+  
+  revert s1 s2 vs Hyp1. 
+
+  set Pi := fun (i: instr) =>
+    forall s1 s2 vs, estate_uincl s1 s2 ->
+    xrutt (EE_MR (core_logics.errcutoff (is_error wE)) (D:=recCall))
+    (EE_MR core_logics.nocutoff (D:=recCall))
+    (HeterogeneousRelations.sum_prerel RecPreRel EPreRel)
+    (HeterogeneousRelations.sum_postrel RecPostRel EPostRel) estate_uincl
+    (isem_i_body p ev i s1) (isem_cmd_ (map_prog add_init_fd p) ev
+     (add_init_i vs i).1 s2).
+  set Pr := fun (i:instr_r) => forall ii, Pi (MkI ii i).
+  set Pc := fun (c: cmd) =>
+    forall s1 s2 vs, estate_uincl s1 s2 ->
+    xrutt (EE_MR (core_logics.errcutoff (is_error wE)) (D:=recCall))
+    (EE_MR core_logics.nocutoff (D:=recCall))
+    (HeterogeneousRelations.sum_prerel RecPreRel EPreRel)
+    (HeterogeneousRelations.sum_postrel RecPostRel EPostRel) estate_uincl
+    (isem_cmd_ p ev c s1)
+    (isem_cmd_ (map_prog add_init_fd p) ev
+       (add_init_c add_init_i vs c).1 s2).
+  eapply (cmd_rect (Pr := Pr) (Pi:=Pi) (Pc:=Pc)).
+  { intros; eauto. }
+  { subst Pc; simpl; intros. eapply xrutt_Ret; eauto. }
+  { subst Pc; simpl; intros.
+    remember (add_init_i vs i) as ar1.
+    destruct ar1 as [cc1 X1]; simpl.
+    remember (add_init_c add_init_i X1 c) as ar2.
+    destruct ar2 as [cc2 X2]; simpl.
+    setoid_rewrite isem_cmd_cat.
+    eapply xrutt_bind with (RR := estate_uincl).
+    { have Pi1 : (Pi i) by eauto.
+      specialize (Pi1 s1 s2 vs H1).
+      rewrite <- Heqar1 in Pi1; simpl; auto. }
+    { intros s3 s4 H2.
+      specialize (H0 s3 s4 X1 H2).
+      rewrite <- Heqar2 in H0; simpl in *; auto.
+    }
+  }
+
+  { subst Pr Pi; simpl; intros.
+    admit.
+  }
+
+  admit.
+  admit.
+  admit.
+  admit.
+  admit.                     
+  admit.    
+
+Admitted.   
 
 Lemma it_add_init_fdP fn : (* scs mem scs' mem' va vr: *)
   wiequiv_f p (add_init_prog p) ev ev
@@ -596,8 +676,6 @@ Proof.
     }
   }   
 Qed.
-
-
 
 
 

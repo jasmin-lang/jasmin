@@ -434,11 +434,7 @@ Proof.
       }
     }
   }   
-Qed.
-
-
-
-
+Admitted.
 
 
 Lemma estate_uincl_Prsrv_upd_estate s1 s2 fs1 fs2 xs :
