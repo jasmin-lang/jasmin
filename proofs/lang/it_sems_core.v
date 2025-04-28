@@ -353,6 +353,80 @@ Definition isem_fun_body (p : prog) (ev : extra_val_t)
    s2 <- isem_cmd_ p ev fd.(f_body) s1;;
    iresult s2 (finalize_funcall fd s2).
 
+(* A variant of the semantic based on exec, usefull for the proofs *)
+Fixpoint esem_i (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
+    exec estate :=
+  let: (MkI ii i) := i in
+  match i with
+  | Cassgn x tg ty e => sem_assgn p x tg ty e s
+
+  | Copn xs tg o es => sem_sopn (p_globs p) o s xs es
+
+  | Csyscall xs o es => sem_syscall p xs o es s
+
+  | Cif e c1 c2 =>
+    Let b := sem_cond (p_globs p) e s in
+    foldM (esem_i p ev) s (if b then c1 else c2)
+
+  | Cwhile a c1 e i c2 => Error ErrSemUndef
+
+  | Cfor i (d, lo, hi) c =>
+    Let bounds := sem_bound (p_globs p) lo hi s in
+    foldM (fun j s =>
+      Let s := write_var true i (Vint j) s in
+      foldM (esem_i p ev) s c)
+     s (wrange d bounds.1 bounds.2)
+
+  | Ccall xs fn args => Error ErrSemUndef
+  end.
+
+Definition esem (p : prog) (ev : extra_val_t) (c : cmd) (s : estate) :=
+  foldM (esem_i p ev) s c.
+
+Definition esem_for p ev i c :=
+  foldM (fun j s =>
+      Let s := write_var true i (Vint j) s in
+      foldM (esem_i p ev) s c).
+
+Lemma esem_i_bodyP p ev c s s' :
+  esem p ev c s = ok s' -> isem_cmd_ p ev c s ≈ iresult s (ok s').
+Proof.
+  set Pi := fun i => forall s s', esem_i p ev i s = ok s' -> isem_i_body p ev i s ≈ iresult s (ok s').
+  set Pi_r := fun i => forall ii, Pi (MkI ii i).
+  set Pc := fun c => forall s s', foldM (esem_i p ev) s c = ok s' -> isem_cmd_ p ev c s ≈ iresult s (ok s').
+  apply (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) => {s s' c} //.
+  + move=> > /= [<-]; reflexivity.
+  + by move=> i c hi hc s s' /=; t_xrbindP => s1 /hi ->; rewrite bind_ret_l; apply hc.
+  1-3: move=> > /= -> /=; reflexivity.
+  + move=> > hc1 hc2 ii s s' /=.
+    rewrite /isem_cond; t_xrbindP => b -> /=.
+    by rewrite bind_ret_l; case: b; [apply hc1 | apply hc2].
+  move=> i d lo hi c hc ii s s' /=.
+  rewrite /isem_bound; t_xrbindP => bound -> /=.
+  rewrite bind_ret_l.
+  elim: wrange s => {bound} => /= [ | j js hrec] s.
+  + move=> [<-]; reflexivity.
+  t_xrbindP => s1 s2 hw /hc{}hc /hrec{}hrec.
+  rewrite /isem_for_round /= /iwrite_var hw /= bind_ret_l.
+  by move: hc; rewrite /isem_cmd_ => -> /=; rewrite bind_ret_l.
+Qed.
+
+Lemma esem_cat p ev c1 c2 s : esem p ev (c1 ++ c2) s = Let s1 := esem p ev c1 s in esem p ev c2 s1.
+Proof. by rewrite /esem foldM_cat. Qed.
+
+Lemma esem_cons p ev i c s : esem p ev (i :: c) s = Let s1 := esem_i p ev i s in esem p ev c s1.
+Proof. done. Qed.
+
+Lemma esem_c_nil p ev s : esem p ev [::] s = ok s.
+Proof. done. Qed.
+
+Lemma eEForOne p ev s1 s1' s2 s3 i w ws c :
+  write_var true i (Vint w) s1 = ok s1' ->
+  esem p ev c s1' = ok s2 ->
+  esem_for p ev i c s2 ws = ok s3 ->
+  esem_for p ev i c s1 (w :: ws) = ok s3.
+Proof. by rewrite /esem => /= -> /= -> /=. Qed.
+
 End SEM_I.
 
 (*** error-aware interpreter with recursion ***************************)

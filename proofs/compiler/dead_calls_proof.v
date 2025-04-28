@@ -198,6 +198,8 @@ Section PROOF.
     rewrite /def_incl; intuition SfD.fsetdec.
   Qed.
 
+  Section SEM.
+
   Let Pi s (i:instr) s' :=
     def_incl (i_Calls i) -> sem_I p' ev s i s'.
 
@@ -345,6 +347,68 @@ Section PROOF.
     move => ??; SfD.fsetdec.
   Qed.
 
+  End SEM.
+
+  Section IT.
+
+  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+
+  Definition dc_spec :=
+   {|
+     rpreF_ := λ (fn1 fn2 : funname) (fs1 fs2 : fstate), [/\ fn1 = fn2, fs1 = fs2 & Sf.In fn1 K] ;
+     rpostF_ := λ (_ _ : funname) (_ _ fr1 fr2 : fstate), fr1 = fr2
+  |}.
+
+  Let Pi (i:instr) :=
+    def_incl (i_Calls i) ->
+    wequiv_rec p p' ev ev dc_spec (st_eq tt) [::i] [::i] (st_eq tt).
+
+  Let Pi_r i := forall ii, Pi (MkI ii i).
+
+  Let Pc (c:cmd) :=
+    def_incl (c_Calls c) ->
+    wequiv_rec p p' ev ev dc_spec (st_eq tt) c c (st_eq tt).
+
+  #[local] Lemma _checker_st_eqP : Checker_eq p p' checker_st_eq.
+  Proof. by apply checker_st_eqP. Qed.
+
+  #[local] Hint Resolve _checker_st_eqP : core.
+
+  Lemma it_dead_calls_callP fn :
+    wiequiv_f p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
+  Proof.
+    apply wequiv_fun_ind => hrec {fn}.
+    move=> fn _ fs _ [<- <- hin] fd hfd; exists fd => //.
+    + by apply get_dead_calls.
+    exists (st_eq tt), (st_eq tt) => s hinit.
+    exists s; split => //; last by apply st_eq_finalize.
+    apply (cmd_rect (Pi:=Pi) (Pr:=Pi_r) (Pc:=Pc)) => //; rewrite /Pi_r /Pi /Pc.
+    + by move=> ??; apply wequiv_nil.
+    + move=> > hi hc; rewrite CallsE => /def_incl_union [??].
+      by apply wequiv_cons with (st_eq tt); [apply hi | apply hc].
+    + by move=> > _; apply wequiv_assgn_rel_eq with checker_st_eq tt.
+    + by move=> > _; apply wequiv_opn_rel_eq with checker_st_eq tt.
+    + by move=> > _; apply wequiv_syscall_rel_eq with checker_st_eq tt.
+    + move=> > hc1 hc2 ii; rewrite !CallsE => /def_incl_union [??].
+      apply wequiv_if_rel_eq with checker_st_eq tt tt tt => //.
+      + by apply hc1.
+      by apply hc2.
+    + move=> > hc ii; rewrite !CallsE => ?.
+      by apply wequiv_for_rel_eq with checker_st_eq tt tt => //; apply hc.
+    + move=> > hc hc' ii; rewrite !CallsE => /def_incl_union [??].
+      apply wequiv_while_rel_eq with checker_st_eq tt => //.
+      + by apply hc.
+      by apply hc'.
+    + move=> >; rewrite !CallsE => hfin.
+      apply wequiv_call_rel_eq with checker_st_eq tt => //.
+      move=> ???; apply hrec; split => //.
+      by move: hfin; rewrite /def_incl; SfD.fsetdec.
+    move=> n hn; apply: pfxp.
+    by apply: live_calls_in hfd n hn.
+  Qed.
+
+  End IT.
+
 End PROOF.
 
 Lemma foldl_compat x y l (x_eq_y: Sf.Equal x y):
@@ -367,6 +431,7 @@ apply: foldl_compat; SfD.fsetdec.
 Qed.
 
 (* -------------------------------------------------------------------- *)
+
 Lemma dead_calls_errP (s : Sf.t) (p p': prog) :
   dead_calls_err s p = ok p' →
   ∀ f ev scs m args scs' m' res, Sf.In f s →
@@ -390,6 +455,34 @@ Proof.
   rewrite foldlE.
   rewrite in_cons in Hin; case/orP: Hin=> [/eqP ->|/IH Hin]; SfD.fsetdec.
 Qed.
+
+Section IT.
+
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+
+Lemma it_dead_calls_errP (s : Sf.t) (p p': prog) :
+  dead_calls_err s p = ok p' →
+  ∀ f ev, Sf.In f s →
+  wiequiv_f p p' ev ev (fun _ _ => eq) f f (fun _ _ _ _ => eq).
+Proof.
+rewrite /dead_calls_err; case: ifP => // /SfD.F.subset_2 pfx [] <- f ev hin fs _ <-.
+apply: it_dead_calls_callP => //; split => //.
+by apply: live_calls_subset.
+Qed.
+
+Theorem it_dead_calls_err_seqP (s : seq funname) (p p': prog) :
+  dead_calls_err_seq s p = ok p' →
+  ∀ f ev, f \in s →
+  wiequiv_f p p' ev ev (fun _ _ => eq) f f (fun _ _ _ _ => eq).
+Proof.
+  rewrite /dead_calls_err_seq.
+  move=> h f ev fins; apply: (it_dead_calls_errP h).
+  elim: {h} s fins=> // a l IH Hin.
+  rewrite foldlE.
+  rewrite in_cons in Hin; case/orP: Hin=> [/eqP ->|/IH Hin]; SfD.fsetdec.
+Qed.
+
+End IT.
 
 Lemma dead_calls_err_get_fundef s p p' fn fd :
   dead_calls_err s p = ok p' →

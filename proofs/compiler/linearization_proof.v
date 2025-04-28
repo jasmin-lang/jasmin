@@ -2185,7 +2185,7 @@ Section PROOF.
   Proof.
     move=> mm; rewrite /exec_syscall_s; t_xrbindP => -[[scs' m'] t] happ [<- <- <-].
     have h: mk_forall_ex (fun e1 e2 => [/\ e1.1.1 = e2.1.1, e1.2 = e2.2 &  match_mem_gen (top_stack m0) e1.1.2 e2.1.2])
-                             (sem_syscall o scs1 m1) (sem_syscall o scs1 m1').
+                             (syscall_sem.sem_syscall o scs1 m1) (syscall_sem.sem_syscall o scs1 m1').
     + case: (o) => _ /= wp len [[scs_ rm] t_].
       rewrite /exec_getrandom_s_core; t_xrbindP => ? /(match_mem_gen_fill_mem mm) [] rm' -> ? -> <- <- /=; by eexists.
     have [[[ _ rm' ] _ ] -> /= [] <- <-]:= mk_forall_exP h happ; by eexists.
@@ -2219,7 +2219,7 @@ Section PROOF.
     rewrite /exec_syscall_s; t_xrbindP => -[[scs0 m1''] t0] happ1 [???] -[[scs1 m2''] t1] happ2 [???].
     subst scs1 scs0 m1'' m2'' vs vs'.
     have h : mk_forall2 (fun o1 o2 => forall p, ~~ validw m1 Aligned p U8 -> read m2 Aligned p U8 = read o2.1.2 Aligned p U8)
-               (sem_syscall o scs m1) (sem_syscall o scs m2).
+               (syscall_sem.sem_syscall o scs m1) (syscall_sem.sem_syscall o scs m2).
     + case: (o) => _ /= ptr bytes ??.
       rewrite /exec_getrandom_s_core; t_xrbindP => ? hf1 ? ? hf2 <- /=.
       by apply: fill_mem_mem_unchanged hf1 hf2.
