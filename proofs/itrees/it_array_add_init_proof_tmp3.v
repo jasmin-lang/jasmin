@@ -8,7 +8,7 @@ Require Import Coq.Program.Equality.
 
 From Paco Require Import paco.
 
-Require Import it_sems_core relational_logic.
+Require Import it_sems_core relational_logic. 
 
 Require Import xrutt xrutt_facts.
 
@@ -338,6 +338,7 @@ Proof.
 Qed.  
 
 (* actually problematic, because of state *)
+(*
 Lemma isem_cmd_append_eutt cc1 cc2 cc3 cc4 :
   (forall s0, @eutt
            (Sum.sum1 (@recCall asm_op syscall_state ep sip) E)
@@ -355,7 +356,9 @@ Lemma isem_cmd_append_eutt cc1 cc2 cc3 cc4 :
            (@eq (@estate wsw syscall_state ep))
            (isem_cmd_ p ev (cc1 ++ cc2) s0) (isem_cmd_ p ev (cc3 ++ cc4) s0). 
 Admitted. 
+*)
 
+(* this seems ok *)
 Lemma isem_cmd_append_eutt1 cc1 cc2 cc3 :
   (forall s0, @eutt
            (Sum.sum1 (@recCall asm_op syscall_state ep sip) E)
@@ -368,9 +371,11 @@ Lemma isem_cmd_append_eutt1 cc1 cc2 cc3 :
            (@eq (@estate wsw syscall_state ep))    
            (isem_cmd_ p ev (cc1 ++ cc2) s0)
            (isem_cmd_ p ev (cc1 ++ cc3) s0). 
-  eapply isem_cmd_append_eutt; eauto.
+Admitted. 
+(*  eapply isem_cmd_append_eutt; eauto.
   intros; reflexivity.
 Qed.
+ *)
 
 Lemma str_in_list_pres (P: Sv.elt -> Prop) (a: Sv.elt) (ls: seq Sv.elt) :
   (forall x: Sv.elt, x \in a :: ls -> P x) ->
@@ -382,12 +387,27 @@ Lemma str_in_list_pres (P: Sv.elt -> Prop) (a: Sv.elt) (ls: seq Sv.elt) :
   apply H; auto.
 Qed.  
 
-(* too strong *)
-Lemma add_init_skip i ii1 p0 vname0 (s0 : estate) :
-    isem_cmd_ p ev [:: i] s0
-    ≈ isem_cmd_ p ev
-        (add_init_core ii1 {| vtype := sarr p0; vname := vname0 |} ++ [:: i])
-        s0.
+
+(* without premise would be too strong *)
+(*
+Lemma add_init_skip {E' E0': Type -> Type} {wE' : with_Error E' E0'}
+  i ii1 p0 vname0 (s0 : estate) :
+  false = is_ptr {| vtype := sarr p0; vname := vname0 |} ->
+  @eutt E' _ _ eq (isem_cmd_ p ev [:: i] s0)
+       (isem_cmd_ p ev
+          (add_init_core ii1 {| vtype := sarr p0; vname := vname0 |} ++ [:: i])
+          s0).
+Admitted. 
+*)
+
+(* without premise would be too strong *)
+Lemma add_init_skip 
+  i ii1 p0 vname0 (s0 : estate) :
+  false = is_ptr {| vtype := sarr p0; vname := vname0 |} ->
+  @eutt _ _ _ eq (isem_cmd_rec p ev [:: i] s0)
+       (isem_cmd_rec p ev
+          (add_init_core ii1 {| vtype := sarr p0; vname := vname0 |} ++ [:: i])
+          s0).
 Admitted. 
 
 Lemma instr_add_init_lemma f1 f2 s1 s2 
@@ -475,14 +495,13 @@ Proof.
                   (add_init_core ii1
                   {| vtype := sarr p0; vname := vname0 |} ++ [:: i]) s0)
           ) as G2.
-          { admit. } 
-          (*  eapply (add_init_skip i ii1 p0 vname0); eauto. } *)
+          { intro s0; eapply add_init_skip; eauto. }
         
-        assert (@eutt (Sum.sum1 (@recCall asm_op syscall_state ep sip) E)
-           (@estate wsw syscall_state ep) (@estate wsw syscall_state ep)
-           (@eq (@estate wsw syscall_state ep))
-           (isem_cmd_ p ev (cc1 ++ [:: i]) s2)
-           (isem_cmd_ p ev (cc1 ++ add_init_core ii1
+          assert (@eutt (Sum.sum1 (@recCall asm_op syscall_state ep sip) E)
+            (@estate wsw syscall_state ep) (@estate wsw syscall_state ep)
+            (@eq (@estate wsw syscall_state ep))
+            (isem_cmd_ p ev (cc1 ++ [:: i]) s2)
+            (isem_cmd_ p ev (cc1 ++ add_init_core ii1
                                 {| vtype := sarr p0; vname := vname0 |} ++
                                 [:: i]) s2)
         ) as G3.
@@ -680,7 +699,7 @@ Proof.
 Qed.
 
 
-
+(***********************************************************************)
 
 (*
 Definition lift_vm2 s1 c s2 :=
