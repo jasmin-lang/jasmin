@@ -146,6 +146,11 @@ Proof.
   by case: (h i1 i2 _ _ hF1) => // => o2 ??; exists o2.
 Qed.
 
+Lemma wrequiv_eq_pred {I1 I2 O1 O2} F1 F2 (P : rel I1 I2) (Q : rel O1 O2) :
+  (forall i1 i2, P i1 i2 -> wrequiv (eq_init i1 i2) F1 F2 Q) ->
+  wrequiv P F1 F2 Q.
+Proof. by move=> h i1 i2 hP /h{}h; apply (h i1 i2). Qed.
+
 End WREQUIV.
 
 Section SOPN.
@@ -261,6 +266,20 @@ Lemma wkequiv_bind {I1 I2 T1 T2 O1 O2}
   wkequiv R F1' F2' Q ->
   wkequiv P (fun i => t <- F1 i;; F1' t) (fun i => t <- F2 i;; F2' t) Q.
 Proof. by move=> h h'; apply wkequiv_io_bind with (R := fun _ _ => R). Qed.
+
+Lemma wkequiv_bind_ret_left {I1 I2 O1 O2}
+  (P : rel I1 I2)
+  (Q : rel O1 O2) F1 F2 :
+  wkequiv P F1 F2 Q ->
+  wkequiv P (fun i => t <- F1 i;; Ret t) F2 Q.
+Proof. move=> h s t; setoid_rewrite bind_ret_r; apply h. Qed.
+
+Lemma wkequiv_bind_ret_right {I1 I2 O1 O2}
+  (P : rel I1 I2)
+  (Q : rel O1 O2) F1 F2 :
+  wkequiv P F1 F2 Q ->
+  wkequiv P F1 (fun i => t <- F2 i;; Ret t) Q.
+Proof. move=> h s t; setoid_rewrite bind_ret_r; apply h. Qed.
 
 Lemma wkequiv_read {S1 S2 T1 T2 O1 O2} F1 F2 F1' F2'
   (P : rel S1 S2) (R : rel T1 T2) (Q : rel O1 O2) :
@@ -440,6 +459,24 @@ Lemma wkequiv_iresult {I1 I2 O1 O2} (P : rel I1 I2) (Q : rel O1 O2) (f1 : I1 -> 
   wrequiv P F1 F2 Q ->
   wkequiv P (fun i => iresult (f1 i) (F1 i)) (fun i => iresult (f2 i) (F2 i)) Q.
 Proof. by move=> h i1 i2 hP; apply rutt_iresult => s1'; apply: h. Qed.
+
+Lemma wkequiv_iresult_right (P : rel estate1 estate2) (Q : rel estate1 estate2) (f2 : estate2 -> estate2) F2 :
+  (forall s t, P s t -> exists2 t', F2 t = ok t' & Q s t') ->
+  wkequiv P (fun s => Ret s) (fun t => iresult (f2 t) (F2 t)) Q.
+Proof.
+  by move=> h s t /h [t'] hF2 hQ; rewrite /iresult hF2 /=; apply xrutt_Ret.
+Qed.
+
+Lemma wkequiv_iresult_left (P : rel estate1 estate2) (Q : rel estate1 estate2) (f1 : estate1 -> estate1) F1 :
+  (forall s s' t, P s t -> F1 s = ok s' -> Q s' t) ->
+  wkequiv P (fun s => iresult (f1 s) (F1 s)) (fun t => Ret t) Q.
+Proof.
+  move=> h s t /h{}h; rewrite /iresult.
+  case heq: (F1 s) => [s' | e] /=.
+  + by apply/xrutt_Ret/h.
+  apply xrutt_CutL.
+  by rewrite /errcutoff /is_error /subevent /= /resum /fromErr mid12.
+Qed.
 
 End IRESULT.
 
@@ -871,6 +908,23 @@ Proof.
   by move=> ?? [-> ->].
 Qed.
 
+Lemma wequiv_call_eq P Q ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
+  wrequiv P (fun s => sem_pexprs (~~ (@direct_call dc1)) (p_globs p1) s es1)
+            (fun s => sem_pexprs (~~ (@direct_call dc2)) (p_globs p2) s es2) eq ->
+  (forall s1 s2 vs,
+     P s1 s2 -> rpreF (eS:=eq_spec) fn1 fn2 (mk_fstate vs s1) (mk_fstate vs s2)) ->
+  wequiv_f (rpreF (eS:=eq_spec)) fn1 fn2 (rpostF (eS:=eq_spec)) ->
+  (forall fs,
+    wrequiv P (upd_estate (~~ (@direct_call dc1)) (p_globs p1) xs1 fs)
+              (upd_estate (~~ (@direct_call dc2)) (p_globs p2) xs2 fs) Q) ->
+  wequiv P [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] Q.
+Proof.
+  move=> he hfs hfn hupd.
+  apply wequiv_call with (Pf:=rpreF (eS:=eq_spec)) (Qf:= rpostF (eS:=eq_spec)) (Rv:=eq) => //.
+  + by move=> s1 s2 vs1 _ hP <-; apply hfs.
+  move=> fs1 fs2 ft1 ft2 [<- <-] /= <-; apply hupd.
+Qed.
+
 Definition wequiv_fun_body_hyp (RPreF:relPreF) fn1 fn2 (RPostF:relPostF) :=
   forall fs1 fs2,
   RPreF fn1 fn2 fs1 fs2 ->
@@ -907,6 +961,24 @@ Proof.
   apply wkequiv_bind with Q.
   + by apply: wequiv_weaken hbody => // > [-> ->].
   by apply wkequiv_iresult.
+Qed.
+
+(* One sided rules *)
+
+Lemma wequiv_assign_right P Q ii x tg ty e :
+  (forall s t, P s t -> exists2 t', sem_assgn p2 x tg ty e t = ok t' & Q s t') ->
+  wequiv P [::] [::MkI ii (Cassgn x tg ty e)] Q.
+Proof.
+  move=> h; rewrite /wequiv /=.
+  by apply/wkequiv_bind_ret_right/wkequiv_iresult_right.
+Qed.
+
+Lemma wequiv_assign_left P Q ii x tg ty e :
+  (forall s s' t, P s t -> sem_assgn p1 x tg ty e s = ok s' ->  Q s' t) ->
+  wequiv P [::MkI ii (Cassgn x tg ty e)] [::] Q.
+Proof.
+  move=> h; rewrite /wequiv /=.
+  by apply/wkequiv_bind_ret_left/wkequiv_iresult_left.
 Qed.
 
 End WEQUIV_CORE.
