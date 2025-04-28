@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import psem compiler_util it_sems_core relational_logic.
+Require Import psem_core psem compiler_util it_sems_core relational_logic.
 Require Export array_init.
 Import Utf8.
 
@@ -460,7 +460,7 @@ Section ADD_INIT.
     move=> s1 s2 x tag ty e v v' hse htr hwr ii /=.
     apply aux => //.
     + by constructor; econstructor; eauto.
-    move=> vm1 heq1.
+      move=> vm1 heq1.    
     have [vm2 heq2 hwr2 ]:= write_lvar_ext_eq heq1 hwr.
     exists vm2 => //; constructor; econstructor; eauto.
     by rewrite -(sem_pexpr_ext_eq _ _ e heq1).

@@ -4,7 +4,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 Require Import xseq.
 Require Export array type expr gen_map warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
-Require Export psem_core it_sems_core hoare_logic relational_logic.
+Require Export psem_core.
 Require Export
   flag_combination
   sem_params.
@@ -14,11 +14,10 @@ Local Open Scope Z_scope.
 Local Open Scope seq_scope.
 Open Scope vm_scope.
 
-(* ** Parameter expressions
- * -------------------------------------------------------------------- *)
 
 Section WSW.
 Context {wsw:WithSubWord}.
+
 
 (* ** Instructions
  * -------------------------------------------------------------------- *)
@@ -535,7 +534,7 @@ Proof.
     => {c s1 s2} //.
   + move=> s1 s2 s3 i c _ Hi _ Hc z;rewrite write_c_cons => Hnin.
     by rewrite Hi ?Hc //;SvD.fsetdec.
-  + move=> s1 s2 x tag ty e v v' ? hty Hw z.
+  + move=> s1 s2 x tag ty e v v' ? hty Hw z.    
     by rewrite write_i_assgn;apply (vrvP Hw).
   + move=> s1 s2 t o xs es; rewrite /sem_sopn.
     case: (Let _ := sem_pexprs _ _ _ _ in _) => //= vs Hw z.
@@ -569,102 +568,93 @@ Proof. by move=> h; have /write_IP := EmkI dummy_instr_info h. Qed.
 
 End Write.
 
-Section ST_EQ.
-
-Context
-  {sip : SemInstrParams asm_op syscall_state}
-  {pT : progT}
-  {scP : semCallParams (wsw:= wsw) (pT := pT)}
-  {dc: DirectCall}.
-
-Lemma st_eq_refl d s : st_eq d s s.
-Proof. by split. Qed.
-Hint Resolve st_eq_refl : core.
-
-Section PROG.
-
-Context (p p': prog) (ev ev': extra_val_t).
-
-Context (eq_globs: p_globs p = p_globs p').
-
-Lemma st_eq_sem_pexpr wdb d e :
-  wrequiv (st_eq d) ((sem_pexpr wdb (p_globs p))^~ e) ((sem_pexpr wdb (p_globs p'))^~ e) eq.
+(* FIXME this is close to write_var_spec but less specified *)
+Lemma write_var_eq_on1 wdb x v s1 s2 vm1:
+  write_var wdb x v s1 = ok s2 ->
+  exists2 vm2 : Vm.t,
+    write_var wdb x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
+    evm s2 =[Sv.singleton x] vm2.
 Proof.
-  move=> s t v /st_relP [-> /=] hvm; rewrite eq_globs.
-  rewrite -sem_pexpr_ext_eq //; eauto.
+  rewrite /write_var;t_xrbindP => vm2 hset <-.
+  have [/= -> ? /=] := set_var_eq_on1 vm1 hset; eexists; eauto.
+  by rewrite !with_vm_idem.
 Qed.
 
-Lemma st_eq_sem_pexprs wdb d es :
-  wrequiv (st_eq d) ((sem_pexprs wdb (p_globs p))^~ es) ((sem_pexprs wdb (p_globs p'))^~ es) eq.
+Lemma write_var_eq_on wdb X x v s1 s2 vm1:
+  write_var wdb x v s1 = ok s2 ->
+  evm s1 =[X] vm1 ->
+  exists2 vm2 : Vm.t,
+    write_var wdb x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
+    evm s2 =[Sv.add x X] vm2.
 Proof.
-  move=> s t v /st_relP [-> /=] hvm; rewrite eq_globs.
-  rewrite -sem_pexprs_ext_eq //; eauto.
+  move=> /[dup] /(write_var_eq_on1 vm1) [vm2' hw2 h] hw1 hs.
+  exists vm2' => //; rewrite SvP.MP.add_union_singleton.
+  apply: (eq_on_union hs h); [apply: vrvP_var hw1 | apply: vrvP_var hw2].
 Qed.
 
-Lemma st_eq_write_lvals wdb d x v d':
-  wrequiv (st_eq d) (fun s => write_lvals wdb (p_globs p) s x v) (fun s => write_lvals wdb (p_globs p') s x v) (st_eq d').
+Lemma write_lval_eq_on1 wdb gd s1 s2 vm1 x v:
+  s1.(evm) =[read_rv x] vm1 ->
+  write_lval wdb gd x v s1 = ok s2 ->
+  exists2 vm2,
+    write_lval wdb gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
+    s2.(evm) =[vrv x] vm2.
 Proof.
-  rewrite eq_globs => s t s' /st_relP [-> /=] h1 h2.
-  by have [vm2 h ->] := write_lvars_ext_eq h1 h2; eexists; eauto.
+  case:x => [vi ty | x | al sz x e | al aa sz' x e | aa sz' len x e] /=.
+  + by move=> _ /write_noneP [-> h1 h2]; rewrite /write_none h1 h2; exists vm1.
+  + by move=> _ /(write_var_eq_on1 vm1).
+  + rewrite read_eE => Hvm.
+    rewrite -(get_var_eq_on wdb _ Hvm); last by SvD.fsetdec.    
+    rewrite (@read_e_eq_on _ _ _ _ wdb gd Sv.empty vm1 s1);first last.
+    + by apply: eq_onI Hvm;rewrite read_eE;SvD.fsetdec.
+    by t_xrbindP => > -> /= -> > -> /= -> ? -> ? /= -> <- /=; exists vm1.
+  + rewrite read_eE=> Hvm.
+    rewrite (on_arr_var_eq_on _ (s' := with_vm s1 vm1) _ Hvm); last by SvD.fsetdec.    
+    rewrite (@read_e_eq_on _ _ _ _ _ gd (Sv.add x Sv.empty) vm1) /=;first last.
+    + by apply: eq_onI Hvm;rewrite read_eE.
+    apply: on_arr_varP => n t Htx; rewrite /on_arr_var => -> /=.
+    by t_xrbindP => > -> /= -> ? -> ? /= -> /= /(write_var_eq_on1 vm1).
+  rewrite read_eE=> Hvm.
+  rewrite (on_arr_var_eq_on _ (s' := with_vm s1 vm1) _ Hvm); last by SvD.fsetdec.
+  rewrite (@read_e_eq_on _ _ _ _ _ gd (Sv.add x Sv.empty) vm1) /=;first last.
+  + by apply: eq_onI Hvm;rewrite read_eE.
+  apply: on_arr_varP => n t Htx; rewrite /on_arr_var => -> /=.
+  by t_xrbindP => > -> /= -> > -> ? /= -> /(write_var_eq_on1 vm1).
 Qed.
 
-Lemma wdb_ok_eq wdb1 wdb2 : wdb_ok wdb1 wdb2 -> wdb1 = wdb2.
-Proof. by case => -[-> ->]. Qed.
-
-Lemma checker_st_eqP : Checker_eq p p' checker_st_eq.
+Lemma write_lval_eq_on wdb gd X x v s1 s2 vm1 :
+  Sv.Subset (read_rv x) X ->
+  write_lval wdb gd x v s1 = ok s2 ->
+  evm s1 =[X] vm1 ->
+  exists2 vm2 : Vm.t,
+   write_lval wdb gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
+   evm s2 =[Sv.union (vrv x) X] vm2.
 Proof.
-  constructor.
-  + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- <-; apply st_eq_sem_pexprs.
-  move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- <- vs; apply st_eq_write_lvals.
-Qed.
-#[local] Hint Resolve checker_st_eqP : core.
-
-Section FUN.
-
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
-
-Let Pi i := wequiv p p' ev ev' (st_eq tt) [::i] [::i] (st_eq tt).
-
-Let Pi_r i := forall ii, Pi (MkI ii i).
-
-Let Pc c := wequiv p p' ev ev' (st_eq tt) c c (st_eq tt).
-
-Lemma wequiv_st_eq c :
-  (forall f, wequiv_f p p' ev ev' (λ (_ _ : funname), eq) f f (λ (_ _ : funname) (_ _ : fstate), eq)) ->
-  Pc c.
-Proof.
-  move=> hf; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
-  + by apply wequiv_nil.
-  + by move=> *; apply wequiv_cons with (st_eq tt).
-  + by move=> >;apply wequiv_assgn_rel_eq with checker_st_eq tt.
-  + by move=> >; apply wequiv_opn_rel_eq with checker_st_eq tt.
-  + by move=> >; apply wequiv_syscall_rel_eq with checker_st_eq tt.
-  + by move=> > hc1 hc2 ii; apply wequiv_if_rel_eq with checker_st_eq tt tt tt.
-  + by move=> > hc ii; apply wequiv_for_rel_eq with checker_st_eq tt tt.
-  + by move=> > hc hc' ii; apply wequiv_while_rel_eq with checker_st_eq tt.
-  by move=> ????; apply wequiv_call_rel_eq with checker_st_eq tt.
+  move=> hsub hw1 heq1.
+  have [vm2 hw2 heq2]:= write_lval_eq_on1 (eq_onI hsub heq1) hw1.
+  exists vm2 => //; apply: (eq_on_union heq1 heq2); [apply: vrvP hw1 | apply: vrvP hw2].
 Qed.
 
-End FUN.
+Lemma write_lvals_eq_on wdb gd X xs vs s1 s2 vm1 :
+  Sv.Subset (read_rvs xs) X ->
+  write_lvals wdb gd s1 xs vs = ok s2 ->
+  evm s1 =[X] vm1 ->
+  exists2 vm2 : Vm.t,
+    write_lvals wdb gd (with_vm s1 vm1) xs vs = ok (with_vm s2 vm2) &
+    evm s2 =[Sv.union (vrvs xs) X] vm2.
+Proof.
+  elim: xs vs X s1 s2 vm1 => [ | x xs Hrec] [ | v vs] //= X s1 s2 vm1.
+  + by move=> _ [<-] ?;exists vm1.
+  rewrite read_rvs_cons => Hsub.
+  t_xrbindP => s1' hw hws /(write_lval_eq_on _ hw) [ |vm1' -> hvm1'] /=; first by SvD.fsetdec.
+  have [ |vm2 /= -> hvm2]:= Hrec _ _ _ _ _ _ hws hvm1';first by SvD.fsetdec.
+  exists vm2 => //; rewrite vrvs_cons; apply: eq_onI hvm2;SvD.fsetdec.
+Qed.
 
-Section ESEM.
+Section Expr.
 
-Let Pi i :=
-  forall s1 s2 vm1,
-    esem_i p ev i s1 = ok s2 ->
-    (evm s1 =1 vm1)%vm ->
-    exists2 vm2, esem_i p' ev i (with_vm s1 vm1) = ok (with_vm s2 vm2) & evm s2 =1 vm2.
+Context (wdb : bool) (gd : glob_decls). 
 
-Let Pi_r i := forall ii, Pi (MkI ii i).
-
-Let Pc c :=
-  forall s1 s2 vm1,
-    esem p ev c s1 = ok s2 ->
-    (evm s1 =1 vm1)%vm ->
-    exists2 vm2, esem p' ev c (with_vm s1 vm1) = ok (with_vm s2 vm2) & evm s2 =1 vm2.
-
-Lemma esem_vm_eq s1 c s2 vm1:
-  esem p ev c s1 = ok s2 ->
+Lemma write_lvar_ext_eq x v s1 s2 vm1 :
   (evm s1 =1 vm1)%vm ->
   exists2 vm2, esem p' ev c (with_vm s1 vm1) = ok (with_vm s2 vm2) & evm s2 =1 vm2.
 Proof.
@@ -715,45 +705,6 @@ Proof.
 Qed.
 
 End REC.
-
-End PROG.
-
-Section WIEQUIV_F.
-
-Context (p : prog) (ev: extra_val_t).
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
-
-Lemma st_eq_finalize fd fd' :
-  f_tyout fd = f_tyout fd' ->
-  f_extra fd = f_extra fd' ->
-  f_res fd = f_res fd' ->
-  wrequiv (st_eq tt) (finalize_funcall fd) (finalize_funcall fd') eq.
-Proof.
-  rewrite /finalize_funcall => <- <- <- s t fs' [h1 h2 h3].
-  t_xrbindP => vs.
-  rewrite -!(sem_pexprs_get_var _ [::]).
-  rewrite (sem_pexprs_ext_eq _ _ _ h3).
-  case: s t h1 h2 h3 => scs mem vm1 [/= _ _ vm2] <- <- h3 -> /= ? -> <- /=.
-  eexists; eauto.
-Qed.
-
-Lemma wiequiv_f_eq fn : wiequiv_f p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof.
-  apply wequiv_fun_ind => hrec {fn}.
-  move=> fn _ fs _ [<- <-] fd hget.
-  exists fd => //.
-  exists (st_eq tt), (st_eq tt).
-  move=> s1; exists s1; split => //.
-  + by apply wequiv_rec_st_eq.
-  by apply st_eq_finalize.
-Qed.
-
-Lemma wiequiv_st_eq c : wiequiv p p ev ev (st_eq tt) c c (st_eq tt).
-Proof. by apply wequiv_st_eq => // f ???; apply wiequiv_f_eq. Qed.
-
-End WIEQUIV_F.
-
-End ST_EQ.
 
 Section Sem_eqv.
 Context
@@ -1432,158 +1383,7 @@ Qed.
 
 End UNDEFINCL.
 
-(* ---------------------------------------------------------------- *)
-Section IT_UNDEFINCL.
-
-Context
-  {dc:DirectCall}
-  {sip : SemInstrParams asm_op syscall_state}
-  {pT : progT}
-  {sCP : semCallParams}.
-
-Lemma read_es_st_uincl d gd wdb es :
-  wrequiv (st_uincl d) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) (List.Forall2 value_uincl).
-Proof. by move=> s t vs /st_relP [/= -> h]; apply sem_pexprs_uincl. Qed.
-
-Lemma write_lvals_st_uincl d d' gd wdb xs vs1 vs2 :
-  List.Forall2 value_uincl vs1 vs2 ->
-  wrequiv
-    (st_uincl d)
-    (λ s1 : estate, write_lvals wdb gd s1 xs vs1) (λ s2 : estate, write_lvals wdb gd s2 xs vs2)
-    (st_uincl d').
-Proof.
-  move=> hu s t s' /st_relP [/= -> h] hw.
-  by have [vm' -> ?] := writes_uincl h hu hw; eexists; eauto.
-Qed.
-
-Section PROG.
-
-Context (p p':prog) (ev ev': extra_val_t).
-
-Local Notation gd := (p_globs p).
-Local Notation gd' := (p_globs p').
-
-Context (eq_globs : gd = gd').
-
-Lemma checker_st_uinclP : Checker_uincl p p' checker_st_uincl.
-Proof.
-  constructor; rewrite -eq_globs.
-  + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- <-; apply read_es_st_uincl.
-  move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- <-; apply write_lvals_st_uincl.
-Qed.
-#[local] Hint Resolve checker_st_uinclP : core.
-
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
-
-Let Pi i := wequiv p p' ev ev' (st_uincl tt) [::i] [::i] (st_uincl tt).
-
-Let Pi_r i :=
-  forall ii, wequiv p p' ev ev' (st_uincl tt) [::MkI ii i] [::MkI ii i] (st_uincl tt).
-
-Let Pc c :=
-  wequiv p p' ev ev' (st_uincl tt) c c (st_uincl tt).
-
-Lemma it_sem_uincl_aux c :
-  (forall fn,
-     wequiv_f p p' ev ev' (λ (_ _ : funname), fs_uincl) fn fn (λ _ _  _ _, fs_uincl)) ->
-  wequiv p p' ev ev' (st_uincl tt) c c (st_uincl tt).
-Proof.
-  move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
-  + by move=> i ii hi X; apply hi.
-  + by move=> ii X; apply wequiv_nil.
-  + move=> i c hi hc.
-    by apply wequiv_cons with (st_uincl tt).
-  + by move=> x tg ty e ii; apply wequiv_assgn_rel_uincl with checker_st_uincl tt.
-  + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
-  + by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with checker_st_uincl tt.
-  + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
-  + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
-  + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
-  by move=> xs fn es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt.
-Qed.
-
-End PROG.
-
-Section REFL.
-
-Context (p : prog) (ev: extra_val_t).
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
-
-Definition uincl_spec : EquivSpec :=
-  {| rpreF_ := fun (fn1 fn2 : funname) (fs1 fs2 : fstate) => fn1 = fn2 /\ fs_uincl fs1 fs2
-   ; rpostF_ := fun (fn1 fn2 : funname) (fs1 fs2 fr1 fr2: fstate) => fs_uincl fr1 fr2 |}.
-
-(* TODO: Can we generalize this to different semantic ? *)
-Lemma fs_uincl_initialize p' fd fd' fs fs' s:
-  f_tyin fd = f_tyin fd' ->
-  f_extra fd = f_extra fd' ->
-  f_params fd = f_params fd' ->
-  p_extra p = p_extra p' ->
-  fs_uincl fs fs' ->
-  initialize_funcall p ev fd fs = ok s ->
-  exists2 s', initialize_funcall p' ev fd' fs' = ok s' & st_uincl tt s s'.
-Proof.
-  move=> hty hex hpa hpex hfs; rewrite /initialize_funcall -hty -hex -hpa -hpex /estate0 /=.
-  case: hfs => <- <- hu.
-  t_xrbindP => vs htr s0 -> hw.
-  have [vs' -> {}hu /=] := mapM2_dc_truncate_val htr hu.
-  have [vm] := [elaborate write_vars_uincl (vm_uincl_refl (evm s0)) hu hw].
-  by rewrite with_vm_same => -> ? /=; eexists; eauto.
-Qed.
-
-(* TODO: Can we generalize this to different semantic ? *)
-Lemma fs_uincl_finalize fd fd' :
-  f_tyout fd = f_tyout fd' ->
-  f_extra fd = f_extra fd' ->
-  f_res fd = f_res fd' ->
-  wrequiv (st_uincl tt) (finalize_funcall fd) (finalize_funcall fd') fs_uincl.
-Proof.
-  rewrite /finalize_funcall => <- <- <- /= s t fs [<- <- hvm].
-  t_xrbindP => vs hget vs' htr <-.
-  have [vs1 -> hu /=] := get_var_is_uincl hvm hget.
-  have [vs1' -> {}hu /=] := mapM2_dc_truncate_val htr hu.
-  by eexists; eauto.
-Qed.
-
-Lemma fs_uincl_on_finalize fd fd' :
-  f_tyout fd = f_tyout fd' ->
-  f_extra fd = f_extra fd' ->
-  f_res fd = f_res fd' ->
-  wrequiv (st_uincl_on (vars_l (f_res fd))) (finalize_funcall fd) (finalize_funcall fd') fs_uincl.
-Proof.
-  rewrite /finalize_funcall => <- <- <- /= s t fs /st_relP [-> /= hvm].
-  t_xrbindP => vs hget vs' htr <-.
-  move: hget; rewrite -(sem_pexprs_get_var _ [::]) => hres.
-  have [| vres1 + hu]:= sem_pexprs_uincl_on (uincl_onI _ hvm) hres.
-  + by rewrite vars_l_read_es.
-  rewrite sem_pexprs_get_var /= => -> /=.
-  have [vs1' -> {}hu /=] := mapM2_dc_truncate_val htr hu.
-  by eexists; eauto.
-Qed.
-
-Lemma it_sem_uincl_f fn :
-  wiequiv_f p p ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof.
-  apply wequiv_fun_ind => hrec {fn}.
-  move=> {}fn _ fs1 fs2 [<-] hu fd ->; exists fd => //.
-  exists (st_uincl tt), (st_uincl tt) => s.
-  move=> /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu; exists t; split => //.
-  + apply it_sem_uincl_aux => //.
-    by move=> fn' fs1' fs2' h; apply hrec.
-  by apply: fs_uincl_finalize.
-Qed.
-
-Lemma it_sem_uincl c :
-  wiequiv p p ev ev (st_uincl tt) c c (st_uincl tt).
-Proof. by apply it_sem_uincl_aux => //; move=> fn ?? h; apply it_sem_uincl_f. Qed.
-
-End REFL.
-
-End  IT_UNDEFINCL.
-
 End WITH_PARAMS.
 
 End WSW.
-
-
 
