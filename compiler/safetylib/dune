@@ -2,5 +2,5 @@
 
 (library
   (name jasmin_checksafety)
-  (flags (:standard -w -9-27-32-39))
+  (flags (:standard -w -9-27-32-39-67))
   (libraries jasmin yojson apron.octMPQ apron.ppl apron.boxMPQ))
