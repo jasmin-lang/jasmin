@@ -409,7 +409,6 @@ module Env: EnvT = struct
       alls: Ss.t ref;
       (* All variables, excluding aux: global, argument, local variables *)
       vars: string Mv.t;
-      glob: (string * ty) Ms.t;
       funs: (string * (ty list * ty list)) Mf.t;
       array_theories: Sarraytheory.t ref;
       (* aux variables: intermediate variables introduced by extraction.
@@ -505,7 +504,6 @@ module Env: EnvT = struct
       pd;
       alls = ref keywords;
       vars = Mv.empty;
-      glob = Ms.empty;
       funs = Mf.empty;
       array_theories;
       auxv  = ref Mpty.empty;
