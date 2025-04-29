@@ -711,7 +711,7 @@ Section ST_EQ.
 
 End ST_EQ.
 
-Section ADD_INIT.
+Section IT_ADD_INIT.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
@@ -720,7 +720,9 @@ Section ADD_INIT.
   Notation gd := (p_globs p).
 
   Notation p' := (add_init_prog p).
-
+  
+  (* two states are related wrt varset I iff they are extensionally
+  equal and undefined except for I *)
   Definition cmpl_inv (I : Sv.t) (s : estate) (t : estate) :=
     undef_except I (evm s) /\ st_eq s t.
 
@@ -786,7 +788,7 @@ Section ADD_INIT.
     rewrite write_c_cons write_c_nil write_Ii; SvD.fsetdec.
   Qed.
 
-  Lemma it_const_prop_callP fn : wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+  Lemma it_add_init_callP fn : wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof.
    apply wequiv_fun_ind => hrec {fn}.
    move=> fn _ fs _ [<- <-] fd hget.
@@ -844,6 +846,222 @@ Section ADD_INIT.
    by move=> ??; apply cmpl_inv_incl; SvD.fsetdec.
  Qed.
 
-End ADD_INIT.
+End IT_ADD_INIT.
+
+Section Section.
+
+Context {pT: progT} {sCP: semCallParams}.
+
+Section IT_REMOVE_INIT.
+
+  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  
+  Context (is_reg_array: var -> bool) (p : prog) (ev: extra_val_t).
+  Notation gd := (p_globs p).
+
+  Notation p' := (remove_init_prog is_reg_array p).
+
+  Definition uincl_spec : EquivSpec :=
+     {| rpreF_ := fun (fn1 fn2 : funname) (fs1 fs2 : fstate) => fn1 = fn2 /\ fs_uincl fs1 fs2
+   ; rpostF_ := fun (fn1 fn2 : funname) (fs1 fs2 fr1 fr2: fstate) => fs_uincl fr1 fr2 |}.
+
+  Definition st_uincl (s : estate) (t : estate) :=
+    [/\ escs s = escs t, emem s = emem t & vm_uincl (evm s) (evm t)].
+
+  Let Pi i :=
+      let im := remove_init_i is_reg_array i in
+      wequiv_rec p p' ev ev uincl_spec st_uincl [::i] im st_uincl.
+
+  Let Pi_r i := forall ii, Pi (MkI ii i).
+
+  Let Pc c :=
+      let cm := remove_init_c is_reg_array c in
+      wequiv_rec p p' ev ev uincl_spec st_uincl c cm st_uincl.
+
+(* FIXME : move this it is generic *)
+Lemma fs_uincl_initialize fs ft fd fd' s :
+  f_tyin fd = f_tyin fd' ->
+  f_extra fd = f_extra fd' ->
+  f_params fd = f_params fd' ->
+  fs_uincl fs ft ->
+  initialize_funcall p ev fd fs = ok s ->
+  exists2 t : estate, initialize_funcall p' ev fd' ft = ok t & st_uincl s t.
+Proof.
+  move=> hin hex hpar; case: fs ft => scs m vs [scs' m' vs'] [ /= h1 h2 h3].
+  rewrite /initialize_funcall; t_xrbindP.
+  rewrite -hin -hex -hpar /=.
+  move=> vs1 /mapM2_dc_truncate_val -/(_ _ h3) [vs1' ->] hu ? /=.
+  rewrite -h1 -h2 /estate0 /= => -> /= hw.
+  have [vm2']:= [elaborate write_vars_uincl (vm_uincl_refl _) hu hw].
+  rewrite with_vm_same => -> ?.
+  by eexists.
+Qed.
+
+(* FIXME move this *)
+Lemma wrequiv_finalize_funcall fd fd' :
+  f_tyout fd = f_tyout fd' ->
+  f_extra fd = f_extra fd' ->
+  f_res fd = f_res fd' ->
+  wrequiv st_uincl (finalize_funcall fd) (finalize_funcall fd') fs_uincl.
+Proof.
+  move=> hout hex hres s1 s2 fs [hscs hm hu]; rewrite /finalize_funcall -hres -hout -hex.
+  t_xrbindP => vs /(get_var_is_uincl hu) [vs'] -> /= hvu vs2.
+  move=> /mapM2_dc_truncate_val /(_ hvu) [vs2' ->] hvu2 <- /=.
+  by rewrite hscs hm; eexists.
+Qed.
+
+  
+  Lemma it_remove_init_callP fn : wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+  Proof.
+   apply wequiv_fun_ind => hrec {fn}.
+   move=> fn _ fs ft [<- hfsu] fd hget.
+   exists (remove_init_fd is_reg_array fd).
+   { by rewrite get_map_prog hget. }
+   
+   move=> {hget}.
+   rewrite /remove_init_fd /=.
+   set cm := remove_init_c _ _.
+   set fd' := {| f_info := _|}.
+
+   exists (st_uincl), (st_uincl) => s1 hinit.
+
+   have : exists2 t1, initialize_funcall p ev fd' ft = ok t1 &
+                        st_uincl s1 t1.
+   { have := @fs_uincl_initialize fs ft fd fd' s1 erefl erefl erefl hfsu hinit. 
+     intros [t H]. exists t; auto.
+   }  
+
+   intros [t1 H H0]. exists t1; split; eauto.
+
+   { apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) =>
+              // {H H0 fn hinit fd' t1 s1}. 
+     + subst Pc; simpl. apply wequiv_nil; intro; auto.
+     + subst Pc Pi; simpl; intros.
+       rewrite -cat1s.
+       apply wequiv_cat with (st_uincl); eauto.
+     + subst Pi_r Pi; simpl; intros x tg ty e ii.
+       case ib: (is_array_init e); simpl; last first.
+       eapply wequiv_assgn_uincl; simpl.
+       { unfold wrequiv, wrequiv_io; simpl. intros s1 s2 v1 H H0.
+         exists v1; eauto.         
+         (* by H and H0 *)
+         admit.
+       }       
+       { unfold wrequiv, wrequiv_io; simpl. intros v1 v2 H s1 s2 s3 H0 H1.
+         (* by H, H0 and H1 *)
+         admit.
+       }
+
+       destruct x; simpl.        
+       { unfold wequiv_rec, wequiv, wkequiv, wkequiv_io.
+         simpl; intros.
+         rewrite Eqit.bind_ret_r.
+      (* unfold sem_assgn; simpl.
+         unfold write_none; simpl.
+         unfold iresult, err_result; simpl. *)         
+    (* there should be a lemma about Lnone *) 
+         admit.
+       }
+
+       { case ira : (is_reg_array H).
+         - admit.
+         - unfold wequiv_rec.
+           eapply wequiv_assgn_uincl. 
+           + admit.
+           + simpl; intros v1 v2 H0.  
+           admit.
+       }
+        
+       { unfold wequiv_rec, wequiv, wkequiv, wkequiv_io.
+         simpl; intros.
+         rewrite Eqit.bind_ret_r; simpl.
+         admit.
+       }
+
+       { unfold wequiv_rec, wequiv, wkequiv, wkequiv_io. 
+         simpl; intros.
+         rewrite Eqit.bind_ret_r; simpl.         
+         admit.
+       }
+
+       { unfold wequiv_rec; simpl.
+         case ib1: (is_reg_array v); simpl.
+         - unfold wequiv, wkequiv, wkequiv_io. 
+           simpl; intros.
+           rewrite Eqit.bind_ret_r; simpl.  
+           admit.
+         - eapply wequiv_assgn_uincl.
+           + admit.
+           + simpl; intros v1 v2 H0.  
+           admit.
+       }
+
+     + subst Pi_r Pi. intros xs t o es ii; simpl.
+       unfold wequiv_rec.
+       eapply wequiv_opn_uincl; simpl.
+       * admit.
+       * intros vs1 vs2 H; simpl.
+         admit.
+
+     + subst Pi_r Pi. intros xs o es ii; simpl.
+       unfold wequiv_rec.
+       eapply wequiv_syscall_uincl; simpl; eauto.
+       * intros s1 s2 [H H0]; split; eauto.       
+       * unfold wrequiv, wrequiv_io; simpl.
+         admit.
+       * unfold fs_uincl; simpl.
+         admit.
+       * intros fs1 fs2 H.
+         admit.
+
+     + subst Pc Pi_r Pi; simpl.
+       intros e c1 c2 H H0 ii; simpl.
+       unfold wequiv_rec.
+       eapply wequiv_if_uincl.
+       * admit.
+       * intros [ | ]; simpl.
+         -- admit.
+         -- admit.
+
+     + subst Pc Pi_r Pi; simpl.
+       intros v dir lo hi c H ii; simpl.
+       eapply wequiv_for_uincl with st_uincl.
+       * intros; eauto.
+       * admit.
+       * admit.
+       * intros z; simpl.
+         -- admit.
+         -- admit.
+            
+     + subst Pc Pi_r Pi; simpl.
+       intros a c e ii c' H H0 H1; simpl.
+       eapply wequiv_while_uincl; simpl; eauto.
+       * admit.
+
+     + subst Pi_r Pi; simpl.
+       intros xs fn es ii.
+       unfold wequiv_rec; simpl.
+       
+       eapply wequiv_call with (Rv := List.Forall2 value_uincl)
+                               (Pf := @rpreF_ _ _ _ _ uincl_spec)
+                               (Qf := @rpostF_ _ _ _ _ uincl_spec); simpl.
+       * admit.
+       * intros s1 s2 vs1 vs2 [H H0 H1] H2.
+         unfold fs_uincl; simpl; repeat split; eauto.
+       * unfold wequiv_f_rec in hrec.
+         by eapply hrec.
+       * intros fs1 fs2 fr1 fr2 [H H0] H1.
+         admit.
+   }
+   
+   { have := @wrequiv_finalize_funcall fd fd' erefl erefl erefl.
+     intros; eauto. }
+       
+Admitted.    
+
+  
+End IT_REMOVE_INIT.
+
+End Section.
 
 End WITH_PARAMS.
