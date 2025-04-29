@@ -37,6 +37,15 @@ Class SemPexprParams := mk_spp
     _fcp : FlagCombinationParams;
   }.
 
+Class AllowInit := 
+  {
+    allowinit : bool;
+  }.
+  
+Definition allow_init : AllowInit := {| allowinit := true |}.
+  
+Definition not_allow_init : AllowInit := {| allowinit := false |}.
+
 #[global]
 Existing Instance _fcp | 1000.
 

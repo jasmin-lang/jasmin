@@ -135,6 +135,7 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {ai : AllowInit}
   (wdb : bool)
   (gd : glob_decls).
 
@@ -193,10 +194,12 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
                sem_sop2 op acc vb)
       vidx l
   | Pis_var_init x =>
+    Let _ := assert ai.(allowinit) ErrType in (* Ifnot return Error, what type of error? *)
     let v := (evm s).[x] in
     ok (Vbool (is_defined v))
 
   | Pis_arr_init x e1 e2 =>
+    Let _ := assert ai.(allowinit) ErrType in
     Let (n, t) := wdb, s.[x] in
     Let lo := sem_pexpr s e1 >>= to_int in
     Let sz := sem_pexpr s e2 >>= to_int in
@@ -204,6 +207,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     ok (Vbool b)
   
   | Pis_barr_init x e1 e2 =>
+    Let _ := assert ai.(allowinit) ErrType in
     Let (n, t) := wdb, s.[x] in
     Let lo := sem_pexpr s e1 >>= to_int in
     Let sz := sem_pexpr s e2 >>= to_int in
@@ -215,7 +219,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
       ) (ziota 0 sz) in
     ok (Vbool b)
 
-  | Pis_mem_init e1 e2 =>
+  | Pis_mem_init e1 e2 => (* This should not be problematic *)
     Let lo := sem_pexpr s e1 >>= to_pointer in
     Let sz := sem_pexpr s e2 >>= to_int in
     let b := all (fun i => is_ok (read s.(emem) Unaligned (lo + (wrepr Uptr i))%R U8)) (ziota 0 sz) in
@@ -268,6 +272,7 @@ Section EXEC_ASM.
 Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
+  {ai : AllowInit}
   {spp : SemPexprParams}
   {asmop : asmOp asm_op}.
 
@@ -290,6 +295,7 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {ai : AllowInit }
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
   (P : prog).

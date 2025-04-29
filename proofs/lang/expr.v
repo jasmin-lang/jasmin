@@ -743,7 +743,13 @@ Definition is_Papp2 (e : pexpr) : option (sop2 * pexpr * pexpr) :=
 
 Definition is_array_init e :=
   match e with
-  | Parr_init _ | Parr_init_elem _ _=> true
+  | Parr_init _ => true
+  | _           => false
+  end.
+  
+Definition is_barray_init e :=
+  match e with
+  | Parr_init_elem _ _=> true
   | _           => false
   end.
 
