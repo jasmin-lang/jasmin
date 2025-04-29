@@ -138,7 +138,7 @@ let main () =
     end;
 
     (* Check if generated assembly labels will generate conflicts*)
-    let label_errors = Label_check.get_labels_errors pprog in 
+    let label_errors = Label_check.get_labels_errors pprog in
     List.iter Label_check.warn_duplicate_label label_errors;
 
     eprint Compiler.Typing (Printer.pp_pprog ~debug:true Arch.reg_size Arch.asmOp) pprog;
@@ -155,6 +155,19 @@ let main () =
       else prog
     in
 
+    let () =
+      let open Linter in
+
+      let (globs,funcs) =prog in
+      let funcs = List.map Analysis.ReachingDefinitions.RDAnalyser.analyse_function funcs in
+      let prog = (globs, funcs) in
+      let errors = Linter.Checker.VariableInitialisation.VIChecker.check_prog prog in
+      List.iter(
+        fun (error: Error.CompileError.t) ->
+          warning Always (Location.i_loc0 error.location) "%a" error.to_text ()
+      )
+        errors;
+    in
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
 

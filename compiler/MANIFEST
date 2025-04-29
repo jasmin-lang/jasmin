@@ -9,6 +9,9 @@ dune
 jasmin.opam
 
 find:entry:*.ml
+find:linter:*.ml
+find:linter:*.mli
+find:linter:dune
 find:safetylib:*.ml
 find:safetylib:*.mli
 find:src:*.ml
