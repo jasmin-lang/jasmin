@@ -81,6 +81,8 @@ stdenv.mkDerivation {
          cmdliner
          angstrom
          batteries
+         yojson
+         ppx_yojson_conv
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
     ++ optionals devTools (with oP; [ merlin ocaml-lsp ])
     ++ optionals ecDeps [ easycrypt z3.out ]

@@ -1,0 +1,9 @@
+(library
+ (name linter)
+ (flags (:standard -w -67))
+ (libraries jasmin yojson ppx_yojson_conv)
+ (preprocess
+  (pps ppx_yojson_conv)))
+
+(include_subdirs qualified)
+
