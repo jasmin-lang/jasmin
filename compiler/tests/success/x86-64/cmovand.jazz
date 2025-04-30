@@ -28,7 +28,6 @@ export
 fn test(reg u64 x y) -> reg u64 {
 
  reg u64 a b r;
- reg bool c;
 
  a = 10;
  b = 20;

@@ -15,5 +15,6 @@ fn foo2 (#poly={l1,l2} reg u64 x y) -> #poly=l1 reg u64, #poly=l2 reg u64 {
 export fn foo1 (#public reg u64 x, #public reg u64 y) -> #secret reg u64 {
    reg u64 r1;
    r1 = x;
+   r1 += y;
    return r1;
 }

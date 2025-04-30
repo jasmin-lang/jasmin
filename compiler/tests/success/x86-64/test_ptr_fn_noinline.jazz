@@ -84,7 +84,6 @@ export fn foo4() -> reg u64 {
 export fn foo5() -> reg u64 {
   stack u64[3] s;
   reg u64 r;
-  inline int i;
   s = init(s);  
   s,r = set(s);
   r += s[0];

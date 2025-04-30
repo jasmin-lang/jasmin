@@ -10,8 +10,8 @@ fn main() -> reg u32 {
     t += tmp;
 
     reg ptr u32[1] q = a[1:1];
-    reg u32 tmp = q[0];
-    t += tmp;
+    reg u32 tmq = q[0];
+    t += tmq;
 
     reg u32 v = 0;
     inline int i;

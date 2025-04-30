@@ -1,6 +1,5 @@
 inline
 fn add (reg u64 x, reg u64 y) -> reg u64 {
-   reg bool c;
    reg u64 z;
    z = x + y;
    return z;

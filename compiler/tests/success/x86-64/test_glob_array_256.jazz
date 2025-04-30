@@ -1,6 +1,6 @@
 u256[4] glob_t = { 0, 1, 2, 3 };
 
-export fn sum (reg u64 x) -> reg u64 {
+export fn sum () -> reg u64 {
   reg u64 r;
   reg u64 i;
   reg ptr u256[4] gt1;
@@ -30,7 +30,7 @@ export fn sum (reg u64 x) -> reg u64 {
   return r;
 }
 
-export fn sum1 (reg u64 x) -> reg u64 {
+export fn sum1 () -> reg u64 {
   reg u64 r;
   reg u64 i;
   reg ptr u256[4] gt1;
