@@ -47,7 +47,7 @@ inline fn key_combine(reg u128 rkey, reg u128 temp1, reg u128 temp2)
 
 inline fn key_expand(inline int rcon /*, inline bool inv*/, reg u128 rkey, reg u128 temp2) 
             -> reg u128, reg u128 {
-  reg u128 temp1 next_rkey;
+  reg u128 temp1 /*next_rkey*/;
   temp1 = #VAESKEYGENASSIST(rkey, rcon);
   rkey, temp2 = key_combine(rkey, temp1, temp2);
 /*  if (inv) {

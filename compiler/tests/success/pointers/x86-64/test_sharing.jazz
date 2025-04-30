@@ -15,7 +15,6 @@ inline fn mul5 (reg u64 x) -> reg u64 {
 export fn main(reg u64 in) -> reg u64 {
   reg u64 x;
   reg u64 r;
-  inline int i;
   x = in;
 
   x = mul5(x);

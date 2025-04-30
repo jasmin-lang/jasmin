@@ -8,7 +8,7 @@ leads to allocation failure.
 param int N = 14;
 
 export
-fn main(reg u64 a b) -> reg u64 {
+fn main(reg u64 a) -> reg u64 {
 reg u64 x r;
 reg u64[N] z;
 inline int i;

@@ -1,4 +1,4 @@
-export fn test (reg u64 x) -> reg u64 {
+export fn test () -> reg u64 {
   stack u64[2] t;
   reg u64 p r;
   t[0] = 0;

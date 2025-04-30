@@ -10,8 +10,6 @@ inline fn init (stack u64[n] t) -> stack u64[n] {
 }
 
 inline fn test2 () -> stack u64[m * n] {
-  inline int i;
-  reg u64 r;
   stack u64[m * n] s;
   stack u64[n] s0;
   stack u64[n] s1;
@@ -39,7 +37,6 @@ export fn test () -> reg u64 {
    
 inline fn test2_ () -> stack u64[m * n] {
   inline int i;
-  reg u64 r;
   stack u64[m * n] s;
   for i = 0 to m {
     s[:u64 i*n:n] = init(s[:u64 i*n:n]);

@@ -1,5 +1,5 @@
 export 
-fn fill(reg u64 in, reg u64 out, reg u64 len) -> reg u64 {
+fn fill(reg u64 io, reg u64 len) -> reg u64 {
    stack u64[10] t; 
    reg u64 i, max, aux;
 
@@ -9,17 +9,17 @@ fn fill(reg u64 in, reg u64 out, reg u64 len) -> reg u64 {
    i = 0;
    #bounded
    while (i < max) {
-     // t[i] = [in + 8 * i];  // works but not in the spirit
-     aux = [in + 8 * i];
+     // t[i] = [io + 8 * i];  // works but not in the spirit
+     aux = [io + 8 * i];
      t[i] = aux;
      i += 1;
    }
 
    i = 0;
    while (i < max) {
-     // [out + 8 * i] = t[i];
+     // [io + 8 * i] = t[i];
      aux = t[i];
-     [in + 8 * i] = aux;
+     [io + 8 * i] = aux;
      i += 1; 
    }  
 

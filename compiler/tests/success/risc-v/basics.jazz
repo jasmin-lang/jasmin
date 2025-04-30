@@ -80,20 +80,25 @@ export fn main() -> reg u32 {
     exp_r = 1366;
     if (rt0 != exp_r) { r = -1; }
 
+    #[inline]
     rt0 = sub_imm_lowering(a);
     exp_r = -5;
     if (rt0 == exp_r) { r = -1; }
 
+    #[inline]
     rt0 = add_lowering(a, b);
     exp_r = 13;
     if (rt0 == exp_r) { r = -1; }
 
+    #[inline]
     rt0, rt1 = copy(a);
     if (rt0 != rt1) { r = -1; }
 
+    #[inline]
     rt0, rt1 = copy_lowering(a);
     if (rt0 != rt1) { r = -1; }
 
+    #[inline]
     rt0 = pass(a);
     if (rt0 != a) { r = -1; }
 

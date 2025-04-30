@@ -35,7 +35,6 @@ inline fn store(reg u64 p, reg ptr u64[N] x)
 
 export fn test1(reg u64 p)
 {
-  inline int i;
   stack u64[N] a b;
   reg ptr u64[N] ap bp;
 
