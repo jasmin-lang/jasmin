@@ -33,6 +33,10 @@ let coqPackages =
       ITree = super.ITree.override { version = "master"; };
     })
   else coqPackages_8_20.overrideScope (self: super: {
+      coq-elpi = super.coq-elpi.override {
+        version = "LPCIC:v2.3.0";
+        elpi-version = "LPCIC:v2.0.3";
+      };
       mathcomp = super.mathcomp.override { version = "2.2.0"; };
   })
 ; in
