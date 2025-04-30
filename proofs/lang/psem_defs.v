@@ -194,7 +194,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
                sem_sop2 op acc vb)
       vidx l
   | Pis_var_init x =>
-    Let _ := assert ai.(allowinit) ErrType in (* Ifnot return Error, what type of error? *)
+    Let _ := assert ai.(allowinit) ErrType in
     let v := (evm s).[x] in
     ok (Vbool (is_defined v))
 
@@ -207,19 +207,17 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     ok (Vbool b)
   
   | Pis_barr_init x e1 e2 =>
-    Let _ := assert ai.(allowinit) ErrType in
+    (*Let _ := assert ai.(allowinit) ErrType in*)
     Let (n, t) := wdb, s.[x] in
     Let lo := sem_pexpr s e1 >>= to_int in
-    Let sz := sem_pexpr s e2 >>= to_int in
-    let b := all (fun i => 
-      match WArray.get Aligned AAscale U8 t (lo + i) with
-      | Ok w => (wrepr U8 0) == w
-      | Error _ => false
-      end
-      ) (ziota 0 sz) in
+    Let sz := sem_pexpr s e2 >>= to_int in            
+    Let b := foldM (fun i acc => 
+      Let w := WArray.get Aligned AAscale U8 t (lo + i) in
+        ok (acc && (w == wrepr U8 (-1)))
+      ) true (ziota 0 sz) in
     ok (Vbool b)
 
-  | Pis_mem_init e1 e2 => (* This should not be problematic *)
+  | Pis_mem_init e1 e2 =>
     Let lo := sem_pexpr s e1 >>= to_pointer in
     Let sz := sem_pexpr s e2 >>= to_int in
     let b := all (fun i => is_ok (read s.(emem) Unaligned (lo + (wrepr Uptr i))%R U8)) (ziota 0 sz) in
@@ -353,4 +351,3 @@ Notation "'Let' ( n , t ) ':=' wdb ',' s '.[' v ']' 'in' body" :=
 
 Notation "'Let' ( n , t ) ':=' wdb ',' gd ',' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_gvar wdb gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).
-

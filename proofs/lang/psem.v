@@ -1332,7 +1332,7 @@ Section READ_E_ES_EQ_ON.
       rewrite read_eE => z Hin; apply Heq; rewrite !read_eE; SvD.fsetdec.
     - move=> /= vi e1 e2 He1 He2 s1 vm' sv Heq. rewrite (He1 _ _ _ Heq).
       rewrite !read_eE SvP.MP.union_sym SvP.MP.union_assoc -!read_eE in Heq.
-      rewrite (He2 _ _ _ Heq). case allowinit => //=.
+      rewrite (He2 _ _ _ Heq).
       rewrite (get_var_eq_on _ _ Heq) ?(He1 _ _ _ Heq) ?(He2 _ _ _ Heq) //.
       rewrite !read_eE; SvD.fsetdec.
     - move=> /= e1 e2 He1 He2 s1 vm' s Heq; rewrite (He1 _ _ _ Heq) (He2 _ vm' s) //.
@@ -1764,6 +1764,9 @@ Qed.
 Section NOT_ALLOW_INIT.
 #[local] Existing Instance not_allow_init.
 
+Lemma uincl_is_defined v1 v2 : is_defined v1 -> value_uincl v1 v2 -> is_defined v2.
+Proof. by case: v1; case: v2. Qed.
+
 Lemma sem_pexpr_uincl_on_pair wdb gd :
   (∀ e s1 vm2 v1,
       s1.(evm) <=[read_e e] vm2 →
@@ -1823,30 +1826,52 @@ Proof.
       > /He1[? ->] /value_uincl_truncate h /h{h} [? /= -> ?]
       > /He2 [? -> /value_uincl_truncate h] /h{h} [? /= -> ?] /= <-.
     by case: b; eauto.
-  move=> i hi op x b hb s hs l hl s1 vm2 v.
-  have := read_e_Pbig i op x b s l; rewrite {1}/read_e /= /read_e => -> hle.
-  t_xrbindP => sv si /(hs s1 vm2 _ _) [ | ? ->]; first by apply: uincl_onI hle; SvD.fsetdec.
-  move=> hus htos lv li /(hl s1 vm2 _ _) [ | ? ->]; first by apply: uincl_onI hle; SvD.fsetdec.
-  move=> hul htol iv /(hi s1 vm2 _ _) [ | iv' ->]; first by apply: uincl_onI hle; SvD.fsetdec.
-  move=> hui /=.
-  have /= -> /= := of_value_uincl_te (ty:= sint) hus htos.
-  have /= -> /= := of_value_uincl_te (ty:= sint) hul htol.
-  elim: ziota iv iv' hui => /= [ ??? [<-] | ]; first by eauto.
-  move=> j js hrec iv iv' huiv; t_xrbindP => acc sj hw vj hbj hop2 hf.
-  have [vm2' -> hle']:= write_var_uincl_on (value_uincl_refl (Vint j)) hw hle .
-  have hle1 : evm sj <=[read_e_rec Sv.empty b] vm2'.
-  + apply: uincl_onI hle'; SvD.fsetdec.
-  have /= [vj' -> huvj /=] := hb _ _ _ hle1 hbj.
-  have -> /= := vuincl_sem_sop2 huiv huvj hop2.
-  by apply: hrec (value_uincl_refl acc) hf.
+  + move=> i hi op x b hb s hs l hl s1 vm2 v.
+    have := read_e_Pbig i op x b s l; rewrite {1}/read_e /= /read_e => -> hle.
+    t_xrbindP => sv si /(hs s1 vm2 _ _) [ | ? ->]; first by apply: uincl_onI hle; SvD.fsetdec.
+    move=> hus htos lv li /(hl s1 vm2 _ _) [ | ? ->]; first by apply: uincl_onI hle; SvD.fsetdec.
+    move=> hul htol iv /(hi s1 vm2 _ _) [ | iv' ->]; first by apply: uincl_onI hle; SvD.fsetdec.
+    move=> hui /=.
+    have /= -> /= := of_value_uincl_te (ty:= sint) hus htos.
+    have /= -> /= := of_value_uincl_te (ty:= sint) hul htol.
+    elim: ziota iv iv' hui => /= [ ??? [<-] | ]; first by eauto.
+    move=> j js hrec iv iv' huiv; t_xrbindP => acc sj hw vj hbj hop2 hf.
+    have [vm2' -> hle']:= write_var_uincl_on (value_uincl_refl (Vint j)) hw hle .
+    have hle1 : evm sj <=[read_e_rec Sv.empty b] vm2'.
+    - apply: uincl_onI hle'; SvD.fsetdec.
+    have /= [vj' -> huvj /=] := hb _ _ _ hle1 hbj.
+    have -> /= := vuincl_sem_sop2 huiv huvj hop2.
+    by apply: hrec (value_uincl_refl acc) hf.
+
+  + (* Pis_barr_init *)
+    move=> i e1 e2 He1 He2 s1 vm v hle.
+    rewrite /on_arr_var /get_var; t_xrbindP => _ guard <-.
+    case (evm s1).[i] => //= len arr.
+    t_xrbindP => sv vi /(He1 s1 vm _ _) [| ? ->]; first by apply: uincl_onI hle;
+    rewrite !read_eE; SvD.fsetdec.
+    move=> hus htos lv li /(He2 s1 vm _ _) [ | ? ->]; first by apply: uincl_onI hle;
+    rewrite !read_eE; SvD.fsetdec.
+    move=> hul htol iv /=.
+    have /= -> /= := of_value_uincl_te (ty:= sint) hus htos.
+    have /= -> /= := of_value_uincl_te (ty:= sint) hul htol.
+
+    (* Hvm to value_uincl *)
+    move:hle; rewrite !read_eE => /uincl_on_union_and[] _ /uincl_on_union_and[] _ Hvm.
+    rewrite <- SvP.MP.singleton_equal_add in Hvm. rewrite /uincl_on /vm_rel in Hvm.
+    specialize (Hvm i (SvD.MSetDecideTestCases.test_In_singleton i)).
+    admit.
+
+    (*elim: ziota => /=. move=> [<- ->]. subst. exists v.
+    move: guard. case wdb => //= Hdef. case vm.[i]=> //=.*)
+    
   + move=> e1 e2 He1 He2 >.
-  rewrite !read_eE => /uincl_on_union_and[] /He1{}He1.
-  rewrite SvP.MP.union_sym Sv_union_empty => /He2{}He2.
-  t_xrbindP=> > /He1 [? ->] /[swap] /to_wordI [? [? [-> /word_uincl_truncate h]]].
-  move=> /value_uinclE [? [? [-> /h{h} /= ->]]] >.
-  t_xrbindP=> > /He2 [? ->] /[swap] /to_intI ->.
-  move=> /value_uinclE -> <- /=. by eexists.
-Qed.
+    rewrite !read_eE => /uincl_on_union_and[] /He1{}He1.
+    rewrite SvP.MP.union_sym Sv_union_empty => /He2{}He2.
+    t_xrbindP=> > /He1 [? ->] /[swap] /to_wordI [? [? [-> /word_uincl_truncate h]]].
+    move=> /value_uinclE [? [? [-> /h{h} /= ->]]] >.
+    t_xrbindP=> > /He2 [? ->] /[swap] /to_intI ->.
+    move=> /value_uinclE -> <- /=. by eexists.
+Admitted.
 
 Lemma sem_pexpr_uincl_on wdb gd s1 vm2 e v1 :
   s1.(evm) <=[read_e e] vm2 →
@@ -2085,13 +2110,13 @@ Proof.
   + t_xrbindP => > he1 he2 >; case allowinit => //=.
     move=> _. apply on_arr_varP. rewrite /on_arr_var.
     move=> > hyp gv. apply get_var_wdb in gv. rewrite {}gv /=.
-    by t_xrbindP => > /he1 -> /to_intI -> > /he2 -> /to_intI -> <-.    
-  + t_xrbindP => > he1 he2 >; case allowinit => //=.
-    move=> _. apply on_arr_varP. rewrite /on_arr_var.
-    move=> > hyp gv. apply get_var_wdb in gv. rewrite {}gv /=.
-    by t_xrbindP => > /he1 -> /to_intI -> > /he2 -> /to_intI -> <-.    
+    by t_xrbindP => > /he1 -> /to_intI -> > /he2 -> /to_intI -> <-.
+  + move=> > he1 he2 >. apply on_arr_varP. rewrite /on_arr_var.
+    move=> > ? gv. apply get_var_wdb in gv. rewrite {}gv /=.
+    t_xrbindP => > /he1 -> /to_intI -> > /he2 -> /to_intI ->.
+    admit.
   + by t_xrbindP => > he1 > he2 > /he1 -> /= -> > /he2 -> /= -> <-.
-Qed.
+Admitted.
 
 Lemma sem_pexpr_wdb s e v : sem_pexpr true gd s e = ok v -> sem_pexpr wdb gd s e = ok v.
 Proof. apply (fst sem_pexpr_wdb_and). Qed.
