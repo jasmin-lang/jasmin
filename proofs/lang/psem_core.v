@@ -4,7 +4,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 Require Import xseq.
 Require Export array type expr gen_map warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
-
 Require Export
   flag_combination
   sem_params.
@@ -13,44 +12,6 @@ Import Utf8.
 Local Open Scope Z_scope.
 Local Open Scope seq_scope.
 Open Scope vm_scope.
-
-
-(* ** Parameter expressions
- * -------------------------------------------------------------------- *)
-
-Lemma sem_sop1I y x (f : sop1):
-  sem_sop1 f x = ok y →
-  exists (w1 : sem_t (type_of_op1 f).1) (w2 : sem_t (type_of_op1 f).2) ,
-    [/\ of_val _ x = ok w1
-      , sem_sop1_typed f w1 = ok w2
-      & y = to_val w2].
-Proof.
-  by rewrite /sem_sop1 /=; t_xrbindP => w1 ok_w1 w2 ok_w2 <-; exists w1, w2.
-Qed.
-
-Lemma sem_sop2I v v1 v2 (f : sop2) :
-  sem_sop2 f v1 v2 = ok v →
-  ∃ (w1 : sem_t (type_of_op2 f).1.1) (w2 : sem_t (type_of_op2 f).1.2)
-    (w3: sem_t (type_of_op2 f).2),
-    [/\ of_val _ v1 = ok w1,
-        of_val _ v2 = ok w2,
-        sem_sop2_typed f w1 w2 = ok w3 &
-        v = to_val w3].
-Proof.
-  by rewrite /sem_sop2 /=; t_xrbindP => w1 ok_w1 w2 ok_w2 w3 ok_w3 <- {v}; exists w1, w2, w3.
-Qed.
-
-(* ** Global access
- * -------------------------------------------------------------------- *)
-
-Lemma get_globalI gd g v :
-  get_global gd g = ok v →
-  exists gv : glob_value, [/\ get_global_value gd g = Some gv, v = gv2val gv & type_of_val v = vtype g].
-Proof.
-  rewrite /get_global; case: get_global_value => // gv.
-  by case:eqP => // <- [<-];exists gv.
-Qed.
-
 
 Section WSW.
 Context {wsw:WithSubWord}.
@@ -137,6 +98,47 @@ Instance sCP_stack : semCallParams (pT := progStack) :=
 
 End SEM_CALL_PARAMS.
 
+End WSW.
+
+(* ** Parameter expressions
+ * -------------------------------------------------------------------- *)
+
+Lemma sem_sop1I y x (f : sop1):
+  sem_sop1 f x = ok y →
+  exists (w1 : sem_t (type_of_op1 f).1) (w2 : sem_t (type_of_op1 f).2) ,
+    [/\ of_val _ x = ok w1
+      , sem_sop1_typed f w1 = ok w2
+      & y = to_val w2].
+Proof.
+  by rewrite /sem_sop1 /=; t_xrbindP => w1 ok_w1 w2 ok_w2 <-; exists w1, w2.
+Qed.
+
+Lemma sem_sop2I v v1 v2 (f : sop2) :
+  sem_sop2 f v1 v2 = ok v →
+  ∃ (w1 : sem_t (type_of_op2 f).1.1) (w2 : sem_t (type_of_op2 f).1.2)
+    (w3: sem_t (type_of_op2 f).2),
+    [/\ of_val _ v1 = ok w1,
+        of_val _ v2 = ok w2,
+        sem_sop2_typed f w1 w2 = ok w3 &
+        v = to_val w3].
+Proof.
+  by rewrite /sem_sop2 /=; t_xrbindP => w1 ok_w1 w2 ok_w2 w3 ok_w3 <- {v}; exists w1, w2, w3.
+Qed.
+
+(* ** Global access
+ * -------------------------------------------------------------------- *)
+
+Lemma get_globalI gd g v :
+  get_global gd g = ok v →
+  exists gv : glob_value, [/\ get_global_value gd g = Some gv, v = gv2val gv & type_of_val v = vtype g].
+Proof.
+  rewrite /get_global; case: get_global_value => // gv.
+  by case:eqP => // <- [<-];exists gv.
+Qed.
+
+Section WSW.
+Context {wsw:WithSubWord}.
+
 (* ** State
  * ------------------------------------------------------------------------- *)
 
@@ -177,7 +179,6 @@ Lemma escs_with_vm s vm : escs (with_vm s vm) = escs s.
 Proof. by case: s. Qed.
 
 End ESTATE_UTILS.
-
 
 (* ** Starting lemmas
  * ------------------------------------------------------------------- *)
@@ -326,7 +327,6 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}.
-
 
 Definition write_var_Spec (wdb : bool) (x : var) (v : value) (s : estate) (s' : estate) : Prop :=
    [/\ s' = with_vm s (evm s).[x <- v],
@@ -572,8 +572,6 @@ Proof.
   by apply on_arr_varP; t_xrbindP => *; apply: write_var_scsP; eauto.
 Qed.
 
-(* --------------------------------------------------------------- *)
-
 Lemma set_var_disjoint_eq_on wdb x s v vm vm' :
   ~~ Sv.mem x s ->
   set_var wdb vm x v = ok vm' ->
@@ -640,7 +638,6 @@ Proof.
   rewrite /read_gvar /get_gvar; case: ifP => // _ /disjointP hin.
   apply: get_var_eq_ex; apply hin; SvD.fsetdec.
 Qed.
-
 
 Section READ_E_ES_EQ_ON.
 
@@ -718,7 +715,6 @@ Proof.
   by case: s' eq_mem => /= > <-.
 Qed.
 
-
 Section UseMem.
 
 Context (wdb : bool) (s1 s2 : estate) (heq : evm s1 = evm s2).
@@ -750,6 +746,90 @@ Proof.
   by move=> h1 h2; rewrite (use_memP wdb (s2:= with_vm s2 (evm s1)) _ gd h1) //; apply: eq_on_sem_pexpr.
 Qed.
 
+(* FIXME this is close to write_var_spec but less specified *)
+Lemma write_var_eq_on1 wdb x v s1 s2 vm1:
+  write_var wdb x v s1 = ok s2 ->
+  exists2 vm2 : Vm.t,
+    write_var wdb x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
+    evm s2 =[Sv.singleton x] vm2.
+Proof.
+  rewrite /write_var;t_xrbindP => vm2 hset <-.
+  have [/= -> ? /=] := set_var_eq_on1 vm1 hset; eexists; eauto.
+  by rewrite !with_vm_idem.
+Qed.
+
+Lemma write_var_eq_on wdb X x v s1 s2 vm1:
+  write_var wdb x v s1 = ok s2 ->
+  evm s1 =[X] vm1 ->
+  exists2 vm2 : Vm.t,
+    write_var wdb x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
+    evm s2 =[Sv.add x X] vm2.
+Proof.
+  move=> /[dup] /(write_var_eq_on1 vm1) [vm2' hw2 h] hw1 hs.
+  exists vm2' => //; rewrite SvP.MP.add_union_singleton.
+  apply: (eq_on_union hs h); [apply: vrvP_var hw1 | apply: vrvP_var hw2].
+Qed.
+
+Lemma write_lval_eq_on1 wdb gd s1 s2 vm1 x v:
+  s1.(evm) =[read_rv x] vm1 ->
+  write_lval wdb gd x v s1 = ok s2 ->
+  exists2 vm2,
+    write_lval wdb gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
+    s2.(evm) =[vrv x] vm2.
+Proof.
+  case:x => [vi ty | x | al sz x e | al aa sz' x e | aa sz' len x e] /=.
+  + by move=> _ /write_noneP [-> h1 h2]; rewrite /write_none h1 h2; exists vm1.
+  + by move=> _ /(write_var_eq_on1 vm1).
+  + rewrite read_eE => Hvm.
+    rewrite -(get_var_eq_on wdb _ Hvm); last by SvD.fsetdec.
+    rewrite (@read_e_eq_on wdb gd Sv.empty vm1 s1);first last.
+    + by apply: eq_onI Hvm;rewrite read_eE;SvD.fsetdec.
+    by t_xrbindP => > -> /= -> > -> /= -> ? -> ? /= -> <- /=; exists vm1.
+  + rewrite read_eE=> Hvm.
+    rewrite (on_arr_var_eq_on _ (s' := with_vm s1 vm1) _ Hvm); last by SvD.fsetdec.
+    rewrite (@read_e_eq_on _ gd (Sv.add x Sv.empty) vm1) /=;first last.
+    + by apply: eq_onI Hvm;rewrite read_eE.
+    apply: on_arr_varP => n t Htx; rewrite /on_arr_var => -> /=.
+    by t_xrbindP => > -> /= -> ? -> ? /= -> /= /(write_var_eq_on1 vm1).
+  rewrite read_eE=> Hvm.
+  rewrite (on_arr_var_eq_on _ (s' := with_vm s1 vm1) _ Hvm); last by SvD.fsetdec.
+  rewrite (@read_e_eq_on _ gd (Sv.add x Sv.empty) vm1) /=;first last.
+  + by apply: eq_onI Hvm;rewrite read_eE.
+  apply: on_arr_varP => n t Htx; rewrite /on_arr_var => -> /=.
+  by t_xrbindP => > -> /= -> > -> ? /= -> /(write_var_eq_on1 vm1).
+Qed.
+
+Lemma write_lval_eq_on wdb gd X x v s1 s2 vm1 :
+  Sv.Subset (read_rv x) X ->
+  write_lval wdb gd x v s1 = ok s2 ->
+  evm s1 =[X] vm1 ->
+  exists2 vm2 : Vm.t,
+   write_lval wdb gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
+   evm s2 =[Sv.union (vrv x) X] vm2.
+Proof.
+  move=> hsub hw1 heq1.
+  have [vm2 hw2 heq2]:= write_lval_eq_on1 (eq_onI hsub heq1) hw1.
+  exists vm2 => //; apply: (eq_on_union heq1 heq2); [apply: vrvP hw1 | apply: vrvP hw2].
+Qed.
+
+Lemma write_lvals_eq_on wdb gd X xs vs s1 s2 vm1 :
+  Sv.Subset (read_rvs xs) X ->
+  write_lvals wdb gd s1 xs vs = ok s2 ->
+  evm s1 =[X] vm1 ->
+  exists2 vm2 : Vm.t,
+    write_lvals wdb gd (with_vm s1 vm1) xs vs = ok (with_vm s2 vm2) &
+    evm s2 =[Sv.union (vrvs xs) X] vm2.
+Proof.
+  elim: xs vs X s1 s2 vm1 => [ | x xs Hrec] [ | v vs] //= X s1 s2 vm1.
+  + by move=> _ [<-] ?;exists vm1.
+  rewrite read_rvs_cons => Hsub.
+  t_xrbindP => s1' hw hws /(write_lval_eq_on _ hw) [ |vm1' -> hvm1'] /=; first by SvD.fsetdec.
+  have [ |vm2 /= -> hvm2]:= Hrec _ _ _ _ _ _ hws hvm1';first by SvD.fsetdec.
+  exists vm2 => //; rewrite vrvs_cons; apply: eq_onI hvm2;SvD.fsetdec.
+Qed.
+
+(* -------------------------------------------- *)
+
 Lemma get_gvar_uincl_at wdb x gd vm1 vm2 v1:
   (if is_lvar x then value_uincl vm1.[gv x] vm2.[gv x] else True) ->
   get_gvar wdb gd vm1 x = ok v1 ->
@@ -777,7 +857,6 @@ Proof.
   1,6: by move=> -> <-.
   all: by move=> [] <- <-.
 Qed.
-
 
 Lemma sem_sop1_truncate_val o ve1 v1 :
   sem_sop1 o ve1 = ok v1 ->
@@ -876,7 +955,7 @@ Proof.
   by rewrite ok_w.
 Qed.
 
-(* ------------------------------------------------------------------ *)
+(* --------------------------------------------------------- *)
 Lemma sem_pexpr_uincl_on_pair wdb gd s1 vm2 :
   (∀ e v1,
       s1.(evm) <=[read_e e] vm2 →
@@ -1242,9 +1321,10 @@ Proof.
   by move => aa ws len [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
 Qed.
 
+(* MOVE THIS *)
 Section Expr.
 
-Context (wdb : bool) (gd : glob_decls) (s : estate). 
+Context (wdb : bool) (gd : glob_decls) (s : estate).
 
 Let P e : Prop :=
   forall v, sem_pexpr true gd s e = ok v -> sem_pexpr wdb gd s e = ok v.
@@ -1289,6 +1369,38 @@ Lemma sem_pexprs_ext_eq es vm :
   (evm s =1 vm)%vm ->
   sem_pexprs wdb gd s es = sem_pexprs wdb gd (with_vm s vm) es.
 Proof. by move=> heq; apply/read_es_eq_on_empty/vm_eq_eq_on. Qed.
+
+Lemma write_lvar_ext_eq x v s1 s2 vm1 :
+  (evm s1 =1 vm1)%vm ->
+  write_lval wdb gd x v s1 = ok s2 ->
+  exists2 vm2, evm s2 =1 vm2 & write_lval wdb gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2).
+Proof.
+  move=> he hw.
+  have hsub : Sv.Subset (read_rv x) (read_rv x) by SvD.fsetdec.
+  have heq : evm s1 =[read_rv x]  vm1 by move=> ??;rewrite he.
+  have [vm2 hw2 heq2]:= write_lval_eq_on hsub hw heq.
+  exists vm2 => //.
+  apply: (eq_on_eq_vm (d:=vrv x) he).
+  + by apply: eq_onI heq2; SvD.fsetdec.
+  + by apply: vrvP hw.
+  by apply: vrvP hw2.
+Qed.
+
+Lemma write_lvars_ext_eq xs vs s1 s2 vm1 :
+  (evm s1 =1 vm1)%vm ->
+  write_lvals wdb gd s1 xs vs = ok s2 ->
+  exists2 vm2, evm s2 =1 vm2 & write_lvals wdb gd (with_vm s1 vm1) xs vs = ok (with_vm s2 vm2).
+Proof.
+  move=> he hw.
+  have hsub : Sv.Subset (read_rvs xs) (read_rvs xs) by SvD.fsetdec.
+  have heq : evm s1 =[read_rvs xs]  vm1 by move=> ??;rewrite he.
+  have [vm2 hw2 heq2]:= write_lvals_eq_on hsub hw heq.
+  exists vm2 => //.
+  apply: (eq_on_eq_vm (d:=vrvs xs) he).
+  + by apply: eq_onI heq2; SvD.fsetdec.
+  + by apply: vrvsP hw.
+  by apply: vrvsP hw2.
+Qed.
 
 End Expr.
 
@@ -1344,5 +1456,4 @@ Ltac t_get_var :=
     rewrite get_var_eq
     || (rewrite get_var_neq; last by [|apply/nesym])
   ).
-
 
