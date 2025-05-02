@@ -1,5 +1,5 @@
-
 # [unreleased]
+
 ## New features
 
 - New syntax
@@ -28,6 +28,12 @@
   is not a constant (`len` must still be a constant). This in particular
   enables the use of subarrays in while loops.
   ([PR #1101](https://github.com/jasmin-lang/jasmin/pull/1101)).
+
+## Bug fixes
+
+- Improved parsing of flag combinations
+  ([PR #1140](https://github.com/jasmin-lang/jasmin/pull/1140);
+  fixes [#1138](https://github.com/jasmin-lang/jasmin/issues/1138)).
 
 ## Other changes
 
