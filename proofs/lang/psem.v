@@ -1845,8 +1845,8 @@ Proof.
 
   + (* Pis_barr_init *)
     move=> i e1 e2 He1 He2 s1 vm v hle.
-    rewrite /on_arr_var /get_var; t_xrbindP => _ guard <-.
-    case (evm s1).[i] => //= len arr.
+    rewrite /on_arr_var; t_xrbindP=> z Hgv.
+    case hz: z => //=.
     t_xrbindP => sv vi /(He1 s1 vm _ _) [| ? ->]; first by apply: uincl_onI hle;
     rewrite !read_eE; SvD.fsetdec.
     move=> hus htos lv li /(He2 s1 vm _ _) [ | ? ->]; first by apply: uincl_onI hle;
@@ -1855,14 +1855,21 @@ Proof.
     have /= -> /= := of_value_uincl_te (ty:= sint) hus htos.
     have /= -> /= := of_value_uincl_te (ty:= sint) hul htol.
 
-    (* Hvm to value_uincl *)
-    move:hle; rewrite !read_eE => /uincl_on_union_and[] _ /uincl_on_union_and[] _ Hvm.
-    rewrite <- SvP.MP.singleton_equal_add in Hvm. rewrite /uincl_on /vm_rel in Hvm.
-    specialize (Hvm i (SvD.MSetDecideTestCases.test_In_singleton i)).
-    admit.
+    (* hle to value_uincl *)
+    move:hle; rewrite !read_eE => /uincl_on_union_and[] _ /uincl_on_union_and[] _.
+    rewrite <- SvP.MP.singleton_equal_add; rewrite /uincl_on /vm_rel.
+    move=> /(_ i (SvD.MSetDecideTestCases.test_In_singleton i)) hle.
 
-    (*elim: ziota => /=. move=> [<- ->]. subst. exists v.
-    move: guard. case wdb => //= Hdef. case vm.[i]=> //=.*)
+    have [z' -> hui]:= get_var_uincl_at hle Hgv.
+    
+    elim: ziota => /=.
+    - by move=>[??]; subst; have [? -> _] := value_uinclE hui; eauto.
+      move=> ?? H. t_xrbindP=> ?? Hk ?. subst.
+      move=> //=.
+
+    have [? -> ?] := value_uinclE hui.
+    have [h1 h2 h3] := WArray.get_bound Hk.
+    admit.
     
   + move=> e1 e2 He1 He2 >.
     rewrite !read_eE => /uincl_on_union_and[] /He1{}He1.
