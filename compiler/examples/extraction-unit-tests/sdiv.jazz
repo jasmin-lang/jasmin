@@ -1,5 +1,14 @@
 /* Extraction bug */
 export fn main() -> reg u64, reg u64 {
-reg u64 a = 1 b = -1 c = a /64s b d = -4 e = 3 f = d %64s e;
-return c, f;
+  reg u64 a b c d e f;
+
+  a = 1;
+  b = -1;
+  c = a /64s b;
+
+  d = -4;
+  e = 3;
+  f = d %64s e;
+
+  return c, f;
 }
