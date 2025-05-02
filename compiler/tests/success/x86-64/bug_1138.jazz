@@ -1,0 +1,8 @@
+export fn iszero(reg u32 x) -> reg u32 {
+  reg bool of, cf, sf, zf;
+  reg u32 r = 0, one = 1;
+  of, cf, sf, _, zf = #TEST_32(x, x);
+  reg bool b = _EQ(of, cf, sf, zf);
+  r = one if b;
+  return r;
+}

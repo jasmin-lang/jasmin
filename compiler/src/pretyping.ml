@@ -1954,10 +1954,10 @@ let tt_annot_paramdecls dfl_writable pd env (annot, (ty,vs)) =
 let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
   let mk_i ?(annot=annot) instr =
     { P.i_desc = instr; P.i_loc = L.of_loc pi; P.i_info = (); P.i_annot = annot} in
-  let rec tt_assign env_lhs env_rhs ls eqop pe ocp =
+  let rec tt_assign ?tag env_lhs env_rhs ls eqop pe ocp =
     match ls, eqop, pe, ocp with
     | ls, `Raw, { L.pl_desc = S.PECall (f, args); pl_loc = el }, None when is_combine_flags f ->
-      tt_assign env_lhs env_rhs ls `Raw (L.mk_loc el (S.PECombF(f, args))) None
+      tt_assign ~tag:E.AT_inline env_lhs env_rhs ls `Raw (L.mk_loc el (S.PECombF(f, args))) None
 
     | ls, `Raw, { L.pl_desc = S.PECall (f, args); pl_loc = el }, None ->
       let (f,fsig) = tt_fun env_rhs f in
@@ -2046,7 +2046,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       let tlvs, tes, arguments = prim_sig arch_info.asmOp p in
       let lvs, einstr = tt_lvalues arch_info env_lhs (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args tes in
-      mk_i (P.Copn(lvs, AT_keep, p, es)) :: einstr
+      mk_i (P.Copn(lvs, Option.default E.AT_keep tag, p, es)) :: einstr
 
   | ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) }); pl_loc = loc} , None
       ->
@@ -2075,8 +2075,8 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       let v = flv ety in
       let tg =
         P.(match v with
-            | Lvar v -> (match kind_i v with Inline -> E.AT_inline | _ -> E.AT_none)
-            | _ -> AT_none) in
+            | Lvar v when kind_i v = Inline -> E.AT_inline
+            | _ -> Option.default E.AT_none tag) in
       [mk_i (cassgn_for v tg ety e)]
 
   | ls, `Raw, pe, None ->
