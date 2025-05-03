@@ -1954,6 +1954,7 @@ let tt_annot_paramdecls dfl_writable pd env (annot, (ty,vs)) =
 let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
   let mk_i ?(annot=annot) instr =
     { P.i_desc = instr; P.i_loc = L.of_loc pi; P.i_info = (); P.i_annot = annot} in
+  let default_tag = if Annotations.has_symbol "keep" annot then E.AT_keep else E.AT_none in
   let rec tt_assign ?tag env_lhs env_rhs ls eqop pe ocp =
     match ls, eqop, pe, ocp with
     | ls, `Raw, { L.pl_desc = S.PECall (f, args); pl_loc = el }, None when is_combine_flags f ->
@@ -2039,14 +2040,14 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       in
       let es = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args [ty; ty] in
       let p = Sopn.Opseudo_op (Oswap Type.Coq_sbool) in  (* The type is fixed latter *)
-      [mk_i (P.Copn(lvs, AT_keep, p, es))]
+      [mk_i (P.Copn(lvs, Option.default default_tag tag, p, es))]
 
   | ls, `Raw, { pl_desc = PEPrim (f, args) }, None ->
       let p = tt_prim arch_info.asmOp f in
       let tlvs, tes, arguments = prim_sig arch_info.asmOp p in
       let lvs, einstr = tt_lvalues arch_info env_lhs (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args tes in
-      mk_i (P.Copn(lvs, Option.default E.AT_keep tag, p, es)) :: einstr
+      mk_i (P.Copn(lvs, Option.default (if lvs = [] then E.AT_keep else default_tag) tag, p, es)) :: einstr
 
   | ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) }); pl_loc = loc} , None
       ->
@@ -2061,7 +2062,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       let tlvs, tes, arguments = prim_sig arch_info.asmOp p in
       let lvs, einstr = tt_lvalues arch_info env_lhs (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args tes in
-      mk_i (P.Copn(lvs, AT_keep, p, es)) :: einstr
+      mk_i (P.Copn(lvs, Option.default default_tag tag, p, es)) :: einstr
 
   | (None,[lv]), `Raw, pe, None ->
       let _, flv, vty = tt_lvalue arch_info.pd env_lhs lv in
@@ -2076,7 +2077,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       let tg =
         P.(match v with
             | Lvar v when kind_i v = Inline -> E.AT_inline
-            | _ -> Option.default E.AT_none tag) in
+            | _ -> Option.default default_tag tag) in
       [mk_i (cassgn_for v tg ety e)]
 
   | ls, `Raw, pe, None ->
@@ -2103,7 +2104,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
         | _ -> rs_tyerror ~loc exn in
       let e' = oget ~exn:(tyerror ~loc exn) (P.expr_of_lval x) in
       let c = tt_expr_bool arch_info.pd env_rhs cp in
-      mk_i (P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e'))) :: is
+      mk_i (P.Cassgn (x, default_tag, ty, Pif (ty, c, e, e'))) :: is
   in
   let tt_annot_decl env (vd: S.vardecl L.located) (aty: A.annotations * S.pstotype) =
     (* remember the environment prior to the declaration:

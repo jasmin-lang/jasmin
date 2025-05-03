@@ -1,0 +1,7 @@
+export fn carry(reg u64 x) -> reg u8 {
+  reg bool c;
+  _, c, _, _, _ = #CMP(x, 0);
+  _, x += 1 + c;
+  reg u8 r = #SETcc(c);
+  return r;
+}
