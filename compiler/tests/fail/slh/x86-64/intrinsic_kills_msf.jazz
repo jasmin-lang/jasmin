@@ -3,6 +3,7 @@ fn main(reg u64 x) {
     reg u64 msf;
 
     msf = #init_msf();
+    #[keep]
     msf = #MOV(msf);
     x = #protect(x, msf);
     [x] = 0;

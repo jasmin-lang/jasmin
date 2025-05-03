@@ -1,0 +1,10 @@
+#[stacksize=8]
+export
+fn main(reg u32 x) -> reg u32 {
+  stack u32[1] a b;
+  a[0] = x;
+  #[keep]
+  b[0] = x;
+  x = a[0];
+  return x;
+}
