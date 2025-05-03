@@ -1843,10 +1843,9 @@ Proof.
     have -> /= := vuincl_sem_sop2 huiv huvj hop2.
     by apply: hrec (value_uincl_refl acc) hf.
 
-  + (* Pis_barr_init *)
-    move=> i e1 e2 He1 He2 s1 vm v hle.
+  + move=> i e1 e2 He1 He2 s1 vm v hle.
     rewrite /on_arr_var; t_xrbindP=> z Hgv.
-    case hz: z => //=.
+    case hz : z => //=; subst z.
     t_xrbindP => sv vi /(He1 s1 vm _ _) [| ? ->]; first by apply: uincl_onI hle;
     rewrite !read_eE; SvD.fsetdec.
     move=> hus htos lv li /(He2 s1 vm _ _) [ | ? ->]; first by apply: uincl_onI hle;
@@ -1855,22 +1854,19 @@ Proof.
     have /= -> /= := of_value_uincl_te (ty:= sint) hus htos.
     have /= -> /= := of_value_uincl_te (ty:= sint) hul htol.
 
-    (* hle to value_uincl *)
     move:hle; rewrite !read_eE => /uincl_on_union_and[] _ /uincl_on_union_and[] _.
     rewrite <- SvP.MP.singleton_equal_add; rewrite /uincl_on /vm_rel.
     move=> /(_ i (SvD.MSetDecideTestCases.test_In_singleton i)) hle.
-
     have [z' -> hui]:= get_var_uincl_at hle Hgv.
-    
-    elim: ziota => /=.
-    - by move=>[??]; subst; have [? -> _] := value_uinclE hui; eauto.
-      move=> ?? H. t_xrbindP=> ?? Hk ?. subst.
-      move=> //=.
+    have [? -> hui'] := value_uinclE hui => //=.
+    move => /[swap] <-.
+    remember true as init eqn: Heq;clear Heq.
+    elim: ziota init => //=.
+    + by move => init [->] ; exists (Vbool iv).
+     move=> ?? H; t_xrbindP  => init ? z hget <-.
+     have := WArray.uincl_get hui' hget => -> //=.
+     by apply: H.
 
-    have [? -> ?] := value_uinclE hui.
-    have [h1 h2 h3] := WArray.get_bound Hk.
-    admit.
-    
   + move=> e1 e2 He1 He2 >.
     rewrite !read_eE => /uincl_on_union_and[] /He1{}He1.
     rewrite SvP.MP.union_sym Sv_union_empty => /He2{}He2.
@@ -1878,7 +1874,7 @@ Proof.
     move=> /value_uinclE [? [? [-> /h{h} /= ->]]] >.
     t_xrbindP=> > /He2 [? ->] /[swap] /to_intI ->.
     move=> /value_uinclE -> <- /=. by eexists.
-Admitted.
+Qed.
 
 Lemma sem_pexpr_uincl_on wdb gd s1 vm2 e v1 :
   s1.(evm) <=[read_e e] vm2 →
@@ -2120,10 +2116,10 @@ Proof.
     by t_xrbindP => > /he1 -> /to_intI -> > /he2 -> /to_intI -> <-.
   + move=> > he1 he2 >. apply on_arr_varP. rewrite /on_arr_var.
     move=> > ? gv. apply get_var_wdb in gv. rewrite {}gv /=.
-    t_xrbindP => > /he1 -> /to_intI -> > /he2 -> /to_intI ->.
-    admit.
+    t_xrbindP => > /he1 -> /to_intI -> > /he2 -> /to_intI -> z hfold <- //=.
+    by rewrite hfold.
   + by t_xrbindP => > he1 > he2 > /he1 -> /= -> > /he2 -> /= -> <-.
-Admitted.
+Qed.
 
 Lemma sem_pexpr_wdb s e v : sem_pexpr true gd s e = ok v -> sem_pexpr wdb gd s e = ok v.
 Proof. apply (fst sem_pexpr_wdb_and). Qed.
