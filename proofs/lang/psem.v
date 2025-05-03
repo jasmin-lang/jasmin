@@ -882,6 +882,39 @@ Definition checker_st_eq_on : Checker_e eq_on :=
      check_lvals := check_lvals_st_eq_on;
      check_esP_R := check_esP_R_st_eq_on |}.
 
+
+Definition st_uincl_on X := st_rel uincl_on X.
+
+Lemma read_es_st_uincl_on gd wdb es X :
+  Sv.Subset (read_es es) X ->
+  wrequiv (st_uincl_on X) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) (List.Forall2 value_uincl).
+Proof.
+  move=> hsub s t v /st_relP [-> /= h].
+  by apply: sem_pexprs_uincl_on; apply: uincl_onI h.
+Qed.
+
+Lemma write_lvals_st_uincl_on gd wdb xs X vs1 vs2 :
+  Sv.Subset (read_rvs xs) X ->
+  List.Forall2 value_uincl vs1 vs2 ->
+  wrequiv
+    (st_uincl_on X)
+    (λ s1 : estate, write_lvals wdb gd s1 xs vs1) (λ s2 : estate, write_lvals wdb gd s2 xs vs2)
+    (st_uincl_on (Sv.union (vrvs xs) X)).
+Proof.
+  move=> hsub hu s t s' /st_relP [-> /= h] hw.
+  have [vm2 ? ->]:= write_lvals_uincl_on hsub hu hw h.
+  by eexists; eauto.
+Qed.
+
+Lemma check_esP_R_st_uincl_on X es1 es2 X':
+  check_es_st_eq_on X es1 es2 X' → ∀ vm1 vm2 : Vm.t, vm1 <=[X] vm2 → vm1 <=[X'] vm2.
+Proof. by move=> [<-]. Qed.
+
+Definition checker_st_uincl_on : Checker_e uincl_on :=
+  {| check_es := check_es_st_eq_on;
+     check_lvals := check_lvals_st_eq_on;
+     check_esP_R := check_esP_R_st_uincl_on |}.
+
 Section PROG.
 
 Context (p p':prog) (ev ev': extra_val_t).
@@ -901,6 +934,16 @@ Proof.
   by apply write_lvals_st_eq_on.
 Qed.
 #[local] Hint Resolve checker_st_eq_onP : core.
+
+Lemma checker_st_uincl_onP : Checker_uincl p p' checker_st_uincl_on.
+Proof.
+  constructor; rewrite -eq_globs.
+  + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- [? <- ?]; apply read_es_st_uincl_on.
+  move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- [<- <- ?] vs1 vs2 hu.
+  apply wrequiv_weaken with (st_rel uincl_on d) (st_rel uincl_on (Sv.union (vrvs xs1) d)) => //.
+  + by apply st_rel_weaken => ??; apply uincl_onI; SvD.fsetdec.
+  by apply: write_lvals_st_uincl_on hu.
+Qed.
 
 Section FUN.
 
@@ -1422,6 +1465,22 @@ Proof.
   rewrite /finalize_funcall => <- <- <- /= s t fs [<- <- hvm].
   t_xrbindP => vs hget vs' htr <-.
   have [vs1 -> hu /=] := get_var_is_uincl hvm hget.
+  have [vs1' -> {}hu /=] := mapM2_dc_truncate_val htr hu.
+  by eexists; eauto.
+Qed.
+
+Lemma fs_uincl_on_finalize fd fd' :
+  f_tyout fd = f_tyout fd' ->
+  f_extra fd = f_extra fd' ->
+  f_res fd = f_res fd' ->
+  wrequiv (st_uincl_on (vars_l (f_res fd))) (finalize_funcall fd) (finalize_funcall fd') fs_uincl.
+Proof.
+  rewrite /finalize_funcall => <- <- <- /= s t fs /st_relP [-> /= hvm].
+  t_xrbindP => vs hget vs' htr <-.
+  move: hget; rewrite -(sem_pexprs_get_var _ [::]) => hres.
+  have [| vres1 + hu]:= sem_pexprs_uincl_on (uincl_onI _ hvm) hres.
+  + by rewrite vars_l_read_es.
+  rewrite sem_pexprs_get_var /= => -> /=.
   have [vs1' -> {}hu /=] := mapM2_dc_truncate_val htr hu.
   by eexists; eauto.
 Qed.
