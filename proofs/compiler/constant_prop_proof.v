@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 Require Import psem compiler_util.
-Require Export constant_prop it_sems_core hoare_logic relational_logic.
+Require Export constant_prop.
 
 Import Utf8 ZArith Morphisms Classes.RelationClasses.
 Import RelationPairs.
@@ -1425,9 +1425,9 @@ Lemma check_esP_R_cp d es1 es2 d' :
 Proof. by move=> [<-]. Qed.
 
 Definition checker_cp : Checker_e valid_uincl :=
-  {| relational_logic.check_es := check_es_cp
-   ; relational_logic.check_lvals := check_lvals_cp
-   ; relational_logic.check_esP_R := check_esP_R_cp
+  {| check_es := check_es_cp
+   ; check_lvals := check_lvals_cp
+   ; check_esP_R := check_esP_R_cp
   |}.
 
 Lemma checker_cpP : Checker_uincl p p' checker_cp.
