@@ -452,12 +452,17 @@ storage:
 | GLOBAL         { `Global }
 
 
-%inline decl:
-| v=var { v, None }
-| v=var EQ e=pexpr { v, Some e }
+%inline vinitialize:
+| EQ e=pexpr { Some e }
+| { None }
+
+%inline subvardecl :
+vs = nonempty_list(var) ve=vinitialize
+    { let vs = List.map (fun v -> v, ve) vs in vs }
 
 %inline pvardecl(S):
-| ty=stor_type vs=separated_nonempty_list(S, loc(decl)) { (ty, vs) }
+| ty=stor_type vs=separated_nonempty_list(COMMA, subvardecl)
+    { (ty, List.concat vs) }
 
 pparamdecl(S):
     ty=stor_type vs=separated_nonempty_list(S, var) { (ty, vs) }
