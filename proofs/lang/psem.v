@@ -882,7 +882,6 @@ Definition checker_st_eq_on : Checker_e eq_on :=
      check_lvals := check_lvals_st_eq_on;
      check_esP_R := check_esP_R_st_eq_on |}.
 
-
 Definition st_uincl_on X := st_rel uincl_on X.
 
 Lemma read_es_st_uincl_on gd wdb es X :
@@ -914,6 +913,21 @@ Definition checker_st_uincl_on : Checker_e uincl_on :=
   {| check_es := check_es_st_eq_on;
      check_lvals := check_lvals_st_eq_on;
      check_esP_R := check_esP_R_st_uincl_on |}.
+
+Lemma st_eq_on_finalize fd fd' :
+  f_tyout fd = f_tyout fd' ->
+  f_extra fd = f_extra fd' ->
+  f_res fd = f_res fd' ->
+  wrequiv (st_eq_on (vars_l (f_res fd))) (finalize_funcall fd) (finalize_funcall fd') eq.
+Proof.
+  rewrite /finalize_funcall => <- <- <- /= s t fs [hscs hmem hvm].
+  t_xrbindP => vs hget vs' htr <-.
+  move: hget; rewrite -(sem_pexprs_get_var _ [::]) => hres.
+  rewrite (eq_on_sem_pexprs (~~ direct_call) [::] hmem (eq_onI _ hvm)) in hres.
+  2: by rewrite vars_l_read_es.
+  rewrite sem_pexprs_get_var in hres.
+  rewrite hres /= htr /= hscs hmem; eexists; eauto.
+Qed.
 
 Section PROG.
 
