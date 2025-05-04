@@ -81,7 +81,7 @@ Lemma get_sourceP ii es src pfx s vm ves :
     ves = [:: v ] &
       ∃ vm1,
         [/\
-           sem p2 ev (with_vm s vm) pfx (with_vm s vm1),
+           esem p2 ev pfx (with_vm s vm) = ok (with_vm s vm1),
            evm s <=[X] vm1 &
            exists2 v', get_gvar true gd vm1 src = ok v' & value_uincl v v' ].
 Proof.
@@ -94,16 +94,14 @@ Proof.
       case => ? htmp ?; split; first SvD.fsetdec.
       by move => ws; have := htmp ws; SvD.fsetdec.
     exists v; first by [].
-    exists vm; split.
-    + exact: Eskip.
-    + exact: hvm.
+    exists vm; split => //.
     move: ok_v; rewrite /get_gvar.
     case: src hX => src []; last by exists v.
     rewrite read_es_cons read_e_var /read_gvar /get_var /= => hX.
     have {}hX : Sv.In src X by SvD.fsetdec.
     t_xrbindP => ok_src <-{v}.
     have {hvm hX} hle := hvm _ hX.
-    exists vm.[src]; last exact: hle.
+    exists vm.[src] => //.
     by have /= -> := value_uincl_defined (wdb := false) hle ok_src.
   move => aa ws len [] x xs ofs /=.
   set y := {| vtype := _ |}.
@@ -127,9 +125,9 @@ Proof.
   have : evm s <=[read_e ofs] vm by (apply: uincl_onI hvm; SvD.fsetdec).
   move => /sem_pexpr_uincl_on /(_ ok_vofs) [] vofs' ok_vofs' /value_uinclE ?; subst vofs'.
   eexists; split.
-  - apply: sem_seq1; constructor; apply: Eassgn.
-     + rewrite /= -eq_globs ok_t' /= ok_vofs' /= ok_sub' /=; reflexivity.
-     + rewrite /truncate_val /= WArray.castK /=; reflexivity.
+  - rewrite /= /sem_assgn.
+     rewrite /= -eq_globs ok_t' /= ok_vofs' /= ok_sub' /=.
+     rewrite /truncate_val /= WArray.castK /=.
      rewrite /= /write_var /= /set_var /= eqxx /= with_vm_idem; reflexivity.
   - apply: uincl_on_set_r; first by [].
     apply: uincl_onI hvm; clear -hyX; SvD.fsetdec.
@@ -146,11 +144,12 @@ Lemma array_copyP ii (dst: var_i) ws n src s vm1 (t t': WArray.array (Z.to_pos (
   ∃ vm2, [/\
     evm s <=[Sv.remove dst X] vm2,
     (exists2 a : WArray.array (Z.to_pos (arr_size ws n)), vm2.[dst] = Varr a & WArray.uincl t' a) &
-    sem p2 ev (with_vm s vm1) (array_copy fresh_var_ident ii dst ws n src) (with_vm s vm2)
+    esem p2 ev (array_copy fresh_var_ident ii dst ws n src) (with_vm s vm1) = ok (with_vm s vm2)
   ].
 Proof.
   move: t t'.
   set len := Z.to_pos _.
+Opaque esem.
   case: dst => -[] _ dst dsti ty t' /= -> hsub hvm ok_t hcopy.
   set x := {| vtype := _ |}.
   rewrite /array_copy.
@@ -160,7 +159,7 @@ Proof.
   set c := map (MkI ii) _.
   have [vm1' [hvm1' [tx0 htx0]] hipre] : exists2 vm1',
     vm1 <=[Sv.union (read_gvar src) (Sv.remove x X)]  vm1' /\ exists tx, vm1'.[x] = @Varr len tx &
-    sem_I p2 ev (with_vm s vm1) (MkI ii ipre) (with_vm s vm1').
+    esem_i p2 ev (MkI ii ipre) (with_vm s vm1) = ok (with_vm s vm1').
   + rewrite /ipre; case: ifPn => hxy.
     + exists vm1; last by constructor; econstructor.
       split; first by [].
@@ -170,8 +169,7 @@ Proof.
       move=> z hz; rewrite Vm.setP_neq //; apply /eqP => heq; subst z.
       have : Sv.In x (read_gvar src) by SvD.fsetdec.
       by case/norP: hxy; rewrite /eq_gvar /= /read_gvar; case: (src) => /= vy [/= /eqP | /=]; SvD.fsetdec.
-    constructor; apply: Eassgn => //=; first by rewrite /truncate_val /= WArray.castK.
-    by rewrite write_var_eq_type.
+    by rewrite /= /sem_assgn /= /truncate_val /= WArray.castK /= write_var_eq_type.
   move: hcopy; rewrite /WArray.copy -/len => /(WArray.fcopy_uincl (WArray.uincl_empty tx0 erefl))
     => -[tx'] hcopy hutx.
   have :
@@ -182,11 +180,11 @@ Proof.
       WArray.fcopy ws ty tx0 (Zpos n - j) j = ok tx' ->
       exists2 vm2,
         (vm1 <=[Sv.union (read_gvar src) (Sv.remove x X)]  vm2 /\ vm2.[x] = Varr tx') &
-        sem_for p2 ev i (ziota (Zpos n - j) j) (with_vm s vm1') c (with_vm s vm2).
+        esem_for p2 ev i c (with_vm s vm1') (ziota (Zpos n - j) j) = ok (with_vm s vm2).
   + clear -fresh_counter fresh_temporary ok_t Hp hsub ok_t.
     apply: natlike_ind => [ | j hj hrec] hjn vm1' tx hvm1' hx.
-    + by rewrite /WArray.fcopy ziota0 /= => -[?]; subst tx; exists vm1' => //; apply: EForDone.
-    Opaque Z.sub.
+    + by rewrite /WArray.fcopy ziota0 /= => -[?]; subst tx; exists vm1'.
+    Opaque Z.sub esem_for.
     rewrite /WArray.fcopy ziotaS_cons //=; have -> : n - Z.succ j + 1 = n - j by ring.
     t_xrbindP => tx1 w hget hset hcopy.
     set vm2' := vm1'.[i <- Vint (n - Z.succ j)].
@@ -215,7 +213,7 @@ Proof.
       clear; rewrite /tmp_var /tmp /fresh_temporary /=; SvD.fsetdec.
     + by rewrite Vm.setP_eq /= eqxx.
     move=> vm2 h1 h2; exists vm2 => //.
-    apply: (EForOne (s1' := with_vm s vm1'.[i <- Vint (n - Z.succ j)])) h2.
+    apply: (eEForOne (s1' := with_vm s vm1'.[i <- Vint (n - Z.succ j)])) h2.
     + by rewrite write_var_eq_type.
     have fresh_not_y : {| vtype := sint; vname := fresh_counter |} ≠ gv src.
     + by move=> heqy; move: ok_t => /= /type_of_get_gvar /= /compat_typeEl; rewrite -heqy.
@@ -224,24 +222,24 @@ Proof.
     + apply: uincl_onI hvm1'; rewrite read_e_var; clear; SvD.fsetdec.
     move=> _v hv /value_uinclE [yv ? hty']; subst _v.
     subst c; case: {hrec} cond.
-    { apply: Eseq; last apply: sem_seq1; constructor; apply: Eassgn.
-      + rewrite /= get_gvar_neq //.
-        rewrite -eq_globs; move: hv => /= => -> /=.
-        by rewrite (@get_gvar_eq _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget).
-      + by rewrite /truncate_val /= truncate_word_u.
-      + by rewrite /= write_var_eq_type.
-      + by rewrite /mk_lvar /= /get_gvar get_var_eq /= cmp_le_refl orbT.
-      + by rewrite /truncate_val /= truncate_word_u.
-      rewrite /= !get_var_neq // /get_var /= hx /= get_gvar_neq //.
-      rewrite /get_gvar /= get_var_eq // truncate_word_u /= hset /=.
+Transparent esem.
+    { rewrite /= /sem_assgn /=.
+      rewrite /= get_gvar_neq // -eq_globs.
+      move: hv => /= => -> /=.
+      rewrite (@get_gvar_eq _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget) /=.
+      rewrite /truncate_val /= truncate_word_u /= write_var_eq_type //.
+      rewrite /mk_lvar /= /get_gvar get_var_eq /= cmp_le_refl orbT //.
+      rewrite /truncate_val /= truncate_word_u /=.
+      rewrite !(get_var_eq, get_var_neq) //= /get_var hx /=.
+      rewrite truncate_word_u /= hset /=.
       by rewrite write_var_eq_type. }
-    apply sem_seq1; constructor.
-    apply: Eassgn.
-    + rewrite /= get_gvar_neq //.
-      rewrite -eq_globs; move: hv => /= => -> /=.
-      by rewrite (@get_gvar_eq _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget).
-    + by rewrite /truncate_val /= truncate_word_u.
-    rewrite /= get_var_neq //= /get_var hx /= (@get_gvar_eq _ _ _ (mk_lvar i)) //= truncate_word_u /=.
+    rewrite /= /sem_assgn /= -eq_globs.
+    rewrite (get_gvar_eq gd (x:= mk_lvar i)) //=.
+    rewrite /= !get_gvar_neq //.
+    move: hv => /= -> /=.
+    rewrite (WArray.uincl_get hty' hget) /=.
+    rewrite /truncate_val /= truncate_word_u /=.
+    rewrite /= get_var_neq //= /get_var hx /= truncate_word_u /=.
     by rewrite hset /= write_var_eq_type.
   move=> /(_ n _ _ vm1' tx0 hvm1' htx0) [] => //;first by lia.
   + by rewrite Z.sub_diag.
@@ -250,10 +248,10 @@ Proof.
     * apply: uincl_onI hvm; clear; SvD.fsetdec.
     apply: uincl_onI hvm2; clear; SvD.fsetdec.
   + by exists tx'.
-  apply: (Eseq hipre); apply sem_seq1; constructor.
-  apply: Efor => //.
-  have -> : wrange UpTo 0 n = ziota 0 n by rewrite /wrange ziotaE Z.sub_0_r.
-  done.
+  rewrite esem_cons hipre /=.
+  have /= -> : wrange UpTo 0 n = ziota 0 n by rewrite /wrange ziotaE Z.sub_0_r.
+Transparent esem_for.
+  by move: hfor; rewrite /esem_for => ->.
 Qed.
 
 Opaque array_copy.
@@ -267,7 +265,7 @@ Lemma get_targetP ii xs dst sfx s1 len (t' t'': WArray.array len) s2 vm1 :
   WArray.uincl t' t'' →
   exists2 vm2,
     evm s2 <=[X] vm2 &
-    sem p2 ev (with_vm s1 vm1) sfx (with_vm s2 vm2).
+    esem p2 ev sfx (with_vm s1 vm1) = ok (with_vm s2 vm2).
 Proof.
   clear -Hp.
   case: xs => // x [] //.
@@ -300,15 +298,38 @@ Proof.
   have {}z2z2' : value_uincl (Varr z2) (Varr z2') by [].
   have! := (write_var_uincl_on z2z2' hw hvm).
   case => vm2 hw' hvm2.
-  exists vm2; last first.
-  { apply: sem_seq1; constructor.
-    apply: Eassgn.
-    - rewrite /= /get_gvar /= /get_var /= ok_dst /=; reflexivity.
-    - rewrite /truncate_val /= hcast' /=; reflexivity.
-    rewrite /= /on_arr_var ok_b /= -eq_globs ok_ofs' /= WArray.castK /= hset' /= hw'.
-    done. }
-  apply: uincl_onI hvm2.
-  SvD.fsetdec.
+  exists vm2.
+  + by apply: uincl_onI hvm2; SvD.fsetdec.
+  rewrite /sem_assgn /= /get_gvar /= ok_b /get_var /= ok_dst /=.
+  rewrite /truncate_val /= hcast' /=.
+  by rewrite -eq_globs ok_ofs' /= WArray.castK /= hset' /= hw'.
+Qed.
+
+Lemma esem_array_copy ii xs es ws n sx sc tx tc s s' vm vs vs' :
+  Sv.Subset (Sv.union (Sv.union (read_rvs xs) (vrvs xs)) (read_es es)) X ->
+  get_source fresh_var_ident X ii es = ok (sx, sc) ->
+  get_target fresh_var_ident X ii xs = ok (tx, tc) ->
+  vtype tx = sarr (Z.to_pos (arr_size ws n)) ->
+  evm s <=[X] vm ->
+  sem_pexprs true gd s es = ok vs ->
+  exec_sopn (sopn_copy ws n) vs = ok vs' ->
+  write_lvals true gd s xs vs' = ok s' ->
+  exists2 vm2,
+    esem p2 ev (sc ++ array_copy fresh_var_ident ii tx ws n sx ++ tc) (with_vm s vm) = ok (with_vm s' vm2) &
+    evm s' <=[X] vm2.
+Proof.
+  move=> hsub hgets hgett htx hu hes hcopy hxs.
+  have hesX : Sv.Subset (read_es es) X by (clear -hsub; SvD.fsetdec).
+  have [ hdis [] v ? [] vm1 [] exec_pfx hvm1 [] vy hy ] := get_sourceP hgets hes hesX hu; subst vs.
+  move: hcopy.
+  rewrite /exec_sopn /sopn_sem /=; t_xrbindP => t' t /to_arrI ? ok_t' ?; subst v vs'.
+  case/value_uinclE => t2 ? htt2; subst vy.
+  have ok_t2' := WArray.uincl_copy htt2 ok_t'.
+  have [ vm2 [] hvm2 [] t'' ok_dst t't'' exec_array_copy ] := array_copyP ii htx hdis hvm1 hy ok_t2'.
+  have hxsX : Sv.Subset (read_rvs xs) X by (clear -hsub; SvD.fsetdec).
+  have [ vm3 hvm3 exec_sfx ] := get_targetP hgett hxs hxsX hvm2 ok_dst t't''.
+  exists vm3 => //.
+  by rewrite esem_cat exec_pfx /= esem_cat exec_array_copy.
 Qed.
 
 Section SEM.
@@ -381,18 +402,8 @@ Proof.
     by rewrite /sem_sopn -eq_globs hves' /= ho' /=.
   move=> [ws n] /(_ _ _ refl_equal) ?; subst o.
   t_xrbindP => cc [] src pfx ok_src; t_xrbindP => - [] dst sfx ok_sfx; t_xrbindP => /eqP htx ? vm0 hvm0; subst cc.
-  have hesX : Sv.Subset (read_es es) X by (clear -hsub; SvD.fsetdec).
-  have [ hdis [] v ? [] vm1 [] exec_pfx hvm1 [] vy hy ] := get_sourceP ok_src hves hesX hvm0; subst ves.
-  move: ho.
-  rewrite /exec_sopn /sopn_sem /=; t_xrbindP => t' t /to_arrI ? ok_t' ?; subst v vs.
-  case/value_uinclE => t2 ? htt2; subst vy.
-  have ok_t2' := WArray.uincl_copy htt2 ok_t'.
-  have [ vm2 [] hvm2 [] t'' ok_dst t't'' exec_array_copy ] := array_copyP ii htx hdis hvm1 hy ok_t2'.
-  have hxsX : Sv.Subset (read_rvs xs) X by (clear -hsub; SvD.fsetdec).
-  have [ vm3 hvm3 exec_sfx ] := get_targetP ok_sfx hw hxsX hvm2 ok_dst t't''.
-  exists vm3; first exact: hvm3.
-  apply: (sem_app exec_pfx).
-  exact: sem_app exec_array_copy exec_sfx.
+  have [vm2 ??] := esem_array_copy hsub ok_src ok_sfx htx hvm0 hves ho hw.
+  by exists vm2 => //; apply esem_sem.
 Qed.
 
 Local Lemma Hsyscall : sem_Ind_syscall p1 Pi_r.
@@ -599,13 +610,19 @@ Proof.
     apply wequiv_assgn_rel_uincl with checker_st_uincl_on X => //.
     + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
     by split => //; rewrite /read_rvs /= read_rvE; SvD.fsetdec.
-  + move=> xs t o es ii; rewrite vars_I_opn /vars_lvals /= => hsub i2.
+  + move=> xs tg o es ii; rewrite vars_I_opn /vars_lvals /= => hsub i2.
     case heq: is_copy => [ [ws n] | ]; last first.
     + move=> [<-].
       apply wequiv_opn_rel_uincl with checker_st_uincl_on X => //.
       + by split => //; SvD.fsetdec.
       by split => //; SvD.fsetdec.
-    admit.
+    t_xrbindP => -[sx sc] hgets /=.
+    t_xrbindP => -[tx tc] hgett.
+    t_xrbindP => /eqP htx <-.
+    apply wequiv_opn_esem => s t s' /st_relP [-> /= hu].
+    rewrite /sem_sopn (is_copyP heq); t_xrbindP => vs' vs hes hcopy hxs.
+    have [vm2 ??]:= esem_array_copy hsub hgets hgett htx hu hes hcopy hxs.
+    by exists (with_vm s' vm2).
   + move=> >; rewrite vars_I_syscall /vars_lvals /= => hsub _ [<-].
     apply wequiv_syscall_rel_uincl with checker_st_uincl_on X => //.
     + by split => //; SvD.fsetdec.
@@ -633,6 +650,8 @@ Proof.
   + by split => //; SvD.fsetdec.
   + by split => //; SvD.fsetdec.
   by move=> ???; apply hrec.
-Admitted.
+Qed.
+
+End IT.
 
 End WITH_PARAMS.

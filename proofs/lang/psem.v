@@ -127,6 +127,32 @@ with sem_call : syscall_state_t -> mem -> funname -> seq value -> syscall_state_
     m2 = finalize f.(f_extra) s2.(emem)  ->
     sem_call scs1 m1 fn vargs' scs2 m2 vres'.
 
+Lemma esem_sem c s s' : esem P ev c s = ok s' -> sem s c s'.
+Proof.
+  set Pi := fun i => forall s s', esem_i P ev i s = ok s' -> sem_I s i s'.
+  set Pi_r := fun i => forall ii s s', esem_i P ev (MkI ii i) s = ok s' -> sem_i s i s'.
+  set Pc := fun c => forall s s', esem P ev c s = ok s' -> sem s c s'.
+  move: s s'.
+  apply (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) => {c} //; rewrite /Pi /Pi_r /Pc.
+  + by move=> > h > /h ?; constructor.
+  + by move=> > [<-]; constructor.
+  + by move=> > hi hc > /=; t_xrbindP => > /hi ? /hc; apply Eseq.
+  + by move=> > /=; rewrite /sem_assgn; t_xrbindP => *; eapply Eassgn; eauto.
+  + by move=> > /=; apply: Eopn.
+  + move=> > /=; rewrite /sem_syscall /fexec_syscall /upd_estate; t_xrbindP.
+    move=> ? hes ? [[scs mem] vs] /= ? [<-] /= ?.
+    by eapply Esyscall; eauto.
+  + move=> > hc1 hc2 > /=; rewrite /sem_cond; t_xrbindP => b v hv /to_boolI ?; subst v.
+    by case: b hv => [ hv /hc1 | hc /hc2]; [apply Eif_true | apply Eif_false].
+  move=> > hc /= _ s s'; rewrite /sem_bound; t_xrbindP.
+  move=> > hlo /to_intI ? > hhi /to_intI ? <- hfor; subst.
+  eapply Efor; eauto => {hhi hlo}.
+  elim: wrange s hfor => /= [ | j js hrec] s.
+  + by move=> [<-]; constructor.
+  t_xrbindP.
+  by move=> s1 s2 hw /hc + /hrec; apply EForOne.
+Qed.
+
 Section SEM_IND.
   Variables
     (Pc   : estate -> cmd -> estate -> Prop)
