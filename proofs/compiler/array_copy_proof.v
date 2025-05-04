@@ -169,8 +169,7 @@ Opaque esem.
       move=> z hz; rewrite Vm.setP_neq //; apply /eqP => heq; subst z.
       have : Sv.In x (read_gvar src) by SvD.fsetdec.
       by case/norP: hxy; rewrite /eq_gvar /= /read_gvar; case: (src) => /= vy [/= /eqP | /=]; SvD.fsetdec.
-    constructor; apply: Eassgn => //=; first by rewrite /truncate_val /= WArray.castK.
-    by rewrite write_var_eq_type.
+    by rewrite /= /sem_assgn /= /truncate_val /= WArray.castK /= write_var_eq_type.
   move: hcopy; rewrite /WArray.copy -/len => /(WArray.fcopy_uincl (WArray.uincl_empty tx0 erefl))
     => -[tx'] hcopy hutx.
   have :
@@ -304,6 +303,33 @@ Proof.
   rewrite /sem_assgn /= /get_gvar /= ok_b /get_var /= ok_dst /=.
   rewrite /truncate_val /= hcast' /=.
   by rewrite -eq_globs ok_ofs' /= WArray.castK /= hset' /= hw'.
+Qed.
+
+Lemma esem_array_copy ii xs es ws n sx sc tx tc s s' vm vs vs' :
+  Sv.Subset (Sv.union (Sv.union (read_rvs xs) (vrvs xs)) (read_es es)) X ->
+  get_source fresh_var_ident X ii es = ok (sx, sc) ->
+  get_target fresh_var_ident X ii xs = ok (tx, tc) ->
+  vtype tx = sarr (Z.to_pos (arr_size ws n)) ->
+  evm s <=[X] vm ->
+  sem_pexprs true gd s es = ok vs ->
+  exec_sopn (sopn_copy ws n) vs = ok vs' ->
+  write_lvals true gd s xs vs' = ok s' ->
+  exists2 vm2,
+    esem p2 ev (sc ++ array_copy fresh_var_ident ii tx ws n sx ++ tc) (with_vm s vm) = ok (with_vm s' vm2) &
+    evm s' <=[X] vm2.
+Proof.
+  move=> hsub hgets hgett htx hu hes hcopy hxs.
+  have hesX : Sv.Subset (read_es es) X by (clear -hsub; SvD.fsetdec).
+  have [ hdis [] v ? [] vm1 [] exec_pfx hvm1 [] vy hy ] := get_sourceP hgets hes hesX hu; subst vs.
+  move: hcopy.
+  rewrite /exec_sopn /sopn_sem /=; t_xrbindP => t' t /to_arrI ? ok_t' ?; subst v vs'.
+  case/value_uinclE => t2 ? htt2; subst vy.
+  have ok_t2' := WArray.uincl_copy htt2 ok_t'.
+  have [ vm2 [] hvm2 [] t'' ok_dst t't'' exec_array_copy ] := array_copyP ii htx hdis hvm1 hy ok_t2'.
+  have hxsX : Sv.Subset (read_rvs xs) X by (clear -hsub; SvD.fsetdec).
+  have [ vm3 hvm3 exec_sfx ] := get_targetP hgett hxs hxsX hvm2 ok_dst t't''.
+  exists vm3 => //.
+  by rewrite esem_cat exec_pfx /= esem_cat exec_array_copy.
 Qed.
 
 Section SEM.
@@ -584,13 +610,19 @@ Proof.
     apply wequiv_assgn_rel_uincl with checker_st_uincl_on X => //.
     + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
     by split => //; rewrite /read_rvs /= read_rvE; SvD.fsetdec.
-  + move=> xs t o es ii; rewrite vars_I_opn /vars_lvals /= => hsub i2.
+  + move=> xs tg o es ii; rewrite vars_I_opn /vars_lvals /= => hsub i2.
     case heq: is_copy => [ [ws n] | ]; last first.
     + move=> [<-].
       apply wequiv_opn_rel_uincl with checker_st_uincl_on X => //.
       + by split => //; SvD.fsetdec.
       by split => //; SvD.fsetdec.
-    admit.
+    t_xrbindP => -[sx sc] hgets /=.
+    t_xrbindP => -[tx tc] hgett.
+    t_xrbindP => /eqP htx <-.
+    apply wequiv_opn_esem => s t s' /st_relP [-> /= hu].
+    rewrite /sem_sopn (is_copyP heq); t_xrbindP => vs' vs hes hcopy hxs.
+    have [vm2 ??]:= esem_array_copy hsub hgets hgett htx hu hes hcopy hxs.
+    by exists (with_vm s' vm2).
   + move=> >; rewrite vars_I_syscall /vars_lvals /= => hsub _ [<-].
     apply wequiv_syscall_rel_uincl with checker_st_uincl_on X => //.
     + by split => //; SvD.fsetdec.
@@ -618,6 +650,8 @@ Proof.
   + by split => //; SvD.fsetdec.
   + by split => //; SvD.fsetdec.
   by move=> ???; apply hrec.
-Admitted.
+Qed.
+
+End IT.
 
 End WITH_PARAMS.
