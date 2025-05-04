@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
-Require Import psem compiler_util it_sems_core relational_logic.
+Require Import psem compiler_util.
 Require Export allocation.
 
 Import Utf8.
