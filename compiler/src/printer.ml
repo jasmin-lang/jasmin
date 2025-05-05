@@ -235,7 +235,8 @@ let pp_gfun ~debug pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var 
       (pp_list ",@ " pp_var) ret in
 
 
-  F.fprintf fmt "@[<v>%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>%a%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
+   pp_annotations fd.f_annot.f_user_annot
    pp_call_conv fd.f_cc
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
