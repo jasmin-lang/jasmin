@@ -142,9 +142,10 @@ type warning =
   | UseLea
   | IntroduceNone
   | IntroduceArrayCopy
+  | InlinedCallToExport
   | SimplifyVectorSuffix
-  | DuplicateVar 
-  | UnusedVar 
+  | DuplicateVar
+  | UnusedVar
   | SCTchecker
   | Deprecated
   | Experimental
@@ -155,6 +156,7 @@ val set_warn_recoverable : bool -> unit
 val set_all_warnings : unit -> unit
 val nowarning : unit -> unit
 val add_warning : warning -> unit -> unit
+val remove_warning : warning -> unit
 val warning :
       warning -> Location.i_loc
    -> ('a, Format.formatter, unit) format -> 'a

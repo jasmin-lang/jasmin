@@ -1906,7 +1906,7 @@ let mk_call loc inline lvs f es =
   | Internal -> ()
   | Export _ ->
     if not inline then
-      warning Always (L.i_loc0 loc) "export function will be inlined"
+      warning InlinedCallToExport (L.i_loc0 loc) "export function will be inlined"
   | Subroutine _ when not inline ->
     let check_lval = function
       | Lnone _ | Lvar _ | Lasub _ -> ()
