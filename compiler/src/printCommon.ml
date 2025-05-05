@@ -138,7 +138,7 @@ let string_of_op2 = function
   | Ovsub (ve, ws) -> asprintf "-%s" (string_of_velem Unsigned ws ve)
   | Ovmul (ve, ws) -> asprintf "*%s" (string_of_velem Unsigned ws ve)
   | Ovlsr (ve, ws) -> asprintf ">>%s" (string_of_velem Unsigned ws ve)
-  | Ovasr (ve, ws) -> asprintf ">>%s" (string_of_velem Unsigned ws ve)
+  | Ovasr (ve, ws) -> asprintf ">>%s" (string_of_velem Signed ws ve)
   | Ovlsl (ve, ws) -> asprintf "<<%s" (string_of_velem Signed ws ve)
   | Owi2(sg, ws, o) -> string_of_wiop2 sg ws o
 
