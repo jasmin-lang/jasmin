@@ -33,7 +33,7 @@ let extract_to_file prog arch pd asmOp model amodel fnames array_dir outfile =
 
 
 let parse_and_extract arch call_conv idirs =
-  let module A = (val get_arch_module arch call_conv) in
+  let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
 
   let extract model amodel functions array_dir output pass file =
     let prog = parse_and_compile (module A) ~wi2i:true pass file idirs in

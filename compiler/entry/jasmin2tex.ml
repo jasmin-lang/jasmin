@@ -4,7 +4,7 @@ open CommonCLI
 open Utils
 
 let parse_and_print arch call_conv idirs =
-  let module A = (val get_arch_module arch call_conv) in
+  let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
   let parse file =
     try Compile.parse_file A.arch_info ~idirs file with
     | Annot.AnnotationError (loc, code) ->
