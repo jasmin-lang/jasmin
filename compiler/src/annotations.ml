@@ -45,8 +45,8 @@ let add_symbol ~loc s annot =
   else (Location.mk_loc loc s, None) :: annot
 
 (* -------------------------------------------------------------------- *)
-let sint = "Internal::sint"
-let uint = "Internal::uint"
+let sint = "Internal::wint::signed"
+let uint = "Internal::wint::unsigned"
 
 let has_sint annot = has_symbol sint annot
 let has_uint annot = has_symbol uint annot
