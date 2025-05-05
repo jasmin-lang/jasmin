@@ -164,8 +164,7 @@ let pp_pointer fmt = function
 let pp_kind fmt = function
   | Const -> fprintf fmt "param"
   | Stack ptr -> fprintf fmt "stack%a" pp_pointer ptr
-  | Reg (k, ptr) ->
-      fprintf fmt "%sreg%a" (if k = Normal then "" else "#mmx ") pp_pointer ptr
+  | Reg (k, ptr) -> fprintf fmt "reg%a" pp_pointer ptr
   | Inline -> fprintf fmt "inline"
   | Global -> fprintf fmt "global"
 

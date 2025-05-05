@@ -208,7 +208,7 @@ let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
   F.fprintf fmt "%a %a" pp_kind v.v_kind (pp_gtype ?w pp_size) v.v_ty
 
 let pp_var_decl pp_var pp_size fmt v =
-  F.fprintf fmt "%a %a" (pp_ty_decl pp_size) v pp_var v
+  F.fprintf fmt "%a%a %a" pp_annotations v.v_annot (pp_ty_decl pp_size) v pp_var v
 
 let pp_call_conv fmt =
   function
