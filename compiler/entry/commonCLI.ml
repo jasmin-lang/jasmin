@@ -2,20 +2,6 @@ open Jasmin
 open Cmdliner
 open Utils
 
-let get_arch_module arch call_conv : (module Arch_full.Arch) =
-  (module Arch_full.Arch_from_Core_arch
-            ((val match arch with
-                  | Utils.X86_64 ->
-                      (module (val CoreArchFactory.core_arch_x86 ~use_lea:false
-                                     ~use_set0:false call_conv)
-                      : Arch_full.Core_arch)
-                  | Utils.ARM_M4 ->
-                      (module CoreArchFactory.Core_arch_ARM
-                      : Arch_full.Core_arch)
-                  | Utils.RISCV ->
-                      (module CoreArchFactory.Core_arch_RISCV
-                      : Arch_full.Core_arch))))
-
 let arch =
   let alts =
     [
@@ -40,9 +26,7 @@ let call_conv =
     & info [ "call-conv"; "cc" ] ~docv:"OS" ~doc)
 
 let idirs =
-  let doc =
-    "Bind ident to path for 'from ident require ...'"
-  in
+  let doc = "Bind ident to path for 'from ident require ...'" in
   let info = Arg.info [ "I"; "include" ] ~docv:"ident=path" ~doc in
   let conv = Arg.pair ~sep:'=' Arg.string Arg.dir in
   Arg.value (Arg.opt_all conv [] info)

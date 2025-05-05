@@ -14,3 +14,6 @@ val core_arch_x86 :
       and type cond = condt
       and type asm_op = X86_instr_decl.x86_op
       and type extra_op = X86_extra.x86_extra_op)
+
+val get_arch_module :
+  Utils.architecture -> Glob_options.call_conv -> (module Arch_full.Arch)
