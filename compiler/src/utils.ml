@@ -336,6 +336,7 @@ type warning =
   | UseLea (* -wlea *)
   | IntroduceNone (* -w_ *)
   | IntroduceArrayCopy (* -winsertarraycopy *)
+  | InlinedCallToExport
   | SimplifyVectorSuffix
   | DuplicateVar (* -wduplicatevar *)
   | UnusedVar (* -wunusedvar *)
@@ -347,6 +348,7 @@ type warning =
 
 let default_warnings =
     [
+      InlinedCallToExport;
       SimplifyVectorSuffix;
       DuplicateVar;
       UnusedVar;
@@ -368,6 +370,11 @@ let add_warning (w: warning) () =
   let ws = !warns in
   if not (List.mem w ws) then
     warns := w :: ws
+
+let remove_warning (w: warning) =
+  let ws = !warns in
+  if List.mem w ws then
+    warns := List.remove ws w
 
 let set_all_warnings () = warns := all_warnings
 
