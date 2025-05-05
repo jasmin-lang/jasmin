@@ -58,7 +58,7 @@ fn top() -> reg u32 {
   r = 1;
   bot();
   s = r;
-  mid();
+  _ = mid();
   t = s;
   bot();
   return t;

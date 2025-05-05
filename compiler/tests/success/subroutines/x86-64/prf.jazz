@@ -21,7 +21,7 @@ fn test(reg u64 p) {
   stack u8[full] tab;
   inline int i;
   reg u8 z;
-  z = #set0_8();
+  ?{}, z = #set0_8();
   for i = 0 to full {
     tab[i] = z;
   }
