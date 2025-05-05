@@ -666,10 +666,13 @@ Section WIEQUIV_F.
 Context (p : prog) (ev: extra_val_t).
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
-Lemma st_eq_finalize fd :
-  wrequiv (st_eq tt) (finalize_funcall fd) (finalize_funcall fd) eq.
+Lemma st_eq_finalize fd fd' :
+  f_tyout fd = f_tyout fd' ->
+  f_extra fd = f_extra fd' ->
+  f_res fd = f_res fd' ->
+  wrequiv (st_eq tt) (finalize_funcall fd) (finalize_funcall fd') eq.
 Proof.
-  rewrite /finalize_funcall => s t fs' [h1 h2 h3].
+  rewrite /finalize_funcall => <- <- <- s t fs' [h1 h2 h3].
   t_xrbindP => vs.
   rewrite -!(sem_pexprs_get_var _ [::]).
   rewrite (sem_pexprs_ext_eq _ _ _ h3).
@@ -685,7 +688,7 @@ Proof.
   exists (st_eq tt), (st_eq tt).
   move=> s1; exists s1; split => //.
   + by apply wequiv_rec_st_eq.
-  apply st_eq_finalize.
+  by apply st_eq_finalize.
 Qed.
 
 Lemma wiequiv_st_eq c : wiequiv p p ev ev (st_eq tt) c c (st_eq tt).
