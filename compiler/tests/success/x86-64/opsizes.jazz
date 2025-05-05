@@ -54,7 +54,7 @@ reg u64 d;
 d = x;
 c = #MOV_32(d);
 b = #MOV_16(c);
-a = #ADD_8(b, b);
+?{}, a = #ADD_8(b, b);
 
 return a;
 }

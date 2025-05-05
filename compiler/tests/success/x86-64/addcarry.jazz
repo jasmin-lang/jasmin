@@ -20,7 +20,7 @@ _,cf,_,_,_,z = #ADC(z,z,cf);
 ?{CF=cf, ZF=zf}, z = #ADC(z,z,cf);
 ?{CF, ZF}, z = #ADC(z,z,cf);
 
-z = #ADC(z,z,CF);
+?{}, z = #ADC(z,z,CF);
 
 return z;
 }

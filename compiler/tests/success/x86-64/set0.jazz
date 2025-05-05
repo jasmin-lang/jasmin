@@ -6,15 +6,15 @@ export fn foo () -> reg u64 {
    reg u128 x128;
    reg u256 x256;
    reg u64 r, tmp;
-   x8 = #set0_8();
+   ?{}, x8 = #set0_8();
    r = ((64s)x8);
-   x16 = #set0_16();
+   ?{}, x16 = #set0_16();
    tmp = ((64s)x16);
    r += tmp;
-   x32 = #set0_32();
+   ?{}, x32 = #set0_32();
    tmp = ((64s)x32);
    r += tmp;
-   x64 = #set0_64();
+   ?{}, x64 = #set0_64();
    tmp = ((64s)x64);
    r += tmp;
    x128 = #set0_128();
@@ -24,10 +24,10 @@ export fn foo () -> reg u64 {
    x128 = #VEXTRACTI128(x256, 0);
    tmp = #VPEXTR_64(x128, 0);
    r += tmp;
-
-
-
-
    return r;
-
 }
+
+export fn g8()  -> reg u8  { reg u8 r;  ?{}, r = #set0_8(); return r; }
+export fn g16() -> reg u16 { reg u16 r; ?{}, r = #set0_16(); return r; }
+export fn g32() -> reg u32 { reg u32 r; ?{}, r = #set0_32(); return r; }
+export fn g64() -> reg u64 { reg u64 r; ?{}, r = #set0(); return r; }
