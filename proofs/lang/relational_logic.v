@@ -324,6 +324,27 @@ Lemma wkequiv_iter (IT1 IT2 T1 T2 : Type) (I : rel IT1 IT2) (Q : rel T1 T2) body
   wkequiv I (ITree.iter body1) (ITree.iter body2) Q.
 Proof. by move=> hbody i1 i2 hI; apply xrutt_iter with I. Qed.
 
+(* TODO: it will be nicer to be able to rewrite under wkequiv, i.e we need morphisms *)
+Lemma wkequiv_eutt_l {I1 I2 O1 O2}
+  (P : rel I1 I2)
+  (Q : rel O1 O2) F1 F2 F1':
+  (forall s1 s2, P s1 s2 -> F1 s1 ≈ F1' s1) ->
+  wkequiv P F1 F2 Q ->
+  wkequiv P F1' F2 Q.
+Proof.
+  by move=> heq h s1 s2 hP; rewrite <-(heq _ _ hP); apply h.
+Qed.
+
+Lemma wkequiv_eutt_r {I1 I2 O1 O2}
+  (P : rel I1 I2)
+  (Q : rel O1 O2) F1 F2 F2':
+  (forall s1 s2, P s1 s2 -> F2 s2 ≈ F2' s2) ->
+  wkequiv P F1 F2 Q ->
+  wkequiv P F1 F2' Q.
+Proof.
+  by move=> heq h s1 s2 hP; rewrite <-(heq _ _ hP); apply h.
+Qed.
+
 End WKEQUIV.
 
 Section WKEQUIV_WEAKEN.

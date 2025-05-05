@@ -727,7 +727,7 @@ Proof.
     exists s; split => //.
     + by move: hinit; rewrite /initialize_funcall /= eq_p_extra.
     + by apply/wequiv_rec_st_eq/eq_globs.
-    apply st_eq_finalize.
+    by apply st_eq_finalize.
   t_xrbindP => _.
   set m := init_map _ _.
   set X' := Sv.union _ _.
@@ -749,7 +749,7 @@ Proof.
     set fd := {| f_info := _ |}.
     have -> : res = (f_res fd) by done.
     by apply st_eq_on_finalize.
-  }.
+  }
   have : Sv.Subset (vars_c c) (X S).
   + by rewrite /X; SvD.fsetdec.
   move: Sv.empty env c' hcc'.
