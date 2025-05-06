@@ -578,9 +578,7 @@ type reg_oracle_t = {
 module type Regalloc = sig
   type extended_op
 
-  val split_live_ranges : (unit, extended_op) func -> (unit, extended_op) func
   val renaming : (unit, extended_op) func -> (unit, extended_op) func
-  val remove_phi_nodes : (unit, extended_op) func -> (unit, extended_op) func
 
   val subroutine_ra_by_stack : (unit, extended_op) func -> bool
 
@@ -908,9 +906,6 @@ let reverse_varmap nv (vars: int Hv.t) : A.allocation =
   Hv.iter (fun v i -> A.set i v a) vars;
   a
 
-let split_live_ranges (f: ('info, 'asm) func) : (unit, 'asm) func =
-  Ssa.split_live_ranges true f
-
 let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
   let vars, nv = collect_variables ~allvars:true Sv.empty f in
   let eqc =
@@ -931,9 +926,6 @@ let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
   List.iter (fun arg -> A.set (Hv.find vars arg) arg a) f.f_args;
   let subst = subst_of_allocation vars a in
   Subst.subst_func subst f
-
-let remove_phi_nodes (f: ('info, 'asm) func) : (unit, 'asm) func =
-  Ssa.remove_phi_nodes f
 
 (** Returns extra information (k, rsp) depending on the calling convention.
 

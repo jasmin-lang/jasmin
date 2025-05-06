@@ -16,9 +16,7 @@ type reg_oracle_t = {
 module type Regalloc = sig
   type extended_op
 
-  val split_live_ranges : (unit, extended_op) func -> (unit, extended_op) func
   val renaming : (unit, extended_op) func -> (unit, extended_op) func
-  val remove_phi_nodes : (unit, extended_op) func -> (unit, extended_op) func
 
   val subroutine_ra_by_stack : (unit, extended_op) func -> bool
 

@@ -285,9 +285,9 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     Prog.V.clone x
   in
 
-  let split_live_ranges_fd fd = Regalloc.split_live_ranges fd in
+  let split_live_ranges_fd fd = Ssa.split_live_ranges true fd in
   let renaming_fd fd = Regalloc.renaming fd in
-  let remove_phi_nodes_fd fd = Regalloc.remove_phi_nodes fd in
+  let remove_phi_nodes_fd fd = Ssa.remove_phi_nodes fd in
 
   let removereturn sp =
     let fds, _data = Conv.prog_of_csprog sp in
