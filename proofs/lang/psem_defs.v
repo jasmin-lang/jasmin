@@ -186,7 +186,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pbig idx op x body start len =>
     Let vs   := sem_pexpr s start >>= to_int in
     Let vlen := sem_pexpr s len >>= to_int in
-    Let vidx := sem_pexpr s idx in
+    Let vidx := sem_pexpr s idx >>= truncate_val ((type_of_op2 op).2) in
     let l := ziota vs vlen in
     foldM (fun i acc =>
                Let s := write_var x (Vint i) s in
@@ -207,7 +207,6 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     ok (Vbool b)
   
   | Pis_barr_init x e1 e2 =>
-    (*Let _ := assert ai.(allowinit) ErrType in*)
     Let (n, t) := wdb, s.[x] in
     Let lo := sem_pexpr s e1 >>= to_int in
     Let sz := sem_pexpr s e2 >>= to_int in            

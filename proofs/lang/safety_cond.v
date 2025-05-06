@@ -225,7 +225,8 @@ Definition safe_cond_to_e vs sc: pexpr :=
 
 Fixpoint sc_e (e : pexpr) : seq pexpr :=
   match e with
-  | Pconst _ | Pbool _  | Parr_init _ | Parr_init_elem _ _ => [::]
+  | Pconst _ | Pbool _  | Parr_init _ => [::]
+  | Parr_init_elem e _ => sc_e e
   | Pvar x => sc_gvar_init x
   | Pget al aa ws x e =>
     let sce := sc_e e in
@@ -272,7 +273,10 @@ Fixpoint sc_e (e : pexpr) : seq pexpr :=
     let sce2 := sc_e e2 in
     let sce3 := sc_e e3 in
     scidx ++ sce1 ++ sce2 ++ sce3 
-  | Pis_var_init _ | Pis_arr_init _ _ _ | Pis_barr_init _ _ _ | Pis_mem_init _ _ => [::e]
+  | Pis_var_init _ => [::]
+  | Pis_arr_init _ e1 e2 => sc_e e1 ++ sc_e e2
+  | Pis_barr_init _ e1 e2 => sc_e e1 ++ sc_e e2
+  | Pis_mem_init e1 e2 => sc_e e1 ++ sc_e e2
   end.
 
 Definition sc_lval (lv : lval) : seq pexpr :=
@@ -347,7 +351,7 @@ Fixpoint sc_instr (i : instr) : cmd :=
     let sc_c2 := conc_map sc_instr c2 in
     let i := instrr_to_instr ii (Cwhile a sc_c1 e ii_w sc_c2) in
     [::i]
-  | Cassert _ _ e => [::i]
+  | Cassert _ _ e => [::i] (*patch*)
   end.
 
 Definition sc_cmd (c : cmd) : cmd := conc_map sc_instr c.
@@ -373,14 +377,16 @@ Definition sc_prog (p:uprog) : uprog :=
 
 End CMD_SC.
 
+Section GLOB_DECLS.
+Context {gd: glob_decls}.
+
 Section ETYPE.
 Local Existing Instance nosubword.
+#[local] Existing Instance allow_init.
 Context
   {asm_op syscall_state: Type}
   {ep: EstateParams syscall_state}
   {spp: SemPexprParams}
-  {ai : AllowInit}
-  (gd: glob_decls)
   (s: estate).
 
 Definition gvtype (x:gvar) :=
@@ -392,10 +398,10 @@ Fixpoint etype (e : pexpr) : result unit stype :=
   | Pconst _ => ok sint
   | Pbool _ => ok sbool
   | Parr_init len => ok (sarr len)
-  | Parr_init_elem e n =>
+  | Parr_init_elem e len =>
     Let te := etype e in
-    (* n : positive*)
-    ok sbool
+    Let _ := assert (subtype (sword U8) te) tt in
+    ok (sarr len)
   | Pvar x => gvtype x
   | Pget al aa ws x e =>
     Let tx := gvtype x in
@@ -425,7 +431,7 @@ Fixpoint etype (e : pexpr) : result unit stype :=
     ok tout
   | PappN op es =>
     Let tes := mapM etype es in
-    let (tins, tout) := type_of_opNA op in (* Admit: Check if missing other cases (opN & opA) *)
+    let (tins, tout) := type_of_opNA op in
     Let _ := assert (all2 subtype tins tes) tt in
     ok tout
   | Pif ty e e1 e2 =>
@@ -434,26 +440,29 @@ Fixpoint etype (e : pexpr) : result unit stype :=
     Let te2 := etype e2 in
     Let _ := assert [&& subtype sbool te, subtype ty te1 & subtype ty te2] tt in
     ok ty
-  | Pbig e op2 x e1 e2 e3 => (* Admit: TODO *)
-    Let te := etype e in
-    Let te1 := etype e1 in                                       
-    Let te2 := etype e2 in
-    Let te3 := etype e3 in
-    let: ((tin1, tin2), tout) := type_of_op2 op2 in
-    Let _ := assert [&& subtype tin1 te1 & subtype tin2 te2] tt in
+      
+  | Pbig idx op x body start len =>
+    Let tidx := etype idx in
+    Let tbody := etype body in
+    Let tstart := etype start in
+    Let tlen := etype len in
+    let: ((tin1, tin2), tout) := type_of_op2 op in
+    Let _ := assert [&& subtype sint tstart, subtype sint tlen,
+    subtype tin2 tbody, subtype tout tidx & subtype tin1 tout] tt in
     ok tout
+                                                               
   | Pis_var_init x =>
      ok sbool
   | Pis_arr_init x e1 e2 =>
-    Let te1 := etype e1 in                                       
+    Let te1 := etype e1 in
     Let te2 := etype e2 in
     ok sbool
   | Pis_barr_init x e1 e2 =>
-    Let te1 := etype e1 in                                       
+    Let te1 := etype e1 in
     Let te2 := etype e2 in
     ok sbool
   | Pis_mem_init e1 e2 =>
-    Let te1 := etype e1 in                                       
+    Let te1 := etype e1 in
     Let te2 := etype e2 in
     ok sbool
   end.
@@ -462,25 +471,20 @@ Definition sem_sc_err (sc : pexpr) :=
   match sc with
   | Pis_var_init x =>
     ok (is_defined (evm s).[x])
-  | Pis_arr_init x lo hi =>           
+  | Pis_arr_init x lo len =>           
     Let (n, t) := true, s.[x] in
     Let lo := sem_pexpr true gd s lo >>= to_int in
-    Let hi := sem_pexpr true gd s hi >>= to_int in
-    ok (all (fun i => WArray.is_init t i) (ziota lo (hi - lo + 1)))  
-  | Pis_barr_init x lo hi =>           
+    Let len := sem_pexpr true gd s len >>= to_int in
+    ok (all (fun i => WArray.is_init t i) (ziota lo len ))
+  | Pis_barr_init x lo len =>           
     Let (n, t) := true, s.[x] in
     Let lo := sem_pexpr true gd s lo >>= to_int in
-    Let hi := sem_pexpr true gd s hi >>= to_int in
-    ok (all (fun i => WArray.is_init t i) (ziota lo (hi - lo + 1)))  
-  | Pis_mem_init lo hi =>
+    Let len := sem_pexpr true gd s len >>= to_int in
+    ok (all (fun i => WArray.is_init t i) (ziota lo len))  
+  | Pis_mem_init lo len =>
     Let wlo := sem_pexpr true gd s lo >>= to_word Uptr in
-    Let whi := sem_pexpr true gd s hi >>= to_word Uptr in
-    let lo := wunsigned wlo in
-    let hi := wunsigned whi in
-    let n := if (lo <=? hi) then (hi - lo + 1)
-      else (wbase Uptr - lo) + hi + 1 in
-      ok (all (fun i => is_ok (get (emem s) (wlo + wrepr Uptr i)%R)) (ziota 0 n))
-
+    Let ilen := sem_pexpr true gd s len >>= to_int in
+    ok (all (fun i => is_ok (get (emem s) (wlo + wrepr Uptr i)%R)) (ziota 0 ilen))
 
   | _ => ok false
   end.
@@ -551,6 +555,8 @@ Lemma valid_scs_cat' scs1 scs2 :
 Proof. by move=> h1 h2; apply valid_scs_cat. Qed.
 
 (* ----- Aux Lemmas ----- *)
+Opaque wsize_size.
+
 Lemma is_def_type_of v :
   is_defined v →
   ∃ v' : sem_t (type_of_val v), v = (to_val v').
@@ -583,7 +589,6 @@ Proof.
   split => // _.
   case heq: get_global hget => [v| //] _.
   rewrite -(type_of_get_global heq).
-  Print get_global_defined.
   have [v' -> ] := is_def_type_of (get_global_defined heq).
   rewrite type_of_to_val; eauto.
 Qed.
@@ -617,6 +622,22 @@ Lemma sc_in_boundP_all len (t : sem_t (sarr len)) (i : sem_t sint) aa sz e :
   all (fun j => WArray.in_bound t (i * mk_scale aa sz + j)) (ziota 0 (wsize_size sz)).
 Proof. by[]. Qed.
 
+Axiom ziota_add : forall p n, ziota p n = map (fun j => p + j) (ziota 0 n).
+
+(* FIXME : this require a check *)
+Axiom get_global_arr_init :
+   forall x len (t:WArray.array len) ,
+   get_global gd x = ok (Varr t) →
+   all (λ j : Z, WArray.is_init t j) (ziota 0 len).
+
+Lemma in_ziotaP i n m : reflect (n <= i < n + m)%Z (i \in ziota n m).
+Proof.
+  rewrite in_ziota.
+  case: (ZleP n i) => /=.
+  + case: (ZltP i (n + m)); constructor; Lia.lia.
+  move=> ?; constructor; Lia.lia.
+Qed.
+
 Lemma sc_arr_initP len (t : sem_t (sarr len)) (i : sem_t sint) x aa sz e :
   sem_pexpr true gd s e = ok (to_val i) ->
   get_gvar true gd (evm s) x = ok (to_val t) ->
@@ -626,19 +647,21 @@ Lemma sc_arr_initP len (t : sem_t (sarr len)) (i : sem_t sint) x aa sz e :
 Proof.
   rewrite /sc_arr_init /get_gvar /sem_scs /emk_scale /emuli /= => hi.
   case: ifP => /= hloc.
-  + move=> -> /= + _. Admitted.
-(*    by case: aa => /=; rewrite hi /= andbT; set n := (x in ziota _ x);
+  + move=> -> /= + _.
+    by case: aa => /=; rewrite hi /= andbT; set n := (x in ziota _ x);
       (have -> : n = wsize_size sz by rewrite /n; ring);
       rewrite ziota_add all_map; apply sub_all => j //; rewrite Z.mul_1_r.
   move=> /get_global_arr_init /allP hinit _ /allP hbound.
   apply/allP => j h; have /in_ziotaP ? := h.
   apply/hinit/in_ziotaP. have /WArray.in_boundP := hbound j h; Lia.lia.
-Qed.*)
+Qed.
 
 Axiom subtype_of_val :
   forall ty1 ty2 (v : sem_t ty2),
     subtype ty1 ty2 ->
     exists2 v', of_val ty1 (to_val v) = ok v' & value_uincl (to_val v') (to_val v).
+
+Opaque of_val value_uincl subtype.
 
 Lemma sc_divmodP_w ety1 ety2 e1 e2 sg (ve1 : sem_t ety1) (ve2 : sem_t ety2) w o:
   sem_pexpr true gd s e1 = ok (to_val ve1) ->
@@ -661,29 +684,34 @@ Proof.
   by rewrite /mk_sem_divmod; case: sg.
 Qed.
 
-(* Safety Lemma: Pexp *)
-Let P e :=
+(* Safety Lemma: pexpr *)
+Let Pe e :=
   forall ty, etype e = ok ty ->
   let sc := sc_e e in
   (sem_scs sc -> exists (v:sem_t ty), sem_pexpr true gd s e = ok (to_val v)).
 
-Let Q es :=
+Let Qe es :=
   forall tys, mapM etype es = ok tys ->
   let sc := flatten (map sc_e es) in
   (sem_scs sc ->
    List.Forall2 (fun e ty => exists (v:sem_t ty), sem_pexpr true gd s e = ok (to_val v)) es tys).
 
-Lemma etypeP_aux : (forall e, P e) /\ (forall es, Q es).
+Lemma etypeP_aux : (forall e, Pe e) /\ (forall es, Qe es).
 Proof.
-  apply: pexprs_ind_pair; subst P Q; split => //=; t_xrbindP => //.
+  apply: pexprs_ind_pair; subst Pe Qe; split => //=; t_xrbindP => //.
   + by move=> _ <- _; constructor.
   + move=> e he es hes ? te /he{}he tes /hes {}hes <-.
     by rewrite sem_scs_cat => /andP[]/he{}he /hes{}hes; constructor.
   1-2: by move=> z ? <- _; exists z.
   + by move=> len _ <-; exists (WArray.empty len).
-  + admit.
-  + by move=> x ty /gvtypeP[???].
 
+  (* Parr_init_elem *)
+  + move=> e n He ty te etyok sub <- semsce. admit.
+    
+  (* Gvar *)
+  + by move=> x ty /gvtypeP[???].
+    
+  (* Array access *)
   + move=> al aa sz x e he sty tx /gvtypeP [htx' okx hx] te /he{}he /andP[]/is_sarrP [len htx] /eqP ? <-.
     subst tx te.
     rewrite /sc_arr_get !(sem_scs_cat, scs_err_cat) => /and4P [hsce hal hbound hinit].
@@ -695,7 +723,7 @@ Proof.
     have {}hinit := sc_arr_initP hi ht hinit hbound.
     have : exists l, mapM (λ k : Z, WArray.get8 t (add (i * mk_scale aa sz) k)) (ziota 0 (wsize_size sz)) = ok l;
      last first.
-    + admit. (*by move=> [l -> /=]; eauto.*)
+    + by move=> [l -> /=]; eauto.
     elim: (ziota 0 (wsize_size sz)) hbound hinit => //=; eauto.
     move=> j js hrec /andP [h1 h2] /andP [h3 h4].
     rewrite {2}/WArray.get8 WArray.addE h1 /= h3 /=.
@@ -718,7 +746,7 @@ Proof.
     have [_ /(_ hscx) [vx hvx]]:= vtypeP x.
     have [vx' hofx _]:= subtype_of_val vx hsubx.
     move/of_val_typeE: (hofx) => [wsx] [wx] [htox htrx].
-    have [ve' hofe _]:= subtype_of_val (sword Uptr) te ve hsube.
+    have [ve' hofe _]:= subtype_of_val  ve hsube.
     move/of_val_typeE: (hofe) => [wse] [we] [htoe htre].
     rewrite hvx he /= htox htoe /= htrx htre /=.
     rewrite /read /=.
@@ -726,9 +754,7 @@ Proof.
     + move: hal; rewrite /sc_is_aligned_if_m /sem_scs; case: al => //=.
     suff : [elaborate exists l, mapM (λ k : Z, get (emem s) (add (vx' + ve')%R k)) (ziota 0 (wsize_size sz)) = ok l].
     + by move=> [l -> /=]; eauto.
-    move: hinit; rewrite /sem_scs /=.
-    by rewrite /get_gvar /= hvx he /= /sem_sop2 /sem_sop1 /= hofx hofe /= truncate_word_u.
-   *)
+    move: hinit; rewrite /sem_scs /=. admit.
     
   (* Unary operator *)
   + move=> op e he ty ety; case heq: type_of_op1 => [tin tout].
@@ -763,7 +789,7 @@ Proof.
     move=> sg [] w hsub1 ve1' hof1 hu1 hsub2 ve2'; apply: sc_divmodP_w; eauto.
    
   (* N-ary opertors *)
- + admit.
+  + admit.
 
   (* Conditional expression *)
  + move=> t e he e1 he1 e2 he2 ty te /he{}he te1 /he1{}he1 te2 /he2{}he2.
@@ -775,14 +801,508 @@ Proof.
    have [v2' -> _ /=]:= subtype_of_val v2 hsub2.
    by case: ve; eauto.
 
-  (* Big expression *)
-  admit.
-
-  (* Init expressions *)
- + move=> x ty <-; rewrite /sem_scs /sem_scs_err /sem_sc_err //=.
-   exists true; move: h0. by case (is_defined (evm s).[x]).
- + move=> x e1 he1 e2 he2 ? ty1 ety1 ty2 ety2 <-.
-   rewrite /sem_scs /sem_scs_err /sem_sc_err //=. move=> H.
-   exists true. specialize (he1 ty1 ety1).
+ (* Big expression *)
+ + move=> e He op vi e1 He1 e2 He2 e3 He3 ty te /He{}He te1 /He1{}He1 te2 /He2{}He2 te3 /He3{}He3.
+   case heq: type_of_op2 => [[tin1 tin2] tout]. t_xrbindP=> /andP[hsub1 hsub2] <-.
+   rewrite /sc_arr_get !(sem_scs_cat, scs_err_cat) =>
+     /and4P[] {}/He [semte ->] {}/He1 [semte1 h1] {}/He2 [semte2 ->] {}/He3 [semte3 ->] /=.
+   admit.
+ (* Init expressions *)
+ (* Pis_var_init *)
+ (* Pis_arr_init *)
+ + admit.
+  
+ + admit.
  + admit.
 Admitted.
+
+Lemma etypeP : forall e, Pe e.
+Proof. by case etypeP_aux. Qed.
+
+Let Pev e :=
+  forall ty, etype e = ok ty ->
+  let sc := sc_e e in
+  valid_scs sc.
+
+Let Qev es :=
+  forall tys, mapM etype es = ok tys ->
+  let sc := flatten (map sc_e es) in
+  valid_scs sc.
+
+(* Validity Lemma: pexpr *)
+Lemma etypePv_aux : (forall e, Pev e) /\ (forall es, Qev es).
+Proof.
+  apply: pexprs_ind_pair; subst Pev Qev; split => //=; t_xrbindP => //.
+
+  (* z::z0 *)
+  + by move=> e he es hes ? te {}/he he tes {}/hes/=hes _; apply valid_scs_cat.
+  (* Parr_init_elem *)
+  + by move=> e n H > /H{}H ?.
+  (* Gvar *)
+  + by move=> x ty /= /gvtypeP[???].
+
+  (* Array access *)
+  + move=> al aa sz x e he ty tx /gvtypeP [htx' okx hx] te hte.
+    have {}he := he _ hte.
+    move=> /andP[]/is_sarrP [len htx] /subtypeEl ??; subst tx te ty.
+    apply valid_scs_cat => // {}he.
+    have [? {}he /=] := etypeP hte he.
+    rewrite /sc_arr_get; apply valid_scs_cat'; last apply valid_scs_cat'.
+    + by rewrite /sc_is_aligned_if ; case: ifP.
+    + by rewrite /sc_in_bound htx /sc_le /emk_scale /emuli /eaddi /ezero /=; split. 
+    have /hx := gvar_init_arr htx.
+    rewrite /get_gvar /sc_arr_init; case: ifP => //= _.
+    rewrite htx => -[vx] ->; rewrite /emk_scale /emuli /eaddi /=.
+    by case: ifP => //= _; rewrite he /sem_sop2 /=.
+    
+  (* Subarray access *)
+  + move=> aa sz len' x e he ty tx /gvtypeP [htx' okx hx] te hte.
+    have {}he := he _ hte.
+    move=> /andP []/is_sarrP [len htx] /subtypeEl ??; subst tx te ty.
+    apply valid_scs_cat => // {}he.
+    have [? {}he /=] := etypeP hte he.
+    by rewrite /sc_in_bound htx /sc_le /emk_scale /emuli /eaddi /=; split.
+    
+  (* Memory read *)
+  + move=> al sz x e he ty te hte /andP [hsubx hsube] ?; have {}he := he _ hte.
+    have [hvx hx]:= vtypeP x.
+    apply valid_scs_cat => // {}/hx [vx hx].
+    have [vx' hofx _]:= subtype_of_val vx hsubx.
+    move/of_val_typeE: (hofx) => [wsx] [wx] [htox htrx].
+    apply valid_scs_cat => //.
+    move=> /(etypeP hte) [ve {}he].
+    have [ve' hofe _]:= subtype_of_val ve hsube.
+    move/of_val_typeE: (hofe) => [wse] [we] [htoe htre]. Print sc_mem_valid.
+    apply valid_scs_cat'.
+  - by rewrite /sc_is_aligned_if_m; case: ifP => //=.
+    admit.
+    
+  (* Unary operator *)
+  + move=> op e he ty ety; case heq: type_of_op1 => [tin tout].
+    move=> hte; t_xrbindP => hsub ?; subst ty.
+    by have {}he := he _ hte; apply valid_scs_cat => // /(etypeP hte) [ve {}he].
+    
+  (* Binary operator *)
+  + move=> op e1 he1 e2 he2 ty ety1 hte1 ety2 hte2.
+    case heq: type_of_op2 => [[tin1 tin2] tout].
+    t_xrbindP => /andP[hsub1 hsub2] ?; subst ty.
+    have [???]: [/\ tin1 = (type_of_op2 op).1.1
+                 , tin2 = (type_of_op2 op).1.2
+                 & tout = (type_of_op2 op).2] by rewrite heq.
+    have {}he1 := he1 _ hte1; apply valid_scs_cat => // /(etypeP hte1) [ve1 {}he1].
+    have {}he2 := he2 _ hte2; apply valid_scs_cat => // /(etypeP hte2) [ve2 {}he2].
+    subst => {heq}.
+    have [ve1' hve1' huincl1] := subtype_of_val ve1 hsub1.
+    have [ve2' hve2' huincl2] := subtype_of_val ve2 hsub2.
+    case: op hsub1 ve1' hve1' huincl1 hsub2 ve2' hve2' huincl2 => //=.
+    by case. by case.
+    
+  (* N-ary opertors *)
+  + by move=> op es hes ty tys /hes.
+
+  (* Conditional expression *)
+  move=> ty e he e1 he1 e2 he2 ty' te /he{}he te1 /he1{}he1 te2 /he2{}he2 _ _.
+  by apply valid_scs_cat' => //; apply valid_scs_cat'.
+
+  (* Big expression *)
+ + move=> e he op vi e1 he1 e2 he2 e3 he3 ty te /he{}he te1 /he1{}he1 te2 /he2{}he2 te3 /he3{}he3.
+   case heq: type_of_op2 => [[tin1 tin2] tout]. t_xrbindP=> /andP[sub1 sub2 touteq].
+   by repeat apply valid_scs_cat'.
+  
+  (* Init expressions *)
+ + move=> vi e1 e2 he1 he2 ty te /he1{}he1 te2 /he2{}he2 _. admit.
+ + admit.
+ + admit.    
+Admitted.
+
+Definition ltype (l : lval) : result unit stype := (*TODO: Re-check this with Pl proof*)
+  match l with
+  | Lnone vinf sty => ok sty
+  | Lvar vi => ok (vtype vi)
+  | Lmem al ws x e =>
+     let tx := vtype x in
+     Let te := etype e in
+     Let _ := assert [&& subtype (sword Uptr) tx & subtype (sword Uptr) te] tt in
+     ok (sword ws)
+  | Laset al aa ws x e =>
+    let tx := vtype x in
+    Let te := etype e in
+    Let _ := assert [&& is_sarr tx & subtype sint te] tt in
+    ok (sword ws)
+  | Lasub aa ws len x e =>
+    let tx := vtype x in
+    Let te := etype e in
+    Let _ := assert [&& is_sarr tx & subtype sint te] tt in
+    ok (sarr (Z.to_pos (arr_size ws len)))
+  end.
+Definition ltypes := mapM ltype.
+
+Lemma DB_to_val ty (v : sem_t ty) wdb : DB wdb (to_val v).
+Proof. by case: ty v; rewrite /DB /= orbT. Qed.
+
+Lemma compat_val_to_val ty (v : sem_t ty) : compat_val ty (to_val v).
+Proof. by case: ty v => *; rewrite /compat_val /= eq_refl. Qed.
+
+Let Pl l :=
+  forall ty, ltype l = ok ty ->
+  let: sc := sc_lval l in
+  (sem_scs sc ->
+   forall (v:sem_t ty), exists (s':estate), write_lval true gd l (to_val v) s = ok s').
+
+Lemma ltypePl : forall l, Pl l.
+Proof.
+  subst Pl => /=.
+  move=> [vi tynone ty | x ty | al ws x e ty | al aa ws x e ty | aa ws pos x e ty] /=.
+  + (* Lnone *)
+    move=> [->] _ v; exists s.
+    by rewrite /write_none DB_to_val /= compat_val_truncatable // compat_val_to_val.
+  + (* Lvar *)
+    move=> [<-] _ v; rewrite /write_var /set_var DB_to_val /= compat_val_truncatable.
+    by exists (with_vm s (evm s).[x <- to_val (t:=vtype x) v]).
+    by apply compat_val_to_val.
+  + (* Lmem *)
+    t_xrbindP => z etyok /andP[sub1 sub2] <-. repeat rewrite sem_scs_cat.
+    move=> /andP[varinit /andP[sce /andP[isalign memval]]] semt.
+    rewrite /write. rewrite /get_var. exists s. admit.
+  + (* Laset *)
+    t_xrbindP => z etyok /andP[isarr sub2] <-.
+    rewrite sem_scs_cat => /andP[semsce]. rewrite /sc_arr_set.
+    rewrite /on_arr_var /get_var. exists s. move=> //=.
+    admit.
+  + (* Lasub *)
+    admit.
+Admitted.
+
+Let Plv l :=
+  forall ty, ltype l = ok ty ->
+  let sc := sc_lval l in
+  valid_scs sc.
+
+Lemma ltypePlv : forall l, Plv l.
+Proof.
+  rewrite /Plv /ltype => l ty H.
+  case l as [vinf sty | vi | al ws x e | al aa ws x e | aa ws len x e] eqn:leq => //.
+  move: H. t_xrbindP.
+  (*Lmem*)
+  have [hvx hx]:= vtypeP x.
+  move=> ty2 etyok /andP[sub1 sub2] wordty.
+Admitted.
+
+End ETYPE.
+
+Section CTYPE.
+Local Existing Instance nosubword.
+#[local] Existing Instance allow_init.
+Context
+  `{asmop:asmOp}
+  {syscall_state: Type}
+  {ep: EstateParams syscall_state}
+  {spp: SemPexprParams}
+  (s: estate).
+  
+Section ctype_aux.
+Variable itype : instr -> result unit unit.
+Fixpoint ctype_aux (c : cmd) : result unit unit :=
+  match c with
+  | [::] => ok tt
+  | i :: cs =>
+    Let _ := itype i in
+    Let _ := ctype_aux cs in
+    ok tt
+  end.
+End ctype_aux.
+
+Fixpoint itype (i : instr) : result unit unit :=
+  match i with
+  | MkI ii ir => irtype ir
+  end
+with irtype (ir : instr_r) : result unit unit :=
+  match ir with
+  | Cassgn x tag ty e =>
+      Let tx := ltype x in
+      Let t := etype e in
+      Let _ := assert (subtype ty t) tt in
+      Let _ := assert (subtype tx ty) tt in
+      ok tt
+  | Copn xs t op es =>
+      Let _ := ltypes xs in (* lvals compatible with the return type of op *)
+      Let _ := mapM etype es in
+      Error tt (* Never safe *)
+  | Csyscall xs o es =>
+      Let _ := ltypes xs in
+      Let _ := mapM etype es in
+      Error tt (* Never safe *)
+  | Cif e c1 c2 =>
+      Let t := etype e in
+      Let _ := assert (is_sbool t) tt in
+      Let _ := ctype_aux itype c1 in
+      Let _ := ctype_aux itype c2 in            
+      ok tt
+  | Cfor i (d, lo, hi) c =>
+      let _ := vtype i in
+      Let _ := etype lo in
+      Let _ := etype hi in
+      Let _ := ctype_aux itype c in
+      ok tt
+  | Cwhile a c e ei c' => (* non termination? *)
+      Let t := etype e in
+      Let _ := assert (is_sbool t) tt in
+      Let _ := ctype_aux itype c in
+      Let _ := ctype_aux itype c' in
+      ok tt
+  | Ccall xs fn es => (* TODO: check that fn is safe *)
+      Let _ := ltypes xs in
+      Let _ := mapM etype es in
+      Error tt (* until we check that fn is safe *)
+  | Cassert ak ap e =>
+      Let _ := etype e in
+      ok tt
+  end.
+
+(* Auxiliary Lemmas
+ --------------------------- *)
+Lemma ctype_aux_inversion i c :
+  ctype_aux itype (i :: c) = ok tt ->
+  itype i = ok tt
+  /\ ctype_aux itype c = ok tt.
+Proof.
+  move=> //= H.
+  case: (itype i) H => [Hi|] H; [|discriminate].
+  case: (ctype_aux itype c) H => [Hc|] H; [|discriminate].
+  split.
+  move: H; case: Hi; by [].
+  move: H; case: Hc; by [].
+Qed.
+
+(* ----------- Instruction Validation ----------- *)
+
+(*
+Let Piv i :=
+  itype i = ok tt ->
+  let sc := sc_instr i in
+  valid_scs sc.
+
+Let Pcv c :=
+  ctype c = ok tt ->
+  let sc := sc_c c in
+  valid_scs sc.
+
+
+Lemma Pmkv ir ii: Prv ir -> Piv (MkI ii ir).
+Proof.
+  by move=> HPr.
+Qed.
+
+Lemma Pnilv : Pcv [::].
+Proof.
+  by [].
+Qed.
+
+Lemma Pconsv i c:  Piv i -> Pcv c -> Pcv (i::c).
+Proof.
+  rewrite /Pcv /Piv /ctype => Hiv Hcv Hok.
+  have aux := ctype_aux_inversion Hok.
+  case: aux => Hi Hc. move: (Hiv Hi) (Hcv Hc).
+  apply valid_scs_cat'.
+Qed.
+
+Lemma Pasgnv l tag ty e : Prv (Cassgn l tag ty e).
+Proof.
+  subst Prv; rewrite /irtype.
+  case (etype e) as [ety|] eqn: eok;
+  case (ltype l) as [lty|] eqn: lok =>//=.
+  have Hev := etypePv eok. have Hlv := ltypePlv lok.
+  by move=> _; apply valid_scs_cat.
+Qed.
+
+Lemma Popnv xs t o es: Prv (Copn xs t o es).
+Proof.
+  by rewrite /irtype.
+Qed.
+
+Lemma Psyscallv xs o es: Prv (Csyscall xs o es).
+Proof.
+  by rewrite /irtype.
+Qed.
+
+Lemma Pifv e c1 c2: Pcv c1 -> Pcv c2 -> Prv (Cif e c1 c2).
+Proof.
+  rewrite /Pcv /Prv /ctype /irtype => Hc1 Hc2.
+  case (etype e) as [ety|] eqn: eok =>//=;
+  case ety eqn:eeq;
+  case (ctype_aux itype c1) as [c1ty|] eqn:c1ok =>//=;
+  case (ctype_aux itype c2) as [c2ty|] eqn:c2ok =>//=;
+  try case c1ty eqn:c1eq; try case c2ty eqn:c2eq.
+  have Hev := etypePv eok.
+  move: (Hc1 Logic.eq_refl) (Hc2 Logic.eq_refl) => H1 H2.  
+  by repeat (move=> _; apply valid_scs_cat).
+  by rewrite c1ok c2ok.
+  by rewrite c1ok.
+  by rewrite c1ok.
+Qed.
+
+Lemma Pforv v dir lo hi c: Pcv c -> Prv (Cfor v (dir,lo,hi) c).
+Proof.
+  rewrite /Pcv /Prv /ctype /irtype => Hc.
+  case (etype lo) as [loty|] eqn: look;
+  case (etype hi) as [hity|] eqn: hiok;
+  case (ctype_aux itype c) as [cty|] eqn:cok =>//=;
+  try case cty eqn:ceq.
+  have [hvx hx]:= vtypeP v;
+  have Hlov := etypePv look; have Hhiv := etypePv hiok.
+  move: (Hc Logic.eq_refl) => H.
+  by repeat (move=> _; apply valid_scs_cat).
+  by rewrite cok.
+Qed.
+
+Lemma Pwhilev a c e ei c': Pcv c -> Pcv c' -> Prv (Cwhile a c e ei c').
+Proof.
+  rewrite /Pcv /Prv /ctype /irtype =>  Hc Hc'.
+  case (etype e) as [ety|] eqn: eok =>//=; case ety eqn:eeq;
+  case (ctype_aux itype c) as [cty|] eqn:cok =>//=;
+  case (ctype_aux itype c') as [c'ty|] eqn:c'ok =>//=;
+  try case cty eqn:ceq; try case c'ty eqn:c'eq.
+  have Hev:= etypePv eok.
+  move: (Hc Logic.eq_refl) (Hc' Logic.eq_refl) => H1 H2.
+  by repeat (move=> _; apply valid_scs_cat =>//=).
+  by rewrite cok c'ok.
+  by rewrite cok.
+  by rewrite cok.
+Qed.
+
+Lemma Pcallv xs f es: Prv (Ccall xs f es).
+Proof.
+  rewrite /Prv /irtype.
+  by case (mapM etype es) as [esty|] eqn: estyok;
+  case (ltypes xs) as [lsty|] eqn: lstyok.
+Qed.
+
+
+(* ----------- Instruction Safety ----------- *)
+Context
+  {sCP: semCallParams}.
+Variable ev : extra_val_t.
+
+Let Pr ir :=
+      forall ii, Pi (MkI ii ir).
+   
+Let Pi i :=
+      itype i = ok tt ->
+      let sc := sc_instr i in
+      (sem_scs sc -> forall s, exists s', sem_I prog ev s i s').
+
+Let Pc c :=
+      ctype c = ok tt ->
+      let sc := sc_c c in
+      (sem_scs sc -> forall s, exists s', sem prog ev s c s').
+
+Lemma Pmk ir ii: Pr ir -> Pi (MkI ii ir).
+Proof.
+  rewrite /Pr /Pi; move=> HPr Hitype s1 Hsemscs;
+  specialize (HPr Hitype s1 Hsemscs) as [s2 Hs'];
+  exists s2; by apply: EmkI.
+Qed.
+
+Lemma Pnil : Pc [::].
+Proof.
+  rewrite /Pc => Hctype Hsc s1; exists s1; by apply Eskip.
+  Qed.
+
+Lemma Pcons i c:  Pi i -> Pc c -> Pc (i::c).
+Proof.
+  rewrite /Pi /Pc. clear Pr Pi Pc. move=> HPi HPc Hctype Hsemscs s1.
+  move: Hsemscs Hctype. rewrite /ctype.
+  rewrite sem_scs_cat. move/andP => [Hsemsci Hsemscc].
+  pose proof ctype_aux_inversion as aux. specialize (aux i c).
+  move=> /aux [Hityok Hctyok].
+  specialize (HPi Hityok Hsemsci s1) as [s2 H1].
+  specialize (HPc Hctyok Hsemscc s2) as [s3 H2].
+  exists s3. move: H1 H2; apply Eseq.
+Qed.  
+  
+Lemma Pasgn l tag ty e: Pr (Cassgn l tag ty e).
+Proof.
+  rewrite /Pr. clear Pr Pi Pc.
+  case (etype e) as [ety|] eqn:Hetyok.
+  case: (ltype l) => [lty|] //=.
+  case (assert (subtype ety ty) tt) => [asser|] //=. move=>_ {asser}.
+  case (sc_l l). rewrite cat0s => H2.
+  move=> s1. pose proof etypeP as HPaux.
+  specialize (HPaux e ety Hetyok H2) as [semt_esty Hsem1].
+  
+  (* Should be able to solve like this:
+  Exists (write_lval true gd lv v' s0). apply sem_Ind_mkI. sem_Ind_assgn.
+  apply Eassgn. *)
+Admitted.
+  
+Lemma Popn xs t o es: Pr (Copn xs t o es).
+Proof.
+  by subst Pr; rewrite /irtype;
+  case (ltypes xs) as [lty|] eqn:ltyok;
+  case (mapM etype es) as [esty|] eqn:estyok;
+  try case lty eqn:ltyeq =>//=;
+  try case esty eqn:esyeq =>//=.
+Qed.
+
+Lemma Psyscall xs o es: Pr (Csyscall xs o es).
+Proof.
+  by subst Pr; rewrite /irtype;
+  case (ltypes xs) as [lty|] eqn:ltyok;
+  case (mapM etype es) as [esty|] eqn:estyok;
+  try case lty eqn:ltyeq =>//=;
+  try case esty eqn:esyeq =>//=.
+Qed.
+
+Lemma Pif e c1 c2: Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
+Proof.
+  rewrite /Pc /Pr /ctype /sc_c. clear Pr Pi Pc.
+
+  (* Induction on e. This line could be done later *)
+  case (etype e) as [ety|] eqn:Hetyok => //=.
+
+  (* Destruct H2 first *)
+  move=> HPc1 HPc2 H1 + s1. (**)
+  rewrite !sem_scs_cat;
+  move/andP => [Hsemsce Hsem_aux];
+               move/andP: Hsem_aux => [Hsemsc1 Hsemsc2].
+  (* Use it on H1 *)
+  move: H1. rewrite /assert; rewrite /is_sbool.
+  rewrite Hetyok => //=.
+  case ety eqn:etyeq => //=; rewrite <- etyeq in Hetyok.
+  
+  (* Getting Paux *)
+  pose proof etypeP as HPaux.
+  specialize (HPaux e ety Hetyok Hsemsce) as [v HPaux].
+  
+  (* TRYING: c1 *)
+  case (ctype_aux itype c1) as [c1ty|] eqn:Hc1tyok.
+  case c1ty eqn:c1tyis. subst (* Careful *).
+  have okttrefl : ok tt = ok tt by [reflexivity]; specialize (okttrefl unit) (* Weird *). 
+  specialize (HPc1 okttrefl Hsemsc1 s1) as [s2 HPc1].
+  move=> _; exists s2.
+
+  (* Final step of C1 *)
+  move: HPaux HPc1.
+  move: v; rewrite /sem_t => //=. move=> v; case: v.
+  (* FAILS: gd and s are not the same. s should be s1.*)
+  (* p_globs function to fix gd? *)
+
+  (* TRYING: c2 *) (* TODO *)
+  case (ctype_aux itype c2) as [c2ty|] eqn:Hc2tyok.
+  case c2ty eqn:c2tyis; subst.  
+Admitted.
+
+Lemma Pfor v dir lo hi c: Pc c -> Pr (Cfor v (dir,lo,hi) c).
+Proof.
+Admitted.
+
+Lemma Pwhile a c e ei c': Pc c -> Pc c' -> Pr (Cwhile a c e ei c').
+Proof.
+Admitted.
+
+Lemma Pcall xs f es: Pr (Ccall xs f es).
+Proof.
+Admitted.
+
+ *)
+End CTYPE.

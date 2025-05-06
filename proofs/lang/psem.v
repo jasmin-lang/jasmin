@@ -1860,7 +1860,7 @@ Proof.
     have [z' -> hui]:= get_var_uincl_at hle Hgv.
     have [? -> hui'] := value_uinclE hui => //=.
     move => /[swap] <-.
-    remember true as init eqn: Heq;clear Heq.
+    set init := true.
     elim: ziota init => //=.
     + by move => init [->] ; exists (Vbool iv).
      move=> ?? H; t_xrbindP  => init ? z hget <-.
