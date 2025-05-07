@@ -68,7 +68,8 @@ Failed as expected fail: "fail/movmsf.jazz", line 13 (29-32):
                          speculative constant type checker: MSF is not Trans
 File speculative-stack-leak.jazz:
 Failed as expected main: "fail/speculative-stack-leak.jazz", line 32 (2) to line 36 (3):
-                         speculative constant type checker: (pub > ((32u) 0)) has type #secret but should be at most #public
+                         speculative constant type checker: (pub >s
+                                                            ((32u) 0)) has type #secret but should be at most #public
 File spill.jazz:
 Failed as expected spill2: "fail/spill.jazz", line 12 (5-8):
                            speculative constant type checker: pub has type #transient but should be at most #public

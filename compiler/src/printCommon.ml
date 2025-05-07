@@ -32,7 +32,10 @@ let string_of_velem s ws ve =
 
 (* -------------------------------------------------------------------- *)
 
-let string_of_cmp_ty = function E.Cmp_w (Unsigned, _) -> "u" | _ -> ""
+let string_of_cmp_ty = function
+  | E.Cmp_w (Signed, _) -> "s"
+  | E.Cmp_w (Unsigned, _) -> "u"
+  | E.Cmp_int -> ""
 
 let string_of_cmp_kind = function
   | E.Cmp_w (sg, sz) -> asprintf " %d%s" (int_of_ws sz) (string_of_signess sg)
@@ -138,7 +141,7 @@ let string_of_op2 = function
   | Ovsub (ve, ws) -> asprintf "-%s" (string_of_velem Unsigned ws ve)
   | Ovmul (ve, ws) -> asprintf "*%s" (string_of_velem Unsigned ws ve)
   | Ovlsr (ve, ws) -> asprintf ">>%s" (string_of_velem Unsigned ws ve)
-  | Ovasr (ve, ws) -> asprintf ">>%s" (string_of_velem Unsigned ws ve)
+  | Ovasr (ve, ws) -> asprintf ">>%s" (string_of_velem Signed ws ve)
   | Ovlsl (ve, ws) -> asprintf "<<%s" (string_of_velem Signed ws ve)
   | Owi2(sg, ws, o) -> string_of_wiop2 sg ws o
 
@@ -164,8 +167,7 @@ let pp_pointer fmt = function
 let pp_kind fmt = function
   | Const -> fprintf fmt "param"
   | Stack ptr -> fprintf fmt "stack%a" pp_pointer ptr
-  | Reg (k, ptr) ->
-      fprintf fmt "%sreg%a" (if k = Normal then "" else "#mmx ") pp_pointer ptr
+  | Reg (k, ptr) -> fprintf fmt "reg%a" pp_pointer ptr
   | Inline -> fprintf fmt "inline"
   | Global -> fprintf fmt "global"
 

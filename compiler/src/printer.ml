@@ -87,9 +87,10 @@ let pp_glvs ~debug pp_len pp_var fmt lvs =
 let rec pp_simple_attribute fmt =
   function
   | Annotations.Aint z -> Z.pp_print fmt z
-  | Aid s | Astring s -> F.fprintf fmt "%S" s
+  | Aid s -> F.fprintf fmt "%s" s
+  | Astring s -> F.fprintf fmt "%S" s
   | Aws ws -> F.fprintf fmt "%s" (string_of_ws ws)
-  | Astruct a -> F.fprintf fmt "(%a)" pp_annotations a
+  | Astruct a -> F.fprintf fmt "{%a}" pp_annotations a
 
 and pp_attribute fmt = function
   | None -> ()
@@ -207,13 +208,19 @@ let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
   F.fprintf fmt "%a %a" pp_kind v.v_kind (pp_gtype ?w pp_size) v.v_ty
 
 let pp_var_decl pp_var pp_size fmt v =
-  F.fprintf fmt "%a %a" (pp_ty_decl pp_size) v pp_var v
+  F.fprintf fmt "%a%a %a" pp_annotations v.v_annot (pp_ty_decl pp_size) v pp_var v
 
 let pp_call_conv fmt =
   function
   | FInfo.Export _ -> Format.fprintf fmt "export@ "
   | FInfo.Internal -> Format.fprintf fmt "inline@ "
   | FInfo.Subroutine _ -> ()
+
+let pp_return_type pp_size fmt =
+  let pp fmt (a, d) =
+    F.fprintf fmt "%a%a" pp_annotations a (pp_ty_decl pp_size) d
+  in
+  F.fprintf fmt "%a" (pp_list ",@ " pp)
 
 let pp_gfun ~debug pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_size in
@@ -229,16 +236,18 @@ let pp_gfun ~debug pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var 
     ) () fd
   in
   let ret = List.map L.unloc fd.f_ret in
+  let set_var_type x ty = GV.mk x.v_name x.v_kind ty x.v_dloc x.v_annot in
   let pp_ret fmt () =
     F.fprintf fmt "return @[(%a)@];"
       (pp_list ",@ " pp_var) ret in
 
 
-  F.fprintf fmt "@[<v>%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>%a%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
+   pp_annotations fd.f_annot.f_user_annot
    pp_call_conv fd.f_cc
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
-   (pp_list ",@ " (pp_ty_decl pp_size)) ret
+   (pp_return_type pp_size) (List.combine fd.f_ret_info.ret_annot (List.map2 set_var_type ret fd.f_tyout))
    pp_locals fd
    (pp_gc ~debug pp_info pp_size pp_opn pp_var) fd.f_body
    pp_ret ()

@@ -35,6 +35,10 @@
   ([PR #1140](https://github.com/jasmin-lang/jasmin/pull/1140);
   fixes [#1138](https://github.com/jasmin-lang/jasmin/issues/1138)).
 
+- Various fixes to the printer
+  ([PR #1147](https://github.com/jasmin-lang/jasmin/pull/1147);
+  fixes [#1134](https://github.com/jasmin-lang/jasmin/issues/1134)).
+
 ## Other changes
 
 - The deprecated legacy interface to extract to EasyCrypt has been removed
