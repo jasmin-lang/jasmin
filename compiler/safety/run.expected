@@ -78,7 +78,7 @@ Analyzing function main
 
 
 *** Possible Safety Violation(s):
-  "fail/bad_align.jazz", line 6 (2-30): aligned pointer pt + ((64u) 1) u64
+  "fail/bad_align.jazz", line 6 (2-30): aligned pointer (pt +64u ((64u) 1)) u64
   
 Memory ranges:
   mem_pt: [0; 9]

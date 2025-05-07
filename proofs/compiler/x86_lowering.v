@@ -72,7 +72,8 @@ Definition fvars_correct p :=
 Definition stype_of_lval (x: lval) : stype :=
   match x with
   | Lnone _ t => t
-  | Lvar v | Lmem _ _ v _ | Laset _ _ _ v _ | Lasub _ _ _ v _ => v.(vtype)
+  | Lmem _ ws _ _ => sword ws
+  | Lvar v | Laset _ _ _ v _ | Lasub _ _ _ v _ => v.(vtype)
   end.
 
 Definition wsize_of_stype (ty: stype) : wsize :=
@@ -233,7 +234,7 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
     else if (U32 ≤ szo)%CMP then LowerCopn (Ox86 (MOVV szo)) [:: e ]
     else LowerAssgn
     else LowerAssgn
-  | Pload _ sz _ _ =>
+  | Pload _ sz _ =>
       if (sz ≤ U64)%CMP
       then LowerMov (is_lval_in_memory x)
       else kb true sz (LowerCopn (Ox86 (VMOVDQU sz)) [:: e ])

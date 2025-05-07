@@ -379,7 +379,7 @@ Fixpoint const_prop_e (m:cpm) e :=
       then pget_global al aa sz x e
       else Pget al aa sz x e
   | Psub aa sz len x e => Psub aa sz len x (const_prop_e m e)
-  | Pload al sz x e => Pload al sz x (const_prop_e m e)
+  | Pload al sz e => Pload al sz (const_prop_e m e)
   | Papp1 o e     => s_op1 o (const_prop_e m e)
   | Papp2 o e1 e2 => s_op2 o (const_prop_e m e1)  (const_prop_e m e2)
   | PappN op es   => s_opN op (map (const_prop_e m) es)
@@ -408,7 +408,7 @@ Definition const_prop_rv globs (m:cpm) (rv:lval) : cpm * lval :=
   match rv with
   | Lnone _ _       => (m, rv)
   | Lvar  x         => (Mvar.remove m x, rv)
-  | Lmem al sz x e  => (m, Lmem al sz x (const_prop_e globs m e))
+  | Lmem al sz vi e => (m, Lmem al sz vi (const_prop_e globs m e))
   | Laset al aa sz x e => (Mvar.remove m x, Laset al aa sz x (const_prop_e globs m e))
   | Lasub aa sz len x e => (Mvar.remove m x, Lasub aa sz len x (const_prop_e globs m e))
   end.

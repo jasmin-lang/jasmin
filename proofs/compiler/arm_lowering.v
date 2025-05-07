@@ -276,7 +276,7 @@ Definition lower_pexpr_aux (ws : wsize) (e : pexpr) : low_expr :=
   match e with
   | Pvar v => lower_Pvar ws v
   | Pget _ _ _ _ _
-  | Pload _ _ _ _ => lower_load ws e
+  | Pload _ _ _ => lower_load ws e
   | Papp1 op e => lower_Papp1 ws op e
   | Papp2 op a b => lower_Papp2 ws op a b
   | _ => le_skip

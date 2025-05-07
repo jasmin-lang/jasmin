@@ -16,21 +16,24 @@ Module Import E.
 
   Definition pass : string := "stack allocation".
 
-  Definition stk_error_gen (internal:bool) (x:var_i) msg := {|
+  Definition stk_error_gen (internal:bool) (vi:var_info) msg := {|
     pel_msg := msg;
     pel_fn := None;
     pel_fi := None;
     pel_ii := None;
-    pel_vi := Some x.(v_info);
+    pel_vi := Some vi;
     pel_pass := Some pass;
     pel_internal := internal
   |}.
 
-  Definition stk_error  := stk_error_gen false.
-  Definition stk_ierror := stk_error_gen true.
+  Definition stk_error  x := stk_error_gen false (v_info x).
+  Definition stk_ierror x := stk_error_gen true (v_info x).
 
   Definition stk_ierror_basic x msg :=
     stk_ierror x (pp_box [:: pp_s msg; pp_nobox [:: pp_s "("; pp_var x; pp_s ")"]]).
+
+  Definition stk_ierror_basic_lv x msg :=
+    stk_error_gen true (var_info_of_lval x) (pp_box [:: pp_s msg; pp_nobox [:: pp_s "("; pp_lv x; pp_s ")"]]).
 
   Definition stk_error_no_var_gen (internal:bool) msg := {|
     pel_msg := msg;
@@ -902,7 +905,6 @@ Notation symbolic_of_pexpr := (symbolic_of_pexpr clone).
 Notation get_symbolic_of_pexpr := (get_symbolic_of_pexpr clone).
 
 Definition mul := Papp2 (Omul (Op_w Uptr)).
-Definition add := Papp2 (Oadd (Op_w Uptr)).
 
 (* TODO: do we need to do the check here? I think we can always return the
    "else" version, and in a later pass, it will be recognized as a constant? *)
@@ -998,7 +1000,7 @@ Fixpoint alloc_e (e:pexpr) ty :=
           Let _ := check_valid xv status in
           Let _ := check_align Aligned xv sr ws in
           Let: (p, ofs) := addr_from_vpk xv vpk in
-          ok (Pload Aligned ws p (cast_const ofs))
+          ok (Pload Aligned ws (add (Plvar p) (cast_const ofs)))
         else Error (stk_ierror_basic xv "invalid type for expression")
       else Error (stk_ierror_basic xv "not a word variable in expression")
     end
@@ -1015,17 +1017,15 @@ Fixpoint alloc_e (e:pexpr) ty :=
       Let _ := check_align al xv sr ws in
       Let: (p, ofs) := addr_from_vpk xv vpk in
       let ofs := mk_ofs aa ws e1 ofs in
-      ok (Pload al ws p ofs)
+      ok (Pload al ws (add (Plvar p) ofs))
     end
 
   | Psub aa ws len x e1 =>
     Error (stk_ierror_basic x.(gv) "Psub")
 
-  | Pload al ws x e1 =>
-    Let _ := check_var x in
-    Let _ := check_diff x in
+  | Pload al ws e1 =>
     Let e1 := alloc_e e1 (sword Uptr) in
-    ok (Pload al ws x e1)
+    ok (Pload al ws e1)
 
   | Papp1 o e1 =>
     Let e1 := alloc_e e1 (type_of_op1 o).1 in
@@ -1074,7 +1074,7 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
           Let sr := get_sub_region rmap x in
           Let rmap := set_word rmap Aligned sr x Valid ws in
           Let: (p, ofs) := addr_from_pk x pk in
-          let r := Lmem Aligned ws p (cast_const ofs) in
+          let r := Lmem Aligned ws (v_info p) (add (Plvar p) (cast_const ofs)) in
           ok (rmap, r)
         else Error (stk_ierror_basic x "invalid type for assignment")
       else Error (stk_ierror_basic x "not a word variable in assignment")
@@ -1089,18 +1089,16 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
       Let rmap := set_word rmap al sr x status ws in
       Let: (p, ofs) := addr_from_pk x pk in
       let ofs := mk_ofs aa ws e1 ofs in
-      let r := Lmem al ws p ofs in
+      let r := Lmem al ws (v_info p) (add (Plvar p) ofs) in
       ok (rmap, r)
     end
 
   | Lasub aa ws len x e1 =>
     Error (stk_ierror_basic x "Lasub")
 
-  | Lmem al ws x e1 =>
-    Let _ := check_var x in
-    Let _ := check_diff x in
+  | Lmem al ws vi e1 =>
     Let e1 := alloc_e rmap e1 (sword Uptr) in
-    ok (rmap, Lmem al ws x e1)
+    ok (rmap, Lmem al ws vi e1)
   end.
 
 Definition nop := Copn [::] AT_none sopn_nop [::].
@@ -1140,7 +1138,8 @@ Definition addr_from_vpk_pexpr rv x vpk :=
         (stk_error x (pp_box [::
           pp_s "the stack pointer"; pp_var x; pp_s "is no longer valid"]))
     in
-    ok (Pload Aligned Uptr (with_var x pmap.(vrsp)) (cast_const (ofs + cs.(cs_ofs))), 0%Z)
+    let rsp := with_var x pmap.(vrsp) in
+    ok (Pload Aligned Uptr (add (Plvar rsp) (cast_const (ofs + cs.(cs_ofs)))), 0%Z)
   else
     Let xofs := addr_from_vpk x vpk in
     ok (Plvar xofs.1, xofs.2).
@@ -1224,7 +1223,8 @@ Definition alloc_array_move table rmap r tag e :=
           let rmap := set_move rmap x sry statusy in (* TODO: we always do set_move -> factorize *)
           let rmap := set_stack_ptr rmap slot ws cs x' in
           let dx_ofs := cast_const (ofsx + cs.(cs_ofs)) in
-          let dx := Lmem Aligned Uptr (with_var x pmap.(vrsp)) dx_ofs in
+          let rsp := with_var x pmap.(vrsp) in
+          let dx := Lmem Aligned Uptr (v_info rsp) (add (Plvar rsp) dx_ofs) in
           Let ir := get_addr x dx tag mk ey ofs in
           ok (table, rmap, ir)
       end
@@ -1577,9 +1577,9 @@ Definition check_lval_reg_call (r:lval) :=
     | None   => Let _ := check_diff x in ok tt
     | Some _ => Error (stk_ierror_basic x "call result should be stored in reg")
     end
-  | Laset _ aa ws x e1 => Error (stk_ierror_basic x "array assignement in lval of a call")
-  | Lasub aa ws len x e1 => Error (stk_ierror_basic x "sub-array assignement in lval of a call")
-  | Lmem al ws x e1  => Error (stk_ierror_basic x "call result should be stored in reg")
+  | Laset _ _ _ _ _ => Error (stk_ierror_basic_lv r "array assignement in lval of a call")
+  | Lasub _ _ _ _ _ => Error (stk_ierror_basic_lv r "sub-array assignement in lval of a call")
+  | Lmem _ _ _ _    => Error (stk_ierror_basic_lv r "call result should be stored in reg")
   end.
 
 Definition get_regptr (x:var_i) :=
@@ -1603,9 +1603,9 @@ Definition alloc_lval_call (srs:seq (option (bool * sub_region) * pexpr)) rmap (
         let rmap := set_move rmap x sr Valid in
         (* TODO: Lvar p or Lvar (with_var x p) like in alloc_call_arg? *)
         ok (rmap, Lvar p)
-      | Laset _ aa ws x e1 => Error (stk_ierror_basic x "array assignement in lval of a call")
-      | Lasub aa ws len x e1 => Error (stk_ierror_basic x "sub-array assignement in lval of a call")
-      | Lmem al ws x e1  => Error (stk_ierror_basic x "call result should be stored in reg ptr")
+      | Laset _ _ _ _ _ => Error (stk_ierror_basic_lv r "array assignement in lval of a call")
+      | Lasub _ _ _ _ _ => Error (stk_ierror_basic_lv r "sub-array assignement in lval of a call")
+      | Lmem _ _ _ _    => Error (stk_ierror_basic_lv r "call result should be stored in reg")
       end
     | (None, _) => Error (stk_ierror_no_var "alloc_lval_call")
     end

@@ -297,7 +297,8 @@ Lemma arm_lstore_correct : lstore_correct_aux arm_check_ws arm_lstore.
 Proof.
   move=> xd xs ofs ws w wp s m htxs /eqP hchk; t_xrbindP; subst ws.
   move=> vd hgetd htrd vs hgets htrs hwr.
-  rewrite /arm_lstore /= hgets hgetd /= /exec_sopn /= htrs htrd /= !truncate_word_u /=.
+  rewrite /arm_lstore /= hgets hgetd /= /exec_sopn /= htrs /=.
+  rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=.
   by rewrite zero_extend_u hwr.
 Qed.
 
@@ -316,9 +317,9 @@ Qed.
 
 Lemma arm_lload_correct : lload_correct_aux (lip_check_ws arm_liparams) arm_lload.
 Proof.
-  move=> xd xs ofs ws top s w vm heq hcheck hgets hread hset.
+  move=> xd xs ofs ws top s w vm heq hcheck; t_xrbindP => ? hgets hto hread hset.
   move/eqP: hcheck => ?; subst ws.
-  rewrite /arm_lload /= hgets /= truncate_word_u /= hread /=.
+  rewrite /arm_lload /= hgets /= /sem_sop2 /= hto /= !truncate_word_u /= truncate_word_u /= hread /=.
   by rewrite /exec_sopn /= truncate_word_u /= zero_extend_u hset.
 Qed.
 

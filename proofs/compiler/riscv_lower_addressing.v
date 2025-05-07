@@ -44,14 +44,14 @@ Context (tmp: var_i).
 (* We introduce these helper functions, else the number of cases in the pattern-
    matching explodes, due to the way Coq handles pattern-matchings. *)
 Definition is_one_Lmem xs :=
-  if xs is [:: Lmem al ws x e] then Some (al, ws, x, e) else None.
+  if xs is [:: Lmem al ws vi e] then Some (al, ws, vi, e) else None.
 
 Definition is_one_Pload es :=
-  if es is [:: Pload al ws x e] then Some (al, ws, x, e) else None.
+  if es is [:: Pload al ws e] then Some (al, ws, e) else None.
 
 (* Lmem and Pload cases are almost identical, so we factorize both cases. *)
-Definition compute_addr x e :=
-  let%opt lea := mk_lea Uptr (Papp2 (Oadd (Op_w Uptr)) (Pvar (mk_lvar x)) e) in
+Definition compute_addr e :=
+  let%opt lea := mk_lea Uptr e in
   let%opt base := lea.(lea_base) in
   let%opt off := lea.(lea_offset) in
   if tmp == base :> var then None
@@ -60,19 +60,19 @@ Definition compute_addr x e :=
     Some ([::
       Copn [:: Lvar tmp] AT_none (Oriscv SLLI) [:: Pvar (mk_lvar off); wconst (wrepr Uptr shift)];
       Copn [:: Lvar tmp] AT_none (Oriscv ADD) [:: Pvar (mk_lvar base); Pvar (mk_lvar tmp)]],
-      wconst (wrepr Uptr lea.(lea_disp))).
+      eaddw Uptr (Plvar tmp) (wconst (wrepr Uptr lea.(lea_disp)))).
 
 Fixpoint lower_addressing_i (i: instr) :=
   let (ii,ir) := i in
   match ir with
   | Copn xs t o es =>
-    if is_one_Lmem xs is Some (al, ws, x, e) then
-      if compute_addr x e is Some (prelude, disp) then
-        map (MkI ii) (prelude ++ [:: Copn [:: Lmem al ws tmp disp] t o es])
+    if is_one_Lmem xs is Some (al, ws, vi, e) then
+      if compute_addr e is Some (prelude, p) then
+        map (MkI ii) (prelude ++ [:: Copn [:: Lmem al ws vi p] t o es])
       else [:: i]
-    else if is_one_Pload es is Some (al, ws, x, e) then
-      if compute_addr x e is Some (prelude, disp) then
-        map (MkI ii) (prelude ++ [:: Copn xs t o [:: Pload al ws tmp disp]])
+    else if is_one_Pload es is Some (al, ws, e) then
+      if compute_addr e is Some (prelude, p) then
+        map (MkI ii) (prelude ++ [:: Copn xs t o [:: Pload al ws p]])
       else [:: i]
     else [:: i]
   | Cassgn _ _ _ _

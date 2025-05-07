@@ -15,7 +15,7 @@ destination (array index, memory offset) *)
 let weak_dep_lv s = function
   | Lnone _     -> s
   | Lvar x      -> Sv.add (L.unloc x) s
-  | Lmem(_, _, x, e)
+  | Lmem(_, _, _, e) -> Sv.union (vars_e e) s
   | Laset(_, _, _, x, e)
   | Lasub(_, _, _, x, e) -> Sv.add (L.unloc x) (Sv.union (vars_e e) s)
 

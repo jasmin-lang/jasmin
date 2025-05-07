@@ -67,10 +67,10 @@ Lemma write_lval_stack_stable wdb gd x v s s' :
   write_lval wdb gd x v s = ok s' →
   stack_stable (emem s) (emem s').
 Proof.
-  case: x => [ vi ty | x | al ws x e | al aa ws x e | aa ws len x e ] /=.
+  case: x => [ vi ty | x | al ws vi e | al aa ws x e | aa ws len x e ] /=.
   - by move=> /write_noneP [<-].
   - by move => /write_var_memP ->.
-  - rewrite /=; t_xrbindP => ?????????? m' ok_m' <- /=.
+  - rewrite /=; t_xrbindP => ?????? m' ok_m' <- /=.
     exact: write_mem_stable ok_m'.
   all: by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
 Qed.
@@ -87,10 +87,10 @@ Lemma write_lval_validw wdb gd x v s s' :
   write_lval wdb gd x v s = ok s' ->
   validw (emem s) =3 validw (emem s').
 Proof.
-  case: x => [ vi ty | x | al ws x e | al aa ws x e | aa ws len x e ] /=.
+  case: x => [ vi ty | x | al ws vi e | al aa ws x e | aa ws len x e ] /=.
   - by move => /write_noneP [] <-.
   - by move => /write_var_memP <-.
-  - t_xrbindP => /= ?? ?? ?? ? ? ? ? ? h <- /=.
+  - t_xrbindP => /= ?? ?? ?? ? h <- /=.
     by move=> ???; rewrite (write_validw_eq h).
   all: by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
 Qed.
@@ -704,7 +704,7 @@ Proof.
   elim: e v => /=; t_xrbindP => //.
   1, 2: by move => > ->; eauto.
   1, 2, 6: by move => > _ > -> /= ->; eauto.
-  1: by move => > _ > -> /= -> > -> /= -> > /= -> /= -> ->; eauto.
+  1: by move => > _ > -> /= -> > /= -> /= -> ->; eauto.
   3: by move => > _ > _ > _ > -> /= -> > -> /= -> > -> /= -> /= -> ->; eauto.
   - case.
     7: case.

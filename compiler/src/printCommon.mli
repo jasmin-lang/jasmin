@@ -23,12 +23,10 @@ val pp_gtype :
   unit
 
 val pp_mem_access :
-  'var Utils.pp ->
   'expr Utils.pp ->
   Format.formatter ->
   Memory_model.aligned ->
   Wsize.wsize ->
-  'var ->
   'expr ->
   unit
 

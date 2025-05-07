@@ -916,9 +916,6 @@ let save_array_theory ~prefix at =
 (* ------------------------------------------------------------------- *)
 (* Easycrypt AST construction helpers *)
 
-let add_ptr pd x e =
-  (Prog.tu pd, Papp2 (E.Oadd ( E.Op_w pd), Pvar x, e))
-
 let ec_ident s = Eident [s]
 let ec_aget a i = Eop2 (ArrayGet, a, i)
 let ec_int x = Econst (Z.of_int x)
@@ -1292,7 +1289,7 @@ let ty_expr = function
   | Pbool _        -> tbool
   | Parr_init len  -> Arr (U8, len)
   | Pvar x         -> x.gv.L.pl_desc.v_ty
-  | Pload (_, sz,_,_) -> tu sz
+  | Pload (_, sz,_) -> tu sz
   | Pget  (_,_, sz,_,_) -> tu sz
   | Psub (_,ws, len, _, _) -> Arr(ws, len)
   | Papp1 (op,_)   -> Conv.ty_of_cty (snd (E.type_of_op1 op))
@@ -1366,6 +1363,14 @@ module type EcExpression = sig
   val toec_cast: Env.t -> int gty * expr -> ec_expr
   val toec_expr: Env.t -> expr -> ec_expr
 end
+
+let int_of_word ws e = Papp1 (E.Oint_of_word(Unsigned, ws), e)
+
+let int_of_ptr pd e =
+   match e with
+   | Papp1(E.Owi1(_, E.WIwint_of_int ws), e) when ws = pd -> e
+   | _ -> int_of_word pd e
+
 (* ------------------------------------------------------------------- *)
 (* Jasmin AST -> Easycrypt AST *)
 module EcExpression(EA: EcArray): EcExpression = struct
@@ -1381,7 +1386,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
               let wse, ne = array_kind ety in
               EA.ec_cast_array env (ws, n) (wse, ne) e
 
-  let ec_op1 op e = match op with
+  let rec ec_op1 op e = match op with
     | E.Oword_of_int sz ->
       ec_apps1 (Format.sprintf "%s.of_int" (fmt_Wsz sz)) e
     | E.Oint_of_word(s, sz) ->
@@ -1392,7 +1397,8 @@ module EcExpression(EA: EcArray): EcExpression = struct
     | E.Onot     -> ec_apps1 "!" e
     | E.Olnot _  -> ec_apps1 "invw" e
     | E.Oneg _   -> ec_apps1 "-" e
-    | E.Owi1 _ -> assert false (* wint should have been removed by wint_int or wint_word *)
+    | E.Owi1 (_, WIwint_of_int sz) -> ec_op1 (E.Oword_of_int sz) e
+    | E.Owi1 _ -> assert false (* other wint operator should have been removed by wint_int or wint_word *)
 
   let rec toec_expr env (e: expr) =
       match e with
@@ -1403,11 +1409,10 @@ module EcExpression(EA: EcArray): EcExpression = struct
       | Pget (a, aa, ws, y, e) ->
           EA.toec_pget env (a, aa, ws, L.unloc y.gv, toec_expr env e)
       | Psub (aa, ws, len, x, e) -> EA.toec_psub env (aa, ws, len, x, toec_expr env e)
-      | Pload (_, sz, x, e) ->
+      | Pload (_, sz, e) ->
           let load = ec_ident (Format.sprintf "loadW%i" (int_of_ws sz)) in
           Eapp (load, [
-              glob_memi;
-              Eapp (ec_pd env, [toec_cast env (add_ptr (Env.pd env) (gkvar x) e)])
+              glob_memi; toec_expr env (int_of_ptr (Env.pd env) e)
           ])
       | Papp1 (op1, e) ->
             ec_op1 op1 (toec_cast env (Conv.ty_of_cty (fst (E.type_of_op1 op1)), e))
@@ -1492,12 +1497,10 @@ end
 module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
   open EE
 
-  let int_of_word ws e = Papp1 (E.Oint_of_word(Unsigned, ws), e)
-
   let rec leaks_e_rec pd leaks e =
     match e with
     | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> leaks
-    | Pload (_,_,x,e) -> leaks_e_rec pd (int_of_word pd (snd (add_ptr pd (gkvar x) e)) :: leaks) e
+    | Pload (_,_,e) -> leaks_e_rec pd (int_of_ptr pd e :: leaks) e
     | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec pd (e::leaks) e
     | Papp1 (_, e) -> leaks_e_rec pd leaks e
     | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
@@ -1548,7 +1551,7 @@ module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
   let leaks_lval pd = function
     | Lnone _ | Lvar _ -> []
     | Laset (_,_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec pd [e] e
-    | Lmem (_, _, x,e) -> leaks_e_rec pd [int_of_word pd (snd (add_ptr pd (gkvar x) e))] e
+    | Lmem (_, _, _,e) -> leaks_e_rec pd [int_of_ptr pd e] e
 
   let ec_leaks_lv env lv = ec_leaks (List.map (toec_expr env) (leaks_lval (Env.pd env) lv))
 
@@ -1589,14 +1592,14 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
     [Eapp (leakf, [toec_expr env e])]
 
 
-  let leak_addr_mem env x e =
-    let addr = int_of_word (Env.pd env) (snd (add_ptr (Env.pd env) (gkvar x) e)) in
-    [leak_addr (toec_expr env (addr))]
+  let leak_addr_mem env e =
+    let addr = int_of_ptr (Env.pd env) e in
+    [leak_addr (toec_expr env addr)]
 
   let rec leaks_e_rec env leaks e =
     match e with
     | Pconst _ | Pbool _ | Parr_init _ | Pvar _ -> leaks
-    | Pload (_,_,x,e) -> leaks_e_rec env ((leak_addr_mem env x e) @ leaks) e
+    | Pload (_,_,e) -> leaks_e_rec env ((leak_addr_mem env e) @ leaks) e
     | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec env ([leak_addr (toec_expr env e)] @ leaks) e
     | Papp1 (_, e) -> leaks_e_rec env leaks e
     | Papp2 (_, e1, e2) -> leaks_es_rec env leaks [e1; e2]
@@ -1639,7 +1642,7 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
   let leaks_lval env = function
     | Lnone _ | Lvar _ -> []
     | Laset (_,_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec env [leak_addr (toec_expr env e)] e
-    | Lmem (_, _, x,e) -> leaks_e_rec env (leak_addr_mem env x e) e
+    | Lmem (_, _, _,e) -> leaks_e_rec env (leak_addr_mem env e) e
 
   let ec_leaks_lv env lv = ec_addleaks env (leaks_lval env lv)
 
@@ -1734,9 +1737,9 @@ struct
   let toec_lval1 env lv e =
       match lv with
       | Lnone _ -> assert false
-      | Lmem(_, ws, x, e1) ->
+      | Lmem(_, ws, _, e1) ->
         let storewi = ec_ident (Format.sprintf "storeW%i" (int_of_ws ws)) in
-        let addr = Eapp (ec_pd env, [toec_cast env (add_ptr (Env.pd env) (gkvar x) e1)]) in
+        let addr = toec_expr env (int_of_ptr (Env.pd env) e1) in
         ESasgn ([LvIdent glob_mem], Eapp (storewi, [glob_memi; addr; e]))
       | Lvar x  ->
         let lvid = [ec_vars env (L.unloc x)] in

@@ -115,7 +115,7 @@ Section SEM_PEXPR_SIM.
     + by move=> ?? <-;apply/esym/get_gvar_sim.
     1,2: by move=> > he ?; rewrite /on_arr_var /on_arr_var (get_gvar_sim _ hsim);
          t_xrbindP => -[] // > ->; t_xrbindP => > /he -> /= -> ? /= -> <-.
-    + by move=> > he >; rewrite (get_var_sim hsim) hmem => -> /= -> > /he -> /= -> > /= -> <-.
+    + by move=> > he >; rewrite hmem => /he -> /= -> > /= -> <-.
     + by move=> > he > /he ->.
     + by move=> > he1 > he2 > /he1 -> > /he2 ->.
     + by move=> > hes > /hes; rewrite /sem_pexprs => ->.
@@ -159,8 +159,8 @@ case => hscs hm hvm; case: x => /=.
 - move => _ ty; rewrite /write_none.
   by t_xrbindP => /truncatable_sim -> -> <-; exists s1'.
 - move => x; exact: write_var_sim.
-- move => al sz x e; t_xrbindP => ? ?;
-    rewrite hm (get_var_sim hvm) => -> /= -> ?? /(sem_pexpr_sim (And3 hscs hm hvm))
+- move => al sz vi e; t_xrbindP => ? ?;
+    rewrite hm  => /(sem_pexpr_sim (And3 hscs hm hvm))
         -> /= -> ? -> ? /= -> <- /=.
   by eexists; split; split.
 - move => al aa ws x e.

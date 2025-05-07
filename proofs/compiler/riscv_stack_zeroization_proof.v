@@ -71,7 +71,8 @@ Proof.
   rewrite /eval_instr /=.
   rewrite hvzero /=.
   rewrite /exec_sopn /= /sopn_sem /= ws_small /= (truncate_word_le _ ws_small) zero_extend0 /=.
-  by rewrite hv /= (truncate_word_u w1) /= !truncate_word_u /= zero_extend0 /= hm' /=.
+  rewrite hv /= /sem_sop2 /= (truncate_word_u w1) /= !truncate_word_u /= zero_extend0.
+  by rewrite truncate_word_u /= hm' /=.
 Qed.
 
 Context (lp : lprog) (fn : funname).

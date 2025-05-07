@@ -57,7 +57,7 @@ Definition sz_init : lcmd :=
   map (li_of_fopn_args dummy_instr_info) args.
 
 Definition store_zero (v: var_i) (off : Z) : linstr_r :=
-  let current := Store Aligned ws v (fconst reg_size off) in
+  let current := Store Aligned ws (faddv Uptr v (fconst reg_size off)) in
   Lopn [:: current ] (Oriscv (STORE ws)) [:: rvar vzero].
 
 (* Implementation:

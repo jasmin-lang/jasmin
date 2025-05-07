@@ -225,9 +225,6 @@ Definition addr_of_fexpr (rip: var) ii sz (e: fexpr) :=
   | None => Error (E.error ii (pp_box [::pp_s "not able to assemble address :"; pp_fe e]))
   end.
 
-Definition addr_of_xpexpr rip ii sz v e :=
-  addr_of_fexpr rip ii sz (Fapp2 (Oadd (Op_w sz)) (Fvar v) e).
-
 Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
   if to_xreg x is Some r then ok (XReg r)
   else if to_reg x is Some r then ok (Reg r)
@@ -246,12 +243,12 @@ Definition assemble_word_load rip ii al (sz: wsize) (e: rexpr) :=
     ok (Imm w)
   | Rexpr (Fvar x) =>
     xreg_of_var ii x
-  | Load al' sz' v e' =>
+  | Load al' sz' e' =>
     Let _ := assert (sz == sz')
                     (E.werror ii e "invalid Load size") in
     Let _ := assert (aligned_le al al')
                     (E.werror ii e "invalid Load alignment constraint") in
-    Let w := addr_of_xpexpr rip ii Uptr v e' in
+    Let w := addr_of_fexpr rip ii Uptr e' in
     ok (Addr w)
   | _ => Error (E.werror ii e "invalid rexpr for word")
   end.
@@ -278,7 +275,7 @@ Definition arg_of_rexpr k rip ii (ty: stype) (e: rexpr) :=
 Definition rexpr_of_lexpr (lv: lexpr) : rexpr :=
   match lv with
   | LLvar x => Rexpr (Fvar x)
-  | Store a s x e => Load a s x e
+  | Store a s e => Load a s e
   end.
 
 Definition nmap (T:Type) := nat -> option T.

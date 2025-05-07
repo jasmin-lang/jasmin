@@ -341,8 +341,7 @@ let rec ty_expr ~(public:bool) env (e:expr) =
     let env, _  = ty_expr ~public:true env i in
     env, ty
 
-  | Pload (_, _, x, i) ->
-    let env, _ = Env.get ~public:true env x in
+  | Pload (_, _, i) ->
     let env, _ = ty_expr ~public:true env i in
     env, Secret
 
@@ -369,8 +368,7 @@ let ty_lval env x lvl =
   match x with
   | Lnone _ -> env
   | Lvar x -> Env.set env x lvl
-  | Lmem(_, _, x, i) ->
-    let env, _ = Env.get ~public:true env x in
+  | Lmem(_, _, _, i) ->
     let env, _ = ty_expr ~public:true env i in
     env
   | Laset(_, _, _, x, i) | Lasub(_, _, _, x, i) ->

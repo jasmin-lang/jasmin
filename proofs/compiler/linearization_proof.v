@@ -1563,7 +1563,7 @@ Section PROOF.
         by apply: on_arr_gvarP => ??? -> /=; t_xrbindP => ?? /ihe -> /= -> /= ? -> /= ->.
       - move => aa sz len x e ihe v /=.
         by apply: on_arr_gvarP => ??? -> /=; t_xrbindP => ?? /ihe -> /= -> /= ? -> /= ->.
-      - by move => al sz x e ihe v /=; t_xrbindP => ?? -> /= -> /= ?? /ihe -> /= -> /= ? /(mm_read_ok M) -> /= ->.
+      - by move => al sz e ihe v /=; t_xrbindP => ?? /ihe -> /= -> /= ? /(mm_read_ok M) -> /= ->.
       - by move => op e ihe v /=; t_xrbindP => ? /ihe ->.
       - by move => op e1 ih1 e2 ih2 v /=; t_xrbindP => ? /ih1 -> ? /ih2 ->.
       - by move => op es ih vs /=; t_xrbindP => ? /ih; rewrite -/(sem_pexprs _ [::] _ es) => ->.
@@ -1585,11 +1585,11 @@ Section PROOF.
     write_lval true [::] x v {| escs := scs1; emem := m1' ; evm := vm1 |} = ok {| escs := scs2; emem := m2' ; evm := vm2 |} &
     match_mem_gen sp m2 m2'.
   Proof.
-    move => M; case: x => /= [ _ ty | x | al ws x e | al aa ws x e | aa ws n x e ].
+    move => M; case: x => /= [ _ ty | x | al ws vi e | al aa ws x e | aa ws n x e ].
     - by case/write_noneP; rewrite /write_none => -[-> -> ->] -> ->; exists m1'.
     - rewrite /write_var /=; t_xrbindP =>_ -> -> <- -> /=.
       by exists m1'.
-    - t_xrbindP => ?? -> /= -> /= ?? /(match_mem_gen_sem_pexpr M) -> /= -> /= ? -> /= ? /(mm_write M)[] ? -> /= M' <- <- <-.
+    - t_xrbindP => ?? /(match_mem_gen_sem_pexpr M) -> /= -> /= ? -> /= ? /(mm_write M)[] ? -> /= M' <- <- <-.
       eexists; first reflexivity; exact: M'.
     all: apply: on_arr_varP; rewrite /write_var; t_xrbindP => ??? -> /= ?? /(match_mem_gen_sem_pexpr M) -> /= -> /= ? -> /= ? -> /= ? -> /= <- <- <-.
     all: by exists m1'.
@@ -1719,11 +1719,9 @@ Section PROOF.
     - move => /= _ ty /write_noneP[] <- _ _ /write_noneP[] -> _ _; reflexivity.
     - move => x /write_var_memP -> /write_var_memP ->; reflexivity.
     - case: s t => scs m vm [] tscs tv tvm /=.
-      move => al sz x e ok_s' ok_t' E X M; subst tscs.
-      move: ok_s' => /=; t_xrbindP => a xv ok_xv ok_a ofs ev ok_ev ok_ofs w ok_w m' ok_m' _{s'}.
+      move => al sz vi e ok_s' ok_t' E X M; subst tscs.
+      move: ok_s' => /=; t_xrbindP => ofs ev ok_ev ok_ofs w ok_w m' ok_m' _{s'}.
       move: ok_t' => /=.
-      have [ xv' -> /= /of_value_uincl_te h ] := get_var_uincl X ok_xv.
-      have {h} /= -> /= := (h (sword _) _ ok_a).
       have /= ok_ev' := match_mem_gen_sem_pexpr M ok_ev.
       have /(_ _ X) := sem_pexpr_uincl _ ok_ev'.
       case => ev' -> /of_value_uincl_te h /=.

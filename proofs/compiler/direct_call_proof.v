@@ -156,7 +156,7 @@ Section EXPR.
       by t_xrbindP => > /he -> /= -> /= > -> <-.
     + move=> > he >; apply on_arr_gvarP => ?? hty /get_gvar_weak -> /=.
       by t_xrbindP => > /he -> /= -> /= > -> <-.
-    + by move=> > he > /get_var_weak -> /= -> > /he -> /= -> > /= -> <-.
+    + by move=> > he > /he -> /= -> > /= -> <-.
     + by move=> > he > /he -> /= ->.
     + by move=> > he1 > he2 > /he1 -> /= > /he2 -> /= ->.
     + by move=> > hes > /hes; rewrite /sem_pexprs => -> /= ->.
@@ -188,10 +188,10 @@ Section EXPR.
 
   Lemma write_lval_weak s' x v : write_lval true gd x v s = ok s' -> write_lval wdb gd x v s = ok s'.
   Proof.
-    case: x => [vi t | x | ws x e | al aa ws x e | aa ws len x e] /=; t_xrbindP.
+    case: x => [vi t | x | ws x e | al aa ws vi e | aa ws len x e] /=; t_xrbindP.
     + by rewrite /write_none; t_xrbindP => /truncatable_weak -> /DB_weak -> ->.
     + by apply write_var_weak.
-    + by move=> ? > /get_var_weak -> /= -> > /sem_pexpr_weak -> /= -> > -> > /= -> <-.
+    + by move=> ? > /sem_pexpr_weak -> /= -> > -> > /= -> <-.
     + apply on_arr_varP => > ? /get_var_weak -> /=.
       by t_xrbindP => > /sem_pexpr_weak -> /= -> > -> > /= -> /write_var_weak /= ->.
     apply on_arr_varP => > ? /get_var_weak -> /=.

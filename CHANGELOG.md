@@ -3,11 +3,15 @@
 ## New features
 
 - New syntax
-  - for memory load/store: `(uXX)[aligned? x e]` becomes `[aligned? :uXX x e]`,
-    the syntax  `(uXX)[aligned? x e]` is deprecated.
+  - the syntax for memory load/store operations, previously limited to `[x + e]`,
+    has been generalized to allow arbitrary expressions, i.e `[e]`.
+    This change enables the use of the uiXX type (see below) to represent pointers instead of uXX,
+    allowing for further simplifications during the translation of Jasmin programs into EasyCrypt.
+  - for memory load/store: `(uXX)[aligned? x + e]` becomes `[aligned? :uXX x + e]`,
+    the syntax  `(uXX)[aligned? x + e]` is deprecated.
   - for array load/store: `t DOT? [aligned? uXX e]` becomes `t DOT? [aligned? :uXX e]`,
     the syntax `t DOT? [aligned? uXX e]` is deprecated.
-  
+
   The script `compiler/script/replace-new-memory-syntax.sh` allows to perform the change automatically.
 
   New syntax for infix and prefix operators, the type of the arguments can be provided

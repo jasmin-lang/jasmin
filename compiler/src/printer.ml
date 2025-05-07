@@ -41,8 +41,8 @@ let pp_ge ~debug pp_len pp_var =
     pp_arr_access pp_gvar pp_expr fmt al aa ws x e
   | Psub(aa,ws,len,x,e) ->
     pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len
-  | Pload(al,ws,x,e) ->
-    pp_mem_access pp_var_i pp_expr fmt al ws x e
+  | Pload(al,ws,e) ->
+    pp_mem_access pp_expr fmt al ws e
   | Papp1(o, e) ->
     F.fprintf fmt "@[(%s@ %a)@]" (string_of_op1 ~debug o) pp_expr e
   | Papp2(op,e1,e2) ->
@@ -64,8 +64,8 @@ let pp_glv ~debug pp_len pp_var fmt =
   function
   | Lnone (_, ty) -> F.fprintf fmt "_ /* %a */" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
   | Lvar x  -> pp_gvar_i pp_var fmt x
-  | Lmem (al, ws, x, e) ->
-    pp_mem_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var) fmt al ws x e
+  | Lmem (al, ws, _, e) ->
+    pp_mem_access (pp_ge pp_len pp_var) fmt al ws e
   | Laset(al, aa, ws, x, e) ->
     pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var) fmt al aa ws x e
   | Lasub(aa, ws, len, x, e) ->

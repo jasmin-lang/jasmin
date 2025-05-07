@@ -85,7 +85,7 @@ Fixpoint pi_e (pi:pimap) (e:pexpr) :=
     else e
   | Pget al aa ws x e  => Pget al aa ws x (pi_e pi e)
   | Psub aa ws len x e => Psub aa ws len x (pi_e pi e)
-  | Pload al ws x e    => Pload al ws x (pi_e pi e)
+  | Pload al ws e      => Pload al ws (pi_e pi e)
   | Papp1 o e          => Papp1 o (pi_e pi e)
   | Papp2 o e1 e2      => Papp2 o (pi_e pi e1) (pi_e pi e2)
   | PappN o es         => 
@@ -104,7 +104,7 @@ Definition pi_lv (pi:pimap) (lv:lval) :=
   match lv with
   | Lnone _ _           => (pi, lv) 
   | Lvar x              => (remove pi x, lv)
-  | Lmem al ws x e      => (remove_m pi, Lmem al ws x (pi_e pi e))
+  | Lmem al ws vi e     => (remove_m pi, Lmem al ws vi (pi_e pi e))
   | Laset al aa ws x e  => (remove pi x, Laset al aa ws x (pi_e pi e))
   | Lasub aa ws len x e => (remove pi x, Lasub aa ws len x (pi_e pi e))
   end.
