@@ -43,6 +43,10 @@
   ([PR #1147](https://github.com/jasmin-lang/jasmin/pull/1147);
   fixes [#1134](https://github.com/jasmin-lang/jasmin/issues/1134)).
 
+- Register allocation keeps some renaming assignments
+  ([PR #1150](https://github.com/jasmin-lang/jasmin/pull/1150);
+  fixes [#483](https://github.com/jasmin-lang/jasmin/issues/483)).
+
 ## Other changes
 
 - The deprecated legacy interface to extract to EasyCrypt has been removed
