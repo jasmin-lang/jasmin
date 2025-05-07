@@ -193,27 +193,21 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
       add_ggvar Unaligned x pi.pi_align.ac_heuristic i
     | _, _ -> assert false in
 
-  let rec add_ir i_desc =
-    match i_desc with
+  iter_instr (fun i ->
+    try match i.i_desc with
     | Cassgn(x,_,_,e) -> add_lv x; add_e e
     | Copn(xs,_,_,es) | Csyscall(xs,_,es) -> add_lvs xs; add_es es
-    | Cif(e, c1, c2) | Cwhile (_, c1, e, _, c2) ->
-      add_e e; add_c c1; add_c c2
-    | Cfor _ -> assert false 
+    | Cif(e, _, _) | Cwhile (_, _, e, _, _) -> add_e e
+    | Cfor _ -> assert false
     | Ccall(xs, fn, es) ->
       add_lvs xs;
-      calls := Sf.add fn !calls; 
-      List.iter2 add_p (onfun fn) es 
+      calls := Sf.add fn !calls;
+      List.iter2 add_p (onfun fn) es
+    with HiError e -> raise (HiError (add_iloc e i.i_loc))
+    ) c;
 
-  and add_i { i_loc; i_desc } =
-    try add_ir i_desc
-    with HiError e -> raise (HiError (add_iloc e i_loc))
-
-  and add_c c = List.iter add_i c in 
-
-  add_c c;
   ltbl, !calls
- 
+
 (* --------------------------------------------------- *)
 let err_var_not_initialized x =
   hierror ~loc:Lnone "variable “%a” (declared at %a) may not be initialized" (Printer.pp_var ~debug:true) x Location.pp_loc x.v_dloc
