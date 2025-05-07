@@ -1,0 +1,5 @@
+(tests
+  (libraries jasmin.jasmin)
+  (deps (glob_files_rec success/*))
+  (modules printing)
+  (names printing))
