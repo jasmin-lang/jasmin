@@ -143,6 +143,7 @@ type warning =
   | IntroduceNone
   | IntroduceArrayCopy
   | InlinedCallToExport
+  | KeptRenaming
   | SimplifyVectorSuffix
   | DuplicateVar
   | UnusedVar
