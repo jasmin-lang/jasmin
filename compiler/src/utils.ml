@@ -337,6 +337,7 @@ type warning =
   | IntroduceNone (* -w_ *)
   | IntroduceArrayCopy (* -winsertarraycopy *)
   | InlinedCallToExport
+  | KeptRenaming
   | SimplifyVectorSuffix
   | DuplicateVar (* -wduplicatevar *)
   | UnusedVar (* -wunusedvar *)
@@ -360,7 +361,7 @@ let default_warnings =
       PedanticPretyping;
     ]
 
-let all_warnings = ExtraAssignment :: UseLea :: IntroduceNone :: IntroduceArrayCopy :: default_warnings
+let all_warnings = ExtraAssignment :: UseLea :: IntroduceNone :: IntroduceArrayCopy :: KeptRenaming :: default_warnings
 
 let warns = ref default_warnings
 

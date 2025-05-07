@@ -1,0 +1,12 @@
+inline fn consume(reg u32 x) -> reg u32 {
+  if x > 0 {
+    x = 0;
+  }
+  return x;
+}
+
+export fn main(reg u32 a) -> reg u32, reg u32 {
+  reg u32 x = a;
+  reg u32 y = consume(x);
+  return x, y;
+}
