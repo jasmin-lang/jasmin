@@ -292,6 +292,12 @@ val has_call_or_syscall : ('len, 'info, 'asm) gstmt -> bool
 val has_annot : Annotations.symbol -> ('len, 'info, 'asm) ginstr -> bool
 
 (* -------------------------------------------------------------------- *)
+val iter_instr :
+  (('len, 'info, 'asm) ginstr -> unit) -> ('len, 'info, 'asm) gstmt -> unit
+(** [iter_instr f c] traverses statement [c] and applies function [f] to every
+    instruction. *)
+
+(* -------------------------------------------------------------------- *)
 val is_inline : Annotations.annotations -> FInfo.call_conv -> bool
 
 (* -------------------------------------------------------------------- *)

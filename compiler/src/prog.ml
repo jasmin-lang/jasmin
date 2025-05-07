@@ -504,6 +504,20 @@ and spilled_c s c =  List.fold_left spilled_i s c
 let spilled fc = spilled_c Sv.empty fc.f_body
 
 (* -------------------------------------------------------------------- *)
+let rec iter_instr f stmt = List.iter (iter_instr_i f) stmt
+
+and iter_instr_i f gi =
+  f gi;
+  iter_instr_ir f gi.i_desc
+
+and iter_instr_ir f = function
+  | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> ()
+  | Cfor (_, _, c) -> iter_instr f c
+  | Cif (_, c1, c2) | Cwhile (_, c1, _, _, c2) ->
+     iter_instr f c1;
+     iter_instr f c2
+
+(* -------------------------------------------------------------------- *)
 let clamp (sz : wsize) (z : Z.t) =
   Z.erem z (Z.shift_left Z.one (int_of_ws sz))
 

@@ -99,18 +99,12 @@ let liveness weak prog =
 let iter_call_sites (cbf: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit)
                     (cbs: L.i_loc -> BinNums.positive Syscall_t.syscall_t -> lvals -> Sv.t * Sv.t -> unit)
                     (f: (Sv.t * Sv.t, 'asm) func) : unit =
-  let rec iter_instr_r loc ii =
-    function
-    | (Cassgn _ | Copn _) -> ()
-    | (Cif (_, s1, s2) | Cwhile (_, s1, _, _, s2)) -> iter_stmt s1; iter_stmt s2
-    | Cfor (_, _, s) -> iter_stmt s
-    | Ccall (xs, fn, _) ->
-       cbf loc fn xs ii
-    | Csyscall (xs, op, _) ->
-       cbs loc op xs ii
-  and iter_instr { i_loc ; i_info ; i_desc } = iter_instr_r i_loc i_info i_desc
-  and iter_stmt s = List.iter iter_instr s in
-  iter_stmt f.f_body
+  iter_instr (fun i ->
+      match i.i_desc with
+      | Ccall (xs, fn, _) -> cbf i.i_loc fn xs i.i_info
+      | Csyscall (xs, op, _) -> cbs i.i_loc op xs i.i_info
+      | (Cassgn _ | Copn _ | Cif _ | Cfor _ | Cwhile _) -> ()
+    ) f.f_body
 
 let pp_info fmt (s1, s2) =
   Format.fprintf fmt "before: %a; after %a@ "
