@@ -291,6 +291,11 @@ val has_syscall : ('len, 'info, 'asm) gstmt -> bool
 val has_call_or_syscall : ('len, 'info, 'asm) gstmt -> bool
 val has_annot : Annotations.symbol -> ('len, 'info, 'asm) ginstr -> bool
 
+val assigns : ('info, 'asm) instr_r -> Sv.t
+(** Computes the set of variables that the given instruction writes to, if any.
+    NB: control flow instructions (if, while, and for) do not write to any
+    variable. *)
+
 (* -------------------------------------------------------------------- *)
 val iter_instr :
   (('len, 'info, 'asm) ginstr -> unit) -> ('len, 'info, 'asm) gstmt -> unit
