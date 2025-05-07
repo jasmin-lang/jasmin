@@ -32,7 +32,10 @@ let string_of_velem s ws ve =
 
 (* -------------------------------------------------------------------- *)
 
-let string_of_cmp_ty = function E.Cmp_w (Signed, _) -> "s" | _ -> ""
+let string_of_cmp_ty = function
+  | E.Cmp_w (Signed, _) -> "s"
+  | E.Cmp_w (Unsigned, _) -> "u"
+  | E.Cmp_int -> ""
 
 let string_of_cmp_kind = function
   | E.Cmp_w (sg, sz) -> asprintf " %d%s" (int_of_ws sz) (string_of_signess sg)
