@@ -92,8 +92,8 @@ let rec ty_expr pd loc (e:expr) =
 
   | Psub(_aa, ws, len, x, e) ->
     ty_get_set_sub pd loc ws len x e
-  | Pload(_, ws,x,e) ->
-    ty_load_store pd loc ws x e
+  | Pload(_, ws,e) ->
+    ty_load_store pd loc ws e
   | Papp1(op,e) ->
     let tin, tout = type_of_op1 op in
     check_expr pd loc e tin;
@@ -123,10 +123,8 @@ and check_exprs pd loc es tys =
     error loc "invalid number of expressions %i expected" len;
   List.iter2 (check_expr pd loc) es tys
 
-and ty_load_store pd loc ws x e =
-  let tx = ty_var x in
+and ty_load_store pd loc ws e =
   let te = ty_expr pd loc e in
-  check_ptr pd loc (Pvar (gkvar x)) tx;
   check_ptr pd loc e te;
   tu ws
 
@@ -149,7 +147,7 @@ and ty_get_set_sub pd loc ws len x e =
 let ty_lval pd loc = function
   | Lnone (_, ty) -> ty
   | Lvar x -> ty_var x
-  | Lmem(_, ws,x,e) -> ty_load_store pd loc ws x e
+  | Lmem(_, ws,_,e) -> ty_load_store pd loc ws e
   | Laset(_al,_aa,ws,x,e) -> ty_get_set pd loc ws (gkvar x) e
   | Lasub(_aa,ws,len,x,e) -> ty_get_set_sub pd loc ws len (gkvar x) e
 

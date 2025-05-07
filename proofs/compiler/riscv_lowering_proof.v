@@ -345,14 +345,14 @@ Proof.
       move=> z3 -> ?; subst => /=.
       rewrite sign_extend_u.
       by rewrite hwrite.
-  + move => a w v0 p0.
+  + move => a w p0.
     t_xrbindP.
-    move=> z z0 hgetvar htoword z1 z2 hseme ok_z1 z3 hread ?; subst.
+    move=> z1 z2 hseme ok_z1 z3 hread ?; subst.
     rewrite /lower_load /chk_ws_reg.
     case: eqP => //=.
     move => ?; subst.
     move=> [] <- <- <-.
-    + rewrite /sem_sopn /= hseme /= hgetvar /= ok_z1 /= htoword /= hread /= /exec_sopn /=.
+    + rewrite /sem_sopn /= hseme /= ok_z1 /= hread /= /exec_sopn /=.
       move: htrunc.
       rewrite /truncate_val /=.
       t_xrbindP.

@@ -209,10 +209,10 @@ Section PROOF.
     write_lval true gd l v s = ok s' →
     ∃ sz', type_of_val v = sword sz'.
   Proof.
-  case: l => /= [ _ [] // sz' | [[vt vn] vi] | al sz' [[vt vn] vi] e | al aa sz' [[vt vn] vi] e |  aa sz' len [[vt vn] vi] e ] /=.
+  case: l => /= [ _ [] // sz' | [[vt vn] vi] | al sz' vi e | al aa sz' [[vt vn] vi] e |  aa sz' len [[vt vn] vi] e ] /=.
   - case => ->; case: v => //=; eauto => -[] //=; eauto.
   - move => ->; case: v => //=; eauto => -[] //=; eauto.
-  - move => ->; t_xrbindP => w1 v1 _ h1 w n _ hn w' /to_wordI [ws [? [??]]]; subst => /=; eauto.
+  - move => [->]; t_xrbindP => ?? _ _ ? /to_wordI [ws [? [??]]]; subst => /=; eauto.
   - by move => ->; apply: on_arr_varP.
   by move => ->; apply: on_arr_varP.
   Qed.
@@ -553,7 +553,7 @@ Section PROOF.
     end.
   Proof.
     rewrite /lower_cassgn_classify.
-    move: e Hs=> [z|b|n|x|al aa ws x e | aa ws len x e |al sz x e| o e|o e1 e2| op es |e e1 e2] //.
+    move: e Hs=> [z|b|n|x|al aa ws x e | aa ws len x e |al sz e| o e|o e1 e2| op es |e e1 e2] //.
     + case: x => - [] [] [] // sz vn vi vs //= /[dup] ok_v.
       case/type_of_get_gvar => sz' [Hs Hs'].
       have := truncate_val_subtype Hv'. rewrite Hs -(truncate_val_has_type Hv').
@@ -586,14 +586,14 @@ Section PROOF.
       rewrite /= ok_a ok_j /= ok_i /= ok_w /exec_sopn /sopn_sem /sopn_sem_ /= /x86_MOVX /size_32_64 hsz'' ok_w'.
       have : (sz' ≤ U64)%CMP; last by move ->.
       by move: h128_le_sz'; clear; case: sz'.
-    + rewrite /=; t_xrbindP => ?? hx hy ?? he hz w hload ?; subst v; case: ifP => hsz.
+    + rewrite /=; t_xrbindP => ?? he hz w hload ?; subst v; case: ifP => hsz.
       1-2: have {Hv'} [sz' [? [? /truncate_wordP [hle ?] ?]]] := truncate_valE Hv'.
       1-2: subst => /=.
       * eexists; first reflexivity.
         split; first exact: (cmp_le_trans hle).
         by eauto.
       case: eqP => // - [] ?; subst sz'.
-      rewrite /= hx he /= hy hz /= hload /exec_sopn /sopn_sem /sopn_sem_ /= /x86_VMOVDQ truncate_word_u /=.
+      rewrite /= he /= hz /= hload /exec_sopn /sopn_sem /sopn_sem_ /= /x86_VMOVDQ truncate_word_u /=.
       set b := (X in assert X).
       suff -> : b; first by rewrite zero_extend_u.
       by subst b; move: hsz; clear; case: sz.

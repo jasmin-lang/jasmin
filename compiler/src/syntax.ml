@@ -183,7 +183,7 @@ type pexpr_r =
 
 and pexpr = pexpr_r L.located
 
-and mem_access = [ `Aligned | `Unaligned ] option * swsize L.located option * pident * ([`Add | `Sub] * pexpr) option
+and mem_access = [ `Aligned | `Unaligned ] option * swsize L.located option * pexpr
 
 (* -------------------------------------------------------------------- *)
 and psizetype = TypeWsize of swsize | TypeSizeAlias of pident

@@ -36,3 +36,5 @@ val trans_closure : Pa.dp -> Pa.dp
 val flow_to       : Pa.dp -> Sv.t -> Sv.t
 val flowing_to    : Pa.dp -> Sv.t -> Sv.t
 val leads_to      : Pa.dp -> Sv.t -> Sv.t
+
+val decompose_address : 'a gexpr -> 'a gvar * 'a gexpr

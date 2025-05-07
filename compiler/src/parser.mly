@@ -230,10 +230,6 @@ cast:
 prim:
 | SHARP x=ident { x }
 
-%inline mem_ofs:
-| PLUS e=pexpr { `Add, e }
-| MINUS e=pexpr { `Sub, e }
-
 %inline unaligned:
 | ALIGNED { `Aligned }
 | UNALIGNED { `Unaligned }
@@ -242,12 +238,12 @@ prim:
  | c=COLON? ct=loc(utype) { c, ct }
 
 %inline mem_access:
-| ct=loc(parens(utype)) LBRACKET al=unaligned? v=var e=mem_ofs? RBRACKET
+| ct=loc(parens(utype)) LBRACKET al=unaligned? e=pexpr RBRACKET
   { let s = string_of_swsize_ty (L.unloc ct) in
     Utils.warning Deprecated (Location.of_loc ct)
-       "Syntax (%s)[x + e] is deprecated. Use [:%s x + e] instead" s s ;
-    al, Some ct, v, e }
-| LBRACKET al=unaligned? ct=access_type? v=var e=mem_ofs? RBRACKET
+       "Syntax (%s)[e] is deprecated. Use [:%s e] instead" s s ;
+    al, Some ct, e }
+| LBRACKET al=unaligned? ct=access_type? e=pexpr RBRACKET
   {
     let ct =
       match ct with
@@ -255,7 +251,7 @@ prim:
         if c = None then Syntax.parse_error ~msg:"`:` expected" (L.loc ct);
         Some ct
       | None -> None in
-    al, ct, v, e }
+    al, ct, e }
 
 arr_access_len:
 | COLON e=pexpr { e }
@@ -357,7 +353,7 @@ plvalue_r:
     { let a, (ws, e, len, al) = i in PLArray (al, a, ws, x, e, len) }
 
 | ma=mem_access
-    { let ct, v, e, al = ma in PLMem (ct, v, e, al) }
+    { let ct, e, al = ma in PLMem (ct, e, al) }
 
 plvalue:
 | x=loc(plvalue_r) { x }

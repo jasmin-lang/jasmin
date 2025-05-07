@@ -31,7 +31,6 @@ Record stack_alloc_params :=
 
   }.
 
-(* TODO: Defined both in stack_alloc and here. Factorize *)
-Definition add {pd:PointerData} := Papp2 (Oadd (Op_w Uptr)).
+Definition add {pd:PointerData} := eaddw Uptr.
 
 End WITH_PARAMS.

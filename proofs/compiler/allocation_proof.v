@@ -137,12 +137,10 @@ Section CHECK_EP.
       rewrite /on_arr_var; case: v2 => //= n' t' -> /WArray.uincl_get_sub Ht.
       t_xrbindP => w ve /Hse1 [v2 [-> ]] /[swap] /to_intI -> /value_uinclE -> ? /= /Ht [? -> ?] <- /=.
       by eauto.
-    - move => al1 sz1 x1 e1 He1 [] // al2 sz2 x2 e2 r re vm1.
-      t_xrbindP => r' /andP[] /eqP -> /eqP -> Hcv Hce Hea.
-      have [Hea' Hget]:= check_vP wdb Hcv Hea.
-      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
-      t_xrbindP => w1 ve1 /Hget [ve1' [->]] /[swap] /to_wordI [? [? [-> ]]]
-        /word_uincl_truncate h /value_uinclE [? [? [-> /h{h} /= ->]]]
+    - move => al1 sz1 e1 He1 [] // al2 sz2 e2 r re vm1.
+      t_xrbindP => /andP[] /eqP -> /eqP -> Hce Hea.
+      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea;split => //= scs m v1.
+      t_xrbindP =>
         > /Hse1{Hse1} [? [-> ]] /[swap] /to_wordI [? [? [-> ]]]
         /word_uincl_truncate h /value_uinclE [? [? [-> /h{h} /= ->]]] ? /= -> /= ->.
       by eauto.
@@ -260,8 +258,8 @@ Lemma check_lvalP wdb gd r1 r1' x1 x2 e2 s1 s1' vm1 v1 v2 :
     write_lval wdb gd x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') &
     eq_alloc r1' s1'.(evm) vm1'.
 Proof.
-  case: x1 x2 => /= [ii1 t1 | x1 | al1 sz1 x1 p1 | al1 aa1 sz1 x1 p1 | aa1 sz1 len1 x1 p1]
-                    [ii2 t2 | x2 | al2 sz2 x2 p2 | al2 aa2 sz2 x2 p2 | aa2 sz2 len2 x2 p2] //=.
+  case: x1 x2 => /= [ii1 t1 | x1 | al1 sz1 vi1 p1 | al1 aa1 sz1 x1 p1 | aa1 sz1 len1 x1 p1]
+                    [ii2 t2 | x2 | al2 sz2 vi2 p2 | al2 aa2 sz2 x2 p2 | aa2 sz2 len2 x2 p2] //=.
   + t_xrbindP => hs <- ? Hv _ H.
     have [ -> htr hdb]:= write_noneP H; rewrite /write_none.
     have [ -> hu' -> /=]:= compat_truncate_uincl hs htr Hv hdb; eauto.
@@ -287,11 +285,9 @@ Proof.
     exists vm1.[x2 <- vm1.[x2]] => //.
     apply: eq_alloc_add ht Hvm1 hu'.
 
-  + t_xrbindP => r2 /andP[] /eqP -> /eqP -> Hcv Hce Hvm1 Hv Happ wx vx.
-    have [Hr2 H/H{H} [vx' [-> ]]]:= check_vP wdb Hcv Hvm1.
-    move=> /of_value_uincl_te h/(h (sword _) _){h} /= -> >.
-    case: (s1) Hvm1 Hr2 => scs1 sm1 svm1 /= Hvm1 Hr2.
-    have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP wdb gd Hce Hr2.
+  + t_xrbindP => /andP[] /eqP -> /eqP -> Hce Hvm1 Hv Happ.
+    case: (s1) Hvm1 => scs1 sm1 svm1 /= Hvm1 >.
+    have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP wdb gd Hce Hvm1.
     by move=> /of_value_uincl_te h/(h (sword _) _){h} /= -> ?
       /(@of_value_uincl_te (sword _) _ _ _ Hv) /= -> ? /= -> <-; eexists.
   + t_xrbindP => r2 r3 /andP [] /andP[] /eqP -> /eqP -> /eqP -> Hcv Hce Hcva Hvm1 Hv Happ.
@@ -368,11 +364,11 @@ Section PROOF.
 
   Lemma all_checked : forall fn fd1,
     get_fundef (p_funcs p1) fn = Some fd1 ->
-    exists fd2, get_fundef (p_funcs p2) fn = Some fd2 /\ 
+    exists fd2, get_fundef (p_funcs p2) fn = Some fd2 /\
                 check_fundef ep1 ep2 (fn,fd1) (fn,fd2) tt = ok tt.
   Proof.
     move: Hcheck; rewrite /check_prog;clear Hcheck eq_globs.
-    move: (p_funcs p1) (p_funcs p2). 
+    move: (p_funcs p1) (p_funcs p2).
     elim => [ | [fn1' fd1'] pf1 Hrec] [ | [fn2 fd2] pf2] //.
     apply: rbindP => -[] Hc /Hrec{}Hrec.
     have ? : fn1' = fn2.
@@ -735,7 +731,7 @@ End PROOF.
 
 Lemma alloc_callP ev gd ep1 p1 ep2 p2 (H: check_prog ep1 p1 ep2 p2 = ok tt) f scs mem scs' mem' va vr:
     sem_call {|p_globs := gd; p_funcs := p1; p_extra := ep1; |} ev scs mem f va scs' mem' vr ->
-    exists vr', 
+    exists vr',
      sem_call {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev scs mem f va scs' mem' vr' /\
                 List.Forall2 value_uincl vr vr'.
 Proof.
@@ -784,7 +780,7 @@ Qed.
 Lemma alloc_call_uprogP dead_vars_fd ev gd ep1 p1 ep2 p2
   (H: check_prog init_alloc_uprog check_f_extra_u dead_vars_fd ep1 p1 ep2 p2 = ok tt) f scs mem scs' mem' va vr:
     sem_call {|p_globs := gd; p_funcs := p1; p_extra := ep1; |} ev scs mem f va scs' mem' vr ->
-    exists vr', 
+    exists vr',
      sem_call {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev scs mem f va scs' mem' vr' /\
                 List.Forall2 value_uincl vr vr'.
 Proof.
@@ -858,7 +854,7 @@ Qed.
 Lemma alloc_call_sprogP dead_vars_fd ev gd ep1 p1 ep2 p2
   (H: check_prog init_alloc_sprog check_f_extra_s dead_vars_fd ep1 p1 ep2 p2 = ok tt) f scs mem scs' mem' va vr:
     sem_call {|p_globs := gd; p_funcs := p1; p_extra := ep1; |} ev scs mem f va scs' mem' vr ->
-    exists vr', 
+    exists vr',
      sem_call {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev scs mem f va scs' mem' vr' /\
                 List.Forall2 value_uincl vr vr'.
 Proof.

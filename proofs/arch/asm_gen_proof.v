@@ -258,20 +258,16 @@ Proof.
   by rewrite GRing.mulr0 GRing.addr0 GRing.addrC wadd_zero_extend // zero_extend_wrepr.
 Qed.
 
-Lemma addr_of_xpexprP rip m s ii x p r vx wx vp wp:
+Lemma addr_of_xpexprP rip m s ii p r vp wp:
   lom_eqv rip m s →
-  addr_of_xpexpr rip ii Uptr x p = ok r ->
-  get_var true (evm m) x = ok vx ->
-  to_pointer vx = ok wx ->
+  addr_of_fexpr rip ii Uptr p = ok r ->
   sem_fexpr m.(evm) p = ok vp ->
   to_pointer vp = ok wp ->
-  decode_addr s r = (wx + wp)%R.
+  decode_addr s r = (wp)%R.
 Proof.
-  rewrite /addr_of_xpexpr => eqm ha hx hvx hp hvp.
-  have he: sem_fexpr m.(evm) (Fapp2 (Oadd (Op_w Uptr)) (Fvar x) p) = ok (Vword (wx + wp)).
-  + by rewrite /= /get_gvar /= hx /= hp /= /sem_sop2 /= hvx hvp.
-  have := addr_of_fexprP _ eqm he ha.
-  by rewrite !zero_extend_u => h;apply h.
+  move => eqm ha hp /to_wordI' [sz' [w' [hle ??]]]. subst vp wp.
+  have := addr_of_fexprP hle eqm hp ha.
+  by rewrite !zero_extend_u.
 Qed.
 
 Variant check_sopn_argI rip ii args e : arg_desc -> stype -> Prop :=
@@ -389,10 +385,10 @@ Proof.
     rewrite (addr_of_fexprP hws eqm he hadr); eexists; first reflexivity.
     by rewrite /= truncate_word_u.
   case: e => //=.
-  + move=> al sz x p al'; t_xrbindP => /eqP <- ok_al' r hr ?; subst a'.
+  + move=> al sz p al'; t_xrbindP => /eqP <- ok_al' r hr ?; subst a'.
     move: hcomp; rewrite /compat_imm orbF => /eqP <-.
-    move=> w1 wp vp hget htop wp' vp' hp hp' wr hwr <- /= htr.
-    have -> := addr_of_xpexprP eqm hr hget htop hp hp'.
+    move=> w1 wp' vp' hp hp' wr hwr <- /= htr.
+    have -> := addr_of_xpexprP eqm hr hp hp'.
     by case: eqm => ? <- ??????; rewrite (aligned_le_read ok_al' hwr) /=; eauto.
   case => //.
   + move=> x al.
@@ -530,7 +526,7 @@ Lemma compile_lval rip ii msb_flag loargs ad ty (vt:sem_ot ty) m m' s lv1 e1:
 Proof.
   move=> hlom; case:(hlom) => [hscs h1 hrip hnrip h2 h3 h4 h5]; case: ad => [ai _ | k n o]; rewrite /check_sopn_dest /=.
   case: ai => [f | r].
-  + case: lv1 => //=; first by move=> ????? <-.
+  + case: lv1 => //=; first by move=> ???? <-.
     t_xrbindP => x vm hvm <- <- /is_implicitP[] xi [] ?; subst x.
     case: ty vt hvm => //= vt /set_varP [_ htr ->]; rewrite /mem_write_val /=.
     have -> /= :
@@ -549,7 +545,7 @@ Proof.
     + by apply/eqtype.inj_eq/inj_to_var.
     case: eqP => [<- | hne] //.
     by move: (vm_truncate_valE htr) => {htr}; case: vt  => [ b | ] [+ ->].
-  + case: lv1 => //=; first by move=> ????? <-.
+  + case: lv1 => //=; first by move=> ???? <-.
     move=> x hw <- /is_implicitP [] xi [] ?; subst x.
     case: ty vt hw=> //; first by case.
     move=> ws vt hw.
@@ -598,14 +594,14 @@ Proof.
       + by apply word_uincl_word_extend => //; apply cmp_lt_le.
       by rewrite word_extend_big //;apply /negP.
     by move=> f; rewrite Vm.setP_neq.
-  move=> al' sz [x xii] /= e; t_xrbindP.
-  move=> wp vp hget hp wofs vofs he hofs w hw m1 hm1 ??; subst m' e1.
+  move=> al' sz /= e; t_xrbindP.
+  move=> ?? he hofs w hw m1 hm1 ??; subst m' e1.
   case: ty hty vt hw => //= sz' _ vt hw.
   t_xrbindP => /eqP ? hal; subst sz'.
   move: hw; rewrite truncate_word_u => -[?]; subst vt.
   move => adr hadr ?; subst a => /=.
   rewrite /= heq1 hc /= /mem_write_mem -h1.
-  have -> := addr_of_xpexprP hlom hadr hget hp he hofs.
+  have -> := addr_of_xpexprP hlom hadr he hofs.
   rewrite (aligned_le_write hal hm1) /=; eexists; split; first by reflexivity.
   by constructor.
 Qed.
@@ -1258,9 +1254,9 @@ Proof.
     + exact: (ofgetreg eqm ok_r ok_v).
     + exact: (ofgetregx eqm ok_r ok_v).
     exact: (ofgetxreg eqm ok_r ok_v).
-  move => al' sz' ? ? _ /=; t_xrbindP => /eqP <-{sz'} ok_al' d ok_d <- ptr w ok_w ok_ptr uptr u ok_u ok_uptr ? ok_rd ?; subst v => /=.
+  move => al' sz' ? _ /=. t_xrbindP => /eqP <-{sz'} ok_al' d ok_d <- ptr u ok_u ok_uptr ? ok_rd ?; subst v => /=.
   case: (eqm) => _ eqmem _ _ _ _ _.
-  rewrite (addr_of_xpexprP eqm ok_d ok_w ok_ptr ok_u ok_uptr) -eqmem (aligned_le_read ok_al' ok_rd).
+  rewrite (addr_of_xpexprP eqm ok_d ok_u ok_uptr) -eqmem (aligned_le_read ok_al' ok_rd).
   eexists; first reflexivity.
   exact: word_uincl_refl.
 Qed.

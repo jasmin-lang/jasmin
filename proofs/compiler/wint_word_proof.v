@@ -59,10 +59,10 @@ Section E.
       t_xrbindP => i ve /he [v' -> +] /to_intI ?; subst ve.
       move=> /value_uinclE -> /= ? /(WArray.uincl_get_sub htu) [t'] -> ht'u <- /=.
       by (eexists; first reflexivity) => /=.
-    + move=> al sz x e he v a ve /(get_var_uincl hincl) [?] -> + /to_wordI [? [? [? htr1]]]; subst ve.
-      move=> /value_uinclE [? [? [-> hu1]]] ?? /he [v' -> +] /to_wordI [sz' [w' [? htr]]]; subst.
+    + move=> al sz e he v a ve.
+      move=> /he [v' -> +] /to_wordI [sz' [w' [? htr]]]; subst.
       move=> /value_uinclE [?] [w''] [->] hu ? /=.
-      rewrite (word_uincl_truncate hu1 htr1) (word_uincl_truncate hu htr) /= => -> <- /=.
+      rewrite (word_uincl_truncate hu htr) /= => -> <- /=.
       by (eexists; first reflexivity) => /=.
     + move=> o e he v v1 /he{he} [v' he hu].
       rewrite /sem_sop1 /=; t_xrbindP => + /(of_value_uincl_te hu).
@@ -147,13 +147,11 @@ Lemma wi2w_lvalP wdb lv s s' vm v1 v2 :
   exists2 vm', write_lval wdb gd (wi2w_lv lv) v2 (with_vm s vm) = ok (with_vm s' vm') &
                evm s' <=1 vm'.
 Proof.
-  case: lv => [ vi ty | x | al w x e | al aa sz x e | aa sz len x e] /=.
+  case: lv => [ vi ty | x | al w vi e | al aa sz x e | aa sz len x e] /=.
   + move=> hu hvu hw; rewrite (uincl_write_none _ hvu hw).
     by have [-> _ _] := write_noneP hw; eauto.
   + by apply write_var_uincl.
-  + move=> hu hvu; t_xrbindP => ?? /(get_var_uincl hu) [? -> hu1] /to_wordI [?[?[? htr1]]] /=; subst.
-    have [? [? [? hw1 {hu1}]]]:= value_uinclE hu1; subst => /=.
-    have -> := word_uincl_truncate hw1 htr1.
+  + move=> hu hvu; t_xrbindP.
     move=> ?? /(wi2w_eP hu) [? -> hu2] /to_wordI [?[?[? htr2]]] /=; subst.
     have [? [? [? hw2 {hu2}]]]:= value_uinclE hu2; subst => /=.
     have -> := word_uincl_truncate hw2 htr2.

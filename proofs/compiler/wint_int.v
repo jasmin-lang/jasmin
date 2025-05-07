@@ -78,7 +78,11 @@ Definition wi2i_op1_e (o : sop1) (e : pexpr) :=
     match o with
     | WIwint_of_int ws => e
     | WIint_of_wint ws => e
-    | WIword_of_wint ws => Papp1 (Oword_of_int ws) e
+    | WIword_of_wint ws =>
+      (* We use WIwint_of_int to remember that the int argument is bounded,
+         this allows to simplify int_of_word (WIword_of_int i) into i during extraction
+         of memory address *)
+      Papp1 (Owi1 s (WIwint_of_int ws)) e
     | WIwint_of_word ws => Papp1 (Oint_of_word s ws) e
     | WIwint_ext szo szi =>
       if (szi <= szo)%CMP then e
@@ -134,7 +138,7 @@ Fixpoint etype_of_expr (e:pexpr) : extended_type positive :=
   | Pvar x => etype_of_gvar x
   | Pget al aa ws x e => tword ws
   | Psub al ws len x e => tarr (Z.to_pos (arr_size ws len))
-  | Pload al ws x e => tword ws
+  | Pload al ws e => tword ws
   | Papp1 o e => (etype_of_op1 o).2
   | Papp2 o e1 e2 => (etype_of_op2 o).2
   | PappN o es => to_etype None (type_of_opN o).2
@@ -180,12 +184,11 @@ Fixpoint wi2i_e (e0:pexpr) : cexec pexpr :=
     Let x := wi2i_gvar x in
     Let e := wi2i_e e in
     ok (Psub al ws len x e)
-  | Pload al ws x e =>
-    Let _ := assert [&& m x == None & sign_of_expr e == None]
+  | Pload al ws e =>
+    Let _ := assert (sign_of_expr e == None)
                     (E.ierror_e e0) in
-    Let x := wi2i_vari x in
     Let e := wi2i_e e in
-    ok (Pload al ws x e)
+    ok (Pload al ws e)
   | Papp1 o e =>
     Let _ := assert (esubtype (etype_of_op1 o).1 (etype_of_expr e))
                     (E.ierror_e e0) in
@@ -233,11 +236,11 @@ Definition wi2i_lv (ety : extended_type positive) (lv : lval) : cexec lval :=
     Let x := wi2i_lvar ety x in
     ok (Lvar x)
 
-  | Lmem al ws x e =>
-    Let _ := assert [&& in_FV_var x, m x == None, sign_of_expr e == None & s == None]
+  | Lmem al ws vi e =>
+    Let _ := assert [&& sign_of_expr e == None & s == None]
                     (E.ierror_lv lv) in
     Let e := wi2i_e e in
-    ok (Lmem al ws x e)
+    ok (Lmem al ws vi e)
 
   | Laset al aa ws x e =>
     Let _ := assert [&& in_FV_var x, sign_of_expr e == None & s == None]

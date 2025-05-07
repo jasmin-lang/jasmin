@@ -1248,8 +1248,8 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     P.Pvar x, ty
 
   | S.PEFetch me ->
-    let ct, x, e, al = tt_mem_access ~mode pd env me in
-    P.Pload (al, ct, x, e), P.etw ct
+    let ct, _eloc, e, al = tt_mem_access ~mode pd env me in
+    P.Pload (al, ct, e), P.etw ct
 
   | S.PEGet (al, aa, ws, ({ L.pl_loc = xlc } as x), pi, olen) ->
     let x, ty = tt_var_global mode env x in
@@ -1377,20 +1377,12 @@ and tt_expr_cast pd ?(mode=`AllVar) (env : 'asm Env.env) pe ty =
   cast (L.loc pe) e ety ty
 
 and tt_mem_access pd ?(mode=`AllVar) (env : 'asm Env.env)
-           (al, ct, ({ L.pl_loc = xlc } as x), e) =
-  let x, ty = tt_var `NoParam env x in
-  check_ty_ptr pd ~loc:xlc ty;
-  let e =
-    match e with
-    | None -> P.Papp1 (op_word_of_int (Word, W.Unsigned, pd), P.Pconst (Z.zero))
-    | Some(k, e) ->
-      let e = tt_expr_cast ~mode pd env e (P.etw pd) in
-      match k with
-      | `Add -> e
-      | `Sub -> Papp1(E.Oneg (E.Op_w pd), e) in
+           (al, ct, e) =
+  let loc = L.loc e in
+  let e = tt_expr_cast ~mode pd env e (P.etw pd) in
   let ct = tt_mem_wsize pd ct in
   let al = tt_al AAdirect al in
-  (ct, L.mk_loc xlc x, e, al)
+  (ct, loc, e, al)
 
 (* -------------------------------------------------------------------- *)
 and tt_type pd (env : 'asm Env.env) (pty : S.ptype) : P.epty =
@@ -1498,8 +1490,8 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     end
 
   | S.PLMem me ->
-    let ct, x, e, al = tt_mem_access ~mode:`AllVar pd env me in
-    loc, (fun _ -> P.Lmem (al, ct, x, e)), Some (P.etw ct)
+    let ct, eloc, e, al = tt_mem_access ~mode:`AllVar pd env me in
+    loc, (fun _ -> P.Lmem (al, ct, eloc, e)), Some (P.etw ct)
 
 (* -------------------------------------------------------------------- *)
 
@@ -1746,7 +1738,7 @@ let pexpr_of_plvalue exn l =
   | S.PLIgnore      -> raise exn
   | S.PLVar  x      -> L.mk_loc (L.loc l) (S.PEVar x)
   | S.PLArray(al, aa,ws,x,e,len) -> L.mk_loc (L.loc l) (S.PEGet(al, aa,ws,x,e,len))
-  | S.PLMem(ty,x,e,al) -> L.mk_loc (L.loc l) (S.PEFetch(ty,x,e,al))
+  | S.PLMem(al,ty,e) -> L.mk_loc (L.loc l) (S.PEFetch(al,ty,e))
 
 
 type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {

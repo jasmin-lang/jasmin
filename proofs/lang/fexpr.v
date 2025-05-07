@@ -14,15 +14,20 @@ Inductive fexpr :=
 Definition fconst (ws: wsize) (z: Z) : fexpr :=
   Fapp1 (Oword_of_int ws) (Fconst z).
 
+Definition fadd (ws : wsize) :=
+  Fapp2 (Oadd (Op_w ws)).
+
+Definition faddv ws x := fadd ws (Fvar x).
+
 (* --------------------------------------------------------------------------- *)
 (* Right-expressions *)
 Variant rexpr :=
-  | Load of aligned & wsize & var_i & fexpr
+  | Load of aligned & wsize & fexpr
   | Rexpr of fexpr.
 
 (* Left-expressions *)
 Variant lexpr :=
-  | Store of aligned & wsize & var_i & fexpr
+  | Store of aligned & wsize & fexpr
   | LLvar of var_i.
 
 Notation rexprs := (seq rexpr).
@@ -48,13 +53,13 @@ Fixpoint fexpr_of_pexpr (e: pexpr) : option fexpr :=
   end.
 
 Definition rexpr_of_pexpr (e: pexpr) : option rexpr :=
-  if e is Pload al ws p e then omap (Load al ws p) (fexpr_of_pexpr e) else omap Rexpr (fexpr_of_pexpr e).
+  if e is Pload al ws e then omap (Load al ws) (fexpr_of_pexpr e) else omap Rexpr (fexpr_of_pexpr e).
 
 Definition lexpr_of_lval (e: lval) : option lexpr :=
   match e with
   | Lvar x => Some (LLvar x)
-  | Lmem al ws p e =>
-      omap (Store al ws p) (fexpr_of_pexpr e)
+  | Lmem al ws _ e =>
+      omap (Store al ws) (fexpr_of_pexpr e)
   | _ => None
   end.
 
@@ -73,10 +78,10 @@ Definition free_vars (e: fexpr) : Sv.t :=
 
 Definition free_vars_r (r:rexpr) : Sv.t :=
   match r with
-  | Load _ _ x e => free_vars_rec (Sv.singleton x) e
-  | Rexpr e    => free_vars e
+  | Load _ _ e | Rexpr e => free_vars e
   end.
 
 Definition rvar (x : var_i) : rexpr := Rexpr (Fvar x).
 Definition rconst (ws : wsize) (z : Z) : rexpr := Rexpr (fconst ws z).
-Definition lstore {_ : PointerData} al ws x z := Store al ws x (fconst Uptr z).
+Definition lstore {_ : PointerData} al ws x z :=
+   Store al ws (Fapp2 (Oadd (Op_w Uptr)) (Fvar x) (fconst Uptr z)).

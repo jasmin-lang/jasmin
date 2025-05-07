@@ -230,14 +230,9 @@ let rec pp_expr_rec prio fmt pe =
     F.fprintf fmt "%a ? %a : %a" (pp_expr_rec p) e1 (pp_expr_rec p) e2 (pp_expr_rec p) e3;
     optparent fmt prio p ")"
 
-and pp_mem_access fmt (al, ty,x,e) =
-  let pp_e fmt e =
-    match e with
-    | None -> ()
-    | Some (`Add, e) -> Format.fprintf fmt " + %a" pp_expr e
-    | Some (`Sub, e) -> Format.fprintf fmt " - %a" pp_expr e in
+and pp_mem_access fmt (al, ty, e) =
   let pp_size fmt ws = Format.fprintf fmt ":%a " pp_ws ws in
-  F.fprintf fmt "[%a%a%a%a]" pp_aligned al (pp_opt pp_size) (Option.map L.unloc ty) pp_var x pp_e e
+  F.fprintf fmt "[%a%a%a]" pp_aligned al (pp_opt pp_size) (Option.map L.unloc ty)  pp_expr e
 
 
 and pp_type fmt ty =

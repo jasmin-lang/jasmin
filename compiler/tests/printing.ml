@@ -76,8 +76,8 @@ and eq_plval x y =
   match (x, y) with
   | Lnone (_, a), Lnone (_, b) -> eq_pty a b
   | Lvar a, Lvar b -> eq_pvar_i a b
-  | Lmem (a, b, c, d), Lmem (e, f, g, h) ->
-      a = e && Wsize.wsize_eqb b f && eq_pvar_i c g && eq_pexpr d h
+  | Lmem (a, b, _, d), Lmem (e, f, _, h) ->
+      a = e && Wsize.wsize_eqb b f && eq_pexpr d h
   | Laset (a, b, c, d, e), Laset (f, g, h, i, j) ->
       a = f && b = g && Wsize.wsize_eqb c h && eq_pvar_i d i && eq_pexpr e j
   | Lasub (a, b, c, d, e), Lasub (f, g, h, i, j) ->
@@ -98,8 +98,8 @@ and eq_pexpr x y =
   | Psub (a, b, c, d, e), Psub (f, g, h, i, j) ->
       a = f && Wsize.wsize_eqb b g && eq_pexpr_ c h && eq_pgvar d i
       && eq_pexpr e j
-  | Pload (a, b, c, d), Pload (e, f, g, h) ->
-      a = e && Wsize.wsize_eqb b f && eq_pvar_i c g && eq_pexpr d h
+  | Pload (a, b, d), Pload (e, f, h) ->
+      a = e && Wsize.wsize_eqb b f && eq_pexpr d h
   | Papp1 (a, b), Papp1 (c, d) -> a = c && eq_pexpr b d
   | Papp2 (a, b, c), Papp2 (d, e, f) -> a = d && eq_pexpr b e && eq_pexpr c f
   | PappN (a, b), PappN (c, d) -> a = c && eq_pexprs b d

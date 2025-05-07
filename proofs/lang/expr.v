@@ -388,7 +388,7 @@ Inductive pexpr : Type :=
 | Pvar   :> gvar -> pexpr
 | Pget   : aligned -> arr_access -> wsize -> gvar -> pexpr -> pexpr
 | Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr
-| Pload  : aligned -> wsize -> var_i -> pexpr -> pexpr
+| Pload  : aligned -> wsize -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
 | PappN of opN & seq pexpr
@@ -403,6 +403,7 @@ Definition eor e1 e2 : pexpr := Papp2 Oor e1 e2.
 Definition eand e1 e2 : pexpr := Papp2 Oand e1 e2.
 Definition eeq e1 e2 : pexpr := Papp2 Obeq e1 e2.
 Definition eneq e1 e2 : pexpr := enot (eeq e1 e2).
+Definition eaddw w e1 e2 : pexpr := Papp2 (Oadd (Op_w w)) e1 e2.
 
 Definition cf_of_condition (op : sop2) : option (combine_flags * wsize) :=
   match op with
@@ -425,7 +426,7 @@ Definition pexpr_of_cf (cf : combine_flags) (vi : var_info) (flags : seq var) : 
 Variant lval : Type :=
 | Lnone `(var_info) `(stype)
 | Lvar  `(var_i)
-| Lmem  of aligned & wsize & var_i & pexpr
+| Lmem  of aligned & wsize & var_info & pexpr
 | Laset of aligned & arr_access & wsize & var_i & pexpr
 | Lasub of arr_access & wsize & positive & var_i & pexpr.
 
@@ -443,8 +444,8 @@ Definition Lnone_b (vi : var_info) : lval := Lnone vi sbool.
 
 Definition var_info_of_lval (x: lval) : var_info :=
   match x with
-  | Lnone i t => i
-  | Lvar x | Lmem _ _ x _ | Laset _ _ _ x _ | Lasub _ _ _ x _ => v_info x
+  | Lnone i _ | Lmem _ _ i _ => i
+  | Lvar x | Laset _ _ _ x _ | Lasub _ _ _ x _ => v_info x
   end.
 
 (* ** Instructions
@@ -830,7 +831,7 @@ Definition is_Papp2 (e : pexpr) : option (sop2 * pexpr * pexpr) :=
   if e is Papp2 op e0 e1 then Some (op, e0, e1) else None.
 
 Definition is_Pload e :=
-  if e is Pload _ _ _ _ then true else false.
+  if e is Pload _ _ _ then true else false.
 
 Definition is_load (e: pexpr) : bool :=
   match e with
@@ -840,7 +841,7 @@ Definition is_load (e: pexpr) : bool :=
     => false
   | Pvar {| gs := Sglob |}
   | Pget _ _ _ _ _
-  | Pload _ _ _ _
+  | Pload _ _ _
     => true
   | Pvar {| gs := Slocal ; gv := x |}
     => is_var_in_memory x
@@ -959,7 +960,7 @@ Definition write_c c := write_c_rec Sv.empty c.
 Fixpoint use_mem (e : pexpr) :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => false
-  | Pload _ _ _ _ => true
+  | Pload _ _ _ => true
   | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
@@ -979,9 +980,9 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pbool  _
   | Parr_init _    => s
   | Pvar   x       => Sv.union (read_gvar x) s
-  | Pget _ _ _ x e   => read_e_rec (Sv.union (read_gvar x) s) e
+  | Pget _ _ _ x e => read_e_rec (Sv.union (read_gvar x) s) e
   | Psub _ _ _ x e => read_e_rec (Sv.union (read_gvar x) s) e
-  | Pload _ _ x e  => read_e_rec (Sv.add x s) e
+  | Pload _ _ e    => read_e_rec s e
   | Papp1  _ e     => read_e_rec s e
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | PappN _ es     => foldl read_e_rec s es
@@ -996,7 +997,7 @@ Definition read_rv_rec  (s:Sv.t) (r:lval) :=
   match r with
   | Lnone _ _     => s
   | Lvar  _       => s
-  | Lmem _ _ x e  => read_e_rec (Sv.add x s) e
+  | Lmem _ _ _ e    => read_e_rec s e
   | Laset _ _ _ x e => read_e_rec (Sv.add x s) e
   | Lasub _ _ _ x e => read_e_rec (Sv.add x s) e
   end.
@@ -1075,7 +1076,7 @@ Fixpoint eq_expr (e e' : pexpr) :=
   | Pvar   x      , Pvar   x'         => eq_gvar x x'
   | Pget al aa w x e , Pget al' aa' w' x' e' => (al == al') && (aa==aa') && (w == w') && (eq_gvar x x') && eq_expr e e'
   | Psub aa w len x e , Psub aa' w' len' x' e' => (aa==aa') && (w == w') && (len == len') && (eq_gvar x x') && eq_expr e e'
-  | Pload al w x e, Pload al' w' x' e' => (al == al') && (w == w') && (v_var x == v_var x') && eq_expr e e'
+  | Pload al w e, Pload al' w' e' => (al == al') && (w == w') && eq_expr e e'
   | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'
   | Papp2  o e1 e2, Papp2  o' e1' e2' => (o == o') && eq_expr e1 e1' && eq_expr e2 e2'
   | PappN o es, PappN o' es' => (o == o') && (all2 eq_expr es es')

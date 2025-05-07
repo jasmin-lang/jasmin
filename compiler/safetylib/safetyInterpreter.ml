@@ -104,9 +104,9 @@ type safe_cond =
   | InBound of int * arr_slice
   | InRange of expr * expr * expr (* InRange a b c ≡ c ∈ [a; b] *)
 
-  | Valid       of wsize * var * expr (* allocated memory region *)
-  | AlignedPtr  of wsize * var * expr (* aligned pointer *)
-  | AlignedExpr of wsize * expr       (* aligned expression *)
+  | Valid       of wsize * expr (* allocated memory region *)
+  | AlignedPtr  of wsize * expr (* aligned pointer *)
+  | AlignedExpr of wsize * expr (* aligned expression *)
 
   | NotEqual of E.op_kind * expr * expr
   | Termination of bool (* the boolean signals whether this is a severe violation *)
@@ -158,10 +158,11 @@ let pp_safety_cond fmt = function
     Format.fprintf fmt "in_bound: %a (length %i U8)"
       pp_arr_slice slice n
 
-  | Valid (sz, x, e) ->
-    Format.fprintf fmt "is_valid %s + %a u%a" x.v_name pp_expr e pp_ws sz
-  | AlignedPtr (sz, x, e) ->
-    Format.fprintf fmt "aligned pointer %s + %a u%a" x.v_name pp_expr e pp_ws sz
+  | Valid (sz, e) ->
+    Format.fprintf fmt "is_valid %a u%a" pp_expr e pp_ws sz
+
+  | AlignedPtr (sz, e) ->
+    Format.fprintf fmt "aligned pointer %a u%a" pp_expr e pp_ws sz
   | AlignedExpr (sz, e) ->
     Format.fprintf fmt "aligned %a u%a" pp_expr e pp_ws sz
 
@@ -330,19 +331,18 @@ let safe_gvar x = match x.gs with
   | Expr.Sglob  -> []
   | Expr.Slocal -> safe_var x.gv
 
-let optional_alignment_check al ws x e acc =
+let optional_alignment_check al ws e acc =
   match al with
   | Memory_model.Unaligned -> acc
-  | _ -> AlignedPtr (ws, x, e) :: acc
+  | _ -> AlignedPtr (ws, e) :: acc
 
 let rec safe_e_rec safe = function
   | Pconst _ | Pbool _ | Parr_init _ -> safe
   | Pvar x -> safe_gvar x @ safe
 
-  | Pload (al, ws,x,e) ->
-     let x = L.unloc x in
-    Valid (ws, x, e) ::
-    optional_alignment_check al ws x e
+  | Pload (al, ws, e) ->
+    Valid (ws, e) ::
+    optional_alignment_check al ws e
     (safe_e_rec safe e)
 
   | Pget (al, access, ws, x, e) ->
@@ -375,10 +375,9 @@ let safe_es = List.fold_left safe_e_rec []
 let safe_lval = function
   | Lnone _ | Lvar _ -> []
 
-  | Lmem(al, ws, x, e) ->
-    let x = L.unloc x in
-    Valid (ws, x, e) ::
-    optional_alignment_check al ws x e
+  | Lmem(al, ws, vi, e) ->
+    Valid (ws, e) ::
+    optional_alignment_check al ws e
     (safe_e_rec [] e)
 
   | Laset(al, access,ws, x,e) ->
@@ -785,20 +784,21 @@ end = struct
   (* Update abs with the abstract memory range and alignment
      constraint for memory accesses. *)
   let mem_safety_apply (abs, violations, s_effect) = function
-    | Valid (ws,x,e) as pv ->
-      begin
-        match AbsDom.var_points_to abs (mvar_of_scoped_var Expr.Slocal x) with
+    | Valid (ws, e1) as pv ->
+      begin match decompose_address e1 with
+      | exception Not_found -> (abs, pv :: violations, s_effect)
+      | x, e ->
+        begin match AbsDom.var_points_to abs (mvar_of_scoped_var Expr.Slocal x) with
         | Ptrs pts ->
           if List.length pts = 1 then
             let pt = List.hd pts in
-
             (* We update the accessed memory range in [abs]. *)
             let x_o = Mtexpr.var (MvarOffset x) in
-            let lin_e = oget (AbsExpr.linearize_smpl_wexpr abs e) in
             let c_ws =
               (size_of_ws ws)
               |> Coeff.s_of_int
               |> Mtexpr.cst in
+            let lin_e = oget (AbsExpr.linearize_smpl_wexpr abs e) in
             let ws_plus_e = Mtexpr.binop Texpr1.Add c_ws lin_e in
             let sexpr = Mtexpr.binop Texpr1.Add x_o ws_plus_e
                         |> sexpr_from_simple_expr in
@@ -807,13 +807,15 @@ end = struct
             ( abs,
               violations,
               if List.mem pt s_effect then s_effect else pt :: s_effect)
-          else (abs, pv :: violations, s_effect)
+           else (abs, pv :: violations, s_effect)
         | TopPtr -> (abs, pv :: violations, s_effect)
+        end
       end
-
-    | AlignedPtr (ws,x,e) as pv ->
-      begin
-        match AbsDom.var_points_to abs (mvar_of_scoped_var Expr.Slocal x) with
+    | AlignedPtr (ws, e1) as pv ->
+      begin match decompose_address e1 with
+      | exception Not_found -> (abs, pv :: violations, s_effect)
+      | x, e ->
+        begin match AbsDom.var_points_to abs (mvar_of_scoped_var Expr.Slocal x) with
         | Ptrs pts ->
           if List.length pts = 1 then
             let pt = List.hd pts in
@@ -832,8 +834,9 @@ end = struct
 
             ( abs, violations, s_effect)
           else (abs, pv :: violations, s_effect)
-        | TopPtr -> (abs, pv :: violations, s_effect) end
-
+        | TopPtr -> (abs, pv :: violations, s_effect)
+        end
+      end
     | AlignedExpr (ws,e) as pv ->
       (* We check that the offset is correctly aligned. *)
       let lin_e = oget (AbsExpr.linearize_smpl_wexpr abs e) in

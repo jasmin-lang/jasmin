@@ -532,10 +532,10 @@ Proof.
 Qed.
 
 Lemma lower_loadP e :
-  match e with Pload _ _ _ _ | Pget _ _ _ _ _ => Plower_pexpr_aux e
+  match e with Pload _ _ _ | Pget _ _ _ _ _ => Plower_pexpr_aux e
   | _ => True end.
 Proof.
-  case: e => // [ al aa | al ] ws x e s ws' ws'' aop es w.
+  case: e => // [ al aa ws x| al ws] e s ws' ws'' aop es w.
   all: rewrite /lower_pexpr_aux /lower_load.
   all: move=> /chk_ws_regP [? [??]] hws hfve; subst ws' aop es.
   all: rewrite /sem_pexpr -/(sem_pexpr _ _ s e).
@@ -550,10 +550,8 @@ Proof.
       by rewrite /exec_sopn /= truncate_word_le // /= zero_extend_u.
     done.
 
-  t_xrbindP=> wbase' vbase hgetx hbase woff' voff hseme hoff wres hread ? hw;
+  t_xrbindP=> woff' voff hseme hoff wres hread ? hw;
     subst ws''.
-  move: hbase => /to_wordI [ws0 [wbase [? /truncate_wordP [hws0 ?]]]];
-    subst wbase' vbase.
   move: hoff => /to_wordI [ws1 [woff [? /truncate_wordP [hws1 ?]]]];
     subst woff' voff.
   move: hw => [?]; subst wres.
@@ -562,8 +560,8 @@ Proof.
   clear hfve.
 
   rewrite /sem_pexprs /=.
-  rewrite hgetx hseme {hgetx hseme} /=.
-  rewrite !truncate_word_le // {hws0 hws1} /=.
+  rewrite hseme {hseme} /=.
+  rewrite truncate_word_le // {hws1} /=.
   rewrite hread {hread} /=.
 
   eexists; first reflexivity.
@@ -611,7 +609,7 @@ Proof.
       all: move=> [? ?]; subst op' es.
       all: split; last done.
       all: clear hfve.
-      all: rewrite /= -/(sem_pexpr _ _ s (Pload _ _ _ _)).
+      all: rewrite /= -/(sem_pexpr _ _ s (Pload _ _ _)).
       all: rewrite hseme {hseme} /=.
       all: eexists; first reflexivity.
       all: rewrite /exec_sopn /=.
@@ -629,7 +627,7 @@ Proof.
       all: move=> [? ?]; subst op' es.
       all: split; last done.
       all: clear hfve.
-      all: rewrite /= -/(sem_pexpr _ _ s (Pload _ _ _ _)).
+      all: rewrite /= -/(sem_pexpr _ _ s (Pload _ _ _)).
       all: rewrite hseme {hseme} /=.
       all: eexists; first reflexivity.
       all: rewrite /exec_sopn /=.
@@ -970,7 +968,7 @@ Proof.
 
   - exact: lower_PvarP.
   - exact: (lower_loadP (Pget _ _ _ _ _)).
-  - exact: (lower_loadP (Pload _ _ _ _)).
+  - exact: (lower_loadP (Pload _ _ _)).
   - exact: lower_Papp1P.
   exact: lower_Papp2P.
 Qed.
@@ -1030,7 +1028,7 @@ Proof.
 
   move: s0 ws' pre op es w h hs00 hws hfve hfvlv hseme hwrite.
   case: e =>
-    [||| gx | al aa ws0 x e || al ws0 x e | op e | op e0 e1 || ty c e0 e1] //
+    [||| gx | al aa ws0 x e || al ws0 e | op e | op e0 e1 || ty c e0 e1] //
     s0 ws' pre aop es w h hs00 hws hfve hfvlv hseme hwrite.
 
   1-5: move: h => /no_preP [? h]; subst pre.

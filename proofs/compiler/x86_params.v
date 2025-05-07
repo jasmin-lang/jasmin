@@ -101,11 +101,11 @@ Definition x86_check_ws (_: wsize) := true.
 
 Definition x86_lstore (xd : var_i) (ofs : Z) (xs :  var_i) :=
   let ws := wsize_of_stype (vtype xs) in
-  x86_lassign (Store Aligned ws xd (fconst Uptr ofs)) ws (Rexpr (Fvar xs)).
+  x86_lassign (Store Aligned ws (faddv Uptr xd (fconst Uptr ofs))) ws (Rexpr (Fvar xs)).
 
 Definition x86_lload (xd xs: var_i) (ofs : Z) :=
   let ws := wsize_of_stype (vtype xd) in
-  x86_lassign (LLvar xd) ws (Load Aligned ws xs (fconst Uptr ofs)).
+  x86_lassign (LLvar xd) ws (Load Aligned ws (faddv Uptr xs (fconst Uptr ofs))).
 
 Definition x86_tmp := vname (v_var vtmpi).
 

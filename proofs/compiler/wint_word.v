@@ -56,7 +56,7 @@ Fixpoint wi2w_e (e: pexpr) : pexpr :=
       => e
   | Pget al aa ws x e => Pget al aa ws x (wi2w_e e)
   | Psub al ws len x e => Psub al ws len x (wi2w_e e)
-  | Pload al ws x e => Pload al ws x (wi2w_e e)
+  | Pload al ws e => Pload al ws (wi2w_e e)
   | Papp1 o e => wi2w_op1 o (wi2w_e e)
   | Papp2 o e1 e2 => Papp2 (wi2w_op2 o) (wi2w_e e1) (wi2w_e e2)
   | PappN o es => PappN o (map wi2w_e es)
@@ -68,7 +68,7 @@ Definition wi2w_lv (x : lval) : lval :=
   | Lnone vi t => Lnone vi t
   | Lvar x => Lvar x
   | Lmem al ws x e => Lmem al ws x (wi2w_e e)
-  | Laset al aa ws x e => Laset al aa ws x (wi2w_e e)
+  | Laset al aa ws vi e => Laset al aa ws vi (wi2w_e e)
   | Lasub aa ws len x e => Lasub aa ws len x (wi2w_e e)
   end.
 

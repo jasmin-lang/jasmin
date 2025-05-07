@@ -151,35 +151,26 @@ Proof.
   by case: scale => // -[|[|[|[]|]|]|] //= [<-]; rewrite /riscv_sll_semi wshl_sem.
 Qed.
 
-Lemma compute_addrP ii (tmp x:var_i) e prelude disp s1 wx we :
-  get_var true (evm s1) x >>= to_pointer = ok wx ->
+Lemma compute_addrP ii (tmp : var_i) e prelude ep s1 we :
   sem_pexpr true p'.(p_globs) s1 e >>= to_pointer = ok we ->
   vtype tmp = sword Uptr ->
-  compute_addr tmp x e = Some (prelude, disp) ->
-  exists vm1 wtmp wdisp, [/\
+  compute_addr tmp e = Some (prelude, ep) ->
+  exists vm1, [/\
     sem p' ev s1 (map (MkI ii) prelude) (with_vm s1 vm1),
-    evm s1 =[\Sv.singleton tmp] vm1,
-    get_var true vm1 tmp >>= to_pointer = ok wtmp,
-    sem_pexpr true p'.(p_globs) (with_vm s1 vm1) disp >>= to_pointer = ok wdisp &
-    (wx + we = wtmp + wdisp)%R].
+    evm s1 =[\Sv.singleton tmp] vm1 &
+    sem_pexpr true p'.(p_globs) (with_vm s1 vm1) ep >>= to_pointer = ok we ].
 Proof.
-  move=> ok_wx ok_we tmp_ty.
+  move=> ok_we tmp_ty.
   rewrite /compute_addr.
-  move: disp => disp'.
   case hlea: mk_lea => [[disp base scale offset]|//] /=.
   case: base hlea => [base|//] hlea.
   case: offset hlea => [offset|//] hlea.
   case: eqP => [//|hneq] /=.
   case hshift: shift_of_scale => [shift|//] /=.
-  move=> [<- <-] {prelude disp'}.
-  have lea_sem:
-    sem_pexpr true p'.(p_globs) s1 (Papp2 (Oadd (Op_w Uptr)) (mk_lvar x) e) = ok (Vword (wx + we)).
-  + move: ok_wx; t_xrbindP=> vx ok_vx ok_wx.
-    move: ok_we; t_xrbindP=> ve ok_ve ok_we.
-    rewrite /= /get_gvar /= ok_vx ok_ve /=.
-    by rewrite /sem_sop2 /= ok_wx ok_we /=.
-  have /(_ (cmp_le_refl _) (cmp_le_refl _)) := mk_leaP _ _ hlea lea_sem.
-  rewrite zero_extend_u /sem_lea /=.
+  move=> [<- <-] {prelude ep}.
+  move: ok_we; t_xrbindP=> ve ok_ve /to_wordI' [ws] [w] [hle1 ??]. subst ve we.
+  have /(_ (cmp_le_refl _) hle1) := mk_leaP _ _ hlea ok_ve.
+  rewrite /sem_lea /=.
   (* t_xrbindP too aggressive *)
   apply: rbindP => wb.
   apply: rbindP => vb ok_vb ok_wb.
@@ -187,7 +178,7 @@ Proof.
   apply: rbindP => vo ok_vo ok_wo.
   move=> /ok_inj; rewrite GRing.addrC => {}lea_sem.
 
-  eexists _, _, _; split.
+  eexists _; split.
   + apply: Eseq.
     + apply: EmkI; apply: Eopn.
       rewrite /sem_sopn /= wrepr_unsigned.
@@ -207,10 +198,8 @@ Proof.
   + do 2 (rewrite (eq_ex_set_l _ (eq_ex_refl _));
       last by move=> /Sv.singleton_spec).
     by apply eq_ex_refl.
-  + rewrite /= get_var_eq tmp_ty /= cmp_le_refl orbT /=; last by [].
-    by rewrite truncate_word_u; reflexivity.
-  + by rewrite truncate_word_u wrepr_unsigned; reflexivity.
-  done.
+  rewrite /get_gvar /= get_var_eq /= tmp_ty cmp_le_refl orbT //=.
+  by rewrite /sem_sop2 /= !truncate_word_u /= truncate_word_u -lea_sem wrepr_unsigned.
 Qed.
 
 Lemma is_one_LmemP xs al ws x e :
@@ -218,10 +207,10 @@ Lemma is_one_LmemP xs al ws x e :
   xs = [:: Lmem al ws x e].
 Proof. by case: xs => [//|] [] // _ _ _ _ [] //= [-> -> -> ->]. Qed.
 
-Lemma is_one_PloadP es al ws x e :
-  is_one_Pload es = Some (al, ws, x, e) ->
-  es = [:: Pload al ws x e].
-Proof. by case: es => [//|] [] // _ _ _ _ [] //= [-> -> -> ->]. Qed.
+Lemma is_one_PloadP es al ws e :
+  is_one_Pload es = Some (al, ws, e) ->
+  es = [:: Pload al ws e].
+Proof. by case: es => [//|] [] // _ _ _ [] //= [-> -> ->]. Qed.
 
 Local Lemma Hopn : sem_Ind_opn p Pi_r.
 Proof.
@@ -239,14 +228,14 @@ Proof.
 
   case hxs: is_one_Lmem => [[[[al ws] x] e]|].
   + move: hxs => /is_one_LmemP ?; subst xs.
-    case hcompute: compute_addr => [[prelude disp]|//] _.
+    case hcompute: compute_addr => [[prelude ep]|//] _.
     move: hsem; rewrite /sem_sopn.
-    t_xrbindP=> -[] // v [] /=; last by t_xrbindP.
-    t_xrbindP=> vs ok_vs ok_v ? wx vx ok_vx ok_wx we ve ok_ve ok_we w ok_w
+    t_xrbindP => -[] // v [] /=; last by t_xrbindP.
+    t_xrbindP=> vs ok_vs ok_v ? we ve ok_ve ok_we w ok_w
       m2 ok_m2 <- /= [eq_scs ??]; subst vm2 m2.
-    have /(_ (with_vm s1 vm1) wx we) := compute_addrP ii _ _ tmp_ty hcompute.
-    rewrite ok_vx ok_ve /= ok_wx ok_we.
-    move=> /(_ erefl erefl) [vm1' [wtmp [wdisp [hsem1' eq_vm1' ok_wtmp ok_wdisp w_eq]]]].
+    have /(_ (with_vm s1 vm1) we) := compute_addrP ii _ tmp_ty hcompute.
+    rewrite ok_ve /= ok_we.
+    move=> /(_ erefl) [vm1' [hsem1' eq_vm1' ok_ep]].
     exists vm1'.
     + rewrite map_cat; apply (sem_app hsem1').
       apply: sem_seq_ir; apply: Eopn.
@@ -254,29 +243,25 @@ Proof.
       rewrite -(eq_on_sem_pexprs _ _ (s:=with_vm s1 vm1)) //=; last first.
       + apply: (eq_ex_disjoint_eq_on eq_vm1').
         by move: hdisj => /disjoint_sym /disjoint_union [_ /disjoint_sym].
-      rewrite ok_vs /= ok_v /=.
-      move: ok_wtmp; t_xrbindP=> vtmp ok_vtmp ok_wtmp.
-      move: ok_wdisp; t_xrbindP=> vdisp ok_vdisp ok_wdisp.
-      rewrite ok_vtmp ok_vdisp /= ok_wtmp ok_wdisp /= ok_w /=.
-      rewrite -w_eq ok_m2 /=.
+      rewrite ok_vs /= ok_v /= ok_ep /= ok_w /= ok_m2 /=.
       by rewrite /with_mem /with_vm /= eq_scs.
     by transitivity vm1.
 
-  case hes: is_one_Pload => [[[[al ws] x] e]|//].
+  case hes: is_one_Pload => [[[al ws] e]|//].
   move: hes => /is_one_PloadP ?; subst es.
-  case hcompute: compute_addr => [[prelude disp]|//] _.
+  case hcompute: compute_addr => [[prelude ep]|//] _.
   move: hsem; rewrite /sem_sopn /=.
-  t_xrbindP=> /= vs _ _ wx vx ok_vx ok_wx we ve ok_ve ok_we w ok_w <- <- ok_vs ok_vm2.
-  have /(_ (with_vm s1 vm1) wx we) := compute_addrP ii _ _ tmp_ty hcompute.
-  rewrite ok_vx ok_ve /= ok_wx ok_we.
-  move=> /(_ erefl erefl) [vm1' [wtmp [wdisp [hsem1' eq_vm1' ok_wtmp ok_wdisp w_eq]]]].
+  t_xrbindP=> /= vs _ _ we ve ok_ve ok_we w ok_w <- <- ok_vs ok_vm2.
+  have /(_ (with_vm s1 vm1) we) := compute_addrP ii _ tmp_ty hcompute.
+  rewrite ok_ve /= ok_we.
+  move=> /(_ erefl) [vm1' [hsem1' eq_vm1' ok_ep]].
   have hdisj1: disjoint (Sv.singleton tmp) (read_rvs xs).
   + by move: hdisj => /disjoint_sym /disjoint_union [/disjoint_sym ? _].
   have [vm1'' ok_vm1'' eq_vm1''] := write_lvals_eq_ex hdisj1 ok_vm2 eq_vm1'.
   exists vm1''.
   + rewrite map_cat; apply (sem_app hsem1').
     apply: sem_seq_ir; apply: Eopn.
-    by rewrite /sem_sopn /= ok_wtmp ok_wdisp /= -w_eq ok_w /= ok_vs /= ok_vm1''.
+    by rewrite /sem_sopn /= ok_ep /= ok_w /= ok_vs /= ok_vm1''.
   by transitivity vm2.
 Qed.
 

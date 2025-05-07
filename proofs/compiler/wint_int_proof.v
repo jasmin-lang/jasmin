@@ -110,6 +110,19 @@ Proof.
   apply wunsigned_repr_small; Lia.lia.
 Qed.
 
+Lemma wint_of_int_of_word sg sz (w : word sz) :
+  wint_of_int sg sz (int_of_word sg w) = ok w.
+Proof.
+  rewrite /wint_of_int /int_of_word /in_wint_range /signed.
+  case: sg.
+  + rewrite wrepr_signed /in_sint_range.
+    by have [/ZleP -> /ZleP ->]:= wsigned_range w.
+  rewrite wrepr_unsigned /in_uint_range.
+  have [/ZleP -> h]:= wunsigned_range w.
+  have /ZleP -> //: (wunsigned w <= wmax_unsigned sz)%Z.
+  by rewrite /wmax_unsigned; Lia.lia.
+Qed.
+
 Lemma esubtype_sign_of t1 t2 : esubtype t1 t2 -> sign_of_etype t2 = sign_of_etype t1.
 Proof. by case: t1 t2 => [||l1|[[]|] sz1] [||l2|[[]|] sz2]. Qed.
 
@@ -266,10 +279,9 @@ Proof.
     apply: on_arr_gvarP => len' t htyx hx.
     t_xrbindP => i ve /he {}he /to_intI ? w hget ?; subst ve v.
     by rewrite /= /on_arr_var (wi2i_gvar_nw _ hxi hx) ?htyx //= he //= hget.
-  + move=> al sz x e he ? /andP [/eqP hmx /eqP hte] xi hxi ei /he{}he <- v.
-    move=> wx vx gx hptrx we ve /he{}he hptre w hr <- /=.
-    rewrite /= (wi2i_variP hxi gx) /sign_of_var hmx /= val_to_int_None.
-    rewrite hptrx /= he hte val_to_int_None /= hptre /=.
+  + move=> al sz e he ? /eqP hte ei /he{}he <- v.
+    move=> we ve /he{}he hptre w hr <- /=.
+    rewrite he hte val_to_int_None /= hptre /=.
     by case: heqs => _ <- _; rewrite hr.
   + move=> o e hrec _ hte ei /hrec{}hrec <- v ve he.
     rewrite /wi2i_op1_e; have hse := esubtype_sign_of hte.
@@ -293,7 +305,7 @@ Proof.
         move=> w hw <-.
         have [ ? | [w' ?]] := type_of_valI hty; subst ve => //=.
         move: hw => /=; rewrite truncate_word_u => -[->].
-        by rewrite wrepr_int_of_word.
+        by rewrite wint_of_int_of_word.
       + rewrite he /sign_of_expr hse /=.
         rewrite val_to_int_None /sem_sop1 /=; t_xrbindP.
         by move=> w hw <-; rewrite hw /=.
@@ -440,7 +452,6 @@ Proof.
   move=> ws h; case: sg => // ? [->]; eauto.
 Qed.
 
-
 Lemma is_swordP ty : is_sword ty -> exists ws, ty = sword ws.
 Proof. case: ty => //; eauto. Qed.
 
@@ -510,12 +521,11 @@ Proof.
       by rewrite /val_to_int.
     by rewrite val_to_int_None htr hdb.
   + by move=> x; t_xrbindP => xi /= + <-; apply: wi2i_lvarP.
-  + t_xrbindP => a ws x e /and4P [hinx /eqP hmx /eqP hse /eqP hsty].
-    move=> ei /(wi2i_eP heqs) he <- wx vx /(wi2i_varP heqs hinx).
-    rewrite /sign_of_var /wi2i_var hmx val_to_int_None=> hx htox we ve /he{}he htoe ? htov m' hw <-.
+  + t_xrbindP => a ws vi e /andP [/eqP hse /eqP hsty].
+    move=> ei /(wi2i_eP heqs) he <- we ve /he{}he htoe ? htov m' hw <-.
     case heqs => ? hmem ?.
     exists (with_mem si m') => //.
-    by rewrite /write_lval hx he /= htox /= hsty hse !val_to_int_None htoe /= htov /= -hmem hw.
+    by rewrite /write_lval he /= hsty hse !val_to_int_None htoe /= htov /= -hmem hw.
   + t_xrbindP => a aa ws x e /and3P[hinx /eqP hse /eqP hsety].
     move=> ei /(wi2i_eP heqs) he <-; apply: on_arr_varP.
     move=> len t htx /(wi2i_varP heqs hinx).

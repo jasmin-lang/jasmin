@@ -190,8 +190,9 @@ Proof.
       last by move=> /= h; apply /rsp_nin /sv_of_listP;
       rewrite !in_cons /= -h eqxx /= ?orbT.
     do 5 rewrite (@get_var_neq _ _ _ rspi) //.
-    rewrite [get_var _ _ rspi]/get_var hsr.(sr_rsp) /= (truncate_word_u top) /=.
-    rewrite get_var_eq //= !truncate_word_u /=.
+    rewrite [get_var _ _ rspi]/get_var hsr.(sr_rsp) /=.
+    rewrite /sem_sop2 /= (truncate_word_u top) /=.
+    rewrite get_var_eq //= !truncate_word_u /= truncate_word_u /=.
     rewrite hm' /=.
     rewrite /of_estate /= /lnext_pc /=.
     by rewrite -addnS; reflexivity.
@@ -498,7 +499,7 @@ Proof.
       last by move=> h; apply /rsp_nin /sv_of_listP;
       rewrite !in_cons /= -h eqxx /= ?orbT.
      do 5 rewrite get_var_neq //.
-    rewrite /get_var /= hsr.(sr_rsp) /= !truncate_word_u /=.
+    rewrite /get_var /= hsr.(sr_rsp) /sem_sop2 /= !truncate_word_u /= truncate_word_u /=.
     rewrite hm' /=.
     rewrite /of_estate /= /lnext_pc.
     by rewrite -addnS; reflexivity.
@@ -870,8 +871,8 @@ Local Opaque wsize_size Z.of_nat.
     + rewrite /exec_sopn /= truncate_word_u /sopn_sem /sopn_sem_ /=.
       rewrite /x86_MOV.
       by rewrite /size_8_64 hsmall /=.
-    rewrite /get_var /= hsr.(sr_rsp) /=.
-    rewrite !truncate_word_u /=.
+    rewrite /get_var /= hsr.(sr_rsp) /sem_sop2 /=.
+    rewrite !truncate_word_u /= truncate_word_u /=.
     rewrite hm' /=.
     rewrite /of_estate /= /lnext_pc /=.
     by rewrite -!addnS addnA.
@@ -1124,7 +1125,7 @@ Local Opaque wsize_size Z.of_nat.
     rewrite [get_var _ _ vlri]/get_var hsr.(srul_vlr) /=.
     rewrite /exec_sopn /= (@truncate_word_u ws) /= /sopn_sem /sopn_sem_ /= /x86_VMOVDQ.
     rewrite wsize_nle_u64_size_128_256 /=; last by apply /negbTE /negP.
-    rewrite /get_var /= hsr.(sr_rsp) /= !truncate_word_u /=.
+    rewrite /get_var /= hsr.(sr_rsp) /sem_sop2 /= !truncate_word_u /= truncate_word_u /=.
     rewrite hm' /=.
     rewrite /of_estate /= /lnext_pc /=.
     by rewrite -!addnS addnA.

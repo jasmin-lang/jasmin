@@ -70,14 +70,16 @@ Lemma store_zero_eval_instr lp ii ws e (ls:lstate) (w1 w2 : word Uptr) m' :
   let i := MkLI ii (store_zero rspi ws e) in
   eval_instr lp i ls = ok (lnext_pc (lset_mem ls m')).
 Proof.
-  move=> ws_small hvzero hrsp he hm'.
+  move=> ws_small hvzero hrsp.
+  t_xrbindP=> ? he hto hm'.
   rewrite /eval_instr /= /store_zero.
   have [mn hstore]: exists mn, store_mn_of_wsize ws = Some mn.
   + by case: ws ws_small {hm'} => //= _; eexists; reflexivity.
   rewrite hstore /= hvzero /=.
   rewrite (store_mn_of_wsizeP (w:=0%R) hstore) /=;
     last by rewrite (truncate_word_le _ ws_small) zero_extend0.
-  by rewrite hrsp /= (truncate_word_u w1) /= he /= truncate_word_u /= hm' /=.
+  rewrite hrsp /= /sem_sop2 /= (truncate_word_u w1) /= he /= hto /=.
+  by rewrite truncate_word_u /= truncate_word_u /= hm' /=.
 Qed.
 
 Context (lp : lprog) (fn : funname).

@@ -572,8 +572,8 @@ Section CONST_PROP_EP.
       t_xrbindP => z w /(He _) [v'] [->] /[swap] /to_intI -> /value_uinclE ->.
       move => a ha ?; subst; rewrite /= ha.
       by eexists; (split; first reflexivity) => /=.
-    - move => al sz x e He v.
-      t_xrbindP => ? ? -> /= -> ? ? /He [v'] [->] /[swap]
+    - move => al sz e He v.
+      t_xrbindP => ? ? /He [v'] [->] /[swap]
         /to_wordI[? [? [-> /word_uincl_truncate h]]]
         /value_uinclE[? [? [-> /h{}h]]] ? h' <- /=.
       rewrite h /= h' /=.
@@ -671,11 +671,10 @@ Lemma const_prop_rvP globs s1 s2 m x v:
   valid_cpm (evm s2) (const_prop_rv globs m x).1 /\
   write_lval wdb gd (const_prop_rv globs m x).2 v s1 = ok s2.
 Proof.
-  case:x => [ii t | x | al sz x p | al aa sz x p | aa sz len x p] /= Hv Gv; t_xrbindP.
+  case:x => [ii t | x | al sz vi p | al aa sz x p | aa sz len x p] /= Hv Gv; t_xrbindP.
   + by move=> H; have [??]:= write_noneP H; subst s2.
   + by move=> H;split=>//;apply: remove_cpm1P H Hv.
-  + by move=> > -> /to_wordI [? [? [-> /= ->]]]
-      > /(@const_prop_eP globs p _ _ Hv Gv) [? [-> ]]
+  + by move=> > /(@const_prop_eP globs p _ _ Hv Gv) [? [-> ]]
       /[swap] /to_wordI [? [? [-> /word_uincl_truncate h]]]
       /value_uinclE [? [? [-> /h{h} /= ->]]] ? -> ? /= -> /= <-.
   all: by apply: on_arr_varP;rewrite /on_arr_var => n t Htx -> /=;
@@ -753,7 +752,7 @@ Proof.
   + by case => ? [] //; rewrite Hm.
   + by move=> ????? ->.
   + by move=> ????? ->.
-  + by move=> ???? ->.
+  + by move=> ??? ->.
   + by move=> ?? ->.
   + by move=> ?? -> ? ->.
   + move => op es h; f_equal.
