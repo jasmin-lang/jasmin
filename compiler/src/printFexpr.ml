@@ -13,9 +13,11 @@ let rec pp_fexpr fmt = function
 let pp_rexpr fmt =
   function
   | Rexpr e -> pp_fexpr fmt e
-  | Load (al, sz, x, e) -> Format.fprintf fmt "(u%a)[%a%a + %a]" pp_wsize sz pp_aligned al pp_var_i x pp_fexpr e
+  | Load (al, sz, x, e) ->
+    pp_mem_access pp_var_i pp_fexpr fmt al sz x e
 
 let pp_lexpr fmt =
   function
   | LLvar x -> pp_var_i fmt x
-  | Store (al, sz, x, e) -> Format.fprintf fmt "(u%a)[%a%a + %a]" pp_wsize sz pp_aligned al pp_var_i x pp_fexpr e
+  | Store (al, sz, x, e) ->
+    pp_mem_access pp_var_i pp_fexpr fmt al sz x e

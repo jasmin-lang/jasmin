@@ -236,7 +236,7 @@ and pp_mem_access fmt (al, ty,x,e) =
     | None -> ()
     | Some (`Add, e) -> Format.fprintf fmt " + %a" pp_expr e
     | Some (`Sub, e) -> Format.fprintf fmt " - %a" pp_expr e in
-  F.fprintf fmt "%a[%a%a%a]" (pp_opt (pp_paren pp_ws)) (Option.map L.unloc ty) pp_aligned al pp_var x pp_e e
+  F.fprintf fmt "[%a:%a %a%a]" pp_aligned al (pp_opt (pp_paren pp_ws)) (Option.map L.unloc ty) pp_var x pp_e e
 
 
 and pp_type fmt ty =
