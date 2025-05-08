@@ -1,0 +1,15 @@
+type pointer = ui64;
+
+export fn add_mem (reg pointer out in1 in2, reg ui64 len) {
+  reg ui64 i = 0;
+  reg u64 d x y;
+  while (i < len) {
+    x = [(64u)(in1 + 8*i)];
+    y = [(64u)(in2 + 8*i)];
+    d = x + y;
+    [(64u)(out + 8*i)] = d;
+    i += 1;
+  }
+}
+
+
