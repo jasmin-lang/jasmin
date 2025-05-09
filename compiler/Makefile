@@ -52,6 +52,10 @@ check: all
 check-ci:
 	$(CHECK) --report=- $(CHECKCATS)
 
+check-ec:
+	$(MAKE) -C examples/gimli/proofs
+	$(MAKE) -C examples/extraction-unit-tests
+
 check-all: check
 	dune runtest -f
 
