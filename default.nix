@@ -33,12 +33,17 @@ let coqPackages =
       ITree = super.ITree.override { version = "master"; };
     })
   else coqPackages_8_20.overrideScope (self: super: {
-      coq-elpi = super.coq-elpi.override {
-        version = "LPCIC:v2.3.0";
-        elpi-version = "LPCIC:v2.0.3";
-      };
+      coq-elpi = super.coq-elpi.override (
+        if lib.versionAtLeast coqPackages_8_20.coq-elpi.version "2.3.0" then {
+	  version = "2.3.0";
+	  elpi-version = "2.0.3";
+	} else {
+          version = "LPCIC:v2.3.0";
+          elpi-version = "LPCIC:v2.0.3";
+      });
+      hierarchy-builder = super.hierarchy-builder.override { version = "1.7.1"; };
       mathcomp = super.mathcomp.override { version = "2.2.0"; };
-  })
+    })
 ; in
 
 let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages; }; in
