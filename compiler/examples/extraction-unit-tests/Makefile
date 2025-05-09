@@ -10,7 +10,7 @@ all: gcd.ec loops.ec proofs.ec sdiv.ec
 clean:
 	$(RM) loops.ec sdiv.ec
 
-%.ec: %.jazz
-	$(JASMIN2EC) -o $@ $^
+%.ec: %.jazz $(JASMIN2EC)
+	$(JASMIN2EC) -o $@ $<
 
 .PHONY: all
