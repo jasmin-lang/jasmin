@@ -32,25 +32,13 @@ DISTDIR ?= jasmin-compiler
 OBELISK ?= obelisk
 
 # --------------------------------------------------------------------
-.PHONY: all build byte native CIL check check-ci
+.PHONY: all CIL check check-ci
 .PHONY: clean install uninstall dist
 
-all: build
-	@true
-
-build: native
-
-define do-build
+all:
 	$(RM) jasminc jasmin2tex jasmin-ct jasmin2ec
 	dune build @check @install
 	for p in _build/install/default/bin/*; do ln -sf $$p $$(basename $$p); done
-endef
-
-byte:
-	$(call do-build,bc)
-
-native:
-	$(call do-build,exe)
 
 CIL:
 	$(RM) -f src/CIL/*.ml src/CIL/*.mli ../proofs/extraction.vo
@@ -58,7 +46,7 @@ CIL:
 	cp ../proofs/lang/ocaml/*.ml  src/CIL/
 	cp ../proofs/lang/ocaml/*.mli src/CIL/
 
-check: build
+check: all
 	$(CHECK) --report=report.log $(CHECKCATS)
 
 check-ci:
