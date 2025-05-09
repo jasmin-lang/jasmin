@@ -52,6 +52,9 @@ check: all
 check-ci:
 	$(CHECK) --report=- $(CHECKCATS)
 
+check-all: check
+	dune runtest -f
+
 clean:
 	dune clean
 	$(RM) jasminc jasmin2tex jasmin-ct jasmin2ec
