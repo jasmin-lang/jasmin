@@ -33,6 +33,73 @@ Local Open Scope monad_scope.
 Import ITreeNotations.
 #[local] Open Scope itree_scope.
 
+Section GRec1.
+
+Context (E: Type -> Type) {D: Type -> Type}.
+  
+Context (DD : forall T, D T -> bool). 
+
+(* partially handle D *)
+Definition part_handle (ctx : D ~> itree (D +' E)) : D ~> itree (D +' E) :=
+    fun R (d': D R) => match (DD d') with
+                      | true => ctx _ d' 
+                      | false => trigger_inl1 d' end. 
+
+(* pseudo-gradual recursion handler for recursive events in D, first
+   applying the partial handler based on ctx and the inlining oracle
+   DD, before uniformly applying ctx itself *)
+Definition grad_mrec (ctx : D ~> itree (D +' E)) R (d: D R) : itree E R :=
+  interp_mrec ctx (part_handle ctx d).
+
+(* grad_mrec behaves as mrec *)
+Lemma grad_mrec_ok (ctx : D ~> itree (D +' E)) R (d: D R) :
+  eutt eq (grad_mrec ctx d) (mrec ctx d).
+Proof.
+  unfold grad_mrec, part_handle, mrec; simpl.
+  destruct (DD d); simpl; try reflexivity.
+
+  rewrite interp_mrec_as_interp.
+  rewrite interp_mrec_as_interp.
+
+  rewrite interp_mrecursive.
+  rewrite <- mrec_as_interp.
+  reflexivity.
+Qed.
+
+(* lifting grad_mrec to a handler for D +' E *)
+Definition grad_mrecursive (f : D ~> itree (D +' E)) :
+  (D +' E) ~> itree E := fun _ m =>
+  match m with
+  | inl1 m => grad_mrec f m
+  | inr1 m => ITree.trigger m
+  end.
+
+(* intepreter based on grad_mrec *)
+Definition interp_grad_mrec (ctx : D ~> itree (D +' E)) R
+  (t: itree (D +' E) R) : itree E R :=
+  interp (grad_mrecursive ctx) t.
+
+(* interp_grad_mrec behaves like interp_mrec *)
+Lemma interp_grad_mrec_ok (ctx : D ~> itree (D +' E)) R
+  (t: itree (D +' E) R) :
+  eutt eq (interp_mrec ctx t) (interp_grad_mrec ctx t).
+Proof.
+  unfold interp_grad_mrec.
+  rewrite interp_mrec_as_interp.
+  unfold mrecursive, grad_mrecursive, grad_mrec, part_handle; simpl.
+  eapply eutt_interp; try reflexivity.
+  unfold eq2, Eq2_Handler, eutt_Handler, i_pointwise.
+  intros T [d | e]; try reflexivity.
+  destruct (DD d); simpl; try reflexivity.
+  rewrite interp_mrec_as_interp.
+  rewrite interp_mrecursive; reflexivity.
+Qed.
+
+End GRec1.
+
+
+(**************************************************************************)
+
 (** event-based recursion to support inlining, by splitting and
     gradualizing. largely based on ITree.Recursion and
     ITree.RecursionFacts. *)
