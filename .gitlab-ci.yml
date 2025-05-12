@@ -67,7 +67,7 @@ coq-proof:
   script:
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C proofs'
 
-coq-master:
+.coq-master:
   stage: prove
   allow_failure: true
   rules:
