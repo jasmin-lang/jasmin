@@ -34,9 +34,10 @@ let coqPackages =
     })
   else coqPackages_8_20.overrideScope (self: super: {
       coq-elpi = super.coq-elpi.override {
-        version = "LPCIC:v2.3.0";
-        elpi-version = "LPCIC:v2.0.3";
+        version = "2.3.0";
+        elpi-version = "2.0.3";
       };
+      hierarchy-builder = super.hierarchy-builder.override { version = "1.7.1"; };
       mathcomp = super.mathcomp.override { version = "2.2.0"; };
   })
 ; in
