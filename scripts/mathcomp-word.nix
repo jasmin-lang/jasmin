@@ -17,7 +17,8 @@ stdenv.mkDerivation rec {
 
   buildInputs = [ coq ocaml dune_3 ];
 
-  propagatedBuildInputs = with coqPackages.mathcomp; [ algebra fingroup ssreflect ];
+  propagatedBuildInputs = (with coqPackages.mathcomp; [ algebra fingroup ssreflect ])
+  ++ [ coqPackages.stdlib ];
 
   buildPhase = ''
     runHook preBuild

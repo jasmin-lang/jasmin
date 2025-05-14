@@ -17,15 +17,22 @@ let inherit (lib) optionals; in
 
 let coqPackages =
   if coqMaster then
+    let elpi-version = "2.0.7"; in
+    let rocqPackages = pkgs.rocqPackages.overrideScope (self: super: {
+      rocq-core = super.rocq-core.override { version = "master"; };
+      rocq-elpi = super.rocq-elpi.override { version = "master"; inherit elpi-version; };
+      stdlib = super.stdlib.override { version = "master"; };
+    });
+    in
     pkgs.coqPackages.overrideScope (self: super: {
       coq = super.coq.override { version = "master"; };
-      stdlib = super.stdlib.override { version = "master"; };
+      inherit (rocqPackages) stdlib;
       mathcomp = super.mathcomp.override { version = "master"; };
       mathcomp-algebra-tactics = super.mathcomp-algebra-tactics.override { version = "master"; };
       mathcomp-zify = super.mathcomp-zify.override { version = "master"; };
-      coq-elpi = callPackage scripts/coq-elpi.nix {
+      coq-elpi = super.coq-elpi.override {
         version = "master";
-        inherit (self) lib mkCoqDerivation coq;
+	inherit elpi-version rocqPackages;
       };
       hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
       ExtLib = super.ExtLib.override { version = "master"; };
