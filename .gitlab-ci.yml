@@ -73,7 +73,7 @@ coq-master:
   rules:
     - if: $CI_COMMIT_BRANCH !~ /^release-/
   variables:
-    EXTRA_NIX_ARGUMENTS: --arg coqDeps true --arg coqMaster true
+    EXTRA_NIX_ARGUMENTS: --arg pinned-nixpkgs false --arg coqDeps true --arg coqMaster true
   extends: .common
   script:
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C proofs'
