@@ -12,8 +12,8 @@ module Json = Yojson
      an initial state over-approximated by top.
      (FIXME: performance: evaluates only once on top). *)
 type call_strategy =
-  | Call_Direct 
-  | Call_TopByCallSite 
+  | Call_Direct
+  | Call_TopByCallSite
 
 (* Analysis policy for abstract calls. *)
 type call_policy =
@@ -81,100 +81,99 @@ let range_of_json_assoc : string * Json.Basic.t -> input_range = function
                                       max for " ^ s ))
     in
     { ir_name = s; ir_min = imin; ir_max = imax; }
-    
-  | _ -> raise (BadSafetyConfig ("bad input ranges: see the example in " 
+
+  | _ -> raise (BadSafetyConfig ("bad input ranges: see the example in "
                                  ^ config_doc))
-           
+
 let input_ranges_of_json (r : Json.Basic.t) = match r with
   | `Assoc r -> List.map range_of_json_assoc r
 
   | _ -> raise (BadSafetyConfig ("bad input ranges: not a dictionary"))
 
-  
 (* -------------------------------------------------------------------- *)
-type kind  = Parameter | Printing | Internal 
 
-type pvalue = | Bool        of bool         
-              | BoolRef     of bool ref     
-              | Int         of int          
-              | InitPrint   of init_print   
+type pvalue = | Bool        of bool
+              | BoolRef     of bool ref
+              | Int         of int
+              | InitPrint   of init_print
               | CallPolicy  of call_policy
               | CompPass    of Compiler.compiler_step
               | InputRanges of input_range list
 
-type param = { p     : pvalue;
-               name  : string;
-               desc  : Json.Basic.t;
-               kind  : kind; }
+type param = { 
+  p     : pvalue;
+  name  : string;
+  desc  : Json.Basic.t;
+}
 
 (* -------------------------------------------------------------------- *)
-let default = 
+let default =
   { p    = CompPass Compiler.ParamsExpansion;
     name = "compilation_pass";
     desc = `Assoc ([("descr",
                     `String "Compilation pass where the analysis must run. \
                              Can be any of the following passes." );
-                   ("passes", json_compiler_steps)]); 
-    kind = Parameter; } ::
+                   ("passes", json_compiler_steps)]);
+  } ::
 
   { p    = InputRanges [];
     name = "input_range";
     desc = `Assoc ([("descr",
                      `String "Assumed ranges for inputs." );
-                   ("example", range_ex_json)]); 
-    kind = Parameter; } ::
+                   ("example", range_ex_json)]);
+  } ::
 
   { p    = Int 1;
     name = "k_unroll";
     desc = `String "Number of unrolling of a loop body before applying the \
                     widening. Higher values yield a more precise (and more \
-                    costly) analysis."; 
-    kind = Parameter; } ::
+                    costly) analysis.";
+  } ::
 
   { p    = Bool false;
     name = "flow_dependency";
-    desc = `String "Dependency graph includes flow dependencies."; 
-    kind = Parameter; } ::
+    desc = `String "Dependency graph includes flow dependencies.";
+  } ::
 
   { p    = Bool true;
     name = "if_disjunction";
-    desc = `String "Add disjunctions on if statements when possible."; 
-    kind = Parameter; } ::
+    desc = `String "Add disjunctions on if statements when possible.";
+  } ::
 
   { p    = Bool true;
     name = "pif_movecc_as_if";
     desc = `String "Handle top-level conditional move and if expressions as if \
             statements. Combinatorial explosion if there are many movecc \
-            and if expressions in the same block."; 
-    kind = Parameter; } ::
+            and if expressions in the same block.";
+  } ::
 
   { p    = Bool true;
     name = "while_flags_setfrom_dep";
     desc = `String "Pre-analysis looks for the variable corresponding to return \
             boolean flags appearing in while loop condition (adding them to \
-            the set of variables in the relational domain)."; 
-    kind = Parameter; } ::
+            the set of variables in the relational domain).";
+  } ::
 
   { p    = Bool false;
     name = "dynamic_packing";
     desc = `String "Dynamic variable packing. Particularly useful if the analysis \
-            runs after the register allocation."; 
-    kind = Parameter; } ::
+            runs after the register allocation.";
+  } ::
 
   { p    = Bool true;
     name = "zero_threshold";
-    desc = `String "Zero thresholds for the widening."; 
-    kind = Parameter; } ::
+    desc = `String "Zero thresholds for the widening.";
+  } ::
 
   { p    = Bool true;
     name = "param_threshold";
-    desc = `String "Thresholds from the analysis parameters for the widening."; 
-    kind = Parameter; } ::
+    desc = `String "Thresholds from the analysis parameters for the widening.";
+  } ::
 
   { p    = Bool false;
     name = "more_threshold";
-    desc = `String "More thresholds for the widening."; 
-    kind = Parameter; } ::
+    desc = `String "More thresholds for the widening.";
+  } ::
 
 
   (***********************)
@@ -183,72 +182,72 @@ let default =
   { p    = Bool false;
     name = "print_program";
     desc = `String "Print analyzed program. Useful if the analysis is not run at \
-                    the source level."; 
-    kind = Parameter; } ::
+                    the source level.";
+  } ::
 
   { p    = Bool false;
     name = "print_stats";
-    desc = `String "Print analysis statistics."; 
-    kind = Parameter; } ::
-  
+    desc = `String "Print analysis statistics.";
+  } ::
+
   { p    = Bool true;
     name = "arr_no_print";
-    desc = `String "Turn on printing of array variables."; 
-    kind = Printing; } ::
+    desc = `String "Turn on printing of array variables.";
+  } ::
 
   { p    = Bool true;
     name = "glob_no_print";
-    desc = `String "Turn on printing of global variables."; 
-    kind = Printing; } ::
+    desc = `String "Turn on printing of global variables.";
+  } ::
 
   { p    = BoolRef (ref false);
     name = "nrel_no_print";
-    desc = `String "Turn on printing of non-relational variables."; 
-    kind = Printing; } ::
+    desc = `String "Turn on printing of non-relational variables.";
+  } ::
 
   { p    = Bool true;
     name = "ignore_unconstrained";
-    desc = `String "Turn on printing of unconstrained variables."; 
-    kind = Printing; } ::
+    desc = `String "Turn on printing of unconstrained variables.";
+  } ::
 
   { p    = InitPrint IP_None;
     name = "is_init_no_print";
     desc = `String " Turn on printing of not initialized variables \
             (i.e. it is not certain that the variable is initialized).\
-            Can be IP_None, IP_All or IP_NoArray."; 
-    kind = Printing; } ::
+            Can be IP_None, IP_All or IP_NoArray.";
+  } ::
 
   { p    = Bool true;
     name = "bool_no_print";
-    desc = `String "Turn on printing of boolean variables."; 
-    kind = Printing; } ::
+    desc = `String "Turn on printing of boolean variables.";
+  } ::
 
   { p    = Bool true;
     name = "print_symb_subst";
-    desc = `String "Print substitutions done by the symbolic equality domain."; 
-    kind = Printing; } ::
+    desc = `String "Print substitutions done by the symbolic equality domain.";
+  } ::
 
   (****************)
   (* Miscelaneous *)
   (****************)
   { p    = Bool false;
     name = "var_append_fun_name";
-    desc = `String "Should the function name be appended to the variable name."; 
-    kind = Internal; } ::
+    desc = `String "Should the function name be appended to the variable name.";
+  } ::
 
-   { p    = Bool false;
-     name = "widening_out";
-     desc = `String "Widening outside or inside loops. \
-             Remark: if the widening is done inside loops, then termination \
-             is not guaranteed in general. Nonetheless, if the meet operator \
-             is monotonous then this should always terminates."; 
-     kind = Internal; } ::
+  { p    = Bool false;
+    name = "widening_out";
+    desc = `String "Widening outside or inside loops. \
+            Remark: if the widening is done inside loops, then termination \
+            is not guaranteed in general. Nonetheless, if the meet operator \
+            is monotonous then this should always terminates.";
+  } ::
 
-    { p    = CallPolicy CallDirectAll;
+  { p    = CallPolicy CallDirectAll;
     name = "call_policy";
     desc = `String "Policy used for abstract calls. Can be CallDirectAll or \
-            CallTopHeuristic"; 
-    kind = Internal; } ::
+            CallTopHeuristic";
+  } ::
 
    []
 
@@ -330,7 +329,7 @@ let change param (t : Json.Basic.t) = match param.p, t with
   | Int _, `Int i -> { param with p = Int i }
   | Int _, _  ->
     raise (BadSafetyConfig (param.name ^ " must be of type int"))
-                 
+
   | Bool _, `Bool b -> { param with p = Bool b }
   | Bool _, _ ->
     raise (BadSafetyConfig (param.name ^ " must be of type bool"))
@@ -350,7 +349,7 @@ let change param (t : Json.Basic.t) = match param.p, t with
     raise (BadSafetyConfig (param.name ^ " must be of type string"))
 
   | InitPrint _, `String ip ->
-    let toip = function        
+    let toip = function
       | "IP_None" -> IP_None
       | "IP_NoArray" -> IP_NoArray
       | "IP_All" -> IP_All
@@ -399,12 +398,12 @@ let irs_to_json irs : (string * Json.Basic.t) list =
   List.map doit irs
 
 let pol_to_string = function
-      | CallDirectAll    -> "CallDirectAll" 
-      | CallTopHeuristic -> "CallTopHeuristic" 
+      | CallDirectAll    -> "CallDirectAll"
+      | CallTopHeuristic -> "CallTopHeuristic"
 
 let ip_to_string = function
       | IP_None          -> "IP_None"
-      | IP_NoArray       -> "IP_NoArray" 
+      | IP_NoArray       -> "IP_NoArray"
       | IP_All           -> "IP_All"
 
 let rec to_json_gen f config : Json.Basic.t =
@@ -418,7 +417,7 @@ let rec to_json_gen f config : Json.Basic.t =
       | CompPass p -> `String (fst (Glob_options.print_strings p))
       | InputRanges irs -> `Assoc (irs_to_json irs) in
     param.name, (f param t) in
-  
+
   let data = List.map doit config in
   `Assoc data
 
@@ -431,7 +430,7 @@ let to_json_doc config : Json.Basic.t =
       ("description", param.desc)
     ] in
   to_json_gen mk_param_doc config
-        
+
 (* -------------------------------------------------------------------- *)
 let pp_config (fmt : Format.formatter) config =
   Json.Basic.pretty_print fmt (to_json config)
@@ -443,10 +442,10 @@ let pp_current_config_diff () =
       let x' = List.find (fun y -> y.name = x.name) default in
       x.p <> x'.p) !config in
   if config <> [] then
-    Format.eprintf "Checker configuration parameters:@\n%a@.@." 
+    Format.eprintf "Checker configuration parameters:@\n%a@.@."
       pp_config config
   else
-    Format.eprintf "Default checker parameters.@.@." 
+    Format.eprintf "Default checker parameters.@.@."
 
 (* -------------------------------------------------------------------- *)
 let mk_doc dir =
@@ -480,8 +479,7 @@ let mk_config_doc dir =
   let dir = if String.ends_with dir "/" then dir else dir ^ "/" in
   mk_doc dir;
   mk_default dir
-  
-  
+
 (* -------------------------------------------------------------------- *)
 let load_config (filename : string) : unit =
   try
