@@ -25,17 +25,22 @@ Definition with_id vi ii ctr id ty :=
 Definition is_reg_ptr_expr doit ii ctr id ty e :=
   match e with
   | Pvar x' =>
-    if doit && (is_glob x' || ~~is_reg_ptr x'.(gv)) then
+    if [&& doit, is_sarr (vtype x'.(gv)), ty == vtype x'.(gv) & (is_glob x' || ~~is_reg_ptr x'.(gv))] then
       Some (with_id x'.(gv).(v_info) ii ctr id ty)
     else None
-  | Psub _ _ _ x' _ =>
-    if doit then Some (with_id x'.(gv).(v_info) ii ctr id ty) else None
+  | Psub _ ws len x' _ =>
+    if doit && (ty == sarr (Z.to_pos (arr_size ws len))) then
+      Some (with_id x'.(gv).(v_info) ii ctr id ty)
+    else None
   | _      => None
   end.
 
 Definition is_reg_ptr_lval doit ii ctr id ty r :=
   match r with
-  | Lvar x' => if doit && ~~is_reg_ptr x' then Some (with_id x'.(v_info) ii ctr id ty) else None
+  | Lvar x' =>
+    if doit && ~~is_reg_ptr x' then
+          Some (with_id x'.(v_info) ii ctr id ty)
+    else None
   | Lasub _ _ _ x' _ =>
     if doit then Some (with_id x'.(v_info) ii ctr id ty) else None
   | _      => None
@@ -49,7 +54,7 @@ Fixpoint make_prologue ii (X:Sv.t) ctr xtys es :=
     | Some y =>
       Let _ := assert (~~Sv.mem y X) (make_ref_error ii "bad fresh id (prologue)") in
       Let pes := make_prologue ii (Sv.add y X) (Uint63.succ ctr) xtys es in
-      let: (p,es') := pes in 
+      let: (p,es') := pes in
       ok (MkI ii (Cassgn (Lvar y) AT_rename ty e) :: p, Plvar y :: es')
     | None =>
       Let pes := make_prologue ii X ctr xtys es in
@@ -68,14 +73,14 @@ Fixpoint make_pseudo_epilogue (ii:instr_info) (X:Sv.t) ctr xtys rs :=
   | [::], [::] => ok ([::])
   | (doit, id, ty)::xtys, r::rs =>
      match is_reg_ptr_lval doit ii ctr id ty r with
-     | Some y => 
+     | Some y =>
        Let _ := assert (~~Sv.mem y X)
                        (make_ref_error ii "bad fresh id (epilogue)") in
        Let pis := make_pseudo_epilogue ii X (Uint63.succ ctr) xtys rs in
        ok (PI_lv (Lvar y) :: (PI_i r ty y) :: pis)
      | None =>
        Let pis :=  make_pseudo_epilogue ii X ctr xtys rs in
-       ok (PI_lv r :: pis) 
+       ok (PI_lv r :: pis)
      end
    | _, _ => Error (make_ref_error ii "assert false (epilogue)")
    end.
@@ -89,10 +94,10 @@ Definition wf_lv (lv:lval) :=
   | Lasub _ _ _ _ e => ~~use_mem e
   end.
 
-Fixpoint swapable (ii:instr_info) (pis : seq pseudo_instr) := 
+Fixpoint swapable (ii:instr_info) (pis : seq pseudo_instr) :=
   match pis with
   | [::] => ok ([::], [::])
-  | PI_lv lv :: pis => 
+  | PI_lv lv :: pis =>
     Let lvep := swapable ii pis in
     let '(lvs,ep) := lvep in
     ok (lv::lvs, ep)
@@ -119,11 +124,11 @@ Definition update_c (update_i : instr -> cexec cmd) (c:cmd) :=
 Definition mk_info (x:var_i) (ty:stype) :=
   (is_reg_ptr x, Ident.id_name x.(vname), ty).
 
-Definition get_sig fn :=
+Definition get_sig ii fn :=
   if get_fundef p.(p_funcs) fn is Some fd then
-        (map2 mk_info fd.(f_params) fd.(f_tyin),
-         map2 mk_info fd.(f_res) fd.(f_tyout))
-  else ([::], [::]).
+      ok (map2 mk_info fd.(f_params) fd.(f_tyin),
+           map2 mk_info fd.(f_res) fd.(f_tyout))
+  else Error (E.make_ref_error ii "unknown function").
 
 Definition get_syscall_sig o :=
   let: s := syscall.syscall_sig_u o in
@@ -158,11 +163,11 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
     Let c' := update_c (update_i X) c' in
     ok [::MkI ii (Cwhile a c e info c')]
   | Ccall xs fn es =>
-    let: (params,returns) := get_sig fn in
+    Let: (params,returns) := get_sig ii fn in
     Let pres := make_prologue ii X 0 params es in
     let: (prologue, es) := pres in
     Let xsep := make_epilogue ii X returns xs in
-    let: (xs, epilogue) := xsep in 
+    let: (xs, epilogue) := xsep in
     ok (prologue ++ MkI ii (Ccall xs fn es) :: epilogue)
   | Csyscall xs o es =>
     let: (params,returns) := get_syscall_sig o in

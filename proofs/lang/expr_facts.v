@@ -454,6 +454,16 @@ Proof. by done. Qed.
 
 End READ.
 
+Definition read_writeE :=
+  (read_c_cons, write_c_cons, read_Ii, write_Ii,
+   read_i_assgn, write_i_assgn,
+   read_i_opn, write_i_opn,
+   read_i_syscall, write_i_syscall,
+   read_i_if, write_i_if,
+   read_i_for, write_i_for,
+   read_i_while, write_i_while,
+   read_i_call, write_i_call).
+
 (* ** Compute occurring variables (= read + write)
  * -------------------------------------------------------------------------- *)
 
