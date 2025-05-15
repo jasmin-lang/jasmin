@@ -114,7 +114,7 @@ Definition is_regx (x: var) : bool :=
 
 Definition is_reg_array x :=
   if Ident.id_kind x.(vname) is Reg (_, Direct) then
-    if x.(vtype) is sarr _ then true else false
+    if is_sarr x.(vtype) then true else false
   else false.
 
 (* ** Finite set of variables (computable)

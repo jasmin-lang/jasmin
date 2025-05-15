@@ -20,6 +20,16 @@ Variant wsize :=
   | U128
   | U256.
 
+Definition wsize_size (sz: wsize) : Z :=
+  Zpos match sz return positive with
+  | U8   => 1
+  | U16  => 2
+  | U32  => 4
+  | U64  => 8
+  | U128 => 16
+  | U256 => 32
+  end.
+
 (* Size in bits of the elements of a vector. *)
 #[only(eqbOK)] derive
 Variant velem := VE8 | VE16 | VE32 | VE64.

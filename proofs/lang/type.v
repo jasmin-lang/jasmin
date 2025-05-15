@@ -2,6 +2,7 @@
 From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From mathcomp.zify Require Import ssrZ.
 From Coq Require Import ZArith.
 Require Import gen_map utils strings.
 Require Export wsize.
@@ -14,7 +15,7 @@ Import Utf8.
 Variant stype : Set :=
 | sbool
 | sint
-| sarr  of positive
+| sarr  of wsize & positive
 | sword of wsize.
 
 (* -------------------------------------------------------------------- *)
@@ -55,24 +56,29 @@ Definition stype_cmp t t' :=
   | sint    , sint          => Eq
   | sint    , _             => Lt
 
-  | sword _ , sarr _        => Lt
+  | sword _ , sarr _ _      => Lt
   | sword w , sword w'      => wsize_cmp w w'
   | sword _ , _             => Gt
 
-  | sarr n  , sarr n'        => Pos.compare n n'
-  | sarr _  , _             => Gt
+  | sarr ws n , sarr ws' n' => Lex (wsize_cmp ws ws') (Pos.compare n n')
+  | sarr _  _ , _           => Gt
   end.
 
 #[global]
 Instance stypeO : Cmp stype_cmp.
 Proof.
   constructor.
-  + by case => [||n|w] [||n'|w'] //=; apply cmp_sym.
-  + by move=> y x; case: x y=> [||n|w] [||n'|w'] [||n''|w''] c//=;
-       try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt; apply cmp_ctrans.
-  case=> [||n|w] [||n'|w'] //= h.
-  + by rewrite (@cmp_eq _ _ positiveO _ _ h).
-  by rewrite (@cmp_eq _ _ wsizeO _ _ h).
+  + case => [||ws n|w] [||ws' n'|w'] //=.
+    + by rewrite !Lex_lex lex_sym //=; apply cmp_sym.
+    by apply cmp_sym.
+  + move=> y x; case: x y=> [||ws n|w] [||ws' n'|w'] [||ws'' n''|w''] c //=;
+      try (by apply ctrans_Eq); eauto using ctrans_Lt, ctrans_Gt.
+    + rewrite !Lex_lex.
+      by apply lex_trans; apply cmp_ctrans.
+    by apply cmp_ctrans.
+  case=> [||ws n|w] [||ws' n'|w'] //=.
+  + by rewrite Lex_lex => /lex_eq /= [/cmp_eq -> /cmp_eq ->].
+  by move=> /cmp_eq ->.
 Qed.
 
 Module CmpStype.
@@ -130,11 +136,15 @@ Module CEDecStype.
       | sint => left (erefl sint)
       | _     => right I
       end
-    | sarr n1 =>
-      match t2 as t0 return {sarr n1 = t0} + {True} with
-      | sarr n2 =>
-        match pos_dec n1 n2 with
-        | left eqn => left (f_equal sarr eqn)
+    | sarr ws1 n1 =>
+      match t2 as t0 return {sarr ws1 n1 = t0} + {True} with
+      | sarr ws2 n2 =>
+        match wsize_eq_dec ws1 ws2 with
+        | left eqw =>
+          match pos_dec n1 n2 with
+          | left eqn => left (f_equal2 sarr eqw eqn)
+          | right _ => right I
+          end
         | right _ => right I
         end
       | _          => right I
@@ -162,10 +172,12 @@ Module CEDecStype.
 
   Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 != t2.
   Proof.
-    case: tt;case:t1 t2=> [||n|w] [||n'|w'] //=.
-    + case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ] //=.
-      move => _; apply/eqP => -[].
-      by move/eqP: (neq erefl).
+    case: tt; case:t1 t2=> [||ws n|w] [||ws' n'|w'] //=.
+    + case: wsize_eq_dec => ws_eq.
+      + case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ] //=.
+        move => _; apply/eqP => -[].
+        by move/eqP: (neq erefl).
+      by move=> _; apply /eqP; congruence.
     case: wsize_eq_dec => // eqw.
     by move=> _;apply /eqP;congruence.
   Qed.
@@ -194,12 +206,12 @@ Proof. by rewrite /is_sbool;case:eqP => ?;constructor. Qed.
 
 Definition is_sword t := if t is sword _ then true else false.
 
-Definition is_sarr t := if t is sarr _ then true else false.
+Definition is_sarr t := if t is sarr _ _ then true else false.
 
 Definition is_not_sarr t := ~~is_sarr t.
 
-Lemma is_sarrP ty : reflect (exists n, ty = sarr n) (is_sarr ty).
-Proof. by case: ty; constructor; eauto => [[]]. Qed.
+Lemma is_sarrP ty : reflect (exists ws n, ty = sarr ws n) (is_sarr ty).
+Proof. by case: ty; constructor; eauto => -[?] [?]. Qed.
 
 Definition is_word_type (t:stype) :=
   if t is sword sz then Some sz else None.
@@ -211,31 +223,64 @@ Proof. by case: ty => //= w [->]. Qed.
 End OtherDefs.
 
 (* -------------------------------------------------------------------- *)
+Definition arr_size (ws:wsize) (len:positive) :=
+  (wsize_size ws * len)%Z.
+
+Definition convertible (t t': stype) :=
+  match t with
+  | sarr ws len => if t' is sarr ws' len' then arr_size ws len == arr_size ws' len' else false
+  | _ => t == t'
+  end.
+
+Lemma convertible_refl t : convertible t t.
+Proof. by case: t => /=. Qed.
+#[global]
+Hint Resolve convertible_refl : core.
+
+Lemma convertible_sym t1 t2 : convertible t1 t2 -> convertible t2 t1.
+Proof.
+  case: t1 t2 => [||ws1 len1|ws1] [||ws2 len2|ws2] //=.
+  + by rewrite eq_sym.
+  by rewrite eq_sym.
+Qed.
+
+Lemma convertible_trans t1 t2 t3 :
+  convertible t1 t2 -> convertible t2 t3 -> convertible t1 t3.
+Proof.
+  case: t1 t2 t3 => [||ws1 len1|ws1] [||ws2 len2|ws2] [||ws3 len3|ws3] //=.
+  + by move=> /eqP ? /eqP ?; apply /eqP; congruence.
+  by move=> /eqP ? /eqP ?; apply /eqP; congruence.
+Qed.
+
+(* -------------------------------------------------------------------- *)
 Definition subtype (t t': stype) :=
   match t with
   | sword w => if t' is sword w' then (w ≤ w')%CMP else false
-  | _ => t == t'
+  | _ => convertible t t'
   end.
 
 Lemma subtypeE ty ty' :
   subtype ty ty' →
-  match ty' with
+  match ty' return Prop with
   | sword sz' => ∃ sz, ty = sword sz ∧ (sz ≤ sz')%CMP
-  | _         => ty = ty'
+  | _         => convertible ty ty'
 end.
 Proof.
-  destruct ty; try by move/eqP => <-.
+  case: ty => [||ws len|ws] /=; try by move/eqP => <-.
+  + by case: ty'.
   by case: ty' => //; eauto.
 Qed.
 
 Lemma subtypeEl ty ty' :
   subtype ty ty' →
-  match ty with
+  match ty return Prop with
   | sword sz => ∃ sz', ty' = sword sz' ∧ (sz ≤ sz')%CMP
-  | _        => ty' = ty
+  | _        => convertible ty' ty
   end.
 Proof.
-  destruct ty; try by move/eqP => <-.
+  case: ty => [||ws len|ws] /=; try by move/eqP => <-.
+  + case: ty' => [||ws' len'|ws'] //=.
+    by rewrite eq_sym.
   by case: ty' => //; eauto.
 Qed.
 
@@ -246,14 +291,14 @@ Hint Resolve subtype_refl : core.
 
 Lemma subtype_trans y x z : subtype x y -> subtype y z -> subtype x z.
 Proof.
-  case: x => //= [/eqP<-|/eqP<-|n1|sx] //.
-  + by case: y => //= n2 /eqP ->.
-  case: y => //= sy hle;case: z => //= sz;apply: cmp_le_trans hle.
+  case: x => //= [/eqP<-|/eqP<-|ws1 n1|sx] //.
+  + by case: y => //= ws2 n2 /eqP ->.
+  by case: y => //= sy hle;case: z => //= sz;apply: cmp_le_trans hle.
 Qed.
 
 Lemma is_sword_subtype t1 t2 : subtype t1 t2 -> is_sword t1 = is_sword t2.
 Proof.
-  by case: t1 => //= [/eqP <-|/eqP <-|?|?] //;case:t2.
+  by case: t1 => //= [/eqP <-|/eqP <-|??|?] //;case:t2.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -261,12 +306,12 @@ Qed.
 Variant extended_type (len:Type) : Type :=
   | ETbool
   | ETint
-  | ETarr of len
+  | ETarr of wsize & len
   | ETword of (option signedness) & wsize.
 
 Definition tbool {len} := ETbool len.
 Definition tint  {len} := ETint len.
-Definition tarr  {len} (l : len) := ETarr l.
+Definition tarr  {len} (ws : wsize) (l : len) := ETarr ws l.
 Definition tword {len} ws : extended_type len:= ETword len None ws.
 Definition twint {len} (s : signedness) (ws : wsize) := ETword len (Some s) ws.
 Definition tuint {len} ws : extended_type len := twint Unsigned ws.
@@ -276,7 +321,7 @@ Definition to_stype (t:extended_type positive) : stype :=
   match t with
   | ETbool      => sbool
   | ETint       => sint
-  | ETarr l     => sarr l
+  | ETarr ws l  => sarr ws l
   | ETword _ ws => sword ws
   end.
 

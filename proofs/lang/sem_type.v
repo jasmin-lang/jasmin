@@ -15,49 +15,71 @@ Definition nosubword   := {| sw_allowed := false |}.
 Definition withsubword := {| sw_allowed := true |}.
 
 Definition compat_type (sw:bool) :=
-  if sw then subtype else eq_op.
+  if sw then subtype else convertible.
 
+(* TODO: try to not declare stype as eqType? to be sure we never use eq_op *)
 Lemma compat_type_refl b ty : compat_type b ty ty.
 Proof. by rewrite /compat_type; case: b. Qed.
 #[global]Hint Resolve compat_type_refl : core.
 
+Instance fd : Equivalence convertible.
+Proof.
+  split.
+  - move=> ?. apply convertible_refl.
+  - move=> ??. apply convertible_sym.
+  - move=> ???. apply convertible_trans.
+Defined.
+
+Instance to : Proper (convertible ==> convertible ==> eq) subtype.
+Proof.
+  move=> ty11 ty12 eq_ty1 ty21 ty22 eq_ty2.
+  case: ty11 ty12 ty21 ty22 eq_ty1 eq_ty2 => [||ws11 len11|ws11] [||ws12 len12|ws12] [||ws21 len21|ws21] [||ws22 len22|ws22] //=.
+  + by move=> /eqP -> /eqP ->.
+  move=> /eqP [] -> /eqP [] ->.
+  done.
+Qed.
+
+(* FIXME: clean *)
 Lemma compat_type_subtype b t1 t2:
   compat_type b t1 t2 -> subtype t1 t2.
-Proof. by case: b => //= /eqP ->. Qed.
+Proof. case: b => //=. move=> h. rewrite -> h. done. Qed.
 
 Lemma compat_typeE b ty ty' :
   compat_type b ty ty' →
-  match ty' with
+  match ty' return Prop with
   | sword sz' =>
     exists2 sz, ty = sword sz & if b then ((sz ≤ sz')%CMP:Prop) else sz' = sz
-  | _ => ty = ty'
+  | _ => convertible ty ty'
 end.
 Proof.
-  rewrite /compat_type; case: b => [/subtypeE|/eqP ->]; case: ty' => //.
+  rewrite /compat_type; case: b => [/subtypeE|]; case: ty' => //.
   + by move=> ws [ws' [*]]; eauto.
+  move=> ws /convertible_sym /= /eqP <-.
   by eauto.
 Qed.
 
 Lemma compat_typeEl b ty ty' :
   compat_type b ty ty' →
-  match ty with
+  match ty return Prop with
   | sword sz =>
     exists2 sz', ty' = sword sz' & if b then ((sz ≤ sz')%CMP:Prop) else sz = sz'
-  | _ => ty' = ty
+  | _ => convertible ty' ty
   end.
 Proof.
-  rewrite /compat_type; case: b => [/subtypeEl|/eqP ->].
+  rewrite /compat_type; case: b => [/subtypeEl|].
   + by case: ty => // ws [ws' [*]]; eauto.
-  by case: ty'; eauto.
+  move=> /convertible_sym.
+  case: ty => //= ws /convertible_sym /= /eqP <-.
+  by eauto.
 Qed.
 
 (* ----------------------------------------------------------- *)
 Definition sem_t (t : stype) : Type :=
   match t with
-  | sbool    => bool
-  | sint     => Z
-  | sarr n   => WArray.array n
-  | sword s  => word s
+  | sbool     => bool
+  | sint      => Z
+  | sarr ws n => WArray.array (Z.to_pos (arr_size ws n))
+  | sword s   => word s
   end.
 
 Definition sem_prod ts tr := lprod (map sem_t ts) tr.

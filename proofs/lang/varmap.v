@@ -15,7 +15,7 @@ Lemma compat_valE ty v: compat_val ty v ->
   match v with
   | Vbool _ => ty = sbool
   | Vint _ => ty = sint
-  | Varr len _ => ty = sarr len
+  | Varr len _ => convertible ty (sarr U8 len)
   | Vword ws _ =>
     exists2 ws', ty = sword ws' &
      if sw_allowed then ((ws <= ws')%CMP:Prop) else ws = ws'
@@ -23,8 +23,10 @@ Lemma compat_valE ty v: compat_val ty v ->
   end.
 Proof.
   rewrite /compat_val; case: v => [b|i|len t|ws w|t h] /= /compat_typeEl //.
+  + by move=> /convertible_sym /eqP <-.
+  + by move=> /convertible_sym /eqP <-.
   + by rewrite orbF => -[ws'] -> ?; eauto.
-  rewrite orbT => {h}; case: t => > h //; try by subst ty.
+  rewrite orbT => {h}; case: t => > h; try by rewrite -> h.
   by case: h => ? -> /=.
 Qed.
 
@@ -32,14 +34,14 @@ Lemma compat_valEl ty v: compat_val ty v ->
   match ty with
   | sbool => v = undef_b \/ exists b, v = Vbool b
   | sint  => v = undef_i \/ exists i, v = Vint i
-  | sarr len => exists t, v = @Varr len t
+  | sarr ws len => exists t, v = @Varr (Z.to_pos (arr_size ws len)) t
   | sword ws =>
     v = undef_w \/
     exists ws', exists2 w:word ws', v = Vword w &
       if sw_allowed then ((ws' <= ws)%CMP:Prop) else ws = ws'
   end.
 Proof.
-  rewrite /compat_val => /compat_typeE; case: ty => [ | |len|ws [ws']] /type_of_valI //.
+  rewrite /compat_val => /compat_typeE; case: ty => [ | |ws len|ws [ws']]. /type_of_valI //.
   move=> [ | [w]] -> /=; auto.
   rewrite orbF; right; eauto.
 Qed.
