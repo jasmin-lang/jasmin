@@ -64,6 +64,7 @@ compiler/compiler.v
 compiler/compiler_proof.v
 compiler/constant_prop.v
 compiler/constant_prop_proof.v
+compiler/contracts_asserts.v
 compiler/dead_calls.v
 compiler/dead_calls_proof.v
 compiler/dead_code.v
@@ -159,6 +160,7 @@ lang/psem_of_sem_proof.v
 lang/pseudo_operator.v
 lang/psem_facts.v
 lang/safety_cond.v
+lang/safety_util.v
 lang/sem_one_varmap.v
 lang/sem_op_typed.v
 lang/sem_one_varmap_facts.v

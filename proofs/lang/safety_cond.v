@@ -5,8 +5,7 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Export psem.
-Require Import expr compiler_util.
-
+Require Import expr compiler_util safety_util.
 Import Utf8.
 
 Local Open Scope Z_scope.
@@ -15,31 +14,6 @@ Local Open Scope seq_scope.
 Section PEXP_SC.
 Context {pd: PointerData}.
 
-(* Transforms an init_cond to an equivalent pexpr *)
-Fixpoint ic_to_e vs ic: pexpr :=
-  match ic with
-  | IBool b => Pbool b
-  | IConst c => Pconst c
-  | IVar n => 
-    match List.nth_error vs n with
-    | Some x => x
-    | None => Pbool false
-    end
-  | IOp1 op e1 => Papp1 op (ic_to_e vs e1)
-  | IOp2 op e1 e2 => Papp2 op (ic_to_e vs e1) (ic_to_e vs e2)
-  end.
-
-Definition emin_signed sz := Pconst (wmin_signed sz).
-Definition emax_signed sz := Pconst (wmax_signed sz).
-Definition ezero := Pconst 0.
-Definition emax_unsigned sz := Pconst (wmax_unsigned sz).
-
-(* Definition eint_of_wint sg sz e := Papp1 (Owi1 sg (WIint_of_word sz)) e. *)
-
-Definition eint_of_word (sg:signedness) sz e := Papp1 (Oint_of_word sz) e.
-
-Definition emuli e1 e2 := Papp2 (Omul Op_int) e1 e2.
-Definition eaddi e1 e2 := Papp2 (Oadd Op_int) e1 e2.
 
 Definition sc_lt e1 e2 := Papp2 (Olt Cmp_int) e1 e2.
 Definition sc_le e1 e2 := Papp2 (Ole Cmp_int) e1 e2.
@@ -120,10 +94,6 @@ Definition sc_is_aligned_if al aa sz e :=
   if (al == Unaligned) || (aa == AAscale) then [::]
   else 
   [:: eis_aligned e sz].
-
-Definition emk_scale aa sz e :=
-  if aa == AAdirect then e
-  else emuli e (Pconst (wsize_size sz)).
 
 Definition sc_in_bound ty aa sz elen e :=
   match ty with
@@ -305,14 +275,6 @@ End PEXP_SC.
 Section CMD_SC.
 Context `{asmop:asmOp} {pd: PointerData} {pT: progT} {msfsz : MSFsize}.
 
-Definition e_to_assert (e:pexpr) t : instr_r := Cassert t Cas e.
-
-Definition instrr_to_instr (ii: instr_info) (ir: instr_r) : instr :=
-  MkI ii ir.
-
-Definition sc_e_to_instr (sc_e : pexprs) (ii : instr_info): seq instr :=
-  map (fun e => instrr_to_instr ii (e_to_assert e Assert)) sc_e.
-
 Definition get_sopn_safe_conds (es: pexprs) (o: sopn) :=
   let instr_descr := get_instr_desc o in
   map (safe_cond_to_e es) instr_descr.(i_safe).
@@ -372,7 +334,7 @@ Definition sc_func (f:ufundef): ufundef :=
     f_extra  := f.(f_extra) ;
   |}.
 
-Definition sc_prog (p:uprog) : uprog :=
+Definition sc_prog (p:_uprog) : _uprog :=
   map_prog sc_func p.
 
 End CMD_SC.
@@ -1306,3 +1268,4 @@ Admitted.
 
  *)
 End CTYPE.
+End GLOB_DECLS.

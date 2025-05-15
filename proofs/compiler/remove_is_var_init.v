@@ -1,5 +1,5 @@
 Require Import expr.
-Require Import safety_cond.
+Require Import safety_util.
 Require Import constant_prop.
 Require Import flag_combination.
 Require Import dead_code.
@@ -14,7 +14,7 @@ Context {msfsz : MSFsize}.
 Context {fcp : FlagCombinationParams}.
 Context {pT: progT}.
 Context (is_move_op : asm_op_t -> bool).
-Context (fresh_var_ident : v_kind -> instr_info -> string -> stype -> var_info -> Ident.ident).
+Context (create_var : v_kind -> string -> stype -> var_info -> var).
 Context (B : var -> var).
 
 
@@ -110,35 +110,54 @@ Definition assign_bvar_e (ii:instr_info) (e: pexpr) (x : var) : cmd :=
 Definition assign_bvar_lval (ii:instr_info) (e:pexpr) (lv: lval)  : cmd :=
     match lv_get_scalar_var lv with
     | Some x => assign_bvar_i_e ii e x
-    | None => [::]
+    | None => 
+       match lv with
+       | Laset a aa ws x e => 
+        let e := emk_scale aa ws e in
+        let x := var_i_to_bvar x in
+        let x := Laset a AAdirect ws x e in
+        let c := Papp1 (Oword_of_int ws) (Pconst (-1)) in
+        [:: (instrr_to_instr ii (Cassgn x AT_inline (sword ws) c))]
+       | _ => [::]
+       end
     end.
 
+(* If x is global variable - the lv will be fully initialized,
+otherwise will be equal to b_x *)
 Definition assign_arr_bvar (ii:instr_info) (lv: lval) (t:stype) (e:pexpr)  : cmd :=
   match t with
   | sarr n =>
       match e with
-      | Pvar x' =>
+      | Pvar x =>
             let e :=
-              if is_glob x' then Parr_init_elem (int_to_w 1 U8) n 
+              if is_glob x then Parr_init_elem (word_of_int Unsigned U8 (-1)) n 
               else
-                let x' := x'.(gv) in
-                Plvar(var_i_to_bvar x')
+                let x := x.(gv) in
+                Plvar(var_i_to_bvar x)
             in
             [:: instrr_to_instr ii (Cassgn lv AT_inline t e)]
-      | Psub aa ws len x' i =>
+      | Psub aa ws len x i =>
             let e := 
-              if is_glob x' then Parr_init_elem (int_to_w 1 U8) n
+              if is_glob x then Parr_init_elem (word_of_int Unsigned U8 (-1)) n
               else
-                let x' := x'.(gv) in
-                let x' := Plvar (var_i_to_bvar x') in
-                Psub aa ws len x' i
+                let x := x.(gv) in
+                let x := Plvar (var_i_to_bvar x) in
+                Psub aa ws len x i
             in
             [:: (instrr_to_instr ii (Cassgn lv AT_inline t e))]
       | _ => [::]
       end
   | _ => [::]
   end.
-  
+
+(* When there is an assignment there are a few cases
+  where we need to generate extra instructions:
+  - Laset: change the boolean array variable of the positions that were initialized
+  - Lvar: if it is a scalar variables, assign the boolean variable to true
+          if it is an array, so a = b, then create assignment b_a = b_b
+                             or a = b[i:j], then create assignment b_a = b_b[i:j]         
+  - Lasub: similar to Lvar for arrays
+*)
 Definition cassign_bvar (ii:instr_info) (lv: lval) (t:stype) (e:pexpr)  : cmd :=
     match lv with
     | Laset a aa ws x e => 
@@ -166,8 +185,41 @@ Definition get_sopn_init_conds es (o: sopn) : seq pexpr :=
   map (ic_to_e es) instr_descr.(i_init).
 
 
-Definition assume_e_to_instr (e : pexpr) (ii : instr_info): seq instr :=
-  [::instrr_to_instr ii (e_to_assert e Assume)].
+(*Add boolean array variables in params and return values of function call*)  
+Definition change_ccall_signature lvs es : seq lval * seq pexpr :=
+  let lvs :=  conc_map (fun lv => 
+    match lv with
+      | Lnone _ (sarr _)  => 
+        [:: lv;lv]
+      | Lvar x => 
+         if not_array x.(v_var) then
+          [:: lv]
+         else
+          [:: lv; Lvar (var_i_to_bvar x)]
+      | Lasub aa ws len x i =>
+        let x := var_i_to_bvar x in
+        let blv := Lasub aa ws len x i in
+        [:: lv; blv]
+      | _ => [:: lv]
+      end
+  ) lvs in
+    let es := conc_map (fun e => 
+    match e with
+    | Pvar x => 
+      if not_array x.(gv).(v_var) then
+        [:: e]
+      else
+        [:: e; Plvar (var_i_to_bvar x.(gv))]
+    | Psub aa ws len x i =>
+      let x := Plvar (var_i_to_bvar x.(gv)) in
+      let be := Psub aa ws len x i in
+      [:: e; be]
+    | _ => [:: e]
+    end
+  ) es in
+  (lvs,es).
+
+(* Remove is_var_init and is_arr_init from the instruction and replace them with the corresponding boolean variables *)
 
 
 Fixpoint rm_var_init_i (i : instr) : cmd :=
@@ -176,36 +228,7 @@ Fixpoint rm_var_init_i (i : instr) : cmd :=
   | Cassgn lv _ t e => cassign_bvar ii lv t e ++ [::i]
   | Csyscall lvs _ _ => conc_map (assign_bvar_lval ii expr_true) lvs  ++ [::i]
   | Ccall lvs n es => 
-    let lvs :=  foldl (fun acc lv => 
-        match lv with
-          | Lnone _ (sarr _)  => 
-            acc ++ [:: lv;lv]
-          | Lvar x => 
-             if not_array x.(v_var) then
-               acc ++ [:: lv]
-             else
-               acc ++ [:: lv; Lvar (var_i_to_bvar x)]
-          | Lasub aa ws len x i =>
-            let x := var_i_to_bvar x in
-            let blv := Lasub aa ws len x i in
-            acc ++ [:: lv; blv]
-          | _ => acc ++ [:: lv]
-          end
-    ) [::] lvs in
-    let es := foldl (fun acc e => 
-        match e with
-        | Pvar x => 
-          if not_array x.(gv).(v_var) then
-            acc ++ [:: e]
-          else
-            acc ++ [:: e; Plvar (var_i_to_bvar x.(gv))]
-        | Psub aa ws len x i =>
-          let x := Plvar (var_i_to_bvar x.(gv)) in
-          let be := Psub aa ws len x i in
-          acc ++ [:: e; be]
-        | _ => acc ++ [:: e]
-        end
-    ) [::] es in
+    let (lvs,es) := change_ccall_signature lvs es in
     let i := instrr_to_instr ii (Ccall lvs n es) in
     conc_map (assign_bvar_lval ii expr_true) lvs ++ [::i]
   | Copn lvs _ o es  => 
@@ -219,7 +242,7 @@ Fixpoint rm_var_init_i (i : instr) : cmd :=
     let c := conc_map rm_var_init_i c in
     let b := assign_bvar_i_e ii expr_true x in
     let ir := instrr_to_instr ii (Cfor x r c) in
-    b ++[:: ir]
+    b ++ [:: ir]
   | Cwhile a c1 e ii_w c2 =>
     let c1 := conc_map rm_var_init_i c1 in
     let c2 := conc_map rm_var_init_i c2 in
@@ -232,33 +255,31 @@ Fixpoint rm_var_init_i (i : instr) : cmd :=
 
 Definition rm_var_init_cmd (c : cmd) : cmd := conc_map rm_var_init_i c.
 
+
+Definition add_bvar_arr xs := 
+  conc_map (fun x => 
+    if not_array x.(v_var) then
+      [:: x]
+    else
+      [:: x; var_i_to_bvar x]
+  ) xs.
+
+(* Change function declaration types and variables to add boolean arrays -
+everytime there is an array a, there will be a new variable b_a with the same size as a.
+b_a[i] represents the initialization of byte i of a (0 - Not initialized; 1 - Initialized) *)
 Definition add_barray_fun_decl (f:ufundef) :=
-  let tyin := foldl (fun acc x => 
-      match x with
-        | sarr n => acc ++ [:: x; x]
-        | _ => acc ++ [:: x]
-      end
-      ) [::] f.(f_tyin) in
-  
-  let params := foldl (fun acc x => 
-      if not_array x.(v_var) then
-        acc ++ [:: x]
-      else
-        acc ++ [:: x; var_i_to_bvar x]
-  ) [::] f.(f_params) in
-  let tyout := foldl (fun acc x => 
-      match x with
-        | sarr n => acc ++ [:: x; x]
-        | _ => acc ++ [:: x]
-      end
-      ) [::] f.(f_tyout) in
-  
-  let res := foldl (fun acc x => 
-      if not_array x.(v_var) then
-        acc ++ [:: x]
-      else
-        acc ++ [:: x; var_i_to_bvar x]
-  ) [::] f.(f_res) in
+  let aux_ty := conc_map (fun x => 
+    match x with
+      | sarr n => [:: x; x]
+      | _ => [:: x]
+    end
+  ) in 
+  let tyin := aux_ty f.(f_tyin) in
+  let tyout := aux_ty f.(f_tyout) in
+
+  let params := add_bvar_arr f.(f_params) in
+  let res := add_bvar_arr f.(f_res) in
+
   (tyin, params, tyout, res).
 
 Definition create_new_var (x:var_i) :=
@@ -266,16 +287,15 @@ Definition create_new_var (x:var_i) :=
   let x := x.(v_var) in
   let x_type := x.(vtype) in
   let x_var := x.(vname) in
-  let x := fresh_var_ident (Ident.id_kind x_var) dummy_instr_info (Ident.id_name x_var) x_type x_info in
-  let x := {| vtype := x_type; vname := x; |} in
-  {|v_var:= x ; v_info:= x_info|}.
+  let x := create_var (Ident.id_kind x_var) (Ident.id_name x_var) x_type x_info in
+  {|v_var:= x ; v_info:= x_info|}.  
 
-Definition generate_new_vars (x:seq var_i) : seq var_i :=
-  map create_new_var x.
-
+(* Generate contract variables
+   For each array in params create precondition that it is fully initialized
+   For each array in res create postcondition that it will be fully initialized *)
 Definition generate_fun_contra_array (f:ufundef) : fun_contract :=
-  let iparams := generate_new_vars f.(f_params) in
-  let ires := generate_new_vars f.(f_res) in
+  let iparams := map create_new_var f.(f_params) in
+  let ires := map create_new_var f.(f_res) in
   let aux l tl := flatten(map2 (fun x ty =>
     match ty with
       | sarr n => 
@@ -292,6 +312,11 @@ Definition generate_fun_contra_array (f:ufundef) : fun_contract :=
     f_post    := post
   |}.
 
+(* By default, if the function has no contract, it creates it,
+  assuming:
+  - the arrays in the parameters are initialized
+  - the arrays in the return values will be initialized.
+  If the function has a contract, it does not change it. *)
 Definition add_default_contra (f:ufundef): option fun_contract :=
   match f.(f_contra) with
     | None =>
@@ -308,90 +333,75 @@ Definition add_default_contra (f:ufundef): option fun_contract :=
     | Some c => Some c
   end.
 
-(* Update the function contract if there are arrays in the input or output types *)
-
-Definition update_fun_contra (f:ufundef) fc: option fun_contract :=
-  match fc with
+(* Add boolean arrays variables to contract variables and 
+remove is_var_init and is_arr_init from the pre and post conditions *)
+Definition update_fun_contra c : option fun_contract :=
+  match c with
     | None => None
     | Some c => 
-      let iparams :=  foldl (fun acc x => 
-          if not_array x.(v_var) then
-            acc ++ [:: x]
-          else
-            acc ++ [:: x; var_i_to_bvar x]
-      ) [::] c.(f_iparams) in
-      let ires :=  foldl (fun acc x => 
-          if not_array x.(v_var) then
-            acc ++ [:: x]
-          else
-            acc ++ [:: x; var_i_to_bvar x]
-      ) [::] c.(f_ires) in
-      let aux := fun e => 
-       let: (a,e) := e in
-       (a,rm_var_init_e e) in
+      let iparams :=  add_bvar_arr c.(f_iparams) in
+      let ires :=  add_bvar_arr c.(f_ires) in
 
+      let aux := fun (e:assertion_prover * pexpr) => 
+       let (a,e) := e in
+       (a,rm_var_init_e e)
+      in
       let f_pre := map aux c.(f_pre) in
       let f_post := map aux c.(f_post) in
-      Some {|
-        f_iparams := iparams;
-        f_ires    := ires;
-        f_pre     := f_pre;
-        f_post    := f_post
-      |}
-  end
-.
+      Some (MkContra iparams ires f_pre f_post)
+    end.
 
 
-(* Remove is_var_init and then use constant prop to remove trivial assertions *)
-Definition rm_var_init_f (f:ufundef): ufundef :=
-  let body := rm_var_init_cmd f.(f_body) in
+(*
+ For each variable in the function, initializes the correspondent boolean variable
+ with true if it is in the parameters otherwise to false
+ For array variables not in the parameters, initializes the correspondent array of booleans with 0
+*)
+Definition init_bvars ii (f:ufundef) :=
   let X := Sv.elements (vars_fd f) in
   let args_varsL := vars_l f.(f_params) in
+  conc_map (fun v =>
+    match arr_size v with
+    | Error _ =>
+      if (Sv.mem v args_varsL) then  assign_bvar_e ii expr_true v 
+      else assign_bvar_e ii expr_false v
+    | Ok sz =>
+      if (Sv.mem v args_varsL) then [::]
+      else 
+        let e:= Parr_init_elem (word_of_int Unsigned U8 0) (sz) in
+        assign_bvar_e ii e v
+    end
+  ) X
+.
+
+(* Remove is_var_init and is_arr_init - replacing with corresponding boolean variables *)
+Definition rm_var_init_f (f:ufundef): ufundef :=
   let: (f_tyin, f_params,f_tyout,f_res) := add_barray_fun_decl f in
   let f_contra := add_default_contra f in
-  let f_contra := update_fun_contra f f_contra in
-  (*
-   For each variable in the function, initializes the correspondent boolean variable
-   with true if it is in the parameters otherwise to false
-  *)
-  let init_bvars := 
-    match f.(f_body) with
+  let f_contra := update_fun_contra f_contra in
+  let body := rm_var_init_cmd f.(f_body) in
+  let init_bvars := match body with
     | [::] => [::]
-    | (MkI ii ir) :: t => 
-      conc_map (fun v =>
-        if not_array v then
-          if (Sv.mem v args_varsL) then  assign_bvar_e ii expr_true v 
-          else assign_bvar_e ii expr_false v
-        else
-          if (Sv.mem v args_varsL) then [::]
-          else 
-            match arr_size v with
-            | Error _ => [::]
-            | Ok sz =>
-              let e:= Parr_init_elem (int_to_w 0 U8) (sz) in
-              assign_bvar_e ii e v
-            end
-      ) X
+    | (MkI ii _) :: _ => init_bvars ii f
     end in
   {|
     f_info   := f.(f_info) ;
     f_contra := f_contra ;
     f_tyin   := f_tyin ;
     f_params := f_params ;
-    f_body   :=  init_bvars ++ body ;
+    f_body   := init_bvars ++ body ;
     f_tyout  := f_tyout ;
     f_res    := f_res ;
     f_extra  := f.(f_extra) ;
   |}.
 
-(* Remove is_var_init and then use constant prop to remove trivial assertions *)
 
-Definition rm_var_init_prog (p:uprog) : uprog :=
+Definition rm_var_init_prog (p:_uprog) : _uprog :=
   map_prog rm_var_init_f p.
 
 Definition all_b_vars vars := Sv.fold (fun x acc => Sv.add (B x) acc) vars Sv.empty.
 
-(* Remove is_var_init and then use constant prop to remove trivial assertions *)
+(* Use constant prop to remove trivial assertions *)
 Definition rm_var_init_const_prop (p: uprog) : uprog :=
   let bX := all_b_vars(vars_p (p_funcs p)) in
   (* Function for const_prop to only propagate the B variables *)
@@ -405,7 +415,7 @@ Definition rm_var_init_const_prop (p: uprog) : uprog :=
   const_prop_prog_fun false p fun_cp
 .
 
-Definition rm_var_init_dc (p: uprog) : uprog :=
+Definition rm_var_init_dc (p: uprog) :  _uprog :=
   match dead_code_prog is_move_op p false with
     | Ok p => p
     | Error e => p

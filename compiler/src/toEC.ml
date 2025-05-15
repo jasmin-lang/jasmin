@@ -383,7 +383,7 @@ type ec_item =
     | Iimport of string list
     | IfromImport of string * (string list)
     | IfromRequireImport of string * (string list)
-    | Iabbrev of string * ec_expr
+    | Iabbrev of bool * string * ec_expr
     | ImoduleType of ec_module_type
     | Imodule of ec_module
     | Icomment of string
@@ -958,8 +958,9 @@ let pp_ec_item fmt it =
     Format.fprintf fmt "@[from %s import@ @[%a@].@]" m (pp_list "@ " pp_string) is
   | IfromRequireImport (m, is) ->
     Format.fprintf fmt "@[from %s require import@ @[%a@].@]" m (pp_list "@ " pp_string) is
-  | Iabbrev (a, e) ->
-    Format.fprintf fmt "@[abbrev %s =@ @[%a@].@]" a pp_ec_ast_expr e
+  | Iabbrev (p, a, e) ->
+    let printing = if p then "[-printing]" else "" in
+    Format.fprintf fmt "@[abbrev %s %s =@ @[%a@].@]" printing a pp_ec_ast_expr e
   | ImoduleType mt ->
     Format.fprintf fmt "@[<v>@[module type %s = {@]@   @[<v>%a@]@ }.@]"
       mt.name (pp_list "@ " pp_ec_fun_decl) mt.funs
@@ -1689,6 +1690,28 @@ module EcExpression(EA: EcArray): EcExpression = struct
               toec_cast env (ty, et),
               toec_cast env (ty, ef)
             )
+      | Pbig (e, Oand, v, a, b, Pbool true) ->
+        let v = L.unloc v in
+        let env = Env.set_var env v in
+        let a = toec_expr env a in
+        let b = toec_expr env b in
+        let e = toec_expr env e in
+        let f = toec_expr env (Pbool true) in
+        let lambda1 = Equant (Llambda, ["_"], f) in
+        let lambda2 = Equant(Llambda, [ec_vars env v],e) in
+        let iota = Eapp (ec_ident "iota_", [a; b]) in
+        Eapp (ec_ident "BBAnd.big", [lambda1;lambda2;iota])
+      | Pbig (e, Oor, v, a, b, Pbool false) ->
+        let v = L.unloc v in
+        let env = Env.set_var env v in
+        let a = toec_expr env a in
+        let b = toec_expr env b in
+        let e = toec_expr env e in
+        let f = toec_expr env (Pbool true) in
+        let lambda1 = Equant (Llambda, ["_"], f) in
+        let lambda2 = Equant(Llambda, [ec_vars env v],e) in
+        let iota = Eapp (ec_ident "iota_", [a; b]) in
+        Eapp (ec_ident "BBOr.big", [lambda1;lambda2;iota])
       | Pbig (e, op, v, a, b, i) ->
         let v = L.unloc v in
         let env = Env.set_var env v in
@@ -3045,7 +3068,7 @@ struct
          acc @ [EC.toec_lval1 env lv e])
       i lvs elvs2
 
-  let import env = [IfromRequireImport ("Jasmin",["Jcheck"])]
+  let import env = [IfromRequireImport ("Jasmin",["Jcheck"; "JSafety"])]
 
   let global_vars env =
     let tmp = Env.get_all_tmplvs env in
@@ -3288,12 +3311,12 @@ struct
 
   let ec_glob_decl env (x,d) =
     let w_of_z ws z = Eapp (Eident [fmt_Wsz ws; "of_int"], [Econst z]) in
-    let mk_abbrev e = Iabbrev (ec_vars env x, e) in
+    let mk_abbrev p e = Iabbrev (p,ec_vars env x, e) in
     match d with
-    | Global.Gword(ws, w) -> mk_abbrev (w_of_z ws (Conv.z_of_word ws w))
+    | Global.Gword(ws, w) -> mk_abbrev true (w_of_z ws (Conv.z_of_word ws w))
     | Global.Garr(p,t) ->
       let ws, t = Conv.to_array x.v_ty p t in
-      mk_abbrev (Eapp (M.EA.of_list env ws (Array.length t),
+      mk_abbrev false (Eapp (M.EA.of_list env ws (Array.length t),
                        [Elist (List.map (w_of_z ws) (Array.to_list t))]))
 
   let ec_randombytes env =
@@ -3362,9 +3385,9 @@ struct
           else [(syscall_mod_arg, syscall_mod_sig)]
       in
       let glob_imports = [
-          IrequireImport ["AllCore"; "IntDiv"; "CoreMap"; "List"; "Distr"];
+          IrequireImport ["AllCore"; "IntDiv"; "CoreMap"; "List"; "Distr"; "StdBigop"];
           IfromRequireImport ("Jasmin", [jmodel env]);
-          Iimport [lib_slh env];
+          Iimport [lib_slh env; "Bigbool"];
       ] in
       let top_mod = Imodule {
           name = "M";

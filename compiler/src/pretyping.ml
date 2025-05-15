@@ -1243,10 +1243,32 @@ let create_is_var_init pd loc args =
   else
     rs_tyerror ~loc (InvalidArgCount(1, List.length args))
 
+let create_min_e pd loc args =
+  if List.length args == 2 then
+    let (e1,t1), (e2,t2) = List.at args 0, List.at args 1 in
+    let e1 =  ensure_int loc e1 t1 in
+    let e2 = ensure_int loc e2 t2 in
+    let c = P.Papp2 ((Olt Cmp_int), e1, e2) in
+    P.Pif (Bty Int,c, e1,e2), P.tint
+  else
+    rs_tyerror ~loc (InvalidArgCount(2, List.length args))
+
+let create_max_e pd loc args =
+  if List.length args == 2 then
+    let (e1,t1), (e2,t2) = List.at args 0, List.at args 1 in
+    let e1 =  ensure_int loc e1 t1 in
+    let e2 = ensure_int loc e2 t2 in
+    let c = P.Papp2 ((Olt Cmp_int), e2, e1) in
+    P.Pif (Bty Int,c, e1,e2), P.tint
+  else
+    rs_tyerror ~loc (InvalidArgCount(2, List.length args))
+
 let init_predicates_map = Map.of_seq @@ List.to_seq [
   ("is_mem_init",create_is_mem_init);
   ("is_arr_init",create_is_arr_init);
   ("is_var_init",create_is_var_init);
+  ("min",create_min_e);
+  ("max",create_max_e);
 ];;
 
 (* -------------------------------------------------------------------- *)

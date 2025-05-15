@@ -20,9 +20,6 @@ abstract theory MonoArray.
 
   op init : (int -> elem) -> t.
 
-  op init_arr (b : elem) (l:int) : t =
-    init (fun _ => b).
-
   axiom get_out (t:t) i : !(0 <= i < size) => t.[i] = dfl.
 
   axiom initE (f:int -> elem) i :
@@ -52,15 +49,7 @@ abstract theory MonoArray.
   axiomatized by setE.
 
 
-  op is_init_cell : t -> int -> bool.
 
-  op is_init (t:t) (k l : int): bool = forall i, k <= i => i < k + l => is_init_cell t i.
-
-
-  axiom is_init_cellP (t:t) (i j: int) (v:elem):
-      is_init_cell t.[i<-v] j = ( i=j \/ is_init_cell t j).
-
-  hint simplify is_init_cellP.
 
   lemma get_set_if (t:t) (i j :int) (a:elem) :
     t.[i <- a].[j] = if 0 <= i < size /\ j = i then a else t.[j].
@@ -343,16 +332,6 @@ abstract theory PolyArray.
   op "_.[_<-_]" (t:'a t) (i:int) (e:'a) =
     init (fun j => if j = i then e else t.[j])
   axiomatized by setE.
-
-  op is_init_cell : 'a t -> int -> bool.
-
-  op is_init (t:  'a t) (k l : int): bool = forall i, k <= i => i < k + l => is_init_cell t i.
-
-
-  axiom is_init_cellP (t:  'a t) (i j: int) (v: 'a):
-      is_init_cell t.[i<-v] j = ( i=j \/ is_init_cell t j).
-
-  hint simplify is_init_cellP.
 
   lemma get_set_if (t:'a t) (i j :int) (a:'a) :
     t.[i <- a].[j] = if 0 <= i < size /\ j = i then a else t.[j].

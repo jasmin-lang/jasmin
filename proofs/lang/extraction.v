@@ -85,5 +85,6 @@ Separate Extraction
   riscv_extra
   riscv_params
   safety_cond
+  contracts_asserts
   remove_is_var_init
   compiler.

@@ -81,7 +81,7 @@ let return ep spp s =
     let s1 =
       exn_exec ii
         (write_lvals nosubword
-           ep spp true gd {escs = scs2; emem = m2; evm = vm1; eassert } xs vres')
+           ep spp true false gd {escs = scs2; emem = m2; evm = vm1; eassert } xs vres')
     in
     { s with
       s_cmd = c;
@@ -107,27 +107,27 @@ let small_step1 ep spp sip s =
     match ir with
 
     | Cassgn(x,_,ty,e) ->
-      let v  = exn_exec ii (sem_pexpr nosubword ep spp true gd s1 e) in
+      let v  = exn_exec ii (sem_pexpr nosubword ep spp true false gd s1 e) in
       let v' = exn_exec ii (truncate_val ty v) in
       let s2 =
-        exn_exec ii (write_lval nosubword ep spp true gd x v' s1)
+        exn_exec ii (write_lval nosubword ep spp true false gd x v' s1)
       in
       { s with s_cmd = c; s_estate = s2 }
 
     | Copn(xs,_,op,es) ->
       let s2 =
-        exn_exec ii (sem_sopn nosubword ep spp sip._asmop gd op s1 xs es)
+        exn_exec ii (sem_sopn nosubword ep false spp sip._asmop gd op s1 xs es)
       in
       { s with s_cmd = c; s_estate = s2 }
 
     | Csyscall(xs,o, es) ->
       let ves =
-        exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es)
+        exn_exec ii (sem_pexprs nosubword ep spp true false gd s1 es)
       in
       let ((scs, m), vs) =
         exn_exec ii (syscall_sem__ sip._sc_sem ep._pd s1.escs s1.emem o ves) in
       let s2 =
-        exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs; emem = m; evm = s1.evm;eassert = s1.eassert} xs vs)
+        exn_exec ii (write_lvals nosubword ep spp true false gd {escs = scs; emem = m; evm = s1.evm;eassert = s1.eassert} xs vs)
       in
       { s with s_cmd = c; s_estate = s2 }
 
@@ -139,17 +139,17 @@ let small_step1 ep spp sip s =
 
     | Cif(e,c1,c2) ->
       let b =
-        of_val_b ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 e))
+        of_val_b ii (exn_exec ii (sem_pexpr nosubword ep spp true false gd s1 e))
       in
       let c = (if b then c1 else c2) @ c in
       { s with s_cmd = c }
 
     | Cfor (i,((d,lo),hi), body) ->
       let vlo =
-        of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 lo))
+        of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp true false gd s1 lo))
       in
       let vhi =
-        of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 hi))
+        of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp true false gd s1 hi))
       in
       let rng = wrange d vlo vhi in
       let s =
@@ -161,7 +161,7 @@ let small_step1 ep spp sip s =
 
     | Ccall(xs,fn,es) ->
       let vargs' =
-        exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es)
+        exn_exec ii (sem_pexprs nosubword ep spp true false gd s1 es)
       in
       let f =
         match get_fundef s.s_prog.p_funcs fn with
