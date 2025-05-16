@@ -59,6 +59,10 @@ let check_int loc e te = check_type loc e te tint
 
 let check_ptr pd loc e te = check_type loc e te (tu pd)
 
+let check_length loc len =
+  if len <= 0 then
+    error loc "the length should be strictly positive"
+
 (* -------------------------------------------------------------------- *)
 
 let type_of_op1 op =
@@ -140,6 +144,7 @@ and ty_get_set_sub pd loc ws len x e =
   let te = ty_expr pd loc e in
   check_array loc (Pvar x) tx;
   check_int loc e te;
+  check_length loc len;
   Arr(ws, len)
 
 (* -------------------------------------------------------------------- *)

@@ -43,6 +43,10 @@
   ([PR #1147](https://github.com/jasmin-lang/jasmin/pull/1147);
   fixes [#1134](https://github.com/jasmin-lang/jasmin/issues/1134)).
 
+- Check that array lengths are strictly positive
+  ([PR #1158](https://github.com/jasmin-lang/jasmin/pull/1158);
+  fixes [#1106](https://github.com/jasmin-lang/jasmin/issues/1106)).
+
 ## Other changes
 
 - The deprecated legacy interface to extract to EasyCrypt has been removed
