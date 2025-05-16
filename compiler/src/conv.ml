@@ -55,6 +55,15 @@ let var_of_cvar cv =
   assert (cty_of_ty v.v_ty = cv.Var.vtype);
   v
 
+let ggvar_to_var (ggv : 'len ggvar) =
+  let gvar = L.unloc ggv.gv in  (* Remove the location information *)
+  { Var.vtype = cty_of_ty gvar.v_ty;   
+    Var.vname = gvar;  
+  }
+
+let convert_var_list (var0_list: Var0.Var.var list) : var list =
+  List.map var_of_cvar var0_list
+
 let csv_of_sv s =
   let open Var0.SvExtra.Sv in
   Sv.fold (fun x cs -> add (Obj.magic (cvar_of_var x)) cs) s empty

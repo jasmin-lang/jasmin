@@ -288,7 +288,7 @@ Definition check_oreg or ai :=
   | ACR_exact _, _       => false
   | ACR_vector x, XReg r => x == r ::>
   | ACR_vector _, _      => false
-  | ACR_subset s, Reg r  => r \in (s : seq ceqT_eqType)
+  | ACR_subset s, Reg r  => negb (r \in (s : seq ceqT_eqType)) 
   | ACR_subset _, _      => false
   | ACR_any, _           => true
   end.
