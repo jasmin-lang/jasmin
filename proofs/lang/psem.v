@@ -928,14 +928,14 @@ Proof.
 Qed.
 
 Definition check_es_st_eq_on (X:Sv.t) (es1 es2 : pexprs) (X':Sv.t) :=
-  [/\ X = X', es1 = es2 & Sv.Subset (read_es es1) X].
+  [/\ Sv.Subset X' X, es1 = es2 & Sv.Subset (read_es es1) X].
 
 Definition check_lvals_st_eq_on (X:Sv.t) (xs1 xs2 : lvals) (X':Sv.t) :=
-  [/\ X = X', xs1 = xs2 & Sv.Subset (read_rvs xs1) X].
+  [/\ Sv.Subset X' (Sv.union (vrvs xs1) X), xs1 = xs2 & Sv.Subset (read_rvs xs1) X].
 
 Lemma check_esP_R_st_eq_on X es1 es2 X':
   check_es_st_eq_on X es1 es2 X' → ∀ vm1 vm2 : Vm.t, vm1 =[X] vm2 → vm1 =[X'] vm2.
-Proof. by move=> [<-]. Qed.
+Proof. by move=> [h _ _] vm1 vm2; apply eq_onI. Qed.
 
 Definition checker_st_eq_on : Checker_e eq_on :=
   {| check_es := check_es_st_eq_on;
@@ -967,7 +967,7 @@ Qed.
 
 Lemma check_esP_R_st_uincl_on X es1 es2 X':
   check_es_st_eq_on X es1 es2 X' → ∀ vm1 vm2 : Vm.t, vm1 <=[X] vm2 → vm1 <=[X'] vm2.
-Proof. by move=> [<-]. Qed.
+Proof. by move=> [h _ _] ??; apply uincl_onI. Qed.
 
 Definition checker_st_uincl_on : Checker_e uincl_on :=
   {| check_es := check_es_st_eq_on;
@@ -1002,9 +1002,9 @@ Lemma checker_st_eq_onP : Checker_eq p p' checker_st_eq_on.
 Proof.
   constructor; rewrite -eq_globs.
   + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- [? <- ?]; apply read_es_st_eq_on.
-  move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- [<- <- ?] vs.
+  move=> wdb ? d xs1 xs2 d' /wdb_ok_eq <- [hsub <- ?] vs.
   apply wrequiv_weaken with (st_rel eq_on d) (st_rel eq_on (Sv.union (vrvs xs1) d)) => //.
-  + by apply st_rel_weaken => ??; apply eq_onI; SvD.fsetdec.
+  + by apply st_rel_weaken => ??; apply eq_onI.
   by apply write_lvals_st_eq_on.
 Qed.
 #[local] Hint Resolve checker_st_eq_onP : core.
@@ -1013,9 +1013,9 @@ Lemma checker_st_uincl_onP : Checker_uincl p p' checker_st_uincl_on.
 Proof.
   constructor; rewrite -eq_globs.
   + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- [? <- ?]; apply read_es_st_uincl_on.
-  move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- [<- <- ?] vs1 vs2 hu.
+  move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- [hsub <- ?] vs1 vs2 hu.
   apply wrequiv_weaken with (st_rel uincl_on d) (st_rel uincl_on (Sv.union (vrvs xs1) d)) => //.
-  + by apply st_rel_weaken => ??; apply uincl_onI; SvD.fsetdec.
+  + by apply st_rel_weaken => ??; apply uincl_onI.
   by apply: write_lvals_st_uincl_on hu.
 Qed.
 
@@ -1049,7 +1049,8 @@ Proof.
   + move=> x tg ty e ii X. rewrite read_i_assgn => hsub.
     apply wequiv_assgn_rel_eq with checker_st_eq_on X => //=.
     + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
-    by split => //; rewrite /read_rvs /= read_rvE; SvD.fsetdec.
+    split => //; first by SvD.fsetdec.
+    by rewrite /read_rvs /= read_rvE; SvD.fsetdec.
   + move=> xs tg o es ii X. rewrite read_i_opn => hsub.
     by apply wequiv_opn_rel_eq with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
   + move=> xs sc es ii X. rewrite read_i_syscall => hsub.
