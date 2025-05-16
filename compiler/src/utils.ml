@@ -337,6 +337,7 @@ type warning =
   | IntroduceNone (* -w_ *)
   | IntroduceArrayCopy (* -winsertarraycopy *)
   | InlinedCallToExport
+  | KeptRenaming
   | SimplifyVectorSuffix
   | DuplicateVar (* -wduplicatevar *)
   | UnusedVar (* -wunusedvar *)
