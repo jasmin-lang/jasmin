@@ -609,7 +609,7 @@ Proof.
   + move=> >; rewrite vars_I_assgn /vars_lval => hsub _ [<-].
     apply wequiv_assgn_rel_uincl with checker_st_uincl_on X => //.
     + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
-    by split => //; rewrite /read_rvs /= read_rvE; SvD.fsetdec.
+    by split => //; rewrite /read_rvs /= ?read_rvE; SvD.fsetdec.
   + move=> xs tg o es ii; rewrite vars_I_opn /vars_lvals /= => hsub i2.
     case heq: is_copy => [ [ws n] | ]; last first.
     + move=> [<-].
