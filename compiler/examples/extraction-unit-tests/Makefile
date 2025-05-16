@@ -4,11 +4,14 @@ JASMIN2EC := ../../jasmin2ec
 
 .SUFFIXES: .jazz .ec
 
-all: gcd.ec loops.ec sdiv.ec add_in_mem.ec proofs.ec
+SOURCES := $(wildcard *.jazz)
+EXTRACTED := $(SOURCES:.jazz=.ec)
+
+all: proofs.ec $(EXTRACTED)
 	easycrypt runtest $(ECARGS) ec.config $@
 
 clean:
-	$(RM) gcd.ec loops.ec sdiv.ec add_in_mem.ec
+	$(RM) $(EXTRACTED)
 
 %.ec: %.jazz $(JASMIN2EC)
 	$(JASMIN2EC) -o $@ $<
