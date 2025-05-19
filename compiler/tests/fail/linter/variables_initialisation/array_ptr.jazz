@@ -1,4 +1,0 @@
-export fn test() {
-    reg ptr u64[25] state;
-    state[0] = 1;
-}
