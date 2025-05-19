@@ -31,12 +31,7 @@ let check_func mode fd =
         | NotStrict -> Iloc.SIloc.equal iset (Iloc.SIloc.singleton Default)
       then errors := create_vi_error x loc :: !errors
   in
-  let check_var_i m x =
-    match (L.unloc x).v_kind with
-    | Const | Inline -> check_var ~loc:(L.loc x) m (L.unloc x)
-    | Stack (Pointer(_)) | Reg (_, Pointer(_)) ->
-      check_var ~loc:(L.loc x) m (L.unloc x)
-    | Stack (Direct) | Reg (_, Direct) | Global -> ()
+  let check_var_i m x = check_var ~loc:(L.loc x) m (L.unloc x)
   in
   let check_ggvar m x = if x.gs = E.Slocal then check_var_i m x.gv in
   let rec check_e m = function
