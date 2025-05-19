@@ -147,6 +147,7 @@ type warning =
   | DuplicateVar
   | UnusedVar
   | SCTchecker
+  | Linter
   | Deprecated
   | Experimental
   | Always

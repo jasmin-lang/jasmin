@@ -162,9 +162,9 @@ let main () =
       let funcs = List.map Analysis.ReachingDefinitions.RDAnalyser.analyse_function funcs in
       let prog = (globs, funcs) in
       let errors = Linter.Checker.VariableInitialisation.VIChecker.check_prog prog in
-      List.iter(
+      List.iter (
         fun (error: Error.CompileError.t) ->
-          warning Always (Location.i_loc0 error.location) "%t" error.to_text
+          warning Linter (Location.i_loc0 error.location) "%t" error.to_text
       )
         errors;
     in
