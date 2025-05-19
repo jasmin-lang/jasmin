@@ -1,0 +1,4 @@
+export fn test() {
+    reg u64 p;
+    [p] = 0;
+}

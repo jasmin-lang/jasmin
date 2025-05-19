@@ -1,0 +1,8 @@
+fn test() {
+    reg u64 x;
+    reg u64 y=1;
+
+    while (x < 10) {
+        y = y + 1;
+    }
+}

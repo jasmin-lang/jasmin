@@ -31,7 +31,13 @@ let check_func mode fd =
         | NotStrict -> Iloc.SIloc.equal iset (Iloc.SIloc.singleton Default)
       then errors := create_vi_error x loc :: !errors
   in
-  let check_var_i m x = check_var ~loc:(L.loc x) m (L.unloc x) in
+  let check_var_i m x =
+    match (L.unloc x).v_kind with
+    | Const | Inline -> check_var ~loc:(L.loc x) m (L.unloc x)
+    | Stack (Pointer(_)) | Reg (_, Pointer(_)) ->
+      check_var ~loc:(L.loc x) m (L.unloc x)
+    | Stack (Direct) | Reg (_, Direct) | Global -> ()
+  in
   let check_ggvar m x = if x.gs = E.Slocal then check_var_i m x.gv in
   let rec check_e m = function
     | Pconst _ | Pbool _ | Parr_init _ -> ()
@@ -46,7 +52,10 @@ let check_func mode fd =
   and check_es m = List.iter (check_e m) in
   let check_lv m = function
     | Lnone _ | Lvar _ -> ()
-    | Lmem (_, _, _, e) | Laset (_, _, _, _, e) | Lasub (_, _, _, _, e) ->
+    | Lmem (_, _, _, e)
+      -> check_e m e
+    | Laset (_, _, _, gv, e) | Lasub (_, _, _, gv, e) ->
+        check_var_i m gv;
         check_e m e
   in
   let check_lvs m = List.iter (check_lv m) in
