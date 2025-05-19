@@ -69,7 +69,7 @@ let check_func mode fd =
   let check_body stmt = iter_instr check_instr stmt in
   check_body fd.f_body;
   List.iter (check_var_i fd.f_info) fd.f_ret;
-  !errors
+  List.rev !errors
 
 let check_prog ?(mode = NotStrict) (_, fds) =
   List.concat_map (check_func mode) fds
