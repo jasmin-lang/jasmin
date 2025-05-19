@@ -22,12 +22,14 @@ type check_mode = Strict | NotStrict
 let check_func mode fd =
   let errors = ref [] in
   let check_var ~loc m x =
-    let iset = Mv.find x (unwrap m) in
-    if
-      match mode with
-      | Strict -> Iloc.SIloc.mem Default iset
-      | NotStrict -> Iloc.SIloc.equal iset (Iloc.SIloc.singleton Default)
-    then errors := create_vi_error x loc :: !errors
+    (* Arrays that are not ptr need not be initialized *)
+    if (not (is_ty_arr x.v_ty)) || is_ptr x.v_kind then
+      let iset = Mv.find x (unwrap m) in
+      if
+        match mode with
+        | Strict -> Iloc.SIloc.mem Default iset
+        | NotStrict -> Iloc.SIloc.equal iset (Iloc.SIloc.singleton Default)
+      then errors := create_vi_error x loc :: !errors
   in
   let check_var_i m x = check_var ~loc:(L.loc x) m (L.unloc x) in
   let check_ggvar m x = if x.gs = E.Slocal then check_var_i m x.gv in
