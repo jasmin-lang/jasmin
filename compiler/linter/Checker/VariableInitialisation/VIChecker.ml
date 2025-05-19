@@ -3,7 +3,19 @@ open Utils
 open Prog
 open Types
 open Analyser.Annotation
-open VIError
+
+let create_vi_error err_payload loc =
+  let open Error.CompileError in
+  {
+    location = loc;
+    error_strategy = Error.Recover.Fail;
+    code = "VI-E001";
+    to_text =
+      (fun fmt () ->
+        Format.fprintf fmt "Variable %s (declared at : %s) not initialized"
+          err_payload.v_name
+          (Location.tostring err_payload.v_dloc));
+  }
 
 type check_mode = Strict | NotStrict
 
