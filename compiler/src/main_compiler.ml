@@ -164,7 +164,7 @@ let main () =
       let errors = Linter.Checker.VariableInitialisation.VIChecker.check_prog prog in
       List.iter(
         fun (error: Error.CompileError.t) ->
-          warning Always (Location.i_loc0 error.location) "%a" error.to_text ()
+          warning Always (Location.i_loc0 error.location) "%t" error.to_text
       )
         errors;
     in
