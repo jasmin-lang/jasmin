@@ -1,0 +1,28 @@
+export fn access() {
+    reg u64 p;
+    [p] = 0;
+}
+
+export fn array_ptr() {
+    reg ptr u64[25] state;
+    state[0] = 1;
+}
+
+export fn ret() -> reg u64 {
+    reg u64 r;
+    return r;
+}
+
+fn var() {
+    reg u64 x;
+    reg u64 y=x+x;
+}
+
+fn while_loop() {
+    reg u64 x;
+    reg u64 y=1;
+
+    while (x < 10) {
+        y = y + 1;
+    }
+}

@@ -17,4 +17,4 @@
 (library
  (name jasminc)
  (modules main_compiler x86_safety)
- (libraries jasmin jasmin_checksafety))
+ (libraries jasmin jasmin_checksafety linter))

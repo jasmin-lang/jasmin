@@ -341,6 +341,7 @@ type warning =
   | DuplicateVar (* -wduplicatevar *)
   | UnusedVar (* -wunusedvar *)
   | SCTchecker
+  | Linter
   | Deprecated
   | Experimental
   | Always
@@ -353,6 +354,7 @@ let default_warnings =
       DuplicateVar;
       UnusedVar;
       SCTchecker;
+      Linter;
       Deprecated;
       Experimental;
       PedanticPretyping;

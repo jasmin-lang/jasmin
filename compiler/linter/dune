@@ -1,0 +1,7 @@
+(library
+ (name linter)
+ (libraries jasmin cmdliner)
+)
+
+(include_subdirs qualified)
+
