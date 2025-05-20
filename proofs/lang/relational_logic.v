@@ -1083,24 +1083,19 @@ Proof.
   by apply/wkequiv_bind_ret_left/wkequiv_iresult_left.
 Qed.
 
-Section ST_REL.
+Section REL.
 
 Context {D:Type}.
-Context (R : D -> vm1_t -> vm2_t -> Prop).
+Context (R : D -> estate1 -> estate2 -> Prop).
 
 Class Checker_e :=
  { check_es    : D -> pexprs -> pexprs -> D -> Prop
  ; check_lvals : D -> lvals -> lvals -> D -> Prop
- ; check_esP_R :
-   forall d es1 es2 d', check_es d es1 es2 d' -> forall vm1 vm2, R d vm1 vm2 -> R d' vm1 vm2
+ ; check_esP_rel :
+   forall d es1 es2 d', check_es d es1 es2 d' -> forall s1 s2, R d s1 s2 -> R d' s1 s2
  }.
 
 Context {ce : Checker_e}.
-
-Lemma check_esP_rel d es1 es2 d' :
-  check_es d es1 es2 d' →
-  forall s1 s2, st_rel R d s1 s2 → st_rel R d' s1 s2.
-Proof. move=> hes; apply: st_rel_weaken; apply: check_esP_R hes. Qed.
 
 Definition wdb_ok (wdb1 wdb2 : bool) :=
   wdb1 /\ wdb2 \/ wdb1 = ~~@direct_call dc1 /\ wdb2 = ~~@direct_call dc2.
@@ -1117,15 +1112,15 @@ Class Checker_uincl :=
    forall wdb1 wdb2 d es1 es2 d',
      wdb_ok wdb1 wdb2 ->
      check_es d es1 es2 d' ->
-     wrequiv (st_rel R d) ((sem_pexprs wdb1 (p_globs p1))^~ es1) ((sem_pexprs wdb2 (p_globs p2))^~ es2)
+     wrequiv (R d) ((sem_pexprs wdb1 (p_globs p1))^~ es1) ((sem_pexprs wdb2 (p_globs p2))^~ es2)
        (List.Forall2 value_uincl)
  ; ucheck_lvalsP :
    forall wdb1 wdb2 d xs1 xs2 d',
      wdb_ok wdb1 wdb2 ->
      check_lvals d xs1 xs2 d' ->
      forall vs1 vs2, List.Forall2 value_uincl vs1 vs2 ->
-     wrequiv (st_rel R d) (λ s1 : estate, write_lvals wdb1 (p_globs p1) s1 xs1 vs1)
-                          (λ s2 : estate, write_lvals wdb2 (p_globs p2) s2 xs2 vs2) (st_rel R d')
+     wrequiv (R d) (λ s1 : estate, write_lvals wdb1 (p_globs p1) s1 xs1 vs1)
+                          (λ s2 : estate, write_lvals wdb2 (p_globs p2) s2 xs2 vs2) ( R d')
  }.
 
 Class Checker_eq :=
@@ -1133,14 +1128,14 @@ Class Checker_eq :=
    forall (wdb1 wdb2 : bool) d es1 es2 d',
      wdb_ok wdb1 wdb2 ->
      check_es d es1 es2 d' ->
-     wrequiv (st_rel R d) ((sem_pexprs wdb1 (p_globs p1))^~ es1) ((sem_pexprs wdb2 (p_globs p2))^~ es2) eq
+     wrequiv (R d) ((sem_pexprs wdb1 (p_globs p1))^~ es1) ((sem_pexprs wdb2 (p_globs p2))^~ es2) eq
  ; echeck_lvalsP :
    forall (wdb1 wdb2 : bool) d xs1 xs2 d',
      wdb_ok wdb1 wdb2 ->
      check_lvals d xs1 xs2 d' ->
      forall vs,
-     wrequiv (st_rel R d) (λ s1 : estate, write_lvals wdb1 (p_globs p1) s1 xs1 vs)
-                          (λ s2 : estate, write_lvals wdb2 (p_globs p2) s2 xs2 vs) (st_rel R d')
+     wrequiv (R d) (λ s1 : estate, write_lvals wdb1 (p_globs p1) s1 xs1 vs)
+                          (λ s2 : estate, write_lvals wdb2 (p_globs p2) s2 xs2 vs) (R d')
  }.
 
 Section UINCL.
@@ -1149,7 +1144,7 @@ Context {cu:Checker_uincl}.
 
 Lemma ucheck_eP d e1 e2 d' :
   check_es d [::e1] [::e2] d' ->
-  wrequiv (st_rel R d) ((sem_pexpr true (p_globs p1))^~ e1) ((sem_pexpr true (p_globs p2))^~ e2) value_uincl.
+  wrequiv (R d) ((sem_pexpr true (p_globs p1))^~ e1) ((sem_pexpr true (p_globs p2))^~ e2) value_uincl.
 Proof.
   move=> /ucheck_esP -/(_ _ _ wdb_ok_true) h s t v hst he.
   have [|vs]:= h s t [::v] hst.
@@ -1160,8 +1155,8 @@ Qed.
 Lemma ucheck_lvalP d x1 x2 d' :
   check_lvals d [::x1] [::x2] d' ->
   forall v1 v2, value_uincl v1 v2 ->
-   wrequiv (st_rel R d) (λ s1 : estate, write_lval true (p_globs p1) x1 v1 s1)
-                        (λ s2 : estate, write_lval true (p_globs p2) x2 v2 s2) (st_rel R d').
+   wrequiv (R d) (λ s1 : estate, write_lval true (p_globs p1) x1 v1 s1)
+                        (λ s2 : estate, write_lval true (p_globs p2) x2 v2 s2) (R d').
 Proof.
   move=> /ucheck_lvalsP  -/(_ _ _ wdb_ok_true) h v1 v2 hu s t s' hst hx.
   have [||/=]:= h [::v1] [::v2] _ s t s' hst.
@@ -1173,12 +1168,12 @@ Qed.
 Lemma wequiv_assgn_rel_uincl d de d' ii1 x1 tg1 ty e1 ii2 x2 tg2 e2 :
   check_es d [::e1] [::e2] de ->
   check_lvals de [::x1] [::x2] d' ->
-  wequiv (st_rel R d) [:: MkI ii1 (Cassgn x1 tg1 ty e1)] [:: MkI ii2 (Cassgn x2 tg2 ty e2)] (st_rel R d').
+  wequiv (R d) [:: MkI ii1 (Cassgn x1 tg1 ty e1)] [:: MkI ii2 (Cassgn x2 tg2 ty e2)] (R d').
 Proof.
   move=> hes hxs.
   apply wequiv_assgn_uincl.
   + by apply: ucheck_eP hes.
-  move=> v1 v2 hu; apply wrequiv_weaken with (st_rel R de) (st_rel R d') => //.
+  move=> v1 v2 hu; apply wrequiv_weaken with (R de) (R d') => //.
   + by apply: check_esP_rel hes.
   apply: ucheck_lvalP hxs v1 v2 hu.
 Qed.
@@ -1186,94 +1181,101 @@ Qed.
 Lemma wequiv_opn_rel_uincl d de d' ii1 xs1 tg1 o es1  ii2 xs2 tg2 es2 :
   check_es d es1 es2 de →
   check_lvals de xs1 xs2 d' →
-  wequiv (st_rel R d) [:: MkI ii1 (Copn xs1 tg1 o es1)] [:: MkI ii2 (Copn xs2 tg2 o es2)] (st_rel R d').
+  wequiv (R d) [:: MkI ii1 (Copn xs1 tg1 o es1)] [:: MkI ii2 (Copn xs2 tg2 o es2)] (R d').
 Proof.
   move=> hes hxs.
   apply wequiv_opn_uincl.
   + by apply: ucheck_esP hes.
-  move=> v1 v2 hu; apply wrequiv_weaken with (st_rel R de) (st_rel R d') => //.
+  move=> v1 v2 hu; apply wrequiv_weaken with (R de) (R d') => //.
   + by apply: check_esP_rel hes.
   by apply: ucheck_lvalsP hxs v1 v2 hu.
 Qed.
 
-Lemma wequiv_syscall_rel_uincl_core d de d' ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
-  check_es d es1 es2 de →
-  check_lvals de xs1 xs2 d' →
-  wrequiv fs_uincl (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) fs_uincl →
-  wequiv (st_rel R d) [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] (st_rel R d').
-Proof.
-  move=> hes hxs hsc.
-  apply wequiv_syscall_uincl.
-  + by move=> > [].
-  + by apply: ucheck_esP hes.
-  + by apply hsc.
-  apply upd_st_rel.
-  move=> fs1 fs2 hu; apply wrequiv_weaken with (st_rel R de) (st_rel R d') => //.
-  + by apply: check_esP_rel hes.
-  by apply: ucheck_lvalsP hxs fs1 fs2 hu.
-Qed.
-
-Lemma wequiv_if_rel_uincl d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
+Lemma wequiv_if_rel_uincl_R d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
   check_es d [::e] [::e'] de ->
   (forall s1 s2, R d1 s1 s2 -> R d' s1 s2) ->
   (forall s1 s2, R d2 s1 s2 -> R d' s1 s2) ->
-  wequiv (st_rel R de) c1 c1' (st_rel R d1) ->
-  wequiv (st_rel R de) c2 c2' (st_rel R d2) ->
-  wequiv (st_rel R d) [:: MkI ii (Cif e c1 c2)] [:: MkI ii' (Cif e' c1' c2')] (st_rel R d').
+  wequiv (R de) c1 c1' (R d1) ->
+  wequiv (R de) c2 c2' (R d2) ->
+  wequiv (R d) [:: MkI ii (Cif e c1 c2)] [:: MkI ii' (Cif e' c1' c2')] (R d').
 Proof.
   move=> hes hd1 hd2 hc1 hc2.
   apply wequiv_if_uincl.
   + by apply: ucheck_eP hes.
-  move=> b; apply wequiv_weaken with  (st_rel R de) (st_rel R d') => //.
+  move=> b; apply wequiv_weaken with  (R de) (R d') => //.
   + by apply: check_esP_rel hes.
   by case: b; [apply: wequiv_weaken hc1 | apply: wequiv_weaken hc2] => //; apply st_rel_weaken.
 Qed.
 
-Lemma wequiv_for_rel_uincl d0 d dhi di ii i dir lo hi c ii' i' lo' hi' c':
+Lemma wequiv_for_rel_uincl_R d0 d dhi di ii i dir lo hi c ii' i' lo' hi' c':
   check_es d0 [::lo; hi] [::lo'; hi'] dhi ->
   (∀ s1 s2, R dhi s1 s2 → R d s1 s2) ->
   check_lvals d [::Lvar i] [::Lvar i'] di ->
-  wequiv (st_rel R di) c c' (st_rel R d) ->
-  wequiv (st_rel R d0) [:: MkI ii (Cfor i (dir, lo, hi) c)] [:: MkI ii' (Cfor i' (dir, lo', hi') c')] (st_rel R d).
+  wequiv (R di) c c' (R d) ->
+  wequiv (R d0) [:: MkI ii (Cfor i (dir, lo, hi) c)] [:: MkI ii' (Cfor i' (dir, lo', hi') c')] (R d).
 Proof.
   move=> hes hdhi hx hc.
-  apply wequiv_for_uincl with (st_rel R di) => //.
-  + by apply st_rel_weaken => vm1 vm2 /(check_esP_R hes) /hdhi.
+  apply wequiv_for_uincl with (R di) => //.
+  + by move=> s1 s2 /(check_esP_rel hes) /hdhi.
   + by apply: ucheck_esP hes.
   by move=> j; have /(_ j j (value_uincl_refl j)) := ucheck_lvalP hx.
 Qed.
 
 Lemma wequiv_while_rel_uincl d d' de ii1 al1 c1 e1 inf1 c1' ii2 al2 c2 e2 inf2 c2' :
   check_es d' [::e1] [::e2] de ->
-  wequiv (st_rel R d) c1 c2 (st_rel R d') →
-  wequiv (st_rel R de) c1' c2' (st_rel R d) →
-  wequiv (st_rel R d) [:: MkI ii1 (Cwhile al1 c1 e1 inf1 c1')] [:: MkI ii2 (Cwhile al2 c2 e2 inf2 c2')] (st_rel R de).
+  wequiv (R d) c1 c2 (R d') →
+  wequiv (R de) c1' c2' (R d) →
+  wequiv (R d) [:: MkI ii1 (Cwhile al1 c1 e1 inf1 c1')] [:: MkI ii2 (Cwhile al2 c2 e2 inf2 c2')] (R de).
 Proof.
   move=> he hc hc'.
-  apply wequiv_weaken with (st_rel R d) (st_rel R d') => //.
+  apply wequiv_weaken with (R d) (R d') => //.
   + by apply: check_esP_rel he.
   apply wequiv_while_uincl => //.
   + by apply: ucheck_eP he.
-  apply wequiv_weaken with (st_rel R de) (st_rel R d) => //.
+  apply wequiv_weaken with (R de) (R d) => //.
   by apply: check_esP_rel he.
 Qed.
 
-Lemma wequiv_call_rel_uincl d de d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
+Lemma wequiv_syscall_rel_uincl_core_R d de de' d' ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
+  (∀ d s1 s2, R d s1 s2 → escs s1 = escs s2 ∧ emem s1 = emem s2) →
+  (forall scs mem s1 s2, R de s1 s2 ->
+     R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
   check_es d es1 es2 de →
-  check_lvals de xs1 xs2 d' →
-  wequiv_f (fun _ _ => fs_uincl) fn1 fn2 (fun _ _ _ _ => fs_uincl) →
-  wequiv (st_rel R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (st_rel R d').
+  check_lvals de' xs1 xs2 d' →
+  wrequiv fs_uincl (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) fs_uincl →
+  wequiv (R d) [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] (R d').
 Proof.
-  move=> hes hxs hf.
+  move=> hsm hwith hes hxs hsc.
+  apply wequiv_syscall_uincl.
+  + by apply hsm.
+  + by apply: ucheck_esP hes.
+  + by apply hsc.
+  move=> fs1 fs2 [hscs hmem hu]; rewrite /upd_estate.
+  move=> s1 s2 s1' hR.
+  apply ucheck_lvalsP with de' => //.
+  rewrite hscs hmem; apply hwith.
+  apply: check_esP_rel hes s1 s2 hR.
+Qed.
+
+Lemma wequiv_call_rel_uincl_R d de de' d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
+  (∀ d s1 s2, R d s1 s2 → escs s1 = escs s2 ∧ emem s1 = emem s2) →
+  (forall scs mem s1 s2, R de s1 s2 ->
+     R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
+  check_es d es1 es2 de →
+  check_lvals de' xs1 xs2 d' →
+  wequiv_f (fun _ _ => fs_uincl) fn1 fn2 (fun _ _ _ _ => fs_uincl) →
+  wequiv (R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (R d').
+Proof.
+  move=> hsm hwith hes hxs hf.
   apply wequiv_call with (fun _ _ => fs_uincl) (fun _ _ _ _ => fs_uincl) (List.Forall2 value_uincl).
   + by apply: ucheck_esP hes.
-  + by move=> > [].
+  + by rewrite /mk_fstate; move=> > /hsm [-> ->] ?.
   + by apply hf.
-  move=> > h1.
-  apply upd_st_rel.
-  move=> fs1 fs2 hu; apply wrequiv_weaken with (st_rel R de) (st_rel R d') => //.
-  + by apply: check_esP_rel hes.
-  by apply: ucheck_lvalsP hxs fs1 fs2 hu.
+  move=> fs1 fs2 fr1 fr2 _ [hscs hmem hu]; rewrite /upd_estate.
+  move=> s1 s2 s1' hR.
+  apply ucheck_lvalsP with de' => //.
+  rewrite hscs hmem; apply hwith.
+  apply: check_esP_rel hes s1 s2 hR.
 Qed.
 
 End UINCL.
@@ -1284,7 +1286,7 @@ Context {cu:Checker_eq}.
 
 Lemma echeck_eP d e1 e2 d' :
   check_es d [::e1] [::e2] d' ->
-  wrequiv (st_rel R d) ((sem_pexpr true (p_globs p1))^~ e1) ((sem_pexpr true (p_globs p2))^~ e2) eq.
+  wrequiv (R d) ((sem_pexpr true (p_globs p1))^~ e1) ((sem_pexpr true (p_globs p2))^~ e2) eq.
 Proof.
   move=> /echeck_esP -/(_ _ _ wdb_ok_true) h s t v hst he.
   have [|vs]:= h s t [::v] hst.
@@ -1295,8 +1297,8 @@ Qed.
 Lemma echeck_lvalP d x1 x2 d' :
   check_lvals d [::x1] [::x2] d' ->
   forall v,
-  wrequiv (st_rel R d) (λ s1 : estate, write_lval true (p_globs p1) x1 v s1)
-                        (λ s2 : estate, write_lval true (p_globs p2) x2 v s2) (st_rel R d').
+  wrequiv (R d) (λ s1 : estate, write_lval true (p_globs p1) x1 v s1)
+                        (λ s2 : estate, write_lval true (p_globs p2) x2 v s2) (R d').
 Proof.
   move=> /echeck_lvalsP  -/(_ _ _ wdb_ok_true) h v s t s' hst hx.
   have [|/=]:= h [::v] s t s' hst.
@@ -1307,12 +1309,12 @@ Qed.
 Lemma wequiv_assgn_rel_eq d de d' ii1 x1 tg1 ty e1 ii2 x2 tg2 e2 :
   check_es d [::e1] [::e2] de ->
   check_lvals de [::x1] [::x2] d' ->
-  wequiv (st_rel R d) [:: MkI ii1 (Cassgn x1 tg1 ty e1)] [:: MkI ii2 (Cassgn x2 tg2 ty e2)] (st_rel R d').
+  wequiv (R d) [:: MkI ii1 (Cassgn x1 tg1 ty e1)] [:: MkI ii2 (Cassgn x2 tg2 ty e2)] (R d').
 Proof.
   move=> hes hxs.
   apply wequiv_assgn_eq.
   + by apply: echeck_eP hes.
-  move=> v; apply wrequiv_weaken with (st_rel R de) (st_rel R d') => //.
+  move=> v; apply wrequiv_weaken with (R de) (R d') => //.
   + by apply: check_esP_rel hes.
   apply: echeck_lvalP hxs v.
 Qed.
@@ -1320,47 +1322,180 @@ Qed.
 Lemma wequiv_opn_rel_eq d de d' ii1 xs1 tg1 o es1 ii2 xs2 tg2 es2 :
   check_es d es1 es2 de →
   check_lvals de xs1 xs2 d' →
-  wequiv (st_rel R d) [:: MkI ii1 (Copn xs1 tg1 o es1)] [:: MkI ii2 (Copn xs2 tg2 o es2)] (st_rel R d').
+  wequiv (R d) [:: MkI ii1 (Copn xs1 tg1 o es1)] [:: MkI ii2 (Copn xs2 tg2 o es2)] (R d').
 Proof.
   move=> hes hxs.
   apply wequiv_opn_eq.
   + by apply: echeck_esP hes.
-  move=> v; apply wrequiv_weaken with (st_rel R de) (st_rel R d') => //.
+  move=> v; apply wrequiv_weaken with (R de) (R d') => //.
   + by apply: check_esP_rel hes.
   by apply: echeck_lvalsP hxs v.
 Qed.
 
-Lemma wequiv_syscall_rel_eq_core d de d' ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
-  check_es d es1 es2 de →
-  check_lvals de xs1 xs2 d' →
-  wrequiv eq (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) eq →
-  wequiv (st_rel R d) [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] (st_rel R d').
-Proof.
-  move=> hes hxs hsc.
-  apply wequiv_syscall_eq.
-  + by move=> > [].
-  + by apply: echeck_esP hes.
-  + by apply hsc.
-  apply upd_st_eq.
-  move=> fs; apply wrequiv_weaken with (st_rel R de) (st_rel R d') => //.
-  + by apply: check_esP_rel hes.
-  by apply: echeck_lvalsP hxs fs.
-Qed.
-
-Lemma wequiv_if_rel_eq d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
+Lemma wequiv_if_rel_eq_R d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
   check_es d [::e] [::e'] de ->
   (forall s1 s2, R d1 s1 s2 -> R d' s1 s2) ->
   (forall s1 s2, R d2 s1 s2 -> R d' s1 s2) ->
-  wequiv (st_rel R de) c1 c1' (st_rel R d1) ->
-  wequiv (st_rel R de) c2 c2' (st_rel R d2) ->
-  wequiv (st_rel R d) [:: MkI ii (Cif e c1 c2)] [:: MkI ii' (Cif e' c1' c2')] (st_rel R d').
+  wequiv (R de) c1 c1' (R d1) ->
+  wequiv (R de) c2 c2' (R d2) ->
+  wequiv (R d) [:: MkI ii (Cif e c1 c2)] [:: MkI ii' (Cif e' c1' c2')] (R d').
 Proof.
   move=> hes hd1 hd2 hc1 hc2.
   apply wequiv_if_eq.
   + by apply: echeck_eP hes.
-  move=> b; apply wequiv_weaken with  (st_rel R de) (st_rel R d') => //.
+  move=> b; apply wequiv_weaken with  (R de) (R d') => //.
   + by apply: check_esP_rel hes.
   by case: b; [apply: wequiv_weaken hc1 | apply: wequiv_weaken hc2] => //; apply st_rel_weaken.
+Qed.
+
+Lemma wequiv_for_rel_eq_R d0 d dhi di ii i dir lo hi c ii' i' lo' hi' c':
+  check_es d0 [::lo; hi] [::lo'; hi'] dhi ->
+  (∀ s1 s2, R dhi s1 s2 → R d s1 s2) ->
+  check_lvals d [::Lvar i] [::Lvar i'] di ->
+  wequiv (R di) c c' (R d) ->
+  wequiv (R d0) [:: MkI ii (Cfor i (dir, lo, hi) c)] [:: MkI ii' (Cfor i' (dir, lo', hi') c')] (R d).
+Proof.
+  move=> hes hdhi hx hc.
+  apply wequiv_for_eq with (R di) => //.
+  + by move=> s1 s2 /(check_esP_rel hes) /hdhi.
+  + by apply: echeck_esP hes.
+  by move=> j; have /(_ j) := echeck_lvalP hx.
+Qed.
+
+Lemma wequiv_while_rel_eq d d' de ii1 al1 c1 e1 inf1 c1' ii2 al2 c2 e2 inf2 c2' :
+  check_es d' [::e1] [::e2] de ->
+  wequiv (R d) c1 c2 (R d') →
+  wequiv (R de) c1' c2' (R d) →
+  wequiv (R d) [:: MkI ii1 (Cwhile al1 c1 e1 inf1 c1')] [:: MkI ii2 (Cwhile al2 c2 e2 inf2 c2')] (R de).
+Proof.
+  move=> he hc hc'.
+  apply wequiv_weaken with (R d) (R d') => //.
+  + by apply: check_esP_rel he.
+  apply wequiv_while_eq => //.
+  + by apply: echeck_eP he.
+  apply wequiv_weaken with (R de) (R d) => //.
+  by apply: check_esP_rel he.
+Qed.
+
+Lemma wequiv_syscall_rel_eq_core_R d de de' d' ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
+  (∀ d s1 s2, R d s1 s2 → escs s1 = escs s2 ∧ emem s1 = emem s2) →
+  (forall scs mem s1 s2, R de s1 s2 ->
+     R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
+  check_es d es1 es2 de →
+  check_lvals de' xs1 xs2 d' →
+  wrequiv eq (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) eq →
+  wequiv (R d) [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] (R d').
+Proof.
+  move=> hsm hwith hes hxs hsc.
+  apply wequiv_syscall_eq.
+  + by apply hsm.
+  + by apply: echeck_esP hes.
+  + by apply hsc.
+  move=> fs; rewrite /upd_estate.
+  move=> s1 s2 s1' hR.
+  apply echeck_lvalsP with de' => //.
+  apply hwith.
+  apply: check_esP_rel hes s1 s2 hR.
+Qed.
+
+Lemma wequiv_call_rel_eq_R d de de' d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
+  (∀ d s1 s2, R d s1 s2 → escs s1 = escs s2 ∧ emem s1 = emem s2) →
+  (forall scs mem s1 s2, R de s1 s2 ->
+     R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
+  check_es d es1 es2 de →
+  check_lvals de' xs1 xs2 d' →
+  wequiv_f (fun _ _ => eq) fn1 fn2 (fun _ _ _ _ => eq) →
+  wequiv (R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (R d').
+Proof.
+  move=> hsm hwith hes hxs hf.
+  apply wequiv_call with (fun _ _ => eq) (fun _ _ _ _ => eq) eq.
+  + by apply: echeck_esP hes.
+  + by rewrite /mk_fstate; move=> > /hsm [-> ->] ->.
+  + by apply hf.
+  move=> > h1 <-; rewrite /upd_estate.
+  move=> s1 s2 s1' hR.
+  apply echeck_lvalsP with de' => //.
+  apply hwith.
+  apply: check_esP_rel hes s1 s2 hR.
+Qed.
+
+End EQ.
+
+End REL.
+
+Section ST_REL.
+
+Context {D:Type}.
+Context (R : D -> vm1_t -> vm2_t -> Prop).
+
+Context {ce : Checker_e (st_rel R)}.
+
+Section UINCL.
+
+Context {cu:Checker_uincl (R:=st_rel R)}.
+
+Lemma wequiv_if_rel_uincl d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
+  check_es d [::e] [::e'] de ->
+  (forall vm1 vm2, R d1 vm1 vm2 -> R d' vm1 vm2) ->
+  (forall vm1 vm2, R d2 vm1 vm2 -> R d' vm1 vm2) ->
+  wequiv (st_rel R de) c1 c1' (st_rel R d1) ->
+  wequiv (st_rel R de) c2 c2' (st_rel R d2) ->
+  wequiv (st_rel R d) [:: MkI ii (Cif e c1 c2)] [:: MkI ii' (Cif e' c1' c2')] (st_rel R d').
+Proof.
+  move=> hes hd1 hd2.
+  by apply wequiv_if_rel_uincl_R with ce => //; apply st_rel_weaken.
+Qed.
+
+Lemma wequiv_for_rel_uincl d0 d dhi di ii i dir lo hi c ii' i' lo' hi' c':
+  check_es d0 [::lo; hi] [::lo'; hi'] dhi ->
+  (∀ s1 s2, R dhi s1 s2 → R d s1 s2) ->
+  check_lvals d [::Lvar i] [::Lvar i'] di ->
+  wequiv (st_rel R di) c c' (st_rel R d) ->
+  wequiv (st_rel R d0) [:: MkI ii (Cfor i (dir, lo, hi) c)] [:: MkI ii' (Cfor i' (dir, lo', hi') c')] (st_rel R d).
+Proof.
+  move=> hes hdhi hx hc.
+  apply wequiv_for_rel_uincl_R with ce dhi di => //.
+  by apply st_rel_weaken.
+Qed.
+
+Lemma wequiv_syscall_rel_uincl_core d de d' ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
+  check_es d es1 es2 de →
+  check_lvals de xs1 xs2 d' →
+  wrequiv fs_uincl (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) fs_uincl →
+  wequiv (st_rel R d) [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] (st_rel R d').
+Proof.
+  apply wequiv_syscall_rel_uincl_core_R => //.
+  + by move=> > [-> ->].
+  by move=> scs mem s1 s2 [???].
+Qed.
+
+Lemma wequiv_call_rel_uincl d de d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
+  check_es d es1 es2 de →
+  check_lvals de xs1 xs2 d' →
+  wequiv_f (fun _ _ => fs_uincl) fn1 fn2 (fun _ _ _ _ => fs_uincl) →
+  wequiv (st_rel R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (st_rel R d').
+Proof.
+  apply wequiv_call_rel_uincl_R => //.
+  + by move=> > [-> ->].
+  by move=> scs mem s1 s2 [???].
+Qed.
+
+End UINCL.
+
+Section EQ.
+
+Context {cu:Checker_eq (R:=st_rel R)}.
+
+Lemma wequiv_if_rel_eq d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
+  check_es d [::e] [::e'] de ->
+  (forall vm1 vm2, R d1 vm1 vm2 -> R d' vm1 vm2) ->
+  (forall vm1 vm2, R d2 vm1 vm2 -> R d' vm1 vm2) ->
+  wequiv (st_rel R de) c1 c1' (st_rel R d1) ->
+  wequiv (st_rel R de) c2 c2' (st_rel R d2) ->
+  wequiv (st_rel R d) [:: MkI ii (Cif e c1 c2)] [:: MkI ii' (Cif e' c1' c2')] (st_rel R d').
+Proof.
+  move=> hes hd1 hd2.
+  by apply wequiv_if_rel_eq_R with ce => //; apply st_rel_weaken.
 Qed.
 
 Lemma wequiv_for_rel_eq d0 d dhi di ii i dir lo hi c ii' i' lo' hi' c':
@@ -1371,25 +1506,19 @@ Lemma wequiv_for_rel_eq d0 d dhi di ii i dir lo hi c ii' i' lo' hi' c':
   wequiv (st_rel R d0) [:: MkI ii (Cfor i (dir, lo, hi) c)] [:: MkI ii' (Cfor i' (dir, lo', hi') c')] (st_rel R d).
 Proof.
   move=> hes hdhi hx hc.
-  apply wequiv_for_eq with (st_rel R di) => //.
-  + by apply st_rel_weaken => vm1 vm2 /(check_esP_R hes) /hdhi.
-  + by apply: echeck_esP hes.
-  by move=> j; have /(_ j) := echeck_lvalP hx.
+  apply wequiv_for_rel_eq_R with ce dhi di => //.
+  by apply st_rel_weaken.
 Qed.
 
-Lemma wequiv_while_rel_eq d d' de ii1 al1 c1 e1 inf1 c1' ii2 al2 c2 e2 inf2 c2' :
-  check_es d' [::e1] [::e2] de ->
-  wequiv (st_rel R d) c1 c2 (st_rel R d') →
-  wequiv (st_rel R de) c1' c2' (st_rel R d) →
-  wequiv (st_rel R d) [:: MkI ii1 (Cwhile al1 c1 e1 inf1 c1')] [:: MkI ii2 (Cwhile al2 c2 e2 inf2 c2')] (st_rel R de).
+Lemma wequiv_syscall_rel_eq_core d de d' ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
+  check_es d es1 es2 de →
+  check_lvals de xs1 xs2 d' →
+  wrequiv eq (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) eq →
+  wequiv (st_rel R d) [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] (st_rel R d').
 Proof.
-  move=> he hc hc'.
-  apply wequiv_weaken with (st_rel R d) (st_rel R d') => //.
-  + by apply: check_esP_rel he.
-  apply wequiv_while_eq => //.
-  + by apply: echeck_eP he.
-  apply wequiv_weaken with (st_rel R de) (st_rel R d) => //.
-  by apply: check_esP_rel he.
+  apply wequiv_syscall_rel_eq_core_R => //.
+  + by move=> > [-> ->].
+  by move=> scs mem s1 s2 [???].
 Qed.
 
 Lemma wequiv_call_rel_eq d de d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
@@ -1398,16 +1527,9 @@ Lemma wequiv_call_rel_eq d de d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
   wequiv_f (fun _ _ => eq) fn1 fn2 (fun _ _ _ _ => eq) →
   wequiv (st_rel R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (st_rel R d').
 Proof.
-  move=> hes hxs hf.
-  apply wequiv_call with (fun _ _ => eq) (fun _ _ _ _ => eq) eq.
-  + by apply: echeck_esP hes.
-  + by rewrite /mk_fstate => > [-> -> _] ->.
-  + by apply hf.
-  move=> > h1 <-.
-  apply upd_st_eq.
-  move=> vs; apply wrequiv_weaken with (st_rel R de) (st_rel R d') => //.
-  + by apply: check_esP_rel hes.
-  by apply: echeck_lvalsP hxs vs.
+  apply wequiv_call_rel_eq_R => //.
+  + by move=> > [-> ->].
+  by move=> scs mem s1 s2 [???].
 Qed.
 
 End EQ.
@@ -1421,25 +1543,25 @@ Definition check_es_st_eq (_:unit) (es1 es2 : pexprs) (_:unit) := es1 = es2.
 Definition check_lvals_st_eq (_:unit) (xs1 xs2 : lvals) (_:unit) := xs1 = xs2.
 
 Lemma check_esP_R_st_eq (d : unit) (es1 es2 : pexprs) (d' : unit) :
-  check_es_st_eq d es1 es2 d' → ∀ vm1 vm2 : Vm.t, _vm_eq d vm1 vm2 → _vm_eq d' vm1 vm2.
-Proof. done. Qed.
+  check_es_st_eq d es1 es2 d' → ∀ s1 s2, st_rel _vm_eq d s1 s2 → st_rel _vm_eq d' s1 s2.
+Proof. by move=> ?; apply st_rel_weaken. Qed.
 
-Definition checker_st_eq : Checker_e _vm_eq :=
+Definition checker_st_eq : Checker_e (st_rel _vm_eq) :=
   {| check_es := check_es_st_eq;
      check_lvals := check_lvals_st_eq;
-     check_esP_R := check_esP_R_st_eq |}.
+     check_esP_rel := check_esP_R_st_eq |}.
 
 Notation _vm_uincl := (fun (_:unit) => vm_uincl (wsw1:=wsw1) (wsw2:=wsw2)).
 Definition st_uincl := st_rel _vm_uincl.
 
 Lemma check_esP_R_st_uincl (d : unit) (es1 es2 : pexprs) (d' : unit) :
-  check_es_st_eq d es1 es2 d' → ∀ vm1 vm2 : Vm.t, _vm_uincl d vm1 vm2 → _vm_uincl d' vm1 vm2.
-Proof. done. Qed.
+  check_es_st_eq d es1 es2 d' → ∀ s1 s2, st_rel _vm_uincl d s1 s2 → st_rel _vm_uincl d' s1 s2.
+Proof. by move=> ?; apply st_rel_weaken. Qed.
 
-Definition checker_st_uincl : Checker_e _vm_uincl :=
+Definition checker_st_uincl : Checker_e (st_rel _vm_uincl) :=
   {| check_es := check_es_st_eq;
      check_lvals := check_lvals_st_eq;
-     check_esP_R := check_esP_R_st_uincl |}.
+     check_esP_rel := check_esP_R_st_uincl |}.
 
 End WEQUIV_CORE.
 
@@ -1614,7 +1736,7 @@ Context (p1 p2 : prog) (ev1 ev2: extra_val_t).
 
 Context {D : Type}
         {R : D -> Vm.t -> Vm.t -> Prop}
-        {ce : Checker_e R}.
+        {ce : Checker_e (st_rel R)}.
 
 Lemma wequiv_syscall_rel_uincl {cu: Checker_uincl p1 p2 (ce:=ce)} d de d' ii1 xs1 sc es1 ii2 xs2 es2 :
   check_es d es1 es2 de →
