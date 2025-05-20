@@ -216,7 +216,7 @@ struct
   and analyse_instr (out_annotation : annot) (instr : ('info, 'asm) instr) :
       (annot, 'asm) instr * annot =
       let instr_r, in_annotation = analyse_instr_r instr.i_loc instr.i_desc out_annotation in
-      ( {i_desc= instr_r; i_loc= instr.i_loc; i_info= in_annotation; i_annot= instr.i_annot}
+      ( {i_desc= instr_r; i_loc= instr.i_loc; i_info= out_annotation; i_annot= instr.i_annot}
       , in_annotation )
 
   and analyse_stmt (stmt : ('info, 'asm) stmt) (out_annotation : annot) :
