@@ -36,6 +36,10 @@ Local Open Scope monad_scope.
 Import ITreeNotations.
 #[local] Open Scope itree_scope.
 
+(* Contains IT eutt-based lemma to support reasoning about inlining of
+   function calls. Currently using the bisimulation axiom (in
+   ITree.EqAxiom). The axiom states that equality on itrees is
+   equivalent to (strict) bisimulation. *)
 
 Section GEN_MREC.
   
@@ -99,11 +103,9 @@ End GEN_MREC.
 (* auxiliary lemma *)
 Lemma FIsoLAssoc E1 E2 E3 :
   FIso (E1 +' (E2 +' E3)) ((E1 +' E2) +' E3).
-econstructor;
-  unfold ReSum_sum, case_, Case_sum1, case_sum1, resum, ReSum_inl,
-    ReSum_inr, cat, Cat_IFun, inl_, inr_, Inl_sum1, Inr_sum1, resum,
-    ReSum_id, id_, Id_IFun;
-  simpl; intros; auto; destruct x; auto; destruct s; auto.
+Proof.   
+  econstructor; simpl; intros T x; destruct x as [s | s]; auto;
+    destruct s; auto.
 Defined.
 
 Definition lassoc_tr E1 E2 E3 := @mfun1 (E1 +' (E2 +' E3)) ((E1 +' E2) +' E3)
