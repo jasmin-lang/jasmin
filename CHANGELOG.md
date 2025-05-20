@@ -52,6 +52,10 @@
   ([PR #1158](https://github.com/jasmin-lang/jasmin/pull/1158);
   fixes [#1106](https://github.com/jasmin-lang/jasmin/issues/1106)).
 
+- Fix assembly generation of ARMv7 `MULS` instruction
+  ([PR #1159](https://github.com/jasmin-lang/jasmin/pull/1159);
+  fixes [#1112](https://github.com/jasmin-lang/jasmin/issues/1112)).
+
 ## Other changes
 
 - The deprecated legacy interface to extract to EasyCrypt has been removed
