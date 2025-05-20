@@ -1,5 +1,8 @@
-open Recover
+(**
+Error handling strategies for the compiler
+*)
 
+type recover_flags = Fail | Recoverable | AlwaysWarn
 (**
 Error type :
  - [code] for error (useful for documentations)

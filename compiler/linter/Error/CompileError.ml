@@ -1,4 +1,7 @@
-open Recover
+type recover_flags =
+| Fail
+| Recoverable
+| AlwaysWarn
 
 type t = {
   location : Jasmin.Location.t;

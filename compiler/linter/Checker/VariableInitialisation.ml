@@ -8,7 +8,7 @@ let create_vi_error err_payload loc =
   let open Error.CompileError in
   {
     location = loc;
-    error_strategy = Error.Recover.Fail;
+    error_strategy = Error.CompileError.Fail;
     code = "VI-E001";
     to_text =
       (fun fmt ->
