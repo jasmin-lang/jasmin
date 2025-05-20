@@ -691,13 +691,13 @@ Definition check_lvals_st_ve S (env : spill_env) (xs1 xs2 : lvals) env' :=
   [/\ Sv.Subset env' (update_lvs env xs1), xs1 = xs2 & Sv.Subset (vars_lvals xs1) (X S)].
 
 Lemma check_esP_R_st_ve S env es1 es2 env' :
-  check_es_st_ve S env es1 es2 env' → ∀ vm1 vm2 : Vm.t, valid_env S env vm1 vm2 -> valid_env S env' vm1 vm2.
-Proof. by move=> [? _ _] ??; apply valid_env_sub. Qed.
+  check_es_st_ve S env es1 es2 env' → ∀ s1 s2, st_rel (valid_env S) env s1 s2 -> st_rel (valid_env S) env' s1 s2.
+Proof. by move=> [? _ _]; apply st_rel_weaken => ??; apply valid_env_sub. Qed.
 
-Definition checker_st_ve S : Checker_e (valid_env S) :=
+Definition checker_st_ve S : Checker_e (st_rel (valid_env S)) :=
   {| check_es := check_es_st_ve S;
      check_lvals := check_lvals_st_ve S;
-     check_esP_R := @check_esP_R_st_ve S|}.
+     check_esP_rel := @check_esP_R_st_ve S|}.
 
 Lemma checker_st_veP S : Checker_eq p p' (checker_st_ve S).
 Proof.

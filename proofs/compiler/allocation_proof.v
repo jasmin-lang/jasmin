@@ -742,17 +742,17 @@ Section PROOF.
 
   Lemma check_esP_R_alloc d es1 es2 d' :
     check_es_alloc d es1 es2 d' →
-    ∀ vm1 vm2, eq_alloc d vm1 vm2 → eq_alloc d' vm1 vm2.
+    ∀ s1 s2, st_rel eq_alloc d s1 s2 → st_rel eq_alloc d' s1 s2.
   Proof.
-    move=> he vm1 vm2 hvm.
+    move=> he; apply st_rel_weaken => vm1 vm2 hvm.
     have [] := check_e_esP true gd vm2.
     by move=> _ /(_ _ _ _ _ vm1 _ he hvm) [].
   Qed.
 
-  Definition checker_alloc : Checker_e eq_alloc :=
+  Definition checker_alloc : Checker_e (st_rel eq_alloc) :=
     {| relational_logic.check_es := check_es_alloc
      ; relational_logic.check_lvals := check_lvals_alloc
-     ; relational_logic.check_esP_R := check_esP_R_alloc
+     ; relational_logic.check_esP_rel := check_esP_R_alloc
     |}.
 
   Lemma checker_allocP : Checker_uincl p1 p2 checker_alloc.
