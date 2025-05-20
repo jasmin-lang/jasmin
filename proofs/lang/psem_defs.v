@@ -221,7 +221,6 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     Let sz := sem_pexpr s e2 >>= to_int in
     let b := all (fun i => is_ok (read s.(emem) Unaligned (lo + (wrepr Uptr i))%R U8)) (ziota 0 sz) in
     ok (Vbool b)
-
   end.
 
 Definition sem_pexprs s :=  mapM (sem_pexpr s).

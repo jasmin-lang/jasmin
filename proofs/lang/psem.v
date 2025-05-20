@@ -1826,23 +1826,25 @@ Proof.
       > /He1[? ->] /value_uincl_truncate h /h{h} [? /= -> ?]
       > /He2 [? -> /value_uincl_truncate h] /h{h} [? /= -> ?] /= <-.
     by case: b; eauto.
+
   + move=> i hi op x b hb s hs l hl s1 vm2 v.
     have := read_e_Pbig i op x b s l; rewrite {1}/read_e /= /read_e => -> hle.
     t_xrbindP => sv si /(hs s1 vm2 _ _) [ | ? ->]; first by apply: uincl_onI hle; SvD.fsetdec.
     move=> hus htos lv li /(hl s1 vm2 _ _) [ | ? ->]; first by apply: uincl_onI hle; SvD.fsetdec.
-    move=> hul htol iv /(hi s1 vm2 _ _) [ | iv' ->]; first by apply: uincl_onI hle; SvD.fsetdec.
+    move=> hul htol iv ? /(hi s1 vm2 _ _)  [ | iv' ->]; first by apply: uincl_onI hle; SvD.fsetdec.
     move=> hui /=.
     have /= -> /= := of_value_uincl_te (ty:= sint) hus htos.
     have /= -> /= := of_value_uincl_te (ty:= sint) hul htol.
-    elim: ziota iv iv' hui => /= [ ??? [<-] | ]; first by eauto.
-    move=> j js hrec iv iv' huiv; t_xrbindP => acc sj hw vj hbj hop2 hf.
+    move => /(value_uincl_truncate hui) [{}iv' -> {}hui] //=.
+    elim: ziota iv iv' hui => /=  [ ?? hui [<-]| ]; first eauto.
+    move=> j js hrec iv iv' huiv; t_xrbindP  => acc sj hw vj hbj hop2 hf.
     have [vm2' -> hle']:= write_var_uincl_on (value_uincl_refl (Vint j)) hw hle .
     have hle1 : evm sj <=[read_e_rec Sv.empty b] vm2'.
-    - apply: uincl_onI hle'; SvD.fsetdec.
+    + apply: uincl_onI hle'; SvD.fsetdec.
     have /= [vj' -> huvj /=] := hb _ _ _ hle1 hbj.
     have -> /= := vuincl_sem_sop2 huiv huvj hop2.
-    by apply: hrec (value_uincl_refl acc) hf.
-
+    apply: hrec (value_uincl_refl acc) hf.
+    
   + move=> i e1 e2 He1 He2 s1 vm v hle.
     rewrite /on_arr_var; t_xrbindP=> z Hgv.
     case hz : z => //=; subst z.
@@ -2107,7 +2109,7 @@ Proof.
   + by t_xrbindP => > hes > /hes; rewrite -/(sem_pexprs _ _ _) => -> /= <-.
   + by t_xrbindP => > he > he1 > he2 > /he -> /= -> > /he1 -> /= -> > /he2 -> /= -> <-.
   + move=> i hi op x b hb st hst l hl s v; t_xrbindP.
-    move=> ?? /hst -> /= -> ?? /hl -> /= -> acc /hi -> /=.
+    move=> ?? /hst -> /= -> ?? /hl  -> /= -> acc ? /hi -> /= -> //=.
     elim: ziota acc => //= j js hrec acc; t_xrbindP.
     by move=> ?? /write_var_wdb -> /= ? /hb -> /= -> /= /hrec.
   + t_xrbindP => > he1 he2 >; case allowinit => //=.
