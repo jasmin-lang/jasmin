@@ -806,19 +806,27 @@ Definition arm_MUL_semi (wn wm : ty_r) : ty_nz_r :=
   let res := (wn * wm)%R in
   (:: Some (NF_of_word res), Some (ZF_of_word res) & res).
 
+(* Registers that cannot be encoded using three bits and are therefore unusable with MULS *)
+Definition arm_high_registers : seq register :=
+  [:: R08; R09; R10; R11; R12; LR ].
+
 Definition arm_MUL_instr : instr_desc_t :=
   let mn := MUL in
   let tin := [:: sreg; sreg ] in
+  let iop n :=
+    if set_flags opts then
+      ADExplicit (AK_mem Aligned) n (ACR_subset arm_high_registers)
+    else Ea n.+1 in
   let x :=
     {|
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
-      id_in := [:: Ea 1; Ea 2 ];
+      id_in := [:: iop 0; iop 1 ];
       id_tout := snz_r;
       id_out := ad_nz ++ [:: Ea 0 ];
       id_semi := sem_prod_ok tin arm_MUL_semi;
-      id_nargs := 3;
-      id_args_kinds := ak_reg_reg_reg;
+      id_nargs := if set_flags opts then 2 else 3;
+      id_args_kinds := if set_flags opts then ak_reg_reg else ak_reg_reg_reg;
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
