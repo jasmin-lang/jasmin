@@ -647,6 +647,63 @@ Qed.
 
 End FUN.
 
+Section ESEM.
+
+Let Pi i :=
+  forall s1 s2 vm1,
+    esem_i p ev i s1 = ok s2 ->
+    (evm s1 =1 vm1)%vm ->
+    exists2 vm2, esem_i p' ev i (with_vm s1 vm1) = ok (with_vm s2 vm2) & evm s2 =1 vm2.
+
+Let Pi_r i := forall ii, Pi (MkI ii i).
+
+Let Pc c :=
+  forall s1 s2 vm1,
+    esem p ev c s1 = ok s2 ->
+    (evm s1 =1 vm1)%vm ->
+    exists2 vm2, esem p' ev c (with_vm s1 vm1) = ok (with_vm s2 vm2) & evm s2 =1 vm2.
+
+Lemma esem_vm_eq s1 c s2 vm1:
+  esem p ev c s1 = ok s2 ->
+  (evm s1 =1 vm1)%vm ->
+  exists2 vm2, esem p' ev c (with_vm s1 vm1) = ok (with_vm s2 vm2) & evm s2 =1 vm2.
+Proof.
+  move: s1 s2 vm1; apply (cmd_rect (Pi:=Pi) (Pr:=Pi_r) (Pc:=Pc)) => // {c}.
+  + by move=> s1 s2 vm1 /= [<-] ?; exists vm1.
+  + move=> i c hi hc s1 s2 vm1 /=; t_xrbindP.
+    move=> s1' hsi hsc heq.
+    by have [vm1' -> /=] := hi _ _ _ hsi heq; apply: hc hsc.
+  + move=> x tg ty e ii s1 s2 vm1 /=; rewrite /sem_assgn -eq_globs; t_xrbindP.
+    move=> v he v' htr hw heq.
+    rewrite -(sem_pexpr_ext_eq true (p_globs p) _ heq) he /= htr /=.
+    by have [vm2 ??] := write_lvar_ext_eq heq hw; exists vm2.
+  + move=> xs t o es ii s1 s2 vm1 /=; rewrite /sem_sopn -eq_globs; t_xrbindP.
+    move=> vs' vs hes hop hw heq.
+    rewrite -(sem_pexprs_ext_eq true (p_globs p) _ heq) hes /= hop /=.
+    by have [vm2 ??] := write_lvars_ext_eq heq hw; exists vm2.
+  + move=> xs o es ii s1 s2 vm1 /=; rewrite /sem_syscall -eq_globs /upd_estate; t_xrbindP.
+    move=> vs hes fs ho hw heq.
+    rewrite -(sem_pexprs_ext_eq true (p_globs p) _ heq) hes /= ho /= /upd_estate.
+    by have /(_ _ heq) [vm2 ??]:= write_lvars_ext_eq _ hw; exists vm2.
+  + move=> e c1 c2 hc1 hc2 ii s1 s2 vm1 /=; rewrite /sem_cond -eq_globs; t_xrbindP.
+    move=> b v he hb hc heq.
+    rewrite -(sem_pexpr_ext_eq true (p_globs p) _ heq) he /= hb /= => {hb}.
+    by case: b hc heq; [apply hc1 | apply hc2].
+  move=>  i d lo hi c hc ii s1 s2 vm1 /=; rewrite /sem_bound -eq_globs; t_xrbindP.
+  move=> ??? hlo htol ?? hhi htoh <- hf heq.
+  rewrite -!(sem_pexpr_ext_eq true (p_globs p) _ heq) hlo hhi /= htol htoh /=.
+  clear hlo hhi.
+  elim: wrange s1 vm1 hf heq => [ | j js hrec] s1 vm1 /=.
+  + by move=> [<-] ?; eexists; eauto.
+  t_xrbindP.
+  move=> s11 s12 hw hsc hf heq.
+  have [vm2 /= heq1 -> /=] := [elaborate write_lvar_ext_eq (x:=Lvar i) (v:=Vint j) (gd:=[::]) heq hw].
+  have [vm3 ] := hc _ _ _ hsc heq1.
+  by rewrite /esem => -> /=; apply: hrec.
+Qed.
+
+End ESEM.
+
 Section REC.
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
@@ -871,14 +928,14 @@ Proof.
 Qed.
 
 Definition check_es_st_eq_on (X:Sv.t) (es1 es2 : pexprs) (X':Sv.t) :=
-  [/\ X = X', es1 = es2 & Sv.Subset (read_es es1) X].
+  [/\ Sv.Subset X' X, es1 = es2 & Sv.Subset (read_es es1) X].
 
 Definition check_lvals_st_eq_on (X:Sv.t) (xs1 xs2 : lvals) (X':Sv.t) :=
-  [/\ X = X', xs1 = xs2 & Sv.Subset (read_rvs xs1) X].
+  [/\ Sv.Subset X' (Sv.union (vrvs xs1) X), xs1 = xs2 & Sv.Subset (read_rvs xs1) X].
 
 Lemma check_esP_R_st_eq_on X es1 es2 X':
   check_es_st_eq_on X es1 es2 X' → ∀ vm1 vm2 : Vm.t, vm1 =[X] vm2 → vm1 =[X'] vm2.
-Proof. by move=> [<-]. Qed.
+Proof. by move=> [h _ _] vm1 vm2; apply eq_onI. Qed.
 
 Definition checker_st_eq_on : Checker_e eq_on :=
   {| check_es := check_es_st_eq_on;
@@ -910,7 +967,7 @@ Qed.
 
 Lemma check_esP_R_st_uincl_on X es1 es2 X':
   check_es_st_eq_on X es1 es2 X' → ∀ vm1 vm2 : Vm.t, vm1 <=[X] vm2 → vm1 <=[X'] vm2.
-Proof. by move=> [<-]. Qed.
+Proof. by move=> [h _ _] ??; apply uincl_onI. Qed.
 
 Definition checker_st_uincl_on : Checker_e uincl_on :=
   {| check_es := check_es_st_eq_on;
@@ -945,9 +1002,9 @@ Lemma checker_st_eq_onP : Checker_eq p p' checker_st_eq_on.
 Proof.
   constructor; rewrite -eq_globs.
   + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- [? <- ?]; apply read_es_st_eq_on.
-  move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- [<- <- ?] vs.
+  move=> wdb ? d xs1 xs2 d' /wdb_ok_eq <- [hsub <- ?] vs.
   apply wrequiv_weaken with (st_rel eq_on d) (st_rel eq_on (Sv.union (vrvs xs1) d)) => //.
-  + by apply st_rel_weaken => ??; apply eq_onI; SvD.fsetdec.
+  + by apply st_rel_weaken => ??; apply eq_onI.
   by apply write_lvals_st_eq_on.
 Qed.
 #[local] Hint Resolve checker_st_eq_onP : core.
@@ -956,9 +1013,9 @@ Lemma checker_st_uincl_onP : Checker_uincl p p' checker_st_uincl_on.
 Proof.
   constructor; rewrite -eq_globs.
   + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- [? <- ?]; apply read_es_st_uincl_on.
-  move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- [<- <- ?] vs1 vs2 hu.
+  move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- [hsub <- ?] vs1 vs2 hu.
   apply wrequiv_weaken with (st_rel uincl_on d) (st_rel uincl_on (Sv.union (vrvs xs1) d)) => //.
-  + by apply st_rel_weaken => ??; apply uincl_onI; SvD.fsetdec.
+  + by apply st_rel_weaken => ??; apply uincl_onI.
   by apply: write_lvals_st_uincl_on hu.
 Qed.
 
@@ -992,7 +1049,8 @@ Proof.
   + move=> x tg ty e ii X. rewrite read_i_assgn => hsub.
     apply wequiv_assgn_rel_eq with checker_st_eq_on X => //=.
     + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
-    by split => //; rewrite /read_rvs /= read_rvE; SvD.fsetdec.
+    split => //; first by SvD.fsetdec.
+    by rewrite /read_rvs /= read_rvE; SvD.fsetdec.
   + move=> xs tg o es ii X. rewrite read_i_opn => hsub.
     by apply wequiv_opn_rel_eq with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
   + move=> xs sc es ii X. rewrite read_i_syscall => hsub.
@@ -1047,6 +1105,7 @@ Lemma it_read_cP X c :
 Proof. by apply it_read_cP_aux => // fn ?? h; apply wiequiv_f_eq. Qed.
 
 End REFL.
+
 
 End IT_Sem_eqv.
 

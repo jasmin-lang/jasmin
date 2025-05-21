@@ -717,6 +717,20 @@ Proof.
   move=> > <-; apply hx.
 Qed.
 
+Lemma wequiv_syscall_esem (P Q : rel_c) ii1 xs1 sc1 es1 c2 :
+  wrequiv P (sem_syscall p1 xs1 sc1 es1)
+            (esem p2 ev2 c2) Q ->
+  wequiv P [:: MkI ii1 (Csyscall xs1 sc1 es1)] c2 Q.
+Proof.
+  move=> h s t hP /=.
+  case heq: sem_syscall => [s' | e] /=.
+  + rewrite bind_ret_r.
+    have [t' /esem_i_bodyP -> hQ /=] := h s t s' hP heq.
+    by apply xrutt.xrutt_Ret.
+  rewrite bind_ret_r; apply xrutt_CutL => //.
+  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
+Qed.
+
 Section ST_REL.
 
 Context (D:Type).
