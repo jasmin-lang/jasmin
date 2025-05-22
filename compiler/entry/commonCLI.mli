@@ -18,6 +18,7 @@ val parse_and_compile :
       and type xreg = 'xreg) ->
   wi2i:bool ->
   (* true => start by replacing wint operation by int operation *)
+  safety:bool ->
   Compiler.compiler_step ->
   string ->
   (string * string) list ->

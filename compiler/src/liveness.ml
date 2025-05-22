@@ -45,6 +45,10 @@ and live_d weak d (s_o: Sv.t) =
      else s_o in
     s_i, s_o, Copn(xs,t,o,es)
 
+  | Cassert(p, a) ->
+    let s_i = Sv.union (vars_e a) s_o in
+    s_i, s_o, Cassert(p, a)
+
   | Cif(e,c1,c2) ->
     let s1, c1 = live_c weak c1 s_o in
     let s2, c2 = live_c weak c2 s_o in
@@ -103,7 +107,7 @@ let iter_call_sites (cbf: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit)
       match i.i_desc with
       | Ccall (xs, fn, _) -> cbf i.i_loc fn xs i.i_info
       | Csyscall (xs, op, _) -> cbs i.i_loc op xs i.i_info
-      | (Cassgn _ | Copn _ | Cif _ | Cfor _ | Cwhile _) -> ()
+      | (Cassgn _ | Copn _ | Cif _ | Cfor _ | Cwhile _ | Cassert _ ) -> ()
     ) f.f_body
 
 let pp_info fmt (s1, s2) =
@@ -122,7 +126,7 @@ let rec conflicts_i cf i =
   let cf = merge_class cf s1 in
 
   match i.i_desc with
-  | Cassgn _ | Copn _ | Csyscall _ | Ccall _ ->
+  | Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _ ->
     merge_class cf s2
   | Cfor( _, _, c) ->
     conflicts_c (merge_class cf s2) c
