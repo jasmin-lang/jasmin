@@ -16,33 +16,33 @@ Section WITH_PARAMS.
 
 Context {fcp : FlagCombinationParams}.
 
-Definition e2bool (e:pexpr) : exec bool := 
+Definition e2bool (e:pexpr) : exec bool :=
   match e with
   | Pbool b => ok b
   | _       => type_error
   end.
 
-Definition e2int (e:pexpr) : exec Z := 
+Definition e2int (e:pexpr) : exec Z :=
   match e with
   | Pconst z => ok z
   | _        => type_error
   end.
 
-Definition e2word (sz:wsize) (e:pexpr) : exec (word sz) := 
+Definition e2word (sz:wsize) (e:pexpr) : exec (word sz) :=
   match is_wconst sz e with
   | Some w => ok w
   | None   => type_error
   end.
- 
+
 Definition of_expr (t:stype) : pexpr -> exec (sem_t t) :=
   match t return pexpr -> exec (sem_t t) with
   | sbool   => e2bool
   | sint    => e2int
-  | sarr n  => fun _ => type_error 
+  | sarr n  => fun _ => type_error
   | sword sz => e2word sz
   end.
 
-Definition to_expr (t:stype) : sem_t t -> exec pexpr := 
+Definition to_expr (t:stype) : sem_t t -> exec pexpr :=
   match t return sem_t t -> exec pexpr with
   | sbool => fun b => ok (Pbool b)
   | sint  => fun z => ok (Pconst z)
@@ -50,23 +50,23 @@ Definition to_expr (t:stype) : sem_t t -> exec pexpr :=
   | sword sz => fun w => ok (wconst w)
   end.
 
-Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr := 
-  let r := 
+Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr :=
+  let r :=
     Let x := of_expr _ e in
     Let v := sem_sop1_typed o x in
     to_expr v in
-  match r with 
+  match r with
   | Ok e => e
   | _ => Papp1 o e
   end.
 
-Definition ssem_sop2 (o: sop2) (e1 e2: pexpr) : pexpr := 
-  let r := 
+Definition ssem_sop2 (o: sop2) (e1 e2: pexpr) : pexpr :=
+  let r :=
     Let x1 := of_expr _ e1 in
     Let x2 := of_expr _ e2 in
     Let v  := sem_sop2_typed o x1 x2 in
-    to_expr v in 
-  match r with 
+    to_expr v in
+  match r with
   | Ok e => e
   | _ => Papp2 o e1 e2
   end.
@@ -98,17 +98,17 @@ Definition s_op1 o e :=
   | Oneg Op_int => sneg_int e
   | _           => ssem_sop1 o e
   end.
- 
+
 (* ------------------------------------------------------------------------ *)
 
-Definition sbeq e1 e2 := 
+Definition sbeq e1 e2 :=
   match is_bool e1, is_bool e2 with
   | Some b1, Some b2 => Pbool (b1 == b2)
-  | Some b, _ => if b then e2 else snot e2 
-  | _, Some b => if b then e1 else snot e1 
+  | Some b, _ => if b then e2 else snot e2
+  | _, Some b => if b then e1 else snot e1
   | _, _      => Papp2 Obeq e1 e2
   end.
-  
+
 Definition sand e1 e2 :=
   match is_bool e1, is_bool e2 with
   | Some b, _ => if b then e2 else false
@@ -268,7 +268,7 @@ Definition sge ty e1 e2 :=
 
 Definition s_op2 o e1 e2 :=
   match o with
-  | Obeq    => sbeq e1 e2 
+  | Obeq    => sbeq e1 e2
   | Oand    => sand e1 e2
   | Oor     => sor  e1 e2
   | Oadd ty => sadd ty e1 e2
@@ -384,6 +384,20 @@ Fixpoint const_prop_e (m:cpm) e :=
   | Papp2 o e1 e2 => s_op2 o (const_prop_e m e1)  (const_prop_e m e2)
   | PappN op es   => s_opN op (map (const_prop_e m) es)
   | Pif t e e1 e2 => s_if t (const_prop_e m e) (const_prop_e m e1) (const_prop_e m e2)
+  | Pbig idx op x body s len =>
+    let s   := const_prop_e m s in
+    let len := const_prop_e m len in
+    let idx := const_prop_e m idx in
+    match is_const s, is_const len with
+    | Some s, Some len =>
+      foldl (fun acc i =>
+              let m := Mvar.set m x (Cint i) in
+              let b := const_prop_e m body in
+              Papp2 op acc b)
+            idx (ziota s len)
+    | _, _ =>
+      Pbig idx op x (const_prop_e (Mvar.remove m x) body) s len
+    end
   end.
 
 End GLOBALS.
@@ -471,7 +485,8 @@ Section GLOBALS.
 
 Context (gd: glob_decls).
 
-Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
+Fixpoint const_prop_ir with_globals without_globals (m:cpm) ii (ir:instr_r) : cpm * cmd :=
+  let const_prop_i :=  const_prop_i with_globals without_globals in
   match ir with
   | Cassgn x tag ty e =>
     let globs := with_globals gd tag in
@@ -496,6 +511,10 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let es := map (const_prop_e without_globals m) es in
     let (m,xs) := const_prop_rvs without_globals m xs in
     (m, [:: MkI ii (Csyscall xs o es) ])
+
+  | Cassert a =>
+    let b := const_prop_e without_globals m a.2 in
+    (m, [:: MkI ii (Cassert (a.1, b)) ])
 
   | Cif b c1 c2 =>
     let b := const_prop_e without_globals m b in
@@ -535,9 +554,9 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
 
   end
 
-with const_prop_i (m:cpm) (i:instr) : cpm * cmd :=
+with const_prop_i with_globals without_globals (m:cpm) (i:instr) : cpm * cmd :=
   let (ii,ir) := i in
-  const_prop_ir m ii ir.
+  const_prop_ir with_globals without_globals m ii ir.
 
 End GLOBALS.
 
@@ -545,12 +564,24 @@ Section Section.
 
 Context {pT: progT}.
 
-Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
-  let 'MkFun ii si p c so r ev := f in
-  let (_, c) := const_prop (const_prop_i gd) empty_cpm c in
-  MkFun ii si p c so r ev.
+Let with_globals_cl (gd: glob_decls) : globals := Some (assoc gd).
 
-Definition const_prop_prog (p:prog) : prog := map_prog (const_prop_fun p.(p_globs)) p.
+Definition const_prop_a without_globals (a:assertion) := (a.1, const_prop_e without_globals empty_cpm a.2).
+
+Definition const_prop_ci without_globals ci :=
+  let ci_pre := map (const_prop_a without_globals) ci.(f_pre) in
+  let ci_post := map (const_prop_a without_globals) ci.(f_post) in
+  MkContra ci.(f_iparams) ci.(f_ires) ci_pre ci_post.
+
+Definition const_prop_fun (cl: bool) (gd: glob_decls) (f: fundef) :=
+  let with_globals := if cl then (fun _ _ => with_globals_cl gd) else with_globals in
+  let without_globals := if cl then with_globals_cl gd else without_globals in
+  let 'MkFun ii ci si p c so r ev := f in
+  let (_, c) := const_prop (const_prop_i gd with_globals without_globals) empty_cpm c in
+  let ci := Option.map (const_prop_ci without_globals) ci in
+  MkFun ii ci si p c so r ev.
+
+Definition const_prop_prog (cl: bool) (p:prog) : prog := map_prog (const_prop_fun cl p.(p_globs)) p.
 
 End Section.
 
