@@ -434,7 +434,7 @@ Section HOARE_CORE.
 
 Context {E E0: Type -> Type}  {sem_F : sem_Fun E} {wE: with_Error E E0} {iE0 : InvEvent E0} {iEr : InvErr}.
 
-Context (p : prog) (ev: extra_val_t).
+Context (p : prog) (ev: extra_val_t) {wa : WithAssert}.
 
 (* Hoare triples with relational post-conditions on itree semantics,
    based on khoare triples *)
@@ -538,6 +538,32 @@ Proof.
   apply (rhoare_read he).
   move=> t ht; eapply rhoare_read; last by apply hwr.
   move=> s hP; apply (ho s hP _ ht).
+Qed.
+
+Lemma hoare_assert (P Q : Pred_c) Qerr ii a :
+  (forall s e, P s -> Qerr e -> rInvErr s e) ->
+  rhoare P (fun s => sem_assert (p_globs p) s a) (fun _ => True) Qerr ->
+  (forall s, P s -> sem_assert (p_globs p) s a = ok tt -> Q s) ->
+  hoare P [:: MkI ii (Cassert a)] Q.
+Proof.
+  move=> herr he ha ; rewrite /hoare /isem_cmd_ /=.
+  apply khoare_bind with Q; last by apply khoare_ret.
+  apply  khoare_ioP.
+  move => s0 hpre.
+  apply khoare_read with (R:= (fun _ => P s0 /\ sem_assert (p_globs p) s0 a = ok tt)).
+  + rewrite /isem_assert.
+    apply khoare_iresult with (Qerr).
+    + move => s e h; subst.
+      exact: (herr _ _ hpre).
+    move => s hpre';subst.
+    have := he s0 hpre.
+    case (sem_assert (p_globs p) s0 a).
+    + by move => [] ?.
+    done.
+    move => _ [] _ has.
+    apply khoare_ret.
+    move => s heq;subst.
+    by apply: ha.
 Qed.
 
 Lemma hoare_if_full P Q Qerr ii e c c' :
