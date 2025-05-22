@@ -40,7 +40,7 @@ End CHECK_NO_FOR_LOOP_CMD.
 
 Fixpoint check_no_for_loop_instr_r i : cexec unit :=
   match i with
-  | (Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _ | Ccall _ _ _)
+  | (Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _ | Cassert _ | Ccall _ _ _)
     => ok tt
   | (Cif _ c c' | Cwhile _ c _ _ c') =>
       check_no_for_loop_cmd check_no_for_loop_instr c >> check_no_for_loop_cmd check_no_for_loop_instr c'
@@ -61,7 +61,7 @@ Definition check_no_inline_instr_cmd (i: instr → cexec unit) (c: cmd) := allM 
 
 Fixpoint check_no_inline_instr_instr_r i : cexec unit :=
   match i with
-  | (Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _ | Cfor _ _ _ | Ccall _ _ _)
+  | (Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _ | Cassert _ | Cfor _ _ _ | Ccall _ _ _)
       => ok tt
   | (Cif _ c c' | Cwhile _ c _ _ c') =>
       check_no_inline_instr_cmd check_no_inline_instr_instr c >> check_no_inline_instr_cmd check_no_inline_instr_instr c'

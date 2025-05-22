@@ -4,7 +4,7 @@ open Glob_options
 
 let preprocess reg_size asmOp p =
   let p =
-    p |> Subst.remove_params |> Insert_copy_and_fix_length.doit reg_size
+    p |> Subst.remove_params|> Insert_copy_and_fix_length.doit reg_size
   in
   Typing.check_prog reg_size asmOp p;
   p
@@ -50,7 +50,7 @@ let rec warn_extra_i pd asmOp i =
   | Cfor _ ->
       hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
         "for loop remains"
-  | Ccall _ | Csyscall _ -> ()
+  | Ccall _ | Csyscall _ | Cassert _ -> ()
 
 let warn_extra_fd pd asmOp (_, fd) = List.iter (warn_extra_i pd asmOp) fd.f_body
 
@@ -77,9 +77,11 @@ let do_wint_int
        and type asm_op = asm_op
        and type extra_op = extra_op) prog =
   let fdsi = snd prog in
-  let fv = List.fold_left (fun fv fd -> Sv.union fv (vars_fc fd)) Sv.empty fdsi in
-  let m =
-    Sv.fold (fun x m ->
+  let get_info p =
+    let p = Conv.prog_of_cuprog p in
+    let fv = List.fold_left (fun fv fd -> Sv.union fv (vars_fc_contracts fd)) Sv.empty (snd p) in
+    let m =
+      Sv.fold (fun x m ->
           match x.v_ty with
           | Bty (U _) ->
             begin match Annotations.has_wint x.v_annot with
@@ -90,12 +92,14 @@ let do_wint_int
               Mv.add x (sg, Conv.cvar_of_var xi) m
             end
           | _ -> m)
-      fv Mv.empty in
-  let cp = Conv.cuprog_of_prog prog in
-  let info x =
-    let x = Conv.var_of_cvar x in
-     Mv.find_opt x m in
-  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.msf_size info cp in
+      fv Mv.empty in  
+    let info x =
+      let x = Conv.var_of_cvar x in
+      Mv.find_opt x m in
+    Conv.csv_of_sv fv ,info
+  in
+  let cp = Conv.cuprog_of_prog prog in 
+  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.msf_size Arch.pointer_data get_info cp in
   let cp =
     match cp with
     | Utils0.Ok cp -> cp
@@ -117,6 +121,45 @@ let do_wint_int
     } in
   let fds = List.map2 restore_sig fdsi fdso in
   (gd, fds)
+
+
+(*--------------------------------------------------------------------- *)
+let create_safety_asserts
+   (type reg regx xreg rflag cond asm_op extra_op)
+    (module Arch : Arch_full.Arch
+      with type reg = reg
+       and type regx = regx
+       and type xreg = xreg
+       and type rflag = rflag
+       and type cond = cond
+       and type asm_op = asm_op
+       and type extra_op = extra_op) prog =
+  let memo = Hashtbl.create 5 in
+  let b (cv:Var0.Var.var) = 
+      match Hashtbl.find memo cv with
+      | x -> x
+      | exception Not_found ->
+          let v = Conv.var_of_cvar cv in
+          let t = match v.v_ty with
+            |Arr (ws, x) ->  Arr(U8, (size_of_ws ws) * x)
+            | _ ->  tbool
+          in
+          let bv = V.mk ("b_"^v.v_name) (Reg (Normal, Direct)) t v.v_dloc [] in
+          let cbv = Conv.cvar_of_var bv in
+          Hashtbl.add memo cv cbv;
+          cbv
+  in
+  let create_var vk name t l =  Conv.cvar_of_var (V.mk name vk (Conv.ty_of_cty t) l []) in  
+  let cuprog = Conv.cuprog_of_prog prog in     
+  let cuprog = 
+    Compiler_extraction.create_safety_asserts
+    Arch.asmOp Arch.pointer_data Arch.msf_size create_var b Arch.fcp Arch.aparams.ap_is_move_op cuprog
+  in
+  let prog =  Conv.prog_of_cuprog cuprog in 
+  Format.eprintf "@[<v>Program after safety passes:@;%a@.@]" 
+  (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) prog;
+
+  prog
 
 
 (*--------------------------------------------------------------------- *)

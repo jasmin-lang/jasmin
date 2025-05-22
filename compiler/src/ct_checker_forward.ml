@@ -1,5 +1,6 @@
 open Utils
 open Prog
+open Operators 
 
 module A = Annotations
 module S = Syntax
@@ -318,15 +319,15 @@ let instanciate_fty fty lvls  =
   tyout
 
 (* -----------------------------------------------------------*)
-let is_ct_op1 (_: Expr.sop1) = true
+let is_ct_op1 (_: sop1) = true
 
-let is_ct_op2 (o: Expr.sop2) =
+let is_ct_op2 (o: sop2) =
   match o with
   | Omod (_, Op_w _) | Odiv (_, Op_w _) -> false
   | Owi2(_, _, (WImod | WIdiv)) -> false
   | _ -> true
 
-let is_ct_opN (_ : Expr.opN) = true
+let is_ct_opN (_ : opN) = true
 
 let is_ct_sopn is_ct_asm (o : 'a Sopn.sopn) =
   match o with
@@ -366,6 +367,17 @@ let rec ty_expr ~(public:bool) env (e:expr) =
     let public = public || not (is_ct_opN o) in
     ty_exprs_max ~public env es
   | Pif(_, e1, e2, e3) -> ty_exprs_max ~public env [e1; e2; e3]
+  | Pbig _ -> assert false
+  | Parr_init_elem (e,_) ->
+    ty_expr ~public env e
+  | Pis_var_init x -> Env.get ~public env x
+  | Pis_arr_init (x,e1,e2)
+  | Pis_barr_init (x,e1,e2) ->
+    let env, ty = Env.get ~public env x in
+    ty_exprs_max ~public env [e1; e2]
+  | Pis_mem_init (e1,e2) -> 
+    let env, _ = ty_exprs_max ~public env [e1; e2] in
+    env, Secret
 
 and ty_exprs ~public env es =
   List.map_fold (ty_expr ~public) env es
@@ -555,6 +567,8 @@ let rec ty_instr is_ct_asm fenv env i =
   | Csyscall(xs, RandomBytes _, es) ->
     let env, _ = ty_exprs_max ~public:true env es in
     ty_lvals1 env xs (declassify_lvl i.i_annot Secret)
+
+  | Cassert _ -> assert false
 
   | Cif(e, c1, c2) ->
     let env, _ = ty_expr ~public:true env e in
