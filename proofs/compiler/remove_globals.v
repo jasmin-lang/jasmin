@@ -44,7 +44,7 @@ Section REMOVE.
 
   Notation venv := (Mvar.t var).
 
-  Definition check_data (d:glob_value) (ws:wsize) (w:word ws) := 
+  Definition check_data (d:glob_value) (ws:wsize) (w:word ws) :=
     match d with
     | @Gword ws' w' => (ws == ws') && (w == zero_extend ws w')
     | _             => false
@@ -57,7 +57,7 @@ Section REMOVE.
     match find_map test gd with
     | None => Error (rm_glob_error ii xi)
     | Some g => ok g
-    end. 
+    end.
 
   Definition add_glob ii (x:var) (gd:glob_decls) (ws:wsize) (w:word ws) :=
     let test (gv:glob_decl) := 
@@ -83,7 +83,7 @@ Section REMOVE.
         else ok gd
       | _ => ok gd
       end
-    | Copn _ _ _ _ | Csyscall _ _ _ | Ccall _ _ _ => ok gd
+    | Copn _ _ _ _ | Csyscall _ _ _ | Cassert _ | Ccall _ _ _ => ok gd
     | Cif _ c1 c2 =>
       Let gd := foldM extend_glob_i gd c1 in
       foldM extend_glob_i gd c2
@@ -101,15 +101,15 @@ Section REMOVE.
   Section GD.
     Context (gd:glob_decls).
 
-    Definition get_var_ ii (env:venv) (xi:gvar) := 
+    Definition get_var_ ii (env:venv) (xi:gvar) :=
       if is_lvar xi then
-        let vi := xi.(gv) in 
+        let vi := xi.(gv) in
         let x := vi.(v_var) in
         if is_glob_var x then
           match Mvar.get env x with
           | Some g => ok (mk_gvar (VarI g vi.(v_info)))
           | None   => Error (rm_glob_error ii vi)
-          end 
+          end
         else ok xi
       else ok xi.
 
@@ -149,6 +149,20 @@ Section REMOVE.
         Let e1 := remove_glob_e ii env e1 in
         Let e2 := remove_glob_e ii env e2 in
         ok (Pif t e e1 e2)
+      | Pbig idx op x body start len =>
+        Let _     := assert (~~ is_glob_var x) (rm_glob_error ii x) in
+        Let idx   := remove_glob_e ii env idx in
+        Let start := remove_glob_e ii env start in
+        Let len   := remove_glob_e ii env len in
+        Let body  := remove_glob_e ii env body in
+        ok (Pbig idx op x body start len)
+
+      | Pis_var_init _ => ok e
+
+      | Pis_mem_init e1 e2 =>
+        Let e1 := remove_glob_e ii env e1 in
+        Let e2 := remove_glob_e ii env e2 in
+        ok (Pis_mem_init e1 e2)
       end.
 
     Definition remove_glob_lv ii (env:venv) (lv:lval) :=
@@ -268,6 +282,9 @@ Section REMOVE.
           Let lvs := mapM (remove_glob_lv ii env) lvs in
           Let es  := mapM (remove_glob_e ii env) es in
           ok (env, [::MkI ii (Csyscall lvs o es)])
+        | Cassert a =>
+          Let a := sndM (remove_glob_e ii env) a in
+          ok (env, [::MkI ii (Cassert a)])
         | Cif e c1 c2 =>
           Let e := remove_glob_e ii env e in
           Let envc1 := remove_glob remove_glob_i env c1 in
@@ -315,6 +332,7 @@ Section REMOVE.
       Let envc := remove_glob remove_glob_i env f.(f_body) in
       ok
         {| f_info   := f.(f_info);
+           f_contra := f.(f_contra);
            f_tyin   := f.(f_tyin);
            f_params := f.(f_params);
            f_body   := envc.2;

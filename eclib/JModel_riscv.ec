@@ -2,6 +2,9 @@
 require import AllCore List Bool IntDiv.
 require export JModel_common JArray JWord_array JMemory JLeakage Jslh.
 
+
+abbrev ptr_modulus = 2^32.
+
 (* -------------------------------------------------------------------- *)
 abbrev [-printing] ADD (x y : W32.t) : W32.t = x + y.
 abbrev [-printing] ADDI = ADD.

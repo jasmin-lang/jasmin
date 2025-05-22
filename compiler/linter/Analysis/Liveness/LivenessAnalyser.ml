@@ -77,6 +77,12 @@ module LivenessDomain : BackwardAnalyser.Logic with type domain = Sv.t = struct
     | Oslh _ | Oasm _ | Opseudo_op _ ->
       Annotation (live_assigns domain lvs exprs)
 
+  let assert_
+    (_ : Location.i_loc)
+    ((_, expr) : int Prog.assertion)
+    (domain : domain) =
+    Annotation (live_assigns domain [] [expr])
+
 end
 
 include BackwardAnalyser.Make (LivenessDomain)

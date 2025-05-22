@@ -42,6 +42,13 @@ module type Logic = sig
     -> exprs
     -> domain
     -> domain annotation
+
+  val assert_ :
+       Location.i_loc
+    -> int assertion
+    -> domain
+    -> domain annotation
+
 end
 
 module type S = sig
@@ -199,6 +206,9 @@ struct
       | Copn (lvs, tag, sopn, es) ->
           let annotation = Annotation.bind annotation (L.opn loc lvs tag sopn es) in
           (Copn (lvs, tag, sopn, es), annotation)
+      | Cassert a ->
+          let annotation = Annotation.bind annotation (L.assert_ loc a) in
+          (Cassert a, annotation)
       | Ccall (lvs, fn, es) ->
           let annotation = Annotation.bind annotation (L.funcall loc lvs fn es) in
           (Ccall (lvs, fn, es), annotation)

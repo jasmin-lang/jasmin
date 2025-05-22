@@ -453,6 +453,7 @@ Proof.
     by apply wequiv_opn_rel_eq with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
   + move=> xs sc es ii _ [<-]; rewrite !read_writeE => hsub.
     by apply wequiv_syscall_rel_eq with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
+  + by move=> *; apply wequiv_noassert.
   + move=> e c1 c2 hc1 hc2 ii c_; t_xrbindP.
     move=> [c e'] hcond; t_xrbindP => c1' hc1' c2' hc2' <-; rewrite !read_writeE => hsub.
     rewrite map_cat.
