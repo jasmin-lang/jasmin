@@ -54,6 +54,7 @@ module type Arch = sig
   val reg_size : Wsize.wsize
   val pointer_data : Wsize.wsize
   val msf_size : Wsize.wsize
+  val fcp : Flag_combination.coq_FlagCombinationParams
   val rip : var
 
   val asmOp      : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op Sopn.asmOp

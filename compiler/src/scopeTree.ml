@@ -60,22 +60,29 @@ let find_common_ancestor (t : tree) (nodes : nodeset) : node =
 (* --------------------------------------------------------------- *)
 (* Compute variable occurrences in expressions and instructions *)
 
+let variables_in_gvar gv (acc : Spv.t) : Spv.t =
+  let x = L.unloc gv in
+  if x.v_kind <> Const then Spv.add x acc else acc
+
 let variables_in_ggvar { gs; gv } (acc : Spv.t) : Spv.t =
   match gs with
   | E.Sglob -> acc
-  | E.Slocal ->
-      let x = L.unloc gv in
-      if x.v_kind <> Const then Spv.add x acc else acc
+  | E.Slocal -> variables_in_gvar gv acc
 
 let rec variables_in_pexpr (acc : Spv.t) (e : pexpr) : Spv.t =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ -> acc
   | Pvar x -> variables_in_ggvar x acc
+  | Pis_var_init x -> variables_in_gvar x acc
   | Pget (_, _, _, x, e) | Psub (_, _, _, x, e) ->
       variables_in_pexpr (variables_in_ggvar x acc) e
   | Pload (_, _, e) | Papp1 (_, e) -> variables_in_pexpr acc e
-  | Papp2 (_, e1, e2) | Pif (_, _, e1, e2) -> variables_in_pexprs acc [ e1; e2 ]
+  | Papp2 (_, e1, e2) | Pis_mem_init (e1, e2) | Pif (_, _, e1, e2) -> variables_in_pexprs acc [ e1; e2 ]
   | PappN (_, es) -> variables_in_pexprs acc es
+  | Pbig (idx, _op, x, e, start, len)  -> 
+      let acc1 = variables_in_pexpr Spv.empty e in 
+      let acc = Spv.union acc (Spv.remove (L.unloc x) acc1) in
+      variables_in_pexprs acc [ idx; start; len ]
 
 and variables_in_pexprs (acc : Spv.t) (es : pexpr list) : Spv.t =
   List.fold_left variables_in_pexpr acc es
@@ -96,7 +103,7 @@ let variables_in_instr_r : _ pinstr_r -> Spv.t = function
       variables_in_pexprs (variables_in_plvals Spv.empty xs) es
   | Cfor (x, (_, e1, e2), _) ->
       variables_in_pexprs (Spv.singleton (L.unloc x)) [ e1; e2 ]
-  | Cif (e, _, _) | Cwhile (_, _, e, _, _) -> variables_in_pexpr Spv.empty e
+  | Cif (e, _, _) | Cwhile (_, _, e, _, _) | Cassert (_, e) -> variables_in_pexpr Spv.empty e
 
 (** Maps each variable to the set of nodes at which it occurs *)
 let variable_occurrences (c : _ pstmt) : nodeset Mpv.t =
@@ -119,7 +126,7 @@ let rec tree_of_instr ((acc : tree), (t : Tree.t option)) (i : _ ginstr) :
   (tree_of_instr_r acc t i.i_desc, Some t)
 
 and tree_of_instr_r (acc : tree) (t : Tree.t) : _ ginstr_r -> tree = function
-  | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> acc
+  | Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _ -> acc
   | Cfor (_, _, c) -> tree_of_stmt acc (Some t) c |> fst
   | Cif (_, c1, c2) | Cwhile (_, c1, _, _, c2) ->
       let acc, _ = tree_of_stmt acc (Some t) c1 in

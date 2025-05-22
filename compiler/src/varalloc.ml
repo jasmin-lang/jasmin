@@ -101,7 +101,7 @@ in
 
 let rec live_ranges_instr_r d_acc =
   function
-  | (Cassgn _ | Copn _ | Csyscall _ | Ccall _) -> d_acc
+  | (Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _) -> d_acc
   | Cif (_, s1, s2)
   | Cwhile (_, s1, _, _, s2) ->
      let d_acc = live_ranges_stmt d_acc s1 in
@@ -166,7 +166,11 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
     | Psub (_,_,_,_,e) | Pload (_, _, e) | Papp1 (_, e) -> add_e e
     | Papp2 (_, e1,e2) -> add_e e1; add_e e2
     | PappN (_, es) -> add_es es 
-    | Pif (_,e1,e2,e3) -> add_e e1; add_e e2; add_e e3 
+    | Pif (_,e1,e2,e3) -> add_e e1; add_e e2; add_e e3
+    | Pbig (e, _, _, e1, e2, e0) -> add_e e; add_e e1; add_e e2; add_e e0
+    | Pis_var_init _ -> ()
+    | Pis_mem_init (e1,e2) -> add_e e1; add_e e2
+
   and add_es es = List.iter add_e es in
 
   let add_lv = function
@@ -197,6 +201,7 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
     try match i.i_desc with
     | Cassgn(x,_,_,e) -> add_lv x; add_e e
     | Copn(xs,_,_,es) | Csyscall(xs,_,es) -> add_lvs xs; add_es es
+    | Cassert(p, a) -> add_e a
     | Cif(e, _, _) | Cwhile (_, _, e, _, _) -> add_e e
     | Cfor _ -> assert false
     | Ccall(xs, fn, es) ->

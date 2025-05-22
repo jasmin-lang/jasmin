@@ -66,7 +66,7 @@ Section E.
       by (eexists; first reflexivity) => /=.
     + move=> o e he v v1 /he{he} [v' he hu].
       rewrite /sem_sop1 /=; t_xrbindP => + /(of_value_uincl_te hu).
-      case: o => [sz | si sz | si sz | si sz | | sz | [ | sz] | sg o] /=;
+      case: o => [sz | si sz | si sz | si sz | | sz | [ | sz] | sg o | len] /=;
         rewrite /= ?he /sem_sop1 /=; t_xrbindP;
         try by move=> > -> /= > [->] <-; (eexists; first reflexivity) => /=.
       case: o => /=; rewrite he /sem_sop1 /=.
@@ -122,7 +122,6 @@ Section E.
            case: si => //=; rewrite ?(Z.gtb_ltb, Z.geb_leb) //.
     + move=> op es hes v vs /hes [vs']; rewrite /sem_pexprs => -> /= hus hs.
       by rewrite (vuincl_sem_opN hus hs); eexists; first reflexivity.
-
     move=> t e he e1 he1 e2 he2 v b v0 /he [v0' -> hu0].
     move=> /to_boolI => ?; subst v0.
     have ? := value_uinclE hu0; subst v0'.
@@ -344,7 +343,7 @@ Proof.
   + by rewrite get_map_prog Hfun.
   move=> {Hfun}.
   case: f htra Hi Hw Hc Hres Hfull Hfi hfun' => /=.
-  move=> info tyin params body tyout res extra htra hi hw hc hres hfull hfi hfun'.
+  move=> info fci tyin params body tyout res extra htra hi hw hc hres hfull hfi hfun'.
   have [vargs2 {}htra hu1] := mapM2_dc_truncate_val htra hu.
   have [vm1 {}hw hu2] := [elaborate write_vars_uincl (vm_uincl_refl _) hu1 hw].
   have [vm' {}hc hu3] := hc _ hu2.
@@ -445,6 +444,7 @@ Proof.
   + by move=> x tg ty e ii; apply wequiv_assgn_rel_uincl with checker_wi2w tt.
   + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_wi2w tt.
   + by move=> xs o es ii; apply wequiv_syscall_rel_uincl with checker_wi2w tt.
+  + by move=> >; apply wequiv_noassert.
   + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_wi2w tt tt tt.
   + by move=> v dir lo hi c hc ii; apply wequiv_for_rel_uincl with checker_wi2w tt tt.
   + by move=> a c e ii' c' hc hc' ii; apply wequiv_while_rel_uincl with checker_wi2w tt.

@@ -185,6 +185,15 @@ Section CoreMem.
     by case: set.
   Qed.
 
+  Lemma getok_setok m r q w :
+    get m q = ok r ->
+    exists m', set m q w = ok m'.
+  Proof.
+    move=> hg; apply get_valid8 in hg.
+    move: hg => /(valid8P _ _ w) [x hs].
+    by eauto.
+  Qed.
+
   Lemma readE m al p sz :
     read m al p sz =
       Let _ := assert (is_aligned_if al p sz) ErrAddrInvalid in

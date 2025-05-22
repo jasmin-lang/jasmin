@@ -17,6 +17,10 @@ let rec inspect_e k = function
   | Papp2 (_, e1, e2) -> inspect_e (inspect_e k e1) e2
   | PappN (_, es) -> inspect_es k es
   | Pif (_, e1, e2, e3) -> inspect_e (inspect_e (inspect_e k e1) e2) e3
+  | Pbig(e, op2, x, e1, e2, e0) ->
+    List.fold_left inspect_e k [e;e1;e2; e0]
+  | Pis_var_init _ -> k
+  | Pis_mem_init (e1,e2) -> inspect_e (inspect_e k e1) e2
 
 and inspect_es k es = List.fold_left inspect_e k es
 
@@ -32,7 +36,8 @@ and inspect_instr k i = inspect_instr_r k i.i_desc
 and inspect_instr_r k = function
   | Cassgn (x, _, _, e) -> inspect_lv (inspect_e k e) x
   | Copn (xs, _, _, es) | Csyscall (xs, _, es) ->
-      inspect_lvs (inspect_es k es) xs
+    inspect_lvs (inspect_es k es) xs
+  | Cassert (_, e) -> inspect_e k e
   | Cif (g, a, b) | Cwhile (_, a, g, _, b) ->
       inspect_stmt (inspect_stmt (inspect_e k g) a) b
   | Cfor (_, (_, e1, e2), s) -> inspect_stmt (inspect_es k [ e1; e2 ]) s

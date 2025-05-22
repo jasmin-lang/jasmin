@@ -110,7 +110,7 @@ Section CHECK_EP.
   Lemma check_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
   Proof.
   Local Opaque arr_size.
-    apply: pexprs_ind_pair; split; subst P Q => /=.
+    apply: pexprs_ind_pair; split; subst P Q => //=.
     - case => // r _ vm1 _ [<-] h; split => // scs m _ [<-] /=; eauto.
     - move => e1 he1 es1 hes1 [] // e2 es2 r re vm1 err; t_xrbindP => r' ok_r' ok_re h.
       move: he1 => /(_ e2 r r' vm1 ok_r' h) [] h' he1.
@@ -829,6 +829,11 @@ Section PROOF.
     + move=> xs o es ii dead_vars r1 r2 ii2 [] // xs2 o2 es2 /=.
       t_xrbindP => r1' /eqP <- hces hcxs.
       apply wequiv_syscall_rel_uincl with checker_alloc r1' => //.
+    (* Assert *)
+    + move=> a1 ii dead_vars r1 r2 ii2 [] //= a2.
+      t_xrbindP => /eqP heq r1' hce <-.
+      apply wequiv_assert_rel_uincl with checker_alloc => //=.
+      by rewrite /check_es_alloc /check_es /= hce.
     (* If *)
     + move=> e c1 c2 hc1 hc2 ii dead_vars r1 r2 ii2 [] // e2 c1' c2' /=.
       t_xrbindP => re hce r1' hcc1 r2' hcc2 <-.

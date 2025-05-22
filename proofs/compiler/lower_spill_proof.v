@@ -633,7 +633,7 @@ Proof.
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
   have [f' hf'1 hf'2] := get_map_cfprog_name_gen spillok hfun.
   case: f hfun htra hinit hw hsc hc hres hfull hf'1 hf'2 =>
-    fi ft fp /= c f_tyout res fb hfun htra hinit hw hsc [hc_ hc] hres hfull hf'1 hf'2.
+    fi fci ft fp /= c f_tyout res fb hfun htra hinit hw hsc [hc_ hc] hres hfull hf'1 hf'2.
   case: ifP hf'1.
   + by move=> hX [?]; subst f'; econstructor; eauto => //=; rewrite -eq_p_extra.
   case ok_m: init_map => [ m _count ].
@@ -728,7 +728,7 @@ Proof.
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
   have [fd' hfd'1 hfd'2] := get_map_cfprog_name_gen spillok hget.
   exists fd' => // {hget hfd'2}.
-  case: fd hfd'1 => fi ft fp /= c f_tyout res fb.
+  case: fd hfd'1 => fi fci ft fp /= c f_tyout res fb.
   case: ifP.
   + move=> _ [<-] /= s hinit.
     exists s.
@@ -787,7 +787,10 @@ Proof.
   + move=> x sc es ii env env' c' [<- <-]; rewrite vars_I_syscall => hsub.
     apply wequiv_syscall_rel_eq with (checker_st_ve S) env => //.
     + by split => //; SvD.fsetdec.
-    split => //; SvD.fsetdec.
+    by split => //; SvD.fsetdec.
+  + move=> a ii env env' c' [<- <-]; rewrite vars_I_assert => hsub.
+    apply wequiv_assert_rel_eq with (checker_st_ve S) => //.
+    by split => //; SvD.fsetdec.
   + move=> e c1 c2 hc1 hc2 ii env env' c' /=; t_xrbindP.
     move=> [env1 c1'] hc1' [env2 c2'] hc2' <- <-.
     rewrite vars_I_if => hsub.

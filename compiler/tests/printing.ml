@@ -102,9 +102,13 @@ and eq_pexpr x y =
   | Papp2 (a, b, c), Papp2 (d, e, f) -> a = d && eq_pexpr b e && eq_pexpr c f
   | PappN (a, b), PappN (c, d) -> a = c && eq_pexprs b d
   | Pif (a, b, c, d), Pif (e, f, g, h) ->
-      eq_pty a e && eq_pexpr b f && eq_pexpr c g && eq_pexpr d h
+    eq_pty a e && eq_pexpr b f && eq_pexpr c g && eq_pexpr d h
+  | Pbig _ , Pbig _ -> assert false
+  | Pis_var_init a , Pis_var_init b -> eq_pvar_i a b
+  | Pis_mem_init (a, b), Pis_mem_init (c, d) -> eq_pexpr a c && eq_pexpr b d
   | ( ( Pconst _ | Pbool _ | Parr_init _ | Pvar _ | Pget _ | Psub _ | Pload _
-      | Papp1 _ | Papp2 _ | PappN _ | Pif _ ),
+      | Papp1 _ | Papp2 _ | PappN _ | Pif _ | Pbig _ | Pis_var_init _
+      | Pis_mem_init _),
       _ ) ->
       false
 
@@ -131,7 +135,9 @@ and eq_pinstr_r (x : _ pinstr_r) y =
   | Cassgn (a, b, c, d), Cassgn (e, f, g, h) ->
       eq_plval a e && b = f && eq_pty c g && eq_pexpr d h
   | Copn (a, b, c, d), Copn (e, f, g, h) ->
-      eq_plvals a e && b = f && c = g && eq_pexprs d h
+    eq_plvals a e && b = f && c = g && eq_pexprs d h
+
+  | Cassert _, Cassert _ -> assert false
   | Csyscall (a, b, c), Csyscall (d, e, f) ->
       eq_plvals a d && b = e && eq_pexprs c f
   | Cif (a, b, c), Cif (d, e, f) -> eq_pexpr a d && eq_pstmt b e && eq_pstmt c f
@@ -141,7 +147,7 @@ and eq_pinstr_r (x : _ pinstr_r) y =
       a = f && eq_pstmt b g && eq_pexpr c h && eq_pstmt e j
   | Ccall (a, b, c), Ccall (d, e, f) ->
       eq_plvals a d && b.fn_name = e.fn_name && eq_pexprs c f
-  | (Cassgn _ | Copn _ | Csyscall _ | Cif _ | Cfor _ | Cwhile _ | Ccall _), _ ->
+  | (Cassgn _ | Copn _ | Csyscall _ | Cif _ | Cfor _ | Cwhile _ | Ccall _ | Cassert _ ), _ ->
       false
 
 let eq_f_annot x y =

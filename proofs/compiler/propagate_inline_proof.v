@@ -224,7 +224,7 @@ Let Q es : Prop :=
 
 Lemma pi_eP_and : (forall e, P e) /\ (forall es, Q es).
 Proof.
-  apply: pexprs_ind_pair; subst P Q; split => /=.
+  apply: pexprs_ind_pair; subst P Q; split => //=.
   + by move=> ? [<-]; exists [::].
   + move=> e hrec es hrecs vs; t_xrbindP => ? /hrec [v' -> hu] ? /hrecs [vs' -> hus] <- /=.
     by exists (v'::vs'); auto.
@@ -247,12 +247,14 @@ Proof.
   + move=> op e1 hrec1 e2 hrec2 v; t_xrbindP => ve1 /hrec1 [ve1' -> hu1] ve2 /hrec2 [ve2' -> hu2] /= hs.
     by rewrite (vuincl_sem_sop2 hu1 hu2 hs); eauto.
   + move=> o es hrec ?; t_xrbindP => ? /hrec [vs' hs' hu].
-    case: o => [wz pe | c] /=.
+    case: o => [wz pe | c | | ] //=.
     + move=> ho; rewrite -/(sem_pexprs wdb gd _ (pi_es pi es)) hs' /=.
       rewrite (vuincl_sem_opN hu ho).
       by eexists; first by reflexivity.
-    move=> ho; have ho' := vuincl_sem_opN hu ho.
-    by rewrite -/(pi_es pi es) (scfcP hs' ho'); eauto.
+    + move=> ho; have ho' := vuincl_sem_opN hu ho.
+      by rewrite -/(pi_es pi es) (scfcP hs' ho'); eauto.
+    + by move=> > /sem_opN_is_arr_init.
+    by move=> > /sem_opN_is_barr_init.
   move=> ?? hrec ? hrec1 ? hrec2 v; t_xrbindP.
   move=> ?? /hrec [? -> /of_value_uincl_te h] /(h cbool) /= ->.
   move=> ?? /hrec1 [? -> hu1] /= /(value_uincl_truncate hu1) [? -> hu1'].
@@ -706,7 +708,7 @@ Section PROOF.
 
   Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
   Proof.
-    move=> scs1 m1 scs2 m2 fn [ii si p c so r ev0] /= vargs' vargs s0 s1 s2 vres vres'.
+    move=> scs1 m1 scs2 m2 fn [ii ci si p c so r ev0] /= vargs' vargs s0 s1 s2 vres vres'.
     move=> hget htr hinit hwr _ hc hres hrtr hscs hfin.
     have [fd2 /=]:= all_checked hget.
     t_xrbindP => -[pi2 c'] hc_ ? hget2 vargs1 hvargs1; subst fd2.
@@ -866,6 +868,8 @@ Section PROOF.
         by apply/valid_pi_with_scs/valid_pi_remove_m.
       + by rewrite /check_lvals /= /check_lvals_pi heq.
       by apply fs_uincl_syscall.
+    + move=> a ii d _ /= [<-].
+      by apply wequiv_assert_rel_uincl with checker_pi.
     + move=> e c1 c2 hc1 hc2 ii d di /=; t_xrbindP => di1 /hc1{}hc1 di2 /hc2{}hc2 <- /=.
       apply wequiv_if_rel_uincl_R with checker_pi d di1.1 di2.1 => //.
       + by apply/st_pi_incl/incl_merge_l.

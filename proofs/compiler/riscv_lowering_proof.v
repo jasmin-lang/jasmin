@@ -810,6 +810,7 @@ Proof.
   + move=> xs o es ii.
     by apply (wequiv_syscall_rel_eq (sip:=sip)) with
        checker_st_eq tt.
+  + by move=> ? ii; apply wequiv_noassert with (ev1:=ev) (ii:=ii).
   (* If *)
   + move=> e c1 c2 hc1 hc2 ii /=.
     by apply (wequiv_if_rel_eq (sip:=sip)) with checker_st_eq tt tt tt.

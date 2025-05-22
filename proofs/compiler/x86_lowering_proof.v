@@ -512,7 +512,7 @@ Section PROOF.
   Proof.
   Local Opaque convertible.
     rewrite /lower_cassgn_classify.
-    move: e Hs=> [z|b|ws n|x|al aa ws x e | aa ws len x e |al sz e| o e|o e1 e2| op es |e e1 e2] //.
+    move: e Hs=> [z|b|ws n|x|al aa ws x e | aa ws len x e |al sz e| o e|o e1 e2| op es |e e1 e2|||] //.
     + case: x => - [] [] [] // sz vn vi vs //= /[dup] ok_v.
       case/type_of_get_gvar => sz' [Hs Hs'].
       have := truncate_val_subctype Hv'. rewrite Hs -(truncate_val_has_type Hv').
@@ -1130,7 +1130,7 @@ Section PROOF.
       - rewrite /exec_sopn /sopn_sem /sopn_sem_; case.
         + by move => ws ? /=; case: eqP => /= ? -> /=.
         by move => _ /= ->.
-      by rewrite /exec_sopn => op _ ->.
+      by rewrite /exec_sopn => /= op _ ->.
 
     exists s'; split => //. by rewrite LetK /sem_sopn hx /= hr.
   Qed.
@@ -1607,7 +1607,7 @@ Section PROOF.
     {
       clear - hsz64 des hx hv C ho.
       case: C => [ [? [? [? ?]]] | [cfi [?[?[? ?]]]]]; subst; apply (conj des).
-      + move: hv hx; rewrite /exec_sopn /sopn_sem; t_xrbindP; case: sub => _ hval <- y hy;
+      + move: hv hx; rewrite /exec_sopn /sopn_sem /with_catch /nocatch; t_xrbindP; case: sub => _ hval <- y hy;
         have {hy} := app_wwb_dec hy => -[sz1] [w1] [sz2] [w2] [b] [hsz1] [hsz2] [?] [?] ?;subst x y v =>
           /sem_pexprs_dec3 [hx] [hy] [?]; subst b;
         (exists [:: Vword w1; Vword w2]; split; [by rewrite /sem_pexprs /= hx /= hy|]);
@@ -1617,7 +1617,7 @@ Section PROOF.
         + by [].
         by rewrite /= Z.add_0_r add_overflow wrepr_add !wrepr_unsigned in ho.
       exists x; split; [ exact hx |]; clear hx.
-      move: hv;rewrite /exec_sopn /sopn_sem; t_xrbindP; case: sub => _ hval <- y hy;
+      move: hv;rewrite /exec_sopn /sopn_sem /with_catch /nocatch; t_xrbindP; case: sub => _ hval <- y hy;
        have {hy} := app_wwb_dec hy=> -[sz1] [w1] [sz2] [w2] [b] [hsz1] [hsz2] [?] [?] ?;
       subst x y v;
       rewrite /= /sopn_sem /sopn_sem_ /= /semi_to_atype !computational_eq_refl
@@ -1649,7 +1649,7 @@ Section PROOF.
     case: o Hv default => // -[] //;
      (move => sz Hv default || move => Hv default).
     (* Omulu *)
-    + move: Hv; rewrite /exec_sopn /sopn_sem ; t_xrbindP => _ hval <- y hy.
+    + move: Hv; rewrite /exec_sopn /sopn_sem /with_catch /nocatch; t_xrbindP => _ hval <- y hy.
       have := app_ww_dec hy => -[sz1] [w1 [sz2 [w2 [hsz1 [hsz2 [? [?]]]]]]] ?; subst x y v.
       move=> {Hx Hw}.
       have [x1 [x2 ?]] := write_lvals_dec2_s Hw'; subst xs.
@@ -2051,6 +2051,8 @@ Section PROOF.
       rewrite /disj_fvars  /x86_lowering.disj_fvars vars_I_syscall => /disjoint_union [hdisjx hdisje].
       apply (wequiv_syscall_rel_eq (sip:=sip)) with
          checker_st_eq_ex fvars => //.
+    (* Cassert *)
+    + by move=> a ii _; apply wequiv_noassert with (ev1:=ev) (ii:=ii).
     (* If *)
     + move=> e c1 c2 hc1 hc2 ii /disj_fvars_vars_I_Cif [hfve /hc1{}hc1 /hc2{}hc2] /=.
       case heq: lower_condition => [pre e'].

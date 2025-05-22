@@ -4,7 +4,7 @@ open Glob_options
 
 let preprocess reg_size asmOp p =
   let p =
-    p |> Subst.remove_params |> Insert_copy_and_fix_length.doit reg_size
+    p |> Subst.remove_params|> Insert_copy_and_fix_length.doit reg_size
   in
   Typing.check_prog reg_size asmOp p;
   p
@@ -50,7 +50,7 @@ let rec warn_extra_i pd asmOp i =
   | Cfor _ ->
       hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
         "for loop remains"
-  | Ccall _ | Csyscall _ -> ()
+  | Ccall _ | Csyscall _ | Cassert _ -> ()
 
 let warn_extra_fd pd asmOp (_, fd) = List.iter (warn_extra_i pd asmOp) fd.f_body
 
@@ -61,6 +61,13 @@ let do_spill_unspill asmop ?(debug = false) cp =
   match Lower_spill.spill_uprog asmop Conv.fresh_var_ident p with
   | Utils0.Error msg -> Error (Conv.error_of_cerror (Printer.pp_err ~debug) msg)
   | Utils0.Ok p -> Ok (Conv.prog_of_cuprog p)
+
+let catch_error cp =
+  match cp with
+  | Utils0.Ok cp -> cp
+  | Utils0.Error e ->
+    let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
+    raise (HiError e)
 
 let do_wint_int
    (type reg regx xreg rflag cond asm_op extra_op)
@@ -73,9 +80,11 @@ let do_wint_int
        and type asm_op = asm_op
        and type extra_op = extra_op) prog =
   let fdsi = snd prog in
-  let fv = List.fold_left (fun fv fd -> Sv.union fv (vars_fc fd)) Sv.empty fdsi in
-  let m =
-    Sv.fold (fun x m ->
+  let get_info p =
+    let p = Conv.prog_of_cuprog p in
+    let fv = List.fold_left (fun fv fd -> Sv.union fv (vars_fc_contracts fd)) Sv.empty (snd p) in
+    let m =
+      Sv.fold (fun x m ->
           match x.v_ty with
           | Bty (U _) ->
             begin match Annotations.has_wint x.v_annot with
@@ -87,17 +96,14 @@ let do_wint_int
             end
           | _ -> m)
       fv Mv.empty in
+    let info x =
+      let x = Conv.var_of_cvar x in
+      Mv.find_opt x m in
+    Conv.csv_of_sv fv ,info
+  in
   let cp = Conv.cuprog_of_prog prog in
-  let info x =
-    let x = Conv.var_of_cvar x in
-     Mv.find_opt x m in
-  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.msf_size info cp in
-  let cp =
-    match cp with
-    | Utils0.Ok cp -> cp
-    | Utils0.Error e ->
-      let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
-      raise (HiError e) in
+  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.msf_size Arch.pointer_data get_info cp in
+  let cp = catch_error cp in
   let (gd, fdso) = Conv.prog_of_cuprog cp in
   (* Restore type of array in the functions signature *)
   let restore_ty tyi tyo =
@@ -113,6 +119,85 @@ let do_wint_int
     } in
   let fds = List.map2 restore_sig fdsi fdso in
   (gd, fds)
+
+
+(*--------------------------------------------------------------------- *)
+
+let add_default_contract args args_ty ret ret_ty =
+  let aux (x,t) =
+    match t with
+    | Arr (ws, len) ->
+      let len = arr_size ws len in
+      let plen = Conv.pos_of_int len in
+      [("safety",PappN (Ois_arr_init plen, [ Pvar (gkvar x);  Pconst Z.zero; Pconst (Z.of_int len) ]))]
+    | _ -> []
+  in
+  let create_new_var x = L.mk_loc L._dummy (GV.mk x.v_name x.v_kind x.v_ty x.v_dloc x.v_annot) in
+
+  let f_iparams = List.map (create_new_var) args in
+  let f_pre = List.flatten (List.map aux (List.combine f_iparams args_ty)) in
+  let ret = List.map (L.unloc) ret in
+  let f_ires = List.map (create_new_var) ret in
+  let f_post = List.flatten (List.map aux (List.combine f_ires ret_ty)) in
+  {
+    f_iparams; f_ires; f_pre; f_post;
+  }
+
+let add_default_contracts prog : global_decl list * (int, 'a, 'b) gfunc list =
+  let add_default_contract fd =
+    let c = match fd.f_contra with
+    | Some c -> Some c
+    | None -> Some (add_default_contract fd.f_args fd.f_tyin fd.f_ret fd.f_tyout)
+    in
+    {fd with f_contra = c }
+  in
+  let globs,funcs = prog in
+  globs,List.map add_default_contract funcs
+
+let create_safety_asserts
+   (type reg regx xreg rflag cond asm_op extra_op)
+    (module Arch : Arch_full.Arch
+      with type reg = reg
+       and type regx = regx
+       and type xreg = xreg
+       and type rflag = rflag
+       and type cond = cond
+       and type asm_op = asm_op
+       and type extra_op = extra_op) prog =
+  let memo = Hashtbl.create 5 in
+  let b (cv:Var0.Var.var) =
+      match Hashtbl.find memo cv with
+      | x -> x
+      | exception Not_found ->
+          let v = Conv.var_of_cvar cv in
+          let t = match v.v_ty with
+            |Arr (ws, x) ->  Arr(U8, (size_of_ws ws) * x)
+            | _ ->  tbool
+          in
+          let bv = V.mk ("b_"^v.v_name) (Reg (Normal, Direct)) t v.v_dloc [] in
+          let cbv = Conv.cvar_of_var bv in
+          Hashtbl.add memo cv cbv;
+          cbv
+  in
+  let create_var vk name t l =  Conv.cvar_of_var (V.mk name vk (Conv.ty_of_cty t) l []) in
+
+  let print_uprog s cp =
+    let p = Conv.prog_of_cuprog cp in
+    Format.printf "After %s@. %a@.@.@."
+      s
+      (Printer.pp_prog ~debug:false Arch.reg_size Arch.asmOp) p;
+    cp
+  in
+
+  let prog = add_default_contracts prog in
+  let cuprog = Conv.cuprog_of_prog prog in
+
+  let cuprog =
+    Compiler_extraction.create_safety_asserts
+      Arch.asmOp Arch.pointer_data Arch.msf_size create_var b Arch.fcp Arch.aparams.ap_is_move_op print_uprog cuprog in
+  let cuprog = catch_error cuprog in
+  let prog =  Conv.prog_of_cuprog cuprog in
+  prog
 
 
 (*--------------------------------------------------------------------- *)

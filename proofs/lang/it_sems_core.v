@@ -135,11 +135,11 @@ Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {wc : WithCatch }
+  {wa : WithAssert}
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
   {scP : semCallParams}.
-
-Record fstate := { fscs : syscall_state_t; fmem : mem; fvals : values }.
 
 (* Recursion events (curried version of Call in ITree) *)
 Variant recCall : Type -> Type :=
@@ -200,9 +200,6 @@ Definition sem_syscall (xs : lvals) (o : syscall_t) (es : pexprs)
   Let fs := fexec_syscall o (mk_fstate ves s) in
   upd_estate true (p_globs p) xs fs s.
 
-Definition sem_cond (gd : glob_decls) (e : pexpr) (s : estate) : exec bool :=
-  (sem_pexpr true gd s e >>= to_bool)%result.
-
 Lemma sem_cond_sem_pexpr gd e s b :
   sem_cond gd e s = ok b -> sem_pexpr true gd s e = ok (Vbool b).
 Proof. rewrite /sem_cond /=; by t_xrbindP=> _ -> /to_boolI ->. Qed.
@@ -218,6 +215,15 @@ Definition sem_bound (gd : glob_decls) (lo hi : pexpr) (s : estate) :
 
 Definition isem_bound (lo hi : pexpr) (s : estate) : itree E (Z * Z) :=
   iresult s (sem_bound (p_globs p) lo hi s).
+
+Definition isem_assert (a: assertion) (s: estate) : itree E unit :=
+  iresult s (sem_assert (p_globs p) s a).
+
+Definition isem_pre {dc : DirectCall} s (fn : funname) (fs:fstate) : itree E unit :=
+  iresult s (sem_pre p fn fs).
+
+Definition isem_post {dc : DirectCall} s (fn : funname) (vargs : values) (fr:fstate) : itree E unit :=
+  iresult s (sem_post p fn vargs fr).
 
 (* recCall trigger *)
 Definition rec_call (ii:instr_info) (f : funname) (fs : fstate) :
@@ -276,6 +282,7 @@ Section SEM_I.
 
 Context {E E0} {wE : with_Error E E0} {sem_F : sem_Fun E }.
 
+
 (* semantics of instructions, abstracting on function calls (through
    sem_fun) *)
 Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
@@ -287,6 +294,8 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
   | Copn xs tg o es => iresult s (sem_sopn (p_globs p) o s xs es)
 
   | Csyscall xs o es => iresult s (sem_syscall p xs o es s)
+
+  | Cassert a => isem_assert p a s;; Ret s
 
   | Cif e c1 c2 =>
     b <- isem_cond p e s;;
@@ -301,9 +310,13 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
 
   | Ccall xs fn args =>
     vargs <- isem_pexprs  (~~direct_call) (p_globs p) args s;;
-    fs <- sem_fun p ev ii fn (mk_fstate vargs s) ;;
+    let fi := mk_fstate vargs s in
+    isem_pre p s fn fi;; 
+    fs <- sem_fun p ev ii fn fi ;;
+    isem_post p s fn vargs fs;;
     iresult s (upd_estate (~~direct_call) (p_globs p) xs fs s)
   end.
+
 (* similar, for commands *)
 Definition isem_cmd_ := isem_foldr isem_i_body.
 
@@ -353,9 +366,12 @@ Definition isem_fun_body (p : prog) (ev : extra_val_t)
    (fn : funname) (fs : fstate) :=
    fd <- kget_fundef (p_funcs p) fn fs;;
    let sinit := estate0 fs in
+   isem_pre p sinit fn fs;;
    s1 <- iresult sinit (initialize_funcall p ev fd fs);;
    s2 <- isem_cmd_ p ev fd.(f_body) s1;;
-   iresult s2 (finalize_funcall fd s2).
+   fr <- iresult s2 (finalize_funcall fd s2);;
+   isem_post p s2 fn fs.(fvals) fr;;
+   Ret fr.
 
 (* A variant of the semantic based on exec, usefull for the proofs *)
 Fixpoint esem_i (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
@@ -368,6 +384,7 @@ Fixpoint esem_i (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
 
   | Csyscall xs o es => sem_syscall p xs o es s
 
+  | Cassert a => Let _ := sem_assert (p_globs p) s a in ok s
   | Cif e c1 c2 =>
     Let b := sem_cond (p_globs p) e s in
     foldM (esem_i p ev) s (if b then c1 else c2)
@@ -402,6 +419,7 @@ Proof.
   + move=> > /= [<-]; reflexivity.
   + by move=> i c hi hc s s' /=; t_xrbindP => s1 /hi ->; rewrite bind_ret_l; apply hc.
   1-3: move=> > /= -> /=; reflexivity.
+  + move=> > /=; t_xrbindP; rewrite /isem_assert => -> ->; rewrite bind_ret_l; reflexivity.
   + move=> > hc1 hc2 ii s s' /=.
     rewrite /isem_cond; t_xrbindP => b -> /=.
     by rewrite bind_ret_l; case: b; [apply hc1 | apply hc2].
@@ -480,7 +498,9 @@ Proof.
     by apply eqit_bind; [apply hc' | reflexivity].
   move=> xs f es ii s /=.
   apply eqit_bind; first reflexivity.
+  move=> ?; apply eqit_bind; first reflexivity.
   move=> ?; apply eqit_bind; first by apply sem_F_ext.
+  move=> ?; apply eqit_bind; first reflexivity.
   move=> ?; reflexivity.
 Qed.
 
@@ -535,7 +555,8 @@ Definition sem_fun_inline
    (do_inline :  funname (* caller *) -> instr_info -> funname (* callee *) -> bool)
    (caller : funname) :=
  {| sem_fun := fun (p : prog) (ev : extra_val_t) (ii:instr_info) (callee : funname) (fs : fstate) =>
-     if do_inline caller ii callee then isem_fun_rec p ev callee fs (* Interprete the call but not the internal ones *)
+     if do_inline caller ii callee then 
+       isem_fun_rec p ev callee fs (* Interprete the call but not the internal ones *)
      else rec_call (E:=E) ii callee fs (* Do not interprete the call, simply emmit an event *)
  |}.
 
@@ -605,6 +626,10 @@ Proof.
   + move=> i c hi hc s; rewrite interp_bind;apply eqit_bind; first by apply hi.
     by move=> s'; apply hc.
   1-3: by move=> >; apply interp_iresult.
+  + move => a ii s /=.
+    rewrite interp_bind; apply eqit_bind.
+    + by apply interp_iresult.
+    move => ?; rewrite interp_ret; reflexivity.
   + move=> e c1 c2 hc1 hc2 ii s; rewrite /isem_i /isem_i_rec /=.
     rewrite interp_bind; apply eqit_bind.
     + by apply interp_iresult.
@@ -628,9 +653,13 @@ Proof.
     rewrite interp_ret; reflexivity.
   move=> xs f es ii s; rewrite /isem_i /isem_i_rec /=.
   rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
-  move=> vs.
-  rewrite interp_bind; apply eqit_bind; last by move=> >; apply interp_iresult.
-  rewrite interp_mrecursive; reflexivity.
+  move=> vs; rewrite interp_bind; apply eqit_bind.
+  + by apply interp_iresult.
+  move => ?;rewrite interp_bind;apply eqit_bind.
+  + rewrite interp_mrecursive; reflexivity.
+  move => ?;rewrite interp_bind;apply eqit_bind.
+  + by apply interp_iresult.
+  move=> ?; exact: interp_iresult.
 Qed.
 
 Lemma isem_call_unfold (fn : funname) (fs : fstate) :
@@ -643,9 +672,15 @@ Proof.
   + by apply interp_ioget.
   move=> fd; rewrite interp_bind; apply eqit_bind.
   + by apply interp_iresult.
+  move=> _; rewrite interp_bind; apply eqit_bind.
+  + by apply interp_iresult.
   move=> s1; rewrite interp_bind; apply eqit_bind.
   + apply interp_isem_cmd.
-  move=> s2; apply interp_iresult.
+  move=> s2; rewrite interp_bind; apply eqit_bind.
+  + by apply interp_iresult.
+  move=> fr; rewrite interp_bind; apply eqit_bind.
+  + by apply interp_iresult.
+  move=> _; rewrite interp_ret; reflexivity.
 Qed.
 
 Lemma interp_cond_throw  (cond : forall T, recCall T -> bool) (ctx : forall T, recCall T -> itree (recCall +' E) T) (e: error * unit) T :
@@ -680,9 +715,12 @@ Proof.
   have haux : forall (ii1 : instr_info) (fn1 : funname) (fs1 : fstate),
     ctx2_cond cond F (RecCall ii1 fn1 fs1)
     ≈ fd <- kget_fundef (p_funcs p) fn1 fs1;;
+      _ <- isem_pre p (estate0 fs1) fn1 fs1;;
       s1 <- iresult (estate0 fs1) (initialize_funcall p ev fd fs1);;
       s2 <- isem_cmd_ (sem_F:= sem_fun_inline do_inline fn1) p ev (f_body fd) s1;;
-      iresult s2 (finalize_funcall fd s2).
+      fr <- iresult s2 (finalize_funcall fd s2) ;;
+      _ <- isem_post p s2 fn1 (fvals fs1) fr;;
+      Ret fr.
   + move=> ii1 fn1 fs1.
     rewrite /ctx2_cond /Handler.cat interp_bind.
     apply eutt_eq_bind'.
@@ -690,12 +728,20 @@ Proof.
       + rewrite interp_ret; reflexivity.
       by apply interp_cond_throw.
     move=> fd.
+    rewrite interp_bind. 
+    apply eutt_eq_bind'.
+    + rewrite interp_cond_iresult; reflexivity.
+    move=> ?.
     rewrite interp_bind.
     apply eutt_eq_bind'.
     + by apply interp_cond_iresult.
     move=> s; rewrite interp_bind.
     apply eutt_eq_bind'; last first.
-    + by move=> s'; apply interp_cond_iresult.
+    + move=> ?; rewrite interp_bind; apply eutt_eq_bind'.
+      + by apply interp_cond_iresult.
+      move=> ?; rewrite interp_bind; apply eutt_eq_bind'.
+      + by apply interp_cond_iresult.
+      move=> ?; rewrite interp_ret; reflexivity.
     set Pi := fun i =>
       forall s,
        interp (ctx_cond (cond fstate (RecCall dummy_instr_info fn1 fs1)) F)
@@ -714,6 +760,9 @@ Proof.
     + by move=> > ? >; apply interp_cond_iresult.
     + by move=> > ? > ? > ; apply interp_cond_iresult.
     + by move=> > ? >; apply interp_cond_iresult.
+    + move=> a ii s; rewrite interp_bind; apply eutt_eq_bind'.
+      + by apply interp_cond_iresult.
+      move=> ?; rewrite interp_ret; reflexivity.
     + move=> e c1 c2 hc1 hc2 ii s; rewrite interp_bind.
       rewrite /isem_cond interp_cond_iresult.
       by apply/eutt_eq_bind; case; [apply hc1 | apply hc2].
@@ -737,10 +786,13 @@ Proof.
       rewrite interp_ret; reflexivity.
     move=> xs f es ii s; rewrite interp_bind.
     rewrite /isem_pexprs interp_cond_iresult; apply eutt_eq_bind => ?.
-    rewrite interp_bind.
-    apply eutt_eq_bind'.
+    rewrite interp_bind; apply eutt_eq_bind'.
+    + by apply interp_cond_iresult.
+    move=> _; rewrite interp_bind; apply eutt_eq_bind'.
     + rewrite /ctx_cond /cond /Handler.case_ /rec_call /F.
       setoid_rewrite interp_trigger; reflexivity.
+    move=> ?; rewrite interp_bind; apply eutt_eq_bind'.
+    + by apply interp_cond_iresult. 
     by move=> ?; apply interp_cond_iresult.
   apply Proper_interp_mrec => //.
   by move=> T [].
