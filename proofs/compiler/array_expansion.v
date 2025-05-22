@@ -164,7 +164,24 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     Let e2 := expand_e m e2 in
     Let e3 := expand_e m e3 in
     ok (Pif ty e1 e2 e3) 
+  | Pbig idx op x body s len =>
+    Let _ := assert (Sv.mem x m.(svars)) (reg_ierror x "Pbig binder not in svar") in
+    Let idx := expand_e m idx in
+    Let body := expand_e m body in
+    Let s := expand_e m s in
+    Let len := expand_e m len in
+    ok (Pbig idx op x body s len)
 
+  | Pis_var_init x =>
+    (* FIXME *)
+    Let _ := assert (Sv.mem x m.(svars))
+       (reg_error x "(the array cannot be manipulated alone, you need to access its cells instead)") in
+    ok e
+
+  | Pis_mem_init e1 e2 =>
+    Let e1 := expand_e m e1 in
+    Let e2 := expand_e m e2 in
+    ok (Pis_mem_init e1 e2)
   end.
 
 Definition expand_lv (m : t) (x : lval)  :=
@@ -282,6 +299,10 @@ Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
     Let es := add_iinfo ii (expand_es m es) in
     ok (MkI ii (Csyscall xs o es))
 
+  | Cassert a =>
+    Let a := add_iinfo ii (sndM (expand_e m) a) in
+    ok (MkI ii (Cassert a))
+
   | Cif b c1 c2 =>
     Let b  := add_iinfo ii (expand_e m b) in
     Let c1 := mapM (expand_i m) c1 in 
@@ -321,30 +342,54 @@ Definition expand_tyv m b s ty v :=
     (reg_ierror v "there should be an invariant ensuring this never happens in array_expansion_proof") in
     ok ([:: ty], [:: v], None).
 
+Definition expand_ci m exp (insf: seq (seq stype * seq var_i * option (wsize * Z)))
+                           (ins: seq (option (wsize * Z)))
+                           (outsf: seq (seq stype * seq var_i * option (wsize * Z)))
+                           (outs: seq (option (wsize * Z)))
+ ityin ci :=
+  match ci with
+  | Some ci =>
+    Let iins := mapM2 length_mismatch (expand_tyv m exp "the parameters") ityin ci.(f_iparams) in
+    Let _ := assert ([seq x.1.1 | x <- insf] == [seq x.1.1 | x <- iins])
+                    (E.reg_ierror_no_var "ins.1.1 <> iins.1.1") in
+    Let _ := assert (ins == [seq i.2 | i <- iins]) (E.reg_ierror_no_var "ins <> map snd iins") in
+    let ci_params := flatten (map (fun x => snd (fst x)) iins) in
+    Let ires := mapM2 length_mismatch (expand_tyv m exp "the results") ityin ci.(f_ires) in
+    Let _ := assert ([seq x.1.1 | x <- outsf] == [seq x.1.1 | x <- ires])
+                    (E.reg_ierror_no_var "outsf.1.1 <> ires.1.1") in
+    Let _ := assert (outs == [seq i.2 | i <- ires]) (E.reg_ierror_no_var "outs <> map snd ires") in
+    let ci_res := flatten (map (fun x => snd (fst x)) ires) in
+    Let ci_pre := mapM (sndM (expand_e m)) ci.(f_pre) in
+    Let ci_post := mapM (sndM (expand_e m)) ci.(f_post) in
+    ok (Some (MkContra ci_params ci_res ci_pre ci_post))
+  | None => ok None
+  end.
+
 Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef) :=
   Let x := init_map (fi fname fd) in
   match fd with
-  | MkFun _ tyin params c tyout res ef =>
+  | MkFun _ ci ityin params c tyout res ef =>
     let '(m, fi) := x in
     let exp := ~~(fname \in entries) in
-    Let ins  := mapM2 length_mismatch (expand_tyv m exp "the parameters") tyin params in
-    let tyin   := map (fun x => fst (fst x)) ins in
-    let params := map (fun x => snd (fst x)) ins in
-    let ins    := map snd ins in
-    Let outs := mapM2 length_mismatch (expand_tyv m exp "the return type") tyout res in
-    let tyout  := map (fun x => fst (fst x)) outs in
-    let res    := map (fun x => snd (fst x)) outs in
-    let outs   := map snd outs in
-    ok (MkFun fi (flatten tyin) (flatten params) c (flatten tyout) (flatten res) ef,
+    Let insf  := mapM2 length_mismatch (expand_tyv m exp "the parameters") ityin params in
+    let tyin   := map (fun x => fst (fst x)) insf in
+    let params := map (fun x => snd (fst x)) insf in
+    let ins := map snd insf in
+    Let outsf := mapM2 length_mismatch (expand_tyv m exp "the return type") tyout res in
+    let tyout  := map (fun x => fst (fst x)) outsf in
+    let res    := map (fun x => snd (fst x)) outsf in
+    let outs   := map snd outsf in
+    Let ci := expand_ci m exp insf ins outsf outs ityin ci in
+    ok (MkFun fi ci (flatten tyin) (flatten params) c (flatten tyout) (flatten res) ef,
         m, (ins, outs))
   end.
 
 Definition expand_fbody (fname: funname) (fs: ufundef * t) :=
   let (fd, m) := fs in
   match fd with
-  | MkFun fi tyin params c tyout res ef =>
+  | MkFun fi ci tyin params c tyout res ef =>
     Let c := mapM (expand_i m) c in
-    ok (MkFun fi tyin params c tyout res ef)
+    ok (MkFun fi ci tyin params c tyout res ef)
   end.
 
 End FSIGS.

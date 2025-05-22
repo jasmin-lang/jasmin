@@ -2,7 +2,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype div ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Export type expr sem_type.
-Require Export flag_combination.
+Require Export flag_combination sem_params.
 Import Utf8.
 
 Definition mk_sem_sop1 (t1 t2 : Type) (o:t1 -> t2) v1 : exec t2 :=
@@ -38,6 +38,7 @@ Definition sem_sop1_typed (o : sop1) :
   | Oneg Op_int => mk_sem_sop1 Z.opp
   | Oneg (Op_w sz) => mk_sem_sop1 (-%R)%R
   | Owi1 sign o => sem_wiop1_typed sign o
+  | Oarr_make len => mk_sem_sop1 (@WArray.fill_elem len)
   end.
 
 Arguments sem_sop1_typed : clear implicits.
@@ -178,13 +179,25 @@ Context {cfcd : FlagCombinationParams}.
 Definition sem_combine_flags (cf : combine_flags) (b0 b1 b2 b3 : bool) : bool :=
   cf_xsem negb andb orb (fun x y => x == y) b0 b1 b2 b3 cf.
 
-Definition sem_opN_typed (o: opN) :
+Definition sem_opN_typed {wa:WithAssert} (o: opN) :
   let t := type_of_opN o in
   sem_prod t.1 (exec (sem_t t.2)) :=
   match o with
   | Opack sz pe => curry (A := sint) (sz %/ pe) (λ vs, ok (wpack sz pe vs))
   | Ocombine_flags cf =>
       fun b0 b1 b2 b3 => ok (sem_combine_flags cf b0 b1 b2 b3)
+  | Ois_arr_init alen =>
+      fun (a:WArray.array alen) (lo:Z) (len:Z) =>
+        Let _ := assert assert_allowed ErrType in
+        ok (all (WArray.is_init a) (ziota lo len))
+  | Ois_barr_init alen =>
+      fun (a:WArray.array alen) (lo:Z) (len:Z) =>
+        Let _ := assert assert_allowed ErrType in
+        ok (all (WArray.is_initb a) (ziota lo len))
   end.
+
+Lemma sem_opN_typed_ok (op: opN):
+  sem_forall (fun et => exists t, et = ok t) _ (sem_opN_typed (wa:= withassert) op).
+Proof. case: op=> [[][]| | | ]; by econstructor. Qed.
 
 End WITH_PARAMS.

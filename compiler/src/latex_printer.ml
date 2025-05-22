@@ -229,6 +229,9 @@ let rec pp_expr_rec prio fmt pe =
     optparent fmt prio p "(";
     F.fprintf fmt "%a ? %a : %a" (pp_expr_rec p) e1 (pp_expr_rec p) e2 (pp_expr_rec p) e3;
     optparent fmt prio p ")"
+  | PEbig _ -> assert false
+  | PEResult x -> assert false
+  | PEResultGet (al, aa, ws, x, e, len) -> assert false
 
 and pp_mem_access fmt (al, ty, e) =
   let pp_size fmt ws = Format.fprintf fmt ":%a " pp_ws ws in
@@ -342,6 +345,7 @@ let rec pp_instr depth fmt (annot, p) =
     F.fprintf fmt "%a%a;"
       pp_expr e
       (pp_opt pp_sidecond) cnd
+  | PIAssert b -> F.fprintf fmt "%a %a" kw "assert"  pp_expr b
   | PIIf (b, th, el) ->
     begin
     F.fprintf fmt "%a %a %a"

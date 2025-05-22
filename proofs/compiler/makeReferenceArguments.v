@@ -150,7 +150,8 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
         let tg := if [&& size prologue == 2 & size epilogue == 2] then AT_inline else tg in
         ok (prologue ++ MkI ii (Copn xs tg (Opseudo_op (pseudo_operator.Oswap ty)) es) :: epilogue)
       else ok [:: i ]
-  | Cassgn _ _ _ _ => ok [:: i ]
+  | Cassgn _ _ _ _
+  | Cassert _ => ok [:: i ]
   | Cif b c1 c2 =>
     Let c1 := update_c (update_i X) c1 in
     Let c2 := update_c (update_i X) c2 in

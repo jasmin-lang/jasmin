@@ -1,5 +1,6 @@
 open Jasmin
 open Prog
+open Operators
 
 type t = int grange
 
@@ -13,12 +14,12 @@ let last ((d, f, l) : t) : int gexpr =
     | E.UpTo -> l
     | E.DownTo -> f
 
-let incr_operator ((d, _, _) : t) : E.sop2 =
+let incr_operator ((d, _, _) : t) : sop2 =
     match d with
-    | E.UpTo -> E.Oadd Op_int
-    | E.DownTo -> E.Osub Op_int
+    | E.UpTo -> Oadd Op_int
+    | E.DownTo -> Osub Op_int
 
-let cmp_operator ((d, _, _) : t) : E.sop2 =
+let cmp_operator ((d, _, _) : t) : sop2 =
     match d with
-    | E.UpTo -> E.Olt Cmp_int
-    | E.DownTo -> E.Ogt Cmp_int
+    | E.UpTo -> Olt Cmp_int
+    | E.DownTo -> Ogt Cmp_int

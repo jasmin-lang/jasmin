@@ -180,6 +180,7 @@ module Make (Logic : Logic) : S with type domain = Logic.domain = struct
       | Copn (lvs, tag, sopn, es) ->
           let annotation = Annotation.bind annotation (Logic.opn loc lvs tag sopn es) in
           (Copn (lvs, tag, sopn, es), annotation)
+      | Cassert _ -> assert false
       | Ccall (lvs, fn, es) ->
           let annotation = Annotation.bind annotation (Logic.funcall loc lvs fn es) in
           (Ccall (lvs, fn, es), annotation)

@@ -451,6 +451,8 @@ Definition pop_to_save
       allM (check_rexpr ii) es >> allM (check_lexpr ii) xs
     | Csyscall xs o es =>
       ok tt
+    | Cassert _ =>
+      Error (E.ii_error ii "assert found in linear")
     | Cif b c1 c2 =>
       check_fexpr ii b >> check_c check_i c1 >> check_c check_i c2
     | Cfor _ _ _ =>
@@ -650,6 +652,8 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       end
 
   | Csyscall xs o es => (lbl, MkLI ii (Lsyscall o) :: lc)
+
+  | Cassert _ => (lbl, lc) (* absurd case *)
 
   | Cif e [::] c2 =>
     let L1 := lbl in

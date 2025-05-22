@@ -1908,12 +1908,16 @@ abstract theory WT.
   op to_uint : t -> int.
   op to_sint : t -> int.
 
+  op onew  = of_int (2^size - 1).
+
   op bits : t -> int -> int -> bool list.
 
   abbrev (`|<<<|`) = rol.
 
   axiom initiE (f : int -> bool) (i : int) : 0 <= i < size => (init f).[i] = f i.
 
+  axiom onewE (i : int) : onew.[i]  = (0<= i < size).
+  
   axiom andwE (w1 w2 : t) (i : int) : (andw w1 w2).[i] = (w1.[i] /\ w2.[i]).
   axiom orwE  (w1 w2 : t) (i : int) : (orw  w1 w2).[i] = (w1.[i] \/ w2.[i]).
   axiom xorwE (w1 w2 : t) (i : int) : (w1 +^ w2).[i] = (w1.[i] ^^ w2.[i]).
@@ -2271,6 +2275,12 @@ abstract theory W_WS.
     by rewrite bits'SiE 1:// WS.of_intwE /WS.int_bit /= get_to_uint /= WB.of_uintK.
   qed.
 
+  lemma _m_one_bits8 i :  0 <= i < r => (WB.of_int (2^sizeB - 1))  \bits'S i = WS.onew.
+  proof.
+    move => *. apply WS.wordP. move => j h.
+    by rewrite bits'SiE //  WB.onewE WS.onewE h in_bound //.
+  qed.
+      
   lemma unpack'SK w : pack'R_t (unpack'S w) = w.
   proof.
     apply wordP => i hi; rewrite pack'RE initiE //= get_bits'S //.

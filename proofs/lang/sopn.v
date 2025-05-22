@@ -4,6 +4,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 
 Require Import
   pseudo_operator
+  operators
   sem_type
   shift_kind
   strings
@@ -47,6 +48,7 @@ Record instruction_desc := mkInstruction {
   *)
   i_valid  : bool;
   i_safe   : seq safe_cond;
+  i_init  : seq init_cond;
   (* Extra properties ensuring that previous information are consistent *)
   i_safe_wf    : all (fun sc => ssrnat.leq (sc_needed_args sc) (size tin)) i_safe;
     (* id_semi does not generates type error *)
@@ -57,7 +59,7 @@ Record instruction_desc := mkInstruction {
 
 Arguments semu _ [vs vs' v] _ _.
 
-Notation mk_instr_desc str tin i_in tout i_out semi safe valid semi_errty semi_safe :=
+Notation mk_instr_desc str tin i_in tout i_out semi safe init valid semi_errty semi_safe :=
   {| str          := str;
      tin          := tin;
      i_in         := i_in;
@@ -67,14 +69,15 @@ Notation mk_instr_desc str tin i_in tout i_out semi safe valid semi_errty semi_s
      semi         := semi;
      semu         := @vuincl_app_sopn_v tin tout semi refl_equal;
      i_safe       := safe;
+     i_init       := init;
      i_valid      := valid;
      i_safe_wf    := refl_equal;
      i_semi_errty := semi_errty;
      i_semi_safe  := semi_safe;
   |}.
 
-Notation mk_instr_desc_safe str tin i_in tout i_out semi valid :=
-  (mk_instr_desc str tin i_in tout i_out (sem_prod_ok tin semi) [::] valid
+Notation mk_instr_desc_safe str tin i_in tout i_out semi valid init:=
+  (mk_instr_desc str tin i_in tout i_out (sem_prod_ok tin semi) [::] init valid
      (fun _ => (@sem_prod_ok_error _ tin semi ErrType))
      (fun _ => (@sem_prod_ok_safe _ tin semi)))
   (only parsing).
@@ -218,6 +221,7 @@ Definition Ocopy_instr ws p :=
      semu     := @vuincl_copy ws p;
      i_valid  := true;
      i_safe   := [:: AllInit ws p 0];
+     i_init   := [:: IBool true];
      i_safe_wf    := refl_equal;
      i_semi_errty := fun _ => (@array_copy_errty ws p);
      i_semi_safe  := fun _ => (@array_copy_safe ws p);
@@ -228,7 +232,7 @@ Definition Onop_instr :=
            [::] [::]
            [::] [::]
            tt
-           true.
+           true [::].
 
 Definition Omulu_instr sz :=
   mk_instr_desc_safe (pp_sz "mulu" sz)
@@ -236,7 +240,7 @@ Definition Omulu_instr sz :=
            [:: E 0; E 1] (* this info is irrelevant *)
            [:: sword sz; sword sz]
            [:: E 2; E 3] (* this info is irrelevant *)
-           (@wumul sz) true.
+           (@wumul sz) true [:: IBool true; IBool true].
 
 Definition Oaddcarry_instr sz :=
   mk_instr_desc_safe (pp_sz "adc" sz)
@@ -245,7 +249,7 @@ Definition Oaddcarry_instr sz :=
            [:: sbool; sword sz]
            [:: E 3; E 4]      (* this info is irrelevant *)
            (fun x y c => let p := @waddcarry sz x y c in (Some p.1, p.2))
-           true.
+           true [:: IBool true; IBool true].
 
 Definition Osubcarry_instr sz :=
   mk_instr_desc_safe (pp_sz "sbb" sz)
@@ -254,7 +258,7 @@ Definition Osubcarry_instr sz :=
            [:: sbool; sword sz]
            [:: E 3; E 4]      (* this info is irrelevant *)
            (fun x y c => let p := @wsubcarry sz x y c in (Some p.1, p.2))
-           true.
+           true [:: IBool true; IBool true].
 
 Fixpoint spill_semi (tys: seq stype) : sem_prod tys (sem_tuple [::]):=
   match tys as tys0 return sem_prod tys0 (sem_tuple [::]) with
@@ -286,6 +290,7 @@ Definition Ospill_instr o tys :=
      semi     := sem_prod_ok tys semi;
      semu     := @spill_semu tys;
      i_safe   := [:: ];
+     i_init   := [::];
      i_valid  := true;
      i_safe_wf    := refl_equal;
      i_semi_errty := fun _ => (@sem_prod_ok_error _ tys semi ErrType);
@@ -304,6 +309,7 @@ Definition Oswap_instr ty :=
      semi   := sem_prod_ok tin semi;
      semu   := @swap_semu ty;
      i_safe := [::];
+     i_init := [:: IBool true; IBool true];
      i_valid := true;
      i_safe_wf    := refl_equal;
      i_semi_errty := fun _ => (@sem_prod_ok_error _ tin semi ErrType);
@@ -351,7 +357,8 @@ Definition SLHinit_instr :=
       [:: ty_msf ]
       [:: E 0 ]      (* this info is irrelevant *)
       se_init_sem
-      true.
+      true
+      [:: IBool true].
 
 Definition SLHupdate_str := "update_msf"%string.
 Definition SLHupdate_instr :=
@@ -361,7 +368,8 @@ Definition SLHupdate_instr :=
       [:: ty_msf ]
       [:: E 2 ]      (* this info is irrelevant *)
       se_update_sem
-      true.
+      true
+      [:: IBool true].
 
 Definition SLHmove_str := "mov_msf"%string.
 Definition SLHmove_instr :=
@@ -371,7 +379,8 @@ Definition SLHmove_instr :=
       [:: ty_msf ]
       [:: E 1 ]      (* this info is irrelevant *)
       se_move_sem
-      true.
+      true
+      [:: IBool true].
 
 Definition SLHprotect_str := "protect"%string.
 Definition SLHprotect_instr ws :=
@@ -381,7 +390,8 @@ Definition SLHprotect_instr ws :=
       [:: sword ws ]
       [:: E 2 ]      (* this info is irrelevant *)
       (@se_protect_sem ws)
-      true.
+      true
+      [:: IBool true].
 
 Lemma protect_ptr_semu p vs vs' v:
   List.Forall2 value_uincl vs vs' ->
@@ -410,6 +420,7 @@ Definition SLHprotect_ptr_instr p :=
      semi     := sem_prod_ok tin semi;
      semu     := @protect_ptr_semu p;
      i_safe   := [::];
+     i_init   := [:: IBool true];
      i_valid  := true;
      i_safe_wf    := refl_equal;
      i_semi_errty := fun _ => (@sem_prod_ok_error _ tin semi ErrType);
@@ -459,6 +470,7 @@ Definition SLHprotect_ptr_fail_instr p :=
      semi     := @se_protect_ptr_fail_sem p;
      semu     := @protect_ptr_fail_semu p;
      i_safe   := [:: ScFalse]; (* See remark on protect_ptr_fail_safe *)
+     i_init   := [:: IBool true];
      i_valid  := true;
      i_safe_wf    := refl_equal;
      i_semi_errty := fun _ => (@protect_ptr_fail_errty p);

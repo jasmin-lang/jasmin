@@ -51,7 +51,7 @@ Fixpoint to_spill_i (s : Sv.t * bool) (i : instr) :=
     | Some (Unspill, _) => (s.1, true)
     | _ => s
     end
-  | Csyscall _ _ _ => s
+  | Csyscall _ _ _ | Cassert _ => s
   | Cif _ c1 c2 => foldl to_spill_i (foldl to_spill_i s c1) c2
   | Cfor _ _ c => foldl to_spill_i s c
   | Cwhile _ c1 _ _ c2 => foldl to_spill_i (foldl to_spill_i s c1) c2
@@ -169,6 +169,7 @@ Fixpoint spill_i (env : spill_env) (i : instr) : cexec (spill_env * cmd) :=
     | None                => ok (update_lvs env lvs, [::i])
     end
   | Csyscall lvs c es => ok (update_lvs env lvs, [::i])
+  | Cassert a => ok (env, [::i])
   | Cif e c1 c2 =>
     Let ec1 := spill_c spill_i env c1 in
     Let ec2 := spill_c spill_i env c2 in
@@ -214,7 +215,7 @@ Definition check_map (m:Mvar.t var) X :=
     (bX.1 && ~~Sv.mem sx bX.2, Sv.add sx bX.2)) m (true, X).
 
 Definition spill_fd {eft} (fn:funname) (fd: _fundef eft) : cexec (_fundef eft) :=
-  let 'MkFun ii tyi params c tyo res ef := fd in
+  let 'MkFun ii ci tyi params c tyo res ef := fd in
   let s := foldl to_spill_i (Sv.empty, false) c in
   if ~~s.2 then ok fd else
   let m := init_map s.1 in
@@ -222,7 +223,7 @@ Definition spill_fd {eft} (fn:funname) (fd: _fundef eft) : cexec (_fundef eft) :
   let b := check_map m X in
   Let _ := assert b.1 (pp_internal_error E.pass (pp_s "invalid map")) in
   Let ec := spill_c (spill_i (get_spill m)) Sv.empty c in
-  ok (MkFun ii tyi params ec.2 tyo res ef).
+  ok (MkFun ii ci tyi params ec.2 tyo res ef).
 
 Definition spill_prog (p: prog) : cexec prog :=
   Let funcs := map_cfprog_name spill_fd (p_funcs p) in

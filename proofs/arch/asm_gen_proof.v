@@ -660,14 +660,14 @@ Lemma compile_asm_opn_aux (condspec : assemble_cond_spec) rip ii (loargs : seq a
   -> lom_eqv rip m s
   -> exists2 s', exec_instr_op id loargs s = ok s' & lom_eqv rip m' s'.
 Proof.
-  move=> id ; rewrite /exec_sopn /sopn_sem.
+  move=> id; rewrite /exec_sopn /sopn_sem /=.
   t_xrbindP => Hxs _ hval <- vt Hvt <-{ys} Hm' Hargs Hdest Hid Hlomeqv.
   rewrite /exec_instr_op /eval_instr_op Hid /=.
   move: hval => /=; rewrite -/id => -> /=.
   move: vt Hvt Hm'; rewrite /sopn_sem /sopn_sem_ /get_instr_desc /= -/id => {Hid}.
   case: id Hargs Hdest => /= id_safe_ msb_flag id_tin
    id_in id_tout id_out id_semi id_args_kinds id_nargs /andP[] /eqP hsin /eqP hsout
-   _ id_str_jas id_check_dest id_safe id_wsize id_pp _ _ _ Hargs Hdest vt happ Hm'.
+   _ id_str_jas id_check_dest id_safe id_init id_wsize id_pp _ _ _ Hargs Hdest vt happ Hm'.
   elim: id_in id_tin hsin id_semi args xs Hargs happ Hxs; rewrite /sem_prod.
   + move=> [] //= _ id_semi [|a1 args] [|v1 vs] //= _ -> _ /=.
     exact: (compile_lvals _ hsout Hm' Hlomeqv Hdest).

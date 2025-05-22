@@ -4,7 +4,7 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype choice.
 From mathcomp Require Import fintype finfun.
 From Coq.Unicode Require Import Utf8.
-From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses.
+From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses String.
 Require Import xseq oseq.
 From mathcomp Require Import word_ssrZ.
 
@@ -189,6 +189,21 @@ Lemma bindA eT aT bT cT (f : aT -> result eT bT) (g: bT -> result eT cT) m:
   m >>= f >>= g = m >>= (fun a => f a >>= g).
 Proof. case:m => //=. Qed.
 
+Definition Rerror eT aT1 aT2 (R : aT1 -> aT2 -> Prop) (r1 : result eT aT1) (r2 : result eT aT2) :=
+  match r1, r2 with
+  | Ok a1, Ok a2 => R a1 a2
+  | Error s1, Error s2 => s1 = s2
+  | _, _ => False
+  end.
+
+Lemma bindP eT aT rT (R : aT -> aT -> Prop) (f1 f2 : aT -> result eT rT) m1 m2 :
+  Rerror R m1 m2 -> (forall a1 a2, R a1 a2 -> f1 a1 = f2 a2) ->
+  m1 >>= f1 = m2 >>= f2.
+Proof.
+  case: m1 m2 => [a1 | s1] [a2 | s2] //=; last by move=> ->.
+  by move=> h /(_ _ _ h).
+Qed.
+
 Lemma bind_eq eT aT rT (f1 f2 : aT -> result eT rT) m1 m2 :
    m1 = m2 -> f1 =1 f2 -> m1 >>= f1 = m2 >>= f2.
 Proof. move=> <- Hf; case m1 => //=. Qed.
@@ -214,8 +229,18 @@ Lemma map_errP eT1 eT2 aT (f : eT1 -> eT2) (r : result eT1 aT) x :
 Proof. by case: r => //= ? [->]. Qed.
 Arguments map_errP {_ _ _ _ _ _}.
 
+
+Definition assertion_label := String.string.
+
 Variant error :=
- | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith | ErrSemUndef.
+ | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith | ErrSemUndef
+ | ErrUnknowFun | ErrAssert of assertion_label.
+
+Definition is_ErrType e :=
+  if e is ErrType then true else false.
+
+Lemma is_ErrTypeP e : reflect (e = ErrType) (is_ErrType e).
+Proof. by case: e => /=; constructor. Qed.
 
 Definition exec t := result error t.
 
@@ -500,6 +525,9 @@ Lemma mapM_ok {eT} {A B:Type} (f: A -> B) (l:list A) :
   mapM (eT:=eT) (fun x => ok (f x)) l = ok (map f l).
 Proof. by elim l => //= ?? ->. Qed.
 
+Definition sndM eT aT bT cT (f : bT -> result eT cT) (ab : aT * bT) : result eT (aT * cT) :=
+  Let c := f ab.2 in ok (ab.1, c).
+
 Section FOLDM.
 
   Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).
@@ -523,6 +551,14 @@ Section FOLDM.
   Proof. by elim: l1 acc => //= x l hrec acc; case: f. Qed.
 
 End FOLDM.
+
+Lemma foldM_ext [eT aT bT : Type]: forall  (f g: aT -> bT -> result eT bT) s v,
+    (f =2 g) -> foldM f v s = foldM g v s.
+Proof.
+  move => f g s.
+  induction s => v H //=.
+  rewrite H; case (g a v) => //=; auto.
+Qed.
 
 Section FOLD2.
 
@@ -1697,6 +1733,14 @@ Proof.
   rewrite in_nil;symmetry;apply /negP => /andP [/ZleP ? /ZltP ?]; Lia.lia.
 Qed.
 
+Lemma in_ziotaP i n m : reflect (n <= i < n + m)%Z (i \in ziota n m).
+Proof.
+  rewrite in_ziota.
+  case: (ZleP n i) => /=.
+  + case: (ZltP i (n + m)); constructor; Lia.lia.
+  move=> ?; constructor; Lia.lia.
+Qed.
+
 Lemma size_ziota p z: size (ziota p z) = Z.to_nat z.
 Proof. by rewrite ziotaE size_map size_iota. Qed.
 
@@ -1922,13 +1966,13 @@ Ltac is_simpl e :=
 
 #[local]
 Ltac simpl_rewrite h lhs rhs :=
-  (is_simpl lhs; rewrite -!h) || (is_simpl rhs; rewrite !h).
+  (is_simpl lhs; rewrite -!h /=) || (is_simpl rhs; rewrite !h /=).
 
 Ltac t_simpl_rewrites := t_do_rewrites simpl_rewrite.
 
 #[local]
 Ltac eq_rewrite h _ _ :=
-  (rewrite !h || rewrite -!h); clear h.
+  (rewrite !h /= || rewrite -!h /=); clear h.
 
 Ltac t_eq_rewrites := t_do_rewrites eq_rewrite.
 

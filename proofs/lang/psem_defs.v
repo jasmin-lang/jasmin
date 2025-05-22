@@ -16,6 +16,26 @@ Open Scope vm_scope.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
+Section CATCH.
+
+Context {wc : WithCatch}.
+
+Definition default_val (t: stype) :=
+  match t with
+  | sbool => Vbool false
+  | sint => Vint 0
+  | sarr len => Varr (WArray.fill_elem len 0%R)
+  | sword sz => @Vword sz 0%R
+  end.
+  
+Definition catch_core {T:Type} (ev : exec T) dfv : exec T :=
+  match ev with
+  | Ok v => ev
+  | Error e => if is_ErrType e then ev else ok dfv
+  end.
+
+Notation catch ev dfv := (if with_catch then catch_core ev dfv else ev).
+  
 Definition sem_sop1 (o: sop1) (v: value) : exec value :=
   let t := type_of_op1 o in
   Let x := of_val _ v in
@@ -30,7 +50,7 @@ Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
   ok (to_val r).
 
 Definition sem_opN
-  {cfcd : FlagCombinationParams} (op: opN) (vs: values) : exec value :=
+  {wa : WithAssert} {cfcd : FlagCombinationParams} (op: opN) (vs: values) : exec value :=
   Let w := app_sopn _ (sem_opN_typed op) vs in
   ok (to_val w).
 
@@ -73,7 +93,7 @@ Arguments Estate {syscall_state}%_type_scope {ep} _ _ _%_vm_scope.
  * -------------------------------------------------------------------- *)
 
 Definition get_gvar (wdb : bool) (gd : glob_decls) (vm : Vm.t) (x : gvar) :=
-  if is_lvar x then get_var wdb vm x.(gv)
+  if is_lvar x then catch (get_var wdb vm x.(gv)) (default_val (vtype x.(gv)))
   else get_global gd x.(gv).
 
 Definition get_var_is wdb vm := mapM (fun x => get_var wdb vm (v_var x)).
@@ -85,6 +105,7 @@ Definition on_arr_var A (v:exec value) (f:forall n, WArray.array n -> exec A) :=
   | _ => type_error
   end.
 
+(* We don't catch the error here because if the is an error it is only a type error *)
 Notation "'Let' ( n , t ) ':=' wdb ',' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_var wdb s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
 
@@ -114,8 +135,13 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {wa : WithAssert}
   (wdb : bool)
   (gd : glob_decls).
+
+Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
+  Let vm := set_var wdb s.(evm) x v in
+  ok (with_vm s vm).
 
 Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
@@ -126,39 +152,56 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pget al aa ws x e =>
       Let (n, t) := wdb, gd, s.[x] in
       Let i := sem_pexpr s e >>= to_int in
-      Let w := WArray.get al aa ws t i in
+      Let w := catch (WArray.get al aa ws t i) 0%R in
       ok (Vword w)
   | Psub aa ws len x e =>
     Let (n, t) := wdb, gd, s.[x] in
     Let i := sem_pexpr s e >>= to_int in
-    Let t' := WArray.get_sub aa ws len t i in
+    Let t' := catch (WArray.get_sub aa ws len t i) (WArray.fill_elem _ 0%R) in
     ok (Varr t')
   | Pload al sz e =>
     Let w2 := sem_pexpr s e >>= to_pointer in
-    Let w  := read s.(emem) al w2 sz in
+    Let w  := catch (read s.(emem) al w2 sz) 0%R in
     ok (@to_val (sword sz) w)
   | Papp1 o e1 =>
     Let v1 := sem_pexpr s e1 in
-    sem_sop1 o v1
+    catch (sem_sop1 o v1) (default_val (type_of_op1 o).2)
   | Papp2 o e1 e2 =>
     Let v1 := sem_pexpr s e1 in
     Let v2 := sem_pexpr s e2 in
-    sem_sop2 o v1 v2
+    catch (sem_sop2 o v1 v2) (default_val (type_of_op2 o).2)
   | PappN op es =>
     Let vs := mapM (sem_pexpr s) es in
-    sem_opN op vs
+    catch (sem_opN op vs) (default_val (type_of_opN op).2)
   | Pif t e e1 e2 =>
     Let b := sem_pexpr s e >>= to_bool in
     Let v1 := sem_pexpr s e1 >>= truncate_val t in
     Let v2 := sem_pexpr s e2 >>= truncate_val t in
     ok (if b then v1 else v2)
+  | Pbig idx op x body start len =>
+    Let _ := assert (assert_allowed) ErrType in
+    Let vs   := sem_pexpr s start >>= to_int in
+    Let vlen := sem_pexpr s len >>= to_int in
+    Let vidx := sem_pexpr s idx >>= truncate_val ((type_of_op2 op).2) in
+    let l := ziota vs vlen in
+    foldM (fun i acc =>
+               Let s := write_var x (Vint i) s in
+               Let vb := sem_pexpr s body in
+               catch (sem_sop2 op acc vb) (default_val (type_of_op2 op).2))
+      vidx l
+  | Pis_var_init x =>
+    Let _ := assert (assert_allowed) ErrType in
+    let v := (evm s).[x] in
+    ok (Vbool (is_defined v))
+  | Pis_mem_init e1 e2 =>
+    Let _ := assert (assert_allowed) ErrType in
+    Let lo := sem_pexpr s e1 >>= to_pointer in
+    Let sz := sem_pexpr s e2 >>= to_int in
+    let b := all (fun i => is_ok (read s.(emem) Unaligned (lo + (wrepr Uptr i))%R U8)) (ziota 0 sz) in
+    ok (Vbool b)
   end.
 
 Definition sem_pexprs s := mapM (sem_pexpr s).
-
-Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
-  Let vm := set_var wdb s.(evm) x v in
-  ok (with_vm s vm).
 
 Definition write_vars xs vs s :=
   fold2 ErrType write_var xs vs s.
@@ -175,19 +218,19 @@ Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
   | Lmem al sz x e =>
     Let p := sem_pexpr s e >>= to_pointer in
     Let w := to_word sz v in
-    Let m := write s.(emem) al p w in
+    Let m := catch (write s.(emem) al p w) s.(emem) in
     ok (with_mem s m)
   | Laset al aa ws x i =>
     Let (n,t) := wdb, s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let v := to_word ws v in
-    Let t := WArray.set t al aa i v in
+    Let t := catch (WArray.set t al aa i v) t in
     write_var x (@to_val (sarr n) t) s
   | Lasub aa ws len x i =>
     Let (n,t) := wdb, s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let t' := to_arr (Z.to_pos (arr_size ws len)) v in
-    Let t := @WArray.set_sub n aa ws len t i t' in
+    Let t := catch (@WArray.set_sub n aa ws len t i t') t in
     write_var x (@to_val (sarr n) t) s
   end.
 
@@ -202,22 +245,98 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {wa : WithAssert}
   {asmop : asmOp asm_op}.
 
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=
-  Let semi := sopn_sem o in
-  Let t := app_sopn _ semi vs in
-  ok (list_ltuple t).
+  catch (
+    Let semi := sopn_sem o in
+    Let t := app_sopn _ semi vs in
+    ok (list_ltuple t))
+[::].
 
 Definition sem_sopn gd o m lvs args :=
   sem_pexprs true gd m args >>= exec_sopn o >>= write_lvals true gd m lvs.
 
 End EXEC_ASM.
 
+Section CONTRA.
+
+Context
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {wa : WithAssert}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT : progT}.
+
+Definition sem_cond (gd : glob_decls) (e : pexpr) (s : estate) : exec bool :=
+  (sem_pexpr true gd s e >>= to_bool)%result.
+
+Definition sem_assert (gd : glob_decls) (s : estate) (e : assertion) : exec unit :=
+  Let _ := assert (assert_allowed) ErrType in
+  Let b := sem_cond gd e.2 s in
+  Let _ := assert b (ErrAssert e.1) in
+  ok tt.
+
+Record fstate := { fscs : syscall_state_t; fmem : mem; fvals : values }.
+
+(** Switch for the semantics of function calls:
+  - when false, arguments and returned values are truncated to the declared type of the called function;
+  - when true, arguments and returned values are allowed to be undefined.
+
+Informally, “direct call” means that passing arguments and returned value does not go through an assignment;
+indeed, assignments truncate and fail on undefined values.
+*)
+Class DirectCall := {
+  direct_call : bool;
+}.
+
+Definition indirect_c : DirectCall := {| direct_call := false |}.
+Definition direct_c : DirectCall := {| direct_call := true |}.
+
+Definition dc_truncate_val {dc:DirectCall} t v :=
+  if direct_call then ok v
+  else truncate_val t v.
+
+Definition sem_pre {dc: DirectCall} (P : prog) (fn:funname) (fs: fstate) :=
+  if ~~assert_allowed then ok tt
+  else if get_fundef (p_funcs P) fn is Some f then
+    match f.(f_contra) with
+    | Some ci =>
+      Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) fs.(fvals) in
+      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate fs.(fscs) fs.(fmem) Vm.init) in
+      Let _ := mapM (sem_assert (p_globs P) s) ci.(f_pre) in
+      ok tt
+    | None => ok tt
+    end
+  else Error ErrUnknowFun.
+
+Definition sem_post {dc: DirectCall} (P : prog) (fn:funname) (vargs' : values) (fs: fstate) :=
+  if ~~assert_allowed then ok tt
+  else if get_fundef (p_funcs P) fn is Some f then
+    match f.(f_contra) with
+    | Some ci =>
+      Let _ := assert (assert_allowed) ErrType in
+      Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
+      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate fs.(fscs) fs.(fmem) Vm.init) in
+      Let s :=  write_vars (~~direct_call) ci.(f_ires) fs.(fvals) s in
+      Let _ := mapM (sem_assert (p_globs P) s) ci.(f_post) in
+      ok tt
+    | None => ok tt
+    end
+  else Error ErrUnknowFun.
+
+End CONTRA.
+
 End WSW.
+
+End CATCH.
 
 (* Just for extraction *)
 Definition syscall_sem__ := @syscall_sem.exec_syscall_u.
+
+Notation catch ev dfv := (if with_catch then catch_core ev dfv else ev).
 
 Notation "'Let' ( n , t ) ':=' wdb ',' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_var wdb s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).

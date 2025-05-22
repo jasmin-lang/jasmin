@@ -45,6 +45,7 @@ Definition Oriscv_add_large_imm_instr : instruction_desc :=
    ; semi   := sem_prod_ok tin semi
    ; semu   := @values.vuincl_app_sopn_v [:: ty; ty] [:: ty] (sem_prod_ok tin semi) refl_equal
    ; i_safe := [::]
+   ; i_init := [:: IBool true]
    ; i_valid := true
    ; i_safe_wf := refl_equal
    ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=tin) semi _
