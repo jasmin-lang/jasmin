@@ -208,23 +208,46 @@ Definition isem_cond (e : pexpr) (s : estate) : itree E bool :=
 
 Definition sem_assert (e : pexpr) (s : estate) : exec unit :=
   Let b := sem_cond (p_globs p) e s in
-  Let _ := assert (b == true) ErrAssert in
+  Let _ := assert b ErrAssert in
   ok tt.
 
 Definition isem_assert (e: pexpr) (s: estate) : itree E unit :=
   iresult s (sem_assert e s).
 
-(* Definition sem_pre {dc: DirectCall} (scs: syscall_state) (m:mem) *)
-(*   (fn:funname) (vargs' : values) : exec unit := *)
-(*   if get_fundef (p_funcs P) fn is Some f then *)
-(*     match f.(f_contra) with *)
-(*     | Some ci => *)
-(*       Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in *)
-(*       Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate scs m Vm.init [::]) in *)
-(*       foldM (fun (p:_ * _) => sem_pexpr true gd s p.2 >>= to_bool) ci.(f_pre) *)
-(*     | None => ok tt *)
-(*     end *)
-(*   else Error ErrUnknowFun. *)
+Definition sem_pre {dc: DirectCall} (scs: syscall_state) (m: mem)
+  (fn:funname) (vargs' : values) : exec unit :=
+  if get_fundef (p_funcs p) fn is Some f then
+    match f.(f_contra) with
+    | Some ci =>
+      Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
+      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate scs m Vm.init [::]) in
+      Let _ := mapM (fun (p:_ * _) => sem_assert p.2 s) ci.(f_pre) in
+      ok tt
+    | None => ok tt
+    end
+  else Error ErrUnknowFun.
+
+Definition isem_pre {dc : DirectCall} (fn : funname) (vargs' : values)
+  (s: estate): itree E unit :=
+  iresult s (sem_pre s.(escs) s.(emem) fn vargs').
+
+Definition sem_post {dc : DirectCall} (scs : syscall_state) (m : mem)
+  (fn : funname) (vargs' : values) (vres : values) : exec unit :=
+ if get_fundef (p_funcs p) fn is Some f then
+   match f.(f_contra) with
+   | Some ci =>
+     Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
+     Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate scs m Vm.init [::]) in
+     Let s :=  write_vars (~~direct_call) ci.(f_ires) vres s in
+     Let _ := mapM (fun (p:_ * _) => sem_assert p.2 s) ci.(f_post) in
+     ok tt
+   | None => ok tt
+   end
+  else Error ErrUnknowFun.
+
+Definition isem_post {dc : DirectCall} (fn : funname) (vargs' : values)
+  (vres : values) (s : estate): itree E  unit :=
+  iresult s (sem_post s.(escs) s.(emem) fn vargs' vres).
 
 Definition sem_bound (gd : glob_decls) (lo hi : pexpr) (s : estate) :
     exec (Z * Z) :=
@@ -323,10 +346,9 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
 
   | Ccall xs fn args =>
     vargs <- isem_pexprs  (~~direct_call) (p_globs p) args s;;
-    (* vpre <- sem_pre p s.(escs) s.(emem) fn vargs;; *)
+    _ <- isem_pre p fn vargs s;;
     fs <- sem_fun p ev fn (mk_fstate vargs s) ;;
-    (* vpost <- sem_post P scs2 m2 f vargs vs ;; *)
-    (* s3 <- add_assumes (add_contracts (add_asserts s2 vpre) tr) vpost;; *)
+    _ <- isem_post p fn vargs fs.(fvals) s;;
     iresult s (upd_estate (~~direct_call) (p_globs p) xs fs s)
   end.
 (* similar, for commands *)
@@ -520,8 +542,13 @@ Proof.
   move=> xs f es ii s; rewrite /isem_i /isem_i_rec /=.
   rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
   move=> vs.
-  rewrite interp_bind; apply eqit_bind; last by move=> >; apply interp_iresult.
-  rewrite interp_mrecursive; reflexivity.
+  rewrite interp_bind; apply eqit_bind.
+  + by apply interp_iresult.
+  move => ?;rewrite interp_bind;apply eqit_bind.
+  + rewrite interp_mrecursive; reflexivity.
+  move => ?;rewrite interp_bind;apply eqit_bind.
+  + by apply interp_iresult.
+  move=> ?; exact: interp_iresult.
 Qed.
 
 Lemma isem_call_unfold (fn : funname) (fs : fstate) :

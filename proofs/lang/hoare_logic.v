@@ -540,6 +540,32 @@ Proof.
   move=> s hP; apply (ho s hP _ ht).
 Qed.
 
+Lemma hoare_assert (P Q : Pred_c) Qerr ii k pr a :
+  (forall s e, P s -> Qerr e -> rInvErr s e) ->
+  rhoare P (fun s => sem_assert p a s) (fun _ => True) Qerr ->
+  (forall s, P s -> sem_assert p a s = ok tt -> Q s) ->
+  hoare P [:: MkI ii (Cassert k pr a)] Q.
+Proof.
+  move=> herr he ha ; rewrite /hoare /isem_cmd_ /=.
+  apply khoare_bind with Q; last by apply khoare_ret.
+  apply  khoare_ioP.
+  move => s0 hpre.
+  apply khoare_read with (R:= (fun _ => P s0 /\ sem_assert p a s0 = ok tt)).
+  + rewrite /isem_assert.
+    apply khoare_iresult with (Qerr).
+    + move => s e h; subst.
+      exact: (herr _ _ hpre).
+    move => s hpre';subst.
+    have := he s0 hpre.
+    case (sem_assert p a s0).
+    + by move => [] ?.
+    done.
+    move => _ [] _ has.
+    apply khoare_ret.
+    move => s heq;subst.
+    by apply: ha.
+Qed.
+
 Lemma hoare_if_full P Q Qerr ii e c c' :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
   rhoare P (sem_cond (p_globs p) e) (fun _ => True) Qerr ->
@@ -642,9 +668,13 @@ Lemma hoare_call (Pf : PreF) (Qf : PostF) Rv P Q Qerr ii xs fn es :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
   rhoare P (fun s => sem_pexprs (~~ direct_call) (p_globs p) s es) Rv Qerr ->
   (forall s vs, P s -> Rv vs -> Pf fn (mk_fstate vs s)) ->
+  (forall s vs, P s -> Rv vs -> sem_pre p s.(escs) s.(emem) fn vs = ok tt) ->
   hoare_f Pf fn Qf ->
+  (forall fs fr s,
+      Pf fn fs -> Qf fn fs fr ->
+      sem_post p s.(escs) s.(emem) fn fs.(fvals) fr.(fvals) = ok tt)  ->
   (forall fs fr,
-    Pf fn fs -> Qf fn fs fr ->
+      Pf fn fs -> Qf fn fs fr ->
     rhoare P (upd_estate (~~ direct_call) (p_globs p) xs fr) Q Qerr) ->
   hoare P [:: MkI ii (Ccall xs fn es)] Q.
 Proof.
@@ -654,6 +684,8 @@ Proof.
   + by apply (khoare_iresult herr) => >; apply: hes.
   move=> vs hvs; apply khoare_eq_pred => s0.
   set (fs := mk_fstate vs s0).
+  
+  + apply: (khoare_iresult herr); apply he.
   apply khoare_read with (Qf fn fs).
   + by move=> _ [-> hP]; apply/hCall/hPPf.
   move=> fr hQf; apply khoare_iresult with Qerr.

@@ -649,6 +649,18 @@ Proof.
   by rewrite /mk_fstate => s1 s2 /heq [<- <-] vs1 vs2 fr1 huincl;apply hsc.
 Qed.
 
+Lemma wequiv_assert (Rv Rtr: rel_v) (P Q : rel_c) ii1 x1 tg1 ty1 e1 ii2 x2 tg2 ty2 e2 :
+...
+  wequiv P [:: MkI ii1 (Cassert k1 pr1 a1)] [:: MkI ii2 (Cassert k2 pr2 a2)] Q.
+Proof.
+  move=> he htr hwr; apply wequiv_assgn_core; rewrite /sem_assgn.
+  apply: (wrequiv_read he) => v1 v2 hv.
+  apply wrequiv_bind_eval with Rtr.
+  + by move=> s1 s2 /htr; apply wrequiv_weaken => // > [-> ->].
+  by apply hwr.
+Qed.
+
+
 Lemma wequiv_if_full P Q ii1 e1 c1 c1' ii2 e2 c2 c2' :
   wrequiv P (sem_cond (p_globs p1) e1) (sem_cond (p_globs p2) e2) eq ->
   (forall b, wequiv
