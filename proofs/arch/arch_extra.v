@@ -387,6 +387,7 @@ Definition get_instr_desc (o: extended_op) : instruction_desc :=
     ; semi     := semi_to_atype id.(id_semi)
     ; semu     := @vuincl_app_sopn_v _ _ _ (is_not_carr_ltype _)
     ; i_safe   := id.(id_safe)
+    ; i_init   := id.(id_init)
     ; i_valid  := id.(id_valid)
     ; i_safe_wf := semi_to_atype_safe_wf id.(id_safe_wf)
     ; i_semi_errty := fun h => semi_to_atype_errty (id.(id_semi_errty) h)
