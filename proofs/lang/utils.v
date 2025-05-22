@@ -189,6 +189,21 @@ Lemma bindA eT aT bT cT (f : aT -> result eT bT) (g: bT -> result eT cT) m:
   m >>= f >>= g = m >>= (fun a => f a >>= g).
 Proof. case:m => //=. Qed.
 
+Definition Rerror eT aT1 aT2 (R : aT1 -> aT2 -> Prop) (r1 : result eT aT1) (r2 : result eT aT2) :=
+  match r1, r2 with
+  | Ok a1, Ok a2 => R a1 a2
+  | Error s1, Error s2 => s1 = s2
+  | _, _ => False
+  end.
+
+Lemma bindP eT aT rT (R : aT -> aT -> Prop) (f1 f2 : aT -> result eT rT) m1 m2 :
+  Rerror R m1 m2 -> (forall a1 a2, R a1 a2 -> f1 a1 = f2 a2) ->
+  m1 >>= f1 = m2 >>= f2.
+Proof.
+  case: m1 m2 => [a1 | s1] [a2 | s2] //=; last by move=> ->.
+  by move=> h /(_ _ _ h).
+Qed.
+
 Lemma bind_eq eT aT rT (f1 f2 : aT -> result eT rT) m1 m2 :
    m1 = m2 -> f1 =1 f2 -> m1 >>= f1 = m2 >>= f2.
 Proof. move=> <- Hf; case m1 => //=. Qed.
@@ -214,8 +229,11 @@ Lemma map_errP eT1 eT2 aT (f : eT1 -> eT2) (r : result eT1 aT) x :
 Proof. by case: r => //= ? [->]. Qed.
 Arguments map_errP {_ _ _ _ _ _}.
 
+Definition assertion_label := String.string.
+
 Variant error :=
- | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith | ErrSemUndef.
+ | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith | ErrSemUndef
+ | ErrUnknowFun | ErrAssert of assertion_label.
 
 Definition exec t := result error t.
 
@@ -500,6 +518,9 @@ Lemma mapM_ok {eT} {A B:Type} (f: A -> B) (l:list A) :
   mapM (eT:=eT) (fun x => ok (f x)) l = ok (map f l).
 Proof. by elim l => //= ?? ->. Qed.
 
+Definition sndM eT aT bT cT (f : bT -> result eT cT) (ab : aT * bT) : result eT (aT * cT) :=
+  Let c := f ab.2 in ok (ab.1, c).
+
 Section FOLDM.
 
   Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).
@@ -523,6 +544,14 @@ Section FOLDM.
   Proof. by elim: l1 acc => //= x l hrec acc; case: f. Qed.
 
 End FOLDM.
+
+Lemma foldM_ext [eT aT bT : Type]: forall  (f g: aT -> bT -> result eT bT) s v,
+    (f =2 g) -> foldM f v s = foldM g v s.
+Proof.
+  move => f g s.
+  induction s => v H //=.
+  rewrite H; case (g a v) => //=; auto.
+Qed.
 
 Section FOLD2.
 
