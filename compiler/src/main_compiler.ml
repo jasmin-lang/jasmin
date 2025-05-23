@@ -168,6 +168,19 @@ let main () =
         errors
     in
 
+    let () =
+      let open Linter in
+      let (globs, funcs) = prog in
+      let funcs = List.map Analysis.Liveness.LivenessAnalyser.analyse_function funcs in
+      let prog = (globs, funcs) in
+      let errors = Checker.DeadVariables.check_prog prog in
+      List.iter (
+          fun (error: Error.CompileError.t) ->
+          warning Linter (Location.i_loc0 error.location) "%t" error.to_text
+        )
+        errors
+    in
+
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
 
