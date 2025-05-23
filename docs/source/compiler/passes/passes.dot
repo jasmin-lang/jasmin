@@ -1,0 +1,194 @@
+digraph {
+  ranksep=.3;
+  graph [splines=ortho];
+  // Disable tooltip by default
+  node[shape=box, style=filled, colorscheme=SVG, tooltip=" "];
+
+// Nodes
+jazz[label=".jazz",shape=oval,fillcolor=white];
+parse[label="Parse",fillcolor=moccasin];
+preprocess[label="Preprocess",fillcolor=moccasin];
+typing[label="Type-check",style="filled,dotted",fillcolor=moccasin];
+jasmin[label="Jasmin",shape=oval,fillcolor=white];
+
+wintword[label="Replace\nword ints",fillcolor=lightgreen,href="wint_word.html",target="_top",tooltip="Replace word ints"];
+arraycopy[label="Array copy",fillcolor=lightgreen,href="array_copy.html",target="_top",tooltip="Array copy"];
+addarrinit[label="Add\narray init",fillcolor=lightgreen,href="array_init.html",target="_top",tooltip="Add array init"];
+lowerspill[label="Spilling",fillcolor=lightgreen,href="lower_spill.html",target="_top",tooltip="Lowering of spills"];
+inline[label="Inlining",fillcolor=lightgreen,href="function_inlining.html",target="_top",tooltip="Function inlining"];
+rmfunc[label="Function\npruning",fillcolor=lightgreen,href="removal_unused_functions.html",target="_top",tooltip="Function pruning"];
+
+cstprop[label="Constant\nprop.",fillcolor=lightgreen,href="constant_propagation.html",target="_top",tooltip="Constant propagation"];
+dce[label="Dead code\nelimination",fillcolor=lightgreen,href="deadcode_elimination.html",target="_top",tooltip="Dead code elimination"];
+unroll[label="Unrolling",fillcolor=lightgreen, href="loop_unrolling.html",target="_top",tooltip="Loop unrolling"];
+rmfunc2[label="Function\npruning",fillcolor=lightgreen,href="removal_unused_functions.html",target="_top",tooltip="Function pruning"];
+splitting[label="Live-range\nsplitting",fillcolor=mediumpurple,href="liverange_splitting.html",target="_top",tooltip="Live-range splitting"];
+rmarrinit[label="Remove\narray init",fillcolor=lightgreen,href="array_init_rm.html",target="_top",tooltip="Remove array init"];
+
+makeref[label="Reference\narguments",fillcolor=lightgreen,href="make_ref_arguments.html",target="_top",tooltip="Make reference arguments"];
+arrexp[label="Reg. array\nexpansion",fillcolor=lightgreen,href="expansion_reg_arrays.html",target="_top",tooltip="Register arrays expansion"];
+splitting2[label="Live-range\nsplitting",fillcolor=mediumpurple,href="liverange_splitting.html",target="_top",tooltip="Live-range splitting"];
+rmglobals[label="Remove\nglobals",fillcolor=lightgreen,href="remove_global.html",target="_top",tooltip="Removal of globals"];
+loadconst[label="Load constants\n(RISC-V)",fillcolor=lightgreen,href="load_constants.html",target="_top",tooltip="Load constants (RISC-V)"];
+lowering[label="Instruction\nselection",fillcolor=lightgreen,href="inst_select.html",target="_top",tooltip="Instruction selection"];
+
+propagate[label="Inline\npropagation",fillcolor=lightgreen,href="propagate_inline.html",target="_top",tooltip="Inline propagation"];
+slhlowering[label="SLH",fillcolor=lightgreen,href="lower_slh.html",target="_top",tooltip="Lowering of SLH"];
+stkalloc[label="Stack\nallocation",fillcolor=lightgreen,href="stack_alloc.html",target="_top",tooltip="Stack allocation"];
+stack[label="Stack",shape=oval,fillcolor=white];
+loweraddr[label="Lower addr.\n(RISC-V)",fillcolor=lightgreen,href="lower_addr.html",target="_top",tooltip="Lowering of complex addressing mode (RISC-V)"];
+rmreturn[label="Remove\nunused ret.",fillcolor=lightgreen,href="rm_unused_ret_value.html",target="_top",tooltip="Remove unused return values"];
+
+ralloc[label="Register\nallocation",fillcolor=mediumpurple,href="reg_alloc.html",target="_top",tooltip="Register allocation"];
+dce2[label="Dead code\nelimination",fillcolor=lightgreen,href="deadcode_elimination.html",target="_top",tooltip="Dead code elimination"];
+onevarmap[label="One\nvarmap",style="filled,dotted",fillcolor=lightgreen,href="merge_varmaps.html",target="_top",tooltip="One varmap checker"];
+linearization[label="Linearization",fillcolor=lightgreen,href="linearization.html",target="_top",tooltip="Linearization"];
+linear[label="Linear",shape=oval,fillcolor=white];
+stackzero[label="Stack\nzeroization",fillcolor=lightgreen,href="stack_zero.html",target="_top",tooltip="Stack zeroization"];
+
+tunnel[label="Tunneling",fillcolor=lightgreen,href="tunneling.html",target="_top",tooltip="Tunneling"];
+asmgen[label="Assembly\ngeneration",fillcolor=lightgreen,href="asm_gen.html",target="_top",tooltip="Assembly generation"];
+asm[label="ASM",shape=oval,fillcolor=white];
+prettyprint[label="Pretty-\nprinting",fillcolor=moccasin];
+asmfile[label=".s",shape=oval,fillcolor=white];
+
+
+// Edges
+subgraph line1 {
+  rank=same;
+
+  jazz -> parse;
+  parse -> preprocess;
+  preprocess -> typing;
+  typing -> jasmin;
+}
+
+jasmin -> wintword;
+
+subgraph line2 {
+  edge[dir=back];
+  rank=same;
+
+  rmfunc -> inline;
+  inline -> lowerspill;
+  lowerspill -> addarrinit;
+  addarrinit -> arraycopy;
+  arraycopy -> wintword;
+}
+
+rmfunc -> cstprop;
+
+subgraph line3 {
+  rank=same;
+
+  unroll[height=0.7];
+  cstprop -> dce;
+  dce -> unroll;
+  unroll -> rmfunc2;
+  cstprop -> unroll [dir=back];
+
+  rmfunc2 -> splitting;
+  splitting -> rmarrinit;
+}
+
+rmarrinit -> makeref;
+
+subgraph line4 {
+  edge[dir=back];
+  rank=same;
+
+  lowering -> loadconst;
+  loadconst -> rmglobals;
+  rmglobals -> splitting2;
+  splitting2 -> arrexp;
+  arrexp -> makeref;
+}
+
+lowering -> propagate;
+
+subgraph line5 {
+  rank=same;
+
+  propagate -> slhlowering;
+  slhlowering -> stkalloc;
+  stkalloc -> stack;
+  stack -> loweraddr;
+  loweraddr -> rmreturn;
+}
+
+rmreturn -> ralloc;
+
+subgraph line6 {
+  rank=same;
+  edge[dir=back];
+
+  stackzero -> linear;
+  linear -> linearization;
+  linearization -> onevarmap;
+  onevarmap -> dce2;
+  dce2 -> ralloc;
+}
+
+stackzero -> tunnel;
+
+subgraph line7 {
+  rank=same;
+
+  tunnel -> asmgen;
+  asmgen -> asm;
+  asm -> prettyprint;
+  prettyprint -> asmfile;
+}
+
+subgraph caption {
+  node[color=white,fillcolor=white];
+
+  proved[label="",fillcolor=lightgreen,fixedsize=shape,width=0.2,height=0.2];
+  provedlbl[label="Proved step"];
+  validated[label="",fillcolor=mediumpurple,fixedsize=shape,width=0.2,height=0.2];
+  validatedlbl[label="Validated step"];
+  trusted[label="",fillcolor=moccasin,fixedsize=shape,width=0.2,height=0.2];
+  trustedlbl[label="Trusted step"];
+
+  intermediate[label="",shape=oval,color=black,fixedsize=shape,label="",width=0.2,height=0.2];
+  intermediatelbl[label="Intermediate representation"];
+  checker[label="",style=dotted,color=black,fixedsize=shape,label="",width=0.2,height=0.2];
+  checkerlbl[label="Checker"];
+  transformation[label="",color=black,fixedsize=shape,width=0.2,height=0.2];
+  transformationlbl[label="Transformation"];
+
+  edge[style=invis];
+  { rank=same; proved -> provedlbl; intermediate -> intermediatelbl; }
+  proved -> validated;
+  intermediate -> checker;
+  { rank=same; validated -> validatedlbl; checker -> checkerlbl; }
+  validated -> trusted;
+  checker -> transformation;
+  { rank=same; trusted -> trustedlbl; transformation -> transformationlbl; }
+}
+
+// Hacks to make the graph prettier
+edge[style=invis];
+
+// This better aligns the blocks
+cstprop -> lowering;
+propagate -> stackzero;
+jazz -> inline -> dce -> loadconst -> slhlowering -> linear -> asmgen;
+parse -> lowerspill -> unroll -> rmglobals -> stkalloc -> linearization -> asm;
+preprocess -> addarrinit -> rmfunc2 -> splitting2 -> stack -> onevarmap -> prettyprint;
+typing -> arraycopy -> splitting -> arrexp -> loweraddr -> dce2 -> asmfile;
+wintword -> rmarrinit;
+makeref -> rmreturn;
+
+// This puts the caption below the graph
+proved0[style=invis];
+asmgen -> proved0 -> proved;
+intermediate0[style=invis];
+prettyprint -> intermediate0 -> intermediate;
+
+// The 2 following lines allow the loop back from unroll to cstprop
+// to be above instead of below the second line.
+cstprop -> lowering;
+cstprop -> lowering;
+
+}
