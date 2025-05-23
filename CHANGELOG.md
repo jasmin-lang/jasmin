@@ -77,6 +77,9 @@
 - Better testing of the printing feature
   ([PR #1149](https://github.com/jasmin-lang/jasmin/pull/1149).
 
+- Add new reference documentation
+  ([PR #1167](https://github.com/jasmin-lang/jasmin/pull/1167)).
+
 # Jasmin 2025.02.1 — Nancy, 2025-04-10
 
 ## New features

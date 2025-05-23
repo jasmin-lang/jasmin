@@ -8,6 +8,8 @@ writing high-assurance and high-speed cryptography.
 Information about the Jasmin compiler and the related tools
 can be found in the [wiki](https://github.com/jasmin-lang/jasmin/wiki).
 
+Reference documentation of the language and compiler are on [readthedocs](https://jasmin-lang.readthedocs.io).
+
 ## License
 
 Jasmin is free software. All files in this distribution are, unless specified
