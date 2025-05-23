@@ -143,7 +143,6 @@ itrees/xrutt_facts.v
 
 itrees/tfam_iso.v
 itrees/inline_lemma.v
-itrees/inline_lemmaI1.v
 itrees/inline_lemmaI2.v
 itrees/it_sems_coreI2.v
 
