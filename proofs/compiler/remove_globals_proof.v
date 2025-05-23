@@ -89,6 +89,8 @@ Module INCL. Section INCL.
 
   Let P2 := {| p_globs := gd2; p_funcs := P1.(p_funcs); p_extra := P1.(p_extra) |}.
 
+  Section SEM.
+
   Let Pc s1 c s2 := sem P2 ev s1 c s2.
 
   Let Pi_r s1 i s2 := sem_i P2 ev s1 i s2.
@@ -201,6 +203,74 @@ Module INCL. Section INCL.
          Hproc).
   Qed.
 
+  End SEM.
+
+  Section IT.
+
+  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+
+  Notation st_equal := (st_rel (fun _ : unit => eq)).
+
+  Lemma st_equalP d s1 s2 : st_equal d s1 s2 <-> s1 = s2.
+  Proof.
+    rewrite st_relP; split.
+    + by move=> [-> <-]; rewrite with_vm_same.
+    by move=> ->; rewrite with_vm_same.
+  Qed.
+
+  Definition check_es_equal (_:unit) (es1 es2 : pexprs) (_:unit) := es1 = es2.
+
+  Definition check_lvals_equal (_:unit) (xs1 xs2 : lvals) (_:unit) := xs1 = xs2.
+
+  Lemma check_esP_R_equal d es1 es2 d' :
+    check_es_equal d es1 es2 d' →
+    ∀ s1 s2, st_equal d s1 s2 → st_equal d' s1 s2.
+  Proof. done. Qed.
+
+  Definition checker_equal : Checker_e st_equal :=
+    {| check_es := check_es_equal
+     ; check_lvals := check_lvals_equal
+     ; check_esP_rel := check_esP_R_equal
+    |}.
+
+  Lemma checker_ginclP : Checker_eq P1 P2 checker_equal.
+  Proof.
+    constructor.
+    + move=> > /wdb_ok_eq <- <- ??? /st_equalP -> /gd_incl_es -/(_ _ hincl) ->; eexists; eauto.
+    by move=> > /wdb_ok_eq <- <- ???? /st_equalP -> /gd_incl_wls -/(_ _ hincl) ->; eexists; eauto.
+  Qed.
+  #[local] Hint Resolve checker_ginclP : core.
+
+  Let Pi i :=
+    wequiv_rec P1 P2 ev ev eq_spec (st_equal tt) [::i] [::i] (st_equal tt).
+
+  Let Pi_r i := forall ii, Pi (MkI ii i).
+
+  Let Pc c :=
+    wequiv_rec P1 P2 ev ev eq_spec (st_equal tt) c c (st_equal tt).
+
+  Lemma it_gd_incl_fun fn : wiequiv_f P1 P2 ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+  Proof.
+    apply wequiv_fun_ind => hrec {fn}.
+    move=> fn _ fs ft [<- <-] fd ->; exists fd => //.
+    exists (st_equal tt), (st_equal tt) => s1 hinit.
+    exists s1; split => //; last by move=> s t vs /st_equalP <- ->; eexists; eauto.
+    move: (f_body fd) => {fn fs ft fd s1 hinit}.
+    apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //.
+    + by apply wequiv_nil.
+    + by move=> i c hi hc; apply wequiv_cons with (st_equal tt).
+    + by move=> >; apply wequiv_assgn_rel_eq with checker_equal tt.
+    + by move=> >; apply wequiv_opn_rel_eq with checker_equal tt.
+    + by move=> >; apply wequiv_syscall_rel_eq with checker_equal tt.
+    + by move=> > hc1 hc2 ii; apply wequiv_if_rel_eq with checker_equal tt tt tt.
+    + by move=> > hc ii; apply wequiv_for_rel_eq with checker_equal tt tt.
+    + by move=> > hc hc' ii; apply wequiv_while_rel_eq with checker_equal tt.
+    move=> ????; apply wequiv_call_rel_eq with checker_equal tt => //.
+    by move=> ???; apply hrec.
+  Qed.
+
+  End IT.
+
 End INCL. End INCL. Import INCL.
 
 Module EXTEND. Section ASM_OP.
@@ -237,7 +307,7 @@ Section PROOFS.
   (* TODO: Move *)
   Lemma hasPP T (a : pred T) (s : seq T): reflect (exists2 x : T, List.In x s & a x) (has a s).
   Proof.
-    elim: s => /=;first by constructor => -[]. 
+    elim: s => /=;first by constructor => -[].
     move=> x l ih; apply (equivP orP);split.
     + by move=> [ h| /ih []];eauto.
     move=> [x' [<- ?| ??]];first by auto.
@@ -465,44 +535,6 @@ Module RGP. Section PROOFS.
     by rewrite /write_lvals /= w4.
   Qed.
 
-  Let Pc s1 c s2 :=
-    forall m m' c', remove_glob (remove_glob_i gd) m c = ok (m', c') ->
-    forall s1', valid m s1 s1' ->
-    exists s2', valid m' s2 s2' /\ sem P' ev s1' c' s2'.
-
-  Let Pi s1 i s2 :=
-    forall m m' c', remove_glob_i gd m i = ok (m', c') ->
-    forall s1', valid m s1 s1' ->
-    exists s2', valid m' s2 s2' /\ sem P' ev s1' c' s2'.
-
-  Let Pi_r s1 i s2 := forall ii, Pi s1 (MkI ii i) s2.
-
-  Let Pfor xi vs s1 c s2 :=
-    ~~is_glob_var xi.(v_var) ->
-    forall m m' c', remove_glob (remove_glob_i gd) m c = ok (m', c') ->
-    Mincl m m' ->
-    forall s1', valid m s1 s1' ->
-    exists s2', valid m s2 s2' /\ sem_for P' ev xi vs s1' c' s2'.
-
-  Let Pfun scs m fn vs scs' m' vs' :=
-    sem_call P' ev scs m fn vs scs' m' vs'.
-
-  Local Lemma Hnil : sem_Ind_nil Pc.
-  Proof.
-    move=> s1 m m' c' /= [<- <-] s1' hv; exists s1';split => //.
-    econstructor.
-  Qed.
-
-  Local Lemma Hcons : sem_Ind_cons P ev Pc Pi.
-  Proof.
-    move=> s1 s2 s3 i c _ hi _ hc m m' c' /=.
-    t_xrbindP => -[mi ci] /hi{}hi [mc cc] /hc{}hc <- <- ? /hi [s2' [/hc [s3' [hv sc] si]]].
-    exists s3';split => //=; apply: sem_app si sc.
-  Qed.
-
-  Local Lemma HmkI : sem_Ind_mkI P ev Pi_r Pi.
-  Proof. done. Qed.
-
   Lemma find_globP ii xi sz (w:word sz) g :
     find_glob ii xi gd w = ok g ->
     get_global gd g =  ok (Vword w).
@@ -515,55 +547,6 @@ Module RGP. Section PROOFS.
     case: eqP => heq //; subst g'.
     case heq : assoc hget hg' => [z1 | //].
     by rewrite (assoc_mem_dom' heq).
-  Qed.
-
-  Local Lemma Hasgn : sem_Ind_assgn P Pi_r.
-  Proof.
-    move=> s1 s2 x tag ty e v v' he hv hw ii m m' c' /= hrm s1' hval.
-    move: hrm; t_xrbindP => e' /(remove_glob_eP hval) -/(_ _ _ he) he'.
-    have :
-      (Let lv := remove_globals.remove_glob_lv ii m x in
-      ok (m, [:: MkI ii (Cassgn lv tag ty e')])) = ok (m', c') ->
-      exists s2', valid m' s2 s2' /\ sem P' ev s1' c' s2'.
-    + t_xrbindP => x' /(remove_glob_lvP hval) -/(_ _ _ _ hw) [s2' [hs2' hw' ]] <- <-.
-      exists s2';split => //; apply sem_seq1; constructor; econstructor; eauto.
-    case: x hw => //=.
-    move=> xi hxi hdef; case: ifPn => // hglob {hdef}.
-    case: e' he' => // - [] // sz [] //= z [?]; subst v.
-    case: andP => //= -[/eqP ? /eqP htxi];subst ty.
-    move: hv; rewrite /truncate_val /= truncate_word_u /= => -[?]; subst v'.
-    t_xrbindP => h hfind <- <-; exists s1'; split; last by constructor.
-    move/write_varP: hxi => [-> hdb htr].
-    case: hval => hscs hm hm1 hm2 hm3; split => //=.
-    + move=> y hy; rewrite Vm.setP_neq; first by apply hm1.
-      by apply/eqP => ?;subst y;move: hy;rewrite hglob.
-    + by move=> y gy;rewrite Mvar.setP; case:eqP => [<- // | ?]; apply hm2.
-    move=> y gy;rewrite Mvar.setP Vm.setP //; case:eqP => [|/eqP hneq]; last by apply hm3.
-    move=> ?[?]; subst; rewrite (find_globP hfind).
-    by have /vm_truncate_valE [ws] := htr; rewrite htxi => -[[->] ?->]; rewrite cmp_le_refl.
-  Qed.
-
-  Local Lemma Hopn : sem_Ind_opn P Pi_r.
-  Proof.
-   move=> s1 s2 t o xs es ho ii m m' c /= hrm s1' hval.
-   move: hrm; t_xrbindP.
-   move=> xs' /(remove_glob_lvsP hval) hxs' es' /(remove_glob_esP hval) hes' <- <-.
-   move: ho;rewrite /sem_sopn; t_xrbindP => vs vres /hes' h1 h2 /hxs' [s2' [hval' h]].
-   exists s2';split => //.
-   by apply sem_seq1; constructor; constructor; rewrite /sem_sopn h1 /= h2.
-  Qed.
-
-  Local Lemma Hsyscall : sem_Ind_syscall P Pi_r.
-  Proof.
-   move=> s1 scs mem s2 o xs es ves vs hes ho hw ii m m' c /= hrm s1' hval.
-   move: hrm; t_xrbindP => xs' hrlv es' hres <- <-.
-   have hes' := remove_glob_esP hval hres hes.
-   have hval' : valid m (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s1' mem) scs).
-   + case: hval => hscs hm hm1 hm2 hm3; split => //=.
-   have [s2' [hval1 h]]:= remove_glob_lvsP hval' hrlv hw.
-   exists s2';split => //.
-   apply sem_seq1; constructor; econstructor; eauto.
-   by case: hval => <- <-.
   Qed.
 
   Lemma MinclP m1 m2 x g :
@@ -602,6 +585,153 @@ Module RGP. Section PROOFS.
     by case: Mvar.get => //= g2; case:ifP => // /eqP <- [<-].
   Qed.
 
+  Lemma MinclR m : Mincl m m.
+  Proof. by apply /allP => -[x g] /Mvar.elementsP ->. Qed.
+
+  Lemma MinclT m2 m1 m3: Mincl m1 m2 -> Mincl m2 m3 -> Mincl m1 m3.
+  Proof.
+    move=> /allP h1 /allP h2; apply /allP => x /h1.
+    case heq : (Mvar.get m2 x.1) => [g|//] /eqP ?; subst g.
+    by apply h2; apply /Mvar.elementsP.
+  Qed.
+
+  Local Lemma loopP check_c n m m' c':
+    loop check_c n m = ok (m', c') ->
+      exists m1,
+      [/\ check_c m' = ok (m1,c'), Mincl m' m1 & Mincl m' m].
+  Proof.
+    elim: n m => //= n hrec m; t_xrbindP => -[m2 c2] /= hc.
+    case:ifP => hincl.
+    + by move=> []??; subst m' c2; exists m2;split => //;apply MinclR.
+    move=> /hrec => -[m1 [hc' h1 h2]]. exists m1;split=>//.
+    apply: (MinclT h2);apply merge_incl_l.
+  Qed.
+
+  Lemma loop2P check_c2 n m e c1 c2 m1:
+    loop2 check_c2 n m = ok (Loop2_r e c1 c2 m1) ->
+    exists m2 m3,
+      [/\ check_c2 m3 = ok (Check2_r e (m1,c1) (m2,c2)), Mincl m3 m2 & Mincl m3 m].
+  Proof.
+    elim: n m => //= n hrec m; t_xrbindP.
+    move=> [e' [m1' c1'] [m2' c2']] heq; case:ifPn => hincl.
+    + move=> [] ????; subst e' c1' c2' m1'.
+      by exists m2', m; split => //; apply MinclR.
+    move=> /hrec [m2 [m3 [h1 h2]]] hm3; exists m2, m3; split=>//.
+    apply: (MinclT hm3); apply merge_incl_l.
+  Qed.
+
+  Local Lemma get_fundefP fn f:
+    get_fundef (p_funcs P) fn = Some f ->
+    exists f',
+       get_fundef (p_funcs P') fn = Some f' /\
+       remove_glob_fundef gd f = ok f'.
+  Proof.
+    move=> hget.
+    have [f' hget' hremove] := get_map_cfprog_gen fds_ok hget.
+    by exists f'.
+  Qed.
+
+  Lemma Hassgn_aux m m' ii x tag ty e c' :
+    remove_glob_i gd m (MkI ii (Cassgn x tag ty e)) = ok (m', c') ->
+    forall s1 s2 s1', valid m s1 s1' ->
+      sem_assgn P x tag ty e s1 = ok s2 ->
+      exists2 s2', esem P' ev c' s1' = ok s2' & valid m' s2 s2'.
+  Proof.
+    rewrite /= /sem_assgn; t_xrbindP => e' he hx s1 s2 s1' hval v hv v' htr hw.
+    have he' := remove_glob_eP hval he hv. clear he.
+    have h :
+      (Let lv := remove_glob_lv ii m x in
+      ok (m, [:: MkI ii (Cassgn lv tag ty e')])) = ok (m', c') ->
+      exists2 s2', esem P' ev c' s1' = ok s2' & valid m' s2 s2' .
+    + t_xrbindP => x' /(remove_glob_lvP hval) -/(_ _ _ _ hw) [s2' [hs2' hw' ]] <- <-.
+      by exists s2' => //=; rewrite /sem_assgn he' /= htr /= hw'.
+    case: x hw h hx => //=.
+    move=> xi hxi hdef; case: ifPn => // hglob {hdef}.
+    case: e' he' => // - [] // sz [] //= z [?]; subst v.
+    case: andP => //= -[/eqP ? /eqP htxi];subst ty.
+    move: htr; rewrite /truncate_val /= truncate_word_u /= => -[?]; subst v'.
+    t_xrbindP => h hfind <- <-; exists s1' => //.
+    move/write_varP: hxi => [-> hdb htr].
+    case: hval => hscs hm hm1 hm2 hm3; split => //=.
+    + move=> y hy; rewrite Vm.setP_neq; first by apply hm1.
+      by apply/eqP => ?;subst y;move: hy;rewrite hglob.
+    + by move=> y gy;rewrite Mvar.setP; case:eqP => [<- // | ?]; apply hm2.
+    move=> y gy;rewrite Mvar.setP Vm.setP //; case:eqP => [|/eqP hneq]; last by apply hm3.
+    move=> ?[?]; subst; rewrite (find_globP hfind).
+    by have /vm_truncate_valE [ws] := htr; rewrite htxi => -[[->] ?->]; rewrite cmp_le_refl.
+  Qed.
+
+  Section SEM.
+
+  Let Pc s1 c s2 :=
+    forall m m' c', remove_glob (remove_glob_i gd) m c = ok (m', c') ->
+    forall s1', valid m s1 s1' ->
+    exists s2', valid m' s2 s2' /\ sem P' ev s1' c' s2'.
+
+  Let Pi s1 i s2 :=
+    forall m m' c', remove_glob_i gd m i = ok (m', c') ->
+    forall s1', valid m s1 s1' ->
+    exists s2', valid m' s2 s2' /\ sem P' ev s1' c' s2'.
+
+  Let Pi_r s1 i s2 := forall ii, Pi s1 (MkI ii i) s2.
+
+  Let Pfor xi vs s1 c s2 :=
+    ~~is_glob_var xi.(v_var) ->
+    forall m m' c', remove_glob (remove_glob_i gd) m c = ok (m', c') ->
+    Mincl m m' ->
+    forall s1', valid m s1 s1' ->
+    exists s2', valid m s2 s2' /\ sem_for P' ev xi vs s1' c' s2'.
+
+  Let Pfun scs m fn vs scs' m' vs' :=
+    sem_call P' ev scs m fn vs scs' m' vs'.
+
+  Local Lemma Hnil : sem_Ind_nil Pc.
+  Proof.
+    move=> s1 m m' c' /= [<- <-] s1' hv; exists s1';split => //.
+    econstructor.
+  Qed.
+
+  Local Lemma Hcons : sem_Ind_cons P ev Pc Pi.
+  Proof.
+    move=> s1 s2 s3 i c _ hi _ hc m m' c' /=.
+    t_xrbindP => -[mi ci] /hi{}hi [mc cc] /hc{}hc <- <- ? /hi [s2' [/hc [s3' [hv sc] si]]].
+    exists s3';split => //=; apply: sem_app si sc.
+  Qed.
+
+  Local Lemma HmkI : sem_Ind_mkI P ev Pi_r Pi.
+  Proof. done. Qed.
+
+  Local Lemma Hasgn : sem_Ind_assgn P Pi_r.
+  Proof.
+    move=> s1 s2 x tag ty e v v' he hv hw ii m m' c' hrm s1' hval.
+    have /(_ s2) [|s2' /esem_sem ? ?]:= Hassgn_aux hrm hval.
+    + by rewrite /sem_assgn he /= hv /=.
+    by exists s2'.
+  Qed.
+
+  Local Lemma Hopn : sem_Ind_opn P Pi_r.
+  Proof.
+   move=> s1 s2 t o xs es ho ii m m' c /= hrm s1' hval.
+   move: hrm; t_xrbindP.
+   move=> xs' /(remove_glob_lvsP hval) hxs' es' /(remove_glob_esP hval) hes' <- <-.
+   move: ho;rewrite /sem_sopn; t_xrbindP => vs vres /hes' h1 h2 /hxs' [s2' [hval' h]].
+   exists s2';split => //.
+   by apply sem_seq1; constructor; constructor; rewrite /sem_sopn h1 /= h2.
+  Qed.
+
+  Local Lemma Hsyscall : sem_Ind_syscall P Pi_r.
+  Proof.
+   move=> s1 scs mem s2 o xs es ves vs hes ho hw ii m m' c /= hrm s1' hval.
+   move: hrm; t_xrbindP => xs' hrlv es' hres <- <-.
+   have hes' := remove_glob_esP hval hres hes.
+   have hval' : valid m (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s1' mem) scs).
+   + case: hval => hscs hm hm1 hm2 hm3; split => //=.
+   have [s2' [hval1 h]]:= remove_glob_lvsP hval' hrlv hw.
+   exists s2';split => //.
+   apply sem_seq1; constructor; econstructor; eauto.
+   by case: hval => <- <-.
+  Qed.
+
   Local Lemma Hif_true : sem_Ind_if_true P ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 he _ hc ii m m' c' /= hrm s1' hval.
@@ -621,29 +751,6 @@ Module RGP. Section PROOFS.
     exists s2'; split.
     + apply: valid_Mincl hval'; apply merge_incl_r.
     by apply sem_seq1; constructor; apply Eif_false.
-  Qed.
-
-  Lemma MinclR m : Mincl m m.
-  Proof. by apply /allP => -[x g] /Mvar.elementsP ->. Qed.
-
-  Lemma MinclT m2 m1 m3: Mincl m1 m2 -> Mincl m2 m3 -> Mincl m1 m3.
-  Proof.
-    move=> /allP h1 /allP h2; apply /allP => x /h1.
-    case heq : (Mvar.get m2 x.1) => [g|//] /eqP ?; subst g.
-    by apply h2; apply /Mvar.elementsP.
-  Qed.
-
-  Lemma loop2P check_c2 n m e c1 c2 m1:
-    loop2 check_c2 n m = ok (Loop2_r e c1 c2 m1) ->
-    exists m2 m3,
-      [/\ check_c2 m3 = ok (Check2_r e (m1,c1) (m2,c2)), Mincl m3 m2 & Mincl m3 m].
-  Proof.
-    elim: n m => //= n hrec m; t_xrbindP.
-    move=> [e' [m1' c1'] [m2' c2']] heq; case:ifPn => hincl.
-    + move=> [] ????; subst e' c1' c2' m1'.
-      by exists m2', m; split => //; apply MinclR.
-    move=> /hrec [m2 [m3 [h1 h2]]] hm3; exists m2, m3; split=>//.
-    apply: (MinclT hm3); apply merge_incl_l.
   Qed.
 
   Local Lemma Hwhile_true : sem_Ind_while_true P ev Pc Pi_r.
@@ -677,18 +784,6 @@ Module RGP. Section PROOFS.
     exists s2';split => //.
     apply sem_seq1;constructor;apply: Ewhile_false => //.
     by apply: remove_glob_eP he1 he.
-  Qed.
-
-  Local Lemma loopP check_c n m m' c':
-    loop check_c n m = ok (m', c') ->
-      exists m1,
-      [/\ check_c m' = ok (m1,c'), Mincl m' m1 & Mincl m' m].
-  Proof.
-    elim: n m => //= n hrec m; t_xrbindP => -[m2 c2] /= hc.
-    case:ifP => hincl.
-    + by move=> []??; subst m' c2; exists m2;split => //;apply MinclR.
-    move=> /hrec => -[m1 [hc' h1 h2]]. exists m1;split=>//.
-    apply: (MinclT h2);apply merge_incl_l.
   Qed.
 
   Local Lemma Hfor : sem_Ind_for P ev Pi_r Pfor.
@@ -733,17 +828,6 @@ Module RGP. Section PROOFS.
     by case: hval => <- <-.
   Qed.
 
-  Local Lemma get_fundefP fn f:
-    get_fundef (p_funcs P) fn = Some f ->
-    exists f',
-       get_fundef (p_funcs P') fn = Some f' /\
-       remove_glob_fundef gd f = ok f'.
-  Proof.
-    move=> hget.
-    have [f' hget' hremove] := get_map_cfprog_gen fds_ok hget.
-    by exists f'.
-  Qed.
-
   Local Lemma Hproc : sem_Ind_proc P ev Pc Pfun.
   Proof.
     move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' hget hargs hwa hi _ hc hres hres' hscs hfi.
@@ -782,6 +866,112 @@ Module RGP. Section PROOFS.
          Hproc).
   Qed.
 
+  End SEM.
+
+  Section IT.
+
+  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+
+  Definition check_es_valid ii (d:venv) (es1 es2 : pexprs) (d':venv) :=
+    d = d' /\ mapM (remove_glob_e ii d) es1 = ok es2.
+
+  Definition check_lvals_valid ii (d:venv) (xs1 xs2 : lvals) (d':venv) :=
+    d = d' /\ mapM (remove_glob_lv ii d) xs1 = ok xs2.
+
+  Lemma check_esP_R_valid ii d es1 es2 d' :
+    check_es_valid ii d es1 es2 d' →
+    ∀ s1 s2, valid d s1 s2 → valid d' s1 s2.
+  Proof. by move=> [<-]. Qed.
+
+  Definition checker_valid ii : Checker_e valid :=
+    {| check_es := check_es_valid ii
+     ; check_lvals := check_lvals_valid ii
+     ; check_esP_rel := @check_esP_R_valid ii
+    |}.
+
+  Lemma checker_validP ii : Checker_eq P P' (checker_valid ii).
+  Proof.
+    constructor.
+    + move=> > /wdb_ok_eq <- [_ hes] s1 s2 vs hval hses.
+      by rewrite (remove_glob_esP hval hes hses); eexists.
+    move=> > /wdb_ok_eq <- [<- hxs] vs s1 s2 s1' hval hw.
+    have [s2' [??]]:= remove_glob_lvsP hval hxs hw; eexists; eauto.
+  Qed.
+  #[local] Hint Resolve checker_validP : core.
+
+  Let Pi i :=
+    forall d dc, remove_glob_i gd d i = ok dc ->
+    wequiv_rec P P' ev ev eq_spec (valid d) [::i] dc.2 (valid dc.1).
+
+  Let Pi_r i := forall ii, Pi (MkI ii i).
+
+  Let Pc c :=
+    forall d dc, remove_glob (remove_glob_i gd) d c = ok dc ->
+    wequiv_rec P P' ev ev eq_spec (valid d) c dc.2 (valid dc.1).
+
+  Lemma it_remove_glob_call fn : wiequiv_f P P' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+  Proof.
+    apply wequiv_fun_ind => hrec {fn}.
+    move=> fn _ fs _ [<- <-] fd hget.
+    have [fd' [hget' hfd']]:= get_fundefP hget.
+    exists fd' => //.
+    move: hfd'; rewrite /remove_glob_fundef; t_xrbindP => _tt hparams res1 hres1 [m' c'] hrm ?;subst fd' => /=.
+    exists (valid (Mvar.empty var)), (valid m') => s1 hinit.
+    exists s1; split => // {s1 hinit fs hget}; last first.
+    + move=> s1 s2 fs [/= hscse hmem hm _ _]; rewrite /finalize_funcall /=; t_xrbindP.
+      move=> vs hget vs' htr <-.
+      have -> : get_var_is (~~ direct_call) (evm s2) (f_res fd) = ok vs.
+      + elim: (f_res fd) (vs) res1 hres1 hget => //= x xs hrec1 vres0 res1.
+        t_xrbindP; case: ifPn => hglob // _ ? /hrec1 hres1 ? v.
+        by rewrite /get_var hm // => -> vs1 /hres1 hxs <-; rewrite /= hxs.
+      by rewrite /= htr hscse hmem/=; eexists; eauto.
+    move: hrm; set dc_ := (m', c'); have [-> ->] : m' = dc_.1 /\ c' = dc_.2 by done.
+    move: (f_body fd) (Mvar.empty var) dc_ => {fn fd m' c' hget' _tt hparams res1 hres1}.
+    apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //.
+    + by move=> d _ [<-]; apply wequiv_nil.
+    + move=> i c hi hc d dc_ /=; t_xrbindP => dci /hi{}hi ? /hc{}hc <-.
+      by rewrite -cat1s; apply wequiv_cat with (valid dci.1).
+    + move=> x tg ty e ii d [d' c'] hrm.
+      apply wequiv_assgn_esem => s1 s2 s1' hval hsem.
+      by apply (Hassgn_aux hrm hval hsem).
+    + move=> xs tg o es ii d dc_ /=; t_xrbindP => xs' hxs' es' hes' <- /=.
+      by apply wequiv_opn_rel_eq with (checker_valid ii) d.
+    + move=> xs o es ii d dc_ /=; t_xrbindP => xs' hxs' es' hes' <- /=.
+      apply wequiv_syscall_rel_eq_core_R with (checker_valid ii) d d => //.
+      + by move=> > []. + by move=> > [?????].
+      by move=> ??? <- ->; eauto.
+    + move=> e c1 c2 hc1 hc2 ii d dc_ /=; t_xrbindP.
+      move=> e' he' dc1 /hc1{}hc1 dc2 /hc2{}hc2 <- /=.
+      apply wequiv_if_rel_eq_R with (checker_valid ii) d dc1.1 dc2.1 => //.
+      + by split => //=; rewrite he'.
+      + by move=> >; apply/valid_Mincl/merge_incl_l.
+      by move=> >; apply/valid_Mincl/merge_incl_r.
+    + move=> v dir lo hi c hc ii d dc_ /=.
+      case: ifP => // hv; t_xrbindP => lo' hlo hi' hhi [d' c'] /loopP [d1] [/hc{}hc hincl1 hincl2] [<-] /=.
+      apply wequiv_for_rel_eq_R with (checker_valid ii) d d' => //.
+      + by split => //=; rewrite hlo /= hhi.
+      + by move=> >; apply valid_Mincl.
+      + by split => //=; rewrite hv.
+      apply wequiv_weaken with (valid d') (valid d1) => //.
+      by move=> >; apply valid_Mincl.
+    + move=> a c1 e ii' c2 hc1 hc2 ii d dc_ /=; t_xrbindP.
+      move=> [e' c1' c2' d'] /loop2P [d1][d2] []; t_xrbindP.
+      move=> [d1_ c1_] /hc1/={}hc1 /= e_ he [d2_ c2_] /hc2/={}hc2 ? [??] [??] hincl1 hincl2 <- /=.
+      subst e_ d1_ c1_ d2_ c2_.
+      apply wequiv_weaken with (valid d2) (valid d') => //.
+      + by move=> >; apply valid_Mincl.
+      apply wequiv_while_rel_eq with (checker_valid ii) d' => //.
+      + by split => //=; rewrite he.
+      apply wequiv_weaken with (valid d') (valid d1) => //.
+      by move=> >; apply valid_Mincl.
+    move=> xs fn es ii d dc_ /=; t_xrbindP => xs' hxs' es' hes' <- /=.
+    apply wequiv_call_rel_eq_R with (checker_valid ii) d d => //.
+    + by move=> > []. + by move=> > [?????].
+    by move=> ?? <-; apply hrec.
+  Qed.
+
+  End IT.
+
   End FDS.
 
   Lemma remove_globP P P' f ev scs mem scs' mem' va vr :
@@ -793,5 +983,26 @@ Module RGP. Section PROOFS.
     case: ifP => // huniq; t_xrbindP => fds hfds <- h; have hf := gd_incl_fun hgd h.
     apply: (remove_glob_call (P:={| p_globs := gd'; p_funcs := p_funcs P |}) hfds huniq hf).
   Qed.
+
+  Section IT.
+
+  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rE0_trans : EventRels_trans rE0}.
+
+  Lemma it_remove_globP P P' ev fn:
+    remove_glob_prog fresh_id P = ok P' ->
+    wiequiv_f P P' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+  Proof.
+    rewrite /remove_glob_prog; t_xrbindP => gd' /extend_glob_progP hgd.
+    case: ifP => // huniq; t_xrbindP => fds hfds <-.
+    have h1 := [elaborate it_gd_incl_fun ev hgd (fn := fn)].
+    set P1 := {| p_funcs := p_funcs P; p_globs := gd'; p_extra := p_extra P |}.
+    have h2 := it_remove_glob_call (P:=P1) ev hfds huniq (wE:=wE) (rE:=rE0) (fn:=fn).
+    move: h1 h2.
+    apply wiequiv_f_trans => //.
+    + by move=> fs1 fs2 [_ <-]; exists fs1.
+    by move=> ??? fs1 fs3 _ _ [fs2] <- <-.
+  Qed.
+
+  End IT.
 
 End PROOFS. End RGP.

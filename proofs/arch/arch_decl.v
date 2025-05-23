@@ -258,7 +258,7 @@ Variant addr_kind : Type :=
 (* -------------------------------------------------------------------- *)
 (* Argument description.
  * An argument may be either implicit or explicit.
- * Registers may be constrained to a specific one or a subset
+ * Registers may be constrained to a specific one or to avoid a given subset
  *)
 Variant arg_constrained_register :=
 | ACR_any
@@ -288,7 +288,7 @@ Definition check_oreg or ai :=
   | ACR_exact _, _       => false
   | ACR_vector x, XReg r => x == r ::>
   | ACR_vector _, _      => false
-  | ACR_subset s, Reg r  => r \in (s : seq ceqT_eqType)
+  | ACR_subset s, Reg r  => r \notin (s : seq ceqT_eqType)
   | ACR_subset _, _      => false
   | ACR_any, _           => true
   end.
