@@ -1225,6 +1225,23 @@ Proof.
   by apply/wkequiv_bind_ret_left/wkequiv_iresult_left.
 Qed.
 
+Lemma wequiv_assert_left P Q ii a :
+  (assert_allowed (WithAssert:=wa1) ->
+   forall s t, P s t -> sem_pexpr1 true (p_globs p1) s a.2 = ok (Vbool true) -> Q s t) ->
+  wequiv P [::MkI ii (Cassert a)] [::] Q.
+Proof.
+  move=> h; rewrite /wequiv /=.
+  apply/wkequiv_bind_ret_left.
+  move=> s1 s2 hP; rewrite /isem_assert.
+  case heq: sem_assert => [ []| e] /=.
+  + rewrite bind_ret_l.
+    move: heq; rewrite /sem_assert /sem_cond; t_xrbindP => hwa [] // v he /to_boolI ? _ _; subst v.
+    by apply/xrutt_Ret/h.
+  rewrite /Exception.throw bind_vis.
+  apply xrutt_CutL => //.
+  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
+Qed.
+
 Section REL.
 
 Context {D:Type}.
@@ -1318,6 +1335,16 @@ Proof.
   move=> v1 v2 hu; apply wrequiv_weaken with (R de) (R d') => //.
   + by apply: check_esP_rel hes.
   apply: ucheck_lvalP hxs v1 v2 hu.
+Qed.
+
+Lemma wequiv_assert_rel_uincl d de ii1 a1 ii2 a2 :
+  (assert_allowed (WithAssert:=wa1) → assert_allowed (WithAssert:=wa2)) ->
+  check_es d [::a1.2] [::a2.2] de ->
+  wequiv (R d) [:: MkI ii1 (Cassert a1)] [:: MkI ii2 (Cassert a2)] (R de).
+Proof.
+  move=> hassert hes; apply wequiv_assert_uincl.
+  + move=> /hassert ?; split => //; apply: ucheck_eP hes.
+  by move=> _ _ + + + _ _; apply: check_esP_rel hes.
 Qed.
 
 Lemma wequiv_opn_rel_uincl d de d' ii1 xs1 tg1 o es1  ii2 xs2 tg2 es2 :
@@ -1466,6 +1493,17 @@ Proof.
   move=> v; apply wrequiv_weaken with (R de) (R d') => //.
   + by apply: check_esP_rel hes.
   apply: echeck_lvalP hxs v.
+Qed.
+
+Lemma wequiv_assert_rel_eq d de ii1 a1 ii2 a2 :
+  (assert_allowed (WithAssert:=wa1) → assert_allowed (WithAssert:=wa2)) ->
+  check_es d [::a1.2] [::a2.2] de ->
+  wequiv (R d) [:: MkI ii1 (Cassert a1)] [:: MkI ii2 (Cassert a2)] (R de).
+Proof.
+  move=> hassert hes.
+  apply wequiv_assert_eq.
+  + by move=> /hassert ?; split => //; apply: echeck_eP hes.
+  by move=> _ _ + + + _ _; apply: check_esP_rel hes.
 Qed.
 
 Lemma wequiv_opn_rel_eq d de d' ii1 xs1 tg1 o es1 ii2 xs2 tg2 es2 :
@@ -1682,7 +1720,7 @@ Proof.
   by move=> scs mem s1 s2 [???].
 Qed.
 
-Lemma wequiv_call_rel_eq d de d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
+Lemma wequiv_call_rel_eq_wa d de d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
   check_es d es1 es2 de →
   check_lvals de xs1 xs2 d' →
   (∀ s1 s2 vs,
@@ -1845,7 +1883,7 @@ Proof.
   by case: mfun1 => // ?; case: mfun1.
 Qed.
 
-Lemma wequiv_fun_ind :
+Lemma wequiv_fun_ind_wa :
   ((forall fn1 fn2, wequiv_f_rec rpreF fn1 fn2 rpostF) ->
    (forall fn1 fn2, wequiv_fun_body_hyp_rec_wa rpreF fn1 fn2 rpostF)) ->
   forall fn1 fn2,
@@ -1867,6 +1905,170 @@ Qed.
 End WEQUIV_FUN.
 
 End WITHASSERT.
+
+Section NOASSERT.
+
+Notation isem_fun1 := (isem_fun (wsw:=wsw1) (dc:=dc1) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT1) (scP:= scP1)).
+Notation isem_fun2 := (isem_fun (wsw:=wsw2) (dc:=dc2) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT2) (scP:= scP2)).
+
+Section WEQUIV_CORE.
+
+Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
+    {wE: with_Error E E0} {rE0 : EventRels E0}.
+
+Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
+
+Notation sem_fun1 := (sem_fun (pT := pT1) (sem_Fun := sem_F1)).
+Notation sem_fun2 := (sem_fun (pT := pT2) (sem_Fun := sem_F2)).
+
+Lemma wequiv_call (Pf : relPreF) (Qf : relPostF) Rv P Q ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
+  wrequiv P (fun s => sem_pexprs (~~ (@direct_call dc1)) (p_globs p1) s es1)
+            (fun s => sem_pexprs (~~ (@direct_call dc2)) (p_globs p2) s es2) Rv ->
+  (forall s1 s2 vs1 vs2,
+     P s1 s2 -> Rv vs1 vs2 -> Pf fn1 fn2 (mk_fstate vs1 s1) (mk_fstate vs2 s2)) ->
+  wequiv_f p1 p2 ev1 ev2 Pf fn1 fn2 Qf ->
+  (forall fs1 fs2 fr1 fr2,
+    Pf fn1 fn2 fs1 fs2 -> Qf fn1 fn2 fs1 fs2 fr1 fr2 ->
+    wrequiv P (upd_estate (~~ (@direct_call dc1)) (p_globs p1) xs1 fr1)
+              (upd_estate (~~ (@direct_call dc2)) (p_globs p2) xs2 fr2) Q) ->
+  wequiv p1 p2 ev1 ev2 P [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] Q.
+Proof.
+  by move=> hes hPf hf; apply: (wequiv_call_wa ii1 ii2 hes _ hPf hf).
+Qed.
+
+Lemma wequiv_call_eq P Q ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
+  wrequiv P (fun s => sem_pexprs (~~ (@direct_call dc1)) (p_globs p1) s es1)
+            (fun s => sem_pexprs (~~ (@direct_call dc2)) (p_globs p2) s es2) eq ->
+  (forall s1 s2 vs,
+     P s1 s2 -> rpreF (eS:=eq_spec) fn1 fn2 (mk_fstate vs s1) (mk_fstate vs s2)) ->
+  wequiv_f p1 p2 ev1 ev2 (rpreF (eS:=eq_spec)) fn1 fn2 (rpostF (eS:=eq_spec)) ->
+  (forall fs,
+    wrequiv P (upd_estate (~~ (@direct_call dc1)) (p_globs p1) xs1 fs)
+              (upd_estate (~~ (@direct_call dc2)) (p_globs p2) xs2 fs) Q) ->
+  wequiv p1 p2 ev1 ev2 P [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] Q.
+Proof.
+  by move=> hes hPf hf; apply: (wequiv_call_eq_wa ii1 ii2 hes _ hPf hf).
+Qed.
+
+Definition wequiv_fun_body_hyp (RPreF:relPreF) fn1 fn2 (RPostF:relPostF) :=
+  forall fs1 fs2,
+  RPreF fn1 fn2 fs1 fs2 ->
+  forall fd1, get_fundef (p_funcs p1) fn1 = Some fd1 ->
+  exists2 fd2, get_fundef (p_funcs p2) fn2 = Some fd2 &
+    exists (P Q : rel_c),
+      forall s11, initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s11 ->
+      exists s21,
+        [/\ initialize_funcall (dc:=dc2) p2 ev2 fd2 fs2 = ok s21
+          , P s11 s21
+          , wequiv p1 p2 ev1 ev2 P fd1.(f_body) fd2.(f_body) Q
+          & wrequiv Q (finalize_funcall (dc:=dc1) fd1) (finalize_funcall (dc:=dc2) fd2) (RPostF fn1 fn2 fs1 fs2)
+        ].
+
+Lemma wequiv_fun_body RPreF fn1 fn2 RPostF :
+  wequiv_fun_body_hyp RPreF fn1 fn2 RPostF ->
+  wequiv_f_body p1 p2 ev1 ev2 RPreF fn1 fn2 RPostF.
+Proof.
+  move=> h; apply wequiv_fun_body_wa => fs1 fs2 hpre fd1 hfd1.
+  have [fd2 hfd2 [P] [Q] {}h]:= h fs1 fs2 hpre fd1 hfd1.
+  rewrite /sem_pre /sem_post /=; exists fd2 => // _; split => //.
+  by exists P, Q => s1 /h [s2] [*]; exists s2.
+Qed.
+
+Lemma wequiv_call_rel_uincl_R
+  {D : Type} [R : D → estate1 → estate2 → Prop] {ce : Checker_e R} {cu : Checker_uincl p1 p2 (R:=R)}
+  d de de' d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
+  (∀ d s1 s2, R d s1 s2 → escs s1 = escs s2 ∧ emem s1 = emem s2) →
+  (forall scs mem s1 s2, R de s1 s2 ->
+     R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
+  check_es d es1 es2 de →
+  check_lvals de' xs1 xs2 d' →
+  wequiv_f p1 p2 ev1 ev2 (fun _ _ => fs_uincl) fn1 fn2 (fun _ _ _ _ => fs_uincl) →
+  wequiv p1 p2 ev1 ev2 (R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (R d').
+Proof.
+  move=> hscm hde' hes hxs hf.
+  by apply: (wequiv_call_rel_uincl_R_wa (cu:=cu) ii1 ii2 hscm hde' hes hxs _ hf).
+Qed.
+
+Lemma wequiv_call_rel_eq_R
+  {D : Type} [R : D → estate1 → estate2 → Prop] {ce : Checker_e R} {cu : Checker_eq p1 p2 (R:=R)}
+  d de de' d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
+  (∀ d s1 s2, R d s1 s2 → escs s1 = escs s2 ∧ emem s1 = emem s2) →
+  (forall scs mem s1 s2, R de s1 s2 ->
+     R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
+  check_es d es1 es2 de →
+  check_lvals de' xs1 xs2 d' →
+  wequiv_f p1 p2 ev1 ev2 (fun _ _ => eq) fn1 fn2 (fun _ _ _ _ => eq) →
+  wequiv p1 p2 ev1 ev2 (R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (R d').
+Proof.
+  move=> hscm hde' hes hxs hf.
+  by apply: (wequiv_call_rel_eq_R_wa (cu:=cu) ii1 ii2 hscm hde' hes hxs _ hf).
+Qed.
+
+Lemma wequiv_call_rel_uincl
+  {D : Type} [R : D → vm1_t → vm2_t → Prop] {ce : Checker_e (st_rel R)} {cu : Checker_uincl p1 p2 (R:=st_rel R)}
+  d de d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
+  check_es d es1 es2 de →
+  check_lvals de xs1 xs2 d' →
+  wequiv_f p1 p2 ev1 ev2 (fun _ _ => fs_uincl) fn1 fn2 (fun _ _ _ _ => fs_uincl) →
+  wequiv p1 p2 ev1 ev2 (st_rel R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (st_rel R d').
+Proof.
+  move=> hes hxs hf.
+  by apply: (wequiv_call_rel_uincl_wa (cu:=cu) ii1 ii2 hes hxs _ hf).
+Qed.
+
+Lemma wequiv_call_rel_eq
+  {D : Type} [R : D → vm1_t → vm2_t → Prop] {ce : Checker_e (st_rel R)} {cu : Checker_eq p1 p2 (R:=st_rel R)}
+  d de d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
+  check_es d es1 es2 de →
+  check_lvals de xs1 xs2 d' →
+  wequiv_f p1 p2 ev1 ev2 (fun _ _ => eq) fn1 fn2 (fun _ _ _ _ => eq) →
+  wequiv p1 p2 ev1 ev2 (st_rel R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (st_rel R d').
+Proof.
+  move=> hes hxs hf.
+  by apply: (wequiv_call_rel_eq_wa (cu:=cu) ii1 ii2 hes hxs _ hf).
+Qed.
+
+End WEQUIV_CORE.
+
+Notation sem_fun_full1 := (sem_fun_full (wsw:=wsw1) (dc:=dc1) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT1) (scP:= scP1)).
+Notation sem_fun_full2 := (sem_fun_full (wsw:=wsw2) (dc:=dc2) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT2) (scP:= scP2)).
+
+Notation wiequiv_f := (wequiv_f (sem_F1 := sem_fun_full1) (sem_F2 := sem_fun_full2)).
+Notation wiequiv   := (wequiv (sem_F1 := sem_fun_full1) (sem_F2 := sem_fun_full2)).
+
+Section WEQUIV_FUN.
+
+Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+
+Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2)  (spec : EquivSpec).
+
+Definition wequiv_fun_body_hyp_rec (RPreF:relPreF) fn1 fn2 (RPostF:relPostF) :=
+  forall fs1 fs2,
+  RPreF fn1 fn2 fs1 fs2 ->
+  forall fd1, get_fundef (p_funcs p1) fn1 = Some fd1 ->
+  exists2 fd2, get_fundef (p_funcs p2) fn2 = Some fd2 &
+    exists (P Q : rel_c),
+      forall s11, initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s11 ->
+      exists s21,
+        [/\ initialize_funcall (dc:=dc2) p2 ev2 fd2 fs2 = ok s21
+          , P s11 s21
+          , wequiv_rec p1 p2 ev1 ev2 spec P fd1.(f_body) fd2.(f_body) Q
+          & wrequiv Q (finalize_funcall (dc:=dc1) fd1) (finalize_funcall (dc:=dc2) fd2) (RPostF fn1 fn2 fs1 fs2)].
+
+Lemma wequiv_fun_ind :
+  ((forall fn1 fn2, wequiv_f_rec p1 p2 ev1 ev2 spec rpreF fn1 fn2 rpostF) ->
+   (forall fn1 fn2, wequiv_fun_body_hyp_rec rpreF fn1 fn2 rpostF)) ->
+  forall fn1 fn2,
+  wiequiv_f p1 p2 ev1 ev2 rpreF fn1 fn2 rpostF.
+Proof.
+  move=> hrec.
+  apply wequiv_fun_ind_wa => {}/hrec h fn1 fn2 fs1 fs2 /h{}h fd1 {}/h [fd2 hfd2 [P] [Q] h].
+  by exists fd2 => // _; split => //; exists P, Q => s1 {}/h [s2] [*]; exists s2.
+Qed.
+
+End WEQUIV_FUN.
+
+End NOASSERT.
 
 End RELATIONAL.
 

@@ -267,10 +267,10 @@ Definition dc_truncate_val {dc:DirectCall} t v :=
   else truncate_val t v.
 
 Definition sem_pre {dc: DirectCall} (P : prog) (fn:funname) (fs: fstate) :=
-  if get_fundef (p_funcs P) fn is Some f then
+  if ~~assert_allowed then ok tt
+  else if get_fundef (p_funcs P) fn is Some f then
     match f.(f_contra) with
     | Some ci =>
-      Let _ := assert (assert_allowed) ErrType in
       Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) fs.(fvals) in
       Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate fs.(fscs) fs.(fmem) Vm.init) in
       Let _ := mapM (sem_assert (p_globs P) s) ci.(f_pre) in
@@ -280,17 +280,18 @@ Definition sem_pre {dc: DirectCall} (P : prog) (fn:funname) (fs: fstate) :=
   else Error ErrUnknowFun.
 
 Definition sem_post {dc: DirectCall} (P : prog) (fn:funname) (vargs' : values) (fs: fstate) :=
- if get_fundef (p_funcs P) fn is Some f then
-   match f.(f_contra) with
-   | Some ci =>
-     Let _ := assert (assert_allowed) ErrType in
-     Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
-     Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate fs.(fscs) fs.(fmem) Vm.init) in
-     Let s :=  write_vars (~~direct_call) ci.(f_ires) fs.(fvals) s in
-     Let _ := mapM (sem_assert (p_globs P) s) ci.(f_post) in
-     ok tt
-   | None => ok tt
-   end
+  if ~~assert_allowed then ok tt
+  else if get_fundef (p_funcs P) fn is Some f then
+    match f.(f_contra) with
+    | Some ci =>
+      Let _ := assert (assert_allowed) ErrType in
+      Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
+      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate fs.(fscs) fs.(fmem) Vm.init) in
+      Let s :=  write_vars (~~direct_call) ci.(f_ires) fs.(fvals) s in
+      Let _ := mapM (sem_assert (p_globs P) s) ci.(f_post) in
+      ok tt
+    | None => ok tt
+    end
   else Error ErrUnknowFun.
 
 End CONTRA.
