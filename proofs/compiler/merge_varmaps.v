@@ -235,8 +235,6 @@ Section CHECK.
                     (E.gen_error true None (pp_s "the function returns RSP")) in
     Let _ := assert (disjoint W' magic_variables)
                     (E.gen_error true None (pp_s "the function writes to RSP or global-data")) in
-    Let _ := assert (if fd.(f_contra) is Some _ then false else true)
-                    (E.gen_error true None (pp_s "fun contract remain")) in
     let W := writefun fn in
     let J := Sv.union magic_variables params in
     let e := fd.(f_extra) in

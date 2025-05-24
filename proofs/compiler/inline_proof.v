@@ -48,11 +48,9 @@ Section INCL.
   Lemma inline_c_incl c : Pc c.
   Proof.
     apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => // {c}.
-    + move=> i c Hi Hc X1 c' X2 /=. 
+    + move=> i c Hi Hc X1 c' X2 /=.
       by t_xrbindP => -[Xc cc] /Hc -> /= -[Xi ci] /Hi -> /= -> <-.
-    + by move=> * ?.
-    + by move=> * ?.
-    + by move=> * ?.
+    1-4: by move=> * ?.
     + move=> e c1 c2 Hc1 Hc2 ii X1 c' X2 /=.
       by t_xrbindP => -[Xc1 c1'] /Hc1 -> /= -[Xc2 c2'] /Hc2 -> /= <- <-.
     + move=> i dir lo hi c Hc ii X1 c0 X2 /=.
@@ -69,7 +67,7 @@ Section INCL.
     inline_fd' p  fd = ok fd' ->
     inline_fd' p' fd = ok fd'.
   Proof.
-    by case: fd => fi ftin fp fb ftout fr fe /=;apply: rbindP => -[??] /inline_c_incl -> [<-].
+    by case: fd => fi ci ftin fp fb ftout fr fe /=;apply: rbindP => -[??] /inline_c_incl -> [<-].
   Qed.
 
 End INCL.
@@ -157,6 +155,9 @@ Section SUBSET.
   Local Lemma Ssyscall   : forall xs o es, Pr (Csyscall xs o es).
   Proof. by move=> ??? ii X2 Xc /= [<-]. Qed.
 
+  Local Lemma Sassert : forall a, Pr (Cassert a).
+  Proof. by move=> ? ii X2 Xc /= [<-]. Qed.
+
   Local Lemma Sif    : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
     move=> e c1 c2 Hc1 Hc2 ii X2 Xc /=.
@@ -182,19 +183,19 @@ Section SUBSET.
 
   Lemma inline_c_subset c : Pc c.
   Proof.
-    exact: (cmd_rect Smk Snil Scons Sasgn Sopn Ssyscall Sif Sfor Swhile Scall).
+    exact: (cmd_rect Smk Snil Scons Sasgn Sopn Ssyscall Sassert Sif Sfor Swhile Scall).
   Qed.
 
   Lemma inline_i_subset i : Pr i.
   Proof.
     exact:
-      (instr_r_Rect Smk Snil Scons Sasgn Sopn Ssyscall Sif Sfor Swhile Scall).
+      (instr_r_Rect Smk Snil Scons Sasgn Sopn Ssyscall Sassert Sif Sfor Swhile Scall).
   Qed.
 
   Lemma inline_i'_subset i : Pi i.
   Proof.
     exact:
-      (instr_Rect Smk Snil Scons Sasgn Sopn Ssyscall Sif Sfor Swhile Scall).
+      (instr_Rect Smk Snil Scons Sasgn Sopn Ssyscall Sassert Sif Sfor Swhile Scall).
   Qed.
 
 End SUBSET.
@@ -482,7 +483,7 @@ Section PROOF.
     have [vm0_ [vm1_ [vm2_ [vres2 [vres' [Htin [Hi Hwv] Hbody [Hvs Hall Htout] [hscs2' hm2']]]]]]] :=
       alloc_fun_uprogP_eq Hcheckf hvs' hs0 hs1 hsvm2 hvres hvres1 hscs2 hm2.
     move: hs0 Hi hm2'; rewrite /init_state /finalize /=.
-    move=> [?]; subst s0 => -[] ? _; subst vm0_ m2. 
+    move=> [?]; subst s0 => -[] ? _; subst vm0_ m2.
     move=> {hvs' hs1 hsvm2 Hfd' Hfd Hcheckf Hsc Hinline}.
     move: Hdisj Hvm1;rewrite read_i_call.
     move: Htin Htout Hvs Hwv Hbody;set rfd := rename_fd _ _ => Htin Htout Hvs Hwv Hbody Hdisjoint Hvm1.
@@ -524,7 +525,7 @@ Section PROOF.
   Proof.
     move=> scs1 m1 scs2 m2 fn fd vargs vargs' s0 s1 svm2 vres vres' Hget Htin Hi Hw Hsem Hc Hres Htout Hscs Hfi.
     have [fd' [Hfd']{Hget}] := inline_progP' uniq_funname Hp Hget.
-    case: fd Htin Hi Hw Hsem Hc Hres Htout Hfi => /= fi tin fx fc tout fxr fe 
+    case: fd Htin Hi Hw Hsem Hc Hres Htout Hfi => /= fi ci tin fx fc tout fxr fe
              Htin Hi Hw Hsem Hc Hres Htout Hfi.
     apply: rbindP => -[X fc'] /Hc{}Hc [] ?;subst fd'.
     move=> vargs1 Hall;move: Hw; rewrite (write_vars_lvals _ gd) => Hw.

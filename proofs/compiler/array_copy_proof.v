@@ -494,7 +494,7 @@ Qed.
 
 Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
 Proof.
-  move=> scs1 m1 scs2 m2 fn [fi tin params body tout res extra] /=.
+  move=> scs1 m1 scs2 m2 fn [fi ci tin params body tout res extra] /=.
   move=> vargs vargs' s0 s1 s2 vres vres' hget hca hi hw _ hc hres hcr hscs hfi vargs1 hva.
   have [fd2 hfd hget']:= all_checked hget.
   have hpex : p_extra p1 = p_extra p2.
@@ -627,6 +627,8 @@ Proof.
     apply wequiv_syscall_rel_uincl with checker_st_uincl_on X => //.
     + by split => //; SvD.fsetdec.
     by split => //; SvD.fsetdec.
+  + move=> >; rewrite vars_I_assert /= => hsub _ [<-].
+    by apply wequiv_assert_rel_uincl with checker_st_uincl_on => //; split.
   + move=> e c1 c2 hc1 hc2 ii; rewrite vars_I_if => hsub i2 /=.
     t_xrbindP => c1' hc1' c2' hc2' <-.
     apply wequiv_if_rel_uincl with checker_st_uincl_on X X X => //.

@@ -338,6 +338,9 @@ Section PROOFS.
   Local Lemma Hsyscall : forall xs o es, Pr (Csyscall xs o es).
   Proof. by move=> xs o es ii gd1 gd2 /= [<-]. Qed.
 
+  Local Lemma Hassert : forall a, Pr (Cassert a).
+  Proof. by move=> a ii gd1 gd2 /= [<-]. Qed.
+
   Local Lemma Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
     move=> e c1 c2 hc1 hc2 ii gd1 gd2 /=.
@@ -360,7 +363,7 @@ Section PROOFS.
     foldM (extend_glob_i fresh_id) gd1 c = ok gd2 ->
     gd_incl gd1 gd2.
   Proof.
-    exact: (cmd_rect Hmk Hnil Hcons Hasgn Hopn Hsyscall Hif Hfor Hwhile Hcall).
+    exact: (cmd_rect Hmk Hnil Hcons Hasgn Hopn Hsyscall Hassert Hif Hfor Hwhile Hcall).
   Qed.
 
 End PROOFS.
