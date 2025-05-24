@@ -55,7 +55,7 @@ Context
   (is_move_op : asm_op_t -> bool).
 
 Let postprocess (p: uprog) : cexec uprog :=
-  let p := const_prop_prog false p in
+  let p := const_prop_prog p in
   dead_code_prog is_move_op p false.
 
 (* FIXME: error really not clear for the user *)

@@ -485,8 +485,7 @@ Section GLOBALS.
 
 Context (gd: glob_decls).
 
-Fixpoint const_prop_ir with_globals without_globals (m:cpm) ii (ir:instr_r) : cpm * cmd :=
-  let const_prop_i :=  const_prop_i with_globals without_globals in
+Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
   match ir with
   | Cassgn x tag ty e =>
     let globs := with_globals gd tag in
@@ -554,9 +553,9 @@ Fixpoint const_prop_ir with_globals without_globals (m:cpm) ii (ir:instr_r) : cp
 
   end
 
-with const_prop_i with_globals without_globals (m:cpm) (i:instr) : cpm * cmd :=
+with const_prop_i (m:cpm) (i:instr) : cpm * cmd :=
   let (ii,ir) := i in
-  const_prop_ir with_globals without_globals m ii ir.
+  const_prop_ir m ii ir.
 
 End GLOBALS.
 
@@ -564,24 +563,12 @@ Section Section.
 
 Context {pT: progT}.
 
-Let with_globals_cl (gd: glob_decls) : globals := Some (assoc gd).
-
-Definition const_prop_a without_globals (a:assertion) := (a.1, const_prop_e without_globals empty_cpm a.2).
-
-Definition const_prop_ci without_globals ci :=
-  let ci_pre := map (const_prop_a without_globals) ci.(f_pre) in
-  let ci_post := map (const_prop_a without_globals) ci.(f_post) in
-  MkContra ci.(f_iparams) ci.(f_ires) ci_pre ci_post.
-
-Definition const_prop_fun (cl: bool) (gd: glob_decls) (f: fundef) :=
-  let with_globals := if cl then (fun _ _ => with_globals_cl gd) else with_globals in
-  let without_globals := if cl then with_globals_cl gd else without_globals in
+Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
   let 'MkFun ii ci si p c so r ev := f in
-  let (_, c) := const_prop (const_prop_i gd with_globals without_globals) empty_cpm c in
-  let ci := Option.map (const_prop_ci without_globals) ci in
+  let (_, c) := const_prop (const_prop_i gd) empty_cpm c in
   MkFun ii ci si p c so r ev.
 
-Definition const_prop_prog (cl: bool) (p:prog) : prog := map_prog (const_prop_fun cl p.(p_globs)) p.
+Definition const_prop_prog (p:prog) : prog := map_prog (const_prop_fun p.(p_globs)) p.
 
 End Section.
 

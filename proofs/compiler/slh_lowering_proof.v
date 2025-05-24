@@ -47,7 +47,7 @@ Section CONST_PROP.
   #[local]
   Lemma use_mem_snot e :
     use_mem (snot e) = use_mem e.
-  Proof. elim: e => [||||||| [] | [] ||] //=; congruence. Qed.
+  Proof. elim: e => [||||||| [] | [] |||] //=; try congruence. Qed.
 
   #[local]
   Lemma use_mem_sneg_int e :
@@ -125,22 +125,23 @@ Section CONST_PROP.
     ~~ use_mem e ->
     ~~ use_mem (const_prop_e None cpm e).
   Proof.
-    elim: e =>
+    elim: e cpm =>
       [||| x
       | al aa sz x e hinde
       ||| op1 e hinde
       | op2 e0 hinde0 e1 hinde1
       | opn es hindes
       | ty e hinde e0 hinde0 e1 hinde1
-      ] //= h.
+      | i hi op x b hb start hstart l hl
+      ] //= cpm h.
 
     - by case: x => x [] //; case: Mvar.get => // - [].
 
     - by case: x =>  - x [] /=; auto.
 
-    - rewrite use_mem_s_op1. exact: (hinde h).
+    - rewrite use_mem_s_op1. exact: (hinde _ h).
 
-    - move: h => /norP [] /hinde0 h0 /hinde1 h1.
+    - move: h => /norP [] /(hinde0 cpm) h0 /(hinde1 cpm) h1.
       by rewrite (use_mem_s_op2 _ h0 h1).
 
     - rewrite /s_opN.
@@ -148,15 +149,25 @@ Section CONST_PROP.
       move=> _.
       elim: es h hindes => //= e es hind /norP [he hes] hindes.
       rewrite negb_or.
-      rewrite (hindes _ _ he) /=; last by left.
+      rewrite (hindes _ _ _ he) /=; last by left.
       apply: (hind hes) => e' he'.
       apply: hindes.
       by right.
 
-    rewrite /s_if /=.
-    move: h => /norP [] /norP [] /hinde h /hinde0 h0 /hinde1 h1.
-    case: is_bool => [[]|] //.
-    by rewrite !negb_or h h0 h1.
+    - rewrite /s_if /=.
+      move: h => /norP [] /norP [] /(hinde cpm) h /(hinde0 cpm) h0 /(hinde1 cpm) h1.
+      case: is_bool => [[]|] //.
+      by rewrite !negb_or h h0 h1.
+
+    move: h => /norP [] /norP [] /norP [] /hi h /hb h0 /hstart h1 /hl h2.
+    have hdfl : ~~
+      use_mem
+       (Pbig (const_prop_e None cpm i) op x (const_prop_e None (Mvar.remove cpm x) b) (const_prop_e None cpm start)
+          (const_prop_e None cpm l)).
+    + by rewrite /= !negb_or h h0 h1 h2.
+    case: is_const => // ?; case: is_const => // ?.
+    elim: ziota (const_prop_e _ _ _) (h cpm) => // j js hrec e he.
+    by apply hrec; rewrite /= negb_or he h0.
   Qed.
 
 End CONST_PROP.
@@ -1140,7 +1151,7 @@ Qed.
 
 Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
 Proof.
-  move=> scs1 m1 _ _ fn [f_i f_tyi f_p f_b f_tyo f_r f_e] /= vargs vargs' s0 s1 s2 vres vres'
+  move=> scs1 m1 _ _ fn [f_i f_ci f_tyi f_p f_b f_tyo f_r f_e] /= vargs vargs' s0 s1 s2 vres vres'
     hf htargs hinit hwargs _ hrec hrres htres -> ->.
   move: (hp); rewrite /lower_slh_prog; t_xrbindP => hent fds hmap heq.
   have [fd' + hget]:= get_map_cfprog_name_gen hmap hf.

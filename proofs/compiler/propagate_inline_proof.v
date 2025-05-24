@@ -224,7 +224,7 @@ Let Q es : Prop :=
 
 Lemma pi_eP_and : (forall e, P e) /\ (forall es, Q es).
 Proof.
-  apply: pexprs_ind_pair; subst P Q; split => /=.
+  apply: pexprs_ind_pair; subst P Q; split => //=.
   + by move=> ? [<-]; exists [::].
   + move=> e hrec es hrecs vs; t_xrbindP => ? /hrec [v' -> hu] ? /hrecs [vs' -> hus] <- /=.
     by exists (v'::vs'); auto.
@@ -706,7 +706,7 @@ Section PROOF.
 
   Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
   Proof.
-    move=> scs1 m1 scs2 m2 fn [ii si p c so r ev0] /= vargs' vargs s0 s1 s2 vres vres'.
+    move=> scs1 m1 scs2 m2 fn [ii ci si p c so r ev0] /= vargs' vargs s0 s1 s2 vres vres'.
     move=> hget htr hinit hwr _ hc hres hrtr hscs hfin.
     have [fd2 /=]:= all_checked hget.
     t_xrbindP => -[pi2 c'] hc_ ? hget2 vargs1 hvargs1; subst fd2.
@@ -867,6 +867,8 @@ Section PROOF.
         by apply/valid_pi_with_scs/valid_pi_remove_m.
       + by rewrite /check_lvals /= /check_lvals_pi heq.
       by apply fs_uincl_syscall.
+    + move=> a ii d _ /= [<-].
+      by apply wequiv_assert_rel_uincl with checker_pi.
     + move=> e c1 c2 hc1 hc2 ii d di /=; t_xrbindP => di1 /hc1{}hc1 di2 /hc2{}hc2 <- /=.
       apply wequiv_if_rel_uincl_R with checker_pi d di1.1 di2.1 => //.
       + by apply/st_pi_incl/incl_merge_l.

@@ -792,6 +792,10 @@ Lemma wequiv_st_eq c :
   Pc c.
 Proof. by apply wequiv_st_eq_wa. Qed.
 
+Lemma wequiv_rec_st_eq c :
+  wequiv_rec p p' ev ev' eq_spec (st_eq tt) c c (st_eq tt).
+Proof. by apply wequiv_rec_st_eq_wa. Qed.
+
 End FUN.
 
 End ST_EQ.
