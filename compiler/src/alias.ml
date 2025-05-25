@@ -207,6 +207,7 @@ let slice_of_pexpr a =
   | Psub (aa, ws, len, x, i) -> Some (normalize_asub a aa ws len x i)
   | (Pconst _ | Pbool _ | Pget _ | Pload _ | Papp1 _ | Papp2 _ | PappN _ ) -> assert false
   | Pif _ -> hierror_no_loc "conditional move of (ptr) arrays is not supported yet"
+  | Pbig _ -> None
 
 let slice_of_lval a =
   function
@@ -249,6 +250,7 @@ let rec analyze_instr_r params cc a =
     | None -> a 
     | Some l -> link_array_return params a xs es l
     end
+  | Cassert _ -> a
   | Cif(_, s1, s2) ->
      let a1 = analyze_stmt params cc a s1 |> normalize_map in
      let a2 = analyze_stmt params cc a s2 |> normalize_map in
