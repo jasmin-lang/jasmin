@@ -11,6 +11,9 @@ Require Import flag_combination.
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
 
+(* This pass is used as a first step for the compilation.
+   It replaces wint operator by the corresponding word operator
+ *)
 
 Definition wi2w_wiop1 s (o : wiop1) (e : pexpr) : pexpr :=
   match o with

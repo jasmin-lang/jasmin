@@ -89,6 +89,8 @@ compiler/merge_varmaps_proof.v
 compiler/post_unrolling_check.v
 compiler/propagate_inline.v
 compiler/propagate_inline_proof.v
+compiler/remove_assert.v
+compiler/remove_assert_proof.v
 compiler/riscv.v
 compiler/riscv_decl.v
 compiler/riscv_instr_decl.v
