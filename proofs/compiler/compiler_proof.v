@@ -24,6 +24,7 @@ Require Import
   dead_code_proof
   array_expansion
   array_expansion_proof
+  remove_assert_proof
   remove_globals_proof
   stack_alloc_proof_2
   tunneling_proof
@@ -147,7 +148,8 @@ Proof.
   have va_refl := List_Forall2_refl va value_uincl_refl.
   apply: compose_pass_uincl.
   - move=> vr' Hvr'.
-    apply: (dead_code_callPu (hap_is_move_opP haparams) ok_pa va_refl).
+    apply: (dead_code_callPu (
+hap_is_move_opP haparams) ok_pa va_refl).
     exact: Hvr'.
   apply: compose_pass_uincl;
     first by move => vr';
@@ -183,7 +185,8 @@ Lemma compiler_first_partP entries (p: prog) (p': uprog) scs m fn va scs' m' vr 
     List.Forall2 value_uincl vr vr' &
     sem_call (dc:=direct_c) p' tt scs m fn va scs' m' vr'.
 Proof.
-  rewrite /compiler_first_part; t_xrbindP => paw ok_paw pa0.
+  rewrite /compiler_first_part; t_xrbindP => pra ok_pra paw.
+  rewrite print_uprogP => ok_paw pa0.
   rewrite !print_uprogP => ok_pa0 pb.
   rewrite print_uprogP => ok_pb pa ok_pa pc ok_pc ok_puc ok_puc'.
   rewrite !print_uprogP => pd ok_pd.
@@ -240,6 +243,8 @@ Proof.
     by move=> /(_ _ _ _ tt ok_pa0); apply; apply va_refl.
   apply: compose_pass_uincl'.
   + by move=> vr'; apply: wi2w_progP; apply ok_paw.
+  apply: compose_pass.
+  - move=> vr'; apply: (remove_assert_progP); apply ok_pra.
   apply: compose_pass; first by move => vr'; exact: psem_call_u.
   exists vr => //.
   exact: (List_Forall2_refl _ value_uincl_refl).
