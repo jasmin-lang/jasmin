@@ -5,6 +5,7 @@ let params =
   [
     ("success/loop2.jazz", "poly1305>in;");
     ("success/loop3.jazz", "poly1305>in;");
+    ("fail/popcnt.jazz", "off_by_one>;");
   ]
 
 module Arch =
