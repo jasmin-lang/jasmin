@@ -26,7 +26,7 @@ val pp_mem_access :
   'expr Utils.pp ->
   Format.formatter ->
   Memory_model.aligned ->
-  Wsize.wsize ->
+  Wsize.wsize option ->
   'expr ->
   unit
 
@@ -36,7 +36,7 @@ val pp_arr_access :
   Format.formatter ->
   Memory_model.aligned ->
   Warray_.arr_access ->
-  Wsize.wsize ->
+  Wsize.wsize option ->
   'var ->
   'expr ->
   unit
@@ -47,7 +47,7 @@ val pp_arr_slice :
   'len Utils.pp ->
   Format.formatter ->
   Warray_.arr_access ->
-  Wsize.wsize ->
+  Wsize.wsize option ->
   'var ->
   'expr ->
   'len ->
