@@ -1440,6 +1440,11 @@ end = struct
         | _ -> e1 in
       [Some e]
 
+    | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.POPCNT ws)) ->
+       let e1 = as_seq1 es in
+       let t = Some (Pbool true) in
+       [ t; t; t; t; zf_of_word ws e1; None ]
+
     | Sopn.Oslh op ->
        begin match op with
        | SLHinit -> [ Some (pcast U64 (Pconst (Z.of_int 0))) ]
@@ -1459,6 +1464,43 @@ end = struct
             (PrintCommon.pp_opn pd asmOp) opn);
       opn_dflt n
 
+  (* Post-conditions of operators, that cannot be precisely expressed as an expression of the arguments *)
+  let post_opn opn lvs es : btcons list =
+    match opn with
+    | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.POPCNT ws)) -> (
+        let open Mtexpr in
+        match List.last lvs with
+        | Lvar x ->
+            let xv = L.unloc x in
+            let x = Mlocal (Avar xv) in
+            let range_btcons x max =
+              BLeaf
+                (Mtcons.make (binop Sub (var x) (cst (Coeff.i_of_int 0 max))) EQ)
+            in
+            range_btcons x (int_of_ws ws)
+            ::
+            (match es with
+            | [ Pvar e ] when not (is_gkvar e && GV.equal (L.unloc e.gv) xv)->
+               (* Only sound when destination [x] does not occur in the argument [e] *)
+                let e =
+                  if is_gkvar e then Mlocal (Avar (L.unloc e.gv))
+                  else Mglobal (Avar (L.unloc e.gv))
+                in
+                (* -e > 0 ∨ e - 255 > 0 ∨ x - [0; 8] = 0 *)
+                let e_neg =
+                  BLeaf
+                    (Mtcons.make (binop Sub (cst (Coeff.s_of_int 0)) (var e)) SUP)
+                in
+                let e_large =
+                  BLeaf
+                    (Mtcons.make
+                       (binop Sub (var e) (cst (Coeff.s_of_int 255)))
+                       SUP)
+                in
+                [ BOr (BOr (e_neg, e_large), range_btcons x 8) ]
+            | _ -> [])
+        | _ -> [])
+    | _ -> []
 
   (* -------------------------------------------------------------------- *)
   (* Ugly handling of flags to build.
@@ -1800,6 +1842,7 @@ end = struct
         (* Remark: the assignments must be done in the correct order. *)
         let assgns = split_opn pd asmOp (List.length lvs) opn es in
         let abs = AbsExpr.abs_assign_opn state.abs ginstr.i_info lvs assgns in
+        let abs = List.fold_left AbsDom.meet_btcons abs (post_opn opn lvs es) in
 
         { state with abs = abs; }
 

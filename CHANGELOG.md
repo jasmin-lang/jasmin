@@ -1,5 +1,10 @@
 # [unreleased]
 
+## Other changes
+
+- More precise handling of `#POPCNT` in the safety checker
+  ([PR #1197](https://github.com/jasmin-lang/jasmin/pull/1197)).
+
 # Jasmin 2025.06.0 — Nancy, 2025-06-18
 
 ## New features
