@@ -212,13 +212,24 @@ let collect_equality_constraints_in_func
       is_move_op
       ~(with_call_sites: (funname -> ('info, 'asm) func) option)
       (msg: string)
-      (int_of_var: var_i -> int option)
-      (check_safe_copy_elision: L.i_loc -> var_i -> var_i -> L.i_loc list)
+      (tbl: int Hv.t)
+      (nv: int)
+      (get_live_out: 'info -> Sv.t)
       copn_constraints
       (s: ('info, 'asm) collect_equality_constraints_state)
       (f: ('info, 'asm) func)
     : unit
   =
+  (* This proceeds in two passes over the instructions of the function f
+     The first pass:
+       - collects constraints from opn (architecture-specific)
+       - marks as equal variables that are φ-congruent
+       - remembers the set of “renaming assignments” introduced by inlining
+       - marks as friends variables involved in other renaming-like instructions
+       - marks as equal variables involved in function calls & returns
+     The second pass checks that renaming can safely be removed
+   *)
+  let int_of_var x = Hv.find_option tbl (L.unloc x) in
   let add ii x y =
     s.cac_trace.(x) <- ii :: s.cac_trace.(x);
     s.cac_eqc <- Puf.union s.cac_eqc x y
@@ -229,9 +240,10 @@ let collect_equality_constraints_in_func
     | (None, _) | (_, None) -> ()
   in
   let addf i j = s.cac_friends <- set_friend i j s.cac_friends in
-  let rec collect_instr_r ii =
-    function
-    | Cfor (_, _, s) -> collect_stmt s
+  let names = ref (Puf.create nv) in
+  let renames = ref [] in
+  let first_pass ii =
+    match ii.i_desc with
     | Copn (lvs, _, op, es) ->
         copn_constraints
           ~loc:(Lmore ii.i_loc)
@@ -243,25 +255,15 @@ let collect_equality_constraints_in_func
           lvs
           op
           es
-    | Csyscall (_lvs, _op, _es) -> ()
     | Cassgn (Lvar x, AT_phinode, _, Pvar y) when
           is_gkvar y && kind_i x = kind_i y.gv ->
+       names := Puf.union !names (Hv.find tbl (L.unloc y.gv)) (Hv.find tbl (L.unloc x));
        addv ii x y.gv
     | Cassgn (Lvar x, AT_rename, _, Pvar y) when
        is_gkvar y
        && kind_compatible (kind_i x) (kind_i y.gv)
        && not (is_stack_array x) ->
-       (match check_safe_copy_elision ii.i_loc x y.gv with
-       | [] -> addv ii x y.gv
-       | warnings ->
-          let warnings = List.filter (fun ii -> not L.(isdummy ii.base_loc)) warnings in
-          let pv = Printer.pp_var ~debug:true in
-          warning KeptRenaming ii.i_loc
-            "Cannot elide renaming of %a to %a due to the following assignment%s:%a" pv (L.unloc y.gv) pv (L.unloc x)
-            (match warnings with [ _ ] -> "" | _ -> "s")
-            (pp_list "\n" Location.pp_iloc) warnings
-       )
-
+       renames := (ii, x, y.gv) :: !renames
     | Cassgn (Lvar x, _, _, Pvar y) when is_gkvar y && kind_i x = kind_i y.gv &&
                                           not (is_stack_array x) ->
        begin match int_of_var x, int_of_var y.gv with
@@ -287,10 +289,45 @@ let collect_equality_constraints_in_func
         List.iter2 (fun r x -> addv ii r (get_Lvar x))
           g.f_ret xs
       end
-    | (Cwhile (_, s1, _, _, s2) | Cif (_, s1, s2)) -> collect_stmt s1; collect_stmt s2
-  and collect_instr ({ i_desc } as i) = collect_instr_r i i_desc
-  and collect_stmt s = List.iter collect_instr s in
-  collect_stmt f.f_body
+    | Csyscall _ | Cfor _ | Cif _ | Cwhile _-> ()
+  in
+  iter_instr first_pass f.f_body;
+  (* Checks whether it is safe to remove a “renaming” copy from y to x (i.e., x = y) at position ii.
+     It looks for assignments (distinct from ii) that assign x (or an alias) after which y is live.
+   *)
+  let module HL = Hash.Make(struct
+                      type t = L.i_loc
+                      let equal x y = Stdlib.Int.equal x.L.uid_loc y.L.uid_loc
+                      let hash x = x.L.uid_loc
+                    end) in
+  let renames = !renames in
+  let phi_aliases = !names in
+  let checked_renamings = HL.create 17 in
+  let second_pass { i_desc; i_info; i_loc; _ } =
+    let live_out = get_live_out i_info in
+    List.iter (fun (ii, x, y) ->
+        if Sv.mem (L.unloc y) live_out
+        then
+          let ii = ii.i_loc in
+          let intersects =
+            let x = Puf.find phi_aliases (Hv.find tbl (L.unloc x)) in
+            Sv.exists (fun z -> x = Puf.find phi_aliases (Hv.find tbl z)) in
+          if i_loc.uid_loc <> ii.L.uid_loc && intersects (assigns i_desc) then
+            HL.modify_def [] ii (List.cons i_loc) checked_renamings
+      ) renames
+  in
+  iter_instr second_pass f.f_body;
+  List.iter (fun (ii, x, y) ->
+      match HL.find_default checked_renamings ii.i_loc [] with
+      | [] -> addv ii x y
+      | warnings ->
+         let warnings = List.filter (fun ii -> not L.(isdummy ii.base_loc)) warnings in
+         let pv = Printer.pp_var ~debug:true in
+         warning KeptRenaming ii.i_loc
+           "Cannot elide renaming of %a to %a due to the following assignment%s:%a" pv (L.unloc y) pv (L.unloc x)
+           (match warnings with [ _ ] -> "" | _ -> "s")
+           (pp_list "\n" Location.pp_iloc) warnings
+    ) renames
 
 let normalize_friend (eqc: Puf.t) (fr: friend) : friend =
   IntMap.filter_map (
@@ -300,45 +337,16 @@ let normalize_friend (eqc: Puf.t) (fr: friend) : friend =
       else None
     ) fr
 
-let compute_phi_aliases (tbl: int Hv.t) (nv: int) (f: ('info, 'asm) func) : Puf.t =
-  let names = ref (Puf.create nv) in
-  iter_instr (fun i ->
-      match i.i_desc with
-      | Cassgn (Lvar d, AT_phinode, _, Pvar s) when
-             is_gkvar s && kind_i d = kind_i s.gv ->
-         names := Puf.union !names (Hv.find tbl (L.unloc s.gv)) (Hv.find tbl (L.unloc d))
-      | _ -> ()
-    ) f.f_body;
-  !names
-
 let collect_equality_constraints
-      asmOp
-      is_move_op
-      (msg: string)
-      copn_constraints
-      (tbl: int Hv.t)
-      (nv: int)
-      (f: (Sv.t * Sv.t, 'asm) func) : Puf.t =
-  let phi_aliases = compute_phi_aliases tbl nv f in
-  (* Checks whether it is safe to remove a “renaming” copy from y to x (i.e., x = y) at position ii.
-     It looks for assignments (distinct from ii) that assign x (or an alias) after which y is live.
-   *)
-  let check_safe_copy_elision ii x y =
-    let intersects =
-      let x = Puf.find phi_aliases (Hv.find tbl (L.unloc x)) in
-      Sv.exists (fun z -> x = Puf.find phi_aliases (Hv.find tbl z)) in
-    let yv = L.unloc y in
-    let warnings = ref [] in
-    let cb { i_desc; i_info = (live_in, live_out); i_loc; _ } =
-      if i_loc.uid_loc <> ii.L.uid_loc && Sv.mem yv live_out && intersects (assigns i_desc) then
-        warnings := i_loc :: !warnings
-    in
-    iter_instr cb f.f_body;
-    !warnings
-  in
-  let int_of_var x = Hv.find_option tbl (L.unloc x) in
+    asmOp
+    is_move_op
+    (msg: string)
+    copn_constraints
+    (tbl: int Hv.t)
+    (nv: int)
+    (f: (Sv.t * Sv.t, 'asm) func) : Puf.t =
   let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
-  collect_equality_constraints_in_func asmOp is_move_op ~with_call_sites:None msg int_of_var check_safe_copy_elision copn_constraints s f;
+  collect_equality_constraints_in_func asmOp is_move_op ~with_call_sites:None msg tbl nv snd copn_constraints s f;
   s.cac_eqc
 
 let collect_equality_constraints_in_prog
@@ -349,14 +357,12 @@ let collect_equality_constraints_in_prog
       (tbl: int Hv.t)
       (nv: int)
       (f: ('info, 'asm) func list) : Puf.t * ('info, 'asm) trace * friend =
-  let check_safe_copy_elision _ _ _ = [] in
-  let int_of_var x = Hv.find_option  tbl (L.unloc x) in
   let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
-  let tbl = Hf.create 17 in
-  let get_var n = Hf.find tbl n in
+  let ftbl = Hf.create 17 in
+  let get_var n = Hf.find ftbl n in
   let () = List.fold_right (fun f () ->
-               Hf.add tbl f.f_name f;
-               collect_equality_constraints_in_func asmOp is_move_op ~with_call_sites:(Some get_var) msg int_of_var check_safe_copy_elision copn_constraints s f)
+               Hf.add ftbl f.f_name f;
+               collect_equality_constraints_in_func asmOp is_move_op ~with_call_sites:(Some get_var) msg tbl nv (fun _ -> Sv.empty) copn_constraints s f)
              f ()
   in
   let eqc = s.cac_eqc in
