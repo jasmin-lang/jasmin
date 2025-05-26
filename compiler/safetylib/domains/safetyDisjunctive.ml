@@ -178,20 +178,12 @@ type cnstr_blk = { cblk_loc : L.i_loc;
                    cblk_cnstrs : cnstr list; }
 
 (* hashconsing *)
-module OrdL = struct
-  type t = L.i_loc
-  let compare l l' = Stdlib.Int.compare l.L.uid_loc l'.L.uid_loc
-
-  let equal l l' =  Stdlib.Int.equal l.L.uid_loc l'.L.uid_loc
-end
-module ML = Map.Make (OrdL)
-    
-let hc = ref ML.empty
+let hc = ref Miloc.empty
 let _uniq = ref 0
 
 let make_cnstr c i =
   try
-    let constr = ML.find i !hc in
+    let constr = Miloc.find i !hc in
     if Mtcons.equal_tcons constr.mtcons c
     then constr
     else begin
@@ -206,7 +198,7 @@ let make_cnstr c i =
   | Not_found ->
     incr _uniq;
     let res = { mtcons = c; cpt_uniq = !_uniq; loc = i } in
-    hc := ML.add i res !hc;
+    hc := Miloc.add i res !hc;
     res
 
 (* Disjunctive domain. Leaves are already constrained under the branch

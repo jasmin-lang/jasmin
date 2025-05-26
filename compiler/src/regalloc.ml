@@ -295,14 +295,9 @@ let collect_equality_constraints_in_func
   (* Checks whether it is safe to remove a “renaming” copy from y to x (i.e., x = y) at position ii.
      It looks for assignments (distinct from ii) that assign x (or an alias) after which y is live.
    *)
-  let module HL = Hash.Make(struct
-                      type t = L.i_loc
-                      let equal x y = Stdlib.Int.equal x.L.uid_loc y.L.uid_loc
-                      let hash x = x.L.uid_loc
-                    end) in
   let renames = !renames in
   let phi_aliases = !names in
-  let checked_renamings = HL.create 17 in
+  let checked_renamings = Hiloc.create 17 in
   let second_pass { i_desc; i_info; i_loc; _ } =
     let live_out = get_live_out i_info in
     List.iter (fun (ii, x, y) ->
@@ -313,12 +308,12 @@ let collect_equality_constraints_in_func
             let x = Puf.find phi_aliases (Hv.find tbl (L.unloc x)) in
             Sv.exists (fun z -> x = Puf.find phi_aliases (Hv.find tbl z)) in
           if i_loc.uid_loc <> ii.L.uid_loc && intersects (assigns i_desc) then
-            HL.modify_def [] ii (List.cons i_loc) checked_renamings
+            Hiloc.modify_def [] ii (List.cons i_loc) checked_renamings
       ) renames
   in
   iter_instr second_pass f.f_body;
   List.iter (fun (ii, x, y) ->
-      match HL.find_default checked_renamings ii.i_loc [] with
+      match Hiloc.find_default checked_renamings ii.i_loc [] with
       | [] -> addv ii x y
       | warnings ->
          let warnings = List.filter (fun ii -> not L.(isdummy ii.base_loc)) warnings in
@@ -1041,12 +1036,6 @@ let subroutine_ra_by_stack f =
         match f.f_annot.retaddr_kind with
         | None -> dfl
         | Some k -> dfl || k = OnStack
-
-module Miloc = Map.Make (struct
-  open Location
-  type t = i_loc
-  let compare x y = Stdlib.Int.compare x.uid_loc y.uid_loc
-end)
 
 type callsite_tree =
   { sv : Sv.t option; sub : callsite_tree Miloc.t }

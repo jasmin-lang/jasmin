@@ -11,6 +11,21 @@ module Ss = Set.Make(String)
 module Ms = Map.Make(String)
 
 (* -------------------------------------------------------------------- *)
+module ILoc = struct
+  open Location
+
+  type t = i_loc
+
+  let compare x y = Stdlib.Int.compare x.uid_loc y.uid_loc
+  let equal x y = Stdlib.Int.equal x.uid_loc y.uid_loc
+  let hash x = x.uid_loc
+end
+
+module Hiloc = Hash.Make(ILoc)
+module Miloc = Map.Make(ILoc)
+module Siloc = Set.Make(ILoc)
+
+(* -------------------------------------------------------------------- *)
 let identity x = x
 
 let (|-) g f = fun x -> g (f x)
