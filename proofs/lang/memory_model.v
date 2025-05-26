@@ -183,6 +183,15 @@ Section CoreMem.
     by case: get => //= w; rewrite -LE.encode8E LE.decodeK.
   Qed.
 
+  Lemma getok_setok m r q w :
+    get m q = ok r ->
+    exists m', set m q w = ok m'.
+  Proof.
+    move=> hg; apply get_valid8 in hg.
+    move: hg => /(valid8P _ _ w) [x hs].
+    by eauto.
+  Qed.
+
   Lemma set_write8 m al p w: set m p w = write m al p w.
   Proof.
     rewrite /write is_aligned_if_is_align /= ?is_align8 // /= add_0.

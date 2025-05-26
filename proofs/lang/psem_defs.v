@@ -100,6 +100,19 @@ Notation "'Let' ( n , t ) ':=' wdb ',' s '.[' v ']' 'in' body" :=
 Notation "'Let' ( n , t ) ':=' wdb ',' gd ',' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_gvar wdb gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).
 
+Definition catch {T:Type} (ev : exec T) dfv : exec T :=
+  match ev with
+  | Ok v => ev
+  | Error ErrType => ev
+  | Error _ => ok dfv
+  end.
+
+Notation "'iLet' ( n , t ) ':=' wdb ',' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (catch (get_var wdb s.(evm) v) 0) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
+
+Notation "'iLet' ( n , t ) ':=' wdb ',' gd ',' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (catch (get_gvar wdb gd s.(evm) v) 0) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).
+
 Section ESTATE_UTILS.
 
 Context
@@ -261,6 +274,146 @@ Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
 Definition write_lvals (s : estate) xs vs :=
    fold2 ErrType write_lval xs vs s.
 
+(* ISEM *)
+Fixpoint isem_pexpr (s:estate) (e : pexpr) : exec value :=
+  match e with
+  | Pconst z => ok (Vint z)
+  | Pbool b  => ok (Vbool b)
+  | Parr_init n => ok (Varr (WArray.empty n))
+  | Parr_init_elem e n =>
+    Let ie := isem_pexpr s e in
+    Let x := catch (to_word U8 ie) 0%R in
+    Let t := catch (WArray.fill_elem n x) (WArray.empty n) in
+    ok (Varr t)
+  | Pvar v => catch (get_gvar wdb gd s.(evm) v) 0
+  | Pget al aa ws x e =>
+      iLet (n, t) := wdb, gd, s.[x] in
+      Let ie := isem_pexpr s e in
+      Let i := catch (to_int ie) 0 in
+      Let w := catch (WArray.get al aa ws t i) 0%R  in
+      ok (Vword w)
+  | Psub aa ws len x e =>
+    iLet (n, t) := wdb, gd, s.[x] in
+    Let ie := isem_pexpr s e in
+    Let i := catch (to_int ie) 0 in
+    Let t' := catch (WArray.get_sub aa ws len t i)
+              (WArray.empty (Z.to_pos (arr_size ws len))) in
+    ok (Varr t')
+  | Pload al sz x e =>
+    Let ie := isem_pexpr s e in
+    Let iw1 := catch (get_var wdb s.(evm) x) 0 in
+    Let w1 := catch (to_pointer iw1) 0%R in
+    Let w2 := catch (to_pointer ie) 0%R in
+    Let w  := catch (read s.(emem) al (w1 + w2)%R sz) 0%R in
+    ok (@to_val (sword sz) w)
+  | Papp1 o e1 =>
+    Let v1 := isem_pexpr s e1 in
+    sem_sop1 o v1
+  | Papp2 o e1 e2 =>
+    Let v1 := isem_pexpr s e1 in
+    Let v2 := isem_pexpr s e2 in
+    sem_sop2 o v1 v2
+  | PappN op es =>
+    Let vs := mapM (isem_pexpr s) es in
+    sem_opNA op vs
+  | Pif t e e1 e2 =>
+    Let ib := isem_pexpr s e in
+    Let iv1 := isem_pexpr s e1 in
+    Let iv2 := isem_pexpr s e2 in
+    Let b  := catch (to_bool ib) true in
+    Let v1 := catch (truncate_val t iv1) 0 in
+    Let v2 := catch (truncate_val t iv2) 0 in
+    ok (if b then v1 else v2)
+
+  | Pbig idx op x body start len =>
+    Let ivs := isem_pexpr s start in
+    Let ivlen := isem_pexpr s len in
+    Let ividx := isem_pexpr s idx in
+    Let vs   := catch (to_int ivs) 0 in
+    Let vlen := catch (to_int ivlen) 0 in
+    Let vidx := catch (truncate_val ((type_of_op2 op).2) ividx) 0 in
+    let l := ziota vs vlen in
+    foldM (fun i acc =>
+               Let s := catch (write_var x (Vint i) s) s in
+               Let vb := isem_pexpr s body in
+               sem_sop2 op acc vb)
+      vidx l
+
+  | Pis_var_init x =>
+    Let _ := assert ai.(allowinit) ErrType in
+    let v := (evm s).[x] in
+    ok (Vbool (is_defined v))
+
+  | Pis_arr_init x e1 e2 =>
+    Let _ := assert ai.(allowinit) ErrType in
+    iLet (n, t) := wdb, s.[x] in
+    Let ilo := isem_pexpr s e1 in
+    Let isz := isem_pexpr s e2 in
+    Let lo := catch (to_int ilo) 0 in
+    Let sz := catch (to_int isz) 0 in
+    let b := all (fun i => WArray.is_init t (lo + i)) (ziota 0 sz) in
+    ok (Vbool b)
+  
+  | Pis_barr_init x e1 e2 =>
+    iLet (n, t) := wdb, s.[x] in
+    Let ilo := isem_pexpr s e1 in
+    Let isz := isem_pexpr s e2 in
+    Let lo := catch (to_int ilo) 0 in
+    Let sz := catch (to_int isz) 0 in
+    Let b := foldM (fun i acc => 
+      Let w := catch (WArray.get Aligned AAscale U8 t (lo + i)) 0%R in
+        ok (acc && (w == wrepr U8 (-1)))
+      ) true (ziota 0 sz) in
+    ok (Vbool b)
+
+  | Pis_mem_init e1 e2 =>
+    Let ilo := isem_pexpr s e1 in
+    Let isz := isem_pexpr s e2 in
+    Let lo := catch (to_pointer ilo) 0%R in
+    Let sz := catch (to_int isz) 0 in
+    let b := all (fun i =>
+      is_ok (read s.(emem) Unaligned (lo + (wrepr Uptr i))%R U8)
+                 ) (ziota 0 sz) in
+    ok (Vbool b)
+  end.
+
+Definition isem_pexprs s :=  mapM (isem_pexpr s).
+
+Definition iwrite_lval (l : lval) (v : value) (s : estate) : exec estate :=
+  match l with
+  | Lnone _ ty => ok s
+  | Lvar x => catch (write_var x v s) s
+  | Lmem al sz x e =>
+    Let ive := isem_pexpr s e in
+    Let ivx := catch (get_var wdb (evm s) x) 0 in
+    Let vx := catch (to_pointer ivx) 0%R in
+    Let ve := catch (to_pointer ive) 0%R in
+    let p := (vx + ve)%R in (* should we add the size of value, i.e vx + sz * se *)
+    Let w := catch (to_word sz v) 0%R in
+    Let m := catch (write s.(emem) al p w) s.(emem) in
+    ok (with_mem s m)
+  | Laset al aa ws x i =>
+    iLet (n,t) := wdb, s.[x] in
+    Let ii := isem_pexpr s i in
+    Let i := catch (to_int ii) 0 in
+    Let v := catch (to_word ws v) 0%R in
+    Let t := catch (WArray.set t al aa i v) (WArray.empty n) in
+    Let r := catch (write_var x (@to_val (sarr n) t) s) s in
+    ok r
+  | Lasub aa ws len x i =>
+    iLet (n,t) := wdb, s.[x] in
+    Let ii := isem_pexpr s i in
+    Let i := catch (to_int ii) 0 in
+    Let t' := catch (to_arr (Z.to_pos (arr_size ws len)) v)
+               (WArray.empty (Z.to_pos (arr_size ws len))) in
+    Let t := catch (@WArray.set_sub n aa ws len t i t') (WArray.empty n) in
+    Let r := catch (write_var x (@to_val (sarr n) t) s) s in
+    ok r
+  end.
+
+Definition iwrite_lvals (s : estate) xs vs :=
+   fold2 ErrType iwrite_lval xs vs s.
+
 End SEM_PEXPR.
 
 Section EXEC_ASM.
@@ -349,3 +502,9 @@ Notation "'Let' ( n , t ) ':=' wdb ',' s '.[' v ']' 'in' body" :=
 
 Notation "'Let' ( n , t ) ':=' wdb ',' gd ',' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_gvar wdb gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).
+
+Notation "'iLet' ( n , t ) ':=' wdb ',' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (catch (get_var wdb s.(evm) v) 0) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
+
+Notation "'iLet' ( n , t ) ':=' wdb ',' gd ',' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (catch (get_gvar wdb gd s.(evm) v) 0) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).

@@ -1738,6 +1738,14 @@ Proof.
   rewrite in_nil;symmetry;apply /negP => /andP [/ZleP ? /ZltP ?]; Lia.lia.
 Qed.
 
+Lemma in_ziotaP i n m : reflect (n <= i < n + m)%Z (i \in ziota n m).
+Proof.
+  rewrite in_ziota.
+  case: (ZleP n i) => /=.
+  + case: (ZltP i (n + m)); constructor; Lia.lia.
+  move=> ?; constructor; Lia.lia.
+Qed.
+
 Lemma size_ziota p z: size (ziota p z) = Z.to_nat z.
 Proof. by rewrite ziotaE size_map size_iota. Qed.
 
