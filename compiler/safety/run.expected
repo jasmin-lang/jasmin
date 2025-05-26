@@ -271,6 +271,23 @@ Bottom ⊥
 
 Program is not safe!
 
+File fail/popcnt.jazz:
+Analyzing function off_by_one
+
+
+*** Possible Safety Violation(s):
+  "fail/popcnt.jazz", line 6 (2-18): in_bound: s[x] (length 64 U8)
+  
+Memory ranges:
+  mem_x: [0; 0]
+  
+* Rel:
+⊤
+
+
+
+Program is not safe!
+
 File fail/shld.jazz:
 Analyzing function undefined
 
