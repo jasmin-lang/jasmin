@@ -77,6 +77,9 @@
 - Better testing of the printing feature
   ([PR #1149](https://github.com/jasmin-lang/jasmin/pull/1149).
 
+- More precise handling of `#POPCNT` in the safety checker
+  ([PR #1168](https://github.com/jasmin-lang/jasmin/pull/1168).
+
 # Jasmin 2025.02.1 — Nancy, 2025-04-10
 
 ## New features

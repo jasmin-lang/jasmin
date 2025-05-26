@@ -1462,6 +1462,19 @@ end = struct
             (PrintCommon.pp_opn pd asmOp) opn);
       opn_dflt n
 
+  (* Post-conditions of operators, that cannot be precisely expressed as an expression of the arguments *)
+  let post_opn opn lvs es : btcons list =
+    match opn with
+    | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.POPCNT ws)) ->
+       begin match List.last lvs with
+       | Lvar x ->
+          let range = Coeff.i_of_int 0 (int_of_ws ws) in
+          let open Mtexpr in
+          [ BLeaf (Mtcons.make (binop Sub (var (Mlocal (Avar (L.unloc x)))) (cst range)) EQ) ]
+       | _ -> []
+       end
+    | _ -> []
+
 
   (* -------------------------------------------------------------------- *)
   (* Ugly handling of flags to build.
@@ -1803,6 +1816,7 @@ end = struct
         (* Remark: the assignments must be done in the correct order. *)
         let assgns = split_opn pd asmOp (List.length lvs) opn es in
         let abs = AbsExpr.abs_assign_opn state.abs ginstr.i_info lvs assgns in
+        let abs = List.fold_left AbsDom.meet_btcons abs (post_opn opn lvs es) in
 
         { state with abs = abs; }
 
