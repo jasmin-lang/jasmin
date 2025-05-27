@@ -9,7 +9,7 @@ Import Basics.Monads.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
-Require Import expr psem_defs psem_core it_exec.
+Require Import expr psem_defs psem_core it_exec tfam_iso.
 
 Import MonadNotation.
 Local Open Scope monad_scope.
@@ -56,6 +56,7 @@ Definition err_result {E: Type -> Type} `{ErrEvent -< E} (Err : error -> error_d
 
 End Errors.
 
+(*
 (** Type function isomorphism class *)
 Class FIso (E1 E2: Type -> Type) : Type := FI {
     mfun1 : E1 -< E2 ;
@@ -63,6 +64,7 @@ Class FIso (E1 E2: Type -> Type) : Type := FI {
     mid12 : forall T (x : E2 T), mfun1 (mfun2 x) = x ;
     mid21 : forall T (x : E1 T), mfun2 (mfun1 x) = x ;
 }.
+*)
 
 Notation with_Error E E0 := (FIso E (ErrEvent +' E0)).
 

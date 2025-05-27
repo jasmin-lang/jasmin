@@ -23,7 +23,7 @@ From ITree Require Import
      Interp.Recursion
      Interp.RecursionFacts.
      
-Require Import xrutt xrutt_facts it_sems_core.
+Require Import xrutt xrutt_facts tfam_iso.
 
 From ITree Require Import Rutt RuttFacts.
 

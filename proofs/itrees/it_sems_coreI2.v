@@ -143,9 +143,11 @@ Context
 
 Record fstate := { fscs : syscall_state_t; fmem : mem; fvals : values }.
 
+(*
 (* Recursion events (curried version of Call in ITree) *)
 Variant recCall : Type -> Type :=
- | RecCall (b: bool) (f:funname) (fs:fstate) : recCall fstate.
+ | RecCall (f:funname) (fs:fstate) : recCall fstate.
+*)
 
 Definition mk_error_data (s:estate) (e:error)  := (e, tt).
 
@@ -217,24 +219,22 @@ Definition sem_bound (gd : glob_decls) (lo hi : pexpr) (s : estate) :
 Definition isem_bound (lo hi : pexpr) (s : estate) : itree E (Z * Z) :=
   iresult s (sem_bound (p_globs p) lo hi s).
 
-(* recCall trigger *)
-Definition rec_call (b: bool) (f : funname) (fs : fstate) :
-   itree (recCall +' E) fstate :=
-  trigger_inl1 (RecCall b f fs).
-
 End CORE.
 
 (**** Abstract semantics **********************************************)
 Section SEM_C.
 
-Context {E E0} {wE : with_Error E E0}
-  (sem_i: prog -> extra_val_t -> instr -> estate -> itree E estate)
-  (p : prog) (ev : extra_val_t).
+Context {E E0} {wE : with_Error E E0} 
+  (sem_i: prog -> extra_val_t -> instr -> estate ->
+          itree E estate)
+        (p : prog) (ev : extra_val_t).
+
+(* Notation Estate := (B * estate)%type. *)
 
 (* folding instruction semantics on commands *)
 Definition isem_foldr (c: cmd) : estate -> itree E estate :=
   foldr (fun i k s => s' <- sem_i p ev i s ;; k s')
-        (fun s: estate => Ret s) c.
+        (fun s => Ret s) c.
 
 (* Make global definition *)
 Local Notation continue_loop s := (ret (inl s)).
@@ -263,21 +263,40 @@ Definition isem_while_loop (c1 : cmd) (e:pexpr) (c2: cmd) (s : estate) :
 
 End SEM_C.
 
-Class sem_Fun (E : Type -> Type) :=
-  { sem_fun : prog -> extra_val_t -> bool ->
-              funname -> fstate -> itree E fstate }.
+Class sem_Fun (E : Type -> Type) (A: Type) :=
+  { sem_fun : prog -> extra_val_t -> A -> funname -> fstate ->
+              itree E fstate }.
 
+Notation recCall A := (callE (A * funname * fstate) fstate).
+
+From ITree Require Import Recursion.
+
+(* recCall trigger *)
+Definition rec_call {E} {A} (a: A) (f : funname) (fs : fstate) :
+   itree (recCall A +' E) fstate :=
+  trigger_inl1 (Call (a, f, fs)).
+
+(*
+Definition rec_call' {E} (f : funname) (fs : fstate) :
+   itree (recCall +' E) fstate :=
+  trigger (Call (f, fs)).
+
+Lemma xxx E f fs : @rec_call E f fs = @rec_call' E f fs.
+   reflexivity.
+*)
+  
 #[global]
-Instance sem_fun_rec (E : Type -> Type) : sem_Fun (recCall +' E) | 0 :=
-  {| sem_fun := fun _ _ => rec_call (E:=E) |}.
+  Instance sem_fun_rec (E : Type -> Type) (A: Type) :
+  sem_Fun (recCall A +' E) A | 0 :=
+  {| sem_fun := fun _ _ => @rec_call E A |}.
 
 Section SEM_I.
 
-Context {E E0} {wE : with_Error E E0} {sem_F : sem_Fun E }.
+Context {E E0} {wE : with_Error E E0} {A: Type} {sem_F : sem_Fun E A}.
 
 (* semantics of instructions, abstracting on function calls (through
    sem_fun) *)
-Fixpoint isem_i_body (iiT: instr_info -> bool) (p : prog) (ev : extra_val_t)
+Fixpoint isem_i_body (iiT: instr_info -> A) (p : prog) (ev : extra_val_t)
   (i : instr) (s : estate) :
     itree E estate :=
   let: (MkI ii i) := i in
@@ -319,15 +338,14 @@ Qed.
 Lemma isem_cmd_while iiT p ev ii al c e inf c' s:
   isem_cmd_ iiT p ev [:: MkI ii (Cwhile al c e inf c')] s
   ≈
-  isem_cmd_ iiT p ev
-  (c ++ [:: MkI ii (Cif e (c' ++ [:: MkI ii (Cwhile al c e inf c')]) [::])]) s.
+ isem_cmd_ iiT p ev (c ++ [:: MkI ii (Cif e (c' ++ [:: MkI ii (Cwhile al c e inf c')]) [::])]) s.
 Proof.
   rewrite /= isem_cmd_cat.
   rewrite /isem_while_loop unfold_iter bind_ret_r.
   rewrite /isem_while_round bind_bind /isem_cmd_.
   apply eutt_eq_bind => {}s /=; rewrite !bind_bind.
   apply eutt_eq_bind => -[] /=; last by rewrite !bind_ret_l; reflexivity.
-  rewrite -/isem_cmd_ //. setoid_rewrite isem_cmd_cat; rewrite !bind_bind. 
+  rewrite -/isem_cmd_. setoid_rewrite isem_cmd_cat; rewrite !bind_bind.
   apply eutt_eq_bind => {}s /= ; rewrite bind_ret_l !bind_ret_r tau_eutt; reflexivity.
 Qed.
 
@@ -360,8 +378,9 @@ Definition isem_fun_body iiT (p : prog) (ev : extra_val_t)
    iresult s2 (finalize_funcall fd s2).
 
 (* A variant of the semantic based on exec, usefull for the proofs *)
-Fixpoint esem_i (iiT: instr_info -> bool) (p : prog) (ev : extra_val_t)
-  (i : instr) (s : estate) : exec estate :=
+Fixpoint esem_i (iiT: instr_info -> A)
+  (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
+    exec estate :=
   let: (MkI ii i) := i in
   match i with
   | Cassgn x tg ty e => sem_assgn p x tg ty e s
@@ -438,76 +457,62 @@ End SEM_I.
 (*** error-aware interpreter with recursion ***************************)
 Section SEM_F.
 
-Context {E E0} {wE : with_Error E E0} (iiT : instr_info -> bool).
+Context {E E0} {wE : with_Error E E0} {A: Type} (iiT : instr_info -> A).
 
 (* semantics of instructions parametrized by recCall events *)
 Definition isem_i_rec (p : prog) (ev : extra_val_t) (i : instr) (s : estate)
-  : itree (recCall +' E) estate :=
-  @isem_i_body _ _ _ _ iiT p ev i s.
+  : itree (recCall A +' E) estate :=
+  @isem_i_body _ _ _ _ _ iiT p ev i s.
 
 (* similar, for commands *)
 Definition isem_cmd_rec (p : prog) (ev : extra_val_t) (c : cmd) (s : estate)
-  : itree (recCall +' E) estate :=
+  : itree (recCall A +' E) estate :=
   isem_cmd_ iiT p ev c s.
 
 (* similar, for function calls *)
 Definition isem_fun_rec (p : prog) (ev : extra_val_t)
-   (fn : funname) (fs : fstate) : itree (recCall +' E) fstate :=
+   (fn : funname) (fs : fstate) : itree (recCall A +' E) fstate :=
   isem_fun_body iiT p ev fn fs.
 
 (* handler of recCall events *)
 Definition handle_recCall (p : prog) (ev : extra_val_t) :
-   recCall ~> itree (recCall +' E) :=
- fun T (rc : recCall T) =>
+   recCall A ~> itree (recCall A +' E) :=
+ fun T (rc : recCall A T) =>
    match rc with
-   | RecCall b fn fs => isem_fun_rec p ev fn fs
+   | Call (a, fn, fs) => isem_fun_rec p ev fn fs
    end.
 
 (* intepreter of recCall events for functions, giving us the recursive
    semantics of functions *)
 Definition isem_fun (p : prog) (ev : extra_val_t)
-  (b: bool) (fn : funname) (fs : fstate) : itree E fstate :=
-  mrec (handle_recCall p ev) (RecCall b fn fs).
+  (a: A) (fn : funname) (fs : fstate) : itree E fstate :=
+  mrec (handle_recCall p ev) (Call (a, fn, fs)).
 
 #[global]
-Instance sem_fun_full : sem_Fun E | 100 :=
+Instance sem_fun_full : sem_Fun E A | 100 :=
   {| sem_fun := isem_fun |}.
 
 (* recursive semantics of instructions *)
-Definition isem_i (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
-  itree E estate :=
+Definition isem_i (p : prog) (ev : extra_val_t) (i : instr) (s : estate) : itree E estate :=
   isem_i_body iiT p ev i s.
 
 (* similar, for commands *)
-Definition isem_cmd (p : prog) (ev : extra_val_t) (c : cmd) (s : estate) :
-  itree E estate :=
+Definition isem_cmd (p : prog) (ev : extra_val_t) (c : cmd) (s : estate) : itree E estate :=
   isem_cmd_ iiT p ev c s.
 
 End SEM_F.
 
 (* interpreter of error events, giving us the fully interpreted
    semantics of functions *)
-Definition err_sem_fun iiT (p : prog) (ev : extra_val_t) (fn : funname)
-    (fs : fstate) : execT (itree void1) fstate :=
-  interp_Err (isem_fun iiT p ev false fn fs).
-
+Definition err_sem_fun {A} iiT (p : prog) (ev : extra_val_t)
+  (a: A) (fn : funname) (fs : fstate) : execT (itree void1) fstate :=
+  interp_Err (isem_fun iiT p ev a fn fs).
 
 (*** Core lemmas about the definition ********************************)
-Section CoreDef.
-
-Context {E E0: Type -> Type} {wE : with_Error E E0}.
-Context (iiT: instr_info -> bool) (p : prog) (ev : extra_val_t).
-
-Definition interp_recD :=
-  interp (mrecursive (handle_recCall iiT p ev)).
-
-End CoreDef.
-
 Section CoreLemmas.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0}.
-Context (iiT: instr_info -> bool)
-        (p : prog) (ev : extra_val_t).
+Context {E E0: Type -> Type} {wE : with_Error E E0} {A: Type}.
+Context (iiT: instr_info -> A) (p : prog) (ev : extra_val_t).
 
 Notation interp_rec := (interp (mrecursive (handle_recCall iiT p ev))).
 
@@ -541,7 +546,7 @@ Proof.
 
 Lemma interp_isem_cmd c s :
   eutt (E:=E) eq (interp_rec (isem_foldr (isem_i_rec iiT) p ev c s))       
-         (isem_foldr ((@isem_i_body E E0 wE (@sem_fun_full E E0 wE iiT)) iiT) p ev c s).
+         (isem_foldr ((@isem_i_body E E0 wE A (@sem_fun_full E E0 wE A iiT)) iiT) p ev c s).
 Proof.
   apply:
    (cmd_rect
@@ -589,9 +594,9 @@ Proof.
   rewrite interp_mrecursive; reflexivity.
 Qed.
 
-Lemma isem_call_unfold (b: bool) (fn : funname) (fs : fstate) :
-  isem_fun iiT p ev b fn fs ≈
-    @isem_fun_body  E E0 wE (@sem_fun_full E E0 wE iiT) iiT p ev fn fs.
+Lemma isem_call_unfold (a: A) (fn : funname) (fs : fstate) :
+  isem_fun iiT p ev a fn fs ≈
+    @isem_fun_body  E E0 wE A (@sem_fun_full E E0 wE A iiT) iiT p ev fn fs.
 Proof.
   rewrite {1}/isem_fun.
   rewrite mrec_as_interp.
@@ -608,3 +613,5 @@ Qed.
 End CoreLemmas.
 
 End WSW.
+
+

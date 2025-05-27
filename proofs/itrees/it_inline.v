@@ -74,6 +74,8 @@ Definition get_fun (p:ufun_decls) (f:funname) :=
   | None    => Error (inline_error (pp_box [::pp_s "Unknown function"; PPEfunname f]))
   end.
 
+Print read_i_rec.
+
 Fixpoint inline_i (px: ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
   let '(MkI iinfo ir) := i in
   match ir with
@@ -179,44 +181,54 @@ Context
 .
 *)
 
-Definition inline_RC T (e: recCall T) : bool :=
+Notation recCall A := (callE (A * funname * fstate) fstate).
+
+(* extract the inlining tag from the call *)
+Definition inline_RC T (e: recCall bool T) : bool :=
   match e with
-  | RecCall true _ _ => true
+  | Call (true, _, _) => true
   | _ => false end.
 
+(* inline call, defined as a sigma type (use a variant instead?) *)
 Definition RC1 : Type -> Type :=
-  fun T => sigT (fun e: recCall T => (inline_RC e = true)).
+  fun T => sigT (fun e: recCall bool T => (inline_RC e = true)).
 
+(* non-inline call *)
 Definition RC2 : Type -> Type :=
-  fun T => sigT (fun e: recCall T => (inline_RC e = false)).
+  fun T => sigT (fun e: recCall bool T => (inline_RC e = false)).
 
-Lemma split_recCall T : recCall T -> (RC1 +' RC2) T.
+(* conversion of recCall to RC1 + RC2, assuming the tagging is done *)
+Lemma split_recCall T : recCall bool T -> (RC1 +' RC2) T.
   intro e.
-  destruct e as [[ | ] fn fs] eqn: was_e.
+  destruct e as [[[[ | ] fn] fs]] eqn: was_e.
   - left; exists e.
     inv was_e; auto.
   - right; exists e.
     inv was_e; auto.  
 Defined.
 
+(* lifts the splitting to all events *)
 Lemma split_Evs (E1: Type -> Type) T :
-  (recCall +' E1) T -> ((RC1 +' RC2) +' E1) T. 
+  (recCall bool +' E1) T -> ((RC1 +' RC2) +' E1) T. 
   intro e.
   destruct e as [d | e].
   - left; eapply split_recCall; auto.
   - right; auto.
 Defined.    
 
+(* translate the instruction itree to a split one *)
 Definition isem_i_INLN (iiT: instr_info -> bool) (p : prog) (ev : extra_val_t)
   (i : instr) (s : estate) :
   itree ((RC1 +' RC2) +' E) estate :=
   translate (@split_Evs E) (isem_i_rec iiT p ev i s).
 
+(* translate the command itree to a split one *)
 Definition isem_cmd_INLN (iiT: instr_info -> bool) (p : prog) (ev : extra_val_t)
   (c : cmd) (s : estate) :
   itree ((RC1 +' RC2) +' E) estate :=
   translate (@split_Evs E) (isem_cmd_rec iiT p ev c s).
 
+(* translate the function itree to a split one *)
 Definition isem_fun_INLN (iiT: instr_info -> bool) (p : prog) (ev : extra_val_t)
   (fn : funname) (fs: fstate) :
   itree ((RC1 +' RC2) +' E) fstate :=
@@ -238,9 +250,11 @@ Definition ctxR : (* (p : prog) (ev : extra_val_t) : *)
   RC2 ~> itree (RC2 +' (RC1 +' E)).
   intros T e.
   destruct e as [e2 e_eq] eqn: was_e.
-  destruct e2 as [b fn fs].
+  destruct e2 as [[[b fn] fs]].
   exact (translate (@perm_rassoc_tr _ _ _) (isem_fun_INLN iiT p ev fn fs)).
-Defined.  
+Defined.
+
+
 (*    
   :=
  fun T (rc : RC2 T) =>

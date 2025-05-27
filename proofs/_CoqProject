@@ -145,6 +145,7 @@ itrees/tfam_iso.v
 itrees/inline_lemma.v
 itrees/inline_lemmaI2.v
 itrees/it_sems_coreI2.v
+itrees/it_sems_coreP.v
 
 lang/array.v
 lang/core_logics.v
