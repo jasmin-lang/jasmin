@@ -5,7 +5,7 @@ u256 key = 0x1bf54941aff6bf4afdb20dfb8a800301a806d542fe52447f336d555778bed685;
 inline
 fn test_poly1305() -> reg u8[16] {
 reg u64 in, out, inlen, k, tmp;
-reg u8[16] result;
+reg u8[16] result2;
 inline int i;
 
 out = 0x1200;
@@ -54,8 +54,8 @@ inlen = 34;
 #inline tmp = poly1305(out, in, inlen, k);
 
 for i = 0 to 16 {
-  result[i] = [:u8 out + i];
+  result2[i] = [:u8 out + i];
 }
 
-return result;
+return result2;
 }
