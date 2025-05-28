@@ -5,7 +5,9 @@
 - Adding linter library :
   - Introducing abstractions for static analysis of jasmin programs.
   - Implementation of uninitialised variable check using reaching definition static analysis.
-  ([PR #1160](https://github.com/jasmin-lang/jasmin/pull/1160)).
+  - Implementation of dead variables check using liveness static analysis.
+  ([PR #1160](https://github.com/jasmin-lang/jasmin/pull/1160)
+  [PR #1166](https://github.com/jasmin-lang/jasmin/pull/1166)).
 
 - New syntax
   - the syntax for memory load/store operations, previously limited to `[x + e]`,
