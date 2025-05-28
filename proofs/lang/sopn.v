@@ -145,6 +145,13 @@ Definition sopn_mulu (ws : wsize) : sopn := Opseudo_op (Omulu ws).
 Definition sopn_addcarry (ws : wsize) : sopn := Opseudo_op (Oaddcarry ws).
 Definition sopn_subcarry (ws : wsize) : sopn := Opseudo_op (Osubcarry ws).
 
+Definition is_Oslh (op : sopn) : option slh_op :=
+  if op is Oslh op then Some op else None.
+
+Lemma is_OslhP op : is_reflect Oslh op (is_Oslh op).
+Proof. case: op; by constructor. Qed.
+
+
 (* ------------------------------------------------------------- *)
 (* Descriptors for speudo operators                              *)
 

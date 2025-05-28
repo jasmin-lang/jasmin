@@ -4594,7 +4594,7 @@ Lemma get_symbolic_of_pexprP table e table' e' :
   symbolic_of_pexpr (clone fresh_var_ident) table e = ok (Some (table', e')).
 Proof.
   rewrite /get_symbolic_of_pexpr.
-  by t_xrbindP=> _ -> /o2rP ->.
+  by t_xrbindP=> _ -> ->.
 Qed.
 
 Lemma alloc_array_moveP vme m0 s1 s2 s1' table1 rmap1 table2 rmap2 r tag e v v' n i2 :

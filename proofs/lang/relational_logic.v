@@ -1640,6 +1640,11 @@ Definition wequiv_f_rec RPreF fn1 fn2 RPostF :=
 Definition wequiv_rec P c1 c2 Q :=
   wequiv (rE0:=relEvent_recCall spec) p1 p2 ev1 ev2 P c1 c2 Q.
 
+Definition wequiv_rec_i P i1 i2 Q := wequiv_rec P [:: i1 ] [:: i2 ] Q.
+
+Definition wequiv_rec_ir P i1 ii1 i2 ii2 Q :=
+  wequiv_rec_i P (MkI ii1 i1) (MkI ii2 i2) Q.
+
 Definition wequiv_fun_body_hyp_rec (RPreF:relPreF) fn1 fn2 (RPostF:relPostF) :=
   forall fs1 fs2,
   RPreF fn1 fn2 fs1 fs2 ->
