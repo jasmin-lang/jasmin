@@ -114,8 +114,13 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {wa : WithAssert}
   (wdb : bool)
   (gd : glob_decls).
+
+Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
+  Let vm := set_var wdb s.(evm) x v in
+  ok (with_vm s vm).
 
 Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
@@ -152,13 +157,52 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     Let v1 := sem_pexpr s e1 >>= truncate_val t in
     Let v2 := sem_pexpr s e2 >>= truncate_val t in
     ok (if b then v1 else v2)
+  | Pbig idx op x body start len =>
+    Let _ := assert (assert_allowed) ErrType in
+    Let vs   := sem_pexpr s start >>= to_int in
+    Let vlen := sem_pexpr s len >>= to_int in
+    Let vidx := sem_pexpr s idx >>= truncate_val ((type_of_op2 op).2) in
+    let l := ziota vs vlen in
+    foldM (fun i acc =>
+               Let s := write_var x (Vint i) s in
+               Let vb := sem_pexpr s body in
+               sem_sop2 op acc vb)
+      vidx l
+  | Parr_init_elem e n => 
+    Let _ := assert (assert_allowed) ErrType in
+    Let x := sem_pexpr s e >>= to_word U8 in
+    Let t := WArray.fill_elem n x in
+    ok (Varr t)
+  | Pis_var_init x =>
+    Let _ := assert (assert_allowed) ErrType in
+    let v := (evm s).[x] in
+    ok (Vbool (is_defined v))
+  | Pis_arr_init x e1 e2 =>
+    Let _ := assert (assert_allowed) ErrType in
+    Let (n, t) := wdb, s.[x] in
+    Let lo := sem_pexpr s e1 >>= to_int in
+    Let sz := sem_pexpr s e2 >>= to_int in
+    let b := all (fun i => WArray.is_init t (lo + i)) (ziota 0 sz) in
+    ok (Vbool b)
+  | Pis_barr_init x e1 e2 =>
+    Let _ := assert (assert_allowed) ErrType in
+    Let (n, t) := wdb, s.[x] in
+    Let lo := sem_pexpr s e1 >>= to_int in
+    Let sz := sem_pexpr s e2 >>= to_int in            
+    Let b := foldM (fun i acc => 
+      Let w := WArray.get Aligned AAscale U8 t (lo + i) in
+        ok (acc && (w == wrepr U8 (-1)))
+      ) true (ziota 0 sz) in
+    ok (Vbool b)
+  | Pis_mem_init e1 e2 =>
+    Let _ := assert (assert_allowed) ErrType in
+    Let lo := sem_pexpr s e1 >>= to_pointer in
+    Let sz := sem_pexpr s e2 >>= to_int in
+    let b := all (fun i => is_ok (read s.(emem) Unaligned (lo + (wrepr Uptr i))%R U8)) (ziota 0 sz) in
+    ok (Vbool b)
   end.
 
 Definition sem_pexprs s := mapM (sem_pexpr s).
-
-Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
-  Let vm := set_var wdb s.(evm) x v in
-  ok (with_vm s vm).
 
 Definition write_vars xs vs s :=
   fold2 ErrType write_var xs vs s.
@@ -202,6 +246,7 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {wa : WithAssert}
   {asmop : asmOp asm_op}.
 
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=
@@ -213,6 +258,75 @@ Definition sem_sopn gd o m lvs args :=
   sem_pexprs true gd m args >>= exec_sopn o >>= write_lvals true gd m lvs.
 
 End EXEC_ASM.
+
+Section CONTRA.
+
+Context
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {wa : WithAssert}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT : progT}.
+
+Definition sem_cond (gd : glob_decls) (e : pexpr) (s : estate) : exec bool :=
+  (sem_pexpr true gd s e >>= to_bool)%result.
+
+Definition sem_assert (gd : glob_decls) (s : estate) (e : assertion) : exec unit :=
+  Let _ := assert (assert_allowed) ErrType in
+  Let b := sem_cond gd e.2 s in
+  Let _ := assert b (ErrAssert e.1) in
+  ok tt.
+
+Record fstate := { fscs : syscall_state_t; fmem : mem; fvals : values }.
+
+(** Switch for the semantics of function calls:
+  - when false, arguments and returned values are truncated to the declared type of the called function;
+  - when true, arguments and returned values are allowed to be undefined.
+
+Informally, “direct call” means that passing arguments and returned value does not go through an assignment;
+indeed, assignments truncate and fail on undefined values.
+*)
+Class DirectCall := {
+  direct_call : bool;
+}.
+
+Definition indirect_c : DirectCall := {| direct_call := false |}.
+Definition direct_c : DirectCall := {| direct_call := true |}.
+
+Definition dc_truncate_val {dc:DirectCall} t v :=
+  if direct_call then ok v
+  else truncate_val t v.
+
+Definition sem_pre {dc: DirectCall} (P : prog) (fn:funname) (fs: fstate) :=
+  if ~~assert_allowed then ok tt
+  else if get_fundef (p_funcs P) fn is Some f then
+    match f.(f_contra) with
+    | Some ci =>
+      Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) fs.(fvals) in
+      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate fs.(fscs) fs.(fmem) Vm.init) in
+      Let _ := mapM (sem_assert (p_globs P) s) ci.(f_pre) in
+      ok tt
+    | None => ok tt
+    end
+  else Error ErrUnknowFun.
+
+Definition sem_post {dc: DirectCall} (P : prog) (fn:funname) (vargs' : values) (fs: fstate) :=
+  if ~~assert_allowed then ok tt
+  else if get_fundef (p_funcs P) fn is Some f then
+    match f.(f_contra) with
+    | Some ci =>
+      Let _ := assert (assert_allowed) ErrType in
+      Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
+      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate fs.(fscs) fs.(fmem) Vm.init) in
+      Let s :=  write_vars (~~direct_call) ci.(f_ires) fs.(fvals) s in
+      Let _ := mapM (sem_assert (p_globs P) s) ci.(f_post) in
+      ok tt
+    | None => ok tt
+    end
+  else Error ErrUnknowFun.
+
+End CONTRA.
 
 End WSW.
 

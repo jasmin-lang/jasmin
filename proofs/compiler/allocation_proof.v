@@ -107,7 +107,7 @@ Section CHECK_EP.
 
   Lemma check_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
   Proof.
-    apply: pexprs_ind_pair; split; subst P Q => /=.
+    apply: pexprs_ind_pair; split; subst P Q => //=.
     - case => // r _ vm1 _ [<-] h; split => // scs m _ [<-] /=; eauto.
     - move => e1 he1 es1 hes1 [] // e2 es2 r re vm1 err; t_xrbindP => r' ok_r' ok_re h.
       move: he1 => /(_ e2 r r' vm1 ok_r' h) [] h' he1.

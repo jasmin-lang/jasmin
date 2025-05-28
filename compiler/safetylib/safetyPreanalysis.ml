@@ -98,6 +98,7 @@ end = struct
       Cassgn (mk_lval fn lv, tag, ty, mk_expr fn e)
     | Copn (lvls, tag, opn, exprs) ->
       Copn (mk_lvals fn lvls, tag, opn, mk_exprs fn exprs)
+    | Cassert _ -> assert false
     | Csyscall (lvls, o, exprs) ->
         Csyscall(mk_lvals fn lvls, o, mk_exprs fn exprs)
     | Cif (e, st, st') ->
@@ -123,6 +124,7 @@ end = struct
     | PappN (op,es) -> PappN (op, List.map (mk_expr fn) es)
     | Pif (ty, e, el, er)  ->
       Pif (ty, mk_expr fn e, mk_expr fn el, mk_expr fn er)
+    | Pbig _ -> assert false
 
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
 
@@ -208,6 +210,7 @@ end = struct
     | PappN (_,es) -> List.fold_left (fun dp e -> app_expr dp v e ct) dp es
     | Pif (_,b,e1,e2) ->
       app_expr (app_expr (app_expr dp v b ct) v e1 ct) v e2 ct
+    | Pbig _ -> assert false
 
   and app_expr_load dp e ct =
     match decompose_address e with
@@ -250,7 +253,9 @@ end = struct
       | Papp1 (_,e1) -> aux (acc,st) e1
       | Papp2  (_,e1,e2) -> aux (aux (acc,st) e1) e2
       | PappN (_,es) -> List.fold_left aux (acc,st) es
-      | Pif (_,b,e1,e2) -> aux (aux (aux (acc,st) e1) e2) b in
+      | Pif (_,b,e1,e2) -> aux (aux (aux (acc,st) e1) e2) b
+      | Pbig _ -> assert false
+    in
 
     aux ([],st) e
 
@@ -274,7 +279,9 @@ end = struct
       | Papp1 (_,e1) -> aux acc e1
       | Papp2  (_,e1,e2) -> aux (aux acc e1) e2
       | PappN (_,es) -> List.fold_left aux acc es
-      | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b in
+      | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b
+      | Pbig _ -> assert false
+    in
 
     aux acc e
 
@@ -351,6 +358,8 @@ end = struct
         | _ -> assert false
       else None
 
+    | Cassert _ -> assert false
+
     | Cif (_, c1, c2) ->
       begin match pa_flag_setfrom v c1, pa_flag_setfrom v c2 with
         | None, None -> None
@@ -373,6 +382,8 @@ end = struct
 
     | Copn (lvs, _, _, es) | Csyscall(lvs, _, es) -> List.fold_left (fun st lv ->
         List.fold_left (fun st e -> pa_lv st lv e) st es) st lvs
+
+    | Cassert _ -> assert false
 
     | Cif (b, c1, c2) ->
       let vs,st = expr_vars st b in
@@ -514,6 +525,8 @@ end = struct
     | Papp2 (_,e1,e2) -> collect_vars_es sv [e1;e2]
     | PappN (_, el)  -> collect_vars_es sv el
     | Pif (_, e1, e2, e3) -> collect_vars_es sv [e1;e2;e3]
+    | Pbig _ -> assert false
+
   and collect_vars_es sv es = List.fold_left collect_vars_e sv es
 
   let collect_vars_lv sv = function
@@ -541,6 +554,7 @@ end = struct
       let sv = collect_vars_lv sv lv in
       collect_vars_e sv e
     | Ccall _ -> raise Fcall
+    | Cassert _ -> assert false
 
   and collect_vars_is sv is = List.fold_left collect_vars_i sv is
 
