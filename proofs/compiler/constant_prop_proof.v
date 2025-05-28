@@ -757,14 +757,16 @@ Proof.
     - by apply: rec => //; left.
     by apply: ih => e' he'; apply: rec => //; right.
   + by move=> > he > he1 > he2 > /[dup] /he -> /[dup] /he1 -> /he2 ->.
-  move=> > hi op x b hb > hs > hl m1 m2 hm.
-  rewrite (hi _ _ hm) (hs _ _ hm) (hl _ _ hm).
-  rewrite (hb (Mvar.remove m1 x) (Mvar.remove m2 x)); last first.
-  + by move=> ?; rewrite !Mvar.removeP; case: ifP.
-  case: is_const => // ?; case: is_const => // ?.
-  elim: ziota (const_prop_e g m2 _) => //= j js hrec e.
-  rewrite (hb _ (Mvar.set m2 x (Cint j))); first by apply hrec.
-  by move=> ?; rewrite !Mvar.setP; case: ifP.
+  + move=> > hi op x b hb > hs > hl m1 m2 hm.
+    rewrite (hi _ _ hm) (hs _ _ hm) (hl _ _ hm).
+    rewrite (hb (Mvar.remove m1 x) (Mvar.remove m2 x)); last first.
+    + by move=> ?; rewrite !Mvar.removeP; case: ifP.
+    case: is_const => // ?; case: is_const => // ?.
+    elim: ziota (const_prop_e g m2 _) => //= j js hrec e.
+    rewrite (hb _ (Mvar.set m2 x (Cint j))); first by apply hrec.
+    by move=> ?; rewrite !Mvar.setP; case: ifP.
+  + by move=> > he > /he ->.
+  1-3: by move=> > he1 > he2 > /[dup] /he1 -> /he2 ->.
 Qed.
 
 #[local]

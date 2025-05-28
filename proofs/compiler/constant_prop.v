@@ -398,6 +398,26 @@ Fixpoint const_prop_e (m:cpm) e :=
     | _, _ =>
       Pbig idx op x (const_prop_e (Mvar.remove m x) body) s len
     end
+   | Parr_init_elem e l => 
+     let e := const_prop_e m e in
+     Parr_init_elem e l
+
+   | Pis_var_init _ => e
+
+   | Pis_barr_init x e1 e2 =>
+     let e1 := const_prop_e m e1 in
+     let e2 := const_prop_e m e2 in
+     Pis_barr_init x e1 e2
+
+   | Pis_arr_init x e1 e2 =>
+     let e1 := const_prop_e m e1 in
+     let e2 := const_prop_e m e2 in
+     Pis_arr_init x e1 e2
+
+   | Pis_mem_init e1 e2 =>
+     let e1 := const_prop_e m e1 in
+     let e2 := const_prop_e m e2 in
+     Pis_mem_init e1 e2
   end.
 
 End GLOBALS.
