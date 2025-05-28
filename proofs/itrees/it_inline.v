@@ -173,16 +173,6 @@ Section IT1_section.
 Context {E E0} {wE : with_Error E E0}
   (iiT : instr_info -> bool) (p : prog) (ev : extra_val_t).
 
-(*
-Context
-(*  {wsw : WithSubWord}
-  {asm_op syscall_state : Type}
-  {asmop:asmOp asm_op} *)
-  (rename_fd : instr_info -> funname -> ufundef -> ufundef)
-  (de ad_vars_fd : ufun_decl -> instr_info -> Sv.t)
-.
-*)
-
 Notation recCall A := (callE (A * funname * fstate) fstate).
 
 (* extract the inlining tag from the call *)
@@ -259,13 +249,13 @@ Definition recCall2RC2 : recCall bool ~> RC2 :=
              | Call (_, fn, fs) =>
                 exist _ (Call (false, fn, fs)) eq_refl end.                
 
-Definition transl_ext {E0 E1: Type -> Type} (E2: Type -> Type)
-  (f: E0 ~> E1) : E0 +' E2 ~> E1 +' E2 :=
+Definition transl_ext {E1 E2: Type -> Type} (E3: Type -> Type)
+  (f: E1 ~> E2) : E1 +' E3 ~> E2 +' E3 :=
   fun T e => match e with
              | inl1 e1 => inl1 (f _ e1)
              | inr1 e2 => inr1 e2 end.                   
 
-Definition recCall2RC2x E0 : recCall bool +' E0 ~> RC2 +' E0 :=
+Definition recCall2RC2x E1 : recCall bool +' E1 ~> RC2 +' E1 :=
   transl_ext recCall2RC2.
 
 (* non-recusive inline handler (ctxI) *)
@@ -325,7 +315,7 @@ Section IT1_section.
 
 Context {E E0} {wE : with_Error E E0}
   (iiT : instr_info -> bool) (p : prog) (ev : extra_val_t).
-
+  
 Lemma inline_correct T (t: itree ((RC1 +' RC2) +' E) T) :
   eutt eq (split_isem iiT p ev (inlining_ext iiT p ev t))
           (split_isem iiT p ev t).
@@ -334,6 +324,25 @@ Proof.
           (handle_rec_RC2 iiT p ev) _ t).
 Qed.
 
+(**)
+
+Definition contract_translate {E1 E2} : E1 +' (E1 +' E2) ~> E1 +' E2 :=
+  fun T e => match e with
+             | inl1 e1 => inl1 e1
+             | inr1 e12 => match e12 with
+                           | inl1 e1 => inl1 e1
+                           | inr1 e2 => inr1 e2 end end.
+
+Definition anticontact_translate {E1 E2} : E1 +' E2 ~> E1 +' (E1 +' E2) :=
+  fun T e => match e with
+             | inl1 e1 => inl1 e1
+             | inr1 e2 => inr1 (inr1 e2) end.
+
+Definition void_fun_handle {A B} :
+  (callE A B +' (callE A B +' E)) ~> itree (callE A B +' E) :=
+  fun T e => match e with
+             | inl1 e1 => trigger e1
+             | inr1 e2 => trigger e2 end.                     
 
 (** TO PROVE *)
 
@@ -349,6 +358,7 @@ Lemma split_correct f (F: faithful_recCall_split f)
           (split_isem iiT p ev (translate (transl_ext f) t)).
 Admitted. 
 
+Context (inline_pass : prog -> prog).
 
 (*
 TODO

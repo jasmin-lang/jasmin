@@ -472,7 +472,7 @@ Definition isem_cmd_rec (p : prog) (ev : extra_val_t) (c : cmd) (s : estate)
   : itree (recCall A +' E) estate :=
   isem_cmd_ iiT p ev c s.
 
-(* similar, for function calls *)
+(* similar for functions, but handles the top-level call *)
 Definition isem_fun_rec (p : prog) (ev : extra_val_t)
    (fn : funname) (fs : fstate) : itree (recCall A +' E) fstate :=
   isem_fun_body iiT p ev fn fs.
