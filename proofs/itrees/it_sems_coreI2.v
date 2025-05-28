@@ -284,7 +284,10 @@ Definition rec_call' {E} (f : funname) (fs : fstate) :
 Lemma xxx E f fs : @rec_call E f fs = @rec_call' E f fs.
    reflexivity.
 *)
-  
+
+
+(* sem_fun_rec: (recCall A +' E) instance of sem_Fun that just
+   triggers calls *)
 #[global]
   Instance sem_fun_rec (E : Type -> Type) (A: Type) :
   sem_Fun (recCall A +' E) A | 0 :=
@@ -488,16 +491,20 @@ Definition isem_fun (p : prog) (ev : extra_val_t)
   (a: A) (fn : funname) (fs : fstate) : itree E fstate :=
   mrec (handle_recCall p ev) (Call (a, fn, fs)).
 
+(* sem_fun_full: E instance of sem_Fun that interprets the function
+   call using mrec *)
 #[global]
 Instance sem_fun_full : sem_Fun E A | 100 :=
   {| sem_fun := isem_fun |}.
 
 (* recursive semantics of instructions *)
-Definition isem_i (p : prog) (ev : extra_val_t) (i : instr) (s : estate) : itree E estate :=
+Definition isem_i (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
+    itree E estate :=
   isem_i_body iiT p ev i s.
 
 (* similar, for commands *)
-Definition isem_cmd (p : prog) (ev : extra_val_t) (c : cmd) (s : estate) : itree E estate :=
+Definition isem_cmd (p : prog) (ev : extra_val_t) (c : cmd) (s : estate) :
+    itree E estate :=
   isem_cmd_ iiT p ev c s.
 
 End SEM_F.

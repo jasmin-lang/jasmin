@@ -167,7 +167,9 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
   {scP : semCallParams}.
-  
+
+Section IT1_section.
+
 Context {E E0} {wE : with_Error E E0}
   (iiT : instr_info -> bool) (p : prog) (ev : extra_val_t).
 
@@ -208,7 +210,7 @@ Lemma split_recCall T : recCall bool T -> (RC1 +' RC2) T.
 Defined.
 
 (* lifts the splitting to all events *)
-Lemma split_Evs (E1: Type -> Type) T :
+Lemma split_Evs {E1: Type -> Type} T :
   (recCall bool +' E1) T -> ((RC1 +' RC2) +' E1) T. 
   intro e.
   destruct e as [d | e].
@@ -217,20 +219,20 @@ Lemma split_Evs (E1: Type -> Type) T :
 Defined.    
 
 (* translate the instruction itree to a split one *)
-Definition isem_i_INLN (iiT: instr_info -> bool) (p : prog) (ev : extra_val_t)
-  (i : instr) (s : estate) :
+Definition isem_i_split (iiT: instr_info -> bool)
+  (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
   itree ((RC1 +' RC2) +' E) estate :=
   translate (@split_Evs E) (isem_i_rec iiT p ev i s).
 
 (* translate the command itree to a split one *)
-Definition isem_cmd_INLN (iiT: instr_info -> bool) (p : prog) (ev : extra_val_t)
-  (c : cmd) (s : estate) :
+Definition isem_cmd_split (iiT: instr_info -> bool)
+  (p : prog) (ev : extra_val_t) (c : cmd) (s : estate) :
   itree ((RC1 +' RC2) +' E) estate :=
   translate (@split_Evs E) (isem_cmd_rec iiT p ev c s).
 
 (* translate the function itree to a split one *)
-Definition isem_fun_INLN (iiT: instr_info -> bool) (p : prog) (ev : extra_val_t)
-  (fn : funname) (fs: fstate) :
+Definition isem_fun_split (iiT: instr_info -> bool)
+  (p : prog) (ev : extra_val_t) (fn : funname) (fs: fstate) :
   itree ((RC1 +' RC2) +' E) fstate :=
   translate (@split_Evs E) (isem_fun_rec iiT p ev fn fs).
 
@@ -246,14 +248,115 @@ Definition perm_rassoc_tr E1 E2 E3 :
                 | inr1 e2 => inl1 e2 end
   | inr1 e3 => inr1 (inr1 e3) end.                
 
+
+Definition recCall2RC1 : recCall bool ~> RC1 :=
+  fun T e => match e with
+             | Call (_, fn, fs) =>
+                exist _ (Call (true, fn, fs)) eq_refl end.                
+
+Definition recCall2RC2 : recCall bool ~> RC2 :=
+  fun T e => match e with
+             | Call (_, fn, fs) =>
+                exist _ (Call (false, fn, fs)) eq_refl end.                
+
+Definition transl_ext {E0 E1: Type -> Type} (E2: Type -> Type)
+  (f: E0 ~> E1) : E0 +' E2 ~> E1 +' E2 :=
+  fun T e => match e with
+             | inl1 e1 => inl1 (f _ e1)
+             | inr1 e2 => inr1 e2 end.                   
+
+Definition recCall2RC2x E0 : recCall bool +' E0 ~> RC2 +' E0 :=
+  transl_ext recCall2RC2.
+
+(* non-recusive inline handler (ctxI) *)
+Definition handle_inline_RC1 : RC1 ~> itree (RC2 +' E).
+  intros T e.
+  destruct e as [e1 e_eq] eqn: was_e.
+  destruct e1 as [[[[ | ] fn] fs]]; try discriminate.
+  set (it := isem_fun_rec iiT p ev fn fs).  
+  exact (translate (@recCall2RC2x E) it).
+Defined.  
+
+Definition handle_inline_recCall_ext :
+  (RC1 +' (RC2 +' E)) ~> itree (RC2 +' E) :=
+  fun T e => ext_handler handle_inline_RC1 e.
+(*  fun T e => match e with
+             | inl1 e1 => handle_inline_RC1 e1
+             | inr1 e2 => trigger e2 end.                  
+*)  
+
+Definition inlining T (it: itree ((RC1 +' RC2) +' E) T) :
+  itree (RC2 +' E) T := D1_ext_interp handle_inline_RC1 it.
+
+Definition inlining_ext T (it: itree ((RC1 +' RC2) +' E) T) :
+  itree ((RC1 +' RC2) +' E) T :=
+  translate (@lw_la RC1 RC2 E) (@inlining T it).
+
+(* old ctxR *)
 Definition ctxR : (* (p : prog) (ev : extra_val_t) : *)
   RC2 ~> itree (RC2 +' (RC1 +' E)).
   intros T e.
   destruct e as [e2 e_eq] eqn: was_e.
   destruct e2 as [[[b fn] fs]].
-  exact (translate (@perm_rassoc_tr _ _ _) (isem_fun_INLN iiT p ev fn fs)).
+  exact (translate (@perm_rassoc_tr _ _ _) (isem_fun_split iiT p ev fn fs)).
 Defined.
 
+(* new ctxR *)
+Definition handle_rec_RC2 : (* (p : prog) (ev : extra_val_t) : *)
+  RC2 ~> itree (RC2 +' E).
+  intros T e.
+  destruct e as [e2 e_eq] eqn: was_e.
+  destruct e2 as [[[b fn] fs]].
+  set (it := isem_fun_rec iiT p ev fn fs).
+  exact (translate (@recCall2RC2x E) it).
+Defined.  
+
+(* ctxIR *)
+Definition RC12_handler : RC1 +' RC2 ~> itree ((RC1 +' RC2) +' E) :=
+  fun T e => joint_handler handle_inline_RC1 handle_rec_RC2 e.
+
+(* the split semantics *)
+Definition split_isem T (t: itree ((RC1 +' RC2) +' E) T) : itree E T :=
+  interp_mrec RC12_handler t.
+
+End IT1_section.
+
+Section IT1_section.
+
+Context {E E0} {wE : with_Error E E0}
+  (iiT : instr_info -> bool) (p : prog) (ev : extra_val_t).
+
+Lemma inline_correct T (t: itree ((RC1 +' RC2) +' E) T) :
+  eutt eq (split_isem iiT p ev (inlining_ext iiT p ev t))
+          (split_isem iiT p ev t).
+Proof.
+  eapply (@OK_inline_lemma RC1 RC2 E (handle_inline_RC1 iiT p ev)
+          (handle_rec_RC2 iiT p ev) _ t).
+Qed.
+
+
+(** TO PROVE *)
+
+Notation recCall A := (callE (A * funname * fstate) fstate).
+
+Definition faithful_recCall_split (f: recCall bool ~> RC1 +' RC2) :=
+  forall T (e: recCall bool T),
+    (f T e = inl1 (recCall2RC1 e)) \/ (f T e = inr1 (recCall2RC2 e)).   
+
+Lemma split_correct f (F: faithful_recCall_split f)
+    T (t: itree (recCall bool +' E) T) :
+  eutt eq (interp_mrec (handle_recCall iiT p ev) t)
+          (split_isem iiT p ev (translate (transl_ext f) t)).
+Admitted. 
+
+
+(*
+TODO
+
+eutt eq (void_sem (inline_pass f)) (inlining_ext iiT p ev t)
+
+*)
+  
 
 (*    
   :=

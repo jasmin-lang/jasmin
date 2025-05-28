@@ -23,7 +23,7 @@ From ITree Require Import
      Interp.Recursion
      Interp.RecursionFacts.
      
-Require Import xrutt xrutt_facts tfam_iso. (* it_sems_core. *)
+Require Import xrutt xrutt_facts tfam_iso.
 
 From ITree Require Import Rutt RuttFacts.
 
@@ -100,76 +100,87 @@ Qed.
 
 End GEN_MREC.
 
-(*
-(* auxiliary lemma *)
-Lemma FIsoLAssoc E1 E2 E3 :
-  FIso (E1 +' (E2 +' E3)) ((E1 +' E2) +' E3).
-Proof.   
-  econstructor; simpl; intros T x; destruct x as [s | s]; auto;
-    destruct s; auto.
-Defined.
-*)
-
 Definition lassoc_tr E1 E2 E3 := @mfun1 (E1 +' (E2 +' E3)) ((E1 +' E2) +' E3)
                                         (@FIsoLAssoc E1 E2 E3).
 
-Definition perm_lassoc_tr E1 E2 E3 :
-  (E2 +' (E1 +' E3)) ~> ((E1 +' E2) +' E3) :=
-  fun T e => match e with
-             | inl1 e2 => inl1 (inr1 e2)
-             | inr1 e13 => match e13 with
-                           | inl1 e1 => inl1 (inl1 e1)
-                           | inr1 e3 => inr1 e3 end end.                  
-               
+Definition rassoc_tr E1 E2 E3 := @mfun2 (E1 +' (E2 +' E3)) ((E1 +' E2) +' E3) 
+                                        (@FIsoLAssoc E1 E2 E3).
+
 
 Section InlineOK.
 
 (* D1: inline events; D2: recursive events; E0: other events. *)  
-Context {D1 D2: Type -> Type} (E0 : Type -> Type).
+Context {D1 D2: Type -> Type} (E : Type -> Type).
 
 (* inline (non-recursive) handler *) 
-Context (ctxI: forall E, D1 ~> itree E).
+Context (ctxI: D1 ~> itree (D2 +' E)).
 
 (* general semantic (recursive) handler, specialized to non-inlined
    calls *)
-Context (ctxR: forall E, D2 ~> itree (D2 +' (D1 +' E))).
+Context (ctxR: D2 ~> itree (D2 +' E)).
 
 (* combined handler (corresponds to the actual general semantic
    handler, which handle both inline and non-inline calls) *)
-Definition ctxIR: forall E, (D1 +' D2) ~> itree ((D1 +' D2) +' E) :=
+(*
+Definition ctxIR': forall E, (D1 +' D2) ~> itree ((D1 +' D2) +' E) :=
   fun E T d => match d with
                | inl1 d1 => translate (@lassoc_tr D1 D2 E)
+                                      (translate inr1 (@ctxI E T d1))
+               | inr1 d2 => translate (@lassoc_tr D1 D2 E)
+                                      (translate inr1 (@ctxR E T d2)) end.
+*)
 
-                              (translate inr1 (@ctxI (D2 +' E) T d1))
-               | inr1 d2 => translate (@perm_lassoc_tr D1 D2 E)
-                                      (@ctxR E T d2) end.
+Definition joint_handler (h1: D1 ~> itree (D2 +' E))
+                         (h2: D2 ~> itree (D2 +' E)) :
+                         (D1 +' D2) ~> itree ((D1 +' D2) +' E) :=
+  fun T d => match d with
+             | inl1 d1 => translate (@lassoc_tr D1 D2 E)
+                                      (translate inr1 (h1 T d1))
+             | inr1 d2 => translate (@lassoc_tr D1 D2 E)
+                                      (translate inr1 (h2 T d2)) end.
 
-(* extended inline handler *)
-Definition ctxIX: forall E, ((D1 +' D2) +' E) ~> itree (D2 +' E) :=
-  fun E T e => match e with
-               | inl1 d => match d with
-                           | inl1 d1 => @ctxI (D2 +' E) T d1
-                           | inr1 d2 => trigger d2 end
-               | inr1 e' => trigger e' end.              
+Notation ctxIR := (joint_handler ctxI ctxR).
+
+(*****)
+
+Definition ext_handler {E1 E2} (h: E1 ~> itree E2) : (E1 +' E2) ~> itree E2 :=
+  fun T e => match e with
+             | inl1 e1 => h _ e1
+             | inr1 e2 => trigger e2 end.               
+
+(*
+Definition inline_interp' T (t: itree (D1 +' (D2 +' E0)) T) :
+  itree (D2 +' E0) T := interp (ext_handle (@ctxI E0)) t.
+
+Definition inline_interp T (t: itree ((D1 +' D2) +' E0) T) :
+  itree (D2 +' E0) T := inline_interp' (translate (@rassoc_tr D1 D2 E0) t).
+*)
+
+Definition D1_ext_interp (h: D1 ~> itree (D2 +' E))
+  T (t: itree ((D1 +' D2) +' E) T) : itree (D2 +' E) T :=
+  interp (ext_handler h) (translate (@rassoc_tr D1 D2 E) t).
+
+
+(****)
 
 (* extended combined handler *)
-Definition ctxIRX : (D1 +' D2) +' E0 ~> itree ((D1 +' D2) +' E0) :=
+Definition ctxIRX : (D1 +' D2) +' E ~> itree ((D1 +' D2) +' E) :=
   fun T e => match e with
-             | inl1 d => ctxIR _ d
+             | inl1 d => ctxIR d
              | inr1 e' => trigger e' end.                      
 
-Definition lw_la: (D2 +' E0) ~> ((D1 +' D2) +' E0) :=
+Definition lw_la: (D2 +' E) ~> ((D1 +' D2) +' E) :=
   fun _ d => match d with
              | inl1 d' => inl1 (inr1 d')
              | inr1 e => inr1 e end.
 
-Definition free_tr: itree (D2 +' E0) ~> itree ((D1 +' D2) +' E0) :=
+Definition free_tr: itree (D2 +' E) ~> itree ((D1 +' D2) +' E) :=
   translate lw_la.
 
 (** Inline-specific proofs *)
 
 Lemma ctxIR_ok1: forall T (d1: D1 T),
-  eutt eq (ctxIR E0 (inl1 d1)) (free_tr (ctxI (D2 +' E0) d1)).
+  eutt eq (ctxIR (inl1 d1)) (free_tr (ctxI d1)).
 Proof.
   setoid_rewrite translate_to_interp; intros.
   setoid_rewrite interp_translate.
@@ -177,14 +188,15 @@ Proof.
 Qed.
   
 Lemma ctxIR_ok2: forall T (d2: D2 T),
-  eutt eq (ctxIR E0 (inr1 d2)) (translate (@perm_lassoc_tr _ _ _) (ctxR E0 d2)).
+  eutt eq (ctxIR (inr1 d2)) (free_tr (ctxR d2)).
 Proof.
   setoid_rewrite translate_to_interp; intros.
-  reflexivity.
+  setoid_rewrite interp_translate.
+  eapply eutt_interp; try reflexivity.
 Qed.
   
 Lemma ctxIRX_translate1 T (d1: D1 T) : 
-  eutt eq (ctxIRX (inl1 (inl1 d1))) (free_tr (ctxI (D2 +' E0) d1)).
+  eutt eq (ctxIRX (inl1 (inl1 d1))) (free_tr (ctxI d1)).
 Proof.
   setoid_rewrite translate_to_interp; intros.
   setoid_rewrite interp_translate.
@@ -192,25 +204,26 @@ Proof.
 Qed.
 
 Lemma ctxIRX_translate2 T (d2: D2 T): 
-  eutt eq (ctxIRX (inl1 (inr1 d2))) (translate (@perm_lassoc_tr _ _ _) (ctxR E0 d2)).
+  eutt eq (ctxIRX (inl1 (inr1 d2))) (free_tr (ctxR d2)).
   setoid_rewrite translate_to_interp; intros.
-  reflexivity.
+  setoid_rewrite interp_translate.
+  eapply eutt_interp; try reflexivity.
 Qed.
 
-Lemma ctxIRX_okE T (e: E0 T): 
+Lemma ctxIRX_okE T (e: E T): 
   eutt eq (ctxIRX (inr1 e)) (trigger (inr1 e)).
 Proof.
   unfold ctxIRX; reflexivity.
 Qed.  
 
 Lemma D1_inline_lemma T (d1: D1 T) :
-    interp_mrec (ctxIR E0) (ctxIRX (inl1 (inl1 d1)))
-  ≈ interp_mrec (ctxIR E0) (trigger (inl1 (inl1 d1))).
+    interp_mrec ctxIR (ctxIRX (inl1 (inl1 d1)))
+  ≈ interp_mrec ctxIR (trigger (inl1 (inl1 d1))).
 Proof.
   assert (eutt eq
-            (interp_mrec (ctxIR E0) (ctxIRX (inl1 (inl1 d1))))
-            (interp_mrec (ctxIR E0)
-               (translate lw_la (ctxI (D2 +' E0) d1)))) as H.
+            (interp_mrec ctxIR (ctxIRX (inl1 (inl1 d1))))
+            (interp_mrec ctxIR
+               (translate lw_la (ctxI d1)))) as H.
   { eapply interp_mrec_eqit; eauto.
     instantiate (1:= @eq); reflexivity.
     intros T0 k1 k2 H v1 v2 H0. inv H0; eapply H.
@@ -224,7 +237,7 @@ Proof.
   setoid_rewrite ctxIR_ok1.
   setoid_rewrite interp_translate.
 
-  generalize (ctxI (D2 +' E0) d1).
+  generalize (ctxI d1).
   ginit; gcofix CIH; intro t1.
   setoid_rewrite (itree_eta t1).
   destruct (observe t1) eqn: was_t1.
@@ -234,12 +247,12 @@ Proof.
 Qed.  
 
 Lemma D2_inline_lemma T (d2: D2 T) :
-    interp_mrec (ctxIR E0) (ctxIRX (inl1 (inr1 d2)))
-  ≈ interp_mrec (ctxIR E0) (trigger (inl1 (inr1 d2))).
+    interp_mrec ctxIR (ctxIRX (inl1 (inr1 d2)))
+  ≈ interp_mrec ctxIR (trigger (inl1 (inr1 d2))).
 Proof.
   assert (eutt eq
-            (interp_mrec (ctxIR E0) (ctxIRX (inl1 (inr1 d2))))
-            (interp_mrec (ctxIR E0) (translate (@perm_lassoc_tr _ _ _) (ctxR E0 d2)))) as H.
+            (interp_mrec ctxIR (ctxIRX (inl1 (inr1 d2))))
+            (interp_mrec ctxIR (translate lw_la (ctxR d2)))) as H.
   { eapply interp_mrec_eqit; eauto.
     instantiate (1:= @eq); reflexivity.
     intros T0 k1 k2 H v1 v2 H0. inv H0; eapply H.
@@ -255,12 +268,14 @@ Proof.
 Qed.
 
 (* inlining lemma: basically, eutt (sem (inline t)) (sem t) *)
-Lemma OK_inline_lemma T (t: itree ((D1 +' D2) +' E0) T) :
-  eutt eq (interp_mrec (@ctxIR E0) (translate lw_la (interp (@ctxIX E0) t)))
-          (interp_mrec (@ctxIR E0) t).
-Proof.  
+Lemma OK_inline_lemma T (t: itree ((D1 +' D2) +' E) T) :
+  eutt eq (interp_mrec ctxIR
+             (translate lw_la (@D1_ext_interp ctxI _ t)))
+          (interp_mrec ctxIR t).
+Proof.
+  unfold D1_ext_interp.
   repeat (rewrite interp_mrec_as_interp).
-  setoid_rewrite translate_to_interp.
+  repeat (setoid_rewrite translate_to_interp).
   repeat (rewrite interp_interp).  
   eapply eutt_interp; try reflexivity; intros T0 e.
   destruct e as [d12 | e]; simpl; try reflexivity.
@@ -276,7 +291,10 @@ Proof.
       { instantiate (1:= @eq); intros; reflexivity. }
       { intros V k1 k2 H v1 v2 H0; inv H0; eapply H. }
       { setoid_rewrite <- translate_to_interp.
-        setoid_rewrite ctxIRX_translate1; reflexivity.
+        setoid_rewrite ctxIRX_translate1.
+        setoid_rewrite translate_to_interp.
+        setoid_rewrite interp_trigger.
+        reflexivity.
       }  
     }
     { setoid_rewrite <- interp_interp.
@@ -284,11 +302,13 @@ Proof.
       eapply interp_mrec_eqit.
       { instantiate (1:= @eq); intros; reflexivity. }
       { intros V k1 k2 H v1 v2 H0; inv H0; eapply H. }
-      { setoid_rewrite interp_trigger; reflexivity.
+      { repeat (setoid_rewrite interp_trigger).
+        reflexivity.
       }  
     }
   }  
-  { repeat (setoid_rewrite interp_trigger); reflexivity.
+  { repeat (setoid_rewrite interp_interp).
+    repeat (setoid_rewrite interp_trigger). reflexivity.
   }
 Qed.  
 
