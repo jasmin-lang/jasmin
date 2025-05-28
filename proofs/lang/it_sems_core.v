@@ -203,6 +203,10 @@ Definition sem_syscall (xs : lvals) (o : syscall_t) (es : pexprs)
 Definition sem_cond (gd : glob_decls) (e : pexpr) (s : estate) : exec bool :=
   (sem_pexpr true gd s e >>= to_bool)%result.
 
+Lemma sem_cond_sem_pexpr gd e s b :
+  sem_cond gd e s = ok b -> sem_pexpr true gd s e = ok (Vbool b).
+Proof. rewrite /sem_cond /=; by t_xrbindP=> _ -> /to_boolI ->. Qed.
+
 Definition isem_cond (e : pexpr) (s : estate) : itree E bool :=
   iresult s (sem_cond (p_globs p) e s).
 

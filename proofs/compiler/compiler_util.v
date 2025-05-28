@@ -309,6 +309,8 @@ Ltac t_xrbindP :=
   | [ |- ok _ = ok _ -> _ ] =>
       case; t_xrbindP
 
+  | [ |- o2r _ _ = ok _ -> _] => move=> /o2rP; t_xrbindP
+
   | [ |- forall h, _ ] =>
       let hh := fresh h in move=> hh; t_xrbindP; move: hh
 

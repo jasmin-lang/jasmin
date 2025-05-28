@@ -4,6 +4,8 @@
    Each architecture provides the mapping
       [shp_lower : seq lval -> slh_op -> seq pexpr -> option copn_args]
    to be used.
+   We require that this mapping is correct *only* in sequential execution, which
+   means that we need to track the value of the MSF.
 
    We use a "copy" of the same operators that is architecture-specific (e.g.
    in x86-64 [SLHinit] goes to [Ox86SLHinit], [SLHupdate] goes to
@@ -436,7 +438,7 @@ Fixpoint check_i (i : instr) (env : Env.t) : cexec Env.t :=
   | Cassgn lv _ _ _ => ok (Env.after_assign_vars env (vrv lv))
 
   | Copn lvs _ op es =>
-      if op is Oslh slho
+      if is_Oslh op is Some slho
       then check_slho ii lvs slho es env
       else ok (Env.after_assign_vars env (vrvs lvs))
 
@@ -463,17 +465,12 @@ Fixpoint check_i (i : instr) (env : Env.t) : cexec Env.t :=
 Definition check_cmd (env : Env.t) (c : cmd) : cexec Env.t :=
   rec_check_cmd check_i c env.
 
-Definition check_fd
-   (fn:funname) (fd : fundef) : cexec unit :=
+Definition check_fd (fn:funname) (fd : fundef) : cexec unit :=
   let '(in_t, out_t) := fun_info fn in
   Let env := init_fun_env Env.empty (f_params fd) (f_tyin fd) in_t in
   Let env := check_cmd env (f_body fd) in
   Let _ := check_res env (f_res fd) (f_tyout fd) out_t in
   ok tt.
-
-Definition is_protect_ptr (slho : slh_op) :=
-  if slho is SLHprotect_ptr p then Some p
-  else None.
 
 Definition lower_slho
   (ii : instr_info)
@@ -482,11 +479,12 @@ Definition lower_slho
   (slho : slh_op)
   (es : seq pexpr) :
   cexec instr_r :=
-  if is_protect_ptr slho is Some p then
-       ok (Copn lvs tg (Oslh (SLHprotect_ptr_fail p)) es)
-  else if shp_lower shparams lvs slho es is Some args then
-       ok (instr_of_copn_args tg args)
-  else Error (E.lowering_failed ii).
+  Let args :=
+    if is_protect_ptr slho is Some p then
+      ok (lvs, Oslh (SLHprotect_ptr_fail p), es)
+    else o2r (E.lowering_failed ii) (shp_lower shparams lvs slho es)
+  in
+  ok (instr_of_copn_args tg args).
 
 Notation rec_cmd lower_i c := (mapM lower_i c).
 
@@ -499,7 +497,7 @@ Fixpoint lower_i (i : instr) : cexec instr :=
       ok ir
 
     | Copn lvs tg op es =>
-      if op is Oslh slho
+      if is_Oslh op is Some slho
       then lower_slho ii lvs tg slho es
       else ok ir
 
@@ -534,9 +532,7 @@ Definition lower_fd (fn:funname) (fd:fundef) :=
   Let c := lower_cmd c in
   ok (MkFun ii si p c so r ev).
 
-Definition is_shl_none ty :=
-  if ty is Slh_None then true
-  else false.
+Definition is_shl_none ty := if ty is Slh_None then true else false.
 
 Definition lower_slh_prog (entries : seq funname) (p : prog) : cexec prog :=
    Let _ := assert (all (fun f => all is_shl_none (fst (fun_info f))) entries)

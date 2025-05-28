@@ -483,7 +483,8 @@ Lemma is_wconstP wdb gd s sz e w:
   sem_pexpr wdb gd s e >>= to_word sz = ok w.
 Proof.
   case: e => // - [] // sz' e /=; case: ifP => // hle /oseq.obindI [z] [h] [<-].
-  have := is_constP e; rewrite h => {h} /is_reflect_some_inv -> {e}.
+  have := is_constP e.
+  rewrite h => {h} /is_reflect_some_inv -> {e}.
   by rewrite /= truncate_word_le // zero_extend_wrepr.
 Qed.
 

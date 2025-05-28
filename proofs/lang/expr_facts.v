@@ -150,10 +150,6 @@ Qed.
 (* ** Some smart constructors
  * -------------------------------------------------------------------------- *)
 
-Variant is_reflect (A:Type) (P:A -> pexpr) : pexpr -> option A -> Prop :=
- | Is_reflect_some : forall a, is_reflect (P a) (Some a)
- | Is_reflect_none : forall e, is_reflect e None.
-
 Lemma is_boolP e : is_reflect Pbool e (is_bool e).
 Proof. by case e=> *;constructor. Qed.
 
@@ -167,13 +163,6 @@ Lemma is_Papp2P e op e0 e1 :
   is_Papp2 e = Some (op, e0, e1) ->
   e = Papp2 op e0 e1.
 Proof. by case: e => // ??? [-> -> ->]. Qed.
-
-Lemma is_reflect_some_inv {A P e a} (H: @is_reflect A P e (Some a)) : e = P a.
-Proof.
-  set (d e m := match m with None => True | Some a => e = P a end).
-  change (d e (Some a)).
-  case H; simpl; auto.
-Qed.
 
 Lemma is_wconst_of_sizeP sz e :
   is_reflect (fun z => Papp1 (Oword_of_int sz) (Pconst z)) e (is_wconst_of_size sz e).

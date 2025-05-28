@@ -1933,8 +1933,8 @@ Ltac eq_rewrite h _ _ :=
 Ltac t_eq_rewrites := t_do_rewrites eq_rewrite.
 
 Ltac destruct_opn_args :=
-  repeat (t_xrbindP=> -[|?]; first done);
-  (t_xrbindP=> -[]; last done).
+  repeat (t_xrbindP=> -[|?] /=; first done);
+  (t_xrbindP=> -[] /=; last done).
 
 (* Attempt to prove [injective f] on [eqType]s by case analysis on the
    arguments. *)
@@ -2104,3 +2104,12 @@ Lemma transn6 a0 a1 a3 a2 a4 a5 a6 :
 Proof. exact: (hspec [:: _; _; _; _; _; _; _ ]). Qed.
 
 End RT_TRANSN.
+
+Variant is_reflect {A B : Type} (P : A -> B) : B -> option A -> Prop :=
+| Is_reflect_some : forall a, is_reflect (P a) (Some a)
+| Is_reflect_none : forall e, is_reflect e None.
+
+Lemma is_reflect_some_inv {A B : Type} {P : A -> B} {e a} :
+  is_reflect P e (Some a) ->
+  e = P a.
+Proof. by rewrite -/(if Some a is Some a' then e = P a' else True) => -[]. Qed.

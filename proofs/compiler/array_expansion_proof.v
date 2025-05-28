@@ -342,7 +342,7 @@ Proof.
       hrec > /h{h} /= -> ? /hrec{hrec}[? + ->] <- /= => ->; eexists.
   move=> [ws len] [] //=.
   + move=> g c >.
-    t_xrbindP=> a1 /o2rP hga /and3P[/eqP? /eqP ? hloc] + _; subst.
+    t_xrbindP=> a1 hga /and3P[/eqP? /eqP ? hloc] + _; subst.
     rewrite /get_gvar /=hloc{hloc} /get_var /=.
     move=> + hrec _ _ [<-] z0 /hrec{hrec}+ <- => + [? ->] /= => <-.
     have vai := (valid hga); case: h => -[_ /(_ _ _ _ hga){hga}hgai _ _].
@@ -358,8 +358,8 @@ Proof.
 
   move=> aa ws' len' g ei es >.
   t_xrbindP=> /eqP ?; subst aa.
-  case: is_constP => // i _ /o2rP [<-].
-  move=> a /o2rP hga.
+  case: is_constP=> // i ? [<-].
+  move=> a hga.
   move=> /and4P [] /eqP ? /eqP ? /eqP ? hloc ? _ hrec vs z; subst ws ws' len es => /=.
   have vai := valid hga.
 
@@ -450,7 +450,7 @@ Proof.
     rewrite /write_none /= /truncatable.
     by case: h => [-> | [? ->]] /=; rewrite ?wsize_le_U8.
   + move=> x xs2.
-    t_xrbindP=> ai /o2rP hga; have hva:= valid hga.
+    t_xrbindP=> ai hga; have hva:= valid hga.
     move=> /andP[/eqP? /eqP?] hmap va vs' s1'; subst.
     move=> /write_varP [-> _]. rewrite hva.(x_ty) => /vm_truncate_valEl [] a -> _.
     rewrite expand_vP => -[?]; subst vs'.
@@ -470,7 +470,7 @@ Proof.
     subst y; rewrite hga => -[<-] hin.
     by rewrite in_ziota (zindex_bound _ hva) hin (x_ty hva) vm_truncate_val_eq.
   move => aa ws' len' x e xs2; t_xrbindP => /eqP ?; subst aa.
-  case: is_constP => // i _ /o2rP [<-] ai /o2rP hga; have hva:= valid hga.
+  case: is_constP => // i _ [<-] ai hga; have hva:= valid hga.
   move=> /and3P []/eqP ? /eqP ? /eqP ? <- va vs' s1'; subst a ws' len.
   have /= := Vm.getP (evm s1) x; rewrite hva.(x_ty) => /compat_valEl [a heqx]; rewrite heqx.
   t_xrbindP => sa /to_arrI -> ra hra /write_varP [] -> _ _.
