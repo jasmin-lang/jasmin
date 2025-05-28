@@ -168,6 +168,38 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
                Let vb := sem_pexpr s body in
                sem_sop2 op acc vb)
       vidx l
+  | Parr_init_elem e n => 
+    Let _ := assert (assert_allowed) ErrType in
+    Let x := sem_pexpr s e >>= to_word U8 in
+    Let t := WArray.fill_elem n x in
+    ok (Varr t)
+  | Pis_var_init x =>
+    Let _ := assert (assert_allowed) ErrType in
+    let v := (evm s).[x] in
+    ok (Vbool (is_defined v))
+  | Pis_arr_init x e1 e2 =>
+    Let _ := assert (assert_allowed) ErrType in
+    Let (n, t) := wdb, s.[x] in
+    Let lo := sem_pexpr s e1 >>= to_int in
+    Let sz := sem_pexpr s e2 >>= to_int in
+    let b := all (fun i => WArray.is_init t (lo + i)) (ziota 0 sz) in
+    ok (Vbool b)
+  | Pis_barr_init x e1 e2 =>
+    Let _ := assert (assert_allowed) ErrType in
+    Let (n, t) := wdb, s.[x] in
+    Let lo := sem_pexpr s e1 >>= to_int in
+    Let sz := sem_pexpr s e2 >>= to_int in            
+    Let b := foldM (fun i acc => 
+      Let w := WArray.get Aligned AAscale U8 t (lo + i) in
+        ok (acc && (w == wrepr U8 (-1)))
+      ) true (ziota 0 sz) in
+    ok (Vbool b)
+  | Pis_mem_init e1 e2 =>
+    Let _ := assert (assert_allowed) ErrType in
+    Let lo := sem_pexpr s e1 >>= to_pointer in
+    Let sz := sem_pexpr s e2 >>= to_int in
+    let b := all (fun i => is_ok (read s.(emem) Unaligned (lo + (wrepr Uptr i))%R U8)) (ziota 0 sz) in
+    ok (Vbool b)
   end.
 
 Definition sem_pexprs s := mapM (sem_pexpr s).

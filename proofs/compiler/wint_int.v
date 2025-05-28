@@ -30,7 +30,7 @@ End E.
 
 Section WITH_PARAMS.
 
-Context `{asmop:asmOp} {msfsz : MSFsize}.
+Context `{asmop:asmOp} {msfsz : MSFsize} {pd: PointerData}.
 
 #[local]
 Existing Instance progUnit.
@@ -221,6 +221,11 @@ Fixpoint etype_of_expr (e:pexpr) : extended_type positive :=
   | PappN o es => to_etype None (type_of_opN o).2
   | Pif ty e1 e2 e3 => to_etype (sign_of_etype (etype_of_expr e2)) ty
   | Pbig ei o v e es el => (etype_of_op2 o).2
+  | Parr_init_elem e len => tarr len
+  | Pis_var_init _ => tbool
+  | Pis_arr_init _ _ _ => tbool
+  | Pis_barr_init _ _ _ => tbool
+  | Pis_mem_init _ _ => tbool
   end.
 
 Definition sign_of_expr (e:pexpr) : option signedness :=
@@ -332,6 +337,38 @@ Fixpoint wi2i_e (e0:pexpr) : cexec (safety_cond * pexpr) :=
      Let v := wi2i_vari v in
      ok (ei.1 ++ es.1 ++ el.1 ++ sc_all e.1 v es.2 el.2,
          Pbig ei.2 (wi2i_op2 o) v e.2 es.2 el.2)
+
+  | Parr_init_elem e len =>
+    Let _ := assert (etype_of_expr e == ETword _ None U8) (E.ierror_e e0) in
+    Let e := wi2i_e e in
+    ok (e.1, Parr_init_elem e.2 len)
+
+  | Pis_var_init x =>
+    Let x := wi2i_vari x in
+    ok ([::], Pis_var_init x)
+
+  | Pis_arr_init x e1 e2 =>
+    Let _ := assert [&& is_sarr (vtype x), etype_of_expr e1 == ETint _
+                     & etype_of_expr e2 == ETint _] (E.ierror_e e0) in
+    Let x := wi2i_vari x in
+    Let e1 := wi2i_e e1 in
+    Let e2 := wi2i_e e2 in
+    ok (e1.1 ++ e2.1, Pis_arr_init x e1.2 e2.2)
+
+  | Pis_barr_init x e1 e2 =>
+    Let _ := assert [&& is_sarr (vtype x), etype_of_expr e1 == ETint _
+                     & etype_of_expr e2 == ETint _ ] (E.ierror_e e0) in
+    Let x := wi2i_vari x in
+    Let e1 := wi2i_e e1 in
+    Let e2 := wi2i_e e2 in
+    ok (e1.1 ++ e2.1, Pis_barr_init x e1.2 e2.2)
+
+  | Pis_mem_init e1 e2 =>
+    Let _ := assert [&& etype_of_expr e1 == ETword _ None Uptr
+                      & etype_of_expr e2 == ETint _] (E.ierror_e e0) in
+    Let e1 := wi2i_e e1 in
+    Let e2 := wi2i_e e2 in
+    ok (e1.1 ++ e2.1, Pis_mem_init e1.2 e2.2)
   end.
 
 Definition wi2i_lvar (ety : extended_type positive) (x : var_i) : cexec var_i :=

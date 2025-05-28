@@ -30,7 +30,9 @@ Fixpoint check_e (e : pexpr) :=
   | Papp2 o e1 e2 => check_e e1 && check_e e2
   | PappN opN es => all check_e es
   | Pif ty e1 e2 e3 => all check_e [::e1; e2; e3]
-  | Pbig _ _ _ _ _ _ => false
+  | Pbig _ _ _ _ _ _ | Parr_init_elem _ _
+  | Pis_var_init _ | Pis_arr_init _ _ _
+  | Pis_barr_init _ _ _ | Pis_mem_init _ _ => false
   end.
 
 Definition check_es := all check_e.

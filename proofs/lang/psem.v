@@ -990,6 +990,9 @@ Definition checker_st_eq_on : Checker_e (st_rel eq_on) :=
 
 Definition st_uincl_on X := st_rel uincl_on X.
 
+Section NOT_ALLOW_ASSERT.
+#[local] Existing Instance noassert.
+
 Lemma read_es_st_uincl_on gd wdb es X :
   Sv.Subset (read_es es) X ->
   wrequiv (st_uincl_on X) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) (List.Forall2 value_uincl).
@@ -1010,6 +1013,8 @@ Proof.
   have [vm2 ? ->]:= write_lvals_uincl_on hsub hu hw h.
   by eexists; eauto.
 Qed.
+
+End NOT_ALLOW_ASSERT.
 
 Lemma check_esP_R_st_uincl_on X es1 es2 X':
   check_es_st_eq_on X es1 es2 X' → ∀ s1 s2, st_rel uincl_on X s1 s2 → st_rel uincl_on X' s1 s2.
@@ -1055,6 +1060,10 @@ Proof.
 Qed.
 #[local] Hint Resolve checker_st_eq_onP : core.
 
+
+Section NOT_ALLOW_ASSERT.
+#[local] Existing Instance noassert.
+
 Lemma checker_st_uincl_onP : Checker_uincl p p' checker_st_uincl_on.
 Proof.
   constructor; rewrite -eq_globs.
@@ -1064,6 +1073,7 @@ Proof.
   + by apply st_rel_weaken => ??; apply uincl_onI.
   by apply: write_lvals_st_uincl_on hu.
 Qed.
+End NOT_ALLOW_ASSERT.
 
 Section FUN.
 
@@ -1494,9 +1504,8 @@ Context
   {pT : progT}
   {sCP : semCallParams}.
 
-Section WITHASSERT.
-
-Context {wa:WithAssert}.
+Section NOT_ALLOW_ASSERT.
+#[local] Existing Instance noassert.
 
 Lemma read_es_st_uincl d gd wdb es :
   wrequiv (st_uincl d) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) (List.Forall2 value_uincl).
@@ -1563,8 +1572,6 @@ Proof.
   + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
   + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
   move=> xs fn es ii; apply wequiv_call_rel_uincl_wa with checker_st_uincl tt => //.
-  + by move=> s1 s2 vs1 vs2 /st_relP [-> /=] ? {}/hpre hpre /hpre.
-  apply hpost.
 Qed.
 
 End PROG.
@@ -1640,10 +1647,8 @@ Proof.
   exists (st_uincl tt), (st_uincl tt) => s.
   move=> /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> hu'; exists t; split => //.
   + apply it_sem_uincl_aux_wa => //.
-    + by move=> f s1 vs1 vs2 hvu; apply hpre.
     by move=> fn' fs1' fs2' h; apply hrec.
   + by apply: fs_uincl_finalize.
-  by move=> ??; apply hpost; case: hu.
 Qed.
 
 Lemma it_sem_uincl_wa c :
@@ -1655,13 +1660,12 @@ Lemma it_sem_uincl_wa c :
 Proof.
   move=> hpre hpost.
   apply it_sem_uincl_aux_wa => //.
-  + by move=> > hall; apply hpre.
   by move=> fn ?? h; apply it_sem_uincl_f_wa.
 Qed.
 
 End REFL.
 
-End WITHASSERT.
+End NOT_ALLOW_ASSERT.
 
 Context (p : prog) (ev: extra_val_t).
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
@@ -1679,6 +1683,3 @@ End IT_UNDEFINCL.
 End WITH_PARAMS.
 
 End WSW.
-
-
-

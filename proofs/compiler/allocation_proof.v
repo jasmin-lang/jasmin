@@ -1021,7 +1021,7 @@ Lemma init_alloc_sprogP :
       eq_alloc r s1.(evm) vm2.
 Proof.
   rewrite /init_alloc_sprog /init_state /= /init_stk_state /check_vars.
-  t_xrbindP => ef ep1 ep2 ev s1 scs m r hc m' ha; rewrite (@write_vars_lvals _ _ _ _ _ _ [::]) => hw.
+  t_xrbindP => ef ep1 ep2 ev s1 scs m r hc m' ha; rewrite (@write_vars_lvals _ _ _ _ _ [::]) => hw.
   have [vm2 ]:= check_lvalsP (s1 := (Estate scs m' Vm.init)) hc eq_alloc_empty
                          (List_Forall2_refl _ (@value_uincl_refl)) hw.
   rewrite ha -write_vars_lvals => ??.
