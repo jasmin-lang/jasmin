@@ -14,3 +14,6 @@ Reference documentation of the language and compiler are on [readthedocs](https:
 
 Jasmin is free software. All files in this distribution are, unless specified
 otherwise, licensed under the [MIT license](LICENSE).
+The documentation (under `docs/`) is licensed separately from the
+compiler, under the [CC-BY 4.0](docs/LICENSE).
+
