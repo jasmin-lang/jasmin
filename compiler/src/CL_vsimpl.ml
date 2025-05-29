@@ -196,12 +196,6 @@ module GhostVector = struct
     | RPor  rps ->
       let rps', l = lt_to_tl (List.map (unfold_ghosts_rpred ghosts) rps) in
       RPor rps', l
-    | RPeqsmod (e1,e2,e3) ->
-      let e1', l1 = replace_vghosts_rexp ghosts e1 in
-      let e2', l2 = replace_vghosts_rexp ghosts e2 in
-      let e3', l3 = replace_vghosts_rexp ghosts e3 in
-      let l = l1 @ l2 @ l3 in
-      RPeqsmod(e1',e2',e3'), l
 
   let unfold_vghosts_rpred ghosts pre =
     lt_to_tl (List.map (unfold_ghosts_rpred ghosts) pre)
@@ -445,11 +439,6 @@ module SimplVector = struct
     | RPnot e -> get_rvars e
     | RPand rps -> List.flatten (List.map get_rvars rps)
     | RPor rps -> List.flatten (List.map get_rvars rps)
-    | RPeqsmod (e1, e2, e3) ->
-      let vl1 = aux e1 in
-      let vl2 = aux e2 in
-      let vl3 = aux e3 in
-      vl1 @ vl2 @ vl3
 
   let get_clause_vars epreds rpreds =
     let epred_rvars = List.flatten (List.map get_evars epreds) in
@@ -677,11 +666,6 @@ module SimplVector = struct
         | RPor  rps ->
           let rps' = List.map (sr_rpred_lval pred) rps in
           RPor rps'
-        | RPeqsmod (e1,e2,e3) ->
-          let e1' = aux e1 in
-          let e2' = aux e2 in
-          let e3' = aux e3 in
-          RPeqsmod(e1',e2',e3')
 
     let sr_clause_lval (el, rl) pred =
       let el' = List.map (sr_epred_lval pred) el in

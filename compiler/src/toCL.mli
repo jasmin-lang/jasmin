@@ -49,7 +49,6 @@ module CL : sig
       | RPnot   of rpred
       | RPand   of rpred list
       | RPor    of rpred list
-      | RPeqsmod of rexp * rexp * rexp
 
   end
 
