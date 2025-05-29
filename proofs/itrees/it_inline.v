@@ -168,12 +168,12 @@ Context
   {pT : progT}
   {scP : semCallParams}.
 
+Notation recCall A := (callE (A * funname * fstate) fstate).
+
 Section IT1_section.
 
 Context {E E0} {wE : with_Error E E0}
   (iiT : instr_info -> bool) (p : prog) (ev : extra_val_t).
-
-Notation recCall A := (callE (A * funname * fstate) fstate).
 
 (* extract the inlining tag from the call *)
 Definition inline_RC T (e: recCall bool T) : bool :=
@@ -208,7 +208,7 @@ Lemma split_Evs {E1: Type -> Type} T :
   - right; auto.
 Defined.    
 
-(* translate the instruction itree to a split one *)
+(* translate the instruction itree to a split one, based on iiT *)
 Definition isem_i_split (iiT: instr_info -> bool)
   (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
   itree ((RC1 +' RC2) +' E) estate :=
@@ -258,7 +258,12 @@ Definition transl_ext {E1 E2: Type -> Type} (E3: Type -> Type)
 Definition recCall2RC2x E1 : recCall bool +' E1 ~> RC2 +' E1 :=
   transl_ext recCall2RC2.
 
-(* non-recusive inline handler (ctxI) *)
+(* non-recusive inline handler (ctxI); handles the top-level RC1 call,
+   and returns an itree of RC2 calls, basically by ignoring iiT and
+   forcing the conversion to RC2 from recCall; morally, this is like
+   setting iiT := (fun _ => false); anyway, isem_fun_rec do not handle
+   further calls regardless, so this conversion is only for the
+   benefit of the splitting interpreters *)
 Definition handle_inline_RC1 : RC1 ~> itree (RC2 +' E).
   intros T e.
   destruct e as [e1 e_eq] eqn: was_e.
@@ -311,7 +316,7 @@ Definition split_isem T (t: itree ((RC1 +' RC2) +' E) T) : itree E T :=
 
 End IT1_section.
 
-Section IT1_section.
+Section IT2_section.
 
 Context {E E0} {wE : with_Error E E0}
   (iiT : instr_info -> bool) (p : prog) (ev : extra_val_t).
@@ -338,11 +343,30 @@ Definition anticontact_translate {E1 E2} : E1 +' E2 ~> E1 +' (E1 +' E2) :=
              | inl1 e1 => inl1 e1
              | inr1 e2 => inr1 (inr1 e2) end.
 
-Definition void_fun_handle {A B} :
+Definition call_trigger_handler {A B} :
   (callE A B +' (callE A B +' E)) ~> itree (callE A B +' E) :=
   fun T e => match e with
              | inl1 e1 => trigger e1
              | inr1 e2 => trigger e2 end.                     
+
+Definition flat_i_sem (i: instr) (s: estate) :
+  itree (recCall bool +' E) estate :=
+  isem_i_body (fun _ => false) p ev i s.
+
+Definition flat_cmd_sem (c: cmd) (s: estate) :
+  itree (recCall bool +' E) estate :=
+  isem_cmd_rec (fun _ => false) p ev c s.
+
+Definition flat_fun_sem (fn: funname) (fs: fstate) :
+  itree (recCall bool +' E) fstate :=
+  isem_fun_body (fun _ => false) p ev fn fs.
+
+
+
+(* Lemma xxx eutt eq (flat_i_sem (inlined i) s) 
+                     (inlining_ext (flat_i_sem i s)). 
+
+*)
 
 (** TO PROVE *)
 
