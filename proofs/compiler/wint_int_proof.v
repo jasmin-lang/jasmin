@@ -572,6 +572,19 @@ Lemma wi2i_variP x xi v si s :
             & v = val_to_int (sign_of_var m x) v'.
 Proof. by move => heqs; rewrite /wi2i_vari; t_xrbindP => + <-; apply wi2i_varP. Qed.
 
+Lemma wi2i_vari_nw (x:var_i) xi v si s :
+  eqst tt si s ->
+  ~is_sword (vtype x) ->
+  wi2i_vari m FV x = ok xi ->
+  get_var true (evm si) xi = ok v ->
+  get_var true (evm s) x = ok v.
+Proof.
+  move=> heqs hty hto hget; have [v' -> ->] := wi2i_variP heqs hto hget.
+  have -> : sign_of_var m x = None; last by rewrite val_to_int_None.
+  rewrite /sign_of_var.
+  by case: m (hwf_m x) => // -[sg ?] []?; elim hty.
+Qed.
+
 Lemma wi2i_gvarP x xi v si s :
   eqst tt si s ->
   wi2i_gvar m FV x = ok xi ->
@@ -999,7 +1012,32 @@ Proof.
     move=> /eandsE_cat [hsce11 hsce21].
     apply on_arr_varP => len ti htxi hgetx; t_xrbindP.
     move=> i1 vi1 hsce12 hto1 i2 vi2 hsce22 hto2 <-.
-Admitted.
+    rewrite (wi2i_vari_nw heqs _ hxi hgetx); last by move/is_sarrP: htx => -[? ->].
+    have [v1]:= he1 _ hsce1 _ _ _ heqs hsce11 hsce12.
+    have [v2]:= he2 _ hsce2 _ _ _ heqs hsce21 hsce22.
+    rewrite /sign_of_expr hte1 hte2 !val_to_int_None => -> /= ? -> /= ?; subst vi1 vi2.
+    by rewrite hto1 hto2 /=; eexists; first reflexivity; rewrite val_to_int_None.
+  + move=> x e1 e2 he1 he2.
+    move=> sce_ /and3P [htx /eqP hte1 /eqP hte2] xi hxi sce1 hsce1 sce2 hsce2 <- v si s heqs /=.
+    move=> /eandsE_cat [hsce11 hsce21].
+    apply on_arr_varP => len ti htxi hgetx; t_xrbindP.
+    move=> i1 vi1 hsce12 hto1 i2 vi2 hsce22 hto2 b hfold <-.
+    rewrite (wi2i_vari_nw heqs _ hxi hgetx); last by move/is_sarrP: htx => -[? ->].
+    have [v1]:= he1 _ hsce1 _ _ _ heqs hsce11 hsce12.
+    have [v2]:= he2 _ hsce2 _ _ _ heqs hsce21 hsce22.
+    rewrite /sign_of_expr hte1 hte2 !val_to_int_None => -> /= ? -> /= ?; subst vi1 vi2.
+    rewrite hto1 hto2 /= hfold /=.
+    by eexists; first reflexivity; rewrite val_to_int_None.
+  move=> e1 e2 he1 he2 sce_ /andP[/eqP hte1 /eqP hte2] sce1 hsce1 sce2 hsce2 <- v si s heqs /=.
+  move=> /eandsE_cat [hsce11 hsce21]; t_xrbindP.
+  move=> w vi1 hsce12 hto1 i vi2 hsce22 hto2 <-.
+  have [v1]:= he1 _ hsce1 _ _ _ heqs hsce11 hsce12.
+  have [v2]:= he2 _ hsce2 _ _ _ heqs hsce21 hsce22.
+  rewrite /sign_of_expr hte1 hte2 !val_to_int_None => -> /= ? -> /= ?; subst vi1 vi2.
+  rewrite hto1 hto2 /=.
+  eexists; first reflexivity; rewrite val_to_int_None.
+  by case: heqs => _ <-.
+Qed.
 
 Lemma wi2i_eP e : P e.
 Proof. by case wi2i_eP_. Qed.
