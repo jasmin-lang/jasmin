@@ -256,7 +256,7 @@ val int_of_pe  : pelem -> int
 val int_of_velem : velem -> int
 
 val is_ty_arr : 'e gty -> bool
-val array_kind : ty -> wsize * int
+val array_kind : 'e gty -> wsize * 'e
 val ws_of_ty   : 'e gty -> wsize
 val arr_size : wsize -> int -> int
 val size_of  : ty -> int

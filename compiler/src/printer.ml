@@ -25,10 +25,13 @@ let string_of_combine_flags = function
   | E.CF_GT s -> Format.sprintf "_%sGT" (string_of_signess s)
 
 (* -------------------------------------------------------------------- *)
+let non_default_wsize x ws =
+  if W.wsize_eqb ws (fst (array_kind (L.unloc x).v_ty)) then None
+  else Some ws
 
-let pp_ge ~debug pp_len pp_var =
+let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
   let pp_var_i = pp_gvar_i pp_var in
-  let pp_gvar fmt x =
+  let pp_gvar fmt (x: 'len ggvar) =
     let s = if is_gkvar x then "" else "/* global: */ " in
     Format.fprintf fmt "%s%a" s pp_var_i x.gv in
 
@@ -38,11 +41,13 @@ let pp_ge ~debug pp_len pp_var =
   | Parr_init _ -> assert false (* This case is handled in pp_gi *)
   | Pvar v      -> pp_gvar fmt v
   | Pget(al,aa,ws,x,e) ->
+    let ws = non_default_wsize x.gv ws in
     pp_arr_access pp_gvar pp_expr fmt al aa ws x e
   | Psub(aa,ws,len,x,e) ->
+    let ws = non_default_wsize x.gv ws in
     pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len
   | Pload(al,ws,e) ->
-    pp_mem_access pp_expr fmt al ws e
+    pp_mem_access pp_expr fmt al (Some ws) e
   | Papp1(o, e) ->
     F.fprintf fmt "@[(%s@ %a)@]" (string_of_op1 ~debug o) pp_expr e
   | Papp2(op,e1,e2) ->
@@ -65,10 +70,12 @@ let pp_glv ~debug pp_len pp_var fmt =
   | Lnone (_, ty) -> F.fprintf fmt "_ /* %a */" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
   | Lvar x  -> pp_gvar_i pp_var fmt x
   | Lmem (al, ws, _, e) ->
-    pp_mem_access (pp_ge pp_len pp_var) fmt al ws e
+    pp_mem_access (pp_ge pp_len pp_var) fmt al (Some ws) e
   | Laset(al, aa, ws, x, e) ->
+    let ws = non_default_wsize x ws in
     pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var) fmt al aa ws x e
   | Lasub(aa, ws, len, x, e) ->
+    let ws = non_default_wsize x ws in
     pp_arr_slice (pp_gvar_i pp_var) (pp_ge pp_len pp_var) pp_len fmt aa ws x e len
 
 
