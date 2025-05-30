@@ -16,6 +16,27 @@ Open Scope vm_scope.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
+Section CATCH.
+
+Context {wc : WithCatch}.
+
+Definition default_val (t: stype) :=
+  match t with
+  | sbool => Vbool true
+  | sint => Vint 0
+  | sarr len => Varr (WArray.fill_elem len 0%R)
+  | sword sz => @Vword sz 0%R
+  end.
+  
+Definition catch_core {T:Type} (ev : exec T) dfv : exec T :=
+  match ev with
+  | Ok v => ev
+  | Error ErrType => ev
+  | Error _ => ok dfv
+  end.
+
+Notation catch ev dfv := (if with_catch then catch_core ev dfv else ev).
+
 Definition sem_sop1 (o: sop1) (v: value) : exec value :=
   let t := type_of_op1 o in
   Let x := of_val _ v in
@@ -73,7 +94,7 @@ Arguments Estate {syscall_state}%_type_scope {ep} _ _ _%_vm_scope.
  * -------------------------------------------------------------------- *)
 
 Definition get_gvar (wdb : bool) (gd : glob_decls) (vm : Vm.t) (x : gvar) :=
-  if is_lvar x then get_var wdb vm x.(gv)
+  if is_lvar x then catch (get_var wdb vm x.(gv)) (default_val (vtype x.(gv)))
   else get_global gd x.(gv).
 
 Definition get_var_is wdb vm := mapM (fun x => get_var wdb vm (v_var x)).
@@ -86,7 +107,7 @@ Definition on_arr_var A (v:exec value) (f:forall n, WArray.array n -> exec A) :=
   end.
 
 Notation "'Let' ( n , t ) ':=' wdb ',' s '.[' v ']' 'in' body" :=
-  (@on_arr_var _ (get_var wdb s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
+  (@on_arr_var _ (catch (get_var wdb s.(evm) v) (default_val (vtype v))) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
 
 Notation "'Let' ( n , t ) ':=' wdb ',' gd ',' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_gvar wdb gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).
@@ -131,27 +152,27 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pget al aa ws x e =>
       Let (n, t) := wdb, gd, s.[x] in
       Let i := sem_pexpr s e >>= to_int in
-      Let w := WArray.get al aa ws t i in
+      Let w := catch (WArray.get al aa ws t i) 0%R in
       ok (Vword w)
   | Psub aa ws len x e =>
     Let (n, t) := wdb, gd, s.[x] in
     Let i := sem_pexpr s e >>= to_int in
-    Let t' := WArray.get_sub aa ws len t i in
+    Let t' := catch (WArray.get_sub aa ws len t i) (WArray.fill_elem _ 0%R) in
     ok (Varr t')
   | Pload al sz e =>
     Let w2 := sem_pexpr s e >>= to_pointer in
-    Let w  := read s.(emem) al w2 sz in
+    Let w  := catch (read s.(emem) al w2 sz) 0%R in
     ok (@to_val (sword sz) w)
   | Papp1 o e1 =>
     Let v1 := sem_pexpr s e1 in
-    sem_sop1 o v1
+    catch (sem_sop1 o v1) (default_val (type_of_op1 o).2)
   | Papp2 o e1 e2 =>
     Let v1 := sem_pexpr s e1 in
     Let v2 := sem_pexpr s e2 in
-    sem_sop2 o v1 v2
+    catch (sem_sop2 o v1 v2) (default_val (type_of_op2 o).2)
   | PappN op es =>
     Let vs := mapM (sem_pexpr s) es in
-    sem_opN op vs
+    catch (sem_opN op vs) (default_val (type_of_opN op).2)
   | Pif t e e1 e2 =>
     Let b := sem_pexpr s e >>= to_bool in
     Let v1 := sem_pexpr s e1 >>= truncate_val t in
@@ -166,12 +187,12 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     foldM (fun i acc =>
                Let s := write_var x (Vint i) s in
                Let vb := sem_pexpr s body in
-               sem_sop2 op acc vb)
+               catch (sem_sop2 op acc vb) (default_val (type_of_op2 op).2))
       vidx l
   | Parr_init_elem e n => 
     Let _ := assert (assert_allowed) ErrType in
     Let x := sem_pexpr s e >>= to_word U8 in
-    Let t := WArray.fill_elem n x in
+    let t := WArray.fill_elem n x in
     ok (Varr t)
   | Pis_var_init x =>
     Let _ := assert (assert_allowed) ErrType in
@@ -190,7 +211,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     Let lo := sem_pexpr s e1 >>= to_int in
     Let sz := sem_pexpr s e2 >>= to_int in            
     Let b := foldM (fun i acc => 
-      Let w := WArray.get Aligned AAscale U8 t (lo + i) in
+      Let w := catch (WArray.get Aligned AAscale U8 t (lo + i)) 0%R in
         ok (acc && (w == wrepr U8 (-1)))
       ) true (ziota 0 sz) in
     ok (Vbool b)
@@ -219,19 +240,19 @@ Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
   | Lmem al sz x e =>
     Let p := sem_pexpr s e >>= to_pointer in
     Let w := to_word sz v in
-    Let m := write s.(emem) al p w in
+    Let m := catch (write s.(emem) al p w) s.(emem) in
     ok (with_mem s m)
   | Laset al aa ws x i =>
     Let (n,t) := wdb, s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let v := to_word ws v in
-    Let t := WArray.set t al aa i v in
+    Let t := catch (WArray.set t al aa i v) t in
     write_var x (@to_val (sarr n) t) s
   | Lasub aa ws len x i =>
     Let (n,t) := wdb, s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let t' := to_arr (Z.to_pos (arr_size ws len)) v in
-    Let t := @WArray.set_sub n aa ws len t i t' in
+    Let t := catch (@WArray.set_sub n aa ws len t i t') t in
     write_var x (@to_val (sarr n) t) s
   end.
 
@@ -330,11 +351,15 @@ End CONTRA.
 
 End WSW.
 
+End CATCH.
+
 (* Just for extraction *)
 Definition syscall_sem__ := @syscall_sem.exec_syscall_u.
 
+Notation catch ev dfv := (if with_catch then catch_core ev dfv else ev).
+
 Notation "'Let' ( n , t ) ':=' wdb ',' s '.[' v ']' 'in' body" :=
-  (@on_arr_var _ (get_var wdb s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
+  (@on_arr_var _ (catch (get_var wdb s.(evm) v) (default_val (vtype v))) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
 
 Notation "'Let' ( n , t ) ':=' wdb ',' gd ',' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_gvar wdb gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).
