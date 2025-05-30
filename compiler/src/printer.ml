@@ -63,7 +63,13 @@ let pp_ge ~debug pp_len pp_var =
       pp_expr e1
       pp_expr e2
       pp_expr e0
-
+  | Parr_init_elem (e,n) -> 
+    F.fprintf fmt "ArrayInit(%a, %a)"
+      pp_expr e pp_len n
+  | Pis_var_init x -> F.fprintf fmt "is_var_init(%a)" pp_var_i x
+  | Pis_arr_init (x,e1,e2) -> F.fprintf fmt "is_arr_init(%a,%a,%a)" pp_var_i x pp_expr e1 pp_expr e2
+  | Pis_barr_init (x,e1,e2) -> F.fprintf fmt "is_barr_init(%a,%a,%a)" pp_var_i x pp_expr e1 pp_expr e2
+  | Pis_mem_init (e1,e2) -> F.fprintf fmt "is_mem_init(%a,%a)" pp_expr e1 pp_expr e2
   in
   pp_expr
 

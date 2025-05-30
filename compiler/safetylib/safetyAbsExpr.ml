@@ -387,7 +387,9 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | Papp1 _ | Papp2 _ | Pbool _
     | Parr_init _ | Pget _ | Psub _
     | Pload _ | PappN _ | Pif _ -> None
-    | Pbig _ -> assert false
+
+    | Pbig _ | Pis_var_init _ | Pis_mem_init _ | Pis_arr_init _
+    | Parr_init_elem _ | Pis_barr_init _ -> assert false
 
 
   (* Try to evaluate e to a constant expression (of type word) in abs.
@@ -471,7 +473,9 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
       | Pif (_,_,e1,e2) (* FIXME: why the condition is not added ? *)
       | Papp2 (_, e1, e2) -> aux (aux acc e1) e2
-      | Pbig _ -> assert false
+
+      | Pbig _ | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _ 
+      | Parr_init_elem _ | Pis_barr_init _ -> assert false
     in
 
     try PtVars (aux [] e) with Expr_contain_load -> PtTopExpr
@@ -728,7 +732,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         Some (ty, b, PappN (opn, repi el), PappN (opn, repi er))
     end
 
-    | Pbig _ -> assert false
+    | Pbig _ | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _ 
+    | Parr_init_elem _ | Pis_barr_init _ -> assert false
 
 
   let rec remove_if_expr (e : 'a Prog.gexpr) = match remove_if_expr_aux e with

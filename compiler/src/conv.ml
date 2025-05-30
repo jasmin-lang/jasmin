@@ -100,6 +100,11 @@ let rec cexpr_of_expr = function
                                    cexpr_of_expr e2)
   | Pbig(e, o, x, e1, e2, e0) ->
     C.Pbig(cexpr_of_expr e, o, cvari_of_vari x, cexpr_of_expr e1, cexpr_of_expr e2, cexpr_of_expr e0)
+  | Parr_init_elem (e,n) -> C.Parr_init_elem (cexpr_of_expr e ,pos_of_int n)
+  | Pis_var_init x -> C.Pis_var_init (cvari_of_vari x)
+  | Pis_arr_init (x,e1,e2) -> C.Pis_arr_init (cvari_of_vari x, cexpr_of_expr e1,cexpr_of_expr e2)
+  | Pis_barr_init (x,e1,e2) -> C.Pis_barr_init (cvari_of_vari x, cexpr_of_expr e1,cexpr_of_expr e2)
+  | Pis_mem_init (e1,e2) -> C.Pis_mem_init (cexpr_of_expr e1,cexpr_of_expr e2)
 
 let rec expr_of_cexpr = function
   | C.Pconst z          -> Pconst (z_of_cz z)
@@ -117,6 +122,11 @@ let rec expr_of_cexpr = function
                                  expr_of_cexpr e2)
   | C.Pbig(e, o, x, e1, e2, e0) ->
     Pbig(expr_of_cexpr e, o, vari_of_cvari x, expr_of_cexpr e1, expr_of_cexpr e2, expr_of_cexpr e0)
+  | C.Parr_init_elem (e,n)      -> Parr_init_elem (expr_of_cexpr e,int_of_pos n)
+  | C.Pis_var_init x -> Pis_var_init (vari_of_cvari x)
+  | C.Pis_arr_init (x,e1,e2) -> Pis_arr_init (vari_of_cvari x, expr_of_cexpr e1,expr_of_cexpr e2)
+  | C.Pis_barr_init (x,e1,e2) -> Pis_barr_init (vari_of_cvari x, expr_of_cexpr e1,expr_of_cexpr e2)
+  | C.Pis_mem_init (e1,e2) -> Pis_mem_init (expr_of_cexpr e1,expr_of_cexpr e2)
 
 
 

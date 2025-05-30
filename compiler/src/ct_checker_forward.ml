@@ -356,6 +356,16 @@ let rec ty_expr ~(public:bool) env (e:expr) =
     ty_exprs_max ~public env es
   | Pif(_, e1, e2, e3) -> ty_exprs_max ~public env [e1; e2; e3]
   | Pbig _ -> assert false
+  | Parr_init_elem (e,_) ->
+    ty_expr ~public env e
+  | Pis_var_init x -> Env.get ~public env x
+  | Pis_arr_init (x,e1,e2)
+  | Pis_barr_init (x,e1,e2) ->
+    let env, ty = Env.get ~public env x in
+    ty_exprs_max ~public env [e1; e2]
+  | Pis_mem_init (e1,e2) -> 
+    let env, _ = ty_exprs_max ~public env [e1; e2] in
+    env, Secret
 
 and ty_exprs ~public env es =
   List.map_fold (ty_expr ~public) env es
