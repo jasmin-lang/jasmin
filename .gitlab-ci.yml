@@ -251,6 +251,11 @@ test-extract-to-ec:
     paths:
     - compiler/report.log
 
+test-build-docs:
+  stage: test
+  script:
+    - cd docs && nix-shell --pure --run 'make html'
+
 push-compiler-code:
   stage: deploy
   environment: deployment
