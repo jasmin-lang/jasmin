@@ -1423,7 +1423,7 @@ Proof.
     move=> -> ?? /hst -> /= -> ?? /hl  -> /= -> acc ? /hi -> /= -> //=.
     elim: ziota acc => //= j js hrec acc; t_xrbindP.
     by move=> ?? /write_var_wdb -> /= ? /hb -> /= -> /= /hrec.
-  + by t_xrbindP => > he > -> > /he -> /= -> /= h1 -> <-.
+  + by t_xrbindP => > he > -> > /he -> /= -> /= ->.
   + t_xrbindP => > he1 he2 > ->; apply on_arr_varP; rewrite /on_arr_var.
     move=> > hyp gv; apply get_var_wdb in gv; rewrite {}gv /=.
     by t_xrbindP => > /he1 -> /to_intI -> > /he2 -> /to_intI -> <-.

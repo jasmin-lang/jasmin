@@ -984,10 +984,10 @@ Proof.
     move: hop; rewrite /sign_of_expr (esubtype_sign_of hsub3) ht2 !val_to_int_None => -> /=.
     apply (hrec _ hall hfold).
   + move=> e len he ei /eqP hety sce hsce <- /= vi_ si s heqs hsce1; t_xrbindP.
-    move=> w8 vi hsce2 hto t hfill <-.
+    move=> w8 vi hsce2 hto <-.
     have [v hse hvi]:= he _ hsce _ _ _ heqs hsce1 hsce2; subst vi.
     rewrite /sign_of_expr hety val_to_int_None in hto.
-    rewrite hse /= hto /= hfill /= /sign_of_expr /=.
+    rewrite hse /= hto /= /sign_of_expr /=.
     by eexists; first reflexivity; rewrite val_to_int_None.
   + move=> x _ xi hx <- /= vi si s heqs _ [<-]; rewrite /sign_of_expr /=.
     move: hx; rewrite /wi2i_vari; t_xrbindP => hin <-.

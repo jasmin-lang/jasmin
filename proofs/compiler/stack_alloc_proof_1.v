@@ -1926,7 +1926,7 @@ Proof.
       rewrite Mvar.setP.
       case: eqP => [<-|_].
       + move=> [<-] /=.
-        move: ok_v; rewrite /get_gvar hlvar => ok_v.
+        move: ok_v; rewrite /get_gvar /= hlvar => ok_v.
         rewrite ok_v => -[<-].
         rewrite get_var_eq clone_ty;
           last by apply subtype_truncatable; rewrite -ty_v'.
