@@ -124,8 +124,8 @@ end = struct
     | PappN (op,es) -> PappN (op, List.map (mk_expr fn) es)
     | Pif (ty, e, el, er)  ->
       Pif (ty, mk_expr fn e, mk_expr fn el, mk_expr fn er)
-    | Pbig _ -> assert false
-
+    | Pbig _ | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _ 
+    | Parr_init_elem _ | Pis_barr_init _ -> assert false
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
 
   let mk_uniq main_decl ((glob_decls, fun_decls) : (unit, 'asm) prog) =
@@ -210,7 +210,8 @@ end = struct
     | PappN (_,es) -> List.fold_left (fun dp e -> app_expr dp v e ct) dp es
     | Pif (_,b,e1,e2) ->
       app_expr (app_expr (app_expr dp v b ct) v e1 ct) v e2 ct
-    | Pbig _ -> assert false
+    | Pbig _ | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _ 
+    | Parr_init_elem _ | Pis_barr_init _ -> assert false
 
   and app_expr_load dp e ct =
     match decompose_address e with
@@ -254,7 +255,8 @@ end = struct
       | Papp2  (_,e1,e2) -> aux (aux (acc,st) e1) e2
       | PappN (_,es) -> List.fold_left aux (acc,st) es
       | Pif (_,b,e1,e2) -> aux (aux (aux (acc,st) e1) e2) b
-      | Pbig _ -> assert false
+      | Pbig _ | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _ 
+      | Parr_init_elem _ | Pis_barr_init _ -> assert false
     in
 
     aux ([],st) e
@@ -280,7 +282,8 @@ end = struct
       | Papp2  (_,e1,e2) -> aux (aux acc e1) e2
       | PappN (_,es) -> List.fold_left aux acc es
       | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b
-      | Pbig _ -> assert false
+      | Pbig _ | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _ 
+      | Parr_init_elem _ | Pis_barr_init _ -> assert false
     in
 
     aux acc e
@@ -525,7 +528,8 @@ end = struct
     | Papp2 (_,e1,e2) -> collect_vars_es sv [e1;e2]
     | PappN (_, el)  -> collect_vars_es sv el
     | Pif (_, e1, e2, e3) -> collect_vars_es sv [e1;e2;e3]
-    | Pbig _ -> assert false
+    | Pbig _ | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _ 
+    | Parr_init_elem _ | Pis_barr_init _ -> assert false
 
   and collect_vars_es sv es = List.fold_left collect_vars_e sv es
 
