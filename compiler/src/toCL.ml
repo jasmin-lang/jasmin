@@ -20,6 +20,7 @@ open Utils
 open Prog
 open Glob_options
 open Utils
+open Wsize
 
 let unsharp = String.map (fun c -> if c = '#' then '_' else c)
 
@@ -28,6 +29,8 @@ module CL = struct
   type const = Z.t
 
   let pp_const fmt c = Format.fprintf fmt "(%s)" (Z.to_string c)
+
+  let pp_lconst fmt cl = Format.fprintf fmt "[%a]" (pp_list ", " pp_const) cl
 
   type var = Prog.var
 
@@ -81,6 +84,7 @@ module CL = struct
       | Iunop  of string * eexp
       | Ibinop of eexp * string * eexp
       | Ilimbs of const * eexp list
+      | IUnPack of tyvar * int * int
 
     let (!-) e1 = Iunop ("-", e1)
     let (-) e1 e2 = Ibinop (e1, "-", e2)
@@ -98,6 +102,7 @@ module CL = struct
         Format.fprintf fmt  "(limbs %a [%a])"
           pp_const c
           (pp_list ",@ " pp_eexp) es
+      | IUnPack _ -> assert false
 
     type epred =
       | Eeq of eexp * eexp
@@ -217,12 +222,20 @@ module CL = struct
       | Avecta (v, i) -> Format.fprintf fmt "%a[%i]" pp_vvar v i
       | Avatome al -> Format.fprintf fmt "[%a]" (pp_list ", " pp_atom) al
 
-    type lval = tyvar
+    type lval =
+      | Llvar of tyvar
+      | Lvatome of lval list
+
+    let rec pp_lval fmt l =
+      match l with
+      | Llvar tv -> pp_tyvar fmt tv
+      | Lvatome ll -> Format.fprintf fmt "[%a]" (pp_list ", " pp_lval) ll
 
     type arg =
       | Atom of atom
       | Lval of lval
       | Const of const
+      | Lconst of const list
       | Ty    of ty
       | Pred of clause
       | Gval of gvar
@@ -232,8 +245,9 @@ module CL = struct
     let pp_arg fmt a =
       match a with
       | Atom a  -> pp_atom fmt a
-      | Lval lv -> pp_tyvar fmt lv
+      | Lval lv -> pp_lval fmt lv
       | Const c -> pp_const fmt c
+      | Lconst cl -> pp_lconst fmt cl
       | Ty ty   -> pp_ty fmt ty
       | Pred cl -> pp_clause fmt cl
       | Gval x  -> pp_gvar fmt x
@@ -267,6 +281,7 @@ module CL = struct
       let add  = op2  "add"
       let sub  = op2  "sub"
       let mul  = op2  "mul"
+      let smul = op2 "smul"
       let seteq = op2 "seteq"
       let and_  = op2 "and"
       let xor  = op2  "xor"
@@ -295,6 +310,7 @@ module CL = struct
 
       let subc = op2_2 "subc"
       let mull = op2_2 "mull"
+      let smull = op2_2 "smull"
       let cmov = op2_2  "cmov"
       let adds = op2_2  "adds"
       let subb = op2_2  "subb"
@@ -322,6 +338,9 @@ module CL = struct
       let shr  = shift "shr"
       let sar  = shift "sar"
 
+      let vsar (d : lval) (s : atom) (c : const list) =
+        { iname = "sar"; iargs = [Lval d; Atom s; Lconst c]}
+
     end
 
     module Cshift = struct
@@ -346,6 +365,8 @@ module CL = struct
       let split = shifts "split"
       let ssplit = shifts "ssplit"
 
+      let vsars (d1 : lval) (d2 : lval) (s : atom) (c : const list) =
+        { iname = "sars"; iargs = [Lval d1; Lval d2; Atom s; Lconst c]}
     end
 
     module Shift2s = struct
@@ -356,6 +377,12 @@ module CL = struct
       let cshls = shift2s "cshls"
       let cshrs = shift2s "cshrs"
 
+    end
+
+    module Broadcast = struct (* TODO: consider merging with module Shift *)
+      let broadcast iname (d : lval) (c : const) (s : atom) =
+        { iname; iargs = [Lval d; Const c; Atom s] }
+      let broadcast = broadcast "broadcast"
     end
 
     let cast _ty (d : lval) (s : atom) =
@@ -391,6 +418,7 @@ module CL = struct
         pre : clause;
         prog : Instr.instr list;
         post : clause;
+        ret_vars: tyvar list;
       }
 
     let pp_proc fmt (proc : proc) =
@@ -418,6 +446,9 @@ module type I = sig
   val get_const : 'a Prog.gexpr -> int
   val var_to_tyvar :
     ?sign:bool -> ?vector:int * int -> int Prog.gvar -> CL.tyvar
+  val get_lval:
+      CL.Instr.lval ->
+      CL.tyvar
   val mk_tmp_lval :
     ?name:Jasmin__CoreIdent.Name.t ->
     ?l:Prog.L.t ->
@@ -525,11 +556,13 @@ module I (S:S): I = struct
     | Papp2(Osub _, e1, e2) -> minu !> e1 !> e2
     | Papp2(Omul _, e1, e2) -> mull !> e1 !> e2
     | PappN(Oabstract {pa_name="se_16_64"}, [v]) -> Rsext (!> v, 48)
+    | PappN(Oabstract {pa_name="se_16_32"}, [v]) -> Rsext (!> v, 16)
     | PappN(Oabstract {pa_name="se_32_64"}, [v]) -> Rsext (!> v, 32)
     | PappN(Oabstract {pa_name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
-    | PappN (Oabstract {pa_name="limbs_4u64"}, [q]) -> Rlimbs ((Z.of_int 64), (List.map (!>) (extract_list q [])))
+    | PappN(Oabstract {pa_name="ze_16_32"}, [v]) -> Ruext (!> v, 16)
+    | PappN(Oabstract {pa_name="limbs_4u64"}, [q]) -> Rlimbs ((Z.of_int 64), (List.map (!>) (extract_list q [])))
     | PappN(Oabstract {pa_name="u256_as_16u16"}, [Pvar x ; Pconst z]) ->
-        UnPack (to_var ~sign x, 16, Z.to_int z)
+      UnPack (to_var ~sign x, 16, Z.to_int z)
     | _ -> error e
 
   let rec gexp_to_rpred ?(sign=S.s) e : CL.R.rpred =
@@ -549,6 +582,7 @@ module I (S:S): I = struct
     | Papp2(Olt int, e1, e2)  -> ult !> e1 !> e2
     | Papp2(Ogt int, e1, e2)  -> ugt !> e1 !> e2
     | Pif(_, e1, e2, e3) -> RPand [RPor [RPnot !>> e1; !>> e2];RPor[ !>> e1; !>> e3]]
+    | PappN (Oabstract {pa_name="eq"}, [e1;e2]) -> eq !> e1 !> e2
     | _ -> error e
 
   let rec get_const x =
@@ -572,15 +606,22 @@ module I (S:S): I = struct
         match int_of_typ v.v_ty with
         | None -> assert false
         | Some w' ->
-          assert (n * w = w' && not sign);
-          v, CL.Vector (n, CL.Uint w)
+          assert (n * w = w');
+          v, CL.Vector (n, if sign then CL.Sint w else CL.Uint w)
       end
+
+  
+  let get_lval (l: CL.Instr.lval)  =
+    match l with
+      | Llvar x -> x
+      | _ -> assert false
 
   let mk_tmp_lval ?(name = "TMP____") ?(l = L._dummy)
       ?(kind = (Wsize.Stack Direct)) ?(sign=S.s)
       ?vector ty : CL.Instr.lval =
     let v = CoreIdent.GV.mk name kind ty l [] in
-    var_to_tyvar ~sign ?vector v
+    let tv = var_to_tyvar ~sign ?vector v in
+    Llvar tv
 
   let wsize_of_int = function
     | 8   -> Wsize.U8
@@ -625,12 +666,27 @@ module I (S:S): I = struct
          | _ -> !> v
        end
     | PappN (Oabstract {pa_name="pow"}, [b;e]) -> power !> b !> e
+    | PappN (Oabstract {pa_name="u32i"}, [v]) -> 
+      begin 
+        match v with 
+      (* why do we have more cases?  | Pvar _ -> !> v *) 
+        | Papp1 (Oword_of_int _ws, Pconst z) ->  !> 
+             (Pconst (w2i ~sign z U32)) 
+        | _ -> !> v 
+      end
     | PappN (Oabstract {pa_name="u64i"}, [v]) ->
        begin
          match v with
          | Papp1 (Oword_of_int _ws, Pconst z) ->  !>
               (Pconst (w2i ~sign z U64))
-         | _ -> !> v
+        | _ -> !> v
+      end
+    | PappN (Oabstract {pa_name="u256i"}, [v]) ->
+      begin
+        match v with
+        | Papp1 (Oword_of_int _ws, Pconst z) ->  !>
+              (Pconst (w2i ~sign z U256))
+        | _ -> !> v
       end
     | PappN (Oabstract {pa_name="b2i"}, [v]) -> !> v
     | PappN (Oabstract {pa_name="mon"}, [c;a;b]) ->
@@ -643,12 +699,14 @@ module I (S:S): I = struct
             mk_tmp_lval ~name (Bty Int)
           in
           Hash.add env c x;
-          x
-        | x -> x
+          (get_lval x)
+        | x -> (get_lval x)
       in
       mull !> b (power (Ivar v) !> a)
     | PappN (Oabstract {pa_name="mon0"}, [b]) ->
       !> b
+    | PappN (Oabstract {pa_name="u256_as_16u16"}, [Pvar x; Pconst z]) ->
+      IUnPack (to_var ~sign x, 16, Z.to_int z)
     | _ -> error e
 
   let rec gexp_to_epred env ?(sign=S.s) e :CL.I.epred list =
@@ -668,7 +726,7 @@ module I (S:S): I = struct
 
   let glval_to_lval ?(sign=S.s) x : CL.Instr.lval =
     match x with
-    | Lvar v -> var_to_tyvar ~sign (L.unloc v)
+    | Lvar v -> Llvar (var_to_tyvar ~sign (L.unloc v))
     | Lnone (l,ty)  ->
       let name = "NONE____" in
       mk_tmp_lval ~sign ~name ~l ty
@@ -705,7 +763,10 @@ module I (S:S): I = struct
       Aconst (c,ty)
     | _ -> assert false
 
-  let mk_lval_atome (lval: CL.Instr.lval) = CL.Instr.Avar (lval)
+  let rec mk_lval_atome (lval: CL.Instr.lval) =
+    match lval with
+    | Llvar tv -> CL.Instr.Avar tv
+    | Lvatome l -> Avatome (List.map mk_lval_atome l)
 end
 
 module type BaseOp = sig
@@ -782,14 +843,16 @@ module X86BaseOpU : BaseOp
         let e = I.gexp_to_atome x in
         let v = L.unloc va.gv in
         let kind = v.v_kind in
-        let (_,ty) as x = I.mk_tmp_lval ~kind (CoreIdent.tu ws) in
-        CL.Instr.Avar x, [CL.Instr.cast ty x e]
+        let lx = I.mk_tmp_lval ~kind (CoreIdent.tu ws) in
+        let (_,ty) as x = I.get_lval lx in
+        CL.Instr.Avar x, [CL.Instr.cast ty lx e]
     | Papp1 (Oword_of_int ws_x, Pconst z) ->
       if ws = ws_x then I.gexp_to_atome x,[]
       else
         let e = I.gexp_to_atome x in
-        let (_,ty) as x = I.mk_tmp_lval (CoreIdent.tu ws) in
-        CL.Instr.Avar x, [CL.Instr.cast ty x e]
+        let lx = I.mk_tmp_lval (CoreIdent.tu ws) in
+        let (_,ty) as x = I.get_lval lx in
+        CL.Instr.Avar x, [CL.Instr.cast ty lx e]
     | _ ->
       let msg =
         Format.asprintf "Unsupport expression in %s translation for atome" S.error
@@ -804,9 +867,10 @@ module X86BaseOpU : BaseOp
     let v = int_of_velem v in
     let s = int_of_ws ws in
     let l_tmp = I.mk_tmp_lval ~vector:(1,s) (CoreIdent.tu ws) in
-    let l_tmp2 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+    let l_tmp2 = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+    let l_tmp2v = I.get_lval l_tmp2 in
     let ty = CL.(Vector (v, Uint (s/v))) in
-    CL.Instr.Avar l_tmp2,
+    CL.Instr.Avar l_tmp2v,
     i @ [CL.Instr.Op1.mov l_tmp a1;
          CL.Instr.cast ty l_tmp2 !l_tmp;
         ]
@@ -814,8 +878,9 @@ module X86BaseOpU : BaseOp
   let cast_atome_vector ws v x l =
     let s = int_of_ws ws in
     let l_tmp = I.mk_tmp_lval ~vector:(1,s) (CoreIdent.tu ws) in
+    let l_tmpv = I.get_lval l_tmp in
     let ty = CL.(Vector (v, Uint s)) in
-    let a = CL.Instr.Avecta (l_tmp, 0) in
+    let a = CL.Instr.Avecta (l_tmpv, 0) in
     [CL.Instr.cast ty l_tmp x;
      CL.Instr.Op1.mov l a
     ]
@@ -833,18 +898,20 @@ module X86BaseOpU : BaseOp
       i @ [CL.Instr.Op1.mov l a]
 
     | CMOVcc ws -> (* warning, does not work with ! cf *)
-      let a2, i2 = cast_atome ws (List.nth es 1) in
-      let a3, i3 = cast_atome ws (List.nth es 2) in
-      let x1 = I.glval_to_lval (List.nth xs 0) in
-      begin match (List.nth es 0) with
-      | Pvar _ as cc->
-        let cc = I.gexp_to_var cc in
-        i2 @ [CL.Instr.Op2_2.cmov x1 cc a2 a3]
-      | Papp1(Onot, (Pvar _ as cc)) ->
-        let cc = I.gexp_to_var cc in
-        i2 @ [CL.Instr.Op2_2.cmov x1 cc a3 a2]
-      | _ -> assert false
-      end
+        let a2, i2 = cast_atome ws (List.nth es 1) in
+        let a3, i3 = cast_atome ws (List.nth es 2) in
+        let x1 = I.glval_to_lval (List.nth xs 0) in
+        begin match (List.nth es 0) with
+        | Pvar _ as cc->
+          let cc = I.gexp_to_var cc in
+          let lcc = CL.Instr.Llvar cc in
+          i2 @ [CL.Instr.Op2_2.cmov x1 lcc a2 a3]
+        | Papp1(Onot, (Pvar _ as cc)) ->
+          let cc = I.gexp_to_var cc in
+          let lcc = CL.Instr.Llvar cc in
+          i2 @ [CL.Instr.Op2_2.cmov x1 lcc a3 a2]
+        | _ -> assert false
+        end
 
     | ADD ws ->
       begin
@@ -880,19 +947,13 @@ module X86BaseOpU : BaseOp
     | IMULri ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
       let a2, i2 = cast_atome ws (List.nth es 1) in
-      let l = I.glval_to_lval (List.nth xs 5) in
-      let l_tmp = I.mk_tmp_lval(CoreIdent.tu ws) in
-      i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l a1 a2]
-
-    (* | IMULri ws -> *)
-    (*   let a1, i1 = cast_atome ws (List.nth es 0) in *)
-    (*   let a2, i2 = cast_atome ws (List.nth es 1) in *)
-    (*   let l1 = I.glval_to_lval (List.nth xs 5) in *)
-    (*   let l = I.mk_spe_tmp_lval 64 in *)
-    (*   i1 @ i2 @ [CL.Instr.Op2_2.mull l l1 a1 a2; *)
-    (*            CL.Instr.assert_ ([], [RPcmp(Rvar l, "=", (Rconst(64, Z.of_int 0)))]); *)
-    (*            CL.Instr.assume ([Eeq(Ivar l, Iconst Z.zero)] ,[]); *)
-    (*    ] *)
+      let l1 = I.glval_to_lval (List.nth xs 5) in
+      let l = I.mk_spe_tmp_lval 64 in
+      let l_ty = I.get_lval l in
+      i1 @ i2 @ [CL.Instr.Op2_2.mull l l1 a1 a2;
+               CL.Instr.assert_ ([], [RPcmp(Rvar l_ty, "=", (Rconst(64, Z.of_int 0)))]);
+               CL.Instr.assume ([Eeq(Ivar l_ty, Iconst Z.zero)] ,[]);
+       ]
 
     | MUL ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
@@ -1146,81 +1207,6 @@ module X86BaseOpU : BaseOp
       let ty = CL.Uint (int_of_ws ws1) in
       i @ [CL.Instr.cast ty l a]
 
-    | VPADD (ve,ws) ->
-      begin
-      let l = ["smt", `Smt ; "default", `Default] in
-      let trans = trans annot l in
-      let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
-      let a2,i2 = cast_vector_atome ws ve (List.nth es 1) in
-      let v = int_of_velem ve in
-      let s = int_of_ws ws in
-      let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
-      let l = I.glval_to_lval (List.nth xs 0) in
-      let i3 = cast_atome_vector ws v !l_tmp l in
-      match trans with
-        | `Smt ->
-          i1 @ i2 @ [CL.Instr.Op2.add l_tmp a1 a2] @ i3
-        | `Default ->
-          let l_tmp1 = I.mk_tmp_lval ~vector:(v,1) (CoreIdent.tu (I.wsize_of_int v)) in
-          i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp1 l_tmp a1 a2] @ i3
-    end
-    |VMOVDQU ws ->
-      let a,i = cast_atome ws (List.nth es 0) in
-      let l = I.glval_to_lval (List.nth xs 0) in
-      i @ [CL.Instr.Op1.mov l a]
-
-    |VPAND ws ->
-      let a1,i1 = cast_vector_atome ws VE16 (List.nth es 0) in
-      let a2,i2 = cast_vector_atome ws VE16 (List.nth es 1) in
-      let s = int_of_ws ws in
-      let v = s / 16 in
-      let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
-      let l = I.glval_to_lval (List.nth xs 0) in
-      let i3 = cast_atome_vector ws v !l_tmp l in
-          i1 @ i2 @ [CL.Instr.Op2.and_ l_tmp a1 a2] @ i3
-
-    |VPSUB (ve,ws) ->
-      begin
-      let l = ["smt", `Smt ; "default", `Default] in
-      let trans = trans annot l in
-
-      let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
-      let a2,i2 = cast_vector_atome ws ve (List.nth es 1) in
-      let v = int_of_velem ve in
-      let s = int_of_ws ws in
-      let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
-      let l = I.glval_to_lval (List.nth xs 0) in
-      let i3 = cast_atome_vector ws v !l_tmp l in
-      match trans with
-        | `Smt ->
-          i1 @ i2 @ [CL.Instr.Op2.sub l_tmp a1 a2] @ i3
-        | `Default ->
-          let l_tmp1 = I.mk_tmp_lval ~vector:(v,1) (CoreIdent.tu (I.wsize_of_int v)) in
-          i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp1 l_tmp a1 a2] @ i3
-      end
-
-    |VPMULL (v,ws) ->
-      let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
-      let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
-      let v = int_of_velem v in
-      let s = int_of_ws ws in
-      let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
-      let l = I.glval_to_lval (List.nth xs 0) in
-      let i3 = cast_atome_vector ws v !l_tmp l in
-      let l_tmp1 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
-      i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp1 l_tmp a1 a2] @ i3
-
-    |VPMULH ws ->
-      let a1,i1 = cast_vector_atome ws VE16 (List.nth es 0) in
-      let a2,i2 = cast_vector_atome ws VE16 (List.nth es 1) in
-      let s = int_of_ws ws in
-      let v = s / 16 in
-      let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
-      let l = I.glval_to_lval (List.nth xs 0) in
-      let i3 = cast_atome_vector ws v !l_tmp l in
-      let l_tmp1 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
-      i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2] @ i3
-
     | ADCX ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
       let a2, i2 = cast_atome ws (List.nth es 1) in
@@ -1238,6 +1224,129 @@ module X86BaseOpU : BaseOp
       let v = I.gexp_to_var (List.nth es 2) in
       i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
 
+
+    | VPADD (ve,ws) ->
+      begin
+      let l = ["smt", `Smt ; "default", `Default] in
+      let trans = trans annot l in
+      let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+      let a2,i2 = cast_vector_atome ws ve (List.nth es 1) in
+      let v = int_of_velem ve in
+      let s = int_of_ws ws in
+      let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      let i3 = cast_atome_vector ws v !l_tmp l in
+      match trans with
+        | `Smt ->
+          i1 @ i2 @ [CL.Instr.Op2.add l_tmp a1 a2] @ i3
+        | `Default ->
+          let l_tmp1 = I.mk_tmp_lval ~vector:(v,1) (CoreIdent.tu (I.wsize_of_int v)) in
+          i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp1 l_tmp a1 a2] @ i3 (* TODO: add assertions for carry bit *)
+    end
+
+    | VMOVDQU ws ->
+      let a,i = cast_atome ws (List.nth es 0) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      i @ [CL.Instr.Op1.mov l a]
+
+    | VPAND ws ->
+      let a1,i1 = cast_vector_atome ws VE16 (List.nth es 0) in
+      let a2,i2 = cast_vector_atome ws VE16 (List.nth es 1) in
+      let s = int_of_ws ws in
+      let v = s / 16 in
+      let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      let i3 = cast_atome_vector ws v !l_tmp l in
+          i1 @ i2 @ [CL.Instr.Op2.and_ l_tmp a1 a2] @ i3
+
+    | VPSUB (ve,ws) ->
+      begin
+      let l = ["smt", `Smt ; "default", `Default] in
+      let trans = trans annot l in
+      let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+      let a2,i2 = cast_vector_atome ws ve (List.nth es 1) in
+      let v = int_of_velem ve in
+      let s = int_of_ws ws in
+      let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      let i3 = cast_atome_vector ws v !l_tmp l in
+      match trans with
+        | `Smt ->
+          i1 @ i2 @ [CL.Instr.Op2.sub l_tmp a1 a2] @ i3
+        | `Default ->
+          let l_tmp1 = I.mk_tmp_lval ~vector:(v,1) (CoreIdent.tu (I.wsize_of_int v)) in
+          i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp1 l_tmp a1 a2] @ i3
+      end
+
+    | VPMULL (v,ws) ->
+        let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
+        let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
+        let v = int_of_velem v in
+        let s = int_of_ws ws in
+        let l0_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+        let l1_tmp = I.mk_tmp_lval ~sign:true ~vector:(s/v,v) (CoreIdent.tu ws) in
+        let (_, l1_ty) = I.get_lval l1_tmp in
+        let l = I.glval_to_lval (List.nth xs 0) in
+        let i3 = cast_atome_vector ws v !l1_tmp l in
+        i1 @ i2 @ 
+        [
+          CL.Instr.Op2.smul l0_tmp a1 a2;
+          CL.Instr.cast l1_ty l1_tmp !l0_tmp;
+        ] @ i3
+
+    | VPMULH ws ->
+        let a1,i1 = cast_vector_atome ws VE16 (List.nth es 0) in
+        let a2,i2 = cast_vector_atome ws VE16 (List.nth es 1) in
+        let s = int_of_ws ws in
+        let v = s / 16 in
+        let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+        let l = I.glval_to_lval (List.nth xs 0) in
+        let i3 = cast_atome_vector ws v !l_tmp l in
+        let l_tmp1 = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+        i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2] @ i3
+
+    | VPSRA (ve, ws) ->
+      begin
+        let l = ["smt", `Smt ; "default", `Default] in
+        let trans = trans annot l in
+        let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+        let (c, _) = I.gexp_to_const(List.nth es 1) in
+        let v = int_of_velem ve in
+        let s = int_of_ws ws in
+        match trans with
+        | `Default ->
+            let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+            let l = I.glval_to_lval (List.nth xs 0) in
+            let i3 = cast_atome_vector ws v !l_tmp l in
+            let l_tmp1 = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+            i1 @ [CL.Instr.Shifts.split l_tmp l_tmp1 a1 c] @ i3
+        | `Smt ->
+          let l1_tmp = I.mk_tmp_lval ~sign:true ~vector:(s/v,v) (CoreIdent.tu ws) in
+          let (_, l1_ty) = I.get_lval l1_tmp in
+          let l2_tmp = I.mk_tmp_lval ~sign:true ~vector:(s/v,v) (CoreIdent.tu ws) in
+          let (_, l2_ty) = I.get_lval l2_tmp in
+          let l3_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+          let l4_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+          let l = I.glval_to_lval (List.nth xs 0) in
+          let i2 = cast_atome_vector ws v !l4_tmp l in
+          i1 @ [CL.Instr.cast l1_ty l1_tmp a1;
+                CL.Instr.Shifts.split l2_tmp l3_tmp !l1_tmp c;
+                CL.Instr.cast l2_ty l4_tmp !l2_tmp] @ i2
+      end
+
+    | VPBROADCAST (ve, ws) ->
+      begin
+        let a1,i1 = cast_atome (wsize_of_velem ve) (List.nth es 0) in
+        let v = int_of_velem ve in
+        let s = int_of_ws ws in
+        let rec repeat acc n x =
+          if n == 0 then acc else repeat (x :: acc) (n - 1) x in
+        let ac = CL.Instr.Avatome (repeat [] (s/v) a1) in
+        let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+        let l = I.glval_to_lval (List.nth xs 0) in
+        let i2 = cast_atome_vector ws v !l_tmp l in
+        i1 @ [CL.Instr.Op1.mov l_tmp ac] @ i2
+      end
 
     | _ ->
       let x86_id = X86_instr_decl.x86_instr_desc Build_Tabstract o in
@@ -1299,19 +1408,47 @@ module X86BaseOpS : BaseOp
         let e = I.gexp_to_atome x in
         let v = L.unloc va.gv in
         let kind = v.v_kind in
-        let (_,ty) as x = I.mk_tmp_lval ~kind (CoreIdent.tu ws) in
-        CL.Instr.Avar x, [CL.Instr.cast ty x e]
+        let lx = I.mk_tmp_lval ~kind (CoreIdent.tu ws) in
+        let (_,ty) as x = I.get_lval lx in
+        CL.Instr.Avar x, [CL.Instr.cast ty lx e]
     | Papp1 (Oword_of_int ws_x, Pconst z) ->
       if ws = ws_x then I.gexp_to_atome  x,[]
       else
         let e = I.gexp_to_atome x in
-        let (_,ty) as x = I.mk_tmp_lval  (CoreIdent.tu ws) in
-        CL.Instr.Avar x, [CL.Instr.cast ty x e]
+        let lx = I.mk_tmp_lval  (CoreIdent.tu ws) in
+        let (_,ty) as x = I.get_lval lx in
+        CL.Instr.Avar x, [CL.Instr.cast ty lx e]
     | _ ->
       let msg =
         Format.asprintf "Unsupport expression in %s translation for atome" S.error
       in
       hierror ~loc:Lnone ~kind:msg  "@[%a@]" (Printer.pp_expr ~debug:true) x
+
+  let (!) e = I.mk_lval_atome e
+
+  let cast_vector_atome ws v x =
+    let a,i = cast_atome ws x in
+    let a1 = CL.Instr.Avatome [a] in
+    let v = int_of_velem v in
+    let s = int_of_ws ws in
+    let l_tmp = I.mk_tmp_lval ~vector:(1,s) (CoreIdent.tu ws) in
+    let l_tmp2 = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+    let l_tmp2v = I.get_lval l_tmp2 in
+    let ty = CL.(Vector (v, Sint (s/v))) in
+    CL.Instr.Avar l_tmp2v,
+    i @ [CL.Instr.Op1.mov l_tmp a1;
+          CL.Instr.cast ty l_tmp2 !l_tmp;
+        ]
+
+  let cast_atome_vector ws v x l =
+    let s = int_of_ws ws in
+    let l_tmp = I.mk_tmp_lval ~vector:(1,s) (CoreIdent.tu ws) in
+    let l_tmpv = I.get_lval l_tmp in
+    let ty = CL.(Vector (v, Sint s)) in
+    let a = CL.Instr.Avecta (l_tmpv, 0) in
+    [CL.Instr.cast ty l_tmp x;
+      CL.Instr.Op1.mov l a
+    ]
 
   let vpc_atome ws x =
     match x with
@@ -1322,21 +1459,23 @@ module X86BaseOpS : BaseOp
         let e = I.gexp_to_atome x in
         let v = L.unloc va.gv in
         let kind = v.v_kind in
-        let (_,ty) as x = I.mk_tmp_lval ~kind (CoreIdent.tu ws) in
-        CL.Instr.Avar x, [CL.Instr.vpc ty x e]
+        let lx = I.mk_tmp_lval ~kind (CoreIdent.tu ws) in
+        let (_,ty) as x = I.get_lval lx in
+        CL.Instr.Avar x, [CL.Instr.vpc ty lx e]
     | Papp1 (Oword_of_int ws_x, Pconst z) ->
       if ws = ws_x then I.gexp_to_atome  x,[]
       else
         let e = I.gexp_to_atome x in
-        let (_,ty) as x = I.mk_tmp_lval  (CoreIdent.tu ws) in
-        CL.Instr.Avar x, [CL.Instr.vpc ty x e]
+        let lx = I.mk_tmp_lval  (CoreIdent.tu ws) in
+        let (_,ty) as x = I.get_lval lx in
+        CL.Instr.Avar x, [CL.Instr.vpc ty lx e]
     | _ -> assert false
 
   let (!) e = I.mk_lval_atome e
 
   let assgn_to_instr _annot x e =
-    let a = I.gexp_to_atome  e in
-    let l = I.glval_to_lval  x in
+    let a = I.gexp_to_atome e in
+    let l = I.glval_to_lval x in
     [CL.Instr.Op1.mov l a]
 
   let op_to_instr annot loc xs o es =
@@ -1494,6 +1633,119 @@ module X86BaseOpS : BaseOp
           i @ [CL.Instr.cast (CL.Sint (int_of_ws ws1)) l a]
       end
 
+    | VMOVDQU ws ->
+      let a,i = cast_atome ws (List.nth es 0) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      i @ [CL.Instr.Op1.mov l a]
+
+    | VPBROADCAST (ve, ws) ->
+      begin
+        let a1,i1 = cast_atome (wsize_of_velem ve) (List.nth es 0) in
+        let v = int_of_velem ve in
+        let s = int_of_ws ws in
+        let al = CL.Instr.Avatome [a1] in
+        let c = I.mk_const (s/v) in
+        let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+        let l = I.glval_to_lval (List.nth xs 0) in
+        let i2 = cast_atome_vector ws v !l_tmp l in
+        i1 @ [CL.Instr.Broadcast.broadcast l_tmp c al] @ i2
+      end
+
+    | VPADD (ve,ws) ->
+      begin
+        let l = ["smt", `Smt ; "default", `Default] in
+        let trans = trans annot l in
+        let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+        let a2,i2 = cast_vector_atome ws ve (List.nth es 1) in
+        let v = int_of_velem ve in
+        let s = int_of_ws ws in
+        let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+        let l = I.glval_to_lval (List.nth xs 0) in
+        let i3 = cast_atome_vector ws v !l_tmp l in
+        match trans with
+          | `Smt ->
+            i1 @ i2 @ [CL.Instr.Op2.add l_tmp a1 a2] @ i3
+          | `Default ->
+            let l_tmp1 = I.mk_tmp_lval ~sign:false ~vector:(v,1) (CoreIdent.tu (I.wsize_of_int v)) in
+            i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp1 l_tmp a1 a2] @ i3 (* TODO: add assertions for carry bit *)
+      end
+
+    | VPSUB (ve,ws) ->
+      begin
+        let l = ["smt", `Smt ; "default", `Default] in
+        let trans = trans annot l in
+        let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+        let a2,i2 = cast_vector_atome ws ve (List.nth es 1) in
+        let v = int_of_velem ve in
+        let s = int_of_ws ws in
+        let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+        let l = I.glval_to_lval (List.nth xs 0) in
+        let i3 = cast_atome_vector ws v !l_tmp l in
+        match trans with
+          | `Smt ->
+            i1 @ i2 @ [CL.Instr.Op2.sub l_tmp a1 a2] @ i3
+          | `Default ->
+            let l_tmp1 = I.mk_tmp_lval ~sign:false ~vector:(v,1) (CoreIdent.tu (I.wsize_of_int v)) in
+            i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp1 l_tmp a1 a2] @ i3
+      end
+
+    | VPMULL (v,ws) ->
+      begin
+        let l = ["smt", `Smt; "default", `Default] in
+        let trans = trans annot l in
+        let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
+        let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
+        let v = int_of_velem v in
+        let s = int_of_ws ws in
+        let l = I.glval_to_lval (List.nth xs 0) in
+        let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+        let i3 = cast_atome_vector ws v !l_tmp l in
+        match trans with
+        | `Smt ->
+          i1 @ i2 @ [CL.Instr.Op2.smul l_tmp a1 a2 ] @ i3
+        | `Default ->
+          let lh_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+          let ll_tmp = I.mk_tmp_lval ~sign:false ~vector:(s/v,v) (CoreIdent.tu ws) in
+          let (_, l_ty) = I.get_lval l_tmp in
+          i1 @ i2 @ [
+            CL.Instr.Op2_2.smull lh_tmp ll_tmp a1 a2;
+            CL.Instr.cast l_ty l_tmp !ll_tmp
+          ] @ i3
+      end
+
+    | VPMULH ws ->
+      let a1,i1 = cast_vector_atome ws VE16 (List.nth es 0) in
+      let a2,i2 = cast_vector_atome ws VE16 (List.nth es 1) in
+      let s = int_of_ws ws in
+      let v = s / 16 in
+      let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+      let l_tmp1 = I.mk_tmp_lval ~sign:false ~vector:(s/v,v) (CoreIdent.tu ws) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      let i3 = cast_atome_vector ws v !l_tmp l in
+      i1 @ i2 @ [CL.Instr.Op2_2.smull l_tmp l_tmp1 a1 a2] @ i3
+
+    | VPSRA (ve, ws) ->
+      begin
+        let l = ["smt", `Smt ; "default", `Default] in
+        let trans = trans annot l in
+        let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+        let rec repeat acc n x =
+          if n == 0 then acc else repeat (x :: acc) (n - 1) x in
+        let (c, _) = I.gexp_to_const(List.nth es 1) in
+        let ac = repeat [] 16 c in
+        let v = int_of_velem ve in
+        let s = int_of_ws ws in
+        let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+        let l = I.glval_to_lval (List.nth xs 0) in
+        let i2 = cast_atome_vector ws v !l_tmp l in
+        match trans with
+        | `Default ->
+            let l_tmp1 = I.mk_tmp_lval ~sign:false ~vector:(s/v,v) (CoreIdent.tu ws) in
+            i1 @ [CL.Instr.Shifts.vsars l_tmp l_tmp1 a1 ac] @ i2
+        | `Smt ->
+          i1 @ [CL.Instr.Shift.vsar l_tmp a1 ac] @ i2
+      end
+
     | _ ->
       let x86_id = X86_instr_decl.x86_instr_desc Build_Tabstract o in
       let name = (x86_id.id_pp_asm []).pp_aop_name in
@@ -1621,6 +1873,13 @@ module Mk(O:BaseOp) = struct
     let cas = to_cas env cas in
     (cas,smt)
 
+  let filter_add cond l1 l2 =
+    List.fold_left (
+        fun l a ->
+          if List.exists (cond a) l
+          then l else a :: l
+      ) l1 l2
+
   let pp_i env fds i =
     let trans = i.i_annot in
     match i.i_desc with
@@ -1628,8 +1887,8 @@ module Mk(O:BaseOp) = struct
       let cl = to_clause env [(p,e)] in
       begin
         match t with
-        | Expr.Assert -> [], [CL.Instr.assert_ cl]
-        | Expr.Assume -> [], [CL.Instr.assume cl]
+        | Expr.Assert -> [], [], [CL.Instr.assert_ cl]
+        | Expr.Assume -> [], [], [CL.Instr.assume cl]
         | Expr.Cut -> assert false
       end
     | Csyscall _ | Cif _ | Cfor _ | Cwhile _ -> assert false
@@ -1647,22 +1906,25 @@ module Mk(O:BaseOp) = struct
             [CL.Instr.assert_ pre_cl], [CL.Instr.assume post_cl]
         in
       (* FIXME: How are we sure that the variables in r are fresh ? *)
-      r , pre_cl @ post_cl
+      let formals = List.map O.I.var_to_tyvar fd.f_args in
+      let cond (a,_) (x,_) = (x.v_name = a.v_name) && (x.v_id = a.v_id) in
+      let formals = filter_add cond formals (List.map O.I.gexp_to_var params) in
+      r , formals, pre_cl @ post_cl
 
     | Cassgn (a, _, _, e) ->
       begin
         match a with
-        | Lvar x -> [], O.assgn_to_instr trans a e
+        | Lvar x -> [a], [], O.assgn_to_instr trans a e
         | Lnone _ | Lmem _ | Laset _ |Lasub _ -> assert false
       end
-    | Copn(xs, _, o, es) -> [], pp_sopn i.i_loc.base_loc xs o es trans
+    | Copn(xs, _, o, es) -> xs, [], pp_sopn i.i_loc.base_loc xs o es trans
 
   let pp_c env fds c =
     (* FIXME: this is really a bad complexity *)
-    List.fold_left (fun (acc1,acc2) a ->
-        let l1,l2 = pp_i env fds a in
-        acc1 @ l1, acc2 @ l2
-      ) ([],[]) c
+    List.fold_left (fun (acc1,acc2,acc3) a ->
+      let l1,l2,l3 = pp_i env fds a in
+      acc1 @ l1, acc2 @ l2, acc3 @ l3
+    ) ([],[],[]) c
 
   let filter_add cond l1 l2 =
     (* FIXME : use a set it will be more efficiant *)
@@ -1675,6 +1937,7 @@ module Mk(O:BaseOp) = struct
   let fun_to_proc fds fd =
     let env = Hash.create 10 in
     let ret = List.map L.unloc fd.f_ret in
+    let ret_vars = List.map O.I.var_to_tyvar ret in (* OUTPUT vars as formals for CFG simplification/AVX2 extraction *)
     let cond a x = (x.v_name = a.v_name) && (x.v_id = a.v_id) in
     let args = filter_add cond fd.f_args ret in
     let formals = List.map O.I.var_to_tyvar args in
@@ -1690,18 +1953,20 @@ module Mk(O:BaseOp) = struct
         let post = sub_fun_returns ci.f_ires r post in
         let post = to_clause env post in
         pre, post in
-    let lval,prog = pp_c env fds fd.f_body in
-    let formals_lval = List.map O.I.glval_to_lval lval in
+    let lval,formals_args,prog = pp_c env fds fd.f_body in
+    let formals_lval = List.map (fun x -> O.I.get_lval (O.I.glval_to_lval x)) lval in
     let cond (a,_) (x,_) = (x.v_name = a.v_name) && (x.v_id = a.v_id) in
     let formals = filter_add cond formals formals_lval in
+    let formals = filter_add cond formals formals_args in
     let ghost = ref [] in
-    Hash.iter (fun _ x -> ghost := x :: ! ghost) env;
+    Hash.iter (fun _ x -> ghost := (O.I.get_lval x) :: ! ghost) env;
     let formals = filter_add cond formals !ghost in
 
     CL.Proc.{id = fd.f_name.fn_name;
              formals;
              pre;
              prog;
-             post}
+             post;
+             ret_vars}
 
 end

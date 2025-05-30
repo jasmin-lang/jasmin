@@ -23,6 +23,7 @@ module CL : sig
       | Iunop  of string * eexp
       | Ibinop of eexp * string * eexp
       | Ilimbs of const * eexp list
+      | IUnPack of tyvar * int * int
 
     type epred =
       | Eeq of eexp * eexp
@@ -63,12 +64,15 @@ module CL : sig
       | Avecta of tyvar * int
       | Avatome of atom list
 
-    type lval = tyvar
+    type lval =
+      | Llvar of tyvar
+      | Lvatome of lval list
 
     type arg =
       | Atom of atom
       | Lval of lval
       | Const of const
+      | Lconst of const list
       | Ty    of ty
       | Pred of clause
       | Gval of gvar
@@ -82,6 +86,15 @@ module CL : sig
 
       val pp_instr : Format.formatter -> instr -> unit
       val pp_instrs : Format.formatter -> instr list -> unit
+
+      module Op1:
+      sig
+        val op1: string -> lval -> atom -> instr
+        val mov: lval -> atom -> instr
+        val not: lval -> atom -> instr
+      end
+
+      val cast: ty -> lval -> atom -> instr
     end
 
   module Proc :
@@ -92,6 +105,7 @@ module CL : sig
         pre : clause;
         prog : Instr.instr list;
         post : clause;
+        ret_vars: tyvar list;
       }
 
       val pp_proc : Format.formatter -> proc -> unit
@@ -99,6 +113,54 @@ module CL : sig
 end
 
 module type I
+
+module type S = sig
+  val s : bool
+  val error : string
+end
+
+module I(S: S) : sig
+  val power: Z.t -> Z.t -> Z.t
+  val int_of_typ : 'a Prog.gty -> int option
+  val to_var :
+    ?sign:bool -> 'a Prog.ggvar -> 'a Prog.gvar * CL.ty
+  val gexp_to_rexp : ?sign:bool -> int Prog.gexpr -> CL.R.rexp
+  val gexp_to_rpred : ?sign:bool -> int Prog.gexpr -> CL.R.rpred
+  val extract_list :
+    'a Prog.gexpr ->
+    'a Prog.gexpr list -> 'a Prog.gexpr list
+  val get_const : 'a Prog.gexpr -> int
+  val var_to_tyvar :
+    ?sign:bool -> ?vector:int * int -> int Prog.gvar -> CL.tyvar
+  val get_lval:
+    CL.Instr.lval ->
+    CL.tyvar
+  val mk_tmp_lval :
+    ?name:Jasmin__CoreIdent.Name.t ->
+    ?l:Prog.L.t ->
+    ?kind:Wsize.v_kind ->
+    ?sign:bool ->
+    ?vector:int * int -> int Jasmin__CoreIdent.gty -> CL.Instr.lval
+  val wsize_of_int:
+    int -> Wsize.wsize
+  val mk_spe_tmp_lval :
+    ?name:Jasmin__CoreIdent.Name.t ->
+    ?l:Prog.L.t ->
+    ?kind:Wsize.v_kind -> ?sign:bool -> int -> CL.Instr.lval
+  val gexp_to_eexp :
+    (int, CL.Instr.lval) Utils.Hash.t ->
+    ?sign:bool -> int Prog.gexpr -> CL.I.eexp
+  val gexp_to_epred :
+    (int, CL.Instr.lval) Utils.Hash.t ->
+    ?sign:bool -> int Prog.gexpr -> CL.I.epred list
+  val glval_to_lval : ?sign:bool -> int Prog.glval -> CL.Instr.lval
+  val gexp_to_var : ?sign:bool -> int Prog.gexpr -> CL.tyvar
+  val gexp_to_const : ?sign:bool -> 'a Prog.gexpr -> CL.const * CL.ty
+  val mk_const : int -> CL.const
+  val mk_const_atome : int -> ?sign:bool -> CL.const -> CL.Instr.atom
+  val gexp_to_atome : ?sign:bool -> int Prog.gexpr -> CL.Instr.atom
+  val mk_lval_atome : CL.Instr.lval -> CL.Instr.atom
+end
 
 module type BaseOp = sig
   type op
