@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From HB Require Import structures.
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 Require Import expr sem_op_typed compiler_util.
@@ -22,6 +22,13 @@ Module Import E.
 
   Definition ierror_e e :=
     ierror (pp_nobox [:: pp_s "ill typed expression"; pp_e e]).
+
+  Definition pp_user_error (pp : pp_error) :=
+    {| pel_msg := pp; pel_fn := None; pel_fi := None; pel_ii := None; pel_vi := None;
+       pel_pass := Some pass; pel_internal := false |}.
+
+  Definition error_e msg e :=
+    pp_user_error (pp_nobox [:: pp_s msg; pp_e e]).
 
   Definition ierror_lv lv :=
     ierror (pp_nobox [:: pp_s "ill typed left value"; pp_lv lv]).
@@ -327,9 +334,12 @@ Fixpoint wi2i_e (e0:pexpr) : cexec (safety_cond * pexpr) :=
     Let _ := assert [&& esubtype ty.2 (etype_of_expr ei)
                       , esubtype ty.1.1 ty.2
                       , esubtype ty.1.2 (etype_of_expr e)
+                      , vtype v == sint
                       , etype_of_expr es == ETint _
                       & etype_of_expr el == ETint _]
                      (E.ierror_e e0) in
+     Let _ := assert (if is_wi2 o is None then true else false)
+                (E.error_e "can not use bigop on wint operator" e0) in
      Let ei := wi2i_e ei in
      Let e := wi2i_e e in
      Let es := wi2i_e es in
@@ -380,6 +390,7 @@ Definition wi2i_lv (ety : extended_type positive) (lv : lval) : cexec (safety_co
   let s := sign_of_etype ety in
   match lv with
   | Lnone vi ty =>
+    Let _ := assert (esubtype (to_etype (sign_of_etype ety) ty) ety) (E.ierror_lv lv) in
     ok ([::], Lnone vi (wi2i_type s ty))
 
   | Lvar x =>
@@ -405,20 +416,23 @@ Definition wi2i_lv (ety : extended_type positive) (lv : lval) : cexec (safety_co
     ok (e.1, Lasub aa ws len x e.2)
   end.
 
-Fixpoint check_xs W xs scs :=
+Fixpoint check_xs (okmem : bool) W xs scs :=
   match xs, scs with
   | [::], [::] => true
   | x :: xs, sc :: scs =>
-    disjoint (read_es sc) W && check_xs (vrv_rec W x) xs scs
+    [&& okmem || (~~has (fun e => use_mem e) sc)
+      , disjoint (read_es sc) W
+      & check_xs (okmem && ~~lv_write_mem x) (vrv_rec W x) xs scs]
   | _, _ => false (* Should never occurs *)
   end.
 
-Definition wi2i_lvs msg xtys xs :=
+Definition wi2i_lvs msg okmem xtys xs :=
   let err := E.ierror_s msg in
   Let scxs := mapM2 err wi2i_lv xtys xs in
   let scs := unzip1 scxs in
   let xs := unzip2 scxs in
-  Let _ := assert (check_xs Sv.empty xs scs) err in
+  (* FIXME : is it really an internal error ? *)
+  Let _ := assert (check_xs okmem Sv.empty xs scs) err in
   ok (flatten scs, xs).
 
 Definition wi2i_a (a : assertion) :=
@@ -459,7 +473,7 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
     Let x := wi2i_lv tyr x in
     Let e := wi2i_e e in
     let ty := wi2i_type sg ty in
-    ok (x.1 ++ e.1, Cassgn x.2 tag ty e.2)
+    ok (e.1 ++ x.1, Cassgn x.2 tag ty e.2)
 
   | Copn xs t o es =>
     Let _ := assert (all (fun e => sign_of_expr e == None) es)
@@ -467,7 +481,7 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
 
     Let es := wi2i_es wi2i_e es in
     let xtys := map (to_etype None) (sopn_tout o) in
-    Let xs := wi2i_lvs "invalid dest in Copn" xtys xs in
+    Let xs := wi2i_lvs "invalid dest in Copn" true xtys xs in
     ok (es.1 ++ xs.1, Copn xs.2 t o es.2)
 
   | Csyscall xs o es =>
@@ -475,7 +489,7 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
                     (E.ierror_s "invalid args in Csyscall") in
     Let es := wi2i_es wi2i_e es in
     let xtys := map (to_etype None) (syscall_sig_u o).(scs_tout) in
-    Let xs := wi2i_lvs "invalid dest in Csyscall" xtys xs in
+    Let xs := wi2i_lvs "invalid dest in Csyscall" true xtys xs in
     ok (es.1 ++ xs.1, Csyscall xs.2 o es.2)
 
   | Cassert a =>
@@ -489,24 +503,25 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
     ok (b.1, Cif b.2 c1 c2)
 
   | Cfor x (dir, e1, e2) c =>
-    Let _ := assert (in_FV_var x) (E.ierror_s "invalid loop counter") in
+    Let _ := assert [&& in_FV_var x, vtype x == sint, etype_of_expr e1 == ETint _ & etype_of_expr e2 == ETint _]
+                (E.ierror_s "invalid loop counter") in
     Let e1 := wi2i_e e1 in
     Let e2 := wi2i_e e2 in
     Let c := wi2i_c wi2i_i c in
     ok (e1.1 ++ e2.1, Cfor x (dir, e1.2, e2.2) c)
 
-  | Cwhile a c e info c' =>
+  | Cwhile a c e ii' c' =>
     Let e := wi2i_e e in
     Let c := wi2i_c wi2i_i c in
     Let c' := wi2i_c wi2i_i c' in
-    ok (e.1, Cwhile a c e.2 info c')
+    ok ([::], Cwhile a (c ++ safe_assert ii' e.1) e.2 ii' c')
 
   | Ccall xs f es =>
     Let sig := get_sig f in
     Let _ := assert (all2 (fun ety e => esubtype ety (etype_of_expr e)) sig.1 es)
                     (E.ierror_s "invalid args in Ccall") in
     Let es := wi2i_es wi2i_e es in
-    Let xs := wi2i_lvs "invalid dest in Ccall" sig.2 xs in
+    Let xs := wi2i_lvs "invalid dest in Ccall" false sig.2 xs in
     ok (es.1 ++ xs.1, Ccall xs.2 f es.2)
   end
 
@@ -520,10 +535,7 @@ Definition wi2i_ci ci sig :=
   Let ci_pre := mapM wi2i_a_and ci.(f_pre) in
   Let ci_post := mapM wi2i_a_and ci.(f_post) in
   Let p := mapM2 (E.ierror_s "bad params in fun") wi2i_lvar sig.1 ci.(f_iparams) in
-  Let r := mapM2 (E.ierror_s "bad return in fun") (fun ety x =>
-                    Let _ := assert (esubtype ety (etype_of_var x))
-                                    (E.ierror_e (Plvar x)) in
-                    wi2i_vari x) sig.2 ci.(f_ires) in
+  Let r := mapM2 (E.ierror_s "bad return in fun") wi2i_lvar sig.2 ci.(f_ires) in
   ok (MkContra p r ci_pre ci_post).
 
 Definition wi2i_fun (fn:funname) (f: fundef) :=
@@ -538,12 +550,14 @@ Definition wi2i_fun (fn:funname) (f: fundef) :=
       ok (Some ci)
     end
   in
+  Let _ := assert ((size p == size si) && (size r == size so))
+                  (E.ierror_s "bad signature in fun") in
   Let p := mapM2 (E.ierror_s "bad params in fun") wi2i_lvar sig.1 p in
   Let c := wi2i_c wi2i_i c in
-  Let r := mapM2 (E.ierror_s "bad return in fun") (fun ety x =>
-                    Let _ := assert (esubtype ety (etype_of_var x))
-                                    (E.ierror_e (Plvar x)) in
-                    wi2i_vari x) sig.2 r in
+  Let r :=
+    mapM2 (E.ierror_s "bad return in fun")
+      (fun ety x => assert (esubtype ety (etype_of_var x)) (E.ierror_lv x) >> wi2i_vari x)
+      sig.2 r in
   let mk := map (fun ety => wi2i_type (sign_of_etype ety) (to_stype ety)) in
   let tin := mk sig.1 in
   let tout := mk sig.2 in
