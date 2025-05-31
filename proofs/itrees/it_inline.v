@@ -74,8 +74,6 @@ Definition get_fun (p:ufun_decls) (f:funname) :=
   | None    => Error (inline_error (pp_box [::pp_s "Unknown function"; PPEfunname f]))
   end.
 
-Print read_i_rec.
-
 Fixpoint inline_i (px: ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
   let '(MkI iinfo ir) := i in
   match ir with
@@ -189,7 +187,7 @@ Definition RC1 : Type -> Type :=
 Definition RC2 : Type -> Type :=
   fun T => sigT (fun e: recCall bool T => (inline_RC e = false)).
 
-(* conversion of recCall to RC1 + RC2, assuming the tagging is done *)
+(* conversion of recCall to RC1 + RC2, preserving the tagging *)
 Lemma split_recCall T : recCall bool T -> (RC1 +' RC2) T.
   intro e.
   destruct e as [[[[ | ] fn] fs]] eqn: was_e.
@@ -199,7 +197,7 @@ Lemma split_recCall T : recCall bool T -> (RC1 +' RC2) T.
     inv was_e; auto.  
 Defined.
 
-(* lifts the splitting to all events *)
+(* lifts the splitting to all events, preserving the tagging *)
 Lemma split_Evs {E1: Type -> Type} T :
   (recCall bool +' E1) T -> ((RC1 +' RC2) +' E1) T. 
   intro e.
@@ -361,14 +359,10 @@ Definition flat_fun_sem (fn: funname) (fs: fstate) :
   itree (recCall bool +' E) fstate :=
   isem_fun_body (fun _ => false) p ev fn fs.
 
+Definition flat_fundef_sem (fd: fundef) (fs: fstate) :
+  itree (recCall bool +' E) fstate :=
+  isem_fundef_body (fun _ => false) p ev fd fs.
 
-
-(* Lemma xxx eutt eq (flat_i_sem (inlined i) s) 
-                     (inlining_ext (flat_i_sem i s)). 
-
-*)
-
-(** TO PROVE *)
 
 Notation recCall A := (callE (A * funname * fstate) fstate).
 
@@ -381,6 +375,59 @@ Lemma split_correct f (F: faithful_recCall_split f)
   eutt eq (interp_mrec (handle_recCall iiT p ev) t)
           (split_isem iiT p ev (translate (transl_ext f) t)).
 Admitted. 
+
+
+Section INLINE2.
+
+Context
+  (rename_fd : instr_info -> funname -> ufundef -> ufundef)
+  (dead_vars_fd : ufun_decl -> instr_info -> Sv.t)
+.
+
+Lemma inline_i_ok (px: ufun_decls) (X: Sv.t) (i: instr) (s: estate) :
+  forall (X': Sv.t) (c: cmd),
+    inline_i rename_fd dead_vars_fd px i X = ok (X', c) -> 
+    eutt eq (translate split_Evs (flat_cmd_sem c s))
+            (inlining_ext iiT p ev (translate split_Evs (flat_i_sem i s))). 
+Admitted.
+
+Lemma inline_c_ok (px: ufun_decls) (X: Sv.t) (c: cmd) (s: estate) :
+  forall (X': Sv.t) (c': cmd),
+    inline_c (inline_i rename_fd dead_vars_fd px) c X = ok (X', c') -> 
+    eutt eq (translate split_Evs (flat_cmd_sem c' s))
+            (inlining_ext iiT p ev (translate split_Evs (flat_cmd_sem c s))). 
+Admitted.
+
+Print fundef.
+Print _fundef.
+Check @fundef.
+Check @_fundef.
+Print progT.
+(*
+@fundef : forall asm_op : Type, asmOp asm_op -> progT -> Type
+
+@_fundef : forall asm_op : Type, asmOp asm_op -> Type -> Type
+                                            
+fundef = fun (asm_op : Type) (asmop : asmOp asm_op) (pT : progT) =>
+    _fundef extra_fun_t
+     : forall {asm_op : Type}, asmOp asm_op -> progT -> Type
+*)
+
+Lemma inline_fd_ok (px:ufun_decls) (fd: ufundef) (fs: fstate):
+ forall fd', inline_fd rename_fd dead_vars_fd px fd = ok fd' ->
+ exists fd'',                         
+    eutt eq (translate split_Evs (flat_fundef_sem fd'' fs))
+      (inlining_ext iiT p ev
+         (translate split_Evs (flat_fundef_sem fd fs))). 
+              
+
+
+
+  
+
+
+(** TO PROVE *)
+
 
 Context (inline_pass : prog -> prog).
 

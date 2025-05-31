@@ -235,8 +235,9 @@ Proof.
   setoid_rewrite interp_trigger; simpl.
   setoid_rewrite mrec_as_interp.
   setoid_rewrite ctxIR_ok1.
-  setoid_rewrite interp_translate.
-
+  setoid_rewrite interp_translate; reflexivity.
+Qed.
+(*
   generalize (ctxI d1).
   ginit; gcofix CIH; intro t1.
   setoid_rewrite (itree_eta t1).
@@ -245,6 +246,7 @@ Proof.
   {  gstep; red; simpl; econstructor. gfinal; left. eapply CIH. }
   { gstep; red; try reflexivity. }
 Qed.  
+*)
 
 Lemma D2_inline_lemma T (d2: D2 T) :
     interp_mrec ctxIR (ctxIRX (inl1 (inr1 d2)))
