@@ -202,6 +202,8 @@ Proof. done. Qed.
 Lemma eq_p_extra : p_extra p = p_extra p'.
 Proof. done. Qed.
 
+Section SEM.
+
 Let Pi_r s (i:instr_r) s' :=
   forall vm, evm s <=1 vm ->
     exists2 vm', sem_i p' ev (with_vm s vm) (wi2w_ir i) (with_vm s' vm') &
@@ -382,6 +384,76 @@ Proof.
        Hall).
 Qed.
 
+End SEM.
+
+Section IT.
+
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+
+Definition check_es_wi2w (d : unit) es1 es2 (d' : unit) :=
+  es2 = [seq wi2w_e i | i <- es1].
+
+Definition check_lvals_wi2w (d : unit) xs1 xs2 (d':unit) :=
+  xs2 = [seq wi2w_lv i | i <- xs1].
+
+Lemma check_esP_R_wi2w d es1 es2 d' :
+  check_es_wi2w d es1 es2 d' →
+  ∀ s1 s2, st_uincl d s1 s2 → st_uincl d' s1 s2.
+Proof. by move=> _; apply st_rel_weaken. Qed.
+
+Definition checker_wi2w : Checker_e st_uincl :=
+  {| relational_logic.check_es := check_es_wi2w
+   ; relational_logic.check_lvals := check_lvals_wi2w
+   ; relational_logic.check_esP_rel := check_esP_R_wi2w
+  |}.
+
+Lemma checker_wi2wP : Checker_uincl p p' checker_wi2w.
+Proof.
+  constructor.
+  + move=> wdb _ d es1 es2 d' /wdb_ok_eq <- -> s t vs1 /st_relP [-> /= hu] hes.
+    by apply (wi2w_esP hu hes).
+  move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- -> vs1 vs2 hvu s t s' /st_relP [-> /= hu] hw.
+  have [vm' -> {}hu] := wi2w_lvalsP hu hvu hw.
+  by eexists; first reflexivity.
+Qed.
+#[local] Hint Resolve checker_wi2wP : core.
+
+Let Pi i :=
+  wequiv_rec p p' ev ev uincl_spec (st_uincl tt) [::i] [::wi2w_i i] (st_uincl tt).
+
+Let Pi_r i := forall ii, Pi (MkI ii i).
+
+Let Pc c :=
+  wequiv_rec p p' ev ev uincl_spec (st_uincl tt) c (map wi2w_i c) (st_uincl tt).
+
+Lemma it_wi2w_call_internalP fn :
+  wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+Proof.
+  apply wequiv_fun_ind => hrec {fn}.
+  move=> fn _ fs ft [<- hfsu] fd hget.
+  exists (wi2w_fun fd).
+  + by rewrite get_map_prog hget.
+  exists (st_uincl tt), (st_uincl tt) => s hinit.
+  have [t -> hu] :=
+    [elaborate fs_uincl_initialize (p':=p') (fd:=fd) (fd':=wi2w_fun fd) erefl erefl erefl erefl hfsu hinit].
+  exists t; split => //; last by apply fs_uincl_finalize.
+  rewrite /=; move: (f_body fd).
+  clear fn fs ft hfsu fd hget s hinit t hu.
+  apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; subst Pi_r Pi Pc => /=.
+  + by apply wequiv_nil.
+  + by move=> i c hi hc; apply wequiv_cons with (st_uincl tt).
+  + by move=> x tg ty e ii; apply wequiv_assgn_rel_uincl with checker_wi2w tt.
+  + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_wi2w tt.
+  + by move=> xs o es ii; apply wequiv_syscall_rel_uincl with checker_wi2w tt.
+  + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_wi2w tt tt tt.
+  + by move=> v dir lo hi c hc ii; apply wequiv_for_rel_uincl with checker_wi2w tt tt.
+  + by move=> a c e ii' c' hc hc' ii; apply wequiv_while_rel_uincl with checker_wi2w tt.
+  move=> xs f es ii; apply wequiv_call_rel_uincl with checker_wi2w tt => //.
+  by move=> ?? hu; apply hrec.
+Qed.
+
+End IT.
+
 End Internal.
 
 Lemma wi2w_progP (p' : uprog) scs m fn va scs' m' vr :
@@ -397,5 +469,25 @@ Proof.
   exists vr2 => //.
   apply (Forall2_trans value_uincl_trans hu1 hu2).
 Qed.
+
+Section IT.
+
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} (rE0_trans : EventRels_trans rE0).
+
+Lemma it_wi2w_progP (p' : uprog) fn :
+  wi2w_prog remove_wint_annot dead_vars_fd p = ok p' →
+  wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+Proof.
+  rewrite /wi2w_prog; t_xrbindP => ok_pv <-.
+  have := [elaborate it_alloc_call_uprogP ev (p_globs p) ok_pv (fn:= fn)].
+  have := [elaborate it_wi2w_call_internalP (fn:=fn)].
+  apply wiequiv_f_trans => //.
+  + by move=> fs1 fs2 hpre; exists fs1 => //; split => //; split => //; apply List_Forall2_refl.
+  move=> ??? fr1 fr3 _ _ [fr2] [heq1 heq2 hu1] [heq3 heq4 hu2]; split.
+  + by rewrite heq1. + by rewrite heq2.
+  by apply: Forall2_trans hu1 hu2; apply value_uincl_trans.
+Qed.
+
+End IT.
 
 End PROOF.

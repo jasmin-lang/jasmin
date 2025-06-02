@@ -106,8 +106,7 @@ with wi2w_i (i:instr) : instr :=
   MkI ii (wi2w_ir ir).
 
 Definition wi2w_fun {eft} (f: _fundef eft) :=
-  let 'MkFun ii si p c so r ev := f in
-  MkFun ii si p (map wi2w_i c) so r ev.
+  with_body f (map wi2w_i (f_body f)).
 
 (* This function is internal, variable annotation still contain "sint" "uint" after this pass *)
 Definition wi2w_prog_internal {pT:progT} (p: prog) : prog := map_prog wi2w_fun p.
