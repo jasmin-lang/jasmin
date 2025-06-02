@@ -786,7 +786,9 @@ lemma to_sintB_small (a b : t):
   to_sint (a - b) = to_sint a - to_sint b.
 proof.
   rewrite !to_sintE /smod /= half_modulus to_uintD to_uintN modzDmr.
-  have := modz_cmp (to_uint a - to_uint b) modulus.
+  have := modz_cmp (to_uint a - to_uint b) modulus gt0_modulus.
+  have := to_uint_cmp a.
+  have := to_uint_cmp b.
   smt().
 qed.
 
@@ -2743,7 +2745,9 @@ proof.
   + have := modz_cmp i n hn.
     have -> : `|n * d| = n * d by smt().
     have -> h : n * d = (n-1) * d + d by ring.
-    split;1: smt(); move=> ?.
+    split.
+    * apply: addz_ge0; smt().
+    move=> ?.
     apply ler_lt_add; 2:smt().
     by rewrite mulzC ler_pmul2r /#.
   by rewrite (divz_small _ (n*d)) 1://  (modz_small _ (n*d)) 1:// /=; ring.
