@@ -11,6 +11,9 @@ Require Import flag_combination.
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
 
+(* This pass is used as a first step for the compilation.
+   It replaces wint operator by the corresponding word operator
+ *)
 
 Definition wi2w_wiop1 s (o : wiop1) (e : pexpr) : pexpr :=
   match o with
@@ -61,6 +64,12 @@ Fixpoint wi2w_e (e: pexpr) : pexpr :=
   | Papp2 o e1 e2 => Papp2 (wi2w_op2 o) (wi2w_e e1) (wi2w_e e2)
   | PappN o es => PappN o (map wi2w_e es)
   | Pif ty e1 e2 e3 => Pif ty (wi2w_e e1) (wi2w_e e2) (wi2w_e e3)
+  | Pbig ei o v e es el => Pbig (wi2w_e ei) (wi2w_op2 o) v (wi2w_e e) (wi2w_e es) (wi2w_e el)
+  | Parr_init_elem e l => Parr_init_elem (wi2w_e e) l  
+  | Pis_var_init _ => e
+  | Pis_arr_init x e1 e2 => Pis_arr_init x (wi2w_e e1) (wi2w_e e2)
+  | Pis_barr_init x e1 e2 => Pis_barr_init x (wi2w_e e1) (wi2w_e e2)
+  | Pis_mem_init e1 e2 => Pis_mem_init (wi2w_e e1) (wi2w_e e2)
   end.
 
 Definition wi2w_lv (x : lval) : lval :=
@@ -87,6 +96,9 @@ Fixpoint wi2w_ir (ir:instr_r) : instr_r :=
   | Csyscall xs o es =>
     Csyscall (map wi2w_lv xs) o (map wi2w_e es)
 
+  | Cassert a =>
+    Cassert (a.1, wi2w_e a.2)
+
   | Cif b c1 c2 =>
     Cif (wi2w_e b) (map wi2w_i c1) (map wi2w_i c2)
 
@@ -106,8 +118,8 @@ with wi2w_i (i:instr) : instr :=
   MkI ii (wi2w_ir ir).
 
 Definition wi2w_fun {eft} (f: _fundef eft) :=
-  let 'MkFun ii si p c so r ev := f in
-  MkFun ii si p (map wi2w_i c) so r ev.
+  let 'MkFun ii ci si p c so r ev := f in
+  MkFun ii ci si p (map wi2w_i c) so r ev.
 
 (* This function is internal, variable annotation still contain "sint" "uint" after this pass *)
 Definition wi2w_prog_internal {pT:progT} (p: prog) : prog := map_prog wi2w_fun p.

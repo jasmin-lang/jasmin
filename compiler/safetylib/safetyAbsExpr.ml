@@ -388,6 +388,9 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | Parr_init _ | Pget _ | Psub _
     | Pload _ | PappN _ | Pif _ -> None
 
+    | Pbig _ | Pis_var_init _ | Pis_mem_init _ | Pis_arr_init _
+    | Parr_init_elem _ | Pis_barr_init _ -> assert false
+
 
   (* Try to evaluate e to a constant expression (of type word) in abs.
      Superficial checks only. *)
@@ -469,7 +472,11 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       | Pload _ -> raise Expr_contain_load
 
       | Pif (_,_,e1,e2) (* FIXME: why the condition is not added ? *)
-      | Papp2 (_, e1, e2) -> aux (aux acc e1) e2 in
+      | Papp2 (_, e1, e2) -> aux (aux acc e1) e2
+
+      | Pbig _ | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _ 
+      | Parr_init_elem _ | Pis_barr_init _ -> assert false
+    in
 
     try PtVars (aux [] e) with Expr_contain_load -> PtTopExpr
 
@@ -717,12 +724,16 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         | e :: r_es -> match remove_if_expr_aux e with
           | None -> f_expl (i + 1) r_es
           | Some _ as r -> (i,r) in
-
+      begin
       match f_expl 0 es with
       | _,None -> None
       | i,Some (ty, b, el, er) ->
         let repi ex = List.mapi (fun j x -> if j = i then ex else x) es in
         Some (ty, b, PappN (opn, repi el), PappN (opn, repi er))
+    end
+
+    | Pbig _ | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _ 
+    | Parr_init_elem _ | Pis_barr_init _ -> assert false
 
 
   let rec remove_if_expr (e : 'a Prog.gexpr) = match remove_if_expr_aux e with

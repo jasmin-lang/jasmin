@@ -2319,6 +2319,9 @@ Proof.
   by apply (wfr_VARS_STATUS_alloc_syscall halloc).
 Qed.
 
+Local Lemma Wassert a: Pi_r (Cassert a).
+Proof. done. Qed.
+
 (* in practice, vars = Sv.inter var1 vars2, but we don't need it *)
 Lemma wfr_VARS_ZONE_merge vars1 vars2 rmap1 rmap2 vars :
   wfr_VARS_ZONE vars1 rmap1 ->
@@ -2489,7 +2492,7 @@ Lemma alloc_i_invariant table1 rmap1 i table2 rmap2 c2 :
 Proof.
   move=> halloc hwft1 hvarsz1 hvarss1.
   exact:
-    (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wif Wfor Wwhile Wcall
+    (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wassert Wif Wfor Wwhile Wcall
       _ _ _ _ _ _ halloc hwft1 hvarsz1 hvarss1).
 Qed.
 
@@ -2505,7 +2508,7 @@ Lemma alloc_is_invariant table1 rmap1 c1 table2 rmap2 c2 :
 Proof.
   move=> hallocs hwft1 hvarsz1 hvarss1.
   exact:
-    (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wif Wfor Wwhile Wcall
+    (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wassert Wif Wfor Wwhile Wcall
       _ _ _ _ _ _ hallocs hwft1 hvarsz1 hvarss1).
 Qed.
 

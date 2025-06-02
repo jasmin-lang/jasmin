@@ -367,7 +367,7 @@ Notation vid ident :=
   (mk_var_i {| vtype := sword Uptr; vname := ident%string; |}).
 
 #[only(eqbOK)] derive
-Variant v_scope := 
+Variant v_scope :=
   | Slocal
   | Sglob.
 
@@ -392,7 +392,14 @@ Inductive pexpr : Type :=
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
 | PappN of opN & seq pexpr
-| Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr.
+| Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr
+| Pbig : pexpr -> sop2 -> var_i -> pexpr -> pexpr -> pexpr -> pexpr
+(* Pbig idx op x e start len = big idx op (fun x => e) [iota start len] *)
+| Parr_init_elem : pexpr → positive → pexpr
+| Pis_var_init : var_i → pexpr
+| Pis_arr_init : var_i → pexpr → pexpr → pexpr
+| Pis_barr_init : var_i → pexpr → pexpr → pexpr 
+| Pis_mem_init : pexpr → pexpr → pexpr.
 
 Notation pexprs := (seq pexpr).
 
@@ -508,6 +515,11 @@ Variant align :=
 
 (* -------------------------------------------------------------------- *)
 
+Definition assertion := (assertion_label * pexpr)%type.
+Definition assertions := seq assertion.
+
+(* -------------------------------------------------------------------- *)
+
 Section ASM_OP.
 
 Context `{asmop:asmOp}.
@@ -516,6 +528,7 @@ Inductive instr_r :=
 | Cassgn   : lval -> assgn_tag -> stype -> pexpr -> instr_r
 | Copn     : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
 | Csyscall : lvals -> syscall_t -> pexprs -> instr_r
+| Cassert  : assertion -> instr_r
 | Cif      : pexpr -> seq instr -> seq instr  -> instr_r
 | Cfor     : var_i -> range -> seq instr -> instr_r
 | Cwhile   : align -> seq instr -> pexpr -> instr_info -> seq instr -> instr_r
@@ -538,6 +551,7 @@ Section CMD_RECT.
   Hypothesis Hasgn: forall x tg ty e, Pr (Cassgn x tg ty e).
   Hypothesis Hopn : forall xs t o es, Pr (Copn xs t o es).
   Hypothesis Hsyscall : forall xs o es, Pr (Csyscall xs o es).
+  Hypothesis Hassert : forall a, Pr (Cassert a).
   Hypothesis Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Hypothesis Hwhile : forall a c e info c', Pc c -> Pc c' -> Pr (Cwhile a c e info c').
@@ -562,6 +576,7 @@ Section CMD_RECT.
     | Cassgn x tg ty e => Hasgn x tg ty e
     | Copn xs t o es => Hopn xs t o es
     | Csyscall xs o es => Hsyscall xs o es
+    | Cassert a => Hassert a
     | Cif e c1 c2  => @Hif e c1 c2 (cmd_rect_aux instr_Rect c1) (cmd_rect_aux instr_Rect c2)
     | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
     | Cwhile a c e info c'   => @Hwhile a c e info c' (cmd_rect_aux instr_Rect c) (cmd_rect_aux instr_Rect c')
@@ -602,8 +617,16 @@ Class progT := {
   extra_val_t  : Type;
 }.
 
+Record fun_contract := MkContra {
+    f_iparams : seq var_i;  (* initial value of the parameter *)
+    f_ires    : seq var_i;  (* name of the result used in post *)
+    f_pre     : assertions;
+    f_post    : assertions;
+  }.
+
 Record _fundef (extra_fun_t: Type) := MkFun {
   f_info   : fun_info;
+  f_contra : option fun_contract;
   f_tyin   : seq stype;
   f_params : seq var_i;
   f_body   : cmd;
@@ -787,6 +810,7 @@ Definition to_sprog (p:_sprog) : sprog := p.
 (* Update functions *)
 Definition with_body eft (fd:_fundef eft) (body : cmd) := {|
   f_info   := fd.(f_info);
+  f_contra := fd.(f_contra);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
   f_body   := body;
@@ -797,6 +821,7 @@ Definition with_body eft (fd:_fundef eft) (body : cmd) := {|
 
 Definition swith_extra {_: PointerData} (fd:ufundef) f_extra : sfundef := {|
   f_info   := fd.(f_info);
+  f_contra := fd.(f_contra);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
   f_body   := fd.(f_body);
@@ -838,6 +863,7 @@ Definition is_load (e: pexpr) : bool :=
   | Pconst _ | Pbool _ | Parr_init _
   | Psub _ _ _ _ _
   | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pif _ _ _ _
+  | Pbig _ _ _ _ _ _
     => false
   | Pvar {| gs := Sglob |}
   | Pget _ _ _ _ _
@@ -845,11 +871,18 @@ Definition is_load (e: pexpr) : bool :=
     => true
   | Pvar {| gs := Slocal ; gv := x |}
     => is_var_in_memory x
+  | _ => false (* tocheck *)
   end.
 
 Definition is_array_init (e : pexpr) :=
   match e with
   | Parr_init _ => true
+  | _           => false
+  end.
+
+Definition is_array_init_elem (e : pexpr) :=
+  match e with
+  | Parr_init_elem _ _ => true
   | _           => false
   end.
 
@@ -936,6 +969,7 @@ Fixpoint write_i_rec s (i:instr_r) :=
   | Cassgn x _ _ _  => vrv_rec s x
   | Copn xs _ _ _   => vrvs_rec s xs
   | Csyscall xs _ _ => vrvs_rec s xs
+  | Cassert   _     => s
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
   | Cwhile _ c _ _ c' => foldl write_I_rec (foldl write_I_rec s c') c
@@ -959,12 +993,13 @@ Definition write_c c := write_c_rec Sv.empty c.
 
 Fixpoint use_mem (e : pexpr) :=
   match e with
-  | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => false
-  | Pload _ _ _ => true
-  | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
-  | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
+  | Pconst _ | Pbool _ | Parr_init _ | Pvar _ | Pis_var_init _ => false
+  | Pload _ _ _ | Pis_mem_init _ _ => true
+  | Parr_init_elem e _ | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e  => use_mem e
+  | Papp2 _ e1 e2 | Pis_arr_init _ e1 e2 | Pis_barr_init _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
+  | Pbig idx _ _ body start len => use_mem idx || use_mem body || use_mem start || use_mem len
   end.
 
 (* ** Compute read variables
@@ -987,6 +1022,13 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | PappN _ es     => foldl read_e_rec s es
   | Pif  _ t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
+  | Pbig idx _ x body start len =>
+    Sv.union (Sv.remove x (read_e_rec Sv.empty body))
+             (read_e_rec (read_e_rec (read_e_rec s len) start) idx)
+  | Parr_init_elem e _ => read_e_rec s e
+  | Pis_var_init x => Sv.add x s
+  | Pis_arr_init x e1 e2 | Pis_barr_init x e1 e2 => read_e_rec (read_e_rec (Sv.add x s) e2) e1
+  | Pis_mem_init e1 e2 => read_e_rec (read_e_rec s e2) e1
   end.
 
 Definition read_e := read_e_rec Sv.empty.
@@ -1011,6 +1053,7 @@ Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   | Cassgn x _ _ e => read_rv_rec (read_e_rec s e) x
   | Copn xs _ _ es => read_es_rec (read_rvs_rec s xs) es
   | Csyscall xs _ es => read_es_rec (read_rvs_rec s xs) es
+  | Cassert a => read_e_rec s a.2
   | Cif b c1 c2 =>
     let s := foldl read_I_rec s c1 in
     let s := foldl read_I_rec s c2 in
@@ -1082,6 +1125,15 @@ Fixpoint eq_expr (e e' : pexpr) :=
   | PappN o es, PappN o' es' => (o == o') && (all2 eq_expr es es')
   | Pif t e e1 e2, Pif t' e' e1' e2' =>
     (t == t') && eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
+  | Pbig idx op x body start len, Pbig idx' op' x' body' start' len' =>
+    eq_expr idx idx' && (op == op') && (v_var x == v_var x') &&
+    eq_expr body body' &&
+    eq_expr start start' && eq_expr len len'
+  | Parr_init_elem e n   , Parr_init_elem e' n'      =>  (eq_expr e e')  && (n == n')
+  | Pis_var_init x  , Pis_var_init x' => v_var x == v_var x'
+  | Pis_arr_init x e1 e2, Pis_arr_init x' e1' e2'
+  | Pis_barr_init x e1 e2, Pis_barr_init x' e1' e2' => (v_var x == v_var x') && eq_expr e1 e1' && eq_expr e2 e2'
+  | Pis_mem_init e1 e2  , Pis_mem_init e1' e2' =>  eq_expr e1 e1' && eq_expr e2 e2'
   | _             , _                 => false
   end.
 

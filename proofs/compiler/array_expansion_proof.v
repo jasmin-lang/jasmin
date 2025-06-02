@@ -829,9 +829,9 @@ Proof.
   have [fd1 [fd2 [m [inout [Hget2 hsigs /=]]]] {Hget}]:= all_checked Hget.
   rewrite /expand_fsig; t_xrbindP => -[mt finf].
   case: f Hca Hw Hc Hres Hcr => /=.
-  move=> finfo ftyin fparams fbody ftyout fres fextra.
+  move=> finfo fci ftyin fparams fbody ftyout fres fextra.
   set fd := {| f_info := finfo |} => Hca Hw Hc Hres Hcr hinit.
-  t_xrbindP => ins hparams outs hres <- ??; subst mt inout.
+  t_xrbindP => ins hparams outs hres fci' _ <- ??; subst mt inout.
   t_xrbindP => c hc ?; subst fd1.
   move=> expdin expdout; rewrite hsigs => -[??] vargs1 hexvs; subst expdin expdout.
   set (sempty := {| escs := scs1; emem := m1; evm := Vm.init |}).
@@ -903,7 +903,7 @@ Proof.
   t_xrbindP=> > +?? /hrec{hrec}h ?; subst=> /=.
   case: eqP; last by move=> /nesym /eqP?; rewrite Mf.setP_neq //.
   move=> <- + ? [] <- /=.
-  rewrite Mf.setP_eq /expand_fsig b /=; t_xrbindP=> -[??] _; t_xrbindP=> ? hz ? hz1 <- /=.
+  rewrite Mf.setP_eq /expand_fsig b /=; t_xrbindP=> -[??] _; t_xrbindP => ? hz ? hz1 ?? <- /=.
   do 2 f_equal.
   + move: (mapM2_Forall3 hz); elim => //= > + _ ->.
     by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.

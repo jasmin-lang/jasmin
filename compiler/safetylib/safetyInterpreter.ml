@@ -367,6 +367,9 @@ let rec safe_e_rec safe = function
     (* We do not check "is_defined e1 && is_defined e2" since
         (safe_e_rec (safe_e_rec safe e1) e2) implies it *)
     safe_e_rec (safe_e_rec (safe_e_rec safe e1) e2) e3
+  | Pbig _ -> assert false
+  | Pis_var_init _ |Pis_arr_init _ |Pis_mem_init _ 
+  | Parr_init_elem _ | Pis_barr_init _ -> assert false
 
 let safe_e = safe_e_rec []
 
@@ -468,6 +471,7 @@ let safe_opn safe opn es =
 let safe_instr ginstr = match ginstr.i_desc with
   | Cassgn (lv, _, _, e) -> safe_e_rec (safe_lval lv) e
   | Copn (lvs,_,opn,es) -> safe_opn (safe_lvals lvs @ safe_es es) opn es
+  | Cassert _ -> assert false
   | Cif(e, _, _) -> safe_e e
   | Cwhile(_, _, _, _, _) -> []       (* We check the while condition later. *)
   | Ccall(lvs, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
@@ -1597,6 +1601,7 @@ end = struct
       | Cassgn (lv, _, _, e)    -> nm_lv vs_for lv && nm_e vs_for e
       | Copn (lvs, _, _, es)    -> nm_lvs vs_for lvs && nm_es vs_for es
       | Csyscall(lvs, _ ,es)    -> nm_lvs vs_for lvs && nm_es vs_for es
+      | Cassert _               -> assert false
       | Cif (e, st, st')        ->
         nm_e vs_for e && nm_stmt vs_for st && nm_stmt vs_for st'
       | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
@@ -1619,6 +1624,8 @@ end = struct
       | Papp2 (_, e1, e2)  -> nm_es vs_for [e1; e2]
       | PappN (_,es)       -> nm_es vs_for es
       | Pif (_, e, el, er) -> nm_es vs_for [e; el; er]
+      | Pbig _ | Pis_var_init _ | Pis_arr_init _ | Pis_mem_init _ 
+      | Parr_init_elem _ | Pis_barr_init _ -> assert false
 
     and nm_es vs_for es = List.for_all (nm_e vs_for) es
 
@@ -1785,6 +1792,8 @@ end = struct
         let cl = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), el) } in
         let cr = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), er) } in
         aeval_if pd asmOp ginstr c [cl] [cr] state
+
+      | Cassert _ -> assert false
 
       | Cassgn (lv, _, _, Parr_init _) ->
         let abs = AbsExpr.abs_forget_array_contents state.abs ginstr.i_info lv in

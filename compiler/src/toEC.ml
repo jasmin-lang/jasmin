@@ -286,6 +286,11 @@ type ec_op3 =
     | If
     | InORange
 
+type quantif =
+  | Lforall
+  | Lexists
+  | Llambda
+
 type ec_ident = string list
 
 type ec_expr =
@@ -298,6 +303,9 @@ type ec_expr =
     | Eop3 of ec_op3 * ec_expr * ec_expr * ec_expr (* ternary operator *)
     | Elist of ec_expr list (* list litteral *)
     | Etuple of ec_expr list (* tuple litteral *)
+    | Equant  of quantif * string list * ec_expr
+    | Eproj  of ec_expr * int  (* projection of a tuple *)
+    | EHoare of ec_ident * ec_expr * ec_expr
 
 type ec_lvalue =
     | LvIdent of ec_ident
@@ -640,6 +648,11 @@ let fmt_op2 fmt op =
 
 let fmt_access aa = if aa = Warray_.AAdirect then "_direct" else ""
 
+let string_of_quant = function
+  | Lforall -> "forall"
+  | Lexists -> "exists"
+  | Llambda -> "fun"
+
 (* ------------------------------------------------------------------- *)
 (* Easycrypt AST pretty-printing *)
 
@@ -661,6 +674,22 @@ let rec pp_ec_ast_expr fmt e = match e with
     | Eop3 (op, e1, e2, e3) -> pp_ec_op3 fmt (op, e1, e2, e3)
     | Elist es -> Format.fprintf fmt "@[[%a]@]" (pp_list ";@ " pp_ec_ast_expr) es
     | Etuple es -> Format.fprintf fmt "@[(%a)@]" (pp_list ",@ " pp_ec_ast_expr) es
+    | Equant (q, i, f) ->
+      begin
+        match q with
+        | Llambda ->
+          Format.fprintf fmt "@[(%s %a =>@ %a)@]"
+            (string_of_quant q) (pp_list " " pp_string) i pp_ec_ast_expr f
+        | _ ->
+          Format.fprintf fmt "@[%s %a,@ %a@]"
+            (string_of_quant q) (pp_list " " pp_string) i pp_ec_ast_expr f
+      end
+    | Eproj (e,i) -> Format.fprintf fmt "@[%a.`%i@]" pp_ec_ast_expr e i
+    | EHoare (i,fpre,fpost) ->
+      Format.fprintf fmt "@[hoare [%a :@ @[%a ==>@ %a@]]@]"
+        pp_ec_ident i
+        (pp_ec_ast_expr) fpre
+        (pp_ec_ast_expr) fpost
 
 and pp_ec_op2 fmt (op2, e1, e2) =
     let f fmt = match op2 with
@@ -1296,6 +1325,13 @@ let ty_expr = function
   | Papp2 (op,_,_) -> Conv.ty_of_cty (snd (E.type_of_op2 op))
   | PappN (op, _)  -> Conv.ty_of_cty (snd (E.type_of_opN op))
   | Pif (ty,_,_,_) -> ty
+  | Pbig (_,_,_,_,_,_) -> assert false
+  | Parr_init_elem (_,len)  -> Arr (U8, len)
+  | Pis_var_init _ 
+  | Pis_arr_init _
+  | Pis_barr_init _
+  | Pis_mem_init _ -> tbool
+
 
 let ty_sopn pd asmOp op es =
   match op with
@@ -1326,6 +1362,7 @@ let rec is_write_i x i =
     is_write_lv x lv
   | Copn(lvs,_,_,_) | Ccall(lvs, _, _) | Csyscall(lvs,_,_) ->
     is_write_lvs x lvs
+  | Cassert _ -> false
   | Cif(_, c1, c2) | Cwhile(_, c1, _, _, c2) ->
     is_write_c x c1 || is_write_c x c2
   | Cfor(x',_,c) ->
@@ -1336,7 +1373,7 @@ and is_write_c x c = List.exists (is_write_i x) c
 let rec remove_for_i i =
   let i_desc =
     match i.i_desc with
-    | Cassgn _ | Copn _ | Ccall _ | Csyscall _ -> i.i_desc
+    | Cassgn _ | Copn _ | Ccall _ | Csyscall _ | Cassert _ -> i.i_desc
     | Cif(e, c1, c2) -> Cif(e, remove_for c1, remove_for c2)
     | Cwhile(a, c1, e, loc, c2) -> Cwhile(a, remove_for c1, e, loc, remove_for c2)
     | Cfor(j,r,c) ->
@@ -1456,7 +1493,29 @@ module EcExpression(EA: EcArray): EcExpression = struct
               toec_expr env e1,
               toec_cast env (ty, et),
               toec_cast env (ty, ef)
-          )
+            )
+      | Pbig (e, op, v, a, b, i) ->
+        let v = L.unloc v in
+        let env = Env.set_var env v in
+        let op = Infix (Format.asprintf "%a" fmt_op2 op) in
+        let acc = "acc" and x = "x" in
+        let expr = Eop2 (op, Eident [x], Eident [acc]) in
+        let lambda1 = Equant (Llambda, [acc], expr) in
+        let lambda1 = Equant (Llambda, [x], lambda1) in
+        let i = toec_expr env i in
+        let a = toec_expr env a in
+        let b = toec_expr env b in
+        let e = toec_expr env e in
+        let lambda2 = Equant(Llambda, [ec_vars env v],e) in
+        let iota = Eapp (ec_ident "iota_", [a; b]) in
+        let map = Eapp (ec_ident "map", [lambda2;iota]) in
+        Eapp (ec_ident "foldr", [lambda1;i; map])
+      | Parr_init_elem (e,l) -> Eapp (Eident [ec_BArray env l; "init_arr"],[toec_expr env e; Econst (Z.of_int l)] )
+      | Pis_var_init _ 
+      | Pis_arr_init _ -> assert false
+      | Pis_barr_init (x,e1,e2) -> Eapp (ec_ident "is_init",[ec_vari env (L.unloc x); toec_expr env e1;toec_expr env e2] )
+      | Pis_mem_init (e1,e2) -> Eapp (ec_ident "is_valid", [Eapp (ec_pd env, [toec_expr env e1]) ; toec_expr env e2])
+
 
   and toec_cast env (ty, e) = ec_cast env (ty, ty_expr e) (toec_expr env e)
 end
@@ -1499,13 +1558,17 @@ module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
 
   let rec leaks_e_rec pd leaks e =
     match e with
-    | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> leaks
+    | Pconst _ | Pbool _ | Parr_init _ | Pvar _ | Pis_var_init _ -> leaks
     | Pload (_,_,e) -> leaks_e_rec pd (int_of_ptr pd e :: leaks) e
     | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec pd (e::leaks) e
-    | Papp1 (_, e) -> leaks_e_rec pd leaks e
+    | Parr_init_elem (e,_) | Papp1 (_, e) -> leaks_e_rec pd leaks e
     | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
     | PappN (_, es) -> leaks_es_rec pd leaks es
     | Pif  (_, e1, e2, e3) -> leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) e3
+    | Pbig _ -> assert false
+    | Pis_arr_init(_,e1,e2)
+    | Pis_barr_init(_,e1,e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
+    | Pis_mem_init(e1,e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
   and leaks_es_rec pd leaks es = List.fold_left (leaks_e_rec pd) leaks es
 
   let leaks_e pd e = leaks_e_rec pd [] e
@@ -1598,13 +1661,17 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
 
   let rec leaks_e_rec env leaks e =
     match e with
-    | Pconst _ | Pbool _ | Parr_init _ | Pvar _ -> leaks
+    | Pconst _ | Pbool _ | Parr_init _ | Pvar _ | Pis_var_init _ -> leaks
     | Pload (_,_,e) -> leaks_e_rec env ((leak_addr_mem env e) @ leaks) e
     | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec env ([leak_addr (toec_expr env e)] @ leaks) e
-    | Papp1 (_, e) -> leaks_e_rec env leaks e
+    | Parr_init_elem (e,_) | Papp1 (_, e) -> leaks_e_rec env leaks e
     | Papp2 (_, e1, e2) -> leaks_es_rec env leaks [e1; e2]
     | PappN (_, es) -> leaks_es_rec env leaks es
     | Pif  (_, e1, e2, e3) -> leaks_es_rec env leaks [e1; e2; e3]
+    | Pbig _ -> assert false
+    | Pis_arr_init(_,e1,e2)
+    | Pis_barr_init(_,e1,e2) -> leaks_es_rec env leaks [e1; e2]
+    | Pis_mem_init(e1,e2) -> leaks_es_rec env leaks [e1; e2]
 
   and leaks_es_rec env leaks es = List.fold_left (leaks_e_rec env) leaks es
 
@@ -1849,6 +1916,8 @@ struct
           let args = List.map (toec_cast env) (List.combine itys es) in
           (ec_leaks_es env es) @
           (ec_pcall env lvs [] otys [ec_syscall env o] args)
+      | Cassert (p, a) ->
+        [EScomment (Format.asprintf "assert %a" pp_ec_ast_expr (toec_expr env a))]
       | Cif (e, c1, c2) ->
           let c1 env = toec_cmd asmOp env c1 in
           let c2 env = toec_cmd asmOp env c2 in
@@ -2047,7 +2116,7 @@ and used_func_c used c =
 
 and used_func_i used i =
   match i.i_desc with
-  | Cassgn _ | Copn _ | Csyscall _ -> used
+  | Cassgn _ | Copn _ | Csyscall _ | Cassert _ -> used
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
   | Cfor(_,_,c)       -> used_func_c used c
   | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2

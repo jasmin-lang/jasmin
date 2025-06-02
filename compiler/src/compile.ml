@@ -50,7 +50,7 @@ let rec warn_extra_i pd asmOp i =
   | Cfor _ ->
       hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
         "for loop remains"
-  | Ccall _ | Csyscall _ -> ()
+  | Ccall _ | Csyscall _ | Cassert _ -> ()
 
 let warn_extra_fd pd asmOp (_, fd) = List.iter (warn_extra_i pd asmOp) fd.f_body
 
@@ -95,7 +95,7 @@ let do_wint_int
   let info x =
     let x = Conv.var_of_cvar x in
      Mv.find_opt x m in
-  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.msf_size info cp in
+  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.msf_size Arch.pointer_data info cp in
   let cp =
     match cp with
     | Utils0.Ok cp -> cp
