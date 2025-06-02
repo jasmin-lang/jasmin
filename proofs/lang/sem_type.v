@@ -15,7 +15,7 @@ Definition nosubword   := {| sw_allowed := false |}.
 Definition withsubword := {| sw_allowed := true |}.
 
 Definition compat_type (sw:bool) :=
-  if sw then subtype else convertible.
+  if sw then subatype else convertible.
 
 (* TODO: try to not declare stype as eqType? to be sure we never use eq_op *)
 Lemma compat_type_refl b ty : compat_type b ty ty.
@@ -30,10 +30,10 @@ Proof.
   - move=> ???. apply convertible_trans.
 Defined.
 
-Instance to : Proper (convertible ==> convertible ==> eq) subtype.
+Instance to : Proper (convertible ==> convertible ==> eq) subatype.
 Proof.
   move=> ty11 ty12 eq_ty1 ty21 ty22 eq_ty2.
-  case: ty11 ty12 ty21 ty22 eq_ty1 eq_ty2 => [||ws11 len11|ws11] [||ws12 len12|ws12] [||ws21 len21|ws21] [||ws22 len22|ws22] //=.
+  case: ty11 ty12 ty21 ty22 eq_ty1 eq_ty2 => [||[ws11 len11]|ws11] [||[ws12 len12]|ws12] [||[ws21 len21]|ws21] [||[ws22 len22]|ws22] //=.
   + by move=> /eqP -> /eqP ->.
   move=> /eqP [] -> /eqP [] ->.
   done.
@@ -41,7 +41,7 @@ Qed.
 
 (* FIXME: clean *)
 Lemma compat_type_subtype b t1 t2:
-  compat_type b t1 t2 -> subtype t1 t2.
+  compat_type b t1 t2 -> subatype t1 t2.
 Proof. case: b => //=. move=> h. rewrite -> h. done. Qed.
 
 Lemma compat_typeE b ty ty' :
@@ -67,48 +67,49 @@ Lemma compat_typeEl b ty ty' :
   end.
 Proof.
   rewrite /compat_type; case: b => [/subtypeEl|].
-  + by case: ty => // ws [ws' [*]]; eauto.
+  + move=> /(_ ltac:(move=> [??] [??]; by rewrite eq_sym)).
+    by case: ty => // ws [ws' [*]]; eauto.
   move=> /convertible_sym.
   case: ty => //= ws /convertible_sym /= /eqP <-.
   by eauto.
 Qed.
 
 (* ----------------------------------------------------------- *)
-Definition sem_t (t : stype) : Type :=
+Definition sem_t (t : ctype) : Type :=
   match t with
   | sbool     => bool
   | sint      => Z
-  | sarr ws n => WArray.array (Z.to_pos (arr_size ws n))
+  | sarr n    => WArray.array n
   | sword s   => word s
   end.
 
 Definition sem_prod ts tr := lprod (map sem_t ts) tr.
 
-Definition sem_ot (t:stype) : Type :=
+Definition sem_ot (t:ctype) : Type :=
   if t is sbool then option bool
   else sem_t t.
 
 Definition sem_tuple ts := ltuple (map sem_ot ts).
 
-Fixpoint sem_prod_ok {T: Type} (tin : seq stype) : sem_prod tin T -> sem_prod tin (exec T) :=
+Fixpoint sem_prod_ok {T: Type} (tin : seq ctype) : sem_prod tin T -> sem_prod tin (exec T) :=
   match tin return sem_prod tin T -> sem_prod tin (exec T) with
   | [::] => fun o => ok o
   | t :: ts => fun o v => @sem_prod_ok T ts (o v)
   end.
 Arguments sem_prod_ok {T}%_type_scope tin%_seq_scope _.
 
-Fixpoint sem_forall {T: Type} (P: T -> Prop) (tin : seq stype) : sem_prod tin T -> Prop :=
+Fixpoint sem_forall {T: Type} (P: T -> Prop) (tin : seq ctype) : sem_prod tin T -> Prop :=
   match tin return sem_prod tin T -> Prop with
   | [::] => P
   | t :: ts => fun o => forall v, @sem_forall T P ts (o v)
   end.
 Arguments sem_forall {T}%_type_scope P%_function_scope tin%_seq_scope _.
 
-Lemma sem_prod_ok_ok {T: Type} (tin : seq stype) (o : sem_prod tin T) :
+Lemma sem_prod_ok_ok {T: Type} (tin : seq ctype) (o : sem_prod tin T) :
   sem_forall (fun et => exists t, et = ok t) tin (sem_prod_ok tin o).
 Proof. elim: tin o => /= [o | a l hrec o v]; eauto. Qed.
 
-Lemma sem_prod_ok_error {T: Type} (tin : seq stype) (o : sem_prod tin T) e :
+Lemma sem_prod_ok_error {T: Type} (tin : seq ctype) (o : sem_prod tin T) e :
   sem_forall (fun et => et <> Error e) tin (sem_prod_ok tin o).
 Proof. by elim: tin o => /= [o | a l hrec o v]; eauto. Qed.
 
@@ -125,18 +126,18 @@ Definition curry A B (n: nat) (f: seq (sem_t A) → B) : sem_prod (nseq n A) B :
    | n'.+1 => λ acc a, loop n' (a :: acc)
    end) n [::].
 
-Fixpoint sem_prod_const {A} (lt: seq stype) (a: A) : sem_prod lt A :=
+Fixpoint sem_prod_const {A} (lt: seq ctype) (a: A) : sem_prod lt A :=
   match lt with
   | [::]     => a
   | _ :: lt' => fun _ => sem_prod_const lt' a
   end.
 
-Definition sem_prod_id (t: stype) : sem_t t -> sem_ot t :=
+Definition sem_prod_id (t: ctype) : sem_t t -> sem_ot t :=
   if t is sbool
   then Some
   else id.
 
-Fixpoint sem_prod_app {A B} (lt: seq stype) :
+Fixpoint sem_prod_app {A B} (lt: seq ctype) :
   sem_prod lt A -> (A -> B) -> sem_prod lt B :=
   match lt with
   | [::]     => fun a g => g a
@@ -154,7 +155,7 @@ Definition add_tuple (t:Type) (ts:seq Type) (x:t) (xs:ltuple ts) : ltuple (t::ts
   | _::_ => fun xs => (x, xs)
   end xs.
 
-Fixpoint sem_prod_tuple (lt: seq stype) : sem_prod lt (sem_tuple lt) :=
+Fixpoint sem_prod_tuple (lt: seq ctype) : sem_prod lt (sem_tuple lt) :=
   match lt return sem_prod lt (sem_tuple lt) with
   | [::] => tt
   | t :: lt' =>
@@ -204,7 +205,7 @@ Definition behead_tuple tin tout :
 
 Section APP.
 
-Context (T : Type) (of_T : forall t : stype, T -> exec (sem_t t)).
+Context (T : Type) (of_T : forall t : ctype, T -> exec (sem_t t)).
 
 Fixpoint app_sopn A ts : sem_prod ts (exec A) → seq T → exec A :=
   match ts return sem_prod ts (exec A) → seq T → exec A with

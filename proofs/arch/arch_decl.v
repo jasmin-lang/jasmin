@@ -32,7 +32,7 @@ Require Import
  * with sword U64 being the associated stype) or flags (represented as "CF",
  * "ZF", with sbool the associated stype).
  *)
-Class ToString (t: stype) (T: Type) :=
+Class ToString (t: ctype) (T: Type) :=
   { category      : string    (* Name of the "register" used to print errors. *)
   ; _finC         : finTypeC T
   ; to_string     : T -> string
@@ -101,9 +101,9 @@ Section DECL.
 
 Context {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond}.
 
-Definition sreg := sword reg_size.
+Definition sreg : ctype := sword reg_size.
 Definition wreg := sem_t sreg.
-Definition sxreg := sword xreg_size.
+Definition sxreg : ctype := sword xreg_size.
 Definition wxreg := sem_t sxreg.
 
 Lemma sword_reg_neq_xreg :
@@ -351,7 +351,7 @@ Definition check_args_kinds (a:asm_args) (cond:args_kinds) :=
 Definition check_i_args_kinds (cond:i_args_kinds) (a:asm_args) :=
   has (check_args_kinds a) cond.
 
-Definition check_arg_dest (ad:arg_desc) (ty:stype) :=
+Definition check_arg_dest (ad:arg_desc) (ty:ctype) :=
   match ad with
   | ADImplicit _ => true
   | ADExplicit _ _ _ => ty != sbool
@@ -383,11 +383,11 @@ Record instr_desc_t := {
   (* When writing a smaller value to a register, keep or clear old bits? *)
   id_msb_flag   : msb_flag;
   (* Types of input arguments. *)
-  id_tin        : seq stype;
+  id_tin        : seq ctype;
   (* Description of input arguments. *)
   id_in         : seq arg_desc;
   (* Types of output arguments. *)
-  id_tout       : seq stype;
+  id_tout       : seq ctype;
   (* Description of output arguments. *)
   id_out        : seq arg_desc;
   (* Semantics (only deals with values). *)
@@ -429,13 +429,13 @@ Definition asm_op_msb_t {asm_op} {asm_op_d : asm_op_decl asm_op} := (option wsiz
 
 Context `{asm_op_d : asm_op_decl}.
 
-Definition extend_size (ws: wsize) (t:stype) :=
+Definition extend_size (ws: wsize) (t:ctype) :=
   match t with
   | sword ws' => if (ws' <= ws)%CMP then sword ws else sword ws'
   | _ => t
   end.
 
-Definition wextend_size (ws: wsize) (t:stype) : sem_ot t -> sem_ot (extend_size ws t) :=
+Definition wextend_size (ws: wsize) (t:ctype) : sem_ot t -> sem_ot (extend_size ws t) :=
   match t return sem_ot t -> sem_ot (extend_size ws t) with
   | sword ws' =>
     fun (w: word ws') =>
@@ -446,7 +446,7 @@ Definition wextend_size (ws: wsize) (t:stype) : sem_ot t -> sem_ot (extend_size 
   | _ => fun x => x
   end.
 
-Fixpoint extend_tuple (ws:wsize) (id_tout : list stype) (t: sem_tuple id_tout) :
+Fixpoint extend_tuple (ws:wsize) (id_tout : list ctype) (t: sem_tuple id_tout) :
    sem_tuple (map (extend_size ws) id_tout) :=
  match id_tout return sem_tuple id_tout -> sem_tuple (map (extend_size ws) id_tout) with
  | [::] => fun _ => tt
@@ -465,12 +465,12 @@ Fixpoint apply_lprod (A B : Type) (f : A -> B) (ts:list Type) : lprod ts A -> lp
   | t :: ts' => fun g x => apply_lprod f (g x)
   end.
 
-Lemma instr_desc_aux1 ws (id_in id_out : list arg_desc) (id_tin id_tout : list stype) :
+Lemma instr_desc_aux1 ws (id_in id_out : list arg_desc) (id_tin id_tout : list ctype) :
   ((size id_in == size id_tin) && (size id_out == size id_tout)) ->
   ((size id_in == size id_tin) && (size id_out == size (map (extend_size ws) id_tout))).
 Proof. by rewrite size_map. Qed.
 
-Lemma instr_desc_aux2 ws (id_out : list arg_desc) (id_tout : list stype) :
+Lemma instr_desc_aux2 ws (id_out : list arg_desc) (id_tout : list ctype) :
   all2 check_arg_dest id_out id_tout ->
   all2 check_arg_dest id_out (map (extend_size ws) id_tout).
 Proof.
@@ -521,7 +521,7 @@ Qed.
 
 (* An extension of [instr_desc] that deals with msb flags *)
 
-Definition extend_sem {tin tout : seq stype} ws
+Definition extend_sem {tin tout : seq ctype} ws
   (semi : sem_prod tin (exec (sem_tuple tout))) : sem_prod tin (exec (sem_tuple  (map (extend_size ws) tout))) :=
   apply_lprod (Result.map (@extend_tuple ws tout)) semi.
 

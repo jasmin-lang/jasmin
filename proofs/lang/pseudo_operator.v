@@ -25,13 +25,13 @@ Canonical spill_op_eqType := @ceqT_eqType _ eqTC_spill_op.
 
 #[only(eqbOK)] derive
 Variant pseudo_operator :=
-| Ospill    of spill_op & seq stype
+| Ospill    of spill_op & seq (stype (wsize * positive))
 | Ocopy     of wsize & positive
 | Onop
 | Omulu     of wsize   (* cpu   : [sword; sword]        -> [sword;sword] *)
 | Oaddcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
 | Osubcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
-| Oswap     of stype   (* [ty; ty] -> [ty; ty] *)
+| Oswap     of stype (wsize * positive)   (* [ty; ty] -> [ty; ty] *)
 .
 
 #[export]

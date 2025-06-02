@@ -19,13 +19,13 @@ HB.instance Definition _ := hasDecEq.Build syscall_t syscall_t_eqb_OK.
 (* Before stack alloc ie uprog *)
 
 Record syscall_sig_t := {
-  scs_tin  : seq stype;
-  scs_tout : seq stype
+  scs_tin  : seq atype;
+  scs_tout : seq atype
 }.
 
 Definition syscall_sig_u (o : syscall_t) : syscall_sig_t := 
   match o with
-  | RandomBytes len => {| scs_tin := [:: sarr U8 len]; scs_tout := [:: sarr U8 len] |}
+  | RandomBytes len => {| scs_tin := [:: sarr (U8, len)]; scs_tout := [:: sarr (U8, len)] |}
   end.
 
 (* After stack alloc ie sprog *)

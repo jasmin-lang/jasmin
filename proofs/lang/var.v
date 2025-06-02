@@ -42,7 +42,7 @@ Module MvMake (I:IDENT).
 #[global]
   Existing Instance K.cmpO.
 
-  Record var := Var { vtype : stype; vname : ident }.
+  Record var := Var { vtype : atype; vname : ident }.
 
   Definition var_beq (v1 v2:var) :=
     let (t1,n1) := v1 in
@@ -58,7 +58,7 @@ Module MvMake (I:IDENT).
   HB.instance Definition _ := hasDecEq.Build var var_eqP.
 
   Definition var_cmp (x y:var) :=
-    Lex (stype_cmp x.(vtype) y.(vtype)) (K.cmp x.(vname) y.(vname)).
+    Lex (stype_cmp (lex wsize_cmp BinPos.Pos.compare) x.(vtype) y.(vtype)) (K.cmp x.(vname) y.(vname)).
 
 #[global]
   Instance varO : Cmp var_cmp.
@@ -66,7 +66,7 @@ Module MvMake (I:IDENT).
     constructor=> [x y | y x z c | [??] [??]] ;rewrite /var_cmp !Lex_lex.
     + by apply lex_sym;apply cmp_sym.
     + by apply lex_trans=> /=; apply cmp_ctrans.
-    by move=> /lex_eq [] /= /(@cmp_eq _ _ stypeO) -> /(@cmp_eq _ _ K.cmpO) ->.
+    by move=> /lex_eq [] /= /cmp_eq -> /(@cmp_eq _ _ K.cmpO) ->.
   Qed.
 
   Lemma var_surj (x:var) : x = Var x.(vtype) x.(vname).

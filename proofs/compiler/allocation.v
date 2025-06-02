@@ -437,8 +437,8 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
     Let _ := assert (n1 == n2) error_e in ok m
   | Pbool  b1, Pbool  b2 =>
     Let _ := assert (b1 == b2) error_e in ok m
-  | Parr_init n1, Parr_init n2 =>
-    Let _  := assert (n1 == n2) error_e in ok m
+  | Parr_init ws1 n1, Parr_init ws2 n2 =>
+    Let _  := assert ((ws1 == ws2) && (n1 == n2)) error_e in ok m
   | Pvar   x1, Pvar   x2 => check_gv x1 x2 m
   | Pget al1 aa1 w1 x1 e1, Pget al2 aa2 w2 x2 e2 =>
     Let _ := assert ((al1 == al2) && (aa1 == aa2) && (w1 == w2)) error_e in
@@ -471,7 +471,7 @@ Definition check_varc (xi1 xi2:var_i) m : cexec M.t :=
   if M.v_compat_typeP x1 x2 is left h then check_var_aux m h
   else Error (cerr_varalloc xi1 xi2 "type mismatch").
 
-Definition is_Pvar (e:option (stype * pexpr)) :=
+Definition is_Pvar (e:option (atype * pexpr)) :=
   match e with
   | Some (ty, Pvar x) => if is_lvar x then Some (ty,x.(gv)) else None
   | _ => None
@@ -479,7 +479,7 @@ Definition is_Pvar (e:option (stype * pexpr)) :=
 
 Definition error_lv := pp_internal_error_s "allocation" "lval not equal".
 
-Definition check_lval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec M.t :=
+Definition check_lval (e2:option (atype * pexpr)) (x1 x2:lval) m : cexec M.t :=
   match x1, x2 with
   | Lnone  _ t1, Lnone _ t2  =>
     Let _ := assert (compat_type sw_allowed t1 t2) error_lv in

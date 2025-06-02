@@ -58,10 +58,10 @@ End E.
 (* TODO: could [wsize_size] return a [positive] rather than a [Z]?
    If so, [size_of] could return a positive too.
 *)
-Definition size_of (t:stype) :=
+Definition size_of (t:atype) :=
   match t with
   | sword sz => wsize_size sz
-  | sarr n   => Zpos n
+  | sarr (ws, n)   => arr_size ws n
   | sbool | sint => 1%Z
   end.
 
@@ -891,7 +891,7 @@ Context
   (shparams : slh_lowering.sh_params)
   (saparams : stack_alloc_params)
   (is_move_op : asm_op_t -> bool)
-  (fresh_var_ident  : v_kind -> Uint63.int -> string -> stype -> Ident.ident)
+  (fresh_var_ident  : v_kind -> Uint63.int -> string -> atype -> Ident.ident)
   (pp_sr : sub_region -> pp_error)
 .
 
@@ -987,7 +987,7 @@ Definition bad_arg_number := stk_ierror_no_var "invalid number of args".
 
 Fixpoint alloc_e (e:pexpr) ty :=
   match e with
-  | Pconst _ | Pbool _ | Parr_init _ => ok e
+  | Pconst _ | Pbool _ | Parr_init _ _ => ok e
   | Pvar   x =>
     let xv := x.(gv) in
     Let vk := get_var_kind x in
@@ -995,7 +995,7 @@ Fixpoint alloc_e (e:pexpr) ty :=
     | None => Let _ := check_diff xv in ok e
     | Some vpk =>
       if is_word_type ty is Some ws then
-        if subtype (sword ws) (vtype xv) then
+        if subatype (sword ws) (vtype xv) then
           Let: (sr, status) := get_gsub_region_status rmap xv vpk in
           Let _ := check_valid xv status in
           Let _ := check_align Aligned xv sr ws in
@@ -1060,7 +1060,7 @@ Definition sub_region_direct x align cs sc :=
 Definition sub_region_stack x align cs :=
   sub_region_direct x align cs Slocal.
 
-Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
+Definition alloc_lval (rmap: region_map) (r:lval) (ty:atype) :=
   match r with
   | Lnone _ _ => ok (rmap, r)
 
@@ -1069,7 +1069,7 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
     | None => Let _ := check_diff x in ok (rmap, r)
     | Some pk =>
       if is_word_type (vtype x) is Some ws then
-        if subtype (sword ws) ty then
+        if subatype (sword ws) ty then
 (*           Let sr   := sub_region_pk x pk in *)
           Let sr := get_sub_region rmap x in
           Let rmap := set_word rmap Aligned sr x Valid ws in
@@ -1255,7 +1255,7 @@ Definition alloc_array_move table rmap r tag e :=
 
 Definition is_protect_ptr_fail (rs:lvals) (o:sopn) (es:pexprs) :=
   match o, rs, es with
-  | Oslh (SLHprotect_ptr_fail _), [::r], [:: e; msf] => Some (r, e, msf)
+  | Oslh (SLHprotect_ptr_fail _ _), [::r], [:: e; msf] => Some (r, e, msf)
   | _, _, _ => None
   end.
 
@@ -1347,12 +1347,6 @@ Definition incl (rmap1 rmap2:region_map) :=
   Mvar.incl (fun _ => eq_op) rmap1.(var_region) rmap2.(var_region) &&
   Mr.incl (fun _ => incl_status_map) rmap1.(region_var) rmap2.(region_var).
 
-Definition type_of_op_kind opk :=
-  match opk with
-  | Op_int => sint
-  | Op_w ws => sword ws
-  end.
-
 Fixpoint typecheck e :=
   match e with
   | Sconst n => ok sint
@@ -1363,18 +1357,18 @@ Fixpoint typecheck e :=
     else Error (E.stk_ierror_no_var "typechecking failed")
   | Sto_int sg ws e =>
     Let ty := typecheck e in
-    if subtype (sword ws) ty then ok sint
+    if subatype (sword ws) ty then ok sint
     else Error (E.stk_ierror_no_var "typechecking failed")
   | Sneg opk e =>
-    let opk_ty := type_of_op_kind opk in
+    let opk_ty := type_of_opk opk in
     Let ty := typecheck e in
-    if subtype opk_ty ty then ok opk_ty
+    if subatype opk_ty ty then ok opk_ty
     else Error (E.stk_ierror_no_var "typechecking failed")
   | Sadd opk e1 e2 | Smul opk e1 e2 | Ssub opk e1 e2 =>
-    let opk_ty := type_of_op_kind opk in
+    let opk_ty := type_of_opk opk in
     Let ty1 := typecheck e1 in
     Let ty2 := typecheck e2 in
-    if subtype opk_ty ty1 && subtype opk_ty ty2 then ok opk_ty
+    if subatype opk_ty ty1 && subatype opk_ty ty2 then ok opk_ty
     else Error (E.stk_ierror_no_var "typechecking failed")
   end.
 

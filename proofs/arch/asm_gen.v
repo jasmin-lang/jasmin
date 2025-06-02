@@ -73,7 +73,7 @@ Definition of_var_e ii (v: var_i) :=
   match of_var v with
   | Some r => ok r
   | None =>
-    if vtype v == rtype then Error (E.invalid_name category ii v)
+    if vtype v == to_atype rtype then Error (E.invalid_name category ii v)
     else Error (E.invalid_ty category ii v)
   end.
 
@@ -262,7 +262,7 @@ Definition assemble_word (k:addr_kind) rip ii (sz:wsize) (e: rexpr) :=
     ok (Addr w)
   end.
 
-Definition arg_of_rexpr k rip ii (ty: stype) (e: rexpr) :=
+Definition arg_of_rexpr k rip ii (ty: ctype) (e: rexpr) :=
   match ty with
   | sbool =>
       Let e := if e is Rexpr f then ok f else Error (E.werror ii e "not able to assemble a load expression of type bool") in
@@ -296,7 +296,7 @@ Definition is_implicit (i: implicit_arg) (e: rexpr) : bool :=
   end.
 *)
 
-Definition compile_arg rip ii (ade: (arg_desc * stype) * rexpr) (m: nmap asm_arg) : cexec (nmap asm_arg) :=
+Definition compile_arg rip ii (ade: (arg_desc * ctype) * rexpr) (m: nmap asm_arg) : cexec (nmap asm_arg) :=
   let ad := ade.1 in
   let e := ade.2 in
   match ad.1 with
@@ -321,13 +321,13 @@ Definition compile_arg rip ii (ade: (arg_desc * stype) * rexpr) (m: nmap asm_arg
 Definition compile_args rip ii adts (es: rexprs) (m: nmap asm_arg) :=
   foldM (compile_arg rip ii) m (zip adts es).
 
-Definition compat_imm ty a' a :=
+Definition compat_imm (ty:ctype) a' a :=
   (a == a') || match ty, a, a' with
              | sword sz, Imm sz1 w1, Imm sz2 w2 => sign_extend sz w1 == sign_extend sz w2
              | _, _, _ => false
              end.
 
-Definition check_sopn_arg rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_desc * stype) :=
+Definition check_sopn_arg rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_desc * ctype) :=
   match adt.1 with
   | ADImplicit i => is_implicit i x
   | ADExplicit k n o =>
@@ -339,7 +339,7 @@ Definition check_sopn_arg rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_d
     end
   end.
 
-Definition check_sopn_dest rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_desc * stype) :=
+Definition check_sopn_dest rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_desc * ctype) :=
   match adt.1 with
   | ADImplicit i => is_implicit i x
   | ADExplicit k n o =>
@@ -363,10 +363,10 @@ Definition assemble_asm_op_aux rip ii op (outx : lexprs) (inx : rexprs) :=
   | Some asm_args => ok asm_args
   end.
 
-Definition check_sopn_args rip ii (loargs : seq asm_arg) (xs : rexprs) (adt : seq (arg_desc * stype)) :=
+Definition check_sopn_args rip ii (loargs : seq asm_arg) (xs : rexprs) (adt : seq (arg_desc * ctype)) :=
   all2 (check_sopn_arg rip ii loargs) xs adt.
 
-Definition check_sopn_dests rip ii (loargs : seq asm_arg) (outx : lexprs) (adt : seq (arg_desc * stype)) :=
+Definition check_sopn_dests rip ii (loargs : seq asm_arg) (outx : lexprs) (adt : seq (arg_desc * ctype)) :=
   let eoutx := map rexpr_of_lexpr outx in
   all2 (check_sopn_dest rip ii loargs) eoutx adt.
 

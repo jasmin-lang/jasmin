@@ -6,7 +6,7 @@ Require Import compiler_util.
 
 Section ToIdent.
 
-Context (t:stype) (T:Type) {tS: ToString t T}.
+Context (t:ctype) (T:Type) {tS: ToString t T}.
 
 Class ToIdent :=
   { to_ident     : T -> Ident.ident (* Try to not use it *)
@@ -41,10 +41,10 @@ Qed.
 
 (* Try to not use it *)
 Definition to_var r :=
-  {| vtype := rtype; vname := to_ident r |}.
+  {| vtype := to_atype rtype; vname := to_ident r |}.
 
 Definition of_var (v:var) :=
-  if v.(vtype) == rtype then of_ident v.(vname)
+  if v.(vtype) == to_atype rtype then of_ident v.(vname)
   else None.
 
 Lemma to_varK : pcancel to_var of_var.
@@ -67,7 +67,7 @@ Arguments to_var {t} {T}%_type_scope {tS toI} r.
 
 Module Type MkToIdent_T.
 
-  Parameter mk : forall (t:stype) (T:Type) {tS: ToString t T},
+  Parameter mk : forall (t:ctype) (T:Type) {tS: ToString t T},
     (string -> Ident.ident) -> result pp_error_loc (ToIdent T).
 
 End MkToIdent_T.
@@ -77,7 +77,7 @@ Module MkToIdent : MkToIdent_T.
   Section Section.
   Import Ident.
 
-  Context (t:stype) (T:Type) {tS: ToString t T}
+  Context (t:ctype) (T:Type) {tS: ToString t T}
         (mk_id : string -> ident).
 
   Let rid := map (fun r => (r, mk_id (to_string r))) cenum.
@@ -166,7 +166,7 @@ Module Type AToIdent_T.
 
   Parameter mk :
     forall `{arch : arch_decl},
-      (reg_kind -> stype -> string -> Ident.ident) ->  result pp_error_loc arch_toIdent.
+      (reg_kind -> ctype -> string -> Ident.ident) ->  result pp_error_loc arch_toIdent.
 
 End AToIdent_T.
 
@@ -195,7 +195,7 @@ Module MkAToIdent : AToIdent_T.
 
   End AUX.
 
-  Definition mk (toid : reg_kind -> stype -> string -> Ident.ident) :=
+  Definition mk (toid : reg_kind -> ctype -> string -> Ident.ident) :=
     Let toI_r  := MkToIdent.mk (T:= reg) (toid Normal (sword reg_size)) in
     Let toI_rx := MkToIdent.mk (T:= regx) (toid Extra (sword reg_size)) in
     Let toI_x  := MkToIdent.mk (T:= xreg) (toid Normal (sword xreg_size)) in
@@ -296,23 +296,70 @@ Qed.
 
 HB.instance Definition _ := hasDecEq.Build extended_op extended_op_eq_axiom.
 
+Lemma to_atypeK : cancel to_atype to_ctype.
+Proof. by case. Qed.
+
+(* We don't use the fact that we know is_not_sarr on tin and tout.
+   And it probably cannot compute due to opaque terms, is this a problem? *)
+Definition semi_to_atype {tin tout} (semi: sem_prod tin (exec (sem_tuple tout))) :
+  sem_prod [seq to_ctype i | i <- map to_atype tin] (exec (sem_tuple [seq to_ctype i | i <- map to_atype tout])) :=
+  let eq l := etrans (esym (map_id_in (fun ty _ => to_atypeK ty))) (map_comp _ _ l) in
+  ecast l (sem_prod l _) (eq tin) (ecast l (sem_prod _ (exec (sem_tuple l))) (eq tout) semi).
+
+
+Lemma semi_to_atype_semu tin tout (semi: sem_prod tin (exec (sem_tuple tout))) :
+  (forall vs vs' v, List.Forall2 value_uincl vs vs' ->
+    app_sopn_v semi vs = ok v ->
+    exists2 v' : values, app_sopn_v semi vs' = ok v' & List.Forall2 value_uincl v v') ->
+  forall vs vs' v, List.Forall2 value_uincl vs vs' ->
+  app_sopn_v (semi_to_atype semi) vs = ok v ->
+  exists2 v' : values, app_sopn_v (semi_to_atype semi) vs' = ok v' & List.Forall2 value_uincl v v'.
+Proof.
+  rewrite /semi_to_atype.
+  move: (etrans _ _) (etrans _ _) semi => e1 e2.
+  by rewrite -> e1, -> e2.
+Qed.
+
+Lemma semi_to_atype_safe_wf tin safe :
+  all (fun sc : safe_cond => ssrnat.leq (sc_needed_args sc) (size tin)) safe ->
+  all (fun sc : safe_cond => ssrnat.leq (sc_needed_args sc) (size (map to_atype tin))) safe.
+Proof. by rewrite size_map. Qed.
+
+Lemma semi_to_atype_errty tin tout (semi:sem_prod tin (exec (sem_tuple tout))) :
+  sem_forall (fun r => r <> Error ErrType) tin semi ->
+  sem_forall (fun r => r <> Error ErrType) (map to_ctype (map to_atype tin)) (semi_to_atype semi).
+Proof.
+  rewrite /semi_to_atype.
+  move: (etrans _ _) (etrans _ _) semi => e1 e2.
+  by rewrite -> e1, -> e2.
+Qed.
+
+Lemma semi_to_atype_safe tin tout (semi:sem_prod tin (exec (sem_tuple tout))) safe :
+  interp_safe_cond_ty safe semi ->
+  interp_safe_cond_ty safe (semi_to_atype semi).
+Proof.
+  rewrite /semi_to_atype.
+  move: (etrans _ _) (etrans _ _) semi => e1 e2.
+  by rewrite -> e1, -> e2.
+Qed.
+
 Definition get_instr_desc (o: extended_op) : instruction_desc :=
  match o with
  | BaseOp o =>
    let id := instr_desc o in
    {| str      := id.(id_str_jas)
-    ; tin      := id.(id_tin)
+    ; tin      := map to_atype id.(id_tin)
     ; i_in     := map sopn_arg_desc id.(id_in)
     ; i_out    := map sopn_arg_desc id.(id_out)
     ; conflicts:= [::]
-    ; tout     := id.(id_tout)
-    ; semi     := id.(id_semi)
-    ; semu     := @vuincl_app_sopn_v _ _ id.(id_semi) id.(id_tin_narr)
+    ; tout     := map to_atype id.(id_tout)
+    ; semi     := semi_to_atype id.(id_semi)
+    ; semu     := semi_to_atype_semu (@vuincl_app_sopn_v _ _ id.(id_semi) id.(id_tin_narr))
     ; i_safe   := id.(id_safe)
     ; i_valid  := id.(id_valid)
-    ; i_safe_wf := id.(id_safe_wf)
-    ; i_semi_errty := id.(id_semi_errty)
-    ; i_semi_safe := id.(id_semi_safe)
+    ; i_safe_wf := semi_to_atype_safe_wf id.(id_safe_wf)
+    ; i_semi_errty := fun valid => semi_to_atype_errty (id.(id_semi_errty) valid)
+    ; i_semi_safe := fun valid => semi_to_atype_safe (id.(id_semi_safe) valid)
    |}
  | ExtOp o => asm_op_instr o
  end.
