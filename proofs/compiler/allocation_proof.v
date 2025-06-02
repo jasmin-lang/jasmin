@@ -952,7 +952,7 @@ Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
-Lemma it_alloc_callP_uprogP dead_vars_fd ev gd ep1 p1 ep2 p2
+Lemma it_alloc_call_uprogP dead_vars_fd ev gd ep1 p1 ep2 p2
   (H: check_prog init_alloc_uprog check_f_extra_u dead_vars_fd ep1 p1 ep2 p2 = ok tt) fn:
     wiequiv_f {|p_globs := gd; p_funcs := p1; p_extra := ep1; |}
               {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev ev
