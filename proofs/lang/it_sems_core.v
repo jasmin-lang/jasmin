@@ -135,6 +135,7 @@ Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {wc : WithCatch }
   {wa : WithAssert}
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}

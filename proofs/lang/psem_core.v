@@ -161,6 +161,43 @@ Proof. by case: s. Qed.
 
 End ESTATE_UTILS.
 
+Section WITHCATCH.
+Context {wc : WithCatch}.
+
+(* TODO : Should we move this and the definition of catch_core in utils ? *)
+Lemma catch_coreP {T : Type} (P : T -> Prop) (ex : exec T) (dflt t : T) :
+  (forall e, ex = Error e -> e <> ErrType -> P dflt) ->
+  (ex = ok t -> P t) ->
+  catch_core ex dflt = ok t -> P t.
+Proof.
+  rewrite /catch_core; case: ex => //.
+  by move=> e + _; case: is_ErrTypeP => // h h1 [<-];apply: h1 h.
+Qed.
+
+Lemma catchP {T : Type} (P : T -> Prop) (ex : exec T) (dflt t : T) :
+  (with_catch -> forall e, ex = Error e -> e <> ErrType -> P dflt) ->
+  (ex = ok t -> P t) ->
+  catch ex dflt = ok t -> P t.
+Proof. by case: with_catch => // /(_ erefl); apply catch_coreP. Qed.
+
+Lemma catchP2 {T1 T2 : Type} (P: T1 -> exec T2 -> Prop) (ex1 : exec T1) (ex2 : exec T2) (dflt1 t1 : T1) (dflt2 : T2) :
+  (forall e1, ex1 = Error e1 -> e1 ≠ ErrType -> P dflt1 ex2) ->
+  (forall e2, ex1 = ok t1 -> ex2 = Error e2 -> e2 ≠ ErrType -> P t1 (ok dflt2)) ->
+  (forall e1 e2, ex1 = Error e1 -> e1 ≠ ErrType -> ex2 = Error e2 -> e2 ≠ ErrType -> P dflt1 (ok dflt2)) ->
+  (ex1 = ok t1 -> P t1 ex2) ->
+  catch ex1 dflt1 = ok t1 -> P t1 (catch ex2 dflt2).
+Proof.
+  case: with_catch => //.
+  rewrite /catch_core; case heq1: ex1 => [t1' | e1].
+  + case heq2: ex2 => [| e2] //; case: is_ErrTypeP => //.
+    by move=> he2 _ h _ _ ?; apply: h he2.
+  case: is_ErrTypeP => // he1 /(_ _ erefl he1) + _ /(_ _ _ erefl he1) + _ [<-].
+  case heq2: ex2 => [t2 | e2] //.
+  by case: is_ErrTypeP => // he2 _ h; apply: h he2.
+Qed.
+
+End WITHCATCH.
+
 (* ** Starting lemmas
  * ------------------------------------------------------------------- *)
 Lemma type_of_get_global gd g v :
@@ -170,12 +207,23 @@ Proof. by move=> /get_globalI [?[]]. Qed.
 Lemma get_global_defined gd x v : get_global gd x = ok v -> is_defined v.
 Proof. by move=> /get_globalI [gv [_ -> _]]; case: gv. Qed.
 
-Lemma get_gvar_compat wdb gd vm x v : get_gvar wdb gd vm x = ok v ->
+Lemma is_defined_default_val ty : is_defined (default_val ty).
+Proof. by case: ty. Qed.
+
+Lemma compat_val_default_val ty : compat_val ty (default_val ty).
+Proof. by rewrite /compat_val; case: ty. Qed.
+
+Lemma type_of_default_val ty : type_of_val (default_val ty) = ty.
+Proof. by case: ty. Qed.
+
+Lemma get_gvar_compat {wc:WithCatch} wdb gd vm x v : get_gvar wdb gd vm x = ok v ->
    (~~wdb || is_defined v) /\ compat_val (vtype x.(gv)) v.
 Proof.
-  rewrite /get_gvar;case:ifP => ? heq.
-  + by apply: get_var_compat heq.
-  by rewrite /compat_val (type_of_get_global heq) (get_global_defined heq) orbT.
+  rewrite /get_gvar; case:ifP => ?.
+  + apply: (@catchP wc value (fun v => ~~ wdb || is_defined v ∧ compat_val (vtype (gv x)) v)).
+    + by rewrite is_defined_default_val compat_val_default_val orbT.
+    by apply: get_var_compat.
+  by move=> heq; rewrite /compat_val (type_of_get_global heq) (get_global_defined heq) orbT.
 Qed.
 
 Lemma get_var_to_word wdb vm x ws w :
@@ -196,24 +244,26 @@ Lemma to_word_get_var wdb vm x ws (w:word ws) :
 Proof. by move=> -> /=; rewrite truncate_word_u. Qed.
 
 (* Remark compat_type b = if b then subtype else eq *)
-Lemma type_of_get_gvar x gd vm v :
+Lemma type_of_get_gvar {wc:WithCatch} x gd vm v :
   get_gvar true gd vm x = ok v ->
   compat_type sw_allowed (type_of_val v) (vtype x.(gv)).
 Proof. by move=> /get_gvar_compat [/=hd]; rewrite /compat_val hd orbF. Qed.
 
-Lemma type_of_get_gvar_sub x gd vm v :
+Lemma type_of_get_gvar_sub {wc:WithCatch} x gd vm v :
   get_gvar true gd vm x = ok v ->
   subtype (type_of_val v) (vtype x.(gv)).
 Proof. by move=> /type_of_get_gvar /compat_type_subtype. Qed.
 
 (* We have a more precise result in the non-word cases. *)
-Lemma type_of_get_gvar_not_word gd vm x v :
+Lemma type_of_get_gvar_not_word {wc:WithCatch} gd vm x v :
   (sw_allowed -> ~ is_sword x.(gv).(vtype)) ->
   get_gvar true gd vm x = ok v ->
   type_of_val v = x.(gv).(vtype).
 Proof.
   move=> hnword; rewrite /get_gvar; case: ifP => ?.
-  + by apply: type_of_get_var_not_word.
+  + apply: (@catchP wc value (fun v => type_of_val v = vtype (gv x))).
+    + by rewrite type_of_default_val.
+    by apply: type_of_get_var_not_word.
   by apply type_of_get_global.
 Qed.
 
@@ -229,7 +279,7 @@ Proof.
   by apply: H.
 Qed.
 
-Lemma on_arr_gvarP A (f : forall n, WArray.array n -> exec A) wdb v gd s x P:
+Lemma on_arr_gvarP {wc:WithCatch} A (f : forall n, WArray.array n -> exec A) wdb v gd s x P:
   (forall n t, vtype x.(gv) = sarr n ->
                get_gvar wdb gd s x = ok (@Varr n t) ->
                f n t = ok v -> P) ->
@@ -241,10 +291,11 @@ Proof.
   by apply: H.
 Qed.
 
-Lemma get_gvar_glob wdb gd x vm : is_glob x -> get_gvar wdb gd vm x = get_global gd (gv x).
+Lemma get_gvar_glob {wc:WithCatch} wdb gd x vm : is_glob x -> get_gvar wdb gd vm x = get_global gd (gv x).
 Proof. by rewrite /get_gvar /is_lvar /is_glob => /eqP ->. Qed.
 
-Lemma get_gvar_nglob wdb gd x vm : ~~is_glob x -> get_gvar wdb gd vm x = get_var wdb vm (gv x).
+Lemma get_gvar_nglob {wc:WithCatch} wdb gd x vm : ~~is_glob x ->
+  get_gvar wdb gd vm x = catch (get_var wdb vm (gv x)) (default_val (vtype (gv x))).
 Proof. by rewrite /get_gvar is_lvar_is_glob => ->. Qed.
 
 Section WITH_SCS.
@@ -253,6 +304,7 @@ Section WITH_SCS.
     {asm_op syscall_state : Type}
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
+    {wc:WithCatch}
     {wa : WithAssert}
     (wdb : bool)
     (gd : glob_decls).
@@ -336,11 +388,12 @@ Definition write_get_var_Spec (wdb : bool) (x : var_i) (v : value) (s : estate) 
         Let _:= assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (vtype x) v)
       else get_var wdb (evm s) y)].
 
-Definition write_get_gvar_Spec gd (wdb : bool) (x : var_i) (v : value) (s : estate) (s' : estate) : Prop :=
+Definition write_get_gvar_Spec {wc:WithCatch} gd (wdb : bool) (x : var_i) (v : value) (s : estate) (s' : estate) : Prop :=
   [/\ DB wdb v, truncatable wdb (vtype x) v &
     (forall y, get_gvar wdb gd (evm s') y =
       if is_lvar y && (v_var x == gv y) then
-        Let _:= assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (vtype x) v)
+        catch (Let _:= assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (vtype x) v))
+               (default_val (vtype x))
       else get_gvar wdb gd (evm s) y)].
 
 Lemma get_var_set wdb vm x v y :
@@ -378,16 +431,17 @@ Lemma get_var_set_eq wdb vm1 vm2 (x y : var) v:
   get_var wdb vm1.[x <- v] y = get_var wdb vm2.[x <- v] y.
 Proof. by rewrite /get_var !Vm.setP; case: eqP. Qed.
 
-Lemma get_gvar_eq wdb gd x vm v :
+Lemma get_gvar_eq {wc:WithCatch} wdb gd x vm v :
   truncatable wdb (vtype (gv x)) v ->
   ~ is_glob x ->
   get_gvar wdb gd vm.[x.(gv) <- v] x =
-    Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (vtype (gv x)) v).
+    catch (Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (vtype (gv x)) v))
+          (default_val (vtype (gv x))).
 Proof.
   by move=> h1 /negP h2; rewrite /get_gvar is_lvar_is_glob h2 get_var_eq.
 Qed.
 
-Lemma get_gvar_neq wdb gd (x:var) y vm v :
+Lemma get_gvar_neq {wc:WithCatch} wdb gd (x:var) y vm v :
   (~ is_glob y -> x <> (gv y)) -> get_gvar wdb gd vm.[x <- v] y = get_gvar wdb gd vm y.
 Proof.
   move=> h; rewrite /get_gvar is_lvar_is_glob.
@@ -454,21 +508,23 @@ Lemma write_get_varP_neq wdb wdb' (x:var_i) v s s' y: v_var x != y ->
   write_var wdb x v s = ok s' -> get_var wdb' (evm s') y = get_var wdb' (evm s) y.
 Proof. rewrite /get_var => hne /write_varP => -[-> ??]; rewrite Vm.setP_neq //. Qed.
 
-Lemma write_get_gvarP gd wdb x v s s':
+Lemma write_get_gvarP {wc:WithCatch} gd wdb x v s s':
   write_var wdb x v s = ok s' -> write_get_gvar_Spec gd wdb x v s s'.
 Proof.
   move=> /write_get_varP [hdb htr hget]; econstructor; eauto => y.
-  by rewrite /get_gvar hget; case: is_lvar.
+  rewrite /get_gvar hget; case: is_lvar => //=.
+  by case: eqP => [-> | ].
 Qed.
 
-Lemma write_get_gvarP_eq wdb gd (x:var_i) v s s':
+Lemma write_get_gvarP_eq {wc:WithCatch} wdb gd (x:var_i) v s s':
   write_var wdb x v s = ok s' ->
   [/\ DB wdb v, truncatable wdb (vtype x) v &
     get_gvar wdb gd (evm s') (mk_lvar x) =
-    Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (vtype x) v)].
+    catch (Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (vtype x) v))
+          (default_val (vtype x))].
 Proof. by move=> /(write_get_gvarP gd) [hdb htr ->]; rewrite /= eqxx. Qed.
 
-Lemma write_get_gvarP_neq wdb gd (x:var_i) v s s' y: (is_lvar y -> v_var x != gv y) ->
+Lemma write_get_gvarP_neq {wc:WithCatch} wdb gd (x:var_i) v s s' y: (is_lvar y -> v_var x != gv y) ->
   write_var wdb x v s = ok s' -> get_gvar wdb gd (evm s') y = get_gvar wdb gd (evm s) y.
 Proof.
   move=> h /(write_get_gvarP gd) [htr hdb ->].
@@ -476,7 +532,12 @@ Proof.
 Qed.
 
 Section WITHASSERT.
+
 Context {wa : WithAssert}.
+
+Section WITHCATCH.
+
+Context {wc:WithCatch}.
 
 Lemma is_wconstP wdb gd s sz e w:
   is_wconst sz e = Some w →
@@ -485,7 +546,7 @@ Proof.
   case: e => // - [] // sz' e /=; case: ifP => // hle /oseq.obindI [z] [h] [<-].
   have := is_constP e.
   rewrite h => {h} /is_reflect_some_inv -> {e}.
-  by rewrite /= truncate_word_le // zero_extend_wrepr.
+  by rewrite /sem_sop1 /= if_same /= truncate_word_le // zero_extend_wrepr.
 Qed.
 
 Lemma is_wconstI ws e w :
@@ -606,24 +667,19 @@ Proof. by move=> hin hvm;rewrite /get_var hvm. Qed.
 Lemma get_gvar_eq_on wdb s gd vm' vm v: Sv.Subset (read_gvar v) s -> vm =[s]  vm' ->
   get_gvar wdb gd vm v = get_gvar wdb gd vm' v.
 Proof.
-  rewrite /read_gvar /get_gvar; case: ifP => // _ hin.
-  by apply: get_var_eq_on; SvD.fsetdec.
+  rewrite /read_gvar /get_gvar; case: ifP => // _ hin heq.
+  rewrite (get_var_eq_on _ _ heq) //; SvD.fsetdec.
 Qed.
 
 Lemma on_arr_var_eq_on wdb s' X s A x (f: ∀ n, WArray.array n → exec A) :
    evm s =[X] evm s' -> Sv.In x X ->
    on_arr_var (get_var wdb (evm s) x) f = on_arr_var (get_var wdb (evm s') x) f.
-Proof.
-  by move=> Heq Hin;rewrite /on_arr_var;rewrite (get_var_eq_on _ Hin Heq).
-Qed.
+Proof. by move=> Heq Hin;rewrite (get_var_eq_on _ Hin Heq). Qed.
 
 Lemma on_arr_gvar_eq_on wdb s' gd X s A x (f: ∀ n, WArray.array n → exec A) :
    evm s =[X] evm s' -> Sv.Subset (read_gvar x) X ->
    on_arr_var (get_gvar wdb gd (evm s) x) f = on_arr_var (get_gvar wdb gd (evm s') x) f.
-Proof.
-  move=> Heq; rewrite /get_gvar /read_gvar;case:ifP => _ Hin //.
-  by apply: (on_arr_var_eq_on _ (X := X)) => //; SvD.fsetdec.
-Qed.
+Proof. by move=> heq hsub; rewrite (get_gvar_eq_on _ _ hsub heq). Qed.
 
 Lemma get_var_eq_ex wdb vm1 vm2 X x:
   ~Sv.In x X ->
@@ -636,8 +692,8 @@ Lemma get_gvar_eq_ex wdb gd vm1 vm2 X x:
   vm1 =[\ X] vm2 ->
   get_gvar wdb gd vm1 x = get_gvar wdb gd vm2 x.
 Proof.
-  rewrite /read_gvar /get_gvar; case: ifP => // _ /disjointP hin.
-  apply: get_var_eq_ex; apply hin; SvD.fsetdec.
+  rewrite /read_gvar /get_gvar; case: ifP => // _ /disjointP hin heqx.
+  rewrite (get_var_eq_ex _ _ heqx) //; apply hin; SvD.fsetdec.
 Qed.
 
 Section READ_E_ES_EQ_ON.
@@ -698,7 +754,7 @@ Section READ_E_ES_EQ_ON.
       by have -> := he _ _ _ heq.
     - rewrite /= /eq_on /vm_rel => x s1 vm' s /(_ x) Heq.
       have H := (SvP.MP.FM.add_1 s Logic.eq_refl).
-      by apply Heq in H; rewrite H. 
+      by apply Heq in H; rewrite H.
     - move=> /= x e1 e2 He1 He2 s1 vm' s Heq.
       rewrite (He1 _ _ _ Heq) (He2 _ vm' s) //.
       rewrite (get_var_eq_on _ _ Heq) ?(He1 _ _ _ Heq) ?(He2 _ _ _ Heq) //.
@@ -781,7 +837,7 @@ Proof.
   + by move=> e n hrec s1 s2 eq mem; rewrite (hrec s1 s2 eq mem).
   + by move=> ??? ->.
   + by move=> ??? h1 h2 ?? eq; rewrite negb_or=> /andP[] mem1 mem2;
-    rewrite (h1 _ _ eq mem1) (h2 _ _ eq mem2) eq.  
+    rewrite (h1 _ _ eq mem1) (h2 _ _ eq mem2) eq.
   by move=> ??? h1 h2 ?? eq; rewrite negb_or=> /andP[] mem1 mem2;
   rewrite (h1 _ _ eq mem1) (h2 _ _ eq mem2) eq.
 Qed.
@@ -877,15 +933,15 @@ Proof.
   exists vm2 => //; rewrite vrvs_cons; apply: eq_onI hvm2;SvD.fsetdec.
 Qed.
 
-(* -------------------------------------------- *)
+End WITHCATCH.
 
+(* -------------------------------------------- *)
 Lemma get_gvar_uincl_at wdb x gd vm1 vm2 v1:
   (if is_lvar x then value_uincl vm1.[gv x] vm2.[gv x] else True) ->
   get_gvar wdb gd vm1 x = ok v1 ->
   exists2 v2, get_gvar wdb gd vm2 x = ok v2 & value_uincl v1 v2.
 Proof.
-  rewrite /get_gvar; case:ifP => _.
-  + exact: get_var_uincl_at.
+  rewrite /get_gvar /=; case:ifP => _; first exact: get_var_uincl_at.
   by move=> ? ->;exists v1.
 Qed.
 
@@ -976,7 +1032,7 @@ Qed.
 
 Lemma vuincl_exec_opn {sip : SemInstrParams asm_op syscall_state} o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
-  exists2 v', exec_sopn o vs' = ok v' & List.Forall2  value_uincl v v'.
+  exists2 v', exec_sopn o vs' = ok v' & List.Forall2 value_uincl v v'.
 Proof.
   rewrite /exec_sopn /sopn_sem => vs_vs'; apply rbindP => ?; apply: rbindP => ? /assertP -> /= [<-] ho.
   exact: (get_instr_desc o).(semu) vs_vs' ho.
@@ -1440,6 +1496,8 @@ Proof. by case: sem_pexpr_wdb_and. Qed.
 Lemma sem_pexprs_wdb e : Q e.
 Proof. by case: sem_pexpr_wdb_and. Qed.
 
+Section WITHCATCH.
+Context {wc:WithCatch}.
 Lemma sem_pexpr_ext_eq s e vm :
   (evm s =1 vm)%vm ->
   sem_pexpr wdb gd s e = sem_pexpr wdb gd (with_vm s vm) e.
@@ -1482,7 +1540,12 @@ Proof.
   by apply: vrvsP hw2.
 Qed.
 
+End WITHCATCH.
+
 End Expr.
+
+Section WITHCATCH.
+Context {wc:WithCatch}.
 
 Lemma eq_gvarP wdb gd vm x x' : eq_gvar x x' → get_gvar wdb gd vm x = get_gvar wdb gd vm x'.
 Proof. by rewrite /eq_gvar /get_gvar /is_lvar => /andP [] /eqP -> /eqP ->. Qed.
@@ -1530,7 +1593,9 @@ Proof. by move=> /get_var_compat [] * ?; subst. Qed.
 Lemma get_gvar_undef gd vm x v ty h :
   get_gvar true gd vm x = ok v -> v <> Vundef ty h.
 Proof.
-  rewrite /get_gvar; case: is_lvar; first by apply get_var_undef.
+  rewrite /get_gvar; case: is_lvar.
+  apply : (@catchP wc value (fun v => v <> Vundef ty h)); last by apply get_var_undef.
+  + by move=> _ _ _ _; case: vtype.
   move=> /get_globalI [gv [_ -> _]].
   by case: gv.
 Qed.
@@ -1539,6 +1604,7 @@ Lemma get_var_is_allow_undefined vm xs :
   get_var_is false vm xs = ok [seq vm.[v_var x] | x <- xs ].
 Proof. by elim: xs => //= ?? ->. Qed.
 
+End WITHCATCH.
 End WITHASSERT.
 
 End WITH_PARAMS.

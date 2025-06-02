@@ -93,6 +93,7 @@ Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {wc : WithCatch}
   {wa : WithAssert}
   {asm_op: Type}
   {sip : SemInstrParams asm_op syscall_state}
@@ -1041,6 +1042,7 @@ Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {wc : WithCatch }
   {wa : WithAssert}
   {asm_op: Type}
   {sip : SemInstrParams asm_op syscall_state}

@@ -286,7 +286,7 @@ Section REMOVE_ASSERT.
   Proof. by move=> hx; split => //; rewrite /check_lvals /= hx. Qed.
 
   Lemma it_remove_assert_progP fn :
-    wiequiv_f_wa withassert noassert p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+    wiequiv_f_wa nocatch nocatch withassert noassert p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof.
     apply wequiv_fun_ind_wa => hrec {fn}.
     move=> fn _ fs ft [<- <-] fd hget.

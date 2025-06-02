@@ -226,7 +226,7 @@ Transparent esem.
     { rewrite /= /sem_assgn /=.
       rewrite /= get_gvar_neq // -eq_globs.
       move: hv => /= => -> /=.
-      rewrite (@get_gvar_eq _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget) /=.
+      rewrite (@get_gvar_eq _ _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget) /=.
       rewrite /truncate_val /= truncate_word_u /= write_var_eq_type //.
       rewrite /mk_lvar /= /get_gvar get_var_eq /= cmp_le_refl orbT //.
       rewrite /truncate_val /= truncate_word_u /=.

@@ -31,8 +31,7 @@ Definition default_val (t: stype) :=
 Definition catch_core {T:Type} (ev : exec T) dfv : exec T :=
   match ev with
   | Ok v => ev
-  | Error ErrType => ev
-  | Error _ => ok dfv
+  | Error e => if is_ErrType e then ev else ok dfv
   end.
 
 Notation catch ev dfv := (if with_catch then catch_core ev dfv else ev).
@@ -106,8 +105,9 @@ Definition on_arr_var A (v:exec value) (f:forall n, WArray.array n -> exec A) :=
   | _ => type_error
   end.
 
+(* We don't catch the error here because if the is an error it is only a type error *)
 Notation "'Let' ( n , t ) ':=' wdb ',' s '.[' v ']' 'in' body" :=
-  (@on_arr_var _ (catch (get_var wdb s.(evm) v) (default_val (vtype v))) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
+  (@on_arr_var _ (get_var wdb s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
 
 Notation "'Let' ( n , t ) ':=' wdb ',' gd ',' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_gvar wdb gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).
@@ -359,7 +359,7 @@ Definition syscall_sem__ := @syscall_sem.exec_syscall_u.
 Notation catch ev dfv := (if with_catch then catch_core ev dfv else ev).
 
 Notation "'Let' ( n , t ) ':=' wdb ',' s '.[' v ']' 'in' body" :=
-  (@on_arr_var _ (catch (get_var wdb s.(evm) v) (default_val (vtype v))) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
+  (@on_arr_var _ (get_var wdb s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
 
 Notation "'Let' ( n , t ) ':=' wdb ',' gd ',' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_gvar wdb gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).

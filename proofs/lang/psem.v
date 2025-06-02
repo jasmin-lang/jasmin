@@ -586,7 +586,7 @@ Context
 
 Section WITHASSERT.
 
-Context {wa: WithAssert}.
+Context {wc:WithCatch} {wa: WithAssert}.
 Lemma st_eq_refl d s : st_eq d s s.
 Proof. by split. Qed.
 Hint Resolve st_eq_refl : core.
@@ -946,6 +946,7 @@ Section IT_Sem_eqv.
 
 Context
   {dc:DirectCall}
+  {wc: WithCatch}
   {wa: WithAssert}
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
@@ -991,6 +992,7 @@ Definition checker_st_eq_on : Checker_e (st_rel eq_on) :=
 Definition st_uincl_on X := st_rel uincl_on X.
 
 Section NOT_ALLOW_ASSERT.
+#[local] Existing Instance nocatch.
 #[local] Existing Instance noassert.
 
 Lemma read_es_st_uincl_on gd wdb es X :
@@ -1060,8 +1062,8 @@ Proof.
 Qed.
 #[local] Hint Resolve checker_st_eq_onP : core.
 
-
 Section NOT_ALLOW_ASSERT.
+#[local] Existing Instance nocatch.
 #[local] Existing Instance noassert.
 
 Lemma checker_st_uincl_onP : Checker_uincl p p' checker_st_uincl_on.
@@ -1505,6 +1507,7 @@ Context
   {sCP : semCallParams}.
 
 Section NOT_ALLOW_ASSERT.
+#[local] Existing Instance nocatch.
 #[local] Existing Instance noassert.
 
 Lemma read_es_st_uincl d gd wdb es :

@@ -229,11 +229,18 @@ Lemma map_errP eT1 eT2 aT (f : eT1 -> eT2) (r : result eT1 aT) x :
 Proof. by case: r => //= ? [->]. Qed.
 Arguments map_errP {_ _ _ _ _ _}.
 
+
 Definition assertion_label := String.string.
 
 Variant error :=
  | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith | ErrSemUndef
  | ErrUnknowFun | ErrAssert of assertion_label.
+
+Definition is_ErrType e :=
+  if e is ErrType then true else false.
+
+Lemma is_ErrTypeP e : reflect (e = ErrType) (is_ErrType e).
+Proof. by case: e => /=; constructor. Qed.
 
 Definition exec t := result error t.
 
