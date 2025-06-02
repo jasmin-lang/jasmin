@@ -167,7 +167,12 @@ abstract theory ByteArray.
       rewrite get'Sd_byte // get8_of_list'S.
       rewrite (mulzC r i) edivz_eq 1:/# emodz_eq 1:/#.
       case: (0 <= i < List.size l) => hi.
-      + have /# : (i + 1) * r <= size l * r by apply ler_wpmul2r => /#.
+      + rewrite -h.
+        have -> /= : 0 <= i * r + k by smt().
+        suff -> // : i * r + k < size l * r.
+        suff /# : i * r + (k + 1) <= size l * r.
+        have : (i + 1) * r <= size l * r by apply ler_wpmul2r => /#.
+        apply: ler_trans; smt().
       rewrite nth_out 1:// _zero_bits8 /#.
     qed.
 
