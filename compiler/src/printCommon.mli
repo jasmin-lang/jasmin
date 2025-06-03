@@ -34,24 +34,24 @@ val pp_mem_access :
 
 val pp_arr_access :
   'var Utils.pp ->
-  'expr Utils.pp ->
+  'len Prog.gexpr Utils.pp ->
   Format.formatter ->
   Memory_model.aligned ->
   Warray_.arr_access ->
   Wsize.wsize option ->
   'var ->
-  'expr ->
+  'len Prog.gexpr ->
   unit
 
 val pp_arr_slice :
   'var Utils.pp ->
-  'expr Utils.pp ->
+  'len Prog.gexpr Utils.pp ->
   'len Utils.pp ->
   Format.formatter ->
   Warray_.arr_access ->
   Wsize.wsize option ->
   'var ->
-  'expr ->
+  'len Prog.gexpr ->
   'len ->
   unit
 
