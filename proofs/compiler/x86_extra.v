@@ -9,8 +9,7 @@ Require Import
   arch_decl
   expr
   fexpr
-  wsize
-  asm_gen.
+  wsize.
 Require Import
   x86_decl
   x86_instr_decl

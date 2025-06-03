@@ -21,6 +21,7 @@ Require Import
   x86_decl
   x86_extra
   x86_instr_decl.
+Require Import asm_gen. (* to have ovm_i *)
 Require Export x86_stack_zeroization.
 Import seq_extra.
 
