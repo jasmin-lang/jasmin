@@ -1,9 +1,9 @@
 (*
 *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import one_varmap.
+Require Import expr one_varmap.
 Import Utf8.
-Import expr compiler_util.
+Require Import compiler_util.
 
 (** This is a checker that it is safe to merge the local variables of a function and its caller.
 

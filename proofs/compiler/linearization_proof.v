@@ -9,7 +9,8 @@ Import Relations.
 Require sem_one_varmap_facts label.
 Import word_ssrZ.
 Import ssrring.
-Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts low_memory.
+Import psem psem_facts sem_one_varmap label sem_one_varmap_facts low_memory.
+Require Import compiler_util.
 Require Import seq_extra.
 Require Import constant_prop constant_prop_proof.
 Require Import fexpr fexpr_sem fexpr_facts.

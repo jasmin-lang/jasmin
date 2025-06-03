@@ -25,7 +25,7 @@ Import MonadNotation.
 Local Open Scope monad_scope.
 
 
-Require Import expr psem_defs oseq compiler_util.
+Require Import expr psem_defs oseq.
 (* needed for the last lemma *)
 Require Import psem_core.
 
