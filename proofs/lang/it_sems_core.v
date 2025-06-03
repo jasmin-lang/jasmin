@@ -424,6 +424,9 @@ Proof. done. Qed.
 Lemma esem_c_nil p ev s : esem p ev [::] s = ok s.
 Proof. done. Qed.
 
+Lemma esem1 p ev s i : esem p ev [::i] s = esem_i p ev i s.
+Proof. by rewrite esem_cons; case: esem_i. Qed.
+
 Lemma eEForOne p ev s1 s1' s2 s3 i w ws c :
   write_var true i (Vint w) s1 = ok s1' ->
   esem p ev c s1' = ok s2 ->

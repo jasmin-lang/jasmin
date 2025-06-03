@@ -824,6 +824,25 @@ Proof.
   by apply: wequiv_weaken (hc b) => // > [].
 Qed.
 
+(* Usefull for lowering *)
+Lemma wequiv_if_esem P P' Q ii1 e1 c1 c1' c ii2 e2 c2 c2':
+  (forall s t v, P s t -> sem_pexpr true (p_globs p1) s e1 = ok v ->
+     exists t', [/\ esem p2 ev2 c t = ok t', P' s t' & sem_pexpr true (p_globs p2) t' e2 = ok v]) ->
+  (forall b, wequiv P' (if b then c1 else c1') (if b then c2 else c2') Q) ->
+  wequiv P [::MkI ii1 (Cif e1 c1 c1')] (c ++ [::MkI ii2 (Cif e2 c2 c2')]) Q.
+Proof.
+  move=> he hc s t hP /=.
+  rewrite isem_cmd_cat !bind_ret_r/=.
+  rewrite /isem_cond.
+  case heq: sem_cond => [b | e] /=; last first.
+  + rewrite bind_vis; apply xrutt_CutL.
+    by rewrite /errcutoff /is_error /subevent /= /resum /fromErr mid12.
+  move: heq; rewrite /sem_cond; t_xrbindP => v hse1 hto.
+  have [t' [hsemc hP' hse2]] := he s t v hP hse1.
+  rewrite bind_ret_l (esem_i_bodyP hsemc) /= bind_ret_l hse2 /= hto /= bind_ret_l bind_ret_r.
+  by case: (b) (hc b _ _ hP').
+Qed.
+
 Lemma sem_cond_uincl P e1 e2 :
   wrequiv P (fun (s:estate1) => sem_pexpr true (p_globs p1) s e1)
             (fun (s:estate2) => sem_pexpr true (p_globs p2) s e2) value_uincl ->
@@ -958,6 +977,41 @@ Proof.
   + by move=> > [].
   apply wequiv_while_full => //.
   by apply: wequiv_weaken hc' => // > [].
+Qed.
+
+(* Usefull for lowering *)
+Lemma wequiv_while_esem I I1 I' ii1 al1 e1 inf1 c1 c1' c ii2 al2 e2 inf2 c2 c2':
+  wequiv I c1 c2 I1 ->
+  (forall s t v, I1 s t -> sem_pexpr true (p_globs p1) s e1 = ok v ->
+     exists t', [/\ esem p2 ev2 c t = ok t', I' s t' & sem_pexpr true (p_globs p2) t' e2 = ok v]) ->
+  wequiv I' c1' c2' I ->
+  wequiv I [::MkI ii1 (Cwhile al1 c1 e1 inf1 c1')] [::MkI ii2 (Cwhile al2 (c2 ++ c) e2 inf2 c2')] I'.
+Proof.
+  move=> hc hcond hc'; rewrite /wequiv /isem_cmd_ /=.
+  apply wkequiv_bind with I'; last by apply wkequiv_ret.
+  apply wkequiv_iter with (I := I) => //; rewrite /isem_while_loop.
+  rewrite /isem_while_round.
+  apply wkequiv_eutt_r with (F2 :=
+    (λ s : estate2,
+      s0' <- isem_foldr isem_i_body p2 ev2 c2 s;;
+      s0 <- isem_foldr isem_i_body p2 ev2 c s0';;
+      b <- isem_cond p2 e2 s0;; (if b then s1 <- isem_foldr isem_i_body p2 ev2 c2' s0;; ret (inl s1) else ret (inr s0)))).
+  + move=> > _. rewrite -/(isem_cmd_ p2 ev2 (c2 ++ c)) isem_cmd_cat.
+    rewrite Monad.bind_bind; reflexivity.
+  apply (wkequiv_bind hc).
+  move=> s t hI1 /=.
+  rewrite /isem_cond.
+  case heq: sem_cond => [b | e] /=; last first.
+  + rewrite bind_vis; apply xrutt_CutL.
+    by rewrite /errcutoff /is_error /subevent /= /resum /fromErr mid12.
+  move: heq; rewrite /sem_cond; t_xrbindP => v hse1 hto.
+  have [t' [hsemc hI' hse2]] := hcond s t v hI1 hse1.
+  rewrite bind_ret_l -/(isem_cmd_ p2 ev2 c) (esem_i_bodyP hsemc) /=.
+  rewrite bind_ret_l hse2 /= hto /= bind_ret_l.
+  case: (b).
+  + apply (wkequiv_bind hc') => //.
+    by apply wkequiv_ret => *; constructor.
+  by apply xrutt_Ret; constructor.
 Qed.
 
 Lemma wequiv_while_uincl I I' ii1 al1 e1 inf1 c1 c1' ii2 al2 e2 inf2 c2 c2' :

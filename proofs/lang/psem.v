@@ -1519,6 +1519,15 @@ Definition uincl_spec : EquivSpec :=
   {| rpreF_ := fun (fn1 fn2 : funname) (fs1 fs2 : fstate) => fn1 = fn2 /\ fs_uincl fs1 fs2
    ; rpostF_ := fun (fn1 fn2 : funname) (fs1 fs2 fr1 fr2: fstate) => fs_uincl fr1 fr2 |}.
 
+Lemma eq_initialize p' fd fd' fs s:
+  f_tyin fd = f_tyin fd' ->
+  f_extra fd = f_extra fd' ->
+  f_params fd = f_params fd' ->
+  p_extra p = p_extra p' ->
+  initialize_funcall p ev fd fs = ok s ->
+  initialize_funcall p' ev fd' fs = ok s.
+Proof. by rewrite /initialize_funcall => <- <- <- <-. Qed.
+
 (* TODO: Can we generalize this to different semantic ? *)
 Lemma fs_uincl_initialize p' fd fd' fs fs' s:
   f_tyin fd = f_tyin fd' ->
