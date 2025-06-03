@@ -81,6 +81,7 @@ compiler/linearization_proof.v
 compiler/load_constants_in_cond.v
 compiler/load_constants_in_cond_proof.v
 compiler/lowering.v
+compiler/lowering_lemmas.v
 compiler/lower_spill.v
 compiler/lower_spill_proof.v
 compiler/makeReferenceArguments.v
@@ -159,7 +160,6 @@ lang/linear.v
 lang/linear_facts.v
 lang/linear_sem.v
 lang/low_memory.v
-lang/lowering_lemmas.v
 lang/memory_example.v
 lang/memory_model.v
 lang/one_varmap.v
