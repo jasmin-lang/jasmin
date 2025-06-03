@@ -131,20 +131,17 @@ let pp_ows fmt ws =
   | E.Op_int -> ()
   | E.Op_w ws -> pp_ws fmt ws
 
-let pp_access fmt = function
-  | Warray_.AAdirect -> Format.fprintf fmt "direct"
-  | Warray_.AAscale -> Format.fprintf fmt "scale"
-
 let pp_arr_slice fmt slice =
-  let pp_len fmt i =
-    if i = 1 then ()
-    else Format.fprintf fmt " : %d" i in
-  Format.fprintf fmt "%a%s[U%d %a %a]"
-    (Printer.pp_var ~debug:false) slice.as_arr
-    (if slice.as_access = Warray_.AAdirect then "." else "")
-    (int_of_ws slice.as_wsize)
-    (Printer.pp_expr ~debug:false) slice.as_offset
-    pp_len slice.as_len
+  let open PrintCommon in
+  let pp_var = Printer.pp_var ~debug:false in
+  let pp_expr = Printer.pp_expr ~debug:false in
+  let ws = non_default_wsize slice.as_arr slice.as_wsize in
+  if Stdlib.Int.equal slice.as_len 1 then
+    pp_arr_access pp_var pp_expr fmt Memory_model.Aligned slice.as_access ws
+      slice.as_arr slice.as_offset
+  else
+    pp_arr_slice pp_var pp_expr pp_len fmt slice.as_access ws slice.as_arr
+      slice.as_offset slice.as_len
 
 let pp_safety_cond fmt = function
   | Initv x -> Format.fprintf fmt "is_init %a" pp_var x

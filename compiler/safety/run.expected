@@ -3,7 +3,7 @@ Analyzing function main
 
 
 *** Possible Safety Violation(s):
-  "fail/arr_init_fail.jazz", line 16 (4-15): in_bound: tmp[U8 j ] (length 16 U8)
+  "fail/arr_init_fail.jazz", line 16 (4-15): in_bound: tmp[j] (length 16 U8)
   "fail/arr_init_fail.jazz", line 14 (2) to line 18 (3): termination
   
 Memory ranges:
@@ -30,7 +30,7 @@ Analyzing function main
 
 
 *** Possible Safety Violation(s):
-  "fail/array-export.jazz", line 4 (2-11): in_bound: a[U8 ((uint) i) ] (length 4 U8)
+  "fail/array-export.jazz", line 4 (2-11): in_bound: a[((uint) i)] (length 4 U8)
   
 Memory ranges:
   mem_a: [0; 0]
@@ -50,7 +50,7 @@ Analyzing function array
 
 
 *** Possible Safety Violation(s):
-  "fail/array-len3.jazz", line 33 (4-18): is_init blk[U64 i ]
+  "fail/array-len3.jazz", line 33 (4-18): is_init blk[i]
   
 * Rel:
 ⊤
@@ -64,7 +64,7 @@ Analyzing function bad_read
 
 
 *** Possible Safety Violation(s):
-  "fail/array_init.jazz", line 8 (2-11): is_init t[U64 0 ]
+  "fail/array_init.jazz", line 8 (2-11): is_init t[0]
   
 * Rel:
 ⊤
@@ -114,7 +114,7 @@ Analyzing function uninit
 
 
 *** Possible Safety Violation(s):
-  "fail/bounded_while.jazz", line 15 (2-17): is_init t[U64 (4 - 1) ]
+  "fail/bounded_while.jazz", line 15 (2-17): is_init t[(4 - 1)]
   
 Memory ranges:
   mem_bound: [0; 0]
@@ -223,8 +223,8 @@ Analyzing function load_last
 
 
 *** Possible Safety Violation(s):
-  "fail/load.jazz", line 15 (4-17): in_bound: s[U8 ((uint) j) ] (length 16 U8)
-  "fail/load.jazz", line 19 (2-17): in_bound: s[U8 ((uint) j) ] (length 16 U8)
+  "fail/load.jazz", line 15 (4-17): in_bound: s[:u8 ((uint) j)] (length 16 U8)
+  "fail/load.jazz", line 19 (2-17): in_bound: s[:u8 ((uint) j)] (length 16 U8)
   
 Memory ranges:
   mem_input: [0; 18446744073709551615]
