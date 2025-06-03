@@ -472,6 +472,8 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
 
     { res with dom_st = shape.dom_st }
 
+  let get_constr _ = []
+
 end
 
 
@@ -892,7 +894,9 @@ module ReducedProd (P : RProdParam) : AbsDisjType = struct
 
   let get_env (a,b) = 
     Environment.lce (A.get_env a) (B.get_env b)
-  
+
+  let get_constr _ = []
+
   let print = P.print
 
   let set_rel t v =

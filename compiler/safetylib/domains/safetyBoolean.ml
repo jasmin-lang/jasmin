@@ -275,10 +275,12 @@ module AbsNumTMake (PW : ProgWrap) : AbsNumT = struct
           Format.fprintf fmt "@[<hv>%a* Congruences:@;%a@]"
             (A.print ~full) a
             (B.print ~full) b
-        
-      let reduce (a,b) = (a,b)
+
+      let reduce (a,b) =
+        let m = B.get_constr b in
+        (List.fold_left A.meet_constr a m, b)
     end)
-      
+
   module R = MakeAbsDisjProf (struct
       module Num = RNumWithCongr
       let prefix = "R."

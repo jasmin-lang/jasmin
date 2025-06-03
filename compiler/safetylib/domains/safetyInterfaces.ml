@@ -72,6 +72,8 @@ module type AbsNumType = sig
 
   val get_env : t -> Environment.t
 
+  val get_constr : t -> Mtcons.t list
+
   val print : ?full:bool -> Format.formatter -> t -> unit
 end
 

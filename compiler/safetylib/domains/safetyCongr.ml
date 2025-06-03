@@ -301,9 +301,29 @@ module AbsNumCongr : AbsNumType = struct
 
   let get_env t =
     let l = List.map (fun x -> avar_of_mvar (fst x)) (Mm.bindings t) in
-    env_of_list l   
+    env_of_list l
+
+  let get_constr t =
+    Mm.fold
+      (fun x k acc ->
+        match k with
+        | Congr.V (m, r) when Z.gt m Z.one ->
+           (*  The domain knows that: ∃ q, x = m·q + r
+               We produce the equation: “(x − r) mod m = 0”
+               (or simply “x mod m = 0” when r is zero) *)
+           let zcst z =
+             Mtexpr.cst (Coeff.s_of_mpqf (Mpqf.of_string (Z.to_string z)))
+           in
+           let e =
+             if Z.equal r Z.zero then Mtexpr.var x
+             else Mtexpr.(binop Sub (var x) (zcst r))
+           in
+           Mtcons.make Mtexpr.(binop Mod e (zcst m)) Tcons1.EQ :: acc
+        | _ -> acc)
+      t []
+
   let to_box _t = assert false
-    
+
   let of_box _box = assert false
 
   let print ?full:(_=false) fmt t =

@@ -251,7 +251,7 @@ Memory ranges:
   mem_inlen: [0; 0]
   
 * Rel:
-{inv_inlen ≤ 18446744073709551615, inv_in ≥ 0, inv_in ≤ 18446744073709551615, mem_in ≥ 0, inv_inlen ≥ mem_in, mem_inlen = 0}
+{inv_inlen ≥ mem_in, inv_inlen ≤ 18446744073709551615, inv_in ≤ 18446744073709551615, inv_in ≥ 0, mem_in ≥ 0, mem_inlen = 0}
 mem_in ∊ [0; 18446744073709551615]
 mem_inlen ∊ [0; 0]
 

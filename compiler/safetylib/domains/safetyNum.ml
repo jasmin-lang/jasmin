@@ -770,4 +770,6 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
 
   let get_env a = Abstract1.env a
 
+  let get_constr _ = []
+
 end
