@@ -10,6 +10,7 @@
 -arg "-w -projection-no-head-constant"
 -arg "-w -postfix-notation-not-level-1"
 -arg "-w -deprecated-since-mathcomp-2.3.0"
+-arg "-w -deprecated-since-mathcomp-2.4.0"
 -arg "-w -deprecated-from-Coq"
 -arg "-w -deprecated-dirpath-Coq"
 
