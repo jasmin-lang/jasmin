@@ -197,6 +197,11 @@ let non_default_wsize x ws =
   if Wsize.wsize_eqb ws (fst (array_kind x.v_ty)) then None
   else Some ws
 
+let peel_implicit_cast_to_uint =
+  function
+  | Papp1 (Expr.Oint_of_word (Unsigned, _), e)
+  | e -> e
+
 let pp_access_size fmt = function
   | None -> ()
   | Some ws -> fprintf fmt ":%a " (pp_btype ?w:None) (U ws)
@@ -210,12 +215,13 @@ let pp_arr_access pp_gvar pp_expr fmt al aa ws x e =
     pp_gvar x
     (if aa = Warray_.AAdirect then "." else "")
     pp_unaligned al
-    pp_access_size ws pp_expr e
+    pp_access_size ws
+    pp_expr (peel_implicit_cast_to_uint e)
 
 let pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len =
   fprintf fmt "%a%s[%a%a : %a]" pp_gvar x
     (if aa = Warray_.AAdirect then "." else "")
-    pp_access_size ws pp_expr e pp_len len
+    pp_access_size ws pp_expr (peel_implicit_cast_to_uint e) pp_len len
 
 (* -------------------------------------------------------------------- *)
 let pp_len fmt len = fprintf fmt "%i" len
