@@ -2,7 +2,6 @@ val escape : string -> string
 (** replace dots & columns by underscores *)
 
 val pp_wsize : Format.formatter -> Wsize.wsize -> unit
-val pp_aligned : Format.formatter -> Memory_model.aligned -> unit
 val string_of_signess : Wsize.signedness -> string
 val string_of_velem : Wsize.signedness -> Wsize.wsize -> Wsize.velem -> string
 val string_of_op1 : debug:bool -> Expr.sop1 -> string
