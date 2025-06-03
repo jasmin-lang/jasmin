@@ -79,7 +79,10 @@
   fixes [#1139](https://github.com/jasmin-lang/jasmin/issues/1139)).
 
 - Better testing of the printing feature
-  ([PR #1149](https://github.com/jasmin-lang/jasmin/pull/1149).
+  ([PR #1149](https://github.com/jasmin-lang/jasmin/pull/1149)).
+
+- The safety checker *reduces* intervals using congruence information
+  ([PR #1176](https://github.com/jasmin-lang/jasmin/pull/1176)).
 
 # Jasmin 2025.02.1 — Nancy, 2025-04-10
 

@@ -632,6 +632,8 @@ module AbsDisj (A : AbsNumProdT) : AbsDisjType = struct
     
     eval fn fl t
 
+  let get_constr _ = []
+
   let print ?full:(full=false) fmt t =
     (* Useful to debug constrait blocks *)
     (* Format.eprintf "debug: constraints:@; %a@.@."
