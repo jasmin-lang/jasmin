@@ -111,7 +111,7 @@ Qed.
 (* TODO_ARM: Is this the best way of expressing the [write_val] condition? *)
 Lemma sem_i_conditional
   {dc : DirectCall} (p : prog)
-  ev s0 s1 mn sf osk lvs tag args c prev vargs b vprev vprev' vres :
+  ev s0 s1 mn sf osk ii lvs tag args c prev vargs b vprev vprev' vres :
   let opts :=
     {| set_flags := sf; is_conditional := false; has_shift := osk; |}
   in
@@ -126,12 +126,11 @@ Lemma sem_i_conditional
       else write_lvals true (p_globs p) s0 lvs vprev' = ok s1)
   -> let aop' := Oarm (ARM_op mn (set_is_conditional opts)) in
      let ir := Copn lvs tag aop' (args ++ c :: prev) in
-     sem_i p ev s0 ir s1.
+     esem_i p ev (MkI ii ir) s0 = ok s1.
 Proof.
   move=> opts aop hsemargs hsemc hsemprev htruncprev hexec hwrite.
 
-  apply: Eopn.
-  rewrite /sem_sopn /=.
+  rewrite /= /sem_sopn /=.
   rewrite /sem_pexprs mapM_cat /= -2![mapM _ _]/(sem_pexprs _ _ _ _).
   rewrite hsemargs hsemc hsemprev {hsemargs hsemc hsemprev} /=.
 

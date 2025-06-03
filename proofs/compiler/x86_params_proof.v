@@ -80,8 +80,9 @@ Proof.
   case: is_zeroP => [hofs|_]; last exact: lea_ptrP.
   move: hofs ok_pofs => -> /=.
   rewrite truncate_word_u wrepr0 => -[<-].
-  rewrite GRing.addr0 -P'_globs.
-  by apply: (mov_wsP (sCP := sCP_stack)); rewrite // P'_globs.
+  rewrite GRing.addr0 -P'_globs in he |- * => hw.
+  have:= [elaborate mov_wsP (sCP := sCP_stack) (p1:=P') dummy_instr_info tag w (cmp_le_refl U64) he hw].
+  by move=> /esem_i_sem /psem.sem_IE.
 Qed.
 
 Lemma x86_mov_ofsP : mov_ofs_correct x86_saparams.(sap_mov_ofs).
@@ -96,9 +97,12 @@ Lemma x86_immediateP : immediate_correct x86_saparams.(sap_immediate).
 Proof.
   move=> P' ev s x z.
   case: x => - [] [] // [] // x xi _ /=.
-  have := mov_wsP (pT := progStack) AT_none _ (cmp_le_refl _).
-  move => /(_ _ _ _ _ _ _ _ P').
-  apply; last reflexivity.
+  have /psem.sem_IE //:
+    psem.sem_I P' ev s
+      (MkI dummy_instr_info (x86_immediate {| v_var := {| vtype := sword64; vname := x |}; v_info := xi |} z))
+      (with_vm s (evm s).[{| vtype := sword64; vname := x |} <- Vword (wrepr x86_reg_size z)]).
+  apply esem_i_sem.
+  apply: (mov_wsP (pT := progStack) (p1:= P') dummy_instr_info AT_none _ (cmp_le_refl _)); last reflexivity.
   by rewrite /= truncate_word_u.
 Qed.
 

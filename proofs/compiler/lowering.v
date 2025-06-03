@@ -41,15 +41,7 @@ Definition lower_cmd  (c : cmd) : cmd :=
   conc_map lower_i c.
 
 Definition lower_fd (fd : fundef) : fundef :=
-  {|
-    f_info := f_info fd;
-    f_tyin := f_tyin fd;
-    f_params := f_params fd;
-    f_body := lower_cmd (f_body fd);
-    f_tyout := f_tyout fd;
-    f_res := f_res fd;
-    f_extra := f_extra fd;
-  |}.
+  with_body fd (lower_cmd (f_body fd)).
 
 Definition lower_prog (p : prog) :=
   map_prog lower_fd p.

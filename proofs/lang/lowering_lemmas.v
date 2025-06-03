@@ -16,8 +16,7 @@ Context
   {spp : SemPexprParams}.
 
 (* State equality up to a set of variables. *)
-Definition estate_eq_except ys s1 s2 :=
-  [/\ s1.(escs) = s2.(escs), s1.(emem) = s2.(emem) & s1.(evm) =[\ ys] s2.(evm)].
+Definition st_eq_ex ys s1 s2 := (st_rel eq_ex ys s1 s2).
 
 (* FIXME syscall : why it is needed to redeclare it here *)
 (* note that in utils, it is CMorphisms.Proper, here it is Morpisms.Proper *)
@@ -28,25 +27,26 @@ Proof. apply and3_iff_morphism. Qed.
 (* END FIXME syscall *)
 
 Lemma eeq_excR xs s :
-  estate_eq_except xs s s.
+  st_eq_ex xs s s.
 Proof. done. Qed.
 
 Lemma eeq_excS xs s0 s1 :
-  estate_eq_except xs s0 s1
-  -> estate_eq_except xs s1 s0.
-Proof. by rewrite /estate_eq_except => -[-> -> ->]. Qed.
+  st_eq_ex xs s0 s1
+  -> st_eq_ex xs s1 s0.
+Proof. by rewrite /st_eq_ex /st_rel => -[-> -> ->]. Qed.
 
 Lemma eeq_excT xs s0 s1 s2 :
-  estate_eq_except xs s0 s1
-  -> estate_eq_except xs s1 s2
-  -> estate_eq_except xs s0 s2.
-Proof. by rewrite /estate_eq_except => -[-> -> ->]. Qed.
+  st_eq_ex xs s0 s1
+  -> st_eq_ex xs s1 s2
+  -> st_eq_ex xs s0 s2.
+Proof. by rewrite /st_eq_ex /st_rel => -[-> -> ->]. Qed.
 
 Lemma eeq_exc_disjoint xs ys s0 s1 :
   disjoint xs ys
-  -> estate_eq_except ys s0 s1
-  -> [/\ escs s0 = escs s1, emem s0 = emem s1 & evm s0 =[ xs ] evm s1].
+  -> st_eq_ex ys s0 s1
+  -> st_eq_on xs s0 s1.
 Proof.
+  rewrite /st_eq_ex /st_eq_on /st_rel.
   move=> /Sv.is_empty_spec hdisj [-> -> hvm].
   split=> // x hxxs.
   apply: hvm.
@@ -55,7 +55,7 @@ Qed.
 
 Lemma eeq_exc_sem_pexprs wdb gd xs es v s0 s1 :
   disjoint (read_es es) xs
-  -> estate_eq_except xs s1 s0
+  -> st_eq_ex xs s0 s1
   -> sem_pexprs wdb gd s0 es = ok v
   -> sem_pexprs wdb gd s1 es = ok v.
 Proof.
@@ -64,12 +64,12 @@ Proof.
   rewrite (read_es_eq_on wdb gd hvm).
   rewrite /with_vm.
   rewrite hscs hmem.
-  by rewrite -(surj_estate s0).
+  by rewrite -(surj_estate s1).
 Qed.
 
 Lemma eeq_exc_sem_pexpr wdb gd xs e v s0 s1 :
   disjoint (read_e e) xs
-  -> estate_eq_except xs s1 s0
+  -> st_eq_ex xs s0 s1
   -> sem_pexpr wdb gd s0 e = ok v
   -> sem_pexpr wdb gd s1 e = ok v.
 Proof.
@@ -88,10 +88,10 @@ Qed.
 
 Lemma eeq_exc_write_lvals wdb gd xs s0 s1 s0' ls vs :
   disjoint (vars_lvals ls) xs
-  -> estate_eq_except xs s0' s0
+  -> st_eq_ex xs s0 s0'
   -> write_lvals wdb gd s0 ls vs = ok s1
   -> exists2 s1',
-       write_lvals wdb gd s0' ls vs = ok s1' & estate_eq_except xs s1' s1.
+       write_lvals wdb gd s0' ls vs = ok s1' & st_eq_ex xs s1 s1'.
 Proof.
   move=> hdisj.
   move: s0 s0' => [scs0 mem0 vm0] [scs0' mem0' vm0'].
@@ -105,7 +105,7 @@ Proof.
   clear hdisj.
 
   have hvm' : vm0 =[Sv.diff (read_rvs ls) xs] vm0'.
-  - move=> x hx. apply: eq_exS. apply: hvm. SvD.fsetdec.
+  - move=> x hx. apply: hvm. SvD.fsetdec.
 
   have [vm1' hwrite' hvm1'] := write_lvals_eq_on hsub hwrite hvm'.
   clear hsub hvm'.
@@ -124,10 +124,10 @@ Qed.
 
 Lemma eeq_exc_write_lval wdb gd xs s0 s1 s0' l v :
   disjoint (vars_lval l) xs
-  -> estate_eq_except xs s0' s0
+  -> st_eq_ex xs s0 s0'
   -> write_lval wdb gd l v s0 = ok s1
   -> exists2 s1',
-       write_lval wdb gd l v s0' = ok s1' & estate_eq_except xs s1' s1.
+       write_lval wdb gd l v s0' = ok s1' & st_eq_ex xs s1 s1'.
 Proof.
   move=> hdisj heq hwrite.
 
@@ -147,7 +147,7 @@ Qed.
 
 Lemma eeq_exc_get_gvar wdb gd s0 s1 (x : gvar) vs :
   ~~ Sv.mem (gv x) vs
-  -> estate_eq_except vs s0 s1
+  -> st_eq_ex vs s0 s1
   -> get_gvar wdb gd (evm s0) x = get_gvar wdb gd (evm s1) x.
 Proof.
   move=> /Sv_memP hx [hscs hmem hvm].
@@ -156,6 +156,76 @@ Proof.
   rewrite /get_var /=.
   by rewrite (hvm _ hx).
 Qed.
+
+Lemma read_es_st_eq_ex gd wdb es X :
+  disjoint (read_es es) X ->
+  wrequiv (st_rel eq_ex X) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) eq.
+Proof.
+  move=> hdisj s t v hst he; exists v => //.
+  by apply (eeq_exc_sem_pexprs hdisj hst he).
+Qed.
+
+Lemma write_lvals_st_eq_ex gd wdb xs vs X :
+  disjoint (vars_lvals xs) X ->
+  wrequiv
+    (st_eq_ex X)
+    (fun s1 => write_lvals wdb gd s1 xs vs) (fun s2 => write_lvals wdb gd s2 xs vs)
+    (st_eq_ex X).
+Proof. by move=> hdisj s t s'; apply eeq_exc_write_lvals. Qed.
+
+Definition check_es_st_eq_ex (X:Sv.t) (es1 es2 : pexprs) (X':Sv.t) :=
+  [/\ X' = X, es1 = es2 & disjoint (read_es es1) X].
+
+(* Remark this is stronger than needed (read_rvs xs1 is sufficiant) but previous lemmas are done like that ... *)
+Definition check_lvals_st_eq_ex (X:Sv.t) (xs1 xs2 : lvals) (X':Sv.t) :=
+  [/\ X' = X, xs1 = xs2 & disjoint (vars_lvals xs1) X].
+
+Lemma check_esP_R_st_eq_ex X es1 es2 X':
+  check_es_st_eq_ex X es1 es2 X' -> forall s1 s2, st_eq_ex X s1 s2 -> st_eq_ex X' s1 s2.
+Proof. by move=> [-> _ _]. Qed.
+
+Definition checker_st_eq_ex : Checker_e st_eq_ex :=
+  {| check_es := check_es_st_eq_ex;
+     check_lvals := check_lvals_st_eq_ex;
+     check_esP_rel := check_esP_R_st_eq_ex |}.
+
+Section CALL.
+Context
+  {dc:DirectCall}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT : progT}
+  {scP : semCallParams}.
+
+Lemma st_eq_ex_finalize fd fd' X:
+  f_tyout fd = f_tyout fd' ->
+  f_extra fd = f_extra fd' ->
+  f_res fd = f_res fd' ->
+  disjoint (vars_l (f_res fd)) X ->
+  wrequiv (st_eq_ex X) (finalize_funcall fd) (finalize_funcall fd') eq.
+Proof.
+  move=> ??? hdisj.
+  apply wrequiv_weaken with (st_eq_on (vars_l (f_res fd))) eq => //.
+  + move=> s t [h1 h2 h3]; split => //.
+    by apply: (eq_ex_disjoint_eq_on h3); apply disjoint_sym.
+  by apply st_eq_on_finalize.
+Qed.
+
+Context (p p':prog).
+
+Local Notation gd := (p_globs p).
+Local Notation gd' := (p_globs p').
+
+Context (eq_globs : gd = gd').
+
+Lemma checker_st_eq_exP : Checker_eq p p' checker_st_eq_ex.
+Proof.
+  constructor; rewrite -eq_globs.
+  + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- [? -> ?]; apply read_es_st_eq_ex.
+  move=> wdb ? d xs1 xs2 d' /wdb_ok_eq <- [-> <- hdisj] vs.
+  by apply write_lvals_st_eq_ex.
+Qed.
+
+End CALL.
 
 End ESTATE_EQ_EXCEPT.
 
