@@ -275,7 +275,7 @@ Definition idt_drop3 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop3 semi
 Definition idt_drop4 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop4 semi_drop4_errty semi_drop4_sem_safe.
 
 Definition rtuple_drop5th
-  {t0 t1 t2 t3 t4 : stype}
+  {t0 t1 t2 t3 t4 : ctype}
   (xs : sem_tuple [:: t0; t1; t2; t3; t4 ]) :=
   let: (:: x0, x1, x2, x3 & x4 ) := xs in
   (:: x0, x1, x2 & x3 ).

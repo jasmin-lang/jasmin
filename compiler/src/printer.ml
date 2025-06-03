@@ -128,10 +128,10 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
   F.fprintf fmt "%a" pp_info (i.i_loc, i.i_info);
   F.fprintf fmt "%a" pp_annotations i.i_annot;
   match i.i_desc with
-  | Cassgn(x, tg, ty, Parr_init n) ->
-    F.fprintf fmt "@[<hov 2>ArrayInit(%a); /* length=%a %a%s */@]"
+  | Cassgn(x, tg, ty, Parr_init (ws, n)) ->
+    F.fprintf fmt "@[<hov 2>ArrayInit(%a); /* length=%s*%a %a%s */@]"
       (pp_glv ~debug pp_len pp_var) x
-      pp_len n
+      (string_of_ws ws) pp_len n
       (pp_gtype pp_len) ty
       (pp_tag tg)
 

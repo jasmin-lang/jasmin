@@ -483,7 +483,7 @@ Proof.
   rewrite /eq_rect_r /=; apply.
 Qed.
 
-Lemma safe_wf_cat (tin tin' : seq stype) sc :
+Lemma safe_wf_cat (tin tin' : seq ctype) sc :
   all (fun sc => sc_needed_args sc <= size tin) sc ->
   all (fun sc => sc_needed_args sc <= size (tin ++ tin')) sc.
 Proof. apply sub_all => c h; rewrite size_cat; apply: (leq_trans h); apply leq_addr. Qed.
@@ -531,7 +531,7 @@ Definition mk_semi1_shifted
     semi (shift_op sk wn sham).
 
 Definition mk_semi2_2_shifted
-  {A} {o : stype} (sk : shift_kind) (semi : sem_prod [:: o; sreg ] (exec A)) :
+  {A} {o : ctype} (sk : shift_kind) (semi : sem_prod [:: o; sreg ] (exec A)) :
   sem_prod [:: o; sreg; sword8 ] (exec A) :=
   fun x wm shift_amount =>
     let sham := wunsigned shift_amount in
@@ -539,7 +539,7 @@ Definition mk_semi2_2_shifted
 
 Definition mk_semi3_2_shifted
   {A}
-  {o0 o1 : stype}
+  {o0 o1 : ctype}
   (sk : shift_kind)
   (semi : sem_prod [:: o0; sreg; o1 ] (exec A)) :
   sem_prod [:: o0; sreg; o1; sword8 ] (exec A) :=

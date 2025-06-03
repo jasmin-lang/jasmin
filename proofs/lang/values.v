@@ -39,8 +39,8 @@ Lemma undef_t_subtype ty : subctype (undef_t ty) ty.
 Proof. by rewrite subtype_undef_tP. Qed.
 #[global] Hint Resolve undef_t_subtype : core.
 
-(* Lemma compat_type_undef_t b t1 t2 : compat_type b t1 t2 -> undef_t t1 = undef_t t2.
-Proof. by move=> /compat_type_subtype h; rewrite -subtype_undef_tP (subtype_trans _ h). Qed. *)
+Lemma compat_ctype_undef_t b t1 t2 : compat_ctype b t1 t2 -> undef_t t1 = undef_t t2.
+Proof. by move=> /compat_ctype_subctype h; rewrite -subtype_undef_tP (subctype_trans _ h). Qed.
 
 (* ** Values
   * -------------------------------------------------------------------- *)
@@ -609,7 +609,7 @@ Lemma subtype_truncate_val_idem ty1 ty2 v v1 v2 :
   truncate_val ty2 v1 = ok v2 ->
   truncate_val ty2 v = ok v2.
 Proof.
-  move=> /subtypeE hsub /truncate_valE htr.
+  move=> /subtype_genE hsub /truncate_valE htr.
   case: v htr hsub => //.
   + by move=> b [-> ->] _.
   + by move=> z [-> ->] _.
@@ -628,7 +628,7 @@ Lemma subtype_truncate_val ty1 ty2 v v1 :
   truncate_val ty1 v = ok v1 ->
   exists v2, truncate_val ty2 v1 = ok v2.
 Proof.
-  move=> /subtypeE hsub /truncate_valI htr.
+  move=> /subtype_genE hsub /truncate_valI htr.
   case: v1 htr hsub => //.
   + move=> b [-> _]. rewrite toto => /eqP ->. eexists; reflexivity.
   + move=> z [-> _]. rewrite toto => /eqP ->. eexists; reflexivity.

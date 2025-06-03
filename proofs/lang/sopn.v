@@ -60,9 +60,9 @@ Arguments semu _ [vs vs' v] _ _.
 
 Notation mk_instr_desc str tin i_in tout i_out semi safe valid semi_errty semi_safe :=
   {| str          := str;
-     tin          := tin;
+     tin          := map to_atype tin;
      i_in         := i_in;
-     tout         := tout;
+     tout         := map to_atype tout;
      i_out        := i_out;
      conflicts    := [::];
      semi         := semi;

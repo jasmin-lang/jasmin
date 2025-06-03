@@ -20,7 +20,7 @@ type 'len ggvar = {
 type 'len gexpr =
   | Pconst of Z.t
   | Pbool  of bool
-  | Parr_init of 'len
+  | Parr_init of wsize * 'len
   | Pvar   of 'len ggvar
   | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr

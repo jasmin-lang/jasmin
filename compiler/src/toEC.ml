@@ -1287,7 +1287,7 @@ let base_op = function
 let ty_expr = function
   | Pconst _       -> tint
   | Pbool _        -> tbool
-  | Parr_init len  -> Arr (U8, len)
+  | Parr_init (ws, len)  -> Arr (ws, len)
   | Pvar x         -> x.gv.L.pl_desc.v_ty
   | Pload (_, sz,_) -> tu sz
   | Pget  (_,_, sz,_,_) -> tu sz
@@ -1404,7 +1404,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
       match e with
       | Pconst z -> Econst z
       | Pbool b -> Ebool b
-      | Parr_init _n -> ec_ident "witness"
+      | Parr_init (_ws, _n) -> ec_ident "witness"
       | Pvar x -> ec_vari env (L.unloc x.gv)
       | Pget (a, aa, ws, y, e) ->
           EA.toec_pget env (a, aa, ws, L.unloc y.gv, toec_expr env e)

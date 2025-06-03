@@ -170,7 +170,7 @@ Module M.
   Section WSW.
   Context {wsw : WithSubWord}.
 
-  Definition v_compat_type x y := compat_type sw_allowed (vtype x) (vtype y).
+  Definition v_compat_type x y := compat_atype sw_allowed (vtype x) (vtype y).
 
   Definition v_compat_typeP x y := bool_dec (v_compat_type x y).
 
@@ -482,10 +482,10 @@ Definition error_lv := pp_internal_error_s "allocation" "lval not equal".
 Definition check_lval (e2:option (atype * pexpr)) (x1 x2:lval) m : cexec M.t :=
   match x1, x2 with
   | Lnone  _ t1, Lnone _ t2  =>
-    Let _ := assert (compat_type sw_allowed t1 t2) error_lv in
+    Let _ := assert (compat_atype sw_allowed t1 t2) error_lv in
     ok m
   | Lnone  _ t1, Lvar x      =>
-    Let _ := assert (compat_type sw_allowed t1 x.(v_var).(vtype)) error_lv in
+    Let _ := assert (compat_atype sw_allowed t1 x.(v_var).(vtype)) error_lv in
     ok (M.remove m x.(v_var))
   | Lvar x1    , Lvar x2     =>
     match is_Pvar e2 with

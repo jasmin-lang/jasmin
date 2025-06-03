@@ -304,7 +304,7 @@ Proof.
   exact: cmp_le_trans.
 Qed.
 
-Lemma subtypeE ty ty' :
+Lemma subtype_genE ty ty' :
   subtype_gen ty ty' →
   match ty' return Prop with
   | sword sz' => ∃ sz, ty = sword sz ∧ (sz ≤ sz')%CMP
@@ -316,18 +316,14 @@ Proof.
   by case: ty' => //; eauto.
 Qed.
 
-Lemma subtypeEl ty ty' :
-  Symmetric conv ->
+Lemma subtype_genEl ty ty' :
   subtype_gen ty ty' →
   match ty return Prop with
   | sword sz => ∃ sz', ty' = sword sz' ∧ (sz ≤ sz')%CMP
-  | _        => convertible_gen ty' ty
+  | _        => convertible_gen ty ty'
   end.
 Proof.
-  move=> conv_sym.
-  case: ty => [||n|ws] /=; try by move/eqP => <-.
-  + case: ty' => [||n'|ws'] //=.
-    by eauto.
+  case: ty => [||n|ws] //=; try by move/eqP => <-.
   by case: ty' => //; eauto.
 Qed.
 
@@ -402,6 +398,51 @@ Proof.
   apply subtype_gen_trans.
   by move=> ??? /eqP -> /eqP ->.
 Qed.
+
+Lemma subatypeE ty ty' :
+  subatype ty ty' →
+  match ty' return Prop with
+  | sword sz' => ∃ sz, ty = sword sz ∧ (sz ≤ sz')%CMP
+  | _         => convertible ty ty'
+end.
+Proof. exact: subtype_genE. Qed.
+
+Lemma subtypeaEl ty ty' :
+  subatype ty ty' →
+  match ty return Prop with
+  | sword sz => ∃ sz', ty' = sword sz' ∧ (sz ≤ sz')%CMP
+  | _        => convertible ty ty'
+  end.
+Proof. exact: subtype_genEl. Qed.
+
+Lemma toto (ty1 ty2:ctype) : convertible_gen eq_op ty1 ty2 -> ty1 = ty2.
+Proof. case: ty1 ty2 => [||n|ws] [||n'|ws'] //=.
+  + by move=> /eqP <-.
+  by move=> /eqP [<-].
+Qed.
+
+Lemma subctypeE ty ty' :
+  subctype ty ty' →
+  match ty' return Prop with
+  | sword sz' => ∃ sz, ty = sword sz ∧ (sz ≤ sz')%CMP
+  | _         => ty = ty'
+end.
+Proof.
+  move=> /subtype_genE.
+  by case: ty' => [||len|ws] // /toto.
+Qed.
+
+Lemma subctypeEl ty ty' :
+  subctype ty ty' →
+  match ty return Prop with
+  | sword sz => ∃ sz', ty' = sword sz' ∧ (sz ≤ sz')%CMP
+  | _        => ty = ty'
+  end.
+Proof.
+  move=> /subtype_genEl.
+  by case: ty => [||len|ws] // /toto.
+Qed.
+
 
 (* -------------------------------------------------------------------- *)
 #[only(eqbOK)] derive

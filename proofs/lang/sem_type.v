@@ -14,14 +14,25 @@ Class WithSubWord := { sw_allowed : bool }.
 Definition nosubword   := {| sw_allowed := false |}.
 Definition withsubword := {| sw_allowed := true |}.
 
-Definition compat_type (sw:bool) :=
-  if sw then subatype else convertible.
+(* TODO: move compat_type to type? *)
+Section CONV.
+
+Context {len:eqType} (conv : len -> len -> bool).
+
+Definition compat_type_gen (sw:bool) :=
+  if sw then subtype_gen conv else convertible_gen conv.
 
 (* TODO: try to not declare stype as eqType? to be sure we never use eq_op *)
-Lemma compat_type_refl b ty : compat_type b ty ty.
-Proof. by rewrite /compat_type; case: b. Qed.
-#[global]Hint Resolve compat_type_refl : core.
+Lemma compat_type_gen_refl b ty : Reflexive conv -> compat_type_gen b ty ty.
+Proof.
+  move=> conv_refl; rewrite /compat_type_gen.
+  case: b.
+  + by apply subtype_gen_refl.
+  by apply convertible_gen_refl.
+Qed.
+(* #[global]Hint Resolve compat_type_gen_refl : core. *)
 
+(*
 Instance fd : Equivalence convertible.
 Proof.
   split.
@@ -30,49 +41,135 @@ Proof.
   - move=> ???. apply convertible_trans.
 Defined.
 
-Instance to : Proper (convertible ==> convertible ==> eq) subatype.
+Instance to : Equivalence conv -> Proper (convertible_gen conv ==> convertible_gen conv ==> eq) (subtype_gen conv).
 Proof.
+  move=> conv_trans.
   move=> ty11 ty12 eq_ty1 ty21 ty22 eq_ty2.
-  case: ty11 ty12 ty21 ty22 eq_ty1 eq_ty2 => [||[ws11 len11]|ws11] [||[ws12 len12]|ws12] [||[ws21 len21]|ws21] [||[ws22 len22]|ws22] //=.
-  + by move=> /eqP -> /eqP ->.
+  case: ty11 ty12 ty21 ty22 eq_ty1 eq_ty2 => [||?|ws11] [||?|ws12] [||?|ws21] [||?|ws22] //=.
+  + move=> h1 h2. apply /idP/idP. move=> h3. do 2 (etransitivity; try eassumption). symmetry. eassumption.
+   move=> h3. do 2 (etransitivity; try eassumption). symmetry. eassumption.
+  
+(*    by move=> /eqP -> /eqP ->. *)
   move=> /eqP [] -> /eqP [] ->.
   done.
+Qed. *)
+
+Lemma convertible_gen_subtype_gen ty1 ty2 :
+  convertible_gen conv ty1 ty2 -> subtype_gen conv ty1 ty2.
+Proof.
+  case: ty1 ty2 => [||len1|ws1] [||len2|ws2] //=.
+  by move=> /eqP [<-].
 Qed.
 
-(* FIXME: clean *)
-Lemma compat_type_subtype b t1 t2:
-  compat_type b t1 t2 -> subatype t1 t2.
-Proof. case: b => //=. move=> h. rewrite -> h. done. Qed.
+Lemma compat_type_gen_subtype_gen b t1 t2:
+  compat_type_gen b t1 t2 -> subtype_gen conv t1 t2.
+Proof.
+  case: b => //=.
+  by apply convertible_gen_subtype_gen.
+Qed.
 
-Lemma compat_typeE b ty ty' :
-  compat_type b ty ty' →
+Lemma compat_type_genE b ty ty' :
+  compat_type_gen b ty ty' →
+  match ty' return Prop with
+  | sword sz' =>
+    exists2 sz, ty = sword sz & if b then ((sz ≤ sz')%CMP:Prop) else sz' = sz
+  | _ => convertible_gen conv ty ty'
+end.
+Proof.
+  rewrite /compat_type_gen; case: b => [/subtype_genE|]; case: ty' => //.
+  + by move=> ws [ws' [*]]; eauto.
+  move=> ws'.
+  case: ty => //= ws /eqP [->].
+  by eauto.
+Qed.
+
+Lemma compat_type_genEl b ty ty' :
+  compat_type_gen b ty ty' →
+  match ty return Prop with
+  | sword sz =>
+    exists2 sz', ty' = sword sz' & if b then ((sz ≤ sz')%CMP:Prop) else sz = sz'
+  | _ => convertible_gen conv ty ty'
+  end.
+Proof.
+  rewrite /compat_type_gen; case: b => [/subtype_genEl|].
+  + by case: ty => // ws [ws' [*]]; eauto.
+  case: ty => //= ws /= /eqP <-.
+  by eauto.
+Qed.
+
+End CONV.
+
+Definition compat_atype b (t t' : atype) :=
+  compat_type_gen (fun '(ws1, len1) '(ws2, len2) => arr_size ws1 len1 == arr_size ws2 len2) b t t'.
+
+Definition compat_ctype b (t t' : ctype) :=
+  compat_type_gen eq_op b t t'.
+
+Lemma convertible_c_eq (ty1 ty2 : ctype) : convertible_gen eq_op ty1 ty2 -> ty1 = ty2.
+Proof.
+  case: ty1 ty2 => [||len1|ws1] [||len2|ws2] //=.
+  + by move=> /eqP ->.
+  by move=> /eqP [->].
+Qed.
+
+Lemma compat_atypeE b ty ty' :
+  compat_atype b ty ty' →
   match ty' return Prop with
   | sword sz' =>
     exists2 sz, ty = sword sz & if b then ((sz ≤ sz')%CMP:Prop) else sz' = sz
   | _ => convertible ty ty'
-end.
+  end.
 Proof.
-  rewrite /compat_type; case: b => [/subtypeE|]; case: ty' => //.
-  + by move=> ws [ws' [*]]; eauto.
-  move=> ws /convertible_sym /= /eqP <-.
-  by eauto.
+  exact: compat_type_genE.
 Qed.
 
-Lemma compat_typeEl b ty ty' :
-  compat_type b ty ty' →
+Lemma compat_atypeEl b ty ty' :
+  compat_atype b ty ty' →
   match ty return Prop with
   | sword sz =>
     exists2 sz', ty' = sword sz' & if b then ((sz ≤ sz')%CMP:Prop) else sz = sz'
-  | _ => convertible ty' ty
+  | _ => convertible ty ty'
+  end.
+Proof. exact: compat_type_genEl. Qed.
+
+Lemma compat_atype_refl b ty : compat_atype b ty ty.
+Proof. apply compat_type_gen_refl. by move=> [??]. Qed.
+#[global]Hint Resolve compat_atype_refl : core.
+
+Lemma compat_atype_subatype b ty1 ty2 : compat_atype b ty1 ty2 -> subatype ty1 ty2.
+Proof. exact: compat_type_gen_subtype_gen. Qed.
+
+Lemma compat_ctypeE b ty ty' :
+  compat_ctype b ty ty' →
+  match ty' return Prop with
+  | sword sz' =>
+    exists2 sz, ty = sword sz & if b then ((sz ≤ sz')%CMP:Prop) else sz' = sz
+  | _ => ty = ty'
   end.
 Proof.
-  rewrite /compat_type; case: b => [/subtypeEl|].
-  + move=> /(_ ltac:(move=> [??] [??]; by rewrite eq_sym)).
-    by case: ty => // ws [ws' [*]]; eauto.
-  move=> /convertible_sym.
-  case: ty => //= ws /convertible_sym /= /eqP <-.
-  by eauto.
+  move=> /compat_type_genE.
+  by case: ty' => [||len'|ws'] //= /convertible_c_eq.
 Qed.
+
+Lemma compat_ctypeEl b ty ty' :
+  compat_ctype b ty ty' →
+  match ty return Prop with
+  | sword sz =>
+    exists2 sz', ty' = sword sz' & if b then ((sz ≤ sz')%CMP:Prop) else sz = sz'
+  | _ => ty = ty'
+  end.
+Proof.
+Proof.
+  move=> /compat_type_genEl.
+  by case: ty => [||len|ws] // /convertible_c_eq.
+Qed.
+
+Lemma compat_ctype_refl b ty : compat_ctype b ty ty.
+Proof. exact: compat_type_gen_refl. Qed.
+#[global]Hint Resolve compat_ctype_refl : core.
+
+Lemma compat_ctype_subctype b ty1 ty2 : compat_ctype b ty1 ty2 -> subctype ty1 ty2.
+Proof. exact: compat_type_gen_subtype_gen. Qed.
 
 (* ----------------------------------------------------------- *)
 Definition sem_t (t : ctype) : Type :=

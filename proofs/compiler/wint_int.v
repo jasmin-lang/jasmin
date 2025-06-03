@@ -68,7 +68,7 @@ Definition esubtype (ty1 ty2 : extended_type positive) :=
  | ETword (Some sg) w, ETword (Some sg') w' => (sg == sg') && (w == w')
  | ETint, ETint => true
  | ETbool, ETbool => true
- | ETarr l, ETarr l' => l == l'
+ | ETarr ws l, ETarr ws' l' => (ws == ws') && (l == l')
  | _, _ => false
  end.
 
@@ -105,12 +105,12 @@ Section Section.
 Context (m: var -> option (signedness * var)).
 Context (FV: Sv.t).
 
-Definition to_etype sg (t:stype) : extended_type positive:=
+Definition to_etype sg (t:atype) : extended_type positive :=
   match t with
-  | sbool    => tbool
-  | sint     => tint
-  | sarr l   => tarr l
-  | sword ws => ETword _ sg ws
+  | sbool        => tbool
+  | sint         => tint
+  | sarr (ws, l) => tarr ws l
+  | sword ws     => ETword _ sg ws
   end.
 
 Definition sign_of_var x := Option.map fst (m x).
@@ -134,10 +134,10 @@ Fixpoint etype_of_expr (e:pexpr) : extended_type positive :=
   match e with
   | Pconst _ => tint
   | Pbool _ => tbool
-  | Parr_init len => tarr len
+  | Parr_init ws len => tarr ws len
   | Pvar x => etype_of_gvar x
   | Pget al aa ws x e => tword ws
-  | Psub al ws len x e => tarr (Z.to_pos (arr_size ws len))
+  | Psub al ws len x e => tarr ws len
   | Pload al ws e => tword ws
   | Papp1 o e => (etype_of_op1 o).2
   | Papp2 o e1 e2 => (etype_of_op2 o).2
@@ -167,12 +167,12 @@ Definition wi2i_gvar (x: gvar) :=
     ok (mk_lvar xi)
   else ok x.
 
-Definition wi2i_type (sg : option signedness) ty :=
+Definition wi2i_type (sg : option signedness) (ty:atype) :=
   if sg == None then ty else sint.
 
 Fixpoint wi2i_e (e0:pexpr) : cexec pexpr :=
   match e0 with
-  | Pconst _ | Pbool _ | Parr_init _ => ok e0
+  | Pconst _ | Pbool _ | Parr_init _ _ => ok e0
   | Pvar x =>
     Let x := wi2i_gvar x in
     ok (Pvar x)

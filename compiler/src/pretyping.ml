@@ -1093,16 +1093,16 @@ let cast_int loc os e ety =
 
 (* -------------------------------------------------------------------- *)
 let conv_ty : BinNums.positive T.extended_type -> P.epty = function
-    | T.ETbool       -> P.etbool
-    | T.ETint        -> P.etint
-    | T.ETword(s,ws) -> P.ETword(s,ws)
-    | T.ETarr p      -> P.ETarr (U8, PE (P.icnst (Conv.int_of_pos p)))
+    | T.ETbool        -> P.etbool
+    | T.ETint         -> P.etint
+    | T.ETword(s,ws)  -> P.ETword(s,ws)
+    | T.ETarr (ws, p) -> P.ETarr (ws, PE (P.icnst (Conv.int_of_pos p)))
 
-let conv_cty : T.stype -> P.epty = function
-    | T.Coq_sbool    -> P.etbool
-    | T.Coq_sint     -> P.etint
-    | T.Coq_sword ws -> P.etw ws
-    | T.Coq_sarr p   -> P.ETarr (U8, PE (P.icnst (Conv.int_of_pos p)))
+let conv_cty : T.atype -> P.epty = function
+    | T.Coq_sbool        -> P.etbool
+    | T.Coq_sint         -> P.etint
+    | T.Coq_sword ws     -> P.etw ws
+    | T.Coq_sarr (ws, p) -> P.ETarr (ws, PE (P.icnst (Conv.int_of_pos p)))
 
 let type_of_op2 op =
   let (ty1, ty2), tyo = E.etype_of_op2 op in
@@ -1882,9 +1882,8 @@ let tt_exprs_cast pd env loc les tys =
 let arr_init (xi, ty) =
   let open P in
   match ty with
-  | P.ETarr(ws, PE e) as ty ->
-    let size = PE (icnst (size_of_ws ws) ** e) in
-    Cassgn (Lvar xi, E.AT_inline, P.gty_of_gety ty, P.Parr_init size)
+  | P.ETarr(ws, e) as ty ->
+    Cassgn (Lvar xi, E.AT_inline, P.gty_of_gety ty, P.Parr_init (ws, e))
   | _           ->
     rs_tyerror ~loc:(L.loc xi) (InvalidArrayType ty)
 
