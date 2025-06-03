@@ -9,6 +9,7 @@ val string_of_op2 : Expr.sop2 -> string
 
 val pp_opn :
   Wsize.wsize -> 'asm Sopn.asmOp -> Format.formatter -> 'asm Sopn.sopn -> unit
+
 val pp_syscall : BinNums.positive Syscall_t.syscall_t -> string
 val pp_bool : Format.formatter -> bool -> unit
 val pp_kind : Format.formatter -> Wsize.v_kind -> unit
@@ -20,6 +21,8 @@ val pp_gtype :
   Format.formatter ->
   'size Prog.gty ->
   unit
+
+val non_default_wsize : 'len Prog.gvar -> Wsize.wsize -> Wsize.wsize option
 
 val pp_mem_access :
   'expr Utils.pp ->

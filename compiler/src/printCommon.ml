@@ -193,6 +193,10 @@ let pp_gtype ?w (pp_size : formatter -> 'size -> unit) fmt = function
   | Arr (ws, e) -> fprintf fmt "%a[%a]" (pp_btype ?w:None) (U ws) pp_size e
 
 (* -------------------------------------------------------------------- *)
+let non_default_wsize x ws =
+  if Wsize.wsize_eqb ws (fst (array_kind x.v_ty)) then None
+  else Some ws
+
 let pp_access_size fmt = function
   | None -> ()
   | Some ws -> fprintf fmt ":%a " (pp_btype ?w:None) (U ws)
