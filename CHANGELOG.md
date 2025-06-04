@@ -60,6 +60,10 @@
   ([PR #1150](https://github.com/jasmin-lang/jasmin/pull/1150);
   fixes [#483](https://github.com/jasmin-lang/jasmin/issues/483)).
 
+- The S-CT checker now ignores annotations on local variables
+  ([PR #1182](https://github.com/jasmin-lang/jasmin/pull/1182);
+  fixes [#1179](https://github.com/jasmin-lang/jasmin/issues/1179)).
+
 ## Other changes
 
 - The deprecated legacy interface to extract to EasyCrypt has been removed
