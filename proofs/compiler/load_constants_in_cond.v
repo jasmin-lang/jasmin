@@ -105,6 +105,7 @@ Definition load_constants_fd (fd: fundef) :=
   let write   := write_c body in
   let read    := read_c  body in
   let returns := read_es (map Plvar fd.(f_res)) in
+  (* FIXME: once we will remove proof based on psem write_c can be remove *)
   let X := Sv.union returns (Sv.union write read) in
   Let body := load_constants_c (load_constants_i X) body in
   ok (with_body fd body).
