@@ -1753,6 +1753,29 @@ Proof.
   apply xrutt_weaken_aux.
 Qed.
 
+Lemma wequiv_fun_get fn1 fn2 Pf Qf :
+  (forall fd1, get_fundef (p_funcs p1) fn1 = Some fd1 ->
+    wiequiv_f p1 p2 ev1 ev2 (fun fn1 fn2 fs1 fs2 =>
+      Pf fn1 fn2 fs1 fs2 /\
+      exists s1, initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s1)
+      fn1 fn2 Qf) ->
+  wiequiv_f p1 p2 ev1 ev2 Pf fn1 fn2 Qf.
+Proof.
+  move=> hfd fs1 fs2 hpre /=.
+  rewrite !isem_call_unfold /isem_fun_body /kget_fundef.
+  case heq : get_fundef => [fd1 | ].
+  + rewrite /= bind_ret_l.
+    case heq1 : initialize_funcall => [s1 | e].
+    + have hpre' : Pf fn1 fn2 fs1 fs2 /\ exists s1, initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s1.
+      + by split => //; exists s1.
+      have /= := hfd _ heq _ _ hpre'.
+      by rewrite !isem_call_unfold /isem_fun_body /kget_fundef heq /= bind_ret_l heq1.
+    rewrite /= bind_vis; apply xrutt_CutL.
+    by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
+  rewrite /= bind_vis; apply xrutt_CutL.
+  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
+Qed.
+
 End WEQUIV_FUN.
 
 End RELATIONAL.
