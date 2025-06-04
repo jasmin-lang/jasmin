@@ -1246,8 +1246,8 @@ Lemma lower_fdP fn fd fd' :
     & f_extra fd' = f_extra fd
   ].
 Proof.
-case: fd; case: fd'; rewrite /lower_fd;
-  by t_xrbindP=> /= > -> _ -> -> -> -> -> -> -> ->.
+by case: fd; case: fd'; rewrite /lower_fd;
+  t_xrbindP=> /= > -> _ -> -> _ -> -> -> -> -> ->.
 Qed.
 
 Definition st_eq (env : Env.t) (s t : estate) : Prop :=
@@ -1440,6 +1440,7 @@ apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
   [ | | |
   | exact: it_lower_opn
   |
+  |
   | exact: lower_it_if
   | exact: lower_it_for
   | exact: lower_it_while
@@ -1462,16 +1463,18 @@ apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
     exact: EnvP.le_refl.
 
 (* Syscall *)
-move=> xs o es ii env _ _ _ [<-] [<- <-]; apply (
-  wequiv_syscall_rel_eq_core_R
-    _ _
-    (de := env)
-    (de' := Env.after_assign_vars Env.empty (vrvs xs))
-) => //.
-- by move=> > [-> _].
-- by move=> > [-> _].
-- split=> //. exact: EnvP.le_refl.
-exact: wrequiv_eq.
++ move=> xs o es ii env _ _ _ [<-] [<- <-]; apply (
+    wequiv_syscall_rel_eq_core_R
+      _ _
+      (de := env)
+      (de' := Env.after_assign_vars Env.empty (vrvs xs))
+  ) => //.
+  - by move=> > [-> _].
+  - by move=> > [-> _].
+  - split=> //. exact: EnvP.le_refl.
+  exact: wrequiv_eq.
+
+by move=> > /= [<-] [<- <-]; apply wequiv_assert => //.
 Qed.
 
 Lemma it_lower_call fn : wiequiv_f p p' ev ev rpreF fn fn rpostF.
