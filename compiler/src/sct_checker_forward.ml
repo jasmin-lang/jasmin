@@ -22,7 +22,6 @@ let pp_vset fmt xs =
 
 (* ----------------------------------------------------------- *)
 let ssecret = "secret"
-let spoly   = "poly"
 let spublic = "public"
 let stransient = "transient"
 let smsf = "msf"
@@ -1378,8 +1377,7 @@ let init_constraint fenv f =
 
   (* init type for local *)
   let do_local x venv =
-    let ls = parse_var_annot ~msf:false x.v_annot in
-    let _, vty = mk_vty x.v_dloc ~is_local:true ~msf:false x ls None in
+    let _, vty = mk_vty x.v_dloc ~is_local:true ~msf:false x [] None in
     Env.add_var env venv x vty in
 
   let venv = Sv.fold do_local (locals f) venv in
