@@ -37,6 +37,9 @@ Definition to_etype sg (t:stype) : extended_type positive:=
 
 Definition sign_of_var x := Option.map fst (m x).
 
+Definition etype_of_var x : extended_type positive :=
+  to_etype (sign_of_var x) (vtype x).
+
 Definition sign_of_gvar (x : gvar) :=
   if is_lvar x then sign_of_var (gv x)
   else None.
@@ -69,6 +72,9 @@ Fixpoint etype_of_expr (e:pexpr) : extended_type positive :=
   | Pis_barr_init _ _ _ => tbool
   | Pis_mem_init _ _ => tbool
   end.
+
+Definition sign_of_expr (e:pexpr) : option signedness :=
+  sign_of_etype (etype_of_expr e).
 
 (* Op2: Logics *)
 Definition elti e1 e2 := Papp2 (Olt Cmp_int) e1 e2.

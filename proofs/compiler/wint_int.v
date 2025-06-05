@@ -4,6 +4,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 Require Import expr sem_op_typed compiler_util.
+Require Export safety_shared.
 Import Utf8.
 Import oseq.
 Require Import flag_combination.
@@ -42,12 +43,6 @@ Context `{asmop:asmOp} {msfsz : MSFsize} {pd: PointerData}.
 #[local]
 Existing Instance progUnit.
 
-Definition is_wi1 (o: sop1) :=
-  if o is Owi1 s op then Some (s, op) else None.
-
-Definition is_wi2 (o: sop2) :=
-  if o is Owi2 s sw op then Some (s, sw, op) else None.
-
 Definition wi2i_op2 (o : sop2) : sop2 :=
   match is_wi2 o with
   | Some (s, sz, op) =>
@@ -69,92 +64,9 @@ Definition wi2i_op2 (o : sop2) : sop2 :=
   | None => o
   end.
 
-Definition esubtype (ty1 ty2 : extended_type positive) :=
- match ty1, ty2 with
- | ETword None w, ETword None w' => (w ≤ w')%CMP
- | ETword (Some sg) w, ETword (Some sg') w' => (sg == sg') && (w == w')
- | ETint, ETint => true
- | ETbool, ETbool => true
- | ETarr l, ETarr l' => l == l'
- | _, _ => false
- end.
-
-(* All arguments should have type int *)
-Definition elti e1 e2 := Papp2 (Olt Cmp_int) e1 e2.
-Definition elei e1 e2 := Papp2 (Ole Cmp_int) e1 e2.
-Definition eeqi e1 e2 := Papp2 (Oeq Op_int) e1 e2.
-Definition eneqi e1 e2 := Papp2 (Oneq Op_int) e1 e2.
-Definition elsli e1 e2 := Papp2 (Olsl Op_int) e1 e2.
-
-Definition emin_signed sz := Pconst (wmin_signed sz).
-Definition emax_signed sz := Pconst (wmax_signed sz).
-Definition ezero := Pconst 0.
-Definition emax_unsigned sz := Pconst (wmax_unsigned sz).
-
-Definition etrue := Pbool true.
-
-Fixpoint eands es :=
-  match es with
-  | [::] => etrue
-  | [::e] => e
-  | e::es => eand e (eands es)
-  end.
-
 Definition sc_all cond v start len :=
   if cond is nil then [::]
   else [:: Pbig etrue Oand v (eands cond) start len].
-
-(* All arguments should have type int *)
-Definition sc_in_range lo hi e := eand (elei lo e) (elei e hi).
-Definition sc_uint_range sz e := sc_in_range ezero (emax_unsigned sz) e.
-Definition sc_sint_range sz e := sc_in_range (emin_signed sz) (emax_signed sz) e.
-Definition sc_wi_range sg sz e := signed (sc_uint_range sz) (sc_sint_range sz) sg e.
-
-Definition sc_wiop1 sg (o : wiop1) e :=
-  match o with
-  | WIwint_of_int sz => [:: sc_wi_range sg sz e]
-  | WIint_of_wint sz => [::]
-  | WIword_of_wint sz => [::]
-  | WIwint_of_word sz => [::]
-  | WIwint_ext szo szi => [::]
-  | WIneg sz =>
-      signed  [::eeqi e ezero ]
-              [::eneqi e (emin_signed sz)] sg
-  end.
-
-Definition sc_op1 (op1 : sop1) e :=
-  match is_wi1 op1 with
-  | Some (sg, o) => sc_wiop1 sg o e
-  | None => [::]
-  end.
-
-(* [op : int -> int -> int] [e1 e2 : int] *)
-Definition sc_wi_range_op2 sg sz op e1 e2 :=
-  sc_wi_range sg sz (Papp2 op e1 e2).
-
-(* [e1 e2 : int] *)
-Definition sc_divmod sg sz e1 e2 :=
- let sc := signed [::]
-                  [:: enot (eand (eeqi e1 (emin_signed sz)) (eeqi e2 (Pconst (-1)))) ] sg in
- [:: eneqi e2 ezero & sc].
-
-Definition sc_wiop2 sg sz o e1 e2 :=
-  match o with
-  | WIadd => [:: sc_wi_range_op2 sg sz (Oadd Op_int) e1 e2]
-  | WImul => [:: sc_wi_range_op2 sg sz (Omul Op_int) e1 e2]
-  | WIsub => [:: sc_wi_range_op2 sg sz (Osub Op_int) e1 e2]
-  | WIdiv => sc_divmod sg sz e1 e2
-  | WImod => sc_divmod sg sz e1 e2
-  | WIshl => [:: sc_wi_range sg sz (elsli e1 e2) ]
-  | WIshr => [::]
-  | WIeq | WIneq | WIlt | WIle | WIgt | WIge  => [::]
-  end.
-
-Definition sc_op2 o e1 e2 :=
-  match is_wi2 o with
-  | Some (sg, sz, o) => sc_wiop2 sg sz o e1 e2
-  | _ => [::]
-  end.
 
 Definition wi2i_op1_e (o : sop1) (e : pexpr) :=
   match is_wi1 o with
@@ -188,55 +100,6 @@ Section Section.
 
 Context (m: var -> option (signedness * var)).
 Context (FV: Sv.t).
-
-Definition to_etype sg (t:stype) : extended_type positive:=
-  match t with
-  | sbool    => tbool
-  | sint     => tint
-  | sarr l   => tarr l
-  | sword ws => ETword _ sg ws
-  end.
-
-Definition sign_of_var x := Option.map fst (m x).
-
-Definition etype_of_var x : extended_type positive :=
-  to_etype (sign_of_var x) (vtype x).
-
-Definition sign_of_gvar (x : gvar) :=
-  if is_lvar x then sign_of_var (gv x)
-  else None.
-
-Definition etype_of_gvar x := to_etype (sign_of_gvar x) (vtype (gv x)).
-
-Definition sign_of_etype (ty: extended_type positive) : option signedness :=
-  match ty with
-  | ETword (Some s) _ => Some s
-  | _ => None
-  end.
-
-Fixpoint etype_of_expr (e:pexpr) : extended_type positive :=
-  match e with
-  | Pconst _ => tint
-  | Pbool _ => tbool
-  | Parr_init len => tarr len
-  | Pvar x => etype_of_gvar x
-  | Pget al aa ws x e => tword ws
-  | Psub al ws len x e => tarr (Z.to_pos (arr_size ws len))
-  | Pload al ws e => tword ws
-  | Papp1 o e => (etype_of_op1 o).2
-  | Papp2 o e1 e2 => (etype_of_op2 o).2
-  | PappN o es => to_etype None (type_of_opN o).2
-  | Pif ty e1 e2 e3 => to_etype (sign_of_etype (etype_of_expr e2)) ty
-  | Pbig ei o v e es el => (etype_of_op2 o).2
-  | Parr_init_elem e len => tarr len
-  | Pis_var_init _ => tbool
-  | Pis_arr_init _ _ _ => tbool
-  | Pis_barr_init _ _ _ => tbool
-  | Pis_mem_init _ _ => tbool
-  end.
-
-Definition sign_of_expr (e:pexpr) : option signedness :=
-  sign_of_etype (etype_of_expr e).
 
 Definition wi2i_var (x:var) :=
   match m x with
@@ -275,27 +138,27 @@ Fixpoint wi2i_e (e0:pexpr) : cexec (safety_cond * pexpr) :=
     ok ([::], Pvar x)
 
   | Pget al aa ws x e =>
-    Let _ := assert (sign_of_expr e == None)
+    Let _ := assert (sign_of_expr m e == None)
                     (E.ierror_e e0) in
     Let x := wi2i_gvar x in
     Let e := wi2i_e e in
     ok (e.1, Pget al aa ws x e.2)
 
   | Psub al ws len x e =>
-    Let _ := assert (sign_of_expr e == None)
+    Let _ := assert (sign_of_expr m e == None)
                     (E.ierror_e e0) in
     Let x := wi2i_gvar x in
     Let e := wi2i_e e in
     ok (e.1, Psub al ws len x e.2)
 
   | Pload al ws e =>
-    Let _ := assert (sign_of_expr e == None)
+    Let _ := assert (sign_of_expr m e == None)
                     (E.ierror_e e0) in
     Let e := wi2i_e e in
     ok (e.1, Pload al ws e.2)
 
   | Papp1 o e =>
-    Let _ := assert (esubtype (etype_of_op1 o).1 (etype_of_expr e))
+    Let _ := assert (esubtype (etype_of_op1 o).1 (etype_of_expr m e))
                     (E.ierror_e e0) in
     Let e := wi2i_e e in
     let sc := sc_op1 o e.2 in
@@ -303,8 +166,8 @@ Fixpoint wi2i_e (e0:pexpr) : cexec (safety_cond * pexpr) :=
 
   | Papp2 o e1 e2 =>
     let ty := etype_of_op2 o in
-    Let _ := assert [&& esubtype ty.1.1 (etype_of_expr e1) &
-                        esubtype ty.1.2 (etype_of_expr e2)]
+    Let _ := assert [&& esubtype ty.1.1 (etype_of_expr m e1) &
+                        esubtype ty.1.2 (etype_of_expr m e2)]
                     (E.ierror_e e0) in
     Let e1 := wi2i_e e1 in
     Let e2 := wi2i_e e2 in
@@ -312,17 +175,17 @@ Fixpoint wi2i_e (e0:pexpr) : cexec (safety_cond * pexpr) :=
     ok (e1.1 ++ e2.1 ++ sc, wi2i_op2_e o e1.2 e2.2)
 
   | PappN o es =>
-    Let _ := assert (all (fun e => sign_of_expr e == None) es)
+    Let _ := assert (all (fun e => sign_of_expr m e == None) es)
                     (E.ierror_e e0) in
     Let es := wi2i_es wi2i_e es in
     ok (es.1, PappN o es.2)
 
   | Pif ty e1 e2 e3 =>
-    let ety := etype_of_expr e0 in
-    Let _ := assert [&& esubtype ety (etype_of_expr e2) &
-                        esubtype ety (etype_of_expr e3)]
+    let ety := etype_of_expr m e0 in
+    Let _ := assert [&& esubtype ety (etype_of_expr m e2) &
+                        esubtype ety (etype_of_expr m e3)]
                     (E.ierror_e e0) in
-    let ty := wi2i_type (sign_of_expr e2) ty in
+    let ty := wi2i_type (sign_of_expr m e2) ty in
     Let e1 := wi2i_e e1 in
     Let e2 := wi2i_e e2 in
     Let e3 := wi2i_e e3 in
@@ -331,12 +194,12 @@ Fixpoint wi2i_e (e0:pexpr) : cexec (safety_cond * pexpr) :=
   | Pbig ei o v e es el =>
 
     let ty := etype_of_op2 o in
-    Let _ := assert [&& esubtype ty.2 (etype_of_expr ei)
+    Let _ := assert [&& esubtype ty.2 (etype_of_expr m ei)
                       , esubtype ty.1.1 ty.2
-                      , esubtype ty.1.2 (etype_of_expr e)
+                      , esubtype ty.1.2 (etype_of_expr m e)
                       , vtype v == sint
-                      , etype_of_expr es == ETint _
-                      & etype_of_expr el == ETint _]
+                      , etype_of_expr m es == ETint _
+                      & etype_of_expr m el == ETint _]
                      (E.ierror_e e0) in
      Let _ := assert (if is_wi2 o is None then true else false)
                 (E.error_e "can not use bigop on wint operator" e0) in
@@ -349,7 +212,7 @@ Fixpoint wi2i_e (e0:pexpr) : cexec (safety_cond * pexpr) :=
          Pbig ei.2 (wi2i_op2 o) v e.2 es.2 el.2)
 
   | Parr_init_elem e len =>
-    Let _ := assert (etype_of_expr e == ETword _ None U8) (E.ierror_e e0) in
+    Let _ := assert (etype_of_expr m e == ETword _ None U8) (E.ierror_e e0) in
     Let e := wi2i_e e in
     ok (e.1, Parr_init_elem e.2 len)
 
@@ -358,31 +221,31 @@ Fixpoint wi2i_e (e0:pexpr) : cexec (safety_cond * pexpr) :=
     ok ([::], Pis_var_init x)
 
   | Pis_arr_init x e1 e2 =>
-    Let _ := assert [&& is_sarr (vtype x), etype_of_expr e1 == ETint _
-                     & etype_of_expr e2 == ETint _] (E.ierror_e e0) in
+    Let _ := assert [&& is_sarr (vtype x), etype_of_expr m e1 == ETint _
+                     & etype_of_expr m e2 == ETint _] (E.ierror_e e0) in
     Let x := wi2i_vari x in
     Let e1 := wi2i_e e1 in
     Let e2 := wi2i_e e2 in
     ok (e1.1 ++ e2.1, Pis_arr_init x e1.2 e2.2)
 
   | Pis_barr_init x e1 e2 =>
-    Let _ := assert [&& is_sarr (vtype x), etype_of_expr e1 == ETint _
-                     & etype_of_expr e2 == ETint _ ] (E.ierror_e e0) in
+    Let _ := assert [&& is_sarr (vtype x), etype_of_expr m e1 == ETint _
+                     & etype_of_expr m e2 == ETint _ ] (E.ierror_e e0) in
     Let x := wi2i_vari x in
     Let e1 := wi2i_e e1 in
     Let e2 := wi2i_e e2 in
     ok (e1.1 ++ e2.1, Pis_barr_init x e1.2 e2.2)
 
   | Pis_mem_init e1 e2 =>
-    Let _ := assert [&& etype_of_expr e1 == ETword _ None Uptr
-                      & etype_of_expr e2 == ETint _] (E.ierror_e e0) in
+    Let _ := assert [&& etype_of_expr m e1 == ETword _ None Uptr
+                      & etype_of_expr m e2 == ETint _] (E.ierror_e e0) in
     Let e1 := wi2i_e e1 in
     Let e2 := wi2i_e e2 in
     ok (e1.1 ++ e2.1, Pis_mem_init e1.2 e2.2)
   end.
 
 Definition wi2i_lvar (ety : extended_type positive) (x : var_i) : cexec var_i :=
-  Let _ := assert (esubtype (etype_of_var x) ety)
+  Let _ := assert (esubtype (etype_of_var m x) ety)
                   (E.ierror_lv (Lvar x)) in
   wi2i_vari x.
 
@@ -398,19 +261,19 @@ Definition wi2i_lv (ety : extended_type positive) (lv : lval) : cexec (safety_co
     ok ([::], Lvar x)
 
   | Lmem al ws vi e =>
-    Let _ := assert [&& sign_of_expr e == None & s == None]
+    Let _ := assert [&& sign_of_expr m e == None & s == None]
                     (E.ierror_lv lv) in
     Let e := wi2i_e e in
     ok (e.1, Lmem al ws vi e.2)
 
   | Laset al aa ws x e =>
-    Let _ := assert [&& in_FV_var x, sign_of_expr e == None & s == None]
+    Let _ := assert [&& in_FV_var x, sign_of_expr m e == None & s == None]
                      (E.ierror_lv lv) in
     Let e := wi2i_e e in
     ok (e.1, Laset al aa ws x e.2)
 
   | Lasub aa ws len x e =>
-    Let _ := assert [&& in_FV_var x, sign_of_expr e == None & s == None]
+    Let _ := assert [&& in_FV_var x, sign_of_expr m e == None & s == None]
                      (E.ierror_lv lv) in
     Let e := wi2i_e e in
     ok (e.1, Lasub aa ws len x e.2)
@@ -465,7 +328,7 @@ Definition wi2i_c (wi2i : instr -> cexec cmd) c :=
 Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
   match ir with
   | Cassgn x tag ty e =>
-    let ety := etype_of_expr e in
+    let ety := etype_of_expr m e in
     let sg  := sign_of_etype ety in
     let tyr := to_etype sg ty in
     Let _ := assert (esubtype tyr ety)
@@ -476,7 +339,7 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
     ok (e.1 ++ x.1, Cassgn x.2 tag ty e.2)
 
   | Copn xs t o es =>
-    Let _ := assert (all (fun e => sign_of_expr e == None) es)
+    Let _ := assert (all (fun e => sign_of_expr m e == None) es)
                     (E.ierror_s "invalid expr in Copn") in
 
     Let es := wi2i_es wi2i_e es in
@@ -485,7 +348,7 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
     ok (es.1 ++ xs.1, Copn xs.2 t o es.2)
 
   | Csyscall xs o es =>
-    Let _ := assert (all (fun e => sign_of_expr e == None) es)
+    Let _ := assert (all (fun e => sign_of_expr m e == None) es)
                     (E.ierror_s "invalid args in Csyscall") in
     Let es := wi2i_es wi2i_e es in
     let xtys := map (to_etype None) (syscall_sig_u o).(scs_tout) in
@@ -503,7 +366,7 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
     ok (b.1, Cif b.2 c1 c2)
 
   | Cfor x (dir, e1, e2) c =>
-    Let _ := assert [&& in_FV_var x, vtype x == sint, etype_of_expr e1 == ETint _ & etype_of_expr e2 == ETint _]
+    Let _ := assert [&& in_FV_var x, vtype x == sint, etype_of_expr m e1 == ETint _ & etype_of_expr m e2 == ETint _]
                 (E.ierror_s "invalid loop counter") in
     Let e1 := wi2i_e e1 in
     Let e2 := wi2i_e e2 in
@@ -518,7 +381,7 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
 
   | Ccall xs f es =>
     Let sig := get_sig f in
-    Let _ := assert (all2 (fun ety e => esubtype ety (etype_of_expr e)) sig.1 es)
+    Let _ := assert (all2 (fun ety e => esubtype ety (etype_of_expr m e)) sig.1 es)
                     (E.ierror_s "invalid args in Ccall") in
     Let es := wi2i_es wi2i_e es in
     Let xs := wi2i_lvs "invalid dest in Ccall" false sig.2 xs in
@@ -556,7 +419,7 @@ Definition wi2i_fun (fn:funname) (f: fundef) :=
   Let c := wi2i_c wi2i_i c in
   Let r :=
     mapM2 (E.ierror_s "bad return in fun")
-      (fun ety x => assert (esubtype ety (etype_of_var x)) (E.ierror_lv x) >> wi2i_vari x)
+      (fun ety x => assert (esubtype ety (etype_of_var m x)) (E.ierror_lv x) >> wi2i_vari x)
       sig.2 r in
   let mk := map (fun ety => wi2i_type (sign_of_etype ety) (to_stype ety)) in
   let tin := mk sig.1 in
@@ -565,7 +428,7 @@ Definition wi2i_fun (fn:funname) (f: fundef) :=
 
 Definition build_sig (fd : funname * fundef) :=
  let 'MkFun ii ci si p c so r ev := fd.2 in
- let mk := map2 (fun (x:var_i) ty => to_etype (sign_of_var x) ty) in
+ let mk := map2 (fun (x:var_i) ty => to_etype (sign_of_var m x) ty) in
  (fd.1, (mk p si, mk r so)).
 
 End Section.
