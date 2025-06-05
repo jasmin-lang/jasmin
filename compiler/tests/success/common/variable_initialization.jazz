@@ -14,11 +14,6 @@ fn test_basic() -> reg u32 {
     return y;
 }
 
-fn test_multiples () -> reg u32,reg u32 {
-    reg u32 x=1,y=2;
-    return x,y;
-}
-
 fn test_primitive(){
     reg ptr u32[1] a;
     a[0] = 1;
@@ -34,14 +29,10 @@ fn test_calls () {
     reg u32  x= test_basic();
 }
 
-export fn whitespace() -> reg u32 {
-  reg u32 x = 1 y = x + 1;
-  return y;
-}
-
 #[stacksize = 4]
 export fn rand() -> reg u32 {
-  stack u8[4] _x x = #randombytes(_x);
+  stack u8[4] _x x;
+  x = #randombytes(_x);
   reg u32 r;
   r = x[:u32 0];
   return r;
