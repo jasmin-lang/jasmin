@@ -10,6 +10,7 @@ You can read these for the [[x86-64|x86-64]] and the [[ARMv7-M|ARMv7-M]] target
 architectures.
 
 :::{toctree}
+:maxdepth: 2
 
 structure.md
 code.md

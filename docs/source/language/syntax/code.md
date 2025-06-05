@@ -37,10 +37,33 @@ Syntax for variable declaration is as follows:
 ```
 For instance,
 ```
-u64 var;
+reg u64 var;
 stack u64[N] arr;
-inline int i;
+inline int i, j;
 ```
+
+Note that the separating comma may be omitted.
+
+### Declaration with initialization
+
+Variables may be declared and initialized at once, in which case if several
+variables are declared, they must all be given an initial value, and separating
+commas are mandatory. Variables are declared and initialized in the given order,
+therefore an initialization expression can refer to a variable declared earlier
+in the same declaration list.
+
+Some examples are given below.
+
+~~~
+reg u32 x = 1; // Declares and initializes a variable x
+reg u64 a = 2, b = 0x10, c = 0o07; // Declares and initializes three variables: a, b, and c
+reg u32 base = 10, exp = x << base; // Declares and initilizes two variables: base, and exp.
+~~~
+
+The expression representing the initial value of a declared variable is any
+Jasmin expression evaluating to a single value, for instance an immediate value,
+an arithmetic expression, a memory read, a function call, etc.
+
 
 ## Assignments
 
