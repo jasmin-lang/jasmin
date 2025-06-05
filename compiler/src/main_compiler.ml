@@ -8,13 +8,6 @@ open CLI_errors
 (* -------------------------------------------------------------------- *)
 exception UsageError
 
-let execute_analysis prog analyse_function =
-  let (globs, funcs) = prog in
-  let funcs = List.map analyse_function funcs in
-  (globs, funcs)
-
-(* -------------------------------------------------------------------- *)
-
 let parse () =
   let error () = raise UsageError in
   let infiles = ref [] in
@@ -162,24 +155,19 @@ let main () =
       else prog
     in
 
-    let vi_errors =
+    let () =
       let open Linter in
-      let prog = execute_analysis prog Analysis.ReachingDefinitions.RDAnalyser.analyse_function in
-      Checker.VariableInitialisation.check_prog prog
+      let (_globs, funcs) = prog in
+      let funcs = List.map Analysis.ReachingDefinitions.RDAnalyser.analyse_function funcs in
+      let vi_errors = Checker.VariableInitialisation.check_prog ([], funcs) in
+      let funcs = List.map Analysis.Liveness.LivenessAnalyser.analyse_function funcs in
+      let dv_errors = Checker.DeadVariables.check_prog ([], funcs) in
+      List.iter (
+          fun (error: Error.CompileError.t) ->
+          warning Linter (Location.i_loc0 error.location) "%t" error.to_text
+        )
+        (vi_errors @ dv_errors)
     in
-
-    let dv_errors =
-      let open Linter in
-      let prog = execute_analysis prog Analysis.Liveness.LivenessAnalyser.analyse_function in
-      Checker.DeadVariables.check_prog prog
-    in
-
-    List.iter (
-      fun (error: Linter.Error.CompileError.t) ->
-      Jasmin.Utils.warning Linter (Jasmin.Location.i_loc0 error.location) "%t" error.to_text
-    )
-      (vi_errors @ dv_errors)
-    ;
 
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
