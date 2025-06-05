@@ -4597,14 +4597,14 @@ Proof.
   by t_xrbindP=> _ -> ->.
 Qed.
 
-Lemma alloc_array_moveP vme m0 s1 s2 s1' table1 rmap1 table2 rmap2 r tag e v v' n i2 :
+Lemma alloc_array_moveP vme m0 s1 s2 s1' table1 rmap1 table2 rmap2 ii r tag e v v' n i2 :
   valid_state table1 rmap1 vme m0 s1 s2 ->
   sem_pexpr true gd s1 e = ok v ->
   truncate_val (sarr n) v = ok v' ->
   write_lval true gd r v' s1 = ok s1' ->
   alloc_array_move saparams fresh_var_ident pp_sr pmap table1 rmap1 r tag e = ok (table2, rmap2, i2) →
   ∃ (s2' : estate) (vme' : Vm.t), [/\
-    sem_i P' rip s2 i2 s2',
+    esem_i P' rip (MkI ii i2) s2 = ok s2',
     valid_state (remove_binding_lval table2 r) rmap2 vme' m0 s1' s2' &
     vme =[table1.(vars)] vme'].
 Proof.
@@ -4728,7 +4728,7 @@ Proof.
 
     case: pk hlx hlocal.
     + t_xrbindP=> s ofs' ws z sc hlx hlocal /eqP heqsub <- <- <-.
-      exists s2, vme'; split=> //; first by constructor.
+      exists s2, vme'; split=> //.
       (* valid_state update *)
       by apply (valid_state_set_move hvs hwfy hwfsy hvarszy hvarssy hlx heqsub h heqvaly).
 
@@ -4737,9 +4737,9 @@ Proof.
       case Hmov_ofs: (sap_mov_ofs saparams) => [ins| //].
       move=> /= [<- <- <-].
       have /(_ (with_vm s2 (evm s2).[p <- Vword (wey + wofsy)])) []:=
-        mov_ofsP hsaparams rip dummy_instr_info P'_globs ok_wey ok_wofsy Hmov_ofs.
+        mov_ofsP hsaparams rip ii P'_globs ok_wey ok_wofsy Hmov_ofs.
       + by rewrite /= write_var_eq_type //= hlocal.(wfr_rtype).
-      move=> vm2 /esem_i_sem /= /sem_IE hsem heq1.
+      move=> vm2 hsem heq1.
       exists (with_vm s2 vm2), vme'; split => //.
       (* valid_state update *)
       apply (@valid_state_vm_eq (with_vm s2 (evm s2).[p <- Vword (wey + wofsy)]) vm2) => //.
@@ -4750,7 +4750,7 @@ Proof.
     + rewrite /is_nop.
       case heq: Mvar.get => [srx|//] /andP [/eqP ? hcheck] [<- <- <-]; subst srx.
       (* interestingly, hcheck is not needed for the proof *)
-      exists s2, vme'; split=> //; first by constructor.
+      exists s2, vme'; split=> //.
       apply: (valid_state_set_move hvs hwfy hwfsy hvarszy hvarssy hlx _ h heqvaly).
       move=> /= hcheck' paddr addry hpaddr haddry'.
       by have /wfr_ptr := heq; rewrite hlx => -[_ [[<-] hpk]]; apply hpk.
@@ -4767,11 +4767,11 @@ Proof.
       by apply (is_align_sub_region_stkptr hlocal hpaddr).
     have /writeV -/(_ (wey + wofsy)%R) [mem2 hmem2] := hvp.
     have /(_ (with_mem s2 mem2)) []:=
-      mov_ofsP hsaparams rip dummy_instr_info P'_globs ok_wey ok_wofsy Hmov_ofs.
+      mov_ofsP hsaparams rip ii P'_globs ok_wey ok_wofsy Hmov_ofs.
     + rewrite /= /get_gvar /get_var vs_rsp /= /sem_sop2 /= !truncate_word_u /= truncate_word_u /=.
       move: hpaddr; rewrite (sub_region_addr_stkptr _ hlocal) => -[->].
       by rewrite hmem2.
-    move=> vm2 /esem_i_sem /sem_IE /= hsem heq1.
+    move=> /= vm2 hsem heq1.
     exists (with_vm (with_mem s2 mem2) vm2), vme'; split => //.
     apply valid_state_vm_eq => //.
     apply: (valid_state_set_stack_ptr hvs hwfy haddry hwfsy hvarszy hvarssy hlx hpaddr _ _ _ _ h heqvaly).
@@ -5004,13 +5004,13 @@ Proof.
   by apply wfr_VARS_STATUS_set_move_status.
 Qed.
 
-Lemma alloc_array_swapP table m0 vme s1 s2 s1' rmap1 rmap2 n xs tag es va vs i2:
+Lemma alloc_array_swapP table m0 vme s1 s2 s1' rmap1 rmap2 n ii xs tag es va vs i2:
   valid_state table rmap1 vme m0 s1 s2 ->
   sem_pexprs true gd s1 es = ok va ->
   exec_sopn (Opseudo_op (pseudo_operator.Oswap (sarr n))) va = ok vs ->
   write_lvals true gd s1 xs vs = ok s1' ->
   alloc_array_swap saparams pmap rmap1 xs tag es = ok (rmap2, i2) ->
-  ∃ s2' : estate, sem_i P' rip s2 i2 s2' ∧ valid_state (foldl remove_binding_lval table xs) rmap2 vme m0 s1' s2'.
+  ∃ s2' : estate, esem_i P' rip (MkI ii i2) s2 = ok s2' ∧ valid_state (foldl remove_binding_lval table xs) rmap2 vme m0 s1' s2'.
 Proof.
   move=> hvs.
   rewrite /alloc_array_swap.
@@ -5057,8 +5057,8 @@ Proof.
   set s2' := with_vm s2 (evm s2).[px <- Vword addrw].
   set s2'' := with_vm s2' (evm s2').[py <- Vword addrz].
   exists s2''; split.
-  + apply: (sem_IE (i:= MkI dummy_instr_info _)); apply esem_i_sem.
-    apply: hsaparams.(sap_swapP).
+  + apply: hsaparams.(sap_swapP).
+    + exact ii.
     + by apply: (wf_locals hpx).(wfr_rtype).
     + by apply: (wf_locals hpy).(wfr_rtype).
     + by apply: (wf_locals hpz).(wfr_rtype).
@@ -5069,14 +5069,14 @@ Proof.
   by apply: (valid_state_set_move_regptr hvs' hwfz ok_addrz hwfsz hvarszz hvarssz hpy hytr heqvalz).
 Qed.
 
-Lemma alloc_array_move_initP vme m0 s1 s2 s1' table1 table2 rmap1 rmap2 r tag e v v' n i2 :
+Lemma alloc_array_move_initP vme m0 s1 s2 s1' table1 table2 rmap1 rmap2 ii r tag e v v' n i2 :
   valid_state table1 rmap1 vme m0 s1 s2 ->
   sem_pexpr true gd s1 e = ok v ->
   truncate_val (sarr n) v = ok v' ->
   write_lval true gd r v' s1 = ok s1' ->
   alloc_array_move_init saparams fresh_var_ident pp_sr pmap table1 rmap1 r tag e = ok (table2, rmap2, i2) →
   ∃ (s2' : estate) vme', [/\
-    sem_i P' rip s2 i2 s2',
+    esem_i P' rip (MkI ii i2) s2 = ok s2',
     valid_state (remove_binding_lval table2 r) rmap2 vme' m0 s1' s2' &
     vme =[table1.(vars)] vme'].
 Proof.
@@ -5089,7 +5089,7 @@ Proof.
   t_xrbindP=> _ /WArray.cast_empty_ok -> {m} <-.
   case: r => //=.
   t_xrbindP=> x /write_varP [-> _ htr] srx /get_sub_regionP hsrx <- <- <-.
-  exists s2, vme; split=> //; first by constructor.
+  exists s2, vme; split=> //.
   (* valid_state update *)
   have /wfr_wf hwfx := hsrx.
   have /wfr_ptr [pkx [hlx hpkx]] := hsrx.
@@ -7155,7 +7155,7 @@ Lemma alloc_syscallP ii rmap rs o es rmap2 c table vme m0 s1 s2 ves scs m vs s1'
   exec_syscall_u (escs s1) (emem s1) o ves = ok (scs, m, vs) ->
   write_lvals true gd (with_scs (with_mem s1 m) scs) rs vs = ok s1' ->
   exists s2',
-    sem P' rip s2 c s2' /\
+    esem P' rip c s2 = ok s2' /\
     valid_state (foldl remove_binding_lval table rs) rmap2 vme m0 s1' s2'.
 Proof.
   move=> halloc hvs.
@@ -7176,7 +7176,7 @@ Proof.
 
   (* write [len] in register [vxlen] *)
   have := sap_immediateP hsaparams P' rip s2 (x := with_var (gv g) (vxlen pmap)) dummy_instr_info len (@wt_len wf_pmap0).
-  set s2' := with_vm s2 _ => /esem_i_sem /sem_IE hsem1.
+  set s2' := with_vm s2 _ => hsem1.
   have hvs': valid_state table rmap vme m0 s1 s2'.
   + apply (valid_state_distinct_reg _ hvs).
     + by apply len_neq_rip.
@@ -7249,17 +7249,17 @@ Proof.
 
   (* wrap up *)
   exists s2'''; split=> //.
-  apply (Eseq (s2 := s2')) => //.
-  apply sem_seq1; constructor.
-  apply: Esyscall.
-  + rewrite /= /get_gvar /= /get_var.
-    have /wfr_ptr := hsrg; rewrite /get_local hlg => -[_ [[<-] /= hpk]].
-    rewrite (hpk _ ok_addrg) /=.
-    by rewrite Vm.setP_eq wt_len vm_truncate_val_eq //; eauto.
-  + rewrite /= /exec_syscall_s /= !truncate_word_u /=.
-    rewrite /exec_getrandom_s_core wunsigned_repr_small; last by clear -hlen; lia.
-    by rewrite -vs_scs hfillm.
-  by rewrite /= LetK; apply write_var_eq_type; rewrite // hlocal.(wfr_rtype).
+  move: hsem1 => /= -> /=; rewrite LetK.
+  rewrite /sem_syscall.
+  rewrite /= /get_gvar /= /get_var.
+  have /wfr_ptr := hsrg; rewrite /get_local hlg => -[_ [[<-] /= hpk]].
+  rewrite (hpk _ ok_addrg) /=.
+  rewrite Vm.setP_eq wt_len vm_truncate_val_eq //=.
+  rewrite /fexec_syscall /= /exec_syscall_s /= !truncate_word_u /=.
+  rewrite /exec_getrandom_s_core wunsigned_repr_small; last by clear -hlen; lia.
+  rewrite -vs_scs hfillm /=.
+  rewrite /upd_estate /= LetK.
+  by apply write_var_eq_type; rewrite // hlocal.(wfr_rtype).
 Qed.
 
 End WITH_PARAMS.

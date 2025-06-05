@@ -2707,9 +2707,9 @@ Proof.
   case: ifPn => [/is_sarrP [n ?]| _ ]; t_xrbindP.
   + move=> -[[{}table2 {}rmap2] i2'] halloc /=
       [<- <- <-] {c2} vme m0 s2 hvs hext hsao; subst ty.
-    have [s2' [vme' [hs2' hvs' vme_eq]]] :=
+    have [s2' [vme' [/esem_i_sem /sem_IE hs2' hvs' vme_eq]]] :=
       alloc_array_move_initP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align)
-        hpmap P'_globs hsaparams hvs hv htr hw halloc.
+        hpmap P'_globs hsaparams ii1 hvs hv htr hw halloc.
     by exists s2', vme'; split => //; apply sem_seq1; constructor.
   t_xrbindP=> ote hsym.
   case hote: (match ote with | Some _ => _ | _ => _ end) => [table1' oe].
@@ -2754,7 +2754,7 @@ Proof.
   case: is_swap_arrayP => {heq} [[n heq] | _]; t_xrbindP.
   + subst o => -[{}rmap2 i] halloc /=
       <- <- <- {table2 c2} vme m0 s1' hvs ??.
-    have [s2' [hsem hvs2]] := alloc_array_swapP hpmap P' hsaparams hvs hes hop hw halloc.
+    have [s2' [/esem_i_sem /sem_IE hsem hvs2]] := alloc_array_swapP hpmap P' hsaparams ii1 hvs hes hop hw halloc.
     by exists s2', vme; split=> //; apply sem_seq_ir.
   move=> {}table2 ok_table2 es' he [{}rmap2 xs'] ha /=
     <- <- <- {c2} vme m0 s1' hvs hext hsao.
@@ -2802,7 +2802,7 @@ Proof.
   move=> pmap rsp Slots Addr Writable Align table1 rmap1 table2 rmap2 ii1 c2 hpmap hwf sao /=.
   t_xrbindP=> -[{}rmap2 {}c2] hsyscall
     [<- <- <-] {table2} vme m0 s1' hvs hext hsao.
-  have [s2' [hsem' hvs2]] :=
+  have [s2' [/esem_sem hsem' hvs2]] :=
     alloc_syscallP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hpmap P' hsaparams hsyscall hvs hves hvxs hs2.
   by exists s2', vme; split.
 Qed.
