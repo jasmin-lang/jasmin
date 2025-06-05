@@ -58,13 +58,12 @@ Section STACK_ALLOC.
 
 Lemma riscv_mov_ofsP : mov_ofs_correct riscv_saparams.(sap_mov_ofs).
 Proof.
-  move=> P' ev s1 e w ofs pofs x tag mk ins s2 P'_globs.
+  move=> P' ev s1 e w ofs pofs x tag mk ii ins s2 P'_globs.
   t_xrbindP=> ve ok_ve ok_w vofs ok_vofs ok_pofs.
   rewrite /sap_mov_ofs /= /riscv_mov_ofs.
   case: mk.
   + move=> [<-] hw; exists (evm s2) => //.
     rewrite with_vm_same.
-    constructor.
     rewrite /sem_sopn /= P'_globs /exec_sopn.
     case: is_zeroP.
     + move=> hofs.
@@ -81,7 +80,6 @@ Proof.
     case: ifP => _.
     + case: is_zeroP => // hofs [<-] hw; exists (evm s2) => //.
       rewrite with_vm_same.
-      constructor.
       rewrite /sem_sopn /= P'_globs /exec_sopn ok_ve /= ok_w /= sign_extend_u.
       move: hofs ok_vofs ok_pofs hw => -> /=.
       rewrite /sem_sop1 /= => -[<-] /=.
@@ -104,7 +102,6 @@ Proof.
       case: eqP => //= ?; subst scale.
       move=> [<-] hw.
       exists (evm s2) => //.
-      constructor.
       rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb ok_vo /=
         /exec_sopn /= ok_wb ok_wo /= /riscv_add_semi.
       move: lea_sem; rewrite wrepr1 GRing.mul1r wrepr0 GRing.addr0 => ->.
@@ -114,7 +111,6 @@ Proof.
     + move=> ?; subst disp.
       move=> [<-] hw.
       exists s2.(evm) => //.
-      constructor.
       rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
         /exec_sopn /= ok_wb /=.
       move: lea_sem; rewrite wrepr0 GRing.mulr0 !GRing.addr0 => ->.
@@ -122,14 +118,12 @@ Proof.
     case: ifP => _.
     + move=> [<-] hw.
       exists s2.(evm) => //.
-      constructor.
       rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
         /exec_sopn /= ok_wb truncate_word_u /= /riscv_add_semi.
       move: lea_sem; rewrite GRing.mulr0 GRing.addr0 => ->.
       by rewrite hw /= with_vm_same.
     move=> [<-] hw.
     exists s2.(evm) => //.
-    constructor.
     rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
       /exec_sopn /= ok_wb truncate_word_u /=.
     move: lea_sem; rewrite GRing.mulr0 GRing.addr0 => ->.
@@ -137,7 +131,6 @@ Proof.
   move=> al ws_ x_ e_; move: (Lmem al ws_ x_ e_) => {al ws_ x_ e_} x.
   case: is_zeroP => // hofs [<-] hw; exists (evm s2) => //.
   rewrite with_vm_same.
-  constructor.
   rewrite /sem_sopn /= P'_globs /exec_sopn ok_ve /= ok_w /= zero_extend_u.
   move: hofs ok_vofs ok_pofs hw => -> /=.
   rewrite /sem_sop1 /= => -[<-] /=.
@@ -147,16 +140,15 @@ Qed.
 
 Lemma riscv_immediateP : immediate_correct riscv_saparams.(sap_immediate).
 Proof.
-  move=> P' ev s x z.
+  move=> P' ev s ii x z.
   case: x => - [] [] // [] // x xi _ /=.
-  constructor.
   by rewrite /sem_sopn /= /exec_sopn /= truncate_word_u.
 Qed.
 
 Lemma riscv_swapP : swap_correct riscv_saparams.(sap_swap).
 Proof.
-  move=> P' ev s tag x y z w pz pw hxty hyty hzty hwty hz hw.
-  constructor; rewrite /sem_sopn /= /get_gvar /= /get_var /= hz hw /=.
+  move=> P' ev s ii tag x y z w pz pw hxty hyty hzty hwty hz hw.
+  rewrite /= /sem_sopn /= /get_gvar /= /get_var /= hz hw /=.
   rewrite /exec_sopn /= !truncate_word_u /= /write_var /set_var /=.
   rewrite hxty hyty //=.
 Qed.

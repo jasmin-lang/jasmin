@@ -4737,9 +4737,9 @@ Proof.
       case Hmov_ofs: (sap_mov_ofs saparams) => [ins| //].
       move=> /= [<- <- <-].
       have /(_ (with_vm s2 (evm s2).[p <- Vword (wey + wofsy)])) []:=
-        mov_ofsP hsaparams rip P'_globs ok_wey ok_wofsy Hmov_ofs.
+        mov_ofsP hsaparams rip dummy_instr_info P'_globs ok_wey ok_wofsy Hmov_ofs.
       + by rewrite /= write_var_eq_type //= hlocal.(wfr_rtype).
-      move=> /= vm2 hsem heq1.
+      move=> vm2 /esem_i_sem /= /sem_IE hsem heq1.
       exists (with_vm s2 vm2), vme'; split => //.
       (* valid_state update *)
       apply (@valid_state_vm_eq (with_vm s2 (evm s2).[p <- Vword (wey + wofsy)]) vm2) => //.
@@ -4767,11 +4767,11 @@ Proof.
       by apply (is_align_sub_region_stkptr hlocal hpaddr).
     have /writeV -/(_ (wey + wofsy)%R) [mem2 hmem2] := hvp.
     have /(_ (with_mem s2 mem2)) []:=
-      mov_ofsP hsaparams rip P'_globs ok_wey ok_wofsy Hmov_ofs.
+      mov_ofsP hsaparams rip dummy_instr_info P'_globs ok_wey ok_wofsy Hmov_ofs.
     + rewrite /= /get_gvar /get_var vs_rsp /= /sem_sop2 /= !truncate_word_u /= truncate_word_u /=.
       move: hpaddr; rewrite (sub_region_addr_stkptr _ hlocal) => -[->].
       by rewrite hmem2.
-    move=> vm2 hsem heq1.
+    move=> vm2 /esem_i_sem /sem_IE /= hsem heq1.
     exists (with_vm (with_mem s2 mem2) vm2), vme'; split => //.
     apply valid_state_vm_eq => //.
     apply: (valid_state_set_stack_ptr hvs hwfy haddry hwfsy hvarszy hvarssy hlx hpaddr _ _ _ _ h heqvaly).
@@ -5057,7 +5057,8 @@ Proof.
   set s2' := with_vm s2 (evm s2).[px <- Vword addrw].
   set s2'' := with_vm s2' (evm s2').[py <- Vword addrz].
   exists s2''; split.
-  + apply: hsaparams.(sap_swapP).
+  + apply: (sem_IE (i:= MkI dummy_instr_info _)); apply esem_i_sem.
+    apply: hsaparams.(sap_swapP).
     + by apply: (wf_locals hpx).(wfr_rtype).
     + by apply: (wf_locals hpy).(wfr_rtype).
     + by apply: (wf_locals hpz).(wfr_rtype).
@@ -7174,8 +7175,8 @@ Proof.
   set i2 := (X in [:: _; X]).
 
   (* write [len] in register [vxlen] *)
-  have := sap_immediateP hsaparams P' rip s2 (x := with_var (gv g) (vxlen pmap)) len (@wt_len wf_pmap0).
-  set s2' := with_vm s2 _ => hsem1.
+  have := sap_immediateP hsaparams P' rip s2 (x := with_var (gv g) (vxlen pmap)) dummy_instr_info len (@wt_len wf_pmap0).
+  set s2' := with_vm s2 _ => /esem_i_sem /sem_IE hsem1.
   have hvs': valid_state table rmap vme m0 s1 s2'.
   + apply (valid_state_distinct_reg _ hvs).
     + by apply len_neq_rip.
