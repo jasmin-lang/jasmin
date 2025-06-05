@@ -22,6 +22,9 @@ fn shrd_16(reg u16 x y, reg u8 c) -> reg u16 {
 }
 
 fn divu64() -> reg u64, reg u64 {
-  reg u64 x = 1 << 63, y = -1, z = x / y, r = x % y;
+  reg u64 x = 1 << 63;
+  reg u64 y = -1;
+  reg u64 z = x / y;
+  reg u64 r = x % y;
   return z, r;
 }
