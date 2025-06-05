@@ -93,6 +93,9 @@
 - Add new reference documentation
   ([PR #1167](https://github.com/jasmin-lang/jasmin/pull/1167)).
 
+- Syntax for initializing variables at declaration time is less flexible
+  ([PR #1185](https://github.com/jasmin-lang/jasmin/pull/1185)).
+
 # Jasmin 2025.02.1 — Nancy, 2025-04-10
 
 ## New features
