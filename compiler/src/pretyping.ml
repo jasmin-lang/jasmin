@@ -2252,7 +2252,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
 
   | PIAssert cp ->
      let c  = tt_expr_bool arch_info.pd env cp in
-     let mk_aprover = Annot.filter_string_list None ["cas", P.E.Cas ; "smt", P.E.Smt ] in
+     let mk_aprover = Annot.filter_string_list None ["cas", P.E.Cas ; "smt", P.E.Smt; "safety", P.E.Safety ] in
      let mk_akind = Annot.filter_string_list None ["Assert", P.E.Assert; "Assume", P.E.Assume; "Cut", P.E.Cut] in
      let akind =
        match Annot.ensure_uniq1 "kind" mk_akind annot with

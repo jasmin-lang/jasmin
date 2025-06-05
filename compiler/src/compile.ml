@@ -97,11 +97,12 @@ let create_safety_asserts
   let create_var vk name t l =  Conv.cvar_of_var (V.mk name vk (Conv.ty_of_cty t) l []) in 
   let cuprog = Conv.cuprog_of_prog prog in     
   let cuprog = Safety_cond.sc_prog Arch.asmOp Arch.reg_size Arch.msf_size cuprog in
-  let cuprog = Remove_is_var_init.rm_var_init_prog Arch.asmOp Arch.msf_size create_var b cuprog in
-  let cprog = Contracts_asserts.contracts_asserts_prog Arch.asmOp cuprog in
+  let cuprog = Extra_vars_call.extra_vars_call_prog Arch.asmOp create_var cuprog in 
+  let cuprog = Contracts_asserts.contracts_asserts_prog Arch.asmOp cuprog in
+  let cprog = Remove_is_var_init.rm_var_init_prog Arch.asmOp Arch.msf_size create_var b cuprog in
   let cprog = Remove_is_var_init.rm_var_init_const_prop Arch.asmOp Arch.msf_size Arch.fcp b cprog in
   let cuprog = Remove_is_var_init.rm_var_init_dc Arch.asmOp  Arch.aparams.ap_is_move_op cprog in
-  let prog =  Conv.prog_of_cuprog cuprog in
+  let prog =  Conv.prog_of_cuprog cuprog in 
   Format.eprintf "@[<v>Program after safety passes:@;%a@.@]" 
   (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) prog;
 

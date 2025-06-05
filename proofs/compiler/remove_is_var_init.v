@@ -396,8 +396,11 @@ Definition rm_var_init_f (f:ufundef): ufundef :=
   |}.
 
 
-Definition rm_var_init_prog (p:_uprog) : _uprog :=
+Definition rm_var_init_prog (p:_uprog) : uprog :=
   map_prog rm_var_init_f p.
+
+
+
 
 Definition all_b_vars vars := Sv.fold (fun x acc => Sv.add (B x) acc) vars Sv.empty.
 

@@ -87,4 +87,5 @@ Separate Extraction
   safety_cond
   contracts_asserts
   remove_is_var_init
+  extra_vars_call
   compiler.

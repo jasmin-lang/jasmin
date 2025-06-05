@@ -350,7 +350,7 @@ Definition const v :=
   | Cbool b => Pbool b
   | Cint z  => Pconst z
   | Cword sz z => wconst z
-  | Cfull_init l => Parr_init_elem (word_of_int Unsigned U8 (-1)) l
+  | Cfull_init l => Parr_init_elem (word_of_int Unsigned U8 (255)) l
   end.
 
 Definition globals : Type := option (var → option glob_value).
@@ -620,7 +620,7 @@ if rv is Lvar x then
       let sz := cmp_min szty szx in
       let w := Cword (wrepr sz z) in
       Mvar.set m x w
-    | Parr_init_elem (Papp1 (Oword_of_int U8) (Pconst (-1))) l =>
+    | Parr_init_elem (Papp1 (Oword_of_int U8) (Pconst (255))) l =>
         Mvar.set m x (Cfull_init l)
     | _ => m
     end
@@ -694,6 +694,7 @@ Fixpoint const_prop_ir with_globals without_globals cpf (m:cpm) ii (ir:instr_r) 
     let (m,xs) := const_prop_rvs without_globals m xs in
     (m, [:: MkI ii (Csyscall xs o es) ])
 
+  | Cassert t Safety b => (m, [::MkI ii ir])
   | Cassert t p b =>
     let (m,b) := const_prop_e_assert without_globals m b in
     match is_bool b with

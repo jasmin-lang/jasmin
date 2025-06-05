@@ -385,6 +385,7 @@ Variant annotation_kind :=
 
 Variant assertion_prover :=
   | Cas
+  | Safety
   | Smt.
 
 Scheme Equality for annotation_kind.

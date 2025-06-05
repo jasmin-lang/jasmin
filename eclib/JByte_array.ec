@@ -23,6 +23,12 @@ abstract theory ByteArray.
 
   op is_init (t:t) (k l : int): bool = forall i, k <= i => i < k + l => is_init_cell t i.
 
+  lemma is_init_one (t:t) (k :int):
+    is_init t k 1 = is_init_cell t k.
+  proof.
+    smt().
+  qed.
+  hint simplify is_init_one.
 
   axiom is_init_cellP (t:t) (i j: int) (v:W8.t):
       is_init_cell t.[i<-v] j = ( (i=j /\ v = (W8.of_int 255)) \/ is_init_cell t j).

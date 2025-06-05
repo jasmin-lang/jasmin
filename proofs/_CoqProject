@@ -70,6 +70,7 @@ compiler/dead_calls_proof.v
 compiler/dead_code.v
 compiler/dead_code_proof.v
 compiler/direct_call_proof.v
+compiler/extra_vars_call.v
 compiler/inline.v
 compiler/inline_proof.v
 compiler/jasmin_compiler.v

@@ -140,6 +140,7 @@ let pp_align fmt = function
 let pp_prover fmt = function
   | E.Cas -> Format.fprintf fmt "cas"
   | Smt -> Format.fprintf fmt "smt"
+  | Safety -> Format.fprintf fmt "safety"
 
 let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
   F.fprintf fmt "%a" pp_info (i.i_loc, i.i_info);
@@ -252,6 +253,9 @@ let rec pp_clauses pp_size pp_var prepost fmt cs =
                    (pp_clause pp_size pp_var) c
                    (pp_clauses pp_size pp_var prepost) q
   | (Expr.Smt,c)::q -> Format.fprintf fmt "@[%s #[prover=smt] {%a}@ %a@]" prepost
+                   (pp_clause pp_size pp_var) c
+                   (pp_clauses pp_size pp_var prepost) q
+  | (Expr.Safety,c)::q -> Format.fprintf fmt "@[%s #[prover=safety] {%a}@ %a@]" prepost
                    (pp_clause pp_size pp_var) c
                    (pp_clauses pp_size pp_var prepost) q
 

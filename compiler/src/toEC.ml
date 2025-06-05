@@ -1,4 +1,5 @@
 open Utils
+open Annotations
 open Wsize
 open Operators
 open Prog
@@ -2871,7 +2872,13 @@ struct
         (List.tl vars)
 
   let mk_old_param env params iparams =
-    if List.length iparams = 0 then env, []
+    if List.length iparams = 0 then
+      List.fold_left2 (fun (env,acc) v iv ->
+        let s = String.uncapitalize_ascii v.v_name in
+        let s = "_" ^ s in
+        let env = Env.set_var_prefix env iv s in
+        env, s :: acc
+      ) (env,[]) (List.rev params) (List.rev params)
     else
       List.fold_left2 (fun (env,acc) v iv ->
           let s = String.uncapitalize_ascii v.v_name in
@@ -2894,6 +2901,134 @@ struct
       env ires
 
   let res = Eident ["res"]
+  let get_smt_lemmas (annot:annotations): string list option =
+    match (get "smt" annot) with
+    | Some (Some x )-> 
+      let x = L.unloc x in
+      begin match x with
+      | Astring x -> Some (String.split_on_char ',' x)
+      | _ -> None
+      end
+    | _ -> None
+
+
+  let get_smt_tactic (annot:annotations): ec_tactic =
+    let smt_lemmas = match get_smt_lemmas annot with
+      | Some s -> List.map (fun l -> Prop l) s
+      | None -> [ Prop "all_cat"]
+    in
+    {
+      tname = "smt";
+      targs = [Param smt_lemmas]
+    }
+
+  let get_invariant env c =
+    match c with
+     | {i_desc = Cassert (_, Safety, e)}:: t -> 
+       let e = EC.toec_expr env e in
+       Pattern "/\\ " :: [DProp e], t
+     | c -> [Pattern "/\\ ..."], c
+  
+
+  let rec pp_valid_trace_instrs env f p instrs: ec_tactic list =
+    let auto_tactic = {
+      tname = "auto";
+      targs = []
+    } in
+    let rewrite_tactic =
+      {
+        tname = "rewrite";
+        targs = [Prop "/trace"; Prop "/is_init"; Prop "/valid"; Pattern "/="]
+      }
+    in
+    let smt_tactic = get_smt_tactic f.f_annot.f_user_annot in
+    let fn = Env.get_funname env f.f_name in
+    let proofv = "trace_" ^ fn in
+    let valid_trace = DProp(Eapp(Eident ["valid"], [Eident [proofv]])) in
+    match instrs with
+    | [] -> p
+    | i::t -> begin match i.i_desc with
+      | Cassert (_, Safety, e) -> 
+        let pre = pp_valid_trace_instrs env f [auto_tactic] t in
+        let pre = if (List.last pre).tname = "auto" then
+            pre @ [rewrite_tactic;smt_tactic]
+        else pre in
+        let e = EC.toec_expr env e in
+        [{tname = "seq"; targs = [Pattern "x"; Pattern ":"; Param [valid_trace;Pattern "/\\ ";DProp e]]}] @ pre @ p
+      | Cfor (_,_,c) ->
+        let invariant,c = get_invariant env c in 
+        let c = pp_valid_trace_instrs env f []  (List.rev c) in
+        let default = [auto_tactic;rewrite_tactic;smt_tactic] in
+        let c1 = 
+          if c == [] then
+            default
+          else
+              if (List.last c).tname = "auto" then
+                auto_tactic :: c @ [rewrite_tactic;smt_tactic]
+              else
+                auto_tactic :: c
+        in
+        let p = p @ [{tname = "while"; targs = [Param (valid_trace::invariant)]}] @ c1 @ [auto_tactic] in
+        pp_valid_trace_instrs env f p t
+      | Cwhile(_,c1,_,_,c2) -> 
+        let invariant,c2 = get_invariant env c2 in 
+        let c1 = pp_valid_trace_instrs env f [] (List.rev c1) in
+        let c2 = pp_valid_trace_instrs env f []  (List.rev c2) in
+        let default = [auto_tactic;rewrite_tactic;smt_tactic] in
+        let c3 = 
+          if c1 == [] && c2 == [] then
+            default
+          else
+            let c = c2 @ c1 in 
+            if (List.last c).tname = "auto" then
+              auto_tactic :: c @ [rewrite_tactic; smt_tactic]
+            else
+              auto_tactic :: c
+        in
+        let p = p @ [{tname = "while"; targs = [Param (valid_trace::invariant)]}] @ c3 @ [auto_tactic] @ c1 in
+        pp_valid_trace_instrs env f p t 
+      | Ccall(lvs,fn,es) -> 
+        let otys, itys = Env.get_funtype env fn in
+        let args = List.map (EC.toec_cast env) (List.combine itys es) in
+        let params = List.map (fun e -> DProp e) args in
+        let lemma_name = Prop (Format.asprintf "%s_trace" (Env.get_funname env fn)) in
+        let p = p @ [{tname = "ecall"; targs = [Param (lemma_name::params)]};auto_tactic] in
+        pp_valid_trace_instrs env f p t
+      | Cif (e, c1, c2) ->
+        let c1 = pp_valid_trace_instrs env f [] (List.rev c1) in
+        let c2 = pp_valid_trace_instrs env f [] (List.rev c2) in
+        let first_not_assert_safety t =
+          match t with
+          | {i_desc = Cassert (_, Safety, _)}::_ -> true
+          | _ -> false in
+        if (c1 == [] && c2 == []) || (first_not_assert_safety t)then
+          pp_valid_trace_instrs env f p t
+        else
+          let c1 = p @ c1 in
+          let c2 = p @ c2 in
+          let c1 = if c1==[] then [auto_tactic;rewrite_tactic;smt_tactic]
+                   else if (List.last c1).tname == "auto" then c1@[rewrite_tactic;smt_tactic] else c1 in
+          let c2 = if c2==[] then [auto_tactic;rewrite_tactic;smt_tactic]
+                   else if (List.last c2).tname == "auto" then c2@[rewrite_tactic;smt_tactic] else c2 in
+          let c1 = if List.first c1 == auto_tactic then c1 else auto_tactic::c1 in
+          let c2 = if List.first c2 == auto_tactic then c2 else auto_tactic::c2 in
+          let p = [{tname = "if"; targs = []}] @ c1 @ c2 in
+          pp_valid_trace_instrs env f p t
+      | _ -> pp_valid_trace_instrs env f p t
+      end
+   
+  let pp_valid_trace_t_t = 
+    let tactic1 =
+      {
+        tname = "proc; inline *; auto";
+        targs = []
+      } in
+      let tactic2 =
+      {
+        tname = "qed";
+        targs = []
+      } in
+      [tactic1;tactic2]
 
   let pp_valid_trace env f =
     let fname = Env.get_funname env f.f_name in
@@ -2918,24 +3053,44 @@ struct
     let post' = fand post valid_trace in
 
     let name = Format.asprintf "%s_trace" fname in
-
-    let form = EHoare (["M";fname], pre, post') in
+    let module_name =
+      if List.is_empty (Env.randombytes env) then "M"
+      else "M("^syscall_mod^")"
+    in
+    let form = EHoare ([module_name;fname], pre, post') in
     let prop = (name, vars, form) in
-
-    if f2 == (Ebool true) && post == (Ebool true) then 
-      let tactic1 =
-      {
-        tname = "proc; inline *; auto";
-        targs = []
-      } in
-      let tactic2 =
-      {
-        tname = "qed";
-        targs = []
-      } in
-      Lemma (prop, [tactic1;tactic2])
-    else
-     Lemma (prop, [])
+    let locals = Sv.elements (locals f) in
+    let env = List.fold_left Env.set_var env (f.f_args @ locals) in
+    let env = Env.new_fun env in
+    let init,final,ilocals,env = fun_init env f in
+    let smt_tactic = get_smt_tactic f.f_annot.f_user_annot in
+    let tactics = 
+      if f.f_contra == None then 
+        pp_valid_trace_t_t
+      else
+        let tactic1 = {
+          tname = "proc; auto";
+          targs = []
+        } in
+        let tactic2 = pp_valid_trace_instrs env f [] (List.rev f.f_body) in
+        let tactic2 = 
+          if (tactic2 == [] ) then 
+            [{tname = "rewrite /is_init /trace /valid /="; targs = []}; smt_tactic]
+          else 
+            let last_tactic = List.last tactic2 in
+            if last_tactic.tname = "auto" then
+              tactic2 @ [{tname = "rewrite /is_init /trace /valid /="; targs = []};smt_tactic]
+            else
+              tactic2
+        in    
+        let tactic3 =
+          {
+            tname = "qed";
+            targs = []
+        } in
+        tactic1 ::  tactic2 @ [tactic3]
+      in
+    Lemma (prop, tactics)
 
 
   let final env funcs =
@@ -3054,7 +3209,7 @@ struct
 
     let i = [EScall ([LvIdent [ttmpt] ; LvIdent ["tmp__trace"]], [Env.get_funname env f], args)]
     in
-    let i = i @ [ESasgn(ec_lvals env lvs2, Eident [ttmpt])] in
+    let i = if lvs2 == [] then i else i @ [ESasgn(ec_lvals env lvs2, Eident [ttmpt])] in
     let f = Env.get_func env in
     let p = Env.get_proofv env f in
     let e1 =

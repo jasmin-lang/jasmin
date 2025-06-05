@@ -36,6 +36,15 @@ Fixpoint has_var_e (xs: seq var_i) (e: pexpr) : bool :=
     | Pis_barr_init x e1 e2 =>  has_var_e xs e1 || has_var_e xs e2 || List.existsb (fun x' => var_beq x.(v_var) x'.(v_var)) xs
     end.
 
+
+
+
+
+Definition disjoint_assign (lvs: seq lval) (es: pexprs) : bool :=
+    let lvs := read_rvs lvs in
+    let es := read_es es in
+    Sv.is_empty (Sv.inter lvs es).
+
 Fixpoint contracts_asserts_i (gf:funname-> option ufundef) i:=
     let 'MkI ii ir := i in
     match ir with
@@ -45,13 +54,15 @@ Fixpoint contracts_asserts_i (gf:funname-> option ufundef) i:=
             match f'.(f_contra) with
             | (Some ci) =>
                 let asserts := conc_map (fun (e:assertion_prover*pexpr) => 
-                    let (_,e) := e in
-                    let lvs := map (fun x => lval_to_vare x) lvs in
-                    let es := map (fun e => Some e) es in
-                    let e := replace_expr_contract ci.(f_iparams) es e in
-                    let e :=  replace_expr_contract ci.(f_ires) lvs e in
-                    if has_var_e (ci.(f_iparams) ++ ci.(f_ires)) e then [::]
-                    else [:: instrr_to_instr ii (e_to_assert e Assert) ]
+                    if (disjoint_assign lvs es) then 
+                        let (_,e) := e in
+                        let lvs := map (fun x => lval_to_vare x) lvs in
+                        let es := map (fun e => Some e) es in
+                        let e := replace_expr_contract ci.(f_iparams) es e in
+                        let e :=  replace_expr_contract ci.(f_ires) lvs e in
+                        if has_var_e (ci.(f_iparams) ++ ci.(f_ires)) e then [::]
+                        else [:: instrr_to_instr ii (e_to_assert e Assert) ]
+                    else [::]
                 ) ci.(f_post) in
                 i :: asserts
             | _ => [::i]
@@ -92,7 +103,7 @@ Definition contracts_asserts_f gf (f:ufundef) : ufundef :=
     let c := contracts_asserts_cmd gf c in
     MkFun ii ci si p (asserts++c) so r ev.
 
-Definition contracts_asserts_prog (p:_uprog) : uprog :=
+Definition contracts_asserts_prog (p:_uprog) : _uprog :=
   let get_f := get_fundef p.(p_funcs) in
   map_prog (contracts_asserts_f get_f) p.
 
