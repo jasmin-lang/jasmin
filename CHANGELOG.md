@@ -10,6 +10,9 @@
 - The deprecated x86 intrinsic `#VPBLENDVB` has been removed
   ([PR #1208](https://github.com/jasmin-lang/jasmin/pull/1208)).
 
+- Syntax for initializing variables at declaration time is less flexible
+  ([PR #1185](https://github.com/jasmin-lang/jasmin/pull/1185)).
+
 # Jasmin 2025.06.0 — Nancy, 2025-06-18
 
 ## New features
