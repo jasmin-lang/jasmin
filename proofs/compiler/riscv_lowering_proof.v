@@ -784,43 +784,41 @@ Proof.
   move=> /(eq_initialize (fd':= with_body fd c')) -/(_ p' erefl erefl erefl erefl) hinit.
   exists s; split => //=; last by apply st_eq_finalize.
   subst c'; move: (f_body fd). clear fn fs fd hget hinit s.
-  set ep := ep_of_asm_e.
-  set spp := spp_of_asm_e.
   set sip := sip_of_asm_e.
   have eq_globs : p_globs p' = p_globs p' by [].
   apply (cmd_rect (Pr := Pi_r_) (Pi:=Pi_) (Pc:=Pc_)) => //; rewrite /Pi_r_ /Pi_ /Pc_.
-  + by apply (wequiv_nil (ep:= ep) (spp:=spp) (sip:=sip)).
+  + by apply (wequiv_nil (sip:=sip)).
   + move=> i c hi hc.
     rewrite /lowering.lower_cmd /= /conc_map /= -cat1s.
-    by apply (wequiv_cat (ep:= ep) (spp:=spp) (sip:=sip)) with (st_eq tt).
+    by apply (wequiv_cat (sip:=sip)) with (st_eq tt).
   (* Assgn *)
   + move=> x tg ty e ii.
-    apply (wequiv_assgn_esem (ep:= ep) (spp:=spp) (sip:=sip)).
+    apply (wequiv_assgn_esem (sip:=sip)).
     move=> s t s' /st_relP [-> /= heq] hsem.
-    have [vm2 -> ?]:= esem_vm_eq  (ep:= ep) (spp:=spp) (sip:=sip) eq_globs (Hassgn_esem ii hsem) heq.
+    have [vm2 -> ?]:= esem_vm_eq  (sip:=sip) eq_globs (Hassgn_esem ii hsem) heq.
     by eexists; first reflexivity.
   (* Copn *)
   + move=> lvs tag op es ii.
-    apply (wequiv_opn_esem (ep:= ep) (spp:=spp) (sip:=sip)).
+    apply (wequiv_opn_esem (sip:=sip)).
     move => s t s' /st_relP [-> /= heq] hsem.
-    have [vm2 -> ?]:= esem_vm_eq  (ep:= ep) (spp:=spp) (sip:=sip) eq_globs (Hopn_esem ii tag hsem) heq.
+    have [vm2 -> ?]:= esem_vm_eq  (sip:=sip) eq_globs (Hopn_esem ii tag hsem) heq.
     by eexists; first reflexivity.
   (* Syscall *)
   + move=> xs o es ii.
-    by apply (wequiv_syscall_rel_eq (ep:= ep) (spp:=spp) (sip:=sip)) with
+    by apply (wequiv_syscall_rel_eq (sip:=sip)) with
        checker_st_eq tt.
   (* If *)
   + move=> e c1 c2 hc1 hc2 ii /=.
-    by apply (wequiv_if_rel_eq (ep:= ep) (spp:=spp) (sip:=sip)) with checker_st_eq tt tt tt.
+    by apply (wequiv_if_rel_eq (sip:=sip)) with checker_st_eq tt tt tt.
   (* For *)
   + move=> x dir lo hi c hc ii /=.
-    by apply (wequiv_for_rel_eq (ep:= ep) (spp:=spp) (sip:=sip)) with checker_st_eq tt tt.
+    by apply (wequiv_for_rel_eq (sip:=sip)) with checker_st_eq tt tt.
   (* While *)
   + move=> al c e ii' c' hc hc' ii /=.
-    by apply (wequiv_while_rel_eq (ep:= ep) (spp:=spp) (sip:=sip)) with checker_st_eq tt.
+    by apply (wequiv_while_rel_eq (sip:=sip)) with checker_st_eq tt.
   (* Call *)
   move=> xs fn es ii /=.
-  apply (wequiv_call_rel_eq (ep:= ep) (spp:=spp) (sip:=sip)) with checker_st_eq tt => //.
+  apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq tt => //.
   by move=> ???; apply hrec.
 Qed.
 
