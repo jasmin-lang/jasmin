@@ -507,8 +507,7 @@ let assigns = function
   | Cassgn (x, _, _, _) -> written_lv Sv.empty x
   | Copn (xs, _, _, _) | Csyscall (xs, _, _) | Ccall (xs, _, _) ->
       List.fold_left written_lv Sv.empty xs
-  | Cif _ | Cwhile _ -> Sv.empty
-  | Cfor _ -> failwith "Prog.assigns"
+  | Cif _ | Cwhile _ |Cfor _ -> Sv.empty
 
 (* -------------------------------------------------------------------- *)
 let rec iter_instr f stmt = List.iter (iter_instr_i f) stmt

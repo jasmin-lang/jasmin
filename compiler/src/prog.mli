@@ -293,8 +293,7 @@ val has_annot : Annotations.symbol -> ('len, 'info, 'asm) ginstr -> bool
 
 val assigns : ('info, 'asm) instr_r -> Sv.t
 (** Computes the set of variables that the given instruction writes to, if any.
-    It should not be applied to a for loop. NB: control flow instructions (if
-    and while) do not write to any variable. *)
+    NB: control flow instructions (if, while, and for) do not write to any variable. *)
 
 (* -------------------------------------------------------------------- *)
 val iter_instr :

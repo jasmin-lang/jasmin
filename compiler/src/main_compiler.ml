@@ -157,15 +157,16 @@ let main () =
 
     let () =
       let open Linter in
-      let (globs, funcs) = prog in
+      let (_globs, funcs) = prog in
       let funcs = List.map Analysis.ReachingDefinitions.RDAnalyser.analyse_function funcs in
-      let prog = (globs, funcs) in
-      let errors = Checker.VariableInitialisation.check_prog prog in
+      let vi_errors = Checker.VariableInitialisation.check_prog ([], funcs) in
+      let funcs = List.map Analysis.Liveness.LivenessAnalyser.analyse_function funcs in
+      let dv_errors = Checker.DeadVariables.check_prog ([], funcs) in
       List.iter (
           fun (error: Error.CompileError.t) ->
           warning Linter (Location.i_loc0 error.location) "%t" error.to_text
         )
-        errors
+        (vi_errors @ dv_errors)
     in
 
     (* The source program, before any compilation pass. *)
