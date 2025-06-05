@@ -1,7 +1,8 @@
 /* Tests bounds of decreasing for loops */
 export
 fn forty() -> reg u32 {
-  inline int i j = 0;
+  inline int i j;
+  j = 0;
   for i = 10 downto 5 {
     j += i;
   }
@@ -13,7 +14,8 @@ fn forty() -> reg u32 {
 param int a = 10;
 export
 fn for_nest() -> reg u32 {
-  inline int i j k = 0;
+  inline int i j k;
+  k = 0;
   for i = 0 to a + a {
      for j = 0 to a * a {
        k += 1;
