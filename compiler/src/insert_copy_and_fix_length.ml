@@ -77,9 +77,9 @@ and iac_instr_r pd loc ir =
       Copn(xs, t, Sopn.Opseudo_op(Pseudo_operator.Oswap ty), es)
     | Sopn.Oslh (SLHprotect_ptr _), [Lvar x] ->
       (* Fix the size it is dummy for the moment *)
-      let xn = size_of (L.unloc x).v_ty in
-      Typing.check_length loc xn;
-      let op = Slh_ops.SLHprotect_ptr (Conv.pos_of_int xn) in
+      let ws, len = array_kind (L.unloc x).v_ty in
+      Typing.check_length loc len;
+      let op = Slh_ops.SLHprotect_ptr (ws, Conv.pos_of_int len) in
       Copn(xs,t, Sopn.Oslh op, es)
     | (Sopn.Opseudo_op(Pseudo_operator.Ocopy _) | Sopn.Oslh (SLHprotect_ptr _)), _ -> assert false
     | _ -> ir
