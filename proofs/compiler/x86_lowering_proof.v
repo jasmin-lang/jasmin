@@ -1971,36 +1971,36 @@ Section PROOF.
     set spp := spp_of_asm_e.
     set sip := sip_of_asm_e.
     apply (cmd_rect (Pr := Pi_r_) (Pi:=Pi_) (Pc:=Pc_)) => //; rewrite /Pi_r_ /Pi_ /Pc_.
-    + by move=> _; apply (wequiv_nil (ep:= ep) (spp:=spp) (sip:=sip)).
+    + by move=> _; apply (wequiv_nil (sip:=sip)).
     + move=> i c hi hc /disj_fvars_vars_c_cons [/hi{}hi /hc{}hc].
       rewrite /lowering.lower_cmd /= /conc_map /= -cat1s.
-      by apply (wequiv_cat (ep:= ep) (spp:=spp) (sip:=sip)) with eq_exc_fresh.
+      by apply (wequiv_cat (sip:=sip)) with eq_exc_fresh.
     (* Assgn *)
     + move=> x tg ty e ii hdisj.
-      apply (wequiv_assgn_esem (ep:= ep) (spp:=spp) (sip:=sip)).
+      apply (wequiv_assgn_esem (sip:=sip)).
       move=> s t s' heqex hsem.
       by have [t' [??]]:= Hassgn_esem hsem hdisj heqex; exists t'.
     (* Copn *)
     + move=> lvs tag op es ii hdisj.
-      apply (wequiv_opn_esem (ep:= ep) (spp:=spp) (sip:=sip)).
+      apply (wequiv_opn_esem (sip:=sip)).
       move => s t s' heqex hsem.
       by have [t' [??]] := Hopn_esem hsem hdisj heqex; exists t'.
     (* Syscall *)
     + move=> xs o es ii.
       rewrite /disj_fvars  /x86_lowering.disj_fvars vars_I_syscall => /disjoint_union [hdisjx hdisje].
-      apply (wequiv_syscall_rel_eq (ep:= ep) (spp:=spp) (sip:=sip)) with
+      apply (wequiv_syscall_rel_eq (sip:=sip)) with
          checker_st_eq_ex fvars => //.
     (* If *)
     + move=> e c1 c2 hc1 hc2 ii /disj_fvars_vars_I_Cif [hfve /hc1{}hc1 /hc2{}hc2] /=.
       case heq: lower_condition => [pre e'].
       rewrite -cats1 map_cat /=.
-      apply (wequiv_if_esem (ep:= ep) (spp:=spp) (sip:=sip)) with eq_exc_fresh.
+      apply (wequiv_if_esem (sip:=sip)) with eq_exc_fresh.
       + move=> s t v heqfv he.
         by apply: (lower_condition_corr ii (esym heq) heqfv (eeq_exc_sem_pexpr hfve heqfv he)).
       by move=> [].
     (* For *)
     + move=> x dir lo hi c hc ii /= /disj_fvars_vars_I_Cfor [hfvc hfvlo hfvhi].
-      apply (wequiv_for_rel_eq (ep:= ep) (spp:=spp) (sip:=sip)) with checker_st_eq_ex fvars fvars => //.
+      apply (wequiv_for_rel_eq (sip:=sip)) with checker_st_eq_ex fvars fvars => //.
       + split => //.
         apply: (disjoint_equal_r (read_eE _ _)).
         exact: (union_disjoint hfvhi hfvlo).
@@ -2011,12 +2011,12 @@ Section PROOF.
     (* While *)
     + move=> al c e ii' c' hc hc' ii /disj_fvars_vars_I_Cwhile [/hc{}hc hfve /hc'{}hc'] /=.
       case heq: lower_condition => [pre e'].
-      apply (wequiv_while_esem (ep:= ep) (spp:=spp) (sip:=sip)) with  eq_exc_fresh => //.
+      apply (wequiv_while_esem (sip:=sip)) with  eq_exc_fresh => //.
        move=> s t v heqfv he.
        by apply: (lower_condition_corr ii' (esym heq) heqfv (eeq_exc_sem_pexpr hfve heqfv he)).
     (* Call *)
     move=> xs fn es ii /disj_fvars_vars_I_Ccall [hdisjx hdisje] /=.
-    apply (wequiv_call_rel_eq (ep:= ep) (spp:=spp) (sip:=sip)) with checker_st_eq_ex fvars => //.
+    apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq_ex fvars => //.
     by move=> ???; apply hrec.
   Qed.
 

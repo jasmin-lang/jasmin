@@ -1973,17 +1973,15 @@ Proof.
   move=> /(eq_initialize (fd':= with_body fd (lower_cmd (f_body fd)))) -/(_ p' erefl erefl erefl erefl) hinit.
   exists s; split => //=; last by apply st_eq_ex_finalize.
   move: (f_body fd) hfvc. clear fn fs fd hget hfvres hinit s.
-  set ep := ep_of_asm_e.
-  set spp := spp_of_asm_e.
   set sip := sip_of_asm_e.
   apply (cmd_rect (Pr := Pi_r_) (Pi:=Pi_) (Pc:=Pc_)) => //; rewrite /Pi_r_ /Pi_ /Pc_.
-  + by move=> _; apply (wequiv_nil (ep:= ep) (spp:=spp) (sip:=sip)).
+  + by move=> _; apply (wequiv_nil (sip:=sip)).
   + move=> i c hi hc /disj_fvars_vars_c_cons [/hi{}hi /hc{}hc].
     rewrite /lower_cmd /= /conc_map /= -cat1s.
-    by apply (wequiv_cat (ep:= ep) (spp:=spp) (sip:=sip)) with eq_fv.
+    by apply (wequiv_cat (sip:=sip)) with eq_fv.
   (* Assgn *)
   + move=> x tg ty e ii /disj_fvars_vars_I_Cassgn [hfvlv hfve].
-    apply (wequiv_assgn_esem (ep:= ep) (spp:=spp) (sip:=sip)).
+    apply (wequiv_assgn_esem (sip:=sip)).
     move=> s0 s0' s1 hs00; rewrite /sem_assgn; t_xrbindP => v hseme v' htrunc hwrite.
     have [s1' hwrite' hs11] := eeq_exc_write_lval hfvlv hs00 hwrite.
     clear hwrite.
@@ -2004,7 +2002,7 @@ Proof.
     by exists s2'; last exact: (eeq_excT hs11 hs12').
   (* Copn *)
   + move=> lvs tag op es ii /disj_fvars_vars_I_Copn [hfvlvs hfve].
-    apply (wequiv_opn_esem (ep:= ep) (spp:=spp) (sip:=sip)) => s0 s0' s1 hs00.
+    apply (wequiv_opn_esem (sip:=sip)) => s0 s0' s1 hs00.
     rewrite /sem_sopn; t_xrbindP=> vs xs hsemes hexec hwrite.
     have [s1' hwrite' hs11] := eeq_exc_write_lvals hfvlvs hs00 hwrite.
     clear hfvlvs hwrite.
@@ -2025,18 +2023,18 @@ Opaque esem.
   (* Syscall *)
   + move=> xs o es ii.
     rewrite /disj_fvars vars_I_syscall => /disjoint_union [hdisjx hdisje].
-    apply (wequiv_syscall_rel_eq (ep:= ep) (spp:=spp) (sip:=sip)) with
+    apply (wequiv_syscall_rel_eq (sip:=sip)) with
        checker_st_eq_ex fvars => //.
   (* If *)
   + move=> e c1 c2 hc1 hc2 ii /disj_fvars_vars_I_Cif [hfve /hc1{}hc1 /hc2{}hc2] /=.
     case heq: lower_condition => [pre e'].
     rewrite map_cat /=.
-    apply (wequiv_if_esem (ep:= ep) (spp:=spp) (sip:=sip)) with eq_fv.
+    apply (wequiv_if_esem (sip:=sip)) with eq_fv.
     + by move=> s t v heqfv; apply (sem_lower_condition ii heq).
     by move=> [].
   (* For *)
   + move=> x dir lo hi c hc ii /= /disj_fvars_vars_I_Cfor [hfvc hfvlo hfvhi].
-    apply (wequiv_for_rel_eq (ep:= ep) (spp:=spp) (sip:=sip)) with checker_st_eq_ex fvars fvars => //.
+    apply (wequiv_for_rel_eq (sip:=sip)) with checker_st_eq_ex fvars fvars => //.
     + by split => //; apply disj_fvars_read_es2.
     split => //.
     + rewrite /vars_lvals /read_rvs /vrvs /=; apply /disjointP.
@@ -2045,11 +2043,11 @@ Opaque esem.
   (* While *)
   + move=> al c e ii' c' hc hc' ii /disj_fvars_vars_I_Cwhile [/hc{}hc hfve /hc'{}hc'] /=.
     case heq: lower_condition => [pre e'].
-    apply (wequiv_while_esem (ep:= ep) (spp:=spp) (sip:=sip)) with eq_fv => //.
+    apply (wequiv_while_esem (sip:=sip)) with eq_fv => //.
     by move=> s t v heqfv; apply (sem_lower_condition ii' heq).
   (* Call *)
   move=> xs fn es ii /disj_fvars_vars_I_Ccall [hdisjx hdisje] /=.
-  apply (wequiv_call_rel_eq (ep:= ep) (spp:=spp) (sip:=sip)) with checker_st_eq_ex fvars => //.
+  apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq_ex fvars => //.
   by move=> ???; apply hrec.
 Qed.
 End IT.
