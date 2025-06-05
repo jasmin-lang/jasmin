@@ -23,7 +23,9 @@ From ITree Require Import
      Interp.Recursion
      Interp.RecursionFacts
      Interp.TranslateFacts.
-     
+
+Require Import FunctionalExtensionality.
+
 Require Import xrutt xrutt_facts rutt_extras tfam_iso.
 
 From ITree Require Import Rutt RuttFacts.
@@ -108,9 +110,18 @@ Definition lassoc_tr E1 E2 E3 : (E1 +' (E2 +' E3)) ~> ((E1 +' E2) +' E3) :=
                            | inl1 e2 => inl1 (inr1 e2)
                            | inr1 e3 => inr1 e3 end end.                  
 
+Definition rassoc_tr E1 E2 E3 : ((E1 +' E2) +' E3) ~> (E1 +' (E2 +' E3)) :=
+  fun T e => match e with
+             | inl1 e12 => match e12 with
+                           | inl1 e1 => inl1 e1
+                           | inr1 e2 => inr1 (inl1 e2)
+                           end
+            | inr1 e3 => inr1 (inr1 e3) end.                 
+
+(*
 Definition rassoc_tr E1 E2 E3 := @mfun2 (E1 +' (E2 +' E3)) ((E1 +' E2) +' E3) 
                                         (@FIsoLAssoc E1 E2 E3).
-
+*)
 
 Section InlineOK.
 
@@ -337,7 +348,7 @@ Definition forget_f : (D1 +' D1) +' E ~> D1 +' E :=
                           | inr1 d2 => inl1 d2 end                
              | inr1 e => inr1 e end.               
 
-(* forget some events *)
+(* forget the (tagging) distinction *)
 Definition forget_tr : itree ((D1 +' D1) +' E) ~> itree (D1 +' E) :=
   translate forget_f.
 
@@ -365,6 +376,71 @@ Proof.
   }
 Qed.
 
+Lemma forget_free_id T d :
+  @forget_f _ (@lw_la D1 D1 E T d) = d.
+Proof.
+  destruct d; simpl; eauto.
+Qed.  
+
+Lemma forget_free_id_fun :
+  (fun T d => @forget_f _ (@lw_la D1 D1 E T d)) = (fun T (d: (D1 +' E) T) => d).
+Proof.
+  eapply functional_extensionality_dep; intro T.
+  eapply functional_extensionality; intro d.
+  eapply forget_free_id; auto.
+Qed.  
+
+(* forgetting an inessential extension gives us back the same *)
+Lemma forget_free_id_lemma T (t: itree (D1 +' E) T) :
+  eq_itree eq t
+    (translate (fun T' x => (@forget_f _ (@lw_la D1 D1 E T' x))) t).
+Proof.
+  rewrite forget_free_id_fun.
+  rewrite translate_id. reflexivity.
+Qed.
+
+Notation RA_tr it :=
+  (translate (@rassoc_tr D1 D1 E) it).
+
+Lemma rassoc_free_interp_lemma T h (t: itree (D1 +' E) T) :
+  eutt eq t (interp (ext_handler h) (RA_tr (free_tr t))).
+Proof.
+  unfold RA_tr, free_tr.
+  setoid_rewrite <- translate_cmpE.
+  setoid_rewrite interp_translate.
+  unfold cat, Cat_IFun; simpl.
+  setoid_rewrite <- interp_id_h at 1.
+  revert t.
+  ginit; gcofix CIH.
+  intros t.
+(*  unfold free_tr, rassoc_tr. *)
+  rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot.
+  { setoid_rewrite interp_ret.
+    gstep; red. reflexivity.
+  }
+  { setoid_rewrite interp_tau.
+    gstep; red. econstructor; eauto.
+    gfinal; left; eauto.
+  }
+  { setoid_rewrite interp_vis.
+    guclo eqit_clo_bind.
+    econstructor 1 with (RU := eq).
+    { unfold ext_handler.
+      unfold rassoc_tr, lw_la.
+      unfold lassoc_tr.
+      destruct e; simpl; try reflexivity.
+    }
+    { intros u1 u2 H.
+      inv H.
+      gstep; red.
+      econstructor.
+      gfinal; left; eauto.
+    }  
+  }    
+Qed.
+  
 (* recursion on D1 is the same as recursion on (D1 +' D1) where the
    left D1 is inessential *)
 Lemma free_widening_lemma

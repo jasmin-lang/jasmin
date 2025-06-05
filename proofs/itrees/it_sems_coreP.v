@@ -370,6 +370,14 @@ Definition isem_fun_body (p : prog) (ev : extra_val_t)
    s2 <- isem_cmd_ p ev fd.(f_body) s1;;
    iresult s2 (finalize_funcall fd s2).
 
+(* added for inlining *)
+Definition isem_fundef_body (p : prog) (ev : extra_val_t)
+   (fd : fundef) (fs : fstate) :=
+   let sinit := estate0 fs in
+   s1 <- iresult sinit (initialize_funcall p ev fd fs);;
+   s2 <- isem_cmd_ p ev fd.(f_body) s1;;
+   iresult s2 (finalize_funcall fd s2).
+
 (* A variant of the semantic based on exec, usefull for the proofs *)
 Fixpoint esem_i (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
     exec estate :=

@@ -336,7 +336,7 @@ Definition contract_translate {E1 E2} : E1 +' (E1 +' E2) ~> E1 +' E2 :=
                            | inl1 e1 => inl1 e1
                            | inr1 e2 => inr1 e2 end end.
 
-Definition anticontact_translate {E1 E2} : E1 +' E2 ~> E1 +' (E1 +' E2) :=
+Definition anticontract_translate {E1 E2} : E1 +' E2 ~> E1 +' (E1 +' E2) :=
   fun T e => match e with
              | inl1 e1 => inl1 e1
              | inr1 e2 => inr1 (inr1 e2) end.
@@ -411,9 +411,15 @@ Print progT.
 fundef = fun (asm_op : Type) (asmop : asmOp asm_op) (pT : progT) =>
     _fundef extra_fun_t
      : forall {asm_op : Type}, asmOp asm_op -> progT -> Type
+
+@ufundef : forall asm_op : Type, asmOp asm_op -> Type
+
 *)
 
-Lemma inline_fd_ok (px:ufun_decls) (fd: ufundef) (fs: fstate):
+Print ufundef.
+
+
+Lemma inline_fd_ok (px: ufun_decls) (fd: ufundef) (fs: fstate):
  forall fd', inline_fd rename_fd dead_vars_fd px fd = ok fd' ->
  exists fd'',                         
     eutt eq (translate split_Evs (flat_fundef_sem fd'' fs))
