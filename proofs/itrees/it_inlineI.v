@@ -282,8 +282,8 @@ Proof.
     destruct Hi1 as [kt1 [Hi1 Hi2]].
     destruct Hc1 as [kt2 [Hc1 Hc2]].
 
-    set it3 := (fun s => bind (kt1 s) kt2).
-    exists it3; split; simpl; intro s; subst it3; unfold forget_tr.
+    set kt := (fun s => bind (kt1 s) kt2).
+    exists kt; split; simpl; intro s; subst kt; unfold forget_tr.
 
     { rewrite translate_bind.
       eapply eqit_bind; eauto.
@@ -303,6 +303,7 @@ Proof.
     exact sv0.
     exists ( [:: (MkI ii (Cassgn x tg ty e))] ).
     unfold inline_ir_info.
+
     set kt := (fun s => @free_tr recCall recCall E _
                           (flat_i_sem (MkI ii (Cassgn x tg ty e)) s)).
     exists kt; split; subst kt; simpl; intro s.
@@ -321,6 +322,7 @@ Proof.
     exact sv0.
     exists ( [:: (MkI ii (Copn xs t o es))] ).
     unfold inline_ir_info.
+
     set kt := (fun s => @free_tr recCall recCall E _
                           (flat_i_sem (MkI ii (Copn xs t o es)) s)).
     exists kt; split; subst kt; simpl; intro s.
@@ -339,6 +341,7 @@ Proof.
     exact sv0.
     exists ( [:: (MkI ii (Csyscall xs o es))] ).
     unfold inline_ir_info.
+
     set kt := (fun s => @free_tr recCall recCall E _
                           (flat_i_sem (MkI ii (Csyscall xs o es)) s)).
     exists kt; split; subst kt; simpl; intro s.
@@ -368,6 +371,9 @@ Proof.
     exists ([::MkI ii (Cif e c1R c2R)]).
     unfold inline_ir_info.
 
+    set kt := (isem_ifP p e kt1 kt2).
+    exists kt.
+
     admit.
   }
 
@@ -376,7 +382,7 @@ Proof.
     subst Pr; simpl; intros ii sv0.
     unfold Pc in Hc.
     
-    destruct (Hc sv0) as [[sv1 [c1R [kt1 [Hc1A Hc1B]]]] | ].
+    destruct (Hc sv0) as [[sv1 [c1R [kt0 [Hc1A Hc1B]]]] | ].
     2: { exact None. }
 
     set ir := (Cfor x (dir, lo, hi) c0).
@@ -388,6 +394,9 @@ Proof.
     exists ([::MkI ii (Cfor x (dir, lo, hi) c1R)]).
     unfold inline_ir_info.
 
+    set kt := (isem_forP p x (dir, lo, hi) kt0).
+    exists kt.
+    
     admit.
   }
 
