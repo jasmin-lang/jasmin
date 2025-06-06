@@ -1952,13 +1952,11 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {wsw1 wsw2 wsw3 : WithSubWord}
-  {scP1 : semCallParams (wsw:= wsw1) (pT := pT1)}
-  {scP2 : semCallParams (wsw:= wsw2) (pT := pT2)}
-  {scP3 : semCallParams (wsw:= wsw3) (pT := pT3)}
+  {scP1 : semCallParams (wsw := wsw1) (pT := pT1)}
+  {scP2 : semCallParams (wsw := wsw2) (pT := pT2)}
+  {scP3 : semCallParams (wsw := wsw3) (pT := pT3)}
   {dc1 dc2 dc3 : DirectCall}
-  {rE12 : EventRels E0}
-  {rE23 : EventRels E0}
-  {rE13 : EventRels E0}
+  {rE12 : EventRels E0} {rE23 : EventRels E0} {rE13 : EventRels E0}
   {sem_F1 : sem_Fun (sip := sip) (pT := pT1) E}
   {sem_F2 : sem_Fun (sip := sip) (pT := pT2) E}
   {sem_F3 : sem_Fun (sip := sip) (pT := pT3) E}

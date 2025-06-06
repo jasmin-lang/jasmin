@@ -101,8 +101,7 @@ Context
 
   End MakeEpilogueInd.
 
-  Context (p p' : uprog).
-  Let ev : unit := tt.
+  Context (p p' : uprog) (ev : extra_val_t (progT := progUnit)).
 
   Hypothesis Hp : makereference_prog fresh_id p = ok p'.
 

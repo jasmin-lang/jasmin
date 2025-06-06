@@ -1278,7 +1278,7 @@ exact: wf_env_after_assign_vars hchk hwrite.
 Qed.
 
 #[local]
-Instance slh_fun_contract : EquivSpec :=
+Instance slh_spec : EquivSpec :=
   {|
     rpreF_ :=
       fun fn fn' fs fs' =>
@@ -1295,20 +1295,20 @@ Let Pi i : Prop :=
   forall env env' i',
     check_i fun_info i env = ok env' ->
     lower_i i = ok i' ->
-    wequiv_rec_i p p' ev ev slh_fun_contract (st_eq env) i i' (st_eq env').
+    wequiv_rec_i p p' ev ev slh_spec (st_eq env) i i' (st_eq env').
 
 Let Pi_r i : Prop :=
   forall ii env env' i' ii',
     check_i fun_info (MkI ii i) env = ok env' ->
     lower_i (MkI ii i) = ok (MkI ii' i') ->
     wequiv_rec_ir
-      p p' ev ev slh_fun_contract (st_eq env) i ii i' ii' (st_eq env').
+      p p' ev ev slh_spec (st_eq env) i ii i' ii' (st_eq env').
 
 Let Pc c : Prop :=
   forall env env' c',
     check_cmd fun_info env c = ok env' ->
     lower_cmd c = ok c' ->
-    wequiv_rec p p' ev ev slh_fun_contract (st_eq env) c c' (st_eq env').
+    wequiv_rec p p' ev ev slh_spec (st_eq env) c c' (st_eq env').
 
 Lemma it_lower_opn xs tg op es : Pi_r (Copn xs tg op es).
 move=> ii env env' i' ii' /=; case: is_OslhP => [slho|?] /=; last first.
@@ -1392,7 +1392,7 @@ Qed.
 
 Lemma lower_it_call xs fn es :
   (forall ii1 ii2 fn1 fn2,
-      wequiv_f_rec p p' ev ev slh_fun_contract rpreF ii1 ii2 fn1 fn2 rpostF) ->
+      wequiv_f_rec p p' ev ev slh_spec rpreF ii1 ii2 fn1 fn2 rpostF) ->
   Pi_r (Ccall xs fn es).
 Proof.
 move=> hind ii env env' /=; rewrite (surjective_pairing (fun_info _)).
@@ -1415,10 +1415,10 @@ Qed.
 
 Lemma it_lower_code c c' env env' :
   (forall ii1 ii2 fn1 fn2,
-      wequiv_f_rec p p' ev ev slh_fun_contract rpreF ii1 ii2 fn1 fn2 rpostF) ->
+      wequiv_f_rec p p' ev ev slh_spec rpreF ii1 ii2 fn1 fn2 rpostF) ->
   check_cmd fun_info env c = ok env' ->
   lower_cmd c = ok c' ->
-  wequiv_rec p p' ev ev slh_fun_contract (st_eq env) c c' (st_eq env').
+  wequiv_rec p p' ev ev slh_spec (st_eq env) c c' (st_eq env').
 Proof.
 move=> hind.
 apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;

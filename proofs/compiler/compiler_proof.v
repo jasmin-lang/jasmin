@@ -218,7 +218,7 @@ Proof.
   apply: compose_pass_uincl'.
   - move => vr'; apply: (live_range_splittingP ok_ph).
   apply: compose_pass.
-  - move=> vr' hvr'. assert (h := expand_callP (sip := sip_of_asm_e) ok_pg); apply h => //; apply hvr'.
+  - move=> vr' hvr'. assert (h := expand_callP (sip := sip_of_asm_e) (ev := tt) ok_pg); apply h => //; apply hvr'.
   apply: compose_pass_uincl'.
   - by move=>  vr'; apply: indirect_to_direct.
   apply: compose_pass.
@@ -1316,7 +1316,6 @@ Qed.
 
 End PROOF.
 
-
 From ITree Require Import
   Basics
   ITree
@@ -1324,58 +1323,51 @@ From ITree Require Import
 .
 Require Import relational_logic.
 
+Definition wiequiv_f_trans'
+  {syscall_state asm_op : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT1 pT2 pT3 : progT}
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {wsw1 wsw2 wsw3 : WithSubWord}
+  {scP1 : semCallParams (wsw := wsw1) (pT := pT1)}
+  {scP2 : semCallParams (wsw := wsw2) (pT := pT2)}
+  {scP3 : semCallParams (wsw := wsw3) (pT := pT3)}
+  {dc1 dc2 dc3 : DirectCall}
+  {rE12 : EventRels E0} {rE23 : EventRels E0} {rE13 : EventRels E0}
+  {rE_trans : EventRels_trans rE12 rE23 rE13}
+  {p1 : prog (pT := pT1)} {p2 : prog (pT := pT2)} {p3 : prog (pT := pT3)}
+  {ev1 : extra_val_t (progT := pT1)}
+  {ev2 : extra_val_t (progT := pT2)}
+  {ev3 : extra_val_t (progT := pT3)}
+  {fn1 fn2 fn3 : funname}
+  {eS12 eS23 eS13 : EquivSpec} :=
+  wiequiv_f_trans
+    (wsw1 := wsw1) (wsw2 := wsw2) (wsw3 := wsw3)
+    (scP1 := scP1) (scP2 := scP2) (scP3 := scP3)
+    (dc1 := dc1) (dc2 := dc2) (dc3 := dc3)
+    (rE_trans := rE_trans)
+    (p1 := p1) (p2 := p2) (p3 := p3)
+    (fn1 := fn1) (fn2 := fn2) (fn3 := fn3)
+    (ev1 := ev1) (ev2 := ev2) (ev3 := ev3)
+    (rpreF12 := rpreF (eS := eS12))
+    (rpreF23 := rpreF (eS := eS23))
+    (rpreF13 := rpreF (eS := eS13))
+    (rpostF12 := rpostF (eS := eS12))
+    (rpostF23 := rpostF (eS := eS23))
+    (rpostF13 := rpostF (eS := eS13)).
 
-(*
-Section MOVE.
-
-  Context
-    {syscall_state : Type}
-      {ep : EstateParams syscall_state}
-      {spp : SemPexprParams}
-      {asm_op: Type}
-      {sip : SemInstrParams asm_op syscall_state}
-      {pT1 pT2 : progT}
-      {wsw1 wsw2: WithSubWord}
-      {scP1 : semCallParams (wsw:= wsw1) (pT := pT1)}
-      {scP2 : semCallParams (wsw:= wsw2) (pT := pT2)}
-      {dc1 dc2: DirectCall}.
-
-  Notation prog1 := (prog (pT := pT1)).
-  Notation prog2 := (prog (pT := pT2)).
-  Notation extra_val_t1 := (@extra_val_t pT1).
-  Notation extra_val_t2 := (@extra_val_t pT2).
-  Notation sem_Fun1 := (sem_Fun (pT:=pT1)).
-  Notation sem_Fun2 := (sem_Fun (pT:=pT2)).
-
-  Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
-    {wE: with_Error E E0} {rE0 : EventRels E0}.
-
-  Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
-
-  Class SubEquivSpec (eS1 eS2 : EquivSpec) :=
-    {
-      subESpre_ :
-        forall fn1 fn2 fs1 fs2,
-          rpreF (eS := eS2) fn1 fn2 fs1 fs2 ->
-          rpreF (eS := eS1) fn1 fn2 fs1 fs2;
-
-      subESpost_ :
-        forall fn1 fn2 fs1 fs2 fs1' fs2',
-          rpreF (eS := eS2) fn1 fn2 fs1 fs2 ->
-          rpostF (eS := eS1) fn1 fn2 fs1 fs2 fs1' fs2' ->
-          rpostF (eS := eS2) fn1 fn2 fs1 fs2 fs1' fs2';
-    }.
-
-  Lemma wequiv_f_eq_uincl eS1 eS2 fn1 fn2 :
-    SubEquivSpec eS1 eS2 ->
-    wequiv_f p1 p2 ev1 ev2 (rpreF (eS := eS1)) fn1 fn2 (rpostF (eS := eS1)) ->
-    wequiv_f p1 p2 ev1 ev2 (rpreF (eS := eS2)) fn1 fn2 (rpostF (eS := eS2)).
-  Proof.
-  move=> [hpre hpost]; exact: wkequiv_io_weaken (hpre fn1 fn2) (hpost fn1 fn2).
-  Qed.
-
-  End MOVE.
-  *)
+Instance eq_uincl_spec
+  {syscall_state asm_op : Type}
+  {ep : EstateParams syscall_state}
+  {sip : SemInstrParams asm_op syscall_state}
+  : EquivSpec :=
+  {|
+    rpreF_ := rpreF (eS := eq_spec);
+    rpostF_ := rpostF (eS := uincl_spec);
+  |}.
 
 Section IT.
 
@@ -1416,7 +1408,7 @@ Instance HandlerContract : EventRels void1 :=
   |}.
 
 #[local]
-Instance HandlerContract_trans rE23 rE13 :
+Instance HandlerContract_trans {rE23 rE13} :
   EventRels_trans HandlerContract rE23 rE13 :=
   {|
     ERpre_trans := fun _ _ _ e => of_void1 e;
@@ -1426,55 +1418,258 @@ Instance HandlerContract_trans rE23 rE13 :
 Section FIRST_PART.
 
 #[local] Existing Instance progUnit.
-#[local] Existing Instance uincl_spec.
 
-Lemma rpreF_trans fn fs1 fs3 :
-  rpreF fn fn fs1 fs3 ->
-  exists2 fs2, rpreF fn fn fs1 fs2 & rpreF fn fn fs2 fs3.
-Proof. move=> [_ h]. exists fs1; split=> //. exact: fs_uinclR. Qed.
+Lemma rpreF_trans_eq_eq_eq fn1 fn2 fs1 fs3 :
+  rpreF (eS := eq_spec) fn1 fn2 fs1 fs3 ->
+  exists2 fs2,
+    rpreF (eS := eq_spec) fn1 fn2 fs1 fs2
+    & rpreF (eS := eq_spec) fn1 fn2 fs2 fs3.
+Proof. move=> [<- <-]; by exists fs1. Qed.
 
-Lemma rpostF_trans fn fs1 fs2 fs3 r1 r3 :
-  rpreF fn fn fs1 fs2 ->
-  rpreF fn fn fs2 fs3 ->
-  rcompose (rpostF fn fn fs1 fs2) (rpostF fn fn fs2 fs3) r1 r3 ->
-  rpostF fn fn fs1 fs3 r1 r3.
+Lemma rpreF_trans_eq_uincl_eq fn1 fn2 fs1 fs3 :
+  rpreF (eS := eq_spec) fn1 fn2 fs1 fs3 ->
+  exists2 fs2,
+    rpreF (eS := uincl_spec) fn1 fn2 fs1 fs2
+    & rpreF (eS := eq_spec) fn1 fn2 fs2 fs3.
+Proof. move=> [<- <-]; exists fs1; split=> //; exact: fs_uinclR. Qed.
+
+Lemma rpreF_trans_uincl_uincl_uincl fn1 fn2 fs1 fs3 :
+  rpreF (eS := uincl_spec) fn1 fn2 fs1 fs3 ->
+  exists2 fs2,
+    rpreF (eS := uincl_spec) fn1 fn2 fs1 fs2
+    & rpreF (eS := uincl_spec) fn1 fn2 fs2 fs3.
+Proof. move=> [<- ?]; exists fs1; split=> //; exact: fs_uinclR. Qed.
+
+Lemma rpostF_trans_eq_eq_eq_uincl fn1 fn2 fn3 fs1 fs2 fs3 r1 r3 :
+  rpreF (eS := eq_spec) fn1 fn2 fs1 fs2 ->
+  rpreF (eS := eq_spec) fn2 fn3 fs2 fs3 ->
+  rcompose
+    (rpostF (eS := eq_spec) fn1 fn2 fs1 fs2)
+    (rpostF (eS := uincl_spec) fn2 fn3 fs2 fs3)
+    r1 r3 ->
+  rpostF (eS := uincl_spec) fn1 fn3 fs1 fs3 r1 r3.
+Proof. by move=> [<- h1] [<- <-] [] _ <-. Qed.
+
+Lemma rpostF_trans_uincl_uincl_uincl_uincl fn1 fn2 fn3 fs1 fs2 fs3 r1 r3 :
+  rpreF (eS := uincl_spec) fn1 fn2 fs1 fs2 ->
+  rpreF (eS := uincl_spec) fn2 fn3 fs2 fs3 ->
+  rcompose
+    (rpostF (eS := uincl_spec) fn1 fn2 fs1 fs2)
+    (rpostF (eS := uincl_spec) fn2 fn3 fs2 fs3)
+    r1 r3 ->
+  rpostF (eS := uincl_spec) fn1 fn3 fs1 fs3 r1 r3.
 Proof.
-  move=> _ _ [] [???] [/= <- <- h1] [/= ?? h2]; split=> //.
-  exact: Forall2_trans value_uincl_trans h1 h2.
+move=> [<- h1] [<- h2] [] r2 [?? hvals1] [?? hvals2]; split.
+1-2: congruence.
+exact: Forall2_trans value_uincl_trans hvals1 hvals2.
 Qed.
 
-Definition wiequiv_f_trans (p1 p3 : prog) fn dc1 dc2 p2 :=
-  wiequiv_f_trans
-    (dc1 := dc1) (dc2 := dc2) (dc3 := direct_c)
+Lemma rpostF_trans_eq_eq_uincl_uincl fn1 fn2 fn3 fs1 fs2 fs3 r1 r3 :
+  rpreF (eS := eq_spec) fn1 fn2 fs1 fs2 ->
+  rpreF (eS := eq_spec) fn2 fn3 fs2 fs3 ->
+  rcompose
+    (rpostF (eS := uincl_spec) fn1 fn2 fs1 fs2)
+    (rpostF (eS := uincl_spec) fn2 fn3 fs2 fs3)
+    r1 r3 ->
+  rpostF (eS := uincl_spec) fn1 fn3 fs1 fs3 r1 r3.
+Proof.
+move=> [<- _] [<- <-] [] {}fs3 [?? hvals1] [?? hvals2]; split.
+1-2: congruence.
+exact: Forall2_trans value_uincl_trans hvals1 hvals2.
+Qed.
+
+Lemma rpostF_trans_uincl_eq_uincl_uincl fn1 fn2 fn3 fs1 fs2 fs3 r1 r3 :
+  rpreF (eS := uincl_spec) fn1 fn2 fs1 fs2 ->
+  rpreF (eS := eq_spec) fn2 fn3 fs2 fs3 ->
+  rcompose
+    (rpostF (eS := uincl_spec) fn1 fn2 fs1 fs2)
+    (rpostF (eS := uincl_spec) fn2 fn3 fs2 fs3)
+    r1 r3 ->
+  rpostF (eS := uincl_spec) fn1 fn3 fs1 fs3 r1 r3.
+Proof.
+move=> [<- _] [<- <-] [] {}fs3 [?? hvals1] [?? hvals2]; split.
+1-2: congruence.
+exact: Forall2_trans value_uincl_trans hvals1 hvals2.
+Qed.
+
+(* X -> wequiv eq uincl -> wequiv eq uincl *)
+Definition wiequiv_f_trans_X_EU {dc1 dc2 dc3 p1 p2 p3 ev fn eS} :=
+  wiequiv_f_trans'
+    (pT1 := progUnit) (pT2 := progUnit) (pT3 := progUnit)
+    (dc1 := dc1) (dc2 := dc2) (dc3 := dc3)
+    (rE_trans := HandlerContract_trans)
     (p1 := p1) (p2 := p2) (p3 := p3)
-    (ev1 := tt) (ev2 := tt) (ev3 := tt)
-    (rpreF_trans (fn := fn))
-    (rpostF_trans (fn := fn)).
+    (fn1 := fn) (fn2 := fn) (fn3 := fn)
+    (ev1 := ev) (ev2 := ev) (ev3 := ev)
+    (eS12 := eS) (eS23 := eq_uincl_spec) (eS13 := eq_uincl_spec).
 
-Arguments wiequiv_f_trans {_ _ _} _ _ _.
+(* wequiv eq eq -> wequiv eq uincl -> wequiv eq uincl *)
+Definition wiequiv_f_trans_EE_EU {dc1 dc2 dc3 p1 p2 p3 ev fn} :=
+  wiequiv_f_trans_X_EU
+    (p1 := p1) (p2 := p2) (p3 := p3) (ev := ev)
+    (dc1 := dc1) (dc2 := dc2) (dc3 := dc3)
+    (eS := eq_spec)
+    (rpreF_trans_eq_eq_eq (fn1 := fn) (fn2 := fn))
+    (rpostF_trans_eq_eq_eq_uincl (fn1 := fn) (fn2 := fn) (fn3 := fn)).
 
-Lemma it_compiler_first_part entries (p p' : prog) fn :
+(* wequiv eq eq -> wequiv eq uincl -> wequiv eq uincl *)
+Definition wiequiv_f_trans_EU_EU {dc1 dc2 dc3 p1 p2 p3 ev fn} :=
+  wiequiv_f_trans_X_EU
+    (p1 := p1) (p2 := p2) (p3 := p3) (ev := ev)
+    (dc1 := dc1) (dc2 := dc2) (dc3 := dc3)
+    (eS := eq_uincl_spec)
+    (rpreF_trans_eq_eq_eq (fn1 := fn) (fn2 := fn))
+    (rpostF_trans_eq_eq_uincl_uincl (fn1 := fn) (fn2 := fn) (fn3 := fn)).
+
+(* wequiv uincl uincl -> wequiv eq uincl -> wequiv eq uincl *)
+Definition wiequiv_f_trans_UU_EU {dc1 dc2 dc3 p1 p2 p3 ev fn} :=
+  wiequiv_f_trans_X_EU
+    (p1 := p1) (p2 := p2) (p3 := p3) (ev := ev)
+    (dc1 := dc1) (dc2 := dc2) (dc3 := dc3)
+    (eS := uincl_spec)
+    (rpreF_trans_eq_uincl_eq (fn1 := fn) (fn2 := fn))
+    (rpostF_trans_uincl_eq_uincl_uincl (fn1 := fn) (fn2 := fn) (fn3 := fn)).
+
+(* wequiv uincl uincl -> wequiv uincl uincl -> wequiv uincl uincl *)
+Definition wiequiv_f_trans_UU_UU {dc1 dc2 dc3 p1 p2 p3 ev fn} :=
+  wiequiv_f_trans'
+    (pT1 := progUnit) (pT2 := progUnit) (pT3 := progUnit)
+    (dc1 := dc1) (dc2 := dc2) (dc3 := dc3)
+    (rE_trans := HandlerContract_trans)
+    (p1 := p1) (p2 := p2) (p3 := p3)
+    (ev1 := ev) (ev2 := ev) (ev3 := ev)
+    (rpreF_trans_uincl_uincl_uincl (fn1 := fn) (fn2 := fn))
+    (rpostF_trans_uincl_uincl_uincl_uincl (fn1 := fn) (fn2 := fn) (fn3 := fn)).
+
+Lemma it_inliningP to_keep (p p' : uprog) ev fn :
+  inlining cparams to_keep p = ok p' ->
+  wiequiv_f (dc1 := indirect_c) (dc2 := indirect_c)
+    p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
+Proof using. Admitted.
+
+Lemma it_dead_code_callPu
+  {is_move_op : asm_op_t -> bool}
+  {dc}
+  {E E0 : Type → Type} {wE : with_Error E E0}
+  {rE : EventRels E0} {p p' : uprog}
+  {do_nop : bool} {fn : funname} {ev} :
+  (forall (op : asm_op_t) (vx : value) (v : values),
+      is_move_op op ->
+      exec_sopn (Oasm op) [:: vx] = ok v ->
+      List.Forall2 value_uincl v [:: vx]) ->
+    dead_code_prog is_move_op p do_nop = ok p' ->
+    wiequiv_f (dc1 := dc) (dc2 := dc)
+      p p' ev ev (rpreF (eS := uincl_spec)) fn fn (rpostF (eS := uincl_spec)).
+Proof using. Admitted.
+
+Lemma it_unroll_callP {dc} {p : prog} {ev : extra_val_t}
+      {E E0 : Type → Type} {wE : with_Error E E0}
+      {rE : EventRels E0} {fn : funname} {p' b} :
+  unroll_prog p = (p', b) ->
+  wiequiv_f (dc1 := dc) (dc2 := dc)
+    p p' ev ev (rpreF (eS := uincl_spec)) fn fn (rpostF (eS := uincl_spec)).
+Proof using. Admitted.
+
+Lemma hlop_it_lower_callP {p : prog} {ev : extra_val_t} {fn : funname} :
+  let: p' :=
+    lowering.lower_prog (lop_lower_i (ap_lop aparams))
+      (lowering_opt cparams) (warning cparams)
+      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0)
+      p
+  in
+  lop_fvars_correct (ap_lop aparams) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) (p_funcs p) ->
+  wiequiv_f (dc1 := direct_c) (dc2 := direct_c)
+    p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
+Proof using. Admitted.
+
+Lemma it_postprocessP {dc : DirectCall} (p p' : uprog) fn ev :
+  dead_code_prog (ap_is_move_op aparams) (const_prop_prog p) false = ok p' ->
+  wiequiv_f (dc1 := dc) (dc2 := dc)
+    p p' ev ev (rpreF (eS := uincl_spec)) fn fn (rpostF (eS := uincl_spec)).
+Proof.
+move=> hp'.
+apply: wiequiv_f_trans_UU_UU; first exact: it_const_prop_callP.
+exact: it_dead_code_callPu (hap_is_move_opP haparams) hp'.
+Qed.
+
+Lemma it_unrollP {dc : DirectCall} (fn : funname) (p p' : prog) ev :
+  unroll_loop (ap_is_move_op aparams) p = ok p' ->
+  wiequiv_f (dc1 := dc) (dc2 := dc)
+    p p' ev ev (rpreF (eS := uincl_spec)) fn fn (rpostF (eS := uincl_spec)).
+Proof.
+rewrite /unroll_loop; t_xrbindP; elim: Loop.nb p => [// | n hind] /= p pu hpu.
+case hu: unroll_prog => [pu' []]; last first.
+- move=> [<-]; exact: it_postprocessP hpu.
+t_xrbindP=> p0 hp0 hp'.
+apply: wiequiv_f_trans_UU_UU; last exact: hind hp0 hp'.
+apply: wiequiv_f_trans_UU_UU; first exact: it_postprocessP hpu.
+exact: it_unroll_callP hu.
+Qed.
+
+Lemma it_live_range_splittingP {dc : DirectCall} (p p': uprog) fn ev :
+  live_range_splitting aparams cparams p = ok p' →
+  wiequiv_f (dc1 := dc) (dc2 := dc)
+    p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := uincl_spec)).
+Proof.
+rewrite /live_range_splitting; t_xrbindP.
+rewrite !print_uprogP => ok_p' pa ok_pa; rewrite print_uprogP => ?; subst pa.
+move: p ok_p' ok_pa => [fs gd ep] /= ok_p' ok_pa.
+apply: wiequiv_f_trans_UU_EU; first exact: (it_alloc_call_uprogP _ _ ok_p').
+apply: (wkequiv_io_weaken (P := rpreF (eS := uincl_spec) fn fn)) => //;
+  last exact: (it_dead_code_callPu (hap_is_move_opP haparams) ok_pa).
+- move=> ? _ [_ <-]; split=> //; split=> //; exact: values_uincl_refl.
+by move=> ???? [_ <-].
+Qed.
+
+Lemma it_compiler_first_part entries (p p' : prog) fn ev :
   compiler_first_part aparams cparams entries p = ok p' ->
   fn \in entries ->
-  wiequiv_f (dc1 := indirect_c) (dc2 := direct_c) p p' tt tt rpreF fn fn rpostF.
+  wiequiv_f
+    (dc1 := indirect_c) (dc2 := direct_c)
+    p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := uincl_spec)).
 Proof.
-  rewrite /compiler_first_part; t_xrbindP => paw ok_paw pa0.
-  rewrite !print_uprogP => ok_pa0 pb.
-  rewrite print_uprogP => ok_pb pa ok_pa pc ok_pc ok_puc ok_puc'.
-  rewrite !print_uprogP => pd ok_pd.
-  rewrite !print_uprogP => pe ok_pe.
-  rewrite !print_uprogP => pf ok_pf.
-  rewrite !print_uprogP => pg ok_pg.
-  rewrite !print_uprogP => ph ok_ph pi ok_pi.
-  rewrite !print_uprogP => plc ok_plc.
-  rewrite !print_uprogP => ok_fvars pj ok_pj pp.
-  rewrite !print_uprogP => ok_pp <- {p'} ok_fn.
+rewrite /compiler_first_part; t_xrbindP => paw ok_paw pa0.
+rewrite !print_uprogP => ok_pa0 pb.
+rewrite print_uprogP => ok_pb pa ok_pa pc ok_pc ok_puc ok_puc'.
+rewrite !print_uprogP => pd ok_pd.
+rewrite !print_uprogP => pe ok_pe.
+rewrite !print_uprogP => pf ok_pf.
+rewrite !print_uprogP => pg ok_pg.
+rewrite !print_uprogP => ph ok_ph pi ok_pi.
+rewrite !print_uprogP => plc ok_plc.
+rewrite !print_uprogP => ok_fvars pj ok_pj pp.
+rewrite !print_uprogP => ok_pp <- {p'} ok_fn.
 
-  apply: wiequiv_f_trans; first exact: it_wi2w_progP ok_paw.
-  apply: wiequiv_f_trans; first exact: (it_array_copy_fdP _ ok_pa0).
-  apply: wiequiv_f_trans.
-
-  apply (it_add_init_callP (sip := sip_of_asm_e) pa0).
+apply: wiequiv_f_trans_UU_EU; first exact: it_wi2w_progP ok_paw.
+apply: wiequiv_f_trans_UU_EU; first exact: (it_array_copy_fdP _ ok_pa0).
+apply: wiequiv_f_trans_EE_EU; first exact: it_add_init_callP.
+apply: wiequiv_f_trans_EE_EU; first exact: (it_alloc_callP _ ok_pb).
+apply: wiequiv_f_trans_EE_EU; first exact: it_inliningP ok_pa.
+apply: wiequiv_f_trans_UU_EU; first exact: it_unrollP ok_pc.
+apply: wiequiv_f_trans_EE_EU;
+  first exact: (it_dead_calls_err_seqP ok_pd _ ok_fn).
+apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_pe.
+apply: wiequiv_f_trans_UU_EU; first exact: (it_remove_init_fdPu is_reg_array).
+apply: wiequiv_f_trans_EE_EU.
+- apply: (wkequiv_io_weaken (P := rpreF (eS := mra_spec _) fn fn)) => //;
+    last exact: (it_makeReferenceArguments_callP _ ok_pf).
+  by move=> ???? [_ <-] [<-].
+apply: wiequiv_f_trans_UU_EU; first exact: it_indirect_to_direct.
+apply: wiequiv_f_trans_EE_EU; first exact: (it_expand_callP ok_pg ok_fn).
+apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_ph.
+apply: wiequiv_f_trans_EE_EU; first exact: RGP.it_remove_globP ok_pi.
+apply: wiequiv_f_trans_EE_EU; first exact: (it_load_constants_progP ok_plc).
+apply: wiequiv_f_trans_EE_EU; first exact: hlop_it_lower_callP ok_fvars.
+apply: wiequiv_f_trans_UU_EU; first exact: (it_pi_callP _ ok_pj).
+apply: wiequiv_f_trans_EE_EU.
+- apply: (wkequiv_io_weaken (P := rpreF (eS := slh_spec _) fn fn)) => //;
+    last exact: (it_lower_call (hap_hshp haparams) _ ok_pp).
+  + move=> ?? [_ <-]; split=> //. admit.
+  by move=> ???? [_ <-] [<-].
+apply: wkequiv_io_weaken; last exact: wiequiv_f_eq.
+1-3: done.
+move=> ???? [_ <-] <-; split=> //; exact: values_uincl_refl.
+Admitted.
 
 End FIRST_PART.
 
