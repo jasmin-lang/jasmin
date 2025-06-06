@@ -1315,3 +1315,229 @@ Proof.
 Qed.
 
 End PROOF.
+
+
+From ITree Require Import
+  Basics
+  ITree
+  ITreeFacts
+.
+Require Import relational_logic.
+
+
+(*
+Section MOVE.
+
+  Context
+    {syscall_state : Type}
+      {ep : EstateParams syscall_state}
+      {spp : SemPexprParams}
+      {asm_op: Type}
+      {sip : SemInstrParams asm_op syscall_state}
+      {pT1 pT2 : progT}
+      {wsw1 wsw2: WithSubWord}
+      {scP1 : semCallParams (wsw:= wsw1) (pT := pT1)}
+      {scP2 : semCallParams (wsw:= wsw2) (pT := pT2)}
+      {dc1 dc2: DirectCall}.
+
+  Notation prog1 := (prog (pT := pT1)).
+  Notation prog2 := (prog (pT := pT2)).
+  Notation extra_val_t1 := (@extra_val_t pT1).
+  Notation extra_val_t2 := (@extra_val_t pT2).
+  Notation sem_Fun1 := (sem_Fun (pT:=pT1)).
+  Notation sem_Fun2 := (sem_Fun (pT:=pT2)).
+
+  Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
+    {wE: with_Error E E0} {rE0 : EventRels E0}.
+
+  Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
+
+  Class SubEquivSpec (eS1 eS2 : EquivSpec) :=
+    {
+      subESpre_ :
+        forall fn1 fn2 fs1 fs2,
+          rpreF (eS := eS2) fn1 fn2 fs1 fs2 ->
+          rpreF (eS := eS1) fn1 fn2 fs1 fs2;
+
+      subESpost_ :
+        forall fn1 fn2 fs1 fs2 fs1' fs2',
+          rpreF (eS := eS2) fn1 fn2 fs1 fs2 ->
+          rpostF (eS := eS1) fn1 fn2 fs1 fs2 fs1' fs2' ->
+          rpostF (eS := eS2) fn1 fn2 fs1 fs2 fs1' fs2';
+    }.
+
+  Lemma wequiv_f_eq_uincl eS1 eS2 fn1 fn2 :
+    SubEquivSpec eS1 eS2 ->
+    wequiv_f p1 p2 ev1 ev2 (rpreF (eS := eS1)) fn1 fn2 (rpostF (eS := eS1)) ->
+    wequiv_f p1 p2 ev1 ev2 (rpreF (eS := eS2)) fn1 fn2 (rpostF (eS := eS2)).
+  Proof.
+  move=> [hpre hpost]; exact: wkequiv_io_weaken (hpre fn1 fn2) (hpost fn1 fn2).
+  Qed.
+
+  End MOVE.
+  *)
+
+Section IT.
+
+Context
+  {reg regx xreg rflag cond asm_op extra_op syscall_state : Type}
+  {sc_sem : syscall.syscall_sem syscall_state}
+  {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
+  {call_conv : calling_convention}
+  {asm_scsem : asm_syscall_sem}
+  {lowering_options : Type}
+  (aparams : architecture_params lowering_options)
+  (haparams : h_architecture_params aparams)
+  (cparams : compiler_params lowering_options)
+  (print_uprogP : forall s p, cparams.(print_uprog) s p = p)
+  (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
+.
+
+Lemma fs_uinclR fs : fs_uincl fs fs.
+Proof. split=> //. exact: values_uincl_refl. Qed.
+
+Definition of_void1 {A T} (e : void1 A) : T := match e with end.
+
+#[local]
+Instance with_Error0 : with_Error ErrEvent void1 :=
+  {|
+    mfun1 := fun _ e => inl1 e;
+    mfun2 := fun _ e => match e with inl1 e => e | inr1 a => of_void1 a end;
+    mid12 :=
+      fun _ e => match e with inl1 e => refl_equal | inr1 a => of_void1 a end;
+    mid21 := fun _ _ => refl_equal;
+  |}.
+
+#[local]
+Instance HandlerContract : EventRels void1 :=
+  {|
+    EPreRel0_ := fun _ _ _ _ => False;
+    EPostRel0_ := fun _ _ _ _ _ _ => True;
+  |}.
+
+#[local]
+Instance HandlerContract_trans rE23 rE13 :
+  EventRels_trans HandlerContract rE23 rE13 :=
+  {|
+    ERpre_trans := fun _ _ _ e => of_void1 e;
+    ERpost_trans := fun _ _ _ e => of_void1 e;
+  |}.
+
+Section FIRST_PART.
+
+#[local] Existing Instance progUnit.
+#[local] Existing Instance uincl_spec.
+
+Lemma rpreF_trans fn fs1 fs3 :
+  rpreF fn fn fs1 fs3 ->
+  exists2 fs2, rpreF fn fn fs1 fs2 & rpreF fn fn fs2 fs3.
+Proof. move=> [_ h]. exists fs1; split=> //. exact: fs_uinclR. Qed.
+
+Lemma rpostF_trans fn fs1 fs2 fs3 r1 r3 :
+  rpreF fn fn fs1 fs2 ->
+  rpreF fn fn fs2 fs3 ->
+  rcompose (rpostF fn fn fs1 fs2) (rpostF fn fn fs2 fs3) r1 r3 ->
+  rpostF fn fn fs1 fs3 r1 r3.
+Proof.
+  move=> _ _ [] [???] [/= <- <- h1] [/= ?? h2]; split=> //.
+  exact: Forall2_trans value_uincl_trans h1 h2.
+Qed.
+
+Definition wiequiv_f_trans (p1 p3 : prog) fn dc1 dc2 p2 :=
+  wiequiv_f_trans
+    (dc1 := dc1) (dc2 := dc2) (dc3 := direct_c)
+    (p1 := p1) (p2 := p2) (p3 := p3)
+    (ev1 := tt) (ev2 := tt) (ev3 := tt)
+    (rpreF_trans (fn := fn))
+    (rpostF_trans (fn := fn)).
+
+Arguments wiequiv_f_trans {_ _ _} _ _ _.
+
+Lemma it_compiler_first_part entries (p p' : prog) fn :
+  compiler_first_part aparams cparams entries p = ok p' ->
+  fn \in entries ->
+  wiequiv_f (dc1 := indirect_c) (dc2 := direct_c) p p' tt tt rpreF fn fn rpostF.
+Proof.
+  rewrite /compiler_first_part; t_xrbindP => paw ok_paw pa0.
+  rewrite !print_uprogP => ok_pa0 pb.
+  rewrite print_uprogP => ok_pb pa ok_pa pc ok_pc ok_puc ok_puc'.
+  rewrite !print_uprogP => pd ok_pd.
+  rewrite !print_uprogP => pe ok_pe.
+  rewrite !print_uprogP => pf ok_pf.
+  rewrite !print_uprogP => pg ok_pg.
+  rewrite !print_uprogP => ph ok_ph pi ok_pi.
+  rewrite !print_uprogP => plc ok_plc.
+  rewrite !print_uprogP => ok_fvars pj ok_pj pp.
+  rewrite !print_uprogP => ok_pp <- {p'} ok_fn.
+
+  apply: wiequiv_f_trans; first exact: it_wi2w_progP ok_paw.
+  apply: wiequiv_f_trans; first exact: (it_array_copy_fdP _ ok_pa0).
+  apply: wiequiv_f_trans.
+
+  apply (it_add_init_callP (sip := sip_of_asm_e) pa0).
+
+End FIRST_PART.
+
+Section FRONT_END.
+
+Context
+  (entries : seq funname)
+  (up : uprog (asmop := _asmop))
+  (sp : sprog (pd := _pd) (asmop := _asmop))
+  (gd : pointer)
+  (hcompile : compiler_front_end aparams cparams entries up = ok sp)
+.
+
+Definition wf_args fn ms mt vs vt :=
+  wf_args
+    (size_glob sp) gd ms mt (get_wptrs up fn) (get_align_args sp fn) vs vt.
+
+Definition extend_mem ms mt := extend_mem ms mt gd (sp_globs (p_extra sp)).
+
+Definition pre : relPreF :=
+  fun fn fn' s t =>
+    let: args := fvals s in
+    let: argt := fvals t in
+    let: ms := fmem s in
+    let: mt := fmem t in
+    [/\ fn = fn'
+      , alloc_ok sp fn mt
+      , wf_args fn ms mt args argt
+      , Forall3 (value_eq_or_in_mem mt) (get_wptrs up fn) args argt
+      , extend_mem ms mt
+      & fscs s = fscs t
+    ].
+
+Definition post : relPostF :=
+  fun fn _ s t s' t' =>
+    let: args := fvals s in
+    let: argt := fvals t in
+    let: ms := fmem s in
+    let: mt := fmem t in
+    let: ress := fvals s' in
+    let: rest := fvals t' in
+    let: ms' := fmem s' in
+    let: mt' := fmem t' in
+    let: n := get_nb_wptr up fn in
+    [/\ List.Forall2 (value_in_mem ms') (take n ress) (take n argt)
+      , List.Forall2 value_uincl (drop n ress) rest
+      , extend_mem ms' mt'
+      , mem_unchanged_params ms mt mt' (get_wptrs up fn) args argt
+      & fscs s' = fscs t'
+    ].
+
+#[local]
+Instance FrontEndEquiv : EquivSpec :=
+  {|
+    rpreF_ := pre;
+    rpostF_ := post;
+  |}.
+
+Lemma it_compiler_front_endP ev1 ev2 fn :
+  fn \in entries ->
+  wiequiv_f up sp ev1 ev2 rpreF fn fn rpostF.
+Proof.
+
+End FRONT_END.
+
+End IT.
