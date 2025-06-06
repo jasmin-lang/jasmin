@@ -258,6 +258,7 @@ Definition isem_while_loop (c1 : cmd) (e:pexpr) (c2: cmd) (s : estate) :
     itree E estate :=
   ITree.iter (isem_while_round c1 e c2) s.
 
+(* auxiliary defs used in inlining *)
 Definition isem_while_roundP (kt1 : estate -> itree E estate) (e : pexpr)
   (kt2 : estate -> itree E estate) (s : estate) :
     itree E (estate + estate) :=
@@ -284,6 +285,28 @@ Lemma isem_while_loop_eqit (c1 : cmd) (e : pexpr) (c2 : cmd) (s : estate) :
 Proof.
   reflexivity.
 Qed.
+
+Definition isem_ifP (e : pexpr) (kt1 : estate -> itree E estate) 
+  (kt2 : estate -> itree E estate) (s : estate) : itree E estate :=
+  b <- isem_cond p e s;;
+  if b then kt1 s else kt2 s.
+
+Definition isem_for_roundP (i : var_i) (kt1 : estate -> itree E estate)
+  (w: Z) (k: estate -> itree E estate) (s: estate) :
+    itree E estate :=
+  s <- iwrite_var true i (Vint w) s ;;
+  s <- kt1 s ;; k s.
+
+Definition isem_for_loopP (i : var_i) (kt1 : estate -> itree E estate)
+  (ls : list Z) : estate -> itree E estate :=
+  foldr (isem_for_roundP i kt1) (fun s: estate => Ret s) ls.
+
+Definition isem_forP (i : var_i) (r: range)
+  (kt1 : estate -> itree E estate) (s: estate) : itree E estate :=
+  match r with
+  | (d, lo, hi) =>
+    bounds <- isem_bound p lo hi s;;
+    isem_for_loopP i kt1 (wrange d bounds.1 bounds.2) s end.
 
 End SEM_C.
 
