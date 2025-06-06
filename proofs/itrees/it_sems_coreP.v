@@ -258,6 +258,33 @@ Definition isem_while_loop (c1 : cmd) (e:pexpr) (c2: cmd) (s : estate) :
     itree E estate :=
   ITree.iter (isem_while_round c1 e c2) s.
 
+Definition isem_while_roundP (kt1 : estate -> itree E estate) (e : pexpr)
+  (kt2 : estate -> itree E estate) (s : estate) :
+    itree E (estate + estate) :=
+  s <- kt1 s;;
+  b <- isem_cond p e s;;
+  if b then s <- kt2 s;; continue_loop s
+  else exit_loop s.
+
+Definition isem_while_loopP (kt1 : estate -> itree E estate) (e : pexpr)
+  (kt2 : estate -> itree E estate) (s: estate) :
+    itree E estate :=
+  ITree.iter (isem_while_roundP kt1 e kt2) s.
+
+Lemma isem_while_round_eqit (c1 : cmd) (e : pexpr) (c2 : cmd) (s : estate) : 
+  eutt eq (isem_while_round c1 e c2 s)
+          (isem_while_roundP (isem_foldr c1) e (isem_foldr c2) s).
+Proof.
+  reflexivity.
+Qed.
+
+Lemma isem_while_loop_eqit (c1 : cmd) (e : pexpr) (c2 : cmd) (s : estate) : 
+  eutt eq (isem_while_loop c1 e c2 s)
+          (isem_while_loopP (isem_foldr c1) e (isem_foldr c2) s).
+Proof.
+  reflexivity.
+Qed.
+
 End SEM_C.
 
 Class sem_Fun (E : Type -> Type) :=

@@ -407,6 +407,8 @@ Proof.
     exists ([::MkI ii (Cwhile a c1R e ii2 c2R)]).
     unfold inline_ir_info.
 
+    set kt := (isem_while_loopP p kt1 e kt2).
+    
     admit.
   }
 
@@ -414,6 +416,47 @@ Proof.
     intros xs fn es.
     subst Pr; simpl; intros ii sv0.
 
+    set ir := (Ccall xs fn es).
+    
+    set sv1 := Sv.union (read_i ir) sv0.
+
+    set isin := ii_is_inline ii.
+
+    destruct isin eqn: was_isin.
+
+    2: { econstructor 1; split.
+         exact sv1.
+         exists [::(MkI ii ir)].
+         admit.
+    }
+
+    set fdR := add_iinfo ii (get_fun px fn).
+
+    destruct fdR as [fd | ] eqn: was_fdR.
+    2: { econstructor 2. }.
+
+    set fd' := rename_fd ii fn fd.
+
+    set Ai := add_iinfo ii
+                  (check_rename dead_vars_fd fn fd fd'
+                     (Sv.union (vrvs xs) sv1)).
+    destruct Ai as [Ai_ok | ] eqn: was_Ai.
+    2 :{ econstructor 2. }
+
+    set ii1 := ii_with_location ii.
+
+    set rename_args :=
+      assgn_tuple ii1 (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es.
+
+    set rename_res :=
+      assgn_tuple ii1 xs AT_rename fd'.(f_tyout) (map Plvar fd'.(f_res)).
+
+    set cR := rename_args ++ fd'.(f_body) ++ rename_res.
+
+    constructor 1; split.
+    exact sv1.
+    exists cR.
+    
     admit.
   }
 
