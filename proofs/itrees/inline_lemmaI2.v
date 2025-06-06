@@ -180,13 +180,21 @@ Lemma lw_la1_test_lemma2 T (d: D2 T) : lw_la1 (inl1 d) = inl1 (inr1 d).
   unfold lw_la1; auto.
 Qed.  
 
-Definition lw_la T (e: (D2 +' E) T) := @lassoc_tr D1 D2 E _ (inr1 e).
+Definition lw_la T (e: (D2 +' E) T) : ((D1 +' D2) +' E) T :=
+  @lassoc_tr D1 D2 E _ (inr1 e).
 
 (* extend inessentially the event type (inessential = no events for
    that type) *)
 Definition free_tr: itree (D2 +' E) ~> itree ((D1 +' D2) +' E) :=
   translate lw_la.
-
+    
+Definition rw_la T (e: (D1 +' E) T) : ((D1 +' D2) +' E) T :=
+  match e with
+  | inl1 d1 => inl1 (inl1 d1)
+  | inr1 e => inr1 e end.                  
+  
+Definition free_right_tr: itree (D1 +' E) ~> itree ((D1 +' D2) +' E) :=
+  translate rw_la.
 
 (** Inline-specific proofs *)
 

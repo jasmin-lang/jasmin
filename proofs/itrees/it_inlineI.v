@@ -427,6 +427,12 @@ Proof.
     2: { econstructor 1; split.
          exact sv1.
          exists [::(MkI ii ir)].
+
+         unfold inline_ir_info.
+
+         set kt := (fun s => @free_tr recCall recCall E _
+                                    (flat_i_sem (MkI ii ir) s)).
+         exists kt.
          admit.
     }
 
@@ -456,6 +462,12 @@ Proof.
     constructor 1; split.
     exact sv1.
     exists cR.
+
+    unfold inline_ir_info.
+    
+    set kt := (fun s => @free_right_tr recCall recCall E _
+                                    (flat_i_sem (MkI ii ir) s)).
+    exists kt.
     
     admit.
   }
