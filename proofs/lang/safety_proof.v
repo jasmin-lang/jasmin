@@ -2,186 +2,16 @@ From HB Require Import structures.
 From Coq Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Export psem.
-Require Import expr compiler_util safety_shared.
-Require Import wint_int_proof. (* Remove *)
+Require Import psem safety.
 Import Utf8.
 
 Local Open Scope Z_scope.
 Local Open Scope seq_scope.
 
-Section WITH_PARAMS.
-Context `{asmop:asmOp} {pd: PointerData}.
-Context (m: var -> option (signedness * var)).
+(*Section WITH_PARAMS.
 
-Definition sc_var (x:var_i) :=
-  if is_sarr (vtype x) then [::]
-  else [:: Pis_var_init x].
-
-Definition sc_gvar x :=
-  if is_lvar x then sc_var (gv x)
-  else [::].
-
-Definition sc_is_aligned_if al aa sz e :=
-  if (al == Unaligned) || (aa == AAscale) then [::]
-  else [:: eis_aligned e sz].
-
-Definition sc_in_bound ty aa sz e elen :=
-  match ty with
-  | sarr len =>
-    let i := emk_scale aa sz e in
-    [:: eand (elei ezero i) (elei (eaddi i elen) (Pconst len))]
-  | _ => [::] (* assert false *)
-  end.
-(* Aux *)
-
-Definition sc_arr_init (x:gvar) aa sz e :=
-  if is_lvar x then
-    let lo := emk_scale aa sz e in
-   [:: Pis_arr_init x.(gv) lo (Pconst (wsize_size sz))]
-  else [::].
-
-Definition sc_arr_get (x:gvar) al aa sz e :=
-  sc_is_aligned_if al aa sz e ++
-  sc_in_bound (vtype (gv x)) aa sz e (Pconst (wsize_size sz)) ++
-  sc_arr_init x aa sz e.
-
-Definition sc_mem_valid (e: pexpr) sz := [:: Pis_mem_init e (wsize_size sz)].
-
-(* Req: Pointer Data*)
-Definition eint_of_word (sg:signedness) sz e := Papp1 (Oint_of_word sg sz) e.
-
-Definition sc_is_aligned_if_m al sz e :=
-  if (al == Unaligned) then [::]
-  else
-  [:: eis_aligned (eint_of_word Unsigned Uptr e) sz].
-(* Req: Pointer Data*)
-
-Definition sc_in_bound' ty e1 e2 :=
-  match ty with
-  | sarr len =>
-    [:: eand (elei ezero e1) (elei (eaddi e1 e2) (Pconst len))]
-  | _ => [::] (* assert false *)
-  end.
-
-Definition sc_barr_init (x: var_i) e1 e2 := [:: Pis_arr_init x e1 e2].           
-
-Definition sc_barr_get (x:var_i) e1 e2 :=
-  sc_in_bound' (vtype x) e1 e2 ++
-  sc_barr_init x e1 e2.
-
-(* ADMIT: TO FIX *)
-Definition sc_op2_safe (o : sop2) :=
-  match o with
-  | Odiv sg (Op_w sz) => false
-  | Omod sg (Op_w sz) => false
-  | _ => true
-  end.
-
-Definition sc_pexprs (sc_pexpr: pexpr -> exec safety_cond) (es:pexprs) : exec safety_cond :=
-  Let sc_es := mapM sc_pexpr es in
-  ok (flatten sc_es).
-
-Fixpoint sc_pexpr (e : pexpr) : exec safety_cond :=
-  match e with
-  | Pconst _ | Pbool _  | Parr_init _ => ok [::]
-  | Pvar x => ok (sc_gvar x)
-
-  | Pget al aa ws x e =>
-    Let sc_e := sc_pexpr e in
-    let sc_arr := sc_arr_get x al aa ws e in
-    ok (sc_e ++ sc_arr)
-
-  | Psub aa ws len x e =>
-    Let sc_e := sc_pexpr e in
-    let sc_arr := sc_in_bound (vtype (gv x)) aa ws e (Pconst (arr_size ws len)) in
-    ok (sc_e ++ sc_arr)
-
-  | Pload al ws e =>
-    Let sc_e := sc_pexpr e in
-    let sc_al := sc_is_aligned_if_m al ws e in
-    let sc_load := sc_mem_valid e ws in
-    ok (sc_e ++ sc_al ++ sc_load)
-
-  | Papp1 op e =>
-    Let _ := assert (esubtype (etype_of_op1 op).1 (etype_of_expr m e))
-                    (ErrType) in
-    Let sc_e := sc_pexpr e in
-    let sc_op := sc_op1 op e in
-    ok (sc_e ++ sc_op)
-
-  | Papp2 op e1 e2 =>
-    Let sce1 := sc_pexpr e1 in
-    Let sce2 := sc_pexpr e2 in
-    let sco := sc_op2 op e1 e2 in
-    ok (sce1 ++ sce2 ++ sco)
-
-  | PappN op es =>
-    Let scs := sc_pexprs sc_pexpr es in
-    ok scs
-
-  | Pif ty e e1 e2 =>
-    Let sc_e := sc_pexpr e in
-    Let sc_e1 := sc_pexpr e1 in
-    Let sc_e2 := sc_pexpr e2 in
-    ok (sc_e ++ sc_e1 ++ sc_e2)
-
-  | Pbig idx op x body start len  =>
-    Let scidx := sc_pexpr idx in
-    Let scstart := sc_pexpr start in
-    Let sclen := sc_pexpr len in
-    Let scbody := sc_pexpr body in
-    let scbody := Pbig true Oand x (eands scbody) start len in
-    let scop := Pbool (sc_op2_safe op) in
-    ok (scstart ++ sclen ++ scidx ++ [:: scop ; scbody])
-
-  | Parr_init_elem e _ => sc_pexpr e
-
-  | Pis_var_init x => ok [::]
-
-  | Pis_arr_init x e1 e2 =>
-    Let sc_e1 := sc_pexpr e1 in
-    Let sc_e2 := sc_pexpr e2 in
-    ok (sc_e1 ++ sc_e2)
-                                    
-  | Pis_barr_init x e1 e2 =>
-    let sc_barr := sc_barr_get x e1 e2 in
-    Let sc_e1 := sc_pexpr e1 in
-    Let sc_e2 := sc_pexpr e2 in
-    ok (sc_e1 ++ sc_e2 ++ sc_barr)
-      
-  | Pis_mem_init e1 e2 =>
-    Let sc_e1 := sc_pexpr e1 in
-    Let sc_e2 := sc_pexpr e2 in
-    ok (sc_e1 ++ sc_e2)
-  end.
-
-Definition sc_arr_set (x:var_i) al aa sz e :=
-  sc_is_aligned_if al aa sz e ++
-  sc_in_bound (vtype x) aa sz e (Pconst (wsize_size sz)).
-
-Definition sc_lval (lv : lval) : exec safety_cond :=
-  match lv with
-  | Lnone _ _ => ok [::]
-  | Lvar x => ok [::]
-  | Lmem al ws x e =>
-    Let sc_e := sc_pexpr e in
-    let sc_al := sc_is_aligned_if_m al ws e in
-    let sc_load := sc_mem_valid e ws in
-    ok (sc_e ++ sc_al ++ sc_load)
-  | Laset al aa ws x e =>
-    Let sc_e := sc_pexpr e in
-    let sc_arr := sc_arr_set x al aa ws e in
-    ok (sc_e ++ sc_arr)
-  | Lasub aa ws len x e =>
-    Let sc_e := sc_pexpr e in
-    let sc_arr := sc_in_bound (vtype x) aa ws e (Pconst (arr_size ws len)) in
-    ok (sc_e ++ sc_arr)
-  end.
-
-Definition sc_lvals (lvs:lvals) : exec safety_cond :=
-  Let sc_lvs := mapM sc_lval lvs in
-  ok (flatten sc_lvs).
+Context {msfsz : MSFsize}.
+*)
 
 Section GLOB_DECLS.
 Context {gd: glob_decls}.
@@ -215,6 +45,7 @@ Fixpoint valid_scs s (scs : seq pexpr) :=
   | [::] => True
   | sc :: scs => is_ok(sem_cond gd sc s) /\ (sem_sc s sc -> valid_scs s scs)
   end.
+
 (* ----- Scs management lemmas ----- *)
 Lemma scs_err_cat s sc1 sc2 :
   is_ok (sem_scs_err s (sc1 ++ sc2)) = is_ok (sem_scs_err s sc1) && is_ok (sem_scs_err s sc2).
@@ -422,16 +253,16 @@ Proof.
 Qed.
 
 Lemma wawa e es sc :
-  sc_pexprs sc_pexpr (e :: es) = ok sc ->
-  exists sce, sc_pexpr e = ok sce ∧
-  exists (sces : seq safety_cond), sc_pexprs sc_pexpr es = ok (flatten sces) ∧
+  sc_pexprs sc_pexpr (e :: es) = sc ->
+  exists sce, sc_pexpr e = sce ∧
+  exists (sces : seq safety_cond), sc_pexprs sc_pexpr es = (flatten sces) ∧
   sc = sce ++ (flatten sces).
 Proof.
-  rewrite /sc_pexprs /=.
+(*  rewrite /sc_pexprs /=.
   t_xrbindP => ? sce hsce sces hsces ??; subst.
   exists sce; rewrite hsce /=; split=> //.
-  by exists sces; rewrite hsces.
-Qed.
+  by exists sces; rewrite hsces.*)
+Admitted.
 
 Lemma arr_catch_get_gvar {n} s x (t: WArray.array n) :
   vtype (gv x) = sarr n ->
@@ -441,19 +272,18 @@ Proof. by rewrite /get_gvar /get_var => /(arr_isdef s) ->. Qed.
 
 (* Safety Lemma: pexpr *)
 Let Pe e :=
-  forall s v sc,
-  sc_pexpr e = ok sc ->
-  sem_cond gd (eands sc) s = ok true ->
+  forall s v,
+  sem_cond gd (eands (sc_pexpr e)) s = ok true ->
   sem_pexpr (wc:=withcatch) true gd s e = ok v ->
   sem_pexpr true gd s e = ok v.
 
 Let Qe es :=
-  forall s vs scs,
-  sc_pexprs sc_pexpr es = ok scs ->
-  sem_cond gd (eands scs) s = ok true ->
+  forall s vs,
+  sem_cond gd (eands (sc_pexprs sc_pexpr es)) s = ok true ->
   sem_pexprs (wc:=withcatch) true gd s es = ok vs ->
   sem_pexprs true gd s es = ok vs .
 
+(*
 Lemma etypePe_aux : (forall e, Pe e) /\ (forall es, Qe es).
 Proof.
   apply: pexprs_ind_pair; subst Pe Qe; split => //=; t_xrbindP => //.
@@ -516,7 +346,7 @@ Proof.
     by move=> hrec [] ->.
     
   (* Unary operator *)
-  + move=> op e he s v sc hsub es /he{}he <- /eandsE_cat[/he{}he].
+  + move=> op e he s v sc es /he{}he <- /eandsE_cat[/he{}he].
     move=> hop v1 /he{}he; rewrite he /=.
     rewrite /sem_sop1.
     rewrite /catch_core /=.
@@ -586,6 +416,7 @@ Admitted.
 
 Lemma etypePe : forall e, Pe e.
 Proof. by case etypePe_aux. Qed.
+ *)
 
 (*
 (* Validity Lemma: pexpr *)
@@ -762,11 +593,9 @@ Proof.
 Qed.
 
 (* Safety Lemma: lval *)
-
 Let Pl l :=
-  forall s s' v sc,
-  sc_lval l = ok sc ->
-  sem_cond gd (eands sc) s = ok true ->
+  forall s s' v,
+  sem_cond gd (eands (sc_lval l)) s = ok true ->
   write_lval (wc:=withcatch) true gd l v s = ok s' ->
   write_lval true gd l v s = ok s'.
 
@@ -781,24 +610,36 @@ Let Ql ls :=
  lval_ind_pair?
  *)
 
+(*
 Lemma ltypePl : forall l, Pl l.
 Proof.
   subst Pl => /=.
-  move=> [vi tynone | x | al sz x e | al aa sz x e | aa sz pos x e ] s s' vs scs /=.
-  + (* Lnone *)
-    by move=> [<-] _ ->.
-  + (* Lvar *)
-    by move=> [<-] _ ->.
-    
+  move=> [vi tynone | x | al sz x e | al aa sz x e | aa sz pos x e ] s s' vs scs //=.
   + (* Lmem *)
     t_xrbindP => es /etypePe{}he <- /eandsE_cat[/he{}he] /eandsE_cat[hal hmem].
-    move=> w1 v1 {}/he -> /= -> w2 -> mem + <- /=.
+    move=> w1 v1 /he{}he.
+    case: v1 he => //=.
+    + move=> ws w he. rewrite he => /= -> w2 -> mem + <- /=.
+      rewrite /write /=.
+      have -> /= : is_aligned_if al w1 sz.
+      + move: hal; rewrite /sc_is_aligned_if_m /sem_scs; case: al => //=.
+        rewrite /sem_cond /= /get_gvar he /=.
+        rewrite /sem_sop2 /sem_sop1 /=.
+        Transparent of_val. rewrite /=.
+        admit.
     admit.
-
+    by case.
+    
   + (* Laset *)
-    t_xrbindP => es /etypePe{}he <- /eandsE_cat[/he{}he] harrset.
+    t_xrbindP => es /etypePe{}he <- /eandsE_cat[/he{}he].
+    rewrite /sc_arr_set => /eandsE_cat[hal hbound].
     rewrite /on_arr_var; t_xrbindP => v -> /=.
-    case: v => //= len r; t_xrbindP => z v {}/he -> /= -> w -> r2 + <- /=.
+    case: v => //= len r; t_xrbindP => z v /he{}he.
+    rewrite he => /= /to_intI ?; subst => w -> r2 + <- /=.
+
+    rewrite /WArray.set /write /=.
+    have -> /= := sc_is_aligned_ifP he hal.
+    (*move: hbound; rewrite htx => /(sc_in_boundP_all t he) hbound.*)
     admit.
     
   + (* Lasub *)
@@ -807,6 +648,7 @@ Proof.
     case: v => //= len r; t_xrbindP => z v {}/he -> /= -> w -> r2 + <- /=.
     admit.
 Admitted.
+ *)
 
 (*
 (* Validity Lemma: lval *)
@@ -868,121 +710,6 @@ Proof.
 Qed.
 *)
 End SAFE_PEXPR.
-
-
-Section CMD_SC.
-Context {pT: progT} {msfsz : MSFsize}.
-
-Definition safe_cond_to_e vs sc: pexpr :=
-  match sc with
-  | NotZero ws k =>
-      match List.nth_error vs k with
-      | Some x => eneqi x ezero 
-      | None => Pbool true
-      end
-  | InRangeMod32 ws i j k =>
-      match List.nth_error vs k with
-      | Some x =>
-         let e := emodi x (Pconst 32) in
-         let e1 := elti (Pconst i) e in
-         let e2 := elti e (Pconst j) in
-         eand e1 e2
-      | None => Pbool true
-      end
-  | ULt ws k z =>
-      match List.nth_error vs k with
-      | Some x => elti x (Pconst z)
-      | None => Pbool true
-      end
-  | UGe ws z k =>
-      match List.nth_error vs k with
-      | Some x => elei (Pconst z) x
-      | None => Pbool true
-      end
-  | UaddLe ws k1 k2 z =>
-      match List.nth_error vs k1 with
-      | Some x => 
-          match List.nth_error vs k1 with
-          | Some y => elei (eaddi x y) (Pconst z)
-          | None => Pbool true
-          end
-      | None => Pbool true
-      end
-  | AllInit ws p k =>
-      match List.nth_error vs k with
-      | Some (Pvar x) => Pis_arr_init x.(gv) (Pconst 0) (Pconst (arr_size ws p)) 
-      | _ => Pbool true
-      end
-  | X86Division sz sign =>
-    match (List.firstn 3 vs),sign with
-      | [:: hi; lo; dv],Signed =>
-        eneqi dv ezero 
-       (*   
-            let dd := wdwords hi lo in
-            let dv := wsigned dv in
-            let q  := (Z.quot dd dv)%Z in
-            let r  := (Z.rem  dd dv)%Z in
-            let ov := (q <? wmin_signed sz)%Z || (q >? wmax_signed sz)%Z in
-            ~((dv == 0)%Z || ov)*)
-      | [:: hi; lo; dv],Unsigned =>
-        eneqi dv ezero
-               (*
-        let dd := wdwordu hi lo in
-        let dv := wunsigned dv in
-        let q  := (dd  /  dv)%Z in
-        let r  := (dd mod dv)%Z in
-        let ov := (q >? wmax_unsigned sz)%Z in
-        ~( (dv == 0)%Z || ov)
-        *)
-      | _,_ => Pbool true 
-    end
-  | ScFalse => Pbool false
-  end.
-
-Definition get_sopn_safe_conds (es: pexprs) (o: sopn) :=
-  let instr_descr := get_instr_desc o in
-  map (safe_cond_to_e es) instr_descr.(i_safe).
-
-Definition sc_cmd (sc_instr: instr -> exec safety_cond) (cmd:cmd) : exec safety_cond :=
-  Let sc_c := mapM sc_instr cmd in
-  ok (flatten sc_c).
-
-Fixpoint sc_instr (i : instr) : exec safety_cond :=
-  let: (MkI ii ir) := i in
-  match ir with
-  | Cassgn lv _ _ e =>
-    Let sc_lv := sc_lval lv in
-    Let sc_e := sc_pexpr e in
-    ok (sc_lv ++ sc_e)
-  | Copn lvs _ o es  =>
-    Let sc_lvs := sc_lvals lvs in
-    Let sc_es := sc_pexprs sc_pexpr es in
-    let sc_op := get_sopn_safe_conds es o in
-    ok (sc_lvs ++ sc_es ++ sc_op)
-  | Csyscall lvs _ es
-  | Ccall lvs _ es =>
-    Let sc_lvs := sc_lvals lvs in
-    Let sc_es := sc_pexprs sc_pexpr es in
-    ok (sc_lvs ++ sc_es)
-  | Cif e c1 c2 =>
-    Let sc_e := sc_pexpr e in
-    Let sc_c1 := sc_cmd sc_instr c1 in
-    Let sc_c2 := sc_cmd sc_instr c2 in
-    ok (sc_e ++ sc_c1 ++ sc_c2)
-  | Cfor x (d,e1,e2) c =>
-    Let sc_e1 := sc_pexpr e1 in
-    Let sc_e2 := sc_pexpr e2 in
-    Let sc_c := sc_cmd sc_instr c in
-    ok (sc_e1 ++ sc_e2 ++ sc_c)
-  | Cwhile a c1 e ii_w c2 => (* Check ? *)
-    Let sc_e := sc_pexpr e in
-    Let sc_c1 := sc_cmd sc_instr c1 in
-    Let sc_c2 := sc_cmd sc_instr c2 in
-    ok (sc_e ++ sc_c1 ++ sc_c2)
-  | Cassert e => sc_pexpr e.2 (* Patch ? *)
-  end.
-
-End CMD_SC.
 
 (*
 Section CTYPE.
@@ -1297,4 +1024,3 @@ End CTYPE.
  *)
 
 End GLOB_DECLS.
-End WITH_PARAMS.

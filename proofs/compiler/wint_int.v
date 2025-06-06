@@ -314,13 +314,6 @@ Definition get_sig f :=
   | None => Error (E.ierror_s "unknown function")
   end.
 
-(* TODO : Move this *)
-Definition safety_lbl := "safety"%string.
-
-(* TODO : Move this *)
-Definition safe_assert ii (sc:safety_cond) : cmd :=
-  map (fun e => MkI ii (Cassert (safety_lbl, e))) sc.
-
 Definition wi2i_c (wi2i : instr -> cexec cmd) c :=
   Let c := mapM wi2i c in
   ok (flatten c).
@@ -392,7 +385,6 @@ with wi2i_i (i:instr) : cexec cmd :=
   let (ii,ir) := i in
   Let ir := add_iinfo ii (wi2i_ir ir) in
   ok (rcons (safe_assert ii ir.1) (MkI ii ir.2)).
-
 
 Definition wi2i_ci ci sig :=
   Let ci_pre := mapM wi2i_a_and ci.(f_pre) in

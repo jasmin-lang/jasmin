@@ -1,9 +1,8 @@
-Require Import psem.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+Require Import psem.
 
 Section DEFS.
 Context `{asmop:asmOp}.
-
 Context (m: var -> option (signedness * var)).
 
 Definition safety_cond := seq pexpr.
@@ -100,6 +99,11 @@ Definition emk_scale aa sz e :=
   else emuli e (Pconst (wsize_size sz)).
 
 Definition eis_aligned e sz := eeq (emodi e (ewsize sz)) (Pconst 0).
+
+Definition safety_lbl := "safety"%string.
+
+Definition safe_assert ii (sc:safety_cond) : cmd :=
+  map (fun e => MkI ii (Cassert (safety_lbl, e))) sc.
 
 (* ------ SC_OPS ------ *)
 
