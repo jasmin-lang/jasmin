@@ -4,6 +4,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Export psem.
 Require Import expr compiler_util safety_shared.
+Require Import wint_int_proof. (* Remove *)
 Import Utf8.
 
 Local Open Scope Z_scope.
@@ -413,12 +414,6 @@ Proof.
   + by subst ve2'; elim h1 ; rewrite wsigned0.
   by subst ve2'; elim h2; rewrite h3 wsignedN1 !Z.eqb_refl.
 Qed.  
-
-Lemma eandsE_cat s es1 es2 :
-   sem_cond gd (eands (es1 ++ es2)) s = ok true <->
-   sem_cond gd (eands es1) s = ok true /\ sem_cond gd (eands es2) s = ok true.
-Proof.
-Admitted.
  
 Lemma arr_isdef s x len : vtype (gv x) = sarr len -> is_defined (evm s).[gv x].
 Proof.
@@ -464,8 +459,8 @@ Proof.
   apply: pexprs_ind_pair; subst Pe Qe; split => //=; t_xrbindP => //.
   + move=> s he es hes s' vs0 scs0 /wawa[sc][/he{}he][scs][/hes{}hes] -> /=.
     by move=> /eandsE_cat[] /he{}he /hes{}hes v {}/he -> vs /hes -> <-.    
-  (* Gvar *)
 
+  (* Gvar *)
   + move=> x s v sc. rewrite /sc_gvar /get_gvar /sem_cond /=.
     case: (is_lvar x) => //.
     rewrite /sc_var /get_var /=.
@@ -521,10 +516,10 @@ Proof.
     by move=> hrec [] ->.
     
   (* Unary operator *)
-  + move=> op e he s v sc es hsub /he{}he <- /eandsE_cat[/he{}he].
-    move=> hop v2 {}/he -> /=.
+  + move=> op e he s v sc hsub es /he{}he <- /eandsE_cat[/he{}he].
+    move=> hop v1 /he{}he; rewrite he /=.
+    rewrite /sem_sop1.
     rewrite /catch_core /=.
-    rewrite /sem_sop1 /=.
     admit.
 
   (* Binary operator *)
@@ -536,6 +531,7 @@ Proof.
   (* N-ary opertors *)
   + move=> op es he s v sc sc2 /he{}he ?; subst.
     move=> /he{}he v2 {}/he; rewrite /sem_pexprs => -> <- /=.
+    rewrite /sem_opN /=.
     admit.
     
   (* Conditional expression *)
@@ -558,14 +554,29 @@ Proof.
 
   (* Pis_barr_init*)
   + move=> vi e1 e2 he1 he2 s v sc es1 /he1{}he1 es2 /he2{}he2.
-    move=> <- /eandsE_cat[/he1{}he1] /eandsE_cat[/he2{}he2] hbarr.
-    rewrite /on_arr_var; t_xrbindP => v2 -> /=.
-    case: v2 => //=; t_xrbindP=> len r.
-    move=> z1 v3 {}/he1 -> /= -> z2 v4 {}/he2 -> /= -> z3 + <- /=.
-
-    move: hbarr; rewrite /sc_barr_get eandsE_cat=> [][hbound hinit].
-    rewrite /WArray.get /read /=.
-    admit.
+    move=> <- /eandsE_cat[/he1{}he1] /eandsE_cat[/he2{}he2].
+    rewrite /on_arr_var /sc_barr_get eandsE_cat => -[hbound hinit].
+    t_xrbindP => vt hvi; rewrite hvi /=.
+    case: vt hvi => //=; t_xrbindP=> len r hgetv.
+    have /subtypeEl /= varr := type_of_get_var hgetv.
+    move=> z1 v1 /he1{}he1 /to_intI ?; subst.
+    move=> z2 v2 /he2{}he2 /to_intI ?; subst.
+    rewrite he1 he2 => bk + <- /=.
+    set acc := true.
+    have : forall z, (z \in ziota 0 z2) -> (0 <= z < z2)
+        by move=> z /in_ziotaP.
+    move: hinit; rewrite /sem_cond /sc_barr_init /= /on_arr_var /=.
+    rewrite hgetv /= he1 he2 /= => -[].    
+    elim: ziota acc => /= [acc _ _ [->]| k ks hrec acc] //.
+    move=> /andP[hinit] /hrec{}hrec hrange.
+    move: (hrange k (mem_head k ks)) => hr.
+    move: hbound; rewrite varr=> hbound.
+    have {}hbound := sc_in_sub_boundP r he1 he2 hr hbound.
+    t_xrbindP=> b w8 hcatch ?; subst.
+    move=> /(hrec (acc && (w8 == wrepr U8 (-1)))){}hrec.    
+    move: hcatch; rewrite WArray.get8_read -get_read8 /= /WArray.get8.
+    rewrite hinit hbound => /= -[->].
+    by apply hrec=> z hz; apply hrange; rewrite in_cons hz orbT.
   
   (* Pis_mem_init*)
   + move=> e1 e2 he1 he2 s v sc es1 /he1{}he1 es2 /he2{}he2 <-.
@@ -758,6 +769,7 @@ Let Pl l :=
   sem_cond gd (eands sc) s = ok true ->
   write_lval (wc:=withcatch) true gd l v s = ok s' ->
   write_lval true gd l v s = ok s'.
+
 (*
 Let Ql ls :=
   forall s s' vs scs,
