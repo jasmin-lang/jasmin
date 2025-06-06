@@ -1048,6 +1048,8 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
       let msf_e = ty_lval env (msf, venv1) (Lvar x) (Env.dpublic env) in
       let (msf', venv') = ty_cmd is_ct_asm fenv env msf_e c in
       let msf' = MSF.end_loop loc msf msf' in
+      let venv1 = Env.venv_forget (snd i.i_info) venv1 in
+      let venv' = Env.venv_forget (snd i.i_info) venv' in
       Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
       msf', venv1
 
