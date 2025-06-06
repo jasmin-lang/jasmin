@@ -84,6 +84,7 @@ module List : sig
 
   val map_fold   : ('a -> 'b -> 'a * 'c) -> 'a -> 'b list -> 'a * 'c list
   val mapi_fold  : (int -> 'a -> 'b -> 'a * 'c) -> 'a -> 'b list -> 'a * 'c list
+  val filter_map2  : ('a -> 'b -> 'c option) -> 'a list -> 'b list -> 'c list
   val pmap       : ('a -> 'b option) -> 'a list -> 'b list
 
 end
