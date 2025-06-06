@@ -392,8 +392,11 @@ pinstr_r:
 | WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock?
     { PIWhile (is1, b, is2) }
 
-| vd=postfix(pvardecl(COMMA?), SEMICOLON)
+| vd=pvardecl(COMMA?) SEMICOLON
     { PIdecl vd }
+
+| ty=stor_type v=loc(decl) SEMICOLON
+    { PIdeclinit (ty, v) }
 
 pif:
 | IF c=pexpr i1s=pblock
@@ -449,11 +452,10 @@ storage:
 
 
 %inline decl:
-| v=var { v, None }
-| v=var EQ e=pexpr { v, Some e }
+| v=var EQ e=pexpr { v, e }
 
 %inline pvardecl(S):
-| ty=stor_type vs=separated_nonempty_list(S, loc(decl)) { (ty, vs) }
+| ty=stor_type vs=separated_nonempty_list(S, var) { (ty, vs) }
 
 pparamdecl(S):
     ty=stor_type vs=separated_nonempty_list(S, var) { (ty, vs) }
@@ -552,9 +554,6 @@ module_:
 
 %inline prefix(S, X):
 | S x=X { x }
-
-%inline postfix(X, S):
-| x=X S { x }
 
 %inline parens(X):
 | x=delimited(LPAREN, X, RPAREN) { x }
