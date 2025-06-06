@@ -448,7 +448,73 @@ Proof.
     }  
   }    
 Qed.
-  
+
+Lemma forget_free_right_id T d :
+  @forget_f _ (@rw_la D1 D1 E T d) = d.
+Proof.
+  destruct d; simpl; eauto.
+Qed.  
+
+Lemma forget_free_right_id_fun :
+  (fun T d => @forget_f _ (@rw_la D1 D1 E T d)) = (fun T (d: (D1 +' E) T) => d).
+Proof.
+  eapply functional_extensionality_dep; intro T.
+  eapply functional_extensionality; intro d.
+  eapply forget_free_right_id; auto.
+Qed.  
+
+(* forgetting an inessential extension gives us back the same *)
+Lemma forget_free_right_inv_lemma T (t: itree (D1 +' E) T) :
+  eq_itree eq t (forget_tr (free_right_tr t)).
+Proof.
+  unfold forget_tr, free_right_tr.
+  setoid_rewrite <- translate_cmpE.
+  unfold cat, Cat_IFun.
+  rewrite forget_free_right_id_fun.
+  rewrite translate_id. reflexivity.
+Qed.
+
+(*
+Lemma rassoc_free_right_interp_lemma T h (t: itree (D1 +' E) T) :
+  eutt eq t (interp (ext_handler h) (RA_tr (free_right_tr t))).
+Proof.
+  unfold RA_tr, free_right_tr.
+  setoid_rewrite <- translate_cmpE.
+  setoid_rewrite interp_translate.
+  unfold cat, Cat_IFun; simpl.
+  setoid_rewrite <- interp_id_h at 1.
+  revert t.
+  ginit; gcofix CIH.
+  intros t.
+(*  unfold free_tr, rassoc_tr. *)
+  rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot.
+  { setoid_rewrite interp_ret.
+    gstep; red. reflexivity.
+  }
+  { setoid_rewrite interp_tau.
+    gstep; red. econstructor; eauto.
+    gfinal; left; eauto.
+  }
+  { setoid_rewrite interp_vis.
+    guclo eqit_clo_bind.
+    econstructor 1 with (RU := eq).
+    { unfold ext_handler.
+      unfold rassoc_tr, rw_la.
+      destruct e; simpl; try reflexivity.
+      unfold id_, Id_Handler, Handler.id_; simpl.
+    }
+    { intros u1 u2 H.
+      inv H.
+      gstep; red.
+      econstructor.
+      gfinal; left; eauto.
+    }  
+  }    
+Qed.
+*)
+
 (* recursion on D1 is the same as recursion on (D1 +' D1) where the
    left D1 is inessential *)
 Lemma free_widening_lemma

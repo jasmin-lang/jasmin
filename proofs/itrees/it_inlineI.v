@@ -228,6 +228,9 @@ Definition inline_cmd_info (c1 c2: cmd) : Type :=
     (forall s, eutt eq (forget_tr (kt s)) (asem_c1 s)) /\
     (forall s, eutt eq (sem_inline (RA_tr (kt s))) (asem_c2 s))).
 
+Context (InputRel : values -> estate -> Prop)
+        (FStateRel : fstate -> estate -> Prop).
+
 Lemma inline_cmd_x (px: ufun_decls) (c1: cmd) :
   forall (X: Sv.t),
   option (Sv.t * sigT (fun c2: cmd => inline_cmd_info c1 c2)).
@@ -587,11 +590,40 @@ Proof.
 
     subst kt; split; simpl; intro s.
 
-    { admit. }
-    { admit. }
+    { rewrite <- forget_free_right_inv_lemma.
+      reflexivity.
+    }  
+    { unfold RA_tr, free_right_tr.
+      setoid_rewrite <- translate_cmpE.
+      unfold CategoryOps.cat, Cat_IFun.
+      rewrite interp_translate.
+      unfold flat_i_sem; simpl.
+      subst cR.
+
+      setoid_rewrite isem_cmd_cat at 1.
+      rewrite interp_bind.
+      eapply eqit_bind' with (RR:= InputRel).
+      admit.
+
+      intros v1 s1 H.
+      setoid_rewrite isem_cmd_cat at 1.
+      rewrite interp_bind.
+      eapply eqit_bind' with (RR:= FStateRel).
+      simpl.
+      unfold ext_handler, rec_call; simpl.
+      setoid_rewrite interp_trigger.
+      unfold rassoc_tr, rw_la; simpl.
+(*  unfold isem_fun_rec, isem_cmd_.
+      unfold isem_fun_body. *)          
+      admit.
+
+      intros fs1 s2 H0.
+      admit.
+    }
   }
 
 Admitted.
+
 
 
 End IT_section1.
