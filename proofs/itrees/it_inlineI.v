@@ -138,13 +138,17 @@ End INLINE.
 
 (*******************************************************)
 
+From Paco Require Import paco.
+
 From ITree Require Import
      Basics
      ITree
      ITreeFacts
      Events.Exception
      Interp.Recursion
-     MonadState.
+     MonadState
+     Eq.Paco2.
+
 Import Basics.Monads.
 
 Require Import it_sems_coreP.
@@ -374,7 +378,31 @@ Proof.
     set kt := (isem_ifP p e kt1 kt2).
     exists kt.
 
-    admit.
+    subst kt; split; simpl; intro s.
+
+    { unfold forget_tr, flat_i_sem, isem_ifP; simpl.
+      repeat (rewrite translate_bind).
+      eapply eqit_bind; eauto; try reflexivity.
+      admit.
+      unfold pointwise_relation; intro b.
+      destruct b; eauto.
+      eapply Hc1A.
+      eapply Hc2A.
+    }
+    
+    { unfold isem_ifP; simpl.
+      rewrite bind_bind.
+      rewrite translate_bind.
+      rewrite interp_bind.
+      eapply eqit_bind; try reflexivity.
+      admit.
+
+      unfold pointwise_relation; intro b.
+      rewrite bind_ret_r.
+      destruct b; eauto.
+      eapply Hc1B.
+      eapply Hc2B.
+    } 
   }
 
   { rename c1 into c0.
@@ -417,8 +445,80 @@ Proof.
     unfold inline_ir_info.
 
     set kt := (isem_while_loopP p kt1 e kt2).
-    
-    admit.
+    exists kt.
+
+    subst kt; split; simpl; intro s.
+
+    { unfold forget_tr, flat_i_sem, isem_while_loopP; simpl.
+      rewrite translate_iter.
+      eapply eutt_iter'; eauto; try reflexivity.
+      intros s1 s2 H.
+      inv H.
+      unfold isem_while_roundP, isem_while_round.
+      rewrite translate_bind.
+      
+      eapply eqit_bind' with (RR := eq).
+      eapply Hc1A.
+
+      intros r1 r2 H.
+      inv H; simpl.
+
+      rewrite translate_bind.
+      eapply eqit_bind' with (RR:= eq).
+      admit.
+
+      intros b1 b2 H.
+      inv H; simpl.
+      destruct b2; simpl.
+
+      rewrite translate_bind.
+      eapply eqit_bind' with (RR:= eq).
+      eapply Hc2A.
+
+      intros x1 x2 H.
+      inv H; simpl.
+      pstep; red; simpl. econstructor; auto.
+      pstep; red; simpl. econstructor; auto.
+    }      
+      
+    { rewrite bind_ret_r.
+      unfold isem_while_loopP, isem_while_loop.
+      unfold isem_while_roundP, isem_while_round; simpl.
+      rewrite translate_iter.
+      rewrite interp_iter.
+      unfold CategoryOps.iter.
+      unfold Iter_Kleisli.
+      unfold Basics.iter.
+      unfold MonadIter_itree.
+      eapply eutt_iter.
+      unfold pointwise_relation; intro s0.
+      rewrite translate_bind.
+      rewrite interp_bind.
+      eapply eqit_bind.
+      eapply Hc1B.
+      unfold pointwise_relation; intro s1.
+      rewrite translate_bind.
+      rewrite interp_bind.
+      eapply eqit_bind.
+      admit.
+
+      unfold pointwise_relation; intro b.
+      destruct b; simpl.
+      { rewrite translate_bind.
+        rewrite interp_bind.
+        eapply eqit_bind.
+        eapply Hc2B.
+        unfold RA_tr.
+        setoid_rewrite interp_translate.
+        unfold pointwise_relation; intro s2; simpl.
+        rewrite interp_ret.
+        pstep; red. econstructor; auto.
+      }
+      { setoid_rewrite interp_translate.
+        rewrite interp_ret.
+        pstep; red. econstructor; auto.
+      }
+    }  
   }
 
   { rename c1 into c0.
@@ -442,7 +542,14 @@ Proof.
          set kt := (fun s => @free_tr recCall recCall E _
                                     (flat_i_sem (MkI ii ir) s)).
          exists kt.
-         admit.
+
+         subst kt; split; simpl; intro s.
+
+         { rewrite <- forget_free_inv_lemma; reflexivity. }
+         { setoid_rewrite <- rassoc_free_interp_lemma at 1.
+           setoid_rewrite bind_ret_r.
+           reflexivity.
+         }  
     }
 
     set fdR := add_iinfo ii (get_fun px fn).
@@ -477,8 +584,11 @@ Proof.
     set kt := (fun s => @free_right_tr recCall recCall E _
                                     (flat_i_sem (MkI ii ir) s)).
     exists kt.
-    
-    admit.
+
+    subst kt; split; simpl; intro s.
+
+    { admit. }
+    { admit. }
   }
 
 Admitted.
