@@ -142,6 +142,13 @@ output corruption: #public
  constraints:
 
 
+File bug_1189.jazz:
+nomodmsf foo :  ->
+
+output corruption: #public
+ constraints:
+
+
 File bug_852.jazz:
 nomodmsf reset : #public ->
 

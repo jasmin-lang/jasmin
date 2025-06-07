@@ -66,6 +66,10 @@
   ([PR #1182](https://github.com/jasmin-lang/jasmin/pull/1182);
   fixes [#1179](https://github.com/jasmin-lang/jasmin/issues/1179)).
 
+- The S-CT checker no longer crashes on loops with an empty body
+  ([PR #1190](https://github.com/jasmin-lang/jasmin/pull/1190);
+  fixes [#1189](https://github.com/jasmin-lang/jasmin/issues/1189)).
+
 ## Other changes
 
 - The deprecated legacy interface to extract to EasyCrypt has been removed
