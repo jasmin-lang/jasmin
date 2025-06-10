@@ -1547,29 +1547,6 @@ Lemma it_inliningP to_keep (p p' : uprog) ev fn :
     p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
 Proof using. Admitted.
 
-Lemma it_dead_code_callPu
-  {is_move_op : asm_op_t -> bool}
-  {dc}
-  {E E0 : Type → Type} {wE : with_Error E E0}
-  {rE : EventRels E0} {p p' : uprog}
-  {do_nop : bool} {fn : funname} {ev} :
-  (forall (op : asm_op_t) (vx : value) (v : values),
-      is_move_op op ->
-      exec_sopn (Oasm op) [:: vx] = ok v ->
-      List.Forall2 value_uincl v [:: vx]) ->
-    dead_code_prog is_move_op p do_nop = ok p' ->
-    wiequiv_f (dc1 := dc) (dc2 := dc)
-      p p' ev ev (rpreF (eS := uincl_spec)) fn fn (rpostF (eS := uincl_spec)).
-Proof using. Admitted.
-
-Lemma it_unroll_callP {dc} {p : prog} {ev : extra_val_t}
-      {E E0 : Type → Type} {wE : with_Error E E0}
-      {rE : EventRels E0} {fn : funname} {p' b} :
-  unroll_prog p = (p', b) ->
-  wiequiv_f (dc1 := dc) (dc2 := dc)
-    p p' ev ev (rpreF (eS := uincl_spec)) fn fn (rpostF (eS := uincl_spec)).
-Proof using. Admitted.
-
 Lemma hlop_it_lower_callP {p : prog} {ev : extra_val_t} {fn : funname} :
   let: p' :=
     lowering.lower_prog (lop_lower_i (ap_lop aparams))
@@ -1589,7 +1566,8 @@ Lemma it_postprocessP {dc : DirectCall} (p p' : uprog) fn ev :
 Proof.
 move=> hp'.
 apply: wiequiv_f_trans_UU_UU; first exact: it_const_prop_callP.
-exact: it_dead_code_callPu (hap_is_move_opP haparams) hp'.
+apply: it_sem_refl_eq_uincl.
+exact: (it_dead_code_callPu (hap_is_move_opP haparams) ev hp' (fn := fn)).
 Qed.
 
 Lemma it_unrollP {dc : DirectCall} (fn : funname) (p p' : prog) ev :
@@ -1600,10 +1578,18 @@ Proof.
 rewrite /unroll_loop; t_xrbindP; elim: Loop.nb p => [// | n hind] /= p pu hpu.
 case hu: unroll_prog => [pu' []]; last first.
 - move=> [<-]; exact: it_postprocessP hpu.
+move: hu; rewrite (surjective_pairing (unroll_prog pu)) => -[? _]; subst pu'.
 t_xrbindP=> p0 hp0 hp'.
 apply: wiequiv_f_trans_UU_UU; last exact: hind hp0 hp'.
 apply: wiequiv_f_trans_UU_UU; first exact: it_postprocessP hpu.
-exact: it_unroll_callP hu.
+apply: it_sem_refl_eq_uincl.
+apply: (
+  wkequiv_io_weaken
+    (P := rpreF (eS := eq_spec) fn fn)
+    (Q := rpostF (eS := eq_spec) fn fn)
+) => //.
+- move=> ???? [_ <-] <-; exact: fs_uinclR.
+exact: it_unroll_callP.
 Qed.
 
 Lemma it_live_range_splittingP {dc : DirectCall} (p p': uprog) fn ev :
@@ -1615,10 +1601,14 @@ rewrite /live_range_splitting; t_xrbindP.
 rewrite !print_uprogP => ok_p' pa ok_pa; rewrite print_uprogP => ?; subst pa.
 move: p ok_p' ok_pa => [fs gd ep] /= ok_p' ok_pa.
 apply: wiequiv_f_trans_UU_EU; first exact: (it_alloc_call_uprogP _ _ ok_p').
-apply: (wkequiv_io_weaken (P := rpreF (eS := uincl_spec) fn fn)) => //;
-  last exact: (it_dead_code_callPu (hap_is_move_opP haparams) ok_pa).
+apply: (
+  wkequiv_io_weaken
+    (P := rpreF (eS := uincl_spec) fn fn)
+    (Q := rpostF (eS := uincl_spec) fn fn)
+) => //.
 - move=> ? _ [_ <-]; split=> //; split=> //; exact: values_uincl_refl.
-by move=> ???? [_ <-].
+apply: it_sem_refl_eq_uincl.
+exact: (it_dead_code_callPu (hap_is_move_opP haparams) ev ok_pa (fn := fn)).
 Qed.
 
 Lemma it_compiler_first_part entries (p p' : prog) fn ev :
