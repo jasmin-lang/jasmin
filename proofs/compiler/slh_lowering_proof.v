@@ -1466,11 +1466,12 @@ apply: wequiv_fun_ind => hind {}fn _ fs _ [<- <- htin] fd
 rewrite /check_fd /=; move: (fun_info _) htin => [in_t out_t] /= htin.
 t_xrbindP=> env henv env' hchk htout _ _ htyin hparams hlower htyout hret hextra
   hget.
-exists fd' => //; exists (st_eq env), (st_eq env') => s hs; exists s; split.
+exists fd' => // => s hs; exists s.
 
 (* Initialize *)
 - by rewrite /initialize_funcall hp_extra htyin hparams hextra.
 
+exists (st_eq env), (st_eq env'); split => //.
 (* Precondition *)
 - split=> //.
   move: hs; rewrite /initialize_funcall; t_xrbindP=> args hargs s0 hs0 hwrite.

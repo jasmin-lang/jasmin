@@ -308,15 +308,15 @@ Lemma it_indirect_to_direct fn :
     p p ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   apply wequiv_fun_ind => hrec {fn}.
-  move=> fn _ fs1 fs2 [<-] [hscs hmem hu] fd hget; exists fd => //.
-  exists (st_uincl tt), (st_uincl tt) => s.
+  move=> fn _ fs1 fs2 [<-] [hscs hmem hu] fd hget; exists fd => // s.
   rewrite /initialize_funcall; t_xrbindP => vs htra s0 hinit hw.
   have -> /= := mapM2_dc_truncate_weak hu htra.
   rewrite /estate0 -hscs -hmem hinit /=.
   have {}hu := Forall2_trans value_uincl_trans (mapM2_dc_truncate_value_uincl htra) hu.
   assert (h := write_vars_uincl (vm_uincl_refl (evm s0)) hu hw).
   case: h=> vm1; rewrite with_vm_same => /(write_vars_weak false) -> {}hu.
-  eexists; (split; first reflexivity) => // {s hw hu vm1 hinit vs htra s0 hscs hmem fs1 fs2}; last first.
+  eexists; first reflexivity.
+  exists (st_uincl tt), (st_uincl tt); split => // {s hw hu vm1 hinit vs htra s0 hscs hmem fs1 fs2}; last first.
   + move=> s t fr1 [hscs hmem hle2]; rewrite /finalize_funcall; t_xrbindP.
     move=> vres hgetr vres' htrr <-.
     have [vres2 /= hgetr2 hu2] := get_var_is_uincl hle2 hgetr.

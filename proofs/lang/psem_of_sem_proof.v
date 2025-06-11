@@ -342,13 +342,13 @@ Lemma it_psem_call :
 Proof.
   move=> hsyscall hinitstate hfinal fn.
   apply wequiv_fun_ind => hrec {fn}.
-  move=> fn _ fs _ [<- <-] fd ->; exists fd => //.
-  exists estate_sim, estate_sim => s1 hinit.
+  move=> fn _ fs _ [<- <-] fd ->; exists fd => // s1 hinit.
   have : exists2 s2 : estate_s, initialize_funcall p ev fd fs = ok s2 & estate_sim s1 s2.
   + move: hinit; rewrite /initialize_funcall.
     t_xrbindP => > -> s1' /hinitstate [s2'] /= -> hs hw.
     have [s2'' [] /=]:= write_vars_sim hs hw; eauto.
-  move=> [s2 h1 h2]; exists s2; split => //; last first.
+  move=> [s2 h1 h2]; exists s2 => //.
+  exists estate_sim, estate_sim; split => //; last first.
   + move=> s1' s2' fs1' [hscs hmem hvm]; rewrite /finalize_funcall.
     t_xrbindP => vs.
     rewrite /get_var_is (mapM_ext (λ (x : var_i) _, get_var_sim hvm x)) hfinal hscs hmem => -> /=.

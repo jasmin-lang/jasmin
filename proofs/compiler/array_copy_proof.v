@@ -575,7 +575,7 @@ Proof.
   apply wequiv_fun_ind => hrec {fn}.
   move=> fn _ fs ft [<- hfsu] fd1 hget.
   have [fd2 hcopy ->] := all_checked hget; exists fd2 => //.
-  exists (st_uincl_on X), (st_uincl_on X) => s1 hinit.
+  move=> s1 hinit.
   have [hin hout hex hpar hbody hres] :
       [/\ f_tyin fd1 = f_tyin fd2
         , f_tyout fd1 = f_tyout fd2
@@ -586,7 +586,8 @@ Proof.
        ].
   + by case: (fd1) hcopy => /= >; t_xrbindP => c' -> <-.
   have [t -> hst] := [elaborate fs_uincl_initialize hin hex hpar eq_extra hfsu hinit].
-  exists t; split => //.
+  exists t => //.
+  exists (st_uincl_on X), (st_uincl_on X); split => //.
   + by case: hst; split.
   2: {
     apply wrequiv_weaken with (st_uincl_on (vars_l (f_res fd1))) fs_uincl => //.

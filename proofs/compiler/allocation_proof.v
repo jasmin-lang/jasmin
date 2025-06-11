@@ -791,8 +791,7 @@ Section PROOF.
     move=> fn _ fs ft [<- hfsu] fd hget.
     have [fd2 [Hget2 /=]]:= all_checked hget.
     t_xrbindP => /and3P [] _ /eqP htyin /eqP htyout r0 Hcinit r1 /check_f_extraP[] Hcparams hinit hfinalize r2 Hcc r3 Hcres _.
-    exists fd2 => //.
-    exists (st_eq_alloc r1), (st_eq_alloc r2) => s11 Hi.
+    exists fd2 => // s11 Hi.
     (* TODO : can we have a generic lemma for initialize_funcall based on check_es *)
     move: Hi; rewrite /initialize_funcall; t_xrbindP.
     move=> vargs2 hvargs2 s0 Hi hw.
@@ -803,7 +802,7 @@ Section PROOF.
     move=> /(_ _ _ Hvm0 hall2) [vm3 /= Hw2 Hvm3].
     rewrite -htyin htr /= /estate0 -heq1 -heq2 (hinit _ _ _ _ Hi0) /=.
     rewrite (write_vars_lvals _ gd) Hw2.
-    exists (with_vm s11 vm3); split => //; last first.
+    exists (with_vm s11 vm3)=> //; exists (st_eq_alloc r1), (st_eq_alloc r2); split => //; last first.
     (* FIXME: can we have a generic lemma for finialize_funcall based on check_es *)
     + move=> s t fs' /st_relP [-> /=] hu'; rewrite /finalize_funcall.
       t_xrbindP => vs.

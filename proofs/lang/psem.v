@@ -748,8 +748,8 @@ Proof.
   apply wequiv_fun_ind => hrec {fn}.
   move=> fn _ fs _ [<- <-] fd hget.
   exists fd => //.
-  exists (st_eq tt), (st_eq tt).
-  move=> s1; exists s1; split => //.
+  move=> s1; exists s1 => //.
+  exists (st_eq tt), (st_eq tt); split => //.
   + by apply wequiv_rec_st_eq.
   by apply st_eq_finalize.
 Qed.
@@ -1581,8 +1581,8 @@ Lemma it_sem_uincl_f fn :
 Proof.
   apply wequiv_fun_ind => hrec {fn}.
   move=> {}fn _ fs1 fs2 [<-] hu fd ->; exists fd => //.
-  exists (st_uincl tt), (st_uincl tt) => s.
-  move=> /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu; exists t; split => //.
+  move=> s /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu; exists t => //.
+  exists (st_uincl tt), (st_uincl tt); split => //.
   + apply it_sem_uincl_aux => //.
     by move=> fn' fs1' fs2' h; apply hrec.
   by apply: fs_uincl_finalize.

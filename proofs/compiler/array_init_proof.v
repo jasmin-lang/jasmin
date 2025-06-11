@@ -269,11 +269,11 @@ Proof.
  move=> fn _ fs ft [<- hfsu] fd hget.
  exists (remove_init_fd is_reg_array fd).
  + by rewrite get_map_prog hget.
- exists (st_uincl tt), (st_uincl tt) => s hinit.
+ move=> s hinit.
  have [t -> hu] :=
    [elaborate fs_uincl_initialize (p:=p) (p':=p') (fd:=fd) (fd':=remove_init_fd is_reg_array fd)
            erefl erefl erefl erefl hfsu hinit].
- exists t; split => //; last by apply fs_uincl_finalize.
+ exists t=> //; exists (st_uincl tt), (st_uincl tt); split => //; last by apply fs_uincl_finalize.
  clear fn fs ft hfsu hget s hinit t hu.
  rewrite /remove_init_fd /=.
  apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {fd}; rewrite /Pi_r /Pi /Pc /=.
@@ -701,9 +701,8 @@ Proof.
  set I := (I in add_init_c _ I _).
  set cm := add_init_c _ _ _.
  set fd' := {| f_info := _|}.
- exists (cmpl_inv I),
-        (cmpl_inv cm.2) => s1 hinit.
- exists s1; split => //.
+ move=> s1 hinit.
+ exists s1=> //; exists (cmpl_inv I), (cmpl_inv cm.2); split => //.
  + move: hinit; rewrite /initialize_funcall.
    t_xrbindP => vs hargs s0 hini hw.
    split => //; split => //.

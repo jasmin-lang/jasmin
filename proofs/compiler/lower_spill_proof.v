@@ -722,10 +722,10 @@ Proof.
   exists fd' => // {hget hfd'2}.
   case: fd hfd'1 => fi ft fp /= c f_tyout res fb.
   case: ifP.
-  + move=> _ [<-] /=.
-    exists (st_eq tt), (st_eq tt) => s hinit.
-    exists s; split => //.
+  + move=> _ [<-] /= s hinit.
+    exists s.
     + by move: hinit; rewrite /initialize_funcall /= eq_p_extra.
+    exists (st_eq tt), (st_eq tt); split => //.
     + by apply/wequiv_rec_st_eq/eq_globs.
     by apply st_eq_finalize.
   t_xrbindP => _.
@@ -738,9 +738,9 @@ Proof.
                get_spillP    := lower_get_spillP hcm;
                get_spill_ii  := @lower_get_spill_ii m;
                get_spill_inj := lower_get_spill_inj hcm |}.
-  exists (st_ve S Sv.empty), (st_ve S env).
-  move=> s hinit; exists s; split => //.
+  move=> s hinit; exists s.
   + by move: hinit; rewrite /initialize_funcall /= eq_p_extra.
+  exists (st_ve S Sv.empty), (st_ve S env); split => //.
   + by split => //; split => // ? /Sv_memP.
   2: {
     apply wrequiv_weaken with (st_eq_on (vars_l res)) eq => //.

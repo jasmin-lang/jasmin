@@ -380,8 +380,8 @@ Section PROOF.
     apply wequiv_fun_ind => hrec {fn}.
     move=> fn _ fs _ [<- <- hin] fd hfd; exists fd => //.
     + by apply get_dead_calls.
-    exists (st_eq tt), (st_eq tt) => s hinit.
-    exists s; split => //; last by apply st_eq_finalize.
+    move=> s hinit.
+    exists s=> //; exists (st_eq tt), (st_eq tt); split => //; last by apply st_eq_finalize.
     apply (cmd_rect (Pi:=Pi) (Pr:=Pi_r) (Pc:=Pc)) => //; rewrite /Pi_r /Pi /Pc.
     + by move=> ??; apply wequiv_nil.
     + move=> > hi hc; rewrite CallsE => /def_incl_union [??].

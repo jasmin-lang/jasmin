@@ -433,10 +433,10 @@ Proof.
   move=> fn _ fs ft [<- hfsu] fd hget.
   exists (wi2w_fun fd).
   + by rewrite get_map_prog hget.
-  exists (st_uincl tt), (st_uincl tt) => s hinit.
+  move=> s hinit.
   have [t -> hu] :=
     [elaborate fs_uincl_initialize (p':=p') (fd:=fd) (fd':=wi2w_fun fd) erefl erefl erefl erefl hfsu hinit].
-  exists t; split => //; last by apply fs_uincl_finalize.
+  exists t => //; exists (st_uincl tt), (st_uincl tt); split => //; last by apply fs_uincl_finalize.
   rewrite /=; move: (f_body fd).
   clear fn fs ft hfsu fd hget s hinit t hu.
   apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; subst Pi_r Pi Pc => /=.

@@ -726,9 +726,9 @@ Context
     + by rewrite -heq.
     move: hfd' => {hget' heq hmap pfuncs'}.
     rewrite /update_fd; t_xrbindP.
-    set X := Sv.union _ _ => c' hc' <-.
-    exists (st_eq_on X), (st_eq_on X) => s1 hinit.
-    exists s1; split => //; last first.
+    set X := Sv.union _ _ => c' hc' <- s1 hinit.
+    exists s1 => //.
+    exists (st_eq_on X), (st_eq_on X); split => //; last first.
     + move: hinit; rewrite /initialize_funcall; t_xrbindP.
       move=> vargs hvargs _ _ _ {s1}.
       rewrite /finalize_funcall => s1 s2 o1 heqon.
@@ -745,7 +745,6 @@ Context
       have -> // : [seq i.2 | i <- map2 mk_info (f_res fd) (f_tyout fd)] = f_tyout fd.
       have [h _] := size_mapM2 hvres. rewrite -(size_mapM hres) in h.
       by rewrite map2E -map_comp -{2}(unzip2_zip (eq_leq h)); apply map_ext.
-
     rewrite /=.
     have : Sv.Subset (Sv.union (read_c (f_body fd)) (write_c (f_body fd))) X.
     + by rewrite /X; SvD.fsetdec.

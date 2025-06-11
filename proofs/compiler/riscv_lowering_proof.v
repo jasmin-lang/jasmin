@@ -779,10 +779,10 @@ Proof.
   move=> fn _ fs _ [<- <-] fd hget.
   rewrite get_map_prog hget /= /lower_fd.
   eexists; first reflexivity.
-  exists (st_eq tt), (st_eq tt) => s.
+  move=> s.
   set c' := lowering.lower_cmd _ _ _ _ _.
   move=> /(eq_initialize (fd':= with_body fd c')) -/(_ p' erefl erefl erefl erefl) hinit.
-  exists s; split => //=; last by apply st_eq_finalize.
+  exists s => //; exists (st_eq tt), (st_eq tt); split => //=; last by apply st_eq_finalize.
   subst c'; move: (f_body fd). clear fn fs fd hget hinit s.
   set ep := ep_of_asm_e.
   set spp := spp_of_asm_e.

@@ -252,9 +252,9 @@ Module INCL. Section INCL.
   Lemma it_gd_incl_fun fn : wiequiv_f P1 P2 ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof.
     apply wequiv_fun_ind => hrec {fn}.
-    move=> fn _ fs ft [<- <-] fd ->; exists fd => //.
-    exists (st_equal tt), (st_equal tt) => s1 hinit.
-    exists s1; split => //; last by move=> s t vs /st_equalP <- ->; eexists; eauto.
+    move=> fn _ fs ft [<- <-] fd ->; exists fd => // s1 hinit.
+    exists s1 => //.
+    exists (st_equal tt), (st_equal tt); split => //; last by move=> s t vs /st_equalP <- ->; eexists; eauto.
     move: (f_body fd) => {fn fs ft fd s1 hinit}.
     apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //.
     + by apply wequiv_nil.
@@ -916,8 +916,8 @@ Module RGP. Section PROOFS.
     have [fd' [hget' hfd']]:= get_fundefP hget.
     exists fd' => //.
     move: hfd'; rewrite /remove_glob_fundef; t_xrbindP => _tt hparams res1 hres1 [m' c'] hrm ?;subst fd' => /=.
-    exists (valid (Mvar.empty var)), (valid m') => s1 hinit.
-    exists s1; split => // {s1 hinit fs hget}; last first.
+    move=> s1 hinit.
+    exists s1 => //; exists (valid (Mvar.empty var)), (valid m'); split => // {s1 hinit fs hget}; last first.
     + move=> s1 s2 fs [/= hscse hmem hm _ _]; rewrite /finalize_funcall /=; t_xrbindP.
       move=> vs hget vs' htr <-.
       have -> : get_var_is (~~ direct_call) (evm s2) (f_res fd) = ok vs.
