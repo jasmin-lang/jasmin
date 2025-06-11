@@ -2846,7 +2846,7 @@ Proof.
   move=> hcheck_c2.
   elim: n table rmap => //= n hrec table rmap.
   t_xrbindP=> -[[[table1 rmap1] [table2 rmap2]] [[e1 c11] c12]] hc2.
-  move=> + hvarst. (* hvars hvarsz hvarss. *)
+  move=> + hvarst.
   have [h1 h2] :=
     hcheck_c2 _ _ _ _ _ _ _ _ _ hc2 hvarst.
   case: ifP.
