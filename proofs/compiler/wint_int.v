@@ -40,6 +40,12 @@ Section WITH_PARAMS.
 
 Context `{asmop:asmOp} {msfsz : MSFsize} {pd: PointerData}.
 
+Definition sc_op2 o e1 e2 :=
+  match is_wi2 o with
+  | Some (sg, sz, o) => sc_wiop2 sg sz o e1 e2
+  | _ => [::]
+  end.
+
 #[local]
 Existing Instance progUnit.
 

@@ -157,13 +157,7 @@ Definition sc_op1 (op1 : sop1) e :=
   | Some (sg, o) => sc_wiop1 sg o e
   | None => [::]
   end.
-
-Definition sc_op2 o e1 e2 :=
-  match is_wi2 o with
-  | Some (sg, sz, o) => sc_wiop2 sg sz o e1 e2
-  | _ => [::]
-  end.
-
+  
 End DEFS.
 
 Section LEMMAS.

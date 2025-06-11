@@ -8,11 +8,6 @@ Import Utf8.
 Local Open Scope Z_scope.
 Local Open Scope seq_scope.
 
-(*Section WITH_PARAMS.
-
-Context {msfsz : MSFsize}.
-*)
-
 Section GLOB_DECLS.
 Context {gd: glob_decls}.
 
@@ -258,11 +253,9 @@ Lemma wawa e es sc :
   exists (sces : seq safety_cond), sc_pexprs sc_pexpr es = (flatten sces) ∧
   sc = sce ++ (flatten sces).
 Proof.
-(*  rewrite /sc_pexprs /=.
-  t_xrbindP => ? sce hsce sces hsces ??; subst.
-  exists sce; rewrite hsce /=; split=> //.
-  by exists sces; rewrite hsces.*)
-Admitted.
+  rewrite /sc_pexprs => <- /=.
+  exists (sc_pexpr e); split; by eauto.
+Qed.
 
 Lemma arr_catch_get_gvar {n} s x (t: WArray.array n) :
   vtype (gv x) = sarr n ->
@@ -283,24 +276,23 @@ Let Qe es :=
   sem_pexprs (wc:=withcatch) true gd s es = ok vs ->
   sem_pexprs true gd s es = ok vs .
 
-(*
 Lemma etypePe_aux : (forall e, Pe e) /\ (forall es, Qe es).
 Proof.
   apply: pexprs_ind_pair; subst Pe Qe; split => //=; t_xrbindP => //.
-  + move=> s he es hes s' vs0 scs0 /wawa[sc][/he{}he][scs][/hes{}hes] -> /=.
-    by move=> /eandsE_cat[] /he{}he /hes{}hes v {}/he -> vs /hes -> <-.    
-
+  + by move=> e he es hes s vs /eandsE_cat[/he{}he] /hes{}hes v {}/he -> vs' /hes -> <-.
+ 
   (* Gvar *)
-  + move=> x s v sc. rewrite /sc_gvar /get_gvar /sem_cond /=.
+  + move=> x s v.
+    rewrite /sc_gvar /get_gvar /sem_cond /=.
     case: (is_lvar x) => //.
     rewrite /sc_var /get_var /=.
-    case harr: is_sarr => <- /=.
-    + move: harr => /is_sarrP[len htx] _.
+    case harr: is_sarr.
+    + move: harr => /is_sarrP[len htx].
       by have -> := arr_isdef s htx.
-    by move=> [->].
+    by t_xrbindP => z /= [] <- /= [] ->.
     
   (* Array access *)
-  + move=> al aa sz x e he s v sc es /he{}he <- /eandsE_cat[/he {}he].
+  + move=> al aa sz x e he s v /eandsE_cat[/he{}he].
     rewrite /sc_arr_get => /eandsE_cat[+ /eandsE_cat[]].
     move=> hal hbound hinit; apply on_arr_gvarP => n r htx.
     have xdef := arr_isdef s htx; move=> /(arr_catch_get_gvar htx) hgvr /=.
@@ -319,7 +311,7 @@ Proof.
     by have [l -> /=] := hrec h2 h4; eauto.
 
   (* Subarray access *)
-  + move=> aa sz len x e he s v sc es /he{}he <- /eandsE_cat[/he {}he].
+  + move=> aa sz len x e he s v /eandsE_cat[/he {}he].
     move=> hbound; apply on_arr_gvarP => n r htx.
     have xdef := arr_isdef s htx; move=> /(arr_catch_get_gvar htx) hgvr /=.
     t_xrbindP=> zi z {}/he he /to_intI ? w wcatch <-; subst; rewrite he hgvr /=.
@@ -330,7 +322,7 @@ Proof.
     by rewrite /WArray.get_sub h1 h2 /= => [][->].
         
   (* Memory read *)
-  + move=> al sz e he s v sc es /(he s){}he <- /eandsE_cat[/he{}he].
+  + move=> al sz e he s v /eandsE_cat[/he{}he].
     move=> /eandsE_cat[hal hmem] w wv /he{}he.
     rewrite /read he => /= topow w2.
     move: hmem; rewrite /sem_cond /=.
@@ -346,45 +338,66 @@ Proof.
     by move=> hrec [] ->.
     
   (* Unary operator *)
-  + move=> op e he s v sc es /he{}he <- /eandsE_cat[/he{}he].
+  + move=> op e he s v /eandsE_cat[/he{}he].
     move=> hop v1 /he{}he; rewrite he /=.
     rewrite /sem_sop1.
-    rewrite /catch_core /=.
+    move: hop.
+    rewrite /sem_cond /sc_op1 /=.
+    (*case: op => //=.
+    move=> > _.
+    case: (of_val sint v1) => //=.
+    move=> ?. case: ifP => //=. *)
     admit.
 
   (* Binary operator *)
-  + move=> op e1 he1 e2 he2 s v sc es1 /he1{}he1 es2 /he2{}he2 <-.
-    move=> /eandsE_cat[/he1{}he1] /eandsE_cat[/he2{}he2] hop v2.
-    move=> {}/he1 -> v3 {}/he2 -> <- /=.
+  + move=> op e1 he1 e2 he2 s v /eandsE_cat[/he1{}he1].
+    move=> /eandsE_cat[/he2{}he2] hop v2 {}/he1 -> v3 {}/he2 -> <- /=.
     admit.
     
   (* N-ary opertors *)
-  + move=> op es he s v sc sc2 /he{}he ?; subst.
-    move=> /he{}he v2 {}/he; rewrite /sem_pexprs => -> <- /=.
-    rewrite /sem_opN /=.
+  + move=> op es he s v /he{}he v2 {}/he.
+    rewrite /sem_pexprs => -> <- /=.
+    rewrite /sem_opN.
     admit.
     
   (* Conditional expression *)
-  + move=> ty e he e1 he1 e2 he2 s v sc es /he{}he es1 /he1{}he1 es2 /he2{}he2.
-    move=> <- /eandsE_cat[/he{}he] /eandsE_cat[/he1{}he1] /he2{}he2.
+  + move=> ty e he e1 he1 e2 he2 s v /eandsE_cat[/he{}he].
+    move=> /eandsE_cat[/he1{}he1] /he2{}he2.
     by move=> v2 v3 {}/he -> /= -> v5 v6 {}/he1 -> /= -> v7 v8 {}/he2 -> /= -> <-.
     
   (* Big expression *)
-  + admit.
+  + move=> idx hidx op2 vi body hbody start hstart len hlen s v.
+    move=> /eandsE_cat[/hidx{}hidx] /eandsE_cat[/hstart{}hstart].
+    move=> /eandsE_cat[/hlen{}hlen] /eandsE_cons[] hop hbig.
+    move=> zstart ? /hstart{}hstart /to_intI ?; subst; rewrite hstart /=.
+    move=> zlen ? /hlen{}hlen /to_intI ?; subst; rewrite hlen /=.
+    move=> vidx vtidx /hidx{}hidx htruidx; rewrite hidx /= htruidx /=.
+    
+    move: hbig; rewrite /sem_cond /= hstart hlen /=.
+    rewrite /truncate_val of_val_to_val /=.
+    t_xrbindP=> ? + /to_boolI ?; subst.
+
+    elim: ziota {3}true => //= k ks hrec acc.
+    t_xrbindP=> vw s2 -> /= vbody hsembody.
+    rewrite /sem_sop2 of_val_to_val /=.
+
+    t_xrbindP=> bbody /to_boolI ?? + z2 s3 ?; subst.
+
+    move: hbody=> /(_ s3); rewrite /sem_cond hsembody=> /= hbody.
+    move=> idk z4 /hbody.
+    admit.
     
   (* Pis_var_init *)
-  + by move=> e len he s v sc /he{}he /he{}he z v2 {}/he -> /= -> <-. 
+  + by move=> e len he s v /he{}he z v2 {}/he -> /= -> <-. 
 
   (* Pis_arr_init *)
-  + move=> vi e1 e2 he1 he2 s v sc es1 /he1{}he1 es2 /he2{}he2.
-    move=> <- /eandsE_cat[/he1{}he1] /he2{}he2.
+  + move=> vi e1 e2 he1 he2 s v /eandsE_cat[/he1{}he1] /he2{}he2.
     rewrite /on_arr_var; t_xrbindP => v2 -> /=.
     case: v2 => //=; t_xrbindP=> len r.
     by move=> z1 v3 {}/he1 -> /= -> z2 v4 {}/he2 -> /= -> <-.
 
   (* Pis_barr_init*)
-  + move=> vi e1 e2 he1 he2 s v sc es1 /he1{}he1 es2 /he2{}he2.
-    move=> <- /eandsE_cat[/he1{}he1] /eandsE_cat[/he2{}he2].
+  + move=> vi e1 e2 he1 he2 s v /eandsE_cat[/he1{}he1] /eandsE_cat[/he2{}he2].
     rewrite /on_arr_var /sc_barr_get eandsE_cat => -[hbound hinit].
     t_xrbindP => vt hvi; rewrite hvi /=.
     case: vt hvi => //=; t_xrbindP=> len r hgetv.
@@ -409,14 +422,12 @@ Proof.
     by apply hrec=> z hz; apply hrange; rewrite in_cons hz orbT.
   
   (* Pis_mem_init*)
-  + move=> e1 e2 he1 he2 s v sc es1 /he1{}he1 es2 /he2{}he2 <-.
-    move=> /eandsE_cat[/he1{}he1] /he2{}he2.
+  + move=> e1 e2 he1 he2 s v /eandsE_cat[/he1{}he1] /he2{}he2.
     by move=> w1 v1 {}/he1 -> /= -> w2 v2 {}/he2 -> /= -> <-.
 Admitted.
 
 Lemma etypePe : forall e, Pe e.
 Proof. by case etypePe_aux. Qed.
- *)
 
 (*
 (* Validity Lemma: pexpr *)
@@ -592,6 +603,18 @@ Proof.
   case: eqP => //; by rewrite h1.
 Qed.
 
+Section ForallAnd.
+Variable T : Type.
+Variables P Q : T -> bool.
+
+Lemma forall_split :
+  (forall x, P x && Q x) -> (forall x, P x) /\ (forall x, Q x).
+Proof.
+  move=> H.
+  by split => x; move: (H x) => /andP[].
+Qed.
+End ForallAnd.
+
 (* Safety Lemma: lval *)
 Let Pl l :=
   forall s s' v,
@@ -610,45 +633,76 @@ Let Ql ls :=
  lval_ind_pair?
  *)
 
-(*
 Lemma ltypePl : forall l, Pl l.
 Proof.
   subst Pl => /=.
-  move=> [vi tynone | x | al sz x e | al aa sz x e | aa sz pos x e ] s s' vs scs //=.
+  move=> [vi tynone | x | al sz x e | al aa sz x e | aa sz pos x e ] s s' v //=.
   + (* Lmem *)
-    t_xrbindP => es /etypePe{}he <- /eandsE_cat[/he{}he] /eandsE_cat[hal hmem].
-    move=> w1 v1 /he{}he.
-    case: v1 he => //=.
-    + move=> ws w he. rewrite he => /= -> w2 -> mem + <- /=.
-      rewrite /write /=.
-      have -> /= : is_aligned_if al w1 sz.
-      + move: hal; rewrite /sc_is_aligned_if_m /sem_scs; case: al => //=.
-        rewrite /sem_cond /= /get_gvar he /=.
-        rewrite /sem_sop2 /sem_sop1 /=.
-        Transparent of_val. rewrite /=.
-        admit.
-    admit.
-    by case.
+    t_xrbindP => /eandsE_cat[] /etypePe{}he /eandsE_cat[hal hmem] wpt vpt /he{}he.
+    rewrite he => /to_wordI[sz2 [w2]] [? htr2]; subst.
+    move=> w /to_wordI[sz3[w3]] [? htr3] me + ?; subst.
+    rewrite /= htr2 htr3 /= /write.
+    have -> /= : is_aligned_if al wpt sz.
+      + move: hal; rewrite /sc_is_aligned_if_m /sem_cond; case: al => //=.
+        rewrite he /= /sem_sop2 /sem_sop1 /= of_val_to_val /=.
+        Transparent of_val. by rewrite /= htr2 /=.
+
+    suff : [elaborate exists l, foldM
+         (λ (k : Z) (m : mem),
+            set m (add wpt k) (LE.wread8 w k)) 
+         (emem s) (ziota 0 (wsize_size sz)) = ok l].
+    + by move=> [l -> /=] [->].
+        
+    move: hmem; rewrite /sem_cond /=.
+    rewrite he /= htr2 => /= -[].
+
+    set m := (emem s).
+    rewrite all_get_read8.
+    elim: ziota m => [| k ks hrec m] /=; first by eauto.    
+    move=> /andP[] /is_okP [gv okg] okgs.
+    
+    apply (getok_setok (LE.wread8 w k)) in okg.
+    move: okg => [fmem hset] /=.
+    have {}okgs := set_allgetok okgs hset.
+    have {}hrec := hrec fmem okgs.
+    by rewrite hset /=.
     
   + (* Laset *)
-    t_xrbindP => es /etypePe{}he <- /eandsE_cat[/he{}he].
-    rewrite /sc_arr_set => /eandsE_cat[hal hbound].
-    rewrite /on_arr_var; t_xrbindP => v -> /=.
-    case: v => //= len r; t_xrbindP => z v /he{}he.
+    rewrite /sc_arr_set => /eandsE_cat[] /etypePe{}he /eandsE_cat[hal hbound].
+    rewrite /on_arr_var; t_xrbindP => v1 getx; rewrite getx /=.
+    case: v1 getx => //= len r; t_xrbindP => /get_varI htx z v2 /he{}he.
     rewrite he => /= /to_intI ?; subst => w -> r2 + <- /=.
 
     rewrite /WArray.set /write /=.
     have -> /= := sc_is_aligned_ifP he hal.
-    (*move: hbound; rewrite htx => /(sc_in_boundP_all t he) hbound.*)
-    admit.
+
+    move: hbound; rewrite htx => /(sc_in_boundP_all r he) hbound.
+    have : exists l, foldM (λ (k : Z) (m : WArray.array len),
+                       WArray.set8 m (add (z * mk_scale aa sz) k)
+                         (LE.wread8 w k)) r (ziota 0 (wsize_size sz)) = ok l; last first.
+  + by move=> [rf ->] /= [->].
+    
+    elim: (ziota 0 (wsize_size sz)) r hbound  => //=; eauto.
+    move=> j js hrec r /andP [h1 h2].
+    rewrite {2}/WArray.set8 WArray.addE h1 /=.
+    have [l -> /=] := hrec {| WArray.arr_data :=
+                             Mz.set (WArray.arr_data r) (z * mk_scale aa sz + j)
+                              (LE.wread8 w j) |} h2.
+    by eauto.
     
   + (* Lasub *)
-    t_xrbindP => es /etypePe{}he <- /eandsE_cat[/he{}he] hbound.
-    rewrite /on_arr_var; t_xrbindP => v -> /=.
-    case: v => //= len r; t_xrbindP => z v {}/he -> /= -> w -> r2 + <- /=.
-    admit.
-Admitted.
- *)
+    move=> /eandsE_cat[] /etypePe{}he hbound.
+    rewrite /on_arr_var; t_xrbindP => v1 getx; rewrite getx /=.
+    case: v1 getx => //= len r; t_xrbindP => /get_varI htx z v2 /he{}he.
+    rewrite he => /= /to_intI ?; subst => w -> r2 + <- /=.
+
+    rewrite /WArray.set_sub /=; rewrite htx in hbound.
+    have [//|] := sc_in_boundP he _ hbound (len:=len) (aa:=aa) (ilen:=arr_size sz pos).
+    move=> /ZleP -> /ZleP -> /=.
+    rewrite /write_var /set_var /= htx eq_refl => -[<-] /=.
+    by eauto.
+Qed.
+
 
 (*
 (* Validity Lemma: lval *)

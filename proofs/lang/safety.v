@@ -4,6 +4,7 @@ Require Import psem.
 
 Section SAFETY.
 Context `{asmop:asmOp} {pd: PointerData} {msfsz : MSFsize}.
+ (* Context (m: var -> option (signedness * var)). *)
 
 Definition sc_var (x:var_i) :=
   if is_sarr (vtype x) then [::]
@@ -60,6 +61,16 @@ Definition sc_barr_get (x:var_i) e1 e2 :=
   sc_in_bound' (vtype x) e1 e2 ++
   sc_barr_init x e1 e2.
 
+Definition sc_op2 o e1 e2 :=
+match is_wi2 o with
+| Some (sg, sz, o) => sc_wiop2 sg sz o e1 e2
+| _ => match o with
+  | Odiv sg (Op_w sz) => sc_divmod sg sz (eint_of_word sg sz e1) (eint_of_word sg sz e2)
+  | Omod sg (Op_w sz) => sc_divmod sg sz (eint_of_word sg sz e1) (eint_of_word sg sz e2)
+  | _ => [::]
+  end
+end.
+
 Definition sc_op2_safe (o : sop2) :=
   match o with
   | Odiv sg (Op_w sz) => false
@@ -71,7 +82,13 @@ Definition sc_op2_safe (o : sop2) :=
       | WIshr | WIeq | WIneq | WIlt | WIle
       | WIgt | WIge => true
       end
-  | _ => true (*TODO: add all the pattern*)
+  | Obeq | Oand | Oor | Oadd _ | Omul _ | Osub _
+  | Oland _ | Olor _ | Olxor _ |  Olsr _ | Olsl _
+  | Oasr _ | Oror _ | Orol _ | Oeq _ | Oneq _
+  | Olt _ | Ole _ | Ogt _ | Oge _
+  | Ovadd _ _ | Ovsub _ _ | Ovmul _ _
+  | Ovlsr _ _ | Ovlsl _ _ | Ovasr _ _
+  | Odiv _ _ | Omod _ _ => true
   end.
 
 Definition sc_pexprs (sc_pexpr: pexpr -> safety_cond) (es:pexprs) : safety_cond :=
@@ -101,6 +118,8 @@ Fixpoint sc_pexpr (e : pexpr) : safety_cond :=
   | Papp1 op e =>
     let sc_e := sc_pexpr e in
     let sc_op := sc_op1 op e in
+(*    let ety := Pbool( esubtype (etype_of_op1 op).1
+                               (etype_of_expr m e)) in *)
     sc_e ++ sc_op
 
   | Papp2 op e1 e2 =>
@@ -126,7 +145,7 @@ Fixpoint sc_pexpr (e : pexpr) : safety_cond :=
     let scbody := sc_pexpr body in
     let scbody := Pbig true Oand x (eands scbody) start len in
     let scop := Pbool (sc_op2_safe op) in
-    scstart ++ sclen ++ scidx ++ [:: scop ; scbody]
+    scidx ++ scstart ++ sclen ++ [:: scop ; scbody]
 
   | Parr_init_elem e _ => sc_pexpr e
 
