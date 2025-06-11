@@ -1038,7 +1038,7 @@ Proof.
   by move=> /= h s1 s2 hP; rewrite isem_cmd_while; apply h.
 Qed.
 
-Lemma wequiv_call (Pf : relPreF) (Qf : relPostF) Rv P Q ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
+Lemma wequiv_call_core (Pf : relPreF) (Qf : relPostF) Rv P Q ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
   wrequiv P (fun s => sem_pexprs (~~ (@direct_call dc1)) (p_globs p1) s es1)
             (fun s => sem_pexprs (~~ (@direct_call dc2)) (p_globs p2) s es2) Rv ->
   (forall s1 s2 vs1 vs2,
@@ -1046,8 +1046,13 @@ Lemma wequiv_call (Pf : relPreF) (Qf : relPostF) Rv P Q ii1 xs1 fn1 es1 ii2 xs2 
   wequiv_f Pf fn1 fn2 Qf ->
   (forall fs1 fs2 fr1 fr2,
     Pf fn1 fn2 fs1 fs2 -> Qf fn1 fn2 fs1 fs2 fr1 fr2 ->
-    wrequiv P (upd_estate (~~ (@direct_call dc1)) (p_globs p1) xs1 fr1)
-              (upd_estate (~~ (@direct_call dc2)) (p_globs p2) xs2 fr2) Q) ->
+    wrequiv
+      (fun s1 s2 => [/\ P s1 s2, escs s1 = fscs fs1, escs s2 = fscs fs2
+                      , emem s1 = fmem fs1, emem s2 = fmem fs2
+                      & Rv (fvals fs1) (fvals fs2)])
+        (upd_estate (~~ (@direct_call dc1)) (p_globs p1) xs1 fr1)
+        (upd_estate (~~ (@direct_call dc2)) (p_globs p2) xs2 fr2)
+      Q) ->
   wequiv P [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] Q.
 Proof.
   move=> hes hPPf hCall hPQf; rewrite /wequiv /isem_cmd_ /=.
@@ -1062,6 +1067,25 @@ Proof.
   move=> fr1 fr2 hQf; apply wkequiv_iresult.
   eapply wrequiv_weaken; last apply (hPQf fs1 fs2); eauto.
   by move=> ?? [-> ->].
+Qed.
+
+Lemma wequiv_call (Pf : relPreF) (Qf : relPostF) Rv P Q ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
+  wrequiv P (fun s => sem_pexprs (~~ (@direct_call dc1)) (p_globs p1) s es1)
+            (fun s => sem_pexprs (~~ (@direct_call dc2)) (p_globs p2) s es2) Rv ->
+  (forall s1 s2 vs1 vs2,
+     P s1 s2 -> Rv vs1 vs2 -> Pf fn1 fn2 (mk_fstate vs1 s1) (mk_fstate vs2 s2)) ->
+  wequiv_f Pf fn1 fn2 Qf ->
+  (forall fs1 fs2 fr1 fr2,
+    Pf fn1 fn2 fs1 fs2 -> Qf fn1 fn2 fs1 fs2 fr1 fr2 ->
+    wrequiv P (upd_estate (~~ (@direct_call dc1)) (p_globs p1) xs1 fr1)
+              (upd_estate (~~ (@direct_call dc2)) (p_globs p2) xs2 fr2) Q) ->
+  wequiv P [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] Q.
+Proof.
+  move=> hes hPPf hCall hPQf.
+  apply wequiv_call_core with Pf Qf Rv => //.
+  move=> > hPf hQf; apply wrequiv_weaken with P Q => //.
+  + by move=> > [].
+  apply: hPQf hPf hQf.
 Qed.
 
 Lemma wequiv_call_eq P Q ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :

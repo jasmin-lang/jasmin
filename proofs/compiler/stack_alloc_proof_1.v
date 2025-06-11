@@ -4882,7 +4882,7 @@ Lemma alloc_protect_ptrP table vme m0 s1 s2 s1' rmap1 rmap2 ii r tag e msf vmsf 
   truncate_val (sarr n) v = ok v' ->
   write_lval true gd r v' s1 = ok s1' ->
   alloc_protect_ptr shparams pmap rmap1 ii r tag e msf = ok (rmap2, i2) ->
-  ∃ s2' : estate, sem_i P' rip s2 i2 s2' ∧ valid_state (remove_binding_lval table r) rmap2 vme m0 s1' s2'.
+  ∃ s2' : estate, esem_i P' rip (MkI ii i2) s2 = ok s2' ∧ valid_state (remove_binding_lval table r) rmap2 vme m0 s1' s2'.
 Proof.
   move=> hvs he hmsf htr; rewrite /truncate_val /=.
   t_xrbindP=> a /to_arrI ? ? hw; subst v v'.
@@ -4942,7 +4942,7 @@ Proof.
   have [vmsf' [ok_vmsf' htr']] := alloc_eP hvs hmsf' hmsf htr.
   have hto: to_word msf_size vmsf' = ok 0%R.
   + by move: htr'; rewrite /truncate_val /=; t_xrbindP=> _ -> ->.
-  constructor; rewrite /= P'_globs.
+  rewrite /= P'_globs.
   apply
     (slh_lowering_proof.hshp_spec_lower hshparams
       (args := [:: vey; vmsf']) (res := [:: Vword wey]) heq).
