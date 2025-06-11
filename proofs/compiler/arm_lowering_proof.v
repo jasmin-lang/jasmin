@@ -1969,9 +1969,9 @@ Proof.
   have [_ hfvres hfvc] := disj_fvars_get_fundef hget.
   rewrite get_map_prog hget /= /lower_fd.
   eexists; first reflexivity.
-  exists eq_fv, eq_fv => s.
+  move=> s.
   move=> /(eq_initialize (fd':= with_body fd (lower_cmd (f_body fd)))) -/(_ p' erefl erefl erefl erefl) hinit.
-  exists s; split => //=; last by apply st_eq_ex_finalize.
+  exists s => //; exists eq_fv, eq_fv; split => //=; last by apply st_eq_ex_finalize.
   move: (f_body fd) hfvc. clear fn fs fd hget hfvres hinit s.
   set sip := sip_of_asm_e.
   apply (cmd_rect (Pr := Pi_r_) (Pi:=Pi_) (Pc:=Pc_)) => //; rewrite /Pi_r_ /Pi_ /Pc_.

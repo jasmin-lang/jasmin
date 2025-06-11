@@ -1962,10 +1962,10 @@ Section PROOF.
     move=> /disjoint_union [Hdisjp /disjoint_union [Hdisjr Hdisjc]].
     rewrite get_map_prog hget /= /lower_fd.
     eexists; first reflexivity.
-    exists eq_exc_fresh, eq_exc_fresh => s.
+    move=> s.
     set c' := lowering.lower_cmd _ _ _ _ _.
     move=> /(eq_initialize (fd':= with_body fd c')) -/(_ p' erefl erefl erefl erefl) hinit.
-    exists s; split => //=; last by apply st_eq_ex_finalize.
+    exists s=> //; exists eq_exc_fresh, eq_exc_fresh; split => //=; last by apply st_eq_ex_finalize.
     subst c'; move: (f_body fd) Hdisjc. clear fn fs fd hget Hdisjp Hdisjr hinit s.
     set ep := ep_of_asm_e.
     set spp := spp_of_asm_e.

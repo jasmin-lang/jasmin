@@ -613,9 +613,11 @@ Section PROOF.
     set fd := {| f_info := _ |}.
     t_xrbindP; set O := read_es _; move=> [I c'] hc ?; subst fd'.
     set fd' := {| f_info := _ |}.
-    exists (st_uincl_on I), (st_uincl_on O) => s1 hinit.
+    move=> s1 hinit.
     have [s1' hinit' hu1] := fs_uincl_initialize (fd':= fd') erefl erefl erefl eq_p_extra hfsu hinit.
-    exists s1'; split => //;first (by case: hu1 => *; split); last first.
+    exists s1' => //.
+    exists (st_uincl_on I), (st_uincl_on O).
+    split => //;first (by case: hu1 => *; split); last first.
     + move=> s2 s2' fr /st_relP [-> /= hu2].
       rewrite /finalize_funcall; t_xrbindP => vres.
       have /= <-:= @sem_pexprs_get_var _ _ _ _ _ gd s2 => hvres vrestr htr <-.

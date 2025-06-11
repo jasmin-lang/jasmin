@@ -1444,9 +1444,7 @@ Proof.
   move=> fn _ fs ft [<- hfsu] fd hget.
   exists (const_prop_fun (p_globs p) fd).
   + by rewrite get_map_prog hget.
-  move=> {hget}.
-  exists (cmpl_inv empty_cpm),
-         (cmpl_inv (const_prop (const_prop_i gd) empty_cpm (f_body fd)).1) => s1 hinit.
+  move=> {hget} s1 hinit.
   have [hin hout hex hpar hres] :
       [/\ f_tyin fd = f_tyin (const_prop_fun gd fd)
         , f_tyout fd = f_tyout (const_prop_fun gd fd)
@@ -1458,7 +1456,9 @@ Proof.
   have : exists2 t1, initialize_funcall p' ev (const_prop_fun gd fd) ft = ok t1 &
                        cmpl_inv empty_cpm s1 t1.
   + by have [t h1 []] := fs_uincl_initialize (p':=p') hin hex hpar erefl hfsu hinit; exists t.
-  move=> [t1 ht1 hinv]; exists t1; split => //; last first.
+  move=> [t1 ht1 hinv]; exists t1 => //.
+  exists (cmpl_inv empty_cpm),
+         (cmpl_inv (const_prop (const_prop_i gd) empty_cpm (f_body fd)).1); split => //; last first.
   + apply wrequiv_weaken with (st_uincl tt) fs_uincl => //.
     + by move=> > [] ?? [??].
     by apply fs_uincl_finalize.

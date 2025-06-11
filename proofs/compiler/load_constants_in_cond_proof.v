@@ -420,9 +420,8 @@ Proof.
   t_xrbindP => c'; set X := (X in load_constants_i _ X).
   move=> hc' ?; subst fd'.
   exists (with_body fd c') => //.
-  exists (st_eq_on X), (st_eq_on X) => s.
-  move=> /(eq_initialize (p':=p') (fd':=with_body fd c')) -> //; last by rewrite -hp'.
-  exists s; split => //=; last first.
+  move=> s /(eq_initialize (p':=p') (fd':=with_body fd c')) -> //; last by rewrite -hp'.
+  exists s => //=; exists (st_eq_on X), (st_eq_on X); split => //; last first.
   + apply wrequiv_weaken with (st_eq_on (vars_l (f_res (with_body fd c')))) eq => //.
     + by apply st_rel_weaken => ??; apply eq_onI; rewrite /= /X vars_l_read_es; SvD.fsetdec.
     by apply: (st_eq_on_finalize (fd':=with_body fd c')).

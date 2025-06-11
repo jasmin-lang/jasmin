@@ -1009,8 +1009,7 @@ Proof.
   move=> finfo ftyin fparams fbody ftyout fres fextra hget1.
   set fd := {| f_info := finfo |} => hinit.
   t_xrbindP => ins hparams outs hres <- ??; subst mt inout.
-  t_xrbindP => c hc ?; exists fd1; subst fd1 => //.
-  exists (eq_alloc m), (eq_alloc m) => s1.
+  t_xrbindP => c hc ?; exists fd1; subst fd1 => // s1.
   rewrite /initialize_funcall /=; t_xrbindP; rewrite /estate0 => vs1 htr hw.
   rewrite -hscs -hmem hflat => {hflat}.
   move: hexpd; rewrite hsigs => -[??]; subst expdin expdout.
@@ -1033,7 +1032,7 @@ Proof.
     by move=> hin <- _ <- [<-].
   have [s1']:= expand_returnsP hwf heqae (expend_tyv_expand_return hparams) hw hexpv.
   rewrite map_comp -map_flatten -(write_vars_lvals false gd) => -> heqa1.
-  exists s1'; split => //.
+  exists s1' => //; exists (eq_alloc m), (eq_alloc m); split => //.
   + by apply expand_cP.
   move=> s t fr1 heqa2; rewrite /finalize_funcall /=; t_xrbindP.
   move=> vres hgets vres' {}htr <-; have ? := mapM2_dc_truncate_id htr; subst vres'.

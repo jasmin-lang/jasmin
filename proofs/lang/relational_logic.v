@@ -1086,11 +1086,11 @@ Definition wequiv_fun_body_hyp (RPreF:relPreF) fn1 fn2 (RPostF:relPostF) :=
   RPreF fn1 fn2 fs1 fs2 ->
   forall fd1, get_fundef (p_funcs p1) fn1 = Some fd1 ->
   exists2 fd2, get_fundef (p_funcs p2) fn2 = Some fd2 &
-    exists (P Q : rel_c),
-      forall s11, initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s11 ->
-      exists s21,
-        [/\ initialize_funcall (dc:=dc2) p2 ev2 fd2 fs2 = ok s21
-          , P s11 s21
+    forall s11, initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s11 ->
+     exists2 s21,
+       initialize_funcall (dc:=dc2) p2 ev2 fd2 fs2 = ok s21 &
+       exists (P Q : rel_c),
+        [/\ P s11 s21
           , wequiv P fd1.(f_body) fd2.(f_body) Q
           & wrequiv Q (finalize_funcall (dc:=dc1) fd1) (finalize_funcall (dc:=dc2) fd2) (RPostF fn1 fn2 fs1 fs2)].
 
@@ -1109,11 +1109,12 @@ Proof.
     move=> _ _; apply xrutt_CutL.
     by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
   move=> fd1 fd2 [+ hfd2].
-  move=> {}/hf [fd2']; rewrite hfd2 => -[?] [P] [Q] hf; subst fd2'.
-  apply wkequiv_bind with (fun s1 s2 => [/\ P s1 s2, initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s1 &
-                                                     initialize_funcall (dc:=dc2) p2 ev2 fd2 fs2 = ok s2]).
-  + by apply wkequiv_iresult; apply wrequiv_id => ?? s1 [-> ->] /hf [s2] [*]; exists s2.
-  apply wkequiv_eq_pred => s1 s2 [_ + hs2] => {}/hf [s2']; rewrite hs2 => -[] [?] hP hbody hfin; subst s2'.
+  move=> {}/hf [fd2']; rewrite hfd2 => -[?] hf; subst fd2'.
+  apply wkequiv_bind with (fun s1 s2 => initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s1 /\
+                                        initialize_funcall (dc:=dc2) p2 ev2 fd2 fs2 = ok s2).
+  + by apply wkequiv_iresult => ?? s1 [-> ->] /[dup] hinit1 /hf [s2] hinit2 _; exists s2.
+  apply wkequiv_eq_pred => s1 s2 [hinit1 hinit2].
+  have := hf _ hinit1; rewrite hinit2 => -[_] [<-] [P] [Q] [hP hbody hres].
   apply wkequiv_bind with Q.
   + by apply: wequiv_weaken hbody => // > [-> ->].
   by apply wkequiv_iresult.
@@ -1704,14 +1705,13 @@ Definition wequiv_fun_body_hyp_rec (RPreF:relPreF) fn1 fn2 (RPostF:relPostF) :=
   RPreF fn1 fn2 fs1 fs2 ->
   forall fd1, get_fundef (p_funcs p1) fn1 = Some fd1 ->
   exists2 fd2, get_fundef (p_funcs p2) fn2 = Some fd2 &
-    exists (P Q : rel_c),
-      forall s11, initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s11 ->
-      exists s21,
-        [/\ initialize_funcall (dc:=dc2) p2 ev2 fd2 fs2 = ok s21
-          , P s11 s21
+    forall s11, initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s11 ->
+    exists2 s21,
+      initialize_funcall (dc:=dc2) p2 ev2 fd2 fs2 = ok s21 &
+      exists (P Q : rel_c),
+        [/\ P s11 s21
           , wequiv_rec P fd1.(f_body) fd2.(f_body) Q
           & wrequiv Q (finalize_funcall (dc:=dc1) fd1) (finalize_funcall (dc:=dc2) fd2) (RPostF fn1 fn2 fs1 fs2)].
-
 
 #[local]
 Lemma xrutt_weaken_aux post (sem1 : itree (recCall +' E) fstate) (sem2 : itree (recCall +' E) fstate) :

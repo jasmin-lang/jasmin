@@ -237,11 +237,12 @@ Section PROOF.
     apply wequiv_fun_ind => hrec {fn}.
     move=> fn _ fs _ [<- <-] fd hfd; exists (unroll_fun (fn, fd)).1.2.
     + by apply: p'_get_fundef hfd.
-    exists (st_eq tt), (st_eq tt) => s {hfd}.
+    move=> s {hfd}.
     case: fd => /= finfo ftyin fparams fbody ftyout fres fextra.
     case heq: unroll_cmd => [c' b] /= hinit.
-    exists s; split => //.
+    exists s.
     + by move: hinit; rewrite /initialize_funcall /= p'_extra.
+    exists (st_eq tt), (st_eq tt); split => //.
     2: by apply st_eq_finalize.
     have -> : c' = (unroll_cmd unroll_i fbody).1 by rewrite heq.
     clear heq hinit c' b fn fs s finfo ftyin fparams ftyout fres fextra.

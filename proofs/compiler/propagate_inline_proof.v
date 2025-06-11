@@ -837,10 +837,9 @@ Section PROOF.
          ].
     + move: hfun; rewrite /pi_fun; case fd1 => /= >; t_xrbindP => di -> <- /=; split => //.
       by exists di.
-    exists (st_pi piempty), (st_pi dc_.1).
     move=> s1 hinit.
     have [t1 -> hst1] := [elaborate fs_uincl_initialize hin hex hpar eq_p_extra hfsu hinit].
-    exists t1; split => //; last first.
+    exists t1 => //; exists (st_pi piempty), (st_pi dc_.1); split => //; last first.
     + apply wrequiv_weaken with (st_uincl tt) fs_uincl => //.
       + by move=> > [].
       by apply fs_uincl_finalize.
