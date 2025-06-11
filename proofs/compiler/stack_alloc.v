@@ -1486,7 +1486,7 @@ Definition sao_frame_size sao :=
 
 Section PROG.
 
-Context (local_alloc: funname -> stk_alloc_oracle_t).
+Context (local_alloc: funname -> stk_alloc_oracle_t) (P:_uprog).
 
 Definition get_Pvar e :=
   match e with
@@ -1772,6 +1772,8 @@ Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region
     ok (table, rmap, [:: MkI ii (Cwhile a (flatten c1) e info (flatten c2))])
 
   | Ccall rs fn es =>
+    Let _ := assert (if get_fundef (p_funcs P) fn is None then false else true)
+                (pp_at_ii ii (stk_ierror_no_var "call to a undefined function")) in
     let table := remove_binding_lvals table rs in
     Let ri := add_iinfo ii (alloc_call sao rmap rs fn es) in
     ok (table, ri.1, [::MkI ii ri.2])
@@ -1965,7 +1967,7 @@ Definition init_params mglob stack disj lmap rmap sao_params params :=
 
 Definition fresh_reg := fresh_var_ident (Reg (Normal, Direct)) 0.
 
-Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) sao fd : cexec _ufundef :=
+Definition alloc_fd_aux P p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) sao fd : cexec _ufundef :=
   let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
   let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_rsp) |} in
   let vxlen := {| vtype := sword Uptr; vname := fresh_reg "__len__"%string (sword Uptr) |} in
@@ -2004,7 +2006,7 @@ Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_
                  (stk_ierror_no_var "sao_max_size too small")
   in
   Let: (table, rmap, body) :=
-    fmapM (alloc_i pmap local_alloc sao) (table, rmap) fd.(f_body) in
+    fmapM (alloc_i pmap local_alloc P sao) (table, rmap) fd.(f_body) in
   Let res :=
       check_results pmap rmap paramsi fd.(f_params) sao.(sao_return) fd.(f_res) in
   ok {|
@@ -2016,9 +2018,9 @@ Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_
     f_res := res;
     f_extra := f_extra fd |}.
 
-Definition alloc_fd p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) fn fd :=
+Definition alloc_fd P p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) fn fd :=
   let: sao := local_alloc fn in
-  Let fd := alloc_fd_aux p_extra mglob local_alloc sao fd in
+  Let fd := alloc_fd_aux P p_extra mglob local_alloc sao fd in
   let f_extra := {|
         sf_align  := sao.(sao_align);
         sf_stk_sz := sao.(sao_size);
@@ -2118,7 +2120,7 @@ Definition alloc_prog rip rsp global_data global_alloc local_alloc (P:_uprog) : 
     sp_glob_names := global_alloc;
   |} in
   Let _ := assert (rip != rsp) (stk_ierror_no_var "rip and rsp clash") in
-  Let p_funs := map_cfprog_name (alloc_fd p_extra mglob local_alloc) P.(p_funcs) in
+  Let p_funs := map_cfprog_name (alloc_fd P p_extra mglob local_alloc) P.(p_funcs) in
   ok  {| p_funcs  := p_funs;
          p_globs := [::];
          p_extra := p_extra;

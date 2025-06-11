@@ -333,6 +333,14 @@ Proof.
        mem_equiv_proc).
 Qed.
 
+Lemma esem_i_mem_equiv s1 c s2 :
+  esem_i P ev c s1 = ok s2 → emem s1 ≡ emem s2.
+Proof. move=> /esem_i_sem. apply sem_I_mem_equiv. Qed.
+
+Lemma esem_mem_equiv s1 c s2 :
+  esem P ev c s1 = ok s2 → emem s1 ≡ emem s2.
+Proof. move=> /esem_sem; apply sem_mem_equiv. Qed.
+
 End MEM_EQUIV.
 
 Lemma sem_stack_stable_uprog (p : uprog) (ev : unit) s1 c s2 :
@@ -356,10 +364,24 @@ Proof.
   by move=> s1 s2 m2 ef /= [<-].
 Qed.
 
+Lemma esem_i_stack_stable_uprog (p : uprog) (ev : unit) s1 c s2 :
+  esem_i p ev c s1 = ok s2 → stack_stable (emem s1) (emem s2).
+Proof.
+  apply esem_i_mem_equiv => {s1 c s2}.
+  by move=> s1 s2 m2 ef /= [<-].
+Qed.
+
 Lemma sem_i_validw_stable_uprog (p : uprog) (ev : unit) s1 c s2 :
   sem_i p ev s1 c s2 → validw (emem s1) =3 validw (emem s2).
 Proof.
   apply sem_i_mem_equiv => {s1 c s2}.
+  by move=> s1 s2 m2 ef /= [<-].
+Qed.
+
+Lemma esem_i_validw_stable_uprog (p : uprog) (ev : unit) s1 c s2 :
+  esem_i p ev c s1 = ok s2 → validw (emem s1) =3 validw (emem s2).
+Proof.
+  apply esem_i_mem_equiv => {s1 c s2}.
   by move=> s1 s2 m2 ef /= [<-].
 Qed.
 
@@ -404,10 +426,36 @@ Proof.
   by apply (alloc_free_validw_stable hass hss hvalid).
 Qed.
 
+Lemma esem_stack_stable_sprog (p : sprog) (gd : pointer) s1 c s2 :
+  esem p gd c s1 = ok s2 -> stack_stable (emem s1) (emem s2).
+Proof.
+  apply esem_mem_equiv => {s1 c s2}.
+  move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.
+  t_xrbindP=> m1 /Memory.alloc_stackP hass /=.
+  do 2!rewrite write_var_eq_type //=; move=> [<-] /= [hss hvalid].
+  have hfss := Memory.free_stackP m2.
+  split.
+  + by apply (alloc_free_stack_stable hass hss hfss).
+  by apply (alloc_free_validw_stable hass hss hvalid).
+Qed.
+
 Lemma sem_validw_stable_sprog (p : sprog) (gd : pointer) s1 c s2 :
   sem p gd s1 c s2 -> validw (emem s1) =3 validw (emem s2).
 Proof.
   apply sem_mem_equiv => {s1 c s2}.
+  move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.
+  t_xrbindP=> m1 /Memory.alloc_stackP hass /=.
+  do 2!rewrite write_var_eq_type //=; move=> [<-] /= [hss hvalid].
+  have hfss := Memory.free_stackP m2.
+  split.
+  + by apply (alloc_free_stack_stable hass hss hfss).
+  by apply (alloc_free_validw_stable hass hss hvalid).
+Qed.
+
+Lemma esem_validw_stable_sprog (p : sprog) (gd : pointer) s1 c s2 :
+  esem p gd c s1 = ok s2 -> validw (emem s1) =3 validw (emem s2).
+Proof.
+  apply esem_mem_equiv => {s1 c s2}.
   move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.
   t_xrbindP=> m1 /Memory.alloc_stackP hass /=.
   do 2!rewrite write_var_eq_type //=; move=> [<-] /= [hss hvalid].

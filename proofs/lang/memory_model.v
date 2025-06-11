@@ -77,17 +77,17 @@ Class pointer_op (pointer: eqType) : Type := PointerOp {
 
   add : pointer -> Z -> pointer;
   sub : pointer -> pointer -> Z;
-  p_to_z : pointer -> Z; 
+  p_to_z : pointer -> Z;
 
   add_sub : forall p k, add p (sub k p) = k;
-  sub_add : forall p k, 0 <= k < wsize_size U256 -> sub (add p k) p = k; 
+  sub_add : forall p k, 0 <= k < wsize_size U256 -> sub (add p k) p = k;
   add_0   : forall p, add p 0 = p;
 
 }.
 
 Context {Pointer: pointer_op pointer}.
 
-Definition is_align (p:pointer) (sz:wsize) := 
+Definition is_align (p:pointer) (sz:wsize) :=
   (p_to_z p mod wsize_size sz == 0)%Z.
 
 Lemma is_align8 p : is_align p U8.
@@ -97,12 +97,12 @@ Class coreMem (core_mem: Type) := CoreMem {
   get : core_mem -> pointer -> exec u8;
   set : core_mem -> pointer -> u8 -> exec core_mem;
   valid8 : core_mem -> pointer -> bool;
-  setP : 
+  setP :
     forall m p w p' m',
       set m p w = ok m' ->
       get m' p' = if p == p' then ok w else get m p';
   valid8P : forall m p w, reflect (exists m', set m p w = ok m') (valid8 m p);
-  get_valid8 : forall m p w, get m p = ok w -> valid8 m p; 
+  get_valid8 : forall m p w, get m p = ok w -> valid8 m p;
   valid8_set : forall m p w m' p', set m p w = ok m' -> valid8 m' p' = valid8 m p';
 }.
 
@@ -256,7 +256,7 @@ Section CoreMem.
     move=> [m'];t_xrbindP => m'' hset hf; split.
     + by apply/valid8P; eexists; eauto.
     apply/sub_all; last by apply/hrec; eexists; eauto.
-    by move=> i;rewrite (valid8_set _ hset). 
+    by move=> i;rewrite (valid8_set _ hset).
   Qed.
 
   Lemma readV m al ptr sz w :
@@ -302,7 +302,7 @@ Section CoreMem.
     write m al p v = ok m' ->
     read m' al p s = ok v.
   Proof.
-    move=> hw. 
+    move=> hw.
     rewrite (read8_read (m:=m') al (v:= v) (p:=p)).
     + by have /validwP [->] : validw m al p s by apply /writeV; eexists; eauto.
     move=> al' k hk.
@@ -653,7 +653,7 @@ Proof.
   by rewrite /wunsigned mathcomp.word.word.addwE -/(wbase Uptr) mod_wbase_wsize_size -Zplus_mod_idemp_l h.
 Qed.
 
-Lemma is_align_add (ptr1 ptr2:pointer) sz : 
+Lemma is_align_add (ptr1 ptr2:pointer) sz :
   is_align ptr1 sz -> is_align ptr2 sz -> is_align (ptr1 + ptr2)%R sz.
 Proof. by move=> /is_align_addE ->. Qed.
 
@@ -692,7 +692,7 @@ Notation do_align := align_word (only parsing).
 Lemma do_align_is_align sz p : is_align (do_align sz p) sz.
 Proof. apply align_word_aligned. Qed.
 
-Lemma is_align_array ptr sz j : 
+Lemma is_align_array ptr sz j :
   is_align ptr sz → is_align (wrepr _ (wsize_size sz * j) + ptr)%R sz.
 Proof. by move=> hptr; apply is_align_add => //; apply is_align_mul. Qed.
 
@@ -880,6 +880,10 @@ End SPEC.
 #[ global ] Arguments alloc_stack_spec {_ _ _} _ _ _ _ _.
 #[ global ] Arguments stack_stable {_ _ _} _ _.
 #[ global ] Arguments free_stack_spec {_ _ _} _ _.
+
+Lemma stack_stable_trans mem {CM : coreMem pointer mem} {M : memory CM} m2 m1 m3 :
+   stack_stable m1 m2 -> stack_stable m2 m3 -> stack_stable m1 m3.
+Proof. by move=> [???] [???]; split; congruence. Qed.
 
 Lemma top_stack_after_aligned_alloc p ws sz :
   is_align p ws ->
