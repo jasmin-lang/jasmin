@@ -2432,7 +2432,7 @@ Proof.
   t_xrbindP => -[{}rmap2 ?] hres _ _ _ /= <-.
   have [{}hargs _] := alloc_call_argsE hargs.
   rewrite /wf_table_vars remove_binding_lvals_vars.
-  do 2split=> //.
+  do 2 split=> //.
   + by apply wft_VARS_remove_binding_lvals.
   + have hvarsz1' := wfr_VARS_ZONE_alloc_call_args_aux hargs hvarsz1.
     apply (wfr_VARS_ZONE_alloc_call_res hres) => //.
