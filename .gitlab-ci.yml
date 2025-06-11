@@ -255,6 +255,7 @@ test-build-docs:
   stage: test
   script:
     - cd docs && nix-shell --pure --run 'make html'
+  needs: []
 
 push-compiler-code:
   stage: deploy
