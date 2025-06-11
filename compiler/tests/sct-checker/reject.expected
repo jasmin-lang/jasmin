@@ -30,6 +30,9 @@ Failed as expected leak_transient: "fail/basic.jazz", line 1 (42-50):
 File bug_1179.jazz:
 Failed as expected main: "fail/bug_1179.jazz", line 9 (4-5):
                          speculative constant type checker: x has type #secret but should be at most #public
+File bug_1189_warning.jazz:
+Failed as expected test: "fail/bug_1189_warning.jazz", line 6 (2) to line 9 (3):
+                         speculative constant type checker: constraints caused by the loop cannot be satisfied
 File bug_887.jazz:
 Failed as expected test_venv: "fail/bug_887.jazz", line 13 (3-4):
                               speculative constant type checker: r has type #secret but should be at most #public
