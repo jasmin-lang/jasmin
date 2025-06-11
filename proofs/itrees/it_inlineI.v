@@ -228,6 +228,45 @@ Definition inline_cmd_info (c1 c2: cmd) : Type :=
     (forall s, eutt eq (forget_tr (kt s)) (asem_c1 s)) /\
     (forall s, eutt eq (sem_inline (RA_tr (kt s))) (asem_c2 s))).
 
+Definition inl_ext {F1 F2} F3 (X: F1 -< F2) : F1 -< F2 +' F3 :=
+  fun T y => inl1 (X T y).
+
+Definition inr_ext {F1 F2} F3 (X: F1 -< F2) : F1 -< F3 +' F2 :=
+  fun T y => inr1 (X T y).
+
+Variant ResultSim T1 T2 (RR: T1 -> T2 -> Prop) :
+    result error T1 -> result error T2 -> Type :=
+  | ResultSim_error : forall e, ResultSim (Error e) (Error e)
+  | ResultSim_ok : forall t1 t2, RR t1 t2 -> ResultSim (ok t1) (ok t2).            
+Lemma err_result_forget_eqit b1 b2 (D1 E1: Type -> Type) (X: ErrEvent -< E1)
+  (Err : error -> error_data) T1 T2 (RR: T1 -> T2 -> Prop)
+  (t1: result error T1) (t2: result error T2) (H: ResultSim RR t1 t2) : 
+  eqit RR b1 b2 (translate (@forget_f D1 E1)
+             (@err_result ((D1 +' D1) +' E1) (inr_ext _ X) Err T1 t1))
+          (@err_result (D1 +' E1) (inr_ext _ X) Err T2 t2).
+Proof.
+  destruct H; simpl.
+  - pstep; red; simpl.
+    econstructor; intro v. destruct v.
+  - pstep; red; simpl.
+    econstructor; auto.
+Qed.    
+
+Lemma err_result_rassoc_eqit b1 b2 (D1 E1: Type -> Type) (X: ErrEvent -< E1)
+  (Err : error -> error_data) (hh: D1 ~> itree (D1 +' E1)) T1 T2 (RR: T1 -> T2 -> Prop)
+  (t1: result error T1) (t2: result error T2) (H: ResultSim RR t1 t2) : 
+  eqit RR b1 b2 (interp (ext_handler hh) (translate (@rassoc_tr D1 D1 E1)
+          (@err_result ((D1 +' D1) +' E1) (inr_ext _ X) Err T1 t1)))
+    (@err_result (D1 +' E1) (inr_ext _ X) Err T2 t2).
+Proof.
+  destruct H; simpl.
+  - pstep; red; simpl.
+    econstructor. intros v; destruct v.
+  - pstep; red; simpl.
+    econstructor; eauto.
+Qed.    
+
+
 Context (InputRel : values -> estate -> Prop)
         (FStateRel : fstate -> estate -> Prop).
 
@@ -386,7 +425,11 @@ Proof.
     { unfold forget_tr, flat_i_sem, isem_ifP; simpl.
       repeat (rewrite translate_bind).
       eapply eqit_bind; eauto; try reflexivity.
-      admit.
+
+      eapply err_result_forget_eqit; simpl.
+      destruct (sem_cond (p_globs p) e s) eqn: was_t;
+        econstructor; eauto.
+      
       unfold pointwise_relation; intro b.
       destruct b; eauto.
       eapply Hc1A.
@@ -398,8 +441,11 @@ Proof.
       rewrite translate_bind.
       rewrite interp_bind.
       eapply eqit_bind; try reflexivity.
-      admit.
 
+      eapply err_result_rassoc_eqit.
+      destruct (sem_cond (p_globs p) e s) eqn: was_t;
+        econstructor; eauto.
+       
       unfold pointwise_relation; intro b.
       rewrite bind_ret_r.
       destruct b; eauto.
@@ -427,8 +473,83 @@ Proof.
 
     set kt := (isem_forP p x (dir, lo, hi) kt0).
     exists kt.
+
+    subst kt; split; simpl; intro s.
+
+    { unfold forget_tr, flat_i_sem. simpl.
+      rewrite translate_bind.
+      eapply eqit_bind.
+
+      eapply err_result_forget_eqit.
+      destruct (sem_bound (p_globs p) lo hi s) eqn: was_t;
+        econstructor; eauto.
+      
+      unfold pointwise_relation; intros [z1 z2]; simpl.
+      unfold isem_for_loopP; simpl.
+
+      revert s.
+      induction (wrange dir z1 z2); simpl.
+      intro s.
+      rewrite translate_ret. reflexivity.
+
+      intros s; simpl.
+      unfold isem_for_roundP; simpl.
+      rewrite translate_bind.
+      eapply eqit_bind.
+
+      eapply err_result_forget_eqit.
+      destruct (write_var true x a s) eqn: was_t;
+        econstructor; eauto.
+      
+      unfold pointwise_relation; intro s1.
+      rewrite translate_bind.
+      eapply eqit_bind.
+
+      eapply Hc1A.
+      
+      unfold pointwise_relation; intro s2.
+      eapply IHl.
+    }      
     
-    admit.
+    { rewrite bind_ret_r.
+      unfold isem_for_loopP, isem_for_roundP; simpl.
+      rewrite translate_bind; simpl.
+      unfold isem_for_loop, isem_for_round; simpl.
+      rewrite interp_bind.
+      eapply eqit_bind.
+
+      eapply err_result_rassoc_eqit.
+      destruct (sem_bound (p_globs p) lo hi s) eqn: was_t;
+        econstructor; eauto.
+      
+      unfold pointwise_relation; intros [z1 z2]; simpl.
+      revert s.
+
+      induction (wrange dir z1 z2); simpl.
+
+      intro s.
+      rewrite translate_ret; simpl.
+      unfold sem_inline; simpl.
+      pstep; red. simpl. econstructor; auto.
+
+      intro s.
+      rewrite translate_bind.
+      rewrite interp_bind.
+      eapply eqit_bind.
+
+      eapply err_result_rassoc_eqit.
+      destruct (write_var true x a s) eqn: was_t;
+        econstructor; eauto.
+       
+      intro s1.
+      rewrite translate_bind.
+      rewrite interp_bind.
+      eapply eqit_bind.
+      eapply Hc1B.
+
+      intro s2; simpl.
+      eapply IHl.
+    }  
   }
 
   { rename c1 into c0.
@@ -468,8 +589,11 @@ Proof.
 
       rewrite translate_bind.
       eapply eqit_bind' with (RR:= eq).
-      admit.
 
+      eapply err_result_forget_eqit; simpl.
+      destruct (sem_cond (p_globs p) e r2) eqn: was_t;
+        econstructor; eauto.
+      
       intros b1 b2 H.
       inv H; simpl.
       destruct b2; simpl.
@@ -503,8 +627,11 @@ Proof.
       rewrite translate_bind.
       rewrite interp_bind.
       eapply eqit_bind.
-      admit.
 
+      eapply err_result_rassoc_eqit.
+      destruct (sem_cond (p_globs p) e s1) eqn: was_t;
+        econstructor; eauto.
+      
       unfold pointwise_relation; intro b.
       destruct b; simpl.
       { rewrite translate_bind.
