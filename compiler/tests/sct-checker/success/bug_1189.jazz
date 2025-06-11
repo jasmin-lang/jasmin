@@ -1,0 +1,4 @@
+export fn foo() {
+  inline int j;
+  for j = 1 to 2 {}
+}
