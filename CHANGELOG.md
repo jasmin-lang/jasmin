@@ -70,6 +70,9 @@
   ([PR #1190](https://github.com/jasmin-lang/jasmin/pull/1190);
   fixes [#1189](https://github.com/jasmin-lang/jasmin/issues/1189)).
 
+- Add support for the MMX/SSE instruction `PADD`
+  ([PR #1196](https://github.com/jasmin-lang/jasmin/pull/1196)).
+
 ## Other changes
 
 - The deprecated legacy interface to extract to EasyCrypt has been removed

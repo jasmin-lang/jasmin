@@ -108,6 +108,7 @@ Definition size_8_64 sz := (sz <= U64)%CMP.
 Definition size_16_32 sz := ((U16 <= sz) && (sz <= U32))%CMP.
 Definition size_16_64 sz := ((U16 ≤ sz) && (sz ≤ U64))%CMP.
 Definition size_32_64 sz := ((U32 ≤ sz) && (sz ≤ U64))%CMP.
+Definition size_64_128 sz := ((U64 ≤ sz) && (sz ≤ U128))%CMP.
 Definition size_128_256 sz := ((U128 ≤ sz) && (sz ≤ U256))%CMP.
 
 Lemma wsize_nle_u64_size_128_256 sz :
@@ -135,6 +136,7 @@ Definition string_of_ve_sz (ve:velem) (sz:wsize) : string :=
   | VE8, U64 => "8u8"
   | VE16, U64 => "4u16"
   | VE32, U64 => "2u32"
+  | VE64, U64 => "1u64"
   | VE8 , U128 => "16u8"
   | VE16, U128 => "8u16"
   | VE32, U128 => "4u32"
