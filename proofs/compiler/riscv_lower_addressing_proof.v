@@ -446,11 +446,13 @@ Proof.
   set X := Sv.union (read_c (f_body fd)) (vars_l (f_res fd)).
   have tmp_nin : ~Sv.In tmp X by rewrite /X; SvD.fsetdec.
   have htytmp : vtype tmp = sword Uptr by [].
-  rewrite -{1}hp' /=; eexists; first eauto.
-  exists (st_eq_on X), (st_eq_on X) => s.
+  rewrite -{1}hp' /=; eexists; first by eauto.
+  move => s.
   set c' := lower_addressing_c tmp (f_body fd).
   move=> /(eq_initialize (sip:= sip) (p':=p') (fd':=with_body fd c')) -> //; last by rewrite -hp'.
-  exists s; split => //=; last first.
+  exists s; first reflexivity.
+  exists (st_eq_on X), (st_eq_on X).
+  split => //=; last first.
   + apply wrequiv_weaken with (st_eq_on (vars_l (f_res fd))) eq => //.
     + by apply st_rel_weaken => ??; apply eq_onI; rewrite /= /X; SvD.fsetdec.
     by apply: (st_eq_on_finalize (fd':=with_body fd c')).
