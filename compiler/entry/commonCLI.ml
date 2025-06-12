@@ -81,14 +81,12 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
   let prog =
     if pass <= Compiler.ParamsExpansion then prog
     else
-      let module E = struct
-        exception Found
-      end in
+      let exception Found in
       let res = ref prog in
       let stop ~debug:_ step prog =
         if step = pass then (
           res := prog;
-          raise E.Found)
+          raise Found)
       in
       let cp = Conv.cuprog_of_prog prog in
       (* We need to avoid catching compilation errors. *)
@@ -97,6 +95,6 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
       | Utils0.Error e ->
           let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
           raise (HiError e)
-      | exception E.Found -> !res
+      | exception Found -> !res
   in
   prog
