@@ -207,6 +207,8 @@ Definition handle_2recCall :
   (recCall +' recCall) ~> itree ((recCall +' recCall) +' E) :=
   joint_handler (handle_recCall p ev) (handle_recCall p ev). 
 
+(* eutt eq is too strong, both for the eutt (there might be errors) and 
+   for the eq (the two states are related, not necessarily equal) *)
 Definition inline_i_info (i: instr) (c: cmd) : Type :=
   let asem_i := flat_i_sem i in 
   let asem_c := flat_cmd_sem c in
@@ -267,8 +269,9 @@ Proof.
 Qed.    
 
 
-Context (InputRel : values -> estate -> Prop)
-        (FStateRel : fstate -> estate -> Prop).
+Context (InputRel : fstate -> estate -> Prop)
+        (CStateRel : estate -> estate -> Prop).
+ (*       (FStateRel : fstate -> estate -> Prop). *)
 
 Lemma inline_cmd_x (px: ufun_decls) (c1: cmd) :
   forall (X: Sv.t),
@@ -724,9 +727,138 @@ Proof.
       setoid_rewrite <- translate_cmpE.
       unfold CategoryOps.cat, Cat_IFun.
       rewrite interp_translate.
-      unfold flat_i_sem; simpl.
       subst cR.
+      unfold flat_i_sem; simpl.
 
+      set Exp_ev := (isem_pexprs (~~ direct_call) (p_globs p) es s).
+
+      set Post_pr := (fun fs : fstate =>
+                        iresult s (upd_estate (~~ direct_call) (p_globs p)
+                                     xs fs s)).
+
+      unfold isem_pexprs in Exp_ev.
+      unfold iresult in Exp_ev, Post_pr.
+
+      (* pre-processing *)
+      destruct (sem_pexprs (~~ direct_call) (p_globs p) s es) eqn: was_exp.
+
+      (* we need xrutt *)
+      2: { admit. }
+
+      subst Exp_ev; simpl.
+      rewrite bind_ret_l.
+
+      setoid_rewrite isem_cmd_cat at 1.
+      rewrite interp_bind; simpl.
+
+      set Ren_args := (isem_cmd_ p ev rename_args s).
+      unfold rename_args in Ren_args.
+
+      (* idea: renaming either terminates, or there's an error.
+         termining case. *)
+      assert (exists s1, eutt eq Ren_args (Ret s1)) as H0.
+      admit.
+
+      destruct H0 as [s1 H0].
+      rewrite H0.
+      rewrite bind_ret_l.
+
+      (* the actual call *)
+      setoid_rewrite isem_cmd_cat at 1.
+
+      eapply eqit_bind' with (RR:= InputRel).
+      (* given arg_eval succeds, InputRel must relate the input fstate
+         on the left, with a state after rename_args on the right
+         (both from state s) *)
+      
+      setoid_rewrite interp_trigger; simpl.
+      unfold isem_fun_rec, isem_fun_body.
+      unfold kget_fundef, ioget.
+
+      destruct (get_fundef (p_funcs p) fn) as [fd1 | ] eqn: was_ffd.
+      (* we need xrutt *)
+      2: { admit. }
+
+      rewrite was_ffd.
+      setoid_rewrite bind_ret_l; simpl.
+
+      set init_fc := (initialize_funcall p ev fd1 (mk_fstate l s)).
+      destruct init_fc as [s2 |] eqn: was_init.
+      (* we need xrutt *)
+      2: { admit. }
+
+      unfold iresult; simpl.
+      rewrite bind_ret_l; simpl.
+
+      unfold isem_cmd_.
+
+      (* finalize_funcall still standing in the way *)
+      setoid_rewrite <- bind_ret_r at 4.
+
+      eapply eqit_bind' with (RR := CStateRel).
+      (* need to relate fd1 and fd', as well as s1 and s2 *)
+      admit.
+
+      intros s3 s4 H1.
+      (* CStateRel needs to be chosen smartly *)
+      admit. 
+      
+      (* post-processing *)
+      intros fsF sF H1.
+
+      (* InputRel needs to have been chosen smartly *)
+      admit.
+    }
+  }
+
+Admitted.
+
+
+
+End IT_section1.
+    
+End IT_section.
+
+
+
+(*      
+      eapply eqit_bind' with (RR:= InputRel).
+
+      admit.
+
+      intros fs1 s1 H.
+
+      setoid_rewrite isem_cmd_cat at 1.
+
+      unfold interp.
+
+ (interp
+       (fun (T : Type) (e : (recCall +' E) T) =>
+        ext_handler (handle_recCall p ev) (rassoc_tr (rw_la e))) 
+       (Post_pr fs1))
+
+      
+      setoid_rewrite isem_cmd_cat at 1.
+      rewrite unfold_interp. simpl.
+      
+      eapply eqit_bind. with (RR:= InputRel).
+      
+      
+
+      
+      destruct (upd_estate (~~ direct_call) (p_globs p) xs fs s) eqn: was_post.
+           
+                
+      unfold handle_recCall.
+      unfold isem_fun_rec; simpl.
+      unfold isem_fun_body; simpl.
+      unfold flat_cmd_sem.
+      unfold isem_cmd_rec.
+      unfold isem_cmd_.
+      unfold isem_foldr.
+
+      unfold interp; simpl.
+      
       setoid_rewrite isem_cmd_cat at 1.
       rewrite interp_bind.
       eapply eqit_bind' with (RR:= InputRel).
@@ -757,3 +889,4 @@ End IT_section1.
     
 End IT_section.
   
+*)
