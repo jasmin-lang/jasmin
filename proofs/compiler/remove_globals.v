@@ -2,8 +2,9 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
-Require Import xseq.
-Require Import expr compiler_util.
+From thirdparty Require Import xseq.
+From lang Require Import expr.
+Require Import compiler_util.
 
 Local Open Scope seq_scope.
 

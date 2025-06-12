@@ -1,15 +1,15 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
-Require Import
-  compiler_util
+From lang Require Import
   expr
   fexpr
   one_varmap
-  linear
-  lea.
-Require Import
+  linear.
+From arch Require Import
   arm_expand_imm
   arch_decl
   arch_extra.
+Require Import compiler_util.
+Require Import lea.
 Import Utf8 String.
 Import compiler_util oseq.
 

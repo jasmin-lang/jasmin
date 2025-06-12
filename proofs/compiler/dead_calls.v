@@ -1,6 +1,7 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import ssreflect ssrfun ssrbool.
-(* ------- *) Require Import expr compiler_util gen_map.
+From lang     Require Import expr gen_map.
+(* ------- *) Require Import compiler_util.
 (* ------- *) (* - *) Import PosSet.
 Import  Utf8.
 

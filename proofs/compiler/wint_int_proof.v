@@ -1,4 +1,5 @@
-Require Import compiler_util psem psem_facts.
+From lang Require Import psem psem_facts.
+Require Import compiler_util.
 Require Import wint_int.
 Import Utf8.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.

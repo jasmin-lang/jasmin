@@ -1,0 +1,3 @@
+(coq.theory
+  (name lang)
+  (theories HB mathcomp elpi elpi_elpi Paco itrees ssrmisc thirdparty))

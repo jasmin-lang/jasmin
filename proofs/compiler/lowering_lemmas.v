@@ -1,11 +1,11 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 
-Require Import
+From lang Require Import
   expr
   low_memory
-  lowering
   psem.
-
+Require Import
+  lowering.
 
 Section ESTATE_EQ_EXCEPT.
 

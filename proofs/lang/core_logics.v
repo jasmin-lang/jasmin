@@ -17,7 +17,7 @@ From ITree Require Import
 
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 
-Require Import xrutt xrutt_facts rutt_extras.
+From itrees Require Import xrutt xrutt_facts rutt_extras.
 
 Notation prepred E := (forall T, E T -> Prop).
 Notation postpred E := (forall T, E T -> T -> Prop).

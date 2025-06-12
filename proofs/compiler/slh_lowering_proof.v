@@ -1,14 +1,15 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 
-Require Import
+From lang Require Import
   expr
   psem.
 Require Import
   compiler_util
   slh_lowering.
-Require Import psem_facts.
+From lang Require Import psem_facts.
+From lang Require
+  expr_facts.
 Require
-  expr_facts
   constant_prop_proof.
 
 Section CONST_PROP.

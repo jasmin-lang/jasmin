@@ -20,8 +20,8 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
-Require Import expr.
-Require constant_prop flag_combination.
+From lang Require Import expr flag_combination.
+Require constant_prop.
 Require Import compiler_util.
 
 Module E.

@@ -1,9 +1,9 @@
-Require Import
-  compiler_util
-  expr.
-Require Import
+From lang Require Import expr.
+From arch Require Import
   arch_decl
   arch_extra.
+Require Import
+  compiler_util.
 Require
   linearization
   lowering

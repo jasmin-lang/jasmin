@@ -2,7 +2,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import Lia.
 
-Require Import
+From lang Require Import
   expr
   fexpr
   fexpr_sem
@@ -13,7 +13,7 @@ Require Import
   psem_facts
   low_memory.
 Require stack_zeroization_proof.
-Require Import
+From arch Require Import
   arch_decl
   arch_extra
   sem_params_of_arch_extra.

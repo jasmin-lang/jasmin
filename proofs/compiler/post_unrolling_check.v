@@ -1,5 +1,6 @@
 From mathcomp Require Import ssreflect.
-Require Import expr compiler_util.
+From lang Require Import expr.
+Require Import compiler_util.
 
 Import Utf8.
 

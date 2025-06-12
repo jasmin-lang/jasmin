@@ -4,7 +4,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From mathcomp Require Import word_ssrZ.
 
 From Coq Require Import ZArith String.
-Require Import utils word.
+From lang Require Import utils word.
 
 (* -------------------------------------------------------------------- *)
 (* Valid immediates checks. *)

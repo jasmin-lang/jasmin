@@ -1,8 +1,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype finfun.
 From mathcomp Require Import ssralg word_ssrZ.
 
-Require Import
-  arch_params_proof
+From lang Require Import
   compiler_util
   expr
   fexpr
@@ -13,6 +12,8 @@ Require Import
   one_varmap
   sem_one_varmap.
 Require Import
+  asm_gen
+  asm_gen_proof
   linearization
   linearization_proof
   lowering
@@ -25,8 +26,7 @@ Require
 Require Import
   arch_decl
   arch_extra
-  asm_gen
-  asm_gen_proof
+  arch_params_proof
   sem_params_of_arch_extra.
 Require Import
   x86_decl

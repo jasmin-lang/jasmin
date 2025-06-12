@@ -1,6 +1,6 @@
 From mathcomp Require Import ssreflect seq ssralg.
 From Coq Require Import Utf8.
-Require Import psem.
+From lang Require Import psem.
 Require Export stack_alloc_params.
 
 (* TODO : move elsewhere *)

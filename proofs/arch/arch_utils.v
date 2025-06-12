@@ -1,6 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 
-Require Import
+From lang Require Import
   type
   sem_type
   strings

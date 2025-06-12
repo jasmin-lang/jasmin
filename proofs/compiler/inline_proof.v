@@ -1,7 +1,8 @@
 (* ** Imports and settings *)
 From Coq Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import psem allocation_proof compiler_util.
+From lang Require Import psem.
+Require Import allocation_proof compiler_util.
 Require Export inline.
 
 Local Open Scope seq_scope.

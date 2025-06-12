@@ -1,6 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import psem compiler_util.
+From lang Require Import psem.
+Require Import compiler_util.
 Require Export dead_code.
 Import Utf8.
 

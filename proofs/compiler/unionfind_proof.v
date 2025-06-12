@@ -1,6 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From Coq Require Import Utf8.
-Require Import expr label.
+From lang Require Import expr label.
 
 Require Import unionfind.
 

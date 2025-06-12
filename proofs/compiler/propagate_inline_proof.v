@@ -1,6 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import psem psem_facts constant_prop constant_prop_proof.
+From lang Require Import psem psem_facts.
+Require Import constant_prop constant_prop_proof.
 Require Export propagate_inline.
 
 Import Utf8 ZArith Morphisms Classes.RelationClasses.

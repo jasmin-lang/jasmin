@@ -6,15 +6,15 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
 From Coq Require Import ZArith Utf8.
 Import Relations.
 
-Require sem_one_varmap_facts label.
+From lang Require sem_one_varmap_facts label.
 Import word_ssrZ.
 Import ssrring.
 Import psem psem_facts sem_one_varmap label sem_one_varmap_facts low_memory.
+From ssrmisc Require Import seq_extra.
 Require Import compiler_util.
-Require Import seq_extra.
 Require Import constant_prop constant_prop_proof.
-Require Import fexpr fexpr_sem fexpr_facts.
-Require Export linearization linear_sem linear_facts.
+From lang Require Import fexpr fexpr_sem fexpr_facts linear_sem linear_facts.
+Require Export linearization.
 Import Memory.
 
 #[local] Existing Instance withsubword.

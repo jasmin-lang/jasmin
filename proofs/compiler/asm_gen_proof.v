@@ -1,22 +1,22 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From mathcomp Require Import fintype finfun ssralg.
 From Coq Require Import Relation_Operators.
-Require Import
-  compiler_util
+From lang Require Import
   psem
   psem_facts
   label
-  lea_proof
   one_varmap sem_one_varmap
   linear
   linear_sem
   fexpr
   fexpr_sem.
-Require Import
+From arch Require Import
   arch_decl
   arch_extra
   arch_sem
   sem_params_of_arch_extra.
+Require Import compiler_util.
+Require Import lea_proof.
 Require Export asm_gen.
 Import Utf8.
 Import oseq.

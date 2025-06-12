@@ -2,7 +2,8 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith Lia.
-Require Import array_copy psem.
+From lang Require Import psem.
+Require Import array_copy.
 Require Import compiler_util.
 Import Utf8.
 

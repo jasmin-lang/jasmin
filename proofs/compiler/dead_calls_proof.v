@@ -1,6 +1,7 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-(* ------- *) Require Import expr compiler_util psem gen_map dead_calls.
+From lang     Require Import expr psem gen_map.
+(* ------- *) Require Import compiler_util dead_calls.
 (* ------- *) (* - *) Import PosSet.
 Import Utf8 xseq.
 

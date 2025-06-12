@@ -20,7 +20,7 @@ From ITree Require Import
      Eq.Eqit
      Eq.Paco2.
 
-Require Import utils.
+From common Require Import result.
 
 Import ITreeNotations.
 Local Open Scope itree_scope.

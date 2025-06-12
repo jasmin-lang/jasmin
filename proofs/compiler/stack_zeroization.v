@@ -16,17 +16,17 @@ From mathcomp Require Import ssreflect ssrfun ssrbool.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 
-Require Import
+From lang Require Import
   expr
   label
   linear
+  one_varmap
   sopn
   utils
   word
   wsize.
 Require Import compiler_util linear_util.
-Require Import one_varmap.
-Require Export stack_zero_strategy.
+From lang Require Export stack_zero_strategy.
 
 Module E.
 

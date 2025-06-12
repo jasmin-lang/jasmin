@@ -2,15 +2,15 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 
-Require Import
+From lang Require Import
   label
   psem
   one_varmap
   linear
-  linear_util
   linear_sem
   linear_facts.
-Require Import seq_extra compiler_util.
+From ssrmisc Require Import seq_extra.
+Require Import compiler_util linear_util.
 Require Export stack_zeroization.
 
 Section WITH_PARAMS.

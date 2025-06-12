@@ -3,10 +3,10 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
-Require Import expr sem_op_typed compiler_util allocation.
+From lang Require Import expr sem_op_typed flag_combination.
+Require Import compiler_util allocation.
 Import Utf8.
 Import oseq.
-Require Import flag_combination.
 
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.

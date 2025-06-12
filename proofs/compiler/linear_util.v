@@ -1,6 +1,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import expr label linear.
-Require Import seq_extra compiler_util.
+From lang Require Import expr label linear.
+From ssrmisc Require Import seq_extra.
+Require Import compiler_util.
 
 (* [map_cfprog_gen] specialized to functions of type [lfundef] *)
 Notation map_cflprog_name := (map_cfprog_name_gen lfd_info).

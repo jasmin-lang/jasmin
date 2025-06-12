@@ -1,11 +1,12 @@
-Require Import
+From lang Require Import
   expr
   fexpr
   label
   linear
   stack_zero_strategy
   arch_decl
-  arch_extra
+  arch_extra.
+From compiler Require Import
   x86_decl
   x86_extra
   x86_instr_decl.

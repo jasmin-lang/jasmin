@@ -1,16 +1,16 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
-Require Import
-  compiler_util
+From lang Require Import
   expr
   psem.
-Require Import
+From arch Require Import
   arch_decl
   arch_extra
   arch_sem
+  sem_params_of_arch_extra.
+Require Import compiler_util.
+Require
   asm_gen
   asm_gen_proof
-  sem_params_of_arch_extra.
-Require
   linearization_proof
   lowering
   stack_alloc_params_proof

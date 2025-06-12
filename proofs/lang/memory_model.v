@@ -5,7 +5,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq div eqtype.
 From mathcomp Require Import ssralg word_ssrZ.
 Require Import strings word utils.
 Import Utf8 ZArith Lia.
-Require Import ssrring.
+From thirdparty Require Import ssrring.
 
 Local Open Scope Z_scope.
 

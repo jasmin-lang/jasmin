@@ -1,8 +1,9 @@
 (*
 *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
-Require Import sem_one_varmap sem_one_varmap_facts merge_varmaps psem_facts.
-Require Import seq_extra.
+From lang Require Import sem_one_varmap sem_one_varmap_facts psem_facts.
+From ssrmisc Require Import seq_extra.
+Require Import merge_varmaps.
 Import Utf8.
 Import word_ssrZ.
 Import psem.

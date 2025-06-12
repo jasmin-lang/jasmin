@@ -7,11 +7,11 @@ From Coq Require Import
   Relation_Operators
   Utf8.
 
-Require Import
+From ssrmisc Require Import oseq.
+From lang Require Import
   global
   label
   memory_model
-  oseq
   sem_type
   strings
   syscall
@@ -19,11 +19,11 @@ Require Import
   expr
   word.
 
-Require Import
+From lang Require Import
   sopn
   flag_combination
-  shift_kind
-  arm_expand_imm.
+  shift_kind.
+Require Import arm_expand_imm.
 
 (* -------------------------------------------------------------------- *)
 (* String representation of architecture components.

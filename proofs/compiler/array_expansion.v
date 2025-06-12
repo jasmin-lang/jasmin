@@ -3,7 +3,8 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
-Require Import expr compiler_util.
+From lang Require Import expr.
+Require Import compiler_util.
 Import Utf8.
 
 Local Open Scope seq_scope.

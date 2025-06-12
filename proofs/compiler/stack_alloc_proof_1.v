@@ -2,7 +2,9 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
 From mathcomp Require Import div ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Import seq_extra psem psem_facts compiler_util low_memory.
+From ssrmisc Require Import seq_extra.
+From lang Require Import psem psem_facts low_memory.
+Require Import compiler_util.
 Require Export stack_alloc stack_alloc_params_proof.
 Require slh_lowering_proof.
 Import Utf8 Lia.

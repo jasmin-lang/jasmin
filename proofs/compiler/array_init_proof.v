@@ -1,6 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import psem_core psem compiler_util.
+From lang Require Import psem_core psem.
+Require Import compiler_util.
 Require Export array_init.
 Import Utf8.
 
