@@ -260,10 +260,20 @@ qed.
 (*
     | MOVX  of wsize
     | POR
+    | PADD of velem & wsize
 *)
 op MOVX_32 (v: W32.t) = v.
 op MOVX_64 (v: W64.t) = v.
 abbrev [-printing] POR = W64.(`|`).
+
+op PADD_8u8 (x y: W64.t) = map2 W8.(+) x y.
+op PADD_4u16 (x y: W64.t) = map2 W16.(+) x y.
+op PADD_2u32 (x y: W64.t) = map2 W32.(+) x y.
+op PADD_1u64 (x y: W64.t) = x + y.
+abbrev [-printing] PADD_16u8 = VPADD_16u8.
+abbrev [-printing] PADD_8u16 = VPADD_8u16.
+abbrev [-printing] PADD_4u32 = VPADD_4u32.
+abbrev [-printing] PADD_2u64 = VPADD_2u64.
 
 (* -------------------------------------------------------------------- *)
   (* SSE instructions *)

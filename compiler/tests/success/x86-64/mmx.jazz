@@ -1,0 +1,27 @@
+export fn padd_mmx(reg ptr u64[2] p) -> reg u64 {
+  #mmx reg u64[2] m = #copy(p);
+  m[0] = #PADD_8u8(m[0], m[1]);
+  m[0] = #PADD_4u16(m[0], m[1]);
+  m[0] = #PADD_2u32(m[0], m[1]);
+  m[0] = #PADD_1u64(m[0], m[1]);
+  m[0] = #PADD_8u8(m[0], p[0]);
+  m[0] = #PADD_4u16(m[0], p[1]);
+  m[0] = #PADD_2u32(m[0], p[0]);
+  m[0] = #PADD_1u64(m[0], p[1]);
+  reg u64 result = m[0];
+  return result;
+}
+
+export fn padd_xmm(reg ptr u128[2] p) -> reg ptr u128[2] {
+  reg u128[2] m = #copy_128(p);
+  m[0] = #PADD_16u8(m[0], m[1]);
+  m[0] = #PADD_8u16(m[0], m[1]);
+  m[0] = #PADD_4u32(m[0], m[1]);
+  m[0] = #PADD_2u64(m[0], m[1]);
+  m[0] = #PADD_16u8(m[0], p[0]);
+  m[0] = #PADD_8u16(m[0], p[1]);
+  m[0] = #PADD_4u32(m[0], p[0]);
+  m[0] = #PADD_2u64(m[0], p[1]);
+  p = #copy_128(m);
+  return p;
+}
