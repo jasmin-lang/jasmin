@@ -5,7 +5,8 @@ From Coq Require Import Uint63.
 From lang Require Import
   psem
   psem_facts
-  psem_of_sem_proof.
+  psem_of_sem_proof
+  linear_sem.
 From arch Require Import
   arch_decl
   arch_extra

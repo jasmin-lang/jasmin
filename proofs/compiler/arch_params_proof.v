@@ -9,7 +9,6 @@ From arch Require Import
   sem_params_of_arch_extra.
 Require Import compiler_util.
 Require
-  asm_gen
   asm_gen_proof
   linearization_proof
   lowering
@@ -119,7 +118,7 @@ Record h_architecture_params
     hap_hlap : h_lower_addressing_params (ap_lap aparams);
 
     (* Assembly generation hypotheses. See [asm_gen_proof.v]. *)
-    hap_hagp : h_asm_gen_params (ap_agp aparams);
+    hap_hagp : asm_gen_proof.h_asm_gen_params (ap_agp aparams);
 
     (* Speculative execution lowering hypothesis *)
     hap_hshp : slh_lowering_proof.h_sh_params (ap_shp aparams);

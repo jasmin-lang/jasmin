@@ -39,6 +39,7 @@ Require Import
   tunneling
   unrolling
   wint_word.
+Import wsize.
 
 Require
   merge_varmaps.

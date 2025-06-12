@@ -618,7 +618,7 @@ Qed.
 
 Local Lemma HmkI : sem_Ind_mkI p ev Pi_r Pi.
 Proof.
-  move=> i_i i s1 s2 _ hi ? /=; t_xrbindP => ii /add_iinfoP /hi{}hi <- si /hi [si' ??].
+  move=> i_i i s1 s2 _ hi ? /=; t_xrbindP => ii /hi{}hi <- si /hi [si' ??].
   exists si' => //; constructor.
 Qed.
 

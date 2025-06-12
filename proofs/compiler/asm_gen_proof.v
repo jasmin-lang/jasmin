@@ -1121,6 +1121,7 @@ Proof.
   + move=> a h1 h2 h3; t_xrbindP => -[op' args'] h4 <- h5.
     by have [s' hs' heq] := assemble_asm_opP h1 h2 h3 h4 h5; exists s' => //=; rewrite hs'.
   t_xrbindP=> op ok_xs ok_ys hsem ops'.
+  move=> /map_errP.
   exact: (hagp_assemble_extra_op hagparams ok_xs ok_ys).
 Qed.
 

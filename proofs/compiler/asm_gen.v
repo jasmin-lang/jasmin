@@ -508,7 +508,7 @@ Definition assemble_sopn rip ii (op: sopn) (outx : lexprs) (inx : rexprs) :=
     Let i := assemble_asm_op rip ii op outx inx in
     ok [:: i ]
   | Oasm (ExtOp op) =>
-    Let args := to_asm ii op outx inx in
+    Let args := Result.map_err (fun s => E.internal_error ii s) (to_asm ii op outx inx) in
     mapM (assemble_asm_args rip ii) args
   | _ => Error (E.unexpected_sopn ii "assemble_sopn:" op)
   end.
