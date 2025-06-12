@@ -209,6 +209,29 @@ Definition handle_2recCall :
 
 (* eutt eq is too strong, both for the eutt (there might be errors) and 
    for the eq (the two states are related, not necessarily equal) *)
+
+(* T := (kt s) is the tagged itree
+
+partial semantics of the source program: S := asem_i s
+
+partial semantics of the abstract inlined program: 
+AI := (sem_inline (RA_tr T))
+
+partial semantics of the concretely inlined program: 
+CI := (asem_c s)
+
+By the high-level lemma, we know the full semantics of AI equals to
+the full semantics of T.
+
+So by 2, the full semantics of T equals the full semantics of
+CI.
+
+By 1, the full semantics of S equals the full semantics of forgetful T.
+
+The semantics of T equals that of the forgetful T.
+
+So the full semantics of S equals that of CI. 
+*)
 Definition inline_i_info (i: instr) (c: cmd) : Type :=
   let asem_i := flat_i_sem i in 
   let asem_c := flat_cmd_sem c in
