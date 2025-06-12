@@ -97,6 +97,9 @@
 - Add new reference documentation
   ([PR #1167](https://github.com/jasmin-lang/jasmin/pull/1167)).
 
+- More precise handling of `#POPCNT` in the safety checker
+  ([PR #1197](https://github.com/jasmin-lang/jasmin/pull/1197)).
+
 # Jasmin 2025.02.1 — Nancy, 2025-04-10
 
 ## New features

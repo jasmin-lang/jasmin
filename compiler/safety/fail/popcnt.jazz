@@ -1,0 +1,8 @@
+export fn off_by_one(reg u64 x) -> reg u8 {
+  inline int i;
+  stack u8[64] s;
+  for i = 0 to 64 { s[i] = i; }
+  ?{}, x = #POPCNT(x);
+  reg u8 r = s[x];
+  return r;
+}
