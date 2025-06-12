@@ -2,9 +2,7 @@ From Coq Require Import Lia.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 
-Require Import
-  arch_params
-  compiler_util
+From lang Require Import
   expr
   fexpr
   fexpr_sem
@@ -12,9 +10,12 @@ Require Import
   linear_sem
   linear_facts
   psem.
-Require Import
+From arch Require Import
   arch_decl
   arch_sem.
+From compiler Require Import
+  arch_params
+  compiler_util.
 
 Require Import
   arm_decl

@@ -1,7 +1,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
-Require Import utils.
-Require Import arch_decl.
+From lang Require Import utils.
+From arch Require Import arch_decl.
 Require Import
   arm_decl
   arm_instr_decl.

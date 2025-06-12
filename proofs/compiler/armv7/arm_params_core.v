@@ -1,13 +1,14 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype.
 From mathcomp Require Import word_ssrZ.
 
-Require Import
-  compiler_util
+From lang Require Import
   expr
   fexpr
   linear.
-Require Import
+From arch Require Import
   arch_decl.
+From compiler Require Import
+  compiler_util.
 Require Import
   arm_decl
   arm_instr_decl.

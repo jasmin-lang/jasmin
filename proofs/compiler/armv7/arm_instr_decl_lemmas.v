@@ -1,10 +1,10 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 From mathcomp Require Import word_ssrZ.
 
-Require Import
+From lang Require Import
   psem
   shift_kind.
-Require Import
+From arch Require Import
   arch_utils
   sem_params_of_arch_extra.
 Require Import

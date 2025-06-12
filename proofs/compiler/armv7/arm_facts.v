@@ -1,7 +1,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From Coq Require Import ZArith.
 
-Require Import
+From lang Require Import
   utils
   word.
 Require Import arm_decl.

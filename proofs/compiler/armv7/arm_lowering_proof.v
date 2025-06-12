@@ -6,16 +6,17 @@ From mathcomp Require Import word_ssrZ.
 
 From Coq Require Import Lia.
 
-Require Import
-  compiler_util
+From lang Require Import
   expr
-  lowering
-  lowering_lemmas
   psem
   utils.
-Require Import
+From arch Require Import
   arch_extra
   sem_params_of_arch_extra.
+From compiler Require Import
+  compiler_util
+  lowering
+  lowering_lemmas.
 Require Import
   arm_decl
   arm_extra

@@ -267,7 +267,7 @@ Class asm_extra (reg regx xreg rflag cond asm_op extra_op : Type) :=
     -> extra_op
     -> lexprs
     -> rexprs
-    -> result string (seq (asm_op_msb_t * lexprs * rexprs))
+    -> result (bool * string) (seq (asm_op_msb_t * lexprs * rexprs))
   }.
 
 #[global]

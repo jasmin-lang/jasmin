@@ -1,15 +1,16 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 
-Require Import
-  compiler_util
+From lang Require Import
   expr
-  lowering
   pseudo_operator
   shift_kind.
-Require Import
+From arch Require Import
   arch_decl
   arch_extra.
+From compiler Require Import
+  compiler_util
+  lowering.
 Require Import
   arm_decl
   arm_extra

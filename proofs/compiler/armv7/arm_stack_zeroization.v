@@ -1,18 +1,20 @@
 From mathcomp Require Import ssreflect.
 
-Require Import
+From lang Require Import
   expr
   fexpr
   label
   linear
-  stack_zero_strategy
+  stack_zero_strategy.
+From arch Require Import
   arch_decl
-  arch_extra
+  arch_extra.
+Require Import
   arm_decl
   arm_extra
   arm_instr_decl
   arm_params_common.
-Require Import compiler_util.
+From compiler Require Import compiler_util.
 
 Section STACK_ZEROIZATION.
 

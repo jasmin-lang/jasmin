@@ -3,32 +3,34 @@ From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat finfun.
 From mathcomp Require Import ssralg.
 From mathcomp Require Import word_ssrZ.
 
-Require Import oseq.
+From ssrmisc Require Import oseq.
 
-Require Import
-  arch_params_proof
-  compiler_util
+From lang Require Import
   expr
   fexpr
   fexpr_sem
   psem
   psem_facts
-  sem_one_varmap.
-Require Import
+  sem_one_varmap
+  linear_sem
+  linear_facts.
+From arch Require
+  arch_sem.
+From arch Require Import
+  arch_decl
+  arch_extra
+  sem_params_of_arch_extra.
+From compiler Require Import
+  arch_params_proof
+  asm_gen
+  asm_gen_proof
+  compiler_util
   lea_proof
   linearization
   linearization_proof
   lowering
   stack_alloc_params_proof
   stack_zeroization_proof.
-Require
-  arch_sem.
-Require Import
-  arch_decl
-  arch_extra
-  asm_gen
-  asm_gen_proof
-  sem_params_of_arch_extra.
 Require Import
   arm_decl
   arm_extra
@@ -224,7 +226,7 @@ Qed.
 Lemma arm_spec_lip_set_up_sp_register :
   set_up_sp_register_correct arm_liparams.
 Proof.
-  Opaque sem_fopn_args.
+  Opaque linear_sem.sem_fopn_args.
   move=> [[? nrsp] vi1] [[? nr] vi2] [[? ntmp] vi3] ts al sz s hget /= ??? hne hne1 hne2; subst.
   rewrite /arm_set_up_sp_register sem_fopns_args_cat /=.
   set vr := {|vname := nr|}; set r := {|v_var := vr|}.
@@ -722,30 +724,30 @@ Proof.
   by apply heqex; rewrite /arm_reg_size; SvD.fsetdec.
 Qed.
 
-Lemma unconsP {ii X x} {xs xs' : seq X} :
-  uncons ii xs = ok (x, xs') ->
+Lemma unconsP {X x} {xs xs' : seq X} :
+  uncons xs = ok (x, xs') ->
   xs = x :: xs'.
 Proof. by case: xs => [// | ??] [-> ->]. Qed.
 
-Lemma uncons_LLvarP ii les x les' :
-  uncons_LLvar ii les = ok (x, les') ->
+Lemma uncons_LLvarP les x les' :
+  uncons_LLvar les = ok (x, les') ->
   les = LLvar x :: les'.
 Proof. by case: les => [// | [// | ?] ?] [-> ->]. Qed.
 
-Lemma uncons_rvarP ii res x res' :
-  uncons_rvar ii res = ok (x, res') ->
+Lemma uncons_rvarP res x res' :
+  uncons_rvar res = ok (x, res') ->
   res = rvar x :: res'.
 Proof. by case: res => [// | [// | [] // ?] ?] [-> ->]. Qed.
 
-Lemma uncons_wconstP ii les imm les' :
-  uncons_wconst ii les = ok (imm, les') ->
+Lemma uncons_wconstP les imm les' :
+  uncons_wconst les = ok (imm, les') ->
   exists ws, les = rconst ws imm :: les'.
 Proof.
   case: les => [// | [//|]] [] // [] // ? [] // ?? [-> ->]. by eexists.
 Qed.
 
-Lemma smart_li_argsP ii ws les res x imm res' :
-  smart_li_args ii ws les res = ok (x, imm, res') ->
+Lemma smart_li_argsP ws les res x imm res' :
+  smart_li_args ws les res = ok (x, imm, res') ->
   [/\ ws = reg_size
     , les = [:: LLvar x ]
     , vtype (v_var x) = sword reg_size
