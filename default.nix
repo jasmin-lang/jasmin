@@ -41,10 +41,10 @@ let coqPackages =
     })
   else coqPackages_8_20.overrideScope (self: super: {
       coq-elpi = super.coq-elpi.override {
-        version = "2.3.0";
-        elpi-version = "2.0.3";
+        version = "2.5.2";
+        elpi-version = "2.0.7";
       };
-      hierarchy-builder = super.hierarchy-builder.override { version = "1.7.1"; };
+      hierarchy-builder = super.hierarchy-builder.override { version = "1.9.1"; };
       mathcomp = super.mathcomp.override { version = "2.2.0"; };
   })
 ; in
