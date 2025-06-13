@@ -7,7 +7,8 @@
   - Implementation of uninitialised variable check using reaching definition static analysis.
   - Implementation of dead variables check using liveness static analysis.
   ([PR #1160](https://github.com/jasmin-lang/jasmin/pull/1160)
-  [PR #1166](https://github.com/jasmin-lang/jasmin/pull/1166)).
+  [PR #1166](https://github.com/jasmin-lang/jasmin/pull/1166)
+  [PR #1200](https://github.com/jasmin-lang/jasmin/pull/1200)).
 
 - New syntax
   - the syntax for memory load/store operations, previously limited to `[x + e]`,

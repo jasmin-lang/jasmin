@@ -370,13 +370,12 @@ let default_warnings =
       DuplicateVar;
       UnusedVar;
       SCTchecker;
-      Linter;
       Deprecated;
       Experimental;
       PedanticPretyping;
     ]
 
-let all_warnings = ExtraAssignment :: UseLea :: IntroduceNone :: IntroduceArrayCopy :: KeptRenaming :: default_warnings
+let all_warnings = Linter :: ExtraAssignment :: UseLea :: IntroduceNone :: IntroduceArrayCopy :: KeptRenaming :: default_warnings
 
 let warns = ref default_warnings
 
@@ -416,4 +415,4 @@ let warning (w:warning) loc =
           pp_iloc loc
           pp_warning pp
     )
-        
+
