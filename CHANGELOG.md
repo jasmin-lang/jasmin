@@ -2,6 +2,9 @@
 
 ## Bug fixes
 
+- Linter : More precise diagnostics
+  ([PR #1199](https://github.com/jasmin-lang/jasmin/pull/1199)).
+
 - Consider LHS array variables as assigned
   ([PR #1214](https://github.com/jasmin-lang/jasmin/pull/1214)).
 

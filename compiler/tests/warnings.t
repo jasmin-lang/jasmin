@@ -39,6 +39,8 @@
   warning: Variable 'y' is affected but never used
   "fail/linter/dead_variables.jazz", line 87 (2-11)
   warning: Variable 'q' is affected but never used
+  "fail/linter/dead_variables.jazz", line 106 (2-18)
+  warning: Variable 'p' is affected but never used
 
   $ ../jasminc -wall fail/linter/variables_initialisation.jazz
   "fail/linter/variables_initialisation.jazz", line 3 (5-6)
