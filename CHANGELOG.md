@@ -8,6 +8,7 @@
   - Implementation of dead variables check using liveness static analysis.
   ([PR #1160](https://github.com/jasmin-lang/jasmin/pull/1160)
   [PR #1166](https://github.com/jasmin-lang/jasmin/pull/1166)
+  [PR #1199](https://github.com/jasmin-lang/jasmin/pull/1199)
   [PR #1200](https://github.com/jasmin-lang/jasmin/pull/1200)).
 
 - New syntax
