@@ -731,6 +731,8 @@ Proof.
 
     set cR := rename_args ++ fd'.(f_body) ++ rename_res.
 
+ (*   set fff := (sem_pexprs (~~ direct_call) (p_globs p) s es). *)
+    
     constructor 1; split.
     exact sv1.
     exists cR.
@@ -762,6 +764,12 @@ Proof.
       unfold isem_pexprs in Exp_ev.
       unfold iresult in Exp_ev, Post_pr.
 
+(*      
+      rewrite interp_bind.
+      setoid_rewrite isem_cmd_cat at 1.
+      eapply eqit_bind'.      
+*)  
+    
       (* pre-processing *)
       destruct (sem_pexprs (~~ direct_call) (p_globs p) s es) eqn: was_exp.
 
@@ -775,6 +783,10 @@ Proof.
       rewrite interp_bind; simpl.
 
       set Ren_args := (isem_cmd_ p ev rename_args s).
+
+  (*    unfold handle_recCall.
+      setoid_rewrite interp_trigger. *)
+      
       unfold rename_args in Ren_args.
 
       (* idea: renaming either terminates, or there's an error.

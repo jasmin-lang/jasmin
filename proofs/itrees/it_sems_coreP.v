@@ -48,7 +48,8 @@ Definition ioget {E: Type -> Type} `{ErrEvent -< E} {V} (err: error_data) (o: op
   | None => throw err
   end.
 
-Definition err_result {E: Type -> Type} `{ErrEvent -< E} (Err : error -> error_data) :
+Definition err_result {E: Type -> Type} `{ErrEvent -< E}
+  (Err : error -> error_data) :
   result error ~> itree E :=
   fun _ t => match t with
              | Ok v => Ret v
@@ -66,17 +67,44 @@ Class FIso (E1 E2: Type -> Type) : Type := FI {
 }.
 *)
 
-Notation with_Error E E0 := (FIso E (ErrEvent +' E0)).
-
-#[global] Instance fromErr E E0 {wE : with_Error E E0} : ErrEvent -< E :=
-  fun T (e:ErrEvent T) => mfun2 (inl1 e).
-
-Definition is_error {E E0 : Type -> Type} (wE : with_Error E E0) (T : Type) (e : E T) :=
+Definition boolfun_split {E E1 E2: Type -> Type} (wE : FIso E (E1 +' E2))
+  (T : Type) (e : E T) : bool :=
   match mfun1 e with
   | inl1 _ => true
   | inr1 _ => false
   end.
 
+Definition FIso2ReSumL {E E1 E2: Type -> Type} (wE : FIso E (E1 +' E2)) :
+  E1 -< E := fun _ e => mfun2 (inl1 e).
+
+Definition FIso2ReSumR {E E1 E2: Type -> Type} (wE : FIso E (E1 +' E2)) :
+  E2 -< E := fun _ e => mfun2 (inr1 e).
+
+(*
+Definition fromErr E E0 {wE : with_Error E E0} : ErrEvent -< E :=
+  @ReSum_inl . 
+*)
+(*
+#[global] Instance fromErr E E0 {wE : with_Error E E0} : ErrEvent -< E :=
+  fun T (e:ErrEvent T) => mfun2 (inl1 e).
+*)
+
+Notation with_Error E E0 := (FIso E (ErrEvent +' E0)).
+
+#[global] Instance fromErr E E0 {wE : with_Error E E0} : ErrEvent -< E :=
+  FIso2ReSumL wE.
+
+Definition is_error {E E0 : Type -> Type} (wE : with_Error E E0)
+  (T : Type) (e : E T) : bool :=
+  @boolfun_split E ErrEvent E0 wE T e. 
+
+(*
+Definition is_error {E E0 : Type -> Type} (wE : with_Error E E0) (T : Type) (e : E T) :=
+  match mfun1 e with
+  | inl1 _ => true
+  | inr1 _ => false
+  end.
+*)
 (* with_Error (ErrEvent +' void1) void1 *)
 #[global]
 Instance FIsoId E : FIso E E :=

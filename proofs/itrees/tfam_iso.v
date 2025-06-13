@@ -142,6 +142,30 @@ Definition FIso_MR Em {E1 E0 Er} (X: FIso E1 (E0 +' Er)) :
   FIso (Em +' E1) ((Em +' E0) +' Er) :=
   FIsoTrans (FIsoSum (FIsoId Em) X) (FIsoLAssoc Em E0 Er).  
 
+Definition FIso_rev_MR Em {E1 E0 Er} (X: FIso E1 (Er +' E0)) :
+  FIso (Em +' E1) (Er +' (Em +' E0)) :=
+  FIsoTrans (FIso_MR Em (FIsoTrans X (FIsoComm Er E0)))
+    (FIsoComm (Em +' E0) Er).
+
+(** more *)
+
+Definition FI_MR_rev Em {E1 E0 Er} (X: FIso (E0 +' Er) E1) :
+  FIso ((Em +' E0) +' Er) (Em +' E1) :=
+  FIsoTrans (FIsoRAssoc Em E0 Er) (FIsoSum (FIsoId Em) X). 
+
+Definition FIso_MR_aux E1 E2 E3 :
+  FIso ((E1 +' void1) +' (E2 +' E3)) ((E1 +' E2) +' E3).
+Proof.
+assert (FIso ((E1 +' void1) +' (E2 +' E3)) (E1 +' (E2 +' E3))) as H.
+{ eapply (FIsoSum (FIsoRev (FIsoIdL E1)) (FIsoId (E2 +' E3))). }
+eapply (FIsoTrans H (FIsoLAssoc E1 E2 E3)).
+Defined.
+
+Definition FIso_MR_alt Em {E1 E0 Er} (X: FIso E1 (E0 +' Er)) :
+  FIso (Em +' E1) ((Em +' E0) +' Er) :=
+ FIsoTrans (FIsoSum (FIsoIdL Em) X) (FIso_MR_aux Em E0 Er).  
+
+(**)
 
 Lemma FIso_MR_proj11' Em {E1 E0 Er} (X: FIso E1 (E0 +' Er)) :
   let Y:= FIso_MR Em X in 
@@ -249,25 +273,6 @@ Proof.
   simpl; intros.
   inv H; eapply FIso_MR_proj4'. 
 Qed.
-
-
-(** not used *)
-
-Definition FI_MR_rev Em {E1 E0 Er} (X: FIso (E0 +' Er) E1) :
-  FIso ((Em +' E0) +' Er) (Em +' E1) :=
-  FIsoTrans (FIsoRAssoc Em E0 Er) (FIsoSum (FIsoId Em) X). 
-
-Definition FIso_MR_aux E1 E2 E3 :
-  FIso ((E1 +' void1) +' (E2 +' E3)) ((E1 +' E2) +' E3).
-Proof.
-assert (FIso ((E1 +' void1) +' (E2 +' E3)) (E1 +' (E2 +' E3))) as H.
-{ eapply (FIsoSum (FIsoRev (FIsoIdL E1)) (FIsoId (E2 +' E3))). }
-eapply (FIsoTrans H (FIsoLAssoc E1 E2 E3)).
-Defined.
-
-Definition FIso_MR_alt Em {E1 E0 Er} (X: FIso E1 (E0 +' Er)) :
-  FIso (Em +' E1) ((Em +' E0) +' Er) :=
- FIsoTrans (FIsoSum (FIsoIdL Em) X) (FIso_MR_aux Em E0 Er).  
 
 
 (** FIso projections *)

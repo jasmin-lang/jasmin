@@ -459,7 +459,7 @@ Section XRuttMrec.
                 (fun (v1 : R1) (v2 : R2) =>
                    @RPostInv R1 R2 d1 v1 d2 v2)
                      (bodies1 d1) (bodies2 d2) ).
-
+  
   Lemma interp_mrec_xrutt (R1 R2 : Type) (RR : R1 -> R2 -> Prop) :
     forall (t1 : itree (D1 +' E1) R1) (t2 : itree (D2 +' E2) R2),
       xrutt (@EE_MR _ EE1 D1) (@EE_MR _ EE2 D2)

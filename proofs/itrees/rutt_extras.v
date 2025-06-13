@@ -170,3 +170,35 @@ Proof.
   - econstructor; eauto.
   - econstructor; eauto.
 Qed.
+
+Lemma rutt_xrutt {E1 E2 R1 R2}
+  (EE1: forall X, E1 X -> bool)
+  (EE2: forall X, E2 X -> bool) :
+  forall REv RAns RR
+         (t1: itree E1 R1) (t2: itree E2 R2),
+  Rutt.rutt REv RAns RR t1 t2 ->  
+  xrutt EE1 EE2 REv RAns RR t1 t2.
+Proof.
+  intros REv RAns RR.
+  pcofix CIH.
+  intros t1 t2 H; pstep; red; punfold H; red in H; pclearbot.
+  hinduction H before CIH.
+  { econstructor; auto. }
+  { econstructor; auto; pclearbot. right.
+    eapply CIH; auto.
+  }
+  { destruct (EE1 _ e1) eqn: was_ee1.
+    eapply EqCutL; auto.
+    destruct (EE2 _ e2) eqn: was_ee2.
+    eapply EqCutR; auto.
+    econstructor; auto.
+    intros a b H1. right.
+    specialize (H0 a b H1).
+    pclearbot.
+    eapply CIH; auto.
+  }
+  { econstructor; eauto. }
+  { econstructor; eauto. }
+Qed.
+  
+ 
