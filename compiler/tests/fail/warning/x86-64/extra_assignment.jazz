@@ -1,4 +1,4 @@
-inline fn f () -> reg u64 {
+inline fn f () -> inline u64 {
   inline u64 res;
   res = 0;
   return res;
