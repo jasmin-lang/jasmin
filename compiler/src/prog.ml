@@ -317,6 +317,17 @@ let written_lv s =
   | Lvar x -> Sv.add (L.unloc x) s
   | _ -> s
 
+let lv_expr : lval -> expr option = function
+    Lnone (_, _)
+  | Lvar _ -> None
+  | Lmem (_, _, _, e)
+  | Laset (_, _, _, _, e)
+  | Lasub(_, _, _, _, e) -> Some e
+
+let lv_exprs : lvals -> exprs =
+  List.filter_map lv_expr
+
+
 let rec written_vars_i ((v, f) as acc) i =
   match i.i_desc with
   | Cassgn(x, _, _, _) -> written_lv v x, f
