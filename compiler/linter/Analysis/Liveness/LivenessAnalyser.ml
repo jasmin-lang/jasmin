@@ -67,10 +67,16 @@ module LivenessDomain : BackwardAnalyser.Logic with type domain = Sv.t = struct
     (_ : Location.i_loc)
     (lvs : lvals)
     (_ : E.assgn_tag)
-    (_ : 'asm Sopn.sopn)
+    (op : 'asm Sopn.sopn)
     (exprs : exprs)
     (domain : domain) =
-    Annotation (live_assigns domain lvs exprs)
+    match op with
+    | Opseudo_op (Ocopy _) ->
+      (*We do not kill copied variables in that case since copy is substituted with a loop, and thus not a real assignment*)
+      Annotation (Sv.union  (List.fold_left vars_lv domain lvs) (Prog.vars_es exprs))
+    | Oslh _ | Oasm _ | Opseudo_op _ ->
+      Annotation (live_assigns domain lvs exprs)
+
 end
 
 include BackwardAnalyser.Make (LivenessDomain)
