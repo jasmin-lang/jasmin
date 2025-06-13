@@ -1,5 +1,0 @@
-fn f () -> reg u64 {
-  stack u64[4] a;
-  stack u64[5] b;
-  b = a;
-}
