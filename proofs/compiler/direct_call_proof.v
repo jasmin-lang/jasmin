@@ -304,7 +304,7 @@ Qed.
 #[local] Hint Resolve checker_st_uinclP_ : core.
 
 Lemma it_indirect_to_direct fn :
-  wequiv_f (sem_F1 := sem_fun_full (dc:=indirect_c)) (sem_F2 := sem_fun_full (dc:=direct_c))
+  wiequiv_f (dc1:=indirect_c) (dc2:=direct_c)
     p p ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   apply wequiv_fun_ind => hrec {fn}.

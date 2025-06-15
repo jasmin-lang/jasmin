@@ -681,7 +681,7 @@ Proof.
   apply add_init_auxP; first by apply/Sv.is_empty_spec; SvD.fsetdec.
   apply wkequivP' => s t.
   have h := [elaborate wequiv_rec_st_eq (p:=p) (p':=p') ev ev erefl [:: MkI ii i]].
-  have /(_ s) {h} := wequiv_write h.
+  have /(_ s) {h} := wequiv_write1 h.
   apply wkequiv_weaken => //.
   + by move=> s1 s2 [ [-> ->] [?? []]].
   move=> ???? [[-> ->] [_ _ [hundef _]]] [h1] [?? heq2]; split => //; split => //.
