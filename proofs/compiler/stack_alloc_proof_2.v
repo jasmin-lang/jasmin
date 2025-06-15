@@ -4244,7 +4244,7 @@ Proof.
 Qed.
 
 Lemma it_check_cP_aux :
-  (∀ fn1 fn2 : funname, wequiv_f_rec P P' tt rip sa_spec (rpreF (eS:=sa_spec)) fn1 fn2 (rpostF (eS:=sa_spec))) ->
+  (∀ ii1 ii2 fn1 fn2, wequiv_f_rec P P' tt rip sa_spec (rpreF (eS:=sa_spec)) ii1 ii2 fn1 fn2 (rpostF (eS:=sa_spec))) ->
   forall c1, Pc c1.
 Proof.
   move=> hrec.

@@ -404,15 +404,17 @@ Section LUTT_RUTT_TRANS.
 
 Context {E1 E2 : Type -> Type}
         (REv : prerel E1 E2) (RAns : postrel E1 E2)
-        (PEv : prepred E1) (PAns : postpred E1) {R1 R2 : Type}
-        (RR : R1 -> R2 -> Prop) (P : R1 -> Prop).
+        (PEv1 : prepred E1) (PAns1 : postpred E1)
+        (PEv2 : prepred E2) (PAns2 : postpred E2)
+        {R1 R2 : Type}
+        (RR : R1 -> R2 -> Prop) (P1 : R1 -> Prop) (P2:R2 -> Prop).
 
 Lemma lutt_rutt_trans_l t1 t2 :
-  lutt PEv PAns P t1 ->
+  lutt PEv1 PAns1 P1 t1 ->
   rutt REv RAns RR t1 t2 ->
-  rutt (fun T1 T2 e1 e2 => PEv e1 /\ REv e1 e2)
-       (fun T1 T2 e1 t1 e2 t2 => PAns e1 t1 /\ RAns e1 t1 e2 t2)
-       (fun r1 r2 => P r1 /\ RR r1 r2) t1 t2.
+  rutt (fun T1 T2 e1 e2 => PEv1 e1 /\ REv e1 e2)
+       (fun T1 T2 e1 t1 e2 t2 => PAns1 e1 t1 /\ RAns e1 t1 e2 t2)
+       (fun r1 r2 => P1 r1 /\ RR r1 r2) t1 t2.
 Proof.
   move: t1 t2; pcofix CIH => t1 t2 hlutt hrutt.
   pstep. punfold hrutt. red in hrutt |- *.
@@ -433,11 +435,11 @@ Qed.
 Context (is_error1 : forall T, E1 T -> bool).
 
 Lemma lutt_xrutt_trans_l t1 t2 :
-  lutt PEv PAns P t1 ->
+  lutt PEv1 PAns1 P1 t1 ->
   xrutt (errcutoff is_error1) nocutoff REv RAns RR t1 t2 ->
-  xrutt (errcutoff is_error1) nocutoff (fun T1 T2 e1 e2 => PEv e1 /\ REv e1 e2)
-       (fun T1 T2 e1 t1 e2 t2 => PAns e1 t1 /\ RAns e1 t1 e2 t2)
-       (fun r1 r2 => P r1 /\ RR r1 r2) t1 t2.
+  xrutt (errcutoff is_error1) nocutoff (fun T1 T2 e1 e2 => PEv1 e1 /\ REv e1 e2)
+       (fun T1 T2 e1 t1 e2 t2 => PAns1 e1 t1 /\ RAns e1 t1 e2 t2)
+       (fun r1 r2 => P1 r1 /\ RR r1 r2) t1 t2.
 Proof.
   move: t1 t2; pcofix CIH => t1 t2 hlutt hrutt.
   pstep. punfold hrutt. red in hrutt |- *.
@@ -454,6 +456,30 @@ Proof.
   + move=> t1 ot2 _ hrec.
     by rewrite -lutt_Tau {1}(itree_eta t1) => /hrec; apply EqTauL.
   by move=> ot1 t2 _ hrec /hrec; apply EqTauR.
+Qed.
+
+Lemma lutt_xrutt_trans_r t1 t2 :
+  lutt PEv2 PAns2 P2 t2 ->
+  xrutt (errcutoff is_error1) nocutoff REv RAns RR t1 t2 ->
+  xrutt (errcutoff is_error1) nocutoff (fun T1 T2 e1 e2 => PEv2 e2 /\ REv e1 e2)
+       (fun T1 T2 e1 t1 e2 t2 => PAns2 e2 t2 /\ RAns e1 t1 e2 t2)
+       (fun r1 r2 => P2 r2 /\ RR r1 r2) t1 t2.
+Proof.
+  move: t1 t2; pcofix CIH => t1 t2 hlutt hrutt.
+  pstep. punfold hrutt. red in hrutt |- *.
+  move: hlutt; rewrite {1}(itree_eta t2).
+  elim: hrutt => // {t1 t2}.
+  + by move=> r1 r2 hRR; rewrite -lutt_Ret => hP2; constructor.
+  + move=> t1 t2 hrutt hlutt; constructor.
+    by pclearbot; right; apply CIH => //; apply lutt_Tau.
+  + move=> T1 T2 e1 e2 k1 k2 ?? hREv hk hlutt.
+    have [hPEv {}hlutt]:= lutt_inv_Vis hlutt.
+    constructor => // r1 r2 [/hlutt ? /hk ?].
+    by pclearbot; right; eauto.
+  + by move=> T1 e1 k1 ot2 ? _; apply EqCutL.
+  + by move=> t1 ot2 _ hrec /hrec; apply EqTauL.
+  move=> ot1 t2 _ hrec.
+  rewrite -lutt_Tau {1}(itree_eta t2) => /hrec; apply EqTauR.
 Qed.
 
 End LUTT_RUTT_TRANS.
