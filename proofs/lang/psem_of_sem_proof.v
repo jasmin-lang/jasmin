@@ -322,8 +322,6 @@ Proof.
 Qed.
 #[local] Hint Resolve checker_st_uinclP : core.
 
-Notation wiequiv_f := (wequiv_f (sem_F1 := sem_fun_full (wsw:=nosubword)) (sem_F2:= sem_fun_full (wsw:=withsubword))).
-
 Lemma it_psem_call :
   (forall scs1 scs2 mem1 mem2 o ves vs,
     exec_syscall (wsw:= nosubword)   scs1 mem1 o ves = ok (scs2, mem2, vs) ->
@@ -338,7 +336,7 @@ Lemma it_psem_call :
   (forall fd mem, finalize (wsw:= nosubword) (f_extra fd) mem = finalize (wsw:= withsubword) (f_extra fd) mem) ->
 
   forall fn,
-    wiequiv_f p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+    wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
   move=> hsyscall hinitstate hfinal fn.
   apply wequiv_fun_ind => hrec {fn}.
@@ -415,10 +413,8 @@ Section IT_SEM.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
-Notation wiequiv_f := (wequiv_f (sem_F1 := sem_fun_full (wsw:=nosubword)) (sem_F2:= sem_fun_full (wsw:=withsubword))).
-
 Lemma it_psem_call_u (p:uprog) ev fn :
-  wiequiv_f p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+  wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
   apply (it_psem_call (sCP := fun wsw => sCP_unit (wsw := wsw))) => //=.
   move=> _ ??? [<-]; eexists; eauto.
@@ -426,7 +422,7 @@ Proof.
 Qed.
 
 Lemma it_psem_call_s (p:sprog) ev fn :
-  wiequiv_f p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+  wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
   apply (it_psem_call (sCP := fun wsw => sCP_stack (wsw := wsw))) => //=.
   clear.

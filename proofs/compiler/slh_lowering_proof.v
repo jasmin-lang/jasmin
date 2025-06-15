@@ -1391,8 +1391,8 @@ move=> ??; exact: env_le_st_eq hle2.
 Qed.
 
 Lemma lower_it_call xs fn es :
-  (forall fn1 fn2,
-      wequiv_f_rec p p' ev ev slh_fun_contract rpreF fn1 fn2 rpostF) ->
+  (forall ii1 ii2 fn1 fn2,
+      wequiv_f_rec p p' ev ev slh_fun_contract rpreF ii1 ii2 fn1 fn2 rpostF) ->
   Pi_r (Ccall xs fn es).
 Proof.
 move=> hind ii env env' /=; rewrite (surjective_pairing (fun_info _)).
@@ -1414,8 +1414,8 @@ by rewrite (use_memP _ (s2 := s) _ _ hmem).
 Qed.
 
 Lemma it_lower_code c c' env env' :
-  (forall fn1 fn2,
-      wequiv_f_rec p p' ev ev slh_fun_contract rpreF fn1 fn2 rpostF) ->
+  (forall ii1 ii2 fn1 fn2,
+      wequiv_f_rec p p' ev ev slh_fun_contract rpreF ii1 ii2 fn1 fn2 rpostF) ->
   check_cmd fun_info env c = ok env' ->
   lower_cmd c = ok c' ->
   wequiv_rec p p' ev ev slh_fun_contract (st_eq env) c c' (st_eq env').

@@ -636,7 +636,7 @@ Let Pi_r i := forall ii, Pi (MkI ii i).
 Let Pc c := wequiv p p' ev ev' (st_eq tt) c c (st_eq tt).
 
 Lemma wequiv_st_eq c :
-  (forall f, wequiv_f p p' ev ev' (λ (_ _ : funname), eq) f f (λ (_ _ : funname) (_ _ : fstate), eq)) ->
+  (forall ii f, wequiv_f_ii p p' ev ev' (λ (_ _ : funname), eq) ii ii f f (λ (_ _ : funname) (_ _ : fstate), eq)) ->
   Pc c.
 Proof.
   move=> hf; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
@@ -717,7 +717,7 @@ Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 Lemma wequiv_rec_st_eq c : wequiv_rec p p' ev ev' eq_spec (st_eq tt) c c (st_eq tt).
 Proof.
   apply wequiv_st_eq.
-  by move=> f s t <-; apply xrutt_facts.xrutt_trigger.
+  by move=> ii f s t <-; apply xrutt_facts.xrutt_trigger.
 Qed.
 
 End REC.
@@ -755,7 +755,7 @@ Proof.
 Qed.
 
 Lemma wiequiv_st_eq c : wiequiv p p ev ev (st_eq tt) c c (st_eq tt).
-Proof. by apply wequiv_st_eq => // f ???; apply wiequiv_f_eq. Qed.
+Proof. by apply wequiv_st_eq => // ii f ???; apply wiequiv_f_eq. Qed.
 
 End WIEQUIV_F.
 
@@ -1042,8 +1042,8 @@ Let Pc c :=
   wequiv p p' ev ev' (st_eq_on X) c c (st_eq_on X).
 
 Lemma it_read_cP_aux c X :
-  (forall fn,
-     wequiv_f p p' ev ev' (λ (_ _ : funname), eq) fn fn (λ _ _  _ _, eq)) ->
+  (forall ii fn,
+     wequiv_f_ii p p' ev ev' (λ (_ _ : funname), eq) ii ii fn fn (λ _ _  _ _, eq)) ->
   Sv.Subset (read_c c) X ->
   wequiv p p' ev ev' (st_eq_on X) c c (st_eq_on X).
 Proof.
@@ -1093,7 +1093,7 @@ Lemma it_read_cP_rec X c :
   wequiv_rec p p' ev ev' eq_spec (st_eq_on X) c c (st_eq_on X).
 Proof.
   apply it_read_cP_aux.
-  by move=> f s t <-; apply xrutt_facts.xrutt_trigger.
+  by move=> ii f s t <-; apply xrutt_facts.xrutt_trigger.
 Qed.
 
 End REC.
@@ -1108,7 +1108,11 @@ Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 Lemma it_read_cP X c :
   Sv.Subset (read_c c) X ->
   wiequiv p p ev ev (st_eq_on X) c c (st_eq_on X).
-Proof. by apply it_read_cP_aux => // fn ?? h; apply wiequiv_f_eq. Qed.
+Proof.
+  apply it_read_cP_aux => //= ii fn i1 i2 h.
+  have /(_ i1 i2) := [elaborate wiequiv_f_eq p ev (fn:=fn)].
+  by apply.
+Qed.
 
 End REFL.
 
@@ -1490,8 +1494,8 @@ Let Pc c :=
   wequiv p p' ev ev' (st_uincl tt) c c (st_uincl tt).
 
 Lemma it_sem_uincl_aux c :
-  (forall fn,
-     wequiv_f p p' ev ev' (λ (_ _ : funname), fs_uincl) fn fn (λ _ _  _ _, fs_uincl)) ->
+  (forall ii fn,
+     wequiv_f_ii p p' ev ev' (λ (_ _ : funname), fs_uincl) ii ii fn fn (λ _ _  _ _, fs_uincl)) ->
   wequiv p p' ev ev' (st_uincl tt) c c (st_uincl tt).
 Proof.
   move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
@@ -1584,13 +1588,13 @@ Proof.
   move=> s /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu; exists t => //.
   exists (st_uincl tt), (st_uincl tt); split => //.
   + apply it_sem_uincl_aux => //.
-    by move=> fn' fs1' fs2' h; apply hrec.
+    by move=> ii fn' fs1' fs2' h; apply hrec.
   by apply: fs_uincl_finalize.
 Qed.
 
 Lemma it_sem_uincl c :
   wiequiv p p ev ev (st_uincl tt) c c (st_uincl tt).
-Proof. by apply it_sem_uincl_aux => //; move=> fn ?? h; apply it_sem_uincl_f. Qed.
+Proof. by apply it_sem_uincl_aux => //; move=> ? fn ?? h; apply it_sem_uincl_f. Qed.
 
 End REFL.
 

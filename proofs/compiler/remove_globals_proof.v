@@ -986,7 +986,7 @@ Module RGP. Section PROOFS.
 
   Section IT.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rE0_trans : EventRels_trans rE0}.
+  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rE0_trans : EventRels_trans rE0 rE0 rE0}.
 
   Lemma it_remove_globP P P' ev fn:
     remove_glob_prog fresh_id P = ok P' ->

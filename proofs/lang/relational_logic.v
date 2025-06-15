@@ -447,14 +447,14 @@ Context (spec : EquivSpec) {E0: Type -> Type}.
 Definition RPreD {T1 T2} (d1 : recCall T1)
                          (d2 : recCall T2) : Prop :=
   match d1, d2 with
-  | RecCall fn1 fs1, RecCall fn2 fs2 => rpreF fn1 fn2 fs1 fs2
+  | RecCall _ fn1 fs1, RecCall _ fn2 fs2 => rpreF fn1 fn2 fs1 fs2
   end.
 
 Definition RPostD {T1 T2} (d1 : recCall T1) (t1: T1) (d2 : recCall T2) (t2: T2) : Prop :=
   match d1 in recCall T1_ return T1_ -> T2 -> Prop with
-  | RecCall fn1 fs1 =>
+  | RecCall _ fn1 fs1 =>
     match d2 in recCall T2_ return fstate -> T2_ -> Prop with
-    | RecCall fn2 fs2 => rpostF fn1 fn2 fs1 fs2
+    | RecCall _ fn2 fs2 => rpostF fn1 fn2 fs1 fs2
     end
   end t1 t2.
 
@@ -518,11 +518,11 @@ Notation sem_fun2 := (sem_fun (pT := pT2) (sem_Fun := sem_F2)).
 (* fully relational Hoare triples on itree semantics, based on
    wkequiv_io (i.e. basically on xrutt) *)
 
-Definition wequiv_f (P : relPreF) (fn1 fn2 : funname) (Q:relPostF) :=
+Definition wequiv_f_ii (P : relPreF) ii1 ii2 (fn1 fn2 : funname) (Q:relPostF) :=
   wkequiv_io
     (P fn1 fn2)
-      (sem_fun1 p1 ev1 fn1)
-      (sem_fun2 p2 ev2 fn2)
+      (sem_fun1 p1 ev1 ii1 fn1)
+      (sem_fun2 p2 ev2 ii2 fn2)
     (Q fn1 fn2).
 
 Definition wequiv_f_body (P : relPreF) (fn1 fn2 : funname) (Q:relPostF) :=
@@ -1043,7 +1043,7 @@ Lemma wequiv_call_core (Pf : relPreF) (Qf : relPostF) Rv P Q ii1 xs1 fn1 es1 ii2
             (fun s => sem_pexprs (~~ (@direct_call dc2)) (p_globs p2) s es2) Rv ->
   (forall s1 s2 vs1 vs2,
      P s1 s2 -> Rv vs1 vs2 -> Pf fn1 fn2 (mk_fstate vs1 s1) (mk_fstate vs2 s2)) ->
-  wequiv_f Pf fn1 fn2 Qf ->
+  wequiv_f_ii Pf ii1 ii2 fn1 fn2 Qf ->
   (forall fs1 fs2 fr1 fr2,
     Pf fn1 fn2 fs1 fs2 -> Qf fn1 fn2 fs1 fs2 fr1 fr2 ->
     wrequiv
@@ -1074,7 +1074,7 @@ Lemma wequiv_call (Pf : relPreF) (Qf : relPostF) Rv P Q ii1 xs1 fn1 es1 ii2 xs2 
             (fun s => sem_pexprs (~~ (@direct_call dc2)) (p_globs p2) s es2) Rv ->
   (forall s1 s2 vs1 vs2,
      P s1 s2 -> Rv vs1 vs2 -> Pf fn1 fn2 (mk_fstate vs1 s1) (mk_fstate vs2 s2)) ->
-  wequiv_f Pf fn1 fn2 Qf ->
+  wequiv_f_ii Pf ii1 ii2 fn1 fn2 Qf ->
   (forall fs1 fs2 fr1 fr2,
     Pf fn1 fn2 fs1 fs2 -> Qf fn1 fn2 fs1 fs2 fr1 fr2 ->
     wrequiv P (upd_estate (~~ (@direct_call dc1)) (p_globs p1) xs1 fr1)
@@ -1093,7 +1093,7 @@ Lemma wequiv_call_eq P Q ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
             (fun s => sem_pexprs (~~ (@direct_call dc2)) (p_globs p2) s es2) eq ->
   (forall s1 s2 vs,
      P s1 s2 -> rpreF (eS:=eq_spec) fn1 fn2 (mk_fstate vs s1) (mk_fstate vs s2)) ->
-  wequiv_f (rpreF (eS:=eq_spec)) fn1 fn2 (rpostF (eS:=eq_spec)) ->
+  wequiv_f_ii (rpreF (eS:=eq_spec)) ii1 ii2 fn1 fn2 (rpostF (eS:=eq_spec)) ->
   (forall fs,
     wrequiv P (upd_estate (~~ (@direct_call dc1)) (p_globs p1) xs1 fs)
               (upd_estate (~~ (@direct_call dc2)) (p_globs p2) xs2 fs) Q) ->
@@ -1342,7 +1342,7 @@ Lemma wequiv_call_rel_uincl_R d de de' d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
      R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
   check_es d es1 es2 de →
   check_lvals de' xs1 xs2 d' →
-  wequiv_f (fun _ _ => fs_uincl) fn1 fn2 (fun _ _ _ _ => fs_uincl) →
+  wequiv_f_ii (fun _ _ => fs_uincl) ii1 ii2 fn1 fn2 (fun _ _ _ _ => fs_uincl) →
   wequiv (R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (R d').
 Proof.
   move=> hsm hwith hes hxs hf.
@@ -1483,7 +1483,7 @@ Lemma wequiv_call_rel_eq_R d de de' d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
      R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
   check_es d es1 es2 de →
   check_lvals de' xs1 xs2 d' →
-  wequiv_f (fun _ _ => eq) fn1 fn2 (fun _ _ _ _ => eq) →
+  wequiv_f_ii (fun _ _ => eq) ii1 ii2 fn1 fn2 (fun _ _ _ _ => eq) →
   wequiv (R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (R d').
 Proof.
   move=> hsm hwith hes hxs hf.
@@ -1551,7 +1551,7 @@ Qed.
 Lemma wequiv_call_rel_uincl d de d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
   check_es d es1 es2 de →
   check_lvals de xs1 xs2 d' →
-  wequiv_f (fun _ _ => fs_uincl) fn1 fn2 (fun _ _ _ _ => fs_uincl) →
+  wequiv_f_ii (fun _ _ => fs_uincl) ii1 ii2 fn1 fn2 (fun _ _ _ _ => fs_uincl) →
   wequiv (st_rel R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (st_rel R d').
 Proof.
   apply wequiv_call_rel_uincl_R => //.
@@ -1603,7 +1603,7 @@ Qed.
 Lemma wequiv_call_rel_eq d de d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
   check_es d es1 es2 de →
   check_lvals de xs1 xs2 d' →
-  wequiv_f (fun _ _ => eq) fn1 fn2 (fun _ _ _ _ => eq) →
+  wequiv_f_ii (fun _ _ => eq) ii1 ii2 fn1 fn2 (fun _ _ _ _ => eq) →
   wequiv (st_rel R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (st_rel R d').
 Proof.
   apply wequiv_call_rel_eq_R => //.
@@ -1655,7 +1655,11 @@ Definition EventRels_and1 : EventRels E0 :=
   {| EPreRel0_ := fun T1 T2 (e1 : E0 T1) (e2 : E0 T2) => preInv0 e1 /\ EPreRel0 e1 e2
    ; EPostRel0_ := fun T1 T2 (e1 : E0 T1) t1 (e2 : E0 T2) t2 => postInv0 e1 t1 /\ EPostRel0 e1 t1 e2 t2 |}.
 
-Lemma whoare_wequiv (P Q : rel_c) (P1 Q1 : Pred_c (wsw:=wsw1)) c1 c2:
+Definition EventRels_and2 : EventRels E0 :=
+  {| EPreRel0_ := fun T1 T2 (e1 : E0 T1) (e2 : E0 T2) => preInv0 e2 /\ EPreRel0 e1 e2
+   ; EPostRel0_ := fun T1 T2 (e1 : E0 T1) t1 (e2 : E0 T2) t2 => postInv0 e2 t2 /\ EPostRel0 e1 t1 e2 t2 |}.
+
+Lemma whoare_wequiv1 (P Q : rel_c) (P1 Q1 : Pred_c (wsw:=wsw1)) c1 c2:
   (forall s1 s2, P s1 s2 -> P1 s1) ->
   hoare (wsw:=wsw1) (dc:=dc1) (iEr := invErrT) p1 ev1 P1 c1 Q1 ->
   wequiv p1 p2 ev1 ev2 P c1 c2 Q ->
@@ -1673,6 +1677,24 @@ Proof.
   case: (mfun1 e1); case: (mfun1 e2) => //=.
 Qed.
 
+Lemma whoare_wequiv2 (P Q : rel_c) (P2 Q2 : Pred_c (wsw:=wsw2)) c1 c2:
+  (forall s1 s2, P s1 s2 -> P2 s2) ->
+  hoare (wsw:=wsw2) (dc:=dc2) (iEr := invErrT) p2 ev2 P2 c2 Q2 ->
+  wequiv p1 p2 ev1 ev2 P c1 c2 Q ->
+  wequiv (rE0 := EventRels_and2) p1 p2 ev1 ev2 P c1 c2 (fun s1 s2 => Q2 s2 /\ Q s1 s2).
+Proof.
+  move=> hPP2 hh he s1 s2 hP.
+  have {}hh := hh s2 (hPP2 _ _ hP).
+  have {}he := he _ _ hP.
+  have := lutt_xrutt_trans_r hh he.
+  apply xrutt_weaken => //.
+  + move=> T1 T2 e1 e2 []; rewrite /preInv /EPreRel /=.
+    by case: (mfun1 e1); case: (mfun1 e2).
+  move=> T1 T2 e1 t1 e2 t2 + _ [].
+  rewrite /errcutoff /is_error /preInv /EPreRel /EPostRel /postInv /=.
+  case: (mfun1 e1); case: (mfun1 e2) => //=.
+Qed.
+
 End WEQUIV_WHOARE.
 
 Section WEQUIV_WRITE.
@@ -1681,7 +1703,7 @@ Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
 
 Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
 
-Lemma wequiv_write (P Q : rel_c) c1 c2:
+Lemma wequiv_write1 (P Q : rel_c) c1 c2:
   wequiv p1 p2 ev1 ev2 P c1 c2 Q ->
   (forall s1_,
     wequiv p1 p2 ev1 ev2
@@ -1693,7 +1715,25 @@ Proof.
   have /(_ s1_) hw := [elaborate it_writeP (dc:=dc1) p1 ev1 c1 ].
   have h_ : forall s1 s2, (s1 = s1_ /\ s2 = s2_) /\ P s1 s2 -> s1 = s1_.
   + by move=> ?? [] [].
-  have {h_ h}:= whoare_wequiv h_ hw (h s1_ s2_).
+  have {h_ h}:= whoare_wequiv1 h_ hw (h s1_ s2_).
+  apply wkequiv_weaken => //.
+  + by move=> > [].
+  by move=> ?? [] [] ?? [].
+Qed.
+
+Lemma wequiv_write2 (P Q : rel_c) c1 c2:
+  wequiv p1 p2 ev1 ev2 P c1 c2 Q ->
+  (forall s2_,
+    wequiv p1 p2 ev1 ev2
+     (fun s1 s2 => s2 = s2_ /\ P s1 s2)
+     c1 c2
+     (fun s1 s2 => s2_.(evm) =[\ write_c c2] s2.(evm) /\ Q s1 s2)).
+Proof.
+  move=> /wkequivP' h s2_; apply/wkequivP' => s1_ s2__.
+  have /(_ s2_) hw := [elaborate it_writeP (dc:=dc2) p2 ev2 c2 ].
+  have h_ : forall s1 s2, (s1 = s1_ /\ s2 = s2_) /\ P s1 s2 -> s2 = s2_.
+  + by move=> ?? [] [].
+  have {h_ h}:= whoare_wequiv2 h_ hw (h s1_ s2_).
   apply wkequiv_weaken => //.
   + by move=> > [].
   by move=> ?? [] [] ?? [].
@@ -1704,25 +1744,23 @@ End WEQUIV_WRITE.
 Notation sem_fun_full1 := (sem_fun_full (wsw:=wsw1) (dc:=dc1) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT1) (scP:= scP1)).
 Notation sem_fun_full2 := (sem_fun_full (wsw:=wsw2) (dc:=dc2) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT2) (scP:= scP2)).
 
+(*
 Notation wiequiv_f := (wequiv_f (sem_F1 := sem_fun_full1) (sem_F2 := sem_fun_full2)).
 Notation wiequiv   := (wequiv (sem_F1 := sem_fun_full1) (sem_F2 := sem_fun_full2)).
-
+*)
 Section WEQUIV_FUN.
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2)  (spec : EquivSpec).
 
-Definition wequiv_f_rec RPreF fn1 fn2 RPostF :=
-  wequiv_f (rE0:=relEvent_recCall spec) p1 p2 ev1 ev2 RPreF fn1 fn2 RPostF.
+Definition wequiv_f_rec RPreF ii1 ii2 fn1 fn2 RPostF :=
+  wequiv_f_ii (rE0:=relEvent_recCall spec) p1 p2 ev1 ev2 RPreF ii1 ii2 fn1 fn2 RPostF.
 
-Definition wequiv_rec P c1 c2 Q :=
-  wequiv (rE0:=relEvent_recCall spec) p1 p2 ev1 ev2 P c1 c2 Q.
+Section REC.
 
-Definition wequiv_rec_i P i1 i2 Q := wequiv_rec P [:: i1 ] [:: i2 ] Q.
-
-Definition wequiv_rec_ir P i1 ii1 i2 ii2 Q :=
-  wequiv_rec_i P (MkI ii1 i1) (MkI ii2 i2) Q.
+Context (sem_F1 : funname -> sem_Fun1 (recCall +' E)).
+Context (sem_F2 : funname -> sem_Fun2 (recCall +' E)).
 
 Definition wequiv_fun_body_hyp_rec (RPreF:relPreF) fn1 fn2 (RPostF:relPostF) :=
   forall fs1 fs2,
@@ -1734,7 +1772,7 @@ Definition wequiv_fun_body_hyp_rec (RPreF:relPreF) fn1 fn2 (RPostF:relPostF) :=
       initialize_funcall (dc:=dc2) p2 ev2 fd2 fs2 = ok s21 &
       exists (P Q : rel_c),
         [/\ P s11 s21
-          , wequiv_rec P fd1.(f_body) fd2.(f_body) Q
+          , wequiv (sem_F1 := sem_F1 fn1) (sem_F2 := sem_F2 fn2) (rE0:=relEvent_recCall spec) p1 p2 ev1 ev2 P fd1.(f_body) fd2.(f_body) Q
           & wrequiv Q (finalize_funcall (dc:=dc1) fd1) (finalize_funcall (dc:=dc2) fd2) (RPostF fn1 fn2 fs1 fs2)].
 
 #[local]
@@ -1750,40 +1788,64 @@ Proof.
   + move=> T1 e1; rewrite /errcutoff /= /EE_MR.
     by case: e1 => //= e; rewrite /is_error /=; case: mfun1.
   + move=> T1 T2 e1 e2; rewrite /EPreRel sum_prerelP.
-    case: e1 e2 => [ [fn1 fs1] | e1] [ [fn2 fs2] | e2] //=.
+    case: e1 e2 => [ [ii1 fn1 fs1] | e1] [ [ii2 fn2 fs2] | e2] //=.
     + by case : mfun1. + by case : mfun1.
     by case: mfun1 => // ?; case: mfun1.
   move=> T1 T2 e1 t1 e2 t2; rewrite /EPostRel sum_postrelP.
-  case: e1 t1 e2 t2 => [ [fn1 fs1] | e1] t1 [ [fn2 fs2] | e2] t2 //=.
+  case: e1 t1 e2 t2 => [ [ii1 fn1 fs1] | e1] t1 [ [ii2 fn2 fs2] | e2] t2 //=.
   by case: mfun1 => // ?; case: mfun1.
 Qed.
 
+Notation isem_fun_def1 := (isem_fun_def (wsw:=wsw1) (dc:=dc1) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT1) (scP:= scP1) (sem_F:=sem_F1)).
+
+Notation isem_fun_def2 := (isem_fun_def (wsw:=wsw2) (dc:=dc2) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT2) (scP:= scP2) (sem_F:=sem_F2)).
+
+Notation wiequiv_f rpreF fn1 fn2 rpostF :=
+   (wkequiv_io (rpreF fn1 fn2) (isem_fun_def1 p1 ev1 fn1) (isem_fun_def2 p2 ev2 fn2) (rpostF fn1 fn2)).
+
 Lemma wequiv_fun_ind :
-  ((forall fn1 fn2, wequiv_f_rec rpreF fn1 fn2 rpostF) ->
+  ((forall ii1 ii2 fn1 fn2, wequiv_f_rec rpreF ii1 ii2 fn1 fn2 rpostF) ->
    (forall fn1 fn2, wequiv_fun_body_hyp_rec rpreF fn1 fn2 rpostF)) ->
   forall fn1 fn2,
-  wiequiv_f p1 p2 ev1 ev2 rpreF fn1 fn2 rpostF.
+  wiequiv_f rpreF fn1 fn2 rpostF.
 Proof.
-  have hrec : (forall fn1 fn2, wequiv_f_rec rpreF fn1 fn2 rpostF).
-  + by move=> fn1' fn2' fs1' fs2' hpre'; apply xrutt_trigger.
+  have hrec : (forall ii1 ii2 fn1 fn2, wequiv_f_rec rpreF ii1 ii2 fn1 fn2 rpostF).
+  + by move=> ii1 ii2 fn1' fn2' fs1' fs2' hpre'; apply xrutt_trigger.
   move=> /(_ hrec) hbody fn1 fn2 fs1 fs2 hpre.
   apply interp_mrec_xrutt with (RPreInv := (@RPreD spec))
                                (RPostInv := (@RPostD spec)).
   + move=> {hpre fn1 fn2 fs1 fs2}.
-    move=> _ _ [fn1 fs1] [fn2 fs2] hpre.
+    move=> _ _ [ii1 fn1 fs1] [ii2 fn2 fs2] hpre.
     have := wequiv_fun_body (hbody fn1 fn2) hpre.
     by apply xrutt_weaken_aux.
   have := wequiv_fun_body (hbody fn1 fn2) hpre.
   apply xrutt_weaken_aux.
 Qed.
 
+End REC.
+
+
+Definition wequiv_rec P c1 c2 Q :=
+  wequiv (rE0:=relEvent_recCall spec) p1 p2 ev1 ev2 P c1 c2 Q.
+
+Definition wequiv_rec_i P i1 i2 Q := wequiv_rec P [:: i1 ] [:: i2 ] Q.
+
+Definition wequiv_rec_ir P i1 ii1 i2 ii2 Q :=
+  wequiv_rec_i P (MkI ii1 i1) (MkI ii2 i2) Q.
+
+Definition wiequiv_f rpreF fn1 fn2 rpostF :=
+   (wkequiv_io (rpreF fn1 fn2)
+      (isem_fun (wsw:=wsw1) (dc:=dc1) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT1) (scP:= scP1) p1 ev1 fn1)
+      (isem_fun (wsw:=wsw2) (dc:=dc2) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT2) (scP:= scP2) p2 ev2 fn2)
+     (rpostF fn1 fn2)).
+
 Lemma wequiv_fun_get fn1 fn2 Pf Qf :
   (forall fd1, get_fundef (p_funcs p1) fn1 = Some fd1 ->
-    wiequiv_f p1 p2 ev1 ev2 (fun fn1 fn2 fs1 fs2 =>
+    wiequiv_f (fun fn1 fn2 fs1 fs2 =>
       Pf fn1 fn2 fs1 fs2 /\
       exists s1, initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s1)
       fn1 fn2 Qf) ->
-  wiequiv_f p1 p2 ev1 ev2 Pf fn1 fn2 Qf.
+  wiequiv_f Pf fn1 fn2 Qf.
 Proof.
   move=> hfd fs1 fs2 hpre /=.
   rewrite !isem_call_unfold /isem_fun_body /kget_fundef.
@@ -1804,7 +1866,7 @@ End WEQUIV_FUN.
 
 End RELATIONAL.
 
-Notation wiequiv_f := (wequiv_f (sem_F1 := sem_fun_full) (sem_F2 := sem_fun_full)).
+(* Notation wiequiv_f := (wequiv_f (sem_F1 := sem_fun_full) (sem_F2 := sem_fun_full)). *)
 Notation wiequiv   := (wequiv (sem_F1 := sem_fun_full) (sem_F2 := sem_fun_full)).
 
 Lemma st_relP {syscall_state : Type} {ep : EstateParams syscall_state} {wsw : WithSubWord}
@@ -1836,7 +1898,7 @@ Proof.
   by move=> [<-] /=; eexists.
 Qed.
 
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0 : Type -> Type} {sem_F1 sem_F2 : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 Context (p1 p2 : prog) (ev1 ev2: extra_val_t).
 
@@ -1847,7 +1909,8 @@ Context {D : Type}
 Lemma wequiv_syscall_rel_uincl {cu: Checker_uincl p1 p2 (ce:=ce)} d de d' ii1 xs1 sc es1 ii2 xs2 es2 :
   check_es d es1 es2 de →
   check_lvals de xs1 xs2 d' →
-  wequiv p1 p2 ev1 ev2 (st_rel R d) [:: MkI ii1 (Csyscall xs1 sc es1)] [:: MkI ii2 (Csyscall xs2 sc es2)] (st_rel R d').
+  wequiv (sem_F1:=sem_F1) (sem_F2:=sem_F2)
+    p1 p2 ev1 ev2 (st_rel R d) [:: MkI ii1 (Csyscall xs1 sc es1)] [:: MkI ii2 (Csyscall xs2 sc es2)] (st_rel R d').
 Proof.
   move=> hes hxs.
   eapply wequiv_syscall_rel_uincl_core; eauto.
@@ -1857,7 +1920,8 @@ Qed.
 Lemma wequiv_syscall_rel_eq {cu: Checker_eq p1 p2 (ce:=ce)} d de d' ii1 xs1 sc es1 ii2 xs2 es2 :
   check_es d es1 es2 de →
   check_lvals de xs1 xs2 d' →
-  wequiv p1 p2 ev1 ev2 (st_rel R d) [:: MkI ii1 (Csyscall xs1 sc es1)] [:: MkI ii2 (Csyscall xs2 sc es2)] (st_rel R d').
+  wequiv (sem_F1:=sem_F1) (sem_F2:=sem_F2)
+    p1 p2 ev1 ev2 (st_rel R d) [:: MkI ii1 (Csyscall xs1 sc es1)] [:: MkI ii2 (Csyscall xs2 sc es2)] (st_rel R d').
 Proof.
   move=> hes hxs.
   eapply wequiv_syscall_rel_eq_core; eauto.
@@ -1873,11 +1937,12 @@ Arguments Checker_uincl {syscall_state} {ep spp} {asm_op} {sip pT1 pT2 wsw1 wsw2
   _ _ {D} [R] ce.
 
 
-Class EventRels_trans {E0 : Type -> Type} (rE0 : EventRels E0) :=
-  { ERpre_trans : forall T1 T2 T3 (e1 : E0 T1) (e2 : E0 T2) (e3 : E0 T3), EPreRel0 e1 e2 → EPreRel0 e2 e3 → EPreRel0 e1 e3;
+Class EventRels_trans {E0 : Type -> Type} (rE12 rE23 rE13 : EventRels E0) :=
+  { ERpre_trans : forall T1 T2 T3 (e1 : E0 T1) (e2 : E0 T2) (e3 : E0 T3),
+       EPreRel0 (rE0:=rE12) e1 e2 → EPreRel0 (rE0:=rE23) e2 e3 → EPreRel0 (rE0:=rE13) e1 e3;
     ERpost_trans : forall T1 T2 T3 (e1 : E0 T1) (e2 : E0 T2) (e3 : E0 T3) t1 t3,
-     EPreRel0 e1 e2 → EPreRel0 e2 e3 → EPostRel0 e1 t1 e3 t3 →
-     exists2 t2 : T2, EPostRel0 e1 t1 e2 t2 & EPostRel0 e2 t2 e3 t3; }.
+     EPreRel0 (rE0:=rE12) e1 e2 → EPreRel0 (rE0:=rE23) e2 e3 → EPostRel0 (rE0:=rE13) e1 t1 e3 t3 →
+     exists2 t2 : T2, EPostRel0 (rE0:=rE12) e1 t1 e2 t2 & EPostRel0 (rE0:=rE23) e2 t2 e3 t3; }.
 
 Section TRANSITIVITY.
 
@@ -1914,29 +1979,62 @@ Notation isem_fun1 := (isem_fun (wsw:=wsw1) (dc:=dc1) (ep:=ep) (spp:=spp) (sip:=
 Notation isem_fun2 := (isem_fun (wsw:=wsw2) (dc:=dc2) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT2) (scP:= scP2)).
 Notation isem_fun3 := (isem_fun (wsw:=wsw3) (dc:=dc3) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT3) (scP:= scP3)).
 
-Notation sem_Fun1 := (sem_Fun (pT:=pT1)).
-Notation sem_Fun2 := (sem_Fun (pT:=pT2)).
-Notation sem_Fun3 := (sem_Fun (pT:=pT3)).
+Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE12 rE23 rE13 : EventRels E0}.
 
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
-
-Context (rE0_trans : EventRels_trans rE0).
+Context (rE_trans : EventRels_trans rE12 rE23 rE13).
 
 Lemma wiequiv_f_trans (p1 : prog1) (p2 : prog2) (p3 : prog3) ev1 ev2 ev3 fn1 fn2 fn3
   rpreF12 rpreF23 rpreF13 rpostF12 rpostF23 rpostF13 :
    (forall fs1 fs3, rpreF13 fn1 fn3 fs1 fs3 -> exists2 fs2, rpreF12 fn1 fn2 fs1 fs2 & rpreF23 fn2 fn3 fs2 fs3) ->
    (forall fs1 fs2 fs3 r1 r3, rpreF12 fn1 fn2 fs1 fs2 -> rpreF23 fn2 fn3 fs2 fs3 ->
      rcompose (rpostF12 fn1 fn2 fs1 fs2) (rpostF23 fn2 fn3 fs2 fs3) r1 r3 → rpostF13 fn1 fn3 fs1 fs3 r1 r3) ->
-   wiequiv_f p1 p2 ev1 ev2 rpreF12 fn1 fn2 rpostF12 ->
-   wiequiv_f p2 p3 ev2 ev3 rpreF23 fn2 fn3 rpostF23 ->
-   wiequiv_f p1 p3 ev1 ev3 rpreF13 fn1 fn3 rpostF13.
+   wiequiv_f (rE0:=rE12) p1 p2 ev1 ev2 rpreF12 fn1 fn2 rpostF12 ->
+   wiequiv_f (rE0:=rE23) p2 p3 ev2 ev3 rpreF23 fn2 fn3 rpostF23 ->
+   wiequiv_f (rE0:=rE13) p1 p3 ev1 ev3 rpreF13 fn1 fn3 rpostF13.
 Proof.
   move=> hpre hpost h1 h2 fs1 fs3 hpre13.
   have [fs2 hpre12 hpre23] := hpre _ _ hpre13.
   apply xrutt_weaken with
-    (errcutoff (is_error wE)) nocutoff (prcompose EPreRel EPreRel)
-    (pocompose EPreRel EPreRel EPostRel EPostRel)
+    (errcutoff (is_error wE)) nocutoff (prcompose (EPreRel (rE0:=rE12)) (EPreRel (rE0:=rE23)))
+    (pocompose (EPreRel (rE0:=rE12)) (EPreRel (rE0:=rE23)) (EPostRel (rE0:=rE12)) (EPostRel(rE0:=rE23)))
     (rcompose (rpostF12 fn1 fn2 fs1 fs2) (rpostF23 fn2 fn3 fs2 fs3)) => //.
+  + move=> T1 T3 e1 e3 [T2 e2]; rewrite /EPreRel.
+    case: (mfun1 e1) (mfun1 e2) (mfun1 e3) => [err1 | e0_1] /= [err2 | e0_2] //= [err3 | e0_3] //.
+    by apply ERpre_trans.
+  + move=> T1 T3 e1 t1 e3 t3. rewrite /errcutoff /nocutoff /is_error => herr _ _ hh.
+    move=> T2 e2; move: hh; rewrite /EPreRel /EPostRel.
+    case: (mfun1 e1) herr => //.
+    move=> e0_1 _. case: (mfun1 e2) => //= e0_2.
+    case: (mfun1 e3) => //= e0_3.
+    by move=> ???; apply ERpost_trans.
+  + by move=> r1 r2; apply hpost.
+  have := h2 _ _ hpre23; have := h1 _ _ hpre12.
+  apply xrutt_facts.xrutt_trans.
+  move=> T1 T2 e1 e2 /sum_prerelP h.
+  dependent destruction h => /=.
+  + by rewrite /errcutoff /= /is_error -x0.
+  by rewrite /errcutoff /is_error -x.
+Qed.
+
+Notation sem_Fun1 := (sem_Fun (sip:=sip) (pT:=pT1) E).
+Notation sem_Fun2 := (sem_Fun (sip:=sip) (pT:=pT2) E).
+Notation sem_Fun3 := (sem_Fun (sip:=sip) (pT:=pT3) E).
+
+Lemma wequiv_trans (sem_F1 : sem_Fun1) (sem_F2 : sem_Fun2) (sem_F3: sem_Fun3)
+   (p1 : prog1) (p2 : prog2) (p3 : prog3) ev1 ev2 ev3 c1 c2 c3
+  rpre12 rpre23 rpre13 rpost12 rpost23 rpost13 :
+   (forall s1 s3, rpre13 s1 s3 → exists2 s2, rpre12 s1 s2 & rpre23 s2 s3) →
+   (forall s1 s2 s3,  rpost12 s1 s2 → rpost23 s2 s3 → rpost13 s1 s3) →
+   wequiv (sem_F1:= sem_F1) (sem_F2:= sem_F2) (rE0:=rE12) p1 p2 ev1 ev2 rpre12 c1 c2 rpost12 →
+   wequiv (sem_F1:= sem_F2) (sem_F2:= sem_F3) (rE0:=rE23) p2 p3 ev2 ev3 rpre23 c2 c3 rpost23 →
+   wequiv (sem_F1:= sem_F1) (sem_F2:= sem_F3) (rE0:=rE13) p1 p3 ev1 ev3 rpre13 c1 c3 rpost13.
+Proof.
+  move=> hpre hpost h1 h2 s1 s3 hpre13.
+  have [s2 hpre12 hpre23] := hpre _ _ hpre13.
+  apply xrutt_weaken with
+    (errcutoff (is_error wE)) nocutoff (prcompose (EPreRel (rE0:=rE12)) (EPreRel (rE0:=rE23)))
+    (pocompose (EPreRel (rE0:=rE12)) (EPreRel (rE0:=rE23)) (EPostRel (rE0:=rE12)) (EPostRel(rE0:=rE23)))
+    (rcompose rpost12 rpost23) => //.
   + move=> T1 T3 e1 e3 [T2 e2]; rewrite /EPreRel.
     case: (mfun1 e1) (mfun1 e2) (mfun1 e3) => [err1 | e0_1] /= [err2 | e0_2] //= [err3 | e0_3] //.
     apply ERpre_trans.
@@ -1946,7 +2044,7 @@ Proof.
     move=> e0_1 _. case: (mfun1 e2) => //= e0_2.
     case: (mfun1 e3) => //= e0_3.
     by move=> ???; apply ERpost_trans.
-  + by move=> r1 r2; apply hpost.
+  + move=> r1 r3 [r2]; apply hpost.
   have := h2 _ _ hpre23; have := h1 _ _ hpre12.
   apply xrutt_facts.xrutt_trans.
   move=> T1 T2 e1 e2 /sum_prerelP h.

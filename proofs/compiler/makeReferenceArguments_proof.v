@@ -804,7 +804,7 @@ Context
     rewrite sem_pl /= Eqit.bind_ret_l.
     rewrite /isem_pexprs eval_args' /= Eqit.bind_ret_l Eqit.bind_bind.
     set fs1 := mk_fstate ves s; set fs2 := mk_fstate ves (with_vm s vmx).
-    apply xrutt_facts.xrutt_bind with (rpostF (eS:=mra_spec) f f fs1 fs2); first by apply hrec.
+    apply xrutt_facts.xrutt_bind with (rpostF (eS:=mra_spec) f f fs1 fs2); first by apply (hrec ii ii).
     move=> fr _[<-]; rewrite heq => -[_ [<-] [vres' htr]].
     rewrite /upd_estate.
     case h3 : write_lvals => [s' | e /=]; last first.

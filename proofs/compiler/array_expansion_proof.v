@@ -907,7 +907,8 @@ Section CMD.
 
 Context (m:t) (hwf : wf_t m).
 
-Context (hrec : forall fn1 fn2, wequiv_f_rec p1 p2 ev ev exp_spec (rpreF (eS:=exp_spec))  fn1 fn2 (rpostF (eS:=exp_spec))).
+Context (hrec : forall ii1 ii2 fn1 fn2,
+   wequiv_f_rec p1 p2 ev ev exp_spec (rpreF (eS:=exp_spec)) ii1 ii2 fn1 fn2 (rpostF (eS:=exp_spec))).
 
 #[ local ]
 Definition Pi_ (i1 : instr) :=

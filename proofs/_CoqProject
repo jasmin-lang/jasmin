@@ -138,6 +138,7 @@ compiler/x86_stack_zeroization.v
 compiler/x86_stack_zeroization_proof.v
 compiler/x86.v
 itrees/it_exec.v
+itrees/rec_facts.v
 itrees/rutt_extras.v
 itrees/xrutt.v
 itrees/xrutt_facts.v

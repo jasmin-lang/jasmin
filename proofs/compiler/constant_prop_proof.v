@@ -1391,7 +1391,7 @@ Lemma remove_cpm_write c c2 X m mc P P' :
   wequiv_rec p p' ev ev uincl_spec P' c c2 (cmpl_inv mc) ->
   wequiv_rec p p' ev ev uincl_spec P c c2 (fun s1 s2 => cmpl_inv m' s1 s2 /\ cmpl_inv mc s1 s2).
 Proof.
-  move=> m' hsub hPP' /wequiv_write hc.
+  move=> m' hsub hPP' /wequiv_write1 hc.
   apply wkequivP' => s1_ s2_.
   move: (hc s1_); apply wkequiv_weaken => //.
   + by move=> _ _ [[-> ->] /hPP' []].
