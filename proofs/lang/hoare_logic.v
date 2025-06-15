@@ -125,12 +125,12 @@ Context (spec : HoareSpec) {E0: Type -> Type}.
 
 Definition preD T (d : recCall T) : Prop :=
   match d with
-  | RecCall fn fs => preF fn fs
+  | RecCall _ fn fs => preF fn fs
   end.
 
 Definition postD T (d : recCall T) (t: T) : Prop :=
   match d in recCall T_ return T_ -> Prop with
-  | RecCall fn fs => postF fn fs
+  | RecCall _ fn fs => postF fn fs
   end t.
 
 Definition invEvent_recCall {iE0 : InvEvent E0} : InvEvent (recCall +' E0) :=
@@ -439,8 +439,8 @@ Context (p : prog) (ev: extra_val_t).
 (* Hoare triples with relational post-conditions on itree semantics,
    based on khoare triples *)
 
-Definition hoare_f (P : PreF) (fn : funname) (Q: PostF) :=
-  khoare_io (P fn) (sem_fun p ev fn) (Q fn).
+Definition hoare_f_ii (P : PreF) ii (fn : funname) (Q: PostF) :=
+  khoare_io (P fn) (sem_fun p ev ii fn) (Q fn).
 
 Definition hoare_f_body (P : PreF) (fn : funname) (Q: PostF) :=
   khoare_io (P fn) (isem_fun_body p ev fn) (Q fn).
@@ -642,7 +642,7 @@ Lemma hoare_call (Pf : PreF) (Qf : PostF) Rv P Q Qerr ii xs fn es :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
   rhoare P (fun s => sem_pexprs (~~ direct_call) (p_globs p) s es) Rv Qerr ->
   (forall s vs, P s -> Rv vs -> Pf fn (mk_fstate vs s)) ->
-  hoare_f Pf fn Qf ->
+  hoare_f_ii Pf ii fn Qf ->
   (forall fs fr,
     Pf fn fs -> Qf fn fs fr ->
     rhoare P (upd_estate (~~ direct_call) (p_globs p) xs fr) Q Qerr) ->
@@ -708,7 +708,7 @@ Context (p : prog) (ev: extra_val_t).
 #[local] Existing Instance trivial_invErr.
 #[local] Existing Instance trivial_invEvent.
 
-Lemma hoare_f_true (P : PreF) (fn : funname) : hoare_f p ev P fn (fun _ _ _ => True).
+Lemma hoare_f_true (P : PreF) ii (fn : funname) : hoare_f_ii p ev P ii fn (fun _ _ _ => True).
 Proof. apply khoare_io_true. Qed.
 
 Lemma hoare_f_body_true (P : PreF) (fn : funname) : hoare_f_body p ev P fn (fun _ _ _ => True).
@@ -721,8 +721,7 @@ Lemma hoare_true (P : Pred_c) (c : cmd) : hoare p ev P c PredT.
 Proof. apply khoare_io_true. Qed.
 
 End TRIVIAL.
-
-Notation ihoare_f := (hoare_f (sem_F := sem_fun_full)).
+Notation ihoare_f p ev P fn Q  := (khoare_io (P fn) (isem_fun p ev fn) (Q fn)).
 Notation ihoare   := (hoare (sem_F := sem_fun_full)).
 
 Section HOARE_FUN.
@@ -731,8 +730,8 @@ Context {E E0: Type -> Type} {wE: with_Error E E0} {iE0 : InvEvent E0} {iEr : In
 
 Context (p : prog) (ev: extra_val_t) (spec : HoareSpec).
 
-Definition hoare_f_rec Pf fn Qf :=
-  hoare_f (iE0 := invEvent_recCall spec) p ev Pf fn Qf.
+Definition hoare_f_rec Pf ii fn Qf :=
+  hoare_f_ii (iE0 := invEvent_recCall spec) p ev Pf ii fn Qf.
 
 Definition hoare_rec P c Q :=
   hoare (iE0 := invEvent_recCall spec) p ev P c Q.
@@ -770,17 +769,17 @@ Proof.
 Qed.
 
 Lemma ihoare_fun Qerr :
-  ((forall fn, hoare_f_rec preF fn postF) ->
+  ((forall ii fn, hoare_f_rec preF ii fn postF) ->
    forall fn, hoare_fun_body_hyp_rec preF fn postF Qerr) ->
   forall fn, ihoare_f p ev preF fn postF.
 Proof.
-  have hrec : (forall fn, hoare_f_rec preF fn postF).
-  + by move=> fn' fs' hpre' /=; apply lutt_trigger.
+  have hrec : (forall ii fn, hoare_f_rec preF ii fn postF).
+  + by move=> ii fn' fs' hpre' /=; apply lutt_trigger.
   move=> /(_ hrec) hbody {hrec}.
   move=> fn fs hpre.
   apply interp_mrec_lutt with (DPEv := preD spec) (DPAns := postD spec).
   + move=> {hpre fn fs}.
-    move=> ? [fn fs] /= hpre.
+    move=> ? [ii_ fn fs] /= hpre.
     have := hoare_fun_body (iE0 := invEvent_recCall spec) (hbody fn) hpre.
     apply lutt_weaken; auto using weak_pre, weak_post.
   have := hoare_fun_body (iE0 := invEvent_recCall spec) (hbody fn) hpre.
@@ -794,7 +793,7 @@ Definition invErrT : InvErr :=
   {| invErr_ := fun=> True |}.
 
 Notation whoare := (hoare (iEr := invErrT)).
-Notation whoare_f := (hoare_f (iEr := invErrT)).
+Notation whoare_f := (hoare_f_ii (iEr := invErrT)).
 
 Section WHOARE_CORE.
 
@@ -873,7 +872,7 @@ Proof. by apply hoare_while. Qed.
 Lemma whoare_call (Pf : PreF) (Qf : PostF) Rv P Q ii xs fn es :
   rhoare P (fun s => sem_pexprs (~~ direct_call) (p_globs p) s es) Rv PredT ->
   (forall s vs, P s -> Rv vs -> Pf fn (mk_fstate vs s)) ->
-  whoare_f p ev Pf fn Qf ->
+  whoare_f p ev Pf ii fn Qf ->
   (forall fs fr,
     Pf fn fs -> Qf fn fs fr ->
     rhoare P (upd_estate (~~ direct_call) (p_globs p) xs fr) Q PredT) ->
@@ -882,7 +881,7 @@ Proof. by apply hoare_call. Qed.
 
 End WHOARE_CORE.
 
-Notation iwhoare_f := (hoare_f (sem_F := sem_fun_full) (iEr := invErrT)).
+Notation iwhoare_f p ev P fn Q  := (khoare_io (iEr := invErrT) (P fn) (isem_fun p ev fn) (Q fn)).
 Notation iwhoare   := (hoare (sem_F := sem_fun_full) (iEr := invErrT)).
 
 Section WHOARE_FUN.
@@ -891,8 +890,8 @@ Context {E E0: Type -> Type} {wE: with_Error E E0} {iE0 : InvEvent E0}.
 
 Context (p : prog) (ev: extra_val_t) (spec : HoareSpec).
 
-Definition whoare_f_rec Pf fn Qf :=
-  hoare_f (iE0 := invEvent_recCall spec) (iEr := invErrT) p ev Pf fn Qf.
+Definition whoare_f_rec Pf ii fn Qf :=
+  hoare_f_ii (iE0 := invEvent_recCall spec) (iEr := invErrT) p ev Pf ii fn Qf.
 
 Definition whoare_rec P c Q :=
   hoare (iE0 := invEvent_recCall spec) (iEr := invErrT) p ev P c Q.
@@ -907,7 +906,7 @@ Definition whoare_fun_body_hyp_rec Pf fn Qf :=
       & rhoare Q (finalize_funcall fd) (Qf fn fs) PredT].
 
 Lemma iwhoare_fun :
-  ((forall fn, whoare_f_rec preF fn postF) ->
+  ((forall ii fn, whoare_f_rec preF ii fn postF) ->
    forall fn, whoare_fun_body_hyp_rec preF fn postF) ->
   forall fn, iwhoare_f p ev preF fn postF.
 Proof.
@@ -922,9 +921,9 @@ End WHOARE_FUN.
 End Section.
 
 Notation whoare := (hoare (iEr := invErrT)).
-Notation whoare_f := (hoare_f (iEr := invErrT)).
+Notation whoare_f := (hoare_f_ii (iEr := invErrT)).
 
-Notation iwhoare_f := (hoare_f (sem_F := sem_fun_full) (iEr := invErrT)).
+Notation iwhoare_f p ev P fn Q  := (khoare_io (iEr := invErrT) (P fn) (isem_fun p ev fn) (Q fn)).
 Notation iwhoare   := (hoare (sem_F := sem_fun_full) (iEr := invErrT)).
 
 (* Should we do that in core ? *)
