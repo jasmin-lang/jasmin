@@ -1,7 +1,3 @@
-(coq.theory
-  (name Jasmin)
-  (theories mathcomp))
-
 (env
   (_ (coq (flags :standard
          -set "Uniform Inductive Parameters"
