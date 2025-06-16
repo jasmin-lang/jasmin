@@ -83,11 +83,12 @@
   [PR #1130](https://github.com/jasmin-lang/jasmin/pull/1130)).
 
 - Finer control over which instructions can be removed by the compiler: only
-  intrinsic operators that do not return any value (e.g., `#CLFLUSH`) are never
-  treated as dead; use a `#[keep]` annotation to mark an instruction as live
-  even though its results are not used
-  ([PR #1140](https://github.com/jasmin-lang/jasmin/pull/1140);
-  fixes [#1139](https://github.com/jasmin-lang/jasmin/issues/1139)).
+  intrinsic operators that do not return any value (e.g., `#CLFLUSH`) and SLH
+  primitives (e.g., `#init_msf`) are never treated as dead; use a `#[keep]`
+  annotation to mark an instruction as live even though its results are not used
+  ([PR #1140](https://github.com/jasmin-lang/jasmin/pull/1140),
+  [PR #1203](https://github.com/jasmin-lang/jasmin/pull/1203); fixes
+  [#1139](https://github.com/jasmin-lang/jasmin/issues/1139)).
 
 - Better testing of the printing feature
   ([PR #1149](https://github.com/jasmin-lang/jasmin/pull/1149)).
