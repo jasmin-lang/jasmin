@@ -194,16 +194,16 @@ let memory_analysis pp_sr pp_err ~debug up =
         get_sao
         up
     with
-    | Utils0.Ok sp -> sp
-    | Utils0.Error e ->
+    | Result.Ok sp -> sp
+    | Result.Error e ->
       let e = Conv.error_of_cerror pp_err e in
       raise (HiError e)
   in
 
   let sp' =
     match Arch.aparams.ap_lap (Conv.fresh_var_ident (Reg (Normal, Direct)) IInfo.dummy (Uint63.of_int 0)) sp with
-    | Utils0.Ok sp -> sp
-    | Utils0.Error e ->
+    | Result.Ok sp -> sp
+    | Result.Error e ->
       let e = Conv.error_of_cerror pp_err e in
       raise (HiError e)
   in
@@ -235,8 +235,8 @@ let memory_analysis pp_sr pp_err ~debug up =
     let (fn, cfd) = Conv.cufdef_of_fdef fd in
     let fd = 
       match Dead_code.dead_code_fd Arch.asmOp Arch.aparams.ap_is_move_op false tokeep fn cfd with
-      | Utils0.Ok cfd -> Conv.fdef_of_cufdef (fn, cfd)
-      | Utils0.Error _ -> assert false in 
+      | Result.Ok cfd -> Conv.fdef_of_cufdef (fn, cfd)
+      | Result.Error _ -> assert false in 
     (extra,fd) in
   let fds = List.map deadcode fds in
   if debug then

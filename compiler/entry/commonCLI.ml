@@ -91,8 +91,8 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
       let cp = Conv.cuprog_of_prog prog in
       (* We need to avoid catching compilation errors. *)
       match Compile.compile (module Arch) stop prog cp with
-      | Utils0.Ok _ -> assert false
-      | Utils0.Error e ->
+      | Result.Ok _ -> assert false
+      | Result.Error e ->
           let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
           raise (HiError e)
       | exception Found -> !res

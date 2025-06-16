@@ -212,8 +212,8 @@ let main () =
               (match
                  Evaluator.initial_memory Arch.reg_size (Z.of_string "1024") m
                with
-               | Utils0.Ok m -> m
-               | Utils0.Error err -> raise (Evaluator.Eval_error (ii, err)))
+               | Result.Ok m -> m
+               | Result.Error err -> raise (Evaluator.Eval_error (ii, err)))
               |> Evaluator.run
                    (module Arch)
                    (Expr.to_uprog Arch.asmOp cprog)
@@ -231,10 +231,10 @@ let main () =
       end;
 
     begin match Compile.compile (module Arch) visit_prog_after_pass prog cprog with
-    | Utils0.Error e ->
+    | Result.Error e ->
       let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug) e in
       raise (HiError e)
-    | Utils0.Ok asm ->
+    | Result.Ok asm ->
       if !outfile <> "" then begin
         BatFile.with_file_out !outfile (fun out ->
           let fmt = BatFormat.formatter_of_out_channel out in

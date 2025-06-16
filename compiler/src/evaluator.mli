@@ -1,4 +1,4 @@
-exception Eval_error of Expr.instr_info * Utils0.error
+exception Eval_error of Expr.instr_info * Result.error
 
 val exec :
   'syscall_state Sem_params.coq_EstateParams ->
@@ -33,4 +33,4 @@ val run :
   Low_memory.Memory.mem * Values.values
 
 val pp_val : Format.formatter -> Values.value -> unit
-val pp_error : Format.formatter -> Utils0.error -> unit
+val pp_error : Format.formatter -> Result.error -> unit

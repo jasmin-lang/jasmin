@@ -1,4 +1,4 @@
-Require jasmin_compiler.
+From jasmin_compiler Require jasmin_compiler.
 (* Do not “Require” other modules from Jasmin here:
    expand the jasmin_compiler module instead. *)
 
@@ -14,8 +14,8 @@ Extraction Inline ssrbool.is_left.
 Extraction Inline ssrbool.predT ssrbool.pred_of_argType.
 Extraction Inline ssrbool.idP.
 
-Extraction Inline utils.assert.
-Extraction Inline utils.Result.bind.
+Extraction Inline result.assert.
+Extraction Inline result.Result.bind.
 Extraction Inline Datatypes.implb.
 
 Extract Constant strings.ascii_eqb => "Char.equal".
@@ -52,8 +52,6 @@ Extract Constant ident.Cident.id_name => "CoreIdent.Cident.id_name".
 Extract Constant ident.Cident.id_kind => "CoreIdent.Cident.id_kind".
 
 Extract Constant ident.Cident.spill_to_mmx => "CoreIdent.Cident.spill_to_mmx".
-
-Set Extraction Output Directory "lang/ocaml".
 
 Extraction Blacklist String List Nat Uint63 Utils Var Array.
 
