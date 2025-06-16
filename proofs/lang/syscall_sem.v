@@ -88,7 +88,7 @@ Lemma exec_getrandom_s_core_validw scs m p len rscs rm rp :
 Proof. by rewrite /exec_getrandom_s_core; t_xrbindP => rm' /fill_mem_validw_eq hf ? <- ?. Qed.
 
 Definition sem_syscall (o:syscall_t) : 
-     syscall_state_t -> mem -> sem_prod (syscall_sig_s o).(scs_tin) (exec (syscall_state_t * mem * sem_tuple (syscall_sig_s o).(scs_tout))) := 
+     syscall_state_t -> mem -> sem_prod (map to_ctype (syscall_sig_s o).(scs_tin)) (exec (syscall_state_t * mem * sem_tuple (map to_ctype (syscall_sig_s o).(scs_tout)))) := 
   match o with
   | RandomBytes _ => exec_getrandom_s_core
   end.
@@ -97,8 +97,8 @@ Definition exec_syscall_s (scs : syscall_state_t) (m : mem) (o:syscall_t) vs : e
   let semi := sem_syscall o in
   Let: (scs', m', t) := app_sopn _ (semi scs m) vs in
   ok (scs', m', list_ltuple t).
-  
-Lemma syscall_sig_s_noarr o : all is_not_sarr (syscall_sig_s o).(scs_tin).
+
+Lemma syscall_sig_s_noarr o : all is_not_sarr (map to_ctype (syscall_sig_s o).(scs_tin)).
 Proof. by case: o. Qed.
 
 Lemma exec_syscallPs_eq scs m o vargs vargs' rscs rm vres :
@@ -107,7 +107,7 @@ Lemma exec_syscallPs_eq scs m o vargs vargs' rscs rm vres :
   exec_syscall_s scs m o vargs' = ok (rscs, rm, vres).
 Proof.
   rewrite /exec_syscall_s; t_xrbindP => -[[scs' m'] t] happ [<- <- <-] hu.
-  by have -> := vuincl_sopn (syscall_sig_s_noarr o ) hu happ.
+  by have -> := vuincl_sopn (syscall_sig_s_noarr o) hu happ.
 Qed.
  
 Lemma exec_syscallPs scs m o vargs vargs' rscs rm vres :

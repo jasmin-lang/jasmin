@@ -9,7 +9,7 @@ Import Utf8.
 
 (* ----------------------------------------------------------- *)
 
-Definition is_undef_t (t: stype) := [|| t == sbool, t == sint | t == sword8].
+Definition is_undef_t (t: ctype) := [|| t == sbool, t == sint | t == sword8].
 
 Lemma is_undef_tE t : is_undef_t t -> [\/ t = sbool, t = sint | t = sword8].
 Proof. by case/or3P => /eqP; firstorder. Qed.
@@ -20,25 +20,27 @@ Proof. by case: s. Qed.
 Lemma is_undef_t_not_sarr t : is_undef_t t -> is_not_sarr t.
 Proof. by case: t. Qed.
 
-Definition undef_t t := if is_sword t then sword8 else t.
+Definition undef_t (t:ctype) := if is_sword t then sword8 else t.
 Arguments undef_t _ : clear implicits.
 
 Lemma is_undef_t_undef_t t : is_not_sarr t -> is_undef_t (undef_t t).
 Proof. by case: t. Qed.
 
 Lemma subtype_undef_tP t1 t2 :
-  subtype (undef_t t1) t2 <-> undef_t t1 = undef_t t2.
-Proof. by case: t1 => [ | | len1 | ws1]; case: t2 => [ | | len2 | ws2] //=; split => /eqP. Qed.
+  subctype (undef_t t1) t2 <-> undef_t t1 = undef_t t2.
+Proof. case: t1 => [ | | len1 | ws1]; case: t2 => [ | | len2 | ws2] //=.
+  rewrite -(rwP eqP) /undef_t /=. split; congruence.
+Qed.
 
 Lemma undef_tK t : undef_t (undef_t t) = undef_t t.
 Proof. by case: t. Qed.
 
-Lemma undef_t_subtype ty : subtype (undef_t ty) ty.
+Lemma undef_t_subtype ty : subctype (undef_t ty) ty.
 Proof. by rewrite subtype_undef_tP. Qed.
 #[global] Hint Resolve undef_t_subtype : core.
 
-Lemma compat_type_undef_t b t1 t2 : compat_type b t1 t2 -> undef_t t1 = undef_t t2.
-Proof. by move=> /compat_type_subtype h; rewrite -subtype_undef_tP (subtype_trans _ h). Qed.
+Lemma compat_ctype_undef_t b t1 t2 : compat_ctype b t1 t2 -> undef_t t1 = undef_t t2.
+Proof. by move=> /compat_ctype_subctype h; rewrite -subtype_undef_tP (subctype_trans _ h). Qed.
 
 (* ** Values
   * -------------------------------------------------------------------- *)
@@ -48,7 +50,7 @@ Variant value : Type :=
   | Vint   :> Z    -> value
   | Varr   : forall len, WArray.array len -> value
   | Vword  : forall s, word s -> value
-  | Vundef : forall (t:stype), is_undef_t t -> value.
+  | Vundef : forall (t:ctype), is_undef_t t -> value.
 Arguments Vundef _ _ : clear implicits.
 
 Lemma Varr_inj n n' t t' (e: @Varr n t = @Varr n' t') :
@@ -141,12 +143,12 @@ Proof.
   by move=> <-; case: v; last case; move=> > //=; eauto; rewrite undef_x_vundef; eauto.
 Qed.
 
-Definition check_ty_val (ty:stype) (v:value) :=
-  subtype ty (type_of_val v).
+Definition check_ty_val (ty:ctype) (v:value) :=
+  subctype ty (type_of_val v).
 
 Definition is_word v := is_sword (type_of_val v).
 
-Lemma is_wordI v : is_word v → subtype sword8 (type_of_val v).
+Lemma is_wordI v : is_word v → subctype sword8 (type_of_val v).
 Proof. by case: v => // [> | [] > //] _; exact: wsize_le_U8. Qed.
 
 Definition DB wdb v :=
@@ -161,7 +163,7 @@ Definition value_uincl (v1 v2:value) :=
   | Vint n1, Vint n2   => n1 = n2
   | Varr n1 t1, Varr n2 t2 => WArray.uincl t1 t2
   | Vword sz1 w1, Vword sz2 w2 => word_uincl w1 w2
-  | Vundef t _, _ => subtype t (type_of_val v2)
+  | Vundef t _, _ => subctype t (type_of_val v2)
   | _, _ => False
   end.
 
@@ -170,7 +172,7 @@ Lemma value_uinclE v1 v2 :
   match v1 with
   | Varr n1 t1 => exists2 t2, v2 = @Varr n1 t2 & WArray.uincl t1 t2
   | Vword sz1 w1 => exists sz2 w2, v2 = @Vword sz2 w2 /\ word_uincl w1 w2
-  | Vundef t _ => subtype t (type_of_val v2)
+  | Vundef t _ => subctype t (type_of_val v2)
   | _ => v2 = v1
   end.
 Proof.
@@ -184,7 +186,7 @@ Proof. by case: v => //=. Qed.
 
 Lemma value_uincl_subtype v1 v2 :
   value_uincl v1 v2 ->
-  subtype (type_of_val v1) (type_of_val v2).
+  subctype (type_of_val v1) (type_of_val v2).
 Proof.
   case: v1 => [||||t h] > /value_uinclE; try by move=> ->.
   + by case=> ?->.
@@ -197,14 +199,14 @@ Proof.
   case: v1 => > /value_uinclE; try by move=> -> /value_uinclE ->.
   + by move=> [? -> /WArray.uincl_trans h] /value_uinclE [? -> /h].
   + by move=> [? [? [-> /word_uincl_trans h]]] /value_uinclE [? [? [-> /h]]].
-  by move=> h /value_uincl_subtype; apply: subtype_trans.
+  by move=> h /value_uincl_subtype; apply: subctype_trans.
 Qed.
 
 Lemma check_ty_val_uincl v1 x v2 :
   check_ty_val x v1 → value_uincl v1 v2 → check_ty_val x v2.
 Proof.
   rewrite /check_ty_val => h /value_uincl_subtype.
-  by apply: subtype_trans.
+  by apply: subctype_trans.
 Qed.
 
 Lemma type_of_undef t : type_of_val (undef_addr t) = undef_t t.
@@ -215,9 +217,14 @@ Lemma is_defined_undef_addr ty :
 Proof. case: ty => //=; eauto. Qed.
 
 Lemma subtype_value_uincl_undef t v :
-  subtype (undef_t t) (type_of_val v) ->
+  subctype (undef_t t) (type_of_val v) ->
   value_uincl (undef_addr t) v.
-Proof. by case: t => //= p /eqP /(@sym_eq stype) /type_of_valI [a ->]; apply WArray.uincl_empty. Qed.
+Proof.
+  case: t => //= p.
+  case h: type_of_val => [||p'|] //= /eqP ?; subst p'.
+  have /type_of_valI [a ->] := h.
+  by apply WArray.uincl_empty.
+Qed.
 
 Lemma value_uincl_undef t v :
   undef_t t = undef_t (type_of_val v) ->
@@ -347,7 +354,7 @@ Proof.
     simpl=> > [? [? [-> ]]]; eexists; exists erefl; eauto.
 Qed.
 
-Lemma of_val_subtype t v sv : of_val t v = ok sv -> subtype t (type_of_val v).
+Lemma of_val_subtype t v sv : of_val t v = ok sv -> subctype t (type_of_val v).
 Proof.
   case: t sv => > /of_val_typeE; try by move=> ->.
   by case=> ? [? [-> /truncate_wordP[]]].
@@ -424,7 +431,7 @@ Definition oto_val t : sem_ot t -> value :=
 Lemma type_of_oto_val t (s: sem_ot t) : type_of_val (oto_val s) = t.
 Proof. by case: t s => //= -[]. Qed.
 
-Definition val_uincl (t1 t2:stype) (v1:sem_t t1) (v2:sem_t t2) :=
+Definition val_uincl (t1 t2:ctype) (v1:sem_t t1) (v2:sem_t t2) :=
   value_uincl (to_val v1) (to_val v2).
 
 Lemma val_uincl_alt t1 t2 : @val_uincl t1 t2 =
@@ -436,10 +443,10 @@ Lemma val_uincl_alt t1 t2 : @val_uincl t1 t2 =
     else fun _ _ => False
   end.
 Proof.
-  have stype_eq_dec := Bool.reflect_dec _ _ (stype_eqb_OK _ _).
+  have ctype_eq_dec := Bool.reflect_dec _ _ (stype_eqb_OK Pos.eqb_spec _ _).
   by case: t1; case: t2 => >; rewrite /val_uincl //=;
     case: {-}_/ boolP => // h >;
-    rewrite (Eqdep_dec.UIP_dec stype_eq_dec (eqP h)).
+    rewrite (Eqdep_dec.UIP_dec ctype_eq_dec (eqP h)).
 Qed.
 
 Lemma val_uinclEl t1 t2 v1 v2 :
@@ -511,7 +518,7 @@ Qed.
 (* ** Values implicit downcast (upcast is explicit because of signedness)
   * -------------------------------------------------------------------- *)
 
-Definition truncate_val (ty: stype) (v: value) : exec value :=
+Definition truncate_val (ty: ctype) (v: value) : exec value :=
   of_val ty v >>= λ x, ok (to_val x).
 
 Lemma truncate_val_typeE ty v vt :
@@ -563,7 +570,7 @@ Qed.
 
 Lemma truncate_val_subtype ty v v' :
   truncate_val ty v = ok v' →
-  subtype ty (type_of_val v).
+  subctype ty (type_of_val v).
 Proof.
   by case: v => > /truncate_valE
    => [ [] | [] | [] | [?[?[+/truncate_wordP[??]]]]|//] => ->.
@@ -580,7 +587,7 @@ Qed.
 
 Lemma truncate_val_subtype_eq ty v v' :
   truncate_val ty v = ok v' ->
-  subtype (type_of_val v) ty ->
+  subctype (type_of_val v) ty ->
   v = v'.
 Proof.
   move=> /truncate_valE; case: v => [b | z | len a | ws w | //]; try by move=> [_ ->].
@@ -588,7 +595,7 @@ Proof.
   by rewrite zero_extend_u.
 Qed.
 
-Lemma truncate_val_idem (t : stype) (v v' : value) :
+Lemma truncate_val_idem (t : ctype) (v v' : value) :
   truncate_val t v = ok v' -> truncate_val t v' = ok v'.
 Proof.
   move=> /truncate_valI; case: v' => [b[]|z[]|len a[]|ws w[?[?[]]]| ] //= -> //=.
@@ -597,12 +604,12 @@ Proof.
 Qed.
 
 Lemma subtype_truncate_val_idem ty1 ty2 v v1 v2 :
-  subtype ty2 ty1 ->
+  subctype ty2 ty1 ->
   truncate_val ty1 v = ok v1 ->
   truncate_val ty2 v1 = ok v2 ->
   truncate_val ty2 v = ok v2.
 Proof.
-  move=> /subtypeE hsub /truncate_valE htr.
+  move=> /subtype_genE hsub /truncate_valE htr.
   case: v htr hsub => //.
   + by move=> b [-> ->] _.
   + by move=> z [-> ->] _.
@@ -613,16 +620,19 @@ Proof.
   by rewrite zero_extend_idem.
 Qed.
 
+Lemma toto {len:eqType} : @convertible_gen len eq_op =2 eq_op.
+Proof. move=> [||n|ws] [||n'|ws'] //=. by rewrite {2}/eq_op /= andbT. Qed.
+
 Lemma subtype_truncate_val ty1 ty2 v v1 :
-  subtype ty2 ty1 ->
+  subctype ty2 ty1 ->
   truncate_val ty1 v = ok v1 ->
   exists v2, truncate_val ty2 v1 = ok v2.
 Proof.
-  move=> /subtypeE hsub /truncate_valI htr.
+  move=> /subtype_genE hsub /truncate_valI htr.
   case: v1 htr hsub => //.
-  + by move=> b [-> _] ->; eexists; reflexivity.
-  + by move=> z [-> _] ->; eexists; reflexivity.
-  + move=> len a [-> _] ->.
+  + move=> b [-> _]. rewrite toto => /eqP ->. eexists; reflexivity.
+  + move=> z [-> _]. rewrite toto => /eqP ->. eexists; reflexivity.
+  + move=> len a [-> _]. rewrite toto => /eqP ->.
     by rewrite /truncate_val /= WArray.castK; eexists; reflexivity.
   move=> ws1 w1 [_ [_ [-> _ _]]] [ws2 [-> hcmp2]].
   rewrite /truncate_val /= truncate_word_le //.
@@ -686,7 +696,7 @@ Qed.
 
 (* ----------------------------------------------------------------------- *)
 
-Fixpoint list_ltuple (ts:list stype) : sem_tuple ts -> values :=
+Fixpoint list_ltuple (ts:list ctype) : sem_tuple ts -> values :=
   match ts return sem_tuple ts -> values with
   | [::] => fun (u:unit) => [::]
   | t :: ts =>
@@ -827,7 +837,7 @@ Qed.
 Section FORALL.
   Context  (T:Type) (P:T -> Prop).
 
-  Definition mk_forall (l:seq stype) : sem_prod l (exec T) -> Prop :=
+  Definition mk_forall (l:seq ctype) : sem_prod l (exec T) -> Prop :=
     sem_forall (fun o => forall t, o = ok t -> P t) l.
 
   Lemma mk_forallP l f vargs t : @mk_forall l f -> app_sopn l f vargs = ok t -> P t.
@@ -838,7 +848,7 @@ Section FORALL.
 
   Context (P2:T -> T -> Prop).
 
-  Fixpoint mk_forall_ex (l:seq stype) : sem_prod l (exec T) -> sem_prod l (exec T) -> Prop :=
+  Fixpoint mk_forall_ex (l:seq ctype) : sem_prod l (exec T) -> sem_prod l (exec T) -> Prop :=
     match l as l0 return sem_prod l0 (exec T) -> sem_prod l0 (exec T) -> Prop with
     | [::] => fun o1 o2 => forall t, o1 = ok t -> exists2 t', o2 = ok t' & P2 t t'
     | t::l => fun o1 o2 => forall (x:sem_t t), @mk_forall_ex l (o1 x) (o2 x)
@@ -851,7 +861,7 @@ Section FORALL.
     by t_xrbindP => w ->; apply/hrec.
   Qed.
 
-  Fixpoint mk_forall2 (l:seq stype) : sem_prod l (exec T) -> sem_prod l (exec T) -> Prop :=
+  Fixpoint mk_forall2 (l:seq ctype) : sem_prod l (exec T) -> sem_prod l (exec T) -> Prop :=
     match l as l0 return sem_prod l0 (exec T) -> sem_prod l0 (exec T) -> Prop with
     | [::] => fun o1 o2 => forall t1 t2, o1 = ok t1 -> o2 = ok t2 -> P2 t1 t2
     | t::l => fun o1 o2 => forall (x:sem_t t), @mk_forall2 l (o1 x) (o2 x)
@@ -934,7 +944,7 @@ Proof.
 Qed.
 
 Fixpoint interp_safe_cond_ty_aux
-  {T} (P : values -> T -> Prop) (vs: values) (tin : seq stype) : sem_prod tin T -> Prop :=
+  {T} (P : values -> T -> Prop) (vs: values) (tin : seq ctype) : sem_prod tin T -> Prop :=
 match tin return sem_prod tin T -> Prop with
 | [::] => fun t => P vs t
 | t::tin => fun o => forall v, interp_safe_cond_ty_aux P (rcons vs (to_val v)) (o v)
@@ -958,13 +968,13 @@ Definition interp_safe_cond_ty tin T sc (semi : sem_prod tin (exec T)) :=
   interp_safe_cond_ty_aux
     (fun vs r => List.Forall (interp_safe_cond vs) sc -> exists t, r = ok t) [::] semi.
 
-Lemma sem_prod_ok_safe_aux {T:Type} (tin : seq stype) (o: sem_prod tin T) sc vs :
+Lemma sem_prod_ok_safe_aux {T:Type} (tin : seq ctype) (o: sem_prod tin T) sc vs :
    interp_safe_cond_ty_aux
      (fun (vs : values) (r : result error T) =>
         List.Forall (interp_safe_cond vs) sc -> exists t : T, r = ok t) vs
       (sem_prod_ok tin o).
 Proof. elim: tin vs o => //=; eauto. Qed.
 
-Lemma sem_prod_ok_safe {T:Type} (tin : seq stype) (o: sem_prod tin T) :
+Lemma sem_prod_ok_safe {T:Type} (tin : seq ctype) (o: sem_prod tin T) :
    interp_safe_cond_ty [::] (sem_prod_ok tin o).
 Proof. apply sem_prod_ok_safe_aux. Qed.
