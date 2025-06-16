@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Import xseq.
+From thirdparty Require Import xseq.
 Require Export warray_ word sem_type.
 Import Utf8.
 

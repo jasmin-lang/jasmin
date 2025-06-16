@@ -3,7 +3,7 @@ From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Import strings word utils type var expr.
+From lang Require Import strings word utils type var expr.
 Require Import compiler_util.
 Require slh_lowering.
 From Coq Require Import ZArith.

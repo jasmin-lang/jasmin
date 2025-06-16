@@ -2,9 +2,8 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
-Require Import compiler_util expr constant_prop.
-Require Import
-  flag_combination.
+From lang Require Import expr flag_combination.
+Require Import compiler_util constant_prop.
 Import Utf8.
 
 Module Import E.

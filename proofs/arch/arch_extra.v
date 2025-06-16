@@ -1,8 +1,9 @@
 (* -------------------------------------------------------------------- *)
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import xseq strings utils var type values sopn expr fexpr arch_decl.
-Require Import compiler_util.
+From thirdparty Require Import xseq.
+From lang Require Import strings utils var type values sopn expr fexpr.
+Require Import arch_decl.
 
 Section ToIdent.
 
@@ -68,7 +69,7 @@ Arguments to_var {t} {T}%_type_scope {tS toI} r.
 Module Type MkToIdent_T.
 
   Parameter mk : forall (t:stype) (T:Type) {tS: ToString t T},
-    (string -> Ident.ident) -> result pp_error_loc (ToIdent T).
+    (string -> Ident.ident) -> result string (ToIdent T).
 
 End MkToIdent_T.
 
@@ -138,7 +139,7 @@ Module MkToIdent : MkToIdent_T.
         ok {| inj_to_ident := to_identI is_uniq
             ; of_identE := of_IdentE
             |}
-    | _ => Error (pp_internal_error_s "to_ident generation" category)
+    | _ => Error ("to_ident generation of " ++ category)%string
     end.
 
   End Section.
@@ -166,7 +167,7 @@ Module Type AToIdent_T.
 
   Parameter mk :
     forall `{arch : arch_decl},
-      (reg_kind -> stype -> string -> Ident.ident) ->  result pp_error_loc arch_toIdent.
+      (reg_kind -> stype -> string -> Ident.ident) -> result string arch_toIdent.
 
 End AToIdent_T.
 
@@ -208,7 +209,7 @@ Module MkAToIdent : AToIdent_T.
             ; toI_f  := toI_f
             ; inj_toI_reg_regx := inj_toI_reg_regxP h
            |}
-    | _ => Error (pp_internal_error_s "arch_to_ident generation" "inj_toI_reg_regx")
+    | _ => Error ("arch_to_ident generation in inj_toI_reg_regx")%string
     end.
 
   End Section.
@@ -266,7 +267,7 @@ Class asm_extra (reg regx xreg rflag cond asm_op extra_op : Type) :=
     -> extra_op
     -> lexprs
     -> rexprs
-    -> cexec (seq (asm_op_msb_t * lexprs * rexprs))
+    -> result (bool * string) (seq (asm_op_msb_t * lexprs * rexprs))
   }.
 
 #[global]

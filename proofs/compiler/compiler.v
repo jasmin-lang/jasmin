@@ -5,20 +5,22 @@ From mathcomp Require Import ssralg.
 From Coq Require Import ZArith Uint63.
 From Coq Require Import Utf8.
 
-Require Import
-  arch_params
-  compiler_util
+From lang Require Import
+  wsize
   expr
   flag_combination.
-Require Import
+From arch Require Import
   arch_decl
-  arch_extra
-  asm_gen.
+  arch_extra.
+Require Import
+  arch_params
+  compiler_util.
 Require Import
   allocation
   array_copy
   array_expansion
   array_init
+  asm_gen
   constant_prop
   dead_calls
   lower_spill
@@ -36,8 +38,8 @@ Require Import
   stack_zeroization
   tunneling
   unrolling
-  wsize
   wint_word.
+Import wsize.
 
 Require
   merge_varmaps.

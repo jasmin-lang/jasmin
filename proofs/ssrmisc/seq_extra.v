@@ -1,6 +1,7 @@
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq.
 From Coq Require Import Utf8.
-Require Import oseq utils.
+From Coq Require Import List.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq.
+Require Import oseq.
 
 
 Section PairFoldLeft.
@@ -68,6 +69,12 @@ Lemma drop_onth (T : Type) n (s : seq T) :
 Proof. by elim: s n => [|x s IHs] //= [|n] /=; rewrite ?drop0. Qed.
 
 Section AllProps.
+
+(* FIXME: duplicated from lang/utils.v to remove dependency *)
+Lemma List_Forall_inv A (P: A → Prop) m :
+  List.Forall P m →
+  match m with [::] => True | x :: m' => P x ∧ List.Forall P m' end.
+Proof. by case. Qed.
 
   Lemma allE (T: Type) (p: pred T) m :
     reflect (List.Forall p m) (all p m).

@@ -1,4 +1,5 @@
-Require Import compiler_util expr.
+From lang Require Import expr.
+Require Import compiler_util.
 
 Section LOWERING.
 

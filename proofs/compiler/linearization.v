@@ -6,8 +6,11 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 From Coq Require Import ZArith Utf8.
 Import Relations.
 
-Require Import expr fexpr compiler_util label constant_prop.
-Require Export linear linear_util.
+From lang Require Import expr fexpr label.
+From lang Require Export linear.
+Require Import compiler_util.
+Require Export linear_util.
+Require Import constant_prop.
 Import word_ssrZ.
 
 Local Open Scope seq_scope.

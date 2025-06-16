@@ -2,7 +2,8 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
-Require Export xseq word utils var warray_.
+From thirdparty Require Export xseq.
+Require Export word utils var warray_.
 
 (* ---------------------------------------------------------------------- *)
 

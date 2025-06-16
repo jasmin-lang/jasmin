@@ -1,5 +1,5 @@
 From mathcomp Require Import ssreflect.
-Require Import expr.
+From lang Require Import expr.
 
 Section WITH_PARAMS.
 

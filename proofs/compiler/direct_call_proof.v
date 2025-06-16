@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool.
-Require Import varmap psem.
+From lang Require Import varmap psem.
 
 Import Utf8.
 

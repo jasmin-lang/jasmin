@@ -1,8 +1,9 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
-Require Import
-  compiler_util
+From lang Require Import
   expr
   pseudo_operator.
+Require Import
+  compiler_util.
 Import Utf8.
 
 (*

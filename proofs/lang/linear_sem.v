@@ -5,8 +5,8 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssralg.
 From Coq Require Import ZArith Utf8.
 Import Relations.
-Require oseq.
-Require Import psem fexpr_sem compiler_util label one_varmap linear sem_one_varmap.
+From ssrmisc Require oseq.
+Require Import psem fexpr_sem label one_varmap linear sem_one_varmap.
 
 Import Memory.
 

@@ -1,5 +1,6 @@
 open BinNums
-open Utils0 
+open Utils0
+open Result
 open Type
 open Sem_type
 open Warray_
@@ -11,7 +12,7 @@ open Psem_defs
 open Values
 open Sem_params
          
-exception Eval_error of instr_info * Utils0.error 
+exception Eval_error of instr_info * error
 
 let pp_error fmt err =
   Format.fprintf fmt "%s" @@

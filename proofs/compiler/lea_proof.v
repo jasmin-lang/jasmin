@@ -1,8 +1,8 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssrnat ssralg.
-Require Import oseq.
-Require Import psem compiler_util.
-Require Import fexpr fexpr_sem fexpr_facts.
+From ssrmisc Require Import oseq.
+From lang Require Import psem fexpr fexpr_sem fexpr_facts.
+Require Import compiler_util.
 Require Export lea.
 Import Utf8.
 Import ssrring.

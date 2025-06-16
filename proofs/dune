@@ -1,0 +1,15 @@
+(env
+  (_ (coq (flags :standard
+         -set "Uniform Inductive Parameters"
+         -set "Implicit Arguments"
+         -unset "Strict Implicit"
+         -unset "Printing Implicit Defensive"
+         -w -notation-overridden
+         -w -ambiguous-paths
+         -w -redundant-canonical-projection
+         -w -projection-no-head-constant
+         -w -postfix-notation-not-level-1
+         -w -deprecated-since-mathcomp-2.3.0
+         -w -deprecated-since-mathcomp-2.4.0
+         -w -deprecated-from-Coq
+         -w -deprecated-dirpath-Coq))))

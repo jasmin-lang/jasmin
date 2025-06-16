@@ -19,8 +19,9 @@ Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
 
-Require Import xrutt xrutt_facts.
-Require Import expr psem_defs psem_core oseq compiler_util.
+From itrees Require Import xrutt xrutt_facts.
+From ssrmisc Require Import oseq.
+Require Import expr psem_defs psem_core.
 Require Import it_sems_core core_logics hoare_logic.
 Import Utf8.
 

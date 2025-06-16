@@ -2,8 +2,9 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
-Require Import xseq.
-Require Import compiler_util expr psem remove_globals low_memory.
+From thirdparty Require Import xseq.
+From lang Require Import expr psem low_memory.
+Require Import compiler_util remove_globals.
 Import Utf8.
 
 Definition gd_incl (gd1 gd2: glob_decls) :=

@@ -2,11 +2,11 @@
 From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype div ssralg.
-Require Import oseq.
+From ssrmisc Require Import oseq.
 From Coq Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import word_ssrZ.
 Require Export strings word utils type ident var global sem_type slh_ops sopn syscall.
-Require Import xseq.
+From thirdparty Require Import xseq.
 Import Utf8 ZArith.
 
 Local Unset Elimination Schemes.

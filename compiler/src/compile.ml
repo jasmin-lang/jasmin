@@ -63,8 +63,8 @@ let do_spill_unspill asmop ?(debug = false) cp =
       (fun k ii -> Conv.fresh_var_ident k ii (Uint63.of_int 0))
       p
   with
-  | Utils0.Error msg -> Error (Conv.error_of_cerror (Printer.pp_err ~debug) msg)
-  | Utils0.Ok p -> Ok (Conv.prog_of_cuprog p)
+  | Result.Error msg -> Error (Conv.error_of_cerror (Printer.pp_err ~debug) msg)
+  | Result.Ok p -> Ok (Conv.prog_of_cuprog p)
 
 let do_wint_int
    (type reg regx xreg rflag cond asm_op extra_op)
@@ -98,8 +98,8 @@ let do_wint_int
   let cp = Wint_int.wi2i_prog Arch.asmOp Arch.msf_size info cp in
   let cp =
     match cp with
-    | Utils0.Ok cp -> cp
-    | Utils0.Error e ->
+    | Result.Ok cp -> cp
+    | Result.Error e ->
       let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
       raise (HiError e) in
   let (gd, fdso) = Conv.prog_of_cuprog cp in

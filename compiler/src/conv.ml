@@ -292,7 +292,7 @@ let to_array ty p t =
   let ws, n = array_kind ty in
   let get i = 
     match Warray_.WArray.get p Aligned Warray_.AAscale ws t (cz_of_int i) with
-    | Utils0.Ok w -> z_of_word ws w
+    | Result.Ok w -> z_of_word ws w
     | _    -> assert false in
   ws, Array.init n get
 

@@ -2,8 +2,10 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From Coq Require Import ZArith.
 
 From Coq Require Import Utf8.
-Require Import expr compiler_util linear label.
-Require Import seq_extra unionfind.
+From lang Require Import expr linear label.
+Require Import compiler_util.
+From ssrmisc Require Import seq_extra.
+Require Import unionfind.
 
 
 

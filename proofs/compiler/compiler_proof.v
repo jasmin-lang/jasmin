@@ -2,14 +2,23 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 From mathcomp Require Import fintype finfun ssralg.
 From Coq Require Import Uint63.
 
+From lang Require Import
+  psem
+  psem_facts
+  psem_of_sem_proof
+  linear_sem.
+From arch Require Import
+  arch_decl
+  arch_extra
+  arch_sem
+  sem_params_of_arch_extra.
 Require Import
   arch_params_proof
   compiler
-  compiler_util
-  psem
-  psem_facts.
+  compiler_util.
 Require Import
   allocation_proof
+  asm_gen_proof
   lower_spill_proof
   load_constants_in_cond_proof
   inline_proof
@@ -29,18 +38,11 @@ Require Import
   tunneling_proof
   linearization_proof
   merge_varmaps_proof
-  psem_of_sem_proof
   slh_lowering_proof
   direct_call_proof
   stack_zeroization_proof
   wint_word_proof.
 
-Require Import
-  arch_decl
-  arch_extra
-  arch_sem
-  asm_gen_proof
-  sem_params_of_arch_extra.
 Import Utf8.
 Import wsize.
 

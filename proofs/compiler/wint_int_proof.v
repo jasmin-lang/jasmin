@@ -1,4 +1,5 @@
-Require Import compiler_util psem psem_facts.
+From lang Require Import psem psem_facts.
+Require Import compiler_util.
 Require Import wint_int.
 Import Utf8.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
@@ -617,7 +618,7 @@ Qed.
 
 Local Lemma HmkI : sem_Ind_mkI p ev Pi_r Pi.
 Proof.
-  move=> i_i i s1 s2 _ hi ? /=; t_xrbindP => ii /add_iinfoP /hi{}hi <- si /hi [si' ??].
+  move=> i_i i s1 s2 _ hi ? /=; t_xrbindP => ii /hi{}hi <- si /hi [si' ??].
   exists si' => //; constructor.
 Qed.
 

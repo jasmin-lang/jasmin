@@ -1,6 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
-Require Import psem compiler_util.
+From lang Require Import psem.
+Require Import compiler_util.
 Require Export constant_prop.
 
 Import Utf8 ZArith Morphisms Classes.RelationClasses.

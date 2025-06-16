@@ -15,10 +15,13 @@ let atoI decl =
     V.mk s (Reg(k,Direct)) (Conv.ty_of_cty t) L._dummy [] in
 
   match Arch_extra.MkAToIdent.mk decl mk_var with
-  | Utils0.Error e ->
+  | Result.Error e ->
+      (* FIXME: in this experiment, Arch_extra.MkAToIdent.mk returns a string
+         in the error case, so it is not clear what to do here *)
+      assert false (*
       let e = Conv.error_of_cerror (Printer.pp_err ~debug:true) e in
-      raise (Utils.HiError e)
-  | Utils0.Ok atoI -> atoI
+      raise (Utils.HiError e) *)
+  | Result.Ok atoI -> atoI
 
 module X86_core = struct
   type reg = register

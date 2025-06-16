@@ -27,8 +27,8 @@ let load_file name =
 
 let init_memory ms =
   match Evaluator.initial_memory Arch.reg_size (Z.of_int 1024) ms with
-  | Utils0.Error _err -> assert false
-  | Utils0.Ok m -> m
+  | Result.Error _err -> assert false
+  | Result.Ok m -> m
 
 let exec (fs, prog) ms f args =
   let f = Hashtbl.find fs f in

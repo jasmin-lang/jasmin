@@ -1,0 +1,28 @@
+-R ../_build/default/arch arch
+-R ../_build/default/common common
+-R ../_build/default/compiler compiler
+-R ../_build/default/compiler/armv7 armv7
+-R ../_build/default/compiler/riscv riscv
+-R ../_build/default/compiler/x86 x86
+-R ../_build/default/lang lang
+-R ../_build/default/itrees itrees
+-R ../_build/default/ssrmisc ssrmisc
+-R ../_build/default/thirdparty thirdparty
+
+-R ../_build/default/jasmin_compiler jasmin_compiler
+
+-arg "-set" -arg "'Uniform Inductive Parameters'"
+-arg "-set" -arg "'Implicit Arguments'"
+-arg "-unset" -arg "'Strict Implicit'"
+-arg "-unset" -arg "'Printing Implicit Defensive'"
+-arg "-w -notation-overridden"
+-arg "-w -extraction-reserved-identifier"
+-arg "-w -extraction-opaque-accessed"
+-arg "-w -ambiguous-paths"
+-arg "-w -redundant-canonical-projection"
+-arg "-w -projection-no-head-constant"
+-arg "-w -postfix-notation-not-level-1"
+-arg "-w -deprecated-since-mathcomp-2.3.0"
+-arg "-w -deprecated-since-mathcomp-2.4.0"
+-arg "-w -deprecated-from-Coq"
+-arg "-w -deprecated-dirpath-Coq"

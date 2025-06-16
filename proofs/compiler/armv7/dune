@@ -1,0 +1,3 @@
+(coq.theory
+  (name armv7)
+  (theories ssrmisc thirdparty lang arch compiler))

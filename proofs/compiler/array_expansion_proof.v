@@ -2,7 +2,8 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
-Require Import psem array_expansion compiler_util.
+From lang Require Import psem.
+Require Import array_expansion compiler_util.
 Import Utf8 Lia.
 
 Local Open Scope seq_scope.

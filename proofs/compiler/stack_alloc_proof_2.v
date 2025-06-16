@@ -7,7 +7,8 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 From mathcomp Require Import ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import Uint63.
-Require Import psem psem_facts compiler_util.
+From lang Require Import psem psem_facts.
+Require Import compiler_util.
 Require Export stack_alloc stack_alloc_proof_1.
 From mathcomp Require Import ring.
 From Coq Require Import Utf8 Lia.

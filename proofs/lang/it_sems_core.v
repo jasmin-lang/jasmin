@@ -9,7 +9,8 @@ Import Basics.Monads.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
-Require Import expr psem_defs psem_core it_exec.
+Require Import expr psem_defs psem_core.
+From itrees Require Import it_exec.
 
 Import MonadNotation.
 Local Open Scope monad_scope.

@@ -39,10 +39,10 @@ all:
 	for p in _build/install/default/bin/*; do ln -sf $$p $$(basename $$p); done
 
 CIL:
-	$(RM) -f src/CIL/*.ml src/CIL/*.mli ../proofs/extraction.vo
+	$(RM) -f src/CIL/*.ml src/CIL/*.mli
 	$(MAKE) -C ../proofs extraction
-	cp ../proofs/lang/ocaml/*.ml  src/CIL/
-	cp ../proofs/lang/ocaml/*.mli src/CIL/
+	cp ../proofs/_build/default/extraction/*.ml  src/CIL/
+	cp ../proofs/_build/default/extraction/*.mli src/CIL/
 
 check: all
 	$(CHECK) --report=report.log $(CHECKCATS)

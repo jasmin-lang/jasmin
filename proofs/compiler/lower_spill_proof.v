@@ -1,7 +1,8 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import psem compiler_util.
-Require Export pseudo_operator lower_spill.
+From lang Require Import psem pseudo_operator.
+Require Import compiler_util.
+Require Export lower_spill.
 Import Utf8.
 
 Local Open Scope seq_scope.

@@ -6,7 +6,7 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype div ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Export ZArith Setoid Morphisms.
-Require Import xseq.
+From thirdparty Require Import xseq.
 Require Export utils array gen_map type word memory_model.
 Import Utf8 ZArith Lia.
 

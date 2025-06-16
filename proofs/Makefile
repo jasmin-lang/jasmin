@@ -15,9 +15,7 @@ uninstall: Makefile.coq
 	$(MAKE) -f Makefile.coq uninstall
 
 extraction: Makefile.coq
-	$(RM) lang/ocaml/*.ml lang/ocaml/*.mli
-	$(RM) lang/extraction.vo
-	+$(COQMAKE) lang/extraction.vo
+	dune build extraction
 
 # --------------------------------------------------------------------
 this-clean::
