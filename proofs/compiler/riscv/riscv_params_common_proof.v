@@ -3,9 +3,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssralg.
 
 From mathcomp Require Import word_ssrZ.
 
-Require Import
-  arch_params
-  compiler_util
+From lang Require Import
   expr
   fexpr
   fexpr_sem
@@ -13,7 +11,10 @@ Require Import
   linear_sem
   linear_facts
   psem.
-Require Import
+From compiler Require Import
+  arch_params
+  compiler_util.
+From arch Require Import
   arch_decl
   arch_extra
   sem_params_of_arch_extra.

@@ -4,15 +4,15 @@ From elpi.apps Require Import derive.std.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 
-Require Import
+From thirdparty Require xseq.
+From lang Require Import
   sem_type
   shift_kind
   strings
   utils
-  word.
-Require xseq.
-Require Import
-  sopn
+  word
+  sopn.
+From arch Require Import
   arch_decl
   arch_utils.
 Require Import riscv_decl.

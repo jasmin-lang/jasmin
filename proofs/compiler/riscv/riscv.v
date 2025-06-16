@@ -1,10 +1,10 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From Coq Require Import
   ZArith.
-Require Import
+From lang Require Import
   utils
   word.
-Require Import arch_decl.
+From arch Require Import arch_decl.
 Require Import
   riscv_decl
   riscv_instr_decl.

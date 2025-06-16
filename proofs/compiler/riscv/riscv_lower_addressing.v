@@ -2,14 +2,20 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 
-Require Import expr sem_op_typed compiler_util lea.
+From lang Require Import
+  expr
+  sem_op_typed.
+From compiler Require Import
+  compiler_util
+  lea.
 
 Import Utf8.
 Import oseq.
 
-Require Import
+From arch Require Import
   arch_decl
-  arch_extra
+  arch_extra.
+Require Import
   riscv_instr_decl
   riscv_decl
   riscv

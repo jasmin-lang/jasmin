@@ -2,20 +2,21 @@ From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 
-Require Import
-  compiler_util
+From lang Require Import
   expr
   fexpr
   sopn
   utils.
-Require Export
+From compiler Require Import
+  compiler_util.
+From arch Require Export
   arch_decl
-  arch_extra
-  riscv_params_core.
+  arch_extra.
 Require Import
   riscv_decl
   riscv_instr_decl
-  riscv.
+  riscv
+  riscv_params_core.
 
 Local Notation E n := (sopn.ADExplicit n sopn.ACR_any).
 
@@ -105,7 +106,7 @@ Definition assemble_extra
            (o: riscv_extra_op)
            (outx: lexprs)
            (inx: rexprs)
-           : cexec (seq (asm_op_msb_t * lexprs * rexprs)) :=
+           : result (bool * string) (seq (asm_op_msb_t * lexprs * rexprs)) :=
   match o with   
   | SWAP sz =>
     if (sz == U32)%CMP then
@@ -113,11 +114,11 @@ Definition assemble_extra
       | [:: LLvar x; LLvar y], [:: Rexpr (Fvar z); Rexpr (Fvar w)] =>
         (* x, y = swap(z, w) *)
         Let _ := assert (v_var x != v_var w)
-          (E.internal_error ii "bad RISC-V swap : x = w") in
+          (true, "bad RISC-V swap : x = w"%string) in
         Let _ := assert (v_var y != v_var x)
-          (E.internal_error ii "bad RISC-V swap : y = x") in
+          (true, "bad RISC-V swap : y = x"%string) in
         Let _ := assert (all (fun (x:var_i) => vtype x == sword U32) [:: x; y; z; w])
-          (E.error ii "RISC-V swap only valid for register of type u32") in
+          (false, "RISC-V swap only valid for register of type u32"%string) in
 
         ok [:: ((None, XOR), [:: LLvar x], [:: Rexpr (Fvar z); Rexpr (Fvar w)]);
                (* x = z ^ w *)
@@ -125,20 +126,20 @@ Definition assemble_extra
                (* y = x ^ w = z ^ w ^ w = z *)
                ((None, XOR), [:: LLvar x], [:: Rexpr (Fvar x); Rexpr (Fvar y)])
            ]   (* x = x ^ y = z ^ w ^ z = w *)
-      | _, _ => Error (E.error ii "only register is accepted on source and destination of the swap instruction on RISC-V")
+      | _, _ => Error (false, "only register is accepted on source and destination of the swap instruction on RISC-V"%string)
       end
     else
-      Error (E.error ii "RISC-V swap only valid for register of type u32")
+      Error (false, "RISC-V swap only valid for register of type u32"%string)
   | Oriscv_add_large_imm =>
     match outx, inx with
     | [:: LLvar x], [:: Rexpr (Fvar y); Rexpr (Fapp1 (Oword_of_int ws) (Fconst imm))] =>
       Let _ := assert (v_var x != v_var y)
-         (E.internal_error ii "bad riscv_add_large_imm: invalid register") in
+         (true, "bad riscv_add_large_imm: invalid register"%string) in
       Let _ := assert (all (fun (x:var_i) => vtype x == sword U32) [:: x; y])
-          (E.error ii "riscv_add_large_imm only valid for register of type u32") in
+          (false, "riscv_add_large_imm only valid for register of type u32"%string) in
       ok (asm_args_of_opn_args (RISCVFopn_core.smart_addi x y imm))
     | _, _ =>
-      Error (E.internal_error ii "bad riscv_add_large_imm: invalid args or dests")
+      Error (true, "bad riscv_add_large_imm: invalid args or dests"%string)
     end   
   end.
 

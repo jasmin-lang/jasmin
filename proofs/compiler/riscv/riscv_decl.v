@@ -2,7 +2,7 @@ From elpi.apps Require Import derive.std.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype fintype ssralg.
 From mathcomp Require Import word_ssrZ.
 
-Require Import
+From lang Require Import
   expr
   flag_combination
   sem_type
@@ -11,7 +11,7 @@ Require Import
   utils
   wsize.
 
-Require Import
+From arch Require Import
   arch_decl
   arch_utils.
 

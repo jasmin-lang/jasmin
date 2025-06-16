@@ -2,31 +2,33 @@ From Coq Require Import Relations.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 
-Require Import oseq.
+From ssrmisc Require Import oseq.
 
-Require Import
-  arch_params_proof
-  compiler_util
+From lang Require Import
   expr
   fexpr
   fexpr_sem
   psem
   psem_facts
-  sem_one_varmap.
-Require Import
+  sem_one_varmap
+  linear_sem
+  linear_facts.
+From compiler Require Import
+  arch_params_proof
+  asm_gen
+  asm_gen_proof
+  compiler_util
   lea_proof
   linearization
   linearization_proof
   lowering
   stack_alloc_params_proof
   stack_zeroization_proof.
-Require
+From arch Require
   arch_sem.
-Require Import
+From arch Require Import
   arch_decl
   arch_extra
-  asm_gen
-  asm_gen_proof
   sem_params_of_arch_extra.
 Require Import
   riscv_decl
@@ -500,7 +502,7 @@ Proof.
     have hincl := hind _ ok_c _ ok_v.
     by have [_ [<-] ?] := eval_assemble_cond_Onot erefl hincl ok_v1.
 
-  t_xrbindP=> c [ck b] /o2rP hop2.
+  t_xrbindP=> c [ck b] hop2.
   t_xrbindP=> arg1 ok_arg1 arg2 ok_arg2 ok_c v v1 ok_v1 v2 ok_v2 ok_v.
   have hincl1 := assemble_cond_argP eqr ok_arg1 ok_v1.
   have hincl2 := assemble_cond_argP eqr ok_arg2 ok_v2.

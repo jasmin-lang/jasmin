@@ -1,22 +1,22 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From mathcomp Require Import word_ssrZ.
 
-Require Import
-  arch_params
-  compiler_util
+From lang Require Import
   expr
   fexpr.
-Require Import
+From compiler Require Import
+  arch_params
+  asm_gen
+  compiler_util
   lea
   linearization
   lowering
   stack_alloc_params
   stack_zeroization
   slh_lowering.
-Require Import
+From arch Require Import
   arch_decl
-  arch_extra
-  asm_gen.
+  arch_extra.
 
 Require Import
   riscv_decl

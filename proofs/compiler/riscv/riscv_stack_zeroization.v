@@ -1,16 +1,19 @@
-Require Import
+From lang Require Import
   expr
   fexpr
   label
   linear
-  stack_zero_strategy
+  stack_zero_strategy.
+From arch Require Import
   arch_decl
-  arch_extra
+  arch_extra.
+From compiler Require Import
+  compiler_util.
+Require Import
   riscv_decl
   riscv_extra
   riscv_instr_decl
   riscv_params_common.
-Require Import compiler_util.
 
 Section STACK_ZEROIZATION.
 

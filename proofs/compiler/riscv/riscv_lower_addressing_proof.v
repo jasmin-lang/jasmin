@@ -2,12 +2,18 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From mathcomp Require Import ssralg.
 
-Require Import psem psem_facts compiler_util lea_proof.
+From lang Require Import
+  psem
+  psem_facts.
+From compiler Require Import
+  compiler_util
+  lea_proof.
 
-Require Import
+From arch Require Import
   arch_decl
   arch_extra
-  sem_params_of_arch_extra
+  sem_params_of_arch_extra.
+Require Import
   riscv_instr_decl
   riscv_decl
   riscv
