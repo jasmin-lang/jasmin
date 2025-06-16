@@ -12,16 +12,17 @@ From lang Require Import
   psem
   psem_facts
   low_memory.
-Require stack_zeroization_proof.
 From arch Require Import
   arch_decl
   arch_extra
   sem_params_of_arch_extra.
+From compiler Require stack_zeroization_proof.
+From compiler Require Import
+  asm_gen. (* to have ovm_i *)
 Require Import
   x86_decl
   x86_extra
   x86_instr_decl.
-Require Import asm_gen. (* to have ovm_i *)
 Require Export x86_stack_zeroization.
 Import seq_extra.
 

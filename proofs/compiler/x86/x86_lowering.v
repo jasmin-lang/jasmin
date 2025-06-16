@@ -1,12 +1,13 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import Utf8.
-Require Import
-  compiler_util
+From lang Require Import
   expr
-  lowering
-  lea
   pseudo_operator.
+From compiler Require Import
+  compiler_util
+  lowering
+  lea.
 Require Import x86_decl x86_instr_decl x86_extra.
 
 Section Section.

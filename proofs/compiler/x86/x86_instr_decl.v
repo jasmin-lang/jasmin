@@ -2,10 +2,11 @@ From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype tuple.
 From mathcomp Require Import ssralg word word_ssrZ.
-Require Import utils strings word waes sha256 sem_type global oseq sopn.
+From ssrmisc Require Import oseq.
+From lang Require Import utils strings word waes sha256 sem_type global sopn.
 Import Utf8 Relation_Operators ZArith.
 
-Require Export arch_decl.
+From arch Require Export arch_decl.
 Require Import x86_decl.
 
 (* -------------------------------------------------------------------- *)

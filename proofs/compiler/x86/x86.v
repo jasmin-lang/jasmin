@@ -1,5 +1,9 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import sem_type arch_decl x86_decl x86_instr_decl.
+From lang Require Import
+  sem_type.
+From arch Require Import
+  arch_decl.
+Require Import x86_decl x86_instr_decl.
 
 Definition x86_eval_cond (get : rflag -> result error bool) (c : condt) :=
   match c with

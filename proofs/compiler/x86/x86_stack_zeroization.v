@@ -3,14 +3,16 @@ From lang Require Import
   fexpr
   label
   linear
-  stack_zero_strategy
+  stack_zero_strategy.
+From arch Require Import
   arch_decl
   arch_extra.
 From compiler Require Import
+  compiler_util.
+Require Import
   x86_decl
   x86_extra
   x86_instr_decl.
-Require Import compiler_util.
 
 Section STACK_ZEROIZATION.
 

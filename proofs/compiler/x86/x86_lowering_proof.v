@@ -5,13 +5,19 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype order.
 From mathcomp Require Import ssralg ssrnum word_ssrZ.
 From Coq Require Import ZArith.
-Require Import psem compiler_util lea_proof x86_instr_decl x86_extra.
-Require Import
+From lang Require Import
+  psem.
+From compiler Require Import
+  compiler_util
+  lea_proof
   lowering
   lowering_lemmas.
-Require Import
+From arch Require Import
   arch_extra
   sem_params_of_arch_extra.
+Require Import
+  x86_instr_decl
+  x86_extra.
 Require Export x86_lowering.
 Import Utf8 Lia.
 Import Order.POrderTheory Order.TotalTheory.

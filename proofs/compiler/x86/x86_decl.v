@@ -2,18 +2,18 @@ From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype choice fintype.
 From mathcomp Require Import word_ssrZ.
-Require oseq.
 From Coq Require Import ZArith Utf8 Relation_Operators.
-Require Import
+From ssrmisc Require Import oseq.
+From lang Require Import
   utils
-  strings wsize
+  strings
+  wsize
   memory_model
   (* word *)
   global
-  oseq
-  sem_type.
-Require Import flag_combination.
-Require Import
+  sem_type
+  flag_combination.
+From arch Require Import
   arch_decl
   arch_utils.
 

@@ -4,42 +4,33 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import Utf8.
-Require Import compiler_util.
-Require Import
-  arch_decl
+From lang Require Import
   expr
   fexpr
   wsize.
+From arch Require Import
+  arch_decl.
+From arch Require Export
+  arch_extra.
+From compiler Require Import
+  compiler_util.
 Require Import
   x86_decl
   x86_instr_decl
   x86.
-Require Export arch_extra.
 Import sopn.
+Import wsize.
 
 Module E.
 
-Definition pass_name := "asmgen"%string.
+Definition se_update_arguments :=
+  (true, "x86_update_msf arguments are invalid."%string).
 
-Definition error (ii : instr_info) (msg : string) :=
-  {|
-    pel_msg := compiler_util.pp_s msg;
-    pel_fn := None;
-    pel_fi := None;
-    pel_ii := Some ii;
-    pel_vi := None;
-    pel_pass := Some pass_name;
-    pel_internal := true;
-  |}.
+Definition se_protect_arguments :=
+  (true, "x86_protect arguments are invalid."%string).
 
-Definition se_update_arguments (ii : instr_info) : pp_error_loc :=
-  compiler_util.pp_internal_error_s_at pass_name ii "x86_update_msf arguments are invalid.".
-
-Definition se_protect_arguments (ii : instr_info) : pp_error_loc :=
-  compiler_util.pp_internal_error_s_at pass_name ii "x86_protect arguments are invalid.".
-
-Definition se_protect_ptr (ii : instr_info) : pp_error_loc :=
-  compiler_util.pp_internal_error_s_at pass_name ii "Found protect_ptr.".
+Definition se_protect_ptr :=
+  (true, "Found protect_ptr."%string).
 
 End E.
 
@@ -224,7 +215,7 @@ Definition re8_1 := re_i U8 1.
 #[local] Notation "x ::= o e" := ((None, o), x, e) (at level 70, no associativity, o at level 0, only parsing).
 
 Definition assemble_slh_init
-  (les : seq lexpr) : cexec (seq (asm_op_msb_t * seq lexpr * seq rexpr)) :=
+  (les : seq lexpr) : result (bool * string) (seq (asm_op_msb_t * seq lexpr * seq rexpr)) :=
   ok
     [:: [::] ::= LFENCE [::];
         les  ::= (MOV U64) [:: re_i U64 0 ]
@@ -234,12 +225,12 @@ Definition assemble_slh_update
   (ii : instr_info)
   (les : seq lexpr)
   (res : seq rexpr) :
-  cexec (seq (asm_op_msb_t * seq lexpr * seq rexpr)) :=
+  result (bool * string) (seq (asm_op_msb_t * seq lexpr * seq rexpr)) :=
   if (les, res) is ([:: LLvar aux; ms0 ], [:: Rexpr b; msf ])
   then
     Let _ := assert (~~(Sv.mem aux (free_vars b) || Sv.mem aux (free_vars_r msf)) &&
                      (vtype aux == sword U64))
-                    (E.se_update_arguments ii) in
+                    (E.se_update_arguments) in
     let res' := [:: Rexpr (Fapp1 Onot b); Rexpr (Fvar aux); msf ] in
     ok
       [::
@@ -247,7 +238,7 @@ Definition assemble_slh_update
                [:: ms0 ] ::= (CMOVcc U64) res'
       ]
   else
-    Error (E.se_update_arguments ii).
+    Error (E.se_update_arguments).
 
 Definition assemble_slh_protect
   (ii : instr_info)
@@ -255,7 +246,7 @@ Definition assemble_slh_protect
   (ws : wsize)
   (les : seq lexpr)
   (res : seq rexpr) :
-  cexec (seq (asm_op_msb_t * seq lexpr * seq rexpr)) :=
+  result (bool * string) (seq (asm_op_msb_t * seq lexpr * seq rexpr)) :=
   if (ws <= U64)%CMP then
     ok [:: les ::= (if rk is Extra then POR else OR ws) res ]
   else if (les, res) is ([:: LLvar aux; y], [:: x; msf ]) then
@@ -265,55 +256,55 @@ Definition assemble_slh_protect
         y   = VPOR x aux
       *)
       Let _ := assert (~~(Sv.mem aux (free_vars_r x) || Sv.mem aux (free_vars_r msf)))
-                      (E.se_protect_arguments ii) in
+                      (E.se_protect_arguments) in
       let eaux := Rexpr (Fvar aux) in
       let laux := [:: LLvar aux] in
       ok ([::                     laux ::= (VPINSR VE64) [:: eaux; msf; re8_0]       ;
                                   laux ::= (VPINSR VE64) [:: eaux; msf; re8_1]       ] ++
           (if ws == U256 then [:: laux ::= (VINSERTI128) [:: eaux; eaux; re8_1]] else [::]) ++
           [::                   [:: y] ::= (VPOR ws)     [:: x; eaux]])
-  else Error (E.se_protect_arguments ii).
+  else Error (E.se_protect_arguments).
 
 Definition assemble_slh_move
   (les : seq lexpr)
   (res : seq rexpr) :
-  cexec (seq (asm_op_msb_t * seq lexpr * seq rexpr)) :=
+  result (bool * string) (seq (asm_op_msb_t * seq lexpr * seq rexpr)) :=
   let lmmx := if les is [:: LLvar x ] then is_regx x else false in
   let rmmx := if res is [:: Rexpr (Fvar x) ] then is_regx x else false in
   let op := if lmmx || rmmx then MOVX else MOV in
   ok [:: les ::= (op Uptr) res ].
 
-Definition assemble_extra ii o outx inx : cexec (seq (asm_op_msb_t * lexprs * rexprs)) :=
+Definition assemble_extra ii o outx inx : result (bool * string) (seq (asm_op_msb_t * lexprs * rexprs)) :=
   match o with
   | Oset0 sz =>
     let op := if (sz <= U64)%CMP then (XOR sz) else (VPXOR sz) in
     Let x :=
       match rev outx with
       | LLvar x :: _ =>  ok (Rexpr (Fvar x))
-      | _ => Error (E.error ii "set0 : destination is not a register")
+      | _ => Error (true, "set0 : destination is not a register"%string)
       end in
     ok [:: outx ::= op [:: x; x ] ]
   | Ox86MOVZX32 =>
     Let _ :=
       match outx with
       | [:: LLvar _ ] =>  ok tt
-      | _ => Error (E.error ii "Ox86MOVZX32: destination is not a register")
+      | _ => Error (true, "Ox86MOVZX32: destination is not a register"%string)
       end in
     ok [:: outx ::= (MOV U32) inx ]
   | Oconcat128 =>
     Let inx :=
       match inx with
       | [:: h; Rexpr (Fvar _) as l] => ok [:: l; h; re8_1]
-      |  _ => Error (E.error ii "Oconcat: assert false")
+      |  _ => Error (true, "Oconcat: assert false"%string)
       end in
     ok [:: outx ::= VINSERTI128 inx ]
   | Ox86MULX sz =>
     Let outx :=
       match outx with
       | [:: LLvar hi as h; LLvar lo as l ] =>
-          Let _ := assert (v_var lo != v_var hi) (E.error ii "Ox86MULX: lo = hi") in
+          Let _ := assert (v_var lo != v_var hi) (false, "Ox86MULX: lo = hi"%string) in
           ok [:: l; h]
-      | _ => Error (E.error ii "Ox86MULX: assert false")
+      | _ => Error (true, "Ox86MULX: assert false"%string)
       end in
     ok [:: outx ::= (MULX_lo_hi sz) inx]
 
@@ -321,7 +312,7 @@ Definition assemble_extra ii o outx inx : cexec (seq (asm_op_msb_t * lexprs * re
     Let outx :=
       match outx with
       | [:: LLvar hi] => ok [::LLvar hi; LLvar hi]
-      | _ => Error (E.error ii "Ox86MULX_hi: assert false")
+      | _ => Error (true, "Ox86MULX_hi: assert false"%string)
       end in
     ok [:: outx ::= (MULX_lo_hi sz) inx]
 
