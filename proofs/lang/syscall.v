@@ -9,7 +9,7 @@ Require Import
 
 #[only(eqbOK)] derive
 Variant syscall_t : Type := 
-  | RandomBytes of positive.
+  | RandomBytes of wsize & positive.
 
 HB.instance Definition _ := hasDecEq.Build syscall_t syscall_t_eqb_OK.
 
@@ -19,19 +19,19 @@ HB.instance Definition _ := hasDecEq.Build syscall_t syscall_t_eqb_OK.
 (* Before stack alloc ie uprog *)
 
 Record syscall_sig_t := {
-  scs_tin  : seq stype;
-  scs_tout : seq stype
+  scs_tin  : seq atype;
+  scs_tout : seq atype
 }.
 
 Definition syscall_sig_u (o : syscall_t) : syscall_sig_t := 
   match o with
-  | RandomBytes len => {| scs_tin := [:: sarr len]; scs_tout := [:: sarr len] |}
+  | RandomBytes ws len => {| scs_tin := [:: aarr ws len]; scs_tout := [:: aarr ws len] |}
   end.
 
 (* After stack alloc ie sprog *)
 Definition syscall_sig_s {pd:PointerData} (o:syscall_t) : syscall_sig_t := 
   match o with
-  | RandomBytes _ => {| scs_tin := [::sword Uptr; sword Uptr]; scs_tout := [::sword Uptr] |}
+  | RandomBytes _ _ => {| scs_tin := [::aword Uptr; aword Uptr]; scs_tout := [::aword Uptr] |}
   end.
 
 

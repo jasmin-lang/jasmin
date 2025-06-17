@@ -733,20 +733,20 @@ Section LEMMA.
     have {}checked_ra :
       match sf_return_address (f_extra fd) with
       | RAreg ra _ =>
-        [/\ vtype ra == sword Uptr,
+        [/\ convertible (vtype ra) (aword Uptr),
          ~Sv.In ra (wrf fn),
          ~Sv.In ra (magic_variables p) &
          ~Sv.In ra params
         ]
       | RAstack ra_call ra_return _ _ =>
-        (if ra_call is Some r then [/\ vtype r == sword Uptr & ~Sv.In r (magic_variables p)] else True) /\
-        (if ra_return is Some r then [/\ vtype r == sword Uptr & ~Sv.In r (magic_variables p)] else True)
+        (if ra_call is Some r then [/\ convertible (vtype r) (aword Uptr) & ~Sv.In r (magic_variables p)] else True) /\
+        (if ra_return is Some r then [/\ convertible (vtype r) (aword Uptr) & ~Sv.In r (magic_variables p)] else True)
       | RAnone =>
           let to_save := sv_of_list fst (sf_to_save (f_extra fd)) in
         [/\ disjoint to_save res,
          Sv.subset (Sv.inter callee_saved (writefun_ra p var_tmps wrf fn)) to_save &
          all
-           (λ x : var_i, if vtype x is sword _ then true else false)
+           (λ x : var_i, if vtype x is aword _ then true else false)
            (f_params fd)
           ]
       end.
@@ -764,10 +764,10 @@ Section LEMMA.
       by t_xrbindP => /Sv.is_empty_spec /= h ->; split => //; SvD.fsetdec.
     have ra_neq_magic :
       match sf_return_address (f_extra fd) with 
-      | RAreg ra _ => [&& ra != vgd, ra != vrsp & vtype ra == sword Uptr]
+      | RAreg ra _ => [&& ra != vgd, ra != vrsp & convertible (vtype ra) (aword Uptr)]
       | RAstack ra_call ra_return _ _ =>
-        (if ra_call is Some ra then [&& ra != vgd, ra != vrsp & vtype ra == sword Uptr] else true) &&
-        (if ra_return is Some ra then [&& ra != vgd, ra != vrsp & vtype ra == sword Uptr] else true)
+        (if ra_call is Some ra then [&& ra != vgd, ra != vrsp & convertible (vtype ra) (aword Uptr)] else true) &&
+        (if ra_return is Some ra then [&& ra != vgd, ra != vrsp & convertible (vtype ra) (aword Uptr)] else true)
       | _ => True
       end.
     - case: sf_return_address checked_ra => // [ ra _ | ra_call ra_return _ _].
@@ -810,9 +810,9 @@ Section LEMMA.
       + rewrite Vm.setP_eq -(write_vars_eq_ex ok_s1) ?vrsp_v ?vm_truncate_val_eq //.
         by case: (not_written_magic checked_params).
       rewrite Vm.setP_neq; last by rewrite eq_sym.
-      have huninit : ¬ Sv.In z params → ~~ is_sarr (vtype z) → z ≠ vgd → (evm s1).[z] = undef_addr (vtype z).
-      + move => h wty zgd; rewrite -(write_vars_eq_ex ok_s1) // hvmap0 //; last by apply/eqP.
-        by rewrite Vm.initP; case: (z) wty => - [].
+      have huninit : ¬ Sv.In z params → z ≠ vgd → (evm s1).[z] = undef_addr (eval_atype (vtype z)).
+      + move => h zgd; rewrite -(write_vars_eq_ex ok_s1) // hvmap0 //; last by apply/eqP.
+        by apply Vm.initP.
       have hz : value_uincl (evm s1).[z] tvm1.[z].
       + case: (Sv_memP z (sv_of_list v_var (f_params fd))) => hinp.
         + have : List.Forall2 value_uincl vargs args'.
@@ -839,17 +839,6 @@ Section LEMMA.
       have { no_magic } [ not_GD _ ] := not_written_magic no_magic.
       have {not_GD} z_not_GD : z ≠ vgd.
       + move: vgd (ra_undef _ _) (wrf _) hin not_GD; clear; SvD.fsetdec.
-      have z_not_arr : ~~ is_sarr (vtype z).
-      + move: hin ra_neq_magic checked_save_stack; clear => /SvD.F.union_1[].
-        * rewrite /ra_vm; case: sf_return_address => [ | ra _ | ra_call ra_return rastack _ ].
-          - case/SvD.F.union_iff => [ | /vflagsP ->] //.
-            by case/SvD.F.add_iff => [<- | /Sv.singleton_spec ->].
-          - by move => /Sv.singleton_spec -> /and3P[] _ _ /eqP ->.
-          case: ra_call; last by SvD.fsetdec.
-          by move => r /Sv.singleton_spec -> /andP[] /and3P [] _ _ /eqP -> _.
-        rewrite /saved_stack_vm.
-        case: sf_save_stack => [ | ra | ofs ] /=; only 1, 3: SvD.fsetdec.
-        by move/Sv.singleton_spec => -> _; t_xrbindP => /eqP ->.
       rewrite huninit //.
 
     have top_stack2 : top_stack (free_stack (emem s2)) = top_stack m.

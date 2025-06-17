@@ -19,7 +19,7 @@ Section SEM_EXPR.
 
   Definition sem_rexpr (e: rexpr) : exec value :=
     match e with
-    | Load al ws a => Let p := sem_fexpr a >>= to_pointer in Let v := read m al p ws in ok (@to_val (sword ws) v)
+    | Load al ws a => Let p := sem_fexpr a >>= to_pointer in Let v := read m al p ws in ok (@to_val (cword ws) v)
     | Rexpr a => sem_fexpr a
     end.
 

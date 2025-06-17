@@ -103,13 +103,13 @@ Lemma Hassgn_op2_generic s e1 e2 v1 v2 op2 v ws v' lv s1 (op2' : sopn) :
   sem_pexpr true (p_globs p) s e1 = ok v1 ->
   sem_pexpr true (p_globs p) s e2 = ok v2 ->
   sem_sop2 op2 v1 v2 = ok v ->
-  truncate_val (sword ws) v = ok v' ->
+  truncate_val (cword ws) v = ok v' ->
   write_lval true (p_globs p) lv v' s = ok s1 ->
   i_valid (sopn.get_instr_desc op2') ->
   forall ws1 ws2 ws3 ws1' ws2'
-    (eq1 : type_of_op2 op2 = (sword ws1, sword ws2, sword ws3))
-    (eq2 : tin (sopn.get_instr_desc op2') = [::sword ws1'; sword ws2'])
-    (eq3 : tout (sopn.get_instr_desc op2') = [:: sword ws]),
+    (eq1 : type_of_op2 op2 = (aword ws1, aword ws2, aword ws3))
+    (eq2 : tin (sopn.get_instr_desc op2') = [::aword ws1'; aword ws2'])
+    (eq3 : tout (sopn.get_instr_desc op2') = [:: aword ws]),
   (ws <= ws3)%CMP
   /\ exists w1 w2, [/\
       to_word ws1 v1 = ok w1,
@@ -121,8 +121,8 @@ Lemma Hassgn_op2_generic s e1 e2 v1 v2 op2 v ws v' lv s1 (op2' : sopn) :
         sem_pexpr true (p_globs p) s e2' >>= to_word ws2 = ok w2' ->
         Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed op2) w1 w2 in
         ok (zero_extend ws w)
-        = ecast l (sem_prod l _) eq2
-            (ecast l (sem_prod _ (exec (sem_tuple l))) eq3
+        = ecast l (sem_prod (map eval_atype l) _) eq2
+            (ecast l (sem_prod _ (exec (sem_tuple (map eval_atype l)))) eq3
               (semi (sopn.get_instr_desc op2')))
             (zero_extend ws1' w1') (zero_extend ws2' w2') ->
         sem_sopn (p_globs p) op2' s [::lv] [:: e1'; e2'] = ok s1].
@@ -151,21 +151,21 @@ Lemma Hassgn_op2 s e1 e2 v1 v2 op2 v v' lv s1 (op2' : sopn) :
   sem_pexpr true (p_globs p) s e1 = ok v1 ->
   sem_pexpr true (p_globs p) s e2 = ok v2 ->
   sem_sop2 op2 v1 v2 = ok v ->
-  truncate_val (sword U32) v = ok v' ->
+  truncate_val (cword U32) v = ok v' ->
   write_lval true (p_globs p) lv v' s = ok s1 ->
   i_valid (sopn.get_instr_desc op2') ->
   forall ws
-    (eq1 : type_of_op2 op2 = (sword ws, sword ws, sword ws))
-    (eq2 : tin (sopn.get_instr_desc op2') = [::sword U32; sword U32])
-    (eq3 : tout (sopn.get_instr_desc op2') = [:: sword U32]),
+    (eq1 : type_of_op2 op2 = (aword ws, aword ws, aword ws))
+    (eq2 : tin (sopn.get_instr_desc op2') = [::aword U32; aword U32])
+    (eq3 : tout (sopn.get_instr_desc op2') = [:: aword U32]),
   (U32 <= ws)%CMP
   /\ exists w1 w2, [/\
       to_word ws v1 = ok w1,
       to_word ws v2 = ok w2 &
       Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed op2) w1 w2 in
       ok (zero_extend U32 w)
-      = ecast l (sem_prod l _) eq2
-          (ecast l (sem_prod _ (exec (sem_tuple l))) eq3
+      = ecast l (sem_prod (map eval_atype l) _) eq2
+          (ecast l (sem_prod _ (exec (sem_tuple (map eval_atype l)))) eq3
             (semi (sopn.get_instr_desc op2')))
           (zero_extend U32 w1) (zero_extend U32 w2) ->
       sem_sopn (p_globs p) op2' s [::lv] [:: e1; e2] = ok s1].
@@ -185,13 +185,13 @@ Lemma Hassgn_op2_shift s e1 e2 v1 v2 op2 v v' lv s1 (op2' : sopn) :
   sem_pexpr true (p_globs p) s e1 = ok v1 ->
   sem_pexpr true (p_globs p) s e2 = ok v2 ->
   sem_sop2 op2 v1 v2 = ok v ->
-  truncate_val (sword U32) v = ok v' ->
+  truncate_val (cword U32) v = ok v' ->
   write_lval true (p_globs p) lv v' s = ok s1 ->
   i_valid (sopn.get_instr_desc op2') ->
   forall ws
-    (eq1 : type_of_op2 op2 = (sword ws, sword U8, sword ws))
-    (eq2 : tin (sopn.get_instr_desc op2') = [::sword U32; sword U8])
-    (eq3 : tout (sopn.get_instr_desc op2') = [:: sword U32]),
+    (eq1 : type_of_op2 op2 = (aword ws, aword U8, aword ws))
+    (eq2 : tin (sopn.get_instr_desc op2') = [::aword U32; aword U8])
+    (eq3 : tout (sopn.get_instr_desc op2') = [:: aword U32]),
   (U32 <= ws)%CMP
   /\ exists w1 w2, [/\
       to_word ws v1 = ok w1,
@@ -200,8 +200,8 @@ Lemma Hassgn_op2_shift s e1 e2 v1 v2 op2 v v' lv s1 (op2' : sopn) :
         sem_pexpr true (p_globs p) s e2' >>= to_word U8 = ok w2' ->
         Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed op2) w1 w2 in
         ok (zero_extend U32 w)
-        = ecast l (sem_prod l _) eq2
-            (ecast l (sem_prod _ (exec (sem_tuple l))) eq3
+        = ecast l (sem_prod (map eval_atype l) _) eq2
+            (ecast l (sem_prod _ (exec (sem_tuple (map eval_atype l)))) eq3
               (semi (sopn.get_instr_desc op2')))
             (zero_extend U32 w1) w2' ->
         sem_sopn (p_globs p) op2' s [::lv] [:: e1; e2'] = ok s1].
@@ -250,7 +250,7 @@ Qed.
   esem p' ev (lower_i i) s0 = ok s1.
 Proof.
   rewrite /sem_assgn; t_xrbindP => v hseme v' htrunc hwrite /=.
-  set none_s :=  match ty with sword _ => _ | _ => _ end.
+  set none_s :=  match ty with aword _ => _ | _ => _ end.
   case h : none_s => [ l | ]; last first.
   + by rewrite /= /sem_assgn /= hseme /= htrunc /= hwrite.
   case : ty htrunc @none_s h => // ws htrunc.
@@ -266,6 +266,7 @@ Proof.
     move: htrunc.
     move => /truncate_val_typeE [w [ws' [w']]] [] h_trunc  ??; subst => /=.
     rewrite h_trunc /= /sopn_sem /= h_cmp /=.
+    rewrite /sopn_sem_ /= /semi_to_atype computational_eq_refl /=.
     rewrite zero_extend_u.
     by rewrite hwrite.
   case: e hseme => //=.
@@ -345,6 +346,7 @@ Proof.
       move: htrunc.
       rewrite /truncate_val /= truncate_word_u /= => -[] ?; subst.
       rewrite truncate_word_le //= /sopn_sem /= hle /=.
+      rewrite /sopn_sem_ /= /semi_to_atype computational_eq_refl /=.
       by rewrite hwrite.
     + move => w w0 hseme /=.
       case: w hseme => // hseme.
@@ -362,6 +364,7 @@ Proof.
       move: htrunc.
       rewrite /truncate_val /= truncate_word_u /= => -[] ?; subst.
       rewrite truncate_word_le //= /sopn_sem /= hle /=.
+      rewrite /sopn_sem_ /= /semi_to_atype computational_eq_refl /=.
       by rewrite hwrite.
     + move => ws hseme.
       case: ws hseme => //= hseme.
@@ -450,8 +453,8 @@ Proof.
       move=> [<- <- <-].
       rewrite /sem_sopn /= ok_v1 ok_v2 /=.
       rewrite /exec_sopn /= ok_w1 ok_w2 /=.
-      rewrite /riscv_div_semi w2_nzero.
-      rewrite (truncate_val_subtype_eq htrunc) //.
+      rewrite /riscv_div_semi w2_nzero. simpl.
+      rewrite (truncate_val_subctype_eq htrunc) //.
       by rewrite hwrite.
     rewrite /sem_sop2 /=.
     t_xrbindP=> w1 ok_w1 w2 ok_w2.
@@ -462,7 +465,7 @@ Proof.
     rewrite /sem_sopn /= ok_v1 ok_v2 /=.
     rewrite /exec_sopn /= ok_w1 ok_w2 /=.
     rewrite /riscv_divu_semi w2_nzero.
-    rewrite (truncate_val_subtype_eq htrunc) //.
+    rewrite (truncate_val_subctype_eq htrunc) //.
     by rewrite hwrite.
   + case => // -[] // [] //=.
     + rewrite /sem_sop2 /=.
@@ -475,7 +478,7 @@ Proof.
       rewrite /sem_sopn /= ok_v1 ok_v2 /=.
       rewrite /exec_sopn /= ok_w1 ok_w2 /=.
       rewrite /riscv_rem_semi.
-      rewrite (truncate_val_subtype_eq htrunc) //.
+      rewrite (truncate_val_subctype_eq htrunc) //.
       by rewrite hwrite.
     rewrite /sem_sop2 /=.
     t_xrbindP=> w1 ok_w1 w2 ok_w2.
@@ -486,7 +489,7 @@ Proof.
     rewrite /sem_sopn /= ok_v1 ok_v2 /=.
     rewrite /exec_sopn /= ok_w1 ok_w2 /=.
     rewrite /riscv_div_semi.
-    rewrite (truncate_val_subtype_eq htrunc) //.
+    rewrite (truncate_val_subctype_eq htrunc) //.
     by rewrite hwrite.
   + move=> o ok_v; case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <-].
     rewrite LetK; apply: (decide_op_reg_immP ok_v1 ok_v2 h erefl).
@@ -569,7 +572,7 @@ Proof.
     by rewrite wrepr_mul !wrepr_unsigned => ->.
 
   move=> ty hsem01.
-  case: ty hsem01 => [|| len | ws ] // hsem01.
+  case: ty hsem01 => [|| ws len | ws ] // hsem01.
   + rewrite /lower_swap.
     by move => [] <- /=; rewrite hsem01.
   rewrite /lower_swap.

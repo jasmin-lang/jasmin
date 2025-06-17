@@ -26,7 +26,7 @@ End E.
 Section ASM_OP.
 
 Context `{asmop : asmOp}.
-Context (fresh_var_ident: v_kind -> instr_info -> string -> stype -> Ident.ident).
+Context (fresh_var_ident: v_kind -> instr_info -> string -> atype -> Ident.ident).
 
 Definition is_spill_op o :=
   match o with
@@ -76,8 +76,8 @@ Definition get_Pvar ii (e : pexpr) : cexec var_i :=
 Definition get_Pvars ii (es : pexprs) : cexec (seq var_i) :=
   mapM (get_Pvar ii) es.
 
-Definition check_ty ii (xs : seq var_i) (tys : seq stype) :=
-  assert (all2 (fun (x : var_i) ty => vtype x == ty) xs tys)
+Definition check_ty ii (xs : seq var_i) (tys : seq atype) :=
+  assert (all2 (fun (x : var_i) ty => convertible (vtype x) ty) xs tys)
       (pp_internal_error_s_at E.pass ii "bad type for spill/unspill").
 
 Section GET.

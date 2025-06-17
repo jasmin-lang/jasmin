@@ -34,20 +34,20 @@ Definition e2word (sz:wsize) (e:pexpr) : exec (word sz) :=
   | None   => type_error
   end.
  
-Definition of_expr (t:stype) : pexpr -> exec (sem_t t) :=
+Definition of_expr (t:ctype) : pexpr -> exec (sem_t t) :=
   match t return pexpr -> exec (sem_t t) with
-  | sbool   => e2bool
-  | sint    => e2int
-  | sarr n  => fun _ => type_error 
-  | sword sz => e2word sz
+  | cbool   => e2bool
+  | cint    => e2int
+  | carr n  => fun _ => type_error 
+  | cword sz => e2word sz
   end.
 
-Definition to_expr (t:stype) : sem_t t -> exec pexpr := 
+Definition to_expr (t:ctype) : sem_t t -> exec pexpr := 
   match t return sem_t t -> exec pexpr with
-  | sbool => fun b => ok (Pbool b)
-  | sint  => fun z => ok (Pconst z)
-  | sarr _ => fun _ => type_error
-  | sword sz => fun w => ok (wconst w)
+  | cbool => fun b => ok (Pbool b)
+  | cint  => fun z => ok (Pconst z)
+  | carr _ => fun _ => type_error
+  | cword sz => fun w => ok (wconst w)
   end.
 
 Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr := 
@@ -290,7 +290,7 @@ Arguments app_sopn {A} ts _ _.
 Definition s_opN (op:opN) (es:pexprs) : pexpr :=
   match app_sopn _ (sem_opN_typed op) es with
   | Ok r =>
-    match op return sem_t (type_of_opN op).2 -> _ with
+    match op return sem_t (eval_atype (type_of_opN op).2) -> _ with
     | Opack ws _ => fun w => Papp1 (Oword_of_int ws) (Pconst (wunsigned w))
     | Ocombine_flags _ => fun b => Pbool b
     end r
@@ -366,7 +366,7 @@ Fixpoint const_prop_e (m:cpm) e :=
   match e with
   | Pconst _
   | Pbool  _
-  | Parr_init _
+  | Parr_init _ _
     => e
   | Pvar {| gs := scope ; gv := x |} =>
       match scope with
@@ -422,8 +422,10 @@ Fixpoint const_prop_rvs globs (m:cpm) (rvs:lvals) : cpm * lvals :=
     (m, rv::rvs)
   end.
 
-Definition wsize_of_stype (ty: stype) : wsize :=
-  if ty is sword sz then sz else U64.
+(* The else branch is dead code, U64 is arbitrary. *)
+(* It is also defined in x86_lowering, should we factor out? *)
+Definition wsize_of_atype (ty: atype) : wsize :=
+  if ty is aword sz then sz else U64.
 
 Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
   if rv is Lvar x then
@@ -432,8 +434,8 @@ Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
       | Pbool b  => Mvar.set m x (Cbool b)
       | Pconst z =>  Mvar.set m x (Cint z)
       | Papp1 (Oword_of_int _) (Pconst z) =>
-        let szty := wsize_of_stype ty in
-        let szx := wsize_of_stype (vtype x) in
+        let szty := wsize_of_atype ty in
+        let szx := wsize_of_atype (vtype x) in
         let sz := cmp_min szty szx in
         let w := Cword (wrepr sz z) in
         Mvar.set m x w

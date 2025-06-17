@@ -15,7 +15,7 @@ End E.
 
 Section Section.
 Context `{asmop:asmOp}.
-Context (fresh_reg_ptr : instr_info -> int -> string -> stype -> Ident.ident).
+Context (fresh_reg_ptr : instr_info -> int -> string -> atype -> Ident.ident).
 Context (p : uprog).
 
 Definition with_id vi ii ctr id ty :=
@@ -25,11 +25,11 @@ Definition with_id vi ii ctr id ty :=
 Definition is_reg_ptr_expr doit ii ctr id ty e :=
   match e with
   | Pvar x' =>
-    if [&& doit, is_sarr (vtype x'.(gv)), ty == vtype x'.(gv) & (is_glob x' || ~~is_reg_ptr x'.(gv))] then
+    if [&& doit, is_aarr (vtype x'.(gv)), convertible ty (vtype x'.(gv)) & (is_glob x' || ~~is_reg_ptr x'.(gv))] then
       Some (with_id x'.(gv).(v_info) ii ctr id ty)
     else None
   | Psub _ ws len x' _ =>
-    if doit && (ty == sarr (Z.to_pos (arr_size ws len))) then
+    if doit && (convertible ty (aarr ws len)) then
       Some (with_id x'.(gv).(v_info) ii ctr id ty)
     else None
   | _      => None
@@ -66,7 +66,7 @@ Fixpoint make_prologue ii (X:Sv.t) ctr xtys es :=
 
 Variant pseudo_instr :=
   | PI_lv of lval
-  | PI_i  of lval & stype & var_i.
+  | PI_i  of lval & atype & var_i.
 
 Fixpoint make_pseudo_epilogue (ii:instr_info) (X:Sv.t) ctr xtys rs :=
   match xtys, rs with
@@ -121,7 +121,7 @@ Definition update_c (update_i : instr -> cexec cmd) (c:cmd) :=
   Let ls := mapM update_i c in
   ok (flatten ls).
 
-Definition mk_info (x:var_i) (ty:stype) :=
+Definition mk_info (x:var_i) (ty:atype) :=
   (is_reg_ptr x, Ident.id_name x.(vname), ty).
 
 Definition get_sig ii fn :=
@@ -132,11 +132,11 @@ Definition get_sig ii fn :=
 
 Definition get_syscall_sig o :=
   let: s := syscall.syscall_sig_u o in
-  (map (fun ty => (is_sarr ty, "__p__"%string, ty)) s.(scs_tin),
-   map (fun ty => (is_sarr ty, "__p__"%string, ty)) s.(scs_tout)).
+  (map (fun ty => (is_aarr ty, "__p__"%string, ty)) s.(scs_tin),
+   map (fun ty => (is_aarr ty, "__p__"%string, ty)) s.(scs_tout)).
 
-Definition is_swap_op (op: sopn) : option stype :=
-  if op is Opseudo_op (pseudo_operator.Oswap (sarr _ as ty)) then Some ty else None.
+Definition is_swap_op (op: sopn) : option atype :=
+  if op is Opseudo_op (pseudo_operator.Oswap (aarr _ _ as ty)) then Some ty else None.
 
 Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in

@@ -71,6 +71,7 @@ Proof.
   rewrite /eval_instr /=.
   rewrite hvzero /=.
   rewrite /exec_sopn /= /sopn_sem /= ws_small /= (truncate_word_le _ ws_small) zero_extend0 /=.
+  rewrite /sopn_sem_ /= /semi_to_atype computational_eq_refl /=.
   rewrite hv /= /sem_sop2 /= (truncate_word_u w1) /= !truncate_word_u /= zero_extend0.
   by rewrite truncate_word_u /= hm' /=.
 Qed.
@@ -203,7 +204,7 @@ Proof.
     rewrite get_var_neq;
       last by move=> h; apply /rsp_nin /sv_of_listP;
       rewrite !in_cons /= -h eqxx /= ?orbT.
-    rewrite get_var_neq; last by move=> /(@inj_to_var _ _ _ _ _ _).
+    rewrite get_var_neq; last by move=> /esym /(@inj_to_var _ _ _ _ _ _).
     by rewrite get_var_eq //=.
 
   rewrite /lnext_pc /=.
@@ -217,7 +218,7 @@ Proof.
   split=> /=.
   + do 4 (rewrite Vm.setP_neq;
       last by [
-        apply /eqP => /(@inj_to_var _ _ _ _ _ _) |
+        apply /eqP => /esym /(@inj_to_var _ _ _ _ _ _) |
         apply /eqP => h; apply /rsp_nin /sv_of_listP;
           rewrite !in_cons /= -h eqxx /= ?orbT]).
   by rewrite Vm.setP_eq.
@@ -231,7 +232,7 @@ Proof.
     by apply eq_ex_refl.
   + do 5 (rewrite Vm.setP_neq;
       last by [
-        apply /eqP => /(@inj_to_var _ _ _ _ _ _) |
+        apply /eqP => /esym /(@inj_to_var _ _ _ _ _ _) |
         apply /eqP => h; apply /rsp_nin /sv_of_listP;
           rewrite !in_cons /= -h eqxx /= ?orbT]).
     by rewrite Vm.setP_eq.

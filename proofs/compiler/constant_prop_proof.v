@@ -84,13 +84,14 @@ Proof.
   rewrite he /= he1 he2 /= /sem_sop1 /=.
   have [b1 [b2 [??]]]: exists (b1 b2: bool), tve1 = b1 /\ tve2 = b2.
   + case: (be) h => ?; subst.
-    + have [??]:= truncate_valI hte1; subst.
-      by move: hte2; rewrite /truncate_val /=; t_xrbindP => ? /to_boolI ??; subst; eauto.
-    have [??]:= truncate_valI hte2; subst.
-    by move: hte1; rewrite /truncate_val /=; t_xrbindP => ? /to_boolI ??; subst; eauto.
+    + move: hte2; have [-> ?] := truncate_valI hte1; subst.
+      by rewrite /truncate_val /=; t_xrbindP => ? /to_boolI ??; subst; eauto.
+    move: hte1; have [-> ?]:= truncate_valI hte2; subst.
+    by rewrite /truncate_val /=; t_xrbindP => ? /to_boolI ??; subst; eauto.
   subst.
-  have [??]:= truncate_valI hte1; have [??]:= truncate_valI hte2; subst => /=.
+  have [ht ?]:= truncate_valI hte1; have [_ ?]:= truncate_valI hte2; subst => /=.
   move=> /(_ _ erefl) -> /(_ _ erefl) -> /=.
+  rewrite ht /=.
   by case: (be) h => -[->].
 Qed.
 
@@ -618,11 +619,19 @@ Proof.
   by move/write_varP: Hw => [-> _ _ /=]; rewrite Vm.setP_neq.
 Qed.
 
+(* is this future proof? *)
+Lemma wsize_of_atypeP ty ws :
+  eval_atype ty = cword ws ->
+  wsize_of_atype ty = ws.
+Proof.
+  by case: ty => //= _ [->].
+Qed.
+
 Lemma add_cpmP s1 s1' m x e tag ty v1 v v' :
   wdb ->
   sem_pexpr wdb gd s1 e = ok v1 ->
   value_uincl v v1 ->
-  truncate_val ty v = ok v' ->
+  truncate_val (eval_atype ty) v = ok v' ->
   write_lval wdb gd x v' s1 = ok s1' ->
   valid_cpm (evm s1') m ->
   valid_cpm (evm s1') (add_cpm m x tag ty e).
@@ -641,13 +650,15 @@ Proof.
     rewrite hwdb in hw *.
     by have [_ /vm_truncate_valE [hty ->] /get_varP [<-??]] := write_get_varP_eq hw.
   case: v => //= s ;last by move=> ??/truncate_valE.
-  move=> w /andP[] Ule /eqP -> /truncate_valE [szw [ww [-> /truncate_wordP[hle ->] ->]]] /=.
+  move=> w /andP[] Ule /eqP -> /truncate_valE [szw [ww [hty /truncate_wordP[hle ->] ->]]] /=.
+  rewrite (wsize_of_atypeP hty).
   rewrite !(zero_extend_wrepr _ Ule, zero_extend_wrepr _ (cmp_le_trans hle Ule), zero_extend_wrepr _ hle).
   move=> hw hv z n.
   rewrite Mvar.setP /=; case: eqP => [<- [<-]| hne]; last by apply hv.
   rewrite hwdb in hw *.
-  have [_ /vm_truncate_valE [ws' [-> _ -> /=]] /get_varP [<-]] := write_get_varP_eq hw.
+  have [_ /vm_truncate_valE [ws' [htyx _ -> /=]] /get_varP [<-]] := write_get_varP_eq hw.
   move => _ _.
+  rewrite (wsize_of_atypeP htyx).
   elim/cmp_minP: (cmp_min szw ws'); first by move => ->.
   move=> /[dup] /(@cmp_lt_le _ _ _ _ _) hle'.
   rewrite -cmp_nle_lt => /negbTE ->.

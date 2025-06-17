@@ -58,7 +58,7 @@ with sem_I : estate -> instr -> estate -> Prop :=
 with sem_i : estate -> instr_r -> estate -> Prop :=
 | Eassgn s1 s2 (x:lval) tag ty e v v' :
     sem_pexpr true gd s1 e = ok v ->
-    truncate_val ty v = ok v' →
+    truncate_val (eval_atype ty) v = ok v' →
     write_lval true gd x v' s1 = ok s2 ->
     sem_i s1 (Cassgn x tag ty e) s2
 
@@ -119,12 +119,12 @@ with sem_for : var_i -> seq Z -> estate -> cmd -> estate -> Prop :=
 with sem_call : syscall_state_t -> mem -> funname -> seq value -> syscall_state_t -> mem -> seq value -> Prop :=
 | EcallRun scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' :
     get_fundef (p_funcs P) fn = Some f ->
-    mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' = ok vargs ->
+    mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyin)) vargs' = ok vargs ->
     init_state f.(f_extra) (p_extra P) ev (Estate scs1 m1 Vm.init) = ok s0 ->
     write_vars (~~direct_call) f.(f_params) vargs s0 = ok s1 ->
     sem s1 f.(f_body) s2 ->
     get_var_is (~~ direct_call) s2.(evm) f.(f_res) = ok vres ->
-    mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' ->
+    mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyout)) vres = ok vres' ->
     scs2 = s2.(escs) ->
     m2 = finalize f.(f_extra) s2.(emem)  ->
     sem_call scs1 m1 fn vargs' scs2 m2 vres'.
@@ -158,7 +158,7 @@ Section SEM_IND.
   Definition sem_Ind_assgn : Prop :=
     forall (s1 s2 : estate) (x : lval) (tag : assgn_tag) ty (e : pexpr) v v',
       sem_pexpr true gd s1 e = ok v →
-      truncate_val ty v = ok v' →
+      truncate_val (eval_atype ty) v = ok v' →
       write_lval true gd x v' s1 = ok s2 →
       Pi_r s1 (Cassgn x tag ty e) s2.
 
@@ -245,13 +245,13 @@ Section SEM_IND.
            (fn:funname) (f : fundef) (vargs vargs': seq value)
            (s0 s1 s2: estate) (vres vres': seq value),
       get_fundef (p_funcs P) fn = Some f ->
-      mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' = ok vargs ->
+      mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyin)) vargs' = ok vargs ->
       init_state f.(f_extra) (p_extra P) ev (Estate scs1 m1 Vm.init) = ok s0 ->
       write_vars (~~direct_call) (f_params f) vargs s0 = ok s1 ->
       sem s1 (f_body f) s2 ->
       Pc s1 (f_body f) s2 ->
       get_var_is (~~ direct_call) s2.(evm) (f_res f) = ok vres ->
-      mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' ->
+      mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyout)) vres = ok vres' ->
       scs2 = s2.(escs) ->
       m2 = finalize f.(f_extra) s2.(emem) ->
       Pfun scs1 m1 fn vargs' scs2 m2 vres'.
@@ -363,7 +363,7 @@ Lemma sem_iE s i s' :
   match i with
   | Cassgn lv _ ty e =>
     ∃ v v',
-    [/\ sem_pexpr true gd s e = ok v, truncate_val ty v = ok v' & write_lval true gd lv v' s = ok s' ]
+    [/\ sem_pexpr true gd s e = ok v, truncate_val (eval_atype ty) v = ok v' & write_lval true gd lv v' s = ok s' ]
   | Copn lvs _ op es => sem_sopn gd op s lvs es = ok s'
   | Csyscall xs o es =>
     ∃ scs m ves vs,
@@ -418,12 +418,12 @@ Lemma sem_callE scs1 m1 fn vargs' scs2 m2 vres' :
     get_fundef (p_funcs P) fn = Some f ∧
   ∃ vargs s0 s1 s2 vres,
   [/\
-    mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' = ok vargs,
+    mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyin)) vargs' = ok vargs,
     init_state f.(f_extra) (p_extra P) ev (Estate scs1 m1 Vm.init) = ok s0 /\
     write_vars (~~direct_call) f.(f_params) vargs s0 = ok s1,
     sem s1 f.(f_body) s2,
     get_var_is (~~ direct_call) s2.(evm) f.(f_res) = ok vres /\
-    mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' &
+    mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyout)) vres = ok vres' &
     scs2 = s2.(escs) /\ m2 = finalize f.(f_extra) s2.(emem) ].
 Proof.
   case => { scs1 m1 fn vargs' scs2 m2 vres' } - scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
@@ -1279,7 +1279,7 @@ Proof.
 Qed.
 
 Lemma mapM2_id tyin vargs vargs' :
-  mapM2 ErrType (λ (_ : stype) (v : value), ok v) tyin vargs = ok vargs' ->
+  mapM2 ErrType (λ (_ : ctype) (v : value), ok v) tyin vargs = ok vargs' ->
   vargs = vargs'.
 Proof.
   elim: tyin vargs vargs' => /= [ | ty tyin hrec] [ | v vs] // >.

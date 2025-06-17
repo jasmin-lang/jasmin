@@ -1,14 +1,14 @@
-From mathcomp Require Import ssreflect seq ssralg.
+From mathcomp Require Import ssreflect ssrbool seq ssralg.
 From Coq Require Import Utf8.
 Require Import psem.
 Require Export stack_alloc_params.
 
 (* TODO : move elsewhere *)
 (* but not clear where
-   Uptr is defined in memory_model, no stype there
-   stype is defined in type, no Uptr there
+   Uptr is defined in memory_model, no atype there
+   atype is defined in type, no Uptr there
 *)
-Notation spointer := (sword Uptr) (only parsing).
+Notation spointer := (aword Uptr) (only parsing).
 
 Section WITH_PARAMS.
 
@@ -31,14 +31,14 @@ Definition mov_ofs_correct (mov_ofs : lval → assgn_tag → mov_kind → pexpr 
 
 Definition immediate_correct (immediate : var_i → Z → instr_r) :=
   forall (P' : sprog) w s ii (x: var_i) z,
-    vtype x = sword Uptr ->
+    vtype x = aword Uptr ->
     esem_i P' w (MkI ii (immediate x z)) s = ok
       (with_vm s (evm s).[x <- Vword (wrepr Uptr z)]).
 
 Definition swap_correct (swap : assgn_tag → var_i → var_i → var_i → var_i → instr_r) :=
   forall (P' : sprog) rip s ii tag (x y z w : var_i) (pz pw: pointer),
-    vtype x = spointer -> vtype y = spointer -> 
-    vtype z = spointer -> vtype w = spointer -> 
+    convertible (vtype x) spointer -> convertible (vtype y) spointer -> 
+    convertible (vtype z) spointer -> convertible (vtype w) spointer -> 
     (evm s).[z] = Vword pz ->
     (evm s).[w] = Vword pw -> 
     esem_i P' rip (MkI ii (swap tag x y z w)) s = ok

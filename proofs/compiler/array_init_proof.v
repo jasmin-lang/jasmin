@@ -70,7 +70,7 @@ Section REMOVE_INIT.
 
   Lemma assgn_uincl s1 s2 e v ty v' vm1 x ii tag:
     sem_pexpr true gd s1 e = ok v ->
-    truncate_val ty v = ok v' ->
+    truncate_val (eval_atype ty) v = ok v' ->
     write_lval true gd x v' s1 = ok s2 ->
     evm s1 <=1 vm1 ->
     exists2 vm2 : Vm.t,
@@ -90,9 +90,9 @@ Section REMOVE_INIT.
     + by move=> _; apply: assgn_uincl Hse hsub hwr.
     case: ifP; last first.
     + by move=> _ _; apply: assgn_uincl Hse hsub hwr.
-    move=> _ /is_array_initP [n e1];subst e.
+    move=> _ /is_array_initP [wse [n e1]];subst e.
     case: Hse => ?; subst v.
-    move: hsub;rewrite /truncate_val;case: ty => //= nty.
+    move: hsub;rewrite /truncate_val;case: ty => //= wsty nty.
     t_xrbindP => empty /WArray.cast_empty_ok ??; subst v' empty.
     case: x hwr => [vi t | [x xi] | al ws x e | al aa ws x e | aa ws len [x xi] e] /=.
     + by move=> /write_noneP [->];exists vm1 => //;constructor.
@@ -283,10 +283,10 @@ Proof.
    have h : wequiv_rec p p' ev ev uincl_spec
              (st_uincl tt) [:: MkI ii (Cassgn x tg ty e)] [:: MkI ii (Cassgn x tg ty e)] (st_uincl tt).
    + apply wequiv_assgn_rel_uincl with checker_st_uincl tt => //.
-   case: is_array_initP => // -[len ?]; subst e.
+   case: is_array_initP => // -[wse [len ?]]; subst e.
    case: ifP => // hx.
    apply wequiv_assign_left => s1 s1' s2 hu.
-   rewrite /sem_assgn /=; t_xrbindP => v /truncate_valE [??]; subst ty v => {h hx}.
+   rewrite /sem_assgn /=; t_xrbindP => v /truncate_valE [_ ?]; subst v => {h hx}.
    case: hu => hscs hmem hsub.
    case: x => [vi t | [x xi] | al ws x e | al aa ws x e | aa ws len' [x xi] e] /=.
     + by move=> /write_noneP [->].
@@ -356,7 +356,7 @@ Section ADD_INIT.
   Notation p' := (add_init_prog p).
 
   Definition undef_except (X:Sv.t) vm :=
-    forall x, ~Sv.In x X ->  vm.[x] = undef_addr (vtype x).
+    forall x, ~Sv.In x X ->  vm.[x] = undef_addr (eval_atype (vtype x)).
 
   Notation lift_vm sem s1 s2 :=
     (forall vm1,
@@ -418,7 +418,7 @@ Section ADD_INIT.
     lift_sem s1 (add_init ii1 I X (MkI ii0 i)) s2.
   Proof.
     move=> hu hs; rewrite /add_init Sv.fold_spec.
-    have : forall x:var, x \in Sv.elements (Sv.diff X I) -> (evm s1).[x] = undef_addr (vtype x).
+    have : forall x:var, x \in Sv.elements (Sv.diff X I) -> (evm s1).[x] = undef_addr (eval_atype (vtype x)).
     + by move=> x /Sv_elemsP hx; rewrite hu //; SvD.fsetdec.
     have : lift_sem s1 [:: MkI ii0 i] s2.
     + by move=> vm1 /hs [vm2] ??; exists vm2 => //;apply sem_seq1.
@@ -426,17 +426,17 @@ Section ADD_INIT.
     apply ih; last by move=> y hy; apply hu; rewrite in_cons hy orbT.
     move=> vm1 hu1; rewrite /add_init_aux.
     have hl1 := hl _ hu1.
-    case heq: vtype => [||len|] //; case:ifP => _ //.
+    case heq: vtype => [||ws len|] //; case:ifP => _ //.
     set i' := MkI _ _.
     have [vm2 heq2 hi']: exists2 vm2, evm s1 =1 vm2 & sem_I p' ev (with_vm s1 vm1) i' (with_vm s1 vm2).
     + rewrite /i'; have := hu x; rewrite in_cons eq_refl /= => /(_ erefl) {hu i'} hx.
-      exists (vm1.[x <- Varr (WArray.empty len)]).
+      exists (vm1.[x <- Varr (WArray.empty (Z.to_pos (arr_size ws len)))]).
       + move: hu1; rewrite !vm_eq_vm_rel => hu1; apply vm_rel_set_r.
-        + by move=> _ /=; rewrite hx heq eqxx.
+        + by move=> _ /=; rewrite hx heq /= eqxx.
         by apply: vm_relI hu1.
       constructor; econstructor; first reflexivity.
       + by rewrite /truncate_val /= WArray.castK.
-      by apply /write_varP; econstructor => //=; rewrite heq /truncatable eqxx.
+      by apply /write_varP; econstructor => //=; rewrite heq /= eqxx.
     by have [vm3 ? hc']:= hl _ heq2; exists vm3 => //; apply: Eseq hc'.
   Qed.
 
@@ -664,11 +664,11 @@ Proof.
   apply wequiv_assign_right => s t h.
   rewrite /sem_assgn /=  /truncate_val /= WArray.castK /=.
   eexists.
-  + by apply write_varP; split => //; rewrite heq /truncatable eqxx.
+  + by apply write_varP; split => //; rewrite heq /= eqxx.
   case h => h1 h2 [h3 h4]; split => //; split => //.
   move: h4; rewrite !vm_eq_vm_rel => hu1; apply vm_rel_set_r.
   + move=> _ /=; rewrite h3.
-    + by rewrite heq eqxx.
+    + by rewrite heq /= eqxx.
     by apply/hdisj/mem_head.
   by apply: vm_relI hu1.
 Qed.

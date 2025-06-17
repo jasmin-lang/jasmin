@@ -39,13 +39,13 @@ Context
 
 Definition truncate_args
   (op : sopn) (vargs : seq value) : exec (seq value) :=
-  mapM2 ErrType truncate_val (sopn_tout op) vargs.
+  mapM2 ErrType truncate_val (map eval_atype (sopn_tout op)) vargs.
 
 Definition cast_op tin1 tin2 tout1 tout2 (h1 : tin1 = tin2) (h2 : tout1 = tout2)
-  (f : sem_prod tin1 (exec (sem_tuple tout1))) :
-    sem_prod tin2 (exec (sem_tuple tout2)) :=
-   eq_rect tout1 (fun tout => sem_prod tin2 (exec (sem_tuple tout)))
-     (eq_rect tin1 (fun tin => sem_prod tin (exec (sem_tuple tout1))) f tin2 h1)
+  (f : sem_lprod tin1 (exec (sem_ltuple tout1))) :
+    sem_lprod tin2 (exec (sem_ltuple tout2)) :=
+   eq_rect tout1 (fun tout => sem_lprod tin2 (exec (sem_ltuple tout)))
+     (eq_rect tin1 (fun tin => sem_lprod tin (exec (sem_ltuple tout1))) f tin2 h1)
      tout2 h2.
 
 Lemma sem_prod_ok_comp A B ts (F : sem_prod ts A) (G:A -> B) vs:
@@ -78,7 +78,10 @@ Proof.
   + by rewrite /fflags /tflags; case: mn; case sf; case osk => [s | ]; split => //;
          exists erefl, erefl.
   move=> [-> [hin [hout hcast]]].
-  rewrite /truncate_args /= /sopn_tout /=.
+  rewrite /semi_to_atype /=.
+  move: (computational_eq _) (computational_eq _) (computational_eq _) (computational_eq _) => e1 e2 e3 e4.
+  rewrite <- e1, <- e2, <- e3, <- e4; clear e1 e2 e3 e4.
+  rewrite /truncate_args -map_comp -(eq_map atype_of_ltypeP) /= /sopn_tout /=.
   move=> htr _ -> <- res hres <- /=.
   move: (id_tin (mn_desc fflags mn)) (id_tin (mn_desc tflags mn))
         (id_tout (mn_desc fflags mn)) (id_tout (mn_desc tflags mn))
@@ -89,8 +92,8 @@ Proof.
   elim: tin vargs semi => [ | ti tin hreci] [ | va vargs] //=.
   + move=> semi res ->; rewrite /mk_semi_cond /= => {semi}.
     rewrite add_arguments_nil; case: b.
-    + have -> // : app_sopn tout (sem_prod_const tout (ok res)) vprev = ok res.
-      move: (sem_tuple tout) res => A res.
+    + have -> // : app_sopn (map eval_ltype tout) (sem_prod_const (map eval_ltype tout) (ok res)) vprev = ok res.
+      move: (sem_ltuple tout) res => A res.
       elim: tout vprev vres1 hvres1 => [ | to tout hreco] [ | vp vprev] //=; t_xrbindP.
       move=> vres1 v; rewrite /truncate_val; t_xrbindP.
       by move=> vto -> _ vs /hreco ->.

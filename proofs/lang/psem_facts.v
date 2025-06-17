@@ -18,7 +18,7 @@ Lemma write_lvals_write_lval wdb gd lv v s :
 Proof. by rewrite /=; case: write_lval. Qed.
 
 Lemma get_write_var_word wdb s s' ws (w : word ws) x :
-  vtype (v_var x) = sword ws
+  eval_atype (vtype (v_var x)) = cword ws
   -> write_var wdb x (Vword w) s = ok s'
   -> (evm s').[v_var x] = Vword w.
 Proof.

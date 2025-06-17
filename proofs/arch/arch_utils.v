@@ -4,7 +4,8 @@ Require Import
   type
   sem_type
   strings
-  utils.
+  utils
+  values.
 Require Import arch_decl.
 
 (* -------------------------------------------------------------------- *)
@@ -83,6 +84,14 @@ End WITH_ARCH.
 
 
 (* -------------------------------------------------------------------- *)
+(* Convenient notations to define instruction descriptors. *)
+
+Notation sem_lprod_ok tin semi := (sem_prod_ok (map eval_ltype tin) semi).
+Notation sem_lprod_ok_error tin semi := (sem_prod_ok_error (tin:=map eval_ltype tin) semi _).
+Notation sem_lprod_ok_safe tin semi := (sem_prod_ok_safe (tin:=map eval_ltype tin) semi).
+
+
+(* -------------------------------------------------------------------- *)
 (* Instruction description transformations. *)
 
 Notation beheadn n xs := (ssrnat.iter n behead xs).
@@ -115,27 +124,48 @@ Lemma all2_beheadn
   all2 p (beheadn n xs) (beheadn n ys).
 Proof. move=> h. elim: n => // n'. exact: all2_behead. Qed.
 
+Definition behead_tuple tin tout :
+  sem_lprod tin (exec (sem_ltuple tout))
+  -> sem_lprod tin (exec (sem_ltuple (behead tout))) :=
+  match tout
+  return sem_lprod tin (exec (sem_ltuple tout))
+         -> sem_lprod tin (exec (sem_ltuple (behead tout)))
+  with
+  | [::] =>
+      fun f => sem_prod_app f (fun x => Let _ := x in ok tt)
+  | t :: tout' =>
+      match tout'
+      return sem_lprod tin (exec (sem_ltuple (t :: tout')))
+             -> sem_lprod tin (exec (sem_ltuple tout'))
+      with
+      | [::] =>
+          fun f => sem_prod_app f (fun x => Let _ := x in ok tt)
+      | _ =>
+          fun f => sem_prod_app f (fun x => Let: (r, p) := x in ok p)
+      end
+  end.
+
 Definition semi_drop1
-  {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_prod tin (exec (sem_tuple (behead1 tout))) :=
+  {tin tout} (semi : sem_lprod tin (exec (sem_ltuple tout))) :
+  sem_lprod tin (exec (sem_ltuple (behead1 tout))) :=
   behead_tuple semi.
 
 Definition semi_drop2
-  {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_prod tin (exec (sem_tuple (behead2 tout))) :=
+  {tin tout} (semi : sem_lprod tin (exec (sem_ltuple tout))) :
+  sem_lprod tin (exec (sem_ltuple (behead2 tout))) :=
   behead_tuple (behead_tuple semi).
 
 Definition semi_drop3
-  {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_prod tin (exec (sem_tuple (behead3 tout))) :=
+  {tin tout} (semi : sem_lprod tin (exec (sem_ltuple tout))) :
+  sem_lprod tin (exec (sem_ltuple (behead3 tout))) :=
   behead_tuple (behead_tuple (behead_tuple semi)).
 
 Definition semi_drop4
-  {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_prod tin (exec (sem_tuple (behead4 tout))) :=
+  {tin tout} (semi : sem_lprod tin (exec (sem_ltuple tout))) :
+  sem_lprod tin (exec (sem_ltuple (behead4 tout))) :=
   behead_tuple (behead_tuple (behead_tuple (behead_tuple semi))).
 
-Lemma behead_tuple_errty tout (semi : sem_prod [::] (exec (sem_tuple tout))) :
+Lemma behead_tuple_errty tout (semi : sem_lprod [::] (exec (sem_ltuple tout))) :
   semi <> Error ErrType -> behead_tuple semi <> Error ErrType.
 Proof.
   case: semi => [t _ | e h].
@@ -143,7 +173,7 @@ Proof.
   by case: tout h => // t1 [ | t2 ts] //= /[swap] -[->].
 Qed.
 
-Lemma behead_tuple_safe tout (semi : sem_prod [::] (exec (sem_tuple tout))) :
+Lemma behead_tuple_safe tout (semi : sem_lprod [::] (exec (sem_ltuple tout))) :
   (exists t, semi = ok t) -> exists t, behead_tuple semi = ok t.
 Proof.
   move=> [t ->] {semi}; case: tout t => /=; eauto.
@@ -151,20 +181,20 @@ Proof.
   move=> [v1 v2]; eauto.
 Qed.
 
-Lemma behead_tuple_app1 t ts tout (semi : sem_prod (t :: ts) (exec (sem_tuple tout))) (v : sem_t t) :
+Lemma behead_tuple_app1 t ts tout (semi : sem_lprod (t :: ts) (exec (sem_ltuple tout))) (v : sem_lt t) :
   behead_tuple semi v = behead_tuple (semi v).
 Proof. by case: (tout) (semi) => // t1 [ | t2 ts_]. Qed.
 
-Lemma semi_drop1_errty tin tout (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_forall (fun r => r <> Error ErrType) tin semi ->
-  sem_forall (fun r => r <> Error ErrType) tin (semi_drop1 semi).
+Lemma semi_drop1_errty tin tout (semi : sem_lprod tin (exec (sem_ltuple tout))) :
+  sem_lforall (fun r => r <> Error ErrType) tin semi ->
+  sem_lforall (fun r => r <> Error ErrType) tin (semi_drop1 semi).
 Proof.
   rewrite /semi_drop1; elim: tin semi => //=.
   + by apply behead_tuple_errty.
   move=> t ts hrec semi h v; rewrite behead_tuple_app1; apply/hrec/h.
 Qed.
 
-Lemma semi_drop1_sem_safe tin tout sc (semi : sem_prod tin (exec (sem_tuple tout))) :
+Lemma semi_drop1_sem_safe tin tout sc (semi : sem_lprod tin (exec (sem_ltuple tout))) :
   values.interp_safe_cond_ty sc semi ->
   values.interp_safe_cond_ty sc (semi_drop1 semi).
 Proof.
@@ -174,16 +204,16 @@ Proof.
   move=> h v; rewrite behead_tuple_app1; apply/hrec/h.
 Qed.
 
-Lemma semi_drop2_errty tin tout (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_forall (fun r => r <> Error ErrType) tin semi ->
-  sem_forall (fun r => r <> Error ErrType) tin (semi_drop2 semi).
+Lemma semi_drop2_errty tin tout (semi : sem_lprod tin (exec (sem_ltuple tout))) :
+  sem_lforall (fun r => r <> Error ErrType) tin semi ->
+  sem_lforall (fun r => r <> Error ErrType) tin (semi_drop2 semi).
 Proof.
   rewrite /semi_drop2; elim: tin semi => //=.
   + by move=> ??; do 2! apply behead_tuple_errty.
   move=> t ts hrec semi h v; rewrite !behead_tuple_app1; apply/hrec/h.
 Qed.
 
-Lemma semi_drop2_sem_safe tin tout sc (semi : sem_prod tin (exec (sem_tuple tout))) :
+Lemma semi_drop2_sem_safe tin tout sc (semi : sem_lprod tin (exec (sem_ltuple tout))) :
   values.interp_safe_cond_ty sc semi ->
   values.interp_safe_cond_ty sc (semi_drop2 semi).
 Proof.
@@ -193,16 +223,16 @@ Proof.
   move=> h v; rewrite !behead_tuple_app1; apply/hrec/h.
 Qed.
 
-Lemma semi_drop3_errty tin tout (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_forall (fun r => r <> Error ErrType) tin semi ->
-  sem_forall (fun r => r <> Error ErrType) tin (semi_drop3 semi).
+Lemma semi_drop3_errty tin tout (semi : sem_lprod tin (exec (sem_ltuple tout))) :
+  sem_lforall (fun r => r <> Error ErrType) tin semi ->
+  sem_lforall (fun r => r <> Error ErrType) tin (semi_drop3 semi).
 Proof.
   rewrite /semi_drop3; elim: tin semi => //=.
   + by move=> ??; do 3! apply behead_tuple_errty.
   move=> t ts hrec semi h v; rewrite !behead_tuple_app1; apply/hrec/h.
 Qed.
 
-Lemma semi_drop3_sem_safe tin tout sc (semi : sem_prod tin (exec (sem_tuple tout))) :
+Lemma semi_drop3_sem_safe tin tout sc (semi : sem_lprod tin (exec (sem_ltuple tout))) :
   values.interp_safe_cond_ty sc semi ->
   values.interp_safe_cond_ty sc (semi_drop3 semi).
 Proof.
@@ -212,16 +242,16 @@ Proof.
   move=> h v; rewrite !behead_tuple_app1; apply/hrec/h.
 Qed.
 
-Lemma semi_drop4_errty tin tout (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_forall (fun r => r <> Error ErrType) tin semi ->
-  sem_forall (fun r => r <> Error ErrType) tin (semi_drop4 semi).
+Lemma semi_drop4_errty tin tout (semi : sem_lprod tin (exec (sem_ltuple tout))) :
+  sem_lforall (fun r => r <> Error ErrType) tin semi ->
+  sem_lforall (fun r => r <> Error ErrType) tin (semi_drop4 semi).
 Proof.
   rewrite /semi_drop4; elim: tin semi => //=.
   + by move=> ??; do 4! apply behead_tuple_errty.
   move=> t ts hrec semi h v; rewrite !behead_tuple_app1; apply/hrec/h.
 Qed.
 
-Lemma semi_drop4_sem_safe tin tout sc (semi : sem_prod tin (exec (sem_tuple tout))) :
+Lemma semi_drop4_sem_safe tin tout sc (semi : sem_lprod tin (exec (sem_ltuple tout))) :
   values.interp_safe_cond_ty sc semi ->
   values.interp_safe_cond_ty sc (semi_drop4 semi).
 Proof.
@@ -256,8 +286,6 @@ Notation idt_dropn semi_dropn semi_errtyp semi_safe :=
        id_nargs := id_nargs idt;
        id_args_kinds := id_args_kinds idt;
        id_eq_size := drop_eq_size (id_eq_size idt);
-       id_tin_narr := id_tin_narr idt;
-       id_tout_narr := all_beheadn (id_tout_narr idt);
        id_check_dest := all2_beheadn (id_check_dest idt);
        id_str_jas := id_str_jas idt;
        id_safe := id_safe idt;
@@ -275,7 +303,7 @@ Definition idt_drop3 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop3 semi
 Definition idt_drop4 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop4 semi_drop4_errty semi_drop4_sem_safe.
 
 Definition rtuple_drop5th
-  {t0 t1 t2 t3 t4 : stype}
+  {t0 t1 t2 t3 t4 : ctype}
   (xs : sem_tuple [:: t0; t1; t2; t3; t4 ]) :=
   let: (:: x0, x1, x2, x3 & x4 ) := xs in
   (:: x0, x1, x2 & x3 ).

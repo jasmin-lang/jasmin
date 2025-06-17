@@ -53,7 +53,7 @@ Context
 #[local] Existing Instance withsubword.
 
 Let mkv xname vi :=
-  let: x := {| vname := xname; vtype := sword riscv_reg_size; |} in
+  let: x := {| vname := xname; vtype := aword riscv_reg_size; |} in
   let: xi := {| v_var := x; v_info := vi; |} in
   (xi, x).
 
@@ -61,7 +61,11 @@ Lemma sem_fopn_equiv o s :
   RISCVFopn_coreP.sem_fopn_args o s = sem_fopn_args (RISCVFopn.to_opn o) s.
 Proof.
   case: o => -[xs o] es /=; case: sem_rexprs => //= >.
-  by rewrite /exec_sopn /= /sopn_sem /=; case: id_valid => //=; case: app_sopn.
+  rewrite /exec_sopn /= /sopn_sem /=; case: id_valid => //=.
+  rewrite /sopn_sem_ /= /semi_to_atype.
+  move: (computational_eq _) (computational_eq _) => e1 e2.
+  rewrite <- e1, <- e2.
+  by case: app_sopn.
 Qed.
 
 Lemma sem_fopns_equiv o s :
@@ -81,12 +85,12 @@ Lemma addi_sem_fopn_args {s xname vi y imm wy} :
   -> let: wx' := Vword (wy + wrepr reg_size imm)in
      let: vm' := (evm s).[x <- wx'] in
      sem_fopn_args (RISCVFopn.addi xi y imm) s = ok (with_vm s vm').
-Proof. by move=> h; rewrite -sem_fopn_equiv; apply RISCVFopn_coreP.addi_sem_fopn_args. Qed.
+Proof. by move=> h; rewrite -sem_fopn_equiv; apply: RISCVFopn_coreP.addi_sem_fopn_args. Qed.
 
-Lemma mov_sem_fopn_args {s xname vi y} {wy : word Uptr} :
-  let: (xi, x) := mkv xname vi in
+Lemma mov_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} :
+  convertible xi.(vtype) (aword riscv_reg_size) ->
   get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
-  let: vm' := (evm s).[x <- Vword wy] in
+  let: vm' := (evm s).[xi <- Vword wy] in
   sem_fopn_args (RISCVFopn.mov xi y) s = ok (with_vm s vm').
 Proof. by move=> h; rewrite -sem_fopn_equiv; apply RISCVFopn_coreP.mov_sem_fopn_args. Qed.
 
@@ -128,7 +132,7 @@ Lemma sub_eval_instr {lp ls ii xname vi y z} {wy wz : word Uptr} :
   eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof.
   move=> hy hz.
-  have /(_ xname vi):= RISCVFopn_coreP.sub_sem_fopn_args (s:=to_estate _) (to_word_get_var hy) (to_word_get_var hz).
+  have := RISCVFopn_coreP.sub_sem_fopn_args (s:=to_estate _) (xi:=(mkv xname vi).1) erefl (to_word_get_var hy) (to_word_get_var hz).
   by rewrite sem_fopn_equiv; apply: sem_fopn_args_eval_instr.
 Qed.
 
@@ -142,7 +146,7 @@ Lemma subi_eval_instr {lp ls ii xname vi y imm wy} :
   eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof.
   move=> h1; set vm := _.[ _ <- _].
-  have /(_ xname vi imm):= RISCVFopn_coreP.subi_sem_fopn_args (s:=to_estate _) (to_word_get_var h1).
+  have := RISCVFopn_coreP.subi_sem_fopn_args (s:=to_estate _) (xi:=(mkv xname vi).1) (imm:=imm) erefl (to_word_get_var h1).
   by rewrite sem_fopn_equiv; apply: sem_fopn_args_eval_instr.
 Qed.
 
@@ -155,19 +159,20 @@ Lemma mov_eval_instr {lp ls ii xname vi y} {wy : word Uptr} :
   eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof.
   move=> hy.
-  have /(_ xname vi):= RISCVFopn_coreP.mov_sem_fopn_args (s:=to_estate _) (to_word_get_var hy).
+  have := RISCVFopn_coreP.mov_sem_fopn_args (s:=to_estate _) (xi:=(mkv xname vi).1) erefl (to_word_get_var hy).
   by rewrite sem_fopn_equiv; apply: sem_fopn_args_eval_instr.
 Qed.
 
 (* TODO try to remove the usage of this lemma, use sem_fopn_args version instead *)
-Lemma movi_eval_instr {lp ls ii imm xname vi} :
-  let: (xi, x) := mkv xname vi in
+Lemma movi_eval_instr {lp ls ii imm} {xi:var_i} :
+  convertible xi.(vtype) (aword riscv_reg_size) ->
   (* (is_expandable_or_shift imm \/ is_w16_encoding imm) -> *)
   let: li := li_of_fopn_args ii (RISCVFopn.li xi imm) in
-  let: vm' := (lvm ls).[x <- Vword (wrepr U32 imm)] in
+  let: vm' := (lvm ls).[xi <- Vword (wrepr U32 imm)] in
   eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof.
-  have := [elaborate RISCVFopn_coreP.movi_sem_fopn_args (xname := xname) (vi := vi) (s:=to_estate ls) (imm:=imm)].
+  move=> hc.
+  have := [elaborate RISCVFopn_coreP.movi_sem_fopn_args (s:=to_estate ls) (imm:=imm) hc].
   by rewrite sem_fopn_equiv; apply: sem_fopn_args_eval_instr.
 Qed.
 
@@ -180,24 +185,23 @@ Opaque RISCVFopn.li.
 Opaque RISCVFopn.sub.
 Opaque RISCVFopn.subi.
 
-Lemma smart_addi_sem_fopn_args xname vi y imm s (w : wreg) :
-  let: (xi, x) := mkv xname vi in
+Lemma smart_addi_sem_fopn_args (xi:var_i) y imm s (w : wreg) :
+  convertible xi.(vtype) (aword riscv_reg_size) ->
   let: lc := RISCVFopn.smart_addi xi y imm in
-  is_arith_small imm \/ x <> v_var y ->
+  is_arith_small imm \/ xi <> v_var y :> var ->
   get_var true (evm s) (v_var y) >>= to_word Uptr = ok w -> 
   exists vm',
     [/\ sem_fopns_args s lc = ok (with_vm s vm')
-      , vm' =[\ Sv.singleton x ] evm s
-      & get_var true vm' x = ok (Vword (w + wrepr reg_size imm)%R) ].
+      , vm' =[\ Sv.singleton xi ] evm s
+      & get_var true vm' xi = ok (Vword (w + wrepr reg_size imm)%R) ].
 Proof.
-  rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
-  move=> hor hget; rewrite -sem_fopns_equiv.
+  move=> hc hor hget; rewrite -sem_fopns_equiv.
   have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small) (neutral:= Some 0%Z)
              (@RISCVFopn_coreP.add_sem_fopn_args _ _) (@RISCVFopn_coreP.addi_sem_fopn_args _ _)].
-  move=> /(_ _ xname vi xi y imm s w) [] //.
+  move=> /(_ _ xi xi y imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
-  apply: eq_exI heq; rewrite /xi /=; SvD.fsetdec.
+  by apply: eq_exI heq; clear; SvD.fsetdec.
 Qed.
 
 Lemma smart_subi_sem_fopn_args xname vi y imm s (w : wreg) :
@@ -214,7 +218,7 @@ Proof.
   move=> hor hget; rewrite -sem_fopns_equiv.
   have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small_neg) (neutral:= Some 0%Z)
               (@RISCVFopn_coreP.sub_sem_fopn_args _ _) (@RISCVFopn_coreP.subi_sem_fopn_args _ _)].
-  move=> /(_ _ xname vi xi y imm s w) [] //.
+  move=> /(_ _ xi xi y imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
   apply: eq_exI heq; rewrite /xi /=; SvD.fsetdec.
@@ -224,7 +228,7 @@ Lemma smart_addi_tmp_sem_fopn_args s (tmp : var_i) xname vi imm w :
   let: (xi, x) := mkv xname vi in
   let: lcmd := RISCVFopn.smart_addi_tmp xi tmp imm in
   x <> v_var tmp -> 
-  vtype tmp = sword U32 ->
+  convertible (vtype tmp) (aword Uptr) ->
   get_var true (evm s) x >>= to_word Uptr = ok w ->
   exists vm',
     [/\ sem_fopns_args s lcmd = ok (with_vm s vm')
@@ -235,7 +239,7 @@ Proof.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
   have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small) (neutral:= Some 0%Z)
              (@RISCVFopn_coreP.add_sem_fopn_args _ _) (@RISCVFopn_coreP.addi_sem_fopn_args _ _)].
-  move=> /(_ _ xname vi tmp xi imm s w) [] //.
+  move=> /(_ _ tmp xi xi imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   + by right => h; rewrite h in hne.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
@@ -246,7 +250,7 @@ Lemma smart_subi_tmp_sem_fopn_args s (tmp : var_i) xname vi imm w :
   let: (xi, x) := mkv xname vi in
   let: lcmd := RISCVFopn.smart_subi_tmp xi tmp imm in
   x <> v_var tmp ->
-  vtype tmp = sword Uptr ->
+  convertible (vtype tmp) (aword Uptr) ->
   get_var true (evm s) x >>= to_word Uptr = ok w ->
   exists vm',
     [/\ sem_fopns_args s lcmd = ok (with_vm s vm')
@@ -257,7 +261,7 @@ Proof.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
   have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small_neg) (neutral:= Some 0%Z)
               (@RISCVFopn_coreP.sub_sem_fopn_args _ _) (@RISCVFopn_coreP.subi_sem_fopn_args _ _)].
-  move=> /(_ _ xname vi tmp xi imm s w) [] //.
+  move=> /(_ _ tmp xi xi imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   + by right => h; rewrite h in hne.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.

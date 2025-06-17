@@ -17,7 +17,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {pT  : progT}
   {sCP : semCallParams}
-  (fresh_var_ident : v_kind -> instr_info -> string -> stype -> Ident.ident)
+  (fresh_var_ident : v_kind -> instr_info -> string -> atype -> Ident.ident)
   (p p' : prog) (ev : extra_val_t)
   (spill_prog_ok : spill_prog fresh_var_ident p = ok p').
 
@@ -121,10 +121,13 @@ Proof.
 Qed.
 
 Lemma check_tyP ii xs tys :
-  check_ty ii xs tys = ok tt -> tys = map (fun (x:var_i) => vtype x) xs.
+  check_ty ii xs tys = ok tt -> all2 convertible tys (map (fun (x:var_i) => vtype x) xs).
 Proof.
-  rewrite /check_ty; t_xrbindP => /all2P; elim => // {xs tys}.
-  by move=> x ty xs tys /eqP <- _ ->.
+  rewrite /check_ty; t_xrbindP.
+  elim: xs tys => [|x xs ih] [|ty tys] //= /andP [hc1 hc2].
+  apply /andP; split.
+  + by apply convertible_sym.
+  by apply ih.
 Qed.
 
 (* TODO: Move this ? *)
@@ -139,7 +142,7 @@ Qed.
 
 Lemma spill_xP S ii x i env env' s vx vt vm :
   get_gvar true gd (evm s) (mk_lvar x) = ok vx ->
-  truncate_val (vtype x) vx = ok vt ->
+  truncate_val (eval_atype (vtype x)) vx = ok vt ->
   Sv.Subset (read_gvar (mk_lvar x)) S.(X) ->
   valid_env S env (evm s) vm ->
   spill_x S.(get_spill) ii env x = ok (env', i) ->
@@ -163,7 +166,7 @@ Proof.
     rewrite vm_truncate_val_eq; last by rewrite -heqt; apply: truncate_val_has_type htr.
     move/get_varP: hx => /= [?] hdef hcomp; subst vx.
     rewrite -heq; last by SvD.fsetdec.
-    by apply: (truncate_val_subtype_eq htr); apply getP_subtype.
+    by apply: (truncate_val_subctype_eq htr); apply getP_subctype.
   case: (hval x'); first by SvD.fsetdec.
   move=> hIn [sx' hsx' hvm]; split => //; exists sx' => //.
   rewrite !Vm.setP_neq //; apply /eqP => heqsx; last by SvD.fsetdec.
@@ -172,30 +175,31 @@ Qed.
 
 Lemma spill_esP S ii tys es c env env' s vs vs' vm :
   sem_pexprs true gd s es = ok vs ->
-  mapM2 ErrType truncate_val tys vs = ok vs' ->
+  mapM2 ErrType truncate_val (map eval_atype tys) vs = ok vs' ->
   Sv.Subset (read_es es) S.(X) ->
   valid_env S env (evm s) vm ->
   spill_es S.(get_spill) ii env tys es = ok (env', c) ->
   exists2 vm' : Vm.t, esem p' ev c (with_vm s vm) = ok (with_vm s vm') & valid_env S env' (evm s) vm'.
 Proof.
   rewrite /spill_es; t_xrbindP.
-  move=> hse htr hX hval xs /get_PvarsP ? /check_tyP ?; subst es tys.
-  elim: xs vs vs' env c s vm hse htr hX hval => [ | x xs hrec] vs vs' env c s vm /=.
-  + by move=> [<-] /= _ _ hval [<- <-]; exists vm.
-  t_xrbindP => vx hx vxs hvxs <-; t_xrbindP.
+  move=> hse htr hX hval xs /get_PvarsP ? /check_tyP hc; subst es.
+  elim: xs tys vs vs' env c s vm hc hse htr hX hval => [ | x xs hrec] [|ty tys] vs vs' env c s vm //=.
+  + by move=> _ [<-] /= _ _ hval [<- <-]; exists vm.
+  t_xrbindP => /andP [hc1 hc2] vx hx vxs hvxs <-; t_xrbindP.
   move=> vt htr hts htrs _; rewrite read_es_cons read_e_var.
   move=> hX hval [env1 ix] hix [env2 ixs] hixs /= ??.
   subst env2 c.
+  rewrite (convertible_eval_atype hc1) in htr.
   case: (spill_xP hx htr _ hval hix); first by SvD.fsetdec.
   move=> mv1 hs1 hval1.
-  case: (hrec _ _ _ _ _ _ hvxs htrs _ hval1 hixs); first by SvD.fsetdec.
+  case: (hrec _ _ _ _ _ _ _ hc2 hvxs htrs _ hval1 hixs); first by SvD.fsetdec.
   move=> vm' hs2 hval2; exists vm' => //=.
   by rewrite hs1 /= hs2.
 Qed.
 
 Lemma unspill_xP S ii x i env s vx vt vm :
   get_gvar true gd (evm s) (mk_lvar x) = ok vx ->
-  truncate_val (vtype x) vx = ok vt ->
+  truncate_val (eval_atype (vtype x)) vx = ok vt ->
   valid_env S env (evm s) vm ->
   unspill_x S.(get_spill) ii env x = ok i ->
   exists2 vm' : Vm.t, esem_i p' ev i (with_vm s vm) = ok (with_vm s vm') & valid_env S env (evm s) vm'.
@@ -207,7 +211,7 @@ Proof.
   have := hsx' ii; rewrite hsx => -[?]; subst sx'.
   move: hx; rewrite /get_gvar /mk_lvar /= => /get_varP /= [? hd ?]; subst vx.
   have ? : (evm s).[x] = vt; last subst vt.
-  + by apply: (truncate_val_subtype_eq htr); apply getP_subtype.
+  + by apply: (truncate_val_subctype_eq htr); apply getP_subctype.
   have hvm : (vm.[x <- (evm s).[x]] =1 vm)%vm.
   + move=> z; rewrite Vm.setP; case: eqP => // ?; subst z.
     rewrite  vm_truncate_val_eq; first by apply heq.
@@ -224,19 +228,20 @@ Qed.
 
 Lemma unspill_esP S ii tys es c env s vs vs' vm :
   sem_pexprs true gd s es = ok vs ->
-  mapM2 ErrType truncate_val tys vs = ok vs' ->
+  mapM2 ErrType truncate_val (map eval_atype tys) vs = ok vs' ->
   valid_env S env (evm s) vm ->
   unspill_es S.(get_spill) ii env tys es = ok c ->
   exists2 vm' : Vm.t, esem p' ev c (with_vm s vm) = ok (with_vm s vm') & valid_env S env (evm s) vm'.
 Proof.
   rewrite /unspill_es; t_xrbindP.
-  move=> hse htr hval xs /get_PvarsP ? /check_tyP ?; subst es tys.
-  elim: xs vs vs' c s vm hse htr hval => [ | x xs hrec] vs vs' c s vm /=.
-  + by move=> [<-] /= _ hval [<-]; exists vm => //; constructor.
-  t_xrbindP => vx hx vxs hvxs <-; t_xrbindP.
+  move=> hse htr hval xs /get_PvarsP ? /check_tyP hc; subst es.
+  elim: xs tys vs vs' c s vm hc hse htr hval => [ | x xs hrec] [|ty tys] vs vs' c s vm //=.
+  + by move=> _ [<-] /= _ hval [<-]; exists vm => //; constructor.
+  t_xrbindP => /andP [hc1 hc2] vx hx vxs hvxs <-; t_xrbindP.
   move=> vt htr hts htrs _ hval ix hix ixs hixs /= <-.
+  rewrite (convertible_eval_atype hc1) in htr.
   have [mv1 hs1 hval1] := unspill_xP hx htr hval hix.
-  have [vm' hs2 hval2] := hrec _ _ _ _ _  hvxs htrs hval1 hixs.
+  have [vm' hs2 hval2] := hrec _ _ _ _ _ _ hc2 hvxs htrs hval1 hixs.
   by exists vm' => //=; rewrite hs1 /= hs2.
 Qed.
 

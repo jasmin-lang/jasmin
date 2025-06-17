@@ -257,7 +257,7 @@ Definition lstores_imm_dfl (rsp : var_i) (to_save : seq (var * Z)) :=
     lstores_dfl rsp to_save
   else
     let ofs0 := snd (head (v_var rsp, 0%Z) to_save) in
-    let tmp2 := VarI {| vtype := sword Uptr; vname := lip_tmp2 |} dummy_var_info in
+    let tmp2 := VarI {| vtype := aword Uptr; vname := lip_tmp2 |} dummy_var_info in
     let to_save := map (fun '(x, ofs) => (x, ofs - ofs0)%Z) to_save in
     lip_add_imm tmp2 rsp ofs0 ++ lstores_dfl tmp2 to_save.
 
@@ -273,7 +273,7 @@ Definition lloads_imm_dfl (rsp:var_i) (to_restore : seq (var * Z)) (spofs:Z) :=
     lloads_aux rsp to_restore
   else
     let ofs0 := snd (head (v_var rsp, 0%Z) to_restore) in
-    let tmp2 := VarI {| vtype := sword Uptr; vname := lip_tmp2 |} dummy_var_info in
+    let tmp2 := VarI {| vtype := aword Uptr; vname := lip_tmp2 |} dummy_var_info in
     let to_restore := map (fun '(x, ofs) => (x, ofs - ofs0)%Z) to_restore in
     lip_add_imm tmp2 rsp ofs0 ++ lloads_aux tmp2 to_restore.
 
@@ -379,11 +379,11 @@ Context
   (p : sprog).
 (*  (extra_free_registers : instr_info -> option var) *)
 
-Notation rsp := {| vtype := sword Uptr; vname := sp_rsp (p_extra p); |}.
+Notation rsp := {| vtype := aword Uptr; vname := sp_rsp (p_extra p); |}.
 Notation rspi := (mk_var_i rsp).
 
-Notation var_tmp  := {| vtype := sword Uptr; vname := lip_tmp  liparams; |}.
-Notation var_tmp2 := {| vtype := sword Uptr; vname := lip_tmp2 liparams; |}.
+Notation var_tmp  := {| vtype := aword Uptr; vname := lip_tmp  liparams; |}.
+Notation var_tmp2 := {| vtype := aword Uptr; vname := lip_tmp2 liparams; |}.
 
 (** Total size of a stack frame: local variables, extra and padding. *)
 Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
@@ -561,13 +561,17 @@ Context
   (fn : funname).
 
 Definition ov_type_ptr (o: option var) :=
-   if o is Some r then vtype r == sword Uptr else true.
+   if o is Some r then convertible (vtype r) (aword Uptr) else true.
 
 Definition check_fd (fn: funname) (fd:sfundef) :=
   let e := fd.(f_extra) in
   let stack_align := e.(sf_align) in
   Let _ := check_c (check_i fn e) fd.(f_body) in
   Let _ := check_to_save e in
+  Let _ := assert (all (fun ty => isSome (ltype_of_atype ty)) fd.(f_tyin))
+                  (E.internal_error "some high-level types remain in the arguments") in
+  Let _ := assert (all (fun ty => isSome (ltype_of_atype ty)) fd.(f_tyout))
+                  (E.internal_error "some high-level types remain in the results") in
   (* FIXME: strange to have both stack_frame_allocation_size and frame_size *)
   Let _ := assert [&& 0 <=? sf_stk_sz e,
                       0 <=? sf_stk_extra_sz e,
@@ -576,7 +580,7 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
                   (E.error "bad stack size") in
   Let _ := assert match sf_return_address e with
                   | RAnone => ~~ (var_tmp2 \in map v_var fd.(f_res))
-                  | RAreg ra tmp => (vtype ra == sword Uptr) && ov_type_ptr tmp
+                  | RAreg ra tmp => convertible (vtype ra) (aword Uptr) && ov_type_ptr tmp
                   | RAstack ra_call ra_return ofs tmp =>
                       [&& ov_type_ptr ra_call
                         , ov_type_ptr ra_return
@@ -595,7 +599,7 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
         ]
 
     | SavedStackReg x =>
-        [&& vtype x == sword Uptr
+        [&& convertible (vtype x) (aword Uptr)
           , sf_to_save e == [::]
           & vname x != lip_tmp liparams
         ]
@@ -793,15 +797,17 @@ Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) : label * l
 Definition linear_fd (fd: sfundef) :=
   let e := fd.(f_extra) in
   let is_export := is_RAnone (sf_return_address e) in
+  let tyin := odflt [::] (oseq.omap ltype_of_atype fd.(f_tyin)) in
+  let tyout := odflt [::] (oseq.omap ltype_of_atype fd.(f_tyout)) in
   let res := if is_export then f_res fd else [::] in
   let body := linear_body fd.(f_info) e fd.(f_body) in
   (body.1,
     {| lfd_info := f_info fd
     ; lfd_align := sf_align e
-    ; lfd_tyin := f_tyin fd
+    ; lfd_tyin := tyin
     ; lfd_arg := f_params fd
     ; lfd_body := body.2
-    ; lfd_tyout := f_tyout fd
+    ; lfd_tyout := tyout
     ; lfd_res := res
     ; lfd_export := is_export
     ; lfd_callee_saved := if is_export then map fst e.(sf_to_save) else [::]

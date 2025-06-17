@@ -1754,7 +1754,8 @@ end = struct
 
   let aeval_syscall state sc lvs _es =
     match sc with
-    | Syscall_t.RandomBytes n ->
+    | Syscall_t.RandomBytes (ws, len) ->
+       let n = BinInt.Z.to_pos (Type.arr_size ws len) in
        let cells = match lvs with
          | [ Lnone _ ] -> []
          | [ Lvar x ] -> cells_of_array x 0 n

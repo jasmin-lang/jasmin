@@ -90,7 +90,7 @@ Definition register_to_string (r : register) : string :=
   end.
 
 #[ export ]
-Instance reg_toS : ToString (sword riscv_reg_size) register :=
+Instance reg_toS : ToString (lword riscv_reg_size) register :=
   {| category  := "register"
    ; to_string := register_to_string
   |}.
@@ -158,9 +158,9 @@ Instance riscv_decl : arch_decl register register_ext xregister rflag condt :=
   ; xreg_size := riscv_xreg_size
   ; cond_eqC  := eqTC_condt
   ; toS_r     := reg_toS
-  ; toS_rx    := empty_toS sword32
-  ; toS_x     := empty_toS sword64
-  ; toS_f     := empty_toS sbool
+  ; toS_rx    := empty_toS lword32
+  ; toS_x     := empty_toS lword64
+  ; toS_f     := empty_toS lbool
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := SP
   ; ad_fcp := riscv_fcp

@@ -33,27 +33,28 @@ Instance eqTC_riscv_extra_op : eqTypeC riscv_extra_op :=
 (* [conflicts] ensures that the returned register is distinct from the first
    argument. *)
 Definition Oriscv_add_large_imm_instr : instruction_desc :=
-  let ty := sword riscv_reg_size in
-  let tin := [:: ty; ty] in
+  let ty := aword riscv_reg_size in
+  let cty := eval_atype ty in
+  let ctin := [:: cty; cty] in
   let semi := fun (x y : word riscv_reg_size) => (x + y)%R in
   {| str    := (fun _ => "add_large_imm"%string)
-   ; tin    := tin
+   ; tin    := [:: ty; ty]
    ; i_in   := [:: E 1; E 2]
    ; tout   := [:: ty]
    ; i_out  := [:: E 0]
    ; conflicts := [:: (APout 0, APin 0)]
-   ; semi   := sem_prod_ok tin semi
-   ; semu   := @values.vuincl_app_sopn_v [:: ty; ty] [:: ty] (sem_prod_ok tin semi) refl_equal
+   ; semi   := sem_prod_ok ctin semi
+   ; semu   := @values.vuincl_app_sopn_v ctin [:: cty] (sem_prod_ok ctin semi) refl_equal
    ; i_safe := [::]
    ; i_valid := true
    ; i_safe_wf := refl_equal
-   ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=tin) semi _
-   ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=tin) semi
+   ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=ctin) semi _
+   ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=ctin) semi
  |}.
 
 Definition get_instr_desc (o: riscv_extra_op) : instruction_desc :=
   match o with
-  | SWAP ws => Oswap_instr (sword ws)
+  | SWAP ws => Oswap_instr (aword ws)
   | Oriscv_add_large_imm => Oriscv_add_large_imm_instr
    end.
   
@@ -116,7 +117,7 @@ Definition assemble_extra
           (E.internal_error ii "bad RISC-V swap : x = w") in
         Let _ := assert (v_var y != v_var x)
           (E.internal_error ii "bad RISC-V swap : y = x") in
-        Let _ := assert (all (fun (x:var_i) => vtype x == sword U32) [:: x; y; z; w])
+        Let _ := assert (all (fun (x:var_i) => convertible (vtype x) (aword U32)) [:: x; y; z; w])
           (E.error ii "RISC-V swap only valid for register of type u32") in
 
         ok [:: ((None, XOR), [:: LLvar x], [:: Rexpr (Fvar z); Rexpr (Fvar w)]);
@@ -134,7 +135,7 @@ Definition assemble_extra
     | [:: LLvar x], [:: Rexpr (Fvar y); Rexpr (Fapp1 (Oword_of_int ws) (Fconst imm))] =>
       Let _ := assert (v_var x != v_var y)
          (E.internal_error ii "bad riscv_add_large_imm: invalid register") in
-      Let _ := assert (all (fun (x:var_i) => vtype x == sword U32) [:: x; y])
+      Let _ := assert (all (fun (x:var_i) => convertible (vtype x) (aword U32)) [:: x; y])
           (E.error ii "riscv_add_large_imm only valid for register of type u32") in
       ok (asm_args_of_opn_args (RISCVFopn_core.smart_addi x y imm))
     | _, _ =>

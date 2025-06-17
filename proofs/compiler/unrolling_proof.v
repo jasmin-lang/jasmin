@@ -155,7 +155,7 @@ Section PROOF.
 
   Lemma write_var_Z i (z: Z) s s' :
     write_var true i z s = ok s' ->
-    vtype i = sint.
+    eval_atype (vtype i) = cint.
   Proof. by case: i => - [[] x]. Qed.
 
   Local Lemma Hfor_cons : sem_Ind_for_cons p ev Pc Pfor.

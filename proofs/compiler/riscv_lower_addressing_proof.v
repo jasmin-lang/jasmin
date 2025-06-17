@@ -29,7 +29,7 @@ Context
   {pT : progT}
   {sCP : semCallParams}.
 
-Context (fresh_reg : string -> stype -> Ident.ident).
+Context (fresh_reg : string -> atype -> Ident.ident).
 
 Context (p p' : prog).
 
@@ -80,7 +80,7 @@ Qed.
 
 Lemma compute_addrP ii (tmp : var_i) e prelude ep s1 we :
   sem_pexpr true p'.(p_globs) s1 e >>= to_pointer = ok we ->
-  vtype tmp = sword Uptr ->
+  vtype tmp = aword Uptr ->
   compute_addr tmp e = Some (prelude, ep) ->
   exists vm1, [/\
     esem p' ev (map (MkI ii) prelude) s1 = ok (with_vm s1 vm1),
@@ -113,15 +113,15 @@ Proof.
     rewrite truncate_word_le //= zero_extend_wrepr //.
     rewrite /sopn_sem /= (shift_of_scaleP _ hshift) /=.
     Local Transparent riscv_sll_semi.
-    rewrite write_var_eq_type //=.
+    rewrite write_var_eq_type //=; last by rewrite tmp_ty.
     rewrite /get_gvar /= get_var_eq tmp_ty /= cmp_le_refl orbT //.
     rewrite get_var_neq // ok_vb /=.
     rewrite ok_wb /= truncate_word_u /=.
-    by rewrite write_var_eq_type /with_vm /=; first by reflexivity.
+    by rewrite write_var_eq_type /with_vm //= tmp_ty.
   + do 2 (rewrite (eq_ex_set_l _ (eq_ex_refl _));
       last by move=> /Sv.singleton_spec).
     by apply eq_ex_refl.
-  rewrite /get_gvar /= get_var_eq /= tmp_ty cmp_le_refl orbT //=.
+  rewrite /get_gvar /= get_var_eq /= tmp_ty /= cmp_le_refl orbT //=.
   by rewrite /sem_sop2 /= !truncate_word_u /= truncate_word_u -lea_sem wrepr_unsigned.
 Qed.
 
@@ -139,7 +139,7 @@ Let sip := sip_of_asm_e.
 
 Lemma Hopn_aux (s1 s2 : estate) (t : assgn_tag) (o : sopn) (xs : lvals) (es : pexprs) (ii : instr_info) (tmp : var_i) (vm1 : Vm.t) X:
   sem_sopn (p_globs p) o s1 xs es = ok s2 ->
-  vtype tmp = sword Uptr ->
+  vtype tmp = aword Uptr ->
   ~ Sv.In tmp X -> Sv.Subset (read_I (MkI ii (Copn xs t o es))) X ->
   evm s1 =[X] vm1 ->
   exists2 vm2 : Vm.t,
@@ -201,7 +201,7 @@ Section SEM.
 
 Let Pi s1 i s2 :=
   forall X (tmp : var_i) vm1,
-    vtype tmp = sword Uptr ->
+    vtype tmp = aword Uptr ->
     ~ Sv.In tmp X -> Sv.Subset (read_I i) X ->
     evm s1 =[X] vm1 ->
     exists2 vm2,
@@ -214,7 +214,7 @@ Let Pi_r s1 i s2 :=
 
 Let Pc s1 c s2 :=
   forall X (tmp : var_i) vm1,
-    vtype tmp = sword Uptr ->
+    vtype tmp = aword Uptr ->
     ~ Sv.In tmp X -> Sv.Subset (read_c c) X ->
     evm s1 =[X] vm1 ->
     exists2 vm2,
@@ -223,7 +223,7 @@ Let Pc s1 c s2 :=
 
 Let Pfor (i:var_i) zs s1 c s2 :=
   forall X (tmp : var_i) vm1,
-    vtype tmp = sword Uptr ->
+    vtype tmp = aword Uptr ->
     ~ Sv.In tmp X -> Sv.Subset (read_c c) X ->
     evm s1 =[X] vm1 ->
     exists2 vm2,
@@ -445,7 +445,7 @@ Proof.
   t_xrbindP=> /Sv_memP tmp_nin1 /Sv_memP tmp_nin2 ?; subst f'.
   set X := Sv.union (read_c (f_body fd)) (vars_l (f_res fd)).
   have tmp_nin : ~Sv.In tmp X by rewrite /X; SvD.fsetdec.
-  have htytmp : vtype tmp = sword Uptr by [].
+  have htytmp : vtype tmp = aword Uptr by [].
   rewrite -{1}hp' /=; eexists; first by eauto.
   move => s.
   set c' := lower_addressing_c tmp (f_body fd).
@@ -454,10 +454,10 @@ Proof.
   exists (st_eq_on X), (st_eq_on X).
   split => //=; last first.
   + apply wrequiv_weaken with (st_eq_on (vars_l (f_res fd))) eq => //.
-    + by apply st_rel_weaken => ??; apply eq_onI; rewrite /= /X; SvD.fsetdec.
+    + by apply st_rel_weaken => ??; apply eq_onI; rewrite /= /X; clear; SvD.fsetdec.
     by apply: (st_eq_on_finalize (fd':=with_body fd c')).
   clear ok_funcs funcs fs fn hget' tmp_nin1 tmp_nin2 s hp' hget; subst c'.
-  have : Sv.Subset (read_c (f_body fd)) X by rewrite /X; SvD.fsetdec.
+  have : Sv.Subset (read_c (f_body fd)) X by rewrite /X; clear; SvD.fsetdec.
   move: tmp X tmp_nin htytmp (f_body fd) => tmp X tmp_nin htytmp {fd}.
   set Pi := fun i =>
     Sv.Subset (read_I i) X ->

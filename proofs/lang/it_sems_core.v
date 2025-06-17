@@ -177,10 +177,10 @@ Definition isem_pexprs (wdb : bool) (gd : glob_decls) (es: pexprs)
     (s : estate) : itree E values :=
   iresult s (sem_pexprs wdb gd s es).
 
-Definition sem_assgn  (x : lval) (tg : assgn_tag) (ty : stype) (e : pexpr)
+Definition sem_assgn  (x : lval) (tg : assgn_tag) (ty : atype) (e : pexpr)
     (s : estate) : exec estate :=
   Let v := sem_pexpr true (p_globs p) s e in
-  Let v' := truncate_val ty v in
+  Let v' := truncate_val (eval_atype ty) v in
   write_lval true (p_globs p) x v' s.
 
 Definition fexec_syscall (o : syscall_t) (fs:fstate) : exec fstate :=
@@ -334,13 +334,13 @@ Definition estate0 (fs : fstate) :=
 
 Definition initialize_funcall (p : prog) (ev : extra_val_t) (fd : fundef) (fs : fstate) : exec estate :=
   let sinit := estate0 fs in
-  Let vargs' := mapM2 ErrType dc_truncate_val fd.(f_tyin) fs.(fvals) in
+  Let vargs' := mapM2 ErrType dc_truncate_val (map eval_atype fd.(f_tyin)) fs.(fvals) in
   Let s0 := init_state fd.(f_extra) (p_extra p) ev sinit in
   write_vars (~~direct_call) fd.(f_params) vargs' s0.
 
 Definition finalize_funcall (fd : fundef) (s:estate) : exec fstate :=
   Let vres := get_var_is (~~ direct_call) s.(evm) fd.(f_res) in
-  Let vres' := mapM2 ErrType dc_truncate_val fd.(f_tyout) vres in
+  Let vres' := mapM2 ErrType dc_truncate_val (map eval_atype fd.(f_tyout)) vres in
   let scs := s.(escs) in
   let m := finalize fd.(f_extra) s.(emem) in
   ok {| fscs := scs; fmem := m; fvals := vres' |}.

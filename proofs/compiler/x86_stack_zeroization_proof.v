@@ -183,7 +183,7 @@ Proof.
     rewrite /eval_instr /=.
     rewrite wrepr0.
     have -> /=: exec_sopn (Ox86 (MOV ws)) [:: @Vword ws 0] = ok [:: @Vword ws 0].
-    + rewrite /exec_sopn /= truncate_word_u /sopn_sem /sopn_sem_ /=.
+    + rewrite /exec_sopn /= truncate_word_u /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
       rewrite /x86_MOV.
       by rewrite /size_8_64 hsmall /=.
     rewrite (@get_var_neq _ _ _ rspi);
@@ -492,7 +492,7 @@ Proof.
     rewrite /eval_instr /=.
     do 6 rewrite (@get_var_neq _ _ _ vlri) //.
     rewrite [get_var _ _ vlri]/get_var hsr.(srll_vlr) /=.
-    rewrite /exec_sopn /= truncate_word_u /= /sopn_sem /sopn_sem_ /= /x86_VMOVDQ.
+    rewrite /exec_sopn /= truncate_word_u /= /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl /x86_VMOVDQ.
     rewrite wsize_nle_u64_size_128_256 /=; last by apply /negbTE /negP.
     rewrite get_var_eq //=.
     rewrite get_var_neq;
@@ -844,7 +844,7 @@ Local Opaque wsize_size Z.of_nat.
     rewrite /eval_instr /=.
     rewrite wrepr0.
     have -> /=: exec_sopn (Ox86 (MOV ws)) [:: @Vword ws 0] = ok [:: @Vword ws 0].
-    + rewrite /exec_sopn /= truncate_word_u /sopn_sem /sopn_sem_ /=.
+    + rewrite /exec_sopn /= truncate_word_u /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
       rewrite /x86_MOV.
       by rewrite /size_8_64 hsmall /=.
     rewrite /get_var /= hsr.(sr_rsp) /sem_sop2 /=.
@@ -1099,7 +1099,7 @@ Local Opaque wsize_size Z.of_nat.
       by move: halign; rewrite /is_align WArray.p_to_zE => /eqP.
     rewrite /eval_instr /=.
     rewrite [get_var _ _ vlri]/get_var hsr.(srul_vlr) /=.
-    rewrite /exec_sopn /= (@truncate_word_u ws) /= /sopn_sem /sopn_sem_ /= /x86_VMOVDQ.
+    rewrite /exec_sopn /= (@truncate_word_u ws) /= /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl /x86_VMOVDQ.
     rewrite wsize_nle_u64_size_128_256 /=; last by apply /negbTE /negP.
     rewrite /get_var /= hsr.(sr_rsp) /sem_sop2 /= !truncate_word_u /= truncate_word_u /=.
     rewrite hm' /=.

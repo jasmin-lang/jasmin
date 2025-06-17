@@ -173,13 +173,13 @@ Proof. move=> i _ o <-; eauto. Qed.
 Lemma wrequiv_to_bool : wrequiv value_uincl to_bool to_bool eq.
 Proof.
   move=> v1 v2 b1 hu hb1.
-  have [b2 /= -> /value_uinclE /= [->]] := val_uincl_of_val (ty:= sbool) hu hb1; eauto.
+  have [b2 /= -> /value_uinclE /= [->]] := val_uincl_of_val (ty:= cbool) hu hb1; eauto.
 Qed.
 
 Lemma wrequiv_to_int : wrequiv value_uincl to_int to_int eq.
 Proof.
   move=> v1 v2 i1 hu hi1.
-  have [b2 /= -> /value_uinclE /= [->]] := val_uincl_of_val (ty:= sint) hu hi1; eauto.
+  have [b2 /= -> /value_uinclE /= [->]] := val_uincl_of_val (ty:= cint) hu hi1; eauto.
 Qed.
 
 Lemma wrequiv_truncate_val ty :
@@ -577,7 +577,7 @@ Qed.
 Lemma wequiv_assgn (Rv Rtr: rel_v) (P Q : rel_c) ii1 x1 tg1 ty1 e1 ii2 x2 tg2 ty2 e2 :
   wrequiv P (fun s => sem_pexpr true (p_globs p1) s e1)
            (fun s => sem_pexpr true (p_globs p2) s e2) Rv ->
-  (forall s1 s2, P s1 s2 -> wrequiv Rv (truncate_val ty1) (truncate_val ty2) Rtr) ->
+  (forall s1 s2, P s1 s2 -> wrequiv Rv (truncate_val (eval_atype ty1)) (truncate_val (eval_atype ty2)) Rtr) ->
   (forall v1 v2, Rtr v1 v2 ->
     wrequiv P (write_lval true (p_globs p1) x1 v1) (write_lval true (p_globs p2) x2 v2) Q) ->
   wequiv P [:: MkI ii1 (Cassgn x1 tg1 ty1 e1)] [:: MkI ii2 (Cassgn x2 tg2 ty2 e2)] Q.

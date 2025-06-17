@@ -105,7 +105,7 @@ Proof.
   move=> hxty hyty hzty hwty hz hw.
   rewrite /= /sem_sopn /= /get_gvar /= /get_var /= hz hw /=.
   rewrite /exec_sopn /= !truncate_word_u /= /write_var /set_var /=.
-  rewrite hxty hyty //=.
+  rewrite (convertible_eval_atype hxty) (convertible_eval_atype hyty) //=.
 Qed.
 
 End STACK_ALLOC.
@@ -157,10 +157,10 @@ Qed.
 Lemma x86_spec_lip_set_up_sp_register :
   set_up_sp_register_correct x86_liparams.
 Proof.
-  move=> [ [? nrsp] vi1] [[ ? nr] vi2] tmp ts al sz s + /= ?? _ _ +  _ /=; subst.
+  move=> [ [? nrsp] vi1] [[tyr nr] vi2] tmp ts al sz s + /= ? hc _ _ +  _ /=; subst.
   set vrsp := {| vname := nrsp |}; set rsp := {| v_var := vrsp |}.
   set r := {| vname := nr |} => hget hne.
-  rewrite hget /= /exec_sopn /= truncate_word_u /=.
+  rewrite hget /= /exec_sopn /= truncate_word_u /= /set_var /= (convertible_eval_atype hc) /=.
   rewrite -cats1 sem_fopns_args_cat.
   set vm0 := (evm s).[r <- Vword ts].
   set vm2 := if sz != 0%Z then vm0.[vrsp <- Vword (ts - wrepr Uptr sz)] else vm0.
@@ -182,8 +182,13 @@ Proof.
 
   - by t_get_var.
 
-  - t_get_var; rewrite /vm2 /vm0 => {vm3 vm2 vm0}.
-    by t_get_var; case: ifP; t_get_var.
+  - have ?: tyr <> abool.
+    + move=> h.
+      by move: hc; rewrite h.
+    t_get_var.
+    do 5 (rewrite get_var_neq; last by move=> /esym []).
+    rewrite /vm2.
+    by case: ifP; t_get_var; rewrite (convertible_eval_atype hc).
 
   rewrite /= -/ts'.
   move=> x /sv_of_listP /mapP [f _ ->].
@@ -200,7 +205,7 @@ Lemma x86_lassign_correct s x ws e (w : word ws) s':
 Proof.
   move=> /=; t_xrbindP => v -> /= hv hwr.
   rewrite /exec_sopn /=.
-  case: ifP => /= h; rewrite hv /= /sopn_sem /sopn_sem_ /=.
+  case: ifP => /= h; rewrite hv /= /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
   + by rewrite /x86_MOV /= /size_8_64 h /= hwr.
   by rewrite /x86_VMOVDQ (wsize_nle_u64_size_128_256 h) /= hwr.
 Qed.
@@ -217,7 +222,7 @@ Qed.
 Lemma x86_lstore_correct : lstore_correct_aux x86_check_ws x86_lstore.
 Proof.
   move=> xd xs ofs ws w wp s m htxs _ hgetd hgets hwr.
-  rewrite /x86_lstore htxs.
+  rewrite /x86_lstore (wsize_of_atypeP (convertible_eval_atype htxs)).
   apply: x86_lassign_correct => /=; first by apply hgets.
   move: hgetd; t_xrbindP => ? hgetd hto.
   by rewrite hgetd /= /sem_sop2 /= hto /= !truncate_word_u /= truncate_word_u /= hwr.
@@ -228,8 +233,8 @@ Proof. apply/lstores_dfl_correct/x86_lstore_correct. Qed.
 
 Lemma x86_lload_correct : lload_correct_aux (lip_check_ws x86_liparams) x86_lload.
 Proof.
-  move=> xd xs ofs ws top s w vm heq hcheck; t_xrbindP => ? hgets hto hread hset.
-  rewrite /x86_lload heq.
+  move=> xd xs ofs ws top s w vm hc hcheck; t_xrbindP => ? hgets hto hread hset.
+  rewrite /x86_lload (wsize_of_atypeP (convertible_eval_atype hc)).
   apply: x86_lassign_correct => /=.
   + rewrite hgets /= /sem_sop2 /= hto /=.
     by rewrite !truncate_word_u /= truncate_word_u /= hread /= truncate_word_u.
@@ -419,7 +424,7 @@ Qed.
 Lemma check_sopn_args_xmm rip ii oargs es ads cond n k ws:
   check_sopn_args x86_agparams rip ii oargs es ads ->
   check_i_args_kinds [::cond] oargs ->
-  nth (Eu 0, sword8) ads n = (Eu k, sword ws) ->
+  nth (Eu 0, lword8) ads n = (Eu k, lword ws) ->
   nth xmm cond k = xmm ->
   n < size es ->
   exists (r: xreg_t),
@@ -428,7 +433,7 @@ Lemma check_sopn_args_xmm rip ii oargs es ads cond n k ws:
     oseq.onth oargs k = Some (XReg r).
 Proof.
   rewrite /= orbF => hca hc hE hxmm hn.
-  have /(_ n):= all2_nth (Rexpr (Fconst 0)) (Eu 0, sword8) _ hca.
+  have /(_ n):= all2_nth (Rexpr (Fconst 0)) (Eu 0, lword8) _ hca.
   rewrite hn => /(_ erefl) ha.
   assert (hcIaux := check_sopn_argP ha).
   move: hcIaux; rewrite hE => h; inversion_clear h.
@@ -450,7 +455,7 @@ Qed.
 Lemma check_sopn_dests_xmm rip ii oargs xs ads cond n al k ws:
   check_sopn_dests x86_agparams rip ii oargs xs ads ->
   check_i_args_kinds [::cond] oargs ->
-  nth (Ea 0, sword8) ads n = (ADExplicit (AK_mem al) k ACR_any, sword ws) ->
+  nth (Ea 0, lword8) ads n = (ADExplicit (AK_mem al) k ACR_any, lword ws) ->
   nth xmm cond k = xmm ->
   n < size xs ->
   exists (r: xreg_t),
@@ -460,7 +465,7 @@ Lemma check_sopn_dests_xmm rip ii oargs xs ads cond n al k ws:
     oseq.onth oargs k = Some (XReg r).
 Proof.
   rewrite /= orbF => hca hc hE hxmm hn.
-  have /(_ n):= all2_nth (Rexpr (Fconst 0)) (Ea 0, sword8) _ hca.
+  have /(_ n):= all2_nth (Rexpr (Fconst 0)) (Ea 0, lword8) _ hca.
   rewrite size_map hn => /(_ erefl).
   rewrite (nth_map (LLvar (mk_var_i rip))) //.
   set e := nth (LLvar _) _ _.
@@ -502,7 +507,7 @@ Proof.
   have [yr [vi /= ? hyr]] := check_sopn_dests_xmm (n:=0) hcd hidc erefl erefl erefl; subst y ops ops'.
   have [s' hwm hlow'] :=
     compile_lvals (asm_e:=x86_extra)
-     (id_out := [:: Eu 0]) (id_tout := [:: sword256]) MSB_CLEAR refl_equal hwr hlow hcd refl_equal.
+     (id_out := [:: Eu 0]) (id_tout := [:: lword256]) MSB_CLEAR refl_equal hwr hlow hcd refl_equal.
   exists s'; last done.
   move: hca; rewrite /check_sopn_args /= => /and4P [] _ hE2 hE3 _.
   have [vh' hev2 /= hvh']:= check_sopn_arg_sem_eval eval_assemble_cond hlow hE2 hvh hwh.
@@ -655,7 +660,7 @@ Proof.
     t_xrbindP => -[op' asm_args] hass <- hlow /=.
     assert (h1 := assemble_asm_opI hass); case: h1 => hca hcd hidc -> /= {hass}.
     have hex: exec_sopn (Oasm (BaseOp (None, MULX_lo_hi sz))) xs = ok [:: Vword whilo.2; Vword whilo.1].
-    + rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
+    + rewrite /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
       case: (xs) hwhilo => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] // w1 -> w2 ->.
       by rewrite /x86_MULX /x86_MULX_lo_hi hsz32_64 /= => -[<-].
     have hw' :
@@ -678,7 +683,8 @@ Proof.
     case: xs hargs hwhi => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] // hargs w1 hv1 w2 hv2.
     rewrite /x86_MULX_hi; t_xrbindP => hwhi; pose wlo := (wumul w1 w2).2.
     have hex: exec_sopn (Oasm (BaseOp (None, MULX_lo_hi sz))) [:: v1; v2] = ok [:: Vword wlo; Vword whi].
-    + by rewrite /exec_sopn /sopn_sem /sopn_sem_ /= hval hv1 hv2 /= /x86_MULX_lo_hi /= -hwhi /wlo /wmulhu /wumul /=.
+    + by rewrite /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl
+        hval hv1 hv2 /= /x86_MULX_lo_hi /= -hwhi /wlo /wmulhu /wumul /=.
     have hw' :
        write_lexprs [:: LLvar hi; LLvar hi] [:: Vword wlo; Vword whi] m =
        ok (with_vm m ((evm m).[hi <- Vword wlo]).[hi <- Vword whi]).
@@ -705,7 +711,7 @@ Proof.
     rewrite /assemble_slh_update.
     case: aux hw1 => // vaux hw1.
     case: args hargs => // -[] // eb [] // emsf [] // hargs.
-    t_xrbindP => /andP []; rewrite negb_or => /andP [] haux1 haux2 /eqP haux <- /=.
+    t_xrbindP => /andP []; rewrite negb_or => /andP [] haux1 haux2 haux <- /=.
     t_xrbindP => -[op oargs] hass _ [op' oargs'] hasscmov <- <- hlo /=.
     have [s1 {hass hlo}] := assemble_mov hlo hw1 hass.
     t_xrbindP => _ -> -> hlo /=.
@@ -718,7 +724,7 @@ Proof.
       rewrite (free_vars_rP (vm2:= vm) (vm1:=evm m) (r:=emsf) (emem m));
         last by apply: set_var_disjoint_eq_on haux2 hset.
       move=> _ -> _ _ -> <- -> [->] /=.
-      by move/set_varP : hset => -[?? ->];rewrite /get_var /= Vm.setP_eq /sem_sop1 /= hb haux.
+      by move/set_varP : hset => -[?? ->];rewrite /get_var /= Vm.setP_eq /sem_sop1 /= hb (convertible_eval_atype haux).
     have hws : write_lexprs [:: x] [:: Vword (if ~~ b then wrepr U64 (-1) else w)] (with_vm m vm) = ok m2.
     + by rewrite /= hw2.
     have []:= compile_asm_opn_aux eval_assemble_cond hes _ hws hca hcd hidc hlo.
@@ -737,7 +743,8 @@ Opaque cat.
     + case: xs => // vw; t_xrbindP => -[] // vmsf; t_xrbindP => // -[] // hes _ _ <- tr w hw wmsf hmsf.
       rewrite /se_protect_small_sem /x86_OR => -[?] ? hws ? hmap hlo; subst tr ys ops.
       apply: (assemble_opsP eval_assemble_cond hmap erefl _ hlo).
-      by rewrite /= hes /exec_sopn /= hw hmsf /= /sopn_sem /sopn_sem_ /= /x86_OR /size_8_64 Hws /= hws.
+      by rewrite /= hes /exec_sopn /= hw hmsf /= /sopn_sem /sopn_sem_ /= /semi_to_atype !computational_eq_refl
+        /x86_OR /size_8_64 Hws /= hws.
     (* MMX *)
     case: xs => // vw.
     t_xrbindP => -[] // vmsf; t_xrbindP => // -[] // hes _ /eqP ? <- tr w hw wmsf hmsf.
@@ -857,8 +864,8 @@ Transparent cat.
       + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v1)).
       + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v2)).
       apply/(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v3)) => //.
-    by rewrite /exec_sopn /= truncate_word_u hw /= /sopn_sem /sopn_sem_ /= /x86_VPOR
-         /size_128_256 Hws' /= (wsize_ge_U256 ws) /=.
+    by rewrite /exec_sopn /= truncate_word_u hw /= /sopn_sem /sopn_sem_ /= /semi_to_atype !computational_eq_refl
+      /x86_VPOR /size_128_256 Hws' /= (wsize_ge_U256 ws) /=.
   exists s' => //; apply: lom_eqv_ext hlo4 => z /=.
   rewrite /vm4; case: (to_var yr =P z) => [ | /eqP] ?;first by subst z; rewrite !Vm.setP_eq.
   rewrite Vm.setP_neq // Vm.setP_neq // /vm3 /m2 /vm2 /m1 /vm1 /m0 /vm0 /vm1' /=.
@@ -945,6 +952,7 @@ Proof.
          subst vx w0.
 
   all: rewrite /sopn_sem /sopn_sem_ /=.
+  1-3: rewrite /semi_to_atype computational_eq_refl.
   all: rewrite /x86_MOV /x86_VMOVDQ /se_move_sem.
   all: t_xrbindP=> *.
   all: t_simpl_rewrites; subst.

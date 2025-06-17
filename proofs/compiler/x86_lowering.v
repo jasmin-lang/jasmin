@@ -39,12 +39,12 @@ Context (options : lowering_options).
 
 Context (warning: instr_info -> warning_msg -> instr_info).
 
-Definition vword vt vn := {| vtype := sword vt ; vname := vn |}.
+Definition vword vt vn := {| vtype := aword vt ; vname := vn |}.
 
 Context (fv: fresh_vars).
 
-Let fresh_flag n := vbool (fv n sbool).
-Let fresh_word sz := vword sz (fv "__wtmp__"%string (sword sz)).
+Let fresh_flag n := vbool (fv n abool).
+Let fresh_word sz := vword sz (fv "__wtmp__"%string (aword sz)).
 
 Definition fv_of := fresh_flag "__of__".
 Definition fv_cf := fresh_flag "__cf__".
@@ -69,23 +69,23 @@ Definition fvars_correct p :=
       fv_cf != fv_zf &
       fv_sf != fv_zf].
 
-Definition stype_of_lval (x: lval) : stype :=
+Definition atype_of_lval (x: lval) : atype :=
   match x with
   | Lnone _ t => t
-  | Lmem _ ws _ _ => sword ws
+  | Lmem _ ws _ _ => aword ws
   | Lvar v | Laset _ _ _ v _ | Lasub _ _ _ v _ => v.(vtype)
   end.
 
-Definition wsize_of_stype (ty: stype) : wsize :=
+Definition wsize_of_atype (ty: atype) : wsize :=
   match ty with
-  | sword sz => sz
-  | sbool | sint | sarr _ => U64
+  | aword sz => sz
+  | abool | aint | aarr _ _ => U64
   end.
 
 Definition wsize_of_lval (lv: lval) : wsize :=
   match lv with
   | Lnone _ ty
-  | Lvar {| v_var := {| vtype := ty |} |} => wsize_of_stype ty
+  | Lvar {| v_var := {| vtype := ty |} |} => wsize_of_atype ty
   | Laset _ _ sz _ _ | Lmem _ sz _ _ => sz
   | Lasub _ _ _ _ _ => U64
   end.
@@ -158,7 +158,7 @@ Variant lower_cassgn_t : Type :=
   | LowerFopn of wsize & sopn & list pexpr & option wsize
   | LowerDiscardFlags of nat & sopn & list pexpr
   | LowerCond
-  | LowerIf   of stype & pexpr & pexpr & pexpr
+  | LowerIf   of atype & pexpr & pexpr & pexpr
   | LowerDivMod of divmod_pos & signedness & wsize & sopn & pexpr & pexpr
   | LowerConcat of pexpr & pexpr
   | LowerAssgn.
@@ -220,16 +220,16 @@ Definition check_signed_range (m: option wsize) sz' (n: Z) : bool :=
 (* x =(ty) e *)
 Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
   let chk (b: bool) r := if b then r else LowerAssgn in
-  let kb b sz := chk (b && (sword sz == ty)) in
+  let kb b sz := chk (b && convertible (aword sz) ty) in
   let k8 sz := kb (sz ≤ U64)%CMP sz in
   let k16 sz := kb ((U16 ≤ sz) && (sz ≤ U64))%CMP sz in
   let k32 sz := kb ((U32 ≤ sz) && (sz ≤ U64))%CMP sz in
   match e with
   | Pget _ _ sz {| gv := v |} _
-  | Pvar {| gv := ({| v_var := {| vtype := sword sz |} |} as v) |} =>
+  | Pvar {| gv := ({| v_var := {| vtype := aword sz |} |} as v) |} =>
     if (sz ≤ U64)%CMP
     then LowerMov (if is_var_in_memory v then is_lval_in_memory x else false)
-    else if ty is sword szo
+    else if ty is aword szo
     then if (U128 ≤ szo)%CMP then LowerCopn (Ox86 (VMOVDQU szo)) [:: e ]
     else if (U32 ≤ szo)%CMP then LowerCopn (Ox86 (MOVV szo)) [:: e ]
     else LowerAssgn
@@ -240,7 +240,7 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
       else kb true sz (LowerCopn (Ox86 (VMOVDQU sz)) [:: e ])
 
   | Papp1 (Oword_of_int sz) (Pconst z) =>
-      if ty is sword sz' then
+      if ty is aword sz' then
         chk (sz' ≤ U64)%CMP
           (LowerMov (~~ check_signed_range (Some (cmp_min U32 sz')) sz z))
       else LowerAssgn
@@ -369,13 +369,13 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
     end
 
   | Pif t e e1 e2 =>
-    if stype_of_lval x is sword _ then
+    if atype_of_lval x is aword _ then
       k16 (wsize_of_lval x) (LowerIf t e e1 e2)
     else
       LowerAssgn
 
   | PappN (Opack U256 PE128) [:: Papp1 (Oint_of_word Unsigned U128) h ; Papp1 (Oint_of_word Unsigned U128) (Pvar _ as l) ] =>
-    if ty == sword U256 then LowerConcat h l else LowerAssgn
+    if convertible ty (aword U256) then LowerConcat h l else LowerAssgn
 
   | _ => LowerAssgn
   end.
@@ -419,14 +419,14 @@ Definition reduce_wconst sz (e: pexpr) : pexpr :=
   then Papp1 (Oword_of_int (cmp_min sz sz')) (Pconst z)
   else e.
 
-Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : cmd :=
+Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: atype) (e: pexpr) : cmd :=
   let vi := var_info_of_lval x in
   let f := Lnone_b vi in
   let copn o a := [:: MkI ii (Copn [:: x ] tg o a) ] in
   let inc o a := [:: MkI ii (Copn [:: f ; f ; f ; f ; x ] tg o [:: a ]) ] in
   match lower_cassgn_classify ty e x with
   | LowerMov b =>
-    let szty := wsize_of_stype ty in
+    let szty := wsize_of_atype ty in
     let e := reduce_wconst szty e in
     if b
     then
@@ -500,8 +500,8 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
     let c := {| v_var := fresh_word sz ; v_info := vi |} in
     let lv :=
       match p with
-      | DM_Fst => [:: f ; f ; f ; f ; f; x; Lnone vi (sword sz)]
-      | DM_Snd => [:: f ; f ; f ; f ; f; Lnone vi (sword sz) ; x]
+      | DM_Fst => [:: f ; f ; f ; f ; f; x; Lnone vi (aword sz)]
+      | DM_Snd => [:: f ; f ; f ; f ; f; Lnone vi (aword sz) ; x]
       end in
     let i1 :=
       match s with
