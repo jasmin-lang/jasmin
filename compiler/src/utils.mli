@@ -163,6 +163,7 @@ val set_all_warnings : unit -> unit
 val nowarning : unit -> unit
 val add_warning : warning -> unit -> unit
 val remove_warning : warning -> unit
+val to_warn : warning -> bool
 val warning :
       warning -> Location.i_loc
    -> ('a, Format.formatter, unit) format -> 'a
