@@ -1,14 +1,14 @@
-# [unreleased]
+# Jasmin 2025.06.0 — Nancy, 2025-06-18
 
 ## New features
 
-- Adding linter library :
+- Adding linter library, enabled in `jasminc` by the command-line flag `-wall`
+  ([PR #1160](https://github.com/jasmin-lang/jasmin/pull/1160)
+  [PR #1166](https://github.com/jasmin-lang/jasmin/pull/1166)
+  [PR #1200](https://github.com/jasmin-lang/jasmin/pull/1200)):
   - Introducing abstractions for static analysis of jasmin programs.
   - Implementation of uninitialised variable check using reaching definition static analysis.
   - Implementation of dead variables check using liveness static analysis.
-  ([PR #1160](https://github.com/jasmin-lang/jasmin/pull/1160)
-  [PR #1166](https://github.com/jasmin-lang/jasmin/pull/1166)
-  [PR #1200](https://github.com/jasmin-lang/jasmin/pull/1200)).
 
 - New syntax
   - the syntax for memory load/store operations, previously limited to `[x + e]`,
