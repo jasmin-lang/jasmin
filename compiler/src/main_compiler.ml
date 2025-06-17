@@ -155,7 +155,7 @@ let main () =
       else prog
     in
 
-    let () =
+    if to_warn Linter then begin
       let open Linter in
       let (_globs, funcs) = prog in
       let funcs = List.map Analysis.ReachingDefinitions.RDAnalyser.analyse_function funcs in
@@ -167,7 +167,7 @@ let main () =
           warning Linter (Location.i_loc0 error.location) "%t" error.to_text
         )
         (vi_errors @ dv_errors)
-    in
+    end;
 
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
