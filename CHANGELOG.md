@@ -2,11 +2,11 @@
 
 ## New features
 
-- Adding linter library, enabled in `jasminc` by the command-line flag `-wall`
-  ([PR #1160](https://github.com/jasmin-lang/jasmin/pull/1160)
-  [PR #1166](https://github.com/jasmin-lang/jasmin/pull/1166)
+- Adding a linter library, enabled in `jasminc` by the command-line flag `-wall`
+  ([PR #1160](https://github.com/jasmin-lang/jasmin/pull/1160),
+  [PR #1166](https://github.com/jasmin-lang/jasmin/pull/1166),
   [PR #1200](https://github.com/jasmin-lang/jasmin/pull/1200)):
-  - Introducing abstractions for static analysis of jasmin programs.
+  - Introducing abstractions for static analysis of Jasmin programs.
   - Implementation of uninitialised variable check using reaching definition static analysis.
   - Implementation of dead variables check using liveness static analysis.
 
@@ -26,19 +26,19 @@
   using `:uXX`, like in `e1 +:u32 e2`. The previous syntax is **not** deprecated.
   ([PR #1086](https://github.com/jasmin-lang/jasmin/pull/1086)).
 
-- Introduction of wint types siXX and uiXX (XX in [8,16,32,64,128, 256]). The
-  key feature of this new type are for the extraction to easycrypt. They are
-  extracted to int, removing the need to deal with modulus 2^XX operations.
-  Introduction of a new cast operators: `(sint)` and `(uint)` from words to
+- Introduction of wint types siXX and uiXX (XX in [8,16,32,64,128,256]). The
+  key feature of these new types is their extraction to EasyCrypt. They are
+  extracted to `int`, removing the need to deal with modulus 2^XX operations.
+  Introduction of new cast operators: `(sint)` and `(uint)` from words to
   `int`. The previous cast operator `(int)` stands for one of them if its
-  argument is of wint type: applying it to usual machine words is deprecated.
-  Introduce zquot and zrem operators on int : `e1 /s e2` and `e1 %s e2`.
+  arguments are of wint type; applying it to usual machine words is deprecated.
+  Introduction of signed division and modulo operators on `int` : `e1 /s e2` and `e1 %s e2`.
   ([PR #1071](https://github.com/jasmin-lang/jasmin/pull/1071)).
 
-- Add support for subarrays with non-constant indices. The compiler
-  was made more powerful, and now accepts subarrays `a[ofs:len]` where `ofs`
+- Add support for sub-arrays with non-constant indices. The compiler
+  was made more powerful, and now accepts sub-arrays `a[ofs:len]` where `ofs`
   is not a constant (`len` must still be a constant). This in particular
-  enables the use of subarrays in while loops.
+  enables the use of sub-arrays in while loops.
   ([PR #1101](https://github.com/jasmin-lang/jasmin/pull/1101)).
 
 ## Bug fixes
