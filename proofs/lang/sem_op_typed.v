@@ -10,8 +10,9 @@ Definition mk_sem_sop1 (t1 t2 : Type) (o:t1 -> t2) v1 : exec t2 :=
 
 Definition sem_wiop1_typed (sign : signedness) (o: wiop1) :
   let t := type_of_wiop1 o in
+  let t := (eval_atype t.1, eval_atype t.2) in
   sem_t t.1 → exec (sem_t t.2) :=
-  match o return let t := type_of_wiop1 o in sem_t t.1 → exec (sem_t t.2) with
+  match o with
   | WIwint_of_int sz => wint_of_int sign sz
   | WIint_of_wint sz => mk_sem_sop1 (@int_of_word sign sz)
 
@@ -27,8 +28,9 @@ Arguments sem_wiop1_typed : clear implicits.
 
 Definition sem_sop1_typed (o : sop1) :
   let t := type_of_op1 o in
+  let t := (eval_atype t.1, eval_atype t.2) in
   sem_t t.1 → exec (sem_t t.2) :=
-  match o return let t := type_of_op1 o in sem_t t.1 → exec (sem_t t.2) with
+  match o with
   | Oword_of_int sz => mk_sem_sop1 (wrepr sz)
   | Oint_of_word sign sz => mk_sem_sop1 (@int_of_word sign sz)
   | Osignext szo szi => mk_sem_sop1 (@sign_extend szo szi)
@@ -90,10 +92,9 @@ Definition mk_sem_wicmp sign sz (o:Z -> Z -> bool) (w1 w2 : word sz) : exec bool
 
 Definition sem_wiop2_typed (sign : signedness) (sz : wsize) ( o : wiop2) :
   let t := type_of_wiop2 sz o in
+  let t := (eval_atype t.1.1, eval_atype t.1.2, eval_atype t.2) in
   sem_t t.1.1 → sem_t t.1.2 → exec (sem_t t.2) :=
-  match o return
-   let t := type_of_wiop2 sz o in
-   sem_t t.1.1 → sem_t t.1.2 → exec (sem_t t.2) with
+  match o with
 
   | WIadd => @mk_sem_wiop2 sign sz Z.add
   | WImul => @mk_sem_wiop2 sign sz Z.mul
@@ -116,6 +117,7 @@ Arguments sem_wiop2_typed : clear implicits.
 
 Definition sem_sop2_typed (o: sop2) :
   let t := type_of_op2 o in
+  let t := (eval_atype t.1.1, eval_atype t.1.2, eval_atype t.2) in
   sem_t t.1.1 → sem_t t.1.2 → exec (sem_t t.2) :=
   match o with
   | Obeq => mk_sem_sop2 (@eq_op bool)
@@ -180,9 +182,12 @@ Definition sem_combine_flags (cf : combine_flags) (b0 b1 b2 b3 : bool) : bool :=
 
 Definition sem_opN_typed (o: opN) :
   let t := type_of_opN o in
+  let t := (map eval_atype t.1, eval_atype t.2) in
   sem_prod t.1 (exec (sem_t t.2)) :=
   match o with
-  | Opack sz pe => curry (A := sint) (sz %/ pe) (λ vs, ok (wpack sz pe vs))
+  | Opack sz pe =>
+      let ty := curry (A := cint) (sz %/ pe) (λ vs, ok (wpack sz pe vs)) in
+      ecast l (sem_prod l _) (esym (map_nseq _ _ _)) ty
   | Ocombine_flags cf =>
       fun b0 b1 b2 b3 => ok (sem_combine_flags cf b0 b1 b2 b3)
   end.

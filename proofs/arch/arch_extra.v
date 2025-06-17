@@ -6,7 +6,7 @@ Require Import compiler_util.
 
 Section ToIdent.
 
-Context (t:stype) (T:Type) {tS: ToString t T}.
+Context (t:ltype) (T:Type) {tS: ToString t T}.
 
 Class ToIdent :=
   { to_ident     : T -> Ident.ident (* Try to not use it *)
@@ -41,10 +41,10 @@ Qed.
 
 (* Try to not use it *)
 Definition to_var r :=
-  {| vtype := rtype; vname := to_ident r |}.
+  {| vtype := atype_of_ltype rtype; vname := to_ident r |}.
 
 Definition of_var (v:var) :=
-  if v.(vtype) == rtype then of_ident v.(vname)
+  if v.(vtype) == atype_of_ltype rtype then of_ident v.(vname)
   else None.
 
 Lemma to_varK : pcancel to_var of_var.
@@ -67,7 +67,7 @@ Arguments to_var {t} {T}%_type_scope {tS toI} r.
 
 Module Type MkToIdent_T.
 
-  Parameter mk : forall (t:stype) (T:Type) {tS: ToString t T},
+  Parameter mk : forall (t:ltype) (T:Type) {tS: ToString t T},
     (string -> Ident.ident) -> result pp_error_loc (ToIdent T).
 
 End MkToIdent_T.
@@ -77,7 +77,7 @@ Module MkToIdent : MkToIdent_T.
   Section Section.
   Import Ident.
 
-  Context (t:stype) (T:Type) {tS: ToString t T}
+  Context (t:ltype) (T:Type) {tS: ToString t T}
         (mk_id : string -> ident).
 
   Let rid := map (fun r => (r, mk_id (to_string r))) cenum.
@@ -166,7 +166,7 @@ Module Type AToIdent_T.
 
   Parameter mk :
     forall `{arch : arch_decl},
-      (reg_kind -> stype -> string -> Ident.ident) ->  result pp_error_loc arch_toIdent.
+      (reg_kind -> ltype -> string -> Ident.ident) ->  result pp_error_loc arch_toIdent.
 
 End AToIdent_T.
 
@@ -195,11 +195,11 @@ Module MkAToIdent : AToIdent_T.
 
   End AUX.
 
-  Definition mk (toid : reg_kind -> stype -> string -> Ident.ident) :=
-    Let toI_r  := MkToIdent.mk (T:= reg) (toid Normal (sword reg_size)) in
-    Let toI_rx := MkToIdent.mk (T:= regx) (toid Extra (sword reg_size)) in
-    Let toI_x  := MkToIdent.mk (T:= xreg) (toid Normal (sword xreg_size)) in
-    Let toI_f  := MkToIdent.mk (T:= rflag) (toid Normal sbool) in
+  Definition mk (toid : reg_kind -> ltype -> string -> Ident.ident) :=
+    Let toI_r  := MkToIdent.mk (T:= reg) (toid Normal (lword reg_size)) in
+    Let toI_rx := MkToIdent.mk (T:= regx) (toid Extra (lword reg_size)) in
+    Let toI_x  := MkToIdent.mk (T:= xreg) (toid Normal (lword xreg_size)) in
+    Let toI_f  := MkToIdent.mk (T:= rflag) (toid Normal lbool) in
     match @idP _inj_toI_reg_regx with
     | ReflectT h =>
         ok {| toI_r := toI_r
@@ -296,23 +296,61 @@ Qed.
 
 HB.instance Definition _ := hasDecEq.Build extended_op extended_op_eq_axiom.
 
+Lemma atype_of_ltypeP : eval_ltype =1 eval_atype \o atype_of_ltype.
+Proof. by case. Qed.
+
+Definition semi_to_atype {tin tout} (semi: sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout)))) :
+    sem_prod (map eval_atype (map atype_of_ltype tin)) (exec (sem_tuple (map eval_atype (map atype_of_ltype tout)))) :=
+  let eq l := etrans (eq_map atype_of_ltypeP _) (map_comp eval_atype atype_of_ltype l) in
+  ecast l (sem_prod l _) (eq tin) (ecast l (sem_prod _ (exec (sem_tuple l))) (eq tout) semi).
+
+Lemma is_not_carr_ltype (tin : seq ltype) :
+  all is_not_carr (map eval_atype (map atype_of_ltype tin)).
+Proof.
+  elim: tin => [//|ty tys /= ->].
+  by case: ty.
+Qed.
+
+Lemma semi_to_atype_safe_wf tin safe :
+  all (fun sc : safe_cond => ssrnat.leq (sc_needed_args sc) (size tin)) safe ->
+  all (fun sc : safe_cond => ssrnat.leq (sc_needed_args sc) (size (map atype_of_ltype tin))) safe.
+Proof. by rewrite size_map. Qed.
+
+Lemma semi_to_atype_errty tin tout (semi: sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout)))) :
+  sem_forall (fun r => r <> Error ErrType) (map eval_ltype tin) semi ->
+  sem_forall (fun r => r <> Error ErrType) (map eval_atype (map atype_of_ltype tin)) (semi_to_atype semi).
+Proof.
+  rewrite /semi_to_atype.
+  move: (etrans _ _) (etrans _ _) semi => e1 e2.
+  by rewrite -> e1, -> e2.
+Qed.
+
+Lemma semi_to_atype_safe tin tout (semi: sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout))))safe :
+  interp_safe_cond_ty safe semi ->
+  interp_safe_cond_ty safe (semi_to_atype semi).
+Proof.
+  rewrite /semi_to_atype.
+  move: (etrans _ _) (etrans _ _) semi => e1 e2.
+  by rewrite -> e1, -> e2.
+Qed.
+
 Definition get_instr_desc (o: extended_op) : instruction_desc :=
  match o with
  | BaseOp o =>
    let id := instr_desc o in
    {| str      := id.(id_str_jas)
-    ; tin      := id.(id_tin)
+    ; tin      := map atype_of_ltype id.(id_tin)
     ; i_in     := map sopn_arg_desc id.(id_in)
     ; i_out    := map sopn_arg_desc id.(id_out)
     ; conflicts:= [::]
-    ; tout     := id.(id_tout)
-    ; semi     := id.(id_semi)
-    ; semu     := @vuincl_app_sopn_v _ _ id.(id_semi) id.(id_tin_narr)
+    ; tout     := map atype_of_ltype id.(id_tout)
+    ; semi     := semi_to_atype id.(id_semi)
+    ; semu     := @vuincl_app_sopn_v _ _ _ (is_not_carr_ltype _)
     ; i_safe   := id.(id_safe)
     ; i_valid  := id.(id_valid)
-    ; i_safe_wf := id.(id_safe_wf)
-    ; i_semi_errty := id.(id_semi_errty)
-    ; i_semi_safe := id.(id_semi_safe)
+    ; i_safe_wf := semi_to_atype_safe_wf id.(id_safe_wf)
+    ; i_semi_errty := fun h => semi_to_atype_errty (id.(id_semi_errty) h)
+    ; i_semi_safe := fun h => semi_to_atype_safe (id.(id_semi_safe) h)
    |}
  | ExtOp o => asm_op_instr o
  end.

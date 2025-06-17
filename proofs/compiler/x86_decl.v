@@ -164,7 +164,7 @@ Definition register_to_string r : string :=
   end.
 
 #[global]
-Instance x86_reg_toS : ToString (sword x86_reg_size) register :=
+Instance x86_reg_toS : ToString (lword x86_reg_size) register :=
   { category  := "register"
   ; to_string := register_to_string
   }.
@@ -191,7 +191,7 @@ Definition regx_to_string r : string:=
   end.
 
 #[global]
-Instance x86_regx_toS : ToString (sword x86_reg_size) register_ext :=
+Instance x86_regx_toS : ToString (lword x86_reg_size) register_ext :=
   { category  := "register"
   ; to_string := regx_to_string
   }.
@@ -226,7 +226,7 @@ Definition xreg_to_string r : string :=
   end.
 
 #[global]
-Instance x86_xreg_toS : ToString (sword x86_xreg_size) xmm_register :=
+Instance x86_xreg_toS : ToString (lword x86_xreg_size) xmm_register :=
   { category  := "ymm_register"
   ; to_string := xreg_to_string
   }.
@@ -251,7 +251,7 @@ Definition rflag_to_string rf : string :=
   end.
 
 #[global]
-Instance x86_rflag_toS : ToString sbool rflag :=
+Instance x86_rflag_toS : ToString lbool rflag :=
   { category  := "rflag"
   ; to_string := rflag_to_string
   }.

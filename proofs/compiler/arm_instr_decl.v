@@ -313,25 +313,25 @@ Canonical arm_op_eqType := @ceqT_eqType _ eqTC_arm_op.
 (* -------------------------------------------------------------------- *)
 (* Common semantic types. *)
 
-Notation sflag := (sbool) (only parsing).
+Notation sflag := (lbool) (only parsing).
 Notation snz := ([:: sflag; sflag ]) (only parsing).
 Notation snzc := ([:: sflag; sflag; sflag ]) (only parsing).
 Notation snzcv := ([:: sflag; sflag; sflag; sflag ]) (only parsing).
-Notation snz_r := (snz ++ [:: sreg ]) (only parsing).
-Notation snzc_r := (snzc ++ [:: sreg ]) (only parsing).
-Notation snzcv_r := (snzcv ++ [:: sreg ]) (only parsing).
+Notation snz_r := (snz ++ [:: lreg ]) (only parsing).
+Notation snzc_r := (snzc ++ [:: lreg ]) (only parsing).
+Notation snzcv_r := (snzcv ++ [:: lreg ]) (only parsing).
 
-Notation ty_nzc := (sem_tuple snzc) (only parsing).
-Notation ty_nzcv := (sem_tuple snzcv) (only parsing).
-Notation ty_r := (sem_tuple [:: sreg ]) (only parsing).
-Notation ty_rr := (sem_tuple [:: sreg; sreg ]) (only parsing).
-Notation ty_w ws := (sem_tuple [:: sword ws ]) (only parsing).
+Notation ty_nzc := (sem_tuple (map eval_ltype snzc)) (only parsing).
+Notation ty_nzcv := (sem_tuple (map eval_ltype snzcv)) (only parsing).
+Notation ty_r := (sem_tuple (map eval_ltype [:: lreg ])) (only parsing).
+Notation ty_rr := (sem_tuple (map eval_ltype [:: lreg; lreg ])) (only parsing).
+Notation ty_w ws := (sem_tuple (map eval_ltype [:: lword ws ])) (only parsing).
 
-Notation ty_nz_r := (sem_tuple (snz ++ [:: sreg ])) (only parsing).
-Notation ty_nzc_r := (sem_tuple (snzc ++ [:: sreg ])) (only parsing).
-Notation ty_nzc_w ws := (sem_tuple (snzc ++ [:: sword ws ])) (only parsing).
-Notation ty_nzcv_r := (sem_tuple (snzcv ++ [:: sreg ])) (only parsing).
-Notation ty_nzcv_w ws := (sem_tuple (snzcv ++ [:: sword ws ])) (only parsing).
+Notation ty_nz_r := (sem_tuple (map eval_ltype (snz ++ [:: lreg ]))) (only parsing).
+Notation ty_nzc_r := (sem_tuple (map eval_ltype (snzc ++ [:: lreg ]))) (only parsing).
+Notation ty_nzc_w ws := (sem_tuple (map eval_ltype (snzc ++ [:: lword ws ]))) (only parsing).
+Notation ty_nzcv_r := (sem_tuple (map eval_ltype (snzcv ++ [:: lreg ]))) (only parsing).
+Notation ty_nzcv_w ws := (sem_tuple (map eval_ltype (snzcv ++ [:: lword ws ]))) (only parsing).
 
 
 (* -------------------------------------------------------------------- *)
@@ -419,26 +419,33 @@ Proof.
   by apply/andP.
 Qed.
 
-Definition mk_semi_cond tin tout (semi : sem_prod tin (exec (sem_tuple tout)))
-  : sem_prod (tin ++ sbool :: tout) (exec (sem_tuple tout)) :=
-  let f0 res cond : sem_prod tout (exec (sem_tuple tout)) :=
+Definition add_arguments {A} {lt0 lt1} (f: sem_prod (map eval_ltype lt0) (sem_prod (map eval_ltype lt1) A))
+  : sem_prod (map eval_ltype (lt0 ++ lt1)) A.
+  rewrite map_cat.
+  rewrite sem_prod_cat.
+  by apply: f.
+Defined.
+
+Definition mk_semi_cond tin tout (semi : sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout))))
+  : sem_prod (map eval_ltype (tin ++ lbool :: tout)) (exec (sem_tuple (map eval_ltype tout))) :=
+  let f0 res cond : sem_prod (map eval_ltype tout) (exec (sem_tuple (map eval_ltype tout))) :=
     if cond
-    then sem_prod_const tout res
-    else sem_prod_ok tout (sem_prod_tuple tout)
+    then sem_prod_const (map eval_ltype tout) res
+    else sem_prod_ok (map eval_ltype tout) (sem_prod_tuple (map eval_ltype tout))
   in
-  let f1 : sem_prod tin (sem_prod (sbool :: tout) (exec (sem_tuple tout))) :=
+  let f1 : sem_prod (map eval_ltype tin) (sem_prod (map eval_ltype (lbool :: tout)) (exec (sem_tuple (map eval_ltype tout)))) :=
     sem_prod_app semi f0
   in
   add_arguments f1.
 
-Lemma add_arguments_app t lt0 lt1 A (f : sem_prod (t::lt0) (sem_prod lt1 A)) v :
+Lemma add_arguments_app t lt0 lt1 A (f : sem_prod (map eval_ltype (t::lt0)) (sem_prod (map eval_ltype lt1) A)) v :
   add_arguments f v = add_arguments (f v).
 Proof.
   move: f; rewrite /add_arguments /sem_prod /=.
   rewrite /eq_ind_r /eq_ind /=.
-  move: (sem_prod_cat lt0 lt1 A); rewrite /sem_prod.
-  move: (lprod [seq sem_t i | i <- lt0] (lprod [seq sem_t i | i <- lt1] A)) => T hT.
-  subst T => //.
+  move: (sem_prod_cat (map eval_ltype lt0) (map eval_ltype lt1) A); rewrite /sem_prod.
+  move: (lprod [seq sem_t i | i <- (map eval_ltype lt0)] (lprod [seq sem_t i | i <- (map eval_ltype lt1)] A)) => T hT.
+  subst T => //. simpl. rewrite /eq_rect_r /=. move: (map_cat 
 Qed.
 
 Lemma mk_semi_cond_errty tin tout (semi : sem_prod tin (exec (sem_tuple tout))) :
@@ -524,15 +531,15 @@ Arguments mk_cond : clear implicits.
    and updates the semantics and the rest of the fields accordingly. *)
 
 Definition mk_semi1_shifted
-  {A} (sk : shift_kind) (semi : sem_prod [:: sreg ] (exec A)) :
-  sem_prod [:: sreg; sword8 ] (exec A) :=
+  {A} (sk : shift_kind) (semi : sem_prod [:: lreg ] (exec A)) :
+  sem_prod [:: lreg; sword8 ] (exec A) :=
   fun wn shift_amount =>
     let sham := wunsigned shift_amount in
     semi (shift_op sk wn sham).
 
 Definition mk_semi2_2_shifted
-  {A} {o : stype} (sk : shift_kind) (semi : sem_prod [:: o; sreg ] (exec A)) :
-  sem_prod [:: o; sreg; sword8 ] (exec A) :=
+  {A} {o : stype} (sk : shift_kind) (semi : sem_prod [:: o; lreg ] (exec A)) :
+  sem_prod [:: o; lreg; sword8 ] (exec A) :=
   fun x wm shift_amount =>
     let sham := wunsigned shift_amount in
     semi x (shift_op sk wm sham).
@@ -541,8 +548,8 @@ Definition mk_semi3_2_shifted
   {A}
   {o0 o1 : stype}
   (sk : shift_kind)
-  (semi : sem_prod [:: o0; sreg; o1 ] (exec A)) :
-  sem_prod [:: o0; sreg; o1; sword8 ] (exec A) :=
+  (semi : sem_prod [:: o0; lreg; o1 ] (exec A)) :
+  sem_prod [:: o0; lreg; o1; sword8 ] (exec A) :=
   fun x wm y shift_amount =>
     let sham := wunsigned shift_amount in
     semi x (shift_op sk wm sham) y.
@@ -571,35 +578,35 @@ Proof.
   exact: hx.
 Qed.
 
-Lemma mk_semi1_shifted_errty A sk (semi : sem_prod [:: sreg] (exec A)) :
-  sem_forall (fun r : exec A => r <> Error ErrType) [:: sreg] semi ->
+Lemma mk_semi1_shifted_errty A sk (semi : sem_prod [:: lreg] (exec A)) :
+  sem_forall (fun r : exec A => r <> Error ErrType) [:: lreg] semi ->
   sem_forall (fun r : exec A => r <> Error ErrType)
-         ([:: sreg] ++ [:: sword8]) (mk_semi1_shifted sk semi).
+         ([:: lreg] ++ [:: sword8]) (mk_semi1_shifted sk semi).
 Proof. by rewrite /mk_semi1_shifted /= => h *; apply h. Qed.
 
-Lemma mk_semi2_2_shifted_errty A t sk (semi : sem_prod [:: t; sreg] (exec A)) :
-  sem_forall (fun r : exec A => r <> Error ErrType) [:: t; sreg] semi ->
+Lemma mk_semi2_2_shifted_errty A t sk (semi : sem_prod [:: t; lreg] (exec A)) :
+  sem_forall (fun r : exec A => r <> Error ErrType) [:: t; lreg] semi ->
   sem_forall (fun r : exec A => r <> Error ErrType)
-         ([:: t; sreg] ++ [:: sword8]) (mk_semi2_2_shifted sk semi).
+         ([:: t; lreg] ++ [:: sword8]) (mk_semi2_2_shifted sk semi).
 Proof. rewrite /mk_semi2_2_shifted /= => h *; apply h. Qed.
 
-Lemma mk_semi3_2_shifted_errty A t1 t2 sk (semi : sem_prod [:: t1; sreg; t2] (exec A)) :
-  sem_forall (fun r : exec A => r <> Error ErrType) [:: t1; sreg; t2] semi ->
+Lemma mk_semi3_2_shifted_errty A t1 t2 sk (semi : sem_prod [:: t1; lreg; t2] (exec A)) :
+  sem_forall (fun r : exec A => r <> Error ErrType) [:: t1; lreg; t2] semi ->
   sem_forall (fun r : exec A => r <> Error ErrType)
-         ([:: t1; sreg; t2] ++ [:: sword8]) (mk_semi3_2_shifted sk semi).
+         ([:: t1; lreg; t2] ++ [:: sword8]) (mk_semi3_2_shifted sk semi).
 Proof. rewrite /mk_semi3_2_shifted /= => h *; apply h. Qed.
 
-Lemma mk_semi1_shifted_safe A sk (semi : sem_prod [:: sreg] (exec A)) :
+Lemma mk_semi1_shifted_safe A sk (semi : sem_prod [:: lreg] (exec A)) :
   interp_safe_cond_ty [::] semi ->
   interp_safe_cond_ty [::] (mk_semi1_shifted sk semi).
 Proof. move=> h > _; apply h; constructor. Qed.
 
-Lemma mk_semi2_2_shifted_safe A sk t (semi : sem_prod [:: t; sreg] (exec A)) :
+Lemma mk_semi2_2_shifted_safe A sk t (semi : sem_prod [:: t; lreg] (exec A)) :
   interp_safe_cond_ty [::] semi ->
   interp_safe_cond_ty [::] (mk_semi2_2_shifted sk semi).
 Proof. move=> h > _; apply h; constructor. Qed.
 
-Lemma mk_semi3_2_shifted_safe A sk t1 t2 (semi : sem_prod [:: t1; sreg; t2] (exec A)) :
+Lemma mk_semi3_2_shifted_safe A sk t1 t2 (semi : sem_prod [:: t1; lreg; t2] (exec A)) :
   interp_safe_cond_ty [::] semi ->
   interp_safe_cond_ty [::] (mk_semi3_2_shifted sk semi).
 Proof. move=> h > _; apply h; constructor. Qed.
@@ -719,7 +726,7 @@ Definition arm_ADD_semi (wn wm : ty_r) : ty_nzcv_r :=
 
 Definition arm_ADD_instr : instr_desc_t :=
   let mn := ADD in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   let x :=
     {|
       id_msb_flag := MSB_MERGE;
@@ -766,7 +773,7 @@ Definition arm_ADC_semi (wn wm : ty_r) (cf : bool) : ty_nzcv_r :=
 
 Definition arm_ADC_instr : instr_desc_t :=
   let mn := ADC in
-  let tin := [:: sreg; sreg; sbool ] in
+  let tin := [:: lreg; lreg; sbool ] in
   let x :=
     {|
       id_msb_flag := MSB_MERGE;
@@ -812,7 +819,7 @@ Definition arm_high_registers : seq register :=
 
 Definition arm_MUL_instr : instr_desc_t :=
   let mn := MUL in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   let iop n :=
     if set_flags opts then
       ADExplicit (AK_mem Aligned) n (ACR_subset arm_high_registers)
@@ -849,12 +856,12 @@ Definition arm_MLA_semi (wn wm wa: ty_r) : ty_r :=
 
 Definition arm_MLA_instr : instr_desc_t :=
   let mn := MLA in
-  let tin := [:: sreg; sreg; sreg ] in
+  let tin := [:: lreg; lreg; lreg ] in
   {|
       id_msb_flag := MSB_MERGE;
       id_tin := tin ;
       id_in := [:: Ea 1; Ea 2; Ea 3 ];
-      id_tout := [:: sreg ];
+      id_tout := [:: lreg ];
       id_out := [:: Ea 0 ];
       id_semi := sem_prod_ok tin arm_MLA_semi;
       id_nargs := 4;
@@ -877,12 +884,12 @@ Definition arm_MLS_semi (wn wm wa: ty_r) : ty_r :=
 
 Definition arm_MLS_instr : instr_desc_t :=
   let mn := MLS in
-  let tin := [:: sreg; sreg; sreg ] in
+  let tin := [:: lreg; lreg; lreg ] in
   {|
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
       id_in := [:: Ea 1; Ea 2; Ea 3 ];
-      id_tout := [:: sreg ];
+      id_tout := [:: lreg ];
       id_out := [:: Ea 0 ];
       id_semi := sem_prod_ok tin arm_MLS_semi;
       id_nargs := 4;
@@ -906,13 +913,13 @@ Definition arm_SDIV_semi (wn wm : ty_r) : ty_r :=
 
 Definition arm_SDIV_instr : instr_desc_t :=
   let mn := SDIV in
-  let tin :=[:: sreg; sreg ] in
+  let tin :=[:: lreg; lreg ] in
   let semi := arm_SDIV_semi in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 1; Ea 2 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
     id_semi := sem_prod_ok tin semi;
     id_nargs := 3;
@@ -942,7 +949,7 @@ Definition arm_SUB_semi (wn wm : ty_r) : ty_nzcv_r :=
 
 Definition arm_SUB_instr : instr_desc_t :=
   let mn := SUB in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   let x :=
     {|
       id_msb_flag := MSB_MERGE;
@@ -982,7 +989,7 @@ Definition arm_SBC_semi (wn wm : ty_r) (cf : bool) : ty_nzcv_r :=
 
 Definition arm_SBC_instr : instr_desc_t :=
   let mn := SBC in
-  let tin := [:: sreg; sreg; sbool ] in
+  let tin := [:: lreg; lreg; sbool ] in
   let x :=
     {|
       id_msb_flag := MSB_MERGE;
@@ -1020,7 +1027,7 @@ Definition arm_SBC_instr : instr_desc_t :=
 
 Definition arm_RSB_instr : instr_desc_t :=
   let mn := RSB in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   let arm_RSB_semi := fun wn wm => arm_SUB_semi wm wn in
   let x :=
     {|
@@ -1062,13 +1069,13 @@ Definition arm_UDIV_semi (wn wm : ty_r) : ty_r :=
 
 Definition arm_UDIV_instr : instr_desc_t :=
   let mn := UDIV in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   let semi := arm_UDIV_semi in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 1; Ea 2 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
     id_semi := sem_prod_ok tin semi;
     id_nargs := 3;
@@ -1092,12 +1099,12 @@ Definition arm_UMULL_semi (wn wm : ty_r) : ty_rr :=
 
 Definition arm_UMULL_instr : instr_desc_t :=
   let mn := UMULL in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 2; Ea 3 ];
-    id_tout := [:: sreg; sreg ];
+    id_tout := [:: lreg; lreg ];
     id_out := [:: Ea 0; Ea 1 ];
     id_semi := sem_prod_ok tin arm_UMULL_semi;
     id_nargs := 4;
@@ -1121,12 +1128,12 @@ Definition arm_UMAAL_semi (wa wb wn wm : ty_r) : ty_rr :=
 
 Definition arm_UMAAL_instr : instr_desc_t :=
   let mn := UMAAL in
-  let tin := [:: sreg; sreg; sreg; sreg ] in
+  let tin := [:: lreg; lreg; lreg; lreg ] in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 0; Ea 1; Ea 2; Ea 3 ];
-    id_tout := [:: sreg; sreg ];
+    id_tout := [:: lreg; lreg ];
     id_out := [:: Ea 0; Ea 1 ];
     id_semi := sem_prod_ok tin arm_UMAAL_semi;
     id_nargs := 4;
@@ -1150,12 +1157,12 @@ Definition arm_UMLAL_semi (dlo dhi wn wm : ty_r) : ty_rr :=
 
 Definition arm_UMLAL_instr : instr_desc_t :=
   let mn := UMLAL in
-  let tin := [:: sreg; sreg; sreg; sreg ] in
+  let tin := [:: lreg; lreg; lreg; lreg ] in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 0; Ea 1; Ea 2; Ea 3 ];
-    id_tout := [:: sreg; sreg ];
+    id_tout := [:: lreg; lreg ];
     id_out := [:: Ea 0; Ea 1 ];
     id_semi := sem_prod_ok tin arm_UMLAL_semi;
     id_nargs := 4;
@@ -1179,12 +1186,12 @@ Definition arm_SMULL_semi (wn wm : ty_r) : ty_rr :=
 
 Definition arm_SMULL_instr : instr_desc_t :=
   let mn := SMULL in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 2; Ea 3 ];
-    id_tout := [:: sreg; sreg ];
+    id_tout := [:: lreg; lreg ];
     id_out := [:: Ea 0; Ea 1 ];
     id_semi := sem_prod_ok tin arm_SMULL_semi;
     id_nargs := 4;
@@ -1208,12 +1215,12 @@ Definition arm_SMLAL_semi (dlo dhi wn wm : ty_r) : ty_rr :=
 
 Definition arm_SMLAL_instr : instr_desc_t :=
   let mn := SMLAL in
-  let tin := [:: sreg; sreg; sreg; sreg ] in
+  let tin := [:: lreg; lreg; lreg; lreg ] in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 0; Ea 1; Ea 2; Ea 3 ];
-    id_tout := [:: sreg; sreg ];
+    id_tout := [:: lreg; lreg ];
     id_out := [:: Ea 0; Ea 1 ];
     id_semi := sem_prod_ok tin arm_SMLAL_semi;
     id_nargs := 4;
@@ -1236,12 +1243,12 @@ Definition arm_SMMUL_semi (wn wm : ty_r) : ty_r :=
 
 Definition arm_SMMUL_instr : instr_desc_t :=
   let mn := SMMUL in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 1; Ea 2 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0];
     id_semi := sem_prod_ok tin arm_SMMUL_semi;
     id_nargs := 3;
@@ -1264,12 +1271,12 @@ Definition arm_SMMULR_semi (wn wm : ty_r) : ty_r :=
 
 Definition arm_SMMULR_instr : instr_desc_t :=
   let mn := SMMULR in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 1; Ea 2 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0];
     id_semi := sem_prod_ok tin arm_SMMULR_semi;
     id_nargs := 3;
@@ -1300,13 +1307,13 @@ Definition arm_smul_hw_semi (hwn hwm : halfword) (wn wm : wreg) : wreg :=
 
 Definition arm_smul_hw_instr hwn hwm : instr_desc_t :=
   let mn := SMUL_hw hwn hwm in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   let semi := arm_smul_hw_semi hwn hwm in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 1; Ea 2 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
     id_semi := sem_prod_ok tin semi;
     id_nargs := 3;
@@ -1333,13 +1340,13 @@ Definition arm_smla_hw_semi
 
 Definition arm_smla_hw_instr hwn hwm : instr_desc_t :=
   let mn := SMLA_hw hwn hwm in
-  let tin := [:: sreg; sreg; sreg ] in
+  let tin := [:: lreg; lreg; lreg ] in
   let semi := arm_smla_hw_semi hwn hwm in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 1; Ea 2; Ea 3 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
     id_semi := sem_prod_ok tin semi;
     id_nargs := 4;
@@ -1365,13 +1372,13 @@ Definition arm_smulw_hw_semi (hw : halfword) (wn wm : wreg) : wreg :=
 
 Definition arm_smulw_hw_instr hw : instr_desc_t :=
   let mn := SMULW_hw hw in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   let semi := arm_smulw_hw_semi hw in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 1; Ea 2 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
     id_semi := sem_prod_ok tin semi;
     id_nargs := 3;
@@ -1404,12 +1411,12 @@ Definition arm_bitwise_semi
 
 Definition arm_AND_instr : instr_desc_t :=
   let mn := AND in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   let semi := arm_bitwise_semi id id wand in
   let x :=
     {|
       id_msb_flag := MSB_MERGE;
-      id_tin := [:: sreg; sreg ];
+      id_tin := [:: lreg; lreg ];
       id_in := [:: Ea 1; Ea 2 ];
       id_tout := snzc_r;
       id_out := ad_nzc ++ [:: Ea 0 ];
@@ -1457,15 +1464,15 @@ Definition arm_BFC_semi (x : wreg) (lsb width : word U8) : exec wreg :=
 Definition arm_BFC_semi_sc := [:: ULt U8 1 32%Z; UGe U8 1%Z 2; UaddLe U8 2 1 32%Z].
 
 Lemma arm_BFC_semi_errty :
-  sem_forall (fun r : result error (sem_tuple  [:: sreg ]) => r <> Error ErrType)
-   [:: sreg; sword8; sword8 ] arm_BFC_semi.
+  sem_forall (fun r : result error (sem_tuple  [:: lreg ]) => r <> Error ErrType)
+   [:: lreg; sword8; sword8 ] arm_BFC_semi.
 Proof.
   rewrite /arm_BFC_semi => x lsb width.
   by case: (_ <? _)%Z => //; case: (1 <=? _)%Z => //; case: (_ <=? _)%Z.
 Qed.
 
 Lemma arm_BFC_semi_safe :
-  interp_safe_cond_ty (tin :=[:: sreg; sword8; sword8 ]) arm_BFC_semi_sc arm_BFC_semi.
+  interp_safe_cond_ty (tin :=[:: lreg; sword8; sword8 ]) arm_BFC_semi_sc arm_BFC_semi.
 Proof.
   rewrite /interp_safe_cond_ty /= => x lsb width.
   move=> /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [].
@@ -1478,9 +1485,9 @@ Definition arm_BFC_instr : instr_desc_t :=
   let mn := BFC in
   {|
     id_msb_flag := MSB_MERGE;
-    id_tin := [:: sreg; sword8; sword8 ];
+    id_tin := [:: lreg; sword8; sword8 ];
     id_in := [:: Ea 0; Ea 1; Ea 2 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
     id_semi := arm_BFC_semi;
     id_nargs := 3;
@@ -1515,15 +1522,15 @@ Definition arm_BFI_semi (x y : wreg) (lsb width : word U8) : exec wreg :=
 Definition arm_BFI_semi_sc := [:: ULt U8 2 32%Z; UGe U8 1%Z 3; UaddLe U8 3 2 32%Z].
 
 Lemma arm_BFI_semi_errty :
-  sem_forall (fun r : result error (sem_tuple  [:: sreg ]) => r <> Error ErrType)
-   [:: sreg; sreg; sword8; sword8 ] arm_BFI_semi.
+  sem_forall (fun r : result error (sem_tuple  [:: lreg ]) => r <> Error ErrType)
+   [:: lreg; lreg; sword8; sword8 ] arm_BFI_semi.
 Proof.
   rewrite /arm_BFI_semi => x y lsb width.
   by case: (_ <? _)%Z => //; case: (1 <=? _)%Z => //; case: (_ <=? _)%Z.
 Qed.
 
 Lemma arm_BFI_semi_safe :
-  interp_safe_cond_ty (tin :=[:: sreg; sreg; sword8; sword8 ]) arm_BFI_semi_sc arm_BFI_semi.
+  interp_safe_cond_ty (tin :=[:: lreg; lreg; sword8; sword8 ]) arm_BFI_semi_sc arm_BFI_semi.
 Proof.
   rewrite /interp_safe_cond_ty /= => x y lsb width.
   move=> /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [].
@@ -1536,9 +1543,9 @@ Definition arm_BFI_instr : instr_desc_t :=
   let mn := BFI in
   {|
     id_msb_flag := MSB_MERGE;
-    id_tin := [:: sreg; sreg; sword8; sword8 ];
+    id_tin := [:: lreg; lreg; sword8; sword8 ];
     id_in := [:: Ea 0; Ea 1; Ea 2; Ea 3 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
     id_semi := arm_BFI_semi;
     id_nargs := 4;
@@ -1558,7 +1565,7 @@ Definition arm_BFI_instr : instr_desc_t :=
 
 Definition arm_BIC_instr : instr_desc_t :=
   let mn := BIC in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   let semi := arm_bitwise_semi id wnot wand in
   let x :=
     {|
@@ -1596,7 +1603,7 @@ Definition arm_BIC_instr : instr_desc_t :=
 
 Definition arm_EOR_instr : instr_desc_t :=
   let mn := EOR in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   let semi := arm_bitwise_semi id id wxor in
   let x :=
     {|
@@ -1642,7 +1649,7 @@ Definition arm_MVN_semi (wn : ty_r) : ty_nzc_r :=
 
 Definition arm_MVN_instr : instr_desc_t :=
   let mn := MVN in
-  let tin := [:: sreg ] in
+  let tin := [:: lreg ] in
   let semi := arm_MVN_semi in
   let x :=
     {|
@@ -1680,7 +1687,7 @@ Definition arm_MVN_instr : instr_desc_t :=
 
 Definition arm_ORR_instr : instr_desc_t :=
   let mn := ORR in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   let semi := arm_bitwise_semi id id wor in
   let x :=
     {|
@@ -1744,7 +1751,7 @@ Definition arm_ASR_semi (wn : ty_r) (wsham : word U8) : ty_nzc_r :=
 
 Definition arm_ASR_instr : instr_desc_t :=
   let mn := ASR in
-  let tin := [:: sreg; sword U8 ] in
+  let tin := [:: lreg; sword U8 ] in
   let semi := arm_ASR_semi in
   let x :=
     {|
@@ -1782,7 +1789,7 @@ Definition arm_LSL_semi (wn : ty_r) (wsham : word U8) : ty_nzc_r :=
 
 Definition arm_LSL_instr : instr_desc_t :=
   let mn := LSL in
-  let tin := [:: sreg; sword U8 ] in
+  let tin := [:: lreg; sword U8 ] in
   let semi := arm_LSL_semi in
   let x :=
     {|
@@ -1820,7 +1827,7 @@ Definition arm_LSR_semi (wn : ty_r) (wsham : word U8) : ty_nzc_r :=
 
 Definition arm_LSR_instr : instr_desc_t :=
   let mn := LSR in
-  let tin := [:: sreg; sword U8 ] in
+  let tin := [:: lreg; sword U8 ] in
   let semi := arm_LSR_semi in
   let x :=
     {|
@@ -1858,7 +1865,7 @@ Definition arm_ROR_semi (wn : ty_r) (wsham : word U8) : ty_nzc_r :=
 
 Definition arm_ROR_instr : instr_desc_t :=
   let mn := ROR in
-  let tin := [:: sreg; sword U8 ] in
+  let tin := [:: lreg; sword U8 ] in
   let semi := arm_ROR_semi in
   let x :=
     {|
@@ -1888,11 +1895,11 @@ Definition arm_ROR_instr : instr_desc_t :=
   else drop_nzc x.
 
 Definition mk_rev_instr mn semi :=
-  let tin := [:: sreg ] in
+  let tin := [:: lreg ] in
   {| id_msb_flag := MSB_MERGE
    ; id_tin := tin
    ; id_in := [:: Ea 1 ]
-   ; id_tout := [:: sreg]
+   ; id_tout := [:: lreg]
    ; id_out := [:: Ea 0 ]
    ; id_semi := sem_prod_ok tin semi
    ; id_nargs := 2
@@ -1928,13 +1935,13 @@ Definition arm_ADR_semi (wn: ty_r) : ty_r :=
 
 Definition arm_ADR_instr : instr_desc_t :=
   let mn := ADR in
-  let tin := [:: sreg ] in
+  let tin := [:: lreg ] in
   let semi := arm_ADR_semi in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ec 1 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
     id_semi := sem_prod_ok tin semi;
     id_nargs := 2;
@@ -1957,7 +1964,7 @@ Definition arm_MOV_semi (wn : ty_r) : ty_nzc_r :=
 
 Definition arm_MOV_instr : instr_desc_t :=
   let mn := MOV in
-  let tin := [:: sreg ] in
+  let tin := [:: lreg ] in
   let semi := arm_MOV_semi in
   let x :=
     {|
@@ -1993,13 +2000,13 @@ Definition arm_MOVT_semi (wn : ty_r) (wm : word U16) : ty_r :=
 
 Definition arm_MOVT_instr : instr_desc_t :=
   let mn := MOVT in
-  let tin := [:: sreg; sword U16 ] in
+  let tin := [:: lreg; sword U16 ] in
   let semi := arm_MOVT_semi in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 0; Ea 1 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
     id_semi := sem_prod_ok tin semi;
     id_nargs := 2;
@@ -2027,12 +2034,12 @@ Definition bit_field_extract_semi
 Definition bit_field_extract_semi_sc := [:: UGe U8 1%Z 2; UaddLe U8 2 1 32%Z].
 
 Lemma bit_field_extract_semi_errty shr :
-  sem_forall (fun r : result error (sem_tuple  [:: sreg ]) => r <> Error ErrType)
-   [:: sreg; sword8; sword8 ] (bit_field_extract_semi shr).
+  sem_forall (fun r : result error (sem_tuple  [:: lreg ]) => r <> Error ErrType)
+   [:: lreg; sword8; sword8 ] (bit_field_extract_semi shr).
 Proof. by rewrite /bit_field_extract_semi => x lsb width; case: andP. Qed.
 
 Lemma bit_field_extract_semi_safe shr :
-  interp_safe_cond_ty (tin :=[:: sreg; sword8; sword8 ]) bit_field_extract_semi_sc (bit_field_extract_semi shr).
+  interp_safe_cond_ty (tin :=[:: lreg; sword8; sword8 ]) bit_field_extract_semi_sc (bit_field_extract_semi shr).
 Proof.
   rewrite /interp_safe_cond_ty /= => x lsb width.
   move=> /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [].
@@ -2049,9 +2056,9 @@ Definition arm_UBFX_instr : instr_desc_t :=
   let sh := (wshr (sz := reg_size)) in
   {|
     id_msb_flag := MSB_MERGE;
-    id_tin := [:: sreg; sword U8; sword U8 ];
+    id_tin := [:: lreg; sword U8; sword U8 ];
     id_in := [:: Ea 1; Ea 2; Ea 3 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
     id_semi := bit_field_extract_semi sh;
     id_nargs := 4;
@@ -2080,13 +2087,13 @@ Definition ak_reg_reg_imm8_0_8_16_24 :=
 
 Definition arm_UXTB_instr : instr_desc_t :=
   let mn := UXTB in
-  let tin := [:: sreg; sword U8 ] in
+  let tin := [:: lreg; sword U8 ] in
   let semi := extend_bits_semi 8 in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 1; Ea 2 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
     (* [wroram \in [:: 0; 8; 16; 24 ]] is enforced by args_kinds *)
     id_semi := sem_prod_ok tin semi;
@@ -2107,13 +2114,13 @@ Definition arm_UXTB_instr : instr_desc_t :=
 
 Definition arm_UXTH_instr : instr_desc_t :=
   let mn := UXTH in
-  let tin := [:: sreg; sword U8 ] in
+  let tin := [:: lreg; sword U8 ] in
   let semi := extend_bits_semi 16 in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 1; Ea 2 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
     (* [wroram \in [:: 0; 8; 16; 24 ]] is enforced by args_kinds *)
     id_semi := sem_prod_ok tin semi;
@@ -2137,9 +2144,9 @@ Definition arm_SBFX_instr : instr_desc_t :=
   let sh := (wsar (sz := reg_size)) in
   {|
     id_msb_flag := MSB_MERGE;
-    id_tin := [:: sreg; sword U8; sword U8 ];
+    id_tin := [:: lreg; sword U8; sword U8 ];
     id_in := [:: Ea 1; Ea 2; Ea 3 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
     (* [0 <= widx < 32] is enforced in args_kinds
        [1 <= wwidth < 33-widx] is enforced by the instruction
@@ -2170,7 +2177,7 @@ Definition arm_CMP_semi (wn wm : ty_r) : ty_nzcv :=
 
 Definition arm_CMP_instr : instr_desc_t :=
   let mn := CMP in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   let semi := arm_CMP_semi in
   let x :=
     {|
@@ -2210,7 +2217,7 @@ Definition arm_TST_semi (wn wm : ty_r) : ty_nzc :=
 
 Definition arm_TST_instr : instr_desc_t :=
   let mn := TST in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   let semi := arm_TST_semi in
   let x :=
     {|
@@ -2243,7 +2250,7 @@ Definition arm_TST_instr : instr_desc_t :=
 
 Definition arm_CMN_instr : instr_desc_t :=
   let mn := CMN in
-  let tin := [:: sreg; sreg ] in
+  let tin := [:: lreg; lreg ] in
   let semi := fun wn wm => rtuple_drop5th (arm_ADD_semi wn wm) in
   let x :=
     {|
@@ -2291,7 +2298,7 @@ Definition arm_load_instr mn : instr_desc_t :=
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Eu 1 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
     id_semi := sem_prod_ok tin semi;
     id_nargs := 2;
@@ -2343,13 +2350,13 @@ Definition arm_store_instr mn : instr_desc_t :=
 
 Definition arm_CLZ_instr :=
   let mn := CLZ in
-  let tin := [:: sreg ] in
+  let tin := [:: lreg ] in
   let semi := fun z => leading_zero z in
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := tin;
     id_in := [:: Ea 1 ];
-    id_tout := [:: sreg ];
+    id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
     id_semi := sem_prod_ok tin semi;
     id_nargs := 2;

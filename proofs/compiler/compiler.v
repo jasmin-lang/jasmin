@@ -183,7 +183,7 @@ Record compiler_params
   warning          : instr_info -> warning_msg -> instr_info;
   lowering_opt     : lowering_options;
   fresh_id         : glob_decls -> var -> Ident.ident;
-  fresh_var_ident  : v_kind -> instr_info -> int -> string -> stype -> Ident.ident;
+  fresh_var_ident  : v_kind -> instr_info -> int -> string -> atype -> Ident.ident;
   slh_info         : _uprog → funname → seq slh_t * seq slh_t;
   stack_zero_info  : funname -> option (stack_zero_strategy * option wsize);
   dead_vars_ufd    : _ufun_decl -> instr_info -> Sv.t;
@@ -225,9 +225,9 @@ Definition remove_phi_nodes_prog (p: _uprog) : _uprog :=
   map_prog_name cparams.(remove_phi_nodes_fd) p.
 
 Definition var_tmp : var :=
-  {| vname := lip_tmp liparams; vtype := sword Uptr; |}.
+  {| vname := lip_tmp liparams; vtype := aword Uptr; |}.
 Definition var_tmp2 : var :=
-  {| vname := lip_tmp2 liparams; vtype := sword Uptr; |}.
+  {| vname := lip_tmp2 liparams; vtype := aword Uptr; |}.
 Definition var_tmps : Sv.t := Sv.add var_tmp2 (Sv.singleton var_tmp).
 
 Definition live_range_splitting (p: uprog) : cexec uprog :=

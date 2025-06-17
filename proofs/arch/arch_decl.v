@@ -32,7 +32,7 @@ Require Import
  * with sword U64 being the associated stype) or flags (represented as "CF",
  * "ZF", with sbool the associated stype).
  *)
-Class ToString (t: stype) (T: Type) :=
+Class ToString (t: ltype) (T: Type) :=
   { category      : string    (* Name of the "register" used to print errors. *)
   ; _finC         : finTypeC T
   ; to_string     : T -> string
@@ -68,10 +68,10 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   { reg_size : wsize     (* Register size. Also used as pointer size. *)
   ; xreg_size : wsize    (* Extended registers size. *)
   ; cond_eqC : eqTypeC cond
-  ; toS_r : ToString (sword reg_size) reg
-  ; toS_rx : ToString (sword reg_size) regx
-  ; toS_x : ToString (sword xreg_size) xreg
-  ; toS_f : ToString sbool rflag
+  ; toS_r : ToString (lword reg_size) reg
+  ; toS_rx : ToString (lword reg_size) regx
+  ; toS_x : ToString (lword xreg_size) xreg
+  ; toS_f : ToString lbool rflag
   ; reg_size_neq_xreg_size : reg_size != xreg_size
   ; ad_rsp : reg
   ; ad_fcp : FlagCombinationParams
@@ -88,7 +88,7 @@ Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
 Instance arch_msfsz `{arch_decl} : MSFsize := { msf_size := reg_size }.
 
 Definition mk_ptr `{arch_decl} name :=
-  {| vtype := sword Uptr; vname := name; |}.
+  {| vtype := aword Uptr; vname := name; |}.
 
 (* FIXME ARM : Try to not use this projection *)
 Definition reg_t   {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := reg.
@@ -101,13 +101,13 @@ Section DECL.
 
 Context {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond}.
 
-Definition sreg := sword reg_size.
-Definition wreg := sem_t sreg.
-Definition sxreg := sword xreg_size.
-Definition wxreg := sem_t sxreg.
+Definition lreg := lword reg_size.
+Definition wreg := sem_t (eval_ltype lreg).
+Definition lxreg := lword xreg_size.
+Definition wxreg := sem_t (eval_ltype lxreg).
 
 Lemma sword_reg_neq_xreg :
-  sreg != sxreg.
+  lreg != lxreg.
 Proof.
   apply/eqP. move=> []. apply/eqP. exact: reg_size_neq_xreg_size.
 Qed.
@@ -351,10 +351,10 @@ Definition check_args_kinds (a:asm_args) (cond:args_kinds) :=
 Definition check_i_args_kinds (cond:i_args_kinds) (a:asm_args) :=
   has (check_args_kinds a) cond.
 
-Definition check_arg_dest (ad:arg_desc) (ty:stype) :=
+Definition check_arg_dest (ad:arg_desc) (ty:ltype) :=
   match ad with
   | ADImplicit _ => true
-  | ADExplicit _ _ _ => ty != sbool
+  | ADExplicit _ _ _ => ty != lbool
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -383,23 +383,21 @@ Record instr_desc_t := {
   (* When writing a smaller value to a register, keep or clear old bits? *)
   id_msb_flag   : msb_flag;
   (* Types of input arguments. *)
-  id_tin        : seq stype;
+  id_tin        : seq ltype;
   (* Description of input arguments. *)
   id_in         : seq arg_desc;
   (* Types of output arguments. *)
-  id_tout       : seq stype;
+  id_tout       : seq ltype;
   (* Description of output arguments. *)
   id_out        : seq arg_desc;
   (* Semantics (only deals with values). *)
-  id_semi       : sem_prod id_tin (exec (sem_tuple id_tout));
+  id_semi       : sem_prod (map eval_ltype id_tin) (exec (sem_tuple (map eval_ltype id_tout)));
   (* Possible signatures for an instruction. *)
   id_args_kinds : i_args_kinds;
   (* Number of explicit arguments in assembly syntax. *)
   id_nargs      : nat;
   (* Info for jasmin *)
   id_eq_size    : (size id_in == size id_tin) && (size id_out == size id_tout);
-  id_tin_narr   : all is_not_sarr id_tin;
-  id_tout_narr  : all is_not_sarr id_tout;
   id_str_jas    : unit -> string;
   id_check_dest : all2 check_arg_dest id_out id_tout;
   id_safe       : seq safe_cond;
@@ -407,7 +405,7 @@ Record instr_desc_t := {
   (* Extra properties ensuring that previous information are consistent *)
   id_safe_wf    : all (fun sc => values.sc_needed_args sc <= size id_tin) id_safe;
     (* id_semi does not generates type error *)
-  id_semi_errty : id_valid -> sem_forall (fun r => r <> Error ErrType) id_tin id_semi;
+  id_semi_errty : id_valid -> sem_forall (fun r => r <> Error ErrType) (map eval_ltype id_tin) id_semi;
     (* safety condition are sufficient to ensure that no error are raised *)
   id_semi_safe  : id_valid -> values.interp_safe_cond_ty id_safe id_semi;
 }.
@@ -429,31 +427,31 @@ Definition asm_op_msb_t {asm_op} {asm_op_d : asm_op_decl asm_op} := (option wsiz
 
 Context `{asm_op_d : asm_op_decl}.
 
-Definition extend_size (ws: wsize) (t:stype) :=
+Definition extend_size (ws: wsize) (t:ltype) :=
   match t with
-  | sword ws' => if (ws' <= ws)%CMP then sword ws else sword ws'
+  | lword ws' => if (ws' <= ws)%CMP then lword ws else lword ws'
   | _ => t
   end.
 
-Definition wextend_size (ws: wsize) (t:stype) : sem_ot t -> sem_ot (extend_size ws t) :=
-  match t return sem_ot t -> sem_ot (extend_size ws t) with
-  | sword ws' =>
+Definition wextend_size (ws: wsize) (t:ltype) : sem_ot (eval_ltype t) -> sem_ot (eval_ltype (extend_size ws t)) :=
+  match t return sem_ot (eval_ltype t) -> sem_ot (eval_ltype (extend_size ws t)) with
+  | lword ws' =>
     fun (w: word ws') =>
-    match (ws' <= ws)%CMP as b return sem_ot (if b then sword ws else sword ws') with
+    match (ws' <= ws)%CMP as b return sem_ot (eval_ltype (if b then lword ws else lword ws')) with
     | true => zero_extend ws w
     | false => w
     end
   | _ => fun x => x
   end.
 
-Fixpoint extend_tuple (ws:wsize) (id_tout : list stype) (t: sem_tuple id_tout) :
-   sem_tuple (map (extend_size ws) id_tout) :=
- match id_tout return sem_tuple id_tout -> sem_tuple (map (extend_size ws) id_tout) with
+Fixpoint extend_tuple (ws:wsize) (id_tout : list ltype) (t: sem_tuple (map eval_ltype id_tout)) :
+   sem_tuple (map eval_ltype (map (extend_size ws) id_tout)) :=
+ match id_tout return sem_tuple (map eval_ltype id_tout) -> sem_tuple (map eval_ltype (map (extend_size ws) id_tout)) with
  | [::] => fun _ => tt
  | t :: ts =>
    match ts return
-     (sem_tuple ts -> sem_tuple (map (extend_size ws) ts)) ->
-     sem_tuple (t::ts) -> sem_tuple (map (extend_size ws) (t::ts)) with
+     (sem_tuple (map eval_ltype ts) -> sem_tuple (map eval_ltype (map (extend_size ws) ts))) ->
+     sem_tuple (map eval_ltype (t::ts)) -> sem_tuple (map eval_ltype (map (extend_size ws) (t::ts))) with
    | [::] => fun rec_ x => wextend_size ws x
    | t'::ts'    => fun rec_ p => (wextend_size ws p.1, rec_ p.2)
    end (@extend_tuple ws ts)
@@ -465,12 +463,12 @@ Fixpoint apply_lprod (A B : Type) (f : A -> B) (ts:list Type) : lprod ts A -> lp
   | t :: ts' => fun g x => apply_lprod f (g x)
   end.
 
-Lemma instr_desc_aux1 ws (id_in id_out : list arg_desc) (id_tin id_tout : list stype) :
+Lemma instr_desc_aux1 ws (id_in id_out : list arg_desc) (id_tin id_tout : list ltype) :
   ((size id_in == size id_tin) && (size id_out == size id_tout)) ->
   ((size id_in == size id_tin) && (size id_out == size (map (extend_size ws) id_tout))).
 Proof. by rewrite size_map. Qed.
 
-Lemma instr_desc_aux2 ws (id_out : list arg_desc) (id_tout : list stype) :
+Lemma instr_desc_aux2 ws (id_out : list arg_desc) (id_tout : list ltype) :
   all2 check_arg_dest id_out id_tout ->
   all2 check_arg_dest id_out (map (extend_size ws) id_tout).
 Proof.
@@ -509,32 +507,22 @@ Definition is_nil {T:Type} (l : seq T) :=
 Definition exclude_mem (cond : i_args_kinds) (d : seq arg_desc) : i_args_kinds :=
   filter (fun c => ~~ has is_nil c) (exclude_mem_aux cond d).
 
-Lemma instr_desc_tout_narr ws xs :
-  all is_not_sarr xs -> all is_not_sarr (map (extend_size ws) xs).
-Proof.
-  move=> h.
-  rewrite all_map.
-  apply: (sub_all _ h).
-  move=> [] //= ws'.
-  by case: (ws' <= ws)%CMP.
-Qed.
-
 (* An extension of [instr_desc] that deals with msb flags *)
 
-Definition extend_sem {tin tout : seq stype} ws
-  (semi : sem_prod tin (exec (sem_tuple tout))) : sem_prod tin (exec (sem_tuple  (map (extend_size ws) tout))) :=
+Definition extend_sem {tin tout : seq ltype} ws
+  (semi : sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout)))) : sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype (map (extend_size ws) tout)))) :=
   apply_lprod (Result.map (@extend_tuple ws tout)) semi.
 
-Lemma extend_sem_errty tin tout ws (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_forall (fun r => r <> Error ErrType) tin semi ->
-  sem_forall (fun r => r <> Error ErrType) tin (extend_sem ws semi).
+Lemma extend_sem_errty tin tout ws (semi : sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout)))) :
+  sem_forall (fun r => r <> Error ErrType) (map eval_ltype tin) semi ->
+  sem_forall (fun r => r <> Error ErrType) (map eval_ltype tin) (extend_sem ws semi).
 Proof.
   rewrite /extend_sem; elim: tin semi => //=.
   + by move=> [] //= ? h [h1]; apply h; rewrite h1.
   move=> t ts hrec semi hsemi v; apply/hrec/hsemi.
 Qed.
 
-Lemma extend_sem_safe tin tout ws sc (semi : sem_prod tin (exec (sem_tuple tout))) :
+Lemma extend_sem_safe tin tout ws sc (semi : sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout)))) :
   values.interp_safe_cond_ty sc semi ->
   values.interp_safe_cond_ty sc (extend_sem ws semi).
 Proof.
@@ -559,8 +547,6 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_args_kinds := exclude_mem d.(id_args_kinds) d.(id_out) ;
        id_nargs      := d.(id_nargs);
        id_eq_size    := instr_desc_aux1 ws d.(id_eq_size);
-       id_tin_narr   := d.(id_tin_narr);
-       id_tout_narr  := instr_desc_tout_narr _ d.(id_tout_narr);
        id_str_jas    := d.(id_str_jas);
        id_check_dest := instr_desc_aux2 ws d.(id_check_dest);
        id_safe       := d.(id_safe);

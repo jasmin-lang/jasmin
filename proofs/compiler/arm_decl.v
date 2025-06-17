@@ -79,7 +79,7 @@ Definition register_to_string (r: register) : string :=
   end.
 
 #[ export ]
-Instance reg_toS : ToString (sword arm_reg_size) register :=
+Instance reg_toS : ToString (lword arm_reg_size) register :=
   {| category  := "register"
    ; to_string := register_to_string
   |}.
@@ -123,7 +123,7 @@ Definition flag_to_string (f : rflag) : string :=
   end.
 
 #[ export ]
-Instance rflag_toS : ToString sbool rflag :=
+Instance rflag_toS : ToString lbool rflag :=
   { category  := "rflag"
   ; to_string := flag_to_string
   }.
@@ -286,8 +286,8 @@ Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   ; xreg_size := arm_xreg_size
   ; cond_eqC  := eqTC_condt
   ; toS_r     := reg_toS
-  ; toS_rx    := empty_toS sword32
-  ; toS_x     := empty_toS sword64
+  ; toS_rx    := empty_toS lword32
+  ; toS_x     := empty_toS lword64
   ; toS_f     := rflag_toS
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := SP

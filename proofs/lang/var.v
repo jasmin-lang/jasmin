@@ -42,7 +42,7 @@ Module MvMake (I:IDENT).
 #[global]
   Existing Instance K.cmpO.
 
-  Record var := Var { vtype : stype; vname : ident }.
+  Record var := Var { vtype : atype; vname : ident }.
 
   Definition var_beq (v1 v2:var) :=
     let (t1,n1) := v1 in
@@ -58,7 +58,7 @@ Module MvMake (I:IDENT).
   HB.instance Definition _ := hasDecEq.Build var var_eqP.
 
   Definition var_cmp (x y:var) :=
-    Lex (stype_cmp x.(vtype) y.(vtype)) (K.cmp x.(vname) y.(vname)).
+    Lex (atype_cmp x.(vtype) y.(vtype)) (K.cmp x.(vname) y.(vname)).
 
 #[global]
   Instance varO : Cmp var_cmp.
@@ -66,7 +66,7 @@ Module MvMake (I:IDENT).
     constructor=> [x y | y x z c | [??] [??]] ;rewrite /var_cmp !Lex_lex.
     + by apply lex_sym;apply cmp_sym.
     + by apply lex_trans=> /=; apply cmp_ctrans.
-    by move=> /lex_eq [] /= /(@cmp_eq _ _ stypeO) -> /(@cmp_eq _ _ K.cmpO) ->.
+    by move=> /lex_eq [] /= /(@cmp_eq _ _ atypeO) -> /(@cmp_eq _ _ K.cmpO) ->.
   Qed.
 
   Lemma var_surj (x:var) : x = Var x.(vtype) x.(vname).
@@ -80,7 +80,7 @@ Notation var   := Var.var.
 Notation vtype := Var.vtype.
 Notation vname := Var.vname.
 Notation Var   := Var.Var.
-Notation vbool i := {| vtype := sbool; vname := i; |}.
+Notation vbool i := {| vtype := abool; vname := i; |}.
 
 Lemma vtype_diff x x': vtype x != vtype x' -> x != x'.
 Proof. by apply: contra => /eqP ->. Qed.
@@ -114,7 +114,7 @@ Definition is_regx (x: var) : bool :=
 
 Definition is_reg_array x :=
   if Ident.id_kind x.(vname) is Reg (_, Direct) then
-    if x.(vtype) is sarr _ then true else false
+    if is_aarr x.(vtype) then true else false
   else false.
 
 (* ** Finite set of variables (computable)
