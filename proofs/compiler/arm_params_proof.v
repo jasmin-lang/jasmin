@@ -171,7 +171,7 @@ Proof.
   move=> P' ev s ii tag x y z w pz pw hxty hyty hzty hwty hz hw.
   rewrite /= /sem_sopn /= /get_gvar /= /get_var /= hz hw /=.
   rewrite /exec_sopn /= !truncate_word_u /= /write_var /set_var /=.
-  rewrite hxty hyty //=.
+  rewrite (convertible_eval_atype hxty) (convertible_eval_atype hyty) //=.
 Qed.
 
 End STACK_ALLOC.
@@ -225,7 +225,7 @@ Lemma arm_spec_lip_set_up_sp_register :
   set_up_sp_register_correct arm_liparams.
 Proof.
   Opaque sem_fopn_args.
-  move=> [[? nrsp] vi1] [[? nr] vi2] [[? ntmp] vi3] ts al sz s hget /= ??? hne hne1 hne2; subst.
+  move=> [[? nrsp] vi1] [[? nr] vi2] [[? ntmp] vi3] ts al sz s hget /= ? hc ? hne hne1 hne2; subst.
   rewrite /arm_set_up_sp_register sem_fopns_args_cat /=.
   set vr := {|vname := nr|}; set r := {|v_var := vr|}.
   set vtmp := {|vname := ntmp|}; set tmp := {|v_var := vtmp|}.
@@ -241,11 +241,11 @@ Proof.
   set s2 := with_vm _ _.
   have hget2 : get_var true (evm s2) rsp = ok (Vword ts).
   + by t_get_var; rewrite (get_var_eq_ex _ _ heq1) //; apply/Sv_neq_not_in_singleton.
-  have -> /= := ARMFopnP.mov_sem_fopn_args (to_word_get_var hget2).
+  have -> /= := ARMFopnP.mov_sem_fopn_args (xi:=r) hc (to_word_get_var hget2).
   set s3 := with_vm _ _.
   have hget3 : get_var true (evm s3) tmp = ok (Vword ts').
   + by t_get_var.
-  have -> /= := ARMFopnP.mov_sem_fopn_args (to_word_get_var hget3).
+  have -> /= := ARMFopnP.mov_sem_fopn_args (xi:=rsp) erefl (to_word_get_var hget3).
   set s4 := with_vm _ _.
   Transparent sem_fopn_args.
   eexists; split => //.
@@ -255,12 +255,14 @@ Proof.
 
   - by t_get_var => //=; rewrite wrepr_mod.
 
-  - by t_get_var.
+  - by t_get_var; rewrite (convertible_eval_atype hc).
 
   move=> x hx _.
   move: hx => /vflagsP hxtype.
   have [*] : [/\ vrsp <> x,  vtmp <> x & vr <> x].
-  - by split; apply/eqP/vtype_diff; rewrite hxtype.
+  - split; apply/eqP/vtype_diff; rewrite hxtype //.
+    apply /eqP => /= h.
+    by move: hc; rewrite h.
   t_vm_get; rewrite heq1 //.
   by apply: Sv_neq_not_in_singleton.
 Qed.
@@ -296,7 +298,7 @@ Qed.
 Lemma arm_smart_addi_correct : ladd_imm_correct_aux ARMFopn.smart_addi.
 Proof.
   move=> [[_ xn1] xi] x2 s w ofs /= -> hne hget.
-  by apply: ARMFopnP.smart_addi_sem_fopn_args hget; right.
+  by apply: ARMFopnP.smart_addi_sem_fopn_args hget => //; right.
 Qed.
 
 Lemma arm_lstores_correct : lstores_correct arm_liparams.
@@ -647,21 +649,21 @@ Proof.
   rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /swap_semi.
   t_xrbindP => /= _ wz hvz ww hvw <- <- /=.
   t_xrbindP => _ vm1 /set_varP [_ htrx ->] <- _ vm2 /set_varP [_ htry ->] <- <- /eqP hxw /eqP hyx
-    /and4P [/eqP hxt /eqP hyt /eqP hzt /eqP hwt] <-.
+    /and4P [hxt hyt hzt hwt] <-.
   move=> hmap hlom.
   have h := (assemble_opsP arm_eval_assemble_cond hmap erefl _ hlom).
   set m1 := (with_vm m (((evm m).[x <- Vword (wxor wz ww)]).[y <- Vword (wxor (wxor wz ww) ww)])
                                 .[x <- Vword (wxor (wxor wz ww) (wxor (wxor wz ww) ww))]).
   case: (h m1) => {h}.
   + rewrite /= hz /= hw /= /exec_sopn /= hvz hvw /=.
-    rewrite set_var_truncate //= !get_var_eq //= hxt /=.
+    rewrite set_var_truncate //= !get_var_eq //= (convertible_eval_atype hxt) /=.
     rewrite get_var_neq // hw /= truncate_word_u /= hvw /=.
-    rewrite set_var_truncate //= !get_var_eq //= hyt /=.
-    rewrite get_var_neq // get_var_eq //= hxt /= !truncate_word_u /=.
+    rewrite set_var_truncate //= !get_var_eq //= (convertible_eval_atype hyt) /=.
+    rewrite get_var_neq // get_var_eq //= (convertible_eval_atype hxt) /= !truncate_word_u /=.
     rewrite set_var_truncate //= !with_vm_idem.
   move=> s' hfold hlom'; exists s' => //; apply: lom_eqv_ext hlom'.
   move=> i /=; rewrite !Vm.setP; case: eqP => [<- | ?].
-  + by move/eqP/negbTE: hyx => -> /=; rewrite hxt /= wxorA wxor_xx wxor0.
+  + by move/eqP/negbTE: hyx => -> /=; rewrite (convertible_eval_atype hxt) /= wxorA wxor_xx wxor0.
   by case: eqP => // _; rewrite -wxorA wxor_xx wxorC wxor0.
 Qed.
 
@@ -669,29 +671,31 @@ Lemma assemble_add_large_imm_correct :
   assemble_extra_correct Oarm_add_large_imm.
 Proof.
   move=> rip ii lvs args m xs ys m' s ops ops' /=.
-  case: lvs => // -[] // [[xt xn] xi] [] //.
+  case: lvs => // -[] // [[xt xn] xii] [] //.
+  set xi := {| v_var := _ |}.
   case: args => // -[] // [] // y [] // [] // [] // [] // w [] // imm [] //=.
   t_xrbindP => vy hvy <-.
   rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /=; t_xrbindP => /= n w1 hw1 w2 hw2 ? <- /=; subst n.
   t_xrbindP => ? vm1 hsetx <- <- /= /eqP hne.
-  move=> /andP []/eqP ? /andP [] /eqP hyty _ <- hmap hlom; subst xt.
+  move=> /andP [] hxtty /andP [] hyty _ <- hmap hlom.
   move/to_wordI: hw1 => [ws [w' [?]]] /truncate_wordP [hle1 ?]; subst vy w1.
-  move/get_varP: (hvy) => [_ _ /compat_valE] /=; rewrite hyty => -[_ [] <- hle2].
+  move/get_varP: (hvy) => [_ _ /compat_valE] /=; rewrite (convertible_eval_atype hyty) => -[_ [] <- hle2].
   have ? := cmp_le_antisym hle1 hle2; subst ws => {hle1 hle2}.
-  have := ARMFopnP.smart_addi_sem_fopn_args xi (y:= y) (or_intror _ hne) (to_word_get_var hvy).
-  move=> /(_ _ imm) [vm []]; rewrite -sem_sopns_fopns_args => hsem heqex /get_varP [hvmx _ _].
+  have := ARMFopnP.smart_addi_sem_fopn_args (xi:=xi) (y:= y) hxtty (or_intror _ hne) (to_word_get_var hvy).
+  move=> /(_ imm) [vm []]; rewrite -sem_sopns_fopns_args => hsem heqex /get_varP [hvmx _ _].
   have [] := (assemble_opsP arm_eval_assemble_cond hmap _ hsem hlom).
   + by rewrite all_map; apply/allT => -[[]].
   move=> s' -> hlo; exists s' => //.
   apply: lom_eqv_ext hlo => z /=.
   move/get_varP: hvy => -[hvmy _ _].
-  move: hsetx; rewrite set_var_eq_type // => -[<-].
+  move: hsetx; rewrite set_var_eq_type //; last by rewrite (convertible_eval_atype hxtty).
+  move=> -[<-].
   rewrite Vm.setP.
   case: eqP => heqx.
-  + rewrite -heqx -hvmx zero_extend_u /=.
+  + rewrite (convertible_eval_atype hxtty) -heqx -hvmx zero_extend_u /=.
     move: hw2 => /truncate_wordP [? ].
     by rewrite zero_extend_wrepr // => ->.
-  by apply heqex; rewrite /arm_reg_size; SvD.fsetdec.
+  by apply heqex; move=> /=; clear -heqx; SvD.fsetdec.
 Qed.
 
 Lemma unconsP {ii X x} {xs xs' : seq X} :
@@ -720,13 +724,13 @@ Lemma smart_li_argsP ii ws les res x imm res' :
   smart_li_args ii ws les res = ok (x, imm, res') ->
   [/\ ws = reg_size
     , les = [:: LLvar x ]
-    , vtype (v_var x) = sword reg_size
+    , convertible (vtype (v_var x)) (aword reg_size)
     & exists ws', res = rconst ws' imm :: res'
   ].
 Proof.
   rewrite /smart_li_args.
   t_xrbindP=> /eqP -> -[??] /uncons_LLvarP ->.
-  t_xrbindP=> /eqP ? /nilP -> [??] /uncons_wconstP [? ->].
+  t_xrbindP=> ? /nilP -> [??] /uncons_wconstP [? ->].
   t_xrbindP=> ???; subst.
   split=> //=.
   by eexists.
@@ -740,8 +744,8 @@ Proof.
   t_xrbindP=> -[[x imm] ?] /smart_li_argsP [? ? hty [ws' ?]] [?] hops heq;
     subst ws lvs args ops.
   have [vm []] :=
-    ARMFopn_coreP.li_lsem_1 m (vname (v_var x)) (v_info x) imm.
-  rewrite /= -hty -var_surj -var_i_surj => hsem hvm hgetx.
+    ARMFopn_coreP.li_lsem_1 m imm hty.
+  move=> hsem hvm hgetx.
   have [] :=
     assemble_opsP (m' := with_vm m vm) arm_eval_assemble_cond hops _ _ heq.
   - rewrite /ARMFopn_core.li. case: ifP => //. by case: ifP.
@@ -759,12 +763,12 @@ Proof.
   move=> y.
   move/get_varP: hgetx => -[/= hx _ _].
   move: hsetx.
-  rewrite set_var_eq_type //.
+  rewrite set_var_eq_type //; last by rewrite (convertible_eval_atype hty).
   move=> [<-].
   rewrite Vm.setP.
   case: eqP => [? | hne].
   - subst y.
-    by rewrite /= hty cmp_le_refl zero_extend_wrepr // hx -hty -var_surj.
+    by rewrite (convertible_eval_atype hty) /= zero_extend_wrepr.
   rewrite hvm //.
   by apply/Sv.singleton_spec/nesym.
 Qed.
@@ -780,8 +784,8 @@ Proof.
   t_xrbindP=> -[cond args] /unconsP ?; subst args'.
   t_xrbindP=> hfv_cond -[y ?] /uncons_rvarP ? hmk hops heq; subst args.
   have [vm' []] :=
-    ARMFopn_coreP.li_lsem_1 m (vname (v_var x)) (v_info x) imm.
-  rewrite /= -hty -var_surj -var_i_surj => hsem hvm hgetx.
+    ARMFopn_coreP.li_lsem_1 m imm hty.
+  move=> hsem hvm hgetx.
   move: hsemargs hexec hwrite.
   rewrite  /exec_sopn /sopn_sem /sopn_sem_ /=.
   t_xrbindP=> _ vcond hsemcond _ vy hgety vrest hsemrest <- <- <-.
@@ -793,10 +797,10 @@ Proof.
 
   (* Type of [y]. *)
   have := type_of_get_var hgety.
-  have := of_val_subtype (t := sword _) hwy.
-  move=> /subtypeEl [/= wsy1 [htyvy hwsy1]].
+  have := of_val_subctype (t := cword _) hwy.
+  move=> /subctypeEl [/= wsy1 [htyvy hwsy1]].
   rewrite htyvy.
-  move=> /subtypeEl [/= wsy0 [htyy hwsy0]].
+  move=> /subctypeEl [/= wsy0 [htyy hwsy0]].
 
   (* If execution goes through, the resulting vm is just
      [(evm m).[x <- Vword imm].
@@ -868,7 +872,7 @@ Proof.
     rewrite hsetx /= !(get_var_set_var _ _ hsetx) //= eqxx /=.
     rewrite (fexpr_facts.free_vars_rP (vm2 := evm m) (emem m)); first last.
     * apply/eq_onS. exact: (set_var_disjoint_eq_on _ hsetx).
-    rewrite hsemcond hgety -(fun_if (@ok _)) /= hty cmp_le_refl
+    rewrite hsemcond hgety -(fun_if (@ok _)) /= (convertible_eval_atype hty)
       /= !truncate_word_u /= fun_if /= htyy /= (cmp_le_trans hwsy1 hwsy0)
       fun_if /= truncate_word_u hwy -!fun_if /= if_same.
     by move: hsetx => /set_varP [] /set_var_truncate /[apply] -> -> /=.
@@ -882,7 +886,7 @@ Proof.
   case: bcond => /= z.
   - rewrite Vm.setP.
     case: eqP => [? | hne].
-    + subst z. by rewrite -hgetx /= hty cmp_le_refl zero_extend_wrepr.
+    + subst z. by rewrite -hgetx /= (convertible_eval_atype hty) zero_extend_wrepr.
     by rewrite hvm // => /Sv.singleton_spec /esym.
   rewrite /ARMFopn_core.li.
   case: ifP => //= _.
@@ -943,12 +947,16 @@ Proof.
   case: op => // -[[] // [mn opt]] /=.
   case: ifP => // hmn /and3P [/negPf hf /negPf hc /negPf hs].
   rewrite /exec_sopn /sopn_sem  /sopn_sem_ /= hc.
+  rewrite /semi_to_atype.
+  move: (computational_eq _) (computational_eq _) => e1 e2.
+  rewrite <- e1, <- e2.
+  clear e1 e2.
   (* To avoid duplication, we prove that [mn] returns [to_word ws vx] for some [ws] *)
   have ->:
     Let semi := assert (id_valid (mn_desc opt mn)) ErrType >> ok (id_semi (mn_desc opt mn)) in
-    (Let t := app_sopn (id_tin (mn_desc opt mn)) semi [:: vx] in
+    (Let t := app_sopn (map eval_ltype (id_tin (mn_desc opt mn))) semi [:: vx] in
     ok (list_ltuple t)) =
-      Let ws := if head sbool (id_tout (mn_desc opt mn)) is sword ws then ok ws else type_error in
+      Let ws := if head lbool (id_tout (mn_desc opt mn)) is lword ws then ok ws else type_error in
       Let wx := to_word ws vx in
       ok [:: Vword wx].
   + case: mn hmn => //= _; [rewrite /arm_MOV_instr /= hf /=|..];

@@ -168,11 +168,11 @@ Definition lower_cassgn
 
 Definition lower_swap ty lvs es : option (seq copn_args) := 
   match ty with
-  | sword sz => 
+  | aword sz => 
     if (sz <= U32)%CMP then 
       Some([:: (lvs, Oasm (ExtOp (SWAP sz)), es)])
     else None
-  | sarr _ => 
+  | aarr _ _ => 
       Some([:: (lvs, Opseudo_op (Oswap ty), es)])
   | _ => None
   end.
@@ -218,7 +218,7 @@ Fixpoint lower_i (i : instr) : cmd :=
   | Cassgn lv tg ty e =>
       let oirs :=
         match ty with
-        | sword ws =>
+        | aword ws =>
             let%opt (lvs, op, es) := lower_cassgn lv ws e in
             Some ([:: Copn lvs tg op es ])
         | _ => None

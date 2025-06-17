@@ -170,7 +170,7 @@ Module M.
   Section WSW.
   Context {wsw : WithSubWord}.
 
-  Definition v_compat_type x y := compat_type sw_allowed (vtype x) (vtype y).
+  Definition v_compat_type x y := compat_atype sw_allowed (vtype x) (vtype y).
 
   Definition v_compat_typeP x y := bool_dec (v_compat_type x y).
 
@@ -437,8 +437,8 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
     Let _ := assert (n1 == n2) error_e in ok m
   | Pbool  b1, Pbool  b2 =>
     Let _ := assert (b1 == b2) error_e in ok m
-  | Parr_init n1, Parr_init n2 =>
-    Let _  := assert (n1 == n2) error_e in ok m
+  | Parr_init ws1 n1, Parr_init ws2 n2 =>
+    Let _  := assert (arr_size ws1 n1 == arr_size ws2 n2) error_e in ok m
   | Pvar   x1, Pvar   x2 => check_gv x1 x2 m
   | Pget al1 aa1 w1 x1 e1, Pget al2 aa2 w2 x2 e2 =>
     Let _ := assert ((al1 == al2) && (aa1 == aa2) && (w1 == w2)) error_e in
@@ -457,7 +457,7 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
     Let _ := assert (o1 == o2) error_e in
     fold2 (alloc_error "check_e (appN)") check_e es1 es2 m
   | Pif t e e1 e2, Pif t' e' e1' e2' =>
-    Let _ := assert (t == t') error_e in
+    Let _ := assert (convertible t t') error_e in
     check_e e e' m >>= check_e e1 e1' >>= check_e e2 e2'
   | _, _ => Error error_e
   end.
@@ -471,7 +471,7 @@ Definition check_varc (xi1 xi2:var_i) m : cexec M.t :=
   if M.v_compat_typeP x1 x2 is left h then check_var_aux m h
   else Error (cerr_varalloc xi1 xi2 "type mismatch").
 
-Definition is_Pvar (e:option (stype * pexpr)) :=
+Definition is_Pvar (e:option (atype * pexpr)) :=
   match e with
   | Some (ty, Pvar x) => if is_lvar x then Some (ty,x.(gv)) else None
   | _ => None
@@ -479,19 +479,19 @@ Definition is_Pvar (e:option (stype * pexpr)) :=
 
 Definition error_lv := pp_internal_error_s "allocation" "lval not equal".
 
-Definition check_lval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec M.t :=
+Definition check_lval (e2:option (atype * pexpr)) (x1 x2:lval) m : cexec M.t :=
   match x1, x2 with
   | Lnone  _ t1, Lnone _ t2  =>
-    Let _ := assert (compat_type sw_allowed t1 t2) error_lv in
+    Let _ := assert (compat_atype sw_allowed t1 t2) error_lv in
     ok m
   | Lnone  _ t1, Lvar x      =>
-    Let _ := assert (compat_type sw_allowed t1 x.(v_var).(vtype)) error_lv in
+    Let _ := assert (compat_atype sw_allowed t1 x.(v_var).(vtype)) error_lv in
     ok (M.remove m x.(v_var))
   | Lvar x1    , Lvar x2     =>
     match is_Pvar e2 with
     | Some (ty, x2') =>
       if M.v_compat_typeP x1 x2 is left h then
-        if [&& vtype x1 == ty, vtype x1 == vtype x2 & x2.(v_var) == x2'] then ok (M.add m x1 x2 h)
+        if [&& convertible (vtype x1) ty, convertible (vtype x1) (vtype x2) & x2.(v_var) == x2'] then ok (M.add m x1 x2 h)
         else check_var_aux m h
       else Error (cerr_varalloc x1 x2 "type mismatch")
     | _               => check_varc x1 x2 m
@@ -567,7 +567,7 @@ Context (dead_vars : instr_info -> Sv.t).
 Fixpoint check_i (i1 i2:instr_r) r :=
     match i1, i2 with
     | Cassgn x1 _ ty1 e1, Cassgn x2 _ ty2 e2 =>
-      Let _ := assert (ty1 == ty2) (alloc_error "bad type in assignment") in
+      Let _ := assert (convertible ty1 ty2) (alloc_error "bad type in assignment") in
       check_e e1 e2 r >>= check_lval (Some (ty2,e2)) x1 x2
 
     | Copn xs1 _ o1 es1, Copn xs2 _ o2 es2 =>
@@ -631,7 +631,7 @@ Definition check_fundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * fundef) (_:Da
   let (fn1,fd1) := f1 in
   let (fn2,fd2) := f2 in
   add_funname fn1 (add_finfo fd1.(f_info) (
-    Let _ := assert [&& fn1 == fn2, fd1.(f_tyin) == fd2.(f_tyin) & fd1.(f_tyout) == fd2.(f_tyout) ]
+    Let _ := assert [&& fn1 == fn2, all2 convertible fd1.(f_tyin) fd2.(f_tyin) & all2 convertible fd1.(f_tyout) fd2.(f_tyout) ]
                         (E.error "functions not equal") in
     Let r := init_alloc fd1.(f_extra) ep1 ep2 in
     Let r := check_f_extra r fd1.(f_extra) fd2.(f_extra) fd1.(f_params) fd2.(f_params) in

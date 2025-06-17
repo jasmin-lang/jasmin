@@ -215,9 +215,8 @@ Lemma postprocessP {dc : DirectCall} (p p': uprog) ev scs m fn va scs' m' vr va'
 Proof.
   move => ok_p' E A.
   have [ vr1 [ {} E R1 ] ] := const_prop_callP E A.
-  have [vr2 [ E' R2 ]] := [elaborate
-    dead_code_callPu (hap_is_move_opP haparams) ok_p' values_uincl_refl E
-  ].
+  have [vr2 [ E' R2 ]] :=
+    dead_code_callPu (sip:=sip_of_asm_e) (hap_is_move_opP haparams) ok_p' values_uincl_refl E.
   exists vr2; first exact: E'.
   exact: values_uincl_trans R1 R2.
 Qed.
@@ -283,7 +282,7 @@ Proof.
   rewrite print_uprogP => ? exec_p; subst pa.
   apply: compose_pass_uincl.
   - move=> vr' Hvr'.
-    apply: (dead_code_callPu (hap_is_move_opP haparams) ok_pa values_uincl_refl).
+    apply: (dead_code_callPu (sip:=sip_of_asm_e) (hap_is_move_opP haparams) ok_pa values_uincl_refl).
     exact: Hvr'.
   apply: compose_pass_uincl;
     first by move => vr';
@@ -405,14 +404,14 @@ Proof.
   + move => fn gd scs m va scs' m' vr exec_p.
     apply: compose_pass_uincl.
     - move => vr'.
-      apply: (dead_code_callPs (dc:= direct_c) (hap_is_move_opP haparams) ok_pc values_uincl_refl).
+      apply: (dead_code_callPs (sip:=sip_of_asm_e) (dc:= direct_c) (hap_is_move_opP haparams) ok_pc values_uincl_refl).
     apply: compose_pass_uincl;
       first by move => vr';
         apply:
           (alloc_call_sprogP (ep := ep_of_asm_e) (sip := sip_of_asm_e) ok_pb).
     rewrite surj_prog.
     have [vr' [exec_pa]] :=
-      [elaborate dead_code_tokeep_callPs (hap_is_move_opP haparams) ok_pa values_uincl_refl exec_p ].
+      [elaborate dead_code_tokeep_callPs (sip:=sip_of_asm_e) (hap_is_move_opP haparams) ok_pa values_uincl_refl exec_p ].
     by exists vr'.
   rewrite /alloc_ok => fn m alloc_pc fd get_fd.
   have [fda ok_fda get_fda] := [elaborate
@@ -446,8 +445,8 @@ Lemma sem_call_length {dc:DirectCall}(p: uprog) scs m fn va scs' m' vr :
 Proof.
   move=> h; have := sem_callE h => -[] fd [] -> [] va' [] ? [] ? [] ? [] vr' [] ok_args [] _ ok_va' _ [] /size_mapM ok_vr' ok_res _.
   have := size_fold2 ok_va'.
-  have [<- <-] := size_mapM2 ok_args.
-  have [size_vr' <-] := size_mapM2 ok_res.
+  have := size_mapM2 ok_args; rewrite size_map => -[<- <-].
+  have := size_mapM2 ok_res; rewrite size_map => -[size_vr' <-].
   rewrite {2}size_vr' -ok_vr' => {1}<-.
   by exists fd.
 Qed.
@@ -899,7 +898,7 @@ Proof.
     + have := [elaborate (get_fundef_p' ok_lp get_fd)].
       rewrite get_lfd => -[->] /=.
       have! := (linearization_proof.checked_prog ok_lp get_fd).
-      rewrite /check_fd /=; t_xrbindP=> _ _ ok_stk_sz _ _ _.
+      rewrite /check_fd /=; t_xrbindP=> _ _ _ _ ok_stk_sz _ _ _.
       case/and4P: ok_stk_sz => /ZleP stk_sz_pos /ZleP stk_extra_sz_pos _ /ZleP stk_frame_le_max.
       have := frame_size_bound stk_sz_pos stk_extra_sz_pos.
       by Lia.lia.
@@ -946,7 +945,7 @@ Proof.
       have ss := sem_call_stack_stable_sprog exec_p.
       rewrite ss.(ss_limit) (ss_top_stack ss).
       have := [elaborate top_stack_below_root _ m']; rewrite -/(top_stack _) /=.
-      by Lia.lia.
+      by clear -hb; Lia.lia.
     + move=> pr w hb ok_w.
       have := M'.(read_incl_stk) hb ok_w.
       rewrite hmm.(read_untouched) //.
@@ -971,13 +970,14 @@ Proof.
       by apply /negP /negPf.
     rewrite (U' _ hnvalid) //.
     have! := (linearization_proof.checked_prog ok_lp get_fd).
-    rewrite /check_fd /=; t_xrbindP=> _ _ ok_stk_sz _ _ _.
+    rewrite /check_fd /=; t_xrbindP=> _ _ _ _ ok_stk_sz _ _ _.
     case/and4P: ok_stk_sz => /ZleP stk_sz_pos /ZleP stk_extra_sz_pos _ /ZleP stk_frame_le_max.
     rewrite /align_top_stack align_top_aligned; cycle 1.
-    + by Lia.lia.
+    + by clear -stk_sz_pos stk_extra_sz_pos; Lia.lia.
     + have := frame_size_bound stk_sz_pos stk_extra_sz_pos.
       have! := (wunsigned_range (top_stack m)).
       have /= := wsize_size_pos (sf_align (f_extra fd)).
+      clear -stk_sz_pos stk_extra_sz_pos stk_frame_le_max H6'.
       by Lia.lia.
     + move: ok_zfd; rewrite /stack_zeroization_lfd hszs Export /=.
       case: ZltP => [_|hle0].
@@ -992,7 +992,7 @@ Proof.
       have := [elaborate (get_fundef_p' ok_lp get_fd)].
       rewrite get_lfd => -[->] /=.
       rewrite /frame_size => ->.
-      by Lia.lia.
+      by clear -stk_sz_pos stk_extra_sz_pos; Lia.lia.
     rewrite pointer_range_between.
     move/negP: hb H6'''; rewrite /bottom.
     have := [elaborate (get_fundef_p' ok_lp get_fd)].
@@ -1105,7 +1105,7 @@ Proof.
     by move: Y => /= ->; rewrite ok_rip.
   - move => /=.
     apply/allP => x /ok_callee_saved hin.
-    have [r ->]: exists2 r, x = (var_of_asm_typed_reg r) & vtype x != sbool.
+    have [r ->]: exists2 r, x = (var_of_asm_typed_reg r) & vtype x != abool.
     + by move/andP: hin => [->] /is_okP [] r /asm_typed_reg_of_varI ->; exists r.
     rewrite /get_var XM /=.
     by case: r => //= ?; rewrite truncate_word_u.

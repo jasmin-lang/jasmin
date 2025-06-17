@@ -383,7 +383,7 @@ Lemma flags_not_magic :
   disjoint vflags (magic_variables p).
 Proof.
   apply Sv.is_empty_spec => x X.
-  have : vtype x = sword Uptr.
+  have : vtype x = aword Uptr.
   - have := SvD.F.inter_2 X.
     rewrite /magic_variables SvD.F.add_iff Sv.singleton_spec.
     by case => [ <- | -> ].

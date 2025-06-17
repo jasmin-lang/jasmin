@@ -50,7 +50,7 @@ let msub_of_arr gv sc =
 
 (*-------------------------------------------------------------------------*)
 let get_wsize = function
-  | Type.Coq_sword sz -> sz
+  | Type.Coq_aword sz -> sz
   | _ -> raise (Aint_error "Not a Coq_sword")
 
 (* Only for expressions that are not arrays *)

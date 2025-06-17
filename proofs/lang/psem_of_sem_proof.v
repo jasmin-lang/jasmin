@@ -64,7 +64,7 @@ Qed.
 
 Lemma vmap_set_sim (vm : vmap_n) (vm' : vmap_s) x v:
   (vm =1 vm')%vm →
-  truncatable true (wsw:=nosubword) (vtype x) v →
+  truncatable true (wsw:=nosubword) (eval_atype (vtype x)) v →
   (vm.[x <- v] =1 vm'.[x <- v])%vm.
 Proof.
   move => hvm hv y; rewrite !Vm.setP.

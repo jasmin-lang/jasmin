@@ -95,16 +95,16 @@ Definition x86_set_up_sp_register
   i0 :: rcons (if sf_sz != 0%Z then x86_allocate_stack_frame rspi None sf_sz else [::]) i2.
 
 Definition x86_lmove (xd xs: var_i) :=
-  x86_lassign (LLvar xd) (wsize_of_stype (vtype xd)) (Rexpr (Fvar xs)).
+  x86_lassign (LLvar xd) (wsize_of_atype (vtype xd)) (Rexpr (Fvar xs)).
 
 Definition x86_check_ws (_: wsize) := true.
 
 Definition x86_lstore (xd : var_i) (ofs : Z) (xs :  var_i) :=
-  let ws := wsize_of_stype (vtype xs) in
+  let ws := wsize_of_atype (vtype xs) in
   x86_lassign (Store Aligned ws (faddv Uptr xd (fconst Uptr ofs))) ws (Rexpr (Fvar xs)).
 
 Definition x86_lload (xd xs: var_i) (ofs : Z) :=
-  let ws := wsize_of_stype (vtype xd) in
+  let ws := wsize_of_atype (vtype xd) in
   x86_lassign (LLvar xd) ws (Load Aligned ws (faddv Uptr xs (fconst Uptr ofs))).
 
 Definition x86_tmp := vname (v_var vtmpi).
@@ -140,7 +140,7 @@ Definition x86_loparams : lowering_params lowering_options :=
 (* ------------------------------------------------------------------------ *)
 (* Speculative execution operator lowering parameters. *)
 
-Definition lflags := nseq 5 (Lnone dummy_var_info sbool).
+Definition lflags := nseq 5 (Lnone dummy_var_info abool).
 
 Definition is_mmx_protect (ws : wsize) (lvs : seq lval) : bool :=
   match ws, lvs with
@@ -165,11 +165,11 @@ Definition x86_sh_lower
     let: (rk, extra) :=
       if (ws <= U64)%CMP
       then if is_mmx_protect ws lvs then (Extra, [::]) else (Normal, lflags)
-      else (Normal, [:: Lnone dummy_var_info (sword ws) ])
+      else (Normal, [:: Lnone dummy_var_info (aword ws) ])
     in
     Some (extra ++ lvs, O (Ox86SLHprotect rk ws), es)
 
-  | SLHprotect_ptr _ | SLHprotect_ptr_fail _ => None (* Taken into account by stack alloc *)
+  | SLHprotect_ptr _ _ | SLHprotect_ptr_fail _ _ => None (* Taken into account by stack alloc *)
   end.
 
 Definition x86_shparams : sh_params :=

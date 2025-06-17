@@ -1,7 +1,8 @@
 (* ** Imports and settings *)
 From elpi.apps Require Import derive.std.
 From HB Require Import structures.
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype.
+From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 Require Import gen_map utils strings.
 Require Export wsize.
@@ -10,84 +11,108 @@ Import Utf8.
 (* ** Syntax
  * -------------------------------------------------------------------- *)
 
+(* Low-level (or linear?) types, i.e. types that exist in architectures. *)
 #[only(eqbOK)] derive
-Variant stype : Set :=
-| sbool
-| sint
-| sarr  of positive
-| sword of wsize.
+Variant ltype : Set :=
+| lbool
+| lword of wsize.
 
-(* -------------------------------------------------------------------- *)
-(*
-Definition string_of_stype (ty: stype) : string :=
+(* Syntax types, i.e. types that appear in programs *)
+#[only(eqbOK)] derive
+Variant atype : Set :=
+| abool
+| aint
+| aarr of wsize & positive
+| aword of wsize.
+
+(* Value types, i.e. types appearing in the semantics *)
+#[only(eqbOK)] derive
+Variant ctype : Set :=
+| cbool
+| cint
+| carr  of positive
+| cword of wsize.
+
+Definition atype_of_ltype ty :=
   match ty with
-  | sbool => "sbool"
-  | sint => "sint"
-  | sarr n => "(sarr " ++ " ?)"
-  | sword sz => "(sword " ++ string_of_wsize sz ++ ")"
+  | lbool => abool
+  | lword ws => aword ws
   end.
-*)
+
+Definition ltype_of_atype ty :=
+  match ty with
+  | abool => Some lbool
+  | aword ws => Some (lword ws)
+  | _ => None
+  end.
 
 (* -------------------------------------------------------------------- *)
-Notation sword8   := (sword U8).
-Notation sword16  := (sword U16).
-Notation sword32  := (sword U32).
-Notation sword64  := (sword U64).
-Notation sword128 := (sword U128).
-Notation sword256 := (sword U256).
+Notation lword8   := (lword U8).
+Notation lword16  := (lword U16).
+Notation lword32  := (lword U32).
+Notation lword64  := (lword U64).
+Notation lword128 := (lword U128).
+Notation lword256 := (lword U256).
 
 (* -------------------------------------------------------------------- *)
-Notation ty_msf := (sword msf_size).
+Notation ty_msf := (aword msf_size).
+Notation cty_msf := (cword msf_size).
 
 (* -------------------------------------------------------------------- *)
-HB.instance Definition _ := hasDecEq.Build stype stype_eqb_OK.
+HB.instance Definition _ := hasDecEq.Build ltype ltype_eqb_OK.
+HB.instance Definition _ := hasDecEq.Build atype atype_eqb_OK.
+HB.instance Definition _ := hasDecEq.Build ctype ctype_eqb_OK.
 
 
 (* ** Comparison
  * -------------------------------------------------------------------- *)
 
-Definition stype_cmp t t' :=
+Definition atype_cmp t t' :=
   match t, t' with
-  | sbool   , sbool         => Eq
-  | sbool   , _             => Lt
+  | abool   , abool         => Eq
+  | abool   , _             => Lt
 
-  | sint    , sbool         => Gt
-  | sint    , sint          => Eq
-  | sint    , _             => Lt
+  | aint    , abool         => Gt
+  | aint    , aint          => Eq
+  | aint    , _             => Lt
 
-  | sword _ , sarr _        => Lt
-  | sword w , sword w'      => wsize_cmp w w'
-  | sword _ , _             => Gt
+  | aword _ , aarr _ _      => Lt
+  | aword w , aword w'      => wsize_cmp w w'
+  | aword _ , _             => Gt
 
-  | sarr n  , sarr n'        => Pos.compare n n'
-  | sarr _  , _             => Gt
+  | aarr ws n , aarr ws' n' => Lex (wsize_cmp ws ws') (Pos.compare n n')
+  | aarr _ _  , _           => Gt
   end.
 
 #[global]
-Instance stypeO : Cmp stype_cmp.
+Instance atypeO : Cmp atype_cmp.
 Proof.
   constructor.
-  + by case => [||n|w] [||n'|w'] //=; apply cmp_sym.
-  + by move=> y x; case: x y=> [||n|w] [||n'|w'] [||n''|w''] c//=;
-       try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt; apply cmp_ctrans.
-  case=> [||n|w] [||n'|w'] //= h.
-  + by rewrite (@cmp_eq _ _ positiveO _ _ h).
-  by rewrite (@cmp_eq _ _ wsizeO _ _ h).
+  + case => [||ws n|w] [||ws' n'|w'] //=.
+    + by rewrite !Lex_lex lex_sym //=; apply cmp_sym.
+    by apply cmp_sym.
+  + move=> y x; case: x y=> [||ws n|w] [||ws' n'|w'] [||ws'' n''|w''] c //=;
+       try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt.
+    + by rewrite !Lex_lex; apply lex_trans; apply cmp_ctrans.
+    by apply cmp_ctrans.
+  case=> [||n ws|w] [||n' ws'|w'] //=.
+  + by rewrite Lex_lex => /lex_eq /= [/cmp_eq <- /cmp_eq <-].
+  by move=> /cmp_eq <-.
 Qed.
 
-Module CmpStype.
+Module CmpAtype.
 
-  Definition t : eqType := stype.
+  Definition t : eqType := atype.
 
-  Definition cmp : t -> t -> comparison := stype_cmp.
+  Definition cmp : t -> t -> comparison := atype_cmp.
 
-  Definition cmpO : Cmp cmp := stypeO.
+  Definition cmpO : Cmp cmp := atypeO.
 
-End CmpStype.
+End CmpAtype.
 
-Module CEDecStype.
+Module CEDecAtype.
 
-  Definition t : eqType := stype.
+  Definition t : eqType := atype.
 
   Fixpoint pos_dec (p1 p2:positive) : {p1 = p2} + {True} :=
     match p1 as p1' return {p1' = p2} + {True} with
@@ -120,30 +145,34 @@ Module CEDecStype.
 
   Definition eq_dec (t1 t2:t) : {t1 = t2} + {True} :=
     match t1 as t return {t = t2} + {True} with
-    | sbool =>
-      match t2 as t0 return {sbool = t0} + {True} with
-      | sbool => left (erefl sbool)
+    | abool =>
+      match t2 as t0 return {abool = t0} + {True} with
+      | abool => left (erefl abool)
       | _     => right I
       end
-    | sint =>
-      match t2 as t0 return {sint = t0} + {True} with
-      | sint => left (erefl sint)
+    | aint =>
+      match t2 as t0 return {aint = t0} + {True} with
+      | aint => left (erefl aint)
       | _     => right I
       end
-    | sarr n1 =>
-      match t2 as t0 return {sarr n1 = t0} + {True} with
-      | sarr n2 =>
-        match pos_dec n1 n2 with
-        | left eqn => left (f_equal sarr eqn)
-        | right _ => right I
+    | aarr ws1 n1 =>
+      match t2 as t0 return {aarr ws1 n1 = t0} + {True} with
+      | aarr ws2 n2 =>
+        match wsize_eq_dec ws1 ws2 with
+        | left eqw =>
+          match pos_dec n1 n2 with
+          | left eqn => left (f_equal2 aarr eqw eqn)
+          | right _ => right I
+          end
+        | _ => right I
         end
       | _          => right I
       end
-    | sword w1 =>
-      match t2 as t0 return {sword w1 = t0} + {True} with
-      | sword w2 =>
+    | aword w1 =>
+      match t2 as t0 return {aword w1 = t0} + {True} with
+      | aword w2 =>
         match wsize_eq_dec w1 w2 with
-        | left eqw => left (f_equal sword eqw)
+        | left eqw => left (f_equal aword eqw)
         | right _ => right I
         end
       | _     => right I
@@ -162,17 +191,19 @@ Module CEDecStype.
 
   Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 != t2.
   Proof.
-    case: tt;case:t1 t2=> [||n|w] [||n'|w'] //=.
-    + case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ] //=.
-      move => _; apply/eqP => -[].
-      by move/eqP: (neq erefl).
+    case: tt;case:t1 t2=> [||ws n|w] [||ws' n'|w'] //=.
+    + case: wsize_eq_dec => eqw.
+      + case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ] //=.
+        move => _; apply/eqP => -[].
+        by move/eqP: (neq erefl).
+      by move=> _; apply/eqP => -[].
     case: wsize_eq_dec => // eqw.
     by move=> _;apply /eqP;congruence.
   Qed.
 
-End CEDecStype.
+End CEDecAtype.
 
-Module Mt := DMmake CmpStype CEDecStype.
+Module Mt := DMmake CmpAtype CEDecAtype.
 
 Declare Scope mtype_scope.
 Delimit Scope mtype_scope with mt.
@@ -187,73 +218,197 @@ Arguments Mt.set P m%_mtype_scope k v.
    names obey the "prefix" parameter. *)
 Module Export OtherDefs.
 
-Definition is_sbool t := t == sbool.
+Definition is_abool t := if t is abool then true else false.
 
-Lemma is_sboolP t : reflect (t=sbool) (is_sbool t).
-Proof. by rewrite /is_sbool;case:eqP => ?;constructor. Qed.
+Lemma is_aboolP t : reflect (t=abool) (is_abool t).
+Proof. by case: t => /=; constructor. Qed.
 
-Definition is_sword t := if t is sword _ then true else false.
+Definition is_aword t := if t is aword _ then true else false.
 
-Definition is_sarr t := if t is sarr _ then true else false.
+Definition is_aarr t := if t is aarr _ _ then true else false.
 
-Definition is_not_sarr t := ~~is_sarr t.
+Definition is_not_aarr t := ~~is_aarr t.
 
-Lemma is_sarrP ty : reflect (exists n, ty = sarr n) (is_sarr ty).
-Proof. by case: ty; constructor; eauto => [[]]. Qed.
+Lemma is_aarrP ty : reflect (exists ws n, ty = aarr ws n) (is_aarr ty).
+Proof. by case: ty; constructor; eauto => -[?] [?]. Qed.
 
-Definition is_word_type (t:stype) :=
-  if t is sword sz then Some sz else None.
+Definition is_word_type (t:atype) :=
+  if t is aword sz then Some sz else None.
 
 Lemma is_word_typeP ty ws :
-  is_word_type ty = Some ws -> ty = sword ws.
+  is_word_type ty = Some ws -> ty = aword ws.
 Proof. by case: ty => //= w [->]. Qed.
+
+Definition is_cword t := if t is cword _ then true else false.
+Definition is_carr t := if t is carr _ then true else false.
+Definition is_not_carr t := ~~ is_carr t.
 
 End OtherDefs.
 
 (* -------------------------------------------------------------------- *)
-Definition subtype (t t': stype) :=
+Definition arr_size (ws:wsize) (len:positive)  := 
+   (wsize_size ws * len)%Z.
+
+Lemma arr_sizeE ws len : arr_size ws len = (wsize_size ws * len)%Z.
+Proof. done. Qed.
+
+Lemma gt0_arr_size ws len : (0 < arr_size ws len)%Z.
+Proof. done. Qed.
+
+Opaque arr_size.
+
+Definition eval_atype ty :=
+  match ty with
+  | abool => cbool
+  | aint => cint
+  | aarr ws len => carr (Z.to_pos (arr_size ws len))
+  | aword ws => cword ws
+  end.
+
+Definition eval_ltype ty :=
+  match ty with
+  | lbool => cbool
+  | lword ws => cword ws
+  end.
+
+Definition convertible (t t' : atype) :=
   match t with
-  | sword w => if t' is sword w' then (w ≤ w')%CMP else false
+  | aarr ws n =>
+    if t' is aarr ws' n' then arr_size ws n == arr_size ws' n' else false
   | _ => t == t'
   end.
 
-Lemma subtypeE ty ty' :
-  subtype ty ty' →
+Lemma convertible_refl t : convertible t t.
+Proof. by case: t => //=. Qed.
+#[global]
+Hint Resolve convertible_refl : core.
+
+Lemma convertible_sym ty1 ty2 : convertible ty1 ty2 -> convertible ty2 ty1.
+Proof.
+  case: ty1 ty2 => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
+  + by rewrite eq_sym.
+  by rewrite eq_sym.
+Qed.
+
+Lemma convertible_trans ty2 ty1 ty3 :
+  convertible ty1 ty2 -> convertible ty2 ty3 -> convertible ty1 ty3.
+Proof.
+  case: ty1 ty2 => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
+  + by move=> /eqP ->.
+  by move=> /eqP ->.
+Qed.
+
+Lemma convertible_eval_atype ty1 ty2 :
+  convertible ty1 ty2 ->
+  eval_atype ty1 = eval_atype ty2.
+Proof.
+  case: ty1 ty2 => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
+  + by move=> /eqP <-.
+  by move=> /eqP [<-].
+Qed.
+
+Lemma all2_convertible_eval_atype tys1 tys2 :
+  all2 convertible tys1 tys2 ->
+  map eval_atype tys1 = map eval_atype tys2.
+Proof.
+  elim: tys1 tys2 => [|ty1 tys1 ih1] [|ty2 tys2] //=.
+  by move=> /andP [/convertible_eval_atype -> /ih1 ->].
+Qed.
+
+Definition subatype (t t': atype) :=
+  match t with
+  | aword w => if t' is aword w' then (w ≤ w')%CMP else false
+  | _ => convertible t t'
+  end.
+
+Lemma subatypeE ty ty' :
+  subatype ty ty' →
+  match ty' return Prop with
+  | aword sz' => ∃ sz, ty = aword sz ∧ (sz ≤ sz')%CMP
+  | _         => convertible ty ty'
+end.
+Proof.
+  case: ty => [||ws n|ws]; try by move/eqP => <-.
+  + by case: ty'.
+  by case: ty' => //; eauto.
+Qed.
+
+Lemma subatypeEl ty ty' :
+  subatype ty ty' →
+  match ty return Prop with
+  | aword sz => ∃ sz', ty' = aword sz' ∧ (sz ≤ sz')%CMP
+  | _        => convertible ty ty'
+  end.
+Proof.
+  case: ty => [||ws n|ws] //=.
+  by case: ty' => //; eauto.
+Qed.
+
+Lemma subatype_refl ty : subatype ty ty.
+Proof. case: ty => //=. Qed.
+#[global]
+Hint Resolve subatype_refl : core.
+
+Lemma subatype_trans ty2 ty1 ty3 :
+  subatype ty1 ty2 -> subatype ty2 ty3 -> subatype ty1 ty3.
+Proof.
+  case: ty1 => //= [/eqP<-|/eqP<-|ws1 n1|ws1] //.
+  + by case: ty2 => //= ws2 n2 /eqP ->.
+  by case: ty2 => //= ws2 hle; case: ty3 => //= ws3; apply: cmp_le_trans hle.
+Qed.
+
+Lemma is_aword_subatype t1 t2 : subatype t1 t2 -> is_aword t1 = is_aword t2.
+Proof.
+  by case: t1 => //= [/eqP <-|/eqP <-|??|?] //; case:t2.
+Qed.
+
+Definition subctype (t t': ctype) :=
+  match t with
+  | cword w => if t' is cword w' then (w ≤ w')%CMP else false
+  | _ => t == t'
+  end.
+
+Lemma subctypeE ty ty' :
+  subctype ty ty' →
   match ty' with
-  | sword sz' => ∃ sz, ty = sword sz ∧ (sz ≤ sz')%CMP
+  | cword sz' => ∃ sz, ty = cword sz ∧ (sz ≤ sz')%CMP
   | _         => ty = ty'
 end.
 Proof.
-  destruct ty; try by move/eqP => <-.
+  case: ty => [||n|ws]; try by move/eqP => <-.
   by case: ty' => //; eauto.
 Qed.
 
-Lemma subtypeEl ty ty' :
-  subtype ty ty' →
-  match ty with
-  | sword sz => ∃ sz', ty' = sword sz' ∧ (sz ≤ sz')%CMP
-  | _        => ty' = ty
+Lemma subctypeEl ty ty' :
+  subctype ty ty' →
+  match ty return Prop with
+  | cword sz => ∃ sz', ty' = cword sz' ∧ (sz ≤ sz')%CMP
+  | _        => ty = ty'
   end.
 Proof.
-  destruct ty; try by move/eqP => <-.
+  case: ty => [||n|ws] //=; try by move/eqP => <-.
   by case: ty' => //; eauto.
 Qed.
 
-Lemma subtype_refl x : subtype x x.
-Proof. case: x => //=. Qed.
+Lemma subctype_refl ty : subctype ty ty.
+Proof. case: ty => //=. Qed.
 #[global]
-Hint Resolve subtype_refl : core.
+Hint Resolve subctype_refl : core.
 
-Lemma subtype_trans y x z : subtype x y -> subtype y z -> subtype x z.
+Lemma subctype_trans ty2 ty1 ty3 :
+  subctype ty1 ty2 -> subctype ty2 ty3 -> subctype ty1 ty3.
 Proof.
-  case: x => //= [/eqP<-|/eqP<-|n1|sx] //.
-  + by case: y => //= n2 /eqP ->.
-  case: y => //= sy hle;case: z => //= sz;apply: cmp_le_trans hle.
+  case: ty1 => //= [/eqP<-|/eqP<-|n1|ws1] //.
+  + by case: ty2 => //= n2 /eqP ->.
+  by case: ty2 => //= ws2 hle; case: ty3 => //= ws3; apply: cmp_le_trans hle.
 Qed.
 
-Lemma is_sword_subtype t1 t2 : subtype t1 t2 -> is_sword t1 = is_sword t2.
+Lemma subatype_subctype ty1 ty2 :
+  subatype ty1 ty2 ->
+  subctype (eval_atype ty1) (eval_atype ty2).
 Proof.
-  by case: t1 => //= [/eqP <-|/eqP <-|?|?] //;case:t2.
+  case: ty1 ty2 => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
+  by move=> /eqP <-.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -261,23 +416,23 @@ Qed.
 Variant extended_type (len:Type) : Type :=
   | ETbool
   | ETint
-  | ETarr of len
+  | ETarr of wsize & len
   | ETword of (option signedness) & wsize.
 
 Definition tbool {len} := ETbool len.
 Definition tint  {len} := ETint len.
-Definition tarr  {len} (l : len) := ETarr l.
+Definition tarr  {len} (ws : wsize) (l : len) := ETarr ws l.
 Definition tword {len} ws : extended_type len:= ETword len None ws.
 Definition twint {len} (s : signedness) (ws : wsize) := ETword len (Some s) ws.
 Definition tuint {len} ws : extended_type len := twint Unsigned ws.
 Definition tsint {len} ws : extended_type len := twint Signed ws.
 
-Definition to_stype (t:extended_type positive) : stype :=
+Definition to_atype (t:extended_type positive) : atype :=
   match t with
-  | ETbool      => sbool
-  | ETint       => sint
-  | ETarr l     => sarr l
-  | ETword _ ws => sword ws
+  | ETbool      => abool
+  | ETint       => aint
+  | ETarr ws l  => aarr ws l
+  | ETword _ ws => aword ws
   end.
 
 Section EQ.

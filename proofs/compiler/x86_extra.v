@@ -72,7 +72,7 @@ Definition Oset0_instr sz  :=
   if (sz <= U64)%CMP then
     mk_instr_desc_safe (pp_sz "set0" sz)
              [::] [::]
-             (b5w_ty sz) (map sopn_arg_desc implicit_flags ++ [:: E 0])
+             (map atype_of_ltype (b5w_ty sz)) (map sopn_arg_desc implicit_flags ++ [:: E 0])
              (let vf := Some false in
               let vt := Some true in
               (::vf, vf, vf, vt, vt & (0%R: word sz)))
@@ -80,20 +80,20 @@ Definition Oset0_instr sz  :=
   else
     mk_instr_desc_safe (pp_sz "set0" sz)
              [::] [::]
-             (w_ty sz) [::E 0]
+             (map atype_of_ltype (w_ty sz)) [::E 0]
              (0%R: word sz) true.
 
 Definition Oconcat128_instr :=
   mk_instr_desc_safe (pp_s "concat_2u128")
-           [:: sword128; sword128 ] [:: E 1; E 2]
-           [:: sword256] [:: E 0]
+           [:: aword U128; aword U128 ] [:: E 1; E 2]
+           [:: aword U256] [:: E 0]
            (λ h l : u128, make_vec U256 [::l;h])
            true.
 
 Definition Ox86MOVZX32_instr :=
   mk_instr_desc_safe (pp_s "MOVZX32")
-           [:: sword32] [:: E 1]
-           [:: sword64] [:: E 0]
+           [:: aword U32] [:: E 1]
+           [:: aword U64] [:: E 0]
            (λ x : u32, zero_extend U64 x)
            true.
 
@@ -103,8 +103,8 @@ Definition x86_MULX sz (v1 v2: word sz) : tpl (w2_ty sz sz) :=
 Definition Ox86MULX_instr sz :=
    let name := "MULX"%string in
    mk_instr_desc_safe (pp_sz name sz)
-        (w2_ty sz sz) [::ADImplicit (to_var RDX); E 2]
-        (w2_ty sz sz) [:: E 0; E 1] (* hi, lo *)
+        [:: aword sz; aword sz] [::ADImplicit (to_var RDX); E 2]
+        [:: aword sz; aword sz] [:: E 0; E 1] (* hi, lo *)
         (@x86_MULX sz) (size_32_64 sz).
 
 Definition x86_MULX_hi sz (v1 v2: word sz) : tpl (w_ty sz) :=
@@ -113,8 +113,8 @@ Definition x86_MULX_hi sz (v1 v2: word sz) : tpl (w_ty sz) :=
 Definition Ox86MULX_hi_instr sz :=
    let name := "MULX_hi"%string in
    mk_instr_desc_safe (pp_sz name sz)
-        (w2_ty sz sz) [::ADImplicit (to_var RDX); E 1]
-        (w_ty sz) [:: E 0]
+        [:: aword sz; aword sz] [::ADImplicit (to_var RDX); E 1]
+        [:: aword sz] [:: E 0]
         (@x86_MULX_hi sz) (size_32_64 sz).
 
 
@@ -136,7 +136,7 @@ Definition x86_se_update_sem (b:bool) (w: wmsf) : wmsf * wmsf :=
 Definition Ox86SLHupdate_str := append "Ox86_" SLHupdate_str.
 Definition Ox86SLHupdate_instr :=
   mk_instr_desc_safe (pp_s Ox86SLHupdate_str)
-                [:: sbool; ty_msf]
+                [:: abool; ty_msf]
                 [:: E 0; E 1]
                 [:: ty_msf; ty_msf]
                 [:: E 2; E 1]
@@ -154,7 +154,7 @@ Definition Ox86SLHmove_instr :=
       true.
 
 Definition se_protect_small_sem
-  (ws:wsize) (w:word ws) (msf:word ws) : (sem_tuple (b5w_ty ws)) :=
+  (ws:wsize) (w:word ws) (msf:word ws) : (sem_ltuple (b5w_ty ws)) :=
    x86_OR w msf.
 
 Definition se_protect_mmx_sem
@@ -172,25 +172,25 @@ Definition Ox86SLHprotect_instr rk :=
   fun (ws:wsize) =>
   if rk is Extra then
     mk_instr_desc_safe (pp_sz SLHprotect_str ws)
-      [:: sword ws; sword ws]
+      [:: aword ws; aword ws]
       [:: E 0; E 1 ]
-      [:: sword ws ]
+      [:: aword ws ]
       [:: E 0 ]
       (@se_protect_mmx_sem ws)
       (ws == reg_size)
   else if (ws <= Uptr)%CMP then
     mk_instr_desc_safe (pp_sz SLHprotect_str ws)
-                  [:: sword ws; sword ws]
+                  [:: aword ws; aword ws]
                   [:: E 0; E 1]
-                  [:: sbool; sbool; sbool; sbool; sbool; sword ws]
+                  [:: abool; abool; abool; abool; abool; aword ws]
                   out
                   (@se_protect_small_sem ws)
                   true
   else
     mk_instr_desc_safe (pp_sz SLHprotect_str ws)
-                  [:: sword ws; ty_msf]
+                  [:: aword ws; ty_msf]
                   [:: E 0; E 1]
-                  [:: sword ws; sword ws]
+                  [:: aword ws; aword ws]
                   [:: E 2; E 0]
                   (@se_protect_large_sem ws)
                   (Uptr < ws)%CMP.
@@ -239,7 +239,7 @@ Definition assemble_slh_update
   if (les, res) is ([:: LLvar aux; ms0 ], [:: Rexpr b; msf ])
   then
     Let _ := assert (~~(Sv.mem aux (free_vars b) || Sv.mem aux (free_vars_r msf)) &&
-                     (vtype aux == sword U64))
+                      convertible (vtype aux) (aword U64))
                     (E.se_update_arguments ii) in
     let res' := [:: Rexpr (Fapp1 Onot b); Rexpr (Fvar aux); msf ] in
     ok

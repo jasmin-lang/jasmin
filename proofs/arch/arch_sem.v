@@ -205,12 +205,12 @@ Definition decode_addr (s:asmmem) (a:address) : pointer :=
 
 (* -------------------------------------------------------------------- *)
 
-Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec value :=
+Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: ltype) : exec value :=
   match a with
   | Condt c   => Let b := eval_cond_mem s c in ok (Vbool b)
   | Imm sz' w =>
     match ty with
-    | sword sz => ok (Vword (sign_extend sz w))  (* FIXME should we use sign of zero *)
+    | lword sz => ok (Vword (sign_extend sz w))  (* FIXME should we use sign of zero *)
     | _        => type_error
     end
   | Reg r     => ok (Vword (s.(asm_reg) r))
@@ -218,7 +218,7 @@ Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec value :=
   | Addr addr =>
     let a := decode_addr s addr in
     match ty with
-    | sword sz =>
+    | lword sz =>
       match k with
       | AK_compute => ok (Vword (zero_extend sz a))
       | AK_mem al =>
@@ -230,7 +230,7 @@ Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec value :=
   | XReg x     => ok (Vword (s.(asm_xreg) x))
   end.
 
-Definition eval_arg_in_v (s:asmmem) (args:asm_args) (a:arg_desc) (ty:stype) : exec value :=
+Definition eval_arg_in_v (s:asmmem) (args:asm_args) (a:arg_desc) (ty:ltype) : exec value :=
   match a with
   | ADImplicit (IAreg r)   => ok (Vword (s.(asm_reg) r))
   | ADImplicit (IArflag f) => Let b := st_get_rflag s f in ok (Vbool b)
@@ -243,7 +243,7 @@ Definition eval_arg_in_v (s:asmmem) (args:asm_args) (a:arg_desc) (ty:stype) : ex
     end
   end.
 
-Definition eval_args_in (s:asmmem) (args:asm_args) (ain : seq arg_desc) (tin : seq stype) :=
+Definition eval_args_in (s:asmmem) (args:asm_args) (ain : seq arg_desc) (tin : seq ltype) :=
   mapM2 ErrType (eval_arg_in_v s args) ain tin.
 
 Definition eval_instr_op idesc args (s:asmmem) :=
@@ -356,32 +356,29 @@ Definition mem_write_bool(s:asmmem) (args:asm_args) (ad:arg_desc) (b:option bool
   | _ => type_error
   end.
 
-Definition mem_write_ty (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) (ty:stype) : sem_ot ty -> exec asmmem :=
-  match ty return sem_ot ty -> exec asmmem with
-  | sword sz => @mem_write_word f s args ad sz
-  | sbool    => mem_write_bool s args ad
-  | sint     => fun _ => type_error
-  | sarr _   => fun _ => type_error
+Definition mem_write_ty (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) (ty:ltype) : sem_olt ty -> exec asmmem :=
+  match ty return sem_olt ty -> exec asmmem with
+  | lword sz => @mem_write_word f s args ad sz
+  | lbool    => mem_write_bool s args ad
   end.
 
-Definition oof_val (ty: stype) (v:value) : exec (sem_ot ty) :=
-  match ty return exec (sem_ot ty) with
-  | sbool =>
+Definition oof_val (ty: ltype) (v:value) : exec (sem_olt ty) :=
+  match ty return exec (sem_olt ty) with
+  | lbool =>
     match v with
     | Vbool b => ok (Some b)
-    | Vundef sbool _ => ok None
+    | Vundef cbool _ => ok None
     | _ => type_error
     end
-  | sword ws => to_word ws v
-  | _ => type_error
+  | lword ws => to_word ws v
   end.
 
-Definition mem_write_val (f:msb_flag) (args:asm_args) (aty: arg_desc * stype) (v:value) (s:asmmem) : exec asmmem :=
+Definition mem_write_val (f:msb_flag) (args:asm_args) (aty: arg_desc * ltype) (v:value) (s:asmmem) : exec asmmem :=
   Let v := oof_val aty.2 v in
   mem_write_ty f s args aty.1 v.
 
 Definition mem_write_vals 
-  (f:msb_flag) (s:asmmem) (args:asm_args) (a: seq arg_desc) (ty: seq stype) (vs:values) :=
+  (f:msb_flag) (s:asmmem) (args:asm_args) (a: seq arg_desc) (ty: seq ltype) (vs:values) :=
   fold2 ErrType (mem_write_val f args) (zip a ty) vs s.
 
 Definition exec_instr_op idesc args (s:asmmem) : exec asmmem :=
@@ -435,7 +432,7 @@ Definition eval_instr (i : asm_i_r) (s: asm_state) : exec asm_state :=
     else type_error
   | JMP lbl   => eval_JMP p lbl s
   | JMPI d =>
-    Let v := eval_asm_arg (AK_mem Aligned) s d (sword Uptr) >>= to_pointer in
+    Let v := eval_asm_arg (AK_mem Aligned) s d (lword Uptr) >>= to_pointer in
     if decode_label labels v is Some lbl then
       eval_JMP p lbl s
     else type_error

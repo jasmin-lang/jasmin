@@ -54,7 +54,7 @@ Context
   {eparams : EstateParams syscall_state}
   {spparams : SemPexprParams}
   {siparams : SemInstrParams asm_op syscall_state}
-  (fresh_id : instr_info → int → string → stype → Ident.ident).
+  (fresh_id : instr_info → int → string → atype → Ident.ident).
 
   #[local] Existing Instance indirect_c.
 
@@ -67,7 +67,7 @@ Context
   Qed.
 
   Section MakeEpilogueInd.
-  Variable P : int → seq (bool * string * stype) -> lvals -> seq pseudo_instr -> Prop.
+  Variable P : int → seq (bool * string * atype) -> lvals -> seq pseudo_instr -> Prop.
   Variable (ii : instr_info) (X:Sv.t).
 
   Hypothesis P0 : ∀ ctr, P ctr [::] [::] [::].
@@ -153,7 +153,7 @@ Context
 
   Lemma make_pseudo_codeP ii X ctr xtys lvs pis s1 s2 vm1 vs vst:
     make_pseudo_epilogue fresh_id ii X ctr xtys lvs = ok pis ->
-    mapM2 ErrType dc_truncate_val (map snd xtys) vs = ok vst ->
+    mapM2 ErrType dc_truncate_val (map eval_atype (map snd xtys)) vs = ok vst ->
     Sv.Subset (Sv.union (read_rvs lvs) (vrvs lvs)) X ->
     write_lvals true (p_globs p) s1 lvs vst = ok s2 ->
     evm s1 =[X] vm1 ->
@@ -308,19 +308,22 @@ Context
     move=> /Sv_memP hnin [c args'] hmk [<- <-]{_pl _args'}.
     pose vm1' := vm1.[y <- va]; rewrite esem_cons /=.
     have [-> /= htva hdef] : [/\ sem_assgn p' y AT_rename ty a (with_vm s vm1) = ok (with_vm s vm1'),
-                            vtype y = type_of_val va & is_defined va].
+                                 eval_atype (vtype y) = type_of_val va & is_defined va].
     + rewrite /sem_assgn -(eq_on_sem_pexpr _ _ (s:= s)) //=; last first.
       + by apply: eq_onI heqvm.
       rewrite -(make_referenceprog_globs Hp) hva /=.
-      have [-> /= hty hdb hdef] : [/\ truncate_val ty va = ok va, vtype y = type_of_val va, DB true va & is_defined va].
+      have [-> /= hty hdb hdef] : [/\
+        truncate_val (eval_atype ty) va = ok va,
+        eval_atype (vtype y) = type_of_val va,
+        DB true va & is_defined va].
       + move=> {haX hX}; case: a E hva => //=.
-        + move=> xe; case: ifP => // /and4P=> -[ _ /is_sarrP [len hlen] /eqP -> _] [<-] hget /=.
-          have : type_of_val va = sarr len.
-          + by rewrite (type_of_get_gvar_not_word _ hget) // hlen.
-          by move=> /type_of_valI [t ->]; rewrite hlen /truncate_val /= WArray.castK.
-        move=> a ws len xe e; case: ifP => // /andP [_ /eqP ->] [<-] /=.
+        + move=> xe; case: ifP => // /and4P=> -[ _ /is_aarrP [ws [len hlen]] hc _] [<-] hget /=.
+          have : type_of_val va = carr (Z.to_pos (arr_size ws len)).
+          + by rewrite (type_of_get_gvar_not_word _ hget) hlen.
+          by move=> /type_of_valI [t ->]; rewrite (convertible_eval_atype hc) hlen /truncate_val /= WArray.castK.
+        move=> a ws len xe e; case: ifP => // /andP [_ hc] [<-] /=.
         apply on_arr_gvarP; t_xrbindP => ?? _ _ ?? _ _ ? _ <-.
-        by rewrite /truncate_val /= WArray.castK.
+        by rewrite (convertible_eval_atype hc) /truncate_val /= WArray.castK.
       by rewrite write_var_eq_type.
     have [||vm2 [h1 h2 h3]]:= ih _ _ _ _ _ hmk _ hasX _ vm1' hvargs.
     + by SvD.fsetdec.
@@ -336,7 +339,7 @@ Context
     make_epilogue fresh_id ii X xfty lv = ok (lv', ep) ->
     Sv.Subset (Sv.union (read_rvs lv) (vrvs lv)) X ->
     write_lvals true (p_globs p) s1 lv vs = ok s2 ->
-    mapM2 ErrType truncate_val (map snd xfty) vres = ok vs ->
+    mapM2 ErrType truncate_val (map eval_atype (map snd xfty)) vres = ok vs ->
     evm s1 =[X] vm1 ->
     exists vm2 s2', [/\
       write_lvals true (p_globs p') (with_vm s1 vm1) lv' vs = ok s2',
@@ -355,9 +358,9 @@ Context
 
   Lemma exec_syscall_truncate scs m o ves scs' m' vs:
     exec_syscall (pT := progUnit) scs m o ves = ok (scs', m', vs) ->
-    mapM2 ErrType truncate_val [seq i.2 | i <- (get_syscall_sig o).2] vs = ok vs.
+    mapM2 ErrType truncate_val (map eval_atype [seq i.2 | i <- (get_syscall_sig o).2]) vs = ok vs.
   Proof.
-    case: o => len /=; t_xrbindP; rewrite /exec_getrandom_u => -[scs1 vs1] hex _ _ <- /=.
+    case: o => ws len /=; t_xrbindP; rewrite /exec_getrandom_u => -[scs1 vs1] hex _ _ <- /=.
     case: ves hex => // v [] //=; t_xrbindP => t ht t' hfill ??; subst scs1 vs1.
     by rewrite /truncate_val /= WArray.castK.
   Qed.
@@ -372,7 +375,7 @@ Context
     move=> He /=.
     case hop: is_swap_op => [ ty | ].
     {
-      case: o He hop => // - [] // [] // len He /Some_inj <-{ty}.
+      case: o He hop => // - [] // [] // ws len He /Some_inj <-{ty}.
       t_xrbindP => - [] prologue es' ok_prologue.
       t_xrbindP => - [] epilogue xs' ok_epilogue.
       move => /ok_inj <- {c'}.
@@ -462,7 +465,7 @@ Context
      [/\ get_fundef (p_funcs p) fn = Some fd,
          sem_call p' ev scs m fn vargs scs' m' vres,
          map snd (map2 mk_info (f_res fd) (f_tyout fd)) = f_tyout fd &
-         mapM2 ErrType truncate_val (f_tyout fd) vres' = ok vres].
+         mapM2 ErrType truncate_val (map eval_atype (f_tyout fd)) vres' = ok vres].
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof.
@@ -635,7 +638,7 @@ Context
     move=> sc1 m1 sc2 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hf Hvargs.
     move=> Hs0 Hs1 Hsem_s2 Hs2 Hvres Hvres' Hscs2 Hm2; exists f, vres.
     split => //; first last.
-    + have [h _] := size_mapM2 Hvres'. rewrite -(size_mapM Hvres) in h.
+    + have [h _] := size_mapM2 Hvres'. rewrite -(size_mapM Hvres) size_map in h.
       by rewrite map2E -map_comp -{2}(unzip2_zip (eq_leq h)); apply map_ext.
     rewrite eq_extra in Hs0.
     move : Hp; rewrite /makereference_prog; t_xrbindP => y Hmap ?.
@@ -697,7 +700,7 @@ Context
     rpreF_ := fun fn1 fn2 fs1 fs2 => fn1 = fn2 /\ fs1 = fs2;
     rpostF_ := fun fn1 _ fs1 _ fr1 fr2 => fr1 = fr2 /\
         exists2 fd, get_fundef (p_funcs p) fn1 = Some fd &
-        (exists vres,  mapM2 ErrType truncate_val (map snd (map2 mk_info (f_res fd) (f_tyout fd))) vres =
+        (exists vres,  mapM2 ErrType truncate_val (map eval_atype (map snd (map2 mk_info (f_res fd) (f_tyout fd)))) vres =
            ok (fvals fr1))
    |}.
 
@@ -742,7 +745,7 @@ Context
       eexists; split; eauto.
       exists fd => //. exists vres.
       have -> // : [seq i.2 | i <- map2 mk_info (f_res fd) (f_tyout fd)] = f_tyout fd.
-      have [h _] := size_mapM2 hvres. rewrite -(size_mapM hres) in h.
+      have [h _] := size_mapM2 hvres. rewrite -(size_mapM hres) size_map in h.
       by rewrite map2E -map_comp -{2}(unzip2_zip (eq_leq h)); apply map_ext.
     rewrite /=.
     have : Sv.Subset (Sv.union (read_c (f_body fd)) (write_c (f_body fd))) X.

@@ -43,10 +43,10 @@ Definition find_label (lbl : label) (c : seq linstr) :=
 Record lfundef := LFundef {
  lfd_info : fun_info;
  lfd_align : wsize;
- lfd_tyin : seq stype;
+ lfd_tyin : seq ltype;
  lfd_arg  : seq var_i;
  lfd_body : lcmd;
- lfd_tyout : seq stype;
+ lfd_tyout : seq ltype;
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
  lfd_export: bool;
  lfd_callee_saved: seq var; (* A list of variables that must be initialized before calling this function *)
@@ -63,7 +63,7 @@ Definition lfd_total_stack lfd :=
     lfd.(lfd_stk_max).
 
 Definition signature_of_lfundef (lfd: lfundef) : function_signature :=
-  (lfd_tyin lfd, lfd_tyout lfd).
+  (map atype_of_ltype (lfd_tyin lfd), map atype_of_ltype (lfd_tyout lfd)).
 
 Record lprog :=
  {  lp_rip   : Ident.ident;

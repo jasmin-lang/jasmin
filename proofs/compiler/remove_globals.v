@@ -52,7 +52,7 @@ Section REMOVE.
 
   Definition find_glob ii (xi:var_i) (gd:glob_decls) (ws:wsize) (w:word ws) :=
     let test (gv:glob_decl) := 
-      if (sword ws == vtype gv.1) && (check_data gv.2 w) then Some gv.1
+      if convertible (aword ws) (vtype gv.1) && (check_data gv.2 w) then Some gv.1
       else None in 
     match find_map test gd with
     | None => Error (rm_glob_error ii xi)
@@ -61,7 +61,7 @@ Section REMOVE.
 
   Definition add_glob ii (x:var) (gd:glob_decls) (ws:wsize) (w:word ws) :=
     let test (gv:glob_decl) := 
-       (sword ws == vtype gv.1) && (check_data gv.2 w) in
+       convertible (aword ws) (vtype gv.1) && (check_data gv.2 w) in
     if has test gd then ok gd 
     else
       let gx := {| vtype := vtype x; vname := fresh_id gd x |} in
@@ -116,7 +116,7 @@ Section REMOVE.
     Fixpoint remove_glob_e ii (env:venv) (e:pexpr) :=
       match e with
       | Pconst _ | Pbool _ => ok e
-      | Parr_init _ => ok e
+      | Parr_init _ _ => ok e
       | Pvar xi =>
         Let xi := get_var_ ii env xi in
         ok (Pvar xi)
@@ -247,7 +247,7 @@ Section REMOVE.
             if is_glob_var x then
               match e with
               | Papp1 (Oword_of_int ws) (Pconst z) =>
-                if (ty == sword ws) && (vtype x == sword ws) then
+                if convertible ty (aword ws) && convertible (vtype x) (aword ws) then
                   Let g := find_glob ii xi gd (wrepr ws z) in
                   ok (Mvar.set env x g, [::])
                 else Error (rm_glob_error ii xi)

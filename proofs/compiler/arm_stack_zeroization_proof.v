@@ -190,7 +190,7 @@ Proof.
     rewrite -2!cat_rcons in hbody'.
     apply: (eval_lsem1 hbody') => //=; first by rewrite !size_rcons.
     apply: ARMFopnP.align_eval_instr.
-    rewrite /= get_var_neq //; last by move=> /(@inj_to_var _ _ _ _ _ _).
+    rewrite /= get_var_neq; last by move=> /esym /(@inj_to_var _ _ _ _ _ _).
     by rewrite get_var_eq.
 
   + rewrite /lnext_pc /=.
@@ -208,19 +208,19 @@ Proof.
     rewrite get_var_neq;
       last by move=> h; apply /rsp_nin /sv_of_listP;
       rewrite !in_cons /= -h eqxx /= ?orbT.
-    rewrite get_var_neq; last by move=> /(@inj_to_var _ _ _ _ _ _).
+    rewrite get_var_neq; last by move=> /esym /(@inj_to_var _ _ _ _ _ _).
     by rewrite get_var_eq.
 
   rewrite /lnext_pc /=.
   rewrite -5!cat_rcons in hbody'.
   apply: (eval_lsem1 hbody') => //=; first by rewrite !size_rcons.
-  rewrite ARMFopnP.movi_eval_instr; last by left.
+  rewrite ARMFopnP.movi_eval_instr //; last by left.
   by rewrite /lnext_pc /= -addn4 !addSnnS.
 
   split=> /=.
   + do 4 (rewrite Vm.setP_neq;
       last by [
-        apply /eqP => /(@inj_to_var _ _ _ _ _ _) |
+        apply /eqP => /esym /(@inj_to_var _ _ _ _ _ _) |
         apply /eqP => h; apply /rsp_nin /sv_of_listP;
           rewrite !in_cons /= -h eqxx /= ?orbT]).
     by rewrite Vm.setP_eq.
@@ -238,11 +238,11 @@ Proof.
     done.
   + do 4 (rewrite Vm.setP_neq;
       last by [
-        apply /eqP => /(@inj_to_var _ _ _ _ _ _) |
+        apply /eqP => /esym /(@inj_to_var _ _ _ _ _ _) |
         apply /eqP => h; apply /rsp_nin /sv_of_listP;
           rewrite !in_cons /= -h eqxx /= ?orbT]).
     rewrite Vm.setP_neq; first by rewrite Vm.setP_eq.
-    by apply/eqP => /(@inj_to_var _ _ _ _ _ _).
+    by apply/eqP => /esym /(@inj_to_var _ _ _ _ _ _).
   + rewrite Vm.setP_neq;
       last by apply /eqP => h; apply /rsp_nin /sv_of_listP;
       rewrite !in_cons /= -h eqxx /= ?orbT.

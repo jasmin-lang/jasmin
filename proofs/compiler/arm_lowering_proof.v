@@ -235,10 +235,10 @@ Proof.
         (reg_size ≤ ws1)%CMP,
         v0 = Vword w0,
         v1 = Vword w1,
-        forall eq : type_of_op2 op = (sword reg_size, sword reg_size, sbool),
+        forall eq : type_of_op2 op = (aword reg_size, aword reg_size, abool),
           ecast t (let t := t in _) eq (sem_sop2_typed op) (zero_extend reg_size w0) (zero_extend reg_size w1) = ok b &
         v = Vbool b].
-  + have hty: type_of_op2 op = (sword reg_size, sword reg_size, sbool).
+  + have hty: type_of_op2 op = (aword reg_size, aword reg_size, abool).
     + by case: (op) hcf => // -[] //= > [_ ->].
     move: hsemop; rewrite /sem_sop2.
     move: (sem_sop2_typed op); rewrite -> hty.
@@ -246,7 +246,7 @@ Proof.
       _ /to_wordI' [ws1 [w1 [hcmp1 -> ->]]] b ok_b <-.
     exists ws0, ws1, w0, w1, b; split=> //.
     move=> eq.
-    have eq_dec := pair_eq_dec (pair_eq_dec stype_eqb_OK_sumbool stype_eqb_OK_sumbool) stype_eqb_OK_sumbool.
+    have eq_dec := pair_eq_dec (pair_eq_dec atype_eqb_OK_sumbool atype_eqb_OK_sumbool) atype_eqb_OK_sumbool.
     by rewrite (Eqdep_dec.UIP_dec eq_dec eq erefl).
   move=> /= [ws0 [ws1 [w0 [w1 [b [hcmp0 hcmp1 ?? {}hsemop ->]]]]]]; subst v0 v1.
 
@@ -413,14 +413,14 @@ Proof.
   apply: obindP => sh' /oassertP [] /eqP ? hsh /oassertP [hchk [???]];
     subst ws e' sh' n.
 
-  (* whatever [op] is, the type is the same: (sword32, sword8, sword32) *)
+  (* whatever [op] is, the type is the same: (aword32, aword8, aword32) *)
   have: exists ws1 (wbase : word ws1) w,
     [/\ (reg_size ≤ ws1)%CMP,
         vbase = Vword wbase,
-        forall eq : type_of_op2 op = (sword reg_size, sword8, sword reg_size),
+        forall eq : type_of_op2 op = (aword reg_size, aword U8, aword reg_size),
           ecast t (let t := t in _) eq (sem_sop2_typed op) (zero_extend reg_size wbase) (wrepr U8 z) = ok w &
         v = Vword w].
-  + have hty: type_of_op2 op = (sword32, sword8, sword32).
+  + have hty: type_of_op2 op = (aword U32, aword U8, aword U32).
     + by case: (op) hsh => // => [[]|[|[]]|[|[]]|[]] //.
     move: hsemop; rewrite /sem_sop2.
     move: (sem_sop2_typed op); rewrite -> hty.
@@ -428,7 +428,7 @@ Proof.
     t_xrbindP=> sem _ /to_wordI' [ws1 [wbase [hcmp -> ->]]] _ <- w ok_w <-.
     exists ws1, wbase, w; split=> //.
     move=> eq.
-    have eq_dec := pair_eq_dec (pair_eq_dec stype_eqb_OK_sumbool stype_eqb_OK_sumbool) stype_eqb_OK_sumbool.
+    have eq_dec := pair_eq_dec (pair_eq_dec atype_eqb_OK_sumbool atype_eqb_OK_sumbool) atype_eqb_OK_sumbool.
     by rewrite (Eqdep_dec.UIP_dec eq_dec eq erefl).
   move=> /= [ws1 [wbase [w [hcmp ? {}hsemop ->]]]]; subst vbase.
   exists ws1, wbase, (wrepr U8 z); split=> //=.
@@ -482,7 +482,7 @@ Definition inv_lower_pexpr_aux
           ~~ set_flags opts && ~~ is_conditional opts
       | _ => true
       end
-    & sopn_tout op = [:: sword ws ]
+    & sopn_tout op = [:: aword ws ]
   ].
 
 (* We prove the following for each case of [lower_pexpr_aux]. *)
@@ -949,7 +949,7 @@ Proof.
     8: rewrite /sem_ror /sem_shift wror0.
     10, 11: have! := (is_wconstP true (p_globs p) s hconst); rewrite hseme1 => /truncate_wordP[] _.
     10: move => <-; rewrite /sem_rol /sem_shift wrol0.
-    all: rewrite /sopn_sem_ /= !zero_extend_u //.
+    all: rewrite /sopn_sem_ /= /semi_to_atype /= !zero_extend_u //.
     all: rewrite /arm_LSR_semi /arm_LSL_semi /arm_ASR_semi /arm_ROR_semi /arm_shift_semi.
     all: rewrite /arch_utils.semi_drop3 /=.
     1-4: by case: ifP => //=.
@@ -1228,10 +1228,10 @@ Proof.
 
     (* Subcase: condition is true. *)
     + subst vw0.
-      move: hw0 => /truncate_valI [ws0 [w0 [? /truncate_wordP [hws0 ?] ?]]];
-        subst ty w v0.
+      move: hw0 => /truncate_valI [ws0 [w0 [hty /truncate_wordP [hws0 ?] ?]]];
+        subst w v0.
       move: hw1.
-      rewrite /truncate_val /=.
+      rewrite hty /truncate_val /=.
       t_xrbindP.
       move=> w1 /to_wordI [ws1 [w1' [? /truncate_wordP [hws1 ?]]]] ?;
         subst v1 w1 vw1.
@@ -1239,10 +1239,10 @@ Proof.
 
     (* Subcase: condition is false. *)
     + subst vw1.
-      move: hw1 => /truncate_valI [ws1 [w1 [? /truncate_wordP [hws1 ?] ?]]];
-        subst ty w v1.
+      move: hw1 => /truncate_valI [ws1 [w1 [hty /truncate_wordP [hws1 ?] ?]]];
+        subst w v1.
       move: hw0.
-      rewrite /truncate_val /=.
+      rewrite hty /truncate_val /=.
       t_xrbindP.
       move=> w0 /to_wordI [ws0 [w0' [? /truncate_wordP [hws0 ?]]]] ?;
         subst v0 w0 vw0.
@@ -1250,7 +1250,7 @@ Proof.
 
   all: case: ws hws hwrite hmn => // hws hwrite [?]; subst mn.
   all: rewrite /exec_sopn /=.
-  all: rewrite /sopn_sem /sopn_sem_ /=.
+  all: rewrite /sopn_sem /sopn_sem_ /= /semi_to_atype /=.
   all: rewrite ?truncate_word_le //.
 
   1-3: rewrite /= zero_extend_u.
@@ -1269,12 +1269,12 @@ Qed.
 Lemma lower_cassgn_wordP ii s0 lv tag ws e v v' s0' s1' pre lvs op es :
   lower_cassgn_word fv lv ws e = Some (pre, (lvs, op, es))
   -> sem_pexpr true (p_globs p) s0 e = ok v
-  -> truncate_val (sword ws) v = ok v'
+  -> truncate_val (cword ws) v = ok v'
   -> write_lval true (p_globs p) lv v' s0' = ok s1'
   -> eq_fv s0 s0'
   -> disj_fvars (read_e e)
   -> disj_fvars (vars_lval lv)
-  -> esem_i p' ev (MkI ii (Cassgn lv tag (sword ws) e)) s0' = ok s1'
+  -> esem_i p' ev (MkI ii (Cassgn lv tag (aword ws) e)) s0' = ok s1'
   -> exists2 s2',
        esem p' ev (map (MkI ii) (pre ++ [:: Copn lvs tag op es ])) s0' = ok s2'
        & eq_fv s1' s2'.
@@ -1310,12 +1310,12 @@ Qed.
 Lemma lower_cassgn_boolP ii s0 lv tag e v v' s0' s1' irs :
   lower_cassgn_bool fv lv tag e = Some irs
   -> sem_pexpr true (p_globs p) s0 e = ok v
-  -> truncate_val sbool v = ok v'
+  -> truncate_val cbool v = ok v'
   -> write_lval true (p_globs p) lv v' s0' = ok s1'
   -> eq_fv s0 s0'
   -> disj_fvars (read_e e)
   -> disj_fvars (vars_lval lv)
-  -> esem_i p' ev (MkI ii (Cassgn lv tag sbool e)) s0' = ok s1'
+  -> esem_i p' ev (MkI ii (Cassgn lv tag abool e)) s0' = ok s1'
   -> exists2 s2',
        esem p' ev (map (MkI ii) irs) s0' = ok s2'
        & eq_fv s1' s2'.
@@ -1521,7 +1521,7 @@ Proof.
   - move=> ?; exact: lower_muluP.
   - move=> ? hsemi hlow; exists (evm s1) => //.
     rewrite with_vm_same; apply: lower_add_carryP hsemi hlow.
-  - move=> len hfve h [<- <- <-].
+  - move=> ws len hfve h [<- <- <-].
     by exists (evm s1) => //; rewrite with_vm_same.
   - move=> w hfve hsem /=; case: ifP => // hcmp [<- <- <-].
     by exists (evm s1) => //; rewrite with_vm_same.

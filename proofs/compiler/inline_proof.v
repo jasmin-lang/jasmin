@@ -203,7 +203,7 @@ Lemma assgn_tuple_Lvar (p:uprog) (ev:unit) ii (xs:seq var_i) flag tys es vs vs' 
   let xs := map Lvar xs in
   disjoint (vrvs xs) (read_es es) ->
   sem_pexprs true (p_globs p) s es = ok vs ->
-  mapM2 ErrType dc_truncate_val tys vs = ok vs' ->
+  mapM2 ErrType dc_truncate_val (map eval_atype tys) vs = ok vs' ->
   write_lvals true (p_globs p) s xs vs' = ok s' ->
   esem p ev (assgn_tuple ii xs flag tys es) s = ok s'.
 Proof.
@@ -225,7 +225,7 @@ Lemma assgn_tuple_Pvar (p:uprog) ev ii xs flag tys rxs vs vs' s s' :
   let es := map Plvar rxs in
   disjoint (vrvs xs) (read_es es) ->
   get_var_is true (evm s) rxs = ok vs ->
-  mapM2 ErrType dc_truncate_val tys vs = ok vs' ->
+  mapM2 ErrType dc_truncate_val (map eval_atype tys) vs = ok vs' ->
   write_lvals true (p_globs p) s xs vs' = ok s' ->
   esem p ev (assgn_tuple ii xs flag tys es) s = ok s'.
 Proof.
@@ -592,6 +592,30 @@ Qed.
 
 Section IT.
 
+Section AUX.
+
+(* Technical lemma: we don't have equality of the type signatures anymore,
+   they are only convertible. We still manage to prove some equality, so luckily
+   we don't have to mess with itrees.
+   The lemma is put inside a different section, because we want to pick generic
+   instances of the typeclasses involved. *)
+
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0} {sem_F : sem_Fun (pT:=progUnit) E}.
+
+Lemma convertible_assgn_tuple tys1 tys2 :
+  all2 convertible tys1 tys2 ->
+  forall (p:uprog) ev ii rs tg es,
+  isem_cmd_ p ev (assgn_tuple ii rs tg tys1 es) =
+  isem_cmd_ p ev (assgn_tuple ii rs tg tys2 es).
+Proof.
+  elim: tys1 tys2 => [|ty1 tys1 ih1] [|ty2 tys2] //= /andP [hc1 hc2].
+  move=> p ev ii [|r rs] tg [|e es] //=.
+  rewrite (ih1 _ hc2).
+  by rewrite /sem_assgn (convertible_eval_atype hc1).
+Qed.
+
+End AUX.
+
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
 Section FD.
@@ -763,7 +787,7 @@ Proof.
   move: hinit; rewrite /initialize_funcall /=; t_xrbindP => vs' htr hws.
   rewrite isem_cmd_cat.
   move: hrename; rewrite /= /check_f_extra_u; t_xrbindP.
-  move=> /and3P [] _ /eqP htyin /eqP htyout r1 hextra hparams r2 hc r3 hres _.
+  move=> /and3P [] _ htyin htyout r1 hextra hparams r2 hc r3 hres _.
   have /(_ X1 es es X1 _ _ _ _ hpre hes) [|] := checker_st_uincl_onP_.(ucheck_esP) wdb_ok_true.
   + by subst X1; split => //; rewrite !read_writeE; clear; SvD.fsetdec.
   move=> vst hes' huvs.
@@ -780,7 +804,7 @@ Proof.
     move/disjointP: hdisj => /(_ z).
     rewrite /locals_p !read_writeE vrvs_recE; move: hz; clear; SvD.fsetdec.
   have /(esem_i_bodyP (sem_F := sem_fun_rec E)) h := assgn_tuple_Lvar ev (ii_with_location ii) AT_rename hdisje hes' htr' hws'.
-  rewrite -htyin h.
+  rewrite -(convertible_assgn_tuple htyin) h.
   clear h => /=.
   rewrite ITree.Eq.Eqit.bind_ret_l isem_cmd_cat.
   have := [elaborate it_alloc_cP (p1:=p1) (p2:=p2) erefl hrec hc].
@@ -825,7 +849,7 @@ Proof.
     by move: hz; clear; SvD.fsetdec.
   have := assgn_tuple_Pvar _ (ii_with_location ii) AT_rename hdisjr hget' htr'.
   rewrite -heqt' => /(_ p2 ev t1' hws1) /(esem_i_bodyP (sem_F := sem_fun_rec E)).
-  rewrite htyout => -> /=.
+  rewrite (convertible_assgn_tuple htyout) => -> /=.
   apply xrutt.xrutt_Ret.
   by apply: st_rel_weaken hpost; subst X1 => ??; apply: uincl_onI; SvD.fsetdec.
 Qed.

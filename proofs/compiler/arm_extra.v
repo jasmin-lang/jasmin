@@ -39,43 +39,44 @@ Local Notation E n := (sopn.ADExplicit n sopn.ACR_any).
 (* [conflicts] ensures that the returned register is distinct from the first
    argument. *)
 Definition Oarm_add_large_imm_instr : instruction_desc :=
-  let ty := sword arm_reg_size in
-  let tin := [:: ty; ty] in
+  let ty := aword arm_reg_size in
+  let cty := eval_atype ty in
+  let ctin := [:: cty; cty] in
   let semi := fun (x y : word arm_reg_size) => (x + y)%R in
   {| str    := (fun _ => "add_large_imm"%string)
-   ; tin    := tin
+   ; tin    := [:: ty; ty]
    ; i_in   := [:: E 1; E 2]
    ; tout   := [:: ty]
    ; i_out  := [:: E 0]
    ; conflicts := [:: (APout 0, APin 0)]
-   ; semi   := sem_prod_ok tin semi
-   ; semu   := @values.vuincl_app_sopn_v [:: ty; ty] [:: ty] (sem_prod_ok tin semi) refl_equal
+   ; semi   := sem_prod_ok ctin semi
+   ; semu   := @values.vuincl_app_sopn_v ctin [:: cty] (sem_prod_ok ctin semi) refl_equal
    ; i_safe := [::]
    ; i_valid := true
    ; i_safe_wf := refl_equal
-   ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=tin) semi _
-   ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=tin) semi
+   ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=ctin) semi _
+   ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=ctin) semi
  |}.
 
 Definition smart_li_instr (ws : wsize) : instruction_desc :=
   mk_instr_desc_safe
     (pp_sz "smart_li" ws)
-    [:: sword ws ] [:: E 0 ]
-    [:: sword ws ] [:: E 1 ]
+    [:: aword ws ] [:: E 0 ]
+    [:: aword ws ] [:: E 1 ]
     (fun x => x)
     true.
 
 Definition smart_li_instr_cc (ws : wsize) : instruction_desc :=
   mk_instr_desc_safe
     (pp_sz "smart_li_cc" ws)
-    [:: sword ws; sbool; sword ws ] [:: E 0; E 2; E 1 ]
-    [:: sword ws ] [:: E 1 ]
+    [:: aword ws; abool; aword ws ] [:: E 0; E 2; E 1 ]
+    [:: aword ws ] [:: E 1 ]
     (fun x b y => if b then x else y)
     true.
 
 Definition get_instr_desc (o: arm_extra_op) : instruction_desc :=
   match o with
-  | Oarm_swap sz => Oswap_instr (sword sz)
+  | Oarm_swap sz => Oswap_instr (aword sz)
   | Oarm_add_large_imm => Oarm_add_large_imm_instr
   | Osmart_li ws => smart_li_instr ws
   | Osmart_li_cc ws => smart_li_instr_cc ws
@@ -161,7 +162,7 @@ Definition smart_li_args ii ws les res :=
   in
   Let: (x, les) := uncons_LLvar ii les in
   Let _ :=
-    assert (vtype (v_var x) == sword ws) (E.internal_error ii "invalid type")
+    assert (convertible (vtype (v_var x)) (aword ws)) (E.internal_error ii "invalid type")
   in
   Let _ := assert (nilp les) (E.internal_error ii "invalid lvals") in
   Let: (imm, res) := uncons_wconst ii res in
@@ -201,7 +202,7 @@ Definition assemble_extra
           (E.internal_error ii "bad arm swap : x = w") in
         Let _ := assert (v_var y != v_var x)
           (E.internal_error ii "bad arm swap : y = x") in
-        Let _ := assert (all (fun (x:var_i) => vtype x == sword U32) [:: x; y; z; w])
+        Let _ := assert (all (fun (x:var_i) => convertible (vtype x) (aword U32)) [:: x; y; z; w])
           (E.error ii "arm swap only valid for register of type u32") in
 
         ok [:: ((None, ARM_op EOR default_opts), [:: LLvar x], [:: Rexpr (Fvar z); Rexpr (Fvar w)]);
@@ -219,7 +220,7 @@ Definition assemble_extra
     | [:: LLvar x], [:: Rexpr (Fvar y); Rexpr (Fapp1 (Oword_of_int ws) (Fconst imm))] =>
       Let _ := assert (v_var x != v_var y)
          (E.internal_error ii "bad arm_add_large_imm: invalid register") in
-      Let _ := assert (all (fun (x:var_i) => vtype x == sword U32) [:: x; y])
+      Let _ := assert (all (fun (x:var_i) => convertible (vtype x) (aword U32)) [:: x; y])
           (E.error ii "arm swap only valid for register of type u32") in
       ok (asm_args_of_opn_args (ARMFopn_core.smart_addi x y imm))
     | _, _ =>

@@ -30,7 +30,7 @@ The semantic predicates are indexed by a set of variables which is *precisely* t
 #[local] Existing Instance withsubword.
 
 Definition kill_var (x: var) (vm: Vm.t) : Vm.t :=
-  vm.[x <- undef_addr (vtype x)].
+  vm.[x <- undef_addr (eval_atype (vtype x))].
 
 Notation kill_vars := (Sv.fold kill_var).
 
@@ -38,14 +38,14 @@ Definition vm_after_syscall {ovm_i : one_varmap_info} (vm:Vm.t) :=
   kill_vars syscall_kill vm.
 
 Lemma kill_varE vm y x :
-  (kill_var x vm).[y] = if x == y then undef_addr (vtype y) else vm.[y].
+  (kill_var x vm).[y] = if x == y then undef_addr (eval_atype (vtype y)) else vm.[y].
 Proof.
   rewrite /kill_var Vm.setP; case: eqP => // ?; subst y.
   by rewrite vm_truncate_val_undef.
 Qed.
 
 Lemma kill_varsE vm xs x :
-  (kill_vars xs vm).[x] = if Sv.mem x xs then undef_addr (vtype x) else vm.[x].
+  (kill_vars xs vm).[x] = if Sv.mem x xs then undef_addr (eval_atype (vtype x)) else vm.[x].
 Proof.
   rewrite Sv_elems_eq Sv.fold_spec.
   elim: (Sv.elements xs) vm => // {xs} f xs ih vm /=.
@@ -134,7 +134,7 @@ with sem_I : Sv.t → estate → instr → estate → Prop :=
 with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
 | Eassgn ii s1 s2 (x:lval) tag ty e v v' :
     sem_pexpr true gd s1 e = ok v →
-    truncate_val ty v = ok v' →
+    truncate_val (eval_atype ty) v = ok v' →
     write_lval true gd x v' s1 = ok s2 →
     sem_i ii (vrv x) s1 (Cassgn x tag ty e) s2
 
@@ -258,7 +258,7 @@ Lemma sem_iE ii k s i s' :
   match i with
   | Cassgn x tag ty e =>
     k = vrv x ∧
-    exists2 v', sem_pexpr true gd s e >>= truncate_val ty = ok v' & write_lval true gd x v' s = ok s'
+    exists2 v', sem_pexpr true gd s e >>= truncate_val (eval_atype ty) = ok v' & write_lval true gd x v' s = ok s'
   | Copn xs t o es => k = vrvs xs ∧ sem_sopn gd o s xs es = ok s'
   | Csyscall xs o es => 
     k = Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) /\  
@@ -352,7 +352,7 @@ Section SEM_IND.
   Definition sem_Ind_assgn : Prop :=
     ∀ (ii: instr_info) (s1 s2 : estate) (x : lval) (tag : assgn_tag) ty (e : pexpr) v v',
       sem_pexpr true gd s1 e = ok v →
-      truncate_val ty v = ok v' →
+      truncate_val (eval_atype ty) v = ok v' →
       write_lval true gd x v' s1 = ok s2 →
       Pi_r ii (vrv x) s1 (Cassgn x tag ty e) s2.
 

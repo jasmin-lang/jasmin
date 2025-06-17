@@ -105,7 +105,7 @@ End WSW.
 
 Lemma sem_sop1I y x (f : sop1):
   sem_sop1 f x = ok y →
-  exists (w1 : sem_t (type_of_op1 f).1) (w2 : sem_t (type_of_op1 f).2) ,
+  exists (w1 : sem_t (eval_atype (type_of_op1 f).1)) (w2 : sem_t (eval_atype (type_of_op1 f).2)) ,
     [/\ of_val _ x = ok w1
       , sem_sop1_typed f w1 = ok w2
       & y = to_val w2].
@@ -115,8 +115,8 @@ Qed.
 
 Lemma sem_sop2I v v1 v2 (f : sop2) :
   sem_sop2 f v1 v2 = ok v →
-  ∃ (w1 : sem_t (type_of_op2 f).1.1) (w2 : sem_t (type_of_op2 f).1.2)
-    (w3: sem_t (type_of_op2 f).2),
+  ∃ (w1 : sem_t (eval_atype (type_of_op2 f).1.1)) (w2 : sem_t (eval_atype (type_of_op2 f).1.2))
+    (w3: sem_t (eval_atype (type_of_op2 f).2)),
     [/\ of_val _ v1 = ok w1,
         of_val _ v2 = ok w2,
         sem_sop2_typed f w1 w2 = ok w3 &
@@ -130,7 +130,7 @@ Qed.
 
 Lemma get_globalI gd g v :
   get_global gd g = ok v →
-  exists gv : glob_value, [/\ get_global_value gd g = Some gv, v = gv2val gv & type_of_val v = vtype g].
+  exists gv : glob_value, [/\ get_global_value gd g = Some gv, v = gv2val gv & type_of_val v = eval_atype (vtype g)].
 Proof.
   rewrite /get_global; case: get_global_value => // gv.
   by case:eqP => // <- [<-];exists gv.
@@ -183,14 +183,14 @@ End ESTATE_UTILS.
 (* ** Starting lemmas
  * ------------------------------------------------------------------- *)
 Lemma type_of_get_global gd g v :
-  get_global gd g = ok v -> type_of_val v = vtype g.
+  get_global gd g = ok v -> type_of_val v = eval_atype (vtype g).
 Proof. by move=> /get_globalI [?[]]. Qed.
 
 Lemma get_global_defined gd x v : get_global gd x = ok v -> is_defined v.
 Proof. by move=> /get_globalI [gv [_ -> _]]; case: gv. Qed.
 
 Lemma get_gvar_compat wdb gd vm x v : get_gvar wdb gd vm x = ok v ->
-   (~~wdb || is_defined v) /\ compat_val (vtype x.(gv)) v.
+   (~~wdb || is_defined v) /\ compat_val (eval_atype (vtype x.(gv))) v.
 Proof.
   rewrite /get_gvar;case:ifP => ? heq.
   + by apply: get_var_compat heq.
@@ -198,12 +198,12 @@ Proof.
 Qed.
 
 Lemma get_var_to_word wdb vm x ws w :
-  vtype x = sword ws ->
+  convertible (vtype x) (aword ws) ->
   get_var wdb vm x >>= to_word ws = ok w ->
   get_var wdb vm x = ok (Vword w).
 Proof.
   t_xrbindP => htx v /[dup] /get_varP [] -> hdef + ->.
-  rewrite htx => hcomp /to_wordI' [ws1 [w1 [hws hx ->]]].
+  rewrite (convertible_eval_atype htx) => hcomp /to_wordI' [ws1 [w1 [hws hx ->]]].
   move: hcomp; rewrite hx => /compat_valE [ws2 [?] hws']; subst ws2.
   have <- : ws1 = ws; last by rewrite zero_extend_u.
   case: sw_allowed hws' => // hws'; apply: cmp_le_antisym hws' hws.
@@ -217,19 +217,19 @@ Proof. by move=> -> /=; rewrite truncate_word_u. Qed.
 (* Remark compat_type b = if b then subtype else eq *)
 Lemma type_of_get_gvar x gd vm v :
   get_gvar true gd vm x = ok v ->
-  compat_type sw_allowed (type_of_val v) (vtype x.(gv)).
+  compat_ctype sw_allowed (type_of_val v) (eval_atype (vtype x.(gv))).
 Proof. by move=> /get_gvar_compat [/=hd]; rewrite /compat_val hd orbF. Qed.
 
 Lemma type_of_get_gvar_sub x gd vm v :
   get_gvar true gd vm x = ok v ->
-  subtype (type_of_val v) (vtype x.(gv)).
-Proof. by move=> /type_of_get_gvar /compat_type_subtype. Qed.
+  subctype (type_of_val v) (eval_atype (vtype x.(gv))).
+Proof. by move=> /type_of_get_gvar /compat_ctype_subctype. Qed.
 
 (* We have a more precise result in the non-word cases. *)
 Lemma type_of_get_gvar_not_word gd vm x v :
-  (sw_allowed -> ~ is_sword x.(gv).(vtype)) ->
+  (sw_allowed -> ~ is_aword x.(gv).(vtype)) ->
   get_gvar true gd vm x = ok v ->
-  type_of_val v = x.(gv).(vtype).
+  type_of_val v = eval_atype x.(gv).(vtype).
 Proof.
   move=> hnword; rewrite /get_gvar; case: ifP => ?.
   + by apply: type_of_get_var_not_word.
@@ -238,7 +238,7 @@ Qed.
 
 Lemma on_arr_varP {syscall_state : Type} {ep : EstateParams syscall_state}
   A (f : forall n, WArray.array n -> exec A) wdb v vm x P :
-  (forall n t, vtype x = sarr n ->
+  (forall n t, eval_atype (vtype x) = carr n ->
                get_var wdb vm x = ok (@Varr n t) ->
                f n t = ok v -> P) ->
   on_arr_var (get_var wdb vm x) f = ok v -> P.
@@ -249,7 +249,7 @@ Proof.
 Qed.
 
 Lemma on_arr_gvarP A (f : forall n, WArray.array n -> exec A) wdb v gd s x P:
-  (forall n t, vtype x.(gv) = sarr n ->
+  (forall n t, eval_atype (vtype x.(gv)) = carr n ->
                get_gvar wdb gd s x = ok (@Varr n t) ->
                f n t = ok v -> P) ->
   on_arr_var (get_gvar wdb gd s x) f = ok v -> P.
@@ -303,20 +303,20 @@ Context
   {asmop : asmOp asm_op}.
 
 Lemma sopn_toutP o vs vs' : exec_sopn o vs = ok vs' ->
-  List.map type_of_val vs' = sopn_tout o.
+  List.map type_of_val vs' = map eval_atype (sopn_tout o).
 Proof.
   rewrite /exec_sopn /sopn_tout /sopn_sem.
   t_xrbindP => ? _ <- ? _ <-;apply type_of_val_ltuple.
 Qed.
 
 Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
-  all2 subtype (sopn_tin o) (List.map type_of_val vs).
+  all2 subctype (map eval_atype (sopn_tin o)) (List.map type_of_val vs).
 Proof.
   rewrite /exec_sopn /sopn_tin /sopn_sem /sopn_sem_; t_xrbindP => _ _ <-.
   case (get_instr_desc o) => /= _ tin _ tout _ _ semi _ _ _ _ _ _.
   t_xrbindP => p hp _.
   elim: tin vs semi hp => /= [ | t tin hrec] [ | v vs] // semi.
-  by t_xrbindP => sv /= /of_val_subtype -> /hrec.
+  by t_xrbindP => sv /= /of_val_subctype -> /hrec.
 Qed.
 
 End EXEC_ASM.
@@ -330,27 +330,27 @@ Context
 
 Definition write_var_Spec (wdb : bool) (x : var) (v : value) (s : estate) (s' : estate) : Prop :=
    [/\ s' = with_vm s (evm s).[x <- v],
-       DB wdb v &  truncatable wdb (vtype x) v].
+       DB wdb v & truncatable wdb (eval_atype (vtype x)) v].
 
 Definition write_get_var_Spec (wdb : bool) (x : var_i) (v : value) (s : estate) (s' : estate) : Prop :=
-  [/\ DB wdb v, truncatable wdb (vtype x) v &
+  [/\ DB wdb v, truncatable wdb (eval_atype (vtype x)) v &
     (forall y, get_var wdb (evm s') y =
       if v_var x == y then
-        Let _:= assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (vtype x) v)
+        Let _:= assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (eval_atype (vtype x)) v)
       else get_var wdb (evm s) y)].
 
 Definition write_get_gvar_Spec gd (wdb : bool) (x : var_i) (v : value) (s : estate) (s' : estate) : Prop :=
-  [/\ DB wdb v, truncatable wdb (vtype x) v &
+  [/\ DB wdb v, truncatable wdb (eval_atype (vtype x)) v &
     (forall y, get_gvar wdb gd (evm s') y =
       if is_lvar y && (v_var x == gv y) then
-        Let _:= assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (vtype x) v)
+        Let _:= assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (eval_atype (vtype x)) v)
       else get_gvar wdb gd (evm s) y)].
 
 Lemma get_var_set wdb vm x v y :
-  truncatable wdb (vtype x) v ->
+  truncatable wdb (eval_atype (vtype x)) v ->
   get_var wdb vm.[x <- v] y =
      if x == y then
-       Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (vtype x) v)
+       Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (eval_atype (vtype x)) v)
      else get_var wdb vm y.
 Proof. by rewrite {1}/get_var Vm.setP; case: eqP => // *; rewrite -vm_truncate_val_defined. Qed.
 
@@ -359,7 +359,7 @@ Lemma get_var_set_var wdb vm vm' x y v :
   set_var wdb vm y v = ok vm' ->
   get_var wdb vm' x =
     if x == y
-    then ok (vm_truncate_val (vtype x) v)
+    then ok (vm_truncate_val (eval_atype (vtype x)) v)
     else get_var wdb vm x.
 Proof.
   move=> hv /set_varP [_ ? ->].
@@ -368,9 +368,9 @@ Proof.
 Qed.
 
 Lemma get_var_eq wdb x vm v :
-  truncatable wdb (vtype x) v ->
+  truncatable wdb (eval_atype (vtype x)) v ->
   get_var wdb vm.[x <- v] x =
-    Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (vtype x) v).
+    Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (eval_atype (vtype x)) v).
 Proof. by move=> h; rewrite get_var_set // eqxx. Qed.
 
 Lemma get_var_neq wdb x y vm v : x <> y -> get_var wdb vm.[x <- v] y = get_var wdb vm y.
@@ -382,10 +382,10 @@ Lemma get_var_set_eq wdb vm1 vm2 (x y : var) v:
 Proof. by rewrite /get_var !Vm.setP; case: eqP. Qed.
 
 Lemma get_gvar_eq wdb gd x vm v :
-  truncatable wdb (vtype (gv x)) v ->
+  truncatable wdb (eval_atype (vtype (gv x))) v ->
   ~ is_glob x ->
   get_gvar wdb gd vm.[x.(gv) <- v] x =
-    Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (vtype (gv x)) v).
+    Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (eval_atype (vtype (gv x))) v).
 Proof.
   by move=> h1 /negP h2; rewrite /get_gvar is_lvar_is_glob h2 get_var_eq.
 Qed.
@@ -398,7 +398,7 @@ Proof.
 Qed.
 
 Lemma write_var_truncate wdb (x:var_i) v :
-  DB wdb v -> truncatable wdb (vtype x) v ->
+  DB wdb v -> truncatable wdb (eval_atype (vtype x)) v ->
   forall s, write_var wdb x v s = ok (with_vm s (evm s).[x <- v]).
 Proof. by move=> hdb htr s; rewrite /write_var (set_var_truncate hdb htr). Qed.
 
@@ -412,9 +412,9 @@ Qed.
 
 Lemma write_varP_arr x len (a:WArray.array len) s s':
    write_var true x (Varr a) s = ok s' ->
-   [/\ type_of_val (Varr a) = vtype x,
-       truncatable true (vtype x) (Varr a),
-       vm_truncate_val (vtype x) (Varr a) = Varr a &
+   [/\ type_of_val (Varr a) = eval_atype (vtype x),
+       truncatable true (eval_atype (vtype x)) (Varr a),
+       vm_truncate_val (eval_atype (vtype x)) (Varr a) = Varr a &
        s' = with_vm s (evm s).[x <- (Varr a)]].
 Proof. move=> /write_varP [-> hdb /vm_truncate_valE [-> ?]] => //. Qed.
 
@@ -428,7 +428,7 @@ Proof.
 Qed.
 
 Lemma write_var_eq_type wdb (x:var_i) v:
-  type_of_val v = vtype x -> DB wdb v ->
+  type_of_val v = eval_atype (vtype x) -> DB wdb v ->
   forall s, write_var wdb x v s = ok (with_vm s (evm s).[x <- v]).
 Proof. move=> h ?; apply/write_var_truncate => //; rewrite -h; apply truncatable_type_of. Qed.
 
@@ -438,8 +438,8 @@ Proof. by move=> /write_varP [-> hdb htr]; econstructor; eauto => y /=; rewrite 
 
 Lemma write_getP_eq wdb (x:var_i) v s s':
   write_var wdb x v s = ok s' ->
-  [/\ DB wdb v, truncatable wdb (vtype x) v &
-      (evm s').[x] = (vm_truncate_val (vtype x) v)].
+  [/\ DB wdb v, truncatable wdb (eval_atype (vtype x)) v &
+      (evm s').[x] = (vm_truncate_val (eval_atype (vtype x)) v)].
 Proof. by move=> /write_varP => -[-> -> ->]; rewrite Vm.setP_eq. Qed.
 
 Lemma write_getP_neq wdb (x:var_i) v s s' y: v_var x != y ->
@@ -448,9 +448,9 @@ Proof. by move=> hne /write_varP => -[-> ??]; rewrite Vm.setP_neq. Qed.
 
 Lemma write_get_varP_eq wdb (x:var_i) v s s':
   write_var wdb x v s = ok s' ->
-  [/\ DB wdb v, truncatable wdb (vtype x) v &
+  [/\ DB wdb v, truncatable wdb (eval_atype (vtype x)) v &
       get_var wdb (evm s') x =
-        Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (vtype x) v)].
+        Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (eval_atype (vtype x)) v)].
 Proof. by move=> /write_get_varP [? ? ->]; rewrite eqxx. Qed.
 
 Lemma write_get_varP_neq wdb wdb' (x:var_i) v s s' y: v_var x != y ->
@@ -466,9 +466,9 @@ Qed.
 
 Lemma write_get_gvarP_eq wdb gd (x:var_i) v s s':
   write_var wdb x v s = ok s' ->
-  [/\ DB wdb v, truncatable wdb (vtype x) v &
+  [/\ DB wdb v, truncatable wdb (eval_atype (vtype x)) v &
     get_gvar wdb gd (evm s') (mk_lvar x) =
-    Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (vtype x) v)].
+    Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (eval_atype (vtype x)) v)].
 Proof. by move=> /(write_get_gvarP gd) [hdb htr ->]; rewrite /= eqxx. Qed.
 
 Lemma write_get_gvarP_neq wdb gd (x:var_i) v s s' y: (is_lvar y -> v_var x != gv y) ->
@@ -861,7 +861,7 @@ Qed.
 Lemma sem_sop1_truncate_val o ve1 v1 :
   sem_sop1 o ve1 = ok v1 ->
   exists ve1',
-    truncate_val (type_of_op1 o).1 ve1 = ok ve1' /\
+    truncate_val (eval_atype (type_of_op1 o).1) ve1 = ok ve1' /\
     sem_sop1 o ve1' = ok v1.
 Proof.
   rewrite /sem_sop1 /= /truncate_val.
@@ -889,8 +889,8 @@ Qed.
 Lemma sem_sop2_truncate_val o ve1 ve2 v1 :
   sem_sop2 o ve1 ve2 = ok v1 ->
   exists ve1' ve2', [/\
-    truncate_val (type_of_op2 o).1.1 ve1 = ok ve1',
-    truncate_val (type_of_op2 o).1.2 ve2 = ok ve2' &
+    truncate_val (eval_atype (type_of_op2 o).1.1) ve1 = ok ve1',
+    truncate_val (eval_atype (type_of_op2 o).1.2) ve2 = ok ve2' &
     sem_sop2 o ve1' ve2' = ok v1].
 Proof.
   rewrite /sem_sop2 /= /truncate_val.
@@ -909,13 +909,13 @@ Proof.
   have -> /= := vuincl_sopn _ hvs ok_q.
   + by eauto.
   case: {q ok_q} op => //.
-  by move => sz n; rewrite /= all_nseq orbT.
+  by move => sz n; rewrite /= all_map all_nseq orbT.
 Qed.
 
 Lemma sem_opN_truncate_val o vs v :
   sem_opN o vs = ok v ->
   exists vs',
-    mapM2 ErrType truncate_val (type_of_opN o).1 vs = ok vs' /\
+    mapM2 ErrType truncate_val (map eval_atype (type_of_opN o).1) vs = ok vs' /\
     sem_opN o vs' = ok v.
 Proof.
   rewrite /sem_opN.
@@ -934,7 +934,7 @@ Proof.
 Qed.
 
 Lemma truncate_val_exec_sopn {sip : SemInstrParams asm_op syscall_state} o vs vs' v :
-  mapM2 ErrType truncate_val (sopn_tin o) vs = ok vs' ->
+  mapM2 ErrType truncate_val (map eval_atype (sopn_tin o)) vs = ok vs' ->
   exec_sopn o vs' = ok v ->
   exec_sopn o vs = ok v.
 Proof.
@@ -946,7 +946,7 @@ Qed.
 Lemma exec_sopn_truncate_val {sip : SemInstrParams asm_op syscall_state} o vs v :
   exec_sopn o vs = ok v ->
   exists vs',
-    mapM2 ErrType truncate_val (sopn_tin o) vs = ok vs' /\
+    mapM2 ErrType truncate_val (map eval_atype (sopn_tin o)) vs = ok vs' /\
     exec_sopn o vs' = ok v.
 Proof.
   rewrite /exec_sopn; t_xrbindP=> ? -> /= w ok_w <-.
@@ -975,7 +975,7 @@ Proof.
   + move => e rec es ih vs1.
     rewrite read_es_cons => /uincl_on_union_and [] /rec{}rec /ih{}ih /=.
     by t_xrbindP => v /rec [] v' -> h vs /ih [] vs' -> hs <- /=; exists (v' :: vs'); eauto.
-  1-3: by move => ? _ _ /ok_inj <-; eexists.
+  1-3: by move => > _ /ok_inj <-; eexists.
   + move => ?? Hu; apply: get_gvar_uincl_at; move: Hu; case: ifP => // _; apply; SvD.fsetdec.
   + move => al aa sz x e Hp v; rewrite read_eE => /uincl_on_union_and[] /Hp{}Hp Hu.
     apply on_arr_gvarP => n t Htx; rewrite /on_arr_var => /get_gvar_uincl_at - /(_ vm2) [].
@@ -1114,8 +1114,8 @@ Proof.
   rewrite (value_uincl_DB hu hdb).
   have [|-> //] := vm_truncate_val_uincl _ htr hu.
   move=> /eqP /eqP ? hna _ _; subst wdb.
-  apply: subtype_trans (value_uincl_subtype hu).
-  by apply: vm_truncate_val_subtype htr.
+  apply: subctype_trans (value_uincl_subctype hu).
+  by apply: vm_truncate_val_subctype htr.
 Qed.
 
 Lemma write_uincl_on wdb gd s1 s2 vm1 r v1 v2:
@@ -1301,7 +1301,7 @@ Qed.
 
 Lemma write_lval_undef gd l v s1 s2 sz :
   write_lval true gd l v s1 = ok s2 ->
-  type_of_val v = sword sz ->
+  type_of_val v = cword sz ->
   exists w: word sz, v = Vword w.
 Proof.
   move=> Hw Ht.
@@ -1408,9 +1408,10 @@ Lemma eq_exprP_pair wdb gd s :
   (∀ es es', all2 eq_expr es es' → sem_pexprs wdb gd s es = sem_pexprs wdb gd s es').
 Proof.
   apply: pexprs_ind_pair; split =>
-    [| e he es hes |?|?|?|?|????? He|????? He|??? He|?? He|?? He1 ? He2|?? hes|?? He ? He1 ? He2] [] //=.
+    [| e he es hes |?|?|??|?|????? He|????? He|??? He|?? He|?? He1 ? He2|?? hes|?? He ? He1 ? He2] [] //=.
   - by move => e' es' /andP[] /he -> /hes ->.
-  1-3: by move => ? /eqP ->.
+  1-2: by move => ? /eqP ->.
+  - by move=> > /andP [/eqP -> /eqP ->].
   - exact: eq_gvarP.
   1-2: by move=> > /andP[] /andP[] /andP []/andP [] /eqP-> /eqP-> /eqP -> /eq_gvarP -> /He ->.
   - by move=> > /andP[] /andP [] /eqP-> /eqP -> /He ->.

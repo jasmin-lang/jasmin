@@ -29,8 +29,8 @@ val z_of_word : wsize -> Obj.t -> Z.t
 val z_unsigned_of_word : wsize -> Obj.t -> Z.t
 
 (* -------------------------------------------------------------------- *)
-val cty_of_ty : Prog.ty -> Type.stype
-val ty_of_cty : Type.stype -> Prog.ty
+val cty_of_ty : Prog.ty -> Type.atype
+val ty_of_cty : Type.atype -> Prog.ty
 
 (* -------------------------------------------------------------------- *)
 val cvar_of_var : var -> Var0.Var.var
@@ -64,4 +64,4 @@ val error_of_cerror :
    Compiler_util.pp_error_loc -> Utils.hierror
 
 (* ---------------------------------------------------- *)
-val fresh_var_ident : v_kind -> IInfo.t -> Uint63.t -> Name.t -> Type.stype -> var
+val fresh_var_ident : v_kind -> IInfo.t -> Uint63.t -> Name.t -> Type.atype -> var

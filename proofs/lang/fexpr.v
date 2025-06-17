@@ -43,7 +43,7 @@ Fixpoint fexpr_of_pexpr (e: pexpr) : option fexpr :=
       obind (λ a,
           omap (Fapp2 op a) (fexpr_of_pexpr b)
         ) (fexpr_of_pexpr a)
-  | Pif sbool a b c =>
+  | Pif abool a b c =>
       obind (λ a,
       obind (λ b,
         omap (Fif a b) (fexpr_of_pexpr c))

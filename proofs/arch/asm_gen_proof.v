@@ -282,7 +282,7 @@ Proof.
   by rewrite !zero_extend_u.
 Qed.
 
-Variant check_sopn_argI rip ii args e : arg_desc -> stype -> Prop :=
+Variant check_sopn_argI rip ii args e : arg_desc -> ltype -> Prop :=
 | CSA_Implicit i ty :
        is_implicit i e
     -> check_sopn_argI (ADImplicit i) ty
@@ -333,7 +333,7 @@ Lemma var_of_regP_eq rip m s (r:reg_t) v vt:
   -> to_pointer v = ok vt
   -> asm_reg s r = vt.
 Proof.
-  move=> lom /(getreg lom) /of_value_uincl h1 /(h1 (sword Uptr)) /=.
+  move=> lom /(getreg lom) /of_value_uincl h1 /(h1 (cword Uptr)) /=.
   by rewrite truncate_word_u => -[].
 Qed.
 
@@ -369,16 +369,16 @@ Lemma check_sopn_arg_sem_eval rip m s ii args e ad ty v vt :
   lom_eqv rip m s
   -> check_sopn_arg agparams rip ii args e (ad,ty)
   -> sem_rexpr m.(emem) m.(evm) e = ok v
-  -> of_val ty v = ok vt
+  -> of_val (eval_ltype ty) v = ok vt
   -> exists2 v', eval_arg_in_v s args ad ty = ok v'
-     & of_val ty v' = ok vt.
+     & of_val (eval_ltype ty) v' = ok vt.
 Proof.
   move=> eqm /check_sopn_argP /= h.
   case: h vt.
   + move=> i {}ty /is_implicitP[] vi -> vt /=.
     case: i => /= [f | r]; first by apply: var_of_flagP eqm.
     by apply: var_of_regP eqm.
-  move=> k n o a a' [ | | | ws] //= ->.
+  move=> k n o a a' [ | ws] //= ->.
   + case: e; first by [].
     t_xrbindP => e _ <- c hac <-.
     rewrite /compat_imm orbF => /eqP <- -> /= b hb.
@@ -528,7 +528,7 @@ Proof.
   by move=> f; rewrite Vm.setP_neq.
 Qed.
 
-Lemma compile_lval rip ii msb_flag loargs ad ty (vt:sem_ot ty) m m' s lv1 e1:
+Lemma compile_lval rip ii msb_flag loargs ad ty (vt:sem_olt ty) m m' s lv1 e1:
   lom_eqv rip m s ->
   check_arg_dest ad ty ->
   write_lexpr lv1 (oto_val vt) m = ok m' ->
@@ -544,7 +544,7 @@ Proof.
     have -> /= :
       match match vt with Some b => Vbool b | None => undef_b end with
       | Vbool b => ok (Some b)
-      | Vundef sbool _ => ok None
+      | Vundef cbool _ => ok None
       | _ => type_error
       end = ok vt.
     + by case: vt htr.
@@ -619,7 +619,7 @@ Proof.
 Qed.
 
 Lemma compile_lvals rip ii m lvs m' s loargs
-  id_out id_tout (vt:sem_tuple id_tout) msb_flag:
+  id_out id_tout (vt:sem_ltuple id_tout) msb_flag:
   size id_out = size id_tout ->
   write_lexprs lvs (list_ltuple vt) m = ok m' ->
   lom_eqv rip m s ->
@@ -631,7 +631,7 @@ Proof.
   elim : id_out id_tout lvs vt m s.
   + by move=> [] //= []//= _ m s _ [<-] hleq _; exists s.
   move=> ad ads hrec []// ty tys lvs vt m s [] heqs.
-  have [vt1 [vtn ->]] /=: exists (vt1: sem_ot ty) (vtn: sem_tuple tys),
+  have [vt1 [vtn ->]] /=: exists (vt1: sem_olt ty) (vtn: sem_ltuple tys),
     list_ltuple vt = oto_val vt1 :: list_ltuple vtn.
   + move=>{heqs}; case: tys vt => /=.
     + by move=> vt; exists vt, tt.
@@ -665,9 +665,12 @@ Proof.
   rewrite /exec_instr_op /eval_instr_op Hid /=.
   move: hval => /=; rewrite -/id => -> /=.
   move: vt Hvt Hm'; rewrite /sopn_sem /sopn_sem_ /get_instr_desc /= -/id => {Hid}.
-  case: id Hargs Hdest => /= id_safe_ msb_flag id_tin
+  rewrite /semi_to_atype.
+  move: (computational_eq _) (computational_eq _) => e1 e2.
+  rewrite <- e1, <- e2; clear e1 e2.
+  case: id Hargs Hdest => /= id_valid msb_flag id_tin
    id_in id_tout id_out id_semi id_args_kinds id_nargs /andP[] /eqP hsin /eqP hsout
-   _ id_str_jas id_check_dest id_safe id_wsize id_pp _ _ _ Hargs Hdest vt happ Hm'.
+   id_str_jas id_check_dest id_safe id_pp _ _ _ Hargs Hdest vt happ Hm'.
   elim: id_in id_tin hsin id_semi args xs Hargs happ Hxs; rewrite /sem_prod.
   + move=> [] //= _ id_semi [|a1 args] [|v1 vs] //= _ -> _ /=.
     exact: (compile_lvals _ hsout Hm' Hlomeqv Hdest).
@@ -968,7 +971,7 @@ Proof.
   by apply exclude_mem_check.
 Qed.
 
-Lemma check_not_addr1_write asm_args ad ws ty (v: sem_ot ty) s :
+Lemma check_not_addr1_write asm_args ad ws ty (v: sem_olt ty) s :
   check_not_addr1 asm_args ad ->
   mem_write_val MSB_CLEAR asm_args (ad, extend_size ws ty)
        (oto_val (wextend_size ws v)) s =
@@ -985,7 +988,7 @@ Proof.
   by rewrite /mem_write_xreg !word_extend_CLEAR zero_extend_cut.
 Qed.
 
-Lemma check_not_addr_write s ws asm_args id_out id_tout (t : sem_tuple id_tout) :
+Lemma check_not_addr_write s ws asm_args id_out id_tout (t : sem_ltuple id_tout) :
   size id_out = size id_tout →
   check_not_addr id_out asm_args →
   mem_write_vals MSB_CLEAR s asm_args id_out [seq extend_size ws i | i <- id_tout]
@@ -1256,7 +1259,7 @@ Lemma eval_assemble_word ii al sz e a s xs v :
   -> assemble_word_load agparams rip ii al sz e = ok a
   -> sem_rexpr s.(emem) s.(evm) e = ok v
   -> exists2 v',
-       eval_asm_arg (AK_mem al) xs a (sword sz) = ok v'
+       eval_asm_arg (AK_mem al) xs a (lword sz) = ok v'
        & value_uincl v v'.
 Proof.
   rewrite /assemble_word /eval_asm_arg => eqm.
@@ -1388,7 +1391,7 @@ Qed.
 Lemma to_var_typed_flag r x : to_var r = var_of_asm_typed_reg x -> x = ABReg r.
 Proof. by case: x => //= r' h; have -> := inj_to_var h. Qed.
 
-Lemma to_var_rsp : {| vtype := sword reg_size; vname := lp_rsp p |} = to_var ad_rsp.
+Lemma to_var_rsp : {| vtype := aword reg_size; vname := lp_rsp p |} = to_var ad_rsp.
 Proof.
   move: ok_p'; rewrite /assemble_prog; t_xrbindP => _ /eqP h _ _ _.
   by symmetry; apply: of_varI; rewrite /of_var /= eqxx.
@@ -1629,8 +1632,8 @@ Proof.
     forall x,
       Sv.In x syscall_kill ->
       ~ Sv.In x R ->
-      ~~ is_sarr (vtype x) ->
-      (evm s).[x] = undef_addr (vtype x).
+      ~~ is_aarr (vtype x) ->
+      (evm s).[x] = undef_addr (eval_atype (vtype x)).
   - move=> x /Sv_memP hin hnin.
     have [<-] := get_var_eq_ex false hnin (vrvsP hw).
     rewrite /get_var kill_varsE hin; by case: (vtype x).
@@ -1940,9 +1943,9 @@ Qed.
 
 Section VMAP_SET_VARS.
 
-  Context {t : stype} {T: Type} {tS:ToString t T}  {tI:ToIdent T}.
+  Context {t : ltype} {T: Type} {tS:ToString t T}  {tI:ToIdent T}.
   Let T_eqType := @ceqT_eqType T _. Canonical T_eqType.
-  Context (fromT: T -> sem_ot t).
+  Context (fromT: T -> sem_olt t).
 
   Definition vmap_set_vars : Vm.t -> seq T -> Vm.t :=
     foldl (fun vm x => vm.[to_var x <- oto_val (fromT x)]).
@@ -1954,7 +1957,7 @@ Section VMAP_SET_VARS.
 
 
   Lemma get_var_vmap_set_vars_other_type vm xs y :
-    vtype y != t ->
+    vtype y != atype_of_ltype t ->
     (vmap_set_vars vm xs).[y] = vm.[y].
   Proof.
     move=> /eqP neqt; apply: get_var_vmap_set_vars_other.
@@ -1973,7 +1976,7 @@ Section VMAP_SET_VARS.
     - move=> /(_ erefl) ih _ vm; exact: ih.
     rewrite orbF => _ /eqP <-{x} vm /=.
     rewrite get_var_vmap_set_vars_other.
-    + by rewrite Vm.setP_eq vm_truncate_val_eq // type_of_oto_val.
+    +  by rewrite Vm.setP_eq vm_truncate_val_eq // type_of_oto_val atype_of_ltypeP.
     apply/allP => x x_xs.
     apply/eqP => h; have ? := inj_to_var h.
     subst x.
@@ -1985,16 +1988,16 @@ End VMAP_SET_VARS.
 Definition vmap_of_asm_mem
   (sp : word Uptr) (rip rsp : Ident.ident) (s : asmmem) :=
 
-  let pword_of_reg r   := (asm_reg s r : sem_ot (sword reg_size)) in
-  let pword_of_regx rx := (asm_regx s rx: sem_ot (sword reg_size)) in
-  let pword_of_xreg xr := (asm_xreg s xr: sem_ot (sword xreg_size)) in
-  let pbool_of_flag f  := (if asm_flag s f is Def b then Some b else None : sem_ot sbool) in
+  let pword_of_reg r   := (asm_reg s r : sem_olt (lword reg_size)) in
+  let pword_of_regx rx := (asm_regx s rx: sem_olt (lword reg_size)) in
+  let pword_of_xreg xr := (asm_xreg s xr: sem_olt (lword xreg_size)) in
+  let pbool_of_flag f  := (if asm_flag s f is Def b then Some b else None : sem_olt lbool) in
   let vm := Vm.init.[mk_ptr rsp <- Vword sp]
                    .[mk_ptr rip <- Vword (asm_rip s)] in
   let vm := vmap_set_vars pword_of_reg vm registers in
   let vm := vmap_set_vars pword_of_regx vm registerxs in
   let vm := vmap_set_vars pword_of_xreg vm xregisters in
-  let vm := vmap_set_vars (t := sbool) pbool_of_flag vm rflags in
+  let vm := vmap_set_vars (t := lbool) pbool_of_flag vm rflags in
   vm.
 
 Definition get_typed_reg_value (st : asmmem) (r : asm_typed_reg) : value :=
@@ -2012,7 +2015,7 @@ Lemma get_var_vmap_of_asm_mem sp rip rsp s (r : asm_typed_reg) :
   (vmap_of_asm_mem sp rip rsp s).[var_of_asm_typed_reg r] = get_typed_reg_value s r.
 Proof.
   rewrite /vmap_of_asm_mem.
-  assert (h := sword_reg_neq_xreg).
+  assert (h := lword_reg_neq_xreg).
   case: r => r.
   all: repeat (rewrite get_var_vmap_set_vars_other_type; last done).
   + rewrite get_var_vmap_set_vars_other.
@@ -2036,7 +2039,7 @@ Proof.
   - rewrite /vmap_of_asm_mem.
     rewrite get_var_vmap_set_vars_other_type //.
     rewrite get_var_vmap_set_vars_other_type;
-      last exact: sword_reg_neq_xreg.
+      last exact: lword_reg_neq_xreg.
     rewrite get_var_vmap_set_vars_other; last first.
     + apply/allP => /= r _; apply/eqP. exact: rip_not_regx.
     rewrite get_var_vmap_set_vars_other; last first.

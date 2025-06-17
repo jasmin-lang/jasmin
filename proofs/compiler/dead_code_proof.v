@@ -63,7 +63,7 @@ Section PROOF.
 
   Local Lemma Hassgn_esem_aux ii x tag ty e O s1 s2 vm1 v v' :
     sem_pexpr true gd s1 e = ok v ->
-    truncate_val ty v = ok v' ->
+    truncate_val (eval_atype ty) v = ok v' ->
     write_lval true gd x v' s1 = ok s2 ->
     (evm s1) <=[read_rv_rec (read_e_rec (Sv.diff O (write_i (Cassgn x tag ty e))) e) x] vm1 →
     exists2 vm2, evm s2 <=[O] vm2 &
@@ -521,7 +521,7 @@ Section PROOF.
       t_xrbindP => v' hv' vres1 /ih{}ih <-; case:b => //=. by rewrite hv' /= ih.
     have [vres1 Hres'' Hvl] := sem_pexprs_uincl_on' Hvm2'1 Hres'.
     have Hes := sem_pexprs_get_var.
-    have Hfull' : mapM2 ErrType dc_truncate_val (fn_keep_only onfun fn f_tyout) (fn_keep_only onfun fn vres) = ok (fn_keep_only onfun fn vres').
+    have Hfull' : mapM2 ErrType dc_truncate_val (map eval_atype (fn_keep_only onfun fn f_tyout)) (fn_keep_only onfun fn vres) = ok (fn_keep_only onfun fn vres').
     + rewrite /= /fn_keep_only; case: onfun => [tokeep | //].
       move:Hfull; clear.
       elim: tokeep f_tyout vres vres' => // b tokeep ih [| ty f_tyout] /= [ | v vres] //= vres' => [[<-]//|].
@@ -630,7 +630,7 @@ Section PROOF.
         by rewrite hv' /= ih.
       have [vres1] := sem_pexprs_uincl_on hu2 hvres'.
       rewrite sem_pexprs_get_var /= => -> /= Hvl.
-      have htr' : mapM2 ErrType dc_truncate_val (fn_keep_only onfun fn ftyout) (fn_keep_only onfun fn vres) =
+      have htr' : mapM2 ErrType dc_truncate_val (map eval_atype (fn_keep_only onfun fn ftyout)) (fn_keep_only onfun fn vres) =
                       ok (fn_keep_only onfun fn vrestr).
       + rewrite /= /fn_keep_only; case: onfun => [tokeep | //].
         move:htr; clear.

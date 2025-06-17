@@ -18,7 +18,7 @@ Context
   {siparams : SemInstrParams asm_op syscall_state}
   {pT : progT}
   {sCP : semCallParams}
-  (fresh_reg : instr_info → int → string → stype → Ident.ident).
+  (fresh_reg : instr_info → int → string → atype → Ident.ident).
 
 Section DOIT.
 

@@ -238,13 +238,13 @@ Section CHECK_SLHO.
     Let ox := check_lv ii lv in
     Let _ :=
       assert
-        (if ox is Some x then vtype x == sword msf_size else true)
+        (if ox is Some x then convertible (vtype x) ty_msf else true)
         (E.invalid_type_for_msf ii)
     in
     ok ox.
 
   Notation get_e es i := (nth (Pconst 0) es i) (only parsing).
-  Notation get_lv lvs i := (nth (Lnone dummy_var_info sint) lvs i) (only parsing).
+  Notation get_lv lvs i := (nth (Lnone dummy_var_info aint) lvs i) (only parsing).
 
   (* We need to check that when we use an MSF variable it's local and [msf_size]
      bits wide to make the proof go through, but this is ensured by the type
@@ -278,11 +278,11 @@ Section CHECK_SLHO.
       Let _ := check_e_msf ii env (get_e es 1) in
       ok (Env.after_assign_vars env (vrv (get_lv lvs 0)))
 
-    | SLHprotect_ptr _ =>
+    | SLHprotect_ptr _ _ =>
       Let _ := check_e_msf ii env (get_e es 1) in
       ok (Env.after_assign_vars env (vrv (get_lv lvs 0)))
 
-    | SLHprotect_ptr_fail _ => (* fail should not be used at this point *)
+    | SLHprotect_ptr_fail _ _ => (* fail should not be used at this point *)
       ok (Env.after_assign_vars env (vrv (get_lv lvs 0)))
     end.
 
@@ -310,13 +310,13 @@ Section CHECK_SLHO.
     | _, _ => Error E.invalid_nb_lvals
     end.
 
-  Fixpoint init_fun_env env (xs:seq var_i) (ttys: seq stype) (tys: seq slh_t) :=
+  Fixpoint init_fun_env env (xs:seq var_i) (ttys: seq atype) (tys: seq slh_t) :=
     match xs, ttys, tys with
     | [::], [::], [::] => ok env
     | x::xs, t::ttys, ty::tys =>
         Let env :=
           if ty is Slh_msf then
-            Let _ := assert ((vtype (v_var x) == sword msf_size) && (t == sword msf_size))
+            Let _ := assert (convertible (vtype (v_var x)) ty_msf && convertible t ty_msf)
                             (E.internal_error_ "invalid params (type)") in
             ok (Env.after_SLHmove env (Some (v_var x)))
           else ok (Env.after_assign_var env (v_var x)) in
@@ -324,13 +324,13 @@ Section CHECK_SLHO.
     | _, _, _ => Error (E.internal_error_ "invalid params (nb)")
     end.
 
-  Fixpoint check_res env (xs:seq var_i) (ttys: seq stype) (tys: seq slh_t) :=
+  Fixpoint check_res env (xs:seq var_i) (ttys: seq atype) (tys: seq slh_t) :=
     match xs, ttys, tys with
     | [::], [::], [::] => ok tt
     | x::xs, t::ttys, ty::tys =>
       Let _ := assert (if ty is Slh_msf then Env.is_msf_var env x else true)
                       (E.msf_not_found_r x (Env.msf_vars env)) in
-      Let _ := assert (if ty is Slh_msf then t == sword msf_size else true)
+      Let _ := assert (if ty is Slh_msf then convertible t ty_msf else true)
                       (E.internal_error_ "invalid return (type)") in
       check_res env xs ttys tys
     | _, _, _ => Error (E.internal_error_ "invalid return (nb)")
@@ -480,8 +480,8 @@ Definition lower_slho
   (es : seq pexpr) :
   cexec instr_r :=
   Let args :=
-    if is_protect_ptr slho is Some p then
-      ok (lvs, Oslh (SLHprotect_ptr_fail p), es)
+    if is_protect_ptr slho is Some (ws, p) then
+      ok (lvs, Oslh (SLHprotect_ptr_fail ws p), es)
     else o2r (E.lowering_failed ii) (shp_lower shparams lvs slho es)
   in
   ok (instr_of_copn_args tg args).

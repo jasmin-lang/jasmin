@@ -20,12 +20,12 @@ Context
   {asmop:asmOp asm_op}
   {pT : progT}.
 
-Context (fresh_reg: instr_info -> int -> string -> stype -> Ident.ident).
+Context (fresh_reg: instr_info -> int -> string -> atype -> Ident.ident).
 
 Definition fresh_word ii n ws :=
   {| v_var :=
-      {| vtype := sword ws;
-         vname := fresh_reg ii n "__tmp__"%string (sword ws) |};
+      {| vtype := aword ws;
+         vname := fresh_reg ii n "__tmp__"%string (aword ws) |};
      v_info := dummy_var_info |}.
 
 Definition process_constant ii n (ws:wsize) e : seq instr_r * pexpr * Sv.t :=
@@ -34,7 +34,7 @@ Definition process_constant ii n (ws:wsize) e : seq instr_r * pexpr * Sv.t :=
       let x := fresh_word ii n ws in
       (* We use AT_rename to have a warning at compile time:
          warning: extra assignment introduced *)
-      ([:: Cassgn x AT_rename (sword ws) e], Pvar (mk_lvar x), Sv.singleton x)
+      ([:: Cassgn x AT_rename (aword ws) e], Pvar (mk_lvar x), Sv.singleton x)
     else
       (* On RISC-V, we can replace constant 0 with register x0, so we do not
          need an auxiliary register. *)

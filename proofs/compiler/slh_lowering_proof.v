@@ -171,7 +171,7 @@ Definition not_misspeculating_args {msfsize : MSFsize}
   match slho with
   | SLHupdate        => ohead args = Some (Vbool true)
   | SLHprotect _     => exists2 v, ohead (behead args) = Some v & to_word msf_size v = ok 0%R
-  | SLHprotect_ptr _ => exists2 v, ohead (behead args) = Some v & to_word msf_size v = ok 0%R
+  | SLHprotect_ptr _ _ => exists2 v, ohead (behead args) = Some v & to_word msf_size v = ok 0%R
   | _ => True
   end.
 
@@ -279,7 +279,7 @@ Definition wf_vars (msf_vars: Sv.t) (vm:Vm.t) :=
   forall x,
     Sv.mem x msf_vars
     -> [/\ vm.[ x ] = @Vword msf_size 0%R
-         & vtype x = sword msf_size
+         & eval_atype (vtype x) = cty_msf
        ].
 
 Definition wf_cond (oe : option pexpr) (gd : glob_decls) (s : estate) : Prop :=
@@ -314,7 +314,7 @@ Lemma wf_env_empty gd s :
 Proof. done. Qed.
 
 Lemma wf_env_initial_write_var wdb gd s s' x :
-  vtype (v_var x) = sword msf_size
+  eval_atype (vtype (v_var x)) = cty_msf
   -> write_var wdb x (@Vword msf_size 0) s = ok s'
   -> wf_env (Env.initial (Some (v_var x))) gd s'.
 Proof.
@@ -364,23 +364,24 @@ Lemma check_lv_msfP ii lv ox :
   if ox is Some x
   then
     [/\ exists vi, lv = Lvar {| v_var := x; v_info := vi; |}
-      & vtype x = sword msf_size
+      & convertible (vtype x) ty_msf
     ]
   else
     exists vi ty, lv = Lnone vi ty.
 Proof.
   rewrite /check_lv_msf.
   t_xrbindP=> -[x|] /check_lvP.
-  - move=> [? ->] /eqP <- <-. split; last done. by eexists.
+  - move=> [? ->] hc <-.
+    split; last done.
+    by eexists; reflexivity.
   move=> [? [? ->]] _ <-.
-  eexists.
-  by eexists.
+  by eexists _, _; reflexivity.
 Qed.
 
 Lemma wf_env_after_SLHmove_Lvar wdb env gd s s' vi x :
   let: xi := {| v_var := x; v_info := vi; |} in
   wf_env env gd s
-  -> vtype x = sword msf_size
+  -> eval_atype (vtype x) = cty_msf
   -> write_var wdb xi (@Vword msf_size 0) s = ok s'
   -> wf_env (Env.after_SLHmove env (Some x)) gd s'.
 Proof.
@@ -403,7 +404,9 @@ Lemma wf_env_after_SLHmove wdb env gd s s' ii lv ox :
 Proof.
   move=> [hwfvars hwfcond].
   case: ox => [x|] /check_lv_msfP.
-  - move=> [[? ->] hx]. exact: (wf_env_after_SLHmove_Lvar _ hx).
+  - move=> [[? ->] hx].
+    move /convertible_eval_atype in hx.
+    exact: (wf_env_after_SLHmove_Lvar _ hx).
   move=> [? [? ->]] /write_noneP [? _]; subst s'.
   split=> /=.
   - move=> x. rewrite Sv_union_empty. exact: hwfvars.
@@ -520,12 +523,13 @@ Section LOWER_SLHO.
       last by move=> [? [? ->]].
     move=> [[? ->] hx] s'' hw [?]; subst s''.
     split=> //.
+    move /convertible_eval_atype in hx.
     exact: (wf_env_initial_write_var _ _ hw).
   Qed.
 
   Lemma lower_SLHmove_exec_sopn_aux ii env lvs ox w t s s' :
     wf_env env (p_globs p') s ->
-    check_lv_msf ii (nth (Lnone dummy_var_info sint) lvs 0) = ok ox ->
+    check_lv_msf ii (nth (Lnone dummy_var_info aint) lvs 0) = ok ox ->
     to_word msf_size (@Vword msf_size 0) = ok w ->
     sopn_sem_ (Oslh SLHmove) w = ok t ->
     write_lvals true (p_globs p') s lvs [:: Vword t ] = ok s' ->
@@ -587,7 +591,7 @@ Section LOWER_SLHO.
     apply: wf_env_after_assign_vars1; eauto.
   Qed.
 
-  Lemma lower_SLHprotect_ptr sz : lower_slho_correct (SLHprotect_ptr sz).
+  Lemma lower_SLHprotect_ptr ws sz : lower_slho_correct (SLHprotect_ptr ws sz).
   Proof.
     move=> s s' ii lvs es args res env env' hwf.
     rewrite /exec_sopn /=; t_xrbindP.
@@ -600,8 +604,8 @@ Section LOWER_SLHO.
     by eexists; [reflexivity | rewrite /to_word truncate_word_u].
   Qed.
 
-  Lemma lower_SLHprotect_ptr_fail sz :
-    lower_slho_correct (SLHprotect_ptr_fail sz).
+  Lemma lower_SLHprotect_ptr_fail ws sz :
+    lower_slho_correct (SLHprotect_ptr_fail ws sz).
   Proof.
     move=> s s' ii lvs es args res env env' hwf.
     rewrite /exec_sopn /=; t_xrbindP => henv.
@@ -635,7 +639,7 @@ Section LOWER_SLHO.
          apply: (hshp_spec_lower hshparams) hsemes hexec hwrite.
     move: hwf hcheck hsemes hexec hwrite.
     clear.
-    case: slho => [|||ws|sz|sz].
+    case: slho => [|||ws|ws sz|ws sz].
     - exact: lower_SLHinit.
     - exact: lower_SLHupdate.
     - exact: lower_SLHmove.
@@ -716,7 +720,7 @@ Section LOWER_SLHO.
   Lemma init_envP wdb env env' xs ttys tys vs vs' s s':
     List.Forall2 slh_t_spec vs' tys
     -> init_fun_env env xs ttys tys = ok env'
-    -> mapM2 ErrType dc_truncate_val ttys vs' = ok vs
+    -> mapM2 ErrType dc_truncate_val (map eval_atype ttys) vs' = ok vs
     -> write_vars wdb xs vs s = ok s'
     -> wf_env env (p_globs p') s
     -> wf_env env' (p_globs p') s'.
@@ -728,9 +732,11 @@ Section LOWER_SLHO.
     apply: (hrec env1 s1 xs ttys vs hinit hvs' hw).
     case: ty hx hv; t_xrbindP.
     + by move=> <- _; apply: wf_env_after_assign_var hwf hw1.
-    move=> /andP [/eqP hx /eqP ?] /= <- ?; subst t v'.
+    move=> /andP [hx ht] /= <- ?; subst v'.
     have ? : v = @Vword msf_size 0; last subst v.
-    + by move: hv'; rewrite /dc_truncate_val /truncate_val /= truncate_word_u /=; case: ifP => _ [<-].
+    + move: hv'; rewrite (convertible_eval_atype ht).
+      by rewrite /dc_truncate_val /truncate_val /= truncate_word_u /=; case: ifP => _ [<-].
+    move /convertible_eval_atype in hx.
     exact: (wf_env_after_SLHmove_Lvar (vi := v_info x) hwf hx hw1).
   Qed.
 
@@ -738,7 +744,7 @@ Section LOWER_SLHO.
     wf_env env (p_globs p') s ->
     check_res env xs ttys tys = ok t ->
     get_var_is wdb (evm s) xs = ok vs ->
-    mapM2 ErrType dc_truncate_val ttys vs = ok vs' ->
+    mapM2 ErrType dc_truncate_val (map eval_atype ttys) vs = ok vs' ->
     List.Forall2 slh_t_spec vs' tys.
   Proof.
     move=> hwf; elim: xs ttys tys vs vs' t => [ | x xs hrec] [| t ttys] [ | ty tys] //=; t_xrbindP.
@@ -746,10 +752,11 @@ Section LOWER_SLHO.
     move=> ? vs1 hty hty' hxs v hget vs hm <-.
     t_xrbindP=> v' hv vs' htr <-.
     constructor; last by apply: hrec hxs hm htr.
-    case: ty hty hty' => //= h1 /eqP ?; subst t.
+    case: ty hty hty' => //= h1 ht.
     case: hwf => /(_ _ h1) [] hx.
     move: hget; rewrite /get_var hx /= orbT => -[?] _ _; subst v.
-    by move: hv; rewrite /dc_truncate_val /= /truncate_val /= truncate_word_u /=; case: ifP => _ [<-].
+    move: hv; rewrite (convertible_eval_atype ht).
+    by rewrite /dc_truncate_val /= /truncate_val /= truncate_word_u /=; case: ifP => _ [<-].
   Qed.
 
 End LOWER_SLHO.
@@ -941,9 +948,9 @@ Proof.
   all: cycle 1.
 
   - rewrite /lower_slho /=.
-    case heq : is_protect_ptr => [sz /= |].
-    + have -> : slho = SLHprotect_ptr sz.
-      + by case: (slho) heq => //= _ [->].
+    case heq : is_protect_ptr => [[ws sz] /= |].
+    + have -> : slho = SLHprotect_ptr ws sz.
+      + by case: (slho) heq => //= _ _ [-> ->].
       move=> /=; t_xrbindP => /(check_e_msfP true hwf) + <- <-.
       rewrite /exec_sopn /=; t_xrbindP.
       case: args hsemes => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] // hsemes.
@@ -1204,7 +1211,7 @@ Proof.
    rewrite /lower_fd /check_fd /= heq; t_xrbindP=> z hz _ _ _ _ _ {heq hsem}.
    apply: all_is_slh_none hall.
    rewrite -(size_init_fun_env hz).
-   by have [->] := size_mapM2 hm.
+   by have := size_mapM2 hm; rewrite size_map => -[-> _].
 Qed.
 
 End PASS_PROOF.
@@ -1338,7 +1345,7 @@ rewrite /lower_slho; t_xrbindP=> hchk _ [[xs' op'] es'] hargs <- ??;
   subst ii' i'.
 apply wequiv_opn_esem => s _ s' [<- hwf].
 rewrite /sem_sopn; t_xrbindP=> res args hsemes hexec hwrite.
-case: is_protect_ptrP hargs hchk hexec => {slho} [sz|slho] /=; t_xrbindP.
+case: is_protect_ptrP hargs hchk hexec => {slho} [[ws sz]|slho] /=; t_xrbindP.
 - move=> ???; subst xs' op' es'.
   rewrite /sem_sopn; t_xrbindP=> /(check_e_msfP true hwf) + <-.
   move: args hsemes; rewrite /exec_sopn /=; destruct_opn_args=> /= hsemes.
@@ -1496,7 +1503,7 @@ exists (st_eq env), (st_eq env'); split => //.
   apply: (init_envP _ henv hargs hwrite (wf_env_empty _ _)).
   apply: htin.
   rewrite -(size_init_fun_env henv).
-  by have [->] := size_mapM2 hargs.
+  by have := size_mapM2 hargs; rewrite size_map => -[-> _].
 
 (* Body *)
 - exact: it_lower_code hind hchk hlower.

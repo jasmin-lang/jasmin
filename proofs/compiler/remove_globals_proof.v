@@ -112,7 +112,7 @@ Module INCL. Section INCL.
 
   Local Lemma Hasgn : forall s1 s2 (x : lval) (tag : assgn_tag) ty (e : pexpr) v v',
     sem_pexpr true gd s1 e = ok v ->
-    truncate_val ty v = ok v' ->
+    truncate_val (eval_atype ty) v = ok v' ->
     write_lval true gd x v' s1 = ok s2 ->
     Pi_r s1 (Cassgn x tag ty e) s2.
   Proof.
@@ -434,7 +434,7 @@ Module RGP. Section PROOFS.
         by rewrite (he _ _ ok_e' ok_v) (hes _ _ ok_es' ok_vs).
       - by move => z _ _ [<-] [<-].
       - by move => b _ _ [<-] [<-].
-      - by move => n _ _ [<-] [<-].
+      - by move => ws n _ _ [<-] [<-].
       - move => [x []] e' v /=; rewrite /get_gvar /get_var_ /=.
         + case : ifP => hx.
           + case heq: (Mvar.get _ _) => [ g | // ] [<-] /=.
@@ -542,7 +542,7 @@ Module RGP. Section PROOFS.
     rewrite /find_glob /get_global /get_global_value.
     elim: gd uniq_gd => //= -[g' z'] gd hrec /andP /= [hg' huniq]; case: ifPn => /= /andP.
     + move=> [];case : z' => //= ws s /eqP heq /andP[] /eqP ? /eqP ? [?];subst.
-      by rewrite eq_refl /= heq eq_refl zero_extend_u.
+      by rewrite eq_refl /= -heq eq_refl zero_extend_u.
     move=> hn /(hrec huniq) hget {hrec}.
     case: eqP => heq //; subst g'.
     case heq : assoc hget hg' => [z1 | //].
@@ -648,8 +648,8 @@ Module RGP. Section PROOFS.
     case: x hw h hx => //=.
     move=> xi hxi hdef; case: ifPn => // hglob {hdef}.
     case: e' he' => // - [] // sz [] //= z [?]; subst v.
-    case: andP => //= -[/eqP ? /eqP htxi];subst ty.
-    move: htr; rewrite /truncate_val /= truncate_word_u /= => -[?]; subst v'.
+    case: andP => //= -[hty htxi].
+    move: htr; rewrite (convertible_eval_atype hty) /truncate_val /= truncate_word_u /= => -[?]; subst v'.
     t_xrbindP => h hfind <- <-; exists s1' => //.
     move/write_varP: hxi => [-> hdb htr].
     case: hval => hscs hm hm1 hm2 hm3; split => //=.
@@ -658,7 +658,7 @@ Module RGP. Section PROOFS.
     + by move=> y gy;rewrite Mvar.setP; case:eqP => [<- // | ?]; apply hm2.
     move=> y gy;rewrite Mvar.setP Vm.setP //; case:eqP => [|/eqP hneq]; last by apply hm3.
     move=> ?[?]; subst; rewrite (find_globP hfind).
-    by have /vm_truncate_valE [ws] := htr; rewrite htxi => -[[->] ?->]; rewrite cmp_le_refl.
+    by have /vm_truncate_valE [ws] := htr; rewrite (convertible_eval_atype htxi) => -[[->] ?->]; rewrite cmp_le_refl.
   Qed.
 
   Section SEM.

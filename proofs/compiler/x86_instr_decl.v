@@ -5,6 +5,7 @@ From mathcomp Require Import ssralg word word_ssrZ.
 Require Import utils strings word waes sha256 sem_type global oseq sopn.
 Import Utf8 Relation_Operators ZArith.
 
+Require Import arch_utils.
 Require Export arch_decl.
 Require Import x86_decl.
 
@@ -206,33 +207,33 @@ Variant x86_op : Type :=
 HB.instance Definition _ := hasDecEq.Build x86_op x86_op_eqb_OK.
 
 (* ----------------------------------------------------------------------------- *)
-Definition b_ty             := [:: sbool].
-Definition b4_ty            := [:: sbool; sbool; sbool; sbool].
-Definition b5_ty            := [:: sbool; sbool; sbool; sbool; sbool].
+Definition b_ty             := [:: lbool].
+Definition b4_ty            := [:: lbool; lbool; lbool; lbool].
+Definition b5_ty            := [:: lbool; lbool; lbool; lbool; lbool].
 
-Definition bw_ty    sz      := [:: sbool; sword sz].
-Definition bw2_ty   sz      := [:: sbool; sword sz; sword sz].
-Definition b2w_ty   sz      := [:: sbool; sbool; sword sz].
-Definition b4w_ty   sz      := [:: sbool; sbool; sbool; sbool; sword sz].
-Definition b5w_ty   sz      := [:: sbool; sbool; sbool; sbool; sbool; sword sz].
-Definition b5w2_ty  sz      := [:: sbool; sbool; sbool; sbool; sbool; sword sz; sword sz].
+Definition bw_ty    sz      := [:: lbool; lword sz].
+Definition bw2_ty   sz      := [:: lbool; lword sz; lword sz].
+Definition b2w_ty   sz      := [:: lbool; lbool; lword sz].
+Definition b4w_ty   sz      := [:: lbool; lbool; lbool; lbool; lword sz].
+Definition b5w_ty   sz      := [:: lbool; lbool; lbool; lbool; lbool; lword sz].
+Definition b5w2_ty  sz      := [:: lbool; lbool; lbool; lbool; lbool; lword sz; lword sz].
 
-Definition w_ty     sz      := [:: sword sz].
-Definition w2_ty    sz sz'  := [:: sword sz; sword sz'].
-Definition w3_ty    sz      := [:: sword sz; sword sz; sword sz].
-Definition w8_ty            := [:: sword8].
-Definition w128_ty          := [:: sword128].
-Definition w256_ty          := [:: sword256].
+Definition w_ty     sz      := [:: lword sz].
+Definition w2_ty    sz sz'  := [:: lword sz; lword sz'].
+Definition w3_ty    sz      := [:: lword sz; lword sz; lword sz].
+Definition w8_ty            := [:: lword8].
+Definition w128_ty          := [:: lword128].
+Definition w256_ty          := [:: lword256].
 
-Definition w2b_ty   sz sz'  := [:: sword sz; sword sz'; sbool].
-Definition ww8_ty   sz      := [:: sword sz; sword8].
-Definition ww8b_ty   sz     := [:: sword sz; sword8; sbool].
-Definition w2w8_ty   sz     := [:: sword sz; sword sz; sword8].
-Definition w128w8_ty        := [:: sword128; sword8].
-Definition w128ww8_ty sz    := [:: sword128; sword sz; sword8].
-Definition w256w8_ty        := [:: sword256; sword8].
-Definition w256w128w8_ty    := [:: sword256; sword128; sword8].
-Definition w256x2w8_ty      := [:: sword256; sword256; sword8].
+Definition w2b_ty   sz sz'  := [:: lword sz; lword sz'; lbool].
+Definition ww8_ty   sz      := [:: lword sz; lword8].
+Definition ww8b_ty   sz     := [:: lword sz; lword8; lbool].
+Definition w2w8_ty   sz     := [:: lword sz; lword sz; lword8].
+Definition w128w8_ty        := [:: lword128; lword8].
+Definition w128ww8_ty sz    := [:: lword128; lword sz; lword8].
+Definition w256w8_ty        := [:: lword256; lword8].
+Definition w256w128w8_ty    := [:: lword256; lword128; lword8].
+Definition w256x2w8_ty      := [:: lword256; lword256; lword8].
 
 (* ----------------------------------------------------------------------------- *)
 
@@ -247,51 +248,51 @@ Definition ZF_of_word sz (w : word sz) :=
 
 (* -------------------------------------------------------------------- *)
   (*  OF; CF; SF;    PF;    ZF  *)
-Definition rflags_of_bwop sz (w : word sz) : (sem_tuple b5_ty) :=
+Definition rflags_of_bwop sz (w : word sz) : (sem_ltuple b5_ty) :=
   (*  OF;  CF;    SF;           PF;           ZF  *)
   (:: Some false, Some false, Some (SF_of_word w), Some (PF_of_word w) & Some (ZF_of_word w)).
 
 (* -------------------------------------------------------------------- *)
 (*  OF; CF ;SF; PF; ZF  *)
-Definition rflags_of_aluop sz (w : word sz) (vu vs : Z) : (sem_tuple b5_ty) :=
+Definition rflags_of_aluop sz (w : word sz) (vu vs : Z) : (sem_ltuple b5_ty) :=
   (*  OF;             CF;                SF;           PF;           ZF  *)
   (:: Some (wsigned  w != vs), Some (wunsigned w != vu), Some (SF_of_word w), Some (PF_of_word w) & Some (ZF_of_word w )).
 
 (* -------------------------------------------------------------------- *)
-Definition rflags_of_mul (ov : bool) : (sem_tuple b5_ty) :=
+Definition rflags_of_mul (ov : bool) : (sem_ltuple b5_ty) :=
   (*  OF; CF; SF;    PF;    ZF  *)
   (:: Some ov, Some ov, None, None & None).
 
 (* -------------------------------------------------------------------- *)
 
-Definition rflags_of_div : (sem_tuple b5_ty):=
+Definition rflags_of_div : (sem_ltuple b5_ty):=
   (*  OF;    CF;    SF;    PF;    ZF  *)
   (:: None, None, None, None & None).
 
 (* -------------------------------------------------------------------- *)
 
-Definition rflags_of_andn sz (w: word sz) : (sem_tuple b5_ty) :=
+Definition rflags_of_andn sz (w: word sz) : (sem_ltuple b5_ty) :=
   (* OF ; CF ; SF ; PF ; ZF *)
   (:: Some false , Some false , Some (SF_of_word w) , None & Some (ZF_of_word w) ).
 
 (* -------------------------------------------------------------------- *)
 
-Definition rflags_None_w {sz} w : (sem_tuple (b5w_ty sz)):=
+Definition rflags_None_w {sz} w : (sem_ltuple (b5w_ty sz)):=
   (*  OF;    CF;    SF;    PF;    ZF  *)
   (:: None, None, None, None, None & w).
 
 
 (* -------------------------------------------------------------------- *)
 (*  OF; SF; PF; ZF  *)
-Definition rflags_of_aluop_nocf sz (w : word sz) (vs : Z) : (sem_tuple b4_ty) :=
+Definition rflags_of_aluop_nocf sz (w : word sz) (vs : Z) : (sem_ltuple b4_ty) :=
   (*  OF                 SF          ; PF          ; ZF          ] *)
   (:: Some (wsigned   w != vs), Some (SF_of_word w), Some (PF_of_word w) & Some (ZF_of_word w)).
 
 Definition flags_w {l1} (bs: ltuple l1) {sz} (w: word sz):=
-  (merge_tuple bs (w : sem_tuple (w_ty sz))).
+  (merge_tuple bs (w : sem_ltuple (w_ty sz))).
 
 Definition flags_w2 {l1} (bs: ltuple l1) {sz} w :=
-  (merge_tuple bs (w : sem_tuple (w2_ty sz sz))).
+  (merge_tuple bs (w : sem_ltuple (w2_ty sz sz))).
 
 Definition rflags_of_aluop_w sz (w : word sz) (vu vs : Z) :=
   flags_w (rflags_of_aluop w vu vs) w.
@@ -368,9 +369,9 @@ End PRIM_RANGE.
 
 (* -------------------------------------------------------------------- *)
 
-Notation "'tpl' A" := (sem_tuple A) (at level 200, only parsing).
+Notation "'tpl' A" := (sem_ltuple A) (at level 200, only parsing).
 
-Notation "'ex_tpl' A" := (exec (sem_tuple A)) (at level 200, only parsing).
+Notation "'ex_tpl' A" := (exec (sem_ltuple A)) (at level 200, only parsing).
 
 Definition implicit_flags      := map F [::OF; CF; SF; PF; ZF].
 Definition implicit_flags_noCF := map F [::OF; SF; PF; ZF].
@@ -395,8 +396,6 @@ Notation mk_instr str_jas tin tout ain aout msb semi args_kinds nargs safe_cond 
   id_nargs      := nargs;
   id_args_kinds := args_kinds;
   id_eq_size    := refl_equal;
-  id_tin_narr   := refl_equal;
-  id_tout_narr  := refl_equal;
   id_check_dest := refl_equal;
   id_str_jas    := str_jas;
   id_safe       := safe_cond;
@@ -408,10 +407,10 @@ Notation mk_instr str_jas tin tout ain aout msb semi args_kinds nargs safe_cond 
 
 (* Can only be use for safe instruction *)
 Notation mk_instr_safe str_jas tin tout ain aout msb semi args_kinds nargs valid pp_asm :=
-  (mk_instr str_jas tin tout ain aout msb (sem_prod_ok tin semi) args_kinds nargs [::] valid pp_asm
+  (mk_instr str_jas tin tout ain aout msb (sem_lprod_ok tin semi) args_kinds nargs [::] valid pp_asm
     refl_equal
-    (fun _ => (@sem_prod_ok_error _ tin semi ErrType))
-    (fun _ => (@values.sem_prod_ok_safe _ tin semi)))
+    (fun _ => sem_lprod_ok_error tin semi)
+    (fun _ => sem_lprod_ok_safe tin semi))
   (only parsing).
 
 (* Can only be use for safe instruction *)
@@ -780,11 +779,11 @@ Definition x86_DIV sz (hi lo dv: word sz) : ex_tpl (b5w2_ty sz) :=
   ok (flags_w2 (rflags_of_div) (:: (wrepr sz q) & (wrepr sz r))).
 
 Lemma Ox86_DIV_errty (ws : wsize) :
-  sem_forall (λ r : result error (sem_tuple (b5w2_ty ws)), r ≠ Error ErrType) (w3_ty ws) (x86_DIV (sz:=ws)).
+  sem_lforall (λ r : result error (sem_ltuple (b5w2_ty ws)), r ≠ Error ErrType) (w3_ty ws) (x86_DIV (sz:=ws)).
 Proof. by move=> hi lo dv; rewrite /x86_DIV; case: ifP. Qed.
 
 Lemma Ox86_DIV_safe (ws : wsize) :
-  values.interp_safe_cond_ty (tin := w3_ty ws)
+  interp_safe_cond_lty (w3_ty ws)
   [:: X86Division ws Unsigned] (x86_DIV (sz:=ws)).
 Proof.
   move=> hi lo dv /= h; have {h} /= /(_ hi lo dv) := List.Forall_inv h.
@@ -806,11 +805,11 @@ Definition x86_IDIV sz (hi lo dv: word sz) : ex_tpl (b5w2_ty sz) :=
   ok (flags_w2 (rflags_of_div) (:: (wrepr sz q) & (wrepr sz r))).
 
 Lemma Ox86_IDIV_errty (ws : wsize) :
-  sem_forall (λ r : result error (sem_tuple (b5w2_ty ws)), r ≠ Error ErrType) (w3_ty ws) (x86_IDIV (sz:=ws)).
+  sem_lforall (λ r : result error (sem_ltuple (b5w2_ty ws)), r ≠ Error ErrType) (w3_ty ws) (x86_IDIV (sz:=ws)).
 Proof. by move=> hi lo dv; rewrite /x86_IDIV; case: ifP. Qed.
 
 Lemma Ox86_IDIV_safe (ws : wsize) :
-  values.interp_safe_cond_ty (tin := w3_ty ws)
+  interp_safe_cond_lty (w3_ty ws)
   [:: X86Division ws Signed] (x86_IDIV (sz:=ws)).
 Proof.
   move=> hi lo dv /= h; have {h} /= /(_ hi lo dv) := List.Forall_inv h.
@@ -885,7 +884,7 @@ Definition x86_NEG sz (w: word sz) : tpl (b5w_ty sz) :=
   let vs := (- wsigned w)%Z in
   let v := (- w)%R in
   flags_w
-  ((:: Some (wsigned   v != vs), Some ((w != 0)%R), Some (SF_of_word v), Some (PF_of_word v) & Some (ZF_of_word v)) : sem_tuple b5_ty)
+  ((:: Some (wsigned   v != vs), Some ((w != 0)%R), Some (SF_of_word v), Some (PF_of_word v) & Some (ZF_of_word v)) : sem_ltuple b5_ty)
   v.
 
 Definition Ox86_NEG_instr               :=
@@ -911,7 +910,7 @@ Definition x86_LZCNT sz (w: word sz) : tpl (b5w_ty sz) :=
    let v := leading_zero w in
    flags_w
         (*  OF;     CF;                  SF;   PF;    ZF  *)
-         ((:: None, Some (ZF_of_word w), None, None & Some (ZF_of_word v)) : sem_tuple b5_ty) v.
+         ((:: None, Some (ZF_of_word w), None, None & Some (ZF_of_word v)) : sem_ltuple b5_ty) v.
 
 Definition Ox86_LZCNT_instr               :=
   mk_instr_w_b5w "LZCNT" x86_LZCNT [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 LZCNT) size_16_64 (pp_iname "lzcnt").
@@ -920,21 +919,21 @@ Definition x86_TZCNT sz (w: word sz) : tpl (b5w_ty sz) :=
   let v := trailing_zero w in
   flags_w
     (*  OF;     CF;                  SF;   PF;    ZF  *)
-    ((:: None, Some (ZF_of_word w), None, None & Some (ZF_of_word v)) : sem_tuple b5_ty) v.
+    ((:: None, Some (ZF_of_word w), None, None & Some (ZF_of_word v)) : sem_ltuple b5_ty) v.
 
 Definition Ox86_TZCNT_instr               :=
   mk_instr_w_b5w "TZCNT" x86_TZCNT [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 TZCNT) size_16_64 (pp_iname "tzcnt").
 
 Definition x86_BSR sz (w: word sz) : ex_tpl (b5w_ty sz) :=
   Let _ := assert (w != 0%R) ErrArith in
-  ok (flags_w ((:: None, None, None, None & Some false) : sem_tuple b5_ty) (wrepr sz (wsize_bits sz - 1) - leading_zero w)%R).
+  ok (flags_w ((:: None, None, None, None & Some false) : sem_ltuple b5_ty) (wrepr sz (wsize_bits sz - 1) - leading_zero w)%R).
 
 Lemma x86_BSR_errty sz :
-  size_16_64 sz → sem_forall (λ r : result error (sem_tuple (b5w_ty sz)), r ≠ Error ErrType) [:: sword sz] (x86_BSR (sz:=sz)).
+  size_16_64 sz → sem_lforall (λ r : result error (sem_ltuple (b5w_ty sz)), r ≠ Error ErrType) [:: lword sz] (x86_BSR (sz:=sz)).
 Proof. by rewrite /x86_BSR => _ x /=; case: eqP. Qed.
 
 Lemma x86_BSR_safe sz :
-  size_16_64 sz → @values.interp_safe_cond_ty [:: sword sz ] _ [:: NotZero sz 0] (@x86_BSR sz).
+  size_16_64 sz → interp_safe_cond_lty [:: lword sz ] [:: NotZero sz 0] (@x86_BSR sz).
 Proof.
   rewrite /x86_BSR => _ x /List_Forall_inv /=[] x_nz _.
   move: (x_nz x); rewrite truncate_word_u => /(_ erefl).
@@ -944,7 +943,7 @@ Qed.
 
 Definition Ox86_BSR_instr :=
   (fun sz =>
-     mk_instr (pp_sz "BSR" sz) [:: sword sz ] (b5w_ty sz) [:: Eu 1 ] (implicit_flags ++ [:: Ea 0 ]) MSB_CLEAR
+     mk_instr (pp_sz "BSR" sz) [:: lword sz ] (b5w_ty sz) [:: Eu 1 ] (implicit_flags ++ [:: Ea 0 ]) MSB_CLEAR
        (@x86_BSR sz) [:: r_rm ] 2 [:: NotZero sz 0 ] (size_16_64 sz) (pp_iname "bsr" sz)
        erefl (@x86_BSR_errty sz) (@x86_BSR_safe sz),
      ("BSR"%string, prim_16_64 BSR)).
@@ -1170,16 +1169,16 @@ Definition x86_SHLD sz (v1 v2: word sz) (i: u8) : ex_tpl (b5w_ty sz) :=
     ok (rflags_OF i r rc (msb r (+) rc)).
 
 Lemma x86_SHLD_errtyp (ws : wsize) :
-  sem_forall (λ r : result error (sem_tuple (b5w_ty ws)), r ≠ Error ErrType) (w2w8_ty ws) (x86_SHLD (sz:=ws)).
+  sem_lforall (λ r : result error (sem_ltuple (b5w_ty ws)), r ≠ Error ErrType) (w2w8_ty ws) (x86_SHLD (sz:=ws)).
 Proof. by move=> v1 v2 i; rewrite /x86_SHLD; case: ifP => // _; case: ifP. Qed.
 
 Lemma x86_shift_maskE  ws :
   x86_shift_mask ws = wrepr U8 (2 ^ Z.of_nat (match ws with U256 => 8 | U128 => 7 | U64 => 6 | _ => 5 end) - 1).
 Proof. by case: ws. Qed.
 
-Lemma safe_shxdP ws (v1 v2 : sem_t (sword ws)) (i : sem_t sword8) :
+Lemma safe_shxdP ws (v1 v2 : sem_t (cword ws)) (i : sem_t (cword U8)) :
   size_16_64 ws ->
-  List.Forall (values.interp_safe_cond (values.list_ltuple (sem_prod_tuple (w2w8_ty ws) v1 v2 i)))
+  List.Forall (values.interp_safe_cond (values.list_ltuple (sem_prod_tuple (map eval_ltype (w2w8_ty ws)) v1 v2 i)))
         (safe_shxd ws) ->
   ~ (wsize_bits ws - wunsigned (wand i (x86_shift_mask ws)) < 0)%Z.
 Proof.
@@ -1198,7 +1197,7 @@ Lemma safe_wf_shxdP ws : all (λ sc : safe_cond, values.sc_needed_args sc <= siz
 Proof. by case: ws. Qed.
 
 Lemma x86_SHLD_safe (ws : wsize) :
-  size_16_64 ws -> values.interp_safe_cond_ty (tin:= w2w8_ty ws) (safe_shxd ws) (x86_SHLD (sz:=ws)).
+  size_16_64 ws -> interp_safe_cond_lty (w2w8_ty ws) (safe_shxd ws) (x86_SHLD (sz:=ws)).
 Proof.
   move=> hsz v1 v2 i; rewrite /x86_SHLD.
   case: ifPn => hws h; first eauto.
@@ -1224,12 +1223,12 @@ Definition x86_SHRD sz (v1 v2: word sz) (i: u8) : ex_tpl (b5w_ty sz) :=
     ok (rflags_OF i r rc (msb r (+) msb v1)).
 
 Lemma x86_SHRD_errtyp (ws : wsize) :
-  sem_forall (λ r : result error (sem_tuple (b5w_ty ws)), r ≠ Error ErrType) (w2w8_ty ws) (x86_SHRD (sz:=ws)).
+  sem_lforall (λ r : result error (sem_ltuple (b5w_ty ws)), r ≠ Error ErrType) (w2w8_ty ws) (x86_SHRD (sz:=ws)).
 Proof. by move=> v1 v2 i; rewrite /x86_SHRD; case: ifP => // _; case: ifP. Qed.
 
 Lemma x86_SHRD_safe (ws : wsize) :
   size_16_64 ws ->
-  values.interp_safe_cond_ty (tin:= w2w8_ty ws) (safe_shxd ws) (x86_SHRD (sz:=ws)).
+  interp_safe_cond_lty (w2w8_ty ws) (safe_shxd ws) (x86_SHRD (sz:=ws)).
 Proof.
   move=> hsz v1 v2 i; rewrite /safe_shxd /x86_SHRD.
   case: ifPn => hws h; first eauto.
@@ -1352,7 +1351,7 @@ Definition x86_VPMOVSX (ve: velem) (sz: wsize) (ve': velem) (sz': wsize) (w: wor
 Definition Ox86_VPMOVSX_instr :=
   let name := "VPMOVSX"%string in
   (λ ve sz ve' sz',
-   mk_instr_safe (pp_ve_sz_ve_sz name ve sz ve' sz') [:: sword sz ] [:: sword sz' ] [:: Eu 1 ] [:: Eu 0 ]
+   mk_instr_safe (pp_ve_sz_ve_sz name ve sz ve' sz') [:: lword sz ] [:: lword sz' ] [:: Eu 1 ] [:: Eu 0 ]
             MSB_CLEAR (@x86_VPMOVSX ve sz ve' sz') [:: [:: xmm ; xmmm true]] 2
                       (size_128_256 sz' && check_vector_length ve sz ve' sz') (pp_vpmovx "vpmovsx" ve sz ve' sz'),
    (name, prim_vv VPMOVSX)
@@ -1364,7 +1363,7 @@ Definition x86_VPMOVZX (ve: velem) (sz: wsize) (ve': velem) (sz': wsize) (w: wor
 Definition Ox86_VPMOVZX_instr :=
   let name := "VPMOVZX"%string in
   (λ ve sz ve' sz',
-   mk_instr_safe (pp_ve_sz_ve_sz name ve sz ve' sz') [:: sword sz ] [:: sword sz' ] [:: Eu 1 ] [:: Eu 0 ]
+   mk_instr_safe (pp_ve_sz_ve_sz name ve sz ve' sz') [:: lword sz ] [:: lword sz' ] [:: Eu 1 ] [:: Eu 0 ]
             MSB_CLEAR (@x86_VPMOVZX ve sz ve' sz') [:: [:: xmm ; xmmm true]] 2
                       (size_128_256 sz' && check_vector_length ve sz ve' sz') (pp_vpmovx "vpmovzx" ve sz ve' sz'),
    (name, prim_vv VPMOVZX)
@@ -1921,12 +1920,12 @@ Definition Ox86_VPTEST_instr :=
    in particular the correctness theorem does not apply to programs using them. *)
 
 Lemma ErrSemUndef_errty l:
-  sem_forall (λ r : result error (sem_tuple l), r ≠ Error ErrType) [::] (Error ErrSemUndef).
+  sem_lforall (λ r : result error (sem_ltuple l), r ≠ Error ErrType) [::] (Error ErrSemUndef).
 Proof. done. Qed.
 
 Lemma ErrSemUndef_safe l:
   values.interp_safe_cond_ty (tin := [::])
-  [:: ScFalse] (@Error _ (sem_tuple l) ErrSemUndef).
+  [:: ScFalse] (@Error _ (sem_ltuple l) ErrSemUndef).
 Proof. by move=> h; have := List.Forall_inv h. Qed.
 
 Definition Ox86_RDTSC_instr :=
@@ -1971,16 +1970,16 @@ Definition Ox86_RDTSCP_instr :=
 
 (* Fences & cache-related instructions *)
 Definition Ox86_CLFLUSH_instr :=
-  mk_instr_pp "CLFLUSH" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM CLFLUSH) (pp_name "clflush" U8).
+  mk_instr_pp "CLFLUSH" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM CLFLUSH) (pp_name "clflush" U8).
 
 Definition Ox86_PREFETCHT0_instr :=
-  mk_instr_pp "PREFETCHT0" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM PREFETCHT0) (pp_name "prefetcht0" U8).
+  mk_instr_pp "PREFETCHT0" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM PREFETCHT0) (pp_name "prefetcht0" U8).
 Definition Ox86_PREFETCHT1_instr :=
-  mk_instr_pp "PREFETCHT1" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM PREFETCHT1) (pp_name "prefetcht1" U8).
+  mk_instr_pp "PREFETCHT1" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM PREFETCHT1) (pp_name "prefetcht1" U8).
 Definition Ox86_PREFETCHT2_instr :=
-  mk_instr_pp "PREFETCHT2" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM PREFETCHT2) (pp_name "prefetcht2" U8).
+  mk_instr_pp "PREFETCHT2" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM PREFETCHT2) (pp_name "prefetcht2" U8).
 Definition Ox86_PREFETCHNTA_instr :=
-  mk_instr_pp "PREFETCHNTA" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM PREFETCHNTA) (pp_name "prefetchnta" U8).
+  mk_instr_pp "PREFETCHNTA" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM PREFETCHNTA) (pp_name "prefetchnta" U8).
 
 Definition Ox86_LFENCE_instr :=
   mk_instr_pp "LFENCE" [::] [::] [::] [::] MSB_CLEAR tt [:: [::] ] 0 (primM LFENCE) (pp_name "lfence" U8).
@@ -2089,14 +2088,14 @@ Definition x86_VPCLMULQDQ sz (v1 v2: word sz) (k: u8): tpl (w_ty sz) :=
  wVPCLMULDQD v1 v2 k.
 
 Definition Ox86_PCLMULQDQ_instr :=
-  mk_instr_pp "PCLMULQDQ" [:: sword U128; sword U128; sword U8] (w_ty U128)
+  mk_instr_pp "PCLMULQDQ" [:: lword U128; lword U128; lword U8] (w_ty U128)
     [:: Eu 0; Eu 1; Eu 2] [:: Eu 0] MSB_CLEAR (@x86_VPCLMULQDQ U128)
     (check_xmm_xmmm_imm8 U128) 3 (primM PCLMULQDQ)
     (pp_name_ty "pclmulqdq" [::U128;U128;U8]).
 
 Definition Ox86_VPCLMULQDQ_instr :=
  (fun sz =>
-   mk_instr_safe (pp_sz "VPCLMULQDQ"%string sz) [:: sword sz; sword sz; sword U8] (w_ty sz)
+   mk_instr_safe (pp_sz "VPCLMULQDQ"%string sz) [:: lword sz; lword sz; lword U8] (w_ty sz)
        [:: Eu 1; Eu 2; Eu 3] [:: Eu 0] MSB_CLEAR (@x86_VPCLMULQDQ sz)
        (check_xmm_xmm_xmmm_imm8 sz) 4 (size_128_256 sz) (pp_name "vpclmulqdq" sz)
  , ("VPCLMULQDQ"%string, prim_128_256 VPCLMULQDQ)).

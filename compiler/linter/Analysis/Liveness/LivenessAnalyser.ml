@@ -49,7 +49,7 @@ module LivenessDomain : BackwardAnalyser.Logic with type domain = Sv.t = struct
   let syscall
     (_ : Location.i_loc)
     (lvs : lvals)
-    (_ : BinNums.positive Syscall_t.syscall_t)
+    (_ : (Wsize.wsize * BinNums.positive) Syscall_t.syscall_t)
     (exprs : exprs)
     (domain : domain) =
     Annotation (live_assigns domain lvs exprs)

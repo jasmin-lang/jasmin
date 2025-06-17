@@ -11,9 +11,9 @@ Record wf_ai (m : t) (x:var) ai := {
   x_nin : ~ Sv.In x m.(svars);
   len_pos : (0 < ai.(ai_len))%Z;
   len_def : ai_len ai = Z.of_nat (size (ai_elems ai));
-  x_ty    : vtype x = sarr (Z.to_pos (arr_size ai.(ai_ty) (Z.to_pos ai.(ai_len))));
+  x_ty    : convertible (vtype x) (aarr ai.(ai_ty) (Z.to_pos ai.(ai_len)));
   xi_nin  : forall xi, xi \in ai_elems ai -> ~ Sv.In xi m.(svars);
-  xi_ty   : forall xi, xi \in ai_elems ai -> xi.(vtype) = sword ai.(ai_ty);
+  xi_ty   : forall xi, xi \in ai_elems ai -> xi.(vtype) = aword ai.(ai_ty);
   el_uni  : uniq (ai_elems ai);
   xi_disj : forall x' ai' xi, x <> x' -> Mvar.get m.(sarrs) x' = Some ai' ->
                ~(xi \in ai_elems ai /\ xi \in ai_elems ai')
@@ -45,7 +45,7 @@ Definition expand_vs := mapM2 ErrType expand_v.
 (* ---------------------------------------------------------------------- *)
 
 Lemma eval_arrayP ws v i w : eval_array ws v i = ok w ->
-  is_sarr (type_of_val v) /\ (w = undef_w \/ exists ww, w = @Vword ws ww).
+  is_carr (type_of_val v) /\ (w = undef_w \/ exists ww, w = @Vword ws ww).
 Proof.
   by case: v => //= > [<-]; split=> //; case: WArray.get; auto; right; eexists.
 Qed.
@@ -189,7 +189,7 @@ Proof.
   + by move=> > he > hes > hex > hexs <- > /(he _ hex) /= -> > /(hes _ hexs) /= -> <-.
   + by move=> z _ <- _ <-.
   + by move=> b _ <- _ <-.
-  + by move=> n _ <- _ <-.
+  + by move=> ws n _ <- _ <-.
   + by move=> > /(check_gvar_get) -/(_ _ _ h) -> <-.
   + move=> al aa sz x e hrec e2.
     case: ifP => [/check_gvar_get /(_ h)|/norP/proj1/negbNE hlv].
@@ -235,11 +235,11 @@ Proof.
   have [vm2 hw2 heq2]:= write_var_eq_on hw heq.
   exists (with_vm s1' vm2); split.
   + have -> // : s2 = with_vm s1 (evm s2) by case: (s2) hscs hmem => ??? /= <- <-.
-  split => //; split; first by apply: eq_onI heq2; SvD.fsetdec.
+  split => //; split; first by apply: eq_onI heq2; clear; SvD.fsetdec.
   move=> x' ai xi hai hxi.
   have vai := valid hai; move: vai.(x_nin) (vai.(xi_nin) hxi) => hnx' hnxi.
-  rewrite -(vrvP_var hw); last by SvD.fsetdec.
-  rewrite -(vrvP_var hw2); last by SvD.fsetdec.
+  rewrite -(vrvP_var hw); last by clear -hin hnx'; SvD.fsetdec.
+  rewrite -(vrvP_var hw2); last by clear -hin hnxi; SvD.fsetdec.
   by apply ha.
 Qed.
 
@@ -269,7 +269,8 @@ Proof.
     apply on_arr_varP => n t hty hget /=.
     t_xrbindP => w hvw t' ht' /[dup] hw1 /write_varP [? _ htrv]; subst s1'.
     have vai := valid hai; have hin := wf_mem (v_var x) vai hbound.
-    move: (vai.(xi_ty) hin) (vai.(xi_nin) hin) => htyi ?.
+    move: (vai.(xi_ty) hin) (vai.(xi_nin) hin) => htyi xi_nin.
+    move=> /(f_equal eval_atype) in htyi.
     have [htri htrvi hdb hdv]:= to_word_vm_truncate_val wdb htyi hvw.
     set xi := znth (v_var x) (ai_elems ai) i.
     have hw2 := write_var_truncate (x:= {| v_var := xi; v_info := v_info x |}) hdb htri s2.
@@ -277,7 +278,7 @@ Proof.
     split => //; split.
     + apply: (eq_onT (vm2:= evm s1)).
       + apply eq_onS; apply: (disjoint_eq_on (wdb := wdb) (gd := gd) (r := x) (v := Varr t')) => //.
-        by rewrite vrv_var; move/Sv_memP : hnin => hnin; apply/Sv.is_empty_spec; SvD.fsetdec.
+        by rewrite vrv_var; move/Sv_memP : hnin => hnin; apply/Sv.is_empty_spec; clear -hnin; SvD.fsetdec.
       apply: (eq_onT heq).
       apply:
         (disjoint_eq_on
@@ -285,7 +286,7 @@ Proof.
            (gd := gd)
            (r := Lvar (VarI xi x.(v_info)))
            (v := v)) => //.
-      rewrite vrv_var /= /xi; apply/Sv.is_empty_spec; SvD.fsetdec.
+      by rewrite vrv_var /= /xi; apply/Sv.is_empty_spec; clear -xi_nin; SvD.fsetdec.
     move=> x' ai' xi' hx' hxi'.
     rewrite /eval_array/on_arr_var /=.
     have [htri' htrvi' hdb' hdv']:= to_word_vm_truncate_val true htyi hvw.
@@ -344,8 +345,8 @@ Proof.
     rewrite /get_gvar /=hloc{hloc} /get_var /=.
     move=> + hrec _ _ [<-] z0 /hrec{hrec}+ <- => + [? ->] /= => <-.
     have vai := (valid hga); case: h => _ _ -[_ /(_ _ _ _ hga){hga}hgai].
-    have := Vm.getP (evm s1) (gv g); rewrite vai.(x_ty) /compat_val /=.
-    move => /compat_typeE /type_of_valI [x2 /[dup] hg ->].
+    have := Vm.getP (evm s1) (gv g). rewrite (convertible_eval_atype vai.(x_ty)) /compat_val /=.
+    move => /compat_ctypeE /type_of_valI [x2 /[dup] hg ->].
     rewrite /sem_pexprs mapM_cat -/(sem_pexprs _ _ _ (flatten _)) => -> /=.
     rewrite expand_vP /=; eexists; eauto.
     rewrite mapM_map /comp /= /get_gvar /get_var /= mapM_ok /=; do 2!f_equal.
@@ -361,7 +362,7 @@ Proof.
   move=> /and4P [] /eqP ? /eqP ? /eqP ? hloc ? _ hrec vs z; subst ws ws' len es => /=.
   have vai := valid hga.
 
-  apply: on_arr_gvarP; rewrite vai.(x_ty) => len1 t [?]; subst len1.
+  apply: on_arr_gvarP; rewrite (convertible_eval_atype vai.(x_ty)) => len1 t [?]; subst len1.
   rewrite /get_gvar hloc => /get_varP [hgx _ _]; t_xrbindP => st hst ?; subst z.
   move=> ? /hrec[? hex +] <-; rewrite /sem_pexprs mapM_cat hex /= => -> /=.
   rewrite expand_vP /=; eexists; eauto.
@@ -411,7 +412,7 @@ Proof.
   + by apply/andP; split; [apply/ZleP|apply/ZltP]; lia.
   have hin := wf_mem (v_var x) hva hk1.
   rewrite (xi_ty hva hin).
-  have -> /= : (truncatable false (sword (ai_ty ai)) (rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) a k)))).
+  have -> /= : (truncatable false (cword (ai_ty ai)) (rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) a k)))).
   + by case: WArray.get => //=.
   set s1 := with_vm _ _.
   case: (hrec s1 huni) => vm -> hvm; exists vm => // y; rewrite in_cons.
@@ -449,7 +450,7 @@ Proof.
   + move=> x xs2.
     t_xrbindP=> ai hga; have hva:= valid hga.
     move=> /andP[/eqP? /eqP?] hmap va vs' s1'; subst.
-    move=> /write_varP [-> _]. rewrite hva.(x_ty) => /vm_truncate_valEl [] a -> _.
+    move=> /write_varP [-> _]. rewrite (convertible_eval_atype hva.(x_ty)) => /vm_truncate_valEl [] a -> _.
     rewrite expand_vP => -[?]; subst vs'.
     rewrite (wf_ai_elems (v_var x) hva) -map_comp /comp.
     have [vm2 -> hvm2 ]:= wf_write_get s2 a hva (Z.le_refl _) (Z.le_refl _) (Z.lt_le_incl _ _ (len_pos hva)).
@@ -465,11 +466,11 @@ Proof.
       rewrite in_ziota /= (zindex_bound _ hva) => ?.
       have /(_ xi):= xi_disj hva hne hga'; elim => //.
     subst y; rewrite hga => -[<-] hin.
-    by rewrite in_ziota (zindex_bound _ hva) hin (x_ty hva) vm_truncate_val_eq.
+    by rewrite in_ziota (zindex_bound _ hva) hin (convertible_eval_atype (x_ty hva)) vm_truncate_val_eq.
   move => aa ws' len' x e xs2; t_xrbindP => /eqP ?; subst aa.
   case: is_constP => // i _ [<-] ai hga; have hva:= valid hga.
   move=> /and3P []/eqP ? /eqP ? /eqP ? <- va vs' s1'; subst a ws' len.
-  have /= := Vm.getP (evm s1) x; rewrite hva.(x_ty) => /compat_valEl [a heqx]; rewrite heqx.
+  have /= := Vm.getP (evm s1) x; rewrite (convertible_eval_atype hva.(x_ty)) => /compat_valEl [a heqx]; rewrite heqx.
   t_xrbindP => sa /to_arrI -> ra hra /write_varP [] -> _ _.
   rewrite expand_vP => -[?]; subst vs'.
   have := WArray.set_sub_bound hra.
@@ -503,7 +504,7 @@ Proof.
     rewrite in_ziota /= => /hybound ?.
     have /(_ xi):= xi_disj hva hne hga'; elim => //.
   subst y; rewrite hga => -[<-] hin.
-  rewrite in_ziota (x_ty hva); case: ifP => //=; rewrite eqxx //.
+  rewrite in_ziota (convertible_eval_atype (x_ty hva)); case: ifP => //=; rewrite eqxx //.
   move: (hin); rewrite -(zindex_bound _ hva) => /andP [] /ZleP ? /ZltP ? hn.
   rewrite /= (WArray.set_sub_get hra).
   by rewrite hn; have [_ /(_ _ _ _ hga hin)]:= heqv; rewrite heqx.
@@ -580,7 +581,7 @@ Proof.
   t_xrbindP => svm1 heq; apply: hrec.
   move: heq; rewrite /init_array_info.
   case: svm hwf => sv1 m1 hwf; t_xrbindP => /Sv_memP hin [sv2 len].
-  set ty := sword _; t_xrbindP.
+  set ty := aword _; t_xrbindP.
   set elems := [seq _ | id <- vi_n vi] => hfold.
   have :
     [/\ Sv.Equal sv2 (Sv.union (sv_of_list id elems) sv1),
@@ -589,32 +590,32 @@ Proof.
         len = (0 + Z.of_nat (size elems))%Z].
   + elim: elems sv1 {hwf hin} 0%Z hfold => /= [ | x elems hrec] sv1 z; t_xrbindP.
     + move => <- <-; split => //; last by rewrite Z.add_0_r.
-      by rewrite /sv_of_list /=; apply/disjointP; SvD.fsetdec.
+      by rewrite /sv_of_list /=; apply/disjointP; clear; SvD.fsetdec.
     move=> _ /Sv_memP hnin <- /hrec [heq /disjointP hdis huni ->]; split => //.
-    + by rewrite sv_of_list_cons heq; SvD.fsetdec.
-    + apply/disjointP => y ?; rewrite sv_of_list_cons.
-      by have := hdis y; SvD.fsetdec.
+    + by rewrite sv_of_list_cons heq; clear; SvD.fsetdec.
+    + apply/disjointP => y y_in; rewrite sv_of_list_cons.
+      by have := hdis y; clear -y_in hnin; SvD.fsetdec.
     + apply /andP; split => //; apply /negP => hin.
-      by apply (hdis x); [SvD.fsetdec | apply /sv_of_listP/map_f].
+      by apply (hdis x); [clear; SvD.fsetdec | apply /sv_of_listP/map_f].
     have /= -> := Nat2Z.inj_succ (size elems); ring.
-  move=> [heq /disjointP hdis huni hlen] /andP [] /ZltP h0len /eqP hty <-.
+  move=> [heq /disjointP hdis huni hlen] /andP [] /ZltP h0len hty <-.
   case: hwf => /= hwf hincl hget.
   split => /=.
   + move=> x ai /=; rewrite Mvar.setP; case: eqP.
     + move=> ? [<-]; subst x.
       constructor => //=.
-      + by have := hdis (vi_v vi); SvD.fsetdec.
-      + by move=> xi; rewrite -(map_id elems) => /sv_of_listP; have := hdis xi; SvD.fsetdec.
+      + by have := hdis (vi_v vi); clear -hin hincl; SvD.fsetdec.
+      + by move=> xi; rewrite -(map_id elems) => /sv_of_listP; have := hdis xi; clear -hincl; SvD.fsetdec.
       + by move=> xi /mapP [id ? ->].
       move=> x' ai' xi /eqP ?. rewrite Mvar.setP_neq // => /hget -/(_ xi) h [].
       by rewrite -(map_id elems) => /sv_of_listP -/hdis h1 /h.
     move=> hne /[dup] /hget h1 /hwf [/= ??????? xi_disj]; constructor => //=.
     move=> x' ai' xi hxx'; rewrite Mvar.setP; case: eqP => [? | hne']; last by apply xi_disj.
     by move=> [<-] [] /= /h1 /hdis h2; rewrite -(map_id elems) => /sv_of_listP.
-  + by SvD.fsetdec.
+  + by clear -heq hincl; SvD.fsetdec.
   move=> x ai xi; rewrite Mvar.setP; case: eqP => [? | _].
-  + by move=> [<-] /=; rewrite -(map_id elems) => /sv_of_listP; SvD.fsetdec.
-  move=> h1 h2; have := hget _ _ _ h1 h2; SvD.fsetdec.
+  + by move=> [<-] /=; rewrite -(map_id elems) => /sv_of_listP; clear -heq; SvD.fsetdec.
+  by move=> h1 h2; have := hget _ _ _ h1 h2; clear -heq; SvD.fsetdec.
 Qed.
 
 Lemma eq_alloc_empty m scs mem :
@@ -623,7 +624,7 @@ Lemma eq_alloc_empty m scs mem :
 Proof.
   move=> hwf; split => //; split => //=.
   move=> x ai xi /hwf hva hin.
-  rewrite !Vm.initP (x_ty hva) (xi_ty hva hin) /=.
+  rewrite !Vm.initP (convertible_eval_atype (x_ty hva)) (xi_ty hva hin) /=.
   case heq : WArray.get => [w | /=]; last first.
   + by rewrite /undef_v (undef_x_vundef (_ _)).
   have []:= WArray.get_bound heq; rewrite /mk_scale => ???.
@@ -849,7 +850,7 @@ Proof.
   + elim: (mapM2_Forall3 hparams) vargs vargs1 {Hw Hca hw} hexvs.
     + by move=> [] //= ? [<-].
     move=> ty x [[tysx xsx] o] tys xs cs0 hexty _ hrec [] //= v vs ?.
-    t_xrbindP => ? hexp ? hexps <- /=; apply: cat_mapM2 (hrec _ _ hexps).
+    t_xrbindP => ? hexp ? hexps <- /=; rewrite map_cat; apply: cat_mapM2 (hrec _ _ hexps).
     move: hexty hexp; rewrite /expand_tyv /expand_v.
     case heq: Mvar.get => [ai | ]; t_xrbindP.
     + move=> _ ???; subst tysx xsx o.
@@ -860,7 +861,7 @@ Proof.
   + elim: (mapM2_Forall3 hres) vres vs' {hwr Hcr Hres} hex.
     + by move=> [] //= ? [<-].
     move=> ty x [[tysx xsx] o] tys xs cs0 hexty _ hrec [] //= v vs ?.
-    t_xrbindP => ? hexp ? hexps <- /=; apply: cat_mapM2 (hrec _ _ hexps).
+    t_xrbindP => ? hexp ? hexps <- /=; rewrite map_cat; apply: cat_mapM2 (hrec _ _ hexps).
     move: hexty hexp; rewrite /expand_tyv /expand_v.
     case heq: Mvar.get => [ai | ]; t_xrbindP.
     + move=> _ ???; subst tysx xsx o.
@@ -1019,11 +1020,11 @@ Proof.
   have heqae : eq_alloc m sempty sempty by apply eq_alloc_empty.
   rewrite (write_vars_lvals false gd) in hw.
   have ? := mapM2_dc_truncate_id htr; subst vs1.
-  have -> /= : mapM2 ErrType dc_truncate_val (flatten [seq x.1.1 | x <- ins]) (flatten vs) = ok (flatten vs).
+  have -> /= : mapM2 ErrType dc_truncate_val (map eval_atype (flatten [seq x.1.1 | x <- ins])) (flatten vs) = ok (flatten vs).
   + elim: (mapM2_Forall3 hparams) (fvals fs1) vs hexpv.
     + by move=> [] //= ? [<-].
     move=> ty x [[tysx xsx] o] tys xs cs0 hexty _ hrec' [] //= v vs ?.
-    t_xrbindP => ? hexp ? hexps <- /=; apply: cat_mapM2 (hrec' _ _ hexps).
+    t_xrbindP => ? hexp ? hexps <- /=; rewrite map_cat; apply: cat_mapM2 (hrec' _ _ hexps).
     move: hexty hexp; rewrite /expand_tyv /expand_v.
     case heq: Mvar.get => [ai | ]; t_xrbindP.
     + move=> _ ???; subst tysx xsx o.
@@ -1040,11 +1041,11 @@ Proof.
   rewrite -(sem_pexprs_get_var false gd) in hgets.
   have [vs' hex]:= expand_paramsP hwf heqa2 (expend_tyv_expand_param hres) hgets.
   rewrite map_comp -map_flatten sem_pexprs_get_var => -> /= {hgets}.
-  have -> /= : mapM2 ErrType dc_truncate_val (flatten [seq x.1.1 | x <- outs]) (flatten vs') = ok (flatten vs').
+  have -> /= : mapM2 ErrType dc_truncate_val (map eval_atype (flatten [seq x.1.1 | x <- outs])) (flatten vs') = ok (flatten vs').
   + elim: (mapM2_Forall3 hres) {htr} vres vs' hex.
     + by move=> [] //= ? [<-].
     move=> ty x [[tysx xsx] o] tys xs cs0 hexty _ hrec' [] //= v vs' ?.
-    t_xrbindP => ? hexp ? hexps <- /=; apply: cat_mapM2 (hrec' _ _ hexps).
+    t_xrbindP => ? hexp ? hexps <- /=; rewrite map_cat; apply: cat_mapM2 (hrec' _ _ hexps).
     move: hexty hexp; rewrite /expand_tyv /expand_v.
     case heq: Mvar.get => [ai | ]; t_xrbindP.
     + move=> _ ???; subst tysx xsx o.
@@ -1056,7 +1057,8 @@ Proof.
   case: heqa2 => ?? _; split => //=.
   eexists; first exact hget1.
   split => /=.
-  + by case: (size_mapM2 htr) => ->.
+  + case: (size_mapM2 htr) => <- _.
+    by rewrite size_map.
   eexists; first exact hsigs.
   by exists vs'.
 Qed.

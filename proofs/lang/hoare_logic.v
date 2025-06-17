@@ -491,7 +491,7 @@ Proof. rewrite -(cat1s i c); apply hoare_cat. Qed.
 Lemma hoare_assgn (Rv Rtr: Pred_v) (P Q : Pred_c) (Qerr : Pred_err) ii x tg ty e :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
   rhoare P (fun s => sem_pexpr true (p_globs p) s e) Rv Qerr ->
-  (forall s, P s -> rhoare Rv (truncate_val ty) Rtr Qerr) ->
+  (forall s, P s -> rhoare Rv (truncate_val (eval_atype ty)) Rtr Qerr) ->
   (forall v, Rtr v -> rhoare P (write_lval true (p_globs p) x v) Q Qerr) ->
   hoare P [:: MkI ii (Cassgn x tg ty e)] Q.
 Proof.
@@ -803,7 +803,7 @@ Context (p : prog) (ev: extra_val_t).
 
 Lemma whoare_assgn (Rv Rtr: Pred_v) (P Q : Pred_c) ii x tg ty e :
   rhoare P (fun s => sem_pexpr true (p_globs p) s e) Rv PredT ->
-  (forall s, P s -> rhoare Rv (truncate_val ty) Rtr PredT) ->
+  (forall s, P s -> rhoare Rv (truncate_val (eval_atype ty)) Rtr PredT) ->
   (forall v, Rtr v -> rhoare P (write_lval true (p_globs p) x v) Q PredT) ->
   whoare p ev P [:: MkI ii (Cassgn x tg ty e)] Q.
 Proof. by apply hoare_assgn. Qed.

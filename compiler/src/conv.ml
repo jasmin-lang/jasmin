@@ -34,16 +34,16 @@ let z_unsigned_of_word sz z = z_of_cz (Word0.wunsigned sz z)
 (* ------------------------------------------------------------------------ *)
 
 let cty_of_ty = function
-  | Bty Bool      -> T.Coq_sbool
-  | Bty Int       -> T.Coq_sint
-  | Bty (U sz)   -> T.Coq_sword(sz)
-  | Arr (sz, len) -> T.Coq_sarr (pos_of_int (size_of_ws sz * len))
+  | Bty Bool      -> T.Coq_abool
+  | Bty Int       -> T.Coq_aint
+  | Bty (U sz)   -> T.Coq_aword(sz)
+  | Arr (sz, len) -> T.Coq_aarr (sz, pos_of_int len)
 
 let ty_of_cty = function
-  | T.Coq_sbool  ->  Bty Bool
-  | T.Coq_sint   ->  Bty Int
-  | T.Coq_sword sz -> Bty (U sz)
-  | T.Coq_sarr p -> Arr (U8, int_of_pos p)
+  | T.Coq_abool  ->  Bty Bool
+  | T.Coq_aint   ->  Bty Int
+  | T.Coq_aword sz -> Bty (U sz)
+  | T.Coq_aarr (sz, len) -> Arr (sz, int_of_pos len)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -85,7 +85,7 @@ let gvari_of_cgvari v =
 let rec cexpr_of_expr = function
   | Pconst z          -> C.Pconst (cz_of_z z)
   | Pbool  b          -> C.Pbool  b
-  | Parr_init n       -> C.Parr_init (pos_of_int n)
+  | Parr_init (ws, n) -> C.Parr_init (ws, pos_of_int n)
   | Pvar x            -> C.Pvar (cgvari_of_gvari x)
   | Pget (al, aa,ws, x,e) -> C.Pget (al, aa, ws, cgvari_of_gvari x, cexpr_of_expr e)
   | Psub (aa,ws,len, x,e) -> 
@@ -102,7 +102,7 @@ let rec cexpr_of_expr = function
 let rec expr_of_cexpr = function
   | C.Pconst z          -> Pconst (z_of_cz z)
   | C.Pbool  b          -> Pbool  b
-  | C.Parr_init n       -> Parr_init (int_of_pos n)
+  | C.Parr_init (ws, n) -> Parr_init (ws, int_of_pos n)
   | C.Pvar x            -> Pvar (gvari_of_cgvari x)
   | C.Pget (al, aa,ws, x,e) -> Pget (al, aa, ws, gvari_of_cgvari x, expr_of_cexpr e)
   | C.Psub (aa,ws,len,x,e) -> Psub (aa, ws, int_of_pos len, gvari_of_cgvari x, expr_of_cexpr e)

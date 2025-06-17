@@ -76,9 +76,9 @@ Variant wiop2 :=
 
 #[only(eqbOK)] derive
 Variant sop2 :=
-| Obeq                        (* const : sbool -> sbool -> sbool *)
-| Oand                        (* const : sbool -> sbool -> sbool *)
-| Oor                         (* const : sbool -> sbool -> sbool *)
+| Obeq                        (* const : abool -> abool -> abool *)
+| Oand                        (* const : abool -> abool -> abool *)
+| Oor                         (* const : abool -> abool -> abool *)
 
 | Oadd  of op_kind
 | Omul  of op_kind
@@ -152,25 +152,25 @@ Definition etype_of_wiop1 {len:Type} (s: signedness) (o:wiop1) : extended_type l
   | WIneg          sz => (twint s sz, twint s sz)
   end.
 
-Definition type_of_wiop1 (o:wiop1) : stype * stype :=
+Definition type_of_wiop1 (o:wiop1) : atype * atype :=
   match o with
-  | WIwint_of_int  sz => (sint, sword sz)
-  | WIint_of_wint  sz => (sword sz, sint)
-  | WIword_of_wint sz => (sword sz, sword sz)
-  | WIwint_of_word sz => (sword sz, sword sz)
-  | WIwint_ext szo szi => (sword szi, sword szo)
-  | WIneg          sz => (sword sz, sword sz)
+  | WIwint_of_int  sz => (aint, aword sz)
+  | WIint_of_wint  sz => (aword sz, aint)
+  | WIword_of_wint sz => (aword sz, aword sz)
+  | WIwint_of_word sz => (aword sz, aword sz)
+  | WIwint_ext szo szi => (aword szi, aword szo)
+  | WIneg          sz => (aword sz, aword sz)
   end.
 
 Lemma e_type_of_wiop1 s o :
   let t := etype_of_wiop1 s o in
-  type_of_wiop1 o = (to_stype t.1, to_stype t.2).
+  type_of_wiop1 o = (to_atype t.1, to_atype t.2).
 Proof. by case: o. Qed.
 
 Definition type_of_opk (k:op_kind) :=
   match k with
-  | Op_int => sint
-  | Op_w sz => sword sz
+  | Op_int => aint
+  | Op_w sz => aword sz
   end.
 
 Definition etype_of_opk {len} (k:op_kind) : extended_type len :=
@@ -179,7 +179,7 @@ Definition etype_of_opk {len} (k:op_kind) : extended_type len :=
   | Op_w sz => tword sz
   end.
 
-Lemma e_type_of_opk k : type_of_opk k = to_stype (etype_of_opk k).
+Lemma e_type_of_opk k : type_of_opk k = to_atype (etype_of_opk k).
 Proof. by case: k. Qed.
 
 (* Type of unany operators: input, output *)
@@ -196,22 +196,22 @@ Definition etype_of_op1 {len} (o: sop1) : extended_type len * extended_type len 
   | Owi1 s o => etype_of_wiop1 s o
   end.
 
-Definition type_of_op1 (o: sop1) : stype * stype :=
+Definition type_of_op1 (o: sop1) : atype * atype :=
   match o with
-  | Oword_of_int sz => (sint, sword sz)
-  | Oint_of_word _ sz => (sword sz, sint)
+  | Oword_of_int sz => (aint, aword sz)
+  | Oint_of_word _ sz => (aword sz, aint)
   | Osignext szo szi
   | Ozeroext szo szi
-    => (sword szi, sword szo)
-  | Onot => (sbool, sbool)
-  | Olnot sz => (sword sz, sword sz)
+    => (aword szi, aword szo)
+  | Onot => (abool, abool)
+  | Olnot sz => (aword sz, aword sz)
   | Oneg k => let t := type_of_opk k in (t, t)
   | Owi1 s o => type_of_wiop1 o
   end.
 
 Lemma e_type_of_op1 o :
   let t := etype_of_op1 o in
-  type_of_op1 o = (to_stype t.1, to_stype t.2).
+  type_of_op1 o = (to_atype t.1, to_atype t.2).
 Proof.
   case: o => //= >.
   + by rewrite !e_type_of_opk.
@@ -235,23 +235,23 @@ Definition etype_of_wiop2 {len} s sz (o : wiop2) :
   end.
 
 Definition type_of_wiop2 sz (o : wiop2) :
-  stype * stype * stype :=
+  atype * atype * atype :=
   match o with
   | WIadd | WImul | WIsub | WIdiv | WImod =>
-    let t := sword sz in (t, t, t)
+    let t := aword sz in (t, t, t)
 
   | WIshl | WIshr =>
-    let t := sword sz in
-    let tu8 := sword U8 in
+    let t := aword sz in
+    let tu8 := aword U8 in
     (t, tu8, t)
 
   | WIeq | WIneq | WIlt | WIle | WIgt | WIge =>
-    let t := sword sz in (t, t, sbool)
+    let t := aword sz in (t, t, abool)
   end.
 
 Lemma e_type_of_wiop2 s sz o :
   let t := etype_of_wiop2 s sz o in
-  type_of_wiop2 sz o = (to_stype t.1.1, to_stype t.1.2, to_stype t.2).
+  type_of_wiop2 sz o = (to_atype t.1.1, to_atype t.1.2, to_atype t.2).
 Proof. by case: o. Qed.
 
 Definition opk8 k :=
@@ -291,9 +291,9 @@ Definition etype_of_op2 {len} (o : sop2) : extended_type len * extended_type len
   | Owi2 s sz o => etype_of_wiop2 s sz o
   end.
 
-Definition type_of_op2 (o : sop2) : stype * stype * stype :=
+Definition type_of_op2 (o : sop2) : atype * atype * atype :=
  match o with
-  | Obeq | Oand | Oor => (sbool, sbool, sbool)
+  | Obeq | Oand | Oor => (abool, abool, abool)
   | Oadd k | Omul k | Osub k | Odiv _ k | Omod _ k =>
     let t := type_of_opk k in (t, t, t)
   | Olsl k | Oasr k =>
@@ -301,23 +301,23 @@ Definition type_of_op2 (o : sop2) : stype * stype * stype :=
     let t2 := type_of_opk (opk8 k) in
     (t1, t2, t1)
   | Oland s | Olor s | Olxor s | Ovadd _ s | Ovsub _ s | Ovmul _ s
-    => let t := sword s in (t, t, t)
+    => let t := aword s in (t, t, t)
   | Olsr s | Oror s | Orol s
-    => let t := sword s in (t, sword8, t)
+    => let t := aword s in (t, aword U8, t)
   | Ovlsr _ s | Ovlsl _ s | Ovasr _ s
-    => let t := sword s in (t, sword128, t)
+    => let t := aword s in (t, aword U128, t)
   | Oeq k | Oneq k =>
     let t := type_of_opk k in
-    (t, t, sbool)
+    (t, t, abool)
   | Olt k | Ole k | Ogt k | Oge k =>
     let t := type_of_opk (opk_of_cmpk k) in
-    (t, t, sbool)
+    (t, t, abool)
   | Owi2 s sz o => type_of_wiop2 sz o
   end.
 
 Lemma e_type_of_op2 o :
   let t := etype_of_op2 o in
-  type_of_op2 o = (to_stype t.1.1, to_stype t.1.2, to_stype t.2).
+  type_of_op2 o = (to_atype t.1.1, to_atype t.1.2, to_atype t.2).
 Proof.
   case: o => //= *; try rewrite !(e_type_of_opk) //.
   by apply e_type_of_wiop2.
@@ -325,14 +325,14 @@ Qed.
 
 (* Type of n-ary operators: inputs, output *)
 
-Definition tin_combine_flags := [:: sbool; sbool; sbool; sbool].
+Definition tin_combine_flags := [:: abool; abool; abool; abool].
 
-Definition type_of_opN (op: opN) : seq stype * stype :=
+Definition type_of_opN (op: opN) : seq atype * atype :=
   match op with
   | Opack ws p =>
     let n := nat_of_wsize ws %/ nat_of_pelem p in
-    (nseq n sint, sword ws)
-  | Ocombine_flags c => (tin_combine_flags, sbool)
+    (nseq n aint, aword ws)
+  | Ocombine_flags c => (tin_combine_flags, abool)
   end.
 
 (* ** Expressions
@@ -364,7 +364,7 @@ Definition mk_var_i (x : var) :=
   |}.
 
 Notation vid ident :=
-  (mk_var_i {| vtype := sword Uptr; vname := ident%string; |}).
+  (mk_var_i {| vtype := aword Uptr; vname := ident%string; |}).
 
 #[only(eqbOK)] derive
 Variant v_scope := 
@@ -384,7 +384,7 @@ Definition is_glob (x:gvar) := x.(gs) == Sglob.
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
-| Parr_init : positive → pexpr
+| Parr_init : wsize -> positive → pexpr
 | Pvar   :> gvar -> pexpr
 | Pget   : aligned -> arr_access -> wsize -> gvar -> pexpr -> pexpr
 | Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr
@@ -392,7 +392,7 @@ Inductive pexpr : Type :=
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
 | PappN of opN & seq pexpr
-| Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr.
+| Pif    : atype -> pexpr -> pexpr -> pexpr -> pexpr.
 
 Notation pexprs := (seq pexpr).
 
@@ -424,7 +424,7 @@ Definition pexpr_of_cf (cf : combine_flags) (vi : var_info) (flags : seq var) : 
  * -------------------------------------------------------------------- *)
 
 Variant lval : Type :=
-| Lnone `(var_info) `(stype)
+| Lnone `(var_info) `(atype)
 | Lvar  `(var_i)
 | Lmem  of aligned & wsize & var_info & pexpr
 | Laset of aligned & arr_access & wsize & var_i & pexpr
@@ -440,7 +440,7 @@ Definition get_pvar (e: pexpr) : exec var :=
 Definition get_lvar (x: lval) : exec var :=
   if x is Lvar x then ok (v_var x) else type_error.
 
-Definition Lnone_b (vi : var_info) : lval := Lnone vi sbool.
+Definition Lnone_b (vi : var_info) : lval := Lnone vi abool.
 
 Definition var_info_of_lval (x: lval) : var_info :=
   match x with
@@ -513,7 +513,7 @@ Section ASM_OP.
 Context `{asmop:asmOp}.
 
 Inductive instr_r :=
-| Cassgn   : lval -> assgn_tag -> stype -> pexpr -> instr_r
+| Cassgn   : lval -> assgn_tag -> atype -> pexpr -> instr_r
 | Copn     : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
 | Csyscall : lvals -> syscall_t -> pexprs -> instr_r
 | Cif      : pexpr -> seq instr -> seq instr  -> instr_r
@@ -604,10 +604,10 @@ Class progT := {
 
 Record _fundef (extra_fun_t: Type) := MkFun {
   f_info   : fun_info;
-  f_tyin   : seq stype;
+  f_tyin   : seq atype;
   f_params : seq var_i;
   f_body   : cmd;
-  f_tyout  : seq stype;
+  f_tyout  : seq atype;
   f_res    : seq var_i;
   f_extra  : extra_fun_t;
 }.
@@ -627,7 +627,7 @@ Context {pT: progT}.
 Definition fundef := _fundef extra_fun_t.
 
 Definition function_signature : Type :=
-  (seq stype * seq stype).
+  (seq atype * seq atype).
 
 Definition signature_of_fundef (fd: fundef) : function_signature :=
   (f_tyin fd, f_tyout fd).
@@ -835,7 +835,7 @@ Definition is_Pload e :=
 
 Definition is_load (e: pexpr) : bool :=
   match e with
-  | Pconst _ | Pbool _ | Parr_init _
+  | Pconst _ | Pbool _ | Parr_init _ _
   | Psub _ _ _ _ _
   | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pif _ _ _ _
     => false
@@ -849,8 +849,8 @@ Definition is_load (e: pexpr) : bool :=
 
 Definition is_array_init (e : pexpr) :=
   match e with
-  | Parr_init _ => true
-  | _           => false
+  | Parr_init _ _ => true
+  | _             => false
   end.
 
 Fixpoint cast_w ws (e: pexpr) : pexpr :=
@@ -959,7 +959,7 @@ Definition write_c c := write_c_rec Sv.empty c.
 
 Fixpoint use_mem (e : pexpr) :=
   match e with
-  | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => false
+  | Pconst _ | Pbool _ | Parr_init _ _ | Pvar _ => false
   | Pload _ _ _ => true
   | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
@@ -978,7 +978,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   match e with
   | Pconst _
   | Pbool  _
-  | Parr_init _    => s
+  | Parr_init _ _  => s
   | Pvar   x       => Sv.union (read_gvar x) s
   | Pget _ _ _ x e => read_e_rec (Sv.union (read_gvar x) s) e
   | Psub _ _ _ x e => read_e_rec (Sv.union (read_gvar x) s) e
@@ -1072,7 +1072,7 @@ Fixpoint eq_expr (e e' : pexpr) :=
   match e, e' with
   | Pconst z      , Pconst z'         => z == z'
   | Pbool  b      , Pbool  b'         => b == b'
-  | Parr_init n   , Parr_init n'      => n == n'
+  | Parr_init ws n, Parr_init ws' n'  => (ws == ws') && (n == n')
   | Pvar   x      , Pvar   x'         => eq_gvar x x'
   | Pget al aa w x e , Pget al' aa' w' x' e' => (al == al') && (aa==aa') && (w == w') && (eq_gvar x x') && eq_expr e e'
   | Psub aa w len x e , Psub aa' w' len' x' e' => (aa==aa') && (w == w') && (len == len') && (eq_gvar x x') && eq_expr e e'
