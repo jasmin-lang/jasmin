@@ -5,6 +5,11 @@
 - Consider LHS array variables as assigned
   ([PR #1214](https://github.com/jasmin-lang/jasmin/pull/1214)).
 
+## Other changes
+
+- The deprecated x86 intrinsic `#VPBLENDVB` has been removed
+  ([PR #1208](https://github.com/jasmin-lang/jasmin/pull/1208)).
+
 # Jasmin 2025.06.0 — Nancy, 2025-06-18
 
 ## New features

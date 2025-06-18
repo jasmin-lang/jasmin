@@ -130,7 +130,6 @@ Variant x86_op : Type :=
 | VPSHUFHW `(wsize)
 | VPSHUFLW `(wsize)
 | VPBLEND  `(velem) `(wsize)
-| VPBLENDVB `(wsize) (* Deprecated: use BLENDV instead *)
 | BLENDV of velem & wsize (* vpblendvb, vblendvps, vblendvpd *)
 | VPACKUS  `(velem) `(wsize)
 | VPACKSS  `(velem) `(wsize)
@@ -1559,17 +1558,6 @@ Definition Ox86_VPBLEND_instr :=
 
 Definition check_xmm_xmm_xmmm_xmm (_:wsize) := [:: [:: xmm; xmm; xmmm true; xmm]].
 
-(* TODO: remove in 2025.AA.0 *)
-Definition x86_VPBLENDVB sz (x y m: word sz) : tpl (w_ty sz) :=
-  wpblendvb x y m.
-
-(* TODO: remove in 2025.AA.0 *)
-Definition Ox86_VPBLENDVB_instr :=
-  (fun sz => mk_instr_safe
-               (pp_sz "VPBLENDVB" sz) (w3_ty sz) (w_ty sz) [:: Eu 1; Eu 2; Eu 3] [:: Eu 0] MSB_CLEAR
-               (@x86_VPBLENDVB sz) (check_xmm_xmm_xmmm_xmm sz) 4 (size_128_256 sz)
-               (pp_name "vpblendvb" sz), ("VPBLENDVB"%string, prim_128_256 VPBLENDVB)).
-
 Definition x86_BLENDV ve sz (x y m: word sz) : tpl (w_ty sz) :=
   blendv ve x y m.
 
@@ -2214,7 +2202,6 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPUNPCKH sz sz'    => Ox86_VPUNPCKH_instr.1 sz sz'
   | VPUNPCKL sz sz'    => Ox86_VPUNPCKL_instr.1 sz sz'
   | VPBLEND ve sz      => Ox86_VPBLEND_instr.1 ve sz
-  | VPBLENDVB sz       => Ox86_VPBLENDVB_instr.1 sz
   | BLENDV ve sz       => Ox86_BLENDV_instr.1 ve sz
   | VPACKUS ve sz      => Ox86_VPACKUS_instr.1 ve sz
   | VPACKSS ve sz      => Ox86_VPACKSS_instr.1 ve sz
@@ -2371,7 +2358,6 @@ Definition x86_prim_string :=
    Ox86_VPUNPCKH_instr.2;
    Ox86_VPUNPCKL_instr.2;
    Ox86_VPBLEND_instr.2;
-   Ox86_VPBLENDVB_instr.2;
    Ox86_BLENDV_instr.2;
    Ox86_VPACKUS_instr.2;
    Ox86_VPACKSS_instr.2;

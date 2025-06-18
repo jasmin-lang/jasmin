@@ -1607,7 +1607,6 @@ Deprecated intrinsic operators map (old name -> new name)
 *)
 let deprecated_intrinsic =
   let m = Ms.empty in
-  let m = Ms.add "VPBLENDVB" "BLENDV" m in
   Ms.add "VPMOVMSKB" "MOVEMASK" m
 
 (**
