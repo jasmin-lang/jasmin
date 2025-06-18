@@ -1,14 +1,16 @@
 # [unreleased]
 
+# Jasmin 2025.06.0 — Nancy, 2025-06-18
+
 ## New features
 
-- Adding linter library :
-  - Introducing abstractions for static analysis of jasmin programs.
+- Adding a linter library, enabled in `jasminc` by the command-line flag `-wall`
+  ([PR #1160](https://github.com/jasmin-lang/jasmin/pull/1160),
+  [PR #1166](https://github.com/jasmin-lang/jasmin/pull/1166),
+  [PR #1200](https://github.com/jasmin-lang/jasmin/pull/1200)):
+  - Introducing abstractions for static analysis of Jasmin programs.
   - Implementation of uninitialised variable check using reaching definition static analysis.
   - Implementation of dead variables check using liveness static analysis.
-  ([PR #1160](https://github.com/jasmin-lang/jasmin/pull/1160)
-  [PR #1166](https://github.com/jasmin-lang/jasmin/pull/1166)
-  [PR #1200](https://github.com/jasmin-lang/jasmin/pull/1200)).
 
 - New syntax
   - the syntax for memory load/store operations, previously limited to `[x + e]`,
@@ -26,19 +28,19 @@
   using `:uXX`, like in `e1 +:u32 e2`. The previous syntax is **not** deprecated.
   ([PR #1086](https://github.com/jasmin-lang/jasmin/pull/1086)).
 
-- Introduction of wint types siXX and uiXX (XX in [8,16,32,64,128, 256]). The
-  key feature of this new type are for the extraction to easycrypt. They are
-  extracted to int, removing the need to deal with modulus 2^XX operations.
-  Introduction of a new cast operators: `(sint)` and `(uint)` from words to
+- Introduction of wint types siXX and uiXX (XX in [8,16,32,64,128,256]). The
+  key feature of these new types is their extraction to EasyCrypt. They are
+  extracted to `int`, removing the need to deal with modulus 2^XX operations.
+  Introduction of new cast operators: `(sint)` and `(uint)` from words to
   `int`. The previous cast operator `(int)` stands for one of them if its
-  argument is of wint type: applying it to usual machine words is deprecated.
-  Introduce zquot and zrem operators on int : `e1 /s e2` and `e1 %s e2`.
+  arguments are of wint type; applying it to usual machine words is deprecated.
+  Introduction of signed division and modulo operators on `int` : `e1 /s e2` and `e1 %s e2`.
   ([PR #1071](https://github.com/jasmin-lang/jasmin/pull/1071)).
 
-- Add support for subarrays with non-constant indices. The compiler
-  was made more powerful, and now accepts subarrays `a[ofs:len]` where `ofs`
+- Add support for sub-arrays with non-constant indices. The compiler
+  was made more powerful, and now accepts sub-arrays `a[ofs:len]` where `ofs`
   is not a constant (`len` must still be a constant). This in particular
-  enables the use of subarrays in while loops.
+  enables the use of sub-arrays in while loops.
   ([PR #1101](https://github.com/jasmin-lang/jasmin/pull/1101)).
 
 ## Bug fixes
@@ -108,7 +110,7 @@
   fixes [#1040](https://github.com/jasmin-lang/jasmin/issues/1040)).
 
 - Add support for x86 `VMOVMSKPS` and `VMOVMSKPD` instructions, through the new
-  intrinsics `#MOVEMASK` which also maps to the `VPMOVMSKB` instruction;
+  intrinsic `#MOVEMASK` which also maps to the `VPMOVMSKB` instruction;
   therefore old intrinsic `#VPMOVMSKB` is deprecated
   ([PR #1083](https://github.com/jasmin-lang/jasmin/pull/1083);
   fixes [#1079](https://github.com/jasmin-lang/jasmin/issues/1079)).
@@ -147,7 +149,7 @@
 - Add warning to signal deprecated intrinsic operators
   ([PR #1092](https://github.com/jasmin-lang/jasmin/pull/1092)).
 
-- Some warnings are now disabled by default: when introducing assignements
+- Some warnings are now disabled by default: when introducing assignments
   (`-wea`), destinations (`-w_`), array copies (`-winsertarraycopy`), or `LEA`
   instructions (`-wlea`); they can be enabled using a new command-line argument
   `-wall` or individually using the corresponding flag
@@ -166,7 +168,7 @@
   fixes [#503](https://github.com/jasmin-lang/jasmin/issues/503),
   [#698](https://github.com/jasmin-lang/jasmin/issues/698)).
 
-- Extraction to Easycrypt is now available as a separate `jasmin2ec` tool; the
+- Extraction to EasyCrypt is now available as a separate `jasmin2ec` tool; the
   `-ec`, `-oec`, `-oecarray` and `-CT` command-line options are deprecated.
   The `jasmin2ec` tool uses a new set of theories in `eclib` for extracting array operations,
   and supports a new extraction for leakage based on local variables.
@@ -223,7 +225,7 @@
   fixes [#1008](https://github.com/jasmin-lang/jasmin/issues/1008)).
 
 - Add support for x86 `VBLENDVPS` and `VBLENDVPD` instructions, through the new
-  intrinsics `#BLENDV` which also maps to the `VPBLENDVB` instruction;
+  intrinsic `#BLENDV` which also maps to the `VPBLENDVB` instruction;
   therefore old intrinsic `#VPBLENDVB` is deprecated
   ([PR #1010](https://github.com/jasmin-lang/jasmin/pull/1010)).
 
@@ -375,7 +377,7 @@
 
 ## Bug fixes
 
-- Easycrypt extraction for CT : fix decreasing for loops
+- EasyCrypt extraction for CT : fix decreasing for loops
   ([PR #859](https://github.com/jasmin-lang/jasmin/pull/859);
   fixes [#858](https://github.com/jasmin-lang/jasmin/issues/858)).
 
@@ -493,7 +495,7 @@
   but no extra register is used for the low half of the result.
   ([PR #531](https://github.com/jasmin-lang/jasmin/pull/531)).
 
-- Definition of parameters can now use arbritrary expressions and depend on
+- Definition of parameters can now use arbitrary expressions and depend on
   other parameters. See `tests/success/common/test_globals.jazz`.
   ([PR #595](https://github.com/jasmin-lang/jasmin/pull/595)).
 
@@ -519,7 +521,7 @@
 
 - The Constant-Time security checker also accepts annotations for the
   *Speculative*-Constant-Time checker (`transient` and `msf` are interpreted as
-  `public`; information relative to pointers or to mis-speculated executions is
+  `public`; information relative to pointers or to misspeculated executions is
   ignored)
   ([PR #773](https://github.com/jasmin-lang/jasmin/pull/773)).
 
@@ -722,7 +724,7 @@
 - Fix printing to EasyCrypt of ARMv7 instruction `bic`
   ([PR #554](https://github.com/jasmin-lang/jasmin/pull/554)).
 
-- Add alignment during global datas for arm-m4
+- Add alignment of global data for arm-m4
   ([PR #590](https://github.com/jasmin-lang/jasmin/pull/590);
   fixes [#587](https://github.com/jasmin-lang/jasmin/issues/587)).
 
@@ -738,7 +740,7 @@
   ([PR 600](https://github.com/jasmin-lang/jasmin/pull/600);
   fixes [#599](https://github.com/jasmin-lang/jasmin/issues/599)).
 
-- Fix extraction to easycrypt of for loops that modify the loop counter
+- Fix extraction to EasyCrypt of for loops that modify the loop counter
   ([PR 616](https://github.com/jasmin-lang/jasmin/pull/616)).
 
 - Fix instruction selection for stack-allocation on ARM
@@ -1183,7 +1185,7 @@ Here are the main changes of the release.
 
 - **A type system for cryptographic constant time.** Function arguments and
   return types, as well as local declarations, can be annotated (using the
-  aforementionned annotation system) with a security level. This can either be
+  aforementioned annotation system) with a security level. This can either be
   `#public`, `#secret`, `#poly=l` or `#poly={l1,...,ln}`, where `l1`, ..., `ln`
   are security level variables that allow to express the security level of one
   variable depending on the security levels of other variables. Then option
