@@ -1,5 +1,10 @@
 # [unreleased]
 
+## New features
+
+- Add support for the MMX/SSE instruction `PADD`
+  ([PR #1196](https://github.com/jasmin-lang/jasmin/pull/1196)).
+
 # Jasmin 2025.06.0 — Nancy, 2025-06-18
 
 ## New features
