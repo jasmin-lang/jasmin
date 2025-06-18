@@ -71,6 +71,7 @@ install:
 uninstall:
 	$(RM) $(DESTDIR)$(BINDIR)/jasminc
 	$(RM) $(DESTDIR)$(BINDIR)/jasmin2tex
+	$(RM) $(DESTDIR)$(BINDIR)/jasmin-ct
 	$(RM) $(DESTDIR)$(BINDIR)/jasmin2ec
 
 # --------------------------------------------------------------------
