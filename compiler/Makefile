@@ -22,6 +22,7 @@ DESTDIR  ?=
 PREFIX   ?= /usr/local
 BINDIR   := $(PREFIX)/bin
 INSTALL  ?= ../scripts/install-sh
+DUNE_OPTS ?= --prefix $(DESTDIR)$(BINDIR)
 
 # --------------------------------------------------------------------
 DISTDIR ?= jasmin-compiler
@@ -73,6 +74,12 @@ uninstall:
 	$(RM) $(DESTDIR)$(BINDIR)/jasmin2tex
 	$(RM) $(DESTDIR)$(BINDIR)/jasmin-ct
 	$(RM) $(DESTDIR)$(BINDIR)/jasmin2ec
+
+install-full:
+	dune install $(DUNE_OPTS)
+
+uninstall-full:
+	dune uninstall $(DUNE_OPTS)
 
 # --------------------------------------------------------------------
 dist: $(DISTDIR).tgz
