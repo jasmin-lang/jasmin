@@ -27,12 +27,12 @@ clean:
 	$(MAKE) -C compiler clean
 
 install:
-	$(MAKE) -C compiler install
+	$(MAKE) -C compiler install-full
 	$(MAKE) -C eclib install
 	$(MAKE) -C proofs install
 
 uninstall:
-	$(MAKE) -C compiler uninstall
+	$(MAKE) -C compiler uninstall-full
 	$(MAKE) -C eclib uninstall
 	$(MAKE) -C proofs uninstall
 

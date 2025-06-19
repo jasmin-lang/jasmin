@@ -16,11 +16,7 @@ build: [
   [make "-C" "compiler"]
 ]
 install: [
-  ["mkdir" "-p" "%{prefix}%/bin"]
-  ["cp" "-L" "compiler/_build/install/default/bin/jasminc" "%{prefix}%/bin/jasminc"]
-  ["cp" "-L" "compiler/_build/install/default/bin/jasmin2tex" "%{prefix}%/bin/jasmin2tex"]
-  ["cp" "-L" "compiler/_build/install/default/bin/jasmin-ct" "%{prefix}%/bin/jasmin-ct"]
-  ["cp" "-L" "compiler/_build/install/default/bin/jasmin2ec" "%{prefix}%/bin/jasmin2ec"]
+  [make "-C" "compiler" "install-full" "DUNE_OPTS="]
   ["mkdir" "-p" "%{prefix}%/lib/jasmin/easycrypt"]
   ["sh" "-c" "cp eclib/*.ec \"%{prefix}%/lib/jasmin/easycrypt/\""]
 ]
