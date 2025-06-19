@@ -78,7 +78,7 @@ Module WArray.
   Lemma arr_is_align i ws :
     is_align (wrepr Uptr i) ws = is_align i ws.
   Proof.
-    by rewrite /is_align p_to_zE memory_model.p_to_zE wunsigned_repr mod_wbase_wsize_size.
+    by rewrite /is_align [in RHS]p_to_zE memory_model.p_to_zE wunsigned_repr mod_wbase_wsize_size.
   Qed.
 
   Section CM.

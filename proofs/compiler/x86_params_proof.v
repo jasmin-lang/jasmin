@@ -806,7 +806,7 @@ Opaque cat.
       eexists; first reflexivity.
       apply: (lom_eqv_ext _ hlo2).
       move=> z; rewrite /vm3.
-      case: (to_var xr =P z) => [<- | /eqP ?]; last by rewrite Vm.setP_neq.
+      case: (to_var xr =P z) => [<- | /eqP ?]; last by rewrite /= Vm.setP_neq.
       rewrite /m2 /vm2 /= !Vm.setP_eq.
       have ? : ws = U128 by case: (ws) hws1 Hws.
       by subst ws.
