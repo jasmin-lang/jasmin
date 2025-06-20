@@ -180,7 +180,7 @@ type pexpr_r =
   | PEOp1    of peop1 * pexpr
   | PEOp2    of peop2 * (pexpr * pexpr)
   | PEIf of pexpr * pexpr * pexpr
-  | PEbig    of pbig * pexpr * pexpr * pident * pexpr
+  | PEbig    of pbig * pident *pexpr * pexpr * pexpr
   | PEResult of int_representation
   | PEResultGet of [`Aligned|`Unaligned] option * arr_access * swsize L.located option * int_representation * pexpr * pexpr option
 

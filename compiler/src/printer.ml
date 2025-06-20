@@ -1,6 +1,7 @@
 (* -------------------------------------------------------------------- *)
 open Utils
 open Prog
+open Operators
 open PrintCommon
 module W = Wsize
 module T = Type
@@ -17,12 +18,12 @@ let pp_gvar_i pp_var fmt v = pp_var fmt (L.unloc v)
 (* -------------------------------------------------------------------- *)
 
 let string_of_combine_flags = function
-  | E.CF_LT s -> Format.sprintf "_%sLT" (string_of_signess s)
-  | E.CF_LE s -> Format.sprintf "_%sLE" (string_of_signess s)
-  | E.CF_EQ   -> Format.sprintf "_EQ"
-  | E.CF_NEQ  -> Format.sprintf "_NEQ"
-  | E.CF_GE s -> Format.sprintf "_%sGE" (string_of_signess s)
-  | E.CF_GT s -> Format.sprintf "_%sGT" (string_of_signess s)
+  | CF_LT s -> Format.sprintf "_%sLT" (string_of_signess s)
+  | CF_LE s -> Format.sprintf "_%sLE" (string_of_signess s)
+  | CF_EQ   -> Format.sprintf "_EQ"
+  | CF_NEQ  -> Format.sprintf "_NEQ"
+  | CF_GE s -> Format.sprintf "_%sGE" (string_of_signess s)
+  | CF_GT s -> Format.sprintf "_%sGT" (string_of_signess s)
 
 (* -------------------------------------------------------------------- *)
 let non_default_wsize x ws =
@@ -53,21 +54,21 @@ let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
   | Papp2(op,e1,e2) ->
     F.fprintf fmt "@[(%a %s@ %a)@]"
       pp_expr e1 (string_of_op2 op) pp_expr e2
-  | PappN (E.Opack(_sz, pe), es) ->
+  | PappN (Opack(_sz, pe), es) ->
     F.fprintf fmt "@[(%du%n)[%a]@]" (List.length es) (int_of_pe pe) (pp_list ",@ " pp_expr) es
   | PappN (Ocombine_flags c, es) ->
     F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " pp_expr) es
   | Pif(_, e,e1,e2) ->
     F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
       pp_expr e pp_expr e1 pp_expr e2
-  | Pbig(e, op, x, e1, e2, e0) ->
+  | Pbig(idx, op, x, body, start, len) ->
     F.fprintf fmt "@[(\\big[%s/%a]@ (%a \\in %a:%a)@ (%a))@]"
       (string_of_op2 op)
-      pp_expr e
+      pp_expr idx
       pp_var_i x
-      pp_expr e1
-      pp_expr e2
-      pp_expr e0
+      pp_expr start
+      pp_expr len
+      pp_expr body
   | Parr_init_elem (e,n) -> 
     F.fprintf fmt "ArrayInit(%a, %a)"
       pp_expr e pp_len n

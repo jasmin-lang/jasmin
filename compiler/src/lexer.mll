@@ -55,7 +55,7 @@
 
     "requires" , REQUIRES;
     "ensures", ENSURES;
-    "resu", RESULT;
+    "result", RESULT;
 
     "const" , CONSTANT;
     "downto", DOWNTO ;
@@ -191,6 +191,9 @@ rule main = parse
 
   | ident as s
       { Option.default (NID s) (Hash.find_option keywords s) }
+
+  | "\\" (ident as s) 
+    { Option.get_exn (Hash.find_option big s) (S.ParseError (L.of_lexbuf lexbuf, Some "invalid big ops")) }  
 
   | (size as sw) (wsign as s)
       { SWSIZE(size_of_string sw, mkwsign s)  }

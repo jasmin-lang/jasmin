@@ -335,7 +335,7 @@ pexpr_r:
     { PEIf(e1, e2, e3) }
 
 | bo= big LPAREN v=var IN e1=pexpr COLON e2=pexpr RPAREN LPAREN b=pexpr RPAREN
-    { PEbig (bo, e1, e2, v, b) }
+    { PEbig (bo, v, b, e1, e2) }
 
 | RESULT DOT i=INT
     { PEResult i}

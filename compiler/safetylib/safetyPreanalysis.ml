@@ -13,10 +13,10 @@ type minfo = { i_instr_number : int; }
 let decompose_address e =
   let rec aux e =
     match e with
-    | Pvar x -> x, Papp1 (E.Oword_of_int U64, Pconst Z.zero)
-    | Papp2(E.Oadd (Op_w U64), Pvar x, offset) -> x, offset
-    | Papp2(E.Owi2 (_, U64, E.WIadd ), Pvar x, offset) -> x, offset
-    | Papp1(E.Owi1 (_, E.WIword_of_wint U64), e) -> aux e
+    | Pvar x -> x, Papp1 (Oword_of_int U64, Pconst Z.zero)
+    | Papp2(Oadd (Op_w U64), Pvar x, offset) -> x, offset
+    | Papp2(Owi2 (_, U64, WIadd ), Pvar x, offset) -> x, offset
+    | Papp1(Owi1 (_, WIword_of_wint U64), e) -> aux e
     | _ -> raise Not_found in
   let x, offset = aux e in
   if x.gs = Slocal then L.unloc x.gv, offset

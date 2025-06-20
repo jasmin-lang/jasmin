@@ -1,6 +1,7 @@
 (* ------------------------------------------------------------------------ *)
 open Utils
 open Wsize
+open Operators
 
 include module type of struct include CoreIdent end
 
@@ -23,11 +24,11 @@ type 'len gexpr =
   | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr
   | Pload  of Memory_model.aligned * wsize * 'len gexpr
-  | Papp1  of E.sop1 * 'len gexpr
-  | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
-  | PappN of E.opN * 'len gexpr list
+  | Papp1  of sop1 * 'len gexpr
+  | Papp2  of sop2 * 'len gexpr * 'len gexpr
+  | PappN of opN * 'len gexpr list
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
-  | Pbig   of 'len gexpr * E.sop2 * 'len gvar_i * 'len gexpr * 'len gexpr * 'len gexpr
+  | Pbig   of 'len gexpr * sop2 * 'len gvar_i * 'len gexpr * 'len gexpr * 'len gexpr
   | Parr_init_elem of 'len gexpr * 'len
   | Pis_var_init of 'len gvar_i
   | Pis_arr_init of 'len gvar_i * 'len gexpr * 'len gexpr
@@ -60,7 +61,7 @@ type 'len glvals = 'len glval list
 
 type 'len grange = E.dir * 'len gexpr * 'len gexpr
 
-(* Warning E.sopn (E.Ocopy) contain a 'len without being polymorphic.
+(* Warning E.sopn (Ocopy) contain a 'len without being polymorphic.
    Before instr this information is dummy ...
    This is durty ...
 *)
@@ -238,6 +239,7 @@ val vars_i  : ('info, 'asm) instr -> Sv.t
 val vars_c  : ('info, 'asm) stmt  -> Sv.t
 val pvars_c : ('info, 'asm) pstmt  -> Spv.t
 val vars_fc : ('info, 'asm) func  -> Sv.t
+val vars_fc_contracts : ('info, 'asm) func  -> Sv.t
 
 val locals  : ('info, 'asm) func -> Sv.t
 

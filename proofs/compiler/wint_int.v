@@ -120,6 +120,14 @@ Definition wi2i_vari (x:var_i) :=
   Let _ := assert (in_FV_var x) (E.ierror_e (Plvar x)) in
   ok {|v_var := wi2i_var x; v_info := v_info x |}.
 
+Definition wint_contract_condition (x:var_i) :=
+  Let xi := wi2i_vari x in
+  match m x.(v_var) , x.(v_var).(vtype) with
+  | Some (s,_) , sword sz  =>
+    ok [::(safety_lbl,  sc_wi_range s sz (Plvar xi))]
+  | _ , _ => ok [::]
+  end.
+
 Definition wi2i_gvar (x: gvar) :=
   if is_lvar x then
     Let xi := wi2i_vari (gv x) in
@@ -394,7 +402,11 @@ with wi2i_i (i:instr) : cexec cmd :=
 
 Definition wi2i_ci ci sig :=
   Let ci_pre := mapM wi2i_a_and ci.(f_pre) in
+  Let wint_precond := mapM wint_contract_condition ci.(f_iparams) in
+  let ci_pre := ci_pre ++ flatten wint_precond in
   Let ci_post := mapM wi2i_a_and ci.(f_post) in
+  Let wint_postcond := mapM wint_contract_condition ci.(f_ires) in
+  let ci_post := ci_post ++ flatten wint_postcond in
   Let p := mapM2 (E.ierror_s "bad params in fun") wi2i_lvar sig.1 ci.(f_iparams) in
   Let r := mapM2 (E.ierror_s "bad return in fun") wi2i_lvar sig.2 ci.(f_ires) in
   ok (MkContra p r ci_pre ci_post).
@@ -405,7 +417,7 @@ Definition wi2i_fun (fn:funname) (f: fundef) :=
   let 'MkFun ii ci si p c so r ev := f in
   Let ci :=
     match ci with
-    | None => ok None
+    | None => ok None (*TODO: add conditions for params and return values that are wint*)
     | Some ci =>
       Let ci := wi2i_ci ci sig in
       ok (Some ci)
@@ -431,9 +443,8 @@ Definition build_sig (fd : funname * fundef) :=
 
 End Section.
 
-Context (info : var -> option (signedness * var)).
 
-Definition build_info (fv : Sv.t) :=
+Definition build_info (info:var -> option (signedness * var)) (fv : Sv.t) :=
   Let fvm :=
     foldM (fun x (fvm: Sv.t * Mvar.t (signedness * var)) =>
       match info x with
@@ -451,10 +462,11 @@ Definition build_info (fv : Sv.t) :=
       (Sv.elements fv) in
    ok (Mvar.get fvm.2).
 
+Context (get_info : _uprog -> (Sv.t * (var -> option (signedness * var)))).
+
 Definition wi2i_prog (p:_uprog) : cexec _uprog :=
-  (* FIXME : we need to add the variables of the pre and post *)
-  let FV := vars_p (p_funcs p) in
-  Let m := build_info FV in
+  let (FV,info) := get_info p in
+  Let m := build_info info FV in
   let sigs := map (build_sig info) (p_funcs p) in
   Let funcs := map_cfprog_name (wi2i_fun m FV (get_fundef sigs)) (p_funcs p) in
   ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.

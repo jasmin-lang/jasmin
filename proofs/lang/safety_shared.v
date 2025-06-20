@@ -75,6 +75,11 @@ Fixpoint etype_of_expr (e:pexpr) : extended_type positive :=
 Definition sign_of_expr (e:pexpr) : option signedness :=
   sign_of_etype (etype_of_expr e).
 
+(* Op1: Casts*)
+
+Definition eint_of_word (sg:signedness) sz e := Papp1 (Oint_of_word sg sz) e.
+Definition word_of_int (sg:signedness) sz i := Papp1 (Oword_of_int sz) (Pconst i).
+
 (* Op2: Logics *)
 Definition elti e1 e2 := Papp2 (Olt Cmp_int) e1 e2.
 Definition elei e1 e2 := Papp2 (Ole Cmp_int) e1 e2.
@@ -85,7 +90,8 @@ Definition elsli e1 e2 := Papp2 (Olsl Op_int) e1 e2.
 (* Op2: Arithmetics *)
 Definition eaddi e1 e2 := Papp2 (Oadd Op_int) e1 e2.
 Definition emuli e1 e2 := Papp2 (Omul Op_int) e1 e2.
-Definition emodi e1 e2 := Papp2 (Omod Unsigned Op_int) e1 e2.
+Definition edivi sg e1 e2 := Papp2 (Odiv sg Op_int) e1 e2.
+Definition emodi sg e1 e2 := Papp2 (Omod sg Op_int) e1 e2.
 
 (* Consts *)
 Definition ezero := Pconst 0.
@@ -98,7 +104,7 @@ Definition emk_scale aa sz e :=
   if (aa == AAdirect) then e
   else emuli e (Pconst (wsize_size sz)).
 
-Definition eis_aligned e sz := eeq (emodi e (ewsize sz)) (Pconst 0).
+Definition eis_aligned e sz := eeq (emodi Unsigned e (ewsize sz)) (Pconst 0).
 
 Definition safety_lbl := "safety"%string.
 
@@ -158,6 +164,15 @@ Definition sc_op1 (op1 : sop1) e :=
   | None => [::]
   end.
   
+
+Fixpoint get_var_contract (v: var_i) (vs: seq var_i) (vs': seq var_i) : option var_i :=
+    match vs, vs' with
+      | x::vs, x'::vs' =>
+        if var_beq v x then Some x' else get_var_contract v vs vs'
+      | _, _ => None
+    end.
+
+    
 End DEFS.
 
 Section LEMMAS.

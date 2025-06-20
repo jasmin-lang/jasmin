@@ -604,6 +604,10 @@ Fixpoint check_i (i1 i2:instr_r) r :=
         ok (re, r') in
       Let r := loop2 check_c Loop.nb r in
       ok r
+    | Cassert (t1,e1), Cassert (t2,e2) =>
+      Let _ := assert (t1 == t2) (alloc_error "annotation_kind not equals") in
+      Let re := check_e e1 e2 r in
+      ok (re)
 
     | _, _ => Error (alloc_error "instructions not equals")
     end

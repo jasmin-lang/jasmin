@@ -1,6 +1,7 @@
 (* ------------------------------------------------------------------------ *)
 open Utils
 open Wsize
+open Operators
 
 (* ------------------------------------------------------------------------ *)
 
@@ -25,11 +26,11 @@ type 'len gexpr =
   | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr
   | Pload  of Memory_model.aligned * wsize * 'len gexpr
-  | Papp1  of E.sop1 * 'len gexpr
-  | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
-  | PappN of E.opN * 'len gexpr list
+  | Papp1  of sop1 * 'len gexpr
+  | Papp2  of sop2 * 'len gexpr * 'len gexpr
+  | PappN of opN * 'len gexpr list
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
-  | Pbig   of 'len gexpr * E.sop2 * 'len gvar_i * 'len gexpr * 'len gexpr * 'len gexpr
+  | Pbig   of 'len gexpr * sop2 * 'len gvar_i * 'len gexpr * 'len gexpr * 'len gexpr
   | Parr_init_elem of 'len gexpr * 'len
   | Pis_var_init of 'len gvar_i
   | Pis_arr_init of 'len gvar_i * 'len gexpr * 'len gexpr
@@ -276,7 +277,9 @@ let rec rvars_e f s = function
   | Papp2(_,e1,e2) -> rvars_e f (rvars_e f s e1) e2
   | PappN (_, es) -> rvars_es f s es
   | Pif(_,e,e1,e2)   -> rvars_e f (rvars_e f (rvars_e f s e) e1) e2
-  | Pbig(e, _, _, e1, e2, e0) -> List.fold_left (rvars_e f) s [e; e1; e2; e0;]
+  | Pbig(e, _, x, e1, e2, e0) -> 
+    let s = f (L.unloc x) s in
+    List.fold_left (rvars_e f) s [e; e1; e2; e0;]
   | Parr_init_elem (e,_) -> rvars_e f s e
   | Pis_var_init x -> f (L.unloc x) s
   | Pis_arr_init(x,e1,e2) -> rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2
@@ -330,6 +333,19 @@ let vars_fc fc =
   let s = params fc in
   let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) s fc.f_ret in
   rvars_c Sv.add s fc.f_body
+
+let vars_contract f_contra =
+  match f_contra with
+  | None -> Sv.empty
+  | Some f_contra ->
+    let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) Sv.empty f_contra.f_iparams in
+    let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) s f_contra.f_ires in
+    let s = rvars_es Sv.add s (List.map snd f_contra.f_pre) in
+    rvars_es Sv.add s (List.map snd f_contra.f_post)
+
+let vars_fc_contracts fc =
+  let s = vars_fc fc in
+  Sv.union s (vars_contract fc.f_contra)
 
 let locals fc =
   let s1 = params fc in
@@ -456,12 +472,12 @@ let is_stack_array x =
 let ( ++ ) e1 e2 =
   match e1, e2 with
   | Pconst n1, Pconst n2 -> Pconst (Z.add n1 n2)
-  | _, _                 -> Papp2(E.Oadd Op_int, e1, e2)
+  | _, _                 -> Papp2(Oadd Op_int, e1, e2)
 
 let ( ** ) e1 e2 =
   match e1, e2 with
   | Pconst n1, Pconst n2 -> Pconst (Z.mul n1 n2)
-  | _, _                 -> Papp2(E.Omul Op_int, e1, e2)
+  | _, _                 -> Papp2(Omul Op_int, e1, e2)
 
 let cnst i = Pconst i
 let icnst i = cnst (Z.of_int i)
@@ -532,7 +548,7 @@ let assigns = function
   | Cassgn (x, _, _, _) -> written_lv Sv.empty x
   | Copn (xs, _, _, _) | Csyscall (xs, _, _) | Ccall (xs, _, _) ->
       List.fold_left written_lv Sv.empty xs
-  | Cif _ | Cwhile _ -> Sv.empty
+  | Cif _ | Cwhile _ | Cassert _ -> Sv.empty
   | Cfor _ -> failwith "Prog.assigns"
 
 (* -------------------------------------------------------------------- *)

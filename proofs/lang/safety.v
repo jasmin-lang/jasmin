@@ -191,7 +191,6 @@ Definition sc_lval (lv : lval) : safety_cond :=
     sc_e ++ sc_arr
   end.
 
-Definition sc_lvals (lvs:lvals) : safety_cond := flatten (map sc_lval lvs).
 
 Definition safe_cond_to_e vs sc: pexpr :=
   match sc with
@@ -203,7 +202,7 @@ Definition safe_cond_to_e vs sc: pexpr :=
   | InRangeMod32 ws i j k =>
       match List.nth_error vs k with
       | Some x =>
-         let e := emodi x (Pconst 32) in
+         let e := emodi Unsigned x (Pconst 32) in
          let e1 := elti (Pconst i) e in
          let e2 := elti e (Pconst j) in
          eand e1 e2
@@ -236,25 +235,27 @@ Definition safe_cond_to_e vs sc: pexpr :=
   | X86Division sz sign =>
     match (List.firstn 3 vs),sign with
       | [:: hi; lo; dv],Signed =>
-        eneqi dv ezero 
-       (*   
-            let dd := wdwords hi lo in
-            let dv := wsigned dv in
-            let q  := (Z.quot dd dv)%Z in
-            let r  := (Z.rem  dd dv)%Z in
-            let ov := (q <? wmin_signed sz)%Z || (q >? wmax_signed sz)%Z in
-            ~((dv == 0)%Z || ov)*)
+        let hi := eint_of_word Signed sz hi in
+        let lo := eint_of_word Unsigned sz lo in
+        let szi := wbase sz in
+        let dd := eaddi (emuli (Pconst szi) (hi)) lo in
+        let dv := eint_of_word Signed sz dv in
+        let q  := edivi Signed dd dv in
+        let r  := emodi Signed dd dv in
+        let ov := eor (elti q (Pconst (wmin_signed sz)))
+                      (elti (Pconst (wmax_signed sz)) q) in
+        eand (eneqi dv ezero) (enot ov)
       | [:: hi; lo; dv],Unsigned =>
-        eneqi dv ezero
-               (*
-        let dd := wdwordu hi lo in
-        let dv := wunsigned dv in
-        let q  := (dd  /  dv)%Z in
-        let r  := (dd mod dv)%Z in
-        let ov := (q >? wmax_unsigned sz)%Z in
-        ~( (dv == 0)%Z || ov)
-        *)
-      | _,_ => Pbool true 
+        let hi := eint_of_word Unsigned sz hi in
+        let lo := eint_of_word Unsigned sz lo in
+        let szi := wbase sz in
+        let dd := eaddi (emuli (Pconst szi) (hi)) lo in
+        let dv := eint_of_word Unsigned sz dv in
+        let q  := edivi Unsigned dd dv in
+        let r  := emodi Unsigned dd dv in
+        let ov := elti (Pconst (wmax_unsigned sz)) q in
+        eand (eneqi dv ezero) (enot ov)
+      | _,_ => Pbool true
     end
   | ScFalse => Pbool false
   end.
@@ -297,9 +298,9 @@ Fixpoint sc_instr (i : instr) : cmd :=
     let sc_c2 := conc_map sc_instr c2 in
     let i := MkI ii (Cwhile a sc_c1 e ii_w sc_c2) in
     [::i]
-  | Cassert a =>
+  | Cassert a => 
     let sc_e := sc_pexpr a.2 in
-    safe_assert ii sc_e ++ [::i]
+    [::MkI ii (Cassert (a.1, eands (rcons sc_e a.2)))]
   end.
 
 Definition sc_a_and (a : assertion) :=
@@ -320,6 +321,9 @@ Definition sc_fun (f: ufundef) :=
     end
   in
   let c := conc_map sc_instr c in
+  let es := conc_map sc_var r in
+  let sc_res := safe_assert dummy_instr_info es  in
+  let c := c ++ sc_res in
   MkFun ii ci tin p c tout r ev.
 
 Definition sc_prog (p:_uprog) : _uprog := map_prog sc_fun p.

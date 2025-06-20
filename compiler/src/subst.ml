@@ -1,5 +1,6 @@
 open Utils
 open Prog
+open Operators
 module L = Location
 
 (* When there is no location, we report an internal error. *)
@@ -178,9 +179,13 @@ let psubst_prog (prog:('info, 'asm) pprog) =
         let subst_ty = psubst_ty subst_v in
         let dov v =
           L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
+        let aux =
+          gsubst_cf_contra (psubst_e_ subst_v) subst_v
+        in
         let fc = {
             fc with
             f_tyin = List.map subst_ty fc.f_tyin;
+            f_contra = Option.bind fc.f_contra aux;
             f_args = List.map dov fc.f_args;
             f_body = gsubst_c (psubst_e_ subst_v) subst_v fc.f_body;
             f_tyout = List.map subst_ty fc.f_tyout;
@@ -194,11 +199,11 @@ let psubst_prog (prog:('info, 'asm) pprog) =
 
 let int_of_op2 ?loc o =
   match o with
-  | Expr.Oadd Op_int -> Z.add
-  | Expr.Omul Op_int -> Z.mul
-  | Expr.Osub Op_int -> Z.sub
-  | Expr.Odiv(sg, Op_int) -> if sg = Unsigned then Z.ediv else Z.div
-  | Expr.Omod(sg, Op_int) -> if sg = Unsigned then Z.erem else Z.rem
+  | Oadd Op_int -> Z.add
+  | Omul Op_int -> Z.mul
+  | Osub Op_int -> Z.sub
+  | Odiv(sg, Op_int) -> if sg = Unsigned then Z.ediv else Z.div
+  | Omod(sg, Op_int) -> if sg = Unsigned then Z.erem else Z.rem
   | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (PrintCommon.string_of_op2 o)
 
 let rec int_of_expr ?loc e =
