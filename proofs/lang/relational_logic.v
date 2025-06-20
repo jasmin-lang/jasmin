@@ -779,6 +779,9 @@ End ST_REL.
 
 Definition fs_uincl := fs_rel (List.Forall2 value_uincl).
 
+Lemma fs_uinclR fs : fs_uincl fs fs.
+Proof. split=> //; exact: values_uincl_refl. Qed.
+
 Lemma wequiv_syscall_uincl P Q ii1 xs1 sc1 es1 ii2 sc2 xs2 es2 :
   (forall s1 s2, P s1 s2 -> escs s1 = escs s2 /\ emem s1 = emem s2) ->
   wrequiv P (fun s => sem_pexprs true (p_globs p1) s es1)

@@ -1618,7 +1618,7 @@ Notation wiequiv_f :=
      (pT2 := pT) (wsw2 := wsw) (scP2 := sCP) (dc2 := dc)
      p1 p2 ev1 ev2).
 
-Lemma it_sem_refl_eq_uincl :
+Lemma it_sem_refl_EU_UU :
   wiequiv_f (rpreF (eS := eq_spec)) fn1 fn2 (rpostF (eS := uincl_spec)) ->
   wiequiv_f (rpreF (eS := uincl_spec)) fn1 fn2 (rpostF (eS := uincl_spec)).
 Proof.
@@ -1638,6 +1638,19 @@ apply: (
   split; [congruence | congruence|].
   exact: Forall2_trans value_uincl_trans hincl1' hincl2'.
 exact: it_sem_uincl_f.
+Qed.
+
+Lemma it_sem_refl_EE_UU :
+  wiequiv_f (rpreF (eS := eq_spec)) fn1 fn2 (rpostF (eS := eq_spec)) ->
+  wiequiv_f (rpreF (eS := uincl_spec)) fn1 fn2 (rpostF (eS := uincl_spec)).
+Proof.
+move=> h; apply: it_sem_refl_EU_UU.
+apply: (
+  wkequiv_io_weaken
+    (P := rpreF (eS := eq_spec) fn1 fn2)
+    (Q := rpostF (eS := eq_spec) fn1 fn2)
+) => // ???? [_ <-] <-.
+exact: fs_uinclR.
 Qed.
 
 End IT_UNDEFINCL.

@@ -73,15 +73,11 @@ Lemma postprocessP {dc : DirectCall} (p p': uprog) ev scs m fn va scs' m' vr va'
 Proof.
   move => ok_p' E A.
   have [ vr1 [ {} E R1 ] ] := const_prop_callP E A.
-  have! [ vr2 [ E' R2 ] ] :=
-    (dead_code_callPu
-      (hap_is_move_opP haparams)
-      ok_p'
-      (List_Forall2_refl _ value_uincl_refl)
-      E).
+  have [vr2 [ E' R2 ]] := [elaborate
+    dead_code_callPu (hap_is_move_opP haparams) ok_p' values_uincl_refl E
+  ].
   exists vr2; first exact: E'.
-  apply: Forall2_trans R1 R2.
-  exact: value_uincl_trans.
+  exact: values_uincl_trans R1 R2.
 Qed.
 
 Lemma unrollP  {dc : DirectCall} (fn : funname) (p p' : prog) ev scs mem va va' scs' mem' vr :
@@ -99,13 +95,12 @@ Proof.
     have [ vr' {} E R ] := postprocessP ok_p1 E A.
     by exists vr'. }
   t_xrbindP => p3 ok_p3 ok_p' E A.
-  have [ vr1 {} E R1 ] := postprocessP ok_p1 E (List_Forall2_refl _ value_uincl_refl).
+  have [ vr1 {} E R1 ] := postprocessP ok_p1 E values_uincl_refl.
   have := unroll_callP E.
   rewrite e /= => {} E.
   have [ vr2 [] {} E R2 ] := Hn _ _ _ _ _ ok_p3 ok_p' E A.
   exists vr2; split; first exact: E.
-  apply: Forall2_trans R1 R2.
-  exact: value_uincl_trans.
+  exact: values_uincl_trans R1 R2.
 Qed.
 
 Definition compose_pass : ∀ vr (P Q: _ → Prop),
@@ -122,7 +117,7 @@ Definition compose_pass_uincl : ∀ vr (P Q: _ → Prop),
       λ vr P Q h x,
       let 'ex_intro2 vr1 u p := x in
       let 'ex_intro vr2 (conj q v) := h _ p in
-      ex_intro2 _ _ vr2 (Forall2_trans value_uincl_trans u v) q.
+      ex_intro2 _ _ vr2 (values_uincl_trans u v) q.
 
 Definition compose_pass_uincl' : ∀ vr (P Q: _ → Prop),
         (∀ vr, P vr → exists2 vr', List.Forall2 value_uincl vr vr' & Q vr') →
@@ -132,7 +127,7 @@ Definition compose_pass_uincl' : ∀ vr (P Q: _ → Prop),
       λ vr P Q h x,
       let 'ex_intro2 vr1 u p := x in
       let 'ex_intro2 vr2 v q := h _ p in
-      ex_intro2 _ _ vr2 (Forall2_trans value_uincl_trans u v) q.
+      ex_intro2 _ _ vr2 (values_uincl_trans u v) q.
 
 Lemma live_range_splittingP {dc : DirectCall} (p p': uprog) scs m fn va scs' m' vr :
   live_range_splitting aparams cparams p = ok p' →
@@ -144,22 +139,17 @@ Proof.
   rewrite /live_range_splitting; t_xrbindP.
   rewrite !print_uprogP => ok_p' pa ok_pa.
   rewrite print_uprogP => ? exec_p; subst pa.
-  have va_refl := List_Forall2_refl va value_uincl_refl.
   apply: compose_pass_uincl.
   - move=> vr' Hvr'.
-    apply: (dead_code_callPu (hap_is_move_opP haparams) ok_pa va_refl).
+    apply: (dead_code_callPu (hap_is_move_opP haparams) ok_pa values_uincl_refl).
     exact: Hvr'.
   apply: compose_pass_uincl;
     first by move => vr';
              apply: (alloc_call_uprogP (sip := sip_of_asm_e) ok_p').
   exists vr.
-  - exact: (List_Forall2_refl _ value_uincl_refl).
+  - exact: values_uincl_refl.
   by rewrite surj_prog.
 Qed.
-
-Lemma values_uincl_refl vs :
-  List.Forall2 value_uincl vs vs.
-Proof. exact: List_Forall2_refl value_uincl_refl. Qed.
 
 Lemma inliningP (to_keep: seq funname) (p p': uprog) scs m fn va scs' m' vr :
   inlining cparams to_keep p = ok p' →
@@ -172,7 +162,7 @@ Proof.
   rewrite print_uprogP => <- {p'} ok_fn h.
   apply: compose_pass.
   - by move => vr'; exact: (dead_calls_err_seqP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_pb).
-  exact: (inline_call_errP ok_pa (values_uincl_refl va) h).
+  exact: (inline_call_errP ok_pa values_uincl_refl h).
 Qed.
 
 Lemma compiler_first_partP entries (p: prog) (p': uprog) scs m fn va scs' m' vr :
@@ -195,7 +185,6 @@ Proof.
   rewrite !print_uprogP => ok_fvars pj ok_pj pp.
   rewrite !print_uprogP => ok_pp <- {p'} ok_fn exec_p.
 
-  have va_refl := List_Forall2_refl va value_uincl_refl.
   apply: compose_pass.
   - move=> vr'.
     have! h :=
@@ -203,7 +192,7 @@ Proof.
          (dc := direct_c) (ev := tt) (hap_hshp haparams) ok_pp).
     apply h => //.
   apply: compose_pass_uincl.
-  - move=> vr'; apply: (pi_callP (sCP := sCP_unit) ok_pj va_refl).
+  - move=> vr'; apply: (pi_callP (sCP := sCP_unit) ok_pj values_uincl_refl).
   apply: compose_pass.
   - move => vr'.
     exact:
@@ -223,13 +212,15 @@ Proof.
   - by move=>  vr'; apply: indirect_to_direct.
   apply: compose_pass.
   - by move=> vr'; apply: (makeReferenceArguments_callP (siparams := sip_of_asm_e) ok_pf).
-  apply: compose_pass_uincl; first by move =>vr'; apply: (remove_init_fdPu _ va_refl).
+  apply: compose_pass_uincl;
+    first by move =>vr'; apply: (remove_init_fdPu _ values_uincl_refl).
   apply: compose_pass_uincl'.
   - move => vr' Hvr'.
     apply: (live_range_splittingP ok_pe); exact: Hvr'.
   apply: compose_pass.
   - by move => vr'; exact: (dead_calls_err_seqP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_pd).
-  apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (unrollP ok_pc _ va_refl); exact: Hvr'.
+  apply: compose_pass_uincl;
+    first by move=> vr' Hvr'; apply: (unrollP ok_pc _ values_uincl_refl); exact: Hvr'.
   apply: compose_pass_uincl'; first by move => vr' Hvr'; apply: (inliningP ok_pa ok_fn); exact: Hvr'.
   apply: compose_pass.
   - by move=> vr'; apply: (lower_spill_fdP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_pb).
@@ -237,12 +228,12 @@ Proof.
   apply: compose_pass_uincl.
   - move=> vr'.
     have := [elaborate array_copy_fdP (dc := indirect_c) (sCP := sCP_unit)].
-    by move=> /(_ _ _ _ tt ok_pa0); apply; apply va_refl.
+    by move=> /(_ _ _ _ tt ok_pa0); apply; apply values_uincl_refl.
   apply: compose_pass_uincl'.
   + by move=> vr'; apply: wi2w_progP; apply ok_paw.
   apply: compose_pass; first by move => vr'; exact: psem_call_u.
   exists vr => //.
-  exact: (List_Forall2_refl _ value_uincl_refl).
+  exact: values_uincl_refl.
 Qed.
 
 Lemma compiler_third_partP returned_params (p p' : @sprog _pd _ _asmop) :
@@ -270,18 +261,16 @@ Proof.
   rewrite print_sprogP => <- {p'}.
   split.
   + move => fn gd scs m va scs' m' vr exec_p.
-    have va_refl : List.Forall2 value_uincl va va.
-    - exact: List_Forall2_refl.
     apply: compose_pass_uincl.
     - move => vr'.
-      apply: (dead_code_callPs (dc:= direct_c) (hap_is_move_opP haparams) ok_pc va_refl).
+      apply: (dead_code_callPs (dc:= direct_c) (hap_is_move_opP haparams) ok_pc values_uincl_refl).
     apply: compose_pass_uincl;
       first by move => vr';
         apply:
           (alloc_call_sprogP (ep := ep_of_asm_e) (sip := sip_of_asm_e) ok_pb).
     rewrite surj_prog.
-    have! [vr' [exec_pa]] :=
-      (dead_code_tokeep_callPs (hap_is_move_opP haparams) ok_pa va_refl exec_p).
+    have [vr' [exec_pa]] :=
+      [elaborate dead_code_tokeep_callPs (hap_is_move_opP haparams) ok_pa values_uincl_refl exec_p ].
     by exists vr'.
   rewrite /alloc_ok => fn m alloc_pc fd get_fd.
   have [fda ok_fda get_fda] := [elaborate
@@ -612,7 +601,7 @@ Proof.
   split.
   + rewrite -vr2_wf.
     by apply (Forall2_trans value_uincl_value_in_mem_trans (Forall2_take vr_vr1 n) vr2_inmem).
-  apply: (Forall2_trans value_uincl_trans); first exact (Forall2_drop vr_vr1 n).
+  apply: values_uincl_trans; first exact (Forall2_drop vr_vr1 n).
   by rewrite vr2_eq -rminfo_vr2.
 Qed.
 
@@ -724,7 +713,7 @@ Proof.
   + case: vr2_vr' => hres1 hres2.
     split.
     + by apply: Forall2_trans value_uincl_value_in_mem_trans (Forall2_take huincl2 _) hres1.
-    by apply: Forall2_trans value_uincl_trans (Forall2_drop huincl2 _) hres2.
+    by apply: values_uincl_trans (Forall2_drop huincl2 _) hres2.
   by apply: (ptr_eq_mem_unchanged_params hptreq U).
 Qed.
 
@@ -1304,7 +1293,7 @@ Proof.
     move=> hnvalid'.
     by apply hzero.
   split; last first.
-  + by apply: (Forall2_trans value_uincl_trans (proj2 vr_vr')).
+  + by apply: (values_uincl_trans (proj2 vr_vr')).
   move: vr_vr'.
   move=> /= [vr_vr' _].
   apply: Forall2_impl vr_vr'.
@@ -1315,414 +1304,3 @@ Proof.
 Qed.
 
 End PROOF.
-
-From ITree Require Import
-  Basics
-  ITree
-  ITreeFacts
-.
-Require Import relational_logic.
-
-Definition wiequiv_f_trans'
-  {syscall_state asm_op : Type}
-  {ep : EstateParams syscall_state}
-  {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
-  {pT1 pT2 pT3 : progT}
-  {E E0 : Type -> Type}
-  {wE : with_Error E E0}
-  {wsw1 wsw2 wsw3 : WithSubWord}
-  {scP1 : semCallParams (wsw := wsw1) (pT := pT1)}
-  {scP2 : semCallParams (wsw := wsw2) (pT := pT2)}
-  {scP3 : semCallParams (wsw := wsw3) (pT := pT3)}
-  {dc1 dc2 dc3 : DirectCall}
-  {rE12 : EventRels E0} {rE23 : EventRels E0} {rE13 : EventRels E0}
-  {rE_trans : EventRels_trans rE12 rE23 rE13}
-  {p1 : prog (pT := pT1)} {p2 : prog (pT := pT2)} {p3 : prog (pT := pT3)}
-  {ev1 : extra_val_t (progT := pT1)}
-  {ev2 : extra_val_t (progT := pT2)}
-  {ev3 : extra_val_t (progT := pT3)}
-  {fn1 fn2 fn3 : funname}
-  {eS12 eS23 eS13 : EquivSpec} :=
-  wiequiv_f_trans
-    (wsw1 := wsw1) (wsw2 := wsw2) (wsw3 := wsw3)
-    (scP1 := scP1) (scP2 := scP2) (scP3 := scP3)
-    (dc1 := dc1) (dc2 := dc2) (dc3 := dc3)
-    (rE_trans := rE_trans)
-    (p1 := p1) (p2 := p2) (p3 := p3)
-    (fn1 := fn1) (fn2 := fn2) (fn3 := fn3)
-    (ev1 := ev1) (ev2 := ev2) (ev3 := ev3)
-    (rpreF12 := rpreF (eS := eS12))
-    (rpreF23 := rpreF (eS := eS23))
-    (rpreF13 := rpreF (eS := eS13))
-    (rpostF12 := rpostF (eS := eS12))
-    (rpostF23 := rpostF (eS := eS23))
-    (rpostF13 := rpostF (eS := eS13)).
-
-Instance eq_uincl_spec
-  {syscall_state asm_op : Type}
-  {ep : EstateParams syscall_state}
-  {sip : SemInstrParams asm_op syscall_state}
-  : EquivSpec :=
-  {|
-    rpreF_ := rpreF (eS := eq_spec);
-    rpostF_ := rpostF (eS := uincl_spec);
-  |}.
-
-Section IT.
-
-Context
-  {reg regx xreg rflag cond asm_op extra_op syscall_state : Type}
-  {sc_sem : syscall.syscall_sem syscall_state}
-  {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
-  {call_conv : calling_convention}
-  {asm_scsem : asm_syscall_sem}
-  {lowering_options : Type}
-  (aparams : architecture_params lowering_options)
-  (haparams : h_architecture_params aparams)
-  (cparams : compiler_params lowering_options)
-  (print_uprogP : forall s p, cparams.(print_uprog) s p = p)
-  (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
-.
-
-Lemma fs_uinclR fs : fs_uincl fs fs.
-Proof. split=> //. exact: values_uincl_refl. Qed.
-
-Definition of_void1 {A T} (e : void1 A) : T := match e with end.
-
-#[local]
-Instance with_Error0 : with_Error ErrEvent void1 :=
-  {|
-    mfun1 := fun _ e => inl1 e;
-    mfun2 := fun _ e => match e with inl1 e => e | inr1 a => of_void1 a end;
-    mid12 :=
-      fun _ e => match e with inl1 e => refl_equal | inr1 a => of_void1 a end;
-    mid21 := fun _ _ => refl_equal;
-  |}.
-
-#[local]
-Instance HandlerContract : EventRels void1 :=
-  {|
-    EPreRel0_ := fun _ _ _ _ => False;
-    EPostRel0_ := fun _ _ _ _ _ _ => True;
-  |}.
-
-#[local]
-Instance HandlerContract_trans {rE23 rE13} :
-  EventRels_trans HandlerContract rE23 rE13 :=
-  {|
-    ERpre_trans := fun _ _ _ e => of_void1 e;
-    ERpost_trans := fun _ _ _ e => of_void1 e;
-  |}.
-
-Section FIRST_PART.
-
-#[local] Existing Instance progUnit.
-
-Lemma rpreF_trans_eq_eq_eq fn1 fn2 fs1 fs3 :
-  rpreF (eS := eq_spec) fn1 fn2 fs1 fs3 ->
-  exists2 fs2,
-    rpreF (eS := eq_spec) fn1 fn2 fs1 fs2
-    & rpreF (eS := eq_spec) fn1 fn2 fs2 fs3.
-Proof. move=> [<- <-]; by exists fs1. Qed.
-
-Lemma rpreF_trans_eq_uincl_eq fn1 fn2 fs1 fs3 :
-  rpreF (eS := eq_spec) fn1 fn2 fs1 fs3 ->
-  exists2 fs2,
-    rpreF (eS := uincl_spec) fn1 fn2 fs1 fs2
-    & rpreF (eS := eq_spec) fn1 fn2 fs2 fs3.
-Proof. move=> [<- <-]; exists fs1; split=> //; exact: fs_uinclR. Qed.
-
-Lemma rpreF_trans_uincl_uincl_uincl fn1 fn2 fs1 fs3 :
-  rpreF (eS := uincl_spec) fn1 fn2 fs1 fs3 ->
-  exists2 fs2,
-    rpreF (eS := uincl_spec) fn1 fn2 fs1 fs2
-    & rpreF (eS := uincl_spec) fn1 fn2 fs2 fs3.
-Proof. move=> [<- ?]; exists fs1; split=> //; exact: fs_uinclR. Qed.
-
-Lemma rpostF_trans_eq_eq_eq_uincl fn1 fn2 fn3 fs1 fs2 fs3 r1 r3 :
-  rpreF (eS := eq_spec) fn1 fn2 fs1 fs2 ->
-  rpreF (eS := eq_spec) fn2 fn3 fs2 fs3 ->
-  rcompose
-    (rpostF (eS := eq_spec) fn1 fn2 fs1 fs2)
-    (rpostF (eS := uincl_spec) fn2 fn3 fs2 fs3)
-    r1 r3 ->
-  rpostF (eS := uincl_spec) fn1 fn3 fs1 fs3 r1 r3.
-Proof. by move=> [<- h1] [<- <-] [] _ <-. Qed.
-
-Lemma rpostF_trans_uincl_uincl_uincl_uincl fn1 fn2 fn3 fs1 fs2 fs3 r1 r3 :
-  rpreF (eS := uincl_spec) fn1 fn2 fs1 fs2 ->
-  rpreF (eS := uincl_spec) fn2 fn3 fs2 fs3 ->
-  rcompose
-    (rpostF (eS := uincl_spec) fn1 fn2 fs1 fs2)
-    (rpostF (eS := uincl_spec) fn2 fn3 fs2 fs3)
-    r1 r3 ->
-  rpostF (eS := uincl_spec) fn1 fn3 fs1 fs3 r1 r3.
-Proof.
-move=> [<- h1] [<- h2] [] r2 [?? hvals1] [?? hvals2]; split.
-1-2: congruence.
-exact: Forall2_trans value_uincl_trans hvals1 hvals2.
-Qed.
-
-Lemma rpostF_trans_eq_eq_uincl_uincl fn1 fn2 fn3 fs1 fs2 fs3 r1 r3 :
-  rpreF (eS := eq_spec) fn1 fn2 fs1 fs2 ->
-  rpreF (eS := eq_spec) fn2 fn3 fs2 fs3 ->
-  rcompose
-    (rpostF (eS := uincl_spec) fn1 fn2 fs1 fs2)
-    (rpostF (eS := uincl_spec) fn2 fn3 fs2 fs3)
-    r1 r3 ->
-  rpostF (eS := uincl_spec) fn1 fn3 fs1 fs3 r1 r3.
-Proof.
-move=> [<- _] [<- <-] [] {}fs3 [?? hvals1] [?? hvals2]; split.
-1-2: congruence.
-exact: Forall2_trans value_uincl_trans hvals1 hvals2.
-Qed.
-
-Lemma rpostF_trans_uincl_eq_uincl_uincl fn1 fn2 fn3 fs1 fs2 fs3 r1 r3 :
-  rpreF (eS := uincl_spec) fn1 fn2 fs1 fs2 ->
-  rpreF (eS := eq_spec) fn2 fn3 fs2 fs3 ->
-  rcompose
-    (rpostF (eS := uincl_spec) fn1 fn2 fs1 fs2)
-    (rpostF (eS := uincl_spec) fn2 fn3 fs2 fs3)
-    r1 r3 ->
-  rpostF (eS := uincl_spec) fn1 fn3 fs1 fs3 r1 r3.
-Proof.
-move=> [<- _] [<- <-] [] {}fs3 [?? hvals1] [?? hvals2]; split.
-1-2: congruence.
-exact: Forall2_trans value_uincl_trans hvals1 hvals2.
-Qed.
-
-(* X -> wequiv eq uincl -> wequiv eq uincl *)
-Definition wiequiv_f_trans_X_EU {dc1 dc2 dc3 p1 p2 p3 ev fn eS} :=
-  wiequiv_f_trans'
-    (pT1 := progUnit) (pT2 := progUnit) (pT3 := progUnit)
-    (dc1 := dc1) (dc2 := dc2) (dc3 := dc3)
-    (rE_trans := HandlerContract_trans)
-    (p1 := p1) (p2 := p2) (p3 := p3)
-    (fn1 := fn) (fn2 := fn) (fn3 := fn)
-    (ev1 := ev) (ev2 := ev) (ev3 := ev)
-    (eS12 := eS) (eS23 := eq_uincl_spec) (eS13 := eq_uincl_spec).
-
-(* wequiv eq eq -> wequiv eq uincl -> wequiv eq uincl *)
-Definition wiequiv_f_trans_EE_EU {dc1 dc2 dc3 p1 p2 p3 ev fn} :=
-  wiequiv_f_trans_X_EU
-    (p1 := p1) (p2 := p2) (p3 := p3) (ev := ev)
-    (dc1 := dc1) (dc2 := dc2) (dc3 := dc3)
-    (eS := eq_spec)
-    (rpreF_trans_eq_eq_eq (fn1 := fn) (fn2 := fn))
-    (rpostF_trans_eq_eq_eq_uincl (fn1 := fn) (fn2 := fn) (fn3 := fn)).
-
-(* wequiv eq eq -> wequiv eq uincl -> wequiv eq uincl *)
-Definition wiequiv_f_trans_EU_EU {dc1 dc2 dc3 p1 p2 p3 ev fn} :=
-  wiequiv_f_trans_X_EU
-    (p1 := p1) (p2 := p2) (p3 := p3) (ev := ev)
-    (dc1 := dc1) (dc2 := dc2) (dc3 := dc3)
-    (eS := eq_uincl_spec)
-    (rpreF_trans_eq_eq_eq (fn1 := fn) (fn2 := fn))
-    (rpostF_trans_eq_eq_uincl_uincl (fn1 := fn) (fn2 := fn) (fn3 := fn)).
-
-(* wequiv uincl uincl -> wequiv eq uincl -> wequiv eq uincl *)
-Definition wiequiv_f_trans_UU_EU {dc1 dc2 dc3 p1 p2 p3 ev fn} :=
-  wiequiv_f_trans_X_EU
-    (p1 := p1) (p2 := p2) (p3 := p3) (ev := ev)
-    (dc1 := dc1) (dc2 := dc2) (dc3 := dc3)
-    (eS := uincl_spec)
-    (rpreF_trans_eq_uincl_eq (fn1 := fn) (fn2 := fn))
-    (rpostF_trans_uincl_eq_uincl_uincl (fn1 := fn) (fn2 := fn) (fn3 := fn)).
-
-(* wequiv uincl uincl -> wequiv uincl uincl -> wequiv uincl uincl *)
-Definition wiequiv_f_trans_UU_UU {dc1 dc2 dc3 p1 p2 p3 ev fn} :=
-  wiequiv_f_trans'
-    (pT1 := progUnit) (pT2 := progUnit) (pT3 := progUnit)
-    (dc1 := dc1) (dc2 := dc2) (dc3 := dc3)
-    (rE_trans := HandlerContract_trans)
-    (p1 := p1) (p2 := p2) (p3 := p3)
-    (ev1 := ev) (ev2 := ev) (ev3 := ev)
-    (rpreF_trans_uincl_uincl_uincl (fn1 := fn) (fn2 := fn))
-    (rpostF_trans_uincl_uincl_uincl_uincl (fn1 := fn) (fn2 := fn) (fn3 := fn)).
-
-Lemma it_inliningP to_keep (p p' : uprog) ev fn :
-  inlining cparams to_keep p = ok p' ->
-  wiequiv_f (dc1 := indirect_c) (dc2 := indirect_c)
-    p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
-Proof using. Admitted.
-
-Lemma hlop_it_lower_callP {p : prog} {ev : extra_val_t} {fn : funname} :
-  let: p' :=
-    lowering.lower_prog (lop_lower_i (ap_lop aparams))
-      (lowering_opt cparams) (warning cparams)
-      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0)
-      p
-  in
-  lop_fvars_correct (ap_lop aparams) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) (p_funcs p) ->
-  wiequiv_f (dc1 := direct_c) (dc2 := direct_c)
-    p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
-Proof using. Admitted.
-
-Lemma it_postprocessP {dc : DirectCall} (p p' : uprog) fn ev :
-  dead_code_prog (ap_is_move_op aparams) (const_prop_prog p) false = ok p' ->
-  wiequiv_f (dc1 := dc) (dc2 := dc)
-    p p' ev ev (rpreF (eS := uincl_spec)) fn fn (rpostF (eS := uincl_spec)).
-Proof.
-move=> hp'.
-apply: wiequiv_f_trans_UU_UU; first exact: it_const_prop_callP.
-apply: it_sem_refl_eq_uincl.
-exact: (it_dead_code_callPu (hap_is_move_opP haparams) ev hp' (fn := fn)).
-Qed.
-
-Lemma it_unrollP {dc : DirectCall} (fn : funname) (p p' : prog) ev :
-  unroll_loop (ap_is_move_op aparams) p = ok p' ->
-  wiequiv_f (dc1 := dc) (dc2 := dc)
-    p p' ev ev (rpreF (eS := uincl_spec)) fn fn (rpostF (eS := uincl_spec)).
-Proof.
-rewrite /unroll_loop; t_xrbindP; elim: Loop.nb p => [// | n hind] /= p pu hpu.
-case hu: unroll_prog => [pu' []]; last first.
-- move=> [<-]; exact: it_postprocessP hpu.
-move: hu; rewrite (surjective_pairing (unroll_prog pu)) => -[? _]; subst pu'.
-t_xrbindP=> p0 hp0 hp'.
-apply: wiequiv_f_trans_UU_UU; last exact: hind hp0 hp'.
-apply: wiequiv_f_trans_UU_UU; first exact: it_postprocessP hpu.
-apply: it_sem_refl_eq_uincl.
-apply: (
-  wkequiv_io_weaken
-    (P := rpreF (eS := eq_spec) fn fn)
-    (Q := rpostF (eS := eq_spec) fn fn)
-) => //.
-- move=> ???? [_ <-] <-; exact: fs_uinclR.
-exact: it_unroll_callP.
-Qed.
-
-Lemma it_live_range_splittingP {dc : DirectCall} (p p': uprog) fn ev :
-  live_range_splitting aparams cparams p = ok p' →
-  wiequiv_f (dc1 := dc) (dc2 := dc)
-    p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := uincl_spec)).
-Proof.
-rewrite /live_range_splitting; t_xrbindP.
-rewrite !print_uprogP => ok_p' pa ok_pa; rewrite print_uprogP => ?; subst pa.
-move: p ok_p' ok_pa => [fs gd ep] /= ok_p' ok_pa.
-apply: wiequiv_f_trans_UU_EU; first exact: (it_alloc_call_uprogP _ _ ok_p').
-apply: (
-  wkequiv_io_weaken
-    (P := rpreF (eS := uincl_spec) fn fn)
-    (Q := rpostF (eS := uincl_spec) fn fn)
-) => //.
-- move=> ? _ [_ <-]; split=> //; split=> //; exact: values_uincl_refl.
-apply: it_sem_refl_eq_uincl.
-exact: (it_dead_code_callPu (hap_is_move_opP haparams) ev ok_pa (fn := fn)).
-Qed.
-
-Lemma it_compiler_first_part entries (p p' : prog) fn ev :
-  compiler_first_part aparams cparams entries p = ok p' ->
-  fn \in entries ->
-  wiequiv_f
-    (dc1 := indirect_c) (dc2 := direct_c)
-    p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := uincl_spec)).
-Proof.
-rewrite /compiler_first_part; t_xrbindP => paw ok_paw pa0.
-rewrite !print_uprogP => ok_pa0 pb.
-rewrite print_uprogP => ok_pb pa ok_pa pc ok_pc ok_puc ok_puc'.
-rewrite !print_uprogP => pd ok_pd.
-rewrite !print_uprogP => pe ok_pe.
-rewrite !print_uprogP => pf ok_pf.
-rewrite !print_uprogP => pg ok_pg.
-rewrite !print_uprogP => ph ok_ph pi ok_pi.
-rewrite !print_uprogP => plc ok_plc.
-rewrite !print_uprogP => ok_fvars pj ok_pj pp.
-rewrite !print_uprogP => ok_pp <- {p'} ok_fn.
-
-apply: wiequiv_f_trans_UU_EU; first exact: it_wi2w_progP ok_paw.
-apply: wiequiv_f_trans_UU_EU; first exact: (it_array_copy_fdP _ ok_pa0).
-apply: wiequiv_f_trans_EE_EU; first exact: it_add_init_callP.
-apply: wiequiv_f_trans_EE_EU; first exact: (it_alloc_callP _ ok_pb).
-apply: wiequiv_f_trans_EE_EU; first exact: it_inliningP ok_pa.
-apply: wiequiv_f_trans_UU_EU; first exact: it_unrollP ok_pc.
-apply: wiequiv_f_trans_EE_EU;
-  first exact: (it_dead_calls_err_seqP ok_pd _ ok_fn).
-apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_pe.
-apply: wiequiv_f_trans_UU_EU; first exact: (it_remove_init_fdPu is_reg_array).
-apply: wiequiv_f_trans_EE_EU.
-- apply: (wkequiv_io_weaken (P := rpreF (eS := mra_spec _) fn fn)) => //;
-    last exact: (it_makeReferenceArguments_callP _ ok_pf).
-  by move=> ???? [_ <-] [<-].
-apply: wiequiv_f_trans_UU_EU; first exact: it_indirect_to_direct.
-apply: wiequiv_f_trans_EE_EU; first exact: (it_expand_callP ok_pg ok_fn).
-apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_ph.
-apply: wiequiv_f_trans_EE_EU; first exact: RGP.it_remove_globP ok_pi.
-apply: wiequiv_f_trans_EE_EU; first exact: (it_load_constants_progP ok_plc).
-apply: wiequiv_f_trans_EE_EU; first exact: hlop_it_lower_callP ok_fvars.
-apply: wiequiv_f_trans_UU_EU; first exact: (it_pi_callP _ ok_pj).
-apply: wiequiv_f_trans_EE_EU.
-- apply: (wkequiv_io_weaken (P := rpreF (eS := slh_spec _) fn fn)) => //;
-    last exact: (it_lower_call (hap_hshp haparams) _ ok_pp).
-  + move=> ?? [_ <-]; split=> //. admit.
-  by move=> ???? [_ <-] [<-].
-apply: wkequiv_io_weaken; last exact: wiequiv_f_eq.
-1-3: done.
-move=> ???? [_ <-] <-; split=> //; exact: values_uincl_refl.
-Admitted.
-
-End FIRST_PART.
-
-Section FRONT_END.
-
-Context
-  (entries : seq funname)
-  (up : uprog (asmop := _asmop))
-  (sp : sprog (pd := _pd) (asmop := _asmop))
-  (gd : pointer)
-  (hcompile : compiler_front_end aparams cparams entries up = ok sp)
-.
-
-Definition wf_args fn ms mt vs vt :=
-  wf_args
-    (size_glob sp) gd ms mt (get_wptrs up fn) (get_align_args sp fn) vs vt.
-
-Definition extend_mem ms mt := extend_mem ms mt gd (sp_globs (p_extra sp)).
-
-Definition pre : relPreF :=
-  fun fn fn' s t =>
-    let: args := fvals s in
-    let: argt := fvals t in
-    let: ms := fmem s in
-    let: mt := fmem t in
-    [/\ fn = fn'
-      , alloc_ok sp fn mt
-      , wf_args fn ms mt args argt
-      , Forall3 (value_eq_or_in_mem mt) (get_wptrs up fn) args argt
-      , extend_mem ms mt
-      & fscs s = fscs t
-    ].
-
-Definition post : relPostF :=
-  fun fn _ s t s' t' =>
-    let: args := fvals s in
-    let: argt := fvals t in
-    let: ms := fmem s in
-    let: mt := fmem t in
-    let: ress := fvals s' in
-    let: rest := fvals t' in
-    let: ms' := fmem s' in
-    let: mt' := fmem t' in
-    let: n := get_nb_wptr up fn in
-    [/\ List.Forall2 (value_in_mem ms') (take n ress) (take n argt)
-      , List.Forall2 value_uincl (drop n ress) rest
-      , extend_mem ms' mt'
-      , mem_unchanged_params ms mt mt' (get_wptrs up fn) args argt
-      & fscs s' = fscs t'
-    ].
-
-#[local]
-Instance FrontEndEquiv : EquivSpec :=
-  {|
-    rpreF_ := pre;
-    rpostF_ := post;
-  |}.
-
-Lemma it_compiler_front_endP ev1 ev2 fn :
-  fn \in entries ->
-  wiequiv_f up sp ev1 ev2 rpreF fn fn rpostF.
-Proof.
-
-End FRONT_END.
-
-End IT.
