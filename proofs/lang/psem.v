@@ -1658,3 +1658,6 @@ End IT_UNDEFINCL.
 End WITH_PARAMS.
 
 End WSW.
+
+Notation pre_incl := (rpreF (eS := uincl_spec)).
+Notation post_incl := (rpostF (eS := uincl_spec)).

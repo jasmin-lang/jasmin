@@ -648,6 +648,16 @@ Section LOWER_SLHO.
     if ty is Slh_msf then v = (@Vword msf_size 0%R)
     else True.
 
+  Lemma all_is_slh_none ts vs :
+    size ts = size vs ->
+    all is_slh_none ts ->
+    List.Forall2 slh_t_spec vs ts.
+  Proof.
+    elim: ts vs => [|t ts hind] [|v vs] //= [hsz] /andP [ht hts].
+    constructor; last exact: hind hsz hts.
+    by case: t ht.
+  Qed.
+
   Lemma check_f_argP wdb s ii e ty env v t:
     wf_env env (p_globs p') s
     -> check_f_arg ii env e ty = ok t
@@ -693,6 +703,14 @@ Section LOWER_SLHO.
     + by move=> ? [<-] [<-].
     t_xrbindP => lv lvs hwf env1 hc hcs s1 hw hws.
     apply: hrec hcs hws; apply: check_f_lvP hwf hc hv hw.
+  Qed.
+
+  Lemma size_init_fun_env env env' xs tys stys :
+    init_fun_env env xs tys stys = ok env' ->
+    size tys = size stys.
+  Proof.
+    elim: xs tys stys env => [|x xs hind] [|ty tys] [|sty stys] env //=.
+    by t_xrbindP=> ? _ /hind ->.
   Qed.
 
   Lemma init_envP wdb env env' xs ttys tys vs vs' s s':
@@ -1183,11 +1201,10 @@ Proof.
    move: (hp); rewrite /lower_slh_prog; t_xrbindP => /allP -/(_ _ hent).
    rewrite heq => /= hall fds hmap heq1.
    have [fd' + hget'] := get_map_cfprog_name_gen hmap hget.
-   rewrite /lower_fd /check_fd /= heq; t_xrbindP => z hz _ _ _ _ _ {heq hsem}.
-   elim : (f_params fd) (f_tyin fd) tin va vargs Env.empty hall hz hm =>
-     /= [ | x xs hrec] [ | t ts] [ | ty tys] // [ | v va] //= vargs env /andP [].
-   case: ty => //= _ hall; t_xrbindP => hini _ _ vargs1 hmap1 _.
-   by constructor => //; apply: hrec; eauto.
+   rewrite /lower_fd /check_fd /= heq; t_xrbindP=> z hz _ _ _ _ _ {heq hsem}.
+   apply: all_is_slh_none hall.
+   rewrite -(size_init_fun_env hz).
+   by have [->] := size_mapM2 hm.
 Qed.
 
 End PASS_PROOF.
@@ -1284,7 +1301,8 @@ Instance slh_spec : EquivSpec :=
       fun fn fn' fs fs' =>
         [/\ fn = fn'
           , fs = fs'
-          & List.Forall2 slh_t_spec (fvals fs) (fun_info fn).1
+          & size (fun_info fn).1 = size (fvals fs) ->
+            List.Forall2 slh_t_spec (fvals fs) (fun_info fn).1
         ];
     rpostF_ :=
       fun fn _ _ _ fs fs' =>
@@ -1459,11 +1477,11 @@ move=> xs o es ii env _ _ _ [<-] [<- <-]; apply (
 exact: wrequiv_eq.
 Qed.
 
-Lemma it_lower_call fn : wiequiv_f p p' ev ev rpreF fn fn rpostF.
+Lemma it_lower_call {fn} : wiequiv_f p p' ev ev rpreF fn fn rpostF.
 Proof.
 apply: wequiv_fun_ind => hind {}fn _ fs _ [<- <- htin] fd
   /(get_map_cfprog_name_gen hp_body) [] fd' /lower_fdP [].
-rewrite /check_fd /=; move: (fun_info _) htin => [in_t out_t] /= htin.
+rewrite /check_fd /= (surjective_pairing (fun_info _)).
 t_xrbindP=> env henv env' hchk htout _ _ htyin hparams hlower htyout hret hextra
   hget.
 exists fd' => // => s hs; exists s.
@@ -1475,7 +1493,10 @@ exists (st_eq env), (st_eq env'); split => //.
 (* Precondition *)
 - split=> //.
   move: hs; rewrite /initialize_funcall; t_xrbindP=> args hargs s0 hs0 hwrite.
-  exact: init_envP htin henv hargs hwrite (wf_env_empty _ _).
+  apply: (init_envP _ henv hargs hwrite (wf_env_empty _ _)).
+  apply: htin.
+  rewrite -(size_init_fun_env henv).
+  by have [->] := size_mapM2 hargs.
 
 (* Body *)
 - exact: it_lower_code hind hchk hlower.
@@ -1485,6 +1506,16 @@ clear s hs fs htin; move=> s _ fs [<- hwf].
 rewrite /finalize_funcall htyout hret hextra.
 t_xrbindP=> res hres res' hres' ?; subst fs; rewrite hres /= hres' /=.
 eexists=> //; split=> //; exact: check_resP hwf htout hres hres'.
+Qed.
+
+Lemma it_lower_call_export {fn} :
+  fn \in entries ->
+  wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
+Proof.
+move: hp; rewrite /lower_slh_prog; t_xrbindP=> /allP h _ _ _ /h {}h.
+apply: wkequiv_io_weaken it_lower_call => //.
+- by move=> s _ [_ <-]; split=> // /all_is_slh_none /(_ h).
+by move=> i1 _ o1 _ [_ <-] [<- _].
 Qed.
 
 End IT.
