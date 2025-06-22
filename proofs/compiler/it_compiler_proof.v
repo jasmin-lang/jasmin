@@ -360,6 +360,7 @@ apply: (
     rpostF_trans_eq_eq_eq_uincl
     (it_psem_call_u p ev (fn := fn))
 ).
+
 apply: wiequiv_f_trans_UU_EU; first exact (it_wi2w_progP _ _ ok_paw).
 apply: wiequiv_f_trans_UU_EU; first exact: (it_array_copy_fdP _ ok_pa0).
 apply: wiequiv_f_trans_EE_EU; first exact: it_add_init_callP.
@@ -387,7 +388,9 @@ apply: wiequiv_f_trans_EE_EU; first exact:
     (warning cparams)
     ok_fvars).
 apply: wiequiv_f_trans_UU_EU; first exact: (it_pi_callP _ ok_pj).
-apply: wiequiv_f_trans_EE_EU; first exact: (it_lower_call_export (hap_hshp haparams) _ ok_pp ok_fn).
+apply: wiequiv_f_trans_EE_EU;
+  first exact: (it_lower_call_export (hap_hshp haparams) _ ok_pp ok_fn).
+
 apply: wkequiv_io_weaken; last exact: wiequiv_f_eq.
 1-3: done.
 move=> ???? [_ <-] <-; split=> //; exact: values_uincl_refl.
@@ -395,23 +398,77 @@ Qed.
 
 End FIRST_PART.
 
+Section THIRD_PART.
+
+Context
+  {entries : seq funname}
+  {p p' : sprog}
+  {ev : pointer}
+.
+
+#[local] Existing Instance withsubword.
+#[local] Existing Instance direct_c.
+
+Let rminfo (rp : funname -> option (seq (option nat))) fn :=
+  match rp fn with
+  | Some l =>
+      let l' := map (fun i => if i is None then true else false) l in
+      if all (fun b => b) l' then None else Some l' (* do we want that? *)
+  | None => removereturn cparams p fn
+  end.
+
+Definition post_dc rp := rpostF (eS := dc_spec (rminfo rp)).
+
+Lemma it_compiler_third_part {rp fn} :
+  compiler_third_part aparams cparams rp p = ok p' ->
+  wiequiv_f (scP1 := sCP_stack) (scP2 := sCP_stack)
+    p p' ev ev pre_eq fn fn (post_dc rp).
+Proof.
+rewrite /compiler_third_part; t_xrbindP=> pa ok_pa.
+rewrite !print_sprogP.
+set pb := {| p_funcs := regalloc _ _; |} => ok_pb pc ok_p'.
+rewrite print_sprogP => ?; subst pc.
+apply: (
+  wiequiv_f_trans
+    (scP1 := sCP_stack) (scP2 := sCP_stack) (scP3 := sCP_stack)
+    (rpreF23 := pre_eq) (rpostF23 := post_dc rp)
+    _ _
+    (it_dead_code_tokeep_callPs (sip := sip_of_asm_e) (hap_is_move_opP haparams) _ ok_pa)
+).
+- exact: rpreF_trans_eq_eq_eq.
+- admit. (* move=> s1 _ _ r1 r3 [_ <-] [_ <-] [] r2 []. subst r2. *)
+apply: (
+  wiequiv_f_trans
+    (scP1 := sCP_stack) (scP2 := sCP_stack) (scP3 := sCP_stack)
+    (p2 := pb) (fn2 := fn)
+    (rpreF12 := pre_incl) (rpostF12 := post_incl)
+    (rpreF23 := pre_eq) (rpostF23 := post_incl)
+).
+- exact: rpreF_trans_eq_uincl_eq.
+- admit.
+- rewrite -{1}(surj_prog (pT := progStack) pa).
+  exact: (it_alloc_callP_sprogP _ _ ok_pb).
+exact: (it_dead_code_callPs (sip := sip_of_asm_e) (hap_is_move_opP haparams) _ ok_p').
+Admitted.
+
+End THIRD_PART.
+
 Section FRONT_END.
 
 Context
   (entries : seq funname)
   (up : uprog (asmop := _asmop))
   (sp : sprog (pd := _pd) (asmop := _asmop))
-  (gd : pointer)
-  (hcompile : compiler_front_end aparams cparams entries up = ok sp)
+  (rip : pointer)
 .
 
 Definition wf_args fn ms mt vs vt :=
   wf_args
-    (size_glob sp) gd ms mt (get_wptrs up fn) (get_align_args sp fn) vs vt.
+    (size_glob sp) rip ms mt (get_wptrs up fn) (get_align_args sp fn) vs vt.
 
-Definition extend_mem ms mt := extend_mem ms mt gd (sp_globs (p_extra sp)).
+Definition extend_mem ms mt := extend_mem ms mt rip (sp_globs (p_extra sp)).
 
-Definition pre : relPreF :=
+Let pre : relPreF :=
   fun fn fn' s t =>
     let: args := fvals s in
     let: argt := fvals t in
@@ -425,7 +482,7 @@ Definition pre : relPreF :=
       & fscs s = fscs t
     ].
 
-Definition post : relPostF :=
+Let post : relPostF :=
   fun fn _ s t s' t' =>
     let: args := fvals s in
     let: argt := fvals t in
@@ -450,17 +507,87 @@ Instance FrontEndEquiv : EquivSpec :=
     rpostF_ := post;
   |}.
 
-Lemma it_compiler_front_endP ev ev' fn :
+Lemma it_compiler_front_endP ev fn :
+  compiler_front_end aparams cparams entries up = ok sp ->
   fn \in entries ->
   wiequiv_f
     (wsw1 := nosubword) (wsw2 := withsubword)
     (dc1 := indirect_c) (dc2 := direct_c)
-    up sp ev ev' rpreF fn fn rpostF.
+    up sp ev rip rpreF fn fn rpostF.
 Proof.
-move: hcompile; rewrite /compiler_front_end.
-t_xrbindP=> p1 ok_p1 check_p1 p2 ok_p2 p3.
+rewrite /compiler_front_end; t_xrbindP=> p1 ok_p1 check_p1 p2 ok_p2 p3.
 rewrite print_sprogP => ok_p3 p4.
-rewrite print_sprogP => ok_p4 ? ok_fn; subst p4.
+rewrite print_sprogP => ok_sp ? ok_fn; subst p4.
+
+have [fd get_fd] : exists fd, get_fundef (p_funcs up) fn = Some fd.
+- admit.
+have [fd1 get_fd1] : exists fd, get_fundef (p_funcs p1) fn = Some fd.
+- admit.
+have [mglob ok_mglob] := [elaborate alloc_prog_get_fundef ok_p2 ].
+move=> /(_ _ _ get_fd1)[] fd2 /[dup] ok_fd2 /alloc_fd_checked_sao[] ok_sao_p
+  ok_sao_r get_fd2.
+have [_ p2_p3_extra] :=
+  hlap_lower_address_prog_invariants (hap_hlap haparams) ok_p3.
+have [fd3 get_fd3 [_ _ _ _ _ fd2_fd3_extra]] :=
+  hlap_lower_address_fd_invariants (hap_hlap haparams) ok_p3 get_fd2.
+have [fd4 [get_fd4 fd3_fd4_align]] :=
+  compiler_third_part_invariants print_sprogP ok_sp get_fd3.
+have sp_p3_extra := [elaborate compiler_third_part_meta print_sprogP ok_sp ].
+have p2_p1_extra := [elaborate alloc_prog_sp_globs ok_p2 ].
+
+have [] := check_wf_ptrP check_p1 ok_fn get_fd.
+rewrite /= all2_map -eqseq_all => /eqP check_params check_return.
+
+apply: (
+  wiequiv_f_trans
+    (scP1 := sCP_unit) (scP2 := sCP_unit) (scP3 := sCP_stack)
+    (rpreF23 := rpreF) (rpostF23 := rpostF)
+    _ _
+    (it_compiler_first_part ok_p1 ok_fn)
+).
+- move=> s1; by exists s1.
+- move=> s1 _ s3 r1 r3 [_ <-] [_ halloc hwf hptr hmem hscs] [] r2
+    [hscs1 hmem1 hval1] [] hptr' hres hmem' hparams hscs'.
+  admit.
+apply: (
+  wiequiv_f_trans
+    (scP1 := sCP_unit) (scP2 := sCP_stack) (scP3 := sCP_stack)
+    (rpreF23 := pre_eq) (rpostF23 := post_incl)
+    (p2 := p2) (ev2 := rip) (fn2 := fn)
+    _ _
+    (it_alloc_progP (hap_hshp haparams) (hap_hsap haparams) (hap_is_move_opP haparams) ok_p2 _ (rip := _))
+).
+- move=> s1 s3 [_ hok hwf hptr hmem hscs]; exists s3 => //; split=> //.
+  + by rewrite -p2_p1_extra p2_p3_extra -sp_p3_extra.
+  + move: hwf; rewrite /wf_args /get_wptrs get_fd /= check_params.
+    rewrite /size_glob sp_p3_extra -p2_p3_extra p2_p1_extra.
+    rewrite /get_align_args get_fd4 /= -fd3_fd4_align -fd2_fd3_extra.
+    move: ok_fd2; rewrite /alloc_fd; by t_xrbindP=> _ _ <- /=.
+  + move: hptr; rewrite /get_wptrs get_fd /=.
+    apply: value_eq_or_in_mem_any_option.
+    rewrite check_params.
+    have /Forall2_flip :=
+      map_Forall2 (omap pp_writable)
+        (sao_params (ao_stack_alloc (stackalloc cparams p1) fn)).
+    apply Forall2_impl.
+    by move=> _ ? <-; apply isSome_omap.
+  + rewrite /alloc_ok get_fd2 => _ [<-].
+    have :=
+      compiler_third_part_alloc_ok haparams print_sprogP ok_sp hok get_fd3.
+    by rewrite -fd2_fd3_extra.
+- move=> s1 s2 s3 r1 r3 []. admit.
+
+set rminfo := fun _ => _ in ok_sp.
+apply: (
+  wiequiv_f_trans
+    (rpreF23 := pre_eq) (rpostF23 := post_dc rminfo)
+    _ _
+    (hlap_it_lower_addressP (hap_hlap haparams) ok_p3)
+).
+- exact: rpreF_trans_eq_eq_eq.
+- admit.
+exact: it_compiler_third_part ok_sp.
+Admitted.
 
 End FRONT_END.
 

@@ -102,7 +102,19 @@ Record h_lower_addressing_params
       lap_lower_address laparams fresh_reg p = ok p' ->
       forall ev scs mem f vs scs' mem' vr,
       sem_call (pT:=progStack) p ev scs mem f vs scs' mem' vr ->
-      sem_call (pT:=progStack) p' ev scs mem f vs scs' mem' vr
+      sem_call (pT:=progStack) p' ev scs mem f vs scs' mem' vr;
+
+    hlap_it_lower_addressP :
+      forall
+        {E E0: Type -> Type}
+        {wE : with_Error E E0}
+        {rE : EventRels E0}
+        {fresh_reg}
+        {p p' : sprog}
+        {ev fn},
+        lap_lower_address laparams fresh_reg p = ok p' ->
+        wiequiv_f (scP1 := sCP_stack) (scP2 := sCP_stack)
+          p p' ev ev pre_eq fn fn post_eq;
   }.
 
 Record h_architecture_params
