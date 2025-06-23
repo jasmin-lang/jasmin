@@ -81,3 +81,9 @@ export fn test_while2() -> reg u64 {
     return x;
 }
 
+export fn bug_1214(reg ptr u8[4] p) -> reg ptr u8[4] {
+  reg ptr u32[1] q = p;
+  reg u32 v = 42;
+  q[0] = v;
+  return p;
+}
