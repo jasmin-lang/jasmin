@@ -9,6 +9,9 @@
   ([PR #1219](https://github.com/jasmin-lang/jasmin/pull/1219));
   fixes [#1218](https://github.com/jasmin-lang/jasmin/issues/1218)).
 
+- Ensure that `#MOVEMASK` can be used with 32-bit l-values
+  ([PR #1211](https://github.com/jasmin-lang/jasmin/pull/1211)).
+
 ## Other changes
 
 - The deprecated x86 intrinsic `#VPBLENDVB` has been removed
