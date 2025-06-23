@@ -1,5 +1,10 @@
 # [unreleased]
 
+## Bug fixes
+
+- Consider LHS array variables as assigned
+  ([PR #1214](https://github.com/jasmin-lang/jasmin/pull/1214)).
+
 # Jasmin 2025.06.0 — Nancy, 2025-06-18
 
 ## New features

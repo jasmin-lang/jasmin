@@ -37,6 +37,8 @@
   warning: Variable 'x' is affected but never used
   "fail/linter/dead_variables.jazz", line 76 (12-22)
   warning: Variable 'y' is affected but never used
+  "fail/linter/dead_variables.jazz", line 87 (2-11)
+  warning: Variable 'q' is affected but never used
 
   $ ../jasminc -wall fail/linter/variables_initialisation.jazz
   "fail/linter/variables_initialisation.jazz", line 3 (5-6)
@@ -51,5 +53,7 @@
   warning: Variable x (declared at : "fail/linter/variables_initialisation.jazz", line 17 (12-13)) not initialized
   "fail/linter/variables_initialisation.jazz", line 25 (11-12)
   warning: Variable x (declared at : "fail/linter/variables_initialisation.jazz", line 22 (12-13)) not initialized
+  "fail/linter/variables_initialisation.jazz", line 8 (4-17)
+  warning: Variable 'state' is affected but never used
   "fail/linter/variables_initialisation.jazz", line 18 (4-18)
   warning: Variable 'y' is affected but never used
