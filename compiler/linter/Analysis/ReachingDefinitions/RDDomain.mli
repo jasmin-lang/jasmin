@@ -9,7 +9,6 @@ We also define a default value for each variable (notated as (v,?) in Nielson, N
 *)
 
 open Jasmin.Prog
-open Types
 
 (**
 domain type

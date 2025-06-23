@@ -1,6 +1,5 @@
 open Jasmin
 open Prog
-open Types
 open Annotation
 
 module type Logic = sig

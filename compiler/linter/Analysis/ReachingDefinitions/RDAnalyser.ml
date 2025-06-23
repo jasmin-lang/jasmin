@@ -1,7 +1,5 @@
 open Jasmin.Prog
-open Analyser
-open Analyser.Annotation
-open Types
+open Annotation
 
 (* TODO : remove when added to Prog.mli*)
 let written_lvs = List.fold_left written_lv Sv.empty
