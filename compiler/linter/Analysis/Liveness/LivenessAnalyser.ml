@@ -1,7 +1,6 @@
 open Jasmin
 open Prog
-open Analyser.Annotation
-open Analyser
+open Annotation
 
 (**
     Computes used variables in an lvalue
