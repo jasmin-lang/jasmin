@@ -10,4 +10,4 @@ type domain = Sv.t
 *)
 val analyse_function :
   ('info, 'asm) Jasmin.Prog.func ->
-  (domain Analyser.Annotation.annotation, 'asm) Jasmin.Prog.func
+  (domain Annotation.annotation, 'asm) Jasmin.Prog.func

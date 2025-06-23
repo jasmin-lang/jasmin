@@ -3,5 +3,5 @@
  (libraries jasmin cmdliner)
 )
 
-(include_subdirs qualified)
+(include_subdirs unqualified)
 

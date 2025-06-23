@@ -1,5 +1,4 @@
 open Jasmin
-open Types
 open Prog
 open Format
 

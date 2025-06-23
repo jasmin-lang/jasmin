@@ -1,5 +1,5 @@
 open Jasmin.Prog
-open Analyser.Annotation
+open Annotation
 
 type domain = RDDomain.t
 

@@ -5,7 +5,7 @@
     every (syntactically) used variable is initialised in the domain. *)
 
 open Jasmin
-open Analyser.Annotation
+open Annotation
 
 (** Check mode for initialised variable analysis
     - [Strict] : Check if a path exists where variable may not be initialised
@@ -16,5 +16,5 @@ type check_mode = Strict | NotStrict
 
 val check_prog :
   ?mode:check_mode ->
-  (Analysis.ReachingDefinitions.RDDomain.t annotation, 'asm) Prog.prog ->
-  Error.CompileError.t list
+  (RDDomain.t annotation, 'asm) Prog.prog ->
+  CompileError.t list

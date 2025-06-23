@@ -1,13 +1,12 @@
 open Jasmin
 open Utils
 open Prog
-open Analyser
 
 let create_dv_error err_payload loc =
-  let open Error.CompileError in
+  let open CompileError in
   {
     location = loc;
-    error_strategy = Error.CompileError.Fail;
+    error_strategy = CompileError.Fail;
     code = "DV-E001";
     to_text =
       (

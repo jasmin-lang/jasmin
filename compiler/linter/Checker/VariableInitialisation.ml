@@ -1,14 +1,13 @@
 open Jasmin
 open Utils
 open Prog
-open Types
-open Analyser.Annotation
+open Annotation
 
 let create_vi_error err_payload loc =
-  let open Error.CompileError in
+  let open CompileError in
   {
     location = loc;
-    error_strategy = Error.CompileError.Fail;
+    error_strategy = CompileError.Fail;
     code = "VI-E001";
     to_text =
       (fun fmt ->
