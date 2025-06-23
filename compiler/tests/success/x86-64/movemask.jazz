@@ -1,16 +1,24 @@
 export
 fn test_movemask(reg u128 x, reg u256 y) -> reg u64 {
    reg u64 a b c d;
-   a = #MOVEMASK_8u32(y);
-   b = #MOVEMASK_4u32(x);
+   a = (64u)#MOVEMASK_8u32(y);
+   b = (64u)#MOVEMASK_4u32(x);
    a ^= b;
-   b = #MOVEMASK_4u64(y);
-   c = #MOVEMASK_2u64(x);
+   b = (64u)#MOVEMASK_4u64(y);
+   c = (64u)#MOVEMASK_2u64(x);
    b ^= c;
-   c = #MOVEMASK_32u8(y);
-   d = #MOVEMASK_16u8(x);
+   c = (64u)#MOVEMASK_32u8(y);
+   d = (64u)#MOVEMASK_16u8(x);
    c ^= d;
    b ^= c;
    a ^= b;
    return a;
+}
+
+export
+fn bug_1211(reg u256 x) -> reg u32, reg u32 {
+  reg u32 p q;
+  p = #MOVEMASK_16u8(x);
+  q = #MOVEMASK_32u8(x);
+  return p, q;
 }
