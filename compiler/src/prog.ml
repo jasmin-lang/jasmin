@@ -314,7 +314,10 @@ let locals fc =
 
 let written_lv s =
   function
-  | Lvar x -> Sv.add (L.unloc x) s
+  | Lvar x
+  | Laset (_, _, _, x, _)
+  | Lasub (_, _, _, x, _)
+    -> Sv.add (L.unloc x) s
   | _ -> s
 
 let rec written_vars_i ((v, f) as acc) i =

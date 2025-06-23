@@ -1,0 +1,16 @@
+inline fn consume(reg ptr u32[1] x) -> reg ptr u32[1] {
+  if x[0] > 0 {
+    x[0] = 0;
+  }
+  return x;
+}
+
+export fn main(reg u32 a) -> reg u32 {
+  stack u32[1] s;
+  s[0] = a;
+  reg ptr u32[1] x = s;
+  reg ptr u32[1] y = consume(x);
+  a = x[0];
+  a += y[0];
+  return a;
+}
