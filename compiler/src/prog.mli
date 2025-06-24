@@ -229,6 +229,15 @@ val spilled :  ('info, 'asm) func -> Sv.t
 (** [written_lv s x] inserts [x] into [s] if [x] is a variable *)
 val written_lv : Sv.t -> lval -> Sv.t
 
+(** [lv_expr lv] return an expression if lv contains an expression (memory or array access), and None otherwise*)
+val lv_expr : lval -> expr option
+
+(** [lv_exprs lvs] return a list of all expressions contains in lvs *)
+val lv_exprs : lvals -> exprs
+
+(* -------------------------------------------------------------------- *)
+(* Functions on functions                                               *)
+
 (* -------------------------------------------------------------------- *)
 (* Written variables & called functions *)
 val written_vars_fc : ('info, 'asm) func -> Sv.t * L.i_loc list Mf.t
