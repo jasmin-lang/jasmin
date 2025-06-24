@@ -473,3 +473,14 @@ op (\zquot) (a b : int) =
 
 op (\zrem) (a b : int) =
   zsign a * (`|a| %% `|b|).
+
+lemma zquot0 (a: int) : 0 \zquot a = 0
+  by [].
+
+lemma zrem0 (a: int) : 0 \zrem a = 0
+  by [].
+
+lemma zrem_alt (a b : int) :
+  b <> 0 =>
+  a - b * (a \zquot b) = a \zrem b
+  by smt().
