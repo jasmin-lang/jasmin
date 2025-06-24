@@ -2,7 +2,7 @@
 From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-From mathcomp.zify Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 Require Import gen_map utils strings.
 Require Export wsize.

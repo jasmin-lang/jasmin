@@ -186,10 +186,10 @@ Proof.
   rewrite /sem_prod /= in IH.
   by rewrite IH.
 Defined.
-
+(*
 Lemma add_arguments_nil A lt f: @add_arguments A [::] lt f = f.
 Proof. by rewrite /add_arguments /eq_rect_r /=. Qed.
-
+*)
 Section APP.
 
 Context (T : Type) (of_T : forall t : ctype, T -> exec (sem_t t)).
