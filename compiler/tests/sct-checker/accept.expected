@@ -149,6 +149,19 @@ output corruption: #public
  constraints:
 
 
+File bug_1218.jazz:
+nomodmsf f : #poly = { n = a, s = secret} ->
+#poly = { n = a, s = secret}
+output corruption: #public
+ constraints:
+
+
+nomodmsf g : #poly = { n = a, s = secret} ->
+#poly = { n = a, s = secret}
+output corruption: #public
+ constraints:
+
+
 File bug_852.jazz:
 nomodmsf reset : #public ->
 
