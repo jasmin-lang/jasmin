@@ -76,6 +76,7 @@ $(DISTDIR).tgz: MANIFEST
 	cp -riv ../eclib $(DISTDIR)/
 	mkdir $(DISTDIR)/scripts && cp ../scripts/install-sh $(DISTDIR)/scripts/
 	cp ../Makefile.compiler $(DISTDIR)/Makefile
+	cp jasmin.opam $(DISTDIR)/
 	tar -czvf $(DISTDIR).tgz --owner=0 --group=0 $(DISTDIR)
 	$(RM) -r $(DISTDIR)
 

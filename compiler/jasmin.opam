@@ -1,24 +1,22 @@
 opam-version: "2.0"
-name: "jasmin"
 version: "dev"
+synopsis: "Compiler for High-Assurance and High-Speed Cryptography"
+description: """
+Jasmin is a workbench for high-assurance and high-speed cryptography. Jasmin
+implementations aim at being efficient, safe, correct, and secure.
+"""
 maintainer: "Jean-Christophe Léchenet <jean-christophe.lechenet@inria.fr>"
-authors: "Jasmin authors and contributors"
+authors: ["Jasmin authors and contributors"]
+license: "MIT"
 homepage: "https://github.com/jasmin-lang/jasmin"
 bug-reports: "https://github.com/jasmin-lang/jasmin/issues"
-synopsis: "High-Assurance and High-Speed Cryptography"
-license: "MIT"
+dev-repo: "git+https://gitlab.com/jasmin-lang/jasmin-compiler.git"
 
 build: [
-  make "build"
+  [make "all"]
 ]
 install: [
-  mkdir -p "%{prefix}%/bin"
-  cp -L "_build/install/default/bin/jasminc" "%{prefix}%/bin/jasminc"
-  cp -L "_build/install/default/bin/jasmin2tex" "%{prefix}%/bin/jasmin2tex"
-  cp -L "_build/install/default/bin/jasmin-ct" "%{prefix}%/bin/jasmin-ct"
-  cp -L "_build/install/default/bin/jasmin2ec" "%{prefix}%/bin/jasmin2ec"
-  mkdir -p "%{prefix}%/lib/jasmin/easycrypt"
-  sh -c "cp ../eclib/*.ec \"%{prefix}%/lib/jasmin/easycrypt/\""
+  [make "install" "DUNE_OPTS="]
 ]
 depends: [
   "ocaml" { >= "4.11" & build }
