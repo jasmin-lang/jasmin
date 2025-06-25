@@ -22,6 +22,7 @@ DESTDIR  ?=
 PREFIX   ?= /usr/local
 BINDIR   := $(PREFIX)/bin
 INSTALL  ?= install
+DUNE_OPTS ?= --prefix $(PREFIX)
 
 # --------------------------------------------------------------------
 DISTDIR ?= jasmin-compiler
@@ -62,16 +63,10 @@ clean:
 	$(RM) jasminc jasmin2tex jasmin-ct jasmin2ec
 
 install:
-	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
-	$(INSTALL) -m 0755 -T jasminc $(DESTDIR)$(BINDIR)/jasminc
-	$(INSTALL) -m 0755 -T jasmin2tex $(DESTDIR)$(BINDIR)/jasmin2tex
-	$(INSTALL) -m 0755 -T jasmin-ct $(DESTDIR)$(BINDIR)/jasmin-ct
-	$(INSTALL) -m 0755 -T jasmin2ec $(DESTDIR)$(BINDIR)/jasmin2ec
+	dune install $(DUNE_OPTS)
 
 uninstall:
-	$(RM) $(DESTDIR)$(BINDIR)/jasminc
-	$(RM) $(DESTDIR)$(BINDIR)/jasmin2tex
-	$(RM) $(DESTDIR)$(BINDIR)/jasmin2ec
+	dune uninstall $(DUNE_OPTS)
 
 # --------------------------------------------------------------------
 dist: $(DISTDIR).tgz
