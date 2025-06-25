@@ -1042,14 +1042,19 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
       ensure_public env venv loc e1;
       ensure_public env venv loc e2;
 
+      (* Live set after the loop guard *)
+      let live_at_c =
+        let live_after_i = snd i.i_info in
+        match c with i :: _ -> Sv.union live_after_i (fst i.i_info) | [] -> live_after_i in
+
       let msf = MSF.loop env i.i_loc msf in
       (* let w, _ = written_vars [i] in *)
       let venv1 = Env.freshen env venv in (* venv <= venv1 *)
       let msf_e = ty_lval env (msf, venv1) (Lvar x) (Env.dpublic env) in
       let (msf', venv') = ty_cmd is_ct_asm fenv env msf_e c in
       let msf' = MSF.end_loop loc msf msf' in
-      let venv1 = Env.venv_forget (fst i.i_info) venv1 in
-      let venv' = Env.venv_forget (fst i.i_info) venv' in
+      let venv1 = Env.venv_forget live_at_c venv1 in
+      let venv' = Env.venv_forget live_at_c venv' in
       Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
       msf', venv1
 

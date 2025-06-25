@@ -1,0 +1,20 @@
+#[sct="a → a"]
+export fn f(reg u32 x) -> reg u32 {
+  x = x;
+  inline int a b;
+  a = 0;
+  for b = a to 1 {
+    x += 1;
+  }
+  return x;
+}
+
+#[sct="a → a"]
+export fn g(reg u32 x) -> reg u32 {
+  x = x;
+  inline int i;
+  for i = 0 to 1 {
+    x = 0;
+  }
+  return x;
+}

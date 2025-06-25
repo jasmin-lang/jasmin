@@ -5,6 +5,10 @@
 - Consider LHS array variables as assigned
   ([PR #1214](https://github.com/jasmin-lang/jasmin/pull/1214)).
 
+- Fix SCT check of `for` loops
+  ([PR #1219](https://github.com/jasmin-lang/jasmin/pull/1219));
+  fixes [#1218](https://github.com/jasmin-lang/jasmin/issues/1218)).
+
 ## Other changes
 
 - The deprecated x86 intrinsic `#VPBLENDVB` has been removed
