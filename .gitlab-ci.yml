@@ -108,34 +108,6 @@ eclib:
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'easycrypt     config -why3 eclib/why3.conf'
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make ECARGS="-why3 why3.conf" -C eclib'
 
-opam-compiler:
-  stage: build
-  variables:
-    OPAMROOTISOK: 'true'
-    OPAMROOT: mapo
-    EXTRA_NIX_ARGUMENTS: --arg opamDeps true
-  extends: .common
-  needs:
-  - coq-program
-  cache:
-    key:
-      files:
-        - scripts/nixpkgs.nix
-      prefix: opam
-    paths:
-      - $OPAMROOT
-  script:
-  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'scripts/opam-setup.sh'
-  - >-
-    nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run
-    'eval $(opam env) &&
-     make -C compiler -j$NIX_BUILD_CORES &&
-     (cd compiler && mkdir -p bin && cp -L _build/install/default/bin/* bin/ && mkdir -p lib/jasmin/easycrypt && cp ../eclib/*.ec lib/jasmin/easycrypt/)'
-  artifacts:
-    paths:
-    - compiler/bin/
-    - compiler/lib/
-
 tarball:
   stage: build
   variables:
@@ -160,6 +132,32 @@ build-from-tarball:
   - tar xvf compiler/$TARBALL.tgz
   - nix-build -o out $TARBALL/compiler
   - ./out/bin/jasminc -version
+
+opam-from-tarball:
+  stage: test
+  variables:
+    OPAMROOTISOK: 'true'
+    OPAMROOT: mapo
+    EXTRA_NIX_ARGUMENTS: --arg opamDeps true
+    TARBALL: jasmin-compiler-$CI_COMMIT_SHORT_SHA
+  extends: .common
+  needs:
+  - tarball
+  cache:
+    key:
+      files:
+        - scripts/nixpkgs.nix
+      prefix: opam
+    paths:
+      - $OPAMROOT
+  script:
+  - tar xvf compiler/$TARBALL.tgz
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'scripts/opam-setup.sh'
+  - >-
+    nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run
+    'eval $(opam env) &&
+     opam install ./$TARBALL &&
+     opam uninstall ./$TARBALL'
 
 check:
   stage: test
