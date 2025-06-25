@@ -6,7 +6,6 @@ default.nix
 Makefile
 dune-project
 dune
-jasmin.opam
 
 find:entry:*.ml
 find:linter:*.ml
