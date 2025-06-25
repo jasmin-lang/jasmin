@@ -41,7 +41,7 @@ Record h_lowering_params
         (scs: syscall_state_t) (mem : low_memory.mem)
         (scs': syscall_state_t) (mem' : low_memory.mem)
         (va vr : seq value),
-        sem_call (dc:= direct_c) p ev scs mem f va scs' mem' vr
+        sem_call p ev scs mem f va scs' mem' vr
         -> let lprog :=
              lowering.lower_prog
                (lop_lower_i loparams)
@@ -51,6 +51,24 @@ Record h_lowering_params
                p
            in
            sem_call lprog ev scs mem f va scs' mem' vr;
+    hlop_it_lower_callP :
+      forall
+        {pT : progT}
+        {sCP : semCallParams}
+        {E E0: Type -> Type}
+        {wE : with_Error E E0}
+        {rE : EventRels E0}
+        {p : prog}
+        {ev : extra_val_t}
+        (options : lowering_options)
+        (warning : instr_info -> warning_msg -> instr_info)
+        {fv : lowering.fresh_vars}
+        {fn : funname},
+        let: p' :=
+          lowering.lower_prog (lop_lower_i loparams) options warning fv p
+        in
+        lop_fvars_correct loparams fv (p_funcs p) ->
+        wiequiv_f p p' ev ev pre_eq fn fn post_eq
   }.
 
 (* Lowering of complex addressing mode for RISC-V.
@@ -84,7 +102,19 @@ Record h_lower_addressing_params
       lap_lower_address laparams fresh_reg p = ok p' ->
       forall ev scs mem f vs scs' mem' vr,
       sem_call (pT:=progStack) p ev scs mem f vs scs' mem' vr ->
-      sem_call (pT:=progStack) p' ev scs mem f vs scs' mem' vr
+      sem_call (pT:=progStack) p' ev scs mem f vs scs' mem' vr;
+
+    hlap_it_lower_addressP :
+      forall
+        {E E0: Type -> Type}
+        {wE : with_Error E E0}
+        {rE : EventRels E0}
+        {fresh_reg}
+        {p p' : sprog}
+        {ev fn},
+        lap_lower_address laparams fresh_reg p = ok p' ->
+        wiequiv_f (scP1 := sCP_stack) (scP2 := sCP_stack)
+          p p' ev ev pre_eq fn fn post_eq;
   }.
 
 Record h_architecture_params

@@ -463,17 +463,18 @@ Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 Lemma it_dead_calls_errP (s : Sf.t) (p p': prog) :
   dead_calls_err s p = ok p' →
   ∀ f ev, Sf.In f s →
-  wiequiv_f p p' ev ev (fun _ _ => eq) f f (fun _ _ _ _ => eq).
+  wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) f f (rpostF (eS := eq_spec)).
 Proof.
-rewrite /dead_calls_err; case: ifP => // /SfD.F.subset_2 pfx [] <- f ev hin fs _ <-.
+rewrite /dead_calls_err.
+case: ifP => // /SfD.F.subset_2 pfx [] <- f ev hin fs _ [_ <-].
 apply: it_dead_calls_callP => //; split => //.
-by apply: live_calls_subset.
+exact: live_calls_subset.
 Qed.
 
 Theorem it_dead_calls_err_seqP (s : seq funname) (p p': prog) :
   dead_calls_err_seq s p = ok p' →
   ∀ f ev, f \in s →
-  wiequiv_f p p' ev ev (fun _ _ => eq) f f (fun _ _ _ _ => eq).
+  wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) f f (rpostF (eS := eq_spec)).
 Proof.
   rewrite /dead_calls_err_seq.
   move=> h f ev fins; apply: (it_dead_calls_errP h).
