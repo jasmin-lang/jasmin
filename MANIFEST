@@ -2,6 +2,8 @@
 Makefile
 MANIFEST
 default.nix
+jasmin.opam
+jasmin-compiler.opam
 
 # Proofs
 proofs/Makefile
@@ -23,7 +25,6 @@ compiler/scripts/runtest
 compiler/Makefile
 compiler/dune
 compiler/dune-project
-compiler/jasmin.opam
 compiler/safetylib/dune
 compiler/src/CIL/.keep
 compiler/src/dune
