@@ -6,9 +6,7 @@ opam init --disable-sandboxing --no-setup --compiler=4.14.2
 if [ 1 -le $# ]
 then
   opam repo add coq-released https://coq.inria.fr/opam/released
-  opam pin --yes --no-depexts --no-action add .
+  opam install --yes --no-depexts --deps-only ./jasmin.opam
 else
-  opam pin --yes --no-depexts --no-action add compiler
+  opam install --yes --no-depexts --deps-only ./jasmin-compiler.opam
 fi
-opam install --yes --no-depexts --deps-only jasmin
-

@@ -76,6 +76,7 @@ $(DISTDIR).tgz: MANIFEST
 	../scripts/distribution $(DISTDIR)/compiler $<
 	cp -riv ../eclib $(DISTDIR)/
 	cp ../Makefile.compiler $(DISTDIR)/Makefile
+	cp ../jasmin-compiler.opam $(DISTDIR)/
 	tar -czvf $(DISTDIR).tgz --owner=0 --group=0 $(DISTDIR)
 	$(RM) -r $(DISTDIR)
 
