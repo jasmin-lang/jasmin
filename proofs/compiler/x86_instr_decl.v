@@ -94,6 +94,7 @@ Variant x86_op : Type :=
   (* MMX instructions *)
 | MOVX  of wsize
 | POR
+| PADD of velem & wsize (* parallel addition *)
 
   (* SSE instructions *)
 | MOVD     of wsize (* MOVD/MOVQ to wide registers *)
@@ -351,6 +352,8 @@ Definition primV_16 := primV_range [seq PVv VE16 sz | sz <- [:: U128; U256 ]].
 Definition primV_16_32 := primV_range [seq PVv ve sz | ve <- [:: VE16; VE32 ], sz <- [:: U128; U256 ]].
 Definition primV_16_64 := primV_range [seq PVv ve sz | ve <- [:: VE16; VE32; VE64 ], sz <- [:: U128; U256 ]].
 Definition primV_128 := primV_range [seq PVv ve U128 | ve <- [:: VE8; VE16; VE32; VE64 ]].
+
+Definition primMMX := primV_range [seq PVv ve sz | ve <- [:: VE8; VE16; VE32; VE64 ], sz <- [:: U64; U128 ]].
 
 Definition primSV_8_32 (f: signedness → velem → wsize → x86_op) : prim_constructor x86_op :=
   PrimX86
@@ -639,6 +642,15 @@ Definition Ox86_POR_instr :=
       (pp_name "por" U64)
   in
   (desc, ("POR"%string, primM POR)).
+
+Definition check_padd : i_args_kinds := [:: [:: rx; rxm true ]; [:: xmm; xmmm true ] ].
+
+Definition Ox86_PADD_instr :=
+  let padd := "PADD"%string in
+  (λ (ve: velem) (sz: wsize),
+    mk_instr_safe (pp_ve_sz padd ve sz) (w2_ty sz sz) (w_ty sz) [:: Eu 0; Eu 1 ] [:: Eu 0 ] MSB_CLEAR
+      (lift2_vec ve +%R sz) check_padd 2 (size_64_128 sz) (pp_viname "padd" ve sz),
+   (padd, primMMX PADD)).
 
 Definition check_movsx (_ _:wsize) := [:: r_rm ].
 
@@ -2165,6 +2177,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | SHLX sz            => Ox86_SHLX_instr.1 sz
   | MOVX sz            => Ox86_MOVX_instr.1 sz
   | POR                => Ox86_POR_instr.1
+  | PADD ve sz         => Ox86_PADD_instr.1 ve sz
   | MOVD sz            => Ox86_MOVD_instr.1 sz
   | MOVV sz            => Ox86_MOVV_instr.1 sz
   | VMOV sz            => Ox86_VMOV_instr.1 sz
@@ -2321,6 +2334,7 @@ Definition x86_prim_string :=
    Ox86_SHLX_instr.2;
    Ox86_MOVX_instr.2;
    Ox86_POR_instr.2;
+   Ox86_PADD_instr.2;
    Ox86_MOVD_instr.2;
    Ox86_MOVV_instr.2;
    Ox86_VMOV_instr.2;
