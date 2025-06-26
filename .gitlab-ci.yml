@@ -129,8 +129,8 @@ opam-compiler:
   - >-
     nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run
     'eval $(opam env) &&
-     make -C compiler -j$NIX_BUILD_CORES &&
-     (cd compiler && mkdir -p bin && cp -L _build/install/default/bin/* bin/ && mkdir -p lib/jasmin/easycrypt && cp ../eclib/*.ec lib/jasmin/easycrypt/)'
+     opam install --yes --no-depexts --working-dir --inplace-build --destdir=./compiler ./jasmin-compiler.opam &&
+     opam remove .'
   artifacts:
     paths:
     - compiler/bin/
