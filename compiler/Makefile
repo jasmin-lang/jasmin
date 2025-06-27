@@ -81,6 +81,7 @@ $(DISTDIR).tgz: MANIFEST
 	$(RM) -r $(DISTDIR)
 	../scripts/distribution $(DISTDIR)/compiler $<
 	cp -riv ../eclib $(DISTDIR)/
+	mkdir $(DISTDIR)/scripts && cp ../scripts/install-sh $(DISTDIR)/scripts/
 	cp ../Makefile.compiler $(DISTDIR)/Makefile
 	tar -czvf $(DISTDIR).tgz --owner=0 --group=0 $(DISTDIR)
 	$(RM) -r $(DISTDIR)
