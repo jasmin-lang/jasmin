@@ -38,5 +38,4 @@ find:eclib:*.ec
 find:compiler/examples:*.mil
 
 # Scripts
-scripts/install-sh
 scripts/distribution
