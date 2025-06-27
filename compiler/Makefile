@@ -21,7 +21,7 @@ CHECKCATS ?= \
 DESTDIR  ?=
 PREFIX   ?= /usr/local
 BINDIR   := $(PREFIX)/bin
-INSTALL  ?= ../scripts/install-sh
+INSTALL  ?= install
 
 # --------------------------------------------------------------------
 DISTDIR ?= jasmin-compiler
