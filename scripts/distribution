@@ -5,8 +5,7 @@ import sys, os, re, itertools as it, subprocess as sp
 import glob, fnmatch
 
 # --------------------------------------------------------------------
-MYROOT  = os.path.dirname(__file__)
-INSTALL = os.path.join(MYROOT, 'install-sh')
+INSTALL = 'install'
 
 # --------------------------------------------------------------------
 def _error(message):
