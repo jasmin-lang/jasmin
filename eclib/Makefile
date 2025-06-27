@@ -11,7 +11,7 @@ PREFIX   ?= /usr/local
 BINDIR   := $(PREFIX)/bin
 LIBDIR   := $(PREFIX)/lib
 SHRDIR   := $(PREFIX)/share
-INSTALL  ?= ../scripts/install-sh
+INSTALL  ?= install
 
 # --------------------------------------------------------------------
 .PHONY: default usage check install uninstall
