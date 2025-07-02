@@ -14,27 +14,45 @@ let create_dv_error err_payload loc =
       );
   }
 
+let create_dv_error_instr loc =
+  let open CompileError in
+  {
+    location = loc;
+    error_strategy = CompileError.Fail;
+    code = "DV-E002";
+    to_text =
+      (
+        fun fmt ->
+          Format.fprintf fmt "Instruction only assigns dead variables"
+        );
+  }
 
 let check_func func =
-  let errors = ref [] in
+  let dv_errors = ref [] in
 
-  let check_instr { i_desc; i_info; i_loc; _} =
+  let check_instr ({ i_desc; i_info; i_loc; _}:('info,'asm) Prog.instr) =
     let domain = Annotation.unwrap i_info in
-    let dead_variables = Sv.diff (Jasmin.Prog.assigns i_desc) domain in
-    Sv.iter (fun v ->
-      let err_payload= create_dv_error v (i_loc.base_loc) in
-      errors := err_payload :: !errors
-    ) dead_variables
+    let assigns = Jasmin.Prog.assigns i_desc in
+    let dead_variables = Sv.diff assigns domain in
+
+    if (not (Sv.is_empty (Sv.inter assigns domain))) then (* We check if at least one lvalue is alive. If then, we do not create an error*)
+      Sv.iter (fun v ->
+        let err_payload= create_dv_error v (i_loc.base_loc) in
+        dv_errors := err_payload :: !dv_errors
+      ) dead_variables
+    else
+      let err_payload = create_dv_error_instr (i_loc.base_loc) in
+      dv_errors := err_payload :: !dv_errors
   in
 
   iter_instr check_instr func.f_body ;
-  !errors
+  !dv_errors
 
 let check_prog (_,funcs) =
   List.fold (
-    fun acc fd ->
-      let errors = check_func fd in
-      List.rev_append errors acc
+    fun (ev) fd ->
+      let errors_var = check_func fd in
+      (List.rev_append  errors_var ev)
   )
-  []
+  ([])
   funcs
