@@ -18,13 +18,14 @@ let create_dv_error err_payload loc =
 let check_func func =
   let errors = ref [] in
 
-  let check_instr { i_desc; i_info; i_loc; _} =
+  let check_instr ({ i_desc; i_info; i_loc; _}:('info,'asm) Prog.instr) =
     let domain = Annotation.unwrap i_info in
     let dead_variables = Sv.diff (Jasmin.Prog.assigns i_desc) domain in
-    Sv.iter (fun v ->
-      let err_payload= create_dv_error v (i_loc.base_loc) in
-      errors := err_payload :: !errors
-    ) dead_variables
+    if (Sv.is_empty (Sv.diff (Jasmin.Prog.assigns i_desc) dead_variables)) then (* We check if at least one lvalue is alive. If then, we do not create an error*)
+      Sv.iter (fun v ->
+        let err_payload= create_dv_error v (i_loc.base_loc) in
+        errors := err_payload :: !errors
+      ) dead_variables
   in
 
   iter_instr check_instr func.f_body ;
