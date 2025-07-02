@@ -92,6 +92,7 @@ module X86_core = struct
     | MOVSX _ -> true
     | MOVV _ -> true
     | MOVX _ -> true
+    | PADD _ -> true
     | POR -> true
     | MOVZX _ -> true
     | MUL _ -> true

@@ -1533,6 +1533,7 @@ let extract_size str : string * Sopn.prim_x86_suffix option =
     | "8u8"   -> PVsv (W.Unsigned, W.VE8,  W.U64)
     | "4u16"  -> PVsv (W.Unsigned, W.VE16, W.U64)
     | "2u32"  -> PVsv (W.Unsigned, W.VE32, W.U64)
+    | "1u64"  -> PVsv (W.Unsigned, W.VE64, W.U64)
     | "16u8"  -> PVsv (W.Unsigned, W.VE8,  W.U128)
     | "8u16"  -> PVsv (W.Unsigned, W.VE16, W.U128)
     | "4u32"  -> PVsv (W.Unsigned, W.VE32, W.U128)
