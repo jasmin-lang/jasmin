@@ -200,6 +200,10 @@ Proof.
   by move=> h /value_uincl_subtype; apply: subtype_trans.
 Qed.
 
+Definition values_uincl_refl {va} := List_Forall2_refl va value_uincl_refl.
+Definition values_uincl_trans {va vb vc} :=
+  Forall2_trans (la := va) (lb := vb) (lc := vc) value_uincl_trans.
+
 Lemma check_ty_val_uincl v1 x v2 :
   check_ty_val x v1 → value_uincl v1 v2 → check_ty_val x v2.
 Proof.

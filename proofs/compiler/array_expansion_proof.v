@@ -531,7 +531,7 @@ End Expr.
 
 Hypothesis Hcomp : expand_prog fi entries p1 = ok p2.
 
-Local Notation ev := tt.
+Context {ev : extra_val_t (progT := progUnit)}.
 
 Section Step1.
 

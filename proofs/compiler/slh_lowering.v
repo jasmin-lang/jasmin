@@ -532,10 +532,10 @@ Definition lower_fd (fn:funname) (fd:fundef) :=
   Let c := lower_cmd c in
   ok (MkFun ii si p c so r ev).
 
-Definition is_shl_none ty := if ty is Slh_None then true else false.
+Definition is_slh_none ty := if ty is Slh_None then true else false.
 
 Definition lower_slh_prog (entries : seq funname) (p : prog) : cexec prog :=
-   Let _ := assert (all (fun f => all is_shl_none (fst (fun_info f))) entries)
+   Let _ := assert (all (fun f => all is_slh_none (fst (fun_info f))) entries)
                    (E.pp_user_error None None (pp_s "export function should not take a misspeculation flag as input")) in
    Let p_funcs := map_cfprog_name lower_fd (p_funcs p) in
    ok  {| p_funcs  := p_funcs;
