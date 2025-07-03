@@ -2010,10 +2010,9 @@ Proof.
   + by move=> r1 r2; apply hpost.
   have := h2 _ _ hpre23; have := h1 _ _ hpre12.
   apply xrutt_facts.xrutt_trans.
-  move=> T1 T2 e1 e2 /sum_prerelP h.
-  dependent destruction h => /=.
-  + by rewrite /errcutoff /= /is_error -x0.
-  by rewrite /errcutoff /is_error -x.
+  move=> T1 T2 e1 e2; rewrite /EPreRel.
+  case he1: (mfun1 e1); case he2: (mfun1 e2) => // _;
+    rewrite /errcutoff /is_error he1 he2; exact.
 Qed.
 
 Notation sem_Fun1 := (sem_Fun (sip:=sip) (pT:=pT1) E).
@@ -2047,10 +2046,9 @@ Proof.
   + move=> r1 r3 [r2]; apply hpost.
   have := h2 _ _ hpre23; have := h1 _ _ hpre12.
   apply xrutt_facts.xrutt_trans.
-  move=> T1 T2 e1 e2 /sum_prerelP h.
-  dependent destruction h => /=.
-  + by rewrite /errcutoff /= /is_error -x0.
-  by rewrite /errcutoff /is_error -x.
+  move=> T1 T2 e1 e2; rewrite /EPreRel.
+  case he1: (mfun1 e1); case he2: (mfun1 e2) => // _;
+    rewrite /errcutoff /is_error he1 he2; exact.
 Qed.
 
 End TRANSITIVITY.
