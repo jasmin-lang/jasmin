@@ -13,12 +13,10 @@ module P = Prog
 module F = Format
 
 (* ---------------------------------------------------------------- *)
-let pp_stype fmt =
+let pp_ltype fmt =
   function
-  | T.Coq_sbool  -> F.fprintf fmt "bool"
-  | T.Coq_sint   -> F.fprintf fmt "int"
-  | T.Coq_sarr n -> F.fprintf fmt "u%a[%a]" pp_wsize U8 Z.pp_print (Conv.z_of_pos n)
-  | T.Coq_sword sz -> F.fprintf fmt "u%a" pp_wsize sz
+  | T.Coq_lbool  -> F.fprintf fmt "bool"
+  | T.Coq_lword sz -> F.fprintf fmt "u%a" pp_wsize sz
 
 (* ---------------------------------------------------------------- *)
 let pp_label fmt lbl =
@@ -77,7 +75,7 @@ let pp_lfun pd asmOp fmt (fn, fd) =
     pp_meta fd
     fn.P.fn_name
     (pp_list ",@ " pp_param) fd.lfd_arg
-    (pp_list ",@ " pp_stype) fd.lfd_tyout
+    (pp_list ",@ " pp_ltype) fd.lfd_tyout
     (pp_list ";@ " (pp_instr pd asmOp)) fd.lfd_body
     (pp_return fd.lfd_export) fd.lfd_res
 

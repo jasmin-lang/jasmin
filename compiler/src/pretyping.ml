@@ -1096,13 +1096,13 @@ let conv_ty : BinNums.positive T.extended_type -> P.epty = function
     | T.ETbool       -> P.etbool
     | T.ETint        -> P.etint
     | T.ETword(s,ws) -> P.ETword(s,ws)
-    | T.ETarr p      -> P.ETarr (U8, PE (P.icnst (Conv.int_of_pos p)))
+    | T.ETarr (ws, p) -> P.ETarr (ws, PE (P.icnst (Conv.int_of_pos p)))
 
-let conv_cty : T.stype -> P.epty = function
-    | T.Coq_sbool    -> P.etbool
-    | T.Coq_sint     -> P.etint
-    | T.Coq_sword ws -> P.etw ws
-    | T.Coq_sarr p   -> P.ETarr (U8, PE (P.icnst (Conv.int_of_pos p)))
+let conv_cty : T.atype -> P.epty = function
+    | T.Coq_abool    -> P.etbool
+    | T.Coq_aint     -> P.etint
+    | T.Coq_aword ws -> P.etw ws
+    | T.Coq_aarr (ws, p) -> P.ETarr (ws, PE (P.icnst (Conv.int_of_pos p)))
 
 let type_of_op2 op =
   let (ty1, ty2), tyo = E.etype_of_op2 op in
@@ -1723,7 +1723,7 @@ let cast_opn ~loc id ws =
   function
   | Oasm (BaseOp (None, op)) ->
     begin match List.last id.tout with
-      | Coq_sword from ->
+    | Coq_aword from ->
           if wsize_le ws from then rs_tyerror ~loc(InvalidZeroExtend (from, ws, name))
           else Oasm (BaseOp (Some ws, op))
       | _ -> invalid ()
@@ -1881,9 +1881,8 @@ let tt_exprs_cast pd env loc les tys =
 let arr_init (xi, ty) =
   let open P in
   match ty with
-  | P.ETarr(ws, PE e) as ty ->
-    let size = PE (icnst (size_of_ws ws) ** e) in
-    Cassgn (Lvar xi, E.AT_inline, P.gty_of_gety ty, P.Parr_init size)
+  | P.ETarr(ws, e) as ty ->
+    Cassgn (Lvar xi, E.AT_inline, P.gty_of_gety ty, P.Parr_init (ws, e))
   | _           ->
     rs_tyerror ~loc:(L.loc xi) (InvalidArrayType ty)
 
@@ -1996,7 +1995,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
             (string_error "only a single variable is allowed as destination of randombytes") in
       let _ = tt_as_array (loc, ty) in
       let es = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args [ty] in
-      [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
+      [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (U8, Conv.pos_of_int 1), es))]
 
   | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None when L.unloc f = "swap" ->
       if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "swap expects no implicit arguments");
@@ -2030,7 +2029,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
 
       in
       let es = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args [ty; ty] in
-      let p = Sopn.Opseudo_op (Oswap Type.Coq_sbool) in  (* The type is fixed latter *)
+      let p = Sopn.Opseudo_op (Oswap Type.Coq_abool) in  (* The type is fixed latter *)
       [mk_i (P.Copn(lvs, Option.default default_tag tag, p, es))]
 
   | ls, `Raw, { pl_desc = PEPrim (f, args) }, None ->

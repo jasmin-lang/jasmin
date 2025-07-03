@@ -97,6 +97,12 @@ Definition xreg_t  {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg r
 Definition rflag_t {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := rflag.
 Definition cond_t  {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := cond.
 
+Notation sem_lprod ts tr := (sem_prod (map eval_ltype ts) tr).
+Notation sem_ltuple ts := (sem_tuple (map eval_ltype ts)).
+Notation sem_lforall P tin := (sem_forall P (map eval_ltype tin)).
+Notation interp_safe_cond_lty tin id_safe id_semi :=
+  (values.interp_safe_cond_ty (tin := map eval_ltype tin) id_safe id_semi).
+
 Section DECL.
 
 Context {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond}.
@@ -391,7 +397,7 @@ Record instr_desc_t := {
   (* Description of output arguments. *)
   id_out        : seq arg_desc;
   (* Semantics (only deals with values). *)
-  id_semi       : sem_prod (map eval_ltype id_tin) (exec (sem_tuple (map eval_ltype id_tout)));
+  id_semi       : sem_lprod id_tin (exec (sem_ltuple id_tout));
   (* Possible signatures for an instruction. *)
   id_args_kinds : i_args_kinds;
   (* Number of explicit arguments in assembly syntax. *)
@@ -405,9 +411,9 @@ Record instr_desc_t := {
   (* Extra properties ensuring that previous information are consistent *)
   id_safe_wf    : all (fun sc => values.sc_needed_args sc <= size id_tin) id_safe;
     (* id_semi does not generates type error *)
-  id_semi_errty : id_valid -> sem_forall (fun r => r <> Error ErrType) (map eval_ltype id_tin) id_semi;
+  id_semi_errty : id_valid -> sem_lforall (fun r => r <> Error ErrType) id_tin id_semi;
     (* safety condition are sufficient to ensure that no error are raised *)
-  id_semi_safe  : id_valid -> values.interp_safe_cond_ty id_safe id_semi;
+  id_semi_safe  : id_valid -> interp_safe_cond_lty id_tin id_safe id_semi;
 }.
 
 (* -------------------------------------------------------------------- *)
@@ -444,14 +450,14 @@ Definition wextend_size (ws: wsize) (t:ltype) : sem_ot (eval_ltype t) -> sem_ot 
   | _ => fun x => x
   end.
 
-Fixpoint extend_tuple (ws:wsize) (id_tout : list ltype) (t: sem_tuple (map eval_ltype id_tout)) :
-   sem_tuple (map eval_ltype (map (extend_size ws) id_tout)) :=
- match id_tout return sem_tuple (map eval_ltype id_tout) -> sem_tuple (map eval_ltype (map (extend_size ws) id_tout)) with
+Fixpoint extend_tuple (ws:wsize) (id_tout : list ltype) (t: sem_ltuple id_tout) :
+   sem_ltuple (map (extend_size ws) id_tout) :=
+ match id_tout return sem_ltuple id_tout -> sem_ltuple (map (extend_size ws) id_tout) with
  | [::] => fun _ => tt
  | t :: ts =>
    match ts return
-     (sem_tuple (map eval_ltype ts) -> sem_tuple (map eval_ltype (map (extend_size ws) ts))) ->
-     sem_tuple (map eval_ltype (t::ts)) -> sem_tuple (map eval_ltype (map (extend_size ws) (t::ts))) with
+     (sem_ltuple ts -> sem_ltuple (map (extend_size ws) ts)) ->
+     sem_ltuple (t::ts) -> sem_ltuple (map (extend_size ws) (t::ts)) with
    | [::] => fun rec_ x => wextend_size ws x
    | t'::ts'    => fun rec_ p => (wextend_size ws p.1, rec_ p.2)
    end (@extend_tuple ws ts)
@@ -510,19 +516,19 @@ Definition exclude_mem (cond : i_args_kinds) (d : seq arg_desc) : i_args_kinds :
 (* An extension of [instr_desc] that deals with msb flags *)
 
 Definition extend_sem {tin tout : seq ltype} ws
-  (semi : sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout)))) : sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype (map (extend_size ws) tout)))) :=
+  (semi : sem_lprod tin (exec (sem_ltuple tout))) : sem_lprod tin (exec (sem_ltuple (map (extend_size ws) tout))) :=
   apply_lprod (Result.map (@extend_tuple ws tout)) semi.
 
-Lemma extend_sem_errty tin tout ws (semi : sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout)))) :
-  sem_forall (fun r => r <> Error ErrType) (map eval_ltype tin) semi ->
-  sem_forall (fun r => r <> Error ErrType) (map eval_ltype tin) (extend_sem ws semi).
+Lemma extend_sem_errty tin tout ws (semi : sem_lprod tin (exec (sem_ltuple tout))) :
+  sem_lforall (fun r => r <> Error ErrType) tin semi ->
+  sem_lforall (fun r => r <> Error ErrType) tin (extend_sem ws semi).
 Proof.
   rewrite /extend_sem; elim: tin semi => //=.
   + by move=> [] //= ? h [h1]; apply h; rewrite h1.
   move=> t ts hrec semi hsemi v; apply/hrec/hsemi.
 Qed.
 
-Lemma extend_sem_safe tin tout ws sc (semi : sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout)))) :
+Lemma extend_sem_safe tin tout ws sc (semi : sem_lprod tin (exec (sem_ltuple tout))) :
   values.interp_safe_cond_ty sc semi ->
   values.interp_safe_cond_ty sc (extend_sem ws semi).
 Proof.

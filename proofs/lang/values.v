@@ -940,20 +940,6 @@ match tin return sem_prod tin T -> Prop with
 | t::tin => fun o => forall v, interp_safe_cond_ty_aux P (rcons vs (to_val v)) (o v)
 end.
 
-Lemma interp_safe_cond_ty_aux_cat {T} (P : values -> T -> Prop) vs tin1 tin2 (o : sem_prod (tin1 ++ tin2) T) :
-  interp_safe_cond_ty_aux P vs o <->
-  interp_safe_cond_ty_aux (fun vs (o2: sem_prod tin2 T) => interp_safe_cond_ty_aux P vs o2) vs
-     (eq_rect_r id o (Logic.eq_sym (sem_prod_cat tin1 tin2 T))).
-Proof.
-  elim: tin1 vs o => //= t tin1 hrec vs.
-  setoid_rewrite hrec.
-  rewrite /eq_ind_r /= /eq_ind /=.
-  move: (sem_prod_cat tin1 tin2 T); rewrite /sem_prod /=.
-  rewrite /Logic.eq_sym.
-  move: (lprod [seq sem_t i | i <- tin1 ++ tin2] T).
-  move=> lprod h; subst => //=.
-Qed.
-
 Definition interp_safe_cond_ty tin T sc (semi : sem_prod tin (exec T)) :=
   interp_safe_cond_ty_aux
     (fun vs r => List.Forall (interp_safe_cond vs) sc -> exists t, r = ok t) [::] semi.

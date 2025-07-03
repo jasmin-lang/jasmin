@@ -20,7 +20,7 @@ module type Logic = sig
   val syscall :
        Location.i_loc
     -> int glvals
-    -> BinNums.positive Syscall_t.syscall_t
+    -> (Wsize.wsize * BinNums.positive) Syscall_t.syscall_t
     -> int gexprs
     -> domain
     -> domain annotation

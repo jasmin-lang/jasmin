@@ -177,15 +177,6 @@ Fixpoint sem_prod_tuple (lt: seq ctype) : sem_prod lt (sem_tuple lt) :=
       sem_prod_app (sem_prod_tuple lt') (fun xs => add_tuple (sem_prod_id v) xs)
   end.
 
-Definition sem_prod_cat lt0 lt1 A :
-  sem_prod (lt0 ++ lt1) A = sem_prod lt0 (sem_prod lt1 A).
-Proof.
-  induction lt0 as [|t lt0' IH];
-    first done.
-  rewrite /sem_prod /=.
-  rewrite /sem_prod /= in IH.
-  by rewrite IH.
-Defined.
 (*
 Lemma add_arguments_nil A lt f: @add_arguments A [::] lt f = f.
 Proof. by rewrite /add_arguments /eq_rect_r /=. Qed.

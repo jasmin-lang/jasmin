@@ -298,7 +298,55 @@ HB.instance Definition _ := hasDecEq.Build extended_op extended_op_eq_axiom.
 
 Lemma atype_of_ltypeP : eval_ltype =1 eval_atype \o atype_of_ltype.
 Proof. by case. Qed.
+(*
+Definition wsize_eq_dec (ws1 ws2 : wsize) : {ws1=ws2}+{ws1<>ws2}.
+Proof.
+  case: ws1; case: ws2; try (right; discriminate); left; reflexivity.
+Defined.
 
+Definition wsize_eq_dec' (ws1 ws2 : wsize) : {ws1=ws2}+{ws1<>ws2}.
+refine
+  (match wsize_eqb ws1 ws2 as b return _ = b -> _ with
+  | true => _
+  | false => _
+  end erefl).
+  move=> b; left. apply /wsize_eqb_OK. done.
+  move=> b; right. apply /wsize_eqb_OK/negPf. done.
+Defined.
+
+(* works, but needs to be redefined... *)
+Definition ctype_eq_dec (ty1 ty2 : ctype) : {ty1=ty2}+{ty1<>ty2}.
+  case: ty1; case: ty2; try (right; discriminate).
+  + left. reflexivity.
+  + left. reflexivity.
+  + move=> p1 p2.
+    case: (Pos.eq_dec p1 p2).
+    + left. congruence.
+    + right; congruence.
+  move=> ws1 ws2.
+  case: (wsize_eq_dec ws1 ws2).
+  + left; congruence.
+  right; congruence.
+Defined.
+
+(* less opaque but does not work *)
+Definition ctype_eq_dec' (ty1 ty2 : ctype) : {ty1=ty2}+{ty1<>ty2}.
+  refine
+  (match ctype_eqb ty1 ty2 as b return _ = b -> _ with
+  | true => _
+  | false => _
+  end erefl).
+  move=> b; left. apply /ctype_eqb_OK. done.
+  move=> b; right. apply /ctype_eqb_OK/negPf. done.
+Defined.
+
+(* (fun n1 n2 => Bool.reflect_dec _ _ (ctype_eqb_OK n1 n2))) *)
+Definition computational_eq {m n} (opaque_eq: m = n) : m = n :=
+  match (List.list_eq_dec ctype_eq_dec') m n with
+  | left transparent_eq => transparent_eq
+  | _ => opaque_eq (* dead code; could use [False_rect] *)
+  end.
+*)
 Definition semi_to_atype {tin tout} (semi: sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout)))) :
     sem_prod (map eval_atype (map atype_of_ltype tin)) (exec (sem_tuple (map eval_atype (map atype_of_ltype tout)))) :=
   let eq l := etrans (eq_map atype_of_ltypeP _) (map_comp eval_atype atype_of_ltype l) in

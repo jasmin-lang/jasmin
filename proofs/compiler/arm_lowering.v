@@ -23,10 +23,10 @@ Context {atoI : arch_toIdent}.
 (* This pass is parameterized by four variable names that will be used to create
    variables for the processor flags. *)
 
-Definition fv_NF (fv: fresh_vars) := fv "__n__"%string sbool.
-Definition fv_ZF (fv: fresh_vars) := fv "__z__"%string sbool.
-Definition fv_CF (fv: fresh_vars) := fv "__c__"%string sbool.
-Definition fv_VF (fv: fresh_vars) := fv "__v__"%string sbool.
+Definition fv_NF (fv: fresh_vars) := fv "__n__"%string abool.
+Definition fv_ZF (fv: fresh_vars) := fv "__z__"%string abool.
+Definition fv_CF (fv: fresh_vars) := fv "__c__"%string abool.
+Definition fv_VF (fv: fresh_vars) := fv "__v__"%string abool.
 
 Definition all_fresh_vars (fv : fresh_vars) : seq Ident.ident :=
   [:: fv_NF fv; fv_ZF fv; fv_CF fv; fv_VF fv ].
@@ -292,7 +292,7 @@ Definition sopn_set_is_conditional (op : sopn) : option sopn :=
 
 Definition lower_pexpr (vi: var_info) (ws : wsize) (e : pexpr):
   option (seq instr_r * sopn * seq pexpr) :=
-  if e is Pif (sword ws') c e0 e1 then
+  if e is Pif (aword ws') c e0 e1 then
     let%opt _ := oassert (ws == ws')%CMP in
     let%opt (op, es) := lower_pexpr_aux ws e0 in
     let%opt op := sopn_set_is_conditional op in
@@ -336,7 +336,7 @@ Definition lower_cassgn_word
 Definition lower_cassgn_bool (lv : lval) (tag: assgn_tag) (e : pexpr) : option (seq instr_r) :=
   let vi := var_info_of_lval lv in
   let%opt (lvs, op, es, c) := lower_condition_pexpr vi e in
-  Some [:: Copn lvs tag op es; Cassgn lv AT_inline sbool c ].
+  Some [:: Copn lvs tag op es; Cassgn lv AT_inline abool c ].
 
 (* -------------------------------------------------------------------- *)
 (* Lowering of architecture-specific operations. *)
@@ -355,7 +355,7 @@ Definition lower_add_carry
       let opts :=
         {| set_flags := true; is_conditional := false; has_shift := None; |}
       in
-      let lnoneb := Lnone dummy_var_info sbool in
+      let lnoneb := Lnone dummy_var_info abool in
       let lvs' := [:: lnoneb; lnoneb; cf; lnoneb; r ] in
       Some (lvs', Oasm (BaseOp (None, ARM_op mn opts)), es')
   | _, _ =>
@@ -410,11 +410,11 @@ Definition lower_base_op
 
 Definition lower_swap ty lvs es : option copn_args :=
   match ty with
-  | sword sz =>
+  | aword sz =>
     if (sz <= U32)%CMP then
       Some (lvs, Oasm (ExtOp (Oarm_swap sz)), es)
     else None
-  | sarr _ =>
+  | aarr _ _ =>
       Some (lvs, Opseudo_op (Oswap ty), es)
   | _ => None
   end.
@@ -446,10 +446,10 @@ Fixpoint lower_i (i : instr) : cmd :=
   | Cassgn lv tag ty e =>
       let oirs :=
         match ty with
-        | sword ws =>
+        | aword ws =>
             let%opt (pre, (lvs, op, es)) := lower_cassgn_word lv ws e in
             Some (pre ++ [:: Copn lvs tag op es ])
-        | sbool => lower_cassgn_bool lv tag e
+        | abool => lower_cassgn_bool lv tag e
         | _ => None
         end
       in

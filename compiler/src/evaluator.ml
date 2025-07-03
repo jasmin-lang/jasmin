@@ -30,10 +30,10 @@ let exn_exec (ii:instr_info) (r: 't exec) =
   | Error e -> raise (Eval_error(ii, e))
 
 let of_val_z ii v : coq_Z = 
-  Obj.magic (exn_exec ii (of_val Coq_sint v))
+  Obj.magic (exn_exec ii (of_val Coq_cint v))
 
 let of_val_b ii v : bool = 
-  Obj.magic (exn_exec ii (of_val Coq_sbool v))
+  Obj.magic (exn_exec ii (of_val Coq_cbool v))
 
 (* ----------------------------------------------------------------- *)
 type 'asm stack = 
@@ -59,7 +59,7 @@ let return ep spp s =
     let m2 = s2.emem and vm2 = s2.evm in
     let vres = 
       exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword true vm2 x.v_var) f.f_res) in
-    let vres' = exn_exec ii (mapM2 ErrType truncate_val f.f_tyout vres) in
+    let vres' = exn_exec ii (mapM2 ErrType truncate_val (List.map Type.eval_atype f.f_tyout) vres) in
     raise (Final(m2, vres'))
     
   | Scall(ii,f,xs,vm1,c,stk) ->
@@ -67,7 +67,7 @@ let return ep spp s =
     let {escs = scs2; emem = m2; evm = vm2} = s.s_estate in
     let vres = 
       exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword true vm2 x.v_var) f.f_res) in
-    let vres' = exn_exec ii (mapM2 ErrType truncate_val f.f_tyout vres) in
+    let vres' = exn_exec ii (mapM2 ErrType truncate_val (List.map Type.eval_atype f.f_tyout) vres) in
     let s1 = exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs2; emem = m2; evm = vm1 } xs vres') in
     { s with 
       s_cmd = c;
@@ -94,7 +94,7 @@ let small_step1 ep spp sip s =
 
     | Cassgn(x,_,ty,e) ->
       let v  = exn_exec ii (sem_pexpr nosubword ep spp true gd s1 e) in
-      let v' = exn_exec ii (truncate_val ty v) in
+      let v' = exn_exec ii (truncate_val (eval_atype ty) v) in
       let s2 = exn_exec ii (write_lval nosubword ep spp true gd x v' s1) in
       { s with s_cmd = c; s_estate = s2 }
 
@@ -131,7 +131,7 @@ let small_step1 ep spp sip s =
         match get_fundef s.s_prog.p_funcs fn with
         | Some f -> f
         | None -> assert false in
-      let vargs = exn_exec ii (mapM2 ErrType truncate_val f.f_tyin vargs') in
+      let vargs = exn_exec ii (mapM2 ErrType truncate_val (List.map eval_atype f.f_tyin) vargs') in
       let {escs; emem = m1; evm = vm1}  = s1 in
       let stk = Scall(ii,f, xs, vm1, c, s.s_stk) in
       let sf = 
@@ -146,7 +146,7 @@ let rec small_step ep spp sip s =
 
 let init_state ep scs0 p ii fn args m =
   let f = BatOption.get (get_fundef p.p_funcs fn) in
-  let vargs = exn_exec ii (mapM2 ErrType truncate_val f.f_tyin args) in
+  let vargs = exn_exec ii (mapM2 ErrType truncate_val (List.map eval_atype f.f_tyin) args) in
   let s_estate = { escs = scs0; emem = m; evm = Vm.init nosubword} in
   let s_estate = exn_exec ii (write_vars nosubword ep true f.f_params vargs s_estate) in
   { s_prog = p; s_cmd = f.f_body; s_estate; s_stk = Sempty (ii, f) }
@@ -186,8 +186,18 @@ let run (type reg regx xreg rflag cond asm_op extra_op)
   exec ep spp sip scs0 p ii fn args m
 
 (* ----------------------------------------------------------- *)
-let pp_undef fmt ty = 
-  Format.fprintf fmt "undef<%a>" PrintCommon.pp_ty (Conv.ty_of_cty ty)
+(* FIXME: do we really want this conv function,
+   or directly a function printing ctype? *)
+let ty_of_ctype ty =
+  let open CoreIdent in
+  match ty with
+  | Coq_cbool -> Bty Bool
+  | Coq_cint -> Bty Int
+  | Coq_carr n -> Arr (U8, Conv.int_of_pos n)
+  | Coq_cword ws -> Bty (U ws)
+
+let pp_undef fmt ty =
+  Format.fprintf fmt "undef<%a>" PrintCommon.pp_ty (ty_of_ctype ty)
  
 let pp_word fmt ws w = 
   let z = Word0.wunsigned ws w in
@@ -202,7 +212,7 @@ let pp_val fmt v =
     let ip = Conv.int_of_pos p in
     let pp_res fmt = function 
       | Ok w               -> pp_word fmt U8 w
-      | Error ErrAddrUndef -> pp_undef fmt (Coq_sword U8)
+      | Error ErrAddrUndef -> pp_undef fmt (Coq_cword U8)
       | Error _            -> assert false in
     Format.fprintf fmt "@[[";
     for i = 0 to ip-2 do

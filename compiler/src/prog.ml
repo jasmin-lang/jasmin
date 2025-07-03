@@ -20,7 +20,7 @@ type 'len ggvar = {
 type 'len gexpr =
   | Pconst of Z.t
   | Pbool  of bool
-  | Parr_init of 'len
+  | Parr_init of wsize * 'len
   | Pvar   of 'len ggvar
   | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr
@@ -95,7 +95,7 @@ type ('len, 'info, 'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
-  | Csyscall of 'len glvals * BinNums.positive Syscall_t.syscall_t * 'len gexprs
+  | Csyscall of 'len glvals * (Wsize.wsize * BinNums.positive) Syscall_t.syscall_t * 'len gexprs
   | Cif    of 'len gexpr * ('len, 'info, 'asm) gstmt * ('len, 'info, 'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len, 'info, 'asm) gstmt
   | Cwhile of E.align * ('len, 'info, 'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len, 'info, 'asm) gstmt

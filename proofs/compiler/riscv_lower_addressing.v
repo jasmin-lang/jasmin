@@ -106,10 +106,10 @@ Definition lower_addressing_fd (f: fundef) :=
 End tmp.
 
 Definition lower_addressing_prog
-    (fresh_reg: string -> stype -> Ident.ident) (p:prog) : cexec prog :=
+    (fresh_reg: string -> atype -> Ident.ident) (p:prog) : cexec prog :=
   let tmp :=
     VarI
-      {| vtype := sword Uptr; vname := fresh_reg "__tmp__"%string (sword Uptr) |}
+      {| vtype := aword Uptr; vname := fresh_reg "__tmp__"%string (aword Uptr) |}
       dummy_var_info
   in
   Let funcs := map_cfprog (lower_addressing_fd tmp) p.(p_funcs) in

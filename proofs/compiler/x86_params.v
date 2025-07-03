@@ -140,7 +140,7 @@ Definition x86_loparams : lowering_params lowering_options :=
 (* ------------------------------------------------------------------------ *)
 (* Speculative execution operator lowering parameters. *)
 
-Definition lflags := nseq 5 (Lnone dummy_var_info sbool).
+Definition lflags := nseq 5 (Lnone dummy_var_info abool).
 
 Definition is_mmx_protect (ws : wsize) (lvs : seq lval) : bool :=
   match ws, lvs with
@@ -165,11 +165,11 @@ Definition x86_sh_lower
     let: (rk, extra) :=
       if (ws <= U64)%CMP
       then if is_mmx_protect ws lvs then (Extra, [::]) else (Normal, lflags)
-      else (Normal, [:: Lnone dummy_var_info (sword ws) ])
+      else (Normal, [:: Lnone dummy_var_info (aword ws) ])
     in
     Some (extra ++ lvs, O (Ox86SLHprotect rk ws), es)
 
-  | SLHprotect_ptr _ | SLHprotect_ptr_fail _ => None (* Taken into account by stack alloc *)
+  | SLHprotect_ptr _ _ | SLHprotect_ptr_fail _ _ => None (* Taken into account by stack alloc *)
   end.
 
 Definition x86_shparams : sh_params :=
