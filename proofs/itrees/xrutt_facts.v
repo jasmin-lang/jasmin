@@ -479,7 +479,7 @@ Section XRuttMrec.
       pclearbot. gfinal. eauto.
     - apply simpobs in Heqot1, Heqot2. rewrite Heqot1, Heqot2.
       repeat rewrite unfold_interp_mrec. cbn.
-      dependent destruction H.
+      rename H into h.
       destruct H1.
       + gstep. constructor.
         gfinal. left. eapply CIH; eauto.
@@ -591,20 +591,9 @@ Proof.
   rewrite !unfold_iter.
   eapply gpaco2_uclo; [|eapply xrutt_clo_bind|]; eauto with paco.
   econstructor; eauto. intros; subst. gfinal. right.
-  destruct u1; try discriminate.
-  destruct u2; try discriminate.
-  pstep; red.
-  econstructor.
-  right.
-  eapply CIH; eauto.
-  inversion H; subst; auto.
-  pstep; red.
   inversion H; subst.
-  destruct u2; try discriminate.
-  inversion H; subst.
-  pstep; red.
-  econstructor.
-  inversion H; subst; auto.
+  - pstep; red; constructor; right; apply CIH; auto.
+  - pstep; red; constructor; assumption.
 Qed.
 
 End XRuttIter.
@@ -818,9 +807,7 @@ Proof.
             eapply EqCutL; eauto.
           - eapply EqCutL; eauto.
           - dependent destruction Heqot4.
-            assert (False) as H1.
-            { eapply CND22; eauto. }
-            auto with *.
+            eelim CND22; eauto.
           - eapply EqTauL; eauto.
         }
         (* cut3 *)
@@ -860,22 +847,17 @@ Proof.
   { assert (IsCut_ EE2b A e2 \/ IsNoCut_ EE2b A e2) as H1.
     { destruct (EE2b A e2); eauto. }
     destruct H1 as [H1 | H1].
-    - assert (False) as H2.
-      { eapply CND22; eauto. }
-      auto with *.
+    - eelim CND22; eauto.
     - remember (VisF e2 k2) as ot2.
       hinduction INR before CIH; simpl; intros; try discriminate.
       { dependent destruction Heqot2.
         assert (IsCut_ EE3 B e2) as H5.
         { eapply CND23; eauto. }
-        assert (False) as H6.
-        { destruct (EE3 B e2); auto with *. }
-        auto with *.
-      }  
+        exfalso.
+        destruct (EE3 B e2); auto with *.
+      }
       { dependent destruction Heqot2.
-        assert (False) as H2.
-        { eapply CND22; eauto. }
-        auto with *.
+        eelim CND22; eauto.
       }
       { eapply EqCutR; eauto. }
       { eapply EqTauR.
@@ -914,8 +896,5 @@ Lemma xrutt_trans {E1 E2 E3: Type -> Type} {R1 R2 R3 : Type}
       (pocompose REv12 REv23 RAns12 RAns23)
       (rcompose RR12 RR23) t1 t3.
 Proof.
-  eapply xrutt_gen_trans; eauto.
-  intros; compute in H0; auto with *.
-  intros; compute in H; auto with *.
-Qed.  
-
+  now apply xrutt_gen_trans.
+Qed.
