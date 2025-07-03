@@ -1802,6 +1802,7 @@ let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
       List.iter check pimp;
       let pimp_c, pimp_f = List.partition (fun (id,_) -> List.mem_assoc (L.unloc id) combines) pimp in
 
+      let has_no_pimp = List.is_empty pimp_c in
       let implicits = ref [] in
       let get_implicit i =
         let error loc =
@@ -1815,10 +1816,12 @@ let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
                                                    ~on_id:(fun loc _nid s -> mk loc s)
                                                    error) pimp_f in
         match a with
+        | Some a -> a
         | None ->
-          (try mk loc (List.assoc i (Env.get_known_implicits env))
-           with Not_found -> L.mk_loc loc (S.PLIgnore))
-        | Some a -> a in
+           let default = L.mk_loc loc S.PLIgnore in
+           if has_no_pimp then default else
+             try mk loc (List.assoc i (Env.get_known_implicits env))
+             with Not_found -> default in
 
       let rec aux arguments pls =
         match arguments, pls with

@@ -105,3 +105,10 @@ export fn load(reg ptr u32[1] a) {
   reg ptr u32[1] p = q;
   p = #copy_32(a);
 }
+
+fn implicit_flag_name() -> reg bool {
+  reg bool b _cf_;
+  _cf_ = true; // must warn
+  ?{zf = b}, _ = #set0(); // must not warn
+  return b;
+}
