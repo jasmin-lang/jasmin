@@ -16,13 +16,13 @@ build: [
   [make "all"]
 ]
 install: [
-  [make "install" "DUNE_OPTS="]
+  [make "install" "PREFIX=%{prefix}%"]
 ]
 depends: [
-  "ocaml" { >= "4.11" & build }
+  "ocaml" { >= "4.12" & build }
   "batteries" {>= "3.5"}
   "cmdliner" {>= "1.1" & build }
-  "dune" {>= "3.2"}
+  "dune" {>= "3.7"}
   "menhir" {>= "20160825" & build }
   "menhirLib"
   "camlidl"
