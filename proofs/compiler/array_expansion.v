@@ -95,7 +95,7 @@ Definition init_array_info (x : varr_info) (svm:Sv.t * Mvar.t array_info) :=
   let vars := map (fun id => {| vtype := ty; vname := id |}) x.(vi_n) in
   Let svelems := foldM init_elems (sv,0%Z) vars in
   let '(sv, len) := svelems in
-  Let _ := assert [&& (0 <? len)%Z & vtype (vi_v x) == sarr (Z.to_pos (arr_size x.(vi_s) (Z.to_pos len)))]
+  Let _ := assert [&& (0 <? len)%Z & vtype (vi_v x) == sarr (x.(vi_s), Z.to_pos len)]
              (reg_ierror_no_var "init_array_info") in
   ok (sv, Mvar.set m x.(vi_v) {| ai_ty := x.(vi_s); ai_len := len; ai_elems := vars |}).
 
@@ -107,14 +107,9 @@ Definition init_map (fi : expand_info) :=
 Definition check_gvar (m : t) (x: gvar) := 
   ~~ is_lvar x || Sv.mem (gv x) m.(svars).
 
-Definition nelem (ty: stype) (ws: wsize) : Z :=
-  if ty is sarr n
-  then n / wsize_size ws
-  else 0.
-
 Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr := 
   match e with
-  | Pconst _ | Pbool _ | Parr_init _ => ok e
+  | Pconst _ | Pbool _ | Parr_init _ _ => ok e
 
   | Pvar x =>
     Let _ := assert (check_gvar m x) (reg_error x.(gv) "(the array cannot be manipulated alone, you need to access its cells instead)") in
