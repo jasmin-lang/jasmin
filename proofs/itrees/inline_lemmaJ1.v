@@ -633,8 +633,19 @@ Lemma xxx {D E: Type -> Type} (h: D ~> itree (D +' E)) T
 Proof.
   simpl.
   unfold mrec.
+  rewrite interp_mrec_as_interp.
+  rewrite interp_interp.
+
+  set (vv := (fun (T0 : Type) (e : (D +' E) T0) =>
+     interp
+       (mrecursive
+          (fun (V : Type) (x : D V) => interp (ext_rhandler h) (h V x)))
+       (ext_rhandler h e))).
+
+  rewrite interp_mrec_as_interp.
+  setoid_rewrite interp_interp in vv.
 Abort.
-  
+
 Lemma yyy {D E: Type -> Type} (h: D ~> itree (D +' E)) T
   (t: itree (D +' E) T) :
   let int_x2h := fun V x => interp (ext_rhandler h) (h V x) in    
@@ -642,9 +653,45 @@ Lemma yyy {D E: Type -> Type} (h: D ~> itree (D +' E)) T
       (interp (ext_rhandler h) t) ≈ interp_mrec h t.         
 Proof.
   simpl.
-  rewrite interp_mrec_as_interp.  
-  setoid_rewrite interp_interp.
-  rewrite interp_mrec_as_interp.
+  revert t.
+
+  ginit. gcofix CIH.
+
+  intros t.
+  rewrite (itree_eta t).
+  rewrite unfold_interp_mrec.
+
+  remember (observe t) as ot1.
+  destruct ot1; simpl; intros.
+
+  3: { gstep; red; simpl. 
+       rewrite interp_mrec_Tau.
+
+
+Lemma yyy {D E: Type -> Type} (h: D ~> itree (D +' E)) T
+  (t: itree (D +' E) T) :
+  let int_x2h := fun V x => interp (ext_rhandler h) (h V x) in    
+  interp_mrec (fun (V : Type) (x : D V) => interp (ext_rhandler h) (h V x))
+      (interp (ext_rhandler h) t) ≈ interp_mrec (fun V x => Tau (h V x)) t.         
+Proof.
+  simpl.
+  revert t.
+
+  ginit. gcofix CIH.
+
+  intros t.
+  rewrite (itree_eta t).
+  rewrite unfold_interp_mrec.
+
+  remember (observe t) as ot1.
+  destruct ot1; simpl; intros.
+
+  3: { gstep; red; simpl. econstructor.
+ 
+  
+  
+  setoid_rewrite interp_mrec_as_interp.  
+  rewrite interp_interp.
 
   eapply eutt_interp; try reflexivity.
   unfold eq2, Eq2_Handler, eutt_Handler, i_pointwise.
@@ -653,7 +700,7 @@ Proof.
   2: { rewrite interp_trigger; simpl.
        reflexivity.
   }
-
+  
   rewrite mrec_as_interp.
   eapply eutt_interp; try reflexivity.
 
@@ -663,6 +710,15 @@ Proof.
   clear d.
   destruct de as [d | e]; simpl; try reflexivity.
 
+  assert ((fun (T0 : Type) (e : (D +' E) T0) =>
+     interp
+       (mrecursive
+          (fun (V : Type) (x : D V) => interp (ext_rhandler h) (h V x)))
+       (ext_rhandler h e)) = h). 
+  
+  assert (eutt eq (h _ d) (ext_rhandler h) (h V x)).
+
+  
   setoid_rewrite mrec_as_interp.
   eapply eutt_interp; try reflexivity.
   
