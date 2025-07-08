@@ -16,7 +16,7 @@ Context
 Lemma write_lvals_write_lval wdb gd lv v s :
   write_lval wdb gd lv v s = write_lvals wdb gd s [:: lv ] [:: v ].
 Proof. by rewrite /=; case: write_lval. Qed.
-
+  
 Lemma get_write_var_word wdb s s' ws (w : word ws) x :
   vtype (v_var x) = sword ws
   -> write_var wdb x (Vword w) s = ok s'

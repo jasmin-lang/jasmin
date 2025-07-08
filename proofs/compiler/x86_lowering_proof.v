@@ -1131,7 +1131,7 @@ Section PROOF.
       - rewrite /exec_sopn /sopn_sem /sopn_sem_; case.
         + by move => ws ? /=; case: eqP => /= ? ->.
         by move => _ /= ->.
-      by rewrite /exec_sopn => op _ ->.
+      by rewrite /exec_sopn => /= op _ ->.
 
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
   Qed.
@@ -1603,7 +1603,7 @@ Section PROOF.
     {
       clear - hsz64 des hx hv C ho.
       case: C => [ [? [? [? ?]]] | [cfi [?[?[? ?]]]]]; subst; apply (conj des).
-      + move: hv hx; rewrite /exec_sopn /sopn_sem; t_xrbindP; case: sub => _ hval <- y hy;
+      + move: hv hx; rewrite /exec_sopn /sopn_sem /with_catch /nocatch; t_xrbindP; case: sub => _ hval <- y hy;
         have {hy} := app_wwb_dec hy => -[sz1] [w1] [sz2] [w2] [b] [hsz1] [hsz2] [?] [?] ?;subst x y v =>
           /sem_pexprs_dec3 [hx] [hy] [?]; subst b;
         (exists [:: Vword w1; Vword w2]; split; [by rewrite /sem_pexprs /= hx /= hy|]);
@@ -1612,7 +1612,7 @@ Section PROOF.
         + by [].
         by rewrite /= Z.add_0_r add_overflow wrepr_add !wrepr_unsigned in ho.
       exists x; split; [ exact hx |]; clear hx.
-      move: hv;rewrite /exec_sopn /sopn_sem; t_xrbindP; case: sub => _ hval <- y hy;
+      move: hv;rewrite /exec_sopn /sopn_sem /with_catch /nocatch; t_xrbindP; case: sub => _ hval <- y hy;
        have {hy} := app_wwb_dec hy=> -[sz1] [w1] [sz2] [w2] [b] [hsz1] [hsz2] [?] [?] ?;
       subst x y v; rewrite /= /sopn_sem /sopn_sem_ /= !truncate_word_le // {hsz1 hsz2} /x86_SBB /x86_ADC /size_8_64 hsz64;
       eexists; split; first reflexivity;
@@ -1639,7 +1639,7 @@ Section PROOF.
     case: o Hv default => // -[] //;
      (move => sz Hv default || move => Hv default).
     (* Omulu *)
-    + move: Hv; rewrite /exec_sopn /sopn_sem ; t_xrbindP => _ hval <- y hy.
+    + move: Hv; rewrite /exec_sopn /sopn_sem /with_catch /nocatch; t_xrbindP => _ hval <- y hy.
       have := app_ww_dec hy => -[sz1] [w1 [sz2 [w2 [hsz1 [hsz2 [? [?]]]]]]] ?; subst x y v.
       move=> {Hx Hw}.
       have [x1 [x2 ?]] := write_lvals_dec2_s Hw'; subst xs.

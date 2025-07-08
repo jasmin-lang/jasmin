@@ -40,6 +40,8 @@ Section WITH_PARAMS.
 
 Context `{asmop:asmOp} {msfsz : MSFsize} {pd: PointerData}.
 
+Definition sc_op1 := sc_op1 (fun _ _ e => e).
+
 Definition sc_op2 o e1 e2 :=
   match is_wi2 o with
   | Some (sg, sz, o) => sc_wiop2 sg sz o e1 e2
@@ -69,10 +71,6 @@ Definition wi2i_op2 (o : sop2) : sop2 :=
     end
   | None => o
   end.
-
-Definition sc_all cond v start len :=
-  if cond is nil then [::]
-  else [:: Pbig etrue Oand v (eands cond) start len].
 
 Definition wi2i_op1_e (o : sop1) (e : pexpr) :=
   match is_wi1 o with
@@ -291,16 +289,6 @@ Definition wi2i_lv (ety : extended_type positive) (lv : lval) : cexec (safety_co
                      (E.ierror_lv lv) in
     Let e := wi2i_e e in
     ok (e.1, Lasub aa ws len x e.2)
-  end.
-
-Fixpoint check_xs (okmem : bool) W xs scs :=
-  match xs, scs with
-  | [::], [::] => true
-  | x :: xs, sc :: scs =>
-    [&& okmem || (~~has (fun e => use_mem e) sc)
-      , disjoint (read_es sc) W
-      & check_xs (okmem && ~~lv_write_mem x) (vrv_rec W x) xs scs]
-  | _, _ => false (* Should never occurs *)
   end.
 
 Definition wi2i_lvs msg okmem xtys xs :=

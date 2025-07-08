@@ -181,6 +181,7 @@ lang/relational_logic.v
 lang/safety.v
 lang/safety_proof.v
 lang/safety_shared.v
+lang/safety_shared_proof.v
 lang/sem_one_varmap.v
 lang/sem_op_typed.v
 lang/sem_one_varmap_facts.v

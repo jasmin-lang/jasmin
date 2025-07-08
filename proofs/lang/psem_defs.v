@@ -35,7 +35,7 @@ Definition catch_core {T:Type} (ev : exec T) dfv : exec T :=
   end.
 
 Notation catch ev dfv := (if with_catch then catch_core ev dfv else ev).
-
+  
 Definition sem_sop1 (o: sop1) (v: value) : exec value :=
   let t := type_of_op1 o in
   Let x := of_val _ v in
@@ -271,9 +271,11 @@ Context
   {asmop : asmOp asm_op}.
 
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=
-  Let semi := sopn_sem o in
-  Let t := app_sopn _ semi vs in
-  ok (list_ltuple t).
+  catch (
+    Let semi := sopn_sem o in
+    Let t := app_sopn _ semi vs in
+    ok (list_ltuple t))
+[::].
 
 Definition sem_sopn gd o m lvs args :=
   sem_pexprs true gd m args >>= exec_sopn o >>= write_lvals true gd m lvs.

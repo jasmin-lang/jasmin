@@ -648,7 +648,7 @@ Lemma compile_asm_opn_aux (condspec : assemble_cond_spec) rip ii (loargs : seq a
   -> lom_eqv rip m s
   -> exists2 s', exec_instr_op id loargs s = ok s' & lom_eqv rip m' s'.
 Proof.
-  move=> id ; rewrite /exec_sopn /sopn_sem.
+  move=> id; rewrite /exec_sopn /sopn_sem /=.
   t_xrbindP => Hxs _ hval <- vt Hvt <-{ys} Hm' Hargs Hdest Hid Hlomeqv.
   rewrite /exec_instr_op /eval_instr_op Hid /=.
   move: hval => /=; rewrite -/id => -> /=.

@@ -1,5 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import psem.
+Require Import expr.
+Import Utf8.
 
 Section DEFS.
 Context `{asmop:asmOp}.
@@ -124,7 +125,8 @@ Definition is_wi1 (o: sop1) :=
 Definition is_wi2 (o: sop2) :=
   if o is Owi2 s sw op then Some (s, sw, op) else None.
 
-Definition sc_wiop1 sg (o : wiop1) e :=
+Definition sc_wiop1 (toint : signedness -> wsize -> pexpr -> pexpr)
+  sg (o : wiop1) (e: pexpr) :=
   match o with
   | WIwint_of_int sz => [:: sc_wi_range sg sz e]
   | WIint_of_wint sz => [::]
@@ -132,8 +134,8 @@ Definition sc_wiop1 sg (o : wiop1) e :=
   | WIwint_of_word sz => [::]
   | WIwint_ext szo szi => [::]
   | WIneg sz =>
-      signed  [::eeqi e ezero ]
-              [::eneqi e (emin_signed sz)] sg
+      signed  [::eeqi (toint sg sz e) ezero ]
+              [::eneqi (toint sg sz e) (emin_signed sz)] sg
   end.
 
 (* [op : int -> int -> int] [e1 e2 : int] *)
@@ -158,12 +160,12 @@ Definition sc_wiop2 sg sz o e1 e2 :=
   | WIeq | WIneq | WIlt | WIle | WIgt | WIge  => [::]
   end.
 
-Definition sc_op1 (op1 : sop1) e :=
+Definition sc_op1 (toint : signedness -> wsize -> pexpr -> pexpr)
+  (op1 : sop1) e :=
   match is_wi1 op1 with
-  | Some (sg, o) => sc_wiop1 sg o e
+  | Some (sg, o) => sc_wiop1 toint sg o e
   | None => [::]
-  end.
-  
+  end.  
 
 Fixpoint get_var_contract (v: var_i) (vs: seq var_i) (vs': seq var_i) : option var_i :=
     match vs, vs' with
@@ -171,81 +173,19 @@ Fixpoint get_var_contract (v: var_i) (vs: seq var_i) (vs': seq var_i) : option v
         if var_beq v x then Some x' else get_var_contract v vs vs'
       | _, _ => None
     end.
-
     
+Definition sc_all cond v start len :=
+  if cond is nil then [::]
+  else [:: Pbig etrue Oand v (eands cond) start len].
+
+Fixpoint check_xs (okmem : bool) W xs scs :=
+  match xs, scs with
+  | [::], [::] => true
+  | x :: xs, sc :: scs =>
+    [&& okmem || (~~has (fun e => use_mem e) sc)
+      , disjoint (read_es sc) W
+      & check_xs (okmem && ~~lv_write_mem x) (vrv_rec W x) xs scs]
+  | _, _ => false (* Should never occurs *)
+  end.
+
 End DEFS.
-
-Section LEMMAS.
-Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
-  {spp : SemPexprParams}.
-
-#[local] Existing Instance nosubword.
-#[local] Existing Instance withassert.
-
-Lemma etrueE gd s : sem_cond gd etrue s = ok true.
-Proof. done. Qed.
-
-Lemma enotE gd s e b:
-  sem_cond gd (enot e) s = ok b <-> sem_cond gd e s = ok (~~b).
-Proof.
-  rewrite /sem_cond /= /sem_sop1 /=; split; t_xrbindP.
-  + by move=> > -> ? /= -> <- [<-]; rewrite Bool.negb_involutive.
-  by move=> > -> /= -> /=; rewrite Bool.negb_involutive.
-Qed.
-
-Lemma eandE gd s e1 e2 :
-  sem_cond gd (eand e1 e2) s = ok true <-> sem_cond gd e1 s = ok true /\ sem_cond gd e2 s = ok true.
-Proof.
-  rewrite /eand /sem_cond /= /sem_sop2 /=; split.
-  + by t_xrbindP => > -> > -> /= b1 -> b2 -> <-; case: b1 b2 => -[].
-  by move=> []; t_xrbindP => > -> /= -> > -> /= ->.
-Qed.
-
-Lemma eandsE_nil gd s : sem_cond gd (eands [::]) s = ok true.
-Proof. done. Qed.
-
-Lemma eandsE_1 gd s e : sem_cond gd (eands [::e]) s = sem_cond gd e s.
-Proof. done. Qed.
-
-Lemma eandsE_cons gd s e es :
-  sem_cond gd (eands (e::es)) s = ok true <-> sem_cond gd e s = ok true /\ sem_cond gd (eands es) s = ok true.
-Proof.
-  rewrite /=; case: es => /=.
-  + rewrite etrueE; tauto.
-  by move=> ??; rewrite eandE.
-Qed.
-
-Lemma read_etrue : read_e etrue = Sv.empty.
-Proof. done. Qed.
-
-Lemma read_eands es : Sv.Equal (read_e (eands es)) (read_es es).
-Proof.
-  elim: es => //= e l hrec; rewrite read_es_cons -hrec => {hrec}.
-  case: l.
-  + rewrite /= read_etrue; SvD.fsetdec.
-  move=> a l; move: (a::l) => {a} {}l.
-  by rewrite read_e_Papp2.
-Qed.
-
-Lemma use_mem_eands es :
-  use_mem (eands es) = has (fun e => use_mem e) es.
-Proof.
-  elim: es => //=.
-  move=> a [ /= | a' l] hl.
-  + by rewrite orbF.
-  by move: (a'::l) hl => {a'} {}l <-.
-Qed.
-
-Opaque eands.
-
-Lemma eandsE_cat gd s es1 es2 :
-   sem_cond gd (eands (es1 ++ es2)) s = ok true <->
-   sem_cond gd (eands es1) s = ok true /\ sem_cond gd (eands es2) s = ok true.
-Proof.
-  elim: es1 => //=.
-  + by rewrite etrueE; tauto.
-  move=> e es1 hrec; rewrite !eandsE_cons hrec; tauto.
-Qed.
-End LEMMAS.

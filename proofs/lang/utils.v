@@ -1966,13 +1966,13 @@ Ltac is_simpl e :=
 
 #[local]
 Ltac simpl_rewrite h lhs rhs :=
-  (is_simpl lhs; rewrite -!h) || (is_simpl rhs; rewrite !h).
+  (is_simpl lhs; rewrite -!h /=) || (is_simpl rhs; rewrite !h /=).
 
 Ltac t_simpl_rewrites := t_do_rewrites simpl_rewrite.
 
 #[local]
 Ltac eq_rewrite h _ _ :=
-  (rewrite !h || rewrite -!h); clear h.
+  (rewrite !h /= || rewrite -!h /=); clear h.
 
 Ltac t_eq_rewrites := t_do_rewrites eq_rewrite.
 
