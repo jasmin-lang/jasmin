@@ -1731,14 +1731,14 @@ Definition Ox86_PMOVMSKB_instr :=
 
 Definition Ox86_MOVEMASK_instr :=
   (fun (ve: velem) sz =>
-     mk_instr_safe (pp_ve_sz "MOVEMASK" ve sz) (w_ty sz) (w_ty U64) [:: Eu 1 ] [:: Eu 0 ] MSB_CLEAR
+     mk_instr_safe (pp_ve_sz "MOVEMASK" ve sz) (w_ty sz) (w_ty U32) [:: Eu 1 ] [:: Eu 0 ] MSB_CLEAR
        (@movemask ve sz) [:: [:: r ; xmm ] ] 2 (((ve : wsize) \in [:: U8; U32; U64 ]) && size_128_256 sz)
        (pp_name_ty match ve with
           | VE8 => "vpmovmskb"
           | VE32 => "vmovmskps"
           | VE64 => "vmovmskpd"
           | _ => "<assert false>"
-          end [:: U64; sz ]),
+          end [:: U32; sz ]),
      ("MOVEMASK"%string, primV_range [seq PVv ve sz | ve <- [:: VE8; VE32; VE64 ], sz <- [:: U128; U256 ]] MOVEMASK)
   ).
 
