@@ -16,10 +16,13 @@ type reg_oracle_t = {
 module type Regalloc = sig
   type extended_op
 
+  val create_return_addresses :
+    (('info, 'asm) sfundef -> Z.t) -> ('info, 'asm) sfundef list -> retaddr Hf.t
+  (** Compute where the return address will be stored *)
+
   val renaming : (unit, extended_op) func -> (unit, extended_op) func
 
   val subroutine_ra_by_stack : (unit, extended_op) func -> bool
-
 
   (** Returns:
     - the input function with variables turned into registers
@@ -33,7 +36,7 @@ module type Regalloc = sig
    *)
   val alloc_prog :
     ((unit, extended_op) func -> 'a -> bool) ->
-    ((unit, extended_op) func -> 'a -> Z.t) ->
+    retaddr Hf.t ->
     ('a * (unit, extended_op) func) list ->
     ('a * reg_oracle_t * (unit, extended_op) func) list
 end
