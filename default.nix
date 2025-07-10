@@ -1,6 +1,6 @@
 { pkgs ? import (if pinned-nixpkgs then scripts/nixpkgs.nix else <nixpkgs>) {}
 , inCI ? false
-, pinned-nixpkgs ? inCI
+, pinned-nixpkgs ? true
 , coqDeps ? !inCI
 , coqMaster ? false
 , ocamlDeps ? !inCI
@@ -85,6 +85,7 @@ stdenv.mkDerivation {
       coqPackages.coq
       mathcomp-word
       coqPackages.mathcomp-algebra-tactics
+      coqPackages.mathcomp-experimental-reals
       coqPackages.ITree
     ]
     ++ optionals testDeps ([ curl.bin oP.apron.out llvmPackages.bintools-unwrapped ] ++ (with python3Packages; [ python pyyaml ]))
