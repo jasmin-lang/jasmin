@@ -4893,6 +4893,7 @@ Theorem it_alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn 
      fn fn
     (fun fn _ fs1 fs2 fr1 fr2 =>
         [/\ fscs fr1 = fscs fr2
+          , extend_mem (fmem fr1) (fmem fr2) rip data
           , Forall3 (wf_result (fvals fs1) (fvals fs2)) (oracle fn).(sao_return) (fvals fr1) (fvals fr2)
           , Forall3 (value_eq_or_in_mem (fmem fr2)) (oracle fn).(sao_return) (fvals fr1) (fvals fr2)
           & mem_unchanged_params (fmem fs1) (fmem fs2) (fmem fr2)

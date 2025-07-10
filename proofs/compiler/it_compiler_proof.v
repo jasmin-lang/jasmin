@@ -522,7 +522,7 @@ Let post : relPostF :=
     let: ms' := fmem s' in
     let: mt' := fmem t' in
     let: n := get_nb_wptr up fn in
-    [/\ List.Forall2 (value_in_mem ms') (take n ress) (take n argt)
+    [/\ List.Forall2 (value_in_mem mt') (take n ress) (take n argt)
       , List.Forall2 value_uincl (drop n ress) rest
       , extend_mem ms' mt'
       , mem_unchanged_params ms mt mt' (get_wptrs up fn) args argt
@@ -562,7 +562,7 @@ rewrite /= all2_map -eqseq_all => /eqP check_params check_return h.
 apply: (
   wiequiv_f_trans
     (scP1 := sCP_unit) (scP2 := sCP_unit) (scP3 := sCP_stack)
-    (rpreF23 := rpreF) (rpostF23 := rpostF)
+    (rpreF23 := pre) (rpostF23 := post)
     _ _
     (it_compiler_first_part ok_p1 ok_fn)
 ).
@@ -570,8 +570,7 @@ apply: (
 - move=> s1 _ s3 r1 r3 [_ <-] [_ halloc hwf hptr hmem hscs] [] r2
     [hscs1 hmem1 hval1] [] hptr' hres hmem' hparams hscs'.
   split=> //; only 3,4: congruence.
-  + rewrite hmem1.
-    apply: Forall2_trans hptr'; first exact: value_uincl_value_in_mem_trans.
+  + apply: Forall2_trans hptr'; first exact: value_uincl_value_in_mem_trans.
     exact: (Forall2_take hval1).
   apply: Forall2_trans hres; first exact: value_uincl_trans.
   exact: (Forall2_drop hval1).
@@ -613,7 +612,7 @@ apply: (
       compiler_third_part_alloc_ok haparams print_sprogP ok_sp hok get_fd3.
     by rewrite -fd2_fd3_extra.
 - move=> s1 s2 _ r1 r3 [hscs_s1] hmem_s1 hwf_s1 heqinmem halloc [_ <-] [].
-  move=> r2 [hscs1 vr2_wf vr2_eqinmem U] [hscs2 hmem2 vr_vr1].
+  move=> r2 [hscs1 m'_mi' vr2_wf vr2_eqinmem U] [hscs2 hmem2 vr_vr1].
   set rminfo := fun fn => _ in vr_vr1.
   set va := fvals s1.
   set va' := fvals s2.
@@ -702,14 +701,11 @@ apply: (
   - by rewrite /get_nb_wptr /get_wptrs /= get_fd seq.find_map.
 
   split; last congruence.
-  - rewrite hn -vr2_wf. admit.
+  - rewrite hn -vr2_wf -hmem2; exact: vr2_inmem.
   - rewrite hn vr2_eq -rminfo_vr2; exact: vr_vr1.
-
-    s1 s2
-
-    Search stack_alloc_proof_2.extend_mem.
-  - admit.
+  - by rewrite -hmem2 /extend_mem sp_p3_extra -p2_p3_extra p2_p1_extra.
   by rewrite /get_wptrs get_fd /= check_params -hmem2.
+
 apply: (
   wiequiv_f_trans
     _ _
@@ -718,6 +714,7 @@ apply: (
 ).
 - exact: rpreF_trans_eq_eq_eq.
 by move=> s1 _ _ r1 r3 [_ <-] [_ <-] [_ <-] [hscs hmem] h'.
+Qed.
 
 End FRONT_END.
 
