@@ -30,6 +30,7 @@ let coqPackages =
       mathcomp = super.mathcomp.override { version = "master"; };
       mathcomp-algebra-tactics = super.mathcomp-algebra-tactics.override { version = "master"; };
       mathcomp-zify = super.mathcomp-zify.override { version = "master"; };
+      mathcomp-experimental-reals = super.mathcomp-experimental-reals { version = "master"; };
       coq-elpi = super.coq-elpi.override {
         version = "master";
 	inherit elpi-version rocqPackages;

@@ -41,6 +41,7 @@ depends: [
   "coq-mathcomp-word" {>= "3.2"}
   "coq-paco"
   "coq-itree"
+  "coq-mathcomp-experimental-reals"
 ]
 conflicts: [
   "ez-conf-lib"
