@@ -278,9 +278,7 @@ Qed.
 
 (* Due to the order of the parameters we can't defined this as a record. *)
 Definition x86_hloparams : h_lowering_params (ap_lop x86_params).
-Proof.
-  split. exact: @lower_callP.
-Defined.
+Proof. split=> *; [exact: lower_callP | exact: it_lower_callP]. Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* Lowering of complex addressing mode for RISC-V.
@@ -290,9 +288,9 @@ Lemma x86_hlaparams : h_lower_addressing_params (ap_lap x86_params).
 Proof.
   split=> /=.
   + by move=> _ ? _ [<-].
-  + move=> _ ? _ [<-] _ fd ->.
-    by exists fd.
-  by move=> _ ? _ [<-].
+  + move=> _ ? _ [<-] _ fd ->; by exists fd.
+  + by move=> _ ? _ [<-].
+  move=> ???? _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
 Qed.
 
 (* ------------------------------------------------------------------------ *)
