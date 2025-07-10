@@ -209,7 +209,7 @@ Module INCL. Section INCL.
 
   Section IT.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}  {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
 
   Notation st_equal := (st_rel (fun _ : unit => eq)).
 
@@ -1073,7 +1073,7 @@ Module RGP. Section PROOFS.
 
   Section IT.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
 
   Definition check_es_valid ii (d:venv) (es1 es2 : pexprs) (d':venv) :=
     d = d' /\ mapM (remove_glob_e ii d) es1 = ok es2.
@@ -1153,7 +1153,7 @@ Module RGP. Section PROOFS.
     + move=> xs o es ii d dc_ /=; t_xrbindP => xs' hxs' es' hes' <- /=.
       apply wequiv_syscall_rel_uincl_core_R with (checker_valid ii) d d => //.
       + by move=> > []. + by move=> > [?????].
-      exact: fs_uincl_syscall.
+      by apply eq_syscall.
     + move=> e c1 c2 hc1 hc2 ii d dc_ /=; t_xrbindP.
       move=> e' he' dc1 /hc1{}hc1 dc2 /hc2{}hc2 <- /=.
       apply wequiv_if_rel_uincl_R with (checker_valid ii) d dc1.1 dc2.1 => //.
@@ -1202,7 +1202,9 @@ Module RGP. Section PROOFS.
 
   Section IT.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rE0_trans : EventRels_trans rE0 rE0 rE0}.
+  Context {E E0: Type -> Type} {wE : with_Error E E0}
+    {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}
+    {rE0_trans : EventRels_trans rE0 rE0 rE0}.
 
   Lemma it_remove_globP P P' ev fn:
     remove_glob_prog P = ok P' ->
@@ -1212,7 +1214,7 @@ Module RGP. Section PROOFS.
     case: ifP => // huniq; t_xrbindP => fds hfds <-.
     have h1 := [elaborate it_gd_incl_fun ev hgd (fn := fn)].
     set P1 := {| p_funcs := p_funcs P; p_globs := gd'; p_extra := p_extra P |}.
-    have h2 := it_remove_glob_call (P:=P1) ev hfds huniq (wE:=wE) (rE:=rE0) (fn:=fn).
+    have h2 := [elaborate it_remove_glob_call (P:=P1) ev hfds huniq (fn:=fn)].
     move: h1 h2.
     apply wiequiv_f_trans => //.
     + by move=> fs1 fs2 [] _ <-; exists fs1 => //; split => //; exact: fs_uinclR.

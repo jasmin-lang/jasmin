@@ -474,9 +474,6 @@ Proof.
   + by move=> > hi hc > /=; t_xrbindP => > /hi ? /hc; apply Eseq.
   + by move=> > /=; rewrite /sem_assgn; t_xrbindP => *; eapply Eassgn; eauto.
   + by move=> > /=; apply: Eopn.
-  + move=> > /=; rewrite /sem_syscall /fexec_syscall /upd_estate; t_xrbindP.
-    move=> ? hes ? [[scs mem] vs] /= ? [<-] /= ?.
-    by eapply Esyscall; eauto.
   + move=> > hc1 hc2 > /=; rewrite /sem_cond; t_xrbindP => b v hv /to_boolI ?; subst v.
     by case: b hv => [ hv /hc1 | hc /hc2]; [apply Eif_true | apply Eif_false].
   move=> > hc /= _ s s'; rewrite /sem_bound; t_xrbindP.
@@ -642,7 +639,9 @@ Proof. constructor; move=> > ->; apply st_eq_sem_eassert. Qed.
 
 Section FUN.
 
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0}
+        {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
+#[local] Existing Instance rndE.
 
 Let Pi i := wequiv p p' ev ev' (st_eq tt) [::i] [::i] (st_eq tt).
 
@@ -703,10 +702,6 @@ Proof.
     move=> vs' vs hes hop hw heq.
     rewrite -(sem_pexprs_ext_eq true (p_globs p) _ heq) hes /= hop /=.
     by have [vm2 ??] := write_lvars_ext_eq heq hw; exists vm2.
-  + move=> xs o es ii s1 s2 vm1 /=; rewrite /sem_syscall -eq_globs /upd_estate; t_xrbindP.
-    move=> vs hes fs ho hw heq.
-    rewrite -(sem_pexprs_ext_eq true (p_globs p) _ heq) hes /= ho /= /upd_estate.
-    by have /(_ _ heq) [vm2 ??]:= write_lvars_ext_eq _ hw; exists vm2.
   + move=> e c1 c2 hc1 hc2 ii s1 s2 vm1 /=; rewrite /sem_cond -eq_globs; t_xrbindP.
     move=> b v he hb hc heq.
     rewrite -(sem_pexpr_ext_eq true (p_globs p) _ heq) he /= hb /= => {hb}.
@@ -728,7 +723,8 @@ End ESEM.
 
 Section REC.
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
+#[local] Existing Instance rndE.
 
 Lemma wequiv_rec_st_eq c : wequiv_rec p p' ev ev' eq_spec (st_eq tt) c c (st_eq tt).
 Proof.
@@ -743,7 +739,8 @@ End PROG.
 Section WIEQUIV_F.
 
 Context (p : prog) (ev: extra_val_t).
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
+#[local] Existing Instance rndE.
 
 Lemma st_eq_finalize fd fd' :
   f_tyout fd = f_tyout fd' ->
@@ -1069,7 +1066,8 @@ Qed.
 
 Section FUN.
 
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
+#[local] Existing Instance rndE.
 
 Let Pi i :=
   forall X, Sv.Subset (read_I i) X ->
@@ -1130,7 +1128,8 @@ End FUN.
 
 Section REC.
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
+#[local] Existing Instance rndE.
 
 Lemma it_read_cP_rec X c :
   Sv.Subset (read_c c) X ->
@@ -1147,7 +1146,8 @@ End PROG.
 Section REFL.
 
 Context (p : prog) (ev: extra_val_t).
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
+#[local] Existing Instance rndE.
 
 Lemma it_read_cP X c :
   Sv.Subset (read_c c) X ->
@@ -1159,7 +1159,6 @@ Proof.
 Qed.
 
 End REFL.
-
 
 End IT_Sem_eqv.
 
@@ -1527,7 +1526,8 @@ Proof.
 Qed.
 #[local] Hint Resolve checker_st_uinclP : core.
 
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}  {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
+#[local] Existing Instance rndE.
 
 Let Pi i := wequiv p p' ev ev' (st_uincl tt) [::i] [::i] (st_uincl tt).
 
@@ -1562,7 +1562,8 @@ End PROG.
 Section REFL.
 
 Context (p : prog) (ev: extra_val_t).
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
+#[local] Existing Instance rndE.
 
 Definition uincl_spec : EquivSpec :=
   {| rpreF_ := fun (fn1 fn2 : funname) (fs1 fs2 : fstate) => fn1 = fn2 /\ fs_uincl fs1 fs2
@@ -1628,11 +1629,13 @@ Qed.
 Lemma it_sem_uincl_f fn :
   wiequiv_f p p ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
-apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] hu fd ->.
-exists fd => // s /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu.
-exists t => //; exists (st_uincl tt), (st_uincl tt); split=> //.
-+ apply it_sem_uincl_aux => // ii fn' fs1' fs2' h; exact/wequiv_fun_rec.
-exact/fs_uincl_finalize.
+  apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] hu fd ->; exists fd => //.
+  move=> s /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu; exists t => //.
+  exists (st_uincl tt), (st_uincl tt); split => //.
+  + apply it_sem_uincl_aux => //.
+    + by apply RndE0_recall.
+    by move=> ii fn' fs1' fs2' h; apply xrutt_facts.xrutt_trigger.
+  by apply: fs_uincl_finalize.
 Qed.
 
 Lemma it_sem_uincl c :
@@ -1647,12 +1650,13 @@ Context (p p':prog) (ev ev': extra_val_t).
 
 Context (eq_globs: p_globs p = p_globs p').
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
+#[local] Existing Instance rndE.
 
 Lemma it_sem_uincl_rec c :
   wequiv_rec p p' ev ev' uincl_spec (st_uincl tt) c c (st_uincl tt).
 Proof.
-  apply it_sem_uincl_aux => //.
+  apply it_sem_uincl_aux => //; first by apply RndE0_recall.
   by move=> ii f s t hu; apply xrutt_facts.xrutt_trigger.
 Qed.
 
@@ -1899,7 +1903,8 @@ Proof.
 Qed.
 #[local] Hint Resolve checker_eq_cmdP : core.
 
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
+#[local] Existing Instance rndE.
 
 Let Pi i :=
   forall i', eq_instr i i' ->
@@ -1958,13 +1963,14 @@ Context (p p':prog) (ev ev': extra_val_t).
 
 Context (eq_globs: p_globs p = p_globs p').
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
+#[local] Existing Instance rndE.
 
 Lemma it_eq_cmdP_rec c c' :
   eq_cmd c c' ->
   wequiv_rec p p' ev ev' uincl_spec (st_uincl tt) c c' (st_uincl tt).
 Proof.
-  apply it_eq_cmdP_aux => //.
+  apply it_eq_cmdP_aux => //; first by apply RndE0_recall.
   by move=> ii ii' f s t hu; apply xrutt_facts.xrutt_trigger.
 Qed.
 
@@ -1982,11 +1988,14 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE12 : EventRels E0}
+  {rndE0: RndE0 syscall_state E0}
+  {rndE0_refl : RndE0_refl rE12}
   {rE_trans : EventRels_trans rE12 rE12 rE12}
   {p1 : prog (pT := pT1)} {p2 : prog (pT := pT)}
   {ev1 : extra_val_t (progT := pT1)} {ev2 : extra_val_t (progT := pT)}
   {fn1 fn2 : funname}
 .
+#[local] Existing Instance rndE.
 
 Notation wiequiv_f :=
   (wiequiv_f
@@ -2142,6 +2151,7 @@ Context
   {pT1 pT2 pT3 : progT}
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
+  {rndE0: RndE0 syscall_state E0}
   {wsw1 wsw2 wsw3 : WithSubWord}
   {wa1 wa2 wa3 : WithAssert}
   {scP1 : semCallParams (wsw := wsw1) (pT := pT1)}
@@ -2154,6 +2164,7 @@ Context
   {sem_F3 : sem_Fun (sip := sip) (pT := pT3) E}
   {rE_trans : EventRels_trans rE12 rE23 rE13}
 .
+#[local] Existing Instance rndE.
 
 Notation prog1 := (prog (pT := pT1)).
 Notation prog2 := (prog (pT := pT2)).

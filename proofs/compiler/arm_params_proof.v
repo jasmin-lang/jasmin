@@ -377,7 +377,7 @@ Proof.
   + by move=> _ ? _ [<-].
   + move=> _ ? _ [<-] _ fd ->; by exists fd.
   + by move=> _ ? _ [<-].
-  move=> ???? _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
+  move=> ?????? _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
 Qed.
 
 (* ------------------------------------------------------------------------ *)

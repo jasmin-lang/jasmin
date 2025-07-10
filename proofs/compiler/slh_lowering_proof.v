@@ -1230,7 +1230,8 @@ Context
   {dc : DirectCall}
   {E E0: Type -> Type}
   {wE : with_Error E E0}
-  {rE : EventRels E0}
+  {rE0 : EventRels E0}
+  {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}
   (shparams : sh_params)
   (hshparams : h_sh_params shparams)
   (fun_info : funname -> seq slh_t * seq slh_t)
@@ -1482,7 +1483,7 @@ apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
   - by move=> > [-> _].
   - by move=> > [-> _].
   - split=> //. exact: EnvP.le_refl.
-  exact: wrequiv_eq.
+  exact: eq_syscall.
 
 (* Assert *)
 by move=> > /= [<-] [<- <-]; apply wequiv_assert => //.

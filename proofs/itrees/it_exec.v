@@ -20,6 +20,7 @@ From ITree Require Import
      Eq.Eqit
      Eq.Paco2.
 
+From Coq Require Import ZArith.
 Require Import utils.
 
 Import ITreeNotations.
