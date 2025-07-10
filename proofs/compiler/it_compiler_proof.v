@@ -419,6 +419,21 @@ Let rminfo (rp : funname -> option (seq (option nat))) fn :=
 
 Definition post_dc rp := rpostF (eS := dc_spec (rminfo rp)).
 
+Lemma fn_keep_only_uincl rm fn vs1 vs2 vs3 :
+  List.Forall2 value_uincl vs1 vs2 ->
+  List.Forall2 value_uincl (fn_keep_only rm fn vs2) vs3 ->
+  List.Forall2 value_uincl (fn_keep_only rm fn vs1) vs3.
+Proof.
+rewrite /fn_keep_only; case: rm => [tk|]; last exact: values_uincl_trans.
+elim: tk vs1 vs2 vs3 => [|[] tk hind] vs1 vs2 vs3 /=;
+  first (exact: values_uincl_trans);
+  case: vs2 vs1 => [|v2 vs2] [|v1 vs1] /List_Forall2_inv //= [h hs];
+  last exact: hind.
+case: vs3 => [|v3 vs3] /List_Forall2_inv //= [h' hs'].
+constructor; first exact: (value_uincl_trans h h').
+exact: (hind _ _ _ hs hs').
+Qed.
+
 Lemma it_compiler_third_part {rp fn} :
   compiler_third_part aparams cparams rp p = ok p' ->
   wiequiv_f (scP1 := sCP_stack) (scP2 := sCP_stack)
@@ -431,25 +446,39 @@ rewrite print_sprogP => ?; subst pc.
 apply: (
   wiequiv_f_trans
     (scP1 := sCP_stack) (scP2 := sCP_stack) (scP3 := sCP_stack)
-    (rpreF23 := pre_eq) (rpostF23 := post_dc rp)
+    (rpreF23 := pre_eq) (rpostF23 := post_incl)
     _ _
-    (it_dead_code_tokeep_callPs (sip := sip_of_asm_e) (hap_is_move_opP haparams) _ ok_pa)
+    (it_dead_code_tokeep_callPs
+       (sip := sip_of_asm_e) (hap_is_move_opP haparams) _ ok_pa)
 ).
 - exact: rpreF_trans_eq_eq_eq.
-- admit. (* move=> s1 _ _ r1 r3 [_ <-] [_ <-] [] r2 []. subst r2. *)
+- move=> s1 s2 _ r1 r3 _ [_ <-] [r2 [?? hvals2] [?? hvals3]].
+  split; only 1,2: congruence.
+  exact: values_uincl_trans hvals2 hvals3.
+rewrite -{1}(surj_prog (pT := progStack) pa).
 apply: (
   wiequiv_f_trans
     (scP1 := sCP_stack) (scP2 := sCP_stack) (scP3 := sCP_stack)
-    (p2 := pb) (fn2 := fn)
-    (rpreF12 := pre_incl) (rpostF12 := post_incl)
     (rpreF23 := pre_eq) (rpostF23 := post_incl)
+    _ _
+    (it_alloc_callP_sprogP _ _ ok_pb (fn:= fn))
 ).
 - exact: rpreF_trans_eq_uincl_eq.
-- admit.
-- rewrite -{1}(surj_prog (pT := progStack) pa).
-  exact: (it_alloc_callP_sprogP _ _ ok_pb).
-exact: (it_dead_code_callPs (sip := sip_of_asm_e) (hap_is_move_opP haparams) _ ok_p').
-Admitted.
+- exact: rpostF_trans_uincl_eq_uincl_uincl.
+apply: (
+  wiequiv_f_trans
+    (scP1 := sCP_stack) (scP2 := sCP_stack) (scP3 := sCP_stack)
+    (rpreF23 := pre_incl) (rpostF23 := post_incl)
+    _ _
+    (it_dead_code_callPs
+       (sip := sip_of_asm_e) (hap_is_move_opP haparams) _ ok_p')
+       ).
+- move=> s1 s2 [_ <-]; exists s1 => //; split=> //; exact: fs_uinclR.
+- move=> s1 _ s3 r1 r3 [_ <-] _ [r2 [?? hvals2] [?? hvals3]].
+  split; only 1,2: congruence.
+  exact: values_uincl_trans hvals2 hvals3.
+exact: (it_sem_uincl_f (sCP := sCP_stack) p' ev (fn := fn)).
+Qed.
 
 End THIRD_PART.
 
@@ -518,25 +547,15 @@ Proof.
 rewrite /compiler_front_end; t_xrbindP=> p1 ok_p1 check_p1 p2 ok_p2 p3.
 rewrite print_sprogP => ok_p3 p4.
 rewrite print_sprogP => ok_sp ? ok_fn; subst p4.
+apply: (wequiv_fun_get (scP1 := sCP_unit) (scP2 := sCP_stack)) => /= fd get_fd.
 
-have [fd get_fd] : exists fd, get_fundef (p_funcs up) fn = Some fd.
-- admit.
-have [fd1 get_fd1] : exists fd, get_fundef (p_funcs p1) fn = Some fd.
-- admit.
 have [mglob ok_mglob] := [elaborate alloc_prog_get_fundef ok_p2 ].
-move=> /(_ _ _ get_fd1)[] fd2 /[dup] ok_fd2 /alloc_fd_checked_sao[] ok_sao_p
-  ok_sao_r get_fd2.
 have [_ p2_p3_extra] :=
   hlap_lower_address_prog_invariants (hap_hlap haparams) ok_p3.
-have [fd3 get_fd3 [_ _ _ _ _ fd2_fd3_extra]] :=
-  hlap_lower_address_fd_invariants (hap_hlap haparams) ok_p3 get_fd2.
-have [fd4 [get_fd4 fd3_fd4_align]] :=
-  compiler_third_part_invariants print_sprogP ok_sp get_fd3.
 have sp_p3_extra := [elaborate compiler_third_part_meta print_sprogP ok_sp ].
 have p2_p1_extra := [elaborate alloc_prog_sp_globs ok_p2 ].
-
 have [] := check_wf_ptrP check_p1 ok_fn get_fd.
-rewrite /= all2_map -eqseq_all => /eqP check_params check_return.
+rewrite /= all2_map -eqseq_all => /eqP check_params check_return h.
 
 apply: (
   wiequiv_f_trans
@@ -545,19 +564,35 @@ apply: (
     _ _
     (it_compiler_first_part ok_p1 ok_fn)
 ).
-- move=> s1; by exists s1.
+- move=> s1 ? [? _]; by exists s1.
 - move=> s1 _ s3 r1 r3 [_ <-] [_ halloc hwf hptr hmem hscs] [] r2
     [hscs1 hmem1 hval1] [] hptr' hres hmem' hparams hscs'.
-  admit.
+  split=> //; only 3,4: congruence.
+  + rewrite hmem1.
+    apply: Forall2_trans hptr'; first exact: value_uincl_value_in_mem_trans.
+    exact: (Forall2_take hval1).
+  apply: Forall2_trans hres; first exact: value_uincl_trans.
+  exact: (Forall2_drop hval1).
+
+apply: (wequiv_fun_get (scP1 := sCP_unit) (scP2 := sCP_stack)) => /= fd1
+  get_fd1.
+move: h => /(_ _ _ get_fd1)[] fd2 /[dup] ok_fd2 h get_fd2.
+have [fd3 get_fd3 [_ _ _ _ _ fd2_fd3_extra]] :=
+  hlap_lower_address_fd_invariants (hap_hlap haparams) ok_p3 get_fd2.
+have [fd4 [get_fd4 fd3_fd4_align]] :=
+  compiler_third_part_invariants print_sprogP ok_sp get_fd3.
+
 apply: (
   wiequiv_f_trans
     (scP1 := sCP_unit) (scP2 := sCP_stack) (scP3 := sCP_stack)
     (rpreF23 := pre_eq) (rpostF23 := post_incl)
     (p2 := p2) (ev2 := rip) (fn2 := fn)
     _ _
-    (it_alloc_progP (hap_hshp haparams) (hap_hsap haparams) (hap_is_move_opP haparams) ok_p2 _ (rip := _))
+    (it_alloc_progP
+       (hap_hshp haparams) (hap_hsap haparams) (hap_is_move_opP haparams)
+       ok_p2 _ (rip := _))
 ).
-- move=> s1 s3 [_ hok hwf hptr hmem hscs]; exists s3 => //; split=> //.
+- move=> s1 s3 [] [_ hok hwf hptr hmem hscs] _; exists s3 => //; split=> //.
   + by rewrite -p2_p1_extra p2_p3_extra -sp_p3_extra.
   + move: hwf; rewrite /wf_args /get_wptrs get_fd /= check_params.
     rewrite /size_glob sp_p3_extra -p2_p3_extra p2_p1_extra.
@@ -577,16 +612,14 @@ apply: (
     by rewrite -fd2_fd3_extra.
 - move=> s1 s2 s3 r1 r3 []. admit.
 
-set rminfo := fun _ => _ in ok_sp.
 apply: (
   wiequiv_f_trans
-    (rpreF23 := pre_eq) (rpostF23 := post_dc rminfo)
     _ _
     (hlap_it_lower_addressP (hap_hlap haparams) ok_p3)
+    (it_compiler_third_part ok_sp)
 ).
 - exact: rpreF_trans_eq_eq_eq.
-- admit.
-exact: it_compiler_third_part ok_sp.
+move=> s1 _ _ r1 r3 [_ <-] [_ <-] [_ <-] [hscs hmem].
 Admitted.
 
 End FRONT_END.
