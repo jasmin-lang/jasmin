@@ -57,21 +57,31 @@ The Itree implementation of Jasmin can be found in `lang/it_sems_core.v`.
 The definition of xrutt can be found in `itrees/xrutt.v`.
 
 ## About RHL and HL
-We will indicate where the rules from the paper are, but there are more :
 
-Theorem (Modular Verification) :
+- Theorem (4 Modular Verification) in the paper corresponds to lemmas
+`wequiv_fun_ind` in `/proof/lang/relational_logic.v`.
 
-- SKIP
-- SEQ
-- ASSNIGN
-- COND
-- LOOP
-- RAND
-- CALL
-- CONSEQ
-- TRANS
-- FRAME
-- HOARE
+- We will indicate le location of the rules from the paper :
+
+ + rule SKIP in the paper corresponds to lemmas
+ `wequiv_nil` in `/proof/lang/relational_logic.v`.
+ + rule SEQ in the paper corresponds to lemmas
+ `wequiv_cons` in `/proof/lang/relational_logic.v`.
+ + rule ASSNIGN in the paper corresponds to lemmas
+ `wequiv_assgn` in `/proof/lang/relational_logic.v`.
+ + rule COND in the paper corresponds to lemmas
+ `wequiv_if` in `/proof/lang/relational_logic.v`.
+ + rule LOOP in the paper corresponds to lemmas
+ `wequiv_while` in `/proof/lang/relational_logic.v`.
+ + rule RAND ?????
+ + rule CALL in the paper corresponds to lemmas
+ `wequiv_call` in `/proof/lang/relational_logic.v`.
+ + rule CONSEQ ??????
+ + rule TRANS ??????
+ + rule FRAME in the paper corresponds to lemmas
+ `wequiv_write1` and `wequiv_write2` in `/proof/lang/relational_logic.v`.
+ + rule HOARE in the paper corresponds to lemmas
+ `whoare_wequiv1` and `whoare_wequiv2` in `/proof/lang/relational_logic.v`.
 
 ## About Compiler pass proofs
 
@@ -105,11 +115,8 @@ Theorem (Modular Verification) :
 
 ## About distribution
 
-
-
-
-
-
+- Theorem (2 Preservation of Probabilities) in the paper corresponds to lemmas
+`final` in `/proof/distr/distr.v`.
 
 <!-- ------------------------------------------------------------------------------- -->
 <!-- Old Readme -->
