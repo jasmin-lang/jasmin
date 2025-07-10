@@ -44,25 +44,66 @@ make
 ```
 This verifies all Coq files.
 
-Alternatively, to compile the full compiler, run in the root of the
-project:
+Alternatively, to compile the full compiler, run in the root of the project:
 ```
 make
 ```
 
-
 # List of claims in the paper supported by this artifact
-
-## About distribution
 
 ## About the ITree implementation
 
+The Itree implementation of Jasmin can be found in `lang/it_sems_core.v`.
+The definition of xrutt can be found in `itrees/xrutt.v`.
+
 ## About RHL and HL
+We will indicate where the rules from the paper are, but there are more :
+
+Theorem (Modular Verification) :
+
+- SKIP
+- SEQ
+- ASSNIGN
+- COND
+- LOOP
+- RAND
+- CALL
+- CONSEQ
+- TRANS
+- FRAME
+- HOARE
 
 ## About Compiler pass proofs
 
-- `proofs/compiler/wint_word.v`: compiler pass proof are in the IT sections
-- ......
+- Int Word: `proofs/compiler/wint_word.v`: compiler pass proof is in the IT sections
+- Array: ???????????????
+- Array Initialization: `proofs/compiler/array_init_proof.v`: compiler pass proof is in the IT sections
+- Spilling: `proofs/compiler/lower_spill_proof.v`: compiler pass proof is in the IT sections
+- Inlining: `proofs/compiler/inline_proof.v`: compiler pass proof is in the IT sections
+- Function Pruning: ????????????????????
+- Constant Propagation: `proofs/compiler/const_prop_proof.v`: compiler pass proof is in the IT sections
+- Dead Code Elimination: `proofs/compiler/dead_code_prooof.v`: compiler pass proof is in the IT sections
+- Unrolling: `proofs/compiler/unrolling_proof.v`: compiler pass proof is in the IT sections
+- Remove Array Initialization:
+- Reference Arguments: `proofs/compiler/makeReferenceArguments_proof.v`: compiler pass proof is in the IT sections
+- Register Array Expansion: `proofs/compiler/array_expansion_proof.v`: compiler pass proof is in the IT sections
+- Remove Globals: `proofs/compiler/remove_globals_proof.v`: compiler pass proof is in the IT sections
+- Load Immediates:
+- x86-64 Instruction Selection: `proofs/compiler/x86_lowering_proof.v`: compiler pass proof is in the IT sections
+- ARMv7 Instruction Selection : `proofs/compiler/arm_lowering_proof.v`: compiler pass proof is in the IT sections
+- RISC-V Instruction Selection: `proofs/compiler/riscv_lowering_proof.v`: compiler pass proof is in the IT sections
+- SLH Instruction Selection: `proofs/compiler/slh_lowering_proof.v`: compiler pass proof is in the IT sections
+- Inline Propagation:
+   Lemma about Hanlder ??????????
+   `proofs/compiler/inline_proof.v`: compiler pass proof is in the IT sections
+- Stack Allocation:
+   + `proofs/compiler/stack_alloc_proof_1.v`: compiler pass proof is in the IT sections
+   + `proofs/compiler/stack_alloc_proof_2.v`: compiler pass proof is in the IT sections
+- Lower Addresses: ???????????????????????????
+- Register Renaming: `proofs/compiler/allocation_proof.v`: compiler pass proof is in the IT sections
+
+
+## About distribution
 
 
 
