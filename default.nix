@@ -31,6 +31,7 @@ let coqPackages =
       mathcomp-algebra-tactics = super.mathcomp-algebra-tactics.override { version = "master"; };
       mathcomp-zify = super.mathcomp-zify.override { version = "master"; };
       coq-elpi = super.coq-elpi.override { version = "master"; inherit elpi-version; };
+      mathcomp-experimental-reals = super.mathcomp-experimental-reals { version = "master"; };
       hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
       ExtLib = super.ExtLib.override { version = "master"; };
       paco = super.paco.override { version = "master"; };
