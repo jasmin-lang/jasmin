@@ -2,6 +2,8 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
+From ITree Require Import ITreeFacts.
+
 Require Import xseq.
 Require Export array type expr gen_map warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
 Require Export psem_core it_sems_core hoare_logic relational_logic.
@@ -1644,13 +1646,13 @@ Lemma it_sem_refl_EE_UU :
   wiequiv_f (rpreF (eS := eq_spec)) fn1 fn2 (rpostF (eS := eq_spec)) ->
   wiequiv_f (rpreF (eS := uincl_spec)) fn1 fn2 (rpostF (eS := uincl_spec)).
 Proof.
-move=> h; apply: it_sem_refl_EU_UU.
-apply: (
-  wkequiv_io_weaken
-    (P := rpreF (eS := eq_spec) fn1 fn2)
-    (Q := rpostF (eS := eq_spec) fn1 fn2)
-) => // ???? [_ <-] <-.
-exact: fs_uinclR.
+  move=> h; apply: it_sem_refl_EU_UU.
+  apply: (
+           wkequiv_io_weaken
+             (P := rpreF (eS := eq_spec) fn1 fn2)
+             (Q := rpostF (eS := eq_spec) fn1 fn2)
+         ) => // ???? [_ <-] <-.
+  exact: fs_uinclR.
 Qed.
 
 End IT_UNDEFINCL.
@@ -1661,3 +1663,167 @@ End WSW.
 
 Notation pre_incl := (rpreF (eS := uincl_spec)).
 Notation post_incl := (rpostF (eS := uincl_spec)).
+
+Section REL_COMPOSE.
+
+Context
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {asm_op : Type}
+  {sip : SemInstrParams asm_op syscall_state}
+  {fn1 fn2 fn3 : funname}
+.
+
+Lemma rpreF_trans_eq_eq_eq fs1 fs3 :
+  pre_eq fn1 fn2 fs1 fs3 ->
+  exists2 fs2,
+    pre_eq fn1 fn2 fs1 fs2
+    & pre_eq fn1 fn2 fs2 fs3.
+Proof. move=> [<- <-]; by exists fs1. Qed.
+
+Lemma rpreF_trans_eq_uincl_eq fs1 fs3 :
+  pre_eq fn1 fn2 fs1 fs3 ->
+  exists2 fs2,
+    pre_incl fn1 fn2 fs1 fs2
+    & pre_eq fn1 fn2 fs2 fs3.
+Proof. move=> [<- <-]; exists fs1; split=> //; exact: fs_uinclR. Qed.
+
+Lemma rpreF_trans_uincl_uincl_uincl fs1 fs3 :
+  pre_incl fn1 fn2 fs1 fs3 ->
+  exists2 fs2,
+    pre_incl fn1 fn2 fs1 fs2
+    & pre_incl fn1 fn2 fs2 fs3.
+Proof. move=> [<- ?]; exists fs1; split=> //; exact: fs_uinclR. Qed.
+
+Lemma rpostF_trans_eq_eq_eq_uincl fs1 fs2 fs3 r1 r3 :
+  pre_eq fn1 fn2 fs1 fs2 ->
+  pre_eq fn2 fn3 fs2 fs3 ->
+  rcompose
+    (post_eq fn1 fn2 fs1 fs2)
+    (post_incl fn2 fn3 fs2 fs3)
+    r1 r3 ->
+  post_incl fn1 fn3 fs1 fs3 r1 r3.
+Proof. by move=> [<- h1] [<- <-] [] _ <-. Qed.
+
+Lemma rpostF_trans_uincl_uincl_uincl_uincl fs1 fs2 fs3 r1 r3 :
+  pre_incl fn1 fn2 fs1 fs2 ->
+  pre_incl fn2 fn3 fs2 fs3 ->
+  rcompose
+    (post_incl fn1 fn2 fs1 fs2)
+    (post_incl fn2 fn3 fs2 fs3)
+    r1 r3 ->
+  post_incl fn1 fn3 fs1 fs3 r1 r3.
+Proof.
+move=> [<- h1] [<- h2] [] r2 [?? hvals1] [?? hvals2]; split.
+1-2: congruence. exact: values_uincl_trans hvals1 hvals2.
+Qed.
+
+Lemma rpostF_trans_eq_eq_uincl_uincl fs1 fs2 fs3 r1 r3 :
+  pre_eq fn1 fn2 fs1 fs2 ->
+  pre_eq fn2 fn3 fs2 fs3 ->
+  rcompose
+    (post_incl fn1 fn2 fs1 fs2)
+    (post_incl fn2 fn3 fs2 fs3)
+    r1 r3 ->
+  post_incl fn1 fn3 fs1 fs3 r1 r3.
+Proof.
+move=> [<- _] [<- <-] [] {}fs3 [?? hvals1] [?? hvals2]; split.
+1-2: congruence. exact: values_uincl_trans hvals1 hvals2.
+Qed.
+
+Lemma rpostF_trans_uincl_eq_uincl_uincl fs1 fs2 fs3 r1 r3 :
+  pre_incl fn1 fn2 fs1 fs2 ->
+  pre_eq fn2 fn3 fs2 fs3 ->
+  rcompose
+    (post_incl fn1 fn2 fs1 fs2)
+    (post_incl fn2 fn3 fs2 fs3)
+    r1 r3 ->
+  post_incl fn1 fn3 fs1 fs3 r1 r3.
+Proof.
+move=> [<- _] [<- <-] [] {}fs3 [?? hvals1] [?? hvals2]; split.
+1-2: congruence. exact: values_uincl_trans hvals1 hvals2.
+Qed.
+
+Lemma rpostF_trans_eq_uincl_eq_uincl fs1 fs2 fs3 r1 r3 :
+  pre_eq fn1 fn2 fs1 fs2 ->
+  pre_incl fn2 fn3 fs2 fs3 ->
+  rcompose
+    (post_eq fn1 fn2 fs1 fs2)
+    (post_incl fn2 fn3 fs2 fs3)
+    r1 r3 ->
+  post_incl fn1 fn3 fs1 fs3 r1 r3.
+Proof. by move=> [<- _] [<- [?? hvals1]] [] _ <- [?? hvals2]. Qed.
+
+End REL_COMPOSE.
+
+Section TRANS_UTILS.
+
+Context
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {asm_op : Type}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT1 pT2 pT3 : progT}
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {wsw1 wsw2 wsw3 : WithSubWord}
+  {scP1 : semCallParams (wsw := wsw1) (pT := pT1)}
+  {scP2 : semCallParams (wsw := wsw2) (pT := pT2)}
+  {scP3 : semCallParams (wsw := wsw3) (pT := pT3)}
+  {dc1 dc2 dc3 : DirectCall}
+  {rE12 : EventRels E0} {rE23 : EventRels E0} {rE13 : EventRels E0}
+  {sem_F1 : sem_Fun (sip := sip) (pT := pT1) E}
+  {sem_F2 : sem_Fun (sip := sip) (pT := pT2) E}
+  {sem_F3 : sem_Fun (sip := sip) (pT := pT3) E}
+  {rE_trans : EventRels_trans rE12 rE23 rE13}
+.
+
+Notation prog1 := (prog (pT := pT1)).
+Notation prog2 := (prog (pT := pT2)).
+Notation prog3 := (prog (pT := pT3)).
+
+Context
+  {p1 : prog1} {p2 : prog2} {p3 : prog3}
+  {ev1 : extra_val_t (progT := pT1)}
+  {ev2 : extra_val_t (progT := pT2)}
+  {ev3 : extra_val_t (progT := pT3)}
+  {fn : funname}
+.
+
+Let wiequiv_f_trans' :=
+  wiequiv_f_trans
+    (wsw1 := wsw1) (wsw2 := wsw2) (wsw3 := wsw3)
+    (scP1 := scP1) (scP2 := scP2) (scP3 := scP3)
+    (dc1 := dc1) (dc2 := dc2) (dc3 := dc3)
+    (p1 := p1) (p2 := p2) (p3 := p3)
+    (ev1 := ev1) (ev2 := ev2) (ev3 := ev3)
+    (fn1 := fn) (fn2 := fn) (fn3 := fn).
+
+(* X -> wequiv eq uincl -> wequiv eq uincl *)
+Let wiequiv_f_trans_X_EU {rpreF rpostF} :=
+  wiequiv_f_trans'
+    (rpreF12 := rpreF) (rpreF23 := pre_eq) (rpreF13 := pre_eq)
+    (rpostF12 := rpostF) (rpostF23 := post_incl) (rpostF13 := post_incl).
+
+(* wequiv eq eq -> wequiv eq uincl -> wequiv eq uincl *)
+Definition wiequiv_f_trans_EE_EU :=
+  wiequiv_f_trans_X_EU rpreF_trans_eq_eq_eq rpostF_trans_eq_eq_eq_uincl.
+
+(* wequiv eq eq -> wequiv eq uincl -> wequiv eq uincl *)
+Definition wiequiv_f_trans_EU_EU :=
+  wiequiv_f_trans_X_EU rpreF_trans_eq_eq_eq rpostF_trans_eq_eq_uincl_uincl.
+
+(* wequiv uincl uincl -> wequiv eq uincl -> wequiv eq uincl *)
+Definition wiequiv_f_trans_UU_EU :=
+  wiequiv_f_trans_X_EU
+    rpreF_trans_eq_uincl_eq rpostF_trans_uincl_eq_uincl_uincl.
+
+(* wequiv uincl uincl -> wequiv uincl uincl -> wequiv uincl uincl *)
+Definition wiequiv_f_trans_UU_UU :=
+  wiequiv_f_trans'
+    rpreF_trans_uincl_uincl_uincl
+    rpostF_trans_uincl_uincl_uincl_uincl.
+
+End TRANS_UTILS.
