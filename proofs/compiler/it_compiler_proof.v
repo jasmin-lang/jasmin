@@ -546,6 +546,7 @@ Lemma it_compiler_front_endP ev fn :
 Proof.
 rewrite /compiler_front_end; t_xrbindP=> p1 ok_p1 check_p1 p2 ok_p2 p3.
 rewrite print_sprogP => ok_p3 p4.
+set rp := fun (fn : funname) => _.
 rewrite print_sprogP => ok_sp ? ok_fn; subst p4.
 apply: (wequiv_fun_get (scP1 := sCP_unit) (scP2 := sCP_stack)) => /= fd get_fd.
 
@@ -555,6 +556,7 @@ have [_ p2_p3_extra] :=
 have sp_p3_extra := [elaborate compiler_third_part_meta print_sprogP ok_sp ].
 have p2_p1_extra := [elaborate alloc_prog_sp_globs ok_p2 ].
 have [] := check_wf_ptrP check_p1 ok_fn get_fd.
+set n := find _ _.
 rewrite /= all2_map -eqseq_all => /eqP check_params check_return h.
 
 apply: (
@@ -585,12 +587,12 @@ have [fd4 [get_fd4 fd3_fd4_align]] :=
 apply: (
   wiequiv_f_trans
     (scP1 := sCP_unit) (scP2 := sCP_stack) (scP3 := sCP_stack)
-    (rpreF23 := pre_eq) (rpostF23 := post_incl)
+    (rpreF23 := pre_eq) (rpostF23 := post_dc (p := p3) rp)
     (p2 := p2) (ev2 := rip) (fn2 := fn)
     _ _
     (it_alloc_progP
        (hap_hshp haparams) (hap_hsap haparams) (hap_is_move_opP haparams)
-       ok_p2 _ (rip := _))
+       ok_p2 ev (rip := rip))
 ).
 - move=> s1 s3 [] [_ hok hwf hptr hmem hscs] _; exists s3 => //; split=> //.
   + by rewrite -p2_p1_extra p2_p3_extra -sp_p3_extra.
@@ -610,8 +612,104 @@ apply: (
     have :=
       compiler_third_part_alloc_ok haparams print_sprogP ok_sp hok get_fd3.
     by rewrite -fd2_fd3_extra.
-- move=> s1 s2 s3 r1 r3 []. admit.
+- move=> s1 s2 _ r1 r3 [hscs_s1] hmem_s1 hwf_s1 heqinmem halloc [_ <-] [].
+  move=> r2 [hscs1 vr2_wf vr2_eqinmem U] [hscs2 hmem2 vr_vr1].
+  set rminfo := fun fn => _ in vr_vr1.
+  set va := fvals s1.
+  set va' := fvals s2.
+  set vr := fvals r1.
+  set vr1 := fvals r1.
+  set vr2 := fvals r2.
+  set m := fmem s1.
+  set mi := fmem s2.
+  set m' := fmem s1.
+  set mi' := fmem r2.
+  have hle1: n <= size fd.(f_params) by apply find_size.
+  have [/esym size_vr1 /esym size_vr2] := Forall3_size vr2_wf.
+  have [/esym size_va /esym size_va'] := Forall3_size heqinmem.
+  have /(f_equal size) := check_params; rewrite 2!size_map => /esym size_sao_params.
+  have hle2: n <= size vr.
+  * have /(f_equal size) := check_return.
+    rewrite size_cat size_map size_iota -size_vr1 => ->.
+    exact: leq_addr.
 
+  (* [vr2_eqinmem] can be split into two thanks to [check_results]:
+     - the first [n] elements satisfy [value_in_mem];
+     - the other ones satisfy equality. *)
+  have [vr2_inmem vr2_eq]:
+    List.Forall2 (value_in_mem mi') (take n vr) (take n vr2) /\
+      drop n vr1 = drop n vr2.
+  + split.
+    + apply (nth_Forall2 (Vbool true) (Vbool true)).
+      + by rewrite (size_takel hle2) size_takel // size_vr2 -size_vr1.
+      rewrite (size_takel hle2) => i hi.
+      rewrite nth_take // nth_take //.
+      have := Forall3_nth vr2_eqinmem None (Vbool true) (Vbool true).
+      rewrite -size_vr1 => /(_ _ (leq_trans hi hle2)).
+      rewrite check_return nth_cat size_map size_iota hi (nth_map 0);
+        last by rewrite size_iota.
+      rewrite nth_iota // hmem2 /=.
+    apply (eq_from_nth (x0 := Vbool true)).
+    + by rewrite 2!size_drop size_vr1 size_vr2.
+    move=> i; rewrite size_drop ltn_subRL => hi.
+    rewrite 2!nth_drop.
+    have := Forall3_nth vr2_eqinmem None (Vbool true) (Vbool true).
+    rewrite -size_vr1 => /(_ _ hi).
+    rewrite check_return nth_cat size_map size_iota lt_nm_n.
+    by rewrite nth_nseq (ltn_sub2rE _ (leq_addr _ _)) -size_vr1 hi.
+
+    (* [vr2_wf] can be rewritten into an equality thanks to [check_results] *)
+    have {}vr2_wf: take n vr2 = take n va'.
+    + apply (eq_from_nth (x0 := Vbool true)).
+    + rewrite size_takel; last by rewrite size_vr2 -size_vr1.
+      rewrite size_takel; last by rewrite size_va' size_sao_params.
+      reflexivity.
+    rewrite size_takel; last by rewrite size_vr2 -size_vr1.
+    move=> i hi.
+    rewrite nth_take // nth_take //.
+    have := Forall3_nth vr2_wf None (Vbool true) (Vbool true).
+    rewrite -size_vr1 => /(_ _ (leq_trans hi hle2)).
+    rewrite check_return nth_cat size_map size_iota hi (nth_map 0);
+      last by rewrite size_iota.
+    by rewrite nth_iota //; case.
+
+    (* [fn_keep_only rminfo fn] is just [drop] thanks to [check_results] *)
+    have rminfo_vr2: fn_keep_only rminfo fn vr2 = drop n vr2.
+    + rewrite /fn_keep_only /rminfo /rp ok_fn.
+      set k := size (sao_return (ao_stack_alloc (stackalloc cparams p1) fn)).
+      have ->:
+        [seq match i with
+           | Some _ => false
+           | None => true
+           end
+        | i <- sao_return (ao_stack_alloc (stackalloc cparams p1) fn)]
+           = nseq n false ++ nseq (k - n) true.
+    + rewrite check_return map_cat.
+      apply f_equal2.
+    + by rewrite -map_comp map_const_nseq size_iota.
+      by apply map_nseq.
+      case heq: all.
+    + by case: (n) heq => [|//] _; rewrite drop0.
+      rewrite -{1}(cat_take_drop n vr2).
+      rewrite keep_only_cat; last first.
+    + rewrite size_takel; last by rewrite size_vr2 -size_vr1.
+      by rewrite size_nseq.
+      rewrite keep_only_false; last first.
+    + by rewrite size_take; apply geq_minl.
+      by rewrite keep_only_true.
+
+  have hn : get_nb_wptr up fn = n.
+  - by rewrite /get_nb_wptr /get_wptrs /= get_fd seq.find_map.
+
+  split; last congruence.
+  - rewrite hn -vr2_wf. admit.
+  - rewrite hn vr2_eq -rminfo_vr2; exact: vr_vr1.
+
+    s1 s2
+
+    Search stack_alloc_proof_2.extend_mem.
+  - admit.
+  by rewrite /get_wptrs get_fd /= check_params -hmem2.
 apply: (
   wiequiv_f_trans
     _ _
@@ -619,8 +717,7 @@ apply: (
     (it_compiler_third_part ok_sp)
 ).
 - exact: rpreF_trans_eq_eq_eq.
-move=> s1 _ _ r1 r3 [_ <-] [_ <-] [_ <-] [hscs hmem].
-Admitted.
+by move=> s1 _ _ r1 r3 [_ <-] [_ <-] [_ <-] [hscs hmem] h'.
 
 End FRONT_END.
 
