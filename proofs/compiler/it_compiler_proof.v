@@ -67,34 +67,43 @@ Context
   (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
 .
 
-Definition of_void1 {A T} (e : void1 A) : T := match e with end.
-Definition of_void_sum {E} : E +' void1 ~> E :=
-  fun _ x => match x with inl1 a => a | inr1 e => of_void1 e end.
+#[local]
+Instance with_Error0 : with_Error (ErrEvent +' RndEvent syscall_state) (RndEvent syscall_state).
+Proof.
+refine {| mfun1 T x := x; mfun2 T x := x |}; done.
+Qed.
 
 #[local]
-Instance with_Error0 : with_Error ErrEvent void1 :=
+Instance HandlerContract : EventRels (RndEvent syscall_state) :=
   {|
-    mfun1 := inl1;
-    mfun2 := of_void_sum;
-    mid12 := fun _ e =>
-      match e with inl1 e => refl_equal | inr1 a => of_void1 a end;
-    mid21 := fun _ _ => refl_equal;
+    EPreRel0_ := fun A B r1 r2 =>
+                   let: Rnd scs1 n1 := r1 in
+                   let: Rnd scs2 n2 := r2 in
+                   scs1 = scs2 /\ n1 = n2;
+    EPostRel0_ := fun A B r1 =>
+                    match r1 in RndEvent _ A' return A' -> _ with
+                      Rnd scs1 n1 => fun (a: syscall_state * seq u8) r2 =>
+                                       match r2 in RndEvent _ B' return B' -> _ with
+                                         Rnd scs2 n2 => fun (b: syscall_state * seq u8) => a = b
+                                       end
+                    end
   |}.
 
 #[local]
-Instance HandlerContract : EventRels void1 :=
-  {|
-    EPreRel0_ := fun _ _ _ _ => False;
-    EPostRel0_ := fun _ _ _ _ _ _ => True;
-  |}.
+Instance : RndE0 syscall_state (RndEvent syscall_state) := fun T => id.
 
 #[local]
-Instance HandlerContract_trans {rE23 rE13} :
-  EventRels_trans HandlerContract rE23 rE13 :=
-  {|
-    ERpre_trans := fun _ _ _ e => of_void1 e;
-    ERpost_trans := fun _ _ _ e => of_void1 e;
-  |}.
+Instance : RndE0_refl HandlerContract.
+Proof. by constructor. Qed.
+
+#[local]
+Instance HandlerContract_trans :
+  EventRels_trans HandlerContract HandlerContract HandlerContract.
+Proof.
+  constructor.
+  - by move => T1 T2 T3 [scs1 n1] [scs2 n2] [scs3 n3] [-> ->] [-> ->].
+  - move => ??? [??] [??] [??] ?? [] -> -> [] -> -> -> /=; eauto.
+Qed.
 
 Section FIRST_PART.
 

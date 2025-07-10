@@ -3526,7 +3526,7 @@ Proof.
   move=> s1 s2 t o xs es h; apply ePi_r_Pi_r; apply: Hopn_aux h.
 Qed.
 
-Local Lemma Hsyscall_aux : sem_Ind_syscall P ePi_r.
+Local Lemma Hsyscall : sem_Ind_syscall P Pi_r.
 Proof.
   move=> s1 scs m s2 o xs es ves vxs hves hvxs hs2.
   move=> pmap rsp Slots Addr Writable Align table1 rmap1 table2 rmap2 ii1 c2 hpmap hwf sao /=.
@@ -3535,11 +3535,6 @@ Proof.
   have [s2' [hsem' hvs2]] :=
     alloc_syscallP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hpmap P' hsaparams hsyscall hvs hves hvxs hs2.
   by exists s2', vme; split.
-Qed.
-
-Local Lemma Hsyscall : sem_Ind_syscall P Pi_r.
-Proof.
-  move=> s1 scs m s2 o xs es ves vxs hves hvxs hs2; apply ePi_r_Pi_r; apply: Hsyscall_aux hves hvxs hs2.
 Qed.
 
 Local Lemma Hif_true : sem_Ind_if_true P ev Pc Pi_r.
@@ -4111,7 +4106,7 @@ End SEM.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
 
 Definition sa_pre fn1 fn2 fs1 fs2 :=
   [/\ fn1 = fn2
@@ -4273,14 +4268,137 @@ Proof.
     apply: (esem_i_validw_stable_uprog (p:=P) (ev:= tt) (c:= (MkI ii (Copn xs t o es)))).
     by rewrite /= hopn.
   (* Syscall *)
-  + move=> xs o es ii table1 rmap1 table2 rmap2 vme c2 h [hwf_vars hwf_varsz hwf_status].
-    apply wequiv_syscall_esem => s1 s2 s1' [hvalid hstable hext hvalw hvalw'] /[dup] hsemu.
-    rewrite /sem_syscall; t_xrbindP => vs hes [scs mem vs'].
-    rewrite /fexec_syscall; t_xrbindP => /= -[[scs' mem'] vs2] /= hex [???] hup; subst scs' mem' vs2.
-    have := Hsyscall_aux hes hex hup hwf_pmap hwf_Slots h hvalid hext (stack_stable_wf_sao hstable hwf_sao).
-    apply: it_check_cP_concl => //.
-    apply: (esem_i_validw_stable_uprog (p:=P) (ev:= tt) (c:= (MkI ii (Csyscall xs o es)))).
-    by rewrite /= hsemu.
+  + move=> xs o es ii table1 rmap1 table2 rmap2 vme c2.
+    t_xrbindP => -[rmap c] halloc [???] hwf_table; subst table2 rmap2 c2.
+    move: halloc; rewrite /alloc_syscall; move=> /add_iinfoP.
+    case: o => [len].
+    t_xrbindP=> /ZltP hlen.
+    case: xs => // -[] // x [] //.
+    case: es => // -[] // g [] //.
+    t_xrbindP=> pg /get_regptrP hlg px /get_regptrP hlx srg /get_sub_regionP hsrg rmap2 hrmap2 <- <-{c}.
+    set i1 := (X in [:: X; _]).
+    set i2 := (X in [:: _; X]).
+    move=> s t [hval hstable hext hvalw1 hvalw2].
+    change [::i1; i2] with ([::i1] ++ [::i2]).
+    rewrite isem_cmd_cat.
+    set c1 := (isem_cmd_ P' rip [:: i1] t) => /=.
+    rewrite Eqit.bind_bind.
+    apply xrutt_bind_iresult_left => /=; t_xrbindP.
+    move=> _ vg hgvarg <-.
+    have -> /=: Eqit.eutt eq c1 (iresult t (ok (with_vm t (evm t).[with_var (gv g) (vxlen pmap) <- Vword (wrepr Uptr len)]))).
+    + apply esem_i_bodyP => /=.
+      by have /= -> := sap_immediateP hsaparams P' rip t dummy_instr_info (x := with_var (gv g) (vxlen pmap))
+              len (@wt_len _ _ _ _ _ _ _ _ _ hwf_pmap).
+    rewrite Eqit.bind_ret_l Eqit.bind_bind Eqit.bind_bind.
+    set s2' := with_vm t _.
+    have hvs': valid_state pmap glob_size rsp rip Slots Addr Writable Align P table1 rmap1 vme m0 s s2'.
+    + apply (valid_state_distinct_reg _ hval).
+      + by apply: len_neq_rip hwf_pmap.
+      + by apply: len_neq_rsp hwf_pmap.
+      + by apply: len_in_new hwf_pmap.
+      by apply: len_neq_ptr hwf_pmap.
+    have hwfg: wf_sub_region Slots Writable Align vme srg g.(gv).(vtype).
+    + apply (wfr_wf (wf_rmap := hvs'.(vs_wf_region)) hsrg).
+    have srg_vars: wf_vars_zone table1.(vars) srg.(sr_zone).
+    + by apply (wfr_vars_zone (wf_rmap := hvs'.(vs_wf_region)) hsrg).
+    (* clear the argument *)
+    have hincl: Incl rmap2 rmap1.
+    + move /set_clearP : hrmap2 => [_ ->].
+      by apply Incl_set_clear_pure.
+    have hwfst: wfr_STATUS rmap2 vme.
+    + move /set_clearP : hrmap2 => [_ ->] /=.
+      by apply (wfr_STATUS_set_clear_status (wfr_wf (wf_rmap := hvs'.(vs_wf_region)))  hwfg (wfr_status (wf_rmap := hvs'.(vs_wf_region)))).
+    have hvarss: wfr_VARS_STATUS table1.(vars) rmap2.
+    + move /set_clearP : hrmap2 => [_ ->].
+      by apply (wfr_VARS_STATUS_set_clear_status (wfr_vars_zone (wf_rmap := hvs'.(vs_wf_region))) srg_vars (wfr_vars_status (wf_rmap := hvs'.(vs_wf_region)))).
+    have hvs2 := valid_state_Incl hincl hwfst hvarss hvs'.
+
+    rewrite /fexec_syscall Eqit.bind_bind.
+    apply xrutt_bind_iresult_left => len1.
+    rewrite /= /exec_getrandom_arg_u; t_xrbindP => ag' /to_arrI ??; subst vg len1.
+    rewrite /isem_pexprs /=.
+    rewrite /= /get_gvar /= /get_var.
+    have /(wfr_ptr (wf_rmap := hvs'.(vs_wf_region))) := hsrg; rewrite /get_local hlg => -[_ [[<-] /= hpk]].
+    move: hwfg; rewrite (type_of_get_gvar_array hgvarg) => hwfg.
+    have [addrg ok_addrg] := wf_sub_region_sub_region_addr Addr hwfg.
+    rewrite (hpk _ ok_addrg) /=.
+    rewrite Vm.setP_eq wt_len vm_truncate_val_eq //=.
+    rewrite Eqit.bind_ret_l.
+    rewrite /exec_getrandom_arg_s /= truncate_word_u /=.
+    rewrite Eqit.bind_ret_l.
+    rewrite !Eqit.bind_bind.
+    rewrite wunsigned_repr_small //.
+    apply xrutt_facts.xrutt_bind with eq.
+    + apply xrutt.xrutt_Vis.
+      + rewrite /EPreRel /Subevent.subevent /= !mid12 /= (hval.(vs_scs)).
+        by apply rE0_rnd_pre_refl.
+      move=> t1 t2; rewrite /EPostRel /Subevent.subevent /= !mid12 /=  (hval.(vs_scs)).
+      by move=> /rndE0_refl.(rE0_rnd_post_refl) <-; apply xrutt.xrutt_Ret.
+    move=> [scs bytes] _ <-.
+    rewrite !Eqit.bind_bind.
+    apply xrutt_bind_iresult_left; t_xrbindP => /=.
+    rewrite /exec_getrandom_store_u /=.
+    move=> _ a2 hfill <-.
+    rewrite Eqit.bind_ret_l.
+    apply xrutt_bind_iresult_left; t_xrbindP => /=.
+    move=> s' hs'.
+    (* write the randombytes in memory (in the target) *)
+    have [m2 hfillm] := fill_fill_mem (wfsl_no_overflow hwf_Slots) hvs' hwfg ok_addrg hfill.
+    have hvs2': valid_state pmap glob_size rsp rip Slots Addr Writable Align P table1 rmap2 vme m0 s (with_mem s2' m2).
+    + rewrite -(with_mem_same s).
+      apply (valid_state_holed_rmap
+            (l:=[::(srg, sarr len)])
+            (wfsl_no_overflow hwf_Slots) (wfsl_disjoint hwf_Slots) hwf_pmap hvs2 (λ _ _ _, erefl) (fill_mem_stack_stable hfillm)
+            (fill_mem_validw_eq hfillm)).
+      + move=> p hvalid.
+        rewrite (fill_mem_disjoint hfillm); first by apply hval.(vs_eq_mem).
+        rewrite -(WArray.fill_size hfill) positive_nat_Z.
+        apply (disjoint_zrange_incl_l (zbetween_sub_region_addr (wfsl_no_overflow hwf_Slots) hwfg ok_addrg)).
+        apply hval.(vs_disjoint) => //.
+        by apply hwfg.(wfr_slot).
+      + constructor; last by constructor.
+        split=> //.
+        by move: hrmap2 => /set_clearP [? _].
+      + move=> p hvalid1 hvalid2 /List_Forall_inv [/(_ _ ok_addrg) hdisj _].
+        rewrite (fill_mem_disjoint hfillm) //.
+        by rewrite -(WArray.fill_size hfill) positive_nat_Z.
+      constructor; last by constructor.
+      have /set_clearP [_ ->] /= := hrmap2.
+      by apply (set_clear_pure_sub_region_cleared  (wfr_wf (wf_rmap := hvs'.(vs_wf_region))) (wfr_status (wf_rmap := hvs'.(vs_wf_region))) hwfg).
+
+    rewrite /exec_getrandom_store_s /= truncate_word_u /= hfillm /=.
+    rewrite !Eqit.bind_ret_l /=.
+    (* update the [scs] component *)
+    set s1'' := with_scs s scs.
+    set s2'' := with_scs (with_mem s2' m2) scs.
+    have hvs2'': valid_state pmap glob_size rsp rip Slots Addr Writable Align P table1 rmap2 vme m0 s1'' s2''.
+    + by apply valid_state_scs.
+    move: hs'; rewrite /upd_estate /=.
+    t_xrbindP => _ /write_varP [-> hdb h] <-.
+    (* write the result *)
+    set s1''' := with_vm s1'' (evm s1'').[x <- Varr a2].
+    set s2''' := with_vm s2'' (evm s2'').[px <- Vword addrg].
+    have hvs2''': valid_state pmap glob_size rsp rip Slots Addr Writable Align P (remove_binding table1 x) (set_move rmap2 x srg Valid) vme m0 s1''' s2'''.
+    + rewrite /s1''' /s2'''.
+      have /vm_truncate_valE [hty htreq]:= h.
+      move: hwfg; rewrite -hty => hwfg.
+      apply: (valid_state_set_move_regptr hwf_pmap hvs2'' hwfg ok_addrg _ srg_vars _ hlx h) => //.
+      rewrite htreq; split=> // off addrg' w ok_addrg' off_valid /[dup] /get_val_byte_bound /= hoff.
+      move: ok_addrg'; rewrite ok_addrg => -[?]; subst addrg'.
+      rewrite (WArray.fill_get8 hfill) (fill_mem_read8_no_overflow _ hfillm)
+              -?(WArray.fill_size hfill) ?positive_nat_Z /=;
+        try (clear -hlen hoff; lia).
+      by case: andb.
+   have /wf_locals /= hlocal := hlx.
+   rewrite /= write_var_eq_type //=; last by rewrite hlocal.(wfr_rtype).
+   rewrite Eqit.bind_ret_l; apply xrutt.xrutt_Ret.
+   exists vme => //; split => //=.
+   + transitivity (emem s2') => //.
+     by apply: fill_mem_stack_stable hfillm.
+   + apply (valid_state_extend_mem hwf_Slots hval hext hvs2''') => //=.
+     by apply: fill_mem_validw_eq hfillm.
+   by move=> ???; rewrite hvalw2 (fill_mem_validw_eq hfillm).
+
   (* If *)
   + move=> e c1 c2 ihc1 ihc2 ii table1 rmap1 table2 rmap2 vme c_; t_xrbindP.
     move=> e' he' [[table21 rmap21] c1'] hc1; t_xrbindP.
@@ -4875,7 +4993,7 @@ Proof.
 Qed.
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
 
 Theorem it_alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn :
   alloc_prog shparams saparams is_move_op fresh_var_ident pp_sr nrip nrsp data oracle_g oracle P = ok SP ->

@@ -144,7 +144,7 @@ with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
 
 | Esyscall ii s1 scs m s2 o xs es ves vs:
     get_vars true s1.(evm) (syscall_sig o).(scs_vin) = ok ves ->
-    exec_syscall (semCallParams:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
+    exec_syscall (sCP:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
     write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |}
        (to_lvals (syscall_sig o).(scs_vout)) vs = ok s2 →
     sem_i ii (Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout)))) s1 (Csyscall xs o es) s2
@@ -264,7 +264,7 @@ Lemma sem_iE ii k s i s' :
     k = Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) /\  
     ∃ scs m ves vs,
      [/\ get_vars true s.(evm) (syscall_sig o).(scs_vin) = ok ves,
-         exec_syscall (semCallParams:= sCP_stack) s.(escs) s.(emem) o ves = ok (scs, m, vs) &
+         exec_syscall (sCP := sCP_stack) s.(escs) s.(emem) o ves = ok (scs, m, vs) &
          write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s.(evm) |}
            (to_lvals (syscall_sig o).(scs_vout)) vs = ok s']
   | Cif e c1 c2 =>
@@ -364,7 +364,7 @@ Section SEM_IND.
   Definition sem_Ind_syscall : Prop :=
     ∀ (ii: instr_info) (s1 s2 : estate) (o : syscall_t) (xs : lvals) (es : pexprs) scs m ves vs,
       get_vars true s1.(evm) (syscall_sig o).(scs_vin) = ok ves ->
-      exec_syscall (semCallParams:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
+      exec_syscall (sCP:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
       write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |}
         (to_lvals (syscall_sig o).(scs_vout)) vs = ok s2 →
       Pi_r ii (Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout)))) s1 (Csyscall xs o es) s2.

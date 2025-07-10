@@ -13,6 +13,9 @@ Context
   {pT : progT}
   {sCP : forall {wsw : WithSubWord}, semCallParams}.
 
+Context (sCP_eq : forall wsw1 wsw2,
+   sSCP (semCallParams := sCP wsw1) = sSCP (semCallParams := sCP wsw2)).
+
 Variable (p:prog) (ev:extra_val_t).
 
 Notation gd := (p_globs p).
@@ -307,7 +310,7 @@ Qed.
 
 Section IT_SEM.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
 
 Lemma wdb_ok_eq_true wdb1 wdb2: wdb_ok wdb1 wdb2 -> wdb1 /\ wdb2.
 Proof. by case => -[-> ->]. Qed.
@@ -363,8 +366,24 @@ Proof.
   + by move=> >;apply wequiv_assgn_rel_eq with checker_st_eq tt.
   + by move=> >; apply wequiv_opn_rel_eq with checker_st_eq tt.
   + move=> ????; apply wequiv_syscall_rel_eq_core with checker_st_eq tt => //.
-    move=> [???] [???] ? [<- <- <-]; rewrite /fexec_syscall /=.
-    by t_xrbindP => -[[??]?] /= /hsyscall -> [<-] /=; eauto.
+    rewrite /fexec_syscall => s1 s2 hP.
+    apply wkequiv_read with eq.
+    + apply wkequiv_iresult => fs1 fs2 len <- hex.
+      by exists len => //; rewrite -(sCP_eq nosubword).
+    move=> len _ <-.
+    apply wkequiv_read with eq.
+    + move=> fs1 fs2 <-.
+      apply xrutt.xrutt_Vis.
+      + rewrite /EPreRel /core_logics.sum_prerelF /= mfun1_Rnd.
+        by apply rE0_rnd_pre_refl.
+      move=> ??; rewrite {1}/EPostRel /core_logics.sum_postrelF mfun1_Rnd.
+      move=> h; apply xrutt.xrutt_Ret.
+      by apply: rE0_rnd_post_refl h.
+    move=> ? _ <-.
+    apply wkequiv_read with eq.
+     + apply wkequiv_iresult => fs1 fs2 [[scs m] vs] <- hex.
+       by exists (scs, m, vs) => //; rewrite -(sCP_eq nosubword).
+     by move=> ? _ <- ???; apply xrutt.xrutt_Ret.
   + by move=> > hc1 hc2 ii; apply wequiv_if_rel_eq with checker_st_eq tt tt tt.
   + by move=> > hc ii; apply wequiv_for_rel_eq with checker_st_eq tt tt.
   + by move=> > hc hc' ii; apply wequiv_while_rel_eq with checker_st_eq tt.
@@ -411,7 +430,7 @@ Qed.
 
 Section IT_SEM.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
 
 Lemma it_psem_call_u (p:uprog) ev fn :
   wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).

@@ -1308,7 +1308,7 @@ End PROOF.
 
 Section IT_PROOF.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
 
 Variable (p:prog) (ev:extra_val_t).
 Notation gd := (p_globs p).

@@ -353,15 +353,6 @@ Context
 
   Opaque make_prologue.
 
-  Lemma exec_syscall_truncate scs m o ves scs' m' vs:
-    exec_syscall (pT := progUnit) scs m o ves = ok (scs', m', vs) ->
-    mapM2 ErrType truncate_val [seq i.2 | i <- (get_syscall_sig o).2] vs = ok vs.
-  Proof.
-    case: o => len /=; t_xrbindP; rewrite /exec_getrandom_u => -[scs1 vs1] hex _ _ <- /=.
-    case: ves hex => // v [] //=; t_xrbindP => t ht t' hfill ??; subst scs1 vs1.
-    by rewrite /truncate_val /= WArray.castK.
-  Qed.
-
   Lemma sem_sopn_update_i s1 s2 t o xs es ii X c' vm1 :
     sem_sopn (p_globs p) o s1 xs es = ok s2 →
     update_i fresh_id p X (MkI ii (Copn xs t o es)) = ok c' →
@@ -410,27 +401,13 @@ Context
     by rewrite Hsem_pexprs /= Hexec_sopn /= hw'.
   Qed.
 
-  Lemma sem_syscall_update_i s1 scs m s2 o xs es ves vs ii X c' vm1 :
-    sem_pexprs true (p_globs p) s1 es = ok ves →
-    exec_syscall (pT:=progUnit) (escs s1) (emem s1) o ves = ok (scs, m, vs) →
-    write_lvals true (p_globs p) (with_scs (with_mem s1 m) scs) xs vs = ok s2 →
-    update_i fresh_id p X (MkI ii (Csyscall xs o es)) = ok c' →
-    Sv.Subset (Sv.union (read_I (MkI ii (Csyscall xs o es))) (write_I (MkI ii (Csyscall xs o es)))) X →
-    evm s1 =[X] vm1 →
-    exists2 vm2 : Vm.t, evm s2 =[X] vm2 & esem p' ev c' (with_vm s1 vm1) = ok (with_vm s2 vm2).
+  Lemma exec_syscall_truncate scs m o ves scs' m' vs:
+    exec_syscall (pT := progUnit) scs m o ves = ok (scs', m', vs) ->
+    mapM2 ErrType truncate_val [seq i.2 | i <- (get_syscall_sig o).2] vs = ok vs.
   Proof.
-    move=> hes /= ho hw.
-    t_xrbindP => -[pl es'] plE; apply: rbindP => -[xs' el] elE [<-].
-    rewrite read_Ii read_i_syscall write_Ii write_i_syscall => hsub hvm1.
-    have := exec_syscall_truncate ho.
-    rewrite /get_syscall_sig /= => htvs.
-    have []:= make_prologueP plE (@SvP.MP.subset_refl X) _ hes hvm1; first by SvD.fsetdec.
-    move=> vmx [hpl hes' vm1_vmx].
-    have [] := make_epilogueP elE _ hw htvs (eq_onT hvm1 vm1_vmx); first by SvD.fsetdec.
-    move=> vm2 [s2' [hw' hel s2_svm2]]; exists vm2 => //.
-    rewrite esem_cat hpl /=.
-    have -> // : sem_syscall p' xs' o es' (with_vm s1 vmx) = ok s2'.
-    by rewrite /sem_syscall /fexec_syscall hes' /= ho.
+    case: o => len /=; rewrite /exec_syscall /=; t_xrbindP => len' hex.
+    case: get_random => [scs1 bytes]; t_xrbindP => a _ _ _ <-.
+    by rewrite /truncate_val /= WArray.castK.
   Qed.
 
   Section SEM.
@@ -652,11 +629,37 @@ Context
     symmetry; move : Hevms2; rewrite -read_esE; apply : read_es_eq_on.
   Qed.
 
+  Lemma sem_syscall_update_i s1 scs m s2 o xs es ves vs ii X c' vm1 :
+    sem_pexprs true (p_globs p) s1 es = ok ves →
+    exec_syscall (pT:=progUnit) (escs s1) (emem s1) o ves = ok (scs, m, vs) →
+    write_lvals true (p_globs p) (with_scs (with_mem s1 m) scs) xs vs = ok s2 →
+    update_i fresh_id p X (MkI ii (Csyscall xs o es)) = ok c' →
+    Sv.Subset (Sv.union (read_I (MkI ii (Csyscall xs o es))) (write_I (MkI ii (Csyscall xs o es)))) X →
+    evm s1 =[X] vm1 →
+    exists2 vm2 : Vm.t, evm s2 =[X] vm2 & sem p' ev (with_vm s1 vm1) c' (with_vm s2 vm2).
+  Proof.
+    move=> hes /= ho hw.
+    t_xrbindP => -[pl es'] plE; apply: rbindP => -[xs' el] elE [<-].
+    rewrite read_Ii read_i_syscall write_Ii write_i_syscall => hsub hvm1.
+    have := exec_syscall_truncate ho.
+    rewrite /get_syscall_sig /= => htvs.
+    have []:= make_prologueP plE (@SvP.MP.subset_refl X) _ hes hvm1; first by SvD.fsetdec.
+    move=> vmx [hpl hes' vm1_vmx].
+    have [] := make_epilogueP elE _ hw htvs (eq_onT hvm1 vm1_vmx); first by SvD.fsetdec.
+    move=> vm2 [s2' [hw' hel s2_svm2]]; exists vm2 => //.
+    apply: sem_app.
+    + by apply/esem_sem/hpl.
+    econstructor; last by apply/esem_sem/hel.
+    constructor; econstructor.
+    + by apply hes'.
+    + by apply ho.
+    by apply hw'.
+  Qed.
+
   Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.
   Proof.
     move=> s1 scs m s2 o xs es ves vs hes ho hw ii X c hup hsub vm1 heq.
-    have [vm2 ? /esem_sem ?]:= sem_syscall_update_i hes ho hw hup hsub heq.
-    by exists vm2.
+    apply (sem_syscall_update_i hes ho hw hup hsub heq).
   Qed.
 
   Lemma makeReferenceArguments_callP f scs mem scs' mem' va vr:
@@ -687,7 +690,7 @@ Context
 
   Section IT.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
 
   #[local] Lemma checker_st_eq_onP : Checker_eq p p' checker_st_eq_on.
   Proof. apply/checker_st_eq_onP/eq_globs. Qed.
@@ -763,12 +766,45 @@ Context
       apply wequiv_opn_esem => s1 s2 t /st_relP [-> /= heq] ho.
       have [vm2 ??] := sem_sopn_update_i ho hup hsub heq.
       by exists (with_vm t vm2).
-    + move=> xs sc es ii X c' hup hsub.
-      apply wequiv_syscall_esem => s1 s2 t /st_relP [-> /= heq].
-      rewrite /sem_syscall /fexec_syscall /mk_fstate / upd_estate; t_xrbindP.
-      move=> ? hes ? [[??]?] /= ho [<-] /= hw.
-      have [vm2 ??] := sem_syscall_update_i hes ho hw hup hsub heq.
-      by exists (with_vm t vm2).
+    + move=> xs sc es ii X c' /=.
+      t_xrbindP => -[pl es'] plE. apply: rbindP => -[xs' el] elE [<-].
+      rewrite read_Ii read_i_syscall write_Ii write_i_syscall => hsub.
+      set post :=
+         fun fr1 fr2 => fr1 = fr2 /\
+            mapM2 ErrType truncate_val [seq i.2 | i <- (get_syscall_sig sc).2] (fvals fr1) = ok (fvals fr2).
+      apply wequiv_syscall_esem with (st_eq_on X) eq post.
+      + move=> s t vs1 /st_relP [-> /= heqX] hes.
+        have [|]:= make_prologueP plE (@SvP.MP.subset_refl X) _ hes heqX; first by SvD.fsetdec.
+        move=> vm [hsem hes' heqX'].
+        exists (with_vm s vm), vs1; split => //.
+        by split => //=; apply : eq_onT heqX heqX'.
+      + move=> s1 s2 /st_relP [-> _] vs _ <-.
+        rewrite /fexec_syscall /=.
+        apply xrutt_facts.xrutt_bind with eq.
+        + by apply rutt_iresult => v1 ->; exists v1.
+        move=> len _ <-.
+        apply xrutt_facts.xrutt_bind with eq.
+        + apply xrutt.xrutt_Vis => /=.
+          + rewrite /EPreRel /Subevent.subevent /core_logics.sum_prerelF /= mid12 /=.
+            by apply rE0_rnd_pre_refl.
+          move=> t1 t2; rewrite /EPostRel /Subevent.subevent /core_logics.sum_postrelF /= mid12 /=.
+          rewrite /CategoryOps.resum => h.
+          have /(_ rndE0_refl) -> := rE0_rnd_post_refl h.
+          by apply xrutt.xrutt_Ret.
+        move=> r _ <-; rewrite /post.
+        case: (sc) => /= len1.
+        rewrite /exec_getrandom_store_u.
+        case: WArray.fill => [a | e] /=; last first.
+        + rewrite /= Eqit.bind_vis.
+          apply xrutt.xrutt_CutL => //.
+          by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
+        rewrite Eqit.bind_ret_l; apply xrutt.xrutt_Ret; split => //=.
+        by rewrite /truncate_val /= WArray.castK.
+      move=> s s' t fr _ /st_relP [-> heqX] [<- htr] hw.
+      have [|vm2 [s3] []] :=  make_epilogueP elE _ hw htr heqX.
+      + by SvD.fsetdec.
+      rewrite /upd_estate => -> hsem eq_s'_vm2 /=.
+      by exists s3, (with_vm s' vm2).
     + move=> e c1 c2 hc1 hc2 ii X c' /=; t_xrbindP.
       move=> c1' hc1' c2' hc2' <-; rewrite !read_writeE => hsub.
       apply wequiv_if_rel_eq with checker_st_eq_on X X X => //.
