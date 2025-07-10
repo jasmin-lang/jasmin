@@ -1977,56 +1977,6 @@ Notation EPost12 := (EPostRel (rE0 := rE12)).
 Notation EPost23 := (EPostRel (rE0 := rE23)).
 Notation EPost13 := (EPostRel (rE0 := rE13)).
 
-Notation wequiv_12 :=
-  (wequiv
-     (scP1 := scP1) (scP2 := scP2)
-     (dc1 := dc1) (dc2 := dc2)
-     (sem_F1 := sem_F1) (sem_F2 := sem_F2)
-     (rE0 := rE12)).
-Notation wequiv_23 :=
-  (wequiv
-     (scP1 := scP2) (scP2 := scP3)
-     (dc1 := dc2) (dc2 := dc3)
-     (sem_F1 := sem_F2) (sem_F2 := sem_F3)
-     (rE0 := rE23)).
-Notation wequiv_13 :=
-  (wequiv
-     (scP1 := scP1) (scP2 := scP3)
-     (dc1 := dc1) (dc2 := dc3)
-     (sem_F1 := sem_F1) (sem_F2 := sem_F3)
-     (rE0 := rE13)).
-
-Lemma wequiv_trans p1 p2 p3 ev1 ev2 ev3 c1 c2 c3 rpre12 rpre23 rpre13 rpost12
-  rpost23 rpost13 :
-   (forall s1 s3, rpre13 s1 s3 -> exists2 s2, rpre12 s1 s2 & rpre23 s2 s3) ->
-   (forall s1 s2 s3,  rpost12 s1 s2 -> rpost23 s2 s3 -> rpost13 s1 s3) ->
-   wequiv_12 p1 p2 ev1 ev2 rpre12 c1 c2 rpost12 ->
-   wequiv_23 p2 p3 ev2 ev3 rpre23 c2 c3 rpost23 ->
-   wequiv_13 p1 p3 ev1 ev3 rpre13 c1 c3 rpost13.
-Proof.
-  move=> hpre hpost h1 h2 s1 s3 hpre13.
-  have [s2 hpre12 hpre23] := hpre _ _ hpre13.
-  apply xrutt_weaken with
-    (errcutoff (is_error wE)) nocutoff (prcompose EPre12 EPre23)
-    (pocompose EPre12 EPre23 EPost12 EPost23)
-    (rcompose rpost12 rpost23) => //.
-  + move=> T1 T3 e1 e3 [T2 e2]; rewrite /EPreRel.
-    case: (mfun1 e1) (mfun1 e2) (mfun1 e3) => [err1 | e0_1] /= [err2 | e0_2] //= [err3 | e0_3] //.
-    apply ERpre_trans.
-  + move=> T1 T3 e1 t1 e3 t3. rewrite /errcutoff /nocutoff /is_error => herr _ _ hh.
-    move=> T2 e2; move: hh; rewrite /EPreRel /EPostRel.
-    case: (mfun1 e1) herr => //.
-    move=> e0_1 _. case: (mfun1 e2) => //= e0_2.
-    case: (mfun1 e3) => //= e0_3.
-    by move=> ???; apply ERpost_trans.
-  + move=> r1 r3 [r2]; apply hpost.
-  have := h2 _ _ hpre23; have := h1 _ _ hpre12.
-  apply xrutt_facts.xrutt_trans.
-  move=> T1 T2 e1 e2; rewrite /EPreRel.
-  case he1: (mfun1 e1); case he2: (mfun1 e2) => // _;
-    rewrite /errcutoff /is_error he1 he2; exact.
-Qed.
-
 Notation wiequiv_f12 :=
   (wiequiv_f
      (scP1 := scP1) (scP2 := scP2)
