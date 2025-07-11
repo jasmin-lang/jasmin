@@ -1,3 +1,6 @@
+(* This file incorporates work from the Interaction Trees
+library subject to the MIT license (see [`LICENSE.itrees`](LICENSE.itrees)). *)
+
 From Coq Require Import
   Program
   Setoid
@@ -160,4 +163,5 @@ Proof.
   }
 Qed.  
 
+End WithError1.
 
