@@ -535,13 +535,13 @@ let vars_retaddr ra =
 let collect_variables_in_prog
       ~(allvars: bool)
       (excluded: Sv.t)
-      (return_adresses: retaddr Hf.t)
+      (return_addresses: retaddr Hf.t)
       (all_reg: var list)
       (f: ('info, 'asm) func list) : int Hv.t * int =
   let fresh, total = make_counter () in
   let tbl : int Hv.t = Hv.create 97 in
   List.iter (fun f ->
-    let extra = vars_retaddr (Hf.find return_adresses f.f_name) in
+    let extra = vars_retaddr (Hf.find return_addresses f.f_name) in
     collect_variables_aux ~allvars excluded fresh tbl extra f) f;
   List.iter (collect_variables_cb ~allvars excluded fresh tbl) all_reg;
   tbl, total ()
