@@ -63,6 +63,7 @@ compiler/array_init_proof.v
 compiler/compiler_util.v
 compiler/compiler.v
 compiler/compiler_proof.v
+compiler/it_compiler_proof.v
 compiler/constant_prop.v
 compiler/constant_prop_proof.v
 compiler/dead_calls.v

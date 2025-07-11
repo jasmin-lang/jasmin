@@ -779,6 +779,9 @@ End ST_REL.
 
 Definition fs_uincl := fs_rel (List.Forall2 value_uincl).
 
+Lemma fs_uinclR fs : fs_uincl fs fs.
+Proof. split=> //; exact: values_uincl_refl. Qed.
+
 Lemma wequiv_syscall_uincl P Q ii1 xs1 sc1 es1 ii2 sc2 xs2 es2 :
   (forall s1 s2, P s1 s2 -> escs s1 = escs s2 /\ emem s1 = emem s2) ->
   wrequiv P (fun s => sem_pexprs true (p_globs p1) s es1)
@@ -1031,9 +1034,9 @@ Lemma wequiv_while_eq I I' ii1 al1 e1 inf1 c1 c1' ii2 al2 e2 inf2 c2 c2' :
 Proof. by move=> he; apply wequiv_while_uincl; apply: wrequiv_weaken he => // > <-. Qed.
 
 Lemma wequiv_while_unroll P Q ii1 al e1 inf1 c1 c1' c2 :
-  let w := [:: MkI ii1 (Cwhile al c1 e1 inf1 c1')] in
+  let: w := [:: MkI ii1 (Cwhile al c1 e1 inf1 c1') ] in
   wequiv P (c1 ++ [:: MkI ii1 (Cif e1 (c1' ++ w) [::])]) c2 Q ->
-  wequiv P [:: MkI ii1 (Cwhile al c1 e1 inf1 c1')] c2 Q.
+  wequiv P w c2 Q.
 Proof.
   by move=> /= h s1 s2 hP; rewrite isem_cmd_while; apply h.
 Qed.
@@ -1744,10 +1747,6 @@ End WEQUIV_WRITE.
 Notation sem_fun_full1 := (sem_fun_full (wsw:=wsw1) (dc:=dc1) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT1) (scP:= scP1)).
 Notation sem_fun_full2 := (sem_fun_full (wsw:=wsw2) (dc:=dc2) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT2) (scP:= scP2)).
 
-(*
-Notation wiequiv_f := (wequiv_f (sem_F1 := sem_fun_full1) (sem_F2 := sem_fun_full2)).
-Notation wiequiv   := (wequiv (sem_F1 := sem_fun_full1) (sem_F2 := sem_fun_full2)).
-*)
 Section WEQUIV_FUN.
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
@@ -1950,90 +1949,70 @@ Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  {asm_op: Type}
+  {asm_op : Type}
   {sip : SemInstrParams asm_op syscall_state}
   {pT1 pT2 pT3 : progT}
-  {wsw1 wsw2 wsw3: WithSubWord}
-  {scP1 : semCallParams (wsw:= wsw1) (pT := pT1)}
-  {scP2 : semCallParams (wsw:= wsw2) (pT := pT2)}
-  {scP3 : semCallParams (wsw:= wsw3) (pT := pT3)}
-  {dc1 dc2 dc3: DirectCall}.
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {wsw1 wsw2 wsw3 : WithSubWord}
+  {scP1 : semCallParams (wsw := wsw1) (pT := pT1)}
+  {scP2 : semCallParams (wsw := wsw2) (pT := pT2)}
+  {scP3 : semCallParams (wsw := wsw3) (pT := pT3)}
+  {dc1 dc2 dc3 : DirectCall}
+  {rE12 : EventRels E0} {rE23 : EventRels E0} {rE13 : EventRels E0}
+  {sem_F1 : sem_Fun (sip := sip) (pT := pT1) E}
+  {sem_F2 : sem_Fun (sip := sip) (pT := pT2) E}
+  {sem_F3 : sem_Fun (sip := sip) (pT := pT3) E}
+  {rE_trans : EventRels_trans rE12 rE23 rE13}
+.
 
 Notation prog1 := (prog (pT := pT1)).
 Notation prog2 := (prog (pT := pT2)).
 Notation prog3 := (prog (pT := pT3)).
 
-Notation extra_val_t1 := (@extra_val_t pT1).
-Notation extra_val_t2 := (@extra_val_t pT2).
-Notation extra_val_t3 := (@extra_val_t pT3).
+Notation EPre12 := (EPreRel (rE0 := rE12)).
+Notation EPre23 := (EPreRel (rE0 := rE23)).
+Notation EPre13 := (EPreRel (rE0 := rE13)).
+Notation EPost12 := (EPostRel (rE0 := rE12)).
+Notation EPost23 := (EPostRel (rE0 := rE23)).
+Notation EPost13 := (EPostRel (rE0 := rE13)).
 
-Notation vm1_t := (Vm.t (wsw:=wsw1)).
-Notation vm2_t := (Vm.t (wsw:=wsw2)).
-Notation vm3_t := (Vm.t (wsw:=wsw3)).
+Notation wiequiv_f12 :=
+  (wiequiv_f
+     (scP1 := scP1) (scP2 := scP2)
+     (dc1 := dc1) (dc2 := dc2)
+     (rE0 := rE12)).
+Notation wiequiv_f23 :=
+  (wiequiv_f
+     (scP1 := scP2) (scP2 := scP3)
+     (dc1 := dc2) (dc2 := dc3)
+     (rE0 := rE23)).
+Notation wiequiv_f13 :=
+  (wiequiv_f
+     (scP1 := scP1) (scP2 := scP3)
+     (dc1 := dc1) (dc2 := dc3)
+     (rE0 := rE13)).
 
-Notation estate1 := (estate (wsw:=wsw1) (ep:=ep)).
-Notation estate2 := (estate (wsw:=wsw2) (ep:=ep)).
-Notation estate3 := (estate (wsw:=wsw3) (ep:=ep)).
-
-Notation isem_fun1 := (isem_fun (wsw:=wsw1) (dc:=dc1) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT1) (scP:= scP1)).
-Notation isem_fun2 := (isem_fun (wsw:=wsw2) (dc:=dc2) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT2) (scP:= scP2)).
-Notation isem_fun3 := (isem_fun (wsw:=wsw3) (dc:=dc3) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT3) (scP:= scP3)).
-
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE12 rE23 rE13 : EventRels E0}.
-
-Context (rE_trans : EventRels_trans rE12 rE23 rE13).
-
-Lemma wiequiv_f_trans (p1 : prog1) (p2 : prog2) (p3 : prog3) ev1 ev2 ev3 fn1 fn2 fn3
-  rpreF12 rpreF23 rpreF13 rpostF12 rpostF23 rpostF13 :
-   (forall fs1 fs3, rpreF13 fn1 fn3 fs1 fs3 -> exists2 fs2, rpreF12 fn1 fn2 fs1 fs2 & rpreF23 fn2 fn3 fs2 fs3) ->
-   (forall fs1 fs2 fs3 r1 r3, rpreF12 fn1 fn2 fs1 fs2 -> rpreF23 fn2 fn3 fs2 fs3 ->
-     rcompose (rpostF12 fn1 fn2 fs1 fs2) (rpostF23 fn2 fn3 fs2 fs3) r1 r3 → rpostF13 fn1 fn3 fs1 fs3 r1 r3) ->
-   wiequiv_f (rE0:=rE12) p1 p2 ev1 ev2 rpreF12 fn1 fn2 rpostF12 ->
-   wiequiv_f (rE0:=rE23) p2 p3 ev2 ev3 rpreF23 fn2 fn3 rpostF23 ->
-   wiequiv_f (rE0:=rE13) p1 p3 ev1 ev3 rpreF13 fn1 fn3 rpostF13.
+Lemma wiequiv_f_trans p1 p2 p3 ev1 ev2 ev3 fn1 fn2 fn3 rpreF12 rpreF23 rpreF13
+  rpostF12 rpostF23 rpostF13 :
+  (forall fs1 fs3,
+      rpreF13 fn1 fn3 fs1 fs3 ->
+      exists2 fs2, rpreF12 fn1 fn2 fs1 fs2 & rpreF23 fn2 fn3 fs2 fs3) ->
+  (forall fs1 fs2 fs3 r1 r3,
+      rpreF12 fn1 fn2 fs1 fs2 ->
+      rpreF23 fn2 fn3 fs2 fs3 ->
+      rcompose (rpostF12 fn1 fn2 fs1 fs2) (rpostF23 fn2 fn3 fs2 fs3) r1 r3 ->
+      rpostF13 fn1 fn3 fs1 fs3 r1 r3) ->
+  wiequiv_f12 p1 p2 ev1 ev2 rpreF12 fn1 fn2 rpostF12 ->
+  wiequiv_f23 p2 p3 ev2 ev3 rpreF23 fn2 fn3 rpostF23 ->
+  wiequiv_f13 p1 p3 ev1 ev3 rpreF13 fn1 fn3 rpostF13.
 Proof.
   move=> hpre hpost h1 h2 fs1 fs3 hpre13.
   have [fs2 hpre12 hpre23] := hpre _ _ hpre13.
   apply xrutt_weaken with
-    (errcutoff (is_error wE)) nocutoff (prcompose (EPreRel (rE0:=rE12)) (EPreRel (rE0:=rE23)))
-    (pocompose (EPreRel (rE0:=rE12)) (EPreRel (rE0:=rE23)) (EPostRel (rE0:=rE12)) (EPostRel(rE0:=rE23)))
+    (errcutoff (is_error wE)) nocutoff (prcompose EPre12 EPre23)
+    (pocompose EPre12 EPre23 EPost12 EPost23)
     (rcompose (rpostF12 fn1 fn2 fs1 fs2) (rpostF23 fn2 fn3 fs2 fs3)) => //.
-  + move=> T1 T3 e1 e3 [T2 e2]; rewrite /EPreRel.
-    case: (mfun1 e1) (mfun1 e2) (mfun1 e3) => [err1 | e0_1] /= [err2 | e0_2] //= [err3 | e0_3] //.
-    by apply ERpre_trans.
-  + move=> T1 T3 e1 t1 e3 t3. rewrite /errcutoff /nocutoff /is_error => herr _ _ hh.
-    move=> T2 e2; move: hh; rewrite /EPreRel /EPostRel.
-    case: (mfun1 e1) herr => //.
-    move=> e0_1 _. case: (mfun1 e2) => //= e0_2.
-    case: (mfun1 e3) => //= e0_3.
-    by move=> ???; apply ERpost_trans.
-  + by move=> r1 r2; apply hpost.
-  have := h2 _ _ hpre23; have := h1 _ _ hpre12.
-  apply xrutt_facts.xrutt_trans.
-  move=> T1 T2 e1 e2; rewrite /EPreRel.
-  case he1: (mfun1 e1); case he2: (mfun1 e2) => // _;
-    rewrite /errcutoff /is_error he1 he2; exact.
-Qed.
-
-Notation sem_Fun1 := (sem_Fun (sip:=sip) (pT:=pT1) E).
-Notation sem_Fun2 := (sem_Fun (sip:=sip) (pT:=pT2) E).
-Notation sem_Fun3 := (sem_Fun (sip:=sip) (pT:=pT3) E).
-
-Lemma wequiv_trans (sem_F1 : sem_Fun1) (sem_F2 : sem_Fun2) (sem_F3: sem_Fun3)
-   (p1 : prog1) (p2 : prog2) (p3 : prog3) ev1 ev2 ev3 c1 c2 c3
-  rpre12 rpre23 rpre13 rpost12 rpost23 rpost13 :
-   (forall s1 s3, rpre13 s1 s3 → exists2 s2, rpre12 s1 s2 & rpre23 s2 s3) →
-   (forall s1 s2 s3,  rpost12 s1 s2 → rpost23 s2 s3 → rpost13 s1 s3) →
-   wequiv (sem_F1:= sem_F1) (sem_F2:= sem_F2) (rE0:=rE12) p1 p2 ev1 ev2 rpre12 c1 c2 rpost12 →
-   wequiv (sem_F1:= sem_F2) (sem_F2:= sem_F3) (rE0:=rE23) p2 p3 ev2 ev3 rpre23 c2 c3 rpost23 →
-   wequiv (sem_F1:= sem_F1) (sem_F2:= sem_F3) (rE0:=rE13) p1 p3 ev1 ev3 rpre13 c1 c3 rpost13.
-Proof.
-  move=> hpre hpost h1 h2 s1 s3 hpre13.
-  have [s2 hpre12 hpre23] := hpre _ _ hpre13.
-  apply xrutt_weaken with
-    (errcutoff (is_error wE)) nocutoff (prcompose (EPreRel (rE0:=rE12)) (EPreRel (rE0:=rE23)))
-    (pocompose (EPreRel (rE0:=rE12)) (EPreRel (rE0:=rE23)) (EPostRel (rE0:=rE12)) (EPostRel(rE0:=rE23)))
-    (rcompose rpost12 rpost23) => //.
   + move=> T1 T3 e1 e3 [T2 e2]; rewrite /EPreRel.
     case: (mfun1 e1) (mfun1 e2) (mfun1 e3) => [err1 | e0_1] /= [err2 | e0_2] //= [err3 | e0_3] //.
     apply ERpre_trans.
@@ -2043,12 +2022,16 @@ Proof.
     move=> e0_1 _. case: (mfun1 e2) => //= e0_2.
     case: (mfun1 e3) => //= e0_3.
     by move=> ???; apply ERpost_trans.
-  + move=> r1 r3 [r2]; apply hpost.
+  + by move=> r1 r2; apply hpost.
   have := h2 _ _ hpre23; have := h1 _ _ hpre12.
   apply xrutt_facts.xrutt_trans.
-  move=> T1 T2 e1 e2; rewrite /EPreRel.
-  case he1: (mfun1 e1); case he2: (mfun1 e2) => // _;
-    rewrite /errcutoff /is_error he1 he2; exact.
+  move=> T1 T2 e1 e2 /sum_prerelP h.
+  dependent destruction h => /=.
+  + by rewrite /errcutoff /= /is_error -x0.
+  by rewrite /errcutoff /is_error -x.
 Qed.
 
 End TRANSITIVITY.
+
+Notation pre_eq := (rpreF (eS := eq_spec)).
+Notation post_eq := (rpostF (eS := eq_spec)).

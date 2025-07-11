@@ -336,37 +336,8 @@ Proof. exists X29; exact: to_identK. Qed.
 (* ------------------------------------------------------------------------ *)
 (* Lowering hypotheses. *)
 
-Lemma riscv_lower_callP
-  { dc : DirectCall }
-  (pT : progT)
-  (sCP : semCallParams)
-  (p : prog)
-  (ev : extra_val_t)
-  (options : lowering_options)
-  (warning : instr_info -> warning_msg -> instr_info)
-  (fv : fresh_vars)
-  (_ : lop_fvars_correct riscv_loparams fv (p_funcs p))
-  (f : funname)
-  scs mem scs' mem'
-  (va vr : seq value) :
-  psem.sem_call p ev scs mem f va scs' mem' vr
-  -> let lprog :=
-       lowering.lower_prog
-         (lop_lower_i riscv_loparams)
-         options
-         warning
-         fv
-         p
-     in
-     psem.sem_call lprog ev scs mem f va scs' mem' vr.
-Proof.
-  exact: lower_callP.
-Qed.
-
-Definition riscv_hloparams { dc : DirectCall } : h_lowering_params (ap_lop riscv_params) :=
-  {|
-    hlop_lower_callP := riscv_lower_callP;
-  |}.
+Definition riscv_hloparams : h_lowering_params (ap_lop riscv_params).
+Proof. split=> *; [exact: lower_callP | exact: it_lower_callP]. Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* Lowering of complex addressing mode for RISC-V *)
@@ -376,7 +347,8 @@ Proof.
   split=> /=.
   + exact: (lower_addressing_prog_invariants (pT:=progStack)).
   + exact: (lower_addressing_fd_invariants (pT:=progStack)).
-  exact: (lower_addressing_progP (pT:=progStack)).
+  + exact: (lower_addressing_progP (pT:=progStack)).
+  by move=> > /(it_lower_addressing_progP (pT := progStack)).
 Qed.
 
 (* ------------------------------------------------------------------------ *)

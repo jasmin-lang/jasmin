@@ -355,36 +355,8 @@ Proof. exists LR; exact: to_identK. Qed.
 (* ------------------------------------------------------------------------ *)
 (* Lowering hypotheses. *)
 
-Lemma arm_lower_callP
-  (pT : progT)
-  (sCP : semCallParams)
-  (p : prog)
-  (ev : extra_val_t)
-  (options : lowering_options)
-  (warning : instr_info -> warning_msg -> instr_info)
-  (fv : fresh_vars)
-  (_ : lop_fvars_correct arm_loparams fv (p_funcs p))
-  (f : funname)
-  scs mem scs' mem'
-  (va vr : seq value) :
-  psem.sem_call p ev scs mem f va scs' mem' vr
-  -> let lprog :=
-       lowering.lower_prog
-         (lop_lower_i arm_loparams)
-         options
-         warning
-         fv
-         p
-     in
-     psem.sem_call lprog ev scs mem f va scs' mem' vr.
-Proof.
-  exact: lower_callP.
-Qed.
-
-Definition arm_hloparams : h_lowering_params (ap_lop arm_params) :=
-  {|
-    hlop_lower_callP := arm_lower_callP;
-  |}.
+Definition arm_hloparams : h_lowering_params (ap_lop arm_params).
+Proof. split=> *; [exact: lower_callP | exact: it_lower_callP]. Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* Lowering of complex addressing mode for RISC-V.
@@ -394,9 +366,9 @@ Lemma arm_hlaparams : h_lower_addressing_params (ap_lap arm_params).
 Proof.
   split=> /=.
   + by move=> _ ? _ [<-].
-  + move=> _ ? _ [<-] _ fd ->.
-    by exists fd.
-  by move=> _ ? _ [<-].
+  + move=> _ ? _ [<-] _ fd ->; by exists fd.
+  + by move=> _ ? _ [<-].
+  move=> ???? _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
 Qed.
 
 (* ------------------------------------------------------------------------ *)
