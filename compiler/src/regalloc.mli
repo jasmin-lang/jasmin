@@ -24,21 +24,27 @@ module type Regalloc = sig
 
   val subroutine_ra_by_stack : (unit, extended_op) func -> bool
 
-  (** Returns:
-    - the input function with variables turned into registers
-    - the set of killed registers (see note below)
-    - a free register in which the stack pointer can be saved; only when asked
-    - a free register for the return address; only for subroutines
+  val get_reg_oracle :
+    (('info, 'asm) func -> bool) ->
+    (var -> var) ->
+    (funname -> Sv.t) ->
+    retaddr ->
+    ('info, 'asm) func ->
+    reg_oracle_t
+  (** Extract from the outcome of register allocation the information that is
+      needed by stack-allocation. *)
 
-  Note: Export functions can freely use caller-saved registers: they are not
-  reported as killed. Subroutines report ALL killed registers.
-
-   *)
   val alloc_prog :
-    ((unit, extended_op) func -> 'a -> bool) ->
     retaddr Hf.t ->
     ('a * (unit, extended_op) func) list ->
-    ('a * reg_oracle_t * (unit, extended_op) func) list
+    (var -> var) * (funname -> Sv.t) * ('a * (unit, extended_op) func) list
+  (** Returns:
+      - the global renaming function
+      - the set of killed registers (see note below)
+      - the input function with variables turned into registers
+
+      Note: Export functions can freely use caller-saved registers: they are not
+      reported as killed. Subroutines report ALL killed registers. *)
 end
 
 module Regalloc (Arch : Arch_full.Arch) :

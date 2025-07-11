@@ -627,11 +627,15 @@ module type Regalloc = sig
 
   val subroutine_ra_by_stack : (unit, extended_op) func -> bool
 
+  val get_reg_oracle :
+    (('info, 'asm) func -> bool) ->
+    (var -> var) ->
+    (funname -> Sv.t) -> retaddr -> ('info, 'asm) func -> reg_oracle_t
+
   val alloc_prog :
-    ((unit, extended_op) func -> 'a -> bool) ->
     retaddr Hf.t ->
     ('a * (unit, extended_op) func) list ->
-    ('a * reg_oracle_t * (unit, extended_op) func) list
+    (var -> var) * (funname -> Sv.t) * ('a * (unit, extended_op) func) list
 end
 
 module Regalloc (Arch : Arch_full.Arch)
@@ -1041,7 +1045,6 @@ let post_process
   ~not_saved_stack
   ~stack_needed
   (subst: var -> var)
-  (live: Sv.t)
   ~(killed: funname -> Sv.t)
   (f: _ func) :
   Sv.t * var option =
@@ -1055,7 +1058,6 @@ let post_process
      end
   | Export _ ->
      begin
-       assert (Sv.is_empty live);
        let used_in_f = List.fold_left (fun s x -> Sv.add (subst x) s) killed_in_f f.f_args in
        let free_regs = Sv.diff allocatable_vars used_in_f in
        let to_save = Sv.inter callee_save_vars killed_in_f in
@@ -1383,47 +1385,55 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
   subst
   , killed
 
-let alloc_prog (has_stack: ('info, 'asm) func -> 'a -> bool) return_addresses (dfuncs: ('a * ('info, 'asm) func) list)
-    : ('a * reg_oracle_t * (unit, 'asm) func) list =
+let allocatable_vars = Sv.of_list Arch.allocatable_vars
+let callee_save_vars = Sv.of_list Arch.callee_save_vars
+let not_saved_stack = Sv.of_list (Arch.not_saved_stack @ Arch.callee_save_vars)
+
+let get_reg_oracle
+      (has_stack: ('info, 'asm) func -> bool)
+      subst
+      killed
+      return_address
+      f : reg_oracle_t =
+  let stack_needed = has_stack f in
+  let to_save, ro_rsp =
+    post_process
+      ~allocatable_vars
+      ~callee_save_vars
+      ~not_saved_stack
+      ~stack_needed
+      ~killed
+      subst
+      f in
+  let ro_return_address =
+    match return_address with
+    | StackDirect -> StackDirect
+    | StackByReg(ra_call, ra_return, tmp) ->
+       StackByReg (subst ra_call, Option.map subst ra_return, Option.map subst tmp)
+    | ByReg(r, tmp) -> ByReg (subst r, Option.map subst tmp) in
+  let ro_to_save = if FInfo.is_export f.f_cc then Sv.elements to_save else [] in
+  { ro_to_save ; ro_rsp ; ro_return_address }
+
+let alloc_prog return_addresses (dfuncs: ('a * ('info, 'asm) func) list)
+    : (var -> var) * _ * ('a * (unit, 'asm) func) list =
   (* Ensure that instruction locations are really unique,
      so that there is no confusion on the position of the “extra free register”. *)
   let dfuncs =
     List.map (fun (a,f) -> a, Prog.refresh_i_loc_f f) dfuncs in
 
   let extra : 'a Hf.t = Hf.create 17 in
-  let allocatable_vars = Sv.of_list Arch.allocatable_vars in
-  let callee_save_vars = Sv.of_list Arch.callee_save_vars in
-  let not_saved_stack =
-    Sv.of_list (Arch.not_saved_stack @ Arch.callee_save_vars)
-  in
 
   let funcs, get_liveness, subst, killed =
     dfuncs
     |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
     |> global_allocation return_addresses
   in
+  subst,
+  killed,
   funcs |>
   List.map (fun f ->
       let e = Hf.find extra f.f_name in
-      let stack_needed = has_stack f e in
-      let to_save, ro_rsp =
-         post_process
-          ~allocatable_vars
-          ~callee_save_vars
-          ~not_saved_stack
-          ~stack_needed
-          ~killed
-          subst
-          (get_liveness f.f_name)
-          f in
-      let ro_return_address =
-        match Hf.find return_addresses f.f_name with
-        | StackDirect -> StackDirect
-        | StackByReg(ra_call, ra_return, tmp) ->
-          StackByReg (subst ra_call, Option.map subst ra_return, Option.map subst tmp)
-        | ByReg(r, tmp) -> ByReg (subst r, Option.map subst tmp) in
-      let ro_to_save = if FInfo.is_export f.f_cc then Sv.elements to_save else [] in
-      e, { ro_to_save ; ro_rsp ; ro_return_address }, f
+      e, f
     )
 
 end
