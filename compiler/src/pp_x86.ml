@@ -193,7 +193,7 @@ module type X86AsmSyntax = sig
   val reg_pre         : string
   val indirect_pre    : string
 
-  val pp_adress       : wsize -> (register, 'a, 'b, 'c, 'd) Arch_decl.address -> string
+  val pp_address       : wsize -> (register, 'a, 'b, 'c, 'd) Arch_decl.address -> string
   val rev_args        : 'a list -> 'a list
   val pp_iname_ext    : wsize -> string
 
@@ -235,7 +235,7 @@ module ATTSyntax : X86AsmSyntax = struct
           Format.asprintf "%s(%s,%s,%s)" disp base off (pp_scale scal)
     end
 
-  let pp_adress _ws (addr : (_, _, _, _, _) Arch_decl.address) =
+  let pp_address _ws (addr : (_, _, _, _, _) Arch_decl.address) =
     match addr with
     | Areg ra -> pp_reg_address ra
     | Arip d ->
@@ -293,7 +293,7 @@ module IntelSyntax : X86AsmSyntax = struct
       | U128 -> "xmmword"
       | U256 -> "ymmword"
 
-  let pp_adress ws (addr : (_, _, _, _, _) Arch_decl.address) =
+  let pp_address ws (addr : (_, _, _, _, _) Arch_decl.address) =
     match addr with
     | Areg ra -> Format.asprintf "%s ptr[%s]" (pp_address_size ws) (pp_reg_address ra)
     | Arip d ->
@@ -342,7 +342,7 @@ and type asm_op = X86_instr_decl.x86_op
     | Imm(ws, w) -> pp_imm ((if ws = U8 then Conv.z_unsigned_of_word else Conv.z_of_word) ws w)
     | Reg r      -> pp_register ~reg_pre (rsize_of_wsize ws) r
     | Regx r     -> pp_register_ext ~reg_pre ws r
-    | Addr addr  -> pp_adress ws addr
+    | Addr addr  -> pp_address ws addr
     | XReg r     -> pp_xmm_register ~reg_pre ws r
 
   let pp_asm_args args = List.map pp_asm_arg (rev_args args)

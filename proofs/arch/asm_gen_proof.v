@@ -218,7 +218,7 @@ Lemma assemble_leaP rip ii sz sz' (w:word sz') lea adr m s:
   lom_eqv rip m s →
   sem_lea sz (evm m) lea = ok (zero_extend sz w) →
   assemble_lea ii lea = ok adr →
-  zero_extend sz (decode_addr s adr) = zero_extend sz w.
+  zero_extend sz (decode_reg_addr s adr) = zero_extend sz w.
 Proof.
   move=> hsz64 hsz lom hsem; rewrite /assemble_lea.
   t_xrbindP => ob hob oo hoo sc hsc <- /=.
@@ -238,20 +238,32 @@ Proof.
   by have [? [? [-> /word_uincl_truncate h2 /h2 /truncate_wordP []]]] := to_wordI h1.
 Qed.
 
+Lemma assemble_lea_checkedP rip ii sz sz' (w:word sz') pp_fe lea adr m s:
+  (sz ≤ Uptr)%CMP →
+  (sz ≤ sz')%CMP →
+  lom_eqv rip m s →
+  sem_lea sz (evm m) lea = ok (zero_extend sz w) →
+  assemble_lea_checked agparams ii pp_fe lea = ok adr →
+  zero_extend sz (decode_addr s adr) = zero_extend sz w.
+Proof.
+  move=> hsz64 hsz low hsem; rewrite /assemble_lea_checked.
+  t_xrbindP=> {}adr /map_errP ok_adr _ <- /=.
+  exact: (assemble_leaP hsz64 hsz low hsem ok_adr).
+Qed.
+
 Lemma addr_of_fexprP rip ii sz sz' (w: word sz') e adr m s:
   (sz ≤ sz')%CMP →
   lom_eqv rip m s →
   sem_fexpr m.(evm) e = ok (Vword w) ->
-  addr_of_fexpr rip ii sz e = ok adr ->
+  addr_of_fexpr agparams rip ii sz e = ok adr ->
   zero_extend sz (decode_addr s adr) = zero_extend sz w.
 Proof.
   rewrite /addr_of_fexpr => hsz lom he.
   t_xrbindP => hsz64.
   case heq: mk_lea_rec => [lea | //].
   assert (hsemlea := mk_lea_recP hsz64 hsz heq he).
-  case hb: lea_base => [b | ]; last by apply (assemble_leaP hsz64 hsz lom hsemlea).
-  case: eqP => [ | _]; first last.
-  - move=> /map_errP. exact: (assemble_leaP hsz64 hsz lom hsemlea).
+  case hb: lea_base => [b | ]; last by apply (assemble_lea_checkedP hsz64 hsz lom hsemlea).
+  case: eqP => [ | _]; last by apply (assemble_lea_checkedP hsz64 hsz lom hsemlea).
   t_xrbindP => hbrip.
   case ho: lea_offset => [ // | ] _ <- /=.
   move: hsemlea; rewrite /sem_lea ho hb /= hbrip (lom_rip _ lom) /= truncate_word_le //= => /ok_inj <-.
@@ -260,7 +272,7 @@ Qed.
 
 Lemma addr_of_xpexprP rip m s ii p r vp wp:
   lom_eqv rip m s →
-  addr_of_fexpr rip ii Uptr p = ok r ->
+  addr_of_fexpr agparams rip ii Uptr p = ok r ->
   sem_fexpr m.(evm) p = ok vp ->
   to_pointer vp = ok wp ->
   decode_addr s r = (wp)%R.
@@ -1241,7 +1253,7 @@ Qed.
 Lemma eval_assemble_word ii al sz e a s xs v :
   lom_eqv rip s xs
   -> is_not_app1 e
-  -> assemble_word_load rip ii al sz e = ok a
+  -> assemble_word_load agparams rip ii al sz e = ok a
   -> sem_rexpr s.(emem) s.(evm) e = ok v
   -> exists2 v',
        eval_asm_arg (AK_mem al) xs a (sword sz) = ok v'

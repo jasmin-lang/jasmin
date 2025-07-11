@@ -1,4 +1,5 @@
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
+From mathcomp Require Import ssralg.
 From mathcomp Require Import word_ssrZ.
 
 Require Import
@@ -227,9 +228,17 @@ Fixpoint assemble_cond ii (e : fexpr) : cexec condt :=
       Error (E.berror ii e "Can't assemble condition.")
   end.
 
+Definition is_valid_address (addr : reg_address) :=
+  match addr.(ad_disp) != 0%R, isSome addr.(ad_offset), addr.(ad_scale) != 0 with
+  | false, false, false => true
+  | true, false, false => true
+  | _, _, _ => false
+  end.
+
 Definition riscv_agparams : asm_gen_params :=
   {|
-    agp_assemble_cond := assemble_cond
+    agp_assemble_cond := assemble_cond;
+    agp_is_valid_address := is_valid_address;
   |}.
 
 (* ------------------------------------------------------------------------ *)

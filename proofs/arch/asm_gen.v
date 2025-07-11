@@ -150,14 +150,17 @@ Context `{asm_e : asm_extra} {call_conv: calling_convention}.
 
 Record asm_gen_params :=
   {
-    (* Assemble an expression into an architecture-specific condition. *)
     agp_assemble_cond : instr_info -> fexpr -> cexec cond_t;
+      (* Assemble an expression into an architecture-specific condition. *)
+    agp_is_valid_address : reg_address -> bool;
+      (* Checks whether the addressing mode is supported on the given arch. *)
   }.
 
 Context
   (agparams : asm_gen_params).
 
 Notation assemble_cond := (agp_assemble_cond agparams).
+Notation is_valid_address := (agp_is_valid_address agparams).
 
 (* -------------------------------------------------------------------- *)
 (* Compilation of fexprs *)
@@ -187,12 +190,30 @@ Definition assemble_lea ii lea :=
   Let base := reg_of_ovar ii lea.(lea_base) in
   Let offset := reg_of_ovar ii lea.(lea_offset) in
   Let scale := scale_of_z ii lea.(lea_scale) in
-  ok (Areg {|
+  ok {|
       ad_disp := wrepr Uptr lea.(lea_disp);
       ad_base := base;
       ad_scale := scale;
       ad_offset := offset
-    |}).
+    |}.
+
+Definition assemble_lea_checked ii (pp_fe : pp_error) lea :=
+  let mk_err err :=
+    let vbox :=
+      [::
+         pp_box [:: pp_s "Invalid address: "; pp_fe ];
+         pel_msg err
+      ]
+    in
+    with_pel_msg err (pp_vbox vbox)
+  in
+  Let addr := Result.map_err mk_err (assemble_lea ii lea) in
+  Let _ := assert (is_valid_address addr)
+                  (E.error ii (pp_vbox
+                    [:: pp_s "the address computation is too complex";
+                        pp_nobox [:: pp_s "  "; pp_fe];
+                        pp_s "an intermediate variable might be needed"]))
+  in ok (Areg addr).
 
 Let is_none {A: Type} (m: option A) : bool :=
       if m is None then true else false.
@@ -209,18 +230,9 @@ Definition addr_of_fexpr (rip: var) ii sz (e: fexpr) :=
                           (E.error ii (pp_box [::pp_s "Invalid global address :"; pp_fe e])) in
           ok (Arip (wrepr Uptr lea.(lea_disp)))
         else
-          let mk_err err :=
-            let vbox :=
-              [::
-                 pp_box [:: pp_s "Invalid address: "; pp_fe e ];
-                 pel_msg err
-              ]
-            in
-            with_pel_msg err (pp_vbox vbox)
-          in
-          Result.map_err mk_err (assemble_lea ii lea)
+          assemble_lea_checked ii (pp_fe e) lea
       | None =>
-        assemble_lea ii lea
+          assemble_lea_checked ii (pp_fe e) lea
       end
   | None => Error (E.error ii (pp_box [::pp_s "not able to assemble address :"; pp_fe e]))
   end.

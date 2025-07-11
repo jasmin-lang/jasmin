@@ -14,14 +14,14 @@ val pp_imm : string -> Z.t -> string
 val pp_rip_address : Obj.t -> string
 val pp_register : ('reg, _, _, _, _) Arch_decl.arch_decl -> 'reg -> string
 
-type parsed_reg_adress = {
+type parsed_reg_address = {
   base : string;
   displacement : string option;
   offset : string option;
   scale : string option;
 }
 
-val parse_reg_adress :
+val parse_reg_address :
   ('reg, _, _, _, _) Arch_decl.arch_decl ->
   ('reg, _, _, _, _) Arch_decl.reg_address ->
-  parsed_reg_adress
+  parsed_reg_address

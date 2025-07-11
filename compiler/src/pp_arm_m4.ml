@@ -50,7 +50,7 @@ let pp_imm = pp_imm imm_pre
 let pp_register = pp_register arch
 
 let pp_reg_address addr =
-  let addr = parse_reg_adress arch addr in
+  let addr = parse_reg_address arch addr in
   pp_reg_address_aux addr.base addr.displacement addr.offset addr.scale
 
 let pp_condt = hash_to_string string_of_condt
