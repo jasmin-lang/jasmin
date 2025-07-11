@@ -141,6 +141,8 @@ itrees/rutt_extras.v
 itrees/xrutt.v
 itrees/xrutt_facts.v
 
+itrees/exec_extras.v
+itrees/relaxed_xrutt.v
 itrees/tfam_iso.v
 itrees/inline_lemma.v
 itrees/inline_lemmaI2.v
