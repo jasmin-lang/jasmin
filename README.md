@@ -61,7 +61,7 @@ The definition of xrutt can be found in `itrees/xrutt.v`.
 - Theorem (4 Modular Verification) in the paper corresponds to lemmas
 `wequiv_fun_ind` in `/proof/lang/relational_logic.v`.
 
-- We will indicate le location of the rules from the paper :
+- In the following we indicate the locations of the Relational Hoare Logic rules from the paper:
 
  + rule SKIP in the paper corresponds to lemmas
  `wequiv_nil` in `/proof/lang/relational_logic.v`.
@@ -85,33 +85,35 @@ The definition of xrutt can be found in `itrees/xrutt.v`.
  + rule HOARE in the paper corresponds to lemmas
  `whoare_wequiv1` and `whoare_wequiv2` in `/proof/lang/relational_logic.v`.
 
+- The Hoare Logic rules are located in `/proof/lang/hoare_logic.v`.
+
 ## About Compiler pass proofs
 
-- Int Word: `proofs/compiler/wint_word.v`: compiler pass proof is in the IT sections
-- Array: ???????????????
+- Int Word: `proofs/compiler/wint_word_proof.v`: compiler pass proof is in the IT sections
+- Array Copy: `proofs/compiler/array_copy_proof.v`: compiler pass proof is in the IT sections
 - Array Initialization: `proofs/compiler/array_init_proof.v`: compiler pass proof is in the IT sections
 - Spilling: `proofs/compiler/lower_spill_proof.v`: compiler pass proof is in the IT sections
 - Inlining: `proofs/compiler/inline_proof.v`: compiler pass proof is in the IT sections
-- Function Pruning: ????????????????????
+- Function Pruning: `proofs/compiler/dead_calls_proof.v`: compiler pass proof is in the IT sections
 - Constant Propagation: `proofs/compiler/const_prop_proof.v`: compiler pass proof is in the IT sections
 - Dead Code Elimination: `proofs/compiler/dead_code_prooof.v`: compiler pass proof is in the IT sections
 - Unrolling: `proofs/compiler/unrolling_proof.v`: compiler pass proof is in the IT sections
 - Remove Array Initialization:
+  + `proofs/compiler/array_init_proof`: compiler pass proof is in the IT sections
+  + `proofs/compiler/array_expansion_proof`: compiler pass proof is in the IT sections
 - Reference Arguments: `proofs/compiler/makeReferenceArguments_proof.v`: compiler pass proof is in the IT sections
 - Register Array Expansion: `proofs/compiler/array_expansion_proof.v`: compiler pass proof is in the IT sections
 - Remove Globals: `proofs/compiler/remove_globals_proof.v`: compiler pass proof is in the IT sections
-- Load Immediates:
+- Load Immediates: `proofs/compiler/load_constant_in_cond.v`: compiler pass proof is in the IT sections
 - x86-64 Instruction Selection: `proofs/compiler/x86_lowering_proof.v`: compiler pass proof is in the IT sections
 - ARMv7 Instruction Selection : `proofs/compiler/arm_lowering_proof.v`: compiler pass proof is in the IT sections
 - RISC-V Instruction Selection: `proofs/compiler/riscv_lowering_proof.v`: compiler pass proof is in the IT sections
 - SLH Instruction Selection: `proofs/compiler/slh_lowering_proof.v`: compiler pass proof is in the IT sections
-- Inline Propagation:
-   + Lemma about Hanlder ??????????
-   + `proofs/compiler/inline_proof.v`: compiler pass proof is in the IT sections
+- Inline Propagation: `proofs/compiler/inline_proof.v`: compiler pass proof is in the IT sections
 - Stack Allocation:
    + `proofs/compiler/stack_alloc_proof_1.v`: compiler pass proof is in the IT sections
    + `proofs/compiler/stack_alloc_proof_2.v`: compiler pass proof is in the IT sections
-- Lower Addresses: ???????????????????????????
+- Lower Addresses: `proofs/compiler/riscv_lower_addressing_proof.v`: compiler pass proof is in the IT sections
 - Register Renaming: `proofs/compiler/allocation_proof.v`: compiler pass proof is in the IT sections
 
 
