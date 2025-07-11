@@ -264,9 +264,12 @@ Fixpoint assemble_cond_r ii (e : fexpr) : cexec condt :=
 Definition assemble_cond ii (e: fexpr) : cexec condt :=
   assemble_cond_r ii e.
 
+Definition is_valid_address (_ : reg_address) := true.
+
 Definition x86_agparams : asm_gen_params :=
   {|
     agp_assemble_cond := assemble_cond;
+    agp_is_valid_address := is_valid_address;
   |}.
 
 (* ------------------------------------------------------------------------ *)
