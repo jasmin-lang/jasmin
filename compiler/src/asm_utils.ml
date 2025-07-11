@@ -56,14 +56,14 @@ let pp_rip_address p : string =
 
 let pp_register arch = hash_to_string arch.toS_r.to_string
 
-type parsed_reg_adress = {
+type parsed_reg_address = {
   base : string;
   displacement : string option;
   offset : string option;
   scale : string option;
 }
 
-let parse_reg_adress (arch : ('a, 'b, 'c, 'd, 'e) arch_decl) addr =
+let parse_reg_address (arch : ('a, 'b, 'c, 'd, 'e) arch_decl) addr =
   match addr.ad_base with
   | None -> failwith (Format.asprintf "TODO_RISC: pp_reg_address")
   | Some r ->
