@@ -179,16 +179,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
     let return_addresses = Regalloc.create_return_addresses get_internal_size fds in
 
-    let fds =
-      Regalloc.alloc_prog
-        (fun _fd extra ->
-          match extra.Expr.sf_save_stack with
-          | Expr.SavedStackReg _ | Expr.SavedStackStk _ -> true
-          | Expr.SavedStackNone -> false)
-        return_addresses
-        fds
-    in
-    let fds = List.map (fun (y, _, x) -> (y, x)) fds in
+    let _subst, _killed, fds = Regalloc.alloc_prog return_addresses fds in
     let fds = List.map Conv.csfdef_of_fdef fds in
     fds
   in
