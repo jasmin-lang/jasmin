@@ -73,11 +73,13 @@ The definition of xrutt can be found in `itrees/xrutt.v`.
  `wequiv_if` in `/proof/lang/relational_logic.v`.
  + rule LOOP in the paper corresponds to lemmas
  `wequiv_while` in `/proof/lang/relational_logic.v`.
- + rule RAND ?????
+ + rule RAND in the paper corresponds to lemmas
+  `wequiv_syscall` in `/proof/lang/relational_logic.v`.
  + rule CALL in the paper corresponds to lemmas
  `wequiv_call` in `/proof/lang/relational_logic.v`.
- + rule CONSEQ ??????
- + rule TRANS ??????
+ + rule CONSEQ is inline in each rule.
+ + rule TRANS in the paper corresponds to lemmas
+ `wequiv_trans` in `/proof/lang/relational_logic.v`.
  + rule FRAME in the paper corresponds to lemmas
  `wequiv_write1` and `wequiv_write2` in `/proof/lang/relational_logic.v`.
  + rule HOARE in the paper corresponds to lemmas
@@ -104,8 +106,8 @@ The definition of xrutt can be found in `itrees/xrutt.v`.
 - RISC-V Instruction Selection: `proofs/compiler/riscv_lowering_proof.v`: compiler pass proof is in the IT sections
 - SLH Instruction Selection: `proofs/compiler/slh_lowering_proof.v`: compiler pass proof is in the IT sections
 - Inline Propagation:
-   Lemma about Hanlder ??????????
-   `proofs/compiler/inline_proof.v`: compiler pass proof is in the IT sections
+   + Lemma about Hanlder ??????????
+   + `proofs/compiler/inline_proof.v`: compiler pass proof is in the IT sections
 - Stack Allocation:
    + `proofs/compiler/stack_alloc_proof_1.v`: compiler pass proof is in the IT sections
    + `proofs/compiler/stack_alloc_proof_2.v`: compiler pass proof is in the IT sections
