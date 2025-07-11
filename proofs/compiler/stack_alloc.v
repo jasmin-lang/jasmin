@@ -1114,7 +1114,9 @@ Definition get_addr (x:var_i) dx tag vpk y ofs :=
   let oir := sap_mov_ofs saparams dx tag vpk y ofs in
   match oir with
   | None =>
-    let err_pp := pp_box [:: pp_s "cannot compute address"; pp_var x] in
+    let err_pp := pp_hov [:: pp_s "cannot compute address"; pp_var x;
+                             pp_s "the address computation in the right-hand side is too complex,";
+                             pp_s "an intermediate variable might be needed"] in
     Error (stk_error x err_pp)
   | Some ir =>
     ok ir
