@@ -1,0 +1,4 @@
+export fn main (reg ptr u64[1] r) -> reg u64 {
+  reg u64 res = r.[1];
+  return res;
+}
