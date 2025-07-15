@@ -28,6 +28,10 @@
 - More precise handling of `#POPCNT` in the safety checker
   ([PR #1197](https://github.com/jasmin-lang/jasmin/pull/1197)).
 
+- Programs with obvious out-of-bounds array accesses are rejected at
+  compile-time
+  ([PR #1132](https://github.com/jasmin-lang/jasmin/pull/1132)).
+
 # Jasmin 2025.06.0 — Nancy, 2025-06-18
 
 ## New features

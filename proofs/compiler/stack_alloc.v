@@ -985,6 +985,11 @@ Definition addr_from_vpk x (vpk:vptr_kind) :=
 
 Definition bad_arg_number := stk_ierror_no_var "invalid number of args".
 
+Definition not_trivially_incorrect aa ws ofs len :=
+  if expr.is_const ofs is Some i then
+    (0 <=? i * mk_scale aa ws)%Z && (i * mk_scale aa ws + wsize_size ws <=? len)%Z
+  else true.
+
 Fixpoint alloc_e (e:pexpr) ty :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ => ok e
@@ -1007,6 +1012,8 @@ Fixpoint alloc_e (e:pexpr) ty :=
 
   | Pget al aa ws x e1 =>
     let xv := x.(gv) in
+    Let _ := assert (not_trivially_incorrect aa ws e1 (size_of xv.(vtype)))
+                    (stk_error_no_var "this read is trivially out-of-bounds") in
     Let e1 := alloc_e e1 sint in
     Let vk := get_var_kind x in
     match vk with
@@ -1081,6 +1088,8 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
     end
 
   | Laset al aa ws x e1 =>
+    Let _ := assert (not_trivially_incorrect aa ws e1 (size_of x.(vtype)))
+                    (stk_error_no_var "this write is trivially out-of-bounds") in
     Let e1 := alloc_e rmap e1 sint in
     match get_local x with
     | None => Let _ := check_diff x in ok (rmap, Laset al aa ws x e1)
