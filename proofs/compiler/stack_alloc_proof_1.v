@@ -1506,7 +1506,7 @@ Section EXPR.
     + move=> al aa sz x e1 he1 ty e' v v2 he'; apply: on_arr_gvarP => n t htyx /= hget.
       t_xrbindP => i vi /he1{}he1 hvi w hw <- htr.
       exists (Vword w); split=> //.
-      move: he'; t_xrbindP => e1' /he1{he1}.
+      move: he'; t_xrbindP => _ e1' /he1{he1}.
       rewrite /truncate_val /= hvi /= => /(_ _ erefl) [] v' [] he1'.
       t_xrbindP=> i' hv' ?; subst i'.
       have h0 : sem_pexpr true [::] s' e1' >>= to_int = ok i.
@@ -3387,7 +3387,7 @@ Proof.
     move: hrmap2; rewrite /set_word.
     by t_xrbindP=> _ _ <-.
   + by t_xrbindP=> _ _ _ _ _ _ <- _.
-  t_xrbindP=> ??? x ?? _.
+  t_xrbindP=> ??? x ? _ ? _.
   case: get_local => [pk|]; last first.
   + by t_xrbindP=> _ <- _.
   t_xrbindP=> -[sr ?] /get_sub_region_statusP [hsr _].
@@ -3417,7 +3417,7 @@ Proof.
     apply wfr_VARS_STATUS_set_word_status => //.
     by apply (hvarsz _ _ hsr).
   + by t_xrbindP=> _ _ _ _ _ _ <- _.
-  t_xrbindP=> ??? x ?? _.
+  t_xrbindP=> ??? x ? _ ? _.
   case: get_local => [pk|]; last first.
   + by t_xrbindP=> _ <- _.
   t_xrbindP=> -[sr _] /get_sub_region_statusP [hsr ->].
@@ -3535,7 +3535,7 @@ Proof.
     by rewrite -(ss_top_stack (Memory.write_mem_stable hmem2)).
 
   (* Laset *)
-  move=> al aa ws x e1 /=; t_xrbindP => e1' /(alloc_eP hvs) he1.
+  move=> al aa ws x e1 /=; t_xrbindP => _ e1' /(alloc_eP hvs) he1.
   move=> hr2 s1'; apply: on_arr_varP => n t hty hxt.
   t_xrbindP => i1 v1 /he1 he1' hi1 w hvw t' htt' /write_varP [? hdb htr]; subst s1'.
   have {}he1 : sem_pexpr true [::] s2 e1' >>= to_int = ok i1.
