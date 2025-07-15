@@ -19,6 +19,8 @@ myst_enable_extensions = ["colon_fence"]
 
 graphviz_output_format = "svg"
 
+highlight_language = 'none'
+
 # templates_path = ['_templates']
 # exclude_patterns = []
 
