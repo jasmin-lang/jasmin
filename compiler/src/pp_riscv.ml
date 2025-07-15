@@ -28,6 +28,7 @@ let pp_reg_address_aux base disp off scal =
       hierror
       ~loc:Lnone
       ~kind:"assembly printing"
+      ~internal:true
       "the address computation is too complex: an intermediate variable might be needed"
 
 let pp_imm = pp_imm imm_pre
