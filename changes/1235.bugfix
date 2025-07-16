@@ -1,0 +1,3 @@
+Enable machine word rotation at any size
+([PR #1235](https://github.com/jasmin-lang/jasmin/pull/1235));
+fixes [#854](https://github.com/jasmin-lang/jasmin/issues/854)).

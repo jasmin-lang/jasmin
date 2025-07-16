@@ -1,0 +1,25 @@
+[tool.towncrier]
+name = "Jasmin"
+directory = "changes"
+filename = "CHANGELOG.md"
+template = "changes/template.md"
+
+[[tool.towncrier.type]]
+name = "New features"
+directory = "feature"
+showcontent = true
+
+[[tool.towncrier.type]]
+name = "Bug fixes"
+directory = "bugfix"
+showcontent = true
+
+[[tool.towncrier.type]]
+name = "Other changes"
+directory = "other"
+showcontent = true
+
+[[tool.towncrier.type]]
+name = "Documentation"
+directory = "doc"
+showcontent = true
