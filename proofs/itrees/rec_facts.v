@@ -3,6 +3,11 @@
     [mrec] and [rec] are special cases of [interp], using [mrecursive] and
     [recursive] as handlers.
  *)
+(* This file is an extension of an original proof by Li-yao Xia.
+   The original does not account for the conditional application,
+   but the proof remains essentially the same.
+   Many thanks to Li-yao Xia for its foundational work.
+*)
 Require Import Paco.paco.
 From Coq Require Import
      Program.Tactics
