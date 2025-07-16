@@ -1,0 +1,11 @@
+fn foo(reg u64 x y) -> reg u64 {
+    [x] = 0;
+    return y;
+}
+
+export
+fn dummy(reg u64 p) -> reg u64 {
+  p = p;
+  _ = foo(p, p);
+  return p;
+}
