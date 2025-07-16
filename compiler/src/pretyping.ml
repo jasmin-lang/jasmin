@@ -893,7 +893,7 @@ let mk_logic_info eop =
 
 let mk_rot_info eop =
   { opi_op = mk_logic_ws eop;
-    opi_wcmp = {intok = false; wintok = false}, cmp_8_64;
+    opi_wcmp = {intok = false; wintok = false}, cmp_8_256;
     opi_vcmp = None; }
 
 (* -------------------------------------------------------------------- *)

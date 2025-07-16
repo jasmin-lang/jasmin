@@ -20,6 +20,10 @@
 - Ensure that `#MOVEMASK` can be used with 32-bit l-values
   ([PR #1211](https://github.com/jasmin-lang/jasmin/pull/1211)).
 
+- Enable machine word rotation at any size
+  ([PR #1235](https://github.com/jasmin-lang/jasmin/pull/1235));
+  fixes [#854](https://github.com/jasmin-lang/jasmin/issues/854)).
+
 ## Other changes
 
 - The deprecated x86 intrinsic `#VPBLENDVB` has been removed
