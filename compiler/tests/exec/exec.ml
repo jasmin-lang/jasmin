@@ -63,3 +63,7 @@ let () =
 let () =
   let prog = load_file "../success/x86-64/test_global_string_literal.jazz" in
   exec prog [] "main" []
+
+let () =
+  let prog = load_file "wide_rotation.jazz" in
+  exec prog [] "main" []
