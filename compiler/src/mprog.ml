@@ -3,7 +3,7 @@ open Prog
 type modulename = Name.t
 
 type 'len modulearg =
-  | MaParam of 'len
+  | MaParam of 'len gexpr
   | MaGlob  of 'len gvar_i
   | MaFun   of funname
 

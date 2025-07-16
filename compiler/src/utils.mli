@@ -161,7 +161,8 @@ type warning =
   | InlinedCallToExport
   | KeptRenaming
   | SimplifyVectorSuffix
-  | DuplicateVar 
+  | DuplicateVar
+  | DuplicateFun
   | UnusedVar 
   | NeqSizeExpr
   | SCTchecker
