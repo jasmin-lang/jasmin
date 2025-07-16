@@ -1,5 +1,3 @@
-# [unreleased]
-
 # Jasmin 2025.06.1 — Nancy, 2025-08-29
 
 ## New features
