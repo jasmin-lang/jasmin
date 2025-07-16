@@ -1,3 +1,4 @@
+
 (* -------------------------------------------------------------------- *)
 open Utils
 module Path = BatPathGen.OfString
@@ -427,6 +428,11 @@ end *) = struct
   let err_duplicate_fun name (v, _) (fd, _) =
     rs_tyerror ~loc:v.f_loc (DuplicateFun(name, fd.f_loc))
 
+  let warn_duplicate_fun name (v, _) (v', _) =
+    warning DuplicateFun (L.i_loc0 v'.f_loc)
+      "the function %s hides previous declaration at %a"
+      name L.pp_loc v'.f_loc
+
   let err_duplicate_type name t1 t2 =
     rs_tyerror ~loc:(L.loc t2) (DuplicateAlias (name,t1,t2))
 
@@ -436,7 +442,7 @@ end *) = struct
 
   let merge_bindings (ns, src) dst =
     { gb_vars = merge_bindings warn_duplicate_var ns src.gb_vars dst.gb_vars
-    ; gb_funs = merge_bindings err_duplicate_fun ns src.gb_funs dst.gb_funs
+    ; gb_funs = merge_bindings warn_duplicate_fun ns src.gb_funs dst.gb_funs
     ; gb_types = merge_bindings err_duplicate_type ns src.gb_types dst.gb_types
     ; gb_modules = merge_bindings err_duplicate_module ns src.gb_modules dst.gb_modules
     }
@@ -622,12 +628,19 @@ end *) = struct
       let name = x.P.v_name
       in let x = rename_var (fully_qualified (fst st.s_bindings) name) x
       in push_core st name x Sglob
-
+(*
+    let push_param' st (x, e, enorm) =
+      let st = push_core st x.P.v_name x Slocal
+      in let st = { st with s_params = Map.add x enorm st.s_params }
+      in st, [P.MIparam (x, e)]
+*)
     let push_param st (x, e, enorm) =
       let name = x.P.v_name
       in let x = rename_var (fully_qualified (fst st.s_bindings) name) x
       in let st = push_core st name x Slocal
-      in let st = { st with s_params = Map.add x enorm st.s_params }
+      in if !Glob_options.debug
+      then (Printf.eprintf "\npush_param %s (%s)\n" name x.P.v_name);
+      let st = { st with s_params = Map.add x enorm st.s_params }
       in st, [P.MIparam (x, e)]
 
     let push_modp_param st loc x =
@@ -733,21 +746,21 @@ end *) = struct
       let name = v.P.f_name.P.fn_name
       in let v = { v with f_name = P.F.mk (fully_qualified (fst st.s_bindings) name) }
       in let vsig = pfunc_to_pfuncsig v
-      in match find name st with
-      | None ->
-         let doit m =
-           { m with gb_funs = Map.add name (vsig, rty) m.gb_funs }
-         in
-         let s_bindings =
-           match st.s_bindings with
-           | [], bot -> [], doit bot
-           | (_, _, true) :: _, _ -> assert false 	(* opened namespaces are readonly *)
-           | (ns, top, false) :: stack, bot ->
-              (ns, doit top, false) :: stack, bot
+      in begin match find name st with
+        | Some fd ->
+          warn_duplicate_fun name (vsig, ()) fd
+        | None -> ()
+      end;
+      let doit m =
+        { m with gb_funs = Map.add name (vsig, rty) m.gb_funs }
       in
-      { st with s_bindings }, [P.MIfun v]
-      | Some fd ->
-         err_duplicate_fun name (vsig, ()) fd
+      let s_bindings =
+        match st.s_bindings with
+        | [], bot -> [], doit bot
+        | (_, _, true) :: _, _ -> assert false 	(* opened namespaces are readonly *)
+        | (ns, top, false) :: stack, bot ->
+          (ns, doit top, false) :: stack, bot
+      in { st with s_bindings }, [P.MIfun v]
 
     let push_modp_fun st (v : 'asm pfuncsig) =
       let name = v.f_name.P.fn_name
@@ -872,8 +885,8 @@ type tt_mode = [
 
 let tt_var_core (mode:tt_mode) (st : 'asm Env.store) { L.pl_desc = x; L.pl_loc = lc; } = 
   let v, _ as vs =
-(*    if !Glob_options.debug
-    then Printf.eprintf "lookup var \"%s\" \n%!" x; *)
+    if !Glob_options.debug
+    then Printf.eprintf "lookup var \"%s\" \n%!" x; 
     match Env.Vars.find x st with
     | Some vs -> 
       vs
@@ -902,7 +915,10 @@ let tt_var_global (mode:tt_mode) (st : 'asm Env.store) v =
   let x, s = tt_var_core mode st v in
   let xval =
     match mode with
-    | `OnlyParam -> Some (Map.find x st.s_params) (* remark: x \in map when "tt_var_core `OnlyParam ..." *)
+    | `OnlyParam ->
+      if !Glob_options.debug
+      then (Printf.eprintf "\nlookup param value for %s\n" x.P.v_name);
+      Some (Map.find x st.s_params) (* remark: x \in map when "tt_var_core `OnlyParam ..." *)
     | _ -> None
   in { P.gv = L.mk_loc lc x; P.gs = s }, x.P.v_ty, xval
 
@@ -1645,6 +1661,8 @@ let tt_vardecls_push dfl_writable pd (st : 'asm Env.store) pxs =
 
 (* -------------------------------------------------------------------- *)
 let tt_param pd _loc (pp : S.pparam) (st : 'asm Env.store) =
+  if !Glob_options.debug
+  then Printf.eprintf "\nparam decl: (%s)\n%!" (L.unloc pp.ppa_name);
   let ty = tt_type pd st pp.ppa_ty in
   let pe,ety,p = tt_expr ~mode:`OnlyParam pd st pp.S.ppa_init in
   let p = match p with
