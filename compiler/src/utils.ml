@@ -418,7 +418,8 @@ type warning =
   | IntroduceNone 
   | IntroduceArrayCopy
   | SimplifyVectorSuffix
-  | DuplicateVar 
+  | DuplicateVar
+  | DuplicateFun
   | UnusedVar 
   | NeqSizeExpr
   | SCTchecker
