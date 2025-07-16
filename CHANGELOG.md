@@ -1,37 +1,3 @@
-# [unreleased]
-
-## New features
-
-- Add support for the MMX/SSE instruction `PADD`
-  ([PR #1196](https://github.com/jasmin-lang/jasmin/pull/1196)).
-
-## Bug fixes
-
-- Linter : More precise diagnostics
-  ([PR #1199](https://github.com/jasmin-lang/jasmin/pull/1199)).
-
-- Consider LHS array variables as assigned
-  ([PR #1214](https://github.com/jasmin-lang/jasmin/pull/1214)).
-
-- Fix SCT check of `for` loops
-  ([PR #1219](https://github.com/jasmin-lang/jasmin/pull/1219));
-  fixes [#1218](https://github.com/jasmin-lang/jasmin/issues/1218)).
-
-- Ensure that `#MOVEMASK` can be used with 32-bit l-values
-  ([PR #1211](https://github.com/jasmin-lang/jasmin/pull/1211)).
-
-- Enable machine word rotation at any size
-  ([PR #1235](https://github.com/jasmin-lang/jasmin/pull/1235));
-  fixes [#854](https://github.com/jasmin-lang/jasmin/issues/854)).
-
-## Other changes
-
-- The deprecated x86 intrinsic `#VPBLENDVB` has been removed
-  ([PR #1208](https://github.com/jasmin-lang/jasmin/pull/1208)).
-
-- More precise handling of `#POPCNT` in the safety checker
-  ([PR #1197](https://github.com/jasmin-lang/jasmin/pull/1197)).
-
 # Jasmin 2025.06.0 — Nancy, 2025-06-18
 
 ## New features

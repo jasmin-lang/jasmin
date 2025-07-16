@@ -1,0 +1,3 @@
+Fix SCT check of `for` loops
+([PR #1219](https://github.com/jasmin-lang/jasmin/pull/1219));
+fixes [#1218](https://github.com/jasmin-lang/jasmin/issues/1218)).
