@@ -473,6 +473,9 @@ let collect_conflicts pd reg_size asmOp
   and collect_instr c { i_desc ; i_loc ; i_info } =
     collect_instr_r (add c (Lmore i_loc) i_info) i_desc
   and collect_stmt c s = List.fold_left collect_instr c s in
+  (* function arguments do conflict with each other, even if they are not live *)
+  let args = Sv.of_list f.f_args in
+  let c = conflicts_in args (add_one Lnone) c in
   collect_stmt c f.f_body
 
 let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =

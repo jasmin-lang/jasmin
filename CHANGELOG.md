@@ -24,6 +24,10 @@
   ([PR #1235](https://github.com/jasmin-lang/jasmin/pull/1235));
   fixes [#854](https://github.com/jasmin-lang/jasmin/issues/854)).
 
+- Fix register allocation of dead function arguments
+  ([PR #1234](https://github.com/jasmin-lang/jasmin/pull/1234));
+  fixes [#426](https://github.com/jasmin-lang/jasmin/issues/426)).
+
 ## Other changes
 
 - The deprecated x86 intrinsic `#VPBLENDVB` has been removed
