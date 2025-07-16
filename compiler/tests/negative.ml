@@ -75,7 +75,7 @@ let check_file_on_arch path errors arch =
   printf "%s:\n@." path;
   try
     (try
-       let _,_, pprog = Compile.parse_file Arch.arch_info path in
+       let _,_, pprog,_ = Compile.parse_file Arch.arch_info path in
        let prog = Compile.preprocess Arch.pointer_data Arch.msf_size Arch.asmOp pprog in
        let cprog = Conv.cuprog_of_prog prog in
        let visit_prog_after_pass ~debug:_ _ _ = () in

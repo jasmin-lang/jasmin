@@ -432,7 +432,7 @@ let rec pp_gmitem ~debug rr pp_len pp_opn pp_var fmt =
   | MdModApp fa ->
     F.fprintf fmt "@[<v>module %s = %s @[%a@]; @]"
       fa.ma_name fa.ma_func
-      (pp_gmargs pp_var pp_len) fa.ma_args
+      (pp_gmargs pp_var (pp_ge ~debug pp_len pp_var)) fa.ma_args
 
 and pp_gmprog ~debug rr pp_len pp_opn pp_var fmt p =
   let p = if rr then List.rev p else p in

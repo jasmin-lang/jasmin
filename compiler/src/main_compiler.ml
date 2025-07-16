@@ -99,7 +99,7 @@ let main () =
           hierror ~loc:(Lone loc) ~kind:"parse error" "%s" msg
     in
 
-    eprint Compiler.MJazzProc (Printer.pp_mpprog Arch.reg_size Arch.asmOp) mprog;
+    eprint Compiler.MJazzProc (Printer.pp_mpprog Arch.reg_size Arch.msf_size Arch.asmOp) mprog;
 
     if !print_dependencies then begin
       Format.printf "%a"

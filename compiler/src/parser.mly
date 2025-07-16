@@ -537,6 +537,7 @@ prequire1:
 from:
 | FROM id=nonqual_ident { id }
 
+prequire:
 | f=from? REQUIRE x=nonempty_list(prequire1)
    { f, x }
 
