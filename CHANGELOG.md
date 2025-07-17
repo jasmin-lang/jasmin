@@ -28,6 +28,9 @@
   ([PR #1234](https://github.com/jasmin-lang/jasmin/pull/1234));
   fixes [#426](https://github.com/jasmin-lang/jasmin/issues/426)).
 
+- Safety checker handles x86 instructions with zero-extension
+  ([PR #1240](https://github.com/jasmin-lang/jasmin/pull/1240)).
+
 ## Other changes
 
 - The deprecated x86 intrinsic `#VPBLENDVB` has been removed
