@@ -151,12 +151,12 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
          | Exact ->
              if (fst c.range + i) land (size_of_ws ws - 1) <> 0 then
             hierror ~loc:(Lone (L.loc x.gv)) "bad range alignment for %a[%d]/%s in %a"
-              (Printer.pp_var ~debug:true) x' i (string_of_ws ws)
+              (Printer.pp_var ~debug:false) x' i (string_of_ws ws)
               Alias.pp_slice c
          | Sub ws' ->
              if not (wsize_le ws ws') then
                hierror ~loc:(Lone (L.loc x.gv)) "bad alignment for var %a: %a (expected: %a)"
-                 (Printer.pp_var ~debug:true) x' PrintCommon.pp_wsize ws' PrintCommon.pp_wsize ws
+                 (Printer.pp_var ~debug:false) x' PrintCommon.pp_wsize ws' PrintCommon.pp_wsize ws
       end
     else set al x' E.Sglob ws in
 
