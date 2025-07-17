@@ -9,6 +9,10 @@ module IntMap = Mint
 let hierror = hierror ~kind:"compilation error"
 let hierror_reg = hierror ~sub_kind:"register allocation"
 
+let debug () = !Glob_options.debug || !Glob_options.verbosity > 0
+
+let pp_var fmt = Printer.pp_var fmt ~debug:(debug())
+
 let make_counter () =
   let count = ref 0 in
   (fun () ->
@@ -109,8 +113,8 @@ let asm_equality_constraints ~loc pd reg_size asmOp is_move_op (int_of_var: var_
     let x = L.unloc x and y = L.unloc y in
     if types_cannot_conflict reg_size x.v_kind x.v_ty y.v_kind y.v_ty then
       hierror_reg ~loc "Variables %a and %a must be merged due to architectural constraints but must be allocated to incompatible banks “%s” and “%s” (respectively)"
-        (Printer.pp_var ~debug:true) x
-        (Printer.pp_var ~debug:true) y
+        pp_var x
+        pp_var y
         (string_of_kind (kind_of_type reg_size x.v_kind x.v_ty))
         (string_of_kind (kind_of_type reg_size y.v_kind y.v_ty))
   in
@@ -146,7 +150,7 @@ let pp_trace pd asmOp (i: int) fmt (tr: ('info, 'asm) trace) =
   match Hashtbl.find tr i with
   | exception Not_found -> ()
   | j ->
-  let pp_i_noloc = Printer.pp_instr ~debug:true pd asmOp in
+  let pp_i_noloc = Printer.pp_instr ~debug:(debug()) pd asmOp in
   let pp_i fmt i =
     Format.fprintf fmt "@[<v>at %a:@;<1 2>%a@]"
       L.pp_iloc i.i_loc
@@ -317,9 +321,10 @@ let collect_equality_constraints_in_func
       | [] -> addv ii x y
       | warnings ->
          let warnings = List.filter (fun ii -> not L.(isdummy ii.base_loc)) warnings in
-         let pv = Printer.pp_var ~debug:true in
          warning KeptRenaming ii.i_loc
-           "Cannot elide renaming of %a to %a due to the following assignment%s:%a" pv (L.unloc y) pv (L.unloc x)
+           "Cannot elide renaming of %a to %a due to the following assignment%s:%a"
+           pp_var (L.unloc y)
+           pp_var (L.unloc x)
            (match warnings with [ _ ] -> "" | _ -> "s")
            (pp_list "\n" Location.pp_iloc) warnings
     ) renames
@@ -416,8 +421,8 @@ let conflicts_add_one pd reg_size asmOp tbl tr loc (v: var) (w: var) (c: conflic
     let i = Hv.find tbl v in
     let j = Hv.find tbl w in
     if i = j then hierror_reg ~loc:loc "conflicting variables “%a” and “%a” must be merged due to:@;<1 2>%a"
-                    (Printer.pp_var ~debug:true) v
-                    (Printer.pp_var ~debug:true) w
+                    pp_var v
+                    pp_var w
                     (pp_trace pd asmOp i) tr;
     if types_cannot_conflict reg_size v.v_kind v.v_ty w.v_kind w.v_ty then c else
     c |> add_conflicts i j |> add_conflicts j i
@@ -587,25 +592,23 @@ let allocate_one nv vars loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.a
   match A.find x a with
   | Some r' when r' = r -> ()
   | Some r' ->
-     let pv = Printer.pp_var ~debug:true in
      hierror_reg ~loc:(Lmore loc) "cannot allocate %a into %a, the variable is already allocated in %a"
-       pv x_
-       pv r
-       pv r'
+       pp_var x_
+       pp_var r
+       pp_var r'
 
   | None ->
      let c = get_conflict_set x cnf a r in
      if IntSet.is_empty c
      then A.set x r a
      else
-       let pv = Printer.pp_var ~debug:true in
        let regs = reverse_classes nv vars in
        let other = IntSet.fold (fun i -> Sv.union regs.(i)) c Sv.empty |> Sv.elements in
        hierror_reg ~loc:(Lmore loc) "variable %a must be allocated to register %a due to architectural constraints; this register already holds conflicting variable%s: %a"
-         pv x_
+         pp_var x_
          (Printer.pp_var ~debug:false) r
          (match other with [ _ ] -> "" | _ -> "s")
-         (pp_list "; " pv)
+         (pp_list "; " pp_var)
          other
 
 type reg_oracle_t = {
@@ -760,9 +763,9 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
                 let ctxt = "large " ^ ctxt in
                 let d, xs = split ~ctxt ~num:num_xs xs in d, rs, xs
             | Extra ->
-               hierror_reg ~loc:(Lmore loc) "unexpected extra register %a" (Printer.pp_var ~debug:true) p
+               hierror_reg ~loc:(Lmore loc) "unexpected extra register %a" pp_var p
             | Flag ->
-               hierror_reg ~loc:(Lmore loc) "unexpected flag register %a" (Printer.pp_var ~debug:true) p
+               hierror_reg ~loc:(Lmore loc) "unexpected flag register %a" pp_var p
             | Unknown ty ->
               hierror_reg ~loc:(Lmore loc) "unknown type %a for forced register %a"
                 PrintCommon.pp_ty ty (Printer.pp_var ~debug:true) p
@@ -909,7 +912,7 @@ let two_phase_coloring
   | i :: _, [] ->
       let x = List.hd (Hashtbl.find variables i) in
       hierror_reg ~loc:Lnone "unable to allocate %a: bank “%s” is empty on this architecture"
-        (Printer.pp_dvar ~debug:true) x
+        (Printer.pp_dvar ~debug:(debug())) x
         (string_of_kind (kind_of_type Arch.reg_size x.v_kind x.v_ty))
   | _, _ -> ()
   end;
@@ -917,6 +920,7 @@ let two_phase_coloring
       let has_no_conflict v = does_not_conflict i cnf a v in
       match List.filter has_no_conflict registers with
       | [] ->
+         if !Glob_options.verbosity > 0 then
          let pv = Printer.pp_dvar ~debug:true in
          let ppvl fmt = List.iter @@ Format.fprintf fmt "\n    %a" pv in
          let pp_conflicts fmt c =
@@ -941,6 +945,7 @@ let two_phase_coloring
          hierror_reg ~loc:Lnone "no more free register to allocate variable:%a\nConflicts with:\n%a"
            ppvl (Hashtbl.find variables i)
            pp_conflicts c
+         else hierror_reg ~loc:Lnone "cannot solve the register allocation problem."
       | x :: regs ->
         (* Any register in [x; regs] is valid: the choice made here is arbitrary. *)
         let y = get_friend_registers x fr a i regs in
@@ -954,7 +959,7 @@ let check_allocated
   | [] -> ()
   | m ->
      hierror_reg ~loc:Lnone "variables { %a } remain unallocated"
-       (pp_list "; " (Printer.pp_var ~debug:true)) m
+       (pp_list "; " pp_var) m
 
 let greedy_allocation
     (vars: int Hv.t)
@@ -978,7 +983,7 @@ let greedy_allocation
       | Flag -> push_var flags i v
       | Unknown ty ->
           hierror_reg ~loc:Lnone "unable to allocate variable %a: no register bank for type %a"
-            (Printer.pp_dvar ~debug:true) v PrintCommon.pp_ty ty
+            pp_var v PrintCommon.pp_ty ty
       ) vars;
   two_phase_coloring Arch.allocatable_vars scalars cnf fr a;
   two_phase_coloring Arch.extra_allocatable_vars extra_scalars cnf fr a;
