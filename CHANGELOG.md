@@ -14,18 +14,18 @@
   ([PR #1214](https://github.com/jasmin-lang/jasmin/pull/1214)).
 
 - Fix SCT check of `for` loops
-  ([PR #1219](https://github.com/jasmin-lang/jasmin/pull/1219));
+  ([PR #1219](https://github.com/jasmin-lang/jasmin/pull/1219);
   fixes [#1218](https://github.com/jasmin-lang/jasmin/issues/1218)).
 
 - Ensure that `#MOVEMASK` can be used with 32-bit l-values
   ([PR #1211](https://github.com/jasmin-lang/jasmin/pull/1211)).
 
 - Enable machine word rotation at any size
-  ([PR #1235](https://github.com/jasmin-lang/jasmin/pull/1235));
+  ([PR #1235](https://github.com/jasmin-lang/jasmin/pull/1235);
   fixes [#854](https://github.com/jasmin-lang/jasmin/issues/854)).
 
 - Fix register allocation of dead function arguments
-  ([PR #1234](https://github.com/jasmin-lang/jasmin/pull/1234));
+  ([PR #1234](https://github.com/jasmin-lang/jasmin/pull/1234);
   fixes [#426](https://github.com/jasmin-lang/jasmin/issues/426)).
 
 - Safety checker handles x86 instructions with zero-extension
