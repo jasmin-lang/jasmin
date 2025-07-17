@@ -1,25 +1,25 @@
-  $ ../jasminc -wea -arch riscv fail/warning/risc-v/load_constant_warning.jazz
+  $ ../jasminc -wea -arch riscv warning/risc-v/load_constant_warning.jazz
   warning: support of the RISC-V architecture is experimental
-  "fail/warning/risc-v/load_constant_warning.jazz", line 3 (9-15)
+  "warning/risc-v/load_constant_warning.jazz", line 3 (9-15)
   warning: extra assignment introduced:
              ra = #LI(((32u) 10)); /* :r */
 
-  $ ../jasminc -wea fail/warning/x86-64/extra_assignment.jazz
-  "fail/warning/x86-64/extra_assignment.jazz", line 9 (2-12)
+  $ ../jasminc -wea warning/x86-64/extra_assignment.jazz
+  "warning/x86-64/extra_assignment.jazz", line 9 (2-12)
   from line 15 (2-12)
   warning: extra assignment introduced:
              RAX = #MOV_64(((64u) 0)); /* :r */
 
-  $ ../jasminc -w_ fail/warning/x86-64/introduce_lvalues.jazz
-  "fail/warning/x86-64/introduce_lvalues.jazz", line 9 (2-13)
+  $ ../jasminc -w_ warning/x86-64/introduce_lvalues.jazz
+  "warning/x86-64/introduce_lvalues.jazz", line 9 (2-13)
   warning: introduce 2 _ lvalues
 
-  $ ../jasminc -wlea fail/warning/x86-64/lea.jazz
-  "fail/warning/x86-64/lea.jazz", line 6 (2-18)
+  $ ../jasminc -wlea warning/x86-64/lea.jazz
+  "warning/x86-64/lea.jazz", line 6 (2-18)
   warning: LEA instruction is used
 
-  $ ../jasminc fail/warning/x86-64/reg_const_ptr.jazz
-  "fail/warning/x86-64/reg_const_ptr.jazz", line 2 (9-10)
+  $ ../jasminc warning/x86-64/reg_const_ptr.jazz
+  "warning/x86-64/reg_const_ptr.jazz", line 2 (9-10)
   warning: no need to return a [reg const ptr] r
 
   $ ../jasminc -wall -until_cstexp fail/linter/dead_variables.jazz
