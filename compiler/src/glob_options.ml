@@ -28,6 +28,8 @@ let introduce_array_copy = ref true
 let print_dependencies = ref false 
 let lazy_regalloc = ref false
 
+let verbosity = ref 1
+
 let stack_zero_strategy = ref None
 let stack_zero_strategies =
   let open Stack_zero_strategy in
