@@ -1,0 +1,1520 @@
+fail/annotation/x86-64/calldepth.jazz:
+
+"fail/annotation/x86-64/calldepth.jazz", line 3 (0) to line 8 (1):
+compilation error in function f:
+stack allocation: the maximum call depth is 1 (expected: 2)
+
+fail/annotation/x86-64/stackalign.jazz:
+
+"fail/annotation/x86-64/stackalign.jazz", line 4 (0) to line 14 (1):
+compilation error in function main:
+stack allocation: the stack has alignment u64 (expected: u32)
+
+fail/annotation/x86-64/stackallocsize.jazz:
+
+"fail/annotation/x86-64/stackallocsize.jazz", line 12 (0) to line 23 (1):
+compilation error in function f:
+stack allocation: the stack has size 16 (expected: 8)
+
+fail/annotation/x86-64/stacksize.jazz:
+
+"fail/annotation/x86-64/stacksize.jazz", line 4 (0) to line 14 (1):
+compilation error in function main:
+stack allocation: the stack has size 32 (expected: 17)
+
+fail/arm-m4/adc_imm_too_large.jazz:
+
+"fail/arm-m4/adc_imm_too_large.jazz", line 5 (4-31):
+compilation error in function main:
+asmgen: instruction ADC is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [reg]]
+  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+
+fail/arm-m4/add_imm_too_large.jazz:
+
+"fail/arm-m4/add_imm_too_large.jazz", line 3 (4-28):
+compilation error in function main:
+asmgen: instruction ADD is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [reg]; [imm 32(shift =allowed, none =W12)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [reg]]
+  [[reg]; [reg]; [imm 32(shift =allowed, none =W12)]]
+
+fail/arm-m4/add_shift.jazz:
+
+"fail/arm-m4/add_shift.jazz", line 4 (2-20):
+compilation error in function main:
+asmgen: invalid rexpr for oprd (r1 <<32u ((8u) 50))
+        invalid rexpr for word
+
+fail/arm-m4/addw_set_flags.jazz:
+
+"fail/arm-m4/addw_set_flags.jazz", line 3 (4-34):
+compilation error in function main:
+asmgen: instruction ADDS is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [reg]]
+  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+
+fail/arm-m4/and_imm_shifted.jazz:
+
+"fail/arm-m4/and_imm_shifted.jazz", line 3 (4-28):
+compilation error in function main:
+asmgen: instruction AND is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [reg]]
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+
+fail/arm-m4/and_imm_too_large.jazz:
+
+"fail/arm-m4/and_imm_too_large.jazz", line 3 (4-28):
+compilation error in function main:
+asmgen: instruction AND is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [reg]]
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+
+fail/arm-m4/bic_imm_shifted.jazz:
+
+"fail/arm-m4/bic_imm_shifted.jazz", line 3 (4-28):
+compilation error in function main:
+asmgen: instruction BIC is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [reg]]
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+
+fail/arm-m4/bic_imm_too_large.jazz:
+
+"fail/arm-m4/bic_imm_too_large.jazz", line 3 (4-28):
+compilation error in function main:
+asmgen: instruction BIC is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [reg]]
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+
+fail/arm-m4/bug_1112.jazz:
+
+compilation error:
+register allocation: cannot solve the register allocation problem.
+
+fail/arm-m4/bug_667.jazz:
+
+"fail/arm-m4/bug_667.jazz", line 9 (2-16):
+compilation error in function main:
+asmgen: the address computation is too complex
+          (sp +32u ((((32u) 4) *32u r0) +32u ((32u) 4)))
+        an intermediate variable might be needed
+
+fail/arm-m4/cmp_imm_too_large.jazz:
+
+"fail/arm-m4/cmp_imm_too_large.jazz", line 4 (4-37):
+compilation error in function main:
+asmgen: instruction CMP is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [imm 32(shift =allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]]
+  [[reg]; [imm 32(shift =allowed, none =not allowed)]]
+
+fail/arm-m4/eor_imm_shifted.jazz:
+
+"fail/arm-m4/eor_imm_shifted.jazz", line 3 (4-28):
+compilation error in function main:
+asmgen: instruction EOR is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [reg]]
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+
+fail/arm-m4/eor_imm_too_large.jazz:
+
+"fail/arm-m4/eor_imm_too_large.jazz", line 3 (4-28):
+compilation error in function main:
+asmgen: instruction EOR is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [reg]]
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+
+fail/arm-m4/mov_imm_shifted.jazz:
+
+"fail/arm-m4/mov_imm_shifted.jazz", line 3 (4-25):
+compilation error in function main:
+asmgen: instruction MOV is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [imm 32(shift =W16, none =W16)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]]
+  [[reg]; [imm 32(shift =W16, none =W16)]]
+
+fail/arm-m4/mov_imm_too_large.jazz:
+
+"fail/arm-m4/mov_imm_too_large.jazz", line 3 (4-25):
+compilation error in function main:
+asmgen: instruction MOV is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [imm 32(shift =W16, none =W16)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]]
+  [[reg]; [imm 32(shift =W16, none =W16)]]
+
+fail/arm-m4/mov_shiftedw_set_flags.jazz:
+
+"fail/arm-m4/mov_shiftedw_set_flags.jazz", line 3 (4-31):
+compilation error in function main:
+asmgen: instruction MOVS is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]]
+  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+
+fail/arm-m4/movw_set_flags.jazz:
+
+"fail/arm-m4/movw_set_flags.jazz", line 3 (4-31):
+compilation error in function main:
+asmgen: instruction MOVS is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]]
+  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+
+fail/arm-m4/mvn_imm_shifted.jazz:
+
+"fail/arm-m4/mvn_imm_shifted.jazz", line 3 (4-25):
+compilation error in function main:
+asmgen: instruction MVN is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]]
+  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+
+fail/arm-m4/mvn_imm_too_large.jazz:
+
+"fail/arm-m4/mvn_imm_too_large.jazz", line 3 (4-25):
+compilation error in function main:
+asmgen: instruction MVN is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]]
+  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+
+fail/arm-m4/orr_imm_shifted.jazz:
+
+"fail/arm-m4/orr_imm_shifted.jazz", line 3 (4-28):
+compilation error in function main:
+asmgen: instruction ORR is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [reg]]
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+
+fail/arm-m4/orr_imm_too_large.jazz:
+
+"fail/arm-m4/orr_imm_too_large.jazz", line 3 (4-28):
+compilation error in function main:
+asmgen: instruction ORR is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [reg]]
+  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+
+fail/arm-m4/rsb_imm_too_large.jazz:
+
+"fail/arm-m4/rsb_imm_too_large.jazz", line 3 (4-28):
+compilation error in function main:
+asmgen: instruction RSB is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [reg]]
+  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+
+fail/arm-m4/sub_imm_too_large.jazz:
+
+"fail/arm-m4/sub_imm_too_large.jazz", line 3 (4-28):
+compilation error in function main:
+asmgen: instruction SUB is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [reg]; [imm 32(shift =allowed, none =W12)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [reg]]
+  [[reg]; [reg]; [imm 32(shift =allowed, none =W12)]]
+
+fail/arm-m4/subw_set_flags.jazz:
+
+"fail/arm-m4/subw_set_flags.jazz", line 3 (4-34):
+compilation error in function main:
+asmgen: instruction SUBS is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [reg]]
+  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+
+fail/arm-m4/tst_imm_shifted.jazz:
+
+"fail/arm-m4/tst_imm_shifted.jazz", line 4 (4-37): invalid number of lvalues, 4 provided instead of 3
+
+fail/arm-m4/tst_imm_too_large.jazz:
+
+"fail/arm-m4/tst_imm_too_large.jazz", line 4 (4-37): invalid number of lvalues, 4 provided instead of 3
+
+fail/array_expansion/x86-64/array_param_not_reg.jazz:
+
+"fail/array_expansion/x86-64/array_param_not_reg.jazz", line 11 (10-11):
+compilation error in function main:
+array expansion: cannot expand variable s (not a reg array)
+
+fail/array_expansion/x86-64/array_return_not_reg.jazz:
+
+"fail/array_expansion/x86-64/array_return_not_reg.jazz", line 16 (2-3):
+compilation error in function main:
+array expansion: cannot expand variable s (not a reg array)
+
+fail/array_expansion/x86-64/bug_333.jazz:
+
+"fail/array_expansion/x86-64/bug_333.jazz", line 12 (15-16):
+compilation error in function foo:
+array expansion: cannot expand variable v (index out of bounds)
+
+fail/array_expansion/x86-64/default_scale.jazz:
+
+"fail/array_expansion/x86-64/default_scale.jazz", line 10 (13-14):
+compilation error in function main:
+array expansion: cannot expand variable r (the default scale must be used)
+
+fail/array_expansion/x86-64/default_scale_2.jazz:
+
+"fail/array_expansion/x86-64/default_scale_2.jazz", line 10 (8-9):
+compilation error in function main:
+array expansion: cannot expand variable r (alignement must be enforced)
+
+fail/array_expansion/x86-64/default_scale_lv.jazz:
+
+"fail/array_expansion/x86-64/default_scale_lv.jazz", line 10 (2-3):
+compilation error in function main:
+array expansion: cannot expand variable r (the default scale must be used)
+
+fail/array_expansion/x86-64/default_scale_lv_2.jazz:
+
+"fail/array_expansion/x86-64/default_scale_lv_2.jazz", line 10 (2-3):
+compilation error in function main:
+array expansion: cannot expand variable r (alignement must be enforced)
+
+fail/array_expansion/x86-64/default_scale_param.jazz:
+
+"fail/array_expansion/x86-64/default_scale_param.jazz", line 11 (10-11):
+compilation error in function main:
+array expansion: cannot expand variable r (the default scale must be used)
+
+fail/array_expansion/x86-64/default_scale_return.jazz:
+
+"fail/array_expansion/x86-64/default_scale_return.jazz", line 16 (2-3):
+compilation error in function main:
+array expansion: cannot expand variable r (the default scale must be used)
+
+fail/array_expansion/x86-64/export_param.jazz:
+
+"fail/array_expansion/x86-64/export_param.jazz", line 1 (0) to line 5 (1):
+compilation error in function main:
+array expansion: cannot expand variable x (reg arrays are not allowed in the parameters of export functions)
+
+fail/array_expansion/x86-64/export_return.jazz:
+
+"fail/array_expansion/x86-64/export_return.jazz", line 9 (9-10):
+compilation error in function main:
+array expansion: cannot expand variable r (reg arrays are not allowed in the return type of export functions)
+
+fail/array_expansion/x86-64/index_not_constant.jazz:
+
+"fail/array_expansion/x86-64/index_not_constant.jazz", line 12 (8-9):
+compilation error in function main:
+array expansion: cannot expand variable r (the index is not a constant)
+
+fail/array_expansion/x86-64/index_not_constant_lv.jazz:
+
+"fail/array_expansion/x86-64/index_not_constant_lv.jazz", line 7 (2-3):
+compilation error in function main:
+array expansion: cannot expand variable r (the index is not a constant)
+
+fail/array_expansion/x86-64/index_not_constant_param.jazz:
+
+"fail/array_expansion/x86-64/index_not_constant_param.jazz", line 13 (10-11):
+compilation error in function main:
+array expansion: cannot expand variable r (the index is not a constant)
+
+fail/array_expansion/x86-64/index_not_constant_return.jazz:
+
+"fail/array_expansion/x86-64/index_not_constant_return.jazz", line 18 (2-3):
+compilation error in function main:
+array expansion: cannot expand variable r (the index is not a constant)
+
+fail/array_expansion/x86-64/index_out_of_bounds.jazz:
+
+"fail/array_expansion/x86-64/index_out_of_bounds.jazz", line 10 (8-9):
+compilation error in function main:
+array expansion: cannot expand variable r (index out of bounds)
+
+fail/array_expansion/x86-64/index_out_of_bounds_lv.jazz:
+
+"fail/array_expansion/x86-64/index_out_of_bounds_lv.jazz", line 5 (2-3):
+compilation error in function test:
+array expansion: cannot expand variable t (index out of bounds)
+
+fail/array_expansion/x86-64/param_not_array.jazz:
+
+"fail/array_expansion/x86-64/param_not_array.jazz", line 19 (2-32):
+compilation error in function main:
+array expansion: cannot expand expression
+  (cf ? r[0 : 2] : r[1 : 2])
+Only variables and sub-arrays can be expanded in function arguments.
+
+fail/array_expansion/x86-64/sub_array.jazz:
+
+"fail/array_expansion/x86-64/sub_array.jazz", line 14 (10-11):
+compilation error in function main:
+array expansion: cannot expand variable r (sub-reg arrays are not allowed)
+
+fail/array_expansion/x86-64/sub_array_lv.jazz:
+
+"fail/array_expansion/x86-64/sub_array_lv.jazz", line 13 (2-3):
+compilation error in function main:
+array expansion: cannot expand variable r (sub-reg arrays are not allowed)
+
+fail/array_expansion/x86-64/sub_array_param_not_reg.jazz:
+
+"fail/array_expansion/x86-64/sub_array_param_not_reg.jazz", line 11 (10-11):
+compilation error in function main:
+array expansion: cannot expand variable s (not a reg array)
+
+fail/array_expansion/x86-64/sub_array_return_not_reg.jazz:
+
+"fail/array_expansion/x86-64/sub_array_return_not_reg.jazz", line 16 (2-3):
+compilation error in function main:
+array expansion: cannot expand variable s (not a reg array)
+
+fail/array_expansion/x86-64/type_mismatch_param.jazz:
+
+"fail/array_expansion/x86-64/type_mismatch_param.jazz", line 11 (10-11):
+compilation error in function main:
+array expansion: cannot expand variable r (type mismatch)
+
+fail/array_expansion/x86-64/type_mismatch_param_sub.jazz:
+
+"fail/array_expansion/x86-64/type_mismatch_param_sub.jazz", line 11 (10-11):
+compilation error in function main:
+array expansion: cannot expand variable r (type mismatch)
+
+fail/array_expansion/x86-64/type_mismatch_return.jazz:
+
+"fail/array_expansion/x86-64/type_mismatch_return.jazz", line 16 (2-3):
+compilation error in function main:
+array expansion: cannot expand variable r (type mismatch)
+
+fail/array_expansion/x86-64/type_mismatch_return_sub.jazz:
+
+"fail/array_expansion/x86-64/type_mismatch_return_sub.jazz", line 16 (2-3):
+compilation error in function main:
+array expansion: cannot expand variable r (type mismatch)
+
+fail/array_expansion/x86-64/whole_array.jazz:
+
+"fail/array_expansion/x86-64/whole_array.jazz", line 14 (10-11):
+compilation error in function main:
+array expansion: cannot expand variable r (the array cannot be manipulated alone, you need to access its cells instead)
+
+fail/array_expansion/x86-64/whole_array_lv.jazz:
+
+"fail/array_expansion/x86-64/whole_array_lv.jazz", line 13 (2-3):
+compilation error in function main:
+array expansion: cannot expand variable r (the array cannot be manipulated alone, you need to access its cells instead)
+
+fail/asmgen/arm-m4/address_too_complex.jazz:
+
+"fail/asmgen/arm-m4/address_too_complex.jazz", line 2 (2-23):
+compilation error in function f:
+asmgen: the address computation is too complex
+          (r0 +32u ((((32u) 4) *32u (r1 +32u ((32u) 2))) +32u ((32u) 0)))
+        an intermediate variable might be needed
+
+fail/asmgen/x86-64/incompatible_args.jazz:
+
+"fail/asmgen/x86-64/incompatible_args.jazz", line 4 (2-14):
+compilation error in function main:
+linearization: The following assignment remains:
+[#aligned :u128 (RSP +64u ((64u) 0))] = ((128u) 3000000)
+Is there an instruction in the target architecture that can implement it?
+More information may be found online: https://github.com/jasmin-lang/jasmin/wiki/FAQ
+
+fail/asmgen/x86-64/invalid_scale.jazz:
+
+"fail/asmgen/x86-64/invalid_scale.jazz", line 2 (2-25):
+compilation error in function f:
+asmgen: Invalid address:  (RDI +64u ((((64u) 8) *64u ((((64u) 3) *64u RSI) +64u ((64u) 2))) +64u ((64u) 0)))
+        Invalid scale: 24 (should be 1, 2, 4, or 8)
+
+fail/asmgen/x86-64/uninit_flag.jazz:
+
+compilation error:
+register allocation: variables { unitialized } remain unallocated
+
+fail/common/bug_1214.jazz:
+
+"fail/common/bug_1214.jazz", line 13 (6-7):
+compilation error in function main:
+stack allocation: the region associated to variable x is partial
+
+fail/common/bug_1214.jazz:
+
+"fail/common/bug_1214.jazz", line 13 (6-7):
+compilation error in function main:
+stack allocation: the region associated to variable x is partial
+
+fail/common/bug_1214.jazz:
+
+"fail/common/bug_1214.jazz", line 13 (6-7):
+compilation error in function main:
+stack allocation: the region associated to variable x is partial
+
+fail/common/inline-remains.jazz:
+
+"fail/common/inline-remains.jazz", line 4 (2) to line 8 (3):
+compilation error in function main:
+loop unrolling: “inline”-annotated instructions remain
+
+fail/common/inline-remains.jazz:
+
+"fail/common/inline-remains.jazz", line 4 (2) to line 8 (3):
+compilation error in function main:
+loop unrolling: “inline”-annotated instructions remain
+
+fail/common/inline-remains.jazz:
+
+"fail/common/inline-remains.jazz", line 4 (2) to line 8 (3):
+compilation error in function main:
+loop unrolling: “inline”-annotated instructions remain
+
+fail/common/not-unrollable-for-loop.jazz:
+
+"fail/common/not-unrollable-for-loop.jazz", line 6 (4) to line 8 (5):
+compilation error in function main:
+loop unrolling: for loops remain
+
+fail/common/not-unrollable-for-loop.jazz:
+
+"fail/common/not-unrollable-for-loop.jazz", line 6 (4) to line 8 (5):
+compilation error in function main:
+loop unrolling: for loops remain
+
+fail/common/not-unrollable-for-loop.jazz:
+
+"fail/common/not-unrollable-for-loop.jazz", line 6 (4) to line 8 (5):
+compilation error in function main:
+loop unrolling: for loops remain
+
+fail/common/storage_signature_mismatch.jazz:
+
+"fail/common/storage_signature_mismatch.jazz", line 1 (0) to line 4 (1): In function “sum”, return statement variable “r” has storage type “reg”, which differs from declared return storage type “stack”
+
+fail/common/storage_signature_mismatch.jazz:
+
+"fail/common/storage_signature_mismatch.jazz", line 1 (0) to line 4 (1): In function “sum”, return statement variable “r” has storage type “reg”, which differs from declared return storage type “stack”
+
+fail/common/storage_signature_mismatch.jazz:
+
+"fail/common/storage_signature_mismatch.jazz", line 1 (0) to line 4 (1): In function “sum”, return statement variable “r” has storage type “reg”, which differs from declared return storage type “stack”
+
+fail/common/typealias_annotation_param.jazz:
+
+"fail/common/typealias_annotation_param.jazz", line 5 (29-30): unknown function: `f'
+
+fail/common/typealias_annotation_param.jazz:
+
+"fail/common/typealias_annotation_param.jazz", line 5 (29-30): unknown function: `f'
+
+fail/common/typealias_annotation_param.jazz:
+
+"fail/common/typealias_annotation_param.jazz", line 5 (29-30): unknown function: `f'
+
+fail/common/typealias_arrayelement.jazz:
+
+"fail/common/typealias_arrayelement.jazz", line 7 (8-9): Type 'x' (ie: 'u64[3]'), defined at "fail/common/typealias_arrayelement.jazz", line 3 (5-6), is not allowed as array element. Only machine words (w8, w16 ...) allowed
+
+fail/common/typealias_arrayelement.jazz:
+
+"fail/common/typealias_arrayelement.jazz", line 7 (8-9): Type 'x' (ie: 'u64[3]'), defined at "fail/common/typealias_arrayelement.jazz", line 3 (5-6), is not allowed as array element. Only machine words (w8, w16 ...) allowed
+
+fail/common/typealias_arrayelement.jazz:
+
+"fail/common/typealias_arrayelement.jazz", line 7 (8-9): Type 'x' (ie: 'u64[3]'), defined at "fail/common/typealias_arrayelement.jazz", line 3 (5-6), is not allowed as array element. Only machine words (w8, w16 ...) allowed
+
+fail/common/typealias_arrayelement_integer.jazz:
+
+"fail/common/typealias_arrayelement_integer.jazz", line 6 (8-9): Type 'x' (ie: 'int'), defined at "fail/common/typealias_arrayelement_integer.jazz", line 2 (5-6), is not allowed as array element. Only machine words (w8, w16 ...) allowed
+
+fail/common/typealias_arrayelement_integer.jazz:
+
+"fail/common/typealias_arrayelement_integer.jazz", line 6 (8-9): Type 'x' (ie: 'int'), defined at "fail/common/typealias_arrayelement_integer.jazz", line 2 (5-6), is not allowed as array element. Only machine words (w8, w16 ...) allowed
+
+fail/common/typealias_arrayelement_integer.jazz:
+
+"fail/common/typealias_arrayelement_integer.jazz", line 6 (8-9): Type 'x' (ie: 'int'), defined at "fail/common/typealias_arrayelement_integer.jazz", line 2 (5-6), is not allowed as array element. Only machine words (w8, w16 ...) allowed
+
+fail/common/typealias_duplicate.jazz:
+
+"fail/common/typealias_duplicate.jazz", line 3 (5-6): Type 'x' (ie: 'u64') is already declared at "fail/common/typealias_duplicate.jazz", line 2 (5-6) (with type : 'u64')
+
+fail/common/typealias_duplicate.jazz:
+
+"fail/common/typealias_duplicate.jazz", line 3 (5-6): Type 'x' (ie: 'u64') is already declared at "fail/common/typealias_duplicate.jazz", line 2 (5-6) (with type : 'u64')
+
+fail/common/typealias_duplicate.jazz:
+
+"fail/common/typealias_duplicate.jazz", line 3 (5-6): Type 'x' (ie: 'u64') is already declared at "fail/common/typealias_duplicate.jazz", line 2 (5-6) (with type : 'u64')
+
+fail/common/typealias_notfound.jazz:
+
+"fail/common/typealias_notfound.jazz", line 2 (8-15): Type 'regtype' not found
+
+fail/common/typealias_notfound.jazz:
+
+"fail/common/typealias_notfound.jazz", line 2 (8-15): Type 'regtype' not found
+
+fail/common/typealias_notfound.jazz:
+
+"fail/common/typealias_notfound.jazz", line 2 (8-15): Type 'regtype' not found
+
+fail/common/var_initialize_if.jazz:
+
+"fail/common/var_initialize_if.jazz", line 2 (18-20): parse error
+
+fail/common/var_initialize_if.jazz:
+
+"fail/common/var_initialize_if.jazz", line 2 (18-20): parse error
+
+fail/common/var_initialize_if.jazz:
+
+"fail/common/var_initialize_if.jazz", line 2 (18-20): parse error
+
+fail/common/var_initialize_undecl.jazz:
+
+"fail/common/var_initialize_undecl.jazz", line 2 (14-15): unknown variable: `x'
+
+fail/common/var_initialize_undecl.jazz:
+
+"fail/common/var_initialize_undecl.jazz", line 2 (14-15): unknown variable: `x'
+
+fail/common/var_initialize_undecl.jazz:
+
+"fail/common/var_initialize_undecl.jazz", line 2 (14-15): unknown variable: `x'
+
+fail/dead_code/x86-64/for_loop_iterator.jazz:
+
+"fail/dead_code/x86-64/for_loop_iterator.jazz", line 105 (2) to line 206 (3):
+internal compilation error in function main:
+  dead code: loop iterator too small
+Please report at https://github.com/jasmin-lang/jasmin/issues
+
+fail/dead_code/x86-64/while_loop_iterator.jazz:
+
+"fail/dead_code/x86-64/while_loop_iterator.jazz", line 109 (2) to line 210 (3):
+internal compilation error in function main:
+  dead code: loop iterator too small
+Please report at https://github.com/jasmin-lang/jasmin/issues
+
+fail/namespaces/common/duplicate.jazz:
+
+"fail/namespaces/common/duplicate.jazz", line 2 (13-23): The function A::f is already declared at "fail/namespaces/common/duplicate.jazz", line 1 (13-23)
+
+fail/namespaces/common/duplicate.jazz:
+
+"fail/namespaces/common/duplicate.jazz", line 2 (13-23): The function A::f is already declared at "fail/namespaces/common/duplicate.jazz", line 1 (13-23)
+
+fail/namespaces/common/duplicate.jazz:
+
+"fail/namespaces/common/duplicate.jazz", line 2 (13-23): The function A::f is already declared at "fail/namespaces/common/duplicate.jazz", line 1 (13-23)
+
+fail/nolea/x86-64/test_merge.jazz:
+
+"fail/nolea/x86-64/test_merge.jazz", line 12 (3-13):
+compilation error:
+register allocation: conflicting variables “x” and “z” must be merged due to:
+  at "fail/nolea/x86-64/test_merge.jazz", line 12 (3-13):
+    ( _0,  _1,  _2,  _3, z) = #INC_64(x); /*  */
+  at "fail/nolea/x86-64/test_merge.jazz", line 13 (3-10):
+    ( _4,  _5,  _6,  _7,  _8, z) = #ADD_64(z, x); /*  */
+  at "fail/nolea/x86-64/test_merge.jazz", line 22 (3-15):
+    ( _0,  _1,  _2,  _3, z1) = #INC_64(z1); /*  */
+  at "fail/nolea/x86-64/test_merge.jazz", line 25 (3-12):
+    ( _4,  _5,  _6,  _7,  _8, z1) = #ADD_64(z1, z2); /*  */
+  at "fail/nolea/x86-64/test_merge.jazz", line 24 (3-17):
+    z1 = add1(z1);
+
+fail/param_expansion/x86-64/array_size_mismatch.jazz:
+
+"fail/param_expansion/x86-64/array_size_mismatch.jazz", line 1 (7-8):
+compilation error:
+param expansion: array size mismatch for global variable g: 1 value given (4 expected)
+
+fail/param_expansion/x86-64/array_size_mismatch2.jazz:
+
+"fail/param_expansion/x86-64/array_size_mismatch2.jazz", line 2 (7-8):
+compilation error:
+param expansion: array size mismatch for global variable g: 1 value given (4 expected)
+
+fail/param_expansion/x86-64/array_too_large_arg.jazz:
+
+"fail/param_expansion/x86-64/array_too_large_arg.jazz", line 2 (37-38):
+compilation error in function main:
+param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
+
+fail/param_expansion/x86-64/array_too_large_expr.jazz:
+
+"fail/param_expansion/x86-64/array_too_large_expr.jazz", line 5 (8-9):
+compilation error in function main:
+param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
+
+fail/param_expansion/x86-64/array_too_large_global.jazz:
+
+"fail/param_expansion/x86-64/array_too_large_global.jazz", line 1 (25-26):
+compilation error:
+param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
+
+fail/param_expansion/x86-64/array_too_large_lval.jazz:
+
+"fail/param_expansion/x86-64/array_too_large_lval.jazz", line 5 (4-5):
+compilation error in function main:
+param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
+
+fail/param_expansion/x86-64/expression_arg.jazz:
+
+"fail/param_expansion/x86-64/expression_arg.jazz", line 3 (24-25):
+compilation error in function f:
+param expansion: expression ((uint) ((64u) 3)) not allowed in array size (only constant arithmetic expressions are allowed)
+
+fail/param_expansion/x86-64/expression_global.jazz:
+
+"fail/param_expansion/x86-64/expression_global.jazz", line 2 (7-8):
+compilation error:
+param expansion: expression ((uint) ((64u) 3)) not allowed in array size (only constant arithmetic expressions are allowed)
+
+fail/param_expansion/x86-64/expression_global2.jazz:
+
+"fail/param_expansion/x86-64/expression_global2.jazz", line 2 (18-19):
+compilation error:
+param expansion: expression ((uint) ((64u) 2)) not allowed in array size (only constant arithmetic expressions are allowed)
+
+fail/param_expansion/x86-64/expression_res.jazz:
+
+"fail/param_expansion/x86-64/expression_res.jazz", line 4 (13-14):
+compilation error in function f:
+param expansion: expression ((uint) ((64u) 3)) not allowed in array size (only constant arithmetic expressions are allowed)
+
+fail/param_expansion/x86-64/global_array_not_constant.jazz:
+
+"fail/param_expansion/x86-64/global_array_not_constant.jazz", line 2 (7-8):
+compilation error:
+param expansion: in the list assigned to global variable b, the expression at position 1 must evaluate to a constant
+
+fail/param_expansion/x86-64/global_not_constant.jazz:
+
+"fail/param_expansion/x86-64/global_not_constant.jazz", line 2 (4-5):
+compilation error:
+param expansion: the expression assigned to global variable b must evaluate to a constant
+
+fail/param_expansion/x86-64/operator_arg.jazz:
+
+"fail/param_expansion/x86-64/operator_arg.jazz", line 3 (26-27):
+compilation error in function f:
+param expansion: operator &256u not allowed in array size (only standard arithmetic operators and modulo are allowed)
+
+fail/param_expansion/x86-64/operator_global.jazz:
+
+"fail/param_expansion/x86-64/operator_global.jazz", line 2 (9-10):
+compilation error:
+param expansion: operator &256u not allowed in array size (only standard arithmetic operators and modulo are allowed)
+
+fail/param_expansion/x86-64/operator_res.jazz:
+
+"fail/param_expansion/x86-64/operator_res.jazz", line 4 (15-16):
+compilation error in function f:
+param expansion: operator &256u not allowed in array size (only standard arithmetic operators and modulo are allowed)
+
+fail/pointers/x86-64/test_writable_arguments.jazz:
+
+"fail/pointers/x86-64/test_writable_arguments.jazz", line 10 (2-11): argument t needs to be writable
+
+fail/register_allocation/arm-m4/bug_201.jazz:
+
+"fail/register_allocation/arm-m4/bug_201.jazz", line 1 (0) to line 3 (1):
+compilation error in function main:
+register allocation: too many large parameters according to the ABI (only 0 available on this architecture)
+
+fail/register_allocation/arm-m4/no_mmx.jazz:
+
+compilation error:
+register allocation: unable to allocate tmp (defined at "fail/register_allocation/arm-m4/no_mmx.jazz", line 6 (2-5)): bank “extra (aka mmx)” is empty on this architecture
+
+fail/register_allocation/arm-m4/no_vector.jazz:
+
+compilation error:
+register allocation: unable to allocate tmp (defined at "fail/register_allocation/arm-m4/no_vector.jazz", line 5 (2-5)): bank “vector” is empty on this architecture
+
+fail/register_allocation/arm-m4/too_many_args.jazz:
+
+"fail/register_allocation/arm-m4/too_many_args.jazz", line 1 (0) to line 2 (38):
+compilation error in function too_many_args:
+register allocation: too many parameters according to the ABI (only 4 available on this architecture)
+
+fail/register_allocation/arm-m4/too_many_large_ret.jazz:
+
+"fail/register_allocation/arm-m4/too_many_large_ret.jazz", line 1 (0) to line 6 (1):
+compilation error in function too_many_large_ret:
+register allocation: too many large return values according to the ABI (only 0 available on this architecture)
+
+fail/register_allocation/arm-m4/too_many_ret.jazz:
+
+"fail/register_allocation/arm-m4/too_many_ret.jazz", line 1 (0) to line 11 (1):
+compilation error in function too_many_ret:
+register allocation: too many return values according to the ABI (only 2 available on this architecture)
+
+fail/register_allocation/x86-64/already_allocated.jazz:
+
+"fail/register_allocation/x86-64/already_allocated.jazz", line 10 (0-22):
+compilation error:
+register allocation: cannot allocate cf into CF, the variable is already allocated in SF
+
+fail/register_allocation/x86-64/bug_309.jazz:
+
+"fail/register_allocation/x86-64/bug_309.jazz", line 6 (2-19):
+compilation error:
+register allocation: variable  _5 must be allocated to register CF due to architectural constraints; this register already holds conflicting variable: cf
+
+fail/register_allocation/x86-64/bug_310.jazz:
+
+compilation error:
+register allocation: variables { valid; valid; valid } remain unallocated
+
+fail/register_allocation/x86-64/bug_421.jazz:
+
+"fail/register_allocation/x86-64/bug_421.jazz", line 4 (7-14): primitive “CQO” only accepts the following size annotations: _64,
+_32,
+_16
+
+fail/register_allocation/x86-64/bug_426.jazz:
+
+compilation error:
+register allocation: conflicting variables “x” and “y” must be merged due to:
+  at "fail/register_allocation/x86-64/bug_426.jazz", line 9 (2-16):
+    foo(p, p);
+
+fail/register_allocation/x86-64/bug_426_bis.jazz:
+
+compilation error:
+register allocation: conflicting variables “x” and “y” must be merged due to:
+  at "fail/register_allocation/x86-64/bug_426_bis.jazz", line 8 (2-16):
+    p = foo(p, p);
+
+fail/register_allocation/x86-64/bug_523.jazz:
+
+"fail/register_allocation/x86-64/bug_523.jazz", line 9 (2-21):
+compilation error:
+register allocation: variable rot2 must be allocated to register RCX due to architectural constraints; this register already holds conflicting variable: rot1
+
+fail/register_allocation/x86-64/conflicting_register.jazz:
+
+"fail/register_allocation/x86-64/conflicting_register.jazz", line 9 (0-27):
+compilation error:
+register allocation: variable  _5 must be allocated to register CF due to architectural constraints; this register already holds conflicting variable: cf
+
+fail/register_allocation/x86-64/conflicting_variables.jazz:
+
+"fail/register_allocation/x86-64/conflicting_variables.jazz", line 11 (2-14):
+compilation error:
+register allocation: conflicting variables “z” and “res” must be merged due to:
+  at "fail/register_allocation/x86-64/conflicting_variables.jazz", line 3 (2-16):
+    ( _0,  _1,  _2,  _3,  _4, res) = #ADD_64(arg, ((64u) 3)); /*  */
+  at "fail/register_allocation/x86-64/conflicting_variables.jazz", line 12 (2-11):
+    ( _0,  _1,  _2,  _3,  _4, z) = #ADD_64(z, res); /*  */
+  at "fail/register_allocation/x86-64/conflicting_variables.jazz", line 11 (2-14):
+    res = f(z);
+
+fail/register_allocation/x86-64/merge_across_banks.jazz:
+
+"fail/register_allocation/x86-64/merge_across_banks.jazz", line 3 (2-12):
+compilation error:
+register allocation: Variables x and y must be merged due to architectural constraints but must be allocated to incompatible banks “general purpose” and “extra (aka mmx)” (respectively)
+
+fail/register_allocation/x86-64/no_free_register_return_address.jazz:
+
+compilation error:
+register allocation: cannot solve the register allocation problem.
+
+fail/register_allocation/x86-64/no_more_register.jazz:
+
+compilation error:
+register allocation: cannot solve the register allocation problem.
+
+fail/register_allocation/x86-64/no_register_bank.jazz:
+
+compilation error:
+register allocation: unable to allocate variable toto: no register bank for type int
+
+fail/register_allocation/x86-64/res_is_arg.jazz:
+
+"fail/register_allocation/x86-64/res_is_arg.jazz", line 1 (0) to line 3 (1):
+compilation error:
+register allocation: cannot allocate r1 into RAX, the variable is already allocated in RDI
+
+fail/register_allocation/x86-64/too_many_args.jazz:
+
+"fail/register_allocation/x86-64/too_many_args.jazz", line 1 (0) to line 2 (42):
+compilation error in function too_many_args:
+register allocation: too many parameters according to the ABI (only 6 available on this architecture)
+
+fail/register_allocation/x86-64/too_many_large_args.jazz:
+
+"fail/register_allocation/x86-64/too_many_large_args.jazz", line 1 (0) to line 2 (47):
+compilation error in function too_many_args:
+register allocation: too many large parameters according to the ABI (only 8 available on this architecture)
+
+fail/register_allocation/x86-64/too_many_large_ret.jazz:
+
+"fail/register_allocation/x86-64/too_many_large_ret.jazz", line 1 (0) to line 11 (1):
+compilation error in function too_many_large_ret:
+register allocation: too many large return values according to the ABI (only 2 available on this architecture)
+
+fail/register_allocation/x86-64/too_many_ret.jazz:
+
+"fail/register_allocation/x86-64/too_many_ret.jazz", line 1 (0) to line 11 (1):
+compilation error in function too_many_ret:
+register allocation: too many return values according to the ABI (only 2 available on this architecture)
+
+fail/register_allocation/x86-64/unknown_type_register.jazz:
+
+"fail/register_allocation/x86-64/unknown_type_register.jazz", line 1 (0-28):
+compilation error:
+register allocation: unexpected flag register a
+
+fail/register_allocation/x86-64/var_unallocated.jazz:
+
+compilation error:
+register allocation: variables { b } remain unallocated
+
+fail/risc-v/basics.jazz:
+
+"fail/risc-v/basics.jazz", line 6 (4-10):
+compilation error in function copy_cast_lowering:
+linearization: The following assignment remains:
+x11 = x10
+Is there an instruction in the target architecture that can implement it?
+More information may be found online: https://github.com/jasmin-lang/jasmin/wiki/FAQ
+
+fail/slh/x86-64/assign_kills_msf.jazz:
+
+"fail/slh/x86-64/assign_kills_msf.jazz", line 6 (4-7):
+speculative constant type checker: instruction assigns msf, which is required to be a msf
+
+fail/slh/x86-64/export_takes_msf.jazz:
+
+compilation error:
+speculative execution lowering: export function should not take a misspeculation flag as input
+                                Did you run the speculative constant time checker first?
+
+fail/slh/x86-64/function_kills_msf.jazz:
+
+"fail/slh/x86-64/function_kills_msf.jazz", line 8 (4-22):
+speculative constant type checker: only { msf } is ensured to be msf after init_msf, {
+ msf } are required
+
+fail/slh/x86-64/function_needs_msf.jazz:
+
+"fail/slh/x86-64/function_needs_msf.jazz", line 10 (4-7):
+speculative constant type checker: instruction assigns msf, which is required to be a msf
+
+fail/slh/x86-64/if_wrong_update.jazz:
+
+"fail/slh/x86-64/if_wrong_update.jazz", line 10 (8-35):
+compilation error in function main:
+speculative execution lowering: Not able to prove that (! __zf__)
+                                evaluate to true,
+                                known expression __zf__
+                                Did you run the speculative constant time checker first?
+
+fail/slh/x86-64/intrinsic_kills_msf.jazz:
+
+"fail/slh/x86-64/intrinsic_kills_msf.jazz", line 7 (4-7):
+speculative constant type checker: instruction assigns msf, which is required to be a msf
+
+fail/slh/x86-64/invalid_type.jazz:
+
+"fail/slh/x86-64/invalid_type.jazz", line 2 (4-5): the expression has type u64 instead of u32
+
+fail/slh/x86-64/mov_msf.jazz:
+
+"fail/slh/x86-64/mov_msf.jazz", line 4 (4-5):
+speculative constant type checker: instruction assigns x, which is required to be a msf
+
+fail/slh/x86-64/msf_lval.jazz:
+
+"fail/slh/x86-64/msf_lval.jazz", line 3 (4-22):
+speculative constant type checker: L-value [:u64 p] must be a reg
+
+fail/slh/x86-64/no_msf.jazz:
+
+"fail/slh/x86-64/no_msf.jazz", line 5 (4-7):
+speculative constant type checker: instruction assigns msf, which is required to be a msf
+
+fail/slh/x86-64/protect_kills_msf.jazz:
+
+"fail/slh/x86-64/protect_kills_msf.jazz", line 5 (4-7):
+speculative constant type checker: instruction assigns msf, which is required to be a msf
+
+fail/slh/x86-64/while_wrong_update.jazz:
+
+"fail/slh/x86-64/while_wrong_update.jazz", line 10 (8-35):
+compilation error in function main:
+speculative execution lowering: Not able to prove that (! __zf__)
+                                evaluate to true,
+                                known expression __zf__
+                                Did you run the speculative constant time checker first?
+
+fail/stack_allocation/arm-m4/cannot_compute_address.jazz:
+
+"fail/stack_allocation/arm-m4/cannot_compute_address.jazz", line 6 (2-4):
+compilation error in function main:
+stack allocation: cannot compute address sp
+                  the address computation in the right-hand side is too complex,
+                  an intermediate variable might be needed
+
+fail/stack_allocation/risc-v/cannot_compute_address.jazz:
+
+"fail/stack_allocation/risc-v/cannot_compute_address.jazz", line 6 (2-4):
+compilation error in function main:
+stack allocation: cannot compute address sp
+                  the address computation in the right-hand side is too complex,
+                  an intermediate variable might be needed
+
+fail/stack_allocation/x86-64/array_access_too_complex.jazz:
+
+"fail/stack_allocation/x86-64/array_access_too_complex.jazz", line 6 (2-19):
+compilation error in function main:
+stack allocation: do not know how to compile this array access into a memory access,
+                  the expression ((uint) (i /64u (i +64u ((64u) 1))))
+                  must contain only the operators “+” and “*”
+
+fail/stack_allocation/x86-64/bad_alignment.jazz:
+
+"fail/stack_allocation/x86-64/bad_alignment.jazz", line 5 (2-3):
+compilation error in function f:
+variable allocation: bad alignment for var a: 32 (expected: 64)
+
+fail/stack_allocation/x86-64/bad_range_alignment.jazz:
+
+"fail/stack_allocation/x86-64/bad_range_alignment.jazz", line 5 (2-3):
+compilation error in function f:
+variable allocation: bad range alignment for a[0]: a was allocated in slot b[4; 20[, which conflicts with the required alignment (u64)
+
+fail/stack_allocation/x86-64/bug_54.jazz:
+
+"fail/stack_allocation/x86-64/bug_54.jazz", line 9 (2-18):
+compilation error in function main:
+stack allocation: merging slices b[8; 24[ and a[0; 16[ may introduce invalid accesses; consider declaring variable b smaller
+
+fail/stack_allocation/x86-64/condition_move_ptr.jazz:
+
+"fail/stack_allocation/x86-64/condition_move_ptr.jazz", line 6 (2-23):
+compilation error in function main:
+stack allocation: conditional move of (ptr) arrays is not supported yet
+
+fail/stack_allocation/x86-64/local_stack_to_pointer.jazz:
+
+"fail/stack_allocation/x86-64/local_stack_to_pointer.jazz", line 1 (0) to line 6 (1):
+compilation error in function f:
+variable allocation: cannot put a reg ptr argument into the local stack
+
+fail/stack_allocation/x86-64/merge_global_param.jazz:
+
+"fail/stack_allocation/x86-64/merge_global_param.jazz", line 7 (2-20):
+compilation error in function f:
+stack allocation: cannot merge a global and a param (g and r1)
+
+fail/stack_allocation/x86-64/merge_globals.jazz:
+
+"fail/stack_allocation/x86-64/merge_globals.jazz", line 8 (2-20):
+compilation error in function f:
+stack allocation: cannot merge two globals (g1 and g2)
+
+fail/stack_allocation/x86-64/merge_intersection.jazz:
+
+"fail/stack_allocation/x86-64/merge_intersection.jazz", line 20 (11-12):
+compilation error in function main:
+stack allocation: no region associated to variable r
+
+fail/stack_allocation/x86-64/merge_intersection2.jazz:
+
+"fail/stack_allocation/x86-64/merge_intersection2.jazz", line 22 (11-12):
+compilation error in function main:
+stack allocation: no region associated to variable r
+
+fail/stack_allocation/x86-64/merge_invalid_accesses.jazz:
+
+"fail/stack_allocation/x86-64/merge_invalid_accesses.jazz", line 11 (2-18):
+compilation error in function main:
+stack allocation: merging slices b[8; 24[ and a[0; 16[ may introduce invalid accesses; consider declaring variable b smaller
+
+fail/stack_allocation/x86-64/merge_param_global.jazz:
+
+"fail/stack_allocation/x86-64/merge_param_global.jazz", line 6 (2-19):
+compilation error in function f:
+stack allocation: cannot merge a param and a global (r and g)
+
+fail/stack_allocation/x86-64/merge_params.jazz:
+
+"fail/stack_allocation/x86-64/merge_params.jazz", line 2 (2-18):
+compilation error in function f:
+stack allocation: cannot merge two params (a and b)
+
+fail/stack_allocation/x86-64/merge_same.jazz:
+
+"fail/stack_allocation/x86-64/merge_same.jazz", line 8 (2-19):
+compilation error in function foo:
+stack allocation: cannot merge distinct slices of the same array: rt[0; 16[ and rt[16; 32[
+
+fail/stack_allocation/x86-64/merge_same_trivial.jazz:
+
+"fail/stack_allocation/x86-64/merge_same_trivial.jazz", line 6 (2-18):
+compilation error in function f:
+stack allocation: cannot merge distinct slices of the same array: a[8; 16[ and a[0; 8[
+
+fail/stack_allocation/x86-64/merge_same_var.jazz:
+
+"fail/stack_allocation/x86-64/merge_same_var.jazz", line 8 (2-3):
+compilation error in function main:
+stack allocation: the assignment to sub-array s cannot be turned into a nop
+source
+  { region = { slot = s; align = u64; writable = true };
+    zone = [0:8] }
+and destination
+  { region = { slot = s; align = u64; writable = true };
+    zone = [0:16][(8 * ((uint) i)):8] }
+regions are not equal
+
+fail/stack_allocation/x86-64/merge_too_large_global.jazz:
+
+"fail/stack_allocation/x86-64/merge_too_large_global.jazz", line 7 (2-13):
+compilation error in function main:
+stack allocation: cannot merge a global and a local that is larger (g of size 16, and s of size 24)
+
+fail/stack_allocation/x86-64/merge_too_large_param.jazz:
+
+"fail/stack_allocation/x86-64/merge_too_large_param.jazz", line 4 (2-18):
+compilation error in function f:
+stack allocation: cannot merge a param and a local that is larger (r of size 8, and a of size 16)
+
+fail/stack_allocation/x86-64/no_region_reg_ptr.jazz:
+
+"fail/stack_allocation/x86-64/no_region_reg_ptr.jazz", line 6 (2-3):
+compilation error in function g:
+stack allocation: no region associated to variable r
+
+fail/stack_allocation/x86-64/no_region_stack_ptr.jazz:
+
+"fail/stack_allocation/x86-64/no_region_stack_ptr.jazz", line 6 (2-4):
+compilation error in function g:
+stack allocation: no region associated to variable sp
+
+fail/stack_allocation/x86-64/out_of_bounds_read.jazz:
+
+"fail/stack_allocation/x86-64/out_of_bounds_read.jazz", line 2 (2-21):
+compilation error in function main:
+stack allocation: this read is trivially out-of-bounds
+
+fail/stack_allocation/x86-64/out_of_bounds_read_neg.jazz:
+
+"fail/stack_allocation/x86-64/out_of_bounds_read_neg.jazz", line 2 (2-22):
+compilation error in function main:
+stack allocation: this read is trivially out-of-bounds
+
+fail/stack_allocation/x86-64/out_of_bounds_read_partial.jazz:
+
+"fail/stack_allocation/x86-64/out_of_bounds_read_partial.jazz", line 2 (2-22):
+compilation error in function main:
+stack allocation: this read is trivially out-of-bounds
+
+fail/stack_allocation/x86-64/out_of_bounds_write.jazz:
+
+"fail/stack_allocation/x86-64/out_of_bounds_write.jazz", line 2 (2-11):
+compilation error in function main:
+stack allocation: this write is trivially out-of-bounds
+
+fail/stack_allocation/x86-64/out_of_bounds_write_neg.jazz:
+
+"fail/stack_allocation/x86-64/out_of_bounds_write_neg.jazz", line 2 (2-12):
+compilation error in function main:
+stack allocation: this write is trivially out-of-bounds
+
+fail/stack_allocation/x86-64/partial_region.jazz:
+
+"fail/stack_allocation/x86-64/partial_region.jazz", line 14 (8-9):
+compilation error in function main:
+stack allocation: the region associated to variable s is partial
+
+fail/stack_allocation/x86-64/pointer_to_local_stack.jazz:
+
+"fail/stack_allocation/x86-64/pointer_to_local_stack.jazz", line 1 (0) to line 8 (1):
+compilation error in function bad:
+variable allocation: cannot put a reg ptr argument into the local stack
+
+fail/stack_allocation/x86-64/protect_ptr_arg.jazz:
+
+"fail/stack_allocation/x86-64/protect_ptr_arg.jazz", line 1 (0) to line 12 (1):
+compilation error in function main:
+stack allocation: argument of protect_ptr should be a reg ptr
+
+fail/stack_allocation/x86-64/protect_ptr_res.jazz:
+
+"fail/stack_allocation/x86-64/protect_ptr_res.jazz", line 1 (0) to line 13 (1):
+compilation error in function main:
+stack allocation: only reg ptr can receive the result of protect_ptr
+
+fail/stack_allocation/x86-64/range_overflow.jazz:
+
+"fail/stack_allocation/x86-64/range_overflow.jazz", line 4 (2-13):
+compilation error in function main:
+stack allocation: cannot access the subarray [16; 32[ of a[0; 24[, the access overflows, your program is probably unsafe
+
+fail/stack_allocation/x86-64/reg_var_expected.jazz:
+
+"fail/stack_allocation/x86-64/reg_var_expected.jazz", line 6 (2-12):
+internal compilation error in function main:
+  linearization: check_rexpr
+Please report at https://github.com/jasmin-lang/jasmin/issues
+
+fail/stack_allocation/x86-64/regions_not_equal_array.jazz:
+
+"fail/stack_allocation/x86-64/regions_not_equal_array.jazz", line 8 (2-3):
+compilation error in function main:
+stack allocation: the assignment to array s cannot be turned into a nop
+source
+  { region = { slot = s; align = u64; writable = true };
+    zone = [0:16][(8 * ((uint) i)):16] }
+and destination
+  { region = { slot = s; align = u64; writable = true };
+    zone = [0:16] }
+regions are not equal
+
+fail/stack_allocation/x86-64/regions_not_equal_subarray.jazz:
+
+"fail/stack_allocation/x86-64/regions_not_equal_subarray.jazz", line 8 (2-3):
+compilation error in function main:
+stack allocation: the assignment to sub-array s cannot be turned into a nop
+source
+  { region = { slot = s; align = u64; writable = true };
+    zone = [0:16][(8 * ((uint) i)):8] }
+and destination
+  { region = { slot = s; align = u64; writable = true };
+    zone = [0:16][(8 * ((uint) (i +64u ((64u) 1)))):8] }
+regions are not equal
+
+fail/stack_allocation/x86-64/res_pointer_not_initial_region.jazz:
+
+"fail/stack_allocation/x86-64/res_pointer_not_initial_region.jazz", line 5 (9-10):
+compilation error in function main:
+stack allocation: the returned pointer (r) is one of the parameters, but it does not point to the region it pointed to initially
+
+fail/stack_allocation/x86-64/stack_ptr_in_expr.jazz:
+
+"fail/stack_allocation/x86-64/stack_ptr_in_expr.jazz", line 6 (8-10):
+compilation error in function main:
+stack allocation: sp is a stack ptr, it should not appear in a sub-expression
+
+fail/stack_allocation/x86-64/unaligned_sub_offset.jazz:
+
+"fail/stack_allocation/x86-64/unaligned_sub_offset.jazz", line 9 (8-9):
+compilation error in function main:
+stack allocation: the access to array r could not be proved to be aligned;
+                  if you know what you are doing or want to perform an unaligned access,
+                  you can use “#unaligned”
+
+fail/stack_allocation/x86-64/unaligned_sub_offset_unscaled.jazz:
+
+"fail/stack_allocation/x86-64/unaligned_sub_offset_unscaled.jazz", line 8 (8-9):
+compilation error in function main:
+stack allocation: the access to array r could not be proved to be aligned;
+                  if you know what you are doing or want to perform an unaligned access,
+                  you can use “#unaligned”
+
+fail/stack_allocation/x86-64/writage_reg_ptr_args_not_disjoint.jazz:
+
+"fail/stack_allocation/x86-64/writage_reg_ptr_args_not_disjoint.jazz", line 14 (2-15):
+compilation error in function main:
+stack allocation: in the call to function f,
+                  some writable reg ptr are not disjoint
+
+fail/stack_allocation/x86-64/write_constant_pointer_arg.jazz:
+
+"fail/stack_allocation/x86-64/write_constant_pointer_arg.jazz", line 5 (2-3):
+compilation error in function foo:
+stack allocation: cannot write to the constant pointer s targetting p
+
+fail/stack_allocation/x86-64/write_constant_pointer_global.jazz:
+
+"fail/stack_allocation/x86-64/write_constant_pointer_global.jazz", line 7 (2-3):
+compilation error in function foo:
+stack allocation: cannot write to the constant pointer s targetting glob_t
+
+fail/stack_allocation/x86-64/write_constant_stack_global.jazz:
+
+"fail/stack_allocation/x86-64/write_constant_stack_global.jazz", line 7 (2-3):
+compilation error in function foo:
+stack allocation: cannot write to the constant pointer s targetting glob_t
+
+fail/subarrays/x86-64/partial_region.jazz:
+
+"fail/subarrays/x86-64/partial_region.jazz", line 11 (8-9):
+compilation error in function main:
+stack allocation: the region associated to variable r is partial
+
+fail/subarrays/x86-64/unscaled_access.jazz:
+
+"fail/subarrays/x86-64/unscaled_access.jazz", line 14 (2-4):
+compilation error in function main:
+stack allocation: the assignment to array s2 cannot be turned into a nop
+source
+  { region = { slot = s; align = u32; writable = true };
+    zone = [0:40][(1 * ((uint) i)):20] }
+and destination
+  { region = { slot = s; align = u32; writable = true };
+    zone = [0:20] }
+regions are not equal
+
+fail/subarrays/x86-64/write_and_read_fails.jazz:
+
+"fail/subarrays/x86-64/write_and_read_fails.jazz", line 7 (2-11):
+compilation error in function main:
+stack allocation: this write is trivially out-of-bounds
+
+fail/typing/x86-64/arg_wrong_size.jazz:
+
+"fail/typing/x86-64/arg_wrong_size.jazz", line 14 (2-15): the expression tab has type u64[2] while u64[1] is expected
+
+fail/typing/x86-64/bug_488.jazz:
+
+"fail/typing/x86-64/bug_488.jazz", line 2 (7-18): primitive “VPMULH” only accepts the following size annotations: _8u16,
+_16u16
+
+fail/typing/x86-64/bug_69.jazz:
+
+"fail/typing/x86-64/bug_69.jazz", line 5 (3-28): primitive operator AND_64 returns an output of size 64; it cannot be zero-extended to size 32
+
+fail/typing/x86-64/export_reg_array_res.jazz:
+
+"fail/typing/x86-64/export_reg_array_res.jazz", line 14 (9-11):
+compilation error in function test3:
+array expansion: cannot expand variable t1 (reg arrays are not allowed in the return type of export functions)
+
+fail/typing/x86-64/export_stack_array_res.jazz:
+
+"fail/typing/x86-64/export_stack_array_res.jazz", line 30 (9-11):
+typing error: t1 has kind stack, only reg or reg ptr are allowed in result of non inlined function
+
+fail/typing/x86-64/export_stack_res.jazz:
+
+"fail/typing/x86-64/export_stack_res.jazz", line 5 (9-10):
+typing error: x has kind stack, only reg or reg ptr are allowed in result of non inlined function
+
+fail/typing/x86-64/global_in_global_def.jazz:
+
+"fail/typing/x86-64/global_in_global_def.jazz", line 2 (10-19): the expression has type u8 instead of u16
+
+fail/typing/x86-64/global_int.jazz:
+
+"fail/typing/x86-64/global_int.jazz", line 1 (0-3): globals should have type word; found: ‘int’
+
+fail/typing/x86-64/init_global.jazz:
+
+"fail/typing/x86-64/init_global.jazz", line 4 (12-13): global variables are not allowed here
+
+fail/typing/x86-64/lval_param.jazz:
+
+"fail/typing/x86-64/lval_param.jazz", line 4 (3-4): param variables are not allowed here
+
+fail/typing/x86-64/non_inline_stack_arg.jazz:
+
+"fail/typing/x86-64/non_inline_stack_arg.jazz", line 1 (19-20):
+typing error: x has kind stack, only reg or reg ptr are allowed in parameter of non inlined function
+
+fail/typing/x86-64/non_inline_stack_res.jazz:
+
+"fail/typing/x86-64/non_inline_stack_res.jazz", line 5 (10-11):
+typing error: t has kind stack, only reg or reg ptr are allowed in result of non inlined function
+
+fail/typing/x86-64/only_param.jazz:
+
+"fail/typing/x86-64/only_param.jazz", line 3 (10-11): only param variables are allowed here
+
+fail/typing/x86-64/res_wrong_type.jazz:
+
+"fail/typing/x86-64/res_wrong_type.jazz", line 12 (10-12): pt should be one of the paramaters
+
+fail/typing/x86-64/subarray_non_const_len.jazz:
+
+"fail/typing/x86-64/subarray_non_const_len.jazz", line 5 (6-7): only param variables are allowed here
+
+fail/typing/x86-64/unsupported_primitive.jazz:
+
+"fail/typing/x86-64/unsupported_primitive.jazz", line 4 (10-19): can not recognize the primitive
+
+fail/typing/x86-64/vector_expr.jazz:
+
+"fail/typing/x86-64/vector_expr.jazz", line 8 (15-16): can not implicitly cast u128 into u256
+
+fail/typing/x86-64/write_constant_pointer_direct_array.jazz:
+
+"fail/typing/x86-64/write_constant_pointer_direct_array.jazz", line 5 (2-3):
+compilation error in function main:
+stack allocation: no region associated to variable p
+
+fail/typing/x86-64/write_constant_pointer_subproc_array.jazz:
+
+"fail/typing/x86-64/write_constant_pointer_subproc_array.jazz", line 2 (2-4):
+compilation error in function foo:
+stack allocation: cannot write to the constant pointer px targetting px
+
+fail/unroll/x86-64/bug_150.jazz:
+
+"fail/unroll/x86-64/bug_150.jazz", line 8 (4) to line 10 (5):
+compilation error in function main:
+loop unrolling: “inline”-annotated instructions remain
+
+fail/unroll/x86-64/bug_29.jazz:
+
+"fail/unroll/x86-64/bug_29.jazz", line 4 (2) to line 6 (3):
+compilation error in function main:
+loop unrolling: for loops remain
+
+fail/unroll/x86-64/loop_iterator.jazz:
+
+internal compilation error:
+  unrolling: loop iterator too small
+Please report at https://github.com/jasmin-lang/jasmin/issues
+
+fail/x86-64/mmx_conflicts.jazz:
+
+compilation error:
+register allocation: cannot solve the register allocation problem.
+
+fail/x86-64/por_32.jazz:
+
+"fail/x86-64/por_32.jazz", line 5 (4-11):
+compilation error in function por_32:
+asmgen: instruction OR_32 is given incompatible args.
+Allowed args are:
+  [[reg; mem (glob not allowed)]; [reg; imm 32]]
+  [[reg]; [reg; mem (glob allowed)]]
+
+fail/x86-64/por_32_intrinsic.jazz:
+
+"fail/x86-64/por_32_intrinsic.jazz", line 5 (9-15): primitive accepts no size annotation: `POR'
+
+fail/x86-64/por_mem.jazz:
+
+"fail/x86-64/por_mem.jazz", line 5 (4-11):
+compilation error in function por_mem:
+asmgen: instruction OR_64 is given incompatible args.
+Allowed args are:
+  [[reg; mem (glob not allowed)]; [reg; imm 32]]
+  [[reg]; [reg; mem (glob allowed)]]
+
+fail/x86-64/por_mem_intrinsic.jazz:
+
+"fail/x86-64/por_mem_intrinsic.jazz", line 5 (4-19):
+compilation error in function por_mem:
+asmgen: instruction POR is given incompatible args.
+Allowed args are:
+  [[regx]; [regx; mem (glob allowed)]]
+
+fail/x86-64/por_reg.jazz:
+
+"fail/x86-64/por_reg.jazz", line 4 (4-11):
+compilation error in function por_mmx_reg:
+asmgen: instruction POR is given incompatible args.
+Allowed args are:
+  [[regx]; [regx; mem (glob allowed)]]
+
+fail/x86-64/por_reg_intrinsic.jazz:
+
+"fail/x86-64/por_reg_intrinsic.jazz", line 4 (4-19):
+compilation error in function por_mmx_reg:
+asmgen: instruction POR is given incompatible args.
+Allowed args are:
+  [[regx]; [regx; mem (glob allowed)]]
+
+fail/x86-64/shift.jazz:
+
+"fail/x86-64/shift.jazz", line 5 (4-12):
+compilation error in function main:
+linearization: The following assignment remains:
+RAX = (RAX <<64u RAX)
+Is there an instruction in the target architecture that can implement it?
+More information may be found online: https://github.com/jasmin-lang/jasmin/wiki/FAQ
+
+fail/x86-64/string.jazz:
+
+"fail/x86-64/string.jazz", line 1 (10-16): ill-formed string (scanf: bad input at char number 3: illegal escape character 'g')
+
+fail/x86-64/swap128.jazz:
+
+"fail/x86-64/swap128.jazz", line 3 (2-21): the swap primitive is not available at type u128
+
+fail/x86-64/swap_bool.jazz:
+
+"fail/x86-64/swap_bool.jazz", line 6 (2-21): the swap primitive is not available at type bool
+
+fail/x86-64/swap_int.jazz:
+
+"fail/x86-64/swap_int.jazz", line 6 (2-21): the swap primitive is not available at type int
+
+fail/x86-64/unaligned_slice_copy.jazz:
+
+"fail/x86-64/unaligned_slice_copy.jazz", line 6 (3-24):
+compilation error in function main:
+variable allocation: bad range alignment for src[0]: src was allocated in slot s[3; 7[, which conflicts with the required alignment (u32)
+
+fail/x86-64/zxspill.jazz:
+
+"fail/x86-64/zxspill.jazz", line 5 (2-14):
+compilation error in function zxspill:
+asmgen: instruction MOVZX_u64u8 is given incompatible args.
+Allowed args are:
+  [[reg]; [reg; mem (glob allowed)]]
+
+Statistics:
+	Annots:      0
+	Pretyping:  44
+	Parsing:     4
+	Typing:      1
+	Compile:   189

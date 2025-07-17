@@ -13,6 +13,7 @@
 
 open Jasmin
 open Utils
+open Common
 open Prog
 
 (** Specific configuration for some example programs. This in particular
@@ -21,10 +22,6 @@ let config path =
   let default () =
     Glob_options.stack_zero_strategy := None;
     set_all_warnings ()
-  in
-  let disable_warnings ws () =
-    set_all_warnings ();
-    List.iter remove_warning ws
   in
   try
     List.assoc path
@@ -214,30 +211,9 @@ let parse_and_print fname errors arch =
     1 + errors)
 
 (* ---------------------------------------------------------------- *)
-let rec check_dir archs prefix errors =
-  let dir = Sys.readdir prefix in
-  Array.sort String.compare dir;
-  Array.fold_left (check_path archs prefix) errors dir
-
-and check_path archs prefix errors filename =
-  let path = Filename.concat prefix filename in
-  if Sys.is_directory path then
-    let archs =
-      try
-        List.assoc filename
-          [
-            ("x86-64", X86_64 :: archs);
-            ("arm-m4", ARM_M4 :: archs);
-            ("risc-v", RISCV :: archs);
-            ("common", [ X86_64; ARM_M4; RISCV ]);
-          ]
-      with Not_found -> archs
-    in
-    check_dir archs path errors
-  else if String.ends_with filename ".jazz" then (
-    config path;
-    List.fold_left (parse_and_print path) errors archs)
-  else errors
+let check_file archs path errors =
+  config path;
+  List.fold_left (parse_and_print path) errors archs
 
 (* ---------------------------------------------------------------- *)
-let () = check_dir [] "success" 0 |> exit
+let () = check_dir check_file [] "success" 0 |> exit
