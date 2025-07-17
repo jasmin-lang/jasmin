@@ -99,9 +99,6 @@ Definition sc_op2_big (o : sop2) :=
   | Odiv _ _ | Omod _ _ => true
   end.
 
-Definition sc_pexprs (sc_pexpr: pexpr -> safety_cond) (es:pexprs) : safety_cond :=
-  flatten (map sc_pexpr es).
-
 Fixpoint sc_pexpr (e : pexpr) : safety_cond :=
   match e with
   | Pconst _ | Pbool _  | Parr_init _ => [::]
@@ -135,7 +132,7 @@ Fixpoint sc_pexpr (e : pexpr) : safety_cond :=
     sce1 ++ sce2 ++ sco
 
   | PappN op es =>
-    let scs := sc_pexprs sc_pexpr es in
+    let scs := conc_map sc_pexpr es in
     scs
 
   | Pif ty e e1 e2 =>
@@ -281,9 +278,9 @@ Fixpoint sc_instr_ir ii (ir : instr_r) : (safety_cond *  instr_r) :=
     (sc_lv ++ sc_e, ir)
   | Copn lvs _ o es  =>
     let sc_lvs := sc_lvals lvs true in
-    let sc_es := conc_map sc_pexpr es in
     let sc_op := get_sopn_safe_conds es o in
-    (sc_lvs ++ sc_es ++ sc_op, ir)
+    let sc_es := conc_map sc_pexpr es in
+    (sc_lvs ++ sc_op ++ sc_es, ir)
   | Csyscall lvs _ es =>
     let sc_lvs := sc_lvals lvs true in
     let sc_es := conc_map sc_pexpr es in

@@ -408,6 +408,17 @@ Proof.
   by move => ?? [[-> ->]]; rewrite eandsE_cons.
 Qed.
 
+Lemma syscall_u_toutP o fs fs' :
+  fexec_syscall o fs = ok fs' ->
+  fmem fs = fmem fs' /\ List.map type_of_val fs'.(fvals) = scs_tout (syscall_sig_u o).
+Proof.
+  rewrite /fexec_syscall; t_xrbindP => -[[scs m_] vs_] + [<-] /=.
+  case: o => len /=.
+  rewrite /exec_getrandom_u.
+  case: (fvals fs) => // v [] //; t_xrbindP.
+  by move=> ?? _ ? _ <- /= _ <- <-.
+Qed.
+
 End SafeAssert.
 
 End LEMMAS.

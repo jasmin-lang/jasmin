@@ -4,7 +4,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg word_ssrZ.
 Require Import psem psem_facts safety safety_shared_proof.
 Import Utf8.
 
-Require Import wint_int_proof.
 Local Open Scope Z_scope.
 Local Open Scope seq_scope.
 
@@ -29,6 +28,7 @@ Notation gd := (p_globs p).
 Notation sem_pexpr_wc := (sem_pexpr (wc:=withcatch)).
 Notation sem_pexprs_wc := (sem_pexprs (wc:=withcatch)).
 Notation sem_cond_wc := (sem_cond (wc:=withcatch)).
+Notation write_lvals_wc := (write_lvals (wc:=withcatch)).
 
 (* ----- Aux Lemmas ----- *)
 Lemma gvar_init_arr s x len :
@@ -160,7 +160,7 @@ Let Pe e :=
 
 Let Qe es :=
   forall s vs,
-  sem_cond_wc gd (eands (sc_pexprs sc_pexpr es)) s = ok true ->
+  sem_cond_wc gd (eands (conc_map sc_pexpr es)) s = ok true ->
   sem_pexprs_wc true gd s es = ok vs ->
   sem_pexprs true gd s es = ok vs .
 
@@ -452,7 +452,8 @@ Proof.
   case: eqP => //; by rewrite h1.
 Qed.
 
-Section ForallAnd.
+Section ForallAnd. (* MOVE THIS? *)
+  
 Variable T : Type.
 Variables P Q : T -> bool.
 
@@ -462,6 +463,7 @@ Proof.
   move=> H.
   by split => x; move: (H x) => /andP[].
 Qed.
+
 End ForallAnd.
 
 (* Safety Lemma: lval *)  
@@ -531,11 +533,11 @@ Proof.
     by eauto.
 Qed.
 
-Lemma ltypeQl ls vs s0 s s' okmem:
+Lemma sc_lvalsP ls vs s0 s s' okmem:
   sem_cond_wc gd (eands (sc_lvals ls okmem)) s0 = ok true ->
   (evm s0 = evm s) ->
   (okmem -> emem s0 = emem s) ->
-  write_lvals (wc:=withcatch) true gd s ls vs = ok s' ->
+  write_lvals_wc true gd s ls vs = ok s' ->
   write_lvals true gd s ls vs = ok s'.
 Proof.
   move=> hscs hvm.
@@ -555,26 +557,40 @@ Proof.
   by move=> /andP [/hokm -> hlv]; apply: lv_write_memP hw.
 Qed.
 
-(*
 (* Safety Lemma: instructions *)  
 Lemma safety_callP fn :
   let pi := sc_prog p in
   wiequiv_f_wa withcatch nocatch withassert withassert
     pi p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:= eq_spec)).
 Proof.
-  apply wequiv_fun_ind_wa => hrec {fn} fn _ fs _ [<- <-] fd hget.
+  apply wequiv_fun_ind_wa => hrec {}fn _ fs _ [<- <-] fd hgetsc.
   have : exists fd', get_fundef (p_funcs p) fn = Some fd' /\
                      fd = sc_fun fd'.
-  + move: hget; rewrite /sc_prog compiler_util.get_map_prog /=.
+  + move: hgetsc; rewrite /sc_prog compiler_util.get_map_prog /=.
     by case heq: get_fundef => [fd'|] //= [?]; subst fd; eauto.
 
-  move=> [fd'] [-> ?]; subst fd; exists fd'=> // hpre; split.
-  + admit.   (*+ by apply: wi2i_sem_pre hfsig hrel hpre.*)
+  move=> [fd'] [hget ?]; rewrite hget; subst fd; exists fd'=> // hpre; split.
+  + move: hpre; rewrite /sem_pre hget hgetsc /sc_fun /=.
+    clear hget hgetsc; case: fd' => //=.
+    move=> ? [] // func funty _ _ _ _ _.
+    t_xrbindP=> vst -> /= s -> /= us + _.
+    elim: (f_pre func) us => [|a l] //=.
+    t_xrbindP => hrec' us hsca us' /hrec'{}hrec' ?; subst us.
+    move: hsca; rewrite /sem_assert /= -cats1.
+    t_xrbindP; case=> // /eandsE_cat[hsce] /=.
+    rewrite /sem_cond; t_xrbindP => v hewc /to_boolI ? _ _; subst v.
+    have he := sc_pexprP hsce hewc; rewrite he /=.
+    move: hrec'; rewrite /sem_assert /sem_cond /=.
+    elim: l => [| a' as' hrec'] //=.
+    t_xrbindP=> us1 b v -> /to_boolI ?; subst v; case:b=> // _ _ us2.
+    by move=> -> ? _; subst us1=> /=.
 
   exists (st_rel (fun _ => eq) tt), (st_rel (fun _ => eq) tt).
   move=> s1 hinit; exists s1; split=> //.
-  + admit. (*use hinit, unfold initialiize_funcall and sc_fun.,*)
-  + rewrite /sc_fun /=; clear hget hinit.
+  + move: hinit hpre; rewrite /initialize_funcall /sem_pre /sc_fun /= hgetsc /=.
+    by clear hget hgetsc; case: fd' => //=.
+    
+  + rewrite /sc_fun /=; clear hget hinit hgetsc.
     case: fd' => //= finf fcont ftin ftparam fbody ftout fres _.
 
     set Pi := (fun i =>
@@ -598,12 +614,16 @@ Proof.
                    ([:: MkI ii (sc_instr_ir ii ir).2]) ([::MkI ii ir])
                    (st_rel (λ _ : unit, eq) tt)).
 
+    rewrite -{2}(cats0 fbody).
+    apply wequiv_cat with (st_rel (λ _ : unit, eq) tt); last first.
+    + admit.
+    
     apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //;
-    subst Pi_r Pi Pc => /= {fn fs hpre s1 finf fcont ftin ftparam fbody ftout fres}.
+    subst Pi_r Pi Pc => /= {fn fs hpre s1 finf fcont ftin ftparam fbody ftout}.
 
     + move=> ir ii hi; rewrite -(cat0s [:: MkI _ _]) -cats1.
       apply wequiv_cat with (fun si s => st_rel (λ _ : unit, eq) tt si s /\
-                                           sem_cond (wc:=withcatch) (p_globs (sc_prog p)) (eands (sc_instr_ir ii ir).1) si = ok true).
+           sem_cond (wc:=withcatch) (p_globs (sc_prog p)) (eands (sc_instr_ir ii ir).1) si = ok true).
       + by apply safe_assertP.
       by apply hi.
 
@@ -620,37 +640,47 @@ Proof.
       have {}hwi := sc_lvalP hscx1 hwi.
       by rewrite hvei /= htri /= hwi; eexists.
 
-    + move=> xs tg o es ii. admit.
-      (*
+    + move=> xs tg o es ii.
       apply wequiv_opn with eq eq.
-      + move=> s s' vs [/estate_eq ?]; subst.
-        move=> /eandsE_cat[hscx] /eandsE_cat[hsce] hsco hsem.
-        have {}hsem := etypeQe hsce hsem.
-        by eauto.
-      + move=> s s'[/estate_eq ?]; subst.
-        move=> /eandsE_cat[hscx] /eandsE_cat[hsce] hsco.
-        move=> vs1 vs2 vs3 ?; subst vs1. admit.
-      + move=> vs1 vs2 ?; subst vs1.
-        move=> s1 s2 s3 [/estate_eq ?]; subst s1.
-        move=> /eandsE_cat[hscx] /eandsE_cat[hsce] hsco hsem.
-        have  := ltypeQl. Search conc_map.  hsem.
-        *)
-      
+      + move=> s s' vs [/estate_eq ?] + /sc_pexprsP; subst s'.
+        case h: (conc_map sc_pexpr es) => [|sc scs] /=.
+        + by rewrite /sem_cond => _ /= /(_ erefl) ->; eauto.
+        case H : (flatten [seq sc_lval i | i <- xs] ++
+                    get_sopn_safe_conds es o ++ sc :: scs) => [| a l].
+        + move: H => /List.app_eq_nil[_] /List.app_eq_nil[_] /=.
+          by have /(_ _ sc scs) hcontr := List.nil_cons.
+        rewrite -{}H => /eandE[] hmem /eandsE_cat[] hscx /eandsE_cat[] hsco hsce.
+        by move=> /(_ hsce) ->; eauto.
+      + move=> s s'[/estate_eq ?]; subst s'.
+        move=> ?. move=> bla. admit.
+      move=> vs _ <- s s' sf [/estate_eq ?] + /sc_lvalsP /=; subst s'.
+      case h: (flatten [seq sc_lval i | i <- xs]) => [| sc scs] /=.
+      + case H: (get_sopn_safe_conds es o ++ conc_map sc_pexpr es) => [| a l].
+        + by move=> hmem /(_ _ _ hmem erefl (fun _ => erefl)) ->; exists sf.
+        by move=> /eandE[hmem] hsce /(_ _ _ hmem erefl (fun _ => erefl)) ->; exists sf.
+      move=> hcond /(_ s true). admit.
+          
     + move => xs o es ii.
       apply wkequivP' => si0 s0.
       apply wequiv_syscall with
       eq (fun fs1 fs2 => [/\ fs1 = fs2, emem si0 = fmem fs1
                           & map type_of_val fs1.(fvals) = (scs_tout (syscall_sig_u o))]).
       + apply wrequiv_weaken with eq eq => //.
-      + move=> i1 i2 [][] ?? [] /estate_eq ?; subst si0 i1 i2.
-        case: (flatten [seq sc_lval i | i <- xs] ++ conc_map sc_pexpr es) => //.
-        move=> s1 s2 vs ?; subst s1.
-      admit. admit. admit.
-      (* by have /= [] := syscall_u_toutP hex.
-    move=> fs1 _ [<- hmem htyof] si s si' [[??] hpre]; rewrite /upd_estate; subst si0 s0.
-    have /(_ sce.1) := (wi2i_lvsP_none htyof hscx); apply.
-    rewrite -hmem with_mem_same.
-    by case: hpre => -[_ ? ? hsc]; split => //; rewrite -sem_cond_with_scs.*)
+        + by move=> i1 i2 [][] ?? [] /estate_eq ?; subst si0 i1 i2.
+        admit.
+      + move=> s s' [][] ?? [] /estate_eq ?; subst si0 s0 s'.
+        move=> hcond vs vs' fs ?; subst vs'.
+        move=> hex; have /= [-> <-] := syscall_u_toutP hex.
+        by exists fs.
+      move=> fs1 _ [<- hmem htyof] si s si' [[??] [/estate_eq ?]].
+      rewrite /upd_estate; subst si0 s0 si => + hws.
+      have /= := sc_lvalsP _ _ _ hws.
+      case: (flatten [seq sc_lval i | i <- xs]) => [|scx scxs] //=;
+      case: (conc_map sc_pexpr es) => [|sce sces] //= he.
+      + by move=> /he /(_ erefl (fun _ => hmem)) ->; exists si'.
+      + by move=> /eandE[] /he /(_ erefl (fun _ => hmem)) ->; exists si'.
+      + by rewrite cats0 => /he /(_ erefl (fun _ => hmem)) ->; exists si'.
+      + admit.
     
     + move=> a ii.
       apply wequiv_assert => /=; last by move=> _ _ > [].
@@ -681,23 +711,22 @@ Proof.
 
      + move=> al c e ii' c' hc hc' ii.
        apply wequiv_weaken with (st_rel (λ _ : unit, eq) tt)
-                                (fun si s => st_rel (λ _ : unit, eq) tt si s /\
-                                             sem_cond (p_globs (sc_prog p)) e si = ok true).
+                         (fun si s => st_rel (λ _ : unit, eq) tt si s /\
+                   sem_cond_wc (p_globs (sc_prog p)) (eands (sc_pexpr e)) si = ok true).
        1-2: by move=> > [].
        apply wequiv_while.
-       + move=> s1 s2 b []/estate_eq -> hsc hsc2.
-         (* need wi2i_condP version *)
-         (*by exists b.*) admit.
+       + move=> s s' b []/estate_eq ?; subst s'=> /sc_pexprP he.
+         by rewrite /sem_cond; t_xrbindP=> v /he -> /to_boolI ?; subst v; exists b.
          
-       + (* by rewrite -(cats0 c);
-            apply wequiv_cat with (st_rel (λ _ : unit, eq) tt) => //;
-            apply: safe_assertP. *) admit.
+       + (* by rewrite -(cats0 c); apply wequiv_cat with (st_rel (λ _ : unit, eq) tt) => //;
+         apply safe_assertP. *) admit.
 
        by apply wequiv_weaken with (st_rel (λ _ : unit, eq) tt)
                                    (st_rel (λ _ : unit, eq) tt) => // > [].
 
      + move=> xs f es ii.
-(*       apply wequiv_call_wa with (rpreF (eS:= wi2i_spec))
+       admit.
+       (* apply wequiv_call_wa with (rpreF (eS:= wi2i_spec))
                                  (rpostF (eS:=wi2i_spec))
                                  (vs_pre fsig.1).
        + move=> si s vis [heqs /eandsE_cat [hsce1 _]] hsce2.
@@ -714,7 +743,7 @@ Proof.
          + by move=> fsi fs fri fr [_ [x]] + + [x']; rewrite heq => -[<-] [?? +] [<-]; apply wi2i_sem_post.
        move=> fsi fs fri fr [_ [x]] ++ [x']; rewrite heq => -[<-] [_ _ hpre] [<-] [?? [hall hfvals]].
       move=> si s si' [[_ _ hvm] /eandsE_cat [_ hscx1]]; rewrite /upd_estate hfvals in hall |- * => hw.
-      by apply: (wi2i_lvsP hscx hscx1 _ _ _ hw).*)      
+      by apply: (wi2i_lvsP hscx hscx1 _ _ _ hw). *)
 Admitted.
-*)
+
 End SAFETY_PROOF.

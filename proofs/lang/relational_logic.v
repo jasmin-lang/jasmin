@@ -666,32 +666,6 @@ Proof.
   by move=> s1 s2 /ho; apply wrequiv_weaken => // > [-> ->].
 Qed.
 
-Lemma wequiv_opn_eq P Q ii1 xs1 at1 o es1 ii2 xs2 at2 es2 :
-  wrequiv P (fun s => sem_pexprs1 true (p_globs p1) s es1)
-           (fun s => sem_pexprs2 true (p_globs p2) s es2) eq ->
-  (forall vs,
-    wrequiv P (fun s1 => write_lvals1 true (p_globs p1) s1 xs1 vs)
-             (fun s2 => write_lvals2 true (p_globs p2) s2 xs2 vs) Q) ->
-  wequiv P [:: MkI ii1 (Copn xs1 at1 o es1)] [:: MkI ii2 (Copn xs2 at2 o es2)] Q.
-Proof.
-  move=> he hx; apply wequiv_opn with eq eq => //.
-(*  + by move=> *; apply wrequiv_eq.
-  by move=> > <-; apply hx.*)
-Admitted.
-
-Lemma wequiv_opn_uincl P Q ii1 xs1 at1 o es1 ii2 xs2 at2 es2 :
-  wrequiv P (fun s => sem_pexprs1 true (p_globs p1) s es1)
-           (fun s => sem_pexprs2 true (p_globs p2) s es2) (Forall2 value_uincl) ->
-  (forall vs1 vs2,
-    Forall2 value_uincl vs1 vs2 ->
-    wrequiv P (fun s1 => write_lvals1 true (p_globs p1) s1 xs1 vs1)
-             (fun s2 => write_lvals2 true (p_globs p2) s2 xs2 vs2) Q) ->
-  wequiv P [:: MkI ii1 (Copn xs1 at1 o es1)] [:: MkI ii2 (Copn xs2 at2 o es2)] Q.
-Proof.
-  move=> he; apply wequiv_opn with (Forall2 value_uincl) => //.
-(*  move=> *; apply wrequiv_exec_sopn.*)
-Admitted.
-
 Lemma wequiv_opn_esem (P Q : rel_c) ii1 xs1 tg1 o1 es1 c2 :
   wrequiv P (fun s => sem_sopn (wc:=wc1) (wa:=wa1) (p_globs p1) o1 s xs1 es1)
             (esem (wc:=wc2) (wa:=wa2) p2 ev2 c2) Q ->
@@ -1347,19 +1321,6 @@ Proof.
   by move=> _ _ + + + _ _; apply: check_esP_rel hes.
 Qed.
 
-Lemma wequiv_opn_rel_uincl d de d' ii1 xs1 tg1 o es1  ii2 xs2 tg2 es2 :
-  check_es d es1 es2 de →
-  check_lvals de xs1 xs2 d' →
-  wequiv (R d) [:: MkI ii1 (Copn xs1 tg1 o es1)] [:: MkI ii2 (Copn xs2 tg2 o es2)] (R d').
-Proof.
-  move=> hes hxs.
-  apply wequiv_opn_uincl.
-  + by apply: ucheck_esP hes.
-  move=> v1 v2 hu; apply wrequiv_weaken with (R de) (R d') => //.
-  + by apply: check_esP_rel hes.
-  by apply: ucheck_lvalsP hxs v1 v2 hu.
-Qed.
-
 Lemma wequiv_if_rel_uincl_R d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
   check_es d [::e] [::e'] de ->
   (forall s1 s2, R d1 s1 s2 -> R d' s1 s2) ->
@@ -1504,19 +1465,6 @@ Proof.
   apply wequiv_assert_eq.
   + by move=> /hassert ?; split => //; apply: echeck_eP hes.
   by move=> _ _ + + + _ _; apply: check_esP_rel hes.
-Qed.
-
-Lemma wequiv_opn_rel_eq d de d' ii1 xs1 tg1 o es1 ii2 xs2 tg2 es2 :
-  check_es d es1 es2 de →
-  check_lvals de xs1 xs2 d' →
-  wequiv (R d) [:: MkI ii1 (Copn xs1 tg1 o es1)] [:: MkI ii2 (Copn xs2 tg2 o es2)] (R d').
-Proof.
-  move=> hes hxs.
-  apply wequiv_opn_eq.
-  + by apply: echeck_esP hes.
-  move=> v; apply wrequiv_weaken with (R de) (R d') => //.
-  + by apply: check_esP_rel hes.
-  by apply: echeck_lvalsP hxs v.
 Qed.
 
 Lemma wequiv_if_rel_eq_R d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
@@ -1910,6 +1858,86 @@ Qed.
 End WEQUIV_FUN.
 
 End WITHASSERT.
+
+Section CONTEXT.
+Context {wa1 wa2: WithAssert}.
+Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
+    {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
+
+Notation sem_pexprs1 := (sem_pexprs (wa:=wa1)).
+Notation sem_pexprs2 := (sem_pexprs (wa:=wa2)).
+Notation write_lvals1 := (write_lvals (wa:=wa1)).
+Notation write_lvals2 := (write_lvals (wa:=wa2)).
+
+Lemma wequiv_opn_eq {wc:WithCatch} P Q ii1 xs1 at1 o es1 ii2 xs2 at2 es2 :
+  wrequiv P (fun s => sem_pexprs1 true (p_globs p1) s es1)
+           (fun s => sem_pexprs2 true (p_globs p2) s es2) eq ->
+  (forall vs,
+    wrequiv P (fun s1 => write_lvals1 true (p_globs p1) s1 xs1 vs)
+             (fun s2 => write_lvals2 true (p_globs p2) s2 xs2 vs) Q) ->
+  wequiv (wa1:=wa1) p1 p2 ev1 ev2 P [:: MkI ii1 (Copn xs1 at1 o es1)] [:: MkI ii2 (Copn xs2 at2 o es2)] Q.
+Proof.
+  move=> he hx; apply wequiv_opn with eq eq => //.
+  + by move=> *; apply wrequiv_eq.
+  by move=> > <-; apply hx.
+Qed. 
+
+Lemma wequiv_opn_uincl P Q ii1 xs1 at1 o es1 ii2 xs2 at2 es2 :
+  wrequiv P (fun s => sem_pexprs1 true (p_globs p1) s es1)
+           (fun s => sem_pexprs2 true (p_globs p2) s es2) (Forall2 value_uincl) ->
+  (forall vs1 vs2,
+    Forall2 value_uincl vs1 vs2 ->
+    wrequiv P (fun s1 => write_lvals1 true (p_globs p1) s1 xs1 vs1)
+             (fun s2 => write_lvals2 true (p_globs p2) s2 xs2 vs2) Q) ->
+  wequiv (wa1:=wa1) p1 p2 ev1 ev2 P [:: MkI ii1 (Copn xs1 at1 o es1)] [:: MkI ii2 (Copn xs2 at2 o es2)] Q.
+Proof.
+  move=> he; apply wequiv_opn with (Forall2 value_uincl) => //.
+  move=> *; apply wrequiv_exec_sopn.
+Qed.
+
+Section UINCL.
+Context {D:Type}.
+Context (R : D -> estate1 -> estate2 -> Prop).
+Context {ce : Checker_e R}.
+Context {cu: (Checker_uincl p1 p2 (wa1:=wa1)) R ce }.
+
+Lemma wequiv_opn_rel_uincl d de d' ii1 xs1 tg1 o es1  ii2 xs2 tg2 es2 :
+  check_es d es1 es2 de →
+  check_lvals de xs1 xs2 d' →
+  wequiv (wa1:=wa1) p1 p2 ev1 ev2 (R d) [:: MkI ii1 (Copn xs1 tg1 o es1)] [:: MkI ii2 (Copn xs2 tg2 o es2)] (R d').
+Proof.
+  move=> hes hxs.
+  apply wequiv_opn_uincl.
+  + apply: ucheck_esP hes; apply wdb_ok_true.
+  move=> v1 v2 hu; apply wrequiv_weaken with (R de) (R d') => //.
+  + by apply: check_esP_rel hes.
+  apply: ucheck_lvalsP hxs v1 v2 hu; apply wdb_ok_true.
+Qed.
+End UINCL.
+
+Section EQ.
+Context {D:Type} {wc: WithCatch}.
+Context (R : D -> estate1 -> estate2 -> Prop).
+Context {ce : Checker_e R}.
+Context {cu: (Checker_eq p1 p2 (wa1:=wa1)) R ce}.
+
+Lemma wequiv_opn_rel_eq d de d' ii1 xs1 tg1 o es1 ii2 xs2 tg2 es2 :
+  check_es d es1 es2 de →
+  check_lvals de xs1 xs2 d' →
+  wequiv (wa1:=wa1) p1 p2 ev1 ev2 (R d) [:: MkI ii1 (Copn xs1 tg1 o es1)] [:: MkI ii2 (Copn xs2 tg2 o es2)] (R d').
+Proof.
+  move=> hes hxs.
+  apply wequiv_opn_eq.
+  + by apply: echeck_esP hes; apply wdb_ok_true.
+  move=> v; apply wrequiv_weaken with (R de) (R d') => //.
+  + by apply: check_esP_rel hes.
+  by apply: echeck_lvalsP hxs v; apply wdb_ok_true.
+Qed.
+
+End EQ.
+
+End CONTEXT.
 
 Section NOASSERT.
 

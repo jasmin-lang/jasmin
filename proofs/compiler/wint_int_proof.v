@@ -1112,18 +1112,6 @@ Proof.
   by rewrite (truncate_val_has_type htr') -(esubtype_sign_of hsub) sign_of_etype_var eqxx.
 Qed.
 
-(* TODO : move this *)
-Lemma syscall_u_toutP o fs fs' :
-  fexec_syscall o fs = ok fs' ->
-  fmem fs = fmem fs' /\ List.map type_of_val fs'.(fvals) = scs_tout (syscall_sig_u o).
-Proof.
-  rewrite /fexec_syscall; t_xrbindP => -[[scs m_] vs_] + [<-] /=.
-  case: o => len /=.
-  rewrite /exec_getrandom_u.
-  case: (fvals fs) => // v [] //; t_xrbindP.
-  by move=> ?? _ ? _ <- /= _ <- <-.
-Qed.
-
 (* TODO move this in psem *)
 Lemma sem_cond_with_scs gd e s scs:
   sem_cond gd e s = sem_cond gd e (with_scs s scs).
