@@ -7,7 +7,7 @@ z  = arg;
 cf, z = #adc(z,z,false);
 // of cf xf pf zf
 _,_,_,_,_,z = #ADC(z,z,cf);
-z = #ADC(z,z,cf);
+?{}, z = #ADC(z,z,cf);
 return z;
 }
 
