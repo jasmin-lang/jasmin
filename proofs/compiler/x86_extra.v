@@ -287,13 +287,17 @@ Definition assemble_slh_move
 Definition assemble_extra ii o outx inx : cexec (seq (asm_op_msb_t * lexprs * rexprs)) :=
   match o with
   | Oset0 sz =>
-    let op := if (sz <= U64)%CMP then (XOR sz) else (VPXOR sz) in
+    let op :=
+      if (sz <= U64)%CMP then
+        if sz == U64 then (Some U64, XOR U32)
+        else (None, XOR sz)
+      else (None, VPXOR sz) in
     Let x :=
       match rev outx with
       | LLvar x :: _ =>  ok (Rexpr (Fvar x))
       | _ => Error (E.error ii "set0 : destination is not a register")
       end in
-    ok [:: outx ::= op [:: x; x ] ]
+    ok [:: (op, outx, [:: x; x ]) ]
   | Ox86MOVZX32 =>
     Let _ :=
       match outx with
