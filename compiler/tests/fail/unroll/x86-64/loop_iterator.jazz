@@ -1,4 +1,4 @@
-export fn main (reg u64 counter) -> reg u64 {
+export fn main () -> reg u64 {
   reg u64 res;
   inline int i0;
   inline int i1;
