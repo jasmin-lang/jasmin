@@ -150,9 +150,9 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
          match c.kind with
          | Exact ->
              if (fst c.range + i) land (size_of_ws ws - 1) <> 0 then
-            hierror ~loc:(Lone (L.loc x.gv)) "bad range alignment for %a[%d]/%s in %a"
-              (Printer.pp_var ~debug:false) x' i (string_of_ws ws)
-              Alias.pp_slice c
+            hierror ~loc:(Lone (L.loc x.gv)) "bad range alignment for %a[%d]: %a was allocated in slot %a, which conflicts with the required alignment (%s)"
+              (Printer.pp_var ~debug:false) x' i
+              (Printer.pp_var ~debug:false) x' Alias.pp_slice c (string_of_ws ws)
          | Sub ws' ->
              if not (wsize_le ws ws') then
                hierror ~loc:(Lone (L.loc x.gv)) "bad alignment for var %a: %a (expected: %a)"
