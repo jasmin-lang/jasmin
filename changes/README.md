@@ -18,3 +18,11 @@ This avoids having conflicts between PRs just because of the changelog.
     ([PR #<PR number>](https://github.com/jasmin-lang/jasmin/pull/<PR number>);
     fixes [#<issue number>](https://github.com/jasmin-lang/jasmin/issues/<issue number>)).
   ```
+
+## Generating the unreleased changelog
+
+If you prepare the next release, or just want to get a synthetic view of the unreleased changes,
+just run from the root of the repository:
+```
+./scripts/generate-release-changelog.sh
+```
