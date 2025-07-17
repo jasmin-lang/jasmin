@@ -20,7 +20,7 @@ type slice = { in_var : var ; scope : E.v_scope ; range : int * int; kind : sub_
 type alias = slice Mv.t
 
 (* --------------------------------------------------- *)
-let pp_var fmt x = pp_var ~debug:true fmt x
+let pp_var fmt x = pp_var ~debug:!Glob_options.debug fmt x
 
 let pp_scope fmt s =
   Format.fprintf fmt "%s" (if s = E.Slocal then "" else "#g:")
