@@ -2,12 +2,12 @@
 
 ## Description
 
-This directory contains the pieces of changelog corresponding to the unreleased changes to Jasmin.
+This directory contains the pieces of changelog describing the unreleased changes to Jasmin.
 Each change is described in its own file.
 The files will be merged into [`CHANGELOG.md`](../CHANGELOG.md) when the changes make it to a release.
-This avoids having conflicts between PRs just because of the changelog.
+This avoids having conflicts between PRs just because of additions to the changelog.
 
-## Describe a change
+## Describing your change
 
 - Pick one of the existing directories depending on the kind of change you implemented.
 - Create a file `<PR number>-some-title.md` in the corresponding directory.
@@ -23,6 +23,7 @@ This avoids having conflicts between PRs just because of the changelog.
 
 If you prepare the next release, or just want to get a synthetic view of the unreleased changes,
 just run from the root of the repository:
+
 ```
 ./scripts/generate-release-changelog.sh
 ```
