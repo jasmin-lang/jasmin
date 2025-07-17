@@ -22,6 +22,10 @@
   "fail/warning/x86-64/reg_const_ptr.jazz", line 2 (9-10)
   warning: no need to return a [reg const ptr] r
 
+  $ ../jasminc fail/warning/x86-64/ignored_zero_extension.jazz
+  "fail/warning/x86-64/ignored_zero_extension.jazz", line 3 (2-31)
+  warning: primitive operator AND_64 already returns a value of size 64; the zero-extension is ignored
+
   $ ../jasminc -wall -until_cstexp fail/linter/dead_variables.jazz
   "fail/linter/dead_variables.jazz", line 6 (8-18)
   warning: Variable 'y' is affected but never used
