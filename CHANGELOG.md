@@ -31,6 +31,9 @@
 - Safety checker handles x86 instructions with zero-extension
   ([PR #1240](https://github.com/jasmin-lang/jasmin/pull/1240)).
 
+- Escape '#' sign in variable and function names
+  ([PR #1241](https://github.com/jasmin-lang/jasmin/pull/1241)).
+
 ## Other changes
 
 - The deprecated x86 intrinsic `#VPBLENDVB` has been removed

@@ -5,7 +5,7 @@ open Wsize
 module E = Expr
 
 (* -------------------------------------------------------------------- *)
-let escape = String.map (fun c -> if c = '.' || c = ':' then '_' else c)
+let escape = String.map (fun c -> if c = '.' || c = ':' || c = '#' then '_' else c)
 
 (* -------------------------------------------------------------------- *)
 
