@@ -550,6 +550,29 @@ Proof.
     + case: args => /=; t_xrbindP; last by move => *; subst.
       move => <-{xs} _ /ok_inj <- /= <-{ys} hw x.
       case: rev => [ // | [ // | d ] ds ] /ok_inj <-{x} <- /=.
+      case: eqP => [?|_].
+      + subst sz.
+        t_xrbindP => -[op' asm_args] hass <- hlo /=.
+        assert (h := assemble_asm_opI hass); case: h=> hca hcd hidc -> /= {hass}.
+        move: hca; rewrite /check_sopn_args /= => /and3P [].
+        rewrite /check_sopn_arg /=.
+        case: asm_args hidc hcd => //= a0 [ // | ] a1 [] //= hidc hcd;
+          last by rewrite /check_args_kinds /= !andbF.
+        case ok_y: xreg_of_var => [y|//].
+        assert (h := xreg_of_varI ok_y); move: h => {}ok_y.
+        rewrite !andbT /compat_imm.
+        case: y ok_y => // r xr; rewrite !orbF => /eqP ? /eqP ? _; subst a0 a1; only 2-3: by [].
+        rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
+        rewrite truncate_word_le // /x86_XOR /= wxor_xx.
+        rewrite -(check_not_addr_write s U64 (id_tout := b5w_ty U32) (Some _, (Some _, (Some _, (Some _, (Some _, 0%R)))))) //=.
+        rewrite zero_extend0.
+        set id := instr_desc_op (XOR U64).
+        rewrite /SF_of_word msb0.
+        by have [s' -> /= ?]:= (@compile_lvals _ _ _ _ _ _ _ _ _ _ _
+             rip ii m lvs m' s [:: Reg r; Reg r]
+             id.(id_out) id.(id_tout)
+             (let vf := Some false in let: vt := Some true in (::vf, vf, vf, vt, vt & (0%R: word U64)))
+             MSB_CLEAR (refl_equal _) hw hlo hcd id.(id_check_dest)); eauto.
       t_xrbindP => -[op' asm_args] hass <- hlo /=.
       assert (h := assemble_asm_opI hass); case: h=> hca hcd hidc -> /= {hass}.
       move: hca; rewrite /check_sopn_args /= => /and3P [].

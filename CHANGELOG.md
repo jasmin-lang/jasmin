@@ -46,6 +46,9 @@
   compile-time
   ([PR #1132](https://github.com/jasmin-lang/jasmin/pull/1132)).
 
+- On x86, `#set0_64` is now compiled into a 32-bit xor zero-extended to 64 bits
+  ([PR #1242](https://github.com/jasmin-lang/jasmin/pull/1242)).
+
 # Jasmin 2025.06.0 — Nancy, 2025-06-18
 
 ## New features
