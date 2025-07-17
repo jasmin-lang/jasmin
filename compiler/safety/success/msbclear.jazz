@@ -1,0 +1,6 @@
+export fn test(reg u32 a b) -> reg u64 {
+  reg u64 r;
+  a = a;
+  ?{}, r = (64u)#ADD_32(a, b);
+  return r;
+}
