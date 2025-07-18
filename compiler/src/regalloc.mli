@@ -32,7 +32,6 @@ module type Regalloc = sig
 
    *)
   val alloc_prog :
-    (Var0.Var.var -> var) ->
     ((unit, extended_op) func -> 'a -> bool) ->
     ((unit, extended_op) func -> 'a -> Z.t) ->
     ('a * (unit, extended_op) func) list ->
