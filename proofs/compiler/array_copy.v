@@ -23,7 +23,7 @@ End E.
 Section Section.
 
 Context `{asmop:asmOp}.
-Context (fresh_var_ident: v_kind → string → stype → Ident.ident).
+Context (fresh_var_ident: v_kind → string → atype → Ident.ident).
 
 Let fresh_counter : Ident.ident := fresh_var_ident Inline "i__copy" sint.
 Let fresh_temporary (ws: wsize) : Ident.ident := fresh_var_ident (Reg (Normal, Direct)) "tmp" (sword ws).
@@ -58,12 +58,11 @@ Definition array_copy ii (x: var_i) (ws: wsize) (n: positive) (y: gvar) :=
   let i_name := fresh_counter in
   let i := {| v_var := {| vtype := sint ; vname := i_name |}; v_info := v_info x |} in
   let ei := Pvar (mk_lvar i) in
-  let sz := Z.to_pos (wsize_size ws * n) in
   let pre :=
     if eq_gvar (mk_lvar x) y
     || is_ptr x
     then Copn [::] AT_none sopn_nop [::]
-    else Cassgn (Lvar x) AT_none (sarr sz) (Parr_init sz) in
+    else Cassgn (Lvar x) AT_none (sarr (ws, n)) (Parr_init ws n) in
   [:: MkI ii pre;
       MkI ii
         (Cfor i (UpTo, Pconst 0, Pconst n)
@@ -85,7 +84,7 @@ Definition get_source V ii (es: pexprs) : cexec (gvar * cmd) :=
     match e with
     | Pvar x => ok (x, [::])
     | Psub aa ws len x ofs =>
-        let ty := sarr (Z.to_pos (arr_size ws len)) in
+        let ty := sarr (ws, len) in
         let y_name := fresh_var_ident (Ident.id_kind x.(gv).(v_var).(vname)) "src" ty in
         let y_var := {| v_var := Var ty y_name ; v_info := var_info_of_ii ii |} in
         Let _ := assert (~~ Sv.mem y_var V)
@@ -101,7 +100,7 @@ Definition get_target V ii (xs: lvals) : cexec (var_i * cmd) :=
     match d with
     | Lvar x => ok (x, [::])
     | Lasub aa ws len x ofs =>
-        let ty := sarr (Z.to_pos (arr_size ws len)) in
+        let ty := sarr (ws, len) in
         let x_name := fresh_var_ident (Ident.id_kind x.(v_var).(vname)) "dst" ty in
         let x_var := {| v_var := Var ty x_name ; v_info := var_info_of_ii ii |} in
         Let _ := assert (~~ Sv.mem x_var V)
@@ -121,7 +120,7 @@ Fixpoint array_copy_i V (i:instr) : cexec cmd :=
     | Some (ws, n) =>
       Let: (y, pre) := get_source V ii es in
       Let: (x, post) := get_target V ii xs in
-          Let _ := assert (vtype x == sarr (Z.to_pos (arr_size ws n)))
+          Let _ := assert (vtype x == sarr (ws, n))
                           (pp_internal_error_s_at E.pass ii "bad type for copy") in
           ok (pre ++ array_copy ii x ws n y ++ post)
 
