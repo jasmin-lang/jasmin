@@ -51,7 +51,7 @@ val fdef_of_cufdef : Var0.funname * 'asm Expr._ufundef -> (unit, 'asm) func
 val cuprog_of_prog : (unit, 'asm) prog -> 'asm Expr._uprog
 val prog_of_cuprog : 'asm Expr._uprog -> (unit, 'asm) prog
 
-val csfdef_of_fdef : (unit, 'asm) sfundef -> Var0.funname * 'asm Expr._sfundef
+val csfdef_of_fdef : ('info, 'asm) sfundef -> Var0.funname * 'asm Expr._sfundef
 val fdef_of_csfdef : Var0.funname * 'asm Expr._sfundef -> (unit, 'asm) sfundef
 
 val prog_of_csprog : 'asm Expr._sprog -> (unit, 'asm) sprog
