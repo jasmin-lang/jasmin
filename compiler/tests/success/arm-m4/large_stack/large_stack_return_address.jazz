@@ -14,8 +14,8 @@ fn f () -> reg u32 {
   // we make a call to be sure the return address in on the stack
   res = g();
 
-  s[u32 0] = res;
-  res = s[u32 0];
+  s[:u32 0] = res;
+  res = s[:u32 0];
 
   return res;
 }
