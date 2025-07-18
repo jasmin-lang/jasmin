@@ -59,6 +59,8 @@ coq-program:
 
 coq-proof:
   stage: prove
+  tags:
+  - snob
   variables:
     EXTRA_NIX_ARGUMENTS: --arg coqDeps true
   extends: .common
