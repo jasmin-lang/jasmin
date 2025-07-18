@@ -686,11 +686,12 @@ Qed.
 
 Lemma exec_syscall_toutP scs1 scs2 m1 m2 o vs vs' :
   exec_syscall scs1 m1 o vs = ok (scs2, m2, vs') →
-  List.map type_of_val vs' =  scs_tout (syscall_sig_u o).
+  List.map type_of_val vs' = scs_tout (syscall_sig_u o).
 Proof.
   case: o => len /=.
-  rewrite /exec_getrandom_u; case: vs => // v [] //; t_xrbindP.
-  by move=> ?? _ ? _ <- /= _ _ <-.
+  rewrite /exec_syscall /= /exec_getrandom_arg_u; case: vs => // v [] //; t_xrbindP.
+  move=> ?? _ _; case: get_random; t_xrbindP.
+  by move=> ??? _ _ _ <-.
 Qed.
 
 Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.

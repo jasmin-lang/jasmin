@@ -576,7 +576,7 @@ Section PROOF.
   End SEM.
 
   Section IT.
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
 
   #[local] Lemma checker_st_uincl_onP : Checker_uincl p p' checker_st_uincl_on.
   Proof. apply/checker_st_uincl_onP/eq_globs. Qed.
@@ -762,7 +762,7 @@ Proof. apply dead_code_tokeep_callPs. Qed.
 End SEM.
 
 Section IT.
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}  {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
 
 Lemma it_dead_code_tokeep_callPu (p p': uprog) do_nop onfun fn ev:
   dead_code_prog_tokeep is_move_op do_nop onfun p = ok p' ->
