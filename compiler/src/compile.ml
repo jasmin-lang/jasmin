@@ -143,8 +143,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     cufdef_of_fdef fd
   in
 
-  let translate_var = Conv.var_of_cvar in
-
   (* Kind of duplicate of pp_sub_region... *)
   let pp_sr sr =
     let open Compiler_util in
@@ -180,7 +178,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     in
 
     let fds =
-      Regalloc.alloc_prog translate_var
+      Regalloc.alloc_prog
         (fun _fd extra ->
           match extra.Expr.sf_save_stack with
           | Expr.SavedStackReg _ | Expr.SavedStackStk _ -> true

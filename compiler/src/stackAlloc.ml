@@ -244,7 +244,6 @@ let memory_analysis pp_sr pp_err ~debug up =
       (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) ([], (List.map snd fds));
   
   (* register allocation *)
-  let translate_var = Conv.var_of_cvar in
   let has_stack f = FInfo.is_export f.f_cc && (Hf.find sao f.f_name).sao_modify_rsp in
 
   let internal_size_tbl = Hf.create 117 in
@@ -328,7 +327,7 @@ let memory_analysis pp_sr pp_err ~debug up =
 
   List.iter fix_subroutine_csao (List.rev fds);
 
-  let fds = Regalloc.alloc_prog translate_var (fun fd _ -> has_stack fd) get_internal_size fds in
+  let fds = Regalloc.alloc_prog (fun fd _ -> has_stack fd) get_internal_size fds in
 
   let fix_csao (_, ro, fd) =
     match fd.f_cc with

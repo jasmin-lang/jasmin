@@ -626,7 +626,6 @@ module type Regalloc = sig
   val subroutine_ra_by_stack : (unit, extended_op) func -> bool
 
   val alloc_prog :
-    (Var0.Var.var -> var) ->
     ((unit, extended_op) func -> 'a -> bool) ->
     ((unit, extended_op) func -> 'a -> Z.t) ->
     ('a * (unit, extended_op) func) list ->
@@ -636,7 +635,7 @@ end
 module Regalloc (Arch : Arch_full.Arch)
   : Regalloc with type extended_op := (Arch.reg, Arch.regx, Arch.xreg, Arch.rflag, Arch.cond, Arch.asm_op, Arch.extra_op) Arch_extra.extended_op = struct
 
-  let forced_registers translate_var loc nv (vars: int Hv.t) tr (cnf: conflicts)
+  let forced_registers loc nv (vars: int Hv.t) tr (cnf: conflicts)
       (lvs: 'ty glvals) (op: 'asm sopn) (es: 'ty gexprs)
       (a: A.allocation) : conflicts =
     let allocate_one x y a =
@@ -667,7 +666,7 @@ module Regalloc (Arch : Arch_full.Arch)
         match ad with
         | ADImplicit v ->
            begin match lv with
-           | Lvar w -> allocate_one w (translate_var v) a
+           | Lvar w -> allocate_one w (Conv.var_of_cvar v) a
            | _ -> assert false
            end
         | ADExplicit _ -> ()) id.i_out lvs;
@@ -675,17 +674,17 @@ module Regalloc (Arch : Arch_full.Arch)
       List.fold_left2 (fun cnf ad e ->
           match ad with
           | ADImplicit v ->
-            mallocate_one e (translate_var v) a;
+            mallocate_one e (Conv.var_of_cvar v) a;
             cnf
           | ADExplicit (_, ACR_exact v) ->
-            mallocate_one e (translate_var v) a;
+            mallocate_one e (Conv.var_of_cvar v) a;
             cnf
           | ADExplicit (_, ACR_vector v) ->
-            mallocate_one e (translate_var v) a;
+            mallocate_one e (Conv.var_of_cvar v) a;
             cnf
           | ADExplicit (_, (ACR_any)) -> cnf
           | ADExplicit (_, ACR_subset rs) ->
-             let rs = List.rev_map translate_var rs in
+             let rs = List.rev_map Conv.var_of_cvar rs in
               match e with
               | Pvar x ->
                   List.fold_left (fun cnf r ->
@@ -696,7 +695,7 @@ module Regalloc (Arch : Arch_full.Arch)
           in
           cnf
 
-let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t) tr (cnf: conflicts)
+let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conflicts)
     (f: ('info, 'asm) func) (a: A.allocation) : conflicts =
   let split ~ctxt ~num =
     function
@@ -740,7 +739,7 @@ let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t)
     function
     | Cfor (_, _, s)
       -> alloc_stmt s c
-    | Copn (lvs, _, op, es) -> forced_registers translate_var loc nv vars tr c lvs op es a
+    | Copn (lvs, _, op, es) -> forced_registers loc nv vars tr c lvs op es a
     | Csyscall(lvs, _, es) ->
        let get_a = function Pvar { gv ; gs = Slocal } -> L.unloc gv | _ -> assert false in
        let get_r = function Lvar gv -> L.unloc gv | _ -> assert false in
@@ -1175,7 +1174,7 @@ let pp_liveness vars liveness_per_callsite liveness_table a =
     let extern = !m_word, !m_extra, !m_vector, !m_flag in
     pp_recap Format.std_formatter fn intern extern)
 
-let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func list) :
+let global_allocation get_internal_size (funcs: ('info, 'asm) func list) :
   (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * retaddr Hf.t =
   (* Preprocessing of functions:
     - ensure all variables are named (no anonymous assign)
@@ -1364,7 +1363,7 @@ let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func
 
   let conflicts =
     List.fold_left
-      (fun c f -> allocate_forced_registers return_addresses translate_var nv vars tr c f a)
+      (fun c f -> allocate_forced_registers return_addresses nv vars tr c f a)
       conflicts
       funcs
   in
@@ -1380,7 +1379,7 @@ let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func
   , killed
   , return_addresses
 
-let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) get_internal_size (dfuncs: ('a * ('info, 'asm) func) list)
+let alloc_prog (has_stack: ('info, 'asm) func -> 'a -> bool) get_internal_size (dfuncs: ('a * ('info, 'asm) func) list)
     : ('a * reg_oracle_t * (unit, 'asm) func) list =
   (* Ensure that instruction locations are really unique,
      so that there is no confusion on the position of the “extra free register”. *)
@@ -1397,7 +1396,7 @@ let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) get_i
   let funcs, get_liveness, subst, killed, return_addresses =
     dfuncs
     |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
-    |> global_allocation translate_var (fun f -> get_internal_size f (Hf.find extra f.f_name))
+    |> global_allocation (fun f -> get_internal_size f (Hf.find extra f.f_name))
   in
   funcs |>
   List.map (fun f ->
