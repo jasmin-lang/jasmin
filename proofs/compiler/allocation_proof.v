@@ -324,6 +324,8 @@ Context
   {pT: progT}
   {sCP : semCallParams}.
 
+Variable fuel : nat.
+
 Variable init_alloc : extra_fun_t -> extra_prog_t -> extra_prog_t -> cexec M.t.
 
 Hypothesis init_allocP :
@@ -347,8 +349,8 @@ Hypothesis check_f_extraP :
 
 Variable (dead_vars_fd : fun_decl → instr_info → Sv.t).
 
-Local Notation check_fundef := (check_fundef init_alloc check_f_extra dead_vars_fd).
-Local Notation check_prog := (check_prog init_alloc check_f_extra dead_vars_fd).
+Local Notation check_fundef := (check_fundef fuel.+1 init_alloc check_f_extra dead_vars_fd).
+Local Notation check_prog := (check_prog fuel.+1 init_alloc check_f_extra dead_vars_fd).
 
 Section PROOF.
 
@@ -381,26 +383,26 @@ Section PROOF.
 
   Let Pi_r s1 (i1:instr_r) s2:=
     forall dead_vars r1 i2 r2 vm1, eq_alloc r1 (evm s1) vm1 ->
-    check_i dead_vars i1 i2 r1 = ok r2 ->
+    check_i fuel.+1 dead_vars i1 i2 r1 = ok r2 ->
     exists2 vm2, eq_alloc r2 (evm s2) vm2 &
       sem_i p2 ev (with_vm s1 vm1) i2 (with_vm s2 vm2).
 
   Let Pi s1 (i1:instr) s2:=
     forall dead_vars r1 i2 r2 vm1, eq_alloc r1 (evm s1) vm1 ->
-    check_I dead_vars i1 i2 r1 = ok r2 ->
+    check_I fuel.+1 dead_vars i1 i2 r1 = ok r2 ->
     exists2 vm2, eq_alloc r2 (evm s2) vm2 &
       sem_I p2 ev (with_vm s1 vm1) i2 (with_vm s2 vm2).
 
   Let Pc s1 (c1:cmd) s2:=
     forall dead_vars r1 c2 r2 vm1, eq_alloc r1 (evm s1) vm1 ->
-    check_cmd dead_vars c1 c2 r1 = ok r2 ->
+    check_cmd fuel.+1 dead_vars c1 c2 r1 = ok r2 ->
     exists2 vm2, eq_alloc r2 (evm s2) vm2 &
       sem p2 ev (with_vm s1 vm1) c2 (with_vm s2 vm2).
 
   Let Pfor (i1:var_i) vs s1 c1 s2 :=
     forall dead_vars i2 r1 r1' c2 r2 vm1, eq_alloc r1 (evm s1) vm1 ->
     check_var i1 i2 r1 = ok r1' ->
-    check_cmd dead_vars c1 c2 r1' = ok r2 -> M.incl r1 r2 ->
+    check_cmd fuel.+1 dead_vars c1 c2 r1' = ok r2 -> M.incl r1 r2 ->
     exists2 vm2, eq_alloc r1 (evm s2) vm2 &
       sem_for p2 ev i2 vs (with_vm s1 vm1) c2 (with_vm s2 vm2).
 
@@ -536,8 +538,7 @@ Section PROOF.
   Local Lemma Hwhile_true : sem_Ind_while_true p1 ev Pc Pi_r.
   Proof.
     move => s1 s2 s3 s4 a c e ei c'.
-    case: s2 => scs2 sm2 svm2 _ Hc Hse _ Hc' _ Hw dead_vars r1 [] //= a2 c2 e2 ei2 c2' r2 vm1 Hvm1.
-    rewrite /check_i -/check_I.
+    case: s2 => scs2 sm2 svm2 _ Hc Hse _ Hc' _ Hw dead_vars r1 [] // a2 c2 e2 ei2 c2' r2 vm1 Hvm1.
     apply: rbindP => r /loop2P [r2' [r3 [H Hir1 Hir3]]] [?];subst r.
     have Hvmr2' := eq_alloc_incl Hir1 Hvm1.
     move: H; t_xrbindP => r0 Cc2; move /Hc: (Hvmr2') (Cc2) => H /H {H} [vm2 Hvm2 /= Hc2] re Hre.
@@ -545,8 +546,8 @@ Section PROOF.
     subst vb' => r' Cc2' ??;subst r2 r3.
     move /Hc': (Hrevm2) (Cc2')=> H /H {H} [vm3 Hvm3 /= Hc2'].
     have /Hw{}Hw := eq_alloc_incl Hir3 Hvm3.
-    have : check_i dead_vars (Cwhile a c e ei c') (Cwhile a2 c2 e2 ei2 c2') r2' = ok re.
-    + by rewrite /= Loop.nbP /= Cc2 /= Hre /= Cc2' /= Hir3 /=.
+    have : check_i fuel.+1 dead_vars (Cwhile a c e ei c') (Cwhile a2 c2 e2 ei2 c2') r2' = ok re.
+    + by rewrite /= Cc2 /= Hre /= Cc2' /= Hir3.
     move=> /Hw [vm4 Hvm4 Hsw];exists vm4 => //.
     by apply: Ewhile_true Hsw;eauto;rewrite -eq_globs Hse2.
   Qed.
@@ -554,9 +555,8 @@ Section PROOF.
   Local Lemma Hwhile_false : sem_Ind_while_false p1 ev Pc Pi_r.
   Proof.
     move => s1 s2 a c e ei c'.
-    case: s2 => scs2 sm2 svm2 _ Hc Hse dead_vars r1 [] //= a2 c2 e2 ei2 c2' r2 vm1 Hvm1.
-    rewrite /check_i -/check_I.
-    t_xrbindP => r /loop2P [r2' [r3 [H Hir1 Hir3]]] ?;subst r.
+    case: s2 => scs2 sm2 svm2 _ Hc Hse dead_vars r1 [] // a2 c2 e2 ei2 c2' r2 vm1 Hvm1.
+    apply: rbindP => r /loop2P [r2' [r3 [H Hir1 Hir3]]] /ok_inj ?; subst r.
     have Hvmr2' := eq_alloc_incl Hir1 Hvm1.
     move: H; t_xrbindP=> r0 Cc2; move /Hc: (Hvmr2') (Cc2) => H /H {H} [vm2 Hvm2 /= Hc2] re Hre.
     have /= [Hrevm2 /(_ _ _ _ Hse) [vb' [Hse2 /value_uinclE ?]]]:= check_eP true gd Hre Hvm2.
@@ -579,10 +579,10 @@ Section PROOF.
   Local Lemma Hfor : sem_Ind_for p1 ev Pi_r Pfor.
   Proof.
     move => s1 s2 i d lo hi c vlo vhi.
-    case: s1 => scs1 sm1 svm1 Hlo Hhi Hc Hfor dead_vars r1 [] //= i2 [[d2 lo2] hi2] c2 r2 vm1 Hvm1.
-    rewrite /check_i -/check_I.
-    case: eqP => //= ?;subst d2.
-    t_xrbindP => r1' r1'' /check_eP -/(_ true gd _ _ Hvm1) [Hr1'' Heqlo].
+    case: s1 => scs1 sm1 svm1 Hlo Hhi Hc Hfor dead_vars r1 [] // i2 [[d2 lo2] hi2] c2 r2 vm1 Hvm1.
+    remember fuel.+1 as n => /=.
+    t_xrbindP => /eqP ?; subst d2.
+    move => r1' r1'' /check_eP -/(_ true gd _ _ Hvm1) [Hr1'' Heqlo].
     have [vlo'' [Hlo2 /value_uinclE Hvlo']] := Heqlo _ _ _ Hlo.
     subst vlo'' => /check_eP -/(_ true gd _ _ Hr1'') [Hr1' Heqhi].
     have [vhi'' [Hhi2 /value_uinclE Hhi']] := Heqhi _ _ _ Hhi.
@@ -769,16 +769,16 @@ Section PROOF.
 
   Let Pi i1 :=
     forall dead_vars r1 r2 i2,
-    check_I dead_vars i1 i2 r1 = ok r2 ->
+    check_I fuel.+1 dead_vars i1 i2 r1 = ok r2 ->
     wequiv_rec p1 p2 ev ev uincl_spec (st_eq_alloc r1) [::i1] [::i2] (st_eq_alloc r2).
 
   Let Pi_r i1 := forall ii1 dead_vars r1 r2 ii2 i2,
-    check_i dead_vars i1 i2 r1 = ok r2 ->
+    check_i fuel.+1 dead_vars i1 i2 r1 = ok r2 ->
     wequiv_rec p1 p2 ev ev uincl_spec (st_eq_alloc r1) [::MkI ii1 i1] [::MkI ii2 i2] (st_eq_alloc r2).
 
   Let Pc c1 :=
     forall dead_vars r1 r2 c2,
-    check_cmd dead_vars c1 c2 r1 = ok r2 ->
+    check_cmd fuel.+1 dead_vars c1 c2 r1 = ok r2 ->
     wequiv_rec p1 p2 ev ev uincl_spec (st_eq_alloc r1) c1 c2 (st_eq_alloc r2).
 
   Lemma st_eq_alloc_incl r1 r2 s t : M.incl r2 r1 → st_eq_alloc r1 s t → st_eq_alloc r2 s t.
@@ -787,7 +787,7 @@ Section PROOF.
   Lemma it_alloc_cP (f_body : cmd) (dead_vars_fd0 : instr_info → Sv.t) (r1 : M.t_) (r2 : M.t) (f_body0 : cmd) :
     (∀ (ii1 ii2 : instr_info) (fn1 fn2 : funname),
       wequiv_f_rec p1 p2 ev ev uincl_spec (rpreF (eS:=uincl_spec))ii1 ii2 fn1 fn2 (rpostF (eS:=uincl_spec))) →
-    check_cmd dead_vars_fd0 f_body f_body0 r1 = ok r2 →
+    check_cmd fuel.+1 dead_vars_fd0 f_body f_body0 r1 = ok r2 →
     wequiv_rec p1 p2 ev ev uincl_spec (st_eq_alloc r1) f_body f_body0 (st_eq_alloc r2).
   Proof.
     move=> hrec. move: f_body dead_vars_fd0 r1 r2 f_body0.
@@ -832,7 +832,8 @@ Section PROOF.
       + by apply: hc1 hcc1.
       by apply: hc2 hcc2.
     (* For *)
-    + move=> i d lo hi c hc ii dead_vars r1 r2 ii2 [] // i2 [ [d2 lo2] hi2] c2 /=.
+    + move=> i d lo hi c hc ii dead_vars r1 r2 ii2 [] // i2 [ [d2 lo2] hi2] c2.
+      remember fuel.+1 as n => /=.
       t_xrbindP => /eqP <- rhi rlo hlo hhi /loopP [r2' []].
       t_xrbindP => r2i hci hcc ??.
       apply wequiv_for_rel_uincl with checker_alloc rhi r2i => //.
@@ -843,7 +844,8 @@ Section PROOF.
       + by move=> >; apply st_eq_alloc_incl.
       by apply: hc hcc.
     (* While *)
-    + move=> a c e ii' c' hc hc' ii dead_vars r1 r2_ ii2 [] // a2 c2 e2 ii2' c2' /=.
+    + move=> a c e ii' c' hc hc' ii dead_vars r1 r2_ ii2 [] // a2 c2 e2 ii2' c2'.
+      remember fuel.+1 as n => /=.
       t_xrbindP => r2 /loop2P [r2' [r3 []]].
       t_xrbindP => rc1 hcc re hce rc2 hcc' ?? hu1 hu2 ?. subst r2 r3 r2_.
       apply wequiv_weaken with (st_eq_alloc r2') (st_eq_alloc re) => //.
@@ -943,8 +945,8 @@ Proof.
   by move=> /= ??? _ ???? [<-] [<-]; exists Vm.init; split => //=; apply eq_alloc_empty.
 Qed.
 
-Lemma alloc_call_uprogP dead_vars_fd ev gd ep1 p1 ep2 p2
-  (H: check_prog init_alloc_uprog check_f_extra_u dead_vars_fd ep1 p1 ep2 p2 = ok tt) f scs mem scs' mem' va vr:
+Lemma alloc_call_uprogP fuel dead_vars_fd ev gd ep1 p1 ep2 p2
+  (H: check_prog fuel.+1 init_alloc_uprog check_f_extra_u dead_vars_fd ep1 p1 ep2 p2 = ok tt) f scs mem scs' mem' va vr:
     sem_call {|p_globs := gd; p_funcs := p1; p_extra := ep1; |} ev scs mem f va scs' mem' vr ->
     exists vr',
      sem_call {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev scs mem f va scs' mem' vr' /\
@@ -958,21 +960,21 @@ Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
-Lemma it_alloc_call_uprogP dead_vars_fd ev gd ep1 p1 ep2 p2
-  (H: check_prog init_alloc_uprog check_f_extra_u dead_vars_fd ep1 p1 ep2 p2 = ok tt) fn:
+Lemma it_alloc_call_uprogP fuel dead_vars_fd ev gd ep1 p1 ep2 p2
+  (H: check_prog fuel.+1 init_alloc_uprog check_f_extra_u dead_vars_fd ep1 p1 ep2 p2 = ok tt) fn:
     wiequiv_f {|p_globs := gd; p_funcs := p1; p_extra := ep1; |}
               {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev ev
         (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   have := it_alloc_callP init_alloc_uprogP.
   set p1' := {| p_funcs := p1 |}; set p2' := {| p_funcs := p2 |}.
-  by move=> /(_ check_f_extra_u _ dead_vars_fd p1' p2' ev H); apply.
+  by move=> /(_ _ check_f_extra_u _ dead_vars_fd p1' p2' ev H); apply.
 Qed.
 
 End IT.
 
-Lemma alloc_fun_uprogP_eq dead_vars_fd p ev fn f f' scs1 m1 scs2 m2 vargs vargs' vres vres' s0 s1 s2:
-  check_fundef init_alloc_uprog check_f_extra_u dead_vars_fd (p_extra p) (p_extra p) (fn, f) (fn, f') tt = ok tt ->
+Lemma alloc_fun_uprogP_eq fuel dead_vars_fd p ev fn f f' scs1 m1 scs2 m2 vargs vargs' vres vres' s0 s1 s2:
+  check_fundef fuel.+1 init_alloc_uprog check_f_extra_u dead_vars_fd (p_extra p) (p_extra p) (fn, f) (fn, f') tt = ok tt ->
   mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' = ok vargs ->
   init_state (f_extra f) (p_extra p) ev (Estate scs1 m1 Vm.init) = ok s0 ->
   write_vars (~~direct_call) (f_params f) vargs s0 = ok s1 ->
@@ -999,8 +1001,8 @@ Section SPROG.
 #[local]
 Existing Instance progStack.
 
-Lemma check_fundef_meta dead_vars_fd ep1 ep2 ffd1 ffd2 u u' :
-  check_fundef init_alloc_sprog check_f_extra_s dead_vars_fd ep1 ep2 ffd1 ffd2 u = ok u' →
+Lemma check_fundef_meta fuel dead_vars_fd ep1 ep2 ffd1 ffd2 u u' :
+  check_fundef fuel.+1 init_alloc_sprog check_f_extra_s dead_vars_fd ep1 ep2 ffd1 ffd2 u = ok u' →
   let fd1 := ffd1.2 in
   let fd2 := ffd2.2 in
   [/\
@@ -1034,8 +1036,8 @@ Proof.
   by exists vm2.
 Qed.
 
-Lemma alloc_call_sprogP dead_vars_fd ev gd ep1 p1 ep2 p2
-  (H: check_prog init_alloc_sprog check_f_extra_s dead_vars_fd ep1 p1 ep2 p2 = ok tt) f scs mem scs' mem' va vr:
+Lemma alloc_call_sprogP fuel dead_vars_fd ev gd ep1 p1 ep2 p2
+  (H: check_prog fuel.+1 init_alloc_sprog check_f_extra_s dead_vars_fd ep1 p1 ep2 p2 = ok tt) f scs mem scs' mem' va vr:
     sem_call {|p_globs := gd; p_funcs := p1; p_extra := ep1; |} ev scs mem f va scs' mem' vr ->
     exists vr',
      sem_call {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev scs mem f va scs' mem' vr' /\
@@ -1053,15 +1055,15 @@ Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
-Lemma it_alloc_callP_sprogP dead_vars_fd ev gd ep1 p1 ep2 p2
-  (H: check_prog init_alloc_sprog check_f_extra_s dead_vars_fd ep1 p1 ep2 p2 = ok tt) fn :
+Lemma it_alloc_callP_sprogP fuel dead_vars_fd ev gd ep1 p1 ep2 p2
+  (H: check_prog fuel.+1 init_alloc_sprog check_f_extra_s dead_vars_fd ep1 p1 ep2 p2 = ok tt) fn :
     wiequiv_f {|p_globs := gd; p_funcs := p1; p_extra := ep1; |}
               {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev ev
         (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   have := it_alloc_callP init_alloc_sprogP.
   set p1' := {| p_funcs := p1 |}; set p2' := {| p_funcs := p2 |}.
-  move=> /(_ check_f_extra_s _ dead_vars_fd p1' p2' ev H); apply => //.
+  move=> /(_ _ check_f_extra_s _ dead_vars_fd p1' p2' ev H); apply => //.
   rewrite /check_f_extra_s; t_xrbindP => r e1 e2 a1 a2 r' c1 c2.
   split; last by []; first by case: ifP c2.
   rewrite /= /init_stk_state => a b c d.

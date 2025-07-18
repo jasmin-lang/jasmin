@@ -456,8 +456,8 @@ End IT.
 
 End Internal.
 
-Lemma wi2w_progP (p' : uprog) scs m fn va scs' m' vr :
-  wi2w_prog remove_wint_annot dead_vars_fd p = ok p' →
+Lemma wi2w_progP fuel (p' : uprog) scs m fn va scs' m' vr :
+  wi2w_prog (S fuel) remove_wint_annot dead_vars_fd p = ok p' →
   sem_call p ev scs m fn va scs' m' vr →
   exists2 vr' : seq value,
     List.Forall2 value_uincl vr vr' &
@@ -474,8 +474,8 @@ Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} (rE0_trans : EventRels_trans rE0 rE0 rE0).
 
-Lemma it_wi2w_progP (p' : uprog) fn :
-  wi2w_prog remove_wint_annot dead_vars_fd p = ok p' →
+Lemma it_wi2w_progP fuel (p' : uprog) fn :
+  wi2w_prog (S fuel) remove_wint_annot dead_vars_fd p = ok p' →
   wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   rewrite /wi2w_prog; t_xrbindP => ok_pv <-.

@@ -272,17 +272,6 @@ Definition pp_internal_error_s_at pass (ii:instr_info) (s:string) :=
   pp_at_ii ii (pp_internal_error_s pass s).
 
 
-Module Type LoopCounter.
-  Parameter nb  : nat.
-  Parameter nbP : nb = (nb.-1).+1.
-End LoopCounter.
-
-Module Loop : LoopCounter.
-  Definition nb := 100.
-  Lemma nbP : nb = (nb.-1).+1.
-  Proof. done. Qed.
-End Loop.
-
 Ltac t_xrbindP :=
   match goal with
   | [ |- Result.bind _ _ = Ok _ _ -> _ ] =>

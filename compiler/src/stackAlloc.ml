@@ -185,6 +185,7 @@ let memory_analysis pp_sr pp_err ~debug up =
         Arch.aparams.ap_shp
         Arch.aparams.ap_sap
         Arch.aparams.ap_is_move_op
+        fuel
         (fun vk -> Conv.fresh_var_ident vk IInfo.dummy)
         pp_sr
         crip
@@ -234,7 +235,7 @@ let memory_analysis pp_sr pp_err ~debug up =
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef fd in
     let fd = 
-      match Dead_code.dead_code_fd Arch.asmOp Arch.aparams.ap_is_move_op false tokeep fn cfd with
+      match Dead_code.dead_code_fd Arch.asmOp Arch.aparams.ap_is_move_op fuel false tokeep fn cfd with
       | Utils0.Ok cfd -> Conv.fdef_of_cufdef (fn, cfd)
       | Utils0.Error _ -> assert false in 
     (extra,fd) in

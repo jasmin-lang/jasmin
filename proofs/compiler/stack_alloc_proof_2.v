@@ -1934,6 +1934,7 @@ Context
 
 Context
   (is_move_op : asm_op_t -> bool)
+  (fuel: nat)
   (fresh_var_ident  : v_kind -> Uint63.int -> string -> stype -> Ident.ident)
   (pp_sr : sub_region -> pp_error).
 
@@ -1947,9 +1948,9 @@ Context
 Local Lemma clone_ty : forall x n, vtype (clone fresh_var_ident x n) = vtype x.
 Proof. by []. Qed.
 
-Notation alloc_fd   := (alloc_fd shparams saparams is_move_op fresh_var_ident pp_sr P).
-Notation alloc_i    := (alloc_i shparams saparams is_move_op fresh_var_ident pp_sr).
-Notation alloc_prog := (alloc_prog shparams saparams is_move_op fresh_var_ident pp_sr).
+Notation alloc_fd   := (alloc_fd shparams saparams is_move_op fuel.+1 fresh_var_ident pp_sr P).
+Notation alloc_i    := (alloc_i shparams saparams is_move_op fuel.+1 fresh_var_ident pp_sr).
+Notation alloc_prog := (alloc_prog shparams saparams is_move_op fuel.+1 fresh_var_ident pp_sr).
 
 Variable (local_alloc : funname -> stk_alloc_oracle_t).
 Hypothesis Halloc_fd : forall fn fd,
@@ -2409,7 +2410,8 @@ Qed.
 
 Local Lemma Wwhile a c e ei c': Pc c -> Pc c' -> Pi_r (Cwhile a c e ei c').
 Proof.
-  move=> Hc Hc' table1 rmap1 table2 rmap2 ii c2 /=.
+  move=> Hc Hc' table1 rmap1 table2 rmap2 ii c2.
+  remember fuel.+1 as n => /=.
   t_xrbindP=> -[[{}table2 {}rmap2] [[??]?]] hloop [<- <- _].
   apply: loop2_invariant hloop.
   clear -Hc Hc'.
@@ -3603,8 +3605,10 @@ Qed.
 (* do we really need to check for incl_table? *)
 Local Lemma Hwhile_true : sem_Ind_while_true P ev Pc Pi_r.
 Proof.
+  move: alloc_is_invariant => alloc_is_invariant.
   move=> s1 s2 s3 s4 a c1 e ei c2 hhi Hc1 Hv hhi2 Hc2 _ Hwhile pmap rsp Slots Addr Writable Align
-    table1 rmap1 table3 rmap3 ii c hpmap hwf sao /=.
+    table1 rmap1 table3 rmap3 ii c hpmap hwf sao.
+  remember fuel.+1 as n eqn: hn => /=.
   set check_c2 := (X in loop2 _ X _ _ _).
   t_xrbindP=> -[[{}table3 {}rmap3] [[e' c1'] c2']] hloop
     [<- <- <-] {c}.
@@ -3615,14 +3619,14 @@ Proof.
     wf_table_vars table rmap ->
     (wf_table_vars table1 rmap1 /\ Sv.Subset table.(vars) table1.(vars)) /\
     (wf_table_vars table2 rmap2 /\ Sv.Subset table.(vars) table2.(vars))).
-  + clear.
+  + clear -alloc_is_invariant.
     move=> table rmap table1 rmap1 table2 rmap2 e' c1' c2'.
     rewrite /check_c2.
     t_xrbindP=> -[[table1' rmap1'] ?] hc1.
     t_xrbindP=> _ _ [[table2' rmap2'] ?] hc2 [<- <- <- <- _ _ _].
     move=> hvarst.
-    have [hvarst1' hsubset1] := alloc_is_invariant hc1 hvarst.
-    have [hvarst2 hsubset2] := alloc_is_invariant hc2 hvarst1'.
+    have [hvarst1' hsubset1] := alloc_is_invariant _ _ _ _ _ _ _ _ hc1 hvarst.
+    have [hvarst2 hsubset2] := alloc_is_invariant _ _ _ _ _ _ _ _ hc2 hvarst1'.
     do 2!split=> //.
     by clear -hsubset1 hsubset2; SvD.fsetdec.
   have hwft1 := hvs.(vs_wf_table).
@@ -3654,7 +3658,7 @@ Proof.
   have hwft2': wf_table table2 vme3 s3.(evm).
   + by apply (wf_table_incl hinclt4 hvars2 hvs3.(vs_wf_table)).
   have hsubset3: Sv.Subset (vars table1) (vars table3).
-  + have [_ +] := alloc_is_invariant hc1 hvarst2.
+  + have [_ +] := alloc_is_invariant _ _ _ _ _ _ _ _ hc1 hvarst2.
     clear -hsubset2; SvD.fsetdec.
   have hwfst2': wfr_STATUS rmap2 vme3.
   + case: hdef2.
@@ -3669,7 +3673,7 @@ Proof.
   have /= := Hwhile _ _ _ _ _ _ table2 rmap2 table3 rmap3 ii c hpmap hwf sao.
   have hsao3 := stack_stable_wf_sao (sem_stack_stable_sprog hs2) hsao2.
   have hext3 := valid_state_extend_mem hwf hvs2 hext2 hvs3 (sem_validw_stable_uprog hhi2) (sem_validw_stable_sprog hs2).
-  rewrite Loop.nbP /= hc1 /= he /= hc2 /= hinclt4 hinclr4 /=.
+  rewrite hn /= -hn hc1 /= he /= hc2 /= hinclt4 hinclr4 /=.
   move=> /(_ erefl _ _ _ hvs3 hext3 hsao3) [s4' [vme4 [/sem_seq1_iff/sem_IE hs3 hvs4 vme_eq3]]].
   exists s4', vme4; split=> //.
   + by apply sem_seq1; constructor; apply: Ewhile_true; eassumption.
@@ -3680,8 +3684,10 @@ Qed.
 
 Local Lemma Hwhile_false : sem_Ind_while_false P ev Pc Pi_r.
 Proof.
+  move: alloc_is_invariant => alloc_is_invariant.
   move=> s1 s2 a c1 e ei c2 _ Hc1 Hv pmap rsp Slots Addr Writable Align
-    table1 rmap1 table3 rmap3 ii c hpmap hwf sao /=.
+    table1 rmap1 table3 rmap3 ii c hpmap hwf sao.
+  remember fuel.+1 as n => /=.
   set check_c2 := (X in loop2 _ X _ _ _).
   t_xrbindP=> -[[{}table3 {}rmap3] [[e' c1'] c2']] hloop
     -[<- <- <-] {c}.
@@ -3692,14 +3698,14 @@ Proof.
     wf_table_vars table rmap ->
     (wf_table_vars table1 rmap1 /\ Sv.Subset table.(vars) table1.(vars)) /\
     (wf_table_vars table2 rmap2 /\ Sv.Subset table.(vars) table2.(vars))).
-  + clear.
+  + clear -alloc_is_invariant.
     move=> table rmap table1 rmap1 table2 rmap2 e' c1' c2'.
     rewrite /check_c2.
     t_xrbindP=> -[[table1' rmap1'] ?] hc1.
     t_xrbindP=> _ _ [[table2' rmap2'] ?] hc2 [<- <- <- <- _ _ _].
     move=> hvarst.
-    have [hvarst1' hsubset1] := alloc_is_invariant hc1 hvarst.
-    have [hvarst2 hsubset2] := alloc_is_invariant hc2 hvarst1'.
+    have [hvarst1' hsubset1] := alloc_is_invariant _ _ _ _ _ _ _ _ hc1 hvarst.
+    have [hvarst2 hsubset2] := alloc_is_invariant _ _ _ _ _ _ _ _ hc2 hvarst1'.
     do 2!split=> //.
     by clear -hsubset1 hsubset2; SvD.fsetdec.
   have hwft1 := hvs.(vs_wf_table).
@@ -4248,10 +4254,10 @@ Lemma it_check_cP_aux :
   forall c1, Pc c1.
 Proof.
   move=> hrec.
-  apply (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; subst Pi_r Pc Pi => /=.
+  apply (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; subst Pi_r Pc Pi.
   + move=> table1 rmap1 table2 rmap2 vme _ [<- <- <-] _.
     by apply wequiv_nil; exists vme.
-  + move=> i1 c1 hi1 hc1 table1 rmap1 table3 rmap3 vme c_; t_xrbindP.
+  + move=> /= i1 c1 hi1 hc1 table1 rmap1 table3 rmap3 vme c_; t_xrbindP.
     move=> [[table2 rmap2] c2] hi [[tbl rmap]c] /= hc [?? <-] hwftable; subst tbl rmap.
     rewrite /= -cat1s.
     apply wequiv_cat with (st_sa_post table1 table2 rmap2 vme); first by apply hi1.
@@ -4282,7 +4288,7 @@ Proof.
     apply: (esem_i_validw_stable_uprog (p:=P) (ev:= tt) (c:= (MkI ii (Csyscall xs o es)))).
     by rewrite /= hsemu.
   (* If *)
-  + move=> e c1 c2 ihc1 ihc2 ii table1 rmap1 table2 rmap2 vme c_; t_xrbindP.
+  + move=> /= e c1 c2 ihc1 ihc2 ii table1 rmap1 table2 rmap2 vme c_; t_xrbindP.
     move=> e' he' [[table21 rmap21] c1'] hc1; t_xrbindP.
     move=> [[table22 rmap22] c2'] hc2 [???] hwftable; subst table2 rmap2 c_.
     apply wequiv_if.
@@ -4311,6 +4317,8 @@ Proof.
 
   (* While *)
   + move=> al c1 e ii' c2 ihc1 ihc2 ii table1 rmap1 table3 rmap3 vme c_.
+    move: alloc_is_invariant => alloc_is_invariant.
+    remember fuel.+1 as n => /=.
     set check_c2 := (X in loop2 _ X _ _ _).
     t_xrbindP => -[[{}table3 {}rmap3] [[e' c1'] c2']] hloop -[<- <- <-] {c_} hvarst1.
     have hcheck_c2:
@@ -4319,14 +4327,14 @@ Proof.
       wf_table_vars table rmap ->
       (wf_table_vars table1 rmap1 /\ Sv.Subset table.(vars) table1.(vars)) /\
       (wf_table_vars table2 rmap2 /\ Sv.Subset table.(vars) table2.(vars))).
-    + clear.
+    + clear -alloc_is_invariant.
       move=> table rmap table1 rmap1 table2 rmap2 e' c1' c2'.
       rewrite /check_c2.
       t_xrbindP=> -[[table1' rmap1'] ?] hc1.
       t_xrbindP=> _ _ [[table2' rmap2'] ?] hc2 [<- <- <- <- _ _ _].
       move=> hvarst.
-      have [hvarst1' hsubset1] := alloc_is_invariant hc1 hvarst.
-      have [hvarst2 hsubset2] := alloc_is_invariant hc2 hvarst1'.
+      have [hvarst1' hsubset1] := alloc_is_invariant _ _ _ _ _ _ _ _ hc1 hvarst.
+      have [hvarst2 hsubset2] := alloc_is_invariant _ _ _ _ _ _ _ _ hc2 hvarst1'.
       do 2!split=> //.
       by clear -hsubset1 hsubset2; SvD.fsetdec.
     have [table2 [rmap2 [table4 [rmap4
@@ -4356,7 +4364,7 @@ Proof.
       by rewrite -P'_globs => -[v' [->]]; rewrite /truncate_val /=; t_xrbindP => ? -> ->; eauto.
     + apply st_sa_pre_post => // vme'.
       by apply: ihc1 hc1 hvarst2.
-    have [hvarst3 hsubset3] := alloc_is_invariant hc1 hvarst2.
+    have [hvarst3 hsubset3] := alloc_is_invariant _ _ _ _ _ _ _ _ hc1 hvarst2.
     move=> s1 s2 [vme' hpre heq].
     have := ihc2 _ _ _ _ _ _ hc2 hvarst3 _ _ hpre.
     apply xrutt_facts.xrutt_weaken => //.
@@ -4374,7 +4382,7 @@ Proof.
     apply; apply hwft2'.(wft_def).
 
   (* Call *)
-  move=> rs fn args ii1 table0 rmap0 table2 rmap2 vme c.
+  move=> /= rs fn args ii1 table0 rmap0 table2 rmap2 vme c.
   case hfd1: get_fundef => [fd1|] //=.
   t_xrbindP=> -[{}rmap2 i2] halloc <- <- <- {c}.
   move: halloc; rewrite /alloc_call /assert_check.
@@ -4777,6 +4785,7 @@ Context
   (hsaparams : h_stack_alloc_params saparams).
 
 Context
+  (fuel: nat)
   (is_move_op : asm_op_t -> bool)
   (fresh_var_ident  : v_kind -> Uint63.int -> string -> stype -> Ident.ident)
   (pp_sr : sub_region -> pp_error).
@@ -4789,10 +4798,10 @@ Context
       List.Forall2 value_uincl v [:: vx ]).
 
 Lemma get_alloc_fd p p_extra mglob oracle fds1 fds2 :
-  map_cfprog_name (alloc_fd shparams saparams is_move_op fresh_var_ident pp_sr p p_extra mglob oracle) fds1 = ok fds2 ->
+  map_cfprog_name (alloc_fd shparams saparams is_move_op fuel.+1 fresh_var_ident pp_sr p p_extra mglob oracle) fds1 = ok fds2 ->
   forall fn fd1,
   get_fundef fds1 fn = Some fd1 ->
-  exists2 fd2, alloc_fd shparams saparams is_move_op fresh_var_ident pp_sr p p_extra mglob oracle fn fd1 = ok fd2 &
+  exists2 fd2, alloc_fd shparams saparams is_move_op fuel.+1 fresh_var_ident pp_sr p p_extra mglob oracle fn fd1 = ok fd2 &
                get_fundef fds2 fn = Some fd2.
 Proof.
   move=> hmap fn fd1.
@@ -4828,7 +4837,7 @@ Qed.
       except for the regions pointed to by the writable [reg ptr]s given as arguments.
 *)
 Theorem alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn:
-  alloc_prog shparams saparams is_move_op fresh_var_ident pp_sr nrip nrsp data oracle_g oracle P = ok SP ->
+  alloc_prog shparams saparams is_move_op fuel.+1 fresh_var_ident pp_sr nrip nrsp data oracle_g oracle P = ok SP ->
   forall ev scs1 m1 vargs1 scs1' m1' vres1,
     sem_call P ev scs1 m1 fn vargs1 scs1' m1' vres1 ->
     forall rip m2 vargs2,
@@ -4855,6 +4864,7 @@ Proof.
   have [fd1 hfd1]: exists fd, get_fundef (p_funcs P) fn = Some fd.
   + have [fd1 [hfd1 _]] := sem_callE hsem1.
     by exists fd1.
+              have := check_cP.
   have [m2' [vres' [hcall [hext' [hresults [heqinmems' hunchanged]]]]]] :=
     (check_cP
       hext.(em_no_overflow)
@@ -4878,7 +4888,7 @@ Section IT.
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
 Theorem it_alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn :
-  alloc_prog shparams saparams is_move_op fresh_var_ident pp_sr nrip nrsp data oracle_g oracle P = ok SP ->
+  alloc_prog shparams saparams is_move_op fuel.+1 fresh_var_ident pp_sr nrip nrsp data oracle_g oracle P = ok SP ->
   forall ev rip,
   wiequiv_f P SP ev rip
     (fun fn1 fn2 fs1 fs2 =>
@@ -4925,13 +4935,13 @@ Qed.
 End IT.
 
 Lemma alloc_prog_get_fundef nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) :
-  alloc_prog shparams saparams is_move_op fresh_var_ident pp_sr nrip nrsp data oracle_g oracle P = ok SP →
+  alloc_prog shparams saparams is_move_op fuel.+1 fresh_var_ident pp_sr nrip nrsp data oracle_g oracle P = ok SP →
   exists2 mglob,
     init_map oracle_g data (p_globs P) = ok mglob &
     ∀ fn fd,
     get_fundef (p_funcs P) fn = Some fd →
     exists2 fd',
-      alloc_fd shparams saparams is_move_op fresh_var_ident pp_sr P
+      alloc_fd shparams saparams is_move_op fuel.+1 fresh_var_ident pp_sr P
         {| sp_rsp := nrsp ; sp_rip := nrip ; sp_globs := data ; sp_glob_names := oracle_g |} mglob oracle fn fd = ok fd' &
       get_fundef (p_funcs SP) fn = Some fd'.
 Proof.
@@ -4941,7 +4951,7 @@ Proof.
 Qed.
 
 Lemma alloc_fd_checked_sao P p_extra mglob oracle fn fd fd' :
-  alloc_fd shparams saparams is_move_op fresh_var_ident pp_sr P p_extra mglob oracle fn fd = ok fd' →
+  alloc_fd shparams saparams is_move_op fuel fresh_var_ident pp_sr P p_extra mglob oracle fn fd = ok fd' →
   [/\ size (sao_params (oracle fn)) = size (f_params fd) & size (sao_return (oracle fn)) = size (f_res fd) ].
 Proof.
   rewrite /alloc_fd/alloc_fd_aux/check_results.
@@ -4955,7 +4965,7 @@ Proof.
 Qed.
 
 Remark alloc_prog_sp_globs nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) :
-  alloc_prog shparams saparams is_move_op fresh_var_ident pp_sr nrip nrsp data oracle_g oracle P = ok SP →
+  alloc_prog shparams saparams is_move_op fuel fresh_var_ident pp_sr nrip nrsp data oracle_g oracle P = ok SP →
   sp_globs (p_extra SP) = data.
 Proof.
   by rewrite /alloc_prog; t_xrbindP => ???? _ <-.

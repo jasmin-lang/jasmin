@@ -52,6 +52,7 @@ Section PROG.
 
 Context
   {ovm_i : one_varmap_info}
+  (fuel: nat)
   (p : sprog)
   (id_tmp id_tmp2: Ident.ident)
   (global_data : pointer).
@@ -73,16 +74,16 @@ Let wmap := mk_wmap p var_tmps.
 Notation wrf := (get_wmap wmap).
 
 Lemma checkP u (fn: funname) (fd: sfundef) :
-  check p var_tmps = ok u →
+  check p var_tmps fuel = ok u →
   get_fundef (p_funcs p) fn = Some fd →
-  valid_writefun wrf (fn, fd) ∧ check_fd p var_tmps wrf fn fd = ok tt.
+  valid_writefun wrf (fn, fd) ∧ check_fd p var_tmps fuel wrf fn fd = ok tt.
 Proof.
   rewrite /check; t_xrbindP => ok_wmap _ _ ? ok_prog _ ok_fd; split.
   - exact: check_wmapP ok_fd ok_wmap.
   by have [ [] ] := get_map_cfprog_name_gen ok_prog ok_fd.
 Qed.
 
-Hypothesis ok_p : check p var_tmps = ok tt.
+Hypothesis ok_p : check p var_tmps fuel = ok tt.
 
 Let vgd : var := vid p.(p_extra).(sp_rip).
 Let vrsp : var := vid p.(p_extra).(sp_rsp).
@@ -203,8 +204,8 @@ Section LEMMA.
 
   End WRITE.
 
-  Notation check_instr := (check_i p var_tmps wrf).
-  Notation check_instr_r := (check_ir p var_tmps wrf).
+  Notation check_instr := (check_i p var_tmps fuel wrf).
+  Notation check_instr_r := (check_ir p var_tmps fuel wrf).
   Notation check_cmd sz := (check_c (check_instr sz)).
 
   Lemma check_instr_r_CwhileP sz ii aa c e ei c' D D' :
@@ -220,7 +221,7 @@ Section LEMMA.
             Sv.Subset D D1 /\ Sv.Subset D2 D1 ].
   Proof.
     rewrite /check_instr_r -/check_instr; case: is_falseP => // _.
-    elim: Loop.nb D => // n ih /=; t_xrbindP => D D1 h1 he D2 h2.
+    elim: {2 6}fuel D => // n ih /=; t_xrbindP => D D1 h1 he D2 h2.
     case: (equivP idP (Sv.subset_spec _ _)) => d.
     - case => ?; subst D1; exists D, D2; split => //; last by split.
       by rewrite h1 /= he /= h2 /=; move /Sv.subset_spec : d => ->.

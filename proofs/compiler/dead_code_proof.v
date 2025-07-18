@@ -15,6 +15,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
+  (fuel: nat)
   (is_move_op : asm_op_t -> bool)
   (is_move_opP :
     forall op vx v,
@@ -33,7 +34,7 @@ Section PROOF.
   Variables (do_nop : bool) (onfun : funname -> option (seq bool)) (p p' : prog) (ev:extra_val_t).
   Notation gd := (p_globs p).
 
-  Hypothesis dead_code_ok : dead_code_prog_tokeep is_move_op do_nop onfun p = ok p'.
+  Hypothesis dead_code_ok : dead_code_prog_tokeep is_move_op fuel do_nop onfun p = ok p'.
 
   Lemma eq_globs : gd = p_globs p'.
   Proof. by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? _ <-. Qed.
@@ -110,7 +111,7 @@ Section PROOF.
   Qed.
 
   Local Lemma Hassgn_esem ii x tag ty e I c O s1 s2 vm1 :
-    dead_code_i is_move_op do_nop onfun (MkI ii (Cassgn x tag ty e)) O = ok (I, c) →
+    dead_code_i is_move_op fuel do_nop onfun (MkI ii (Cassgn x tag ty e)) O = ok (I, c) →
     sem_assgn p x tag ty e s1 = ok s2 →
     (evm s1) <=[I] vm1 →
     exists2 vm2, evm s2 <=[O] vm2 &
@@ -157,7 +158,7 @@ Section PROOF.
   Qed.
 
   Local Lemma Hopn_esem ii xs t o es I c O s1 s2 vm1 :
-    dead_code_i is_move_op do_nop onfun (MkI ii (Copn xs t o es)) O = ok (I, c) →
+    dead_code_i is_move_op fuel do_nop onfun (MkI ii (Copn xs t o es)) O = ok (I, c) →
     sem_sopn gd o s1 xs es = ok s2 →
     (evm s1) <=[I] vm1 →
     exists2 vm2, evm s2 <=[O] vm2 &
@@ -252,7 +253,7 @@ Section PROOF.
 
   Let Pi s (i:instr) s' :=
     forall s1 c' s2,
-      dead_code_i is_move_op do_nop onfun i s2 = ok (s1, c') ->
+      dead_code_i is_move_op fuel do_nop onfun i s2 = ok (s1, c') ->
       forall vm1', s.(evm) <=[s1] vm1' ->
       exists vm2', s'.(evm) <=[s2] vm2' /\
         sem p' ev (with_vm s vm1') c' (with_vm s' vm2').
@@ -261,14 +262,14 @@ Section PROOF.
 
   Let Pc s (c:cmd) s' :=
     forall s1 c' s2,
-      dead_code_c (dead_code_i is_move_op do_nop onfun) c s2 = ok (s1, c') ->
+      dead_code_c (dead_code_i is_move_op fuel do_nop onfun) c s2 = ok (s1, c') ->
       forall vm1', s.(evm) <=[s1] vm1' ->
       exists vm2', s'.(evm) <=[s2] vm2' /\
         sem p' ev (with_vm s vm1') c' (with_vm s' vm2').
 
   Let Pfor (i:var_i) vs s c s' :=
     forall s1 c' s2,
-      dead_code_c (dead_code_i is_move_op do_nop onfun) c s2 = ok (s1, c') ->
+      dead_code_c (dead_code_i is_move_op fuel do_nop onfun) c s2 = ok (s1, c') ->
       Sv.Subset (Sv.union (read_rv (Lvar i)) (Sv.diff s1 (vrv (Lvar i)))) s2 ->
       forall vm1', s.(evm) <=[s2] vm1' ->
       exists vm2', s'.(evm) <=[s2] vm2' /\
@@ -327,8 +328,8 @@ Section PROOF.
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 Hval Hp Hc ii I c' O /=.
-    case Heq: (dead_code_c (dead_code_i is_move_op do_nop onfun) c1 O)=> [[sv1 sc1] /=|//].
-    case: (dead_code_c (dead_code_i is_move_op do_nop onfun) c2 O)=> [[sv2 sc2] /=|//] [??] vm1' Hvm; subst I c'.
+    case Heq: (dead_code_c (dead_code_i is_move_op fuel do_nop onfun) c1 O)=> [[sv1 sc1] /=|//].
+    case: (dead_code_c (dead_code_i is_move_op fuel do_nop onfun) c2 O)=> [[sv2 sc2] /=|//] [??] vm1' Hvm; subst I c'.
     have [|vm2' [Hvm2' Hvm2'1]] := Hc _ _ _ Heq vm1'.
     + by move: Hvm; rewrite read_eE=> Hvm; apply: uincl_onI Hvm;SvD.fsetdec.
     rewrite (surj_estate s1) in Hval.
@@ -344,8 +345,8 @@ Section PROOF.
   Local Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 Hval Hp Hc ii I c' O/=.
-    case: (dead_code_c (dead_code_i is_move_op do_nop onfun) c1 O)=> [[sv1 sc1] /=|//].
-    case Heq: (dead_code_c (dead_code_i is_move_op do_nop onfun) c2 O)=> [[sv2 sc2] /=|//] [??] vm1' Hvm; subst I c'.
+    case: (dead_code_c (dead_code_i is_move_op fuel do_nop onfun) c1 O)=> [[sv1 sc1] /=|//].
+    case Heq: (dead_code_c (dead_code_i is_move_op fuel do_nop onfun) c2 O)=> [[sv2 sc2] /=|//] [??] vm1' Hvm; subst I c'.
     have [|vm2' [Hvm2' Hvm2'1]] := Hc _ _ _ Heq vm1'.
     + by move: Hvm; rewrite read_eE=> Hvm; apply: uincl_onI Hvm;SvD.fsetdec.
     rewrite (surj_estate s1) in Hval.
@@ -411,7 +412,7 @@ Section PROOF.
   Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
   Proof.
     move=> s1 s2 i d lo hi c vlo vhi Hlo Hhi Hc Hfor ii I c_ O /=.
-    case Hloop: (loop (dead_code_c (dead_code_i is_move_op do_nop onfun) c) ii Loop.nb Sv.empty (Sv.add i Sv.empty) O)=> [[sv1 sc1] /=|//] [??]; subst I c_.
+    case Hloop: (loop (dead_code_c (dead_code_i is_move_op fuel do_nop onfun) c) ii fuel Sv.empty (Sv.add i Sv.empty) O)=> [[sv1 sc1] /=|//] [??]; subst I c_.
     move: (loopP Hloop)=> [H1 [sv2 [H2 H2']]] vm1' Hvm.
     have [|vm2' [Hvm2'1 Hvm2'2]] := Hfor _ _ _ H2 H2' vm1'.
     + move: Hvm; rewrite !read_eE=> Hvm.
@@ -493,7 +494,7 @@ Section PROOF.
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
     move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hfun htra Hi Hw Hsem Hc Hres Hfull Hscs Hfi.
-    have dcok : map_cfprog_name (dead_code_fd is_move_op do_nop onfun) (p_funcs p) = ok (p_funcs p').
+    have dcok : map_cfprog_name (dead_code_fd is_move_op fuel do_nop onfun) (p_funcs p) = ok (p_funcs p').
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [f' Hf'1 Hf'2] := get_map_cfprog_name_gen dcok Hfun.
     case: f Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hscs Hfi => fi ft fp /= c f_tyout res fb
@@ -590,14 +591,14 @@ Section PROOF.
 
   Let Pi (i:instr) :=
     forall I c' O,
-      dead_code_i is_move_op do_nop onfun i O = ok (I, c') ->
+      dead_code_i is_move_op fuel do_nop onfun i O = ok (I, c') ->
       wequiv_rec p p' ev ev dc_spec (st_uincl_on I) [::i] c' (st_uincl_on O).
 
   Let Pi_r (i:instr_r) := forall ii, Pi (MkI ii i).
 
   Let Pc (c:cmd) :=
     forall I c' O,
-      dead_code_c (dead_code_i is_move_op do_nop onfun) c O = ok (I, c') ->
+      dead_code_c (dead_code_i is_move_op fuel do_nop onfun) c O = ok (I, c') ->
        wequiv_rec p p' ev ev dc_spec (st_uincl_on I) c c' (st_uincl_on O).
 
   Lemma it_dead_code_callP fn :
@@ -605,7 +606,7 @@ Section PROOF.
   Proof.
     apply wequiv_fun_ind => hrec {fn}.
     move=> fn _ fs ft [<- hfsu] fd hget.
-    have dcok : map_cfprog_name (dead_code_fd is_move_op do_nop onfun) (p_funcs p) = ok (p_funcs p').
+    have dcok : map_cfprog_name (dead_code_fd is_move_op fuel do_nop onfun) (p_funcs p) = ok (p_funcs p').
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [fd' hfd' hget'] := get_map_cfprog_name_gen dcok hget.
     exists fd' => // {hget}.
@@ -728,7 +729,7 @@ End Section.
 Section SEM.
 
 Lemma dead_code_tokeep_callPu (p p': uprog) do_nop onfun fn ev scs mem scs' mem' va va' vr:
-  dead_code_prog_tokeep is_move_op do_nop onfun p = ok p' ->
+  dead_code_prog_tokeep is_move_op fuel do_nop onfun p = ok p' ->
   List.Forall2 value_uincl va va' ->
   sem_call p ev scs mem fn va scs' mem' vr ->
   exists vr',
@@ -736,7 +737,7 @@ Lemma dead_code_tokeep_callPu (p p': uprog) do_nop onfun fn ev scs mem scs' mem'
 Proof. by move=> hd hall;apply: (dead_code_callP hd); apply List_Forall2_refl. Qed.
 
 Lemma dead_code_tokeep_callPs (p p': sprog) do_nop onfun fn wrip scs mem scs' mem' va va' vr:
-  dead_code_prog_tokeep is_move_op do_nop onfun p = ok p' ->
+  dead_code_prog_tokeep is_move_op fuel do_nop onfun p = ok p' ->
   List.Forall2 value_uincl va va' ->
   sem_call p wrip scs mem fn va scs' mem' vr ->
   exists vr',
@@ -744,7 +745,7 @@ Lemma dead_code_tokeep_callPs (p p': sprog) do_nop onfun fn wrip scs mem scs' me
 Proof. by move=> hd hall;apply: (dead_code_callP hd); apply List_Forall2_refl. Qed.
 
 Lemma dead_code_callPu (p p': uprog) do_nop fn ev scs mem scs' mem' va va' vr:
-  dead_code_prog is_move_op p do_nop = ok p' ->
+  dead_code_prog is_move_op p do_nop fuel = ok p' ->
   List.Forall2 value_uincl va va' ->
   sem_call p ev scs mem fn va scs' mem' vr ->
   exists vr',
@@ -752,7 +753,7 @@ Lemma dead_code_callPu (p p': uprog) do_nop fn ev scs mem scs' mem' va va' vr:
 Proof. apply dead_code_tokeep_callPu. Qed.
 
 Lemma dead_code_callPs (p p': sprog) do_nop fn wrip scs mem scs' mem' va va' vr:
-  dead_code_prog is_move_op p do_nop = ok p' ->
+  dead_code_prog is_move_op p do_nop fuel = ok p' ->
   List.Forall2 value_uincl va va' ->
   sem_call p wrip scs mem fn va scs' mem' vr ->
   exists vr',
@@ -765,7 +766,7 @@ Section IT.
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
 Lemma it_dead_code_tokeep_callPu (p p': uprog) do_nop onfun fn ev:
-  dead_code_prog_tokeep is_move_op do_nop onfun p = ok p' ->
+  dead_code_prog_tokeep is_move_op fuel do_nop onfun p = ok p' ->
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=dc_spec onfun)).
 Proof.
   move=> hd; apply wkequiv_io_weaken with
@@ -775,7 +776,7 @@ Proof.
 Qed.
 
 Lemma it_dead_code_tokeep_callPs (p p': sprog) do_nop onfun fn wrip:
-  dead_code_prog_tokeep is_move_op do_nop onfun p = ok p' ->
+  dead_code_prog_tokeep is_move_op fuel do_nop onfun p = ok p' ->
   wiequiv_f p p' wrip wrip (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=dc_spec onfun)).
 Proof.
   move=> hd; apply wkequiv_io_weaken with
@@ -785,33 +786,33 @@ Proof.
 Qed.
 
 Lemma it_dead_code_callPu (p p': uprog) do_nop fn ev :
-  dead_code_prog is_move_op p do_nop = ok p' ->
+  dead_code_prog is_move_op p do_nop fuel = ok p' ->
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof. apply it_dead_code_tokeep_callPu. Qed.
 
 Lemma it_dead_code_callPs (p p': sprog) do_nop fn wrip:
-  dead_code_prog is_move_op p do_nop = ok p' ->
+  dead_code_prog is_move_op p do_nop fuel = ok p' ->
   wiequiv_f p p' wrip wrip (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof. apply it_dead_code_tokeep_callPs. Qed.
 
 Lemma dead_code_prog_tokeep_meta (p p': sprog) do_nop onfun :
-  dead_code_prog_tokeep is_move_op do_nop onfun p = ok p' →
+  dead_code_prog_tokeep is_move_op fuel do_nop onfun p = ok p' →
   p_globs p' = p_globs p ∧ p_extra p' = p_extra p.
 Proof.
   by rewrite /dead_code_prog_tokeep; t_xrbindP => _ _ <- /=.
 Qed.
 
 Lemma dead_code_prog_tokeep_get_fundef (p p': sprog) do_nop onfun fn f :
-  dead_code_prog_tokeep is_move_op do_nop onfun p = ok p' →
+  dead_code_prog_tokeep is_move_op fuel do_nop onfun p = ok p' →
   get_fundef (p_funcs p) fn = Some f →
-  exists2 f', dead_code_fd is_move_op do_nop onfun fn f = ok f' & get_fundef (p_funcs p') fn = Some f'.
+  exists2 f', dead_code_fd is_move_op fuel do_nop onfun fn f = ok f' & get_fundef (p_funcs p') fn = Some f'.
 Proof.
   apply: rbindP => fds ok_fds [<-{p'}].
   exact: get_map_cfprog_name_gen ok_fds.
 Qed.
 
 Lemma dead_code_fd_meta do_nop onfun fn (fd fd': sfundef) :
-  dead_code_fd is_move_op do_nop onfun fn fd = ok fd' →
+  dead_code_fd is_move_op fuel do_nop onfun fn fd = ok fd' →
   [/\
    fd'.(f_tyin) = fd.(f_tyin),
    fd'.(f_params) = fd.(f_params) &

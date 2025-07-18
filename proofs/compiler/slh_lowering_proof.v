@@ -480,7 +480,8 @@ Context
   (entries  : seq funname)
   (ev : extra_val_t)
   (p p' : prog)
-  (hp : lower_slh_prog shparams fun_info entries p = ok p').
+  (fuel: nat)
+  (hp : lower_slh_prog shparams fuel fun_info entries p = ok p').
 
 Notation lower_slho := (lower_slho shparams).
 Notation lower_i := (lower_i shparams).
@@ -755,7 +756,7 @@ Section LOWER_SLHO.
 End LOWER_SLHO.
 
 Lemma lower_pP :
-  [/\ map_cfprog_name (lower_fd shparams fun_info) (p_funcs p) = ok (p_funcs p')
+  [/\ map_cfprog_name (lower_fd shparams fuel fun_info) (p_funcs p) = ok (p_funcs p')
     , p_globs p' = p_globs p
     & p_extra p' = p_extra p
   ].
@@ -821,7 +822,8 @@ Context
   (entries  : seq funname)
   (ev : extra_val_t)
   (p p' : prog)
-  (hp : lower_slh_prog shparams fun_info entries p = ok p').
+  (fuel: nat)
+  (hp : lower_slh_prog shparams (S fuel) fun_info entries p = ok p').
 
 Notation lower_slho := (lower_slho shparams).
 Notation lower_i := (lower_i shparams).
@@ -830,28 +832,28 @@ Notation lower_cmd := (lower_cmd shparams).
 Let Pc (s : estate) (c : cmd) (s' : estate) : Prop :=
   forall env env' c',
     wf_env env (p_globs p) s
-    -> check_cmd fun_info env c = ok env'
+    -> check_cmd (S fuel) fun_info env c = ok env'
     -> lower_cmd c = ok c'
     -> sem p' ev s c' s' /\ wf_env env' (p_globs p') s'.
 
 Let Pi_r (s : estate) (ir : instr_r) (s' : estate) : Prop :=
   forall ii env env' i',
     wf_env env (p_globs p) s
-    -> check_i fun_info (MkI ii ir) env = ok env'
+    -> check_i (S fuel) fun_info (MkI ii ir) env = ok env'
     -> lower_i (MkI ii ir) = ok i'
     -> sem_I p' ev s i' s' /\ wf_env env' (p_globs p') s'.
 
 Let Pi (s : estate) (i : instr) (s' : estate) : Prop :=
   forall env env' i',
     wf_env env (p_globs p) s
-    -> check_i fun_info i env = ok env'
+    -> check_i (S fuel) fun_info i env = ok env'
     -> lower_i i = ok i'
     -> sem_I p' ev s i' s' /\ wf_env env' (p_globs p') s'.
 
 Let Pfor (x : var_i) (rg : seq Z) (s : estate) (c : cmd) (s' : estate) : Prop :=
   forall env env' c',
     wf_env env (p_globs p) s
-    -> check_cmd fun_info (Env.after_assign_var env x) c = ok env'
+    -> check_cmd (S fuel) fun_info (Env.after_assign_var env x) c = ok env'
     -> lower_cmd c = ok c'
     -> Env.le env env'
     -> sem_for p' ev x rg s c' s' /\ wf_env env (p_globs p') s'.
@@ -1041,7 +1043,8 @@ Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
 Proof.
   move=> s0 s1 s2 s3 al c0 cond cond_info c1 hsem0 hc0 hsemcond hsem1 hc1 _ hind.
   move=> ii env env' c hwf hcheck hlower.
-  move: hcheck (hlower) => /=.
+  move: hcheck (hlower).
+  remember (S fuel) as n eqn: Hn => /=.
   t_xrbindP => hmem /check_whileP [env_fix [env0 [env1 [hcheck0 hcheck1 hle1 hle ?]]]].
   rewrite /= -!/(lower_cmd _) => irs c0' hlower0 c1' hlower1 ??; subst c irs env'.
 
@@ -1057,9 +1060,9 @@ Proof.
   rewrite (hp_globs hp) in hwf1.
   have hwffix := wf_env_le hle1 hwf1.
   have hcheck :
-    check_i fun_info (MkI ii (Cwhile al c0 cond cond_info c1)) env_fix
+    check_i n fun_info (MkI ii (Cwhile al c0 cond cond_info c1)) env_fix
     = ok (Env.update_cond env0 (enot cond)).
-  - by rewrite /= hmem /= Loop.nbP /= hcheck0 /= hcheck1 /= hle1.
+  - by rewrite Hn /= hmem /= -Hn hcheck0 /= hcheck1 /= hle1.
 
   have [hsem hwf0'] := hind _ _ _ _ hwffix hcheck hlower.
 
@@ -1075,7 +1078,8 @@ Qed.
 (* This is similar to [Hwhile_true], but we never apply [check_cmd c0]. *)
 Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
 Proof.
-  move=> s s' al c0 cond cond_info c1 hsem hc hsemcond ii env env' c hwf /=.
+  move=> s s' al c0 cond cond_info c1 hsem hc hsemcond ii env env' c hwf.
+  remember (S fuel) as n => /=.
   t_xrbindP => hmem /check_whileP [env_fix [env0 [env1 [hcheck0 _ _ hle ?]]]].
   move=> irs c0' hlower0 c1' _ ??; subst c irs env'.
 
@@ -1104,7 +1108,7 @@ Qed.
 Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
 Proof.
   move=> s s' x d xstart xend c vstart vend hsemstart hsemend _ hind.
-  move=> ii env env_fix c' hwf /= /check_forP [env0 [hcheck hle hle0]].
+  move=> ii env env_fix c' hwf /check_forP [env0 [hcheck hle hle0]].
   rewrite /= -/(lower_cmd _).
   t_xrbindP=> irs c0 hlower ? ?; subst irs c'.
 
@@ -1162,7 +1166,7 @@ Proof.
     hf htargs hinit hwargs _ hrec hrres htres -> ->.
   move: (hp); rewrite /lower_slh_prog; t_xrbindP => hent fds hmap heq.
   have [fd' + hget]:= get_map_cfprog_name_gen hmap hf.
-  rewrite /lower_fd /check_fd /= /Pfun.
+  rewrite /lower_fd /check_fd /Pfun.
   case hinfo : fun_info => [tin tout]; t_xrbindP.
   move=> env1 hcp env2 hcb hcr _ c' hc ? hall; subst fd'.
   have [| hsem' hwf2]:= hrec _ _ _ _ hcb hc.
@@ -1224,13 +1228,14 @@ Context
   (entries  : seq funname)
   (ev : extra_val_t)
   (p p' : prog)
-  (hp : lower_slh_prog shparams fun_info entries p = ok p')
+  (fuel : nat)
+  (hp : lower_slh_prog shparams fuel fun_info entries p = ok p')
 .
 
 Notation lower_slho := (lower_slho shparams).
 Notation lower_i := (lower_i shparams).
 Notation lower_cmd := (lower_cmd shparams).
-Notation lower_fd := (lower_fd shparams fun_info).
+Notation lower_fd := (lower_fd shparams fuel fun_info).
 
 Notation hp_body := (hp_body hp).
 Notation hp_globs := (hp_globs hp).
@@ -1238,7 +1243,7 @@ Notation hp_extra := (hp_extra hp).
 
 Lemma lower_fdP fn fd fd' :
   lower_fd fn fd = ok fd' ->
-  [/\ check_fd fun_info fn fd = ok tt
+  [/\ check_fd fuel fun_info fn fd = ok tt
     , f_info fd' = f_info fd
     , f_tyin fd' = f_tyin fd
     , f_params fd' = f_params fd
@@ -1311,20 +1316,20 @@ Instance slh_spec : EquivSpec :=
 
 Let Pi i : Prop :=
   forall env env' i',
-    check_i fun_info i env = ok env' ->
+    check_i fuel fun_info i env = ok env' ->
     lower_i i = ok i' ->
     wequiv_rec_i p p' ev ev slh_spec (st_eq env) i i' (st_eq env').
 
 Let Pi_r i : Prop :=
   forall ii env env' i' ii',
-    check_i fun_info (MkI ii i) env = ok env' ->
+    check_i fuel fun_info (MkI ii i) env = ok env' ->
     lower_i (MkI ii i) = ok (MkI ii' i') ->
     wequiv_rec_ir
       p p' ev ev slh_spec (st_eq env) i ii i' ii' (st_eq env').
 
 Let Pc c : Prop :=
   forall env env' c',
-    check_cmd fun_info env c = ok env' ->
+    check_cmd fuel fun_info env c = ok env' ->
     lower_cmd c = ok c' ->
     wequiv_rec p p' ev ev slh_spec (st_eq env) c c' (st_eq env').
 
@@ -1434,7 +1439,7 @@ Qed.
 Lemma it_lower_code c c' env env' :
   (forall ii1 ii2 fn1 fn2,
       wequiv_f_rec p p' ev ev slh_spec rpreF ii1 ii2 fn1 fn2 rpostF) ->
-  check_cmd fun_info env c = ok env' ->
+  check_cmd fuel fun_info env c = ok env' ->
   lower_cmd c = ok c' ->
   wequiv_rec p p' ev ev slh_spec (st_eq env) c c' (st_eq env').
 Proof.

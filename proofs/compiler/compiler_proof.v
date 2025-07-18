@@ -55,6 +55,8 @@ Context
   (aparams : architecture_params lowering_options)
   (haparams : h_architecture_params aparams)
   (cparams : compiler_params lowering_options).
+Context
+  (fuel: nat).
 
 Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
@@ -63,7 +65,7 @@ Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
 #[local] Existing Instance progUnit.
 
 Lemma compiler_third_part_meta entries (p p' : sprog) :
-  compiler_third_part aparams cparams entries p = ok p' ->
+  compiler_third_part aparams cparams fuel entries p = ok p' ->
   p_extra p' = p_extra p.
 Proof.
   rewrite /compiler_third_part.
@@ -75,7 +77,7 @@ Proof.
 Qed.
 
 Lemma compiler_third_part_invariants entries p p' :
-  compiler_third_part aparams cparams entries p = ok p' ->
+  compiler_third_part aparams cparams fuel entries p = ok p' ->
   forall fn fd, get_fundef p.(p_funcs) fn = Some fd ->
   exists fd', get_fundef p'.(p_funcs) fn = Some fd' /\
   fd.(f_extra).(sf_align_args) = fd'.(f_extra).(sf_align_args).
@@ -197,6 +199,8 @@ Context
   (aparams : architecture_params lowering_options)
   (haparams : h_architecture_params aparams)
   (cparams : compiler_params lowering_options).
+Context
+  (fuel: nat).
 
 Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
@@ -206,7 +210,7 @@ Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
 Existing Instance progUnit.
 
 Lemma postprocessP {dc : DirectCall} (p p': uprog) ev scs m fn va scs' m' vr va' :
-  dead_code_prog (ap_is_move_op aparams) (const_prop_prog p) false = ok p' →
+  dead_code_prog (ap_is_move_op aparams) (const_prop_prog p) false fuel = ok p' →
   sem_call p ev scs m fn va scs' m' vr →
   List.Forall2 value_uincl va va' →
   exists2 vr',
@@ -223,7 +227,7 @@ Proof.
 Qed.
 
 Lemma unrollP  {dc : DirectCall} (fn : funname) (p p' : prog) ev scs mem va va' scs' mem' vr :
-  unroll_loop (ap_is_move_op aparams) p = ok p'
+  unroll_loop fuel (ap_is_move_op aparams) p = ok p'
   -> sem_call p ev scs mem fn va scs' mem' vr
   -> List.Forall2 value_uincl va va'
   -> exists vr',
@@ -231,7 +235,7 @@ Lemma unrollP  {dc : DirectCall} (fn : funname) (p p' : prog) ev scs mem va va' 
        /\ List.Forall2 value_uincl vr vr'.
 Proof.
   rewrite /unroll_loop; t_xrbindP.
-  elim: Loop.nb p va va' vr => //= n Hn p va va' vr p1 ok_p1.
+  elim: {3}fuel p va va' vr => //= n Hn p va va' vr p1 ok_p1.
   case e: unroll_prog => [ p2 [] ]; last first.
   { move/ok_inj => {n Hn} <- E A.
     have [ vr' {} E R ] := postprocessP ok_p1 E A.
@@ -272,7 +276,7 @@ Definition compose_pass_uincl' : ∀ vr (P Q: _ → Prop),
       ex_intro2 _ _ vr2 (values_uincl_trans u v) q.
 
 Lemma live_range_splittingP {dc : DirectCall} (p p': uprog) scs m fn va scs' m' vr :
-  live_range_splitting aparams cparams p = ok p' →
+  live_range_splitting aparams cparams fuel p = ok p' →
   sem_call p tt scs m fn va scs' m' vr →
   exists2 vr',
       List.Forall2 value_uincl vr vr' &
@@ -294,7 +298,7 @@ Proof.
 Qed.
 
 Lemma inliningP (to_keep: seq funname) (p p': uprog) scs m fn va scs' m' vr :
-  inlining cparams to_keep p = ok p' →
+  inlining cparams fuel to_keep p = ok p' →
   fn \in to_keep →
   sem_call (wsw := withsubword) (dc := indirect_c) p tt scs m fn va scs' m' vr →
   exists2 vr', List.Forall2 value_uincl vr vr' & sem_call (dc := indirect_c) p' tt scs m fn va scs' m' vr'.
@@ -308,7 +312,7 @@ Proof.
 Qed.
 
 Lemma compiler_first_partP entries (p: prog) (p': uprog) scs m fn va scs' m' vr :
-  compiler_first_part aparams cparams entries p = ok p' →
+  compiler_first_part aparams cparams fuel entries p = ok p' →
   fn \in entries →
   sem_call (wsw:= nosubword) (dc:=indirect_c) p tt scs m fn va scs' m' vr →
   exists2 vr',
@@ -379,7 +383,7 @@ Proof.
 Qed.
 
 Lemma compiler_third_partP returned_params (p p' : @sprog _pd _ _asmop) :
-  compiler_third_part aparams cparams returned_params p = ok p' →
+  compiler_third_part aparams cparams fuel returned_params p = ok p' →
   [/\
     ∀ fn (gd: pointer) scs m va scs' m' vr,
       sem_call (dc:= direct_c) p gd scs m fn va scs' m' vr →
@@ -424,13 +428,13 @@ Proof.
   move: (alloc_pc _ get_fdc).
   have [_ _ ->]:= dead_code_fd_meta ok_fdc.
   rewrite /sf_total_stack.
-  have [ <- <- <- ] := [elaborate @check_fundef_meta _ _ _ _ _ _ _ _ (_, fda) _ _ _ ok_fdb].
+  have [ <- <- <- ] := [elaborate @check_fundef_meta _ _ _ _ _ _ _ _ _ (_, fda) _ _ _ ok_fdb].
   have [_ _ ->]:= dead_code_fd_meta ok_fda.
   done.
 Qed.
 
 Lemma compiler_third_part_alloc_ok entries (p p' : sprog) (fn: funname) (m: mem) :
-  compiler_third_part aparams cparams entries p = ok p' →
+  compiler_third_part aparams cparams fuel entries p = ok p' →
   alloc_ok p' fn m →
   alloc_ok p fn m.
 Proof. case/compiler_third_partP => _; exact. Qed.
@@ -458,7 +462,7 @@ Lemma compiler_front_endP
   (p': @sprog _pd _ _asmop)
   (gd : pointer)
   scs m mi fn va scs' m' vr :
-  compiler_front_end aparams cparams entries p = ok p' →
+  compiler_front_end aparams cparams fuel entries p = ok p' →
   fn \in entries →
   sem_call (dc:=indirect_c) (wsw:= nosubword) p tt scs m fn va scs' m' vr →
   extend_mem m mi gd (sp_globs (p_extra p')) →
@@ -674,7 +678,7 @@ Lemma compiler_front_endP_uincl
   (p': @sprog _pd _ _asmop)
   (gd : pointer)
   scs m mi fn va scs' m' vr :
-  compiler_front_end aparams cparams entries p = ok p' →
+  compiler_front_end aparams cparams fuel entries p = ok p' →
   fn \in entries →
   sem_call (dc:=indirect_c) (wsw:= nosubword) p tt scs m fn va scs' m' vr →
   extend_mem m mi gd (sp_globs (p_extra p')) →
@@ -737,7 +741,7 @@ Proof.
 Qed.
 
 Lemma compiler_back_end_meta entries (p: sprog) (tp: lprog) :
-  compiler_back_end aparams cparams entries p = ok tp →
+  compiler_back_end aparams cparams fuel entries p = ok tp →
   [/\
      lp_rip tp = p.(p_extra).(sp_rip),
      lp_rsp tp = p.(p_extra).(sp_rsp) &
@@ -757,7 +761,7 @@ Proof.
 Qed.
 
 Lemma compiler_back_end_to_asm_meta entries (p : sprog) (xp : asm_prog) :
-  compiler_back_end_to_asm aparams cparams entries p = ok xp
+  compiler_back_end_to_asm aparams cparams fuel entries p = ok xp
   -> asm_globs xp = (sp_globs (p_extra p)).
 Proof.
   rewrite /compiler_back_end_to_asm.
@@ -777,7 +781,7 @@ Definition enough_stack_space
 
 Lemma enough_stack_space_alloc_ok
   entries (sp : sprog) (xp : asm_prog) (fn : funname) (m m' : mem) :
-  compiler_back_end_to_asm aparams cparams entries sp = ok xp
+  compiler_back_end_to_asm aparams cparams fuel entries sp = ok xp
   -> fn \in entries
   -> (wunsigned (stack_limit m) <= wunsigned (top_stack m'))%Z
   -> enough_stack_space xp fn (top_stack m) m'
@@ -818,7 +822,7 @@ Lemma compiler_back_endP
   (fn : funname)
   args
   res :
-  compiler_back_end aparams cparams entries p = ok tp →
+  compiler_back_end aparams cparams fuel entries p = ok tp →
   fn \in entries →
   psem.sem_call (dc:= direct_c) p rip scs m fn args scs' m' res →
   ∃ fd : lfundef,
@@ -1028,7 +1032,7 @@ Lemma compiler_back_end_to_asmP
   (fn: funname)
   args
   res :
-  compiler_back_end_to_asm aparams cparams entries p = ok xp
+  compiler_back_end_to_asm aparams cparams fuel entries p = ok xp
   -> fn \in entries
   -> psem.sem_call (dc:=direct_c) p rip scs m fn args scs' m' res
   -> exists xd : asm_fundef,
@@ -1164,7 +1168,7 @@ Definition get_asm_align_args (xp:asm_prog) fn :=
   oapp (fun xd => xd.(asm_fd_align_args)) [::] (get_fundef xp.(asm_funcs) fn).
 
 Lemma compiler_back_end_to_asm_get_fundef entries sp xp fn :
-  compiler_back_end_to_asm aparams cparams entries sp = ok xp ->
+  compiler_back_end_to_asm aparams cparams fuel entries sp = ok xp ->
   fn \in entries ->
   exists sfd xd, [/\
     get_fundef sp.(p_funcs) fn = Some sfd,
@@ -1214,7 +1218,7 @@ Lemma compile_prog_to_asmP
   va
   vr
   xm :
-  compile_prog_to_asm aparams cparams entries p = ok xp
+  compile_prog_to_asm aparams cparams fuel entries p = ok xp
   -> fn \in entries
   -> psem.sem_call (dc:= indirect_c) (wsw:=nosubword) p tt scs m fn va scs' m' vr
   -> forall mi,

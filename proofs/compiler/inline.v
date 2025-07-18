@@ -30,6 +30,7 @@ Context
   {wsw : WithSubWord}
   {asm_op syscall_state : Type}
   {asmop:asmOp asm_op}
+  (fuel: nat)
   (rename_fd : instr_info -> funname -> ufundef -> ufundef)
   (dead_vars_fd : ufun_decl -> instr_info -> Sv.t)
 .
@@ -63,7 +64,7 @@ Definition locals fd :=
   Sv.diff (locals_p fd) (sparams fd).
 
 Definition check_rename f (fd1 fd2:ufundef) (s:Sv.t) :=
-  Let _ := check_ufundef dead_vars_fd tt tt (f,fd1) (f,fd2) tt in
+  Let _ := check_ufundef fuel dead_vars_fd tt tt (f,fd1) (f,fd2) tt in
   let s2 := locals_p fd2 in
   if disjoint s s2 then ok tt
   else Error (inline_error (pp_s "invalid refreshing in function")).
