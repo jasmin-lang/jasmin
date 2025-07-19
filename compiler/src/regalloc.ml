@@ -1203,17 +1203,21 @@ let global_allocation get_internal_size (funcs: ('info, 'asm) func list) :
          | Arch_full.ByReg { call = oreg; return } ->
            let dfl = oreg <> None && has_call_or_syscall f.f_body in
            let r = V.mk ("ra_"^f.f_name.fn_name) (Reg(Normal,Direct)) (tu Arch.reg_size) f.f_loc [] in
+           let rastack =
+             match f.f_annot.retaddr_kind with
+             | None -> dfl
+             | Some k -> dfl || k = OnStack in
            (* Fixme: Add an option in Arch to say when the tmp reg is needed *)
-           let tmp_needed = Arch.alloc_stack_need_extra (get_internal_size f) in
+           let tmp_needed =
+             (* if ra is passed on the stack, the amount to add after the call is not the same
+                as the amount to subtract before the call, we need to check both *)
+             Arch.alloc_stack_need_extra (get_internal_size f) ||
+             rastack && Arch.alloc_stack_need_extra (Z.sub (get_internal_size f) (Z.of_int (size_of_ws Arch.reg_size))) in
            let tmp =
              if tmp_needed then
                let tmp = V.mk ("tmp_"^f.f_name.fn_name) (Reg(Normal,Direct)) (tu Arch.reg_size) f.f_loc [] in
                Some tmp
              else None in
-           let rastack =
-             match f.f_annot.retaddr_kind with
-             | None -> dfl
-             | Some k -> dfl || k = OnStack in
            if rastack then
              let r_return =
                if return then

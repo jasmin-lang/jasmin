@@ -34,6 +34,11 @@
 - Escape '#' sign in variable and function names
   ([PR #1241](https://github.com/jasmin-lang/jasmin/pull/1241)).
 
+- Make sure linearization generate correct instructions
+  when the stack frame is large and the return address passed
+  on the stack
+  ([PR #1247](https://github.com/jasmin-lang/jasmin/pull/1247)).
+
 ## Other changes
 
 - The deprecated x86 intrinsic `#VPBLENDVB` has been removed

@@ -1,0 +1,27 @@
+// This checks that we properly deal with large stack frames
+// when the return address is passed on the stack
+
+fn g () -> reg u32 {
+  reg u32 res = 0;
+  return res;
+}
+
+fn f () -> reg u32 {
+  // we can add the immediate 7584 in arm-m4, but not 7580
+  stack u8[7580] s;
+  reg u32 res;
+
+  // we make a call to be sure the return address in on the stack
+  res = g();
+
+  s[:u32 0] = res;
+  res = s[:u32 0];
+
+  return res;
+}
+
+export fn main () -> reg u32 {
+  reg u32 res;
+  res = f ();
+  return res;
+}
