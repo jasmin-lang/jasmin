@@ -282,11 +282,12 @@ let pp_decl fmt (x: vardecl L.located) =
   F.fprintf fmt "%s%a" (L.unloc x) (pp_opt pp) e
 
 let pp_decls fmt (sty, vd) =
+  let sep : _ format = if List.for_all (fun x -> snd (L.unloc x) = None) vd then " " else ", " in
   F.fprintf
     fmt
     "%a %a"
     pp_sto_ty sty
-    (pp_list " " pp_decl) vd
+    (pp_list sep pp_decl) vd
 
 let pp_annot_args fmt  (annot, args) =
   F.fprintf fmt "%a%a" pp_inline_annotations annot pp_args args
