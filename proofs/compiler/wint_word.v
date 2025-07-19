@@ -112,12 +112,13 @@ Definition wi2w_fun {eft} (f: _fundef eft) :=
 Definition wi2w_prog_internal {pT:progT} (p: prog) : prog := map_prog wi2w_fun p.
 
 Definition wi2w_prog {wsw: WithSubWord}
+   (fuel: nat)
    (remove_wint_annot: funname -> fundef -> fundef)
    (dead_vars_fd : fun_decl → instr_info → Sv.t)
    (p : prog) :=
   let p := wi2w_prog_internal p in
   let pv := map_prog_name remove_wint_annot p in
-  Let _ := allocation.check_uprog dead_vars_fd p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
+  Let _ := allocation.check_uprog fuel dead_vars_fd p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
   ok pv.
 
 End WITH_PARAMS.
