@@ -621,19 +621,65 @@ type reg_oracle_t = {
 module type Regalloc = sig
   type extended_op
 
+  val create_return_addresses : (('info, 'asm) sfundef -> Z.t) -> ('info, 'asm) sfundef list -> retaddr Hf.t
+
   val renaming : (unit, extended_op) func -> (unit, extended_op) func
 
   val subroutine_ra_by_stack : (unit, extended_op) func -> bool
 
+  val get_reg_oracle :
+    (('info, 'asm) func -> bool) ->
+    (var -> var) ->
+    (funname -> Sv.t) -> retaddr -> ('info, 'asm) func -> reg_oracle_t
+
   val alloc_prog :
-    ((unit, extended_op) func -> 'a -> bool) ->
-    ((unit, extended_op) func -> 'a -> Z.t) ->
+    retaddr Hf.t ->
     ('a * (unit, extended_op) func) list ->
-    ('a * reg_oracle_t * (unit, extended_op) func) list
+    (var -> var) * (funname -> Sv.t) * ('a * (unit, extended_op) func) list
 end
 
 module Regalloc (Arch : Arch_full.Arch)
   : Regalloc with type extended_op := (Arch.reg, Arch.regx, Arch.xreg, Arch.rflag, Arch.cond, Arch.asm_op, Arch.extra_op) Arch_extra.extended_op = struct
+
+  let create_return_addresses get_internal_size (funcs: ('info, 'asm) sfundef list) : retaddr Hf.t =
+      let return_addresses = Hf.create 17 in
+      List.iter (fun ((e, f) as fd) ->
+      let ra =
+         match f.f_cc with
+         | Export _ -> StackDirect
+         | Internal -> assert false
+         | Subroutine _ ->
+           match Arch.callstyle with
+           | Arch_full.StackDirect -> StackDirect
+           | Arch_full.ByReg { call = oreg; return } ->
+             let dfl = oreg <> None && has_call_or_syscall f.f_body in
+             let r = V.mk ("ra_"^f.f_name.fn_name) (Reg(Normal,Direct)) (tu Arch.reg_size) f.f_loc [] in
+             let rastack =
+               match f.f_annot.retaddr_kind with
+               | None -> dfl
+               | Some k -> dfl || k = OnStack in
+             (* Fixme: Add an option in Arch to say when the tmp reg is needed *)
+             let tmp_needed =
+               (* if ra is passed on the stack, the amount to add after the call is not the same
+                  as the amount to subtract before the call, we need to check both *)
+               Arch.alloc_stack_need_extra (get_internal_size fd) ||
+               rastack && Arch.alloc_stack_need_extra (Z.sub (get_internal_size fd) (Z.of_int (size_of_ws Arch.reg_size))) in
+             let tmp =
+               if tmp_needed then
+                 let tmp = V.mk ("tmp_"^f.f_name.fn_name) (Reg(Normal,Direct)) (tu Arch.reg_size) f.f_loc [] in
+                 Some tmp
+               else None in
+             if rastack then
+               let r_return =
+                 if return then
+                   let r_return = V.mk ("ra_"^f.f_name.fn_name) (Reg(Normal,Direct)) (tu Arch.reg_size) f.f_loc [] in
+                   Some r_return
+                 else None
+               in
+               StackByReg (r, r_return, tmp)
+             else ByReg (r, tmp) in
+      Hf.add return_addresses f.f_name ra) funcs;
+      return_addresses
 
   let forced_registers loc nv (vars: int Hv.t) tr (cnf: conflicts)
       (lvs: 'ty glvals) (op: 'asm sopn) (es: 'ty gexprs)
@@ -1004,7 +1050,6 @@ let post_process
   ~not_saved_stack
   ~stack_needed
   (subst: var -> var)
-  (live: Sv.t)
   ~(killed: funname -> Sv.t)
   (f: _ func) :
   Sv.t * var option =
@@ -1018,7 +1063,6 @@ let post_process
      end
   | Export _ ->
      begin
-       assert (Sv.is_empty live);
        let used_in_f = List.fold_left (fun s x -> Sv.add (subst x) s) killed_in_f f.f_args in
        let free_regs = Sv.diff allocatable_vars used_in_f in
        let to_save = Sv.inter callee_save_vars killed_in_f in
@@ -1174,8 +1218,8 @@ let pp_liveness vars liveness_per_callsite liveness_table a =
     let extern = !m_word, !m_extra, !m_vector, !m_flag in
     pp_recap Format.std_formatter fn intern extern)
 
-let global_allocation get_internal_size (funcs: ('info, 'asm) func list) :
-  (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * retaddr Hf.t =
+let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
+  (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) =
   (* Preprocessing of functions:
     - ensure all variables are named (no anonymous assign)
     - generate a fresh variable to hold the return address (if needed)
@@ -1186,48 +1230,12 @@ let global_allocation get_internal_size (funcs: ('info, 'asm) func list) :
     Initial 'info are preserved in the result.
    *)
   let liveness_table : (Sv.t * Sv.t, 'asm) func Hf.t = Hf.create 17 in
-  let return_addresses : retaddr Hf.t = Hf.create 17 in
   let killed_map : Sv.t Hf.t = Hf.create 17 in
   let killed fn = Hf.find killed_map fn in
   let preprocess f =
     let f = f |> fill_in_missing_names |> Ssa.split_live_ranges false in
     Hf.add liveness_table f.f_name (Liveness.live_fd true f);
-    (* compute where the return address will be stored *)
-    let ra =
-       match f.f_cc with
-       | Export _ -> StackDirect
-       | Internal -> assert false
-       | Subroutine _ ->
-         match Arch.callstyle with
-         | Arch_full.StackDirect -> StackDirect
-         | Arch_full.ByReg { call = oreg; return } ->
-           let dfl = oreg <> None && has_call_or_syscall f.f_body in
-           let r = V.mk ("ra_"^f.f_name.fn_name) (Reg(Normal,Direct)) (tu Arch.reg_size) f.f_loc [] in
-           let rastack =
-             match f.f_annot.retaddr_kind with
-             | None -> dfl
-             | Some k -> dfl || k = OnStack in
-           (* Fixme: Add an option in Arch to say when the tmp reg is needed *)
-           let tmp_needed =
-             (* if ra is passed on the stack, the amount to add after the call is not the same
-                as the amount to subtract before the call, we need to check both *)
-             Arch.alloc_stack_need_extra (get_internal_size f) ||
-             rastack && Arch.alloc_stack_need_extra (Z.sub (get_internal_size f) (Z.of_int (size_of_ws Arch.reg_size))) in
-           let tmp =
-             if tmp_needed then
-               let tmp = V.mk ("tmp_"^f.f_name.fn_name) (Reg(Normal,Direct)) (tu Arch.reg_size) f.f_loc [] in
-               Some tmp
-             else None in
-           if rastack then
-             let r_return =
-               if return then
-                 let r_return = V.mk ("ra_"^f.f_name.fn_name) (Reg(Normal,Direct)) (tu Arch.reg_size) f.f_loc [] in
-                 Some r_return
-               else None
-             in
-             StackByReg (r, r_return, tmp)
-           else ByReg (r, tmp) in
-    Hf.add return_addresses f.f_name ra;
+    let ra = Hf.find return_addresses f.f_name in
     let written =
       let written, cg = written_vars_fc f in
       let written =
@@ -1381,49 +1389,56 @@ let global_allocation get_internal_size (funcs: ('info, 'asm) func list) :
   get_liveness,
   subst
   , killed
-  , return_addresses
 
-let alloc_prog (has_stack: ('info, 'asm) func -> 'a -> bool) get_internal_size (dfuncs: ('a * ('info, 'asm) func) list)
-    : ('a * reg_oracle_t * (unit, 'asm) func) list =
+let allocatable_vars = Sv.of_list Arch.allocatable_vars
+let callee_save_vars = Sv.of_list Arch.callee_save_vars
+let not_saved_stack = Sv.of_list (Arch.not_saved_stack @ Arch.callee_save_vars)
+
+let get_reg_oracle
+      (has_stack: ('info, 'asm) func -> bool)
+      subst
+      killed
+      return_address
+      f : reg_oracle_t =
+  let stack_needed = has_stack f in
+  let to_save, ro_rsp =
+    post_process
+      ~allocatable_vars
+      ~callee_save_vars
+      ~not_saved_stack
+      ~stack_needed
+      ~killed
+      subst
+      f in
+  let ro_return_address =
+    match return_address with
+    | StackDirect -> StackDirect
+    | StackByReg(ra_call, ra_return, tmp) ->
+       StackByReg (subst ra_call, Option.map subst ra_return, Option.map subst tmp)
+    | ByReg(r, tmp) -> ByReg (subst r, Option.map subst tmp) in
+  let ro_to_save = if FInfo.is_export f.f_cc then Sv.elements to_save else [] in
+  { ro_to_save ; ro_rsp ; ro_return_address }
+
+let alloc_prog return_addresses (dfuncs: ('a * ('info, 'asm) func) list)
+    : (var -> var) * _ * ('a * (unit, 'asm) func) list =
   (* Ensure that instruction locations are really unique,
      so that there is no confusion on the position of the “extra free register”. *)
   let dfuncs =
     List.map (fun (a,f) -> a, Prog.refresh_i_loc_f f) dfuncs in
 
   let extra : 'a Hf.t = Hf.create 17 in
-  let allocatable_vars = Sv.of_list Arch.allocatable_vars in
-  let callee_save_vars = Sv.of_list Arch.callee_save_vars in
-  let not_saved_stack =
-    Sv.of_list (Arch.not_saved_stack @ Arch.callee_save_vars)
-  in
 
-  let funcs, get_liveness, subst, killed, return_addresses =
+  let funcs, get_liveness, subst, killed =
     dfuncs
     |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
-    |> global_allocation (fun f -> get_internal_size f (Hf.find extra f.f_name))
+    |> global_allocation return_addresses
   in
+  subst,
+  killed,
   funcs |>
   List.map (fun f ->
       let e = Hf.find extra f.f_name in
-      let stack_needed = has_stack f e in
-      let to_save, ro_rsp =
-         post_process
-          ~allocatable_vars
-          ~callee_save_vars
-          ~not_saved_stack
-          ~stack_needed
-          ~killed
-          subst
-          (get_liveness f.f_name)
-          f in
-      let ro_return_address =
-        match Hf.find return_addresses f.f_name with
-        | StackDirect -> StackDirect
-        | StackByReg(ra_call, ra_return, tmp) ->
-          StackByReg (subst ra_call, Option.map subst ra_return, Option.map subst tmp)
-        | ByReg(r, tmp) -> ByReg (subst r, Option.map subst tmp) in
-      let ro_to_save = if FInfo.is_export f.f_cc then Sv.elements to_save else [] in
-      e, { ro_to_save ; ro_rsp ; ro_return_address }, f
+      e, f
     )
 
 end

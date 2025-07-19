@@ -248,7 +248,7 @@ let memory_analysis pp_sr pp_err ~debug up =
 
   let internal_size_tbl = Hf.create 117 in
   let add_internal_size fd sz = Hf.add internal_size_tbl fd sz in
-  let get_internal_size fd _ = Hf.find internal_size_tbl fd.f_name in
+  let get_internal_size (_, fd) = Hf.find internal_size_tbl fd.f_name in
 
   let fix_subroutine_csao (_, fd) =
     match fd.f_cc with
@@ -327,9 +327,11 @@ let memory_analysis pp_sr pp_err ~debug up =
 
   List.iter fix_subroutine_csao (List.rev fds);
 
-  let fds = Regalloc.alloc_prog (fun fd _ -> has_stack fd) get_internal_size fds in
+  let return_addresses = Regalloc.create_return_addresses get_internal_size fds in
+  let subst, killed, fds = Regalloc.alloc_prog return_addresses fds in
 
-  let fix_csao (_, ro, fd) =
+  let fix_csao (_, fd) =
+    let ro = Regalloc.get_reg_oracle has_stack subst killed (Hf.find return_addresses fd.f_name) fd in
     match fd.f_cc with
     | Subroutine _ ->
       (* It as been already fixed by the previous pass fix_subroutine_csao,
