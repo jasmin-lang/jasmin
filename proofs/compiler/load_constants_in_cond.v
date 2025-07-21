@@ -20,7 +20,7 @@ Context
   {asmop:asmOp asm_op}
   {pT : progT}.
 
-Context (fresh_reg: instr_info -> int -> string -> stype -> Ident.ident).
+Context (fresh_reg: instr_info -> int -> string -> atype -> Ident.ident).
 
 Definition fresh_word ii n ws :=
   {| v_var :=

@@ -33,8 +33,8 @@ Definition e2word (sz:wsize) (e:pexpr) : exec (word sz) :=
   | Some w => ok w
   | None   => type_error
   end.
- 
-Definition of_expr (t:stype) : pexpr -> exec (sem_t t) :=
+
+Definition of_expr (t:ctype) : pexpr -> exec (sem_t t) :=
   match t return pexpr -> exec (sem_t t) with
   | sbool   => e2bool
   | sint    => e2int
@@ -42,7 +42,7 @@ Definition of_expr (t:stype) : pexpr -> exec (sem_t t) :=
   | sword sz => e2word sz
   end.
 
-Definition to_expr (t:stype) : sem_t t -> exec pexpr := 
+Definition to_expr (t:ctype) : sem_t t -> exec pexpr := 
   match t return sem_t t -> exec pexpr with
   | sbool => fun b => ok (Pbool b)
   | sint  => fun z => ok (Pconst z)
@@ -366,7 +366,7 @@ Fixpoint const_prop_e (m:cpm) e :=
   match e with
   | Pconst _
   | Pbool  _
-  | Parr_init _
+  | Parr_init _ _
     => e
   | Pvar {| gs := scope ; gv := x |} =>
       match scope with
@@ -422,7 +422,7 @@ Fixpoint const_prop_rvs globs (m:cpm) (rvs:lvals) : cpm * lvals :=
     (m, rv::rvs)
   end.
 
-Definition wsize_of_stype (ty: stype) : wsize :=
+Definition wsize_of_stype (ty: atype) : wsize :=
   if ty is sword sz then sz else U64.
 
 Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
