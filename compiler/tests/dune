@@ -1,11 +1,23 @@
 (tests
-  (libraries jasmin.jasmin)
+  (libraries jasmin.jasmin testlib)
   (deps (glob_files_rec success/*))
   (modules printing)
   (names printing))
 
+(tests
+  (libraries jasmin.jasmin testlib)
+  (deps (glob_files_rec fail/*))
+  (modules negative)
+  (names negative))
+
+(library
+  (name testlib)
+  (wrapped false)
+  (libraries jasmin.jasmin)
+  (modules common))
+
 (cram
   (deps
     ../jasminc
-    (glob_files_rec fail/warning/*)
+    (glob_files_rec warning/*)
     (glob_files_rec fail/linter/*)))
