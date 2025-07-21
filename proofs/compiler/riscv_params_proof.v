@@ -348,7 +348,9 @@ Proof.
   + exact: (lower_addressing_prog_invariants (pT:=progStack)).
   + exact: (lower_addressing_fd_invariants (pT:=progStack)).
   + exact: (lower_addressing_progP (pT:=progStack)).
-  by move=> > /(it_lower_addressing_progP (pT := progStack)).
+    move=> E E0 wE rE rndE0 rndE0_refl fresh_reg p p' ev fn H.
+    have := it_lower_addressing_progP (pT := progStack) H.
+    exact.
 Qed.
 
 (* ------------------------------------------------------------------------ *)

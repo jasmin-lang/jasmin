@@ -884,7 +884,7 @@ End SEM.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
 
 Definition vs_expand_flat expd vs1 vs2 :=
   exists2 vs1', expand_vs expd vs1 = ok vs1' & vs2 = flatten vs1'.
@@ -1095,13 +1095,13 @@ Qed.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
 
 Lemma it_expand_callP f :
   f \in entries ->
   wiequiv_f p1 p2 ev ev (rpreF (eS:=eq_spec)) f f (rpostF (eS:=eq_spec)).
 Proof.
-  apply: (rbindP _ Hcomp) => s1 /[dup]Hs1 /it_expand_callP_aux /(_ E E0 wE rE0 f) h _ hin.
+  apply: (rbindP _ Hcomp) => s1 /[dup]Hs1 /it_expand_callP_aux /(_ E E0 wE rE0 rndE0 rndE0_refl f) h _ hin.
   apply wequiv_fun_get => fd hget.
   have hgets : Mf.get (fsigs s1) f =
     Some (map (fun=> None) (f_tyin fd), map (fun=> None) (f_tyout fd)).

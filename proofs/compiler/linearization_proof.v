@@ -2183,12 +2183,12 @@ Section PROOF.
     match_mem_gen (top_stack m0) m1 m1' → exec_syscall_s scs1 m1 o ves = ok (scs2, m2, vs) →
     exists2 m2', exec_syscall_s scs1 m1' o ves = ok (scs2, m2', vs) & match_mem_gen (top_stack m0) m2 m2'.
   Proof.
-    move=> mm; rewrite /exec_syscall_s; t_xrbindP => -[[scs' m'] t] happ [<- <- <-].
-    have h: mk_forall_ex (fun e1 e2 => [/\ e1.1.1 = e2.1.1, e1.2 = e2.2 &  match_mem_gen (top_stack m0) e1.1.2 e2.1.2])
-                             (syscall_sem.sem_syscall o scs1 m1) (syscall_sem.sem_syscall o scs1 m1').
-    + case: (o) => _ /= wp len [[scs_ rm] t_].
-      rewrite /exec_getrandom_s_core; t_xrbindP => ? /(match_mem_gen_fill_mem mm) [] rm' -> ? -> <- <- /=; by eexists.
-    have [[[ _ rm' ] _ ] -> /= [] <- <-]:= mk_forall_exP h happ; by eexists.
+    move=> mm; rewrite /exec_syscall_s; t_xrbindP => len -> /=.
+    case: get_random => [scs' bytes].
+    rewrite /exec_syscall_store_s; case: (o) => _.
+    rewrite /exec_getrandom_store_s.
+    t_xrbindP => -[m' ptr'] ptr -> /= rm /(match_mem_gen_fill_mem mm) [] rm' -> /= ? [<- ->] -> <- ->.
+    by exists rm'.
   Qed.
 
   Lemma syscall_killP vm : vm =[\syscall_kill] vm_after_syscall vm.
@@ -2216,14 +2216,13 @@ Section PROOF.
     forall p, ~~ validw m1 Aligned p U8 -> read m2 Aligned p U8 = read m2' Aligned p U8.
   Proof.
     move=> hall hex; have {}:= exec_syscallPs_eq hex hall.
-    rewrite /exec_syscall_s; t_xrbindP => -[[scs0 m1''] t0] happ1 [???] -[[scs1 m2''] t1] happ2 [???].
-    subst scs1 scs0 m1'' m2'' vs vs'.
-    have h : mk_forall2 (fun o1 o2 => forall p, ~~ validw m1 Aligned p U8 -> read m2 Aligned p U8 = read o2.1.2 Aligned p U8)
-               (syscall_sem.sem_syscall o scs m1) (syscall_sem.sem_syscall o scs m2).
-    + case: (o) => _ /= ptr bytes ??.
-      rewrite /exec_getrandom_s_core; t_xrbindP => ? hf1 ? ? hf2 <- /=.
-      by apply: fill_mem_mem_unchanged hf1 hf2.
-    by apply: mk_forall2P h happ1 happ2.
+    rewrite /exec_syscall /= /exec_syscall_s; t_xrbindP => len -> /= h _ [<-].
+    case: get_random h => [scs0 bytes].
+    rewrite /exec_syscall_store_s.
+    case: (o) => _; rewrite /exec_getrandom_store_s; t_xrbindP.
+    move=> [mr ptr] ptr_ -> mr_ h1 [??] ? /= ??; subst mr_ ptr_ scs0 mr vs.
+    move=> mp _ [<-] mr' h2 ? _ ??; subst vs' m2' mp.
+    apply (fill_mem_mem_unchanged h1 h2).
   Qed.
 
   Lemma preserved_metadata_syscall m1 m2 m1' m2' scs scs' o ves ves' vs vs' :
@@ -2248,7 +2247,9 @@ Section PROOF.
     move=> [] vm2 /= /(match_mem_gen_write_lvals mm) [ m2 /= ok_s2' M2 ] ok_vm2 .
     exists m2 vm2 => //.
     + apply: (eval_lsem_step1 C1) => //.
-      by rewrite /eval_instr /= hes' /= ho' /= ok_s2' size_cat addn1 -hpc.
+      rewrite /eval_instr /= hes' /=.
+      change (exec_syscall (escs s1) m1 o ves') with (exec_syscall_s (escs s1) m1 o ves').
+      by rewrite ho' /= ok_s2' size_cat addn1 -hpc.
     + apply: (eq_exT (vm2 := vm_after_syscall vm1)).
       + by apply: eq_exI (syscall_killP vm1); SvD.fsetdec.
       by apply: eq_exI; last apply: vrvsP ok_s2'; SvD.fsetdec.
@@ -4468,7 +4469,7 @@ Section PROOF.
           exact: rt_refl.
         (* ra_call = Some _ *)
         (* TODO this should be a lemma it is used elsewhere (above)*)
-        have [m1s ok_m1s M']: 
+        have [m1s ok_m1s M']:
           exists2 m1s,
             write m1 Aligned rsp retptr = ok m1s &
             match_mem_gen (top_stack m0) s1 m1s.
