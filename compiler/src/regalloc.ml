@@ -673,13 +673,8 @@ module Regalloc (Arch : Arch_full.Arch)
     let cnf =
       List.fold_left2 (fun cnf ad e ->
           match ad with
-          | ADImplicit v ->
-            mallocate_one e (Conv.var_of_cvar v) a;
-            cnf
+          | ADImplicit v
           | ADExplicit (_, ACR_exact v) ->
-            mallocate_one e (Conv.var_of_cvar v) a;
-            cnf
-          | ADExplicit (_, ACR_vector v) ->
             mallocate_one e (Conv.var_of_cvar v) a;
             cnf
           | ADExplicit (_, (ACR_any)) -> cnf
