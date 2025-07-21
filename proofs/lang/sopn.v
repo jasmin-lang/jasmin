@@ -18,7 +18,6 @@ Local Unset Elimination Schemes.
 Variant arg_constrained_register :=
 | ACR_any
 | ACR_exact of var
-| ACR_vector of var
 | ACR_subset of seq var
 .
 
