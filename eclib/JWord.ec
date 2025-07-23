@@ -223,6 +223,18 @@ lemma zerowE i: zero.[i] = false.
 proof. by rewrite of_intwE /int_bit. qed.
 hint simplify zerowE.
 
+lemma nth_one i : one.[i] = (i = 0).
+proof.
+  rewrite of_intwE /int_bit (modz_small 1).
+  + smt(ge2_modulus).
+  case: (i = 0); first by move => -> />; rewrite gt0_size.
+  case: (0 <= i); last done.
+  move => ?? /=.
+  suff -> : 1 %/ 2 ^ i = 0 by done.
+  apply: divz_small => />.
+  smt(expr_gt0 powS_minus).
+qed.
+
 lemma of_int_powm1 p i :
   0 <= p =>
   (of_int (2^p - 1)).[i] = (0 <= i < size /\ i < p).
