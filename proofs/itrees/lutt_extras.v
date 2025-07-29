@@ -20,407 +20,329 @@ From ITree Require Import
 
 From mathcomp Require Import word_ssrZ ssreflect ssrfun ssrbool eqtype.
 
+Require Import rutt_extras it_exec exec_extras.
+Require Import expr psem_defs oseq compiler_util.
+Require Import it_sems_core core_logics.
+
 Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
 
-Require Import rutt_extras it_exec exec_extras.
+Notation TrueP := (fun=>True).
 
-Require Import expr psem_defs oseq compiler_util.
+Section FIso_sec.
 
-Require Import it_sems_core core_logics.
+Context {E1 E2 : Type -> Type}. (* {X: FIso E1 E2}. *)
 
-Notation PredT := (fun=>True).
+Lemma translate_eqit {T} {R} b1 b2 (F: E1 ~> E2) (t t': itree E1 T) :
+   eqit R b1 b2 t t' -> eqit R b1 b2 (translate F t) (translate F t'). 
+Proof.
+  revert t t'.
+  pcofix CIH.
+  intros t t' H.
+  repeat (setoid_rewrite unfold_translate).  
+  punfold H; red in H.
+  remember (observe t) as ot.
+  remember (observe t') as ot'.
+  hinduction H before CIH; simpl in *; intros.
+  { pstep; red; simpl.
+    rewrite <- Heqot.
+    rewrite <- Heqot'.
+    simpl.
+    econstructor; eauto. }
+  { pstep; red; simpl.
+    rewrite <- Heqot.
+    rewrite <- Heqot'.
+    simpl.
+    econstructor; pclearbot. eauto with paco. }
+  { pstep; red; simpl.
+    rewrite <- Heqot.
+    rewrite <- Heqot'.
+    simpl.
+    econstructor; auto.
+    intro v; unfold Datatypes.id; simpl.
+    right. eapply CIH; auto.
+    specialize (REL v); unfold Datatypes.id in REL; simpl in REL.
+    pclearbot; auto.
+  }  
+  { simpl.
+    pstep; red. simpl.
+    rewrite <- Heqot.
+    rewrite <- Heqot'.
+    simpl.
+    econstructor; auto.
+    specialize (IHeqitF t1 t' erefl Heqot').
+    punfold IHeqitF.
+    red in IHeqitF.
+    inv Heqot'.
+    simpl.
+    simpl in *.
+    auto.
+  } 
+  { pstep; red; simpl.
+    rewrite <- Heqot.
+    rewrite <- Heqot'.
+    simpl.
+    econstructor; eauto.
+    specialize (IHeqitF t t2 Heqot erefl).
+    punfold IHeqitF.
+    red in IHeqitF.
+    inv Heqot.
+    simpl.
+    simpl in *.
+    auto.
+  }
+Qed.  
+     
+End FIso_sec.  
+
 
 Section Sec1.
 
 Context {E1 E2 : Type -> Type}.
-
-Context {interp1 : forall E, itree (E1 +' E) ~> execT (itree E)}. 
 
 Definition is_inr T (e: (E1 +' E2) T) : Prop :=
   match e with
   | inl1 _ => False
   | inr1 _ => True end.             
 
+Definition inl_safe_rel (T : Type) (R : T -> Prop)
+  (t t' : itree (E1 +' E2) T) :=
+  rutt (REv_eq (fun T0 : Type => is_inr (T:=T0)))
+       (RAns_eq (fun T0 : Type => fun=> TrueP))
+       (R_eq R) t t'.
+
 Definition inl_safe (T : Type) (t : itree (E1 +' E2) T) :=
-  lutt (fun T e => is_inr e) (fun T e r => True) (fun _ => True) t.
+  exists t', inl_safe_rel TrueP t t'.
+
+Definition inr_only_rel (T : Type)
+  (t : itree (E1 +' E2) T) (t2: itree E2 T) :=
+  eq_itree eq (translate inr1 t2) t.
 
 Definition inr_only (T : Type) (t : itree (E1 +' E2) T) :=
-  exists t2: itree E2 T, eq_itree eq (translate inr1 t2) t.
+  exists t2: itree E2 T, inr_only_rel t t2.
 
-(* cannot apply coinduction *)
-Lemma ungood (T : Type) (t : itree (E1 +' E2) T) :
-  inr_only t -> inl_safe t.    
+
+Section Lutt_sec.
+
+Context {E : Type -> Type} {X: FIso E (E1 +' E2)}
+        (PEv : prepred E) (PAns : postpred E).
+
+Lemma lutt_inl_safe_rel_eq (T : Type) (R : T -> Prop)
+  (t : itree E T) :
+  (exists t', inl_safe_rel R (translate mfun1 t) t') <-> lutt PEv PAns R t.
 Proof.
-  unfold inl_safe, lutt, inr_only.
-Abort.
-(*
-Definition inl_safe_rel  (T : Type) (t t' : itree (E1 +' E2) T) :=
-    rutt (REv_eq (fun T0 : Type => [eta is_inr (T:=T0)]))
-      (RAns_eq (fun T0 : Type => fun=> PredT)) (R_eq PredT) t t'.
-*)
+  split; unfold lutt, inl_safe_rel; intro H.
+  { destruct H as [t' H].
+    exists (translate mfun2 t').
+    admit.
+  }
+  { destruct H as [t' H].
+    exists (translate mfun1 t').
+    admit.
+  }
+Admitted.   
 
-Definition inl_safe_rel (T : Type) (t t' : itree (E1 +' E2) T) :=
-  rutt (REv_eq (fun T0 : Type => is_inr (T:=T0)))
-      (RAns_eq (fun T0 : Type => fun=> PredT)) (R_eq PredT) t t'.
+End Lutt_sec.
 
-Definition inr_only_rel (T : Type) (t : itree (E1 +' E2) T)
-  (t2: itree E2 T) := eq_itree eq (translate inr1 t2) t.
 
-Lemma rutt_in_lutt_refl (T : Type) (t: itree (E1 +' E2) T) :
- (exists (t2: itree E2 T), inr_only_rel t t2) ->
-   rutt (REv_eq [eta is_inr]) (RAns_eq (fun T0 : Type => fun=> PredT))
-    (R_eq PredT) t t.
+(* axiom-based *)
+Lemma inr_only_inl_safe_refl (T : Type) (t: itree (E1 +' E2) T) :
+  inr_only t -> inl_safe_rel TrueP t t.
 Proof.
   revert t.
-  unfold R_eq.
-  clear interp1.
-  unfold inr_only_rel.  
+  unfold inr_only, inr_only_rel, inl_safe_rel, R_eq; simpl in *.  
   pcofix CIH; intros t [t2 H].
   punfold H. red in H.
   pstep; red; simpl in *.
-(*  remember (observe t) as ot.
-  hinduction H before CIH; intros. *)
   dependent induction H; intros.
   { rewrite <- x.
     econstructor; auto. }
   { rewrite <- x.
     econstructor.
-    pclearbot.
-    right. eapply CIH.
+    pclearbot; right; eapply CIH.
     assert (m1 = m2) as A.
     { eapply bisimulation_is_eq; auto. }
-
     inv A.
     destruct (observe t); try discriminate.
-
     remember (observe t2) as ot2.
     destruct ot2; simpl; try discriminate.
-    exists t1.
-    simpl in *.
-    inv x0.
-    reflexivity.
+    exists t1; simpl in *.
+    inv x0; reflexivity.
   }
-
   { rewrite <- x.
     econstructor.
-    unfold REv_eq, is_inr; simpl.
-    destruct e; simpl in *; try discriminate.
-    remember (observe t2) as ot2.
-    unfold translateF in x0; simpl in *.
-    
-    destruct ot2; try discriminate.
-
-    split; eauto.
-    exists erefl. simpl. auto.
-
-    intros.
-    unfold RAns_eq in H.
-    destruct H as [_ H].
-    specialize (H erefl).
-    dependent destruction H.
-    
-    right. eapply CIH.
-    
-    remember (observe t2) as ot2.
-    destruct ot2; simpl; try discriminate.
-    unfold translateF in x0; simpl in *.
-    dependent destruction x0.
-    exists (k a).
-    specialize (REL a).
-
-    unfold Datatypes.id in REL.
-    pclearbot.
-    auto.
+    { unfold REv_eq; simpl.  
+      destruct e; simpl in *; try discriminate.
+      { remember (observe t2) as ot2.
+        destruct ot2; try discriminate.
+      }  
+      { split; eauto.
+        exists erefl; simpl; auto.
+      }
+    }  
+    { intros a b H.
+      destruct H as [_ H].
+      specialize (H erefl).
+      dependent destruction H.
+      right; eapply CIH.   
+      remember (observe t2) as ot2.
+      destruct ot2; simpl; try discriminate.
+      dependent destruction x0.
+      exists (k a).
+      specialize (REL a).
+      pclearbot; auto.
+    } 
   }  
 Qed.     
-    
-Lemma inr_only_rel_2_inl_safe_rel (T : Type) (t: itree (E1 +' E2) T)
-  (t2: itree E2 T) :
-  inr_only_rel t t2 ->
-  inl_safe_rel t (translate inr1 t2).
-Proof.
-  unfold inr_only_rel, inl_safe_rel.
-  revert t t2.
-  intros t t2 H.
-  rewrite <- H.
-  eapply rutt_in_lutt_refl; eauto.
-  unfold inr_only_rel.
-  exists t2; reflexivity.
-Qed.  
 
-Lemma inr_only_to_inl_safe (T : Type) (t : itree (E1 +' E2) T) :
+Lemma inr_only_inl_safe (T : Type) (t : itree (E1 +' E2) T) :
   inr_only t -> inl_safe t.    
 Proof.
-  unfold inl_safe, lutt, inr_only.
-  intros [t2 H].
-  eapply inr_only_rel_2_inl_safe_rel in H.
-  unfold inl_safe_rel in H.
-  exists (translate inr1 t2).
-  auto.
+  exists t; eapply inr_only_inl_safe_refl; auto.
 Qed.
 
-(************************************************************)
 
-Lemma inl_safe_and_inr_only (T : Type) (t1 t2 : itree (E1 +' E2) T) :
-  inr_only t1 -> inl_safe t2 -> eutt eq t1 t2.     
+(********************************************************************)
+
+Lemma interp_exec_vis_Eq {E F : Type -> Type} {T U : Type}
+      (e : E T) (k : T -> itree E U) (h : E ~> execT (itree F))
+  : interp_exec h (Vis e k)
+       = ITree.bind (h T e)
+           (fun mx : execS T =>
+            match mx with
+            | ESok x => Tau (interp_exec h (k x))
+            | @ESerror _ e0 => Ret (ESerror U e0)
+            end).
 Proof.
-  unfold inl_safe, lutt, inr_only; simpl.
-  
+  eapply bisimulation_is_eq.
+  eapply interp_exec_vis; auto.
+Qed.
 
-Lemma rutt_to_eq_itree 
-  (T : Type)
-  (t1 t2 : itree (E1 +' E2) T) :
-    rutt (REv_eq [eta is_inr]) (RAns_eq (fun T0 : Type => fun=> PredT))
-      (R_eq PredT) t1 t2 -> t1 ≅ t2.
+Lemma bind_bind_Eq {E R S T} :
+  forall (s : itree E R) (k : R -> itree E S) (h : S -> itree E T),
+    ITree.bind (ITree.bind s k) h = ITree.bind s (fun r => ITree.bind (k r) h).
 Proof.
-  revert t1 t2.
-  pcofix CIH.
-  intros t t2 H.
-  punfold H; red in H.
-  pstep; red; simpl in *.
-  dependent induction H.
-  admit.
-  admit.
-
-  { rewrite <- x0.
-    rewrite <- x.
-    unfold REv_eq, is_inr in H.
-    destruct H as [H H1].
-    destruct H1 as [hh H1].
-    dependent destruction hh.
-    simpl in *.
-    inv H1.
-
-    assert (forall a: A, k1 a = k2 a \/ ~ ((k1 a = k2 a))) as W.
-    admit.
-
-    assert (forall a b: A, RAns_eq (fun T0 : Type => fun=> PredT) e1 a e1 b ->
-                           k1 a = k2 a) as W1.
-    intros a b H3.
-    specialize (H0 a b H3).
-    pclearbot.
-    punfold H0. red in H0.
-    inversion H0.
-    admit.
-    admit.
-        
-Abort.    
-    
-Lemma rutt_to_eq_itree 
-  (T A : Type)
-  (k1 k2 : A -> itree (E1 +' E2) T) (e1 : (E1 +' E2) A) :
-  (forall (a b : A),
-    RAns_eq (fun T0 : Type => fun=> PredT) e1 a e1 b ->
-    rutt (REv_eq [eta is_inr]) (RAns_eq (fun T0 : Type => fun=> PredT))
-      (R_eq PredT) (k1 a) (k2 b)) ->
-  forall (a b : A),
-    RAns_eq (fun T0 : Type => fun=> PredT) e1 a e1 b -> (k1 a) ≅ (k2 b).
-Proof.
-  intros H a b H0.
-  specialize (H a b H0).
-  unfold RAns_eq in H0.
-  destruct H0 as [_ H0].
-  specialize (H0 erefl); simpl in *.
-  inv H0.
-  revert H.
-  revert a.
-  revert k1 k2.
-  pcofix CIH.
   intros.
-  remember (k1 a) as k1a.
-  remember (k2 a) as k2a.
-  punfold H; red in H.
-  dependent induction H.
-  admit.
-  admit.
-  
-  unfold REv_eq, is_inr in H; simpl in *.
-  destruct H as [H1 H2].
-  destruct H2 as [hh H2].
-  dependent destruction hh.
-  simpl in *.
-  inv H2.
-  pstep; red.
-  rewrite <- x0.
-  rewrite <- x.
-  
-Abort.
-  
-Lemma inl_safe_rel_2_inr_only_rel (T : Type) (t: itree (E1 +' E2) T)
-  (t2: itree E2 T) :
-  inl_safe_rel t (translate inr1 t2) ->
-  inr_only_rel t t2.
+  eapply bisimulation_is_eq.
+  eapply bind_bind; auto.
+Qed.
+
+Lemma bind_ret_l_Eq {E R S} (r : R) (k : R -> itree E S) :
+  ITree.bind (Ret r) k = (k r).
 Proof.
-  unfold inl_safe_rel, inr_only_rel.
-  intro H.
-  symmetry.
+  eapply bisimulation_is_eq.
+  eapply bind_ret_l; auto.
+Qed.
 
-   
-  
-  clear interp1.
-  revert H.
-  revert t t2.
-  pcofix CIH.
-  intros t t2 H.
-  punfold H; red in H.
-  pstep; red; simpl in *.
-  dependent induction H.
+Lemma bind_trigger_Eq {E R} U (e : E U) (k : U -> itree E R)
+  : ITree.bind (ITree.trigger e) k = Vis e (fun x => k x).
+Proof.
+  eapply bisimulation_is_eq.
+  eapply bind_trigger; auto.
+Qed.
 
-  { rewrite <- x0.
-    rewrite <- x.
-    unfold R_eq in H.
-    destruct H as [_ H].
+Lemma bind_vis_Eq {E R} U V (e: E V) (ek: V -> itree E U) (k: U -> itree E R) :
+  ITree.bind (Vis e ek) k = Vis e (fun x => ITree.bind (ek x) k).
+Proof.
+  eapply bisimulation_is_eq.
+  eapply bind_vis; auto.
+Qed.
+
+
+Section Sec2.
+
+Context {hnd1 : E1 ~> execT (itree E2)}.  
+
+Local Definition hnd_ext :  (E1 +' E2) ~> execT (itree E2) :=
+  @ext_exec_handler E1 E2 hnd1.
+
+Lemma inl_safe_is_ok (T : Type) (t12 : itree (E1 +' E2) T) :
+  inl_safe t12 ->
+  let t2 : itree E2 (execS T) := interp_exec hnd_ext t12 in
+  rutt (fun U12 U2 (e12: (E1 +' E2) U12) (e2: E2 U2) =>
+              exists h : U2 = U12,
+                e12 = eq_rect U2 (E1 +' E2) (inr1 e2) U12 h)
+       (fun U12 U2 (e12: (E1 +' E2) U12) (u12: U12) (e2: E2 U2) (u2: U2) =>
+               u12 ~= u2)
+        (fun x y => ESok x = y) t12 t2.
+Proof.
+  unfold inl_safe, lutt; simpl.
+  revert t12.
+  ginit; gcofix CIH.
+  intros t12 [tA H].
+  setoid_rewrite (itree_eta t12).
+  unfold interp_exec; simpl.
+  punfold H; red in H.  
+  remember (observe t12) as ot12.
+  remember (observe tA) as otA.
+  hinduction H before CIH; simpl in *.
+
+  { intros t12 tA H0 H1.
+    unfold R_eq in H; simpl in *.
+    destruct H as [_ H]; inv H.
+    gstep; red; simpl.
     econstructor; auto.
   }
 
-  { rewrite <- x0.
-    rewrite <- x.
-    pclearbot.
+  { gstep; red; simpl.
+    intros t12 tA H0 H1.
+    econstructor; simpl.
+    gfinal; left.
+    eapply CIH.
+    exists m2.
+    pclearbot; auto.
+  }
 
-    econstructor.
-    right.
-
-    assert (eq_itree eq (Tau m2) ((translate inr1 (T:=T)) t2)) as A1.
-    { pstep; red.
-      rewrite x.
-      simpl.
-      admit.
+  { intros t12 tA H1 H2.
+    gstep; red.
+    setoid_rewrite interp_exec_vis_Eq.
+    unfold REv_eq in H.    
+    destruct e1; simpl.    
+    { simpl in *; auto with *. } 
+    econstructor; eauto.
+    { exists erefl.
+      simpl; reflexivity.
     }
-    
-    assert (exists t4, eq_itree eq m2 (translate inr1 t4)) as A2.
-    admit.
-
-    destruct A2 as [t4 A2].
-    eapply bisimulation_is_eq in A2.
-    inv A2.
-    eapply CIH; auto.
-  }
-
-  { rewrite <- x.
-    rewrite <- x0.
-    unfold REv_eq, is_inr in H.
-    destruct H as [H H1].
-    destruct H1 as [hh H1].
+    intros a b hh.
     dependent destruction hh.
-    simpl in *.
-    inv H1.
-
-(*    destruct e1; auto with *. *)
-
-    assert (forall a b: A,
-               RAns_eq (fun T0 : Type => fun=> PredT) e1 a e1 b ->
-               k1 a = k2 b
-           ) as A3.
-    { destruct e1; auto with *.
-      intros a b H2.
-      specialize (H0 a b H2).
-      unfold RAns_eq in H2.
-      destruct H2 as [_ H2].
-      specialize (H2 erefl).
-      dependent destruction H2.
-      simpl in *.
-      pclearbot.
-      
-      Fail eapply Eqit.EqVis.
-    
-Abort.
+    setoid_rewrite bind_ret_l.
+    setoid_rewrite tau_euttge.
+    gfinal; left; eapply CIH.
+    simpl in H; destruct H as [_ [hh H]].
+    dependent destruction hh.
+    simpl in H; inv H.
+    specialize (H0 b b).
+    assert (RAns_eq (fun T : Type => fun=> TrueP)
+              (@inr1 E1 _ _ e) b (inr1 e) b) as W. 
+    { unfold RAns_eq; split; auto.
+      intros hh; dependent destruction hh; simpl; auto.
+    }
+    specialize (H0 W).
+    exists (k2 b).
+    pclearbot; auto.
+  }
   
-Lemma inl_safe_to_inr_only (T : Type) (t : itree (E1 +' E2) T) :
-  inl_safe t ->
-
-  inr_only t.
-Proof.
-  unfold inl_safe, lutt, inr_only.
-  intros [t' H]; simpl in H.
-
-(*  
-  eapply inl_safe_rel_2_inr_only_rel in H.
-  
-  setoid_rewrite (itree_eta t).
-  intros [t' H].
-  punfold H.
-  red in H.
-  unfold R_eq in H; simpl in H.
-  
-  inversion H; subst.
-  { destruct H2 as [_ H2].
-    inv H2.
-    exists (Ret r2).
-    rewrite translate_ret; reflexivity.
+  { intros t12 tA H1 H2.    
+    setoid_rewrite interp_exec_tau.
+    gstep; red.
+    econstructor.
+    specialize (IHruttF t1 tA erefl H2).
+    eapply gpaco2_mon.
+    setoid_rewrite <- itree_eta_ in IHruttF.
+    eapply IHruttF.
+    intros; auto with paco.
+    destruct PR.
+    intros; eauto.
   }
 
-  { pclearbot.
-    punfold H2.
-    red in H2.
-    exists (Tau m1).
-    
-  pcofix CIH.
-  setoid_rewrite (itree_eta t).
- *)
+  { intros t12 tA H1 H2; simpl.
+    specialize (IHruttF t12 t2 H1 erefl); auto.
+  }
+Qed.  
 
-Abort.  
-  
-   
-  
-(*
-Lemma rutt_in_lutt_refl (T : Type) (t: itree (E1 +' E2) T) :
-   rutt (REv_eq [eta is_inr]) (RAns_eq (fun T0 : Type => fun=> PredT))
-    (R_eq PredT) t t.
-Proof.
-  revert t.
-  unfold R_eq.
-  pcofix CIH; intros t.
-  pstep; red.
-  remember (observe t) as ot.
-  destruct ot.
-  { econstructor; auto. }
-  { econstructor; eauto. }
-  { econstructor; eauto.
-    unfold REv_eq.
-    unfold is_inr.
-    destruct e.
-    admit.
-    admit.
-    intros.
-    right.
-    unfold RAns_eq in H.
-    destruct H as [_ H].
-    specialize (H erefl).
-    dependent destruction H.
-    simpl.
-    eapply CIH; auto.
-*)
- 
-(*
-Lemma rutt_in_lutt_refl (T : Type) (t2: itree E2 T) :
-   rutt (REv_eq [eta is_inr]) (RAns_eq (fun T0 : Type => fun=> PredT))
-    (R_eq PredT) (translate inr1 t2) (translate inr1 t2).
-Proof.
-  revert t2.
-  unfold R_eq.
-  pcofix CIH; intros t2.
-  pstep; red.
-  remember (observe (translate inr1 t2)) as ot.
-  destruct ot.
-  { econstructor; auto. }
-  { econstructor; eauto. }
-  { econstructor; eauto.
-    unfold REv_eq.
-    unfold is_inr.
-    destruct e.
-    admit.
-    admit.
-    intros.
-    right.
-    unfold RAns_eq in H.
-    destruct H as [_ H].
-    specialize (H erefl).
-    dependent destruction H.
-    simpl.
-    eapply CIH; auto.
-*)
+End Sec2.  
+
+End Sec1.
 
 
-  
