@@ -190,66 +190,531 @@ Proof.
   eapply interp_exec_vis; auto.
 Qed.
 
+Lemma bind_bind_Eq {E R S T} :
+  forall (s : itree E R) (k : R -> itree E S) (h : S -> itree E T),
+    ITree.bind (ITree.bind s k) h = ITree.bind s (fun r => ITree.bind (k r) h).
+Proof.
+  intros.
+  eapply bisimulation_is_eq.
+  eapply bind_bind; auto.
+Qed.
+
+Lemma bind_ret_l_Eq {E R S} (r : R) (k : R -> itree E S) :
+  ITree.bind (Ret r) k = (k r).
+Proof.
+  eapply bisimulation_is_eq.
+  eapply bind_ret_l; auto.
+Qed.
+
+Lemma bind_trigger_Eq {E R} U (e : E U) (k : U -> itree E R)
+  : ITree.bind (ITree.trigger e) k = Vis e (fun x => k x).
+Proof.
+  eapply bisimulation_is_eq.
+  eapply bind_trigger; auto.
+Qed.
+
+Lemma bind_vis_Eq {E R} U V (e: E V) (ek: V -> itree E U) (k: U -> itree E R) :
+  ITree.bind (Vis e ek) k = Vis e (fun x => ITree.bind (ek x) k).
+Proof.
+  eapply bisimulation_is_eq.
+  eapply bind_vis; auto.
+Qed.
+
+
+
+Require Import inline_lemmaI2.
+Require Import FunctionalExtensionality.
 
 Section Sec2.
 
+  (*
 Context {interp1 : forall E, itree (E1 +' E) ~> execT (itree E)}.  
 
 Context {hnd1 : forall E, (E1 +' E) ~> execT (itree E)}.  
 
 Context {hnd2 : (E1 +' E2) ~> execT (itree E2)}.  
+*)
+
+Context {hnd3 : E1 ~> execT (itree E2)}.  
+
+Definition hnd4 :  (E1 +' E2) ~> execT (itree E2) :=
+  @ext_exec_handler E1 E2 hnd3.
 
 Lemma rutt_gsafe_is_ok (T : Type) (t12 : itree (E1 +' E2) T) :
   inl_safe t12 ->
-  let t2 : itree E2 (execS T) := interp_exec hnd2 t12 in
+  let t2 : itree E2 (execS T) := interp_exec hnd4 t12 in
     (* interp_exec (@hnd1 E2) t12 in *)
     (* @interp1 E2 T t12 in *) 
   rutt (fun U12 U2 (e12: (E1 +' E2) U12) (e2: E2 U2) =>
               exists h : U2 = U12,
                 e12 = eq_rect U2 (E1 +' E2) (inr1 e2) U12 h)
-        (fun _ _ _ _ _ _ => True)
+       (fun U12 U2 (e12: (E1 +' E2) U12) (u12: U12) (e2: E2 U2) (u2: U2) =>
+               u12 ~= u2)
+   (*     (fun _ _ _ _ _ _ => True) *)
         (fun x y => ESok x = y) t12 t2.
 Proof.
   unfold inl_safe, lutt; simpl.
   revert t12.
-  pcofix CIH.
+  ginit.
+  gcofix CIH.
+ 
   intros t12 [tA H].
-  setoid_rewrite (itree_eta_ t12).
-  setoid_rewrite (itree_eta_ t12) in H.
-
-  remember (observe t12) as ot12.
-  
+  setoid_rewrite (itree_eta t12).
+(*  setoid_rewrite (itree_eta t12) in H. *)
+  unfold interp_exec; simpl.
+(*  setoid_rewrite (itree_eta tA) in H. *)
   punfold H.
   red in H.
-  dependent induction H; simpl in *.
+  
+  remember (observe t12) as ot12.
+  remember (observe tA) as otA.
+  
+  hinduction H before CIH; simpl in *.
 
-  { rewrite <- x0.
-    pstep; red.
+  { (* Set Printing Implicit. *)
+    intros t12 tA H0 H1.
+    unfold R_eq in H; simpl in *.
+    destruct H as [_ H]; inv H.
+    gstep; red.
     simpl.
     econstructor; auto.
   }
 
-  { rewrite <- x0.
-    pstep; red.
+  { gstep; red.
     simpl.
+    intros t12 tA H0 H1.
     econstructor; simpl.
-    right.
+    gfinal.
+    left.
     eapply CIH.
     exists m2.
     pclearbot.
     auto.
   }
 
-  { rewrite <- x0.
+  { intros t12 tA H1 H2.
+
+(*    
+    eapply gpaco2_uclo.
+
+    guclo eqit_clo_trans. 
+    
+    eapply gpaco2_clo.
+    econstructor.
+    3: { unfold bot2.
+         unfold REv_eq in H.
+*)    
+    gstep; red.
+    
+    setoid_rewrite interp_exec_vis_Eq.
+    unfold REv_eq in H.
+    
+    destruct e1; simpl.
+    
+    { simpl in *; auto with *. } 
+
+    econstructor; eauto.
+
+    { exists erefl.
+      simpl; reflexivity.
+    }
+
+    intros a b hh.
+    dependent destruction hh.
+
+    setoid_rewrite bind_ret_l.
+    
+    setoid_rewrite tau_euttge.
+    gfinal. left.
+    eapply CIH.
+
+    simpl in H.
+    destruct H as [_ [hh H]].
+
+    dependent destruction hh.
+    simpl in H; inv H.
+
+    specialize (H0 b b).
+ 
+    assert (RAns_eq (fun T : Type => fun=> PredT)
+              (@inr1 E1 _ _ e) b (inr1 e) b) as W. 
+    { unfold RAns_eq. split; auto.
+      intros hh.
+      dependent destruction hh; simpl; auto.
+    }
+
+    specialize (H0 W).
+    exists (k2 b).
+    pclearbot; auto.
+  }
+  
+  { intros t12 tA H1 H2.    
+    setoid_rewrite interp_exec_tau.
+
+    gstep; red.
+    econstructor.
+
+    specialize (IHruttF t1 tA erefl H2).
+
+    eapply gpaco2_mon.
+    setoid_rewrite <- itree_eta_ in IHruttF.
+    eapply IHruttF.
+
+    intros; auto with paco.
+    destruct PR.
+    intros; eauto.
+  }
+
+  { intros t12 tA H1 H2.
+    simpl.
+
+    specialize (IHruttF t12 t2 H1 erefl).
+    auto.
+  }
+Qed.  
+
+    
+    setoid_rewrite interp_exec_tau.
+
+    gstep; red.
+    econstructor.
+
+    specialize (IHruttF t1 tA erefl HeqotA).
+
+    
+    
+    
+    gunfold IHruttF.
+    
+    gfinal. right.
+    
+    
+    setoid_rewrite tau_euttge.
+
+    
+       specialize (IHruttF t1 tA erefl HeqotA).
+
+(*       eapply euttge_sub_eutt in IHruttF.
+       eapply gpaco2_clo in IHruttF.
+*)
+
+       gstep; red.
+       econstructor.
+       
+       gunfold IHruttF.
+
+       hinduction IHruttF before CIH.
+
+       admit.
+       admit.
+  }
+
+  
+       
+       
+       
+inversion IHruttF; subst.
+admit.
+
+       pclearbot.
+       red in IN.
+       admit.
+
+       red in H0.
+       pclearbot.
+       gunfold H0.
+       
+       3: { 
+       
+       gstep; red.
+       econstructor.
+       eapply gpaco2_clo.
+      
+       
+  gbase IHruttF.
+       
+Locate under_forall.
+       
+       rewrite tau_euttge. 
+       
+       gstep. red.
+       econstructor.
+       unfold hnd4.
+       unfold ext_exec_handler; simpl.
+       econstructor.
+       unfold hnd4 in IHruttF.
+       unfold ext_exec_handler in IHruttF; simpl in *.
+
+       gunfold IHruttF.
+       pclearbot.
+       destruct IHruttF.
+       destruct IN.
+       red in H0.
+       
+       eapply IHruttF.
+       setoid_rewrite interp_tau.
+       econstructor.
+       econstructor.
+   }
+  4: { auto. }
+
+  { intros t12 hh.
+    
+
+  
+  
+  dependent destruction H; simpl in *.
+
+  (*
+  dependent induction H; simpl in *.
+  unfold REv_eq in x3.
+  unfold RAns_eq in x4.
+  unfold R_eq in x5.
+  simpl in *.
+  dependent destruction x0.
+  
+  unfold interp_exec; simpl.
+  *)
+
+  { (* Set Printing Implicit. *)
+    dependent destruction x0.
+ (*   setoid_rewrite <- x0. *)
+    gstep; red.
+    simpl.
+    econstructor; auto.
+  }
+
+  { dependent destruction x0.
+    (*  rewrite <- x0. *)    
+    gstep; red.
+    simpl.
+    econstructor; simpl.
+    gfinal.
+    left.
+    eapply CIH.
+    exists m2.
+    pclearbot.
+    auto.
+  }
+
+  { dependent destruction x0.
+
+    gstep; red.
+    
+    setoid_rewrite interp_exec_vis_Eq.
+    unfold REv_eq in H.
+    
+    destruct e1; simpl.
+    
+    { simpl in *; auto with *. } 
+
+    unfold exec_trigger.
+
+    econstructor.
+
+    { exists erefl.
+      simpl; reflexivity.
+    }
+
+    intros a b hh.
+    dependent destruction hh.
+
+    setoid_rewrite bind_ret_l.
+    
+    setoid_rewrite tau_euttge.
+    gfinal. left.
+    eapply CIH.
+
+    simpl in H.
+    destruct H as [_ [hh H]].
+
+    dependent destruction hh.
+    simpl in H.
+    inv H.
+    clear x.
+
+    specialize (H0 b b).
+ 
+    assert (RAns_eq (fun T : Type => fun=> PredT)
+              (@inr1 E1 _ _ e) b (inr1 e) b) as W. 
+    { unfold RAns_eq. split; auto.
+      intros hh.
+      dependent destruction hh; simpl; auto.
+    }
+
+    specialize (H0 W).
+    exists (k2 b).
+    pclearbot; auto.
+  }
+
+  { inv Heqot12.
+    
+    (** PROBLEM: what is tA? *)
+    
+    setoid_rewrite bind_ret_l_Eq.
+
+    Locate euttge_trans_clo.
+
+   eapply rutt_clo_bind.
+    
+    eapply rutt_Vis.
+    
     pstep; red.
     unfold REv_eq in H.
 
     destruct e1. 
-    simpl in *; auto with *. 
+    { simpl in *; auto with *. } 
 
+    simpl in H.
+    destruct H as [_ [hh H]].
+    dependent destruction hh.
+    simpl in H.
+    inv H.
+    rename e into e2.
+    clear x.
+    unfold hnd4.
+    unfold ext_exec_handler.
+
+    simpl.
+    econstructor.
+    
+    { exists erefl.
+      simpl; reflexivity.
+    }
+
+    intros a b hh.
+    dependent destruction hh.
+
+    unfold interp_exec in CIH.
+    specialize (CIH (k1 b)).
+    unfold hnd4 in CIH.
+    unfold ext_exec_handler in CIH.
+    simpl in *.
+    unfold interp in CIH.
+    unfold Basics.iter in CIH.
+    simpl in CIH.
+    unfold execT_iter in CIH.
+    unfold Basics.iter in CIH.
+    simpl in CIH.
+    
+    setoid_rewrite bind_bind_Eq.
+    unfold ITree.map.
+    setoid_rewrite bind_bind_Eq.
+    setoid_rewrite bind_ret_l_Eq.
+    setoid_rewrite bind_ret_l_Eq.
+    setoid_rewrite bind_ret_l_Eq.
+
+    right.
+
+   (***** TAU problem *)
+    
+    rewrite tau_euttge.
+    unfold MonadIter_itree.
+    
+    specialize (H0 a b).
+    unfold RAns_eq in H0.
+
+    assert (True /\ (forall h : A = A, b = eq_rect A id a A h)) as W2.
+    split; auto.
+    intros; simpl.
+    dependent destruction h; simpl.
+    
+    left. simpl.
+
+Check @bind_bind.
+Set Printing Implicit.
+
+    setoid_rewrite bind_bind.
+    
     (***************)
     (***************)
 (** change the handler: it should act only on E1 *)
+
+    remember (observe (interp hnd4 (Vis (inr1 e) k1))) as hh1. 
+    remember (observe (interp hnd4 (Vis (inr1 e) k1))) as hh2.
+    assert (hh1 = hh2) as Heqhh12.
+    by auto.                        
+    rewrite Heqhh1.
+    rewrite Heqhh2.
+    rewrite Heqhh2 in Heqhh1.
+      
+    simpl.
+    simpl in Heqhh1.
+    rewrite Heqhh12 in Heqhh1.
+    clear Heqhh12.
+    
+    setoid_rewrite interp_exec_vis_Eq in Heqhh2.
+    simpl in Heqhh1.
+
+    econstructor.
+    { exists erefl.
+      simpl; reflexivity.
+    }
+
+    intros a b _.
+    right; simpl.
+    specialize (CIH (k1 a)).
+
+    assert (hh2 = (VisF e (fun a => interp_exec hnd4 (k1 a)))) as W1.
+    { unfold interp_exec; simpl.
+      rewrite Heqhh1.
+      simpl.
+      f_equal.
+      eapply functional_extensionality.
+      intro a1.
+      rewrite  
+      
+      econstructor.
+      
+    
+    
+    
+    assert (interp hnd4 (k1 a) =  (ITree.bind
+       (ITree.bind
+          (ITree.map
+             (fun x0 : execS A =>
+              match x0 with
+              | ESok x1 => ESok (inl (k1 x1))
+              | @ESerror _ e0 => ESerror (itree [eta E1 +' E2] T + T) e0
+              end) (Ret (ESok b)))
+          (fun x0 : execS (itree [eta E1 +' E2] T + T) =>
+           match x0 with
+           | ESok (inl j) => Ret (inl j)
+           | ESok (inr a0) => Ret (inr (ESok a0))
+           | @ESerror _ e0 => Ret (inr (ESerror T e0))
+           end))
+       (fun lr : itree [eta E1 +' E2] T + execS T =>
+        match lr with
+        | inl l =>
+            Tau
+              (MonadIter_itree
+                 (fun i : itree [eta E1 +' E2] T =>
+                  ITree.bind
+                    match observe i with
+                    | RetF r0 => Ret (ESok (inr r0))
+                    | TauF t => Ret (ESok (inl t))
+                    | @VisF _ _ _ X e0 k =>
+                        ITree.map
+                          (fun x0 : execS X =>
+                           match x0 with
+                           | ESok x1 => ESok (inl (k x1))
+                           | @ESerror _ e1 =>
+                               ESerror (itree [eta E1 +' E2] T + T) e1
+                           end) (hnd4 e0)
+                    end
+                    (fun x0 : execS (itree [eta E1 +' E2] T + T) =>
+                     match x0 with
+                     | ESok (inl j) => Ret (inl j)
+                     | ESok (inr a0) => Ret (inr (ESok a0))
+                     | @ESerror _ e0 => Ret (inr (ESerror T e0))
+                     end)) l)
+        | inr r0 => Ret r0
+        end))) as W.
+    
+
+    
+    eapply CIH.
+
     
     setoid_rewrite interp_exec_vis_Eq.
 
