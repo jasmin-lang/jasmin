@@ -206,33 +206,33 @@ Variant x86_op : Type :=
 HB.instance Definition _ := hasDecEq.Build x86_op x86_op_eqb_OK.
 
 (* ----------------------------------------------------------------------------- *)
-Definition b_ty             := [:: sbool].
-Definition b4_ty            := [:: sbool; sbool; sbool; sbool].
-Definition b5_ty            := [:: sbool; sbool; sbool; sbool; sbool].
+Definition b_ty             : seq ctype := [:: sbool].
+Definition b4_ty            : seq ctype := [:: sbool; sbool; sbool; sbool].
+Definition b5_ty            : seq ctype := [:: sbool; sbool; sbool; sbool; sbool].
 
-Definition bw_ty    sz      := [:: sbool; sword sz].
-Definition bw2_ty   sz      := [:: sbool; sword sz; sword sz].
-Definition b2w_ty   sz      := [:: sbool; sbool; sword sz].
-Definition b4w_ty   sz      := [:: sbool; sbool; sbool; sbool; sword sz].
-Definition b5w_ty   sz      := [:: sbool; sbool; sbool; sbool; sbool; sword sz].
-Definition b5w2_ty  sz      := [:: sbool; sbool; sbool; sbool; sbool; sword sz; sword sz].
+Definition bw_ty    sz      : seq ctype := [:: sbool; sword sz].
+Definition bw2_ty   sz      : seq ctype := [:: sbool; sword sz; sword sz].
+Definition b2w_ty   sz      : seq ctype := [:: sbool; sbool; sword sz].
+Definition b4w_ty   sz      : seq ctype := [:: sbool; sbool; sbool; sbool; sword sz].
+Definition b5w_ty   sz      : seq ctype := [:: sbool; sbool; sbool; sbool; sbool; sword sz].
+Definition b5w2_ty  sz      : seq ctype := [:: sbool; sbool; sbool; sbool; sbool; sword sz; sword sz].
 
-Definition w_ty     sz      := [:: sword sz].
-Definition w2_ty    sz sz'  := [:: sword sz; sword sz'].
-Definition w3_ty    sz      := [:: sword sz; sword sz; sword sz].
-Definition w8_ty            := [:: sword8].
-Definition w128_ty          := [:: sword128].
-Definition w256_ty          := [:: sword256].
+Definition w_ty     sz      : seq ctype := [:: sword sz].
+Definition w2_ty    sz sz'  : seq ctype := [:: sword sz; sword sz'].
+Definition w3_ty    sz      : seq ctype := [:: sword sz; sword sz; sword sz].
+Definition w8_ty            : seq ctype := [:: sword8].
+Definition w128_ty          : seq ctype := [:: sword128].
+Definition w256_ty          : seq ctype := [:: sword256].
 
-Definition w2b_ty   sz sz'  := [:: sword sz; sword sz'; sbool].
-Definition ww8_ty   sz      := [:: sword sz; sword8].
-Definition ww8b_ty   sz     := [:: sword sz; sword8; sbool].
-Definition w2w8_ty   sz     := [:: sword sz; sword sz; sword8].
-Definition w128w8_ty        := [:: sword128; sword8].
-Definition w128ww8_ty sz    := [:: sword128; sword sz; sword8].
-Definition w256w8_ty        := [:: sword256; sword8].
-Definition w256w128w8_ty    := [:: sword256; sword128; sword8].
-Definition w256x2w8_ty      := [:: sword256; sword256; sword8].
+Definition w2b_ty   sz sz'  : seq ctype := [:: sword sz; sword sz'; sbool].
+Definition ww8_ty   sz      : seq ctype := [:: sword sz; sword8].
+Definition ww8b_ty   sz     : seq ctype := [:: sword sz; sword8; sbool].
+Definition w2w8_ty   sz     : seq ctype := [:: sword sz; sword sz; sword8].
+Definition w128w8_ty        : seq ctype := [:: sword128; sword8].
+Definition w128ww8_ty sz    : seq ctype := [:: sword128; sword sz; sword8].
+Definition w256w8_ty        : seq ctype := [:: sword256; sword8].
+Definition w256w128w8_ty    : seq ctype := [:: sword256; sword128; sword8].
+Definition w256x2w8_ty      : seq ctype := [:: sword256; sword256; sword8].
 
 (* ----------------------------------------------------------------------------- *)
 
