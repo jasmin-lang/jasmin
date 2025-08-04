@@ -19,7 +19,8 @@ Context
   {sCP : semCallParams}
   (fresh_var_ident : v_kind -> instr_info -> string -> stype -> Ident.ident)
   (p p' : prog) (ev : extra_val_t)
-  (spill_prog_ok : spill_prog fresh_var_ident p = ok p').
+  (fuel: nat)
+  (spill_prog_ok : spill_prog fuel fresh_var_ident p = ok p').
 
 Notation gd := (p_globs p).
 
@@ -242,7 +243,7 @@ Qed.
 
 Lemma lower_sopnP s1 s2 ii tag o xs es S env env' c vm:
   sem_sopn gd o s1 xs es = ok s2 →
-  spill_i (get_spill S) env (MkI ii (Copn xs tag o es)) = ok (env', c) →
+  spill_i fuel (get_spill S) env (MkI ii (Copn xs tag o es)) = ok (env', c) →
   Sv.Subset (vars_I (MkI ii (Copn xs tag o es))) (X S) →
   valid_env S env (evm s1) vm →
   exists2 vm' : Vm.t, esem p' ev c (with_vm s1 vm) = ok (with_vm s2 vm') & valid_env S env' (evm s2) vm'.
@@ -416,7 +417,7 @@ Section SEM.
 Let Pi s (i : instr) s' :=
   sem_I p' ev s i s' /\
   forall S env env' c vm,
-  spill_i S.(get_spill) env i = ok (env', c) ->
+  spill_i fuel S.(get_spill) env i = ok (env', c) ->
   Sv.Subset (vars_I i) S.(X) ->
   valid_env S env (evm s) vm ->
   exists2 vm',
@@ -428,7 +429,7 @@ Let Pi_r s (i : instr_r) s' := forall ii, Pi s (MkI ii i) s'.
 Let Pc s (c : cmd) s' :=
   sem p' ev s c s' /\
   forall S env env' c' vm,
-  spill_c (spill_i S.(get_spill)) env c = ok (env', c') ->
+  spill_c (spill_i fuel S.(get_spill)) env c = ok (env', c') ->
   Sv.Subset (vars_c c) S.(X) ->
   valid_env S env (evm s) vm ->
   exists2 vm',
@@ -438,7 +439,7 @@ Let Pc s (c : cmd) s' :=
 Let Pfor (i : var_i) vs s c s' :=
   sem_for p' ev i vs s c s' /\
   forall S env env' c' vm,
-  spill_c (spill_i S.(get_spill)) env c = ok (env', c') ->
+  spill_c (spill_i fuel S.(get_spill)) env c = ok (env', c') ->
   ~Sv.In i env ->
   Sv.Subset env env' ->
   Sv.Subset (Sv.union (vars_lval i) (vars_c c)) S.(X) ->
@@ -545,7 +546,7 @@ Proof.
   move=> vm1 hs1 hval1.
   case: (hc2 _ _ _ _ _ hc2' _ hval1); first by SvD.fsetdec.
   move=> vm2 hs2 hval2.
-  have heqw: spill_i S.(get_spill) env0 (MkI ii (Cwhile a c1 e ei c2)) = ok (env1, [:: MkI ii (Cwhile a c1' e ei c2')]).
+  have heqw: spill_i fuel S.(get_spill) env0 (MkI ii (Cwhile a c1 e ei c2)) = ok (env1, [:: MkI ii (Cwhile a c1' e ei c2')]).
   + by rewrite /= heq.
   case: (hw _ _ _ _ _ heqw _ (valid_env_sub hsub2 hval2)); first by rewrite vars_I_while.
   move=> vm3 hsw hval3; exists vm3 => //.
@@ -621,7 +622,7 @@ Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
 Proof.
   move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' hfun htra hinit hw hsc hc hres hfull ??.
   rewrite /Pfun; subst scs2 m2.
-  have spillok : map_cfprog_name (spill_fd fresh_var_ident) (p_funcs p) = ok (p_funcs p').
+  have spillok : map_cfprog_name (spill_fd fuel fresh_var_ident) (p_funcs p) = ok (p_funcs p').
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
   have [f' hf'1 hf'2] := get_map_cfprog_name_gen spillok hfun.
   case: f hfun htra hinit hw hsc hc hres hfull hf'1 hf'2 =>
@@ -716,7 +717,7 @@ Lemma it_alloc_callP fn :
 Proof.
   apply wequiv_fun_ind => hrec {fn}.
   move=> fn _ fs _ [<- <-] fd hget.
-  have spillok : map_cfprog_name (spill_fd fresh_var_ident) (p_funcs p) = ok (p_funcs p').
+  have spillok : map_cfprog_name (spill_fd fuel fresh_var_ident) (p_funcs p) = ok (p_funcs p').
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
   have [fd' hfd'1 hfd'2] := get_map_cfprog_name_gen spillok hget.
   exists fd' => // {hget hfd'2}.
@@ -756,10 +757,10 @@ Proof.
   change get_spill' with (get_spill S).
   move: S => S.
   clear hinit s hcm get_spill' X' m fb res f_tyout fp ft fi fd' spillok fs fn.
-  set Pi := fun i => forall env env' c', spill_i (get_spill S) env i = ok (env', c') ->
+  set Pi := fun i => forall env env' c', spill_i fuel (get_spill S) env i = ok (env', c') ->
         Sv.Subset (vars_I i) (X S) → wequiv_rec p p' ev ev eq_spec (st_ve S env) [::i] c' (st_ve S env').
   set Pr := fun i => forall ii, Pi (MkI ii i).
-  set Pc := fun c => forall env env' c', spill_c (spill_i (get_spill S)) env c = ok (env', c') ->
+  set Pc := fun c => forall env env' c', spill_c (spill_i fuel (get_spill S)) env c = ok (env', c') ->
         Sv.Subset (vars_c c) (X S) → wequiv_rec p p' ev ev eq_spec (st_ve S env) c c' (st_ve S env').
   move: c; apply (cmd_rect (Pr:=Pr) (Pi:=Pi) (Pc:=Pc)) => //.
   + by move=> ??? /= [<- <-] _; apply wequiv_nil.

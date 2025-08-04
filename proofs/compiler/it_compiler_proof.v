@@ -63,6 +63,7 @@ Context
   (aparams : architecture_params lowering_options)
   (haparams : h_architecture_params aparams)
   (cparams : compiler_params lowering_options)
+  (fuel: nat)
   (print_uprogP : forall s p, cparams.(print_uprog) s p = p)
   (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
 .
@@ -104,7 +105,7 @@ Section FIRST_PART.
 
 Lemma it_inliningP {to_keep p p' ev fn} :
   fn \in to_keep ->
-  inlining cparams to_keep p = ok p' ->
+  inlining cparams fuel to_keep p = ok p' ->
   wiequiv_f (dc1 := indirect_c) (dc2 := indirect_c)
     p p' ev ev pre_incl fn fn post_incl.
 Proof.
@@ -115,7 +116,7 @@ apply: it_sem_refl_EE_UU; exact: (it_dead_calls_err_seqP hp1 _ hfn).
 Qed.
 
 Lemma it_postprocessP {dc : DirectCall} (p p' : uprog) fn ev :
-  dead_code_prog (ap_is_move_op aparams) (const_prop_prog p) false = ok p' ->
+  dead_code_prog (ap_is_move_op aparams) (const_prop_prog p) false fuel = ok p' ->
   wiequiv_f (dc1 := dc) (dc2 := dc)
     p p' ev ev pre_incl fn fn post_incl.
 Proof.
@@ -126,11 +127,11 @@ exact: (it_dead_code_callPu (hap_is_move_opP haparams) ev hp' (fn := fn)).
 Qed.
 
 Lemma it_unrollP {dc : DirectCall} (fn : funname) (p p' : prog) ev :
-  unroll_loop (ap_is_move_op aparams) p = ok p' ->
+  unroll_loop fuel (ap_is_move_op aparams) p = ok p' ->
   wiequiv_f (dc1 := dc) (dc2 := dc)
     p p' ev ev pre_incl fn fn post_incl.
 Proof.
-rewrite /unroll_loop; t_xrbindP; elim: Loop.nb p => [// | n hind] /= p pu hpu.
+rewrite /unroll_loop; t_xrbindP; elim: {3}fuel p => [// | n hind] /= p pu hpu.
 case hu: unroll_prog => [pu' []]; last first.
 - move=> [<-]; exact: it_postprocessP hpu.
 move: hu; rewrite (surjective_pairing (unroll_prog pu)) => -[? _]; subst pu'.
@@ -141,7 +142,7 @@ apply: it_sem_refl_EE_UU; exact: it_unroll_callP.
 Qed.
 
 Lemma it_live_range_splittingP {dc : DirectCall} (p p': uprog) fn ev :
-  live_range_splitting aparams cparams p = ok p' ->
+  live_range_splitting aparams cparams fuel p = ok p' ->
   wiequiv_f (dc1 := dc) (dc2 := dc)
     p p' ev ev pre_eq fn fn post_incl.
 Proof.
@@ -160,7 +161,7 @@ exact: (it_dead_code_callPu (hap_is_move_opP haparams) ev ok_pa (fn := fn)).
 Qed.
 
 Lemma it_compiler_first_part {entries p p' ev fn} :
-  compiler_first_part aparams cparams entries p = ok p' ->
+  compiler_first_part aparams cparams fuel entries p = ok p' ->
   fn \in entries ->
   wiequiv_f
     (wsw1 := nosubword) (wsw2 := withsubword)
@@ -261,7 +262,7 @@ exact: (hind _ _ _ hs hs').
 Qed.
 
 Lemma it_compiler_third_part {rp fn} :
-  compiler_third_part aparams cparams rp p = ok p' ->
+  compiler_third_part aparams cparams fuel rp p = ok p' ->
   wiequiv_f (scP1 := sCP_stack) (scP2 := sCP_stack)
     p p' ev ev pre_eq fn fn (post_dc rp).
 Proof.
@@ -363,7 +364,7 @@ Instance FrontEndEquiv : EquivSpec :=
   |}.
 
 Lemma it_compiler_front_endP ev fn :
-  compiler_front_end aparams cparams entries up = ok sp ->
+  compiler_front_end aparams cparams fuel entries up = ok sp ->
   fn \in entries ->
   wiequiv_f
     (wsw1 := nosubword) (wsw2 := withsubword)

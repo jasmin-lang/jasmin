@@ -387,6 +387,7 @@ Module RGP. Section PROOFS.
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
     {sip : SemInstrParams asm_op syscall_state}
+    (fuel: nat)
     (fresh_id : glob_decls -> var -> Ident.ident).
 
   Notation venv := (Mvar.t var).
@@ -398,7 +399,7 @@ Module RGP. Section PROOFS.
   Context (fds: ufun_decls).
   Notation gd := (p_globs P).
 
-  Hypothesis fds_ok : map_cfprog (remove_glob_fundef gd) (p_funcs P) = ok fds.
+  Hypothesis fds_ok : map_cfprog (remove_glob_fundef (S fuel) gd) (p_funcs P) = ok fds.
   Hypothesis uniq_gd : uniq (map fst gd).
   Notation P' := {|p_globs := gd; p_funcs := fds; p_extra := p_extra P |}.
 
@@ -624,7 +625,7 @@ Module RGP. Section PROOFS.
     get_fundef (p_funcs P) fn = Some f ->
     exists f',
        get_fundef (p_funcs P') fn = Some f' /\
-       remove_glob_fundef gd f = ok f'.
+       remove_glob_fundef (S fuel) gd f = ok f'.
   Proof.
     move=> hget.
     have [f' hget' hremove] := get_map_cfprog_gen fds_ok hget.
@@ -632,7 +633,7 @@ Module RGP. Section PROOFS.
   Qed.
 
   Lemma Hassgn_aux m m' ii x tag ty e c' :
-    remove_glob_i gd m (MkI ii (Cassgn x tag ty e)) = ok (m', c') ->
+    remove_glob_i (S fuel) gd m (MkI ii (Cassgn x tag ty e)) = ok (m', c') ->
     forall s1 s2 s1', valid m s1 s1' ->
       sem_assgn P x tag ty e s1 = ok s2 ->
       exists2 s2', esem P' ev c' s1' = ok s2' & valid m' s2 s2'.
@@ -664,12 +665,12 @@ Module RGP. Section PROOFS.
   Section SEM.
 
   Let Pc s1 c s2 :=
-    forall m m' c', remove_glob (remove_glob_i gd) m c = ok (m', c') ->
+    forall m m' c', remove_glob (remove_glob_i (S fuel) gd) m c = ok (m', c') ->
     forall s1', valid m s1 s1' ->
     exists s2', valid m' s2 s2' /\ sem P' ev s1' c' s2'.
 
   Let Pi s1 i s2 :=
-    forall m m' c', remove_glob_i gd m i = ok (m', c') ->
+    forall m m' c', remove_glob_i (S fuel) gd m i = ok (m', c') ->
     forall s1', valid m s1 s1' ->
     exists s2', valid m' s2 s2' /\ sem P' ev s1' c' s2'.
 
@@ -677,7 +678,7 @@ Module RGP. Section PROOFS.
 
   Let Pfor xi vs s1 c s2 :=
     ~~is_glob_var xi.(v_var) ->
-    forall m m' c', remove_glob (remove_glob_i gd) m c = ok (m', c') ->
+    forall m m' c', remove_glob (remove_glob_i (S fuel) gd) m c = ok (m', c') ->
     Mincl m m' ->
     forall s1', valid m s1 s1' ->
     exists s2', valid m s2 s2' /\ sem_for P' ev xi vs s1' c' s2'.
@@ -755,8 +756,10 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hwhile_true : sem_Ind_while_true P ev Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 a c e ei c' _ hc he _ hc' _ hw ii m m' c'0 /= hrn s1' hval.
-    move: hrn; t_xrbindP => -[e' c1' c2' m1] /loop2P [m2 [m3 []]].
+    move=> s1 s2 s3 s4 a c e ei c' _ hc he _ hc' _ hw ii m m' c'0 hrn s1' hval.
+    move: hrn.
+    remember (S fuel) as n eqn:hn => /=.
+    t_xrbindP => -[e' c1' c2' m1] /loop2P [m2 [m3 []]].
     t_xrbindP => -[m4 c4] h1 /= e1 he1 [m5 c5] h2.
     have h1' := hc _ _ _ h1.
     have h2' := hc' _ _ _ h2.
@@ -764,9 +767,9 @@ Module RGP. Section PROOFS.
     have /h1' [s2' [hs2 hc1]]: valid m3 s1 s1' by apply: valid_Mincl hval.
     have he' := remove_glob_eP hs2 he1 he.
     have [s3' [hs3 hc2]]:= h2' _ hs2.
-    have : remove_glob_i gd m3 (MkI ii (Cwhile a c e ei c')) =
+    have : remove_glob_i n gd m3 (MkI ii (Cwhile a c e ei c')) =
              ok (m', [::MkI ii (Cwhile a c1' e' ei c2')]).
-    + by rewrite /= Loop.nbP /= h1 /= he1 /= h2 /= hm.
+    + by rewrite hn /= -hn /= h1 /= he1 /= h2 /= hm.
     move=> /hw{}hw; have /hw : valid m3 s3 s3' by apply: (valid_Mincl hm).
     move=> [s4' [hs4 /semE hw']]; exists s4';split => //.
     apply sem_seq1; constructor; apply: Ewhile_true;eauto.
@@ -775,8 +778,10 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hwhile_false : sem_Ind_while_false P ev Pc Pi_r.
   Proof.
-    move=> s1 s2 a c e ei c' _ hc he ii m m' c'0 /= hrn s1' hval.
-    move: hrn; t_xrbindP => -[e' c1' c2' m1] /loop2P [m2 [m3 []]].
+    move=> s1 s2 a c e ei c' _ hc he ii m m' c'0 hrn s1' hval.
+    move: hrn.
+    remember (S fuel) as n => /=.
+    t_xrbindP => -[e' c1' c2' m1] /loop2P [m2 [m3 []]].
     t_xrbindP => -[m4 c4] h1 /= e1 he1 [m5 c5] h2.
     move=> ? [??] [??] hm hm1 ? <-;subst e1 m4 c4 m5 c5 m1.
     have h1' := hc _ _ _ h1.
@@ -788,8 +793,10 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hfor : sem_Ind_for P ev Pi_r Pfor.
   Proof.
-    move=> s1 s2 i d lo hi c vlo vhi hlo hhi _ hfor ii m m' c' /= hrn s1' hval.
-    case : ifPn hrn => // hglob.
+    move=> s1 s2 i d lo hi c vlo vhi hlo hhi _ hfor ii m m' c' hrn s1' hval.
+    move: hrn.
+    remember (S fuel) as n => /=.
+    case : ifPn => // hglob.
     t_xrbindP => lo' /(remove_glob_eP hval) -/(_ _ _ hlo) hlo'.
     move=> hi' /(remove_glob_eP hval) -/(_ _ _ hhi) hhi'.
     move=> [m2 c2] /= /loopP [m1 [hc h1 h2]] [??];subst m2 c'.
@@ -900,13 +907,13 @@ Module RGP. Section PROOFS.
   #[local] Hint Resolve checker_validP : core.
 
   Let Pi i :=
-    forall d dc, remove_glob_i gd d i = ok dc ->
+    forall d dc, remove_glob_i (S fuel) gd d i = ok dc ->
     wequiv_rec P P' ev ev eq_spec (valid d) [::i] dc.2 (valid dc.1).
 
   Let Pi_r i := forall ii, Pi (MkI ii i).
 
   Let Pc c :=
-    forall d dc, remove_glob (remove_glob_i gd) d c = ok dc ->
+    forall d dc, remove_glob (remove_glob_i (S fuel) gd) d c = ok dc ->
     wequiv_rec P P' ev ev eq_spec (valid d) c dc.2 (valid dc.1).
 
   Lemma it_remove_glob_call fn : wiequiv_f P P' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
@@ -946,7 +953,8 @@ Module RGP. Section PROOFS.
       + by split => //=; rewrite he'.
       + by move=> >; apply/valid_Mincl/merge_incl_l.
       by move=> >; apply/valid_Mincl/merge_incl_r.
-    + move=> v dir lo hi c hc ii d dc_ /=.
+    + move=> v dir lo hi c hc ii d dc_.
+      remember (S fuel) as n => /=.
       case: ifP => // hv; t_xrbindP => lo' hlo hi' hhi [d' c'] /loopP [d1] [/hc{}hc hincl1 hincl2] [<-] /=.
       apply wequiv_for_rel_eq_R with (checker_valid ii) d d' => //.
       + by split => //=; rewrite hlo /= hhi.
@@ -954,7 +962,8 @@ Module RGP. Section PROOFS.
       + by split => //=; rewrite hv.
       apply wequiv_weaken with (valid d') (valid d1) => //.
       by move=> >; apply valid_Mincl.
-    + move=> a c1 e ii' c2 hc1 hc2 ii d dc_ /=; t_xrbindP.
+    + move=> a c1 e ii' c2 hc1 hc2 ii d dc_.
+      remember (S fuel) as n => /=; t_xrbindP.
       move=> [e' c1' c2' d'] /loop2P [d1][d2] []; t_xrbindP.
       move=> [d1_ c1_] /hc1/={}hc1 /= e_ he [d2_ c2_] /hc2/={}hc2 ? [??] [??] hincl1 hincl2 <- /=.
       subst e_ d1_ c1_ d2_ c2_.
@@ -975,7 +984,7 @@ Module RGP. Section PROOFS.
   End FDS.
 
   Lemma remove_globP P P' f ev scs mem scs' mem' va vr :
-    remove_glob_prog fresh_id P = ok P' ->
+    remove_glob_prog (S fuel) fresh_id P = ok P' ->
     sem_call P ev scs mem f va scs' mem' vr ->
     sem_call P' ev scs mem f va scs' mem' vr.
   Proof.
@@ -989,7 +998,7 @@ Module RGP. Section PROOFS.
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rE0_trans : EventRels_trans rE0 rE0 rE0}.
 
   Lemma it_remove_globP P P' ev fn:
-    remove_glob_prog fresh_id P = ok P' ->
+    remove_glob_prog (S fuel) fresh_id P = ok P' ->
     wiequiv_f P P' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof.
     rewrite /remove_glob_prog; t_xrbindP => gd' /extend_glob_progP hgd.

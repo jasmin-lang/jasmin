@@ -26,6 +26,7 @@ End E.
 Section ASM_OP.
 
 Context `{asmop : asmOp}.
+Context (fuel: nat).
 Context (fresh_var_ident: v_kind -> instr_info -> string -> stype -> Ident.ident).
 
 Definition is_spill_op o :=
@@ -174,10 +175,10 @@ Fixpoint spill_i (env : spill_env) (i : instr) : cexec (spill_env * cmd) :=
     Let ec2 := spill_c spill_i env c2 in
     ok (merge_env ec1.1 ec2.1, [:: MkI ii (Cif e ec1.2 ec2.2)])
   | Cfor x r c =>
-    Let ec := loop (spill_c spill_i) ii c Loop.nb (Sv.remove x env) in
+    Let ec := loop (spill_c spill_i) ii c fuel (Sv.remove x env) in
     ok (ec.1, [:: MkI ii (Cfor x r ec.2)])
   | Cwhile a c1 e info c2 =>
-    Let ec := wloop (spill_c spill_i) ii c1 c2 Loop.nb env in
+    Let ec := wloop (spill_c spill_i) ii c1 c2 fuel env in
     ok (ec.1, [:: MkI ii (Cwhile a ec.2.1 e info ec.2.2)])
   | Ccall lvs f es => ok (update_lvs env lvs, [::i])
   end.

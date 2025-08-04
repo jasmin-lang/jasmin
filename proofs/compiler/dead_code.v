@@ -81,7 +81,7 @@ Fixpoint keep_only {T:Type} (l:seq T) (tokeep : seq bool) {struct tokeep}:=
 
 Section ONFUN.
 
-Context (do_nop: bool) (onfun: funname -> option (seq bool)).
+Context (fuel: nat) (do_nop: bool) (onfun: funname -> option (seq bool)).
 
 Definition fn_keep_only {T:Type} (fn:funname) (l:seq T) := 
   match onfun fn with
@@ -136,7 +136,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * cmd) :=
     ok (read_e_rec (Sv.union s1 s2) b, [:: MkI ii (Cif b c1 c2)])
 
   | Cfor x (dir, e1, e2) c =>
-    Let sc := loop (dead_code_c dead_code_i c) ii Loop.nb
+    Let sc := loop (dead_code_c dead_code_i c) ii fuel
                    (read_rv (Lvar x)) (vrv (Lvar x)) s in
     let: (s, c) := sc in
     ok (read_e_rec (read_e_rec s e2) e1, [:: MkI ii (Cfor x (dir,e1,e2) c)])
@@ -149,7 +149,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * cmd) :=
       Let sci' := dead_code_c dead_code_i c' s_i in
       let: (s_i', c') := sci' in
       ok (s_i', (s_i, (c,c'))) in
-    Let sc := wloop dobody ii Loop.nb s in
+    Let sc := wloop dobody ii fuel s in
     let: (s, (c,c')) := sc in
     ok (s, [:: MkI ii (Cwhile a c e info c')])
 
@@ -184,7 +184,7 @@ End Section.
 
 End ONFUN.
 
-Definition dead_code_prog {pT:progT} (p:prog) do_nop :=
-  @dead_code_prog_tokeep do_nop (fun _ => None) pT p.
+Definition dead_code_prog {pT: progT} (p: prog) fuel do_nop :=
+  @dead_code_prog_tokeep do_nop fuel (fun _ => None) pT p.
 
 End ASM_OP.
