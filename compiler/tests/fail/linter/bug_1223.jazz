@@ -1,0 +1,5 @@
+export fn only_one_live_result(reg u64 x) -> reg u64 {
+  reg u64 z = 0;
+  x, z = #swap(z, x);
+  return x;
+}
