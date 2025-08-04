@@ -171,22 +171,15 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     CheckAnnot.check_stack_size fds;
 
 
-    let get_internal_size _fd sfe =
+    let get_internal_size (sfe, _fd) =
       let stk_size =
         BinInt.Z.add sfe.Expr.sf_stk_sz sfe.Expr.sf_stk_extra_sz in
       Conv.z_of_cz (Memory_model.round_ws sfe.sf_align stk_size)
     in
 
-    let fds =
-      Regalloc.alloc_prog
-        (fun _fd extra ->
-          match extra.Expr.sf_save_stack with
-          | Expr.SavedStackReg _ | Expr.SavedStackStk _ -> true
-          | Expr.SavedStackNone -> false)
-        get_internal_size
-        fds
-    in
-    let fds = List.map (fun (y, _, x) -> (y, x)) fds in
+    let return_addresses = Regalloc.create_return_addresses get_internal_size fds in
+
+    let _subst, _killed, fds = Regalloc.alloc_prog return_addresses fds in
     let fds = List.map Conv.csfdef_of_fdef fds in
     fds
   in
