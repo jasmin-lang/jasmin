@@ -241,7 +241,7 @@ Definition sopn_constrained_register acr :=
   match acr with
   | ACR_any      => sopn.ACR_any
   | ACR_exact x  => sopn.ACR_exact (to_var x)
-  | ACR_vector x => sopn.ACR_vector (to_var x)
+  | ACR_vector x => sopn.ACR_exact (to_var x)
   | ACR_subset s => sopn.ACR_subset (map to_var s)
   end.
 
