@@ -165,6 +165,11 @@
   ([PR #1083](https://github.com/jasmin-lang/jasmin/pull/1083);
   fixes [#1079](https://github.com/jasmin-lang/jasmin/issues/1079)).
 
+- Add a new option `-print-export-info-json` to display interesting information
+  about exported functions, in json formats including the target architechure,
+  arguments, annotations and parameters.
+  ([PR #1123](https://github.com/jasmin-lang/jasmin/pull/1123)).
+
 ## Bug fixes
 
 - Improve heuristic for relational variables in safety analysis
