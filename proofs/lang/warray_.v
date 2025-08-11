@@ -263,13 +263,6 @@ Module WArray.
     by case: ZleP => /=; case: ZltP => //=; case: ZltP => //; lia.
   Qed.
 
-  Lemma cast_uincl len1 len2 (t2 : WArray.array len2) t1 : 
-    cast len1 t2 = ok t1 -> uincl t1 t2.
-  Proof.
-    move=> hc; have ?:= cast_len hc; subst len2.
-    by move: hc; rewrite castK => -[<-].
-  Qed.
-
   Lemma uincl_cast len1 len2 (a1: array len1) (a2:array len2) len a1' : 
     uincl a1 a2 ->
     cast len a1 = ok a1' ->

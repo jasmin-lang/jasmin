@@ -177,11 +177,6 @@ Section PROOF.
   by move => ->; apply: on_arr_varP.
   Qed.
 
-  Lemma between_ZR (a b c: Z) :
-    (a <= b < c)%R →
-    (a <= b < c)%Z.
-  Proof. by case/andP => /word_ssrZ.lezP ? /word_ssrZ.ltzP. Qed.
-
   Section LOWER_CONDITION.
 
   Context (vi : var_info).
