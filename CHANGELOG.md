@@ -5,6 +5,9 @@
 - Add support for the MMX/SSE instruction `PADD`
   ([PR #1196](https://github.com/jasmin-lang/jasmin/pull/1196)).
 
+- Extraction as EasyCrypt code targets version 2025.08
+  ([PR #1255](https://github.com/jasmin-lang/jasmin/pull/1255)).
+
 ## Bug fixes
 
 - Linter : More precise diagnostics
