@@ -223,6 +223,7 @@ let ec_keyword =
  ; "export"
  ; "include"
  ; "local"
+ ; "global"
  ; "declare"
  ; "hint"
  ; "module"
