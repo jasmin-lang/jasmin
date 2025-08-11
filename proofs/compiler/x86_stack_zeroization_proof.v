@@ -786,30 +786,6 @@ Context (hsmall : (ws <= U64)%CMP).
 Context (hbody : lfd.(lfd_body) = lc ++ unrolled_small_cmd rspn ws_align ws stk_max).
 Context (rsp_nin : ~ Sv.In rspi unrolled_small_vars).
 
-(* FIXME: remove *)
-Lemma onth_size T n (s : seq T) x :
-  oseq.onth s n = Some x ->
-  n < size s.
-Proof. by elim: s n => [//|a s ih] [|n] //= /ih. Qed.
-
-(* FIXME: remove *)
-Lemma onth_rev T n (s : seq T) x :
-  oseq.onth s n = Some x ->
-  oseq.onth (rev s) (size s - n.+1) = Some x.
-Proof.
-  elim: s n => [|a s ih] n /=.
-  + done.
-  case: n => [|n].
-  + move=> [<-]. rewrite rev_cons -cats1 oseq.onth_cat. rewrite size_rev.
-    have ->: (size s).+1 - 1 = size s.
-    + rewrite -minusE. lia.
-    rewrite ltnn subnn. done.
-  move=> /ih{}ih. rewrite rev_cons -cats1 oseq.onth_cat size_rev.
-  have ->: (size s).+1 - n.+2= size s - n.+1.
-  + rewrite -!minusE. lia.
-  have := (onth_size ih). rewrite size_rev. move=> ->. done.
-Qed.
-
 Lemma unrolled_small_bodyP s1 s2 n :
   state_rel_unrolled_small unrolled_small_vars s1 s2 (stk_max - Z.of_nat n * wsize_size ws) top ->
   (Z.of_nat n < stk_max / wsize_size ws)%Z ->
