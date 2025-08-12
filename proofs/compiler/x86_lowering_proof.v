@@ -1254,6 +1254,10 @@ Section PROOF.
       + subst d; exists s2'; split => //=.
         by rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /sopn_sem_ /= Hvb /= Hwb /= /x86_INC
           /size_8_64 hsz2 /= -(zero_extend1 sz sz) Hw'.
+      case: eqP => [ Ed | _ ].
+      + subst d; exists s2'; split => //=.
+        by rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /sopn_sem_ /= Hvb /= Hwb /= /x86_DEC
+          /size_8_64 hsz2 /= -(zero_extend1 sz sz) -wrepr_opp Hw'.
       case: ifP => [ hrange | _ ].
       + exists s2'; split => //=.
         by rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /sopn_sem_ /= Hvb /= Hwb /=
