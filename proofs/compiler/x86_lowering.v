@@ -475,6 +475,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
       else if is_zero sz o then
           (* d + b *)
           if d == 1%Z then inc (Ox86 (INC sz)) b
+          else if d == (-1)%Z then inc (Ox86 (DEC sz)) b
           else
             if check_signed_range (Some U32) sz d
             then [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; de ])]
