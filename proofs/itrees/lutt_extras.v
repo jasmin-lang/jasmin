@@ -30,7 +30,7 @@ Local Open Scope monad_scope.
 
 Notation TrueP := (fun=>True).
 
-Section FIso_sec.
+Section Eqit_sec.
 
 Context {E1 E2 : Type -> Type}. (* {X: FIso E1 E2}. *)
 
@@ -94,9 +94,93 @@ Proof.
   }
 Qed.  
      
-End FIso_sec.  
+End Eqit_sec.  
 
+Section Rutt_sec.
 
+Context {E1 E2 E3 E4: Type -> Type}
+        {R1 R2: Type}
+        (TR12 : prerel E1 E2)
+        (TR34 : prerel E3 E4)
+        (ER12 : postrel E1 E2)
+        (ER34 : postrel E3 E4)
+        (RR : R1 -> R2 -> Prop).
+
+Context (F13: E1 ~> E3) (F24: E2 ~> E4).
+
+Context (PreH: forall T1 T2 (e1: E1 T1) (e2: E2 T2),
+            TR12 e1 e2 -> TR34 (F13 e1) (F24 e2))
+        (PostH: forall T1 T2 (e1: E1 T1) (e2: E2 T2) a b,
+            ER34 (F13 e1) a (F24 e2) b -> ER12 e1 a e2 b).
+
+Lemma translate_rutt 
+  (t: itree E1 R1) (t': itree E2 R2) :
+  rutt TR12 ER12 RR t t' ->
+  rutt TR34 ER34 RR (translate F13 t) (translate F24 t'). 
+Proof.
+  revert t t'.
+  pcofix CIH.
+  intros t t' H.
+  repeat (setoid_rewrite unfold_translate).  
+  punfold H; red in H.
+  remember (observe t) as ot.
+  remember (observe t') as ot'.
+  hinduction H before CIH; simpl in *; intros.
+  { pstep; red; simpl.
+    rewrite <- Heqot.
+    rewrite <- Heqot'.
+    simpl.
+    econstructor; pclearbot. eauto with paco. }
+  { pstep; red; simpl.
+    rewrite <- Heqot.
+    rewrite <- Heqot'.
+    simpl.
+    econstructor; auto.
+    right. eapply CIH; eauto.
+    pclearbot; auto.
+  }  
+  { pstep; red; simpl.
+    rewrite <- Heqot.
+    rewrite <- Heqot'.
+    simpl.
+    econstructor; eauto.
+    intros a b H1.
+    right. eapply CIH; auto.
+    eapply PostH in H1.   
+    specialize (H0 a b H1).
+    pclearbot; auto.
+  }
+  { simpl.
+    pstep; red. simpl.
+    rewrite <- Heqot.
+    rewrite <- Heqot'.
+    simpl.
+    econstructor; auto.
+    specialize (IHruttF t1 t' erefl Heqot').
+    punfold IHruttF.
+    red in IHruttF.
+    inv Heqot'.
+    simpl.
+    simpl in *.
+    auto.
+  }
+  { pstep; red; simpl.
+    rewrite <- Heqot.
+    rewrite <- Heqot'.
+    simpl.
+    econstructor; eauto.
+    specialize (IHruttF t t2 Heqot erefl).
+    punfold IHruttF.
+    red in IHruttF.
+    inv Heqot.
+    simpl.
+    simpl in *.
+    auto.
+  }
+Qed.  
+   
+End Rutt_sec.
+  
 Section Sec1.
 
 Context {E1 E2 : Type -> Type}.
@@ -125,23 +209,70 @@ Definition inr_only (T : Type) (t : itree (E1 +' E2) T) :=
 
 Section Lutt_sec.
 
-Context {E : Type -> Type} {X: FIso E (E1 +' E2)}
-        (PEv : prepred E) (PAns : postpred E).
+Context {E : Type -> Type} {X: FIso E (E1 +' E2)}.
+    (*    (PEv : prepred E) (PAns : postpred E). *)
 
 Lemma lutt_inl_safe_rel_eq (T : Type) (R : T -> Prop)
   (t : itree E T) :
-  (exists t', inl_safe_rel R (translate mfun1 t) t') <-> lutt PEv PAns R t.
-Proof.
+  (exists t', inl_safe_rel R (translate mfun1 t) t') <->
+    lutt (fun (T0 : Type) e => is_inr (T:=T0) (mfun1 e))
+         (fun T0 : Type => fun=> TrueP) R t.
+Proof. 
   split; unfold lutt, inl_safe_rel; intro H.
   { destruct H as [t' H].
     exists (translate mfun2 t').
-    admit.
+
+    assert ( rutt (REv_eq (fun (T0 : Type) (e : E T0) => is_inr (mfun1 e)))
+               (RAns_eq (fun T0 : Type => fun=> TrueP))
+               (R_eq R) (translate mfun2 (translate mfun1 t))
+               (translate mfun2 t')) as H0.
+    { eapply translate_rutt; eauto.
+      - unfold REv_eq; simpl; intros T1 T2 e1 e2 [H0 [hh H1]].
+        dependent destruction hh; simpl in *.
+        dependent destruction H1; simpl.
+        split; eauto.
+        + unfold is_inr in *.
+          assert (e2 = mfun1 (mfun2 e2)) as A0.
+          { setoid_rewrite mid12; auto. }
+          rewrite <- A0; auto.
+        + exists erefl; simpl; auto.
+      - unfold RAns_eq; simpl; intros T1 T2 e1 e2 a b [_ H0].
+        split; auto.
+    }  
+
+    setoid_rewrite <- translate_cmpE in H0.
+    unfold CategoryOps.cat, Cat_IFun in *.
+    
+    assert ((translate (fun (R : Type) (e : E R) => mfun2 (mfun1 e)) t) =
+              (translate (fun (R : Type) (e : E R) => e) t)) as A1.
+    {
+      assert ((fun (R0 : Type) (e : E R0) => mfun2 (mfun1 e)) =
+              (fun R0 : Type => id)) as A0.
+      { eapply functional_extensionality_dep.
+        intros.
+        eapply functional_extensionality_dep.
+        intros.    
+        setoid_rewrite mid21; auto.
+      }
+      rewrite A0; auto.
+    }  
+
+    setoid_rewrite A1 in H0.
+    clear A1.
+    setoid_rewrite translate_id in H0. auto.
   }
   { destruct H as [t' H].
-    exists (translate mfun1 t').
-    admit.
+    exists (translate mfun1 t').   
+    eapply translate_rutt; eauto.
+    - unfold REv_eq; simpl; intros T1 T2 e1 e2 [H0 [hh H1]].
+      dependent destruction hh; simpl in *.
+      dependent destruction H1; simpl.
+      split; eauto.
+      exists erefl; simpl; auto.
+    - unfold RAns_eq; simpl; intros T1 T2 e1 e2 a b [_ H0].
+      split; auto.
   }
-Admitted.   
+Qed.  
 
 End Lutt_sec.
 
