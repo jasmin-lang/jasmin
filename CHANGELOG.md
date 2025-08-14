@@ -50,6 +50,9 @@
 - On x86, `#set0_64` is now compiled into a 32-bit xor zero-extended to 64 bits
   ([PR #1242](https://github.com/jasmin-lang/jasmin/pull/1242)).
 
+- Syntax for initializing variables at declaration time is less flexible
+  ([PR #1185](https://github.com/jasmin-lang/jasmin/pull/1185)).
+
 # Jasmin 2025.06.0 — Nancy, 2025-06-18
 
 ## New features
