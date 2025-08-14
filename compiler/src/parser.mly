@@ -393,10 +393,10 @@ pinstr_r:
     { PIWhile (is1, b, is2) }
 
 | ty=stor_type vs=separated_nonempty_list(COMMA, loc(decl)) SEMICOLON
-    { PIdecl (ty, vs) }
+    { PIdeclinit (ty, vs) }
 
-| ty=stor_type vs=separated_nonempty_list(COMMA?, loc(var)) SEMICOLON
-    { PIdecl (ty, List.map (fun x -> L.mk_loc (L.loc x) (L.unloc x, None)) vs) }
+| ty=stor_type vs=separated_nonempty_list(COMMA?, var) SEMICOLON
+    { PIdecl (ty, vs) }
 
 pif:
 | IF c=pexpr i1s=pblock
@@ -451,7 +451,7 @@ storage:
 | GLOBAL         { `Global }
 
 %inline decl:
-| v=var EQ e=pexpr { v, Some e }
+| v=var EQ e=pexpr { v, e }
 
 pparamdecl(S):
     ty=stor_type vs=separated_nonempty_list(S, var) { (ty, vs) }

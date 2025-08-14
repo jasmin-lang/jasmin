@@ -230,10 +230,7 @@ type align = [`Align | `NoAlign]
 type plvals = annotations L.located option * plvalue list
 
 
-type vardecl = pident * pexpr option
-type vardecls = pstotype * vardecl L.located list
-
-let var_decl_id (v, _ : vardecl) : pident = v
+type vardecls = pstotype * pident list
 
 type pinstr_r =
   | PIArrayInit of pident
@@ -248,6 +245,8 @@ type pinstr_r =
       (** while { … } (x > 0) { … } *)
   | PIdecl      of vardecls
       (** reg u32 x y z; *)
+  | PIdeclinit  of pstotype * (pident * pexpr) L.located list
+      (** reg u32 x = 42; *)
 
 and pblock_r = pinstr list
 and fordir   = [ `Down | `Up ]
