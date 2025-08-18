@@ -865,40 +865,7 @@ op subc (x y:t) (b: bool): bool * t = (borrow_sub x y b, x-(y+of_int (b2i b)))
 lemma subcP x y c:
  let (c',z) = subc x y c
  in to_uint z - modulus * b2i c' = to_uint x - (to_uint y + b2i c).
-proof.
-rewrite subcE /borrow_sub /=.
-case: (to_uint y + b2i c = modulus) => H.
- rewrite to_uintD.
- have -> /=: to_uint (- (y + of_int (b2i c))) = 0.
-  rewrite to_uintN to_uintD of_uintK (modz_small (b2i c)).
-   by apply bound_abs; smt(ge2_modulus).
-  by rewrite H modzz /=.
- rewrite H modz_small.
-  by apply bound_abs; apply to_uint_cmp.
- have ->: to_uint x < modulus by smt(to_uint_cmp).
- smt().
-case: (to_uint x < to_uint y + b2i c) => ?/=.
- have E: to_uint y + b2i c = to_uint (y + of_int (b2i c)).
-  rewrite to_uintD_small.
-   rewrite !of_uintK modz_small; first by  apply bound_abs; smt(ge2_modulus).
-   by case: c => /=?; smt(to_uint_cmp).
-  by rewrite of_uintK modz_small //; apply bound_abs; smt(ge2_modulus).
- rewrite E b2i1 /= eqr_sub.
- have ->: x - (y + of_int (b2i c)) = -((y + of_int (b2i c)) - x) by ring.
- rewrite to_uintN -modzDl modz_small.
-  have ?: 0 < to_uint (y + of_int (b2i c) - x) <= `|modulus|.
-   rewrite to_uintB; first by rewrite uleE -E; smt().
-   rewrite -E; smt(to_uint_cmp).
-  smt(to_uint_cmp).
- rewrite to_uintB; first by rewrite uleE -E; smt().
- smt(to_uint_cmp).
-rewrite b2i0 /= to_uintB.
- rewrite uleE to_uintD_small.
-  by rewrite of_uintK modz_small; smt(to_uint_cmp ge2_modulus).
- rewrite of_uintK modz_small; first smt(ge2_modulus).
- smt(ge2_modulus to_uint_cmp).
-by rewrite to_uintD of_uintK !modz_small; smt(ge2_modulus to_uint_cmp).
-qed.
+proof. rewrite subcE /borrow_sub /= to_uintBb /#. qed.
 
 abbrev subc_borrow x y c = (subc x y c).`1.
 
