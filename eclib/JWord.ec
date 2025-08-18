@@ -804,6 +804,19 @@ proof.
   smt().
 qed.
 
+lemma to_uintBb x y c :
+  to_uint (x - (y + of_int (b2i c))) = to_uint x - to_uint y - b2i c + modulus * b2i (to_uint x < to_uint y + b2i c).
+proof.
+have /= x_range := to_uint_cmp x.
+have /= y_range := to_uint_cmp y.
+rewrite /b2i to_uintD.
+case: c => _; last first.
++ case: (to_uint y = 0) => /= hy; rewrite to_uintN ?hy /#.
+rewrite to_uintN.
+case: (to_uint y = max_uint) => /= hy.
++ rewrite to_uintD hy /#.
+rewrite to_uintD_small ?modNz // /#.
+qed.
 
 (* --------------------------------------------------------------------- *)
 (* Ring tactic                                                           *)
