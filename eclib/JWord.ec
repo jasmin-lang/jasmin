@@ -811,7 +811,11 @@ have /= x_range := to_uint_cmp x.
 have /= y_range := to_uint_cmp y.
 rewrite /b2i to_uintD.
 case: c => _; last first.
-+ case: (to_uint y = 0) => /= hy; rewrite to_uintN ?hy /#.
++ rewrite to_uintN !addr0 modzDmr.
+  case: (to_uint x < to_uint y) => Hxy /=.
+  + rewrite (addzC (to_uint x - to_uint y) modulus).
+    by rewrite &(modz_sub_carry) // subz_lt0 //.
+  + by rewrite pmod_small /#.
 rewrite to_uintN.
 case: (to_uint y = max_uint) => /= hy.
 + rewrite to_uintD hy /#.
