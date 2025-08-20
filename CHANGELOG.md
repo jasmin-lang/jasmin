@@ -57,6 +57,9 @@
   immediate
   ([PR #1242](https://github.com/jasmin-lang/jasmin/pull/1242)).
 
+- Syntax for initializing variables at declaration time is less flexible
+  ([PR #1188](https://github.com/jasmin-lang/jasmin/pull/1188)).
+
 # Jasmin 2025.06.0 — Nancy, 2025-06-18
 
 ## New features
