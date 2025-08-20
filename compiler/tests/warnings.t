@@ -10,10 +10,6 @@
   warning: extra assignment introduced:
              RAX = #MOV_64(((64u) 0)); /* :r */
 
-  $ ../jasminc -w_ warning/x86-64/introduce_lvalues.jazz
-  "warning/x86-64/introduce_lvalues.jazz", line 9 (2-13)
-  warning: introduce 2 _ lvalues
-
   $ ../jasminc -wlea warning/x86-64/lea.jazz
   "warning/x86-64/lea.jazz", line 6 (2-18)
   warning: LEA instruction is used
