@@ -59,6 +59,8 @@ let easycrypt = callPackage scripts/easycrypt.nix {
   };
 }; in
 
+let z3 = callPackage scripts/z3.nix {}; in
+
 let inherit (coqPackages.coq) ocamlPackages; in
 
 let oP =
