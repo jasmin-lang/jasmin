@@ -59,8 +59,10 @@
   immediate
   ([PR #1242](https://github.com/jasmin-lang/jasmin/pull/1242)).
 
-- The compiler no longer introduces L-values
-  ([PR #1263](https://github.com/jasmin-lang/jasmin/pull/1263)).
+- The compiler no longer introduces L-values; the command line flag `-w_` has
+  been removed
+  ([PR #1263](https://github.com/jasmin-lang/jasmin/pull/1263),
+  [PR #1264](https://github.com/jasmin-lang/jasmin/pull/1264)).
 
 # Jasmin 2025.06.0 — Nancy, 2025-06-18
 

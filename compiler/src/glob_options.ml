@@ -188,7 +188,6 @@ let options = [
     "-safetymakeconfigdoc", Arg.String set_safety_makeconfigdoc, "[dir] Make the safety checker configuration docs in [dir]";
     "-nocheckalignment", Arg.Set trust_aligned, " Do not report alignment issue as safety violations";
     "-wlea", Arg.Unit (add_warning UseLea), " Print warning when lea is used";
-    "-w_"  , Arg.Unit (add_warning IntroduceNone), " Print warning when extra _ is introduced";
     "-wea", Arg.Unit (add_warning ExtraAssignment), " Print warning when extra assignment is introduced";
     "-winsertarraycopy", Arg.Unit (add_warning IntroduceArrayCopy), " Print warning when array copy is introduced";
     "-wduplicatevar", Arg.Unit (add_warning DuplicateVar), " Print warning when two variables share the same name";

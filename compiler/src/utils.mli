@@ -144,7 +144,6 @@ val pp_now  : Format.formatter -> unit
 type warning = 
   | ExtraAssignment 
   | UseLea
-  | IntroduceNone
   | IntroduceArrayCopy
   | InlinedCallToExport
   | KeptRenaming

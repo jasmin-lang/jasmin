@@ -349,7 +349,6 @@ let pp_now =
 type warning =
   | ExtraAssignment (* -wea *)
   | UseLea (* -wlea *)
-  | IntroduceNone (* -w_ *)
   | IntroduceArrayCopy (* -winsertarraycopy *)
   | InlinedCallToExport
   | KeptRenaming
@@ -375,7 +374,7 @@ let default_warnings =
       PedanticPretyping;
     ]
 
-let all_warnings = Linter :: ExtraAssignment :: UseLea :: IntroduceNone :: IntroduceArrayCopy :: KeptRenaming :: default_warnings
+let all_warnings = Linter :: ExtraAssignment :: UseLea :: IntroduceArrayCopy :: KeptRenaming :: default_warnings
 
 let warns = ref default_warnings
 
