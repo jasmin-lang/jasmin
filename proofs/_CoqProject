@@ -148,6 +148,11 @@ itrees/inline_lemma.v
 itrees/inline_lemmaI2.v
 itrees/it_sems_coreI2.v
 itrees/it_sems_coreP.v
+itrees/gradual_rec.v
+
+itrees/it_sems_exec.v
+itrees/lutt_extras.v
+itrees/tfam_iso1.v
 
 lang/array.v
 lang/core_logics.v

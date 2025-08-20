@@ -49,6 +49,88 @@ Class FIso (E1 E2: Type -> Type) : Type := FI {
     mid21 : forall (T: Type) x, @mfun2 T (@mfun1 T x) = x ;
 }.
 
+(***********************************************************************)
+
+Definition sum_perm {E1 E2: Type -> Type} {T} (e: (E1 +' E2) T) :
+  (E2 +' E1) T :=
+  match e with
+  | inl1 x => inr1 x
+  | inr1 x => inl1 x end.                 
+
+Definition sum_id {E1: Type -> Type} {T} (e: E1 T) : E1 T := e.                 
+
+Definition sum_lassoc {E1 E2 E3: Type -> Type} {T} (e: (E1 +' (E2 +' E3)) T) :
+  ((E1 +' E2) +' E3) T :=
+  match e with
+  | inl1 x => inl1 (inl1 x)
+  | inr1 x => match x with
+              | inl1 y => inl1 (inr1 y)
+              | inr1 y => inr1 y end end.
+
+Definition sum_rassoc {E1 E2 E3: Type -> Type} {T} (e: ((E1 +' E2) +' E3) T) :
+  (E1 +' (E2 +' E3)) T :=
+  match e with
+  | inl1 x => match x with
+              | inl1 y => inl1 y
+              | inr1 y => inr1 (inl1 y) end                 
+  | inr1 x => inr1 (inr1 x) end.                  
+
+Definition sum_idem {E1: Type -> Type} {T} (e: (E1 +' E1) T) : E1 T :=
+  match e with
+  | inl1 x => x
+  | inr1 x => x end.            
+
+Definition sum_join {E1 E2 E3: Type -> Type}
+  (F1: E1 ~> E3) (F2: E2 ~> E3) {T} (e: (E1 +' E2) T) : E3 T :=
+  match e with
+  | inl1 x => F1 T x
+  | inr1 x => F2 T x end.            
+
+Definition sum_comp {E1 E2 E3 E4: Type -> Type}
+  (F1: E1 ~> E3) (F2: E2 ~> E4) {T} (e: (E1 +' E2) T) :
+  (E3 +' E4) T :=
+  match e with
+  | inl1 e1 => inl1 (F1 T e1)
+  | inr1 e2 => inr1 (F2 T e2) end.             
+
+Definition sum_lweak {E1 E2 E3: Type -> Type}
+  (F: E1 ~> E2) {T} (e: (E1 +' E3) T) : (E2 +' E3) T :=
+  match e with
+  | inl1 x => inl1 (F T x)
+  | inr1 x => inr1 x end.               
+
+Definition sum_rweak {E1 E2 E3: Type -> Type}
+  (F: E2 ~> E3) {T} (e: (E1 +' E2) T) : (E1 +' E3) T :=
+  match e with
+  | inl1 x => inl1 x 
+  | inr1 x => inr1 (F T x) end.               
+
+Definition sum_ltrans {E1 E2 E3 E4: Type -> Type}
+  (F1: E1 ~> E2) (F2: E2 ~> E3) {T} (e: (E1 +' E4) T) : (E3 +' E4) T :=
+  match e with
+  | inl1 x => inl1 (F2 T (F1 T x))
+  | inr1 x => inr1 x end.               
+
+Definition sum_rtrans {E1 E2 E3 E4: Type -> Type}
+  (F1: E1 ~> E2) (F2: E2 ~> E3) {T} (e: (E4 +' E1) T) : (E4 +' E3) T :=
+  match e with
+  | inl1 x => inl1 x
+  | inr1 x => inr1 (F2 T (F1 T x))
+ end.               
+
+Definition rev_comp1 {E1 E2 E3: Type -> Type}
+  (F1: E1 ~> E2) (F2: E2 ~> E3) : E1 ~> E3 :=
+  fun T x => F2 _ (F1 _ x).
+
+Definition comp1 {E1 E2 E3: Type -> Type}
+  (F1: E2 ~> E3) (F2: E1 ~> E2) : E1 ~> E3 :=
+  fun T x => F1 _ (F2 _ x).
+
+
+(***********************************************************************)
+
+
+
 (* with_Error E E0 -> with_Error (E1 +' E) (E1 +' E0) *)
 Section FIso_suml.
 Context (E1 E E0 Err : Type -> Type) {FI : FIso E (Err +' E0)}.
@@ -101,17 +183,43 @@ Instance FIsoId E : FIso E E :=
    ; mid12 := fun T x => erefl
    ; mid21 := fun T x => erefl |}.
 
+(*****************************************************************)
+
+(** FIso projections *)
+
+Definition LSub {E E1 E2} (EE : FIso E (E1 +' E2)) : E1 -< E :=
+  fun _ x => mfun2 (inl1 x).
+
+Definition RSub {E E1 E2} (EE : FIso E (E1 +' E2)) : E2 -< E :=
+  fun _ x => mfun2 (inr1 x).
+
+Definition LWLSub {E E1 E2 F} (EE : FIso E (E1 +' E2)) : E1 -< F +' E :=
+  rev_comp1 (LSub EE) inr1.
+
+Definition LWRSub {E E1 E2 F} (EE : FIso E (E1 +' E2)) : E2 -< F +' E :=
+  rev_comp1 (RSub EE) inr1.
+
+Definition RWLSub {E E1 E2 F} (EE : FIso E (E1 +' E2)) : E1 -< E +' F :=
+  rev_comp1 (LSub EE) inl1.
+
+Definition RWRSub {E E1 E2 F} (EE : FIso E (E1 +' E2)) : E2 -< E +' F :=
+  rev_comp1 (RSub EE) inl1.
+
+Definition LTransSub {E E0 E1 E2} (EE : FIso E (E1 +' E2)) (X: E0 -< E2) :
+  E0 -< E := rev_comp1 (rev_comp1 X inr1) mfun2.
+
+Definition RTransSub {E E0 E1 E2} (EE : FIso E (E1 +' E2)) (X: E0 -< E1) :
+  E0 -< E := rev_comp1 (rev_comp1 X inl1) mfun2.
+
+ 
+(*****************************************************************)
 
 Lemma FIsoRev {E1 E2} (X: FIso E1 E2) : FIso E2 E1.
 destruct X.
 econstructor; auto.
 Defined.
 
-Lemma FIsoId_old E : FIso E E.
-econstructor; auto.
-Defined.
-
-Global Instance FIsoTrans {E1 E2 E3} (X: FIso E1 E2) (Y: FIso E2 E3) :
+Instance FIsoTrans {E1 E2 E3} (X: FIso E1 E2) (Y: FIso E2 E3) :
   FIso E1 E3.
 destruct X.
 destruct Y.
@@ -128,7 +236,7 @@ econstructor; eauto; intros.
   rewrite mid22; auto.
 Defined.  
   
-Global Instance FIsoSum {E1 E2 E3 E4} (X: FIso E1 E2) (Y: FIso E3 E4) :
+Instance FIsoSum {E1 E2 E3 E4} (X: FIso E1 E2) (Y: FIso E3 E4) :
   FIso (E1 +' E3) (E2 +' E4).
 destruct X.
 destruct Y.
@@ -328,177 +436,5 @@ Proof.
   simpl; intros.
   inv H; eapply FIso_MR_proj4'. 
 Qed.
-
-
-(** FIso projections *)
-
-Section ProjAux.
-  Context {E: Type -> Type}.
-  Context {E1: Type -> Type}.
-  Context {E2: Type -> Type}.
-  Context (EE : FIso E (E1 +' E2)).
- 
-  #[global] Instance LSub : E1 -< E := 
-    match EE with
-     {| mfun1 := f1; mfun2 := f2; mid12 := me12; mid21 := me21 |} =>
-      (fun _ f2 _ _ T (H : E1 T) => f2 T (inl1 H)) f1 f2 me12 me21
-    end.
-
-  #[global] Instance RSub : E2 -< E :=
-    match EE with
-     {| mfun1 := f1; mfun2 := f2; mid12 := me12; mid21 := me21 |} =>
-      (fun _ f2 _ _ T (H : E2 T) => f2 T (inr1 H)) f1 f2 me12 me21
-    end.
-
-End ProjAux.
-
-Section ProjAux1.
-  Context {E F: Type -> Type}.
-  Context {E1: Type -> Type}.
-  Context {E2: Type -> Type}.
-  Context (EE : FIso E (E1 +' E2)).
- 
-  #[global] Instance LSub1 : E1 -< F +' E := 
-    match EE with
-     {| mfun1 := f1; mfun2 := f2; mid12 := me12; mid21 := me21 |} =>
-      (fun _ f2 _ _ T (H : E1 T) => inr1 (f2 T (inl1 H))) f1 f2 me12 me21
-    end.
-
-  #[global] Instance RSub1 : E2 -< F +' E :=
-    match EE with
-     {| mfun1 := f1; mfun2 := f2; mid12 := me12; mid21 := me21 |} =>
-      (fun _ f2 _ _ T (H : E2 T) => inr1 (f2 T (inr1 H))) f1 f2 me12 me21
-    end.
-
-End ProjAux1.
-
-Section ProjAux0.
-  Context {E: Type -> Type}.
-  Context {E1: Type -> Type}.
-  Context {E2: Type -> Type}.
-  Context (X: E -< E1).
- 
-  Instance InclR : E -< E2 +' E1 :=
-    fun T e => inr1 (X e).
-
-  Instance InclL : E -< E1 +' E2 :=
-    fun T e => inl1 (X e).
-
-End ProjAux0.
-
-Section ProjAux2.
-  Context {E E0: Type -> Type}.
-  Context {E1: Type -> Type}.
-  Context {E2: Type -> Type}.
-  Context {X: E0 -< E2}.
- 
-  #[global] Instance WkRSub (EE : FIso E (E1 +' E2)) : E0 -< E := 
-    match EE with
-     {| mfun1 := f1; mfun2 := f2; mid12 := me12; mid21 := me21 |} =>
-      (fun T (H : E0 T) => (f2 T (@inr1 E1 E2 T (X H)))) 
-    end.
-
-  #[global] Instance WkLSub (EE : FIso E (E2 +' E1)) : E0 -< E := 
-    match EE with
-     {| mfun1 := f1; mfun2 := f2; mid12 := me12; mid21 := me21 |} =>
-      (fun T (H : E0 T) => (f2 T (@inl1 E2 E1 T (X H)))) 
-    end.
-
-End ProjAux2.
-
-
-(** FIso notation *)
-
-Section Local.
-  
-  Notation cutoff EE e := (@subevent _ _ (RSub EE) _ e).
-  
-  Notation effect EE e := (@subevent _ _ (LSub EE) _ e).
-
-  Notation Cutoff EE e :=
-    (exists e0, e = cutoff EE e0).
-
-  Notation Effect EE e :=
-    (exists e0, e = effect EE e0).
-
-  Notation DoCutoffF EE t := 
-   (exists T (e: _ T) k, t = VisF (cutoff EE e) k).
-
-  Notation DoCutoff EE t := (DoCutoffF EE (observe t)).
-
-  Notation DoEffectF EE t := 
-   (exists T (e: _ T) k, t = VisF (effect EE e) k).
-
-  Notation DoEffect EE t := (DoEffectF EE (observe t)).
-
-  Notation WillCutoff EE t := 
-    (exists T (e: _ T) k,
-      @eutt _ _ _ eq t (Vis (cutoff EE e) k)).
-
-
-(** FIso lemmas *)
-  
-Section ProjLemmas.
-  Context {E: Type -> Type}.
-  Context {E1: Type -> Type}.
-  Context {E2: Type -> Type}.
-  Context (EE : FIso E (E1 +' E2)).
-
-  Lemma IsoInjection1: forall T (e1 e2: E1 T),   
-     effect EE e1 = effect EE e2 -> e1 = e2.    
-  Proof.
-    intros T e1 e2 H.
-    unfold subevent, resum, RSub, LSub in H.
-    destruct EE as [f1 f2 me1 me2].
-    assert (f1 T (f2 T (inl1 e1)) = f1 T (f2 T (inl1 e2))) as A1.
-    { rewrite H; auto. }
-    repeat (rewrite me1 in A1).
-    inv A1; auto.
-  Qed.
-
-  Lemma IsoInjection2: forall T (e1 e2: E2 T),   
-     cutoff EE e1 = cutoff EE e2 -> e1 = e2.
-  Proof.  
-    intros T e1 e2 H.
-    unfold subevent, resum, RSub, LSub in H.
-    destruct EE as [f1 f2 me1 me2].
-    assert (f1 T (f2 T (inr1 e1)) = f1 T (f2 T (inr1 e2))) as A1.
-    { rewrite H; auto. }
-    repeat (rewrite me1 in A1).
-    inv A1; auto.
-  Qed.
-    
-  Lemma IsoCongruence12: forall T (e1: E1 T) (e2: E2 T),   
-      effect EE e1 = cutoff EE e2 -> False.
-  Proof.  
-    intros T e1 e2 H.
-    unfold subevent, resum, RSub, LSub in H.
-    destruct EE as [f1 f2 me1 me2].
-    assert (f1 T (f2 T (inl1 e1)) = f1 T (f2 T (inr1 e2))) as A1.
-    { rewrite H; auto. }
-    repeat (rewrite me1 in A1).
-    inv A1.
-  Qed.
-
-  Lemma IsoCongruence21: forall T (e1: E1 T) (e2: E2 T),   
-      cutoff EE e2 = effect EE e1 -> False.
-  Proof.  
-    intros T e1 e2 H.
-    symmetry in H.
-    eapply IsoCongruence12; eauto.
-  Qed.     
-
-  Lemma Do2WillCutoff {R} (t: itree E R) :
-    DoCutoff EE t -> WillCutoff EE t.
-    intros [T [e [k H]]].
-    exists T, e, k.
-    setoid_rewrite itree_eta.
-    setoid_rewrite H.
-    simpl; reflexivity.
-  Qed.  
-  
-End ProjLemmas.  
-
-End Local.
 
 

@@ -111,7 +111,7 @@ End Sem3.
 Section Sem3a.
 
 Context {E}
-  {XE : ErrEvent -< E} {XI : @InstrE sopn -< E} {XS: StE -< E}
+  {XE : ErrEvent -< E} {XI : @InstrE sopn -< E} {XS: StE -< E} 
   {XR: recCall -< E}.
 (*  {XR: FIso E (recCall +' E0)}. *)
 
@@ -120,8 +120,8 @@ Context {E}
 (* semantics of instructions, abstracting on function calls (through
    sem_fun) *)
 Fixpoint isem_i_body (i : instr) : itree E unit :=
-  let: (MkI _ i) := i in
-  match i with
+  let: (MkI _ ir) := i in
+  match ir with
   | Cassgn x tg ty e => trigger (AssgnE x tg ty e)
 
   | Copn xs tg o es => trigger (OpnE xs tg o es)
@@ -222,6 +222,17 @@ Definition interp_recCall T (t: itree (recCall +' E) T) : itree E T :=
   interp_mrec handle_recCall t.
 
 (***)
+
+Definition interp_recCall_i (i: instr) : itree E unit :=
+  interp_recCall (isem_i_rec i).
+
+Definition interp_recCall_cmd (c: cmd) : itree E unit :=
+  interp_recCall (isem_cmd_rec c).
+
+Definition interp_recCall_fun (fn : funname) (fs : FState) : itree E FState :=
+  interp_recCall (isem_fun_rec fn fs).
+
+(****)
 
 Definition isem_fun (fn : funname) (fs : FState) : itree E FState :=
   mrec handle_recCall (Call (fn, fs)). 
