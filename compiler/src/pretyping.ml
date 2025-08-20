@@ -1750,16 +1750,6 @@ type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {
 
 let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
   let loc = loc_of_tuples loc (List.map P.L.loc pls) in
-  let ignore_ = L.mk_loc loc S.PLIgnore in
-
-
-  let extend_pls n =
-     let nargs = List.length pls in
-     if nargs < n then
-       let nextra = n - nargs in
-       warning IntroduceNone (L.i_loc0 loc) "introduce %d _ lvalues" nextra;
-       List.make nextra ignore_ @ pls
-     else pls in
 
   let combines =
         [ "<s" , E.CF_LT Wsize.Signed
@@ -1775,14 +1765,10 @@ let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
 
   let pls, pimp_c, implicits =
     match pimp, implicit with
-    | None, _ -> extend_pls (List.length tys), [], []
+    | None, _ -> pls, [], []
     | Some pimp, None -> rs_tyerror ~loc:(L.loc pimp) (string_error "no implicit argument expected");
     | Some pimp, Some implicit ->
       let pimp = L.unloc pimp in
-      let nb_explicit =
-        let open Sopn in
-        List.count_matching (function ADExplicit _ -> true | _ -> false) implicit in
-      let pls = extend_pls nb_explicit in
       let arguments =
         (* FIXME this is not generic *)
         let open Sopn in

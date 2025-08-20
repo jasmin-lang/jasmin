@@ -63,6 +63,9 @@
   immediate
   ([PR #1256](https://github.com/jasmin-lang/jasmin/pull/1256)).
 
+- The compiler no longer introduces L-values
+  ([PR #1263](https://github.com/jasmin-lang/jasmin/pull/1263)).
+
 # Jasmin 2025.06.0 — Nancy, 2025-06-18
 
 ## New features
