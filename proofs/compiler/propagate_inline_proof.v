@@ -399,13 +399,13 @@ End Global.
 
 Section PROOF.
 
-  Context (p1 p2 : prog) (ev : extra_val_t).
+  Context (fuel: nat) (p1 p2 : prog) (ev : extra_val_t).
 
   Notation gd := (p_globs p1).
   Notation ep1 := (p_extra p1).
   Notation ep2 := (p_extra p2).
 
-  Hypothesis hcomp : pi_prog p1 = ok p2.
+  Hypothesis hcomp : pi_prog (S fuel) p1 = ok p2.
 
   Lemma eq_globs : p_globs p1 = p_globs p2.
   Proof. by move: hcomp; rewrite /pi_prog; t_xrbindP => ?? <-. Qed.
@@ -415,7 +415,7 @@ Section PROOF.
 
   Lemma all_checked fn f1 :
     get_fundef (p_funcs p1) fn = Some f1 ->
-    exists2 f2, pi_fun f1 = ok f2 & get_fundef (p_funcs p2) fn = Some f2.
+    exists2 f2, pi_fun (S fuel) f1 = ok f2 & get_fundef (p_funcs p2) fn = Some f2.
   Proof.
     move: hcomp; rewrite /pi_prog; t_xrbindP => pf2 hf <- /=.
     by apply: compiler_util.get_map_cfprog_gen hf.
@@ -446,10 +446,10 @@ Section PROOF.
   Qed.
 
   Local Lemma loop_whileP ii c1 e c2 c1' e' c2' n pi1 pi2:
-    loop_while pi_i ii c1 e c2 n pi1 = ok (pi2, c1', e', c2') ->
+    loop_while (pi_i (S fuel)) ii c1 e c2 n pi1 = ok (pi2, c1', e', c2') ->
       exists pi pi3,
-      [/\ pi_c pi_i pi c1 = ok (pi2, c1'),
-          pi_c pi_i pi2 c2 = ok (pi3, c2'),
+      [/\ pi_c (pi_i (S fuel)) pi c1 = ok (pi2, c1'),
+          pi_c (pi_i (S fuel)) pi2 c2 = ok (pi3, c2'),
           e' = pi_e pi2 e
         & incl pi pi3 /\ incl pi pi1 ].
   Proof.
@@ -465,24 +465,28 @@ Section PROOF.
   Qed.
 
   Local Lemma pi_i_whileP ii a c1 e ei c2 pi1 pi2:
-    pi_i pi1 (MkI ii (Cwhile a c1 e ei c2)) = ok pi2 ->
+    pi_i (S fuel) pi1 (MkI ii (Cwhile a c1 e ei c2)) = ok pi2 ->
     exists pi pi3 c1' c2',
-      [/\ pi_c pi_i pi c1 = ok (pi2.1, c1'),
-          pi_c pi_i pi2.1 c2 = ok (pi3, c2'),
-          pi_i pi (MkI ii (Cwhile a c1 e ei c2)) = ok pi2,
+      [/\ pi_c (pi_i (S fuel)) pi c1 = ok (pi2.1, c1'),
+          pi_c (pi_i (S fuel)) pi2.1 c2 = ok (pi3, c2'),
+          pi_i (S fuel) pi (MkI ii (Cwhile a c1 e ei c2)) = ok pi2,
           pi2 = (pi2.1, MkI ii (Cwhile a c1' (pi_e pi2.1 e) ei c2'))
         & incl pi pi3 /\ incl pi pi1 ].
   Proof.
-    rewrite /=; t_xrbindP => -[[[pi2' c1'] e'] c2'] hl [<-] /=.
+    remember (S fuel) as n eqn: hn => /=.
+    t_xrbindP => -[[[pi2' c1'] e'] c2'] hl [<-] /=.
+    rewrite hn in hl.
     have [pi [pi3 [hc1 hc2 he [hi1 hi2]]]]:= loop_whileP hl; subst e'.
     exists pi, pi3, c1', c2'; split => //.
-    by rewrite compiler_util.Loop.nbP /= hc1 /= hc2 /= hi1 /=.
+    - by rewrite hn /= hc1.
+    - by rewrite hn /= hc2.
+    by rewrite hn /= hc1 /= hc2 /= hi1.
   Qed.
 
   Local Lemma loop_forP ii x c n pi1 pi c' :
-    loop_for pi_i ii x c n pi1 = ok (pi, c') ->
+    loop_for (pi_i (S fuel)) ii x c n pi1 = ok (pi, c') ->
     exists pi3,
-     [/\ pi_c pi_i (remove pi x) c = ok (pi3, c'),
+     [/\ pi_c (pi_i (S fuel)) (remove pi x) c = ok (pi3, c'),
          incl pi pi3
        & incl pi pi1].
   Proof.
@@ -494,7 +498,7 @@ Section PROOF.
   Qed.
 
   Lemma Hassgn_aux s1 s2 ii x tag ty e pi pi2 vm1:
-    pi_i pi (MkI ii (Cassgn x tag ty e)) = ok pi2 →
+    pi_i (S fuel) pi (MkI ii (Cassgn x tag ty e)) = ok pi2 →
     sem_assgn p1 x tag ty e s1 = ok s2 ->
     evm s1 <=1 vm1 →
     valid_pi gd s1 pi →
@@ -535,7 +539,7 @@ Section PROOF.
 
   Let Pi s1 (i1:instr) s2:=
     forall pi pi2 vm1,
-      pi_i pi i1 = ok pi2 ->
+      pi_i (S fuel) pi i1 = ok pi2 ->
       evm s1 <=1 vm1 -> valid_pi gd s1 pi ->
       exists vm2,
       [/\ evm s2 <=1 vm2, valid_pi gd s2 pi2.1
@@ -546,7 +550,7 @@ Section PROOF.
 
   Let Pc s1 (c1:cmd) s2:=
     forall pi pc2 vm1,
-      pi_c pi_i pi c1 = ok pc2 ->
+      pi_c (pi_i (S fuel)) pi c1 = ok pc2 ->
       evm s1 <=1 vm1 -> valid_pi gd s1 pi ->
       exists vm2,
       [/\ evm s2 <=1 vm2, valid_pi gd s2 pc2.1
@@ -554,7 +558,7 @@ Section PROOF.
 
   Let Pfor (i1:var_i) vs s1 c1 s2 :=
     forall pi pc2 vm1,
-      pi_c pi_i (remove pi i1) c1 = ok pc2 -> incl pi pc2.1 ->
+      pi_c (pi_i (S fuel)) (remove pi i1) c1 = ok pc2 -> incl pi pc2.1 ->
       evm s1 <=1 vm1 -> valid_pi gd s1 pi ->
       exists vm2,
       [/\ evm s2 <=1 vm2, valid_pi gd s2 pi
@@ -665,9 +669,13 @@ Section PROOF.
 
   Local Lemma Hfor : sem_Ind_for p1 ev Pi_r Pfor.
   Proof.
-    move => s1 s2 i d lo hi c vlo vhi he1 he2 _ hfor ii pi pi2 vm1 /=.
-    t_xrbindP => -[pi' c'] /= /loop_forP [pi3] [hpic hi1 hi2] ?; subst pi2 => /= hu hv.
+    move: eq_globs => eq_globs.
+    move => s1 s2 i d lo hi c vlo vhi he1 he2 _ hfor ii pi pi2 vm1.
+    remember (S fuel) as n eqn: hn => /=.
+    t_xrbindP => -[pi' c'].
+    rewrite {1} hn => /loop_forP [pi3] [hpic hi1 hi2] ?; subst pi2 => /= hu hv.
     have hv' := valid_pi_incl hi2 hv.
+    rewrite -hn in hpic.
     have [/= vm2 [hu2 hv2 hs]]:= hfor _ _ _ hpic hi1 hu hv'.
     exists vm2; split => //.
     constructor; econstructor; eauto; rewrite -eq_globs.
@@ -808,14 +816,14 @@ Section PROOF.
 
   Let Pi i :=
     forall d di,
-      pi_i d i = ok di ->
+      pi_i (S fuel) d i = ok di ->
       wequiv_rec p1 p2 ev ev uincl_spec (st_pi d) [::i] [::di.2] (st_pi di.1).
 
   Let Pi_r i := forall ii, Pi (MkI ii i).
 
   Let Pc c :=
     forall d dc,
-      pi_c pi_i d c = ok dc ->
+      pi_c (pi_i (S fuel)) d c = ok dc ->
       wequiv_rec p1 p2 ev ev uincl_spec (st_pi d) c dc.2 (st_pi dc.1).
 
   Lemma st_pi_incl d d' : incl d' d -> ∀ s1 s2, st_pi d s1 s2 → st_pi d' s1 s2.
@@ -833,7 +841,7 @@ Section PROOF.
           , f_extra fd1 = f_extra fd2
           , f_params fd1 = f_params fd2
           , f_res fd1 = f_res fd2
-          & exists2 dc, pi_c pi_i piempty (f_body fd1) = ok dc & f_body fd2 = dc.2
+          & exists2 dc, pi_c (pi_i (S fuel)) piempty (f_body fd1) = ok dc & f_body fd2 = dc.2
          ].
     + move: hfun; rewrite /pi_fun; case fd1 => /= >; t_xrbindP => di -> <- /=; split => //.
       by exists di.
@@ -870,12 +878,13 @@ Section PROOF.
       apply wequiv_if_rel_uincl_R with checker_pi d di1.1 di2.1 => //.
       + by apply/st_pi_incl/incl_merge_l.
       by apply/st_pi_incl/incl_merge_r.
-    + move=> v dir lo hi c hc ii d di /=; t_xrbindP.
+    + move=> v dir lo hi c hc ii d di.
+      rewrite /pi_i -/(pi_i _); t_xrbindP.
       move=> -[d' c'] /loop_forP [d1 [ /hc/={}hc hincl1 hincl2]] <- /=.
       apply wequiv_for_rel_uincl_R with checker_pi d (remove d' v) => //.
       + by apply st_pi_incl.
       by apply wequiv_weaken with (st_pi (remove d' v)) (st_pi d1) => //; apply st_pi_incl.
-    + move=> a c1 e ii' c2 hc1 hc2 ii d di /=; t_xrbindP.
+    + move=> a c1 e ii' c2 hc1 hc2 ii d di. rewrite /pi_i -/(pi_i _); t_xrbindP.
       move=> [[[d' c1'] e'] c2' ] /loop_whileP [d1] [d2] [/hc1 /={}hc1 /hc2/={}hc2 -> [hincl1 hincl2]] [<-] /=.
       apply wequiv_weaken with (st_pi d1) (st_pi d') => //.
       + by apply st_pi_incl.

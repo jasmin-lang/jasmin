@@ -891,6 +891,7 @@ Context
   (shparams : slh_lowering.sh_params)
   (saparams : stack_alloc_params)
   (is_move_op : asm_op_t -> bool)
+  (fuel: nat)
   (fresh_var_ident  : v_kind -> Uint63.int -> string -> stype -> Ident.ident)
   (pp_sr : sub_region -> pp_error)
 .
@@ -1779,7 +1780,7 @@ Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region
       Let: (table2, rmap2, c2) := fmapM (alloc_i sao) (table1, rmap1) c2 in
       ok ((table1, rmap1), (table2, rmap2), (e, c1, c2))
     in
-    Let: (table, rmap, (e, c1, c2)) := loop2 ii check_c Loop.nb table rmap in
+    Let: (table, rmap, (e, c1, c2)) := loop2 ii check_c fuel table rmap in
     ok (table, rmap, [:: MkI ii (Cwhile a (flatten c1) e info (flatten c2))])
 
   | Ccall rs fn es =>

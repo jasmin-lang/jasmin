@@ -40,6 +40,7 @@ End E.
 Section REMOVE.
 
   Context `{asmop:asmOp}.
+  Context (fuel: nat).
   Context (fresh_id : glob_decls -> var -> Ident.ident).
 
   Notation venv := (Mvar.t var).
@@ -285,7 +286,7 @@ Section REMOVE.
             Let e := remove_glob_e ii env1 e in
             Let envc2 := remove_glob remove_glob_i env1 c2 in
             ok (Check2_r e envc1 envc2) in
-          Let lr := loop2 check_c Loop.nb env in
+          Let lr := loop2 check_c fuel env in
           let: (Loop2_r e c1 c2 env) := lr in
           ok (env, [::MkI ii (Cwhile a c1 e info c2)])
         | Cfor xi (d,e1,e2) c =>
@@ -294,7 +295,7 @@ Section REMOVE.
             Let e1 := remove_glob_e ii env e1 in
             Let e2 := remove_glob_e ii env e2 in
             let check_c env := remove_glob remove_glob_i env c in
-            Let envc := loop check_c Loop.nb env in
+            Let envc := loop check_c fuel env in
             let: (env, c) := envc in
             ok (env, [::MkI ii (Cfor xi (d,e1,e2) c)])
         | Ccall lvs fn es =>

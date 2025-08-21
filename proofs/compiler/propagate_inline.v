@@ -66,6 +66,7 @@ Section WITH_PARAMS.
 Context
   {asm_op syscall_state : Type}
   {asmop:asmOp asm_op}
+  (fuel: nat)
   {fcp : FlagCombinationParams}.
 
 Definition scfc (cf : combine_flags) (es : seq pexpr) : pexpr :=
@@ -182,11 +183,11 @@ Fixpoint pi_i (pi:pimap) (i:instr) :=
   | Cfor x (d,e1,e2) c => 
     let e1 := pi_e pi e1 in
     let e2 := pi_e pi e2 in
-    Let pic := loop_for pi_i ii x c Loop.nb pi in
+    Let pic := loop_for pi_i ii x c fuel pi in
     ok (pic.1, MkI ii (Cfor x (d,e1,e2) pic.2))
     
   | Cwhile a c1 e info c2 => 
-    Let pic := loop_while pi_i ii c1 e c2 Loop.nb pi in
+    Let pic := loop_while pi_i ii c1 e c2 fuel pi in
     let:(pi, c1, e, c2) := pic in
     ok (pi, MkI ii (Cwhile a c1 e info c2))
 
