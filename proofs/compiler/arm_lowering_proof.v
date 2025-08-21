@@ -204,6 +204,12 @@ Proof.
     reflexivity.
 Qed.
 
+Lemma pair_eq_dec A B
+  (A_dec : forall a1 a2 : A, { a1 = a2 } + { a1 <> a2 })
+  (B_dec : forall b1 b2 : B, { b1 = b2 } + { b1 <> b2 }) :
+  forall ab1 ab2 : A * B, { ab1 = ab2 } + {ab1 <> ab2 }.
+Proof. by decide equality. Qed.
+
 Lemma lower_condition_Papp2P vi s op e0 e1 mn e es v0 v1 v :
   lower_condition_Papp2 fv vi op e0 e1 = Some (mn, e, es)
   -> sem_pexpr true (p_globs p) s e0 = ok v0
@@ -220,111 +226,94 @@ Lemma lower_condition_Papp2P vi s op e0 e1 mn e es v0 v1 v :
       ].
 Proof.
   move=> h hseme0 hseme1 hsemop.
+  move: h; rewrite /lower_condition_Papp2.
+  apply: obindP => -[cf ws] hcf /chk_ws_regP [? h]; subst ws.
 
-  (* TODO_ARM: Can this common part be abstracted? *)
-  case: op h hsemop => //.
-  all:
-    match goal with
-    | [ |- forall (_ : op_kind), _ -> _ ] => move=> [|[]] //=
-    | [ |- forall (_ : cmp_kind), _ -> _ ] => move=> [|[] []] //=
-    end.
+  (* whatever [op] is, it takes two words as arguments and returns a bool *)
+  have: exists ws0 ws1 (w0 : word ws0) (w1 : word ws1) b,
+    [/\ (reg_size ≤ ws0)%CMP,
+        (reg_size ≤ ws1)%CMP,
+        v0 = Vword w0,
+        v1 = Vword w1,
+        forall eq : type_of_op2 op = (sword reg_size, sword reg_size, sbool),
+          ecast t (let t := t in _) eq (sem_sop2_typed op) (zero_extend reg_size w0) (zero_extend reg_size w1) = ok b &
+        v = Vbool b].
+  + have hty: type_of_op2 op = (sword reg_size, sword reg_size, sbool).
+    + by case: (op) hcf => // -[] //= > [_ ->].
+    move: hsemop; rewrite /sem_sop2.
+    move: (sem_sop2_typed op); rewrite -> hty.
+    t_xrbindP=> /= sem _ /to_wordI' [ws0 [w0 [hcmp0 -> ->]]]
+      _ /to_wordI' [ws1 [w1 [hcmp1 -> ->]]] b ok_b <-.
+    exists ws0, ws1, w0, w1, b; split=> //.
+    move=> eq.
+    have eq_dec := pair_eq_dec (pair_eq_dec stype_eqb_OK_sumbool stype_eqb_OK_sumbool) stype_eqb_OK_sumbool.
+    by rewrite (Eqdep_dec.UIP_dec eq_dec eq erefl).
+  move=> /= [ws0 [ws1 [w0 [w1 [b [hcmp0 hcmp1 ?? {}hsemop ->]]]]]]; subst v0 v1.
 
-  - rewrite /lower_condition_Papp2.
-    case hTST: lower_TST => [es'|] //.
+  (* default case: CMP *)
+  have suff hdefault: Some (CMP, pexpr_of_cf cf vi (fresh_flags fv), [:: e0; e1]) = Some (mn, e, es).
+  + move=> [<- <- <-].
+    exists ws0, ws1, w0, w1; split=> //.
+    + by rewrite /= hseme0 hseme1 /=.
+    rewrite /= /get_gvar /=; repeat t_get_var => //.
+    case: op hcf hsemop {h} => //= -[] // => [||[]|[]|[]|[]] _ [<- ->] /(_ erefl);
+      rewrite /mk_sem_sop2 /sem_opN /= /sem_combine_flags /cf_xsem /NF_of_word /ZF_of_word /=
+        1?wsub_wnot1
+        1?nzcv_of_aluop_CF_sub
+        1?wsigned_wsub_wnot1
+        ?GRing.Theory.subr_eq0
+        //
+      => -[<-].
 
-  all: move=> [? ? ?] hsemop; subst mn e es.
+   (* Case [w0 == w1]. *)
+   - done.
 
-  all: move: hsemop => /sem_sop2I /= [w0 [w1 [b [hw0 hw1 hop]]]].
-  all: move: hw0 => /to_wordI [ws0 [w0' [? /truncate_wordP [hws0 ?]]]];
-         subst v0 w0.
-  all: move: hw1 => /to_wordI [ws1 [w1' [? /truncate_wordP [hws1 ?]]]];
-         subst v1 w1.
-  all: move: hop => [?] ?; subst b v.
+   (* Case [w0 != w1]. *)
+   - done.
 
-  (* Case [w00 & w01 == 0]. *)
-  - have [? [e00 [e01 [? [? ?]]]]] := lower_TST_match hTST; subst e0 e1.
-    move: hTST.
+   (* Case [w0 <s w1]. *)
+   - by rewrite wltsE.
 
-    move: hseme0 => /=.
-    t_xrbindP=> v00 hseme00 v01 hseme01 hw0'.
-    move: hw0' => /sem_sop2I /= [w00 [w01 [w0 [hw00 hw01 hw0 hw0']]]].
-    move: hw00 => /to_wordI [ws00 [w00' [? /truncate_wordP [hws00 ?]]]];
-      subst v00 w00.
-    move: hw01 => /to_wordI [ws01 [w01' [? /truncate_wordP [hws01 ?]]]];
-      subst v01 w01.
-    move: hw0 => [?]; subst w0.
-    move: hw0' => /Vword_inj [?]; subst ws0.
-    move=> /= ?; subst w0'.
+   (* Case [w0 <u w1]. *)
+   - by rewrite wleuE ltNge.
 
-    move: hseme1 => /sem_sop1I /= [w1 [?]] [[?] [?] hw1']; subst w1.
-    move: hw1' => /Vword_inj [?]; subst ws1.
-    move=> /= ?; subst w1'.
+   (* Case [w0 <=s w1]. *)
+   - by rewrite wlesE'.
 
-    move=> [?]; subst.
-    rewrite /=.
+   (* Case [w0 <=u w1]. *)
+   - by rewrite wleuE'.
 
-    rewrite hseme00 hseme01 {hseme00 hseme01} /=.
-    eexists; eexists; eexists; eexists;
-      split;
-      first done;
-      first exact: (cmp_le_trans hws0 hws00);
-      first exact: (cmp_le_trans hws0 hws01);
-      first reflexivity.
-    clear hws00 hws01.
+   (* Case [w0 >s w1]. *)
+   - by rewrite wlesE' ltNge.
 
-    rewrite /pexpr_of_cf /= /get_gvar /=.
-    repeat t_get_var => //.
+   (* Case [w0 >u w1]. *)
+   - by rewrite wleuE' ltNge.
 
-    rewrite wrepr0 zero_extend0.
-    rewrite -(wand_zero_extend _ _ hws0).
-    by rewrite !(zero_extend_idem _ hws0) {hws0}.
+   (* Case [w0 >=s w1]. *)
+   - by rewrite wltsE leNgt.
 
-  all: rewrite hseme0 hseme1 {hseme0 hseme1} /=.
-  all: eexists; eexists; eexists; eexists;
-         split;
-    first done;
-    first exact: hws0;
-    first exact: hws1;
-    first reflexivity.
-  all: clear hws0 hws1.
+   (* Case [w0 >=u w1]. *)
+   by rewrite -word.wltuE leNgt.
 
-  all: rewrite /get_gvar /=.
-  all: repeat t_get_var => //.
-
-  all: rewrite
-    /sem_opN /= /sem_combine_flags /cf_xsem /NF_of_word /ZF_of_word /=
-    1?wsub_wnot1
-    1?nzcv_of_aluop_CF_sub
-    1?wsigned_wsub_wnot1
-    ?GRing.Theory.subr_eq0
-    //.
-  all: clear.
-  all: set w0 := zero_extend _ w0'.
-  all: set w1 := zero_extend _ w1'.
-
-  (* Case [w0 <s w1]. *)
-  - by rewrite wltsE.
-
-  (* Case [w0 <u w1]. *)
-  - by rewrite wleuE ltNge.
-
-  (* Case [w0 <=s w1]. *)
-  - by rewrite wlesE'.
-
-  (* Case [w0 <=u w1]. *)
-  - by rewrite wleuE'.
-
-  (* Case [w0 >s w1]. *)
-  - by rewrite wlesE' ltNge.
-
-  (* Case [w0 >u w1]. *)
-  - by rewrite wleuE' ltNge.
-
-  (* Case [w0 >=s w1]. *)
-  - by rewrite wltsE leNgt.
-
-  (* Case [w0 >=u w1]. *)
-  by rewrite -word.wltuE leNgt.
+  case: op hcf hsemop h => // -[] //= _ [? ->] /(_ erefl) hsemop; subst cf.
+  case hlower: lower_TST => [es'|//].
+  (* special case: TST, [w00 & w01 == 0] *)
+  move=> [<- <- <-].
+  have [ws0' [e00 [e01 [ws1' [??]]]]] := lower_TST_match hlower; subst e0 e1.
+  move: hlower => /= [<-].
+  move: hseme0 hseme1; rewrite /= /sem_sop2 /sem_sop1 /=.
+  apply: rbindP => v00 hseme00.
+  apply: rbindP => v01 hseme01.
+  apply: rbindP => _ /to_wordI' [ws00 [w00 [hcmp00 ? ->]]]; subst v00.
+  apply: rbindP => _ /to_wordI' [ws01 [w01 [hcmp01 ? ->]]]; subst v01.
+  move=> /ok_inj /Vword_inj [??] /ok_inj /Vword_inj [??]; subst ws0' ws1' w0 w1.
+  move: hsemop; rewrite /mk_sem_sop2 /= wrepr0 zero_extend0 => -[<-].
+  exists ws00, ws01, w00, w01; split=> //.
+  + by apply (cmp_le_trans hcmp0 hcmp00).
+  + by apply (cmp_le_trans hcmp0 hcmp01).
+  + by rewrite hseme00 hseme01 /=.
+  rewrite /get_gvar /=; repeat t_get_var => //.
+  by rewrite /ZF_of_word /= -wand_zero_extend // !zero_extend_idem //.
 Qed.
 
 Lemma sem_lower_condition_pexpr vi tag s0 s0' ii e v lvs aop es c :
@@ -396,15 +385,15 @@ Qed.
 
 (* Note that the interpretation of the expression is [zero_extend reg_size w]
    due to the implicit castings in [sem]. *)
-Lemma get_arg_shiftP s e ws w e' sh n :
+Lemma get_arg_shiftP s e ws v e' sh n :
   get_arg_shift ws [:: e ] = Some (e', sh, n)
   -> disj_fvars (read_e e)
-  -> sem_pexpr true (p_globs p) s e = ok w
+  -> sem_pexpr true (p_globs p) s e = ok v
   -> exists ws1 (wbase : word ws1) (wsham : word U8),
        [/\ (ws <= ws1)%CMP
          , sem_pexpr true (p_globs p) s e' = ok (Vword wbase)
          , sem_pexpr true (p_globs p) s n = ok (Vword wsham)
-         , to_word reg_size w
+         , to_word reg_size v
            = ok (shift_op sh (zero_extend reg_size wbase) (wunsigned wsham))
          & (disj_fvars (read_e e') /\ disj_fvars (read_e n))
        ].
@@ -423,22 +412,29 @@ Proof.
 
   apply: obindP => sh' /oassertP [] /eqP ? hsh /oassertP [hchk [???]];
     subst ws e' sh' n.
-  case: op hsemop hfve hsh hchk => // [[] | [|[]] | [|[]] | []] //= hsemop hfve.
-  all: move=> [?]; subst sh.
-  all: move=> /andP [] /ZleP hlo /ZleP hhi.
 
-  all: move: hsemop
-         => /sem_sop2I /= [wbase' [wsham' [wres [hbase hsham hop hw]]]].
+  (* whatever [op] is, the type is the same: (sword32, sword8, sword32) *)
+  have: exists ws1 (wbase : word ws1) w,
+    [/\ (reg_size ≤ ws1)%CMP,
+        vbase = Vword wbase,
+        forall eq : type_of_op2 op = (sword reg_size, sword8, sword reg_size),
+          ecast t (let t := t in _) eq (sem_sop2_typed op) (zero_extend reg_size wbase) (wrepr U8 z) = ok w &
+        v = Vword w].
+  + have hty: type_of_op2 op = (sword32, sword8, sword32).
+    + by case: (op) hsh => // => [[]|[|[]]|[|[]]|[]] //.
+    move: hsemop; rewrite /sem_sop2.
+    move: (sem_sop2_typed op); rewrite -> hty.
+    rewrite /= truncate_word_u.
+    t_xrbindP=> sem _ /to_wordI' [ws1 [wbase [hcmp -> ->]]] _ <- w ok_w <-.
+    exists ws1, wbase, w; split=> //.
+    move=> eq.
+    have eq_dec := pair_eq_dec (pair_eq_dec stype_eqb_OK_sumbool stype_eqb_OK_sumbool) stype_eqb_OK_sumbool.
+    by rewrite (Eqdep_dec.UIP_dec eq_dec eq erefl).
+  move=> /= [ws1 [wbase [w [hcmp ? {}hsemop ->]]]]; subst vbase.
+  exists ws1, wbase, (wrepr U8 z); split=> //=.
+  rewrite truncate_word_u.
 
-  all: move: hbase => /to_wordI [ws1 [wbase [? /truncate_wordP [hws1 ?]]]];
-         subst vbase wbase'.
-
-  all: move: hsham.
-  all: rewrite truncate_word_le //.
-  all: move=> [?]; subst wsham'.
-  all: move: hop => [?]; subst wres w.
-  all: rewrite hget {hget} /= zero_extend_u truncate_word_u.
-  all: eexists; eexists; eexists; split; by eauto.
+  by case: op hsh hsemop {hfve} => // => [[]|[|[]]|[|[]]|[]] // [<-] /(_ erefl).
 Qed.
 
 Lemma disj_fvars_read_es2 e0 e1 :
@@ -700,6 +696,120 @@ Proof. by case: e => // - [] // - [] // - [] // x y; left. Qed.
 
 End IS_MUL.
 
+(* The main consequence of the lemmas in this section is lemma [lower_base_op].
+   It was moved far from it, because we also use [with_shift_binop]
+   in the proof of [lower_Papp2P]. *)
+Section WITH_SHIFT_OP.
+
+#[ local ]
+Ltac intro_opn_args :=
+  rewrite /sem_tuple /=;
+  repeat
+    match goal with
+    | [ |- forall (_ : _ * _), _ ] => move=> []
+    | [ |- forall (_ : option bool), _ ] => move=> ?
+    | [ |- forall (_ : _ (word _)), _ ] => move=> ?
+    end.
+
+#[local]
+Ltac intro_args_wrapper :=
+  intro_opn_args;
+  rewrite !truncate_word_le // => -> _ /ok_inj <-.
+
+#[local]
+Ltac destruct_args_wrapper vs :=
+  move: vs;
+  destruct_opn_args;
+  repeat (move=> ? ->).
+
+(* Rewrite result of execution. If we are under conditional execution, find
+   the condition and case on it, the case when the instruction is not
+   executiod is trivial.
+   We can't match on [sopn_sem] because of the dependent types. *)
+#[local]
+Ltac rewrite_exec :=
+  let h := fresh "h" in
+  move=> /= h ?;
+  subst;
+  move: h;
+  let mytac := move=> /ok_inj; (move=> <- || move=> [] *; subst) in
+  match goal with
+  | [ b : bool |- context [{| is_conditional := true |}] ] =>
+      case: b; mytac; last done
+  end
+  || mytac;
+  rewrite /= !zero_extend_u.
+
+Lemma with_shift_unop s eb ea ts (b: word ts) (a: u8) x vs sh opts r :
+  (U32 ≤ ts)%CMP ->
+  has_shift opts = None ->
+  sem_pexpr true (p_globs p) s eb = ok (Vword b) ->
+  sem_pexpr true (p_globs p) s ea = ok (Vword a) ->
+  to_word reg_size x = ok (shift_op sh (zero_extend reg_size b) (wunsigned a)) ->
+  exec_sopn (Oasm (BaseOp (None, ARM_op MVN opts))) [:: x & vs] = ok r ->
+  exec_sopn (Oasm (BaseOp (None, ARM_op MVN (with_shift opts sh) ))) [:: Vword b, Vword a & vs] = ok r.
+Proof.
+  case: opts => S cc /= _ hts -> ok_b ok_a /to_wordI'[] xs [] wx [] hxs ->{x} hx.
+  case: cc S => - [].
+  all: rewrite /exec_sopn /=; t_xrbindP.
+  all: intro_opn_args; rewrite !truncate_word_le // {hxs hts} => /ok_inj <-.
+  all: destruct_args_wrapper vs.
+  all: rewrite_exec.
+  all: by rewrite hx.
+Qed.
+
+Lemma with_shift_binop mn s eb ea ts (b: word ts) (a: u8) x y vs sh opts r :
+  mn \in [:: ADD; SUB; RSB; AND; BIC; EOR; ORR; CMP; TST] ->
+  (U32 ≤ ts)%CMP ->
+  has_shift opts = None ->
+  sem_pexpr true (p_globs p) s eb = ok (Vword b) ->
+  sem_pexpr true (p_globs p) s ea = ok (Vword a) ->
+  to_word reg_size y = ok (shift_op sh (zero_extend reg_size b) (wunsigned a)) ->
+  exec_sopn (Oasm (BaseOp (None, ARM_op mn opts))) [:: x, y & vs] = ok r ->
+  exec_sopn (Oasm (BaseOp (None, ARM_op mn (with_shift opts sh) ))) [:: x, Vword b, Vword a & vs] = ok r.
+Proof.
+  rewrite !inE.
+  case: opts => S cc /= _ mn_binop hts -> ok_b ok_a /to_wordI'[] ys [] wy [] hys ->{y} hy.
+  case: cc S => - [].
+  all: repeat case/orP: mn_binop => [ /eqP -> { mn } | mn_binop ]; last move/eqP: mn_binop => -> { mn }.
+  all: rewrite /exec_sopn /=; t_xrbindP.
+  all: intro_args_wrapper => {hys hts}.
+  all: destruct_args_wrapper vs.
+  all: rewrite_exec.
+  all: by rewrite hy.
+Qed.
+
+Lemma with_shift_terop mn s eb ea ts (b: word ts) (a: u8) x y z vs sh opts r :
+  mn \in [:: ADC; SBC ] ->
+  (U32 ≤ ts)%CMP ->
+  has_shift opts = None ->
+  sem_pexpr true (p_globs p) s eb = ok (Vword b) ->
+  sem_pexpr true (p_globs p) s ea = ok (Vword a) ->
+  to_word reg_size y = ok (shift_op sh (zero_extend reg_size b) (wunsigned a)) ->
+  exec_sopn (Oasm (BaseOp (None, ARM_op mn opts))) [:: x, y, z & vs] = ok r ->
+  exec_sopn (Oasm (BaseOp (None, ARM_op mn (with_shift opts sh) ))) [:: x, Vword b, z, Vword a & vs] = ok r.
+Proof.
+  rewrite !inE.
+  case: opts => S cc /= _ mn_terop hts -> ok_b ok_a /to_wordI'[] ys [] wy [] hys ->{y} hy.
+  case: S cc => - [].
+  all: repeat case/orP: mn_terop => [ /eqP -> { mn } | mn_terop ]; last move/eqP: mn_terop => -> { mn }.
+  all: rewrite /exec_sopn /=; t_xrbindP.
+  all: intro_args_wrapper => {hys hts}.
+  all: destruct_args_wrapper vs.
+  all: rewrite_exec.
+  all: by rewrite hy.
+Qed.
+
+End WITH_SHIFT_OP.
+
+(* changing the shift component preserves the output type *)
+Lemma sopn_tout_with_shift mn opts sk :
+  id_tout (mn_desc (with_shift opts sk) mn) = id_tout (mn_desc opts mn).
+Proof.
+  case: opts => sf ic sk'.
+  by case: mn => //=; case: sf sk' => [] [] //.
+Qed.
+
 Lemma lower_Papp2P op e0 e1 :
   Plower_pexpr_aux (Papp2 op e0 e1).
 Proof.
@@ -715,246 +825,217 @@ Proof.
   move: h.
   rewrite /= /lower_Papp2.
 
-  case: ws hws => // hws.
-  case hop: lower_Papp2_op => [[[mn' e0'] e1']|] //.
-  rewrite /arg_shift /=.
+  apply: obindP => -[[mn' e0'] e1'] /[dup] hop /chk_ws_regP [? _]; subst ws.
 
-  case hhas_shift: (mn' \in has_shift_mnemonics).
-  - case hget_arg_shift: get_arg_shift => [[[b' sh] n]|].
-    {
-      (* TODO_ARM: This block is exactly the same in the unshifted case. *)
-      (* The problem is that we can't abstract
-         [to_word ws v0 = ok w0 -> to_word ws v1 = ok w1 -> sem_sop2_typed op w0 w1]
-         as a hypothesis because of the dependent type in [sem_sop2_typed]. *)
+  (* the default case: there is no arg shift *)
+  have hdflt:
+    let dflt_op := Oasm (BaseOp (None, ARM_op mn' default_opts)) in
+    ok_lower_pexpr_aux s reg_size dflt_op (e0' :: e1') w.
+  {
+    case: op hop hsemop => //;
+      rewrite /lower_Papp2_op /=.
 
-      move=> -[??]; subst op' es.
-      case: op hop hsemop => //;
-        rewrite /lower_Papp2_op /=.
+    all:
+      match goal with
+      | [ |- forall _ : op_kind, _ -> _ ] => move=> [|ws''] //
+      | [ |- forall (_ : cmp_kind), _ -> _ ] => move=> [|[] ws''] //
+      | [ |- forall (_ : signedness) (_ : op_kind), _ -> _ ] => move=> [] [|ws''] //
+      | [ |- forall _ : wsize, _ -> _ ] => move=> ws'' //
+      end.
 
-      all:
+    (* TODO_ARM: These cases should go like the others. *)
+    all:
+      try
         match goal with
-        | [ |- forall (_ : op_kind), _ -> _ ] => move=> [|ws''] //
-        | [ |- forall (_ : cmp_kind), _ -> _ ] => move=> [|[] ws''] //
-        | [ |- forall (_ : signedness) (_ : op_kind), _ -> _ ] => move=> [] [|ws''] //
-        | [ |- forall (_ : wsize), _ -> _ ] => move=> ws'' //
+        | [ |- context[Odiv] ] => case: ws'' => //
+        | [ |- context[Olsr] ] => case: ws'' => //
+        | [ |- context[Olsl] ] => case: ws'' => //
+        | [ |- context[Oasr] ] => case: ws'' => //
+        | [ |- context[Oror] ] => case: ws'' => //
+        | [ |- context[Orol] ] => case: ws'' => //
         end.
 
-      (* TODO_ARM: These cases should go like the others. *)
-      all:
-        try
-          match goal with
-          | [ |- context[Odiv] ] => case: ws'' => //
-          | [ |- context[Olsr] ] => case: ws'' => //
-          | [ |- context[Olsl] ] => case: ws'' => //
-          | [ |- context[Oasr] ] => case: ws'' => //
-          | [ |- context[Oror] ] => case: ws'' => //
-          | [ |- context[Orol] ] => case: ws'' => //
-          end.
-      all:
-        try
-          match goal with
-          | [ |- context[ Oadd ] ] => rewrite /=
-          | [ |- context[ Osub ] ] => rewrite /=
-          | [ |- context[ Olsr ] ] => rewrite /=; case: is_zeroP => hzero
-          | [ |- context[ Oasr ] ] => rewrite /=; case: is_zeroP => hzero
-          | [ |- context[ Oror ] ] => rewrite /=; case: is_zeroP => hzero
-          | [ |- context[ Orol ] ] => rewrite /=; case hconst: is_wconst => [ c | // ]; case: eqP => ?; [ subst c | ]
+    all:
+      try
+        match goal with
+        | [ |- context[ Oadd ] ] => rewrite /=
+        | [ |- context[ Osub ] ] => rewrite /=
+        | [ |- context[ Olsr ] ] => rewrite /=; case: is_zeroP => hzero
+        | [ |- context[ Oasr ] ] => rewrite /=; case: is_zeroP => hzero
+        | [ |- context[ Oror ] ] => rewrite /=; case: is_zeroP => hzero
+        | [ |- context[ Orol ] ] => rewrite /=; case hconst: is_wconst => [ c | // ]; case: eqP => ?; [ subst c | ]
+      end.
+
+    all:
+      repeat
+        match goal with
+        | [ |- context[ is_mul ] ] => case: is_mulP => [???|]; subst
         end.
 
-      all:
-        repeat
-          match goal with
-          | [ |- context[ is_mul ] ] => case: is_mulP => [???|]; subst
-          end.
-      6: case: ifP => _.
-      all: move=> [???] hsemop; subst mn' e0' e1'.
-      all: discriminate hhas_shift || clear hhas_shift.
+    all:
+      repeat
+        match goal with
+        | [ |- context[ if _ then _ else _] ] => case: ifP => _
+        end.
 
-      all: move: hsemop => /sem_sop2I /= [w0' [w1' [w2 [hw0 hw1 hop hw]]]].
-      all: move: hw0 => /to_wordI [ws0 [w0 [? /truncate_wordP [hws0 ?]]]];
-             subst v0 w0'.
-      all: move: hw1 => /to_wordI [ws1 [w1 [? /truncate_wordP [hws1 ?]]]];
-             subst v1 w1'.
-      all: move: hop => [?]; subst w2.
-      all: move: hw => /Vword_inj [?]; subst ws'.
-      all: move=> /= ?; subst w.
-      all: have {}hws0 := cmp_le_trans hws hws0.
-      all: have {}hws1 := cmp_le_trans hws hws1.
+    all: move=> [???] hsemop; subst mn' e0' e1'.
+    all: move: hsemop => /sem_sop2I /= [w0' [w1' [w2 [hw0 hw1 hop hw]]]].
+    all: move: hw0 => /to_wordI [ws0 [w0 [? /truncate_wordP [hws0 ?]]]];
+           subst v0 w0'.
+    all: move: hw1 => /to_wordI [ws1 [w1 [? /truncate_wordP [hws1 ?]]]];
+           subst v1 w1'.
+    all: match goal with
+         | [ hop : mk_sem_divmod _ _ _ _ = _ |- _ ] =>
+             move: hop => /mk_sem_divmodP [hdiv0 hdiv1 ?]; subst w2
+         end
+         || (move: hop => [?]; subst w2).
+    all: move: hw => /Vword_inj [?]; subst ws'.
+    all: move=> /= ?; subst w.
 
-      2:{
-        have [ws2 [wbase [wsham [hws2 hbase hsham hw1 [hfvbase hfvsham]]]]] :=
-          get_arg_shiftP hget_arg_shift hfve0 hseme0.
-        have hfves := disj_fvars_read_es3 hfve1 hfvbase hfvsham.
-        split; last done.
-        clear hfve1 hfvbase hfvsham hfves.
-        case/truncate_wordP: hw1 => _ hw1.
-        rewrite /= hseme1 hbase hsham {hseme1 hbase hsham} /=.
-        eexists; first reflexivity.
-        rewrite /exec_sopn /= /sopn_sem /= !truncate_word_le // {hws1 hws2} /=.
-        rewrite (wsub_zero_extend _ _ hws) wsub_wnot1.
-        rewrite !(zero_extend_idem _ hws).
-        by rewrite zero_extend_u hw1.
-      }
-      all:
-        have [ws2 [wbase [wsham [hws2 hbase hsham hw1 [hfvbase hfvsham]]]]] :=
-          get_arg_shiftP hget_arg_shift hfve1 hseme1.
+    all: have hfves := disj_fvars_read_es2 hfve0 hfve1.
+    1: have hfves' := disj_fvars_read_es2_app2 hfve1 hfve0.
+    2,5: have hfves' := disj_fvars_read_es2_app2 hfve0 hfve1.
+    6: have hfves' := disj_fvars_read_es2 hfve1 hfve0.
+    all: split; last done.
+    all: clear hfve0 hfve1 hfves.
 
-      all: have hfves := disj_fvars_read_es3 hfve0 hfvbase hfvsham.
-      all: split; last done.
-      all: clear hfve0 hfvbase hfvsham hfves.
-      all: case/truncate_wordP: hw1 => _ hw1.
+    all: rewrite /=.
+    1: move: hseme0 => /=; t_xrbindP=> ? -> ? -> /= hseme0.
+    all: try rewrite {}hseme0 /=.
+    2-3: move: hseme1 => /=; t_xrbindP => ? -> ? -> /= hseme1.
+    all: try rewrite {}hseme1 /=.
+    all: eexists; first by reflexivity.
 
-      all: rewrite /=.
-      all: rewrite hseme0 hbase hsham {hseme0 hbase hsham} /=.
-      all: eexists; first reflexivity.
+    all: rewrite /exec_sopn /=.
+    all: repeat (rewrite truncate_word_le /=; [ | by rewrite ?(cmp_le_trans hws hws0) ?(cmp_le_trans hws hws1) ]).
 
-      all: rewrite /exec_sopn /=.
-      all: rewrite /sopn_sem /=.
-      all: rewrite !truncate_word_le // {hws0 hws2} /=.
+    (* Shift instructions take a byte as second argument. *)
+    all:
+      try
+        match goal with
+        | [ |- context[LSL] ] => rewrite hws1
+        | [ |- context[LSR] ] => rewrite hws1
+        | [ |- context[ASR] ] => rewrite hws1
+        | [ |- context[ROR] ] => rewrite hws1
+        end.
 
-      1: rewrite (wadd_zero_extend _ _ hws).
-      2: rewrite (wsub_zero_extend _ _ hws) wsub_wnot1.
-      3: rewrite -(wand_zero_extend _ _ hws).
-      4: rewrite -(wor_zero_extend _ _ hws).
-      5: rewrite -(wxor_zero_extend _ _ hws).
+    (* The rest need [e32 <= ws1]. *)
+    all: try rewrite (cmp_le_trans hws hws1).
 
-      all: rewrite !(zero_extend_idem _ hws).
-      all: by rewrite zero_extend_u hw1.
-   }
+    all: rewrite /=.
+    4: rewrite (wadd_zero_extend _ _ hws).
+    5: rewrite (wmul_zero_extend _ _ hws).
+    6,7: rewrite (wsub_zero_extend _ _ hws) wsub_wnot1.
+    10: rewrite -(wand_zero_extend _ _ hws).
+    11: rewrite -(wor_zero_extend _ _ hws).
+    12: rewrite -(wxor_zero_extend _ _ hws).
+    4-7, 10-12: by rewrite !(zero_extend_idem _ hws).
 
-  all: move=> [??]; subst op' es.
-  all: case: op hop hsemop => //; rewrite /lower_Papp2_op /=.
-  all:
-    match goal with
-    | [ |- forall _ : op_kind, _ -> _ ] => move=> [|ws''] //
-    | [ |- forall (_ : cmp_kind), _ -> _ ] => move=> [|[] ws''] //
-    | [ |- forall (_ : signedness) (_ : op_kind), _ -> _ ] => move=> [] [|ws''] //
-    | [ |- forall _ : wsize, _ -> _ ] => move=> ws'' //
-    end.
+    1: move: hseme0.
+    2, 3: move: hseme1.
+    1-3: rewrite /sem_sop2 /=; apply: rbindP => ? ->; apply: rbindP => ? -> /ok_inj/Vword_inj[] ??; subst => /=.
+    1: have ? := cmp_le_antisym hws hws0; subst.
+    2, 3: have ? := cmp_le_antisym hws hws1; subst.
+    2: rewrite GRing.addrC.
+    1-3: by rewrite !zero_extend_u.
 
-  (* TODO_ARM: Can these cases go like the others? *)
-  all:
-    try
+    all:
+      try
+        match goal with
+        | [ _ : ?e1 = wconst 0 |- _ ] => subst e1; move: hseme1; rewrite /sem_sop1 /= => /ok_inj/Vword_inj[] ??; subst => /=
+        end.
+    3: rewrite /sem_shr /sem_shift wshr0.
+    6: rewrite /sem_sar /sem_shift wsar0.
+    8: rewrite /sem_ror /sem_shift wror0.
+    10, 11: have! := (is_wconstP true (p_globs p) s hconst); rewrite hseme1 => /truncate_wordP[] _.
+    10: move => <-; rewrite /sem_rol /sem_shift wrol0.
+    all: rewrite /sopn_sem_ /= !zero_extend_u //.
+    all: rewrite /arm_LSR_semi /arm_LSL_semi /arm_ASR_semi /arm_ROR_semi /arm_shift_semi.
+    all: rewrite /arch_utils.semi_drop3 /=.
+    1-4: by case: ifP => //=.
+    move=> ?; subst c.
+    rewrite /sem_rol /sem_shift wrepr_unsigned -wror_opp.
+    case: eqP => /= _; do 3 f_equal; apply: wror_m;
+      change (wsize_bits _) with (wsize_size U256);
+      by rewrite wunsigned_sub_mod.
+  }
+
+  rewrite /arg_shift /=.
+  case hhas_shift: (mn' \in has_shift_mnemonics); last by move=> [<- <-].
+  case hget_arg_shift: get_arg_shift => [[[b' sh] n]|]; last by move=> [<- <-].
+  (* special case: there is some arg shift *)
+  move=> [<- <-].
+  (* we want to use with_shift_binop, so we have to prove this *)
+  have hshift_binop: mn' \in [:: ADD; SUB; RSB; AND; BIC; EOR; ORR; CMP; TST].
+  {
+    case: op hop hhas_shift hsemop => //;
+      rewrite /lower_Papp2_op /=.
+    all:
       match goal with
-      | [ |- context[Odiv] ] => case: ws'' => //
-      | [ |- context[Olsr] ] => case: ws'' => //
-      | [ |- context[Olsl] ] => case: ws'' => //
-      | [ |- context[Oasr] ] => case: ws'' => //
-      | [ |- context[Oror] ] => case: ws'' => //
-      | [ |- context[Orol] ] => case: ws'' => //
+      | [ |- forall _ : op_kind, _ -> _ ] => move=> [|ws''] //
+      | [ |- forall (_ : cmp_kind), _ -> _ ] => move=> [|[] ws''] //
+      | [ |- forall (_ : signedness) (_ : op_kind), _ -> _ ] => move=> [] [|ws''] //
+      | [ |- forall _ : wsize, _ -> _ ] => move=> ws'' //
       end.
 
-  Local Ltac on_is_zero h :=
-    rewrite /=; case: is_zeroP;
-      [ move => ?; subst; case: h => ?; subst
-      | move => hzero ].
+    (* TODO_ARM: These cases should go like the others. *)
+    all:
+      try
+        match goal with
+        | [ |- context[Odiv] ] => case: ws'' => //
+        | [ |- context[Olsr] ] => case: ws'' => //
+        | [ |- context[Olsl] ] => case: ws'' => //
+        | [ |- context[Oasr] ] => case: ws'' => //
+        | [ |- context[Oror] ] => case: ws'' => //
+        | [ |- context[Orol] ] => case: ws'' => //
+        end.
 
-  all:
-    try
-      match goal with
-      | [ |- context[ Oadd ] ] => rewrite /=
-      | [ |- context[ Osub ] ] => rewrite /=
-      | [ |- context[ Olsr ] ] => on_is_zero hseme1
-      | [ |- context[ Oasr ] ] => on_is_zero hseme1
-      | [ |- context[ Oror ] ] => on_is_zero hseme1
-      | [ |- context[ Orol ] ] => rewrite /=; case hconst: is_wconst => [ c | // ]; case: eqP => ?; [ subst c | ]
+    all:
+      try
+        match goal with
+        | [ |- context[ Oadd ] ] => rewrite /=
+        | [ |- context[ Osub ] ] => rewrite /=
+        | [ |- context[ Olsr ] ] => rewrite /=; case: is_zeroP => hzero
+        | [ |- context[ Oasr ] ] => rewrite /=; case: is_zeroP => hzero
+        | [ |- context[ Oror ] ] => rewrite /=; case: is_zeroP => hzero
+        | [ |- context[ Orol ] ] => rewrite /=; case hconst: is_wconst => [ c | // ]; case: eqP => ?; [ subst c | ]
       end.
 
-  all:
-    repeat
-      match goal with
-      | [ |- context[ is_mul ] ] => case: is_mulP => [???|]; subst
-      end.
-  all:
-    repeat
-      match goal with
-      | [ |- context[ if _ then _ else _] ] => case: ifP => _
-      end.
+    all:
+      repeat
+        match goal with
+        | [ |- context[ is_mul ] ] => case: is_mulP => [???|]; subst
+        end.
 
-  all: move=> [???] hsemop; subst mn' e0' e1'.
-  all: discriminate hhas_shift || clear hhas_shift.
+    all:
+      repeat
+        match goal with
+        | [ |- context[ if _ then _ else _] ] => case: ifP => _
+        end.
 
-  all: move: hsemop => /sem_sop2I /= [w0' [w1' [w2 [hw0 hw1 hop hw]]]].
-  all: move: hw0 => /to_wordI [ws0 [w0 [? /truncate_wordP [hws0 ?]]]];
-         subst v0 w0'.
-  all: move: hw1.
-  all: try case/to_wordI => ws1 [w1] [?].
-  all: case/truncate_wordP => hws1 ?.
-  all: subst.
-
-  all: rewrite /=.
-  all: match goal with
-       | [ hop : mk_sem_divmod _ _ _ _ = _ |- _ ] =>
-           move: hop => /mk_sem_divmodP [hdiv0 hdiv1 ?]; subst w2
-       end
-       || (move: hop => [?]; subst w2).
-  all: move: hw => /Vword_inj [?]; subst ws'.
-  all: move=> /= ?; subst w.
-
-  all: have hfves := disj_fvars_read_es2 hfve0 hfve1.
-  2: have hfves' := disj_fvars_read_es2 hfve1 hfve0.
-  7: have hfves' := disj_fvars_read_es2_app2 hfve1 hfve0.
-  8, 10: have hfves' := disj_fvars_read_es2_app2 hfve0 hfve1.
-  all: split; last done.
-
-  all: clear hfve0 hfve1 hfves.
-
-  all: rewrite /=.
-  7: move: hseme0 => /=; t_xrbindP => ? -> ? -> /= hseme0.
-  8, 9: move: hseme1 => /=; t_xrbindP => ? -> ? -> /= hseme1.
-  all: try rewrite hseme0 {hseme0} /=.
-  all: try rewrite hseme1 {hseme1} /=.
-
-  all: eexists; first reflexivity.
-
-  all: rewrite /exec_sopn /=.
-  all: repeat (rewrite truncate_word_le /=; [ | by rewrite ?(cmp_le_trans hws hws0) ?(cmp_le_trans hws hws1) ]).
-
-  (* Shift instructions take a byte as second argument. *)
-  all:
-    try
-      match goal with
-      | [ |- context[LSL] ] => rewrite hws1
-      | [ |- context[LSR] ] => rewrite hws1
-      | [ |- context[ASR] ] => rewrite hws1
-      | [ |- context[ROR] ] => rewrite hws1
-      end.
-
-  (* The rest need [e32 <= ws1]. *)
-  all: try rewrite (cmp_le_trans hws hws1).
-
-  all: rewrite /=.
-
-  1: rewrite (wadd_zero_extend _ _ hws).
-  2,3: rewrite (wsub_zero_extend _ _ hws) wsub_wnot1.
-  4: rewrite -(wand_zero_extend _ _ hws).
-  5: rewrite -(wor_zero_extend _ _ hws).
-  6: rewrite -(wxor_zero_extend _ _ hws).
-  10: rewrite (wmul_zero_extend _ _ hws).
-  1-6, 10: by rewrite !(zero_extend_idem _ hws).
-
-  1: move: hseme0.
-  2, 3: move: hseme1.
-  1-3: rewrite /sem_sop2 /=; apply: rbindP => ? ->; apply: rbindP => ? -> /ok_inj/Vword_inj[] ??; subst => /=.
-  1: have ? := cmp_le_antisym hws hws0; subst.
-  2, 3: have ? := cmp_le_antisym hws hws1; subst.
-  2: rewrite GRing.addrC.
-  1-3: by rewrite !zero_extend_u.
-
-  3: rewrite /sem_shr /sem_shift wshr0.
-  6: rewrite /sem_sar /sem_shift wsar0.
-  8: rewrite /sem_ror /sem_shift wror0.
-  10, 11: have! := (is_wconstP true (p_globs p) s hconst); rewrite hseme1 => /truncate_wordP[] _.
-  10: move => <-; rewrite /sem_rol /sem_shift wrol0.
-  all: rewrite /sopn_sem_ /= !zero_extend_u //.
-  all: rewrite /arm_LSR_semi /arm_LSL_semi /arm_ASR_semi /arm_ROR_semi /arm_shift_semi.
-  all: rewrite /arch_utils.semi_drop3 /=.
-  1-4: by case: ifP => //=.
-  move=> ?; subst c.
-  rewrite /sem_rol /sem_shift wrepr_unsigned -wror_opp.
-  case: eqP => /= _; do 3 f_equal; apply: wror_m;
-    change (wsize_bits _) with (wsize_size U256);
-    by rewrite wunsigned_sub_mod.
+    all: by move=> [<- _ _].
+  }
+  move: hdflt => [[vs ok_vs hsopn] [hfv _ htout]].
+  have: exists e1'', e1' = [:: e1'' ].
+  + move: hget_arg_shift; rewrite /get_arg_shift.
+    case: (e1') => // -[] // ? [] // ? [] // [] // [] // [] // ? [] //.
+    move=> _.
+    by eexists; reflexivity.
+  move=> [e1'' ?]; subst e1'.
+  have hfve1'': disj_fvars (read_e e1'').
+  + by apply: disjoint_w hfv; clear; rewrite !read_es_cons /=; SvD.fsetdec.
+  move: ok_vs => /=.
+  t_xrbindP => v0' ok_v0' _ v1'' ok_v1'' <- ?; subst vs.
+  have [ws1 [wbase [wsham [hcmp1 hbase hsham hw1'' [hfvbase hfvsham]]]]] :=
+    get_arg_shiftP hget_arg_shift hfve1'' ok_v1''.
+  split.
+  + rewrite /= ok_v0' hbase hsham /=.
+    eexists; first by reflexivity.
+    by apply (with_shift_binop (opts:=default_opts) hshift_binop hcmp1 erefl hbase hsham hw1'' hsopn).
+  split=> //.
+  + apply disj_fvars_read_es3 => //.
+    by apply: disjoint_w hfv; clear; rewrite !read_es_cons /=; SvD.fsetdec.
+  by move: htout; rewrite /sopn_tout /= (sopn_tout_with_shift _ default_opts sh).
 Qed.
 
 Lemma lower_pexpr_auxP e :
@@ -1341,109 +1422,6 @@ Proof.
 
   all: by move=> -> /= ->.
 Qed.
-
-Section WITH_SHIFT_OP.
-
-#[ local ]
-Ltac intro_opn_args :=
-  rewrite /sem_tuple /=;
-  repeat
-    match goal with
-    | [ |- forall (_ : _ * _), _ ] => move=> []
-    | [ |- forall (_ : option bool), _ ] => move=> ?
-    | [ |- forall (_ : _ (word _)), _ ] => move=> ?
-    end.
-
-#[local]
-Ltac intro_args_wrapper :=
-  intro_opn_args;
-  rewrite !truncate_word_le // => -> _ /ok_inj <-.
-
-#[local]
-Ltac destruct_args_wrapper vs :=
-  move: vs;
-  destruct_opn_args;
-  repeat (move=> ? ->).
-
-(* Rewrite result of execution. If we are under conditional execution, find
-   the condition and case on it, the case when the instruction is not
-   executiod is trivial.
-   We can't match on [sopn_sem] because of the dependent types. *)
-#[local]
-Ltac rewrite_exec :=
-  let h := fresh "h" in
-  move=> /= h ?;
-  subst;
-  move: h;
-  let mytac := move=> /ok_inj; (move=> <- || move=> [] *; subst) in
-  match goal with
-  | [ b : bool |- context [{| is_conditional := true |}] ] =>
-      case: b; mytac; last done
-  end
-  || mytac;
-  rewrite /= !zero_extend_u.
-
-Lemma with_shift_unop s eb ea ts (b: word ts) (a: u8) x vs sh opts r :
-  (U32 ≤ ts)%CMP ->
-  has_shift opts = None ->
-  sem_pexpr true (p_globs p) s eb = ok (Vword b) ->
-  sem_pexpr true (p_globs p) s ea = ok (Vword a) ->
-  to_word reg_size x = ok (shift_op sh (zero_extend reg_size b) (wunsigned a)) ->
-  exec_sopn (Oasm (BaseOp (None, ARM_op MVN opts))) [:: x & vs] = ok r ->
-  exec_sopn (Oasm (BaseOp (None, ARM_op MVN (with_shift opts sh) ))) [:: Vword b, Vword a & vs] = ok r.
-Proof.
-  case: opts => S cc /= _ hts -> ok_b ok_a /to_wordI'[] xs [] wx [] hxs ->{x} hx.
-  case: cc S => - [].
-  all: rewrite /exec_sopn /=; t_xrbindP.
-  all: intro_opn_args; rewrite !truncate_word_le // {hxs hts} => /ok_inj <-.
-  all: destruct_args_wrapper vs.
-  all: rewrite_exec.
-  all: by rewrite hx.
-Qed.
-
-Lemma with_shift_binop mn s eb ea ts (b: word ts) (a: u8) x y vs sh opts r :
-  mn \in [:: ADD; SUB; RSB; AND; BIC; EOR; ORR; CMP; TST] ->
-  (U32 ≤ ts)%CMP ->
-  has_shift opts = None ->
-  sem_pexpr true (p_globs p) s eb = ok (Vword b) ->
-  sem_pexpr true (p_globs p) s ea = ok (Vword a) ->
-  to_word reg_size y = ok (shift_op sh (zero_extend reg_size b) (wunsigned a)) ->
-  exec_sopn (Oasm (BaseOp (None, ARM_op mn opts))) [:: x, y & vs] = ok r ->
-  exec_sopn (Oasm (BaseOp (None, ARM_op mn (with_shift opts sh) ))) [:: x, Vword b, Vword a & vs] = ok r.
-Proof.
-  rewrite !inE.
-  case: opts => S cc /= _ mn_binop hts -> ok_b ok_a /to_wordI'[] ys [] wy [] hys ->{y} hy.
-  case: cc S => - [].
-  all: repeat case/orP: mn_binop => [ /eqP -> { mn } | mn_binop ]; last move/eqP: mn_binop => -> { mn }.
-  all: rewrite /exec_sopn /=; t_xrbindP.
-  all: intro_args_wrapper => {hys hts}.
-  all: destruct_args_wrapper vs.
-  all: rewrite_exec.
-  all: by rewrite hy.
-Qed.
-
-Lemma with_shift_terop mn s eb ea ts (b: word ts) (a: u8) x y z vs sh opts r :
-  mn \in [:: ADC; SBC ] ->
-  (U32 ≤ ts)%CMP ->
-  has_shift opts = None ->
-  sem_pexpr true (p_globs p) s eb = ok (Vword b) ->
-  sem_pexpr true (p_globs p) s ea = ok (Vword a) ->
-  to_word reg_size y = ok (shift_op sh (zero_extend reg_size b) (wunsigned a)) ->
-  exec_sopn (Oasm (BaseOp (None, ARM_op mn opts))) [:: x, y, z & vs] = ok r ->
-  exec_sopn (Oasm (BaseOp (None, ARM_op mn (with_shift opts sh) ))) [:: x, Vword b, z, Vword a & vs] = ok r.
-Proof.
-  rewrite !inE.
-  case: opts => S cc /= _ mn_terop hts -> ok_b ok_a /to_wordI'[] ys [] wy [] hys ->{y} hy.
-  case: S cc => - [].
-  all: repeat case/orP: mn_terop => [ /eqP -> { mn } | mn_terop ]; last move/eqP: mn_terop => -> { mn }.
-  all: rewrite /exec_sopn /=; t_xrbindP.
-  all: intro_args_wrapper => {hys hts}.
-  all: destruct_args_wrapper vs.
-  all: rewrite_exec.
-  all: by rewrite hy.
-Qed.
-
-End WITH_SHIFT_OP.
 
 Lemma lower_base_op s0 s1 ii lvs tag aop es lvs' op' es' :
   disj_fvars (read_es es)
