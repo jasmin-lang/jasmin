@@ -40,6 +40,7 @@ Variant x86_op : Type :=
 
 | LZCNT  of wsize             (* number of leading zero *)
 | TZCNT  of wsize             (* number of trailing zero *)
+| BSR    of wsize             (* bit scan reverse *)
 
   (* Flag *)
 | SETcc                           (* Set byte on condition *)
@@ -925,6 +926,29 @@ Definition x86_TZCNT sz (w: word sz) : tpl (b5w_ty sz) :=
 Definition Ox86_TZCNT_instr               :=
   mk_instr_w_b5w "TZCNT" x86_TZCNT [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 TZCNT) size_16_64 (pp_iname "tzcnt").
 
+Definition x86_BSR sz (w: word sz) : ex_tpl (b5w_ty sz) :=
+  Let _ := assert (w != 0%R) ErrArith in
+  ok (flags_w ((:: None, None, None, None & Some false) : sem_tuple b5_ty) (wrepr sz (wsize_bits sz - 1) - leading_zero w)%R).
+
+Lemma x86_BSR_errty sz :
+  size_16_64 sz → sem_forall (λ r : result error (sem_tuple (b5w_ty sz)), r ≠ Error ErrType) [:: sword sz] (x86_BSR (sz:=sz)).
+Proof. by rewrite /x86_BSR => _ x /=; case: eqP. Qed.
+
+Lemma x86_BSR_safe sz :
+  size_16_64 sz → @values.interp_safe_cond_ty [:: sword sz ] _ [:: NotZero sz 0] (@x86_BSR sz).
+Proof.
+  rewrite /x86_BSR => _ x /List_Forall_inv /=[] x_nz _.
+  move: (x_nz x); rewrite truncate_word_u => /(_ erefl).
+  case: eqP; first by move => ->.
+  move => _ _; eexists; reflexivity.
+Qed.
+
+Definition Ox86_BSR_instr :=
+  (fun sz =>
+     mk_instr (pp_sz "BSR" sz) [:: sword sz ] (b5w_ty sz) [:: Eu 1 ] (implicit_flags ++ [:: Ea 0 ]) MSB_CLEAR
+       (@x86_BSR sz) [:: r_rm ] 2 [:: NotZero sz 0 ] (size_16_64 sz) (pp_iname "bsr" sz)
+       erefl (@x86_BSR_errty sz) (@x86_BSR_safe sz),
+     ("BSR"%string, prim_16_64 BSR)).
 
 Definition check_setcc := [:: [::c; rm false]].
 
@@ -2149,6 +2173,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | DEC sz             => Ox86_DEC_instr.1 sz
   | LZCNT sz           => Ox86_LZCNT_instr.1 sz
   | TZCNT sz           => Ox86_TZCNT_instr.1 sz
+  | BSR sz             => Ox86_BSR_instr.1 sz
   | SETcc              => Ox86_SETcc_instr.1
   | BT sz              => Ox86_BT_instr.1 sz
   | CLC                => Ox86_CLC_instr.1
@@ -2306,6 +2331,7 @@ Definition x86_prim_string :=
    Ox86_DEC_instr.2;
    Ox86_LZCNT_instr.2;
    Ox86_TZCNT_instr.2;
+   Ox86_BSR_instr.2;
    Ox86_SETcc_instr.2;
    Ox86_BT_instr.2;
    Ox86_CLC_instr.2;
