@@ -8,6 +8,10 @@
 - Extraction as EasyCrypt code targets version 2025.08
   ([PR #1255](https://github.com/jasmin-lang/jasmin/pull/1255)).
 
+- Add support for x86 `BSR` instruction
+  ([PR #1266](https://github.com/jasmin-lang/jasmin/pull/1266);
+  fixes [#1257](https://github.com/jasmin-lang/jasmin/issues/1257)).
+
 ## Bug fixes
 
 - Linter : More precise diagnostics

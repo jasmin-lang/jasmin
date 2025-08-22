@@ -65,6 +65,7 @@ module X86_core = struct
     | ANDN _ -> true
     | BLENDV (VE8, _) -> true
     | BLENDV _ -> false (* Not DOIT *)
+    | BSR _ -> false (* Not DOIT *)
     | BSWAP _ -> false (* Not DOIT *)
     | BT _ -> true
     | BTR _ -> true
