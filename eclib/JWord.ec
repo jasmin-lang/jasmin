@@ -1687,6 +1687,10 @@ op TZCNT_XX (w:t) =
   let v = of_int (lzcnt (w2bits w)) in
   (undefined_flag, ZF_of w, undefined_flag, undefined_flag, ZF_of v, v).
 
+op BSR_XX (w: t) =
+  (undefined_flag, undefined_flag, undefined_flag, undefined_flag, false,
+   of_int (size - 1 - lzcnt (w2bits w))).
+
 lemma DEC_XX_counter n (c:t) :
   c <> zero =>
   (n - to_uint c + 1 = n - to_uint (DEC_XX c).`5 /\
