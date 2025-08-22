@@ -39,10 +39,10 @@ The problem comes from the fact that there is no memory allocated to the array: 
 
 Assignments (instructions of the form `d = e;`) are processed by the various compilation passes,
 removed (when they become dead) or replaced by target operations (i.e., assembly-level instructions, such as `rax = #MOV(rbx);`).
-When everything goes well, all assignments are gone before the [[linearization pass|Linearization]].
+When everything goes well, all assignments are gone before the [linearization pass](../compiler/passes/linearization).
 
 This error message arises when one of the earlier passes could not handle the assignment.
-Often, the [[instruction selection pass|Instruction selection]] could not find in the target instruction set (ISA) an operation matching said assignment.
+Often, the [instruction selection pass](../compiler/passes/inst_select) could not find in the target instruction set (ISA) an operation matching said assignment.
 A common work-around is to decompose the assignment into several simpler steps.
 
 ## How do I set a register to zero?
