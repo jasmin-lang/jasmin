@@ -180,7 +180,7 @@ Definition esem_fcall (fn : funname) (fs : FState) :
   trigger (FinalizeFunCall fd).
 
 (* call state handler *)
-Definition esem_cstate : MREvent ~> itree (MREvent +' E) :=           
+Definition handle_mre : MREvent ~> itree (MREvent +' E) :=           
   fun _ fs => match fs with
               | LCode c => esem_cmd c 
               | FCall fn fs => esem_fcall fn fs     
@@ -188,10 +188,10 @@ Definition esem_cstate : MREvent ~> itree (MREvent +' E) :=
 
 (* actual recursive semantics *)
 Definition mrec_cmd (c: cmd) : itree E unit :=
-  mrec esem_cstate (LCode c).
+  mrec handle_mre (LCode c).
 
 Definition mrec_fun (fn : funname) (fs : FState) : itree E FState :=
-  mrec esem_cstate (FCall fn fs).
+  mrec handle_mre (FCall fn fs).
 
 Definition interpreted_fcall (fn : funname) (fs : FState) :
   itree E FState :=
@@ -200,6 +200,38 @@ Definition interpreted_fcall (fn : funname) (fs : FState) :
   trigger (InitFunCall fd fs) ;;
   mrec_cmd c ;;
   trigger (FinalizeFunCall fd).
+
+Definition mrec_handle_mre : MREvent ~> itree E :=           
+  fun _ fs => match fs with
+              | LCode c => interp_mrec handle_mre (esem_cmd c)  
+              | FCall fn fs => interp_mrec handle_mre (esem_fcall fn fs)
+              end.                             
+
+Definition deep_handle_mre : (MREvent +' E) ~> itree E :=           
+  fun _ fs => match fs with
+              | inl1 e => mrec_handle_mre e
+              | inr1 e => trigger e                         
+              end.                             
+
+Definition deep_interp_cmd (c: cmd) : itree E unit :=
+  interp deep_handle_mre (esem_cmd c).
+
+Definition deep_interp_fun (fn : funname) (fs : FState) : itree E FState :=
+  interp deep_handle_mre (esem_fcall fn fs).
+
+Definition wk_handle_mre : MREvent ~> itree (MREvent +' E) :=           
+  fun _ fs => match fs with
+              | LCode c =>
+                  translate inr1 (interp_mrec handle_mre (esem_cmd c))  
+              | FCall fn fs =>
+                  translate inr1 (interp_mrec handle_mre (esem_fcall fn fs))
+              end.                             
+
+Definition wk_interp_cmd (c: cmd) : itree E unit :=
+  interp_mrec wk_handle_mre (esem_cmd c).
+
+Definition wk_interp_fun (fn : funname) (fs : FState) : itree E FState :=
+  interp_mrec wk_handle_mre (esem_fcall fn fs).
 
 
 (**********************************************************************)
@@ -276,7 +308,7 @@ Definition isem_cmd c := isem_foldr isem_instr c.
 
 (* semantics of function calls !!! *)
 Definition isem_fcall (fn : funname) (fs : FState) :
-  itree (recCall +' E) FState :=
+  itree (recCall +' E) FState := 
   fd <- trigger (GetFunDef fn fs) ;;  
   c <- trigger (GetFunCode fd) ;;
   trigger (InitFunCall fd fs) ;;
@@ -330,7 +362,7 @@ Proof.
   unfold interp_recc_cmd, interp_recc_instr, interp_recc.
   setoid_rewrite interp_mrec_as_interp; simpl.
   setoid_rewrite interp_bind; reflexivity.
-  Qed.
+Qed.
   
 End SemRec.
 
@@ -357,7 +389,7 @@ Proof.
     unfold mrec_cmd, interp_recc_cmd, interp_recc; simpl.
     unfold mrec.
     setoid_rewrite interp_mrec_as_interp.
-    unfold esem_cstate; simpl.
+    unfold handle_mre; simpl.
     setoid_rewrite interp_ret; reflexivity.
   }
   { intros i c Hi Hc.
@@ -568,7 +600,283 @@ Proof.
   simpl.
 
   unfold isem_cmd.
+Abort.
+
+Lemma SemEquiv0 (c: cmd) :
+  @rutt E E unit unit preR0 postR0 eq
+     (@mrec_cmd E XI XS XF c) (interp_recc_cmd c).
+Proof.
+  unfold mrec_cmd, interp_recc_cmd, interp_recc, mrec; simpl.
+
+  setoid_rewrite interp_mrec_as_interp.
   
+  eapply rutt_iter.
+
+  2: { eapply SemEquiv. }
+  
+  intros it1 it2 H; simpl in *.
+  unfold mrecursive.
+  unfold handle_recc, handle_mre.
+  
+(*  
+  eapply interp_mrec_rutt.
+  intros.
+  instantiate (3:= preRR).
+  instantiate (1:= postRR); simpl.
+  unfold handle_mre, handle_recc.
+  destruct d2; simpl.
+  destruct p as [fn fs]; simpl.
+  destruct d1.
+  admit.
+*)
+Abort.  
+
+Lemma SemEquiv0 (c: cmd) :
+  @rutt E E unit unit preR0 postR0 eq
+     (@wk_interp_cmd E XI XS XF c) (interp_recc_cmd c).
+Proof.
+  unfold wk_interp_cmd, wk_handle_mre, mrec_handle_mre,
+    interp_recc_cmd, interp_recc. 
+
+  eapply interp_mrec_rutt.
+  intros.
+  instantiate (3:= preRR).
+  instantiate (1:= postRR); simpl.
+  destruct d2; simpl.
+  destruct p as [fn fs]; simpl.
+  destruct d1.
+  admit.
+
+  unfold esem_fcall, isem_fcall; simpl.
+  setoid_rewrite interp_mrec_as_interp.
+  setoid_rewrite translate_to_interp.
+
+  setoid_rewrite interp_bind.
+  setoid_rewrite interp_bind.
+  eapply rutt_bind with (RR:= eq).
+  admit.
+  intros fd1 fd2 H0.
+  inv H0.
+
+  setoid_rewrite interp_bind.
+  setoid_rewrite interp_bind.
+  eapply rutt_bind with (RR:= eq).
+  admit.
+  intros c1 c2 H0.
+  inv H0.
+
+  setoid_rewrite interp_bind.
+  setoid_rewrite interp_bind.
+  eapply rutt_bind with (RR:= eq).
+  admit.
+  intros fs1 fs2 H0.
+  inv H0.
+
+  setoid_rewrite interp_bind.
+  setoid_rewrite interp_bind.
+  eapply rutt_bind with (RR:= eq).
+
+  setoid_rewrite interp_trigger.
+  unfold mrecursive.
+  setoid_rewrite mrec_as_interp.
+  setoid_rewrite interp_interp.
+  simpl.
+
+  set IC := (isem_cmd c2).
+  
+  assert (interp (id_ _) IC ≳ IC) as H0.
+  { eapply interp_id_h. }
+
+  setoid_rewrite <- H0.
+  subst IC.
+  clear H0; simpl.
+
+  eapply rutt_iter.
+
+  2: { eapply SemEquiv. }
+  
+  intros it1 it2 H1; simpl in *.
+  unfold mrecursive; simpl.
+  
+    
+  (*
+  eapply rutt_iter.
+
+  2: { eapply SemEquiv. }
+  
+  intros it1 it2 H1; simpl in *.
+  unfold handle_mre; simpl.
+   *)
+
+Abort.
+
+
+Lemma SemEquiv0 (c: cmd) :
+  @rutt E E unit unit preR0 postR0 eq
+     (@deep_interp_cmd E XI XS XF c) (interp_recc_cmd c).
+Proof.
+  unfold deep_interp_cmd, deep_handle_mre, mrec_handle_mre,
+    interp_recc_cmd, interp_recc. 
+
+  setoid_rewrite interp_mrec_as_interp.
+  
+  eapply rutt_iter.
+
+  2: { eapply SemEquiv. }
+  
+  intros it1 it2 H; simpl in *.
+  unfold mrecursive.
+  unfold handle_recc, handle_mre.
+  
+  rutt preR0 postR0 (HeterogeneousRelations.sum_rel (rutt preR postR eq) eq)
+    match observe it1 with
+    | RetF r => Ret (inr r)
+    | TauF t => Ret (inl t)
+    | @VisF _ _ _ X e k =>
+        ITree.map (fun x : X => inl (k x))
+          match e with
+          | inl1 e0 =>
+              match e0 in (MREvent T) return (itree E T) with
+              | LCode c0 => interp_mrec handle_mre (esem_cmd c0)
+              | FCall fn fs => interp_mrec handle_mre (esem_fcall fn fs)
+              end
+          | inr1 e0 => trigger e0
+          end
+    end
+    match observe it2 with
+    | RetF r => Ret (inr r)
+    | TauF t => Ret (inl t)
+    | @VisF _ _ _ X e k =>
+        ITree.map (fun x : X => inl (k x)) (mrecursive handle_recc X e)
+    end
+
+  
+  rutt preR0 postR0 (HeterogeneousRelations.sum_rel (rutt preR postR eq) eq)
+    match observe it1 with
+    | RetF r => Ret (inr r)
+    | TauF t => Ret (inl t)
+    | @VisF _ _ _ X e k =>
+        ITree.map (fun x : X => inl (k x))
+          match e with
+          | inl1 m => mrec handle_mre m
+          | inr1 m => ITree.trigger m
+          end
+    end
+    match observe it2 with
+    | RetF r => Ret (inr r)
+    | TauF t => Ret (inl t)
+    | @VisF _ _ _ X e k =>
+        ITree.map (fun x : X => inl (k x))
+          match e with
+          | inl1 m => mrec handle_recc m
+          | inr1 m => ITree.trigger m
+          end
+    end
+
+
+
+  rutt (HeterogeneousRelations.sum_prerel preRR preR0)
+    (HeterogeneousRelations.sum_postrel postRR postR0)
+    (HeterogeneousRelations.sum_rel (rutt preR postR eq) eq)
+    match observe it1 with
+    | RetF r => Ret (inr r)
+    | TauF t => Ret (inl t)
+    | @VisF _ _ _ X e k =>
+        ITree.map (fun x : X => inl (k x))
+          (interp (fun (T : Type) (e0 : E T) => ITree.trigger (inr1 e0))
+             (mrecursive
+                (fun (T : Type) (fs1 : MREvent T) =>
+                 match
+                   fs1 in (MREvent T0) return (itree (MREvent +' E) T0)
+                 with
+                 | LCode c0 => esem_cmd c0
+                 | FCall fn1 fs3 => esem_fcall fn1 fs3
+                 end) X e))
+    end
+    match observe it2 with
+    | RetF r => Ret (inr r)
+    | TauF t => Ret (inl t)
+    | @VisF _ _ _ X e k =>
+        ITree.map (fun x : X => inl (k x)) (id_ (recCall +' E) X e)
+    end
+  
+  
+
+ rutt (HeterogeneousRelations.sum_prerel preRR preR0)
+    (HeterogeneousRelations.sum_postrel postRR postR0) eq
+    (interp
+       (fun (T : Type) (e : (MREvent +' E) T) =>
+        interp (fun (T0 : Type) (e0 : E T0) => ITree.trigger (inr1 e0))
+          (mrecursive handle_mre T e)) (esem_cmd c2))
+    (interp (id_ (recCall +' E)) (isem_cmd c2))
+  
+
+  setoid_
+  
+  
+  setoid_rewrite <- interp_id_h at 2.
+  
+  setoid_rewrite <- interp_mrec_as_interp.
+  
+  
+  
+  admit.
+  intros u1 u2 H0.
+  destruct u1. destruct u2.
+
+  
+  
+  
+  
+
+Lemma SemEquiv0 (c: cmd) :
+  @rutt E E unit unit preR0 postR0 eq
+     (@deep_interp_cmd E XI XS XF c) (interp_recc_cmd c).
+Proof.
+  unfold deep_interp_cmd, deep_handle_mre, mrec_handle_mre,
+    interp_recc_cmd, interp_recc. 
+  setoid_rewrite <- interp_mrec_as_interp at 1.
+  eapply rutt_iter.
+
+  2: { eapply SemEquiv. }
+
+  intros it1 it2 H; simpl in *.
+  eapply interp_mrec_rutt.
+  intros.
+  instantiate (3:= preRR).
+  instantiate (1:= postRR).
+  destruct d2; simpl.
+  destruct p as [fn fs]; simpl.
+  destruct d1.
+  admit.
+  simpl.
+  unfold esem_fcall, isem_fcall; simpl.
+  eapply rutt_bind with (RR:= eq).
+  admit.
+  intros r1 r2 H0.
+  inv H0.
+
+  eapply rutt_bind with (RR:= eq).
+  admit.
+  intros c1 c2 H0.
+  inv H0.
+  
+  eapply rutt_bind with (RR:= eq).
+  admit.
+  intros fs3 fs4 H0.
+  inv H0.
+
+  eapply rutt_bind with (RR:= eq).
+  simpl.
+
+  unfold isem_cmd.
+  
+
+  simpl.
+  admit.
+
+
+
 
   simpl.
   admit.

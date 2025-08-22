@@ -29,15 +29,14 @@ Context
   {ep : EstateParams syscall_state} 
   {spp : SemPexprParams} 
   {pT : progT}
-  {scP : semCallParams}. *)
+  {scP : semCallParams}.
+
+Context {err: error_data}. 
+*)
 
 Section Sem1.
 
 Context (FState : Type) {State: Type} {FunDef: Type}.
-Context {err: error_data}.
-
-Local Notation continue_loop := (ret (inl tt)).
-Local Notation exit_loop := (ret (inr tt)).
 
 (* state events (similar to those provided by the library, 
    could be specialized to estate) *)
@@ -63,6 +62,9 @@ Variant FunE : Type -> Type :=
   | GetFunCode (fd: FunDef) : FunE cmd          
   | InitFunCall (fd: FunDef) (fs: FState) : FunE FState                     
   | FinalizeFunCall (fd: FunDef) : FunE FState.
+
+Local Notation continue_loop := (ret (inl tt)).
+Local Notation exit_loop := (ret (inr tt)).
 
 (* folding instruction semantics on commands 
    (without state, it could be simply map) *)
@@ -98,10 +100,9 @@ Definition isem_while_loop {E} (sem_i: instr -> itree E unit)
 
 Notation recCall := (callE (funname * FState) FState).
 
-Section Sem2.
+Section SemRec.
 
-Context {E}
-  {XE : ErrEvent -< E} {XI : InstrE -< E} {XS: StE -< E}.
+Context {E} {XI : InstrE -< E} {XS: StE -< E}.
 
 (* semantics of instructions *)
 Fixpoint isem_instr (i : instr) : itree (recCall +' E) unit :=
@@ -140,21 +141,18 @@ Fixpoint isem_instr (i : instr) : itree (recCall +' E) unit :=
 (* semantics of commands *)
 Definition isem_cmd c := isem_foldr isem_instr c.
 
+Section SemFun.
+
+Context {XF: FunE -< E}.  
+
 (* semantics of function calls *)
-Definition isem_fcall {XF: FunE -< E} (fn : funname) (fs : FState) :
+Definition isem_fcall (fn : funname) (fs : FState) :
   itree (recCall +' E) FState :=
   fd <- trigger (GetFunDef fn fs) ;;  
   c <- trigger (GetFunCode fd) ;;
   trigger (InitFunCall fd fs) ;;
   isem_cmd c ;;
   trigger (FinalizeFunCall fd).
-
-End Sem2.
-
-Section Sem2a.
-
-Context {E}
-  {XE : ErrEvent -< E} {XI : InstrE -< E} {XS: StE -< E} {XF: FunE -< E}.
 
 (* handler of recCall events *)
 Definition handle_recc : recCall ~> itree (recCall +' E) :=
@@ -168,31 +166,78 @@ Definition interp_recc T (t: itree (recCall +' E) T) : itree E T :=
   interp_mrec handle_recc t.
 
 (* recCall interpreter of instructions *)
-Definition interp_recc_instr (i: instr) : itree E unit :=
+Definition denote_instr (i: instr) : itree E unit :=
   interp_recc (isem_instr i).
 
 (* recCall interpreter of commands *)
-Definition interp_recc_cmd (c: cmd) : itree E unit :=
+Definition denote_cmd (c: cmd) : itree E unit :=
   interp_recc (isem_cmd c).
 
 (* recCall interpreter of function calls *)
-Definition interp_recc_fun (fn : funname) (fs : FState) : itree E FState :=
+Definition denote_fun (fn : funname) (fs : FState) : itree E FState :=
   interp_recc (isem_fcall fn fs).
 
-(*****************************************************************)
+(* function semantics, directly expressed with rec *)
+Definition isem_fun (fn : funname) (fs : FState) : itree E FState :=
+  rec (uncurry isem_fcall) (fn, fs). 
+
+(********************************************************************)
 
 Definition rec_call (f : funname) (fs : FState) :
    itree (recCall +' E) FState := trigger_inl1 (Call (f, fs)).
 
-(* blank recursive handler: does not interpret recursive calls *)
+(* fully blank semantics (does nothing) *)
 Definition isem_fun_blank (fn : funname) (fs : FState) : itree E FState :=
   rec (uncurry rec_call) (fn, fs). 
 
-(* actual function semantics *)
-Definition isem_fun (fn : funname) (fs : FState) : itree E FState :=
-  rec (uncurry isem_fcall) (fn, fs). 
+(* blank handler of recCall events *)
+Definition handle_recc_blank : recCall ~> itree (recCall +' E) :=
+ fun T (rc : recCall T) =>
+   match rc with
+   | Call (fn, fs) => trigger_inl1 (Call (fn, fs))
+   end.
 
-End Sem2a.
+(* uninterpreted function semantics *)
+Definition denote_fun_blank (fn : funname) (fs : FState) : itree E FState :=
+  interp_mrec handle_recc_blank (isem_fcall fn fs).
+
+(**********************************************************************)
+
+Lemma interp_recc_cmd_cons_eq i c :
+  eutt eq (denote_cmd (i :: c))
+          (denote_instr i ;; denote_cmd c).       
+Proof.
+  setoid_rewrite interp_mrec_as_interp; simpl.
+  setoid_rewrite interp_bind; reflexivity.
+Qed.
+
+Lemma isem_fun_equiv (fn : funname) (fs : FState) :
+  eutt eq (isem_fun fn fs) (denote_fun fn fs).
+Proof. by reflexivity. Qed.  
+
+Lemma isem_fun_blank_equiv (fn : funname) (fs : FState) :
+  eutt eq (isem_fun_blank fn fs) (denote_fun_blank fn fs).
+Proof.
+  unfold isem_fun_blank, denote_fun_blank, rec, mrec.
+  setoid_rewrite interp_mrec_as_interp.
+  eapply eutt_interp; eauto; try reflexivity.
+  simpl. unfold isem_fcall.
+  unfold rec_call.
+Abort.
+
+Lemma isem_fun_blank_equiv (fn : funname) (fs : FState) :
+  eutt eq (denote_fun fn fs) (denote_fun_blank fn fs).
+Proof.
+  unfold denote_fun, denote_fun_blank, rec, mrec.
+  setoid_rewrite interp_mrec_as_interp.
+  eapply eutt_interp; eauto; try reflexivity.
+  unfold eq2, Eq2_Handler, eutt_Handler, Relation.i_pointwise.
+  intros.
+Abort.
+  
+End SemFun.
+
+End SemRec.
 
 End Sem1.
 
