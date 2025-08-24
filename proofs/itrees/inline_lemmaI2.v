@@ -26,7 +26,7 @@ From ITree Require Import
 
 Require Import FunctionalExtensionality.
 
-Require Import xrutt xrutt_facts rutt_extras tfam_iso.
+Require Import xrutt xrutt_facts rutt_extras tfam_iso1.
 
 From ITree Require Import Rutt RuttFacts.
 
