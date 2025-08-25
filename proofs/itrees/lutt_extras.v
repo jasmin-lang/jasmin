@@ -178,9 +178,105 @@ Proof.
     auto.
   }
 Qed.  
-   
+
 End Rutt_sec.
-  
+
+Lemma rutt_evRel_equiv E1 E2 R1 R2 REv1 REv2 RAns RR 
+  (t1: itree E1 R1) (t2: itree E2 R2) :
+  (forall T1 T2 (e1: E1 T1) (e2: E2 T2),
+      REv1 T1 T2 e1 e2 <-> REv2 T1 T2 e1 e2) ->
+  rutt REv1 RAns RR t1 t2 <-> rutt REv2 RAns RR t1 t2.
+Proof.
+  intros H.
+  eapply rutt_Proper_R; eauto.
+  - unfold eq_REv, eq_rel, subrelationH. 
+    intros A B; split; eapply H.
+  - unfold eq_RAns, eq_rel, subrelationH.
+    intros; split; intros; eauto.
+  - unfold eq_rel, subrelationH. eauto.
+Qed.  
+
+Lemma rutt_ansRel_equiv E1 E2 R1 R2 REv RAns1 RAns2 RR
+  (t1: itree E1 R1) (t2: itree E2 R2) :
+  (forall T1 T2 (e1: E1 T1) (e2: E2 T2) v1 v2,
+      RAns1 T1 T2 e1 v1 e2 v2 <-> RAns2 T1 T2 e1 v1 e2 v2) ->
+  rutt REv RAns1 RR t1 t2 <-> rutt REv RAns2 RR t1 t2.
+Proof.
+  intros H.
+  eapply rutt_Proper_R; eauto.
+  - unfold eq_REv, eq_rel, subrelationH. 
+    intros; split; intros; eauto.
+  - unfold eq_RAns, eq_rel, subrelationH, RAns_pair; simpl.
+    intros A B; split; intros [ex x] [ey y] H0; simpl; eapply H; auto.
+  - unfold eq_rel, subrelationH. eauto.
+Qed.  
+
+Lemma rutt_retRel_equiv E1 E2 R1 R2 REv RAns RR1 RR2 
+  (t1: itree E1 R1) (t2: itree E2 R2) :
+  (forall v1 v2, RR1 v1 v2 <-> RR2 v1 v2) ->
+  rutt REv RAns RR1 t1 t2 <-> rutt REv RAns RR2 t1 t2.
+Proof.
+  intros H.
+  eapply rutt_Proper_R; eauto.
+  - unfold eq_REv, eq_rel, subrelationH. 
+    intros; split; intros; eauto.
+  - unfold eq_RAns, eq_rel, subrelationH.
+    intros; split; intros; eauto.
+  - unfold eq_rel, subrelationH.
+    split; intros; eapply H; eauto.
+Qed.  
+         
+Lemma rutt_evRel_eq E1 E2 R1 R2 REv1 REv2 RAns RR 
+  (t1: itree E1 R1) (t2: itree E2 R2) :
+  (forall T1 T2 (e1: E1 T1) (e2: E2 T2),
+      REv1 T1 T2 e1 e2 = REv2 T1 T2 e1 e2) ->
+  rutt REv1 RAns RR t1 t2 = rutt REv2 RAns RR t1 t2.
+Proof.
+  intros H.
+  assert (REv1 = REv2) as A.
+  { eapply functional_extensionality_dep; intro x.
+    eapply functional_extensionality_dep; intro y.
+    eapply functional_extensionality; intro ex.
+    eapply functional_extensionality; intro ey.
+    eauto.
+  }
+  rewrite A; auto.
+Qed.  
+
+Lemma rutt_ansRel_eq E1 E2 R1 R2 REv RAns1 RAns2 RR 
+  (t1: itree E1 R1) (t2: itree E2 R2) :
+  (forall T1 T2 (e1: E1 T1) (e2: E2 T2) v1 v2,
+      RAns1 T1 T2 e1 v1 e2 v2 = RAns2 T1 T2 e1 v1 e2 v2) ->
+  rutt REv RAns1 RR t1 t2 = rutt REv RAns2 RR t1 t2.
+Proof.
+  intros H.
+  assert (RAns1 = RAns2) as A.
+  { eapply functional_extensionality_dep; intro x.
+    eapply functional_extensionality_dep; intro y.
+    eapply functional_extensionality; intro ex.
+    eapply functional_extensionality; intro vx.
+    eapply functional_extensionality; intro ey.
+    eapply functional_extensionality; intro vy.
+    eauto.
+  }
+  rewrite A; auto.
+Qed.  
+
+Lemma rutt_retRel_eq E1 E2 R1 R2 REv RAns RR1 RR2 
+  (t1: itree E1 R1) (t2: itree E2 R2) :
+  (forall v1 v2, RR1 v1 v2 = RR2 v1 v2) ->
+  rutt REv RAns RR1 t1 t2 = rutt REv RAns RR2 t1 t2.
+Proof.
+  intros H.
+  assert (RR1 = RR2) as A.
+  { eapply functional_extensionality; intro x. 
+    eapply functional_extensionality; intro y.
+    eauto.
+  }
+  rewrite A; auto.
+Qed.  
+
+
 Section Sec1.
 
 Context {E1 E2 : Type -> Type}.
@@ -190,12 +286,14 @@ Definition is_inr T (e: (E1 +' E2) T) : Prop :=
   | inl1 _ => False
   | inr1 _ => True end.             
 
+(* here E1 generalizes error events *)
 Definition inl_safe_rel (T : Type) (R : T -> Prop)
   (t t' : itree (E1 +' E2) T) :=
   rutt (REv_eq (fun T0 : Type => is_inr (T:=T0)))
        (RAns_eq (fun T0 : Type => fun=> TrueP))
        (R_eq R) t t'.
 
+(* equivalent to core_logics.safe *)
 Definition inl_safe (T : Type) (t : itree (E1 +' E2) T) :=
   exists t', inl_safe_rel TrueP t t'.
 
@@ -206,11 +304,75 @@ Definition inr_only_rel (T : Type)
 Definition inr_only (T : Type) (t : itree (E1 +' E2) T) :=
   exists t2: itree E2 T, inr_only_rel t t2.
 
+(**********************************************************)
+
+Definition is_inlB T (e: (E1 +' E2) T) : bool :=
+  match e with
+  | inl1 _ => true
+  | inr1 _ => false end.             
+
+Definition is_inrB T (e: (E1 +' E2) T) : bool :=
+  match e with
+  | inl1 _ => false
+  | inr1 _ => true end.             
+
+Lemma is_inr_inrB_equiv T1 T2 (e1: (E1 +' E2) T1) (e2: (E1 +' E2) T2) :
+  REv_eq is_inr e1 e2 <-> REv_eq is_inrB e1 e2.
+Proof.
+  unfold REv_eq. 
+  destruct e1; simpl; split; intros [H H0]; eauto.
+Qed.
+   
+Lemma is_inrB_not_inlB_eq T1 T2 (e1: (E1 +' E2) T1) (e2: (E1 +' E2) T2) :
+  REv_eq is_inrB e1 e2 =
+    REv_eq (fun T0 (e: (E1 +' E2) T0) => ~~ (is_inlB e)) e1 e2.
+Proof.
+  unfold REv_eq.
+  assert (is_inrB e1 = ~~ is_inlB e1) as B.
+  { destruct e1; eauto. }
+  rewrite B; auto.
+Qed.  
+
+Lemma is_inr_not_inlB_equiv T1 T2 (e1: (E1 +' E2) T1) (e2: (E1 +' E2) T2) :
+  REv_eq is_inr e1 e2 <->
+    REv_eq (fun T0 (e: (E1 +' E2) T0) => ~~ (is_inlB e)) e1 e2.
+Proof.
+  rewrite <- is_inrB_not_inlB_eq.
+  eapply is_inr_inrB_equiv.
+Qed.  
+  
+Lemma is_inr_inrB_equivF E (X: FIso E (E1 +' E2))
+  T1 T2 (e1: E T1) (e2: E T2) :
+  REv_eq (fun T0 e => is_inr (mfun1 e)) e1 e2 <->
+    REv_eq (fun T0 e => is_inrB (mfun1 e)) e1 e2.
+Proof.
+  unfold REv_eq. 
+  destruct (mfun1 e1); simpl; split; intros [H H0]; eauto.
+Qed.
+ 
+Lemma is_inrB_not_inlB_eqF E (X: FIso E (E1 +' E2))
+  T1 T2 (e1: E T1) (e2: E T2) :
+  REv_eq (fun T0 e => is_inrB (mfun1 e)) e1 e2 =
+    REv_eq (fun T0 (e: E T0) => ~~ (is_inlB (mfun1 e))) e1 e2.
+Proof.
+  unfold REv_eq.
+  assert (is_inrB (mfun1 e1) = ~~ is_inlB (mfun1 e1)) as B.
+  { destruct (mfun1 e1); eauto. }
+  rewrite B; auto.
+Qed.  
+
+Lemma is_inr_not_inlB_equivF E (X: FIso E (E1 +' E2))
+  T1 T2 (e1: E T1) (e2: E T2) :
+  REv_eq  (fun T0 e => is_inr (mfun1 e)) e1 e2 <->
+    REv_eq (fun T0 (e: E T0) => ~~ (is_inlB (mfun1 e))) e1 e2.
+Proof.
+  rewrite <- is_inrB_not_inlB_eqF.
+  eapply is_inr_inrB_equivF.
+Qed.  
 
 Section Lutt_sec.
 
 Context {E : Type -> Type} {X: FIso E (E1 +' E2)}.
-    (*    (PEv : prepred E) (PAns : postpred E). *)
 
 Lemma lutt_inl_safe_rel_eq (T : Type) (R : T -> Prop)
   (t : itree E T) :
@@ -273,6 +435,41 @@ Proof.
       split; auto.
   }
 Qed.  
+
+Lemma lutt_is_inr_equiv (T : Type) (R : T -> Prop)
+  (t : itree E T) :
+      lutt (fun (T0 : Type) e => is_inr (T:=T0) (mfun1 e))
+         (fun T0 : Type => fun=> TrueP) R t <->
+      lutt (fun (T0 : Type) e => ~~ is_inlB (T:=T0) (mfun1 e))
+         (fun T0 : Type => fun=> TrueP) R t.
+Proof.
+  unfold lutt.
+  split; intros [t' H]; exists t'.
+  - eapply rutt_evRel_equiv with
+      (REv1:= (REv_eq (fun (T0 : Type) (e : E T0) => is_inr (mfun1 e)))); 
+      intros.
+    eapply is_inr_not_inlB_equivF. 
+    exact H.
+  - eapply rutt_evRel_equiv with
+       (REv2:= (REv_eq (fun (T0 : Type) (e : E T0) => is_inr (mfun1 e)))) in H;
+      intros.
+    exact H.
+    rewrite is_inr_not_inlB_equivF; reflexivity. 
+Qed.
+
+(* a generalization (by R) of core_logics.safe *)
+Lemma lutt_inl_safe_rel_eqB (T : Type) (R : T -> Prop)
+  (t : itree E T) :
+  (exists t', inl_safe_rel R (translate mfun1 t) t') 
+   <-> lutt (fun (T0 : Type) e => ~~ is_inlB (T:=T0) (mfun1 e))
+         (fun T0 : Type => fun=> TrueP) R t.
+Proof.
+  split; intro H.
+  - eapply lutt_is_inr_equiv.
+    eapply lutt_inl_safe_rel_eq; auto.
+  - eapply lutt_is_inr_equiv in H.
+    eapply lutt_inl_safe_rel_eq; auto.
+Qed.    
 
 End Lutt_sec.
 
@@ -385,9 +582,11 @@ Section Sec2.
 
 Context {hnd1 : E1 ~> execT (itree E2)}.  
 
-Local Definition hnd_ext :  (E1 +' E2) ~> execT (itree E2) :=
+Local Definition hnd_ext : (E1 +' E2) ~> execT (itree E2) :=
   @ext_exec_handler E1 E2 hnd1.
 
+(* inl_safe means safe, in the sense that the tree does not
+   contain error events (here, E1 events) *)
 Lemma inl_safe_is_ok (T : Type) (t12 : itree (E1 +' E2) T) :
   inl_safe t12 ->
   let t2 : itree E2 (execS T) := interp_exec hnd_ext t12 in
@@ -471,6 +670,34 @@ Proof.
     specialize (IHruttF t12 t2 H1 erefl); auto.
   }
 Qed.  
+
+Section Safe.
+
+Context {E: Type -> Type} (X: FIso E (E1 +' E2)).  
+
+(* core_logics.safe means safe (the tree does not contain error
+  events) *)
+Lemma safe_is_ok (T : Type) 
+  (t : itree E T) :
+  lutt (fun (T0 : Type) e => ~~ is_inlB (T:=T0) (mfun1 e))
+    (fun T0 : Type => fun=> TrueP) TrueP t ->
+  let t2 : itree E2 (execS T) := interp_exec hnd_ext (translate mfun1 t) in
+  rutt (fun U12 U2 (e12: (E1 +' E2) U12) (e2: E2 U2) =>
+              exists h : U2 = U12,
+                e12 = eq_rect U2 (E1 +' E2) (inr1 e2) U12 h)
+       (fun U12 U2 (e12: (E1 +' E2) U12) (u12: U12) (e2: E2 U2) (u2: U2) =>
+               u12 ~= u2)
+        (fun x y => ESok x = y) (translate mfun1 t) t2.
+Proof.
+  intro H.
+  eapply lutt_inl_safe_rel_eqB in H.
+  revert H.
+  generalize (translate mfun1 t).
+  intros t12 H.
+  eapply inl_safe_is_ok. unfold inl_safe. auto. 
+Qed.
+
+End Safe.
 
 End Sec2.  
 
