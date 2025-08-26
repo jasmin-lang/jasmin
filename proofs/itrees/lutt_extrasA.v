@@ -81,6 +81,7 @@ Definition inl_safe_rel (T : Type) (t t' : itree (E1 +' E2) T) :=
 Definition inr_only_rel (T : Type) (t : itree (E1 +' E2) T)
   (t2: itree E2 T) := eq_itree eq (translate inr1 t2) t.
 
+
 Lemma rutt_in_lutt_refl (T : Type) (t: itree (E1 +' E2) T) :
  (exists (t2: itree E2 T), inr_only_rel t t2) ->
    rutt (REv_eq [eta is_inr]) (RAns_eq (fun T0 : Type => fun=> PredT))

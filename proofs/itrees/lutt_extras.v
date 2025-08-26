@@ -301,6 +301,9 @@ Definition inr_only_rel (T : Type)
   (t : itree (E1 +' E2) T) (t2: itree E2 T) :=
   eq_itree eq (translate inr1 t2) t.
 
+(* alternative definition of safety, by lifting the event type in an
+   error-free tree. existential quantification here is more
+   problematic though *)
 Definition inr_only (T : Type) (t : itree (E1 +' E2) T) :=
   exists t2: itree E2 T, inr_only_rel t t2.
 
@@ -473,8 +476,9 @@ Qed.
 
 End Lutt_sec.
 
-
-(* axiom-based *)
+(* inr_only implies safety. axiom-based. proving the other way round
+  pstep; redis more problematic, due to the fact that coinduction
+  pstep; redcannot be applied to an existential goal. *)
 Lemma inr_only_inl_safe_refl (T : Type) (t: itree (E1 +' E2) T) :
   inr_only t -> inl_safe_rel TrueP t t.
 Proof.
@@ -530,6 +534,75 @@ Proof.
   exists t; eapply inr_only_inl_safe_refl; auto.
 Qed.
 
+
+(******************)
+
+(* Lemma itree_part E T (t: itree E T) : 
+ exists t1, forall t2
+ *)
+
+(*
+Lemma inl_safe_and_inr_only (T : Type) (t1 : itree (E1 +' E2) T) :
+  (exists t2 : itree (E1 +' E2) T,
+     rutt (REv_eq [eta is_inr]) (RAns_eq (fun T0 : Type => fun=> TrueP))
+       (R_eq TrueP) t1 t2) ->
+  forall (t0 : itree E2 T) t3, 
+    t3 = (translate inr1 t0) ->
+    eutt eq t3 t1.
+Proof.
+  intros.
+  pcofix CIH.
+  
+
+Lemma inl_safe_and_inr_only (T : Type) (t1 : itree (E1 +' E2) T) :
+  (exists t2 : itree (E1 +' E2) T,
+     rutt (REv_eq [eta is_inr]) (RAns_eq (fun T0 : Type => fun=> TrueP))
+       (R_eq TrueP) t1 t2) ->
+  (~ exists t', observe t1 = TauF t') ->
+  exists t0 : itree E2 T, eutt eq (translate inr1 t0) t1.
+Proof.
+(*  unfold inl_safe,inl_safe_rel; simpl. *)
+ (* clear interp1. *)
+
+  intros [t2 H] H0.
+  
+  punfold H.
+  red in H.
+
+  remember (observe t1) as ot1.
+  remember (observe t2) as ot2.
+  
+  induction H.
+  { exists (Ret r1).
+    rewrite translate_ret.
+    rewrite (itree_eta t1).
+    rewrite Heqot1. reflexivity.
+  }  
+  { pclearbot.
+    punfold H; red in H.
+    intuition.
+    assert (exists t' : itree (E1 +' E2) T,
+               @TauF (E1 +' E2) T (itree (E1 +' E2) T) m1 = TauF t') as I.
+    { exists m1; eauto. }
+    intuition.
+  }
+  { unfold REv_eq in H.
+    destruct H as [I1 I2].
+    unfold is_inr in I1.
+    destruct e1; auto with *.
+    
+    exists (VisF 
+    inversion H; subst; eauto.
+    
+  
+  assert ()
+  
+  eexists.
+  
+  revert H.
+  revert t1.
+  
+*)
 
 (********************************************************************)
 
@@ -703,4 +776,245 @@ End Sec2.
 
 End Sec1.
 
+Section NewSec1.
+
+Context {E1 E2 : Type -> Type}.
+Context {R1 R2 : Type}.
+
+(* basically equivalent to an error interpreter *)
+Definition FstEval (r2: R2) : 
+  itree (E1 +' E2) R1 -> itree E2 (R1 + R2) :=
+  cofix _Extr (u: itree (E1 +' E2) R1) : itree E2 (R1 + R2) :=
+    match (observe u) with
+    | RetF r => Ret (inl r)
+    | TauF t => Tau (_Extr t)
+    | VisF T0 e k => match e with
+                  | inr1 e2 => Vis e2 (fun x => _Extr (k x))  
+                  | inl1 _ => Ret (inr r2)
+                  end
+   end.                 
+
+(* similar to inl_safe_is_ok, but expressed with eutt *)
+Lemma inl_safe_is_ok_eutt (err: R2) (t1 : itree (E1 +' E2) R1) :
+(*   (exists t' : itree [eta E1 +' E2] R1,
+     rutt (REv_eq (fun T : Type => [eta is_inr (T:=T)]))
+       (RAns_eq (fun T : Type => fun=> TrueP)) (R_eq TrueP) t1 t') -> *)
+  inl_safe t1 -> 
+  eutt (fun x y => eq (inl x) y) t1 (translate inr1 (FstEval err t1)).
+Proof.
+  intros [t2 H].
+  revert H.
+  revert t1 t2.
+  pcofix CIH.
+  intros t1 t2 H.
+  punfold H; red in H.
+  pstep; red.
+  remember (observe t1) as ot1.
+  remember (observe t2) as ot2.
+  hinduction H before CIH.
+
+  { intros t1 t2 H1 H2; simpl.
+    rewrite <- H1; simpl.
+    econstructor; auto.
+  }
+  { intros t1 t2 H1 H2; simpl.
+    rewrite <- H1; simpl.
+    econstructor; eauto.
+    pclearbot.
+    right.
+    eapply CIH; eauto.
+  }
+  { intros t1 t2 H1 H2; simpl.
+    rewrite <- H1; simpl.
+    destruct e1; simpl.
+    - unfold REv_eq in H.
+      destruct H as [C1 C2].
+      unfold is_inr in C1; auto with *.
+    - econstructor; eauto.
+      unfold REv_eq in H.
+      destruct H as [C1 [hh C2]].
+      simpl in *.
+      dependent destruction hh.
+      intros v; unfold Datatypes.id; simpl.
+      specialize (H0 v v).
+      unfold RAns_eq in H0.
+      intuition.
+      assert (forall h : A = A, v = eq_rect A id v A h) as C3.
+      { intros; eauto.
+        dependent destruction h; simpl; auto.
+      }  
+      specialize (H0 C3).
+      pclearbot.
+      right; simpl.
+      eapply CIH; eauto.
+  }
+  { intros t0 t2 H1 H2.
+    rewrite H1. simpl.
+    rewrite <- H1; simpl.
+    eapply Eqit.EqTauL; auto.
+    eapply Eqit.EqTauR; auto.
+    eapply IHruttF; eauto.
+  }  
+  { intros t1 t0 H1 H2.
+    eapply IHruttF; auto.
+  }
+Qed.    
+
+Lemma inl_safe_ret (r: R1) : @inl_safe E1 E2 R1 (Ret r).
+Proof.
+  unfold inl_safe.
+  exists (Ret r).
+  unfold inl_safe_rel.
+  pstep; red.
+  econstructor.
+  unfold R_eq; simpl; eauto.
+Qed.  
+
+Lemma inl_safe_tau (t: itree (E1 +' E2) R1) :
+  @inl_safe E1 E2 R1 (Tau t) -> inl_safe t.
+Proof.
+  unfold inl_safe, inl_safe_rel; intros [t' H].
+  exists t'.
+Admitted. 
+
+Lemma inl_safe_visL T (e: E2 T) (k: T -> itree (E1 +' E2) R1) :
+  @inl_safe E1 E2 R1 (Vis (inr1 e) k) -> forall v: T, inl_safe (k v).
+Proof.
+ unfold inl_safe, inl_safe_rel; intros [t' H] v.
+ exists (k v).
+Admitted.  
+ 
+Lemma inl_safe_visR T (e: E1 T) (k: T -> itree (E1 +' E2) R1) :
+  @inl_safe E1 E2 R1 (Vis (inl1 e) k) -> False.
+Proof.
+ unfold inl_safe, inl_safe_rel; intros [t' H].
+ punfold H; red in H.
+ dependent destruction H.
+ unfold REv_eq in H; simpl in *.
+ intuition.
+Admitted.  
+
+(* we can use this function to eliminate the existential in inr_only *)
+Definition PureFstEval : 
+  forall (t: itree (E1 +' E2) R1),
+    inl_safe t -> itree E2 R1 :=
+  cofix _Extr (u: itree (E1 +' E2) R1) :
+    inl_safe u -> itree E2 R1 :=
+    fun pf =>
+      match (observe u) with
+    | RetF r => fun _ => Ret r
+    | TauF t => fun pf => Tau (_Extr t (@inl_safe_tau t pf))
+    | VisF T0 e k => match e with
+          | inr1 e2 =>
+              fun pf =>
+                Vis e2 (fun x => _Extr (k x) (@inl_safe_visL T0 e2 k pf x))  
+          | inl1 e1 =>
+              fun pf => match @inl_safe_visR T0 e1 k pf with end 
+          end
+   end (eq_rect u _ pf (go (observe u)) (itree_eta_ u)).                 
+
+(* here we use PureFstEval to instantiate the existential, but have
+   dependent type problems *)
+Lemma inl_safe_is_inr_only (t1 : itree (E1 +' E2) R1)
+   (X: inl_safe t1) :
+   forall X1: inl_safe t1, eutt eq t1 (translate inr1 (PureFstEval X1)).
+Proof.
+  destruct X as [t2 X].
+  unfold inl_safe_rel in X.
+  revert X.
+  revert t1 t2.
+  pcofix CIH.
+  intros t1 t2 H X1.
+  punfold H. red in H.
+  pstep; red.
+ 
+  remember (observe t1) as ot1.
+  remember (observe t2) as ot2.
+  hinduction H before CIH.
+
+  { intros t1 t2 H1 H2 X1; simpl.
+
+    generalize (itree_eta_ t1) as ee.
+    intro ee; simpl.
+
+Admitted. 
+(*    
+    setoid_rewrite <- H1; simpl.
+    econstructor; auto.
+  }
+  { intros t1 t2 H1 H2; simpl.
+    rewrite <- H1; simpl.
+    econstructor; eauto.
+    pclearbot.
+    right.
+    eapply CIH; eauto.
+  }
+  { intros t1 t2 H1 H2; simpl.
+    rewrite <- H1; simpl.
+    destruct e1; simpl.
+    - unfold REv_eq in H.
+      destruct H as [C1 C2].
+      unfold is_inr in C1; auto with *.
+    - econstructor; eauto.
+      unfold REv_eq in H.
+      destruct H as [C1 [hh C2]].
+      simpl in *.
+      dependent destruction hh.
+      intros v; unfold Datatypes.id; simpl.
+      specialize (H0 v v).
+      unfold RAns_eq in H0.
+      intuition.
+      assert (forall h : A = A, v = eq_rect A id v A h) as C3.
+      { intros; eauto.
+        dependent destruction h; simpl; auto.
+      }  
+      specialize (H0 C3).
+      pclearbot.
+      right; simpl.
+      eapply CIH; eauto.
+  }
+  { intros t0 t2 H1 H2.
+    rewrite H1. simpl.
+    rewrite <- H1; simpl.
+    eapply Eqit.EqTauL; auto.
+    eapply Eqit.EqTauR; auto.
+    eapply IHruttF; eauto.
+  }  
+  { intros t1 t0 H1 H2.
+    eapply IHruttF; auto.
+  }
+Qed.    
+*)           
+ 
+(* just an experiment *)
+Variant extrF (sim : itree (E1 +' E2) R1 -> itree E2 R1 -> Prop) : 
+  itree' (E1 +' E2) R1 -> itree' E2 R1 -> Prop :=
+| extrRet : forall (r1: R1),
+    extrF (RetF r1) (RetF r1)
+| extrTau : forall (m1 : itree (E1 +' E2) R1) (m2 : itree E2 R1),
+    sim m1 m2 ->
+    extrF (TauF m1) (TauF m2)
+| extrVis : forall (A: Type) (e1 : (E1 +' E2) A) (e2 : E2 A)
+    (CN: e1 = inr1 e2)                 
+    (k1 : A -> itree (E1 +' E2) R1) (k2 : A -> itree E2 R1)
+    (REL: forall v, sim (k1 v) (k2 v) : Prop),
+    extrF (VisF e1 k1) (VisF e2 k2).
+Hint Constructors extrF : itree.
+
+  Definition extr_ (sim : itree (E1 +' E2) R1 -> itree E2 R1 -> Prop)
+             (t1 : itree (E1 +' E2) R1) (t2 : itree E2 R1) :=
+    extrF sim (observe t1) (observe t2).
+  Hint Unfold extr_ : itree.
+  (** [eqitF] and [eqit_] are both monotone. *)
+
+  Lemma extrF_mono : monotone2 extr_.
+  Proof.
+    red. intros. red. induction IN; eauto with itree.
+  Qed.
+
+  Definition extr : itree (E1 +' E2) R1 -> itree E2 R1 -> Prop :=
+    paco2 extr_ bot2.
+  Hint Unfold extr : itree.
+  
+End NewSec1.
 
