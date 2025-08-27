@@ -2,7 +2,7 @@
 
 REPO=formosa-crypto
 NAME=libjade
-BRANCH=main
+BRANCH=e8b300393a16d9364ec3496c6ac8503e74f74307
 
 FILE="$NAME.tar.gz"
 ROOT=$(echo -n $NAME-$BRANCH | tr / -)
