@@ -3,6 +3,7 @@ all:
 
 clean:
 	$(MAKE) -C compiler clean
+	$(MAKE) -C eclib clean
 
 install:
 	$(MAKE) -C compiler install

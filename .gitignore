@@ -37,6 +37,8 @@ Makefile.coq
 Makefile.coq.bak
 Makefile.coq.conf
 
+/eclib/*.conf
+
 /jasmin/
 /jasmin.tar.gz
 /compiler/config/checker_config_default.json
