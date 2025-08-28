@@ -1,4 +1,4 @@
-# [unreleased]
+# Jasmin 2025.06.1 — Nancy, 2025-08-29
 
 ## New features
 
@@ -58,7 +58,7 @@
 
 - Programs with obvious out-of-bounds array accesses are rejected at
   compile-time
-  ([PR #1132](https://github.com/jasmin-lang/jasmin/pull/1132)).
+  ([PR #1232](https://github.com/jasmin-lang/jasmin/pull/1232)).
 
 - On x86, `#set0_64` is now compiled into a 32-bit xor zero-extended to 64 bits
   ([PR #1242](https://github.com/jasmin-lang/jasmin/pull/1242)).
