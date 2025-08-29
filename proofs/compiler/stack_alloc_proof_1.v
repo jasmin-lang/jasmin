@@ -7152,10 +7152,10 @@ Lemma alloc_syscallP ii rmap rs o es rmap2 c table vme m0 s1 s2 ves scs m vs s1'
   alloc_syscall saparams pmap ii rmap rs o es = ok (rmap2, c) ->
   valid_state table rmap vme m0 s1 s2 ->
   sem_pexprs true gd s1 es = ok ves ->
-  exec_syscall_u (escs s1) (emem s1) o ves = ok (scs, m, vs) ->
+  exec_syscall (sCP := sCP_unit) (escs s1) (emem s1) o ves = ok (scs, m, vs) ->
   write_lvals true gd (with_scs (with_mem s1 m) scs) rs vs = ok s1' ->
   exists s2',
-    esem P' rip c s2 = ok s2' /\
+    sem P' rip s2 c s2' /\
     valid_state (foldl remove_binding_lval table rs) rmap2 vme m0 s1' s2'.
 Proof.
   move=> halloc hvs.
@@ -7165,9 +7165,10 @@ Proof.
   case: rs => // -[] // x [] //.
   case: es => // -[] // g [] //.
   t_xrbindP=> pg /get_regptrP hlg px /get_regptrP hlx srg /get_sub_regionP hsrg {}rmap2 hrmap2 <- <-{c}.
-  rewrite /= /exec_getrandom_u /=.
-  t_xrbindP=> vg hgvarg <-{ves} [_ _] ag' /to_arrI ?
-    a2 hfill [<- <-] <-{scs} <-{m} <-{vs} /=; subst vg.
+  rewrite /= /exec_syscall /= /exec_getrandom_arg_u /exec_getrandom_store_u.
+  t_xrbindP=> vg hgvarg <-{ves} _ ag' /to_arrI ? <-; subst vg.
+  rewrite (surjective_pairing (get_random (escs s1) len)).
+  t_xrbindP => a2 hfill <-{scs} <-{m} <-{vs} /=.
   t_xrbindP=> {}s1' /write_varP + <- => -[-> hdb h].
   have /wf_locals /= hlocal := hlx.
   have /vm_truncate_valE [hty htreq]:= h.
@@ -7249,17 +7250,18 @@ Proof.
 
   (* wrap up *)
   exists s2'''; split=> //.
-  move: hsem1 => /= -> /=; rewrite LetK.
-  rewrite /sem_syscall.
-  rewrite /= /get_gvar /= /get_var.
-  have /wfr_ptr := hsrg; rewrite /get_local hlg => -[_ [[<-] /= hpk]].
-  rewrite (hpk _ ok_addrg) /=.
-  rewrite Vm.setP_eq wt_len vm_truncate_val_eq //=.
-  rewrite /fexec_syscall /= /exec_syscall_s /= !truncate_word_u /=.
-  rewrite /exec_getrandom_s_core wunsigned_repr_small; last by clear -hlen; lia.
-  rewrite -vs_scs hfillm /=.
-  rewrite /upd_estate /= LetK.
-  by apply write_var_eq_type; rewrite // hlocal.(wfr_rtype).
+  econstructor.
+  + apply esem_i_sem; exact: hsem1.
+  apply sem_seq1; constructor; econstructor.
+  + rewrite /= /get_gvar /= /get_var.
+    have /wfr_ptr := hsrg; rewrite /get_local hlg => -[_ [[<-] /= hpk]].
+    rewrite (hpk _ ok_addrg) /=.
+    by rewrite Vm.setP_eq wt_len vm_truncate_val_eq.
+  + rewrite /exec_syscall /= /exec_getrandom_arg_s /= !truncate_word_u /=.
+    rewrite (surjective_pairing (get_random _ _)) /=.
+    rewrite /exec_getrandom_store_s /= wunsigned_repr_small; last by clear -hlen; lia.
+    rewrite truncate_word_u /= -vs_scs hfillm /=; reflexivity.
+  by rewrite /= write_var_eq_type // hlocal.(wfr_rtype).
 Qed.
 
 End WITH_PARAMS.

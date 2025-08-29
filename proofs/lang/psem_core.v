@@ -14,6 +14,28 @@ Local Open Scope seq_scope.
 Open Scope vm_scope.
 
 Section WSW.
+
+Class semSysCallParams
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {scs : syscall_sem syscall_state}
+  := SemSysCallParams
+  {
+  exec_syscall_arg : syscall_t -> values -> exec Z;
+  exec_syscall_store : syscall_t -> syscall_state_t -> mem -> values -> seq u8 -> exec (syscall_state_t * mem * values);
+  exec_syscall_argP : forall o vargs vargs' len,
+    List.Forall2 value_uincl vargs vargs' ->
+    exec_syscall_arg o vargs = ok len ->
+    exec_syscall_arg o vargs' = ok len;
+  exec_syscall_storeP : forall o vargs vargs' scs scs' m m' bytes vres,
+    List.Forall2 value_uincl vargs vargs' ->
+    exec_syscall_store o scs m vargs bytes = ok (scs', m', vres) ->
+    exec_syscall_store o scs m vargs' bytes = ok (scs', m', vres);
+  exec_syscall_storeS: forall o scs m vargs bytes scs' m' vres,
+     exec_syscall_store o scs m vargs bytes = ok (scs', m', vres) ->
+     mem_equiv m m';
+}.
+
 Context {wsw:WithSubWord}.
 
 Class semCallParams
@@ -25,16 +47,45 @@ Class semCallParams
   {
   init_state : extra_fun_t -> extra_prog_t -> extra_val_t -> estate -> exec estate;
   finalize   : extra_fun_t -> mem -> mem;
-  exec_syscall : syscall_state_t -> mem -> syscall_t -> values -> exec (syscall_state_t * mem * values);
-  exec_syscallP: forall scs m o vargs vargs' rscs rm vres,
-     exec_syscall scs m o vargs = ok (rscs, rm, vres) ->
-     List.Forall2 value_uincl vargs vargs' ->
-     exists2 vres', exec_syscall scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres';
-  exec_syscallS: forall scs m o vargs rscs rm vres,
-     exec_syscall scs m o vargs = ok (rscs, rm, vres) ->
-     mem_equiv m rm;
-}.
+  sSCP :: @semSysCallParams syscall_state ep scs;
+  }.
 
+Section EXEC_SYSCALL.
+
+Context
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {sCS : syscall_sem syscall_state}
+  {pT : progT}
+  {sCP: semCallParams}.
+
+Definition exec_syscall (scs : syscall_state_t) (m : mem) sc (vs : values) :=
+  Let len := exec_syscall_arg sc vs in
+  let: (scs', bytes) := syscall.get_random scs len in
+  exec_syscall_store sc scs' m vs bytes.
+
+Lemma exec_syscallP scs m sc vargs vargs' rscs rm vres :
+  exec_syscall scs m sc vargs = ok (rscs, rm, vres) ->
+  List.Forall2 value_uincl vargs vargs' ->
+  exists2 vres', exec_syscall scs m sc vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'.
+Proof.
+  rewrite /exec_syscall; t_xrbindP => len harg.
+  case hrnd: get_random => [scs' bytes] hstr hu.
+  rewrite (exec_syscall_argP hu harg) /= hrnd.
+  rewrite (exec_syscall_storeP hu hstr).
+  by exists vres => //; apply List_Forall2_refl.
+Qed.
+
+Lemma exec_syscallS scs m sc vargs rscs rm vres:
+  exec_syscall scs m sc vargs = ok (rscs, rm, vres) ->
+  mem_equiv m rm.
+Proof.
+  rewrite /exec_syscall; t_xrbindP => len harg.
+  case hrnd: get_random => [scs' bytes] hstr.
+  apply (exec_syscall_storeS hstr).
+Qed.
+
+End EXEC_SYSCALL.
 (** Switch for the semantics of function calls:
   - when false, arguments and returned values are truncated to the declared type of the called function;
   - when true, arguments and returned values are allowed to be undefined.
@@ -64,14 +115,20 @@ Context
 (* ** Semantic without stack
  * -------------------------------------------------------------------- *)
 
+Definition sSCP_unit : semSysCallParams :=
+  {| exec_syscall_arg  := exec_syscall_arg_u;
+    exec_syscall_store := exec_syscall_store_u;
+    exec_syscall_argP := exec_syscall_argPu;
+    exec_syscall_storeP := exec_syscall_storePu;
+    exec_syscall_storeS := exec_syscall_storeSu;
+  |}.
+
 #[ global ]
 Instance sCP_unit : semCallParams (pT := progUnit) :=
   { init_state := fun _ _ _ s => ok s;
     finalize   := fun _ m => m;
-    exec_syscall  := exec_syscall_u;
-    exec_syscallP := exec_syscallPu;
-    exec_syscallS := exec_syscallSu;
-}.
+    sSCP := sSCP_unit
+  }.
 
 (* ** Semantic with stack
  * -------------------------------------------------------------------- *)
@@ -87,13 +144,19 @@ Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (
 Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) :=
   free_stack m.
 
+Definition sSCP_stack : semSysCallParams :=
+  {| exec_syscall_arg  := exec_syscall_arg_s;
+    exec_syscall_store := exec_syscall_store_s;
+    exec_syscall_argP := exec_syscall_argPs;
+    exec_syscall_storeP := exec_syscall_storePs;
+    exec_syscall_storeS := exec_syscall_storeSs;
+  |}.
+
 #[ global ]
 Instance sCP_stack : semCallParams (pT := progStack) :=
   { init_state := init_stk_state;
     finalize   := finalize_stk_mem;
-    exec_syscall  := exec_syscall_s;
-    exec_syscallP := exec_syscallPs;
-    exec_syscallS := exec_syscallSs;
+    sSCP := sSCP_stack;
 }.
 
 End SEM_CALL_PARAMS.

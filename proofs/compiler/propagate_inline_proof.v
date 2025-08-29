@@ -752,7 +752,7 @@ Section PROOF.
 
   Section IT.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
 
   Definition st_pi pi s1 s2 :=
     st_uincl tt s1 s2 /\ valid_pi gd s1 pi.
