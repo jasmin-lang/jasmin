@@ -276,17 +276,9 @@ let pp_args fmt (sty, xs) =
     pp_sto_ty sty
     (pp_list " " pp_var) xs
 
-let pp_decl fmt (x: vardecl L.located) =
-  let x, e = L.unloc x in
-  let pp fmt = F.fprintf fmt " = %a" pp_expr in
-  F.fprintf fmt "%s%a" (L.unloc x) (pp_opt pp) e
-
-let pp_decls fmt (sty, vd) =
-  F.fprintf
-    fmt
-    "%a %a"
-    pp_sto_ty sty
-    (pp_list " " pp_decl) vd
+let pp_varinit fmt v =
+  let (x, e) = L.unloc v in
+  F.fprintf fmt "%a = %a" pp_var x pp_expr e
 
 let pp_annot_args fmt  (annot, args) =
   F.fprintf fmt "%a%a" pp_inline_annotations annot pp_args args
@@ -319,14 +311,13 @@ let pp_eqop fmt op =
 let pp_sidecond fmt =
   F.fprintf fmt " %a %a" kw "if" pp_expr
 
-let pp_vardecls fmt (d:vardecls) =
-  F.fprintf fmt "%a;" pp_decls d
-
 let rec pp_instr depth fmt (annot, p) =
   if annot <> [] then F.fprintf fmt "%a%a" indent depth pp_top_annotations annot;
   indent fmt depth;
   match L.unloc p with
-  | PIdecl d -> pp_vardecls fmt d
+  | PIdecl (sty, vds) -> F.fprintf fmt "%a %a;" pp_sto_ty sty (pp_list " " pp_var) vds
+  | PIdeclinit (sty, vds) ->
+     F.fprintf fmt "%a %a;" pp_sto_ty sty (pp_list ", " pp_varinit) vds
   | PIArrayInit x -> F.fprintf fmt "%a (%a);" kw "arrayinit" pp_var x
   | PIAssign ((pimp,lvs), op, e, cnd) ->
     begin match pimp, lvs with
