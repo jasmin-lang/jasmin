@@ -1,5 +1,7 @@
 # [unreleased]
 
+# Jasmin 2025.06.1 — Nancy, 2025-08-29
+
 ## New features
 
 - Add support for the MMX/SSE instruction `PADD`
@@ -15,9 +17,9 @@
 ## Bug fixes
 
 - Linter : More precise diagnostics
-  ([PR #1224](https://github.com/jasmin-lang/jasmin/pull/1224);
-  [PR #1199](https://github.com/jasmin-lang/jasmin/pull/1199));
-  - fixes [#1223](https://github.com/jasmin-lang/jasmin/pull/1223).
+  ([PR #1224](https://github.com/jasmin-lang/jasmin/pull/1224),
+  [PR #1199](https://github.com/jasmin-lang/jasmin/pull/1199);
+  fixes [#1223](https://github.com/jasmin-lang/jasmin/pull/1223)).
 
 - Consider LHS array variables as assigned
   ([PR #1214](https://github.com/jasmin-lang/jasmin/pull/1214)).
@@ -56,12 +58,16 @@
 - More precise handling of `#POPCNT` in the safety checker
   ([PR #1197](https://github.com/jasmin-lang/jasmin/pull/1197)).
 
+- Programs with obvious out-of-bounds array accesses are rejected at
+  compile-time
+  ([PR #1232](https://github.com/jasmin-lang/jasmin/pull/1232)).
+
 - On x86, `#set0_64` is now compiled into a 32-bit xor zero-extended to 64 bits
   ([PR #1242](https://github.com/jasmin-lang/jasmin/pull/1242)).
 
 - On x86, the compiler emits `DEC` instructions instead of `ADD` with a `-1`
   immediate
-  ([PR #1242](https://github.com/jasmin-lang/jasmin/pull/1242)).
+  ([PR #1256](https://github.com/jasmin-lang/jasmin/pull/1256)).
 
 - The compiler no longer introduces L-values; the command line flag `-w_` has
   been removed
