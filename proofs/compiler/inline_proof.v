@@ -14,6 +14,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
+  (fuel: nat)
   (rename_fd : instr_info -> funname -> ufundef -> ufundef)
   (dead_vars_fd : ufun_decl -> instr_info -> Sv.t).
 
@@ -21,9 +22,9 @@ Lemma get_funP p f fd :
   get_fun p f = ok fd -> get_fundef p f = Some fd.
 Proof. by rewrite /get_fun;case:get_fundef => // ? [->]. Qed.
 
-Notation inline_i' := (inline_i rename_fd dead_vars_fd).
-Notation inline_fd' := (inline_fd rename_fd dead_vars_fd).
-Notation inline_prog' := (inline_prog rename_fd dead_vars_fd).
+Notation inline_i' := (inline_i (S fuel) rename_fd dead_vars_fd).
+Notation inline_fd' := (inline_fd (S fuel) rename_fd dead_vars_fd).
+Notation inline_prog' := (inline_prog (S fuel) rename_fd dead_vars_fd).
 
 #[local] Existing Instance indirect_c.
 
@@ -578,7 +579,7 @@ Section PROOF.
 End PROOF.
 
 Lemma inline_call_errP p p' f ev scs mem scs' mem' va va' vr:
-  inline_prog_err rename_fd dead_vars_fd p = ok p' ->
+  inline_prog_err (S fuel) rename_fd dead_vars_fd p = ok p' ->
   List.Forall2 value_uincl va va' ->
   sem_call p ev scs mem f va scs' mem' vr ->
   exists2 vr',
@@ -606,7 +607,7 @@ Let pfuncs := pfuncs1 ++ (fn, fd) :: pfuncs2.
 
 Hypothesis uniq_funname : uniq [seq x.1 | x <- pfuncs].
 
-Hypothesis (inline_fd_ok : inline_fd rename_fd dead_vars_fd pfuncs2 fd = ok fd').
+Hypothesis (inline_fd_ok : inline_fd (S fuel) rename_fd dead_vars_fd pfuncs2 fd = ok fd').
 
 Let p1 : uprog :=
   {|p_funcs := pfuncs; p_globs := p_globs p; p_extra := p_extra p |}.
@@ -839,7 +840,7 @@ Context
 .
 
 Lemma inline_fd_consP (pfuncs1 pfuncs0 pfuncs2 pfuncs: ufun_decls) :
-  foldr (inline_fd_cons  rename_fd dead_vars_fd) (ok pfuncs2) pfuncs1 = ok pfuncs ->
+  foldr (inline_fd_cons (S fuel) rename_fd dead_vars_fd) (ok pfuncs2) pfuncs1 = ok pfuncs ->
   let p1 := {|p_funcs := pfuncs0 ++ pfuncs1 ++ pfuncs2; p_globs := p_globs p; p_extra := p_extra p |} in
   let p2 := {|p_funcs := pfuncs0 ++ pfuncs; p_globs := p_globs p; p_extra := p_extra p |} in
   uniq [seq x.1 | x <- p_funcs p1] ->
@@ -867,7 +868,7 @@ Proof.
 Qed.
 
 Lemma it_inline_call_errP p' fn :
-  inline_prog_err rename_fd dead_vars_fd p = ok p' ->
+  inline_prog_err (S fuel) rename_fd dead_vars_fd p = ok p' ->
   wiequiv_f p p' ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   rewrite /inline_prog_err; case: ifP => //; t_xrbindP => huniq pfuncs h <-.

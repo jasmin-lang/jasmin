@@ -52,16 +52,14 @@ Context
   {msfsz : MSFsize}
   `{asmop : asmOp}
   {fcp : FlagCombinationParams}
+  (fuel: nat)
   (is_move_op : asm_op_t -> bool).
 
 Let postprocess (p: uprog) : cexec uprog :=
   let p := const_prop_prog p in
-  dead_code_prog is_move_op p false.
+  dead_code_prog is_move_op p false fuel.
 
 (* FIXME: error really not clear for the user *)
-(* TODO: command line option to specify the unrolling depth,
-   the error should suggest increasing the number
-*)
 Fixpoint unroll (n: nat) (p: uprog) : cexec uprog :=
   if n is S n' then
     let: (p', repeat) := unroll_prog p in
@@ -73,7 +71,7 @@ Fixpoint unroll (n: nat) (p: uprog) : cexec uprog :=
 
 Definition unroll_loop (p: uprog) :=
   Let p := postprocess p in
-  unroll Loop.nb p.
+  unroll fuel p.
 
 End IS_MOVE_OP.
 
@@ -207,6 +205,8 @@ Context
   {lowering_options : Type}
   (aparams : architecture_params lowering_options)
   (cparams : compiler_params lowering_options).
+Context
+  (fuel: nat).
 
 Notation saparams := (ap_sap aparams).
 Notation liparams := (ap_lip aparams).
@@ -238,13 +238,13 @@ Definition live_range_splitting (p: uprog) : cexec uprog :=
   let pv := remove_phi_nodes_prog pv in
   let pv := cparams.(print_uprog) RemovePhiNodes pv in
   let pv := map_prog_name (refresh_instr_info cparams) pv in
-  Let _ := check_uprog (wsw:= withsubword) cparams.(dead_vars_ufd) p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
-  Let pv := dead_code_prog (ap_is_move_op aparams) pv false in
+  Let _ := check_uprog (wsw:= withsubword) fuel.+1 cparams.(dead_vars_ufd) p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
+  Let pv := dead_code_prog (ap_is_move_op aparams) pv false fuel in
   let p := cparams.(print_uprog) DeadCode_Renaming pv in
   ok p.
 
 Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
-  Let p := inline_prog_err (wsw := withsubword) cparams.(rename_fd) cparams.(dead_vars_ufd) p in
+  Let p := inline_prog_err (wsw := withsubword) fuel.+1 cparams.(rename_fd) cparams.(dead_vars_ufd) p in
   let p := cparams.(print_uprog) Inlining p in
 
   Let p := dead_calls_err_seq to_keep p in
@@ -253,7 +253,7 @@ Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
 
 Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :=
 
-  Let p := wi2w_prog (wsw:=withsubword) cparams.(remove_wint_annot) cparams.(dead_vars_ufd) p in
+  Let p := wi2w_prog (wsw:=withsubword) fuel.+1 cparams.(remove_wint_annot) cparams.(dead_vars_ufd) p in
   let p := cparams.(print_uprog) WintWord p in
 
   Let p := array_copy_prog (λ k, cparams.(fresh_var_ident) k dummy_instr_info 0) p in
@@ -264,13 +264,14 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
 
   Let p :=
     spill_prog
+      fuel
       (fun k ii => fresh_var_ident cparams k ii 0)
       p in
   let p := cparams.(print_uprog) LowerSpill p in
 
   Let p := inlining to_keep p in
 
-  Let p := unroll_loop (ap_is_move_op aparams) p in
+  Let p := unroll_loop fuel (ap_is_move_op aparams) p in
   Let: tt := check_no_for_loop p in
   Let: tt := check_no_inline_instr p in
   let p := cparams.(print_uprog) Unrolling p in
@@ -291,7 +292,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
 
   Let pe := live_range_splitting pe in
 
-  Let pg := remove_glob_prog cparams.(fresh_id) pe in
+  Let pg := remove_glob_prog fuel.+1 cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
   Let pp := load_constants_prog (fresh_var_ident cparams (Reg (Normal, Direct))) aparams.(ap_plp) pg in
@@ -313,10 +314,10 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
   in
   let p := cparams.(print_uprog) LowerInstruction p in
 
-  Let p := propagate_inline.pi_prog p in
+  Let p := propagate_inline.pi_prog fuel.+1 p in
   let p := cparams.(print_uprog) PropagateInline p in
 
-  Let p := lower_slh_prog shparams (cparams.(slh_info) p) to_keep p in
+  Let p := lower_slh_prog shparams fuel.+1 (cparams.(slh_info) p) to_keep p in
   let p := cparams.(print_uprog) SLHLowering p in
 
   ok p.
@@ -332,14 +333,14 @@ Definition compiler_third_part (returned_params: funname -> option (seq (option 
     | None => rminfo fn
     end
   in
-  Let pr := dead_code_prog_tokeep (ap_is_move_op aparams) false rminfo ps in
+  Let pr := dead_code_prog_tokeep (ap_is_move_op aparams) fuel false rminfo ps in
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
   let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in
-  Let _ := check_sprog (wsw:= withsubword) cparams.(dead_vars_sfd) pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
+  Let _ := check_sprog (wsw:= withsubword) fuel.+1 cparams.(dead_vars_sfd) pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 
-  Let pd := dead_code_prog (ap_is_move_op aparams) pa true in
+  Let pd := dead_code_prog (ap_is_move_op aparams) pa true fuel in
   let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in
 
   ok pd.
@@ -403,6 +404,7 @@ Definition compiler_front_end (entries: seq funname) (p: uprog) : cexec sprog :=
       shparams
       saparams
       (ap_is_move_op aparams)
+      fuel.+1
       (fun vk => fresh_var_ident cparams vk dummy_instr_info)
       (pp_sr cparams)
       (global_static_data_symbol cparams)
@@ -436,7 +438,7 @@ Definition check_export entries (p: sprog) : cexec unit :=
 Definition compiler_back_end entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
-  Let _ := merge_varmaps.check pd var_tmps in
+  Let _ := merge_varmaps.check pd var_tmps fuel in
   Let pl := linear_prog liparams pd in
   let pl := cparams.(print_linear) Linearization pl in
   (* stack zeroization                 *)
