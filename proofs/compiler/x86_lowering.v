@@ -69,14 +69,14 @@ Definition fvars_correct p :=
       fv_cf != fv_zf &
       fv_sf != fv_zf].
 
-Definition stype_of_lval (x: lval) : stype :=
+Definition stype_of_lval (x: lval) : atype :=
   match x with
   | Lnone _ t => t
   | Lmem _ ws _ _ => sword ws
   | Lvar v | Laset _ _ _ v _ | Lasub _ _ _ v _ => v.(vtype)
   end.
 
-Definition wsize_of_stype (ty: stype) : wsize :=
+Definition wsize_of_stype (ty: atype) : wsize :=
   match ty with
   | sword sz => sz
   | sbool | sint | sarr _ => U64
@@ -158,7 +158,7 @@ Variant lower_cassgn_t : Type :=
   | LowerFopn of wsize & sopn & list pexpr & option wsize
   | LowerDiscardFlags of nat & sopn & list pexpr
   | LowerCond
-  | LowerIf   of stype & pexpr & pexpr & pexpr
+  | LowerIf   of atype & pexpr & pexpr & pexpr
   | LowerDivMod of divmod_pos & signedness & wsize & sopn & pexpr & pexpr
   | LowerConcat of pexpr & pexpr
   | LowerAssgn.
@@ -218,7 +218,7 @@ Definition check_signed_range (m: option wsize) sz' (n: Z) : bool :=
   else false.
 
 (* x =(ty) e *)
-Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
+Definition lower_cassgn_classify (ty:atype) e x : lower_cassgn_t :=
   let chk (b: bool) r := if b then r else LowerAssgn in
   let kb b sz := chk (b && (sword sz == ty)) in
   let k8 sz := kb (sz ≤ U64)%CMP sz in
@@ -419,7 +419,7 @@ Definition reduce_wconst sz (e: pexpr) : pexpr :=
   then Papp1 (Oword_of_int (cmp_min sz sz')) (Pconst z)
   else e.
 
-Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : cmd :=
+Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: atype) (e: pexpr) : cmd :=
   let vi := var_info_of_lval x in
   let f := Lnone_b vi in
   let copn o a := [:: MkI ii (Copn [:: x ] tg o a) ] in

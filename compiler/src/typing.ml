@@ -89,7 +89,7 @@ let rec ty_expr pd loc (e:expr) =
   match e with
   | Pconst _    -> tint
   | Pbool _     -> tbool
-  | Parr_init len -> Arr (U8, len)
+  | Parr_init (ws, len) -> Arr (ws, len)
   | Pvar x      -> ty_gvar x
   | Pget(_al, _aa,ws,x,e) ->
     ty_get_set pd loc ws x e

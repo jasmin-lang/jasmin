@@ -17,13 +17,11 @@ Open Scope vm_scope.
  * -------------------------------------------------------------------- *)
 
 Definition sem_sop1 (o: sop1) (v: value) : exec value :=
-  let t := type_of_op1 o in
   Let x := of_val _ v in
   Let r := sem_sop1_typed o x in
   ok (to_val r).
 
 Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
-  let t := type_of_op2 o in
   Let x1 := of_val _ v1 in
   Let x2 := of_val _ v2 in
   Let r  := sem_sop2_typed o x1 x2 in
@@ -48,7 +46,7 @@ Definition gv2val (gd:glob_value) :=
 Definition get_global gd g : exec value :=
   if get_global_value gd g is Some ga then
     let v := gv2val ga in
-    if type_of_val v == vtype g then ok v
+    if to_atype (type_of_val v) == vtype g then ok v
     else type_error
   else type_error.
 
@@ -121,7 +119,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
-  | Parr_init n => ok (Varr (WArray.empty n))
+  | Parr_init ws n => ok (Varr (WArray.empty (Z.to_pos (arr_size ws n))))
   | Pvar v => get_gvar wdb gd s.(evm) v
   | Pget al aa ws x e =>
       Let (n, t) := wdb, gd, s.[x] in
@@ -148,6 +146,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     Let vs := mapM (sem_pexpr s) es in
     sem_opN op vs
   | Pif t e e1 e2 =>
+    let t := to_ctype t in
     Let b := sem_pexpr s e >>= to_bool in
     Let v1 := sem_pexpr s e1 >>= truncate_val t in
     Let v2 := sem_pexpr s e2 >>= truncate_val t in
@@ -170,7 +169,7 @@ Definition write_none (s : estate) ty v :=
 
 Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
   match l with
-  | Lnone _ ty => write_none s ty v
+  | Lnone _ ty => write_none s (to_ctype ty) v
   | Lvar x => write_var x v s
   | Lmem al sz x e =>
     Let p := sem_pexpr s e >>= to_pointer in

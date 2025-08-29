@@ -20,13 +20,18 @@ Variant slh_op :=
   | SLHupdate
   | SLHmove
   | SLHprotect of wsize
-  | SLHprotect_ptr of positive
-  | SLHprotect_ptr_fail of positive.  (* Not exported to the user *)
+  | SLHprotect_ptr of wsize & positive
+  | SLHprotect_ptr_fail of wsize & positive.  (* Not exported to the user *)
 
 HB.instance Definition _ := hasDecEq.Build slh_op slh_op_eqb_OK.
 
-Definition is_protect_ptr (slho : slh_op) : option positive :=
-  if slho is SLHprotect_ptr p then Some p else None.
+Definition is_protect_ptr (slho : slh_op) :=
+  if slho is SLHprotect_ptr ws p then Some (ws, p) else None.
 
-Lemma is_protect_ptrP op : is_reflect SLHprotect_ptr op (is_protect_ptr op).
-Proof. case: op; by constructor. Qed.
+Lemma is_protect_ptrP op : is_reflect (fun '(ws, p) => SLHprotect_ptr ws p) op (is_protect_ptr op).
+Proof.
+  case: op; try by constructor.
+  move=> ws p.
+  (* for some reason, I need to give a hint that the argument is a pair *)
+  exact: (Is_reflect_some _ (_, _)).
+Qed.

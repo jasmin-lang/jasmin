@@ -85,10 +85,10 @@ End Section.
 
 Definition add_init_aux ii x c :=
   match x.(vtype) with
-  | sarr n =>
+  | sarr (ws, n) =>
     if ~~ is_ptr x then
       let x := VarI x (var_info_of_ii ii) in
-      MkI ii (Cassgn (Lvar x) AT_none (sarr n) (Parr_init n)) :: c
+      MkI ii (Cassgn (Lvar x) AT_none (sarr (ws, n)) (Parr_init ws n)) :: c
     else c
   | _ => c
   end.

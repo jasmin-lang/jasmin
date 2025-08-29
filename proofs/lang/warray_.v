@@ -19,9 +19,6 @@ HB.instance Definition _ := hasDecEq.Build arr_access arr_access_eqb_OK.
 
 Local Open Scope Z_scope.
 
-Definition arr_size (ws:wsize) (len:positive)  := 
-   (wsize_size ws * len).
-
 Lemma arr_sizeE ws len : arr_size ws len = (wsize_size ws * len).
 Proof. done. Qed.
 
