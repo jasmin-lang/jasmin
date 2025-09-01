@@ -33,7 +33,6 @@ let config path =
         ( "success/common/test_warn_var.jazz",
           disable_warnings [ UnusedVar; DuplicateVar ] );
         ("success/x86-64/vpblendvb.jazz", disable_warnings [ Deprecated ]);
-        ("success/x86-64/vpmovmskb.jazz", disable_warnings [ Deprecated ]);
       ]
       ()
   with Not_found -> default ()
