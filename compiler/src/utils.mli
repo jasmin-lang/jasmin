@@ -13,8 +13,6 @@ module Hiloc : Hash.S with type key = Location.i_loc
 module Miloc : Map.S with type key = Location.i_loc
 module Siloc : Set.S with type elt = Location.i_loc
 
-module Option : sig include module type of BatOption end
-
 (* -------------------------------------------------------------------- *)
 val identity : 'a -> 'a
 

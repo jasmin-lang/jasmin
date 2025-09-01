@@ -1636,7 +1636,7 @@ module EcLeakLocal(EE: EcExpression) (EA: EcArray) (LC: LeakageConfig): EcLeakag
       in
       var_leak @ leaks
     | Pload (_,_,e') ->
-        (leak_val_valleak env e) @
+        (leak_data_valleak env e) @
         (leaks_e_rec env ((leak_addr_mem env e') @ leaks) e')
     | Pget (_,_,_,_, e') ->
         (leak_data_valleak env e) @
@@ -2006,7 +2006,6 @@ struct
                   let aux = Env.create_aux env "inc" "int" in
                   let init = ESasgn ([LvIdent [aux]], toec_expr env e2) in
                   let ec_e2 = ec_ident aux in
-<<<<<<< HEAD
                   [init], ec_e2 in
           let ec_i = [ec_vars env (L.unloc i)] in
           let lv_i = [LvIdent ec_i] in
