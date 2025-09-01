@@ -175,7 +175,6 @@ module X86_core = struct
     | VPMAXU _ -> true
     | VPMINS (ve, _) -> ve = VE8 || ve = VE16
     | VPMINU _ -> true
-    | VPMOVMSKB _ -> true
     | VPMOVSX _ -> true
     | VPMOVZX _ -> true
     | VPMUL _ -> true
