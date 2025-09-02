@@ -45,6 +45,22 @@ Import ITreeNotations.
    ITree.EqAxiom). The axiom states that equality on itrees is
    equivalent to (strict) bisimulation. *)
 
+Section Eutt.
+
+Lemma bind_ret_r_unit {E} :
+  forall s : itree E unit,
+    ITree.bind s (fun _ => Ret tt) ≅ s.
+Proof.
+  intros.
+  assert ((fun _ => go (@RetF E _ _ tt)) = (fun u: unit => Ret u)) as A.
+  { eapply functional_extensionality.
+    intros x. destruct x; auto. }
+  rewrite A.
+  eapply bind_ret_r.
+Qed.  
+
+End Eutt.  
+
 Section GEN_MREC.
   
 Context (D E : Type -> Type).

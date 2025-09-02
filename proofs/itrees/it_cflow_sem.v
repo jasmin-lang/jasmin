@@ -16,6 +16,8 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import expr psem_defs psem_core it_exec it_exec_sem tfam_iso
                eutt_extras.
 
+Require Import List.
+
 Import MonadNotation.
 Local Open Scope monad_scope.
 
@@ -145,6 +147,9 @@ Fixpoint isem_instr (i : instr) : itree (recCall +' E) unit :=
 (* semantics of commands *)
 Definition isem_cmd c := isem_foldr isem_instr c.
 
+Lemma fold_cmd c: isem_cmd c = isem_foldr isem_instr c.
+Proof. by reflexivity. Qed. 
+
 Section SemFun.
 
 Context {XF: FunE -< E}.  
@@ -180,13 +185,23 @@ Definition denote_instr (i: instr) : itree E unit :=
 Definition denote_cmd (c: cmd) : itree E unit :=
   interp_recc (isem_cmd c).
 
-(* recCall interpreter of function calls *)
+(* recCall interpreter of function calls (corresponds to: isem_fun) *)
 Definition denote_fun (fn : funname) (fs : FState) : itree E FState :=
   interp_recc (isem_fcall fn fs).
 
-(* function semantics, directly expressed with rec *)
-Definition denote_fcall (fn : funname) (fs : FState) : itree E FState :=
+(* function semantics, expressed with rec rather than interp_mrec *)
+Definition denote_fun' (fn : funname) (fs : FState) : itree E FState :=
   rec (uncurry isem_fcall) (fn, fs). 
+
+(* corresponds to: isem_fun_body with the sem_fun_full instance *) 
+Definition denote_fcall (fn : funname) (fs : FState) :
+  itree E FState :=
+  fd <- trigger (GetFunDef fn fs) ;;  
+  c <- trigger (GetFunCode fd) ;;
+  trigger (InitFunCall fd fs) ;;
+  denote_cmd c ;;
+  trigger (FinalizeFunCall fd).
+
 
 (********************************************************************)
 (* blank function semantics *)
@@ -195,7 +210,7 @@ Definition rec_call (f : funname) (fs : FState) :
    itree (recCall +' E) FState := trigger_inl1 (Call (f, fs)).
 
 (* fully blank semantics (does nothing) *)
-Definition denote_fcall_blank (fn : funname) (fs : FState) : itree E FState :=
+Definition denote_fun_blank' (fn : funname) (fs : FState) : itree E FState :=
   rec (uncurry rec_call) (fn, fs). 
 
 (* blank handler of recCall events *)
@@ -211,7 +226,26 @@ Definition denote_fun_blank (fn : funname) (fs : FState) : itree E FState :=
 
 (**********************************************************************)
 
-Lemma denote_cmd_cons_eutt i c :
+Lemma denote_fun_eutt (fn : funname) (fs : FState) :
+  eutt eq (denote_fun' fn fs) (denote_fun fn fs).
+Proof. by reflexivity. Qed.  
+
+Lemma isem_cmd_cons i c :
+  eutt eq (isem_cmd (i :: c))
+          (isem_instr i ;; isem_cmd c).       
+Proof. by reflexivity. Qed.
+
+Lemma isem_cmd_cat c1 c2 :
+  eutt eq (isem_cmd (c1 ++ c2))
+          (isem_cmd c1 ;; isem_cmd c2).       
+Proof.
+  induction c1; simpl.
+  - rewrite bind_ret_l; reflexivity.     
+  - setoid_rewrite bind_bind.
+    setoid_rewrite IHc1; reflexivity.
+Qed.
+
+Lemma denote_cmd_cons i c :
   eutt eq (denote_cmd (i :: c))
           (denote_instr i ;; denote_cmd c).       
 Proof.
@@ -219,14 +253,149 @@ Proof.
   setoid_rewrite interp_bind; reflexivity.
 Qed.
 
-Lemma denote_fun_eutt (fn : funname) (fs : FState) :
-  eutt eq (denote_fcall fn fs) (denote_fun fn fs).
-Proof. by reflexivity. Qed.  
-
-Lemma denote_fun_blank_eutt (fn : funname) (fs : FState) :
-  eutt eq (denote_fcall_blank fn fs) (denote_fun_blank fn fs).
+Lemma denote_cmd_cat c1 c2 :
+  eutt eq (denote_cmd (c1 ++ c2))
+          (denote_cmd c1 ;; denote_cmd c2).       
 Proof.
-  unfold denote_fcall_blank, denote_fun_blank, rec, mrec.
+  unfold denote_cmd, interp_recc; simpl.
+  setoid_rewrite interp_mrec_as_interp; simpl.
+  setoid_rewrite isem_cmd_cat; simpl.
+  setoid_rewrite interp_bind; reflexivity.
+Qed.
+  
+Lemma denote_cmd_cat' c1 c2 :
+  eutt eq (denote_cmd (c1 ++ c2))
+          (denote_cmd c1 ;; denote_cmd c2).       
+Proof.
+  induction c1; simpl.
+  - unfold denote_cmd at 2; simpl.
+    setoid_rewrite interp_mrec_as_interp; simpl.
+    setoid_rewrite interp_ret.
+    setoid_rewrite bind_ret_l; reflexivity.
+  - setoid_rewrite <- app_comm_cons; simpl.
+    setoid_rewrite interp_mrec_as_interp; simpl.
+    setoid_rewrite interp_bind.
+    setoid_rewrite bind_bind.
+    eapply eqit_bind; try reflexivity.
+    unfold pointwise_relation; intros _.
+    setoid_rewrite <- interp_mrec_as_interp; auto.
+Qed.
+  
+(*
+Require Import FunctionalExtensionality.
+
+Lemma bind_ret_r_unit {E1} :
+  forall s : itree E1 unit,
+    ITree.bind s (fun=> Ret tt) ≅ s.
+Proof.
+  intros.
+  assert ((fun=> go (@RetF E1 _ _ tt)) = (fun u: unit => Ret u)) as A.
+  { eapply functional_extensionality.
+    intros x. destruct x; auto. }
+  rewrite A.
+  eapply bind_ret_r.
+Qed.  
+*)
+
+Lemma isem_cmd_while ii al c e inf c':
+  isem_cmd [:: MkI ii (Cwhile al c e inf c')] 
+  ≈
+  isem_cmd (c ++ [:: MkI ii (Cif e (c' ++ [:: MkI ii (Cwhile al c e inf c')])
+                               [::])]).
+Proof.
+  rewrite isem_cmd_cat. 
+  unfold isem_cmd at 1; simpl.
+  unfold isem_while_loop; simpl.
+  setoid_rewrite bind_ret_r_unit.
+  setoid_rewrite unfold_iter; simpl.
+  unfold isem_while_round; simpl.
+  setoid_rewrite bind_bind.
+  setoid_rewrite bind_bind.
+  eapply eqit_bind; try reflexivity.
+  unfold pointwise_relation; simpl.
+  intro u; destruct u.
+  eapply eqit_bind; try reflexivity.
+  unfold pointwise_relation; simpl.
+  intro b; destruct b; simpl.
+  - setoid_rewrite bind_bind.
+    setoid_rewrite <- fold_cmd at 2.
+    rewrite isem_cmd_cat.
+    eapply eqit_bind; try reflexivity.
+    unfold pointwise_relation; simpl.
+    intro u; destruct u; simpl.
+    setoid_rewrite bind_ret_l.
+    eapply eqit_Tau_l.
+    setoid_rewrite bind_ret_r_unit; reflexivity.  
+  - setoid_rewrite bind_ret_l; reflexivity.
+Qed.    
+  
+Lemma denote_cmd_while ii al c e inf c':
+  denote_cmd [:: MkI ii (Cwhile al c e inf c')] 
+  ≈
+  denote_cmd (c ++ [:: MkI ii (Cif e (c' ++ [:: MkI ii (Cwhile al c e inf c')])
+                               [::])]).
+Proof.
+  unfold denote_cmd, interp_recc.
+  setoid_rewrite interp_mrec_as_interp.
+  setoid_rewrite isem_cmd_while; reflexivity.
+Qed.  
+
+Lemma interp_isem_cmd c :
+  eutt (E:=E) eq (interp_recc (isem_cmd c)) (isem_foldr denote_instr c).
+Proof.
+  apply:
+   (cmd_rect
+    (Pr := fun ir => forall ii,
+       eutt (E:=E) eq (interp_recc (isem_instr (MkI ii ir)))
+                      (denote_instr (MkI ii ir)))
+    (Pi := fun i => 
+       eutt (E:=E) eq (interp_recc (isem_instr i))
+                      (denote_instr i))
+    (Pc := fun c => 
+       eutt (E:=E) eq (interp_recc (isem_cmd c))
+                      (isem_foldr denote_instr c)));
+    clear c; simpl; try (intros; reflexivity).
+  - setoid_rewrite interp_mrec_as_interp.
+    setoid_rewrite interp_ret; reflexivity.
+  - intros i c H H0.
+    setoid_rewrite interp_mrec_as_interp; simpl.
+    setoid_rewrite interp_bind.
+    eapply eqit_bind.
+    setoid_rewrite <- interp_mrec_as_interp; reflexivity.
+    unfold pointwise_relation; intro u; destruct u.
+    rewrite <- H0.
+    setoid_rewrite <- interp_mrec_as_interp; reflexivity.
+Qed.    
+
+Lemma isem_call_unfold (fn : funname) (fs : FState) :
+  denote_fun fn fs ≈ denote_fcall fn fs.
+Proof.
+  unfold denote_fun, interp_recc, denote_fcall.
+  setoid_rewrite interp_mrec_as_interp.
+  unfold isem_fcall.
+  rewrite interp_bind.
+  eapply eqit_bind.
+  - setoid_rewrite interp_trigger; simpl; reflexivity.
+  - unfold pointwise_relation; intro fd.
+    rewrite interp_bind.
+    eapply eqit_bind.
+  - setoid_rewrite interp_trigger; simpl; reflexivity.  
+  - unfold pointwise_relation; intro c.
+    rewrite interp_bind.
+    eapply eqit_bind.
+  - setoid_rewrite interp_trigger; simpl; reflexivity.    
+  - unfold pointwise_relation; intro fs1.
+    rewrite interp_bind.
+    eapply eqit_bind; try reflexivity.
+  - unfold pointwise_relation; intro u.
+    setoid_rewrite interp_trigger; simpl; reflexivity.    
+Qed.    
+    
+(*
+Lemma denote_fun_blank_eutt (fn : funname) (fs : FState) :
+  eutt eq (denote_fun_blank' fn fs) (denote_fun_blank fn fs).
+Proof.
+  unfold denote_fun_blank', denote_fun_blank, rec, mrec.
   setoid_rewrite interp_mrec_as_interp.
   eapply eutt_interp; eauto; try reflexivity.
   simpl. unfold isem_fcall.
@@ -242,7 +411,8 @@ Proof.
   unfold eq2, Eq2_Handler, eutt_Handler, Relation.i_pointwise.
   intros.
 Abort.
-  
+*)  
+
 End SemFun.
 
 End SemRec.
