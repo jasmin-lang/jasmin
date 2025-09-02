@@ -1608,7 +1608,7 @@ Deprecated intrinsic operators map (old name -> new name)
 *)
 let deprecated_intrinsic =
   let m = Ms.empty in
-  Ms.add "VPMOVMSKB" "MOVEMASK" m
+  m
 
 (**
   Check if intrinsic opperator is deprecated and emit a warning if so.
