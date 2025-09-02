@@ -3,6 +3,8 @@ require import AllCore IntDiv List.
 require export JModel_common JArray JWord_array Jslh JMemory AES.
 require SHA.
 
+abbrev ptr_modulus = 2^64.
+
 
 (* ------------------------------------------------------------------- *)
 

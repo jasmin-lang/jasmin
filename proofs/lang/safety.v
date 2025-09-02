@@ -1,5 +1,5 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import expr compiler_util. 
+Require Import expr compiler_util word. 
 Require Export safety_shared.
           
 Section SAFETY.
@@ -216,19 +216,19 @@ Definition safe_cond_to_e vs sc: pexpr :=
       end
   | ULt ws k z =>
       match List.nth_error vs k with
-      | Some x => elti x (Pconst z)
+      | Some x => elti (eint_of_word Unsigned U8 x) (Pconst z)
       | None => Pbool true
       end
   | UGe ws z k =>
       match List.nth_error vs k with
-      | Some x => elei (Pconst z) x
+      | Some x => elei (Pconst z) (eint_of_word Unsigned U8 x)
       | None => Pbool true
       end
   | UaddLe ws k1 k2 z =>
       match List.nth_error vs k1 with
       | Some x => 
-          match List.nth_error vs k1 with
-          | Some y => elei (eaddi x y) (Pconst z)
+          match List.nth_error vs k2 with
+          | Some y => elei (eaddi (eint_of_word Unsigned U8 x) (eint_of_word Unsigned U8 y)) (Pconst z)
           | None => Pbool true
           end
       | None => Pbool true

@@ -382,7 +382,7 @@ type ec_item =
     | Iimport of string list
     | IfromImport of string * (string list)
     | IfromRequireImport of string * (string list)
-    | Iabbrev of string * ec_expr
+    | Iabbrev of bool * string * ec_expr
     | ImoduleType of ec_module_type
     | Imodule of ec_module
     | Icomment of string
@@ -895,8 +895,9 @@ let pp_ec_item fmt it =
     Format.fprintf fmt "@[from %s import@ @[%a@].@]" m (pp_list "@ " pp_string) is
   | IfromRequireImport (m, is) ->
     Format.fprintf fmt "@[from %s require import@ @[%a@].@]" m (pp_list "@ " pp_string) is
-  | Iabbrev (a, e) ->
-    Format.fprintf fmt "@[abbrev %s =@ @[%a@].@]" a pp_ec_ast_expr e
+  | Iabbrev (p, a, e) ->
+    let printing = if p then "[-printing]" else "" in
+    Format.fprintf fmt "@[abbrev %s %s =@ @[%a@].@]" printing a pp_ec_ast_expr e
   | ImoduleType mt ->
     Format.fprintf fmt "@[<v>@[module type %s = {@]@   @[<v>%a@]@ }.@]"
       mt.name (pp_list "@ " pp_ec_fun_decl) mt.funs
@@ -1078,7 +1079,9 @@ let ec_lvals env xs =
   List.map (ec_lval env) xs
 
 let glob_mem = ["Glob"; "mem"]
+let glob_mem_v = ["Glob"; "mem_v"]
 let glob_memi = Eident glob_mem
+let glob_mem_vi = Eident glob_mem_v
 
 let ec_pd env = Eident [Format.sprintf "W%d" (int_of_ws (Env.pd env)); "to_uint"]
 
@@ -1645,7 +1648,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
       | Pis_mem_init (e1,e2) ->
         let e1 = toec_expr env (int_of_ptr (Env.pd env) e1) in
         let e2 = toec_expr env e2 in
-        Eapp (ec_ident "is_valid", [e1; e2])
+        Eapp (ec_ident "is_valid", [ Eident ["ptr_modulus"];glob_mem_vi;e1; e2])
 
   and toec_cast env (ty, e) = ec_cast env (ty, ty_expr e) (toec_expr env e)
 
@@ -2537,12 +2540,12 @@ struct
 
   let ec_glob_decl env (x,d) =
     let w_of_z ws z = Eapp (Eident [fmt_Wsz ws; "of_int"], [Econst z]) in
-    let mk_abbrev e = Iabbrev (ec_vars env x, e) in
+    let mk_abbrev p e = Iabbrev (p,ec_vars env x, e) in
     match d with
-    | Global.Gword(ws, w) -> mk_abbrev (w_of_z ws (Conv.z_of_word ws w))
+    | Global.Gword(ws, w) -> mk_abbrev true (w_of_z ws (Conv.z_of_word ws w))
     | Global.Garr(p,t) ->
       let ws, t = Conv.to_array x.v_ty p t in
-      mk_abbrev (Eapp (EA.of_list env ws (Array.length t),
+      mk_abbrev false (Eapp (EA.of_list env ws (Array.length t),
                        [Elist (List.map (w_of_z ws) (Array.to_list t))]))
 
   let ec_randombytes env =

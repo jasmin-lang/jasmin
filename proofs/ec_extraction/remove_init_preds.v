@@ -256,12 +256,27 @@ Definition rm_init_copy ii (n:positive) lv e : instr :=
   let e := e_to_bexpr e in
   MkI ii (Cassgn lv AT_inline (sarr n) e).
 
+Definition assign_bvar_syscall (lvs:seq lval) (l:positive) (ii:instr_info) : cmd :=
+  match lvs with
+  | [::Lvar x] => 
+    if not_array x.(v_var) then
+      [::]
+    else
+      let x := Lvar (var_i_to_bvar x) in
+      let e := Parr_init_elem (word_of_int Unsigned U8 (-1)) l in
+      let i := Cassgn x AT_inline (sarr l) e in
+      let i := MkI ii i in
+      [:: i]
+  | _ => [::]
+  end.
+
 (* Remove is_var_init and is_arr_init from the instruction and replace them with the corresponding boolean variables *)
 Fixpoint rm_var_init_i (i : instr) : cmd :=
   let: (MkI ii ir) := i in
   match ir with
   | Cassgn lv _ t e => cassign_bvar ii lv t e ++ [::i]
-  | Csyscall lvs _ _ => conc_map (assign_bvar_lval ii expr_true) lvs  ++ [::i]
+  | Csyscall lvs (RandomBytes l) _ => 
+    assign_bvar_syscall lvs l ii ++ [::i]
   | Ccall lvs n es => 
     let (lvs,es) := change_ccall_signature lvs es in
     let i := MkI ii (Ccall lvs n es) in
@@ -352,7 +367,7 @@ Definition generate_fun_contra_array (f:ufundef) : fun_contract :=
   let aux l tl := flatten(map2 (fun x ty =>
     match ty with
       | sarr n => 
-        [::(EmptyString,Pis_arr_init x (Pconst 0) (Pconst n))]
+        [::(safety_lbl,Pis_arr_init x (Pconst 0) (Pconst n))]
       | _ => [::]
     end
   ) l tl) in
