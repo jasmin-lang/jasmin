@@ -1087,8 +1087,12 @@ Proof.
       rewrite interp_bind.
       eapply xrutt_bind with (RR:= eq); try reflexivity.
 
-    (*********************************************************)
+
+Admitted.      
       
+(*********************************************************)
+
+(*
       eapply err_result_rassoc_eqit.
       destruct (sem_cond (p_globs p) e s) eqn: was_t;
         econstructor; eauto.
@@ -1456,7 +1460,10 @@ Proof.
   }
 
 Admitted.
+*)
 
+(*********************************************************)
+      
 End IT_section3.
 
 End IT_section2.

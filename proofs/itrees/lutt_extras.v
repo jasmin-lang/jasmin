@@ -22,7 +22,7 @@ From mathcomp Require Import word_ssrZ ssreflect ssrfun ssrbool eqtype.
 
 Require Import rutt_extras it_exec exec_extras.
 Require Import expr psem_defs oseq compiler_util.
-Require Import it_sems_core core_logics.
+Require Import (* it_sems_core *) core_logics tfam_iso1.
 
 Import Monads.
 Import MonadNotation.

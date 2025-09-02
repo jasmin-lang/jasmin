@@ -24,7 +24,7 @@ From Paco Require Import paco.
 
 Require Import List.
 
-Require Import it_sems_core.
+Require Import tfam_iso1. (* it_sems_core.  *)
 
 Import Monads.
 Import MonadNotation.
