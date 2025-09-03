@@ -1,0 +1,68 @@
+\ProvidesPackage{jasmin}[2024/09/30 Typeset Jasmin programs]
+% CHANGES
+% 2024/09/30: add jasminannotation and jasminprimitive commands
+% 2021/11/09: automatic line numbering
+% TODO: make line-numbering optional
+
+\RequirePackage{xcolor}
+\RequirePackage{forloop}
+
+\newlength\jasmintab
+\setlength\jasmintab{1em}
+
+\newcounter{jasmin@indent}
+\newcommand*\jasminindent[1]{%
+  \forloop{jasmin@indent}{0}{\value{jasmin@indent} < #1}{%
+    \hspace*{\jasmintab}%
+  }%
+}
+
+\newcommand*\jasminfont{\sffamily\footnotesize}
+
+\newcounter{jasmin@lineno}
+\setcounter{jasmin@lineno}{0}
+\newcommand*\jasminlineno{%
+  \refstepcounter{jasmin@lineno}%
+  \makebox[1.62ex][r]{\scriptsize\arabic{jasmin@lineno}}\kern2pt%
+}
+
+\newcommand*\jasminnewline{%
+  \newline\jasminlineno%
+}
+
+\newenvironment{jasmincode}{%
+  \raisebox{1ex}{\rule{\columnwidth}{0.4pt}}
+  \begin{minipage}{\columnwidth}
+  \catcode`\_=11%
+  \catcode`\&=11%
+  \raggedright%
+  \setlength{\parindent}{0pt}\jasminfont%
+  \let\\=\jasminnewline%
+  \jasminlineno%
+}{%
+  \end{minipage}
+  \raisebox{-1ex}{\rule{\columnwidth}{0.4pt}}%
+  \setcounter{jasmin@lineno}{0}%
+}
+
+\newcommand*\jasminarrow{\ensuremath{\longrightarrow}}
+
+\newcommand*\jasmindname[1]{\textbf{#1}}
+\newcommand*\jasminkw[1]{\textrm{#1}}
+\newcommand*\jasmintype[1]{\textcolor[rgb]{0.06, 0.2, 0.65}{#1}}
+\newcommand*\jasminstorageclass[1]{\textcolor[rgb]{0.33, 0.5, 0.18}{#1}}
+\newcommand*\jasmincomment[1]{\textcolor[rgb]{0.43, 0.5, 0.5}{#1}}
+\newcommand*\jasminprimitive[1]{\textcolor[rgb]{0.65, 0.2, 0.06}{#1}}
+\newcommand*\jasminannotation[1]{\textcolor[rgb]{0.06, 0.65, 0.2}{#1}}
+
+\newcommand*\jasminshl{<\kern-.2em<}
+\newcommand*\jasminshr{>\kern-.2em>}
+
+% Remove hyperlinks because the counter is reset.
+\@ifpackageloaded{cleveref}{
+  \crefname{jasmin@lineno}{line}{Line}
+  \crefformat{jasmin@lineno}{line #1}
+  \Crefformat{jasmin@lineno}{Line #1}
+  \crefrangeformat{jasmin@lineno}{lines #1 to #2}
+  \Crefrangeformat{jasmin@lineno}{Lines #1 to #2}
+}{}
