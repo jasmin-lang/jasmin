@@ -1,4 +1,5 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
+From ITree Require Import ITree.
 Require Import
   compiler_util
   expr
@@ -58,6 +59,8 @@ Record h_lowering_params
         {E E0: Type -> Type}
         {wE : with_Error E E0}
         {rE : EventRels E0}
+        {rndE0 : RndEvent syscall_state -< E0}
+        {rndE0_refl : RndE0_refl rE}
         {p : prog}
         {ev : extra_val_t}
         (options : lowering_options)
@@ -109,6 +112,8 @@ Record h_lower_addressing_params
         {E E0: Type -> Type}
         {wE : with_Error E E0}
         {rE : EventRels E0}
+        {rndE0 : RndEvent syscall_state -< E0}
+        {rndE0_refl : RndE0_refl rE}
         {fresh_reg}
         {p p' : sprog}
         {ev fn},

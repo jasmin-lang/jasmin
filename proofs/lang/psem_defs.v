@@ -217,7 +217,10 @@ End EXEC_ASM.
 End WSW.
 
 (* Just for extraction *)
-Definition syscall_sem__ := @syscall_sem.exec_syscall_u.
+
+Definition syscall_sem__ :=
+   @syscall_sem.exec_syscall_u.
+
 
 Notation "'Let' ( n , t ) ':=' wdb ',' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_var wdb s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
