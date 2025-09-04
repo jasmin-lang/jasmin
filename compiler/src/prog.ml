@@ -512,6 +512,16 @@ let assigns = function
       List.fold_left written_lv Sv.empty xs
   | Cif _ | Cwhile _ |Cfor _ -> Sv.empty
 
+let is_lmem = function
+  | Lmem _ -> true
+  | _ -> false
+
+let has_effect = function
+  | Csyscall _ | Ccall _ -> true
+  | Cassgn (x, _, _, _) -> is_lmem x
+  | Copn (xs, _, _, _) -> List.exists is_lmem xs
+  | Cif _ | Cwhile _ | Cfor _ -> false
+
 (* -------------------------------------------------------------------- *)
 let rec iter_instr f stmt = List.iter (iter_instr_i f) stmt
 
