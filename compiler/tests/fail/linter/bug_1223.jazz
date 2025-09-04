@@ -3,3 +3,24 @@ export fn only_one_live_result(reg u64 x) -> reg u64 {
   x, z = #swap(z, x);
   return x;
 }
+
+export fn not(reg u32 x) -> reg u32 {
+  if x == 0 {
+    x = 1;
+  } else {
+    x = 0;
+  }
+  return x;
+}
+
+export fn store(reg u64 p, reg u8 b) {
+  [:u8 p] = b;
+}
+
+export fn store_with_dead(reg u64 s, reg u32 a) -> reg u32 {
+  reg bool c;
+  [:u32 s] = 0;
+  c, [:u32 s] +32u= a;
+  a = [:u32 s];
+  return a;
+}
