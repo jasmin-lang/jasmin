@@ -373,6 +373,178 @@ Proof.
   eapply is_inr_inrB_equivF.
 Qed.  
 
+Lemma translate_inl_rev_eqit {T} {R} b1 b2 (t t': itree E1 T) :
+  eqit R b1 b2 (translate (@inl1 E1 E2) t) (translate (@inl1 E1 E2) t') ->
+  eqit R b1 b2 t t'. 
+Proof.
+  revert t t'.
+  pcofix CIH.
+  intros t t'.
+  repeat (setoid_rewrite unfold_translate).
+  intro H.
+  punfold H; red in H.
+  remember (observe t) as ot.
+  remember (observe t') as ot'.
+  dependent induction H; simpl in *.
+
+  - assert (eq_itree eq (Ret r1) (translate (@inl1 E1 E2) t)) as B1.
+    { setoid_rewrite (itree_eta (@translate E1 (E1 +' E2) (@inl1 E1 E2) T t)).
+      setoid_rewrite (itree_eta t). simpl in *.
+      setoid_rewrite <- x0; reflexivity.
+    }  
+    setoid_rewrite (itree_eta t) in B1.
+
+    assert (eq_itree eq (Ret r2) (translate (@inl1 E1 E2) t')) as C1.
+    { setoid_rewrite (itree_eta (@translate E1 (E1 +' E2) (@inl1 E1 E2) T t')).
+      setoid_rewrite (itree_eta t'). simpl in *.
+      setoid_rewrite <- x; reflexivity.
+    }  
+    setoid_rewrite (itree_eta t') in C1.
+
+    destruct (observe t) eqn: B2.
+    + destruct (observe t') eqn: C2.
+      * pstep; red.
+        rewrite B2.
+        rewrite C2.
+        econstructor; auto.
+        setoid_rewrite translate_ret in B1.
+        eapply eqit_inv_Ret in B1.
+        inv B1.
+        setoid_rewrite translate_ret in C1.
+        eapply eqit_inv_Ret in C1.
+        inv C1; auto.
+      * setoid_rewrite translate_tau in C1; try discriminate.
+      * setoid_rewrite translate_vis in C1; try discriminate.        
+    + setoid_rewrite translate_tau in B1; try discriminate.
+    + setoid_rewrite translate_vis in B1; try discriminate.
+    
+  - assert (eq_itree eq (Tau m1) (translate (@inl1 E1 E2) t)) as B1.
+    { setoid_rewrite (itree_eta (@translate E1 (E1 +' E2) (@inl1 E1 E2) T t)).
+      setoid_rewrite (itree_eta t). simpl in *.
+      setoid_rewrite <- x0; reflexivity.
+    }  
+    setoid_rewrite (itree_eta t) in B1.
+
+    assert (eq_itree eq (Tau m2) (translate (@inl1 E1 E2) t')) as C1.
+    { setoid_rewrite (itree_eta (@translate E1 (E1 +' E2) (@inl1 E1 E2) T t')).
+      setoid_rewrite (itree_eta t'). simpl in *.
+      setoid_rewrite <- x; reflexivity.
+    }  
+    setoid_rewrite (itree_eta t') in C1.
+
+    destruct (observe t) eqn: B2.
+    + setoid_rewrite translate_ret in B1; try discriminate.    
+    + destruct (observe t') eqn: C2.
+      * setoid_rewrite translate_ret in C1; try discriminate.      
+      * setoid_rewrite translate_tau in B1.
+        setoid_rewrite translate_tau in C1.
+        eapply eqit_inv_Tau in B1.
+        eapply eqit_inv_Tau in C1.
+        pclearbot.
+        setoid_rewrite B1 in REL.
+        setoid_rewrite C1 in REL.
+
+        pstep; red.
+        rewrite B2.
+        rewrite C2.
+        econstructor.
+        right.
+        eapply CIH; eauto.
+      * setoid_rewrite translate_vis in C1; try discriminate.  
+    + setoid_rewrite translate_vis in B1; try discriminate.
+
+  - assert (eq_itree eq (Vis e k1) (translate inl1 t)) as B1.
+    { setoid_rewrite (itree_eta (@translate E1 (E1 +' E2) (@inl1 E1 E2) T t)).
+      setoid_rewrite (itree_eta t). simpl in *.
+      setoid_rewrite <- x0; reflexivity.
+    }  
+    
+    setoid_rewrite (itree_eta t) in B1.
+  
+    destruct (observe t) eqn: B2.
+    + setoid_rewrite translate_ret in B1; try discriminate.
+    + setoid_rewrite translate_tau in B1; try discriminate.
+    + setoid_rewrite translate_vis in B1; try discriminate.
+
+    have B3 := (bisimulation_is_eq _ _ B1). 
+      
+    assert (eq_itree eq (Vis e k2) (translate inl1 t')) as C1.
+    { setoid_rewrite (itree_eta (@translate E1 (E1 +' E2) (@inl1 E1 E2) T t')).
+      setoid_rewrite (itree_eta t'). simpl in *.
+      setoid_rewrite <- x; reflexivity.
+    }  
+    
+    setoid_rewrite (itree_eta t') in C1.
+  
+    destruct (observe t') eqn: C2.
+    + setoid_rewrite translate_ret in C1; try discriminate.
+    + setoid_rewrite translate_tau in C1; try discriminate.
+    + setoid_rewrite translate_vis in C1; try discriminate.
+
+    have C3 := (bisimulation_is_eq _ _ C1).
+    dependent destruction B3.
+    dependent destruction C3.
+       
+    pstep; red.
+    rewrite B2.
+    rewrite C2.
+    econstructor; eauto.
+
+    intro v. unfold Datatypes.id; simpl.
+    right.
+    eapply CIH; eauto.
+    specialize (REL v).
+    unfold Datatypes.id in REL; simpl in *.
+    pclearbot; auto.
+
+  - assert (eq_itree eq (Tau t1) (translate inl1 t)) as B1.
+    { setoid_rewrite (itree_eta (@translate E1 (E1 +' E2) (@inl1 E1 E2) T t)).
+      setoid_rewrite (itree_eta t). simpl in *.
+      setoid_rewrite <- x; reflexivity.
+    }
+
+    setoid_rewrite (itree_eta t) in B1.
+    destruct (observe t) eqn: B2.
+    + setoid_rewrite translate_ret in B1; try discriminate.
+    + setoid_rewrite translate_tau in B1.
+      eapply eqit_inv_Tau in B1.
+      have B3 := (bisimulation_is_eq _ _ B1).
+      inv B3.
+      pstep; red. rewrite B2.
+      econstructor; auto.
+
+      assert (paco2 (eqit_ R b1 b2 Datatypes.id) r t0 t') as B4.
+      { eapply IHeqitF; eauto. }
+
+      punfold B4; red in B4.
+      
+    + setoid_rewrite translate_vis in B1; try discriminate.
+    
+  - assert (eq_itree eq (Tau t2) (translate inl1 t')) as B1.
+    { setoid_rewrite (itree_eta (@translate E1 (E1 +' E2) (@inl1 E1 E2) T t')).
+      setoid_rewrite (itree_eta t'). simpl in *.
+      setoid_rewrite <- x; reflexivity.
+    }
+
+    setoid_rewrite (itree_eta t') in B1.
+    destruct (observe t') eqn: B2.
+    + setoid_rewrite translate_ret in B1; try discriminate.
+    + setoid_rewrite translate_tau in B1.
+      eapply eqit_inv_Tau in B1.
+      have B3 := (bisimulation_is_eq _ _ B1).
+      inv B3.
+      pstep; red. rewrite B2.
+      econstructor; auto.
+
+      assert (paco2 (eqit_ R b1 b2 Datatypes.id) r t t0) as B4.
+      { eapply IHeqitF; eauto. }
+
+      punfold B4; red in B4.
+      
+    + setoid_rewrite translate_vis in B1; try discriminate.
+Qed.    
+    
+
 Section Lutt_sec.
 
 Context {E : Type -> Type} {X: FIso E (E1 +' E2)}.

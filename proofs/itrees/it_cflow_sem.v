@@ -413,10 +413,26 @@ Proof.
 Abort.
 *)  
 
+Section Inline.
+
+Context {do_inline :
+      FState -> funname (* caller *) -> funname (* callee *) -> bool}.
+
+Definition inline_interp (caller : funname)  (ii:instr_info)
+  (callee : funname) (fs : FState) :=
+     if do_inline caller ii callee then isem_fcall callee fs (* Interprete the call but not the internal ones *)
+     else trigger_inl1 (E:=E) (Call (callee, fs)). (* Do not interprete the call, simply emmit an event *)
+    
+
+  
+End Inline.  
+
 End SemFun.
 
 End SemRec.
 
+
+(**********************************************************************)
 
 Class sem_Fun (E : Type -> Type) :=
   { sem_fun : funname -> FState -> itree E FState }.

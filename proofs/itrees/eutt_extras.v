@@ -118,6 +118,12 @@ Proof.
     eapply IHeqitF; eauto.
 Qed.
 
+Definition smart_handler {E E1 E2} (X: FIso E (E1 +' E2))
+  (h: E1 ~> itree E2) : E ~> itree E2 :=
+  fun T e => match (mfun1 e) with
+             | inl1 e1 => h _ e1
+             | inr1 e2 => trigger e2 end.               
+
 End GEN_MREC.
 
 Definition lassoc_tr E1 E2 E3 : (E1 +' (E2 +' E3)) ~> ((E1 +' E2) +' E3) :=
