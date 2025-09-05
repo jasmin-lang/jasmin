@@ -10,7 +10,7 @@ let create_dv_error err_payload loc =
     code = "DV-E001";
     to_text =
       (
-        fun fmt -> Format.fprintf fmt "Variable '%s' is affected but never used" err_payload.v_name
+        fun fmt -> Format.fprintf fmt "Variable “%s” is affected but never used" err_payload.v_name
       );
   }
 
@@ -23,8 +23,8 @@ let create_dv_error_instr loc =
     to_text =
       (
         fun fmt ->
-          Format.fprintf fmt "Instruction only assigns dead variables"
-        );
+        Format.fprintf fmt "Instruction only assigns dead variables"
+      );
   }
 
 let check_func func =
@@ -33,16 +33,16 @@ let check_func func =
   let check_instr ({ i_desc; i_info; i_loc; _}:('info,'asm) Prog.instr) =
     let domain = Annotation.unwrap i_info in
     let assigns = Jasmin.Prog.assigns i_desc in
-    let dead_variables = Sv.diff assigns domain in
-
-    if (not (Sv.is_empty (Sv.inter assigns domain))) then (* We check if at least one lvalue is alive. If then, we do not create an error*)
-      Sv.iter (fun v ->
-        let err_payload= create_dv_error v (i_loc.base_loc) in
-        dv_errors := err_payload :: !dv_errors
-      ) dead_variables
-    else
-      let err_payload = create_dv_error_instr (i_loc.base_loc) in
-      dv_errors := err_payload :: !dv_errors
+    if not (Sv.is_empty assigns) then begin
+        if Sv.disjoint assigns domain && not (has_effect i_desc) then
+          (* The instruction is dead: warn once *)
+          dv_errors := create_dv_error_instr i_loc.base_loc :: !dv_errors
+        else
+          (* Some assigned variables are dead: warn for each dead variable *)
+          Sv.iter (fun v ->
+              dv_errors := create_dv_error v i_loc.base_loc :: !dv_errors
+            ) (Sv.diff assigns domain)
+      end
   in
 
   iter_instr check_instr func.f_body ;
