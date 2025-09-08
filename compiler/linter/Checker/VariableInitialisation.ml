@@ -16,18 +16,13 @@ let create_vi_error err_payload loc =
           (Location.tostring err_payload.v_dloc));
   }
 
-type check_mode = Strict | NotStrict
-
-let check_func mode fd =
+let check_func fd =
   let errors = ref [] in
   let check_var ~loc m x =
     (* Arrays that are not ptr need not be initialized *)
     if (not (is_ty_arr x.v_ty)) || is_ptr x.v_kind then
-      let iset = Mv.find x (unwrap m) in
-      if
-        match mode with
-        | Strict -> Iloc.SIloc.mem Default iset
-        | NotStrict -> Iloc.SIloc.equal iset (Iloc.SIloc.singleton Default)
+      let iset = Mv.find_default Siloc.empty x (unwrap m) in
+      if Siloc.is_empty iset
       then errors := create_vi_error x loc :: !errors
   in
   let check_var_i m x = check_var ~loc:(L.loc x) m (L.unloc x) in
@@ -68,5 +63,5 @@ let check_func mode fd =
   List.iter (check_var_i fd.f_info) fd.f_ret;
   List.rev !errors
 
-let check_prog ?(mode = NotStrict) (_, fds) =
-  List.concat_map (check_func mode) (List.rev fds)
+let check_prog (_, fds) =
+  List.concat_map check_func (List.rev fds)
