@@ -1,0 +1,14 @@
+/* Two warnings: use before initialisation & dead assignment */
+export fn level1() {
+  reg u32 uninit;
+  uninit = 0 if true;
+}
+
+/* One warning: some assigned variables are dead. */
+export fn level2(reg u64 x) -> reg u8 {
+  reg bool cf;
+  reg u8 r;
+  ?{ cf }, x = #SHR(x, 1);
+  r = #SETcc(cf);
+  return r;
+}
