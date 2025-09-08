@@ -6,7 +6,7 @@ let create_dv_error err_payload loc =
   let open CompileError in
   {
     location = loc;
-    error_strategy = CompileError.Fail;
+    level = 2;
     code = "DV-E001";
     to_text =
       (
@@ -18,7 +18,7 @@ let create_dv_error_instr loc =
   let open CompileError in
   {
     location = loc;
-    error_strategy = CompileError.Fail;
+    level = 1;
     code = "DV-E002";
     to_text =
       (

@@ -63,3 +63,17 @@
   warning: Variable “z” is affected but never used
   "fail/linter/bug_1223.jazz", line 23 (2-22)
   warning: Variable “c” is affected but never used
+
+  $ ../jasminc -linting-level 1 fail/linter/levels.jazz
+  "fail/linter/levels.jazz", line 4 (2-8)
+  warning: Variable uninit (declared at : "fail/linter/levels.jazz", line 3 (10-16)) not initialized
+  "fail/linter/levels.jazz", line 4 (2-21)
+  warning: Instruction only assigns dead variables
+
+  $ ../jasminc -linting-level 2 fail/linter/levels.jazz
+  "fail/linter/levels.jazz", line 4 (2-8)
+  warning: Variable uninit (declared at : "fail/linter/levels.jazz", line 3 (10-16)) not initialized
+  "fail/linter/levels.jazz", line 4 (2-21)
+  warning: Instruction only assigns dead variables
+  "fail/linter/levels.jazz", line 11 (2-26)
+  warning: Variable “x” is affected but never used
