@@ -372,9 +372,10 @@ let default_warnings =
       Deprecated;
       Experimental;
       PedanticPretyping;
+      Linter;
     ]
 
-let all_warnings = Linter :: ExtraAssignment :: UseLea :: IntroduceArrayCopy :: KeptRenaming :: default_warnings
+let all_warnings = ExtraAssignment :: UseLea :: IntroduceArrayCopy :: KeptRenaming :: default_warnings
 
 let warns = ref default_warnings
 

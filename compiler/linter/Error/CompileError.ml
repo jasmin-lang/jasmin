@@ -1,11 +1,6 @@
-type recover_flags =
-| Fail
-| Recoverable
-| AlwaysWarn
-
 type t = {
   location : Jasmin.Location.t;
-  error_strategy : recover_flags;
+  level : int;
   code : string;
   to_text : Format.formatter -> unit;
 }
