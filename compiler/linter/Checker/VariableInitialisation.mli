@@ -7,14 +7,4 @@
 open Jasmin
 open Annotation
 
-(** Check mode for initialised variable analysis
-    - [Strict] : Check if a path exists where variable may not be initialised
-      (can trigger false positive)
-    - [NotStrict] : Check if there is no path in the program where variable is
-      initialised (less restrictive but let some error pass) *)
-type check_mode = Strict | NotStrict
-
-val check_prog :
-  ?mode:check_mode ->
-  (RDDomain.t annotation, 'asm) Prog.prog ->
-  CompileError.t list
+val check_prog : (RDDomain.t annotation, 'asm) Prog.prog -> CompileError.t list
