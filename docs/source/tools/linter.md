@@ -98,6 +98,19 @@ fn dead_cell(reg u32 a) -> reg u32 {
 }
 ~~~
 
+Some instructions will not raise a warning even though they look like dead
+according to the above description. For instance, instructions explicitly tagged
+with a `keep` annotation and SLH primitives. Therefore, the example below raises
+no warning.
+
+~~~
+fn dead_no_warn(reg u64 x) {
+  reg u64 msf = #init_msf();
+  #keep x += 1;
+}
+~~~
+
+
 A stricter form of this checker exists and is enabled at level 2, but may raise false alarms.
 It warns about instructions that assign to dead variables but are not themselves dead
 (because they, e.g., also assign live variables, or write to the user memory, etc.). For instance

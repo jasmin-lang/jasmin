@@ -77,3 +77,5 @@
   warning: Instruction only assigns dead variables
   "fail/linter/levels.jazz", line 11 (2-26)
   warning: Variable “x” is affected but never used
+
+  $ ../jasminc fail/linter/silent_dead.jazz
