@@ -1,6 +1,6 @@
 # Left-values
 
-Left-values appear on the left-hand side of [assignments](code#Assignments) and
+Left-values appear on the left-hand side of [assignments](code.md#assignments) and
 [calls](code).
 A left-value describes the location where a value is stored.
 
