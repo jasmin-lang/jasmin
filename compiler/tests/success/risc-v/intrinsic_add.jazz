@@ -8,10 +8,12 @@ fn add(reg u32 arg0, reg u32 arg1) -> reg u32 {
 
     // Immediates.
     x = #ADDI(arg0, 1);
+    [x] = x;
     x = #ADDI(arg0, -1);
     [x] = x;
     x = #ADDI(arg0, -2048);
     x = #ADDI(x, 0);
+    [x] = x;
     x = #ADDI(arg0,  2047);
     [x] = x;
 

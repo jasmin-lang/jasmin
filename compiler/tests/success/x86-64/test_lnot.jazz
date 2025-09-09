@@ -1,11 +1,10 @@
 param int n = 17;
 
-export fn f(reg u64 r1) -> reg u64 {
-reg u64 r;
-r1  = !r1; 
-r   = r1; 
+export fn f(reg u64 r1) -> reg u64, reg u64 {
+reg u64 r = r1;
+r1  = !r;
 r   = !n;
-return r;
+return r1, r;
 }
 
 export fn g(reg u64 r1) -> reg u64 {

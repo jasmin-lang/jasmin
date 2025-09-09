@@ -12,16 +12,17 @@ export fn test() -> reg data {
 namespace A {
     type x = u32;
 
-    fn s() -> {
-        reg x test;
+    fn s() -> reg x {
+        reg x test = 0;
         test += 1;
+        return test;
     }
 }
 
-fn test2(reg A::x v, reg data2 y) -> reg A::x {
+fn test2(reg A::x v, reg data2 y) -> reg A::x, reg data2 {
     reg A::x v2;
     v2 = v;
     v2+=1;
     y[0] = 1;
-    return v2;
+    return v2, y;
 }

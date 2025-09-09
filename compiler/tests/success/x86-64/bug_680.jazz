@@ -5,7 +5,7 @@ export
 fn adc_stack(reg u64 x) {
   stack u64 s;
   s = 0;
-  _, s += x;
+  #keep _, s += x;
 }
 
 export fn main () -> reg u64 {
@@ -13,7 +13,7 @@ export fn main () -> reg u64 {
   stack u64 y;
 
   x = 0;
-  y = #MOV(x);
+  #keep y = #MOV(x);
   return x;
 }
 
@@ -21,7 +21,7 @@ export fn main () -> reg u64 {
 #[stacksize = 8] export
 fn share_stack(reg u64 x) -> reg u64 {
   stack u64 a b;
-  a = #MOV(x);
+  #keep a = #MOV(x);
   b = #MOV(x);
   x = b;
   return x;
