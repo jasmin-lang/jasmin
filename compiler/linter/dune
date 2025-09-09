@@ -1,5 +1,6 @@
 (library
  (name linter)
+ (public_name jasmin.linter)
  (libraries jasmin cmdliner)
 )
 
