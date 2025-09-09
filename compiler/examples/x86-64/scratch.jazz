@@ -69,5 +69,6 @@ e = a;
 e += b;
 e += c;
 e += d;
+e += x;
 return e;
 }
