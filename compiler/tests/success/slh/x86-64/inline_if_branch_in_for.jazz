@@ -1,9 +1,8 @@
 export
 fn branch_in_loop(reg u64 p) -> reg u64 {
-    reg u64 msf;
     reg u64 x;
 
-    msf = #init_msf();
+    _ = #init_msf();
     x = 0;
 
     inline int i;

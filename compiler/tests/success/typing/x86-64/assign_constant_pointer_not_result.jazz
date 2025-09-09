@@ -7,6 +7,7 @@ fn foo (reg ptr u64[3] px) -> reg u64 {
   px = y;
   y[0] = 666;
   res_x = px[0];
+  res_x ^= y[0];
   return res_x;
 }
 

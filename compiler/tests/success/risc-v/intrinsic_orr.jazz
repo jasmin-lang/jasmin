@@ -10,6 +10,7 @@ fn orr(reg u32 arg0, reg u32 arg1) -> reg u32 {
     x = #ORI(arg0, 1);
     [x] = x;
     x = #ORI(arg0, -1);
+    [x] = x;
     x = #ORI(arg0, -1);
     x = #ORI(x, -2048);
     x = #ORI(x, 0);

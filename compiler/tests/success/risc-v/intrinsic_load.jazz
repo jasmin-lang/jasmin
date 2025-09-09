@@ -1,20 +1,23 @@
 export
 fn load(reg u32 arg) -> reg u32 {
-    reg u32 x;
+    reg u32 a = #LOAD([:u8 arg]);
 
-    x = #LOAD([:u8 arg]);
+    reg u32 b = #LOAD_u8([:u8 arg]);
+    reg u32 c = #LOAD_s8([:u8 arg]);
 
-    x = #LOAD_u8([:u8 arg]);
-    x = #LOAD_s8([:u8 arg]);
+    reg u32 d = #LOAD_u16([:u16 arg]);
+    reg u32 e = #LOAD_s16([:u16 arg]);
 
-    x = #LOAD_u16([:u16 arg]);
-    x = #LOAD_s16([:u16 arg]);
+    reg u32 f = #LOAD_s32([:u32 arg]);
 
-    x = #LOAD_s32([:u32 arg]);
+    reg u32 g = #LOAD_s32([:u32 arg + 2]);
 
-    x = #LOAD_s32([:u32 arg + 2]);
+    f ^= g;
+    d ^= e;
+    b ^= c;
+    d ^= f;
+    a ^= b;
+    a ^= d;
 
-    reg u32 res;
-    res = x;
-    return res;
+    return a;
 }

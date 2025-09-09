@@ -25,6 +25,7 @@ x1 = #AESIMC(x1);
 x1 = #VAESIMC(x1);
 [:u128 p] = x1;
 x1 = #AESIMC([:u128 p]);
+[:u128 p] = x1;
 x1 = #VAESIMC([:u128 p]);
 [:u128 p] = x1;
 

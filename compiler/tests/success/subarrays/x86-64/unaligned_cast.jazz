@@ -9,7 +9,9 @@ fn test_inner (reg ptr u64[10] s) -> reg ptr u64[10] {
   y = s[3:3];
   s[3:3] = y;
   y = s.[:u8 3:8*3];
+  s.[:u8 3:8*3] = y;
   x = s.[:u8 1:4*4];
+  s.[:u8 1:4*4] = x;
   x = s.[:u32 1:4];
   s.[:u32 1:4] = x;
   return s;

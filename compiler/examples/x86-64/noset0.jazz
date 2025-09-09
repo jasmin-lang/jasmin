@@ -1,5 +1,6 @@
-export fn f(reg u64 r1) -> reg u64 {
+export fn f() -> reg u64, reg u64 {
+reg u64 r1, r2;
 r1  = 0;   
-_,_,_,_,_, r1  = #set0 ();
-return r1;
+_,_,_,_,_, r2  = #set0 ();
+return r1, r2;
 }

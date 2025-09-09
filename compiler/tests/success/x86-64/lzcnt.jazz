@@ -1,10 +1,6 @@
 fn lzcnt (reg u64 x) -> reg u64 {
-   reg u64 r; 
-   r = x;
-   ?{}, r = #DEC(r);
-
-   ?{}, r = #LZCNT(x);
-   return r;
+   ?{}, x = #LZCNT(x);
+   return x;
 }
 
 export fn foo () -> reg u64 {
