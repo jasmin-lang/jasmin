@@ -21,7 +21,7 @@ fn f(reg u64 x) -> reg u64 {
 
     // Right rotations (flags are discarded).
     c = b >>r (d & 63);
-    c = b >>r 3;
+    b = c >>r 3;
 
     // Intrinsic syntax.
     _, _, c = #ROR(b, d);

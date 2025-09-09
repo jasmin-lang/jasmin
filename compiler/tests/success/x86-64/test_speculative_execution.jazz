@@ -1,5 +1,5 @@
 export
-fn main() {
+fn main() -> reg u8, reg u128 {
     reg u64 msf0 msf1;
     reg bool f;
     reg u8 p8;
@@ -32,4 +32,10 @@ fn main() {
     p64 = #protect(p64, msf1);
     p128 = #protect_128(p128, msf1);
     p256 = #protect_256(p256, msf1);
+
+    p128 ^= p256;
+    p32 ^= p64;
+    p16 ^= p32;
+    p8 ^= p16;
+    return p8, p128;
 }

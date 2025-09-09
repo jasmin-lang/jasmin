@@ -4,11 +4,14 @@ export fn main (reg u64 i) -> reg u64 {
   reg ptr u64[2] r1 r2;
   reg u64 res;
 
+  i &= 0x7; // enforce that slices are in-bounds
+
+  s[0] = 0;
   r1 = s[i:2];
   r2 = r1[0:2]; // <=> r2 = r1;
   r2[0] = 0;
   s[i:2] = r2[0:2]; // <=> s[i:2] = r2;
-
+  r1 = s[i:2];
   res = r1[0];
 
   return res;
