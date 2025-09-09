@@ -1,0 +1,17 @@
+/* Users may have their own reasons for writing dead code,
+  tag it explicitly with #keep, so there is no warning. */
+export fn keep_not_dead(reg u32 x) {
+  #keep x += 1;
+}
+
+/* The SCT checker mandates that the LHS of #update_msf be a register
+    (in particular, not _), so there is no warning. */
+export fn update_msf(reg u32 x) {
+  reg u64 msf = #init_msf();
+  reg bool b = x != 0;
+  if b {
+    msf = #update_msf(b, msf);
+  } else {
+    msf = #update_msf(!b, msf);
+  }
+}

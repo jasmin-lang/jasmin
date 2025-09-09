@@ -27,13 +27,19 @@ let create_dv_error_instr loc =
       );
   }
 
+(* Instructions with an AT_keep tag are not treated as dead *)
+let has_keep_tag =
+  function
+  | Cassgn (_, tag, _, _) | Copn (_, tag, _, _) -> tag = AT_keep
+  | Csyscall _ | Cif _ | Cfor _ | Cwhile _ | Ccall _ -> false
+
 let check_func func =
   let dv_errors = ref [] in
 
   let check_instr ({ i_desc; i_info; i_loc; _}:('info,'asm) Prog.instr) =
     let domain = Annotation.unwrap i_info in
     let assigns = Jasmin.Prog.assigns i_desc in
-    if not (Sv.is_empty assigns) then begin
+    if not (Sv.is_empty assigns || has_keep_tag i_desc) then begin
         if Sv.disjoint assigns domain && not (has_effect i_desc) then
           (* The instruction is dead: warn once *)
           dv_errors := create_dv_error_instr i_loc.base_loc :: !dv_errors
