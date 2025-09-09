@@ -16,6 +16,7 @@ author = "The Jasmin developer team"
 extensions = ["myst_parser", "sphinx_rtd_theme", "sphinx.ext.graphviz"]
 
 myst_enable_extensions = ["colon_fence"]
+myst_heading_anchors = 3
 
 graphviz_output_format = "svg"
 
@@ -36,5 +37,5 @@ html_context = {
     "github_repo": "jasmin",  # Repo name
     "github_version": "main",  # Version
     "conf_py_path": "/docs/source/",  # Path in the checkout to the docs root
-}
-# html_static_path = ['_static']
+    }
+html_static_path = ['_static']
