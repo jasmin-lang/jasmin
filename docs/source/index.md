@@ -24,6 +24,7 @@ compiler/advanced/index
 tools/jasminc
 tools/jasmin2ec
 tools/safety_checker
+tools/linter
 tools/ct
 tools/sct
 tools/reference_interpreter
