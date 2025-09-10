@@ -14,7 +14,7 @@ Import Basics.Monads.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
 Require Import expr psem_defs psem_core it_exec it_exec_sem tfam_iso
-               eutt_extras.
+               eutt_extras rec_facts.
 
 Require Import List.
 
@@ -23,7 +23,10 @@ Local Open Scope monad_scope.
 
 Section Asm1.  
 Context
-  {asm_op: Type} {asmop: asmOp asm_op}.
+  {asm_op: Type}
+  {syscall_state : Type}
+  {sip : SemInstrParams asm_op syscall_state}.  
+(* Context {asm_op: Type} {asmop: asmOp asm_op}. *)
 (*
 Context
   {asm_op: Type}
@@ -35,10 +38,10 @@ Context
   {spp : SemPexprParams} 
   {pT : progT}
   {scP : semCallParams}.
-
 Context {err: error_data}. 
 *)
-
+(* Memo *)
+(* | _ => throw err end. *) 
 Section Sem1.
 
 Context (FState : Type) {State: Type} {FunDef: Type}.
@@ -49,7 +52,8 @@ Variant StE : Type -> Type :=
   | GetSE : StE State
   | PutSE : State -> StE unit.                      
 
-(* instruction events *)
+(* instruction events. InitFState allows storing instr_info in FState
+*)
 Variant InstrE : Type -> Type :=
   | AssgnE : lval -> assgn_tag -> stype -> pexpr -> InstrE unit
   | OpnE : lvals -> assgn_tag -> sopn -> pexprs -> InstrE unit
@@ -58,7 +62,7 @@ Variant InstrE : Type -> Type :=
   | EvalBound (e: pexpr) : InstrE Z
   | WriteIndex (x: var_i) (z: Z) : InstrE unit
   | EvalArgs (args: pexprs) : InstrE pexprs                
-  | InitFState (args: pexprs) : InstrE FState
+  | InitFState (args: pexprs) : instr_info -> InstrE FState
   | RetVal (xs: lvals) (fs: FState) (s: State) : InstrE unit.
 
 (* function call events *)
@@ -72,8 +76,8 @@ Variant FunE : Type -> Type :=
 Local Notation continue_loop := (ret (inl tt)).
 Local Notation exit_loop := (ret (inr tt)).
 
-(* folding instruction semantics on commands 
-   (without state, it could be simply map) *)
+(* folding instruction semantics on commands (as there's no state,
+   this could actually be simply map) *)
 Definition isem_foldr {E} (sem_i: instr -> itree E unit) (c: cmd) :
     itree E unit :=
   foldr (fun i k => sem_i i ;; k) (Ret tt) c.
@@ -112,7 +116,7 @@ Context {E} {XI : InstrE -< E} {XS: StE -< E}.
 
 (* semantics of instructions *)
 Fixpoint isem_instr (i : instr) : itree (recCall +' E) unit :=
-  let: (MkI _ ir) := i in
+  let: (MkI ii ir) := i in
   match ir with
   | Cassgn x tg ty e => trigger (AssgnE x tg ty e)
 
@@ -124,7 +128,7 @@ Fixpoint isem_instr (i : instr) : itree (recCall +' E) unit :=
     b <- trigger (EvalCond e) ;;
     isem_foldr isem_instr (if b then c1 else c2) 
                
-  | Cwhile a c1 e i c2 =>
+  | Cwhile a c1 e ii0 c2 =>
       isem_while_loop isem_instr (fun e => trigger (EvalCond e))
         c1 e c2 
 
@@ -137,11 +141,10 @@ Fixpoint isem_instr (i : instr) : itree (recCall +' E) unit :=
   | Ccall xs fn args =>
     s0 <- trigger GetSE ;;  
     vargs <- trigger (EvalArgs args) ;;
-    fs0 <- trigger (InitFState vargs) ;;
+    fs0 <- trigger (InitFState vargs ii) ;;
     fs1 <- trigger_inl1 (Call (fn, fs0)) ;; 
     (* discard current state, use s0 instead *)
     trigger (RetVal xs fs1 s0)
-(* | _ => throw err end. *)
   end.
 
 (* semantics of commands *)
@@ -281,22 +284,6 @@ Proof.
     setoid_rewrite <- interp_mrec_as_interp; auto.
 Qed.
   
-(*
-Require Import FunctionalExtensionality.
-
-Lemma bind_ret_r_unit {E1} :
-  forall s : itree E1 unit,
-    ITree.bind s (fun=> Ret tt) ≅ s.
-Proof.
-  intros.
-  assert ((fun=> go (@RetF E1 _ _ tt)) = (fun u: unit => Ret u)) as A.
-  { eapply functional_extensionality.
-    intros x. destruct x; auto. }
-  rewrite A.
-  eapply bind_ret_r.
-Qed.  
-*)
-
 Lemma isem_cmd_while ii al c e inf c':
   isem_cmd [:: MkI ii (Cwhile al c e inf c')] 
   ≈
@@ -391,40 +378,85 @@ Proof.
     setoid_rewrite interp_trigger; simpl; reflexivity.    
 Qed.    
     
-(*
-Lemma denote_fun_blank_eutt (fn : funname) (fs : FState) :
-  eutt eq (denote_fun_blank' fn fs) (denote_fun_blank fn fs).
-Proof.
-  unfold denote_fun_blank', denote_fun_blank, rec, mrec.
-  setoid_rewrite interp_mrec_as_interp.
-  eapply eutt_interp; eauto; try reflexivity.
-  simpl. unfold isem_fcall.
-  unfold rec_call.
-Abort.
-
-Lemma denote_fun_blank_eutt (fn : funname) (fs : FState) :
-  eutt eq (denote_fun fn fs) (denote_fun_blank fn fs).
-Proof.
-  unfold denote_fun, denote_fun_blank, rec, mrec.
-  setoid_rewrite interp_mrec_as_interp.
-  eapply eutt_interp; eauto; try reflexivity.
-  unfold eq2, Eq2_Handler, eutt_Handler, Relation.i_pointwise.
-  intros.
-Abort.
-*)  
-
 Section Inline.
 
+(* inline info is included in FState *)  
 Context {do_inline :
-      FState -> funname (* caller *) -> funname (* callee *) -> bool}.
+    FState -> funname (* caller *) -> funname (* callee *) -> bool}.
 
-Definition inline_interp (caller : funname)  (ii:instr_info)
-  (callee : funname) (fs : FState) :=
-     if do_inline caller ii callee then isem_fcall callee fs (* Interprete the call but not the internal ones *)
-     else trigger_inl1 (E:=E) (Call (callee, fs)). (* Do not interprete the call, simply emmit an event *)
+Definition ext_r_handler {E1 E2} E3 (h: E1 ~> itree (E2 +' E3)) :
+  (E1 +' E3) ~> itree (E2 +' E3) :=
+  fun T e => match e with
+             | inl1 e1 => h _ e1
+             | inr1 e2 => trigger (inr1 e2) end.               
+
+(* conditional inliner action *)
+Definition inliner
+ (ctx : forall T : Type, recCall T -> itree (recCall +' E) T)
+ (caller: funname) (callee: funname) (fs: FState) :
+  itree (recCall +' E) FState :=
+  if do_inline fs caller callee then ctx FState (Call (callee, fs))
+(* Interpret the top call but not the inner ones *)
+     else trigger_inl1 (E:=E) (Call (callee, fs)).
+(* Do not interpret the call, simply retrigger the event *)
+
+(* given the caller Name and the callee Event, lifts inliner to a
+   handler with polymorphic return type *)
+Definition inline_handleNE
+  (ctx : forall T : Type, recCall T -> itree (recCall +' E) T)
+  (caller: funname) T (cle: recCall T) : itree (recCall +' E) T :=
+  match cle with
+  | Call (fn, fs) => inliner ctx caller fn fs end. 
+
+(* similar, given caller Event and callee Event *)
+Definition inline_handleEE
+  (ctx : forall T : Type, recCall T -> itree (recCall +' E) T)
+  T1 (clr: recCall T1) T2 (cle: recCall T2) : itree (recCall +' E) T2 :=
+  match clr with
+  | Call (caller, _) => inline_handleNE ctx caller cle end. 
+
+(* folds the inliner on an itree *)
+Definition inline_handleE 
+        (ctx : forall T : Type, recCall T -> itree (recCall +' E) T)
+        (T1 : Type) (d1 : recCall T1) :
+  itree (recCall +' E) ~> itree (recCall +' E) := 
+  interp (ext_r_handler (inline_handleEE ctx d1)).
+
+(* the proper inline handler: given a caller, it inteprets its body
+   with the inliner *) 
+Definition inline_handle 
+        (ctx : forall T : Type, recCall T -> itree (recCall +' E) T)
+        (T1 : Type) (d1 : recCall T1) : itree (recCall +' E) T1 := 
+  (inline_handleE ctx d1) T1 (ctx T1 d1).
+
+(* makes the definition concrete *)
+Definition inline_handle_recc : forall (T1 : Type) (d1 : recCall T1),
+  itree (recCall +' E) T1 := inline_handle handle_recc.
+
+Lemma isem_call_inline T (e: recCall T) :
+  mrec handle_recc e ≈ mrec inline_handle_recc e.
+Proof.
+  unfold handle_recc, inline_handle_recc.  
+  set cond := fun  T1 (d1: recCall T1) T2 (d2: recCall T2) =>
+    match d1, d2 with
+    | Call (caller, _), Call (callee, fs) => do_inline fs caller callee
+    end.
+  rewrite (mrec_loop2 cond).
+  set F := (X in ctx2_cond _ X).  
+  set G := (inline_handle _).
+  assert (forall T0 (e0: recCall T0),
+             eutt eq (ctx2_cond cond F e0) (G _ e0)) as H1.
+  { intros T0 [[fn0 fs0]]; subst F G cond.
+    unfold ctx2_cond, Handler.cat, ctx_cond, Handler.case_,
+      inline_handle, inline_handleE, ext_r_handler,
+      inline_handleEE, inline_handleNE, handle_recc, inliner; simpl.
+    eapply eutt_interp; try reflexivity.
+    unfold eq2, Eq2_Handler, eutt_Handler, Relation.i_pointwise.
+    intros T1 [[[fn1 fs1]] | e1]; simpl; try reflexivity.
+  }
+  unfold mrec; eapply Proper_interp_mrec; eauto.
+Qed.
     
-
-  
 End Inline.  
 
 End SemFun.
@@ -450,7 +482,7 @@ Context (sem_i: instr -> itree E unit).
 (* semantics of instructions, abstracting on function calls (through
    sem_fun) *)
 Fixpoint isem_i_body (i : instr) : itree E unit :=
-  let: (MkI _ i) := i in
+  let: (MkI ii i) := i in
   match i with
   | Cassgn x tg ty e => trigger (AssgnE x tg ty e)
 
@@ -475,7 +507,7 @@ Fixpoint isem_i_body (i : instr) : itree E unit :=
   | Ccall xs fn args =>
     s0 <- trigger GetSE ;;  
     vargs <- trigger (EvalArgs args) ;;
-    fs0 <- trigger (InitFState vargs) ;;
+    fs0 <- trigger (InitFState vargs ii) ;;
     fs1 <- sem_fun fn fs0 ;; 
     (* discard current state, use s0 instead *)
     trigger (RetVal xs fs1 s0)
