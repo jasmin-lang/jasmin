@@ -1,6 +1,7 @@
 open Jasmin
 open Utils
 open SecurityAnnotations
+open SCT
 
 let roundtrip (pp : 'a pp) (read : 'a Angstrom.t) (x : 'a) =
   let s = Format.asprintf "%a" pp x in

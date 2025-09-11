@@ -4,6 +4,8 @@ open Prog
 (* Abstract syntax for security annotations *)
 type simple_level = Public | Secret | Named of Name.t
 
+module SCT = struct
+
 let named n = Named n
 
 type level = { normal : simple_level; speculative : simple_level }
@@ -124,3 +126,5 @@ let get_sct_signature a =
   Option.bind (Annotations.get "sct" a) (function
     | Some { pl_desc = Astring s; _ } -> Parse.string s
     | _ -> None)
+
+end

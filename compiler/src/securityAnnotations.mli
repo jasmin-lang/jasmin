@@ -1,4 +1,7 @@
 type simple_level = Public | Secret | Named of Prog.Name.t
+
+module SCT : sig
+
 type level = { normal : simple_level; speculative : simple_level }
 type typ = Msf | Direct of level | Indirect of { ptr : level; value : level }
 type signature = { arguments : typ list; results : typ list }
@@ -9,6 +12,7 @@ val secret : level
 val get_nth_argument : int -> signature -> typ option
 val get_nth_result : int -> signature -> typ option
 val get_sct_signature : Annotations.annotations -> signature option
+
 
 module PP : sig
   val simple_level : simple_level Utils.pp
@@ -24,3 +28,35 @@ module Parse : sig
   val signature : signature Angstrom.t
   val string : string -> signature option
 end
+
+end
+
+(*
+module CT : sig
+
+type typ = SCT.simple_level list (* the min of the level *)
+type signature = { arguments : typ list; results : typ list }
+
+val public : typ
+val secret : typ
+val get_sct_signature : Annotations.annotations -> signature option
+
+val inp_typ : typ -> SCT.simple_level
+
+module PP : sig
+  val simple_level : SCT.simple_level Utils.pp
+  val typ : typ Utils.pp
+  val signature : signature Utils.pp
+end
+
+module Parse : sig
+  val simple_level : SCT.simple_level Angstrom.t
+  val inp_typ : typ Angstrom.t
+  val typ : typ Angstrom.t
+  val signature : signature Angstrom.t
+  val string : string -> signature option
+end
+
+end
+
+*)

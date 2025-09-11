@@ -392,14 +392,14 @@ let lvl_of_level =
 
 let lvl_of_typ =
   function
-  | SecurityAnnotations.Msf -> Public
+  | SecurityAnnotations.SCT.Msf -> Public
   | Direct t | Indirect { value = t ; ptr = _ } -> lvl_of_level t.normal
 
 let get_annot ensure_annot f =
-  let sig_annot = SecurityAnnotations.get_sct_signature f.f_annot.f_user_annot in
+  let sig_annot = SecurityAnnotations.SCT.get_sct_signature f.f_annot.f_user_annot in
   let process_argument i x =
     let lvl =
-      match Lvl.parse ~single:true x.v_annot, Option.bind sig_annot (SecurityAnnotations.get_nth_argument i) with
+      match Lvl.parse ~single:true x.v_annot, Option.bind sig_annot (SecurityAnnotations.SCT.get_nth_argument i) with
       | lvl, None -> lvl
       | Some _ as lvl, _ -> lvl
       | _, Some t -> Some (lvl_of_typ t)
@@ -407,7 +407,7 @@ let get_annot ensure_annot f =
     x.v_name, lvl
   in
   let process_result i a =
-    match Lvl.parse ~single:false a, Option.bind sig_annot (SecurityAnnotations.get_nth_result i) with
+    match Lvl.parse ~single:false a, Option.bind sig_annot (SecurityAnnotations.SCT.get_nth_result i) with
     | lvl, None -> lvl
     | Some _ as lvl, _ -> lvl
     | _, Some t -> Some (lvl_of_typ t)
