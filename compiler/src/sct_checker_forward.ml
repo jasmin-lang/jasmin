@@ -1212,7 +1212,7 @@ let parse_user_constraints (a:annotations) : (string * string) list =
      (List.map snd (A.process_annot [sconstraints, A.on_attribute ~on_string error] a))
 
 let init_constraint fenv f =
-  let sig_annot = SecurityAnnotations.SCT.get_sct_signature f.f_annot.f_user_annot in
+  let sig_annot = SecurityAnnotations.SCT.get_signature f.f_annot.f_user_annot in
   let env = Env.init () in
   let venv = Env.empty env in
   let tbl = Hashtbl.create 97 in
@@ -1506,7 +1506,7 @@ let compile_infer_msf (prog:('info, 'asm) prog) =
   let constraints = C.init() in
 
   let infer_fun f =
-    let sig_annot = SecurityAnnotations.SCT.get_sct_signature f.f_annot.f_user_annot in
+    let sig_annot = SecurityAnnotations.SCT.get_signature f.f_annot.f_user_annot in
 
     let process_return i annot =
       let ls = parse_var_annot ~msf:true annot in

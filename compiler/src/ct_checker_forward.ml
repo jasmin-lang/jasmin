@@ -396,7 +396,7 @@ let lvl_of_typ =
   | Direct t | Indirect { value = t ; ptr = _ } -> lvl_of_level t.normal
 
 let get_annot ensure_annot f =
-  let sig_annot = SecurityAnnotations.SCT.get_sct_signature f.f_annot.f_user_annot in
+  let sig_annot = SecurityAnnotations.SCT.get_signature f.f_annot.f_user_annot in
   let process_argument i x =
     let lvl =
       match Lvl.parse ~single:true x.v_annot, Option.bind sig_annot (SecurityAnnotations.SCT.get_nth_argument i) with
