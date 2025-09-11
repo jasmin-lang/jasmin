@@ -1,3 +1,4 @@
+#[ct = "state -> state"]
 export
 fn gimli(reg ptr u32[12] state) -> reg ptr u32[12] {
   inline int round, column;

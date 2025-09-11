@@ -14,6 +14,7 @@ module Vl : sig
   val mk_uni  : string -> t
   val mk_poly : string -> t
   val pp      : Format.formatter -> t -> unit
+  val string  : t -> string
 end = struct
 
   (* vl_flex = true means that the variable can be instanciate with public
@@ -31,6 +32,7 @@ end = struct
   let mk_poly name = { vl_name = name; vl_flex = false }
 
   let pp fmt vl = Format.fprintf fmt "%s" vl.vl_name
+  let string vl = vl.vl_name
 end
 
 module Svl : Set.S with type elt = Vl.t = Set.Make(Vl)
@@ -137,14 +139,23 @@ type ('info, 'asm) fenv = {
   }
 
 (* -----------------------------------------------------------*)
-let pp_arg fmt (x, lvl) =
-  Format.fprintf fmt "%a %a" Lvl.pp lvl (Printer.pp_var ~debug:false) x
 
-let pp_signature prog fmt (fn, { tyin ; tyout }) =
-  Format.fprintf fmt "@[<h>@[%s(@[%a@]) ->@ @[%a@]@]@]@."
-    fn.fn_name
-    (pp_list ",@ " pp_arg) (List.combine (List.find (fun f -> F.equal f.f_name fn) (snd prog)).f_args tyin)
-    (pp_list ",@ " Lvl.pp) tyout
+module ToAnnot = struct
+
+  let typ = function
+    | Secret -> [SecurityAnnotations.CT.secret]
+    | Poly lvs -> List.map (fun l -> SecurityAnnotations.Named (Vl.string l)) (Svl.elements lvs)
+    | Public -> [SecurityAnnotations.CT.public]
+
+  let signature s =
+    SecurityAnnotations.{ arguments = List.map typ s.tyin;
+      results   = List.map typ s.tyout; }
+
+end
+
+let pp_signature fmt sign =
+  let open SecurityAnnotations in
+  Format.fprintf fmt "%a" CT.PP.signature (ToAnnot.signature sign)
 
 (* -----------------------------------------------------------*)
 exception CtTypeError of Location.t * (Format.formatter -> unit)
@@ -390,31 +401,61 @@ let lvl_of_level =
   | Secret -> Secret
   | Named n -> Lvl.poly1 (Vl.mk_poly n)
 
-let lvl_of_typ =
-  function
-  | SecurityAnnotations.Msf -> Public
-  | Direct t | Indirect { value = t ; ptr = _ } -> lvl_of_level t.normal
+let lvl_of_typ ty = Lvl.maxs (List.map lvl_of_level ty)
+
+let get_signature annot =
+  let open SecurityAnnotations in
+  match CT.get_signature annot with
+  | Some _ as s -> s
+  | None -> Option.map SCT2CT.signature (SCT.get_signature annot)
+
+let check_sig_annot fd sig_annot =
+  let open SecurityAnnotations in
+  match sig_annot with
+  | None -> ()
+  | Some s ->
+      let sargs = List.length s.arguments in
+      let sret  = List.length s.results in
+      let fargs = List.length fd.f_args in
+      let fret  = List.length fd.f_ret in
+      if sargs <> fargs then
+        error ~loc:fd.f_loc
+          "invalid constant time signature: the function expect %i arguments and %i are specified" fargs sargs;
+      if sret <> fret then
+        error ~loc:fd.f_loc
+          "invalid constant time signature: the function return %i results and %i are specified" fret sret
 
 let get_annot ensure_annot f =
-  let sig_annot = SecurityAnnotations.get_sct_signature f.f_annot.f_user_annot in
+  let open SecurityAnnotations in
+  let sig_annot = get_signature f.f_annot.f_user_annot in
+  check_sig_annot f sig_annot;
+
+  let parse ~single loc a =
+    let lvl = Lvl.parse ~single a in
+    let msg = "Constant time security annotations are deprecated. Annotate the function with a ct attribute (see documentation on “Constant-time programming”" in
+    Option.may (fun _ -> Utils.warning Deprecated (L.i_loc0 loc) "%s" msg ) lvl;
+    lvl in
+
   let process_argument i x =
     let lvl =
-      match Lvl.parse ~single:true x.v_annot, Option.bind sig_annot (SecurityAnnotations.get_nth_argument i) with
-      | lvl, None -> lvl
-      | Some _ as lvl, _ -> lvl
-      | _, Some t -> Some (lvl_of_typ t)
+      let lvl1 = parse ~single:true x.v_dloc x.v_annot in
+      let lvl2 = Option.bind sig_annot (get_nth_argument i) in
+      match lvl1, lvl2 with
+      | Some _, _ | _, None | _, Some [] -> lvl1
+      | None, Some t -> Some (lvl_of_typ t)
     in
     x.v_name, lvl
   in
-  let process_result i a =
-    match Lvl.parse ~single:false a, Option.bind sig_annot (SecurityAnnotations.get_nth_result i) with
-    | lvl, None -> lvl
-    | Some _ as lvl, _ -> lvl
-    | _, Some t -> Some (lvl_of_typ t)
+  let process_result loc i a =
+    let lvl1 = parse ~single:false loc a in
+    let lvl2 = Option.bind sig_annot (get_nth_result i) in
+    match lvl1, lvl2 with
+    | Some _, _ | _, None | _, Some [] -> lvl1
+    | None, Some t -> Some (lvl_of_typ t)
   in
   let ain  = List.mapi process_argument f.f_args in
   let ainlevels = List.map (fun (_, x) -> x) ain in
-  let aout = List.mapi process_result f.f_ret_info.ret_annot in
+  let aout = List.mapi (process_result f.f_loc) f.f_ret_info.ret_annot in
 
   let check_defined msg l =
     if List.exists (fun a -> a = None) l then
@@ -622,4 +663,11 @@ let ty_prog (is_ct_asm: 'asm -> bool)  ~infer (prog: ('info, 'asm) prog) fl =
     | exception CtTypeError (loc, msg)
       -> Some (loc, msg)
   in
-  Hf.to_list fenv.env_ty, status
+  let sigs =
+    let get_sig f =
+      match Hf.find fenv.env_ty f.f_name with
+      | s -> Some (f, s)
+      | exception Not_found  -> None in
+    List.pmap get_sig prog
+  in
+  List.rev sigs, status
