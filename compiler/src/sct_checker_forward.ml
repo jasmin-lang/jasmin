@@ -713,9 +713,9 @@ let expr_equal a b =
     let open Glob_options in
     match !target_arch with
     | X86_64 -> X86_decl.x86_fcp
-    | ARM_M4 -> Arm_decl.arm_fcp 
+    | ARM_M4 -> Arm_decl.arm_fcp
     | RISCV  -> Riscv_decl.riscv_fcp
-  in 
+  in
   let normalize e =
     e |> Conv.cexpr_of_expr |> Constant_prop.(const_prop_e fcp None empty_cpm) in
   Expr.eq_expr (normalize a) (normalize b)
@@ -1212,7 +1212,7 @@ let parse_user_constraints (a:annotations) : (string * string) list =
      (List.map snd (A.process_annot [sconstraints, A.on_attribute ~on_string error] a))
 
 let init_constraint fenv f =
-  let sig_annot = SecurityAnnotations.get_sct_signature f.f_annot.f_user_annot in
+  let sig_annot = SecurityAnnotations.SCT.get_signature f.f_annot.f_user_annot in
   let env = Env.init () in
   let venv = Env.empty env in
   let tbl = Hashtbl.create 97 in
@@ -1237,6 +1237,7 @@ let init_constraint fenv f =
 
   let lvl_of_sa_level =
     let open SecurityAnnotations in
+    let open SCT in
     let lvl_of_simple_level get =
       function
       | Public -> Env.public env
@@ -1249,7 +1250,7 @@ let init_constraint fenv f =
 
   let to_vty =
     function
-    | SecurityAnnotations.Msf -> Direct (to_lvl Msf)
+    | SecurityAnnotations.SCT.Msf -> Direct (to_lvl Msf)
     | Direct n -> Direct (lvl_of_sa_level n)
     | Indirect { ptr; value } -> Indirect (lvl_of_sa_level ptr, lvl_of_sa_level value)
   in
@@ -1277,7 +1278,7 @@ let init_constraint fenv f =
          if not msf then error_msf loc;
          Some true, Some (to_vty n)
       | _, Some n ->
-         Some (n = SecurityAnnotations.Msf), Some (to_vty n)
+         Some (n = SecurityAnnotations.SCT.Msf), Some (to_vty n)
     in
     let vty =
       match ovty with
@@ -1505,12 +1506,12 @@ let compile_infer_msf (prog:('info, 'asm) prog) =
   let constraints = C.init() in
 
   let infer_fun f =
-    let sig_annot = SecurityAnnotations.get_sct_signature f.f_annot.f_user_annot in
+    let sig_annot = SecurityAnnotations.SCT.get_signature f.f_annot.f_user_annot in
 
     let process_return i annot =
       let ls = parse_var_annot ~msf:true annot in
       let an = Option.bind sig_annot (SecurityAnnotations.get_nth_result i) in
-      List.mem Msf ls || an = Some SecurityAnnotations.Msf
+      List.mem Msf ls || an = Some SecurityAnnotations.SCT.Msf
     in
 
     (* process function outputs *)

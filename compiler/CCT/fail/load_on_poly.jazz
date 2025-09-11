@@ -1,4 +1,5 @@
-fn load(#poly=l1 reg u64 x) -> reg u64 {
+#[ct = "l1 -> _"]
+fn load(reg u64 x) -> reg u64 {
 
  reg u64 t;
   
