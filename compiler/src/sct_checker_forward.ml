@@ -1309,7 +1309,7 @@ let init_constraint fenv f =
 
   let process_return i x annot =
     let loc = L.loc x and x = L.unloc x in
-    let an = Option.bind sig_annot (SecurityAnnotations.SCT.get_nth_result i) in
+    let an = Option.bind sig_annot (SecurityAnnotations.get_nth_result i) in
     let ls = parse_var_annot ~msf:(not export) annot in
     mk_vty ~is_local:false loc ~msf:(not export) x ls an in
 
@@ -1339,7 +1339,7 @@ let init_constraint fenv f =
 
   (* process function inputs *)
   let process_param i venv x =
-    let an = Option.bind sig_annot (SecurityAnnotations.SCT.get_nth_argument i) in
+    let an = Option.bind sig_annot (SecurityAnnotations.get_nth_argument i) in
     let ls = parse_var_annot ~msf:(not export) x.v_annot in
     let msf, vty = mk_vty ~is_local:false x.v_dloc ~msf:(not export) x ls an in
     let msf =
@@ -1510,7 +1510,7 @@ let compile_infer_msf (prog:('info, 'asm) prog) =
 
     let process_return i annot =
       let ls = parse_var_annot ~msf:true annot in
-      let an = Option.bind sig_annot (SecurityAnnotations.SCT.get_nth_result i) in
+      let an = Option.bind sig_annot (SecurityAnnotations.get_nth_result i) in
       List.mem Msf ls || an = Some SecurityAnnotations.SCT.Msf
     in
 

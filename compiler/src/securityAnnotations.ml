@@ -13,7 +13,10 @@ let pp_typs typ fmt = function
   | ts -> Format.fprintf fmt "@[<h>%a@]" (pp_list "@ ×@ " typ) ts
 
 let pp_signature typ fmt { arguments; results } =
-  Format.fprintf fmt "%a → %a" (pp_typs typ) arguments (pp_typs typ) results
+  Format.fprintf fmt "@[<hov 2>%a →@ %a@]" (pp_typs typ) arguments (pp_typs typ) results
+
+let get_nth_argument n { arguments; _ } = List.nth_opt arguments n
+let get_nth_result n { results; _ } = List.nth_opt results n
 
 module Parse = struct
 
@@ -57,9 +60,6 @@ module SCT = struct
   let direct d = Direct d
 
   type signature = typ signature_gen
-
-  let get_nth_argument n { arguments; _ } = List.nth_opt arguments n
-  let get_nth_result n { results; _ } = List.nth_opt results n
 
   (** Pretty-printing *)
   module PP = struct
@@ -158,7 +158,7 @@ module CT = struct
     let typ fmt = function
      | [] -> assert false
      | [l] -> simple_level fmt l
-     | ls -> Format.fprintf fmt "{%a}" (pp_list ",@ " simple_level) ls
+     | ls -> Format.fprintf fmt "@[<h>{%a}@]" (pp_list ",@ " simple_level) ls
 
     let signature = pp_signature typ
 
@@ -176,7 +176,7 @@ module CT = struct
 
     let out_typ =
       inp_typ
-      <|> char '{' *> ws *> sep_by comma simple_level <* ws <* char '}' <* ws
+      <|> (char '{' *> ws *> sep_by comma simple_level <* ws <* char '}' <* ws)
 
     let typ = out_typ
 
@@ -207,3 +207,16 @@ module CT = struct
       | _ -> None)
 
 end
+
+module SCT2CT = struct
+
+  let typ = function
+    | SCT.Msf -> [CT.public]
+    | Direct lvl | Indirect {value = lvl} -> [lvl.normal]
+
+  let signature s = {
+      arguments = List.map typ s.arguments;
+      results   = List.map typ s.results;
+    }
+end
+

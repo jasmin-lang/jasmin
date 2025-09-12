@@ -2,6 +2,9 @@ type simple_level = Public | Secret | Named of Prog.Name.t
 
 type 'typ signature_gen = { arguments : 'typ list; results : 'typ list }
 
+val get_nth_argument : int -> 'typ signature_gen -> 'typ option
+val get_nth_result : int -> 'typ signature_gen -> 'typ option
+
 module SCT : sig
 
   type level = { normal : simple_level; speculative : simple_level }
@@ -11,8 +14,6 @@ module SCT : sig
   val public : level
   val transient : level
   val secret : level
-  val get_nth_argument : int -> signature -> typ option
-  val get_nth_result : int -> signature -> typ option
   val get_signature : Annotations.annotations -> signature option
 
 
@@ -59,4 +60,10 @@ module CT : sig
 
 end
 
+module SCT2CT : sig
+
+  val typ : SCT.typ -> CT.typ
+  val signature : SCT.signature -> CT.signature
+
+end
 

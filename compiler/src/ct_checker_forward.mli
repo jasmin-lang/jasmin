@@ -9,15 +9,15 @@ val is_ct_sopn : ('asm -> bool) -> 'asm Sopn.sopn -> bool
 type signature
 (** Security type of a function *)
 
-val pp_signature : _ prog -> Format.formatter -> funname * signature -> unit
+val pp_signature : Format.formatter -> signature -> unit
 (** Human-readable form of a signature *)
 
 val ty_prog :
   ('asm -> bool) ->
   infer:bool ->
-  (_, 'asm) prog ->
+  ('info, 'asm) prog ->
   Name.t list ->
-  (funname * signature) list * (L.t * (Format.formatter -> unit)) option
+  (('info, 'asm) func * signature) list * (L.t * (Format.formatter -> unit)) option
 (** Type-check (for constant-time) a list of functions in the given program
   (defaults to all functions if the list is empty).
 

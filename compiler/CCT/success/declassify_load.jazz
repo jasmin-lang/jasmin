@@ -5,8 +5,9 @@
    This is a typical example where p is a pointer to a structure containing
    a public field and a secret field 
  */  
-   
-fn declassify_load (#public reg u64 p) -> #public reg u64, #secret reg u64 {
+
+#[ct="public -> public * secret"]
+fn declassify_load (reg u64 p) -> reg u64, reg u64 {
    reg u64 pub sec;
    #declassify pub = [p];
    sec = [p + 8];

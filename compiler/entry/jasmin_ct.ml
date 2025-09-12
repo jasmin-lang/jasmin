@@ -28,8 +28,12 @@ let parse_and_check arch call_conv idirs =
       let sigs, errs =
         Ct_checker_forward.ty_prog (A.is_ct_sopn ~doit) ~infer prog ct_list
       in
-      Format.printf "/* Security types:\n@[<v>%a@]*/@."
-        (pp_list "@ " (Ct_checker_forward.pp_signature prog))
+      let pp_signature fmt (fd, sig_) =
+        Format.fprintf fmt "@[<v>#[ct=\"%a\"]@ %a@]"
+          Ct_checker_forward.pp_signature sig_
+          (Printer.pp_header ~debug:false) fd in
+      Format.printf "@[<v>Constant time types:@ %a@]@."
+        (pp_list "@ @ " pp_signature)
         sigs;
       let on_err (loc, msg) =
         hierror ~loc:(Lone loc) ~kind:"constant type checker" "%t" msg
@@ -37,7 +41,7 @@ let parse_and_check arch call_conv idirs =
       Stdlib.Option.iter on_err errs
   in
   fun infer ct_list speculative compile file doit warn ->
-    if not warn then nowarning ();
+    if not warn then (nowarning (); add_warning Deprecated ());
     let compile =
       if doit && compile < Compiler.PropagateInline then
         Compiler.PropagateInline

@@ -1,3 +1,4 @@
-fn drop2 (#poly=l1 reg u64 x, #poly=l2 reg u64 y) -> #poly={l1} reg u64 {
+#[ct="l1 × l2 -> l1"]
+fn drop2 (reg u64 x, reg u64 y) -> reg u64 {
   return x;
 }

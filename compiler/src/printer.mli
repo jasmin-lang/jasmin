@@ -31,6 +31,8 @@ val pp_stmt  : debug:bool ->
                ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
                Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) stmt  -> unit
 
+val pp_header : debug:bool -> Format.formatter -> (int, 'a, 'b) Prog.gfunc -> unit
+
 val pp_fun :
              debug:bool ->
              ?pp_locals:(Sv.t Utils.pp) ->
