@@ -384,12 +384,6 @@ Section Inline.
 Context {do_inline :
     FState -> funname (* caller *) -> funname (* callee *) -> bool}.
 
-Definition ext_r_handler {E1 E2} E3 (h: E1 ~> itree (E2 +' E3)) :
-  (E1 +' E3) ~> itree (E2 +' E3) :=
-  fun T e => match e with
-             | inl1 e1 => h _ e1
-             | inr1 e2 => trigger (inr1 e2) end.               
-
 (* conditional inliner action *)
 Definition inliner
  (ctx : forall T : Type, recCall T -> itree (recCall +' E) T)

@@ -67,6 +67,45 @@ Context (D E : Type -> Type).
 Context (R: Type).  
 Context (body1 body2 : D ~> itree (D +' E)).
 Context (IRel: R -> R -> Prop).
+Context (VRel: forall A: Type, A -> A -> Prop). 
+
+Context (BIH : forall (A: Type) (d: D A),
+            @eutt (D +' E) A A (@VRel A) (@body1 A d) (@body2 A d)).
+
+Context (IRelHyp: forall V (k1 k2: V -> itree (D +' E) R), 
+ (forall v: V, eutt IRel (k1 v) (k2 v)) ->
+ forall (v1 v2: V), VRel v1 v2 -> eutt IRel (k1 v1) (k2 v2)).
+
+(* generalized equivalence for interp_mrec
+   (generalization of RecursionFacts.Proper_interp_mrec) *)
+Lemma interp_mrec_eqit (t1 t2: itree (D +' E) R) :
+  eutt IRel t1 t2 ->
+  eutt IRel (interp_mrec body1 t1) (interp_mrec body2 t2).
+Proof.
+  revert t1 t2.
+  ginit. pcofix CIH. intros t1 t2 Ht.
+  rewrite !unfold_interp_mrec.
+  punfold Ht; induction Ht; cbn; pclearbot. 
+(*  red in H0. gstep. red.
+  induction H0; try discriminate; pclearbot;
+    simpobs; [| |destruct e | | ]. *)
+  3: { destruct e; gstep; constructor.
+       + gfinal. left. apply CIH.
+         eapply eutt_clo_bind; eauto.
+       + gstep; constructor. auto with paco itree.
+  }
+  1,2: gstep; constructor; auto with paco itree.
+  1,2: rewrite unfold_interp_mrec, tau_euttge; auto.
+Qed.
+
+End GEN_MREC.
+
+Section GEN_MREC_Ax.
+  
+Context (D E : Type -> Type).
+Context (R: Type).  
+Context (body1 body2 : D ~> itree (D +' E)).
+Context (IRel: R -> R -> Prop).
 Context (VRel: forall A: Type, A -> A -> Prop).
 Context (Bl Br: bool). 
 
@@ -89,7 +128,7 @@ Qed.
 
 (* generalized equivalence for interp_mrec.
    depends on the bisimulation axiom *)
-Lemma interp_mrec_eqit (t1 t2: itree (D +' E) R) :
+Lemma interp_mrec_eqitA (t1 t2: itree (D +' E) R) :
   eqit IRel Bl Br t1 t2 ->
   eqit IRel Bl Br (interp_mrec body1 t1) (interp_mrec body2 t2).
 Proof.
@@ -118,14 +157,29 @@ Proof.
     eapply IHeqitF; eauto.
 Qed.
 
+End GEN_MREC_Ax.
+
+(* function to extend handlers *)
+Definition ext_handler {E1 E2} (h: E1 ~> itree E2) : (E1 +' E2) ~> itree E2 :=
+  fun T e => match e with
+             | inl1 e1 => h _ e1
+             | inr1 e2 => trigger e2 end.               
+
+(* smarter extension *)
 Definition smart_handler {E E1 E2} (X: FIso E (E1 +' E2))
   (h: E1 ~> itree E2) : E ~> itree E2 :=
   fun T e => match (mfun1 e) with
              | inl1 e1 => h _ e1
              | inr1 e2 => trigger e2 end.               
 
-End GEN_MREC.
+(* ad-hoc extension for recursive handlers *)
+Definition ext_r_handler {E1 E2} E3 (h: E1 ~> itree (E2 +' E3)) :
+  (E1 +' E3) ~> itree (E2 +' E3) :=
+  fun T e => match e with
+             | inl1 e1 => h _ e1
+             | inr1 e2 => trigger (inr1 e2) end.               
 
+(*
 Definition lassoc_tr E1 E2 E3 : (E1 +' (E2 +' E3)) ~> ((E1 +' E2) +' E3) :=
   fun T e => match e with
              | inl1 e1 => inl1 (inl1 e1)
@@ -140,6 +194,7 @@ Definition rassoc_tr E1 E2 E3 : ((E1 +' E2) +' E3) ~> (E1 +' (E2 +' E3)) :=
                            | inr1 e2 => inr1 (inl1 e2)
                            end
             | inr1 e3 => inr1 (inr1 e3) end.                 
+*)
 
 (*
 Definition rassoc_tr E1 E2 E3 := @mfun2 (E1 +' (E2 +' E3)) ((E1 +' E2) +' E3) 
@@ -150,6 +205,30 @@ Section InlineOK.
 
 (* D1: inline events; D2: recursive events; E0: other events. *)  
 Context {D1 D2: Type -> Type} (E : Type -> Type).
+
+Definition rw_la T (e: (D1 +' E) T) : ((D1 +' D2) +' E) T :=
+  match e with
+  | inl1 d1 => inl1 (inl1 d1)
+  | inr1 e => inr1 e end.                  
+
+Definition lw_la T (e: (D2 +' E) T) : ((D1 +' D2) +' E) T :=
+  @sum_lassoc D1 D2 E _ (inr1 e).
+
+Definition lw_la1: (D2 +' E) ~> ((D1 +' D2) +' E) :=
+  fun _ d => match d with
+             | inl1 d' => inl1 (inr1 d')
+             | inr1 e => inr1 e end.
+
+Definition forget_f : (D1 +' D1) +' E ~> D1 +' E :=
+  fun T d => match d with
+             | inl1 d1 => match d1 with
+                          | inl1 d11 => inl1 d11
+                          | inr1 d2 => inl1 d2 end                
+             | inr1 e => inr1 e end.               
+
+(**********************************************************************)
+
+Section InlineOK1.
 
 (* inline (non-recursive) handler *) 
 Context (ctxI: D1 ~> itree (D2 +' E)).
@@ -162,24 +241,18 @@ Definition joint_handler (h1: D1 ~> itree (D2 +' E))
                          (h2: D2 ~> itree (D2 +' E)) :
                          (D1 +' D2) ~> itree ((D1 +' D2) +' E) :=
   fun T d => match d with
-             | inl1 d1 => translate (@lassoc_tr D1 D2 E)
+             | inl1 d1 => translate (@sum_lassoc D1 D2 E)
                                       (translate inr1 (h1 T d1))
-             | inr1 d2 => translate (@lassoc_tr D1 D2 E)
+             | inr1 d2 => translate (@sum_lassoc D1 D2 E)
                                       (translate inr1 (h2 T d2)) end.
 
 (* combined handler *)
 Notation ctxIR := (joint_handler ctxI ctxR).
 
-(* function to extend handlers *)
-Definition ext_handler {E1 E2} (h: E1 ~> itree E2) : (E1 +' E2) ~> itree E2 :=
-  fun T e => match e with
-             | inl1 e1 => h _ e1
-             | inr1 e2 => trigger e2 end.               
-
 (* non-recursive interpreter for inlining *)
 Definition D1_ext_interp (h: D1 ~> itree (D2 +' E))
   T (t: itree ((D1 +' D2) +' E) T) : itree (D2 +' E) T :=
-  interp (ext_handler h) (translate (@rassoc_tr D1 D2 E) t).
+  interp (ext_handler h) (translate (@sum_rassoc D1 D2 E) t).
 
 (* extended combined handler *)
 Definition ctxIRX : (D1 +' D2) +' E ~> itree ((D1 +' D2) +' E) :=
@@ -190,12 +263,7 @@ Definition ctxIRX : (D1 +' D2) +' E ~> itree ((D1 +' D2) +' E) :=
 
 (*********************************************************************)
 
-Definition lw_la1: (D2 +' E) ~> ((D1 +' D2) +' E) :=
-  fun _ d => match d with
-             | inl1 d' => inl1 (inr1 d')
-             | inr1 e => inr1 e end.
-
-Lemma lw_la1_test_lemma1 T (e: (D2 +' E) T) : lw_la1 e = lassoc_tr (inr1 e).
+Lemma lw_la1_test_lemma1 T (e: (D2 +' E) T) : lw_la1 e = sum_lassoc (inr1 e).
   destruct e; simpl; eauto.
 Qed.  
 
@@ -203,19 +271,11 @@ Lemma lw_la1_test_lemma2 T (d: D2 T) : lw_la1 (inl1 d) = inl1 (inr1 d).
   unfold lw_la1; auto.
 Qed.  
 
-Definition lw_la T (e: (D2 +' E) T) : ((D1 +' D2) +' E) T :=
-  @lassoc_tr D1 D2 E _ (inr1 e).
-
 (* extend inessentially the event type (inessential = no events for
    that type) *)
 Definition free_tr: itree (D2 +' E) ~> itree ((D1 +' D2) +' E) :=
   translate lw_la.
-    
-Definition rw_la T (e: (D1 +' E) T) : ((D1 +' D2) +' E) T :=
-  match e with
-  | inl1 d1 => inl1 (inl1 d1)
-  | inr1 e => inr1 e end.                  
-  
+      
 Definition free_right_tr: itree (D1 +' E) ~> itree ((D1 +' D2) +' E) :=
   translate rw_la.
 
@@ -346,6 +406,8 @@ Proof.
   }
 Qed.  
 
+End InlineOK1.
+
 End InlineOK.
 
 
@@ -358,7 +420,7 @@ Proof.
 Qed.  
 
 
-Section InlineOK1.
+Section InlineOK2.
 
 (* D1: inline events and recursive events; E0: other events. *)  
 Context {D1: Type -> Type} (E : Type -> Type).
@@ -372,16 +434,9 @@ Context (ctxR: D1 ~> itree (D1 +' E)).
 (* combined handler *)
 Notation ctxIR := (joint_handler ctxI ctxR).
 
-Definition forget_f : (D1 +' D1) +' E ~> D1 +' E :=
-  fun T d => match d with
-             | inl1 d1 => match d1 with
-                          | inl1 d11 => inl1 d11
-                          | inr1 d2 => inl1 d2 end                
-             | inr1 e => inr1 e end.               
-
 (* forget the (tagging) distinction *)
 Definition forget_tr : itree ((D1 +' D1) +' E) ~> itree (D1 +' E) :=
-  translate forget_f.
+  translate (@forget_f D1 E).
 
 (* forgetting an inessential extension gives us back the same *)
 Lemma forget_free_inv_lemma T (t: itree (D1 +' E) T) :
@@ -408,13 +463,14 @@ Proof.
 Qed.
 
 Lemma forget_free_id T d :
-  @forget_f _ (@lw_la D1 D1 E T d) = d.
+  @forget_f _ _ _ (@lw_la D1 D1 E T d) = d.
 Proof.
   destruct d; simpl; eauto.
 Qed.  
 
 Lemma forget_free_id_fun :
-  (fun T d => @forget_f _ (@lw_la D1 D1 E T d)) = (fun T (d: (D1 +' E) T) => d).
+  (fun T d => @forget_f _ _ _ (@lw_la D1 D1 E T d)) =
+    (fun T (d: (D1 +' E) T) => d).
 Proof.
   eapply functional_extensionality_dep; intro T.
   eapply functional_extensionality; intro d.
@@ -424,14 +480,14 @@ Qed.
 (* forgetting an inessential extension gives us back the same *)
 Lemma forget_free_id_lemma T (t: itree (D1 +' E) T) :
   eq_itree eq t
-    (translate (fun T' x => (@forget_f _ (@lw_la D1 D1 E T' x))) t).
+    (translate (fun T' x => (@forget_f _ _ _ (@lw_la D1 D1 E T' x))) t).
 Proof.
   rewrite forget_free_id_fun.
   rewrite translate_id. reflexivity.
 Qed.
 
 Notation RA_tr it :=
-  (translate (@rassoc_tr D1 D1 E) it).
+  (translate (@sum_rassoc D1 D1 E) it).
 
 Lemma rassoc_free_interp_lemma T h (t: itree (D1 +' E) T) :
   eutt eq t (interp (ext_handler h) (RA_tr (free_tr t))).
@@ -459,8 +515,8 @@ Proof.
     guclo eqit_clo_bind.
     econstructor 1 with (RU := eq).
     { unfold ext_handler.
-      unfold rassoc_tr, lw_la.
-      unfold lassoc_tr.
+      unfold sum_rassoc, lw_la.
+      unfold sum_lassoc.
       destruct e; simpl; try reflexivity.
     }
     { intros u1 u2 H.
@@ -473,13 +529,14 @@ Proof.
 Qed.
 
 Lemma forget_free_right_id T d :
-  @forget_f _ (@rw_la D1 D1 E T d) = d.
+  @forget_f _ _ _ (@rw_la D1 D1 E T d) = d.
 Proof.
   destruct d; simpl; eauto.
 Qed.  
 
 Lemma forget_free_right_id_fun :
-  (fun T d => @forget_f _ (@rw_la D1 D1 E T d)) = (fun T (d: (D1 +' E) T) => d).
+  (fun T d => @forget_f _ _ _ (@rw_la D1 D1 E T d)) =
+    (fun T (d: (D1 +' E) T) => d).
 Proof.
   eapply functional_extensionality_dep; intro T.
   eapply functional_extensionality; intro d.
@@ -576,7 +633,7 @@ Proof.
       set (ZZ := 
         (@ITree.bind (sum1 (sum1 D1 D1) E) X T
            (@translate (sum1 D1 (sum1 D1 E)) (sum1 (sum1 D1 D1) E)
-             (@lassoc_tr D1 D1 E) X
+             (@sum_lassoc D1 D1 E) X
              (@translate (sum1 D1 E) (sum1 D1 (sum1 D1 E))
                 (@inr1 D1 (sum1 D1 E)) X (@ctxR X d)))
           (fun x : X => @free_tr D1 D1 E T (k x)))).
@@ -585,7 +642,7 @@ Proof.
            (x <- @free_tr D1 D1 E _ (ctxR d) ;; free_tr (k x))).
 
       assert (eq_itree eq ZZ ZZ1) as WW.
-      { subst ZZ ZZ1. unfold free_tr, lw_la. simpl. unfold lassoc_tr.
+      { subst ZZ ZZ1. unfold free_tr, lw_la. simpl. unfold sum_lassoc.
         setoid_rewrite <- translate_cmpE. reflexivity.
       }
 
@@ -639,5 +696,5 @@ Lemma OK_strict_inline_lemma_new T (t: itree ((D1 +' D1) +' E) T) :
   }
 Qed.   
 
-End InlineOK1.
+End InlineOK2.
 

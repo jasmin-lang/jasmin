@@ -1,21 +1,6 @@
 (* -> was tfam_iso1.v *)
 
-(** * Relation up to tau *)
-
-(** [rutt] ("relation up to tau") is a generalization of [eutt] that may relate trees
-  indexed by different event type families [E]. *)
-
-(** It corresponds roughly to the interpretation of "types as relations" from the relational
-  parametricity model by Reynolds (Types, Abstraction and Parametric Polymorphism).
-  Any polymorphic function [f : forall E R, itree E R -> ...] should respect this relation,
-  in the sense that for any relations [rE], [rR], the implication
-  [rutt rE rR t t' -> (f t ~~ f t')] should hold, where [~~] is some canonical relation on the
-  codomain of [f].
-
-  If we could actually quotient itrees "up to taus", and Coq could generate
-  parametricity ("free") theorems on demand, the above might be a free theorem. *)
-
-(** [rutt] is used to define the [trace_refine] relation in [ITree.ITrace.ITraceDefinition]. *)
+(* Type family isomorphism class *)
 
 From Coq Require Import
      Morphisms.
