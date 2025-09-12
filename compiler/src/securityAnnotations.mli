@@ -37,7 +37,8 @@ end
 
 module CT : sig
 
-  type typ = simple_level list (* the min of the level *)
+  (* The min of the level, the empty list means that it is unspecified ie "_" *)
+  type typ = simple_level list
   type signature = typ signature_gen
 
   val public : simple_level

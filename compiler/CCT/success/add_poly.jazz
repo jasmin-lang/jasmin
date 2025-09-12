@@ -7,8 +7,8 @@ fn add(reg u64 x, reg u64 ya) -> reg u64 {
  return t;
 }
 
-/* how to do this one should we use _ * public -> _ */
-fn add_L(reg u64 x, #public reg u64 ya) -> reg u64 {
+#[ct=" _ * public -> _"]
+fn add_L(reg u64 x, reg u64 ya) -> reg u64 {
 
  reg u64 t;
 
@@ -17,8 +17,8 @@ fn add_L(reg u64 x, #public reg u64 ya) -> reg u64 {
  return t;
 }
 
-/* same */
-fn add_H(reg u64 x, #secret reg u64 ya) -> reg u64 {
+#[ct=" _ * secret -> _ "]
+fn add_H(reg u64 x, reg u64 ya) -> reg u64 {
 
  reg u64 t;
 

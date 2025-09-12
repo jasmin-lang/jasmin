@@ -442,7 +442,7 @@ let get_annot ensure_annot f =
       let lvl1 = parse ~single:true x.v_dloc x.v_annot in
       let lvl2 = Option.bind sig_annot (get_nth_argument i) in
       match lvl1, lvl2 with
-      | Some _, _ | _, None -> lvl1
+      | Some _, _ | _, None | _, Some [] -> lvl1
       | None, Some t -> Some (lvl_of_typ t)
     in
     x.v_name, lvl
@@ -451,7 +451,7 @@ let get_annot ensure_annot f =
     let lvl1 = parse ~single:false loc a in
     let lvl2 = Option.bind sig_annot (get_nth_result i) in
     match lvl1, lvl2 with
-    | Some _, _ | _, None -> lvl1
+    | Some _, _ | _, None | _, Some [] -> lvl1
     | None, Some t -> Some (lvl_of_typ t)
   in
   let ain  = List.mapi process_argument f.f_args in

@@ -145,7 +145,8 @@ end
 
 module CT = struct
 
-  type typ = simple_level list (* the min of the level *)
+  (* The min of the level, the empty list means that it is unspecified ie "_" *)
+  type typ = simple_level list
   type signature = typ signature_gen
 
   let public = Public
@@ -156,7 +157,7 @@ module CT = struct
     let simple_level = SCT.PP.simple_level
 
     let typ fmt = function
-     | [] -> assert false
+     | [] -> Format.fprintf fmt "_"
      | [l] -> simple_level fmt l
      | ls -> Format.fprintf fmt "@[<h>{%a}@]" (pp_list ",@ " simple_level) ls
 
@@ -170,7 +171,13 @@ module CT = struct
 
     let simple_level = simple_level
 
-    let inp_typ = lift inp_typ (simple_level <* ws)
+    let underscore =
+      char '_' *> ws *> return []
+
+    let inp_typ =
+      underscore
+      <|> lift inp_typ (simple_level <* ws)
+
 
     let comma = char ',' *> ws
 
