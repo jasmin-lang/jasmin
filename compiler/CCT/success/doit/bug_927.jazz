@@ -1,4 +1,5 @@
-export fn multiplications(#secret reg u64 x y) -> #secret reg u64 {
+#[ct="secret * secret -> secret"]
+export fn multiplications(reg u64 x y) -> reg u64 {
   x = x;
   reg u64 z t;
   z, t = x * y;

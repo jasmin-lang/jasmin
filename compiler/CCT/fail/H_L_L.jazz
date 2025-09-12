@@ -1,4 +1,5 @@
-fn add_H_L_L(#secret reg u64 x, #public reg u64 ya) -> #public reg u64 {
+#[ct="secret * public -> public"]
+fn add_H_L_L(reg u64 x, reg u64 ya) -> reg u64 {
 
  reg u64 t;
 

@@ -12,7 +12,8 @@ r[i] = t;
 return r;
 }
 
-export fn otp(#public reg u64 ctp, #public reg u64 msgp, #public reg u64 keyp)
+#[ct="public * public * public -> ()"]
+export fn otp(reg u64 ctp, reg u64 msgp, reg u64 keyp)
 {
 inline int i;
 stack u8[32] ct msg key;
