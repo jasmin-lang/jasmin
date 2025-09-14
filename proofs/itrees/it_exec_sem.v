@@ -11,6 +11,8 @@ Import Basics.Monads.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
+Require Import utils.
+
 Require Import tfam_iso it_exec.
 
 Import MonadNotation.
@@ -44,12 +46,21 @@ Definition interp_Err {E: Type -> Type} {A}
 
 (*** auxiliary error functions *)
 
-Definition ioget {E: Type -> Type} `{ErrEvent -< E} {V}
+(* was ioget *)
+Definition err_option {E: Type -> Type} `{ErrEvent -< E} {V}
   (err: error_data) (o: option V) : itree E V :=
   match o with
   | Some v => Ret v
   | None => throw err
   end.
+
+(* was err_result *)
+Definition err_result {E: Type -> Type} `{ErrEvent -< E}
+  (mkerr : error -> error_data) :
+  result error ~> itree E :=
+  fun _ t => match t with
+             | Ok v => Ret v
+             | Error e => throw (mkerr e) end.
 
 End Errors.
 
@@ -58,7 +69,8 @@ End Errors.
   fun T (e:ErrEvent T) => mfun2 (inl1 e).
 *)
 
-Definition is_error {E E0 : Type -> Type} (wE : FIso E (ErrEvent +' E0)) (T : Type) (e : E T) :=
+Definition is_error {E E0 : Type -> Type}
+  (wE : FIso E (ErrEvent +' E0)) (T : Type) (e : E T) : bool :=
   match mfun1 e with
   | inl1 _ => true
   | inr1 _ => false

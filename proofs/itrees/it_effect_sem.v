@@ -14,7 +14,7 @@ Import Basics.Monads.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
 Require Import expr psem_defs psem_core it_exec it_exec_sem tfam_iso
-               eutt_extras rec_facts.
+               eutt_extras rec_facts it_cflow_sem.
 
 Require Import List.
 
@@ -27,24 +27,158 @@ Context
   {syscall_state : Type}
   {sip : SemInstrParams asm_op syscall_state}.  
 (* Context {asm_op: Type} {asmop: asmOp asm_op}. *)
-(*
+
 Context
-  {asm_op: Type}
-  {syscall_state : Type}
-  {sip : SemInstrParams asm_op syscall_state}.  
   {wsw: WithSubWord} 
   {dc: DirectCall} 
   {ep : EstateParams syscall_state} 
   {spp : SemPexprParams} 
   {pT : progT}
   {scP : semCallParams}.
-Context {err: error_data}. 
-*)
-(* Memo *)
-(* | _ => throw err end. *) 
-Section Sem1.
 
-Context (FState : Type) {State: Type} {FunDef: Type}.
+Record fstate := { fscs : syscall_state_t; fmem : mem; fvals : values }.
+
+Definition mk_error_data (s: estate) (e: error) : error_data :=
+  (e, tt).
+
+Definition mk_error (s: estate) : error_data :=
+  mk_error_data s ErrType.
+
+
+(*******************************************************)
+
+Section CORE.
+
+Context {E: Type -> Type} {XE : ErrEvent -< E} (p : prog) (ev : extra_val_t).
+
+Definition iresult {T} (F : exec T) (s:estate) : itree E T :=
+  err_result (mk_error_data s) F.
+
+Definition iget_fundef (funcs: fun_decls) (fn: funname) (fs: fstate) :
+    itree E fundef :=
+  err_option (ErrType, tt) (get_fundef funcs fn).
+
+Definition iwrite_lval (wdb : bool) (gd : glob_decls) (x : lval)
+    (v : value) (s : estate) : itree E estate :=
+  iresult (write_lval wdb gd x v s) s.
+
+Definition iwrite_lvals (wdb : bool) (gd : glob_decls) (xs : lvals)
+    (vs : values) (s : estate) : itree E estate :=
+  iresult (write_lvals wdb gd s xs vs) s.
+
+Definition isem_pexprs (wdb : bool) (gd : glob_decls) (es: pexprs)
+    (s : estate) : itree E values :=
+  iresult (sem_pexprs wdb gd s es) s.
+
+
+(** Assgn *)
+
+Definition sem_assgn
+  (x : lval) (tg : assgn_tag) (ty : stype) (e : pexpr) (s : estate) :
+  exec estate :=
+  Let v := sem_pexpr true (p_globs p) s e in
+  Let v' := truncate_val ty v in
+  write_lval true (p_globs p) x v' s.
+
+Definition isem_assgn 
+  (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) (s: estate) :
+  itree E estate := iresult (sem_assgn x tg ty e s) s.
+
+Definition isem_Assgn (SX: @StE estate -< E)
+  (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : itree E unit :=
+  s1 <- trigger GetSE ;;
+  s2 <- isem_assgn x tg ty e s1 ;;
+  trigger (PutSE s2).
+
+(* Sopn *)
+
+Definition isem_sopn (o: sopn) (xs: lvals) (es: pexprs) (s: estate) :
+  itree E estate := iresult (sem_sopn (p_globs p) o s xs es) s.
+
+Definition isem_Sopn (SX: @StE estate -< E)
+  (o: sopn) (xs: lvals) (es: pexprs) : itree E unit := 
+  s1 <- trigger GetSE ;;
+  s2 <- isem_sopn o xs es s1 ;;
+  trigger (PutSE s2).
+
+(* Syscall *)
+
+Definition fexec_syscall (o : syscall_t) (fs:fstate) : exec fstate :=
+  Let: (scs, m, vs) := exec_syscall fs.(fscs) fs.(fmem) o fs.(fvals) in
+  ok {| fscs := scs; fmem := m; fvals := vs |}.
+
+Definition upd_estate
+  (wdb: bool) (gd: glob_decls) (xs: lvals) (fs: fstate) (s: estate) :=
+  write_lvals wdb gd (with_scs (with_mem s fs.(fmem)) fs.(fscs)) xs fs.(fvals).
+
+Definition mk_fstate (vs:values) (s:estate) :=
+  {| fscs := escs s; fmem:= emem s; fvals := vs |}.
+
+Definition sem_syscall
+  (xs : lvals) (o : syscall_t) (es : pexprs) (s : estate) : exec estate :=
+  Let ves := sem_pexprs true (p_globs p) s es in
+  Let fs := fexec_syscall o (mk_fstate ves s) in
+  upd_estate true (p_globs p) xs fs s.
+
+Definition isem_syscall
+  (xs : lvals) (o : syscall_t) (es : pexprs) (s : estate) :
+  itree E estate := iresult (sem_syscall xs o es s) s.
+
+Definition isem_Syscall (SX: @StE estate -< E)
+   (xs : lvals) (o : syscall_t) (es : pexprs) : itree E unit := 
+  s1 <- trigger GetSE ;;
+  s2 <- isem_syscall xs o es s1 ;;
+  trigger (PutSE s2).
+
+(* Cons *)
+
+Definition sem_cond (gd : glob_decls) (e : pexpr) (s : estate) : exec bool :=
+  (sem_pexpr true gd s e >>= to_bool)%result.
+
+Definition isem_cond (e : pexpr) (s : estate) : itree E bool :=
+  iresult (sem_cond (p_globs p) e s) s.
+
+Definition sem_Cond (SX: @StE estate -< E)
+    (e : pexpr) : itree E bool := 
+  s <- trigger GetSE ;; isem_cond e s.
+
+Lemma sem_cond_sem_pexpr gd e s b :
+  sem_cond gd e s = ok b -> sem_pexpr true gd s e = ok (Vbool b).
+Proof.
+  unfold sem_cond; simpl; intro H.
+  destruct (sem_pexpr true gd s e); simpl in *; try discriminate.
+  destruct v; try discriminate.
+  { inv H; eauto. }
+  { destruct t; try discriminate. }
+Qed.  
+
+(* Bounds *)
+
+Definition sem_bound (gd : glob_decls) (lo hi : pexpr) (s : estate) :
+    exec (Z * Z) :=
+  (Let vlo := sem_pexpr true gd s lo >>= to_int in
+  Let vhi := sem_pexpr true gd s hi >>= to_int in
+  ok (vlo, vhi))%result.
+
+Definition isem_bound (lo hi : pexpr) (s : estate) : itree E (Z * Z) :=
+  iresult (sem_bound (p_globs p) lo hi s) s.
+
+Definition isem_Bound (SX: @StE estate -< E)
+   (lo hi : pexpr) : itree E (Z * Z) := 
+  s <- trigger GetSE ;; isem_bound lo hi s.
+
+(* WriteIndex *)
+
+Definition isem_WriteIndex (SX: @StE estate -< E)
+  (wdb : bool) (gd : glob_decls) (x : lval)
+  (v : value) (s : estate) : itree E unit :=
+  s1 <- trigger GetSE ;;
+  s2 <- iwrite_lval wdb gd x v s1 ;;
+  trigger (PutSE s2).
+
+  
+
+(****************************************************************)
 
 (* state events (similar to those provided by the library, 
    could be specialized to estate) *)
@@ -59,7 +193,7 @@ Variant InstrE : Type -> Type :=
   | OpnE : lvals -> assgn_tag -> sopn -> pexprs -> InstrE unit
   | SyscallE : lvals -> syscall_t -> pexprs -> InstrE unit
   | EvalCond (e: pexpr) : InstrE bool
-  | EvalBounds (e1 e2: pexpr) : InstrE (Z * Z)
+  | EvalBound (e: pexpr) : InstrE Z
   | WriteIndex (x: var_i) (z: Z) : InstrE unit
   | EvalArgs (args: pexprs) : InstrE pexprs                
   | InitFState (args: pexprs) : instr_info -> InstrE FState
@@ -133,9 +267,10 @@ Fixpoint isem_instr (i : instr) : itree (recCall +' E) unit :=
         c1 e c2 
 
   | Cfor i (d, lo, hi) c =>
-    zz <- trigger (EvalBounds lo hi) ;;  
+    lo_b <- trigger (EvalBound lo) ;;
+    hi_b <- trigger (EvalBound hi) ;;   
     isem_for_loop isem_instr (fun w => trigger (WriteIndex i (Vint w)))
-      i c (wrange d (fst zz) (snd zz)) 
+      i c (wrange d lo_b hi_b) 
 
   | Ccall xs fn args =>
     s0 <- trigger GetSE ;;  
@@ -492,9 +627,10 @@ Fixpoint isem_i_body (i : instr) : itree E unit :=
         c1 e c2 
 
   | Cfor i (d, lo, hi) c =>
-    zz <- trigger (EvalBounds lo hi) ;;   
+    lo_b <- trigger (EvalBound lo) ;;
+    hi_b <- trigger (EvalBound hi) ;;   
     isem_for_loop isem_i_body (fun w => trigger (WriteIndex i (Vint w)))
-      i c (wrange d (fst zz) (snd zz)) 
+      i c (wrange d lo_b hi_b) 
 
   | Ccall xs fn args =>
     s0 <- trigger GetSE ;;  
