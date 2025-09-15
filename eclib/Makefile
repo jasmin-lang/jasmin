@@ -30,9 +30,9 @@ jasmin.conf:
 
 install: jasmin.conf
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(LIBDIR)/easycrypt/jasmin
-	$(INSTALL) -m 0644 -t $(DESTDIR)$(LIBDIR)/easycrypt/jasmin *.ec
+	$(INSTALL) -m 0644 *.ec $(DESTDIR)$(LIBDIR)/easycrypt/jasmin/
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(LIBDIR)/easycrypt/config
-	$(INSTALL) -m 0644 -t $(DESTDIR)$(LIBDIR)/easycrypt/config *.conf
+	$(INSTALL) -m 0644 *.conf $(DESTDIR)$(LIBDIR)/easycrypt/config/
 
 uninstall:
 	$(RM) -r $(DESTDIR)$(LIBDIR)/easycrypt/jasmin
