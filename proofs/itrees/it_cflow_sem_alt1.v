@@ -14,7 +14,7 @@ Import Basics.Monads.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
 Require Import expr psem_defs psem_core it_exec it_exec_sem tfam_iso
-               eutt_extras rec_facts it_cflow_sem.
+               eutt_extras rec_facts.
 
 Require Import List.
 
@@ -27,245 +27,26 @@ Context
   {syscall_state : Type}
   {sip : SemInstrParams asm_op syscall_state}.  
 (* Context {asm_op: Type} {asmop: asmOp asm_op}. *)
-
+(*
 Context
+  {asm_op: Type}
+  {syscall_state : Type}
+  {sip : SemInstrParams asm_op syscall_state}.  
   {wsw: WithSubWord} 
   {dc: DirectCall} 
   {ep : EstateParams syscall_state} 
   {spp : SemPexprParams} 
   {pT : progT}
   {scP : semCallParams}.
-
-Record fstate :=
-  { fscs : syscall_state_t; fmem : mem; fvals : values;
-                                        finfo: option instr_info }.
-
-Definition mk_error_data (s: estate) (e: error) : error_data :=
-  (e, tt).
-
-Definition mk_error (s: estate) : error_data :=
-  mk_error_data s ErrType.
-
-
-(*******************************************************)
-
-Section CORE.
-
-Context {E: Type -> Type} {XE : ErrEvent -< E} (p : prog) (ev : extra_val_t).
-
-Definition iresult {T} (F : exec T) (s:estate) : itree E T :=
-  err_result (mk_error_data s) F.
-
-Definition iget_fundef (funcs: fun_decls) (fn: funname) (fs: fstate) :
-    itree E fundef :=
-  err_option (ErrType, tt) (get_fundef funcs fn).
-
-Definition iwrite_lval (wdb : bool) (gd : glob_decls) (x : lval)
-    (v : value) (s : estate) : itree E estate :=
-  iresult (write_lval wdb gd x v s) s.
-
-Definition iwrite_lvals (wdb : bool) (gd : glob_decls) (xs : lvals)
-    (vs : values) (s : estate) : itree E estate :=
-  iresult (write_lvals wdb gd s xs vs) s.
-
-Definition isem_pexprs (wdb : bool) (gd : glob_decls) (es: pexprs)
-    (s : estate) : itree E values :=
-  iresult (sem_pexprs wdb gd s es) s.
-
-
-(** Assgn *)
-
-Definition sem_assgn
-  (x : lval) (tg : assgn_tag) (ty : stype) (e : pexpr) (s : estate) :
-  exec estate :=
-  Let v := sem_pexpr true (p_globs p) s e in
-  Let v' := truncate_val ty v in
-  write_lval true (p_globs p) x v' s.
-
-Definition isem_assgn 
-  (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) (s: estate) :
-  itree E estate := iresult (sem_assgn x tg ty e s) s.
-
-(* Definition fbody (fd: fundef) := fd.(f_body). *)
-
-Definition isem_Assgn (SX: @StE estate -< E)
-  (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : itree E unit :=
-  s1 <- trigger GetSE ;;
-  s2 <- isem_assgn x tg ty e s1 ;;
-  trigger (PutSE s2).
-
-(* Sopn *)
-
-Definition isem_sopn (o: sopn) (xs: lvals) (es: pexprs) (s: estate) :
-  itree E estate := iresult (sem_sopn (p_globs p) o s xs es) s.
-
-Definition isem_Sopn (SX: @StE estate -< E)
-  (o: sopn) (xs: lvals) (es: pexprs) : itree E unit := 
-  s1 <- trigger GetSE ;;
-  s2 <- isem_sopn o xs es s1 ;;
-  trigger (PutSE s2).
-
-(* Syscall *)
-
-Definition fexec_syscall (o : syscall_t) (fs:fstate) : exec fstate :=
-  Let: (scs, m, vs) := exec_syscall fs.(fscs) fs.(fmem) o fs.(fvals) in
-  ok {| fscs := scs; fmem := m; fvals := vs; finfo := None |}.
-
-Definition upd_estate
-  (wdb: bool) (gd: glob_decls) (xs: lvals) (fs: fstate) (s: estate) :=
-  write_lvals wdb gd (with_scs (with_mem s fs.(fmem)) fs.(fscs)) xs fs.(fvals).
-
-Definition mk_fstate (vs:values) (s:estate) :=
-  {| fscs := escs s; fmem:= emem s; fvals := vs; finfo := None |}.
-
-Definition mk_fstateI (vs:values) (s:estate) (ii: instr_info) :=
-  {| fscs := escs s; fmem:= emem s; fvals := vs; finfo := Some ii |}.
-
-Definition sem_syscall
-  (xs : lvals) (o : syscall_t) (es : pexprs) (s : estate) : exec estate :=
-  Let ves := sem_pexprs true (p_globs p) s es in
-  Let fs := fexec_syscall o (mk_fstate ves s) in
-  upd_estate true (p_globs p) xs fs s.
-
-Definition isem_syscall
-  (xs : lvals) (o : syscall_t) (es : pexprs) (s : estate) :
-  itree E estate := iresult (sem_syscall xs o es s) s.
-
-Definition isem_Syscall (SX: @StE estate -< E)
-   (xs : lvals) (o : syscall_t) (es : pexprs) : itree E unit := 
-  s1 <- trigger GetSE ;;
-  s2 <- isem_syscall xs o es s1 ;;
-  trigger (PutSE s2).
-
-(* Cons *)
-
-Definition sem_cond (gd : glob_decls) (e : pexpr) (s : estate) : exec bool :=
-  (sem_pexpr true gd s e >>= to_bool)%result.
-
-Definition isem_cond (e : pexpr) (s : estate) : itree E bool :=
-  iresult (sem_cond (p_globs p) e s) s.
-
-Definition sem_Cond (SX: @StE estate -< E)
-    (e : pexpr) : itree E bool := 
-  s <- trigger GetSE ;; isem_cond e s.
-
-Lemma sem_cond_sem_pexpr gd e s b :
-  sem_cond gd e s = ok b -> sem_pexpr true gd s e = ok (Vbool b).
-Proof.
-  unfold sem_cond; simpl; intro H.
-  destruct (sem_pexpr true gd s e); simpl in *; try discriminate.
-  destruct v; try discriminate.
-  { inv H; eauto. }
-  { destruct t; try discriminate. }
-Qed.  
-
-(* Bounds *)
-
-Definition sem_bound (gd : glob_decls) (lo hi : pexpr) (s : estate) :
-    exec (Z * Z) :=
-  (Let vlo := sem_pexpr true gd s lo >>= to_int in
-  Let vhi := sem_pexpr true gd s hi >>= to_int in
-  ok (vlo, vhi))%result.
-
-Definition isem_bound (lo hi : pexpr) (s : estate) : itree E (Z * Z) :=
-  iresult (sem_bound (p_globs p) lo hi s) s.
-
-Definition isem_Bound (SX: @StE estate -< E)
-   (lo hi : pexpr) : itree E (Z * Z) := 
-  s <- trigger GetSE ;; isem_bound lo hi s.
-
-(* WriteIndex *)
-
-Definition isem_WriteIndex (SX: @StE estate -< E)
-  (wdb : bool) (gd : glob_decls) (x : lval)
-  (v : value) (s : estate) : itree E unit :=
-  s1 <- trigger GetSE ;;
-  s2 <- iwrite_lval wdb gd x v s1 ;;
-  trigger (PutSE s2).
-
-(* EvalArgs *)  
-
-Definition isem_EvalArgs (SX: @StE estate -< E)
-  (args: pexprs) : itree E values :=
-  s <- trigger GetSE ;;
-  isem_pexprs (~~direct_call) (p_globs p) args s.
-  
-(* InitFState *)
-
-Definition isem_InitFState (SX: @StE estate -< E) 
-  (vargs: values) (fn: funname) (ii: instr_info) : itree E fstate :=
-  s <- trigger GetSE ;;
-  Ret (mk_fstateI vargs s ii).
-
-(* RetVal *)
-
-Definition isem_RetVal (SX: @StE estate -< E) 
-  (xs: lvals) (fs: fstate) (s: estate) : itree E unit :=
-  s1 <- iresult (upd_estate (~~direct_call) (p_globs p) xs fs s) s ;;
-  trigger (PutSE s1).
-
-(* GetFunDef *)
-
-Definition isem_GetFunDef (fn: funname) (fs: fstate) : itree E fundef :=
-  iget_fundef (p_funcs p) fn fs.
-
-(* GetFunCode *)
-
-Definition isem_GetFunCode (fd: fundef) : itree E cmd :=
-  Ret (fd.(f_body)).
-
-(* InitFunCall *)
-
-Definition estate0 (fs : fstate) :=
-  Estate fs.(fscs) fs.(fmem) Vm.init.
-
-Definition initialize_funcall (p : prog) (ev : extra_val_t) (fd : fundef) (fs : fstate) : exec estate :=
-  let sinit := estate0 fs in
-  Let vargs' := mapM2 ErrType dc_truncate_val fd.(f_tyin) fs.(fvals) in
-  Let s0 := init_state fd.(f_extra) (p_extra p) ev sinit in
-  write_vars (~~direct_call) fd.(f_params) vargs' s0.
-
-Definition isem_InitFunCall (SX: @StE estate -< E)
-  (fd: fundef) (fs: fstate) : itree E unit :=
-  let sinit := estate0 fs in
-  s <- iresult (initialize_funcall p ev fd fs) sinit ;;
-  trigger (PutSE s).
-
-(* FinalizeFunCall *)
-
-Definition finalize_funcall (fd : fundef) (s:estate) : exec fstate :=
-  Let vres := get_var_is (~~ direct_call) s.(evm) fd.(f_res) in
-  Let vres' := mapM2 ErrType dc_truncate_val fd.(f_tyout) vres in
-  let scs := s.(escs) in
-  let m := finalize fd.(f_extra) s.(emem) in
-  ok {| fscs := scs; fmem := m; fvals := vres'; finfo := None |}.
-
-Definition isem_FinalizeFunCall (SX: @StE estate -< E)
-  (fd: fundef) (fs: fstate) : itree E fstate :=
-  s <- trigger GetSE ;;
-  iresult (finalize_funcall fd s) s.
-
-(****************************************************************)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-(****************************************************************)
+Context {err: error_data}. 
+*)
+(* Memo *)
+(* | _ => throw err end. *) 
+Section Sem1.
+
+Context (FState : Type) {State: Type} {FunDef: Type}.
+
+Definition IFState := (instr_info * FState)%type.
 
 (* state events (similar to those provided by the library, 
    could be specialized to estate) *)
@@ -280,17 +61,17 @@ Variant InstrE : Type -> Type :=
   | OpnE : lvals -> assgn_tag -> sopn -> pexprs -> InstrE unit
   | SyscallE : lvals -> syscall_t -> pexprs -> InstrE unit
   | EvalCond (e: pexpr) : InstrE bool
-  | EvalBound (e: pexpr) : InstrE Z
+  | EvalBounds (e1 e2: pexpr) : InstrE (Z * Z)
   | WriteIndex (x: var_i) (z: Z) : InstrE unit
-  | EvalArgs (args: pexprs) : InstrE pexprs                
-  | InitFState (args: pexprs) : instr_info -> InstrE FState
+  | EvalArgs (args: pexprs) : InstrE values                
+  | InitFState (vargs: values) : instr_info -> InstrE IFState
   | RetVal (xs: lvals) (fs: FState) (s: State) : InstrE unit.
 
 (* function call events *)
 Variant FunE : Type -> Type :=
   | GetFunDef (fn: funname) (fs: FState) : FunE FunDef
   | GetFunCode (fd: FunDef) : FunE cmd          
-  | InitFunCall (fd: FunDef) (fs: FState) : FunE FState                     
+  | InitFunCall (fd: FunDef) (fs: FState) : FunE unit                     
   | FinalizeFunCall (fd: FunDef) : FunE FState.
 
 (* Notation rec_call f fs := (trigger_inl1 (Call (f, fs))). *)
@@ -329,7 +110,7 @@ Definition isem_while_loop {E} (sem_i: instr -> itree E unit)
     itree E unit :=
   ITree.iter (fun _ => isem_while_round sem_i cnd c1 e c2) tt.
 
-Notation recCall := (callE (funname * FState) FState).
+Notation recCall := (callE (funname * IFState) FState).
 
 Section SemRec.
 
@@ -354,16 +135,15 @@ Fixpoint isem_instr (i : instr) : itree (recCall +' E) unit :=
         c1 e c2 
 
   | Cfor i (d, lo, hi) c =>
-    lo_b <- trigger (EvalBound lo) ;;
-    hi_b <- trigger (EvalBound hi) ;;   
+    zz <- trigger (EvalBounds lo hi) ;;  
     isem_for_loop isem_instr (fun w => trigger (WriteIndex i (Vint w)))
-      i c (wrange d lo_b hi_b) 
+      i c (wrange d (fst zz) (snd zz)) 
 
   | Ccall xs fn args =>
     s0 <- trigger GetSE ;;  
     vargs <- trigger (EvalArgs args) ;;
-    fs0 <- trigger (InitFState vargs ii) ;;
-    fs1 <- trigger_inl1 (Call (fn, fs0)) ;; 
+    ifs0 <- trigger (InitFState vargs ii) ;;
+    fs1 <- trigger_inl1 (Call (fn, ifs0)) ;; 
     (* discard current state, use s0 instead *)
     trigger (RetVal xs fs1 s0)
   end.
@@ -394,7 +174,7 @@ Definition isem_fcall (fn : funname) (fs : FState) :
 Definition handle_recc : recCall ~> itree (recCall +' E) :=
  fun T (rc : recCall T) =>
    match rc with
-   | Call (fn, fs) => isem_fcall fn fs
+   | Call (fn, fs) => isem_fcall fn (snd fs)
    end.
 
 (* intepreter of recCall events *)
@@ -414,8 +194,8 @@ Definition denote_fun (fn : funname) (fs : FState) : itree E FState :=
   interp_recc (isem_fcall fn fs).
 
 (* function semantics, expressed with rec rather than interp_mrec *)
-Definition denote_fun' (fn : funname) (fs : FState) : itree E FState :=
-  rec (uncurry isem_fcall) (fn, fs). 
+Definition denote_fun' (fn : funname) (fs : IFState) : itree E FState :=
+  rec (uncurry (fun x y => isem_fcall x (snd y))) (fn, fs). 
 
 (* corresponds to: isem_fun_body with the sem_fun_full instance *) 
 Definition denote_fcall (fn : funname) (fs : FState) :
@@ -430,11 +210,11 @@ Definition denote_fcall (fn : funname) (fs : FState) :
 (********************************************************************)
 (* blank function semantics *)
 
-Definition rec_call (f : funname) (fs : FState) :
+Definition rec_call (f : funname) (fs : IFState) :
    itree (recCall +' E) FState := trigger_inl1 (Call (f, fs)).
 
 (* fully blank semantics (does nothing) *)
-Definition denote_fun_blank' (fn : funname) (fs : FState) : itree E FState :=
+Definition denote_fun_blank' (fn : funname) (fs : IFState) : itree E FState :=
   rec (uncurry rec_call) (fn, fs). 
 
 (* blank handler of recCall events *)
@@ -450,8 +230,8 @@ Definition denote_fun_blank (fn : funname) (fs : FState) : itree E FState :=
 
 (**********************************************************************)
 
-Lemma denote_fun_eutt (fn : funname) (fs : FState) :
-  eutt eq (denote_fun' fn fs) (denote_fun fn fs).
+Lemma denote_fun_eutt (fn : funname) (fs : IFState) :
+  eutt eq (denote_fun' fn fs) (denote_fun fn (snd fs)).
 Proof. by reflexivity. Qed.  
 
 Lemma isem_cmd_cons i c :
@@ -603,12 +383,12 @@ Section Inline.
 
 (* inline info is included in FState *)  
 Context {do_inline :
-    FState -> funname (* caller *) -> funname (* callee *) -> bool}.
+    IFState -> funname (* caller *) -> funname (* callee *) -> bool}.
 
 (* conditional inliner action *)
 Definition inliner
  (ctx : forall T : Type, recCall T -> itree (recCall +' E) T)
- (caller: funname) (callee: funname) (fs: FState) :
+ (caller: funname) (callee: funname) (fs: IFState) :
   itree (recCall +' E) FState :=
   if do_inline fs caller callee then ctx FState (Call (callee, fs))
 (* Interpret the top call but not the inner ones *)
@@ -682,7 +462,7 @@ End SemRec.
 (**********************************************************************)
 
 Class sem_Fun (E : Type -> Type) :=
-  { sem_fun : funname -> FState -> itree E FState }.
+  { sem_fun : funname -> IFState -> itree E FState }.
 
 #[global]
 Instance sem_fun_rec (E : Type -> Type) : sem_Fun (recCall +' E) | 0 :=
@@ -714,10 +494,9 @@ Fixpoint isem_i_body (i : instr) : itree E unit :=
         c1 e c2 
 
   | Cfor i (d, lo, hi) c =>
-    lo_b <- trigger (EvalBound lo) ;;
-    hi_b <- trigger (EvalBound hi) ;;   
+    zz <- trigger (EvalBounds lo hi) ;;   
     isem_for_loop isem_i_body (fun w => trigger (WriteIndex i (Vint w)))
-      i c (wrange d lo_b hi_b) 
+      i c (wrange d (fst zz) (snd zz)) 
 
   | Ccall xs fn args =>
     s0 <- trigger GetSE ;;  
@@ -778,7 +557,7 @@ Definition handle_recCall :
    recCall ~> itree (recCall +' E) :=
  fun T (rc : recCall T) =>
    match rc with
-   | Call (fn, fs) => isem_fun_rec fn fs
+   | Call (fn, fs) => isem_fun_rec fn (snd fs)
    end.
 
 (* intepreter of recCall events *)
@@ -787,7 +566,7 @@ Definition interp_recCall T (t: itree (recCall +' E) T) : itree E T :=
 
 (* intepreter of recCall events for functions, giving us the recursive
    semantics of functions *)
-Definition isem_fun (fn : funname) (fs : FState) : itree E FState :=
+Definition isem_fun (fn : funname) (fs : IFState) : itree E FState :=
   mrec handle_recCall (Call (fn, fs)).
 
 #[global]
@@ -818,7 +597,7 @@ Definition interp_recCallB T (t: itree (recCall +' E) T) : itree E T :=
   interp_mrec handle_recCallB t.
 
 (* blank function semantics *)
-Definition isem_funB (fn : funname) (fs : FState) : itree E FState :=
+Definition isem_funB (fn : funname) (fs : IFState) : itree E FState :=
   mrec handle_recCallB (Call (fn, fs)).
 
 (*********************************************************************)
