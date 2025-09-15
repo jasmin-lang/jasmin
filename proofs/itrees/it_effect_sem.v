@@ -36,7 +36,9 @@ Context
   {pT : progT}
   {scP : semCallParams}.
 
-Record fstate := { fscs : syscall_state_t; fmem : mem; fvals : values }.
+Record fstate :=
+  { fscs : syscall_state_t; fmem : mem; fvals : values;
+                                        finfo: option instr_info }.
 
 Definition mk_error_data (s: estate) (e: error) : error_data :=
   (e, tt).
@@ -105,14 +107,17 @@ Definition isem_Sopn (SX: @StE estate -< E)
 
 Definition fexec_syscall (o : syscall_t) (fs:fstate) : exec fstate :=
   Let: (scs, m, vs) := exec_syscall fs.(fscs) fs.(fmem) o fs.(fvals) in
-  ok {| fscs := scs; fmem := m; fvals := vs |}.
+  ok {| fscs := scs; fmem := m; fvals := vs; finfo := None |}.
 
 Definition upd_estate
   (wdb: bool) (gd: glob_decls) (xs: lvals) (fs: fstate) (s: estate) :=
   write_lvals wdb gd (with_scs (with_mem s fs.(fmem)) fs.(fscs)) xs fs.(fvals).
 
 Definition mk_fstate (vs:values) (s:estate) :=
-  {| fscs := escs s; fmem:= emem s; fvals := vs |}.
+  {| fscs := escs s; fmem:= emem s; fvals := vs; finfo := None |}.
+
+Definition mk_fstateI (vs:values) (s:estate) (ii: instr_info) :=
+  {| fscs := escs s; fmem:= emem s; fvals := vs; finfo := Some ii |}.
 
 Definition sem_syscall
   (xs : lvals) (o : syscall_t) (es : pexprs) (s : estate) : exec estate :=
@@ -176,7 +181,88 @@ Definition isem_WriteIndex (SX: @StE estate -< E)
   s2 <- iwrite_lval wdb gd x v s1 ;;
   trigger (PutSE s2).
 
+(* EvalArgs *)  
+
+Definition isem_EvalArgs (SX: @StE estate -< E)
+  (args: pexprs) : itree E values :=
+  s <- trigger GetSE ;;
+  isem_pexprs (~~direct_call) (p_globs p) args s.
   
+(* InitFState *)
+
+Definition isem_InitFState (SX: @StE estate -< E) 
+  (vargs: values) (fn: funname) (ii: instr_info) : itree E fstate :=
+  s <- trigger GetSE ;;
+  Ret (mk_fstateI vargs s ii).
+
+(* RetVal *)
+
+Definition isem_RetVal (SX: @StE estate -< E) 
+  (xs: lvals) (fs: fstate) (s: estate) : itree E unit :=
+  s1 <- iresult (upd_estate (~~direct_call) (p_globs p) xs fs s) s ;;
+  trigger (PutSE s1).
+
+(* GetFunDef *)
+
+Definition isem_GetFunDef (fn: funname) (fs: fstate) : itree E fundef :=
+  iget_fundef (p_funcs p) fn fs.
+
+(* GetFunCode *)
+
+Definition isem_GetFunCode (fd: fundef) : itree E cmd :=
+  Ret (fd.(f_body)).
+
+(* InitFunCall *)
+
+Definition estate0 (fs : fstate) :=
+  Estate fs.(fscs) fs.(fmem) Vm.init.
+
+Definition initialize_funcall (p : prog) (ev : extra_val_t) (fd : fundef) (fs : fstate) : exec estate :=
+  let sinit := estate0 fs in
+  Let vargs' := mapM2 ErrType dc_truncate_val fd.(f_tyin) fs.(fvals) in
+  Let s0 := init_state fd.(f_extra) (p_extra p) ev sinit in
+  write_vars (~~direct_call) fd.(f_params) vargs' s0.
+
+Definition isem_InitFunCall (SX: @StE estate -< E)
+  (fd: fundef) (fs: fstate) : itree E unit :=
+  let sinit := estate0 fs in
+  s <- iresult (initialize_funcall p ev fd fs) sinit ;;
+  trigger (PutSE s).
+
+(* FinalizeFunCall *)
+
+Definition finalize_funcall (fd : fundef) (s:estate) : exec fstate :=
+  Let vres := get_var_is (~~ direct_call) s.(evm) fd.(f_res) in
+  Let vres' := mapM2 ErrType dc_truncate_val fd.(f_tyout) vres in
+  let scs := s.(escs) in
+  let m := finalize fd.(f_extra) s.(emem) in
+  ok {| fscs := scs; fmem := m; fvals := vres'; finfo := None |}.
+
+Definition isem_FinalizeFunCall (SX: @StE estate -< E)
+  (fd: fundef) (fs: fstate) : itree E fstate :=
+  s <- trigger GetSE ;;
+  iresult (finalize_funcall fd s) s.
+
+(****************************************************************)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 (****************************************************************)
 

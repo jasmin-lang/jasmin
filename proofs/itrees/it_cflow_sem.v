@@ -61,15 +61,15 @@ Variant InstrE : Type -> Type :=
   | EvalCond (e: pexpr) : InstrE bool
   | EvalBounds (e1 e2: pexpr) : InstrE (Z * Z)
   | WriteIndex (x: var_i) (z: Z) : InstrE unit
-  | EvalArgs (args: pexprs) : InstrE pexprs                
-  | InitFState (args: pexprs) : instr_info -> InstrE FState
+  | EvalArgs (args: pexprs) : InstrE values                
+  | InitFState (vargs: values) : instr_info -> InstrE FState
   | RetVal (xs: lvals) (fs: FState) (s: State) : InstrE unit.
 
 (* function call events *)
 Variant FunE : Type -> Type :=
   | GetFunDef (fn: funname) (fs: FState) : FunE FunDef
   | GetFunCode (fd: FunDef) : FunE cmd          
-  | InitFunCall (fd: FunDef) (fs: FState) : FunE FState                     
+  | InitFunCall (fd: FunDef) (fs: FState) : FunE unit                     
   | FinalizeFunCall (fd: FunDef) : FunE FState.
 
 (* Notation rec_call f fs := (trigger_inl1 (Call (f, fs))). *)
