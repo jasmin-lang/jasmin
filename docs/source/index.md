@@ -34,6 +34,7 @@ tools/jasmin2tex
 :::{toctree}
 :caption: Miscellaneous
 
+misc/installation_instructions
 misc/faq
 misc/emacs_mode
 :::
