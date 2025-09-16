@@ -1,0 +1,4 @@
+#[ct = "secret -> secret"]
+fn leak_store(reg u64 p) {
+  [p] = 0;
+}

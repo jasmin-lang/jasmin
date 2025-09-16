@@ -1,0 +1,6 @@
+#[ct = "secret × public -> secret"]
+fn add_SP(reg u64 x, reg u64 y) -> reg u64 {
+  reg u64 t;
+  t = x + y;
+  return t;
+}
