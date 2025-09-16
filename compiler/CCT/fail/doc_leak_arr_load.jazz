@@ -1,0 +1,6 @@
+#[ct = "public × secret -> public"]
+fn leak_arr_load(reg ptr u64[4] t, reg u64 i) -> reg u64 {
+  reg u64 x;
+  x = t[i];
+  return x;
+}

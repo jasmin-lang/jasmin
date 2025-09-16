@@ -1,0 +1,15 @@
+#[ct = "l1 × l2 -> {l1, l2}"]
+fn add(reg u64 x, reg u64 y) -> reg u64 {
+  x = x + y;
+  return x;
+}
+
+#[ct = "secret × public -> secret × secret × secret × public"]
+fn add2(reg u64 s, reg u64 p) -> reg u64, reg u64, reg u64, reg u64 {
+  reg u64 ss, sp, ps, pp;
+  ss = add(s, s);
+  sp = add(s, p);
+  ps = add(p, s);
+  pp = add(p, p);
+  return ss, sp, ps, pp;
+}

@@ -1,0 +1,6 @@
+#[ct = "public -> secret"]
+fn load_mem(reg u64 p) -> reg u64 {
+  reg u64 r;
+  r = [p];
+  return r;
+}

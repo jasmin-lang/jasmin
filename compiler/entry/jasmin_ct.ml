@@ -84,7 +84,7 @@ let infer =
   Arg.(value & flag & info [ "infer" ] ~doc)
 
 let speculative =
-  let doc = "Check for Speculative constant time" in
+  let doc = "Check for Speculative Constant-Time" in
   Arg.(value & flag & info [ "speculative"; "sct" ] ~doc)
 
 let slice =
@@ -106,7 +106,7 @@ let doit =
 let print =
   let noeffect = "The option has no effect on the SCT checker." in
   let info_select =
-    let doc = "Print security type of functions specified by the slice option. If no slice is provided print only the type of exported functions. " ^ noeffect in
+    let doc = "Print security type of functions specified by the slice option. If no slice is provided, print only the type of exported functions. " ^ noeffect in
     PrintSelected, Arg.info ["print"] ~doc in
   let info_all =
     let doc = "Print security type of all functions. " ^ noeffect in
