@@ -1,5 +1,4 @@
 require Gimli_x86_ct Gimli_arm_ct Gimli_avx_ct.
-from Jasmin require import JLeakage.
 
 (** The [io] argument holds a pointer to the data that undergoes the permutation.
   * Since it is an address, its value is leaked, and should be public. *)

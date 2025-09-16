@@ -23,76 +23,72 @@ In a nutshell, the proof that a Jasmin program is constant-time can be done in t
 ## Example
 
 To illustrate the methodology, let’s consider a reference implementation of the Gimli permutation
-(to be found in [compiler/examples/gimli/gimli.jazz](https://github.com/jasmin-lang/jasmin/blob/master/compiler/examples/gimli/gimli.jazz)):
+(to be found in [compiler/examples/gimli/x86-64/gimli.jazz](https://github.com/jasmin-lang/jasmin/blob/master/compiler/examples/gimli/x86-64/gimli.jazz)):
 
 ```
-inline
-fn rotate (reg u32 x, inline int bits) -> reg u32 {
-  _, _, x = #ROL_32(x, bits);
-  return x;
-}
-
 export
-fn gimli(reg u64 state) {
-  inline int round column;
-  reg u32 x y z a b c;
+fn gimli(reg ptr u32[12] state) -> reg ptr u32[12] {
+  inline int round, column;
+  reg u32 x, y, z;
+  reg u32 a, b, c;
 
   for round = 24 downto 0 {
     for column = 0 to 4 {
-      x = (u32)[state + 4 * column];
-      x = rotate(x, 24);
-      y = (u32)[state + 4 * (4 + column)];
-      y = rotate(y, 9);
-      z = (u32)[state + 4 * (8 + column)];
+      x = state[0 + column];
+      x <<r= 24;
+      y = state[4 + column];
+      y <<r= 9;
+      z = state[8 + column];
 
       a = x;
       b = z; b <<= 1;
       c = y; c &= z; c <<= 2;
       a ^= b; a ^= c;
 
-      (u32)[state + 4 * (8 + column)] = a;
+      state[8 + column] = a;
 
       a = y;
       b = x; b |= z; b <<= 1;
       a ^= x; a ^= b;
 
-      (u32)[state + 4 * (4 + column)] = a;
+      state[4 + column] = a;
 
       a = z;
       b = x; b &= y; b <<= 3;
       a ^= y; a ^= b;
 
-      (u32)[state + 4 * column] = a;
+      state[0 + column] = a;
     }
 
     if (round % 4) == 0 { // small swap: pattern s...s...s... etc.
-      x = (u32)[state + 4 * 0];
-      y = (u32)[state + 4 * 1];
-      (u32)[state + 4 * 0] = y;
-      (u32)[state + 4 * 1] = x;
+      x = state[0];
+      y = state[1];
+      state[0] = y;
+      state[1] = x;
 
-      x = (u32)[state + 4 * 2];
-      y = (u32)[state + 4 * 3];
-      (u32)[state + 4 * 2] = y;
-      (u32)[state + 4 * 3] = x;
+      x = state[2];
+      y = state[3];
+      state[2] = y;
+      state[3] = x;
     }
 
     if (round % 4) == 2 { // big swap: pattern ..S...S...S. etc.
-      x = (u32)[state + 4 * 0];
-      y = (u32)[state + 4 * 2];
-      (u32)[state + 4 * 0] = y;
-      (u32)[state + 4 * 2] = x;
+      x = state[0];
+      y = state[2];
+      state[0] = y;
+      state[2] = x;
 
-      x = (u32)[state + 4 * 1];
-      y = (u32)[state + 4 * 3];
-      (u32)[state + 4 * 1] = y;
-      (u32)[state + 4 * 3] = x;
+      x = state[1];
+      y = state[3];
+      state[1] = y;
+      state[3] = x;
     }
 
     if (round % 4) == 0 { // add constant: pattern c...c...c... etc.
-      (u32)[state + 4 * 0] ^= 0x9e377900 + round;
+      state[0] ^= 0x9e377900 + round;
     }
   }
+  return state;
 }
 ```
 
@@ -107,49 +103,37 @@ The EasyCrypt model for constant-time verification can be obtained by calling `j
 
 This produces an EasyCrypt file `gimli_ct.ec` that looks like what follows.
 
-```
+~~~
 module M = {
-  proc gimli (state:W64.t) : JLeakage.leakage * W64.t = {
+  proc gimli (state:BArray48.t) : JLeakage.leakage * BArray48.t = {
     var leak:JLeakage.leakages;
+    var leak_b:JLeakage.leakages;
     var round:int;
     leak <- [];
-    leak_b <- [];
     leak <- (leak ++ [(LeakList [(Leak_int 24); (Leak_int 0)])]);
     round <- 24;
     (* ... *)
+    leak <- (leak ++ [(LeakList leak_b)]);
     return ((LeakList leak), state);
   }
 }.
-```
+~~~
 
 There is a module `M` with a model of each function, where the functions return a leakage value in addition to the return value corresponding to the Jasmin semantics.
-Each operation that may leak some data has been instrumented accumulate the leakage in that leakage value.
+Each operation that may leak some data has been instrumented to accumulate the leakage in that leakage value.
 
 Now the constant-time property of the `gimli` function can be (manually) stated.
 In a fresh file, the generated `Gimli_ct` module is first required,
 and the property stated using pRHL as follows.
-Notice the (wrong) first attempt.
 
 ```
 require Gimli_ct.
 
-(* Shorten the variable names *)
-import var Gimli_ct.M.
-
-(* Wrong statement; the interactive proof script can be used to infer a sufficient pre-condition *)
 equiv gimli_ct :
   Gimli_ct.M.gimli ~ Gimli_ct.M.gimli :
- true ==> res{1}.`1 = res{2}.`1.
-proof. proc; inline *; sim. abort.
-
-(* Correct statetement, trivial proof script. *)
-equiv gimli_ct :
-  Gimli_ct.M.gimli ~ Gimli_ct.M.gimli :
-  ={state} ==> res{1}.`1 = res{2}.`1.
-proof. proc; inline *; sim. qed.
+  true ==> res{1}.`1 = res{2}.`1.
+proof. proc; inline *; sim: (={leak}). qed.
 ```
-
-The final (proved) statement says that if the leaked data can only be influenced by the address initially given through the `state` argument (and by nothing else, in particular the actual state — what is stored at the `state` address — has no influence on the leakage).
 
 ## SCT-checker annotations
 
