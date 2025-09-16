@@ -1,64 +1,64 @@
 export
 fn gimli(reg ptr u32[12] state) -> reg ptr u32[12] {
-inline int round, column;
-reg u32 x, y, z;
-reg u32 a, b, c;
+  inline int round, column;
+  reg u32 x, y, z;
+  reg u32 a, b, c;
 
-for round = 24 downto 0 {
-  for column = 0 to 4 {
-    x = state[0 + column];
-    x <<r= 24;
-    y = state[4 + column];
-    y <<r= 9;
-    z = state[8 + column];
+  for round = 24 downto 0 {
+    for column = 0 to 4 {
+      x = state[0 + column];
+      x <<r= 24;
+      y = state[4 + column];
+      y <<r= 9;
+      z = state[8 + column];
 
-    a = x;
-    b = z; b <<= 1;
-    c = y; c &= z; c <<= 2;
-    a ^= b; a ^= c;
+      a = x;
+      b = z; b <<= 1;
+      c = y; c &= z; c <<= 2;
+      a ^= b; a ^= c;
 
-    state[8 + column] = a;
+      state[8 + column] = a;
 
-    a = y;
-    b = x; b |= z; b <<= 1;
-    a ^= x; a ^= b;
+      a = y;
+      b = x; b |= z; b <<= 1;
+      a ^= x; a ^= b;
 
-    state[4 + column] = a;
+      state[4 + column] = a;
 
-    a = z;
-    b = x; b &= y; b <<= 3;
-    a ^= y; a ^= b;
+      a = z;
+      b = x; b &= y; b <<= 3;
+      a ^= y; a ^= b;
 
-    state[0 + column] = a;
+      state[0 + column] = a;
+    }
+
+    if (round % 4) == 0 { // small swap: pattern s...s...s... etc.
+      x = state[0];
+      y = state[1];
+      state[0] = y;
+      state[1] = x;
+
+      x = state[2];
+      y = state[3];
+      state[2] = y;
+      state[3] = x;
+    }
+
+    if (round % 4) == 2 { // big swap: pattern ..S...S...S. etc.
+      x = state[0];
+      y = state[2];
+      state[0] = y;
+      state[2] = x;
+
+      x = state[1];
+      y = state[3];
+      state[1] = y;
+      state[3] = x;
+    }
+
+    if (round % 4) == 0 { // add constant: pattern c...c...c... etc.
+      state[0] ^= 0x9e377900 + round;
+    }
   }
-
-  if (round % 4) == 0 { // small swap: pattern s...s...s... etc.
-    x = state[0];
-    y = state[1];
-    state[0] = y;
-    state[1] = x;
-
-    x = state[2];
-    y = state[3];
-    state[2] = y;
-    state[3] = x;
-  }
-
-  if (round % 4) == 2 { // big swap: pattern ..S...S...S. etc.
-    x = state[0];
-    y = state[2];
-    state[0] = y;
-    state[2] = x;
-
-    x = state[1];
-    y = state[3];
-    state[1] = y;
-    state[3] = x;
-  }
-
-  if (round % 4) == 0 { // add constant: pattern c...c...c... etc.
-    state[0] ^= 0x9e377900 + round;
-  }
-}
-return state;
+  return state;
 }
