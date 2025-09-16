@@ -1,0 +1,5 @@
+#[ct = "_ × public -> secret"]
+fn add_restr(reg u64 x, reg u64 y) -> reg u64 {
+  x = x + y;
+  return x;
+}

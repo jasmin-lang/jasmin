@@ -1,0 +1,6 @@
+#[ct = "_ × public -> _ × public"]
+fn set0_incr (reg ptr u64[4] t, reg u64 i) -> reg ptr u64[4], reg u64 {
+   t[i] = 0;
+   i += 1;
+   return t, i;
+}

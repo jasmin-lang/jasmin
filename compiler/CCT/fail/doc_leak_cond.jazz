@@ -1,0 +1,6 @@
+#[ct = "secret -> secret"]
+fn leak_cond(reg u64 x)  -> reg u64 {
+  reg u64 y = 0;
+  if (x == 0) { y = 1; }
+  return y;
+}

@@ -1,0 +1,4 @@
+#[ct = "public × secret -> ()"]
+fn store(reg u64 p, reg u64 x) {
+  [p] = x;
+}
