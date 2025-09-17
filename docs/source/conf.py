@@ -16,6 +16,7 @@ author = "The Jasmin developer team"
 extensions = ["myst_parser", "sphinx_rtd_theme", "sphinx.ext.graphviz"]
 
 myst_enable_extensions = ["colon_fence"]
+myst_heading_anchors = 3
 
 graphviz_output_format = "svg"
 
