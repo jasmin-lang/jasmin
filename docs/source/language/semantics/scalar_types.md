@@ -15,7 +15,7 @@ Values of type `int` must be statically known at compilation.
 ## Machine words
 
 The machine word types are `u8`, `u16`, `u32`, `u64`, `u128` and `u256`.
-These values support the usual (overflowing signed and unsigned) arithmetic, bit-level and logical [operators](expression).
+These values support the usual (overflowing signed and unsigned) arithmetic, bit-level and logical [operators](../syntax/expressions).
 
 ### Compilation
 
