@@ -1600,7 +1600,7 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
   let rec on_e_as_expr_rec env leaks e =
     match e with
     | Pconst _ | Pbool _ | Parr_init _ | Pvar _ -> leaks
-    | Pload (_,_,x,e) -> on_e_as_expr_rec env ((leak_addr_mem env e) @ leaks) e
+    | Pload (_,_,e) -> on_e_as_expr_rec env ((leak_addr_mem env e) @ leaks) e
     | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> on_e_as_expr_rec env ([leak_addr (toec_expr env e)] @ leaks) e
     | Papp1 (_, e) -> on_e_as_expr_rec env leaks e
     | Papp2 (_, e1, e2) -> on_es_as_expr_rec env leaks [e1; e2]
@@ -1726,6 +1726,9 @@ module type EcDeclassify = sig
   (* which global variables are declared for declassified leakage *)
   val global_decl_vars : Env.t -> (ec_modty * ec_modty) list
 
+  (* which modules to import on extraction *)
+  val imports: Env.t -> ec_item list
+
   (* how to initialise the potential leakage accumulator *)
   val on_fun_init : Env.t -> ec_stmt
 
@@ -1747,6 +1750,7 @@ module EcNoDeclassify : EcDeclassify = struct
   let on_lvalue _ _ _ = []
 
   let global_decl_vars _ = []
+  let imports _ = []
   let on_fun_init _ = []
   let on_ret _ = [] 
   let on_rty _ = [] 
@@ -1764,6 +1768,8 @@ module EcDeclassifyConstantTime (Exprs : EcExpression) : EcDeclassify = struct
 
   let update_acc_with new_val = ESasgn ([LvIdent [acc_str]], new_val)
   let add_declassified lacc l = Eop2 (Infix "::", l, lacc)
+  
+  let imports env = [IfromRequireImport ("Jasmin", ["JDeclassify"])]
   
   let on_fun_init env = List.singleton @@
     ESasgn ([LvIdent [Env.create_aux env acc_str acc_ty]], Elist [])
@@ -2109,6 +2115,7 @@ struct
       } in
       glob_imports @
       (Leakage.imports env) @
+      (Declassify.imports env) @
       pp_array_theories (Env.array_theories env) @
       (List.map (fun glob -> ec_glob_decl env glob) globs) @
       (ec_randombytes env) @
