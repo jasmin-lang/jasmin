@@ -1,0 +1,5 @@
+export fn main (reg u64 x) -> reg u64 {
+  reg u64 res = x;
+  ?{}, res = (64u)#AND_64(res, res);
+  return res;
+}

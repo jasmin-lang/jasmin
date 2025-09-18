@@ -1725,8 +1725,14 @@ let cast_opn ~loc id ws =
   | Oasm (BaseOp (None, op)) ->
     begin match List.last id.tout with
       | Coq_sword from ->
-          if wsize_le ws from then rs_tyerror ~loc(InvalidZeroExtend (from, ws, name))
-          else Oasm (BaseOp (Some ws, op))
+          if not (wsize_le from ws) then rs_tyerror ~loc(InvalidZeroExtend (from, ws, name))
+          else if ws = from then begin
+            warning Always (L.i_loc0 loc)
+              "primitive operator %t already returns a value of size %a; the zero-extension is ignored"
+              name PrintCommon.pp_wsize ws;
+            Oasm (BaseOp (None, op))
+          end else
+            Oasm (BaseOp (Some ws, op))
       | _ -> invalid ()
   end
   | Oasm (BaseOp (Some _, _)) -> assert false
