@@ -285,14 +285,18 @@ let pp_mpprog fmt p =
       | (ns,_,true) :: _, bot ->
         rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "unexpected opened module at top of stack")
       | (m1,bs1,false) :: [], bot ->
-        let merged = Env.merge_bindings (m1,bs1) bot
-        in ([], merged), []
+        if mparams = [] (* defs in functors are not accessible! *)
+        then let merged = Env.merge_bindings (m1,bs1) bot
+          in ([], merged), []
+        else ([],bs1), []
       | top :: (m, _,true) :: stack, bot ->
         let bs, omods = loop (top::stack, bot)
         in bs, m::omods
       | (m1, bs1, false) :: (m2, bs2, false) :: stack, bot ->
-        let merged = Env.merge_bindings (m1,bs1) bs2
-        in ((m2, merged, false) :: stack, bot), []
+        if mparams = [] (* defs in functors are not accessible! *)
+        then let merged = Env.merge_bindings (m1,bs1) bs2
+          in ((m2, merged, false) :: stack, bot), []
+        else ((m2,bs2,false)::stack, bot), []
     in let modname = fully_qualified_modname menv.me_store
     in if !Glob_options.debug
     then Printf.eprintf "Exiting module \"%s\" (fullname=%s)\n%!" (L.unloc mname) modname;
@@ -300,7 +304,6 @@ let pp_mpprog fmt p =
     in let glob_bs, mod_omods = loop menv.me_store.s_bindings
     in let menv, mdecls = pop_ldecls menv
     in 
-
       if !Glob_options.debug
       then (
 Format.printf "%a@.@.@." pp_mpprog mdecls); 
@@ -515,7 +518,7 @@ let merge_top st modname bs =
 
 let rec mt_margs pd menv mname mparams margs =
   if !Glob_options.debug
-  then (Printf.eprintf "\nTC ModApp %d,%d \n%!" (List.length mparams) (List.length margs));
+  then (Printf.eprintf "\nTypeCheck ModApp %d,%d \n%!" (List.length mparams) (List.length margs));
   let rec tc_list loc l1 l2 =
     match l1, l2 with
     | [], [] -> ()
@@ -528,6 +531,8 @@ let rec mt_margs pd menv mname mparams margs =
   in let mt_marg st p pe =
     match p, L.unloc pe with
     | M.Param pi, _ ->
+      (* params are the only arguments that need not be instantiated
+        into bare symbols -- reason why they induce declarations *)
       let _,et,e = Pretyping.tt_expr pd ~mode:`OnlyParam st pe
       in let e =
            match e with
@@ -535,14 +540,14 @@ let rec mt_margs pd menv mname mparams margs =
            | Some e -> e
       in if pi.P.v_ty <> et
       then rs_tyerror ~loc:(L.loc pe) (TypeMismatch (pi.P.v_ty,et));
-      let st, _ = Env.Vars.push_param st (pi,e,e)
-      in st, M.MaParam e
+      let st, adecls = Env.Vars.push_param st (pi,e,e)
+      in st, M.MaParam e, adecls
     | M.Glob pg, S.PEVar pv ->
       let v,vt,_ = Pretyping.tt_var_global `AllVar st pv
       in if pg.P.v_ty <> vt
       then rs_tyerror ~loc:(L.loc pe) (TypeMismatch (pg.P.v_ty,vt));
       let st, _ = Env.Vars.push_global st (pg, P.GEword (P.Pvar v))
-      in st, M.MaGlob v.gv
+      in st, M.MaGlob v.gv, []
     | M.Glob pg, _ ->
       rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Type error (param glob)")
     | M.Fun pf, S.PEVar v ->
@@ -568,7 +573,7 @@ let rec mt_margs pd menv mname mparams margs =
                | (ns, top, false) :: stack, bot ->
                  (ns, doit top, false) :: stack, bot
           in { st with s_bindings },
-             M.MaFun func.f_name
+             M.MaFun func.f_name, []
         | Some fd ->
           Env.err_duplicate_fun name (func, ()) fd
       end
@@ -577,11 +582,11 @@ let rec mt_margs pd menv mname mparams margs =
         (MJazzStringError "Type error (param fn): not a fn name")
   in let rec doit st mparams margs =
        match mparams, margs with
-       | [], [] -> {menv with MEnv.me_store = st}, []
+       | [], [] -> {menv with MEnv.me_store = st}, [], []
        | p::ps, e::es ->
-         let st, a = mt_marg st p e
-         in let menv, al = doit st ps es
-         in menv, a::al
+         let st, a, adecls = mt_marg st p e
+         in let menv, al, adecls = doit st ps es
+         in menv, a::al, adecls
        | _, _ -> 
          rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Typing error: wrong number of module arguments")
   in let st = Env.enter_namespace mname menv.MEnv.me_store
@@ -616,7 +621,7 @@ let rec mt_item arch_info (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
     in mt_moduleapp arch_info menv mname (funcname,modinfo) margs
 *)
   | S.POpen (mname, None) ->
-    let m = Env.Modules.get menv.me_store mname
+    let _, m = Env.Modules.get menv.me_store mname
     in MEnv.open_modules [L.unloc m] menv
   | S.POpen (mname, Some _) ->
     rs_mjazzerror ~loc:(L.loc mname) MJazzNYS
@@ -637,15 +642,83 @@ let rec mt_item arch_info (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
     MEnv.upd_storedecls (tt_fundef arch_info (L.loc mitem) pf) menv
 
 and mt_moduleapp arch_info menv mname modfuncname margs =
-    let modfunc = Env.Modules.get menv.me_store modfuncname
+    let (prefgb,gb), modfunc = Env.Modules.get menv.me_store modfuncname
     in let modinfo =
          match Map.find (L.unloc modfunc) menv.me_env with
          | modi -> modi
          | exception Not_found ->
            rs_mjazzerror ~loc:(L.loc modfunc)
              (NonExistentMod (L.unloc modfunc))
+    (* locate the place in global_bindings of the enclosing functor
+       obs: na verdade, o MEnv fica dessincronizado neste ponto (o
+       corte nos bindings não se reflete no lista de declarações). Mas
+       o invariante do processamento da nova instância deverá assegurar que
+       quando se voltar a juntar os bindings, a lista de declarações está
+       no mesmo ponto.
+    *)
+    in let menv_at = { menv with
+                       MEnv.me_store =
+                         { menv.MEnv.me_store with
+                           s_bindings = gb
+                         }
+                     }
     (* typecheck module arguments... *)
-    in let st, margs(*, decls*) = mt_margs arch_info.pd menv mname modinfo.mi_params margs
+    in let menv_at, margs, adecls = mt_margs arch_info.pd menv_at mname modinfo.mi_params margs
+    in let ground_module = List.for_all identity menv.MEnv.me_gmod
+    in let menv =
+         if false && ground_module
+         then if margs = []
+           then (* pickup module *)
+             menv
+           else (* pickup/gen instance *)
+             menv
+         else (* parametric module: proceed without really instantiating
+                 the module, just to present sensible error messages
+                 to the user... *)
+           { menv with
+             MEnv.me_store =
+               { menv.MEnv.me_store with
+                 s_bindings = merge_top menv.MEnv.me_store (L.unloc mname) modinfo.MEnv.mi_store
+               }
+           }
+    in MEnv.add_decls menv
+      [ M.MdModApp { ma_name = (L.unloc mname)
+                   ; ma_func = (L.unloc modfuncname)
+                   ; ma_args = margs
+                   } ]
+
+(*
+    (* add bindings to module-env (for openings) *) 
+    in let fullmname = qualify cur_modname (MEnv.fully_qualified_modname menv.MEnv.me_store) (L.unloc mname)
+    in let menv =
+         { menv with
+           MEnv.me_env =
+             Map.add
+               modname
+               { modinfo with MEnv.mi_params = [] }
+               menv.MEnv.me_env
+         }
+
+    in let ground_module = List.for_all identity menv.MEnv.me_gmod
+    in let menv =
+         if ground_module
+         then if margs = []
+           then (* pickup module *)
+             let 
+             in let menv =
+                  { menv with
+                    MEnv.me_env =
+                      Map.add fullmname
+                        { modinfo with MEnv.mi_params = [] }
+                        menv.MEnv.me_env
+                  }
+           else (* pickup/gen instance *)
+             menv
+         else (* parametric module: proceed without really instantiating
+                 the module, just to present sensible error messages
+                 to the user... *)
+           menv
+
     in let cur_modname = MEnv.fully_qualified_modname menv.MEnv.me_store
     (* 2) add bindings to module-env (to allow opennings) *)
     in let modname = qualify cur_modname (L.unloc mname)
@@ -700,6 +773,7 @@ and mt_moduleapp arch_info menv mname modfuncname margs =
                }
            }
     in menv
+*)
 (*
 and mt_moduleapp2 arch_info menv mname (funcname, funcminfo) margs =
   let cur_modname = MEnv.fully_qualified_modname menv.MEnv.me_store

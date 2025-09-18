@@ -1,4 +1,3 @@
-
 (* -------------------------------------------------------------------- *)
 open Utils
 module Path = BatPathGen.OfString
@@ -569,7 +568,8 @@ end *) = struct
     in 
     Printf.eprintf "[";
     loop stack;
-    Map.iter (fun k v -> Printf.eprintf "%s=%s " k (L.unloc v)) bot.gb_modules
+    Map.iter (fun k v -> Printf.eprintf "%s=%s " k (L.unloc v)) bot.gb_modules;
+    Printf.eprintf "]\n";
     
     
 
@@ -723,18 +723,39 @@ end *) = struct
         st
 
 
-    let get (st: 'asm store) (id: A.pident) : A.symbol L.located =
+  let find_module (x: A.symbol) (st: 'asm store) =
+    let stack, bot = st.s_bindings in
+    let rec loop l x =
+      function
+      | [] -> None
+      | (ns, top, b) :: stack ->
+(*        if !Glob_options.debug
+        then Printf.eprintf "%s:%d \n" ns (Map.cardinal (proj top)); *)
+        match Map.find x (top.gb_modules) with
+        | exception Not_found -> loop ((ns,top,b)::l) x stack
+        | v -> Some ((l,(ns,top,b)::stack), v)
+    in match loop [] x stack with
+       | None -> 
+(*         if !Glob_options.debug
+         then Printf.eprintf "bot:%d \n" (Map.cardinal (proj bot));*)
+         (match Map.Exceptionless.find x (bot.gb_modules) with
+          | None -> None
+          | Some v -> Some ((stack,([],bot)),v)
+         )
+       | Some ((l,stack),v) -> Some ((l, (stack,bot)), v)
+
+    let get (st: 'asm store) (id: A.pident) =
       if !Glob_options.debug
       then (Printf.eprintf "get_module \"%s\" \n%!" (L.unloc id);
             dbg_modules st);
-      let m = find (fun b -> b.gb_modules) (L.unloc id) st in
+      let m = find_module (L.unloc id) st in
       match m with
       | None ->
         rs_tyerror  ~loc:(L.loc id) (ModuleNotFound (L.unloc id))
-      | Some e ->
+      | Some (bs,e) ->
         if !Glob_options.debug
         then Printf.eprintf "got_module \"%s\"\n%!" (L.unloc e);
-        e
+        (bs,e)
 
   end
 
