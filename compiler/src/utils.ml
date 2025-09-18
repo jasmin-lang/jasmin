@@ -184,6 +184,10 @@ type model =
   | ConstantTimeGlobal
   | Normal
 
+type decl_model = 
+  | DeclassifyConstant
+  | Normal
+
 (* -------------------------------------------------------------------- *)
 (* Functions used to add colors to errors and warnings.                 *)
 

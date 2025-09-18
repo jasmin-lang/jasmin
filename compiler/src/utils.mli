@@ -112,6 +112,10 @@ type model =
   | ConstantTimeGlobal
   | Normal
 
+type decl_model = 
+  | DeclassifyConstant
+  | Normal
+
 (* -------------------------------------------------------------------- *)
 (* Enables colors in errors and warnings.                               *)
 val enable_colors : unit -> unit
