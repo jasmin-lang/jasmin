@@ -1998,13 +1998,13 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
         match xs with
         | [x; y] ->
           let loc, x, oxty = tt_lvalue arch_info.pd env_lhs x in
-          let yloc, y, _oytu = tt_lvalue arch_info.pd env_lhs y in
+          let yloc, y, oyty = tt_lvalue arch_info.pd env_lhs y in
           let ty =
             match oxty with
             | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
             | Some ty -> ty in
           let _ =
-             match oxty with
+             match oyty with
             | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
             | Some yty -> check_ty_eq ~loc:yloc ~from:yty ~to_:ty in
           [x ty; y ty], ty
