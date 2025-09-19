@@ -1,0 +1,3 @@
+export fn main(reg u64 x, reg ptr u8[8] y) {
+  x, y = #swap(y, x);
+}

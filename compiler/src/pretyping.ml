@@ -1993,38 +1993,37 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
 
   | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None when L.unloc f = "swap" ->
-      if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "swap expects no implicit arguments");
-      let lvs, ty =
+      let loc = L.loc pi in
+      if ls <> None then rs_tyerror ~loc (string_error "swap expects no implicit arguments");
+      let ty, es =
+        match args with
+        | [ ex ; ey ] ->
+           let x, xty = tt_expr arch_info.pd env_rhs ex in
+           let y, yty = tt_expr arch_info.pd env_rhs ey in
+           let ty = Option.get_exn  (max_ty xty yty)
+                      (tyerror ~loc:(L.loc ey) (TypeMismatch (yty, xty))) in
+           let () = match ty with
+             | P.ETarr _ -> ()
+             | P.ETword(None, ws) when ws <= U64 -> ()
+             | _ ->
+                let w = match ty with P.ETword(w, ws) -> w | _ -> None in
+                let ty = match P.gty_of_gety ty with P.Bty ty -> ty | _ -> assert false in
+                rs_tyerror ~loc:(L.loc pi)
+                  (string_error "the swap primitive is not available at type %a"
+                     (PrintCommon.pp_btype ?w) ty)
+           in
+           ty, [ cast loc x xty ty ; cast loc y yty ty ]
+        | _ -> rs_tyerror ~loc (InvalidArgCount (List.length args, 2))
+      in
+      let lvs =
         match xs with
-        | [x; y] ->
-          let loc, x, oxty = tt_lvalue arch_info.pd env_lhs x in
-          let yloc, y, _oytu = tt_lvalue arch_info.pd env_lhs y in
-          let ty =
-            match oxty with
-            | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
-            | Some ty -> ty in
-          let _ =
-             match oxty with
-            | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
-            | Some yty -> check_ty_eq ~loc:yloc ~from:yty ~to_:ty in
-          [x ty; y ty], ty
-        | _ ->
-          rs_tyerror ~loc:(L.loc pi)
-            (string_error "a pair of destination is expected for swap")
+        | [ x ; y ] ->
+           let _, x, _ = tt_lvalue arch_info.pd env_lhs x in
+           let _, y, _ = tt_lvalue arch_info.pd env_lhs y in
+           [ x ty ; y ty ]
+        | _ -> rs_tyerror ~loc (InvalidArgCount (List.length xs, 2))
       in
-      let () = match ty with
-        | P.ETarr _ -> ()
-        | P.ETword(None, ws) when ws <= U64 -> ()
-        | _ ->
-          let w = match ty with P.ETword(w, ws) -> w | _ -> None in
-          let ty = match P.gty_of_gety ty with P.Bty ty -> ty | _ -> assert false in
-            rs_tyerror ~loc:(L.loc pi)
-              (string_error "the swap primitive is not available at type %a"
-                 (PrintCommon.pp_btype ?w) ty)
-
-      in
-      let es = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args [ty; ty] in
-      let p = Sopn.Opseudo_op (Oswap Type.Coq_sbool) in  (* The type is fixed latter *)
+      let p = Sopn.Opseudo_op (Oswap Type.Coq_sbool) in  (* The type is fixed later *)
       [mk_i (P.Copn(lvs, Option.default default_tag tag, p, es))]
 
   | ls, `Raw, { pl_desc = PEPrim (f, args) }, None ->
