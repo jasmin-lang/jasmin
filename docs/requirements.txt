@@ -1,2 +1,2 @@
-sphinx-rtd-theme
+sphinx-rtd-theme >= 3.0
 myst-parser
