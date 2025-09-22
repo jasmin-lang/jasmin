@@ -32,7 +32,7 @@ module type Regalloc = sig
     ('info, 'asm) func ->
     reg_oracle_t
   (** Extract from the outcome of register allocation the information that is
-      needed by stack-allocation. *)
+      needed by stack-allocation. To be called on export functions only. *)
 
   val alloc_prog :
     retaddr Hf.t ->

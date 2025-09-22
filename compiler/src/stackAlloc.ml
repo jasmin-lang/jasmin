@@ -313,12 +313,11 @@ let memory_analysis pp_sr pp_err ~debug up =
   let subst, killed, fds = Regalloc.alloc_prog return_addresses fds in
 
   let fix_csao (_, fd) =
-    let ro = Regalloc.get_reg_oracle has_stack subst killed fd in
+    let fn = fd.f_name in
     match fd.f_cc with
     | Subroutine _ ->
       (* It as been already fixed by the previous pass fix_subroutine_csao,
          we just need to fix the return address *)
-      let fn = fd.f_name in
       let csao = get_sao fn in
       let csao =
       Stack_alloc.{ csao with
@@ -333,7 +332,7 @@ let memory_analysis pp_sr pp_err ~debug up =
     | Internal -> assert false
     | Export _ ->
 
-    let fn = fd.f_name in
+    let ro = Regalloc.get_reg_oracle has_stack subst killed fd in
     let sao = Hf.find sao fn in
     let csao = get_sao fn in 
 
