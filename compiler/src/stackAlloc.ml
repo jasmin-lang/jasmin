@@ -259,7 +259,6 @@ let memory_analysis pp_sr pp_err ~debug up =
     let fn = fd.f_name in
     let sao = Hf.find sao fn in
     let csao = get_sao fn in
-    let to_save = [] in
     let rastack = Regalloc.subroutine_ra_by_stack fd in
     let extra = [] in
 
@@ -296,19 +295,7 @@ let memory_analysis pp_sr pp_err ~debug up =
       max_size
     in
     let max_call_depth = Z.succ max_call_depth in
-    let saved_stack = Expr.SavedStackNone in
 
-    let conv_to_save x =
-      Conv.cvar_of_var x,
-      List.assoc x extrapos
-    in
-
-    let compare_to_save (_, x) (_, y) = Stdlib.Int.compare y x in
-
-    (* Stack slots for saving callee-saved registers are sorted in increasing order to simplify the check that they are all disjoint. *)
-    let convert_to_save m =
-      m |> List.rev_map conv_to_save |> List.sort compare_to_save |> List.rev_map (fun (x, n) -> x, Conv.cz_of_int n)
-    in
     let csao =
       Stack_alloc.{ csao with
         sao_align = align;
@@ -316,11 +303,6 @@ let memory_analysis pp_sr pp_err ~debug up =
         sao_extra_size = Conv.cz_of_int extra_size;
         sao_max_size = Conv.cz_of_z max_size;
         sao_max_call_depth = Conv.cz_of_z max_call_depth;
-        sao_to_save = convert_to_save to_save;
-        sao_rsp  = saved_stack;
-        sao_return_address =
-          (* This is a dummy value it will be fixed in fix_csao *)
-          RAstack (None, None, Conv.cz_of_int 0, None)
       } in
     Hf.replace atbl fn csao
   in
