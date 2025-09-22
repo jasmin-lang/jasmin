@@ -999,16 +999,14 @@ Lemma check_fundef_meta dead_vars_fd ep1 ep2 ffd1 ffd2 u u' :
   [/\
      sf_align fd1.(f_extra) = sf_align fd2.(f_extra),
      sf_stk_max fd1.(f_extra) = sf_stk_max fd2.(f_extra),
-     sf_return_address fd1.(f_extra) = sf_return_address fd2.(f_extra) &
+     is_RAnone (sf_return_address fd1.(f_extra)) = is_RAnone (sf_return_address fd2.(f_extra)) &
      sf_align_args fd1.(f_extra) = sf_align_args fd2.(f_extra)
   ].
 Proof.
   case: ffd1 ffd2 => f1 fd1 [] f2 fd2.
   rewrite /check_fundef; t_xrbindP => _ r _ r'.
   rewrite /check_f_extra_s; t_xrbindP => /and4P[] /eqP -> _ _.
-  case/and4P => _ /eqP -> _.
-  case/and4P => _ _ /eqP -> /eqP ->.
-  done.
+  by case/and5P => _ /eqP -> _ /eqP -> /eqP ->.
 Qed.
 
 Lemma init_alloc_sprogP :
@@ -1036,7 +1034,7 @@ Lemma alloc_call_sprogP dead_vars_fd ev gd ep1 p1 ep2 p2
 Proof.
   apply: (alloc_callP init_alloc_sprogP _ H).
   rewrite /check_f_extra_s; t_xrbindP => r e1 e2 a1 a2 r' c1 c2.
-  split; last by []; first by case: ifP c2.
+  split; last by []; first by [].
   rewrite /= /init_stk_state => a b c d.
   case/and4P: c1 => /eqP -> /eqP -> /eqP ->.
   by case/and4P => /eqP ->.
@@ -1056,7 +1054,7 @@ Proof.
   set p1' := {| p_funcs := p1 |}; set p2' := {| p_funcs := p2 |}.
   move=> /(_ check_f_extra_s _ dead_vars_fd p1' p2' ev H); apply => //.
   rewrite /check_f_extra_s; t_xrbindP => r e1 e2 a1 a2 r' c1 c2.
-  split; last by []; first by case: ifP c2.
+  split; last by []; first by [].
   rewrite /= /init_stk_state => a b c d.
   case/and4P: c1 => /eqP -> /eqP -> /eqP ->.
   by case/and4P => /eqP ->.

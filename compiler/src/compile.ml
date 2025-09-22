@@ -187,7 +187,20 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       ra
     in
 
-    let _subst, _killed, fds = RA.alloc_prog return_addresses fds in
+    let subst, _killed, fds = RA.alloc_prog return_addresses fds in
+    let subst_sf_return_address : Expr.stk_fun_extra -> Expr.stk_fun_extra =
+      let subst x = x |> Conv.var_of_cvar |> subst |> Conv.cvar_of_var in
+      let osubst = Option.map subst in
+      fun fe ->
+      { fe with
+        Expr.sf_return_address =
+          match fe.Expr.sf_return_address with
+          | RAnone -> RAnone;
+          | RAreg (ret, tmp) -> RAreg (subst ret, osubst tmp)
+          | RAstack (c, r, n, t) -> RAstack (osubst c, osubst r, n, osubst t)
+      }
+    in
+    let fds = List.map (fun (e, fd) -> subst_sf_return_address e, fd) fds in
     let fds = List.map Conv.csfdef_of_fdef fds in
     fds
   in

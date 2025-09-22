@@ -612,14 +612,12 @@ let allocate_one nv vars loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.a
          other
 
 type reg_oracle_t = {
-    (* The list of callee save registers that are modified by
-      a call to the export function *)
-    ro_to_save: var list;
-    (* A register that can be used to save the rsp of export function *)
-    ro_rsp: var option;
-    (* How the return address is pass to the function *)
-    ro_return_address: retaddr;
-  }
+  ro_to_save : var list;
+      (** The list of callee save registers that are modified by a call to the
+          export function *)
+  ro_rsp : var option;
+      (** A register that can be used to save the rsp of export function *)
+}
 
 module type Regalloc = sig
   type extended_op
@@ -633,7 +631,7 @@ module type Regalloc = sig
   val get_reg_oracle :
     (('info, 'asm) func -> bool) ->
     (var -> var) ->
-    (funname -> Sv.t) -> retaddr -> ('info, 'asm) func -> reg_oracle_t
+    (funname -> Sv.t) -> ('info, 'asm) func -> reg_oracle_t
 
   val alloc_prog :
     retaddr Hf.t ->
@@ -1398,7 +1396,6 @@ let get_reg_oracle
       (has_stack: ('info, 'asm) func -> bool)
       subst
       killed
-      return_address
       f : reg_oracle_t =
   let stack_needed = has_stack f in
   let to_save, ro_rsp =
@@ -1410,14 +1407,8 @@ let get_reg_oracle
       ~killed
       subst
       f in
-  let ro_return_address =
-    match return_address with
-    | StackDirect -> StackDirect
-    | StackByReg(ra_call, ra_return, tmp) ->
-       StackByReg (subst ra_call, Option.map subst ra_return, Option.map subst tmp)
-    | ByReg(r, tmp) -> ByReg (subst r, Option.map subst tmp) in
   let ro_to_save = if FInfo.is_export f.f_cc then Sv.elements to_save else [] in
-  { ro_to_save ; ro_rsp ; ro_return_address }
+  { ro_to_save ; ro_rsp }
 
 let alloc_prog return_addresses (dfuncs: ('a * ('info, 'asm) func) list)
     : (var -> var) * _ * ('a * (unit, 'asm) func) list =
