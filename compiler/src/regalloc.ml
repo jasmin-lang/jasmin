@@ -1031,13 +1031,7 @@ let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
   let subst = subst_of_allocation vars a in
   Subst.subst_func subst f
 
-(** Returns extra information (k, rsp) depending on the calling convention.
-
- - Subroutines:
-   - k: all registers overwritten by a call to f (including ra)
-   - rsp: None
-
- - Export:
+(** Returns extra information (k, rsp) for export functions
     - k: all callee-saved registers overwritten by this function (including rsp)
     - rsp: if ~stack_needed and if there is a free register, a free register to hold the stack pointer of the caller (aka environment)
 
@@ -1050,24 +1044,14 @@ let post_process
   (subst: var -> var)
   ~(killed: funname -> Sv.t)
   (f: _ func) :
-  Sv.t * var option =
+  var list * var option =
   let killed_in_f = killed f.f_name |> Sv.map subst in
-  match f.f_cc with
-  | Internal -> assert false
-  | Subroutine _ ->
-     begin
-       assert (not stack_needed);
-       killed_in_f, None
-     end
-  | Export _ ->
-     begin
-       let used_in_f = List.fold_left (fun s x -> Sv.add (subst x) s) killed_in_f f.f_args in
-       let free_regs = Sv.diff allocatable_vars used_in_f in
-       let to_save = Sv.inter callee_save_vars killed_in_f in
-       if stack_needed && Sv.is_empty to_save then
-         to_save, Sv.Exceptionless.any (Sv.diff free_regs not_saved_stack)
-       else to_save, None
-     end
+  let used_in_f = List.fold_left (fun s x -> Sv.add (subst x) s) killed_in_f f.f_args in
+  let free_regs = Sv.diff allocatable_vars used_in_f in
+  let to_save = Sv.inter callee_save_vars killed_in_f in
+  if stack_needed && Sv.is_empty to_save then
+    [], Sv.Exceptionless.any (Sv.diff free_regs not_saved_stack)
+  else Sv.elements to_save, None
 
 let subroutine_ra_by_stack f =
   match f.f_cc with
@@ -1397,8 +1381,9 @@ let get_reg_oracle
       subst
       killed
       f : reg_oracle_t =
+  assert (FInfo.is_export f.f_cc);
   let stack_needed = has_stack f in
-  let to_save, ro_rsp =
+  let ro_to_save, ro_rsp =
     post_process
       ~allocatable_vars
       ~callee_save_vars
@@ -1407,7 +1392,6 @@ let get_reg_oracle
       ~killed
       subst
       f in
-  let ro_to_save = if FInfo.is_export f.f_cc then Sv.elements to_save else [] in
   { ro_to_save ; ro_rsp }
 
 let alloc_prog return_addresses (dfuncs: ('a * ('info, 'asm) func) list)
