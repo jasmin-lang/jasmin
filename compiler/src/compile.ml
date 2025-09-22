@@ -130,7 +130,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
        and type cond = cond
        and type asm_op = asm_op
        and type extra_op = extra_op) visit_prog_after_pass prog cprog =
-  let module Regalloc = Regalloc.Regalloc (Arch) in
+  let module RA = Regalloc.Regalloc (Arch) in
   let module StackAlloc = StackAlloc.StackAlloc (Arch) in
   let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef (fn, cfd) in
   let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef fd) in
@@ -171,15 +171,23 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     CheckAnnot.check_stack_size fds;
 
 
-    let get_internal_size (sfe, _fd) =
-      let stk_size =
-        BinInt.Z.add sfe.Expr.sf_stk_sz sfe.Expr.sf_stk_extra_sz in
-      Conv.z_of_cz (Memory_model.round_ws sfe.sf_align stk_size)
+    let return_addresses =
+      let ra = Hf.create 17 in
+      List.iter (fun (extra, fd) ->
+          let conv = Conv.var_of_cvar in
+          let oconv = Option.map conv in
+          let r =
+          match extra.Expr.sf_return_address with
+          | RAstack (None, _, _, _)
+          | RAnone -> Regalloc.StackDirect
+          | RAreg (r, tmp) -> ByReg (conv r, oconv tmp)
+          | RAstack (Some call, return, _, tmp) -> StackByReg (conv call, oconv return, oconv tmp)
+          in Hf.add ra fd.f_name r
+          ) fds;
+      ra
     in
 
-    let return_addresses = Regalloc.create_return_addresses get_internal_size fds in
-
-    let _subst, _killed, fds = Regalloc.alloc_prog return_addresses fds in
+    let _subst, _killed, fds = RA.alloc_prog return_addresses fds in
     let fds = List.map Conv.csfdef_of_fdef fds in
     fds
   in
@@ -277,7 +285,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   in
 
   let split_live_ranges_fd fd = Ssa.split_live_ranges true fd in
-  let renaming_fd fd = Regalloc.renaming fd in
+  let renaming_fd fd = RA.renaming fd in
   let remove_phi_nodes_fd fd = Ssa.remove_phi_nodes fd in
 
   let removereturn sp =
