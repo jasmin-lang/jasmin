@@ -313,7 +313,7 @@ let memory_analysis pp_sr pp_err ~debug up =
   let subst, killed, fds = Regalloc.alloc_prog return_addresses fds in
 
   let fix_csao (_, fd) =
-    let ro = Regalloc.get_reg_oracle has_stack subst killed (Hf.find return_addresses fd.f_name) fd in
+    let ro = Regalloc.get_reg_oracle has_stack subst killed fd in
     match fd.f_cc with
     | Subroutine _ ->
       (* It as been already fixed by the previous pass fix_subroutine_csao,
@@ -323,7 +323,7 @@ let memory_analysis pp_sr pp_err ~debug up =
       let csao =
       Stack_alloc.{ csao with
         sao_return_address =
-          match ro.ro_return_address with
+          match Hf.find return_addresses fd.f_name with
           | StackDirect  -> RAstack (None, None, Conv.cz_of_int 0, None) (* FIXME stackDirect should provide a tmp register *)
           | StackByReg (ra_call, ra_return, tmp) ->
             RAstack (Some (Conv.cvar_of_var ra_call), Option.map Conv.cvar_of_var ra_return, Conv.cz_of_int 0, Option.map Conv.cvar_of_var tmp)

@@ -2,16 +2,18 @@ open Prog
 
 val fill_in_missing_names : ('info, 'asm) Prog.func -> ('info, 'asm) Prog.func
 
-type retaddr = 
+type retaddr =
   | StackDirect
   | StackByReg of var * var option * var option
   | ByReg of var * var option
 
 type reg_oracle_t = {
-    ro_to_save: var list;  (* TODO: allocate them in the stack rather than push/pop *)
-    ro_rsp: var option;
-    ro_return_address: retaddr;
-  }
+  ro_to_save : var list;
+      (** The list of callee save registers that are modified by a call to the
+          export function *)
+  ro_rsp : var option;
+      (** A register that can be used to save the rsp of export function *)
+}
 
 module type Regalloc = sig
   type extended_op
@@ -21,14 +23,12 @@ module type Regalloc = sig
   (** Compute where the return address will be stored *)
 
   val renaming : (unit, extended_op) func -> (unit, extended_op) func
-
   val subroutine_ra_by_stack : (unit, extended_op) func -> bool
 
   val get_reg_oracle :
     (('info, 'asm) func -> bool) ->
     (var -> var) ->
     (funname -> Sv.t) ->
-    retaddr ->
     ('info, 'asm) func ->
     reg_oracle_t
   (** Extract from the outcome of register allocation the information that is
