@@ -1394,9 +1394,8 @@ fail/typing/x86-64/vector_expr.jazz:
 
 fail/typing/x86-64/write_constant_pointer_direct_array.jazz:
 
-"fail/typing/x86-64/write_constant_pointer_direct_array.jazz", line 5 (2-3):
-compilation error in function main:
-stack allocation: no region associated to variable p
+"fail/typing/x86-64/write_constant_pointer_direct_array.jazz", line 6 (2-3):
+typing error: Cannot write to the constant pointer p
 
 fail/typing/x86-64/write_constant_pointer_subproc_array.jazz:
 
