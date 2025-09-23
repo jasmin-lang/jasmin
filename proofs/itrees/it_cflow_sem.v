@@ -44,7 +44,7 @@ Context {err: error_data}.
 (* | _ => throw err end. *) 
 Section Sem1.
 
-Context (FState : Type) {State: Type} {FunDef: Type}.
+Context {State: Type} {FState : Type} {FunDef: Type}.
 
 (* state events (similar to those provided by the library, 
    could be specialized to estate) *)

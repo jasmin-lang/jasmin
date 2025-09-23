@@ -160,10 +160,12 @@ Qed.
 End GEN_MREC_Ax.
 
 (* function to extend handlers *)
-Definition ext_handler {E1 E2} (h: E1 ~> itree E2) : (E1 +' E2) ~> itree E2 :=
-  fun T e => match e with
+Definition ext_handler {E1 E2} (h: E1 ~> itree E2) :
+  (E1 +' E2) ~> itree E2 := case_ h (id_ E2).
+(*  fun T e => match e with
              | inl1 e1 => h _ e1
              | inr1 e2 => trigger e2 end.               
+*)
 
 (* smarter extension *)
 Definition smart_handler {E E1 E2} (X: FIso E (E1 +' E2))

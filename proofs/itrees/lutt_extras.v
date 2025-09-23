@@ -875,7 +875,7 @@ Lemma inl_safe_is_ok (T : Type) (t12 : itree (E1 +' E2) T) :
               exists h : U2 = U12,
                 e12 = eq_rect U2 (E1 +' E2) (inr1 e2) U12 h)
        (fun U12 U2 (e12: (E1 +' E2) U12) (u12: U12) (e2: E2 U2) (u2: U2) =>
-               u12 ~= u2)
+               JMeq u12 u2)
         (fun x y => ESok x = y) t12 t2.
 Proof.
   unfold inl_safe, lutt; simpl.
@@ -967,7 +967,7 @@ Lemma safe_is_ok (T : Type)
               exists h : U2 = U12,
                 e12 = eq_rect U2 (E1 +' E2) (inr1 e2) U12 h)
        (fun U12 U2 (e12: (E1 +' E2) U12) (u12: U12) (e2: E2 U2) (u2: U2) =>
-               u12 ~= u2)
+               JMeq u12 u2)
         (fun x y => ESok x = y) (translate mfun1 t) t2.
 Proof.
   intro H.

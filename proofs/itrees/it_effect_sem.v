@@ -60,6 +60,10 @@ Definition iget_fundef (funcs: fun_decls) (fn: funname) (fs: fstate) :
     itree E fundef :=
   err_option (ErrType, tt) (get_fundef funcs fn).
 
+Definition iwrite_var (wdb : bool) (x : var_i) (v : value) (s : estate) :
+    itree E estate :=
+  iresult (write_var wdb x v s) s.
+
 Definition iwrite_lval (wdb : bool) (gd : glob_decls) (x : lval)
     (v : value) (s : estate) : itree E estate :=
   iresult (write_lval wdb gd x v s) s.
@@ -88,7 +92,7 @@ Definition isem_assgn
 
 (* Definition fbody (fd: fundef) := fd.(f_body). *)
 
-Definition isem_Assgn (SX: @StE estate -< E)
+Definition isem_Assgn {SX: @StE estate -< E}
   (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : itree E unit :=
   s1 <- trigger GetSE ;;
   s2 <- isem_assgn x tg ty e s1 ;;
@@ -99,7 +103,7 @@ Definition isem_Assgn (SX: @StE estate -< E)
 Definition isem_sopn (o: sopn) (xs: lvals) (es: pexprs) (s: estate) :
   itree E estate := iresult (sem_sopn (p_globs p) o s xs es) s.
 
-Definition isem_Sopn (SX: @StE estate -< E)
+Definition isem_Sopn {SX: @StE estate -< E}
   (o: sopn) (xs: lvals) (es: pexprs) : itree E unit := 
   s1 <- trigger GetSE ;;
   s2 <- isem_sopn o xs es s1 ;;
@@ -131,7 +135,7 @@ Definition isem_syscall
   (xs : lvals) (o : syscall_t) (es : pexprs) (s : estate) :
   itree E estate := iresult (sem_syscall xs o es s) s.
 
-Definition isem_Syscall (SX: @StE estate -< E)
+Definition isem_Syscall {SX: @StE estate -< E}
    (xs : lvals) (o : syscall_t) (es : pexprs) : itree E unit := 
   s1 <- trigger GetSE ;;
   s2 <- isem_syscall xs o es s1 ;;
@@ -145,7 +149,7 @@ Definition sem_cond (gd : glob_decls) (e : pexpr) (s : estate) : exec bool :=
 Definition isem_cond (e : pexpr) (s : estate) : itree E bool :=
   iresult (sem_cond (p_globs p) e s) s.
 
-Definition sem_Cond (SX: @StE estate -< E)
+Definition isem_Cond {SX: @StE estate -< E}
     (e : pexpr) : itree E bool := 
   s <- trigger GetSE ;; isem_cond e s.
 
@@ -170,36 +174,35 @@ Definition sem_bound (gd : glob_decls) (lo hi : pexpr) (s : estate) :
 Definition isem_bound (lo hi : pexpr) (s : estate) : itree E (Z * Z) :=
   iresult (sem_bound (p_globs p) lo hi s) s.
 
-Definition isem_Bound (SX: @StE estate -< E)
+Definition isem_Bound {SX: @StE estate -< E}
    (lo hi : pexpr) : itree E (Z * Z) := 
   s <- trigger GetSE ;; isem_bound lo hi s.
 
 (* WriteIndex *)
 
-Definition isem_WriteIndex (SX: @StE estate -< E)
-  (wdb : bool) (gd : glob_decls) (x : lval)
-  (v : value) (s : estate) : itree E unit :=
+Definition isem_WriteIndex {SX: @StE estate -< E}
+  (x : var_i) (z : Z) : itree E unit :=
   s1 <- trigger GetSE ;;
-  s2 <- iwrite_lval wdb gd x v s1 ;;
+  s2 <- iwrite_var true x (Vint z) s1 ;;
   trigger (PutSE s2).
 
 (* EvalArgs *)  
 
-Definition isem_EvalArgs (SX: @StE estate -< E)
+Definition isem_EvalArgs {SX: @StE estate -< E}
   (args: pexprs) : itree E values :=
   s <- trigger GetSE ;;
   isem_pexprs (~~direct_call) (p_globs p) args s.
   
 (* InitFState *)
 
-Definition isem_InitFState (SX: @StE estate -< E) 
-  (vargs: values) (fn: funname) (ii: instr_info) : itree E fstate :=
+Definition isem_InitFState {SX: @StE estate -< E} 
+  (vargs: values) (ii: instr_info) : itree E fstate :=
   s <- trigger GetSE ;;
   Ret (mk_fstateI vargs s ii).
 
 (* RetVal *)
 
-Definition isem_RetVal (SX: @StE estate -< E) 
+Definition isem_RetVal {SX: @StE estate -< E} 
   (xs: lvals) (fs: fstate) (s: estate) : itree E unit :=
   s1 <- iresult (upd_estate (~~direct_call) (p_globs p) xs fs s) s ;;
   trigger (PutSE s1).
@@ -219,13 +222,14 @@ Definition isem_GetFunCode (fd: fundef) : itree E cmd :=
 Definition estate0 (fs : fstate) :=
   Estate fs.(fscs) fs.(fmem) Vm.init.
 
-Definition initialize_funcall (p : prog) (ev : extra_val_t) (fd : fundef) (fs : fstate) : exec estate :=
+Definition initialize_funcall (p : prog) (ev : extra_val_t)
+  (fd : fundef) (fs : fstate) : exec estate :=
   let sinit := estate0 fs in
   Let vargs' := mapM2 ErrType dc_truncate_val fd.(f_tyin) fs.(fvals) in
   Let s0 := init_state fd.(f_extra) (p_extra p) ev sinit in
   write_vars (~~direct_call) fd.(f_params) vargs' s0.
 
-Definition isem_InitFunCall (SX: @StE estate -< E)
+Definition isem_InitFunCall {SX: @StE estate -< E}
   (fd: fundef) (fs: fstate) : itree E unit :=
   let sinit := estate0 fs in
   s <- iresult (initialize_funcall p ev fd fs) sinit ;;
@@ -233,29 +237,69 @@ Definition isem_InitFunCall (SX: @StE estate -< E)
 
 (* FinalizeFunCall *)
 
-Definition finalize_funcall (fd : fundef) (s:estate) : exec fstate :=
+Definition finalize_funcall (fd : fundef) (s: estate) : exec fstate :=
   Let vres := get_var_is (~~ direct_call) s.(evm) fd.(f_res) in
   Let vres' := mapM2 ErrType dc_truncate_val fd.(f_tyout) vres in
   let scs := s.(escs) in
   let m := finalize fd.(f_extra) s.(emem) in
   ok {| fscs := scs; fmem := m; fvals := vres'; finfo := None |}.
 
-Definition isem_FinalizeFunCall (SX: @StE estate -< E)
-  (fd: fundef) (fs: fstate) : itree E fstate :=
+Definition isem_FinalizeFunCall {SX: @StE estate -< E}
+  (fd: fundef) : itree E fstate :=
   s <- trigger GetSE ;;
   iresult (finalize_funcall fd s) s.
 
 (****************************************************************)
 
+(** Handlers for InstrE and FunE *)
+
+(** InstrE handler *)
+Definition handle_InstrE {SX: @StE estate -< E} :
+  @InstrE asm_op syscall_state sip estate fstate ~> itree E :=
+  fun _ e =>
+    match e with
+    | AssgnE xs tg ty es => isem_Assgn xs tg ty es
+    | OpnE xs tg o es => isem_Sopn o xs es
+    | SyscallE xs o es => isem_Syscall xs o es                              
+    | EvalCond e => isem_Cond e
+    | EvalBounds e1 e2 => isem_Bound e1 e2
+    | WriteIndex x z => isem_WriteIndex x z
+    | EvalArgs args => isem_EvalArgs args                                    
+    | InitFState vargs ii => isem_InitFState vargs ii
+    | RetVal xs fs s => isem_RetVal xs fs s
+    end.                                            
+
+(** FunE handler *)
+Definition handle_FunE {SX: @StE estate -< E} :
+  @FunE asm_op syscall_state sip fstate fundef ~> itree E :=
+  fun _ e =>
+    match e with
+    | GetFunDef fn fs => isem_GetFunDef fn fs
+    | GetFunCode fd => isem_GetFunCode fd
+    | InitFunCall fd fs => isem_InitFunCall fd fs
+    | FinalizeFunCall fd => isem_FinalizeFunCall fd
+    end.                                             
+
+Definition ext_handle_InstrE {SX: @StE estate -< E} :
+  InstrE +' E ~> itree E := ext_handler handle_InstrE.
+ (* case_ handle_InstrE (id_ E). *)
+  
+(* InstrE interpreter *)
+Definition interp_InstrE {SX: @StE estate -< E} {A: Type}
+  (t : itree (InstrE +' E) A) : itree E A :=
+  interp ext_handle_InstrE t.
+
+Definition ext_handle_FunE {SX: @StE estate -< E} :
+  FunE +' E ~> itree E := ext_handler handle_FunE.
+ (* case_ handle_InstrE (id_ E). *)
+  
+(* InstrE interpreter *)
+Definition interp_FunE {SX: @StE estate -< E} {A: Type}
+  (t : itree (FunE +' E) A) : itree E A :=
+  interp ext_handle_FunE t.
 
 
-
-
-
-
-
-
-
+(****************************************************************)
 
 
 
