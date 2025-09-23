@@ -48,9 +48,11 @@ Context {State: Type} {FState : Type} {FunDef: Type}.
 
 (* state events (similar to those provided by the library, 
    could be specialized to estate) *)
-Variant StE : Type -> Type :=
+Notation StE := (stateE State).
+(* Variant StE : Type -> Type :=
   | GetSE : StE State
   | PutSE : State -> StE unit.                      
+*)
 
 (* instruction events. InitFState allows storing instr_info in FState
 *)
@@ -138,7 +140,7 @@ Fixpoint isem_instr (i : instr) : itree (recCall +' E) unit :=
       i c (wrange d (fst zz) (snd zz)) 
 
   | Ccall xs fn args =>
-    s0 <- trigger GetSE ;;  
+    s0 <- trigger (@Get State) ;;  
     vargs <- trigger (EvalArgs args) ;;
     fs0 <- trigger (InitFState vargs ii) ;;
     fs1 <- trigger_inl1 (Call (fn, fs0)) ;; 
@@ -497,7 +499,7 @@ Fixpoint isem_i_body (i : instr) : itree E unit :=
       i c (wrange d (fst zz) (snd zz)) 
 
   | Ccall xs fn args =>
-    s0 <- trigger GetSE ;;  
+    s0 <- @trigger (@Get State) ;;  
     vargs <- trigger (EvalArgs args) ;;
     fs0 <- trigger (InitFState vargs ii) ;;
     fs1 <- sem_fun fn fs0 ;; 

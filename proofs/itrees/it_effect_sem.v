@@ -92,22 +92,22 @@ Definition isem_assgn
 
 (* Definition fbody (fd: fundef) := fd.(f_body). *)
 
-Definition isem_Assgn {SX: @StE estate -< E}
+Definition isem_Assgn {SX: @stateE estate -< E}
   (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : itree E unit :=
-  s1 <- trigger GetSE ;;
+  s1 <- trigger (@Get estate) ;;
   s2 <- isem_assgn x tg ty e s1 ;;
-  trigger (PutSE s2).
+  trigger (@Put estate s2).
 
 (* Sopn *)
 
 Definition isem_sopn (o: sopn) (xs: lvals) (es: pexprs) (s: estate) :
   itree E estate := iresult (sem_sopn (p_globs p) o s xs es) s.
 
-Definition isem_Sopn {SX: @StE estate -< E}
+Definition isem_Sopn {SX: @stateE estate -< E}
   (o: sopn) (xs: lvals) (es: pexprs) : itree E unit := 
-  s1 <- trigger GetSE ;;
+  s1 <- trigger (@Get estate) ;;
   s2 <- isem_sopn o xs es s1 ;;
-  trigger (PutSE s2).
+  trigger (@Put estate s2).
 
 (* Syscall *)
 
@@ -135,11 +135,11 @@ Definition isem_syscall
   (xs : lvals) (o : syscall_t) (es : pexprs) (s : estate) :
   itree E estate := iresult (sem_syscall xs o es s) s.
 
-Definition isem_Syscall {SX: @StE estate -< E}
+Definition isem_Syscall {SX: @stateE estate -< E}
    (xs : lvals) (o : syscall_t) (es : pexprs) : itree E unit := 
-  s1 <- trigger GetSE ;;
+  s1 <- trigger (@Get estate) ;;
   s2 <- isem_syscall xs o es s1 ;;
-  trigger (PutSE s2).
+  trigger (@Put estate s2).
 
 (* Cons *)
 
@@ -149,9 +149,9 @@ Definition sem_cond (gd : glob_decls) (e : pexpr) (s : estate) : exec bool :=
 Definition isem_cond (e : pexpr) (s : estate) : itree E bool :=
   iresult (sem_cond (p_globs p) e s) s.
 
-Definition isem_Cond {SX: @StE estate -< E}
+Definition isem_Cond {SX: @stateE estate -< E}
     (e : pexpr) : itree E bool := 
-  s <- trigger GetSE ;; isem_cond e s.
+  s <- trigger (@Get estate) ;; isem_cond e s.
 
 Lemma sem_cond_sem_pexpr gd e s b :
   sem_cond gd e s = ok b -> sem_pexpr true gd s e = ok (Vbool b).
@@ -174,38 +174,38 @@ Definition sem_bound (gd : glob_decls) (lo hi : pexpr) (s : estate) :
 Definition isem_bound (lo hi : pexpr) (s : estate) : itree E (Z * Z) :=
   iresult (sem_bound (p_globs p) lo hi s) s.
 
-Definition isem_Bound {SX: @StE estate -< E}
+Definition isem_Bound {SX: @stateE estate -< E}
    (lo hi : pexpr) : itree E (Z * Z) := 
-  s <- trigger GetSE ;; isem_bound lo hi s.
+  s <- trigger (@Get estate) ;; isem_bound lo hi s.
 
 (* WriteIndex *)
 
-Definition isem_WriteIndex {SX: @StE estate -< E}
+Definition isem_WriteIndex {SX: @stateE estate -< E}
   (x : var_i) (z : Z) : itree E unit :=
-  s1 <- trigger GetSE ;;
+  s1 <- trigger (@Get estate) ;;
   s2 <- iwrite_var true x (Vint z) s1 ;;
-  trigger (PutSE s2).
+  trigger (@Put estate s2).
 
 (* EvalArgs *)  
 
-Definition isem_EvalArgs {SX: @StE estate -< E}
+Definition isem_EvalArgs {SX: @stateE estate -< E}
   (args: pexprs) : itree E values :=
-  s <- trigger GetSE ;;
+  s <- trigger (@Get estate) ;;
   isem_pexprs (~~direct_call) (p_globs p) args s.
   
 (* InitFState *)
 
-Definition isem_InitFState {SX: @StE estate -< E} 
+Definition isem_InitFState {SX: @stateE estate -< E} 
   (vargs: values) (ii: instr_info) : itree E fstate :=
-  s <- trigger GetSE ;;
+  s <- trigger (@Get estate) ;;
   Ret (mk_fstateI vargs s ii).
 
 (* RetVal *)
 
-Definition isem_RetVal {SX: @StE estate -< E} 
+Definition isem_RetVal {SX: @stateE estate -< E} 
   (xs: lvals) (fs: fstate) (s: estate) : itree E unit :=
   s1 <- iresult (upd_estate (~~direct_call) (p_globs p) xs fs s) s ;;
-  trigger (PutSE s1).
+  trigger (@Put estate s1).
 
 (* GetFunDef *)
 
@@ -229,11 +229,11 @@ Definition initialize_funcall (p : prog) (ev : extra_val_t)
   Let s0 := init_state fd.(f_extra) (p_extra p) ev sinit in
   write_vars (~~direct_call) fd.(f_params) vargs' s0.
 
-Definition isem_InitFunCall {SX: @StE estate -< E}
+Definition isem_InitFunCall {SX: @stateE estate -< E}
   (fd: fundef) (fs: fstate) : itree E unit :=
   let sinit := estate0 fs in
   s <- iresult (initialize_funcall p ev fd fs) sinit ;;
-  trigger (PutSE s).
+  trigger (@Put estate s).
 
 (* FinalizeFunCall *)
 
@@ -244,9 +244,9 @@ Definition finalize_funcall (fd : fundef) (s: estate) : exec fstate :=
   let m := finalize fd.(f_extra) s.(emem) in
   ok {| fscs := scs; fmem := m; fvals := vres'; finfo := None |}.
 
-Definition isem_FinalizeFunCall {SX: @StE estate -< E}
+Definition isem_FinalizeFunCall {SX: @stateE estate -< E}
   (fd: fundef) : itree E fstate :=
-  s <- trigger GetSE ;;
+  s <- trigger (@Get estate) ;;
   iresult (finalize_funcall fd s) s.
 
 (****************************************************************)
@@ -254,7 +254,7 @@ Definition isem_FinalizeFunCall {SX: @StE estate -< E}
 (** Handlers for InstrE and FunE *)
 
 (** InstrE handler *)
-Definition handle_InstrE {SX: @StE estate -< E} :
+Definition handle_InstrE {SX: @stateE estate -< E} :
   @InstrE asm_op syscall_state sip estate fstate ~> itree E :=
   fun _ e =>
     match e with
@@ -270,7 +270,7 @@ Definition handle_InstrE {SX: @StE estate -< E} :
     end.                                            
 
 (** FunE handler *)
-Definition handle_FunE {SX: @StE estate -< E} :
+Definition handle_FunE {SX: @stateE estate -< E} :
   @FunE asm_op syscall_state sip fstate fundef ~> itree E :=
   fun _ e =>
     match e with
@@ -280,21 +280,21 @@ Definition handle_FunE {SX: @StE estate -< E} :
     | FinalizeFunCall fd => isem_FinalizeFunCall fd
     end.                                             
 
-Definition ext_handle_InstrE {SX: @StE estate -< E} :
+Definition ext_handle_InstrE {SX: @stateE estate -< E} :
   InstrE +' E ~> itree E := ext_handler handle_InstrE.
  (* case_ handle_InstrE (id_ E). *)
   
 (* InstrE interpreter *)
-Definition interp_InstrE {SX: @StE estate -< E} {A: Type}
+Definition interp_InstrE {SX: @stateE estate -< E} {A: Type}
   (t : itree (InstrE +' E) A) : itree E A :=
   interp ext_handle_InstrE t.
 
-Definition ext_handle_FunE {SX: @StE estate -< E} :
+Definition ext_handle_FunE {SX: @stateE estate -< E} :
   FunE +' E ~> itree E := ext_handler handle_FunE.
  (* case_ handle_InstrE (id_ E). *)
   
 (* InstrE interpreter *)
-Definition interp_FunE {SX: @StE estate -< E} {A: Type}
+Definition interp_FunE {SX: @stateE estate -< E} {A: Type}
   (t : itree (FunE +' E) A) : itree E A :=
   interp ext_handle_FunE t.
 
