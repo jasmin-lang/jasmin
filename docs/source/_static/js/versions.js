@@ -26,35 +26,31 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-const themeVersionSelector = true;
-const themeLanguageSelector = false;
+function onSelectorSwitch(event) {
+  const option = event.target.selectedIndex;
+  const item = event.target.options[option];
+  window.location.href = item.dataset.url;
+}
 
-if (themeLanguageSelector || themeVersionSelector) {
-  function onSelectorSwitch(event) {
-    const option = event.target.selectedIndex;
-    const item = event.target.options[option];
-    window.location.href = item.dataset.url;
+document.addEventListener("readthedocs-addons-data-ready", function (event) {
+  const config = event.detail.data();
+
+  const versionSwitch = document.querySelector(
+    "div.switch-menus > div.version-switch",
+  );
+
+  let versions = config.versions.active;
+
+  // HACK: It is assumed that index 0 is latest, 1 is stable and 2 is the current stable tag.
+  // We rename stable with the current stable tag + we remove the stable tag.
+  stable_tag = versions[2].verbose_name
+  versions[1].verbose_name = stable_tag + " (stable)";
+  versions.splice(2,1);
+
+  if (config.versions.current.hidden || config.versions.current.type === "external") {
+    versions.unshift(config.versions.current);
   }
-
-  document.addEventListener("readthedocs-addons-data-ready", function (event) {
-    const config = event.detail.data();
-
-    const versionSwitch = document.querySelector(
-      "div.switch-menus > div.version-switch",
-    );
-    if (themeVersionSelector) {
-      let versions = config.versions.active;
-
-      // HACK: It is assumed that index 0 is latest, 1 is stable and 2 is the current stable tag.
-      // We rename stable with the current stable tag + we remove the stable tag.
-      stable_tag = versions[2].verbose_name
-      versions[1].verbose_name = stable_tag + " (stable)";
-      versions.splice(2,1);
-
-      if (config.versions.current.hidden || config.versions.current.type === "external") {
-        versions.unshift(config.versions.current);
-      }
-      const versionSelect = `
+  const versionSelect = `
     <select>
       ${versions
         .map(
@@ -71,49 +67,9 @@ if (themeLanguageSelector || themeVersionSelector) {
     </select>
   `;
 
-      versionSwitch.innerHTML = versionSelect;
-      versionSwitch.firstElementChild.addEventListener("change", onSelectorSwitch);
-    }
-
-    const languageSwitch = document.querySelector(
-      "div.switch-menus > div.language-switch",
-    );
-
-    if (themeLanguageSelector) {
-      if (config.projects.translations.length) {
-        // Add the current language to the options on the selector
-        let languages = config.projects.translations.concat(
-          config.projects.current,
-        );
-        languages = languages.sort((a, b) =>
-          a.language.name.localeCompare(b.language.name),
-        );
-
-        const languageSelect = `
-      <select>
-        ${languages
-          .map(
-            (language) => `
-              <option
-                  value="${language.language.code}"
-                  ${config.projects.current.slug === language.slug ? 'selected="selected"' : ""}
-                  data-url="${language.urls.documentation}">
-                  ${language.language.name}
-              </option>`,
-          )
-          .join("\n")}
-       </select>
-    `;
-
-        languageSwitch.innerHTML = languageSelect;
-        languageSwitch.firstElementChild.addEventListener("change", onSelectorSwitch);
-      }
-      else {
-        languageSwitch.remove();
-      }
-    }
-  });
-}
+  versionSwitch.innerHTML = versionSelect;
+  versionSwitch.firstElementChild.addEventListener("change", onSelectorSwitch);
+});
 
 document.addEventListener("readthedocs-addons-data-ready", function (event) {
   // Trigger the Read the Docs Addons Search modal when clicking on "Search docs" input from the topnav.
