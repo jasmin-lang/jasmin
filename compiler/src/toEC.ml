@@ -379,7 +379,7 @@ module type EnvT = sig
   val add_SubArrayCast: t -> int -> int -> int -> int -> unit
   val add_ArrayAccessCast: t -> int -> int -> int -> unit
   val add_randombytes: t -> int -> unit
-  val add_ty: t -> int gty -> unit
+  val add_ty: t -> ty -> unit
   val add_jarray: t -> Wsize.wsize -> int -> unit
   val empty: architecture -> Wsize.wsize -> Sarraytheory.t ref -> t
   val create_name: t -> string -> string
@@ -968,10 +968,10 @@ let of_list_dfl env _ws n =
 module type EcArray = sig
   val ec_darray8: Env.t -> int -> ec_expr
   val ec_cast_array: Env.t -> wsize * int -> wsize * int -> ec_expr -> ec_expr
-  val toec_pget: Env.t -> Memory_model.aligned * Warray_.arr_access * wsize * int gvar * ec_expr -> ec_expr
+  val toec_pget: Env.t -> Memory_model.aligned * Warray_.arr_access * wsize * var * ec_expr -> ec_expr
   val toec_psub: Env.t -> Warray_.arr_access * wsize * int * int ggvar * ec_expr -> ec_expr
-  val toec_laset: Env.t -> Warray_.arr_access * wsize * int gvar * ec_expr -> ec_expr -> ec_instr
-  val toec_lasub: Env.t -> Warray_.arr_access * wsize * int * int gvar L.located * ec_expr -> ec_expr -> ec_expr
+  val toec_laset: Env.t -> Warray_.arr_access * wsize * var * ec_expr -> ec_expr -> ec_instr
+  val toec_lasub: Env.t -> Warray_.arr_access * wsize * int * var L.located * ec_expr -> ec_expr -> ec_expr
 
   val onarray_ty: Env.t -> wsize -> int -> string
   val add_arr: Env.t -> wsize -> int -> unit
@@ -1360,8 +1360,8 @@ let ty_lval = function
   | Lasub (_,ws, len, _, _) -> Arr(ws, len)
 
 module type EcExpression = sig
-  val ec_cast: Env.t -> int gty * int gty -> ec_expr -> ec_expr
-  val toec_cast: Env.t -> int gty * expr -> ec_expr
+  val ec_cast: Env.t -> ty * ty -> ec_expr -> ec_expr
+  val toec_cast: Env.t -> ty * expr -> ec_expr
   val toec_expr: Env.t -> expr -> ec_expr
 end
 
@@ -1468,7 +1468,7 @@ module type EcLeakage = sig
   val ec_leaking_if: Env.t -> expr -> (Env.t -> ec_stmt) -> (Env.t -> ec_stmt) -> ec_stmt
   val ec_leaking_while: Env.t -> (Env.t -> ec_stmt) -> expr -> (Env.t -> ec_stmt) -> ec_stmt
   val ec_leaking_for: Env.t -> (Env.t -> ec_stmt) -> expr -> expr -> ec_stmt -> ec_expr -> ec_stmt -> ec_stmt
-  val ec_leaks_lvs: Env.t -> int glval list -> ec_stmt
+  val ec_leaks_lvs: Env.t -> lvals -> ec_stmt
   val global_leakage_vars: Env.t -> (ec_modty * ec_modty) list
   val leakage_imports: Env.t -> ec_item list
   val ec_fun_leak_init: Env.t -> ec_stmt

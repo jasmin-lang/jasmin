@@ -3,7 +3,7 @@ Complementary module for the grange type to help determine :
 - first and last value of a range
 - increment and comparison operator for a range
 *)
-type t = int Jasmin.Prog.grange
+type t = Jasmin.Prog.range
 
 val first : t -> Jasmin.Prog.expr
 

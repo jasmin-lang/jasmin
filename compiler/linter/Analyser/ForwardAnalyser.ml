@@ -68,7 +68,7 @@ module Make (Logic : Logic) : S with type domain = Logic.domain = struct
   (**
     Assign expression builder (for example [proxy = proxy + 1]) for proxy variable used in for loop. (see function [analyse_for])
   *)
-  let build_for_assign_expr (x : var_i) (r : int grange) : expr =
+  let build_for_assign_expr (x : var_i) (r : range) : expr =
       let assign_op = Grange.incr_operator r in
       let x_ggvar = {gv= x; gs= Slocal} in
       Papp2 (assign_op, Pvar x_ggvar, Pconst (Z.of_int 1))
@@ -76,7 +76,7 @@ module Make (Logic : Logic) : S with type domain = Logic.domain = struct
   (**
     Condition expression builder (for example [proxy < 10]) for proxy variable used in for loop. (see function [analyse_for])
   *)
-  let build_for_condition_expr (x : var_i) (r : int grange) : expr =
+  let build_for_condition_expr (x : var_i) (r : range) : expr =
       let gend = Grange.last r in
       let comp_op = Grange.cmp_operator r in
       let x_ggvar = {gv= x; gs= Slocal} in
@@ -113,9 +113,9 @@ module Make (Logic : Logic) : S with type domain = Logic.domain = struct
   let rec analyse_for
       (loc : Location.i_loc)
       (variable : var_i)
-      (range : int grange)
+      (range : range)
       (body : ('info, 'asm) stmt)
-      in_annotation : (int, annot, 'asm) ginstr_r * annot =
+      in_annotation : (annot, 'asm) instr_r * annot =
       (* Defining proxy variable *)
       let proxy_var = build_for_proxy_variable loc.base_loc variable in
       (* First assign to range begin*)
@@ -173,8 +173,8 @@ module Make (Logic : Logic) : S with type domain = Logic.domain = struct
 
   and analyse_instr_r
       (loc : Location.i_loc)
-      (instr : (int, 'info, 'asm) ginstr_r)
-      (annotation : annot) : (int, annot, 'asm) ginstr_r * annot =
+      (instr : ('info, 'asm) instr_r)
+      (annotation : annot) : (annot, 'asm) instr_r * annot =
       match instr with
       | Cassgn (lv, tag, ty, expr) -> analyse_assign loc lv tag ty expr annotation
       | Copn (lvs, tag, sopn, es) ->

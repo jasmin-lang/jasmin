@@ -11,35 +11,35 @@ module type Logic = sig
 
   val included : domain -> domain -> bool
 
-  val account : int gexpr -> domain annotation -> domain annotation -> domain annotation
+  val account : expr -> domain annotation -> domain annotation -> domain annotation
 
-  val forget : int gvar_i -> domain -> domain annotation
+  val forget : var_i -> domain -> domain annotation
 
-  val funcall : Location.i_loc -> int glvals -> funname -> int gexprs -> domain -> domain annotation
+  val funcall : Location.i_loc -> lvals -> funname -> exprs -> domain -> domain annotation
 
   val syscall :
        Location.i_loc
-    -> int glvals
+    -> lvals
     -> BinNums.positive Syscall_t.syscall_t
-    -> int gexprs
+    -> exprs
     -> domain
     -> domain annotation
 
   val assign :
        Location.i_loc
-    -> int glval
+    -> lval
     -> E.assgn_tag
-    -> int gty
-    -> int gexpr
+    -> ty
+    -> expr
     -> domain
     -> domain annotation
 
   val opn :
        Location.i_loc
-    -> int glval list
+    -> lvals
     -> E.assgn_tag
     -> 'asm Sopn.sopn
-    -> int gexprs
+    -> exprs
     -> domain
     -> domain annotation
 end
@@ -68,24 +68,24 @@ struct
   *)
   let analyse_assign
       (loc : Location.i_loc)
-      (lv : int glval)
+      (lv : lval)
       tag
       ty
-      (expr : int gexpr)
-      (annotation : annot) : (int, annot, 'asm) ginstr_r * annot =
+      (expr : expr)
+      (annotation : annot) : (annot, 'asm) instr_r * annot =
       let annotation = Annotation.bind annotation (L.assign loc lv tag ty expr) in
       (Cassgn (lv, tag, ty, expr), annotation)
 
   (**
     Proxy variable builder used in the for loop. (see function [analyse_for])
   *)
-  let build_for_proxy_variable loc (x : int gvar_i) : var_i =
+  let build_for_proxy_variable loc (x : var_i) : var_i =
       Location.mk_loc loc (GV.clone (Location.unloc x))
 
   (**
     Assign expression builder (for example [proxy = proxy + 1]) for proxy variable used in for loop. (see function [analyse_for])
   *)
-  let build_for_assign_expr (x : int gvar_i) (r : int grange) : int gexpr =
+  let build_for_assign_expr (x : var_i) (r : range) : expr =
       let assign_op = Grange.incr_operator r in
       let x_ggvar = {gv= x; gs= Slocal} in
       Papp2 (assign_op, Pvar x_ggvar, Pconst (Z.of_int 1))
@@ -93,7 +93,7 @@ struct
   (**
     Condition expression builder (for example [proxy < 10]) for proxy variable used in for loop. (see function [analyse_for])
   *)
-  let build_for_condition_expr (x : int gvar_i) (r : int grange) : int gexpr =
+  let build_for_condition_expr (x : var_i) (r : range) : expr =
       let gend = Grange.last r in
       let comp_op = Grange.cmp_operator r in
       let x_ggvar = {gv= x; gs= Slocal} in
@@ -130,9 +130,9 @@ struct
   let rec analyse_for
       (loc : Location.i_loc)
       variable
-      (range : int grange)
+      (range : range)
       (body : ('info, 'asm) stmt)
-      (out_annotation : annot) : (int, annot, 'asm) ginstr_r * annot =
+      (out_annotation : annot) : (annot, 'asm) instr_r * annot =
       let proxy_var = build_for_proxy_variable loc.base_loc variable in
       let condition = build_for_condition_expr proxy_var range in
       let rec loop out_annotation =
@@ -170,11 +170,11 @@ struct
   *)
   and analyse_while
       (al : E.align)
-      (cond : int gexpr)
+      (cond : expr)
       ((a, _) : IInfo.t * 'info)
-      (b1 : (int, 'info, 'asm) gstmt)
-      (b2 : (int, 'info, 'asm) gstmt)
-      (out_annotation : annot) : (int, annot, 'asm) ginstr_r * annot =
+      (b1 : ('info, 'asm) stmt)
+      (b2 : ('info, 'asm) stmt)
+      (out_annotation : annot) : (annot, 'asm) instr_r * annot =
       (*
       Invariant : L.included out_domain cond_out_domain
       *)
@@ -192,8 +192,8 @@ struct
 
   and analyse_instr_r
       (loc : Location.i_loc)
-      (instr : (int, 'info, 'asm) ginstr_r)
-      (annotation : annot) : (int, annot, 'asm) ginstr_r * annot =
+      (instr : ('info, 'asm) instr_r)
+      (annotation : annot) : (annot, 'asm) instr_r * annot =
       match instr with
       | Cassgn (lv, tag, ty, expr) -> analyse_assign loc lv tag ty expr annotation
       | Copn (lvs, tag, sopn, es) ->
