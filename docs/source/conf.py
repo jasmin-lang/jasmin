@@ -38,4 +38,4 @@ html_context = {
     "github_version": "main",  # Version
     "conf_py_path": "/docs/source/",  # Path in the checkout to the docs root
 }
-# html_static_path = ['_static']
+html_static_path = ['_static']
