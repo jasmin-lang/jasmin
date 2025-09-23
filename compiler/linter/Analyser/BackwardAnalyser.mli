@@ -64,7 +64,7 @@ module type Logic =
       Control flow function used to handle conditionnal branches. assume build an annotation such that :
       for all A1, A2, e, s ; s in I(account e A1 A2) => s in I(if [e]s then A1 else A2)
     *)
-    val account : int Jasmin.Prog.gexpr -> domain Annotation.annotation -> domain Annotation.annotation -> domain Annotation.annotation
+    val account : Jasmin.Prog.expr -> domain Annotation.annotation -> domain Annotation.annotation -> domain Annotation.annotation
 
     (**
     Function to remove a variable from a domain. This function is needed because of the way we handle for loops.
@@ -77,7 +77,7 @@ module type Logic =
     - [domain Annotation.annotation] (updated domain wrap with annotation type)
     *)
     val forget :
-      int Jasmin.Prog.gvar_i -> domain -> domain Annotation.annotation
+     Jasmin.Prog.var_i -> domain -> domain Annotation.annotation
 
     (**
     Function to handle function call instruction

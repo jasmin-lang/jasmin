@@ -1,14 +1,14 @@
 open Jasmin
 open Prog
 
-type t = int grange
+type t = range
 
-let first ((d, f, l) : t) : int gexpr =
+let first ((d, f, l) : t) : expr =
     match d with
     | E.UpTo -> f
     | E.DownTo -> l
 
-let last ((d, f, l) : t) : int gexpr =
+let last ((d, f, l) : t) : expr =
     match d with
     | E.UpTo -> l
     | E.DownTo -> f
