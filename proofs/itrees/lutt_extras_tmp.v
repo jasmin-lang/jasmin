@@ -293,6 +293,13 @@ Definition inl_safe_rel (T : Type) (R : T -> Prop)
        (RAns_eq (fun T0 : Type => fun=> TrueP))
        (R_eq R) t t'.
 
+(* this actually suffices *)
+Definition inl_safe1 (T : Type) 
+  (t : itree (E1 +' E2) T) : Prop :=
+  rutt (REv_eq (fun T0 : Type => is_inr (T:=T0)))
+       (RAns_eq (fun T0 : Type => fun=> TrueP))
+       eq t t.
+
 (* equivalent to core_logics.safe *)
 Definition inl_safe (T : Type) (t : itree (E1 +' E2) T) :=
   exists t', inl_safe_rel TrueP t t'.
@@ -742,6 +749,57 @@ Proof.
   exists t; eapply inr_only_inl_safe_refl; auto.
 Qed.
 
+(* alternative version (same proof), with inl_safe1 *)
+Lemma inr_only_inl_safe1_refl (T : Type) (t: itree (E1 +' E2) T) :
+  inr_only t -> inl_safe1 t.
+Proof.
+  revert t.
+  unfold inr_only, inr_only_rel, inl_safe1; simpl in *.  
+  pcofix CIH; intros t [t2 H].
+  punfold H. red in H.
+  pstep; red; simpl in *.
+  dependent induction H; intros.
+  { rewrite <- x.
+    econstructor; auto. }
+  { rewrite <- x.
+    econstructor.
+    pclearbot; right; eapply CIH.
+    assert (m1 = m2) as A.
+    { eapply bisimulation_is_eq; auto. }
+    inv A.
+    destruct (observe t); try discriminate.
+    remember (observe t2) as ot2.
+    destruct ot2; simpl; try discriminate.
+    exists t1; simpl in *.
+    inv x0; reflexivity.
+  }
+  { rewrite <- x.
+    econstructor.
+    { unfold REv_eq; simpl.  
+      destruct e; simpl in *; try discriminate.
+      { remember (observe t2) as ot2.
+        destruct ot2; try discriminate.
+      }  
+      { split; eauto.
+        exists erefl; simpl; auto.
+      }
+    }  
+    { intros a b H.
+      destruct H as [_ H].
+      specialize (H erefl).
+      dependent destruction H.
+      right; eapply CIH.   
+      remember (observe t2) as ot2.
+      destruct ot2; simpl; try discriminate.
+      dependent destruction x0.
+      exists (k a).
+      specialize (REL a).
+      pclearbot; auto.
+    } 
+  }  
+Qed.     
+
+
 
 (******************)
 
@@ -814,6 +872,7 @@ Proof.
 
 (********************************************************************)
 
+(* axiomatic *)
 Lemma interp_exec_vis_Eq {E F : Type -> Type} {T U : Type}
       (e : E T) (k : T -> itree E U) (h : E ~> execT (itree F))
   : interp_exec h (Vis e k)
@@ -828,6 +887,7 @@ Proof.
   eapply interp_exec_vis; auto.
 Qed.
 
+(* axiomatic *)
 Lemma bind_bind_Eq {E R S T} :
   forall (s : itree E R) (k : R -> itree E S) (h : S -> itree E T),
     ITree.bind (ITree.bind s k) h = ITree.bind s (fun r => ITree.bind (k r) h).
@@ -837,6 +897,7 @@ Proof.
   eapply bind_bind; auto.
 Qed.
 
+(* axiomatic *)
 Lemma bind_ret_l_Eq {E R S} (r : R) (k : R -> itree E S) :
   ITree.bind (Ret r) k = (k r).
 Proof.
@@ -844,6 +905,7 @@ Proof.
   eapply bind_ret_l; auto.
 Qed.
 
+(* axiomatic *)
 Lemma bind_trigger_Eq {E R} U (e : E U) (k : U -> itree E R)
   : ITree.bind (ITree.trigger e) k = Vis e (fun x => k x).
 Proof.
@@ -851,6 +913,7 @@ Proof.
   eapply bind_trigger; auto.
 Qed.
 
+(* axiomatic *)
 Lemma bind_vis_Eq {E R} U V (e: E V) (ek: V -> itree E U) (k: U -> itree E R) :
   ITree.bind (Vis e ek) k = Vis e (fun x => ITree.bind (ek x) k).
 Proof.
@@ -878,7 +941,7 @@ Lemma inl_safe_is_ok (T : Type) (t12 : itree (E1 +' E2) T) :
                JMeq u12 u2)
         (fun x y => ESok x = y) t12 t2.
 Proof.
-  unfold inl_safe, lutt; simpl.
+  unfold inl_safe; simpl.
   revert t12.
   ginit; gcofix CIH.
   intros t12 [tA H].
@@ -951,6 +1014,57 @@ Proof.
     specialize (IHruttF t12 t2 H1 erefl); auto.
   }
 Qed.  
+
+(* inl_safe1 version; actually harder! *)
+Lemma inl_safe1_is_ok (T : Type) (t12 : itree (E1 +' E2) T) :
+  inl_safe1 t12 ->
+  let t2 : itree E2 (execS T) := interp_exec hnd_ext t12 in
+  rutt (fun U12 U2 (e12: (E1 +' E2) U12) (e2: E2 U2) =>
+              exists h : U2 = U12,
+                e12 = eq_rect U2 (E1 +' E2) (inr1 e2) U12 h)
+       (fun U12 U2 (e12: (E1 +' E2) U12) (u12: U12) (e2: E2 U2) (u2: U2) =>
+               JMeq u12 u2)
+        (fun x y => ESok x = y) t12 t2.
+Proof.
+  unfold inl_safe1; simpl.
+  revert t12.
+  ginit; gcofix CIH.
+  intros t12 H.
+  setoid_rewrite (itree_eta t12).
+  unfold interp_exec; simpl.
+  punfold H; red in H.  
+  remember (observe t12) as ot12.
+  hinduction H before CIH; simpl in *.
+
+  { intros t12 H0.
+    inv H; simpl in *.
+    gstep; red; simpl.
+    econstructor; auto.
+  }
+
+  { gstep; red; simpl.
+    intros t12 H0.
+    econstructor; simpl.
+    gfinal; left.
+    eapply CIH.
+    pclearbot.
+admit.
+(*    setoid_rewrite <- H.
+    eapply rutt_Proper_R4.
+    reflexivity.
+*)
+  }
+
+  { intros t12 H1.
+    gstep; red.
+    setoid_rewrite interp_exec_vis_Eq.
+    unfold REv_eq in H.    
+    destruct e1; simpl.    
+    { simpl in *; auto with *. }
+    simpl.
+ admit.   
+Abort.
+
 
 Section Safe.
 
@@ -1067,6 +1181,31 @@ Proof.
     eapply IHruttF; auto.
   }
 Qed.    
+
+(* version with inl_safe1: BAD *)
+Lemma inl_safe1_is_ok_eutt (err: R2) (t1 : itree (E1 +' E2) R1) :
+  inl_safe1 t1 -> 
+  eutt (fun x y => eq (inl x) y) t1 (translate inr1 (FstEval err t1)).
+Proof.
+  intro H.
+  revert H.
+  revert t1.
+  pcofix CIH.
+  intros t1 H.
+  setoid_rewrite (itree_eta_ t1) at 2.  
+  punfold H; red in H.
+  pstep; red.
+(*  remember (observe t1) as ot1. *)
+  dependent induction H; simpl.
+
+  { rewrite <- x.
+    econstructor; auto.
+  }
+  { rewrite <- x0 at 1.
+    rewrite <- x.
+    econstructor. pclearbot.
+    right.
+Abort.    
 
 Lemma inl_safe_ret (r: R1) : @inl_safe E1 E2 R1 (Ret r).
 Proof.
