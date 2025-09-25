@@ -167,6 +167,7 @@ let pp_tyerror fmt (code : tyerror) =
         (L.tostring (L.loc oldtype))
         pp_eptype (L.unloc oldtype)
 
+  
   | TypeNotFound (id) ->
       F.fprintf fmt
       "Type '%s' not found"
@@ -239,7 +240,7 @@ let fully_qualified (stack: (A.symbol * 'a) list) n =
 
 type fun_sig = { fs_tin : P.epty list ; fs_tout : P.epty list }
 
-module Env (* : sig
+module Env : sig
   type 'asm env
 
   val empty : 'asm env
@@ -289,7 +290,7 @@ module Env (* : sig
     val get  : 'asm env -> (P.funname * (Z.t * Z.t) list) L.located list
   end
 
-end *) = struct
+end  = struct
 
   type loader =
     { loaded : (A.symbol, Path.t list) Map.t (* absolute path loaded in each namespace *)
@@ -2607,16 +2608,7 @@ let rec tt_item (arch_info : 'asm P.arch_info) (env : 'asm Env.env) pt : 'asm En
       let annot = pannot_to_annotations pannot in
       tt_typealias arch_info env id annot ty
   | _ -> env
-(*
-and tt_file arch_info ?(preloaded=Map.empty) env from loc fname =
-  let fmodule = Proc_mjazz.fmodule_name fname in
-  match Map.find_opt fmodule preloaded, Env.enter_file env from loc fname with
-  | _, None -> env, []
-  | Some ast, Some(env, fname) ->
-    List.fold_left (tt_item arch_info ~preloaded) env ast, ast
-  | None, Some(env, fname) ->
-    let ast = Parseio.parse_program ~name:fname in
-*)
+
 and tt_file_loc arch_info from env fname =
   fst (tt_file arch_info env from (Some (L.loc fname)) (L.unloc fname))
 
@@ -2644,4 +2636,3 @@ let tt_program (arch_info : 'asm P.arch_info) (env : 'asm Env.env) (fname : stri
      rendre au plus un argument (pas un tableau).
    - Verifier les kind dans les applications de fonctions
 *)
-
