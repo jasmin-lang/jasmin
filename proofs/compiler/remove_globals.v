@@ -116,7 +116,7 @@ Section REMOVE.
     Fixpoint remove_glob_e ii (env:venv) (e:pexpr) :=
       match e with
       | Pconst _ | Pbool _ => ok e
-      | Parr_init _ => ok e
+      | Parr_init _ _ => ok e
       | Pvar xi =>
         Let xi := get_var_ ii env xi in
         ok (Pvar xi)

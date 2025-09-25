@@ -31,12 +31,12 @@ Variant arg_position :=
 
 Record instruction_desc := mkInstruction {
   str      : unit -> string;
-  tin      : list stype;
+  tin      : list atype;
   i_in     : seq arg_desc;
-  tout     : list stype;
+  tout     : list atype;
   i_out    : seq arg_desc;
   conflicts: seq (arg_position * arg_position);
-  semi     : sem_prod tin (exec (sem_tuple tout));
+  semi     : sem_prod (map to_ctype tin) (exec (sem_tuple (map to_ctype tout)));
   semu     : forall vs vs' v,
                 List.Forall2 value_uincl vs vs' ->
                 app_sopn_v semi vs = ok v ->
@@ -50,7 +50,7 @@ Record instruction_desc := mkInstruction {
   (* Extra properties ensuring that previous information are consistent *)
   i_safe_wf    : all (fun sc => ssrnat.leq (sc_needed_args sc) (size tin)) i_safe;
     (* id_semi does not generates type error *)
-  i_semi_errty : i_valid -> sem_forall (fun r => r <> Error ErrType) tin semi;
+  i_semi_errty : i_valid -> sem_forall (fun r => r <> Error ErrType) (map to_ctype tin) semi;
     (* safety condition are sufficient to ensure that no error are raised *)
   i_semi_safe  : i_valid -> interp_safe_cond_ty i_safe semi;
 }.
@@ -59,9 +59,9 @@ Arguments semu _ [vs vs' v] _ _.
 
 Notation mk_instr_desc str tin i_in tout i_out semi safe valid semi_errty semi_safe :=
   {| str          := str;
-     tin          := tin;
+     tin          := map to_atype tin;
      i_in         := i_in;
-     tout         := tout;
+     tout         := map to_atype tout;
      i_out        := i_out;
      conflicts    := [::];
      semi         := semi;
@@ -207,11 +207,10 @@ Proof.
 Qed.
 
 Definition Ocopy_instr ws p :=
-  let sz := Z.to_pos (arr_size ws p) in
   {| str      := pp_sz "copy" ws;
-     tin      := [:: sarr sz];
+     tin      := [:: sarr (ws, p)];
      i_in     := [:: E 1];
-     tout     := [:: sarr sz];
+     tout     := [:: sarr (ws, p)];
      i_out    := [:: E 0];
      conflicts:= [::];
      semi     := @WArray.copy ws p;
@@ -256,7 +255,7 @@ Definition Osubcarry_instr sz :=
            (fun x y c => let p := @wsubcarry sz x y c in (Some p.1, p.2))
            true.
 
-Fixpoint spill_semi (tys: seq stype) : sem_prod tys (sem_tuple [::]):=
+Fixpoint spill_semi (tys: seq ctype) : sem_prod tys (sem_tuple [::]):=
   match tys as tys0 return sem_prod tys0 (sem_tuple [::]) with
   | [::] => tt
   | t::tys => fun (_ : sem_t t) => spill_semi tys
@@ -276,38 +275,40 @@ Proof.
 Qed.
 
 Definition Ospill_instr o tys :=
-  let semi := spill_semi tys in
+  let ctys := map to_ctype tys in
+  let semi := spill_semi ctys in
   {| str      := (fun _ => string_of_pseudo_operator (Ospill o tys));
      tin      := tys;
      i_in     := mapi (fun i _ => E i) tys;
      tout     := [:: ];
      i_out    := [:: ];
      conflicts:= [::];
-     semi     := sem_prod_ok tys semi;
-     semu     := @spill_semu tys;
+     semi     := sem_prod_ok ctys semi;
+     semu     := @spill_semu ctys;
      i_safe   := [:: ];
      i_valid  := true;
      i_safe_wf    := refl_equal;
-     i_semi_errty := fun _ => (@sem_prod_ok_error _ tys semi ErrType);
-     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ tys semi);
+     i_semi_errty := fun _ => (@sem_prod_ok_error _ ctys semi ErrType);
+     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ ctys semi);
   |}.
 
 Definition Oswap_instr ty :=
-  let tin := [:: ty; ty] in
-  let semi := @swap_semi ty in
+  let cty := to_ctype ty in
+  let ctys := [:: cty; cty] in
+  let semi := @swap_semi cty in
   {| str    := (fun _ => "swap"%string);
-     tin    := tin;
+     tin    := [:: ty; ty];
      i_in   := [:: E 0; E 1]; (* this info is relevant *)
      tout   := [:: ty; ty];
      i_out  := [:: E 0; E 1]; (* this info is relevant *)
      conflicts:= [::];
-     semi   := sem_prod_ok tin semi;
-     semu   := @swap_semu ty;
+     semi   := sem_prod_ok ctys semi;
+     semu   := @swap_semu cty;
      i_safe := [::];
      i_valid := true;
      i_safe_wf    := refl_equal;
-     i_semi_errty := fun _ => (@sem_prod_ok_error _ tin semi ErrType);
-     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ tin semi);
+     i_semi_errty := fun _ => (@sem_prod_ok_error _ ctys semi ErrType);
+     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ ctys semi);
   |}.
 
 Definition pseudo_op_get_instr_desc (o : pseudo_operator) : instruction_desc :=
@@ -398,22 +399,23 @@ Proof.
 Qed.
 
 Definition SLHprotect_ptr_str := "protect_ptr"%string.
-Definition SLHprotect_ptr_instr p :=
-  let tin := [:: sarr p; ty_msf ] in
-  let semi := @se_protect_ptr_sem p in
+Definition SLHprotect_ptr_instr ws p :=
+  let tin := [:: sarr (ws, p); ty_msf ] in
+  let ctin := map to_ctype tin in
+  let semi := @se_protect_ptr_sem (Z.to_pos (arr_size ws p)) in
   {| str      := pp_s SLHprotect_ptr_str;
      tin      := tin;
      i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
-     tout     := [:: sarr p ];
+     tout     := [:: sarr (ws, p) ];
      i_out    := [:: E 2 ]; (* this info is irrelevant *)
      conflicts:=[::];
-     semi     := sem_prod_ok tin semi;
-     semu     := @protect_ptr_semu p;
+     semi     := sem_prod_ok ctin semi;
+     semu     := @protect_ptr_semu (Z.to_pos (arr_size ws p));
      i_safe   := [::];
      i_valid  := true;
      i_safe_wf    := refl_equal;
-     i_semi_errty := fun _ => (@sem_prod_ok_error _ tin semi ErrType);
-     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ tin semi);
+     i_semi_errty := fun _ => (@sem_prod_ok_error _ ctin semi ErrType);
+     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ ctin semi);
   |}.
 
 Lemma protect_ptr_fail_semu p vs vs' v:
@@ -449,20 +451,20 @@ Proof.
 Qed.
 
 Definition SLHprotect_ptr_fail_str := "protect_ptr_fail"%string.
-Definition SLHprotect_ptr_fail_instr p :=
+Definition SLHprotect_ptr_fail_instr ws p :=
   {| str      := pp_s SLHprotect_ptr_fail_str;
-     tin      := [:: sarr p; ty_msf ];
+     tin      := [:: sarr (ws, p); ty_msf ];
      i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
-     tout     := [:: sarr p ];
+     tout     := [:: sarr (ws, p) ];
      i_out    := [:: E 2 ]; (* this info is irrelevant *)
      conflicts:=[::];
-     semi     := @se_protect_ptr_fail_sem p;
-     semu     := @protect_ptr_fail_semu p;
+     semi     := @se_protect_ptr_fail_sem (Z.to_pos (arr_size ws p));
+     semu     := @protect_ptr_fail_semu (Z.to_pos (arr_size ws p));
      i_safe   := [:: ScFalse]; (* See remark on protect_ptr_fail_safe *)
      i_valid  := true;
      i_safe_wf    := refl_equal;
-     i_semi_errty := fun _ => (@protect_ptr_fail_errty p);
-     i_semi_safe  := fun _ => (@protect_ptr_fail_safe p);
+     i_semi_errty := fun _ => (@protect_ptr_fail_errty (Z.to_pos (arr_size ws p)));
+     i_semi_safe  := fun _ => (@protect_ptr_fail_safe (Z.to_pos (arr_size ws p)));
   |}.
 
 Definition slh_op_instruction_desc  (o : slh_op) : instruction_desc :=
@@ -471,8 +473,8 @@ Definition slh_op_instruction_desc  (o : slh_op) : instruction_desc :=
   | SLHupdate             => SLHupdate_instr
   | SLHmove               => SLHmove_instr
   | SLHprotect ws         => SLHprotect_instr ws
-  | SLHprotect_ptr p      => SLHprotect_ptr_instr p
-  | SLHprotect_ptr_fail p => SLHprotect_ptr_fail_instr p
+  | SLHprotect_ptr ws p      => SLHprotect_ptr_instr ws p
+  | SLHprotect_ptr_fail ws p => SLHprotect_ptr_fail_instr ws p
   end.
 
 (* ---------------------------------------------------------------------- *)
@@ -486,8 +488,8 @@ Definition get_instr_desc o :=
 
 Definition string_of_sopn o : string := str (get_instr_desc o) tt.
 
-Definition sopn_tin o : list stype := tin (get_instr_desc o).
-Definition sopn_tout o : list stype := tout (get_instr_desc o).
+Definition sopn_tin o : list atype := tin (get_instr_desc o).
+Definition sopn_tout o : list atype := tout (get_instr_desc o).
 
 Definition sopn_sem_ o := semi (get_instr_desc o).
 Definition sopn_sem o : exec _ :=
@@ -520,7 +522,7 @@ Definition sopn_prim_string : seq (string * prim_constructor sopn) :=
     ("update_msf" , primM (Oslh SLHupdate));
     ("mov_msf"    , primM (Oslh SLHmove));
     ("protect"    , primP (fun sz => Oslh (SLHprotect sz)));
-    ("protect_ptr", primM (Oslh (SLHprotect_ptr xH))) (* The size is fixed later *)
+    ("protect_ptr", primM (Oslh (SLHprotect_ptr U8 xH))) (* The size is fixed later *)
    ]%string
   ++ map (fun '(s, p) => (s, map_prim_constructor Oasm p)) prim_string.
 

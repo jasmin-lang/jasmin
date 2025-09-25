@@ -51,7 +51,7 @@ Fixpoint wi2w_e (e: pexpr) : pexpr :=
   match e with
   | Pconst _
   | Pbool _
-  | Parr_init _
+  | Parr_init _ _
   | Pvar _
       => e
   | Pget al aa ws x e => Pget al aa ws x (wi2w_e e)

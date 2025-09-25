@@ -72,16 +72,6 @@ Coercion nat_of_wsize (sz : wsize) :=
 Definition wsize_bits (s:wsize) : Z :=
   Zpos (Pos.of_succ_nat (wsize_size_minus_1 s)).
 
-Definition wsize_size (sz: wsize) : Z :=
-  Zpos match sz return positive with
-  | U8   => 1
-  | U16  => 2
-  | U32  => 4
-  | U64  => 8
-  | U128 => 16
-  | U256 => 32
-  end.
-
 Definition wsize_log2 sz : nat :=
   match sz with
   | U8 => 0

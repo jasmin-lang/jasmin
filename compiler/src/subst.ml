@@ -18,7 +18,7 @@ let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gex
   match e with
   | Pconst c -> Pconst c
   | Pbool b  -> Pbool b
-  | Parr_init n -> Parr_init (flen n)
+  | Parr_init (ws, n) -> Parr_init (ws, flen n)
   | Pvar v -> f v
   | Pget (al, aa, ws, v, e) -> Pget(al, aa, ws, gsubst_gvar f v, gsubst_e flen f e)
   | Psub (aa, ws, len, v, e) -> Psub(aa,ws,flen ~loc:(L.loc v.gv) len, gsubst_gvar f v, gsubst_e flen f e)
