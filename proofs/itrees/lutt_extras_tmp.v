@@ -20,7 +20,7 @@ From ITree Require Import
 
 From mathcomp Require Import word_ssrZ ssreflect ssrfun ssrbool eqtype.
 
-Require Import rutt_extras it_exec exec_extras.
+Require Import rutt_extras it_exec exec_extras eutt_extras.
 Require Import expr psem_defs oseq compiler_util.
 Require Import tfam_iso core_logics.
 
@@ -592,6 +592,7 @@ Section Lutt_sec.
 
 Context {E : Type -> Type} {X: FIso E (E1 +' E2)}.
 
+(* lutt is equivalent to inl_safe *)
 Lemma lutt_inl_safe_rel_eq (T : Type) (R : T -> Prop)
   (t : itree E T) :
   (exists t', inl_safe_rel R (translate mfun1 t) t') <->
@@ -749,7 +750,9 @@ Proof.
   exists t; eapply inr_only_inl_safe_refl; auto.
 Qed.
 
-(* alternative version (same proof), with inl_safe1 *)
+(* alternative version (same proof), with inl_safe1.
+   TODO: PROVE inl_safe <-> inl_safe1 INSTEAD 
+ *)
 Lemma inr_only_inl_safe1_refl (T : Type) (t: itree (E1 +' E2) T) :
   inr_only t -> inl_safe1 t.
 Proof.
@@ -1187,6 +1190,27 @@ Lemma inl_safe1_is_ok_eutt (err: R2) (t1 : itree (E1 +' E2) R1) :
   inl_safe1 t1 -> 
   eutt (fun x y => eq (inl x) y) t1 (translate inr1 (FstEval err t1)).
 Proof.
+  unfold inl_safe1.
+  revert t1.
+  pcofix CIH.
+  intros t1 H.
+  punfold H; red in H.
+  pstep; red.
+  remember (observe t1) as ot1.
+  hinduction H before CIH.
+
+  { intros t1 H1; simpl.
+    inv H.
+    rewrite <- H1; simpl.
+    econstructor; auto.
+  }
+Abort.
+
+(* version with inl_safe1: BAD *)
+Lemma inl_safe1_is_ok_eutt (err: R2) (t1 : itree (E1 +' E2) R1) :
+  inl_safe1 t1 -> 
+  eutt (fun x y => eq (inl x) y) t1 (translate inr1 (FstEval err t1)).
+Proof.
   intro H.
   revert H.
   revert t1.
@@ -1195,18 +1219,228 @@ Proof.
   setoid_rewrite (itree_eta_ t1) at 2.  
   punfold H; red in H.
   pstep; red.
-(*  remember (observe t1) as ot1. *)
+  remember (observe t1) as ot1. 
   dependent induction H; simpl.
 
   { rewrite <- x.
     econstructor; auto.
   }
-  { rewrite <- x0 at 1.
-    rewrite <- x.
+  { pclearbot.
+    rewrite <- x0.
+    rewrite <- x0 in x.
+    inv x.
     econstructor. pclearbot.
     right.
+    eapply CIH; auto.
+  }
+  { rewrite <- x0; simpl.
+    rewrite <- x0 in x.
+    dependent destruction x.
+    destruct e1; simpl.
+    - unfold REv_eq in H.
+      destruct H as [C1 C2].
+      unfold is_inr in C1; auto with *.
+    - econstructor; eauto.
+      unfold REv_eq in H.
+      destruct H as [C1 [hh C2]].
+      simpl in *.
+      dependent destruction hh.
+      intros v; unfold Datatypes.id; simpl.
+      specialize (H0 v v).
+      unfold RAns_eq in H0.
+      intuition.
+      assert (forall h : A = A, v = eq_rect A id v A h) as C3.
+      { intros; eauto.
+        dependent destruction h; simpl; auto.
+      }  
+      specialize (H0 C3).
+      pclearbot.
+      right; simpl.
+      eapply CIH; eauto.
+  }
+  { rewrite <- x. simpl in *.
+(*    econstructor.
+    left. pstep; red.
+    eapply IHruttF. *)
+    eapply Eqit.EqTauL; auto. 
+    eapply Eqit.EqTauR; auto.
+    simpl in *.
+    clear x.
+    eapply IHruttF; eauto.
 Abort.    
 
+
+Section Sec2a.
+
+Context {hnd1 : E1 ~> itree E2}.  
+
+(* Local Definition hnd_ext : (E1 +' E2) ~> execT (itree E2) :=
+  @ext_exec_handler E1 E2 hnd1.
+*)
+
+(*
+Lemma eta_hnd T (t: itree E2 T) :
+  eutt eq (interp (ext_handler hnd1) (translate inr1 t)) t.  
+Proof.
+  setoid_rewrite (itree_eta t).
+  revert t.
+  pcofix CIH.
+  intro t.
+  remember (observe t) as ot.
+  destruct ot.
+  { pstep; red. simpl. econstructor; auto. }
+  { pstep; red. simpl. econstructor; eauto.
+    right.
+    setoid_rewrite (itree_eta_ t0).
+    eapply CIH. }
+  { setoid_rewrite translate_vis.
+    setoid_rewrite interp_vis.
+    simpl.
+    unfold id_, Id_Handler, Handler.id_.
+    setoid_rewrite bind_trigger.
+
+ 
+    pstep; red. simpl.
+    econstructor; eauto.
+    intros v. unfold Datatypes.id; simpl.
+    left.
+    setoid_rewrite bind_ret_l.
+*)
+
+(* similar to eutt_extras.rassoc_free_interp_lemma.
+   TODO: do we need the exec version for the error handler?  *)
+Lemma handler_eta T (t: itree E2 T) :
+  eutt eq (interp (ext_handler hnd1) (translate inr1 t)) t.  
+Proof.
+  revert t.
+  ginit; gcofix CIH.
+  intro t.
+  rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot.
+  { gstep; red. simpl. econstructor; auto. }
+  { gstep; red. simpl. econstructor; eauto.
+    gfinal. left. eauto. }
+  { setoid_rewrite translate_vis.
+    setoid_rewrite interp_vis.
+    simpl.
+    unfold id_, Id_Handler, Handler.id_.
+    setoid_rewrite bind_trigger.
+    gstep; red. simpl; econstructor.
+    intros v. unfold Datatypes.id; simpl.
+
+    guclo eqit_clo_trans.
+    econstructor 1 with (RR1:= eq) (RR2:= eq).
+    instantiate (1:= (interp (ext_handler hnd1) (translate inr1 (k v)))). 
+    eapply eqit_Tau_l. reflexivity.
+    reflexivity.
+    gfinal. left.
+    eapply CIH.
+    intros. inv H; auto.
+    intros. inv H; auto.
+  }
+Qed.  
+
+Definition no_left_res (T : Type)
+  (t12 : itree (E1 +' E2) T) (t2 : itree E2 T) : Prop := 
+  rutt (fun U12 U2 (e12: (E1 +' E2) U12) (e2: E2 U2) =>
+              exists h : U2 = U12,
+                e12 = eq_rect U2 (E1 +' E2) (inr1 e2) U12 h)
+       (fun U12 U2 (e12: (E1 +' E2) U12) (u12: U12) (e2: E2 U2) (u2: U2) =>
+               JMeq u12 u2)
+       eq t12 t2.
+
+Lemma handler_rutt_eta T (t12: itree (E1 +' E2) T) (t2 : itree E2 T) :
+  no_left_res t12 t2 ->
+  eutt eq t12 (translate inr1 t2).  
+Proof.
+  revert t12 t2.
+  ginit; gcofix CIH.
+  unfold no_left_res.
+  intros t12 t2 H.
+  setoid_rewrite (itree_eta t12) in H.
+  setoid_rewrite (itree_eta t2) in H.
+  setoid_rewrite (itree_eta t2).
+  remember (observe t12) as ot12.
+  remember (observe t2) as ot2.  
+  punfold H; red in H.
+  simpl in H.   
+  hinduction H before CIH.
+
+  { intros t12 t2 H0 H1.
+    gstep; red.
+    setoid_rewrite <- H0.    
+    simpl.
+    econstructor; auto.
+  }
+  { intros t12 t2 H0 H1.
+    gstep; red.
+    setoid_rewrite <- H0.
+    simpl. pclearbot.
+    econstructor; eauto.
+    gfinal. left.
+    eapply CIH; auto.
+  }
+  { intros t12 t2 H1 H2.
+    gstep; red.
+    setoid_rewrite <- H1.
+    simpl.
+    destruct H as [ee H].
+    dependent destruction ee.
+    destruct e1 as [e1 | e2'].
+    { simpl in H; congruence. }
+    simpl in H. inv H.  
+    econstructor.
+    intros v; unfold Datatypes.id; simpl.
+    gfinal; left.
+    pclearbot.
+    eapply CIH; auto.
+    eapply H0; auto.
+  }
+  { intros t12 t2 H0 H1.
+    setoid_rewrite (itree_eta t12).
+    setoid_rewrite <- H0.
+    
+    guclo eqit_clo_trans.
+    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
+
+    instantiate (1:= t1).
+    eapply eqit_Tau_l; reflexivity.
+    reflexivity.
+    pclearbot.
+    eapply IHruttF; auto.
+    exact H1.
+    intros. inv H2; auto.
+    intros. inv H2; auto.
+  }
+
+  { intros t12 t2' H0 H1.
+    setoid_rewrite (itree_eta t12).
+    setoid_rewrite <- H0.
+    
+    guclo eqit_clo_trans.
+    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
+
+    3: { eapply IHruttF.
+         exact H0.
+         reflexivity.
+    }
+
+    { inv H0; simpl.
+      setoid_rewrite (itree_eta t12) at 2.
+      reflexivity.
+    }  
+    { setoid_rewrite translate_tau.
+      eapply eqit_Tau_l.
+      setoid_rewrite (itree_eta t2) at 1.
+      reflexivity.
+    }  
+    { intros. inv H2; auto. }
+    { intros. inv H2; auto. }
+  }
+Qed.  
+    
+     
 Lemma inl_safe_ret (r: R1) : @inl_safe E1 E2 R1 (Ret r).
 Proof.
   unfold inl_safe.
@@ -1362,6 +1596,8 @@ Hint Constructors extrF : itree.
   Definition extr : itree (E1 +' E2) R1 -> itree E2 R1 -> Prop :=
     paco2 extr_ bot2.
   Hint Unfold extr : itree.
+
+End Sec2a.
   
 End NewSec1.
 
