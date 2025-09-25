@@ -49,8 +49,16 @@ let parse_and_extract arch call_conv idirs =
         exit 1
 
 let model =
-  let alts =
-    [ ("normal", Normal); ("CT", ConstantTime); ("CTG", ConstantTimeGlobal) ]
+  let with_decl = function
+    | "normal" -> "D"
+    | s -> s ^ "+D"
+  in
+  let models (kw, mode) = [
+    (kw, (mode, Normal));
+    (with_decl kw, (mode, DeclassifyConstant))
+  ] in
+  let alts = List.concat_map models
+    [ ("CT", ConstantTime); ("CTG", ConstantTimeGlobal); ("normal", Normal) ]
   in
   let doc =
     "Extraction model.
@@ -59,9 +67,11 @@ let model =
     'cryptographic constant time' (if/while conditions, memory access
     addresses, array indices, for loop bounds).
     (Deprecated) $(b,CTG): Cryptographic constant time leakage is added to a
-    global variable."
+    global variable.
+    These options can be suffixed with a $(b,+D) in order to obtain
+    declassified value leakage (as in $(b,D), $(b,CT+D) and $(b,CTG+D))."
   in
-  Arg.(value & opt (Arg.enum alts) Normal & info [ "m"; "model" ] ~doc)
+  Arg.(value & opt (Arg.enum alts) (Normal, Normal) & info [ "m"; "model" ] ~doc)
 
 let array_model =
   let alts =
