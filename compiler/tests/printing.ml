@@ -176,7 +176,7 @@ let eq_pmod_items x y = List.for_all2 eq_pmod_item x y
 let parse arch_info fname =
   try
     try
-      let _,_, pprog = Compile.parse_file arch_info fname in
+      let _,_, pprog,_ = Compile.parse_file arch_info fname in
       pprog
     with Pretyping.TyError (loc, msg) ->
       hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror msg

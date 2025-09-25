@@ -40,4 +40,4 @@ and  ('len,'info,'asm) gmodule_item =
 type ('len,'info,'asm) gmprog = ('len,'info,'asm) gmodule_item list
    (* first declaration occur at the end (i.e reverse order) *)
 
-type ('info, 'asm) mpprog = (pexpr,'info,'asm) gmprog
+type ('info, 'asm) mpprog = (pexpr_,'info,'asm) gmprog

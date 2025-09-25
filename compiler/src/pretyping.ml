@@ -1,5 +1,6 @@
 (* -------------------------------------------------------------------- *)
 open Utils
+open Pretyping_utils
 module Path = BatPathGen.OfString
 module F = Format
 module L = Location
@@ -166,6 +167,7 @@ let pp_tyerror fmt (code : tyerror) =
         (L.tostring (L.loc oldtype))
         pp_eptype (L.unloc oldtype)
 
+  
   | TypeNotFound (id) ->
       F.fprintf fmt
       "Type '%s' not found"
@@ -241,7 +243,7 @@ let fully_qualified (stack: (A.symbol * 'a) list) n =
 
 type fun_sig = { fs_tin : P.epty list ; fs_tout : P.epty list }
 
-module Env (* : sig
+module Env : sig
   type 'asm env
 
   val empty : 'asm env
@@ -291,7 +293,7 @@ module Env (* : sig
     val get  : 'asm env -> (P.funname * (Z.t * Z.t) list) L.located list
   end
 
-end *) = struct
+end  = struct
 
   type loader =
     { loaded : (A.symbol, Path.t list) Map.t (* absolute path loaded in each namespace *)
@@ -1747,13 +1749,6 @@ let pexpr_of_plvalue exn l =
   | S.PLMem(al,ty,e) -> L.mk_loc (L.loc l) (S.PEFetch(al,ty,e))
 
 
-type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {
-  pd : Wsize.wsize;
-  asmOp : ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Sopn.sopn Sopn.asmOp;
-  known_implicits : (CoreIdent.Name.t * string) list;
-  flagnames: CoreIdent.Name.t list;
-}
-
 let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
   let loc = loc_of_tuples loc (List.map P.L.loc pls) in
 
@@ -1993,38 +1988,37 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
 
   | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None when L.unloc f = "swap" ->
-      if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "swap expects no implicit arguments");
-      let lvs, ty =
+      let loc = L.loc pi in
+      if ls <> None then rs_tyerror ~loc (string_error "swap expects no implicit arguments");
+      let ty, es =
+        match args with
+        | [ ex ; ey ] ->
+           let x, xty = tt_expr arch_info.pd env_rhs ex in
+           let y, yty = tt_expr arch_info.pd env_rhs ey in
+           let ty = Option.get_exn  (max_ty xty yty)
+                      (tyerror ~loc:(L.loc ey) (TypeMismatch (yty, xty))) in
+           let () = match ty with
+             | P.ETarr _ -> ()
+             | P.ETword(None, ws) when ws <= U64 -> ()
+             | _ ->
+                let w = match ty with P.ETword(w, ws) -> w | _ -> None in
+                let ty = match P.gty_of_gety ty with P.Bty ty -> ty | _ -> assert false in
+                rs_tyerror ~loc:(L.loc pi)
+                  (string_error "the swap primitive is not available at type %a"
+                     (PrintCommon.pp_btype ?w) ty)
+           in
+           ty, [ cast loc x xty ty ; cast loc y yty ty ]
+        | _ -> rs_tyerror ~loc (InvalidArgCount (List.length args, 2))
+      in
+      let lvs =
         match xs with
-        | [x; y] ->
-          let loc, x, oxty = tt_lvalue arch_info.pd env_lhs x in
-          let yloc, y, _oytu = tt_lvalue arch_info.pd env_lhs y in
-          let ty =
-            match oxty with
-            | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
-            | Some ty -> ty in
-          let _ =
-             match oxty with
-            | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
-            | Some yty -> check_ty_eq ~loc:yloc ~from:yty ~to_:ty in
-          [x ty; y ty], ty
-        | _ ->
-          rs_tyerror ~loc:(L.loc pi)
-            (string_error "a pair of destination is expected for swap")
+        | [ x ; y ] ->
+           let _, x, _ = tt_lvalue arch_info.pd env_lhs x in
+           let _, y, _ = tt_lvalue arch_info.pd env_lhs y in
+           [ x ty ; y ty ]
+        | _ -> rs_tyerror ~loc (InvalidArgCount (List.length xs, 2))
       in
-      let () = match ty with
-        | P.ETarr _ -> ()
-        | P.ETword(None, ws) when ws <= U64 -> ()
-        | _ ->
-          let w = match ty with P.ETword(w, ws) -> w | _ -> None in
-          let ty = match P.gty_of_gety ty with P.Bty ty -> ty | _ -> assert false in
-            rs_tyerror ~loc:(L.loc pi)
-              (string_error "the swap primitive is not available at type %a"
-                 (PrintCommon.pp_btype ?w) ty)
-
-      in
-      let es = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args [ty; ty] in
-      let p = Sopn.Opseudo_op (Oswap Type.Coq_sbool) in  (* The type is fixed latter *)
+      let p = Sopn.Opseudo_op (Oswap Type.Coq_sbool) in  (* The type is fixed later *)
       [mk_i (P.Copn(lvs, Option.default default_tag tag, p, es))]
 
   | ls, `Raw, { pl_desc = PEPrim (f, args) }, None ->
@@ -2448,16 +2442,7 @@ let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
      env
   | S.PTypeAlias (id,ty) -> tt_typealias arch_info env id ty
   | _ -> env
-(*
-and tt_file arch_info ?(preloaded=Map.empty) env from loc fname =
-  let fmodule = Proc_mjazz.fmodule_name fname in
-  match Map.find_opt fmodule preloaded, Env.enter_file env from loc fname with
-  | _, None -> env, []
-  | Some ast, Some(env, fname) ->
-    List.fold_left (tt_item arch_info ~preloaded) env ast, ast
-  | None, Some(env, fname) ->
-    let ast = Parseio.parse_program ~name:fname in
-*)
+
 and tt_file_loc arch_info from env fname =
   fst (tt_file arch_info env from (Some (L.loc fname)) (L.unloc fname))
 
@@ -2485,4 +2470,3 @@ let tt_program arch_info (env : 'asm Env.env) (fname : string) =
      rendre au plus un argument (pas un tableau).
    - Verifier les kind dans les applications de fonctions
 *)
-

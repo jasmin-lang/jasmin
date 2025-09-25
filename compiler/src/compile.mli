@@ -14,7 +14,7 @@ val preprocess : wsize -> 'asm asmOp -> (unit, 'asm) pprog -> (unit, 'asm) prog
  *)
 
 val parse_file :
-  ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Pretyping.arch_info ->
+  ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Pretyping_utils.arch_info ->
   ?idirs: (string * string) list ->
   string ->
   string list list
