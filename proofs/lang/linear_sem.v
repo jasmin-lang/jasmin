@@ -121,7 +121,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     let sig := syscall_sig o in
     Let ves := get_vars true s1.(lvm) sig.(scs_vin) in
     Let: (scs, m, vs) :=
-      exec_syscall (semCallParams := sCP_stack) s1.(lscs) s1.(lmem) o ves
+      exec_syscall (sCP := sCP_stack) s1.(lscs) s1.(lmem) o ves
     in
     let s :=
       {|
