@@ -78,9 +78,9 @@ module type Arch = sig
   val all_registers : var list
   val syscall_kill : Sv.t
 
-  val callstyle : var callstyle
-
-  val arch_info : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Pretyping.arch_info
+  val callstyle : var callstyle 
+  
+  val arch_info : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Pretyping_utils.arch_info
 
   val is_ct_sopn : ?doit:bool -> extended_op -> bool
 end

@@ -355,7 +355,7 @@ let pp_path fmt s =
   F.fprintf fmt "%S " (L.unloc s)
 
 let pp_modsig fmt msig =
-  let pp_modsigparam fmp p =
+  let pp_modsigparam _ p =
     indent fmt 1;
     match p with
     | MSparam (t,i) -> F.fprintf fmt "%a %a %a;" kw "param" pp_type t dname (L.unloc i)
@@ -391,7 +391,7 @@ let rec pp_pitem fmt pi =
      List.iter (pp_pitem fmt) pis;
      F.fprintf fmt eol;
      closebrace fmt ()
-  | PTypeAlias (id,ty) -> pp_typealias fmt id ty (**)
+  | PTypeAlias (id,ty) -> pp_typealias fmt id ty
   | PModule (mn, msig, pis) ->
      (* TODO: ident within modules? *)
      F.fprintf fmt "%a %s " kw "module" (L.unloc mn);

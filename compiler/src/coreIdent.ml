@@ -55,6 +55,12 @@ let gty_of_gety (t: 'len gety) : 'len gty =
   | ETword(_, ws) -> tu ws
   | ETarr(ws, len) -> Arr(ws, len)
 
+let gety_of_gty (t: 'len gty) : 'len gety =
+  match t with
+  | Bty Bool -> ETbool
+  | Bty Int  -> ETint
+  | Bty U ws  -> ETword(None, ws)
+  | Arr(ws, len) -> ETarr(ws, len)
 (* ------------------------------------------------------------------------ *)
 
 type 'len gvar = {

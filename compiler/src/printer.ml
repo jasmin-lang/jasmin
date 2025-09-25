@@ -356,7 +356,7 @@ let pp_gmdecl pp_var pp_size fmt = function
 let pp_gmparams pp_var pp_size fmt l =
   match l with
   | [] -> ()
-  | p::ps ->
+  | _ ->
     F.fprintf fmt "@[<v>with %a @]"
       (pp_list "@ " (pp_gmdecl pp_var pp_size)) l
 
@@ -394,10 +394,10 @@ and pp_gmprog ~debug rr pp_len pp_opn pp_var fmt p =
     (pp_list "@," (pp_gmitem ~debug rr pp_len pp_opn pp_var))
     p
 
-let pp_mpprog pd asmOp fmt p =
-  let pp_opn = pp_opn pd asmOp in
+let pp_mpprog ~debug pd msfsz asmOp fmt p =
+  let pp_opn = pp_opn pd msfsz asmOp in
   Format.fprintf fmt "@[<v>%a@]"
-    (pp_gmprog true pp_pexpr pp_opn pp_pvar) p
+    (pp_gmprog ~debug true (pp_pexpr_ ~debug) pp_opn pp_pvar) p
 
 let pp_fun_ ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in

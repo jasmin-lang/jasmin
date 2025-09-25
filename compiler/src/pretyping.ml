@@ -2,6 +2,7 @@
 open Utils
 open FunctionAnnotations
 open Operators
+open Pretyping_utils
 module Path = BatPathGen.OfString
 module F = Format
 module L = Location
@@ -168,6 +169,7 @@ let pp_tyerror fmt (code : tyerror) =
         (L.tostring (L.loc oldtype))
         pp_eptype (L.unloc oldtype)
 
+  
   | TypeNotFound (id) ->
       F.fprintf fmt
       "Type '%s' not found"
@@ -243,7 +245,7 @@ let fully_qualified (stack: (A.symbol * 'a) list) n =
 
 type fun_sig = { fs_tin : P.epty list ; fs_tout : P.epty list }
 
-module Env (* : sig
+module Env : sig
   type 'asm env
 
   val empty : 'asm env
@@ -293,7 +295,7 @@ module Env (* : sig
     val get  : 'asm env -> (P.funname * (Z.t * Z.t) list) L.located list
   end
 
-end *) = struct
+end  = struct
 
   type loader =
     { loaded : (A.symbol, Path.t list) Map.t (* absolute path loaded in each namespace *)
@@ -1753,13 +1755,6 @@ let pexpr_of_plvalue exn l =
   | S.PLMem(al,ty,e) -> L.mk_loc (L.loc l) (S.PEFetch(al,ty,e))
 
 
-type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {
-  pd : Wsize.wsize;
-  asmOp : ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Sopn.sopn Sopn.asmOp;
-  known_implicits : (CoreIdent.Name.t * string) list;
-  flagnames: CoreIdent.Name.t list;
-}
-
 let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
   let pimp = Option.map (fun pimp -> L.mk_loc (L.loc pimp) (pannot_to_annotations (L.unloc pimp))) pimp in
   let loc = loc_of_tuples loc (List.map P.L.loc pls) in
@@ -2395,16 +2390,7 @@ let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
      env
   | S.PTypeAlias (id,ty) -> tt_typealias arch_info env id ty
   | _ -> env
-(*
-and tt_file arch_info ?(preloaded=Map.empty) env from loc fname =
-  let fmodule = Proc_mjazz.fmodule_name fname in
-  match Map.find_opt fmodule preloaded, Env.enter_file env from loc fname with
-  | _, None -> env, []
-  | Some ast, Some(env, fname) ->
-    List.fold_left (tt_item arch_info ~preloaded) env ast, ast
-  | None, Some(env, fname) ->
-    let ast = Parseio.parse_program ~name:fname in
-*)
+
 and tt_file_loc arch_info from env fname =
   fst (tt_file arch_info env from (Some (L.loc fname)) (L.unloc fname))
 
@@ -2432,4 +2418,3 @@ let tt_program arch_info (env : 'asm Env.env) (fname : string) =
      rendre au plus un argument (pas un tableau).
    - Verifier les kind dans les applications de fonctions
 *)
-

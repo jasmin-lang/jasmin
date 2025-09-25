@@ -1,0 +1,12 @@
+require "u.mjazz"
+
+param int n = n;
+
+fn f() { }
+
+module M1 {
+
+ param int n = U::n;
+ fn f() { }
+
+}

@@ -122,7 +122,7 @@ let main () =
         | Some conf -> SafetyConfig.load_config conf
         | None -> () in
 
-    let depends, to_exec, pprog, mprog =
+    let depends, to_exec, pprog, _ =
       try Compile.parse_file Arch.arch_info ~idirs:!Glob_options.idirs infile
       with
       | Annot.AnnotationError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
@@ -137,7 +137,7 @@ let main () =
           hierror ~loc:(Lone loc) ~kind:"parse error" "%s" msg
     in
 
-    eprint Compiler.MJazzProc (Printer.pp_mpprog Arch.reg_size Arch.asmOp) mprog;
+    (* eprint Compiler.MJazzProc (Printer.pp_mpprog Arch.reg_size Arch.asmOp) mprog; *)
 
     if !print_dependencies then begin
       Format.printf "%a"

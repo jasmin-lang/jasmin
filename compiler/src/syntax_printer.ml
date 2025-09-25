@@ -1,7 +1,6 @@
 (* * Pretty-print Jasmin program (concrete syntax) (TODO: FIX THIS...) *)
 
 open Utils
-open Annotations
 open Syntax
 
 module F = Format
@@ -142,38 +141,10 @@ let pp_aligned =
       F.fprintf fmt "%a%a " sharp () pannot (string_of_align al)
     )
 
-let rec pp_simple_attribute fmt a = 
-  match L.unloc a with 
-  | Aint i -> Z.pp_print fmt i
-  | Aid s | Astring s -> Format.fprintf fmt "%s" s
-  | Aws ws -> Format.fprintf fmt "%a" ptype (string_of_wsize ws)
-  | Astruct struct_ -> Format.fprintf fmt "(%a)" pp_struct_attribute struct_
-
-and pp_struct_attribute fmt struct_ =
-  Format.fprintf fmt "@[<hov 2>%a@]" (pp_list ",@ " pp_annotation) struct_
-
-and pp_attribute fmt = function
-  | Some a -> Format.fprintf fmt "@ =@ %a" pp_simple_attribute a
-  | None -> ()
-
-and pp_annotation fmt (id, atr) =
-  Format.fprintf fmt "@[%a%a@]" pp_attribute_key (L.unloc id) pp_attribute atr
-
-  let pp_top_annotations fmt annot =
-  match annot with
-  | []  -> ()
-  | [a] -> Format.fprintf fmt "@[%a%a\\\\@]\n" sharp () pp_annotation a
-  | _   -> Format.fprintf fmt "#[%a]" pp_struct_attribute annot
-
-  let pp_inline_annotations fmt annot =
-    match annot with
-    | []  -> ()
-    | [a] -> Format.fprintf fmt "%a%a " sharp () pp_annotation a
-    | _   -> Format.fprintf fmt "#[%a]" pp_struct_attribute annot
-  
   let rec pp_expr_rec prio fmt pe =
   match L.unloc pe with
   | PEParens e -> pp_expr_rec prio fmt e
+  | PEstring s -> pp_string fmt s
   | PEVar x -> pp_var fmt x
   | PEGet (al, aa, ws, x, e, len) ->
     pp_arr_access fmt al aa ws x e len
@@ -229,6 +200,36 @@ and pp_arr_access fmt al aa ws x e len=
     pp_aligned (Option.bind len (fun _ -> al))
     (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e pp_olen len
 
+let rec pp_simple_attribute fmt a = 
+  match L.unloc a with 
+  | PAstring s -> Format.fprintf fmt "%s" s
+  | PAws ws -> Format.fprintf fmt "%a" ptype (string_of_wsize ws)
+  | PAstruct struct_ -> Format.fprintf fmt "(%a)" pp_struct_attribute struct_
+  | PAexpr e -> Format.fprintf fmt "%a" pp_expr e
+
+and pp_struct_attribute fmt struct_ =
+  Format.fprintf fmt "@[<hov 2>%a@]" (pp_list ",@ " pp_annotation) struct_
+
+and pp_attribute fmt = function
+  | Some a -> Format.fprintf fmt "@ =@ %a" pp_simple_attribute a
+  | None -> ()
+
+and pp_annotation fmt (id, atr) =
+  Format.fprintf fmt "@[%a%a@]" pp_attribute_key (L.unloc id) pp_attribute atr
+
+  let pp_top_annotations fmt annot =
+  match annot with
+  | []  -> ()
+  | [a] -> Format.fprintf fmt "@[%a%a\\\\@]\n" sharp () pp_annotation a
+  | _   -> Format.fprintf fmt "#[%a]" pp_struct_attribute annot
+
+  let pp_inline_annotations fmt annot =
+    match annot with
+    | []  -> ()
+    | [a] -> Format.fprintf fmt "%a%a " sharp () pp_annotation a
+    | _   -> Format.fprintf fmt "#[%a]" pp_struct_attribute annot
+  
+
 let pp_writable = function
   | Some `Constant -> " const"
   | Some `Writable -> " mut"
@@ -237,8 +238,8 @@ let pp_writable = function
 let pp_pointer = function
   | `Pointer w-> pp_writable w ^ " ptr"
   | `Direct  -> ""
-  
-  
+
+
 let pp_storage fmt s =
   F.fprintf fmt "%s"
     (match s with
@@ -301,6 +302,7 @@ let rec pp_instr depth fmt (annot, p) =
   indent fmt depth;
   match L.unloc p with
   | PIdecl (sty,vds) -> F.fprintf fmt "%a %a;" pp_sto_ty sty (pp_list " " pp_var) vds
+  | PIAssert (_,e) ->  F.fprintf fmt "@[<hov 2>assert(%a);@]" pp_expr e
   | PIdeclinit (sty, vds) ->
      F.fprintf fmt "%a %a;" pp_sto_ty sty (pp_list ", " pp_varinit) vds
   | PIArrayInit x -> F.fprintf fmt "%a (%a);" kw "arrayinit" pp_var x
@@ -400,13 +402,12 @@ let pp_param fmt { ppa_ty ; ppa_name ; ppa_init } =
   F.fprintf fmt eol
 
 let pp_pgexpr fmt = function
-  | GEword e -> pp_expr fmt e 
+  | GEexpr e -> pp_expr fmt e 
   | GEarray es ->
     F.fprintf fmt "%a @[%a@] %a"
       openbrace ()
       (pp_list ",@ " pp_expr) es
       closebrace ()
-  | GEstring e -> pp_string fmt e
 
 let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
   F.fprintf fmt "%a %a = %a;"
@@ -419,7 +420,7 @@ let pp_path fmt s =
   F.fprintf fmt "%S " (L.unloc s)
 
 let pp_modsig fmt msig =
-  let pp_modsigparam fmp p =
+  let pp_modsigparam _ p =
     indent fmt 1;
     match p with
     | MSparam (t,i) -> F.fprintf fmt "%a %a %a;" kw "param" pp_type t dname (L.unloc i)
@@ -460,7 +461,7 @@ let rec pp_pitem fmt pi =
      F.fprintf fmt eol;
      closebrace fmt ();
      F.fprintf fmt eol
-  | PTypeAlias (id,ty) -> pp_typealias fmt id ty (**)
+  | PTypeAlias (id,ty) -> pp_typealias fmt id ty
   | PModule (mn, msig, pis) ->
      (* TODO: ident within modules? *)
      F.fprintf fmt "%a %s " kw "module" (L.unloc mn);
