@@ -61,7 +61,6 @@ let gety_of_gty (t: 'len gty) : 'len gety =
   | Bty Int  -> ETint
   | Bty U ws  -> ETword(None, ws)
   | Arr(ws, len) -> ETarr(ws, len)
-
 (* ------------------------------------------------------------------------ *)
 
 type 'len gvar = {

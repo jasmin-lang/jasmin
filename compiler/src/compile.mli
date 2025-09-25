@@ -14,8 +14,8 @@ val preprocess :
     Raises `Typing.TyError`. *)
 
 val parse_file :
-  ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Pretyping.arch_info ->
-  ?idirs:(string * string) list ->
+  ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Pretyping_utils.arch_info ->
+  ?idirs: (string * string) list ->
   string ->
   string list list
   * (funname * (Z.t * Z.t) list) Location.located list

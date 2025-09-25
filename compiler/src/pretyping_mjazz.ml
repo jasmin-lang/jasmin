@@ -2,6 +2,7 @@
 open Utils
 open FunctionAnnotations
 open Operators
+open Pretyping_utils
 module Path = BatPathGen.OfString
 module F = Format
 module L = Location
@@ -39,7 +40,7 @@ type tyerror =
   | InvalidTypeAlias    of A.symbol L.located option * P.epty
   | InvalidCast         of P.epty pair
   | InvalidTypeForGlobal of P.epty
-  | GlobArrayNotWord    
+  | GlobArrayNotWord
   | GlobWordNotArray
   | EqOpWithNoLValue
   | CallNotAllowed
@@ -48,7 +49,6 @@ type tyerror =
   | UnknownPrim of A.symbol * string
   | PrimWrongSuffix of A.symbol * Sopn.prim_x86_suffix list
   | PtrOnlyForArray
-  | WriteToConstantPointer of A.symbol
   | PackSigned
   | PackWrongWS of int
   | PackWrongPE of int
@@ -87,7 +87,6 @@ let pp_suffix fmt =
   | PVvv (ve, sz, ve', sz') -> F.fprintf fmt "_%s_%s" (string_of_velem Unsigned sz ve) (string_of_velem Unsigned sz' ve')
 
 let pp_tyerror fmt (code : tyerror) =
-  (* We do not need the extra verbosity of [debug] in this context *)
   let pp_eptype = Printer.pp_eptype ~debug:false in
   match code with
   | UnknownVar x ->
@@ -95,7 +94,6 @@ let pp_tyerror fmt (code : tyerror) =
 
   | UnknownFun x ->
       F.fprintf fmt "unknown function: `%s'" x
-  
   | InvalidArrayType ty ->
     F.fprintf fmt "the expression has type %a instead of array"
        pp_eptype ty
@@ -107,7 +105,7 @@ let pp_tyerror fmt (code : tyerror) =
 
   | InvalidCast (t1,t2) ->
     F.fprintf fmt "can not implicitly cast %a into %a"
-      pp_eptype t1 pp_eptype t2        
+      pp_eptype t1 pp_eptype t2
 
   | InvalidTypeForGlobal ty ->
       F.fprintf fmt "globals should have type word; found: ‘%a’"
@@ -119,10 +117,10 @@ let pp_tyerror fmt (code : tyerror) =
   | GlobWordNotArray ->
     F.fprintf fmt "the definition is a word and not an array"
 
-  | InvalidOperator o -> 
-    F.fprintf fmt "invalid operator %s" 
-      (match o with 
-       | `Op2 o -> (S.string_of_peop2 o) 
+  | InvalidOperator o ->
+    F.fprintf fmt "invalid operator %s"
+      (match o with
+       | `Op2 o -> (S.string_of_peop2 o)
        | `Op1 o -> (S.string_of_peop1 o))
 
   | NoOperator (`Op2 o, ts) ->
@@ -189,7 +187,7 @@ let pp_tyerror fmt (code : tyerror) =
       id
 
   | InvalidTypeAlias (id,typ) ->
-    let pp_id fmt (id, typ) =
+      let pp_id fmt (id, typ) =
         match id with
         | None -> F.fprintf fmt "'%a'" pp_eptype typ
         | Some id ->
@@ -223,11 +221,8 @@ let pp_tyerror fmt (code : tyerror) =
      F.fprintf fmt "primitive “%s” only accepts the following size annotations: %a" s
        (pp_list ",@ " pp_suffix) sfxs
 
-  | PtrOnlyForArray -> 
+  | PtrOnlyForArray ->
     F.fprintf fmt "Pointer allowed only on array"
-
-  | WriteToConstantPointer v ->
-    F.fprintf fmt "Cannot write to the constant pointer %s" v
 
   | PackSigned ->
     F.fprintf fmt "packs should be unsigned"
@@ -262,7 +257,6 @@ let fully_qualified (stack: (A.symbol * 'a * bool) list) n =
     List.fold_left (fun n (ns, _, ons) -> if ons then n else qualify ns n) n stack 
 
 (* -------------------------------------------------------------------- *)
-
 type fun_sig = { fs_tin : P.epty list ; fs_tout : P.epty list }
 
 module Env (* : sig
@@ -435,8 +429,8 @@ end *) = struct
   let err_duplicate_fun name (v, _) (fd, _) =
     rs_tyerror ~loc:v.f_loc (DuplicateFun(name, fd.f_loc))
 
-  let warn_duplicate_fun name (_v, _) (v', _) =
-    warning DuplicateFun (L.i_loc0 v'.f_loc)
+  let warn_duplicate_fun name (v, _) (v', _) =
+    warning DuplicateFun (L.i_loc0 v.f_loc)
       "the function %s hides previous declaration at %a"
       name L.pp_loc v'.f_loc
 
@@ -449,7 +443,7 @@ end *) = struct
 
   let merge_bindings (ns, src) dst =
     { gb_vars = merge_bindings warn_duplicate_var ns src.gb_vars dst.gb_vars
-    ; gb_funs = merge_bindings warn_duplicate_fun ns src.gb_funs dst.gb_funs
+    ; gb_funs = merge_bindings err_duplicate_fun ns src.gb_funs dst.gb_funs
     ; gb_types = merge_bindings err_duplicate_type ns src.gb_types dst.gb_types
     ; gb_modules = merge_bindings err_duplicate_module ns src.gb_modules dst.gb_modules
     }
@@ -457,7 +451,7 @@ end *) = struct
   let rec exit_namespace st =
     match st.s_bindings with
     | [], _ -> assert false
-    | (ns,_,true) :: _, _bot ->
+    | (ns,_,true) :: _, _ ->
       rs_tyerror ~loc:(L._dummy) (string_error "Internal Error: opened namespace %s only supported in MJazz mode" ns)
     | (ns1,bs1,_) :: [], bot ->
       let merged = merge_bindings (ns1,bs1) bot
@@ -519,7 +513,6 @@ end *) = struct
   let exit_file env =
     { env with
       e_loader = { env.e_loader with dirs = List.tl env.e_loader.dirs }}
-    
   let decls env = env.e_decls
 
   let dependencies env =
@@ -530,9 +523,9 @@ end *) = struct
     let rec loop x =
       function
       | [] -> None
-      | (_ns, top, _) :: stack ->
-(*        if !Glob_options.debug
-        then Printf.eprintf "%s:%d \n" ns (Map.cardinal (proj top)); *)
+      | (ns, top, _) :: stack ->
+        if !Glob_options.debug
+        then Printf.eprintf "%s:%d \n" ns (Map.cardinal (proj top));
         match Map.find x (proj top) with
         | exception Not_found -> loop x stack
         | v -> Some v
@@ -554,14 +547,14 @@ end *) = struct
     in let rec loop =
       function
       | [] -> ()
-      | (_ns, top, _) :: stack ->
+      | (_, top, _) :: stack ->
         Printf.eprintf "[";
-        Map.iter (fun k _v -> Printf.eprintf "%s," k ) (proj top);
+        Map.iter (fun k _ -> Printf.eprintf "%s" k ) (proj top);
         Printf.eprintf "]\n";
         loop stack
     in loop stack;
     Printf.eprintf "[";
-    Map.iter (fun k _v -> Printf.eprintf "%s," k ) (proj bot);
+    Map.iter (fun k _ -> Printf.eprintf "%s" k ) (proj bot);
     Printf.eprintf "]\n"
 
   let dbg_modules (st: 'asm store) =
@@ -569,7 +562,7 @@ end *) = struct
     in let rec loop =
       function
       | [] -> ()
-      | (_ns, top, _) :: stack ->
+      | (_, top, _) :: stack ->
         Map.iter (fun k v -> Printf.eprintf "%s=%s " k (L.unloc v)) top.gb_modules;
         Printf.eprintf " ; ";
         loop stack
@@ -621,7 +614,9 @@ end *) = struct
     let rename_var name x =
       P.GV.mk name x.P.v_kind x.P.v_ty x.P.v_dloc x.P.v_annot
 
-    let push_global (st: 'asm store) (x, ty, e) =
+    let push_global (st: 'asm store) (x,ty, e) =
+(*      if !Glob_options.debug
+      then Printf.eprintf "push_global var \"%s\" \n%!" x.P.v_name;*)
       let name = x.P.v_name
       in let x = rename_var (fully_qualified (fst st.s_bindings) name) x
       in let st = push_core st name x ty Sglob
@@ -631,12 +626,12 @@ end *) = struct
       let name = x.P.v_name
       in let x = rename_var (fully_qualified (fst st.s_bindings) name) x
       in push_core st name x ty Sglob
-(*
-    let push_param' st (x, e, enorm) =
-      let st = push_core st x.P.v_name x Slocal
+
+    let push_param' st (x, ty, e, enorm) =
+      let st = push_core st x.P.v_name x ty Slocal
       in let st = { st with s_params = Map.add x enorm st.s_params }
       in st, [P.MIparam (x, e)]
-*)
+
     let push_param st (x, ty, e, enorm) =
       let name = x.P.v_name
       in let x = rename_var (fully_qualified (fst st.s_bindings) name) x
@@ -911,8 +906,7 @@ let tt_var_core (mode:tt_mode) (st : 'asm Env.store) { L.pl_desc = x; L.pl_loc =
     if !Glob_options.debug
     then Printf.eprintf "lookup var \"%s\" \n%!" x; 
     match Env.Vars.find x st with
-    | Some vs -> 
-      vs
+    | Some vs -> vs
     | None -> 
       rs_tyerror ~loc:lc (UnknownVar x)
   in
@@ -932,9 +926,9 @@ let tt_var (mode:tt_mode) (st : 'asm Env.store) x =
     rs_tyerror ~loc:(L.loc x) (StringError "global variables are not allowed here");
   v, ty
 
-let tt_var_global (mode:tt_mode) (st : 'asm Env.store) v = 
+let tt_var_global (mode:tt_mode) (st : 'asm Env.store) v =
   let lc = v.L.pl_loc in
-  let x, ty, s = tt_var_core mode st v in
+  let x, ts, s = tt_var_core mode st v in
   let xval =
     match mode with
     | `OnlyParam ->
@@ -942,22 +936,34 @@ let tt_var_global (mode:tt_mode) (st : 'asm Env.store) v =
       then (Printf.eprintf "\nlookup param value for %s\n" x.P.v_name);
       Some (Map.find x st.s_params) (* remark: x \in map when "tt_var_core `OnlyParam ..." *)
     | _ -> None
-  in { P.gv = L.mk_loc lc x; P.gs = s }, ty, xval
+  in { P.gv = L.mk_loc lc x; P.gs = s }, ts, xval
 
 (* -------------------------------------------------------------------- *)
 let tt_fun { L.pl_desc = x; L.pl_loc = loc; } (st : 'asm Env.store) =
   Env.Funs.find x st |> oget ~exn:(tyerror ~loc (UnknownFun x))
 
+(* -------------------------------------------------------------------- *)
+(* let check_ty (ety : typattern) (loc, ty) =
+  match ety, ty with
+  | TPBool , P.Bty P.Bool  -> ()
+  | TPInt  , P.Bty P.Int   -> ()
+  | TPWord , P.Bty (P.U _) -> ()
+  | TPArray, P.Arr _       -> ()
+
+  | _ -> rs_tyerror ~loc (InvalidType (ty, ety)) *)
 
 (* -------------------------------------------------------------------- *)
 let check_ty_eq ~loc ~(from : P.epty) ~(to_ : P.epty) =
   if not (P.epty_equal from to_) then
     match from, to_ with
-    | ETarr (b1,ty1), ETarr (b2,ty2) -> 
-      if b1=b2 && ty1 = ty2
-      then ()
-      else warning NeqSizeExpr (L.i_loc0 loc) "array sizes do not appear to be the same"; ()
+    | ETarr _, ETarr _ -> () (* we delay typechecking until we know the lengths *)
     | _, _ -> rs_tyerror ~loc (TypeMismatch (from, to_))
+
+let check_ty_ptr pd ~loc ty =
+  check_ty_eq ~loc ~from:ty ~to_:(P.etw pd)
+
+let check_ty_bool ~loc ty =
+  check_ty_eq ~loc ~from:ty ~to_:P.etbool
 
 (* -------------------------------------------------------------------- *)
 let check_return_statement ~loc name (declared : P.epty list) (given : (L.t * P.epty) list) : unit =
@@ -1026,6 +1032,7 @@ let check_sig_lvs loc sig_ lvs =
 let tt_sign = function
   | `Signed -> W.Signed
   | `Unsigned -> W.Unsigned
+  
 
 (* -------------------------------------------------------------------- *)
 let tt_as_array ((loc, ty) : L.t * P.epty) : P.epty * P.pexpr_ =
@@ -1035,6 +1042,7 @@ let tt_as_array ((loc, ty) : L.t * P.epty) : P.epty * P.pexpr_ =
 
 (* -------------------------------------------------------------------- *)
 
+   
 let wsize_le = Utils0.cmp_le W.wsize_cmp
 let wsize_min = Utils0.cmp_min W.wsize_cmp
 let wsize_max s1 s2 = if wsize_le s1 s2 then s2 else s1
@@ -1141,14 +1149,14 @@ let tt_swsize_op (swz:S.swsize) =
   | `Word s -> tt_osign s, (None, ws)
   | `WInt s -> let s = tt_sign s in Some s, (Some s, ws)
 
+
 let op_info exn op (s : W.signedness option) (castop:S.castop) ty ws_cmp vs_cmp =
   match castop with
-  | None                ->
+  | None                -> 
     op_info_dfl exn ty s ws_cmp
-
-  | Some c ->
+  | Some c -> 
     let loc = L.loc c in
-    match L.unloc c with
+    match L.unloc c with 
     | CSS swz ->
       let s1, ty = tt_swsize_op swz in
       let s =
@@ -1212,13 +1220,15 @@ let mk_rot_info eop =
     opi_wcmp = {intok = false; wintok = false}, cmp_8_256;
     opi_vcmp = None; }
 
+
+
 (* -------------------------------------------------------------------- *)
 
-let op1_of_ty exn op castop ty (info: sop1 op_info) =
+let op1_of_ty exn op castop ty (info:sop1 op_info) =
   let tok = op_info exn (`Op1 op) None castop ty info.opi_wcmp info.opi_vcmp in
   info.opi_op tok
 
-let lnot_info = mk_logic_info (fun ws -> Olnot ws)
+let lnot_info = mk_logic_info (fun s -> Olnot s)
 
 let mk_op1 op_k op_wi s = function
   | EOp_int -> op_k Op_int
@@ -1227,8 +1237,6 @@ let mk_op1 op_k op_wi s = function
 
 let  neg_info =
   mk_op_k_info_no_vec (mk_op1 (fun k -> Oneg k) (fun sz -> WIneg sz))
-
-
 (* -------------------------------------------------------------------- *)
 
 let mk_op2 op_k op_wi s = function
@@ -1458,7 +1466,6 @@ let tt_op1 (loc1, (e1, ety1)) { L.pl_desc = pop; L.pl_loc = loc } =
   let ty1, tyo = type_of_op1 op in
   let e1 = cast loc1 e1 ety1 ty1 in
   P.Papp1(op, e1), tyo
-
 (* -------------------------------------------------------------------- *)
 let wsize_of_bits ~loc =
   function
@@ -1494,7 +1501,7 @@ let combine_flags =
   List.map (fun c -> Printer.string_of_combine_flags c, c)
     [CF_LT Signed; CF_LT Unsigned;
      CF_LE Signed; CF_LE Unsigned;
-     CF_EQ; CF_NEQ;
+     CF_EQ; CF_NEQ; 
      CF_GE Signed; CF_GE Unsigned;
      CF_GT Signed; CF_GT Unsigned]
 
@@ -1527,11 +1534,6 @@ let tt_mem_wsize dfl (ct : S.swsize L.located option) =
           (StringError ("invalid cast annotation "^(S.string_of_swsize_ty a)))
       | (ws, `Word _) -> ws
 
-(* -------------------------------------------------------------------- *)
-let array_of_string s =
-  s |> String.to_list |> List.map @@ fun c ->
-  c |> Char.code |> Z.of_int |> fun z ->
-  P.(Papp1 (op_word_of_int(Word, W.Unsigned, W.U8), Pconst z))
 
 (* -------------------------------------------------------------------- *)
 let create_min_e _pd loc args =
@@ -1631,9 +1633,14 @@ and norm_omod_expr s e1 e2 =
   | _, _ ->
     Papp2 (Omod (s,Op_int), e1, e2)
 
+(* -------------------------------------------------------------------- *)
+let array_of_string s =
+  s |> String.to_list |> List.map @@ fun c ->
+  c |> Char.code |> Z.of_int |> fun z ->
+  P.(Papp1 (op_word_of_int(Word, W.Unsigned, W.U8), Pconst z))
 
-let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe
-  =
+(* -------------------------------------------------------------------- *)
+let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe =
   match L.unloc pe with
   | S.PEParens pe ->
     tt_expr ~mode pd st pe
@@ -1646,8 +1653,7 @@ let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe
     in e, P.etint, Some e
 
   | S.PEVar x ->
-    let x, ty, xval = tt_var_global mode st x
-    in 
+    let x, ty, xval = tt_var_global mode st x in
     P.Pvar x, ty, xval
 
   | S.PEFetch me ->
@@ -1669,7 +1675,7 @@ let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe
        ignore_align ~loc:(L.loc pe) al;
       let len,ity,_  = tt_expr ~mode:`OnlyParam pd st plen in
       check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.etint;
-      let ty = P.ETarr (ws, P.PE len) in
+      let ty = P.ETarr(ws, P.PE len) in
       P.Psub (aa, ws, P.PE len, x, i), ty, None
     end
 
@@ -1723,9 +1729,9 @@ let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe
        e, rty, None
     | _  ->
       let e1, t1, p1 = tt_expr ~mode pd st pe in
-      let e, t = tt_op1 (L.loc pe, (e1,t1)) (L.mk_loc (L.loc pe) op)
-      in let p = Option.map norm_expr p1
-      in e, t, p
+      let e,t = tt_op1 (L.loc pe, (e1,t1)) (L.mk_loc (L.loc pe) op)
+      in let p = Option.map norm_expr p1 in
+      e, t, p
     end
 
   | S.PEOp2 (pop, (pe1, pe2)) ->
@@ -1752,7 +1758,7 @@ let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe
         e in
       let args = List.map tt_expr args in
       P.PappN (Ocombine_flags c, args), P.etbool, None
-    | exception Not_found -> assert false 
+    | exception Not_found -> assert false
     end
 
   | S.PECall (id, args) when is_combine_flags id ->
@@ -1825,7 +1831,7 @@ and tt_type pd (st : 'asm Env.store) (pty : S.ptype) : P.epty =
        match ety with
        | P.ETword(None, ws) -> ws (* wint array are not allowed this is require by wint_int *)
        | ty -> rs_tyerror ~loc (InvalidTypeAlias (id,ty))
-     in 
+     in
      let e, _ , _ = tt_expr ~mode:`OnlyParam pd st e in
      P.ETarr (ws, P.PE e)
   | S.TAlias id -> L.unloc (Env.TypeAlias.get st id)
@@ -1875,11 +1881,11 @@ let tt_param pd _loc (pp : S.pparam) (st : 'asm Env.store) =
   if !Glob_options.debug
   then Printf.eprintf "\nparam decl: (%s)\n%!" (L.unloc pp.ppa_name);
   let ty = tt_type pd st pp.ppa_ty in
-  let pe,ety,p = tt_expr ~mode:`OnlyParam pd st pp.S.ppa_init in
+  let pe ,ety,p = tt_expr ~mode:`OnlyParam pd st pp.S.ppa_init in
   let p = match p with
     | None -> assert false (* params should have a value *)
     | Some p -> p
-  in check_ty_eq ~loc:(L.loc pp.ppa_init) ~from:ty ~to_:ety;
+  in check_ty_eq ~loc:(L.loc pp.ppa_init) ~from:ety ~to_:ty;
 
   let x = mk_var (L.unloc pp.ppa_name) W.Const ty (L.loc pp.ppa_name) [] in
   Env.Vars.push_param st (x,ty,pe,p)
@@ -1906,7 +1912,7 @@ let tt_lvalue pd (st : 'asm Env.store) { L.pl_desc = pl; L.pl_loc = loc; } =
     loc, (fun _ -> P.Lvar (L.mk_loc loc x)), Some xty
 
   | S.PLArray (al, aa, ws, ({ pl_loc = xlc } as x), pi, olen) ->
-    let x, xty  = tt_var `NoParam st x in
+    let x,xty  = tt_var `NoParam st x in
     reject_constant_pointers xlc x ;
     let ty,_ = tt_as_array (xlc, xty) in
     let ws = tt_mem_wsize (P.ws_of_ety ty) ws in
@@ -1926,8 +1932,8 @@ let tt_lvalue pd (st : 'asm Env.store) { L.pl_desc = pl; L.pl_loc = loc; } =
     end
 
   | S.PLMem me ->
-    let ct, eloc, e, al = tt_mem_access ~mode:`AllVar pd st me in
-    loc, (fun _ -> P.Lmem (al, ct, eloc, e)), Some (P.etw ct)
+    let ct, x, e, al = tt_mem_access ~mode:`AllVar pd st me in
+    loc, (fun _ -> P.Lmem (al, ct, x, e)), Some (P.etw ct)
 
 (* -------------------------------------------------------------------- *)
 
@@ -1940,7 +1946,7 @@ let f_sig (f: 'asm Env.pfuncsig) =
 
 
 let prim_sig asmOp p : 'a P.gety list * 'a P.gety list * Sopn.arg_desc list =
-  let f t = conv_cty t in
+  let f = conv_cty in
   let o = Sopn.asm_op_instr asmOp p in
   List.map f o.tout,
   List.map f o.tin,
@@ -2158,18 +2164,13 @@ let pexpr_of_plvalue exn l =
   | S.PLMem(al,ty,e) -> L.mk_loc (L.loc l) (S.PEFetch(al,ty,e))
 
 
-type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {
-  pd : Wsize.wsize;
-  asmOp : ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Sopn.sopn Sopn.asmOp;
-  known_implicits : (CoreIdent.Name.t * string) list;
-  flagnames: CoreIdent.Name.t list;
-}
 
-let tt_lvalues arch_info st loc (pimp, pls) implicit tys =
+
+let tt_lvalues (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_info) st loc (pimp, pls) implicit tys =
   let pimp = Option.map (fun pimp -> L.mk_loc (L.loc pimp) (pannot_to_annotations (L.unloc pimp))) pimp in
   let loc = loc_of_tuples loc (List.map P.L.loc pls) in
 
-  let combines =
+  let combines = 
         [ "<s" , CF_LT Wsize.Signed
         ; "<u" , CF_LT Wsize.Unsigned
         ; "<=s", CF_LE Wsize.Signed
@@ -2181,13 +2182,13 @@ let tt_lvalues arch_info st loc (pimp, pls) implicit tys =
         ; ">s" , CF_GT Wsize.Signed
         ; ">u" , CF_GT Wsize.Unsigned ] in
 
-  let pls, pimp_c, implicits =
+  let pls, pimp_c, implicits = 
     match pimp, implicit with
-    | None, _ -> pls, [], []
+    | None, _ ->  pls, [], []
     | Some pimp, None -> rs_tyerror ~loc:(L.loc pimp) (string_error "no implicit argument expected");
     | Some pimp, Some implicit ->
       let pimp = L.unloc pimp in
-      let arguments =
+      let arguments = 
         (* FIXME this is not generic *)
         let open Sopn in
         List.map
@@ -2306,6 +2307,8 @@ let rec is_constant e =
   | P.Papp2 (_, e1, e2) -> is_constant e1 && is_constant e2
   | P.PappN (_, es) -> List.for_all is_constant es
   | P.Pif(_, e1, e2, e3)   -> is_constant e1 && is_constant e2 && is_constant e3
+
+
 
 let mk_call loc inline lvs fsig es =
   let open P in
@@ -2431,17 +2434,17 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
     | ls, `Raw, { L.pl_desc = S.PECall (f, args); pl_loc = el }, None when is_combine_flags f ->
 (*      if !Glob_options.debug
       then Printf.eprintf "Assign PECall combine_flags \n%!";*)
-      tt_assign ~tag:E.AT_inline  st_lhs st_rhs ls `Raw (L.mk_loc el (S.PECombF(f, args))) None
+      tt_assign ~tag:E.AT_inline st_lhs st_rhs ls `Raw (L.mk_loc el (S.PECombF(f, args))) None
 
     | ls, `Raw, { L.pl_desc = S.PECall (f, args); pl_loc = el }, None ->
 (*      if !Glob_options.debug
       then Printf.eprintf "Assign PECALL no_flags \n%!";*)
-      let (f,fsig) = tt_fun f st_rhs in
-      let lvs, is = tt_lvalues arch_info st_lhs (L.loc pi) ls None fsig.fs_tout in
+      let (fsig,tlvs) = tt_fun f st_rhs in
+      let lvs, is = tt_lvalues arch_info st_lhs (L.loc pi) ls None tlvs.fs_tout in
       assert (is = []);
-      let es  = tt_exprs_cast arch_info.pd st_rhs (L.loc pi) args fsig.fs_tin in
+      let es  = tt_exprs_cast arch_info.pd st_rhs (L.loc pi) args tlvs.fs_tin in
       let is_inline =
-        match f.f_pfunc with
+        match fsig.f_pfunc with
         | None -> false (* We'll update this later *)
         | Some f ->
           f.P.f_cc = FInfo.Internal
@@ -2453,7 +2456,7 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
         then Annotations.add_symbol ~loc:el "inline" annot
         else annot
       in
-      [mk_i ~annot (mk_call (L.loc pi) is_inline lvs f es)]
+      [mk_i ~annot (mk_call (L.loc pi) is_inline lvs fsig es)]
     | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None
       when L.unloc f = "spill" || L.unloc f = "unspill"  ->
 (*      if !Glob_options.debug
@@ -2498,7 +2501,7 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
             (string_error "only a single variable is allowed as destination of randombytes") in
       let _ = tt_as_array (loc, ty) in
       let es = tt_exprs_cast arch_info.pd st_rhs (L.loc pi) args [ty] in
-      [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (U8, Conv.pos_of_int 1), es))]
+      [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (U8,Conv.pos_of_int 1), es))]
 
   | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None when L.unloc f = "swap" ->
 (*      if !Glob_options.debug
@@ -2508,8 +2511,8 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
       let ty, es =
         match args with
         | [ ex ; ey ] ->
-           let x, xty, _ = tt_expr arch_info.pd st_rhs ex in
-           let y, yty, _ = tt_expr arch_info.pd st_rhs ey in
+           let x, xty,_ = tt_expr arch_info.pd st_rhs ex in
+           let y, yty,_ = tt_expr arch_info.pd st_rhs ey in
            let ty = Option.get_exn  (max_ty xty yty)
                       (tyerror ~loc:(L.loc ey) (TypeMismatch (yty, xty))) in
            let () = match ty with
@@ -2535,6 +2538,13 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
       in
       let p = Sopn.Opseudo_op (Oswap Type.Coq_abool) in  (* The type is fixed later *)
       [mk_i (P.Copn(lvs, Option.default default_tag tag, p, es))]
+  
+    | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None when L.unloc f = "declassify" ->
+      let loc = L.loc pi in
+      if ls <> None || xs <> [] then rs_tyerror ~loc (string_error "declassify returns no value");
+      let es = tt_exprs arch_info.pd st_rhs args |> List.map (fun (a,_,_) -> a) in
+      let op = Sopn.Opseudo_op (Odeclassify Type.Coq_abool) in
+      [mk_i (P.Copn([], AT_keep, op, es))]
 
     | ls, `Raw, { pl_desc = PEPrim (f, args) }, None ->
 (*      if !Glob_options.debug
@@ -2543,7 +2553,8 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
       let tlvs, tes, arguments = prim_sig arch_info.asmOp p in
       let lvs, einstr = tt_lvalues arch_info st_lhs (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast arch_info.pd st_rhs (L.loc pi) args tes in
-      mk_i (P.Copn(lvs, AT_keep, p, es)) :: einstr
+      let must_keep = lvs = [] || match p with Oslh _ -> true | _ -> false in
+      mk_i (P.Copn(lvs, Option.default (if must_keep then E.AT_keep else default_tag) tag, p, es)) :: einstr
 
     | ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) }); pl_loc = loc} , None
       ->
@@ -2552,7 +2563,7 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
       let ws =
         match ct with
         | (ws, `Word _) -> ws
-        | (_ws, `WInt _) -> rs_tyerror ~loc (string_error "invalid cast for asm operator")
+        | (_, `WInt _) -> rs_tyerror ~loc (string_error "invalid cast for asm operator")
         in
       let p = tt_prim arch_info.asmOp f in
       let id = Sopn.asm_op_instr arch_info.asmOp p in
@@ -2560,7 +2571,7 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
       let tlvs, tes, arguments = prim_sig arch_info.asmOp p in
       let lvs, einstr = tt_lvalues arch_info st_lhs (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast arch_info.pd st_rhs (L.loc pi) args tes in
-      mk_i (P.Copn(lvs, AT_keep, p, es)) :: einstr
+      mk_i (P.Copn(lvs, Option.default default_tag tag, p, es)) :: einstr
 
     | (None,[lv]), `Raw, pe, None ->
 (*      if !Glob_options.debug
@@ -2578,9 +2589,9 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
       in
       let v = flv ety in
       let tg =
-        P.(match v with
-            | Lvar v -> (match kind_i v with Inline -> E.AT_inline | _ -> E.AT_none)
-            | _ -> AT_none) in
+         P.(match v with
+            | Lvar v when kind_i v = Inline -> E.AT_inline
+            | _ -> Option.default default_tag tag) in
       [mk_i (cassgn_for v tg ety e)]
 
     | ls, `Raw, pe, None ->
@@ -2613,7 +2624,7 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
         | _ -> rs_tyerror ~loc exn in
       let e' = oget ~exn:(tyerror ~loc exn) (P.expr_of_lval x) in
       let c = tt_expr_bool arch_info.pd st_rhs cp in
-      mk_i (P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e'))) :: is
+      mk_i (P.Cassgn (x, default_tag, ty, Pif (ty, c, e, e'))) :: is
   in
   let tt_annot_decl st vd (aty: A.annotations * S.pstotype) =
     (* remember the environment prior to the declaration:
@@ -2627,8 +2638,7 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
       Printf.eprintf "tt_annot_decl pe \n%!"
     end;*)
     let (ls, eq, op, ocp) = assign_from_decl vd in
-    st, tt_assign st st_rhs ls eq op ocp
-  in
+    st, tt_assign st st_rhs ls eq op ocp in
 
   match L.unloc pi with
   | S.PIdecl (ty,vds) ->
@@ -2638,20 +2648,17 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
        st
        vds, []
   | S.PIdeclinit (ty,vds) ->
-(*    if !Glob_options.debug
-    then begin
-      Env.dbg_gb (fun b -> b.gb_vars) st;
-      Printf.eprintf "DECL pe \n%!"
-    end;*)
     List.fold (fun (st, acc) v ->
         let st, cmd = tt_annot_decl st v (annot, ty) in
         st, acc @ cmd)
       (st, [])
       vds
+
+
   | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
     let x, xty = tt_var `AllVar st x in
     let xi = (L.mk_loc lc x) in
-    st, [mk_i (arr_init (xi,xty))]
+    st, [mk_i (arr_init (xi, xty))]
 
   | S.PIAssign (ls, eqop, pe, ocp) ->
     (*    if !Glob_options.debug
@@ -2705,7 +2712,7 @@ let tt_funbody arch_info st (pb : S.pfunbody) =
   let ret =
     let for1 x = L.mk_loc (L.loc x) (tt_var `AllVar st x) in
     List.map for1 (Option.default [] (L.unloc pb.pdb_ret)) in
-  (bdy, ret_loc, ret)
+  (bdy,ret_loc,ret)
 
 
 (* -------------------------------------------------------------------- *)
@@ -2828,7 +2835,7 @@ let rec add_reserved_i st (_,i) =
   | S.PIdecl (_, ids) ->
       List.fold_left (fun st id -> Env.add_reserved st (L.unloc id)) st ids
   | S.PIdeclinit (_, ids) ->
-      List.fold_left (fun st id -> Env.add_reserved st (L.unloc (fst (L.unloc id)))) st ids
+    List.fold_left (fun st id -> Env.add_reserved st (L.unloc (fst (L.unloc id)))) st ids
   | PIArrayInit _ | PIAssign _ | PIAssert _ -> st
   | PIIf(_, c, oc) -> add_reserved_oc (add_reserved_c' st c) oc
   | PIFor(_, _, c) -> add_reserved_c' st c
@@ -2846,7 +2853,7 @@ and add_reserved_oc st =
 
 (* -------------------------------------------------------------------- *)
 
-let add_known_implicits arch_info st c =
+let add_known_implicits (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_info) st c =
   let st = add_reserved_c st c in
   let create st s = 
     if not (Env.is_reserved st s) then s
@@ -3027,7 +3034,7 @@ let tt_fundef arch_info loc (pf : S.pfundef) (st0 : 'asm Env.store) =
     let st, args = List.map_fold (tt_annot_paramdecls dfl_mut arch_info.pd) st pf.pdf_args in
     let st = add_known_implicits arch_info st pf.pdf_body.pdb_instr in
     st, List.flatten args in
-  let fs_tout = Option.map_default (List.map (tt_type arch_info.pd st |- snd |- snd)) [] pf.pdf_rty in
+  let fs_tout  = Option.map_default (List.map (tt_type arch_info.pd st |- snd |- snd)) [] pf.pdf_rty in
   let ret_annot = Option.map_default (List.map fst) [] pf.pdf_rty in
   let ret_annot = List.map pannot_to_annotations ret_annot in
   let body, ret_loc, xret = tt_funbody arch_info stb pf.pdf_body in
@@ -3042,26 +3049,29 @@ let tt_fundef arch_info loc (pf : S.pfundef) (st0 : 'asm Env.store) =
       P.f_annot = process_f_annot loc name f_cc annot;
       P.f_contract;
       P.f_cc    = f_cc;
-      P.f_info  = ();
+      P.f_info = ();
       P.f_name  = P.F.mk name;
       P.f_tyin  = List.map P.gty_of_gety fs_tin;
       P.f_args  = List.map L.unloc f_args;
       P.f_body  = body;
       P.f_tyout = List.map P.gty_of_gety fs_tout;
-      P.f_ret_info = { ret_annot; ret_loc };
+      P.f_ret_info = {ret_annot; ret_loc};
       P.f_ret   = f_ret; } in
 
   check_return_statement ~loc fdef.P.f_name fs_tout
-    (List.map (fun x -> L.loc x, snd (L.unloc x)) xret);
+    (List.map (fun x -> (L.loc x, snd (L.unloc x))) xret);
   
   warn_unused_variables stb fdef;
+
+  let return_storage = Option.map_default (List.map (fst |- snd)) [] pf.pdf_rty in
+  check_return_storage ~loc fdef.P.f_name return_storage f_ret;
 
   Env.Funs.push st0 fdef {fs_tin;fs_tout}
 
 (* -------------------------------------------------------------------- *)
-let tt_global_def pd (gd:S.gpexpr) st =
-  let f e = 
-    let pe,ety,_ = tt_expr ~mode:`AllVar pd st e in
+let tt_global_def pd env (gd:S.gpexpr) =
+  let f e =
+    let pe,ety,_ = tt_expr ~mode:`AllVar pd env e in
     (L.mk_loc e.pl_loc pe, ety) in
   match gd with
   | S.GEexpr { pl_loc = loc; pl_desc = PEstring s } ->
@@ -3083,9 +3093,8 @@ let tt_global pd _loc (gd: S.pglobal) (st : 'asm Env.store) =
     | _ -> rs_tyerror ~loc:(L.loc pe) (TypeMismatch (ety, P.etw ws))
     in
 
-
-  let ty, d = 
-    match tt_type pd st gd.S.pgd_type, tt_global_def pd gd.S.pgd_val st with
+  let ty, d =
+    match tt_type pd st gd.S.pgd_type, tt_global_def pd st gd.S.pgd_val with
     | P.ETword(None, ws) as ty, `Word (pe,ety) ->
       let pe = mk_pe ws (pe,ety) in
       ty, P.GEword pe
@@ -3099,17 +3108,18 @@ let tt_global pd _loc (gd: S.pglobal) (st : 'asm Env.store) =
     | ty,_ -> rs_tyerror ~loc:(L.loc gd.S.pgd_type) (InvalidTypeForGlobal ty)
   in
 
+
   let x = mk_var (L.unloc gd.S.pgd_name) W.Global ty (L.loc gd.S.pgd_name) [] in
 
   Env.Vars.push_global st (x,ty,d)
 
 
-let tt_typealias arch_info id ty st =
+let tt_typealias (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_info) id ty st =
   let alias = tt_type arch_info.pd st ty in
   Env.TypeAlias.push st id alias
 
 (* -------------------------------------------------------------------- *)
-let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
+let rec tt_item (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_info) (env : 'asm Env.env) pt : 'asm Env.env =
   match L.unloc pt with
   | S.PParam  pp -> 
     Env.upd_storedecls (tt_param  arch_info.pd (L.loc pt) pp) env

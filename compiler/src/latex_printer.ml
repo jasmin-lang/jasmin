@@ -391,7 +391,7 @@ let rec pp_pitem fmt pi =
      List.iter (pp_pitem fmt) pis;
      F.fprintf fmt eol;
      closebrace fmt ()
-  | PTypeAlias (id,ty) -> pp_typealias fmt id ty 
+  | PTypeAlias (id,ty) -> pp_typealias fmt id ty
   | PModule (mn, msig, pis) ->
      (* TODO: ident within modules? *)
      F.fprintf fmt "%a %s " kw "module" (L.unloc mn);

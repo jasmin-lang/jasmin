@@ -16,7 +16,7 @@ module T = Type
 (*                      MJazz Errors                                    *)
 (* -------------------------------------------------------------------- *)
 
-(* just a copy of Pretyping.string_error !!! *)
+(* just a copy of string_error !!! *)
 let string_error fmt =
   let buf  = Buffer.create 127 in
   let bfmt = Format.formatter_of_buffer buf in
@@ -183,7 +183,7 @@ module MEnv = struct
     | x::xs -> 
       { menv with me_decls = xs }, x
 
-    
+
 let pp_pprog ~debug fmt p =
   let pp_opn _ _ = () in
   Format.fprintf fmt "@[<v>%a@]"
@@ -194,11 +194,12 @@ let pp_pprog ~debug fmt p =
       (menv: 'asm menv)
     : 'asm menv =
     let st, l = f menv.me_store
-    in    if !Glob_options.debug
-    then (Format.printf "%a@.@.@." (pp_pprog ~debug:true) l); 
-
-    let menv = add_decls menv (List.map (fun x->M.MdItem x) l)
-    in { menv with  me_store = st }
+    in 
+    if !Glob_options.debug
+    then 
+      pp_pprog ~debug:true Format.std_formatter l;
+      let menv = add_decls menv (List.map (fun x->M.MdItem x) l)
+      in { menv with  me_store = st }
 
 (*
   let push_open menv mname gb =
@@ -232,13 +233,13 @@ let pp_pprog ~debug fmt p =
       in let funcsig = { Env.f_loc = L.loc name
                        ; Env.f_name = P.F.mk (L.unloc name)
                        ; Env.f_tyin = List.map (P.gty_of_gety) tyins
-                       ; Env.f_tyout = List.map (P.gty_of_gety) tyouts
+                       ; Env.f_tyout =  List.map (P.gty_of_gety) tyouts
                        ; Env.f_pfunc = None
                        }
-      in let fsig = { 
-                      M.fs_tyin = funcsig.f_tyin
-                    ; M.fs_tyout = funcsig.f_tyout
-                    }
+      in let fsig = {
+                M.fs_tyin = funcsig.f_tyin
+              ; M.fs_tyout = funcsig.f_tyout
+              }
       in let st = Env.Funs.push_modp_fun st funcsig { fs_tin = tyins; fs_tout = tyouts}
       in st, M.Fun fsig
 
@@ -303,9 +304,7 @@ let pp_mpprog ~debug fmt p =
     in let menv, mdecls = pop_ldecls menv
     in 
       if !Glob_options.debug
-      then (
-Format.printf "%a@.@.@." (pp_mpprog ~debug:true) mdecls); 
-
+      then pp_mpprog ~debug:true Format.std_formatter mdecls;
       let modinfo =
          { mi_store = mod_bs
          ; mi_params = mparams
@@ -320,7 +319,7 @@ Format.printf "%a@.@.@." (pp_mpprog ~debug:true) mdecls);
                   ; me_env = Map.add modname modinfo menv.me_env
                   ; me_gmod = List.tl menv.me_gmod
                   }
-    in upd_store (fun st -> Pretyping_mjazz.Env.Modules.push st mname modname) menv
+    in upd_store (fun st -> Env.Modules.push st mname modname) menv
 
 
   (* suspend processing of current file (if any) *)
@@ -531,24 +530,26 @@ let mt_margs pd menv mname mparams margs =
   in let mt_marg st p pe =
     match p, L.unloc pe with
     | M.Param pi, _ ->
-      let _,et,e = tt_expr pd ~mode:`OnlyParam st pe
-      in let e =
-           match e with
-           | None -> assert false
-           | Some e -> e
+      (* params are the only arguments that need not be instantiated
+        into bare symbols -- reason why they induce declarations *)
+      let _, et, e = tt_expr pd ~mode:`OnlyParam st pe
+      in let e = match e with
+        | Some e -> e
+        | None -> assert false
       in let pty = P.gety_of_gty pi.v_ty
       in if pty <> et
       then rs_tyerror ~loc:(L.loc pe) (TypeMismatch (pty,et));
       let st, adecls = Env.Vars.push_param st (pi,et,e,e)
       in st, M.MaParam e, adecls
-    | M.Glob pg, S.PEVar pv ->
+    (* | M.Glob pg, S.PEVar pv ->
       let v,vt,_ = tt_var_global `AllVar st pv
       in let pgty = P.gety_of_gty pg.P.v_ty
       in if pgty <> vt
       then rs_tyerror ~loc:(L.loc pe) (TypeMismatch (pgty,vt));
-      let st, _ = Env.Vars.push_global st (pg, vt, P.GEword (P.Pvar v)) in
-      st, M.MaGlob v.gv, []
-    | M.Glob _pg, _ ->
+      let st, _ = Env.Vars.push_global st (pg, vt ,P.GEword (P.Pvar v))
+      
+      in st, M.MaGlob v.gv, [] *)
+    | M.Glob _, _ ->
       rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Type error (param glob)")
     | M.Fun pf, S.PEVar v ->
       let func,_ = tt_fun v st
@@ -578,7 +579,7 @@ let mt_margs pd menv mname mparams margs =
         | Some fd ->
           Env.err_duplicate_fun name (func, ()) fd
       end
-    | M.Fun _pf, _ ->
+    | M.Fun _, _ ->
       rs_mjazzerror ~loc:(L.loc pe)
         (MJazzStringError "Type error (param fn): not a fn name")
   in let rec doit st mparams margs =
@@ -593,46 +594,7 @@ let mt_margs pd menv mname mparams margs =
   in let st = Env.enter_namespace mname menv.MEnv.me_store
   in doit st mparams margs
 
-let _mt_moduleapp menv mname (funcname, minfo) margs =
-  let cur_modname = MEnv.fully_qualified_modname menv.MEnv.me_store
-  (* 2) add bindings to module-env (to allow opennings) *)
-  in let modname = qualify cur_modname (L.unloc mname)
-  in let menv = { menv with
-                  MEnv.me_env =
-                    Map.add
-                      modname
-                      { minfo with MEnv.mi_params = [] }
-                      menv.MEnv.me_env
-                }
-  in let menv = MEnv.upd_store (fun st -> Env.Modules.push st mname modname) menv
-  in let menv =
-       MEnv.add_decls menv
-         [ M.MdModApp { ma_name = (L.unloc mname)
-                      ; ma_func = funcname
-                      ; ma_args = margs
-                      } ]
-  
-  (* 3) register instance *)
-  in let ground_module = List.for_all identity menv.MEnv.me_gmod
-  in let menv =
-       if ground_module && minfo.MEnv.mi_params = []
-       then (* regist ground instance *)
-(*
-         { menv with
-           me_env = Map.update_stdlib funcname
-               (fun omi -> Some { (Option.get omi) with MEnv.mi_instances = (cur_modname, margs) minfo.mi_instances }) menv.me_env
-         }
-*) menv
-       else (* regist submodule *)
-         menv
-  in { menv with
-       MEnv.me_store =
-         { menv.MEnv.me_store with
-           s_bindings = merge_top menv.MEnv.me_store (L.unloc mname) minfo.MEnv.mi_store
-         }
-     }
-
-let rec mt_item arch_info (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
+let rec mt_item (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_info) (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
   match L.unloc mitem with
   | S.PModule (mname, mparams, body) ->
     (* reject nested parametric modules *)
@@ -671,7 +633,7 @@ let rec mt_item arch_info (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
     rs_mjazzerror ~loc:(L.loc ns) MJazzIncompatibleNS
   | S.Pexec pf ->
     rs_mjazzerror ~loc:(L.loc pf.pex_name) MJazzNYS
-  (* similar to Pretyping... *)
+  (* similar to .. *)
   | S.PTypeAlias (id,ty) ->
     MEnv.upd_store (tt_typealias arch_info id ty) menv
   | S.PParam pp -> 
@@ -682,7 +644,7 @@ let rec mt_item arch_info (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
     MEnv.upd_storedecls (tt_fundef arch_info (L.loc mitem) pf) menv
 
 and mt_moduleapp arch_info menv mname modfuncname margs =
-    let (_prefgb,gb), modfunc = Env.Modules.get menv.me_store modfuncname
+    let (_,gb), modfunc = Env.Modules.get menv.me_store modfuncname
     in let modinfo =
          match Map.find (L.unloc modfunc) menv.me_env with
          | modi -> modi
@@ -703,7 +665,7 @@ and mt_moduleapp arch_info menv mname modfuncname margs =
                          }
                      }
     (* typecheck module arguments... *)
-    in let _menv_at, margs, _adecls = mt_margs arch_info.pd menv_at mname modinfo.mi_params margs
+    in let _, margs, _ = mt_margs arch_info.pd menv_at mname modinfo.mi_params margs
     in let ground_module = List.for_all identity menv.MEnv.me_gmod
     in let menv =
          if false && ground_module
@@ -724,7 +686,7 @@ and mt_moduleapp arch_info menv mname modfuncname margs =
     in MEnv.add_decls menv
       [ M.MdModApp { ma_name = (L.unloc mname)
                    ; ma_func = (L.unloc modfuncname)
-                   ; ma_args = margs
+                   ; ma_args = [] (*margs*)
                    } ]
 
 (*
@@ -826,7 +788,7 @@ and mt_moduleapp2 arch_info menv mname (funcname, funcminfo) margs =
                       { funcminfo with MEnv.mi_params = [] }
                       menv.MEnv.me_env
                 }
-  in let menv = MEnv.upd_store (fun st -> Pretyping.Env.Modules.push st mname modname) menv
+  in let menv = MEnv.upd_store (fun st -> Env.Modules.push st mname modname) menv
   in let menv =
        MEnv.add_decls menv
          [ M.MdModApp { ma_name = (L.unloc mname)
@@ -908,8 +870,8 @@ let parse_mfile arch_info idirs fname =
   let menv = MEnv.empty idirs
   in mt_mprogram arch_info menv fname
 
-let instantiate_mprog _menv =
-  []
+let instantiate_mprog _ =
+  [] (*FIXME *)
 
 (** Parses (modular) program and resolves instantiation *)
 let parse_file arch_info idirs fname =

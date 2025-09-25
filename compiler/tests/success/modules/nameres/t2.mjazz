@@ -1,0 +1,15 @@
+param int n = 2;
+
+module M1
+ with
+  param int n;
+{
+ param int nn = n;
+ fn f(reg ptr u64[nn] a) -> reg ptr u64[n]
+ { return a; }
+
+}
+
+module A2 = M1(n);
+module A4 = M1(2*n);
+
