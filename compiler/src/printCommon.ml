@@ -200,7 +200,7 @@ let non_default_wsize x ws =
 
 let peel_implicit_cast_to_uint =
   function
-  | Papp1 (Expr.Oint_of_word (Unsigned, _), e)
+  | Papp1 (Operators.Oint_of_word (Unsigned, _), e)
   | e -> e
 
 let pp_access_size fmt = function

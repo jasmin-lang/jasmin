@@ -10,6 +10,7 @@ include CoreIdent
 (* ------------------------------------------------------------------------ *)
 
 module E = Expr
+module O = Operators
 
 type 'len gvar_i = 'len gvar L.located
 
@@ -561,7 +562,7 @@ let has_effect = function
   | Csyscall _ | Ccall _ -> true
   | Cassgn (x, _, _, _) -> is_lmem x
   | Copn (xs, _, _, _) -> List.exists is_lmem xs
-  | Cif _ | Cwhile _ | Cfor _ -> false
+  | Cassert _ | Cif _ | Cwhile _ | Cfor _ -> false
 
 (* -------------------------------------------------------------------- *)
 let rec iter_instr f stmt = List.iter (iter_instr_i f) stmt

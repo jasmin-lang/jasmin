@@ -239,10 +239,6 @@ cast:
 prim:
 | SHARP x=ident { x }
 
-%inline mem_ofs:
-| PLUS e=pexpr { `Add, e }
-| MINUS e=pexpr { `Sub, e }
-
 %inline unaligned:
 | ALIGNED { `Aligned }
 | UNALIGNED { `Unaligned }

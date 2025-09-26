@@ -1271,7 +1271,7 @@ end = struct
 
     (* add unsigned / signed *)
     | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.ADD ws)) ->
-      opn_bin_alu ws (E.Oadd (E.Op_w ws)) (E.Oadd E.Op_int) es
+      opn_bin_alu ws (O.Oadd (O.Op_w ws)) (O.Oadd O.Op_int) es
 
     (* sub unsigned / signed *)
     | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.SUB ws)) ->

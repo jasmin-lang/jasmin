@@ -6,6 +6,7 @@ open Operators
 include module type of struct include CoreIdent end
 
 module E = Expr
+module O = Operators
 
 (* ------------------------------------------------------------------------ *)
 
