@@ -70,7 +70,6 @@
 %token REG
 %token REQUIRE
 %token REQUIRES
-%token RESULT
 %token RETURN
 %token ROR
 %token ROL
@@ -333,11 +332,16 @@ pexpr_r:
 | bo= big LPAREN v=var IN e1=pexpr COLON e2=pexpr RPAREN LPAREN b=pexpr RPAREN
     { PEbig (bo, v, b, e1, e2) }
 
-| RESULT DOT i=INT
-    { PEResult i}
+(* FIXME this syntax is horrible *)
+| v=var DOT i=INT
+    { if L.unloc v <> "result" then
+        Syntax.parse_error ~msg:"`result` expected" (L.loc v);
+      PEResult i }
 
-| RESULT DOT index=INT i=arr_access
-    { let aa, (ws, e, len, al) = i in PEResultGet (al, aa, ws, index, e, len) }
+| v=var DOT index=INT i=arr_access
+    { if L.unloc v <> "result" then
+        Syntax.parse_error ~msg:"`result` expected" (L.loc v);
+      let aa, (ws, e, len, al) = i in PEResultGet (al, aa, ws, index, e, len) }
 
 pexpr:
 | e=loc(pexpr_r) { e }

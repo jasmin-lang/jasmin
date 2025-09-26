@@ -55,7 +55,6 @@
 
     "requires" , REQUIRES;
     "ensures", ENSURES;
-    "result", RESULT;
 
     "const" , CONSTANT;
     "downto", DOWNTO ;
