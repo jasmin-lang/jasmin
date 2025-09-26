@@ -187,4 +187,8 @@ Definition sem_opN_typed (o: opN) :
       fun b0 b1 b2 b3 => ok (sem_combine_flags cf b0 b1 b2 b3)
   end.
 
+Lemma sem_opN_typed_ok (op: opN):
+  sem_forall (fun et => exists t, et = ok t) _ (sem_opN_typed op).
+Proof. case: op=> [[][]|]; by econstructor. Qed.
+
 End WITH_PARAMS.

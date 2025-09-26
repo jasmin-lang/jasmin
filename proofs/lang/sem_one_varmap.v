@@ -267,6 +267,7 @@ Lemma sem_iE ii k s i s' :
          exec_syscall (semCallParams:= sCP_stack) s.(escs) s.(emem) o ves = ok (scs, m, vs) &
          write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s.(evm) |}
            (to_lvals (syscall_sig o).(scs_vout)) vs = ok s']
+  | Cassert _ => False
   | Cif e c1 c2 =>
     exists2 b, sem_pexpr true gd s e = ok (Vbool b) & sem k s (if b then c1 else c2) s'
   | Cwhile a c e ei c' =>

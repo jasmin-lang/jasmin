@@ -163,6 +163,9 @@ Module WArray.
   Definition copy ws p (a:array (Z.to_pos (arr_size ws p))) := 
     fcopy ws a (WArray.empty _) 0 p.
 
+  Definition fill_elem_aux len (x:u8) : exec (array len) :=
+    foldM (fun i pt => set pt Aligned AAscale i x) (empty len) (ziota 0 len).
+
   Definition fill len (l:list u8) : exec (array len) :=
     Let _ := assert (Pos.to_nat len == size l) ErrType in 
     Let pt := 
@@ -237,6 +240,37 @@ Module WArray.
   Proof. by case. Qed.
 
   End WITH_POINTER_DATA.
+
+  Lemma fill_elem_ok (n: positive) (el: word U8) : is_ok (fill_elem_aux n el).
+  Proof.
+    rewrite /fill_elem_aux.
+    set acc := empty n.
+    have : forall z, (z \in ziota 0 n) -> (0 <= z < n).
+            by move=> z /in_ziotaP.    
+
+    elim: ziota acc => [| a l hrec acc] hbound //=.
+    rewrite /set -set_write8 /= /set8 /=.
+    have -> /= : (in_bound acc (a * wsize_size U8)).
+    rewrite /in_bound.
+    move: (hbound a)=> [].
+    + by rewrite mem_head.
+      rewrite Z.mul_1_r => /Z.leb_le hlo /ZltP hhi.
+      by rewrite hlo hhi.
+    have := hrec {| arr_data := Mz.set (arr_data acc)
+                                  (a * wsize_size U8) el |}.
+    have h2 : (forall z, z \in l → 0 <= z < n).
+    + by move=> z hz; apply hbound; rewrite in_cons hz orbT.
+    by move=> /(_ h2).
+  Qed.
+
+  Definition fill_elem len (x:u8) : array len.
+  Proof.
+    assert (H := fill_elem_ok len x).
+    generalize H.
+    case (fill_elem_aux len x).
+    + move=> t _; exact t.
+    done.
+  Defined.
 
   Lemma castK len (a:array len) : WArray.cast len a = ok a.
   Proof. by rewrite /cast eqxx; case: a. Qed.

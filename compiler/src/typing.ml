@@ -88,8 +88,9 @@ let type_of_sopn loc pd asmOp op =
 let rec ty_expr pd loc (e:expr) =
   match e with
   | Pconst _    -> tint
-  | Pbool _     -> tbool
+  | Pbool _  | Pis_var_init _ | Pis_arr_init _ | Pis_barr_init _ | Pis_mem_init _ -> tbool
   | Parr_init len -> Arr (U8, len)
+  | Parr_init_elem (_, len) -> Arr (U8, len)
   | Pvar x      -> ty_gvar x
   | Pget(_al, _aa,ws,x,e) ->
     ty_get_set pd loc ws x e
@@ -116,6 +117,16 @@ let rec ty_expr pd loc (e:expr) =
     check_expr pd loc e1 ty;
     check_expr pd loc e2 ty;
     ty
+  | Pbig(e, op, x, e1, e2, e0) ->
+    let (tin1, tin2), tout = type_of_op2 op in
+    check_expr pd loc e  tout;
+    check_expr pd loc e1 tint;
+    check_expr pd loc e2 tint;
+    check_expr pd loc e0 tout;
+    (* FIXME *)
+    if not (subtype tin1 tout) && not (subtype tin2 tout) then
+      error loc "invalid big op type";
+    tout
 
 and check_expr pd loc e ty =
   let te = ty_expr pd loc e in
@@ -194,6 +205,9 @@ let rec check_instr pd asmOp env i =
     let tout = List.map Conv.ty_of_cty s.scs_tout in
     check_exprs pd loc es tins;
     check_lvals pd loc xs tout
+
+  | Cassert(p, a) ->
+    check_expr pd loc a tbool
 
   | Cif(e,c1,c2) ->
     check_expr pd loc e tbool;

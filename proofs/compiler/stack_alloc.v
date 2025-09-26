@@ -1053,6 +1053,25 @@ Fixpoint alloc_e (e:pexpr) ty :=
     Let e1 := alloc_e e1 ty in
     Let e2 := alloc_e e2 ty in
     ok (Pif ty e e1 e2)
+
+  | Pbig _ _ _ _ _ _ => Error (stk_ierror_no_var "Pbig is not supported in stack_alloc")
+
+  | Parr_init_elem e l => 
+    Let e := alloc_e e sint in
+    ok (Parr_init_elem e l)
+  | Pis_var_init _ => ok e
+  | Pis_arr_init x e1 e2 => 
+      Let e1 := alloc_e e1 sint in
+      Let e2 := alloc_e e2 sint in
+      ok (Pis_arr_init x e1 e2)
+  | Pis_barr_init x e1 e2 => 
+      Let e1 := alloc_e e1 sint in
+      Let e2 := alloc_e e2 sint in
+      ok (Pis_barr_init x e1 e2)
+  | Pis_mem_init e1 e2 => 
+      Let e1 := alloc_e e1 sint in
+      Let e2 := alloc_e e2 sint in
+      ok (Pis_mem_init e1 e2)
   end.
 
 Definition alloc_es es ty := mapM2 bad_arg_number alloc_e es ty.
@@ -1764,6 +1783,9 @@ Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region
     Let: (rmap, c) := alloc_syscall ii rmap rs o es in
     ok (table, rmap, c)
 
+  | Cassert _ =>
+    Error (pp_at_ii ii (stk_ierror_no_var "don't deal with assert"))
+
   | Cif e c1 c2 =>
     Let e := add_iinfo ii (alloc_e rmap e sbool) in
     Let: (table1, rmap1, c1) := fmapM (alloc_i sao) (table, rmap) c1 in
@@ -2022,6 +2044,7 @@ Definition alloc_fd_aux P p_extra mglob (local_alloc: funname -> stk_alloc_oracl
       check_results pmap rmap paramsi fd.(f_params) sao.(sao_return) fd.(f_res) in
   ok {|
     f_info := f_info fd;
+    f_contra := None;
     f_tyin := map2 (fun o ty => if o is Some _ then sword Uptr else ty) sao.(sao_params) fd.(f_tyin);
     f_params := params;
     f_body := flatten body;

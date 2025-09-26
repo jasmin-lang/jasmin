@@ -23,8 +23,11 @@
 %token ALIGNED
 %token AMP
 %token AMPAMP
+%token ALL
+%token ASSERT
 %token BANG
 %token BANGEQ
+%token BIG
 %token COLON
 %token COLONCOLON
 %token COMMA
@@ -32,9 +35,11 @@
 %token DOT
 %token DOWNTO
 %token ELSE
+%token ENSURES
 %token EQ
 %token EQEQ
 %token EXEC
+%token EXISTS
 %token FALSE
 %token FN
 %token FOR
@@ -46,6 +51,7 @@
 %token <Syntax.sign option>GTGT
 %token HAT
 %token IF
+%token IN
 %token INLINE
 %token <Syntax.sign option> LE
 %token <Syntax.sign option> LT
@@ -63,10 +69,12 @@
 %token RARROW
 %token REG
 %token REQUIRE
+%token REQUIRES
 %token RETURN
 %token ROR
 %token ROL
 %token SEMICOLON
+%token SUM
 %token <Syntax.swsize> SWSIZE
 %token <Syntax.svsize> SVSIZE
 %token <Syntax.sign option> SLASH
@@ -321,8 +329,28 @@ pexpr_r:
 | e1=pexpr QUESTIONMARK e2=pexpr COLON e3=pexpr
     { PEIf(e1, e2, e3) }
 
+| bo= big LPAREN v=var IN e1=pexpr COLON e2=pexpr RPAREN LPAREN b=pexpr RPAREN
+    { PEbig (bo, v, b, e1, e2) }
+
+(* FIXME this syntax is horrible *)
+| v=var DOT i=INT
+    { if L.unloc v <> "result" then
+        Syntax.parse_error ~msg:"`result` expected" (L.loc v);
+      PEResult i }
+
+| v=var DOT index=INT i=arr_access
+    { if L.unloc v <> "result" then
+        Syntax.parse_error ~msg:"`result` expected" (L.loc v);
+      let aa, (ws, e, len, al) = i in PEResultGet (al, aa, ws, index, e, len) }
+
 pexpr:
 | e=loc(pexpr_r) { e }
+
+%inline big:
+| BIG LBRACKET o=peop2 SLASH e0=pexpr RBRACKET   { PEBop(o,e0) }
+| SUM                                            { PESum }
+| ALL                                            { PEAll }
+| EXISTS                                         { PEExists }
 
 (* -------------------------------------------------------------------- *)
 peqop:
@@ -380,6 +408,8 @@ pinstr_r:
     c=prefix(IF, pexpr)? SEMICOLON
     { let { Location.pl_loc = loc; Location.pl_desc = (f, args) } = fc in
       PIAssign ((None, []), `Raw, Location.mk_loc loc (PECall (f, args)), c) }
+
+| ASSERT e=pexpr SEMICOLON { PIAssert e }
 
 | s=pif { s }
 
@@ -471,6 +501,12 @@ call_conv :
 | EXPORT { `Export }
 | INLINE { `Inline }
 
+requires:
+| REQUIRES a=annotations LBRACE pe=pexpr RBRACE { (a,pe) }
+
+ensures:
+| ENSURES a=annotations LBRACE pe=pexpr RBRACE { (a,pe) }
+
 pfundef:
 |  pdf_annot = annotations
     cc=call_conv?
@@ -478,14 +514,17 @@ pfundef:
     name = ident
     args = parens_tuple(annot_pparamdecl)
     rty  = prefix(RARROW, tuple(annot_stor_type))?
+    pre = requires*
+    post = ensures*
     body = pfunbody
 
-  { { pdf_annot;
-      pdf_cc   = cc;
-      pdf_name = name;
-      pdf_args = args;
-      pdf_rty  = rty ;
-      pdf_body = body; } }
+    { { pdf_annot;
+        pdf_contra = {pdc_pre=pre; pdc_post=post};
+        pdf_cc   = cc;
+        pdf_name = name;
+        pdf_args = args;
+        pdf_rty  = rty ;
+        pdf_body = body; } }
 
 (* -------------------------------------------------------------------- *)
 pparam:

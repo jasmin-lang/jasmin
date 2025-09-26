@@ -1926,7 +1926,7 @@ Proof.
       rewrite Mvar.setP.
       case: eqP => [<-|_].
       + move=> [<-] /=.
-        move: ok_v; rewrite /get_gvar hlvar => ok_v.
+        move: ok_v; rewrite /get_gvar /= hlvar => ok_v.
         rewrite ok_v => -[<-].
         rewrite get_var_eq clone_ty;
           last by apply subtype_truncatable; rewrite -ty_v'.
@@ -3155,7 +3155,7 @@ Proof.
   + case: x htr hval {hsr hwf hreadeq hset} => x xii /= htr hval.
     move=> [? ? -> ->]; subst x.
     have [_ hty] := hval.
-    rewrite get_gvar_eq //.
+    rewrite get_gvar_eq //=.
     by t_xrbindP => hd <-.
   + move=> [hnglob hneq heqr hsry /= ->].
     have := check_gvalid_lvar hsry; rewrite mk_lvar_nglob // => hgvalid.
@@ -3796,7 +3796,7 @@ Lemma wfr_VAL_set_move rmap vme s1 s2 x sr status v :
   wfr_VAL (set_move rmap x sr status) vme (with_vm s1 (evm s1).[x <- v]) s2.
 Proof.
   move=> htr heqval hval y sry bytesy vy /check_gvalid_set_move [].
-  + by move=> [? ? <- ->]; subst x; rewrite get_gvar_eq //; t_xrbindP => hd <-.
+  + by move=> [? ? <- ->]; subst x; rewrite get_gvar_eq //=; t_xrbindP => hd <-.
   by move=> [? hgvalid]; rewrite get_gvar_neq => //; apply hval.
 Qed.
 

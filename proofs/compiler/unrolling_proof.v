@@ -177,7 +177,7 @@ Section PROOF.
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
     move => scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
-    case: f=> fi ftyi fparams fc ftyo fres fe /= Hget Htyi Hi Hw _ Hc Hres Htyo Hsys Hfi.
+    case: f=> fi ci ftyi fparams fc ftyo fres fe /= Hget Htyi Hi Hw _ Hc Hres Htyo Hsys Hfi.
     move/p'_get_fundef: Hget Hc.
     rewrite /Pc /=.
     case: unroll_cmd => c _ /= Hget Hc.
@@ -238,7 +238,7 @@ Section PROOF.
     move=> fn _ fs _ [<- <-] fd hfd; exists (unroll_fun (fn, fd)).1.2.
     + by apply: p'_get_fundef hfd.
     move=> s {hfd}.
-    case: fd => /= finfo ftyin fparams fbody ftyout fres fextra.
+    case: fd => /= finfo fcontract ftyin fparams fbody ftyout fres fextra.
     case heq: unroll_cmd => [c' b] /= hinit.
     exists s.
     + by move: hinit; rewrite /initialize_funcall /= p'_extra.
@@ -252,6 +252,7 @@ Section PROOF.
     + by move=> ????? /=; apply wequiv_assgn_rel_eq with checker_st_eq tt.
     + by move=> ????? /=; apply wequiv_opn_rel_eq with checker_st_eq tt.
     + by move=> ???? /=; apply wequiv_syscall_rel_eq with checker_st_eq tt.
+    + by move=> ?? /=; apply wequiv_assert_rel_eq with checker_st_eq.
     + by move=> > ??? /=; surjpairing; apply wequiv_if_rel_eq with checker_st_eq tt tt tt.
     + move=> i d lo hi c hc ii /=; surjpairing.
       case: is_constP => [{}lo | {}lo]; last by apply wequiv_for_rel_eq with checker_st_eq tt tt.
