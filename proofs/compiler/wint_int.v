@@ -348,8 +348,8 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
     ok (es.1 ++ xs.1, Csyscall xs.2 o es.2)
 
   | Cassert a =>
-    Let e := wi2i_e a.2 in
-    ok (e.1, Cassert (a.1, e.2))
+    Let a := wi2i_a_and a in
+    ok ([::], Cassert a)
 
   | Cif b c1 c2 =>
     Let b := wi2i_e b in

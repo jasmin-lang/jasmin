@@ -748,23 +748,17 @@ Qed.
 
 Lemma wequiv_assert (P Q : rel_c) ii1 a1 ii2 a2 :
   (assert_allowed (WithAssert:=wa1) ->
-     assert_allowed (WithAssert:=wa2) /\
-     wrequiv P (sem_cond1 (p_globs p1) a1.2) (sem_cond2 (p_globs p2) a2.2) (fun b1 b2 => b1 -> b2)) ->
-  (assert_allowed (WithAssert:=wa1) ->
-   assert_allowed (WithAssert:=wa2) ->
+   assert_allowed (WithAssert:=wa2) /\
    forall s1 s2,
      P s1 s2 ->
-     sem_cond1 (p_globs p1) a1.2 s1 = ok true -> sem_cond2 (p_globs p2) a2.2 s2 = ok true ->
-     Q s1 s2) ->
+     sem_cond1 (p_globs p1) a1.2 s1 = ok true ->
+     sem_cond2 (p_globs p2) a2.2 s2 = ok true /\ Q s1 s2) ->
   wequiv P [:: MkI ii1 (Cassert a1)] [:: MkI ii2 (Cassert a2)] Q.
 Proof.
-  move=> hcond hweak; apply wequiv_assert_esem => s t s' hP /=.
+  move=> hcond; apply wequiv_assert_esem => s t s' hP /=.
   rewrite /sem_assert; t_xrbindP.
-  move=> haa1 b1 hsem1 hb1 _ <-.
-  have [haa2 h] := hcond haa1.
-  have [b2 hsem2 /(_ hb1)hb2] := h _ _ _ hP hsem1.
-  rewrite haa2 /= hsem2 /= hb2 /=; exists t => //.
-  by apply hweak => //; [rewrite -hb1 | rewrite -hb2].
+  move=> /hcond [-> {}hcond] b1 hsem1 hb1 _ <-; rewrite hb1 in hsem1 => {hb1 b1}.
+  by have [-> hQ /=] := hcond _ _ hP hsem1; exists t.
 Qed.
 
 Lemma sem_cond_uincl P e1 e2 :
@@ -789,14 +783,11 @@ Lemma wequiv_assert_uincl (P Q : rel_c) ii1 a1 ii2 a2 :
      Q s1 s2) ->
   wequiv P [:: MkI ii1 (Cassert a1)] [:: MkI ii2 (Cassert a2)] Q.
 Proof.
-  move=> hcond hweak; apply wequiv_assert.
-  + move=> /hcond [? he]; split => //.
-    apply wrequiv_weaken with P eq => //.
-    + by move=> > ->.
-    by apply sem_cond_uincl.
-  move=> haa1 haa2 s1 s2 hP; rewrite /sem_cond; t_xrbindP.
-  move=> v1 hv1 /to_boolI ? v2 hv2 /to_boolI ?; subst v1 v2.
-  by apply hweak.
+  move=> hcond hweak; apply wequiv_assert => haa1.
+  have [haa2 h] := hcond haa1; split => //.
+  move=> s1 s2 hP hsem1.
+  have [o2 hsem2 ?]:= sem_cond_uincl h hP hsem1; subst o2; split => //.
+  by apply hweak => //;[ move: hsem1 | move: hsem2]; rewrite /sem_cond; t_xrbindP => ? -> /to_boolI ->.
 Qed.
 
 Lemma wequiv_assert_eq (P Q : rel_c) ii1 a1 ii2 a2 :
@@ -1980,7 +1971,7 @@ Proof.
   + move=> {hpre fn1 fn2 fs1 fs2}.
     move=> _ _ [ii1 fn1 fs1] [ii2 fn2 fs2] hpre.
     have := wequiv_fun_body_wa (hbody fn1 fn2) hpre.
-    by apply xrutt_weaken_aux. 
+    by apply xrutt_weaken_aux.
   have := wequiv_fun_body_wa (hbody fn1 fn2) hpre.
   apply xrutt_weaken_aux.
 Qed.
@@ -2016,8 +2007,8 @@ Proof.
   + rewrite /= bind_ret_l /isem_pre.
     case heq0 : (sem_pre p1 fn1 fs1) => [ [] | ].
     + case heq1 : initialize_funcall => [s1 | e].
-      + have hpre' : 
-          [/\ Pf fn1 fn2 fs1 fs2, sem_pre (dc:=dc1) (wsw:=wsw1) (wc:=wc1) (wa:=wa1) p1 fn1 fs1 = ok tt 
+      + have hpre' :
+          [/\ Pf fn1 fn2 fs1 fs2, sem_pre (dc:=dc1) (wsw:=wsw1) (wc:=wc1) (wa:=wa1) p1 fn1 fs1 = ok tt
             & exists s1, initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s1].
         + by split => //; exists s1.
         have /= := hfd _ heq _ _ hpre'.
@@ -2056,7 +2047,7 @@ Proof.
   move=> he hx; apply wequiv_opn with eq eq => //.
   + by move=> *; apply wrequiv_eq.
   by move=> > <-; apply hx.
-Qed. 
+Qed.
 
 Lemma wequiv_opn_uincl P Q ii1 xs1 at1 o es1 ii2 xs2 at2 es2 :
   wrequiv P (fun s => sem_pexprs1 true (p_globs p1) s es1)
@@ -2129,12 +2120,12 @@ Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
 Notation sem_fun1 := (sem_fun (pT := pT1) (sem_Fun := sem_F1)).
 Notation sem_fun2 := (sem_fun (pT := pT2) (sem_Fun := sem_F2)).
 
-Lemma wequiv_noassert ii a c P Q : 
+Lemma wequiv_noassert ii a c P Q :
   wequiv p1 p2 ev1 ev2 P [:: MkI ii (Cassert a)] c Q.
 Proof.
-  move=> s1 s2 _ /=. 
+  move=> s1 s2 _ /=.
   rewrite bind_ret_r /isem_assert /= /Exception.throw bind_vis; apply xrutt_CutL => //.
-  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.  
+  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
 Qed.
 
 Lemma wequiv_call (Pf : relPreF) (Qf : relPostF) Rv P Q ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
@@ -2290,7 +2281,7 @@ End NOASSERT.
 End RELATIONAL.
 
 Notation wiequiv_f_wa wc1 wc2 wa1 wa2 :=
-  (wiequiv_f (wc1 := wc1) (wc2 := wc2) (wa1 := wa1) (wa2 := wa2) ). 
+  (wiequiv_f (wc1 := wc1) (wc2 := wc2) (wa1 := wa1) (wa2 := wa2) ).
 
 Notation wiequiv_wa wc1 wc2 wa1 wa2 :=
   (wequiv (sem_F1 := sem_fun_full (wc:=wc1) (wa:=wa1)) (sem_F2 := sem_fun_full (wc:=wc2) (wa:=wa2))).
@@ -2413,21 +2404,21 @@ Notation EPost13 := (EPostRel (rE0 := rE13)).
 Notation wiequiv_f12 :=
   (wiequiv_f
      (scP1 := scP1) (scP2 := scP2)
-     (wc1 := wc1) (wc2:= wc2) 
+     (wc1 := wc1) (wc2:= wc2)
      (wa1 := wa1) (wa2 := wa2)
      (dc1 := dc1) (dc2 := dc2)
      (rE0 := rE12)).
 Notation wiequiv_f23 :=
   (wiequiv_f
      (scP1 := scP2) (scP2 := scP3)
-     (wc1 := wc2) (wc2:= wc3) 
+     (wc1 := wc2) (wc2:= wc3)
      (wa1 := wa2) (wa2 := wa3)
      (dc1 := dc2) (dc2 := dc3)
      (rE0 := rE23)).
 Notation wiequiv_f13 :=
   (wiequiv_f
      (scP1 := scP1) (scP2 := scP3)
-     (wc1 := wc1) (wc2:= wc3) 
+     (wc1 := wc1) (wc2:= wc3)
      (wa1 := wa1) (wa2 := wa3)
      (dc1 := dc1) (dc2 := dc3)
      (rE0 := rE13)).

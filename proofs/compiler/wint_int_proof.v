@@ -1261,11 +1261,13 @@ Proof.
     have /(_ sce.1) := (wi2i_lvsP_none htyof hscx); apply.
     rewrite -hmem with_mem_same.
     by case: hpre => -[_ ? ? hsc]; split => //; rewrite -sem_cond_with_scs.
-  + move=> a ii sci; t_xrbindP => sce hsce <- /=.
-    apply wequiv_assert => //; last by move=> _ _ > [].
+  + move=> a ii sci; rewrite /wi2i_a_and; t_xrbindP.
+    move=> ? [sc ai] ha <- <- /=.
+    apply wequiv_assert => //.
     move=> _; split => //.
-    move=> si s b [heqs hsc1].
-    by move=> /(wi2i_condP hsce heqs hsc1) ->; exists b.          
+    move=> si s [heqs _].
+    rewrite -cats1 eandsE_cat eandsE_1 => -[] hsc hai.
+    by rewrite (wi2i_condP ha heqs hsc hai).
   + move=> e c1 c2 hc1 hc2 ii sci_; t_xrbindP => sce hsce ci1 /hc1{}hc1 ci2 /hc2{}hc2 <- /=.
     apply wequiv_if.
     + by move=> ??? [heqs hsc1] hsc; have := (wi2i_condP hsce heqs hsc1 hsc); eauto.
