@@ -221,7 +221,7 @@ let memory_analysis pp_sr pp_err ~debug up =
     let sao = get_sao fn in
     let _, fd = List.find (fun (_, fd) -> fd.f_name = fn) fds in
     match fd.f_cc with
-    | Export _ -> Some sao.sao_return
+    | Export -> Some sao.sao_return
     | _ -> None
   in
   let tokeep fn =
@@ -252,9 +252,9 @@ let memory_analysis pp_sr pp_err ~debug up =
 
   let fix_subroutine_csao (_, fd) =
     match fd.f_cc with
-    | Export _ -> ()
+    | Export -> ()
     | Internal -> assert false
-    | Subroutine _ ->
+    | Subroutine ->
 
     let fn = fd.f_name in
     let sao = Hf.find sao fn in
@@ -333,7 +333,7 @@ let memory_analysis pp_sr pp_err ~debug up =
   let fix_csao (_, fd) =
     let fn = fd.f_name in
     match fd.f_cc with
-    | Subroutine _ ->
+    | Subroutine ->
       (* It as been already fixed by the previous pass fix_subroutine_csao,
          we just need to fix the return address *)
       let csao = get_sao fn in
@@ -348,7 +348,7 @@ let memory_analysis pp_sr pp_err ~debug up =
       } in
       Hf.replace atbl fn csao
     | Internal -> assert false
-    | Export _ ->
+    | Export ->
 
     let ro = Regalloc.get_reg_oracle has_stack subst killed fd in
     let sao = Hf.find sao fn in
@@ -380,7 +380,7 @@ let memory_analysis pp_sr pp_err ~debug up =
     (* if we zeroize the stack, we may have to increase the alignment *)
     let align =
       match fd.f_cc, fd.f_annot.stack_zero_strategy with
-      | Export _, Some (_, Some ws) ->
+      | Export, Some (_, Some ws) ->
           if Z.equal max_stk Z.zero
             && Z.equal (Conv.z_of_cz csao.Stack_alloc.sao_size) Z.zero
             && extra_size = 0
@@ -417,13 +417,13 @@ let memory_analysis pp_sr pp_err ~debug up =
                    (Z.of_int extra_size) in
       let stk_size = 
         match fd.f_cc with
-        | Export _     -> stk_size
-        | Subroutine _ ->
+        | Export -> stk_size
+        | Subroutine ->
           Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
         | Internal -> assert false in
       let max_size = Z.add max_stk stk_size in
       match fd.f_cc, fd.f_annot.stack_zero_strategy with
-      | Export _, Some (_, ows) ->
+      | Export, Some (_, ows) ->
           let ws =
             match ows with
             | Some ws -> ws

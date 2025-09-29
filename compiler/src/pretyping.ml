@@ -1891,10 +1891,10 @@ let mk_call loc inline lvs f es =
   let open P in
   begin match f.f_cc with
   | Internal -> ()
-  | Export _ ->
+  | Export ->
     if not inline then
       warning InlinedCallToExport (L.i_loc0 loc) "export function will be inlined"
-  | Subroutine _ when not inline ->
+  | Subroutine when not inline ->
     let check_lval = function
       | Lnone _ | Lvar _ | Lasub _ -> ()
       | Lmem _ | Laset _ -> rs_tyerror ~loc (string_error "memory/array assignment are not allowed here") in
@@ -1904,7 +1904,7 @@ let mk_call loc inline lvs f es =
       | _ -> warning PedanticPretyping (L.i_loc0 loc)  "only variables and subarray are allowed in arguments of non-inlined function" in
     List.iter check_lval lvs;
     List.iter check_e es
-  | Subroutine _ -> ()
+  | Subroutine -> ()
   end;
 
   (* Check writability *)
@@ -2213,9 +2213,9 @@ let tt_call_conv _loc params returns cc =
                              Printer.pp_pvar x) in
     List.iteri check_writable_param params;
     if cc = None then
-      FInfo.Subroutine { returned_params }
+      FInfo.Subroutine
     else
-      FInfo.Export { returned_params }
+      FInfo.Export
 
 (* -------------------------------------------------------------------- *)
 
