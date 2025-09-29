@@ -24,22 +24,17 @@ let f_annot_empty = {
     f_user_annot          = [];
   }
 
-type arg_ret_info = { returned_params : int option list }
-(** When a non-inlined function returns a `ptr` array, it has to be one of its
-    arguments. [returned_params] associates to each return value the index of
-    the corresponding argument if it is a `ptr` array, and [None] otherwise. *)
-
 type call_conv =
-  | Export of arg_ret_info  (** The function should be exported to the outside word *)
-  | Subroutine of arg_ret_info (** internal function that should not be inlined *)
+  | Export  (** The function should be exported to the outside word *)
+  | Subroutine (** internal function that should not be inlined *)
   | Internal  (** internal function that should be inlined *)
 
 let is_subroutine = function
-  | Subroutine _ -> true
+  | Subroutine -> true
   | _            -> false
 
 let is_export = function
-  | Export _ -> true
+  | Export -> true
   | _ -> false
 
 (* ------------------------------------------------------------------------ *)

@@ -647,9 +647,9 @@ module Regalloc (Arch : Arch_full.Arch)
       List.iter (fun ((e, f) as fd) ->
       let ra =
          match f.f_cc with
-         | Export _ -> StackDirect
+         | Export -> StackDirect
          | Internal -> assert false
-         | Subroutine _ ->
+         | Subroutine ->
            match Arch.callstyle with
            | Arch_full.StackDirect -> StackDirect
            | Arch_full.ByReg { call = oreg; return } ->
@@ -1054,16 +1054,14 @@ let post_process
   else Sv.elements to_save, None
 
 let subroutine_ra_by_stack f =
-  match f.f_cc with
-  | Export _ | Internal -> assert false
-  | Subroutine _ ->
-      match Arch.callstyle with
-      | Arch_full.StackDirect -> true
-      | Arch_full.ByReg { call = oreg } ->
-        let dfl = oreg <> None && has_call_or_syscall f.f_body in
-        match f.f_annot.retaddr_kind with
-        | None -> dfl
-        | Some k -> dfl || k = OnStack
+  assert (FInfo.is_subroutine f.f_cc);
+  match Arch.callstyle with
+  | Arch_full.StackDirect -> true
+  | Arch_full.ByReg { call = oreg } ->
+    let dfl = oreg <> None && has_call_or_syscall f.f_body in
+    match f.f_annot.retaddr_kind with
+    | None -> dfl
+    | Some k -> dfl || k = OnStack
 
 type callsite_tree =
   { sv : Sv.t option; sub : callsite_tree Miloc.t }
@@ -1222,8 +1220,8 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
       let written, cg = written_vars_fc f in
       let written =
         match f.f_cc with
-        | (Export _ | Internal) -> written
-        | Subroutine _ ->
+        | (Export | Internal) -> written
+        | Subroutine ->
           Sv.union (vars_retaddr ra) written
       in
       let killed_by_calls =
