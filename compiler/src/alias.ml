@@ -279,20 +279,6 @@ let analyze_fd_ignore cc fd =
   let a = analyze_fd cc fd in
   Format.eprintf "Aliasing forest for function %s:@.%a@." fd.f_name.fn_name pp_alias a
 
-let analyze_prog fds =
-  let _ = assert false in
-  let cc : int option list Hf.t = Hf.create 17 in
-  let get_cc = Hf.find cc in
-  List.fold_right (fun fd () ->
-      begin match fd.f_cc with
-      | Subroutine si -> Hf.add cc fd.f_name si.returned_params
-      | Export _ -> ()
-      | Internal -> assert false
-      end;
-      analyze_fd_ignore get_cc fd)
-    fds
-    ()
-
 (* --------------------------------------------------- *)
 let classes (a: alias) : Sv.t Mv.t =
   Mv.fold (fun x s c ->
