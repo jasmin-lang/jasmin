@@ -1,0 +1,19 @@
+param int N = 4;
+
+// we want to do pointer arithmetic with stk ptr
+
+export fn main (reg ptr u64[N] r) -> reg u64 {
+  reg u64 res;
+
+  stack ptr u64[N] s;
+  stack ptr u64[1] s1;
+  reg ptr u64[1] r1;
+  
+  s = r;
+  s1 = s[1:1];
+  r1 = s1;
+
+  res = r1[0];
+
+  return res;
+}

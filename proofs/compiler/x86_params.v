@@ -40,6 +40,17 @@ Definition x86_op_align (x : var_i) (ws : wsize) (al : wsize) : fopn_args :=
 Definition lea_ptr x y tag ofs : instr_r :=
   Copn [:: x] tag (Ox86 (LEA Uptr)) [:: add y ofs].
 
+Definition same_memory_location x y : bool :=
+  match x, y with
+  | Lmem al ws _ ofs, Pload al' ws' ofs' =>
+      [&& al == al', ws == ws' & eq_expr ofs ofs' ]
+  | _, _ => false
+  end.
+
+Definition add_ptr x y tag ofs : instr_r :=
+  let f := Lnone dummy_var_info sbool in
+  Copn [:: f; f; f; f; f; x ] tag (Ox86 (ADD Uptr)) [:: y; ofs ].
+
 Definition x86_mov_ofs x tag movk y ofs :=
   let addr :=
     if movk is MK_LEA
@@ -48,7 +59,10 @@ Definition x86_mov_ofs x tag movk y ofs :=
     else
       if is_zero Uptr ofs
       then mov_ws Uptr x y tag
-      else lea_ptr x y tag ofs
+      else
+        if same_memory_location x y
+        then add_ptr x y tag ofs
+        else lea_ptr x y tag ofs
   in
   Some addr.
 

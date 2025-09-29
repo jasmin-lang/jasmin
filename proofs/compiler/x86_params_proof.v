@@ -76,7 +76,11 @@ Proof.
   rewrite /x86_saparams /= /x86_mov_ofs => -[<-] /=.
   case: mk.
   - exact: lea_ptrP.
-  case: is_zeroP => [hofs|_]; last exact: lea_ptrP.
+  case: is_zeroP => [hofs|_]; last first.
+  - case: same_memory_location; last exact: lea_ptrP.
+    move: he ok_pofs; t_xrbindP.
+    rewrite /= /sem_sopn /exec_sopn /= P'_globs => ev -> /=  ok_i ofsv -> /=.
+    by rewrite ok_i => -> /= ->.
   move: hofs ok_pofs => -> /=.
   rewrite truncate_word_u wrepr0 => -[<-].
   rewrite GRing.addr0 -P'_globs in he |- * => hw.
