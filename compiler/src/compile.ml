@@ -124,6 +124,35 @@ let do_wint_int
 
 
 (*--------------------------------------------------------------------- *)
+
+let add_default_contract args args_ty ret ret_ty =
+  let aux (x,t) = 
+    match t with
+    | Arr (ws, n) -> [("safety",Pis_arr_init(x,Pconst Z.zero,Pconst (Z.of_int (n * size_of_ws ws))))]
+    | _ -> []
+  in
+  let create_new_var x = L.mk_loc L._dummy (GV.mk x.v_name x.v_kind x.v_ty x.v_dloc x.v_annot) in
+
+  let f_iparams = List.map (create_new_var) args in
+  let f_pre = List.flatten (List.map aux (List.combine f_iparams args_ty)) in
+  let ret = List.map (L.unloc) ret in
+  let f_ires = List.map (create_new_var) ret in
+  let f_post = List.flatten (List.map aux (List.combine f_ires ret_ty)) in
+  {
+    f_iparams; f_ires; f_pre; f_post;
+  }
+
+let add_default_contracts prog : global_decl list * (int, 'a, 'b) gfunc list =
+  let add_default_contract fd = 
+    let c = match fd.f_contra with
+    | Some c -> Some c 
+    | None -> Some (add_default_contract fd.f_args fd.f_tyin fd.f_ret fd.f_tyout)
+    in
+    {fd with f_contra = c }
+  in
+  let globs,funcs = prog in
+  globs,List.map add_default_contract funcs
+
 let create_safety_asserts
    (type reg regx xreg rflag cond asm_op extra_op)
     (module Arch : Arch_full.Arch
@@ -150,7 +179,8 @@ let create_safety_asserts
           cbv
   in
   let create_var vk name t l =  Conv.cvar_of_var (V.mk name vk (Conv.ty_of_cty t) l []) in  
-  let cuprog = Conv.cuprog_of_prog prog in     
+  let prog = add_default_contracts prog in
+  let cuprog = Conv.cuprog_of_prog prog in  
   let cuprog = 
     Compiler_extraction.create_safety_asserts
     Arch.asmOp Arch.pointer_data Arch.msf_size create_var b Arch.fcp Arch.aparams.ap_is_move_op cuprog

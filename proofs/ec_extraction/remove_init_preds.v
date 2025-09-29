@@ -15,7 +15,6 @@ Context {msfsz : MSFsize}.
 Context {fcp : FlagCombinationParams}.
 Context {pT: progT}.
 Context (is_move_op : asm_op_t -> bool).
-Context (create_var : v_kind -> string -> stype -> var_info -> var).
 Context (B : var -> var).
 
 
@@ -350,56 +349,6 @@ Definition add_barray_fun_decl (f:ufundef) :=
 
   (tyin, params, tyout, res).
 
-Definition create_new_var (x:var_i) :=
-  let x_info := x.(v_info) in
-  let x := x.(v_var) in
-  let x_type := x.(vtype) in
-  let x_var := x.(vname) in
-  let x := create_var (Ident.id_kind x_var) (Ident.id_name x_var) x_type x_info in
-  {|v_var:= x ; v_info:= x_info|}.  
-
-(* Generate contract variables
-   For each array in params create precondition that it is fully initialized
-   For each array in res create postcondition that it will be fully initialized *)
-Definition generate_fun_contra_array (f:ufundef) : fun_contract :=
-  let iparams := map create_new_var f.(f_params) in
-  let ires := map create_new_var f.(f_res) in
-  let aux l tl := flatten(map2 (fun x ty =>
-    match ty with
-      | sarr n => 
-        [::(safety_lbl,Pis_arr_init x (Pconst 0) (Pconst n))]
-      | _ => [::]
-    end
-  ) l tl) in
-  let pre := aux iparams f.(f_tyin) in
-  let post := aux ires f.(f_tyout) in
-  {|
-    f_iparams := iparams;
-    f_ires    := ires;
-    f_pre     := pre;
-    f_post    := post
-  |}.
-
-(* By default, if the function has no contract, it creates it,
-  assuming:
-  - the arrays in the parameters are initialized
-  - the arrays in the return values will be initialized.
-  If the function has a contract, it does not change it. *)
-Definition add_default_contra (f:ufundef): option fun_contract :=
-  match f.(f_contra) with
-    | None =>
-      let without_array := all (fun t => 
-        match t with
-        | sarr _ => false
-        | _ => true
-        end
-      ) (f.(f_tyin) ++ f.(f_tyout)) in
-      if without_array then
-        None
-      else
-        Some (generate_fun_contra_array f)
-    | Some c => Some c
-  end.
 
 (* Add boolean arrays variables to contract variables and 
 remove is_var_init and is_arr_init from the pre and post conditions *)
@@ -445,8 +394,7 @@ Definition init_bvars ii (f:ufundef) :=
 (* Remove is_var_init and is_arr_init - replacing with corresponding boolean variables *)
 Definition rm_var_init_f (f:ufundef): ufundef :=
   let: (f_tyin, f_params,f_tyout,f_res) := add_barray_fun_decl f in
-  let f_contra := add_default_contra f in
-  let f_contra := update_fun_contra f_contra in
+  let f_contra := update_fun_contra f.(f_contra) in
   let body := rm_var_init_cmd (fun x => Plvar (var_i_to_bvar x)) f.(f_body) in
   let init_bvars := match body with
     | [::] => [::]

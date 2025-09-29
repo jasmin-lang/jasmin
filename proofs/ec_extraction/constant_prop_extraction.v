@@ -386,7 +386,7 @@ Fixpoint const_prop_ir cpf (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     (m, [:: MkI ii (Csyscall xs o es) ])
 
   (* FIXME : provide explanation on this line *)
-  | Cassert ("Safety",e) => (m,[:: MkI ii ir])
+  | Cassert ("safety_inv",e) => (m,[:: MkI ii ir])
   | Cassert (t,e) =>
     let (m,e) := const_prop_e_assert without_globals m e in
     match is_bool e with
