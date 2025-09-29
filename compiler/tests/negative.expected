@@ -1378,7 +1378,7 @@ fail/typing/x86-64/only_param.jazz:
 
 fail/typing/x86-64/res_wrong_type.jazz:
 
-"fail/typing/x86-64/res_wrong_type.jazz", line 12 (10-12): pt should be one of the paramaters
+"fail/typing/x86-64/res_wrong_type.jazz", line 1 (0) to line 13 (1): In function “init”, return statement variable “pt” has storage type “reg mut ptr”, which differs from declared return storage type “stack”
 
 fail/typing/x86-64/subarray_non_const_len.jazz:
 
