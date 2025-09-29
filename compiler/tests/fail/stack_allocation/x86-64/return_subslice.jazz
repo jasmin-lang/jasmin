@@ -1,0 +1,4 @@
+export fn sub(reg ptr u8[4] p) -> reg ptr u8[1] {
+  reg ptr u8[1] r = p[0:1];
+  return r;
+}

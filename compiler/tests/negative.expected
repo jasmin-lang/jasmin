@@ -1239,11 +1239,23 @@ and destination
     zone = [0:16][(8 * ((uint) (i +64u ((64u) 1)))):8] }
 regions are not equal
 
-fail/stack_allocation/x86-64/res_pointer_not_initial_region.jazz:
+fail/stack_allocation/x86-64/return_ptr_global.jazz:
 
-"fail/stack_allocation/x86-64/res_pointer_not_initial_region.jazz", line 5 (9-10):
+"fail/stack_allocation/x86-64/return_ptr_global.jazz", line 5 (9-10):
 compilation error in function main:
-stack allocation: the returned pointer (r) is one of the parameters, but it does not point to the region it pointed to initially
+variable allocation: returned variable p points to a region that should not escape the local scope: #g:g[0; 4[
+
+fail/stack_allocation/x86-64/return_ptr_local.jazz:
+
+"fail/stack_allocation/x86-64/return_ptr_local.jazz", line 5 (9-10):
+compilation error in function main:
+variable allocation: returned variable r points to a region that should not escape the local scope: r[0; 4[
+
+fail/stack_allocation/x86-64/return_subslice.jazz:
+
+"fail/stack_allocation/x86-64/return_subslice.jazz", line 3 (9-10):
+compilation error in function sub:
+variable allocation: returned variable r points to a strict sub-slice of a parameter: p[0; 1[
 
 fail/stack_allocation/x86-64/stack_ptr_in_expr.jazz:
 
@@ -1521,4 +1533,4 @@ Statistics:
 	Pretyping:  45
 	Parsing:     4
 	Typing:      1
-	Compile:   189
+	Compile:   191
