@@ -760,75 +760,151 @@ Proof.
   exists t; eapply inr_only_inl_safe_refl; auto.
 Qed.
 
+(* rutt inr-relating E1+E2 to E2 *)
+Definition no_left_res (T : Type)
+  (t12 : itree (E1 +' E2) T) (t2 : itree E2 T) : Prop := 
+  rutt (fun U12 U2 (e12: (E1 +' E2) U12) (e2: E2 U2) =>
+              exists h : U2 = U12,
+                e12 = eq_rect U2 (E1 +' E2) (inr1 e2) U12 h)
+       (fun U12 U2 (e12: (E1 +' E2) U12) (u12: U12) (e2: E2 U2) (u2: U2) =>
+               JMeq u12 u2)
+       eq t12 t2.
 
-(***** auxiliary stuff *)
-
-Definition is_inlB T (e: (E1 +' E2) T) : bool :=
-  match e with
-  | inl1 _ => true
-  | inr1 _ => false end.             
-
-Definition is_inrB T (e: (E1 +' E2) T) : bool :=
-  match e with
-  | inl1 _ => false
-  | inr1 _ => true end.             
-
-Lemma is_inr_inrB_equiv T1 T2 (e1: (E1 +' E2) T1) (e2: (E1 +' E2) T2) :
-  REv_eq is_inr e1 e2 <-> REv_eq is_inrB e1 e2.
+(* if t12 is inr-rutt-related to t2, then t12 is quivalent to the
+   inr-lifting of t2 *)
+Lemma handler_rutt_eta T (t12: itree (E1 +' E2) T) (t2 : itree E2 T) :
+  no_left_res t12 t2 ->
+  eutt eq t12 (translate inr1 t2).  
 Proof.
-  unfold REv_eq. 
-  destruct e1; simpl; split; intros [H H0]; eauto.
-Qed.
-   
-Lemma is_inrB_not_inlB_eq T1 T2 (e1: (E1 +' E2) T1) (e2: (E1 +' E2) T2) :
-  REv_eq is_inrB e1 e2 =
-    REv_eq (fun T0 (e: (E1 +' E2) T0) => ~~ (is_inlB e)) e1 e2.
-Proof.
-  unfold REv_eq.
-  assert (is_inrB e1 = ~~ is_inlB e1) as B.
-  { destruct e1; eauto. }
-  rewrite B; auto.
+  revert t12 t2.
+  ginit; gcofix CIH.
+  unfold no_left_res.
+  intros t12 t2 H.
+  setoid_rewrite (itree_eta t12) in H.
+  setoid_rewrite (itree_eta t2) in H.
+  setoid_rewrite (itree_eta t2).
+  remember (observe t12) as ot12.
+  remember (observe t2) as ot2.  
+  punfold H; red in H.
+  simpl in H.   
+  hinduction H before CIH.
+
+  { intros t12 t2 H0 H1.
+    gstep; red.
+    setoid_rewrite <- H0.    
+    simpl.
+    econstructor; auto.
+  }
+  { intros t12 t2 H0 H1.
+    gstep; red.
+    setoid_rewrite <- H0.
+    simpl. pclearbot.
+    econstructor; eauto.
+    gfinal. left.
+    eapply CIH; auto.
+  }
+  { intros t12 t2 H1 H2.
+    gstep; red.
+    setoid_rewrite <- H1.
+    simpl.
+    destruct H as [ee H].
+    dependent destruction ee.
+    destruct e1 as [e1 | e2'].
+    { simpl in H; congruence. }
+    simpl in H. inv H.  
+    econstructor.
+    intros v; unfold Datatypes.id; simpl.
+    gfinal; left.
+    pclearbot.
+    eapply CIH; auto.
+    eapply H0; auto.
+  }
+  { intros t12 t2 H0 H1.
+    setoid_rewrite (itree_eta t12).
+    setoid_rewrite <- H0.
+    
+    guclo eqit_clo_trans.
+    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
+
+    instantiate (1:= t1).
+    eapply eqit_Tau_l; reflexivity.
+    reflexivity.
+    pclearbot.
+    eapply IHruttF; auto.
+    exact H1.
+    intros. inv H2; auto.
+    intros. inv H2; auto.
+  }
+
+  { intros t12 t2' H0 H1.
+    setoid_rewrite (itree_eta t12).
+    setoid_rewrite <- H0.
+    
+    guclo eqit_clo_trans.
+    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
+
+    3: { eapply IHruttF.
+         exact H0.
+         reflexivity.
+    }
+
+    { inv H0; simpl.
+      setoid_rewrite (itree_eta t12) at 2.
+      reflexivity.
+    }  
+    { setoid_rewrite translate_tau.
+      eapply eqit_Tau_l.
+      setoid_rewrite (itree_eta t2) at 1.
+      reflexivity.
+    }  
+    { intros. inv H2; auto. }
+    { intros. inv H2; auto. }
+  }
 Qed.  
 
-Lemma is_inr_not_inlB_equiv T1 T2 (e1: (E1 +' E2) T1) (e2: (E1 +' E2) T2) :
-  REv_eq is_inr e1 e2 <->
-    REv_eq (fun T0 (e: (E1 +' E2) T0) => ~~ (is_inlB e)) e1 e2.
+
+Section Safe_hnd_sec.
+
+Context {hnd1 : E1 ~> itree E2}.  
+
+(* similar to eutt_extras.rassoc_free_interp_lemma.
+   TODO: do we need the exec version for the error handler?  *)
+Lemma handler_eta T (t: itree E2 T) :
+  eutt eq (interp (ext_handler hnd1) (translate inr1 t)) t.  
 Proof.
-  rewrite <- is_inrB_not_inlB_eq.
-  eapply is_inr_inrB_equiv.
-Qed.  
-  
-Lemma is_inr_inrB_equivF E (X: FIso E (E1 +' E2))
-  T1 T2 (e1: E T1) (e2: E T2) :
-  REv_eq (fun T0 e => is_inr (mfun1 e)) e1 e2 <->
-    REv_eq (fun T0 e => is_inrB (mfun1 e)) e1 e2.
-Proof.
-  unfold REv_eq. 
-  destruct (mfun1 e1); simpl; split; intros [H H0]; eauto.
-Qed.
- 
-Lemma is_inrB_not_inlB_eqF E (X: FIso E (E1 +' E2))
-  T1 T2 (e1: E T1) (e2: E T2) :
-  REv_eq (fun T0 e => is_inrB (mfun1 e)) e1 e2 =
-    REv_eq (fun T0 (e: E T0) => ~~ (is_inlB (mfun1 e))) e1 e2.
-Proof.
-  unfold REv_eq.
-  assert (is_inrB (mfun1 e1) = ~~ is_inlB (mfun1 e1)) as B.
-  { destruct (mfun1 e1); eauto. }
-  rewrite B; auto.
+  revert t.
+  ginit; gcofix CIH.
+  intro t.
+  rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot.
+  { gstep; red. simpl. econstructor; auto. }
+  { gstep; red. simpl. econstructor; eauto.
+    gfinal. left. eauto. }
+  { setoid_rewrite translate_vis.
+    setoid_rewrite interp_vis.
+    simpl.
+    unfold id_, Id_Handler, Handler.id_.
+    setoid_rewrite bind_trigger.
+    gstep; red. simpl; econstructor.
+    intros v. unfold Datatypes.id; simpl.
+
+    guclo eqit_clo_trans.
+    econstructor 1 with (RR1:= eq) (RR2:= eq).
+    instantiate (1:= (interp (ext_handler hnd1) (translate inr1 (k v)))). 
+    eapply eqit_Tau_l. reflexivity.
+    reflexivity.
+    gfinal. left.
+    eapply CIH.
+    intros. inv H; auto.
+    intros. inv H; auto.
+  }
 Qed.  
 
-Lemma is_inr_not_inlB_equivF E (X: FIso E (E1 +' E2))
-  T1 T2 (e1: E T1) (e2: E T2) :
-  REv_eq  (fun T0 e => is_inr (mfun1 e)) e1 e2 <->
-    REv_eq (fun T0 (e: E T0) => ~~ (is_inlB (mfun1 e))) e1 e2.
-Proof.
-  rewrite <- is_inrB_not_inlB_eqF.
-  eapply is_inr_inrB_equivF.
-Qed.  
+End Safe_hnd_sec.
 
 
-Section Safe_sec2.
+Section Safe_exec_sec.
 
 Context {hnd1 : E1 ~> execT (itree E2)}.  
 
@@ -921,150 +997,10 @@ Proof.
   }
 Qed.  
 
-End Safe_sec2.
+End Safe_exec_sec.
 
 
-Section Safe_sec3.
-
-Context {hnd1 : E1 ~> itree E2}.  
-
-(* similar to eutt_extras.rassoc_free_interp_lemma.
-   TODO: do we need the exec version for the error handler?  *)
-Lemma handler_eta T (t: itree E2 T) :
-  eutt eq (interp (ext_handler hnd1) (translate inr1 t)) t.  
-Proof.
-  revert t.
-  ginit; gcofix CIH.
-  intro t.
-  rewrite (itree_eta t).
-  remember (observe t) as ot.
-  destruct ot.
-  { gstep; red. simpl. econstructor; auto. }
-  { gstep; red. simpl. econstructor; eauto.
-    gfinal. left. eauto. }
-  { setoid_rewrite translate_vis.
-    setoid_rewrite interp_vis.
-    simpl.
-    unfold id_, Id_Handler, Handler.id_.
-    setoid_rewrite bind_trigger.
-    gstep; red. simpl; econstructor.
-    intros v. unfold Datatypes.id; simpl.
-
-    guclo eqit_clo_trans.
-    econstructor 1 with (RR1:= eq) (RR2:= eq).
-    instantiate (1:= (interp (ext_handler hnd1) (translate inr1 (k v)))). 
-    eapply eqit_Tau_l. reflexivity.
-    reflexivity.
-    gfinal. left.
-    eapply CIH.
-    intros. inv H; auto.
-    intros. inv H; auto.
-  }
-Qed.  
-
-Definition no_left_res (T : Type)
-  (t12 : itree (E1 +' E2) T) (t2 : itree E2 T) : Prop := 
-  rutt (fun U12 U2 (e12: (E1 +' E2) U12) (e2: E2 U2) =>
-              exists h : U2 = U12,
-                e12 = eq_rect U2 (E1 +' E2) (inr1 e2) U12 h)
-       (fun U12 U2 (e12: (E1 +' E2) U12) (u12: U12) (e2: E2 U2) (u2: U2) =>
-               JMeq u12 u2)
-       eq t12 t2.
-
-Lemma handler_rutt_eta T (t12: itree (E1 +' E2) T) (t2 : itree E2 T) :
-  no_left_res t12 t2 ->
-  eutt eq t12 (translate inr1 t2).  
-Proof.
-  revert t12 t2.
-  ginit; gcofix CIH.
-  unfold no_left_res.
-  intros t12 t2 H.
-  setoid_rewrite (itree_eta t12) in H.
-  setoid_rewrite (itree_eta t2) in H.
-  setoid_rewrite (itree_eta t2).
-  remember (observe t12) as ot12.
-  remember (observe t2) as ot2.  
-  punfold H; red in H.
-  simpl in H.   
-  hinduction H before CIH.
-
-  { intros t12 t2 H0 H1.
-    gstep; red.
-    setoid_rewrite <- H0.    
-    simpl.
-    econstructor; auto.
-  }
-  { intros t12 t2 H0 H1.
-    gstep; red.
-    setoid_rewrite <- H0.
-    simpl. pclearbot.
-    econstructor; eauto.
-    gfinal. left.
-    eapply CIH; auto.
-  }
-  { intros t12 t2 H1 H2.
-    gstep; red.
-    setoid_rewrite <- H1.
-    simpl.
-    destruct H as [ee H].
-    dependent destruction ee.
-    destruct e1 as [e1 | e2'].
-    { simpl in H; congruence. }
-    simpl in H. inv H.  
-    econstructor.
-    intros v; unfold Datatypes.id; simpl.
-    gfinal; left.
-    pclearbot.
-    eapply CIH; auto.
-    eapply H0; auto.
-  }
-  { intros t12 t2 H0 H1.
-    setoid_rewrite (itree_eta t12).
-    setoid_rewrite <- H0.
-    
-    guclo eqit_clo_trans.
-    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
-
-    instantiate (1:= t1).
-    eapply eqit_Tau_l; reflexivity.
-    reflexivity.
-    pclearbot.
-    eapply IHruttF; auto.
-    exact H1.
-    intros. inv H2; auto.
-    intros. inv H2; auto.
-  }
-
-  { intros t12 t2' H0 H1.
-    setoid_rewrite (itree_eta t12).
-    setoid_rewrite <- H0.
-    
-    guclo eqit_clo_trans.
-    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
-
-    3: { eapply IHruttF.
-         exact H0.
-         reflexivity.
-    }
-
-    { inv H0; simpl.
-      setoid_rewrite (itree_eta t12) at 2.
-      reflexivity.
-    }  
-    { setoid_rewrite translate_tau.
-      eapply eqit_Tau_l.
-      setoid_rewrite (itree_eta t2) at 1.
-      reflexivity.
-    }  
-    { intros. inv H2; auto. }
-    { intros. inv H2; auto. }
-  }
-Qed.  
-
-End Safe_sec3.
-
-
-Section Safe_sec4.
+Section Safe_eutt_sec.
 
 Context {R1 R2 : Type}.
 
@@ -1147,7 +1083,74 @@ Proof.
   }
 Qed.    
 
-End Safe_sec4.
+End Safe_eutt_sec.
+
+
+(***** auxiliary stuff *)
+
+Definition is_inlB T (e: (E1 +' E2) T) : bool :=
+  match e with
+  | inl1 _ => true
+  | inr1 _ => false end.             
+
+Definition is_inrB T (e: (E1 +' E2) T) : bool :=
+  match e with
+  | inl1 _ => false
+  | inr1 _ => true end.             
+
+Lemma is_inr_inrB_equiv T1 T2 (e1: (E1 +' E2) T1) (e2: (E1 +' E2) T2) :
+  REv_eq is_inr e1 e2 <-> REv_eq is_inrB e1 e2.
+Proof.
+  unfold REv_eq. 
+  destruct e1; simpl; split; intros [H H0]; eauto.
+Qed.
+   
+Lemma is_inrB_not_inlB_eq T1 T2 (e1: (E1 +' E2) T1) (e2: (E1 +' E2) T2) :
+  REv_eq is_inrB e1 e2 =
+    REv_eq (fun T0 (e: (E1 +' E2) T0) => ~~ (is_inlB e)) e1 e2.
+Proof.
+  unfold REv_eq.
+  assert (is_inrB e1 = ~~ is_inlB e1) as B.
+  { destruct e1; eauto. }
+  rewrite B; auto.
+Qed.  
+
+Lemma is_inr_not_inlB_equiv T1 T2 (e1: (E1 +' E2) T1) (e2: (E1 +' E2) T2) :
+  REv_eq is_inr e1 e2 <->
+    REv_eq (fun T0 (e: (E1 +' E2) T0) => ~~ (is_inlB e)) e1 e2.
+Proof.
+  rewrite <- is_inrB_not_inlB_eq.
+  eapply is_inr_inrB_equiv.
+Qed.  
+  
+Lemma is_inr_inrB_equivF E (X: FIso E (E1 +' E2))
+  T1 T2 (e1: E T1) (e2: E T2) :
+  REv_eq (fun T0 e => is_inr (mfun1 e)) e1 e2 <->
+    REv_eq (fun T0 e => is_inrB (mfun1 e)) e1 e2.
+Proof.
+  unfold REv_eq. 
+  destruct (mfun1 e1); simpl; split; intros [H H0]; eauto.
+Qed.
+ 
+Lemma is_inrB_not_inlB_eqF E (X: FIso E (E1 +' E2))
+  T1 T2 (e1: E T1) (e2: E T2) :
+  REv_eq (fun T0 e => is_inrB (mfun1 e)) e1 e2 =
+    REv_eq (fun T0 (e: E T0) => ~~ (is_inlB (mfun1 e))) e1 e2.
+Proof.
+  unfold REv_eq.
+  assert (is_inrB (mfun1 e1) = ~~ is_inlB (mfun1 e1)) as B.
+  { destruct (mfun1 e1); eauto. }
+  rewrite B; auto.
+Qed.  
+
+Lemma is_inr_not_inlB_equivF E (X: FIso E (E1 +' E2))
+  T1 T2 (e1: E T1) (e2: E T2) :
+  REv_eq  (fun T0 e => is_inr (mfun1 e)) e1 e2 <->
+    REv_eq (fun T0 (e: E T0) => ~~ (is_inlB (mfun1 e))) e1 e2.
+Proof.
+  rewrite <- is_inrB_not_inlB_eqF.
+  eapply is_inr_inrB_equivF.
+Qed.  
 
 
 Section Lutt_sec.
