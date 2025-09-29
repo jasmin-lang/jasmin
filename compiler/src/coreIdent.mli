@@ -49,7 +49,6 @@ val etbool : 'len gety
 val etint  : 'len gety
 
 val gty_of_gety : 'len gety -> 'len gty
-val gety_of_gty : 'len gty -> 'len gety
 
 (* ------------------------------------------------------------------------ *)
 
