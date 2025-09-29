@@ -1,0 +1,6 @@
+u32[1] g = { 0xabcd };
+
+export fn main() -> reg ptr u32[1] {
+  reg ptr u32[1] p = g;
+  return p;
+}

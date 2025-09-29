@@ -39,6 +39,12 @@ let config path =
           disable_warnings [ UnusedVar ] );
         ( "fail/register_allocation/x86-64/unknown_type_register.jazz",
           disable_warnings [ UnusedVar ] );
+        ( "fail/stack_allocation/x86-64/return_ptr_global.jazz",
+          disable_warnings [ PedanticPretyping ] );
+        ( "fail/stack_allocation/x86-64/return_ptr_local.jazz",
+          disable_warnings [ PedanticPretyping ] );
+        ( "fail/stack_allocation/x86-64/return_subslice.jazz",
+          disable_warnings [ PedanticPretyping ] );
         ( "fail/typing/x86-64/bug_488.jazz",
           disable_warnings [ SimplifyVectorSuffix ] );
         ( "fail/typing/x86-64/export_stack_array_res.jazz",
