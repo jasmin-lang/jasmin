@@ -1,0 +1,26 @@
+fn swap(reg ptr u32[1] x y) -> reg ptr u32[1], reg ptr u32[1] {
+  reg ptr u32[1] tmp;
+  tmp = x;
+  x = y;
+  y = tmp;
+  return x, y;
+}
+
+fn id(reg ptr u32[1] x y) -> reg ptr u32[1], reg ptr u32[1] {
+  reg ptr u32[1] tmp;
+  tmp = x;
+  x = y;
+  y = tmp;
+  return y, x;
+}
+
+export
+fn test() -> reg u32 {
+  reg u32 r = 0;
+  stack u32[1] s, t;
+  s[0] = r;
+  s, t = id(s, t);
+  s, t = swap(s, t);
+  r = t[0];
+  return r;
+}

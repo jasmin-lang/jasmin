@@ -349,6 +349,29 @@ let alloc_local_stack size slots atbl =
   stk_align, slots, !size
 
 (* --------------------------------------------------- *)
+let get_returned_params ~funname (alias: Alias.alias) args =
+  List.map (fun xr ->
+      let x = L.unloc xr in
+      if is_ptr x.v_kind then
+        let c = Alias.normalize_var alias x in
+        let arg_slices = List.map (Alias.normalize_var alias) args in
+        match List.index_of c arg_slices with
+        | None ->
+           let msg =
+             if List.mem c.in_var args
+             then "a strict sub-slice of a parameter"
+             else "a region that should not escape the local scope"
+           in
+           hierror ~loc:(Lone (L.loc xr)) ~funname
+             "returned variable %a points to %s: %a"
+             (Printer.pp_var ~debug:false) x
+             msg
+             Alias.pp_slice c
+        | i -> i
+      else None
+    )
+
+(* --------------------------------------------------- *)
 let alloc_stack_fd callstyle pd get_info gtbl fd =
   if !Glob_options.debug then Format.eprintf "ALLOC STACK %s@." fd.f_name.fn_name;
   let alias =
@@ -380,10 +403,7 @@ let alloc_stack_fd callstyle pd get_info gtbl fd =
     try classes_alignment getfun gtbl alias fd.f_body
     with HiError e -> raise (HiError { e with err_funname = Some fd.f_name.fn_name })
   in
-  let sao_return =
-    match fd.f_cc with
-    | Export {returned_params} | Subroutine {returned_params} -> returned_params
-    | Internal -> assert false in
+  let sao_return = get_returned_params ~funname:fd.f_name.fn_name alias fd.f_args fd.f_ret in
 
   let sao_params, atbl = all_alignment pd ctbl alias fd.f_args lalloc in
 
