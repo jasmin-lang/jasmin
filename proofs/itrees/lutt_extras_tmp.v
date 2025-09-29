@@ -1440,7 +1440,111 @@ Proof.
   }
 Qed.  
     
-     
+Lemma inl_safe2safe1 (T : Type) (R : T -> Prop)
+  (t0 t1 : itree (E1 +' E2) T) :
+  inl_safe_rel R t0 t1 -> inl_safe1 t0.
+Proof.
+  revert t0 t1.
+  ginit; gcofix CIH.
+  intros t0 t1 H.
+  unfold inl_safe, inl_safe_rel, inl_safe1 in *.
+  setoid_rewrite (itree_eta t0) in H.
+  setoid_rewrite (itree_eta t1) in H.
+  setoid_rewrite (itree_eta t0).
+  remember (observe t0) as ot0.
+  remember (observe t1) as ot1.  
+  punfold H; red in H.
+  simpl in H.   
+  hinduction H before CIH.
+
+  { intros t0 t1 H0 H1.
+    gstep; econstructor; eauto.
+  }
+
+  { intros t0 t1 H0 H1.
+    pclearbot.
+    gstep; econstructor; eauto.
+    gfinal; left; eauto.
+  }
+
+  { intros t0 t1 H1 H2.
+    pclearbot.
+    gstep; econstructor; eauto.
+    unfold REv_eq; simpl.
+    unfold REv_eq in H; simpl in *.
+    destruct H as [H H3].
+    split; eauto.
+    { exists erefl; simpl; auto. }
+    { unfold RAns_eq; simpl.
+      intros a b H3.
+      destruct H3 as [_ H3].
+      specialize (H3 erefl).
+      simpl in H3.
+      inv H3.
+      unfold REv_eq in H.
+      destruct H as [H [hh H3]].
+      dependent destruction hh.
+      simpl in *.
+      inv H3.
+      
+      gfinal; left. eapply CIH; eauto.
+      unfold R_eq; simpl.
+      instantiate (1:= k2 a).
+      specialize (H0 a a).
+      assert (RAns_eq (fun T0 : Type => fun=> TrueP) e1 a e1 a) as H5. 
+      { unfold RAns_eq; simpl.
+        split; eauto.
+        intros h; simpl.
+        dependent destruction h; simpl; auto.
+      }
+      specialize (H0 H5).
+      eapply H0.
+    }
+  }
+
+  { intros t0 t2 H0 H1.
+    setoid_rewrite (itree_eta t1).
+    specialize (IHruttF t1 t2 erefl H1).
+    simpl.
+
+    gstep; econstructor.
+    gfinal. left.
+    eapply CIH.
+    instantiate (1:= {| _observe := observe t2 |}).
+    pstep; red; simpl.
+    inv H1.
+    eapply H.
+  }
+
+  { intros t0 t1 H0 H1.
+    eapply IHruttF; eauto.
+  }  
+Qed.    
+    
+Lemma inl_safe_rel_safe1_equiv (T : Type) 
+  (t : itree (E1 +' E2) T) :
+  (exists R t', inl_safe_rel R t t') <-> inl_safe1 t.
+Proof.
+  split.
+  - intros [R [t' H]].
+    eapply inl_safe2safe1; eauto.
+  - unfold inl_safe1, inl_safe, inl_safe_rel; intro H.
+    exists (fun x: T => x = x).
+    exists t; unfold R_eq; simpl.
+    eapply rutt_weaken; eauto.
+Qed.    
+    
+Lemma inl_safe_safe1_equiv (T : Type) 
+  (t : itree (E1 +' E2) T) :
+  inl_safe t <-> inl_safe1 t.
+Proof.
+  unfold inl_safe; split; intro H.
+  - eapply inl_safe_rel_safe1_equiv; eauto.
+  - unfold inl_safe_rel, inl_safe1 in *.
+    exists t. unfold R_eq.
+    eapply rutt_weaken; eauto.
+Qed.    
+  
 Lemma inl_safe_ret (r: R1) : @inl_safe E1 E2 R1 (Ret r).
 Proof.
   unfold inl_safe.
