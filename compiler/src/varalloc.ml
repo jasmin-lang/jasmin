@@ -410,13 +410,13 @@ let alloc_stack_fd callstyle pd get_info gtbl fd =
   let ra_on_stack =
     match fd.f_cc with 
     | Internal -> assert false 
-    | Export _ ->
+    | Export ->
         if fd.f_annot.retaddr_kind = Some OnReg then 
              Utils.warning Always (L.i_loc fd.f_loc [])
               "for function %s, return address by reg not allowed for export function, annotation is ignored"
               fd.f_name.fn_name;
         false (* For export function ra is not counted in the frame *)
-    | Subroutine _ -> 
+    | Subroutine ->
       match callstyle with 
       | Arch_full.StackDirect ->
         if fd.f_annot.retaddr_kind = Some OnReg then 
