@@ -1296,6 +1296,26 @@ Proof.
   by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
 Qed.
 
+Lemma wequiv_asserts_left P Q ii (a_s : list assertion) :
+  assert_allowed (WithAssert:=wa1) ->
+  (forall s t, P s t -> (forall a, List.In a a_s -> sem_pexpr1 true (p_globs p1) s a.2 = ok (Vbool true)) -> Q s t) ->
+  wequiv P [seq MkI ii (Cassert a) | a <- a_s] [::] Q.
+Proof.
+  rewrite -{1}(app_nil_l a_s) => hwa1 hPQ.
+  apply wequiv_weaken with
+    (fun s t => P s t /\
+       (forall a, List.In a (@nil assertion) -> sem_pexpr1 true (p_globs p1) s a.2 = ok (Vbool true)))
+    Q => //.
+  elim: a_s (@nil assertion) hPQ => [ | a0 a_s hrec] /= a_s0 hPQ.
+  + by apply wequiv_nil => s t [hP ha_s0]; apply hPQ => //; rewrite app_nil_r.
+  rewrite -(cat0s [::]) -cat1s.
+  apply wequiv_cat with
+    (fun s t => P s t /\
+       (forall a, List.In a (a0::a_s0) -> sem_pexpr1 true (p_globs p1) s a.2 = ok (Vbool true))).
+  + by apply wequiv_assert_left => _ s t [hP ha_s0] ha0; split => //= a [<- // | hin]; apply ha_s0.
+  apply hrec => s t hP h; apply hPQ => // a /in_app_iff /= [hin|[<-|hin]]; apply h; rewrite in_app_iff /=; auto.
+Qed.
+
 Section REL.
 
 Context {D:Type}.
