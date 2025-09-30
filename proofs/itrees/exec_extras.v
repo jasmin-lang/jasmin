@@ -165,3 +165,24 @@ Qed.
 
 End WithError1.
 
+(* not used yet *)
+Section ExecTranslate.
+
+Definition xtranslateF {E F R} (h : E ~> F)
+  (rec: itree E R -> execT (itree F) R) (t : itreeF E R _) :
+  execT (itree F) R  :=
+  match t with
+  | RetF x => Ret (ESok x)
+  | TauF t => Tau (rec t)
+  | VisF _ e k => Vis (h _ e) (fun x => rec (k x))
+  end.
+
+Definition xtranslate {E F} (h : E ~> F)
+  : itree E ~> execT (itree F)
+  := fun R => cofix xtranslate_ t := xtranslateF h xtranslate_ (observe t).
+
+Arguments xtranslate {E F} & h [T].
+
+End ExecTranslate.
+
+

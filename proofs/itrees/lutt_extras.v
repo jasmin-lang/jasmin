@@ -134,8 +134,18 @@ Proof.
 Qed.  
 
 
-(** axiomatic version of some library lemmas, not actually used *)
+(** axiomatic version of some library lemmas *)
 
+(* axiomatic *)
+Lemma interp_vis_Eq {E F : Type -> Type} {T U : Type}
+  (e : E T) (k : T -> itree E U) (h : E ~> itree F) :
+       interp h (Vis e k)
+       = ITree.bind (h T e) (fun x : T => Tau (interp h (k x))).
+Proof.
+  eapply bisimulation_is_eq.
+  eapply interp_vis; auto.
+Qed.
+  
 (* axiomatic *)
 Lemma interp_exec_vis_Eq {E F : Type -> Type} {T U : Type}
       (e : E T) (k : T -> itree E U) (h : E ~> execT (itree F))
@@ -673,12 +683,21 @@ Qed.
 (* t is equivalent to right-lifted t2 *)
 Definition inr_only_rel (T : Type)
   (t : itree (E1 +' E2) T) (t2: itree E2 T) :=
-  eq_itree eq (translate inr1 t2) t.
+  eq_itree eq t (translate inr1 t2).
 
 (* t is left-safe by being right-only *)
 Definition inr_only (T : Type) (t : itree (E1 +' E2) T) :=
   exists t2: itree E2 T, inr_only_rel t t2.
 
+(* t is weakly equivalent to right-lifted t2 *)
+Definition wk_inr_only_rel (T1 T2 : Type) (R: T1 -> T2 -> Prop)
+  (t : itree (E1 +' E2) T1) (t2: itree E2 T2) :=
+  eutt R t (translate inr1 t2).
+
+(* t is left-safe by being weakly right-only *)
+Definition wk_inr_only (T1 T2 : Type) (R: T1 -> T2 -> Prop) 
+  (t : itree (E1 +' E2) T1) :=
+  exists t2: itree E2 T2, wk_inr_only_rel R t t2.
 
 (* derived translation inversion lemma *)
 Lemma translate_inl_rev_eqit {T} {R} b1 b2 (t t': itree E1 T) :
@@ -700,10 +719,7 @@ Proof.
   intros; inversion H0; subst; auto.
 Qed.    
 
-(* inr_only implies safety (inl_safe_rel). axiom-based. proving the
-    eapply IHruttF; eautoother way round
-  is more problematic, due to the fact that coinduction cannot be
-  applied to an existential goal. *)
+(* inr_only implies safety (inl_safe_rel). axiom-based. *)
 Lemma inr_only_inl_safe_refl (T : Type) (t: itree (E1 +' E2) T) :
   inr_only t -> inl_safe_rel TrueP t t.
 Proof.
@@ -713,9 +729,9 @@ Proof.
   punfold H. red in H.
   pstep; red; simpl in *.
   dependent induction H; intros.
-  { rewrite <- x.
+  { rewrite <- x0.
     econstructor; auto. }
-  { rewrite <- x.
+  { rewrite <- x0.
     econstructor.
     pclearbot; right; eapply CIH.
     assert (m1 = m2) as A.
@@ -725,9 +741,9 @@ Proof.
     remember (observe t2) as ot2.
     destruct ot2; simpl; try discriminate.
     exists t1; simpl in *.
-    inv x0; reflexivity.
+    inv x; reflexivity.
   }
-  { rewrite <- x.
+  { rewrite <- x0.
     econstructor.
     { unfold REv_eq; simpl.  
       destruct e; simpl in *; try discriminate.
@@ -745,7 +761,7 @@ Proof.
       right; eapply CIH.   
       remember (observe t2) as ot2.
       destruct ot2; simpl; try discriminate.
-      dependent destruction x0.
+      dependent destruction x.
       exists (k a).
       specialize (REL a).
       pclearbot; auto.
@@ -760,21 +776,134 @@ Proof.
   exists t; eapply inr_only_inl_safe_refl; auto.
 Qed.
 
+(* wk_inr_only implies safety (inl_safe_rel). proving the other way
+   round is more problematic, due to the fact that coinduction cannot
+   be applied to an existential goal. *)
+Lemma wk_inr_only_inl_safe_refl (T : Type) (t1: itree (E1 +' E2) T) :
+  wk_inr_only eq t1 -> inl_safe_rel TrueP t1 t1.
+Proof.
+  unfold wk_inr_only, wk_inr_only_rel, inl_safe_rel, R_eq; simpl in *.
+  intro H.
+  setoid_rewrite (itree_eta t1).
+  setoid_rewrite (itree_eta t1) in H.
+  revert H.
+  revert t1.  
+  ginit; gcofix CIH; intros t1 [t2 H].
+  setoid_rewrite (itree_eta t2) in H.
+  remember (observe t1) as ot1.
+  remember (observe t2) as ot2.
+  punfold H; red in H.
+  simpl in *.
+  remember (_observe (translateF inr1 (translate inr1 (T:=T)) ot2)) as tot.
+
+(*  revert Heqtot. *)
+  
+  hinduction H before CIH.
+  
+  { intros t1 t2 H ot2 H0 H1.
+    gstep; red.
+    econstructor; eauto.
+  }
+
+  { intros t1 t2 H ot2 H0 H1.
+    gstep; red.
+    econstructor.
+    setoid_rewrite (itree_eta m1).
+    gfinal; left.
+    eapply CIH.
+    pclearbot.
+
+    exists t2.
+    
+    assert (eq_itree eq (Tau m2) (translate inr1 t2)) as H2.
+    { setoid_rewrite H1.
+      inv H0; simpl.
+      setoid_rewrite (itree_eta (translate inr1 t2)).
+      simpl. reflexivity.
+    }  
+
+    setoid_rewrite <- H2.
+    setoid_rewrite (itree_eta m1) in REL.
+    eapply eqit_Tau_r; auto.
+  }
+
+  { intros t1 t2 H ot2 H0 H1.
+    pclearbot.
+    gstep; red.
+    econstructor.
+
+    - unfold REv_eq; simpl.
+      destruct e; simpl in *; try discriminate.
+      { destruct ot2; try discriminate. }
+      { split; eauto.
+        exists erefl; simpl; eauto.
+      }
+
+    - intros a b H2.
+      destruct H2 as [_ H2].
+      specialize (H2 erefl).
+
+      simpl in *.
+      inv H2.
+      setoid_rewrite (itree_eta (k1 a)).
+      
+      gfinal. left; eapply CIH.   
+
+      remember (observe t2) as ot2.
+      destruct ot2; simpl; try discriminate.
+      dependent destruction H1.
+      exists (k a).
+      setoid_rewrite <- (itree_eta (k1 a)).
+      specialize (REL a); auto.
+  }
+
+  { intros t0 t2 H0 ot0 H1 H2.
+    gstep; red; econstructor.
+    setoid_rewrite (itree_eta t1).
+    inv H1; simpl in *.
+    
+    gfinal. left.
+    eapply CIH.
+    exists t2.
+    pstep; red. auto.
+  }
+
+  { intros t1 t0 H0 ot2 H1 H2.
+
+    destruct ot2; simpl in *; try discriminate.
+    inv H2.
+    
+    eapply IHeqitF.
+    reflexivity.
+    instantiate (1:= t); reflexivity.
+    reflexivity.
+  }  
+Qed.  
+    
+(* inr_only implies inl_safe *)
+Lemma wk_inr_only_inl_safe (T : Type) (t : itree (E1 +' E2) T) :
+  wk_inr_only eq t -> inl_safe t.    
+Proof.
+  exists t; eapply wk_inr_only_inl_safe_refl; auto.
+Qed.
+
 (* rutt inr-relating E1+E2 to E2 *)
-Definition no_left_res (T : Type)
-  (t12 : itree (E1 +' E2) T) (t2 : itree E2 T) : Prop := 
+Definition no_left_res (T1 T2 : Type) (R: T1 -> T2 -> Prop)
+  (t12 : itree (E1 +' E2) T1) (t2 : itree E2 T2) : Prop := 
   rutt (fun U12 U2 (e12: (E1 +' E2) U12) (e2: E2 U2) =>
               exists h : U2 = U12,
                 e12 = eq_rect U2 (E1 +' E2) (inr1 e2) U12 h)
        (fun U12 U2 (e12: (E1 +' E2) U12) (u12: U12) (e2: E2 U2) (u2: U2) =>
                JMeq u12 u2)
-       eq t12 t2.
+       R t12 t2.
 
 (* if t12 is inr-rutt-related to t2, then t12 is quivalent to the
    inr-lifting of t2 *)
-Lemma handler_rutt_eta T (t12: itree (E1 +' E2) T) (t2 : itree E2 T) :
-  no_left_res t12 t2 ->
-  eutt eq t12 (translate inr1 t2).  
+Lemma handler_rutt_eta T1 T2 (R: T1 -> T2 -> Prop)
+  (t12: itree (E1 +' E2) T1)
+  (t2 : itree E2 T2) :
+  no_left_res R t12 t2 ->
+  eutt R t12 (translate inr1 t2).  
 Proof.
   revert t12 t2.
   ginit; gcofix CIH.
@@ -862,13 +991,19 @@ Proof.
   }
 Qed.  
 
+(* not really needed *)
+(* Lemma handler_rutt_eta_exec T1 T2 (R: T1 -> T2 -> Prop)
+  (t12: itree (E1 +' E2) T1)
+  (t2 : itree E2 T2) :
+  no_left_res R t12 t2 ->
+  eutt (fun x y => match y with | ESok y' => R x y' | _ => False end)
+    t12 (xtranslate inr1 t2).   *)
 
 Section Safe_hnd_sec.
 
 Context {hnd1 : E1 ~> itree E2}.  
 
-(* similar to eutt_extras.rassoc_free_interp_lemma.
-   TODO: do we need the exec version for the error handler?  *)
+(* similar to eutt_extras.rassoc_free_interp_lemma. *)
 Lemma handler_eta T (t: itree E2 T) :
   eutt eq (interp (ext_handler hnd1) (translate inr1 t)) t.  
 Proof.
@@ -901,6 +1036,97 @@ Proof.
   }
 Qed.  
 
+(* inl_safe implies no_left_res *)
+Lemma inl_safe_is_nlr (T : Type) (t12 : itree (E1 +' E2) T) :
+  inl_safe t12 ->
+  let t2 : itree E2 T := interp (ext_handler hnd1) t12 in
+  no_left_res eq t12 t2.
+Proof.
+  unfold inl_safe; simpl.
+  revert t12.
+  ginit; gcofix CIH.
+  intros t12 [tA H].
+  setoid_rewrite (itree_eta t12).
+  unfold interp_exec; simpl.
+  punfold H; red in H.  
+  remember (observe t12) as ot12.
+  remember (observe tA) as otA.
+  hinduction H before CIH; simpl in *.
+
+  { intros t12 tA H0 H1.
+    unfold R_eq in H; simpl in *.
+    destruct H as [_ H]; inv H.
+    gstep; red; simpl.
+    econstructor; auto.
+  }
+
+  { gstep; red; simpl.
+    intros t12 tA H0 H1.
+    econstructor; simpl.
+    gfinal; left.
+    eapply CIH.
+    exists m2.
+    pclearbot; auto.
+  }
+
+  { intros t12 tA H1 H2.
+    gstep; red.
+    setoid_rewrite interp_vis_Eq.
+    unfold REv_eq in H.    
+    destruct e1; simpl.    
+    { simpl in *; auto with *. } 
+    econstructor; eauto.
+    { exists erefl.
+      simpl; reflexivity.
+    }
+    intros a b hh.
+    dependent destruction hh.
+    setoid_rewrite bind_ret_l.
+    setoid_rewrite tau_euttge.
+    gfinal; left; eapply CIH.
+    simpl in H; destruct H as [_ [hh H]].
+    dependent destruction hh.
+    simpl in H; inv H.
+    specialize (H0 b b).
+    assert (RAns_eq (fun T : Type => fun=> TrueP)
+              (@inr1 E1 _ _ e) b (inr1 e) b) as W. 
+    { unfold RAns_eq; split; auto.
+      intros hh; dependent destruction hh; simpl; auto.
+    }
+    specialize (H0 W).
+    exists (k2 b).
+    pclearbot; auto.
+  }
+  
+  { intros t12 tA H1 H2.    
+    setoid_rewrite interp_tau.
+    gstep; red.
+    econstructor.
+    specialize (IHruttF t1 tA erefl H2).
+    eapply gpaco2_mon.
+    setoid_rewrite <- itree_eta_ in IHruttF.
+    eapply IHruttF.
+    intros; auto with paco.
+    destruct PR.
+    intros; eauto.
+  }
+
+  { intros t12 tA H1 H2; simpl.
+    specialize (IHruttF t12 t2 H1 erefl); auto.
+  }
+Qed.  
+
+(* given the handler hnd1, inl_safe implies wk_inr_only *)
+Lemma inl_safe_wk_inr_only (T : Type) (t : itree (E1 +' E2) T) :
+  inl_safe t -> wk_inr_only eq t.   
+Proof.
+  intro H.
+  eapply inl_safe_is_nlr in H.
+  eapply handler_rutt_eta in H.
+  unfold wk_inr_only, wk_inr_only_rel.
+  exists (interp (ext_handler hnd1) t); auto.
+Qed.  
+  
 End Safe_hnd_sec.
 
 
@@ -911,17 +1137,13 @@ Context {hnd1 : E1 ~> execT (itree E2)}.
 Local Definition hnd_ext : (E1 +' E2) ~> execT (itree E2) :=
   @ext_exec_handler E1 E2 hnd1.
 
-(* inl_safe means safe, in the sense that the tree does not
-   contain error events (here, E1 events) *)
+(* inl_safe implies no_left_res. here, inl_safe means safe, in the
+    sense eapply that the tree does not contain error events (here, E1
+    events) *)
 Lemma inl_safe_is_ok (T : Type) (t12 : itree (E1 +' E2) T) :
   inl_safe t12 ->
   let t2 : itree E2 (execS T) := interp_exec hnd_ext t12 in
-  rutt (fun U12 U2 (e12: (E1 +' E2) U12) (e2: E2 U2) =>
-              exists h : U2 = U12,
-                e12 = eq_rect U2 (E1 +' E2) (inr1 e2) U12 h)
-       (fun U12 U2 (e12: (E1 +' E2) U12) (u12: U12) (e2: E2 U2) (u2: U2) =>
-               JMeq u12 u2)
-        (fun x y => ESok x = y) t12 t2.
+  no_left_res (fun x y => ESok x = y) t12 t2.
 Proof.
   unfold inl_safe; simpl.
   revert t12.
@@ -997,6 +1219,21 @@ Proof.
   }
 Qed.  
 
+(* given the handler hnd1, inl_safe implies wk_inr_only *)
+Lemma inl_safe_wk_inr_only_exec T (t : itree (E1 +' E2) T) :
+  inl_safe t -> wk_inr_only (fun x y => ESok x = y) t.   
+Proof.
+  intro H.
+  eapply inl_safe_is_ok in H.  
+  eapply (@handler_rutt_eta T (execS T)) in H.
+  unfold wk_inr_only, wk_inr_only_rel.
+  exists (interp (ext_exec_handler hnd1) t).
+  simpl in *.
+  unfold interp_exec in H.
+  unfold hnd_ext in H.
+  auto.
+Qed.  
+
 End Safe_exec_sec.
 
 
@@ -1019,9 +1256,6 @@ Definition FstEval (r2: R2) :
 
 (* similar to inl_safe_is_ok, but expressed with eutt *)
 Lemma inl_safe_is_ok_eutt (err: R2) (t1 : itree (E1 +' E2) R1) :
-(*   (exists t' : itree [eta E1 +' E2] R1,
-     rutt (REv_eq (fun T : Type => [eta is_inr (T:=T)]))
-       (RAns_eq (fun T : Type => fun=> TrueP)) (R_eq TrueP) t1 t') -> *)
   inl_safe t1 -> 
   eutt (fun x y => eq (inl x) y) t1 (translate inr1 (FstEval err t1)).
 Proof.
