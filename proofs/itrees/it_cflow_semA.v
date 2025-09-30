@@ -425,9 +425,10 @@ Proof.
 Qed.    
 
 
-
-
-Lemma isem_call_unfold (fn : funname) (fs : FState) :
+Lemma isem_call_unfold (fn : funname) (fs : FState) 
+  (A1: forall fn fs,
+      eutt eq (interp_recc (AGetFunDef fn fs)) (AGetFunDef fn fs)) :
+  
   denote_fun fn fs ≈ denote_fcall fn fs.
 Proof.
   unfold denote_fun, interp_recc, denote_fcall.
@@ -435,27 +436,37 @@ Proof.
   unfold isem_fcall.
   rewrite interp_bind.
   eapply eqit_bind.
-  - unfold AGetFunDef. admit.
-   (* setoid_rewrite interp_trigger; simpl; reflexivity. *)
+  - (* setoid_rewrite interp_trigger; simpl; reflexivity. *)
+    unfold AGetFunDef, FunC_EE; simpl.
+    destruct XF; simpl.
+    setoid_rewrite interp_translate; simpl.    
+    setoid_rewrite interp_trigger_h; reflexivity.     
   - unfold pointwise_relation; intro fd.
     rewrite interp_bind.
     eapply eqit_bind.
-  - admit.
-   (* setoid_rewrite interp_trigger; simpl; reflexivity.  *)
+  - (* setoid_rewrite interp_trigger; simpl; reflexivity.  *)
+    unfold AGetFunCode, FunC_EE; simpl.
+    destruct XF; simpl.
+    setoid_rewrite interp_translate; simpl.    
+    setoid_rewrite interp_trigger_h; reflexivity.     
   - unfold pointwise_relation; intro c.
     rewrite interp_bind.
     eapply eqit_bind.
-  - admit.
-    (* setoid_rewrite interp_trigger; simpl; reflexivity.  *)  
+  - (* setoid_rewrite interp_trigger; simpl; reflexivity.  *)  
+    unfold AInitFunCall, FunC_EE; simpl.
+    destruct XF; simpl.
+    setoid_rewrite interp_translate; simpl.    
+    setoid_rewrite interp_trigger_h; reflexivity.     
   - unfold pointwise_relation; intro fs1.
     rewrite interp_bind.
     eapply eqit_bind; try reflexivity.
   - unfold pointwise_relation; intro u.
-    admit.
-(*    setoid_rewrite interp_trigger; simpl; reflexivity.    
-Qed.    
- *)
-Admitted.     
+    (* setoid_rewrite interp_trigger; simpl; reflexivity. *)    
+    unfold AFinalizeFunCall, FunC_EE; simpl.
+    destruct XF; simpl.
+    setoid_rewrite interp_translate; simpl.    
+    setoid_rewrite interp_trigger_h; reflexivity.     
+Qed.         
 
 Section Inline.
 
