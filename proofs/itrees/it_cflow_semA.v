@@ -40,43 +40,10 @@ Context
   {scP : semCallParams}.
 Context {err: error_data}. 
 *)
-(* Memo *)
-(* | _ => throw err end. *) 
+(* Memo: *) (* | _ => throw err end. *) 
 Section Sem1.
 
 Context {State: Type} {FState : Type} {FunDef: Type}.
-
-(*
-
-(* state events (similar to those provided by the library, 
-   could be specialized to estate) *)
-Notation StE := (stateE State).
-(* Variant StE : Type -> Type :=
-  | GetSE : StE State
-  | PutSE : State -> StE unit.                      
-*)
-
-(* instruction events. InitFState allows storing instr_info in FState
-*)
-Variant InstrE : Type -> Type :=
-  | AssgnE : lval -> assgn_tag -> stype -> pexpr -> InstrE unit
-  | OpnE : lvals -> assgn_tag -> sopn -> pexprs -> InstrE unit
-  | SyscallE : lvals -> syscall_t -> pexprs -> InstrE unit
-  | EvalCond (e: pexpr) : InstrE bool
-  | EvalBounds (e1 e2: pexpr) : InstrE (Z * Z)
-  | WriteIndex (x: var_i) (z: Z) : InstrE unit
-  | EvalArgs (args: pexprs) : InstrE values                
-  | InitFState (vargs: values) : instr_info -> InstrE FState
-  | RetVal (xs: lvals) (fs: FState) (s: State) : InstrE unit.
-
-(* function call events *)
-Variant FunE : Type -> Type :=
-  | GetFunDef (fn: funname) (fs: FState) : FunE FunDef
-  | GetFunCode (fd: FunDef) : FunE cmd          
-  | InitFunCall (fd: FunDef) (fs: FState) : FunE unit                     
-  | FinalizeFunCall (fd: FunDef) : FunE FState.
-
-*)
 
 Class StC (E: Type -> Type) (S: Type) : Type := mk_StC
   { AStE : Type -> Type -> Type ;
@@ -111,9 +78,9 @@ Instance FunC_EE E0 FS FD (X: FunC E0 FS FD) E1 : FunC (E1 +' E0) FS FD :=
 Class InstrC (E: Type -> Type) (S FS: Type) : Type := mk_InstrC
   { AInstrE : Type -> Type -> Type -> Type ;
     AInstrIncl : AInstrE S FS -< E ;
-    AAssgnE : lval -> assgn_tag -> stype -> pexpr -> itree E unit ;
-    AOpnE : lvals -> assgn_tag -> sopn -> pexprs -> itree E unit ;
-    ASyscallE : lvals -> syscall_t -> pexprs -> itree E unit ;
+    AAssgn : lval -> assgn_tag -> stype -> pexpr -> itree E unit ;
+    AOpn : lvals -> assgn_tag -> sopn -> pexprs -> itree E unit ;
+    ASyscall : lvals -> syscall_t -> pexprs -> itree E unit ;
     AEvalCond (e: pexpr) : itree E bool ;
     AEvalBounds (e1 e2: pexpr) : itree E (Z * Z) ;
     AWriteIndex (x: var_i) (z: Z) : itree E unit ;
@@ -175,25 +142,20 @@ Definition isem_while_loop {E} (sem_i: instr -> itree E unit)
 
 Notation recCall := (callE (funname * FState) FState).
 
+
 Section SemRec.
 
-(* Context {E} {XI : InstrC (recCall +' E) State FState}
-  {XS: StC (recCall +' E) State}. *)
-
-Context {E} {XI : InstrC E State FState}
-  {XS: StC E State}.
-
-(* Context {XE: ErrEvent -< E} (err: error_data). *)
+Context {E} {XI : InstrC E State FState} {XS: StC E State}.
 
 (* semantics of instructions *)
 Fixpoint isem_instr (i : instr) : itree (recCall +' E) unit :=
   let: (MkI ii ir) := i in
   match ir with
-  | Cassgn x tg ty e => AAssgnE x tg ty e
+  | Cassgn x tg ty e => AAssgn x tg ty e
 
-  | Copn xs tg o es => AOpnE xs tg o es
+  | Copn xs tg o es => AOpn xs tg o es
 
-  | Csyscall xs o es => ASyscallE xs o es 
+  | Csyscall xs o es => ASyscall xs o es 
                                 
   | Cif e c1 c2 =>
     b <- AEvalCond e ;;
@@ -222,6 +184,7 @@ Definition isem_cmd c := isem_foldr isem_instr c.
 
 Lemma fold_cmd c: isem_cmd c = isem_foldr isem_instr c.
 Proof. by reflexivity. Qed. 
+
 
 Section SemFun.
 
@@ -274,7 +237,6 @@ Definition denote_fcall (fn : funname) (fs : FState) :
   AInitFunCall fd fs ;;
   denote_cmd c ;;
   AFinalizeFunCall fd.
-
 
 (********************************************************************)
 (* blank function semantics *)
@@ -424,7 +386,6 @@ Proof.
     setoid_rewrite <- interp_mrec_as_interp; reflexivity.
 Qed.    
 
-
 Lemma isem_call_unfold (fn : funname) (fs : FState) 
   (A1: forall fn fs,
       eutt eq (interp_recc (AGetFunDef fn fs)) (AGetFunDef fn fs)) :
@@ -467,6 +428,7 @@ Proof.
     setoid_rewrite interp_translate; simpl.    
     setoid_rewrite interp_trigger_h; reflexivity.     
 Qed.         
+
 
 Section Inline.
 
@@ -547,7 +509,6 @@ End SemFun.
 
 End SemRec.
 
-
 (**********************************************************************)
 
 Class sem_Fun (E : Type -> Type) :=
@@ -557,12 +518,11 @@ Class sem_Fun (E : Type -> Type) :=
 Instance sem_fun_rec (E : Type -> Type) : sem_Fun (recCall +' E) | 0 :=
   {| sem_fun := @rec_call E |}.
   
+
 Section SemPRec.
 
 Context {E} {XI : InstrC E State FState}
-  {XS: StC E State} {sem_F : sem_Fun E }.
-
-(* Context {XE: ErrEvent -< E} (err: error_data).  *)
+            {XS: StC E State} {sem_F : sem_Fun E }.
 
 Context (sem_i: instr -> itree E unit).
 
@@ -571,11 +531,11 @@ Context (sem_i: instr -> itree E unit).
 Fixpoint isem_i_body (i : instr) : itree E unit :=
   let: (MkI ii i) := i in
   match i with
-  | Cassgn x tg ty e => AAssgnE x tg ty e
+  | Cassgn x tg ty e => AAssgn x tg ty e
 
-  | Copn xs tg o es => AOpnE xs tg o es
+  | Copn xs tg o es => AOpn xs tg o es
 
-  | Csyscall xs o es => ASyscallE xs o es 
+  | Csyscall xs o es => ASyscall xs o es 
                                 
   | Cif e c1 c2 =>
     b <- AEvalCond e ;;
@@ -617,6 +577,7 @@ Definition isem_fun_body (fn : funname) (fs : FState) : itree E FState :=
 End SemPFun.
 
 End SemPRec.
+
 
 Section SemA.
   

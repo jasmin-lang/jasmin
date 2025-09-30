@@ -14,7 +14,7 @@ Import Basics.Monads.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
 Require Import expr psem_defs psem_core it_exec it_exec_sem tfam_iso
-               eutt_extras rec_facts it_cflow_sem.
+               eutt_extras rec_facts it_cflow_semA.
 
 Require Import List.
 
@@ -28,6 +28,75 @@ Context
   {sip : SemInstrParams asm_op syscall_state}.  
 (* Context {asm_op: Type} {asmop: asmOp asm_op}. *)
 
+Section Events.
+
+Context {State: Type} {FState : Type} {FunDef: Type}.
+  
+(* state events (similar to those provided by the library, 
+   could be specialized to estate) *)
+Notation StE := (stateE State).
+(* Variant StE : Type -> Type :=
+  | GetSE : StE State
+  | PutSE : State -> StE unit. *)
+
+(* instruction events. InitFState allows storing instr_info in FState
+*)
+Variant InstrE : Type -> Type :=
+  | Assgn : lval -> assgn_tag -> stype -> pexpr -> InstrE unit
+  | Opn : lvals -> assgn_tag -> sopn -> pexprs -> InstrE unit
+  | Syscall : lvals -> syscall_t -> pexprs -> InstrE unit
+  | EvalCond (e: pexpr) : InstrE bool
+  | EvalBounds (e1 e2: pexpr) : InstrE (Z * Z)
+  | WriteIndex (x: var_i) (z: Z) : InstrE unit
+  | EvalArgs (args: pexprs) : InstrE values                
+  | InitFState (vargs: values) : instr_info -> InstrE FState
+  | RetVal (xs: lvals) (fs: FState) (s: State) : InstrE unit.
+
+(* function call events *)
+Variant FunE : Type -> Type :=
+  | GetFunDef (fn: funname) (fs: FState) : FunE FunDef
+  | GetFunCode (fd: FunDef) : FunE cmd          
+  | InitFunCall (fd: FunDef) (fs: FState) : FunE unit                     
+  | FinalizeFunCall (fd: FunDef) : FunE FState.
+
+End Events.
+
+
+Section Instances.
+
+Context {State: Type} {FState : Type} {FunDef: Type}.
+  
+Definition InstrC_def E (XI: @InstrE State FState -< E) :
+  InstrC E State FState :=
+  @mk_InstrC asm_op syscall_state sip E State FState (@InstrE) XI
+    (fun x tg ty e => trigger (Assgn x tg ty e))
+    (fun xs tg o es => trigger (Opn xs tg o es))
+    (fun xs o es => trigger (Syscall xs o es))
+    (fun e => trigger (EvalCond e))
+    (fun e1 e2 => trigger (EvalBounds e1 e2))
+    (fun x z =>  trigger (WriteIndex x z))
+    (fun args => trigger (EvalArgs args))
+    (fun vargs ii => trigger (InitFState vargs ii))
+    (fun xs fs s => trigger (RetVal xs fs s)).
+                                                                   
+Definition FunC_def E (XF: @FunE FState FunDef -< E) : FunC E FState FunDef :=
+  @mk_FunC asm_op syscall_state sip E FState FunDef (@FunE) XF
+    (fun fn fs => trigger (GetFunDef fn fs))       
+    (fun fd => trigger (GetFunCode fd))       
+    (fun fd fs => trigger (InitFunCall fd fs))       
+    (fun fd => trigger (FinalizeFunCall fd)).       
+
+Check @mk_StC.
+
+Definition StC_def E (XS: @stateE State -< E) : StC E State :=
+  @mk_StC E State (@stateE) XS
+    (trigger (@Get State))
+    (fun s => trigger (Put State s)).
+
+End Instances.
+
+
+Section Asm2.  
 Context
   {wsw: WithSubWord} 
   {dc: DirectCall} 
@@ -255,12 +324,12 @@ Definition isem_FinalizeFunCall {SX: @stateE estate -< E}
 
 (** InstrE handler *)
 Definition handle_InstrE {SX: @stateE estate -< E} :
-  @InstrE asm_op syscall_state sip estate fstate ~> itree E :=
+  @InstrE estate fstate ~> itree E :=
   fun _ e =>
     match e with
-    | AssgnE xs tg ty es => isem_Assgn xs tg ty es
-    | OpnE xs tg o es => isem_Sopn o xs es
-    | SyscallE xs o es => isem_Syscall xs o es                              
+    | Assgn xs tg ty es => isem_Assgn xs tg ty es
+    | Opn xs tg o es => isem_Sopn o xs es
+    | Syscall xs o es => isem_Syscall xs o es                              
     | EvalCond e => isem_Cond e
     | EvalBounds e1 e2 => isem_Bound e1 e2
     | WriteIndex x z => isem_WriteIndex x z
@@ -271,7 +340,7 @@ Definition handle_InstrE {SX: @stateE estate -< E} :
 
 (** FunE handler *)
 Definition handle_FunE {SX: @stateE estate -< E} :
-  @FunE asm_op syscall_state sip fstate fundef ~> itree E :=
+  @FunE fstate fundef ~> itree E :=
   fun _ e =>
     match e with
     | GetFunDef fn fs => isem_GetFunDef fn fs
@@ -298,7 +367,6 @@ Definition interp_FunE {SX: @stateE estate -< E} {A: Type}
   (t : itree (FunE +' E) A) : itree E A :=
   interp ext_handle_FunE t.
 
-
 End CORE.
 
 (****************************************************************)
@@ -309,14 +377,16 @@ Context (p : prog) (ev : extra_val_t).
 
 Context (E: Type -> Type).
 
+Check @interp_recc.
+
 Definition full_interp T
   (t: itree (@callE (funname * fstate) fstate
-             +' @InstrE asm_op syscall_state sip estate fstate
-             +' @FunE asm_op syscall_state sip fstate fundef
+             +' @InstrE estate fstate
+             +' @FunE fstate fundef
              +' @stateE estate
              +' ErrEvent +' E) T) (s: estate) :
   itree E (execS (estate * T)) :=
-  interp_Err (run_state (interp_FunE p ev (interp_InstrE p (interp_recc t))) s).
+  interp_Err (run_state (interp_FunE p ev (interp_InstrE p (@interp_recc _ _ _ _ _ _ _ (InstrC_def inl1) _ _ _ t))) s).
 
 Definition up2state_interp T
   (t: itree (@callE (funname * fstate) fstate
@@ -985,6 +1055,8 @@ Qed.
 End SemA.
   
 End Sem1.
+
+End Asm2.
 
 End Asm1.
 
