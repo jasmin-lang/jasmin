@@ -2378,9 +2378,9 @@ struct
 
   let ec_pcall env lvs all_lvs otys f args =
     if lvals_are_vars lvs && (List.map ty_lval lvs) = otys then
-      (ec_leaks_lvs env lvs) @ [EScall (all_lvs,f,args)]
+      (ec_leaks_lvs env lvs) @ [EScall (ec_lvals env lvs @ all_lvs,f,args)]
     else
-      ec_assgn_f env lvs otys otys (fun lvals -> EScall (all_lvs, f, args))
+      ec_assgn_f env lvs otys otys (fun lvals -> EScall (lvals @ all_lvs, f, args))
 
   let ec_expr_assgn env lvs etyso etysi e =
     if lvals_are_vars lvs && (List.map ty_lval lvs) = etyso && etyso = etysi then
@@ -2430,7 +2430,7 @@ struct
           let args = List.map (toec_cast env) (List.combine itys es) in
           let leak_lvs = ec_leak_call_lvs env in
           let safety_lvs = ec_safety_call_lvs env f in
-          let all_lvs =  ec_lvals env lvs @ leak_lvs @ safety_lvs in
+          let all_lvs =  leak_lvs @ safety_lvs in
           (ec_leaks_es env es) @
           (ec_pcall env lvs all_lvs otys [Env.get_funname env f] args) @
           (ec_leak_call_acc env) @
@@ -2440,7 +2440,7 @@ struct
           let otys = List.map Conv.ty_of_cty s.scs_tout in
           let itys =  List.map Conv.ty_of_cty s.scs_tin in
           let args = List.map (toec_cast env) (List.combine itys es) in
-          let all_lvs = ec_lvals env lvs in
+          let all_lvs = [] in 
           (ec_leaks_es env es) @
           (ec_pcall env lvs all_lvs otys [ec_syscall env o] args)
       | Cassert a ->
