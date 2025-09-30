@@ -8,6 +8,7 @@ Require Export safety_shared.
 Import Utf8.
 Import oseq.
 Require Import flag_combination.
+Import pseudo_operator.
 
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
@@ -329,6 +330,12 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
     Let e := wi2i_e e in
     let ty := wi2i_type sg ty in
     ok (e.1 ++ x.1, Cassgn x.2 tag ty e.2)
+
+  | Copn xs t (Opseudo_op (Ospill _ _) as o)  es => 
+    Let es := wi2i_es wi2i_e es in
+      let xtys := map (to_etype None) (sopn_tout o) in
+      Let xs := wi2i_lvs "invalid dest in Copn" true xtys xs in
+      ok (es.1 ++ xs.1, Copn xs.2 t o es.2)
 
   | Copn xs t o es =>
     Let _ := assert (all (fun e => sign_of_expr m e == None) es)

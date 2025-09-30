@@ -186,9 +186,6 @@ let create_safety_asserts
     Arch.asmOp Arch.pointer_data Arch.msf_size create_var b Arch.fcp Arch.aparams.ap_is_move_op cuprog
   in
   let prog =  Conv.prog_of_cuprog cuprog in 
-  Format.eprintf "@[<v>Program after safety passes:@;%a@.@]" 
-  (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) prog;
-
   prog
 
 

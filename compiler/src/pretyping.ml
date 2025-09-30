@@ -2531,9 +2531,14 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
   let f_cc = tt_call_conv loc f_args f_ret pf.pdf_cc in
 
   let aprover annot =
-    match Annot.ensure_uniq1 "prover" (fun (s,_) -> s) annot with
-    | None -> ""
-    | Some aty -> L.unloc aty
+    match Annot.ensure_uniq1 "prover" (fun (_,r) -> r) annot with
+    | Some (Some aty) ->
+         begin match L.unloc aty with
+         | Astring s 
+         | Aid s-> s
+         | _ -> "Cas"
+         end
+    | _ -> "Cas"
   in
   let get_clause env clause  =
     List.map

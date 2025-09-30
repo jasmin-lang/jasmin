@@ -29,7 +29,7 @@ let string_of_combine_flags = function
 let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
   let pp_var_i = pp_gvar_i pp_var in
   let pp_gvar fmt (x: 'len ggvar) =
-    let s = if is_gkvar x then "" else "/* global: */ " in
+    let s = if is_gkvar x || not debug then "" else "/* global: */ " in
     Format.fprintf fmt "%s%a" s pp_var_i x.gv in
 
   let rec pp_expr fmt = function
@@ -79,7 +79,10 @@ let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
 let pp_glv ~debug pp_len pp_var fmt =
   let pp_ge = pp_ge ~debug in
   function
-  | Lnone (_, ty) -> F.fprintf fmt "_ /* %a */" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
+  | Lnone (_, ty) -> 
+    if debug then
+      F.fprintf fmt "_ /* %a */" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
+    else F.fprintf fmt "_"
   | Lvar x  -> pp_gvar_i pp_var fmt x
   | Lmem (al, ws, _, e) ->
     pp_mem_access (pp_ge pp_len pp_var) fmt al (Some ws) e
@@ -141,29 +144,37 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
   F.fprintf fmt "%a" pp_annotations i.i_annot;
   match i.i_desc with
   | Cassgn(x, tg, ty, Parr_init n) ->
-    F.fprintf fmt "@[<hov 2>ArrayInit(%a); /* length=%a %a%s */@]"
-      (pp_glv ~debug pp_len pp_var) x
-      pp_len n
-      (pp_gtype pp_len) ty
-      (pp_tag tg)
-
+     let pp_info fmt = function
+      | true -> F.fprintf fmt "/* length=%a %a%s */" 
+                    pp_len n
+                    (pp_gtype pp_len) ty
+                    (pp_tag tg)
+      | false -> ()
+    in
+    F.fprintf fmt "@[<hov 2>ArrayInit(%a); %a@]"
+        (pp_glv ~debug pp_len pp_var) x
+        pp_info debug
   | Cassgn(x , tg, ty, e) ->
-    F.fprintf fmt "@[<hov 2>%a =@ %a; /* %a%s */@]"
+    let pp_info fmt = function
+      | true -> F.fprintf fmt "/* %a%s */"  (pp_gtype pp_len) ty (pp_tag tg)
+      | false -> ()
+    in
+    F.fprintf fmt "@[<hov 2>%a =@ %a; %a @]"
       (pp_glv ~debug pp_len pp_var) x
       (pp_ge ~debug pp_len pp_var) e
-      (pp_gtype pp_len) ty
-      (pp_tag tg)
-
+      pp_info debug
   | Copn(x, t, o, e) ->
     let pp_cast fmt = function
       | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%du)" (int_of_ws ws)
       | _ -> () in
-
-    F.fprintf fmt "@[<hov 2>%a =@ %a#%a(%a); /* %s */@]"
+    let pp_info fmt = function
+      | true -> F.fprintf fmt "/* %s */" (pp_tag t)
+      | false -> ()
+    in
+    F.fprintf fmt "@[<hov 2>%a =@ %a#%a(%a); %a @]"
       (pp_glvs ~debug pp_len pp_var) x pp_cast o pp_opn o
       (pp_ges ~debug pp_len pp_var) e
-      (pp_tag t)
-
+      pp_info debug
   | Csyscall(x, o, e) ->
       F.fprintf fmt "@[<hov 2>%a =@ %s(%a);@]"
         (pp_glvs ~debug pp_len pp_var) x (pp_syscall o) (pp_ges ~debug pp_len pp_var) e
@@ -254,13 +265,25 @@ let rec pp_clauses ~debug pp_size pp_var prepost fmt cs =
                    (pp_clause ~debug pp_size pp_var) c
                    (pp_clauses ~debug pp_size pp_var prepost) q
 
+ 
+let rec index_of_post x xs i =
+  match xs with
+  | [] -> None
+  | h::t -> if x.v_id = h.v_id then Some i else index_of_post x t (i+1)
+
 let pp_contra ~debug pp_size pp_var fmt fd =
   match fd.f_contra with
   | None -> ()
   | Some  ct ->
+    let vars_res = List.map L.unloc ct.f_ires in
+    let pp_var_post fmt x = 
+       match index_of_post x vars_res 0 with
+      | None -> pp_var fmt x
+      | Some i -> Format.fprintf fmt "result.%d" i
+    in
     F.fprintf fmt "%a@ %a"
       (pp_clauses ~debug pp_size pp_var "requires") ct.f_pre
-      (pp_clauses ~debug pp_size pp_var "ensures") ct.f_post
+      (pp_clauses ~debug pp_size pp_var_post "ensures") ct.f_post
 
 let pp_gfun ~debug pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_size in

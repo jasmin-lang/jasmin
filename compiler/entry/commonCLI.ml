@@ -74,9 +74,6 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
       hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
   in
 
-  Format.eprintf "@[<v>Program before safety passes:@;%a@.@]" 
-  (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) prog;
-
   let prog =
     if not wi2i then prog else Compile.do_wint_int (module Arch) prog
   in 
