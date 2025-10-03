@@ -19,7 +19,7 @@ From Paco Require Import paco.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
 Require Import expr psem_defs psem_core it_exec it_exec_sem tfam_iso
-               eutt_extras rec_facts it_cflow_semA.
+               eutt_extras rec_facts it_cflow_semB.
 
 Require Import List.
 
@@ -91,10 +91,54 @@ Definition FunC_def E (XF: @FunE FState FunDef -< E) : FunC E FState FunDef :=
     (fun fd fs => trigger (InitFunCall fd fs))       
     (fun fd => trigger (FinalizeFunCall fd)).       
 
-Definition StC_def E (XS: @stateE State -< E) : StC E State :=
+(*
+Definition StC_def0 E (XS: @stateE State -< E) : StC E State :=
   @mk_StC E State (@stateE) XS
     (trigger (@Get State))
     (fun s => trigger (Put State s)).
+*)
+(*
+Check @estate.
+
+Definition StC_def E (XS: @stateE State -< E) (s0: State) : StC E State. 
+  refine (@mk_StC E State (@stateE) XS _ _).
+  set X := @State.get State E XS.
+  unfold State.get in X.
+  unfold embed in X.
+  unfold Embeddable_itree in X.
+  exact X.
+
+  Check @embed.
+  Check @Embeddable.
+
+  Print Embeddable.
+  Print embed.
+  Print ITree.trigger.
+  
+Check @ITree.bind.
+  
+  set Y := (@ITree.bind E (State * State) State X (fun x => Ret (snd x))).
+  exact Y.
+  exact  (p <- (pure_state State (@Get State) s0) ;; Ret (snd p)).
+    ((p <- (pure_state State (@Get State) s0) ;; Ret (snd p)) : itree E State)
+    ((fun s => p <- (pure_state unit (Put State s) s0) ;; Ret (snd p)) :
+      State -> itree E unit).
+
+
+Definition StC_def E (XS: @stateE State -< E) (s0: State) : StC E State :=
+  @mk_StC E State (@stateE) XS
+    ((pure_state State (@Get State) s0) :
+      itree E (State * State))
+    ((fun s => (pure_state unit (Put State s) s0)) :
+      State -> itree E (State * unit)).
+
+
+Definition StC_def E (XS: @stateE State -< E) (s0: State) : StC E State :=
+  @mk_StC E State (@stateE) XS
+    ((p <- (pure_state State (@Get State) s0) ;; Ret (fst p)) : itree E State)
+    ((fun s => (pure_state unit (Put State s) s0) ;; Ret tt) :
+      State -> itree E unit).
+*)
 
 Definition InstrC_void_def E (XE: ErrEvent -< E) (err: error_data) :
   InstrC E State FState :=
@@ -116,12 +160,6 @@ Definition FunC_void_def E (XF: ErrEvent -< E) (err: error_data) :
     (fun fd => throw err)       
     (fun fd fs => throw err)       
     (fun fd => throw err).       
-
-Definition StC_void_def E (XF: ErrEvent -< E) (err: error_data) :
-  StC E State :=
-  @mk_StC E State (fun _ => void1) _ 
-    (throw err)
-    (fun s => throw err).
 
 End Instances.
 
@@ -420,15 +458,6 @@ Definition FunC_flat_def (SX: @stateE estate -< E) :
     (fun fd fs => isem_InitFunCall fd fs)       
     (fun fd => isem_FinalizeFunCall fd).       
 
-Check @run_state.
-
-Definition StC_void_def (err: error_data) :
-  StC E estate :=
-  @mk_StC E estate (fun _ => void1) _ 
-    (fun s => Ret (s, s))
-    (fun s => throw err).
-
-
 End CORE.
 
 (****************************************************************)
@@ -437,9 +466,7 @@ Section SemDefs.
  
 Context (p : prog) (ev : extra_val_t).
 
-Context (E: Type -> Type).
-
-Definition Interp_recc T
+Definition Interp_recc E T
   (t: itree (@callE (funname * fstate) fstate
              +' @InstrE estate fstate
              +' @FunE fstate fundef
@@ -448,81 +475,172 @@ Definition Interp_recc T
   itree _ T :=
   @interp_recc _ _ _ _ _ _ _
     (InstrC_def inl1)
-    (StC_def (fun _ x => inr1 (inr1 (inl1 x))))
+    (fun _ x => inr1 (inr1 (inl1 x)))
     (FunC_def (fun _ x => inr1 (inl1 x))) _ t.
-(*
-  @interp_recc asm_op syscall_state sip estate fstate fundef
-    (@InstrE estate fstate +' @FunE fstate fundef
-             +' @stateE estate +' ErrEvent +' E)
-    (InstrC_def inl1)
-    (StC_def (fun _ x => inr1 (inr1 (inl1 x))))
-    (FunC_def (fun _ x => inr1 (inl1 x))) _ t.
-*)    
 
-Definition interp_full T
-  (t: itree (@callE (funname * fstate) fstate
-             +' @InstrE estate fstate
-             +' @FunE fstate fundef
-             +' @stateE estate
-             +' ErrEvent +' E) T) (s: estate) :
-  itree E (execS (estate * T)) :=
-  interp_Err
-    (run_state
-       (interp_FunE p ev
-          (interp_InstrE p
-             (Interp_recc t))) s).
-
-Definition interp_up2state T
+Definition interp_up2state E T
   (t: itree (@callE (funname * fstate) fstate
              +' @InstrE estate fstate
              +' @FunE fstate fundef
              +' @stateE estate
              +' ErrEvent +' E) T) :
-  itree _ T :=
-  interp_FunE p ev (interp_InstrE p (Interp_recc t)).
+  itree _ T := interp_FunE p ev (interp_InstrE p (Interp_recc t)).
 
-Definition interp_up2err T
+Definition interp_up2err E T
   (t: itree (@callE (funname * fstate) fstate
              +' @InstrE estate fstate
              +' @FunE fstate fundef
              +' @stateE estate
              +' ErrEvent +' E) T) (s: estate) :
-  itree _ (estate * T) :=
-  run_state (interp_up2state t) s.
+  itree _ (estate * T) := run_state (interp_up2state t) s.
 
-Definition isem_interp_up2rec T
+Definition interp_full E T
+  (t: itree (@callE (funname * fstate) fstate
+             +' @InstrE estate fstate
+             +' @FunE fstate fundef
+             +' @stateE estate
+             +' ErrEvent +' E) T) (s: estate) :
+  itree E (execS (estate * T)) := interp_Err (interp_up2err t s).
+
+Definition isem_interp_up2state E T
+  (t: itree (@InstrE estate fstate
+            +' @FunE fstate fundef
+            +' @stateE estate
+            +' @callE (funname * fstate) fstate
+            +' ErrEvent +' E) T) :
+  itree _ T := interp_FunE p ev (interp_InstrE p t).
+
+Definition isem_interp_up2rec E T
   (t: itree (@InstrE estate fstate
             +' @FunE fstate fundef
             +' @stateE estate
             +' @callE (funname * fstate) fstate
             +' ErrEvent +' E) T) (s: estate) :
   itree (@callE (funname * fstate) fstate +' ErrEvent +' E) (estate * T) :=
-  run_state (interp_FunE p ev (interp_InstrE p t)) s.
+  run_state (isem_interp_up2state t) s.
 
-(*
-Context {XE : ErrEvent -< E} {SX : @stateE estate -< E}. 
-
-Definition statefree_interp E T
-  (t: itree (@callE (funname * fstate) fstate
-             +' @InstrE asm_op syscall_state sip estate fstate
-             +' @FunE asm_op syscall_state sip fstate fundef
-             +' E) T) : itree _ T :=
-  @interp_FunE _ _ p ev _ _ (interp_InstrE p (interp_recc t)).
-*)
-
-Definition isem_interp_up2err (err: error_data) T
+(* can't do this: interp_recc depends on stateE *)
+(* Fail Definition isem_interp_up2err E T
   (t: itree (@InstrE estate fstate
             +' @FunE fstate fundef
             +' @stateE estate
             +' @callE (funname * fstate) fstate
             +' ErrEvent +' E) T) (s: estate) :
   itree (ErrEvent +' E) (estate * T) :=
-  @interp_recc asm_op syscall_state sip estate fstate fundef (ErrEvent +' E)
-    (InstrC_void_def inl1 err)
-    (StC_void_def inl1 err)
-    (FunC_void_def inl1 err) _ (@isem_interp_up2rec T t s).
+  interp_recc (isem_interp_up2rec t s). *)
 
-Definition isem2mod {IE FE SE CE EE} :
+Definition fsem_interp_up2rec E T
+  (t: itree (@InstrE estate fstate
+            +' @FunE fstate fundef
+            +' @callE (funname * fstate) fstate
+            +' @stateE estate
+            +' ErrEvent +' E) T) :
+  itree _ T := interp_FunE p ev (interp_InstrE p t).
+
+Definition fsem_interp_up2state E T
+  (t: itree (@InstrE estate fstate
+            +' @FunE fstate fundef
+            +' @callE (funname * fstate) fstate
+            +' @stateE estate
+            +' ErrEvent +' E) T) :
+  itree (@stateE estate +' ErrEvent +' E) T :=
+  @interp_recc asm_op syscall_state sip estate fstate fundef
+    (@stateE estate +' ErrEvent +' E)
+    (@InstrC_flat_def _ (fun _ x => inr1 (inl1 x)) p inl1) inl1
+    (@FunC_flat_def _ (fun _ x => inr1 (inl1 x)) p ev inl1) _
+    (@fsem_interp_up2rec _ T t).
+
+Definition fsem_interp_up2err E T
+  (t: itree (@InstrE estate fstate
+            +' @FunE fstate fundef
+            +' @callE (funname * fstate) fstate
+            +' @stateE estate
+            +' ErrEvent +' E) T) (s: estate) :
+  itree (ErrEvent +' E) (estate * T) := run_state (fsem_interp_up2state t) s.
+
+Definition fsem_interp_callstate E T
+  (t: itree (@callE (funname * fstate) fstate
+            +' @stateE estate
+            +' ErrEvent +' E) T) (s: estate) :
+  itree (ErrEvent +' E) (estate * T) :=
+  run_state (@interp_recc asm_op syscall_state sip estate fstate fundef
+    (@stateE estate +' ErrEvent +' E)
+    (@InstrC_flat_def _ (fun _ x => inr1 (inl1 x)) p inl1) inl1
+    (@FunC_flat_def _ (fun _ x => inr1 (inl1 x)) p ev inl1) _ t) s.
+
+Definition inbtw E0 E1 E2 {T} (e: (E1 +' E2) T) : (E1 +' E0 +' E2) T :=
+  match e with
+  | inl1 e1 => inl1 e1
+  | inr1 e2 => inr1 (inr1 e2) end.               
+
+Definition isem_interp_up2err0 E T
+  (t: itree (@stateE estate
+            +' @callE (funname * fstate) fstate
+            +' ErrEvent +' E) T) (s: estate) :
+  itree (ErrEvent +' E) (estate * T) :=
+  (* exec state, rec left *)
+  let t1: itree (@callE (funname * fstate) fstate
+                 +' ErrEvent +' E) (estate * T) := run_state t s in
+  (* pad rec with state *)
+  let t2: itree (@callE (funname * fstate) fstate
+                 +' @stateE estate +' ErrEvent +' E) (estate * T)
+    := translate (@inbtw (@stateE estate) _ (ErrEvent +' E)) t1 in
+  (* eval rec, state left *)
+  let t3: itree (@stateE estate +' ErrEvent +' E) (estate * T)
+    := @interp_recc asm_op syscall_state
+           sip estate fstate fundef
+           (@stateE estate +' ErrEvent +' E)
+           (@InstrC_flat_def _ (fun _ x => inr1 (inl1 x)) p inl1) inl1
+           (@FunC_flat_def _ (fun _ x => inr1 (inl1 x)) p ev inl1) _ t2 in
+  (* pad state with rec *)
+(*  let t4: itree (@callE (funname * fstate) fstate
+                 +' @stateE estate +' ErrEvent +' E) (estate * T)
+    := translate inr1 t3 in *)
+  let f3: estate -> itree (ErrEvent +' E) (estate * (estate * T))
+    := run_state t3 in
+  let m1: itree (ErrEvent +' E) (estate * (estate * T))
+    := fsem_interp_callstate t2 s in  
+  p1 <- m1 ;; p2 <- run_state t3 (fst (snd p1)) ;; Ret (fst p2, snd (snd p2)).
+  (* morally, need to bind t1 and t3 *)
+
+Definition isem_interp_up2err E T
+  (t: itree (@stateE estate
+            +' @callE (funname * fstate) fstate
+            +' ErrEvent +' E) T) (s: estate) :
+  itree (ErrEvent +' E) (estate * T) :=
+  (* exec state, rec left *)
+  let t1: itree (@callE (funname * fstate) fstate
+                 +' ErrEvent +' E) (estate * T) := run_state t s in
+  (* pad rec with state *)
+  let t2: itree (@callE (funname * fstate) fstate
+                 +' @stateE estate +' ErrEvent +' E) (estate * T)
+    := translate (@inbtw (@stateE estate) _ (ErrEvent +' E)) t1 in
+  (* eval rec, state left *)
+  let t3: itree (@stateE estate +' ErrEvent +' E) (estate * T)
+    := @interp_recc asm_op syscall_state
+           sip estate fstate fundef
+           (@stateE estate +' ErrEvent +' E)
+           (@InstrC_flat_def _ (fun _ x => inr1 (inl1 x)) p inl1) inl1
+           (@FunC_flat_def _ (fun _ x => inr1 (inl1 x)) p ev inl1) _ t2 in
+  (* continuation exec of t3 *)
+  let ff: estate -> itree (ErrEvent +' E) (estate * (estate * T))
+    := run_state t3 in
+  (* morally, we want to bind t1 (state-exec of t with s) followed by
+  t3 (rec-eval); notice however, that since we need to state-exec
+  again after rec-eval, this is more like an unfolding than a
+  permute. first of all, exec t with s (this is t1). then exec t3 with
+  s: this is basically a dry run; what we want is the resulting state
+  of t1, but we need to fix the monadic type to bind; so we pad to t2,
+  eval-rec to t3 (this won't change the state) and re-exec with s
+  (this won't change the (estate * T) return value); this means that
+  we can still extract the resulting state of t1. finally, exec t3
+  again, this time with the resulting state of t1 as extracted from
+  the dry run. after binding, we want the resulting state to be the
+  one obtained after rec-eval (that is, fst p2). *)
+  p1 <- run_state t3 s ;;
+  p2 <- run_state t3 (fst (snd p1)) ;; Ret (fst p2, snd (snd p2)).
+
+Definition isem2mod E {IE FE SE CE EE} :
   (IE +' FE +' SE +' CE +' EE +' E) ~> 
            (CE +' IE +' FE +' SE +' EE +' E) :=
   fun _ e0 => match e0 with
@@ -537,7 +655,7 @@ Definition isem2mod {IE FE SE CE EE} :
                      | inl1 ee => inr1 (inr1 (inr1 (inr1 (inl1 ee))))
                      | inr1 e5 => inr1 (inr1 (inr1 (inr1 (inr1 e5))))                        end end end end end.     
 
-Definition mod2isem {IE FE SE CE EE} :
+Definition mod2isem E {IE FE SE CE EE} :
     (CE +' IE +' FE +' SE +' EE +' E) ~> 
       (IE +' FE +' SE +' CE +' EE +' E) :=
   fun _ e0 => match e0 with
@@ -552,23 +670,63 @@ Definition mod2isem {IE FE SE CE EE} :
                      | inl1 ee => inr1 (inr1 (inr1 (inr1 (inl1 ee))))
                      | inr1 e5 => inr1 (inr1 (inr1 (inr1 (inr1 e5))))                        end end end end end.     
 
-Definition isem2mod_tr {IE FE SE CE EE} T
-  (t: itree (IE +' FE +' SE +' CE +' EE +' E) T) :
-  itree (CE +' IE +' FE +' SE +' EE +' E) T :=
-  translate isem2mod t.
-      
-Definition mod2isem_tr {IE FE SE CE EE} T
-  (t: itree (CE +' IE +' FE +' SE +' EE +' E) T) :
-  itree (IE +' FE +' SE +' CE +' EE +' E) T :=
-  translate mod2isem t.
+Definition fsem2mod E {IE FE SE CE EE} :
+  (IE +' FE +' CE +' SE +' EE +' E) ~> 
+           (CE +' IE +' FE +' SE +' EE +' E) :=
+  fun _ e0 => match e0 with
+             | inl1 ie => inr1 (inl1 ie)
+             | inr1 e1 => match e1 with
+               | inl1 fe => inr1 (inr1 (inl1 fe))
+               | inr1 e2 => match e2 with
+                 | inl1 ce => inl1 ce
+                 | inr1 e3 => match e3 with
+                   | inl1 se => inr1 (inr1 (inr1 (inl1 se)))
+                   | inr1 e4 => match e4 with
+                     | inl1 ee => inr1 (inr1 (inr1 (inr1 (inl1 ee))))
+                     | inr1 e5 => inr1 (inr1 (inr1 (inr1 (inr1 e5))))                        end end end end end.     
 
-Lemma isem_mod_equiv T
+Definition mod2fsem E {IE FE SE CE EE} :
+    (CE +' IE +' FE +' SE +' EE +' E) ~> 
+      (IE +' FE +' CE +' SE +' EE +' E) :=
+  fun _ e0 => match e0 with
+             | inl1 ce => inr1 (inr1 (inl1 ce))   
+             | inr1 e1 => match e1 with
+               | inl1 ie => inl1 ie
+               | inr1 e2 => match e2 with
+                 | inl1 fe => inr1 (inl1 fe)
+                 | inr1 e3 => match e3 with
+                   | inl1 se => inr1 (inr1 (inr1 (inl1 se)))
+                   | inr1 e4 => match e4 with
+                     | inl1 ee => inr1 (inr1 (inr1 (inr1 (inl1 ee))))
+                     | inr1 e5 => inr1 (inr1 (inr1 (inr1 (inr1 e5))))                        end end end end end.     
+
+Definition fsem2mod_tr E {IE FE SE CE EE} T
+  (t: itree (IE +' FE +' CE +' SE +' EE +' E) T) :
+  itree (CE +' IE +' FE +' SE +' EE +' E) T :=
+  translate (@fsem2mod E IE FE SE CE EE) t.
+      
+Definition mod2fsem_tr E {IE FE SE CE EE} T
+  (t: itree (CE +' IE +' FE +' SE +' EE +' E) T) :
+  itree (IE +' FE +' CE +' SE +' EE +' E) T :=
+  translate (@mod2fsem E IE FE SE CE EE) t.
+
+(*
+Lemma fsem_isem_equiv E T
   (t: itree (@InstrE estate fstate
             +' @FunE fstate fundef
-            +' @stateE estate
             +' @callE (funname * fstate) fstate
-            +' ErrEvent +' E) T) (s: estate) :
-  eutt eq (isem_interp_up2err plain_err t s) (interp_up2err (isem2mod_tr t) s).
+            +' @stateE estate
+            +' ErrEvent +' E) T) :
+  eutt eq (fsem_interp_up2state t) (interp_up2state (fsem2mod_tr t)).
+*)
+
+Lemma fsem_mod_equiv E T
+  (t: itree (@InstrE estate fstate
+            +' @FunE fstate fundef
+            +' @callE (funname * fstate) fstate
+            +' @stateE estate
+            +' ErrEvent +' E) T) :
+  eutt eq (fsem_interp_up2state t) (interp_up2state (fsem2mod_tr t)).
 Proof.
 (*  unfold isem_interp_up2err, isem_interp_up2rec,
     interp_up2err, interp_up2state.
@@ -583,8 +741,8 @@ Proof.
      : forall (E : Type -> Type) (R : Type) (t : itree E R),
        t ≅ {| _observe := observe t |} *)
 
-  unfold isem_interp_up2err, isem_interp_up2rec,
-    interp_up2err, interp_up2state, Interp_recc, interp_recc.
+  unfold fsem_interp_up2state, 
+    interp_up2state, Interp_recc, interp_recc, interp_FunE.
 
 (* setoid_rewrite interp_mrec_as_interp at 1. *)
 (*  
@@ -600,18 +758,16 @@ Proof.
   unfold isem2mod_tr in X1eq.
   setoid_rewrite interp_translate in X1eq.
 *)
-  unfold run_state.
   setoid_rewrite interp_interp.
-  unfold interp_state.
 
 (*  
   revert X1eq.
   revert X1.
 *)
-  revert s t.
+  revert t.
 
   ginit; gcofix CIH.
-  intros s t.
+  intros t.
   
   setoid_rewrite (itree_eta_ t).
 
@@ -628,54 +784,97 @@ Proof.
   simpl in *.
   hinduction H before CIH; try congruence.
 
-  { intros s. 
-    gstep; red.
-    unfold interp_InstrE, interp_FunE; simpl.
+  { gstep; red. simpl.
     econstructor; auto.
   }
 
-  { pclearbot; intros s.
-    gstep; red.
-    unfold interp_InstrE, interp_FunE, run_state; simpl.
+  { pclearbot; 
+    gstep; red. simpl.
     econstructor.
     gfinal. left.
     eapply CIH.
   }
   
-  { pclearbot; intros s.
+  { pclearbot.
 
-    unfold isem2mod_tr.
+    unfold fsem2mod_tr.
     setoid_rewrite translate_vis.
     setoid_rewrite unfold_interp_mrec at 2. simpl.
     setoid_rewrite interp_vis.
-    setoid_rewrite interp_state_bind.
     setoid_rewrite interp_mrec_bind.
-   
+    
     destruct e as [ie | e]. simpl.
     
     { (* destruct ie eqn: eq_ie. *)
       setoid_rewrite interp_vis.
-      setoid_rewrite interp_state_bind.
-      setoid_rewrite interp_state_tau.
       setoid_rewrite interp_tau.
-      setoid_rewrite interp_state_tau.
 
       set (W1 := interp_mrec _ _).
-      set (W2 := interp_state _ _ _).
+      set (W2 := interp _ _).
 
       guclo eqit_clo_bind.
       econstructor.
       { instantiate (1:= eq).
         subst W1 W2.
+
+        setoid_rewrite interp_mrec_as_interp.
+        setoid_rewrite interp_interp.
+                
         unfold ext_handle_InstrE.
+
+        destruct ie eqn: ie_eq; simpl.
+        { unfold ext_handle_FunE, ext_handler; simpl.
+          repeat setoid_rewrite unfold_interp; simpl.
+          eapply eqit_bind; simpl.
+          { setoid_rewrite interp_trigger; simpl.
+            reflexivity.
+          }
+          { intro s1.
+            pstep; red.
+            econstructor.
+            left.
+            setoid_rewrite bind_ret_l.
+            repeat setoid_rewrite interp_bind.
+            eapply eqit_bind; simpl.
+
+            unfold isem_assgn.
+            unfold iresult.
+            unfold err_result.
+
+          (* OK, got it *)
+
+            admit.
+            admit.
+(*            
+            setoid_rewrite unfold_interp at 3; simpl.
+            unfold case_; simpl.
+            unfold Case_sum1_Handler, id_; simpl.  
+            unfold Handler.case_, Id_Handler; simpl.
+            unfold _interp. 
+            setoid_rewrite unfold_interp; simpl. 
+        eapply interp_eqit.
+        
         unfold handle_InstrE; simpl.
 
         setoid_rewrite interp_mrec_as_interp.
-        unfold interp_state.
         repeat setoid_rewrite unfold_interp; simpl.
       
         destruct ie eqn: ie_eq; simpl.
-        { eapply eqit_Tau_l.
+        { setoid_rewrite bind_trigger.
+          pstep; red.
+          econstructor.
+          intros v; unfold Datatypes.id; simpl.
+          left.
+          pstep; red.
+          econstructor.
+          left. simpl.
+          unfold ext_handle_FunE, ext_handler; simpl.
+          pstep; red.
+          setoid_rewrite bind_trigger.
+          setoid_rewrite interp_bind.
+          setoid_rewrite bind_ret_l.
+          setoid_rewrite bind_ret_l.
+          
           clear t.
           unfold MonadIter_itree; simpl.
           setoid_rewrite bind_trigger.
@@ -698,7 +897,19 @@ Proof.
         admit.
         admit.
         admit.
-      }
+ *)
+          }
+        }  
+
+        admit.
+        admit.
+        admit.
+        admit.
+        admit.
+        admit.
+        admit.
+        admit.
+      }  
 
       { intros u1 u2 H.
         inv H.

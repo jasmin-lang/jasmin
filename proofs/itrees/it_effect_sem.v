@@ -345,7 +345,8 @@ Definition isem_up2rec_interp T
   itree (@callE (funname * fstate) fstate +' ErrEvent +' E) (estate * T) :=
   run_state (interp_FunE p ev (interp_InstrE p t)) s.
 
-Check @interp_recc.
+(* PROBLEM: cannot apply interp_recc without lifting the type, which
+   seems to defy the purpose *)
 
 Fail Definition isem_up2err_interp T
   (t: itree (@InstrE asm_op syscall_state sip estate fstate
@@ -356,11 +357,6 @@ Fail Definition isem_up2err_interp T
   itree (ErrEvent +' E) (estate * T) :=
   @interp_recc asm_op syscall_state sip estate fstate fundef (ErrEvent +' E)
     _ _ _ (estate * T) (isem_up2rec_interp t s).
-
-
-
-
-
 
 (*
 Context {XE : ErrEvent -< E} {SX : @stateE estate -< E}. 
@@ -374,6 +370,9 @@ Definition statefree_interp E T
 *)
   
 End SemDefs.
+
+
+(*** garbage *******************************************************)
 
 Section SemDefs2.
 
