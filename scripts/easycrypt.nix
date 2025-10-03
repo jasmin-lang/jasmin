@@ -16,20 +16,18 @@ with {
     rev = "????";
     src = builtins.fetchTarball "https://api.github.com/repos/easycrypt/easycrypt/tarball/main";
     local_why3 = why3.override { version = "1.8.0"; };
-    extra_input = ocamlPackages.pcre2;
   };
 
   "release" = rec {
-    version = "2025.08";
+    version = "2025.10";
     rev = "r${version}";
     src = fetchFromGitHub {
       owner = "easycrypt";
       repo = "easycrypt";
       inherit rev;
-      hash = "sha256-WUms6hh7T5/gxRLFvbJQiT1ErLr8KFilFNOMTT/fIyY=";
+      hash = "sha256-EF508JsM99lLIqTrWkV/gvlKYRSPQgaLfqxDoOkJbhU=";
     };
     local_why3 = why3.override { version = "1.8.0"; };
-    extra_input = ocamlPackages.inifiles;
   };
 
 }."${ecRef}";
@@ -50,7 +48,7 @@ stdenv.mkDerivation rec {
     batteries
     dune-build-info
     dune-site
-    extra_input
+    pcre2
     local_why3
     yojson
     zarith
