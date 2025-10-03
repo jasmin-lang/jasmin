@@ -728,6 +728,111 @@ Lemma fsem_mod_equiv E T
             +' ErrEvent +' E) T) :
   eutt eq (fsem_interp_up2state t) (interp_up2state (fsem2mod_tr t)).
 Proof.
+  unfold fsem_interp_up2state, 
+    interp_up2state, Interp_recc, interp_recc, interp_FunE.
+  setoid_rewrite interp_interp.
+  revert t.
+  ginit; gcofix CIH; intros t.  
+  setoid_rewrite (itree_eta_ t).
+
+  assert (exists ot, eq_itree eq t {| _observe := ot |}) as H.
+  { setoid_rewrite (itree_eta t).
+    exists (observe t).
+    reflexivity.
+  }
+
+  destruct H as [ot H].
+  setoid_rewrite (itree_eta t) in H.
+  punfold H; red in H; simpl in *.
+  hinduction H before CIH; try congruence.
+
+  { gstep; red. simpl.
+    econstructor; auto.
+  }
+
+  { pclearbot; 
+    gstep; red. simpl.
+    econstructor.
+    gfinal. left.
+    eapply CIH.
+  }
+  
+  { pclearbot; unfold fsem2mod_tr.
+    setoid_rewrite translate_vis.
+    setoid_rewrite unfold_interp_mrec at 2. simpl.
+    setoid_rewrite interp_vis.
+    setoid_rewrite interp_mrec_bind.    
+    destruct e as [ie | e]; simpl.
+    
+    { setoid_rewrite interp_vis.
+      setoid_rewrite interp_tau.
+      guclo eqit_clo_bind.
+      econstructor 1 with (RU := eq).
+
+      2: { intros u1 u2 H.
+           inv H.
+           setoid_rewrite unfold_interp_mrec at 1; simpl.
+           gstep; red.
+           eapply EqTauR; eauto.
+           eapply EqTau.
+           gfinal; left.
+           eapply CIH.
+      }
+           
+      { setoid_rewrite interp_mrec_as_interp.
+        setoid_rewrite interp_interp.
+
+        destruct ie eqn: ie_eq; simpl.
+
+        { repeat setoid_rewrite unfold_interp; simpl.
+          eapply eqit_bind; simpl.
+          
+          { setoid_rewrite interp_trigger; simpl; reflexivity. }
+          { intro s1; pstep; red.
+            econstructor; left.
+            setoid_rewrite bind_ret_l.
+            repeat setoid_rewrite interp_bind.
+            eapply eqit_bind; simpl.
+
+            { unfold isem_assgn.          
+              destruct (sem_assgn p l a s p0 s1); simpl.
+
+              { setoid_rewrite interp_ret; reflexivity. }
+              { setoid_rewrite interp_vis; simpl.
+                eapply eqit_bind.
+                - setoid_rewrite interp_trigger; simpl. reflexivity. 
+                - intro u. destruct u.
+               }
+            }
+
+            { intro s2.
+              repeat setoid_rewrite interp_trigger; simpl.
+              reflexivity.
+            }
+          }  
+        }      
+
+        admit.
+        admit.
+        admit.
+        admit.
+        admit.
+        admit.
+        admit.
+        admit.        
+      }  
+    }  
+
+    admit.
+Admitted. 
+  
+End SemDefs.
+
+End Asm2.
+  
+End Asm1.
+
+
 (*  unfold isem_interp_up2err, isem_interp_up2rec,
     interp_up2err, interp_up2state.
   unfold isem2mod_tr.
@@ -740,9 +845,6 @@ Proof.
  @itree_eta
      : forall (E : Type -> Type) (R : Type) (t : itree E R),
        t ≅ {| _observe := observe t |} *)
-
-  unfold fsem_interp_up2state, 
-    interp_up2state, Interp_recc, interp_recc, interp_FunE.
 
 (* setoid_rewrite interp_mrec_as_interp at 1. *)
 (*  
@@ -758,181 +860,6 @@ Proof.
   unfold isem2mod_tr in X1eq.
   setoid_rewrite interp_translate in X1eq.
 *)
-  setoid_rewrite interp_interp.
-
-(*  
-  revert X1eq.
-  revert X1.
-*)
-  revert t.
-
-  ginit; gcofix CIH.
-  intros t.
-  
-  setoid_rewrite (itree_eta_ t).
-
-  assert (exists ot, eq_itree eq t {| _observe := ot |}) as H.
-  { setoid_rewrite (itree_eta t).
-    exists (observe t).
-    reflexivity.
-  }
-
-  destruct H as [ot H].
-  setoid_rewrite (itree_eta t) in H.
-
-  punfold H; red in H.
-  simpl in *.
-  hinduction H before CIH; try congruence.
-
-  { gstep; red. simpl.
-    econstructor; auto.
-  }
-
-  { pclearbot; 
-    gstep; red. simpl.
-    econstructor.
-    gfinal. left.
-    eapply CIH.
-  }
-  
-  { pclearbot.
-
-    unfold fsem2mod_tr.
-    setoid_rewrite translate_vis.
-    setoid_rewrite unfold_interp_mrec at 2. simpl.
-    setoid_rewrite interp_vis.
-    setoid_rewrite interp_mrec_bind.
-    
-    destruct e as [ie | e]. simpl.
-    
-    { (* destruct ie eqn: eq_ie. *)
-      setoid_rewrite interp_vis.
-      setoid_rewrite interp_tau.
-
-      set (W1 := interp_mrec _ _).
-      set (W2 := interp _ _).
-
-      guclo eqit_clo_bind.
-      econstructor.
-      { instantiate (1:= eq).
-        subst W1 W2.
-
-        setoid_rewrite interp_mrec_as_interp.
-        setoid_rewrite interp_interp.
-                
-        unfold ext_handle_InstrE.
-
-        destruct ie eqn: ie_eq; simpl.
-        { unfold ext_handle_FunE, ext_handler; simpl.
-          repeat setoid_rewrite unfold_interp; simpl.
-          eapply eqit_bind; simpl.
-          { setoid_rewrite interp_trigger; simpl.
-            reflexivity.
-          }
-          { intro s1.
-            pstep; red.
-            econstructor.
-            left.
-            setoid_rewrite bind_ret_l.
-            repeat setoid_rewrite interp_bind.
-            eapply eqit_bind; simpl.
-
-            unfold isem_assgn.
-            unfold iresult.
-            unfold err_result.
-
-          (* OK, got it *)
-
-            admit.
-            admit.
-(*            
-            setoid_rewrite unfold_interp at 3; simpl.
-            unfold case_; simpl.
-            unfold Case_sum1_Handler, id_; simpl.  
-            unfold Handler.case_, Id_Handler; simpl.
-            unfold _interp. 
-            setoid_rewrite unfold_interp; simpl. 
-        eapply interp_eqit.
-        
-        unfold handle_InstrE; simpl.
-
-        setoid_rewrite interp_mrec_as_interp.
-        repeat setoid_rewrite unfold_interp; simpl.
-      
-        destruct ie eqn: ie_eq; simpl.
-        { setoid_rewrite bind_trigger.
-          pstep; red.
-          econstructor.
-          intros v; unfold Datatypes.id; simpl.
-          left.
-          pstep; red.
-          econstructor.
-          left. simpl.
-          unfold ext_handle_FunE, ext_handler; simpl.
-          pstep; red.
-          setoid_rewrite bind_trigger.
-          setoid_rewrite interp_bind.
-          setoid_rewrite bind_ret_l.
-          setoid_rewrite bind_ret_l.
-          
-          clear t.
-          unfold MonadIter_itree; simpl.
-          setoid_rewrite bind_trigger.
-          setoid_rewrite interp_state_vis.
-          setoid_rewrite interp_iter.
-          unfold CategoryOps.iter.
-          unfold Iter_Kleisli.
-          unfold Basics.iter.
-          unfold MonadIter_itree; simpl.
-          setoid_rewrite interp_state_tau.
-          unfold ITree.map; simpl.
-
-          admit.
-        }
-        admit. 
-        admit.
-        admit.
-        admit.
-        admit.
-        admit.
-        admit.
-        admit.
- *)
-          }
-        }  
-
-        admit.
-        admit.
-        admit.
-        admit.
-        admit.
-        admit.
-        admit.
-        admit.
-      }  
-
-      { intros u1 u2 H.
-        inv H.
-
-        setoid_rewrite unfold_interp_mrec at 1.
-        simpl.
-        gstep; red.
-        eapply EqTauR; eauto.
-        
-        eapply EqTau.
-        gfinal; left.
-        eapply CIH.
-      }  
-    }  
-
-    admit.
-Admitted. 
-  
-End SemDefs.
-
-End Asm2.
-  
-End Asm1.
 
 
 

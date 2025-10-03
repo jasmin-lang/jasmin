@@ -27,9 +27,7 @@ From ITree Require Import
 
 Require Import FunctionalExtensionality.
 
-Require Import xrutt xrutt_facts rutt_extras tfam_iso.
-
-From ITree Require Import Rutt RuttFacts.
+Require Import tfam_iso. 
 
 From ITree Require Import EqAxiom.
 
@@ -181,27 +179,6 @@ Definition ext_r_handler {E1 E2} E3 (h: E1 ~> itree (E2 +' E3)) :
              | inl1 e1 => h _ e1
              | inr1 e2 => trigger (inr1 e2) end.               
 
-(*
-Definition lassoc_tr E1 E2 E3 : (E1 +' (E2 +' E3)) ~> ((E1 +' E2) +' E3) :=
-  fun T e => match e with
-             | inl1 e1 => inl1 (inl1 e1)
-             | inr1 e23 => match e23 with
-                           | inl1 e2 => inl1 (inr1 e2)
-                           | inr1 e3 => inr1 e3 end end.                  
-
-Definition rassoc_tr E1 E2 E3 : ((E1 +' E2) +' E3) ~> (E1 +' (E2 +' E3)) :=
-  fun T e => match e with
-             | inl1 e12 => match e12 with
-                           | inl1 e1 => inl1 e1
-                           | inr1 e2 => inr1 (inl1 e2)
-                           end
-            | inr1 e3 => inr1 (inr1 e3) end.                 
-*)
-
-(*
-Definition rassoc_tr E1 E2 E3 := @mfun2 (E1 +' (E2 +' E3)) ((E1 +' E2) +' E3) 
-                                        (@FIsoLAssoc E1 E2 E3).
-*)
 
 Section InlineOK.
 
@@ -556,47 +533,6 @@ Proof.
   rewrite translate_id. reflexivity.
 Qed.
 
-(*
-Lemma rassoc_free_right_interp_lemma T h (t: itree (D1 +' E) T) :
-  eutt eq t (interp (ext_handler h) (RA_tr (free_right_tr t))).
-Proof.
-  unfold RA_tr, free_right_tr.
-  setoid_rewrite <- translate_cmpE.
-  setoid_rewrite interp_translate.
-  unfold cat, Cat_IFun; simpl.
-  setoid_rewrite <- interp_id_h at 1.
-  revert t.
-  ginit; gcofix CIH.
-  intros t.
-(*  unfold free_tr, rassoc_tr. *)
-  rewrite (itree_eta t).
-  remember (observe t) as ot.
-  destruct ot.
-  { setoid_rewrite interp_ret.
-    gstep; red. reflexivity.
-  }
-  { setoid_rewrite interp_tau.
-    gstep; red. econstructor; eauto.
-    gfinal; left; eauto.
-  }
-  { setoid_rewrite interp_vis.
-    guclo eqit_clo_bind.
-    econstructor 1 with (RU := eq).
-    { unfold ext_handler.
-      unfold rassoc_tr, rw_la.
-      destruct e; simpl; try reflexivity.
-      unfold id_, Id_Handler, Handler.id_; simpl.
-    }
-    { intros u1 u2 H.
-      inv H.
-      gstep; red.
-      econstructor.
-      gfinal; left; eauto.
-    }  
-  }    
-Qed.
-*)
-
 (* recursion on D1 is the same as recursion on (D1 +' D1) where the
    left D1 is inessential *)
 Lemma free_widening_lemma
@@ -700,3 +636,43 @@ Qed.
 
 End InlineOK2.
 
+(*
+Lemma rassoc_free_right_interp_lemma T h (t: itree (D1 +' E) T) :
+  eutt eq t (interp (ext_handler h) (RA_tr (free_right_tr t))).
+Proof.
+  unfold RA_tr, free_right_tr.
+  setoid_rewrite <- translate_cmpE.
+  setoid_rewrite interp_translate.
+  unfold cat, Cat_IFun; simpl.
+  setoid_rewrite <- interp_id_h at 1.
+  revert t.
+  ginit; gcofix CIH.
+  intros t.
+(*  unfold free_tr, rassoc_tr. *)
+  rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot.
+  { setoid_rewrite interp_ret.
+    gstep; red. reflexivity.
+  }
+  { setoid_rewrite interp_tau.
+    gstep; red. econstructor; eauto.
+    gfinal; left; eauto.
+  }
+  { setoid_rewrite interp_vis.
+    guclo eqit_clo_bind.
+    econstructor 1 with (RU := eq).
+    { unfold ext_handler.
+      unfold rassoc_tr, rw_la.
+      destruct e; simpl; try reflexivity.
+      unfold id_, Id_Handler, Handler.id_; simpl.
+    }
+    { intros u1 u2 H.
+      inv H.
+      gstep; red.
+      econstructor.
+      gfinal; left; eauto.
+    }  
+  }    
+Qed.
+*)
