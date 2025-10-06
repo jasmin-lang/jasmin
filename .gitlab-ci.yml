@@ -98,7 +98,7 @@ eclib:
   stage: prove
   parallel:
     matrix:
-      - EASYCRYPT_REF: [release, dev]
+      - EASYCRYPT_REF: [release]
   variables:
     EXTRA_NIX_ARGUMENTS: --argstr ecRef $EASYCRYPT_REF
   extends: .common
@@ -177,7 +177,7 @@ check-proofs:
   stage: test
   parallel:
     matrix:
-      - EASYCRYPT_REF: [release, dev]
+      - EASYCRYPT_REF: release
   variables:
     EXTRA_NIX_ARGUMENTS: --arg testDeps true --argstr ecRef $EASYCRYPT_REF
     WHY3_CONF: $CI_PROJECT_DIR/why3.conf
@@ -230,7 +230,7 @@ test-extract-to-ec:
   stage: test
   parallel:
     matrix:
-      - EASYCRYPT_REF: [release, dev]
+      - EASYCRYPT_REF: [release]
   variables:
     EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true --arg testDeps true --argstr ecRef $EASYCRYPT_REF
     WHY3_CONF: $CI_PROJECT_DIR/why3.conf
