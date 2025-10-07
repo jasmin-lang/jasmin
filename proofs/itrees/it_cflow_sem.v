@@ -21,6 +21,13 @@ Require Import List.
 Import MonadNotation.
 Local Open Scope monad_scope.
 
+(* folding instruction semantics on commands (as there's no state,
+   this could actually be simply map) *)
+Definition isem_foldr {A} {E} (sem_i: A -> itree E unit) (c: list A) :
+    itree E unit :=
+  foldr (fun i k => sem_i i ;; k) (Ret tt) c.
+
+
 Section Asm1.  
 Context
   {asm_op: Type}
@@ -78,12 +85,6 @@ Variant FunE : Type -> Type :=
 (* Notation rec_call f fs := (trigger_inl1 (Call (f, fs))). *)
 Local Notation continue_loop := (ret (inl tt)).
 Local Notation exit_loop := (ret (inr tt)).
-
-(* folding instruction semantics on commands (as there's no state,
-   this could actually be simply map) *)
-Definition isem_foldr {E} (sem_i: instr -> itree E unit) (c: cmd) :
-    itree E unit :=
-  foldr (fun i k => sem_i i ;; k) (Ret tt) c.
 
 Definition isem_for_round {E} (sem_i: instr -> itree E unit)
   (wrt: Z -> itree E unit)                        

@@ -40,12 +40,17 @@ Record fstate :=
   { fscs : syscall_state_t; fmem : mem; fvals : values;
                                         finfo: option instr_info }.
 
-Definition mk_error_data (s: estate) (e: error) : error_data :=
+Definition mk_error_data {S: Type} (s: S) (e: error) : error_data :=
   (e, tt).
 
-Definition mk_error (s: estate) : error_data :=
+Definition mk_error {S: Type} (s: S) : error_data :=
   mk_error_data s ErrType.
 
+Definition iresult {E} `{ErrEvent -< E} {T} {S}
+  (F : exec T) (s: S) : itree E T :=
+  err_result (mk_error_data s) F.
+
+Definition plain_err : error_data := (ErrType, tt).
 
 (*******************************************************)
 
@@ -53,8 +58,10 @@ Section CORE.
 
 Context {E: Type -> Type} {XE : ErrEvent -< E} (p : prog) (ev : extra_val_t).
 
+(* 
 Definition iresult {T} (F : exec T) (s:estate) : itree E T :=
   err_result (mk_error_data s) F.
+*)
 
 Definition iget_fundef (funcs: fun_decls) (fn: funname) (fs: fstate) :
     itree E fundef :=
@@ -371,9 +378,12 @@ Definition statefree_interp E T
   
 End SemDefs.
 
+End Asm1.
+
 
 (*** garbage *******************************************************)
 
+(*
 Section SemDefs2.
 
 Context {E : Type -> Type}
@@ -987,7 +997,7 @@ End Sem1.
 
 End Asm1.
 
-
+*)
 
 
 
