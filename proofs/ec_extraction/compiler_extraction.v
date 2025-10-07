@@ -21,7 +21,7 @@ Definition create_safety_asserts (p: _uprog): result compiler_util.pp_error_loc 
   Let p := sc_prog p in
   (* This make the arguments and destinations of function call uniq variable.
      Similar to make reference argument *)
-  let p := extra_vars_call_prog create_var p in
+  Let p := extra_vars_call_prog create_var p in
   (* Introduce the boolean variables that encode is_var_init and is_arr_init *)
   let p := rm_var_init_prog B p in
   (* Add the post after the call.
