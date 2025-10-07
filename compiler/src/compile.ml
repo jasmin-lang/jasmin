@@ -92,13 +92,13 @@ let do_wint_int
               Mv.add x (sg, Conv.cvar_of_var xi) m
             end
           | _ -> m)
-      fv Mv.empty in  
+      fv Mv.empty in
     let info x =
       let x = Conv.var_of_cvar x in
       Mv.find_opt x m in
     Conv.csv_of_sv fv ,info
   in
-  let cp = Conv.cuprog_of_prog prog in 
+  let cp = Conv.cuprog_of_prog prog in
   let cp = Wint_int.wi2i_prog Arch.asmOp Arch.msf_size Arch.pointer_data get_info cp in
   let cp =
     match cp with
@@ -126,9 +126,12 @@ let do_wint_int
 (*--------------------------------------------------------------------- *)
 
 let add_default_contract args args_ty ret ret_ty =
-  let aux (x,t) = 
+  let aux (x,t) =
     match t with
-    | Arr (ws, n) -> [("safety",Pis_arr_init(x,Pconst Z.zero,Pconst (Z.of_int (n * size_of_ws ws))))]
+    | Arr (ws, len) ->
+      let len = arr_size ws len in
+      let plen = Conv.pos_of_int len in
+      [("safety",PappN (Ois_arr_init plen, [ Pvar (gkvar x);  Pconst Z.zero; Pconst (Z.of_int len) ]))]
     | _ -> []
   in
   let create_new_var x = L.mk_loc L._dummy (GV.mk x.v_name x.v_kind x.v_ty x.v_dloc x.v_annot) in
@@ -143,9 +146,9 @@ let add_default_contract args args_ty ret ret_ty =
   }
 
 let add_default_contracts prog : global_decl list * (int, 'a, 'b) gfunc list =
-  let add_default_contract fd = 
+  let add_default_contract fd =
     let c = match fd.f_contra with
-    | Some c -> Some c 
+    | Some c -> Some c
     | None -> Some (add_default_contract fd.f_args fd.f_tyin fd.f_ret fd.f_tyout)
     in
     {fd with f_contra = c }
@@ -164,7 +167,7 @@ let create_safety_asserts
        and type asm_op = asm_op
        and type extra_op = extra_op) prog =
   let memo = Hashtbl.create 5 in
-  let b (cv:Var0.Var.var) = 
+  let b (cv:Var0.Var.var) =
       match Hashtbl.find memo cv with
       | x -> x
       | exception Not_found ->
@@ -178,14 +181,14 @@ let create_safety_asserts
           Hashtbl.add memo cv cbv;
           cbv
   in
-  let create_var vk name t l =  Conv.cvar_of_var (V.mk name vk (Conv.ty_of_cty t) l []) in  
+  let create_var vk name t l =  Conv.cvar_of_var (V.mk name vk (Conv.ty_of_cty t) l []) in
   let prog = add_default_contracts prog in
-  let cuprog = Conv.cuprog_of_prog prog in  
-  let cuprog = 
+  let cuprog = Conv.cuprog_of_prog prog in
+  let cuprog =
     Compiler_extraction.create_safety_asserts
     Arch.asmOp Arch.pointer_data Arch.msf_size create_var b Arch.fcp Arch.aparams.ap_is_move_op cuprog
   in
-  let prog =  Conv.prog_of_cuprog cuprog in 
+  let prog =  Conv.prog_of_cuprog cuprog in
   prog
 
 
