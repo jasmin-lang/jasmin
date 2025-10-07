@@ -1056,22 +1056,9 @@ Fixpoint alloc_e (e:pexpr) ty :=
 
   | Pbig _ _ _ _ _ _ => Error (stk_ierror_no_var "Pbig is not supported in stack_alloc")
 
-  | Parr_init_elem e l => 
-    Let e := alloc_e e sint in
-    ok (Parr_init_elem e l)
-  | Pis_var_init _ => ok e
-  | Pis_arr_init x e1 e2 => 
-      Let e1 := alloc_e e1 sint in
-      Let e2 := alloc_e e2 sint in
-      ok (Pis_arr_init x e1 e2)
-  | Pis_barr_init x e1 e2 => 
-      Let e1 := alloc_e e1 sint in
-      Let e2 := alloc_e e2 sint in
-      ok (Pis_barr_init x e1 e2)
-  | Pis_mem_init e1 e2 => 
-      Let e1 := alloc_e e1 sint in
-      Let e2 := alloc_e e2 sint in
-      ok (Pis_mem_init e1 e2)
+  | Pis_var_init _ => Error (stk_ierror_no_var "Pis_var_init is not supported in stack_alloc")
+
+  | Pis_mem_init e1 e2 => Error (stk_ierror_no_var "Pis_mem_init is not supported in stack_alloc")
   end.
 
 Definition alloc_es es ty := mapM2 bad_arg_number alloc_e es ty.
@@ -1317,7 +1304,7 @@ Definition alloc_protect_ptr rmap ii r t e msf :=
   in
 
   match r with
-  | Lvar x => 
+  | Lvar x =>
     match get_local x with
     | None => Error (stk_ierror_basic x "register array remains")
     | Some pk =>

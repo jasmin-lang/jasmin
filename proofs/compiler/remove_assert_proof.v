@@ -63,7 +63,8 @@ Section REMOVE_ASSERT.
     + by move=> e he es hes /andP[] /he -> /hes ->.
     1-4: by move=> > he /he ->.
     + by move=> > he1 > he2 /andP[] /he1 -> /he2 ->.
-    + by move=> > hes /hes; rewrite /sem_pexprs => ->.
+    + move=> op es ih /andP [hop /ih].
+      by rewrite /sem_pexprs => ->; case: mapM => //=; case: op hop.
     by move=> > he > he1 > he2 /and4P[] /he -> /he1 -> /he2 ->.
   Qed.
 

@@ -17,11 +17,21 @@ Context (is_move_op : asm_op_t -> bool).
 
 
 Definition create_safety_asserts (p: _uprog): _uprog :=
+  (* First add the safety conditions *)
   let p := sc_prog p in
+  (* This make the arguments and destinations of function call uniq variable.
+     Similar to make reference argument *)
   let p := extra_vars_call_prog create_var p in
+  (* Introduce the boolean variables that encode is_var_init and is_arr_init *)
   let p := rm_var_init_prog B p in
+  (* Add the post after the call.
+     Do we really want to keep it or to intergrate it into constant_prop ?
+     One advantage is that static analysis can reuse the result more easyly ?
+  *)
   let p := contracts_asserts_prog p in
+  (* Performs constant propagation *)
   let p := rm_var_init_const_prop B p in
+  (* Dead code *)
   rm_var_init_dc is_move_op p
 .
 

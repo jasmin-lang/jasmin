@@ -224,30 +224,9 @@ Fixpoint wi2i_e (e0:pexpr) : cexec (safety_cond * pexpr) :=
      ok (ei.1 ++ es.1 ++ el.1 ++ sc_all e.1 v es.2 el.2,
          Pbig ei.2 (wi2i_op2 o) v e.2 es.2 el.2)
 
-  | Parr_init_elem e len =>
-    Let _ := assert (etype_of_expr m e == ETword _ None U8) (E.ierror_e e0) in
-    Let e := wi2i_e e in
-    ok (e.1, Parr_init_elem e.2 len)
-
   | Pis_var_init x =>
     Let x := wi2i_vari x in
     ok ([::], Pis_var_init x)
-
-  | Pis_arr_init x e1 e2 =>
-    Let _ := assert [&& is_sarr (vtype x), etype_of_expr m e1 == ETint _
-                     & etype_of_expr m e2 == ETint _] (E.ierror_e e0) in
-    Let x := wi2i_vari x in
-    Let e1 := wi2i_e e1 in
-    Let e2 := wi2i_e e2 in
-    ok (e1.1 ++ e2.1, Pis_arr_init x e1.2 e2.2)
-
-  | Pis_barr_init x e1 e2 =>
-    Let _ := assert [&& is_sarr (vtype x), etype_of_expr m e1 == ETint _
-                     & etype_of_expr m e2 == ETint _ ] (E.ierror_e e0) in
-    Let x := wi2i_vari x in
-    Let e1 := wi2i_e e1 in
-    Let e2 := wi2i_e e2 in
-    ok (e1.1 ++ e2.1, Pis_barr_init x e1.2 e2.2)
 
   | Pis_mem_init e1 e2 =>
     Let _ := assert [&& etype_of_expr m e1 == ETword _ None Uptr

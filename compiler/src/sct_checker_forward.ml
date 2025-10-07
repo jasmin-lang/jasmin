@@ -687,25 +687,7 @@ let rec ty_expr env venv loc (e:expr) : vty =
         | Direct le2, Indirect (lp3, le3) ->
           do_indirect (Env.public2 env) le2 lp3 le3
     end
-  | Pbig _ -> assert false
-  | Parr_init_elem (e,_) ->
-      ensure_public env venv loc e;
-      Env.dpublic env
-  | Pis_var_init x -> Env.get_i venv x
-  | Pis_arr_init (x,e1,e2)
-  | Pis_barr_init (x,e1,e2) -> 
-      ensure_public_address env venv loc x;
-      ensure_public env venv loc e1;
-      ensure_public env venv loc e2;
-      let ty = Env.fresh2 env
-      and xty = Env.get_i venv x in
-      VlPairs.add_le (content_ty xty) ty;
-      Direct ty
-  | Pis_mem_init (e1,e2) ->
-    ensure_public env venv loc e1;
-    ensure_public env venv loc e2;
-    Env.dsecret env
-
+  | Pbig _ | Pis_var_init _ | Pis_mem_init _ -> assert false
 
 and ensure_smaller env venv loc e l =
   let ety = ty_expr env venv loc e in
@@ -1046,7 +1028,7 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
       ty_lvals1 env msf_e xs (declassify_ty env i.i_annot ety)
     end
 
-  | Cassert _ -> assert false
+  | Cassert _ -> msf_e
 
   | Cif(e, c1, c2) ->
     let msf1, msf2 =

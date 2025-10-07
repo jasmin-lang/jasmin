@@ -53,12 +53,14 @@ HB.instance Definition _ := hasDecEq.Build const_v const_v_eq_axiom.
 
 Local Notation cpm := (Mvar.t const_v).
 
+Definition e255 :=  word_of_int Unsigned U8 255.
+
 Definition const v :=
   match v with
   | Cbool b => Pbool b
   | Cint z  => Pconst z
   | Cword sz z => wconst z
-  | Cfull_init l => Parr_init_elem (word_of_int Unsigned U8 (255)) l
+  | Cfull_init l => Papp1 (Oarr_make l) e255
   end.
 
 Definition globals : Type := option (var → option glob_value).
@@ -126,19 +128,20 @@ Fixpoint const_prop_e (m:cpm) e :=
   | Parr_init _
     => e
   | Pvar {| gs := scope ; gv := x |} =>
-      match scope with
-      | Slocal => if Mvar.get m x is Some n then const n else e
-      | Sglob => if globs is Some f then if f x is Some (Gword ws w) then const (Cword w) else e else e
-      end
+    match scope with
+    | Slocal => if Mvar.get m x is Some n then const n else e
+    | Sglob => if globs is Some f then if f x is Some (Gword ws w) then const (Cword w) else e else e
+    end
   | Pget al aa sz x e =>
-      let e := const_prop_e m e in
-      if is_glob x
-      then pget_global al aa sz x e
-      else Pget al aa sz x e
+    let e := const_prop_e m e in
+    if is_glob x
+    then pget_global al aa sz x e
+    else Pget al aa sz x e
   | Psub aa sz len x e => Psub aa sz len x (const_prop_e m e)
   | Pload al sz e => Pload al sz (const_prop_e m e)
   | Papp1 o e     => s_op1 o (const_prop_e m e)
   | Papp2 o e1 e2 => s_op2 o (const_prop_e m e1)  (const_prop_e m e2)
+  (* FIXME improve s_opN to take Ois_init into account *)
   | PappN op es   => s_opN op (map (const_prop_e m) es)
   | Pif t e e1 e2 => s_if t (const_prop_e m e) (const_prop_e m e1) (const_prop_e m e2)
   | Pbig idx op x body s len =>
@@ -159,26 +162,13 @@ Fixpoint const_prop_e (m:cpm) e :=
       | _, _, _ => Pbig idx op x body s len
       end
     end
-   | Parr_init_elem e l => 
-     let e := const_prop_e m e in
-     Parr_init_elem e l
 
-   | Pis_var_init _ => e
+  | Pis_var_init _ => e
 
-   | Pis_barr_init x e1 e2 =>
-     let e1 := const_prop_e m e1 in
-     let e2 := const_prop_e m e2 in
-     Pis_barr_init x e1 e2
-
-   | Pis_arr_init x e1 e2 =>
-     let e1 := const_prop_e m e1 in
-     let e2 := const_prop_e m e2 in
-     Pis_arr_init x e1 e2
-
-   | Pis_mem_init e1 e2 =>
-     let e1 := const_prop_e m e1 in
-     let e2 := const_prop_e m e2 in
-     Pis_mem_init e1 e2
+  | Pis_mem_init e1 e2 =>
+    let e1 := const_prop_e m e1 in
+    let e2 := const_prop_e m e2 in
+    Pis_mem_init e1 e2
   end.
 
 Definition op1_merge_m (m:cpm) (m':cpm) o :=
@@ -187,40 +177,54 @@ Definition op1_merge_m (m:cpm) (m':cpm) o :=
 Definition wsize_of_stype (ty: stype) : wsize :=
   if ty is sword sz then sz else U64.
 
-
 Definition op2_add_cpm (m:cpm) (e1:pexpr) (e2:pexpr) :=
-if e1 is Pvar x then
-    let x := x.(gv) in
+  if e1 is Pvar {| gv := x; gs := Slocal |} then
     match e2 with
-    | (Pbool b)  => Mvar.set m x (Cbool b)
-    | (Pconst z) =>  Mvar.set m x (Cint z)
-    | _ => m
+    | Pbool b  => Some (Mvar.set m x (Cbool b))
+    | Pconst z =>  Some (Mvar.set m x (Cint z))
+    | Papp1 (Oarr_make len) e =>
+      if eq_expr e e255 then Some (Mvar.set m x (Cfull_init len))
+      else None
+    | _ => None
     end
-else m.
+  else None.
 
+(* FIXME this require improvment and explanation.
+   In particular the case for equality  *)
 Definition op2_merge_m (m:cpm) (m1:cpm) (m2:cpm) o  (e1:pexpr) (e2:pexpr):=
   match o with
-  | Oand => and_cpm m1 m2 
+  | Oand => and_cpm m1 m2
   | Oor  => merge_cpm m1 m2
-  | Oeq _ => and_cpm (op2_add_cpm m e1 e2 ) (op2_add_cpm m e2 e1)
-  | _ => m      
+  | Oeq _ =>
+    match op2_add_cpm m e1 e2 with
+    | Some m => m
+    | None =>
+      match op2_add_cpm m e2 e1 with
+      | Some m => m
+      | None => m
+      end
+    end
+  | _ => m
   end.
 
+Definition is_full_init len e :=
+  eq_expr (const (Cfull_init len)) e.
 
-Fixpoint const_prop_e_assert m e : cpm * pexpr := 
+Fixpoint const_prop_e_assert m e : cpm * pexpr :=
   match e with
-  | Pvar x => 
+  | Pvar x =>
     let e := const_prop_e m e in
-    let m := match e with
-     | Pvar {|gv:={|v_var:={|vtype:=sbool|}|}|} => Mvar.set m x.(gv) (Cbool true)
-     | _ => m
-     end in
+    let m :=
+      match e with
+      | Pvar {|gv:={|v_var:={|vtype:=sbool|}|}|} => Mvar.set m x.(gv) (Cbool true)
+      | _ => m
+      end in
     (m,e)
   | Papp1 o e     =>
     let (m',e) := const_prop_e_assert m e in
     let m := op1_merge_m m m' o in
     (m, s_op1 o e)
-  | Papp2 o e1 e2 => 
+  | Papp2 o e1 e2 =>
     let (m1,e1) := const_prop_e_assert m e1 in
     let (m2,e2) := const_prop_e_assert m e2 in
     let m := op2_merge_m m m1 m2 o e1 e2 in
@@ -232,26 +236,32 @@ Fixpoint const_prop_e_assert m e : cpm * pexpr :=
     match is_bool e with
     | Some b =>
       let m := if b then m1 else m2 in
-      (m, s_if t e e1 e2)
+      (m, s_if t e e1 e2) (* FIXME can we keep only eb ? *)
     | None =>
       let m := merge_cpm m1 m2 in
       (m, s_if t e e1 e2)
     end
-  | Pis_barr_init x e1 e2 => 
-    if Mvar.get m x is Some (Cfull_init _) then (m,Pbool true)
+  | PappN (Ois_barr_init len) [:: et; e1; e2] =>
+    let et := const_prop_e m et in
+    let e1 := const_prop_e m e1 in
+    let e2 := const_prop_e m e2 in
+    if is_full_init len et then (m, Pbool true)
     else
-     let e1 := const_prop_e m e1 in
-     let e2 := const_prop_e m e2 in
-     let m := match is_const e1, is_const e2, x.(v_var).(vtype) with
-        | Some 0, Some e2, (sarr sz) => 
-          if (Zpos sz) == e2 then
-            Mvar.set m x (Cfull_init sz)
-          else
-            m
-        | _,_,_ => m
-     end
-     in
-     (m,Pis_barr_init x e1 e2) 
+      let m :=
+        match et with
+        | Pvar {| gv := x;  gs := Slocal|} =>
+          match is_const e1, is_const e2 with
+          | Some z1, Some z2 =>
+            if (z1 == 0%Z) && (z2 == Zpos len) then
+              Mvar.set m x (Cfull_init len)
+            else m
+          | _, _ => m
+          end
+        | _ => m
+        end
+      in
+      (m, PappN (Ois_barr_init len) [::et; e1; e2])
+
   | _ =>
       let e := const_prop_e m e in
       (m,e)
@@ -298,13 +308,13 @@ Section LOOP.
       if includes_cpm m' m then (m,c')
       else loop n (merge_cpm m' m)
     end.
-  
+
   Fixpoint wloop (n:nat) (m:cpm) :=
     match n with
     | O => wloop_fallback
-    | S n => 
+    | S n =>
       let: (m2,(m1,cs)) := cp_c2 m in
-      if includes_cpm m2 m then (m1,cs) 
+      if includes_cpm m2 m then (m1,cs)
       else wloop n (merge_cpm m2 m)
     end.
 
@@ -322,8 +332,8 @@ Definition add_cpm (m:cpm) (rv:lval) (tag:assgn_tag) e cpf ty  :=
         let sz := cmp_min szty szx in
         let w := Cword (wrepr sz z) in
         Mvar.set m x w
-      | Parr_init_elem (Papp1 (Oword_of_int U8) (Pconst (255))) l =>
-        Mvar.set m x (Cfull_init l)
+      | Papp1 (Oarr_make len) (Papp1 (Oword_of_int U8) (Pconst (255))) =>
+        Mvar.set m x (Cfull_init len)
       | _ => m
       end
     else m
@@ -410,7 +420,7 @@ Fixpoint const_prop_ir cpf (m:cpm) ii (ir:instr_r) : cpm * cmd :=
   | Cfor x (dir, e1, e2) c =>
     let e1 := const_prop_e without_globals m e1 in
     let e2 := const_prop_e without_globals m e2 in
-    let loop_fallback := 
+    let loop_fallback :=
       let m := remove_cpm m (write_i ir) in
       let (_,c) := const_prop const_prop_i m c in
       (m,c)
@@ -474,81 +484,39 @@ Fixpoint translate_vars_contract (p:seq var_i) (p':seq var_i) (m:cpm) : cpm :=
   | _ , _ => m
 end.
 
-
-Fixpoint const_prop_epost without_globals (m:cpm) (e:pexpr) (f:fundef) (ci:fun_contract) :=
-  match e with
-  | Papp1 o e     => 
-    if o is Onot then [::]
-    else const_prop_epost without_globals m e f ci
-  | Papp2 o e1 e2 => 
-    if o is Oand then const_prop_epost without_globals m e1 f ci ++ const_prop_epost without_globals m e2 f ci
-    else [::]
-  | Pif t e e1 e2 =>
-    let e := const_prop_e without_globals m e in
-    let eb1 := const_prop_epost without_globals m e1 f ci in
-    let eb2 := const_prop_epost without_globals m e2 f ci in
-    match is_bool e with
-    | Some b =>
-      if b then eb1 else eb2
-    | None => [::]
-    end
-  | Pis_barr_init x e1 e2 => 
-    if Mvar.get m x is Some (Cfull_init n) then
-      if get_var_contract x ci.(f_ires) f.(f_res) is Some x' then
-        [:: MkI dummy_instr_info (Cassgn x' AT_inline (sarr n) (const (Cfull_init n)))]
-      else safe_assert dummy_instr_info [::e] 
-    else
-     [::]
-  | _ => [::]
-  end.
-
-
 (* In addition to doing constant_prop with an empty state for the post condition,
   to help in the proofs, if we know that some condition is true, we can
   add the corresponding assignment to the body of the function.
   For example, if we know that b_a is fully initialized,
   and we have a post condition that uses b_a,
-  we can add an assignment of an array with all elements true to the end of the 
-  body of the function  
+  we can add an assignment of an array with all elements true to the end of the
+  body of the function
 *)
-Definition const_prop_post without_globals (m:cpm) (f:fundef) (ci:fun_contract) :=
-  (*translate both the params and return vars to the contract variables*)
-  let m := translate_vars_contract f.(f_params) ci.(f_iparams) m in
-  let m := translate_vars_contract f.(f_res) ci.(f_ires) m in
-  let ci_post := map (fun (c:assertion) =>
-    let e := const_prop_e without_globals empty_cpm (snd c) in
-    (fst c, e)
-  ) ci.(f_post) in
-  let extra_body := conc_map (fun (e:assertion)  =>
-    const_prop_epost without_globals m (snd e) f ci
-  )  ci_post in
-  extra_body.
 
-Definition const_prop_ci without_globals m f (ci:option fun_contract): cmd * (option fun_contract) :=
-  match ci with
-  | None => ([::], None)
-  | Some ci =>
-    let aux := foldl (fun acc c => 
-      let e := const_prop_e without_globals empty_cpm (snd c) in
-      match is_bool e with
-      | Some true => acc
-      | _ => acc ++ [::(fst c, e)]
-     end 
-    ) [::] in
-    let ci_pre := aux ci.(f_pre) in
-    let ci_post := aux ci.(f_post) in
-    let extra_body := const_prop_post without_globals m f ci in
-    let ci := MkContra ci.(f_iparams) ci.(f_ires) ci_pre ci_post in
-    (extra_body, Some ci)
+Definition assign_full_init (m:cpm) (assocs : list (var * var_i)) (x:var) :=
+  match assoc assocs x with
+  | Some x' =>
+    if Mvar.get m x' is Some (Cfull_init n) then
+     Some (MkI dummy_instr_info (Cassgn (Lvar x') AT_inline (sarr n) (const (Cfull_init n))))
+    else None
+  | None => None
   end.
 
+Definition assigns_full_init (m:cpm) (f:fundef) :=
+  match  f.(f_contra) with
+  | None => [::]
+  | Some ci =>
+    let fv := Sv.elements (foldl (fun fv e => read_e_rec fv e.2) Sv.empty ci.(f_post)) in
+    let assocs := zip (map v_var ci.(f_ires)) f.(f_res) in
+    pmap (assign_full_init m assocs) fv
+  end.
 
 Definition const_prop_fun (gd: glob_decls) cpf (f: fundef) :=
   let with_globals := if cl then (fun _ _ => with_globals_cl gd) else with_globals in
   let without_globals := if cl then with_globals_cl gd else without_globals in
   let 'MkFun ii ci si p c so r ev := f in
   let mc := const_prop (const_prop_i gd cpf) empty_cpm c in
-  let (extra_body,ci) := const_prop_ci without_globals mc.1 f ci in
+  let extra_body := assigns_full_init mc.1 f in
   let c:= mc.2 ++ extra_body in
   MkFun ii ci si p c so r ev.
 
@@ -566,3 +534,4 @@ End Section.
 End ASM_OP.
 End CL_FLAG.
 End WITH_PARAMS.
+

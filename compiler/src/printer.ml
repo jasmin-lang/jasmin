@@ -45,6 +45,8 @@ let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
     pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len
   | Pload(al,ws,e) ->
     pp_mem_access pp_expr fmt al (Some ws) e
+  | Papp1 (Oarr_make len, e) ->
+    F.fprintf fmt "arr_make(%s, %a)" (Z.to_string (Conv.z_of_pos len)) pp_expr e
   | Papp1(o, e) ->
     F.fprintf fmt "@[(%s@ %a)@]" (string_of_op1 ~debug o) pp_expr e
   | Papp2(op,e1,e2) ->
@@ -54,6 +56,10 @@ let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
     F.fprintf fmt "@[(%du%n)[%a]@]" (List.length es) (int_of_pe pe) (pp_list ",@ " pp_expr) es
   | PappN (Ocombine_flags c, es) ->
     F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " pp_expr) es
+  | PappN (Ois_arr_init _len, es) ->
+    F.fprintf fmt "@[<hov 2>is_arr_init(%a)@]" (pp_list ",@ " pp_expr) es
+  | PappN(Ois_barr_init _len, es) ->
+    F.fprintf fmt "@[<hov 2>is_barr_init(%a)@]" (pp_list ",@ " pp_expr) es
   | Pif(_, e,e1,e2) ->
     F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
       pp_expr e pp_expr e1 pp_expr e2
@@ -65,12 +71,7 @@ let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
       pp_expr start
       pp_expr len
       pp_expr body
-  | Parr_init_elem (e,n) -> 
-    F.fprintf fmt "ArrayInit(%a, %a)"
-      pp_expr e pp_len n
   | Pis_var_init x -> F.fprintf fmt "is_var_init(%a)" pp_var_i x
-  | Pis_arr_init (x,e1,e2) -> F.fprintf fmt "is_arr_init(%a,%a,%a)" pp_var_i x pp_expr e1 pp_expr e2
-  | Pis_barr_init (x,e1,e2) -> F.fprintf fmt "is_barr_init(%a,%a,%a)" pp_var_i x pp_expr e1 pp_expr e2
   | Pis_mem_init (e1,e2) -> F.fprintf fmt "is_mem_init(%a,%a)" pp_expr e1 pp_expr e2
   in
   pp_expr
@@ -258,6 +259,7 @@ let pp_return_type pp_size fmt =
 
 let pp_clause ~debug pp_size pp_var fmt f = Format.fprintf fmt "%a" (pp_ge ~debug pp_size pp_var) f
 
+(* FIXME use pp_list instead *)
 let rec pp_clauses ~debug pp_size pp_var prepost fmt cs =
   match cs with
   | [] -> Format.fprintf fmt ""

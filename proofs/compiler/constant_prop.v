@@ -292,7 +292,9 @@ Definition s_opN (op:opN) (es:pexprs) : pexpr :=
   | Ok r =>
     match op return sem_t (type_of_opN op).2 -> _ with
     | Opack ws _ => fun w => Papp1 (Oword_of_int ws) (Pconst (wunsigned w))
-    | Ocombine_flags _ => fun b => Pbool b
+    | Ocombine_flags _ => Pbool
+    | Ois_arr_init _ => Pbool
+    | Ois_barr_init _ => Pbool
     end r
   | _ => PappN op es
   end.
@@ -398,21 +400,8 @@ Fixpoint const_prop_e (m:cpm) e :=
     | _, _ =>
       Pbig idx op x (const_prop_e (Mvar.remove m x) body) s len
     end
-   | Parr_init_elem e l => 
-     let e := const_prop_e m e in
-     Parr_init_elem e l
 
    | Pis_var_init _ => e
-
-   | Pis_barr_init x e1 e2 =>
-     let e1 := const_prop_e m e1 in
-     let e2 := const_prop_e m e2 in
-     Pis_barr_init x e1 e2
-
-   | Pis_arr_init x e1 e2 =>
-     let e1 := const_prop_e m e1 in
-     let e2 := const_prop_e m e2 in
-     Pis_arr_init x e1 e2
 
    | Pis_mem_init e1 e2 =>
      let e1 := const_prop_e m e1 in

@@ -134,7 +134,7 @@ Qed.
 
 Lemma s_op1P o e : Papp1 o e =E s_op1 o e.
 Proof.
-  case: o => [?|?|??|??||?|[|?]|?];
+  case: o => [?|?|??|??||?|[|?]|?|];
   eauto using snotP, sneg_intP, ssem_sop1P.
 Qed.
 
@@ -484,21 +484,18 @@ Qed.
 Lemma s_opNP op s es :
   sem_pexpr wdb gd s (s_opN op es) = sem_pexpr wdb gd s (PappN op es).
 Proof.
-
 Opaque app_sopn values.app_sopn.
   rewrite /s_opN.
   case h: app_sopn => [r | //].
-  case: op r h => [sz' pe | c] /=.
+  case: op r h => [sz' pe | c | | ] /=.
 
   + move=> w h.
     rewrite /sem_sop1 /= wrepr_unsigned /sem_opN /=.
     by rewrite -Let_Let (app_sopnP _ h).
 
-  move=> b h.
-  rewrite /sem_opN /=.
-  by rewrite -Let_Let (app_sopnP s h).
+  all: move=> > h; rewrite /sem_opN /=.
+  all: by rewrite -Let_Let (app_sopnP _ h).
 Transparent app_sopn values.app_sopn.
-
 Qed.
 
 Definition vconst c :=
@@ -765,8 +762,7 @@ Proof.
     elim: ziota (const_prop_e g m2 _) => //= j js hrec e.
     rewrite (hb _ (Mvar.set m2 x (Cint j))); first by apply hrec.
     by move=> ?; rewrite !Mvar.setP; case: ifP.
-  + by move=> > he > /he ->.
-  1-3: by move=> > he1 > he2 > /[dup] /he1 -> /he2 ->.
+  by move=> > he1 > he2 > /[dup] /he1 -> /he2 ->.
 Qed.
 
 #[local]

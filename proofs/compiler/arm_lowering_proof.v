@@ -403,7 +403,7 @@ Proof.
   case: e hseme hfve h => // op.
   move=> [] //= gx.
   move=> [] //.
-  move=> [[]|||||||] //.
+  move=> [[]||||||||] //.
   move=> [] // z.
 
   rewrite /=.
@@ -576,7 +576,7 @@ Proof.
   move: h.
   rewrite /lower_pexpr_aux /lower_Papp1.
   move=> /chk_ws_regP [?]; subst ws.
-  case: op hw hfve => [ ws'' || [] ws'' | [] ws'' || [] ||] // hw hfve.
+  case: op hw hfve => [ ws'' || [] ws'' | [] ws'' || [] |||] // hw hfve.
 
   (* Case: [Oword_of_int]. *)
   - move: hw => /sem_sop1I /= [w' [?] [hw' [?] hw]].
@@ -1042,7 +1042,7 @@ Lemma lower_pexpr_auxP e :
   Plower_pexpr_aux e.
 Proof.
   move=> s ws ws' aop es w.
-  case: e => [||| gx | al aa ws0 x e || al ws0 x e | op e | op e0 e1 ||||||||] //.
+  case: e => [||| gx | al aa ws0 x e || al ws0 x e | op e | op e0 e1 |||||] //.
   - exact: lower_PvarP.
   - exact: (lower_loadP (Pget _ _ _ _ _)).
   - exact: (lower_loadP (Pload _ _ _)).
@@ -1103,7 +1103,7 @@ Proof.
 
   move: s0 ws' pre op es w h hs00 hws hfve hfvlv hseme hwrite.
   case: e =>
-    [||| gx | al aa ws0 x e || al ws0 e | op e | op e0 e1 || ty c e0 e1||||||] //
+    [||| gx | al aa ws0 x e || al ws0 e | op e | op e0 e1 || ty c e0 e1|||] //
     s0 ws' pre aop es w h hs00 hws hfve hfvlv hseme hwrite.
 
   1-5: move: h => /no_preP [? h]; subst pre.
@@ -1210,7 +1210,7 @@ Proof.
   rewrite /lower_store.
   case hmn: store_mn_of_wsize => [mn|] //.
 
-  case: e hseme hfv => [||| gx ||||||| ty c e0 e1||||||] // hseme hfv [? ?];
+  case: e hseme hfv => [||| gx ||||||| ty c e0 e1|||] // hseme hfv [? ?];
     subst aop es.
   all: rewrite /= /sem_sopn /=.
   all: have /= := eeq_exc_sem_pexpr hfv hs00 hseme.
@@ -1405,7 +1405,7 @@ Proof.
   move=> hwrite1.
 
   move: h.
-  case: e2 hseme2 => [| [] || gx |||||||||||||] //= hseme2 [???];
+  case: e2 hseme2 => [| [] || gx ||||||||||] //= hseme2 [???];
     subst lvs' op' es'.
   all: rewrite /= hseme0 hseme1 /= {hseme0 hseme1}.
 

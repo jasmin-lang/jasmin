@@ -1455,11 +1455,7 @@ let ty_expr = function
   | PappN (op, _)  -> Conv.ty_of_cty (snd (E.type_of_opN op))
   | Pif (ty,_,_,_) -> ty
   | Pbig (_,op,_,_,_,_) ->  Conv.ty_of_cty (snd (E.type_of_op2 op))
-  | Parr_init_elem (_,len)  -> Arr (U8, len)
-  | Pis_var_init _ 
-  | Pis_arr_init _
-  | Pis_barr_init _
-  | Pis_mem_init _ -> tbool
+  | Pis_var_init _ | Pis_mem_init _ -> tbool
 
 
 let ty_sopn pd asmOp op es =
@@ -1555,7 +1551,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
               let wse, ne = array_kind ety in
               EA.ec_cast_array env (ws, n) (wse, ne) e
 
-  let rec ec_op1 op e = match op with
+  let rec ec_op1 env op e = match op with
     | Oword_of_int sz ->
       ec_apps1 (Format.sprintf "%s.of_int" (fmt_Wsz sz)) e
     | Oint_of_word(s, sz) ->
@@ -1566,8 +1562,9 @@ module EcExpression(EA: EcArray): EcExpression = struct
     | Onot     -> ec_apps1 "!" e
     | Olnot _  -> ec_apps1 "invw" e
     | Oneg _   -> ec_apps1 "-" e
-    | Owi1 (_, WIwint_of_int sz) -> ec_op1 (Oword_of_int sz) e
+    | Owi1 (_, WIwint_of_int sz) -> ec_op1 env (Oword_of_int sz) e
     | Owi1 _ -> assert false (* other wint operator should have been removed by wint_int or wint_word *)
+    | Oarr_make l -> Eapp (Eident [ec_BArray env (Conv.int_of_pos l); "init_arr"], [e])
 
   let rec toec_expr env (e: expr) =
       match e with
@@ -1584,7 +1581,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
               glob_memi; toec_expr env (int_of_ptr (Env.pd env) e)
           ])
       | Papp1 (op1, e) ->
-            ec_op1 op1 (toec_cast env (Conv.ty_of_cty (fst (E.type_of_op1 op1)), e))
+          ec_op1 env op1 (toec_cast env (Conv.ty_of_cty (fst (E.type_of_op1 op1)), e))
       | Papp2 (op2, e1, e2) ->
           let t1, t2 = fst (E.type_of_op2 op2) in
           let te1 = (Conv.ty_of_cty t1, e1) in
@@ -1617,6 +1614,10 @@ module EcExpression(EA: EcArray): EcExpression = struct
                   ec_ident (Printer.string_of_combine_flags c),
                   List.map (toec_expr env) es
               )
+          | Ois_arr_init _ -> assert false
+          | Ois_barr_init len ->
+              Eapp (Eident [ec_BArray env (Conv.int_of_pos len); "is_init"],
+                    List.map (toec_expr env) es)
           end
       | Pif(_,e1,et,ef) ->
           let ty = ty_expr e in
@@ -1642,10 +1643,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
         let iota = Eapp (ec_ident "iota_", [a; b]) in
         let map = Eapp (ec_ident "map", [lambda2;iota]) in
         Eapp (ec_ident "foldr", [lambda1;i; map])
-      | Parr_init_elem (e,l) -> Eapp (Eident [ec_BArray env l; "init_arr"],[toec_expr env e; Econst (Z.of_int l)] )
-      | Pis_var_init _ 
-      | Pis_arr_init _ -> assert false
-      | Pis_barr_init (x,e1,e2) -> Eapp (ec_ident "is_init",[ec_vari env (L.unloc x); toec_expr env e1;toec_expr env e2] )
+      | Pis_var_init _ -> assert false
       | Pis_mem_init (e1,e2) ->
         let e1 = toec_expr env (int_of_ptr (Env.pd env) e1) in
         let e2 = toec_expr env e2 in
@@ -1672,7 +1670,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
           [LvIdent [ec_vars env (L.unloc x)]],
           EA.toec_lasub env (aa, ws, len, x, toec_expr env e1) e
           )
-      
+
 end
 
 module type EcLeakage = sig
@@ -1713,17 +1711,14 @@ module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
 
   let rec leaks_e_rec pd leaks e =
     match e with
-    | Pconst _ | Pbool _ | Parr_init _ | Pvar _ | Pis_var_init _ -> leaks
+    | Pconst _ | Pbool _ | Parr_init _ | Pvar _  -> leaks
     | Pload (_,_,e) -> leaks_e_rec pd (int_of_ptr pd e :: leaks) e
     | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec pd (e::leaks) e
-    | Parr_init_elem (e,_) | Papp1 (_, e) -> leaks_e_rec pd leaks e
+    | Papp1 (_, e) -> leaks_e_rec pd leaks e
     | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
     | PappN (_, es) -> leaks_es_rec pd leaks es
     | Pif  (_, e1, e2, e3) -> leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) e3
-    | Pbig _ -> assert false
-    | Pis_arr_init(_,e1,e2)
-    | Pis_barr_init(_,e1,e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
-    | Pis_mem_init(e1,e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
+    | Pbig _ | Pis_var_init _ | Pis_mem_init _ -> assert false
   and leaks_es_rec pd leaks es = List.fold_left (leaks_e_rec pd) leaks es
 
   let leaks_e pd e = leaks_e_rec pd [] e
@@ -1819,14 +1814,12 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
     | Pconst _ | Pbool _ | Parr_init _ | Pvar _ | Pis_var_init _ -> leaks
     | Pload (_,_,e) -> leaks_e_rec env ((leak_addr_mem env e) @ leaks) e
     | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec env ([leak_addr (toec_expr env e)] @ leaks) e
-    | Parr_init_elem (e,_) | Papp1 (_, e) -> leaks_e_rec env leaks e
+    | Papp1 (_, e) -> leaks_e_rec env leaks e
     | Papp2 (_, e1, e2) -> leaks_es_rec env leaks [e1; e2]
     | PappN (_, es) -> leaks_es_rec env leaks es
     | Pif  (_, e1, e2, e3) -> leaks_es_rec env leaks [e1; e2; e3]
-    | Pbig _ -> assert false
-    | Pis_arr_init(_,e1,e2)
-    | Pis_barr_init(_,e1,e2) -> leaks_es_rec env leaks [e1; e2]
-    | Pis_mem_init(e1,e2) -> leaks_es_rec env leaks [e1; e2]
+    | Pbig _ | Pis_mem_init _ -> leaks
+
 
   and leaks_es_rec env leaks es = List.fold_left (leaks_e_rec env) leaks es
 
@@ -1947,14 +1940,14 @@ module type EcSafety = sig
   val ec_safety_assert:  Env.t -> int assertion -> ec_instr list
 
   val ec_fun_safety_init: Env.t -> (int, 'a, 'b) gfunc -> ec_stmt * ec_stmt * (ec_modty * ec_ty) list * Env.t
-  
+
   val safety_imports: Env.t -> ec_item list
   val global_safety_vars: Env.t -> (ec_modty * ec_ty) list
-  
+
   val ec_safety_call_lvs : Env.t -> funname -> ec_lvalues
-  
-  val ec_safety_call_acc: Env.t -> int glval list -> funname -> exprs -> ec_instr list 
-  
+
+  val ec_safety_call_acc: Env.t -> int glval list -> funname -> exprs -> ec_instr list
+
   val final: Env.t -> ((int, 'a, 'b) gfunc) list  -> int -> ec_item list
 end
 
@@ -1967,7 +1960,7 @@ module EcSafetyNormal(EE: EcExpression) (EA: EcArray) : EcSafety = struct
   let ec_safety_assert env a = []
 
   let ec_fun_safety_init env f = [],[],[],env
-  
+
   let ec_safety_call_acc env lvs f es = []
   let safety_imports env = []
   let global_safety_vars env  = []
@@ -1985,28 +1978,28 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
 
   let ec_safety_rty env rtyps =  rtyps @ ["trace"]
 
-  let ec_safety_ret env name ret = 
+  let ec_safety_ret env name ret =
     let trace = Env.get_proofv env name in
     [Etuple(ret @ [Eident [trace]])]
 
 
   let ec_safety_call_lvs env f = [LvIdent ["tmp__trace"]]
   let ec_trace env k e =
-    let k =  ["Assert"] in 
+    let k =  ["Assert"] in
     let f =  Env.get_func env in
     let p = Env.get_proofv env f in
     let e = EE.toec_expr env e in
     let e1 = Eop2 (Infix "++", Eident [p], Elist [Etuple [Eident k;e]]) in
     let i = ESasgn ([LvIdent ([p])],e1) in
     [i]
-  let ec_safety_assert env (k,e) = ec_trace env k e 
+  let ec_safety_assert env (k,e) = ec_trace env k e
 
 
   let proof_var_init env f =
     let proofv = Env.get_proofv env f.f_name in
     [ESasgn ([LvIdent [proofv]], Elist [])]
 
-  
+
   let init_trace env f =
     let fname = Env.get_funname env f.f_name in
 
@@ -2027,14 +2020,14 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
     | Lvar x ->  [ESasgn ([LvIdent [ec_vars env (L.unloc x)]], e)]
     | _ -> assert false
 
-  let ec_fun_safety_init env f = 
+  let ec_fun_safety_init env f =
     let args = List.map (ec_vars env)  f.f_args in
     let fn = f.f_name in
     Env.add_args env fn args;
     let env,proofv = init_trace env f in
     let proofv_init = proof_var_init env f in
     proofv_init,[],proofv,env
-  
+
 
   let ec_safety_call_acc env lvs f es =
     let f = Env.get_func env in
@@ -2042,7 +2035,7 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
     let e1 =
       Eop2 (Infix "++", Eident [p], Eident["tmp__trace"])
     in
-    [ESasgn ([LvIdent ([p])],e1)] 
+    [ESasgn ([LvIdent ([p])],e1)]
 
   let safety_imports env = [IfromRequireImport ("Jasmin",["Jcheck"; "JSafety"])]
   let global_safety_vars env  = [("tmp__trace", "trace")]
@@ -2050,7 +2043,7 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
   let res = Eident ["res"]
   let get_smt_lemmas (annot:annotations): string list option =
     match (get "smt" annot) with
-    | Some (Some x )-> 
+    | Some (Some x )->
       let x = L.unloc x in
       begin match x with
       | Astring x -> Some (String.split_on_char ',' x)
@@ -2071,11 +2064,11 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
 
   let get_invariant env c =
     match c with
-     | {i_desc = Cassert ("safety_inv", e)}:: t -> 
+     | {i_desc = Cassert ("safety_inv", e)}:: t ->
        let e = EE.toec_expr env e in
        Pattern "/\\ " :: [DProp e], t
      | c -> [Pattern "/\\ ..."], c
-  
+
 
   let rec pp_valid_trace_instrs env f p instrs: ec_tactic list =
     let auto_tactic = {
@@ -2095,7 +2088,7 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
     match instrs with
     | [] -> p
     | i::t -> begin match i.i_desc with
-      | Cassert ("safety_inv", e) -> 
+      | Cassert ("safety_inv", e) ->
         let pre = pp_valid_trace_instrs env f [auto_tactic] t in
         let pre = if (List.last pre).tname = "auto" then
             pre @ [rewrite_tactic;smt_tactic]
@@ -2103,10 +2096,10 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
         let e = EE.toec_expr env e in
         [{tname = "seq"; targs = [Pattern "x"; Pattern ":"; Param [valid_trace;Pattern "/\\ ";DProp e]]}] @ pre @ p
       | Cfor (_,_,c) ->
-        let invariant,c = get_invariant env c in 
+        let invariant,c = get_invariant env c in
         let c = pp_valid_trace_instrs env f []  (List.rev c) in
         let default = [auto_tactic;rewrite_tactic;smt_tactic] in
-        let c1 = 
+        let c1 =
           if c == [] then
             default
           else
@@ -2117,24 +2110,24 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
         in
         let p = p @ [{tname = "while"; targs = [Param (valid_trace::invariant)]}] @ c1 @ [auto_tactic] in
         pp_valid_trace_instrs env f p t
-      | Cwhile(_,c1,_,_,c2) -> 
-        let invariant,c2 = get_invariant env c2 in 
+      | Cwhile(_,c1,_,_,c2) ->
+        let invariant,c2 = get_invariant env c2 in
         let c1 = pp_valid_trace_instrs env f [] (List.rev c1) in
         let c2 = pp_valid_trace_instrs env f []  (List.rev c2) in
         let default = [auto_tactic;rewrite_tactic;smt_tactic] in
-        let c3 = 
+        let c3 =
           if c1 == [] && c2 == [] then
             default
           else
-            let c = c2 @ c1 in 
+            let c = c2 @ c1 in
             if (List.last c).tname = "auto" then
               auto_tactic :: c @ [rewrite_tactic; smt_tactic]
             else
               auto_tactic :: c
         in
         let p = p @ [{tname = "while"; targs = [Param (valid_trace::invariant)]}] @ c3 @ [auto_tactic] @ c1 in
-        pp_valid_trace_instrs env f p t 
-      | Ccall(lvs,fn,es) -> 
+        pp_valid_trace_instrs env f p t
+      | Ccall(lvs,fn,es) ->
         let otys, itys = Env.get_funtype env fn in
         let args = List.map (EE.toec_cast env) (List.combine itys es) in
         let params = List.map (fun e -> DProp e) args in
@@ -2163,8 +2156,8 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
           pp_valid_trace_instrs env f p t
       | _ -> pp_valid_trace_instrs env f p t
       end
-   
-  let pp_valid_trace_t_t = 
+
+  let pp_valid_trace_t_t =
     let tactic1 =
       {
         tname = "proc; inline *; auto";
@@ -2258,7 +2251,7 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
     let env1 = update_res_env env f ires in
 
     let post = contrat env1 (get_post f.f_contra) in
-    
+
     let trace = if List.length (f.f_ret) + extra_ret == 0 then res else  Eproj(res,(List.length (f.f_ret)) + extra_ret + 1) in
     let valid_trace = Eapp(Eident ["valid"], [trace]) in
 
@@ -2276,8 +2269,8 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
     let env = Env.new_fun env in
     let init,final,ilocals,env = ec_fun_safety_init env f in
     let smt_tactic = get_smt_tactic f.f_annot.f_user_annot in
-    let tactics = 
-      if f.f_contra == None then 
+    let tactics =
+      if f.f_contra == None then
         pp_valid_trace_t_t
       else
         let tactic1 = {
@@ -2285,16 +2278,16 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
           targs = []
         } in
         let tactic2 = pp_valid_trace_instrs env f [] (List.rev f.f_body) in
-        let tactic2 = 
-          if (tactic2 == [] ) then 
+        let tactic2 =
+          if (tactic2 == [] ) then
             [{tname = "rewrite /is_init /valid /="; targs = []}; smt_tactic]
-          else 
+          else
             let last_tactic = List.last tactic2 in
             if last_tactic.tname = "auto" then
               tactic2 @ [{tname = "rewrite /is_init /valid /="; targs = []};smt_tactic]
             else
               tactic2
-        in    
+        in
         let tactic3 =
           {
             tname = "qed";
@@ -2308,7 +2301,7 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
 
     let c1 = Icomment "The post and trace are valid." in
     (c1 :: p1)
-end 
+end
 
 
 

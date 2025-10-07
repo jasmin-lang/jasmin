@@ -1,7 +1,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import expr compiler_util word. 
+Require Import expr compiler_util word.
 Require Export safety_shared.
-          
+
 Section SAFETY.
 Context `{asmop:asmOp} {pd: PointerData} {msfsz : MSFsize}.
 
@@ -17,24 +17,51 @@ Definition sc_is_aligned_if al aa sz e :=
   if (al == Unaligned) || (aa == AAscale) then [::]
   else [:: eis_aligned e sz].
 
-Definition sc_in_bound ty aa sz e elen :=
+Definition efalse := Pbool false.
+Definition sc_false := [:: efalse].
+
+(* FIXME : find better name *)
+Definition sc_in_bound' ty e1 e2 :=
   match ty with
   | sarr len =>
-    let i := emk_scale aa sz e in
-    [:: eand (elei ezero i) (elei (eaddi i elen) (Pconst len))]
-  | _ => [::]
+    [:: eand (elei ezero e1) (elei (eaddi e1 e2) (Pconst len))]
+  | _ => sc_false
   end.
 
-Definition sc_arr_init (x:gvar) aa sz e :=
-  if is_lvar x then
+Definition sc_in_bound ty aa sz e elen :=
+  sc_in_bound' ty (emk_scale aa sz e) elen.
+
+Definition type_of_expr (e:pexpr) : stype :=
+  match e with
+  | Pconst _ => sint
+  | Pbool _ => sbool
+  | Parr_init len => sarr len
+  | Pvar x => vtype (gv x)
+  | Pget al aa ws x e => sword ws
+  | Psub al ws len x e => sarr (Z.to_pos (arr_size ws len))
+  | Pload al ws e => sword ws
+  | Papp1 o e => (type_of_op1 o).2
+  | Papp2 o e1 e2 => (type_of_op2 o).2
+  | PappN o es => (type_of_opN o).2
+  | Pif ty e1 e2 e3 => ty
+  | Pbig ei o v e es el => (type_of_op2 o).2
+  | Pis_var_init _ => sbool
+  | Pis_mem_init _ _ => sbool
+  end.
+
+Definition sc_arr_init ty t aa sz e :=
+  match ty with
+  | sarr len =>
     let lo := emk_scale aa sz e in
-   [:: Pis_arr_init x.(gv) lo (Pconst (wsize_size sz))]
-  else [::].
+    [:: PappN (Ois_arr_init len) [:: t; lo; Pconst (wsize_size sz)]]
+  | _ => sc_false
+  end.
 
 Definition sc_arr_get (x:gvar) al aa sz e :=
+  let ty := vtype (gv x) in
   sc_is_aligned_if al aa sz e ++
-  sc_in_bound (vtype (gv x)) aa sz e (Pconst (wsize_size sz)) ++
-  sc_arr_init x aa sz e.
+  sc_in_bound ty aa sz e (Pconst (wsize_size sz)) ++
+  sc_arr_init ty (Pvar x) aa sz e.
 
 Definition sc_mem_valid (e: pexpr) sz := [:: Pis_mem_init e (wsize_size sz)].
 
@@ -46,26 +73,13 @@ Definition sc_is_aligned_if_m al sz e :=
   else [:: eis_aligned (eint_of_word Unsigned Uptr e) sz].
 (* ----- *)
 
-Definition sc_in_bound' ty e1 e2 :=
-  match ty with
-  | sarr len =>
-    [:: eand (elei ezero e1) (elei (eaddi e1 e2) (Pconst len))]
-  | _ => [::]
-  end.
-
-Definition sc_barr_init (x: var_i) e1 e2 := [:: Pis_arr_init x e1 e2].
-
-Definition sc_barr_get (x:var_i) e1 e2 :=
-  sc_in_bound' (vtype x) e1 e2 ++
-  sc_barr_init x e1 e2.
-
 Definition toint sg sz e := Papp1 (Owi1 sg (WIint_of_wint sz)) e.
-  
+
 Definition sc_op1 := sc_op1 toint.
 
 Definition sc_op2 o e1 e2 :=
 match is_wi2 o with
-| Some (sg, sz, o) => 
+| Some (sg, sz, o) =>
   let e1 := toint sg sz e1 in
   let e2 := match o with
             | WIshl | WIshr => toint Unsigned U8 e2
@@ -150,21 +164,8 @@ Fixpoint sc_pexpr (e : pexpr) : safety_cond :=
     let scbody := Pbig etrue Oand x (eands scbody) start len in
     scidx ++ scstart ++ sclen ++ [:: scop ; scbody]
 
-  | Parr_init_elem e _ => sc_pexpr e
-
   | Pis_var_init x => [::]
 
-  | Pis_arr_init x e1 e2 =>
-    let sc_e1 := sc_pexpr e1 in
-    let sc_e2 := sc_pexpr e2 in
-    sc_e1 ++ sc_e2
-                                    
-  | Pis_barr_init x e1 e2 =>
-    let sc_barr := sc_barr_get x e1 e2 in
-    let sc_e1 := sc_pexpr e1 in
-    let sc_e2 := sc_pexpr e2 in
-    sc_e1 ++ sc_e2 ++ sc_barr
-      
   | Pis_mem_init e1 e2 =>
     let sc_e1 := sc_pexpr e1 in
     let sc_e2 := sc_pexpr e2 in
@@ -202,45 +203,47 @@ Definition safe_cond_to_e vs sc: pexpr :=
   match sc with
   | NotZero ws k =>
       match List.nth_error vs k with
-      | Some x => eneqi x ezero 
-      | None => Pbool true
+      | Some x => eneqi (eint_of_word Unsigned ws x) (Pconst 0)
+      | None => efalse
       end
   | InRangeMod32 ws i j k =>
       match List.nth_error vs k with
       | Some x =>
-         let e := emodi Unsigned x (Pconst 32) in
-         let e1 := elti (Pconst i) e in
-         let e2 := elti e (Pconst j) in
-         eand e1 e2
-      | None => Pbool true
+        let e := emodi Unsigned (eint_of_word Unsigned ws x) (Pconst 32) in
+        let e1 := elei (Pconst i) e in
+        let e2 := elei e (Pconst j) in
+        eand e1 e2
+      | None => efalse
       end
   | ULt ws k z =>
       match List.nth_error vs k with
-      | Some x => elti (eint_of_word Unsigned U8 x) (Pconst z)
-      | None => Pbool true
+      | Some x => elti (eint_of_word Unsigned ws x) (Pconst z)
+      | None => efalse
       end
   | UGe ws z k =>
       match List.nth_error vs k with
-      | Some x => elei (Pconst z) (eint_of_word Unsigned U8 x)
-      | None => Pbool true
+      | Some x => elei (Pconst z) (eint_of_word Unsigned ws x)
+      | None => efalse
       end
   | UaddLe ws k1 k2 z =>
       match List.nth_error vs k1 with
-      | Some x => 
-          match List.nth_error vs k2 with
-          | Some y => elei (eaddi (eint_of_word Unsigned U8 x) (eint_of_word Unsigned U8 y)) (Pconst z)
-          | None => Pbool true
-          end
-      | None => Pbool true
+      | Some x =>
+        match List.nth_error vs k2 with
+        | Some y => elei (eaddi (eint_of_word Unsigned ws x) (eint_of_word Unsigned ws y)) (Pconst z)
+        | None => efalse
+        end
+      | None => efalse
       end
   | AllInit ws p k =>
       match List.nth_error vs k with
-      | Some (Pvar x) => Pis_arr_init x.(gv) (Pconst 0) (Pconst (arr_size ws p)) 
-      | _ => Pbool true
+      | Some e =>
+        let len := arr_size ws p in
+        PappN (Ois_arr_init (Z.to_pos len)) [:: e; Pconst 0; Pconst len]
+      | _ => efalse
       end
   | X86Division sz sign =>
-    match (List.firstn 3 vs),sign with
-      | [:: hi; lo; dv],Signed =>
+    match vs,sign with
+      | hi :: lo :: dv :: _, Signed =>
         let hi := eint_of_word Signed sz hi in
         let lo := eint_of_word Unsigned sz lo in
         let szi := wbase sz in
@@ -251,7 +254,7 @@ Definition safe_cond_to_e vs sc: pexpr :=
         let ov := eor (elti q (Pconst (wmin_signed sz)))
                       (elti (Pconst (wmax_signed sz)) q) in
         eand (eneqi dv ezero) (enot ov)
-      | [:: hi; lo; dv],Unsigned =>
+      | hi :: lo :: dv :: _, Unsigned =>
         let hi := eint_of_word Unsigned sz hi in
         let lo := eint_of_word Unsigned sz lo in
         let szi := wbase sz in
@@ -261,14 +264,18 @@ Definition safe_cond_to_e vs sc: pexpr :=
         let r  := emodi Unsigned dd dv in
         let ov := elti (Pconst (wmax_unsigned sz)) q in
         eand (eneqi dv ezero) (enot ov)
-      | _,_ => Pbool true
+      | _,_ => efalse
     end
-  | ScFalse => Pbool false
+  | ScFalse => efalse
   end.
 
 Definition get_sopn_safe_conds (es: pexprs) (o: sopn) :=
   let instr_descr := get_instr_desc o in
   map (safe_cond_to_e es) instr_descr.(i_safe).
+
+Definition get_sopn_wt (es: pexprs) (o: sopn) :=
+  let instr_descr := get_instr_desc o in
+  Pbool (all2 (fun ty e => type_of_expr e == ty) instr_descr.(tin) es).
 
 Fixpoint sc_instr_ir ii (ir : instr_r) : (safety_cond *  instr_r) :=
   match ir with
@@ -277,10 +284,11 @@ Fixpoint sc_instr_ir ii (ir : instr_r) : (safety_cond *  instr_r) :=
     let sc_e := sc_pexpr e in
     (sc_lv ++ sc_e, ir)
   | Copn lvs _ o es  =>
+    let sc_wt := get_sopn_wt es o in
     let sc_lvs := sc_lvals lvs true in
     let sc_op := get_sopn_safe_conds es o in
     let sc_es := conc_map sc_pexpr es in
-    (sc_lvs ++ sc_op ++ sc_es, ir)
+    (sc_wt :: sc_lvs ++ sc_op ++ sc_es, ir)
   | Csyscall lvs _ es =>
     let sc_lvs := sc_lvals lvs true in
     let sc_es := conc_map sc_pexpr es in
@@ -296,11 +304,11 @@ Fixpoint sc_instr_ir ii (ir : instr_r) : (safety_cond *  instr_r) :=
     let ir := Cif e sc_c1 sc_c2 in
     (sc_e, ir)
   | Cfor x (d,e1,e2) c =>
-    let sc_c := conc_map sc_instr c in    
+    let sc_c := conc_map sc_instr c in
     let sc_e := sc_pexpr e1 ++ sc_pexpr e2 in
     let ir := Cfor x (d,e1,e2) sc_c in
     (sc_e, ir)
-  | Cwhile a c1 e ii_w c2 => 
+  | Cwhile a c1 e ii_w c2 =>
     let sc_e := safe_assert ii (sc_pexpr e) in
     let sc_c1 := conc_map sc_instr c1 ++ sc_e in
     let sc_c2 := conc_map sc_instr c2 in
@@ -314,7 +322,7 @@ with sc_instr (i:instr) : cmd :=
   let (ii,ir) := i in
   let ir := sc_instr_ir ii ir in
   (rcons (safe_assert ii ir.1) (MkI ii ir.2)).
-  
+
 Definition sc_a_and (a : assertion) :=
   let sc_e := sc_pexpr a.2 in
   (a.1, eands (rcons sc_e a.2)).

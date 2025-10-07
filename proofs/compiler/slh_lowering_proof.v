@@ -47,7 +47,7 @@ Section CONST_PROP.
   #[local]
   Lemma use_mem_snot e :
     use_mem (snot e) = use_mem e.
-  Proof. elim: e => [||||||| [] | [] ||||||||] //=; try congruence. Qed.
+  Proof. elim: e => [||||||| [] | [] |||||] //=; try congruence. Qed.
 
   #[local]
   Lemma use_mem_sneg_int e :
@@ -58,7 +58,7 @@ Section CONST_PROP.
   Lemma use_mem_s_op1 op1 e :
     use_mem (s_op1 op1 e) = use_mem e.
   Proof.
-    case: op1 => [||||||[]|] * /=.
+    case: op1 => [||||||[]||] * /=.
     all: by rewrite (use_mem_ssem_sop1, use_mem_snot, use_mem_sneg_int).
   Qed.
 
@@ -133,10 +133,7 @@ Section CONST_PROP.
       | opn es hindes
       | ty e hinde e0 hinde0 e1 hinde1
       | i hi op x b hb start hstart l hl
-      ||
-      | x e1 hinde1 e2 hinde2
-      | x e1 hinde1 e2 hinde2
-      |] //= cpm h.
+      | |] //= cpm h.
 
     - by case: x => x [] //; case: Mvar.get => // - [].
 
@@ -162,16 +159,16 @@ Section CONST_PROP.
       case: is_bool => [[]|] //.
       by rewrite !negb_or h h0 h1.
 
-    - move: h => /norP [] /norP [] /norP [] /hi h /hb h0 /hstart h1 /hl h2.
-      have hdfl : ~~ use_mem (Pbig (const_prop_e None cpm i) op x
-                                (const_prop_e None (Mvar.remove cpm x) b)
-                                (const_prop_e None cpm start)
-                                (const_prop_e None cpm l)).
-      + by rewrite /= !negb_or h h0 h1 h2.
-      case: is_const => // ?; case: is_const => // ?.
-      elim: ziota (const_prop_e _ _ _) (h cpm) => // j js hrec e he.
-      by apply hrec; rewrite /= negb_or he h0.
-    1-2: by move: h => /norP [] /(hinde1 cpm) h1 /(hinde2 cpm) h2; rewrite !negb_or h1 h2.
+    move: h => /norP [] /norP [] /norP [] /hi h /hb h0 /hstart h1 /hl h2.
+    have hdfl : ~~ use_mem (Pbig (const_prop_e None cpm i) op x
+                              (const_prop_e None (Mvar.remove cpm x) b)
+                              (const_prop_e None cpm start)
+                              (const_prop_e None cpm l)).
+    + by rewrite /= !negb_or h h0 h1 h2.
+    case: is_const => // ?; case: is_const => // ?.
+    elim: ziota (const_prop_e _ _ _) (h cpm) => // j js hrec e he.
+    by apply hrec; rewrite /= negb_or he h0.
+
   Qed.
 
 End CONST_PROP.

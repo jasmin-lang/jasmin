@@ -1,4 +1,4 @@
-Require Import wsize.
+Require Import utils wsize.
 From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import eqtype .
@@ -47,6 +47,8 @@ Variant sop1 :=
 | Oneg  of op_kind          (* Arithmetic negation *)
 (* wint operations *)
 | Owi1 of signedness & wiop1
+(* [ (Omake_arr len) e ] returns a fresh array of length [len], initialized with [e] *)
+| Oarr_make of positive
 .
 
 
@@ -122,6 +124,8 @@ Variant combine_flags :=
 Variant opN :=
 | Opack of wsize & pelem (* Pack words of size pelem into one word of wsize *)
 | Ocombine_flags of combine_flags
+| Ois_arr_init of positive
+| Ois_barr_init of positive
 .
 
 HB.instance Definition _ := hasDecEq.Build op_kind op_kind_eqb_OK.

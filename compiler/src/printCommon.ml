@@ -101,6 +101,7 @@ let string_of_op1 ~debug = function
   | Onot -> "!"
   | Oneg k -> "-" ^ string_of_op_kind k
   | Owi1(sg, o) -> string_of_wiop1 ~debug sg o
+  | Oarr_make len -> assert false
 
 let string_of_wiop2 sg sz = function
   | WIadd -> "+" ^ string_of_wi_cast sg sz

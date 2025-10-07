@@ -102,14 +102,11 @@ and eq_pexpr x y =
   | Pif (a, b, c, d), Pif (e, f, g, h) ->
     eq_pty a e && eq_pexpr b f && eq_pexpr c g && eq_pexpr d h
   | Pbig _ , Pbig _ -> assert false
-  | Parr_init_elem _ , Parr_init_elem _ -> assert false
-  | Pis_var_init _ , Pis_var_init _ -> assert false
-  | Pis_arr_init _ , Pis_arr_init _ -> assert false
-  | Pis_barr_init _ , Pis_barr_init _ -> assert false
-  | Pis_mem_init _ , Pis_mem_init _ -> assert false
+  | Pis_var_init a , Pis_var_init b -> eq_pvar_i a b
+  | Pis_mem_init (a, b), Pis_mem_init (c, d) -> eq_pexpr a c && eq_pexpr b d
   | ( ( Pconst _ | Pbool _ | Parr_init _ | Pvar _ | Pget _ | Psub _ | Pload _
-      | Papp1 _ | Papp2 _ | PappN _ | Pif _ | Pbig _ | Parr_init_elem _ | Pis_var_init _ 
-      | Pis_arr_init _ | Pis_barr_init _ | Pis_mem_init _),
+      | Papp1 _ | Papp2 _ | PappN _ | Pif _ | Pbig _ | Pis_var_init _
+      | Pis_mem_init _),
       _ ) ->
       false
 

@@ -65,10 +65,7 @@ Fixpoint wi2w_e (e: pexpr) : pexpr :=
   | PappN o es => PappN o (map wi2w_e es)
   | Pif ty e1 e2 e3 => Pif ty (wi2w_e e1) (wi2w_e e2) (wi2w_e e3)
   | Pbig ei o v e es el => Pbig (wi2w_e ei) (wi2w_op2 o) v (wi2w_e e) (wi2w_e es) (wi2w_e el)
-  | Parr_init_elem e l => Parr_init_elem (wi2w_e e) l  
   | Pis_var_init _ => e
-  | Pis_arr_init x e1 e2 => Pis_arr_init x (wi2w_e e1) (wi2w_e e2)
-  | Pis_barr_init x e1 e2 => Pis_barr_init x (wi2w_e e1) (wi2w_e e2)
   | Pis_mem_init e1 e2 => Pis_mem_init (wi2w_e e1) (wi2w_e e2)
   end.
 

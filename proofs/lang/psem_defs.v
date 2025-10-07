@@ -22,7 +22,7 @@ Context {wc : WithCatch}.
 
 Definition default_val (t: stype) :=
   match t with
-  | sbool => Vbool true
+  | sbool => Vbool false
   | sint => Vint 0
   | sarr len => Varr (WArray.fill_elem len 0%R)
   | sword sz => @Vword sz 0%R
@@ -50,7 +50,7 @@ Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
   ok (to_val r).
 
 Definition sem_opN
-  {cfcd : FlagCombinationParams} (op: opN) (vs: values) : exec value :=
+  {wa : WithAssert} {cfcd : FlagCombinationParams} (op: opN) (vs: values) : exec value :=
   Let w := app_sopn _ (sem_opN_typed op) vs in
   ok (to_val w).
 
@@ -189,32 +189,10 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
                Let vb := sem_pexpr s body in
                catch (sem_sop2 op acc vb) (default_val (type_of_op2 op).2))
       vidx l
-  | Parr_init_elem e n => 
-    Let _ := assert (assert_allowed) ErrType in
-    Let x := sem_pexpr s e >>= to_word U8 in
-    let t := WArray.fill_elem n x in
-    ok (Varr t)
   | Pis_var_init x =>
     Let _ := assert (assert_allowed) ErrType in
     let v := (evm s).[x] in
     ok (Vbool (is_defined v))
-  | Pis_arr_init x e1 e2 =>
-    Let _ := assert (assert_allowed) ErrType in
-    Let (n, t) := wdb, s.[x] in
-    Let lo := sem_pexpr s e1 >>= to_int in
-    Let sz := sem_pexpr s e2 >>= to_int in
-    let b := all (fun i => WArray.is_init t (lo + i)) (ziota 0 sz) in
-    ok (Vbool b)
-  | Pis_barr_init x e1 e2 =>
-    Let _ := assert (assert_allowed) ErrType in
-    Let (n, t) := wdb, s.[x] in
-    Let lo := sem_pexpr s e1 >>= to_int in
-    Let sz := sem_pexpr s e2 >>= to_int in            
-    Let b := foldM (fun i acc => 
-      Let w := catch (WArray.get Aligned AAscale U8 t (lo + i)) 0%R in
-        ok (acc && (w == wrepr U8 (-1)))
-      ) true (ziota 0 sz) in
-    ok (Vbool b)
   | Pis_mem_init e1 e2 =>
     Let _ := assert (assert_allowed) ErrType in
     Let lo := sem_pexpr s e1 >>= to_pointer in

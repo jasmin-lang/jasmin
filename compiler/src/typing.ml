@@ -83,14 +83,30 @@ let type_of_sopn loc pd asmOp op =
   List.map Conv.ty_of_cty (Sopn.sopn_tin pd asmOp op),
   List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op)
 
+(* Return the type of the expression but do not type check it *)
+let type_of_expr e =
+  match e with
+  | Pconst _    -> tint
+  | Pbool _  | Pis_var_init _ | Pis_mem_init _ -> tbool
+  | Parr_init len -> Arr (U8, len)
+  | Pvar x      -> ty_gvar x
+  | Pget(_al, _aa,ws,x,e) -> tu ws
+  | Psub(_aa, ws, len, x, e) -> Arr(ws, len)
+
+  | Pload(_, ws,e) -> tu ws
+  | Papp1(op,e) -> snd (type_of_op1 op)
+  | Papp2(op,e1,e2) -> snd (type_of_op2 op)
+  | PappN(op,es) -> snd (type_of_opN op)
+  | Pif(ty,b,e1,e2) -> ty
+  | Pbig(e, op, x, e1, e2, e0) -> snd (type_of_op2 op)
+
 (* -------------------------------------------------------------------- *)
 
 let rec ty_expr pd loc (e:expr) =
   match e with
   | Pconst _    -> tint
-  | Pbool _  | Pis_var_init _ | Pis_arr_init _ | Pis_barr_init _ | Pis_mem_init _ -> tbool
+  | Pbool _  | Pis_var_init _ | Pis_mem_init _ -> tbool
   | Parr_init len -> Arr (U8, len)
-  | Parr_init_elem (_, len) -> Arr (U8, len)
   | Pvar x      -> ty_gvar x
   | Pget(_al, _aa,ws,x,e) ->
     ty_get_set pd loc ws x e

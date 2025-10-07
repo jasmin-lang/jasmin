@@ -180,8 +180,7 @@ Proof.
        | |- signedness -> _ => move=> ?
        | _ => idtac
        end; case.
-  1-2, 5: by move=> > *; subst.
-  1-2: by move=> >; apply: on_arr_varP; t_xrbindP => *; subst.
+  all: by move=> > *; subst.
 Qed.
 
 Lemma wrepr_int_of_word sz sg (w:word sz) :
@@ -662,38 +661,11 @@ Proof.
     rewrite hvbod' /=.
     move: hop; rewrite /sign_of_expr (esubtype_sign_of hsub3) ht2 !val_to_int_None => -> /=.
     apply (hrec _ hall hfold).
-  + move=> e len he ei /eqP hety sce hsce <- /= vi_ si s heqs hsce1; t_xrbindP.
-    move=> w8 vi hsce2 hto <-.
-    have [v hse hvi]:= he _ hsce _ _ _ heqs hsce1 hsce2; subst vi.
-    rewrite /sign_of_expr hety val_to_int_None in hto.
-    rewrite hse /= hto /= /sign_of_expr /=.
-    by eexists; first reflexivity; rewrite val_to_int_None.
   + move=> x _ xi hx <- /= vi si s heqs _ [<-]; rewrite /sign_of_expr /=.
     move: hx; rewrite /wi2i_vari; t_xrbindP => hin <-.
     case: heqs => _ _ /(_ _ hin) ->.
     eexists; first reflexivity.
     by rewrite is_defined_val_to_int val_to_int_None.
-  + move=> x e1 e2 he1 he2.
-    move=> sce_ /and3P [htx /eqP hte1 /eqP hte2] xi hxi sce1 hsce1 sce2 hsce2 <- v si s heqs /=.
-    move=> /eandsE_cat [hsce11 hsce21].
-    apply on_arr_varP => len ti htxi hgetx; t_xrbindP.
-    move=> i1 vi1 hsce12 hto1 i2 vi2 hsce22 hto2 <-.
-    rewrite (wi2i_vari_nw heqs _ hxi hgetx); last by move/is_sarrP: htx => -[? ->].
-    have [v1]:= he1 _ hsce1 _ _ _ heqs hsce11 hsce12.
-    have [v2]:= he2 _ hsce2 _ _ _ heqs hsce21 hsce22.
-    rewrite /sign_of_expr hte1 hte2 !val_to_int_None => -> /= ? -> /= ?; subst vi1 vi2.
-    by rewrite hto1 hto2 /=; eexists; first reflexivity; rewrite val_to_int_None.
-  + move=> x e1 e2 he1 he2.
-    move=> sce_ /and3P [htx /eqP hte1 /eqP hte2] xi hxi sce1 hsce1 sce2 hsce2 <- v si s heqs /=.
-    move=> /eandsE_cat [hsce11 hsce21].
-    apply on_arr_varP => len ti htxi hgetx; t_xrbindP.
-    move=> i1 vi1 hsce12 hto1 i2 vi2 hsce22 hto2 b hfold <-.
-    rewrite (wi2i_vari_nw heqs _ hxi hgetx); last by move/is_sarrP: htx => -[? ->].
-    have [v1]:= he1 _ hsce1 _ _ _ heqs hsce11 hsce12.
-    have [v2]:= he2 _ hsce2 _ _ _ heqs hsce21 hsce22.
-    rewrite /sign_of_expr hte1 hte2 !val_to_int_None => -> /= ? -> /= ?; subst vi1 vi2.
-    rewrite hto1 hto2 /= hfold /=.
-    by eexists; first reflexivity; rewrite val_to_int_None.
   move=> e1 e2 he1 he2 sce_ /andP[/eqP hte1 /eqP hte2] sce1 hsce1 sce2 hsce2 <- v si s heqs /=.
   move=> /eandsE_cat [hsce11 hsce21]; t_xrbindP.
   move=> w vi1 hsce12 hto1 i vi2 hsce22 hto2 <-.

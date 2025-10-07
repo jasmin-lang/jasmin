@@ -66,7 +66,7 @@ Section E.
       by (eexists; first reflexivity) => /=.
     + move=> o e he v v1 /he{he} [v' he hu].
       rewrite /sem_sop1 /=; t_xrbindP => + /(of_value_uincl_te hu).
-      case: o => [sz | si sz | si sz | si sz | | sz | [ | sz] | sg o] /=;
+      case: o => [sz | si sz | si sz | si sz | | sz | [ | sz] | sg o | len] /=;
         rewrite /= ?he /sem_sop1 /=; t_xrbindP;
         try by move=> > -> /= > [->] <-; (eexists; first reflexivity) => /=.
       case: o => /=; rewrite he /sem_sop1 /=.

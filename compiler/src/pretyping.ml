@@ -1262,22 +1262,17 @@ let create_is_mem_init pd loc args =
   else
     rs_tyerror ~loc (InvalidArgCount(2, List.length args))
 
-
-
 let create_is_arr_init pd loc args =
   if List.length args == 3 then
     let (e1,t1), (e2,t2), (e3,t3) = List.at args 0, List.at args 1, List.at args 2 in
     let _ = match t1 with
       | P.ETarr _ -> ()
-      | _ -> rs_tyerror ~loc (InvalidArrayType (t1)) 
-    in
-    let var_e1 = match e1 with
-      | P.Pvar v -> v.gv
       | _ -> rs_tyerror ~loc (InvalidArrayType (t1))
     in
     let e2 = cast_int loc None e2 t2 in
     let e3 = cast_int loc None e3 t3 in
-    P.Pis_arr_init (var_e1,e2,e3), P.etbool
+    (* The size will be fixed later *)
+    P.PappN (Ois_arr_init (Conv.pos_of_int 1) , [ e1; e2; e3]), P.etbool
   else
     rs_tyerror ~loc (InvalidArgCount(3, List.length args))
 
@@ -1305,14 +1300,29 @@ let create_min_e pd loc args =
 let create_max_e pd loc args =
   if List.length args == 2 then
     let (e1,t1), (e2,t2) = List.at args 0, List.at args 1 in
-    let e1 =  cast_int loc None e1 t1 in
+    let e1 = cast_int loc None e1 t1 in
     let e2 = cast_int loc None e2 t2 in
     let c = P.Papp2 ((Olt Cmp_int), e2, e1) in
     P.Pif (Bty Int,c, e1,e2), P.etint
   else
     rs_tyerror ~loc (InvalidArgCount(2, List.length args))
 
+let create_arr_make pd loc args =
+  if List.length args == 2 then
+    let (e1,t1), (e2,t2) = List.at args 0, List.at args 1 in
+    let e1 = cast_int loc None e1 t1 in
+    let e2 = cast loc e2 t2 (P.etw U8) in
+    match e1 with
+    | P.Pconst len ->
+        let plen = Conv.pos_of_z len in
+        P.Papp1(Oarr_make plen, e2), P.ETarr (U8, P.PE e1)
+    | _ ->
+      rs_tyerror ~loc (StringError "arr_make expects a positive number as first argument")
+  else
+    rs_tyerror ~loc (InvalidArgCount(2, List.length args))
+
 let init_predicates_map = Map.of_seq @@ List.to_seq [
+  ("make_arr", create_arr_make);
   ("is_mem_init",create_is_mem_init);
   ("is_arr_init",create_is_arr_init);
   ("is_var_init",create_is_var_init);
@@ -1323,7 +1333,7 @@ let init_predicates_map = Map.of_seq @@ List.to_seq [
 (* -------------------------------------------------------------------- *)
 let bigop_check_type pd ?(mode=`AllVar) (env : 'asm Env.env) op body_ty pe (tt_expr: W.wsize -> ?mode:tt_mode -> 'asm Env.env -> S.pexpr_r L.located -> P.pexpr_ P.gexpr * P.pexpr_ CoreIdent.gety) =
   match op with
-  | S.PEBop(pop,pe0) -> 
+  | S.PEBop(pop,pe0) ->
     let e0, ty0 = tt_expr pd ~mode env pe0 in
     let exn = tyerror ~loc:(L.loc pe) (NoOperator (`Op2 pop, [body_ty; body_ty])) in
     let o = op2_of_pop2 exn body_ty pop in
@@ -2293,7 +2303,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
        match Annot.ensure_uniq1 "prover" (fun (_,s) -> s) annot with
        | Some (Some aty) ->
          begin match L.unloc aty with
-         | Astring s 
+         | Astring s
          | Aid s-> s
          | _ -> ""
          end

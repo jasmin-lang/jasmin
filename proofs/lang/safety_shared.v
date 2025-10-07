@@ -66,10 +66,7 @@ Fixpoint etype_of_expr (e:pexpr) : extended_type positive :=
   | PappN o es => to_etype None (type_of_opN o).2
   | Pif ty e1 e2 e3 => to_etype (sign_of_etype (etype_of_expr e2)) ty
   | Pbig ei o v e es el => (etype_of_op2 o).2
-  | Parr_init_elem e len => tarr len
   | Pis_var_init _ => tbool
-  | Pis_arr_init _ _ _ => tbool
-  | Pis_barr_init _ _ _ => tbool
   | Pis_mem_init _ _ => tbool
   end.
 

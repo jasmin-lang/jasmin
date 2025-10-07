@@ -327,7 +327,7 @@ Section WITH_SCS.
     [ > he > hes | > he | > he | > he | > he
     | > he1 > he2 | > hes | > he > he1 > he2
     | idx hidx o x body hbody start hstart len hlen
-    | > he | > he1 he2 | > he1 he2 | > he1 he2 ] s1 scs;
+    | > he1 he2 ] s1 scs;
     rewrite -?he -?hes -?he1 -?he2 => //.
     rewrite -hidx -hstart -hlen.
     repeat apply bind_eq => // ?.
@@ -750,21 +750,9 @@ Section READ_E_ES_EQ_ON.
       rewrite (hb _ vm'.[x<-i] s); first by rewrite !with_vm_idem.
       rewrite read_eE => z hz; rewrite !Vm.setP; case: eqP => // ?.
       apply heq; SvD.fsetdec.
-    - move=> e n he s vm' sv heq /=.
-      by have -> := he _ _ _ heq.
     - rewrite /= /eq_on /vm_rel => x s1 vm' s /(_ x) Heq.
       have H := (SvP.MP.FM.add_1 s Logic.eq_refl).
       by apply Heq in H; rewrite H.
-    - move=> /= x e1 e2 He1 He2 s1 vm' s Heq.
-      rewrite (He1 _ _ _ Heq) (He2 _ vm' s) //.
-      rewrite (get_var_eq_on _ _ Heq) ?(He1 _ _ _ Heq) ?(He2 _ _ _ Heq) //.
-      rewrite !read_eE; SvD.fsetdec.
-      rewrite read_eE => z Hin; apply Heq; rewrite !read_eE; SvD.fsetdec.
-    - move=> /= vi e1 e2 He1 He2 s1 vm' sv Heq. rewrite (He1 _ _ _ Heq).
-      rewrite !read_eE SvP.MP.union_sym SvP.MP.union_assoc -!read_eE in Heq.
-      rewrite (He2 _ _ _ Heq).
-      rewrite (get_var_eq_on _ _ Heq) ?(He1 _ _ _ Heq) ?(He2 _ _ _ Heq) //.
-      rewrite !read_eE; SvD.fsetdec.
     - move=> /= e1 e2 He1 He2 s1 vm' s Heq; rewrite (He1 _ _ _ Heq) (He2 _ vm' s) //.
       move=> z Hin; apply Heq; rewrite read_eE; SvD.fsetdec.
   Qed.
@@ -834,12 +822,7 @@ Proof.
   apply (bindP (R := fun s1 s2 => evm s1 = evm s2)).
   + by rewrite /write_var heq; case: set_var.
   + by move=> m1 m2 heq'; rewrite (hb _ _ heq' hnb).
-  + by move=> e n hrec s1 s2 eq mem; rewrite (hrec s1 s2 eq mem).
-  + by move=> ??? ->.
-  + by move=> ??? h1 h2 ?? eq; rewrite negb_or=> /andP[] mem1 mem2;
-    rewrite (h1 _ _ eq mem1) (h2 _ _ eq mem2) eq.
-  by move=> ??? h1 h2 ?? eq; rewrite negb_or=> /andP[] mem1 mem2;
-  rewrite (h1 _ _ eq mem1) (h2 _ _ eq mem2) eq.
+  by move=> ??? ->.
 Qed.
 
 End UseMem.
@@ -1004,19 +987,6 @@ Proof.
   by rewrite !of_val_to_val /= ho.
 Qed.
 
-Lemma vuincl_sem_opN op vs v vs' :
-  List.Forall2 value_uincl vs vs' →
-  sem_opN op vs = ok v →
-  sem_opN op vs' = ok v.
-Proof.
-  rewrite /sem_opN.
-  t_xrbindP => hvs q ok_q <-{v}.
-  have -> /= := vuincl_sopn _ hvs ok_q.
-  + by eauto.
-  case: {q ok_q} op => //.
-  by move => sz n; rewrite /= all_nseq orbT.
-Qed.
-
 Lemma sem_opN_truncate_val o vs v :
   sem_opN o vs = ok v ->
   exists vs',
@@ -1115,6 +1085,36 @@ End WITHASSERT.
 
 Section NOASSERT.
 #[local] Existing Instance noassert.
+
+Lemma sem_opN_is_arr_init len vs v:
+  sem_opN (Ois_arr_init len) vs <> ok v.
+Proof.
+  rewrite /sem_opN /= /not.
+  do 3!(case: vs => //= ? vs; t_xrbindP).
+  by case: vs.
+Qed.
+
+Lemma sem_opN_is_barr_init len vs v:
+  sem_opN (Ois_barr_init len) vs <> ok v.
+Proof.
+  rewrite /sem_opN /= /not.
+  do 3!(case: vs => //= ? vs; t_xrbindP).
+  by case: vs.
+Qed.
+
+Lemma vuincl_sem_opN op vs v vs' :
+  List.Forall2 value_uincl vs vs' →
+  sem_opN op vs = ok v →
+  sem_opN op vs' = ok v.
+Proof.
+  case: op.
+  3: by move=> > _ /sem_opN_is_arr_init.
+  3: by move=> > _ /sem_opN_is_barr_init.
+  all: rewrite /sem_opN; move=> >; t_xrbindP => hvs q ok_q <-{v};
+       have /= := vuincl_sopn _ hvs ok_q.
+  + by move=> -> //; rewrite all_nseq orbT.
+  by move=> ->.
+Qed.
 
 Lemma sem_pexpr_uincl_on_pair wdb gd :
   (∀ e s1 vm2 v1,
@@ -1479,15 +1479,7 @@ Proof.
     move=> -> ?? /hst -> /= -> ?? /hl  -> /= -> acc ? /hi -> /= -> //=.
     elim: ziota acc => //= j js hrec acc; t_xrbindP.
     by move=> ?? /write_var_wdb -> /= ? /hb -> /= -> /= /hrec.
-  + by t_xrbindP => > he > -> > /he -> /= -> /= ->.
-  + t_xrbindP => > he1 he2 > ->; apply on_arr_varP; rewrite /on_arr_var.
-    move=> > hyp gv; apply get_var_wdb in gv; rewrite {}gv /=.
-    by t_xrbindP => > /he1 -> /to_intI -> > /he2 -> /to_intI -> <-.
-  + t_xrbindP=> > he1 he2 > ->; apply on_arr_varP; rewrite /on_arr_var.
-    move=> > ? gv; apply get_var_wdb in gv; rewrite {}gv /=.
-    t_xrbindP => > /he1 -> /to_intI -> > /he2 -> /to_intI -> z hfold <- //=.
-    by rewrite hfold.
-  + by t_xrbindP => > he1 > he2 > -> /= > /he1 -> /= -> > /he2 -> /= -> <-.
+  by t_xrbindP => > he1 > he2 > -> /= > /he1 -> /= -> > /he2 -> /= -> <-.
 Qed.
 
 Lemma sem_pexpr_wdb e : P e.
@@ -1558,7 +1550,7 @@ Proof.
     [ | e he es hes | ? | ? | ?
     | ? | ????? He | ????? He | ??? He |?? He
     | ?? He1 ? He2 | ?? hes | ?? He ? He1 ? He2 | ? hi ??? hb ? hs ? hl
-    | e ? He | ? | ??? He1 He2 | ??? He1 He2 | ?? He1 He2 ] s [] //=.
+    | ? | ?? He1 He2 ] s [] //=.
   - by move => e' es' /andP[] /he -> /hes ->.
   1-3: by move => ? /eqP ->.
   - exact: eq_gvarP.
@@ -1572,11 +1564,8 @@ Proof.
     do 4! apply bind_eq => // >.
     apply foldM_ext => ??; apply bind_eq; first by rewrite /write_var hv.
     by move=> ?; rewrite hb.
-  - by move=> > /andP[] /He -> /eqP ->.
   - by move=> ? /eqP ->.
-  - by move=> > /andP[]/andP[]/eqP -> /He1 -> /He2 ->.
-  - by move=> > /andP[]/andP[]/eqP -> /He1 -> /He2 ->.
-  - by move=> p1 p2 /andP[/He1 -> /He2 ->].
+  by move=> p1 p2 /andP[/He1 -> /He2 ->].
 Qed.
 
 Lemma eq_exprP wdb gd s e1 e2 : eq_expr e1 e2 -> sem_pexpr wdb gd s e1 = sem_pexpr wdb gd s e2.

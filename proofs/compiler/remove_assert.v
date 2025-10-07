@@ -20,6 +20,12 @@ Section Section.
 
 Context `{asmop : asmOp}.
 
+Definition check_opN (op : opN) :=
+  match op with
+  | Opack _ _ | Ocombine_flags _ => true
+  | Ois_arr_init _ | Ois_barr_init _ => false
+  end.
+
 Fixpoint check_e (e : pexpr) :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => true
@@ -28,11 +34,9 @@ Fixpoint check_e (e : pexpr) :=
   | Pload _ _ e
   | Papp1 _ e => check_e e
   | Papp2 o e1 e2 => check_e e1 && check_e e2
-  | PappN opN es => all check_e es
+  | PappN op es => check_opN op && all check_e es
   | Pif ty e1 e2 e3 => all check_e [::e1; e2; e3]
-  | Pbig _ _ _ _ _ _ | Parr_init_elem _ _
-  | Pis_var_init _ | Pis_arr_init _ _ _
-  | Pis_barr_init _ _ _ | Pis_mem_init _ _ => false
+  | Pbig _ _ _ _ _ _ | Pis_var_init _ | Pis_mem_init _ _ => false
   end.
 
 Definition check_es := all check_e.

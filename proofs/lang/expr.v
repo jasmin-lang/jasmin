@@ -58,7 +58,7 @@ Lemma e_type_of_opk k : type_of_opk k = to_stype (etype_of_opk k).
 Proof. by case: k. Qed.
 
 (* Type of unany operators: input, output *)
-Definition etype_of_op1 {len} (o: sop1) : extended_type len * extended_type len :=
+Definition etype_of_op1 (o: sop1) : extended_type positive * extended_type positive :=
   match o with
   | Oword_of_int sz => (tint, tword sz)
   | Oint_of_word _ sz => (tword sz, tint)
@@ -69,6 +69,7 @@ Definition etype_of_op1 {len} (o: sop1) : extended_type len * extended_type len 
   | Olnot sz => (tword sz, tword sz)
   | Oneg k => let t := etype_of_opk k in (t, t)
   | Owi1 s o => etype_of_wiop1 s o
+  | Oarr_make len => (tword U8, tarr len)
   end.
 
 Definition type_of_op1 (o: sop1) : stype * stype :=
@@ -82,6 +83,7 @@ Definition type_of_op1 (o: sop1) : stype * stype :=
   | Olnot sz => (sword sz, sword sz)
   | Oneg k => let t := type_of_opk k in (t, t)
   | Owi1 s o => type_of_wiop1 o
+  | Oarr_make len => (sword U8, sarr len)
   end.
 
 Lemma e_type_of_op1 o :
@@ -208,6 +210,8 @@ Definition type_of_opN (op: opN) : seq stype * stype :=
     let n := nat_of_wsize ws %/ nat_of_pelem p in
     (nseq n sint, sword ws)
   | Ocombine_flags c => (tin_combine_flags, sbool)
+  | Ois_arr_init len => ([:: sarr len; sint; sint], sbool)
+  | Ois_barr_init len => ([:: sarr len; sint; sint], sbool)
   end.
 
 (* ** Expressions
@@ -269,11 +273,8 @@ Inductive pexpr : Type :=
 | PappN of opN & seq pexpr
 | Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr
 | Pbig : pexpr -> sop2 -> var_i -> pexpr -> pexpr -> pexpr -> pexpr
-(* Pbig idx op x e start len = big idx op (fun x => e) [iota start len] *)
-| Parr_init_elem : pexpr → positive → pexpr
+(** Pbig idx op x e start len = big idx op (fun x => e) [iota start len] *)
 | Pis_var_init : var_i → pexpr
-| Pis_arr_init : var_i → pexpr → pexpr → pexpr
-| Pis_barr_init : var_i → pexpr → pexpr → pexpr 
 | Pis_mem_init : pexpr → pexpr → pexpr.
 
 Notation pexprs := (seq pexpr).
@@ -755,12 +756,6 @@ Definition is_array_init (e : pexpr) :=
   | _           => false
   end.
 
-Definition is_array_init_elem (e : pexpr) :=
-  match e with
-  | Parr_init_elem _ _ => true
-  | _           => false
-  end.
-
 Fixpoint cast_w ws (e: pexpr) : pexpr :=
   match e with
   | Papp2 (Oadd Op_int) e1 e2 =>
@@ -870,8 +865,8 @@ Fixpoint use_mem (e : pexpr) :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ | Pvar _ | Pis_var_init _ => false
   | Pload _ _ _ | Pis_mem_init _ _ => true
-  | Parr_init_elem e _ | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e  => use_mem e
-  | Papp2 _ e1 e2 | Pis_arr_init _ e1 e2 | Pis_barr_init _ e1 e2 => use_mem e1 || use_mem e2
+  | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e  => use_mem e
+  | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
   | Pbig idx _ _ body start len => use_mem idx || use_mem body || use_mem start || use_mem len
@@ -900,9 +895,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pbig idx _ x body start len =>
     Sv.union (Sv.remove x (read_e_rec Sv.empty body))
              (read_e_rec (read_e_rec (read_e_rec s len) start) idx)
-  | Parr_init_elem e _ => read_e_rec s e
   | Pis_var_init x => Sv.add x s
-  | Pis_arr_init x e1 e2 | Pis_barr_init x e1 e2 => read_e_rec (read_e_rec (Sv.add x s) e2) e1
   | Pis_mem_init e1 e2 => read_e_rec (read_e_rec s e2) e1
   end.
 
@@ -1004,10 +997,7 @@ Fixpoint eq_expr (e e' : pexpr) :=
     eq_expr idx idx' && (op == op') && (v_var x == v_var x') &&
     eq_expr body body' &&
     eq_expr start start' && eq_expr len len'
-  | Parr_init_elem e n   , Parr_init_elem e' n'      =>  (eq_expr e e')  && (n == n')
   | Pis_var_init x  , Pis_var_init x' => v_var x == v_var x'
-  | Pis_arr_init x e1 e2, Pis_arr_init x' e1' e2'
-  | Pis_barr_init x e1 e2, Pis_barr_init x' e1' e2' => (v_var x == v_var x') && eq_expr e1 e1' && eq_expr e2 e2'
   | Pis_mem_init e1 e2  , Pis_mem_init e1' e2' =>  eq_expr e1 e1' && eq_expr e2 e2'
   | _             , _                 => false
   end.

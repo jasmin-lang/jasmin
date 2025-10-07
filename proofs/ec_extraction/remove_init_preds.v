@@ -35,7 +35,7 @@ Fixpoint ic_to_e vs ic: pexpr :=
   match ic with
   | IBool b => Pbool b
   | IConst c => Pconst c
-  | IVar n => 
+  | IVar n =>
     match List.nth_error vs n with
     | Some x => x
     | None => Pbool false
@@ -54,14 +54,18 @@ Section IS_VAR_INIT.
 
 Variable rm_is_var_init: var_i -> pexpr.
 
+(* FIXME : move this *)
+Definition is_Ois_arr_init o :=
+  match o with
+  | Ois_arr_init len => Some len
+  | _ => None
+  end.
 
 (* Receives an expression, if it is [is_var_init x] it substitutes it by its corresponding boolean variable *)
 Fixpoint rm_var_init_e (e : pexpr) : pexpr :=
   match e with
   | Pis_var_init x => rm_is_var_init x(*Plvar (var_i_to_bvar x)*)
-  | Pis_arr_init x i n => 
-    let x := var_i_to_bvar x in
-    Pis_barr_init x i n
+
   | Papp1 op e1 =>
     let e1 := rm_var_init_e e1 in
     Papp1 op e1
@@ -73,19 +77,26 @@ Fixpoint rm_var_init_e (e : pexpr) : pexpr :=
 
   | PappN op es =>
     let es := map rm_var_init_e es in
-    PappN op es
+    match is_Ois_arr_init op, es with
+    | Some len, Pvar x :: es =>
+      let xb := var_i_to_bvar (gv x) in
+      PappN (Ois_barr_init len) (Pvar (Gvar xb (gs x)) :: es)
+    | _, _ => PappN op es
+    end
 
   | Pif ty e e1 e2 =>
     let e := rm_var_init_e e in
     let e1 := rm_var_init_e e1 in
     let e2 := rm_var_init_e e2 in
-    Pif ty e e1 e2 
+    Pif ty e e1 e2
+
   | Pbig idx op var e1 e2 e3  =>
     let idx := rm_var_init_e idx in
     let e1 := rm_var_init_e e1 in
     let e2 := rm_var_init_e e2 in
     let e3 := rm_var_init_e e3 in
-    Pbig idx op var e1 e2 e3 
+    Pbig idx op var e1 e2 e3
+
   | _ => e
   end.
 
@@ -95,64 +106,62 @@ Definition lv_get_scalar_var (lv : lval) : option var_i  :=
   | _ => None
   end.
 
-  Definition lv_get_var (lv : lval) : option var_i  :=
+Definition lv_get_var (lv : lval) : option var_i  :=
   match lv with
   | Lvar x => Some x
   | _ => None
   end.
 
-
 (* Creates an instruction that assigns the boolean variable of x to a given expression e *)
 Definition assign_bvar_i_e (ii:instr_info) (e: pexpr) (x : var_i) : cmd :=
-    let x := Lvar(var_i_to_bvar x) in
-    [:: (MkI ii (Cassgn x AT_inline sbool e))].
+  let x := Lvar(var_i_to_bvar x) in
+  [:: (MkI ii (Cassgn x AT_inline sbool e))].
 
 Definition assign_bvar_e (ii:instr_info) (e: pexpr) (x : var) : cmd :=
-    let x := Lvar(var_to_bvar x) in
-    [:: (MkI ii (Cassgn x AT_inline sbool e))].
+  let x := Lvar(var_to_bvar x) in
+  [:: (MkI ii (Cassgn x AT_inline sbool e))].
 
 (* Check if there is an assignment to a variable and if so, change the corresponding boolean variable *)
 Definition assign_bvar_lval (ii:instr_info) (e:pexpr) (lv: lval)  : cmd :=
-    match lv_get_scalar_var lv with
-    | Some x => assign_bvar_i_e ii e x
-    | None => 
-       match lv with
-       | Laset a aa ws x e => 
-        let e := emk_scale aa ws e in
-        let x := var_i_to_bvar x in
-        let x := Laset a AAdirect ws x e in
-        let c := Papp1 (Oword_of_int ws) (Pconst (-1)) in
-        [:: (MkI ii (Cassgn x AT_inline (sword ws) c))]
-       | _ => [::]
-       end
-    end.
+  match lv_get_scalar_var lv with
+  | Some x => assign_bvar_i_e ii e x
+  | None =>
+    match lv with
+    | Laset a aa ws x e =>
+      let e := emk_scale aa ws e in
+      let x := var_i_to_bvar x in
+      let x := Laset a AAdirect ws x e in
+      let c := Papp1 (Oword_of_int ws) (Pconst (-1)) in
+      [:: (MkI ii (Cassgn x AT_inline (sword ws) c))]
+    | _ => [::]
+    end
+  end.
 
 (* If x is global variable - the lv will be fully initialized,
 otherwise will be equal to b_x *)
 Definition assign_arr_bvar (ii:instr_info) (lv: lval) (t:stype) (e:pexpr)  : cmd :=
   match t with
-  | sarr n =>
-      match e with
-      
-      | Pvar x =>
-            let e :=
-              if is_glob x then Parr_init_elem (word_of_int Unsigned U8 (-1)) n 
-              else
-                let x := x.(gv) in
-                Plvar(var_i_to_bvar x)
-            in
-            [:: MkI ii (Cassgn lv AT_inline t e)]
-      | Psub aa ws len x i =>
-            let e := 
-              if is_glob x then Parr_init_elem (word_of_int Unsigned U8 (-1)) n
-              else
-                let x := x.(gv) in
-                let x := Plvar (var_i_to_bvar x) in
-                Psub aa ws len x i
-            in
-            [:: (MkI ii (Cassgn lv AT_inline t e))]
-      | _ => [::]
-      end
+  | sarr len =>
+    match e with
+    | Pvar x =>
+      let e :=
+        if is_glob x then Papp1 (Oarr_make len) (word_of_int Unsigned U8 (-1))
+        else
+          let x := x.(gv) in
+          Plvar(var_i_to_bvar x)
+      in
+      [:: MkI ii (Cassgn lv AT_inline t e)]
+    | Psub aa ws len x i =>
+      let e :=
+        if is_glob x then Papp1 (Oarr_make len) (word_of_int Unsigned U8 (-1))
+        else
+          let x := x.(gv) in
+          let x := Plvar (var_i_to_bvar x) in
+          Psub aa ws len x i
+      in
+      [:: (MkI ii (Cassgn lv AT_inline t e))]
+    | _ => [::]
+    end
   | _ => [::]
   end.
 
@@ -161,42 +170,41 @@ Definition assign_arr_bvar (ii:instr_info) (lv: lval) (t:stype) (e:pexpr)  : cmd
   - Laset: change the boolean array variable of the positions that were initialized
   - Lvar: if it is a scalar variables, assign the boolean variable to true
           if it is an array, so a = b, then create assignment b_a = b_b
-                             or a = b[i:j], then create assignment b_a = b_b[i:j]         
+                             or a = b[i:j], then create assignment b_a = b_b[i:j]
   - Lasub: similar to Lvar for arrays
 *)
 Definition cassign_bvar (ii:instr_info) (lv: lval) (t:stype) (e:pexpr)  : cmd :=
-    match lv with
-    | Laset a aa ws x e => 
-      let e := emk_scale aa ws e in
+  match lv with
+  | Laset a aa ws x e =>
+    let e := emk_scale aa ws e in
+    let x := var_i_to_bvar x in
+    let x := Laset a AAdirect ws x e in
+    let c := Papp1 (Oword_of_int ws) (Pconst (-1)) in
+    [:: (MkI ii (Cassgn x AT_inline (sword ws) c))]
+  | Lvar x =>
+    if not_array x.(v_var) then
+      assign_bvar_i_e ii expr_true x
+    else
       let x := var_i_to_bvar x in
-      let x := Laset a AAdirect ws x e in
-      let c := Papp1 (Oword_of_int ws) (Pconst (-1)) in
-      [:: (MkI ii (Cassgn x AT_inline (sword ws) c))]
-    | Lvar x =>
-        if not_array x.(v_var) then
-          assign_bvar_i_e ii expr_true x
-        else
-          let x := var_i_to_bvar x in
-          assign_arr_bvar ii (Lvar x) t e
-    | Lasub aa ws len x i =>
-        let x := var_i_to_bvar x in
-        let lv := Lasub aa ws len x i in
-        assign_arr_bvar ii lv t e
-    | _ => [::]
-    end.
+      assign_arr_bvar ii (Lvar x) t e
+  | Lasub aa ws len x i =>
+    let x := var_i_to_bvar x in
+    let lv := Lasub aa ws len x i in
+    assign_arr_bvar ii lv t e
+  | _ => [::]
+  end.
 
 (* Get a list with a initialization condition for each output of the given operation *)
 Definition get_sopn_init_conds (es:pexprs) (o: sopn) : seq pexpr :=
   let instr_descr := get_instr_desc o in
   map (ic_to_e es) instr_descr.(i_init).
 
-
-(*Add boolean array variables in params and return values of function call*)  
+(*Add boolean array variables in params and return values of function call*)
 Definition change_ccall_signature lvs es : seq lval * seq pexpr :=
-  let lvs :=  conc_map (fun lv => 
+  let lvs :=  conc_map (fun lv =>
     match lv with
       | Lnone _ (sarr _) => [::lv;lv]
-      | Lvar x => 
+      | Lvar x =>
          if not_array x.(v_var) then
           [:: lv]
          else
@@ -208,9 +216,9 @@ Definition change_ccall_signature lvs es : seq lval * seq pexpr :=
       | _ => [:: lv]
       end
   ) lvs in
-    let es := conc_map (fun e => 
+    let es := conc_map (fun e =>
     match e with
-    | Pvar x => 
+    | Pvar x =>
       if not_array x.(gv).(v_var) then
         [:: e]
       else
@@ -257,12 +265,12 @@ Definition rm_init_copy ii (n:positive) lv e : instr :=
 
 Definition assign_bvar_syscall (lvs:seq lval) (l:positive) (ii:instr_info) : cmd :=
   match lvs with
-  | [::Lvar x] => 
+  | [::Lvar x] =>
     if not_array x.(v_var) then
       [::]
     else
       let x := Lvar (var_i_to_bvar x) in
-      let e := Parr_init_elem (word_of_int Unsigned U8 (-1)) l in
+      let e := Papp1 (Oarr_make l) (word_of_int Unsigned U8 (-1)) in
       let i := Cassgn x AT_inline (sarr l) e in
       let i := MkI ii i in
       [:: i]
@@ -274,15 +282,15 @@ Fixpoint rm_var_init_i (i : instr) : cmd :=
   let: (MkI ii ir) := i in
   match ir with
   | Cassgn lv _ t e => cassign_bvar ii lv t e ++ [::i]
-  | Csyscall lvs (RandomBytes l) _ => 
+  | Csyscall lvs (RandomBytes l) _ =>
     assign_bvar_syscall lvs l ii ++ [::i]
-  | Ccall lvs n es => 
+  | Ccall lvs n es =>
     let (lvs,es) := change_ccall_signature lvs es in
     let i := MkI ii (Ccall lvs n es) in
     conc_map (assign_bvar_lval ii expr_true) lvs ++ [::i]
   | Copn lvs _ (Opseudo_op (Oswap (sarr n))) es =>
-    [:: rm_init_swap ii n lvs es;i] 
-  | Copn lvs _ o es  => 
+    [:: rm_init_swap ii n lvs es;i]
+  | Copn lvs _ o es  =>
     match o with
     | Opseudo_op (Ocopy ws n) =>
       let n := Z.to_nat (wsize_size ws) * (Z.to_nat n) in
@@ -294,10 +302,10 @@ Fixpoint rm_var_init_i (i : instr) : cmd :=
     | Oslh (SLHprotect_ptr n)
     | Oslh (SLHprotect_ptr_fail n) =>
       match lvs, es with
-      | [:: lv], [:: e; _] =>[:: rm_init_copy ii n lv e;i] 
+      | [:: lv], [:: e; _] =>[:: rm_init_copy ii n lv e;i]
       | _,_ => [::i]
       end
-    | _ => flatten (map2 (assign_bvar_lval ii) (get_sopn_init_conds es o) lvs) ++ [::i] 
+    | _ => flatten (map2 (assign_bvar_lval ii) (get_sopn_init_conds es o) lvs) ++ [::i]
     end
   | Cif e c1 c2 =>
     let c1 := conc_map rm_var_init_i c1 in
@@ -323,8 +331,8 @@ Definition rm_var_init_cmd (c : cmd) : cmd := conc_map rm_var_init_i c.
 
 End IS_VAR_INIT.
 
-Definition add_bvar_arr xs := 
-  conc_map (fun x => 
+Definition add_bvar_arr xs :=
+  conc_map (fun x =>
     if not_array x.(v_var) then
       [:: x]
     else
@@ -335,12 +343,12 @@ Definition add_bvar_arr xs :=
 everytime there is an array a, there will be a new variable b_a with the same size as a.
 b_a[i] represents the initialization of byte i of a (0 - Not initialized; 1 - Initialized) *)
 Definition add_barray_fun_decl (f:ufundef) :=
-  let aux_ty := conc_map (fun x => 
+  let aux_ty := conc_map (fun x =>
     match x with
       | sarr n => [:: x; x]
       | _ => [:: x]
     end
-  ) in 
+  ) in
   let tyin := aux_ty f.(f_tyin) in
   let tyout := aux_ty f.(f_tyout) in
 
@@ -349,25 +357,23 @@ Definition add_barray_fun_decl (f:ufundef) :=
 
   (tyin, params, tyout, res).
 
-
-(* Add boolean arrays variables to contract variables and 
+(* Add boolean arrays variables to contract variables and
 remove is_var_init and is_arr_init from the pre and post conditions *)
 Definition update_fun_contra c : option fun_contract :=
   match c with
-    | None => None
-    | Some c => 
-      let iparams :=  add_bvar_arr c.(f_iparams) in
-      let ires :=  add_bvar_arr c.(f_ires) in
+  | None => None
+  | Some c =>
+    let iparams :=  add_bvar_arr c.(f_iparams) in
+    let ires :=  add_bvar_arr c.(f_ires) in
 
-      let aux := fun (e:assertion) => 
-       let (a,e) := e in
-       (a,rm_var_init_e (fun _ => Pbool true) e)
-      in
-      let f_pre := map aux c.(f_pre) in
-      let f_post := map aux c.(f_post) in
-      Some (MkContra iparams ires f_pre f_post)
-    end.
-
+    let aux (e:assertion) :=
+      let (a,e) := e in
+      (a,rm_var_init_e (fun _ => Pbool true) e)
+    in
+    let f_pre := map aux c.(f_pre) in
+    let f_post := map aux c.(f_post) in
+    Some (MkContra iparams ires f_pre f_post)
+  end.
 
 (*
  For each variable in the function, initializes the correspondent boolean variable
@@ -380,12 +386,12 @@ Definition init_bvars ii (f:ufundef) :=
   conc_map (fun v =>
     match arr_size v with
     | Error _ =>
-      if (Sv.mem v args_varsL) then  assign_bvar_e ii expr_true v 
+      if (Sv.mem v args_varsL) then assign_bvar_e ii expr_true v
       else assign_bvar_e ii expr_false v
     | Ok sz =>
       if (Sv.mem v args_varsL) then [::]
-      else 
-        let e:= Parr_init_elem (word_of_int Unsigned U8 0) (sz) in
+      else
+        let e:= Papp1 (Oarr_make sz) (word_of_int Unsigned U8 0) in
         assign_bvar_e ii e v
     end
   ) X
@@ -415,9 +421,6 @@ Definition rm_var_init_f (f:ufundef): ufundef :=
 Definition rm_var_init_prog (p:_uprog) : _uprog :=
   map_prog rm_var_init_f p.
 
-
-
-
 Definition all_b_vars vars := Sv.fold (fun x acc => Sv.add (B x) acc) vars Sv.empty.
 
 (* Use constant prop to remove trivial assertions *)
@@ -436,8 +439,8 @@ Definition rm_var_init_const_prop (p: uprog) : uprog :=
 
 Definition rm_var_init_dc (p: uprog) :  _uprog :=
   match dead_code_prog is_move_op p false with
-    | Ok p => p
-    | Error e => p
+  | Ok p => p
+  | Error e => p
   end.
 
 End EXPR.

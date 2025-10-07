@@ -16,7 +16,7 @@ Context
 Lemma write_lvals_write_lval wdb gd lv v s :
   write_lval wdb gd lv v s = write_lvals wdb gd s [:: lv ] [:: v ].
 Proof. by rewrite /=; case: write_lval. Qed.
-  
+
 Lemma get_write_var_word wdb s s' ws (w : word ws) x :
   vtype (v_var x) = sword ws
   -> write_var wdb x (Vword w) s = ok s'
@@ -770,14 +770,16 @@ Proof.
         subst sz.
         rewrite wrepr_signed /=.
         by apply: word_uincl_zero_ext.
-    rewrite /= /sem_sop1 /=.
-    t_xrbindP => e ih > A > B ? > /to_intI h ?; subst; case: h => ?; subst.
-    move: ih.
-    rewrite A /= B => /(_ _ erefl)[] ? -> /value_uinclE[] ? [] ? [] -> /andP[] sz_le /eqP D.
-    rewrite /= truncate_word_le // -D.
-    eexists; first reflexivity.
-    apply/andP; split; first exact: cmp_le_refl.
-    by rewrite wopp_zero_extend // zero_extend_u wrepr_opp.
+    + rewrite /= /sem_sop1 /=.
+      t_xrbindP => e ih > A > B ? > /to_intI h ?; subst; case: h => ?; subst.
+      move: ih.
+      rewrite A /= B => /(_ _ erefl)[] ? -> /value_uinclE[] ? [] ? [] -> /andP[] sz_le /eqP D.
+      rewrite /= truncate_word_le // -D.
+      eexists; first reflexivity.
+      apply/andP; split; first exact: cmp_le_refl.
+      by rewrite wopp_zero_extend // zero_extend_u wrepr_opp.
+    + rewrite /= /sem_sop1 /=.
+      by t_xrbindP => len e ih > -> /= > -> /= <-.
   case.
   all: try match goal with [ |- forall h : op_kind, _ ] => case end.
   all: try by move => > _ > _ > /= -> > -> /= -> /= ->; eauto.

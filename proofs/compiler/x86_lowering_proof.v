@@ -507,7 +507,7 @@ Section PROOF.
     end.
   Proof.
     rewrite /lower_cassgn_classify.
-    move: e Hs=> [z|b|n|x|al aa ws x e | aa ws len x e |al sz e| o e|o e1 e2| op es |e e1 e2 ||||||] //.
+    move: e Hs=> [z|b|n|x|al aa ws x e | aa ws len x e |al sz e| o e|o e1 e2| op es |e e1 e2 |||] //.
     + case: x => - [] [] [] // sz vn vi vs //= /[dup] ok_v.
       case/type_of_get_gvar => sz' [Hs Hs'].
       have := truncate_val_subtype Hv'. rewrite Hs -(truncate_val_has_type Hv').
