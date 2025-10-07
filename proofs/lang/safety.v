@@ -2,6 +2,22 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import expr compiler_util word.
 Require Export safety_shared.
 
+Module Import E.
+
+  Definition pass : string := "safety".
+
+  Definition ierror msg := {|
+    pel_msg      := PPEstring msg;
+    pel_fn       := None;
+    pel_fi       := None;
+    pel_ii       := None;
+    pel_vi       := None;
+    pel_pass     := Some pass;
+    pel_internal := true
+  |}.
+
+End E.
+
 Section SAFETY.
 Context `{asmop:asmOp} {pd: PointerData} {msfsz : MSFsize}.
 
@@ -346,6 +362,14 @@ Definition sc_fun (f: ufundef) :=
   let c := c ++ sc_res in
   MkFun ii ci tin p c tout r ev.
 
-Definition sc_prog (p:_uprog) : _uprog := map_prog sc_fun p.
+Definition check_glob (gd : glob_decl) :=
+  match gd.2 with
+  | Gword _ _ => true
+  | Garr len t =>  all (WArray.is_init t) (ziota 0 len)
+  end.
+
+Definition sc_prog (p:_uprog) : result pp_error_loc _uprog :=
+  Let _ := assert (all check_glob p.(p_globs)) (E.ierror "global arrays not fully initialised"%string) in
+  ok (map_prog sc_fun p).
 
 End SAFETY.

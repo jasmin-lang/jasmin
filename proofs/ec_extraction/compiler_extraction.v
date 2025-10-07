@@ -16,9 +16,9 @@ Context {fcp : FlagCombinationParams}.
 Context (is_move_op : asm_op_t -> bool).
 
 
-Definition create_safety_asserts (p: _uprog): _uprog :=
+Definition create_safety_asserts (p: _uprog): result compiler_util.pp_error_loc _uprog :=
   (* First add the safety conditions *)
-  let p := sc_prog p in
+  Let p := sc_prog p in
   (* This make the arguments and destinations of function call uniq variable.
      Similar to make reference argument *)
   let p := extra_vars_call_prog create_var p in
@@ -32,7 +32,7 @@ Definition create_safety_asserts (p: _uprog): _uprog :=
   (* Performs constant propagation *)
   let p := rm_var_init_const_prop B p in
   (* Dead code *)
-  rm_var_init_dc is_move_op p
+  ok (rm_var_init_dc is_move_op p)
 .
 
 End SAFETY_ASSERTS.

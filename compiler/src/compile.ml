@@ -66,6 +66,13 @@ let do_spill_unspill asmop ?(debug = false) cp =
   | Utils0.Error msg -> Error (Conv.error_of_cerror (Printer.pp_err ~debug) msg)
   | Utils0.Ok p -> Ok (Conv.prog_of_cuprog p)
 
+let catch_error cp =
+  match cp with
+  | Utils0.Ok cp -> cp
+  | Utils0.Error e ->
+    let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
+    raise (HiError e)
+
 let do_wint_int
    (type reg regx xreg rflag cond asm_op extra_op)
     (module Arch : Arch_full.Arch
@@ -100,12 +107,7 @@ let do_wint_int
   in
   let cp = Conv.cuprog_of_prog prog in
   let cp = Wint_int.wi2i_prog Arch.asmOp Arch.msf_size Arch.pointer_data get_info cp in
-  let cp =
-    match cp with
-    | Utils0.Ok cp -> cp
-    | Utils0.Error e ->
-      let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
-      raise (HiError e) in
+  let cp = catch_error cp in
   let (gd, fdso) = Conv.prog_of_cuprog cp in
   (* Restore type of array in the functions signature *)
   let restore_ty tyi tyo =
@@ -186,8 +188,8 @@ let create_safety_asserts
   let cuprog = Conv.cuprog_of_prog prog in
   let cuprog =
     Compiler_extraction.create_safety_asserts
-    Arch.asmOp Arch.pointer_data Arch.msf_size create_var b Arch.fcp Arch.aparams.ap_is_move_op cuprog
-  in
+      Arch.asmOp Arch.pointer_data Arch.msf_size create_var b Arch.fcp Arch.aparams.ap_is_move_op cuprog in
+  let cuprog = catch_error cuprog in
   let prog =  Conv.prog_of_cuprog cuprog in
   prog
 

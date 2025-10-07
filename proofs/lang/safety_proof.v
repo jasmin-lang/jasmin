@@ -92,11 +92,13 @@ Proof.
   apply/Z.ltb_lt; Lia.lia.
 Qed.
 
+Section GLOBALS.
+
 (* FIXME : this require a check *)
-Axiom get_global_arr_init :
-   forall x len (t:WArray.array len) ,
-   get_global gd x = ok (Varr t) →
-   all (λ j : Z, WArray.is_init t j) (ziota 0 len).
+Hypothesis get_global_arr_init :
+  forall x len (t:WArray.array len) ,
+  get_global gd x = ok (Varr t) →
+  all (WArray.is_init t) (ziota 0 len).
 
 Opaque wsize_size.
 
@@ -502,8 +504,10 @@ Proof.
   by move=> /andP [/hokm -> hlv]; apply: lv_write_memP hw.
 Qed.
 
+Let pi := (map_prog sc_fun p).
+
 Lemma sem_pre_sc fn fs :
-  sem_pre (wc:=withcatch) (sc_prog p) fn fs = ok tt ->
+  sem_pre (wc:=withcatch) pi fn fs = ok tt ->
   sem_pre p fn fs = ok tt.
 Proof.
   rewrite /sem_pre get_map_prog /=.
@@ -523,7 +527,7 @@ Proof.
 Qed.
 
 Lemma sem_post_sc fn vs fs :
-  sem_post (wc:=withcatch) (sc_prog p) fn vs fs = ok tt ->
+  sem_post (wc:=withcatch) pi fn vs fs = ok tt ->
   sem_post p fn vs fs = ok tt.
 Proof.
   rewrite /sem_post get_map_prog /=.
@@ -666,8 +670,7 @@ Proof.
 Qed.
 
 (* Safety Lemma: instructions *)
-Lemma safety_callP fn :
-  let pi := sc_prog p in
+Lemma safety_callP_aux fn :
   wiequiv_f_wa withcatch nocatch withassert withassert
     pi p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:= eq_spec)).
 Proof.
@@ -690,19 +693,19 @@ Proof.
     set Pi := (fun i =>
                  wequiv_rec (wc1 := withcatch) (wc2 := nocatch)
                    (wa1 := withassert) (wa2 := withassert)
-                   (sc_prog p : uprog) p ev ev eq_spec (st_rel (λ _ : unit, eq) tt)
+                   pi p ev ev eq_spec (st_rel (λ _ : unit, eq) tt)
                    (sc_instr i) [::i] (st_rel (λ _ : unit, eq) tt)).
 
     set Pc := (fun c =>
                  wequiv_rec (wc1 := withcatch) (wc2 := nocatch)
                    (wa1 := withassert) (wa2 := withassert)
-                   (sc_prog p : uprog) p ev ev eq_spec (st_rel (λ _ : unit, eq) tt)
+                   pi p ev ev eq_spec (st_rel (λ _ : unit, eq) tt)
                    (conc_map sc_instr c) c (st_rel (λ _ : unit, eq) tt)).
 
     set Pi_r := (fun ir => forall ii,
                  wequiv_rec (wc1 := withcatch) (wc2 := nocatch)
                    (wa1 := withassert) (wa2 := withassert)
-                   (sc_prog p : uprog) p ev ev eq_spec
+                   pi p ev ev eq_spec
                    (fun si s => st_rel (λ _ : unit, eq) tt si s /\
                      sem_cond (wc:=withcatch) (p_globs p) (eands (sc_instr_ir ii ir).1) si = ok true)
                    ([:: MkI ii (sc_instr_ir ii ir).2]) ([::MkI ii ir])
@@ -720,7 +723,7 @@ Proof.
 
     + move=> ir ii hi; rewrite -(cat0s [:: MkI _ _]) -cats1.
       apply wequiv_cat with (fun si s => st_rel (λ _ : unit, eq) tt si s /\
-           sem_cond (wc:=withcatch) (p_globs (sc_prog p)) (eands (sc_instr_ir ii ir).1) si = ok true).
+           sem_cond (wc:=withcatch) (p_globs pi) (eands (sc_instr_ir ii ir).1) si = ok true).
       + by apply safe_assertP.
       by apply hi.
 
@@ -820,7 +823,7 @@ Proof.
     + move=> al c e ii' c' hc hc' ii.
       apply wequiv_weaken with (st_rel (λ _ : unit, eq) tt)
                         (fun si s => st_rel (λ _ : unit, eq) tt si s /\
-                  sem_cond_wc (p_globs (sc_prog p)) (eands (sc_pexpr e)) si = ok true).
+                  sem_cond_wc (p_globs pi) (eands (sc_pexpr e)) si = ok true).
       1-2: by move=> > [].
       apply wequiv_while.
       + move=> s s' b []/estate_eq ?; subst s'=> /sc_pexprP he.
@@ -857,6 +860,24 @@ Proof.
       case: get_fundef => //= > -[] <- [] -> /= ?.
       by t_xrbindP => vs -> /= vs' -> /= <-; eauto.
     by move=> ?? ->; apply sem_post_sc.
+Qed.
+
+End GLOBALS.
+
+Lemma safety_callP pi:
+  sc_prog p = ok pi ->
+  forall fn,
+  wiequiv_f_wa withcatch nocatch withassert withassert
+    pi p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:= eq_spec)).
+Proof.
+  rewrite /sc_prog; t_xrbindP => hall <-.
+  apply safety_callP_aux.
+  move=> x len t /get_globalI [gv] [hget hgv hty].
+Opaque ziota.
+  elim: gd hget hall => // -[y yd] gd ih /=.
+  case: eqP => // heq; last by move=> + /andP [_ ].
+  move=> [->] /andP [] {ih}.
+  by case: gv hgv => //= len' t' /Varr_inj [?] ?; subst len' t'.
 Qed.
 
 End SAFETY_PROOF.
