@@ -86,7 +86,7 @@ eclib:
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'easycrypt     config -why3 eclib/why3.conf'
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make ECARGS="-why3 why3.conf" -C eclib'
 
-opam:
+.opam:
   stage: prove
   variables:
     OPAMROOTISOK: 'true'
