@@ -58,6 +58,10 @@ Definition val_to_int (s:option signedness) v :=
   | _  => v
   end.
 
+(* When [ety] is a wint, we require that [ety] and [ty] match (no subtyping). *)
+Definition sign_equal {len} (ety:extended_type len) ty :=
+  if ety is ETword (Some _) ws then ty == sword ws else true.
+
 Definition eqvm (vm vmi : Vm.t) :=
   forall x, in_FV_var FV x -> vmi.[wi2i_var m x] = val_to_int (sign_of_var m x) vm.[x].
 
@@ -73,6 +77,20 @@ Qed.
 
 Lemma val_to_int_None v : val_to_int None v = v.
 Proof. by case: v => //= -[]. Qed.
+
+Lemma sign_equal_to_etype sg ty :
+  sign_equal (to_etype sg ty) ty.
+Proof.
+  case: ty => [||?|?] //=.
+  by case: sg.
+Qed.
+
+Lemma sign_equal_to_stype ety :
+  sign_equal ety (to_stype ety).
+Proof.
+  case: ety => [||?|sg ?] //=.
+  by case: sg.
+Qed.
 
 Lemma is_wi1P o :
   match is_wi1 o with
@@ -443,14 +461,10 @@ Proof. by case wi2i_eP_. Qed.
 
 End E.
 
-Lemma sign_to_etype_type_of sg sg' v :
-  sign_of_etype (to_etype sg (type_of_val v)) = Some sg' ->
-  sg = Some sg' /\
-  exists ws, v = undef_w \/ exists (w:word ws), v = Vword w.
-Proof.
-  have := (@type_of_valI v _ erefl); case: type_of_val => //=.
-  move=> ws h; case: sg => // ? [->]; eauto.
-Qed.
+Lemma sign_to_etype_type_of ety sg :
+  sign_of_etype ety = Some sg ->
+  exists ws, ety = ETword _ (Some sg) ws.
+Proof. by case: ety => //= -[] // _ ? [->]; eauto. Qed.
 
 Lemma is_swordP ty : is_sword ty -> exists ws, ty = sword ws.
 Proof. case: ty => //; eauto. Qed.
@@ -475,21 +489,23 @@ Qed.
 
 Lemma wi2i_lvarP x xi ety s s' si v :
   eqst s si ->
-  wi2i_lvar m FV (to_etype (sign_of_etype ety) (type_of_val v)) x = ok xi ->
+  sign_equal ety (type_of_val v) ->
+  wi2i_lvar m FV ety x = ok xi ->
   write_var true x v s = ok s' ->
   exists2 si' : estate,
-      write_var true xi (val_to_int (sign_of_etype (to_etype (sign_of_etype ety) (type_of_val v))) v) si = ok si' &
+      write_var true xi (val_to_int (sign_of_etype ety) v) si = ok si' &
       eqst s' si'.
 Proof.
-  rewrite /wi2i_lvar /wi2i_vari; t_xrbindP => heqs hsub hin ? hw; subst xi.
+  rewrite /wi2i_lvar /wi2i_vari; t_xrbindP => heqs hsign hsub hin ? hw; subst xi.
   move: hsub; rewrite /wi2i_vari /wi2i_var /etype_of_var /sign_of_var.
   case heqm: m (hwf_m x) => [[sg xi]| ] /=.
   + move=> [/is_swordP [sw hxty] htxi hdiff] hsub.
     have := (esubtype_sign_of hsub); rewrite hxty /=.
     move/write_varP: hw => [-> hdb htr].
-    move=> /(sign_to_etype_type_of) [heq [ws [? | [w ?]]]]; subst.
+    move=> /(sign_to_etype_type_of) [ws ?]; subst ety.
+    move: hsign => /= /eqP /type_of_valI [? | [w ?]]; subst v.
     + by move: hdb; rewrite /DB.
-    move: hsub; rewrite /esubtype hxty heq => /andP[_ /eqP?]; subst sw.
+    move: hsub; rewrite /esubtype hxty /= => /andP[_ /eqP?]; subst sw.
     rewrite /val_to_int /=.
     exists (with_vm si (evm si).[xi <- int_of_word sg w]).
     + by apply/write_varP; split => //=; rewrite htxi.
@@ -507,16 +523,17 @@ Qed.
 
 Lemma wi2i_lvP ety lv lvi s si s' v:
   eqst s si ->
-  let ety := to_etype (sign_of_etype ety) (type_of_val v) in
+  sign_equal ety (type_of_val v) ->
   wi2i_lv m FV ety lv = ok lvi ->
   write_lval true gd lv v s = ok s' ->
   exists2 si',  write_lval true gd lvi (val_to_int (sign_of_etype ety) v) si = ok si' & eqst s' si'.
 Proof.
-  move=> heqs; case: lv => /=.
+  move=> heqs hsign; case: lv => /=.
   + move=> i ty [<-] /write_noneP [-> htr hdb]; exists si => //=.
     rewrite /write_none.
     case heq: sign_of_etype => [sg | ] /=.
-    + have [_ [ws [ ? | [w ?]]]] := sign_to_etype_type_of heq; subst v.
+    + have [ws ?] := sign_to_etype_type_of heq; subst ety.
+      move: hsign => /= /eqP /type_of_valI [? | [w ?]]; subst v.
       + by move: hdb; rewrite /DB.
       by rewrite /val_to_int.
     by rewrite val_to_int_None htr hdb.
@@ -551,18 +568,16 @@ Lemma wi2i_lvsP E ety lvs lvis s si s' vs:
   eqst s si ->
   mapM2 E (wi2i_lv m FV) ety lvs = ok lvis ->
   write_lvals true gd s lvs vs = ok s' ->
-  all2 (fun ety v => ety == (to_etype (sign_of_etype ety) (type_of_val v))) ety vs ->
+  all2 (fun ety v => sign_equal ety (type_of_val v)) ety vs ->
   exists2 si',
     write_lvals true gd si lvis (map2 (fun ety v => val_to_int (sign_of_etype ety) v) ety vs) = ok si' &
     eqst s' si'.
 Proof.
   elim: ety lvs vs lvis s si => [|ety etys hrec] [|lv lvs] //= [|v vs] // ? s si heqs; t_xrbindP.
   + by move=> <- <- _; exists si.
-  move=> lvi hlvi lvis hlvis <- s1 hw hws /andP[ /eqP heq hall] /=.
-  rewrite heq in hlvi.
-  have := wi2i_lvP heqs hlvi hw.
-  rewrite -heq => -[si1 -> heqs1 /=].
-  have [si' -> heqs2 /=] := hrec _ _ _ _ _ heqs1 hlvis hws hall; eauto.
+  move=> lvi hlvi lvis hlvis <- s1 hw hws /andP[hsign hall] /=.
+  have [si1 -> heqs1 /=] := wi2i_lvP heqs hsign hlvi hw.
+  by apply: hrec; eauto.
 Qed.
 
 Context (p_funcsi : ufun_decls)
@@ -599,11 +614,11 @@ Let Pfor (i:var_i) vs s c s' :=
 
 Let Pfun scs1 m1 fn vargs scs2 m2 vres :=
   forall fsig, sigs fn = Some fsig ->
-  all2 (fun ety v => esubtype ety (to_etype (sign_of_etype ety) (type_of_val v))) fsig.1 vargs ->
+  all2 (fun ety v => sign_equal ety (type_of_val v)) fsig.1 vargs ->
   let vargsi := map2 (fun ety v => val_to_int (sign_of_etype ety) v) fsig.1 vargs  in
   let vresi  := map2 (fun ety v => val_to_int (sign_of_etype ety) v) fsig.2 vres in
   sem_call pi ev scs1 m1 fn vargsi scs2 m2 vresi /\
-  all2 (fun ety v => ety == (to_etype (sign_of_etype ety) (type_of_val v))) fsig.2 vres.
+  all2 (fun ety v => sign_equal ety (type_of_val v)) fsig.2 vres.
 
 Local Lemma Hskip : sem_Ind_nil Pc.
 Proof. by move=> s ? [<-] si; exists si => //; constructor. Qed.
@@ -623,17 +638,20 @@ Qed.
 
 Lemma esubtype_truncate v v' ty ety :
   let sg := sign_of_etype ety in
-  type_of_val v = to_stype ety ->
+  sign_equal ety (type_of_val v) ->
   esubtype (to_etype sg ty) ety ->
   truncate_val ty v = ok v' ->
   truncate_val (wi2i_type sg ty) (val_to_int sg v) = ok (val_to_int (sign_of_etype (to_etype sg ty)) v').
 Proof.
-  move=> /= hty.
+  move=> /= hsign.
   case heq: sign_of_etype => [sg | ]; last by rewrite /wi2i_type eqxx sign_of_to_etype_None !val_to_int_None.
-  case: ety {hty} heq (type_of_valI hty) => // -[_|] //= ws [->] h.
-  case: ty => //= _ /andP[_ /eqP->] /=.
-  case: h => [-> | [w ->]] //.
-  by rewrite /truncate_val /= truncate_word_u /= => -[<-].
+  have [ws ?] := sign_to_etype_type_of heq; subst ety.
+  move: hsign => /= /eqP /type_of_valI [? | [w ?]]; subst v.
+  + by move=> _ /truncate_valE.
+  move=> hsub /truncate_valE [ws' [w' [? + ->]]]; subst ty.
+  move: hsub => /= /andP [_ /eqP ?]; subst ws'.
+  rewrite truncate_word_u => -[->].
+  by rewrite /truncate_val /=.
 Qed.
 
 Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
@@ -643,8 +661,10 @@ Proof.
   have hsem := wi2i_eP heqs hei he.
   have hty := sem_pexpr_type_of he.
   have ? := truncate_val_has_type htr. subst ty.
-  have [si' hw' ?] := wi2i_lvP heqs hxi hw.
-  exists si' => //; econstructor; eauto; apply: esubtype_truncate hty hsub htr.
+  have [si' hw' ?] := wi2i_lvP heqs (sign_equal_to_etype _ _) hxi hw.
+  exists si' => //; econstructor; eauto.
+  apply: esubtype_truncate _ hsub htr.
+  by rewrite hty; apply sign_equal_to_stype.
 Qed.
 
 Lemma all_None_val_to_int s1 es ve :
@@ -657,12 +677,11 @@ Proof.
   by rewrite val_to_int_None.
 Qed.
 
-Lemma all2_esubtype_None vs :
-  all2
-    (λ ety v, ety == to_etype (sign_of_etype ety) (type_of_val v))
+Lemma all2_sign_equal_None vs :
+  all2 (fun ety v => sign_equal ety (type_of_val v))
       [seq to_etype None ty | ty <- (List.map type_of_val vs)]
       vs.
-Proof. by elim: vs => //= v vs ->; rewrite sign_of_to_etype_None eqxx. Qed.
+Proof. elim: vs => //= v vs ->. case: type_of_val => //=. Qed.
 
 Lemma map2_None_val_to_int vs:
   map2 (λ (ety : extended_type positive) (v : value), val_to_int (sign_of_etype ety) v)
@@ -678,7 +697,7 @@ Proof.
   move=> hsem.
   have := wi2i_lvsP heqs hxis hws.
   rewrite -(sopn_toutP hex).
-  move=> /(_ (all2_esubtype_None _)); rewrite map2_None_val_to_int => -[si' hws' ?].
+  move=> /(_ (all2_sign_equal_None _)); rewrite map2_None_val_to_int => -[si' hws' ?].
   exists si' => //.
   econstructor; eauto.
   by rewrite /sem_sopn hsem /= hex /= hws'.
@@ -705,7 +724,7 @@ Proof.
   have heqs1 : eqst s1' si1' by case: heqs.
   have := wi2i_lvsP heqs1 hxis hws.
   rewrite -(exec_syscall_toutP hex).
-  move=> /(_ (all2_esubtype_None _)); rewrite map2_None_val_to_int => -[si' hws' ?].
+  move=> /(_ (all2_sign_equal_None _)); rewrite map2_None_val_to_int => -[si' hws' ?].
   exists si' => //.
   econstructor; eauto.
   by case: heqs => <- <-.
@@ -776,11 +795,11 @@ Proof.
   exists si3 => //; econstructor; eauto.
 Qed.
 
-Lemma esubtype_to_etype_eq ety ety' :
+Lemma esubtype_sign_equal ety ety' :
   esubtype ety ety' ->
-  ety' = to_etype (sign_of_etype ety) (to_stype ety').
+  sign_equal ety (to_stype ety').
 Proof.
-  by case: ety ety' => [||len|[sg|] ws] [||len'|[sg'|] ws'] //= /andP[/eqP <- /eqP <-].
+  by case: ety ety' => [||len|[sg|] ws] [||len'|[sg'|] ws'] //= /andP [_ /eqP ->].
 Qed.
 
 Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
@@ -801,11 +820,21 @@ Proof.
     elim: fsig.1 args vargs hsub hes => [|ety tin hrec] [|e es] //=.
     + by move=> _ _ [<-].
     move=> vargs' /andP[] hsub hall; t_xrbindP => va hva vargs hvargs ?; subst vargs' => /=.
-    by rewrite (sem_pexpr_type_of hva) (hrec _ _ hall hvargs) -(esubtype_to_etype_eq hsub) hsub.
+    by rewrite (sem_pexpr_type_of hva) (hrec _ _ hall hvargs) (esubtype_sign_equal hsub).
   have heqs2 : eqst (with_scs (with_mem s1 m2) scs2) (with_scs (with_mem si m2) scs2) by case heqs.
   have [si' {}hws ?]:= wi2i_lvsP heqs2 hxis hws hsubr.
   exists si' => //; econstructor; eauto.
   by case: heqs => <- <-.
+Qed.
+
+Lemma esubtype_refl ety : esubtype ety ety.
+Proof. by case: ety => //= -[] // ??; apply /andP; done. Qed.
+
+Lemma to_etype_idempotent sg ty :
+  to_etype (sign_of_etype (to_etype sg ty)) ty = to_etype sg ty.
+Proof.
+  case: ty => [||?|?] //=.
+  by case: sg.
 Qed.
 
 Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
@@ -837,21 +866,15 @@ Proof.
     elim: ftin vargs' fparams fparamsi vargs => [|ty tys hrec] [|va vas] [| a params] //= .
     + by move=> _ _ [<-] _ [<-]; split => // s si ? [<-]; exists si.
     t_xrbindP.
-    move=> _ _ tva hva tvas hvas <- /andP[hsub hall] ai hai paramsi hparamsi <-.
+    move=> _ _ tva hva tvas hvas <- /andP[hsign hall] ai hai paramsi hparamsi <-.
     rewrite {2}/dc_truncate_val /= to_stypeK.
-    have /= := esubtype_truncate _ _ hva.
-    move /(_ (to_etype (sign_of_etype (to_etype (sign_of_var m a) ty)) (type_of_val va))).
-    rewrite to_stypeK => /(_ erefl).
-    have heq : to_etype (sign_of_etype (to_etype (sign_of_var m a) ty)) ty =
-               to_etype (sign_of_var m a) ty.
-    + by case ty => //= ws; case: sign_of_var.
-    have -> := esubtype_sign_of hsub => ->; last by rewrite heq.
-    rewrite /=; have [-> hwrec /=] := hrec _ _ _ _ hvas hall hparamsi.
-    split; first by rewrite heq.
+    rewrite (esubtype_truncate hsign _ hva) /= to_etype_idempotent;
+      last by rewrite esubtype_refl.
+    have [-> hwrec /=] := hrec _ _ _ _ hvas hall hparamsi.
+    split=> //.
     t_xrbindP=> s si heqs s' hw hws.
-    have := wi2i_lvarP heqs _ hw; rewrite (truncate_val_has_type hva).
-    rewrite -sign_of_etype_var in hai => /(_ _ _ hai).
-    rewrite sign_of_etype_var.
+    have := wi2i_lvarP heqs _ _ hw; rewrite (truncate_val_has_type hva).
+    move=> /(_ _ _ (sign_equal_to_etype _ _) hai).
     by move=> [si' -> heqs'] /=; apply: hwrec heqs' hws.
   have heqs : eqst {| escs := scs1; emem := m1; evm := Vm.init |} {| escs := scs1; emem := m1; evm := Vm.init |}.
   + split => //= z hin.
@@ -862,7 +885,7 @@ Proof.
   have [si2 hsemc heqs2] := hc _ hci _ heqs1.
   have [???] : [/\ get_var_is true (evm si2) fresi = ok vresi
                  , mapM2 ErrType dc_truncate_val ftouti vresi = ok vresi'
-                 & all2 (λ ety v, ety == to_etype (sign_of_etype ety) (type_of_val v)) etyout vres'].
+                 & all2 (λ ety v, sign_equal ety (type_of_val v)) etyout vres'].
   + move: hres hfull hresi.
     rewrite /vresi /vresi' /ftouti /etyout.
     move=> {vresi' vresi ftouti etyout hfuni hfun vargsi vargsi' hsub hvargsi hw heqs}.
@@ -875,11 +898,13 @@ Proof.
     have -> := wi2i_variP heqs2 hri hr.
     have [-> -> -> /=]:= hrec _ _ _ _ hrs htvs hris.
     rewrite -(esubtype_sign_of hsub) sign_of_etype_var.
-    have -> := truncate_val_has_type htv; rewrite eqxx; split => //.
+    rewrite (truncate_val_has_type htv) (sign_equal_to_etype _ _).
+    split=> //.
     have /= := esubtype_truncate _ _ htv.
     rewrite -sign_of_etype_var in hsub.
-    move=> /(_ _ (get_var_type_of hr) hsub).
-    by rewrite -(esubtype_sign_of hsub) sign_of_etype_var to_stypeK /dc_truncate_val /= => -> /=.
+    move=> /(_ _ _ hsub).
+    rewrite -(esubtype_sign_of hsub) sign_of_etype_var to_stypeK /dc_truncate_val /= => -> //=.
+    by rewrite (get_var_type_of hr); apply sign_equal_to_stype.
   by case: heqs2 => *; split => //; econstructor; eauto.
 Qed.
 
@@ -969,7 +994,7 @@ Lemma wi2w_callP p' :
   forall fn fd, get_fundef (p_funcs p) fn = Some fd ->
   forall scs m vargs scs' m' vres,
     let fsig := (build_sig info (fn, fd)).2 in
-    all2 (λ ety v, esubtype ety (to_etype (sign_of_etype ety) (type_of_val v))) fsig.1 vargs ->
+    all2 (λ ety v, sign_equal ety (type_of_val v)) fsig.1 vargs ->
     let vargsi := map2 (λ ety v, val_to_int (sign_of_etype ety) v) fsig.1 vargs in
     let vresi  := map2 (λ ety v, val_to_int (sign_of_etype ety) v) fsig.2 vres in
     sem_call p ev scs m fn vargs scs' m' vres ->
