@@ -184,11 +184,21 @@ let create_safety_asserts
           cbv
   in
   let create_var vk name t l =  Conv.cvar_of_var (V.mk name vk (Conv.ty_of_cty t) l []) in
+
+  let print_uprog s cp =
+    let p = Conv.prog_of_cuprog cp in
+    Format.printf "After %s@. %a@.@.@."
+      s
+      (Printer.pp_prog ~debug:false Arch.reg_size Arch.asmOp) p;
+    cp
+  in
+
   let prog = add_default_contracts prog in
   let cuprog = Conv.cuprog_of_prog prog in
+
   let cuprog =
     Compiler_extraction.create_safety_asserts
-      Arch.asmOp Arch.pointer_data Arch.msf_size create_var b Arch.fcp Arch.aparams.ap_is_move_op cuprog in
+      Arch.asmOp Arch.pointer_data Arch.msf_size create_var b Arch.fcp Arch.aparams.ap_is_move_op print_uprog cuprog in
   let cuprog = catch_error cuprog in
   let prog =  Conv.prog_of_cuprog cuprog in
   prog

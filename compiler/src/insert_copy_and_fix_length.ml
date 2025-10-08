@@ -46,16 +46,19 @@ let rec fix_length_e e =
   | PappN (o, es) ->
     let es = List.map fix_length_e es in
     begin match o, es with
+
     | O.Ois_arr_init _, e::_ ->
       let ty = Typing.type_of_expr e in
       let len = size_of ty in
       PappN (O.Ois_arr_init (Conv.pos_of_int len), es)
     | Ois_arr_init _, _ -> assert false
+
     | Ois_barr_init _,  e::_ ->
       let ty = Typing.type_of_expr e in
       let len = size_of ty in
       PappN (O.Ois_barr_init (Conv.pos_of_int len), es)
     | Ois_barr_init _, _ -> assert false
+
     | Opack _, _ | Ocombine_flags _, _ -> PappN (o, es)
     end
   | Pget (al, aa, ws, x, e) -> Pget (al, aa, ws, x, fix_length_e e)
@@ -75,6 +78,8 @@ let fix_length_lv lv =
  | Lasub(aa, ws, len, x, e) -> Lasub(aa, ws, len, x, fix_length_e e)
 
 let fix_length_lvs = List.map fix_length_lv
+
+let fix_length_assert (s,e) =  (s,fix_length_e e)
 
 let rec iac_stmt pd is = List.map (iac_instr pd) is
 and iac_instr pd i = { i with i_desc = iac_instr_r pd i.i_loc i.i_desc }
@@ -149,10 +154,20 @@ and iac_instr_r pd loc ir =
   | Ccall (xs, f, es) ->
     let xs, es = fix_length_lvs xs, fix_length_es es in
     Ccall(xs, f, es)
+
   | Cassert (s,e) -> Cassert(s,fix_length_e e)
 
+let fix_length_contra fc =
+  { fc with
+    f_pre = List.map fix_length_assert fc.f_pre;
+    f_post = List.map fix_length_assert fc.f_post
+  }
+
 let iac_func pd f =
-  { f with f_body = iac_stmt pd f.f_body }
+  { f with
+    f_body = iac_stmt pd f.f_body;
+    f_contra = Option.map fix_length_contra f.f_contra
+  }
 
 let doit pd (p:(unit, 'asm) Prog.prog) : (unit, 'asm) Prog.prog =
   (fst p, List.map (iac_func pd) (snd p))

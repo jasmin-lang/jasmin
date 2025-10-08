@@ -58,7 +58,10 @@ Fixpoint extra_vars_call_i (fv: Sv.t) (i:instr) : cexec cmd :=
       | Some (MkFun _ _ ty_in _ _ ty_out _ _) =>
         let params := map (create_fresh_var "param") ty_in in
         let xs := map (create_fresh_var "result") ty_out in
-        Let _ := assert (all (fun x => ~~Sv.mem (v_var x) fv) params && all (fun x => ~~Sv.mem (v_var x) fv) xs)
+        Let _ := assert ([&& uniq (map v_var params),
+                             uniq (map v_var xs),
+                             disjoint fv (sv_of_list v_var params) &
+                             disjoint fv (sv_of_list v_var xs)])
                           (E.ierror "create_fresh_var not fresh"%string) in
         let pre := map3 (fun ty x e => MkI ii (Cassgn (Lvar x) AT_inline ty e)) ty_in params es in
         let params := map (Plvar) params in
