@@ -11,8 +11,7 @@ type printer =
 let parse_and_check arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
   let check ~doit infer ct_list speculative pass file print =
-    let prog = parse_and_compile (module A) ~wi2i:false pass file idirs in
-
+    let prog = parse_and_compile (module A) ~wi2i:false ~safety:false pass file idirs in
     if speculative then
       let prog =
         (* Ensure there are no spill/unspill operations left *)

@@ -403,7 +403,7 @@ Proof.
   case: e hseme hfve h => // op.
   move=> [] //= gx.
   move=> [] //.
-  move=> [[]|||||||] //.
+  move=> [[]||||||||] //.
   move=> [] // z.
 
   rewrite /=.
@@ -531,14 +531,14 @@ Proof.
   case: e => // [ al aa ws x| al ws] e s ws' ws'' aop es w.
   all: rewrite /lower_pexpr_aux /lower_load.
   all: move=> /chk_ws_regP [? [??]] hws hfve; subst ws' aop es.
-  all: rewrite /sem_pexpr -/(sem_pexpr _ _ s e).
+  all: rewrite /sem_pexpr -/(sem_pexpr (wc:=nocatch) _ _ s e).
 
   - apply: on_arr_gvarP => n t hty ok_t.
     apply: rbindP => idx.
     apply: rbindP => ? ok_idx /to_intI ?; subst.
     apply: rbindP => r ok_r /ok_inj /Vword_inj[] ??; subst => /=.
     split.
-    + rewrite /= ok_t /= ok_idx /= ok_r /=.
+    + rewrite /= ok_t /=. rewrite ok_idx /= ok_r /=.
       eexists; first reflexivity.
       by rewrite /exec_sopn /= truncate_word_le // /= zero_extend_u.
     done.
@@ -570,13 +570,13 @@ Proof.
   move=> s ws ws' op' es w.
   move=> h hws hfve.
 
-  rewrite /sem_pexpr -/(sem_pexpr _ _ s e).
+  rewrite /sem_pexpr -/(sem_pexpr (wc:=nocatch) _ _ s e).
   t_xrbindP=> v hseme hw.
 
   move: h.
   rewrite /lower_pexpr_aux /lower_Papp1.
   move=> /chk_ws_regP [?]; subst ws.
-  case: op hw hfve => [ ws'' || [] ws'' | [] ws'' || [] ||] // hw hfve.
+  case: op hw hfve => [ ws'' || [] ws'' | [] ws'' || [] |||] // hw hfve.
 
   (* Case: [Oword_of_int]. *)
   - move: hw => /sem_sop1I /= [w' [?] [hw' [?] hw]].
@@ -817,7 +817,7 @@ Proof.
   move=> h hws hfve hseme.
 
   move: hseme.
-  rewrite /sem_pexpr -!/(sem_pexpr _ _ s _).
+  rewrite /sem_pexpr -!/(sem_pexpr (wc:=nocatch) (wa:=noassert) _ _ s _).
   t_xrbindP=> v0 hseme0 v1 hseme1 hsemop.
 
   move: hfve => /disj_fvars_read_e_Papp2 [hfve0 hfve1].
@@ -1042,8 +1042,7 @@ Lemma lower_pexpr_auxP e :
   Plower_pexpr_aux e.
 Proof.
   move=> s ws ws' aop es w.
-  case: e => [||| gx | al aa ws0 x e || al ws0 x e | op e | op e0 e1 ||] //.
-
+  case: e => [||| gx | al aa ws0 x e || al ws0 x e | op e | op e0 e1 |||||] //.
   - exact: lower_PvarP.
   - exact: (lower_loadP (Pget _ _ _ _ _)).
   - exact: (lower_loadP (Pload _ _ _)).
@@ -1104,7 +1103,7 @@ Proof.
 
   move: s0 ws' pre op es w h hs00 hws hfve hfvlv hseme hwrite.
   case: e =>
-    [||| gx | al aa ws0 x e || al ws0 e | op e | op e0 e1 || ty c e0 e1] //
+    [||| gx | al aa ws0 x e || al ws0 e | op e | op e0 e1 || ty c e0 e1|||] //
     s0 ws' pre aop es w h hs00 hws hfve hfvlv hseme hwrite.
 
   1-5: move: h => /no_preP [? h]; subst pre.
@@ -1211,7 +1210,7 @@ Proof.
   rewrite /lower_store.
   case hmn: store_mn_of_wsize => [mn|] //.
 
-  case: e hseme hfv => [||| gx ||||||| ty c e0 e1] // hseme hfv [? ?];
+  case: e hseme hfv => [||| gx ||||||| ty c e0 e1|||] // hseme hfv [? ?];
     subst aop es.
   all: rewrite /= /sem_sopn /=.
   all: have /= := eeq_exc_sem_pexpr hfv hs00 hseme.
@@ -1406,7 +1405,7 @@ Proof.
   move=> hwrite1.
 
   move: h.
-  case: e2 hseme2 => [| [] || gx |||||||] //= hseme2 [???];
+  case: e2 hseme2 => [| [] || gx ||||||||||] //= hseme2 [???];
     subst lvs' op' es'.
   all: rewrite /= hseme0 hseme1 /= {hseme0 hseme1}.
 
@@ -2003,6 +2002,8 @@ Opaque esem.
     rewrite /disj_fvars vars_I_syscall => /disjoint_union [hdisjx hdisje].
     apply (wequiv_syscall_rel_eq (sip:=sip)) with
        checker_st_eq_ex fvars => //.
+  (* Assert *)
+  + by move=> ? ii _; apply wequiv_noassert with (ev1:=ev) (ii:=ii).
   (* If *)
   + move=> e c1 c2 hc1 hc2 ii /disj_fvars_vars_I_Cif [hfve /hc1{}hc1 /hc2{}hc2] /=.
     case heq: lower_condition => [pre e'].

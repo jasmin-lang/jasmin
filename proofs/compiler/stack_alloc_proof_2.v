@@ -2296,6 +2296,9 @@ Proof.
   by apply (wfr_VARS_STATUS_alloc_syscall halloc).
 Qed.
 
+Local Lemma Wassert a: Pi_r (Cassert a).
+Proof. done. Qed.
+
 (* in practice, vars = Sv.inter var1 vars2, but we don't need it *)
 Lemma wfr_VARS_ZONE_merge vars1 vars2 rmap1 rmap2 vars :
   wfr_VARS_ZONE vars1 rmap1 ->
@@ -2446,7 +2449,8 @@ Lemma alloc_i_invariant table1 rmap1 i table2 rmap2 c2 :
   wf_table_vars table1 rmap1 ->
   wf_table_vars table2 rmap2 /\ Sv.Subset table1.(vars) table2.(vars).
 Proof.
-  exact: (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wif Wfor Wwhile Wcall).
+  exact:
+    (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wassert Wif Wfor Wwhile Wcall).
 Qed.
 
 Lemma alloc_is_invariant table1 rmap1 c1 table2 rmap2 c2 :
@@ -2454,7 +2458,8 @@ Lemma alloc_is_invariant table1 rmap1 c1 table2 rmap2 c2 :
   wf_table_vars table1 rmap1 ->
   wf_table_vars table2 rmap2 /\ Sv.Subset table1.(vars) table2.(vars).
 Proof.
-  exact: (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wif Wfor Wwhile Wcall).
+  exact:
+    (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wassert Wif Wfor Wwhile Wcall).
 Qed.
 
 End SYNTACTIC_INVARIANTS.
@@ -4418,7 +4423,7 @@ Proof.
     have /vs_top_stack -> := hvs.
     by apply is_align_m.
 
-  apply wequiv_call_core with sa_pre sa_post Rv.
+  apply wequiv_call_core_wa with sa_pre sa_post Rv => //.
   + move => _ _ vargs1 [-> ->] hvargs1.
     have [vargs2 [*]]:= alloc_call_argsP hwf_Slots.(wfsl_no_overflow) hwf_Slots.(wfsl_disjoint)
       hwf_Slots.(wfsl_align) hwf_Slots.(wfsl_not_glob) hwf_pmap hvs hcargs hvargs1.

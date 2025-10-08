@@ -159,6 +159,7 @@ let rec modmsf_i fenv i =
       let r = modmsf_c fenv c0 in
       if is_Modified r then r else modmsf_c fenv c1
     else modified_here
+  | Cassert _ -> assert false
   | Cassgn _ -> NotModified
   | Copn (_, _, o, _) ->
     begin match is_special o with
@@ -266,6 +267,7 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
         error ~loc "syscalls destroy msf variables, %a are required" pp_vset ms;
       (* withcheck => is_empty ms *)
       ms
+  | Cassert _ -> assert false
 
   | Cif (_, c1, c2) ->
     let ms1 = infer_msf_c ~withcheck fenv tbl c1 ms in
@@ -659,9 +661,10 @@ let rec ty_expr env venv loc (e:expr) : vty =
     ty_exprs_max ~public env venv loc es
 
   | Pif(_, e1, e2, e3) ->
-      let ty1 = ty_expr env venv loc e1 in
-      let ty2 = ty_expr env venv loc e2 in
-      let ty3 = ty_expr env venv loc e3 in
+    let ty1 = ty_expr env venv loc e1 in
+    let ty2 = ty_expr env venv loc e2 in
+    let ty3 = ty_expr env venv loc e3 in
+    begin
       match ty1 with
       | Indirect _ -> assert false
       | Direct l1 ->
@@ -683,6 +686,8 @@ let rec ty_expr env venv loc (e:expr) : vty =
           do_indirect lp2 le2 (Env.public2 env) le3
         | Direct le2, Indirect (lp3, le3) ->
           do_indirect (Env.public2 env) le2 lp3 le3
+    end
+  | Pbig _ | Pis_var_init _ | Pis_mem_init _ -> assert false
 
 and ensure_smaller env venv loc e l =
   let ety = ty_expr env venv loc e in
@@ -1022,6 +1027,8 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
       let ety = ty_exprs_max ~public env venv loc es in
       ty_lvals1 env msf_e xs (declassify_ty env i.i_annot ety)
     end
+
+  | Cassert _ -> msf_e
 
   | Cif(e, c1, c2) ->
     let msf1, msf2 =

@@ -828,9 +828,9 @@ Proof.
   have [fd1 [fd2 [m [inout [Hget2 hsigs /=]]]] {Hget}]:= all_checked Hget.
   rewrite /expand_fsig; t_xrbindP => -[mt finf].
   case: f Hca Hw Hc Hres Hcr => /=.
-  move=> finfo ftyin fparams fbody ftyout fres fextra.
+  move=> finfo fci ftyin fparams fbody ftyout fres fextra.
   set fd := {| f_info := finfo |} => Hca Hw Hc Hres Hcr hinit.
-  t_xrbindP => ins hparams outs hres <- ??; subst mt inout.
+  t_xrbindP => ins hparams outs hres fci' _ <- ??; subst mt inout.
   t_xrbindP => c hc ?; subst fd1.
   move=> expdin expdout; rewrite hsigs => -[??] vargs1 hexvs; subst expdin expdout.
   set (sempty := {| escs := scs1; emem := m1; evm := Vm.init |}).
@@ -969,6 +969,7 @@ Proof.
     by apply wequiv_opn_rel_eq with checker_exp m.
   + move=> xs1 o es1 ii i2_ /=; t_xrbindP => xs2 hxs es2 hes <-.
     by apply wequiv_syscall_rel_eq with checker_exp m.
+  + by move=> *; apply wequiv_noassert.
   + move=> e1 c1 c1' hc1 hc1' ii i2_ /=; t_xrbindP => e2 he c2 /hc1{}hc1 c2' /hc1'{}hc1' <-.
     apply wequiv_if_rel_eq with checker_exp m m m => //.
     by split => //=; rewrite he.
@@ -1007,9 +1008,9 @@ Proof.
   have [fd1 [fd2 [m [inout [hget2 hsigs /=]]]]]:= all_checked hget1.
   rewrite /expand_fsig; t_xrbindP => -[mt finf].
   case: fd hget1.
-  move=> finfo ftyin fparams fbody ftyout fres fextra hget1.
+  move=> finfo fcontract ftyin fparams fbody ftyout fres fextra hget1.
   set fd := {| f_info := finfo |} => hinit.
-  t_xrbindP => ins hparams outs hres <- ??; subst mt inout.
+  t_xrbindP => ins hparams outs hres fc' _ <- ??; subst mt inout.
   t_xrbindP => c hc ?; exists fd1; subst fd1 => // s1.
   rewrite /initialize_funcall /=; t_xrbindP; rewrite /estate0 => vs1 htr hw.
   rewrite -hscs -hmem hflat => {hflat}.
@@ -1085,7 +1086,7 @@ Proof.
   t_xrbindP=> > +?? /hrec{hrec}h ?; subst=> /=.
   case: eqP; last by move=> /nesym /eqP?; rewrite Mf.setP_neq //.
   move=> <- + ? [] <- /=.
-  rewrite Mf.setP_eq /expand_fsig b /=; t_xrbindP=> -[??] _; t_xrbindP=> ? hz ? hz1 <- /=.
+  rewrite Mf.setP_eq /expand_fsig b /=; t_xrbindP=> -[??] _; t_xrbindP => ? hz ? hz1 ?? <- /=.
   do 2 f_equal.
   + move: (mapM2_Forall3 hz); elim => //= > + _ ->.
     by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.
@@ -1102,7 +1103,7 @@ Lemma it_expand_callP f :
   wiequiv_f p1 p2 ev ev (rpreF (eS:=eq_spec)) f f (rpostF (eS:=eq_spec)).
 Proof.
   apply: (rbindP _ Hcomp) => s1 /[dup]Hs1 /it_expand_callP_aux /(_ E E0 wE rE0 f) h _ hin.
-  apply wequiv_fun_get => fd hget.
+  apply wequiv_fun_get_wa => fd hget.
   have hgets : Mf.get (fsigs s1) f =
     Some (map (fun=> None) (f_tyin fd), map (fun=> None) (f_tyout fd)).
   + move: Hs1 fd hget {h}; rewrite {}/fsigs. elim: (p_funcs p1) s1
@@ -1110,14 +1111,14 @@ Proof.
     t_xrbindP=> > +?? /hrec{hrec}h ?; subst=> /=.
     case: eqP; last by move=> /nesym /eqP?; rewrite Mf.setP_neq //.
     move=> <- + ? [] <- /=.
-    rewrite Mf.setP_eq /expand_fsig hin /=; t_xrbindP=> -[??] _; t_xrbindP=> ? hz ? hz1 <- /=.
+    rewrite Mf.setP_eq /expand_fsig hin /=; t_xrbindP=> -[??] _; t_xrbindP=> ? hz ? hz1 ? _ <- /=.
     do 2 f_equal.
     + move: (mapM2_Forall3 hz); elim => //= > + _ ->.
       by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.
     move: (mapM2_Forall3 hz1); elim => //= > + _ ->.
     by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.
   apply wkequiv_io_weaken with (rpreF (eS:=exp_spec s1) f f) (rpostF (eS:=exp_spec s1) f f) => //.
-  + move=> fs1 fs2 [] [_ <-] [s]; rewrite /initialize_funcall; t_xrbindP.
+  + move=> fs1 fs2 [] [_ <-] _ [s]; rewrite /initialize_funcall; t_xrbindP.
     move=> vs htri _ _ _; split => //; split => //.
     eexists; first exact hgets.
     exists [seq [:: x] | x <- (fvals fs1)] => /=.

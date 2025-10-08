@@ -57,7 +57,7 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
        and type rflag = rflag
        and type cond = cond
        and type asm_op = asm_op
-       and type extra_op = extra_op) ~wi2i pass file idirs =
+       and type extra_op = extra_op) ~wi2i ~safety pass file idirs =
   let _env, pprog, _ast =
     try Compile.parse_file Arch.arch_info ~idirs file with
     | Annot.AnnotationError (loc, code) ->
@@ -76,6 +76,10 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let prog =
     if not wi2i then prog else Compile.do_wint_int (module Arch) prog
+  in 
+
+  let prog =
+    if not safety then prog else Compile.create_safety_asserts (module Arch) prog
   in
 
   let prog =
