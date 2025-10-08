@@ -1101,7 +1101,7 @@ fail/stack_allocation/x86-64/merge_same.jazz:
 
 "fail/stack_allocation/x86-64/merge_same.jazz", line 8 (2-19):
 compilation error in function foo:
-stack allocation: cannot merge distinct slices of the same array: rt[0; 16[ and rt[16; 32[
+stack allocation: cannot merge distinct slices of the same array: s[0; 16[ and s[16; 32[
 
 fail/stack_allocation/x86-64/merge_same_trivial.jazz:
 
@@ -1249,7 +1249,7 @@ fail/stack_allocation/x86-64/return_ptr_local.jazz:
 
 "fail/stack_allocation/x86-64/return_ptr_local.jazz", line 5 (9-10):
 compilation error in function main:
-variable allocation: returned variable r points to a region that should not escape the local scope: r[0; 4[
+variable allocation: returned variable r points to a region that should not escape the local scope: s[0; 4[
 
 fail/stack_allocation/x86-64/return_subslice.jazz:
 

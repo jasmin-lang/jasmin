@@ -150,7 +150,11 @@ let compare_gvar params x gx y gy =
       | false, true -> check_size "param" x sx y sy; -1
       | false, false ->
         let c = Stdlib.Int.compare sx sy in
-        if c = 0 then V.compare x y
+        if c = 0 then
+          match is_ptr x.v_kind, is_ptr y.v_kind with
+          | true, false -> -1
+          | false, true -> 1
+          | _, _ -> V.compare x y
         else c
 
 (* Precondition: s1 and s2 are normal forms (aka roots) in a *)
