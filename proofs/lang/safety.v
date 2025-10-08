@@ -65,11 +65,14 @@ Definition type_of_expr (e:pexpr) : stype :=
   | Pis_mem_init _ _ => sbool
   end.
 
-Definition sc_arr_init ty t aa sz e :=
+Definition sc_arr_init ty x aa sz e :=
   match ty with
   | sarr len =>
-    let lo := emk_scale aa sz e in
-    [:: PappN (Ois_arr_init len) [:: t; lo; Pconst (wsize_size sz)]]
+    if is_lvar x then
+      let lo := emk_scale aa sz e in
+      [:: PappN (Ois_arr_init len) [:: Pvar x; lo; Pconst (wsize_size sz)]]
+    else
+      [::]
   | _ => sc_false
   end.
 

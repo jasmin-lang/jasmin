@@ -112,7 +112,7 @@ Proof.
   rewrite /sem_cond.
   rewrite /sc_arr_init /get_gvar /emk_scale /emuli /= /get_gvar /= => hi.
   case: ifP => /= hloc.
-  + move=> -> /= + _.
+  + rewrite /get_gvar hloc => -> /= + _.
     case: aa; rewrite /= hi /= /sem_opN /= WArray.castK /= => -[] /allP h;
     by apply/allP => j /in_ziotaP ?; apply/h/in_ziotaP; Lia.nia.
   move=> /get_global_arr_init /allP hinit _ /allP hbound.
