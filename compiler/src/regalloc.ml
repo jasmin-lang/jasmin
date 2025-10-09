@@ -850,12 +850,10 @@ let get_friend_registers (dflt: var) (fr: friend) (a: A.allocation) (i: int) (re
 
 let schedule_coloring (size: int) (variables: (int, var list) Hashtbl.t) (cnf: conflicts) (a: A.allocation) : int list =
   let module G = struct type t = (int, IntSet.t) Hashtbl.t end in
-  (* Sets of uncolored nodes of degree below than size, and whether there are uncolored nodes. *)
-  let nodes_of_low_degree (g: G.t) : IntSet.t * bool =
-    Hashtbl.fold (fun i c ((m, _) as acc) ->
-        if A.mem i a then acc
-        else (if IntSet.cardinal c < size then IntSet.add i m else m), true)
-      g (IntSet.empty, false)
+  (* Sets of nodes of degree below than size. *)
+  let nodes_of_low_degree (g: G.t) : IntSet.t =
+    Hashtbl.fold (fun i c m -> if IntSet.cardinal c < size then IntSet.add i m else m)
+      g IntSet.empty
   in
   (* Remove from g all nodes in v *)
   let prune (g: G.t) (v: IntSet.t) : unit =
@@ -866,7 +864,7 @@ let schedule_coloring (size: int) (variables: (int, var list) Hashtbl.t) (cnf: c
   (* Any uncolored node is valid: the choice made here is arbitrary. *)
   let pick (g: G.t) : int =
     let r, _ =
-      Hashtbl.fold (fun i c m -> if A.mem i a then m else (i, c) :: m) g []
+      Hashtbl.fold (fun i c m -> (i, c) :: m) g []
       |> List.map (fun (i, c) -> i, c |> IntSet.filter (fun j -> not (A.mem j a)) |> IntSet.cardinal)
       |> List.min ~cmp:(fun (_, x) (_, y) -> Stdlib.Int.compare x y)
     in
@@ -876,12 +874,12 @@ let schedule_coloring (size: int) (variables: (int, var list) Hashtbl.t) (cnf: c
     if IntSet.is_empty v then pick g |> IntSet.singleton else v
   in
   let g = Hashtbl.create 97 in
-  Hashtbl.iter (fun i _ -> Hashtbl.add g i (get_conflicts i cnf)) variables;
+  Hashtbl.iter (fun i _ -> if not (A.mem i a) then Hashtbl.add g i (get_conflicts i cnf)) variables;
   let rec loop (g: G.t) (order: int list) : int list =
-    let v, continue = nodes_of_low_degree g in
-    if not continue
-    then (assert (IntSet.is_empty v); order)
+    if Stdlib.Int.equal (Hashtbl.length g) 0
+    then order
     else
+      let v = nodes_of_low_degree g in
       let v = pick_if_empty g v in
       prune g v;
       loop g (IntSet.elements v @ order)
