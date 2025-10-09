@@ -559,20 +559,26 @@ let normalize_variables (tbl: int Hv.t) (eqc: Puf.t) : int Hv.t =
     Hv.iter (fun v n -> Hv.add r v (Puf.find eqc n)) tbl;
     r
 
+(** An allocation maps variables (represented by their equivalence class, an
+    integer) to registers. The reverse mapping (from each register to the set of
+    variables allocated to it) is also stored. It also remembers for each
+    register, the names of the corresponding variables: the set of names is
+    usually much smaller than the set of variables and may be more suitable for
+    heuristics and error messages. *)
 module A : sig
   type allocation
   val empty: int -> allocation
   val find: int -> allocation -> var option
-  val rfind : var -> allocation -> IntSet.t
-  val set: int -> var -> allocation -> unit
+  val rfind : var -> allocation -> IntSet.t * Ss.t
+  val set: names: Ss.t -> int -> var -> allocation -> unit
   val mem: int -> allocation -> bool
 end = struct
-type allocation = var option array * IntSet.t Hv.t
+type allocation = var option array * (IntSet.t * Ss.t) Hv.t
 let empty nv = Array.make nv None, Hv.create nv
 let find n (a, _) = a.(n)
-let rfind x (_, r) = Hv.find_default r x IntSet.empty
-let set n x (a, r) =
-  Hv.modify_def IntSet.empty x (IntSet.add n) r;
+let rfind x (_, r) = Hv.find_default r x (IntSet.empty, Ss.empty)
+let set ~names n x (a, r) =
+  Hv.modify_def (IntSet.empty, Ss.empty) x (fun (p, q) -> IntSet.add n p, Ss.union names q) r;
   a.(n) <- Some x
 let mem n (a, _) = a.(n) <> None
 end
@@ -583,7 +589,7 @@ let reverse_classes nv vars : Sv.t array =
   Array.map Sv.of_list classes
 
 let get_conflict_set i (cnf: conflicts) (a: A.allocation) (x: var) : IntSet.t =
-  IntSet.inter (get_conflicts i cnf) (A.rfind x a)
+  IntSet.inter (get_conflicts i cnf) (A.rfind x a |> fst)
 
 let does_not_conflict i (cnf: conflicts) (a: A.allocation) (x: var) : bool =
   get_conflict_set i cnf a x |> IntSet.is_empty
@@ -600,7 +606,7 @@ let allocate_one nv vars loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.a
   | None ->
      let c = get_conflict_set x cnf a r in
      if IntSet.is_empty c
-     then A.set x r a
+     then A.set ~names:(Ss.singleton x_.v_name) x r a
      else
        let regs = reverse_classes nv vars in
        let other = IntSet.fold (fun i -> Sv.union regs.(i)) c Sv.empty |> Sv.elements in
@@ -837,18 +843,20 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
   | _ -> ());
   cnf
 
-(* Returns a variable from [regs] that is allocated to a friend variable of [i]. Defaults to [dflt]. *)
-let get_friend_registers (dflt: var) (fr: friend) (a: A.allocation) (i: int) (regs: var list) : var =
+(* Returns a variable from [regs] that is allocated to a friend variable of [i].
+   Raises [Not_found] if ther is none. *)
+let get_friend_registers (fr: friend) (a: A.allocation) (i: int) (regs: var list) : var =
   let fregs =
     get_friend i fr
     |> IntSet.elements
     |> List.map (fun k -> A.find k a)
   in
-  try
-    List.find (fun r -> List.mem (Some r) fregs) regs
-  with Not_found -> dflt
+  List.find (fun r -> List.mem (Some r) fregs) regs
 
-let schedule_coloring (size: int) (variables: (int, var list) Hashtbl.t) (cnf: conflicts) (a: A.allocation) : int list =
+type varset = var list * Ss.t
+(** A set of variables, together with the set of the names of the variables in the set. *)
+
+let schedule_coloring (size: int) (variables: (int, varset) Hashtbl.t) (cnf: conflicts) (a: A.allocation) : int list =
   let module G = struct type t = (int, IntSet.t) Hashtbl.t end in
   (* Sets of nodes of degree below than size. *)
   let nodes_of_low_degree (g: G.t) : IntSet.t =
@@ -886,14 +894,14 @@ let schedule_coloring (size: int) (variables: (int, var list) Hashtbl.t) (cnf: c
   in
   loop g []
 
-let lazy_scheduling (variables: (int, var list) Hashtbl.t) (a: A.allocation) : int list =
+let lazy_scheduling (variables: (int, varset) Hashtbl.t) (a: A.allocation) : int list =
   []
   |> Hashtbl.fold (fun i _c m -> if A.mem i a then m else i :: m) variables
   |> List.sort Stdlib.Int.compare
 
 let two_phase_coloring
     (registers: var list)
-    (variables: (int, var list) Hashtbl.t)
+    (variables: (int, varset) Hashtbl.t)
     (cnf: conflicts)
     (fr: friend)
     (a: A.allocation) : unit =
@@ -906,7 +914,7 @@ let two_phase_coloring
      the error message. *)
   begin match schedule, registers with
   | i :: _, [] ->
-      let x = List.hd (Hashtbl.find variables i) in
+      let x = List.hd (fst (Hashtbl.find variables i)) in
       hierror_reg ~loc:Lnone "unable to allocate %a: bank “%s” is empty on this architecture"
         (Printer.pp_dvar ~debug:(debug())) x
         (string_of_kind (kind_of_type Arch.reg_size x.v_kind x.v_ty))
@@ -926,7 +934,7 @@ let two_phase_coloring
                  | Some r ->
                    Format.fprintf fmt " - register %a%a\n"
                      (Printer.pp_var ~debug:false) r
-                     ppvl (Hashtbl.find variables i);
+                     ppvl (fst (Hashtbl.find variables i));
                    xs
                  | None -> i :: xs)
                c
@@ -934,24 +942,36 @@ let two_phase_coloring
            in
            if unallocated <> [] then begin
              Format.fprintf fmt " - variables not allocated yet";
-             List.iter (fun i -> ppvl fmt (Hashtbl.find variables i)) unallocated
+             List.iter (fun i -> ppvl fmt (fst (Hashtbl.find variables i))) unallocated
            end
          in
          let c = get_conflicts i cnf in
          hierror_reg ~loc:Lnone "no more free register to allocate variable:%a\nConflicts with:\n%a"
-           ppvl (Hashtbl.find variables i)
+           ppvl (fst (Hashtbl.find variables i))
            pp_conflicts c
          else hierror_reg ~loc:Lnone "cannot solve the register allocation problem."
-      | x :: regs ->
-        (* Any register in [x; regs] is valid: the choice made here is arbitrary. *)
-        let y = get_friend_registers x fr a i regs in
-        A.set i y a
+      | regs ->
+        let names = snd (Hashtbl.find variables i) in
+        (* Any register in [regs] is valid: the choice made here is arbitrary. *)
+        let y =
+          match get_friend_registers fr a i regs with
+          | y -> y
+          | exception Not_found ->
+             (* Pick a register that is currently allocated to a maximal number of variables with the same name. *)
+             let same_names r = A.rfind r a |> snd |> Ss.inter names in
+             let y, _ =
+               regs
+               |> List.map (fun r -> r, Ss.cardinal (same_names r))
+               |> List.max ~cmp:(fun (_, x) (_, y) -> Stdlib.Int.compare x y)
+             in y
+        in
+        A.set ~names i y a
     ) schedule
 
 let check_allocated
-      (vars: (int, var list) Hashtbl.t)
+      (vars: (int, varset) Hashtbl.t)
       (a: A.allocation) : unit =
-  match Hashtbl.fold (fun i x m -> if A.mem i a then m else x @ m) vars [] with
+  match Hashtbl.fold (fun i (x, _) m -> if A.mem i a then m else x @ m) vars [] with
   | [] -> ()
   | m ->
      hierror_reg ~loc:Lnone "variables { %a } remain unallocated"
@@ -962,14 +982,14 @@ let greedy_allocation
     (nv: int) (cnf: conflicts)
     (fr: friend)
     (a: A.allocation) : unit =
-  let scalars : (int, var list) Hashtbl.t = Hashtbl.create nv in
-  let extra_scalars : (int, var list) Hashtbl.t = Hashtbl.create nv in
-  let vectors : (int, var list) Hashtbl.t = Hashtbl.create nv in
-  let flags : (int, var list) Hashtbl.t = Hashtbl.create nv in
+  let scalars : (int, varset) Hashtbl.t = Hashtbl.create nv in
+  let extra_scalars : (int, varset) Hashtbl.t = Hashtbl.create nv in
+  let vectors : (int, varset) Hashtbl.t = Hashtbl.create nv in
+  let flags : (int, varset) Hashtbl.t = Hashtbl.create nv in
   let push_var tbl i v =
     match Hashtbl.find tbl i with
-    | old -> Hashtbl.replace tbl i (v :: old)
-    | exception Not_found -> Hashtbl.add tbl i [ v ]
+    | (old, s) -> Hashtbl.replace tbl i (v :: old, Ss.add v.v_name s)
+    | exception Not_found -> Hashtbl.add tbl i ([ v ], Ss.singleton v.v_name)
   in
   Hv.iter (fun v i ->
       match kind_of_type Arch.reg_size v.v_kind v.v_ty with
@@ -1004,7 +1024,7 @@ let subst_of_allocation vars a =
 
 let reverse_varmap nv (vars: int Hv.t) : A.allocation =
   let a = A.empty nv in
-  Hv.iter (fun v i -> A.set i v a) vars;
+  Hv.iter (fun v i -> A.set ~names:Ss.empty i v a) vars;
   a
 
 let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
@@ -1025,7 +1045,7 @@ let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
   (* The variable that is added last is the representative of its class.
      This makes sure that each argument is the representative of its class,
      meaning that it will be preserved. *)
-  List.iter (fun arg -> A.set (Hv.find vars arg) arg a) f.f_args;
+  List.iter (fun arg -> A.set ~names:Ss.empty (Hv.find vars arg) arg a) f.f_args;
   let subst = subst_of_allocation vars a in
   Subst.subst_func subst f
 
