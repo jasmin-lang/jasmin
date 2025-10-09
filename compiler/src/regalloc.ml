@@ -865,10 +865,10 @@ let schedule_coloring (size: int) (variables: (int, var list) Hashtbl.t) (cnf: c
   (* Heuristic to pick an uncolored node in g *)
   (* Any uncolored node is valid: the choice made here is arbitrary. *)
   let pick (g: G.t) : int =
-    let (r, _), _ =
+    let r, _ =
       Hashtbl.fold (fun i c m -> if A.mem i a then m else (i, c) :: m) g []
       |> List.map (fun (i, c) -> i, c |> IntSet.filter (fun j -> not (A.mem j a)) |> IntSet.cardinal)
-      |> List.min_max ~cmp:(fun (_, x) (_, y) -> Stdlib.Int.compare y x)
+      |> List.min ~cmp:(fun (_, x) (_, y) -> Stdlib.Int.compare x y)
     in
     r
   in
