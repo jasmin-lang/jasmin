@@ -113,6 +113,12 @@ Definition comp1 {E1 E2 E3: Type -> Type}
   (F1: E2 ~> E3) (F2: E1 ~> E2) : E1 ~> E3 :=
   fun T x => F1 _ (F2 _ x).
 
+Definition in_btw1 {E1 E2 E3: Type -> Type} T
+  (e: (E1 +' E2) T) : (E1 +' E3 +' E2) T :=
+  match e with
+  | inl1 x => inl1 x
+  | inr1 x => inr1 (inr1 x) end.               
+
 
 (***********************************************************************)
 
