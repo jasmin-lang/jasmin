@@ -592,7 +592,7 @@ Qed.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
 
 Section FD.
 
@@ -662,7 +662,9 @@ Proof.
                          (sem_fun (sem_Fun := sem_fun_rec E) p1 ev ii fn fs).
     + move=> ii fn2 fs /=; rewrite /do_inline; case: eqP => //= ?; reflexivity.
     rewrite (isem_cmd_ext h) => {h}.
-    by move: s t; apply it_sem_uincl_aux => // ii fn2 ???; apply hrec.
+    move: s t; apply it_sem_uincl_aux => //.
+    + by apply RndE0_recall.
+    by move=> ii fn2 ???; apply hrec.
   (* Second it works for fn1 *)
   move=> ? [? ->]; subst fn1 fd1; exists fd' => //.
   have : exists2 Xc,
@@ -835,7 +837,7 @@ End FD.
 Context
   {p : uprog}
   {ev : extra_prog_t (progT := progUnit)}
-  {rE_trans : EventRels_trans rE rE rE}
+  {rE_trans : EventRels_trans rE0 rE0 rE0}
 .
 
 Lemma inline_fd_consP (pfuncs1 pfuncs0 pfuncs2 pfuncs: ufun_decls) :
@@ -873,7 +875,7 @@ Proof.
   rewrite /inline_prog_err; case: ifP => //; t_xrbindP => huniq pfuncs h <-.
   have /(_ [::]) /= := inline_fd_consP h.
   rewrite cats0 => /(_ huniq) [_ ]; apply => fn'; rewrite (surj_prog p).
-  apply it_sem_uincl_f.
+  exact: it_sem_uincl_f.
 Qed.
 
 End IT.

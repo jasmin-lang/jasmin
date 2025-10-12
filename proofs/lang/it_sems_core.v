@@ -7,12 +7,17 @@ From ITree Require Import
      MonadState.
 Import Basics.Monads.
 
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 
-Require Import expr psem_defs psem_core it_exec rec_facts.
+Require Import word expr psem_defs psem_core it_exec rec_facts.
 
 Import MonadNotation.
 Local Open Scope monad_scope.
+
+(* Random events *)
+
+Variant RndEvent (syscall_state : Type) : Type -> Type :=
+  | Rnd : syscall_state -> Z -> RndEvent (syscall_state * seq u8).
 
 (**** Error semantics ******************************************)
 Section Errors.
@@ -183,9 +188,6 @@ Definition sem_assgn  (x : lval) (tg : assgn_tag) (ty : stype) (e : pexpr)
   Let v' := truncate_val ty v in
   write_lval true (p_globs p) x v' s.
 
-Definition fexec_syscall (o : syscall_t) (fs:fstate) : exec fstate :=
-  Let: (scs, m, vs) := exec_syscall fs.(fscs) fs.(fmem) o fs.(fvals) in
-  ok {| fscs := scs; fmem := m; fvals := vs |}.
 
 Definition mk_fstate (vs:values) (s:estate) :=
   {| fscs := escs s; fmem:= emem s; fvals := vs |}.
@@ -193,12 +195,6 @@ Definition mk_fstate (vs:values) (s:estate) :=
 Definition upd_estate wdb (gd : glob_decls) (xs:lvals) (fs : fstate)
     (s:estate) :=
   write_lvals wdb gd (with_scs (with_mem s fs.(fmem)) fs.(fscs)) xs fs.(fvals).
-
-Definition sem_syscall (xs : lvals) (o : syscall_t) (es : pexprs)
-    (s : estate) : exec estate :=
-  Let ves := sem_pexprs true (p_globs p) s es in
-  Let fs := fexec_syscall o (mk_fstate ves s) in
-  upd_estate true (p_globs p) xs fs s.
 
 Definition sem_cond (gd : glob_decls) (e : pexpr) (s : estate) : exec bool :=
   (sem_pexpr true gd s e >>= to_bool)%result.
@@ -274,7 +270,14 @@ Instance sem_fun_rec (E : Type -> Type) : sem_Fun (recCall +' E) | 0 :=
 
 Section SEM_I.
 
-Context {E E0} {wE : with_Error E E0} {sem_F : sem_Fun E }.
+Context {E E0} {wE : with_Error E E0} {rE : RndEvent syscall_state -< E} {sem_F : sem_Fun E }.
+
+Definition fexec_syscall (s : estate) (o : syscall_t) (fs:fstate) : itree E fstate :=
+  len <- iresult s (exec_syscall_arg (semSysCallParams := sSCP) o (fvals fs));;
+  scsbytes <- trigger (Rnd (fscs fs) len);;
+  scsmvs <- iresult s (exec_syscall_store o scsbytes.1 (fmem fs) (fvals fs) scsbytes.2);;
+  let fs := {| fscs := scsmvs.1.1; fmem := scsmvs.1.2; fvals := scsmvs.2 |} in
+  Ret fs.
 
 (* semantics of instructions, abstracting on function calls (through
    sem_fun) *)
@@ -286,7 +289,10 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
 
   | Copn xs tg o es => iresult s (sem_sopn (p_globs p) o s xs es)
 
-  | Csyscall xs o es => iresult s (sem_syscall p xs o es s)
+  | Csyscall xs o es =>
+      vs <- isem_pexprs true (p_globs p) es s;;
+      fs <- fexec_syscall s o (mk_fstate vs s);;
+      iresult s (upd_estate true (p_globs p) xs fs s)
 
   | Cif e c1 c2 =>
     b <- isem_cond p e s;;
@@ -366,7 +372,7 @@ Fixpoint esem_i (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
 
   | Copn xs tg o es => sem_sopn (p_globs p) o s xs es
 
-  | Csyscall xs o es => sem_syscall p xs o es s
+  | Csyscall xs o es => Error ErrSemUndef (* sem_syscall p xs o es s *)
 
   | Cif e c1 c2 =>
     Let b := sem_cond (p_globs p) e s in
@@ -401,7 +407,7 @@ Proof.
   apply (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) => {s s' c} //.
   + move=> > /= [<-]; reflexivity.
   + by move=> i c hi hc s s' /=; t_xrbindP => s1 /hi ->; rewrite bind_ret_l; apply hc.
-  1-3: move=> > /= -> /=; reflexivity.
+  1-2: move=> > /= -> /=; reflexivity.
   + move=> > hc1 hc2 ii s s' /=.
     rewrite /isem_cond; t_xrbindP => b -> /=.
     by rewrite bind_ret_l; case: b; [apply hc1 | apply hc2].
@@ -439,7 +445,7 @@ End SEM_I.
 (*** error-aware interpreter with recursion ***************************)
 Section SEM_F.
 
-Context {E E0} {wE : with_Error E E0}.
+Context {E E0} {wE : with_Error E E0} {rE : RndEvent syscall_state -< E}.
 
 Section EXTEQ.
 Context (sem_F1 sem_F2: sem_Fun E) (p:prog) (ev:extra_val_t) .
@@ -547,14 +553,15 @@ End SEM_F.
 
 (* interpreter of error events, giving us the fully interpreted
    semantics of functions *)
+(*
 Definition err_sem_fun (p : prog) (ev : extra_val_t) (fn : funname)
     (fs : fstate) : execT (itree void1) fstate :=
   interp_Err (isem_fun p ev fn fs).
-
+*)
 (*** Core lemmas about the definition ********************************)
 Section CoreLemmas.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : RndEvent syscall_state -< E}.
 Context (p : prog) (ev : extra_val_t).
 
 Notation interp_rec := (interp (mrecursive (handle_recCall p ev))).
@@ -604,7 +611,20 @@ Proof.
   + move=> s /=; rewrite interp_ret; reflexivity.
   + move=> i c hi hc s; rewrite interp_bind;apply eqit_bind; first by apply hi.
     by move=> s'; apply hc.
-  1-3: by move=> >; apply interp_iresult.
+  1-2: by move=> >; apply interp_iresult.
+  + move=> > /=.
+    rewrite /fexec_syscall /=.
+
+    rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
+    move=> vs; rewrite interp_bind; apply eqit_bind.
+    rewrite interp_bind; apply eqit_bind;
+    first by apply interp_iresult.
+    move=> len; rewrite interp_bind; apply eqit_bind.
+    + setoid_rewrite interp_trigger; rewrite /=; reflexivity.
+    move=> [scs' bytes].
+    rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
+    move => ?; rewrite interp_ret. reflexivity.
+    by move=> ?; apply interp_iresult.
   + move=> e c1 c2 hc1 hc2 ii s; rewrite /isem_i /isem_i_rec /=.
     rewrite interp_bind; apply eqit_bind.
     + by apply interp_iresult.
@@ -713,7 +733,18 @@ Proof.
     + by move=> i c hi hc s; rewrite interp_bind hi; apply/eutt_eq_bind/hc.
     + by move=> > ? >; apply interp_cond_iresult.
     + by move=> > ? > ? > ; apply interp_cond_iresult.
-    + by move=> > ? >; apply interp_cond_iresult.
+    + move=> > _ >. rewrite interp_bind /isem_cond interp_cond_iresult.
+      apply eutt_eq_bind => ? /=.
+      rewrite /fexec_syscall /=.
+      rewrite interp_bind.
+      apply eutt_eq_bind'; last first.
+      + move=> >; rewrite  interp_cond_iresult; reflexivity.
+      rewrite interp_bind interp_cond_iresult.
+      apply eutt_eq_bind => ? /=.
+      rewrite interp_bind /=. setoid_rewrite interp_trigger.
+      apply eutt_eq_bind => ? /=.
+      rewrite interp_bind interp_cond_iresult; apply eutt_eq_bind => >.
+      rewrite interp_ret; reflexivity.
     + move=> e c1 c2 hc1 hc2 ii s; rewrite interp_bind.
       rewrite /isem_cond interp_cond_iresult.
       by apply/eutt_eq_bind; case; [apply hc1 | apply hc2].

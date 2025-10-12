@@ -80,7 +80,7 @@ Proof.
   move: hofs ok_pofs => -> /=.
   rewrite truncate_word_u wrepr0 => -[<-].
   rewrite GRing.addr0 -P'_globs in he |- * => hw.
-  by apply: (mov_wsP (sCP := sCP_stack) (p1:=P') dummy_instr_info tag w (cmp_le_refl U64) he hw).
+  by apply: (mov_wsP (p1:=P') dummy_instr_info tag w (cmp_le_refl U64) he hw).
 Qed.
 
 Lemma x86_mov_ofsP : mov_ofs_correct x86_saparams.(sap_mov_ofs).
@@ -290,7 +290,7 @@ Proof.
   + by move=> _ ? _ [<-].
   + move=> _ ? _ [<-] _ fd ->; by exists fd.
   + by move=> _ ? _ [<-].
-  move=> ???? _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
+  move=> ?????? _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
 Qed.
 
 (* ------------------------------------------------------------------------ *)
