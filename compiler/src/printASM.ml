@@ -9,7 +9,7 @@ type asm_element =
 | Dwarf of string (* Debug info in std dwarf format*)
 | Instr of string * string list
 | Comment of string
-| Byte of string
+| Bytes of string list
 
 let iwidth = 4
 
@@ -31,8 +31,14 @@ let pp_instr fmt name params =
 let pp_comment fmt comment =
   Format.fprintf fmt "// %s" comment
 
-let pp_byte fmt byte =
-  Format.fprintf fmt "\t.byte\t%s" byte
+let pp_bytes fmt =
+  List.iteri (fun i byte ->
+      let pfx = i mod 16 == 0 in
+      Format.fprintf fmt "%s%s%s"
+        (if pfx && i > 0 then "\n" else "")
+        (if pfx then "\t.byte\t" else ", ")
+        byte
+    )
 
 let pp_dwarf fmt (dwarf: string) =
   Format.fprintf fmt "\t%s" dwarf
@@ -49,8 +55,8 @@ let pp_asm_element fmt asm_element =
     pp_instr fmt name params
   | Comment content ->
     pp_comment fmt content
-  | Byte data ->
-    pp_byte fmt data
+  | Bytes data ->
+    pp_bytes fmt data
 
 let pp_asm_line fmt =
   Format.fprintf fmt "%a\n%!" pp_asm_element
