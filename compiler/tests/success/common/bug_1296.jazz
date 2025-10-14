@@ -1,0 +1,7 @@
+param int x = 2;
+param int y = 1 << x;
+
+export fn load(reg ptr u8[y] v) -> reg u32 {
+  reg u32 r = v[:u32 0];
+  return r;
+}
