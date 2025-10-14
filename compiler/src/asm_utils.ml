@@ -30,14 +30,18 @@ let format_glob_data globs names =
   let names =
     List.map (fun ((x, _), p) -> (Conv.var_of_cvar x, Conv.z_of_cz p)) names
   in
-  List.flatten
-    (List.mapi
-       (fun i b ->
-         let b = Byte (Z.to_string (Conv.z_of_int8 b)) in
-         match List.find (fun (_, p) -> Z.equal (Z.of_int i) p) names with
-         | exception Not_found -> [ b ]
-         | x, _ -> [ Label (string_of_glob occurrences x); b ])
-       globs)
+  let init = [], [] in
+  let close (bytes, acc) = if bytes = [] then acc else Bytes (List.rev bytes) :: acc in
+  let push b (bytes, acc) = (b :: bytes, acc) in
+  let add_label x s = ([], Label x :: close s) in
+  let finish s = s |> close |> List.rev in
+  List.fold_lefti (fun s i b ->
+      let b = Z.format "%3i" (Conv.z_unsigned_of_word U8 b) in
+      match List.find (fun (_, p) -> Z.equal (Z.of_int i) p) names with
+      | exception Not_found -> s |> push b
+      | x, _ -> s |> add_label (string_of_glob occurrences x) |> push b
+    ) init globs
+  |> finish
 
 (* TODO : Move*)
 let hash_to_string (to_string : 'a -> string) =
