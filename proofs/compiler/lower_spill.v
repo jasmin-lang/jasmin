@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-From Coq Require Import ZArith.
+From Coq Require Import ZArith Uint63.
 Require Import pseudo_operator expr compiler_util.
 
 Local Open Scope seq_scope.
@@ -26,7 +26,7 @@ End E.
 Section ASM_OP.
 
 Context `{asmop : asmOp}.
-Context (fresh_var_ident: v_kind -> instr_info -> string -> stype -> Ident.ident).
+Context (fresh_var_ident: v_kind -> instr_info -> int -> string -> stype -> Ident.ident).
 
 Definition is_spill_op o :=
   match o with
@@ -188,7 +188,7 @@ Section PROGT.
 Context {pT: progT}.
 
 Definition init_map (s:Sv.t) :=
-  Sv.fold (fun (x:var) m =>
+  Sv.fold (fun (x:var) '(m, count) =>
     let n := vname x in         
     let k :=
       match Ident.id_kind n with
@@ -199,8 +199,9 @@ Definition init_map (s:Sv.t) :=
       end in
     let ty := vtype x in
     let n := Ident.id_name n in
-    Mvar.set m x {| vname := fresh_var_ident k dummy_instr_info n ty; vtype := ty |})
-    s (Mvar.empty var).
+    (Mvar.set m x {| vname := fresh_var_ident k dummy_instr_info count n ty; vtype := ty |}
+    , succ count))
+    s (Mvar.empty var, 0%uint63).
 
 Definition get_spill (m:Mvar.t var) ii (x:var) :=
   match Mvar.get m x with
@@ -217,7 +218,7 @@ Definition spill_fd {eft} (fn:funname) (fd: _fundef eft) : cexec (_fundef eft) :
   let 'MkFun ii tyi params c tyo res ef := fd in
   let s := foldl to_spill_i (Sv.empty, false) c in
   if ~~s.2 then ok fd else
-  let m := init_map s.1 in
+  let: (m, _) := init_map s.1 in
   let X := Sv.union (vars_l params) (Sv.union (vars_l res) (vars_c c)) in
   let b := check_map m X in
   Let _ := assert b.1 (pp_internal_error E.pass (pp_s "invalid map")) in

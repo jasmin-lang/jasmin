@@ -264,7 +264,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
 
   Let p :=
     spill_prog
-      (fun k ii => fresh_var_ident cparams k ii 0)
+      (fresh_var_ident cparams)
       p in
   let p := cparams.(print_uprog) LowerSpill p in
 
