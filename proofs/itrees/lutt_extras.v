@@ -28,10 +28,14 @@ Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
 
+(* True as a predicate*)
 Notation TrueP := (fun=>True).
 
-(*** lemmas closely related to rutt weakening *)
 
+(*** lemmas closely related to rutt weakening. This section should be
+      eliminated or merged with rutt.extra.v *)
+Section WeakSec.
+  
 (* also derivable from rutt_extras.rutt_weaken *)
 Lemma rutt_evRel_equiv E1 E2 R1 R2 REv1 REv2 RAns RR 
   (t1: itree E1 R1) (t2: itree E2 R2) :
@@ -133,20 +137,20 @@ Proof.
   rewrite A; auto.
 Qed.  
 
+End WeakSec.
 
-(** axiomatic version of some library lemmas *)
 
-(* axiomatic *)
+(*** axiomatic version of some library lemmas *)
+Section AxSec.
+  
 Lemma interp_vis_Eq {E F : Type -> Type} {T U : Type}
   (e : E T) (k : T -> itree E U) (h : E ~> itree F) :
        interp h (Vis e k)
        = ITree.bind (h T e) (fun x : T => Tau (interp h (k x))).
 Proof.
-  eapply bisimulation_is_eq.
-  eapply interp_vis; auto.
+  eapply bisimulation_is_eq; eapply interp_vis; auto.
 Qed.
   
-(* axiomatic *)
 Lemma interp_exec_vis_Eq {E F : Type -> Type} {T U : Type}
       (e : E T) (k : T -> itree E U) (h : E ~> execT (itree F))
   : interp_exec h (Vis e k)
@@ -157,49 +161,43 @@ Lemma interp_exec_vis_Eq {E F : Type -> Type} {T U : Type}
             | @ESerror _ e0 => Ret (ESerror U e0)
             end).
 Proof.
-  eapply bisimulation_is_eq.
-  eapply interp_exec_vis; auto.
+  eapply bisimulation_is_eq; eapply interp_exec_vis; auto.
 Qed.
 
-(* axiomatic *)
 Lemma bind_bind_Eq {E R S T} :
   forall (s : itree E R) (k : R -> itree E S) (h : S -> itree E T),
     ITree.bind (ITree.bind s k) h = ITree.bind s (fun r => ITree.bind (k r) h).
 Proof.
-  intros.
-  eapply bisimulation_is_eq.
-  eapply bind_bind; auto.
+  intros; eapply bisimulation_is_eq; eapply bind_bind; auto.
 Qed.
 
-(* axiomatic *)
 Lemma bind_ret_l_Eq {E R S} (r : R) (k : R -> itree E S) :
   ITree.bind (Ret r) k = (k r).
 Proof.
-  eapply bisimulation_is_eq.
-  eapply bind_ret_l; auto.
+  eapply bisimulation_is_eq; eapply bind_ret_l; auto.
 Qed.
 
-(* axiomatic *)
 Lemma bind_trigger_Eq {E R} U (e : E U) (k : U -> itree E R)
   : ITree.bind (ITree.trigger e) k = Vis e (fun x => k x).
 Proof.
-  eapply bisimulation_is_eq.
-  eapply bind_trigger; auto.
+  eapply bisimulation_is_eq; eapply bind_trigger; auto.
 Qed.
 
-(* axiomatic *)
 Lemma bind_vis_Eq {E R} U V (e: E V) (ek: V -> itree E U) (k: U -> itree E R) :
   ITree.bind (Vis e ek) k = Vis e (fun x => ITree.bind (ek x) k).
 Proof.
-  eapply bisimulation_is_eq.
-  eapply bind_vis; auto.
+  eapply bisimulation_is_eq; eapply bind_vis; auto.
 Qed.
 
+End AxSec.
 
-Section Transl_eqit_sec.
+
+(*** lemmas about translate and eqit *)
+Section TranslEqitSec.
 
 Context {E1 E2 : Type -> Type}.
 
+(* translate preserves eqit *)
 Lemma translate_eqit {T} {R} b1 b2 (F: E1 ~> E2) (t t': itree E1 T) :
    eqit R b1 b2 t t' -> eqit R b1 b2 (translate F t) (translate F t'). 
 Proof.
@@ -437,10 +435,39 @@ Proof.
     + setoid_rewrite translate_vis in B1; try discriminate.
 Qed.    
 
-End Transl_eqit_sec.  
+End TranslEqitSec.  
 
 
-Section Transl_rutt_sec.
+(*** consequences of TranslEqitSec *)
+Section TranslEqitSec0.
+
+Context {E1 E2 : Type -> Type}.
+
+(* derived translation inversion lemma *)
+Lemma translate_inl_rev_eqit {T} {R} b1 b2 (t t': itree E1 T) :
+  eqit R b1 b2 (translate (@inl1 E1 E2) t) (translate (@inl1 E1 E2) t') ->
+  eqit R b1 b2 t t'. 
+Proof.
+  intros H.
+  eapply translate_inj_rev_eqit with (F:= @inl1 E1 E2); eauto.
+  intros; inversion H0; subst; auto.
+Qed.    
+
+(* derived translation inversion lemma *)
+Lemma translate_inr_rev_eqit {T} {R} b1 b2 (t t': itree E2 T) :
+  eqit R b1 b2 (translate (@inr1 E1 E2) t) (translate (@inr1 E1 E2) t') ->
+  eqit R b1 b2 t t'. 
+Proof.
+  intros H.
+  eapply translate_inj_rev_eqit with (F:= @inr1 E1 E2); eauto.
+  intros; inversion H0; subst; auto.
+Qed.    
+
+End TranslEqitSec0.  
+
+
+(*** lemmas about translate and rutt *)
+Section TranslRuttSec.
 
 Context {E1 E2 E3 E4: Type -> Type}
         {R1 R2: Type}
@@ -474,20 +501,18 @@ Proof.
   { pstep; red; simpl.
     rewrite <- Heqot.
     rewrite <- Heqot'.
-    simpl.
-    econstructor; pclearbot. eauto with paco. }
+    simpl; econstructor; pclearbot; eauto with paco.
+  }
   { pstep; red; simpl.
     rewrite <- Heqot.
     rewrite <- Heqot'.
-    simpl.
-    econstructor; auto.
-    right. eapply CIH; eauto.
+    simpl; econstructor; auto.
+    right; eapply CIH; eauto.
     pclearbot; auto.
   }  
   { pstep; red; simpl.
     rewrite <- Heqot.
-    rewrite <- Heqot'.
-    simpl.
+    rewrite <- Heqot'; simpl.
     econstructor; eauto.
     intros a b H1.
     right. eapply CIH; auto.
@@ -495,39 +520,800 @@ Proof.
     specialize (H0 a b H1).
     pclearbot; auto.
   }
-  { simpl.
-    pstep; red. simpl.
+  { simpl; pstep; red. simpl.
     rewrite <- Heqot.
-    rewrite <- Heqot'.
-    simpl.
+    rewrite <- Heqot'; simpl.
     econstructor; auto.
     specialize (IHruttF t1 t' erefl Heqot').
     punfold IHruttF.
     red in IHruttF.
-    inv Heqot'.
-    simpl.
-    simpl in *.
-    auto.
+    inv Heqot'; simpl; simpl in *; auto.
   }
   { pstep; red; simpl.
     rewrite <- Heqot.
-    rewrite <- Heqot'.
-    simpl.
+    rewrite <- Heqot'; simpl.
     econstructor; eauto.
     specialize (IHruttF t t2 Heqot erefl).
     punfold IHruttF.
     red in IHruttF.
-    inv Heqot.
-    simpl.
-    simpl in *.
-    auto.
+    inv Heqot; simpl; simpl in *; auto.
   }
 Qed.  
 
-End Transl_rutt_sec.
+End TranslRuttSec.
+
+
+Section ImgEquivSec.
+
+Context {E1 E2 : Type -> Type}.
+
+(* t1 is strongly equivalent to the translation of t2 by F. 
+   was: inr_only_rel *)
+Definition eqitree_img (F: E2 ~> E1)
+  {T1 T2 : Type} (R: T1 -> T2 -> Prop)                       
+  (t1 : itree E1 T1) (t2: itree E2 T2) :=
+  eq_itree R t1 (translate F t2).
+
+(* t1 is weakly equivalent to the translation of t2 by F. 
+   was: wk_inr_only_rel *)
+Definition eutt_img (F: E2 ~> E1)
+  {T1 T2 : Type} (R: T1 -> T2 -> Prop)    
+  (t1 : itree E1 T1) (t2: itree E2 T2) :=
+  eutt R t1 (translate F t2).
+
+(* t1 is the rutt image of t2 when every event in t1 is the image by F
+   of an event in t2. Intutitively, this is another way to say that t1
+   is obtained by translation of t2 with F. But instead of mapping F
+   on t2, we relate the two trees using rutt. was: no_left_resG *)
+Definition rutt_img (F: E2 ~> E1) 
+  {T1 T2 : Type} (R: T1 -> T2 -> Prop)
+  (t1 : itree E1 T1) (t2 : itree E2 T2) : Prop := 
+  rutt (fun U1 U2 (e1: E1 U1) (e2: E2 U2) =>
+             exists h : U2 = U1,
+                e1 = eq_rect U2 E1 (F _ e2) U1 h)
+       (fun U1 U2 (e1: E1 U1) (u1: U1) (e2: E2 U2) (u2: U2) =>
+               JMeq u1 u2)
+       R t1 t2.
+
+(* rutt_img implies eutt_img. was: handler_rutt_etaG *)
+Lemma rutt2eutt_img (F: E2 ~> E1) 
+  T1 T2 (R: T1 -> T2 -> Prop)
+  (t1 : itree E1 T1) (t2 : itree E2 T2) :
+  rutt_img F R t1 t2 ->
+  eutt_img F R t1 t2.  
+Proof.
+  revert t1 t2.
+  ginit; gcofix CIH.
+  unfold rutt_img; intros t1 t2 H.
+  setoid_rewrite (itree_eta t1) in H.
+  setoid_rewrite (itree_eta t2) in H.
+  setoid_rewrite (itree_eta t2).
+  remember (observe t1) as ot1.
+  remember (observe t2) as ot2.  
+  punfold H; red in H; simpl in H.   
+  hinduction H before CIH.
+
+  { intros t1 t2 H0 H1.
+    gstep; red.
+    setoid_rewrite <- H0; simpl.
+    econstructor; auto.
+  }
+  { intros t1 t2 H0 H1.
+    gstep; red.
+    setoid_rewrite <- H0; simpl; pclearbot.
+    econstructor; eauto.
+    gfinal; left.
+    eapply CIH; auto.
+  }
+  { intros t1 t2 H1 H2.
+    gstep; red.
+    setoid_rewrite <- H1; simpl.
+    destruct H as [ee HA].
+    dependent destruction ee.
+    simpl in HA. inv HA.  
+    econstructor.
+    intros v; unfold Datatypes.id; simpl.
+    gfinal; left; pclearbot.
+    eapply CIH; auto.
+    unfold rutt_img; simpl.
+    eapply H0; auto.
+  }
+  { intros t1' t2 H0 H1.
+    setoid_rewrite (itree_eta t1').
+    setoid_rewrite <- H0.    
+    guclo eqit_clo_trans.
+    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
+    instantiate (1:= t1).
+    eapply eqit_Tau_l; reflexivity.
+    reflexivity.
+    pclearbot; eapply IHruttF; auto.
+    exact H1.
+    intros; inv H2; auto.
+    intros; inv H2; auto.
+  }
+  { intros t1 t2' H0 H1.
+    setoid_rewrite (itree_eta t1).
+    setoid_rewrite <- H0.    
+    guclo eqit_clo_trans.
+    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
+    3: { eapply IHruttF; try reflexivity; eauto. }
+    { inv H0; simpl.
+      setoid_rewrite (itree_eta t1) at 2; reflexivity.
+    }  
+    { setoid_rewrite translate_tau.
+      eapply eqit_Tau_l.
+      setoid_rewrite (itree_eta t2) at 1; reflexivity.
+    }  
+    { intros; inv H2; auto. }
+    { intros; inv H2; auto. }
+  }
+Qed.  
+
+
+Section FreeHSec.
+
+Context {hnd1 : E1 ~> itree E2}.  
+
+(* similar to eutt_extras.rassoc_free_interp_lemma. was: handler_eta *)
+Lemma inr_free_interp_lemma T (t: itree E2 T) :
+  eutt eq (interp (ext_handler hnd1) (translate inr1 t)) t.  
+Proof.
+  revert t.
+  ginit; gcofix CIH.
+  intro t.
+  rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot.
+  { gstep; red. simpl. econstructor; auto. }
+  { gstep; red. simpl. econstructor; eauto.
+    gfinal. left. eauto. }
+  { setoid_rewrite translate_vis.
+    setoid_rewrite interp_vis; simpl.
+    unfold id_, Id_Handler, Handler.id_.
+    setoid_rewrite bind_trigger.
+    gstep; red; simpl; econstructor.
+    intros v; unfold Datatypes.id; simpl.
+    guclo eqit_clo_trans.
+    econstructor 1 with (RR1:= eq) (RR2:= eq).
+    instantiate (1:= (interp (ext_handler hnd1) (translate inr1 (k v)))). 
+    eapply eqit_Tau_l; reflexivity.
+    reflexivity.
+    gfinal; left; eapply CIH.
+    intros; inv H; auto.
+    intros; inv H; auto.
+  }
+Qed.  
+
+End FreeHSec.
+
+End ImgEquivSec.
+
+
+Section SafeSec.
+
+Context {E : Type -> Type} {P: forall T0, E T0 -> Prop}.
+  
+(*** Safety: psafe *)
+
+(* ensures that all the events in t and t' satisfy the P predicate
+   (safety wrt P) and that results satisfy the R predicate. 
+   expressed by relating the trees by rutt. 
+   was: inl_safe_rel *)
+Definition psafe
+  (T : Type) (R : T -> Prop) (t t' : itree E T) :=
+  rutt (REv_eq P)
+       (RAns_eq (fun T0 : Type => fun=> TrueP))
+       (R_eq R) t t'.
+
+(* results just need to be equal. 
+   basically equivalent to core_logics.safe. was: inl_safe *)
+Definition is_psafe (T : Type) (t : itree E T) :=
+  exists t', psafe TrueP t t'.
+
+(* intuitively simpler than is_psafe, but actually harder to reason
+   about. was: inl_safe1 *)
+Definition refl_psafe (T : Type) (t : itree E T) : Prop :=
+  rutt (REv_eq P)
+       (RAns_eq (fun T0 : Type => fun=> TrueP)) eq t t.
+
+(* psafe implies refl_psafe. was inl_safe2safe1 *)
+Lemma psafe2refl (T : Type) (R : T -> Prop)
+  (t0 t1 : itree E T) :
+  psafe R t0 t1 -> refl_psafe t0.
+Proof.
+  revert t0 t1.
+  ginit; gcofix CIH.
+  intros t0 t1 H.
+  unfold is_psafe, psafe, refl_psafe in *.
+  setoid_rewrite (itree_eta t0) in H.
+  setoid_rewrite (itree_eta t1) in H.
+  setoid_rewrite (itree_eta t0).
+  remember (observe t0) as ot0.
+  remember (observe t1) as ot1.  
+  punfold H; red in H; simpl in H.   
+  hinduction H before CIH.
+  { intros t0 t1 H0 H1.
+    gstep; econstructor; eauto.
+  }
+  { intros t0 t1 H0 H1.
+    pclearbot.
+    gstep; econstructor; eauto.
+    gfinal; left; eauto.
+  }
+  { intros t0 t1 H1 H2; pclearbot.
+    gstep; econstructor; eauto.
+    unfold REv_eq; simpl.
+    unfold REv_eq in H; simpl in *.
+    destruct H as [H H3].
+    split; eauto.
+    { exists erefl; simpl; auto. }
+    { unfold RAns_eq; simpl.
+      intros a b [_ H3].
+      specialize (H3 erefl).
+      simpl in H3; inv H3.
+      unfold REv_eq in H.
+      destruct H as [H [hh H3]].
+      dependent destruction hh.
+      simpl in *; inv H3.
+      gfinal; left; eapply CIH; eauto.
+      unfold R_eq; simpl; instantiate (1:= k2 a).
+      specialize (H0 a a).
+      assert (RAns_eq (fun T0 : Type => fun=> TrueP) e1 a e1 a) as H5. 
+      { unfold RAns_eq; simpl.
+        split; eauto.
+        intros h; simpl.
+        dependent destruction h; simpl; auto.
+      }
+      specialize (H0 H5); eapply H0.
+    }
+  }
+  { intros t0 t2 H0 H1.
+    setoid_rewrite (itree_eta t1).
+    specialize (IHruttF t1 t2 erefl H1); simpl.
+    gstep; econstructor.
+    gfinal; left; eapply CIH.
+    instantiate (1:= {| _observe := observe t2 |}).
+    pstep; red; simpl.
+    inv H1; eapply H.
+  }
+  { intros t0 t1 H0 H1.
+    eapply IHruttF; eauto.
+  }  
+Qed.    
+
+(* psafe and refl_psafe are equivalent *)
+Lemma psafe_refl_equiv (T : Type) (t : itree E T) :
+  (exists R t', psafe R t t') <-> refl_psafe t.
+Proof.
+  split.
+  - intros [R [t' H]].
+    eapply psafe2refl; eauto.
+  - unfold refl_psafe, is_psafe, psafe; intro H.
+    exists (fun x: T => x = x).
+    exists t; unfold R_eq; simpl.
+    eapply rutt_weaken; eauto.
+Qed.    
+    
+(* is_psafe and refl_psafe are equivalent *)
+Lemma is_psafe_refl_equiv (T : Type) 
+  (t : itree E T) :
+  is_psafe t <-> refl_psafe t.
+Proof.
+  unfold is_psafe. 
+  split; intro H.
+  - eapply psafe_refl_equiv; eauto.
+  - unfold psafe, refl_psafe in *.
+    exists t; unfold R_eq.
+    eapply rutt_weaken; eauto.
+Qed.    
+
+(* Ret is trivially is_psafe *)
+Lemma psafe_ret T (r: T) : is_psafe (Ret r).
+Proof.
+  exists (Ret r).
+  pstep; red.
+  econstructor.
+  unfold R_eq; simpl; eauto.
+Qed.  
+
+End SafeSec.
 
 
 Section Safe_sec1.
+
+Context {E1 E2 : Type -> Type} {F : E2 ~> E1}.
+
+(* event e1 in E1 is image of an event in E2. was: comes_from *)
+Definition is_img T (e1: E1 T) : Prop :=
+  exists e2: E2 T, e1 = F e2.
+
+(***** alternative definition of safety, by lifting the event type in
+       an error-free tree. *)
+
+(* t is equivalent to right-lifted t2. 
+ ensures
+   that t does not contain E1 events (it is 'safe' wrt left (E1)
+   events, it only contains right (E2) ones).  here E1 generalizes
+   error events 
+*)
+(*
+Definition inr_only_rel (T : Type)
+  (t : itree E1 T) (t2: itree E2 T) :=
+  eq_itree eq t (translate F t2).
+*)
+(* t is left-safe by being right-only: was inr_only *)
+Definition is_eqitree_img (T1 T2 : Type) R (t : itree E1 T1) :=
+  exists t2: itree E2 T2, eqitree_img F R t t2.
+
+
+(* t is weakly equivalent to right-lifted t2 *)
+(*
+Definition wk_inr_only_rel (T1 T2 : Type) (R: T1 -> T2 -> Prop)
+  (t : itree E1 T1) (t2: itree E2 T2) :=
+  eutt R t (translate F t2).
+*)
+
+(* t is left-safe by being weakly right-only: was wk_inr_only *)
+Definition is_eutt_img (T1 T2 : Type) (R: T1 -> T2 -> Prop) 
+  (t : itree E1 T1) :=
+  exists t2: itree E2 T2, eutt_img F R t t2.
+
+Notation psafeR := (@psafe E1 is_img).
+Notation is_psafeR := (@is_psafe E1 is_img).
+
+(* inr_only implies safety (psafe). axiom-based. *)
+Lemma inr_only_inl_safe_refl (T : Type) (t: itree E1 T) :
+  is_eqitree_img eq t -> psafeR TrueP t t.
+Proof.
+  unfold is_eqitree_img, eqitree_img.
+  intro H.
+  destruct H as [t2 H].
+  setoid_rewrite (itree_eta (translate F t2)) in H.
+  setoid_rewrite (itree_eta t2) in H.
+  remember (observe (translate F _)) as otrt2.
+  unfold psafe.
+  setoid_rewrite H at 2.
+  revert H. revert t; simpl in *.
+  revert Heqotrt2.
+  revert otrt2 t2.
+  pcofix CIH. intros otrt2 t2 Htrt t1 H.
+  
+  punfold H. red in H. simpl in *.
+  
+  pstep; red; simpl in *.
+  remember (observe t1) as ot1.
+  remember (observe t2) as ot2.
+  simpl in *.
+
+  hinduction H before CIH; try discriminate.
+  { intros t1 H.
+    inv REL.
+    econstructor; auto.
+    unfold R_eq; simpl. split; auto. }
+  { intros t2 ot2 H H0 t1 H1.
+    econstructor.
+    setoid_rewrite (itree_eta_ m2).
+    destruct (observe t1); try discriminate.
+    inv H.
+    inv H1.
+    destruct (observe t2); try discriminate.
+    dependent destruction H0.
+    pclearbot. right.
+    eapply CIH; simpl; eauto.
+    setoid_rewrite unfold_translate in REL.
+    simpl in *.
+    destruct (observe t0); try discriminate; eauto.
+  }  
+    
+  { intros t2 ot2 H H0 t1 H1.
+    econstructor.
+    { unfold REv_eq, is_img; simpl.
+      split.
+      destruct ot2; try discriminate.
+      dependent destruction H0.
+      exists e0; auto.
+      exists erefl; simpl; auto.
+    }   
+    { unfold RAns_eq. 
+      intros a b H2.
+      setoid_rewrite (itree_eta_ (k2 b)).
+      destruct H2 as [_ H2].
+      specialize (H2 erefl).
+      dependent destruction H2; simpl.
+      destruct ot2; try discriminate.
+      dependent destruction H0.
+      right. eapply CIH.
+      instantiate (1:= (k a)).
+      simpl. reflexivity.
+      specialize (REL a).
+      unfold Datatypes.id in REL.
+      pclearbot.
+      setoid_rewrite (itree_eta_ (translate F (k a))) in REL.
+      auto.
+    } 
+  }
+Qed.     
+
+
+(* inr_only implies safety (psafe). axiom-based. *)
+Lemma inr_only_inl_safe_refl1 (T : Type) (t: itree E1 T) :
+  is_eqitree_img eq t -> psafeR TrueP t t.
+Proof.
+  revert t.
+  unfold is_eqitree_img, eqitree_img, psafe, R_eq; simpl in *.  
+  pcofix CIH; intros t [t2 H].
+  punfold H. red in H.
+  pstep; red; simpl in *.
+  dependent induction H; intros; try discriminate.
+  { rewrite <- x6.
+    econstructor; auto. }
+  { rewrite <- x6.
+    inv x0.
+    dependent destruction x1.
+    inv x.
+    dependent destruction x0.
+    econstructor.
+    pclearbot; right; eapply CIH.
+    assert (m1 = m2) as A.
+    { pclearbot; eapply bisimulation_is_eq; auto. 
+    }
+    inv A.
+    destruct (observe t); try discriminate.
+    remember (observe t2) as ot2.
+    destruct ot2; simpl; try discriminate.
+    exists t1; simpl in *.
+    inv x; reflexivity.
+  }
+  { rewrite <- x6.
+    inv x0.
+    dependent destruction x1.
+    inv x.
+    dependent destruction x0.
+    econstructor.
+    { unfold REv_eq, is_img; simpl.
+      split; eauto.
+      2: { exists erefl; simpl; auto. }
+
+      destruct (observe t2); try discriminate.
+      dependent destruction x.
+      exists e0; auto.
+    }   
+    { intros a b H.
+      destruct H as [_ H].
+      specialize (H erefl).
+      dependent destruction H.
+      right; eapply CIH.   
+      remember (observe t2) as ot2.
+      destruct ot2; simpl; try discriminate.
+      dependent destruction x.
+      exists (k a).
+      specialize (REL a).
+      pclearbot; auto.
+    } 
+  }
+  { inv x0. dependent destruction x1. }
+  { inv x1. inv x. destruct (observe t2); try discriminate. }
+  Unshelve.
+(* BAD *)    
+Abort.     
+
+(* inr_only implies is_psafe *)
+Lemma inr_only_inl_safe (T : Type) (t : itree E1 T) :
+  is_eqitree_img eq t -> is_psafeR t.    
+Proof.
+  exists t; eapply inr_only_inl_safe_refl; auto.
+Qed.
+
+
+(* wk_inr_only implies safety (psafe). proving the other way
+   round is more problematic, due to the fact that coinduction cannot
+   be applied to an existential goal. *)
+Lemma wk_inr_only_inl_safe_refl (T : Type) (t: itree E1 T) :
+  is_eutt_img eq t -> psafeR TrueP t t.
+Proof.
+  unfold is_eutt_img, eutt_img.
+  intro H.
+  destruct H as [t2 H].
+  setoid_rewrite (itree_eta (translate F t2)) in H.
+  setoid_rewrite (itree_eta t2) in H.
+  remember (observe (translate F _)) as otrt2.
+  unfold psafe.
+  setoid_rewrite H at 2.
+  revert H. revert t; simpl in *.
+  revert Heqotrt2.
+  revert otrt2 t2.
+  pcofix CIH. intros otrt2 t2 Htrt t1 H.
+  
+  punfold H. red in H. simpl in *.
+  
+  pstep; red; simpl in *.
+  remember (observe t1) as ot1.
+  remember (observe t2) as ot2.
+  simpl in *.
+
+  hinduction H before CIH; try discriminate.
+  { intros t1 H.
+    inv REL.
+    econstructor; auto.
+    unfold R_eq; simpl. split; auto. }
+  { intros t2 ot2 H H0 t1 H1.
+    econstructor.
+    setoid_rewrite (itree_eta_ m2).
+    destruct (observe t1); try discriminate.
+    inv H.
+    inv H1.
+    destruct (observe t2); try discriminate.
+    dependent destruction H0.
+    pclearbot. right.
+    eapply CIH; simpl; eauto.
+    setoid_rewrite unfold_translate in REL.
+    simpl in *.
+    destruct (observe t0); try discriminate; eauto.
+  }  
+    
+  { intros t2 ot2 H H0 t1 H1.
+    econstructor.
+    { unfold REv_eq, is_img; simpl.
+      split.
+      destruct ot2; try discriminate.
+      dependent destruction H0.
+      exists e0; auto.
+      exists erefl; simpl; auto.
+    }   
+    { unfold RAns_eq. 
+      intros a b H2.
+      setoid_rewrite (itree_eta_ (k2 b)).
+      destruct H2 as [_ H2].
+      specialize (H2 erefl).
+      dependent destruction H2; simpl.
+      destruct ot2; try discriminate.
+      dependent destruction H0.
+      right. eapply CIH.
+      instantiate (1:= (k a)).
+      simpl. reflexivity.
+      specialize (REL a).
+      unfold Datatypes.id in REL.
+      pclearbot.
+      setoid_rewrite (itree_eta_ (translate F (k a))) in REL.
+      auto.
+    } 
+  }
+  { intros t2 ot2' H0 H1 t1' H2.
+    econstructor; eauto.
+  }
+  { intros t2' ot2' H0 H1 t1' H2.
+    destruct ot2'; try discriminate.
+    dependent destruction H1.
+    inv H2.
+    econstructor; eauto.
+    eapply IHeqitF with (t2:= t); reflexivity.
+  }
+Qed.     
+
+(* inr_only implies is_psafe *)
+Lemma wk_inr_only_inl_safe (T : Type) (t : itree E1 T) :
+  is_eutt_img eq t -> is_psafeR t.    
+Proof.
+  exists t; eapply wk_inr_only_inl_safe_refl; auto.
+Qed.
+
+
+Section Safe_hnd_sec.
+
+Context {hnd1 : E1 ~> itree E2}.  
+
+Context {hnd1_hyp: forall T (e2: E2 T), hnd1 (F e2) = trigger e2 }.
+
+(* is_psafe implies no_left_res *)
+Lemma inl_safe_is_nlrG (T : Type) (t1 : itree E1 T) :
+  @is_psafe E1 is_img _ t1 ->
+  let t2 : itree E2 T := interp hnd1 t1 in
+  @rutt_img E1 E2 F T T eq t1 t2.
+Proof.
+  unfold is_psafe; simpl.
+  revert t1.
+  ginit; gcofix CIH.
+  intros t1 [tA H].
+  setoid_rewrite (itree_eta_ t1).
+  punfold H; red in H.  
+  remember (observe t1) as ot1.
+  remember (observe tA) as otA.
+  hinduction H before CIH; simpl in *.
+
+  { intros t12 tA H0 H1.
+    unfold R_eq in H; simpl in *.
+    destruct H as [_ H]; inv H.
+    gstep; red; simpl.
+    econstructor; auto.
+  }
+
+  { gstep; red; simpl.
+    intros t12 tA H0 H1.
+    econstructor; simpl.
+    gfinal; left.
+    eapply CIH.
+    exists m2.
+    pclearbot; auto.
+  }
+
+  { intros t1 tA H1 H2.
+    gstep; red.
+    setoid_rewrite interp_vis_Eq. 
+    unfold REv_eq in H.
+    destruct H as [HA [hh H]].
+    dependent destruction hh.
+    simpl in H.
+    inv H.
+    unfold is_img in HA; simpl in HA.
+    destruct HA as [e2' HA].
+    inv HA. simpl.
+
+    rewrite hnd1_hyp; simpl.    
+    econstructor.
+    { exists erefl.
+      simpl; reflexivity.
+    }
+    intros a b hh.
+    dependent destruction hh.
+    setoid_rewrite bind_ret_l.
+    setoid_rewrite tau_euttge.
+    gfinal; left; eapply CIH.
+    specialize (H0 b b).
+    assert (RAns_eq (fun T : Type => fun=> TrueP)
+              (F e2') b (F e2') b) as W. 
+    { unfold RAns_eq; split; auto.
+      intros hh; dependent destruction hh; simpl; auto.
+    }
+    specialize (H0 W).
+    exists (k2 b).
+    pclearbot; auto.
+  }
+  
+  { intros t1' tA H1 H2.    
+    setoid_rewrite interp_tau.
+    gstep; red.
+    econstructor.
+    specialize (IHruttF t1 tA erefl H2).
+    eapply gpaco2_mon.
+    setoid_rewrite <- itree_eta_ in IHruttF.
+    eapply IHruttF.
+    intros; auto with paco.
+    destruct PR.
+    intros; eauto.
+  }
+
+  { intros t1 tA H1 H2; simpl.
+    specialize (IHruttF t1 t2 H1 erefl); auto.
+  }
+Qed.  
+
+(* given the handler hnd1, is_psafe implies wk_inr_only *)
+Lemma inl_safe_wk_inr_onlyG (T : Type) (t : itree E1 T) :
+  @is_psafe E1 is_img T t ->
+  is_eutt_img eq t.   
+Proof.
+  intro H.
+  eapply inl_safe_is_nlrG in H.
+  eapply rutt2eutt_img in H.
+  unfold is_eutt_img, eutt_img.
+  exists (interp hnd1 t); auto.
+Qed.  
+  
+End Safe_hnd_sec.
+
+
+Section Safe_exec_sec.
+
+Context {hnd1 : E1 ~> execT (itree E2)}.  
+
+Context {hnd1_hyp: forall T (e2: E2 T), hnd1 (F e2) = exec_trigger e2 }.
+
+(* is_psafe implies no_left_res. here, is_psafe means safe, in the
+    sense eapply that the tree does not contain error events (here, E1
+    events) *)
+Lemma inl_safe_is_okG (T : Type) (t1 : itree E1 T) :
+  @is_psafe E1 is_img _ t1 ->
+  let t2 : itree E2 (execS T) := interp_exec hnd1 t1 in
+  @rutt_img E1 E2 F T (execS T) (fun x y => ESok x = y) t1 t2.
+Proof.
+  unfold is_psafe; simpl.
+  revert t1.
+  ginit; gcofix CIH.
+  intros t1 [tA H].
+  setoid_rewrite (itree_eta t1).
+  punfold H; red in H.  
+  remember (observe t1) as ot1.
+  remember (observe tA) as otA.
+  hinduction H before CIH; simpl in *.
+
+  { intros t1 tA H0 H1.
+    unfold R_eq in H; simpl in *.
+    destruct H as [_ H]; inv H.
+    gstep; red; simpl.
+    econstructor; auto.
+  }
+
+  { gstep; red; simpl.
+    intros t1 tA H0 H1.
+    econstructor; simpl.
+    gfinal; left.
+    eapply CIH.
+    exists m2.
+    pclearbot; auto.
+  }
+
+  { intros t1 tA H1 H2.
+    gstep; red.
+    setoid_rewrite interp_exec_vis_Eq.
+    unfold REv_eq in H.
+    destruct H as [HA [hh H]].
+    dependent destruction hh.
+    simpl in H.
+    inv H.
+    unfold is_img in HA; simpl in HA.
+    destruct HA as [e2' HA].
+    inv HA. simpl.
+
+    rewrite hnd1_hyp; simpl.    
+    econstructor.
+    { exists erefl.
+      simpl; reflexivity.
+    }
+    intros a b hh.
+    dependent destruction hh.
+    setoid_rewrite bind_ret_l.
+    setoid_rewrite tau_euttge.
+    gfinal; left; eapply CIH.
+    specialize (H0 b b).
+    assert (RAns_eq (fun T : Type => fun=> TrueP)
+              (F e2') b (F e2') b) as W.        
+    { unfold RAns_eq; split; auto.
+      intros hh; dependent destruction hh; simpl; auto.
+    }
+    specialize (H0 W).
+    exists (k2 b).
+    pclearbot; auto.
+  }
+  
+  { intros t1' tA H1 H2.    
+    setoid_rewrite interp_exec_tau.
+    gstep; red.
+    econstructor.
+    specialize (IHruttF t1 tA erefl H2).
+    eapply gpaco2_mon.
+    setoid_rewrite <- itree_eta_ in IHruttF.
+    eapply IHruttF.
+    intros; auto with paco.
+    destruct PR.
+    intros; eauto.
+  }
+
+  { intros t1' tA H1 H2; simpl.
+    specialize (IHruttF t1' t2 H1 erefl); auto.
+  }
+Qed.  
+
+(* given the handler hnd1, is_psafe implies wk_inr_only *)
+Lemma inl_safe_wk_inr_only_execG T (t : itree E1 T) :
+  @is_psafe E1 is_img T t ->
+  is_eutt_img (fun x y => ESok x = y) t.   
+Proof.
+  intro H.
+  eapply inl_safe_is_okG in H.  
+  eapply (@rutt2eutt_img _ _ _ T (execS T)) in H.
+  unfold is_eutt_img, eutt_img.
+  exists (interp_exec hnd1 t).
+  simpl in *.
+  unfold interp_exec in H.
+  auto.
+Qed.  
+
+End Safe_exec_sec.
+
+End Safe_sec1.
+
+
+Section Safe_sec1R.
 
 Context {E1 E2 : Type -> Type}.
   
@@ -537,194 +1323,38 @@ Definition is_inr T (e: (E1 +' E2) T) : Prop :=
   | inl1 _ => False
   | inr1 _ => True end.             
 
+(***** alternative definition of safety, by lifting the event
+       signature of an error-free tree. *)
 
-(*** Safety: inl_safe *)
+(* t1 is equivalent to right-lifted t2: was inr_only_relR *)
+Definition eqitree_imgR (T : Type)
+  (t1 : itree (E1 +' E2) T) (t2: itree E2 T) :=
+  @eqitree_img (E1 +' E2) E2 inr1 T T eq t1 t2.
 
-(* ensures that t does not contain E1 events (it is 'safe' wrt left
-   (E1) events, it only contains right (E2) ones).
-   here E1 generalizes error events *)
-Definition inl_safe_rel (T : Type) (R : T -> Prop)
-  (t t' : itree (E1 +' E2) T) :=
-  rutt (REv_eq (fun T0 : Type => is_inr (T:=T0)))
-       (RAns_eq (fun T0 : Type => fun=> TrueP))
-       (R_eq R) t t'.
+(* t is left-safe by being right-only. was: inr_onlyR *)
+Definition is_eqitree_imgR (T : Type) (t : itree (E1 +' E2) T) :=
+  exists t2: itree E2 T, eqitree_imgR t t2.
 
-(* equivalent to core_logics.safe *)
-Definition inl_safe (T : Type) (t : itree (E1 +' E2) T) :=
-  exists t', inl_safe_rel TrueP t t'.
+(* t1 is weakly equivalent to right-lifted t2. was: wk_inr_inly_relR *)
+Definition eutt_imgR (T1 T2 : Type) (R: T1 -> T2 -> Prop)
+  (t1 : itree (E1 +' E2) T1) (t2: itree E2 T2) :=
+  @eutt_img (E1 +' E2) E2 inr1 T1 T2 R t1 t2.
 
-(* intuitively simpler than inl_safe, but actually harder to reason
-   about *)
-Definition inl_safe1 (T : Type) (t : itree (E1 +' E2) T) : Prop :=
-  rutt (REv_eq (fun T0 : Type => is_inr (T:=T0)))
-       (RAns_eq (fun T0 : Type => fun=> TrueP)) eq t t.
-
-(* inl_safe_rel implies inl_safe1 *)
-Lemma inl_safe2safe1 (T : Type) (R : T -> Prop)
-  (t0 t1 : itree (E1 +' E2) T) :
-  inl_safe_rel R t0 t1 -> inl_safe1 t0.
-Proof.
-  revert t0 t1.
-  ginit; gcofix CIH.
-  intros t0 t1 H.
-  unfold inl_safe, inl_safe_rel, inl_safe1 in *.
-  setoid_rewrite (itree_eta t0) in H.
-  setoid_rewrite (itree_eta t1) in H.
-  setoid_rewrite (itree_eta t0).
-  remember (observe t0) as ot0.
-  remember (observe t1) as ot1.  
-  punfold H; red in H.
-  simpl in H.   
-  hinduction H before CIH.
-
-  { intros t0 t1 H0 H1.
-    gstep; econstructor; eauto.
-  }
-
-  { intros t0 t1 H0 H1.
-    pclearbot.
-    gstep; econstructor; eauto.
-    gfinal; left; eauto.
-  }
-
-  { intros t0 t1 H1 H2.
-    pclearbot.
-    gstep; econstructor; eauto.
-    unfold REv_eq; simpl.
-    unfold REv_eq in H; simpl in *.
-    destruct H as [H H3].
-    split; eauto.
-    { exists erefl; simpl; auto. }
-    { unfold RAns_eq; simpl.
-      intros a b H3.
-      destruct H3 as [_ H3].
-      specialize (H3 erefl).
-      simpl in H3.
-      inv H3.
-      unfold REv_eq in H.
-      destruct H as [H [hh H3]].
-      dependent destruction hh.
-      simpl in *.
-      inv H3.
-      
-      gfinal; left. eapply CIH; eauto.
-      unfold R_eq; simpl.
-      instantiate (1:= k2 a).
-      specialize (H0 a a).
-      assert (RAns_eq (fun T0 : Type => fun=> TrueP) e1 a e1 a) as H5. 
-      { unfold RAns_eq; simpl.
-        split; eauto.
-        intros h; simpl.
-        dependent destruction h; simpl; auto.
-      }
-      specialize (H0 H5).
-      eapply H0.
-    }
-  }
-
-  { intros t0 t2 H0 H1.
-    setoid_rewrite (itree_eta t1).
-    specialize (IHruttF t1 t2 erefl H1).
-    simpl.
-
-    gstep; econstructor.
-    gfinal. left.
-    eapply CIH.
-    instantiate (1:= {| _observe := observe t2 |}).
-    pstep; red; simpl.
-    inv H1.
-    eapply H.
-  }
-
-  { intros t0 t1 H0 H1.
-    eapply IHruttF; eauto.
-  }  
-Qed.    
-
-(* inl_safe_rel and inl_safe1 are equivalent *)
-Lemma inl_safe_rel_safe1_equiv (T : Type) 
-  (t : itree (E1 +' E2) T) :
-  (exists R t', inl_safe_rel R t t') <-> inl_safe1 t.
-Proof.
-  split.
-  - intros [R [t' H]].
-    eapply inl_safe2safe1; eauto.
-  - unfold inl_safe1, inl_safe, inl_safe_rel; intro H.
-    exists (fun x: T => x = x).
-    exists t; unfold R_eq; simpl.
-    eapply rutt_weaken; eauto.
-Qed.    
-    
-(* inl_safe and inl_safe1 are equivalent *)
-Lemma inl_safe_safe1_equiv (T : Type) 
-  (t : itree (E1 +' E2) T) :
-  inl_safe t <-> inl_safe1 t.
-Proof.
-  unfold inl_safe; split; intro H.
-  - eapply inl_safe_rel_safe1_equiv; eauto.
-  - unfold inl_safe_rel, inl_safe1 in *.
-    exists t. unfold R_eq.
-    eapply rutt_weaken; eauto.
-Qed.    
-
-(* Ret is trivially inl_safe *)
-Lemma inl_safe_ret T (r: T) : inl_safe (Ret r).
-Proof.
-  exists (Ret r).
-  pstep; red.
-  econstructor.
-  unfold R_eq; simpl; eauto.
-Qed.  
-
-
-(***** alternative definition of safety, by lifting the event type in
-       an error-free tree. *)
-
-(* t is equivalent to right-lifted t2 *)
-Definition inr_only_rel (T : Type)
-  (t : itree (E1 +' E2) T) (t2: itree E2 T) :=
-  eq_itree eq t (translate inr1 t2).
-
-(* t is left-safe by being right-only *)
-Definition inr_only (T : Type) (t : itree (E1 +' E2) T) :=
-  exists t2: itree E2 T, inr_only_rel t t2.
-
-(* t is weakly equivalent to right-lifted t2 *)
-Definition wk_inr_only_rel (T1 T2 : Type) (R: T1 -> T2 -> Prop)
-  (t : itree (E1 +' E2) T1) (t2: itree E2 T2) :=
-  eutt R t (translate inr1 t2).
-
-(* t is left-safe by being weakly right-only *)
-Definition wk_inr_only (T1 T2 : Type) (R: T1 -> T2 -> Prop) 
+(* t is left-safe by being weakly right-only: was: wk_inr_onlyR *)
+Definition is_eutt_imgR (T1 T2 : Type) (R: T1 -> T2 -> Prop) 
   (t : itree (E1 +' E2) T1) :=
-  exists t2: itree E2 T2, wk_inr_only_rel R t t2.
+  exists t2: itree E2 T2, eutt_imgR R t t2.
 
-(* derived translation inversion lemma *)
-Lemma translate_inl_rev_eqit {T} {R} b1 b2 (t t': itree E1 T) :
-  eqit R b1 b2 (translate (@inl1 E1 E2) t) (translate (@inl1 E1 E2) t') ->
-  eqit R b1 b2 t t'. 
-Proof.
-  intros H.
-  eapply translate_inj_rev_eqit with (F:= @inl1 E1 E2); eauto.
-  intros; inversion H0; subst; auto.
-Qed.    
+Notation psafeR := (@psafe (E1 +' E2) is_inr).
+Notation is_psafeR := (@is_psafe (E1 +' E2) is_inr).
 
-(* derived translation inversion lemma *)
-Lemma translate_inr_rev_eqit {T} {R} b1 b2 (t t': itree E2 T) :
-  eqit R b1 b2 (translate (@inr1 E1 E2) t) (translate (@inr1 E1 E2) t') ->
-  eqit R b1 b2 t t'. 
-Proof.
-  intros H.
-  eapply translate_inj_rev_eqit with (F:= @inr1 E1 E2); eauto.
-  intros; inversion H0; subst; auto.
-Qed.    
-
-(* inr_only implies safety (inl_safe_rel). axiom-based. *)
-Lemma inr_only_inl_safe_refl (T : Type) (t: itree (E1 +' E2) T) :
-  inr_only t -> inl_safe_rel TrueP t t.
+(* inr_only implies safety (psafe). axiom-based. *)
+Lemma inr_only_inl_safe_reflR (T : Type) (t: itree (E1 +' E2) T) :
+  is_eqitree_imgR t -> psafeR TrueP t t.
 Proof.
   revert t.
-  unfold inr_only, inr_only_rel, inl_safe_rel, R_eq; simpl in *.  
+  unfold is_eqitree_imgR, eqitree_imgR, is_eqitree_img, eqitree_img,
+    psafe, R_eq; simpl in *.  
   pcofix CIH; intros t [t2 H].
   punfold H. red in H.
   pstep; red; simpl in *.
@@ -769,20 +1399,21 @@ Proof.
   }  
 Qed.     
 
-(* inr_only implies inl_safe *)
-Lemma inr_only_inl_safe (T : Type) (t : itree (E1 +' E2) T) :
-  inr_only t -> inl_safe t.    
+(* inr_only implies is_psafe *)
+Lemma inr_only_inl_safeR (T : Type) (t : itree (E1 +' E2) T) :
+  is_eqitree_imgR t -> is_psafeR t.    
 Proof.
-  exists t; eapply inr_only_inl_safe_refl; auto.
+  exists t; eapply inr_only_inl_safe_reflR; auto.
 Qed.
 
-(* wk_inr_only implies safety (inl_safe_rel). proving the other way
+(* wk_inr_only implies safety (psafe). proving the other way
    round is more problematic, due to the fact that coinduction cannot
    be applied to an existential goal. *)
-Lemma wk_inr_only_inl_safe_refl (T : Type) (t1: itree (E1 +' E2) T) :
-  wk_inr_only eq t1 -> inl_safe_rel TrueP t1 t1.
+Lemma wk_inr_only_inl_safe_reflR (T : Type) (t1: itree (E1 +' E2) T) :
+  is_eutt_imgR eq t1 -> psafeR TrueP t1 t1.
 Proof.
-  unfold wk_inr_only, wk_inr_only_rel, inl_safe_rel, R_eq; simpl in *.
+  unfold is_eutt_imgR, eutt_imgR, is_eutt_img, eutt_img,
+    psafe, R_eq; simpl in *.
   intro H.
   setoid_rewrite (itree_eta t1).
   setoid_rewrite (itree_eta t1) in H.
@@ -880,22 +1511,26 @@ Proof.
   }  
 Qed.  
     
-(* inr_only implies inl_safe *)
-Lemma wk_inr_only_inl_safe (T : Type) (t : itree (E1 +' E2) T) :
-  wk_inr_only eq t -> inl_safe t.    
+(* inr_only implies is_psafe *)
+Lemma wk_inr_only_inl_safeR (T : Type) (t : itree (E1 +' E2) T) :
+  is_eutt_imgR eq t -> is_psafeR t.    
 Proof.
-  exists t; eapply wk_inr_only_inl_safe_refl; auto.
+  exists t; eapply wk_inr_only_inl_safe_reflR; auto.
 Qed.
 
 (* rutt inr-relating E1+E2 to E2 *)
 Definition no_left_res (T1 T2 : Type) (R: T1 -> T2 -> Prop)
-  (t12 : itree (E1 +' E2) T1) (t2 : itree E2 T2) : Prop := 
+  (t12 : itree (E1 +' E2) T1) (t2 : itree E2 T2) : Prop :=
+  @rutt_img  (E1 +' E2) E2 (fun _ e => inr1 e) T1 T2 R t12 t2. 
+
+(*
   rutt (fun U12 U2 (e12: (E1 +' E2) U12) (e2: E2 U2) =>
               exists h : U2 = U12,
                 e12 = eq_rect U2 (E1 +' E2) (inr1 e2) U12 h)
        (fun U12 U2 (e12: (E1 +' E2) U12) (u12: U12) (e2: E2 U2) (u2: U2) =>
                JMeq u12 u2)
        R t12 t2.
+*)
 
 (* if t12 is inr-rutt-related to t2, then t12 is quivalent to the
    inr-lifting of t2 *)
@@ -905,92 +1540,9 @@ Lemma handler_rutt_eta T1 T2 (R: T1 -> T2 -> Prop)
   no_left_res R t12 t2 ->
   eutt R t12 (translate inr1 t2).  
 Proof.
-  revert t12 t2.
-  ginit; gcofix CIH.
-  unfold no_left_res.
-  intros t12 t2 H.
-  setoid_rewrite (itree_eta t12) in H.
-  setoid_rewrite (itree_eta t2) in H.
-  setoid_rewrite (itree_eta t2).
-  remember (observe t12) as ot12.
-  remember (observe t2) as ot2.  
-  punfold H; red in H.
-  simpl in H.   
-  hinduction H before CIH.
-
-  { intros t12 t2 H0 H1.
-    gstep; red.
-    setoid_rewrite <- H0.    
-    simpl.
-    econstructor; auto.
-  }
-  { intros t12 t2 H0 H1.
-    gstep; red.
-    setoid_rewrite <- H0.
-    simpl. pclearbot.
-    econstructor; eauto.
-    gfinal. left.
-    eapply CIH; auto.
-  }
-  { intros t12 t2 H1 H2.
-    gstep; red.
-    setoid_rewrite <- H1.
-    simpl.
-    destruct H as [ee H].
-    dependent destruction ee.
-    destruct e1 as [e1 | e2'].
-    { simpl in H; congruence. }
-    simpl in H. inv H.  
-    econstructor.
-    intros v; unfold Datatypes.id; simpl.
-    gfinal; left.
-    pclearbot.
-    eapply CIH; auto.
-    eapply H0; auto.
-  }
-  { intros t12 t2 H0 H1.
-    setoid_rewrite (itree_eta t12).
-    setoid_rewrite <- H0.
-    
-    guclo eqit_clo_trans.
-    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
-
-    instantiate (1:= t1).
-    eapply eqit_Tau_l; reflexivity.
-    reflexivity.
-    pclearbot.
-    eapply IHruttF; auto.
-    exact H1.
-    intros. inv H2; auto.
-    intros. inv H2; auto.
-  }
-
-  { intros t12 t2' H0 H1.
-    setoid_rewrite (itree_eta t12).
-    setoid_rewrite <- H0.
-    
-    guclo eqit_clo_trans.
-    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
-
-    3: { eapply IHruttF.
-         exact H0.
-         reflexivity.
-    }
-
-    { inv H0; simpl.
-      setoid_rewrite (itree_eta t12) at 2.
-      reflexivity.
-    }  
-    { setoid_rewrite translate_tau.
-      eapply eqit_Tau_l.
-      setoid_rewrite (itree_eta t2) at 1.
-      reflexivity.
-    }  
-    { intros. inv H2; auto. }
-    { intros. inv H2; auto. }
-  }
+  eapply rutt2eutt_img.
 Qed.  
-
+  
 (* not really needed *)
 (* Lemma handler_rutt_eta_exec T1 T2 (R: T1 -> T2 -> Prop)
   (t12: itree (E1 +' E2) T1)
@@ -1003,46 +1555,13 @@ Section Safe_hnd_sec.
 
 Context {hnd1 : E1 ~> itree E2}.  
 
-(* similar to eutt_extras.rassoc_free_interp_lemma. *)
-Lemma handler_eta T (t: itree E2 T) :
-  eutt eq (interp (ext_handler hnd1) (translate inr1 t)) t.  
-Proof.
-  revert t.
-  ginit; gcofix CIH.
-  intro t.
-  rewrite (itree_eta t).
-  remember (observe t) as ot.
-  destruct ot.
-  { gstep; red. simpl. econstructor; auto. }
-  { gstep; red. simpl. econstructor; eauto.
-    gfinal. left. eauto. }
-  { setoid_rewrite translate_vis.
-    setoid_rewrite interp_vis.
-    simpl.
-    unfold id_, Id_Handler, Handler.id_.
-    setoid_rewrite bind_trigger.
-    gstep; red. simpl; econstructor.
-    intros v. unfold Datatypes.id; simpl.
-
-    guclo eqit_clo_trans.
-    econstructor 1 with (RR1:= eq) (RR2:= eq).
-    instantiate (1:= (interp (ext_handler hnd1) (translate inr1 (k v)))). 
-    eapply eqit_Tau_l. reflexivity.
-    reflexivity.
-    gfinal. left.
-    eapply CIH.
-    intros. inv H; auto.
-    intros. inv H; auto.
-  }
-Qed.  
-
-(* inl_safe implies no_left_res *)
+(* is_psafe implies no_left_res *)
 Lemma inl_safe_is_nlr (T : Type) (t12 : itree (E1 +' E2) T) :
-  inl_safe t12 ->
+  is_psafeR t12 ->
   let t2 : itree E2 T := interp (ext_handler hnd1) t12 in
   no_left_res eq t12 t2.
 Proof.
-  unfold inl_safe; simpl.
+  unfold is_psafe; simpl.
   revert t12.
   ginit; gcofix CIH.
   intros t12 [tA H].
@@ -1116,14 +1635,14 @@ Proof.
   }
 Qed.  
 
-(* given the handler hnd1, inl_safe implies wk_inr_only *)
+(* given the handler hnd1, is_psafe implies wk_inr_only *)
 Lemma inl_safe_wk_inr_only (T : Type) (t : itree (E1 +' E2) T) :
-  inl_safe t -> wk_inr_only eq t.   
+  is_psafeR t -> is_eutt_imgR eq t.   
 Proof.
   intro H.
   eapply inl_safe_is_nlr in H.
   eapply handler_rutt_eta in H.
-  unfold wk_inr_only, wk_inr_only_rel.
+  unfold is_eutt_img, eutt_img.
   exists (interp (ext_handler hnd1) t); auto.
 Qed.  
   
@@ -1134,18 +1653,19 @@ Section Safe_exec_sec.
 
 Context {hnd1 : E1 ~> execT (itree E2)}.  
 
+(* generalization bottleneck: E1 must be a leftmost event type *)
 Local Definition hnd_ext : (E1 +' E2) ~> execT (itree E2) :=
   @ext_exec_handler E1 E2 hnd1.
 
-(* inl_safe implies no_left_res. here, inl_safe means safe, in the
+(* is_psafe implies no_left_res. here, is_psafe means safe, in the
     sense eapply that the tree does not contain error events (here, E1
     events) *)
 Lemma inl_safe_is_ok (T : Type) (t12 : itree (E1 +' E2) T) :
-  inl_safe t12 ->
+  is_psafeR t12 ->
   let t2 : itree E2 (execS T) := interp_exec hnd_ext t12 in
   no_left_res (fun x y => ESok x = y) t12 t2.
 Proof.
-  unfold inl_safe; simpl.
+  unfold is_psafe; simpl.
   revert t12.
   ginit; gcofix CIH.
   intros t12 [tA H].
@@ -1219,14 +1739,14 @@ Proof.
   }
 Qed.  
 
-(* given the handler hnd1, inl_safe implies wk_inr_only *)
+(* given the handler hnd1, is_psafe implies wk_inr_only *)
 Lemma inl_safe_wk_inr_only_exec T (t : itree (E1 +' E2) T) :
-  inl_safe t -> wk_inr_only (fun x y => ESok x = y) t.   
+  is_psafeR t -> is_eutt_imgR (fun x y => ESok x = y) t.   
 Proof.
   intro H.
   eapply inl_safe_is_ok in H.  
   eapply (@handler_rutt_eta T (execS T)) in H.
-  unfold wk_inr_only, wk_inr_only_rel.
+  unfold is_eutt_img, eutt_img.
   exists (interp (ext_exec_handler hnd1) t).
   simpl in *.
   unfold interp_exec in H.
@@ -1256,7 +1776,7 @@ Definition FstEval (r2: R2) :
 
 (* similar to inl_safe_is_ok, but expressed with eutt *)
 Lemma inl_safe_is_ok_eutt (err: R2) (t1 : itree (E1 +' E2) R1) :
-  inl_safe t1 -> 
+  is_psafeR t1 -> 
   eutt (fun x y => eq (inl x) y) t1 (translate inr1 (FstEval err t1)).
 Proof.
   intros [t2 H].
@@ -1391,14 +1911,14 @@ Section Lutt_sec.
 
 Context {E : Type -> Type} {X: FIso E (E1 +' E2)}.
 
-(* lutt is equivalent to inl_safe *)
-Lemma lutt_inl_safe_rel_eq (T : Type) (R : T -> Prop)
+(* lutt is equivalent to is_psafe *)
+Lemma lutt_psafe_eq (T : Type) (R : T -> Prop)
   (t : itree E T) :
-  (exists t', inl_safe_rel R (translate mfun1 t) t') <->
+  (exists t', psafeR R (translate mfun1 t) t') <->
     lutt (fun (T0 : Type) e => is_inr (T:=T0) (mfun1 e))
          (fun T0 : Type => fun=> TrueP) R t.
 Proof. 
-  split; unfold lutt, inl_safe_rel; intro H.
+  split; unfold lutt, psafeR; intro H.
   { destruct H as [t' H].
     exists (translate mfun2 t').
 
@@ -1476,17 +1996,17 @@ Proof.
 Qed.
 
 (* a generalization (by R) of core_logics.safe *)
-Lemma lutt_inl_safe_rel_eqB (T : Type) (R : T -> Prop)
+Lemma lutt_psafe_eqB (T : Type) (R : T -> Prop)
   (t : itree E T) :
-  (exists t', inl_safe_rel R (translate mfun1 t) t') 
+  (exists t', psafeR R (translate mfun1 t) t') 
    <-> lutt (fun (T0 : Type) e => ~~ is_inlB (T:=T0) (mfun1 e))
          (fun T0 : Type => fun=> TrueP) R t.
 Proof.
   split; intro H.
   - eapply lutt_is_inr_equiv.
-    eapply lutt_inl_safe_rel_eq; auto.
+    eapply lutt_psafe_eq; auto.
   - eapply lutt_is_inr_equiv in H.
-    eapply lutt_inl_safe_rel_eq; auto.
+    eapply lutt_psafe_eq; auto.
 Qed.    
 
 
@@ -1494,8 +2014,33 @@ Section Lutt_sec2.
 
 Context {hnd1 : E1 ~> execT (itree E2)}.  
 
+Notation is_error e := (is_inlB (mfun1 e)).
+
 (* core_logics.safe means safe (the tree does not contain error
-  events) *)
+  events). Notice that this does not exclude that E2 includes an error
+  event type. In fact, this actually implies safety only when E2 is
+  void, or more generally when no event in E2 can trigger errors. *)
+Lemma safe_is_ok (T : Type) 
+  (t : itree E T) :
+  lutt (fun (T0 : Type) e => ~~ is_error e)
+    (fun T0 : Type => fun=> TrueP) TrueP t ->
+  let t2 : itree E2 (execS T) :=
+    interp_exec (@hnd_ext hnd1) (translate mfun1 t) in
+  rutt (fun U12 U2 (e12: (E1 +' E2) U12) (e2: E2 U2) =>
+              exists h : U2 = U12,
+                e12 = eq_rect U2 (E1 +' E2) (inr1 e2) U12 h)
+       (fun U12 U2 (e12: (E1 +' E2) U12) (u12: U12) (e2: E2 U2) (u2: U2) =>
+               JMeq u12 u2)
+        (fun x y => ESok x = y) (translate mfun1 t) t2.
+  intro H.
+  eapply lutt_psafe_eqB in H.
+  revert H.
+  generalize (translate mfun1 t).
+  intros t12 H.
+  eapply inl_safe_is_ok. unfold is_psafe. auto. 
+Qed.
+
+(*
 Lemma safe_is_ok (T : Type) 
   (t : itree E T) :
   lutt (fun (T0 : Type) e => ~~ is_inlB (T:=T0) (mfun1 e))
@@ -1510,16 +2055,28 @@ Lemma safe_is_ok (T : Type)
         (fun x y => ESok x = y) (translate mfun1 t) t2.
 Proof.
   intro H.
-  eapply lutt_inl_safe_rel_eqB in H.
+  eapply lutt_psafe_eqB in H.
   revert H.
   generalize (translate mfun1 t).
   intros t12 H.
   eapply inl_safe_is_ok. unfold inl_safe. auto. 
 Qed.
+*)
 
 End Lutt_sec2.
 
 End Lutt_sec.
 
-End Safe_sec1.
+(*
+Print safe.
+
+Lemma xxx (E: Type -> Type)
+  (X : forall T : Type, E T -> bool) T t : @safe E X T t = safe X t.
+  unfold safe at 1.
+Abort.  
+
+Check is_inlB.
+*)
+
+End Safe_sec1R.
 
