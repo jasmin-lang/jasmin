@@ -1,0 +1,11 @@
+export fn f(reg u32 a) {
+  if a < 0 {
+    reg u32 x = 0;
+    () = #spill(x);
+    () = #unspill(x);
+  } else {
+    reg u32 x = 0;
+    () = #spill(x);
+    () = #unspill(x);
+  }
+}
