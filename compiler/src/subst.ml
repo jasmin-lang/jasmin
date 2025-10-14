@@ -164,6 +164,20 @@ let psubst_prog (prog:('info, 'asm) pprog) =
 
 (* ---------------------------------------------------------------- *)
 (* Simplify type                                                    *)
+let int_of_op1 ?loc =
+  function
+  | Expr.Oneg Op_int -> Z.neg
+  | o -> hierror ?loc "unary operator %s not supported in array sizes" (PrintCommon.string_of_op1 ~debug:false o)
+
+let shift_left ?loc (x: Z.t) (y: Z.t) : Z.t =
+  match Z.to_int y with
+  | exception Z.Overflow -> hierror ?loc "overflow in left shift by %s" (Z.to_string y)
+  | y -> if y < 0 then Z.shift_right x (-y) else Z.shift_left x y
+
+let shift_right ?loc (x: Z.t) (y: Z.t) : Z.t =
+  match Z.to_int y with
+  | exception Z.Overflow -> hierror ?loc "overflow in right shift by %s" (Z.to_string y)
+  | y -> if y < 0 then Z.shift_left x (-y) else Z.shift_right x y
 
 let int_of_op2 ?loc o =
   match o with
@@ -172,16 +186,20 @@ let int_of_op2 ?loc o =
   | Expr.Osub Op_int -> Z.sub
   | Expr.Odiv(sg, Op_int) -> if sg = Unsigned then Z.ediv else Z.div
   | Expr.Omod(sg, Op_int) -> if sg = Unsigned then Z.erem else Z.rem
+  | Expr.Olsl Op_int -> shift_left ?loc
+  | Expr.Oasr Op_int -> shift_right ?loc
   | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (PrintCommon.string_of_op2 o)
 
 let rec int_of_expr ?loc e =
   match e with
   | Pconst i -> i
+  | Papp1 (o, e1) ->
+     int_of_op1 ?loc o @@ int_of_expr ?loc e1
   | Papp2 (o, e1, e2) ->
       let op = int_of_op2 ?loc o in
       op (int_of_expr ?loc e1) (int_of_expr ?loc e2)
   | Pbool _ | Parr_init _ | Pvar _
-  | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _ ->
+  | Pget _ | Psub _ | Pload _ | PappN _ | Pif _ ->
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" (Printer.pp_pexpr ~debug:false) e
 
 
