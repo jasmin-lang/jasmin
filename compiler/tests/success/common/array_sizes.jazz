@@ -1,0 +1,14 @@
+param int one = 1;
+param int two = one << one;
+
+u8[one] a = { 0 };
+u8[one + one] b = { 1, 2 };
+u8[one * one] c = { 3 };
+u8[two - one] d = { 4 };
+u8[- - one] e = { 5 };
+u8[-(5 /s -two)] f = { 6, 7 };
+u8[(-5) /u -two] g = { 8, 9, 10 };
+u8[-((-5) %s -two)] h = { 11 };
+u8[(-5) %u -two] i = { 12 };
+u8[(one << two) << -one] j = { 13, 14 };
+u8[(two >> -one) >> two] k = { 15 };

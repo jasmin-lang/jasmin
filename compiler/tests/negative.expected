@@ -712,25 +712,25 @@ fail/param_expansion/x86-64/expression_arg.jazz:
 
 "fail/param_expansion/x86-64/expression_arg.jazz", line 3 (24-25):
 compilation error in function f:
-param expansion: expression ((uint) ((64u) 3)) not allowed in array size (only constant arithmetic expressions are allowed)
+param expansion: unary operator (64u) not supported in array sizes
 
 fail/param_expansion/x86-64/expression_global.jazz:
 
 "fail/param_expansion/x86-64/expression_global.jazz", line 2 (7-8):
 compilation error:
-param expansion: expression ((uint) ((64u) 3)) not allowed in array size (only constant arithmetic expressions are allowed)
+param expansion: unary operator (64u) not supported in array sizes
 
 fail/param_expansion/x86-64/expression_global2.jazz:
 
 "fail/param_expansion/x86-64/expression_global2.jazz", line 2 (18-19):
 compilation error:
-param expansion: expression ((uint) ((64u) 2)) not allowed in array size (only constant arithmetic expressions are allowed)
+param expansion: unary operator (64u) not supported in array sizes
 
 fail/param_expansion/x86-64/expression_res.jazz:
 
 "fail/param_expansion/x86-64/expression_res.jazz", line 4 (13-14):
 compilation error in function f:
-param expansion: expression ((uint) ((64u) 3)) not allowed in array size (only constant arithmetic expressions are allowed)
+param expansion: unary operator (64u) not supported in array sizes
 
 fail/param_expansion/x86-64/global_array_not_constant.jazz:
 
