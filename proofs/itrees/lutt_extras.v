@@ -1683,6 +1683,167 @@ Qed.
 
 End Lutt_sec2.
 
+
+Section Lutt_sec3.
+
+Context {hnd1 : E1 ~> execT (itree E2)}.  
+  
+Lemma lutt2rutt_ok_core (T : Type) 
+  (t1 : itree (E1 +' E2) T) :
+  (* is_inr_safe eq t1 *)
+   (exists t0 : itree (E1 +' E2) T,
+      rutt (REv_eq (fun (T0 : Type) (e : (E1 +' E2) T0) => is_inr e))
+        (RAns_eq (fun T0 : Type => fun=> TrueP)) (R_eq TrueP) t1 t0) ->
+  let t2 : itree E2 (execS T) := interp_exec (@hnd_ext hnd1) t1 in
+  rutt (fun U1 U2 (e1: (E1 +' E2) U1) (e2: E2 U2) =>
+             exists h : U2 = U1,
+                e1 = eq_rect U2 (E1 +' E2) (inr1 e2) U1 h)
+       (fun U1 U2 (e1: (E1 +' E2) U1) (u1: U1) (e2: E2 U2) (u2: U2) =>
+               JMeq u1 u2) (fun x y => ESok x = y) t1 t2.
+Proof.
+  simpl. revert t1.
+  ginit; gcofix CIH.
+  intros t1 [t0 H].
+  rewrite (itree_eta t1).
+  punfold H. red in H.
+  remember (observe t1) as ot1.
+  remember (observe t0) as ot0.
+  hinduction H before CIH.
+  { intros t1 t0 H0 H1.
+    setoid_rewrite interp_exec_ret.
+    gstep; red.
+    econstructor; auto.
+  }
+  { pclearbot; intros t1 t0 H0 H1.
+    setoid_rewrite interp_exec_tau.
+    gstep; red.
+    econstructor; eauto.
+    gfinal; left.
+    eapply CIH; eauto.
+  }
+  { pclearbot; intros t1 t0 H1 H2. 
+    setoid_rewrite interp_exec_vis.
+    gstep; red.
+    unfold REv_eq in H; simpl in H.
+    (* Ltac intuition_solver := solve [auto] || idtac. *)
+    destruct e1; simpl; intuition auto with *. 
+    econstructor; eauto.
+    - exists erefl; simpl; auto.
+    - intros a b H5.
+      dependent destruction H5.
+      setoid_rewrite bind_ret_l.
+      setoid_rewrite tau_euttge.
+      gfinal; left.
+      eapply CIH; eauto.
+      destruct H4 as [hh H4].
+      dependent destruction hh; simpl in *.
+      inv H4.
+      exists (k2 b).
+      eapply H0; eauto.
+      unfold RAns_eq; simpl.
+      split; auto.
+      intros h.
+      dependent destruction h; simpl; auto.
+  }
+  { (* strange case; proved by coinductive hyp. using with pcofix, we
+  get problems rewriting with interp_exec_ lemmas, but this woudl be
+  provable by the inductive hyp, as epected. *)
+    pclearbot; intros t0 t2 H0 H1.
+    setoid_rewrite interp_exec_tau.
+    gstep; red.
+    econstructor.
+    gfinal; left.
+    eapply CIH.
+    exists t2.
+    pstep; red. inv H1.
+    eapply H.
+  }
+  { pclearbot; intros t1 t0 H0 H1.
+    eapply IHruttF; eauto.
+  }
+Qed.  
+
+Lemma rutt_ok2lutt_core (T : Type) 
+  (t0 : itree (E1 +' E2) T) :
+  (exists t2 : itree E2 (execS T),
+     rutt (fun U1 U2 (e1: (E1 +' E2) U1) (e2: E2 U2) =>
+             exists h : U2 = U1,
+                e1 = eq_rect U2 (E1 +' E2) (inr1 e2) U1 h)
+       (fun U1 U2 (e1: (E1 +' E2) U1) (u1: U1) (e2: E2 U2) (u2: U2) =>
+               JMeq u1 u2) (fun x y => ESok x = y) t0 t2) ->
+  rutt (REv_eq (fun (T0 : Type) (e : (E1 +' E2) T0) => is_inr e))
+        (RAns_eq (fun T0 : Type => fun=> TrueP)) (R_eq TrueP) t0 t0.
+Proof.
+  simpl. revert t0.
+  ginit; gcofix CIH.
+  intros t0 [t2 H].
+  punfold H. red in H.
+  remember (observe t2) as ot2.
+  remember (observe t0) as ot0.
+  hinduction H before CIH.
+  { intros t0 t2 H0 H1.
+    gstep; red.
+    rewrite <- H1.
+    econstructor; auto.
+    unfold R_eq; simpl; auto.
+  }
+  { pclearbot; intros t0 t2 H0 H1.
+    gstep; red.
+    rewrite <- H1.
+    econstructor; eauto.
+    gfinal; left.
+    eapply CIH; eauto.
+  }
+  { pclearbot; intros t0 t2 H1 H2. 
+    gstep; red.
+    rewrite <- H2.
+    destruct H as [hh H].
+    dependent destruction hh; simpl in H.
+    inv H.
+    econstructor.
+    - unfold REv_eq; simpl. split; auto.
+      exists erefl; simpl; auto.
+    - unfold RAns_eq; simpl; intros a b [_ H3].
+      specialize (H3 erefl); simpl in H3; inv H3.
+      gfinal; left.
+      eapply CIH; eauto.
+      exists (k2 a).
+      eapply H0; eauto.
+  }
+  { pclearbot; intros t0 t2 H1 H2.
+    gstep; red; inv H1.
+    rewrite <- H2.
+    econstructor.
+    gfinal; left.
+    eapply CIH; eauto.
+    exists t2.
+    pstep; red; auto.
+  }  
+  { pclearbot; intros t0 t1 H1 H2. 
+    inv H2.
+    eapply IHruttF; eauto.
+  }
+Qed.  
+
+Lemma lutt2rutt_ok (T : Type) 
+  (t1 : itree (E1 +' E2) T) :
+    is_inr_safe TrueP t1 ->
+    let t2 : itree E2 (execS T) := interp_exec (@hnd_ext hnd1) t1 in
+    rutt_inr (fun x y => ESok x = y) t1 t2.
+Proof.
+  eapply lutt2rutt_ok_core.
+Qed.  
+
+Lemma rutt_ok2lutt (T : Type) 
+  (t1 : itree (E1 +' E2) T) :
+    (exists t2, rutt_inr (fun x y => ESok x = y) t1 t2) ->
+    inr_safe TrueP t1 t1.
+Proof.
+  eapply rutt_ok2lutt_core.
+Qed.  
+
+End Lutt_sec3.
+  
 End Lutt_sec.
 
 
