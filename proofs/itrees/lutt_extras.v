@@ -1002,11 +1002,11 @@ Definition is_img T (e1: E1 T) : Prop :=
 Notation img_safe := (@psafe E1 is_img).
 Notation is_img_safe := (@is_psafe E1 is_img).
 
-(* eqit_img implies img_safe (TOO STRICT). proving the other way round
-  - eapply inr_safe2eutt_inr_exec; eautois harder,
-   due to the fact that coinduction cannot be applied to an
-   existential goal.  was: wk_inr_only_inl_safe_refl,
-   inr_only_inl_safe_refl *)
+(* eqit_img implies img_safe (TOO STRICT: can generalize eq to R and
+   TrueP with the predicate matching R). proving the other way round -
+   eapply inr_safe2eutt_inr_exec; eautois harder, due to the fact that
+   coinduction cannot be applied to an existential goal.  was:
+   wk_inr_only_inl_safe_refl, inr_only_inl_safe_refl *)
 Lemma eqit_img2img_safe (b1 b2: bool) (T : Type) (t: itree E1 T) :
   is_eqit_img F eq b1 b2 t -> img_safe TrueP t t.
 Proof.
@@ -1092,6 +1092,15 @@ Lemma eqit_img2is_img_safe (b1 b2: bool) (T : Type) (t : itree E1 T) :
 Proof.
   exists t; eapply eqit_img2img_safe; eauto.
 Qed.
+
+(* could be generalized beyond eq; but currently eqit_img2img_safe is
+   the bottleneck *)
+Lemma rutt_img2img_safe (T : Type) (t1 : itree E1 T) :
+  (exists t2, @rutt_img E1 E2 F T T eq t1 t2) -> img_safe TrueP t1 t1.
+Proof.
+  intros [t2 H]; eapply eqit_img2img_safe with (b1 := true) (b2 := true).
+  exists t2; eapply rutt_img2eutt_img; auto.
+Qed.  
 
 
 Section Safe_hnd_sec.
@@ -1188,6 +1197,65 @@ Qed.
   
 End Safe_hnd_sec.
 
+(* should be obtained as rutt_img2img_safe. currently not possible *)
+Lemma rutt_img2img_safe_exec (T : Type) (t1 : itree E1 T) :
+  (exists t2,
+      @rutt_img E1 E2 F T (execS T) (fun x y => ESok x = y) t1 t2) ->
+    img_safe TrueP t1 t1.
+Proof.
+  unfold rutt_img, img_safe.
+  simpl. revert t1.
+  ginit; gcofix CIH.
+  intros t1 [t2 H].
+  punfold H. red in H.
+  remember (observe t2) as ot2.
+  remember (observe t1) as ot1.
+  hinduction H before CIH.
+  { intros t1 t2 H0 H1.
+    gstep; red.
+    rewrite <- H1.
+    econstructor; auto.
+    unfold R_eq; simpl; auto.
+  }
+  { pclearbot; intros t1 t2 H0 H1.
+    gstep; red.
+    rewrite <- H1.
+    econstructor; eauto.
+    gfinal; left.
+    eapply CIH; eauto.
+  }
+  { pclearbot; intros t1 t2 H1 H2. 
+    gstep; red.
+    rewrite <- H2.
+    destruct H as [hh H].
+    dependent destruction hh; simpl in H.
+    inv H.
+    econstructor.
+    - unfold REv_eq; simpl. unfold is_img; split; simpl.
+      + exists e2; auto.
+      + exists erefl; simpl; auto.  
+    - unfold RAns_eq; simpl; intros a b [_ H3].
+      specialize (H3 erefl); simpl in H3; inv H3.
+      gfinal; left.
+      eapply CIH; eauto.
+      exists (k2 a).
+      eapply H0; eauto.
+  }
+  { pclearbot; intros t0 t2 H1 H2.
+    gstep; red; inv H1.
+    rewrite <- H2.
+    econstructor.
+    gfinal; left.
+    eapply CIH; eauto.
+    exists t2.
+    pstep; red; auto.
+  }  
+  { pclearbot; intros t1 t0 H1 H2. 
+    inv H2.
+    eapply IHruttF; eauto.
+  }
+Qed.  
+  
 
 Section Safe_exec_sec.
 
@@ -1380,6 +1448,30 @@ Definition rutt_inr (T1 T2 : Type) (R: T1 -> T2 -> Prop)
   (t12 : itree (E1 +' E2) T1) (t2 : itree E2 T2) : Prop :=
   @rutt_img  (E1 +' E2) E2 (fun _ e => inr1 e) T1 T2 R t12 t2. 
 
+Lemma rutt_img2rutt_inr T R (t1 t2: itree (E1 +' E2) T) RA
+  (H: rutt (REv_eq (@is_img _ _ inr1)) RA R t1 t2) :
+  rutt (REv_eq is_inr) RA R t1 t2.
+Proof.
+  eapply rutt_evRel_equiv; eauto.
+  setoid_rewrite inr_as_img_equiv; intros; reflexivity.
+Qed.
+
+Lemma rutt_inr2rutt_img T R (t1 t2: itree (E1 +' E2) T) RA
+  (H: rutt (REv_eq is_inr) RA R t1 t2) :
+  rutt (REv_eq (@is_img _ _ inr1)) RA R t1 t2.
+Proof.
+  eapply rutt_evRel_equiv; eauto.
+  setoid_rewrite inr_as_img_equiv; intros; reflexivity.
+Qed.
+
+Lemma is_rutt_inr2rutt_img T R (t1: itree (E1 +' E2) T) RA
+  (H: exists t2, rutt (REv_eq is_inr) RA R t1 t2) :
+  exists t2: itree (E1 +' E2) T, rutt (REv_eq (@is_img _ _ inr1)) RA R t1 t2.
+Proof.
+  destruct H as [t2 H].
+  exists t2; eapply rutt_inr2rutt_img; auto.
+Qed.
+
 (* if t12 is inr-rutt-related to t2, then t12 is quivalent to the
    inr-lifting of t2. was handler_rutt_eta *)
 Lemma rutt_inr2eutt_inr T1 T2 (R: T1 -> T2 -> Prop)
@@ -1390,8 +1482,34 @@ Lemma rutt_inr2eutt_inr T1 T2 (R: T1 -> T2 -> Prop)
 Proof.
   eapply rutt_img2eutt_img.
 Qed.  
-  
 
+(* should follow from rutt_img2img_safe but doesn't work nicely *)
+Lemma rutt_inr2inr_safe (T : Type) 
+  (t1 : itree (E1 +' E2) T) :
+    (exists t2: itree E2 T, rutt_inr eq t1 t2) ->
+    inr_safe TrueP t1 t1.
+Proof.
+  unfold rutt_inr, rutt_img.
+  intros [t2 H].
+  eapply rutt_inr2eutt_inr in H.
+  eapply eutt_inr2inr_safe; eauto.
+  exists t2; auto.
+Qed.  
+
+Lemma rutt_inr2inr_safe_exec (T : Type) 
+  (t1 : itree (E1 +' E2) T) :
+    (exists t2, rutt_inr (fun x y => ESok x = y) t1 t2) ->
+    inr_safe TrueP t1 t1.
+Proof.
+  intros [t2 H].
+  set X := (@rutt_img2img_safe_exec _ _ inr1 T t1).
+  unfold psafe in X.
+  eapply rutt_img2rutt_inr.
+  eapply X.
+  exists t2; eauto.
+Qed.  
+
+  
 Section Safe_hnd_sec.
 
 Context {hnd1 : E1 ~> itree E2}.  
@@ -1402,17 +1520,10 @@ Lemma inr_safe2rutt_inr (T : Type) (t12 : itree (E1 +' E2) T) :
   let t2 : itree E2 T := interp (ext_handler hnd1) t12 in
   rutt_inr eq t12 t2.
 Proof.
-  intro H; unfold is_psafe, psafe in *. 
-  assert (exists t' : itree (E1 +' E2) T,
-    rutt (REv_eq (@is_img _ _ inr1)) (RAns_eq (fun T0 : Type => fun=> TrueP))
-        (R_eq TrueP) t12 t') as HA. 
-  { destruct H as [t1 H].
-    exists t1.
-    eapply rutt_evRel_equiv; eauto.
-    setoid_rewrite inr_as_img_equiv; intros; reflexivity.
-  }
-  eapply img_safe2rutt_img in HA.  
-  instantiate (1:= (ext_handler hnd1)) in HA; auto.
+  intro H; unfold is_psafe, psafe in *.
+  eapply is_rutt_inr2rutt_img in H.
+  eapply img_safe2rutt_img in H.  
+  instantiate (1:= (ext_handler hnd1)) in H; auto.
   Unshelve.
   unfold ext_handler; intros; reflexivity.
 Qed.
@@ -1457,16 +1568,9 @@ Lemma inr_safe2rutt_inr_exec (T : Type) (t12 : itree (E1 +' E2) T) :
   rutt_inr (fun x y => ESok x = y) t12 t2.
 Proof.  
   intro H; unfold is_psafe, psafe in *.
-  assert (exists t' : itree (E1 +' E2) T,
-    rutt (REv_eq (@is_img _ _ inr1)) (RAns_eq (fun T0 : Type => fun=> TrueP))
-        (R_eq TrueP) t12 t') as HA. 
-  { destruct H as [t1 H].
-    exists t1.
-    eapply rutt_evRel_equiv; eauto.
-    setoid_rewrite inr_as_img_equiv; intros; reflexivity.
-  }
-  eapply img_safe2rutt_img_exec in HA.  
-  instantiate (1:= hnd_ext) in HA; auto.
+  eapply is_rutt_inr2rutt_img in H.
+  eapply img_safe2rutt_img_exec in H.  
+  instantiate (1:= hnd_ext) in H; auto.
   Unshelve.
   unfold ext_handler; intros; reflexivity.
 Qed.
@@ -1686,11 +1790,12 @@ End Lutt_sec2.
 
 Section Lutt_sec3.
 
+(** redundant proofs, yet interesting *)
 Context {hnd1 : E1 ~> execT (itree E2)}.  
   
-Lemma lutt2rutt_ok_core (T : Type) 
-  (t1 : itree (E1 +' E2) T) :
-  (* is_inr_safe eq t1 *)
+(* alternate proof, actually more specific than img_safe2rutt_img_exec.
+   the interest lies in case 4. *)
+Lemma lutt2rutt_ok_core (T : Type) (t1 : itree (E1 +' E2) T) :
    (exists t0 : itree (E1 +' E2) T,
       rutt (REv_eq (fun (T0 : Type) (e : (E1 +' E2) T0) => is_inr e))
         (RAns_eq (fun T0 : Type => fun=> TrueP)) (R_eq TrueP) t1 t0) ->
@@ -1745,9 +1850,9 @@ Proof.
       intros h.
       dependent destruction h; simpl; auto.
   }
-  { (* strange case; proved by coinductive hyp. using with pcofix, we
-  get problems rewriting with interp_exec_ lemmas, but this woudl be
-  provable by the inductive hyp, as epected. *)
+  { (* proved by coinductive hyp. using with pcofix, we get problems
+  rewriting with interp_exec_ lemmas, but this would be provable by
+  the inductive hyp, as expected. *)
     pclearbot; intros t0 t2 H0 H1.
     setoid_rewrite interp_exec_tau.
     gstep; red.
@@ -1761,70 +1866,9 @@ Proof.
   { pclearbot; intros t1 t0 H0 H1.
     eapply IHruttF; eauto.
   }
-Qed.  
+Qed.
 
-Lemma rutt_ok2lutt_core (T : Type) 
-  (t0 : itree (E1 +' E2) T) :
-  (exists t2 : itree E2 (execS T),
-     rutt (fun U1 U2 (e1: (E1 +' E2) U1) (e2: E2 U2) =>
-             exists h : U2 = U1,
-                e1 = eq_rect U2 (E1 +' E2) (inr1 e2) U1 h)
-       (fun U1 U2 (e1: (E1 +' E2) U1) (u1: U1) (e2: E2 U2) (u2: U2) =>
-               JMeq u1 u2) (fun x y => ESok x = y) t0 t2) ->
-  rutt (REv_eq (fun (T0 : Type) (e : (E1 +' E2) T0) => is_inr e))
-        (RAns_eq (fun T0 : Type => fun=> TrueP)) (R_eq TrueP) t0 t0.
-Proof.
-  simpl. revert t0.
-  ginit; gcofix CIH.
-  intros t0 [t2 H].
-  punfold H. red in H.
-  remember (observe t2) as ot2.
-  remember (observe t0) as ot0.
-  hinduction H before CIH.
-  { intros t0 t2 H0 H1.
-    gstep; red.
-    rewrite <- H1.
-    econstructor; auto.
-    unfold R_eq; simpl; auto.
-  }
-  { pclearbot; intros t0 t2 H0 H1.
-    gstep; red.
-    rewrite <- H1.
-    econstructor; eauto.
-    gfinal; left.
-    eapply CIH; eauto.
-  }
-  { pclearbot; intros t0 t2 H1 H2. 
-    gstep; red.
-    rewrite <- H2.
-    destruct H as [hh H].
-    dependent destruction hh; simpl in H.
-    inv H.
-    econstructor.
-    - unfold REv_eq; simpl. split; auto.
-      exists erefl; simpl; auto.
-    - unfold RAns_eq; simpl; intros a b [_ H3].
-      specialize (H3 erefl); simpl in H3; inv H3.
-      gfinal; left.
-      eapply CIH; eauto.
-      exists (k2 a).
-      eapply H0; eauto.
-  }
-  { pclearbot; intros t0 t2 H1 H2.
-    gstep; red; inv H1.
-    rewrite <- H2.
-    econstructor.
-    gfinal; left.
-    eapply CIH; eauto.
-    exists t2.
-    pstep; red; auto.
-  }  
-  { pclearbot; intros t0 t1 H1 H2. 
-    inv H2.
-    eapply IHruttF; eauto.
-  }
-Qed.  
-
+(* same as inr_safe2rutt_inr_exec *)
 Lemma lutt2rutt_ok (T : Type) 
   (t1 : itree (E1 +' E2) T) :
     is_inr_safe TrueP t1 ->
@@ -1832,14 +1876,6 @@ Lemma lutt2rutt_ok (T : Type)
     rutt_inr (fun x y => ESok x = y) t1 t2.
 Proof.
   eapply lutt2rutt_ok_core.
-Qed.  
-
-Lemma rutt_ok2lutt (T : Type) 
-  (t1 : itree (E1 +' E2) T) :
-    (exists t2, rutt_inr (fun x y => ESok x = y) t1 t2) ->
-    inr_safe TrueP t1 t1.
-Proof.
-  eapply rutt_ok2lutt_core.
 Qed.  
 
 End Lutt_sec3.
