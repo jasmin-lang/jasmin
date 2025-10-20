@@ -457,6 +457,17 @@ Lemma write_get_varP_neq wdb wdb' (x:var_i) v s s' y: v_var x != y ->
   write_var wdb x v s = ok s' -> get_var wdb' (evm s') y = get_var wdb' (evm s) y.
 Proof. rewrite /get_var => hne /write_varP => -[-> ??]; rewrite Vm.setP_neq //. Qed.
 
+Lemma write_vars_get_varP_neq wdb wdb' xs vs s s' y:
+  all (λ x, v_var x != y) xs →
+  write_vars wdb xs vs s = ok s' -> get_var wdb' (evm s') y = get_var wdb' (evm s) y.
+Proof.
+  elim: xs vs s.
+  + by case => // s _ /ok_inj <-.
+  move => x xs ih [] // v vs s1 /= /andP[] x_neq_y x_not_in_xs; t_xrbindP => s2 ok_s2 ok_s'.
+  rewrite (ih _ _ x_not_in_xs ok_s').
+  exact: write_get_varP_neq x_neq_y ok_s2.
+Qed.
+
 Lemma write_get_gvarP gd wdb x v s s':
   write_var wdb x v s = ok s' -> write_get_gvar_Spec gd wdb x v s s'.
 Proof.

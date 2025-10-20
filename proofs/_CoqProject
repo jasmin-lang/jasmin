@@ -72,6 +72,8 @@ compiler/dead_code_proof.v
 compiler/direct_call_proof.v
 compiler/inline.v
 compiler/inline_proof.v
+compiler/insert_renaming.v
+compiler/insert_renaming_proof.v
 compiler/jasmin_compiler.v
 compiler/lea.v
 compiler/lea_proof.v

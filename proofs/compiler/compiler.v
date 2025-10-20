@@ -24,6 +24,7 @@ Require Import
   lower_spill
   dead_code
   inline
+  insert_renaming
   linearization
   lowering
   load_constants_in_cond
@@ -84,6 +85,7 @@ Section COMPILER.
 Variant compiler_step :=
   | Typing                      : compiler_step
   | ParamsExpansion             : compiler_step
+  | InsertRenaming              : compiler_step
   | WintWord                    : compiler_step
   | ArrayCopy                   : compiler_step
   | AddArrInit                  : compiler_step
@@ -119,6 +121,7 @@ Variant compiler_step :=
 Definition compiler_step_list := [::
     Typing
   ; ParamsExpansion
+  ; InsertRenaming
   ; WintWord
   ; ArrayCopy
   ; AddArrInit
@@ -182,6 +185,7 @@ Record compiler_params
   refresh_instr_info: funname -> _ufundef -> _ufundef;
   warning          : instr_info -> warning_msg -> instr_info;
   lowering_opt     : lowering_options;
+  insert_renaming  : fun_info -> bool;
   fresh_id         : glob_decls -> var -> Ident.ident;
   fresh_var_ident  : v_kind -> instr_info -> int -> string -> stype -> Ident.ident;
   slh_info         : _uprog → funname → seq slh_t * seq slh_t;
@@ -255,6 +259,9 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
 
   Let p := wi2w_prog (wsw:=withsubword) cparams.(remove_wint_annot) cparams.(dead_vars_ufd) p in
   let p := cparams.(print_uprog) WintWord p in
+
+  let p := insert_renaming_prog cparams.(insert_renaming) p in
+  let p := cparams.(print_uprog) InsertRenaming p in
 
   Let p := array_copy_prog (λ k, cparams.(fresh_var_ident) k dummy_instr_info 0) p in
   let p := cparams.(print_uprog) ArrayCopy p in

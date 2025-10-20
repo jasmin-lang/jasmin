@@ -882,12 +882,6 @@ fail/register_allocation/x86-64/no_register_bank.jazz:
 compilation error:
 register allocation: unable to allocate variable toto: no register bank for type int
 
-fail/register_allocation/x86-64/res_is_arg.jazz:
-
-"fail/register_allocation/x86-64/res_is_arg.jazz", line 1 (0) to line 3 (1):
-compilation error:
-register allocation: cannot allocate r1 into RAX, the variable is already allocated in RDI
-
 fail/register_allocation/x86-64/too_many_args.jazz:
 
 "fail/register_allocation/x86-64/too_many_args.jazz", line 1 (0) to line 2 (42):
@@ -1533,4 +1527,4 @@ Statistics:
 	Pretyping:  45
 	Parsing:     4
 	Typing:      1
-	Compile:   191
+	Compile:   190
