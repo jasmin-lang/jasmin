@@ -28,6 +28,7 @@ Here is a list of the passes with a short description of what each does.
 Each pass is described in more detail on a dedicated page.
 
 - [Replace word ints](wint_word) replaces word-sized integers with machine words
+- [Insert renaming](insert_renaming) introduces renaming assignments at export function boundaries
 - [Array copy](array_copy) expands `#copy` operations into explicit `for` loops
 - [Array init](array_init) inserts array-init instructions at the beginning of functions
 - [Lowering of spills](lower_spill) replaces `#spill` and `#unspill` operations
@@ -79,6 +80,7 @@ Each pass is described in more detail on a dedicated page.
 :hidden:
 
 wint_word
+insert_renaming
 array_copy
 array_init
 lower_spill
