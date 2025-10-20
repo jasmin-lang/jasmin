@@ -654,6 +654,29 @@ Section MAP2.
     by t_xrbindP=> > -> ? /hrec{}hrec <- /hrec{hrec} ->.
   Qed.
 
+  Lemma mapM2_cat_r ha hbl hbr hr :
+    mapM2 ha (hbl ++ hbr) = ok hr →
+    ∃ hal har hrl hrr,
+      [/\ ha = hal ++ har, hr = hrl ++ hrr, mapM2 hal hbl = ok hrl & mapM2 har hbr = ok hrr ].
+  Proof.
+    move/mapM2_Forall3 => h.
+    move: h (erefl (hbl ++ hbr)).
+    move: {1 3}(hbl ++ hbr) => hb h.
+    elim: h hbl hbr; clear.
+    - case => // - [] // _.
+      by exists [::], [::], [::], [::]; split.
+    move => a b c la lb lc ok_c ok_labc ih [ | ].
+    - move => /= _ ->.
+      case: (ih [::] lb erefl) => hal [] har [] hrl [] hrr [].
+      case: hal => // /= ?? /ok_inj ? ok_lc; subst => /=.
+      exists [::], (a :: har), [::], (c :: hrr); split => //.
+      by rewrite /= ok_c /= ok_lc.
+    move => /= _ hbl hbr [] -> ?; subst.
+    case: (ih _ _ erefl) => hal [] har [] hrl [] hrr [] ?? ok_hrl ok_hrr; subst.
+    exists (a :: hal), har, (c :: hrl), hrr; split => //.
+    by rewrite /= ok_c /= ok_hrl.
+  Qed.
+
 End MAP2.
 
 Section FMAP.
@@ -2023,13 +2046,22 @@ Lemma o2rP {eT A} {err : eT} {oa : option A} {a} :
   oa = Some a.
 Proof. by case: oa => //= ? [->]. Qed.
 
+Lemma cat_inj {T} (a b c d: seq T) :
+  size a = size b →
+  a ++ c = b ++ d →
+  a = b ∧ c = d.
+Proof.
+  elim: a b c d; first by case.
+  by move => x a ih [] // y b c d /= /Nat.succ_inj /ih{}ih [] -> /ih[] -> ->.
+Qed.
+
 Lemma cat_inj_head T (x y z : seq T) : x ++ y = x ++ z -> y = z.
-Proof. by elim: x y z => // > hrec >; rewrite !cat_cons => -[/hrec]. Qed.
+Proof. by move/cat_inj => /(_ erefl) []. Qed.
 
 Lemma cat_inj_tail T (x y z : seq T) : x ++ z = y ++ z -> x = y.
 Proof.
-  elim: z x y => >; first by rewrite !cats0.
-  by move=> hrec >; rewrite -!cat_rcons => /hrec /rcons_inj[].
+  move => h; case: (cat_inj _ h); last by [].
+  by rewrite -(Nat.add_cancel_r _ _ (size z)) plusE -!size_cat h.
 Qed.
 
 Lemma map_const_nseq A B (l : list A) (c : B) : map (fun=> c) l = nseq (size l) c.

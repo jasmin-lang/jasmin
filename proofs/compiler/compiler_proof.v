@@ -13,6 +13,7 @@ Require Import
   lower_spill_proof
   load_constants_in_cond_proof
   inline_proof
+  insert_renaming_proof
   dead_calls_proof
   makeReferenceArguments_proof
   array_copy
@@ -370,6 +371,11 @@ Proof.
   - move=> vr'.
     have := [elaborate array_copy_fdP (dc := indirect_c) (sCP := sCP_unit)].
     by move=> /(_ _ _ _ tt ok_pa0); apply; apply values_uincl_refl.
+  apply: compose_pass_uincl'.
+  - move => vr' exec.
+    have := [elaborate insert_renaming_callP (insert_renaming cparams) ].
+    move => /(_ _ tt scs m fn va scs' m' vr' exec va values_uincl_refl).
+    exact.
   apply: compose_pass_uincl'.
   + by move=> vr'; apply: wi2w_progP; apply ok_paw.
   apply: compose_pass; first by move => vr'; exact: psem_call_u.

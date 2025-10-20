@@ -20,6 +20,7 @@ Require Import
   lower_spill_proof
   load_constants_in_cond_proof
   inline_proof
+  insert_renaming_proof
   dead_calls_proof
   makeReferenceArguments_proof
   array_copy
@@ -188,6 +189,7 @@ apply: (
 ).
 
 apply: wiequiv_f_trans_UU_EU; first exact (it_wi2w_progP _ _ ok_paw).
+apply: wiequiv_f_trans_UU_EU; first exact: (it_insert_renaming_callP (insert_renaming cparams)).
 apply: wiequiv_f_trans_UU_EU; first exact: (it_array_copy_fdP _ ok_pa0).
 apply: wiequiv_f_trans_EE_EU; first exact: it_add_init_callP.
 apply: wiequiv_f_trans_EE_EU; first exact: (it_alloc_callP _ ok_pb).

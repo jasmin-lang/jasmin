@@ -381,6 +381,10 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
         Var0.Var.vname (Conv.cvar_of_var Arch.rip);
       Compiler.stackalloc = memory_analysis;
       Compiler.removereturn;
+      Compiler.insert_renaming =
+        if !Glob_options.introduce_export_renaming then
+          fun (_, _, cc, _) -> FInfo.is_export cc
+        else Fun.const false;
       Compiler.remove_wint_annot =
         apply "remove wint annot" remove_wint_annot;
       Compiler.regalloc = global_regalloc;

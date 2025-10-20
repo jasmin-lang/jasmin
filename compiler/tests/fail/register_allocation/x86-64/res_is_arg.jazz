@@ -1,3 +1,0 @@
-export fn f(reg u64 r1) -> reg u64 {
-return r1;
-}

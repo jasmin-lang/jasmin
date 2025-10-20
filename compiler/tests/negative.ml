@@ -14,10 +14,12 @@ open Format
 let config path =
   let default () =
     Glob_options.verbosity := 0;
+    Glob_options.introduce_export_renaming := true;
     set_warn_recoverable true;
     set_all_warnings ()
   in
   let reset_warn_recoverable () = set_warn_recoverable false in
+  let disable_renaming () = Glob_options.introduce_export_renaming := false in
   default ();
   try
     List.assoc path
@@ -39,6 +41,7 @@ let config path =
           disable_warnings [ UnusedVar ] );
         ( "fail/register_allocation/x86-64/unknown_type_register.jazz",
           disable_warnings [ UnusedVar ] );
+        ("fail/slh/x86-64/export_takes_msf.jazz", disable_renaming);
         ( "fail/stack_allocation/x86-64/return_ptr_global.jazz",
           disable_warnings [ PedanticPretyping ] );
         ( "fail/stack_allocation/x86-64/return_ptr_local.jazz",
