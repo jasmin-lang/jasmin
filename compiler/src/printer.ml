@@ -225,33 +225,34 @@ let pp_return_type pp_size fmt =
   in
   F.fprintf fmt "%a" (pp_list ",@ " pp)
 
-let pp_gfun ~debug pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
+let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
+  let ds = ScopeTree.get_declaration_sites fd in
   let pp_vd =  pp_var_decl pp_var pp_size in
-  let pp_locals fmt fd =
-    let seen = ref Spv.empty in
-    let mark x = seen := Spv.add x !seen in
-    let is_seen x = Spv.mem x !seen in
-    List.iter mark fd.f_args;
-    fold_vars_fc (fun x () ->
-        if x.v_kind <> Const && not (is_seen x) then (
-          mark x;
-          F.fprintf fmt "%a;@ " pp_vd x)
-    ) () fd
+  let pp_info fmt (n, _) =
+    Miloc.find_default Spv.empty n ds
+    |> Spv.iter (F.fprintf fmt "%a;@ " pp_vd)
   in
   let ret = List.map L.unloc fd.f_ret in
   let set_var_type x ty = GV.mk x.v_name x.v_kind ty x.v_dloc x.v_annot in
   let pp_ret fmt () =
+    (* In the rare case where there is no instruction in the function,
+       the results that are not arguments are not get properly declared
+       by [pp_info]. We fix it here.
+       These results are not initialized, so the function has no semantics,
+       but at least printing is correct. *)
+    if Miloc.is_empty ds then
+      List.iter (fun x ->
+          if not (List.mem x fd.f_args) then F.fprintf fmt "%a;@ " pp_vd x) ret;
     F.fprintf fmt "return @[(%a)@];"
       (pp_list ",@ " pp_var) ret in
 
 
-  F.fprintf fmt "@[<v>%a%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>%a%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@]@ }@]"
    pp_annotations fd.f_annot.f_user_annot
    pp_call_conv fd.f_cc
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_return_type pp_size) (List.combine fd.f_ret_info.ret_annot (List.map2 set_var_type ret fd.f_tyout))
-   pp_locals fd
    (pp_gc ~debug pp_info pp_size pp_opn pp_var) fd.f_body
    pp_ret ()
 
@@ -263,7 +264,7 @@ let pp_gexpr ~debug pp_len pp_var fmt = function
 
 let pp_pitem ~debug pp_len pp_opn pp_var =
   let aux fmt = function
-   | MIfun fd -> pp_gfun ~debug pp_noinfo pp_len pp_opn pp_var fmt fd
+   | MIfun fd -> pp_gfun ~debug pp_len pp_opn pp_var fmt fd
    | MIparam (x,e) ->
       F.fprintf fmt "%a = %a;"
         (pp_var_decl pp_var pp_len) x
