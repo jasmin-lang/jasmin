@@ -1,0 +1,4 @@
+fn return_uninit() -> reg u64 {
+  reg u64 res;
+  return res;
+}

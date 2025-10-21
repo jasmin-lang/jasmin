@@ -29,6 +29,7 @@ let config path =
         ( "success/arm-m4/rand.jazz",
           fun () -> Glob_options.stack_zero_strategy := Some SZSloop );
         ("success/common/bug_729.jazz", disable_warnings [ InlinedCallToExport ]);
+        ("success/common/bug_1145.jazz", disable_warnings [ DuplicateVar ]);
         ("success/x86-64/bug_895.jazz", disable_warnings [ UnusedVar ]);
         ( "success/common/test_warn_var.jazz",
           disable_warnings [ UnusedVar; DuplicateVar ] );
