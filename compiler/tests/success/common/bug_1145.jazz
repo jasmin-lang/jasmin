@@ -1,0 +1,32 @@
+export
+fn main(reg u32 a, reg ptr u8[1] arg) {
+    if (a == 0) {
+        reg u32 x;
+        #keep x = 0;
+    } else {
+        reg ptr u8[1] x;
+        #keep x = arg;
+    }
+}
+
+export fn local_param(reg u32 x) -> reg u32 {
+  reg u32 a = x;
+  if x <s 0 {
+    reg u32 x = 0;
+    a += x;
+  }
+  a += x;
+  return a;
+}
+
+/* This program terminates ;-) */
+export fn loop() -> reg u32 {
+  reg u32 x = 1;
+  reg u32 c = 0;
+  while (x >s 0) { // This refers to the x variable above (from outside the loop body)
+    x -= c;
+    reg u32 x = 1;
+    c = x;
+  }
+  return x;
+}
