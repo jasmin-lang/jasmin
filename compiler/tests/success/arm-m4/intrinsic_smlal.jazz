@@ -1,6 +1,6 @@
 export
 fn smlal(reg u32 arg0, reg u32 arg1) -> reg u32 {
-    reg u32 x, y;
+    reg u32 x = arg0, y = arg1;
     x, y = #SMLAL(x, y, arg0, arg1);
 
     // Set flags.
