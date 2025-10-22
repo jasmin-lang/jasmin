@@ -5,8 +5,8 @@ fn cond_swap(reg u32 p q cond) {
   f = cond != 0;
   a = [p];
   b = [q];
-  c = b if f;
-  d = a if f;
+  c = b;
+  d = a;
   c = a if !f;
   d = b if !f;
   [p] = c;
