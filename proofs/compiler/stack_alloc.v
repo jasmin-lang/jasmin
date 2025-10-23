@@ -55,14 +55,22 @@ End E.
 (* ------------------------------------------------------------------ *)
 (* Region *)
 
+Definition get_const al :=
+  match al with
+  | ALConst n => ok n
+  | _ => Error (stk_error_no_var "not const")
+  end.
+
 (* TODO: could [wsize_size] return a [positive] rather than a [Z]?
    If so, [size_of] could return a positive too.
 *)
 Definition size_of (t:atype) :=
   match t with
-  | aword sz => wsize_size sz
-  | aarr ws n => arr_size ws n
-  | abool | aint => 1%Z
+  | aword sz => ok (wsize_size sz)
+  | aarr ws al =>
+    Let n := get_const al in
+    ok (arr_size ws n)
+  | abool | aint => Error (stk_ierror_no_var "size_of")
   end.
 
 Definition slot := var.
@@ -126,6 +134,7 @@ Module Mr := Mmake CmpR.
 Inductive sexpr :=
 | Sconst : Z -> sexpr
 | Svar : var -> sexpr
+| Slvar : length_var -> sexpr
 | Sof_int : wsize -> sexpr -> sexpr
 | Sto_int : signedness -> wsize -> sexpr -> sexpr
 | Sneg : op_kind -> sexpr -> sexpr
@@ -137,6 +146,7 @@ Fixpoint sexpr_beq (e1 e2 : sexpr) :=
   match e1, e2 with
   | Sconst n1, Sconst n2 => n1 == n2
   | Svar x1, Svar x2 => x1 == x2
+  | Slvar n1, Slvar n2 => n1 == n2
   | Sof_int ws1 e1, Sof_int ws2 e2 => [&& ws1 == ws2 & sexpr_beq e1 e2]
   | Sto_int sg1 ws1 e1, Sto_int sg2 ws2 e2 => [&& sg1 == sg2, ws1 == ws2 & sexpr_beq e1 e2]
   | Sneg opk1 e1, Sneg opk2 e2 => [&& opk1 == opk2 & sexpr_beq e1 e2]
@@ -149,9 +159,10 @@ Fixpoint sexpr_beq (e1 e2 : sexpr) :=
 Lemma sexpr_eq_axiom : Equality.axiom sexpr_beq.
 Proof.
   elim=>
-      [z1|x1|ws1 e1 ih1|sg1 ws1 e1 ih1|opk1 e1 ih1|opk1 e11 ih11 e12 ih12|opk1 e11 ih11 e12 ih12|opk1 e11 ih11 e12 ih12]
-      [z2|x2|ws2 e2    |sg2 ws2 e2    |opk2 e2    |opk2 e21      e22     |opk2 e21      e22     |opk2 e21      e22     ] /=;
+      [z1|x1|n1|ws1 e1 ih1|sg1 ws1 e1 ih1|opk1 e1 ih1|opk1 e11 ih11 e12 ih12|opk1 e11 ih11 e12 ih12|opk1 e11 ih11 e12 ih12]
+      [z2|x2|n2|ws2 e2    |sg2 ws2 e2    |opk2 e2    |opk2 e21      e22     |opk2 e21      e22     |opk2 e21      e22     ] /=;
     try (right; congruence).
+  + by apply (iffP eqP); congruence.
   + by apply (iffP eqP); congruence.
   + by apply (iffP eqP); congruence.
   + by apply (iffP andP) => -[/eqP -> /ih1 ->].
@@ -516,8 +527,21 @@ Definition get_sub_status (status:status) s :=
   | Borrowed i => get_sub_interval i s
   end.
 
+Fixpoint symbolic_of_al (al : array_length) :=
+  match al with
+  | ALConst n => Sconst n
+  | ALVar x => Slvar x
+  | ALAdd al1 al2 => Sadd Op_int (symbolic_of_al al1) (symbolic_of_al al2)
+  | ALSub al1 al2 => Ssub Op_int (symbolic_of_al al1) (symbolic_of_al al2)
+  | ALMul al1 al2 => Smul Op_int (symbolic_of_al al1) (symbolic_of_al al2)
+  end.
+
+Definition symbolic_of_arr_type ty :=
+  if ty is aarr ws al then Smul Op_int (Sconst (wsize_size ws)) (symbolic_of_al al)
+  else Sconst 0 (* impossible case *).
+
 Definition sub_region_status_at_ofs (x:var_i) sr status ofs len :=
-  if (ofs == Sconst 0) && (len == Sconst (size_slot x)) then
+  if (ofs == Sconst 0) && (len == symbolic_of_arr_type x.(vtype)) then
     (sr, status)
   else
     let sr := sub_region_at_ofs sr ofs len in
@@ -651,7 +675,7 @@ Definition set_move (rmap:region_map) x sr status :=
      region_var := rv |}.
 
 Definition insert_status x status ofs len statusy :=
-  if (ofs == Sconst 0) && (len == Sconst (size_slot x)) then statusy
+  if (ofs == Sconst 0) && (len == symbolic_of_arr_type x.(vtype)) then statusy
   else
     let s := {| ss_ofs := ofs; ss_len := len |} in
     if get_sub_status statusy {| ss_ofs := Sconst 0; ss_len := len |} then
@@ -683,8 +707,9 @@ Definition check_stack_ptr rv s ws cs x' :=
   is_valid status.
 
 Definition sub_region_full x r :=
-  let z := [:: {| ss_ofs := Sconst 0; ss_len := Sconst (size_slot x) |}] in
-  {| sr_region := r; sr_zone := z |}.
+  Let len := size_slot x in
+  let z := [:: {| ss_ofs := Sconst 0; ss_len := Sconst len |}] in
+  ok {| sr_region := r; sr_zone := z |}.
 
 Definition sub_region_glob x ws :=
   let r := {| r_slot := x; r_align := ws; r_writable := false |} in
@@ -701,7 +726,7 @@ Definition get_sub_region_status (rmap:region_map) (x:var_i) :=
 Definition get_gsub_region_status rmap (x:var_i) vpk :=
   match vpk with
   | VKglob (_, ws) =>
-    let sr := sub_region_glob x ws in
+    Let sr := sub_region_glob x ws in
     ok (sr, Valid)
   | VKptr _pk =>
     get_sub_region_status rmap x
@@ -985,9 +1010,14 @@ Definition addr_from_vpk x (vpk:vptr_kind) :=
 
 Definition bad_arg_number := stk_ierror_no_var "invalid number of args".
 
-Definition not_trivially_incorrect aa ws ofs len :=
+Definition not_trivially_incorrect aa ws ofs ty :=
   if expr.is_const ofs is Some i then
-    (0 <=? i * mk_scale aa ws)%Z && (i * mk_scale aa ws + wsize_size ws <=? len)%Z
+    if ty is aarr ws' al then
+      if al is ALConst n then
+        let len := arr_size ws' n in
+        (0 <=? i * mk_scale aa ws)%Z && (i * mk_scale aa ws + wsize_size ws <=? len)%Z
+      else true
+    else true
   else true.
 
 Fixpoint alloc_e (e:pexpr) ty :=
@@ -1012,7 +1042,7 @@ Fixpoint alloc_e (e:pexpr) ty :=
 
   | Pget al aa ws x e1 =>
     let xv := x.(gv) in
-    Let _ := assert (not_trivially_incorrect aa ws e1 (size_of xv.(vtype)))
+    Let _ := assert (not_trivially_incorrect aa ws e1 xv.(vtype))
                     (stk_error_no_var "this read is trivially out-of-bounds") in
     Let e1 := alloc_e e1 aint in
     Let vk := get_var_kind x in
@@ -1088,7 +1118,7 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:atype) :=
     end
 
   | Laset al aa ws x e1 =>
-    Let _ := assert (not_trivially_incorrect aa ws e1 (size_of x.(vtype)))
+    Let _ := assert (not_trivially_incorrect aa ws e1 x.(vtype))
                     (stk_error_no_var "this write is trivially out-of-bounds") in
     Let e1 := alloc_e rmap e1 aint in
     match get_local x with
@@ -1197,7 +1227,7 @@ Definition alloc_array_move table rmap r tag e :=
         Let: (sr, status) := get_gsub_region_status rmap yv vpk in
         Let: (table, se1) := get_symbolic_of_pexpr table e1 in
         let ofs := mk_ofs_int aa ws se1 in
-        let len := Sconst (arr_size ws len) in
+        let len := Smul Op_int (Sconst (wsize_size ws)) (symbolic_of_al len) in
         let (sr, status) := sub_region_status_at_ofs yv sr status ofs len in
         Let eofs := addr_from_vpk_pexpr rmap yv vpk in
         Let e1 := alloc_e rmap e1 aint in
@@ -1251,7 +1281,7 @@ Definition alloc_array_move table rmap r tag e :=
       Let: (sr, status) := get_sub_region_status rmap x in
       Let: (table, e) := get_symbolic_of_pexpr table e in
       let ofs := mk_ofs_int aa ws e in
-      let len := Sconst (arr_size ws len) in
+      let len := Smul Op_int (Sconst (wsize_size ws)) (symbolic_of_al len) in
       let (sr', _) := sub_region_status_at_ofs x sr status ofs len in
       Let _ :=
         assert (sry == sr')
@@ -1362,6 +1392,7 @@ Fixpoint typecheck e :=
   match e with
   | Sconst n => ok aint
   | Svar x => ok x.(vtype)
+  | Slvar _ => ok aint
   | Sof_int ws e =>
     Let ty := typecheck e in
     if ty is aint then ok (aword ws)
@@ -1398,6 +1429,7 @@ Fixpoint read_e_rec s (e : sexpr) :=
   match e with
   | Sconst _ => s
   | Svar x => Sv.add x s
+  | Slvar _ => s
   | Sof_int _ e | Sto_int _ _ e | Sneg _ e => read_e_rec s e
   | Sadd _ e1 e2 | Smul _ e1 e2 | Ssub _ e1 e2 => read_e_rec (read_e_rec s e1) e2
   end.
@@ -1651,11 +1683,11 @@ Definition alloc_syscall ii rmap rs o es :=
   add_iinfo ii
   match o with
   | RandomBytes ws n =>
-    let len := arr_size ws n in
+    (* FIXME
     (* per the semantics, we have [len <= wbase Uptr], but we need [<] *)
     Let _ := assert (len <? wbase Uptr)%Z
                     (stk_error_no_var "randombytes: the requested size is too large")
-    in
+    in *)
     match rs, es with
     | [::Lvar x], [::Pvar xe] =>
       let xe := xe.(gv) in
@@ -1666,7 +1698,7 @@ Definition alloc_syscall ii rmap rs o es :=
       Let rmap := set_clear rmap xe sr in
       let rmap := set_move rmap x sr Valid in
       ok (rmap,
-          [:: MkI ii (sap_immediate saparams xlen len);
+          [:: MkI ii (sap_immediate saparams xlen 2); (* FIXME: dummy value, we probably don't want to reimplement some part of makeref arg that at all anyway *)
               MkI ii (Csyscall [::Lvar xp] o [:: Plvar p; Plvar xlen])])
     | _, _ =>
       Error (stk_ierror_no_var "randombytes: invalid args or result")
@@ -1826,7 +1858,7 @@ Definition init_stack_layout (mglob : Mvar.t (Z * wsize)) sao :=
     else if Mvar.get mglob x is Some _ then Error (stk_ierror_no_var "a region is both glob and stack")
     else
       if (p <= ofs)%CMP then
-        let len := size_slot x in
+        Let len := size_slot x in
         if (ws <= sao.(sao_align))%CMP then
           if (Z.land ofs (wsize_size ws - 1) == 0)%Z then
             let stack := Mvar.set stack x (ofs, ws) in
@@ -1854,8 +1886,10 @@ Definition add_alloc globals stack (xpk:var * ptr_kind_init) (lrx: Mvar.t ptr_ki
         match Mvar.get vars x' with
         | None => Error (stk_ierror_no_var "unknown region")
         | Some (ofs', ws') =>
-          if [&& (size_slot x <= cs.(cs_len))%CMP, (0%Z <= cs.(cs_ofs))%CMP &
-                 ((cs.(cs_ofs) + cs.(cs_len))%Z <= size_slot x')%CMP] then
+          Let lenx := size_slot x in
+          Let lenx' := size_slot x' in
+          if [&& (lenx <= cs.(cs_len))%CMP, (0%Z <= cs.(cs_ofs))%CMP &
+                 ((cs.(cs_ofs) + cs.(cs_len))%Z <= lenx')%CMP] then
             let rmap :=
               if sc is Slocal then
                 let sr := sub_region_stack x' ws' cs in
@@ -1877,11 +1911,12 @@ Definition add_alloc globals stack (xpk:var * ptr_kind_init) (lrx: Mvar.t ptr_ki
           else if xp == x then Error (stk_ierror_no_var "a pseudo-var is equal to a program var")
           else if Mvar.get locals xp is Some _ then Error (stk_ierror_no_var "a pseudo-var is equal to a program var")
           else
+            Let lenx' := size_slot x' in
             if [&& (Uptr <= ws')%CMP,
                 (0%Z <= cs.(cs_ofs))%CMP,
                 (Z.land cs.(cs_ofs) (wsize_size Uptr - 1) == 0)%Z,
                 (wsize_size Uptr <= cs.(cs_len))%CMP &
-                ((cs.(cs_ofs) + cs.(cs_len))%Z <= size_slot x')%CMP] then
+                ((cs.(cs_ofs) + cs.(cs_len))%Z <= lenx')%CMP] then
               ok (Sv.add xp sv, Pstkptr x' ofs' ws' cs xp, rmap)
           else Error (stk_ierror_no_var "invalid ptr kind")
         end
@@ -1985,7 +2020,7 @@ Definition init_param (mglob stack : Mvar.t (Z * wsize)) accu pi (x:var_i) :=
     let r :=
       {| r_slot := x;
          r_align := pi.(pp_align); r_writable := pi.(pp_writable) |} in
-    let sr := sub_region_full x r in
+    Let sr := sub_region_full x r in
     ok (Sv.add pi.(pp_ptr) disj,
         Mvar.set lmap x (Pregptr pi.(pp_ptr)),
         set_move rmap x sr Valid,
@@ -2119,7 +2154,7 @@ Definition init_map (l:list (var * wsize * Z)) data (gd:glob_decls) : cexec (Mva
     let '(mvar, pos, data) := globals in
     if (pos <=? p)%Z then
       if Z.land p (wsize_size ws - 1) == 0%Z then
-        let s := size_slot v in
+        Let s := size_slot v in
         match ztake (p - pos) data with
         | None => Error (stk_ierror_no_var "bad data 1")
         | Some (_, data) =>

@@ -437,8 +437,8 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
     Let _ := assert (n1 == n2) error_e in ok m
   | Pbool  b1, Pbool  b2 =>
     Let _ := assert (b1 == b2) error_e in ok m
-  | Parr_init ws1 n1, Parr_init ws2 n2 =>
-    Let _  := assert (arr_size ws1 n1 == arr_size ws2 n2) error_e in ok m
+  | Parr_init ws1 al1, Parr_init ws2 al2 =>
+    Let _  := assert (convertible (aarr ws1 al1) (aarr ws2 al2)) error_e in ok m
   | Pvar   x1, Pvar   x2 => check_gv x1 x2 m
   | Pget al1 aa1 w1 x1 e1, Pget al2 aa2 w2 x2 e2 =>
     Let _ := assert ((al1 == al2) && (aa1 == aa2) && (w1 == w2)) error_e in

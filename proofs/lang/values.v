@@ -889,7 +889,7 @@ Section FORALL.
 
 End FORALL.
 
-Definition interp_safe_cond (vs : values) (sc : safe_cond) :=
+Definition interp_safe_cond (vs : values) (sc : safe_cond positive) :=
   match sc with
   | NotZero ws k =>
     forall w, to_word ws (nth undef_b vs k) = ok w -> wunsigned w <> 0%Z
@@ -929,7 +929,7 @@ Definition interp_safe_cond (vs : values) (sc : safe_cond) :=
   | ScFalse => False
   end.
 
-Definition sc_needed_args sc :=
+Definition sc_needed_args {len} (sc : safe_cond len) :=
   match sc with
   | NotZero _ k | InRangeMod32 _ _ _ k | AllInit _ _ k | ULt _ k _ | UGe _ _ k => S k
   | UaddLe _ k1 k2 _ => S (if ssrnat.leq k1 k2 then k2 else k1)

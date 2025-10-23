@@ -34,7 +34,7 @@ Instance eqTC_riscv_extra_op : eqTypeC riscv_extra_op :=
    argument. *)
 Definition Oriscv_add_large_imm_instr : instruction_desc :=
   let ty := aword riscv_reg_size in
-  let cty := eval_atype ty in
+  let cty := cword riscv_reg_size in
   let ctin := [:: cty; cty] in
   let semi := fun (x y : word riscv_reg_size) => (x + y)%w in
   {| str    := (fun _ => "add_large_imm"%string)
@@ -43,13 +43,13 @@ Definition Oriscv_add_large_imm_instr : instruction_desc :=
    ; tout   := [:: ty]
    ; i_out  := [:: E 0]
    ; conflicts := [:: (APout 0, APin 0)]
-   ; semi   := sem_prod_ok ctin semi
-   ; semu   := @values.vuincl_app_sopn_v ctin [:: cty] (sem_prod_ok ctin semi) refl_equal
+   ; semi   := fun _ => sem_prod_ok ctin semi
+   ; semu   := fun _ => @values.vuincl_app_sopn_v ctin [:: cty] (sem_prod_ok ctin semi) refl_equal
    ; i_safe := [::]
    ; i_valid := true
    ; i_safe_wf := refl_equal
-   ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=ctin) semi _
-   ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=ctin) semi
+   ; i_semi_errty := fun _ _ => sem_prod_ok_error (tin:=ctin) semi _
+   ; i_semi_safe := fun _ _ => values.sem_prod_ok_safe (tin:=ctin) semi
  |}.
 
 Definition get_instr_desc (o: riscv_extra_op) : instruction_desc :=

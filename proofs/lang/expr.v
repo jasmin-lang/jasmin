@@ -14,7 +14,7 @@ Definition uint_of_word ws := Oint_of_word Unsigned ws.
 Definition sint_of_word ws := Oint_of_word Signed ws.
 
 (* Type of unany operators: input, output *)
-Definition etype_of_wiop1 {len:Type} (s: signedness) (o:wiop1) : extended_type len * extended_type len :=
+Definition etype_of_wiop1 (s: signedness) (o:wiop1) : extended_type * extended_type :=
   match o with
   | WIwint_of_int  sz => (tint, twint s sz)
   | WIint_of_wint  sz => (twint s sz, tint)
@@ -45,7 +45,7 @@ Definition type_of_opk (k:op_kind) :=
   | Op_w sz => aword sz
   end.
 
-Definition etype_of_opk {len} (k:op_kind) : extended_type len :=
+Definition etype_of_opk (k:op_kind) : extended_type :=
   match k with
   | Op_int => tint
   | Op_w sz => tword sz
@@ -55,7 +55,7 @@ Lemma e_type_of_opk k : type_of_opk k = to_atype (etype_of_opk k).
 Proof. by case: k. Qed.
 
 (* Type of unany operators: input, output *)
-Definition etype_of_op1 {len} (o: sop1) : extended_type len * extended_type len :=
+Definition etype_of_op1 (o: sop1) : extended_type * extended_type :=
   match o with
   | Oword_of_int sz => (tint, tword sz)
   | Oint_of_word _ sz => (tword sz, tint)
@@ -91,8 +91,8 @@ Proof.
 Qed.
 
 (* Type of binany operators: inputs, output *)
-Definition etype_of_wiop2 {len} s sz (o : wiop2) :
-  extended_type len * extended_type len * extended_type len :=
+Definition etype_of_wiop2 s sz (o : wiop2) :
+  extended_type * extended_type * extended_type :=
   match o with
   | WIadd | WImul | WIsub | WIdiv | WImod =>
     let t := twint s sz in (t, t, t)
@@ -139,7 +139,7 @@ Definition opk_of_cmpk k :=
   end.
 
 (* Type of binany operators: inputs, output *)
-Definition etype_of_op2 {len} (o : sop2) : extended_type len * extended_type len * extended_type len :=
+Definition etype_of_op2 (o : sop2) : extended_type * extended_type * extended_type :=
  match o with
   | Obeq | Oand | Oor => (tbool, tbool, tbool)
   | Oadd k | Omul k | Osub k | Odiv _ k | Omod _ k =>
@@ -257,10 +257,10 @@ Definition is_glob (x:gvar) := x.(gs) == Sglob.
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
-| Parr_init : wsize -> positive → pexpr
+| Parr_init : wsize -> array_length → pexpr
 | Pvar   :> gvar -> pexpr
 | Pget   : aligned -> arr_access -> wsize -> gvar -> pexpr -> pexpr
-| Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr
+| Psub   : arr_access -> wsize -> array_length -> gvar -> pexpr -> pexpr
 | Pload  : aligned -> wsize -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
@@ -301,7 +301,7 @@ Variant lval : Type :=
 | Lvar  `(var_i)
 | Lmem  of aligned & wsize & var_info & pexpr
 | Laset of aligned & arr_access & wsize & var_i & pexpr
-| Lasub of arr_access & wsize & positive & var_i & pexpr.
+| Lasub of arr_access & wsize & array_length & var_i & pexpr.
 
 Coercion Lvar : var_i >-> lval.
 

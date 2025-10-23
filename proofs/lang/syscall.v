@@ -8,8 +8,8 @@ Require Import
   utils.
 
 #[only(eqbOK)] derive
-Variant syscall_t : Type := 
-  | RandomBytes of wsize & positive.
+Variant syscall_t : Type :=
+  | RandomBytes of wsize & array_length.
 
 HB.instance Definition _ := hasDecEq.Build syscall_t syscall_t_eqb_OK.
 
@@ -19,6 +19,7 @@ HB.instance Definition _ := hasDecEq.Build syscall_t syscall_t_eqb_OK.
 (* Before stack alloc ie uprog *)
 
 Record syscall_sig_t := {
+  
   scs_tin  : seq atype;
   scs_tout : seq atype
 }.
