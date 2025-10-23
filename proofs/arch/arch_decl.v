@@ -408,7 +408,7 @@ Record instr_desc_t := {
   id_eq_size    : (size id_in == size id_tin) && (size id_out == size id_tout);
   id_str_jas    : unit -> string;
   id_check_dest : all2 check_arg_dest id_out id_tout;
-  id_safe       : seq safe_cond;
+  id_safe       : seq (safe_cond positive);
   id_pp_asm     : asm_args -> pp_asm_op;
   (* Extra properties ensuring that previous information are consistent *)
   id_safe_wf    : all (fun sc => values.sc_needed_args sc <= size id_tin) id_safe;
