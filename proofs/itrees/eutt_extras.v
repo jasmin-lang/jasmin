@@ -340,7 +340,7 @@ Proof.
   setoid_rewrite interp_translate; reflexivity.
 Qed.
 
-(* inlining lemma: basically, eutt (sem (inline t)) (sem t) *)
+(* 'wide' inlining lemma: ctxIR is used on both sides *)
 Lemma OK_wide_inline_lemma T (t: itree ((D1 +' D2) +' E) T) :
   eutt eq (interp_mrec ctxIR
              (translate lw_la (@D1_ext_interp ctxI _ t)))
@@ -602,9 +602,12 @@ Proof.
   }  
 Qed.
 
-Lemma OK_strict_inline_lemma_new T (t: itree ((D1 +' D1) +' E) T) :
+(* was: OK_strict_inline_lemma_new.
+   proper inlining lemma: basically, eutt (sem (inline t)) (sem t) *)
+Lemma OK_strict_inline_lemma T (t: itree ((D1 +' D1) +' E) T) :
   eutt eq (interp_mrec ctxR (@D1_ext_interp D1 D1 E ctxI _ t))
-          (interp_mrec ctxIR t).
+    (interp_mrec ctxIR t).
+Proof.  
   rewrite free_widening_lemma.
   unfold D1_ext_interp.
   repeat (rewrite interp_mrec_as_interp).
