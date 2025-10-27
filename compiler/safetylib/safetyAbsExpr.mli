@@ -14,7 +14,7 @@ val pcast : wsize -> expr -> expr
 
 val wsize_of_ty : 'a gty -> int
 
-val check_is_word : int ggvar -> unit
+val check_is_word : length ggvar -> unit
 
 (*---------------------------------------------------------------*)
 type 'a gmsub = { ms_v      : var;

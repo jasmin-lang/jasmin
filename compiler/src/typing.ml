@@ -20,7 +20,7 @@ let error loc fmt =
 let ty_var (x:var_i) =
   let ty = (L.unloc x).v_ty in
   begin match ty with
-  | Arr(_, n) ->
+  | Arr(_, Const n) ->
       if (n < 1) then
         error (L.i_loc0 (L.unloc x).v_dloc)
           "the variable %a has type %a, its array size should be positive"
@@ -30,7 +30,7 @@ let ty_var (x:var_i) =
   ty
 
 
-let ty_gvar (x:int ggvar) = ty_var x.gv
+let ty_gvar (x:length ggvar) = ty_var x.gv
 
 (* -------------------------------------------------------------------- *)
 
@@ -46,7 +46,7 @@ let subtype t1 t2 =
   match t1, t2 with
   | Bty (U ws1), Bty (U ws2) -> wsize_le ws1 ws2
   | Bty bty1, Bty bty2 -> bty1 = bty2
-  | Arr(ws1,len1), Arr(ws2,len2) -> arr_size ws1 len1 == arr_size ws2 len2
+  | Arr(ws1,len1), Arr(ws2,len2) -> (* FIXME *) ws1 == ws2 && len1 == len2
   | _, _ -> false
 
 let check_type loc e te ty =
@@ -60,8 +60,11 @@ let check_int loc e te = check_type loc e te tint
 let check_ptr pd loc e te = check_type loc e te (tu pd)
 
 let check_length loc len =
+  match len with
+  | Const len ->
   if len <= 0 then
     error loc "the length should be strictly positive"
+  | _ -> ()
 
 (* -------------------------------------------------------------------- *)
 
@@ -189,7 +192,7 @@ let rec check_instr pd asmOp env i =
     check_lvals pd loc xs tout
 
   | Csyscall(xs, o, es) ->
-    let s = Syscall.syscall_sig_u o in
+    let s = Syscall.syscall_sig_u (Conv.map_syscall Conv.cal_of_al o) in
     let tins = List.map Conv.ty_of_cty s.scs_tin in
     let tout = List.map Conv.ty_of_cty s.scs_tout in
     check_exprs pd loc es tins;

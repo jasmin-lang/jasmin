@@ -100,9 +100,10 @@ let do_wint_int
       raise (HiError e) in
   let (gd, fdso) = Conv.prog_of_cuprog cp in
   (* Restore type of array in the functions signature *)
+  (* FIXME: is this needed now that we preserve ws on Rocq's side? *)
   let restore_ty tyi tyo =
     match tyi, tyo with
-    | Arr(ws1, l1), Arr(ws2, l2) -> assert (arr_size ws1 l1 = arr_size ws2 l2); tyi
+    | Arr(ws1, Const l1), Arr(ws2, Const l2) -> assert (arr_size ws1 l1 = arr_size ws2 l2); tyi
     | Bty (U _), Bty Int -> tyo
     | _, _ -> assert (tyi = tyo); tyo
   in
