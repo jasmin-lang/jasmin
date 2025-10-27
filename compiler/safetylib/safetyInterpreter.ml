@@ -144,7 +144,7 @@ let pp_arr_slice fmt slice =
       slice.as_arr slice.as_offset
   else
     pp_arr_slice pp_var pp_expr pp_len fmt slice.as_access ws slice.as_arr
-      slice.as_offset slice.as_len
+      slice.as_offset (Const slice.as_len)
 
 let pp_safety_cond fmt = function
   | Initv x -> Format.fprintf fmt "is_init %a" pp_var x
@@ -240,7 +240,7 @@ module AbsMake (Arch : SafetyArch.SafetyArch) = struct
 let in_bound x access ws e len =
   let ux = L.unloc x in
   match ux.v_ty with
-  | Arr(ws',n) -> [InBound ( n * size_of_ws ws',
+  | Arr(ws',Prog.Const n) -> [InBound ( n * size_of_ws ws',
                              { as_arr = ux;
                                as_len = len;
                                as_wsize = ws;
@@ -358,6 +358,11 @@ let rec safe_e_rec safe = function
     safe
 
   | Psub (access, ws, len, x, e) ->
+    let len =
+      match len with
+      | Const len -> len
+      | _ -> assert false
+    in
     in_bound    x.gv access ws e len @
     (* Remark that we do not have to check initialization for sub-arrays. *)
     (* Note that the length is scaled with the word-size, so we only
@@ -392,6 +397,11 @@ let safe_lval = function
     safe_e_rec [] e
 
   | Lasub(access,ws,len,x,e) ->
+    let len =
+      match len with
+      | Const len -> len
+      | _ -> assert false
+    in
     in_bound x access ws e len @
     arr_aligned (* x  *) access ws e @
     safe_e_rec [] e
@@ -423,6 +433,11 @@ let safe_opn pd asmOp safe opn es =
          let n = Papp2 (Omod (Unsigned, Op_int), n, Pconst (Z.of_int 32)) in
          [ InRange(Pconst (Conv.z_of_cz lo), Pconst (Conv.z_of_cz hi), n) ]
       | Wsize.AllInit(ws, p, i) ->
+        let p =
+          match p with
+          | Type.ALConst p -> p
+          | _ -> assert false
+        in
         let e = List.nth es (Conv.int_of_nat i) in
         let y = match e with Pvar y -> y | _ -> assert false in
         List.flatten
@@ -1401,7 +1416,12 @@ end = struct
   let aeval_syscall state sc lvs _es =
     match sc with
     | Syscall_t.RandomBytes (ws, len) ->
-       let n = BinInt.Z.to_pos (Type.arr_size ws len) in
+       let len =
+         match len with
+         | Prog.Const len -> len
+         | _ -> assert false
+       in
+       let n = Conv.pos_of_int (Prog.arr_size ws len) in
        let cells = match lvs with
          | [ Lnone _ ] -> []
          | [ Lvar x ] -> cells_of_array x 0 n

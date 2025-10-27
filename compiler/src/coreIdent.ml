@@ -91,8 +91,15 @@ end
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized variable                                                *)
 
-type ty    = int gty
-type var   = int gvar
+type length =
+  | Const of int (* FIXME: Z.t ? *)
+  | Var of length gvar
+  | Add of length * length
+  | Sub of length * length
+  | Mul of length * length
+
+type ty    = length gty
+type var   = length gvar
 
 module V = struct
   type t = var

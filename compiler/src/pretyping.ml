@@ -1087,17 +1087,26 @@ let cast_int loc os e ety =
 
 
 (* -------------------------------------------------------------------- *)
-let conv_ty : BinNums.positive T.extended_type -> P.epty = function
+let rec pexpr_of_al al =
+  let open Type in
+  match al with
+  | ALConst n -> P.cnst (Conv.z_of_pos n)
+  | ALVar _ -> assert false
+  | ALAdd (al1, al2) -> Papp2 (Oadd Op_int, pexpr_of_al al1, pexpr_of_al al2)
+  | ALSub (al1, al2) -> Papp2 (Osub Op_int, pexpr_of_al al1, pexpr_of_al al2)
+  | ALMul (al1, al2) -> Papp2 (Omul Op_int, pexpr_of_al al1, pexpr_of_al al2)
+
+let conv_ty : T.extended_type -> P.epty = function
     | T.ETbool       -> P.etbool
     | T.ETint        -> P.etint
     | T.ETword(s,ws) -> P.ETword(s,ws)
-    | T.ETarr (ws, p) -> P.ETarr (ws, PE (P.cnst (Conv.z_of_pos p)))
+    | T.ETarr (ws, al) -> P.ETarr (ws, PE (pexpr_of_al al))
 
 let conv_cty : T.atype -> P.epty = function
     | T.Coq_abool    -> P.etbool
     | T.Coq_aint     -> P.etint
     | T.Coq_aword ws -> P.etw ws
-    | T.Coq_aarr (ws, p) -> P.ETarr (ws, PE (P.cnst (Conv.z_of_pos p)))
+    | T.Coq_aarr (ws, al) -> P.ETarr (ws, PE (pexpr_of_al al))
 
 let type_of_op2 op =
   let (ty1, ty2), tyo = E.etype_of_op2 op in
@@ -1997,7 +2006,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
             (string_error "only a single variable is allowed as destination of randombytes") in
       let _ = tt_as_array (loc, ty) in
       let es = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args [ty] in
-      [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (U8, Conv.pos_of_int 1), es))]
+      [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (U8, PE (Pconst Z.one)), es))]
 
   | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None when L.unloc f = "swap" ->
       let loc = L.loc pi in

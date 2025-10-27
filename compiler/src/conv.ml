@@ -33,17 +33,35 @@ let z_unsigned_of_word sz z = z_of_cz (Word0.wunsigned sz z)
 
 (* ------------------------------------------------------------------------ *)
 
+let rec al_of_cal cal =
+  let open Type in
+  match cal with
+  | ALConst n -> Const (int_of_pos n)
+  | ALVar x -> Var x
+  | ALAdd (al1, al2) -> Add (al_of_cal al1, al_of_cal al2)
+  | ALSub (al1, al2) -> Sub (al_of_cal al1, al_of_cal al2)
+  | ALMul (al1, al2) -> Mul (al_of_cal al1, al_of_cal al2)
+
+let rec cal_of_al al =
+  let open Type in
+  match al with
+  | Const n -> ALConst (pos_of_int n)
+  | Var x -> ALVar x
+  | Add (al1, al2) -> ALAdd (cal_of_al al1, cal_of_al al2)
+  | Sub (al1, al2) -> ALSub (cal_of_al al1, cal_of_al al2)
+  | Mul (al1, al2) -> ALMul (cal_of_al al1, cal_of_al al2)
+
 let cty_of_ty = function
   | Bty Bool      -> T.Coq_abool
   | Bty Int       -> T.Coq_aint
   | Bty (U sz)   -> T.Coq_aword(sz)
-  | Arr (sz, len) -> T.Coq_aarr (sz, pos_of_int len)
+  | Arr (sz, len) -> T.Coq_aarr (sz, cal_of_al len)
 
 let ty_of_cty = function
   | T.Coq_abool  ->  Bty Bool
   | T.Coq_aint   ->  Bty Int
   | T.Coq_aword sz -> Bty (U sz)
-  | T.Coq_aarr (sz, len) -> Arr (sz, int_of_pos len)
+  | T.Coq_aarr (sz, len) -> Arr (sz, al_of_cal len)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -85,11 +103,11 @@ let gvari_of_cgvari v =
 let rec cexpr_of_expr = function
   | Pconst z          -> C.Pconst (cz_of_z z)
   | Pbool  b          -> C.Pbool  b
-  | Parr_init (ws, n) -> C.Parr_init (ws, pos_of_int n)
+  | Parr_init (ws, n) -> C.Parr_init (ws, cal_of_al n)
   | Pvar x            -> C.Pvar (cgvari_of_gvari x)
   | Pget (al, aa,ws, x,e) -> C.Pget (al, aa, ws, cgvari_of_gvari x, cexpr_of_expr e)
   | Psub (aa,ws,len, x,e) -> 
-    C.Psub (aa, ws, pos_of_int len, cgvari_of_gvari x, cexpr_of_expr e)
+    C.Psub (aa, ws, cal_of_al len, cgvari_of_gvari x, cexpr_of_expr e)
   | Pload (al, ws, e)  -> C.Pload(al, ws, cexpr_of_expr e)
   | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr e)
   | Papp2 (o, e1, e2) -> C.Papp2(o, cexpr_of_expr e1, cexpr_of_expr e2)
@@ -102,10 +120,10 @@ let rec cexpr_of_expr = function
 let rec expr_of_cexpr = function
   | C.Pconst z          -> Pconst (z_of_cz z)
   | C.Pbool  b          -> Pbool  b
-  | C.Parr_init (ws, n) -> Parr_init (ws, int_of_pos n)
+  | C.Parr_init (ws, n) -> Parr_init (ws, al_of_cal n)
   | C.Pvar x            -> Pvar (gvari_of_cgvari x)
   | C.Pget (al, aa,ws, x,e) -> Pget (al, aa, ws, gvari_of_cgvari x, expr_of_cexpr e)
-  | C.Psub (aa,ws,len,x,e) -> Psub (aa, ws, int_of_pos len, gvari_of_cgvari x, expr_of_cexpr e)
+  | C.Psub (aa,ws,len,x,e) -> Psub (aa, ws, al_of_cal len, gvari_of_cgvari x, expr_of_cexpr e)
   | C.Pload (al, ws, e)  -> Pload(al, ws, expr_of_cexpr e)
   | C.Papp1 (o, e)      -> Papp1(o, expr_of_cexpr e)
   | C.Papp2 (o, e1, e2) -> Papp2(o, expr_of_cexpr e1, expr_of_cexpr e2)
@@ -123,7 +141,7 @@ let clval_of_lval = function
   | Lmem (al, ws, loc, e) -> C.Lmem (al, ws, loc, cexpr_of_expr e)
   | Laset(al, aa,ws,x,e)-> C.Laset (al, aa, ws, cvari_of_vari x, cexpr_of_expr e)
   | Lasub(aa,ws,len,x,e)-> 
-    C.Lasub (aa, ws, pos_of_int len, cvari_of_vari x, cexpr_of_expr e)
+    C.Lasub (aa, ws, cal_of_al len, cvari_of_vari x, cexpr_of_expr e)
 
 let lval_of_clval = function
   | C.Lnone(loc, ty)  -> Lnone (loc, ty_of_cty ty)
@@ -131,7 +149,7 @@ let lval_of_clval = function
   | C.Lmem(al,ws,loc,e)  -> Lmem (al, ws, loc, expr_of_cexpr e)
   | C.Laset(al, aa,ws,x,e) -> Laset (al, aa,ws, vari_of_cvari x, expr_of_cexpr e)
   | C.Lasub(aa,ws,len,x,e) -> 
-    Lasub (aa,ws, int_of_pos len, vari_of_cvari x, expr_of_cexpr e)
+    Lasub (aa,ws, al_of_cal len, vari_of_cvari x, expr_of_cexpr e)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -142,6 +160,10 @@ let cexpr_of_exprs es = List.map (cexpr_of_expr) es
 let expr_of_cexprs es = List.map (expr_of_cexpr) es
 
 (* ------------------------------------------------------------------------ *)
+
+let map_syscall (f : 'a -> 'b) (o : (W.wsize * 'a) Syscall_t.syscall_t) : (W.wsize * 'b) Syscall_t.syscall_t =
+  match o with
+  | RandomBytes (ws, x) -> RandomBytes (ws, f x)
 
 let rec cinstr_of_instr i =
   let n = i.i_loc, i.i_annot in
@@ -161,7 +183,7 @@ and cinstr_r_of_instr_r p i =
 
   | Csyscall(x,o,e) ->
     let ir =
-      C.Csyscall(clval_of_lvals x, o, cexpr_of_exprs e) in
+      C.Csyscall(clval_of_lvals x, map_syscall cal_of_al o, cexpr_of_exprs e) in
     C.MkI(p, ir)
 
   | Cassert (msg, e) ->
@@ -206,7 +228,7 @@ and instr_r_of_cinstr_r = function
     Copn(lval_of_clvals x, t, o, expr_of_cexprs e)
 
   | C.Csyscall(x,o,e) ->
-    Csyscall(lval_of_clvals x, o, expr_of_cexprs e)
+    Csyscall(lval_of_clvals x, map_syscall al_of_cal o, expr_of_cexprs e)
 
   | C.Cassert (msg, e) ->
      Cassert (msg, expr_of_cexpr e)
@@ -296,7 +318,7 @@ let prog_of_csprog p =
 
 (* ---------------------------------------------------------------------------- *)
 let to_array ty p t = 
-  let ws, n = array_kind ty in
+  let ws, n = array_kind_const ty in
   let get i = 
     match Warray_.WArray.get p Aligned Warray_.AAscale ws t (cz_of_int i) with
     | Utils0.Ok w -> z_of_word ws w

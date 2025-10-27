@@ -22,7 +22,7 @@ let compare_event (dx, x) (dy, y) =
 
 let pick sz n =
   function
-  | [] -> V.mk n.v_name (Stack Direct) (Arr(U8,sz)) n.v_dloc n.v_annot, []
+  | [] -> V.mk n.v_name (Stack Direct) (Arr(U8,Const sz)) n.v_dloc n.v_annot, []
   | c :: free -> c, free
 
 let solve_rec sz (free, result) =

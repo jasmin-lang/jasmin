@@ -98,7 +98,7 @@ type ('len, 'info, 'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
-  | Csyscall of 'len glvals * (Wsize.wsize * BinNums.positive) Syscall_t.syscall_t * 'len gexprs
+  | Csyscall of 'len glvals * (Wsize.wsize * 'len) Syscall_t.syscall_t * 'len gexprs
   | Cassert of 'len assertion
   | Cif    of 'len gexpr * ('len, 'info, 'asm) gstmt * ('len, 'info, 'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len, 'info, 'asm) gstmt
@@ -160,7 +160,7 @@ and   pexpr  = pexpr_ gexpr
 and   pexpr_ = PE of pexpr [@@unboxed]
 
 
-type range = int grange
+type range = length grange
 
 type epty   = pexpr_ gety
 
@@ -223,20 +223,20 @@ let ws_of_ety = function
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
 
-type ty    = int gty
-type var   = int gvar
-type var_i = int gvar_i
-type lval  = int glval
-type lvals = int glval list
-type expr  = int gexpr
-type exprs = int gexpr list
+type ty    = length gty
+type var   = length gvar
+type var_i = length gvar_i
+type lval  = length glval
+type lvals = length glval list
+type expr  = length gexpr
+type exprs = length gexpr list
 
-type ('info, 'asm) instr = (int, 'info, 'asm) ginstr
-type ('info, 'asm) instr_r = (int,'info,'asm) ginstr_r
-type ('info, 'asm) stmt  = (int, 'info, 'asm) gstmt
+type ('info, 'asm) instr = (length, 'info, 'asm) ginstr
+type ('info, 'asm) instr_r = (length,'info,'asm) ginstr_r
+type ('info, 'asm) stmt  = (length, 'info, 'asm) gstmt
 
-type ('info, 'asm) func     = (int, 'info, 'asm) gfunc
-type ('info, 'asm) mod_item = (int, 'info, 'asm) gmod_item
+type ('info, 'asm) func     = (length, 'info, 'asm) gfunc
+type ('info, 'asm) mod_item = (length, 'info, 'asm) gmod_item
 type global_decl           = var * Global.glob_value
 type ('info,'asm) prog     = global_decl list * ('info, 'asm) func list
 
@@ -409,6 +409,10 @@ let array_kind = function
   | Arr(ws, n) -> ws, n
   | _ -> assert false
 
+let array_kind_const = function
+  | Arr (ws, Const n) -> ws, n
+  | _ -> assert false
+
 let ws_of_ty = function
   | Bty (U ws) -> ws
   | _ -> assert false
@@ -418,7 +422,7 @@ let arr_size ws i = size_of_ws ws * i
 let size_of t =
   match t with
   | Bty (U ws) -> size_of_ws ws
-  | Arr (ws', n) -> arr_size ws' n
+  | Arr (ws', Const n) -> arr_size ws' n
   | _ -> assert false
 
 (* -------------------------------------------------------------------- *)

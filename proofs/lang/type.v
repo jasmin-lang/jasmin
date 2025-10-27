@@ -107,11 +107,13 @@ HB.instance Definition _ := hasDecEq.Build ctype ctype_eqb_OK.
 
 (* ** Comparison
  * -------------------------------------------------------------------- *)
- 
- Definition length_var_cmp (v1 v2 : length_var) :=
+
+Definition length_var_cmp (v1 v2 : length_var) :=
   let (i1) := v1 in
   let (i2) := v2 in
-  Tident.cmp i1 i2.
+  Ident.Mid.K.cmp i1 i2.
+  (* for some reason, this works while the more natural [Tident.cmp i1 i2]
+     produces ill-typed OCaml code *)
 
 Fixpoint array_length_cmp al1 al2 :=
   match al1, al2 with
@@ -141,11 +143,11 @@ Instance length_varO : Cmp length_var_cmp.
 Proof.
   constructor.
   + move=> [i1] [i2] /=.
-    by apply cmp_sym.
+    by apply (cmp_sym (Cmp:=Ident.Mid.K.cmpO)).
   + move=> [i1] [i2] [i3] /=.
-    by apply cmp_ctrans.
+    by apply (cmp_ctrans (Cmp:=Ident.Mid.K.cmpO)).
   move=> [i1] [i2] /=.
-  by move=> /cmp_eq ->.
+  by move=> /(cmp_eq (Cmp:=Ident.Mid.K.cmpO)) ->.
 Qed.
 
 Instance array_lengthO : Cmp array_length_cmp.

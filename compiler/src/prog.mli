@@ -65,7 +65,7 @@ type ('len, 'info, 'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
-  | Csyscall of 'len glvals * (Wsize.wsize * BinNums.positive) Syscall_t.syscall_t * 'len gexprs
+  | Csyscall of 'len glvals * (Wsize.wsize * 'len) Syscall_t.syscall_t * 'len gexprs
   | Cassert of 'len assertion
   | Cif    of 'len gexpr * ('len, 'info, 'asm) gstmt * ('len, 'info, 'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len, 'info, 'asm) gstmt
@@ -160,23 +160,23 @@ val ws_of_ety : epty -> wsize
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
 
-type ty    = int gty
-type var   = int gvar
-type var_i = int gvar_i
-type lval  = int glval
-type lvals = int glval list
-type expr  = int gexpr
-type exprs = int gexpr list
+type ty    = length gty
+type var   = length gvar
+type var_i = length gvar_i
+type lval  = length glval
+type lvals = length glval list
+type expr  = length gexpr
+type exprs = length gexpr list
 
 
-type range = int grange
+type range = length grange
 
-type ('info, 'asm) instr = (int, 'info, 'asm) ginstr
-type ('info, 'asm) instr_r = (int,'info,'asm) ginstr_r
-type ('info, 'asm) stmt  = (int, 'info, 'asm) gstmt
+type ('info, 'asm) instr = (length, 'info, 'asm) ginstr
+type ('info, 'asm) instr_r = (length,'info,'asm) ginstr_r
+type ('info, 'asm) stmt  = (length, 'info, 'asm) gstmt
 
-type ('info, 'asm) func     = (int, 'info, 'asm) gfunc
-type ('info, 'asm) mod_item = (int, 'info, 'asm) gmod_item
+type ('info, 'asm) func     = (length, 'info, 'asm) gfunc
+type ('info, 'asm) mod_item = (length, 'info, 'asm) gmod_item
 type global_decl           = var * Global.glob_value
 type ('info, 'asm) prog     = global_decl list * ('info, 'asm) func list
 
@@ -261,6 +261,7 @@ val int_of_velem : velem -> int
 
 val is_ty_arr : 'e gty -> bool
 val array_kind : 'e gty -> wsize * 'e
+val array_kind_const : ty -> wsize * int
 val ws_of_ty   : 'e gty -> wsize
 val arr_size : wsize -> int -> int
 val size_of  : ty -> int
