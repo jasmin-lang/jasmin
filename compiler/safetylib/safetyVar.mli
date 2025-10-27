@@ -41,7 +41,7 @@ val variables_ignore  : Apron.Var.t -> bool
 val mvar_ignore  : mvar -> bool
   
 (*---------------------------------------------------------------*)
-val arr_range : var -> int
+val arr_range : var -> length
 val arr_size  : var -> wsize
 val ty_mvar   : mvar -> ty
 
@@ -62,7 +62,7 @@ val mvar_of_svar : string         -> mvar
 val mvar_of_avar : Apron.Var.t    -> mvar
 
 val mvar_of_scoped_var : Expr.v_scope -> Prog.var -> mvar
-val mvar_of_var        : int Prog.ggvar -> mvar
+val mvar_of_var        : length Prog.ggvar -> mvar
 
 
 (*---------------------------------------------------------------*)

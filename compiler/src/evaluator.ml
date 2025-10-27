@@ -72,22 +72,22 @@ let init_estate ep spp p ii fn scs0 m vargs =
   let s_estate = exn_exec ii (write_vars nosubword ep true f.f_params vargs s_estate) in
   f, vargs, s_estate
 
-let finalize_estate ep spp p ii f vargs (s: _ estate) =
+let finalize_estate ep spp p ii f vargs env (s: _ estate) =
   let gd = p.p_globs in
   let vres = exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword true s.evm x.v_var) f.f_res) in
-  let vres = exn_exec ii (mapM2 ErrType truncate_val (List.map Type.eval_atype f.f_tyout) vres) in
+  let vres = exn_exec ii (mapM2 ErrType truncate_val (List.map (Type.eval_atype env) f.f_tyout) vres) in
   BatOption.may (fun fc -> exec_post ep spp ii fc gd s.escs s.emem vargs vres) f.f_contract;
   s.escs, s.emem, vres
 
-let return ep spp s =
+let return ep spp env s =
   assert (s.s_cmd = []);
   match s.s_stk with
   | Sempty(ii, f, vargs) ->
-    let _, m, vres = finalize_estate ep spp s.s_prog ii f vargs s.s_estate in
+    let _, m, vres = finalize_estate ep spp s.s_prog ii f vargs env s.s_estate in
     raise (Final(m, vres))
 
   | Scall(ii,f, vargs, xs,vm1,c,stk) ->
-    let escs, emem, vres = finalize_estate ep spp s.s_prog ii f vargs s.s_estate in
+    let escs, emem, vres = finalize_estate ep spp s.s_prog ii f vargs env s.s_estate in
     let gd = s.s_prog.p_globs in
     let s1 = exn_exec ii (write_lvals nosubword ep spp true gd {escs; emem; evm = vm1 } xs vres) in
     { s with
@@ -99,14 +99,14 @@ let return ep spp s =
     match ws with
     | [] -> { s with s_cmd = c; s_stk = stk }
     | w::ws ->
-      let s1 = exn_exec ii (write_var nosubword ep true i (Vint w) s.s_estate) in
+      let s1 = exn_exec ii (write_var nosubword ep env true i (Vint w) s.s_estate) in
       { s with s_cmd = body;
                s_estate = s1;
                s_stk = Sfor(ii, i, ws, body, c, stk) }
 
-let small_step1 ep spp sip s =
+let small_step1 ep spp sip env s =
   match s.s_cmd with
-  | [] -> return ep spp s
+  | [] -> return ep spp env s
   | i :: c ->
     let MkI(ii,ir) = i in
     let gd = s.s_prog.p_globs in
@@ -114,20 +114,20 @@ let small_step1 ep spp sip s =
     match ir with
 
     | Cassgn(x,_,ty,e) ->
-      let v  = exn_exec ii (sem_pexpr nosubword ep spp true gd s1 e) in
-      let v' = exn_exec ii (truncate_val (eval_atype ty) v) in
-      let s2 = exn_exec ii (write_lval nosubword ep spp true gd x v' s1) in
+      let v  = exn_exec ii (sem_pexpr nosubword ep spp env true gd s1 e) in
+      let v' = exn_exec ii (truncate_val (eval_atype env ty) v) in
+      let s2 = exn_exec ii (write_lval nosubword ep spp env true gd x v' s1) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Copn(xs,_,op,es) ->
-      let s2 = exn_exec ii (sem_sopn nosubword ep spp sip._asmop gd op s1 xs es) in
+      let s2 = exn_exec ii (sem_sopn nosubword ep spp sip._asmop env gd op s1 xs es) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Csyscall(xs,o, es) ->
-      let ves = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
+      let ves = exn_exec ii (sem_pexprs nosubword ep spp env true gd s1 es) in
       let ((scs, m), vs) =
-        exn_exec ii (syscall_sem__ sip._sc_sem ep._pd s1.escs s1.emem o ves) in
-      let s2 = exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
+        exn_exec ii (syscall_sem__ sip._sc_sem ep._pd env s1.escs s1.emem o ves) in
+      let s2 = exn_exec ii (write_lvals nosubword ep spp env true gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Cassert (p,a) ->
@@ -135,17 +135,17 @@ let small_step1 ep spp sip s =
       { s with s_cmd = c }
 
     | Cif(e,c1,c2) ->
-      let b = of_val_b ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 e)) in
+      let b = of_val_b ii (exn_exec ii (sem_pexpr nosubword ep spp env true gd s1 e)) in
       let c = (if b then c1 else c2) @ c in
       { s with s_cmd = c }
 
     | Cfor (i,((d,lo),hi), body) ->
-      let vlo = of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 lo)) in
-      let vhi = of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 hi)) in
+      let vlo = of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp env true gd s1 lo)) in
+      let vhi = of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp env true gd s1 hi)) in
       let rng = wrange d vlo vhi in
       let s =
         {s with s_cmd = []; s_stk = Sfor(ii, i, rng, body, c, s.s_stk) } in
-      return ep spp s
+      return ep spp env s
 
     | Cwhile (_, c1, e, _, c2) ->
       { s with s_cmd = c1 @ MkI(ii, Cif(e, c2@[i],[])) :: c }
@@ -158,6 +158,8 @@ let small_step1 ep spp sip s =
               s_estate;
               s_stk = stk }
 
+let rec small_step ep spp sip env s =
+  small_step ep spp sip env (small_step1 ep spp sip env s)
 
 let rec small_step ep spp sip s =
   small_step ep spp sip (small_step1 ep spp sip s)
@@ -198,7 +200,8 @@ let run (type reg regx xreg rflag cond asm_op extra_op)
     Sem_params_of_arch_extra.sip_of_asm_e A.asm_e Syscall_ocaml.sc_sem
   in
   let scs0 = Syscall_ocaml.initial_state () in
-  exec ep spp sip scs0 p ii fn args m
+  let env _ = assert false in
+  exec ep spp sip env scs0 p ii fn args m
 
 (* ----------------------------------------------------------- *)
 let pp_undef fmt cty =

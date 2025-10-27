@@ -1,7 +1,7 @@
 open Utils
 open Printer
-open Prog
 open Wsize
+open Prog
 
 let hierror = hierror ~kind:"compilation error" ~sub_kind:"stack allocation"
 (* Most of the errors have no location initially, but they are added later
@@ -206,7 +206,12 @@ let slice_of_pexpr a =
   function
   | Parr_init _ -> None
   | Pvar x -> Some (normalize_gvar a x)
-  | Psub (aa, ws, len, x, i) -> Some (normalize_asub a aa ws len x i)
+  | Psub (aa, ws, len, x, i) ->
+      begin match len with
+      | Const len ->
+        Some (normalize_asub a aa ws len x i)
+      | _ -> hierror_no_loc "stack array with non-const length"
+      end
   | PappN (Oarray _, _) -> hierror_no_loc "stack literal arrays are not supported"
   | (Pconst _ | Pbool _ | Pget _ | Pload _ | Papp1 _ | Papp2 _ | PappN _ ) -> assert false
   | Pif _ -> hierror_no_loc "conditional move of (ptr) arrays is not supported yet"
@@ -214,7 +219,12 @@ let slice_of_pexpr a =
 let slice_of_lval a =
   function
   | Lvar x -> Some (normalize_var a (L.unloc x))
-  | Lasub (aa, ws, len, gv, i) -> Some (normalize_asub a aa ws len { gv ; gs = E.Slocal } i)
+  | Lasub (aa, ws, len, gv, i) ->
+      begin match len with
+      | Const len ->
+        Some (normalize_asub a aa ws len { gv ; gs = E.Slocal } i)
+      | _ -> hierror_no_loc "stack array with non-const length"
+      end
   | (Lmem _ | Laset _ | Lnone _) -> None
 
 let assign_arr params a x e =

@@ -220,7 +220,13 @@ let pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len =
     pp_access_size ws pp_expr (peel_implicit_cast_to_uint e) pp_len len
 
 (* -------------------------------------------------------------------- *)
-let pp_len fmt len = fprintf fmt "%i" len
+let rec pp_len fmt (len:length) =
+  match len with
+  | Const n -> fprintf fmt "%i" n
+  | Var x -> fprintf fmt "%s" x.v_name
+  | Add (e1, e2) -> fprintf fmt "(%a) + (%a)" pp_len e1 pp_len e2
+  | Sub (e1, e2) -> fprintf fmt "(%a) - (%a)" pp_len e1 pp_len e2
+  | Mul (e1, e2) -> fprintf fmt "(%a) * (%a)" pp_len e1 pp_len e2
 let pp_ty fmt = pp_gtype pp_len fmt
 
 (* -------------------------------------------------------------------- *)
