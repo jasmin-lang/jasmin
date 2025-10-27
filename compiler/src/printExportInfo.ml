@@ -73,7 +73,8 @@ let collect_export_info env prog asm_prog =
 
 (***********************************************************************)
 
-let pp_size fmt i = F.fprintf fmt "%i" i
+let pp_size = PrintCommon.pp_len
+(* FIXME: maybe print only consts and assert false or fail for other cases *)
 
 let escape_string_json s =
   String.replace_chars (function
