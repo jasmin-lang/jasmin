@@ -171,3 +171,84 @@ Proof.
   - econstructor; eauto.
 Qed.
 
+Definition simple_rutt E T1 T2 RR
+  (t1 : itree E T1) (t2 : itree E T2) : Prop := 
+  rutt (fun U1 U2 (e1: E U1) (e2: E U2) =>
+             exists h : U2 = U1, e1 = eq_rect U2 E e2 U1 h)
+       (fun U1 U2 (e1: E U1) (u1: U1) (e2: E U2) (u2: U2) => JMeq u1 u2)
+       RR t1 t2.
+
+Lemma rutt2eutt E T1 T2 RR 
+  (t1: itree E T1) (t2: itree E T2) :
+ @simple_rutt E T1 T2 RR t1 t2 -> eutt RR t1 t2.
+Proof.
+  revert t1 t2.
+  ginit; gcofix CIH.
+  unfold simple_rutt.
+  intros t1 t2 H.
+  rewrite (itree_eta t1).
+  rewrite (itree_eta t2).
+  punfold H; red in H; simpl in H.   
+  remember (observe t1) as ot1.
+  remember (observe t2) as ot2.
+  hinduction H before CIH.
+  
+  { intros t1 t2 H0 H1.
+    gstep; red; simpl.
+    econstructor; auto.
+  }
+  { intros t1 t2 H0 H1.
+    gstep; red; simpl; pclearbot.
+    econstructor; eauto.
+    gfinal; left.
+    eapply CIH; auto.
+  }
+  { intros t1 t2 H1 H2.
+    gstep; red; simpl.
+    destruct H as [ee HA].
+    dependent destruction ee.
+    simpl in HA. inv HA.  
+    econstructor.
+    intros v; unfold Datatypes.id; simpl.
+    gfinal; left; pclearbot.
+    eapply CIH; auto; simpl.
+    eapply H0; auto.
+  }
+  { intros t1' t2 H0 H1.
+    guclo eqit_clo_trans.
+    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
+    instantiate (1:= t1).
+    eapply eqit_Tau_l; reflexivity.
+    reflexivity.
+    setoid_rewrite (itree_eta t1).
+    pclearbot; eapply IHruttF; auto.
+    exact H1.
+    intros; inv H2; auto.
+    intros; inv H2; auto.
+  }
+  { intros t1 t2' H0 H1.
+    guclo eqit_clo_trans.
+    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
+    3: { eapply IHruttF; try reflexivity; eauto. }
+    { inv H0; simpl.
+      setoid_rewrite (itree_eta t1) at 2; reflexivity.
+    }  
+    { eapply eqit_Tau_l.
+      setoid_rewrite (itree_eta t2) at 1; reflexivity.
+    }  
+    { intros; inv H2; auto. }
+    { intros; inv H2; auto. }
+  }
+Qed.  
+
+Lemma simple_rutt_eutt_equiv E T1 T2 RR 
+  (t1: itree E T1) (t2: itree E T2) :
+ @simple_rutt E T1 T2 RR t1 t2 <-> eutt RR t1 t2.
+Proof.
+  split; intros.
+  - eapply rutt2eutt; eauto.
+  - eapply gen_eutt_rutt; eauto.
+    + intros; exists erefl; simpl; auto.
+    + intros T e a b H0. dependent destruction H0; auto.  
+Qed.
+
