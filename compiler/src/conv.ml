@@ -39,7 +39,6 @@ let rec al_of_cal cal =
   | ALConst n -> Const (int_of_pos n)
   | ALVar x -> Var x
   | ALAdd (al1, al2) -> Add (al_of_cal al1, al_of_cal al2)
-  | ALSub (al1, al2) -> Sub (al_of_cal al1, al_of_cal al2)
   | ALMul (al1, al2) -> Mul (al_of_cal al1, al_of_cal al2)
 
 let rec cal_of_al al =
@@ -48,7 +47,6 @@ let rec cal_of_al al =
   | Const n -> ALConst (pos_of_int n)
   | Var x -> ALVar x
   | Add (al1, al2) -> ALAdd (cal_of_al al1, cal_of_al al2)
-  | Sub (al1, al2) -> ALSub (cal_of_al al1, cal_of_al al2)
   | Mul (al1, al2) -> ALMul (cal_of_al al1, cal_of_al al2)
 
 let cty_of_ty = function

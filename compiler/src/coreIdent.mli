@@ -87,7 +87,6 @@ type length =
   | Const of int (* FIXME: Z.t *)
   | Var of length gvar
   | Add of length * length
-  | Sub of length * length
   | Mul of length * length
 
 type ty    = length gty

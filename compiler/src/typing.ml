@@ -67,10 +67,8 @@ let expanded_form len =
     | Const n -> let coeff = n * coeff in (coeff, mono) :: terms
     | Var x -> let mono = x :: mono in (coeff, mono) :: terms
     | Add (e1, e2) -> expanded_form (expanded_form terms coeff mono e1) coeff mono e2
-    | Sub _ -> assert false (* TODO *)
     | Mul (Const n, e) -> let coeff = n * coeff in expanded_form terms coeff mono e
     | Mul (Var x, e) -> let mono = x :: mono in expanded_form terms coeff mono e
-    | Mul (Sub _, _) -> assert false (* TODO *)
     | Mul (Add (e11, e12), e2) -> expanded_form terms coeff mono (Add (Mul (e11, e2), Mul (e12, e2)))
     | Mul (Mul (e11, e12), e2) -> expanded_form terms coeff mono (Mul (e11, Mul (e12, e2)))
   in
