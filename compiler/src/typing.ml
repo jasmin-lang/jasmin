@@ -24,7 +24,7 @@ let ty_var (x:var_i) =
       if (n < 1) then
         error (L.i_loc0 (L.unloc x).v_dloc)
           "the variable %a has type %a, its array size should be positive"
-          (Printer.pp_var ~debug:false) (L.unloc x) PrintCommon.pp_ty ty
+          (Printer.pp_var ~debug:false) (L.unloc x) (PrintCommon.pp_ty ~debug:false) ty
   | _ -> ()
   end;
   ty
@@ -40,7 +40,7 @@ let check_array loc e te =
   | _     ->
     error loc
       "the expression %a has type %a while an array is expected"
-      (Printer.pp_expr ~debug:false) e PrintCommon.pp_ty te
+      (Printer.pp_expr ~debug:false) e (PrintCommon.pp_ty ~debug:false) te
 
 let rec insert_mono x mono =
   match mono with
@@ -91,7 +91,7 @@ let check_type loc e te ty =
   if not (subtype ty te) then
     error loc "the expression %a has type %a while %a is expected"
         (Printer.pp_expr ~debug:false) e
-        PrintCommon.pp_ty te PrintCommon.pp_ty ty
+        (PrintCommon.pp_ty ~debug:false) te (PrintCommon.pp_ty ~debug:false) ty
 
 let check_int loc e te = check_type loc e te tint
 
@@ -202,7 +202,7 @@ let check_lval pd loc x ty =
   if not (subtype tx ty) then
     error loc "the left value %a has type %a while %a is expected"
         (Printer.pp_lval ~debug:false) x
-        PrintCommon.pp_ty tx PrintCommon.pp_ty ty
+        (PrintCommon.pp_ty ~debug:false) tx (PrintCommon.pp_ty ~debug:false) ty
 
 let check_lvals pd loc xs tys =
   let len = List.length tys in
