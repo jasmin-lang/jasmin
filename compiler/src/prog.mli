@@ -234,6 +234,7 @@ val fold_vars_fc : ('ty gvar -> 'acc -> 'acc) -> 'acc -> ('ty, 'info, 'asm) gfun
 val vars_ret : ('info, 'asm) func -> Sv.t
 val vars_lv : Sv.t -> lval -> Sv.t
 val vars_e  : expr -> Sv.t
+val pvars_e  : pexpr -> Spv.t
 val vars_es : expr list -> Sv.t
 val vars_a  : eassert -> Sv.t
 val vars_i  : ('info, 'asm) instr -> Sv.t

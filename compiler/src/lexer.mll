@@ -192,6 +192,8 @@ rule main = parse
   | "}"     { RBRACE     }
   | "("     { LPAREN     }
   | ")"     { RPAREN     }
+  | "<|"    { LABRACKET  } (* left angle bracket *)
+  | "|>"    { RABRACKET  }
   | "->"    { RARROW     }
   | ","     { COMMA      }
   | ";"     { SEMICOLON  }

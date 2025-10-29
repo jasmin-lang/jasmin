@@ -86,6 +86,15 @@ module GV = struct
   let is_glob v = v.v_kind = Const
 
   let is_local v = not (is_glob v)
+
+  (* if the type of the var is a base type, the var can be cast to any type *)
+  let cast v =
+    let ty =
+      match v.v_ty with
+      | Bty _ as ty -> ty
+      | _ -> assert false
+    in
+    { v with v_ty = ty }
 end
 
 (* ------------------------------------------------------------------------ *)

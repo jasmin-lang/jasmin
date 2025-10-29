@@ -56,8 +56,8 @@ val pp_arr_slice :
   'len ->
   unit
 
-val pp_len : Format.formatter -> CoreIdent.length -> unit
-val pp_ty : Format.formatter -> Prog.ty -> unit
+val pp_len : debug:bool -> Format.formatter -> CoreIdent.length -> unit
+val pp_ty : debug:bool -> Format.formatter -> Prog.ty -> unit
 val pp_datas : Format.formatter -> Word0.word list -> unit
 val pp_var : Format.formatter -> Var0.Var.var -> unit
 val pp_var_i : Format.formatter -> Expr.var_i -> unit
