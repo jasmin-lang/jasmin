@@ -400,23 +400,125 @@ Definition eval_ltype ty :=
 
 End EVAL.
 
-(* FIXME: do sth sensible here *)
+From Equations Require Import Equations.
+(* importing equations messes with erefl/refl_equal for some reason... *)
+Arguments Logic.eq_refl {_} {_}, [_] _.
+From Coq Require Import Lia.
+
+Fixpoint size_poly poly : nat :=
+  match poly with
+  | ALConst _ | ALVar _ => 1
+  | ALAdd p1 p2 | ALSub p1 p2 | ALMul p1 p2 =>
+    size_poly p1 + size_poly p2
+  end.
+
+Lemma lt0_size_poly p : (0 < size_poly p)%nat.
+Proof. by elim: p => /=; lia. Qed.
+
+Fixpoint size_Mul poly : nat :=
+  match poly with
+  | ALConst _ | ALVar _ => 0
+  | ALAdd p1 p2 | ALSub p1 p2 => size_Mul p1 + size_Mul p2
+  | ALMul p1 p2 => 1 + size_Mul p1 + size_Mul p2
+  end.
+
+Fixpoint left_Mul_under_Mul poly : nat :=
+  match poly with
+  | ALConst _ | ALVar _ => 0
+  | ALAdd p1 p2 | ALSub p1 p2 => left_Mul_under_Mul p1 + left_Mul_under_Mul p2
+  | ALMul p1 p2 => size_Mul p1 + left_Mul_under_Mul p2
+  end.
+
+Fixpoint insert_mono x mono :=
+  match mono with
+  | [::] => [:: x]
+  | x2 :: mono =>
+    match length_var_cmp x x2 with
+    | Lt | Eq => x :: x2 :: mono
+    | Gt => x2 :: insert_mono x mono
+    end
+  end.
+
+Fixpoint insert_term cm terms :=
+  match terms with
+  | [::] => [:: cm]
+  | cm2 :: terms =>
+    match List.list_compare length_var_cmp (snd cm) (snd cm2) with
+    | Lt => cm :: cm2 :: terms
+    | Eq => let new_coeff := fst cm + fst cm2 in if new_coeff =? 0 then terms else (new_coeff, snd cm) :: terms
+    | Gt => cm2 :: insert_term cm terms
+    end
+  end%Z.
+Definition insert_term_nice cm terms :=
+  if (fst cm =? 0)%Z then terms else insert_term cm terms.
+
+Equations expanded_form (p : array_length) : list (Z * list length_var) :=
+  expanded_form p := aux [::] 1 [::] p
+
+  where aux (terms : list (Z * list length_var)) (coeff : Z) (mono : list length_var) (p : array_length) : list (Z * list length_var) by wf (size_poly p, left_Mul_under_Mul p) (lexprod _ _ lt lt)  :=
+    aux terms coeff mono (ALConst n) := let coeff := (n * coeff)%Z in insert_term_nice (coeff, mono) terms;
+    aux terms coeff mono (ALVar x) := let mono := insert_mono x mono in (coeff, mono) :: terms;
+    aux terms coeff mono (ALAdd e1 e2) := aux (aux terms coeff mono e1) coeff mono e2;
+    aux terms coeff mono (ALSub e1 e2) := aux (aux terms coeff mono e1) (-coeff) mono e2;
+    aux terms coeff mono (ALMul (ALConst n) e) := let coeff := (n * coeff)%Z in aux terms coeff mono e;
+    aux terms coeff mono (ALMul (ALVar x) e) := let mono := insert_mono x mono in aux terms coeff mono e;
+    aux terms coeff mono (ALMul (ALAdd e11 e12) e2) := aux (aux terms coeff mono (ALMul e11 e2)) coeff mono (ALMul e12 e2);
+    aux terms coeff mono (ALMul (ALSub e11 e12) e2) := aux (aux terms coeff mono (ALMul e11 e2)) (-coeff) mono (ALMul e12 e2);
+    aux terms coeff mono (ALMul (ALMul e11 e12) e2) := aux terms coeff mono (ALMul e11 (ALMul e12 e2)).
+Next Obligation.
+  simpl.
+  left. have := lt0_size_poly e2. lia.
+Qed.
+Next Obligation.
+  simpl.
+  left. have := lt0_size_poly e1. lia.
+Qed.
+Next Obligation.
+  simpl.
+  left. have := lt0_size_poly e2. lia.
+Qed.
+Next Obligation.
+  simpl.
+  left. have := lt0_size_poly e1. lia.
+Qed.
+Next Obligation.
+  simpl. left. have := lt0_size_poly e12. lia.
+Qed.
+Next Obligation.
+  simpl. left. have := lt0_size_poly e11. lia.
+Qed.
+Next Obligation.
+  simpl. left. have := lt0_size_poly e12. lia.
+Qed.
+Next Obligation.
+  simpl. left. have := lt0_size_poly e11. lia.
+Qed.
+Final Obligation.
+  simpl. rewrite Nat.add_assoc. right.
+  lia.
+Qed.
+
+Definition compare_array_length '(ws, al) '(ws', al') :=
+  let ef := expanded_form (ALMul (ALConst (Z.to_pos (wsize_size ws))) al) in
+  let ef' := expanded_form (ALMul (ALConst (Z.to_pos (wsize_size ws'))) al') in
+  ef == ef'.
+
 Definition convertible (t t' : atype) :=
   match t with
   | aarr ws al =>
-    if t' is aarr ws' al' then (ws == ws') && (al == al') else false
+    if t' is aarr ws' al' then compare_array_length (ws, al) (ws', al') else false
   | _ => t == t'
   end.
 
 Lemma convertible_refl t : convertible t t.
-Proof. by case: t => //= ??; rewrite !eq_refl. Qed.
+Proof. by case: t => //=. Qed.
 #[global]
 Hint Resolve convertible_refl : core.
 
 Lemma convertible_sym ty1 ty2 : convertible ty1 ty2 -> convertible ty2 ty1.
 Proof.
   case: ty1 ty2 => [||ws1 al1|ws1] [||ws2 al2|ws2] //=.
-  + by rewrite (eq_sym ws1) (eq_sym al1).
+  + by rewrite eq_sym.
   by rewrite eq_sym.
 Qed.
 
@@ -424,19 +526,126 @@ Lemma convertible_trans ty2 ty1 ty3 :
   convertible ty1 ty2 -> convertible ty2 ty3 -> convertible ty1 ty3.
 Proof.
   case: ty1 ty2 => [||ws1 al1|ws1] [||ws2 al2|ws2] //=.
-  + by move=> /andP [/eqP -> /eqP ->].
+  + by move=> /eqP ->.
   by move=> /eqP ->.
 Qed.
+
+Fixpoint eval_mono (env : length_var -> positive) (mono : list length_var) : Z :=
+  match mono with
+  | [::] => 1
+  | x :: mono => env x * eval_mono env mono
+  end.
+
+Fixpoint eval_expand (env : length_var -> positive) terms : Z :=
+  match terms with
+  | [::] => 0
+  | (count, mono) :: terms =>
+    count * eval_mono env mono + eval_expand env terms
+  end.
+
+Lemma insert_mono_correct env x mono :
+  eval_mono env (insert_mono x mono) = (env x * eval_mono env mono)%Z.
+Proof.
+Local Opaque Z.add Z.mul.
+  elim: mono => [|x2 mono ih] /=.
+  - done.
+  - case: length_var_cmp => //=.
+    rewrite ih. lia.
+Local Transparent Z.add Z.mul.
+Qed.
+
+Lemma insert_term_correct env cm terms :
+  eval_expand env (insert_term cm terms) = (eval_expand env terms + fst cm * eval_mono env (snd cm))%Z.
+Proof.
+  elim: terms => [|cm2 terms ih] //=.
+  - case: cm => [count mono] /=. lia.
+  case: List.list_compareP.
+  + move=> x y. split.
+    + by apply cmp_eq.
+    move=> <-. by apply cmp_refl.
+  + case: cm ih => [coeff mono] /= ih.
+    case: cm2 => [coeff2 mono2] /=.
+    move=> ?; subst mono2.
+    case: Z.eqb_spec.
+    + lia.
+    move=> /=.
+    lia.
+  + case: cm ih => [coeff mono] /= ih.
+    case: cm2 => [coeff2 mono2] /=. move=> ???. lia.
+  + case: cm ih => [coeff mono] /= ih.
+    case: cm2 => [coeff2 mono2] /=. move=> ???. lia.
+  + case: cm ih => [coeff mono] /= ih.
+    case: cm2 => [coeff2 mono2] /=. move=> ???. lia.
+  case: cm ih => [coeff mono] /= ih.
+  case: cm2 => [coeff2 mono2] /=. move=> ???. lia.
+Qed.
+
+Lemma insert_term_nice_correct env cm terms :
+  eval_expand env (insert_term_nice cm terms) = (eval_expand env terms + fst cm * eval_mono env (snd cm))%Z.
+Proof.
+  rewrite /insert_term_nice.
+  case: Z.eqb_spec.
+  + lia.
+  move=> _.
+  by apply insert_term_correct.
+Qed.
+
+Lemma expanded_form_sound p :
+  forall env, eval_expand env (expanded_form p) = eval env p.
+Proof.
+Local Opaque Z.add Z.mul.
+  move=> env. move: p.
+  apply (expanded_form_elim
+    (P := fun p terms => eval_expand env terms = eval env p)
+    (P0 := fun _ terms coeff mono p' terms' => eval_expand env terms' = eval_expand env terms + coeff * eval_mono env mono * eval env p'))%Z.
+  - move=> p /=. lia.
+  - move=> _ terms coeff mono n /=.
+    rewrite insert_term_nice_correct /=. lia.
+  - move=> _ terms coeff mono x /=.
+    rewrite insert_mono_correct /=. lia.
+  - move=> p terms coeff mono e1 e2 /= h1 h2.
+    rewrite h2 h1. lia.
+  - move=> p terms coeff mono e1 e2 /= h1 h2.
+    rewrite h2 h1. simpl. admit. (* this is wrong because of positive + Z = KABOOM *)
+  - move=> p terms coeff mono n e /= h.
+    rewrite h. lia.
+  - move=> p terms coeff mono x e /= h.
+    rewrite h insert_mono_correct. lia.
+  - move=> p terms coeff mono e11 e12 e2 /= h1 h2.
+    rewrite h2 h1. lia.
+  - move=> p terms coeff mono e11 e12 e2 /= h1 h2.
+    rewrite h2 h1. simpl. admit. (* this is wrong because of positive + Z = KABOOM *)
+  - move=> p terms coeff mono e11 e12 e2 /= h.
+    rewrite h. lia.
+Local Transparent Z.add Z.mul.
+Admitted.
+
+Lemma compare_array_length_eval_atype ws1 len1 ws2 len2 :
+  compare_array_length (ws1, len1) (ws2, len2) ->
+  forall env,
+    (arr_size ws1 (eval env len1) = arr_size ws2 (eval env len2))%Z.
+Proof.
+Local Opaque wsize_size.
+  rewrite /compare_array_length => /eqP heq.
+  move=> env.
+  have := expanded_form_sound (ALMul (ALConst (Z.to_pos (wsize_size ws1))) len1) env.
+  have := expanded_form_sound (ALMul (ALConst (Z.to_pos (wsize_size ws2))) len2) env.
+  rewrite /eval /= -/(eval _). rewrite heq. move=> ->.
+  admit. (* this is wrong because of positive + Z = KABOOM *)
+Local Transparent wsize_size.
+Admitted.
 
 Lemma convertible_eval_atype ty1 ty2 :
   convertible ty1 ty2 ->
   forall env,
     eval_atype env ty1 = eval_atype env ty2.
 Proof.
+Local Opaque wsize_size.
   move=> hc env.
   case: ty1 ty2 hc => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
-  + by move=> /andP [/eqP <- /eqP <-].
+  + by move=> /compare_array_length_eval_atype /(_ env) ->.
   by move=> /eqP [<-].
+Local Transparent wsize_size.
 Qed.
 
 Lemma all2_convertible_eval_atype tys1 tys2 :
@@ -487,7 +696,7 @@ Lemma subatype_trans ty2 ty1 ty3 :
   subatype ty1 ty2 -> subatype ty2 ty3 -> subatype ty1 ty3.
 Proof.
   case: ty1 => //= [/eqP<-|/eqP<-|ws1 al1|ws1] //.
-  + by case: ty2 => //= ws2 al2 /andP [/eqP -> /eqP ->].
+  + by case: ty2 => //= ws2 al2 /eqP ->.
   by case: ty2 => //= ws2 hle; case: ty3 => //= ws3; apply: cmp_le_trans hle.
 Qed.
 
@@ -544,7 +753,7 @@ Lemma subatype_subctype ty1 ty2 :
 Proof.
   move=> hc env.
   case: ty1 ty2 hc => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
-  by move=> /andP [/eqP <- /eqP <-].
+  by move=> /compare_array_length_eval_atype /(_ env) ->.
 Qed.
 
 (* -------------------------------------------------------------------- *)

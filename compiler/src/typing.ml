@@ -41,11 +41,51 @@ let check_array loc e te =
       "the expression %a has type %a while an array is expected"
       (Printer.pp_expr ~debug:false) e PrintCommon.pp_ty te
 
+let rec insert_mono x mono =
+  match mono with
+  | [] -> [x]
+  | y :: mono' ->
+      if x <= y then x :: mono
+      else y :: insert_mono x mono'
+
+let add_term ((coeff, _) as cm) terms =
+  if coeff = 0 then terms else cm :: terms
+
+let rec insert_term ((coeff, mono) as cm) terms =
+  match terms with
+  | [] -> [cm]
+  | ((coeff', mono') as cm') :: terms' ->
+    if mono < mono' then cm :: terms
+    else if mono = mono' then add_term (coeff + coeff', mono) terms
+    else cm' :: insert_term cm terms
+let insert_term ((coeff, _) as cm) terms =
+  if coeff = 0 then terms else insert_term cm terms
+
+let expanded_form len =
+  let rec expanded_form terms coeff mono poly =
+    match poly with
+    | Const n -> let coeff = n * coeff in (coeff, mono) :: terms
+    | Var x -> let mono = x :: mono in (coeff, mono) :: terms
+    | Add (e1, e2) -> expanded_form (expanded_form terms coeff mono e1) coeff mono e2
+    | Sub _ -> assert false (* TODO *)
+    | Mul (Const n, e) -> let coeff = n * coeff in expanded_form terms coeff mono e
+    | Mul (Var x, e) -> let mono = x :: mono in expanded_form terms coeff mono e
+    | Mul (Sub _, _) -> assert false (* TODO *)
+    | Mul (Add (e11, e12), e2) -> expanded_form terms coeff mono (Add (Mul (e11, e2), Mul (e12, e2)))
+    | Mul (Mul (e11, e12), e2) -> expanded_form terms coeff mono (Mul (e11, Mul (e12, e2)))
+  in
+  expanded_form [] 1 [] len
+
+let compare_array_length (ws, al) (ws', al') =
+  let ef = expanded_form (Mul (Const (size_of_ws ws), al)) in
+  let ef' = expanded_form (Mul (Const (size_of_ws ws'), al')) in
+  ef = ef'
+
 let subtype t1 t2 =
   match t1, t2 with
   | Bty (U ws1), Bty (U ws2) -> wsize_le ws1 ws2
   | Bty bty1, Bty bty2 -> bty1 = bty2
-  | Arr(ws1,len1), Arr(ws2,len2) -> (* FIXME *) ws1 == ws2 && len1 == len2
+  | Arr(ws1,len1), Arr(ws2,len2) -> compare_array_length (ws1, len1) (ws2, len2)
   | _, _ -> false
 
 let check_type loc e te ty =
