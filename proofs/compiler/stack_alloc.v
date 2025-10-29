@@ -532,7 +532,6 @@ Fixpoint symbolic_of_al (al : array_length) :=
   | ALConst n => Sconst n
   | ALVar x => Slvar x
   | ALAdd al1 al2 => Sadd Op_int (symbolic_of_al al1) (symbolic_of_al al2)
-  | ALSub al1 al2 => Ssub Op_int (symbolic_of_al al1) (symbolic_of_al al2)
   | ALMul al1 al2 => Smul Op_int (symbolic_of_al al1) (symbolic_of_al al2)
   end.
 
