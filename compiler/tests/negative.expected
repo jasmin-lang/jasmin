@@ -688,25 +688,25 @@ fail/param_expansion/x86-64/array_too_large_arg.jazz:
 
 "fail/param_expansion/x86-64/array_too_large_arg.jazz", line 2 (37-38):
 compilation error in function main:
-param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
+param expansion: cannot define a (sub-)array of such size, it contains numbers that are too big
 
 fail/param_expansion/x86-64/array_too_large_expr.jazz:
 
 "fail/param_expansion/x86-64/array_too_large_expr.jazz", line 5 (8-9):
 compilation error in function main:
-param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
+param expansion: cannot define a (sub-)array of such size, it contains numbers that are too big
 
 fail/param_expansion/x86-64/array_too_large_global.jazz:
 
 "fail/param_expansion/x86-64/array_too_large_global.jazz", line 1 (25-26):
 compilation error:
-param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
+param expansion: cannot define a (sub-)array of such size, it contains numbers that are too big
 
 fail/param_expansion/x86-64/array_too_large_lval.jazz:
 
 "fail/param_expansion/x86-64/array_too_large_lval.jazz", line 5 (4-5):
 compilation error in function main:
-param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
+param expansion: cannot define a (sub-)array of such size, it contains numbers that are too big
 
 fail/param_expansion/x86-64/expression_arg.jazz:
 
@@ -748,19 +748,19 @@ fail/param_expansion/x86-64/operator_arg.jazz:
 
 "fail/param_expansion/x86-64/operator_arg.jazz", line 3 (26-27):
 compilation error in function f:
-param expansion: operator &256u not allowed in array size (only standard arithmetic operators and modulo are allowed)
+param expansion: unary operator (256u) not supported in array sizes
 
 fail/param_expansion/x86-64/operator_global.jazz:
 
 "fail/param_expansion/x86-64/operator_global.jazz", line 2 (9-10):
 compilation error:
-param expansion: operator &256u not allowed in array size (only standard arithmetic operators and modulo are allowed)
+param expansion: unary operator (256u) not supported in array sizes
 
 fail/param_expansion/x86-64/operator_res.jazz:
 
 "fail/param_expansion/x86-64/operator_res.jazz", line 4 (15-16):
 compilation error in function f:
-param expansion: operator &256u not allowed in array size (only standard arithmetic operators and modulo are allowed)
+param expansion: unary operator (256u) not supported in array sizes
 
 fail/pointers/x86-64/test_writable_arguments.jazz:
 
