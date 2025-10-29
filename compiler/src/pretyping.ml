@@ -1353,7 +1353,8 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     | exception Not_found -> assert false
     end
 
-  | S.PECall (id, args) when is_combine_flags id ->
+  | S.PECall (id, alargs, args) when is_combine_flags id ->
+    assert (alargs = []);
     tt_expr ~mode pd env (L.mk_loc (L.loc pe) (S.PECombF(id,args)))
 
   | S.PECall _ ->
@@ -1950,17 +1951,24 @@ let tt_annot_paramdecls dfl_writable pd env (annot, (ty,vs)) =
   let vars = List.map (fun v -> aty, v) vs in
   tt_vardecls_push dfl_writable pd env vars
 
+let tt_alarg env x =
+  let { L.pl_desc = x; L.pl_loc = xlc; } = x in
+  let xety = Prog.ETint in
+  let x = mk_var x W.Const xety xlc [] in
+  let env = Env.Vars.push_local env (x, xety) in
+  env, L.mk_loc xlc x
+
 let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
-  let annot = pannot_to_annotations pannot in
   let mk_i ?(annot=annot) instr =
     { P.i_desc = instr; P.i_loc = L.of_loc pi; P.i_info = (); P.i_annot = annot} in
   let default_tag = if Annotations.has_symbol "keep" annot then E.AT_keep else E.AT_none in
   let rec tt_assign ?tag env_lhs env_rhs ls eqop pe ocp =
     match ls, eqop, pe, ocp with
-    | ls, `Raw, { L.pl_desc = S.PECall (f, args); pl_loc = el }, None when is_combine_flags f ->
+    | ls, `Raw, { L.pl_desc = S.PECall (f, alargs, args); pl_loc = el }, None when is_combine_flags f ->
+      assert(alargs= []);
       tt_assign ~tag:E.AT_inline env_lhs env_rhs ls `Raw (L.mk_loc el (S.PECombF(f, args))) None
 
-    | ls, `Raw, { L.pl_desc = S.PECall (f, args); pl_loc = el }, None ->
+    | ls, `Raw, { L.pl_desc = S.PECall (f, alargs, args); pl_loc = el }, None ->
       let (f,fsig) = tt_fun env_rhs f in
       let lvs, is = tt_lvalues arch_info env_lhs (L.loc pi) ls None fsig.fs_tout in
       assert (is = []);
@@ -2287,6 +2295,16 @@ let warn_unused_variables env f =
   let used = List.fold_left (fun s v -> P.Spv.add (L.unloc v) s) P.Spv.empty f.P.f_ret in
   let used = P.Spv.union used (P.pvars_c f.P.f_body) in
   let pp_var fmt x = F.fprintf fmt "%s.%s" x.P.v_name (CoreIdent.string_of_uid x.P.v_id) in
+  (* variables used in the type of other variables are not dead *)
+  let used = ref used in
+  let pvars_ty ty =
+    match ty with
+    | P.Bty _ -> P.Spv.empty
+    | Arr (_, P.PE e) -> P.pvars_e e
+  in
+  Env.Vars.iter_locals (fun x ->
+    used := P.Spv.union !used (pvars_ty x.v_ty)) env;
+  let used = !used in
   Env.Vars.iter_locals (fun x ->
    if not (P.Spv.mem x used) then
      warning UnusedVar (L.i_loc0 x.v_dloc) "unused variable %a" pp_var x)
@@ -2299,6 +2317,8 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
   let inret = Option.map_default (List.map L.unloc) [] (L.unloc pf.pdf_body.pdb_ret) in
   let dfl_mut x = List.mem x inret in
 
+  let env, alargs =
+    List.map_fold tt_alarg env pf.pdf_alargs in
   let envb, args =
     let env, args = List.map_fold (tt_annot_paramdecls dfl_mut arch_info.pd) env pf.pdf_args in
     let env = add_known_implicits arch_info env pf.pdf_body.pdb_instr in

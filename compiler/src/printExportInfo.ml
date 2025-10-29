@@ -73,7 +73,7 @@ let collect_export_info env prog asm_prog =
 
 (***********************************************************************)
 
-let pp_size = PrintCommon.pp_len
+let pp_size = PrintCommon.pp_len ~debug:false
 (* FIXME: maybe print only consts and assert false or fail for other cases *)
 
 let escape_string_json s =

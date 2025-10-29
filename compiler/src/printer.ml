@@ -335,7 +335,7 @@ let pp_pprog ~debug pd msfsize asmOp fmt p =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem ~debug (pp_pexpr_ ~debug) pp_opn pp_pvar)) (List.rev p)
 
-let pp_header_ pp_var fmt fd =
+let pp_header_ pp_len pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
   let ret = List.map L.unloc fd.f_ret in
   F.fprintf fmt "fn %s @[(%a)@] -> @[(%a)@]"
@@ -344,7 +344,7 @@ let pp_header_ pp_var fmt fd =
     (pp_list ",@ " (pp_ty_decl pp_len)) ret
 
 let pp_fun_ ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
-  let pp_vd =  pp_var_decl pp_var pp_len in
+  let pp_vd =  pp_var_decl pp_var (pp_len ~debug) in
   let pp_locals = Option.default (fun fmt -> Sv.iter (F.fprintf fmt "%a;@ " pp_vd)) pp_locals in
   let locals = locals fd in
   let ret = List.map L.unloc fd.f_ret in
@@ -353,9 +353,9 @@ let pp_fun_ ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
       (pp_list ",@ " pp_var) ret in
   F.fprintf fmt "@[<v>%a%a {@   @[<v>%a@ %a@ %a@]@ }@]"
    pp_call_conv fd.f_cc
-   (pp_header_ pp_var) fd
+   (pp_header_ (pp_len ~debug) pp_var) fd
    pp_locals locals
-   (pp_gc ~debug pp_info pp_len pp_opn pp_var) fd.f_body
+   (pp_gc ~debug pp_info (pp_len ~debug) pp_opn pp_var) fd.f_body
    pp_ret ()
 
 let pp_fun ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
@@ -374,24 +374,25 @@ let pp_dvar ~debug fmt x =
   F.fprintf fmt "%a%a" (pp_var ~debug) x pp_dloc x.v_dloc
 
 let pp_expr ~debug fmt e =
-  pp_ge ~debug pp_len (pp_var ~debug) fmt e
+  pp_ge ~debug (pp_len ~debug) (pp_var ~debug) fmt e
 
 let pp_lval ~debug fmt x =
-  pp_glv ~debug pp_len (pp_var ~debug) fmt x
+  pp_glv ~debug (pp_len ~debug) (pp_var ~debug) fmt x
 
 let pp_instr ~debug pd msfsize asmOp fmt i =
   let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
-  pp_gi ~debug pp_noinfo pp_len pp_opn pp_var fmt i
+  pp_gi ~debug pp_noinfo (pp_len ~debug) pp_opn pp_var fmt i
 
 let pp_stmt ~debug pd msfsize asmOp fmt i =
   let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
-  pp_gc ~debug pp_noinfo pp_len pp_opn pp_var fmt i
+  pp_gc ~debug pp_noinfo (pp_len ~debug) pp_opn pp_var fmt i
 
 let pp_header ~debug fmt fd =
+  let pp_len = pp_len ~debug in
   let pp_var = pp_var ~debug in
-  pp_header_ pp_var fmt fd
+  pp_header_ pp_len pp_var fmt fd
 
 let pp_ifunc ~debug pp_info pd msfsize asmOp fmt fd =
   let pp_opn = pp_opn pd msfsize asmOp in
@@ -403,7 +404,7 @@ let pp_func ~debug pd msfsize asmOp fmt fd =
   let pp_var = pp_var ~debug in
   pp_fun_ ~debug pp_opn pp_var fmt fd
 
-let pp_glob pp_var fmt (x, gd) =
+let pp_glob pp_len pp_var fmt (x, gd) =
   let pp_vd =  pp_var_decl pp_var pp_len in
   let pp_gd fmt gd =
     match gd with
@@ -417,22 +418,24 @@ let pp_glob pp_var fmt (x, gd) =
   Format.fprintf fmt "@[%a =@ %a;@]"
     pp_vd x pp_gd gd
 
-let pp_globs pp_var fmt gds =
+let pp_globs pp_len pp_var fmt gds =
   Format.fprintf fmt "@[<v>%a@]"
-    (pp_list "@ @ " (pp_glob pp_var)) (List.rev gds)
+    (pp_list "@ @ " (pp_glob pp_len pp_var)) (List.rev gds)
 
 let pp_iprog ~debug pp_info pd msfsize asmOp fmt (gd, funcs) =
   let pp_opn = pp_opn pd msfsize asmOp in
+  let pp_len = pp_len ~debug in
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
-     (pp_globs pp_var) gd
+     (pp_globs pp_len pp_var) gd
      (pp_list "@ @ " (pp_fun_ ~debug ~pp_info pp_opn pp_var)) (List.rev funcs)
 
 let pp_prog ~debug pd msfsize asmOp fmt ((gd, funcs):('info, 'asm) Prog.prog) =
   let pp_opn = pp_opn pd msfsize asmOp in
+  let pp_len = pp_len ~debug in
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
-     (pp_globs pp_var) gd
+     (pp_globs pp_len pp_var) gd
      (pp_list "@ @ " (pp_fun_ ~debug pp_opn pp_var)) (List.rev funcs)
 
 let pp_to_save ~debug fmt (x, ofs) =
@@ -506,7 +509,7 @@ let pp_err ~debug fmt (pp_e : Compiler_util.pp_error) =
       Format.fprintf fmt "%a" L.pp_loc loc
     | Compiler_util.PPElval x ->
        x |> Conv.lval_of_clval |>
-       pp_glv ~debug pp_len pp_var fmt
+       pp_glv ~debug (pp_len ~debug) pp_var fmt
     | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" fn.fn_name
     | Compiler_util.PPEiinfo ii ->
       let i_loc, _ = ii in

@@ -56,7 +56,7 @@ let string_of_kind =
   | Extra -> "extra (aka mmx)"
   | Vector -> "vector"
   | Flag -> "flag"
-  | Unknown ty -> Format.asprintf "(unknown of type %a)" PrintCommon.pp_ty ty
+  | Unknown ty -> Format.asprintf "(unknown of type %a)" (PrintCommon.pp_ty ~debug:false) ty
 
 let kind_of_type reg_size k =
   function
@@ -701,7 +701,7 @@ module Regalloc (Arch : Arch_full.Arch)
       then hierror_reg ~loc:(Lmore loc) "variable %a (declared at %a with type “%a”) must be allocated to register %a from an incompatible bank"
           (Printer.pp_var ~debug:true) x
           L.pp_sloc x.v_dloc
-          PrintCommon.pp_ty x.v_ty
+          (PrintCommon.pp_ty ~debug:false) x.v_ty
           (Printer.pp_var ~debug:false) y;
       let i =
         try Hv.find vars x
@@ -776,7 +776,7 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
                hierror_reg ~loc:(Lmore loc) "unexpected flag register %a" pp_var p
             | Unknown ty ->
               hierror_reg ~loc:(Lmore loc) "unknown type %a for forced register %a"
-                PrintCommon.pp_ty ty (Printer.pp_var ~debug:true) p
+                (PrintCommon.pp_ty ~debug:false) ty (Printer.pp_var ~debug:true) p
           in
           allocate_one nv vars loc cnf p i d a;
           (rs, xs)
@@ -1003,7 +1003,7 @@ let greedy_allocation
       | Flag -> push_var flags i v
       | Unknown ty ->
           hierror_reg ~loc:Lnone "unable to allocate variable %a: no register bank for type %a"
-            pp_var v PrintCommon.pp_ty ty
+            pp_var v (PrintCommon.pp_ty ~debug:false) ty
       ) vars;
   two_phase_coloring Arch.allocatable_vars scalars cnf fr a;
   two_phase_coloring Arch.extra_allocatable_vars extra_scalars cnf fr a;
@@ -1092,7 +1092,7 @@ let pp_liveness vars liveness_per_callsite liveness_table a =
   let pp_variable fmt i = fprintf fmt "v%d" i in
   let pp_reg fmt r = pp_var fmt ~debug:false r in
   let pp_nonreg fmt x = pp_var fmt ~debug:true x in
-  let pp_decl_type fmt x = fprintf fmt "%a %a" pp_kind x.v_kind pp_ty x.v_ty in
+  let pp_decl_type fmt x = fprintf fmt "%a %a" pp_kind x.v_kind (pp_ty ~debug:false) x.v_ty in
   let pp_var fmt x =
     match Hv.find vars x with
     | exception Not_found -> pp_nonreg fmt x

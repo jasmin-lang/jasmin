@@ -299,6 +299,7 @@ let fold_vars_fc f z fc =
 let vars_ret fd = fold_vars_ret Sv.add Sv.empty fd
 let vars_lv z x = rvars_lv Sv.add z x
 let vars_e e = rvars_e Sv.add Sv.empty e
+let pvars_e e = rvars_e Spv.add Spv.empty e
 let vars_es es = rvars_es Sv.add Sv.empty es
 let vars_i i = rvars_i Sv.add Sv.empty i
 let vars_c c = rvars_c Sv.add Sv.empty c

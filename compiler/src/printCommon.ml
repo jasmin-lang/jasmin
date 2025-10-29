@@ -220,13 +220,23 @@ let pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len =
     pp_access_size ws pp_expr (peel_implicit_cast_to_uint e) pp_len len
 
 (* -------------------------------------------------------------------- *)
-let rec pp_len fmt (len:length) =
-  match len with
-  | Const n -> fprintf fmt "%i" n
-  | Var x -> fprintf fmt "%s" x.v_name
-  | Add (e1, e2) -> fprintf fmt "(%a) + (%a)" pp_len e1 pp_len e2
-  | Mul (e1, e2) -> fprintf fmt "(%a) * (%a)" pp_len e1 pp_len e2
-let pp_ty fmt = pp_gtype pp_len fmt
+let rec pp_len ~debug fmt (len:length) =
+  (* TODO: clean that, it was backported from printer.ml *)
+  let pp_var =
+    if debug then
+      fun fmt x -> fprintf fmt "%s.%s" x.v_name (string_of_uid x.v_id)
+    else
+      fun fmt x -> fprintf fmt "%s" x.v_name
+  in
+  let rec pp_len fmt (len:length) =
+    match len with
+    | Const n -> fprintf fmt "%i" n
+    | Var x -> fprintf fmt "%a" pp_var x
+    | Add (e1, e2) -> fprintf fmt "(%a) + (%a)" pp_len e1 pp_len e2
+    | Mul (e1, e2) -> fprintf fmt "(%a) * (%a)" pp_len e1 pp_len e2
+  in
+  pp_len fmt len
+let pp_ty ~debug fmt = pp_gtype (pp_len ~debug) fmt
 
 (* -------------------------------------------------------------------- *)
 let pp_datas fmt data =

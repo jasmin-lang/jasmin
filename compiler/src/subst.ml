@@ -107,12 +107,14 @@ let psubst_v subst =
     let e =
       try Mpv.find v_ !subst
       with Not_found ->
-        assert (not (PV.is_glob v_));
+        (* the Const case can now be a length variable *)
+        (* assert (not (PV.is_glob v_)); *)
         let ty = psubst_ty aux v_.v_ty in
         let v' = PV.mk v_.v_name v_.v_kind ty v_.v_dloc v_.v_annot in
         let v = {v with L.pl_desc = v'} in
         let v = { gv = v; gs = k } in
         let e = Pvar v in
+        (* FIXME: I think subst is updated, but then immediately thrown away *)
         subst := Mpv.add v_ e !subst;
         e in
     match e with
@@ -218,9 +220,13 @@ let rec int_of_expr ?loc e =
         let op = op_of_op2 ?loc o in
         op e1 e2
       end
-  | Pbool _ | Parr_init _ | Pvar _
+  | Pvar x ->
+      let { gv; gs } = x in
+      let v = L.unloc gv in
+      Var (GV.cast v)
+  | Pbool _ | Parr_init _
   | Pget _ | Psub _ | Pload _ | PappN _ | Pif _ ->
-      hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" (Printer.pp_pexpr ~debug:false) e
+      hierror ?loc "expression %a not allowed in array size (only arithmetic expressions are allowed)" (Printer.pp_pexpr ~debug:false) e
 
 
 let isubst_len ?loc (PE e) =

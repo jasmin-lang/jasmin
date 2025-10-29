@@ -78,6 +78,7 @@ module GV : sig
   (* Fixme : still used *)
   val is_local : 'len gvar -> bool
 
+  val cast : 'len1 gvar -> 'len2 gvar
 end
 
 (* ------------------------------------------------------------------------ *)
