@@ -197,7 +197,6 @@ let int_of_op2 ?loc o =
 let op_of_op2 ?loc o =
   match o with
   | Expr.Oadd Op_int -> fun e1 e2 -> Add (e1, e2)
-  | Expr.Osub Op_int -> fun e1 e2 -> Sub (e1, e2)
   | Expr.Omul Op_int -> fun e1 e2 -> Mul (e1, e2)
   | _     -> hierror ?loc "operator %s not allowed in array size" (PrintCommon.string_of_op2 o)
 

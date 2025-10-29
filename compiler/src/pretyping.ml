@@ -1093,7 +1093,6 @@ let rec pexpr_of_al al =
   | ALConst n -> P.cnst (Conv.z_of_pos n)
   | ALVar _ -> assert false
   | ALAdd (al1, al2) -> Papp2 (Oadd Op_int, pexpr_of_al al1, pexpr_of_al al2)
-  | ALSub (al1, al2) -> Papp2 (Osub Op_int, pexpr_of_al al1, pexpr_of_al al2)
   | ALMul (al1, al2) -> Papp2 (Omul Op_int, pexpr_of_al al1, pexpr_of_al al2)
 
 let conv_ty : T.extended_type -> P.epty = function

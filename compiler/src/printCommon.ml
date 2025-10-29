@@ -225,7 +225,6 @@ let rec pp_len fmt (len:length) =
   | Const n -> fprintf fmt "%i" n
   | Var x -> fprintf fmt "%s" x.v_name
   | Add (e1, e2) -> fprintf fmt "(%a) + (%a)" pp_len e1 pp_len e2
-  | Sub (e1, e2) -> fprintf fmt "(%a) - (%a)" pp_len e1 pp_len e2
   | Mul (e1, e2) -> fprintf fmt "(%a) * (%a)" pp_len e1 pp_len e2
 let pp_ty fmt = pp_gtype pp_len fmt
 

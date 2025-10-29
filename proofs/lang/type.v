@@ -53,7 +53,6 @@ Inductive array_length :=
 | ALConst : positive -> array_length
 | ALVar : length_var -> array_length
 | ALAdd : array_length -> array_length -> array_length
-| ALSub : array_length -> array_length -> array_length
 | ALMul : array_length -> array_length -> array_length.
 
 HB.instance Definition _ := hasDecEq.Build array_length array_length_eqb_OK.
@@ -129,12 +128,6 @@ Fixpoint array_length_cmp al1 al2 :=
   | ALAdd al11 al12, ALAdd al21 al22 => Lex (array_length_cmp al11 al21) (array_length_cmp al12 al22)
   | ALAdd _ _, _ => Lt
 
-  | ALSub _ _, ALConst _ => Gt
-  | ALSub _ _, ALVar _ => Gt
-  | ALSub _ _, ALAdd _ _ => Gt
-  | ALSub al11 al12, ALSub al21 al22 => Lex (array_length_cmp al11 al21) (array_length_cmp al12 al22)
-  | ALSub _ _, _ => Lt
-
   | ALMul al11 al12, ALMul al21 al22 => Lex (array_length_cmp al11 al21) (array_length_cmp al12 al22)
   | ALMul _ _, _ => Gt
   end.
@@ -154,30 +147,26 @@ Instance array_lengthO : Cmp array_length_cmp.
 Proof.
   constructor.
   + elim=>
-      [p1|x1|al11 ih1 al12 ih2|al11 ih1 al12 ih2|al11 ih1 al12 ih2]
-      [p2|x2|al21     al22    |al21     al22    |al21     al22    ] //=.
+      [p1|x1|al11 ih1 al12 ih2|al11 ih1 al12 ih2]
+      [p2|x2|al21     al22    |al21     al22    ] //=.
     + by apply cmp_sym.
     + by apply cmp_sym.
-    + by rewrite !Lex_lex; apply lex_sym.
     + by rewrite !Lex_lex; apply lex_sym.
     by rewrite !Lex_lex; apply lex_sym.
   + elim=>
-      [p1|x1|al11 ih1 al12 ih2|al11 ih1 al12 ih2|al11 ih1 al12 ih2]
-      [p2|x2|al21     al22    |al21     al22    |al21     al22    ]
-      [p3|x3|al31     al32    |al31     al32    |al31     al32    ] //=;
+      [p1|x1|al11 ih1 al12 ih2|al11 ih1 al12 ih2]
+      [p2|x2|al21     al22    |al21     al22    ]
+      [p3|x3|al31     al32    |al31     al32    ] //=;
        try (by apply ctrans_Eq); eauto using ctrans_Lt, ctrans_Gt; try apply cmp_ctrans.
-    + move=> c.
-      by rewrite !Lex_lex; apply lex_trans; eauto.
     + move=> c.
       by rewrite !Lex_lex; apply lex_trans; eauto.
     move=> c.
     by rewrite !Lex_lex; apply lex_trans; eauto.
   elim=>
-    [p1|x1|al11 ih1 al12 ih2|al11 ih1 al12 ih2|al11 ih1 al12 ih2]
-    [p2|x2|al21     al22    |al21     al22    |al21     al22    ] //=.
+    [p1|x1|al11 ih1 al12 ih2|al11 ih1 al12 ih2]
+    [p2|x2|al21     al22    |al21     al22    ] //=.
   + by move=> /cmp_eq ->.
   + by move=> /cmp_eq ->.
-  + by rewrite Lex_lex => /lex_eq /= [/ih1 <- /ih2 <-].
   + by rewrite Lex_lex => /lex_eq /= [/ih1 <- /ih2 <-].
   by rewrite Lex_lex => /lex_eq /= [/ih1 <- /ih2 <-].
 Qed.
@@ -380,7 +369,6 @@ Fixpoint eval (al:array_length) : positive :=
   | ALConst p => p
   | ALVar v => env v
   | ALAdd al1 al2 => eval al1 + eval al2
-  | ALSub al1 al2 => eval al1 - eval al2
   | ALMul al1 al2 => eval al1 * eval al2
   end.
 
@@ -408,7 +396,7 @@ From Coq Require Import Lia.
 Fixpoint size_poly poly : nat :=
   match poly with
   | ALConst _ | ALVar _ => 1
-  | ALAdd p1 p2 | ALSub p1 p2 | ALMul p1 p2 =>
+  | ALAdd p1 p2 | ALMul p1 p2 =>
     size_poly p1 + size_poly p2
   end.
 
@@ -418,14 +406,14 @@ Proof. by elim: p => /=; lia. Qed.
 Fixpoint size_Mul poly : nat :=
   match poly with
   | ALConst _ | ALVar _ => 0
-  | ALAdd p1 p2 | ALSub p1 p2 => size_Mul p1 + size_Mul p2
+  | ALAdd p1 p2 => size_Mul p1 + size_Mul p2
   | ALMul p1 p2 => 1 + size_Mul p1 + size_Mul p2
   end.
 
 Fixpoint left_Mul_under_Mul poly : nat :=
   match poly with
   | ALConst _ | ALVar _ => 0
-  | ALAdd p1 p2 | ALSub p1 p2 => left_Mul_under_Mul p1 + left_Mul_under_Mul p2
+  | ALAdd p1 p2 => left_Mul_under_Mul p1 + left_Mul_under_Mul p2
   | ALMul p1 p2 => size_Mul p1 + left_Mul_under_Mul p2
   end.
 
@@ -459,11 +447,9 @@ Equations expanded_form (p : array_length) : list (Z * list length_var) :=
     aux terms coeff mono (ALConst n) := let coeff := (n * coeff)%Z in insert_term_nice (coeff, mono) terms;
     aux terms coeff mono (ALVar x) := let mono := insert_mono x mono in (coeff, mono) :: terms;
     aux terms coeff mono (ALAdd e1 e2) := aux (aux terms coeff mono e1) coeff mono e2;
-    aux terms coeff mono (ALSub e1 e2) := aux (aux terms coeff mono e1) (-coeff) mono e2;
     aux terms coeff mono (ALMul (ALConst n) e) := let coeff := (n * coeff)%Z in aux terms coeff mono e;
     aux terms coeff mono (ALMul (ALVar x) e) := let mono := insert_mono x mono in aux terms coeff mono e;
     aux terms coeff mono (ALMul (ALAdd e11 e12) e2) := aux (aux terms coeff mono (ALMul e11 e2)) coeff mono (ALMul e12 e2);
-    aux terms coeff mono (ALMul (ALSub e11 e12) e2) := aux (aux terms coeff mono (ALMul e11 e2)) (-coeff) mono (ALMul e12 e2);
     aux terms coeff mono (ALMul (ALMul e11 e12) e2) := aux terms coeff mono (ALMul e11 (ALMul e12 e2)).
 Next Obligation.
   simpl.
@@ -472,20 +458,6 @@ Qed.
 Next Obligation.
   simpl.
   left. have := lt0_size_poly e1. lia.
-Qed.
-Next Obligation.
-  simpl.
-  left. have := lt0_size_poly e2. lia.
-Qed.
-Next Obligation.
-  simpl.
-  left. have := lt0_size_poly e1. lia.
-Qed.
-Next Obligation.
-  simpl. left. have := lt0_size_poly e12. lia.
-Qed.
-Next Obligation.
-  simpl. left. have := lt0_size_poly e11. lia.
 Qed.
 Next Obligation.
   simpl. left. have := lt0_size_poly e12. lia.
@@ -605,20 +577,16 @@ Local Opaque Z.add Z.mul.
     rewrite insert_mono_correct /=. lia.
   - move=> p terms coeff mono e1 e2 /= h1 h2.
     rewrite h2 h1. lia.
-  - move=> p terms coeff mono e1 e2 /= h1 h2.
-    rewrite h2 h1. simpl. admit. (* this is wrong because of positive + Z = KABOOM *)
   - move=> p terms coeff mono n e /= h.
     rewrite h. lia.
   - move=> p terms coeff mono x e /= h.
     rewrite h insert_mono_correct. lia.
   - move=> p terms coeff mono e11 e12 e2 /= h1 h2.
     rewrite h2 h1. lia.
-  - move=> p terms coeff mono e11 e12 e2 /= h1 h2.
-    rewrite h2 h1. simpl. admit. (* this is wrong because of positive + Z = KABOOM *)
   - move=> p terms coeff mono e11 e12 e2 /= h.
     rewrite h. lia.
 Local Transparent Z.add Z.mul.
-Admitted.
+Qed.
 
 Lemma compare_array_length_eval_atype ws1 len1 ws2 len2 :
   compare_array_length (ws1, len1) (ws2, len2) ->
@@ -631,9 +599,12 @@ Local Opaque wsize_size.
   have := expanded_form_sound (ALMul (ALConst (Z.to_pos (wsize_size ws1))) len1) env.
   have := expanded_form_sound (ALMul (ALConst (Z.to_pos (wsize_size ws2))) len2) env.
   rewrite /eval /= -/(eval _). rewrite heq. move=> ->.
-  admit. (* this is wrong because of positive + Z = KABOOM *)
+  rewrite !arr_sizeE.
+  have: (0 < wsize_size ws1)%Z by [].
+  have: (0 < wsize_size ws2)%Z by [].
+  nia.
 Local Transparent wsize_size.
-Admitted.
+Qed.
 
 Lemma convertible_eval_atype ty1 ty2 :
   convertible ty1 ty2 ->
