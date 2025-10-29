@@ -174,7 +174,7 @@ type pexpr_r =
   | PEpack   of svsize * pexpr list
   | PEBool   of bool
   | PEInt    of int_representation
-  | PECall   of pident * pexpr list
+  | PECall   of pident * pexpr list * pexpr list
   | PECombF  of pident * pexpr list
   | PEPrim   of pident * pexpr list
   | PEOp1    of peop1 * pexpr
@@ -312,6 +312,7 @@ type pfundef = {
   pdf_annot : pannotations;
   pdf_cc   : pcall_conv option;
   pdf_name : pident;
+  pdf_alargs : pident list;
   pdf_args : (pannotations * paramdecls) list;
   pdf_rty  : (pannotations * pstotype) list option;
   pdf_body : pfunbody;

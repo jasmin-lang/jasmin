@@ -55,7 +55,7 @@ let pp_instr pd msfsize asmOp fmt i =
 
 let pp_param fmt x =
   let y = Conv.var_of_cvar x.E.v_var in
-  F.fprintf fmt "%a %a %s" pp_kind y.P.v_kind pp_ty y.P.v_ty y.P.v_name
+  F.fprintf fmt "%a %a %s" pp_kind y.P.v_kind (pp_ty ~debug:false) y.P.v_ty y.P.v_name
 
 let pp_stackframe fmt (sz, ws) =
   F.fprintf fmt "maximal stack usage: %a, alignment = %s"
