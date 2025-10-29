@@ -536,8 +536,13 @@ Fixpoint symbolic_of_al (al : array_length) :=
   | ALMul al1 al2 => Smul Op_int (symbolic_of_al al1) (symbolic_of_al al2)
   end.
 
+Definition mk_len_int ws len :=
+  let sz := wsize_size ws in
+  if is_const len is Some i then Sconst (i * sz)%Z
+  else Smul Op_int (Sconst sz) len.
+
 Definition symbolic_of_arr_type ty :=
-  if ty is aarr ws al then Smul Op_int (Sconst (wsize_size ws)) (symbolic_of_al al)
+  if ty is aarr ws al then mk_len_int ws (symbolic_of_al al)
   else Sconst 0 (* impossible case *).
 
 Definition sub_region_status_at_ofs (x:var_i) sr status ofs len :=
@@ -1227,7 +1232,7 @@ Definition alloc_array_move table rmap r tag e :=
         Let: (sr, status) := get_gsub_region_status rmap yv vpk in
         Let: (table, se1) := get_symbolic_of_pexpr table e1 in
         let ofs := mk_ofs_int aa ws se1 in
-        let len := Smul Op_int (Sconst (wsize_size ws)) (symbolic_of_al len) in
+        let len := mk_len_int ws (symbolic_of_al len) in
         let (sr, status) := sub_region_status_at_ofs yv sr status ofs len in
         Let eofs := addr_from_vpk_pexpr rmap yv vpk in
         Let e1 := alloc_e rmap e1 aint in
@@ -1281,7 +1286,7 @@ Definition alloc_array_move table rmap r tag e :=
       Let: (sr, status) := get_sub_region_status rmap x in
       Let: (table, e) := get_symbolic_of_pexpr table e in
       let ofs := mk_ofs_int aa ws e in
-      let len := Smul Op_int (Sconst (wsize_size ws)) (symbolic_of_al len) in
+      let len := mk_len_int ws (symbolic_of_al len) in
       let (sr', _) := sub_region_status_at_ofs x sr status ofs len in
       Let _ :=
         assert (sry == sr')
