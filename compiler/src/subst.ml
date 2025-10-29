@@ -199,7 +199,7 @@ let op_of_op2 ?loc o =
   | Expr.Oadd Op_int -> fun e1 e2 -> Add (e1, e2)
   | Expr.Osub Op_int -> fun e1 e2 -> Sub (e1, e2)
   | Expr.Omul Op_int -> fun e1 e2 -> Mul (e1, e2)
-  | _     -> hierror ?loc "operator %s not allowed in array size (2)" (PrintCommon.string_of_op2 o)
+  | _     -> hierror ?loc "operator %s not allowed in array size" (PrintCommon.string_of_op2 o)
 
 let rec int_of_expr ?loc e =
   match e with
@@ -225,7 +225,9 @@ let rec int_of_expr ?loc e =
 
 
 let isubst_len ?loc (PE e) =
-int_of_expr ?loc e
+  try int_of_expr ?loc e
+  with Z.Overflow ->
+    hierror ?loc "cannot define a (sub-)array of such size, it contains numbers that are too big"
 
 let isubst_ty ?loc = function
   | Bty ty -> Bty ty
