@@ -28,7 +28,7 @@ let is_array_copy (x:lval) (e:expr) =
 
 let size_of_lval =
   function
-  | Lvar x -> size_of (L.unloc x).v_ty
+  | Lvar x -> size_of_const (L.unloc x).v_ty
   | Lasub (_, ws, Const len, _, _) -> arr_size ws len
   | Lasub _ | Lnone _ | Lmem _ | Laset _ -> assert false
 

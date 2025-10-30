@@ -422,6 +422,16 @@ let arr_size ws i = size_of_ws ws * i
 
 let size_of t =
   match t with
+  | Bty (U ws) -> Const (size_of_ws ws)
+  | Arr (ws, len) ->
+      begin match len with
+      | Const n -> Const (arr_size ws n)
+      | _ -> Mul (Const (size_of_ws ws), len)
+      end
+  | _ -> assert false
+
+let size_of_const t =
+  match t with
   | Bty (U ws) -> size_of_ws ws
   | Arr (ws', Const n) -> arr_size ws' n
   | _ -> assert false
