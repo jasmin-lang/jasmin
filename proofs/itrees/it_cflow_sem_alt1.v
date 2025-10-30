@@ -84,6 +84,14 @@ Definition isem_foldr {E} (sem_i: instr -> itree E unit) (c: cmd) :
     itree E unit :=
   foldr (fun i k => sem_i i ;; k) (Ret tt) c.
 
+Locate foldr.
+Check @foldr.
+Check @fold_right.
+
+@foldr
+     : forall T R : Type, (T -> R -> R) -> R -> seq.seq T -> R
+
+
 Definition isem_for_round {E} (sem_i: instr -> itree E unit)
   (wrt: Z -> itree E unit)                        
   (i : var_i) (c : cmd) (w: Z) (k: itree E unit) : itree E unit :=

@@ -252,3 +252,18 @@ Proof.
     + intros T e a b H0. dependent destruction H0; auto.  
 Qed.
 
+Lemma gen_rutt2eutt E T1 T2 REv RAns RR 
+  (t1: itree E T1) (t2: itree E T2) 
+  (Hyp1: forall U1 U2 (e1: E U1) (e2: E U2),
+    REv U1 U2 e1 e2 ->
+    exists h : U2 = U1, e1 = eq_rect U2 E e2 U1 h)
+  (Hyp2: forall U1 U2  (e1: E U1) (u1: U1) (e2: E U2) (u2: U2),
+    REv U1 U2 e1 e2 ->
+    JMeq u1 u2 -> RAns U1 U2 e1 u1 e2 u2) :
+ rutt REv RAns RR t1 t2 -> eutt RR t1 t2.
+Proof.
+  intro H.
+  eapply rutt2eutt; auto.
+  eapply (rutt_weaken Hyp1 Hyp2); eauto.
+Qed.
+  
