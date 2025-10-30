@@ -49,7 +49,7 @@ type glob_alloc_oracle_t =
  
 (* --------------------------------------------------- *)
 let incr_liverange r x d : liverange =
-  let s = size_of x.v_ty in
+  let s = size_of_const x.v_ty in
   let g = Mint.find_default Mv.empty s r in
   let i =
     match Mv.find x g with
@@ -218,7 +218,7 @@ let err_var_not_initialized x =
   hierror ~loc:Lnone "variable “%a” (declared at %a) may not be initialized" (Printer.pp_var ~debug:true) x Location.pp_loc x.v_dloc
 
 let get_slot ?var coloring x =
-  let sz = size_of x.v_ty in
+  let sz = size_of_const x.v_ty in
   try Mv.find x (Mint.find sz coloring)
   with Not_found -> err_var_not_initialized (Option.default x var)
 
@@ -233,7 +233,13 @@ let init_slots pd stack_pointers alias coloring fv =
   let add_local x info = Hv.add lalloc x info in
 
   (* FIXME: move definition of interval in Alias *)
-  let r2i (min,max) = Interval.{min;max} in
+  let r2i v (min,max) =
+    let max =
+      match max with
+      | Const max -> max
+      | _ -> hierror ~loc:(Lone v.v_dloc) "a stack variable (%a) cannot have a non-constant length" (Printer.pp_var ~debug:true) v
+    in
+    Interval.{min;max} in
   let dovar v =
     match v.v_kind with
     | Stack Direct ->
@@ -241,20 +247,20 @@ let init_slots pd stack_pointers alias coloring fv =
         let c = Alias.normalize_var alias v in
         if c.scope = E.Sglob then
           (* TODO: do we need to check that we are exact and fail otherwise? *)
-          add_local v (Direct (c.in_var, r2i c.range, E.Sglob))
+          add_local v (Direct (c.in_var, r2i v c.range, E.Sglob))
         else
           begin
             let slot = get_slot coloring c.in_var in
             add_slot slot;
             (* TODO: do we need to check that we are exact and fail otherwise? *)
-            add_local v (Direct (slot, r2i c.range, E.Slocal))
+            add_local v (Direct (slot, r2i v c.range, E.Slocal))
           end
       else begin match v.v_ty with
            | Bty (U ws) ->
               let sz = size_of_ws ws in
               let slot = get_slot coloring v in
               add_slot slot;
-              add_local v (Direct (slot, r2i(0, sz), E.Slocal))
+              add_local v (Direct (slot, r2i v (0, sz), E.Slocal))
            | _ -> hierror ~loc:(Lone v.v_dloc) "cannot allocate in the stack the variable “%a” of type %a"
                     (Printer.pp_var ~debug:false) v
                     PrintCommon.pp_ty v.v_ty
@@ -351,7 +357,7 @@ let alloc_local_stack size slots atbl =
   
   let init_slot (x,ws) = 
     let pos = round_ws ws !size in
-    let n = size_of x.v_ty in
+    let n = size_of_const x.v_ty in
     size := pos + n;
     (x,ws,pos) in
 

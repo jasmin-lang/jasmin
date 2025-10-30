@@ -64,7 +64,7 @@ Definition get_const al :=
 (* TODO: could [wsize_size] return a [positive] rather than a [Z]?
    If so, [size_of] could return a positive too.
 *)
-Definition size_of (t:atype) :=
+Definition size_of_const (t:atype) :=
   match t with
   | aword sz => ok (wsize_size sz)
   | aarr ws al =>
@@ -75,7 +75,7 @@ Definition size_of (t:atype) :=
 
 Definition slot := var.
 
-Notation size_slot s := (size_of s.(vtype)).
+Notation size_slot s := (size_of_const s.(vtype)).
 
 (* elpi.derive not clever enough to unfold slot *)
 Record region :=
@@ -710,10 +710,22 @@ Definition check_stack_ptr rv s ws cs x' :=
   let status := get_var_status rv sr.(sr_region) x' in
   is_valid status.
 
+(* FIXME: redundancy with mk_len_int/symbolic_of_arr_type? *)
+Definition size_of (t:atype) :=
+  match t with
+  | aword sz => ALConst (Z.to_pos (wsize_size sz))
+  | aarr ws al =>
+    match al with
+    | ALConst len => ALConst (Z.to_pos (arr_size ws len))
+    | _ => ALMul (ALConst (Z.to_pos (wsize_size ws))) al
+    end
+  | abool | aint => ALConst 1
+  end.
+
 Definition sub_region_full x r :=
-  Let len := size_slot x in
-  let z := [:: {| ss_ofs := Sconst 0; ss_len := Sconst len |}] in
-  ok {| sr_region := r; sr_zone := z |}.
+  let len := symbolic_of_al (size_of x.(vtype)) in
+  let z := [:: {| ss_ofs := Sconst 0; ss_len := len |}] in
+  {| sr_region := r; sr_zone := z |}.
 
 Definition sub_region_glob x ws :=
   let r := {| r_slot := x; r_align := ws; r_writable := false |} in
@@ -730,7 +742,7 @@ Definition get_sub_region_status (rmap:region_map) (x:var_i) :=
 Definition get_gsub_region_status rmap (x:var_i) vpk :=
   match vpk with
   | VKglob (_, ws) =>
-    Let sr := sub_region_glob x ws in
+    let sr := sub_region_glob x ws in
     ok (sr, Valid)
   | VKptr _pk =>
     get_sub_region_status rmap x
@@ -2024,7 +2036,7 @@ Definition init_param (mglob stack : Mvar.t (Z * wsize)) accu pi (x:var_i) :=
     let r :=
       {| r_slot := x;
          r_align := pi.(pp_align); r_writable := pi.(pp_writable) |} in
-    Let sr := sub_region_full x r in
+    let sr := sub_region_full x r in
     ok (Sv.add pi.(pp_ptr) disj,
         Mvar.set lmap x (Pregptr pi.(pp_ptr)),
         set_move rmap x sr Valid,
