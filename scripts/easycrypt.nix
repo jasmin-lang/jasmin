@@ -14,7 +14,6 @@ with {
     version = "main";
     rev = "????";
     src = builtins.fetchTarball "https://api.github.com/repos/easycrypt/easycrypt/tarball/main";
-    local_why3 = why3.override { version = "1.8.0"; };
   };
 
   "release" = rec {
@@ -26,7 +25,6 @@ with {
       inherit rev;
       hash = "sha256-XkfFCPmc8vd6gGFiz/Lxzk7BtcCQBzPNVPGFdiylZmc=";
     };
-    local_why3 = why3.override { version = "1.8.0"; };
   };
 
 }."${ecRef}";
@@ -48,12 +46,12 @@ stdenv.mkDerivation rec {
     dune-build-info
     dune-site
     inifiles
-    local_why3
+    why3
     yojson
     zarith
   ];
 
-  propagatedBuildInputs = [ local_why3.out ];
+  propagatedBuildInputs = [ why3.out ];
 
   strictDeps = true;
 
