@@ -6,6 +6,6 @@ mkShell {
   packages = [
     graphviz
     (python3.withPackages
-      (ps: [ ps.myst-parser ps.sphinx ps.sphinx_rtd_theme ]))
+      (ps: [ ps.myst-parser ps.sphinx ps.sphinx-rtd-theme ]))
   ];
 }
