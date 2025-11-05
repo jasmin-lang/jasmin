@@ -1,5 +1,5 @@
 This is a copy of the Jasmin project extend with the work corresponding
-to the paper "ITree-Based Relational Hoare Logic for Verified Compilation"
+to the paper "Verifying the Jasmin Compiler for Cryptographic Security"
 
 
 # Download, installation, and sanity-testing instructions
@@ -117,10 +117,10 @@ The definition of xrutt can be found in `itrees/xrutt.v`.
 - Register Renaming: `proofs/compiler/allocation_proof.v`: compiler pass proof is in the IT sections
 
 
-## About distribution
+## About cryptographic security
 
-- Theorem (2 Preservation of Probabilities) in the paper corresponds to lemmas
-`final` in `/proof/distr/distr.v`.
+- The generic formalization is in `proofs/compiler/adv.v`.
+- The instantiation to Jasmin is in `proofs/compiler/end_to_end.v`.
 
 <!-- ------------------------------------------------------------------------------- -->
 <!-- Old Readme -->

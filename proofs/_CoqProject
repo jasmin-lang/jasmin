@@ -21,7 +21,9 @@
 -R ssrmisc Jasmin
 -R itrees Jasmin
 
-distr/distr.v
+compiler/adv.v
+compiler/end_to_end.v
+compiler/distr.v
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
 3rdparty/ssrring.v

@@ -1,6 +1,6 @@
 { pkgs ? import (if pinned-nixpkgs then scripts/nixpkgs.nix else <nixpkgs>) {}
 , inCI ? false
-, pinned-nixpkgs ? true
+, pinned-nixpkgs ? inCI
 , coqDeps ? !inCI
 , coqMaster ? false
 , ocamlDeps ? !inCI
@@ -30,7 +30,6 @@ let coqPackages =
       mathcomp = super.mathcomp.override { version = "master"; };
       mathcomp-algebra-tactics = super.mathcomp-algebra-tactics.override { version = "master"; };
       mathcomp-zify = super.mathcomp-zify.override { version = "master"; };
-      mathcomp-experimental-reals = super.mathcomp-experimental-reals { version = "master"; };
       coq-elpi = super.coq-elpi.override {
         version = "master";
 	inherit elpi-version rocqPackages;
@@ -60,6 +59,8 @@ let easycrypt = callPackage scripts/easycrypt.nix {
   };
 }; in
 
+let z3 = callPackage scripts/z3.nix {}; in
+
 let inherit (coqPackages.coq) ocamlPackages; in
 
 let oP =
@@ -85,8 +86,8 @@ stdenv.mkDerivation {
     ++ optionals coqDeps [
       coqPackages.coq
       mathcomp-word
-      coqPackages.mathcomp-algebra-tactics
       coqPackages.mathcomp-experimental-reals
+      coqPackages.mathcomp-algebra-tactics
       coqPackages.ITree
     ]
     ++ optionals testDeps ([ curl.bin oP.apron.out llvmPackages.bintools-unwrapped ] ++ (with python3Packages; [ python pyyaml ]))
