@@ -70,7 +70,7 @@ type ('len, 'info, 'asm) ginstr_r =
   | Cif    of 'len gexpr * ('len, 'info, 'asm) gstmt * ('len, 'info, 'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len, 'info, 'asm) gstmt
   | Cwhile of E.align * ('len, 'info, 'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len, 'info, 'asm) gstmt
-  | Ccall  of 'len glvals * funname * 'len gexprs
+  | Ccall  of 'len glvals * funname * 'len list * 'len gexprs
 
 and ('len, 'info, 'asm) ginstr = {
     i_desc : ('len, 'info, 'asm) ginstr_r;
@@ -88,6 +88,7 @@ type ('len, 'info, 'asm) gfunc = {
     f_info : 'info;
     f_cc   : FInfo.call_conv;
     f_name : funname;
+    f_al : 'len gvar list;
     f_tyin : 'len gty list;
     f_args : 'len gvar list;
     f_body : ('len, 'info, 'asm) gstmt;

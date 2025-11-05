@@ -1667,7 +1667,7 @@ Definition alloc_lval_call (srs:seq (option (bool * sub_region) * pexpr)) rmap (
 Definition alloc_call_res rmap srs ret_pos rs :=
   fmapM2 bad_lval_number (alloc_lval_call srs) rmap rs ret_pos.
 
-Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap rs fn es :=
+Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap rs fn al es :=
   let sao_callee := local_alloc fn in
   Let es  := alloc_call_args rmap fn sao_callee.(sao_params) es in
   let '(rmap, es) := es in
@@ -1684,7 +1684,7 @@ Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap rs fn es :=
                           (stk_ierror_no_var "non aligned function call")
   in
   let es  := map snd es in
-  ok (rs.1, Ccall rs.2 fn es).
+  ok (rs.1, Ccall rs.2 fn al es).
 
 (* Before stack_alloc :
      Csyscall [::x] (getrandom len) [::t]
@@ -1850,11 +1850,11 @@ Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region
     Let: (table, rmap, (e, c1, c2)) := loop2 ii check_c Loop.nb table rmap in
     ok (table, rmap, [:: MkI ii (Cwhile a (flatten c1) e info (flatten c2))])
 
-  | Ccall rs fn es =>
+  | Ccall rs fn al es =>
     Let _ := assert (if get_fundef (p_funcs P) fn is None then false else true)
                 (pp_at_ii ii (stk_ierror_no_var "call to a undefined function")) in
     let table := remove_binding_lvals table rs in
-    Let ri := add_iinfo ii (alloc_call sao rmap rs fn es) in
+    Let ri := add_iinfo ii (alloc_call sao rmap rs fn al es) in
     ok (table, ri.1, [::MkI ii ri.2])
 
   | Cfor _ _ _  => Error (pp_at_ii ii (stk_ierror_no_var "don't deal with for loop"))
@@ -2093,6 +2093,7 @@ Definition alloc_fd_aux P p_extra mglob (local_alloc: funname -> stk_alloc_oracl
       check_results pmap rmap paramsi fd.(f_params) sao.(sao_return) fd.(f_res) in
   ok {|
     f_info := f_info fd;
+    f_al := f_al fd;
     f_tyin := map2 (fun o ty => if o is Some _ then aword Uptr else ty) sao.(sao_params) fd.(f_tyin);
     f_params := params;
     f_body := flatten body;

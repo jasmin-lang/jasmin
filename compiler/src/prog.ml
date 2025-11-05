@@ -103,7 +103,7 @@ type ('len, 'info, 'asm) ginstr_r =
   | Cif    of 'len gexpr * ('len, 'info, 'asm) gstmt * ('len, 'info, 'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len, 'info, 'asm) gstmt
   | Cwhile of E.align * ('len, 'info, 'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len, 'info, 'asm) gstmt
-  | Ccall  of 'len glvals * funname * 'len gexprs
+  | Ccall  of 'len glvals * funname * 'len list * 'len gexprs
 
 and ('len,'info,'asm) ginstr = {
     i_desc : ('len, 'info, 'asm) ginstr_r;
@@ -121,6 +121,7 @@ type ('len, 'info, 'asm) gfunc = {
     f_info : 'info;
     f_cc   : FInfo.call_conv;
     f_name : funname;
+    f_al   : 'len gvar list;
     f_tyin : 'len gty list;
     f_args : 'len gvar list;
     f_body : ('len, 'info, 'asm) gstmt;
@@ -284,7 +285,7 @@ let rec rvars_i f s i =
   | Cfor(x,(_,e1,e2), c) ->
     rvars_c f (rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2) c
   | Cwhile(_, c, e, _, c') -> rvars_c f (rvars_e f (rvars_c f s c') e) c
-  | Ccall(x,_,e) -> rvars_es f (rvars_lvs f s x) e
+  | Ccall(x,_,_,e) -> rvars_es f (rvars_lvs f s x) e
 
 and rvars_c f s c =  List.fold_left (rvars_i f) s c
 
@@ -331,7 +332,7 @@ let rec written_vars_i ((v, f) as acc) i =
   | Cassgn(x, _, _, _) -> written_lv v x, f
   | Copn(xs, _, _, _) | Csyscall(xs, _, _)
     -> List.fold_left written_lv v xs, f
-  | Ccall(xs, fn, _) ->
+  | Ccall(xs, fn, _, _) ->
      List.fold_left written_lv v xs, Mf.modify_def [] fn (fun old -> i.i_loc :: old) f
   | Cassert (_, _) -> v, f
   | Cif(_, s1, s2)
@@ -529,7 +530,7 @@ let spilled fc = spilled_c Sv.empty fc.f_body
 
 let assigns = function
   | Cassgn (x, _, _, _) -> written_lv Sv.empty x
-  | Copn (xs, _, _, _) | Csyscall (xs, _, _) | Ccall (xs, _, _) ->
+  | Copn (xs, _, _, _) | Csyscall (xs, _, _) | Ccall (xs, _, _, _) ->
       List.fold_left written_lv Sv.empty xs
   | Cif _ | Cwhile _ | Cassert _ | Cfor _ -> Sv.empty
 

@@ -218,12 +218,19 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
       (pp_ge ~debug pp_len pp_var) e
       (pp_cblock ~debug pp_info pp_len pp_opn pp_var) c'
 
-  | Ccall(x, f, e) ->
+  | Ccall(x, f, al, e) ->
     let pp_x fmt = function
       | [] -> ()
       | x -> F.fprintf fmt "%a" (pp_glvs ~debug pp_len pp_var) x in
-    F.fprintf fmt "@[<hov 2>%a%s(%a);@]"
-      pp_x x f.fn_name (pp_ges ~debug pp_len pp_var) e
+    let pp_al fmt al =
+      if al = [] then ()
+      else
+        F.fprintf fmt "<|%a|>" (pp_list ",@ " pp_len) al
+    in
+    F.fprintf fmt "@[<hov 2>%a%s%a(%a);@]"
+      pp_x x f.fn_name
+      pp_al al
+      (pp_ges ~debug pp_len pp_var) e
 
 (* -------------------------------------------------------------------- *)
 and pp_gc ~debug pp_info pp_len pp_opn pp_var fmt c =
@@ -273,12 +280,18 @@ let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
           if not (List.mem x fd.f_args) then F.fprintf fmt "%a;@ " pp_vd x) ret;
     F.fprintf fmt "return @[%a@];"
       (pp_list ",@ " pp_var) ret in
+  let pp_al fmt al =
+    if al = [] then ()
+    else
+      (F.fprintf fmt "@["; Format.fprintf fmt "<|%a|>@]" (pp_list ",@ " pp_var) al)
+  in
 
 
-  F.fprintf fmt "@[<v>%a%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>%a%afn %s%a @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@]@ }@]"
    pp_annotations fd.f_annot.f_user_annot
    pp_call_conv fd.f_cc
    fd.f_name.fn_name
+   pp_al fd.f_al
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_return_type pp_size) (List.combine fd.f_ret_info.ret_annot (List.map2 set_var_type ret fd.f_tyout))
    (pp_gc ~debug pp_info pp_size pp_opn pp_var) fd.f_body
@@ -338,8 +351,14 @@ let pp_pprog ~debug pd msfsize asmOp fmt p =
 let pp_header_ pp_len pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
   let ret = List.map L.unloc fd.f_ret in
-  F.fprintf fmt "fn %s @[(%a)@] -> @[(%a)@]"
+  let pp_al fmt al =
+    if al = [] then ()
+    else
+      (F.fprintf fmt "@["; Format.fprintf fmt "<|%a|>@]" (pp_list ",@ " pp_var) al)
+  in
+  F.fprintf fmt "fn %s%a @[(%a)@] -> @[(%a)@]"
     fd.f_name.fn_name
+    pp_al fd.f_al
     (pp_list ",@ " pp_vd) fd.f_args
     (pp_list ",@ " (pp_ty_decl pp_len)) ret
 

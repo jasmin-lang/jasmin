@@ -241,7 +241,7 @@ let fully_qualified (stack: (A.symbol * 'a) list) n =
 
 (* -------------------------------------------------------------------- *)
 
-type fun_sig = { fs_tin : P.epty list ; fs_tout : P.epty list }
+type fun_sig = { fs_al : P.pvar list; fs_tin : P.epty list ; fs_tout : P.epty list }
 
 module Env : sig
   type 'asm env
@@ -1902,7 +1902,7 @@ let cassgn_for (x: P.plval) (tg: E.assgn_tag) (ty: P.epty) (e: P.pexpr) :
   (unit, 'asm) P.pinstr_r =
   Cassgn (x, tg, P.gty_of_gety ty, e)
 
-let mk_call loc inline lvs f es =
+let mk_call loc inline lvs f al es =
   let open P in
   begin match f.f_cc with
   | Internal -> ()
@@ -1939,7 +1939,7 @@ let mk_call loc inline lvs f es =
       aux e in
   List.iter2 check_w f.f_args es;
 
-  P.Ccall (lvs, f.P.f_name, es)
+  P.Ccall (lvs, f.P.f_name, al, es)
 
 let assign_from_decl decl =
   let v, e = L.unloc decl in
@@ -1958,6 +1958,17 @@ let tt_alarg env x =
   let env = Env.Vars.push_local env (x, xety) in
   env, L.mk_loc xlc x
 
+let subst_one (f_al:P.pvar list) alargs ty =
+  let als = List.combine f_al alargs in
+  let f x =
+    match List.assoc_opt (L.unloc x.Prog.gv) als with
+    | Some e -> e
+    | None -> P.Pvar x
+  in
+  Subst.psubst_ety f ty
+let subst f_al alargs tys =
+  List.map (subst_one f_al alargs) tys
+
 let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
   let mk_i ?(annot=annot) instr =
     { P.i_desc = instr; P.i_loc = L.of_loc pi; P.i_info = (); P.i_annot = annot} in
@@ -1970,16 +1981,20 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
 
     | ls, `Raw, { L.pl_desc = S.PECall (f, alargs, args); pl_loc = el }, None ->
       let (f,fsig) = tt_fun env_rhs f in
-      let lvs, is = tt_lvalues arch_info env_lhs (L.loc pi) ls None fsig.fs_tout in
+      let alargs = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) alargs (List.init (List.length alargs) (fun _ -> Prog.ETint)) in
+      let tout = subst fsig.fs_al alargs fsig.fs_tout in
+      let lvs, is = tt_lvalues arch_info env_lhs (L.loc pi) ls None tout in
       assert (is = []);
-      let es  = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args fsig.fs_tin in
+      let tin = subst fsig.fs_al alargs fsig.fs_tin in
+      let es  = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args tin in
       let is_inline = P.is_inline annot f.P.f_cc in
       let annot =
         if is_inline || FInfo.is_export f.P.f_cc
         then Annotations.add_symbol ~loc:el "inline" annot
         else annot
       in
-      [mk_i ~annot (mk_call (L.loc pi) is_inline lvs f es)]
+      (* FIXME: List.map (fun e -> P.PE e) is ugly *)
+      [mk_i ~annot (mk_call (L.loc pi) is_inline lvs f (List.map (fun e -> P.PE e) alargs) es)]
   | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None
         when L.unloc f = "spill" || L.unloc f = "unspill"  ->
     let op = L.unloc f in
@@ -2338,6 +2353,7 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
       P.f_cc    = f_cc;
       P.f_info  = ();
       P.f_name  = P.F.mk name;
+      P.f_al    = List.map L.unloc alargs;
       P.f_tyin  = List.map P.gty_of_gety fs_tin;
       P.f_args  = List.map L.unloc f_args;
       P.f_body  = body;
@@ -2353,7 +2369,7 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
   let return_storage = Option.map_default (List.map (fst |- snd)) [] pf.pdf_rty in
   check_return_storage ~loc fdef.P.f_name return_storage f_ret;
 
-  Env.Funs.push env0 fdef {fs_tin; fs_tout}
+  Env.Funs.push env0 fdef {fs_al = List.map L.unloc alargs; fs_tin; fs_tout}
 
 (* -------------------------------------------------------------------- *)
 let tt_global_def pd env (gd:S.gpexpr) =

@@ -204,8 +204,8 @@ and cinstr_r_of_instr_r p i =
     let ir = C.Cwhile(a, cstmt_of_stmt c, cexpr_of_expr e, info,
                       cstmt_of_stmt c') in
     C.MkI(p,ir)
-  | Ccall(x, f, e) ->
-    let ir = C.Ccall(clval_of_lvals x, f, cexpr_of_exprs e) in
+  | Ccall(x, f, al, e) ->
+    let ir = C.Ccall(clval_of_lvals x, f, List.map cal_of_al al, cexpr_of_exprs e) in
     C.MkI(p,ir)
 
 and cstmt_of_stmt c =
@@ -245,8 +245,8 @@ and instr_r_of_cinstr_r = function
   | Cwhile(a, c, e, info, c') ->
     Cwhile(a, stmt_of_cstmt c, expr_of_cexpr e, (info, ()), stmt_of_cstmt c')
 
-  | Ccall(x, f, e) ->
-    Ccall(lval_of_clvals x, f, expr_of_cexprs e)
+  | Ccall(x, f, al, e) ->
+    Ccall(lval_of_clvals x, f, List.map al_of_cal al, expr_of_cexprs e)
 
 and stmt_of_cstmt c =
   List.map instr_of_cinstr c
@@ -261,6 +261,7 @@ let cufdef_of_fdef fd =
   let f_body = cstmt_of_stmt fd.f_body in
   let f_res = List.map cvari_of_vari fd.f_ret in
   fn, { C.f_info   = f_info;
+        C.f_al     = fd.f_al;
         C.f_tyin   = List.map cty_of_ty fd.f_tyin;
         C.f_params = f_params;
         C.f_body   = f_body;
@@ -277,6 +278,7 @@ let fdef_of_cufdef (fn, fd) =
     f_cc;
     f_info = ();
     f_name = fn;
+    f_al = fd.C.f_al;
     f_tyin = List.map ty_of_cty fd.C.f_tyin;
     f_args = List.map (fun v -> L.unloc (vari_of_cvari v)) fd.C.f_params;
     f_body = stmt_of_cstmt fd.C.f_body;

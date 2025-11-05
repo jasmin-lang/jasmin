@@ -19,6 +19,12 @@ type slice = { in_var : var ; scope : E.v_scope ; range : int * length; kind : s
 (* range: the high part of a slice can be a [length] expression.
    This high part is used only when it is [Const], to perform some checks. *)
 
+let eq_slice s1 s2 =
+  let eq_range (n1, len1) (n2, len2) =
+    n1 = n2 && Typing.compare_array_length (U8, len1) (U8, len2)
+  in
+  s1.in_var = s2.in_var && s1.scope = s2.scope && eq_range s1.range s2.range && s1.kind = s2.kind
+
 type alias = slice Mv.t
 
 (* --------------------------------------------------- *)
@@ -267,7 +273,7 @@ let opn_cc o =
 let rec analyze_instr_r params cc a =
   function
   | Cfor _ -> assert false
-  | Ccall (xs, fn, es) -> link_array_return params a xs es (cc fn)
+  | Ccall (xs, fn, _al, es) -> link_array_return params a xs es (cc fn)
   | Csyscall (xs, o, es) -> link_array_return params a xs es (syscall_cc o)
   | Cassgn (x, _, ty, e) -> if is_ty_arr ty then assign_arr params a x e else a
   | Copn (xs, _, o, es) -> 

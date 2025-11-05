@@ -300,11 +300,11 @@ Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
     Let c' := mapM (expand_i m) c' in 
     ok (MkI ii (Cwhile a c e info c'))
 
-  | Ccall xs fn es =>
+  | Ccall xs fn al es =>
     if Mf.get fsigs fn is Some (expdin, expdout) then
       Let xs := add_iinfo ii (rmap flatten (mapM2 length_mismatch (expand_return m) expdout xs)) in
       Let es := add_iinfo ii (rmap flatten (mapM2 length_mismatch (expand_param m) expdin es)) in
-      ok (MkI ii (Ccall xs fn es))
+      ok (MkI ii (Ccall xs fn al es))
     else Error (reg_ierror_no_var "function not found")
   end.
 
@@ -323,7 +323,7 @@ Definition expand_tyv m b s ty v :=
 Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef) :=
   Let x := init_map (fi fname fd) in
   match fd with
-  | MkFun _ tyin params c tyout res ef =>
+  | MkFun _ al tyin params c tyout res ef =>
     let '(m, fi) := x in
     let exp := ~~(fname \in entries) in
     Let ins  := mapM2 length_mismatch (expand_tyv m exp "the parameters") tyin params in
@@ -334,16 +334,16 @@ Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef)
     let tyout  := map (fun x => fst (fst x)) outs in
     let res    := map (fun x => snd (fst x)) outs in
     let outs   := map snd outs in
-    ok (MkFun fi (flatten tyin) (flatten params) c (flatten tyout) (flatten res) ef,
+    ok (MkFun fi al (flatten tyin) (flatten params) c (flatten tyout) (flatten res) ef,
         m, (ins, outs))
   end.
 
 Definition expand_fbody (fname: funname) (fs: ufundef * t) :=
   let (fd, m) := fs in
   match fd with
-  | MkFun fi tyin params c tyout res ef =>
+  | MkFun fi al tyin params c tyout res ef =>
     Let c := mapM (expand_i m) c in
-    ok (MkFun fi tyin params c tyout res ef)
+    ok (MkFun fi al tyin params c tyout res ef)
   end.
 
 End FSIGS.

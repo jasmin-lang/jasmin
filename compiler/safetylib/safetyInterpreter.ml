@@ -477,7 +477,7 @@ let safe_instr pd asmOp ginstr = match ginstr.i_desc with
   | Cassert (_, e) -> safe_e_rec [ GeneralCond e ] e
   | Cif(e, _, _) -> safe_e e
   | Cwhile(_, _, _, _, _) -> []       (* We check the while condition later. *)
-  | Ccall(lvs, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
+  | Ccall(lvs, _, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
   | Cfor (_, (_, e1, e2), _) -> safe_es [e1;e2]
 
 let safe_return main_decl =
@@ -1284,7 +1284,7 @@ end = struct
       | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
       | Cwhile (_, st1, e, _, st2) ->
         nm_e vs_for e && nm_stmt vs_for st1 && nm_stmt vs_for st2
-      | Ccall (lvs, fn, es)  ->
+      | Ccall (lvs, fn, _al, es)  ->
         let f' = get_fun_def prog fn |> oget in
         nm_lvs vs_for lvs && nm_es vs_for es && nm_fdecl f'
 
@@ -1723,7 +1723,7 @@ end = struct
         { state with abs = abs; }
 
 
-      | Ccall(lvs, f, es) ->
+      | Ccall(lvs, f, _al, es) ->
         let f_decl = get_fun_def state.prog f |> oget in
         let fn = f_decl.f_name in
 

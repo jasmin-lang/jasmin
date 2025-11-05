@@ -56,19 +56,19 @@ let rec insert_term ((coeff, mono) as cm) terms =
   | [] -> [cm]
   | ((coeff', mono') as cm') :: terms' ->
     if mono < mono' then cm :: terms
-    else if mono = mono' then add_term (coeff + coeff', mono) terms
-    else cm' :: insert_term cm terms
+    else if mono = mono' then add_term (coeff + coeff', mono) terms'
+    else cm' :: insert_term cm terms'
 let insert_term ((coeff, _) as cm) terms =
   if coeff = 0 then terms else insert_term cm terms
 
 let expanded_form len =
   let rec expanded_form terms coeff mono poly =
     match poly with
-    | Const n -> let coeff = n * coeff in (coeff, mono) :: terms
-    | Var x -> let mono = x :: mono in (coeff, mono) :: terms
+    | Const n -> let coeff = n * coeff in insert_term (coeff, mono) terms
+    | Var x -> let mono = insert_mono x mono in insert_term (coeff, mono) terms
     | Add (e1, e2) -> expanded_form (expanded_form terms coeff mono e1) coeff mono e2
     | Mul (Const n, e) -> let coeff = n * coeff in expanded_form terms coeff mono e
-    | Mul (Var x, e) -> let mono = x :: mono in expanded_form terms coeff mono e
+    | Mul (Var x, e) -> let mono = insert_mono x mono in expanded_form terms coeff mono e
     | Mul (Add (e11, e12), e2) -> expanded_form terms coeff mono (Add (Mul (e11, e2), Mul (e12, e2)))
     | Mul (Mul (e11, e12), e2) -> expanded_form terms coeff mono (Mul (e11, Mul (e12, e2)))
   in
@@ -90,7 +90,7 @@ let check_type loc e te ty =
   if not (subtype ty te) then
     error loc "the expression %a has type %a while %a is expected"
         (Printer.pp_expr ~debug:false) e
-        (PrintCommon.pp_ty ~debug:false) te (PrintCommon.pp_ty ~debug:false) ty
+        (PrintCommon.pp_ty ~debug:true) te (PrintCommon.pp_ty ~debug:true) ty
 
 let check_int loc e te = check_type loc e te tint
 
@@ -216,6 +216,17 @@ let getfun env fn =
 
 (* -------------------------------------------------------------------- *)
 
+let rec subst_al (f : var -> length) al =
+  match al with
+  | Const _ -> al
+  | Var x -> f x
+  | Add (al1, al2) -> Add (subst_al f al1, subst_al f al2)
+  | Mul (al1, al2) -> Mul (subst_al f al1, subst_al f al2)
+let subst_ty f ty =
+  match ty with
+  | Bty _ -> ty
+  | Arr (ws, al) -> Arr (ws, subst_al f al)
+
 let rec check_instr pd msfsz asmOp env i =
   let loc = i.i_loc in
   match i.i_desc with
@@ -254,10 +265,16 @@ let rec check_instr pd msfsz asmOp env i =
     check_cmd pd msfsz asmOp env c1;
     check_cmd pd msfsz asmOp env c2
 
-  | Ccall(xs,fn,es) ->
+  | Ccall(xs,fn,al,es) ->
     let fd = getfun env fn in
-    check_exprs pd loc es fd.f_tyin;
-    check_lvals pd loc xs fd.f_tyout
+    let f =
+      let l = List.combine fd.f_al al in
+      fun x -> List.assoc x l
+    in
+    let tyin = List.map (subst_ty f) fd.f_tyin in
+    check_exprs pd loc es tyin;
+    let tyout = List.map (subst_ty f) fd.f_tyout in
+    check_lvals pd loc xs tyout
 
 and check_cmd pd msfsz asmOp env c =
   List.iter (check_instr pd msfsz asmOp env) c

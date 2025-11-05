@@ -138,8 +138,8 @@ and eq_pinstr_r (x : _ pinstr_r) y =
       eq_pvar_i a d && eq_prange b e && eq_pstmt c f
   | Cwhile (a, b, c, _d, e), Cwhile (f, g, h, _i, j) ->
       a = f && eq_pstmt b g && eq_pexpr c h && eq_pstmt e j
-  | Ccall (a, b, c), Ccall (d, e, f) ->
-      eq_plvals a d && b.fn_name = e.fn_name && eq_pexprs c f
+  | Ccall (a, b, c, d), Ccall (e, f, g, h) ->
+      eq_plvals a e && b.fn_name = f.fn_name && eq_pexprs (List.map (fun (PE e) -> e) c) (List.map (fun (PE e) -> e) g) && eq_pexprs d h
   | ( ( Cassgn _ | Copn _ | Csyscall _ | Cassert _ | Cif _ | Cfor _ | Cwhile _
       | Ccall _ ),
       _ ) ->

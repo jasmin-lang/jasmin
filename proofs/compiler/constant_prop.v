@@ -536,10 +536,10 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
       end in
     (m', cw)
 
-  | Ccall xs f es =>
+  | Ccall xs f al es =>
     let es := map (const_prop_e without_globals m) es in
     let (m,xs) := const_prop_rvs without_globals m xs in
-    (m, [:: MkI ii (Ccall xs f es) ])
+    (m, [:: MkI ii (Ccall xs f al es) ])
 
   end
 
@@ -554,9 +554,9 @@ Section Section.
 Context {pT: progT}.
 
 Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
-  let 'MkFun ii si p c so r ev := f in
+  let 'MkFun ii al si p c so r ev := f in
   let (_, c) := const_prop (const_prop_i gd) empty_cpm c in
-  MkFun ii si p c so r ev.
+  MkFun ii al si p c so r ev.
 
 Definition const_prop_prog (p:prog) : prog := map_prog (const_prop_fun p.(p_globs)) p.
 

@@ -347,13 +347,13 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec instr_r :=
     Let c' := mapM wi2i_i c' in
     ok (Cwhile a c e info c')
 
-  | Ccall xs f es =>
+  | Ccall xs f al es =>
     Let sig := get_sig f in
     Let _ := assert (all2 (fun ety e => esubtype ety (etype_of_expr e)) sig.1 es)
                     (E.ierror_s "invalid args in Ccall") in
     Let xs := mapM2 (E.ierror_s "bad xs length in Ccall") wi2i_lv sig.2 xs in
     Let es := mapM wi2i_e es in
-    ok (Ccall xs f es)
+    ok (Ccall xs f al es)
   end
 
 with wi2i_i (i:instr) : cexec instr :=
@@ -365,7 +365,7 @@ with wi2i_i (i:instr) : cexec instr :=
 Definition wi2i_fun (fn:funname) (f: fundef) :=
   add_funname fn (
   Let sig := get_sig fn in
-  let 'MkFun ii si p c so r ev := f in
+  let 'MkFun ii al si p c so r ev := f in
   Let p := mapM2 (E.ierror_s "bad params in fun") wi2i_lvar sig.1 p in
   Let c := mapM wi2i_i c in
   Let r := mapM2 (E.ierror_s "bad return in fun") (fun ety x =>
@@ -375,10 +375,10 @@ Definition wi2i_fun (fn:funname) (f: fundef) :=
   let mk := map (fun ety => wi2i_type (sign_of_etype ety) (to_atype ety)) in
   let tin := mk sig.1 in
   let tout := mk sig.2 in
-  ok (MkFun ii tin p c tout r ev)).
+  ok (MkFun ii al tin p c tout r ev)).
 
 Definition build_sig (fd : funname * fundef) :=
- let 'MkFun ii si p c so r ev := fd.2 in
+ let 'MkFun ii al si p c so r ev := fd.2 in
  let mk := map2 (fun (x:var_i) ty => to_etype (sign_of_var x) ty) in
  (fd.1, (mk p si, mk r so)).
 

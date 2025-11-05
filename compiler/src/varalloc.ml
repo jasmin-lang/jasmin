@@ -49,7 +49,11 @@ type glob_alloc_oracle_t =
  
 (* --------------------------------------------------- *)
 let incr_liverange r x d : liverange =
-  let s = size_of_const x.v_ty in
+  let s =
+    match size_of x.v_ty with
+    | Const s -> s
+    | _ -> hierror ~loc:(Lone x.v_dloc) "stack variable “%a” cannot be of unknown size" (Printer.pp_var ~debug:false) x
+  in
   let g = Mint.find_default Mv.empty s r in
   let i =
     match Mv.find x g with
@@ -204,7 +208,7 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
     | Cassert (_, e) -> add_e e
     | Cif(e, _, _) | Cwhile (_, _, e, _, _) -> add_e e
     | Cfor _ -> assert false
-    | Ccall(xs, fn, es) ->
+    | Ccall(xs, fn, _al, es) ->
       add_lvs xs;
       calls := Sf.add fn !calls;
       List.iter2 add_p (onfun fn) es
@@ -371,7 +375,7 @@ let get_returned_params ~funname (alias: Alias.alias) args =
       if is_ptr x.v_kind then
         let c = Alias.normalize_var alias x in
         let arg_slices = List.map (Alias.normalize_var alias) args in
-        match List.index_of c arg_slices with
+        match List.find_index (Alias.eq_slice c) arg_slices with
         | None ->
            let msg =
              if List.mem c.in_var args

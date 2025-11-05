@@ -594,7 +594,7 @@ let rec ty_instr is_ct_asm fenv env i =
       else loop (Env.max env2 env) in
     loop env
 
-  | Ccall (xs, f, es) ->
+  | Ccall (xs, f, _al, es) ->
     let fty = get_fun is_ct_asm fenv f in
     (* Check the arguments *)
     let do_e env e lvl = ty_expr ~public:(lvl=Public) env e in

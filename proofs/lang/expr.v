@@ -398,7 +398,7 @@ Inductive instr_r :=
 | Cif      : pexpr -> seq instr -> seq instr  -> instr_r
 | Cfor     : var_i -> range -> seq instr -> instr_r
 | Cwhile   : align -> seq instr -> pexpr -> instr_info -> seq instr -> instr_r
-| Ccall    : lvals -> funname -> pexprs -> instr_r
+| Ccall    : lvals -> funname -> seq array_length -> pexprs -> instr_r
 
 with instr := MkI : instr_info -> instr_r ->  instr.
 
@@ -421,7 +421,7 @@ Section CMD_RECT.
   Hypothesis Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Hypothesis Hwhile : forall a c e info c', Pc c -> Pc c' -> Pr (Cwhile a c e info c').
-  Hypothesis Hcall: forall xs f es, Pr (Ccall xs f es).
+  Hypothesis Hcall: forall xs f al es, Pr (Ccall xs f al es).
 
   Section C.
   Variable instr_rect : forall i, Pi i.
@@ -446,7 +446,7 @@ Section CMD_RECT.
     | Cif e c1 c2  => @Hif e c1 c2 (cmd_rect_aux instr_Rect c1) (cmd_rect_aux instr_Rect c2)
     | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
     | Cwhile a c e info c'   => @Hwhile a c e info c' (cmd_rect_aux instr_Rect c) (cmd_rect_aux instr_Rect c')
-    | Ccall xs f es => @Hcall xs f es
+    | Ccall xs f al es => @Hcall xs f al es
     end.
 
   Definition cmd_rect := cmd_rect_aux instr_Rect.
@@ -485,6 +485,7 @@ Class progT := {
 
 Record _fundef (extra_fun_t: Type) := MkFun {
   f_info   : fun_info;
+  f_al     : seq length_var;
   f_tyin   : seq atype;
   f_params : seq var_i;
   f_body   : cmd;
@@ -668,6 +669,7 @@ Definition to_sprog (p:_sprog) : sprog := p.
 (* Update functions *)
 Definition with_body eft (fd:_fundef eft) (body : cmd) := {|
   f_info   := fd.(f_info);
+  f_al     := fd.(f_al);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
   f_body   := body;
@@ -678,6 +680,7 @@ Definition with_body eft (fd:_fundef eft) (body : cmd) := {|
 
 Definition swith_extra {_: PointerData} (fd:ufundef) f_extra : sfundef := {|
   f_info   := fd.(f_info);
+  f_al     := fd.(f_al);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
   f_body   := fd.(f_body);
@@ -821,7 +824,7 @@ Fixpoint write_i_rec s (i:instr_r) :=
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
   | Cwhile _ c _ _ c' => foldl write_I_rec (foldl write_I_rec s c') c
-  | Ccall x _ _   => vrvs_rec s x
+  | Ccall x _ _ _   => vrvs_rec s x
   end
 with write_I_rec s i :=
   match i with
@@ -905,7 +908,7 @@ Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
     let s := foldl read_I_rec s c in
     let s := foldl read_I_rec s c' in
     read_e_rec s e
-  | Ccall xs _ es => read_es_rec (read_rvs_rec s xs) es
+  | Ccall xs _ _ es => read_es_rec (read_rvs_rec s xs) es
   end
 with read_I_rec (s:Sv.t) (i:instr) : Sv.t :=
   match i with

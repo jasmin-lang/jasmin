@@ -20,3 +20,5 @@ val classes : alias -> Sv.t Mv.t
 val pp_slice : Format.formatter -> slice -> unit
 
 val pp_alias  : Format.formatter -> alias -> unit
+
+val eq_slice : slice -> slice -> bool

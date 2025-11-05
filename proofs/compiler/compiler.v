@@ -251,7 +251,7 @@ Definition live_range_splitting (p: uprog) : cexec uprog :=
   ok p.
 
 Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
-  Let p := inline_prog_err (wsw := withsubword) cparams.(rename_fd) cparams.(dead_vars_ufd) p in
+  Let p := inline_prog_err (fun vk n id ty => cparams.(fresh_var_ident) vk dummy_instr_info n id ty) cparams.(rename_fd) p in
   let p := cparams.(print_uprog) Inlining p in
 
   Let p := dead_calls_err_seq to_keep p in
