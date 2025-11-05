@@ -87,11 +87,18 @@ let pp_glvs ~debug pp_len pp_var fmt lvs =
   | _   -> F.fprintf fmt "(@[%a@])" (pp_list ",@ " (pp_glv ~debug pp_len pp_var)) lvs
 
 (* -------------------------------------------------------------------- *)
+let pp_escape_string fmt =
+  String.iter (function
+      | '\\' -> F.fprintf fmt "\\\\"
+      | '"' -> F.fprintf fmt "\\\""
+      | c -> F.fprintf fmt "%c" c
+    )
+
 let rec pp_simple_attribute fmt =
   function
   | Annotations.Aint z -> Z.pp_print fmt z
   | Aid s -> F.fprintf fmt "%s" s
-  | Astring s -> F.fprintf fmt "%S" s
+  | Astring s -> F.fprintf fmt "\"%a\"" pp_escape_string s
   | Aws ws -> F.fprintf fmt "%s" (string_of_ws ws)
   | Astruct a -> F.fprintf fmt "{%a}" pp_annotations a
 
