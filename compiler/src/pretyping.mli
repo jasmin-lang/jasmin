@@ -4,7 +4,7 @@ exception TyError of Location.t * tyerror
 
 val pp_tyerror : Format.formatter -> tyerror -> unit
 
-type fun_sig = { fs_tin : Prog.epty list ; fs_tout : Prog.epty list }
+type fun_sig = { fs_al : Prog.pvar list; fs_tin : Prog.epty list ; fs_tout : Prog.epty list }
 
 module Env : sig
   type 'asm env

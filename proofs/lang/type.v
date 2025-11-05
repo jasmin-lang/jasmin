@@ -388,6 +388,8 @@ Definition eval_ltype ty :=
 
 End EVAL.
 
+(* We define a polynom equality checker. This is what ring or lia know how to do.
+   We could probably call functions coming from their implementation instead. *)
 From Equations Require Import Equations.
 (* importing equations messes with erefl/refl_equal for some reason... *)
 Arguments Logic.eq_refl {_} {_}, [_] _.
@@ -445,7 +447,7 @@ Equations expanded_form (p : array_length) : list (Z * list length_var) :=
 
   where aux (terms : list (Z * list length_var)) (coeff : Z) (mono : list length_var) (p : array_length) : list (Z * list length_var) by wf (size_poly p, left_Mul_under_Mul p) (lexprod _ _ lt lt)  :=
     aux terms coeff mono (ALConst n) := let coeff := (n * coeff)%Z in insert_term_nice (coeff, mono) terms;
-    aux terms coeff mono (ALVar x) := let mono := insert_mono x mono in (coeff, mono) :: terms;
+    aux terms coeff mono (ALVar x) := let mono := insert_mono x mono in insert_term_nice (coeff, mono) terms;
     aux terms coeff mono (ALAdd e1 e2) := aux (aux terms coeff mono e1) coeff mono e2;
     aux terms coeff mono (ALMul (ALConst n) e) := let coeff := (n * coeff)%Z in aux terms coeff mono e;
     aux terms coeff mono (ALMul (ALVar x) e) := let mono := insert_mono x mono in aux terms coeff mono e;
@@ -574,6 +576,7 @@ Local Opaque Z.add Z.mul.
   - move=> _ terms coeff mono n /=.
     rewrite insert_term_nice_correct /=. lia.
   - move=> _ terms coeff mono x /=.
+    rewrite insert_term_nice_correct /=.
     rewrite insert_mono_correct /=. lia.
   - move=> p terms coeff mono e1 e2 /= h1 h2.
     rewrite h2 h1. lia.

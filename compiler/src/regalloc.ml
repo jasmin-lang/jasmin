@@ -41,7 +41,7 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
     | Cfor (i, r, s) -> Cfor (i, r, fill_stmt s)
     | Cwhile (a, s, e, loc, s') -> Cwhile (a, fill_stmt s, e, loc, fill_stmt s')
-    | Ccall (lvs, f, es) -> Ccall (fill_lvs lvs, f, es)
+    | Ccall (lvs, f, al, es) -> Ccall (fill_lvs lvs, f, al, es)
   and fill_instr i = { i with i_desc = fill_instr_r i.i_desc }
   and fill_stmt s = List.map fill_instr s in
   let f_body = fill_stmt f.f_body in
@@ -275,7 +275,7 @@ let collect_equality_constraints_in_func
        | (None, _) | (_, None) -> ()
        end
     | Cassgn _ -> ()
-    | Ccall (xs, fn, es) ->
+    | Ccall (xs, fn, _al, es) ->
       let get_Pvar a =
         match a with
         | Pvar { gs = Expr.Slocal ; gv } -> gv
@@ -492,7 +492,7 @@ let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =
   let rec iter_instr_r =
     function
     | Cassgn (lv, _, _, e) -> iter_lv lv; iter_expr e
-    | (Ccall (lvs, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _ , es) -> iter_lvs lvs; iter_exprs es
+    | (Ccall (lvs, _, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _ , es) -> iter_lvs lvs; iter_exprs es
     | (Cwhile (_, s1, e, _, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
     | Cfor _ -> assert false
   and iter_instr { i_desc } = iter_instr_r i_desc
@@ -800,7 +800,7 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
         -> alloc_stmt s1 c |> alloc_stmt s2
     | Cassgn _
       -> c
-    | Ccall (lvs, _, es) ->
+    | Ccall (lvs, _, _, es) ->
        (* TODO: check this *)
        (*
        let args = List.map (function Pvar { gv ; gs = Slocal } -> (L.unloc gv) | _ -> assert false) es in
