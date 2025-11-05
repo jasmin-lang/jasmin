@@ -43,7 +43,7 @@ module LivenessDomain : BackwardAnalyser.Logic with type domain = Sv.t = struct
     assert (not (Sv.mem (L.unloc var) domain));
     Annotation domain
 
-  let funcall (_ : Location.i_loc) (lvs : lvals) (_ : funname) (exprs : exprs) (domain : domain) =
+  let funcall (_ : Location.i_loc) (lvs : lvals) (_ : funname) (_ : length list) (exprs : exprs) (domain : domain) =
       Annotation (live_assigns domain lvs exprs)
 
   let syscall

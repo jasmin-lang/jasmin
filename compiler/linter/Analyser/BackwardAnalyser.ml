@@ -15,7 +15,7 @@ module type Logic = sig
 
   val forget : var_i -> domain -> domain annotation
 
-  val funcall : Location.i_loc -> lvals -> funname -> exprs -> domain -> domain annotation
+  val funcall : Location.i_loc -> lvals -> funname -> length list -> exprs -> domain -> domain annotation
 
   val syscall :
        Location.i_loc
@@ -199,9 +199,9 @@ struct
       | Copn (lvs, tag, sopn, es) ->
           let annotation = Annotation.bind annotation (L.opn loc lvs tag sopn es) in
           (Copn (lvs, tag, sopn, es), annotation)
-      | Ccall (lvs, fn, es) ->
-          let annotation = Annotation.bind annotation (L.funcall loc lvs fn es) in
-          (Ccall (lvs, fn, es), annotation)
+      | Ccall (lvs, fn, al, es) ->
+          let annotation = Annotation.bind annotation (L.funcall loc lvs fn al es) in
+          (Ccall (lvs, fn, al, es), annotation)
       | Csyscall (lvs, sc, es) ->
           let annotation = Annotation.bind annotation (L.syscall loc lvs sc es) in
           (Csyscall (lvs, sc, es), annotation)

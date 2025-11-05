@@ -9,3 +9,5 @@ val error : Prog.L.i_loc -> ('a, Format.formatter, unit, 'b) format4 -> 'a
 
 val check_prog :
   Wsize.wsize -> Wsize.wsize -> 'asm Sopn.asmOp -> ('info, 'asm) prog -> unit
+
+val compare_array_length : Wsize.wsize * length -> Wsize.wsize * length -> bool
