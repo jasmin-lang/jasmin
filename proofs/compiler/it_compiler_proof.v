@@ -68,10 +68,14 @@ Context
 .
 
 #[local]
-Instance with_Error0 : with_Error (ErrEvent +' RndEvent syscall_state) (RndEvent syscall_state).
-Proof.
-refine {| mfun1 T x := x; mfun2 T x := x |}; done.
-Qed.
+Instance with_Error0 :
+  with_Error (ErrEvent +' RndEvent syscall_state) (RndEvent syscall_state) :=
+  {|
+    mfun1 := fun _ x => x;
+    mfun2 := fun _ x => x;
+    mid12 := fun _ x => erefl;
+    mid21 := fun _ x => erefl;
+  |}.
 
 #[local]
 Instance HandlerContract : EventRels (RndEvent syscall_state) :=
@@ -82,15 +86,18 @@ Instance HandlerContract : EventRels (RndEvent syscall_state) :=
                    scs1 = scs2 /\ n1 = n2;
     EPostRel0_ := fun A B r1 =>
                     match r1 in RndEvent _ A' return A' -> _ with
-                      Rnd scs1 n1 => fun (a: syscall_state * seq u8) r2 =>
-                                       match r2 in RndEvent _ B' return B' -> _ with
-                                         Rnd scs2 n2 => fun (b: syscall_state * seq u8) => a = b
-                                       end
-                    end
+                    | Rnd scs1 n1 =>
+                        fun (a: syscall_state * seq u8) r2 =>
+                          match r2 in RndEvent _ B' return B' -> _ with
+                          | Rnd scs2 n2 =>
+                              fun (b: syscall_state * seq u8) =>
+                                a = b
+                          end
+                    end;
   |}.
 
 #[local]
-Instance : RndE0 syscall_state (RndEvent syscall_state) := fun T => id.
+Instance RndE00 : RndE0 syscall_state (RndEvent syscall_state) := fun T => id.
 
 #[local]
 Instance : RndE0_refl HandlerContract.
@@ -326,11 +333,11 @@ Context
   (rip : pointer)
 .
 
-Definition wf_args fn ms mt vs vt :=
+Definition it_wf_args fn ms mt vs vt :=
   wf_args
     (size_glob sp) rip ms mt (get_wptrs up fn) (get_align_args sp fn) vs vt.
 
-Definition extend_mem ms mt := extend_mem ms mt rip (sp_globs (p_extra sp)).
+Definition it_extend_mem ms mt := extend_mem ms mt rip (sp_globs (p_extra sp)).
 
 Let pre : relPreF :=
   fun fn fn' s t =>
@@ -340,9 +347,9 @@ Let pre : relPreF :=
     let: mt := fmem t in
     [/\ fn = fn'
       , alloc_ok sp fn mt
-      , wf_args fn ms mt args argt
+      , it_wf_args fn ms mt args argt
       , Forall3 (value_eq_or_in_mem mt) (get_wptrs up fn) args argt
-      , extend_mem ms mt
+      , it_extend_mem ms mt
       & fscs s = fscs t
     ].
 
@@ -359,7 +366,7 @@ Let post : relPostF :=
     let: n := get_nb_wptr up fn in
     [/\ List.Forall2 (value_in_mem mt') (take n ress) (take n argt)
       , List.Forall2 value_uincl (drop n ress) rest
-      , extend_mem ms' mt'
+      , it_extend_mem ms' mt'
       , mem_unchanged_params ms mt mt' (get_wptrs up fn) args argt
       & fscs s' = fscs t'
     ].
@@ -371,7 +378,7 @@ Instance FrontEndEquiv : EquivSpec :=
     rpostF_ := post;
   |}.
 
-Lemma it_compiler_front_endP ev fn :
+Lemma it_compiler_front_endP {ev fn} :
   compiler_front_end aparams cparams entries up = ok sp ->
   fn \in entries ->
   wiequiv_f
@@ -430,7 +437,7 @@ apply: (
 ).
 - move=> s1 s3 [] [_ hok hwf hptr hmem hscs] _; exists s3 => //; split=> //.
   + by rewrite -p2_p1_extra p2_p3_extra -sp_p3_extra.
-  + move: hwf; rewrite /wf_args /get_wptrs get_fd /= check_params.
+  + move: hwf; rewrite /it_wf_args /get_wptrs get_fd /= check_params.
     rewrite /size_glob sp_p3_extra -p2_p3_extra p2_p1_extra.
     rewrite /get_align_args get_fd4 /= -fd3_fd4_align -fd2_fd3_extra.
     move: ok_fd2; rewrite /alloc_fd; by t_xrbindP=> _ _ <- /=.
@@ -538,7 +545,7 @@ apply: (
   split; last congruence.
   - rewrite hn -vr2_wf -hmem2; exact: vr2_inmem.
   - rewrite hn vr2_eq -rminfo_vr2; exact: vr_vr1.
-  - by rewrite -hmem2 /extend_mem sp_p3_extra -p2_p3_extra p2_p1_extra.
+  - by rewrite -hmem2 /it_extend_mem sp_p3_extra -p2_p3_extra p2_p1_extra.
   by rewrite /get_wptrs get_fd /= check_params -hmem2.
 
 apply: (
