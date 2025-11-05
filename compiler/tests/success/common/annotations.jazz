@@ -1,0 +1,7 @@
+#[test = "This
+is
+a
+multiline
+  annotation  with  tabs and \" special {| |} characters
+"]
+export fn noop() {}
