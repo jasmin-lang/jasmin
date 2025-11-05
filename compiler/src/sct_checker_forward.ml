@@ -168,7 +168,7 @@ let rec modmsf_i fenv i =
     | Mov_msf | Protect | Other -> NotModified
     end
   | Cfor(_, _, c) -> modmsf_c fenv c
-  | Ccall (_, f, _) ->
+  | Ccall (_, f, _, _) ->
     match (FEnv.get_fty fenv f).modmsf with
     | Modified (l, tr) -> Modified(i.i_loc, (l, f) :: tr)
     | NotModified -> NotModified
@@ -309,7 +309,7 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
   | Cassgn _ ->
     ms
 
-  | Ccall(xs, f, es) ->
+  | Ccall(xs, f, _, es) ->
     let fty = FEnv.get_fty fenv f in
     let ms =
       let doout ms vfty x =
@@ -1078,7 +1078,7 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
     Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
     MSF.enter_if msf2 (Papp1(Onot, e)), venv2
 
-  | Ccall (xs, f, es) ->
+  | Ccall (xs, f, _, es) ->
     let fty = FEnv.get_fty fenv f in
     let modmsf = fty.modmsf in
     let tyout, tyin, resulting_corruption = Env.clone_for_call env fty in

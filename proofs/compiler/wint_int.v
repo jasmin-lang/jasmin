@@ -390,13 +390,13 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
     Let c' := wi2i_c wi2i_i c' in
     ok ([::], Cwhile a (c ++ safe_assert ii' (map Pexpr e.1)) e.2 ii' c')
 
-  | Ccall xs f es =>
+  | Ccall xs f al es =>
     Let sig := get_sig f in
     Let _ := assert (all2 (fun ety e => esubtype ety (etype_of_expr m e)) sig.1 es)
                     (E.ierror_s "invalid args in Ccall") in
     Let es := wi2i_es wi2i_e es in
     Let xs := wi2i_lvs "invalid dest in Ccall" false sig.2 xs in
-    ok (es.1 ++ xs.1, Ccall xs.2 f es.2)
+    ok (es.1 ++ xs.1, Ccall xs.2 f al es.2)
   end
 
 with wi2i_i (i:instr) : cexec cmd :=
@@ -418,7 +418,7 @@ Definition wi2i_ci ci sig :=
 Definition wi2i_fun (fn:funname) (f: fundef) :=
   add_funname fn (
   Let sig := get_sig fn in
-  let 'MkFun ii ci si p c so r ev := f in
+  let 'MkFun ii ci al si p c so r ev := f in
   Let ci :=
     match ci with
     | None => ok None (*TODO: add conditions for params and return values that are wint, maybe do this when default contract are inferred*)
@@ -438,10 +438,10 @@ Definition wi2i_fun (fn:funname) (f: fundef) :=
   let mk := map (fun ety => wi2i_type (sign_of_etype ety) (to_atype ety)) in
   let tin := mk sig.1 in
   let tout := mk sig.2 in
-  ok (MkFun ii ci tin p c tout r ev)).
+  ok (MkFun ii ci al tin p c tout r ev)).
 
 Definition build_sig (fd : funname * fundef) :=
- let 'MkFun ii ci si p c so r ev := fd.2 in
+ let 'MkFun ii ci al si p c so r ev := fd.2 in
  let mk := map2 (fun (x:var_i) ty => to_etype (sign_of_var m x) ty) in
  (fd.1, (mk p si, mk r so)).
 

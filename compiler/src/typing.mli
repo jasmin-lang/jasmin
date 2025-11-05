@@ -12,3 +12,4 @@ val check_prog :
 
 (* Return the type of the expression but do not type check it *)
 val type_of_expr : expr -> ty
+val compare_array_length : Wsize.wsize * length -> Wsize.wsize * length -> bool

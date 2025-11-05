@@ -155,14 +155,14 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * cmd) :=
     let: (s, (c,c')) := sc in
     ok (s, [:: MkI ii (Cwhile a c e info c')])
 
-  | Ccall xs fn es =>
+  | Ccall xs fn al es =>
     Let sxs := 
       match onfun fn with
       | None => ok (read_rvs_rec (Sv.diff s (vrvs xs)) xs, xs)
       | Some bs => add_iinfo ii (check_keep_only xs bs s)
       end in
     let '(si,xs) := sxs in
-    ok (read_es_rec si es, [:: MkI ii (Ccall xs fn es)])
+    ok (read_es_rec si es, [:: MkI ii (Ccall xs fn al es)])
 
   end.
 
@@ -177,6 +177,7 @@ Definition dead_code_fd {eft} fn (fd: _fundef eft) : cexec (_fundef eft) :=
   Let c := dead_code_c dead_code_i fd.(f_body) s in
   ok {| f_info := f_info fd;
         f_contract := f_contract fd;
+        f_al := f_al fd;
         f_tyin := f_tyin fd;
         f_params := f_params fd;
         f_body := c.2;

@@ -126,7 +126,7 @@ Definition mk_info (x:var_i) (ty:atype) :=
 
 Definition get_sig ii fn :=
   if get_fundef p.(p_funcs) fn is Some fd then
-      ok (map2 mk_info fd.(f_params) fd.(f_tyin),
+      ok (fd.(f_al), map2 mk_info fd.(f_params) fd.(f_tyin),
            map2 mk_info fd.(f_res) fd.(f_tyout))
   else Error (E.make_ref_error ii "unknown function").
 
@@ -137,6 +137,44 @@ Definition get_syscall_sig o :=
 
 Definition is_swap_op (op: sopn) : option atype :=
   if op is Opseudo_op (pseudo_operator.Oswap (aarr _ _ as ty)) then Some ty else None.
+
+Fixpoint subst_al (f: length_var -> option array_length) al :=
+  match al with
+  | ALConst _ => Some al
+  | ALVar x => f x
+  | ALAdd al1 al2 =>
+    let%opt al1 := subst_al f al1 in
+    let%opt al2 := subst_al f al2 in
+    Some (ALAdd al1 al2)
+  | ALMul al1 al2 =>
+    let%opt al1 := subst_al f al1 in
+    let%opt al2 := subst_al f al2 in
+    Some (ALMul al1 al2)
+  end.
+Definition subst_ty f ty :=
+  match ty with
+  | aarr ws al =>
+    let%opt al := subst_al f al in
+    Some (aarr ws al)
+  | _ => Some ty
+  end.
+
+(* TODO: should we fail if subst fails? or just returns the original? *)
+Definition subst_sig ii al alargs '((params,returns) : seq (bool * string * atype) * seq (bool * string * atype)) :=
+  let f :=
+    let als := zip al alargs in
+    assoc als
+  in
+  let subst :=
+    mapM (fun '(b, s, ty) =>
+    match subst_ty f ty with
+    | None => Error (make_ref_error ii "subst_sig")
+    | Some ty => ok (b, s, ty)
+    end)
+  in
+  Let params := subst params in
+  Let returns := subst returns in
+  ok (params, returns).
 
 Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in
@@ -163,13 +201,14 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
     Let c  := update_c (update_i X) c in
     Let c' := update_c (update_i X) c' in
     ok [::MkI ii (Cwhile a c e info c')]
-  | Ccall xs fn es =>
-    Let: (params,returns) := get_sig ii fn in
+  | Ccall xs fn alargs es =>
+    Let: (al,params,returns) := get_sig ii fn in
+    Let: (params, returns) := subst_sig ii al alargs (params, returns) in
     Let pres := make_prologue ii X 0 params es in
     let: (prologue, es) := pres in
     Let xsep := make_epilogue ii X returns xs in
     let: (xs, epilogue) := xsep in
-    ok (prologue ++ MkI ii (Ccall xs fn es) :: epilogue)
+    ok (prologue ++ MkI ii (Ccall xs fn alargs es) :: epilogue)
   | Csyscall xs o es =>
     let: (params,returns) := get_syscall_sig o in
     Let: (prologue, es) := make_prologue ii X 0 params es in

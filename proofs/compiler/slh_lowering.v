@@ -458,7 +458,7 @@ Fixpoint check_i (i : instr) (env : Env.t) : cexec Env.t :=
       Let _ := chk_mem ii cond in
       check_while ii cond (check_cmd c0) (check_cmd c1) Loop.nb env
 
-  | Ccall xs fn es =>
+  | Ccall xs fn _ es =>
       let '(in_t, out_t) := fun_info fn in
       Let _ := check_f_args ii env es in_t in
       check_f_lvs ii env xs out_t
@@ -523,7 +523,7 @@ Fixpoint lower_i (i : instr) : cexec instr :=
       Let c1' := lower_cmd c1 in
       ok (Cwhile al c0' b info c1')
 
-    | Ccall _ _ _ =>
+    | Ccall _ _ _ _ =>
         ok ir
     end
   in

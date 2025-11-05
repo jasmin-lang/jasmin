@@ -76,7 +76,7 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
         Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), gsubst_c flen f c)
     | Cwhile(a, c, e, loc, c') ->
       Cwhile(a, gsubst_c flen f c, gsubst_e flen f e, loc, gsubst_c flen f c')
-    | Ccall(x,fn,e) -> Ccall(gsubst_lvals flen f x, fn, gsubst_es flen f e) in
+    | Ccall(x,fn,al,e) -> Ccall(gsubst_lvals flen f x, fn, List.map (flen ?loc:None) al, gsubst_es flen f e) in
   { i with i_desc }
 
 and gsubst_c flen f c = List.map (gsubst_i flen f) c
@@ -92,6 +92,7 @@ let gsubst_cf_contract flen f c =
 let gsubst_func (flen: ?loc:L.t -> 'len1 -> 'len2) f fc =
   let dov v = L.unloc (gsubst_vdest f (L.mk_loc L._dummy v)) in
   { fc with
+    f_al = List.map dov fc.f_al;
     f_tyin = List.map (gsubst_ty (flen ?loc:None)) fc.f_tyin;
     f_contract = Option.map (gsubst_cf_contract flen f) fc.f_contract;
     f_args = List.map dov fc.f_args;
@@ -117,6 +118,11 @@ let psubst_ty f (ty: pty) : pty =
   | Bty ty -> Bty ty
   | Arr(ty, e) -> Arr(ty, psubst_e_ f e)
 
+let psubst_ety f (ty: epty) : epty =
+match ty with
+  | ETbool | ETint | ETword _ -> ty
+  | ETarr (ws, len) -> ETarr (ws, psubst_e_ f len)
+
 let psubst_v subst =
   let subst = ref subst in
   let rec aux v : pexpr =
@@ -128,14 +134,18 @@ let psubst_v subst =
       with Not_found ->
         (* the Const case can now be a length variable *)
         (* assert (not (PV.is_glob v_)); *)
-        let ty = psubst_ty aux v_.v_ty in
-        let v' = PV.mk v_.v_name v_.v_kind ty v_.v_dloc v_.v_annot in
-        let v = {v with L.pl_desc = v'} in
-        let v = { gv = v; gs = k } in
-        let e = Pvar v in
-        (* FIXME: I think subst is updated, but then immediately thrown away *)
-        subst := Mpv.add v_ e !subst;
-        e in
+        if PV.is_glob v_ then
+          Pvar {gv=v; gs=k}
+        else begin
+          let ty = psubst_ty aux v_.v_ty in
+          let v' = PV.mk v_.v_name v_.v_kind ty v_.v_dloc v_.v_annot in
+          let v = {v with L.pl_desc = v'} in
+          let v = { gv = v; gs = k } in
+          let e = Pvar v in
+          (* FIXME: I think subst is updated, but then immediately thrown away *)
+          subst := Mpv.add v_ e !subst;
+          e
+        end in
     match e with
     | Pvar x ->
       let k = x.gs in
@@ -317,6 +327,7 @@ let isubst_prog glob prog =
     let f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret in
     let fc = {
         fc with
+        f_al = List.map GV.cast fc.f_al;
         f_tyin = List.map isubst_ty fc.f_tyin;
         f_contract = Option.map (gsubst_cf_contract isubst_len subst_v) fc.f_contract;
         f_args;

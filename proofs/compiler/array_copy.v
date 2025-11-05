@@ -159,19 +159,15 @@ Fixpoint array_copy_i V (i:instr) : cexec cmd :=
       Let c1 := array_copy_c V array_copy_i c1 in
       Let c2 := array_copy_c V array_copy_i c2 in
       ok [:: MkI ii (Cwhile a c1 e info c2)]
-  | Ccall _ _ _ => ok [:: i]
+  | Ccall _ _ _ _ => ok [:: i]
   end.
 
 End FUNCTION.
 
 Context {pT: progT}.
 
-Definition array_copy_fd (f:fundef) :=
-  let V := vars_fd f in
-  let fi := f.(f_info) in
-  let fresh := Sv.add {| vtype := aint ; vname := fresh_counter fi |} (sv_of_list (tmp_var fi) wsizes) in
-  Let _ := assert (disjoint fresh V) E.error in
-  Let c := array_copy_c V (array_copy_i fi) f.(f_body) in
+Definition array_copy_fd V (f:fundef) :=
+  Let c := array_copy_c V array_copy_i f.(f_body) in
   ok (with_body f c).
 
 Definition array_copy_prog (p:prog) :=
