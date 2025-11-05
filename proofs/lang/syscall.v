@@ -8,8 +8,8 @@ Require Import
   utils.
 
 #[only(eqbOK)] derive
-Variant syscall_t : Type := 
-  | RandomBytes of wsize & positive.
+Variant syscall_t :=
+| RandomBytes of positive.
 
 HB.instance Definition _ := hasDecEq.Build syscall_t syscall_t_eqb_OK.
 
