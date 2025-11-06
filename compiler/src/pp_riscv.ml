@@ -105,6 +105,8 @@ module RiscVTarget: AsmTarget
       Label global_datas_label
     ]
 
+  let function_directives = []
+
   let function_header =
     [
       Instr ("addi", [ pp_register SP; pp_register SP; "-4"]);

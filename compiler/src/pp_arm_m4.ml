@@ -69,11 +69,6 @@ let pp_asm_arg (arg : (register, Arch_utils.empty, Arch_utils.empty, rflag, cond
 
 (* -------------------------------------------------------------------- *)
 
-(* TODO_ARM: Review. *)
-let headers = [ Instr (".thumb", []); Instr (".syntax unified", []) ]
-
-(* -------------------------------------------------------------------- *)
-
 let pp_set_flags opts = if opts.set_flags then "s" else ""
 
 (* We assume the only condition in the argument list is the one we need to
@@ -226,6 +221,10 @@ and type asm_op = arm_op
     (* TODO_ARM: Review. *)
     [ Instr ("pop", [ "{pc}" ]) ]
 
+  let function_directives =
+    [
+      Header (".thumb_func", [])
+    ]
 
   let function_header =
     [
