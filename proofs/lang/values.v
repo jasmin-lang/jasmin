@@ -689,8 +689,7 @@ Lemma mapM2_truncate_value_uincl tyin vargs1 vargs1' :
   mapM2 ErrType truncate_val tyin vargs1 = ok vargs1' ->
   List.Forall2 value_uincl vargs1' vargs1.
 Proof.
-  move=> htr.
-  have {htr} := mapM2_Forall3 htr.
+  move/mapM2_Forall3.
   elim {vargs1 vargs1'} => //.
   move=> _ v1 v1' _ vargs1 vargs1' /truncate_value_uincl huincl _ ih.
   by constructor.
@@ -762,8 +761,8 @@ Lemma truncate_val_app_sopn T l f vargs vargs' (t : T) :
   app_sopn l f vargs' = ok t ->
   app_sopn l f vargs = ok t.
 Proof.
-  move=> htr.
-  elim: {l vargs vargs' htr} (mapM2_Forall3 htr) f => //=.
+  move => htr; move/mapM2_Forall3: htr f.
+  elim => {l vargs vargs'} //=.
   move=> ty v v' tys vargs vargs' htr _ ih f.
   t_xrbindP=> w' ok_w' ok_t.
   move: htr => /[dup] /truncate_val_idem.

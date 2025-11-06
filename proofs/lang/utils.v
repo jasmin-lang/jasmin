@@ -572,9 +572,22 @@ Arguments allMP {A E check m a} _ _.
 (* Forall3 *)
 (* -------------------------------------------------------------- *)
 
-Inductive Forall3 (A B C : Type) (R : A -> B -> C -> Prop) : seq A -> seq B -> seq C -> Prop :=
+Section FORALL3.
+
+Context (A B C: Type) (R: A → B → C → Prop).
+
+Inductive Forall3 : seq A -> seq B -> seq C -> Prop :=
 | Forall3_nil : Forall3 [::] [::] [::]
 | Forall3_cons : forall a b c la lb lc, R a b c -> Forall3 la lb lc -> Forall3 (a :: la) (b :: lb) (c :: lc).
+
+Lemma Forall3_inv2 ma mb mc :
+  Forall3 ma mb mc →
+  if mb is b :: mb' then
+    ∃ a ma' c mc', [/\ ma = a :: ma', mc = c :: mc', R a b c & Forall3 ma' mb' mc' ]
+  else ma = [::] ∧ mc = [::].
+Proof. by case => // a b c la lb lc ??; exists a, la, c, lc; split. Qed.
+
+End FORALL3.
 
 Section MAP2.
 
@@ -605,14 +618,22 @@ Section MAP2.
   Qed.
 
   Lemma mapM2_Forall3 ma mb mr :
-    mapM2 ma mb = ok mr ->
+    mapM2 ma mb = ok mr ↔
     Forall3 (fun a b r => f a b = ok r) ma mb mr.
   Proof.
     elim: ma mb mr.
-    + by move=> [|//] [|//] _; constructor.
-    move=> a ma ih [//|b mb] /=.
-    t_xrbindP=> _ r h mr /ih{}ih <-.
-    by constructor.
+    + case => [ | b mb ] mr; split.
+      * move/ok_inj<-; constructor.
+      * case/Forall3_inv2 => _ ->; constructor.
+      * done.
+      by case/Forall3_inv2 => ? [] ? [] ? [] ? [].
+    move => a ma ih [ | b mb ] mr; split.
+    + done.
+    + by case/Forall3_inv2.
+    + rewrite /=; t_xrbindP => c ok_c mc ok_mc <-; constructor.
+      * exact: ok_c.
+      by rewrite -ih.
+    by case/Forall3_inv2 => _ [] _ [] c [] mc [] [] <- <- -> /= -> /= /ih ->.
   Qed.
 
   Lemma mapM2_nth ma mb mr :
@@ -621,7 +642,7 @@ Section MAP2.
       (i < size ma)%nat ->
       f (nth a ma i) (nth b mb i) = ok (nth r mr i).
   Proof.
-    move=> H; elim: {H ma mb mr}(mapM2_Forall3 H) => //= a b r ma mb mr ok_r _ ih.
+    move/mapM2_Forall3; elim => {ma mb mr} //= a b r ma mb mr ok_r _ ih.
     by move=> a' b' r' [//|i]; apply ih.
   Qed.
 
