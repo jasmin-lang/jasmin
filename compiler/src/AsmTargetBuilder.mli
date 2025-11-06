@@ -1,3 +1,5 @@
+open PrintASM
+
 (**
 Module AsmTarget :
     This module defines the interface for generating assembly code for a target architecture.
@@ -19,6 +21,9 @@ module type AsmTarget = sig
 
     (* Data segment header*)
     val data_segment_header : PrintASM.asm_element list
+
+    val function_directives : asm_element list
+    (** Meta-data to print before the function definition *)
 
     (* Start of the function*)
     val function_header     : PrintASM.asm_element list

@@ -399,6 +399,8 @@ and type asm_op = X86_instr_decl.x86_op
       let name = pp_name_ext pp in
       [Instr(name, (pp_asm_args pp.pp_aop_args))]
 
+  let function_directives = []
+
   let function_header = []
 
   let function_tail = [Instr ("ret", [])]

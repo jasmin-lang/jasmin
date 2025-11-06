@@ -16,6 +16,7 @@ module type AsmTarget = sig
 
     val headers             : asm_element list
     val data_segment_header : asm_element list
+    val function_directives : asm_element list
     val function_header     : asm_element list
     val function_tail       : asm_element list
     val pp_instr_r          : Name.t -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_i_r -> asm_element list
@@ -62,10 +63,14 @@ module Make(Target : AsmTarget) : S
 
     let pp_function_header (name:string) decl =
         if decl.asm_fd_export then
-            [
-                Label (mangle name);
-                Label name;
-            ] @ Target.function_header
+          let mname  = mangle name in
+          Target.function_directives
+          @ [
+            Header (".type", [mname; "%function"]);
+            Header (".type", [name; "%function"]);
+            Label mname;
+            Label name;
+          ] @ Target.function_header
         else []
 
     let pp_function_tail decl =
