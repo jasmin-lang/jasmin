@@ -335,7 +335,7 @@ Lemma expand_paramsP (s1 s2 : estate) e expdin :
     exists2 vs', expand_vs expdin vs = ok vs' &
       sem_pexprs false gd s2 (flatten es2) = ok (flatten vs').
 Proof.
-  move=> h ?? + H; elim: {H}(mapM2_Forall3 H) => [?[<-]|]; first by eexists.
+  move=> h ?? + /mapM2_Forall3 H; elim: H => [?[<-]|]; first by eexists.
   move=> [] /=; last first.
   + by t_xrbindP => > /(expand_eP h) {}h <- ?
       hrec > /h{h} /= -> ? /hrec{hrec}[? + ->] <- /= => ->; eexists.
@@ -519,7 +519,7 @@ Lemma expand_returnsP (s1 s2 : estate) e expdout :
     exists2 s2', write_lvals false gd s2 (flatten xs2) (flatten vs') = ok s2' &
       eq_alloc m s1' s2'.
 Proof.
-  move=> + > H; elim: {H}(mapM2_Forall3 H) s1 s2.
+  move=> + > /mapM2_Forall3 H; elim: H s1 s2.
   + by move=> ??? [] // ?? [<-] [<-]; eexists.
   move=> a b c la lb lc hexp _ hrec s1 s2 heqa [] // v1 vs vs' s1' /=.
   t_xrbindP => s1'' hw hws vs2 hexpv vs2' hexpvs <- /=.
@@ -637,7 +637,7 @@ Qed.
 Lemma mapM2_dc_truncate_id tys vs vs':
   mapM2 ErrType dc_truncate_val tys vs' = ok vs -> vs' = vs.
 Proof.
-  by rewrite /dc_truncate_val /=; move=> h; have := mapM2_Forall3 h; elim => // _ > [->] _ ->.
+  by rewrite /dc_truncate_val /= => /mapM2_Forall3; elim => // _ > [->] _ ->.
 Qed.
 
 Lemma expend_tyv_expand_return m b s tys (xs : list var_i) ins:
@@ -645,7 +645,7 @@ Lemma expend_tyv_expand_return m b s tys (xs : list var_i) ins:
   mapM2 E.length_mismatch (expand_return m) [seq i.2 | i <- ins] [seq Lvar i | i <- xs] =
     ok [seq map Lvar x.1.2 | x <- ins].
 Proof.
-  move=> hxs; have := mapM2_Forall3 hxs; elim => //= {tys hxs xs ins}.
+  move/mapM2_Forall3; elim => //= {tys xs ins}.
   move=> ty x [[tysx xsx] o] tys xs cs0 hexty _ hrec; move: hexty.
   rewrite {1}/expand_tyv {2}/expand_return /=.
   case heq : Mvar.get => [ai | ]; t_xrbindP.
@@ -658,7 +658,7 @@ Lemma expend_tyv_expand_param m b s tys (xs : list var_i) ins:
   mapM2 E.length_mismatch (expand_param m) [seq i.2 | i <- ins] [seq Pvar (mk_lvar i) | i <- xs] =
     ok [seq map (fun y => Pvar (mk_lvar y)) x.1.2 | x <- ins].
 Proof.
-  move=> hxs; have := mapM2_Forall3 hxs; elim => //= {tys hxs xs ins}.
+  move/mapM2_Forall3; elim => //= {tys xs ins}.
   move=> ty x [[tysx xsx] o] tys xs cs0 hexty _ hrec; move: hexty.
   rewrite {1}/expand_tyv {2}/expand_param /=.
   case heq : Mvar.get => [ai | ]; t_xrbindP.
@@ -847,7 +847,7 @@ Proof.
   rewrite map_comp -map_flatten sem_pexprs_get_var => hwr.
   exists vs' => //.
   econstructor; eauto => //=.
-  + elim: (mapM2_Forall3 hparams) vargs vargs1 {Hw Hca hw} hexvs.
+  + move/mapM2_Forall3: hparams vargs vargs1 {Hw Hca hw} hexvs; elim.
     + by move=> [] //= ? [<-].
     move=> ty x [[tysx xsx] o] tys xs cs0 hexty _ hrec [] //= v vs ?.
     t_xrbindP => ? hexp ? hexps <- /=; rewrite map_cat; apply: cat_mapM2 (hrec _ _ hexps).
@@ -858,7 +858,7 @@ Proof.
       rewrite (wf_ai_elems (v_var x) hva) -map_comp /comp.
       by move=> /mapM_Forall2; elim => //= > _ _ ->.
     by move=> hin <- _ <- [<-].
-  + elim: (mapM2_Forall3 hres) vres vs' {hwr Hcr Hres} hex.
+  + move/mapM2_Forall3: hres vres vs' {hwr Hcr Hres} hex; elim.
     + by move=> [] //= ? [<-].
     move=> ty x [[tysx xsx] o] tys xs cs0 hexty _ hrec [] //= v vs ?.
     t_xrbindP => ? hexp ? hexps <- /=; rewrite map_cat; apply: cat_mapM2 (hrec _ _ hexps).
@@ -1018,7 +1018,7 @@ Proof.
   rewrite (write_vars_lvals false gd) in hw.
   have ? := mapM2_dc_truncate_id htr; subst vs1.
   have -> /= : mapM2 ErrType dc_truncate_val (map eval_atype (flatten [seq x.1.1 | x <- ins])) (flatten vs) = ok (flatten vs).
-  + elim: (mapM2_Forall3 hparams) (fvals fs1) vs hexpv.
+  + move/mapM2_Forall3: hparams (fvals fs1) vs hexpv; elim.
     + by move=> [] //= ? [<-].
     move=> ty x [[tysx xsx] o] tys xs cs0 hexty _ hrec' [] //= v vs ?.
     t_xrbindP => ? hexp ? hexps <- /=; rewrite map_cat; apply: cat_mapM2 (hrec' _ _ hexps).
@@ -1039,7 +1039,7 @@ Proof.
   have [vs' hex]:= expand_paramsP hwf heqa2 (expend_tyv_expand_param hres) hgets.
   rewrite map_comp -map_flatten sem_pexprs_get_var => -> /= {hgets}.
   have -> /= : mapM2 ErrType dc_truncate_val (map eval_atype (flatten [seq x.1.1 | x <- outs])) (flatten vs') = ok (flatten vs').
-  + elim: (mapM2_Forall3 hres) {htr} vres vs' hex.
+  + move/mapM2_Forall3: hres {htr} vres vs' hex; elim.
     + by move=> [] //= ? [<-].
     move=> ty x [[tysx xsx] o] tys xs cs0 hexty _ hrec' [] //= v vs' ?.
     t_xrbindP => ? hexp ? hexps <- /=; rewrite map_cat; apply: cat_mapM2 (hrec' _ _ hexps).
@@ -1086,9 +1086,9 @@ Proof.
   move=> <- + ? [] <- /=.
   rewrite Mf.setP_eq /expand_fsig b /=; t_xrbindP=> -[??] _; t_xrbindP=> ? hz ? hz1 <- /=.
   do 2 f_equal.
-  + move: (mapM2_Forall3 hz); elim => //= > + _ ->.
+  + move/mapM2_Forall3: hz; elim => //= > + _ ->.
     by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.
-  move: (mapM2_Forall3 hz1); elim => //= > + _ ->.
+  move/mapM2_Forall3: hz1; elim => //= > + _ ->.
   by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.
 Qed.
 
@@ -1111,9 +1111,9 @@ Proof.
     move=> <- + ? [] <- /=.
     rewrite Mf.setP_eq /expand_fsig hin /=; t_xrbindP=> -[??] _; t_xrbindP=> ? hz ? hz1 <- /=.
     do 2 f_equal.
-    + move: (mapM2_Forall3 hz); elim => //= > + _ ->.
+    + move/mapM2_Forall3: hz; elim => //= > + _ ->.
       by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.
-    move: (mapM2_Forall3 hz1); elim => //= > + _ ->.
+    move/mapM2_Forall3: hz1; elim => //= > + _ ->.
     by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.
   apply wkequiv_io_weaken with (rpreF (eS:=exp_spec s1) f f) (rpostF (eS:=exp_spec s1) f f) => //.
   + move=> fs1 fs2 [] [_ <-] [s]; rewrite /initialize_funcall; t_xrbindP.
