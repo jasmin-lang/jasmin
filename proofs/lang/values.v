@@ -636,19 +636,30 @@ Lemma truncate_val_DB wdb ty v v' : truncate_val ty v = ok v' -> DB wdb v'.
 Proof. by case: wdb => //; move=> /truncate_valI; case: v'. Qed.
 
 (* ----------------------------------------------------------------------- *)
+Lemma value_uincl_truncate_r_gen ty y x' :
+  value_uincl x' y →
+  is_defined x' → type_of_val x' = ty →
+  exists2 y', truncate_val ty y = ok y' & value_uincl x' y'.
+Proof.
+  case: x' => [b|z|len a|ws w|//] /value_uinclE
+    => [ -> | -> | [a2 -> hincl] | [ws2 [w2 [-> hincl]]] ] _ <-;
+    rewrite /truncate_val /=.
+  + by eexists; first by reflexivity.
+  + by eexists; first by reflexivity.
+  + rewrite WArray.castK.
+    by eexists; first by reflexivity.
+  rewrite (word_uincl_truncate hincl (truncate_word_u _)).
+  eexists; first by reflexivity.
+  by apply word_uincl_refl.
+Qed.
 
-Lemma value_uincl_truncate ty x y x' :
-  value_uincl x y →
+Lemma value_uincl_truncate_r ty x y x' :
+  value_uincl x' y →
   truncate_val ty x = ok x' →
   exists2 y', truncate_val ty y = ok y' & value_uincl x' y'.
 Proof.
-  case: x => > /value_uinclE+ /truncate_valE => [ + []  | + []
-    | [? + ? []]
-    | [? [? [+ /word_uincl_truncate h]]] [? [? [+ /h{}h]]] |//]
-    => -> -> ->.
-  1,2: by eexists.
-  + by rewrite /truncate_val /= WArray.castK /=; eexists.
-  by rewrite /truncate_val /= h /=; eexists=> // /=.
+  move=> hincl htr.
+  by apply (value_uincl_truncate_r_gen hincl (truncate_val_defined htr) (truncate_val_has_type htr)).
 Qed.
 
 Lemma truncate_value_uincl t v1 v2 : truncate_val t v1 = ok v2 -> value_uincl v2 v1.
@@ -658,6 +669,16 @@ Proof.
   + by move=> /to_intI -> <-.
   + by move=> /to_arrI -> <-.
   by move=> /to_wordI [? [? [-> ? <-]]] /=; exact: truncate_word_uincl.
+Qed.
+
+Lemma value_uincl_truncate ty x y x' :
+  value_uincl x y →
+  truncate_val ty x = ok x' →
+  exists2 y', truncate_val ty y = ok y' & value_uincl x' y'.
+Proof.
+  move=> hincl htr.
+  have {}hincl := value_uincl_trans (truncate_value_uincl htr) hincl.
+  by apply (value_uincl_truncate_r hincl htr).
 Qed.
 
 Lemma mapM2_truncate_value_uincl tyin vargs1 vargs1' :
