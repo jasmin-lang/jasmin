@@ -1356,21 +1356,29 @@ have [-> hw] := lower_slhoP hshparams hwf hchk hlower hsemes hexec hwrite.
 by exists s'.
 Qed.
 
+Lemma lower_it_assume env e :
+  ~~use_mem e ->
+  forall b, domain_assume p st_eq env e b (Env.update_cond env (if b then e else enot e)).
+Proof.
+move=> h b s _ [] <- hwf /sem_cond_sem_pexpr hseme; split; first by [].
+apply: (wf_env_update_cond hwf).
++ by case: b hseme => //= ->.
+by case: (b).
+Qed.
+
 Lemma lower_it_if e c1 c2 : Pc c1 -> Pc c2 -> Pi_r (Cif e c1 c2).
 Proof.
 move=> hc1 hc2 ii env env' /=; t_xrbindP=> _ _ hmeme env1 hchk1 env2 hchk2 <- _
   c1' hc1' c2' hc2' <- <- <-.
-apply wequiv_if_full.
-- rewrite hp_globs => s _ v [<- hwf] ->. by exists v.
-move=> b; apply (
-  wequiv_weaken
-    (P2 := st_eq (Env.update_cond env (if b then e else enot e)))
-    (Q2 := st_eq (if b then env1 else env2))
-).
-- move=> s _ [[<- hwf] /sem_cond_sem_pexpr hseme _]; split=> //.
-  apply: (wf_env_update_cond hwf); by case: b hseme => //= ->.
-- move=> ??; apply: env_le_st_eq; by case: b (EnvP.meet_le env1 env2) => -[].
-case: b; [exact: hc1 hchk1 hc1' | exact: hc2 hchk2 hc2'].
+apply wequiv_if_rel_eq_R_assume
+  with Checker_env env (fun b => Env.update_cond env (if b then e else enot e)) env1 env2.
+- exact: Checker_envP.
+- by split; last exact: EnvP.le_refl.
+- exact: lower_it_assume.
+- by move => ??; apply: env_le_st_eq; case: (EnvP.meet_le env1 env2).
+- by move => ??; apply: env_le_st_eq; case: (EnvP.meet_le env1 env2).
+- exact: hc1.
+exact: hc2.
 Qed.
 
 Lemma lower_it_for i dir lo hi c : Pc c -> Pi_r (Cfor i (dir, lo, hi) c).
@@ -1396,17 +1404,16 @@ Proof.
     hc2' <- <- <-.
 have {hcheck1 hc1'} {}hc1 := hc1 _ _ _ hcheck1 hc1'.
 have {hcheck2 hc2'} {}hc2 := hc2 _ _ _ hcheck2 hc2'.
-eapply wequiv_weaken;
-  last apply (wequiv_while_full (I := st_eq env_fix) (I' := st_eq env1)) => //.
-- move=> ??; exact: env_le_st_eq hle.
-- move=> s _ [[<- hwf] /sem_cond_sem_pexpr hseme _]; split=> //.
-  apply: wf_env_update_cond => //=; by rewrite hseme.
-- rewrite hp_globs => s _ b [<- _] ->; by exists b.
-  eapply (wequiv_weaken (P2 := st_eq (Env.update_cond env1 e)));
-    only 3: exact: hc2.
-- move=> s _ [[<- hwf] /sem_cond_sem_pexpr hseme _]; split=> //.
-  exact: wf_env_update_cond.
-move=> ??; exact: env_le_st_eq hle2.
+eapply wequiv_weaken with (P2 := st_eq env_fix); only 2: by move => ??; exact.
+- by move => ??; apply: env_le_st_eq hle.
+eapply wequiv_while_rel_eq_assume
+  with (di := fun b => Env.update_cond env1 (if b then e else enot e)).
+- exact: Checker_envP.
+- by split; last apply: (EnvP.le_refl env1).
+- exact: lower_it_assume.
+- exact: hc1.
+eapply wequiv_weaken with (Q2 := st_eq env2); last exact: hc2; first by [].
+by move => ??; apply: env_le_st_eq hle2.
 Qed.
 
 Lemma lower_it_call xs fn es :

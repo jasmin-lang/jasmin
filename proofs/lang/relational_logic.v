@@ -1454,6 +1454,37 @@ Proof.
   by apply: echeck_lvalsP hxs v.
 Qed.
 
+Definition domain_assume d e1 b d' : Prop :=
+  ∀ s1 s2,
+    R d s1 s2 →
+    sem_cond (p_globs p1) e1 s1 = ok b →
+    R d' s1 s2.
+
+Lemma wequiv_if_rel_eq_R_assume d de di d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
+  check_es d [::e] [::e'] de ->
+  (∀ b, domain_assume de e b (di b)) →
+  (forall s1 s2, R d1 s1 s2 -> R d' s1 s2) ->
+  (forall s1 s2, R d2 s1 s2 -> R d' s1 s2) ->
+  wequiv (R (di true)) c1 c1' (R d1) ->
+  wequiv (R (di false)) c2 c2' (R d2) ->
+  wequiv (R d) [:: MkI ii (Cif e c1 c2)] [:: MkI ii' (Cif e' c1' c2')] (R d').
+Proof.
+  move=> hes hdi hd1 hd2 hc1 hc2.
+  apply wequiv_if_full.
+  + apply/sem_cond_uincl.
+    apply: wrequiv_weaken; last exact: echeck_eP hes.
+    * done.
+    by move => ? _ <-.
+  move => b s1 s2 [] /(check_esP_rel hes) hde.
+  case: b => he1 he2.
+  + have := hdi true _ _ hde he1.
+    suff : (wequiv (R (di true)) c1 c1' (R d')) by exact.
+    exact: wequiv_weaken hc1.
+  have := hdi false _ _ hde he1.
+  suff : (wequiv (R (di false)) c2 c2' (R d')) by exact.
+  exact: wequiv_weaken hc2.
+Qed.
+
 Lemma wequiv_if_rel_eq_R d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
   check_es d [::e] [::e'] de ->
   (forall s1 s2, R d1 s1 s2 -> R d' s1 s2) ->
@@ -1461,14 +1492,7 @@ Lemma wequiv_if_rel_eq_R d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
   wequiv (R de) c1 c1' (R d1) ->
   wequiv (R de) c2 c2' (R d2) ->
   wequiv (R d) [:: MkI ii (Cif e c1 c2)] [:: MkI ii' (Cif e' c1' c2')] (R d').
-Proof.
-  move=> hes hd1 hd2 hc1 hc2.
-  apply wequiv_if_eq.
-  + by apply: echeck_eP hes.
-  move=> b; apply wequiv_weaken with  (R de) (R d') => //.
-  + by apply: check_esP_rel hes.
-  by case: b; [apply: wequiv_weaken hc1 | apply: wequiv_weaken hc2] => //; apply st_rel_weaken.
-Qed.
+Proof. by move => hes; apply: (wequiv_if_rel_eq_R_assume _ _ hes); case. Qed.
 
 Lemma wequiv_for_rel_eq_R d0 d dhi di ii i dir lo hi c ii' i' lo' hi' c':
   check_es d0 [::lo; hi] [::lo'; hi'] dhi ->
@@ -1484,20 +1508,34 @@ Proof.
   by move=> j; have /(_ j) := echeck_lvalP hx.
 Qed.
 
+Lemma wequiv_while_rel_eq_assume d d' de di ii1 al1 c1 e1 inf1 c1' ii2 al2 c2 e2 inf2 c2' :
+  check_es d' [::e1] [::e2] de ->
+  (∀ b, domain_assume de e1 b (di b)) →
+  wequiv (R d) c1 c2 (R d') →
+  wequiv (R (di true)) c1' c2' (R d) →
+  wequiv (R d) [:: MkI ii1 (Cwhile al1 c1 e1 inf1 c1')] [:: MkI ii2 (Cwhile al2 c2 e2 inf2 c2')] (R (di false)).
+Proof.
+  move=> he hdi hc hc'.
+  eapply wequiv_weaken with (P2 := R d); last apply: wequiv_while_full; first done; cycle 1.
+  + exact: hc.
+  + apply/sem_cond_uincl.
+    apply: wrequiv_weaken; last exact: echeck_eP he.
+    * done.
+    by move => ? _ <-.
+  * move => s1 s2 [] /(check_esP_rel he) hde he1 _.
+    have := hdi true _ _ hde he1.
+    suff : (wequiv (R (di true)) c1' c2' (R d)) by exact.
+    exact: wequiv_weaken hc'.
+  move => s1 s2 [] /(check_esP_rel he) hde he1 _.
+  exact: (hdi false _ _ hde he1).
+Qed.
+
 Lemma wequiv_while_rel_eq d d' de ii1 al1 c1 e1 inf1 c1' ii2 al2 c2 e2 inf2 c2' :
   check_es d' [::e1] [::e2] de ->
   wequiv (R d) c1 c2 (R d') →
   wequiv (R de) c1' c2' (R d) →
   wequiv (R d) [:: MkI ii1 (Cwhile al1 c1 e1 inf1 c1')] [:: MkI ii2 (Cwhile al2 c2 e2 inf2 c2')] (R de).
-Proof.
-  move=> he hc hc'.
-  apply wequiv_weaken with (R d) (R d') => //.
-  + by apply: check_esP_rel he.
-  apply wequiv_while_eq => //.
-  + by apply: echeck_eP he.
-  apply wequiv_weaken with (R de) (R d) => //.
-  by apply: check_esP_rel he.
-Qed.
+Proof. by move => he; apply: wequiv_while_rel_eq_assume; first exact: he; case. Qed.
 
 Lemma wequiv_syscall_rel_eq_core_R d de de' d' ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
   (∀ d s1 s2, R d s1 s2 → escs s1 = escs s2 ∧ emem s1 = emem s2) →
