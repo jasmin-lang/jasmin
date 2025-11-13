@@ -25,6 +25,45 @@ Require Import xrutt xrutt_facts.
 Require Import eutt_extras.
 Require Import it_exec.
 
+Definition exec_wk_rel {X: Type} (R : relation X) :
+   relation (execS X) := execS_rel R (fun _ _ => True).
+
+Lemma interp_exec_wk_eutt {X E F R} (h : E ~> execT (itree F)) :
+  forall x y : itree E X,
+  eutt R x y -> eutt (exec_wk_rel R) (interp_exec h x) (interp_exec h y).
+Proof.
+  repeat red.
+  einit.
+  ecofix CIH.
+  intros s t EQ.
+  rewrite 2 unfold_interp_exec.
+  punfold EQ; red in EQ.
+  induction EQ; intros; cbn; subst; try discriminate; pclearbot; try (estep; constructor; eauto with paco; fail).
+  - ebind; econstructor; [reflexivity |].
+    intros [] [] EQ; inv EQ.
+    + estep; ebase.
+    + eret. unfold exec_wk_rel; simpl; auto.
+  - rewrite tau_euttge, unfold_interp_exec; eauto.
+  - rewrite tau_euttge, unfold_interp_exec; eauto.
+Qed.
+  
+#[global] Instance interp_exec_wk_eutt_Proper
+  {X E F R} (h : E ~> execT (itree F)) :
+  Proper (eutt R ==> eutt (exec_wk_rel R)) (@interp_exec _ _ _ _ _ h X).
+Proof.
+  unfold Proper, respectful.
+  eapply interp_exec_wk_eutt.
+Qed.
+  
+#[global] Instance interp_exec_eutt_eq {X E F} (h : E ~> execT (itree F)) :
+  Proper (eutt eq ==> eutt eq) (@interp_exec _ _ _ _ _ h X).
+Proof.
+  repeat intro.
+  rewrite exec_rel_eq.
+  apply interp_exec_eutt; auto.
+Qed.
+
+
 Section WithE1.
 
 Context {E1 E2 : Type -> Type}.
