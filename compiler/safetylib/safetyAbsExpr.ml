@@ -300,7 +300,7 @@ let string_of_sign = function
   | Signed -> "Signed"
 
 (* Builds and check properties of expressions for the abstract domain [AbsDom]. *)
-module AbsExpr (AbsDom : AbsNumBoolType) = struct
+module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
   (* Return true iff the linear expression overflows *)
   let linexpr_overflow abs lin_expr sign ws =
     let int = AbsDom.bound_texpr abs lin_expr in
@@ -1097,7 +1097,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
   let aeval_top_offset abs outv = AbsDom.forget_list abs [MvarOffset outv]
 
   let valid_offset_var abs ws_o y =
-    if ws_o = Bty (U (U64)) then
+    if ws_o = Bty (U Arch.pointer_data) then
       match AbsDom.var_points_to abs (mvar_of_var y) with
       | TopPtr -> false
       | Ptrs ypts -> List.length ypts = 1
@@ -1109,12 +1109,12 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | None, _ -> abs
     | Some outv, Pvar y ->
       if valid_offset_var abs ws_o y then
-        let o = pcast U64 (Pconst(Z.of_int 0)) in
+        let o = pcast Arch.pointer_data (Pconst(Z.of_int 0)) in
         apply_offset_expr abs outv info y o
       else aeval_top_offset abs outv
 
     | Some outv, Papp2 (op2,el,er) -> begin match remove_Owi2 op2, el with
-        | E.Oadd ( E.Op_w U64), Pvar y ->
+        | E.Oadd (E.Op_w ws), Pvar y when ws = Arch.pointer_data ->
           if valid_offset_var abs ws_o y then
             apply_offset_expr abs outv info y er
           else aeval_top_offset abs outv

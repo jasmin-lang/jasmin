@@ -51,13 +51,15 @@ end
 module type Arch = sig
   include Core_arch
 
+  type extended_op = (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op
+
   val reg_size : Wsize.wsize
   val pointer_data : Wsize.wsize
   val msf_size : Wsize.wsize
   val rip : var
 
-  val asmOp      : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op Sopn.asmOp
-  val asmOp_sopn : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op Sopn.sopn Sopn.asmOp
+  val asmOp      : extended_op Sopn.asmOp
+  val asmOp_sopn : extended_op Sopn.sopn Sopn.asmOp
 
   val reg_vars  : var list
   val regx_vars : var list
@@ -76,11 +78,11 @@ module type Arch = sig
   val all_registers : var list
   val syscall_kill : Sv.t
 
-  val callstyle : var callstyle 
-  
+  val callstyle : var callstyle
+
   val arch_info : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Pretyping.arch_info
 
-  val is_ct_sopn : ?doit:bool -> (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op -> bool
+  val is_ct_sopn : ?doit:bool -> extended_op -> bool
 end
 
 module Arch_from_Core_arch (A : Core_arch) : Arch

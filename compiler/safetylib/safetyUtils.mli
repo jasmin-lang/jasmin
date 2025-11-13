@@ -1,5 +1,6 @@
 open Jasmin
 open Prog
+open Wsize
 open Apron
 
 module Config = SafetyConfig
@@ -82,3 +83,13 @@ val pp_list :
 val pp_opt :
   (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a option -> unit
 val pp_call_strategy : Format.formatter -> Config.call_strategy -> unit
+
+(*---------------------------------------------------------------*)
+(* Helpers about words *)
+
+val pow2 : int -> Z.t
+val half_modulus : wsize -> Z.t
+val modulus : wsize -> Z.t
+
+val split_div : signedness -> wsize -> exprs -> expr * expr
+

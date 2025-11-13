@@ -10,18 +10,6 @@ open SafetyUtils
 (* Information attached to instructions. *)
 type minfo = { i_instr_number : int; }
 
-let decompose_address e =
-  let rec aux e =
-    match e with
-    | Pvar x -> x, Papp1 (E.Oword_of_int U64, Pconst Z.zero)
-    | Papp2(E.Oadd (Op_w U64), Pvar x, offset) -> x, offset
-    | Papp2(E.Owi2 (_, U64, E.WIadd ), Pvar x, offset) -> x, offset
-    | Papp1(E.Owi1 (_, E.WIword_of_wint U64), e) -> aux e
-    | _ -> raise Not_found in
-  let x, offset = aux e in
-  if x.gs = Slocal then L.unloc x.gv, offset
-  else raise Not_found
-
 module MkUniq : sig
 
   val mk_uniq : (unit, 'asm) func -> (unit, 'asm) prog -> ((minfo, 'asm) func * (minfo, 'asm) prog)
@@ -143,6 +131,20 @@ end
 (* Pre Analysis *)
 (****************)
 
+module MakePreAnalysis (Arch : SafetyArch.SafetyArch) = struct
+
+let decompose_address e =
+  let rec aux e =
+    match e with
+    | Pvar x -> x, Papp1 (E.Oword_of_int Arch.pointer_data, Pconst Z.zero)
+    | Papp2(E.Oadd (Op_w ws), Pvar x, offset) when ws = Arch.pointer_data -> x, offset
+    | Papp2(E.Owi2 (_, ws, E.WIadd ), Pvar x, offset) when ws = Arch.pointer_data -> x, offset
+    | Papp1(E.Owi1 (_, E.WIword_of_wint ws), e) when ws = Arch.pointer_data -> aux e
+    | _ -> raise Not_found in
+  let x, offset = aux e in
+  if x.gs = Slocal then L.unloc x.gv, offset
+  else raise Not_found
+
 module Pa : sig
 
   type dp = Sv.t Mv.t
@@ -159,7 +161,7 @@ module Pa : sig
                   if_conds : expr list }
 
   val dp_v : dp -> var -> Sv.t
-  val pa_make : ('info, X86_extra.x86_extended_op) func -> ('info, X86_extra.x86_extended_op) prog option -> pa_res
+  val pa_make : ('info, Arch.extended_op) func -> ('info, Arch.extended_op) prog option -> pa_res
 
   val print_dp  : Format.formatter -> dp -> unit
   val print_cfg : Format.formatter -> cfg -> unit
@@ -333,22 +335,26 @@ end = struct
   and pa_flag_setfrom_i v i = match i.i_desc with
     | Cassgn _ -> None
 
-    | Copn (lvs, _, Sopn.Oasm (Arch_extra.BaseOp (_, X86_instr_decl.CMP _)), es) ->
+    | Copn (lvs, _, opn, es) ->
       if flag_mem_lvs v lvs then
-        let rs = List.fold_left expr_vars_smpl [] es in
-        print_flag_set_from v rs i.i_loc.L.base_loc;
-        Some rs
-      else None
-
-    | Copn (lvs, _, _, _) ->
-      if flag_mem_lvs v lvs then
-        match List.last lvs with
-        | Lnone _ -> raise Flag_set_from_failure
-        | Lvar r ->
-          let ru = L.unloc r in
-          print_flag_set_from v [ru] i.i_loc.L.base_loc;
-          Some [ru]
-        | _ -> assert false
+        (* Check if this is a comparison operation *)
+        let cmp_opt = match opn with
+          | Sopn.Oasm asm_op -> Arch.is_comparison asm_op
+          | _ -> false
+        in
+        if cmp_opt then
+          let rs = List.fold_left expr_vars_smpl [] es in
+          print_flag_set_from v rs i.i_loc.L.base_loc;
+          Some rs
+        else
+          (* Not a comparison, try to extract the last assigned variable *)
+          match List.last lvs with
+          | Lnone _ -> raise Flag_set_from_failure
+          | Lvar r ->
+            let ru = L.unloc r in
+            print_flag_set_from v [ru] i.i_loc.L.base_loc;
+            Some [ru]
+          | _ -> assert false
       else None
 
     | Cif (_, c1, c2) ->
@@ -496,7 +502,7 @@ end
 
 (* Flow-sensitive Pre-Analysis *)
 module FSPa : sig
-  val fs_pa_make : Wsize.wsize -> X86_extra.x86_extended_op Sopn.asmOp -> ('info, X86_extra.x86_extended_op) func -> (unit, X86_extra.x86_extended_op) func * Pa.pa_res
+  val fs_pa_make : ('info, Arch.extended_op) func -> (unit, Arch.extended_op) func * Pa.pa_res
 end = struct
   exception Fcall
   let rec collect_vars_e sv = function
@@ -549,7 +555,7 @@ end = struct
     Sv.for_all (fun v -> not (Sv.exists (fun v' ->
         v.v_id <> v'.v_id && v.v_name = v'.v_name) sv)) sv
 
-  let fs_pa_make pd asmOp (f : ('info, 'asm) func) =
+  let fs_pa_make (f : ('info, Arch.extended_op) func) =
     let sv = Sv.of_list f.f_args in
     let vars = try collect_vars_is sv f.f_body with
       | Fcall ->
@@ -564,7 +570,7 @@ end = struct
     debug (fun () ->
         Format.eprintf "SSA transform of %s:@;%a"
           f.f_name.fn_name
-          (Printer.pp_func ~debug:true pd asmOp) ssa_f);
+          (Printer.pp_func ~debug:true Arch.pointer_data Arch.asmOp) ssa_f);
     (* Remark: the program is not used by [Pa], since there are no function
        calls in [f]. *)
     let dp = Pa.pa_make ssa_f None in
@@ -615,3 +621,5 @@ let leads_to (dp: Pa.dp) (s: Sv.t) =
      let workset = Sv.union workset (Sv.diff succ visited) in
      loop acc visited workset
   in loop Sv.empty Sv.empty s
+
+end
