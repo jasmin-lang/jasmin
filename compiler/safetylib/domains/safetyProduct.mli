@@ -29,10 +29,10 @@ module type VDomWrap = sig
 end
 
 (* Statique Packing *)
-module PIMake (PW : ProgWrap) : VDomWrap
+module PIMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extended_op = Arch.extended_op) : VDomWrap
 
 (* Dynamic Packing *)
-module PIDynMake (PW : ProgWrap) : VDomWrap
+module PIDynMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extended_op = Arch.extended_op) : VDomWrap
 
 (*---------------------------------------------------------------*)
 

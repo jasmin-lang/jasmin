@@ -24,6 +24,8 @@ module Arch =
           and type asm_op = X86_instr_decl.x86_op
           and type extra_op = X86_extra.x86_extra_op))
 
+module Safety = SafetyMain.Make (X86_safety.X86_safety (Arch))
+
 let load_file name =
   try
     let open Pretyping in
@@ -36,14 +38,6 @@ let load_file name =
       (Option.default "parse error" msg);
     assert false
 
-let analyze ~fmt pd asmOp source_f_decl f_decl p =
-  let module AbsInt = SafetyInterpreter.AbsAnalyzer (struct
-    let main_source = source_f_decl
-    let main = f_decl
-    let prog = p
-  end) in
-  AbsInt.analyze ~fmt pd asmOp ()
-
 let load_and_analyze ~fmt expect path name =
   let name = Filename.concat path name in
   Format.fprintf fmt "File %s:@." name;
@@ -55,7 +49,7 @@ let load_and_analyze ~fmt expect path name =
         let () =
           Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
         in
-        let safe = analyze ~fmt Arch.pointer_data Arch.asmOp fd fd p in
+        let safe = Safety.analyze ~fmt fd fd p in
         assert (safe = expect))
     fds
 

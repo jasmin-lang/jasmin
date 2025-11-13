@@ -216,5 +216,26 @@ let pp_call_strategy fmt = function
   | Config.Call_Direct             -> Format.fprintf fmt "direct"
   | Config.Call_TopByCallSite      -> Format.fprintf fmt "top"
 
+(*---------------------------------------------------------------*)
+(* Helpers about words *)
 
+let pow2 = Z.pow (Z.of_int 2)
+let half_modulus ws = pow2 (int_of_ws ws - 1)
+let modulus ws = pow2 (int_of_ws ws)
 
+let int_of_word sg ws e =
+  match sg with
+  | Unsigned -> Papp1 (E.uint_of_word ws, e)
+  | Signed ->
+     let m = Pconst (half_modulus ws) in
+     Papp2 (E.Osub Op_int,
+            Papp1 (E.uint_of_word ws, Papp2 (E.Oadd (E.Op_w ws), e, Papp1 (E.Oword_of_int ws, m))),
+            m)
+
+let int_of_words sg ws hi lo =
+  Papp2 (E.Oadd E.Op_int, Papp2 (E.Omul E.Op_int, Pconst (modulus ws), int_of_word sg ws hi), int_of_word Unsigned ws lo)
+
+let split_div sg ws es =
+  let hi, lo, d = Utils.as_seq3 es in
+  int_of_words sg ws hi lo,
+  int_of_word sg ws d
