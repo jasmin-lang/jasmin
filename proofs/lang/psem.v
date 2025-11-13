@@ -641,7 +641,6 @@ Section FUN.
 
 Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0}
         {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
-#[local] Existing Instance rndE.
 
 Let Pi i := wequiv p p' ev ev' (st_eq tt) [::i] [::i] (st_eq tt).
 
@@ -724,7 +723,6 @@ End ESEM.
 Section REC.
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
-#[local] Existing Instance rndE.
 
 Lemma wequiv_rec_st_eq c : wequiv_rec p p' ev ev' eq_spec (st_eq tt) c c (st_eq tt).
 Proof.
@@ -740,7 +738,6 @@ Section WIEQUIV_F.
 
 Context (p : prog) (ev: extra_val_t).
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
-#[local] Existing Instance rndE.
 
 Lemma st_eq_finalize fd fd' :
   f_tyout fd = f_tyout fd' ->
@@ -1067,7 +1064,6 @@ Qed.
 Section FUN.
 
 Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
-#[local] Existing Instance rndE.
 
 Let Pi i :=
   forall X, Sv.Subset (read_I i) X ->
@@ -1129,7 +1125,6 @@ End FUN.
 Section REC.
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
-#[local] Existing Instance rndE.
 
 Lemma it_read_cP_rec X c :
   Sv.Subset (read_c c) X ->
@@ -1147,7 +1142,6 @@ Section REFL.
 
 Context (p : prog) (ev: extra_val_t).
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
-#[local] Existing Instance rndE.
 
 Lemma it_read_cP X c :
   Sv.Subset (read_c c) X ->
@@ -1527,7 +1521,6 @@ Qed.
 #[local] Hint Resolve checker_st_uinclP : core.
 
 Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}  {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
-#[local] Existing Instance rndE.
 
 Let Pi i := wequiv p p' ev ev' (st_uincl tt) [::i] [::i] (st_uincl tt).
 
@@ -1563,7 +1556,6 @@ Section REFL.
 
 Context (p : prog) (ev: extra_val_t).
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
-#[local] Existing Instance rndE.
 
 Definition uincl_spec : EquivSpec :=
   {| rpreF_ := fun (fn1 fn2 : funname) (fs1 fs2 : fstate) => fn1 = fn2 /\ fs_uincl fs1 fs2
@@ -1651,7 +1643,6 @@ Context (p p':prog) (ev ev': extra_val_t).
 Context (eq_globs: p_globs p = p_globs p').
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
-#[local] Existing Instance rndE.
 
 Lemma it_sem_uincl_rec c :
   wequiv_rec p p' ev ev' uincl_spec (st_uincl tt) c c (st_uincl tt).
@@ -1904,7 +1895,6 @@ Qed.
 #[local] Hint Resolve checker_eq_cmdP : core.
 
 Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
-#[local] Existing Instance rndE.
 
 Let Pi i :=
   forall i', eq_instr i i' ->
@@ -1964,7 +1954,6 @@ Context (p p':prog) (ev ev': extra_val_t).
 Context (eq_globs: p_globs p = p_globs p').
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE0}.
-#[local] Existing Instance rndE.
 
 Lemma it_eq_cmdP_rec c c' :
   eq_cmd c c' ->
@@ -1995,7 +1984,6 @@ Context
   {ev1 : extra_val_t (progT := pT1)} {ev2 : extra_val_t (progT := pT)}
   {fn1 fn2 : funname}
 .
-#[local] Existing Instance rndE.
 
 Notation wiequiv_f :=
   (wiequiv_f
@@ -2164,7 +2152,6 @@ Context
   {sem_F3 : sem_Fun (sip := sip) (pT := pT3) E}
   {rE_trans : EventRels_trans rE12 rE23 rE13}
 .
-#[local] Existing Instance rndE.
 
 Notation prog1 := (prog (pT := pT1)).
 Notation prog2 := (prog (pT := pT2)).

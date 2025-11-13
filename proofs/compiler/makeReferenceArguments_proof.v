@@ -410,7 +410,7 @@ Context
     exec_syscall (pT := progUnit) scs m o ves = ok (scs', m', vs) ->
     mapM2 ErrType truncate_val (map eval_atype [seq i.2 | i <- (get_syscall_sig o).2]) vs = ok vs.
   Proof.
-    case: o => _ len /=; rewrite /exec_syscall /=; t_xrbindP => len' hex.
+    case: o => ws len /=; rewrite /exec_syscall /=; t_xrbindP => len' hex.
     case: get_random => [scs1 bytes]; t_xrbindP => a _ _ _ <-.
     by rewrite /truncate_val /= WArray.castK.
   Qed.
@@ -638,7 +638,7 @@ Context
     sem_pexprs true (p_globs p) s1 es = ok ves →
     exec_syscall (pT:=progUnit) (escs s1) (emem s1) o ves = ok (scs, m, vs) →
     write_lvals true (p_globs p) (with_scs (with_mem s1 m) scs) xs vs = ok s2 →
-    update_i fresh_id p X (MkI ii (Csyscall xs o es)) = ok c' →
+    update_i fresh_reg_ptr p X (MkI ii (Csyscall xs o es)) = ok c' →
     Sv.Subset (Sv.union (read_I (MkI ii (Csyscall xs o es))) (write_I (MkI ii (Csyscall xs o es)))) X →
     evm s1 =[X] vm1 →
     exists2 vm2 : Vm.t, evm s2 =[X] vm2 & sem p' ev (with_vm s1 vm1) c' (with_vm s2 vm2).
@@ -796,7 +796,7 @@ Context
           have /(_ rndE0_refl) -> := rE0_rnd_post_refl h.
           by apply xrutt.xrutt_Ret.
         move=> r _ <-; rewrite /post.
-        case: (sc) => _ /= len1.
+        case: (sc) => ws1 /= len1.
         rewrite /exec_getrandom_store_u.
         case: WArray.fill => [a | e] /=; last first.
         + rewrite /= Eqit.bind_vis.

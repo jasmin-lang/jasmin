@@ -24,7 +24,7 @@ Definition exec_getrandom_arg_u len vs :=
 
 Definition exec_syscall_arg_u (o : syscall_t) vs :=
   match o with
-  | RandomBytes _ len => exec_getrandom_arg_u len vs
+  | RandomBytes ws len => exec_getrandom_arg_u (Z.to_pos (arr_size ws len)) vs
   end.
 
 Definition exec_getrandom_store_u len (bytes: seq u8) :=
@@ -32,8 +32,8 @@ Definition exec_getrandom_store_u len (bytes: seq u8) :=
 
 Definition exec_syscall_store_u (o: syscall_t) (scs: syscall_state) (m:mem) (vs:values) (bytes : seq u8) :=
   match o with
-  | RandomBytes _ len =>
-    Let t :=  exec_getrandom_store_u len bytes in
+  | RandomBytes ws len =>
+    Let t :=  exec_getrandom_store_u (Z.to_pos (arr_size ws len)) bytes in
     ok (scs, m, [::Varr t])
   end.
 
@@ -42,17 +42,17 @@ Lemma exec_syscall_argPu o vargs vargs' len :
   exec_syscall_arg_u o vargs = ok len ->
   exec_syscall_arg_u o vargs' = ok len.
 Proof.
-  case: o => _ len' /=.
+  case: o => ws len' /=.
   rewrite /exec_getrandom_arg_u.
   case: vargs => // v1 [] // /List_Forall2_inv_l [v2] [l] [?] [hu] /List_Forall2_inv_l ?; subst vargs' l.
-  by t_xrbindP => t /(val_uincl_of_val (ty := carr len') hu) [? /= ->] _ /= ->.
+  by t_xrbindP => t /(val_uincl_of_val (ty := carr (Z.to_pos (arr_size ws len'))) hu) [? /= ->] _ /= ->.
 Qed.
 
 Lemma exec_syscall_storePu o vargs vargs' scs scs' m m' bytes vres :
   List.Forall2 value_uincl vargs vargs' ->
   exec_syscall_store_u o scs m vargs bytes = ok (scs', m', vres) ->
   exec_syscall_store_u o scs m vargs' bytes = ok (scs', m', vres).
-Proof. by case: o => _ len' /=. Qed.
+Proof. by case: o => ? ? /=. Qed.
 
 Definition mem_equiv m1 m2 := stack_stable m1 m2 /\ validw m1 =3 validw m2.
 

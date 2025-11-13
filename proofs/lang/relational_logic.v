@@ -529,7 +529,7 @@ Section WEQUIV_CORE.
 Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
     {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndEvent syscall_state -< E0}.
 
-#[local] Instance rndE : RndEvent syscall_state -< E :=
+#[global] Instance rndE : RndEvent syscall_state -< E :=
   λ (T : Type) (re : RndEvent syscall_state T), mfun2 (inr1 (rndE0 re)).
 
 Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
@@ -2017,7 +2017,6 @@ Section WEQUIV_FUN.
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} {rndE0 : RndEvent syscall_state -< E0}.
 
-#[local] Existing Instance rndE.
 
 Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2)  (spec : EquivSpec).
 
@@ -2301,7 +2300,6 @@ Section WEQUIV_FUN.
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}
     {rndE0 : RndEvent syscall_state -< E0}.
 
-#[local] Existing Instance rndE.
 
 Context
   (sem_F1 : funname → sem_Fun1 (recCall +' E))

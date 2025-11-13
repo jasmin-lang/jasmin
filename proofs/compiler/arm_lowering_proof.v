@@ -94,7 +94,7 @@ Notation p' := (lower_prog p).
 (* -------------------------------------------------------------------- *)
 
 Definition eq_fv (s0 s1 : estate) : Prop :=
-  st_eq_ex fvars s0 s1.
+  st_eq_ex fvars tt s0 s1.
 
 Ltac t_fvars_neq :=
   move: fv_correct;
@@ -1891,7 +1891,7 @@ Proof.
 
   have [_ hfvres hfvc] := disj_fvars_get_fundef hget.
 
-  have [s2' hsem12' hs22] := hc hfvc s1 (eeq_excR fvars s1).
+  have [s2' hsem12' hs22] := hc hfvc s1 (eeq_excR fvars tt s1).
   clear hfvc.
 
   apply: EcallRun.
@@ -1950,7 +1950,7 @@ Definition Pc_ (c : cmd) :=
   disj_fvars (vars_c c) ->
   wequiv_rec p p' ev ev eq_spec eq_fv c (lower_cmd c) eq_fv.
 
-Lemma checker_st_eq_exP_ : Checker_eq p p' checker_st_eq_ex.
+Lemma checker_st_eq_exP_ : Checker_eq p p' (checker_st_eq_ex fvars).
 Proof. apply checker_st_eq_exP => //. Qed.
 #[local] Hint Resolve checker_st_eq_exP_ : core.
 
@@ -2016,7 +2016,7 @@ Opaque esem.
   + move=> xs o es ii.
     rewrite /disj_fvars vars_I_syscall => /disjoint_union [hdisjx hdisje].
     apply (wequiv_syscall_rel_eq (sip:=sip)) with
-       checker_st_eq_ex fvars => //.
+      (checker_st_eq_ex fvars) tt => //.
   (* Assert *)
   + by move=> ? ii _; apply wequiv_noassert with (ev1:=ev) (ii:=ii).
   (* If *)
@@ -2028,7 +2028,7 @@ Opaque esem.
     by move=> [].
   (* For *)
   + move=> x dir lo hi c hc ii /= /disj_fvars_vars_I_Cfor [hfvc hfvlo hfvhi].
-    apply (wequiv_for_rel_eq (sip:=sip)) with checker_st_eq_ex fvars fvars => //.
+    apply (wequiv_for_rel_eq (sip:=sip)) with (checker_st_eq_ex fvars) tt tt => //.
     + by split => //; apply disj_fvars_read_es2.
     split => //.
     + rewrite /vars_lvals /read_rvs /vrvs /=; apply /disjointP.
@@ -2041,7 +2041,7 @@ Opaque esem.
     by move=> s t v heqfv; apply (sem_lower_condition ii' heq).
   (* Call *)
   move=> xs fn es ii /disj_fvars_vars_I_Ccall [hdisjx hdisje] /=.
-  apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq_ex fvars => //.
+  apply (wequiv_call_rel_eq (sip:=sip)) with (checker_st_eq_ex fvars) tt => //.
   by move=> ???; apply: (wequiv_fun_rec (spec := eq_spec)).
 Qed.
 End IT.

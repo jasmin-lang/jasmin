@@ -7176,7 +7176,7 @@ Proof.
   t_xrbindP=> pg /get_regptrP hlg px /get_regptrP hlx srg /get_sub_regionP hsrg {}rmap2 hrmap2 <- <-{c}.
   rewrite /= /exec_syscall /= /exec_getrandom_arg_u /exec_getrandom_store_u.
   t_xrbindP=> vg hgvarg <-{ves} _ ag' /to_arrI ? <-; subst vg.
-  rewrite (surjective_pairing (get_random (escs s1) len)).
+  rewrite (surjective_pairing (get_random (escs s1) (Z.to_pos (arr_size ws len)))).
   t_xrbindP => a2 hfill <-{scs} <-{m} <-{vs} /=.
   t_xrbindP=> {}s1' /write_varP + <- => -[-> hdb h].
   have /wf_locals /= hlocal := hlx.
@@ -7269,9 +7269,10 @@ Proof.
     by rewrite Vm.setP_eq wt_len vm_truncate_val_eq.
   + rewrite /exec_syscall /= /exec_getrandom_arg_s /= !truncate_word_u /=.
     rewrite (surjective_pairing (get_random _ _)) /=.
-    rewrite /exec_getrandom_store_s /= wunsigned_repr_small; last by clear -hlen; lia.
+    rewrite /exec_getrandom_store_s /= wunsigned_repr_small; last first.
+    + have hgt := gt0_arr_size ws len; rewrite Z2Pos.id //; clear -hlen hgt; lia.
     rewrite truncate_word_u /= -vs_scs hfillm /=; reflexivity.
-  by rewrite /= write_var_eq_type // hlocal.(wfr_rtype).
+  by rewrite /= write_var_eq_type // (convertible_eval_atype hlocal.(wfr_rtype)).
 Qed.
 
 End WITH_PARAMS.

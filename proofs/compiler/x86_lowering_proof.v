@@ -85,7 +85,7 @@ Section PROOF.
   Local
   Definition p' := lower_prog p.
 
-  Definition eq_exc_fresh s1 s2 := st_eq_ex fvars s1 s2.
+  Definition eq_exc_fresh s1 s2 := st_eq_ex fvars tt s1 s2.
 
   Lemma disj_fvars_subset s1 s2 :
     Sv.Subset s1 s2 →
@@ -1403,7 +1403,7 @@ Section PROOF.
       + rewrite /= /sem_sopn /exec_sopn /= truncate_word_u /= wrepr_unsigned -/(pwrepr64 _) write_var_eq_type //=.
         rewrite /sopn_sem /sopn_sem_ /= /semi_to_atype !computational_eq_refl.
         rewrite /get_gvar get_var_eq //= cmp_le_refl orbT //=.
-        rewrite (eeq_exc_sem_pexpr (xs := fvars) _ _ Hvb) //=.
+        rewrite (eeq_exc_sem_pexpr (X := fvars) _ _ Hvb) //=.
         - by rewrite Hwb /= truncate_word_le //= /x86_ADD /size_8_64 hsz2 /= zero_extend_wrepr // Hwi.
         apply: (disj_fvars_subset _ Hdisje).
         apply: (SvD.F.Subset_trans _ hrl).
@@ -1453,7 +1453,7 @@ Section PROOF.
       move: bv Hbv Hb Hs2'3=> [] //=; last by case.
       move=> b0 Hb [?] Hb'; subst b0.
       rewrite /sem_sopn /sem_pexprs /= Hb' /=.
-      have Heq' := eeq_excT (eeq_excS Hs1') Hs2'2.
+      have /(_ tt) Heq' := eeq_excT (eeq_excS Hs1') Hs2'2.
       rewrite /read_e /= /disj_fvars /x86_lowering.disj_fvars in Hdisje; move: Hdisje.
       rewrite read_eE read_eE -/(read_e _).
       move=> /disjoint_union [He /disjoint_union [He1 He2]].
@@ -2083,7 +2083,7 @@ Section PROOF.
     disj_fvars (vars_c c) ->
     wequiv_rec p p' ev ev eq_spec eq_exc_fresh c (lower_cmd c) eq_exc_fresh.
 
-  Lemma checker_st_eq_exP_ : Checker_eq p p' checker_st_eq_ex.
+  Lemma checker_st_eq_exP_ : Checker_eq p p' (checker_st_eq_ex fvars).
   Proof. apply checker_st_eq_exP => //. Qed.
   #[local] Hint Resolve checker_st_eq_exP_ : core.
 
@@ -2123,7 +2123,7 @@ Section PROOF.
     + move=> xs o es ii.
       rewrite /disj_fvars  /x86_lowering.disj_fvars vars_I_syscall => /disjoint_union [hdisjx hdisje].
       apply (wequiv_syscall_rel_eq (sip:=sip)) with
-         checker_st_eq_ex fvars => //.
+         (checker_st_eq_ex fvars) tt => //.
     (* Assert *)
     + by move=> a ii _; apply wequiv_noassert with (ev1:=ev) (ii:=ii).
     (* If *)
@@ -2136,7 +2136,7 @@ Section PROOF.
       by move=> [].
     (* For *)
     + move=> x dir lo hi c hc ii /= /disj_fvars_vars_I_Cfor [hfvc hfvlo hfvhi].
-      apply (wequiv_for_rel_eq (sip:=sip)) with checker_st_eq_ex fvars fvars => //.
+      apply (wequiv_for_rel_eq (sip:=sip)) with (checker_st_eq_ex fvars) tt tt => //.
       + split => //.
         apply: (disjoint_equal_r (read_eE _ _)).
         exact: (union_disjoint hfvhi hfvlo).
@@ -2152,7 +2152,7 @@ Section PROOF.
        by apply: (lower_condition_corr ii' (esym heq) heqfv (eeq_exc_sem_pexpr hfve heqfv he)).
     (* Call *)
     move=> xs fn es ii /disj_fvars_vars_I_Ccall [hdisjx hdisje] /=.
-    apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq_ex fvars => //.
+    apply (wequiv_call_rel_eq (sip:=sip)) with (checker_st_eq_ex fvars) tt => //.
     by move=> ???; apply: (wequiv_fun_rec (spec := eq_spec)).
   Qed.
 
