@@ -8,12 +8,74 @@ open SafetyExpr
 open SafetyVar
 open SafetyConstr
 
+(** Generic pseudo-op helpers (architecture-independent) *)
+module PseudoOps = struct
+  let as_seq1 = function [e] -> e | _ -> assert false
+  let as_seq2 = function [e1;e2] -> (e1,e2) | _ -> assert false
+  let as_seq3 = function [e1;e2;e3] -> (e1,e2,e3) | _ -> assert false
+
+  let pcast ws e = Papp1 (E.Oword_of_int ws, e)
+
+  let mk_addcarry ws es =
+    let el, er, eb = as_seq3 es in
+    let w_no_carry = Papp2 (E.Oadd (E.Op_w ws), el, er) in
+    let w_carry = Papp2 (E.Oadd (E.Op_w ws),
+                         w_no_carry,
+                         pcast ws (Pconst (Z.of_int 1))) in
+
+    let eli = Papp1 (E.uint_of_word ws, el)
+    and eri = Papp1 (E.uint_of_word ws, er) in
+    let w_i = Papp2 (E.Oadd E.Op_int, eli, eri) in
+    let pow_ws = Pconst (Z.pow (Z.of_int 2) (int_of_ws ws)) in
+
+    let cf_no_carry = Papp2 (E.Ole E.Cmp_int, pow_ws, w_i) in
+    let cf_carry = Papp2 (E.Ole E.Cmp_int,
+                          pow_ws,
+                          Papp2 (E.Oadd E.Op_int,
+                                 w_i,
+                                 Pconst (Z.of_int 1))) in
+
+    match eb with
+    | Pbool false -> [Some cf_no_carry; Some w_no_carry]
+    | Pbool true -> [Some cf_carry; Some w_carry]
+    | _ -> [None; None]
+
+  let mk_subcarry ws es =
+    let el, er, eb = as_seq3 es in
+    let w_no_borrow = Papp2 (E.Osub (E.Op_w ws), el, er) in
+    let w_borrow = Papp2 (E.Osub (E.Op_w ws),
+                          w_no_borrow,
+                          pcast ws (Pconst (Z.of_int 1))) in
+
+    let eli = Papp1 (E.uint_of_word ws, el)
+    and eri = Papp1 (E.uint_of_word ws, er) in
+
+    let cf_no_borrow = Papp2 (E.Olt E.Cmp_int, eli, eri) in
+    let cf_borrow = Papp2 (E.Ole E.Cmp_int, eli, eri) in
+
+    match eb with
+    | Pbool false -> [Some cf_no_borrow; Some w_no_borrow]
+    | Pbool true -> [Some cf_borrow; Some w_borrow]
+    | _ -> [None; None]
+
+  (** Handle generic pseudo operations *)
+  let split_pseudo_op (opn : 'a Sopn.sopn) (es : expr list) : expr option list option =
+    match opn with
+    | Sopn.Opseudo_op (Osubcarry ws) -> Some (mk_subcarry ws es)
+    | Sopn.Opseudo_op (Oaddcarry ws) -> Some (mk_addcarry ws es)
+    | Sopn.Opseudo_op (Oswap _ty) ->
+      let x, y = as_seq2 es in
+      Some [Some y; Some x]
+    | _ -> None
+end
+
 (** Architecture abstraction for the safety checker *)
 module type SafetyArch = sig
   type extended_op
 
   val is_comparison : extended_op Sopn.sopn -> expr list -> (expr * expr) option
 
+  (** Full operation splitting (includes pseudo ops) *)
   val split_opn :
     Wsize.wsize ->
     extended_op Sopn.asmOp ->
@@ -54,9 +116,14 @@ end) : SafetyArch with type extended_op = A.extended_op = struct
 
   let is_comparison _ _ = None
 
-  let split_opn _pd _asmOp n _opn _es =
+  let split_asm_opn _pd _asmOp n _opn _es =
     (* Default: all outputs are unknown (Top) *)
     List.init n (fun _ -> None)
+
+  let split_opn pd asmOp n opn es =
+    match PseudoOps.split_pseudo_op opn es with
+    | Some result -> result
+    | None -> split_asm_opn pd asmOp n opn es
 
   let post_opn _opn _lvs _es = []
 
@@ -174,48 +241,6 @@ module X86SafetyArch : SafetyArch with type extended_op = X86_extra.x86_extended
     let rflags = rflags_of_sub sz el er in
     rflags @ [Some w]
 
-  let mk_addcarry ws es =
-    let el, er, eb = as_seq3 es in
-    let w_no_carry = Papp2 (E.Oadd (E.Op_w ws), el, er) in
-    let w_carry = Papp2 (E.Oadd (E.Op_w ws),
-                         w_no_carry,
-                         pcast ws (Pconst (Z.of_int 1))) in
-
-    let eli = Papp1 (E.uint_of_word ws, el)
-    and eri = Papp1 (E.uint_of_word ws, er) in
-    let w_i = Papp2 (E.Oadd E.Op_int, eli, eri) in
-    let pow_ws = Pconst (Z.pow (Z.of_int 2) (int_of_ws ws)) in
-
-    let cf_no_carry = Papp2 (E.Ole E.Cmp_int, pow_ws, w_i) in
-    let cf_carry = Papp2 (E.Ole E.Cmp_int,
-                          pow_ws,
-                          Papp2 (E.Oadd E.Op_int,
-                                 w_i,
-                                 Pconst (Z.of_int 1))) in
-
-    match eb with
-    | Pbool false -> [Some cf_no_carry; Some w_no_carry]
-    | Pbool true -> [Some cf_carry; Some w_carry]
-    | _ -> [None; None]
-
-  let mk_subcarry ws es =
-    let el, er, eb = as_seq3 es in
-    let w_no_carry = Papp2 (E.Osub (E.Op_w ws), el, er) in
-    let w_carry = Papp2 (E.Osub (E.Op_w ws),
-                         w_no_carry,
-                         pcast ws (Pconst (Z.of_int 1))) in
-
-    let eli = Papp1 (E.uint_of_word ws, el)
-    and eri = Papp1 (E.uint_of_word ws, er) in
-
-    let cf_no_carry = Papp2 (E.Olt E.Cmp_int, eli, eri) in
-    let cf_carry = Papp2 (E.Ole E.Cmp_int, eli, eri) in
-
-    match eb with
-    | Pbool false -> [Some cf_no_carry; Some w_no_carry]
-    | Pbool true -> [Some cf_carry; Some w_carry]
-    | _ -> [None; None]
-
   let split_div sign ws es =
     let n_hi, n_lo, d = as_seq3 es in
     let pow_ws = Pconst (Z.pow (Z.of_int 2) (int_of_ws ws)) in
@@ -247,7 +272,7 @@ module X86SafetyArch : SafetyArch with type extended_op = X86_extra.x86_extended
       Some (el, er)
     | _ -> None
 
-  let split_opn pd asmOp n (opn : extended_op Sopn.sopn) es =
+  let split_asm_opn pd asmOp n (opn : extended_op Sopn.sopn) es =
     match opn with
     | Sopn.Oasm (Arch_extra.ExtOp X86_extra.Oset0 ws) ->
       let zero = Some (pcast ws (Pconst (Z.of_int 0))) in
@@ -255,14 +280,6 @@ module X86SafetyArch : SafetyArch with type extended_op = X86_extra.x86_extended
       | Lt -> [zero]
       | _ -> [None; None; None; None; None; zero]
       end
-
-    | Sopn.Opseudo_op (Osubcarry ws) -> mk_subcarry ws es
-
-    | Sopn.Opseudo_op (Oaddcarry ws) -> mk_addcarry ws es
-
-    | Sopn.Opseudo_op (Oswap ty) ->
-      let x, y = as_seq2 es in
-      [Some y; Some x]
 
     | Sopn.Oasm (Arch_extra.ExtOp X86_extra.Ox86MOVZX32) ->
       let e = as_seq1 es in
@@ -415,6 +432,12 @@ module X86SafetyArch : SafetyArch with type extended_op = X86_extra.x86_extended
             (PrintCommon.pp_opn pd asmOp) opn);
       opn_dflt n
 
+  (** Full operation splitting with generic pseudo-op handling *)
+  let split_opn pd asmOp n opn es =
+    match PseudoOps.split_pseudo_op opn es with
+    | Some result -> result
+    | None -> split_asm_opn pd asmOp n opn es
+
   let post_opn (opn : extended_op Sopn.sopn) (lvs : int glval list) (es : expr list) : btcons list =
     match opn with
     | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.POPCNT ws)) -> (
@@ -513,9 +536,14 @@ module ARMSafetyArch : SafetyArch with type extended_op = (Arm_decl.register, Ar
   
   let is_comparison _ _ = None
 
-  let split_opn _pd _asmOp n _opn _es =
+  let split_asm_opn _pd _asmOp n _opn _es =
     (* Default: all outputs are unknown (Top) *)
     List.init n (fun _ -> None)
+
+  let split_opn pd asmOp n opn es =
+    match PseudoOps.split_pseudo_op opn es with
+    | Some result -> result
+    | None -> split_asm_opn pd asmOp n opn es
 
   let post_opn _opn _lvs _es = []
 
@@ -544,9 +572,14 @@ module RISCVSafetyArch : SafetyArch with type extended_op = (Riscv_decl.register
   
   let is_comparison _ _ = None
 
-  let split_opn _pd _asmOp n _opn _es =
+  let split_asm_opn _pd _asmOp n _opn _es =
     (* Default: all outputs are unknown (Top) *)
     List.init n (fun _ -> None)
+
+  let split_opn pd asmOp n opn es =
+    match PseudoOps.split_pseudo_op opn es with
+    | Some result -> result
+    | None -> split_asm_opn pd asmOp n opn es
 
   let post_opn _opn _lvs _es = []
 
