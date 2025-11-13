@@ -1422,7 +1422,7 @@ Definition check_lvals_cp m xs1 xs2 m' :=
 Lemma check_esP_R_cp d es1 es2 d' :
   check_es_cp d es1 es2 d' →
   ∀ s1 s2, st_rel valid_uincl d s1 s2 → st_rel valid_uincl d' s1 s2.
-Proof. by move=> [<- _]; apply st_rel_weaken. Qed.
+Proof. by move=> [<-]. Qed.
 
 Definition checker_cp : Checker_e (st_rel valid_uincl) :=
   {| check_es := check_es_cp
