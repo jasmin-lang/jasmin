@@ -1810,7 +1810,7 @@ Proof.
                              ~~ is_inlB (@mfun1 _ _ X _ e)))
                (RAns_eq (fun T0 : Type => fun=> TrueP)) (R_eq TrueP) t t')
     as H0.
-  { intuition. }
+  { intuition auto with *. }
   eapply luttNL2rutt_inr_exec in H0.
   simpl in H0.
   setoid_rewrite <- (translate_id_Eq t); eauto.
@@ -1876,7 +1876,7 @@ Proof.
       intros v; unfold Datatypes.id; simpl.
       specialize (H0 v v).
       unfold RAns_eq in H0.
-      intuition.
+      intuition auto with *.
       assert (forall h : A = A, v = eq_rect A id v A h) as C3.
       { intros; eauto.
         dependent destruction h; simpl; auto.
@@ -1909,9 +1909,7 @@ Require Import it_sems_core.
 Section Test.
 
 Context {E: Type -> Type}.
-  
-(* Context (is_error : forall T, (ErrEvent +' E) T -> bool). *)
-  
+    
 Definition esdflt {A} (a : A) (r : execS A) : A :=
   if r is ESok v then v else a.
 
@@ -1924,93 +1922,54 @@ Lemma test1 V1 d1 d2
   @safe _ is_inlB V1 t1 ->
   simple_rutt RR t1 t2 ->
   simple_rutt RR (foo d1 t1) (foo d2 t2).
-(*  eutt RR t1 t2 ->
-  eutt RR (foo d1 t1) (foo d2 t2). *)
 Proof.
-(*  unfold safe, lutt, simple_rutt, foo, interp_Err.*)
   intros H H0 H1.
   eapply simple_rutt_eutt_equiv; eauto.
   eapply rutt2eutt in H1.
   eapply luttNL2rutt_inr_exec_with_id in H0 as H2. 
-(*  unfold rutt_inr, rutt_img in H2. *)
   eapply eqit_bind'.
-(*  instantiate (1 := fun x y => match (x, y) with
-                               | (ESok x', ESok y') => RR x' y'
-                               | _ => False end); simpl. *)
-  instantiate (1 := exec_rel RR).
-(*  instantiate (1 := fun (mx my : execS _) =>
-           match mx with
-           | ESok x => match my with
-              | ESok y => RR x y
-              | ESerror _ => False
-              end
-           | ESerror e0 => match my with
-              | ESok _ => False
-              | ESerror e1 => (fun _ _ => False) e0 e1
-              end
-           end).               *)
-  unfold interp_Err.
-  eapply interp_exec_eutt; auto.
-  intros r1 r2 H3.
-  setoid_rewrite <- eqit_Ret.
-  destruct r1 eqn:was_r1; eauto; try intuition.
-  destruct r2 eqn:was_r2; eauto; try intuition.
-  destruct r2 eqn:was_r2; eauto; try intuition.
-  Unshelve.
-  exact (@handle_Err E).
+  - instantiate (1 := exec_rel RR).
+    unfold interp_Err.
+    eapply interp_exec_eutt; auto.
+  - intros r1 r2 H3.
+    setoid_rewrite <- eqit_Ret.
+    destruct r1 eqn:was_r1; eauto; try (intuition auto).
+    destruct r2 eqn:was_r2; eauto; try intuition.
+    destruct r2 eqn:was_r2; eauto; try intuition.
+    Unshelve.
+    exact (@handle_Err E).
 Qed.
 
 Lemma test2 V1 d1 d2 
   (t1: itree (ErrEvent +' E) V1) (t2: itree (ErrEvent +' E) V1) RR :
-(*  RR d1 d2 -> *)
   @safe _ is_inlB V1 t1 ->
   simple_rutt RR t1 t2 ->
   simple_rutt RR (foo d1 t1) (foo d2 t2).
-(*  eutt RR t1 t2 ->
-  eutt RR (foo d1 t1) (foo d2 t2). *)
 Proof.
   unfold safe, lutt.
   intros H H0.
-  destruct H as [t0 H].
-Abort.   
-
-(*
   eapply simple_rutt_eutt_equiv; eauto.
   eapply rutt2eutt in H0.
-  eapply luttNL2rutt_inr_exec_with_id in H as H1. 
-  unfold foo, esdflt.
+  eapply luttNL2rutt_inr_exec_with_id in H as H1.
+  destruct H as [t0 H].
   eapply eqit_bind'.
-  
-  2: { unfold esdflt.
-  
-  instantiate (1 := fun x y => match (x, y) with
+    
+  - instantiate (1 := fun x y => match (x, y) with
                                | (ESok x', ESok y') => RR x' y'
-                               | _ => True end); simpl. 
-(*  instantiate (1 := exec_rel RR). *)
-(*  instantiate (1 := fun (mx my : execS _) =>
-           match mx with
-           | ESok x => match my with
-              | ESok y => RR x y
-              | ESerror _ => False
-              end
-           | ESerror e0 => match my with
-              | ESok _ => False
-              | ESerror e1 => (fun _ _ => False) e0 e1
-              end
-           end).               *)
-  unfold interp_Err.
-  admit.
-(*  eapply interp_exec_eutt; auto. *)
-  intros r1 r2 H2.
-  setoid_rewrite <- eqit_Ret.
-  destruct r1 eqn:was_r1; eauto; try intuition.
-  destruct r2 eqn:was_r2; eauto; try intuition.
-  simpl.
-  destruct r2 eqn:was_r2; eauto; try intuition.
-  Unshelve.
-  exact (@handle_Err E).
-Qed.
-*)
+                               | _ => False end); simpl. 
+    unfold interp_Err.
+    clear H.
+    eapply rutt_inr2eutt_inr in H1.
+    unfold eqit_inr, eqit_img in H1.
+    admit.
+   (*  eapply interp_exec_eutt; auto. *)
+  - intros r1 r2 H2.
+    setoid_rewrite <- eqit_Ret.
+    destruct r1 eqn:was_r1; eauto; try (intuition auto).
+    destruct r2 eqn:was_r2; eauto; try (intuition auto).
+    Unshelve.
+    exact (@handle_Err E).
+Admitted. 
 
 End Test.
 
