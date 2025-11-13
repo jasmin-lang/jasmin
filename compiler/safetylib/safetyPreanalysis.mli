@@ -29,6 +29,15 @@ end
 
 module MakePreAnalysis(Arch : SafetyArch.SafetyArch) : PreAnalysisSig with type extended_op = Arch.extended_op
 
+(* Generic flow-sensitive pre-analysis functor *)
+module MakeFSPreAnalysis(Arch : SafetyArch.SafetyArch) : sig
+  module Pa : PreAnalysisSig with type extended_op = Arch.extended_op
+
+  val fs_pa_make :
+    Wsize.wsize ->
+    ('info, Arch.extended_op) func -> (unit, Arch.extended_op) func * Pa.pa_res
+end
+
 (* Legacy X86-specific modules for backwards compatibility *)
 module Pa : PreAnalysisSig with type extended_op = X86_extra.x86_extended_op
 

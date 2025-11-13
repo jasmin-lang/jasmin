@@ -584,12 +584,9 @@ module PIDynMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extende
      Precondition: [PW.main] must not contain function calls, and variables 
      must be uniquely characterized by their names. *)
   let ssa_main, pa_res =
-    (* FIXME: code duplication! dirty hack *)
-    let asmOp = Arch_extra.asm_opI X86_arch_full.X86_core.asm_e in
-    (* Note: FSPa.fs_pa_make is X86-specific, but we're in a generic functor.
-       We use Obj.magic to cast PW.main to X86 type. This is safe because
-       fs_pa_make's result (pa_res) is architecture-independent. *)
-    FSPa.fs_pa_make X86_decl.x86_decl.reg_size asmOp (Obj.magic PW.main)
+    let module FSPa = MakeFSPreAnalysis(Arch) in
+    (* Note: Currently all supported architectures use U64 for pointer data *)
+    FSPa.fs_pa_make Wsize.U64 PW.main
 
   (* We compute the reflexive and transitive clojure of dp *)
   let dp = trans_closure pa_res.pa_dp

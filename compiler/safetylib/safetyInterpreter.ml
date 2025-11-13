@@ -1508,17 +1508,6 @@ end = struct
         let cr = { ginstr with i_desc = Cassgn (lv, tag, ty2, er) } in
         aeval_if pd asmOp ginstr c [cl] [cr] state
 
-      (* TODO: Make this architecture-generic
-      | Copn (lvs,tag,Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.CMOVcc sz)),es)
-        when Config.sc_pif_movecc_as_if () ->
-        assert (x = None);
-        let c,el,er = as_seq3 es in
-        let lv = as_seq1 lvs in
-        let cl = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), el) } in
-        let cr = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), er) } in
-        aeval_if pd asmOp ginstr c [cl] [cr] state
-      *)
-
       | Cassgn (lv, _, _, Parr_init _) ->
         let abs = AbsExpr.abs_forget_array_contents state.abs ginstr.i_info lv in
         { state with abs }
