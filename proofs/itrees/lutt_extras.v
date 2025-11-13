@@ -1933,9 +1933,9 @@ Proof.
     eapply interp_exec_eutt; auto.
   - intros r1 r2 H3.
     setoid_rewrite <- eqit_Ret.
-    destruct r1 eqn:was_r1; eauto; try (intuition auto).
-    destruct r2 eqn:was_r2; eauto; try intuition.
-    destruct r2 eqn:was_r2; eauto; try intuition.
+    destruct r1 eqn:was_r1; eauto; try (intuition auto with * ).
+    destruct r2 eqn:was_r2; eauto; try (intuition auto with * ).
+    destruct r2 eqn:was_r2; eauto; try (intuition auto with * ).
     Unshelve.
     exact (@handle_Err E).
 Qed.
@@ -1961,6 +1961,7 @@ Proof.
     clear H.
     eapply rutt_inr2eutt_inr in H1.
     unfold eqit_inr, eqit_img in H1.
+    unfold hnd_ext in H1.
     admit.
    (*  eapply interp_exec_eutt; auto. *)
   - intros r1 r2 H2.
@@ -1970,6 +1971,36 @@ Proof.
     Unshelve.
     exact (@handle_Err E).
 Admitted. 
+
+Lemma xxx 
+  (V1 : Type)
+  (t1 t2 : itree (ErrEvent +' E) V1)
+  (RR : V1 -> V1 -> Prop)
+  (H0 : eutt RR t1 t2)
+  (H1 :
+    eqit (fun x : V1 => [eta eq (ESok x)]) true true t1
+      (translate inr1 (interp_exec (ext_exec_handler (@handle_Err E)) t1))) :
+  eqit
+    (fun x y : execS V1 =>
+     match x with
+     | ESok x' =>
+         match y with
+         | ESok y' => RR x' y'
+         | @ESerror _ _ => False
+         end
+     | @ESerror _ _ => False
+     end) true true (interp_exec ext_handle_Err t1)
+    (interp_exec ext_handle_Err t2).
+Proof.
+  revert H0 H1.
+  revert t1 t2.
+  ginit.
+  gcofix CIH.
+  intros t1 t2 H0 H1.
+  punfold H0. red in H0.
+  hinduction H0 before CIH.
+  
+Admitted.   
 
 End Test.
 
