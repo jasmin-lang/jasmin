@@ -722,27 +722,35 @@ end = struct
            is no larger than n if the slice is Scaled
          - offset        + len * ws/8
            is no larger than n if the slice is Direct *)
-      let scaled_offset = match slice.as_access with
+      let lower_bound = match slice.as_access with
         | Warray_.AAscale ->
           Papp2 (E.Omul E.Op_int,
                  slice.as_offset,
                  Pconst (Z.of_int (size_of_ws slice.as_wsize)))
         | Warray_.AAdirect -> slice.as_offset in
 
-      let bnd = Papp2 (E.Oadd E.Op_int,
-                       scaled_offset,
+      let upper_bound = Papp2 (E.Oadd E.Op_int,
+                       lower_bound,
                        Pconst (Z.of_int (size_of_ws slice.as_wsize *
                                          slice.as_len))) in
-
-      let simple_check = match AbsExpr.linearize_smpl_iexpr state.abs bnd with
-        | None -> false
-        | Some lin_e ->
-          let int = AbsDom.bound_texpr state.abs lin_e in
-          Scalar.cmp_int int.sup n <= 0 in
+      (* We want to check that
+           0 <= lower_bound && upper_bound <= n *)
+      let simple_check =
+        match AbsExpr.linearize_smpl_iexpr state.abs lower_bound, AbsExpr.linearize_smpl_iexpr state.abs upper_bound with
+        | None, _ | _, None -> false
+        | Some lin_lower, Some lin_upper ->
+          let int_lower = AbsDom.bound_texpr state.abs lin_lower in
+          let int_upper = AbsDom.bound_texpr state.abs lin_upper in
+          Scalar.cmp_int int_lower.inf 0 >= 0 &&
+          Scalar.cmp_int int_upper.sup n <= 0 in
 
       if simple_check then true
       else
-        let be = Papp2 (E.Ogt E.Cmp_int, bnd, Pconst (Z.of_int n)) in
+        (* We construct the negation of what we want to prove and check that it
+           implies false: (0 > lower_bound || upper_bound > n) => false *)
+        let lower_be = Papp2 (E.Ogt E.Cmp_int, Pconst (Z.of_int 0), lower_bound) in
+        let upper_be = Papp2 (E.Ogt E.Cmp_int, upper_bound, Pconst (Z.of_int n)) in
+        let be = Papp2 (E.Oor, lower_be, upper_be) in
 
         begin match AbsExpr.bexpr_to_btcons be state.abs with
           | None -> false

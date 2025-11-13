@@ -271,6 +271,25 @@ Bottom ⊥
 
 Program is not safe!
 
+File fail/not_in_bounds.jazz:
+Analyzing function f
+
+
+*** Possible Safety Violation(s):
+  "fail/not_in_bounds.jazz", line 2 (2-12): in_bound: t[(- 1)] (length 16 U8)
+  "fail/not_in_bounds.jazz", line 3 (2-11): in_bound: t[2] (length 16 U8)
+  
+Memory ranges:
+  mem_t: [0; 0]
+  
+* Rel:
+{mem_t = 0}
+mem_t ∊ [0; 0]
+
+
+
+Program is not safe!
+
 File fail/popcnt.jazz:
 Analyzing function off_by_one
 
