@@ -1,0 +1,5 @@
+export fn f (reg ptr u64[2] t) -> reg ptr u64[2] {
+  t[-1] = 2;
+  t[2] = 2;
+  return t;
+}
