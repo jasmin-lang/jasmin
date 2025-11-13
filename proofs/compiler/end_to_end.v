@@ -104,7 +104,6 @@ Qed.
 Lemma decode_u8 (w : u8) : LE.decode U8 [:: w ] = w.
 Proof. by rewrite /LE.decode /make_vec /= Z.lor_0_r wrepr_unsigned. Qed.
 
-(* TODO MOVE *)
 Section SAFE.
 
   Require Import core_logics.
@@ -204,7 +203,6 @@ Context
   {rE : RndE0 syscall_state E0}
 .
 
-(* TODO this should say that the values have the right types, nothing else. *)
 Definition is_finalize fd fs := exists st, finalize_funcall fd st = ok fs.
 
 #[local] Existing Instance trivial_invEvent.
@@ -254,7 +252,7 @@ Lemma count_ziota (n m x : Z) :
 Proof.
 case: (Z.le_ge_cases m 0).
 - by rewrite -in_ziota => /ziota_neg ->.
-move: m; apply: natlike_ind => [|m hm hind]. (* TODO why not elim? *)
+move: m; apply: natlike_ind => [|m hm hind].
 - by rewrite -in_ziota.
 rewrite ziotaS_cat // count_cat hind /= addn0 Z.add_succ_r lt_succ_r
   [in x <= _]le_eqVlt eq_sym.
@@ -274,7 +272,6 @@ move=> /= x; rewrite in_ziota => /andP [/lezP ? /ltzP ?].
 by rewrite -wunsigned_inj' wunsigned_repr_small.
 Qed.
 
-(* TODO warning?? *)
 HB.instance Definition _ := [Countable of (word ws) by <: ].
 HB.instance Definition _ := isFinite.Build (word ws) word_enumP.
 
@@ -332,7 +329,6 @@ Proof.
 rewrite /write_wseq; by case h: fill_mem => [m'|//] /(fill_mem_disjoint h).
 Qed.
 
-(* TODO useful in stackalloc? the lemma with the same name has more premises *)
 Lemma fill_fill_mem (n : positive) a m p bytes :
   (forall k : Z, 0 <= k < n -> validw m Aligned (p + wrepr _ k)%R U8) ->
   WArray.fill n bytes = ok a ->
@@ -625,7 +621,7 @@ Section SEM.
   (* Implementation signature:
        (u8[ctbytes], u8[msgbytes], u8[pkbytes]) -> u8[ctbytes], u8[msgbytes] *)
   Definition semS_Encap pk :=
-    if pk_of_w pk is Ok pk then (* TODO pk should be a wvec *)
+    if pk_of_w pk is Ok pk then
       let fs := fsS_Encap pk in
       let* fs' := isemS p fn_encap fs |> interp_Err in
       if fs' is ESok fs' then
@@ -656,7 +652,6 @@ Section SEM.
       Ret (pk : wseq, sk : wseq)
     else Ret (dummy_wseq, dummy_wseq).
 
-  (* TODO pk should be a wvec *)
   Definition semT_Encap ppk pct pmsg pk :=
     if pk_of_w pk is Error _ then Ret (dummy_wseq, dummymsg)
     else
@@ -707,7 +702,6 @@ Definition safe_uprog fn fs := safe (is_error (with_Error0)) (isemS p fn fs).
 Definition val_is_def (v : value) : bool :=
   if v is Varr _ a then arr_is_def a else is_defined v.
 
-(* TODO why does lutt involve an exists instead of saying t ~ t? *)
 Definition res_defined fn fs :=
   lutt
     (E := E)
@@ -726,7 +720,6 @@ Record ok_fun fn ufd sfd ms mt args argt :=
     ok_fun_ufd : get_fundef (p_funcs p) fn = Some ufd;
 
     (* [sfd] is the definition of the compilation of [fn]. *)
-    (* TODO this comes from compiler_meta *)
     ok_fun_sfd : get_fundef (p_funcs q) fn = Some sfd;
 
     (* There's enough stack space in the target memory. *)
@@ -738,7 +731,6 @@ Record ok_fun fn ufd sfd ms mt args argt :=
     ok_fun_args : it_wf_args p q rip fn ms mt args argt;
 
     (* The return address is not on the stack or in a register. *)
-    (* TODO we can we derive this *)
     ok_fun_ra : is_RAnone (sf_return_address (f_extra sfd));
   }.
 
@@ -753,14 +745,12 @@ Context
   (fn_genkey fn_encap fn_decap : funname)
   (ufd_genkey ufd_encap ufd_decap : ufundef)
   (sfd_genkey sfd_encap sfd_decap : sfundef)
-  (ms mt : mem) (* TODO maybe each function should have their own memory *)
-  (ppk psk pct pmsg : pointer) (* TODO each function should have its own
-                                  pointers *)
+  (ms mt : mem)
+  (ppk psk pct pmsg : pointer)
 .
 
 Context
   (* These are necessary to be able to write the values in memory. *)
-  (* TODO these should come from the disjointedness or wf_arg_pointer *)
   (small_pkbytes : (pkbytes : Z) <= wbase Uptr)
   (small_skbytes : (skbytes : Z) <= wbase Uptr)
   (small_ctbytes : (ctbytes : Z) <= wbase Uptr)
@@ -771,7 +761,6 @@ Context
   (export_encap : fn_encap \in entries)
   (export_decap : fn_decap \in entries)
 
-  (* TODO argument and result variables should be different *)
   (sig_genkey:
     exists pk sk,
       [/\ f_params ufd_genkey = [:: pk; sk ]
@@ -802,10 +791,7 @@ Context
   ])
 
   (* This is only needed in the algorithms where the pointers are not writable,
-     since otherwise we have [wf_arg_pointer].
-     TODO [wf_arg_pointer] only ensures this when [size_glob sp > 0], why?
-     TODO we can derive this from [wf_arg_pointer] given that they are writable
-     arguments to some of the functions *)
+     since otherwise we have [wf_arg_pointer]. *)
   (ppk_not_rip : disjoint_zrange rip (size_glob sp) ppk pkbytes)
   (pct_not_rip : disjoint_zrange rip (size_glob sp) pct ctbytes)
   (psk_not_rip : disjoint_zrange rip (size_glob sp) psk skbytes)
@@ -839,7 +825,6 @@ Context
 
   (* The target memory coincides with the source one and allocates the global
      data. *)
-  (* TODO: Should we write the global data ourselves? *)
   (ok_extend_mem : it_extend_mem sp rip ms mt)
 
   (* GenKey is defined and [ppk] and [psk] are valid pointers. *)
@@ -935,8 +920,6 @@ constructor; last constructor; last by constructor.
 exists psk; split=> //= i w; by rewrite WArray.get_empty -fun_if.
 Qed.
 
-(* TODO This proof is the same for the three algorithms. I could not come up
-   with the usual generic statement using List.Forall and nth. *)
 Lemma eutt_GenKey :
   eutt eq
     (semS_GenKey up fn_genkey ms)
@@ -1052,7 +1035,6 @@ split=> //.
   rewrite -(write_wseq_disjoint (write_wseq mt _ _)); first last.
   + rewrite -(WArray.fill_size hct) positive_nat_Z.
     apply: (disjoint_zrange_byte pct_not_psk).
-    (* TODO [read = ok -> in_bound ] should be a lemma *)
     rewrite -(WArray.get8_read _ AAdirect) in hw.
     have [+ + _] := WArray.get_bound hw.
     rewrite /= /wsize_size; lia.
@@ -1098,7 +1080,6 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 (* Generic *)
 
-(* TODO How to make this into a rewrite? *)
 Lemma eutt_translateE T (RR : T -> T -> Prop) :
   Proper (eutt RR ==> eutt RR) (translateE (T := T)).
 Proof. exact: eutt_interp'. Qed.
