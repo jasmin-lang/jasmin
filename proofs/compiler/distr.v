@@ -477,7 +477,7 @@ move=> h; apply: dle_anti.
 apply (leX_dlim hmonot' hmonot), one_way; exact: eutt_flip h.
 Qed.
 
-Lemma dinterp_eutt {T : choiceType} (t t' : itree Rnd T) :
+Theorem dinterp_eutt {T : choiceType} (t t' : itree Rnd T) :
   eutt eq t t' ->
   dinterp t =1 dinterp t'.
 Proof. move=> h; exact/deqX_eq/eutt_deqX. Qed.
