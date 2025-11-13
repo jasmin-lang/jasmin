@@ -41,7 +41,14 @@ module Riscv_core = struct
 
 end
 
-module Riscv (Lowering_params : Riscv_input) : Arch_full.Core_arch = struct
+module Riscv (Lowering_params : Riscv_input) : Arch_full.Core_arch
+  with type reg = register
+   and type regx = Arch_utils.empty
+   and type xreg = Arch_utils.empty
+   and type rflag = Arch_utils.empty
+   and type cond = condt
+   and type asm_op = Riscv_instr_decl.riscv_op
+   and type extra_op = Riscv_extra.riscv_extra_op = struct
   include Riscv_core
   include Lowering_params
 

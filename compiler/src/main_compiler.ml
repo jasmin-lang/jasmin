@@ -89,12 +89,12 @@ let main () =
       | ARM_M4 ->
          (module struct
             module C = CoreArchFactory.Core_arch_ARM
-            let analyze = (Obj.magic Arm_safety.analyze : _ -> _ -> _ -> _ -> _ -> bool)
+            let analyze = Arm_safety.analyze
           end)
       | RISCV ->
          (module struct
             module C = CoreArchFactory.Core_arch_RISCV
-            let analyze = (Obj.magic Riscv_safety.analyze : _ -> _ -> _ -> _ -> _ -> bool)
+            let analyze = Riscv_safety.analyze
           end)
     in
     let module Arch = Arch_full.Arch_from_Core_arch (P.C) in

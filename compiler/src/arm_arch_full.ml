@@ -102,7 +102,14 @@ module Arm_core = struct
 
 end
 
-module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
+module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch
+  with type reg = register
+   and type regx = Arch_utils.empty
+   and type xreg = Arch_utils.empty
+   and type rflag = rflag
+   and type cond = condt
+   and type asm_op = Arm_instr_decl.arm_op
+   and type extra_op = Arm_extra.arm_extra_op = struct
   include Arm_core
   include Lowering_params
 
