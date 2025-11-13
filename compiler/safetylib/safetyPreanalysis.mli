@@ -8,7 +8,9 @@ module MkUniq : sig
     (unit, 'asm) func -> (unit, 'asm) prog -> (minfo, 'asm) func * (minfo, 'asm) prog
 end
 
-module Pa : sig
+module type PreAnalysisSig = sig
+  type extended_op
+
   type dp = Sv.t Mv.t
   type cfg = Sf.t Mf.t
   type pa_res = {
@@ -17,12 +19,18 @@ module Pa : sig
     while_vars : Sv.t;
     if_conds : expr list;
   }
+  
   val dp_v : dp -> var -> Sv.t
   val pa_make :
-    ('info, X86_extra.x86_extended_op) func -> ('info, X86_extra.x86_extended_op) prog option -> pa_res
+    ('info, extended_op) func -> ('info, extended_op) prog option -> pa_res
   val print_dp : Format.formatter -> dp -> unit
   val print_cfg : Format.formatter -> cfg -> unit
 end
+
+module MakePreAnalysis(Arch : SafetyArch.SafetyArch) : PreAnalysisSig with type extended_op = Arch.extended_op
+
+(* Legacy X86-specific modules for backwards compatibility *)
+module Pa : PreAnalysisSig with type extended_op = X86_extra.x86_extended_op
 
 module FSPa : sig
   val fs_pa_make :
@@ -32,9 +40,10 @@ module FSPa : sig
 end
 
 (*---------------------------------------------------------------*)
-val trans_closure : Pa.dp -> Pa.dp
-val flow_to       : Pa.dp -> Sv.t -> Sv.t
-val flowing_to    : Pa.dp -> Sv.t -> Sv.t
-val leads_to      : Pa.dp -> Sv.t -> Sv.t
+val trans_closure : Sv.t Mv.t -> Sv.t Mv.t
+val flow_to       : Sv.t Mv.t -> Sv.t -> Sv.t
+val flowing_to    : Sv.t Mv.t -> Sv.t -> Sv.t
+val leads_to      : Sv.t Mv.t -> Sv.t -> Sv.t
 
 val decompose_address : 'a gexpr -> 'a gvar * 'a gexpr
+

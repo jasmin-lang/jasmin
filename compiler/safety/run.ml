@@ -31,11 +31,13 @@ let load_file name =
   |> Compile.preprocess Arch.reg_size Arch.asmOp
 
 let analyze ~fmt pd asmOp source_f_decl f_decl p =
-  let module AbsInt = SafetyInterpreter.AbsAnalyzer (struct
+  let module PW = struct
+    type extended_op = X86_extra.x86_extended_op
     let main_source = source_f_decl
     let main = f_decl
     let prog = p
-  end) in
+  end in
+  let module AbsInt = SafetyInterpreter.AbsAnalyzer (SafetyArch.X86SafetyArch) (PW) in
   AbsInt.analyze ~fmt pd asmOp ()
 
 let load_and_analyze ~fmt expect path name =

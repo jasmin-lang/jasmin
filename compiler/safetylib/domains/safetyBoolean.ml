@@ -246,12 +246,11 @@ let align_join t t' =
 (*------------------------------------------------------------*)
 (* Numerical Domain with Two Levels of Precision *)
 
-module AbsNumTMake (PW : ProgWrap) : AbsNumT = struct
-
+module AbsNumTMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extended_op = Arch.extended_op) : AbsNumT = struct
   let vdw =
     if Config.sc_dynamic_packing ()
-    then (module PIDynMake (PW) : VDomWrap)
-    else (module PIMake (PW) : VDomWrap)
+    then (module (PIDynMake (Arch)) (PW) : VDomWrap)
+    else (module (PIMake (Arch)) (PW) : VDomWrap)
 
   module VDW = (val vdw)
 

@@ -406,11 +406,11 @@ let split_div sg ws es =
   int_of_words sg ws hi lo,
   int_of_word sg ws d
 
-let safe_opn safe opn es =
+let safe_opn pd asmOp safe opn es =
   let id =
     Sopn.get_instr_desc
-      X86_decl.x86_decl.reg_size
-      (Arch_extra.asm_opI X86_arch_full.X86_core.asm_e)
+      pd
+      asmOp
       opn
   in
   List.flatten (List.map (fun c ->
@@ -462,9 +462,9 @@ let safe_opn safe opn es =
     )
      id.i_safe) @ safe
 
-let safe_instr ginstr = match ginstr.i_desc with
+let safe_instr pd asmOp ginstr = match ginstr.i_desc with
   | Cassgn (lv, _, _, e) -> safe_e_rec (safe_lval lv) e
-  | Copn (lvs,_,opn,es) -> safe_opn (safe_lvals lvs @ safe_es es) opn es
+  | Copn (lvs,_,opn,es) -> safe_opn pd asmOp (safe_lvals lvs @ safe_es es) opn es
   | Cif(e, _, _) -> safe_e e
   | Cwhile(_, _, _, _, _) -> []       (* We check the while condition later. *)
   | Ccall(lvs, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
@@ -547,8 +547,8 @@ type analyse_res =
     mem_ranges_printer : (Format.formatter -> unit -> unit);
     warnings : warnings; }
 
-module AbsInterpreter (PW : ProgWrap) : sig
-  val analyze : Wsize.wsize -> X86_extra.x86_extended_op Sopn.asmOp -> unit -> analyse_res
+module AbsInterpreter (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extended_op = Arch.extended_op) : sig
+  val analyze : Wsize.wsize -> Arch.extended_op Sopn.asmOp -> unit -> analyse_res
 end = struct
 
   let source_main_decl = PW.main_source
@@ -557,7 +557,7 @@ end = struct
   let () = Prof.reset_all ()
 
   (*---------------------------------------------------------------*)
-  module AbsDom = AbsBoolNoRel (AbsNumTMake (PW)) (PointsToImpl) (SymExprImpl)
+  module AbsDom = AbsBoolNoRel ((AbsNumTMake (Arch)) (PW)) (PointsToImpl) (SymExprImpl)
 
   module AbsExpr = AbsExpr (AbsDom)
 
@@ -615,7 +615,7 @@ end = struct
                   abs : AbsDom.t;
                   cstack : funname list;
                   env : s_env;
-                  prog : (minfo, X86_extra.x86_extended_op) prog;
+                  prog : (minfo, Arch.extended_op) prog;
                   s_effects : side_effects;
                   violations : violation list }
 
@@ -1236,320 +1236,21 @@ end = struct
 
 
   (* -------------------------------------------------------------------- *)
-  (* Remark: the assignments must be done in the correct order.
-     Bitwise operators are ignored for now (result is soundly set to top).
-     See x86_instr_decl.v for a desciption of the operators. *)
-  let split_opn pd asmOp n opn es = match opn with
-    | Sopn.Oasm (Arch_extra.ExtOp X86_extra.Oset0 ws) ->
-       let zero = Some (pcast ws (Pconst (Z.of_int 0))) in
-       begin match wsize_cmp U64 ws with
-       | Lt -> [ zero ]
-       | _ -> [ None; None; None; None; None; zero ]
-       end
+  (* Delegate operation splitting to the architecture module *)
+  let split_opn = Arch.split_opn
 
-    | Sopn.Opseudo_op (Osubcarry ws) -> mk_subcarry ws es
-
-    | Sopn.Opseudo_op (Oaddcarry ws) -> mk_addcarry ws es
-
-    | Sopn.Opseudo_op (Oswap ty) ->
-       let x, y = as_seq2 es in
-       [ Some y; Some x]
-
-    | Sopn.Oasm (Arch_extra.ExtOp X86_extra.Ox86MOVZX32) ->
-      let e = as_seq1 es in
-      (* Cast [e], seen as an U32, to an integer, and then back to an U64. *)
-      [Some (Papp1(E.Oword_of_int U64, Papp1(E.uint_of_word U32, e)))]
-
-    (* Idem than Ox86MOVZX32, but with different sizes. *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.MOVZX (sz_o, sz_i))) ->
-      assert (int_of_ws sz_o >= int_of_ws sz_i);
-      let e = as_seq1 es in
-      [Some (Papp1(E.Oword_of_int sz_o, Papp1(E.uint_of_word sz_i, e)))]
-
-    (* CMP flags are identical to SUB flags. *)
-    | Sopn.Oasm (Arch_extra.BaseOp (_, X86_instr_decl.CMP ws)) ->
-      (* Input types: ws, ws *)
-      let el,er = as_seq2 es in
-      rflags_of_sub ws el er
-
-    (* add unsigned / signed *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.ADD ws)) ->
-      opn_bin_alu ws (E.Oadd (E.Op_w ws)) (E.Oadd E.Op_int) es
-
-    (* sub unsigned / signed *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.SUB ws)) ->
-      opn_sub ws es
-
-    (* mul unsigned *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.MUL ws))
-
-    (* mul signed *)
-    (* since, for now, we ignore the upper-bits,
-       we do the same thing than for unsigned multiplication. *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.IMUL ws)) ->
-      let el,er = as_seq2 es in
-      let w = Papp2 (E.Omul (E.Op_w ws), el, er) in
-      (* FIXME: overflow bit to have the precise flags *)
-      (* let ov = ?? in
-       * let rflags = rflags_of_mul ov in *)
-      let rflags = [None; None; None; None; None] in
-      (*          high, low   *)
-      rflags @ [  None; Some w]
-
-    (* mul signed, no higher-bits *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.IMULr ws))
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.IMULri ws)) ->
-      let el,er = as_seq2 es in
-      let w = Papp2 (E.Omul (E.Op_w ws), el, er) in
-      (* FIXME: overflow bit to have the precise flags *)
-      (* let ov = ?? in
-       * let rflags = rflags_of_mul ov in *)
-      let rflags = [None; None; None; None; None] in
-      (*        low   *)
-      rflags @ [Some w]
-
-    (* div unsigned *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.DIV ws)) ->
-      let n, d = split_div Unsigned ws es in
-      let w = Papp1 (E.Oword_of_int ws, Papp2 (E.Odiv(Unsigned, E.Op_int), n, d)) in
-      let rflags = rflags_of_div in
-      rflags @ [None; Some w]
-
-    (* div signed *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.IDIV ws)) ->
-       let n, d = split_div Signed ws es in
-      let w = Papp1 (E.Oword_of_int ws, Papp2 (E.Odiv(Unsigned, E.Op_int), n, d)) in
-      let rflags = rflags_of_div in
-      rflags @ [None; Some w]
-
-    (* increment *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.INC ws)) ->
-      let e = as_seq1 es in
-      let w = Papp2 (E.Oadd (E.Op_w ws), e,
-                     Papp1(E.Oword_of_int ws, Pconst (Z.of_int 1))) in
-      let vu = Papp2 (E.Oadd E.Op_int,
-                      Papp1(E.uint_of_word ws,e),
-                      Pconst (Z.of_int 1)) in
-      let vs = () in
-      let rflags = nocf (rflags_of_aluop ws w vu vs) in
-      rflags @ [Some w]
-
-    (* decrement *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.DEC ws)) ->
-      let e = as_seq1 es in
-      let w = Papp2 (E.Osub (E.Op_w ws), e,
-                     Papp1(E.Oword_of_int ws,Pconst (Z.of_int 1))) in
-      let vu = Papp2 (E.Osub E.Op_int,
-                      Papp1(E.uint_of_word ws,e),
-                      Pconst (Z.of_int 1)) in
-      let vs = () in
-      let rflags = nocf (rflags_of_aluop ws w vu vs) in
-      rflags @ [Some w]
-
-    (* negation *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.NEG ws)) ->
-      let e = as_seq1 es in
-      let w = Papp1 (E.Oneg (E.Op_w ws), e) in
-      let vs = () in
-      let rflags = rflags_of_neg ws w vs in
-      rflags @ [Some w]
-
-    (* copy *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.MOV _)) ->
-      let e = as_seq1 es in
-      [Some e]
-
-    (* shift, unsigned / left  *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.SHL ws)) ->
-      let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Olsl (E.Op_w ws), e1, e2) in
-      rflags_unknwon @ [Some e]
-
-    (* shift, unsigned / right  *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.SHR ws)) ->
-      let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Olsr ws, e1, e2) in
-      rflags_unknwon @ [Some e]
-
-    (* shift, signed / right  *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.SAR ws)) ->
-      let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Oasr (E.Op_w ws), e1, e2) in
-      rflags_unknwon @ [Some e]
-
-    (* FIXME: adding bit shift with flags *)
-    (*
-    | ROR    of wsize    (* rotation / right *)
-    | ROL    of wsize    (* rotation / left  *)
-    | RCR    of wsize    (* rotation / right with carry *)
-    | RCL    of wsize    (* rotation / left  with carry *)
-    | SHL    of wsize    (* unsigned / left  *)
-    | SHR    of wsize    (* unsigned / right *)
-    | SAL    of wsize    (*   signed / left; synonym of SHL *)
-    | SAR    of wsize    (*   signed / right *)
-    | SHLD   of wsize    (* unsigned (double) / left *)
-    | SHRD   of wsize    (* unsigned (double) / right *)
-    | MULX    of wsize  (* mul unsigned, doesn't affect arithmetic flags *)
-    | ADCX    of wsize  (* add with carry flag, only writes carry flag *)
-    | ADOX    of wsize  (* add with overflow flag, only writes overflow flag *)
-    *)
-
-    (* conditional copy *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.CMOVcc sz)) ->
-      let c,el,er = as_seq3 es in
-      let e = Pif (Bty (U sz), c, el, er) in
-      [Some e]
-
-    (* bitwise operators *)
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.AND ws)) ->
-      let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Oland ws, e1, e2) in
-      rflags_unknwon @ [Some e]
-
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.OR ws)) ->
-      let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Olor ws, e1, e2) in
-      rflags_unknwon @ [Some e]
-
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.XOR ws)) ->
-      let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Olxor ws, e1, e2) in
-      rflags_unknwon @ [Some e]
-
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.NOT ws)) ->
-      let e1 = as_seq1 es in
-      let e = Papp1 (E.Olnot ws, e1) in
-      [Some e]
-
-    | Sopn.Oasm (Arch_extra.BaseOp (_, X86_instr_decl.LEA ws)) ->
-      let e1 = as_seq1 es in
-      let e =
-        match ty_expr e1 with
-        | Bty (U ws') when int_of_ws ws < int_of_ws ws' -> Papp1 (E.Ozeroext (ws, ws'), e1)
-        | _ -> e1 in
-      [Some e]
-
-    | Sopn.Oasm (Arch_extra.BaseOp (_, X86_instr_decl.POPCNT ws)) ->
-       let e1 = as_seq1 es in
-       let t = Some (Pbool true) in
-       [ t; t; t; t; zf_of_word ws e1; None ]
-
-    | Sopn.Oslh op ->
-       begin match op with
-       | SLHinit -> [ Some (pcast U64 (Pconst (Z.of_int 0))) ]
-       | SLHupdate ->
-          let b, msf = as_seq2 es in
-          let msf = Pif (Bty (U U64), b, msf, pcast U64 (Pconst (Z.of_int (-1)))) in
-          [ Some msf ]
-       | SLHmove -> let msf = as_seq1 es in [ Some msf ]
-       | SLHprotect _ | SLHprotect_ptr _ ->
-          let x, _msf = as_seq2 es in
-          [ Some x ]
-       | SLHprotect_ptr_fail _ -> assert false
-       end
-    | _ ->
-      debug (fun () ->
-          Format.eprintf "Warning: unknown opn %a, default to ⊤.@."
-            (PrintCommon.pp_opn pd asmOp) opn);
-      opn_dflt n
-
-  (* Post-conditions of operators, that cannot be precisely expressed as an expression of the arguments *)
-  let post_opn opn lvs es : btcons list =
-    match opn with
-    | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.POPCNT ws)) -> (
-        let open Mtexpr in
-        match List.last lvs with
-        | Lvar x ->
-            let xv = L.unloc x in
-            let x = Mlocal (Avar xv) in
-            let range_btcons x max =
-              BLeaf
-                (Mtcons.make (binop Sub (var x) (cst (Coeff.i_of_int 0 max))) EQ)
-            in
-            range_btcons x (int_of_ws ws)
-            ::
-            (match es with
-            | [ Pvar e ] when not (is_gkvar e && GV.equal (L.unloc e.gv) xv)->
-               (* Only sound when destination [x] does not occur in the argument [e] *)
-                let e =
-                  if is_gkvar e then Mlocal (Avar (L.unloc e.gv))
-                  else Mglobal (Avar (L.unloc e.gv))
-                in
-                (* -e > 0 ∨ e - 255 > 0 ∨ x - [0; 8] = 0 *)
-                let e_neg =
-                  BLeaf
-                    (Mtcons.make (binop Sub (cst (Coeff.s_of_int 0)) (var e)) SUP)
-                in
-                let e_large =
-                  BLeaf
-                    (Mtcons.make
-                       (binop Sub (var e) (cst (Coeff.s_of_int 255)))
-                       SUP)
-                in
-                [ BOr (BOr (e_neg, e_large), range_btcons x 8) ]
-            | _ -> [])
-        | _ -> [])
-    | _ -> []
+  (* Post-conditions of operators *)
+  let post_opn = Arch.post_opn
 
   (* -------------------------------------------------------------------- *)
   (* Ugly handling of flags to build.
      When adding new flags, update [find_heur]. *)
-  type flags_heur = { fh_zf : Mtexpr.t option;
-                      fh_cf : Mtexpr.t option; }
+  type _flags_heur = Arch.flags_heur
 
-  let pp_flags_heur fmt fh =
-    Format.fprintf fmt "@[<hv 0>zf: %a;@ cf %a@]"
-      (pp_opt Mtexpr.print) (fh.fh_zf)
-      (pp_opt Mtexpr.print) (fh.fh_cf)
-
+  let pp_flags_heur = Arch.pp_flags_heur
 
   (* [v] is the variable receiving the assignment. *)
-  let opn_heur pd asmOp opn v es =
-    match opn with
-    (* sub carry *)
-    | Sopn.Opseudo_op (Osubcarry _) ->
-      (* FIXME: improve precision by allowing decrement by something else
-         than 1 here. *)
-      Some { fh_zf = None;
-             fh_cf = Some (Mtexpr.binop Texpr1.Add
-                             (Mtexpr.var v)
-                             (Mtexpr.cst (Coeff.s_of_int 1))); }
-
-    (* decrement *)
-    | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.DEC _)) ->
-      assert (x = None);
-      Some { fh_zf = Some (Mtexpr.var v);
-             fh_cf = Some (Mtexpr.binop Texpr1.Add
-                             (Mtexpr.var v)
-                             (Mtexpr.cst (Coeff.s_of_int 1))); }
-
-    (* compare *)
-    | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.CMP _)) ->
-      assert (x = None);
-      let exception Opn_heur_failed in
-      let rec to_mvar = function
-        | Pvar x ->
-          check_is_word x;
-          Mtexpr.var (mvar_of_var x)
-        | Papp1 (E.Oword_of_int _, e) -> to_mvar e
-        | Papp1 (E.Oint_of_word (s, _), e) ->
-            assert (s = Signed); (* FIXME wint2 *)
-            to_mvar e
-        | _ -> raise Opn_heur_failed in
-      let el, er = as_seq2 es in
-      begin try
-        let el, er = to_mvar el, to_mvar er in
-        Some { fh_zf = Some (Mtexpr.binop Texpr1.Sub el er);
-               fh_cf = Some (Mtexpr.binop Texpr1.Sub el er); }
-        with Opn_heur_failed -> None end
-
-    (* (\* sub with borrow *\)
-     * | Sopn.Oasm (Arch_extra.BaseOp (X86_instr_decl.SBB _)) *)
-    | _ ->
-      debug (fun () ->
-          Format.eprintf "No heuristic for the return flags of %a@."
-            (PrintCommon.pp_opn pd asmOp) opn);
-      None
+  let opn_heur = Arch.opn_heur
 
   exception Heuristic_failed
 
@@ -1560,9 +1261,9 @@ end = struct
       let s = Bvar.var_name bv in
       let s = String.lowercase_ascii s in
       if String.starts_with s "v_cf"
-      then Utils.oget ~exn:Heuristic_failed heur.fh_cf
+      then Utils.oget ~exn:Heuristic_failed (Arch.get_fh_cf heur)
       else if String.starts_with s "v_zf"
-      then Utils.oget ~exn:Heuristic_failed heur.fh_zf
+      then Utils.oget ~exn:Heuristic_failed (Arch.get_fh_zf heur)
       else raise Heuristic_failed
 
   (* Heuristic for the (candidate) decreasing quantity to prove while
@@ -1710,12 +1411,13 @@ end = struct
   let num_instr_evaluated = ref 0
 
   let print_ginstr pd asmOp ginstr abs_vals =
+    let asmOp' = (Obj.magic asmOp : ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp) in
     Format.eprintf "@[<v>@[<v>%a@]@;*** %d Instr: nb %d, %a %a@;@;@]%!"
       (AbsDom.print ~full:true) abs_vals
       (let a = !num_instr_evaluated in incr num_instr_evaluated; a)
       ginstr.i_info.i_instr_number
       L.pp_sloc ginstr.i_loc.L.base_loc
-      (Printer.pp_instr ~debug:false pd asmOp) ginstr
+      (Printer.pp_instr ~debug:false pd asmOp') ginstr
 
   let print_binop fmt (cpt_instr,abs1,abs2,abs3) =
     Format.fprintf fmt "@[<v 2>Of %d:@;%a@]@;\
@@ -1782,21 +1484,21 @@ end = struct
 
   let log = timestamp ()
 
-  let rec aeval_ginstr pd asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
+  let rec aeval_ginstr (pd : Wsize.wsize) (asmOp : Arch.extended_op Sopn.asmOp) =
     fun ginstr state ->
-      debug (fun () ->
-        print_ginstr pd asmOp ginstr state.abs);
+      (* debug (fun () ->
+        print_ginstr pd asmOp ginstr state.abs); *)
 
       (* We stop if the abstract state is bottom *)
       if AbsDom.is_bottom state.abs
       then state
       else
         (* We check the safety conditions *)
-        let conds = safe_instr ginstr in
+        let conds = safe_instr pd asmOp ginstr in
         let state = check_safety state (InProg ginstr.i_loc) conds in
         aeval_ginstr_aux pd asmOp ginstr state
 
-  and aeval_ginstr_aux pd asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
+  and aeval_ginstr_aux (pd : Wsize.wsize) (asmOp : Arch.extended_op Sopn.asmOp) : ('ty,minfo,'asm) ginstr -> astate -> astate =
     fun ginstr state ->
     match ginstr.i_desc with
       | Cassgn (lv,tag,ty1, Pif (ty2, c, el, er))
@@ -1806,6 +1508,7 @@ end = struct
         let cr = { ginstr with i_desc = Cassgn (lv, tag, ty2, er) } in
         aeval_if pd asmOp ginstr c [cl] [cr] state
 
+      (* TODO: Make this architecture-generic
       | Copn (lvs,tag,Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.CMOVcc sz)),es)
         when Config.sc_pif_movecc_as_if () ->
         assert (x = None);
@@ -1814,6 +1517,7 @@ end = struct
         let cl = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), el) } in
         let cr = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), er) } in
         aeval_if pd asmOp ginstr c [cl] [cr] state
+      *)
 
       | Cassgn (lv, _, _, Parr_init _) ->
         let abs = AbsExpr.abs_forget_array_contents state.abs ginstr.i_info lv in
@@ -2206,7 +1910,7 @@ end = struct
     (* Branches evaluation *)
     let lstate = aeval_gstmt pd asmOp c1 { state with abs = labs; } in
 
-    let cpt_instr = !num_instr_evaluated - 1 in
+    let _cpt_instr = !num_instr_evaluated - 1 in
 
     (* We abstractly evaluate the right branch
        Be careful the start from lstate, as we need to use the
@@ -2214,8 +1918,8 @@ end = struct
     let rstate = aeval_gstmt pd asmOp c2 { lstate with abs = rabs; } in
 
     let abs_res = AbsDom.join lstate.abs rstate.abs in
-    debug (fun () ->
-        print_if_join pd asmOp cpt_instr ginstr lstate.abs rstate.abs abs_res);
+    (* debug (fun () ->
+        print_if_join pd asmOp _cpt_instr ginstr lstate.abs rstate.abs abs_res); *)
     { rstate with abs = abs_res; }
 
   and aeval_body pd asmOp f_body state =
@@ -2322,16 +2026,20 @@ end
 
 
 module type ExportWrap = sig
+  type extended_op
+  
   (* main function, before any compilation pass *)
-  val main_source : (unit, X86_extra.x86_extended_op) Prog.func
+  val main_source : (unit, extended_op) Prog.func
 
-  val main : (unit, X86_extra.x86_extended_op) Prog.func
-  val prog : (unit, X86_extra.x86_extended_op) Prog.prog
+  val main : (unit, extended_op) Prog.func
+  val prog : (unit, extended_op) Prog.prog
 end
 
-module AbsAnalyzer (EW : ExportWrap) = struct
+module AbsAnalyzer (Arch : SafetyArch.SafetyArch) (EW : ExportWrap with type extended_op = Arch.extended_op) = struct
 
   module EW = struct
+    type extended_op = Arch.extended_op
+    
     let main_source = EW.main_source
 
     (* We ensure that all variable names are unique *)
@@ -2390,10 +2098,11 @@ module AbsAnalyzer (EW : ExportWrap) = struct
               |> List.map (fun x -> MmemRange (MemLoc x)) in
 
     let l_res = List.map (fun p ->
-        let module AbsInt = AbsInterpreter (struct
+        let module PW = struct
             include EW
             let param = p
-          end) in
+          end in
+        let module AbsInt = AbsInterpreter (Arch) (PW) in
         AbsInt.analyze pd asmOp ()) ps in
 
     match l_res with

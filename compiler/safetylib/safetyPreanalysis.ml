@@ -143,28 +143,27 @@ end
 (* Pre Analysis *)
 (****************)
 
-module Pa : sig
+module type PreAnalysisSig = sig
+  type extended_op
 
   type dp = Sv.t Mv.t
 
   type cfg = Sf.t Mf.t
 
-  (* - pa_dp: for each variable, contains the set of variables that can modify
-              it. Some dependencies are ignored depending on some heuristic.
-     - pa_cfg: control-flow graph, where an entry f -> [f1;...;fn] means that
-     f calls f1, ..., fn *)
   type pa_res = { pa_dp : dp;
                   pa_cfg : cfg;
                   while_vars : Sv.t;
                   if_conds : expr list }
 
   val dp_v : dp -> var -> Sv.t
-  val pa_make : ('info, X86_extra.x86_extended_op) func -> ('info, X86_extra.x86_extended_op) prog option -> pa_res
+  val pa_make : ('info, extended_op) func -> ('info, extended_op) prog option -> pa_res
 
   val print_dp  : Format.formatter -> dp -> unit
   val print_cfg : Format.formatter -> cfg -> unit
+end
 
-end = struct
+module MakePreAnalysis(Arch : SafetyArch.SafetyArch) : PreAnalysisSig with type extended_op = Arch.extended_op = struct
+  type extended_op = Arch.extended_op
   (* For each variable, we compute the set of variables that can modify it.
      Some dependencies are ignored depending on some heuristic we have. *)
   type dp = Sv.t Mv.t
@@ -333,22 +332,23 @@ end = struct
   and pa_flag_setfrom_i v i = match i.i_desc with
     | Cassgn _ -> None
 
-    | Copn (lvs, _, Sopn.Oasm (Arch_extra.BaseOp (_, X86_instr_decl.CMP _)), es) ->
+    | Copn (lvs, _, opn, es) ->
       if flag_mem_lvs v lvs then
-        let rs = List.fold_left expr_vars_smpl [] es in
-        print_flag_set_from v rs i.i_loc.L.base_loc;
-        Some rs
-      else None
-
-    | Copn (lvs, _, _, _) ->
-      if flag_mem_lvs v lvs then
-        match List.last lvs with
-        | Lnone _ -> raise Flag_set_from_failure
-        | Lvar r ->
-          let ru = L.unloc r in
-          print_flag_set_from v [ru] i.i_loc.L.base_loc;
-          Some [ru]
-        | _ -> assert false
+        (* Check if this is a comparison operation *)
+        match Arch.is_comparison opn es with
+        | Some (_el, _er) ->
+          let rs = List.fold_left expr_vars_smpl [] es in
+          print_flag_set_from v rs i.i_loc.L.base_loc;
+          Some rs
+        | None ->
+          (* Not a comparison, try to extract the last assigned variable *)
+          match List.last lvs with
+          | Lnone _ -> raise Flag_set_from_failure
+          | Lvar r ->
+            let ru = L.unloc r in
+            print_flag_set_from v [ru] i.i_loc.L.base_loc;
+            Some [ru]
+          | _ -> assert false
       else None
 
     | Cif (_, c1, c2) ->
@@ -494,11 +494,15 @@ end = struct
 end
 
 
+(* Instantiate for X86 for backwards compatibility *)
+module Pa = MakePreAnalysis(SafetyArch.X86SafetyArch)
+
 (* Flow-sensitive Pre-Analysis *)
 module FSPa : sig
   val fs_pa_make : Wsize.wsize -> X86_extra.x86_extended_op Sopn.asmOp -> ('info, X86_extra.x86_extended_op) func -> (unit, X86_extra.x86_extended_op) func * Pa.pa_res
 end = struct
   exception Fcall
+
   let rec collect_vars_e sv = function
     | Pconst _ | Pbool _ | Parr_init _ -> sv
     | Pvar v ->
@@ -544,12 +548,11 @@ end = struct
 
   and collect_vars_is sv is = List.fold_left collect_vars_i sv is
 
-
   let check_uniq_names sv =
     Sv.for_all (fun v -> not (Sv.exists (fun v' ->
         v.v_id <> v'.v_id && v.v_name = v'.v_name) sv)) sv
 
-  let fs_pa_make pd asmOp (f : ('info, 'asm) func) =
+  let fs_pa_make pd asmOp (f : ('info, X86_extra.x86_extended_op) func) =
     let sv = Sv.of_list f.f_args in
     let vars = try collect_vars_is sv f.f_body with
       | Fcall ->
@@ -569,7 +572,6 @@ end = struct
        calls in [f]. *)
     let dp = Pa.pa_make ssa_f None in
     ssa_f, dp
-
 end
 
 
