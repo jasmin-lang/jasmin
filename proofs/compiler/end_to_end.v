@@ -69,6 +69,8 @@ Require Import
   hoare_logic
 .
 
+Require Import it_exec.
+
 Import Order.TTheory.
 
 #[local] Open Scope ring_scope.
@@ -202,6 +204,7 @@ Context
   {rE : RndE0 syscall_state E0}
 .
 
+(* TODO this should say that the values have the right types, nothing else. *)
 Definition is_finalize fd fs := exists st, finalize_funcall fd st = ok fs.
 
 #[local] Existing Instance trivial_invEvent.
@@ -469,23 +472,18 @@ Context
 .
 
 Instance sc_sem : syscall.syscall_sem unit :=
-  {| syscall.get_random := fun _ _ => (tt, [::]) ; |}.
+  {| syscall.get_random := fun _ _ => (tt, [::]); |}.
 
 Definition E := ErrEvent +' RndEvent unit.
 Existing Instance with_Error0.
 Existing Instance RndE00.
 
-Definition handleE : E ~> itree (distr.Rnd (R := R)) :=
-  fun _ e =>
-    match e with
-    | inl1 (Throw _) => spin
-    | inr1 e =>
-        let 'Rnd _ len := e in
-        let* bs := unif_seq (T := u8) (Z.to_nat len) in
-        Ret (tt, bs)
-    end.
+Definition handleE : RndEvent unit ~> itree (distr.Rnd (R := R)) :=
+  fun _ '(Rnd _ len) =>
+    let* bs := unif_seq (T := u8) (Z.to_nat len) in
+    Ret (tt, bs).
 
-Definition translateE : itree E ~> itree distr.Rnd :=
+Definition translateE : itree (RndEvent unit) ~> itree distr.Rnd :=
   fun _ t => interp handleE t.
 
 Context
@@ -502,31 +500,31 @@ Context
 .
 
 (* Not all of the implicits are always needed. *)
-Notation isemS :=
-  (fun p : uprog => isem_fun
-     (asm_op := extended_op)
-     (ep := ep_of_asm_e)
-     (spp := spp_of_asm_e)
-     (sip := sip_of_asm_e)
-     (scP := sCP_unit)
-     (E := E)
-     (wsw := nosubword)
-     (dc := indirect_c)
-     (pT := progUnit)
-     p tt).
+Let isemS (p : uprog) :=
+  isem_fun
+    (asm_op := extended_op)
+    (ep := ep_of_asm_e)
+    (spp := spp_of_asm_e)
+    (sip := sip_of_asm_e)
+    (scP := sCP_unit)
+    (E := E)
+    (wsw := nosubword)
+    (dc := indirect_c)
+    (pT := progUnit)
+    p tt.
 
-Notation isemT :=
-  (fun (q : sprog) (rip : pointer) => isem_fun
-     (asm_op := extended_op)
-     (ep := ep_of_asm_e)
-     (spp := spp_of_asm_e)
-     (sip := sip_of_asm_e)
-     (scP := sCP_stack)
-     (E := E)
-     (wsw := withsubword)
-     (dc := direct_c)
-     (pT := progStack)
-     q rip).
+Let isemT (q : sprog) (rip : pointer) :=
+  isem_fun
+    (asm_op := extended_op)
+    (ep := ep_of_asm_e)
+    (spp := spp_of_asm_e)
+    (sip := sip_of_asm_e)
+    (scP := sCP_stack)
+    (E := E)
+    (wsw := withsubword)
+    (dc := direct_c)
+    (pT := progStack)
+    q rip.
 
 Context (
   pkbytes (* MLKEM_INDCPA_PUBLICKEYBYTES *)
@@ -617,20 +615,24 @@ Section SEM.
   (* Implementation signature:
        (u8[pkbytes], u8[skbytes]) -> u8[pkbytes], u8[skbytes] *)
   Definition semS_GenKey :=
-    let* fs' := isemS p fn_genkey fsS_GenKey in
-    let p := get_res pkbytes (fvals fs') 0 in
-    let s := get_res skbytes (fvals fs') 1 in
-    Ret (p : wseq, s : wseq).
+    let* fs' := isemS p fn_genkey fsS_GenKey |> interp_Err in
+    if fs' is ESok fs' then
+      let p := get_res pkbytes (fvals fs') 0 in
+      let s := get_res skbytes (fvals fs') 1 in
+      Ret (p : wseq, s : wseq)
+    else Ret (dummy_wseq, dummy_wseq).
 
   (* Implementation signature:
        (u8[ctbytes], u8[msgbytes], u8[pkbytes]) -> u8[ctbytes], u8[msgbytes] *)
   Definition semS_Encap pk :=
     if pk_of_w pk is Ok pk then (* TODO pk should be a wvec *)
       let fs := fsS_Encap pk in
-      let* fs' := isemS p fn_encap fs in
-      let m := get_res msgbytes (fvals fs') 1 in
-      let c := get_res ctbytes (fvals fs') 0 in
-      Ret (m, c : wseq)
+      let* fs' := isemS p fn_encap fs |> interp_Err in
+      if fs' is ESok fs' then
+        let m := get_res msgbytes (fvals fs') 1 in
+        let c := get_res ctbytes (fvals fs') 0 in
+        Ret (m, c : wseq)
+      else Ret (dummymsg, dummy_wseq)
     else Ret (dummymsg, dummy_wseq).
 
   (* TODO how does the implementation signal a failure? *)
@@ -640,27 +642,32 @@ Section SEM.
     match sk_of_w sk, ct_of_w ct with
     | Ok sk, Ok ct =>
         let fs := fsS_Decap sk ct in
-        let* fs' := isemS p fn_decap fs in
-        Ret (Some (get_res msgbytes (fvals fs') 0))
+        let* fs' := isemS p fn_decap fs |> interp_Err in
+        if fs' is ESok fs' then Ret (Some (get_res msgbytes (fvals fs') 0))
+        else Ret None
     | _, _ => Ret None
     end.
 
   Definition semT_GenKey ppk psk :=
     let fs := fsT_GenKey ppk psk in
-    let* fs' := isemT q rip fn_genkey fs in
-    let pk := read_wvec (fmem fs') ppk pkbytes in
-    let sk := read_wvec (fmem fs') psk skbytes in
-    Ret (pk : wseq, sk : wseq).
+    let* fs' := isemT q rip fn_genkey fs |> interp_Err in
+    if fs' is ESok fs' then
+      let pk := read_wvec (fmem fs') ppk pkbytes in
+      let sk := read_wvec (fmem fs') psk skbytes in
+      Ret (pk : wseq, sk : wseq)
+    else Ret (dummy_wseq, dummy_wseq).
 
   (* TODO pk should be a wvec *)
   Definition semT_Encap ppk pct pmsg pk :=
     if pk_of_w pk is Error _ then Ret (dummymsg, dummy_wseq)
     else
       let fs := fsT_Encap ppk pct pmsg pk in
-      let* fs' := isemT q rip fn_encap fs in
-      let ct := read_wvec (fmem fs') pct ctbytes in
-      let msg := read_wvec (fmem fs') pmsg msgbytes in
-      Ret (msg, ct : wseq).
+      let* fs' := isemT q rip fn_encap fs |> interp_Err in
+      if fs' is ESok fs' then
+        let ct := read_wvec (fmem fs') pct ctbytes in
+        let msg := read_wvec (fmem fs') pmsg msgbytes in
+        Ret (msg, ct : wseq)
+      else Ret (dummymsg, dummy_wseq).
 
   (* TODO we should check that the function didn't fail. *)
   Definition semT_Decap psk pct pmsg sk ct :=
@@ -668,8 +675,9 @@ Section SEM.
     else if ct_of_w ct is Error _ then Ret None
     else
       let fs := fsT_Decap psk pct pmsg sk ct in
-      let* fs' := isemT q rip fn_decap fs in
-      Ret (Some (read_wvec (fmem fs') pmsg msgbytes)).
+      let* fs' := isemT q rip fn_decap fs |> interp_Err in
+      if fs' is ESok fs' then Ret (Some (read_wvec (fmem fs') pmsg msgbytes))
+      else Ret None.
 
   Definition Challenger_of_S : KEM_Challenger :=
     {|
@@ -731,7 +739,7 @@ Record ok_fun fn ufd sfd ms mt args argt :=
     (* The arguments are well formed. *)
     ok_fun_args : it_wf_args p q rip fn ms mt args argt;
 
-    (* The function is exported. *)
+    (* The return address is not on the stack or in a register. *)
     (* TODO can we derive this because it's in entries? *)
     ok_fun_ra : is_RAnone (sf_return_address (f_extra sfd));
   }.
@@ -797,7 +805,9 @@ Context
 
   (* This is only needed in the algorithms where the pointers are not writable,
      since otherwise we have [wf_arg_pointer].
-     TODO [wf_arg_pointer] only ensures this when [size_glob sp > 0], why? *)
+     TODO [wf_arg_pointer] only ensures this when [size_glob sp > 0], why?
+     TODO can we derive this from [wf_arg_pointer] given that they are writable
+     arguments to some of the functions? *)
   (ppk_not_rip : disjoint_zrange rip (size_glob sp) ppk pkbytes)
   (pct_not_rip : disjoint_zrange rip (size_glob sp) pct ctbytes)
   (psk_not_rip : disjoint_zrange rip (size_glob sp) psk skbytes)
@@ -879,18 +889,16 @@ Definition RAeq
 #[local]
 Instance _eS : EquivSpec := FrontEndEquiv up sp rip.
 
-Lemma correct_comp fn fd s t :
+Lemma correct_comp {fn fd s t} :
   fn \in entries ->
   get_fundef (p_funcs up) fn = Some fd ->
+  safe_uprog up fn s ->
   res_defined up fn s ->
   rpreF fn fn s t ->
-  xrutt
-    (errcutoff (is_error with_Error0)) nocutoff
-    (EPreRel_safe (is_error with_Error0) REeq) RAeq
-    (aux_post fn s t)
-    (isemS up fn s) (isemT sp rip fn t).
+  eutt (aux_post fn s t) (isemS up fn s) (isemT sp rip fn t).
 Proof.
-move=> hfn hfd hdef hpre.
+move=> hfn hfd hsafe hdef hpre.
+apply/simple_rutt_eutt/(safe_xrutt_rutt hsafe).
 apply: (lutt_xrutt_trans_l'
   (REv := EPreRel_safe (is_error with_Error0) REeq)
   (RAns := RAeq)
@@ -937,12 +945,11 @@ Lemma eutt_GenKey :
     (semT_GenKey sp rip fn_genkey mt ppk psk).
 Proof.
 have [hfd _ _ _ _] := ok_genkey.
-apply: (eutt_clo_bind (aux_post fn_genkey _ _)).
-- apply/simple_rutt_eutt/safe_xrutt_rutt;
-    first exact: ok_safe_genkey.
-  apply: (correct_comp export_genkey hfd) pre_GenKey.
-  exact: ok_defined_genkey.
-move=> s' t' [] /[swap] hdef /[swap] /(_ _ hfd) [] st.
+rewrite /semS_GenKey /semT_GenKey.
+apply: (eutt_clo_bind (exec_rel (aux_post fn_genkey _ _))).
+- apply/interp_exec_eutt/(correct_comp _ hfd) => //; exact: pre_GenKey.
+move=> [s'|?] [t'|?] => //; last reflexivity.
+move=> [] /[swap] hdef /[swap] /(_ _ hfd) [] st.
 rewrite /finalize_funcall /get_nb_wptr /get_wptrs /= hfd /=.
 have [var_pk [var_sk [-> -> -> /= -> ->]]] /= := sig_genkey.
 t_xrbindP=> _ vpk0 hpk0 _ vsk0 hsk0 <- <-.
@@ -995,13 +1002,10 @@ Lemma eutt_Encap {pk} :
 Proof.
 rewrite /semS_Encap /semT_Encap; case hpk: pk_of_w => [apk|]; last reflexivity.
 have [hfd _ _ _ _] := ok_encap apk.
-apply: (eutt_clo_bind (aux_post fn_encap _ _)).
-- apply/simple_rutt_eutt/safe_xrutt_rutt;
-    first exact: ok_safe_encap apk.
-  apply: (correct_comp export_encap hfd).
-  - exact: ok_defined_encap apk.
-  exact: pre_Encap hpk.
-move=> s' t' [] /[swap] hdef /[swap] /(_ _ hfd) [] st.
+apply: (eutt_clo_bind (exec_rel (aux_post fn_encap _ _))).
+- apply/interp_exec_eutt/(correct_comp _ hfd) => //; exact: pre_Encap hpk.
+move=> [s'|?] [t'|?] => //; last reflexivity.
+move=> [] /[swap] hdef /[swap] /(_ _ hfd) [] st.
 rewrite /finalize_funcall /get_nb_wptr /get_wptrs /= hfd /=.
 have [var_pk [var_ct [var_msg [-> -> -> /= -> -> ->]]]] /= := sig_encap.
 t_xrbindP=> _ vct0 hct0 _ vmsg0 hmsg0 <- <-.
@@ -1077,13 +1081,10 @@ rewrite /semS_Decap /semT_Decap.
 case hsk: sk_of_w => [ask|]; last reflexivity.
 case hct: ct_of_w => [act|]; last reflexivity.
 have [hfd _ _ _ _] := ok_decap ask act.
-apply: (eutt_clo_bind (aux_post fn_decap _ _)).
-- apply/simple_rutt_eutt/safe_xrutt_rutt;
-    first exact: ok_safe_decap ask act.
-  apply: (correct_comp export_decap hfd).
-  - exact: ok_defined_decap ask act.
-  exact: pre_Decap hsk hct.
-move=> s' t' [] /[swap] hdef /[swap] /(_ _ hfd) [] st.
+apply: (eutt_clo_bind (exec_rel (aux_post fn_decap _ _))).
+- apply/interp_exec_eutt/(correct_comp _ hfd) => //; exact: pre_Decap hsk hct.
+move=> [s'|?] [t'|?] => //; last reflexivity.
+move=> [] /[swap] hdef /[swap] /(_ _ hfd) [] st.
 rewrite /finalize_funcall /get_nb_wptr /get_wptrs /= hfd /=.
 have [var_sk [var_ct [var_msg [-> -> -> /= -> -> ->]]]] /= := sig_decap.
 t_xrbindP=> _ vmsg0 hmsg0 <-.
