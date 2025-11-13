@@ -1,5 +1,5 @@
 This is a copy of the Jasmin project extend with the work corresponding
-to the paper "Verifying the Jasmin Compiler for Cryptographic Security"
+to the paper "The Jasmin Compiler Preserves Cryptographic Security"
 
 
 # Download, installation, and sanity-testing instructions
@@ -67,7 +67,7 @@ The definition of xrutt can be found in `itrees/xrutt.v`.
  `wequiv_nil` in `/proof/lang/relational_logic.v`.
  + rule SEQ in the paper corresponds to lemmas
  `wequiv_cons` in `/proof/lang/relational_logic.v`.
- + rule ASSNIGN in the paper corresponds to lemmas
+ + rule ASSIGN in the paper corresponds to lemmas
  `wequiv_assgn` in `/proof/lang/relational_logic.v`.
  + rule COND in the paper corresponds to lemmas
  `wequiv_if` in `/proof/lang/relational_logic.v`.
@@ -77,15 +77,9 @@ The definition of xrutt can be found in `itrees/xrutt.v`.
   `wequiv_syscall` in `/proof/lang/relational_logic.v`.
  + rule CALL in the paper corresponds to lemmas
  `wequiv_call` in `/proof/lang/relational_logic.v`.
- + rule CONSEQ is inline in each rule.
+ + rule CONSEQ is inlined in each rule.
  + rule TRANS in the paper corresponds to lemmas
  `wequiv_trans` in `/proof/lang/relational_logic.v`.
- + rule FRAME in the paper corresponds to lemmas
- `wequiv_write1` and `wequiv_write2` in `/proof/lang/relational_logic.v`.
- + rule HOARE in the paper corresponds to lemmas
- `whoare_wequiv1` and `whoare_wequiv2` in `/proof/lang/relational_logic.v`.
-
-- The Hoare Logic rules are located in `/proof/lang/hoare_logic.v`.
 
 ## About Compiler pass proofs
 
@@ -119,6 +113,7 @@ The definition of xrutt can be found in `itrees/xrutt.v`.
 
 ## About cryptographic security
 
+- The generic definitions on distributions are in `proofs/lang/distr.v`.
 - The generic formalization is in `proofs/compiler/adv.v`.
 - The instantiation to Jasmin is in `proofs/compiler/end_to_end.v`.
 
