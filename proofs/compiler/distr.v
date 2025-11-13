@@ -9,6 +9,7 @@ From mathcomp Require Import
   eqtype
   fintype
   finmap
+  matrix
   order
   reals
   realseq
@@ -384,13 +385,8 @@ Qed.
 Variant Rnd : Type -> Type :=
 | GetRnd : forall {A : finType}, distr R A -> Rnd A.
 
-(* TODO use the fact that \rV_n is a finType to issue only one GetRnd event. *)
-Fixpoint unif_seq {T : finType} (n : nat) : itree Rnd (seq T) :=
-  if n is n.+1 then
-    let* x := trigger (GetRnd (dunif T)) in
-    let* xs := unif_seq n in
-    Ret (x :: xs)
-  else Ret [::].
+Fixpoint unif_rV {T : finType} (n : nat) : itree Rnd 'rV[T]_n :=
+  trigger (GetRnd (dunif 'rV[T]_n)).
 
 Section INTERP.
 

@@ -480,8 +480,8 @@ Existing Instance RndE00.
 
 Definition handleE : RndEvent unit ~> itree (distr.Rnd (R := R)) :=
   fun _ '(Rnd _ len) =>
-    let* bs := unif_seq (T := u8) (Z.to_nat len) in
-    Ret (tt, bs).
+    let* bs := unif_rV (Z.to_nat len) in
+    Ret (tt, wseq_of_wvec bs).
 
 Definition translateE : itree (RndEvent unit) ~> itree distr.Rnd :=
   fun _ t => interp handleE t.
@@ -631,11 +631,10 @@ Section SEM.
       if fs' is ESok fs' then
         let m := get_res msgbytes (fvals fs') 1 in
         let c := get_res ctbytes (fvals fs') 0 in
-        Ret (m, c : wseq)
-      else Ret (dummymsg, dummy_wseq)
-    else Ret (dummymsg, dummy_wseq).
+        Ret (c : wseq, m)
+      else Ret (dummy_wseq, dummymsg)
+    else Ret (dummy_wseq, dummymsg).
 
-  (* TODO how does the implementation signal a failure? *)
   (* Implementation signature:
        (u8[msgbytes], u8[ctbytes], u8[skbytes]) -> u8[msgbytes] *)
   Definition semS_Decap sk ct :=
@@ -643,9 +642,9 @@ Section SEM.
     | Ok sk, Ok ct =>
         let fs := fsS_Decap sk ct in
         let* fs' := isemS p fn_decap fs |> interp_Err in
-        if fs' is ESok fs' then Ret (Some (get_res msgbytes (fvals fs') 0))
-        else Ret None
-    | _, _ => Ret None
+        if fs' is ESok fs' then Ret (get_res msgbytes (fvals fs') 0)
+        else Ret dummymsg
+    | _, _ => Ret dummymsg
     end.
 
   Definition semT_GenKey ppk psk :=
@@ -659,25 +658,24 @@ Section SEM.
 
   (* TODO pk should be a wvec *)
   Definition semT_Encap ppk pct pmsg pk :=
-    if pk_of_w pk is Error _ then Ret (dummymsg, dummy_wseq)
+    if pk_of_w pk is Error _ then Ret (dummy_wseq, dummymsg)
     else
       let fs := fsT_Encap ppk pct pmsg pk in
       let* fs' := isemT q rip fn_encap fs |> interp_Err in
       if fs' is ESok fs' then
         let ct := read_wvec (fmem fs') pct ctbytes in
         let msg := read_wvec (fmem fs') pmsg msgbytes in
-        Ret (msg, ct : wseq)
-      else Ret (dummymsg, dummy_wseq).
+        Ret (ct : wseq, msg)
+      else Ret (dummy_wseq, dummymsg).
 
-  (* TODO we should check that the function didn't fail. *)
   Definition semT_Decap psk pct pmsg sk ct :=
-    if sk_of_w sk is Error _ then Ret None
-    else if ct_of_w ct is Error _ then Ret None
+    if sk_of_w sk is Error _ then Ret dummymsg
+    else if ct_of_w ct is Error _ then Ret dummymsg
     else
       let fs := fsT_Decap psk pct pmsg sk ct in
       let* fs' := isemT q rip fn_decap fs |> interp_Err in
-      if fs' is ESok fs' then Ret (Some (read_wvec (fmem fs') pmsg msgbytes))
-      else Ret None.
+      if fs' is ESok fs' then Ret (read_wvec (fmem fs') pmsg msgbytes)
+      else Ret dummymsg.
 
   Definition Challenger_of_S : KEM_Challenger :=
     {|
@@ -728,7 +726,7 @@ Record ok_fun fn ufd sfd ms mt args argt :=
     ok_fun_ufd : get_fundef (p_funcs p) fn = Some ufd;
 
     (* [sfd] is the definition of the compilation of [fn]. *)
-    (* TODO this should come from compiler_meta *)
+    (* TODO this comes from compiler_meta *)
     ok_fun_sfd : get_fundef (p_funcs q) fn = Some sfd;
 
     (* There's enough stack space in the target memory. *)
@@ -740,7 +738,7 @@ Record ok_fun fn ufd sfd ms mt args argt :=
     ok_fun_args : it_wf_args p q rip fn ms mt args argt;
 
     (* The return address is not on the stack or in a register. *)
-    (* TODO can we derive this because it's in entries? *)
+    (* TODO we can we derive this *)
     ok_fun_ra : is_RAnone (sf_return_address (f_extra sfd));
   }.
 
@@ -806,8 +804,8 @@ Context
   (* This is only needed in the algorithms where the pointers are not writable,
      since otherwise we have [wf_arg_pointer].
      TODO [wf_arg_pointer] only ensures this when [size_glob sp > 0], why?
-     TODO can we derive this from [wf_arg_pointer] given that they are writable
-     arguments to some of the functions? *)
+     TODO we can derive this from [wf_arg_pointer] given that they are writable
+     arguments to some of the functions *)
   (ppk_not_rip : disjoint_zrange rip (size_glob sp) ppk pkbytes)
   (pct_not_rip : disjoint_zrange rip (size_glob sp) pct ctbytes)
   (psk_not_rip : disjoint_zrange rip (size_glob sp) psk skbytes)
@@ -1118,7 +1116,9 @@ Let C_t :=
     mt ppk psk pct pmsg.
 
 Lemma handle_DecP T sk ex (e : (Dec +' distr.Rnd) T) :
-  eutt eq (handle_Dec C_s sk ex e) (handle_Dec C_t sk ex e).
+  eutt eq
+    (handle_Dec (dummy := dummymsg) C_s sk ex e)
+    (handle_Dec (dummy := dummymsg) C_t sk ex e).
 Proof.
 move: T e => _ [[c] | []] /=; last reflexivity.
 case: (_ == _); first reflexivity.
@@ -1126,12 +1126,17 @@ exact/eutt_translateE/eutt_Decap.
 Qed.
 
 Lemma interactP T (A : itree _ T) sk ex :
-  eutt eq (interact C_s A sk ex) (interact C_t A sk ex).
+  eutt eq
+    (interact (dummy := dummymsg) C_s A sk ex)
+    (interact (dummy := dummymsg) C_t A sk ex).
 Proof.
 apply: eutt_interp; last reflexivity. move=> Y e; exact: handle_DecP.
 Qed.
 
-Theorem eutt_game {A : KEM_Adversary} : eutt eq (game C_s A) (game C_t A).
+Theorem eutt_game {A : KEM_Adversary} :
+  eutt eq
+    (game (dummy := dummymsg) C_s A)
+    (game (dummy := dummymsg) C_t A).
 Proof.
 rewrite /game /= (eutt_translateE eutt_GenKey).
 apply: eutt_eq_bind => -[pk sk].
@@ -1141,14 +1146,14 @@ apply: eutt_eq_bind => m1; apply: eutt_eq_bind => b.
 rewrite interactP; reflexivity.
 Qed.
 
-Corollary deqX_game {A : KEM_Adversary} : dgame C_s A =1 dgame C_t A.
+Corollary deqX_game {A : KEM_Adversary} :
+  dgame (dummy := dummymsg) C_s A =1 dgame (dummy := dummymsg) C_t A.
 Proof. exact/dinterp_eutt/eutt_game. Qed.
 
-Corollary reduction {A : KEM_Adversary} : advantage C_t A <= advantage C_s A.
-Proof. by rewrite /advantage (eq_mu_pr _ deqX_game). Qed.
+Corollary reduction :
+  reduction (advmem := advmem) (dummy := dummymsg) C_s C_t.
+Proof. move=> A; by rewrite /advantage (eq_mu_pr _ deqX_game). Qed.
 
 End THEOREM.
 
 End MAIN.
-
-(* TODO instantiate with x86? *)
