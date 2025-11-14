@@ -9,6 +9,9 @@ module type SafetyArch = sig
   (** The type of extended operations for this architecture *)
   type extended_op
 
+  (** Pointer data size for this architecture *)
+  val pointer_data : Wsize.wsize
+
   (** Check if an operation is a comparison that sets flags.
       Returns Some with the operand expressions if it is a comparison,
       None otherwise. *)

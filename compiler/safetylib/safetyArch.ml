@@ -73,6 +73,8 @@ end
 module type SafetyArch = sig
   type extended_op
 
+  val pointer_data : Wsize.wsize
+
   val is_comparison : extended_op Sopn.sopn -> expr list -> (expr * expr) option
 
   (** Full operation splitting (includes pseudo ops) *)
@@ -111,8 +113,11 @@ end
 (** Generic architecture with default implementations *)
 module MakeGenericArch(A : sig
   type extended_op
+  val pointer_data : Wsize.wsize
 end) : SafetyArch with type extended_op = A.extended_op = struct
   type extended_op = A.extended_op
+
+  let pointer_data = A.pointer_data
 
   let is_comparison _ _ = None
 
@@ -146,6 +151,8 @@ end
 (** X86-64 architecture implementation *)
 module X86SafetyArch : SafetyArch with type extended_op = X86_extra.x86_extended_op = struct
   type extended_op = X86_extra.x86_extended_op
+
+  let pointer_data = X86_decl.x86_decl.reg_size
 
   (* Flag computation helpers *)
   let cf_of_word sz el er =
@@ -523,6 +530,8 @@ end
 module ARMSafetyArch : SafetyArch with type extended_op = (Arm_decl.register, Arch_utils.empty, Arch_utils.empty, Arm_decl.rflag, Arm_decl.condt, Arm_instr_decl.arm_op, Arm_extra.arm_extra_op) Arch_extra.extended_op = struct
   type extended_op = (Arm_decl.register, Arch_utils.empty, Arch_utils.empty, Arm_decl.rflag, Arm_decl.condt, Arm_instr_decl.arm_op, Arm_extra.arm_extra_op) Arch_extra.extended_op
 
+  let pointer_data = Arm_decl.arm_decl.reg_size
+
   (* For now, use generic implementation for ARM *)
   (* Architecture-specific operations can be added incrementally as needed *)
   
@@ -558,6 +567,8 @@ end
 (** RISC-V architecture implementation *)
 module RISCVSafetyArch : SafetyArch with type extended_op = (Riscv_decl.register, Arch_utils.empty, Arch_utils.empty, Arch_utils.empty, Riscv_decl.condt, Riscv_instr_decl.riscv_op, Riscv_extra.riscv_extra_op) Arch_extra.extended_op = struct
   type extended_op = (Riscv_decl.register, Arch_utils.empty, Arch_utils.empty, Arch_utils.empty, Riscv_decl.condt, Riscv_instr_decl.riscv_op, Riscv_extra.riscv_extra_op) Arch_extra.extended_op
+
+  let pointer_data = Riscv_decl.riscv_decl.reg_size
 
   (* For now, use generic implementation for RISC-V *)
   (* Architecture-specific operations can be added incrementally as needed *)

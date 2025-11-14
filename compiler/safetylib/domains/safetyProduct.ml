@@ -585,8 +585,7 @@ module PIDynMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extende
      must be uniquely characterized by their names. *)
   let ssa_main, pa_res =
     let module FSPa = MakeFSPreAnalysis(Arch) in
-    (* Note: Currently all supported architectures use U64 for pointer data *)
-    FSPa.fs_pa_make Wsize.U64 PW.main
+    FSPa.fs_pa_make Arch.pointer_data PW.main
 
   (* We compute the reflexive and transitive clojure of dp *)
   let dp = trans_closure pa_res.pa_dp
