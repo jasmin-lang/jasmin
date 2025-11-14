@@ -4257,11 +4257,8 @@ Proof.
   by apply: subset_vars_wft_DEF hvs'.(vs_wf_table).(wft_def).
 Qed.
 
-Lemma it_check_cP_aux :
-  (∀ ii1 ii2 fn1 fn2, wequiv_f_rec P P' tt rip sa_spec (rpreF (eS:=sa_spec)) ii1 ii2 fn1 fn2 (rpostF (eS:=sa_spec))) ->
-  forall c1, Pc c1.
+Lemma it_check_cP_aux : forall c1, Pc c1.
 Proof.
-  move=> hrec.
   apply (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; subst Pi_r Pc Pi => /=.
   + move=> table1 rmap1 table2 rmap2 vme _ [<- <- <-] _.
     by apply wequiv_nil; exists vme.
@@ -4439,7 +4436,7 @@ Proof.
     by exists vargs2 => //; rewrite P'_globs.
   + move=> _ _ vargs1 vargs2 [-> ->] [hargs heqinmems haddr hvarsz hclear] {Rv}.
     split => //; first by apply hvs.(vs_scs).
-  + by apply hrec.
+  + by move=> ???; apply: wequiv_fun_rec.
   (* after function call, we have [valid_state] for [rmap1] where all writable arguments
      have been cleared.
   *)
@@ -4555,7 +4552,7 @@ End CMD.
 
 Lemma it_check_cP fn : wiequiv_f P P' tt rip (rpreF (eS:=sa_spec)) fn fn (rpostF (eS:=sa_spec)).
 Proof.
-  apply wequiv_fun_ind => hrec {}fn _ [scs1 m1 vargs1] [_ m2 vargs2] [<- /= <-] hext hargs heqinmem_args hok fd hfd.
+  apply wequiv_fun_ind => {}fn _ [scs1 m1 vargs1] [_ m2 vargs2] [<- /= <-] hext hargs heqinmem_args hok fd hfd.
   have [fd2 halloc hfd2] := Halloc_fd hfd.
   exists fd2 => //.
 

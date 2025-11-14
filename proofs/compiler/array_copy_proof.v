@@ -577,8 +577,7 @@ Proof. by move: Hp;rewrite /array_copy_prog; t_xrbindP => ??? <-. Qed.
 
 Lemma it_array_copy_fdP fn : wiequiv_f p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
-  apply wequiv_fun_ind => hrec {fn}.
-  move=> fn _ fs ft [<- hfsu] fd1 hget.
+  apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd1 hget.
   have [fd2 hcopy ->] := all_checked hget; exists fd2 => //.
   move=> s1 hinit.
   have [hin hout hex hpar hbody hres] :
@@ -655,7 +654,7 @@ Proof.
   apply wequiv_call_rel_uincl with checker_st_uincl_on X => //.
   + by split => //; clear -hsub; SvD.fsetdec.
   + by split => //; clear -hsub; SvD.fsetdec.
-  by move=> ???; apply hrec.
+  by move=> ???; apply: wequiv_fun_rec.
 Qed.
 
 End IT.

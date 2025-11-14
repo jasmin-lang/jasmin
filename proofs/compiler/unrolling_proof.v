@@ -234,8 +234,8 @@ Section PROOF.
   Lemma it_unroll_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof.
-    apply wequiv_fun_ind => hrec {fn}.
-    move=> fn _ fs _ [<- <-] fd hfd; exists (unroll_fun (fn, fd)).1.2.
+    apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hfd.
+    exists (unroll_fun (fn, fd)).1.2.
     + by apply: p'_get_fundef hfd.
     move=> s {hfd}.
     case: fd => /= finfo ftyin fparams fbody ftyout fres fextra.
@@ -277,7 +277,7 @@ Section PROOF.
       by apply wkequiv_bind with (st_eq tt).
     + by move=> > hc hc' ii /=; surjpairing; apply wequiv_while_rel_eq with checker_st_eq tt.
     move=> ???? /=; surjpairing; apply wequiv_call_rel_eq with checker_st_eq tt => //.
-    by move=> ??<-; apply hrec.
+    by move=> ???; apply: wequiv_fun_rec.
   Qed.
 
   End IT.

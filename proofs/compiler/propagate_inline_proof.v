@@ -823,8 +823,7 @@ Section PROOF.
 
   Lemma it_pi_callP fn : wiequiv_f p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
   Proof.
-    apply wequiv_fun_ind => hrec {fn}.
-    move=> fn _ fs ft [<- hfsu] fd1 hget.
+    apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd1 hget.
     have [fd2 hfun ->] := all_checked hget.
     exists fd2 => // {hget}.
     have [hin hout hex hpar hres [dc_ hc hbody]] :
@@ -888,7 +887,7 @@ Section PROOF.
     + move=> > [] [h1 h2 h3] hval; split => //.
       by apply/valid_pi_with_scs/valid_pi_remove_m.
     + by rewrite /check_lvals /= /check_lvals_pi heq.
-    by move=> fs1 fs2 hpre; apply hrec.
+    by move=> ???; apply: wequiv_fun_rec.
   Qed.
 
   End IT.

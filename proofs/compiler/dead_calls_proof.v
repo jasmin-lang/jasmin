@@ -377,8 +377,7 @@ Section PROOF.
   Lemma it_dead_calls_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
   Proof.
-    apply wequiv_fun_ind => hrec {fn}.
-    move=> fn _ fs _ [<- <- hin] fd hfd; exists fd => //.
+    apply wequiv_fun_ind => {}fn _ fs _ [<- <- hin] fd hfd; exists fd => //.
     + by apply get_dead_calls.
     move=> s hinit.
     exists s=> //; exists (st_eq tt), (st_eq tt); split => //; last by apply st_eq_finalize.
@@ -401,7 +400,7 @@ Section PROOF.
       by apply hc'.
     + move=> >; rewrite !CallsE => hfin.
       apply wequiv_call_rel_eq with checker_st_eq tt => //.
-      move=> ???; apply hrec; split => //.
+      move=> ???; apply: wequiv_fun_rec; split => //.
       by move: hfin; rewrite /def_incl; SfD.fsetdec.
     move=> n hn; apply: pfxp.
     by apply: live_calls_in hfd n hn.

@@ -1942,8 +1942,7 @@ Proof. apply checker_st_eq_exP => //. Qed.
 Lemma it_lower_callP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
-  apply wequiv_fun_ind => hrec {fn}.
-  move=> fn _ fs _ [<- <-] fd hget.
+  apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
   have [_ hfvres hfvc] := disj_fvars_get_fundef hget.
   rewrite get_map_prog hget /= /lower_fd.
   eexists; first reflexivity.
@@ -2026,7 +2025,7 @@ Opaque esem.
   (* Call *)
   move=> xs fn es ii /disj_fvars_vars_I_Ccall [hdisjx hdisje] /=.
   apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq_ex fvars => //.
-  by move=> ???; apply hrec.
+  by move=> ???; apply: (wequiv_fun_rec (spec := eq_spec)).
 Qed.
 End IT.
 

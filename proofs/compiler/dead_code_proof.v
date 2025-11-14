@@ -603,8 +603,7 @@ Section PROOF.
   Lemma it_dead_code_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
   Proof.
-    apply wequiv_fun_ind => hrec {fn}.
-    move=> fn _ fs ft [<- hfsu] fd hget.
+    apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
     have dcok : map_cfprog_name (dead_code_fd is_move_op do_nop onfun) (p_funcs p) = ok (p_funcs p').
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [fd' hfd' hget'] := get_map_cfprog_name_gen dcok hget.
@@ -696,7 +695,7 @@ Section PROOF.
       (Rv:=List.Forall2 value_uincl) => //.
     + by rewrite -eq_globs; apply read_es_st_uincl_on; rewrite read_esE; SvD.fsetdec.
     + by move=> > [].
-    + by apply hrec.
+    + move=> >; exact: wequiv_fun_rec.
     move=> _ _ fr1 fr2 _ /=; apply upd_st_rel.
     move=> vs1 vs2 hall.
     apply wrequiv_weaken with (st_uincl_on I) (st_uincl_on O) => //.

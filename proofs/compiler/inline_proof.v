@@ -663,7 +663,7 @@ Proof.
   move=> fs1 fs2 hpre.
   rewrite (isem_call_inline p1 ev do_inline).
   move: fs1 fs2 hpre.
-  apply wequiv_fun_ind => hrec fn1 _ fs1 fs2 [<- hu] fd1 hfd1.
+  apply wequiv_fun_ind => fn1 _ fs1 fs2 [<- hu] fd1 hfd1.
   have : if fn1 == fn then fd1 = fd /\ get_fundef (p_funcs p2) fn1 = Some fd' else get_fundef (p_funcs p2) fn1 = Some fd1.
   + move: hfd1; rewrite /p1 /p2 /get_fundef /= !assoc_cat.
     move: (uniq_funname); rewrite /pfuncs map_cat cat_uniq => /and3P [_ hhas _].
@@ -686,7 +686,7 @@ Proof.
                          (sem_fun (sem_Fun := sem_fun_rec E) p1 ev ii fn fs).
     + move=> ii fn2 fs /=; rewrite /do_inline; case: eqP => //= ?; reflexivity.
     rewrite (isem_cmd_ext h) => {h}.
-    by move: s t; apply it_sem_uincl_aux => // ii fn2 ???; apply hrec.
+    by move: s t; apply it_sem_uincl_aux => // ?????; apply: wequiv_fun_rec.
   (* Second it works for fn1 *)
   move=> ? [? ->]; subst fn1 fd1; exists fd' => //.
   have : exists2 Xc,
@@ -757,7 +757,7 @@ Proof.
     + by split => //; rewrite !read_writeE; clear; SvD.fsetdec.
     + by split => //; rewrite !read_writeE; clear; SvD.fsetdec.
     move=> i1 i2 h; rewrite /= /do_inline eqxx hinline /=.
-    by apply (hrec ii ii f f i1 i2).
+    exact/(wequiv_fun_rec (p1 := p1) (p2 := p2)).
   rewrite /check_rename.
   t_xrbindP => ffd /get_funP hffd.
   case: ifP => //; set ffd' := rename_fd ii f ffd.
@@ -807,7 +807,7 @@ Proof.
   rewrite -(convertible_assgn_tuple htyin) h.
   clear h => /=.
   rewrite ITree.Eq.Eqit.bind_ret_l isem_cmd_cat.
-  have := [elaborate it_alloc_cP (p1:=p1) (p2:=p2) erefl hrec hc].
+  have := [elaborate it_alloc_cP (p1 := p1) (p2 := p2) ev erefl hc ].
   move=> /wequiv_write2 -/(_ (with_vm s1 vm2)) h.
   apply xrutt_facts.xrutt_bind with
     (fun s2 s3 : estate => evm (with_vm s1 vm2) =[\write_c (f_body ffd')] evm s3 /\ st_eq_alloc r2 s2 s3).

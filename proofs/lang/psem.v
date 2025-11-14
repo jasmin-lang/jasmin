@@ -745,15 +745,13 @@ Proof.
   eexists; eauto.
 Qed.
 
-Lemma wiequiv_f_eq fn : wiequiv_f p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+Lemma wiequiv_f_eq fn :
+  wiequiv_f p p ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
 Proof.
-  apply wequiv_fun_ind => hrec {fn}.
-  move=> fn _ fs _ [<- <-] fd hget.
-  exists fd => //.
-  move=> s1; exists s1 => //.
-  exists (st_eq tt), (st_eq tt); split => //.
-  + by apply wequiv_rec_st_eq.
-  by apply st_eq_finalize.
+apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
+exists fd => // s1 ?; exists s1 => //; exists (st_eq tt), (st_eq tt).
+split=> //; first exact/wequiv_rec_st_eq.
+exact/st_eq_finalize.
 Qed.
 
 Lemma wiequiv_st_eq c : wiequiv p p ev ev (st_eq tt) c c (st_eq tt).
@@ -1585,13 +1583,11 @@ Qed.
 Lemma it_sem_uincl_f fn :
   wiequiv_f p p ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
-  apply wequiv_fun_ind => hrec {fn}.
-  move=> {}fn _ fs1 fs2 [<-] hu fd ->; exists fd => //.
-  move=> s /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu; exists t => //.
-  exists (st_uincl tt), (st_uincl tt); split => //.
-  + apply it_sem_uincl_aux => //.
-    by move=> ii fn' fs1' fs2' h; apply hrec.
-  by apply: fs_uincl_finalize.
+apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] hu fd ->.
+exists fd => // s /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu.
+exists t => //; exists (st_uincl tt), (st_uincl tt); split=> //.
++ apply it_sem_uincl_aux => // ii fn' fs1' fs2' h; exact/wequiv_fun_rec.
+exact/fs_uincl_finalize.
 Qed.
 
 Lemma it_sem_uincl c :

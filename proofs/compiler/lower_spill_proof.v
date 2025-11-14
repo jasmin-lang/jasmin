@@ -722,8 +722,7 @@ Qed.
 Lemma it_alloc_callP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
-  apply wequiv_fun_ind => hrec {fn}.
-  move=> fn _ fs _ [<- <-] fd hget.
+  apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
   have spillok : map_cfprog_name (spill_fd fresh_var_ident) (p_funcs p) = ok (p_funcs p').
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
   have [fd' hfd'1 hfd'2] := get_map_cfprog_name_gen spillok hget.
@@ -824,7 +823,7 @@ Proof.
   apply wequiv_call_rel_eq with (checker_st_ve S) env => //.
   + split => //; SvD.fsetdec.
   + split => //; SvD.fsetdec.
-  by move=> fs fs' <-; apply hrec.
+  move=> fs fs' <-; exact/wequiv_fun_rec.
 Qed.
 
 End IT.

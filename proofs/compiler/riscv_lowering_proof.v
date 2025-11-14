@@ -778,8 +778,7 @@ Proof. apply checker_st_eqP => //. Qed.
 Lemma it_lower_callP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
-  apply wequiv_fun_ind => hrec {fn}.
-  move=> fn _ fs _ [<- <-] fd hget.
+  apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
   rewrite get_map_prog hget /= /lower_fd.
   eexists; first reflexivity.
   move=> s.
@@ -822,7 +821,7 @@ Proof.
   (* Call *)
   move=> xs fn es ii /=.
   apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq tt => //.
-  by move=> ???; apply hrec.
+  by move=> ???; apply: (wequiv_fun_rec (spec := eq_spec)).
 Qed.
 
 End IT.

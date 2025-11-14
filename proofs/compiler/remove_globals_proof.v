@@ -251,9 +251,8 @@ Module INCL. Section INCL.
 
   Lemma it_gd_incl_fun fn : wiequiv_f P1 P2 ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof.
-    apply wequiv_fun_ind => hrec {fn}.
-    move=> fn _ fs ft [<- <-] fd ->; exists fd => // s1 hinit.
-    exists s1 => //.
+    apply wequiv_fun_ind => {}fn _ fs ft [<- <-] fd ->.
+    exists fd => // s1 hinit; exists s1 => //.
     exists (st_equal tt), (st_equal tt); split => //; last by move=> s t vs /st_equalP <- ->; eexists; eauto.
     move: (f_body fd) => {fn fs ft fd s1 hinit}.
     apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //.
@@ -266,7 +265,7 @@ Module INCL. Section INCL.
     + by move=> > hc ii; apply wequiv_for_rel_eq with checker_equal tt tt.
     + by move=> > hc hc' ii; apply wequiv_while_rel_eq with checker_equal tt.
     move=> ????; apply wequiv_call_rel_eq with checker_equal tt => //.
-    by move=> ???; apply hrec.
+    by move=> ???; apply: wequiv_fun_rec.
   Qed.
 
   End IT.
@@ -911,8 +910,7 @@ Module RGP. Section PROOFS.
 
   Lemma it_remove_glob_call fn : wiequiv_f P P' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof.
-    apply wequiv_fun_ind => hrec {fn}.
-    move=> fn _ fs _ [<- <-] fd hget.
+    apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
     have [fd' [hget' hfd']]:= get_fundefP hget.
     exists fd' => //.
     move: hfd'; rewrite /remove_glob_fundef; t_xrbindP => _tt hparams res1 hres1 [m' c'] hrm ?;subst fd' => /=.
@@ -967,7 +965,7 @@ Module RGP. Section PROOFS.
     move=> xs fn es ii d dc_ /=; t_xrbindP => xs' hxs' es' hes' <- /=.
     apply wequiv_call_rel_eq_R with (checker_valid ii) d d => //.
     + by move=> > []. + by move=> > [?????].
-    by move=> ?? <-; apply hrec.
+    by move=> ?? <-; apply: wequiv_fun_rec.
   Qed.
 
   End IT.

@@ -1802,15 +1802,16 @@ Notation isem_fun_def2 := (isem_fun_def (wsw:=wsw2) (dc:=dc2) (ep:=ep) (spp:=spp
 Notation wiequiv_f rpreF fn1 fn2 rpostF :=
    (wkequiv_io (rpreF fn1 fn2) (isem_fun_def1 p1 ev1 fn1) (isem_fun_def2 p2 ev2 fn2) (rpostF fn1 fn2)).
 
+Lemma wequiv_fun_rec ii1 ii2 fn1 fn2 :
+  wequiv_f_rec rpreF ii1 ii2 fn1 fn2 rpostF.
+Proof. move=> fs1' fs2' hpre'; exact/xrutt_trigger. Qed.
+
 Lemma wequiv_fun_ind :
-  ((forall ii1 ii2 fn1 fn2, wequiv_f_rec rpreF ii1 ii2 fn1 fn2 rpostF) ->
-   (forall fn1 fn2, wequiv_fun_body_hyp_rec rpreF fn1 fn2 rpostF)) ->
+  (forall fn1 fn2, wequiv_fun_body_hyp_rec rpreF fn1 fn2 rpostF) ->
   forall fn1 fn2,
   wiequiv_f rpreF fn1 fn2 rpostF.
 Proof.
-  have hrec : (forall ii1 ii2 fn1 fn2, wequiv_f_rec rpreF ii1 ii2 fn1 fn2 rpostF).
-  + by move=> ii1 ii2 fn1' fn2' fs1' fs2' hpre'; apply xrutt_trigger.
-  move=> /(_ hrec) hbody fn1 fn2 fs1 fs2 hpre.
+  move=> hbody fn1 fn2 fs1 fs2 hpre.
   apply interp_mrec_xrutt with (RPreInv := (@RPreD spec))
                                (RPostInv := (@RPostD spec)).
   + move=> {hpre fn1 fn2 fs1 fs2}.
@@ -1822,7 +1823,6 @@ Proof.
 Qed.
 
 End REC.
-
 
 Definition wequiv_rec P c1 c2 Q :=
   wequiv (rE0:=relEvent_recCall spec) p1 p2 ev1 ev2 P c1 c2 Q.
@@ -1864,6 +1864,8 @@ Qed.
 End WEQUIV_FUN.
 
 End RELATIONAL.
+
+Arguments wequiv_fun_rec {_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _}.
 
 (* Notation wiequiv_f := (wequiv_f (sem_F1 := sem_fun_full) (sem_F2 := sem_fun_full)). *)
 Notation wiequiv   := (wequiv (sem_F1 := sem_fun_full) (sem_F2 := sem_fun_full)).

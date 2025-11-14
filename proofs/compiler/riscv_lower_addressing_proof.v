@@ -435,8 +435,7 @@ Proof. apply checker_st_eq_onP; apply eq_globs. Qed.
 Lemma it_lower_addressing_progP fn:
   wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
-  apply wequiv_fun_ind => hrec {fn}.
-  move=> fn _ fs _ [<-] <- fd hget.
+  apply wequiv_fun_ind => {}fn _ fs _ [<-] <- fd hget.
   move: ok_p'; rewrite /lower_addressing_prog.
   set tmp := {| v_var := _; v_info := _ |}.
   t_xrbindP=> funcs ok_funcs hp'.
@@ -503,7 +502,7 @@ Proof.
   apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq_on X => //.
   + by split => //; SvD.fsetdec.
   + by split => //; SvD.fsetdec.
-  by move=> ???; apply hrec.
+  by move=> ???; apply: (wequiv_fun_rec (spec := eq_spec)).
 Qed.
 
 End IT.
