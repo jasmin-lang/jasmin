@@ -429,8 +429,7 @@ Let Pc c :=
 Lemma it_wi2w_call_internalP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
-  apply wequiv_fun_ind => hrec {fn}.
-  move=> fn _ fs ft [<- hfsu] fd hget.
+  apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
   exists (wi2w_fun fd).
   + by rewrite get_map_prog hget.
   move=> s hinit.
@@ -449,7 +448,7 @@ Proof.
   + by move=> v dir lo hi c hc ii; apply wequiv_for_rel_uincl with checker_wi2w tt tt.
   + by move=> a c e ii' c' hc hc' ii; apply wequiv_while_rel_uincl with checker_wi2w tt.
   move=> xs f es ii; apply wequiv_call_rel_uincl with checker_wi2w tt => //.
-  by move=> ?? hu; apply hrec.
+  by move=> ???; apply: wequiv_fun_rec.
 Qed.
 
 End IT.

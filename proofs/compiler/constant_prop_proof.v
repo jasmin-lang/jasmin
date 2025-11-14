@@ -1451,8 +1451,7 @@ Qed.
 
 Lemma it_const_prop_callP fn : wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
-  apply wequiv_fun_ind => hrec {fn}.
-  move=> fn _ fs ft [<- hfsu] fd hget.
+  apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
   exists (const_prop_fun (p_globs p) fd).
   + by rewrite get_map_prog hget.
   move=> {hget} s1 hinit.
@@ -1590,7 +1589,8 @@ Proof.
     by apply: remove_cpm_write1 hc' => //; rewrite write_i_while; SvD.fsetdec.
   move=> xs f es ii m /=.
   rewrite (surjective_pairing (const_prop_rvs _ _ _)) /=.
-  by apply wequiv_call_rel_uincl with checker_cp m => // ???; apply hrec.
+  apply wequiv_call_rel_uincl with checker_cp m => // ???.
+  exact: wequiv_fun_rec.
 Qed.
 
 End IT_PROOF.

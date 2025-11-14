@@ -265,8 +265,7 @@ Proof. by apply checker_st_uinclP. Qed.
 
 Lemma it_remove_init_fdP fn : wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
- apply wequiv_fun_ind => hrec {fn}.
- move=> fn _ fs ft [<- hfsu] fd hget.
+ apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
  exists (remove_init_fd is_reg_array fd).
  + by rewrite get_map_prog hget.
  move=> s hinit.
@@ -311,7 +310,7 @@ Proof.
   + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
   + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
   move=> xs fn es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt => //.
-  by move=> ???; apply hrec.
+ move=> ???; exact/wequiv_fun_rec.
 Qed.
 
 End IT_REMOVE_INIT.
@@ -692,8 +691,7 @@ Qed.
 
 Lemma it_add_init_callP fn : wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
- apply wequiv_fun_ind => hrec {fn}.
- move=> fn _ fs _ [<- <-] fd hget.
+ apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
  exists (add_init_fd fd).
  + by rewrite get_map_prog hget.
  move=> {hget}.

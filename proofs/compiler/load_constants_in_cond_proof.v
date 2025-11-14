@@ -411,8 +411,7 @@ Proof. by apply checker_st_eq_onP; rewrite eq_globs. Qed.
 Lemma it_load_constants_progP_aux fn:
   wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
-  apply wequiv_fun_ind => hrec {fn}.
-  move=> fn _ fs _ [<-] <- fd hget.
+  apply wequiv_fun_ind => {}fn _ fs _ [<-] <- fd hget.
   move: Hp; rewrite /load_constants_prog; t_xrbindP => funcs Hmap hp'.
   case: (get_map_cfprog_gen Hmap hget) => fd' Hupdate hget'.
   rewrite -{1}hp' /= hget'.
@@ -481,7 +480,7 @@ Proof.
   apply wequiv_call_rel_eq with checker_st_eq_on X => //.
   + by split => //; SvD.fsetdec.
   + by split => //; SvD.fsetdec.
-  by move=> ???; apply hrec.
+  by move=> ???; apply: wequiv_fun_rec.
 Qed.
 
 End IT.
@@ -509,9 +508,8 @@ Lemma it_load_constants_progP p p' doit:
   ∀ (ev : extra_val_t) (fn : funname),
   wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
-  case: doit.
-  + by move=> ??? ; apply it_load_constants_progP_aux.
-  move=> [<-] ??; apply wiequiv_f_eq.
+case: doit; last by move=> [<-] ??; apply wiequiv_f_eq.
+by move=> ???; apply it_load_constants_progP_aux.
 Qed.
 
 End IT.

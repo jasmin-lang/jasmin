@@ -791,12 +791,10 @@ Section PROOF.
   Proof. by move=> hincl; apply st_rel_weaken => >; apply: eq_alloc_incl. Qed.
 
   Lemma it_alloc_cP (f_body : cmd) (dead_vars_fd0 : instr_info → Sv.t) (r1 : M.t_) (r2 : M.t) (f_body0 : cmd) :
-    (∀ (ii1 ii2 : instr_info) (fn1 fn2 : funname),
-      wequiv_f_rec p1 p2 ev ev uincl_spec (rpreF (eS:=uincl_spec))ii1 ii2 fn1 fn2 (rpostF (eS:=uincl_spec))) →
     check_cmd dead_vars_fd0 f_body f_body0 r1 = ok r2 →
     wequiv_rec p1 p2 ev ev uincl_spec (st_eq_alloc r1) f_body f_body0 (st_eq_alloc r2).
   Proof.
-    move=> hrec. move: f_body dead_vars_fd0 r1 r2 f_body0.
+    move: f_body dead_vars_fd0 r1 r2 f_body0.
     apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //.
     + move=> i1 ii1 hi1 dead_vars r1 r2 [ii2 i2] /=; t_xrbindP => r2' /hi1 -/(_ ii1 ii2) + <-.
       apply wequiv_weaken => // -[scs mem vm1] [_ _ vm2] [/= <- <- hvm]; split => //.
@@ -865,14 +863,13 @@ Section PROOF.
     move=> xs f es ii dead_vars r1 r2 ii2 [] // xs2 f2 es2 /=.
     t_xrbindP => re /eqP <- hces hcxs.
     apply wequiv_call_rel_uincl with checker_alloc re => //.
-    by move=> s t h; apply hrec.
+    by move=> ???; apply: wequiv_fun_rec.
   Qed.
 
   Lemma it_alloc_callP fn :
     wiequiv_f p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
   Proof.
-    apply wequiv_fun_ind => hrec {fn}.
-    move=> fn _ fs ft [<- hfsu] fd hget.
+    apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
     have [fd2 [Hget2 /=]]:= all_checked hget.
     t_xrbindP => /and3P [] _ htyin htyout r0 Hcinit r1 /check_f_extraP[] Hcparams hinit hfinalize r2 Hcc r3 Hcres _.
     exists fd2 => // s11 Hi.
@@ -886,16 +883,16 @@ Section PROOF.
     move=> /(_ _ _ Hvm0 hall2) [vm3 /= Hw2 Hvm3].
     rewrite -(all2_convertible_eval_atype htyin) htr /= /estate0 -heq1 -heq2 (hinit _ _ _ _ Hi0) /=.
     rewrite (write_vars_lvals _ gd) Hw2.
-    exists (with_vm s11 vm3)=> //; exists (st_eq_alloc r1), (st_eq_alloc r2); split => //; last first.
+    exists (with_vm s11 vm3)=> //; exists (st_eq_alloc r1), (st_eq_alloc r2).
+    split => //; first exact: it_alloc_cP Hcc.
     (* FIXME: can we have a generic lemma for finialize_funcall based on check_es *)
-    + move=> s t fs' /st_relP [-> /=] hu'; rewrite /finalize_funcall.
-      t_xrbindP => vs.
-      have [Hr3] := check_esP (~~direct_call) Hcres hu'.
-      rewrite sem_pexprs_get_var => h {}/h [vres1' /= []].
-      rewrite sem_pexprs_get_var => -> H2 vs' Hcr <-.
-      have [vs3 /=]:= mapM2_dc_truncate_val Hcr H2.
-      by rewrite (all2_convertible_eval_atype htyout) => -> ? /=; eexists; eauto; split => //=.
-    by apply: it_alloc_cP Hcc.
+    move=> s t fs' /st_relP [-> /=] hu'; rewrite /finalize_funcall.
+    t_xrbindP => vs.
+    have [Hr3] := check_esP (~~direct_call) Hcres hu'.
+    rewrite sem_pexprs_get_var => h {}/h [vres1' /= []].
+    rewrite sem_pexprs_get_var => -> H2 vs' Hcr <-.
+    have [vs3 /=]:= mapM2_dc_truncate_val Hcr H2.
+    by rewrite (all2_convertible_eval_atype htyout) => -> ? /=; eexists; eauto; split => //=.
   Qed.
 
 End IT.

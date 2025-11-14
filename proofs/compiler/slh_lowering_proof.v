@@ -1415,12 +1415,9 @@ eapply wequiv_weaken;
 move=> ??; exact: env_le_st_eq hle2.
 Qed.
 
-Lemma lower_it_call xs fn es :
-  (forall ii1 ii2 fn1 fn2,
-      wequiv_f_rec p p' ev ev slh_spec rpreF ii1 ii2 fn1 fn2 rpostF) ->
-  Pi_r (Ccall xs fn es).
+Lemma lower_it_call xs fn es : Pi_r (Ccall xs fn es).
 Proof.
-move=> hind ii env env' /=; rewrite (surjective_pairing (fun_info _)).
+move=> ii env env' /=; rewrite (surjective_pairing (fun_info _)).
 t_xrbindP=> _ _ ? hchkes hchkxs <- <-; apply (
   wequiv_call
     (Pf := rpreF)
@@ -1430,22 +1427,19 @@ t_xrbindP=> _ _ ? hchkes hchkxs <- <-; apply (
 - rewrite hp_globs => s _ vs [<- hwf] hsemes /=; exists vs => //; split=> //.
   exact: check_f_argsP hwf hchkes hsemes.
 - by move=> s _ vs _ [<- _] [<- hvs].
-- exact: hind.
-  move=> fs _ fr _ [_ <- hpre] [<- hpos] s _ s' [<- [hmsf hvars]] hwrite.
-  exists s'; first (by rewrite hp_globs); split=> //.
-  apply: (check_f_lvsP _ hchkxs hpos hwrite); split=> //.
-  case: Env.cond hvars => [c|//] [hsemc hmem]; split=> //.
+- by move=> ???; apply: wequiv_fun_rec.
+move=> fs _ fr _ [_ <- hpre] [<- hpos] s _ s' [<- [hmsf hvars]] hwrite.
+exists s'; first (by rewrite hp_globs); split=> //.
+apply: (check_f_lvsP _ hchkxs hpos hwrite); split=> //.
+case: Env.cond hvars => [c|//] [hsemc hmem]; split=> //.
 by rewrite (use_memP _ (s2 := s) _ _ hmem).
 Qed.
 
 Lemma it_lower_code c c' env env' :
-  (forall ii1 ii2 fn1 fn2,
-      wequiv_f_rec p p' ev ev slh_spec rpreF ii1 ii2 fn1 fn2 rpostF) ->
   check_cmd fun_info env c = ok env' ->
   lower_cmd c = ok c' ->
   wequiv_rec p p' ev ev slh_spec (st_eq env) c c' (st_eq env').
 Proof.
-move=> hind.
 apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
   [ | | |
   | exact: it_lower_opn
@@ -1453,7 +1447,7 @@ apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
   | exact: lower_it_if
   | exact: lower_it_for
   | exact: lower_it_while
-  | move=> ???; exact: lower_it_call hind ].
+  | move=> ???; exact: lower_it_call ].
 
 (* MkI *)
 - move=> i ii hi env env' [ii' i'] hchecki hloweri. exact: hi hchecki hloweri.
@@ -1486,7 +1480,7 @@ Qed.
 
 Lemma it_lower_call {fn} : wiequiv_f p p' ev ev rpreF fn fn rpostF.
 Proof.
-apply: wequiv_fun_ind => hind {}fn _ fs _ [<- <- htin] fd
+apply: wequiv_fun_ind => {}fn _ fs _ [<- <- htin] fd
   /(get_map_cfprog_name_gen hp_body) [] fd' /lower_fdP [].
 rewrite /check_fd /= (surjective_pairing (fun_info _)).
 t_xrbindP=> env henv env' hchk htout _ _ htyin hparams hlower htyout hret hextra
@@ -1506,7 +1500,7 @@ exists (st_eq env), (st_eq env'); split => //.
   by have := size_mapM2 hargs; rewrite size_map => -[-> _].
 
 (* Body *)
-- exact: it_lower_code hind hchk hlower.
+- exact: it_lower_code hchk hlower.
 
 (* Finalize *)
 clear s hs fs htin; move=> s _ fs [<- hwf].

@@ -908,9 +908,6 @@ Section CMD.
 
 Context (m:t) (hwf : wf_t m).
 
-Context (hrec : forall ii1 ii2 fn1 fn2,
-   wequiv_f_rec p1 p2 ev ev exp_spec (rpreF (eS:=exp_spec)) ii1 ii2 fn1 fn2 (rpostF (eS:=exp_spec))).
-
 #[ local ]
 Definition Pi_ (i1 : instr) :=
   forall i2, expand_i fsigs m i1 = ok i2 ->
@@ -991,7 +988,7 @@ Proof.
   + move=> s t vs1 vs2 [?? _] [vs2' hvs ->]; split => //; split => //.
     eexists; first exact heq.
     by exists vs2' => //.
-  + by apply hrec.
+  + by move=> ???; apply: wequiv_fun_rec.
   move=> _ _ fr1 fr2 _ /=; apply upd_st_rel.
   move=> vs1 vs2 [_ _ [_ [expd]]]; rewrite heq => -[?]; subst expd => /=.
   move=> [vs' hvs' hflat] s t s' heqa hw; rewrite eq_globs hflat.
@@ -1003,8 +1000,8 @@ End CMD.
 Lemma it_expand_callP_aux fn :
   wiequiv_f p1 p2 ev ev (rpreF (eS:=exp_spec)) fn fn (rpostF (eS:=exp_spec)).
 Proof.
-  apply wequiv_fun_ind => hrec {fn}.
-  move=> fn _ fs1 fs2 [<-] [hscs hmem] [[expdin expdout] hexpd [vs /= hexpv hflat]] fd hget1.
+  apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] [hscs hmem] [[expdin expdout]
+    hexpd [vs /= hexpv hflat]] fd hget1.
   have [fd1 [fd2 [m [inout [hget2 hsigs /=]]]]]:= all_checked hget1.
   rewrite /expand_fsig; t_xrbindP => -[mt finf].
   case: fd hget1.
@@ -1034,8 +1031,8 @@ Proof.
     by move=> hin <- _ <- [<-].
   have [s1']:= expand_returnsP hwf heqae (expend_tyv_expand_return hparams) hw hexpv.
   rewrite map_comp -map_flatten -(write_vars_lvals false gd) => -> heqa1.
-  exists s1' => //; exists (eq_alloc m), (eq_alloc m); split => //.
-  + by apply expand_cP.
+  exists s1' => //; exists (eq_alloc m), (eq_alloc m).
+  split=> //; first exact: expand_cP.
   move=> s t fr1 heqa2; rewrite /finalize_funcall /=; t_xrbindP.
   move=> vres hgets vres' {}htr <-; have ? := mapM2_dc_truncate_id htr; subst vres'.
   rewrite -(sem_pexprs_get_var false gd) in hgets.

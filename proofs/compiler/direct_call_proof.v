@@ -307,8 +307,8 @@ Lemma it_indirect_to_direct fn :
   wiequiv_f (dc1:=indirect_c) (dc2:=direct_c)
     p p ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
-  apply wequiv_fun_ind => hrec {fn}.
-  move=> fn _ fs1 fs2 [<-] [hscs hmem hu] fd hget; exists fd => // s.
+  apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] [hscs hmem hu] fd hget.
+  exists fd => // s.
   rewrite /initialize_funcall; t_xrbindP => vs htra s0 hinit hw.
   have -> /= := mapM2_dc_truncate_weak hu htra.
   rewrite /estate0 -hscs -hmem hinit /=.
@@ -341,7 +341,7 @@ Proof.
   + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
   + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
   move=> xs fn es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt => //.
-  by move=> ???; apply hrec.
+  by move=> ???; apply: wequiv_fun_rec.
 Qed.
 
 End IT.
