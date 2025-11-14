@@ -1,6 +1,6 @@
 { pkgs ? import (if pinned-nixpkgs then scripts/nixpkgs.nix else <nixpkgs>) {}
 , inCI ? false
-, pinned-nixpkgs ? inCI
+, pinned-nixpkgs ? true
 , coqDeps ? !inCI
 , coqMaster ? false
 , ocamlDeps ? !inCI

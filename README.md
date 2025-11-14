@@ -1,5 +1,5 @@
 This is a copy of the Jasmin project extend with the work corresponding
-to the paper "The Jasmin Compiler Preserves Cryptographic Security"
+to the paper “The Jasmin Compiler Preserves Cryptographic Security”
 
 
 # Download, installation, and sanity-testing instructions
@@ -113,7 +113,7 @@ The definition of xrutt can be found in `itrees/xrutt.v`.
 
 ## About cryptographic security
 
-- The generic definitions on distributions are in `proofs/lang/distr.v`.
+- The generic definitions on distributions are in `proofs/compiler/distr.v`.
 - The generic formalization is in `proofs/compiler/adv.v`.
 - The instantiation to Jasmin is in `proofs/compiler/end_to_end.v`.
 
