@@ -69,7 +69,6 @@ Section GAME.
 
      We write A[C] for the ITree that interprets the [Dec] events of [A] calling
      [C] and [C*] for the decapsulation algorithm that fails on [ct]. *)
-  (* TODO consider a stateful Hash random oracle? *)
 
   Context
     {pkey skey advmem : Type}
@@ -84,7 +83,7 @@ Section GAME.
   Record Challenger :=
     {
       GenKey : itree Rnd (pkey * skey);
-      Encap : pkey -> itree Rnd (ciphert * msg); (* TODO results are flipped *)
+      Encap : pkey -> itree Rnd (ciphert * msg);
       Decap : skey -> ciphert -> itree Rnd msg;
     }.
 
@@ -154,8 +153,6 @@ Section REDUCE.
   (* Every adversary for [C1] can be converted into an adversary for [C2] that
      performs at most the same number of oracle queries and whose advantage is
      at least that of the former's. *)
-  (* TODO this is meaningless unless we say relate the complexities of [A1] and
-     [A2]. *)
   Definition reduction C1 C2 := forall A1, advantage C1 A1 = advantage C2 A1.
 
 End REDUCE.
