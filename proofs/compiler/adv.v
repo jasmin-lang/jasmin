@@ -45,13 +45,12 @@ Notation Rnd := (Rnd (R := R)).
 
 Section GAME.
 
-  (* Security games for KEMs.
+  (* Security games for implicitly rejecting KEMs.
 
      The challenger [(GenKey, Encap, Decap)] comprises:
      - A key generation algorithm [GenKey : itree Rnd (pkey * skey)].
      - An encapsulation algorithm [Encap : pkey -> itree Rnd (ciphert * msg)].
-     - A decapsulation algorithm
-       [Decap : skey -> ciphert -> itree Rnd (option msg)].
+     - A decapsulation algorithm [Decap : skey -> ciphert -> itree Rnd msg].
 
      The adversary [(Query, Guess)] comprises:
      - A first stage [Query : pkey -> itree (Dec +' Rnd) advmem] that queries
@@ -78,16 +77,17 @@ Section GAME.
     {pkey skey advmem : Type}
     {ciphert : eqType}
     {msg : finType}
+    {dummy : msg}
   .
 
   Variant Dec : Type -> Type :=
-  | Decapsulate : ciphert -> Dec (option msg).
+  | Decapsulate : ciphert -> Dec msg.
 
   Record Challenger :=
     {
       GenKey : itree Rnd (pkey * skey);
-      Encap : pkey -> itree Rnd (msg * ciphert); (* TODO results are flipped *)
-      Decap : skey -> ciphert -> itree Rnd (option msg);
+      Encap : pkey -> itree Rnd (ciphert * msg); (* TODO results are flipped *)
+      Decap : skey -> ciphert -> itree Rnd msg;
     }.
 
   (* Adversary can run Encap by themselves because they have [pk]. *)
@@ -107,7 +107,7 @@ Section GAME.
       match e with
       | inl1 e =>
           match e in Dec T return itree Rnd T with
-          | Decapsulate c => if Some c == ex then Ret None else C.(Decap) sk c
+          | Decapsulate c => if Some c == ex then Ret dummy else C.(Decap) sk c
           end
       | inr1 e => trigger e
       end.
@@ -126,7 +126,7 @@ Section GAME.
   Definition game : itree Rnd bool :=
     let* (pk, sk) := C.(GenKey) in
     let* amem := interact (A.(Query) pk) sk None in
-    let* (m0, ct) := C.(Encap) pk in
+    let* (ct, m0) := C.(Encap) pk in
     let* m1 := rnd_msg in
     let* b := flip in
     let mb := if b then m1 else m0 in
@@ -148,17 +148,17 @@ Section REDUCE.
     {pkey skey advmem : Type}
     {ciphert : eqType}
     {msg : finType}
+    {dummy : msg}
   .
 
-  Notation advantage := (@advantage pkey skey advmem ciphert msg).
+  Notation advantage := (@advantage pkey skey advmem ciphert msg dummy).
 
   (* Every adversary for [C1] can be converted into an adversary for [C2] that
      performs at most the same number of oracle queries and whose advantage is
      at least that of the former's. *)
   (* TODO this is meaningless unless we say relate the complexities of [A1] and
      [A2]. *)
-  Definition reduction C1 C2 :=
-    forall A1, exists A2, advantage C1 A1 <= advantage C2 A2.
+  Definition reduction C1 C2 := forall A1, advantage C1 A1 = advantage C2 A1.
 
 End REDUCE.
 
