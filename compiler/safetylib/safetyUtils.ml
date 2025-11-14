@@ -93,6 +93,12 @@ let rec fold_left3 f accu l1 l2 l3 =
   | _ -> raise (Invalid_argument "fold_left3")
     
 (*------------------------------------------------------------*)
+(* Sequence extraction helpers *)
+let as_seq1 = function [e] -> e | _ -> assert false
+let as_seq2 = function [e1;e2] -> (e1,e2) | _ -> assert false
+let as_seq3 = function [e1;e2;e3] -> (e1,e2,e3) | _ -> assert false
+
+(*------------------------------------------------------------*)
 (* Analyzer parameters *)
 
 type analyzer_param = { relationals : string list option;

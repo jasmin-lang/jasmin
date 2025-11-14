@@ -3,13 +3,10 @@ open Prog
 open SafetyExpr
 open SafetyVar
 open SafetyConstr
+open SafetyUtils
 
 (** Generic pseudo-op helpers (architecture-independent) *)
 module PseudoOps = struct
-  let as_seq1 = function [e] -> e | _ -> assert false
-  let as_seq2 = function [e1;e2] -> (e1,e2) | _ -> assert false
-  let as_seq3 = function [e1;e2;e3] -> (e1,e2,e3) | _ -> assert false
-
   let pcast ws e = Papp1 (E.Oword_of_int ws, e)
 
   let mk_addcarry ws es =

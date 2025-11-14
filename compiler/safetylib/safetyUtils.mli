@@ -30,6 +30,12 @@ val fold_left3 :
   'a -> 'b list -> 'c list -> 'd list -> 'a
 
 (*---------------------------------------------------------------*)
+(* Sequence extraction helpers *)
+val as_seq1 : 'a list -> 'a
+val as_seq2 : 'a list -> 'a * 'a
+val as_seq3 : 'a list -> 'a * 'a * 'a
+
+(*---------------------------------------------------------------*)
 type analyzer_param = {
   relationals : string list option;
   pointers : string list option;
