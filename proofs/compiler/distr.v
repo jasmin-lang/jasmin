@@ -385,7 +385,7 @@ Qed.
 Variant Rnd : Type -> Type :=
 | GetRnd : forall {A : finType}, distr R A -> Rnd A.
 
-Fixpoint unif_rV {T : finType} (n : nat) : itree Rnd 'rV[T]_n :=
+Definition unif_rV {T : finType} (n : nat) : itree Rnd 'rV[T]_n :=
   trigger (GetRnd (dunif 'rV[T]_n)).
 
 Section INTERP.
