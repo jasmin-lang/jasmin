@@ -1,5 +1,6 @@
 open Jasmin
 open Jasmin_checksafety
+open SafetyArchRiscv
 
 let analyze pd asmOp source_f_decl f_decl p =
   let module PW = struct
@@ -8,5 +9,5 @@ let analyze pd asmOp source_f_decl f_decl p =
     let main = f_decl
     let prog = p
   end in
-  let module AbsInt = SafetyInterpreter.AbsAnalyzer (SafetyArch.RISCVSafetyArch) (PW) in
+  let module AbsInt = SafetyInterpreter.AbsAnalyzer (RISCVSafetyArch) (PW) in
   AbsInt.analyze pd asmOp ()

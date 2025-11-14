@@ -7,10 +7,11 @@ open SafetyUtils
 open SafetyExpr
 open SafetyVar
 open SafetyConstr
-open SafetyArchGeneric
+open SafetyArch
+open SafetyAbsExpr
 
 (** X86-64 architecture implementation *)
-module X86SafetyArch : SafetyArchGeneric.SafetyArch with type extended_op = X86_extra.x86_extended_op = struct
+module X86SafetyArch : SafetyArch with type extended_op = X86_extra.x86_extended_op = struct
   type extended_op = X86_extra.x86_extended_op
 
   let pointer_data = Arch_decl.arch_pd X86_decl.x86_decl
@@ -137,7 +138,7 @@ module X86SafetyArch : SafetyArchGeneric.SafetyArch with type extended_op = X86_
   let split_asm_opn pd asmOp n (opn : extended_op) es =
     match opn with
     | Arch_extra.ExtOp X86_extra.Oset0 ws ->
-      let zero = Some (PseudoOps.pcast ws (Pconst (Z.of_int 0))) in
+      let zero = Some (pcast ws (Pconst (Z.of_int 0))) in
       begin match wsize_cmp U64 ws with
       | Lt -> [zero]
       | _ -> [None; None; None; None; None; zero]

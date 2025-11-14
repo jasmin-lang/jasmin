@@ -37,7 +37,7 @@ let analyze ~fmt pd asmOp source_f_decl f_decl p =
     let main = f_decl
     let prog = p
   end in
-  let module AbsInt = SafetyInterpreter.AbsAnalyzer (SafetyArch.X86SafetyArch) (PW) in
+  let module AbsInt = SafetyInterpreter.AbsAnalyzer (SafetyArchX86.X86SafetyArch) (PW) in
   AbsInt.analyze ~fmt pd asmOp ()
 
 let load_and_analyze ~fmt expect path name =

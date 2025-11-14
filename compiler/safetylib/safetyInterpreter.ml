@@ -1238,8 +1238,6 @@ end = struct
   (* -------------------------------------------------------------------- *)
   (* Operation splitting: handle pseudo ops and SLH, then delegate to arch-specific *)
   let split_opn pd asmOp n opn es =
-    let pcast ws e = Papp1 (E.Oword_of_int ws, e) in
-    
     match opn with
     (* Pseudo operations *)
     | Sopn.Opseudo_op op ->

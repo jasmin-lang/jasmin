@@ -497,10 +497,6 @@ module MakePreAnalysis(Arch : SafetyArch.SafetyArch) : PreAnalysisSig with type 
       if_conds = List.sort_uniq Stdlib.compare st.if_conds }
 end
 
-
-(* Instantiate for X86 for backwards compatibility *)
-module Pa = MakePreAnalysis(SafetyArch.X86SafetyArch)
-
 (* Generic flow-sensitive Pre-Analysis functor *)
 module MakeFSPreAnalysis (Arch : SafetyArch.SafetyArch) = struct
   module Pa = MakePreAnalysis(Arch)
@@ -574,16 +570,6 @@ module MakeFSPreAnalysis (Arch : SafetyArch.SafetyArch) = struct
        calls in [f]. *)
     let dp = Pa.pa_make ssa_f None in
     ssa_f, dp
-end
-
-(* Flow-sensitive Pre-Analysis for X86 (backwards compatibility) *)
-module FSPa = struct
-  include MakeFSPreAnalysis(SafetyArch.X86SafetyArch)
-  
-  (* Wrapper to maintain backward compatibility with asmOp parameter *)
-  let fs_pa_make pd _asmOp f = fs_pa_make pd f
-end
-
 
 (**************************)
 (* Pre-Analysis Functions *)
@@ -627,3 +613,4 @@ let leads_to (dp: Pa.dp) (s: Sv.t) =
      let workset = Sv.union workset (Sv.diff succ visited) in
      loop acc visited workset
   in loop Sv.empty Sv.empty s
+end

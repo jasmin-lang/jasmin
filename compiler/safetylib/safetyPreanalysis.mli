@@ -36,17 +36,6 @@ module MakeFSPreAnalysis(Arch : SafetyArch.SafetyArch) : sig
   val fs_pa_make :
     Wsize.wsize ->
     ('info, Arch.extended_op) func -> (unit, Arch.extended_op) func * Pa.pa_res
-end
-
-(* Legacy X86-specific modules for backwards compatibility *)
-module Pa : PreAnalysisSig with type extended_op = X86_extra.x86_extended_op
-
-module FSPa : sig
-  val fs_pa_make :
-    Wsize.wsize ->
-    X86_extra.x86_extended_op Sopn.asmOp ->
-    ('info, X86_extra.x86_extended_op) func -> (unit, X86_extra.x86_extended_op) func * Pa.pa_res
-end
 
 (*---------------------------------------------------------------*)
 val trans_closure : Sv.t Mv.t -> Sv.t Mv.t
@@ -54,5 +43,6 @@ val flow_to       : Sv.t Mv.t -> Sv.t -> Sv.t
 val flowing_to    : Sv.t Mv.t -> Sv.t -> Sv.t
 val leads_to      : Sv.t Mv.t -> Sv.t -> Sv.t
 
+end 
+    
 val decompose_address : 'a gexpr -> 'a gvar * 'a gexpr
-

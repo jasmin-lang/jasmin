@@ -1,8 +1,9 @@
 open Jasmin
 open SafetyExpr
+open SafetyArch
 
 (** RISC-V architecture implementation *)
-module RISCVSafetyArch : SafetyArchGeneric.SafetyArch with type extended_op = (Riscv_decl.register, Arch_utils.empty, Arch_utils.empty, Arch_utils.empty, Riscv_decl.condt, Riscv_instr_decl.riscv_op, Riscv_extra.riscv_extra_op) Arch_extra.extended_op = struct
+module RISCVSafetyArch : SafetyArch with type extended_op = (Riscv_decl.register, Arch_utils.empty, Arch_utils.empty, Arch_utils.empty, Riscv_decl.condt, Riscv_instr_decl.riscv_op, Riscv_extra.riscv_extra_op) Arch_extra.extended_op = struct
   type extended_op = (Riscv_decl.register, Arch_utils.empty, Arch_utils.empty, Arch_utils.empty, Riscv_decl.condt, Riscv_instr_decl.riscv_op, Riscv_extra.riscv_extra_op) Arch_extra.extended_op
 
   let pointer_data = Arch_decl.arch_pd Riscv_decl.riscv_decl
