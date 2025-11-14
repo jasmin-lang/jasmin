@@ -68,19 +68,19 @@ module type SafetyArch = sig
 
   val pointer_data : Wsize.wsize
 
-  val is_comparison : extended_op Sopn.sopn -> expr list -> (expr * expr) option
+  val is_comparison : extended_op -> expr list -> (expr * expr) option
 
-  (** Full operation splitting (includes pseudo ops) *)
-  val split_opn :
+  (** Architecture-specific assembly operation splitting *)
+  val split_asm_opn :
     Wsize.wsize ->
     extended_op Sopn.asmOp ->
     int ->
-    extended_op Sopn.sopn ->
+    extended_op ->
     expr list ->
     expr option list
 
   val post_opn :
-    extended_op Sopn.sopn ->
+    extended_op ->
     (int glval) list ->
     expr list ->
     btcons list
@@ -93,7 +93,7 @@ module type SafetyArch = sig
   val opn_heur :
     Wsize.wsize ->
     extended_op Sopn.asmOp ->
-    extended_op Sopn.sopn ->
+    extended_op ->
     mvar ->
     expr list ->
     flags_heur option

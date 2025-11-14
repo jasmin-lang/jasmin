@@ -1,6 +1,5 @@
 open Jasmin
 open SafetyExpr
-open SafetyArchGeneric
 
 (** RISC-V architecture implementation *)
 module RISCVSafetyArch : SafetyArchGeneric.SafetyArch with type extended_op = (Riscv_decl.register, Arch_utils.empty, Arch_utils.empty, Arch_utils.empty, Riscv_decl.condt, Riscv_instr_decl.riscv_op, Riscv_extra.riscv_extra_op) Arch_extra.extended_op = struct
@@ -13,14 +12,10 @@ module RISCVSafetyArch : SafetyArchGeneric.SafetyArch with type extended_op = (R
   
   let is_comparison _ _ = None
 
+  (** Architecture-specific assembly operation splitting *)
   let split_asm_opn _pd _asmOp n _opn _es =
     (* Default: all outputs are unknown (Top) *)
     List.init n (fun _ -> None)
-
-  let split_opn pd asmOp n opn es =
-    match PseudoOps.split_pseudo_op opn es with
-    | Some result -> result
-    | None -> split_asm_opn pd asmOp n opn es
 
   let post_opn _opn _lvs _es = []
 

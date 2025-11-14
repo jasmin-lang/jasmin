@@ -1236,11 +1236,102 @@ end = struct
 
 
   (* -------------------------------------------------------------------- *)
-  (* Delegate operation splitting to the architecture module *)
-  let split_opn = Arch.split_opn
+  (* Operation splitting: handle pseudo ops and SLH, then delegate to arch-specific *)
+  let split_opn pd asmOp n opn es =
+    let pcast ws e = Papp1 (E.Oword_of_int ws, e) in
+    
+    match opn with
+    (* Pseudo operations *)
+    | Sopn.Opseudo_op op ->
+      begin match op with
+      | Osubcarry ws ->
+        let el, er, eb = as_seq3 es in
+        let w_no_borrow = Papp2 (E.Osub (E.Op_w ws), el, er) in
+        let w_borrow = Papp2 (E.Osub (E.Op_w ws),
+                              w_no_borrow,
+                              pcast ws (Pconst (Z.of_int 1))) in
+
+        let eli = Papp1 (E.uint_of_word ws, el)
+        and eri = Papp1 (E.uint_of_word ws, er) in
+
+        let cf_no_borrow = Papp2 (E.Olt E.Cmp_int, eli, eri) in
+        let cf_borrow = Papp2 (E.Ole E.Cmp_int, eli, eri) in
+
+        begin match eb with
+        | Pbool false -> [Some cf_no_borrow; Some w_no_borrow]
+        | Pbool true -> [Some cf_borrow; Some w_borrow]
+        | _ -> [None; None]
+        end
+
+      | Oaddcarry ws ->
+        let el, er, eb = as_seq3 es in
+        let w_no_carry = Papp2 (E.Oadd (E.Op_w ws), el, er) in
+        let w_carry = Papp2 (E.Oadd (E.Op_w ws),
+                             w_no_carry,
+                             pcast ws (Pconst (Z.of_int 1))) in
+
+        let eli = Papp1 (E.uint_of_word ws, el)
+        and eri = Papp1 (E.uint_of_word ws, er) in
+        let w_i = Papp2 (E.Oadd E.Op_int, eli, eri) in
+        let pow_ws = Pconst (Z.pow (Z.of_int 2) (int_of_ws ws)) in
+
+        let cf_no_carry = Papp2 (E.Ole E.Cmp_int, pow_ws, w_i) in
+        let cf_carry = Papp2 (E.Ole E.Cmp_int,
+                              pow_ws,
+                              Papp2 (E.Oadd E.Op_int,
+                                     w_i,
+                                     Pconst (Z.of_int 1))) in
+
+        begin match eb with
+        | Pbool false -> [Some cf_no_carry; Some w_no_carry]
+        | Pbool true -> [Some cf_carry; Some w_carry]
+        | _ -> [None; None]
+        end
+
+      | Oswap _ty ->
+        let x, y = as_seq2 es in
+        [Some y; Some x]
+
+      | _ -> List.init n (fun _ -> None)
+      end
+
+    (* SLH operations *)
+    | Sopn.Oslh op ->
+      begin match op with
+      | SLHinit -> [Some (pcast U64 (Pconst (Z.of_int 0)))]
+      | SLHupdate ->
+        let b, msf = as_seq2 es in
+        let msf = Pif (Bty (U U64), b, msf, pcast U64 (Pconst (Z.of_int (-1)))) in
+        [Some msf]
+      | SLHmove -> let msf = as_seq1 es in [Some msf]
+      | SLHprotect _ | SLHprotect_ptr _ ->
+        let x, _msf = as_seq2 es in
+        [Some x]
+      | SLHprotect_ptr_fail _ -> assert false
+      end
+
+    (* Assembly operations *)
+    | Sopn.Oasm asm_op -> Arch.split_asm_opn pd asmOp n asm_op es
 
   (* Post-conditions of operators *)
-  let post_opn = Arch.post_opn
+  let post_opn opn lvs es =
+    match opn with
+    | Sopn.Oasm asm_op -> Arch.post_opn asm_op lvs es
+    | _ -> []
+
+  (* Heuristic for flags *)
+  let opn_heur pd asmOp opn v es =
+    match opn with
+    | Sopn.Oasm asm_op -> Arch.opn_heur pd asmOp asm_op v es
+    | Sopn.Opseudo_op (Osubcarry _) ->
+      Some { fh_zf = None;
+             fh_cf = Some (Mtexpr.binop Texpr1.Add
+                             (Mtexpr.var v)
+                             (Mtexpr.cst (Coeff.s_of_int 1))); }
+    | _ -> None
+
+  (* Post-conditions of operators *)
+  let post_opn_unused = Arch.post_opn
 
   (* -------------------------------------------------------------------- *)
   (* Ugly handling of flags to build.
@@ -1250,7 +1341,7 @@ end = struct
   let pp_flags_heur = Arch.pp_flags_heur
 
   (* [v] is the variable receiving the assignment. *)
-  let opn_heur = Arch.opn_heur
+  let opn_heur_unused = Arch.opn_heur
 
   exception Heuristic_failed
 

@@ -126,68 +126,69 @@ module X86SafetyArch : SafetyArchGeneric.SafetyArch with type extended_op = X86_
     in
     (n, d_i)
 
-  let is_comparison (opn : extended_op Sopn.sopn) (es : expr list) : (expr * expr) option =
+  let is_comparison (opn : extended_op) (es : expr list) : (expr * expr) option =
     match opn with
-    | Sopn.Oasm (Arch_extra.BaseOp (_, X86_instr_decl.CMP _) : extended_op) ->
+    | Arch_extra.BaseOp (_, X86_instr_decl.CMP _) ->
       let el, er = SafetyUtils.as_seq2 es in
       Some (el, er)
     | _ -> None
 
-  let split_asm_opn pd asmOp n (opn : extended_op Sopn.sopn) es =
+  (** Architecture-specific assembly operation splitting *)
+  let split_asm_opn pd asmOp n (opn : extended_op) es =
     match opn with
-    | Sopn.Oasm (Arch_extra.ExtOp X86_extra.Oset0 ws) ->
+    | Arch_extra.ExtOp X86_extra.Oset0 ws ->
       let zero = Some (PseudoOps.pcast ws (Pconst (Z.of_int 0))) in
       begin match wsize_cmp U64 ws with
       | Lt -> [zero]
       | _ -> [None; None; None; None; None; zero]
       end
 
-    | Sopn.Oasm (Arch_extra.ExtOp X86_extra.Ox86MOVZX32) ->
+    | Arch_extra.ExtOp X86_extra.Ox86MOVZX32 ->
       let e = SafetyUtils.as_seq1 es in
       [Some (Papp1(E.Oword_of_int U64, Papp1(E.uint_of_word U32, e)))]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.MOVZX (sz_o, sz_i))) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.MOVZX (sz_o, sz_i)) ->
       assert (int_of_ws sz_o >= int_of_ws sz_i);
       let e = SafetyUtils.as_seq1 es in
       [Some (Papp1(E.Oword_of_int sz_o, Papp1(E.uint_of_word sz_i, e)))]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (_, X86_instr_decl.CMP ws)) ->
+    | Arch_extra.BaseOp (_, X86_instr_decl.CMP ws) ->
       let el, er = SafetyUtils.as_seq2 es in
       rflags_of_sub ws el er
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.ADD ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.ADD ws) ->
       opn_bin_alu ws (E.Oadd (E.Op_w ws)) (E.Oadd E.Op_int) es
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.SUB ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.SUB ws) ->
       opn_sub ws es
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.MUL ws))
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.IMUL ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.MUL ws)
+    | Arch_extra.BaseOp (None, X86_instr_decl.IMUL ws) ->
       let el, er = SafetyUtils.as_seq2 es in
       let w = Papp2 (E.Omul (E.Op_w ws), el, er) in
       let rflags = [None; None; None; None; None] in
       rflags @ [None; Some w]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.IMULr ws))
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.IMULri ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.IMULr ws)
+    | Arch_extra.BaseOp (None, X86_instr_decl.IMULri ws) ->
       let el, er = SafetyUtils.as_seq2 es in
       let w = Papp2 (E.Omul (E.Op_w ws), el, er) in
       let rflags = [None; None; None; None; None] in
       rflags @ [Some w]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.DIV ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.DIV ws) ->
       let n, d = split_div Unsigned ws es in
       let w = Papp1 (E.Oword_of_int ws, Papp2 (E.Odiv(Unsigned, E.Op_int), n, d)) in
       let rflags = rflags_of_div in
       rflags @ [None; Some w]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.IDIV ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.IDIV ws) ->
       let n, d = split_div Signed ws es in
       let w = Papp1 (E.Oword_of_int ws, Papp2 (E.Odiv(Unsigned, E.Op_int), n, d)) in
       let rflags = rflags_of_div in
       rflags @ [None; Some w]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.INC ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.INC ws) ->
       let e = SafetyUtils.as_seq1 es in
       let w = Papp2 (E.Oadd (E.Op_w ws), e,
                      Papp1(E.Oword_of_int ws, Pconst (Z.of_int 1))) in
@@ -198,7 +199,7 @@ module X86SafetyArch : SafetyArchGeneric.SafetyArch with type extended_op = X86_
       let rflags = nocf (rflags_of_aluop ws w vu vs) in
       rflags @ [Some w]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.DEC ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.DEC ws) ->
       let e = SafetyUtils.as_seq1 es in
       let w = Papp2 (E.Osub (E.Op_w ws), e,
                      Papp1(E.Oword_of_int ws, Pconst (Z.of_int 1))) in
@@ -209,58 +210,58 @@ module X86SafetyArch : SafetyArchGeneric.SafetyArch with type extended_op = X86_
       let rflags = nocf (rflags_of_aluop ws w vu vs) in
       rflags @ [Some w]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.NEG ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.NEG ws) ->
       let e = SafetyUtils.as_seq1 es in
       let w = Papp1 (E.Oneg (E.Op_w ws), e) in
       let vs = () in
       let rflags = rflags_of_neg ws w vs in
       rflags @ [Some w]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.MOV _)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.MOV _) ->
       let e = SafetyUtils.as_seq1 es in
       [Some e]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.SHL ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.SHL ws) ->
       let e1, e2 = SafetyUtils.as_seq2 es in
       let e = Papp2 (E.Olsl (E.Op_w ws), e1, e2) in
       rflags_unknwon @ [Some e]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.SHR ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.SHR ws) ->
       let e1, e2 = SafetyUtils.as_seq2 es in
       let e = Papp2 (E.Olsr ws, e1, e2) in
       rflags_unknwon @ [Some e]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.SAR ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.SAR ws) ->
       let e1, e2 = SafetyUtils.as_seq2 es in
       let e = Papp2 (E.Oasr (E.Op_w ws), e1, e2) in
       rflags_unknwon @ [Some e]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.CMOVcc sz)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.CMOVcc sz) ->
       let c, el, er = SafetyUtils.as_seq3 es in
       let e = Pif (Bty (U sz), c, el, er) in
       [Some e]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.AND ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.AND ws) ->
       let e1, e2 = SafetyUtils.as_seq2 es in
       let e = Papp2 (E.Oland ws, e1, e2) in
       rflags_unknwon @ [Some e]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.OR ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.OR ws) ->
       let e1, e2 = SafetyUtils.as_seq2 es in
       let e = Papp2 (E.Olor ws, e1, e2) in
       rflags_unknwon @ [Some e]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.XOR ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.XOR ws) ->
       let e1, e2 = SafetyUtils.as_seq2 es in
       let e = Papp2 (E.Olxor ws, e1, e2) in
       rflags_unknwon @ [Some e]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (None, X86_instr_decl.NOT ws)) ->
+    | Arch_extra.BaseOp (None, X86_instr_decl.NOT ws) ->
       let e1 = SafetyUtils.as_seq1 es in
       let e = Papp1 (E.Olnot ws, e1) in
       [Some e]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (_, X86_instr_decl.LEA ws)) ->
+    | Arch_extra.BaseOp (_, X86_instr_decl.LEA ws) ->
       let e1 = SafetyUtils.as_seq1 es in
       let e =
         match SafetyUtils.ty_expr e1 with
@@ -268,40 +269,20 @@ module X86SafetyArch : SafetyArchGeneric.SafetyArch with type extended_op = X86_
         | _ -> e1 in
       [Some e]
 
-    | Sopn.Oasm (Arch_extra.BaseOp (_, X86_instr_decl.POPCNT ws)) ->
+    | Arch_extra.BaseOp (_, X86_instr_decl.POPCNT ws) ->
       let e1 = SafetyUtils.as_seq1 es in
       let t = Some (Pbool true) in
       [t; t; t; t; zf_of_word ws e1; None]
 
-    | Sopn.Oslh op ->
-      begin match op with
-      | SLHinit -> [Some (PseudoOps.pcast U64 (Pconst (Z.of_int 0)))]
-      | SLHupdate ->
-        let b, msf = SafetyUtils.as_seq2 es in
-        let msf = Pif (Bty (U U64), b, msf, PseudoOps.pcast U64 (Pconst (Z.of_int (-1)))) in
-        [Some msf]
-      | SLHmove -> let msf = SafetyUtils.as_seq1 es in [Some msf]
-      | SLHprotect _ | SLHprotect_ptr _ ->
-        let x, _msf = SafetyUtils.as_seq2 es in
-        [Some x]
-      | SLHprotect_ptr_fail _ -> assert false
-      end
-
     | _ ->
       debug (fun () ->
           Format.eprintf "Warning: unknown opn %a, default to ⊤.@."
-            (PrintCommon.pp_opn pd asmOp) opn);
+            (PrintCommon.pp_opn pd asmOp) (Sopn.Oasm opn));
       opn_dflt n
 
-  (** Full operation splitting with generic pseudo-op handling *)
-  let split_opn pd asmOp n opn es =
-    match PseudoOps.split_pseudo_op opn es with
-    | Some result -> result
-    | None -> split_asm_opn pd asmOp n opn es
-
-  let post_opn (opn : extended_op Sopn.sopn) (lvs : int glval list) (es : expr list) : btcons list =
+  let post_opn (opn : extended_op) (lvs : int glval list) (es : expr list) : btcons list =
     match opn with
-    | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.POPCNT ws)) -> (
+    | Arch_extra.BaseOp (x, X86_instr_decl.POPCNT ws) -> (
         let open Mtexpr in
         match List.last lvs with
         | Lvar x ->
@@ -339,22 +320,16 @@ module X86SafetyArch : SafetyArchGeneric.SafetyArch with type extended_op = X86_
     fh_cf : Mtexpr.t option;
   }
 
-  let opn_heur pd asmOp (opn : extended_op Sopn.sopn) v es =
+  let opn_heur pd asmOp (opn : extended_op) v es =
     match opn with
-    | Sopn.Opseudo_op (Osubcarry _) ->
-      Some { fh_zf = None;
-             fh_cf = Some (Mtexpr.binop Texpr1.Add
-                             (Mtexpr.var v)
-                             (Mtexpr.cst (Coeff.s_of_int 1))); }
-
-    | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.DEC _)) ->
+    | Arch_extra.BaseOp (x, X86_instr_decl.DEC _) ->
       assert (x = None);
       Some { fh_zf = Some (Mtexpr.var v);
              fh_cf = Some (Mtexpr.binop Texpr1.Add
                              (Mtexpr.var v)
                              (Mtexpr.cst (Coeff.s_of_int 1))); }
 
-    | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.CMP _)) ->
+    | Arch_extra.BaseOp (x, X86_instr_decl.CMP _) ->
       assert (x = None);
       let exception Opn_heur_failed in
       let rec to_mvar = function
@@ -375,7 +350,7 @@ module X86SafetyArch : SafetyArchGeneric.SafetyArch with type extended_op = X86_
     | _ ->
       debug (fun () ->
           Format.eprintf "No heuristic for the return flags of %a@."
-            (PrintCommon.pp_opn pd asmOp) opn);
+            (PrintCommon.pp_opn pd asmOp) (Sopn.Oasm opn));
       None
 
   let pp_flags_heur fmt fh =

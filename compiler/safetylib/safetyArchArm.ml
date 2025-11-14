@@ -1,6 +1,5 @@
 open Jasmin
 open SafetyExpr
-open SafetyArchGeneric
 
 (** ARMv7-M architecture implementation *)
 module ARMSafetyArch : SafetyArchGeneric.SafetyArch with type extended_op = (Arm_decl.register, Arch_utils.empty, Arch_utils.empty, Arm_decl.rflag, Arm_decl.condt, Arm_instr_decl.arm_op, Arm_extra.arm_extra_op) Arch_extra.extended_op = struct
@@ -13,14 +12,10 @@ module ARMSafetyArch : SafetyArchGeneric.SafetyArch with type extended_op = (Arm
   
   let is_comparison _ _ = None
 
+  (** Architecture-specific assembly operation splitting *)
   let split_asm_opn _pd _asmOp n _opn _es =
     (* Default: all outputs are unknown (Top) *)
     List.init n (fun _ -> None)
-
-  let split_opn pd asmOp n opn es =
-    match PseudoOps.split_pseudo_op opn es with
-    | Some result -> result
-    | None -> split_asm_opn pd asmOp n opn es
 
   let post_opn _opn _lvs _es = []
 

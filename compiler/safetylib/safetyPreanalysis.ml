@@ -335,7 +335,11 @@ module MakePreAnalysis(Arch : SafetyArch.SafetyArch) : PreAnalysisSig with type 
     | Copn (lvs, _, opn, es) ->
       if flag_mem_lvs v lvs then
         (* Check if this is a comparison operation *)
-        match Arch.is_comparison opn es with
+        let cmp_opt = match opn with
+          | Sopn.Oasm asm_op -> Arch.is_comparison asm_op es
+          | _ -> None
+        in
+        match cmp_opt with
         | Some (_el, _er) ->
           let rs = List.fold_left expr_vars_smpl [] es in
           print_flag_set_from v rs i.i_loc.L.base_loc;
