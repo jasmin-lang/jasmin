@@ -35,4 +35,4 @@ identity:
 
 However, this transformation may add unwanted copies. This pass is therefore
 optional. It can be disabled, when using `jasminc`, by using the command-line
-flag `-noinsertrenamig`.
+flag `-noinsertrenaming`.
