@@ -140,6 +140,8 @@ let ec_keyword =
  ; "clear"
  ; "wlog"
 
+ ; "idassign"
+
  (* Auto tactics *)
  ; "apply"
  ; "rewrite"
