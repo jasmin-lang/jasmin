@@ -18,13 +18,13 @@ with {
   };
 
   "release" = rec {
-    version = "2025.10";
+    version = "2025.11";
     rev = "r${version}";
     src = fetchFromGitHub {
       owner = "easycrypt";
       repo = "easycrypt";
       inherit rev;
-      hash = "sha256-EF508JsM99lLIqTrWkV/gvlKYRSPQgaLfqxDoOkJbhU=";
+      hash = "sha256-BLyC8AB075Nyhb5heIKVkxnWWt4Zn8Doo10ShsACJ4g=";
     };
   };
 
