@@ -1334,9 +1334,9 @@ end = struct
   (* -------------------------------------------------------------------- *)
   (* Ugly handling of flags to build.
      When adding new flags, update [find_heur]. *)
-  type _flags_heur = Arch.flags_heur
+  type _flags_heur = SafetyArch.flags_heur
 
-  let pp_flags_heur = Arch.pp_flags_heur
+  let pp_flags_heur = SafetyArch.pp_flags_heur
 
   (* [v] is the variable receiving the assignment. *)
   let opn_heur_unused = Arch.opn_heur
@@ -1350,9 +1350,9 @@ end = struct
       let s = Bvar.var_name bv in
       let s = String.lowercase_ascii s in
       if String.starts_with s "v_cf"
-      then Utils.oget ~exn:Heuristic_failed (Arch.get_fh_cf heur)
+      then Utils.oget ~exn:Heuristic_failed (SafetyArch.get_fh_cf heur)
       else if String.starts_with s "v_zf"
-      then Utils.oget ~exn:Heuristic_failed (Arch.get_fh_zf heur)
+      then Utils.oget ~exn:Heuristic_failed (SafetyArch.get_fh_zf heur)
       else raise Heuristic_failed
 
   (* Heuristic for the (candidate) decreasing quantity to prove while

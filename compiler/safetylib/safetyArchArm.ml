@@ -1,5 +1,4 @@
 open Jasmin
-open SafetyExpr
 open SafetyArch
 open Arm_arch_full
 
@@ -21,18 +20,5 @@ module ARMSafetyArch : SafetyArch with type extended_op = (Arm_decl.register, Ar
 
   let post_opn _opn _lvs _es = []
 
-  type flags_heur = {
-    fh_zf : Mtexpr.t option;
-    fh_cf : Mtexpr.t option;
-  }
-
   let opn_heur _opn _v _es = None
-
-  let pp_flags_heur fmt fh =
-    Format.fprintf fmt "@[<hv 0>zf: %a;@ cf %a@]"
-      (SafetyUtils.pp_opt Mtexpr.print) (fh.fh_zf)
-      (SafetyUtils.pp_opt Mtexpr.print) (fh.fh_cf)
-
-  let get_fh_zf fh = fh.fh_zf
-  let get_fh_cf fh = fh.fh_cf
 end

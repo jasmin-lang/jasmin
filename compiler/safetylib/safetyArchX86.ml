@@ -319,11 +319,6 @@ module X86SafetyArch : SafetyArch with type extended_op = X86_extra.x86_extended
         | _ -> [])
     | _ -> []
 
-  type flags_heur = {
-    fh_zf : Mtexpr.t option;
-    fh_cf : Mtexpr.t option;
-  }
-
   let opn_heur (opn : extended_op) v es =
     let pd = pointer_data in
     let asmOp' = asmOp in
@@ -359,11 +354,4 @@ module X86SafetyArch : SafetyArch with type extended_op = X86_extra.x86_extended
             (PrintCommon.pp_opn pd asmOp') (Sopn.Oasm opn));
       None
 
-  let pp_flags_heur fmt fh =
-    Format.fprintf fmt "@[<hv 0>zf: %a;@ cf %a@]"
-      (SafetyUtils.pp_opt Mtexpr.print) (fh.fh_zf)
-      (SafetyUtils.pp_opt Mtexpr.print) (fh.fh_cf)
-
-  let get_fh_zf fh = fh.fh_zf
-  let get_fh_cf fh = fh.fh_cf
 end
