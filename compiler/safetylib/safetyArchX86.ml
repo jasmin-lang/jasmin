@@ -9,12 +9,13 @@ open SafetyVar
 open SafetyConstr
 open SafetyArch
 open SafetyAbsExpr
+open X86_arch_full
 
 (** X86-64 architecture implementation *)
 module X86SafetyArch : SafetyArch with type extended_op = X86_extra.x86_extended_op = struct
   type extended_op = X86_extra.x86_extended_op
-
-  let pointer_data = Arch_decl.arch_pd X86_decl.x86_decl
+  let pointer_data = Arch_decl.arch_pd X86_core.asm_e._asm._arch_decl
+  let asmOp = Arch_extra.asm_opI X86_core.asm_e
 
   (* Flag computation helpers *)
   let cf_of_word sz el er =
@@ -135,7 +136,9 @@ module X86SafetyArch : SafetyArch with type extended_op = X86_extra.x86_extended
     | _ -> None
 
   (** Architecture-specific assembly operation splitting *)
-  let split_asm_opn pd asmOp n (opn : extended_op) es =
+  let split_asm_opn n (opn : extended_op) es =
+    let pd = pointer_data in
+    let asmOp' = asmOp in
     match opn with
     | Arch_extra.ExtOp X86_extra.Oset0 ws ->
       let zero = Some (pcast ws (Pconst (Z.of_int 0))) in
@@ -278,7 +281,7 @@ module X86SafetyArch : SafetyArch with type extended_op = X86_extra.x86_extended
     | _ ->
       debug (fun () ->
           Format.eprintf "Warning: unknown opn %a, default to ⊤.@."
-            (PrintCommon.pp_opn pd asmOp) (Sopn.Oasm opn));
+            (PrintCommon.pp_opn pd asmOp') (Sopn.Oasm opn));
       opn_dflt n
 
   let post_opn (opn : extended_op) (lvs : int glval list) (es : expr list) : btcons list =
@@ -321,7 +324,9 @@ module X86SafetyArch : SafetyArch with type extended_op = X86_extra.x86_extended
     fh_cf : Mtexpr.t option;
   }
 
-  let opn_heur pd asmOp (opn : extended_op) v es =
+  let opn_heur (opn : extended_op) v es =
+    let pd = pointer_data in
+    let asmOp' = asmOp in
     match opn with
     | Arch_extra.BaseOp (x, X86_instr_decl.DEC _) ->
       assert (x = None);
@@ -351,7 +356,7 @@ module X86SafetyArch : SafetyArch with type extended_op = X86_extra.x86_extended
     | _ ->
       debug (fun () ->
           Format.eprintf "No heuristic for the return flags of %a@."
-            (PrintCommon.pp_opn pd asmOp) (Sopn.Oasm opn));
+            (PrintCommon.pp_opn pd asmOp') (Sopn.Oasm opn));
       None
 
   let pp_flags_heur fmt fh =

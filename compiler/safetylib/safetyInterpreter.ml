@@ -1309,7 +1309,7 @@ end = struct
       end
 
     (* Assembly operations *)
-    | Sopn.Oasm asm_op -> Arch.split_asm_opn pd asmOp n asm_op es
+    | Sopn.Oasm asm_op -> Arch.split_asm_opn n asm_op es
 
   (* Post-conditions of operators *)
   let post_opn opn lvs es =
@@ -1318,9 +1318,9 @@ end = struct
     | _ -> []
 
   (* Heuristic for flags *)
-  let opn_heur pd asmOp opn v es =
+  let opn_heur opn v es =
     match opn with
-    | Sopn.Oasm asm_op -> Arch.opn_heur pd asmOp asm_op v es
+    | Sopn.Oasm asm_op -> Arch.opn_heur asm_op v es
     | Sopn.Opseudo_op (Osubcarry _) ->
       Some { fh_zf = None;
              fh_cf = Some (Mtexpr.binop Texpr1.Add
@@ -1392,7 +1392,7 @@ end = struct
                           | Lnone _ -> raise Heuristic_failed
                           | _ -> assert false in
 
-                        let heur = opn_heur pd asmOp opn reg_assgn es in
+                        let heur = opn_heur opn reg_assgn es in
                         Some (find_heur bv heur)
                       else None
                     | _ -> None) lvs

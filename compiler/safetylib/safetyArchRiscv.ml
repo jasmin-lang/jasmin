@@ -1,12 +1,13 @@
 open Jasmin
 open SafetyExpr
 open SafetyArch
+open Riscv_arch_full
 
 (** RISC-V architecture implementation *)
 module RISCVSafetyArch : SafetyArch with type extended_op = (Riscv_decl.register, Arch_utils.empty, Arch_utils.empty, Arch_utils.empty, Riscv_decl.condt, Riscv_instr_decl.riscv_op, Riscv_extra.riscv_extra_op) Arch_extra.extended_op = struct
-  type extended_op = (Riscv_decl.register, Arch_utils.empty, Arch_utils.empty, Arch_utils.empty, Riscv_decl.condt, Riscv_instr_decl.riscv_op, Riscv_extra.riscv_extra_op) Arch_extra.extended_op
-
-  let pointer_data = Arch_decl.arch_pd Riscv_decl.riscv_decl
+  type extended_op = Riscv_extra.riscv_extended_op
+  let pointer_data = Arch_decl.arch_pd Riscv_core.asm_e._asm._arch_decl
+  let asmOp = Arch_extra.asm_opI Riscv_core.asm_e
 
   (* For now, use generic implementation for RISC-V *)
   (* Architecture-specific operations can be added incrementally as needed *)
@@ -14,7 +15,7 @@ module RISCVSafetyArch : SafetyArch with type extended_op = (Riscv_decl.register
   let is_comparison _ _ = None
 
   (** Architecture-specific assembly operation splitting *)
-  let split_asm_opn _pd _asmOp n _opn _es =
+  let split_asm_opn n _opn _es =
     (* Default: all outputs are unknown (Top) *)
     List.init n (fun _ -> None)
 
@@ -25,7 +26,7 @@ module RISCVSafetyArch : SafetyArch with type extended_op = (Riscv_decl.register
     fh_cf : Mtexpr.t option;
   }
 
-  let opn_heur _pd _asmOp _opn _v _es = None
+  let opn_heur _opn _v _es = None
 
   let pp_flags_heur fmt fh =
     Format.fprintf fmt "@[<hv 0>zf: %a;@ cf %a@]"

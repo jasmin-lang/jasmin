@@ -14,8 +14,6 @@ module type SafetyArch = sig
 
   (** Architecture-specific assembly operation splitting *)
   val split_asm_opn :
-    Wsize.wsize ->
-    extended_op Sopn.asmOp ->
     int ->
     extended_op ->
     expr list ->
@@ -33,8 +31,6 @@ module type SafetyArch = sig
   }
 
   val opn_heur :
-    Wsize.wsize ->
-    extended_op Sopn.asmOp ->
     extended_op ->
     mvar ->
     expr list ->
