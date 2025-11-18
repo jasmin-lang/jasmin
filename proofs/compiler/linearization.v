@@ -51,7 +51,7 @@ Definition assign_remains (ii : instr_info) (lv: lval) (e: pexpr) :=
     (pp_nobox [:: pp_s "The following assignment remains:"; PPEbreak;
       pp_lv lv; pp_s " = "; pp_e e; PPEbreak;
       pp_s "Is there an instruction in the target architecture that can implement it?"; PPEbreak;
-      pp_s "More information may be found online: https://jasmin-lang.readthedocs.io/en/latest/misc/faq.html#linearization"
+      pp_s "More information may be found online: https://jasmin-lang.readthedocs.io/en/stable/misc/faq.html#linearization"
   ]).
 
 End E.
