@@ -452,7 +452,7 @@ let pp_info fmt =
   F.fprintf fmt "@[<v>@[%% The produced LATEX snippet is meant to be included in a@]@ ";
   F.fprintf fmt "@[%% jasmincode environment provided by the jasmin package@]@ ";
   F.fprintf fmt "@[%% defined in file: @]@ ";
-  F.fprintf fmt "@[%% https://jasmin-lang.readthedocs.io/en/stable/tools/jasmin.sty@]@ ";
+  F.fprintf fmt "@[%% https://github.com/jasmin-lang/jasmin/wiki/resources/jasmin.sty@]@ ";
   F.fprintf fmt "@[%%@]@]";
   F.pp_print_newline fmt ()
 
