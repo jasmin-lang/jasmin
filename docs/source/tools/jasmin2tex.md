@@ -5,4 +5,4 @@ The `jasmin2tex` tool (distributed with the Jasmin compiler; named `jazz2tex` be
 
     jasmin2tex -o output.tex input.jazz
 
-The produced LATEX snippet is meant to be included in a `jasmincode` environment provided by the `jasmin` package defined in the following file: [](jasmin.sty).
+The produced LATEX snippet is meant to be included in a `jasmincode` environment provided by the `jasmin` package defined in the following file: [jasmin.sty](/_static/jasmin.sty).
