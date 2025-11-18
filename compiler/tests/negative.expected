@@ -466,7 +466,7 @@ compilation error in function main:
 linearization: The following assignment remains:
 [#aligned :u128 (RSP +64u ((64u) 0))] = ((128u) 3000000)
 Is there an instruction in the target architecture that can implement it?
-More information may be found online: https://jasmin-lang.readthedocs.io/en/latest/misc/faq.html#linearization
+More information may be found online: https://jasmin-lang.readthedocs.io/en/stable/misc/faq.html#linearization
 
 fail/asmgen/x86-64/invalid_scale.jazz:
 
@@ -924,7 +924,7 @@ compilation error in function copy_cast_lowering:
 linearization: The following assignment remains:
 x11 = x10
 Is there an instruction in the target architecture that can implement it?
-More information may be found online: https://jasmin-lang.readthedocs.io/en/latest/misc/faq.html#linearization
+More information may be found online: https://jasmin-lang.readthedocs.io/en/stable/misc/faq.html#linearization
 
 fail/slh/x86-64/assign_kills_msf.jazz:
 
@@ -1486,7 +1486,7 @@ compilation error in function main:
 linearization: The following assignment remains:
 RAX = (RAX <<64u RAX)
 Is there an instruction in the target architecture that can implement it?
-More information may be found online: https://jasmin-lang.readthedocs.io/en/latest/misc/faq.html#linearization
+More information may be found online: https://jasmin-lang.readthedocs.io/en/stable/misc/faq.html#linearization
 
 fail/x86-64/string.jazz:
 
