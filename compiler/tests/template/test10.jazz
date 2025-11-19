@@ -1,0 +1,7 @@
+// fails at conversion OCaml -> Rocq due to 0 not a positive
+
+export fn main<|p|> (reg ptr u64[p+0] r) -> reg u64 {
+  reg u64 res = f<|p|>(r);
+  return res;
+}
+
