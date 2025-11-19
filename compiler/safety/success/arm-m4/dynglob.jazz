@@ -1,0 +1,9 @@
+export fn main(reg ptr u32[8] s) -> reg u32 {
+  global u32 index;
+  index = 5;
+  reg u32 i;
+  i = index;
+  reg u32 r;
+  r = s[i];
+  return r;
+}
