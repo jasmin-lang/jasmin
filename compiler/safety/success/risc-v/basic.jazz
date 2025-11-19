@@ -1,0 +1,6 @@
+export
+fn main(reg u64 x) -> reg u64 {
+  reg u64 y;
+  y = x + x;
+  return y;
+}
