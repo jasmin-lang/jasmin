@@ -7,7 +7,7 @@
   arguments, annotations and parameters
   ([PR #1123](https://github.com/jasmin-lang/jasmin/pull/1123)).
 
-- The linter is now controled through the command-line argument `-linting-level n`;
+- The linter is now controlled through the command-line argument `-linting-level n`;
   level 0 disables linting; default level is 1 (issues reported at that level must
   be fixed); command-line argument `-wall` enables linting level 2 (also reports
   less severe issues)
@@ -29,11 +29,11 @@
 
 ## Bug fixes
 
-- The linter (dead assignments) raises less false alarms
+- The linter (dead assignments) raises fewer false alarms
   ([PR 1273](https://github.com/jasmin-lang/jasmin/pull/1273)).
 
 - Arithmetic shifts (`<<`, `>>`) and negation are now allowed in array sizes
-  ([PR #1298](https://github.com/jasmin-lang/jasmin/pull/1298),
+  ([PR #1298](https://github.com/jasmin-lang/jasmin/pull/1298);
   fixes [#1296](https://github.com/jasmin-lang/jasmin/issues/1296)).
 
 - No longer crashes when spilling several variables with the same name in a
