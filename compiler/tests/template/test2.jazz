@@ -1,0 +1,15 @@
+// we test template function instantiated on a constant
+// other tests to try: make ref arg + inlining
+
+fn f<|n|>(reg ptr u64[n] r) -> reg u64 {
+  reg u64 res = r[0];
+  return res;
+}
+
+export fn main () -> reg u64 {
+  stack u64[4] s;
+  s[0] = 0;
+  reg ptr u64[4] r = s;
+  reg u64 res = f<|4|>(r);
+  return res;
+}
