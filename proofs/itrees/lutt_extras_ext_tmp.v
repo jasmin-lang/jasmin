@@ -1979,6 +1979,472 @@ Proof.
     destruct r1 eqn:was_r1; eauto; try (intuition auto).
     destruct r2 eqn:was_r2; eauto; try (intuition auto).
 Admitted. 
+  
+
+(* ok with void *)
+Lemma aux_eqit_lemma
+  (V1 : Type)
+  (t1 t2 : itree (ErrEvent +' void1) V1)
+  (RR : V1 -> V1 -> Prop)
+  (H0 : eutt RR t1 t2)
+  (H1 : eqit (fun x : V1 => [eta eq (ESok x)]) true true t1
+          (translate inr1 (interp_exec
+                             (ext_exec_handler (@handle_Err void1)) t1))) :
+  eqit (this_rel1 RR)
+     true true (interp_exec ext_handle_Err t1)
+    (interp_exec ext_handle_Err t2).
+Proof.
+  revert H0 H1.
+  revert t1 t2.
+  ginit.
+  gcofix CIH.
+  intros t1 t2 H0 H1.
+  setoid_rewrite (itree_eta t2).
+  setoid_rewrite (itree_eta t2) in H0.
+  setoid_rewrite (itree_eta t1).
+  setoid_rewrite (itree_eta t1) in H0.
+  setoid_rewrite (itree_eta t1) in H1.  
+  remember (observe t1) as ot1.
+  remember (observe t2) as ot2.
+  punfold H0. red in H0.
+  simpl in *.
+  hinduction H0 before CIH.
+
+  { intros t1 t2 H H0 H1; simpl.
+    setoid_rewrite interp_exec_Ret.
+    gstep; red.
+    econstructor; eauto.
+  }
+  { intros t1 t2 H H0 H1; simpl.
+    setoid_rewrite interp_exec_tau.  
+    gstep; red; pclearbot.
+    econstructor.
+    gfinal; left.
+    eapply CIH; eauto.
+    setoid_rewrite interp_exec_tau in H1.
+    setoid_rewrite translate_tau in H1.
+    setoid_rewrite tau_eutt in H1; auto.
+  }
+  { intros t1 t2 H H0 H1; simpl.
+    setoid_rewrite interp_exec_vis.
+    setoid_rewrite interp_exec_vis in H1.
+    setoid_rewrite translate_bind in H1.    
+    guclo eqit_clo_bind.
+    econstructor 1 with (RU := eq).
+    reflexivity.
+
+    rename u into U.
+    intros u1 u2 H2.
+    inv H2.
+    gfinal; right.
+    destruct u2 as [u1 | d1] eqn: was_u2.
+    
+    { pstep; red.
+      econstructor. right.
+      eapply CIH.
+      specialize (REL u1); pclearbot; auto.
+      unfold ext_exec_handler.
+
+      destruct e as [e1 | e1].
+      { eapply eqit_flip in H1.
+        eapply eqit_inv_bind_vis in H1.
+        unfold handle_Err in H1; simpl in H1.
+        destruct e1; simpl in *.
+        destruct u1.
+      }  
+      { destruct e1. }
+    }
+
+    pstep; red. econstructor.
+
+    destruct e as [e1 | e2] eqn:was_e;  simpl in *.
+
+    (* error case *)
+    { eapply eqit_flip in H1.
+      eapply eqit_inv_bind_vis in H1.
+      unfold handle_Err in H1; simpl in H1.
+      destruct e1; simpl in *.
+      destruct u2.
+      destruct e1.
+      dependent destruction was_u2.
+      destruct H1 as [H1 | H1].
+      { destruct H1 as [kxa [H1 H2]].
+        punfold H1; red in H1.
+        inversion H1.
+      }
+      { destruct H1 as [kxa [H1 H2]].
+        punfold H1; red in H1.
+        dependent destruction H1.
+        punfold H2; red in H2.
+        inversion H2.
+      }
+    }
+
+    { inversion e2. }
+  }
+    
+  { intros t0 t2 H H1 H2; simpl.
+    cut (gpaco2 (eqit_ (this_rel1 RR) true true Datatypes.id)
+    (eqitC (this_rel1 RR) true true) bot2 r
+    (interp_exec ext_handle_Err t1)
+    (interp_exec ext_handle_Err {| _observe := ot2 |})). 
+    { intro K2.
+      guclo eqit_clo_trans.
+      econstructor.
+      { instantiate (2:= eq).
+        instantiate (1:= (interp_exec ext_handle_Err t1)).
+        setoid_rewrite interp_exec_tau.
+        setoid_rewrite tau_euttge.
+        reflexivity.
+      }
+      { reflexivity. }
+      { auto. }
+      { unfold this_rel1; simpl; intros.
+        inv H3; auto.
+      }
+      { unfold this_rel1; simpl; intros.
+        inv H3; auto.
+      }  
+    }  
+      
+    setoid_rewrite (itree_eta t1).
+    eapply IHeqitF; eauto.
+
+    setoid_rewrite (itree_eta t1) in H2.
+    setoid_rewrite interp_exec_tau in H2.
+    setoid_rewrite translate_tau in H2.
+    setoid_rewrite tau_eutt in H2.
+    auto.
+  }
+
+  { intros t1 t0 H H1 H2; simpl.
+    cut (gpaco2 (eqit_ (this_rel1 RR) true true Datatypes.id)
+    (eqitC (this_rel1 RR) true true) bot2 r
+    (interp_exec ext_handle_Err {| _observe := ot1 |})
+    (interp_exec ext_handle_Err t2)).
+    { intro K2.
+      guclo eqit_clo_trans.
+      econstructor.
+      { reflexivity. }
+      { instantiate (2:= eq).
+        instantiate (1:= (interp_exec ext_handle_Err t2)).
+        setoid_rewrite interp_exec_tau.
+        setoid_rewrite tau_euttge.
+        reflexivity.
+      }
+      { auto. }
+      { unfold this_rel1; simpl; intros.
+        inv H3; auto.
+      }
+      { unfold this_rel1; simpl; intros.
+        inv H3; auto.
+      }  
+    }  
+      
+    setoid_rewrite (itree_eta t2).
+    eapply IHeqitF; eauto.
+  } 
+Qed. 
+
+(* even simpler than with eqit *)
+Lemma aux_rutt_inr_lemma (VV : E = void1)
+  (V1 : Type)
+  (t1 t2 : itree (ErrEvent +' E) V1)
+  (RR : V1 -> V1 -> Prop)
+  (H0 : eutt RR t1 t2)
+  (H1 : rutt_inr (fun x : V1 => [eta eq (ESok x)])
+                  t1 (interp_exec ext_handle_Err t1)) :
+  eqit (this_rel1 RR) true true (interp_exec ext_handle_Err t1)
+    (interp_exec ext_handle_Err t2).
+(* (H1 : rutt 
+      (fun (U1 U2 : Type) (e1 : (ErrEvent +' E) U1) (e2 : E U2) =>
+       exists h : U2 = U1, e1 = eq_rect U2 (ErrEvent +' E) (inr1 e2) U1 h)
+      (fun U1 U2 : Type =>
+       fun=> (fun u1 : U1 => fun=> [eta JMeq u1 (B:=U2)]))
+      (fun x : V1 => [eta eq (ESok x)]) t1 (interp_exec ext_handle_Err t1)) : *)
+Proof.
+  unfold rutt_inr, rutt_img in H1; simpl in H1.  
+  revert H0 H1.
+  revert t1 t2.
+  ginit.
+  gcofix CIH.
+  intros t1 t2 H0 H1.
+  setoid_rewrite (itree_eta t2).
+  setoid_rewrite (itree_eta t2) in H0.
+  setoid_rewrite (itree_eta t1).
+  setoid_rewrite (itree_eta t1) in H0.
+  setoid_rewrite (itree_eta_ t1) in H1.  
+  remember (observe t1) as ot1.
+  remember (observe t2) as ot2.
+  punfold H0. red in H0.
+  simpl in *.
+  hinduction H0 before CIH.
+
+  { intros t1 t2 H H0 H1; simpl.
+    setoid_rewrite interp_exec_Ret.
+    gstep; red.
+    econstructor; eauto.
+  }
+  { intros t1 t2 H H0 H1; simpl.
+    setoid_rewrite interp_exec_tau.  
+    gstep; red; pclearbot.
+    econstructor.
+    gfinal; left.
+    eapply CIH; eauto.
+    unfold rutt_inr, rutt_img in *.
+    setoid_rewrite interp_exec_tau in H1.
+    setoid_rewrite tau_eutt in H1; auto.
+  }
+  { intros t1 t2 H H0 H1; simpl.
+
+    setoid_rewrite interp_exec_vis.
+    setoid_rewrite interp_exec_vis in H1.
+
+    destruct e as [e1 | e1] eqn: was_e ; simpl in *; simpl.    
+
+    { destruct e1; simpl in *.
+      setoid_rewrite bind_ret_l in H1.
+      punfold H1; red in H1.
+      dependent destruction H1.
+    }  
+
+    dependent destruction VV.
+    destruct e1.
+  }
+
+  { intros t0 t2 H H1 H2; simpl.
+    cut (gpaco2 (eqit_ (this_rel1 RR) true true Datatypes.id)
+    (eqitC (this_rel1 RR) true true) bot2 r
+    (interp_exec ext_handle_Err t1)
+    (interp_exec ext_handle_Err {| _observe := ot2 |})). 
+    { intro K2.
+      guclo eqit_clo_trans.
+      econstructor.
+      { instantiate (2:= eq).
+        instantiate (1:= (interp_exec ext_handle_Err t1)).
+        setoid_rewrite interp_exec_tau.
+        setoid_rewrite tau_euttge.
+        reflexivity.
+      }
+      { reflexivity. }
+      { auto. }
+      { unfold this_rel1; simpl; intros.
+        inv H3; auto.
+      }
+      { unfold this_rel1; simpl; intros.
+        inv H3; auto.
+      }  
+    }  
+
+    setoid_rewrite (itree_eta t1).
+    eapply IHeqitF.
+    reflexivity.
+    eexact H1.
+
+    eapply rutt_inv_Tau_l.
+    eapply rutt_inv_Tau_r.
+    setoid_rewrite (itree_eta t1) in H2.
+    setoid_rewrite interp_exec_tau in H2.
+    auto.
+  }
+
+  { intros t1 t0 H H1 H2; simpl.
+    cut (gpaco2 (eqit_ (this_rel1 RR) true true Datatypes.id)
+    (eqitC (this_rel1 RR) true true) bot2 r
+    (interp_exec ext_handle_Err {| _observe := ot1 |})
+    (interp_exec ext_handle_Err t2)).
+    { intro K2. 
+      guclo eqit_clo_trans.
+      econstructor.
+      { reflexivity. }
+      { instantiate (2:= eq).
+        instantiate (1:= (interp_exec ext_handle_Err t2)).
+        setoid_rewrite interp_exec_tau.
+        setoid_rewrite tau_euttge.
+        reflexivity.
+      }
+      { auto. }
+      { unfold this_rel1; simpl; intros.
+        inv H3; auto.
+      }
+      { unfold this_rel1; simpl; intros.
+        inv H3; auto.
+      }  
+    }  
+    
+    setoid_rewrite (itree_eta t2).
+    eapply IHeqitF.
+    eexact H.
+    reflexivity.
+    auto.
+  }
+Qed.  
+
+
+(* identical to the previous one: the precondition can be abstracted *)
+Lemma aux_deep_rutt_lemma (VV : E = void1)
+  (V1 : Type)
+  (t1 t2 : itree (ErrEvent +' E) V1)
+  (RR : V1 -> V1 -> Prop)
+  (H0 : eutt RR t1 t2)
+  (H1 : rutt
+      (fun (U1 U2 : Type) (e1 : (ErrEvent +' E) U1) (e2 : E U2) =>
+              match e1 with
+              | inl1 _ => False 
+              | inr1 _ => exists h : U2 = U1,
+                    e1 = eq_rect U2 (ErrEvent +' E) (inr1 e2) U1 h end) 
+      (fun U1 U2 : Type =>
+              fun=> (fun u1 : U1 => fun=> [eta JMeq u1 (B:=U2)]))
+      (fun x : V1 => [eta eq (ESok x)]) t1 (interp_exec ext_handle_Err t1)) :
+  eqit (this_rel1 RR) true true (interp_exec ext_handle_Err t1)
+                                (interp_exec ext_handle_Err t2).
+Proof.
+  revert H0 H1.
+  revert t1 t2.
+  ginit.
+  gcofix CIH.
+  intros t1 t2 H0 H1.
+  setoid_rewrite (itree_eta t2).
+  setoid_rewrite (itree_eta t2) in H0.
+  setoid_rewrite (itree_eta t1).
+  setoid_rewrite (itree_eta t1) in H0.
+  setoid_rewrite (itree_eta_ t1) in H1.  
+  remember (observe t1) as ot1.
+  remember (observe t2) as ot2.
+  punfold H0. red in H0.
+  simpl in *.
+  hinduction H0 before CIH.
+
+  { intros t1 t2 H H0 H1; simpl.
+    setoid_rewrite interp_exec_Ret.
+    gstep; red.
+    econstructor; eauto.
+  }
+  { intros t1 t2 H H0 H1; simpl.
+    setoid_rewrite interp_exec_tau.  
+    gstep; red; pclearbot.
+    econstructor.
+    gfinal; left.
+    eapply CIH; eauto.
+    unfold rutt_inr, rutt_img in *.
+    setoid_rewrite interp_exec_tau in H1.
+    setoid_rewrite tau_eutt in H1; auto.
+  }
+  { intros t1 t2 H H0 H1; simpl.
+
+(*    generalize H1; intro Hcopy.  *)
+    
+    setoid_rewrite interp_exec_vis.
+    setoid_rewrite interp_exec_vis in H1.
+
+    destruct e as [e1 | e1] eqn: was_e ; simpl in *; simpl.    
+
+    { destruct e1; simpl in *.
+      setoid_rewrite bind_ret_l in H1.
+      punfold H1; red in H1.
+      dependent destruction H1.
+    }  
+
+    dependent destruction VV.
+    destruct e1.
+  }
+
+  { intros t0 t2 H H1 H2; simpl.
+    cut (gpaco2 (eqit_ (this_rel1 RR) true true Datatypes.id)
+    (eqitC (this_rel1 RR) true true) bot2 r
+    (interp_exec ext_handle_Err t1)
+    (interp_exec ext_handle_Err {| _observe := ot2 |})). 
+    { intro K2.
+      guclo eqit_clo_trans.
+      econstructor.
+      { instantiate (2:= eq).
+        instantiate (1:= (interp_exec ext_handle_Err t1)).
+        setoid_rewrite interp_exec_tau.
+        setoid_rewrite tau_euttge.
+        reflexivity.
+      }
+      { reflexivity. }
+      { auto. }
+      { unfold this_rel1; simpl; intros.
+        inv H3; auto.
+      }
+      { unfold this_rel1; simpl; intros.
+        inv H3; auto.
+      }  
+    }  
+
+    setoid_rewrite (itree_eta t1).
+    eapply IHeqitF.
+    reflexivity.
+    eexact H1.
+
+    eapply rutt_inv_Tau_l.
+    eapply rutt_inv_Tau_r.
+    setoid_rewrite (itree_eta t1) in H2.
+    setoid_rewrite interp_exec_tau in H2.
+    auto.
+  }
+
+  { intros t1 t0 H H1 H2; simpl.
+    cut (gpaco2 (eqit_ (this_rel1 RR) true true Datatypes.id)
+    (eqitC (this_rel1 RR) true true) bot2 r
+    (interp_exec ext_handle_Err {| _observe := ot1 |})
+    (interp_exec ext_handle_Err t2)).
+    { intro K2. 
+      guclo eqit_clo_trans.
+      econstructor.
+      { reflexivity. }
+      { instantiate (2:= eq).
+        instantiate (1:= (interp_exec ext_handle_Err t2)).
+        setoid_rewrite interp_exec_tau.
+        setoid_rewrite tau_euttge.
+        reflexivity.
+      }
+      { auto. }
+      { unfold this_rel1; simpl; intros.
+        inv H3; auto.
+      }
+      { unfold this_rel1; simpl; intros.
+        inv H3; auto.
+      }  
+    }  
+    
+    setoid_rewrite (itree_eta t2).
+    eapply IHeqitF.
+    eexact H.
+    reflexivity.
+    auto.
+  }
+Qed.  
+
+
+(* kind of good, but admit will go through with void *)
+Lemma test2_rev (VV : E = void1) V1 d1 d2 
+  (t1: itree (ErrEvent +' E) V1) (t2: itree (ErrEvent +' E) V1) RR :
+  @safe _ is_inlB V1 t1 ->
+  simple_rutt RR t1 t2 ->
+  simple_rutt RR (foo d1 t1) (foo d2 t2).
+Proof.
+  unfold safe, lutt.
+  intros H H0.
+  eapply simple_rutt_eutt_equiv; eauto.
+  eapply rutt2eutt in H0.
+  eapply luttNL2rutt_inr_exec_with_id in H.
+  eapply eqit_bind'.
+  
+  - instantiate (1 := this_rel1 RR); simpl.
+    eapply aux_rutt_inr_lemma; auto.
+    exact H.
+  - intros r1 r2 H1.
+    setoid_rewrite <- eqit_Ret.
+    unfold this_rel1 in H1.
+    destruct r1 eqn:was_r1; eauto; try (intuition auto).
+    destruct r2 eqn:was_r2; eauto; try (intuition auto).
+Qed.
+
+
+(************************************************************************)
+
 
 (* ok with void *)
 Lemma xxx 
@@ -2155,209 +2621,7 @@ Check @interp_exec_translate.
 
     inversion e2.
 Admitted. 
-  
 
-(* BEST SO FAR. as before: ok with void *)
-Lemma xxx01 
-  (V1 : Type)
-  (t1 t2 : itree (ErrEvent +' void1) V1)
-  (RR : V1 -> V1 -> Prop)
-  (H0 : eutt RR t1 t2)
-  (H1 : eqit (fun x : V1 => [eta eq (ESok x)]) true true t1
-      (translate inr1 (interp_exec (ext_exec_handler (@handle_Err void1)) t1))) :
-  eqit (this_rel1 RR)
-     true true (interp_exec ext_handle_Err t1)
-    (interp_exec ext_handle_Err t2).
-Proof.
-  revert H0 H1.
-  revert t1 t2.
-  ginit.
-  gcofix CIH.
-  intros t1 t2 H0 H1.
-  setoid_rewrite (itree_eta t2).
-  setoid_rewrite (itree_eta t2) in H0.
-  setoid_rewrite (itree_eta t1).
-  setoid_rewrite (itree_eta t1) in H0.
-  setoid_rewrite (itree_eta t1) in H1.  
-  remember (observe t1) as ot1.
-  remember (observe t2) as ot2.
-  punfold H0. red in H0.
-  simpl in *.
-  hinduction H0 before CIH.
-
-  { intros t1 t2 H H0 H1; simpl.
-    setoid_rewrite interp_exec_Ret.
-    gstep; red.
-    econstructor; eauto.
-  }
-  { intros t1 t2 H H0 H1; simpl.
-    setoid_rewrite interp_exec_tau.  
-    gstep; red; pclearbot.
-    econstructor.
-    gfinal; left.
-    eapply CIH; eauto.
-    setoid_rewrite interp_exec_tau in H1.
-    setoid_rewrite translate_tau in H1.
-    setoid_rewrite tau_eutt in H1; auto.
-  }
-  { intros t1 t2 H H0 H1; simpl.
-    setoid_rewrite interp_exec_vis.
-    setoid_rewrite interp_exec_vis in H1.
-    setoid_rewrite translate_bind in H1.    
-    guclo eqit_clo_bind.
-    econstructor 1 with (RU := eq).
-    reflexivity.
-
-    rename u into U.
-    intros u1 u2 H2.
-    inv H2.
-    gfinal; right.
-    destruct u2 as [u1 | d1] eqn: was_u2.
-    
-    { pstep; red.
-      econstructor. right.
-      eapply CIH.
-      specialize (REL u1); pclearbot; auto.
-      unfold ext_exec_handler.
-
-Check @interp_exec_translate.
-      admit.
-    }
-
-    pstep; red. econstructor.
-
-    destruct e as [e1 | e2] eqn:was_e;  simpl in *.
-
-    (* error case: should go through *)
-    eapply eqit_flip in H1.
-    eapply eqit_inv_bind_vis in H1.
-    unfold handle_Err in H1; simpl in H1.
-    destruct e1; simpl in *.
-    admit.
-
-    inversion e2.
-Admitted. 
-
-
-Lemma xxx1 
-  (V1 : Type)
-  (t1 t2 : itree (ErrEvent +' E) V1)
-  (RR : V1 -> V1 -> Prop)
-  (H0 : eutt RR t1 t2)
-  (H1 : rutt
-      (fun (U1 U2 : Type) (e1 : (ErrEvent +' E) U1) (e2 : E U2) =>
-       exists h : U2 = U1, e1 = eq_rect U2 (ErrEvent +' E) (inr1 e2) U1 h)
-      (fun U1 U2 : Type =>
-       fun=> (fun u1 : U1 => fun=> [eta JMeq u1 (B:=U2)]))
-      (fun x : V1 => [eta eq (ESok x)]) t1 (interp_exec ext_handle_Err t1)) :
-  eqit (this_rel1 RR) true true (interp_exec ext_handle_Err t1)
-    (interp_exec ext_handle_Err t2).
-Proof.
-  unfold rutt_inr, rutt_img in H1.
-Abort.
-
-(*  BEST SO FAR, but different from simple_rutt *)
-Lemma xxx1 (VV : E = void1)
-  (V1 : Type)
-  (t1 t2 : itree (ErrEvent +' E) V1)
-  (RR : V1 -> V1 -> Prop)
-  (H0 : eutt RR t1 t2)
-  (H1 : rutt
-      (fun (U1 U2 : Type) (e1 : (ErrEvent +' E) U1) (e2 : E U2) =>
-              match e1 with
-              | inl1 _ => False 
-              | inr1 _ => exists h : U2 = U1,
-                    e1 = eq_rect U2 (ErrEvent +' E) (inr1 e2) U1 h end) 
-      (fun U1 U2 : Type =>
-              fun=> (fun u1 : U1 => fun=> [eta JMeq u1 (B:=U2)]))
-      (fun x : V1 => [eta eq (ESok x)]) t1 (interp_exec ext_handle_Err t1)) :
-  eqit (this_rel1 RR) true true (interp_exec ext_handle_Err t1)
-                                (interp_exec ext_handle_Err t2).
-Proof.
-  revert H0 H1.
-  revert t1 t2.
-  ginit.
-  gcofix CIH.
-  intros t1 t2 H0 H1.
-  setoid_rewrite (itree_eta t2).
-  setoid_rewrite (itree_eta t2) in H0.
-  setoid_rewrite (itree_eta t1).
-  setoid_rewrite (itree_eta t1) in H0.
-  setoid_rewrite (itree_eta_ t1) in H1.  
-  remember (observe t1) as ot1.
-  remember (observe t2) as ot2.
-  punfold H0. red in H0.
-  simpl in *.
-  hinduction H0 before CIH.
-
-  { intros t1 t2 H H0 H1; simpl.
-    setoid_rewrite interp_exec_Ret.
-    gstep; red.
-    econstructor; eauto.
-  }
-  { intros t1 t2 H H0 H1; simpl.
-    setoid_rewrite interp_exec_tau.  
-    gstep; red; pclearbot.
-    econstructor.
-    gfinal; left.
-    eapply CIH; eauto.
-    unfold rutt_inr, rutt_img in *.
-    setoid_rewrite interp_exec_tau in H1.
-    setoid_rewrite tau_eutt in H1; auto.
-  }
-  { intros t1 t2 H H0 H1; simpl.
-
-(*    generalize H1; intro Hcopy.  *)
-    
-    setoid_rewrite interp_exec_vis.
-    setoid_rewrite interp_exec_vis in H1.
-
-    destruct e as [e1 | e1] eqn: was_e ; simpl in *; simpl.    
-
-    { destruct e1; simpl in *.
-      setoid_rewrite bind_ret_l in H1.
-      punfold H1; red in H1.
-      dependent destruction H1.
-    }  
-
-    dependent destruction VV.
-    destruct e1.
-  }
-
-  { intros t0 t2 H H1 H2; simpl.
-    cut (gpaco2 (eqit_ (this_rel1 RR) true true Datatypes.id)
-    (eqitC (this_rel1 RR) true true) bot2 r
-    (interp_exec ext_handle_Err t1)
-    (interp_exec ext_handle_Err {| _observe := ot2 |})). 
-    { intro K2. admit. }
-
-    setoid_rewrite (itree_eta t1).
-    eapply IHeqitF.
-    reflexivity.
-    eexact H1.
-
-    eapply rutt_inv_Tau_l.
-    eapply rutt_inv_Tau_r.
-    setoid_rewrite (itree_eta t1) in H2.
-    setoid_rewrite interp_exec_tau in H2.
-    auto.
-  }
-
-  { intros t1 t0 H H1 H2; simpl.
-    cut (gpaco2 (eqit_ (this_rel1 RR) true true Datatypes.id)
-    (eqitC (this_rel1 RR) true true) bot2 r
-    (interp_exec ext_handle_Err {| _observe := ot1 |})
-    (interp_exec ext_handle_Err t2)).
-    { intro K2. admit. }
-    
-    setoid_rewrite (itree_eta t2).
-    eapply IHeqitF.
-    eexact H.
-    reflexivity.
-    auto.
-  }
-Admitted. 
-     
 
 Lemma xxx111 
   (V1 : Type)
@@ -2383,6 +2647,7 @@ Proof.
   Abort.
 
 Print postrel.
+
 
 (* experiment *)
 Lemma xxx133 (Spec : postrel (ErrEvent +' E) E)
