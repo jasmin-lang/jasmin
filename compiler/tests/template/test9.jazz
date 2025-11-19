@@ -1,0 +1,6 @@
+// fails with bad error
+
+export fn main<|p,q|> (reg u64[p+q] r) -> reg u64 {
+  reg u64 res = f<|p+q|>(r);
+  return res;
+}

@@ -1,0 +1,11 @@
+// this tests the power of the convertible function
+
+fn f<|n|>(reg ptr u64[n] r) -> reg u64 {
+  reg u64 res = r[0];
+  return res;
+}
+
+export fn main<|M,K,L|> (reg ptr u64[M+K*L] r) -> reg u64 {
+  reg u64 res = f<|L*K+M|>(r);
+  return res;
+}
