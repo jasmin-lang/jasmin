@@ -522,6 +522,8 @@ Definition assemble_sopn rip ii (op: sopn) (outx : lexprs) (inx : rexprs) :=
   | Oasm (ExtOp op) =>
     Let args := to_asm ii op outx inx in
     mapM (assemble_asm_args rip ii) args
+  | Opseudo_op _ =>
+      if outx is [::] then ok [::] else Error (E.unexpected_sopn ii "assemble_sopn.pseudo_op: " op)
   | _ => Error (E.unexpected_sopn ii "assemble_sopn:" op)
   end.
 

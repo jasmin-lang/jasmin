@@ -1128,7 +1128,9 @@ Lemma assemble_sopnP rip ii op lvs args ops m xs ys m' s:
   lom_eqv rip m s ->
   exists2 s', foldM (fun '(op'', asm_args) s => eval_op op'' asm_args s) s ops = ok s' & lom_eqv rip m' s'.
 Proof.
-  case: op => //=.
+  case: op => //= [ | ].
+  + case: lvs => //; case: ys => // op ok_xs hsem /ok_inj <- /ok_inj <- eq_m_s.
+    by exists s.
   case=> //=.
   + move=> a h1 h2 h3; t_xrbindP => -[op' args'] h4 <- h5.
     by have [s' hs' heq] := assemble_asm_opP h1 h2 h3 h4 h5; exists s' => //=; rewrite hs'.
@@ -1180,7 +1182,9 @@ Proof.
   rewrite /label_in_lcmd -cat1s pmap_cat -(cat1s ai) flatten_cat /label_in_asm pmap_cat => ->; f_equal.
   case: li ok_ai => ii [ l o es| | [] | | | | | | | ] /=; try (by t_xrbindP => *; subst).
   t_xrbindP => ops hops <-.
-  by case: o hops => //= -[a | e] //=; t_xrbindP => *; subst => //=; elim: (ops).
+  case: o hops => // [ | ].
+  + by case: l => // op /ok_inj <-.
+  by case => // op; t_xrbindP => *; subst => //=; elim: (ops).
 Qed.
 
 Lemma assemble_fd_labels (fn : funname) (fd : lfundef) (fd' : asm_fundef) :
