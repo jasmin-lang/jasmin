@@ -71,18 +71,22 @@ and iac_instr_r pd loc ir =
         Typing.check_length loc len;
         let op = Pseudo_operator.Ocopy (ws, Conv.pos_of_int len) in
         Copn(xs,t,Sopn.Opseudo_op op, es)
+    | Sopn.Opseudo_op(Ocopy _), _ -> assert false
     | Sopn.Opseudo_op(Pseudo_operator.Oswap _), x::_ ->
       (* Fix the type it is dummy for the moment *)
       let ty = Conv.cty_of_ty (Typing.ty_lval pd loc x) in
       Copn(xs, t, Sopn.Opseudo_op(Pseudo_operator.Oswap ty), es)
+    | Sopn.Opseudo_op(Pseudo_operator.Oswap _), [] -> assert false
     | Sopn.Oslh (SLHprotect_ptr _), [Lvar x] ->
       (* Fix the size it is dummy for the moment *)
       let xn = size_of (L.unloc x).v_ty in
       Typing.check_length loc xn;
       let op = Slh_ops.SLHprotect_ptr (Conv.pos_of_int xn) in
       Copn(xs,t, Sopn.Oslh op, es)
-    | (Sopn.Opseudo_op(Pseudo_operator.Ocopy _) | Sopn.Oslh (SLHprotect_ptr _)), _ -> assert false
-    | _ -> ir
+    | Sopn.Oslh (SLHprotect_ptr _), _ -> assert false
+    | Sopn.Opseudo_op (Onop | Omulu _ | Oaddcarry _ | Osubcarry _), _
+    | Sopn.Oslh (SLHinit|SLHupdate|SLHmove|SLHprotect _|SLHprotect_ptr_fail _), _
+    | Sopn.Oasm _, _ -> ir
     end
 
   | Csyscall(xs, o, es) ->
