@@ -1,0 +1,6 @@
+export fn f (reg ptr u32[2] t, reg u32 idx) -> reg ptr u32[2] {
+  idx = 2;
+  reg u32 k = 2;
+  t[(uint) idx] = k;
+  return t;
+}
