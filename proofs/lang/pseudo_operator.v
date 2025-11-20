@@ -27,6 +27,7 @@ Canonical spill_op_eqType := @ceqT_eqType _ eqTC_spill_op.
 Variant pseudo_operator :=
 | Ospill    of spill_op & seq atype
 | Ocopy     of wsize & positive
+| Odeclassify of atype
 | Onop
 | Omulu     of wsize   (* cpu   : [aword; aword]        -> [aword;aword] *)
 | Oaddcarry of wsize   (* cpu   : [aword; aword; abool] -> [abool;aword] *)
@@ -45,6 +46,7 @@ Definition string_of_pseudo_operator (o : pseudo_operator) : string :=
   | Ospill Spill _ => "spill"
   | Ospill Unspill _ => "unspill"
   | Ocopy ws _ => pp_sz "copy" ws tt
+  | Odeclassify _ => "declassify"
   | Onop => "nop"
   | Omulu ws => pp_sz "mulu" ws tt
   | Oaddcarry ws => pp_sz "adc" ws tt

@@ -10,7 +10,8 @@ fn protect_init_msf_later(#transient reg u64 p) -> #public reg u64 {
     i = 0;
 
     while{b = i < 10;}(b){
-        #declassify temp = [p + i];
+        temp = [p + i];
+        () = #declassify(temp);
         sum += temp;
         i += 1;
     }
