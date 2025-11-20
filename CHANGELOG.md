@@ -1,3 +1,95 @@
+# Jasmin 2025.06.2 — Nancy, 2025-11-20
+
+## New features
+
+- Add a new option `-print-export-info-json` to display interesting information
+  about exported functions, in json format including the target architecture,
+  arguments, annotations and parameters
+  ([PR #1123](https://github.com/jasmin-lang/jasmin/pull/1123)).
+
+- The linter is now controlled through the command-line argument `-linting-level n`;
+  level 0 disables linting; default level is 1 (issues reported at that level must
+  be fixed); command-line argument `-wall` enables linting level 2 (also reports
+  less severe issues)
+  ([PR 1275](https://github.com/jasmin-lang/jasmin/pull/1275)).
+
+- The compiler automatically introduces renaming assignments at function export
+  boundaries. This gives more flexibility to the register allocation and makes
+  more programs accepted by the compiler. However, this may introduce
+  unnecessary unwanted register-to-register “move” instructions. This can be
+  disabled using the `-noinsertrenaming` command-line flag.
+  ([PR #1300](https://github.com/jasmin-lang/jasmin/pull/1300)).
+
+- Assembly listings have more precise meta-data about function symbols
+  ([PR #1307](https://github.com/jasmin-lang/jasmin/pull/1307);
+  fixes [#1302](https://github.com/jasmin-lang/jasmin/issues/1302)).
+
+- Extraction as EasyCrypt code targets version 2025.11
+  ([PR #1319](https://github.com/jasmin-lang/jasmin/pull/1319)).
+
+## Bug fixes
+
+- The linter (dead assignments) raises fewer false alarms
+  ([PR 1273](https://github.com/jasmin-lang/jasmin/pull/1273)).
+
+- Arithmetic shifts (`<<`, `>>`) and negation are now allowed in array sizes
+  ([PR #1298](https://github.com/jasmin-lang/jasmin/pull/1298);
+  fixes [#1296](https://github.com/jasmin-lang/jasmin/issues/1296)).
+
+- No longer crashes when spilling several variables with the same name in a
+  single function
+  ([PR #1299](https://github.com/jasmin-lang/jasmin/pull/1299);
+  fixes [#1292](https://github.com/jasmin-lang/jasmin/issues/1292)).
+
+- Printing before parameter substitution now prints variable declarations close
+  to their first use, in the deepest possible scope (they used to be printed at
+  the top of the function body).
+  ([PR #1301](https://github.com/jasmin-lang/jasmin/pull/1301);
+  fixes [#1145](https://github.com/jasmin-lang/jasmin/issues/1145)).
+
+- Safety checker: correctly check that array offsets are nonnegative
+  ([PR 1313](https://github.com/jasmin-lang/jasmin/pull/1313);
+  fixes [#1310](https://github.com/jasmin-lang/jasmin/issues/1310)).
+
+## Other changes
+
+- Syntax for initializing variables at declaration time is less flexible: in
+  any given declaration sequence, either no variable is initialized, and
+  declarations may be separated by space or comma, or *all* variables are
+  initialized and are separated by a mandatory comma.
+  ([PR #1185](https://github.com/jasmin-lang/jasmin/pull/1185)).
+
+- The deprecated x86 intrinsic `#VPMOVMSKB` has been removed, in favor of
+  `#MOVEMASK`
+  ([PR #1272](https://github.com/jasmin-lang/jasmin/pull/1272)).
+
+- The `jasmin-ct` tool now accepts `ct` annotation to describe the constant-time
+  security type of functions. It also provides two new options `--print` and
+  `--print-all`, use `jasmin-ct --help` for more information. The use of
+  `#public`, `#secret` and `#poly` annotations in parameter and return type
+  declarations has been deprecated.
+  ([PR #1279](https://github.com/jasmin-lang/jasmin/pull/1279)).
+
+- Redundant zero-extensions of primitives (when the size of the extension
+  is the same as the size of the primitive output) are now accepted
+  instead of rejected.
+  The useless zero-extension is dropped, and a warning is emitted.
+  ([PR #1283](https://github.com/jasmin-lang/jasmin/pull/1283)).
+
+- The heuristic for allocating register has been changed slightly
+  ([PR 1295](https://github.com/jasmin-lang/jasmin/pull/1295)).
+
+- Global variables in assembly listings are displayed in a more compact way
+  ([PR 1297](https://github.com/jasmin-lang/jasmin/pull/1297)).
+
+- Pretty-printing of annotation strings no longer escapes non-ASCII characters
+  ([PR #1306](https://github.com/jasmin-lang/jasmin/pull/1306)).
+
+## Documentation
+
+- The documentation on `Constant-time programming` has been improved
+  ([PR #1279](https://github.com/jasmin-lang/jasmin/pull/1279)).
+
 # Jasmin 2025.06.1 — Nancy, 2025-08-29
 
 ## New features
