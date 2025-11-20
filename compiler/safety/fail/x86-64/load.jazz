@@ -1,10 +1,10 @@
 export
-fn load_last(reg u64 input, reg u64 len) -> reg u64[2]
+fn load_last(reg u64 input, reg u64 len) -> reg u64
 {
   reg   u64    j;
-  reg   u64[2] x;
   stack u64[2] s;
   reg   u8     c;
+  reg   u64    res;
 
   s[0] = 0;
   s[1] = 0;
@@ -12,14 +12,13 @@ fn load_last(reg u64 input, reg u64 len) -> reg u64[2]
   j = 0;
   while(j < len)
   { c = [:u8 input + j];
-    s[:u8 j] = c;
+    s[:u8 (int) j] = c;
     j += 1;
   }
 
-  s[:u8 j] = 0x1;
+  s[:u8 (int) j] = 0x1;
 
-  x[0] = s[0];
-  x[1] = s[1];
+  res = s[0];
 
-  return x;
+  return res;
 }

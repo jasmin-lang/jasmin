@@ -6,8 +6,3 @@ fn main(reg u64 x) -> reg u64 {
   }
   return r;
 }
-
-inline fn test() {
-#inline _ = main(0);
-}
-exec test()
