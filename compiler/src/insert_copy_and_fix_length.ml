@@ -84,7 +84,11 @@ and iac_instr_r pd loc ir =
       let op = Slh_ops.SLHprotect_ptr (ws, Conv.pos_of_int len) in
       Copn(xs,t, Sopn.Oslh op, es)
     | Sopn.Oslh (SLHprotect_ptr _), _ -> assert false
-    | Sopn.Opseudo_op (Onop | Omulu _ | Oaddcarry _ | Osubcarry _), _
+    | Sopn.Opseudo_op (Odeclassify _), _ ->
+      let arg = List.hd es in
+      let ty = Conv.cty_of_ty (Typing.ty_expr pd loc arg) in
+      Copn(xs, t, Sopn.Opseudo_op (Odeclassify ty), es)
+    | Sopn.Opseudo_op (Onop | Odeclassify_mem _ | Omulu _ | Oaddcarry _ | Osubcarry _), _
     | Sopn.Oslh (SLHinit|SLHupdate|SLHmove|SLHprotect _|SLHprotect_ptr_fail _), _
     | Sopn.Oasm _, _ -> ir
     end

@@ -3,23 +3,24 @@ open Cmdliner
 open CommonCLI
 open Utils
 
-let extract_to_file prog arch pd asmOp model amodel fnames array_dir outfile =
+let extract_to_file prog arch pd msfsz asmOp model amodel fnames array_dir
+    outfile =
   let array_dir =
     if array_dir = None then Option.map Filename.dirname outfile else array_dir
   in
   let fmt, close =
     match outfile with
-    | None -> Format.std_formatter, fun () -> ()
+    | None -> (Format.std_formatter, fun () -> ())
     | Some f ->
         let out = open_out f in
         let fmt = Format.formatter_of_out_channel out in
-        fmt, fun () -> close_out out
+        (fmt, fun () -> close_out out)
   in
   try
     BatPervasives.finally
       (fun () -> close ())
       (fun () ->
-        ToEC.extract prog arch pd asmOp model amodel fnames array_dir fmt)
+        ToEC.extract prog arch pd msfsz asmOp model amodel fnames array_dir fmt)
       ()
   with e ->
     BatPervasives.ignore_exceptions
@@ -27,18 +28,12 @@ let extract_to_file prog arch pd asmOp model amodel fnames array_dir outfile =
       ();
     raise e
 
-
-
-
-
-
 let parse_and_extract arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
-
   let extract model amodel functions array_dir output pass file =
     let prog = parse_and_compile (module A) ~wi2i:true pass file idirs in
-    extract_to_file prog arch A.reg_size A.asmOp model amodel functions
-      array_dir output
+    extract_to_file prog arch A.reg_size A.msf_size A.asmOp model amodel
+      functions array_dir output
   in
   fun model amodel functions array_dir output pass file warn ->
     if not warn then nowarning ();

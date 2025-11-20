@@ -2,11 +2,11 @@ open Utils
 open Prog
 open Glob_options
 
-let preprocess reg_size asmOp p =
+let preprocess pd msfsize asmOp p =
   let p =
-    p |> Subst.remove_params |> Insert_copy_and_fix_length.doit reg_size
+    p |> Subst.remove_params |> Insert_copy_and_fix_length.doit pd
   in
-  Typing.check_prog reg_size asmOp p;
+  Typing.check_prog pd msfsize asmOp p;
   p
 
 (* -------------------------------------------------------------------- *)
@@ -29,30 +29,30 @@ let parse_file arch_info ?(idirs=[]) fname =
   Pretyping.tt_program arch_info env fname
 
 (* -------------------------------------------------------------------- *)
-let rec warn_extra_i pd asmOp i =
+let rec warn_extra_i pd msfsize asmOp i =
   match i.i_desc with
   | Cassgn (_, tag, _, _) | Copn (_, tag, _, _) -> (
       match tag with
       | AT_rename ->
           warning ExtraAssignment i.i_loc
             "@[<v>extra assignment introduced:@;<0 2>%a@]"
-            (Printer.pp_instr ~debug:false pd asmOp)
+            (Printer.pp_instr ~debug:false pd msfsize asmOp)
             i
       | AT_inline ->
           hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
             "@[<v>AT_inline flag remains in instruction:@;<0 2>@[%a@]@]"
-            (Printer.pp_instr ~debug:false pd asmOp)
+            (Printer.pp_instr ~debug:false pd msfsize asmOp)
             i
       | _ -> ())
   | Cif (_, c1, c2) | Cwhile (_, c1, _, _, c2) ->
-      List.iter (warn_extra_i pd asmOp) c1;
-      List.iter (warn_extra_i pd asmOp) c2
+      List.iter (warn_extra_i pd msfsize asmOp) c1;
+      List.iter (warn_extra_i pd msfsize asmOp) c2
   | Cfor _ ->
       hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
         "for loop remains"
   | Ccall _ | Csyscall _ -> ()
 
-let warn_extra_fd pd asmOp (_, fd) = List.iter (warn_extra_i pd asmOp) fd.f_body
+let warn_extra_fd pd msfsize asmOp (_, fd) = List.iter (warn_extra_i pd msfsize asmOp) fd.f_body
 
 (* -------------------------------------------------------------------- *)
 
@@ -91,7 +91,7 @@ let do_wint_int
   let info x =
     let x = Conv.var_of_cvar x in
      Mv.find_opt x m in
-  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.msf_size info cp in
+  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.pointer_data Arch.msf_size info cp in
   let cp =
     match cp with
     | Utils0.Ok cp -> cp
@@ -207,10 +207,10 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let pp_csprog fmt cp =
     let p = Conv.prog_of_csprog cp in
-    Printer.pp_sprog ~debug:true Arch.pointer_data Arch.asmOp fmt p
+    Printer.pp_sprog ~debug:true Arch.pointer_data Arch.msf_size Arch.asmOp fmt p
   in
 
-  let pp_linear fmt lp = PrintLinear.pp_prog Arch.pointer_data Arch.asmOp fmt lp in
+  let pp_linear fmt lp = PrintLinear.pp_prog Arch.pointer_data Arch.msf_size Arch.asmOp fmt lp in
 
   let rename_fd ii fn cfd =
     let ii, _ = ii in
@@ -292,7 +292,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   let warn_extra s p =
     if s = Compiler.DeadCode_RegAllocation then
       let fds, _ = Conv.prog_of_csprog p in
-      List.iter (warn_extra_fd Arch.pointer_data Arch.asmOp) fds
+      List.iter (warn_extra_fd Arch.pointer_data Arch.msf_size Arch.asmOp) fds
   in
 
   let slh_info up =
