@@ -8,6 +8,7 @@ val string_of_op1 : debug:bool -> Expr.sop1 -> string
 val string_of_op2 : Expr.sop2 -> string
 
 val pp_opn :
+  Wsize.wsize ->
   Wsize.wsize -> 'asm Sopn.asmOp -> Format.formatter -> 'asm Sopn.sopn -> unit
 
 val pp_syscall : BinNums.positive Syscall_t.syscall_t -> string

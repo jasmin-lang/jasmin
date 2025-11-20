@@ -527,34 +527,47 @@ let get_annot ensure_annot f =
 (* -----------------------------------------------------------*)
 let sdeclassify = "declassify"
 
-let is_declassify annot =
+let is_declassify ~loc annot =
   Annot.ensure_uniq1 sdeclassify Annot.none annot <> None
+  && (warning Always loc "#[declassify] annotations are deprecated: use the #declassify() operator instead"; true)
 
-let declassify_lvl annot lvl =
-  if is_declassify annot then Public
+
+let declassify_lvl ~loc annot lvl =
+  if is_declassify ~loc annot then Public
   else lvl
 
-let declassify_lvls annot lvls =
-  if is_declassify annot then List.map (fun _ -> Public) lvls
+let declassify_lvls ~loc annot lvls =
+  if is_declassify ~loc annot then List.map (fun _ -> Public) lvls
   else lvls
+
+let declassify_expr ~loc env =
+  function
+  | Pvar { gs = Slocal ; gv } -> Env.set env gv Public
+  | _ ->
+     warning Always loc "ignored #declassify: only local variables are supported";
+     env
 
 (* [ty_instr env i] return env' such that env |- i : env' *)
 
 let rec ty_instr is_ct_asm fenv env i =
+  let loc = i.i_loc in
   let env1 =
   match i.i_desc with
   | Cassgn(x, _, _, e) ->
     let env, lvl = ty_expr ~public:false env e in
-    ty_lval env x (declassify_lvl i.i_annot lvl)
+    ty_lval env x (declassify_lvl ~loc i.i_annot lvl)
+
+  | Copn (_, _, Sopn.Opseudo_op (Odeclassify _), [ e ]) ->
+     declassify_expr ~loc env e
 
   | Copn(xs, _, o, es) ->
     let public = not (is_ct_sopn is_ct_asm o) in
     let env, lvl = ty_exprs_max ~public env es in
-    ty_lvals1 env xs (declassify_lvl i.i_annot lvl)
+    ty_lvals1 env xs (declassify_lvl ~loc i.i_annot lvl)
 
   | Csyscall(xs, RandomBytes _, es) ->
     let env, _ = ty_exprs_max ~public:true env es in
-    ty_lvals1 env xs (declassify_lvl i.i_annot Secret)
+    ty_lvals1 env xs (declassify_lvl ~loc i.i_annot Secret)
 
   | Cif(e, c1, c2) ->
     let env, _ = ty_expr ~public:true env e in
@@ -592,7 +605,7 @@ let rec ty_instr is_ct_asm fenv env i =
     let do_e env e lvl = ty_expr ~public:(lvl=Public) env e in
     let env, elvls = List.map_fold2 do_e env es fty.tyin in
     let olvls = instanciate_fty fty elvls in
-    ty_lvals env xs (declassify_lvls i.i_annot olvls)
+    ty_lvals env xs (declassify_lvls ~loc i.i_annot olvls)
   in
   if !Glob_options.debug then
     Format.eprintf "%a: @[<v>before %a@ after %a@]@." L.pp_loc (i.i_loc.base_loc) Env.pp env Env.pp env1;

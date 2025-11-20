@@ -71,17 +71,17 @@ export fn archetype(reg u64 i) -> reg u64 {
   return r;
 }
 
-export fn load(#transient reg u64 p i)
--> #public reg u64 {
-  reg u64 msf r t;
+#[sct="transient × transient → public"]
+export fn load(reg u64 p i) -> reg u64 {
+  reg u64 msf r;
   reg bool b;
   msf = #init_msf();
   r = 0;
   b = i < 2;
   if b {
     msf = #update_msf(b, msf);
-    t = [p + 8 * i];
-    #declassify r = t;
+    r = [p + 8 * i];
+    () = #declassify(r);
     r = #protect(r, msf);
   }
   return r;
@@ -94,7 +94,7 @@ export fn store(reg u64 p i q, reg u64 v) {
   if i < 2 {
     msf = #update_msf(i < 2, msf);
     j = [p + 8 * i];
-    #declassify j = j;
+    () = #declassify(j);
     j = #protect(j, msf);
     [q + 8 * j] = v;
   }

@@ -2237,6 +2237,8 @@ Proof.
     + by apply wft_VARS_remove_binding_lvals.
     + by apply (wfr_VARS_ZONE_alloc_array_swap halloc).
     by apply (wfr_VARS_STATUS_alloc_array_swap halloc).
+  case: is_declassify_array.
+  + by t_xrbindP => i ok_i <- <- _ ?; split; first by [].
   t_xrbindP=> {}table2 htable2 _ _ [{}rmap2 xs2] hallocs <- <- _.
   move=> [hvars1 hvarsz1 hvarss1].
   have hvarsz2 := wfr_VARS_ZONE_alloc_lvals hallocs hvarsz1.
@@ -3481,7 +3483,23 @@ Proof.
       <- <- <- {table2 c2} vme m0 s1' hvs ??.
     have [s2' [hsem hvs2]] := alloc_array_swapP hpmap P' hsaparams ii1 hvs hes hop hw halloc.
     by exists s2', vme; split=> //; rewrite esem1.
-  move=> {}table2 ok_table2 es' he [{}rmap2 xs'] ha /=
+  case hdeclassify: is_declassify_array.
+  + t_xrbindP => i ok_i <-{rmap2} <-{table2} <-{c2} vme m0 s1' hvs hext hsao.
+    case: o hop hdeclassify => // - [] // - [] // len hop _.
+    case: es hes ok_i => // - [] // arg [] // /=; t_xrbindP => arr ok_arr ? arr_local; subst.
+    case => sr status /get_sub_region_statusP[] ok_sr.
+    have ok_rmap1 := hvs.(vs_wf_region).
+    case/ok_rmap1.(wfr_ptr): (ok_sr) => pk [] ok_pk hpk ->{status}.
+    rewrite ok_pk; t_xrbindP => /check_validP arg_valid.
+    case => p ofs /addr_from_pkP ok_addr /ok_inj <-{i}.
+    move: ok_addr => /(_ true _ _ (hpmap.(wf_locals) ok_pk) hpk (ok_rmap1.(wfr_wf) ok_sr)).
+    case => addr; t_xrbindP => vaddr ok_vaddr ok_addr ok_sub_region.
+    rewrite /sem_sopn /= /get_gvar /= ok_vaddr /= /sem_sop2 /= ok_addr /= truncate_word_u /=.
+    move: hop hw; rewrite /exec_sopn /= truncate_word_u /=; t_xrbindP => - [] arr' ok_arr' _ <-{vs}.
+    case: xs => // /ok_inj<-.
+    by eexists _, _; split; first reflexivity; last reflexivity.
+  clear hdeclassify.
+  t_xrbindP=> {}table2 ok_table2 es' he [{}rmap2 xs'] ha /=
     <- <- <- {c2} vme m0 s1' hvs hext hsao.
   have [s2' /= hw' hvs2] := alloc_lvalsP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap ha hvs (sopn_toutP hop) hw.
   have hsem': esem P' rip [:: MkI ii1 (Copn xs' t o es')] s1' = ok s2'.

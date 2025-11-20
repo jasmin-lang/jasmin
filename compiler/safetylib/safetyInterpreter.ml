@@ -397,6 +397,7 @@ let safe_opn pd asmOp safe opn es =
   let id =
     Sopn.get_instr_desc
       pd
+      Arch.msf_size
       asmOp
       opn
   in
@@ -1333,13 +1334,13 @@ end = struct
   (* -------------------------------------------------------------------- *)
   let num_instr_evaluated = ref 0
 
-  let print_ginstr pd asmOp ginstr abs_vals =
+  let print_ginstr pd msfsize asmOp ginstr abs_vals =
     Format.eprintf "@[<v>@[<v>%a@]@;*** %d Instr: nb %d, %a %a@;@;@]%!"
       (AbsDom.print ~full:true) abs_vals
       (let a = !num_instr_evaluated in incr num_instr_evaluated; a)
       ginstr.i_info.i_instr_number
       L.pp_sloc ginstr.i_loc.L.base_loc
-      (Printer.pp_instr ~debug:false pd asmOp) ginstr
+      (Printer.pp_instr ~debug:false pd msfsize asmOp) ginstr
 
   let print_binop fmt (cpt_instr,abs1,abs2,abs3) =
     Format.fprintf fmt "@[<v 2>Of %d:@;%a@]@;\
@@ -1354,7 +1355,7 @@ end = struct
   let print_if_join cpt_instr ginstr labs rabs abs_r =
     Format.eprintf "@;@[<v 2>If join %a for Instr:@;%a @;@;%a@]@."
       L.pp_sloc ginstr.i_loc.L.base_loc
-      (Printer.pp_instr ~debug:false Arch.pointer_data Arch.asmOp) ginstr
+      (Printer.pp_instr ~debug:false Arch.pointer_data Arch.msf_size Arch.asmOp) ginstr
       (print_binop) (cpt_instr,
                      labs,
                      rabs,
@@ -1408,7 +1409,7 @@ end = struct
   let rec aeval_ginstr : ('ty,minfo,Arch.extended_op) ginstr -> astate -> astate =
     fun ginstr state ->
       debug (fun () ->
-        print_ginstr Arch.pointer_data Arch.asmOp ginstr state.abs);
+        print_ginstr Arch.pointer_data Arch.msf_size Arch.asmOp ginstr state.abs);
 
       (* We stop if the abstract state is bottom *)
       if AbsDom.is_bottom state.abs

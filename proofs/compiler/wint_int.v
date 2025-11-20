@@ -31,7 +31,7 @@ End E.
 
 Section WITH_PARAMS.
 
-Context `{asmop:asmOp} {msfsz : MSFsize}.
+Context `{asmop:asmOp} {pd: PointerData} {msfsz : MSFsize}.
 
 #[local]
 Existing Instance progUnit.
@@ -300,7 +300,13 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec instr_r :=
             let ty := wi2i_type (sign_of_expr e1) ty in
             ok (Copn xs t (Opseudo_op (Oswap ty)) es)
           else Error (E.ierror_s "ill-typed swap")
-      | Opseudo_op (Ocopy _ _ | Onop | Omulu _ | Oaddcarry _ | Osubcarry _)
+      | Opseudo_op (Odeclassify ty) =>
+          if es is [:: e ] then
+            Let e := wi2i_e e in
+            let ty := wi2i_type (sign_of_expr e) ty in
+            ok (Copn [::] t (Opseudo_op (Odeclassify ty)) [:: e])
+          else Error (E.ierror_s "ill-typed declassify")
+      | Opseudo_op (Ocopy _ _ | Onop | Omulu _ | Oaddcarry _ | Osubcarry _ | Odeclassify_mem _)
       | Oslh _ | Oasm _ =>
           Let _ := assert (all (fun e => sign_of_expr e == None) es)
                           (E.ierror_s "invalid expr in Copn") in
