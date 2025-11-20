@@ -76,7 +76,7 @@ module ProcessorHelpers = struct
     let open Pretyping in
     name
     |> tt_file arch_info Env.empty None None
-    |> fst |> Env.decls
+    |> fst |> Env.decls    
     |> Compile.preprocess reg_size asmOp
 
   (** Process all exported functions in a test file.
@@ -103,18 +103,23 @@ module ProcessorHelpers = struct
     Format.fprintf fmt "File %s:@." name;
     (* Set architecture-specific safety parameters if configured for this file *)
     Glob_options.safety_param := List.assoc_opt name params;
-    let ((_, fds) as p) = load_file_fn name in
-    List.iter
-      (fun fd ->
-        (* Only analyze exported functions (entry points) *)
-        if FInfo.is_export fd.Prog.f_cc then
-          let () =
-            Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
-          in
-          let safe = analyze_fn ~fmt pointer_data asmOp fd fd p in
-          (* Verify the safety result matches our expectations *)
-          assert (safe = expect))
-      fds
+    try
+      let ((_, fds) as p) = load_file_fn name in
+      List.iter
+        (fun fd ->
+          (* Only analyze exported functions (entry points) *)
+          if FInfo.is_export fd.Prog.f_cc then
+            let () =
+              Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
+            in
+            let safe = analyze_fn ~fmt pointer_data asmOp fd fd p in
+            (* Verify the safety result matches our expectations *)
+            assert (safe = expect))
+        fds
+    with
+    | exn ->
+        Format.eprintf "@[<v>Error processing file %s:@,%s@]@." name (Printexc.to_string exn);
+        raise exn
 end
 
 (** X86-64 architecture processor.
@@ -167,7 +172,7 @@ module X86Processor = struct
     let module AbsInt = SafetyInterpreter.AbsAnalyzer (SafetyArchX86.X86SafetyArch) (PW) in
     AbsInt.analyze ~fmt pd asmOp ()
 
-  (** Process a single x86-64 test file. *)
+  (** Process a single x86-64 test file. *)  
   let process ~fmt expect path name =
     ProcessorHelpers.process_functions ~fmt expect Arch.pointer_data Arch.asmOp analyze path name load_file
 end
@@ -273,7 +278,7 @@ end
     
     Recognition patterns:
     - Contains "arm-m4" → ARM Cortex-M4
-    - Contains "risc-v" → RISC-V
+    - Contains "riscv" → RISC-V
     - Everything else → x86-64 (default)
     
     The path is normalized to lowercase before matching to handle case variations.
@@ -284,7 +289,7 @@ end
 let detect_arch path =
   let normalized = String.lowercase_ascii path in
   if Str.string_match (Str.regexp ".*arm-m4.*") normalized 0 then `ARM
-  else if Str.string_match (Str.regexp ".*risc-v.*") normalized 0 then `RISCV
+  else if Str.string_match (Str.regexp ".*riscv.*") normalized 0 then `RISCV
   else `X86
 
 (** Process a single test file by dispatching to the appropriate architecture processor.
@@ -303,7 +308,14 @@ let detect_arch path =
 *)
 let process_file ~fmt expect path name =
   let full_path = Filename.concat path name in
-  match detect_arch full_path with
+  let arch = detect_arch full_path in
+  let arch_name = match arch with
+    | `X86 -> "x86-64"
+    | `ARM -> "ARM-M4"
+    | `RISCV -> "RISC-V"
+  in
+  Format.eprintf "Processing %s test file: %s/%s@." arch_name path name;
+  match arch with
   | `X86 -> X86Processor.process ~fmt expect path name
   | `ARM -> ARMProcessor.process ~fmt expect path name
   | `RISCV -> RISCVProcessor.process ~fmt expect path name

@@ -3,11 +3,11 @@ fn main(reg u32 pt) -> reg u32 {
   reg u32 tmp;
   stack u256 tmp256;
 
-  tmp = [:u32 pt + (32u) 0];
-  tmp = [:u32 pt + (32u) 4];
-  tmp = [:u32 pt + (32u) 12];
+  tmp = [:u32 pt + 0];
+  tmp = [:u32 pt + 4];
+  tmp = [:u32 pt + 12];
 
-  tmp256 = [:u256 pt + (32u) 0];
-  tmp256 = [:u256 pt + (32u) 32];
+  tmp256 = [:u256 pt + 0];
+  tmp256 = [:u256 pt + 32];
   return tmp;
 }

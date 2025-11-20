@@ -22,7 +22,7 @@ fn main(reg u32 len) -> reg u32 {
   reg u32 one = 1;
   while(j < len)
   {
-    c = tmp[(int) j];
+    c = tmp[(uint) j];
     j += one;
   }
   return j;

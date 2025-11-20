@@ -1,5 +1,5 @@
 export fn f (reg ptr u64[2] t, reg u64 idx) -> reg ptr u64[2] {
   idx = 2;
-  t[(int) idx] = 2;
+  t[(uint) idx] = 2;
   return t;
 }
