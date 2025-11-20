@@ -919,25 +919,27 @@ let ty_lvals env (msf_e : msf_e) xs tys : msf_e =
 (* TODO ensure declassify cannot occur on potentially corrupted   *)
 (* stack values                                                   *)
 
-let sdeclassify = "declassify"
-
-let is_declassify annot =
-  Annot.ensure_uniq1 sdeclassify Annot.none annot <> None
-
 let declassify_lvl env (_, s) = (Env.public env, s)
 
 let declassify env = function
   | Direct le          -> Direct (declassify_lvl env le)
   | Indirect (lp, le)  -> Indirect (lp, declassify_lvl env le)
 
-let declassify_ty env annot ty = if is_declassify annot
+let declassify_ty ~loc env annot ty = if CT.is_declassify ~loc annot
   then declassify env ty
   else ty
 
-let declassify_tys env annot tys = if is_declassify annot
+let declassify_tys ~loc env annot tys = if CT.is_declassify ~loc annot
   then List.map (declassify env) tys
   else tys
 
+let declassify_expr ~loc env ((msf, venv) as msf_e) =
+  function
+  | Pvar { gs = Slocal ; gv } ->
+     msf, Env.set_ty env venv gv (declassify env (Env.get_i venv gv))
+  | _ ->
+     warning SCTchecker loc "ignored #declassify: only local variables are supported";
+     msf_e
 
 (* right now only used by syscall, which only consists of randombytes
    it is thus tailored for this specific function. *)
@@ -978,7 +980,10 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
 
   | Cassgn(x, _, _, e) ->
     let ety = ty_expr env venv loc e in
-    ty_lval env msf_e x (declassify_ty env i.i_annot ety)
+    ty_lval env msf_e x (declassify_ty ~loc:i.i_loc env i.i_annot ety)
+
+  | Copn (_, _, Sopn.Opseudo_op (Odeclassify _), [ e ]) ->
+     declassify_expr ~loc:i.i_loc env msf_e e
 
   | Copn(xs, _, o, es) ->
     begin match is_special o, xs, es with
@@ -1020,7 +1025,7 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
     | Other, _, _  ->
       let public = not (CT.is_ct_sopn is_ct_asm o) in
       let ety = ty_exprs_max ~public env venv loc es in
-      ty_lvals1 env msf_e xs (declassify_ty env i.i_annot ety)
+      ty_lvals1 env msf_e xs (declassify_ty ~loc:i.i_loc env i.i_annot ety)
     end
 
   | Cif(e, c1, c2) ->
@@ -1110,7 +1115,7 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
       let ty =
         match vfty with
         | IsMsf -> Env.dpublic env
-        | IsNormal ty -> declassify_ty env i.i_annot ty in
+        | IsNormal ty -> declassify_ty ~loc:i.i_loc env i.i_annot ty in
       let (msf, venv) = ty_lval env msf_e x ty in
       let msf = if vfty = IsMsf then MSF.add (reg_lval ~direct:true loc x) msf else msf in
       (msf, venv) in

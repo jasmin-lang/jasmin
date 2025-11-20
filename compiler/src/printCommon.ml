@@ -151,7 +151,7 @@ let string_of_op2 = function
   | Owi2(sg, ws, o) -> string_of_wiop2 sg ws o
 
 (* -------------------------------------------------------------------- *)
-let pp_opn pd asmOp fmt o = pp_string fmt (Sopn.string_of_sopn pd asmOp o)
+let pp_opn pd msfsz asmOp fmt o = pp_string fmt (Sopn.string_of_sopn pd msfsz asmOp o)
 
 (* -------------------------------------------------------------------- *)
 let pp_syscall (o : 'a Syscall_t.syscall_t) =

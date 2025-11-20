@@ -69,7 +69,7 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
         hierror ~loc:(Lone loc) ~kind:"parse error" "%s" (Option.default "" msg)
   in
   let prog =
-    try Compile.preprocess Arch.reg_size Arch.asmOp pprog
+    try Compile.preprocess Arch.pointer_data Arch.msf_size Arch.asmOp pprog
     with Typing.TyError (loc, code) ->
       hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
   in

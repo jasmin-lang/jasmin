@@ -368,6 +368,7 @@ module type EnvT = sig
   type t
   val vars: t -> string Mv.t
   val pd: t -> Wsize.wsize
+  val msfsz: t -> Wsize.wsize
   val arch: t -> architecture
   val randombytes: t -> int list
   val set_fun: t -> ('a, 'b) func -> t
@@ -383,7 +384,7 @@ module type EnvT = sig
   val add_randombytes: t -> int -> unit
   val add_ty: t -> ty -> unit
   val add_jarray: t -> Wsize.wsize -> int -> unit
-  val empty: architecture -> Wsize.wsize -> Sarraytheory.t ref -> t
+  val empty: architecture -> Wsize.wsize -> Wsize.wsize -> Sarraytheory.t ref -> t
   val create_name: t -> string -> string
   val array_theories: t -> Sarraytheory.t
   val get_funtype: t -> funname -> (ty list * ty list)
@@ -408,6 +409,7 @@ module Env: EnvT = struct
   type t = {
       arch: architecture;
       pd: Wsize.wsize;
+      msfsz: Wsize.wsize;
       (* All names: functions, global variables, arguments, local variables, aux variables *)
       alls: Ss.t ref;
       (* All variables, excluding aux: global, argument, local variables *)
@@ -428,6 +430,8 @@ module Env: EnvT = struct
   let vars env = env.vars
 
   let pd env = env.pd
+
+  let msfsz env = env.msfsz
 
   let arch env = env.arch
 
@@ -501,10 +505,11 @@ module Env: EnvT = struct
       | Bty _ -> ()
       | Arr (_ws, n) -> add_Array env n
 
-  let empty arch pd array_theories =
+  let empty arch pd msfsz array_theories =
     {
       arch;
       pd;
+      msfsz;
       alls = ref keywords;
       vars = Mv.empty;
       funs = Mf.empty;
@@ -1300,7 +1305,7 @@ let ty_expr = function
   | PappN (op, _)  -> Conv.ty_of_cty (snd (E.type_of_opN op))
   | Pif (ty,_,_,_) -> ty
 
-let ty_sopn pd asmOp op es =
+let ty_sopn pd msfsz asmOp op es =
   match op with
   (* Do a special case for copy since the Coq type loose information  *)
   | Sopn.Opseudo_op (Pseudo_operator.Ocopy(ws, p)) ->
@@ -1310,8 +1315,8 @@ let ty_sopn pd asmOp op es =
     let l = List.map ty_expr es in
     l, l
   | _ ->
-    List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op),
-    List.map Conv.ty_of_cty (Sopn.sopn_tin pd asmOp op)
+    List.map Conv.ty_of_cty (Sopn.sopn_tout pd msfsz asmOp op),
+    List.map Conv.ty_of_cty (Sopn.sopn_tin pd msfsz asmOp op)
 
 (* This code replaces for loop that modify the loop counter by while loop,
    it would be nice to prove in Coq the validity of the transformation *)
@@ -1810,8 +1815,8 @@ struct
       Env.add_randombytes env n;
       Format.sprintf "%s.randombytes_%i" syscall_mod_arg n
 
-  let ec_opn pd asmOp o =
-    let s = Format.asprintf "%a" (pp_opn pd asmOp) o in
+  let ec_opn pd msfsz asmOp o =
+    let s = Format.asprintf "%a" (pp_opn pd msfsz asmOp) o in
     if Ss.mem s keywords then s^"_" else s
 
   let rec toec_cmd asmOp env c = List.flatten (List.map (toec_instr asmOp env) c)
@@ -1827,13 +1832,13 @@ struct
           ec_expr_assgn env [lv] tys tys (toec_expr env e)
       | Copn ([], _, op, es) ->
           (ec_leaks_opn env es) @
-          [EScomment (Format.sprintf "Erased call to %s" (ec_opn (Env.pd env) asmOp op))]
+          [EScomment (Format.sprintf "Erased call to %s" (ec_opn (Env.pd env) (Env.msfsz env) asmOp op))]
       | Copn (lvs, _, op, es) ->
           let op' = base_op op in
           (* Since we do not have merge for the moment only the output type can change *)
-          let otys,itys = ty_sopn (Env.pd env) asmOp op es in
-          let otys', _ = ty_sopn (Env.pd env) asmOp op' es in
-          let ec_op op = ec_ident (ec_opn (Env.pd env) asmOp op) in
+          let otys,itys = ty_sopn (Env.pd env) (Env.msfsz env) asmOp op es in
+          let otys', _ = ty_sopn (Env.pd env) (Env.msfsz env) asmOp op' es in
+          let ec_op op = ec_ident (ec_opn (Env.pd env) (Env.msfsz env) asmOp op) in
           let ec_e op = Eapp (ec_op op, List.map (toec_cast env) (List.combine itys es)) in
           (ec_leaks_opn env es) @
           (ec_expr_assgn env lvs otys otys' (ec_e op'))
@@ -2056,7 +2061,7 @@ and used_func_i used i =
   | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2
   | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
-let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp (model: model) amodel fnames array_dir fmt =
+let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model) amodel fnames array_dir fmt =
   let save_array_theories array_theories =
     match array_dir with
     | Some prefix ->
@@ -2078,7 +2083,7 @@ let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp (model: model) amod
     else false in
   let funcs = List.rev (List.filter dofun funcs) in
   let array_theories = ref Sarraytheory.empty in
-  let env = Env.empty arch pd array_theories in
+  let env = Env.empty arch pd msfsz array_theories in
   let module EA: EcArray = (val match amodel with
     | ArrayOld -> (module EcArrayOld: EcArray)
     | WArray   -> (module EcWArray  : EcArray)
