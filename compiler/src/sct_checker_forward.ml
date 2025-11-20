@@ -938,6 +938,13 @@ let declassify_tys env annot tys = if is_declassify annot
   then List.map (declassify env) tys
   else tys
 
+let declassify_expr ~loc env ((msf, venv) as msf_e) =
+  function
+  | Pvar { gs = Slocal ; gv } ->
+     msf, Env.set_ty env venv gv (declassify env (Env.get_i venv gv))
+  | _ ->
+     warning SCTchecker loc "ignored #declassify: only local variables are supported";
+     msf_e
 
 (* right now only used by syscall, which only consists of randombytes
    it is thus tailored for this specific function. *)
@@ -979,6 +986,9 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
   | Cassgn(x, _, _, e) ->
     let ety = ty_expr env venv loc e in
     ty_lval env msf_e x (declassify_ty env i.i_annot ety)
+
+  | Copn (_, _, Sopn.Opseudo_op (Odeclassify _), [ e ]) ->
+     declassify_expr ~loc:i.i_loc env msf_e e
 
   | Copn(xs, _, o, es) ->
     begin match is_special o, xs, es with

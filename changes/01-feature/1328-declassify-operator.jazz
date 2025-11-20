@@ -1,0 +1,4 @@
+- Declassification can be expressed using a pseudo-operator that applies to a
+  single variable: `() = #declassify(x);`
+  ([PR #1328](https://github.com/jasmin-lang/jasmin/pull/1328);
+  fixes [#746](https://github.com/jasmin-lang/jasmin/issues/746)).

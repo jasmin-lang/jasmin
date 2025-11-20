@@ -538,6 +538,13 @@ let declassify_lvls annot lvls =
   if is_declassify annot then List.map (fun _ -> Public) lvls
   else lvls
 
+let declassify_expr ~loc env =
+  function
+  | Pvar { gs = Slocal ; gv } -> Env.set env gv Public
+  | _ ->
+     warning Always loc "ignored #declassify: only local variables are supported";
+     env
+
 (* [ty_instr env i] return env' such that env |- i : env' *)
 
 let rec ty_instr is_ct_asm fenv env i =
@@ -546,6 +553,9 @@ let rec ty_instr is_ct_asm fenv env i =
   | Cassgn(x, _, _, e) ->
     let env, lvl = ty_expr ~public:false env e in
     ty_lval env x (declassify_lvl i.i_annot lvl)
+
+  | Copn (_, _, Sopn.Opseudo_op (Odeclassify _), [ e ]) ->
+     declassify_expr ~loc:i.i_loc env e
 
   | Copn(xs, _, o, es) ->
     let public = not (is_ct_sopn is_ct_asm o) in
