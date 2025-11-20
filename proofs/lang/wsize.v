@@ -113,7 +113,7 @@ Proof. by case s. Qed.
 
 (* -------------------------------------------------------------------- *)
 Definition size_8_16 sz := (sz <= U16)%CMP.
-Definition size_8_32 sz := (sz <= U64)%CMP.
+Definition size_8_32 sz := (sz <= U32)%CMP.
 Definition size_8_64 sz := (sz <= U64)%CMP.
 Definition size_16_32 sz := ((U16 <= sz) && (sz <= U32))%CMP.
 Definition size_16_64 sz := ((U16 ≤ sz) && (sz ≤ U64))%CMP.
