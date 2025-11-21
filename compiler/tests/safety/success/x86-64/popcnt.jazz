@@ -19,13 +19,13 @@ export fn main(reg u64 x) -> reg u8 {
   return r;
 }
 
-export fn small_range(reg u32 x) -> reg u8 {
+export fn small_range(reg u64 x) -> reg u8 {
   inline int i;
   stack u8[9] s;
   for i = 0 to 9 { s[i] = i; }
   s[0] = x;
   x &= 0xFF;
-  reg u32 j;
+  reg u64 j;
   ?{}, j = #POPCNT(x);
   reg u8 r = s[j];
   return r;

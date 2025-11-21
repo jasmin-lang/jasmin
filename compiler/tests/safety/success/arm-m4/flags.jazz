@@ -1,8 +1,0 @@
-export fn f(reg u32 x) -> reg u32 {
-  reg u32 r;
-  reg bool c;
-  r = x;
-  ?{ "==" = c }, x = #SUB(x, 1);
-  r = x if !c;
-  return r;
-}

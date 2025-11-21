@@ -85,22 +85,33 @@ module X86Processor = struct
     let name = Filename.concat path name in
     Format.fprintf fmt "File %s:@." name;
     Glob_options.safety_param := List.assoc_opt name params;
-    let ((_, fds) as p) = load_file name in
-    List.iter
-      (fun fd ->
-        if FInfo.is_export fd.Prog.f_cc then
-          let () =
-            Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
-          in
-          let safe = Safety.analyze ~fmt fd fd p in
-          if safe <> expect then begin
-            Format.eprintf "@[<v>Assertion failed for file %s, function %s:@," name fd.f_name.fn_name;
-            Format.eprintf "Expected: %s, Got: %s@]@." 
-              (if expect then "safe" else "unsafe")
-              (if safe then "safe" else "unsafe")
-          end;
-          assert (safe = expect))
-      fds
+    try
+      let ((_, fds) as p) = load_file name in
+      List.iter
+        (fun fd ->
+          if FInfo.is_export fd.Prog.f_cc then
+            let () =
+              Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
+            in
+            let safe = Safety.analyze ~fmt fd fd p in
+            if safe <> expect then begin
+              Format.eprintf "@[<v>Assertion failed for file %s, function %s:@," name fd.f_name.fn_name;
+              Format.eprintf "Expected: %s, Got: %s@]@." 
+                (if expect then "safe" else "unsafe")
+                (if safe then "safe" else "unsafe")
+            end;
+            assert (safe = expect))
+        fds
+    with
+    | Pretyping.TyError (loc, code) ->
+        Format.eprintf "@[<v>Type error in file %s:@," name;
+        Format.eprintf "Location: %a@," Location.pp_loc loc;
+        Format.eprintf "Error code: %a@]@." Pretyping.pp_tyerror code;
+        raise (Pretyping.TyError (loc, code))
+    | exn ->
+        Format.eprintf "@[<v>Exception while processing file %s:@,%s@]@." 
+          name (Printexc.to_string exn);
+        raise exn
 end
 
 (** ARM Cortex-M4 architecture processor *)
@@ -129,25 +140,36 @@ module ARMProcessor = struct
     let name = Filename.concat path name in
     Format.fprintf fmt "File %s:@." name;
     Glob_options.safety_param := List.assoc_opt name params;
-    let ((_, fds) as p) = load_file name in
-    List.iter
-      (fun fd ->
-        if FInfo.is_export fd.Prog.f_cc then
-          let () =
-            Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
-          in
-          let safe = Safety.analyze ~fmt fd fd p in
-          if safe <> expect then begin
-            Format.eprintf "@[<v>Assertion failed for file %s, function %s:@," name fd.f_name.fn_name;
-            Format.eprintf "Expected: %s, Got: %s@]@." 
-              (if expect then "safe" else "unsafe")
-              (if safe then "safe" else "unsafe");
-            Format.eprintf "@.Re-running analysis with full output:@.";
-            let _ = Safety.analyze ~fmt:Format.err_formatter fd fd p in
-            ()
-          end;
-          assert (safe = expect))
-      fds
+    try
+      let ((_, fds) as p) = load_file name in
+      List.iter
+        (fun fd ->
+          if FInfo.is_export fd.Prog.f_cc then
+            let () =
+              Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
+            in
+            let safe = Safety.analyze ~fmt fd fd p in
+            if safe <> expect then begin
+              Format.eprintf "@[<v>Assertion failed for file %s, function %s:@," name fd.f_name.fn_name;
+              Format.eprintf "Expected: %s, Got: %s@]@." 
+                (if expect then "safe" else "unsafe")
+                (if safe then "safe" else "unsafe");
+              Format.eprintf "@.Re-running analysis with full output:@.";
+              let _ = Safety.analyze ~fmt:Format.err_formatter fd fd p in
+              ()
+            end;
+            assert (safe = expect))
+        fds
+    with
+    | Pretyping.TyError (loc, code) ->
+        Format.eprintf "@[<v>Type error in file %s:@," name;
+        Format.eprintf "Location: %a@," Location.pp_loc loc;
+        Format.eprintf "Error code: %a@]@." Pretyping.pp_tyerror code;
+        raise (Pretyping.TyError (loc, code))
+    | exn ->
+        Format.eprintf "@[<v>Exception while processing file %s:@,%s@]@." 
+          name (Printexc.to_string exn);
+        raise exn
 end
 
 (** RISC-V architecture processor *)
@@ -176,25 +198,36 @@ module RISCVProcessor = struct
     let name = Filename.concat path name in
     Format.fprintf fmt "File %s:@." name;
     Glob_options.safety_param := List.assoc_opt name params;
-    let ((_, fds) as p) = load_file name in
-    List.iter
-      (fun fd ->
-        if FInfo.is_export fd.Prog.f_cc then
-          let () =
-            Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
-          in
-          let safe = Safety.analyze ~fmt fd fd p in
-          if safe <> expect then begin
-            Format.eprintf "@[<v>Assertion failed for file %s, function %s:@," name fd.f_name.fn_name;
-            Format.eprintf "Expected: %s, Got: %s@]@." 
-              (if expect then "safe" else "unsafe")
-              (if safe then "safe" else "unsafe");
-            Format.eprintf "@.Re-running analysis with full output:@.";
-            let _ = Safety.analyze ~fmt:Format.err_formatter fd fd p in
-            ()
-          end;
-          assert (safe = expect))
-      fds
+    try
+      let ((_, fds) as p) = load_file name in
+      List.iter
+        (fun fd ->
+          if FInfo.is_export fd.Prog.f_cc then
+            let () =
+              Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
+            in
+            let safe = Safety.analyze ~fmt fd fd p in
+            if safe <> expect then begin
+              Format.eprintf "@[<v>Assertion failed for file %s, function %s:@," name fd.f_name.fn_name;
+              Format.eprintf "Expected: %s, Got: %s@]@." 
+                (if expect then "safe" else "unsafe")
+                (if safe then "safe" else "unsafe");
+              Format.eprintf "@.Re-running analysis with full output:@.";
+              let _ = Safety.analyze ~fmt:Format.err_formatter fd fd p in
+              ()
+            end;
+            assert (safe = expect))
+        fds
+    with
+    | Pretyping.TyError (loc, code) ->
+        Format.eprintf "@[<v>Type error in file %s:@," name;
+        Format.eprintf "Location: %a@," Location.pp_loc loc;
+        Format.eprintf "Error code: %a@]@." Pretyping.pp_tyerror code;
+        raise (Pretyping.TyError (loc, code))
+    | exn ->
+        Format.eprintf "@[<v>Exception while processing file %s:@,%s@]@." 
+          name (Printexc.to_string exn);
+        raise exn
 end
 
 
