@@ -1699,6 +1699,24 @@ Definition alloc_array_swap rmap rs t es :=
     Error (stk_ierror_no_var "swap: invalid args or result, only reg ptr are accepted")
   end.
 
+Definition is_declassify_array o :=
+  if o is Opseudo_op (pseudo_operator.Odeclassify ty) then is_aarr ty
+  else false.
+
+Definition alloc_declassify_array rmap es :=
+  if es is [:: Pvar x ] then
+    Let _ := assert (is_lvar x) (stk_ierror_no_var "global reg ptr ...") in
+    let xv := gv x in
+    Let: (sr, status) := get_sub_region_status rmap xv in
+    Let _ := check_valid xv status in
+    if get_local xv is Some pk then
+      Let: (p, ofs) := addr_from_pk xv pk in
+      let e := add (Plvar p) (cast_const ofs) in
+      let len := Z.to_pos (size_of xv.(vtype)) in
+      ok (Copn [::] AT_keep (Opseudo_op (pseudo_operator.Odeclassify_mem len)) [:: e ])
+    else Error (stk_ierror_basic xv "register array remains")
+  else Error (stk_ierror_no_var "declassify: invalid args").
+
 Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region_map * cmd) :=
   let (table, rmap) := trmap in
   let (ii, ir) := i in
@@ -1732,6 +1750,10 @@ Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region
       let table := remove_binding_lvals table rs in
       Let rs := add_iinfo ii (alloc_array_swap rmap rs t e) in
       ok (table, rs.1, [:: MkI ii rs.2])
+    else
+    if is_declassify_array o then
+      Let i := alloc_declassify_array rmap e in
+      ok (table, rmap, [:: MkI ii i ])
     else
     Let table :=
       match rs, o, e with

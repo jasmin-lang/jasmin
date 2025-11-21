@@ -91,7 +91,7 @@ let do_wint_int
   let info x =
     let x = Conv.var_of_cvar x in
      Mv.find_opt x m in
-  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.msf_size info cp in
+  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.pointer_data Arch.msf_size info cp in
   let cp =
     match cp with
     | Utils0.Ok cp -> cp

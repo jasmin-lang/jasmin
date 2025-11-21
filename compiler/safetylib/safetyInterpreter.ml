@@ -397,6 +397,7 @@ let safe_opn pd asmOp safe opn es =
   let id =
     Sopn.get_instr_desc
       pd
+      Arch.msf_size
       asmOp
       opn
   in

@@ -10,7 +10,7 @@ export fn load(reg ptr u32[1] a) -> reg u32 {
   This program illustrates that only a slice can be declassified.
 */
 #[ct = "secret → secret × public"]
-fn slice(reg ptr u32[2] data) -> reg u32, reg u32 {
+export fn slice(reg ptr u32[2] data) -> reg u32, reg u32 {
   reg ptr u32[1] end = data[1:1];
   () = #declassify(end);
   reg u32 x = data[0], y = end[0];
