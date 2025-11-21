@@ -1,7 +1,7 @@
 export
 fn main(reg ptr u32[4] a, reg u32 i) -> reg u32 {
   reg u32 x;
-  i &= 255;
+  i &= 3;
   x = a[i];
   return x;
 }
