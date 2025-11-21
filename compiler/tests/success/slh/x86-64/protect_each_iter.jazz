@@ -11,7 +11,8 @@ fn protect_each_iter(#transient reg u64 p) -> #public reg u64 {
 
     while{b = i < 10;}(b){
         msf = #update_msf(b, msf);
-        #declassify temp = [p + i];
+        temp = [p + i];
+        () = #declassify(temp);
         temp = #protect(temp, msf);
         sum += temp;
         i += 1;
