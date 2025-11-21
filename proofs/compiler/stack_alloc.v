@@ -1017,7 +1017,7 @@ Fixpoint alloc_e (e:pexpr) ty :=
     Let e1 := alloc_e e1 aint in
     Let vk := get_var_kind x in
     match vk with
-    | None => Let _ := check_diff xv in ok (Pget al aa ws x e1)
+    | None => Error (stk_ierror_basic xv "register array remains")
     | Some vpk =>
       Let: (sr, status) := get_gsub_region_status rmap xv vpk in
       Let _ := check_valid xv status in

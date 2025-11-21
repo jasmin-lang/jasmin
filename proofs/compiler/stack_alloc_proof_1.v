@@ -1525,9 +1525,7 @@ Section EXPR.
       t_xrbindP=> i' hv' ?; subst i'.
       have h0 : sem_pexpr true [::] s' e1' >>= to_int = ok i.
       + by rewrite he1' /= hv'.
-      move=> [vpk | ]; last first.
-      + t_xrbindP => h /check_diffP h1 <- /=.
-        by rewrite (get_var_kindP h h1 hget) /= h0 /= hw.
+      move=> [vpk | ]; last by [].
       t_xrbindP=> hgvk [sr status] hgsub.
       t_xrbindP=> hcvalid halign [xi ofsi] haddr [<-] /=.
       have hgvalid := get_gsub_region_statusP hgvk hgsub.
