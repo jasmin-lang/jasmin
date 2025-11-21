@@ -55,6 +55,62 @@ let params =
 
 
 
+(** Functor to create a processor for a given architecture.
+    Factorizes the common code across all architecture processors. *)
+module MakeProcessor (A : Arch_full.Arch) (S : sig
+  val analyze :
+    ?fmt:Format.formatter ->
+    (unit, A.extended_op) Prog.func ->
+    (unit, A.extended_op) Prog.func ->
+    (unit, A.extended_op) Prog.prog ->
+    bool
+end) = struct
+  module Arch = A
+  module Safety = S
+
+  let load_file name =
+    let open Pretyping in
+    name
+    |> tt_file Arch.arch_info Env.empty None None
+    |> fst |> Env.decls
+    |> Compile.preprocess Arch.reg_size Arch.asmOp
+
+  let load_and_analyze ~fmt expect path name =
+    let name = Filename.concat path name in
+    Format.fprintf fmt "File %s:@." name;
+    Glob_options.safety_param := List.assoc_opt name params;
+    try
+      let ((_, fds) as p) = load_file name in
+      List.iter
+        (fun fd ->
+          if FInfo.is_export fd.Prog.f_cc then
+            let () =
+              Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
+            in
+            let safe = Safety.analyze ~fmt fd fd p in
+            if safe <> expect then begin
+              Format.eprintf "@[<v>Assertion failed for file %s, function %s:@," name fd.f_name.fn_name;
+              Format.eprintf "Expected: %s, Got: %s@]@." 
+                (if expect then "safe" else "unsafe")
+                (if safe then "safe" else "unsafe");
+              Format.eprintf "@.Re-running analysis with full output:@.";
+              let _ = Safety.analyze ~fmt:Format.err_formatter fd fd p in
+              ()
+            end;
+            assert (safe = expect))
+        fds
+    with
+    | Pretyping.TyError (loc, code) ->
+        Format.eprintf "@[<v>Type error in file %s:@," name;
+        Format.eprintf "Location: %a@," Location.pp_loc loc;
+        Format.eprintf "Error code: %a@]@." Pretyping.pp_tyerror code;
+        raise (Pretyping.TyError (loc, code))
+    | exn ->
+        Format.eprintf "@[<v>Exception while processing file %s:@,%s@]@." 
+          name (Printexc.to_string exn);
+        raise exn
+end
+
 (** X86-64 architecture processor *)
 module X86Processor = struct
   module Arch =
@@ -73,45 +129,8 @@ module X86Processor = struct
             and type extra_op = X86_extra.x86_extra_op))
 
   module Safety = SafetyMain.Make (X86_safety.X86_safety (Arch))
-
-  let load_file name =
-    let open Pretyping in
-    name
-    |> tt_file Arch.arch_info Env.empty None None
-    |> fst |> Env.decls
-    |> Compile.preprocess Arch.reg_size Arch.asmOp
-
-  let load_and_analyze ~fmt expect path name =
-    let name = Filename.concat path name in
-    Format.fprintf fmt "File %s:@." name;
-    Glob_options.safety_param := List.assoc_opt name params;
-    try
-      let ((_, fds) as p) = load_file name in
-      List.iter
-        (fun fd ->
-          if FInfo.is_export fd.Prog.f_cc then
-            let () =
-              Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
-            in
-            let safe = Safety.analyze ~fmt fd fd p in
-            if safe <> expect then begin
-              Format.eprintf "@[<v>Assertion failed for file %s, function %s:@," name fd.f_name.fn_name;
-              Format.eprintf "Expected: %s, Got: %s@]@." 
-                (if expect then "safe" else "unsafe")
-                (if safe then "safe" else "unsafe")
-            end;
-            assert (safe = expect))
-        fds
-    with
-    | Pretyping.TyError (loc, code) ->
-        Format.eprintf "@[<v>Type error in file %s:@," name;
-        Format.eprintf "Location: %a@," Location.pp_loc loc;
-        Format.eprintf "Error code: %a@]@." Pretyping.pp_tyerror code;
-        raise (Pretyping.TyError (loc, code))
-    | exn ->
-        Format.eprintf "@[<v>Exception while processing file %s:@,%s@]@." 
-          name (Printexc.to_string exn);
-        raise exn
+  module Impl = MakeProcessor (Arch) (Safety)
+  let load_and_analyze = Impl.load_and_analyze
 end
 
 (** ARM Cortex-M4 architecture processor *)
@@ -128,48 +147,8 @@ module ARMProcessor = struct
             and type extra_op = Arm_extra.arm_extra_op))
 
   module Safety = SafetyMain.Make (Arm_safety.Arm_safety (Arch))
-
-  let load_file name =
-    let open Pretyping in
-    name
-    |> tt_file Arch.arch_info Env.empty None None
-    |> fst |> Env.decls
-    |> Compile.preprocess Arch.reg_size Arch.asmOp
-
-  let load_and_analyze ~fmt expect path name =
-    let name = Filename.concat path name in
-    Format.fprintf fmt "File %s:@." name;
-    Glob_options.safety_param := List.assoc_opt name params;
-    try
-      let ((_, fds) as p) = load_file name in
-      List.iter
-        (fun fd ->
-          if FInfo.is_export fd.Prog.f_cc then
-            let () =
-              Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
-            in
-            let safe = Safety.analyze ~fmt fd fd p in
-            if safe <> expect then begin
-              Format.eprintf "@[<v>Assertion failed for file %s, function %s:@," name fd.f_name.fn_name;
-              Format.eprintf "Expected: %s, Got: %s@]@." 
-                (if expect then "safe" else "unsafe")
-                (if safe then "safe" else "unsafe");
-              Format.eprintf "@.Re-running analysis with full output:@.";
-              let _ = Safety.analyze ~fmt:Format.err_formatter fd fd p in
-              ()
-            end;
-            assert (safe = expect))
-        fds
-    with
-    | Pretyping.TyError (loc, code) ->
-        Format.eprintf "@[<v>Type error in file %s:@," name;
-        Format.eprintf "Location: %a@," Location.pp_loc loc;
-        Format.eprintf "Error code: %a@]@." Pretyping.pp_tyerror code;
-        raise (Pretyping.TyError (loc, code))
-    | exn ->
-        Format.eprintf "@[<v>Exception while processing file %s:@,%s@]@." 
-          name (Printexc.to_string exn);
-        raise exn
+  module Impl = MakeProcessor (Arch) (Safety)
+  let load_and_analyze = Impl.load_and_analyze
 end
 
 (** RISC-V architecture processor *)
@@ -186,48 +165,8 @@ module RISCVProcessor = struct
             and type extra_op = Riscv_extra.riscv_extra_op))
 
   module Safety = SafetyMain.Make (Riscv_safety.Riscv_safety (Arch))
-
-  let load_file name =
-    let open Pretyping in
-    name
-    |> tt_file Arch.arch_info Env.empty None None
-    |> fst |> Env.decls
-    |> Compile.preprocess Arch.reg_size Arch.asmOp
-
-  let load_and_analyze ~fmt expect path name =
-    let name = Filename.concat path name in
-    Format.fprintf fmt "File %s:@." name;
-    Glob_options.safety_param := List.assoc_opt name params;
-    try
-      let ((_, fds) as p) = load_file name in
-      List.iter
-        (fun fd ->
-          if FInfo.is_export fd.Prog.f_cc then
-            let () =
-              Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
-            in
-            let safe = Safety.analyze ~fmt fd fd p in
-            if safe <> expect then begin
-              Format.eprintf "@[<v>Assertion failed for file %s, function %s:@," name fd.f_name.fn_name;
-              Format.eprintf "Expected: %s, Got: %s@]@." 
-                (if expect then "safe" else "unsafe")
-                (if safe then "safe" else "unsafe");
-              Format.eprintf "@.Re-running analysis with full output:@.";
-              let _ = Safety.analyze ~fmt:Format.err_formatter fd fd p in
-              ()
-            end;
-            assert (safe = expect))
-        fds
-    with
-    | Pretyping.TyError (loc, code) ->
-        Format.eprintf "@[<v>Type error in file %s:@," name;
-        Format.eprintf "Location: %a@," Location.pp_loc loc;
-        Format.eprintf "Error code: %a@]@." Pretyping.pp_tyerror code;
-        raise (Pretyping.TyError (loc, code))
-    | exn ->
-        Format.eprintf "@[<v>Exception while processing file %s:@,%s@]@." 
-          name (Printexc.to_string exn);
-        raise exn
+  module Impl = MakeProcessor (Arch) (Safety)
+  let load_and_analyze = Impl.load_and_analyze
 end
 
 
