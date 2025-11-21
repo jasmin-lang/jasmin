@@ -2,7 +2,7 @@ open Jasmin
 
 module type ExportWrap = sig
   type extended_op
-  
+
   (* main function, before any compilation pass *)
   val main_source : (unit, extended_op) Prog.func
   val main : (unit, extended_op) Prog.func
@@ -13,8 +13,6 @@ end
 module AbsAnalyzer (Arch : SafetyArch.SafetyArch) (PW : ExportWrap with type extended_op = Arch.extended_op) : sig
   val analyze :
     ?fmt:Format.formatter ->
-    Wsize.wsize ->
-    Arch.extended_op Sopn.asmOp ->
     unit ->
     bool
   (** Analyze the main function, prints the results to the given formatter

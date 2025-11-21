@@ -480,8 +480,8 @@ end
 (*---------------------------------------------------------------*)
 (* Statique Packing *)
 module PIMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extended_op = Arch.extended_op) : VDomWrap = struct 
-  module Pa = MakePreAnalysis(Arch)
-  module FSPa = MakeFSPreAnalysis(Arch)
+  module PreA = MakePreAnalysis(Arch)
+  open PreA
 
   (* We do not use the state in this heuristic *)
   let dom_st_init = Mm.empty
@@ -493,8 +493,7 @@ module PIMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extended_o
   let pa_res = Pa.pa_make PW.main (Some PW.prog)
 
   (* We compute the reflexive and transitive closure of dp *)
-  let dp =
-    FSPa.trans_closure pa_res.pa_dp
+  let dp = trans_closure pa_res.pa_dp
 
   (* We are relational on a variable v iff:
      - there is a direct flow from the intersection of PW.main.f_args and
@@ -509,9 +508,9 @@ module PIMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extended_o
       |> Sv.of_list
 
   let v_rel : Sv.t =
-    let v_rel = FSPa.flow_to dp sv_ini in
-    let v_while = FSPa.flow_to dp pa_res.while_vars in
-    let v_while = Sv.union (FSPa.leads_to dp pa_res.while_vars) v_while in
+    let v_rel = flow_to dp sv_ini in
+    let v_while = flow_to dp pa_res.while_vars in
+    let v_while = Sv.union (leads_to dp pa_res.while_vars) v_while in
     (* let v_while = pa_res.while_vars in *)
     Sv.union v_rel v_while
 
@@ -524,7 +523,7 @@ module PIMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extended_o
       List.filter (fun v -> List.mem v.v_name v_pt) PW.main.f_args
       |> Sv.of_list
 
-  let v_pt : Sv.t = FSPa.flow_to dp pt_ini
+  let v_pt : Sv.t = flow_to dp pt_ini
 
   let pp_rel_vars fmt rel =
     (pp_list (Printer.pp_var ~debug:false)) fmt
@@ -560,8 +559,8 @@ end
 
 (* Dynamic Packing *)
 module PIDynMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extended_op = Arch.extended_op) : VDomWrap = struct
-  module Pa = MakePreAnalysis(Arch)
-  module FSPa = MakeFSPreAnalysis(Arch)
+  module PreA = MakePreAnalysis(Arch)
+  open PreA
 
   let merge_dom dom_st dom_st' =
     Mm.merge (fun v d1 d2 -> match d1, d2 with
@@ -587,10 +586,10 @@ module PIDynMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extende
      Precondition: [PW.main] must not contain function calls, and variables 
      must be uniquely characterized by their names. *)
   let ssa_main, pa_res =
-    FSPa.fs_pa_make Arch.pointer_data PW.main
+    FSPa.fs_pa_make PW.main
 
   (* We compute the reflexive and transitive clojure of dp *)
-  let dp = FSPa.trans_closure pa_res.pa_dp
+  let dp = trans_closure pa_res.pa_dp
 
   (* We are relational on a SSA variable [v] iff:
      - there is a direct flow from the intersection of [ssa_main.f_args] and
@@ -612,9 +611,9 @@ module PIDynMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extende
       |> Sv.of_list
 
   let ssa_v_rel : Sv.t =
-    let v_rel = FSPa.flow_to dp ssa_sv_ini in
-    let v_while = FSPa.flow_to dp pa_res.while_vars in
-    let v_while = Sv.union (FSPa.leads_to dp pa_res.while_vars) v_while in
+    let v_rel = flow_to dp ssa_sv_ini in
+    let v_while = flow_to dp pa_res.while_vars in
+    let v_while = Sv.union (leads_to dp pa_res.while_vars) v_while in
     (* let v_while = pa_res.while_vars in *)
     Sv.union v_rel v_while
 
@@ -635,7 +634,7 @@ module PIDynMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extende
       List.filter (fun v -> List.mem v.v_name v_pt) PW.main.f_args
       |> Sv.of_list
 
-  let ssa_v_pt : Sv.t = FSPa.flow_to dp ssa_pt_ini
+  let ssa_v_pt : Sv.t = flow_to dp ssa_pt_ini
       
   let dom_st_init = List.fold_left2 (fun dom_st v ssa_v ->
       (* Value entry *)

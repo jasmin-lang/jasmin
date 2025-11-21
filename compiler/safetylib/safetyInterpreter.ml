@@ -218,8 +218,16 @@ let v_compare (loc,c) (loc',c') =
   lex [(fun () -> vloc_compare loc loc');
        (fun () ->  Stdlib.compare c c')]
 
-let add64 x e = Papp2 (E.Oadd ( E.Op_w U64), Pvar x, e)
 
+type warnings = (Format.formatter -> unit) list
+
+type analyse_res =
+  { violations : violation list;
+    print_var_interval : (Format.formatter -> mvar -> unit);
+    mem_ranges_printer : (Format.formatter -> unit -> unit);
+    warnings : warnings; }
+
+module AbsMake (Arch : SafetyArch.SafetyArch) = struct
 
 (*------------------------------------------------------------*)
 (* checks for arrays and sub-arrays *)
@@ -254,15 +262,11 @@ let arr_aligned access ws e = match access with
   | Warray_.AAscale  -> []
   | Warray_.AAdirect ->
      begin match e with
-     | Papp1 (E.Oint_of_word(_, U64), e) -> [AlignedExpr (ws, e)]
-     | _ -> [AlignedExpr (ws, Papp1 (Oword_of_int U64, e))]
+     | Papp1 (E.Oint_of_word(_, ws'), e) when ws' = Arch.pointer_data -> [AlignedExpr (ws, e)]
+     | _ -> [AlignedExpr (ws, Papp1 (Oword_of_int Arch.pointer_data, e))]
      end
 
 (*------------------------------------------------------------*)
-let pow2 = Z.pow (Z.of_int 2)
-let half_modulus ws = pow2 (int_of_ws ws - 1)
-let modulus ws = pow2 (int_of_ws ws)
-
 let in_wint_range sg sz e =
   match sg with
   | Unsigned ->
@@ -388,23 +392,6 @@ let safe_lval = function
     safe_e_rec [] e
 
 let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
-
-let int_of_word sg ws e =
-  match sg with
-  | Unsigned -> Papp1 (E.uint_of_word ws, e)
-  | Signed ->
-     let m = Pconst (half_modulus ws) in
-     Papp2 (E.Osub Op_int,
-            Papp1 (E.uint_of_word ws, Papp2 (E.Oadd (E.Op_w ws), e, Papp1 (E.Oword_of_int ws, m))),
-            m)
-
-let int_of_words sg ws hi lo =
-  Papp2 (E.Oadd E.Op_int, Papp2 (E.Omul E.Op_int, Pconst (modulus ws), int_of_word sg ws hi), int_of_word Unsigned ws lo)
-
-let split_div sg ws es =
-  let hi, lo, d = as_seq3 es in
-  int_of_words sg ws hi lo,
-  int_of_word sg ws d
 
 let safe_opn pd asmOp safe opn es =
   let id =
@@ -539,27 +526,20 @@ let fun_vars ~expand_arrays f_decl env =
 (* Abstract Interpreter *)
 (************************)
 
-type warnings = (Format.formatter -> unit) list
-
-type analyse_res =
-  { violations : violation list;
-    print_var_interval : (Format.formatter -> mvar -> unit);
-    mem_ranges_printer : (Format.formatter -> unit -> unit);
-    warnings : warnings; }
-
-module AbsInterpreter (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extended_op = Arch.extended_op) : sig
-  val analyze : Wsize.wsize -> Arch.extended_op Sopn.asmOp -> unit -> analyse_res
+module AbsInterpreter (PW : ProgWrap with type extended_op = Arch.extended_op) : sig
+  val analyze : unit -> analyse_res
 end = struct
-
   let source_main_decl = PW.main_source
   let main_decl,prog = PW.main, PW.prog
 
   let () = Prof.reset_all ()
 
   (*---------------------------------------------------------------*)
-  module AbsDom = AbsBoolNoRel ((AbsNumTMake (Arch)) (PW)) (PointsToImpl) (SymExprImpl)
+  module PreA = MakePreAnalysis (Arch)
 
-  module AbsExpr = AbsExpr (AbsDom)
+  module AbsDom = AbsBoolNoRel (AbsNumTMake (Arch) (PW)) (PointsToImpl) (SymExprImpl)
+
+  module AbsExpr = AbsExpr (Arch) (AbsDom)
 
   (*---------------------------------------------------------------*)
   type side_effects = mem_loc list
@@ -790,7 +770,7 @@ end = struct
      constraint for memory accesses. *)
   let mem_safety_apply (abs, violations, s_effect) = function
     | Valid (ws, e1) as pv ->
-      begin match decompose_address e1 with
+      begin match PreA.decompose_address e1 with
       | exception Not_found -> (abs, pv :: violations, s_effect)
       | x, e ->
         begin match AbsDom.var_points_to abs (mvar_of_scoped_var Expr.Slocal x) with
@@ -817,7 +797,7 @@ end = struct
         end
       end
     | AlignedPtr (ws, e1) as pv ->
-      begin match decompose_address e1 with
+      begin match PreA.decompose_address e1 with
       | exception Not_found -> (abs, pv :: violations, s_effect)
       | x, e ->
         begin match AbsDom.var_points_to abs (mvar_of_scoped_var Expr.Slocal x) with
@@ -1057,110 +1037,7 @@ end = struct
 
 
   (* -------------------------------------------------------------------- *)
-  (* Return flags for the different operations.
-     This covers a subset of the x86 flags, as described in the Coq
-     semantics (x86_instr_decl.v). *)
-
-  (* Carry flag is true if [w] and [vu] are not equal. *)
-  let cf_of_word sz w vu =
-    Some (Papp2 (E.Oneq (E.Op_int),
-                 Papp1(E.uint_of_word sz,w),
-                 vu))
-
-  (* FIXME *)
-  let sf_of_word _sz _w = None
-  (* msb w. *)
-
-  (* FIXME *)
-  let pf_of_word _sz _w = None
-  (* lsb w. *)
-
-  let zf_of_word sz w =
-    Some (Papp2 (E.Oeq (E.Op_w sz),
-                 w,
-                 pcast sz (Pconst (Z.of_int 0))))
-
-  let rflags_of_aluop sz w vu _vs =
-    let of_f = None               (* FIXME *)
-    and cf   = cf_of_word sz w vu
-    and sf   = sf_of_word sz w
-    and pf   = pf_of_word sz w
-    and zf   = zf_of_word sz w in
-    [of_f;cf;sf;pf;zf]
-
-  (* For the SUB (without carry) and CMP operation, we manually set
-     the flags to have simpler and more precise expressions for the
-     carry and zero flags. *)
-  let rflags_of_sub sz w1 w2 =
-    let sub = Papp2 (E.Osub (E.Op_w sz), w1, w2) in
-    let of_f = None               (* FIXME *)
-    and cf   = Some (Papp2 (E.Olt (E.Cmp_w (Unsigned, sz)), w1,w2))
-    and sf   = sf_of_word sz sub
-    and pf   = pf_of_word sz sub
-    and zf   = Some (Papp2 (E.Oeq (E.Op_w sz), w1,w2))
-    in
-    [of_f;cf;sf;pf;zf]
-
-  let rflags_of_bwop sz w =
-    let of_f = Some (Pbool false)
-    and cf   = Some (Pbool false)
-    and sf   = sf_of_word sz w
-    and pf   = pf_of_word sz w
-    and zf   = zf_of_word sz w in
-    [of_f;cf;sf;pf;zf]
-
-  let rflags_of_neg sz w _vs =
-    let of_f = None               (* FIXME, same than for rflags_of_aluop *)
-    and cf   = None               (* FIXME, must be (w != 0)*)
-    and sf   = sf_of_word sz w
-    and pf   = pf_of_word sz w
-    and zf   = zf_of_word sz w in
-    [of_f;cf;sf;pf;zf]
-
-  let rflags_of_mul (ov : bool option) =
-    (*  OF; CF; SF; PF; ZF *)
-    [Some ov; Some ov; None; None; None]
-
-  let rflags_unknwon =
-    (*  OF; CF; SF; PF; ZF *)
-    [None; None; None; None; None]
-
-  let rflags_of_div =
-    (*  OF; CF; SF; PF; ZF *)
-    rflags_unknwon
-
-  let rflags_of_andn sz w =
-    let of_f = Some (Pbool false)
-    and cf   = Some (Pbool false)
-    and sf   = sf_of_word sz w
-    and pf   = None
-    and zf   = zf_of_word sz w in
-    [of_f;cf;sf;pf;zf]
-
-  (* Remove the carry flag *)
-  let nocf = function
-    | [of_f;_;sf;pf;zf] -> [of_f;sf;pf;zf]
-    | _ -> assert false
-
   let opn_dflt n = List.init n (fun _ -> None)
-
-  let opn_bin_gen f_flags ws op op_int es =
-    let el,er = as_seq2 es in
-    let w = Papp2 (op, el, er) in
-    let vu = Papp2 (op_int,
-                    Papp1(E.uint_of_word ws,el),
-                    Papp1(E.uint_of_word ws,er)) in
-    let vs = () in              (* FIXME *)
-    let rflags = f_flags ws w vu vs in
-    rflags @ [Some w]
-
-  let opn_bin_alu = opn_bin_gen rflags_of_aluop
-
-  let opn_sub sz es =
-    let el,er = as_seq2 es in
-    let w = Papp2 (E.Osub (E.Op_w sz), el, er) in
-    let rflags = rflags_of_sub sz el er in
-    rflags @ [Some w]
 
   (* -------------------------------------------------------------------- *)
   (* FIXME: redo using the generic flags definition above *)
@@ -1236,70 +1113,35 @@ end = struct
 
 
   (* -------------------------------------------------------------------- *)
+  let is_conditional lvs tag opn es =
+    match opn with
+    | Sopn.Oasm asm_op -> Arch.is_conditional lvs tag asm_op es
+    | _ -> None
+
   (* Operation splitting: handle pseudo ops and SLH, then delegate to arch-specific *)
-  let split_opn pd asmOp n opn es =
+  let split_opn n opn es =
     match opn with
     (* Pseudo operations *)
     | Sopn.Opseudo_op op ->
       begin match op with
-      | Osubcarry ws ->
-        let el, er, eb = as_seq3 es in
-        let w_no_borrow = Papp2 (E.Osub (E.Op_w ws), el, er) in
-        let w_borrow = Papp2 (E.Osub (E.Op_w ws),
-                              w_no_borrow,
-                              pcast ws (Pconst (Z.of_int 1))) in
+      | Osubcarry ws -> mk_subcarry ws es
 
-        let eli = Papp1 (E.uint_of_word ws, el)
-        and eri = Papp1 (E.uint_of_word ws, er) in
-
-        let cf_no_borrow = Papp2 (E.Olt E.Cmp_int, eli, eri) in
-        let cf_borrow = Papp2 (E.Ole E.Cmp_int, eli, eri) in
-
-        begin match eb with
-        | Pbool false -> [Some cf_no_borrow; Some w_no_borrow]
-        | Pbool true -> [Some cf_borrow; Some w_borrow]
-        | _ -> [None; None]
-        end
-
-      | Oaddcarry ws ->
-        let el, er, eb = as_seq3 es in
-        let w_no_carry = Papp2 (E.Oadd (E.Op_w ws), el, er) in
-        let w_carry = Papp2 (E.Oadd (E.Op_w ws),
-                             w_no_carry,
-                             pcast ws (Pconst (Z.of_int 1))) in
-
-        let eli = Papp1 (E.uint_of_word ws, el)
-        and eri = Papp1 (E.uint_of_word ws, er) in
-        let w_i = Papp2 (E.Oadd E.Op_int, eli, eri) in
-        let pow_ws = Pconst (Z.pow (Z.of_int 2) (int_of_ws ws)) in
-
-        let cf_no_carry = Papp2 (E.Ole E.Cmp_int, pow_ws, w_i) in
-        let cf_carry = Papp2 (E.Ole E.Cmp_int,
-                              pow_ws,
-                              Papp2 (E.Oadd E.Op_int,
-                                     w_i,
-                                     Pconst (Z.of_int 1))) in
-
-        begin match eb with
-        | Pbool false -> [Some cf_no_carry; Some w_no_carry]
-        | Pbool true -> [Some cf_carry; Some w_carry]
-        | _ -> [None; None]
-        end
+      | Oaddcarry ws -> mk_addcarry ws es
 
       | Oswap _ty ->
         let x, y = as_seq2 es in
         [Some y; Some x]
 
-      | _ -> List.init n (fun _ -> None)
+      | _ -> opn_dflt n
       end
 
     (* SLH operations *)
     | Sopn.Oslh op ->
       begin match op with
-      | SLHinit -> [Some (pcast U64 (Pconst (Z.of_int 0)))]
+      | SLHinit -> [Some (pcast Arch.msf_size (Pconst (Z.of_int 0)))]
       | SLHupdate ->
         let b, msf = as_seq2 es in
-        let msf = Pif (Bty (U U64), b, msf, pcast U64 (Pconst (Z.of_int (-1)))) in
+        let msf = Pif (Bty (U Arch.msf_size), b, msf, pcast Arch.msf_size (Pconst (Z.of_int (-1)))) in
         [Some msf]
       | SLHmove -> let msf = as_seq1 es in [Some msf]
       | SLHprotect _ | SLHprotect_ptr _ ->
@@ -1309,37 +1151,27 @@ end = struct
       end
 
     (* Assembly operations *)
-    | Sopn.Oasm asm_op -> Arch.split_asm_opn n asm_op es
+    | Sopn.Oasm asm_op ->Arch.split_asm_opn n asm_op es
 
-  (* Post-conditions of operators *)
-  let post_opn opn lvs es =
+  (* Post-conditions of operators, that cannot be precisely expressed as an expression of the arguments *)
+  let post_opn opn lvs es : btcons list =
     match opn with
     | Sopn.Oasm asm_op -> Arch.post_opn asm_op lvs es
     | _ -> []
 
   (* Heuristic for flags *)
+  (* [v] is the variable receiving the assignment. *)
   let opn_heur opn v es =
     match opn with
     | Sopn.Oasm asm_op -> Arch.opn_heur asm_op v es
     | Sopn.Opseudo_op (Osubcarry _) ->
+      (* FIXME: improve precision by allowing decrement by something else
+         than 1 here. *)
       Some { fh_zf = None;
              fh_cf = Some (Mtexpr.binop Texpr1.Add
                              (Mtexpr.var v)
                              (Mtexpr.cst (Coeff.s_of_int 1))); }
     | _ -> None
-
-  (* Post-conditions of operators *)
-  let post_opn_unused = Arch.post_opn
-
-  (* -------------------------------------------------------------------- *)
-  (* Ugly handling of flags to build.
-     When adding new flags, update [find_heur]. *)
-  type _flags_heur = SafetyArch.flags_heur
-
-  let pp_flags_heur = SafetyArch.pp_flags_heur
-
-  (* [v] is the variable receiving the assignment. *)
-  let opn_heur_unused = Arch.opn_heur
 
   exception Heuristic_failed
 
@@ -1357,7 +1189,7 @@ end = struct
 
   (* Heuristic for the (candidate) decreasing quantity to prove while
      loop termination. *)
-  let dec_qnty_heuristic pd asmOp loop_body loop_cond =
+  let dec_qnty_heuristic loop_body loop_cond =
     let heur_leaf leaf = match Mtcons.get_typ leaf with
       | Lincons0.SUPEQ | Lincons0.SUP -> Mtcons.get_expr leaf
 
@@ -1500,13 +1332,12 @@ end = struct
   let num_instr_evaluated = ref 0
 
   let print_ginstr pd asmOp ginstr abs_vals =
-    let asmOp' = (Obj.magic asmOp : ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp) in
     Format.eprintf "@[<v>@[<v>%a@]@;*** %d Instr: nb %d, %a %a@;@;@]%!"
       (AbsDom.print ~full:true) abs_vals
       (let a = !num_instr_evaluated in incr num_instr_evaluated; a)
       ginstr.i_info.i_instr_number
       L.pp_sloc ginstr.i_loc.L.base_loc
-      (Printer.pp_instr ~debug:false pd asmOp') ginstr
+      (Printer.pp_instr ~debug:false pd asmOp) ginstr
 
   let print_binop fmt (cpt_instr,abs1,abs2,abs3) =
     Format.fprintf fmt "@[<v 2>Of %d:@;%a@]@;\
@@ -1518,10 +1349,10 @@ end = struct
       (AbsDom.print ~full:true) abs2
       (AbsDom.print ~full:true) abs3
 
-  let print_if_join pd asmOp cpt_instr ginstr labs rabs abs_r =
+  let print_if_join cpt_instr ginstr labs rabs abs_r =
     Format.eprintf "@;@[<v 2>If join %a for Instr:@;%a @;@;%a@]@."
       L.pp_sloc ginstr.i_loc.L.base_loc
-      (Printer.pp_instr ~debug:false pd asmOp) ginstr
+      (Printer.pp_instr ~debug:false Arch.pointer_data Arch.asmOp) ginstr
       (print_binop) (cpt_instr,
                      labs,
                      rabs,
@@ -1573,21 +1404,21 @@ end = struct
 
   let log = timestamp ()
 
-  let rec aeval_ginstr (pd : Wsize.wsize) (asmOp : Arch.extended_op Sopn.asmOp) =
+  let rec aeval_ginstr : ('ty,minfo,Arch.extended_op) ginstr -> astate -> astate =
     fun ginstr state ->
-      (* debug (fun () ->
-        print_ginstr pd asmOp ginstr state.abs); *)
+      debug (fun () ->
+        print_ginstr Arch.pointer_data Arch.asmOp ginstr state.abs);
 
       (* We stop if the abstract state is bottom *)
       if AbsDom.is_bottom state.abs
       then state
       else
         (* We check the safety conditions *)
-        let conds = safe_instr pd asmOp ginstr in
+        let conds = safe_instr Arch.pointer_data Arch.asmOp ginstr in
         let state = check_safety state (InProg ginstr.i_loc) conds in
-        aeval_ginstr_aux pd asmOp ginstr state
+        aeval_ginstr_aux ginstr state
 
-  and aeval_ginstr_aux (pd : Wsize.wsize) (asmOp : Arch.extended_op Sopn.asmOp) : ('ty,minfo,'asm) ginstr -> astate -> astate =
+  and aeval_ginstr_aux : ('ty,minfo,'asm) ginstr -> astate -> astate =
     fun ginstr state ->
     match ginstr.i_desc with
       | Cassgn (lv,tag,ty1, Pif (ty2, c, el, er))
@@ -1595,7 +1426,8 @@ end = struct
         assert (ty1 = ty2);
         let cl = { ginstr with i_desc = Cassgn (lv, tag, ty1, el) } in
         let cr = { ginstr with i_desc = Cassgn (lv, tag, ty2, er) } in
-        aeval_if pd asmOp ginstr c [cl] [cr] state
+        aeval_if ginstr c [cl] [cr] state
+
 
       | Cassgn (lv, _, _, Parr_init _) ->
         let abs = AbsExpr.abs_forget_array_contents state.abs ginstr.i_info lv in
@@ -1610,19 +1442,27 @@ end = struct
             e in
         { state with abs = abs; }
 
-      | Copn (lvs,_,opn,es) ->
-        (* Remark: the assignments must be done in the correct order. *)
-        let assgns = split_opn pd asmOp (List.length lvs) opn es in
-        let abs = AbsExpr.abs_assign_opn state.abs ginstr.i_info lvs assgns in
-        let abs = List.fold_left AbsDom.meet_btcons abs (post_opn opn lvs es) in
+      | Copn (lvs,tag,opn,es) ->
+        begin match is_conditional lvs tag opn es with
+        | Some (b, c1, c2)
+          when Config.sc_pif_movecc_as_if () ->
+          let c1 = List.map (fun i_desc -> { ginstr with i_desc }) c1 in
+          let c2 = List.map (fun i_desc -> { ginstr with i_desc }) c2 in
+          aeval_if ginstr b c1 c2 state
+        | _ ->
+          (* Remark: the assignments must be done in the correct order. *)
+          let assgns = split_opn (List.length lvs) opn es in
+          let abs = AbsExpr.abs_assign_opn state.abs ginstr.i_info lvs assgns in
+          let abs = List.fold_left AbsDom.meet_btcons abs (post_opn opn lvs es) in
 
-        { state with abs = abs; }
+          { state with abs = abs; }
+        end
 
       | Csyscall(lvs, sc, es) ->
          aeval_syscall state sc lvs es
 
       | Cif(e,c1,c2) ->
-        aeval_if pd asmOp ginstr e c1 c2 state
+        aeval_if ginstr e c1 c2 state
 
       | Cwhile(_, c1, e, _, c2) when has_annot "bounded" ginstr ->
          let prog_pt = ginstr.i_loc in
@@ -1636,10 +1476,10 @@ end = struct
            let out = AbsDom.join out right in
            if AbsDom.is_bottom left
            then { state with abs = out }
-           else { state with abs = left } |> aeval_gstmt pd asmOp body |> fully_unroll out
+           else { state with abs = left } |> aeval_gstmt body |> fully_unroll out
          in
          let state = { state with abs = AbsDom.new_cnstr_blck state.abs prog_pt } in
-         let state = aeval_gstmt pd asmOp c1 state in
+         let state = aeval_gstmt c1 state in
          let bot = AbsDom.meet_btcons state.abs (BLeaf (false_tcons1)) in
          let state = fully_unroll bot state in
          { state with abs = AbsDom.pop_cnstr_blck state.abs prog_pt }
@@ -1652,7 +1492,7 @@ end = struct
         let state = { state with abs = abs; } in
 
         let cpt = ref 0 in
-        let state = aeval_gstmt pd asmOp c1 state in
+        let state = aeval_gstmt c1 state in
 
         (* We now check that e is safe *)
         let conds = safe_e e in
@@ -1663,7 +1503,7 @@ end = struct
 
         (* Candidate decreasing quantity *)
         let ni_e =
-          try Some (dec_qnty_heuristic pd asmOp (c2 @ c1) (oec state.abs))
+          try Some (dec_qnty_heuristic (c2 @ c1) (oec state.abs))
           with Heuristic_failed -> None in
         (* Variable where we store its value before executing the loop body. *)
         let mvar_ni = MNumInv prog_pt in
@@ -1726,7 +1566,7 @@ end = struct
         let eval_body state_i state =
           let cpt_instr = !num_instr_evaluated - 1 in
 
-          let state_o = aeval_gstmt pd asmOp (c2 @ c1) state_i in
+          let state_o = aeval_gstmt (c2 @ c1) state_i in
 
           (* We check that if the loop does not exit, then ni_e decreased by
              at least one, unless the loop is specially annotated *)
@@ -1854,7 +1694,7 @@ end = struct
 
         let state_i = prepare_call state callsite f es in
 
-        let fstate = aeval_call pd asmOp f f_decl callsite state_i in
+        let fstate = aeval_call f f_decl callsite state_i in
 
         (* We check the safety conditions of the return *)
         let conds = safe_return f_decl in
@@ -1897,7 +1737,7 @@ end = struct
                 let state =
                   { state with
                     abs = AbsDom.is_init abs (Avar (L.unloc i)); }
-                  |> aeval_gstmt pd asmOp c in
+                  |> aeval_gstmt c in
 
                 (* We pop the disjunctive constraint block. *)
                 let abs = AbsDom.pop_cnstr_blck state.abs prog_pt in
@@ -1913,12 +1753,12 @@ end = struct
           assert false
         )
 
-  and aeval_call pd asmOp : funname -> (minfo, 'asm) func -> L.i_loc -> astate -> astate =
+  and aeval_call : funname -> (minfo, 'asm) func -> L.i_loc -> astate -> astate =
     fun f f_decl callsite st_in ->
     let itk = ItFunIn (f,callsite) in
 
     match aeval_call_strategy callsite f_decl st_in with
-    | Config.Call_Direct -> aeval_body pd asmOp f_decl.f_body st_in
+    | Config.Call_Direct -> aeval_body f_decl.f_body st_in
 
     (* Precond: [check_valid_call_top st_in] must hold:
        the function must not use memory loads/stores, array accesses must be
@@ -1953,7 +1793,7 @@ end = struct
           { st_in with abs = abs }
         in
 
-        let st_out_ndisj = aeval_body pd asmOp f_decl.f_body st_in_ndisj in
+        let st_out_ndisj = aeval_body f_decl.f_body st_in_ndisj in
 
         (* We make a new function abstraction for f. Roughly, it is of the form:
            input |--> (output,effects) *)
@@ -1969,7 +1809,7 @@ end = struct
         { st_out_ndisj with
           abs = AbsDom.to_shape st_out_ndisj.abs st_in.abs }
 
-  and aeval_if pd asmOp ginstr e c1 c2 state =
+  and aeval_if ginstr e c1 c2 state =
     let eval_cond state = function
       | Some ec -> AbsDom.meet_btcons state.abs ec
       | None -> state.abs in
@@ -1986,28 +1826,28 @@ end = struct
         ( eval_cond state oec, eval_cond state noec ) in
 
     (* Branches evaluation *)
-    let lstate = aeval_gstmt pd asmOp c1 { state with abs = labs; } in
+    let lstate = aeval_gstmt c1 { state with abs = labs; } in
 
-    let _cpt_instr = !num_instr_evaluated - 1 in
+    let cpt_instr = !num_instr_evaluated - 1 in
 
     (* We abstractly evaluate the right branch
        Be careful the start from lstate, as we need to use the
        updated abstract iterator. *)
-    let rstate = aeval_gstmt pd asmOp c2 { lstate with abs = rabs; } in
+    let rstate = aeval_gstmt c2 { lstate with abs = rabs; } in
 
     let abs_res = AbsDom.join lstate.abs rstate.abs in
-    (* debug (fun () ->
-        print_if_join pd asmOp _cpt_instr ginstr lstate.abs rstate.abs abs_res); *)
+    debug (fun () ->
+        print_if_join cpt_instr ginstr lstate.abs rstate.abs abs_res);
     { rstate with abs = abs_res; }
 
-  and aeval_body pd asmOp f_body state =
+  and aeval_body f_body state =
     debug (fun () -> Format.eprintf "Evaluating the body ...@.@.");
-    aeval_gstmt pd asmOp f_body state
+    aeval_gstmt f_body state
 
-  and aeval_gstmt pd asmOp : ('ty,'i,'asm) gstmt -> astate -> astate =
+  and aeval_gstmt : ('ty,'i,'asm) gstmt -> astate -> astate =
     fun gstmt state ->
     let state = List.fold_left (fun state ginstr ->
-        aeval_ginstr pd asmOp ginstr state)
+        aeval_ginstr ginstr state)
         state gstmt in
     let () = if gstmt <> [] then
         debug (fun () ->
@@ -2062,7 +1902,7 @@ end = struct
     Format.fprintf fmt "@[%a@]" (AbsDom.print ~full:true) abs_proj;
     only_rel_print := sb
 
-  let analyze pd asmOp () =
+  let analyze () =
     (* Stats *)
     let exception UserInterupt in
 
@@ -2082,7 +1922,7 @@ end = struct
       let state, warnings = init_state source_main_decl main_decl prog in
 
       (* We abstractly evaluate the main function *)
-      let final_st = aeval_gstmt pd asmOp main_decl.f_body state in
+      let final_st = aeval_gstmt main_decl.f_body state in
 
       (* We check the safety conditions of the return *)
       let conds = safe_return main_decl in
@@ -2101,7 +1941,7 @@ end = struct
     with
     | Manager.Error _ as e -> hndl_apr_exc e
 end
-
+end
 
 module type ExportWrap = sig
   type extended_op
@@ -2117,7 +1957,7 @@ module AbsAnalyzer (Arch : SafetyArch.SafetyArch) (EW : ExportWrap with type ext
 
   module EW = struct
     type extended_op = Arch.extended_op
-    
+
     let main_source = EW.main_source
 
     (* We ensure that all variable names are unique *)
@@ -2152,7 +1992,7 @@ module AbsAnalyzer (Arch : SafetyArch.SafetyArch) (EW : ExportWrap with type ext
           | [ps] -> (None, parse_pt_rels ps)
           | _ -> raise (Failure "-safetyparam ill-formed (too many '>' ?)"))
 
-  let analyze ?(fmt=Format.err_formatter) pd asmOp () =
+  let analyze ?(fmt=Format.err_formatter) () =
     try
     let ps_assoc = Option.map_default parse_params
         [ None, [ { relationals = None; pointers = None } ]]
@@ -2180,8 +2020,9 @@ module AbsAnalyzer (Arch : SafetyArch.SafetyArch) (EW : ExportWrap with type ext
             include EW
             let param = p
           end in
-        let module AbsInt = AbsInterpreter (Arch) (PW) in
-        AbsInt.analyze pd asmOp ()) ps in
+        let module Abs = AbsMake (Arch) in
+        let module AbsInt = Abs.AbsInterpreter (PW) in
+        AbsInt.analyze ()) ps in
 
     match l_res with
     | [] -> raise (Failure "-safetyparam ill-formed (empty list of params)")

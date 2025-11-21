@@ -213,18 +213,9 @@ end
 module EMs = MakeEqMap(Scmp)
 
 (*------------------------------------------------------------*)
-let ws_of_int i = match i with
-  | 8   -> U8
-  | 16  -> U16
-  | 32  -> U32
-  | 64  -> U64
-  | 128 -> U128
-  | 256 -> U256
-  | _ -> assert false
-
 let ws_meet ws1 ws2 = 
   min (Prog.int_of_ws ws1) (Prog.int_of_ws ws2)
-  |> ws_of_int
+  |> wsize_of_int
     
 let align_meet t t' =
   let f ws1 ws2 = match ws1, ws2 with
@@ -234,7 +225,7 @@ let align_meet t t' =
 
 let ws_join ws1 ws2 = 
   max (Prog.int_of_ws ws1) (Prog.int_of_ws ws2)
-  |> ws_of_int
+  |> wsize_of_int
 
 let align_join t t' =
   let f ws1 ws2 = match ws1, ws2 with

@@ -51,13 +51,15 @@ end
 module type Arch = sig
   include Core_arch
 
+  type extended_op = (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op
+
   val reg_size : Wsize.wsize
   val pointer_data : Wsize.wsize
   val msf_size : Wsize.wsize
   val rip : var
 
-  val asmOp      : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op Sopn.asmOp
-  val asmOp_sopn : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op Sopn.sopn Sopn.asmOp
+  val asmOp      : extended_op Sopn.asmOp
+  val asmOp_sopn : extended_op Sopn.sopn Sopn.asmOp
 
   val reg_vars  : var list
   val regx_vars : var list

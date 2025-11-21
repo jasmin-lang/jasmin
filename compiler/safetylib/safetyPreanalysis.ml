@@ -10,18 +10,6 @@ open SafetyUtils
 (* Information attached to instructions. *)
 type minfo = { i_instr_number : int; }
 
-let decompose_address e =
-  let rec aux e =
-    match e with
-    | Pvar x -> x, Papp1 (E.Oword_of_int U64, Pconst Z.zero)
-    | Papp2(E.Oadd (Op_w U64), Pvar x, offset) -> x, offset
-    | Papp2(E.Owi2 (_, U64, E.WIadd ), Pvar x, offset) -> x, offset
-    | Papp1(E.Owi1 (_, E.WIword_of_wint U64), e) -> aux e
-    | _ -> raise Not_found in
-  let x, offset = aux e in
-  if x.gs = Slocal then L.unloc x.gv, offset
-  else raise Not_found
-
 module MkUniq : sig
 
   val mk_uniq : (unit, 'asm) func -> (unit, 'asm) prog -> ((minfo, 'asm) func * (minfo, 'asm) prog)
@@ -143,27 +131,42 @@ end
 (* Pre Analysis *)
 (****************)
 
-module type PreAnalysisSig = sig
-  type extended_op
+module MakePreAnalysis (Arch : SafetyArch.SafetyArch) = struct
+
+let decompose_address e =
+  let rec aux e =
+    match e with
+    | Pvar x -> x, Papp1 (E.Oword_of_int Arch.pointer_data, Pconst Z.zero)
+    | Papp2(E.Oadd (Op_w ws), Pvar x, offset) when ws = Arch.pointer_data -> x, offset
+    | Papp2(E.Owi2 (_, ws, E.WIadd ), Pvar x, offset) when ws = Arch.pointer_data -> x, offset
+    | Papp1(E.Owi1 (_, E.WIword_of_wint ws), e) when ws = Arch.pointer_data -> aux e
+    | _ -> raise Not_found in
+  let x, offset = aux e in
+  if x.gs = Slocal then L.unloc x.gv, offset
+  else raise Not_found
+
+module Pa : sig
 
   type dp = Sv.t Mv.t
 
   type cfg = Sf.t Mf.t
 
+  (* - pa_dp: for each variable, contains the set of variables that can modify
+              it. Some dependencies are ignored depending on some heuristic.
+     - pa_cfg: control-flow graph, where an entry f -> [f1;...;fn] means that
+     f calls f1, ..., fn *)
   type pa_res = { pa_dp : dp;
                   pa_cfg : cfg;
                   while_vars : Sv.t;
                   if_conds : expr list }
 
   val dp_v : dp -> var -> Sv.t
-  val pa_make : ('info, extended_op) func -> ('info, extended_op) prog option -> pa_res
+  val pa_make : ('info, Arch.extended_op) func -> ('info, Arch.extended_op) prog option -> pa_res
 
   val print_dp  : Format.formatter -> dp -> unit
   val print_cfg : Format.formatter -> cfg -> unit
-end
 
-module MakePreAnalysis(Arch : SafetyArch.SafetyArch) : PreAnalysisSig with type extended_op = Arch.extended_op = struct
-  type extended_op = Arch.extended_op
+end = struct
   (* For each variable, we compute the set of variables that can modify it.
      Some dependencies are ignored depending on some heuristic we have. *)
   type dp = Sv.t Mv.t
@@ -497,12 +500,12 @@ module MakePreAnalysis(Arch : SafetyArch.SafetyArch) : PreAnalysisSig with type 
       if_conds = List.sort_uniq Stdlib.compare st.if_conds }
 end
 
-(* Generic flow-sensitive Pre-Analysis functor *)
-module MakeFSPreAnalysis (Arch : SafetyArch.SafetyArch) = struct
-  module Pa = MakePreAnalysis(Arch)
-  
-  exception Fcall
 
+(* Flow-sensitive Pre-Analysis *)
+module FSPa : sig
+  val fs_pa_make : ('info, Arch.extended_op) func -> (unit, Arch.extended_op) func * Pa.pa_res
+end = struct
+  exception Fcall
   let rec collect_vars_e sv = function
     | Pconst _ | Pbool _ | Parr_init _ -> sv
     | Pvar v ->
@@ -548,11 +551,12 @@ module MakeFSPreAnalysis (Arch : SafetyArch.SafetyArch) = struct
 
   and collect_vars_is sv is = List.fold_left collect_vars_i sv is
 
+
   let check_uniq_names sv =
     Sv.for_all (fun v -> not (Sv.exists (fun v' ->
         v.v_id <> v'.v_id && v.v_name = v'.v_name) sv)) sv
 
-  let fs_pa_make pd (f : ('info, Arch.extended_op) func) =
+  let fs_pa_make (f : ('info, Arch.extended_op) func) =
     let sv = Sv.of_list f.f_args in
     let vars = try collect_vars_is sv f.f_body with
       | Fcall ->
@@ -564,12 +568,13 @@ module MakeFSPreAnalysis (Arch : SafetyArch.SafetyArch) = struct
     assert (check_uniq_names vars);
 
     let ssa_f = Ssa.split_live_ranges false f in
-    (* Debug printing removed here to avoid type issues with generic extended_op.
-       If needed, add debug printing at the call site with concrete types. *)
     (* Remark: the program is not used by [Pa], since there are no function
        calls in [f]. *)
     let dp = Pa.pa_make ssa_f None in
     ssa_f, dp
+
+end
+
 
 (**************************)
 (* Pre-Analysis Functions *)
@@ -613,4 +618,5 @@ let leads_to (dp: Pa.dp) (s: Sv.t) =
      let workset = Sv.union workset (Sv.diff succ visited) in
      loop acc visited workset
   in loop Sv.empty Sv.empty s
+
 end

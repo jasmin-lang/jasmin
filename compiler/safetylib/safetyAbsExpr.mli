@@ -44,7 +44,7 @@ type it_loc = ItFunIn of funname * L.i_loc
 module ItMap : Map.S with type key = it_loc
 
 (*---------------------------------------------------------------*)
-module AbsExpr (AbsDom : SafetyInterfaces.AbsNumBoolType) : sig
+module AbsExpr (Arch: SafetyArch.SafetyArch) (AbsDom : SafetyInterfaces.AbsNumBoolType) : sig
   val wrap_if_overflow : AbsDom.t -> Mtexpr.t -> signedness -> int -> Mtexpr.t
   val cast_if_overflows : AbsDom.t -> int -> int -> Mtexpr.t -> Mtexpr.t
 
