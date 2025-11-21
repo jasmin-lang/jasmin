@@ -30,7 +30,7 @@ End E.
 
 Section WITH_PARAMS.
 
-Context `{asmop:asmOp} {msfsz : MSFsize}.
+Context `{asmop:asmOp} {pd: PointerData} {msfsz : MSFsize}.
 
 #[local]
 Existing Instance progUnit.

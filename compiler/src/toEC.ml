@@ -1310,8 +1310,8 @@ let ty_sopn pd asmOp op es =
     let l = List.map ty_expr es in
     l, l
   | _ ->
-    List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op),
-    List.map Conv.ty_of_cty (Sopn.sopn_tin pd asmOp op)
+    List.map Conv.ty_of_cty (Sopn.sopn_tout pd pd asmOp op),
+    List.map Conv.ty_of_cty (Sopn.sopn_tin pd pd asmOp op)
 
 (* This code replaces for loop that modify the loop counter by while loop,
    it would be nice to prove in Coq the validity of the transformation *)
