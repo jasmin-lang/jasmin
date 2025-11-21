@@ -1,0 +1,11 @@
+export fn BS2POLVECq(reg u32 b) 
+{
+  reg u32 k = 0xfff;                 // 4095
+  b &= k;
+
+  k = 4094;
+  reg u32 one = 1;
+  if (b > k) {
+    while (true) { b += one;}
+  }
+}

@@ -1,0 +1,12 @@
+export
+fn main(reg u32 pt) -> reg u32 {
+  reg u32 tmp, i;
+
+  i = 0;
+  while (i < 16) {
+    tmp = [:u32 pt + i];
+    i += 1;
+  }
+  
+  return tmp;
+}

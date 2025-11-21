@@ -1,0 +1,13 @@
+export
+fn main(reg u32 pt) -> reg u32 {
+  reg u32 tmp;
+  stack u256 tmp256;
+
+  tmp = [:u32 pt + (64u) 0];
+  tmp = [:u32 pt + (64u) 4];
+  tmp = [:u32 pt + (64u) 12];
+
+  tmp256 = [:u256 pt + (64u) 0];
+  tmp256 = [:u256 pt + (64u) 32];
+  return tmp;
+}

@@ -1,0 +1,29 @@
+export
+fn main(reg u32 len) -> reg u32 {
+  stack u32[4] tmp;
+  stack u32[4] x;
+  reg u32 c;
+  reg u32 j;
+  
+  x[0] = 1;
+  x[1] = 2;
+  x[2] = 3;
+  x[3] = 4;
+  
+  if (len > 17) {
+    len = 0;
+  }
+  
+  tmp[:u32  0] = x[0];
+  tmp[:u32  1] = x[1];
+  tmp[:u32  2] = x[2];
+  tmp[:u32  3] = x[3];
+  j = 0;
+  reg u32 one = 1;
+  while(j < len)
+  {
+    c = tmp[(uint) j];
+    j += one;
+  }
+  return j;
+}

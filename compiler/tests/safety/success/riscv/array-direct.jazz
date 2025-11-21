@@ -1,0 +1,18 @@
+export
+fn array_direct() -> reg u32 {
+
+  stack u8[32] a;
+  reg u32 q;
+  inline int i;
+  i = 0;
+  q = 0;
+  a.[:u32 0] = q;
+  a.[:u32 i] = q;
+  a.[:u32 i + 4] = q;
+  a.[:u32 4 * (i + 1)] = q;
+  a.[:u32 (i + 1) * 4] = q;
+  a.[:u32 i * 4 + 4] = q;
+
+  q = a.[:u32 0];
+  return q;
+}

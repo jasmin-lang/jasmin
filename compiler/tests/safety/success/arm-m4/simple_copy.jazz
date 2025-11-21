@@ -1,0 +1,26 @@
+// Simple array copy test for ARM-M4
+export
+fn copy_array() -> reg u32 {
+  stack u32[4] src;
+  stack u32[4] dst;
+  inline int i;
+  reg u32 result;
+  
+  // Initialize source array
+  for i = 0 to 4 {
+    src[i] = i;
+  }
+  
+  // Copy to destination
+  for i = 0 to 4 {
+    dst[i] = src[i];
+  }
+  
+  // Sum destination
+  result = 0;
+  for i = 0 to 4 {
+    result += dst[i];
+  }
+  
+  return result;
+}
