@@ -53,96 +53,10 @@ let params =
     ("fail/x86-64/popcnt.jazz", "off_by_one>;");
   ]
 
-(** Helper functions for processing test files.
-    
-    These functions extract common logic that is shared across all architecture-specific
-    processors, reducing code duplication and making the test runner easier to maintain.
-*)
-module ProcessorHelpers = struct
-  (** Load and preprocess a Jasmin source file.
-      
-      This function performs the initial compilation steps:
-      1. Type-check the file (tt_file)
-      2. Extract declarations from the environment
-      3. Preprocess with architecture-specific register sizes and operations
-      
-      @param arch_info Architecture-specific information (calling conventions, etc.)
-      @param reg_size Function to determine register sizes
-      @param asmOp Assembly operation descriptor
-      @param name Path to the .jazz file to load
-      @return Preprocessed program ready for safety analysis
-  *)
-  let load_and_preprocess arch_info reg_size asmOp name =
-    let open Pretyping in
-    name
-    |> tt_file arch_info Env.empty None None
-    |> fst |> Env.decls    
-    |> Compile.preprocess reg_size asmOp
 
-  (** Process all exported functions in a test file.
-      
-      For each exported function in the program:
-      1. Print the function name being analyzed
-      2. Run the safety analysis
-      3. Assert that the safety result matches expectations
-      
-      This function handles the common test execution logic, delegating only the
-      architecture-specific loading and analysis to the caller-provided functions.
-      
-      @param fmt Output formatter for test results
-      @param expect Expected safety result (true = safe, false = unsafe)
-      @param pointer_data Architecture-specific pointer configuration
-      @param asmOp Assembly operation descriptor
-      @param analyze_fn Architecture-specific analysis function
-      @param path Directory containing the test file
-      @param name Name of the test file (without directory)
-      @param load_file_fn Function to load and preprocess the file
-  *)
-  let process_functions ~fmt expect pointer_data asmOp analyze_fn path name load_file_fn =
-    let name = Filename.concat path name in
-    Format.fprintf fmt "File %s:@." name;
-    (* Set architecture-specific safety parameters if configured for this file *)
-    Glob_options.safety_param := List.assoc_opt name params;
-    try
-      let ((_, fds) as p) = load_file_fn name in
-      List.iter
-        (fun fd ->
-          (* Only analyze exported functions (entry points) *)
-          if FInfo.is_export fd.Prog.f_cc then
-            let () =
-              Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
-            in
-            let safe = analyze_fn ~fmt pointer_data asmOp fd fd p in
-            (* Verify the safety result matches our expectations *)
-            assert (safe = expect))
-        fds
-    with
-    | exn ->
-        Format.eprintf "@[<v>Error processing file %s:@,%s@]@." name (Printexc.to_string exn);
-        raise exn
-end
 
-(** X86-64 architecture processor.
-    
-    Handles safety analysis for Intel/AMD x86-64 targets. This architecture has:
-    - General purpose registers (reg)
-    - Extended registers (regx) 
-    - SIMD/XMM registers (xreg)
-    - RFLAGS register (rflag)
-    - Rich condition codes (cond)
-    - Complex instruction set (x86_op)
-    
-    This is a specialization of the common processor logic with x86-64-specific
-    architecture modules and types.
-*)
+(** X86-64 architecture processor *)
 module X86Processor = struct
-  (** Architecture module with explicit x86-64 type constraints.
-      
-      Configuration options:
-      - use_set0: Whether to use XOR reg,reg to set register to zero
-      - use_lea: Whether to use LEA instruction for address calculations
-      - call_conv: Calling convention (Linux, Windows, etc.)
-  *)
   module Arch =
     (val let use_set0 = !Glob_options.set0 and use_lea = !Glob_options.lea in
          let call_conv = !Glob_options.call_conv in
@@ -158,41 +72,39 @@ module X86Processor = struct
             and type asm_op = X86_instr_decl.x86_op
             and type extra_op = X86_extra.x86_extra_op))
 
-  (** Load and preprocess an x86-64 Jasmin file. *)
-  let load_file = ProcessorHelpers.load_and_preprocess Arch.arch_info Arch.reg_size Arch.asmOp
+  module Safety = SafetyMain.Make (X86_safety.X86_safety (Arch))
 
-  (** Perform safety analysis on an x86-64 function using X86SafetyArch. *)
-  let analyze ~fmt pd asmOp source_f_decl f_decl p =
-    let module PW = struct
-      type extended_op = X86_extra.x86_extended_op
-      let main_source = source_f_decl
-      let main = f_decl
-      let prog = p
-    end in
-    let module AbsInt = SafetyInterpreter.AbsAnalyzer (SafetyArchX86.X86SafetyArch) (PW) in
-    AbsInt.analyze ~fmt pd asmOp ()
+  let load_file name =
+    let open Pretyping in
+    name
+    |> tt_file Arch.arch_info Env.empty None None
+    |> fst |> Env.decls
+    |> Compile.preprocess Arch.reg_size Arch.asmOp
 
-  (** Process a single x86-64 test file. *)  
-  let process ~fmt expect path name =
-    ProcessorHelpers.process_functions ~fmt expect Arch.pointer_data Arch.asmOp analyze path name load_file
+  let load_and_analyze ~fmt expect path name =
+    let name = Filename.concat path name in
+    Format.fprintf fmt "File %s:@." name;
+    Glob_options.safety_param := List.assoc_opt name params;
+    let ((_, fds) as p) = load_file name in
+    List.iter
+      (fun fd ->
+        if FInfo.is_export fd.Prog.f_cc then
+          let () =
+            Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
+          in
+          let safe = Safety.analyze ~fmt fd fd p in
+          if safe <> expect then begin
+            Format.eprintf "@[<v>Assertion failed for file %s, function %s:@," name fd.f_name.fn_name;
+            Format.eprintf "Expected: %s, Got: %s@]@." 
+              (if expect then "safe" else "unsafe")
+              (if safe then "safe" else "unsafe")
+          end;
+          assert (safe = expect))
+      fds
 end
 
-(** ARM Cortex-M4 architecture processor.
-    
-    Handles safety analysis for ARM Cortex-M4 targets (ARMv7-M architecture).
-    This is a reduced instruction set architecture with:
-    - General purpose registers (reg)
-    - No extended registers (regx = empty)
-    - No SIMD registers in M4 profile (xreg = empty)
-    - Condition flags (rflag)
-    - ARM condition codes (cond)
-    - ARM/Thumb instruction set (arm_op)
-    
-    This is a specialization of the common processor logic with ARM-M4-specific
-    architecture modules and types.
-*)
+(** ARM Cortex-M4 architecture processor *)
 module ARMProcessor = struct
-  (** Architecture module with explicit ARM-M4 type constraints. *)
   module Arch =
     (val let module C = CoreArchFactory.Core_arch_ARM in
          (module Arch_full.Arch_from_Core_arch (C) : Arch_full.Arch
@@ -204,42 +116,42 @@ module ARMProcessor = struct
             and type asm_op = Arm_instr_decl.arm_op
             and type extra_op = Arm_extra.arm_extra_op))
 
-  (** Load and preprocess an ARM-M4 Jasmin file. *)
-  let load_file = ProcessorHelpers.load_and_preprocess Arch.arch_info Arch.reg_size Arch.asmOp
+  module Safety = SafetyMain.Make (Arm_safety.Arm_safety (Arch))
 
-  (** Perform safety analysis on an ARM-M4 function using ARMSafetyArch. *)
-  let analyze ~fmt pd asmOp source_f_decl f_decl p =
-    let module PW = struct
-      type extended_op = Arm_extra.arm_extended_op
-      let main_source = source_f_decl
-      let main = f_decl
-      let prog = p
-    end in
-    let module AbsInt = SafetyInterpreter.AbsAnalyzer (SafetyArchArm.ARMSafetyArch) (PW) in
-    AbsInt.analyze ~fmt pd asmOp ()
+  let load_file name =
+    let open Pretyping in
+    name
+    |> tt_file Arch.arch_info Env.empty None None
+    |> fst |> Env.decls
+    |> Compile.preprocess Arch.reg_size Arch.asmOp
 
-  (** Process a single ARM-M4 test file. *)
-  let process ~fmt expect path name =
-    ProcessorHelpers.process_functions ~fmt expect Arch.pointer_data Arch.asmOp analyze path name load_file
+  let load_and_analyze ~fmt expect path name =
+    let name = Filename.concat path name in
+    Format.fprintf fmt "File %s:@." name;
+    Glob_options.safety_param := List.assoc_opt name params;
+    let ((_, fds) as p) = load_file name in
+    List.iter
+      (fun fd ->
+        if FInfo.is_export fd.Prog.f_cc then
+          let () =
+            Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
+          in
+          let safe = Safety.analyze ~fmt fd fd p in
+          if safe <> expect then begin
+            Format.eprintf "@[<v>Assertion failed for file %s, function %s:@," name fd.f_name.fn_name;
+            Format.eprintf "Expected: %s, Got: %s@]@." 
+              (if expect then "safe" else "unsafe")
+              (if safe then "safe" else "unsafe");
+            Format.eprintf "@.Re-running analysis with full output:@.";
+            let _ = Safety.analyze ~fmt:Format.err_formatter fd fd p in
+            ()
+          end;
+          assert (safe = expect))
+      fds
 end
 
-(** RISC-V architecture processor.
-    
-    Handles safety analysis for RISC-V targets. This is a clean reduced instruction
-    set architecture with:
-    - General purpose registers (reg)
-    - No register extensions (regx = empty)
-    - No SIMD in base ISA (xreg = empty)
-    - No flags register - conditions are explicit (rflag = empty)
-    - Simple condition encoding (cond)
-    - RISC-V instruction set (riscv_op)
-    
-    This is a specialization of the common processor logic with RISC-V-specific
-    architecture modules and types. RISC-V's simplicity can make some safety
-    properties easier to verify compared to x86-64.
-*)
+(** RISC-V architecture processor *)
 module RISCVProcessor = struct
-  (** Architecture module with explicit RISC-V type constraints. *)
   module Arch =
     (val let module C = CoreArchFactory.Core_arch_RISCV in
          (module Arch_full.Arch_from_Core_arch (C) : Arch_full.Arch
@@ -251,24 +163,40 @@ module RISCVProcessor = struct
             and type asm_op = Riscv_instr_decl.riscv_op
             and type extra_op = Riscv_extra.riscv_extra_op))
 
-  (** Load and preprocess a RISC-V Jasmin file. *)
-  let load_file = ProcessorHelpers.load_and_preprocess Arch.arch_info Arch.reg_size Arch.asmOp
+  module Safety = SafetyMain.Make (Riscv_safety.Riscv_safety (Arch))
 
-  (** Perform safety analysis on a RISC-V function using RISCVSafetyArch. *)
-  let analyze ~fmt pd asmOp source_f_decl f_decl p =
-    let module PW = struct
-      type extended_op = Riscv_extra.riscv_extended_op
-      let main_source = source_f_decl
-      let main = f_decl
-      let prog = p
-    end in
-    let module AbsInt = SafetyInterpreter.AbsAnalyzer (SafetyArchRiscv.RISCVSafetyArch) (PW) in
-    AbsInt.analyze ~fmt pd asmOp ()
+  let load_file name =
+    let open Pretyping in
+    name
+    |> tt_file Arch.arch_info Env.empty None None
+    |> fst |> Env.decls
+    |> Compile.preprocess Arch.reg_size Arch.asmOp
 
-  (** Process a single RISC-V test file. *)
-  let process ~fmt expect path name =
-    ProcessorHelpers.process_functions ~fmt expect Arch.pointer_data Arch.asmOp analyze path name load_file
+  let load_and_analyze ~fmt expect path name =
+    let name = Filename.concat path name in
+    Format.fprintf fmt "File %s:@." name;
+    Glob_options.safety_param := List.assoc_opt name params;
+    let ((_, fds) as p) = load_file name in
+    List.iter
+      (fun fd ->
+        if FInfo.is_export fd.Prog.f_cc then
+          let () =
+            Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
+          in
+          let safe = Safety.analyze ~fmt fd fd p in
+          if safe <> expect then begin
+            Format.eprintf "@[<v>Assertion failed for file %s, function %s:@," name fd.f_name.fn_name;
+            Format.eprintf "Expected: %s, Got: %s@]@." 
+              (if expect then "safe" else "unsafe")
+              (if safe then "safe" else "unsafe");
+            Format.eprintf "@.Re-running analysis with full output:@.";
+            let _ = Safety.analyze ~fmt:Format.err_formatter fd fd p in
+            ()
+          end;
+          assert (safe = expect))
+      fds
 end
+
 
 (** Detect target architecture from file path.
     
@@ -296,7 +224,7 @@ let detect_arch path =
     
     This is the key dispatch function that:
     1. Detects the architecture from the file path
-    2. Calls the appropriate processor's process function
+    2. Calls the appropriate processor's load_and_analyze function
     
     Each architecture processor handles all the architecture-specific details
     (types, modules, analysis logic), keeping the dispatch logic clean and simple.
@@ -308,17 +236,10 @@ let detect_arch path =
 *)
 let process_file ~fmt expect path name =
   let full_path = Filename.concat path name in
-  let arch = detect_arch full_path in
-  let arch_name = match arch with
-    | `X86 -> "x86-64"
-    | `ARM -> "ARM-M4"
-    | `RISCV -> "RISC-V"
-  in
-  Format.eprintf "Processing %s test file: %s/%s@." arch_name path name;
-  match arch with
-  | `X86 -> X86Processor.process ~fmt expect path name
-  | `ARM -> ARMProcessor.process ~fmt expect path name
-  | `RISCV -> RISCVProcessor.process ~fmt expect path name
+  match detect_arch full_path with
+  | `X86 -> X86Processor.load_and_analyze ~fmt expect path name
+  | `ARM -> ARMProcessor.load_and_analyze ~fmt expect path name
+  | `RISCV -> RISCVProcessor.load_and_analyze ~fmt expect path name
 
 (** Recursively process all test files in a directory tree.
     
@@ -399,16 +320,16 @@ let () =
   end;
   
   (* Determine the directory where test files are located.
-     When run via 'dune runtest safety', cwd is compiler/safety.
-     When run via 'dune exec safety/run.exe', cwd is compiler.
+     When run via 'dune runtest', cwd is compiler/tests/safety.
+     When run via 'dune exec tests/safety/run.exe', cwd is compiler.
      Detect location and construct paths accordingly. *)
   let fail_path, success_path =
     if Sys.file_exists "fail" && Sys.file_exists "success" then
-      (* Already in safety directory *)
+      (* Already in tests/safety directory *)
       ("fail", "success")
-    else if Sys.file_exists "safety/fail" && Sys.file_exists "safety/success" then
-      (* In compiler directory - need to prefix with safety/ *)
-      ("safety/fail", "safety/success")
+    else if Sys.file_exists "tests/safety/fail" && Sys.file_exists "tests/safety/success" then
+      (* In compiler directory - need to prefix with tests/safety/ *)
+      ("tests/safety/fail", "tests/safety/success")
     else
       (* Fallback to current directory paths, will show skip messages if not found *)
       ("fail", "success")
