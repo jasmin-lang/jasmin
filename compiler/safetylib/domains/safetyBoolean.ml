@@ -213,18 +213,9 @@ end
 module EMs = MakeEqMap(Scmp)
 
 (*------------------------------------------------------------*)
-let ws_of_int i = match i with
-  | 8   -> U8
-  | 16  -> U16
-  | 32  -> U32
-  | 64  -> U64
-  | 128 -> U128
-  | 256 -> U256
-  | _ -> assert false
-
 let ws_meet ws1 ws2 = 
   min (Prog.int_of_ws ws1) (Prog.int_of_ws ws2)
-  |> ws_of_int
+  |> wsize_of_int
     
 let align_meet t t' =
   let f ws1 ws2 = match ws1, ws2 with
@@ -234,7 +225,7 @@ let align_meet t t' =
 
 let ws_join ws1 ws2 = 
   max (Prog.int_of_ws ws1) (Prog.int_of_ws ws2)
-  |> ws_of_int
+  |> wsize_of_int
 
 let align_join t t' =
   let f ws1 ws2 = match ws1, ws2 with
@@ -246,12 +237,11 @@ let align_join t t' =
 (*------------------------------------------------------------*)
 (* Numerical Domain with Two Levels of Precision *)
 
-module AbsNumTMake (PW : ProgWrap) : AbsNumT = struct
-
+module AbsNumTMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extended_op = Arch.extended_op) : AbsNumT = struct
   let vdw =
     if Config.sc_dynamic_packing ()
-    then (module PIDynMake (PW) : VDomWrap)
-    else (module PIMake (PW) : VDomWrap)
+    then (module (PIDynMake (Arch)) (PW) : VDomWrap)
+    else (module (PIMake (Arch)) (PW) : VDomWrap)
 
   module VDW = (val vdw)
 

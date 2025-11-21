@@ -479,7 +479,10 @@ end
 
 (*---------------------------------------------------------------*)
 (* Statique Packing *)
-module PIMake (PW : ProgWrap) : VDomWrap = struct 
+module PIMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extended_op = Arch.extended_op) : VDomWrap = struct 
+  module PreA = MakePreAnalysis(Arch)
+  open PreA
+
   (* We do not use the state in this heuristic *)
   let dom_st_init = Mm.empty
   let dom_st_update dom_st _ _ = dom_st
@@ -555,7 +558,10 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
 end
 
 (* Dynamic Packing *)
-module PIDynMake (PW : ProgWrap) : VDomWrap = struct
+module PIDynMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extended_op = Arch.extended_op) : VDomWrap = struct
+  module PreA = MakePreAnalysis(Arch)
+  open PreA
+
   let merge_dom dom_st dom_st' =
     Mm.merge (fun v d1 d2 -> match d1, d2 with
         | Some d, None | None, Some d -> Some d
@@ -580,9 +586,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
      Precondition: [PW.main] must not contain function calls, and variables 
      must be uniquely characterized by their names. *)
   let ssa_main, pa_res =
-    (* FIXME: code duplication! dirty hack *)
-    let asmOp = Arch_extra.asm_opI X86_arch_full.X86_core.asm_e in
-    FSPa.fs_pa_make X86_decl.x86_decl.reg_size asmOp PW.main
+    FSPa.fs_pa_make PW.main
 
   (* We compute the reflexive and transitive clojure of dp *)
   let dp = trans_closure pa_res.pa_dp

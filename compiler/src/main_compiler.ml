@@ -62,14 +62,12 @@ let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
   if not is_safe then exit(2)
 
 (* -------------------------------------------------------------------- *)
-module type ArchCoreWithAnalyze = sig
-  module C : Arch_full.Core_arch
+module type ArchWithAnalyze = sig
+  module A : Arch_full.Arch
   val analyze :
-    Wsize.wsize ->
-    (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op Sopn.asmOp ->
-    (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) func ->
-    (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) func ->
-    (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) prog ->
+    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
+    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
+    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) prog ->
     bool
 end
 
@@ -79,25 +77,33 @@ let main () =
   try
     let infile = parse() in
 
-    let (module P : ArchCoreWithAnalyze) =
+    let (module P : ArchWithAnalyze) =
       match !target_arch with
       | X86_64 ->
          (module struct
             module C = (val CoreArchFactory.core_arch_x86 ~use_lea:!lea ~use_set0:!set0 !call_conv)
-            let analyze = X86_safety.analyze
+            module A = Arch_full.Arch_from_Core_arch (C)
+            module Safety = SafetyMain.Make (Jasmin_checksafety.X86_safety.X86_safety (A))
+            let analyze = Safety.analyze ?fmt:None
           end)
       | ARM_M4 ->
          (module struct
             module C = CoreArchFactory.Core_arch_ARM
-            let analyze _ _ _ _ _ = failwith "TODO_ARM: analyze"
+            module A = Arch_full.Arch_from_Core_arch (C)
+            open Jasmin_checksafety
+            module Safety = SafetyMain.Make (Jasmin_checksafety.Arm_safety.Arm_safety (A))
+            let analyze = Safety.analyze ?fmt:None
           end)
       | RISCV ->
          (module struct
             module C = CoreArchFactory.Core_arch_RISCV
-            let analyze _ _ _ _ _ = failwith "TODO_RISCV: analyze"
+            module A = Arch_full.Arch_from_Core_arch (C)
+            open Jasmin_checksafety
+            module Safety = SafetyMain.Make (Jasmin_checksafety.Riscv_safety.Riscv_safety (A))
+            let analyze = Safety.analyze ?fmt:None
           end)
     in
-    let module Arch = Arch_full.Arch_from_Core_arch (P.C) in
+    let module Arch = P.A in
 
     if !safety_makeconfigdoc <> None
     then (
@@ -183,7 +189,7 @@ let main () =
         check_safety_p
           Arch.reg_size
           Arch.asmOp
-          (P.analyze Arch.pointer_data Arch.asmOp)
+          P.analyze
           s
           p
           source_prog

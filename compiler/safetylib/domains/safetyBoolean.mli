@@ -3,7 +3,7 @@ open SafetyInterfaces
 (*------------------------------------------------------------*)
 (* Numerical Domain with Two Levels of Precision *)
 
-module AbsNumTMake (PW : ProgWrap) : AbsNumT
+module AbsNumTMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extended_op = Arch.extended_op) : AbsNumT
 
 (*------------------------------------------------------------*)
 (* Abstraction of numerical and boolean values. *)

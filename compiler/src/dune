@@ -11,10 +11,10 @@
  (name jasmin)
  (public_name jasmin.jasmin)
  (flags (:standard -w -9-27-32-33-34-37-39-50-67))
- (modules :standard \ main_compiler x86_safety)
+ (modules :standard \ main_compiler)
  (libraries angstrom batteries.unthreaded zarith menhirLib uint63))
 
 (library
  (name jasminc)
- (modules main_compiler x86_safety)
+ (modules main_compiler)
  (libraries jasmin jasmin_checksafety linter))
