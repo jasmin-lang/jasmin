@@ -1,17 +1,17 @@
-fn spill_msf(reg u64 msf) -> #msf reg u64 {
-    #mmx reg u64 _msf;
+fn spill_msf(reg u64 msf) -> #[msf] reg u64 {
+    #[mmx] reg u64 _msf;
     _msf = #mov_msf(msf);
     msf = #mov_msf(_msf);
     return msf;
 }
 
-fn return_msf(reg u64 msf) -> #msf #mmx reg u64 {
-    #mmx reg u64 _msf;
+fn return_msf(reg u64 msf) -> #[msf] #[mmx] reg u64 {
+    #[mmx] reg u64 _msf;
     _msf = #mov_msf(msf);
     return _msf;
 }
 
-fn take_msf(#mmx reg u64 _msf) -> #msf reg u64 {
+fn take_msf(#[mmx] reg u64 _msf) -> #[msf] reg u64 {
     reg u64 msf;
     msf = #mov_msf(_msf);
     return msf;
@@ -26,7 +26,7 @@ fn init_mmx_msf() -> reg u64 {
 }
 
 #[sct="{ n: d, s: secret } × msf → d"]
-fn protect_mmx(#mmx reg u64 x, #mmx reg u64 msf) -> #mmx reg u64 {
+fn protect_mmx(#[mmx] reg u64 x, #[mmx] reg u64 msf) -> #[mmx] reg u64 {
     x = #protect(x, msf);
     return x;
 }

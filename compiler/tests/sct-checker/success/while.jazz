@@ -1,8 +1,9 @@
+#[sct = "public × secret → public"]
 fn while_first_branch(
-    #public reg u64 pub,
-    #secret reg u64 sec
+    reg u64 pub,
+    reg u64 sec
 ) ->
-    #public reg u64
+    reg u64
 {
     reg bool b;
     b = 0 < sec;

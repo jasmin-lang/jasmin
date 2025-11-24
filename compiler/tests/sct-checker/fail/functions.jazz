@@ -1,8 +1,8 @@
-inline fn leak(#public reg u64 c) { if c != 0 {} }
+#[sct = "public → ()"] inline fn leak(reg u64 c) { if c != 0 {} }
 
 u8[6] g = "jasmin";
 
-fn call_kills_msf(#transient reg u64 c) -> #public reg u64 {
+#[sct = "transient → public"] fn call_kills_msf(reg u64 c) -> reg u64 {
   reg u64 m x;
   m = #init_msf();
   x = g[:u64 c];

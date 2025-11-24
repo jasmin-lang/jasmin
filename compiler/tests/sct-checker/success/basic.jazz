@@ -1,13 +1,16 @@
-export fn nothing(#transient reg u64 a) -> #public reg u64 {
+#[sct="transient → public"]
+export fn nothing(reg u64 a) -> reg u64 {
   _ = #init_msf();
   return a;
 }
 
-export fn secret(#secret reg u64 a) -> #secret reg u64 {
+#[sct="secret → secret"]
+export fn secret(reg u64 a) -> reg u64 {
   return a;
 }
 
-export fn branch(#transient reg u64 a, #secret reg u64 b c) -> #secret reg u64 {
+#[sct="transient × secret → secret"]
+export fn branch(reg u64 a, reg u64 b c) -> reg u64 {
   reg u64 r;
   _ = #init_msf();
   if a == 0 {
@@ -18,14 +21,16 @@ export fn branch(#transient reg u64 a, #secret reg u64 b c) -> #secret reg u64 {
   return c;
 }
 
-export fn branchless(#transient reg u64 a, #secret reg u64 b c) -> #secret reg u64 {
+#[sct="transient × secret → secret"]
+export fn branchless(reg u64 a, reg u64 b c) -> reg u64 {
   c = b if a == 0;
   return c;
 }
 
 u64[2] not = { 1, 0 };
 
-export fn forloop(#transient reg u64 a) -> #public reg u64 {
+#[sct = "transient → public"]
+export fn forloop(reg u64 a) -> reg u64 {
   reg u64 msf t;
   inline int i;
   msf = #init_msf();
@@ -37,7 +42,8 @@ export fn forloop(#transient reg u64 a) -> #public reg u64 {
   return a;
 }
 
-export fn whileloop(#transient reg u64 a) -> #public reg u64 {
+#[sct = "transient → public"]
+export fn whileloop(reg u64 a) -> reg u64 {
   reg u64 msf t i;
   msf = #init_msf();
   ?{}, i = #set0();
@@ -51,7 +57,8 @@ export fn whileloop(#transient reg u64 a) -> #public reg u64 {
   return a;
 }
 
-export fn archetype(#transient reg u64 i) -> #transient reg u64 {
+#[sct = "transient → transient"]
+export fn archetype(reg u64 i) -> reg u64 {
   reg u64 msf r t;
   msf = #init_msf();
   r = 0;
@@ -80,7 +87,8 @@ export fn load(#transient reg u64 p i)
   return r;
 }
 
-export fn store(#transient reg u64 p i q, #secret reg u64 v) {
+#[sct = "transient × transient × transient × secret → ()"]
+export fn store(reg u64 p i q, reg u64 v) {
   reg u64 msf j;
   msf = #init_msf();
   if i < 2 {
