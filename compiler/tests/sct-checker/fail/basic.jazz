@@ -1,8 +1,10 @@
-fn leak_transient(#transient reg u64 x) { x = [x]; }
+#[sct="transient → ()"]
+fn leak_transient(reg u64 x) { x = [x]; }
 
 u64[2] not = { 1, 0 };
 
-fn after_branch(#transient reg u64 a){
+#[sct="transient → ()"]
+fn after_branch(reg u64 a){
   reg u64 m;
   m = #init_msf();
   if a >= 2 { a = 0; }
@@ -10,7 +12,8 @@ fn after_branch(#transient reg u64 a){
   a = #protect(a, m);
 }
 
-fn missing_else(#transient reg u64 a){
+#[sct="transient → ()"]
+fn missing_else(reg u64 a){
   reg u64 m;
   reg bool b;
   m = #init_msf();
@@ -23,7 +26,8 @@ fn missing_else(#transient reg u64 a){
   a = #protect(a, m);
 }
 
-fn missing_then(#transient reg u64 a){
+#[sct="transient → ()"]
+fn missing_then(reg u64 a){
   reg u64 m;
   reg bool b;
   m = #init_msf();
@@ -51,13 +55,13 @@ fn xof_init(
   return state;
 }
 
-fn magic_msf() -> #msf reg u64 {
+fn magic_msf() -> #[msf] reg u64 {
   reg u64 msf;
   msf = 0;
   return msf;
 }
 
-fn conditional_init_msf(reg u64 x) -> #msf reg u64 {
+fn conditional_init_msf(reg u64 x) -> #[msf] reg u64 {
   reg u64 msf;
   if x > 0 {
     msf = #init_msf();
@@ -65,7 +69,7 @@ fn conditional_init_msf(reg u64 x) -> #msf reg u64 {
   return msf;
 }
 
-fn outdated_msf(reg u64 x) -> #msf reg u64, reg u64 {
+fn outdated_msf(reg u64 x) -> #[msf] reg u64, reg u64 {
   reg u64 msf;
   msf = #init_msf();
   if x > 0 {

@@ -1,8 +1,9 @@
+#[sct = "public × secret → public"]
 fn spill1(
-    #public reg u64 pub,
-    #secret reg u64 sec
+    reg u64 pub,
+    reg u64 sec
 ) ->
-    #public reg u64
+    reg u64
 {
     () = #spill(pub, sec);
     () = #unspill(pub, sec);
@@ -11,13 +12,14 @@ fn spill1(
 }
 
 
+#[sct = "public × secret → public"]
 fn spill2(
-    #public reg u64 pub,
-    #secret reg u64 sec
+    reg u64 pub,
+    reg u64 sec
 ) ->
-    #public reg u64
+    reg u64
 {
-    #spill_to_mmx reg u64 pub1;
+    #[spill_to_mmx] reg u64 pub1;
     reg u64 msf;
     pub1 = pub;
     msf = #init_msf();
