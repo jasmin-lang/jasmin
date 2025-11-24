@@ -313,6 +313,7 @@ type ec_lvalue =
 type ec_lvalues = ec_lvalue list
 
 type ec_instr =
+    | ERaise of string
     | ESasgn of ec_lvalues * ec_expr
     | EScall of ec_lvalues * ec_ident * ec_expr list
     | ESsample of ec_lvalues * ec_expr
@@ -375,6 +376,7 @@ type ec_proof = ec_tactic list
 
 
 type ec_item =
+    | Iexcepetion of string
     | IrequireImport of string list
     | Iimport of string list
     | IfromRequireImport of string * (string list)
@@ -799,6 +801,7 @@ let rec pp_ec_ast_stmt fmt stmt =
 
 and pp_ec_ast_instr fmt instr =
     match instr with
+    | ERaise s -> Format.fprintf fmt "@[<v>raise %s;@]" s
     | ESasgn (lv, e) -> Format.fprintf fmt "@[%a <-@ %a;@]" pp_ec_lvalues lv pp_ec_ast_expr e
     | EScall (lvs, f, args) ->
             let pp_res fmt lvs =
@@ -886,6 +889,7 @@ let pp_ec_item fmt it =
     else pp_paren (pp_list sep pp) fmt xs
   in
   match it with
+  | Iexcepetion s -> Format.fprintf fmt "@[exception %s.@]" s
   | IrequireImport is ->
     Format.fprintf fmt "@[require import@ @[%a@].@]" (pp_list "@ " pp_string) is
   | Iimport is ->
@@ -2387,11 +2391,11 @@ struct
     in
     (ec_leaks_lvs env lvs) @ stmt
 
-  let ec_pcall env lvs leak_lvs safety_lvs otys f args =
+  let ec_pcall env lvs leak_lvs otys f args =
     if lvals_are_vars lvs && (List.map ty_lval lvs) = otys then
-      (ec_leaks_lvs env lvs) @ [EScall (leak_lvs @ ec_lvals env lvs @ safety_lvs,f,args)]
+      (ec_leaks_lvs env lvs) @ [EScall (leak_lvs @ ec_lvals env lvs,f,args)]
     else
-      ec_assgn_f env lvs otys otys (fun lvals -> EScall (leak_lvs @ lvals @ safety_lvs, f, args))
+      ec_assgn_f env lvs otys otys (fun lvals -> EScall (leak_lvs @ lvals, f, args))
 
   let ec_expr_assgn env lvs etyso etysi e =
     if lvals_are_vars lvs && (List.map ty_lval lvs) = etyso && etyso = etysi then
@@ -2440,20 +2444,20 @@ struct
           let otys, itys = Env.get_funtype env f in
           let args = List.map (toec_cast env) (List.combine itys es) in
           let leak_lvs = ec_leak_call_lvs env in
-          let safety_lvs = ec_safety_call_lvs env f in
           (ec_leaks_es env es) @
-          (ec_pcall env lvs leak_lvs safety_lvs otys [Env.get_funname env f] args) @
-          (ec_leak_call_acc env) @
-          (ec_safety_call_acc env lvs f es)
+          (ec_pcall env lvs leak_lvs otys [Env.get_funname env f] args) @
+          (ec_leak_call_acc env)
       | Csyscall (lvs, o, es) ->
           let s = Syscall.syscall_sig_u o in
           let otys = List.map Conv.ty_of_cty s.scs_tout in
           let itys =  List.map Conv.ty_of_cty s.scs_tin in
           let args = List.map (toec_cast env) (List.combine itys es) in
           (ec_leaks_es env es) @
-          (ec_pcall env lvs [] [] otys [ec_syscall env o] args)
-      | Cassert a ->
-         ec_safety_assert env a
+           (ec_pcall env lvs [] (* [] *) otys [ec_syscall env o] args)
+      | Cassert (_,e) ->
+          let c1 = [] in
+          let c2 = [ERaise "Safty"] in
+          [ESif (toec_expr env e, c1, c2)]
       | Cif (e, c1, c2) ->
           let c1 env = toec_cmd asmOp env c1 in
           let c2 env = toec_cmd asmOp env c2 in
@@ -2498,12 +2502,11 @@ struct
       let env = List.fold_left Env.set_var env (f.f_args @ locals) in
       (* Limit the scope of changes for aux variables to the current function. *)
       let env = Env.new_fun env in
-      let init_safety,final,safety_locals,env  = ec_fun_safety_init env f in
       let init_leak = ec_fun_leak_init env in
-      let init = init_safety @ init_leak in
-      let stmts = init @ (toec_cmd asmOp env f.f_body) @ final in
+      let init = init_leak in
+      let stmts = init @ (toec_cmd asmOp env f.f_body) in
       let ec_locals = (Env.aux_vars env) @ (List.map (var2ec_var env) locals) in
-      let ec_locals = ec_locals @ safety_locals in
+      let ec_locals = ec_locals in
       let aux_locals_init = locals
           |> List.filter (fun x -> match x.v_ty with Arr _ -> true | _ -> false)
           |> List.sort (fun x1 x2 -> compare x1.v_name x2.v_name)
@@ -2511,7 +2514,7 @@ struct
       in
       let ret =
           let ec_var x = ec_vari env (L.unloc x) in
-          match ec_safety_ret env f.f_name (ec_leak_ret env (List.map ec_var f.f_ret)) with
+          match ec_leak_ret env (List.map ec_var f.f_ret) with
           | [x] -> ESreturn x
           | xs -> ESreturn (Etuple xs)
       in
@@ -2521,7 +2524,7 @@ struct
           decl = {
               fname = (Env.get_funname env f.f_name);
               args = List.map (var2ec_var env) f.f_args;
-              rtys = ec_safety_rty env (ec_leak_rty env (List.map (toec_ty env) f.f_tyout));
+              rtys = ec_leak_rty env (List.map (toec_ty env) f.f_tyout);
           };
           locals = ec_locals;
           stmt = aux_locals_init @ stmts @ [ret];
@@ -2617,6 +2620,7 @@ struct
           funs;
       } in
       glob_imports @
+      [Iexcepetion "Safty"] @
       (leakage_imports env) @
       (safety_imports env) @
       pp_array_theories (Env.array_theories env) @
