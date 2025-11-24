@@ -3,7 +3,7 @@ fn eventually_terminates() -> reg u64 {
   reg u64 r c;
   stack u8[1] b;
   ?{}, c = #set0();
-  #no_termination_check
+  #[no_termination_check]
   while {
     b = #randombytes(b);
   } (b[0] != 0) {

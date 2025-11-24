@@ -8,6 +8,6 @@ fn main(reg u64 x) -> reg u64 {
 }
 
 inline fn test() {
-#inline _ = main(0);
+#[inline] _ = main(0);
 }
 exec test()
