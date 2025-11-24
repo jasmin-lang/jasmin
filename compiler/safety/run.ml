@@ -1,4 +1,5 @@
 open Jasmin
+open Utils
 open Jasmin_checksafety
 
 let params =
@@ -24,11 +25,16 @@ module Arch =
           and type extra_op = X86_extra.x86_extra_op))
 
 let load_file name =
-  let open Pretyping in
-  name
-  |> tt_file Arch.arch_info Env.empty None None
-  |> fst |> Env.decls
-  |> Compile.preprocess Arch.reg_size Arch.asmOp
+  try
+    let open Pretyping in
+    name
+    |> tt_file Arch.arch_info Env.empty None None
+    |> fst |> Env.decls
+    |> Compile.preprocess Arch.reg_size Arch.asmOp
+  with Syntax.ParseError (loc, msg) ->
+    Format.eprintf "%a: %s@." Location.pp_loc loc
+      (Option.default "parse error" msg);
+    assert false
 
 let analyze ~fmt pd asmOp source_f_decl f_decl p =
   let module AbsInt = SafetyInterpreter.AbsAnalyzer (struct
