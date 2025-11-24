@@ -5,7 +5,7 @@ fn test() -> reg u64 {
   stack u64[N] t;
   reg u64 i;
   i = 0;
-  #bounded
+  #[bounded]
   while (i < N) {
     t[i] = i;
     i += 1;

@@ -21,9 +21,9 @@ export fn divEx2(reg u64 hi) -> reg u64 {
 inline fn test() -> reg u64 {
   reg u64 x;
   x = 0;
-  #inline
+  #[inline]
   x = divEx1(x);
-  #inline
+  #[inline]
   x = divEx2(x);
   return x;
 }
