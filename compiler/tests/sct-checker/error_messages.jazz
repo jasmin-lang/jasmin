@@ -57,39 +57,41 @@ export fn msf_in_export(reg u64 p) {
   p = #protect(p, p);
 }
 
-fn must_not_be_a_msf_aux(#msf reg u64 p) { p = p;
+fn must_not_be_a_msf_aux(#[msf] reg u64 p) { p = p;
 }
 
-fn should_be_a_msf_aux(#public reg u64 p) {
+#[sct = "public → ()"]
+fn should_be_a_msf_aux(reg u64 p) {
   p = #protect(p, p);
 }
+
 export fn should_be_a_msf(reg u64 p) {
   should_be_a_msf_aux(p);
 }
-
-export fn at_least_transient(#public reg u64 p) {
+#[sct = "public → ()"]
+export fn at_least_transient(reg u64 p) {
   [p] = 0;
 }
 
-#constraints="hello <= public"
+#[constraints="hello <= public"]
 export fn unbound_level() -> reg u64 {
   reg u64 r;
   r = 0;
   return r;
 }
 
-#constraints="secret <= public"
+#[constraints="secret <= public"]
 export fn inconsistent_constraint() {}
 
-#modmsf
+#[modmsf]
 export fn bad_modmsf() {}
 
-#nomodmsf
+#[nomodmsf]
 export fn bad_nomodmsf() {
   _ = #init_msf();
 }
 
-#nomodmsf
+#[nomodmsf]
 fn another_bad_nomodmsf(reg u64 x) -> reg u64  {
   if (x == 0) {
     x = 2;
@@ -103,7 +105,7 @@ export fn call_bad_nomodmsf(reg u64 x) {
   x = #protect(x, msf);
 }
 
-#nomodmsf
+#[nomodmsf]
 fn another_bad_nomodmsf2(reg u64 x, reg u64 msf) -> reg u64 , reg u64 {
   if (x == 0) {
     msf = #update_msf(x == 0, msf);
@@ -119,7 +121,7 @@ export fn call_bad_nomodmsf2(reg u64 x) {
   x = #protect(x, msf);
 }
 
-#nomodmsf
+#[nomodmsf]
 fn another_bad_nomodmsf3(reg u64 x, reg u64 msf) -> reg u64 , reg u64 {
   reg bool b;
   while{b = x > 0;}(b) {
@@ -149,25 +151,30 @@ export fn call_modmsf_destroys(reg u64 x) {
   x = #protect(x, msf);
 }
 
-export fn ret_high(reg u64 p) -> #public reg u64 {
+#[sct = "any → public"]
+export fn ret_high(reg u64 p) -> reg u64 {
   _ = #init_msf();
   p = [p];
   return p;
 }
 
-export fn ret_transient(#transient reg u64 p) -> #public reg u64 {
+#[sct="transient → public"]
+export fn ret_transient(reg u64 p) -> reg u64 {
   return p;
 }
 
-export fn ret_msf() -> #public reg u64 {
+#[sct="() → public"]
+export fn ret_msf() -> reg u64 {
   reg u64 msf;
   msf = #init_msf();
   return msf;
 }
 
-export fn public_arg(#public reg u32 x) { x = x; }
+#[sct = "public → ()"]
+export fn public_arg(reg u32 x) { x = x; }
 
-export fn need_declassify(#transient reg u64 p) -> #public reg u64 {
+#[sct = "transient → public"]
+export fn need_declassify(reg u64 p) -> reg u64 {
   reg u64 x msf;
   msf = #init_msf();
   x = [p];                // need #declassify here

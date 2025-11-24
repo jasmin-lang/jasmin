@@ -1,34 +1,34 @@
 File basic.jazz:
-Failed as expected missing_update_in_loop: "fail/basic.jazz", line 91 (2) to line 93 (3):
+Failed as expected missing_update_in_loop: "fail/basic.jazz", line 95 (2) to line 97 (3):
                                            speculative constant type checker: msf is Exact {
                                              } it should be be at least Exact {
                                             msf }
-Failed as expected missing_update_after_loop: "fail/basic.jazz", line 84 (18-21):
+Failed as expected missing_update_after_loop: "fail/basic.jazz", line 88 (18-21):
                                               speculative constant type checker: MSF is Trans
                                               (! (x >u ((64u) 0)))
-Failed as expected outdated_msf: "fail/basic.jazz", line 74 (9-12):
+Failed as expected outdated_msf: "fail/basic.jazz", line 78 (9-12):
                                  speculative constant type checker: the variable msf is not known to be a msf, only {
                                    } are
-Failed as expected conditional_init_msf: "fail/basic.jazz", line 65 (9-12):
+Failed as expected conditional_init_msf: "fail/basic.jazz", line 69 (9-12):
                                          speculative constant type checker: the variable msf is not known to be a msf, only {
                                            } are
-Failed as expected magic_msf: "fail/basic.jazz", line 56 (2-10):
+Failed as expected magic_msf: "fail/basic.jazz", line 60 (2-10):
                               speculative constant type checker: assignment to MSF variable msf not allowed
-Failed as expected xof_init: "fail/basic.jazz", line 51 (9-14):
+Failed as expected xof_init: "fail/basic.jazz", line 55 (9-14):
                              speculative constant type checker: return type for state is #[ptr = public, val = secret] it should be less than #[ptr = public, val = transient]
-Failed as expected missing_then: "fail/basic.jazz", line 37 (18-19):
+Failed as expected missing_then: "fail/basic.jazz", line 41 (18-19):
                                  speculative constant type checker: the variable m is not known to be a msf, only {
                                    } are
-Failed as expected missing_else: "fail/basic.jazz", line 23 (18-19):
+Failed as expected missing_else: "fail/basic.jazz", line 26 (18-19):
                                  speculative constant type checker: the variable m is not known to be a msf, only {
                                    } are
-Failed as expected after_branch: "fail/basic.jazz", line 10 (18-19):
+Failed as expected after_branch: "fail/basic.jazz", line 12 (18-19):
                                  speculative constant type checker: the variable m is not known to be a msf, only {
                                    } are
-Failed as expected leak_transient: "fail/basic.jazz", line 1 (42-50):
+Failed as expected leak_transient: "fail/basic.jazz", line 2 (31-39):
                                    speculative constant type checker: x has type #transient but should be at most #public
 File bug_1179.jazz:
-Failed as expected main: "fail/bug_1179.jazz", line 9 (4-5):
+Failed as expected main: "fail/bug_1179.jazz", line 8 (4-5):
                          speculative constant type checker: x has type #secret but should be at most #public
 File bug_1189_warning.jazz:
 Failed as expected test: "fail/bug_1189_warning.jazz", line 6 (2) to line 9 (3):
@@ -49,7 +49,7 @@ Failed as expected call_kills_msf: "fail/functions.jazz", line 9 (2-10):
                                    speculative constant type checker: 
                                    this function call destroys MSFs and { m } are required.
                                    Trace:
-                                     the function leak destroys MSFs at "fail/functions.jazz", line 1 (36-48)
+                                     the function leak destroys MSFs at "fail/functions.jazz", line 1 (53-65)
 File inline-if-modmsf.jazz:
 Failed as expected inline_if_modmsf: "fail/inline-if-modmsf.jazz", line 18 (2-11):
                                      speculative constant type checker: 
@@ -77,5 +77,5 @@ Failed as expected main: "fail/speculative-stack-leak.jazz", line 32 (2) to line
                          speculative constant type checker: (pub >s
                                                             ((32u) 0)) has type #secret but should be at most #public
 File spill.jazz:
-Failed as expected spill2: "fail/spill.jazz", line 12 (5-8):
+Failed as expected spill2: "fail/spill.jazz", line 13 (5-8):
                            speculative constant type checker: pub has type #transient but should be at most #public

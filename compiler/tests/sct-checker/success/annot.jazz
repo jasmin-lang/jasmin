@@ -1,4 +1,5 @@
-fn f(#transient reg u64 x) -> #secret reg u64 {
+#[sct = "transient → secret"]
+fn f(reg u64 x) -> reg u64 {
   reg u64 r;
   _ = #init_msf();
   r = 0;
@@ -24,16 +25,19 @@ fn id2(reg ptr u64[2] arg) -> reg ptr u64[2] {
   return arg;
 }
 
-fn id3(#public reg u64 arg) -> #public reg u64 {
+#[sct = "public → public"]
+fn id3(reg u64 arg) -> reg u64 {
   return arg;
 }
 
-fn id4(#transient reg u64 arg) -> #transient reg u64 {
+#[sct = "transient → transient"]
+fn id4(reg u64 arg) -> reg u64 {
   return arg;
 }
 
-fn id5(#secret reg u64 arg) -> #secret reg u64 {
+#[sct = "secret → secret"]
+fn id5(reg u64 arg) -> reg u64 {
   return arg;
 }
 
-fn unused_msf(#msf reg u64 msf) {}
+fn unused_msf(#[msf] reg u64 msf) {}

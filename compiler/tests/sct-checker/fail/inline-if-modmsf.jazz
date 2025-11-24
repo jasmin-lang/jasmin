@@ -1,7 +1,7 @@
 // This should kill the MSFs even if the outer if is inline.
 inline
 fn f(reg u64 a) -> reg u64 {
-    #inline
+    #[inline]
     if (true) {
         if (a == 0) {
             a = 0;
