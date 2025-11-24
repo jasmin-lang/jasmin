@@ -10,7 +10,9 @@ let () =
     | exception Utils.HiError e ->
         Format.printf "Failed as expected %s: %a@." f Utils.pp_hierror
           { e with err_loc = Lnone }
-    | _ -> assert false
+    | _ ->
+        Format.eprintf "Checking function %s did not fail@." f;
+        assert false
   in
   List.iter check_fails
     [
