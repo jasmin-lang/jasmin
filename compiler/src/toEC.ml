@@ -317,6 +317,7 @@ type ec_lvalue =
 type ec_lvalues = ec_lvalue list
 
 type ec_instr =
+    | ERaise of string
     | ESasgn of ec_lvalues * ec_expr
     | EScall of ec_lvalues * ec_ident * ec_expr list
     | ESsample of ec_lvalues * ec_expr
@@ -379,6 +380,7 @@ type ec_proof = ec_tactic list
 
 
 type ec_item =
+    | Iexcepetion of string
     | IrequireImport of string list
     | Iimport of string list
     | IfromImport of string * (string list)
@@ -811,6 +813,7 @@ let rec pp_ec_ast_stmt fmt stmt =
 
 and pp_ec_ast_instr fmt instr =
     match instr with
+    | ERaise s -> Format.fprintf fmt "@[<v>raise %s;@]" s
     | ESasgn (lv, e) -> Format.fprintf fmt "@[%a <-@ %a;@]" pp_ec_lvalues lv pp_ec_ast_expr e
     | EScall (lvs, f, args) ->
             let pp_res fmt lvs =
@@ -888,6 +891,7 @@ let pp_ec_item fmt it =
     else pp_paren (pp_list sep pp) fmt xs
   in
   match it with
+  | Iexcepetion s -> Format.fprintf fmt "@[exception %s.@]" s
   | IrequireImport is ->
     Format.fprintf fmt "@[require import@ @[%a@].@]" (pp_list "@ " pp_string) is
   | Iimport is ->
@@ -1932,388 +1936,13 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
     push_leak (leakacc env) (ec_ident (Env.reuse_aux env leak_ret_prefix leak_ret_ty))
 end
 
-module type EcSafety = sig
-
-  val ec_safety_rty: Env.t -> ec_ty list -> ec_ty list
-  val ec_safety_ret: Env.t -> funname -> ec_expr list -> ec_expr list
-
-  val ec_safety_assert:  Env.t -> int assertion -> ec_instr list
-
-  val ec_fun_safety_init: Env.t -> (int, 'a, 'b) gfunc -> ec_stmt * ec_stmt * (ec_modty * ec_ty) list * Env.t
-
-  val safety_imports: Env.t -> ec_item list
-  val global_safety_vars: Env.t -> (ec_modty * ec_ty) list
-
-  val ec_safety_call_lvs : Env.t -> funname -> ec_lvalues
-
-  val ec_safety_call_acc: Env.t -> int glval list -> funname -> exprs -> ec_instr list
-
-  val final: Env.t -> ((int, 'a, 'b) gfunc) list  -> int -> ec_item list
-end
-
-module EcSafetyNormal(EE: EcExpression) (EA: EcArray) : EcSafety = struct
-  open EE
-
-  let ec_safety_rty env rtyps =  rtyps
-  let ec_safety_ret env name ret = ret
-
-  let ec_safety_assert env a = []
-
-  let ec_fun_safety_init env f = [],[],[],env
-
-  let ec_safety_call_acc env lvs f es = []
-  let safety_imports env = []
-  let global_safety_vars env  = []
-
-  let ec_safety_call_lvs env _ = []
-
-  let final env funcs _ = []
-end
-
-module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
-  open EE
-  open EA
-  let toec_ty env ty = (toec_ty EA.onarray_ty env ty)
-
-
-  let ec_safety_rty env rtyps =  rtyps @ ["trace"]
-
-  let ec_safety_ret env name ret =
-    let trace = Env.get_proofv env name in
-    [Etuple(ret @ [Eident [trace]])]
-
-
-  let ec_safety_call_lvs env f = [LvIdent ["tmp__trace"]]
-  let ec_trace env k e =
-    let k =  ["Assert"] in
-    let f =  Env.get_func env in
-    let p = Env.get_proofv env f in
-    let e = EE.toec_expr env e in
-    let e1 = Eop2 (Infix "++", Eident [p], Elist [Etuple [Eident k;e]]) in
-    let i = ESasgn ([LvIdent ([p])],e1) in
-    [i]
-  let ec_safety_assert env (k,e) = ec_trace env k e
-
-
-  let proof_var_init env f =
-    let proofv = Env.get_proofv env f.f_name in
-    [ESasgn ([LvIdent [proofv]], Elist [])]
-
-
-  let init_trace env f =
-    let fname = Env.get_funname env f.f_name in
-
-    let proofv = ("trace_" ^ fname) in
-    Env.add_proofv env f.f_name proofv;
-    let env = Env.add_func env f.f_name in
-    let trace_ = Env.get_proofv env f.f_name in
-    let vars =
-      [trace_, "trace"]
-    in
-    env, vars
-
-  let var2ec_var env x = (List.hd [ec_vars env x], toec_ty env x.v_ty)
-
-  let toec_expr_assign env lvar e =
-    let e = EE.toec_expr env e in
-    match lvar with
-    | Lvar x ->  [ESasgn ([LvIdent [ec_vars env (L.unloc x)]], e)]
-    | _ -> assert false
-
-  let ec_fun_safety_init env f =
-    let args = List.map (ec_vars env)  f.f_args in
-    let fn = f.f_name in
-    Env.add_args env fn args;
-    let env,proofv = init_trace env f in
-    let proofv_init = proof_var_init env f in
-    proofv_init,[],proofv,env
-
-
-  let ec_safety_call_acc env lvs f es =
-    let f = Env.get_func env in
-    let p = Env.get_proofv env f in
-    let e1 =
-      Eop2 (Infix "++", Eident [p], Eident["tmp__trace"])
-    in
-    [ESasgn ([LvIdent ([p])],e1)]
-
-  let safety_imports env = [IfromRequireImport ("Jasmin",["Jcheck"; "JSafety"])]
-  let global_safety_vars env  = [("tmp__trace", "trace")]
-
-  let res = Eident ["res"]
-  let get_smt_lemmas (annot:annotations): string list option =
-    match (get "smt" annot) with
-    | Some (Some x )->
-      let x = L.unloc x in
-      begin match x with
-      | Astring x -> Some (String.split_on_char ',' x)
-      | _ -> None
-      end
-    | _ -> None
-
-
-  let get_smt_tactic (annot:annotations): ec_tactic =
-    let smt_lemmas = match get_smt_lemmas annot with
-      | Some s -> List.map (fun l -> Prop l) s
-      | None -> [ Prop "all_cat"]
-    in
-    {
-      tname = "smt";
-      targs = [Param smt_lemmas]
-    }
-
-  let get_invariant env c =
-    match c with
-     | {i_desc = Cassert ("safety_inv", e)}:: t ->
-       let e = EE.toec_expr env e in
-       Pattern "/\\ " :: [DProp e], t
-     | c -> [Pattern "/\\ ..."], c
-
-
-  let rec pp_valid_trace_instrs env f p instrs: ec_tactic list =
-    let auto_tactic = {
-      tname = "auto";
-      targs = []
-    } in
-    let rewrite_tactic =
-      {
-        tname = "rewrite";
-        targs = [Prop "/is_init"; Prop "/valid"; Pattern "/="]
-      }
-    in
-    let smt_tactic = get_smt_tactic f.f_annot.f_user_annot in
-    let fn = Env.get_funname env f.f_name in
-    let proofv = "trace_" ^ fn in
-    let valid_trace = DProp(Eapp(Eident ["valid"], [Eident [proofv]])) in
-    match instrs with
-    | [] -> p
-    | i::t -> begin match i.i_desc with
-      | Cassert ("safety_inv", e) ->
-        let pre = pp_valid_trace_instrs env f [auto_tactic] t in
-        let pre = if (List.last pre).tname = "auto" then
-            pre @ [rewrite_tactic;smt_tactic]
-        else pre in
-        let e = EE.toec_expr env e in
-        [{tname = "seq"; targs = [Pattern "x"; Pattern ":"; Param [valid_trace;Pattern "/\\ ";DProp e]]}] @ pre @ p
-      | Cfor (_,_,c) ->
-        let invariant,c = get_invariant env c in
-        let c = pp_valid_trace_instrs env f []  (List.rev c) in
-        let default = [auto_tactic;rewrite_tactic;smt_tactic] in
-        let c1 =
-          if c == [] then
-            default
-          else
-              if (List.last c).tname = "auto" then
-                auto_tactic :: c @ [rewrite_tactic;smt_tactic]
-              else
-                auto_tactic :: c
-        in
-        let p = p @ [{tname = "while"; targs = [Param (valid_trace::invariant)]}] @ c1 @ [auto_tactic] in
-        pp_valid_trace_instrs env f p t
-      | Cwhile(_,c1,_,_,c2) ->
-        let invariant,c2 = get_invariant env c2 in
-        let c1 = pp_valid_trace_instrs env f [] (List.rev c1) in
-        let c2 = pp_valid_trace_instrs env f []  (List.rev c2) in
-        let default = [auto_tactic;rewrite_tactic;smt_tactic] in
-        let c3 =
-          if c1 == [] && c2 == [] then
-            default
-          else
-            let c = c2 @ c1 in
-            if (List.last c).tname = "auto" then
-              auto_tactic :: c @ [rewrite_tactic; smt_tactic]
-            else
-              auto_tactic :: c
-        in
-        let p = p @ [{tname = "while"; targs = [Param (valid_trace::invariant)]}] @ c3 @ [auto_tactic] @ c1 in
-        pp_valid_trace_instrs env f p t
-      | Ccall(lvs,fn,es) ->
-        let otys, itys = Env.get_funtype env fn in
-        let args = List.map (EE.toec_cast env) (List.combine itys es) in
-        let params = List.map (fun e -> DProp e) args in
-        let lemma_name = Prop (Format.asprintf "%s_trace" (Env.get_funname env fn)) in
-        let p = p @ [{tname = "ecall"; targs = [Param (lemma_name::params)]};auto_tactic] in
-        pp_valid_trace_instrs env f p t
-      | Cif (e, c1, c2) ->
-        let c1 = pp_valid_trace_instrs env f [] (List.rev c1) in
-        let c2 = pp_valid_trace_instrs env f [] (List.rev c2) in
-        let first_not_assert_safety t =
-          match t with
-          | {i_desc = Cassert ("safety_inv", _)}::_ -> true
-          | _ -> false in
-        if (c1 == [] && c2 == []) || (first_not_assert_safety t)then
-          pp_valid_trace_instrs env f p t
-        else
-          let c1 = p @ c1 in
-          let c2 = p @ c2 in
-          let c1 = if c1==[] then [auto_tactic;rewrite_tactic;smt_tactic]
-                   else if (List.last c1).tname == "auto" then c1@[rewrite_tactic;smt_tactic] else c1 in
-          let c2 = if c2==[] then [auto_tactic;rewrite_tactic;smt_tactic]
-                   else if (List.last c2).tname == "auto" then c2@[rewrite_tactic;smt_tactic] else c2 in
-          let c1 = if List.first c1 == auto_tactic then c1 else auto_tactic::c1 in
-          let c2 = if List.first c2 == auto_tactic then c2 else auto_tactic::c2 in
-          let p = [{tname = "if"; targs = []}] @ c1 @ c2 in
-          pp_valid_trace_instrs env f p t
-      | _ -> pp_valid_trace_instrs env f p t
-      end
-
-  let pp_valid_trace_t_t =
-    let tactic1 =
-      {
-        tname = "proc; inline *; auto";
-        targs = []
-      } in
-      let tactic2 =
-      {
-        tname = "qed";
-        targs = []
-      } in
-      [tactic1;tactic2]
-
-
-  let fand a b = Eop2 (Infix "/\\", a, b)
-
-    let get_pre = function
-    | None -> []
-    | Some f -> f.f_pre
-
-  let get_post = function
-    | None -> []
-    | Some f -> f.f_post
-
-  let get_iparams = function
-    | None -> []
-    | Some f -> f.f_iparams
-
-  let get_ires = function
-    | None -> []
-    | Some f -> f.f_ires
-
-  let contrat env c =
-    let c = List.map (fun (_,x) -> x) c in
-    if List.is_empty c then
-      Ebool true
-    else
-      let c = List.map (EE.toec_expr env) c in
-      List.fold_left (fun acc a -> Eop2 (Infix "/\\", a, acc) ) (List.hd c) (List.tl c)
-
-  let var_eq vars1 vars2 =
-    if List.length vars1 = 0 then
-      Ebool true
-    else
-      let vars = List.map2 (fun a b -> (a,b)) vars1 vars2 in
-      let eq (var1,var2) =
-        Eop2 (Infix "=", ec_ident var1, ec_ident var2)
-      in
-      List.fold_left
-        (fun acc a -> Eop2 (Infix "/\\", eq a, acc))
-        (eq (List.hd vars))
-        (List.tl vars)
-
-  let mk_old_param env params iparams =
-    if List.length iparams = 0 then
-      List.fold_left2 (fun (env,acc) v iv ->
-        let s = String.uncapitalize_ascii v.v_name in
-        let s = "_" ^ s in
-        let env = Env.set_var_prefix env iv s in
-        env, s :: acc
-      ) (env,[]) (List.rev params) (List.rev params)
-    else
-      List.fold_left2 (fun (env,acc) v iv ->
-          let s = String.uncapitalize_ascii v.v_name in
-          let s = "_" ^ s in
-          let env = Env.set_var_prefix env iv s in
-          env, s :: acc
-        ) (env,[]) (List.rev params) (List.rev iparams)
-
-
-  let update_res_env env f ires =
-    List.fold_lefti
-      (fun env i res ->
-         let s ="res.`" ^ string_of_int (i+1) in
-         Env.set_var_prefix_u env res s)
-      env ires
-
-  let pp_valid_trace env extra_ret f =
-    let fname = Env.get_funname env f.f_name in
-
-    let iparams = get_iparams f.f_contra in
-    let iparams = List.map L.unloc iparams in
-    let env,vars = mk_old_param env f.f_args iparams in
-
-    let args = Env.get_args env f.f_name in
-    let f1 = var_eq vars args in
-    let f2 = contrat env (get_pre f.f_contra) in
-    let pre = fand f1 f2 in
-
-    let ires = get_ires f.f_contra in
-    let ires = List.map L.unloc ires in
-    let env1 = update_res_env env f ires in
-
-    let post = contrat env1 (get_post f.f_contra) in
-
-    let trace = if List.length (f.f_ret) + extra_ret == 0 then res else  Eproj(res,(List.length (f.f_ret)) + extra_ret + 1) in
-    let valid_trace = Eapp(Eident ["valid"], [trace]) in
-
-    let post' = fand post valid_trace in
-
-    let name = Format.asprintf "%s_trace" fname in
-    let module_name =
-      if List.is_empty (Env.randombytes env) then "M"
-      else "M("^syscall_mod^")"
-    in
-    let form = EHoare ([module_name;fname], pre, post') in
-    let prop = (name, vars, form) in
-    let locals = Sv.elements (locals f) in
-    let env = List.fold_left Env.set_var env (f.f_args @ locals) in
-    let env = Env.new_fun env in
-    let init,final,ilocals,env = ec_fun_safety_init env f in
-    let smt_tactic = get_smt_tactic f.f_annot.f_user_annot in
-    let tactics =
-      if f.f_contra == None then
-        pp_valid_trace_t_t
-      else
-        let tactic1 = {
-          tname = "proc; auto";
-          targs = []
-        } in
-        let tactic2 = pp_valid_trace_instrs env f [] (List.rev f.f_body) in
-        let tactic2 =
-          if (tactic2 == [] ) then
-            [{tname = "rewrite /is_init /valid /="; targs = []}; smt_tactic]
-          else
-            let last_tactic = List.last tactic2 in
-            if last_tactic.tname = "auto" then
-              tactic2 @ [{tname = "rewrite /is_init /valid /="; targs = []};smt_tactic]
-            else
-              tactic2
-        in
-        let tactic3 =
-          {
-            tname = "qed";
-            targs = []
-        } in
-        tactic1 ::  tactic2 @ [tactic3]
-      in
-    Lemma (prop, tactics)
-  let final env funcs extra_ret =
-    let p1 = List.map (pp_valid_trace env extra_ret) funcs in
-
-    let c1 = Icomment "The post and trace are valid." in
-    (c1 :: p1)
-end
-
-
-
 module Extraction
   (EA: EcArray)
   (EL: EcLeakage)
-  (ES : EcSafety)
    =
 struct
   open EcExpression(EA)
   open EL
-  open ES
   (* ------------------------------------------------------------------- *)
   (* Extraction of lvals *)
 
@@ -2422,12 +2051,10 @@ struct
           let otys, itys = Env.get_funtype env f in
           let args = List.map (toec_cast env) (List.combine itys es) in
           let leak_lvs = ec_leak_call_lvs env in
-          let safety_lvs = ec_safety_call_lvs env f in
-          let all_lvs =  leak_lvs @ safety_lvs in
+          let all_lvs =  leak_lvs in
           (ec_leaks_es env es) @
           (ec_pcall env lvs all_lvs otys [Env.get_funname env f] args) @
-          (ec_leak_call_acc env) @
-          (ec_safety_call_acc env lvs f es)
+          (ec_leak_call_acc env)
       | Csyscall (lvs, o, es) ->
           let s = Syscall.syscall_sig_u o in
           let otys = List.map Conv.ty_of_cty s.scs_tout in
@@ -2436,8 +2063,10 @@ struct
           let all_lvs = [] in 
           (ec_leaks_es env es) @
           (ec_pcall env lvs all_lvs otys [ec_syscall env o] args)
-      | Cassert a ->
-         ec_safety_assert env a
+      | Cassert (_,e) ->
+        let c1 env = [] in
+        let c2 env = [ERaise "Safty"] in
+         [ESif (toec_expr env e, c1 env, c2 env)]
       | Cif (e, c1, c2) ->
           let c1 env = toec_cmd asmOp env c1 in
           let c2 env = toec_cmd asmOp env c2 in
@@ -2482,12 +2111,11 @@ struct
       let env = List.fold_left Env.set_var env (f.f_args @ locals) in
       (* Limit the scope of changes for aux variables to the current function. *)
       let env = Env.new_fun env in
-      let init_safety,final,safety_locals,env  = ec_fun_safety_init env f in
       let init_leak = ec_fun_leak_init env in
-      let init = init_safety @ init_leak in
-      let stmts = init @ (toec_cmd asmOp env f.f_body) @ final in
+      let init = init_leak in
+      let stmts = init @ (toec_cmd asmOp env f.f_body) in
       let ec_locals = (Env.aux_vars env) @ (List.map (var2ec_var env) locals) in
-      let ec_locals = ec_locals @ safety_locals in
+      let ec_locals = ec_locals in
       let aux_locals_init = locals
           |> List.filter (fun x -> match x.v_ty with Arr _ -> true | _ -> false)
           |> List.sort (fun x1 x2 -> compare x1.v_name x2.v_name)
@@ -2495,7 +2123,7 @@ struct
       in
       let ret =
           let ec_var x = ec_vari env (L.unloc x) in
-          match ec_safety_ret env f.f_name (ec_leak_ret env (List.map ec_var f.f_ret)) with
+          match ec_leak_ret env (List.map ec_var f.f_ret) with
           | [x] -> ESreturn x
           | xs -> ESreturn (Etuple xs)
       in
@@ -2505,7 +2133,7 @@ struct
           decl = {
               fname = (Env.get_funname env f.f_name);
               args = List.map (var2ec_var env) f.f_args;
-              rtys = ec_safety_rty env (ec_leak_rty env (List.map (toec_ty env) f.f_tyout));
+              rtys = ec_leak_rty env (List.map (toec_ty env) f.f_tyout);
           };
           locals = ec_locals;
           stmt = aux_locals_init @ stmts @ [ret];
@@ -2613,17 +2241,16 @@ struct
           name = "M";
           params = mod_arg;
           ty = None;
-          vars = global_leakage_vars env @ global_safety_vars env;
+          vars = global_leakage_vars env;
           funs;
       } in
       glob_imports @
+      [Iexcepetion "Safty"] @
       (leakage_imports env) @
-      (safety_imports env) @
       pp_array_theories (Env.array_theories env) @
       (List.map (fun glob -> ec_glob_decl env glob) globs) @
       (ec_randombytes env) @
-      [top_mod] @
-      final env funcs (if ec_leak_call_lvs env <> [] then 1 else 0)
+      [top_mod]
 
   let pp_prog env asmOp fmt globs funcs =
     Format.fprintf fmt "%a@." pp_ec_prog (toec_prog env asmOp globs funcs)
@@ -2685,11 +2312,7 @@ let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp (model: model) amod
         (module EcLeakConstantTimeGlobal(EE): EcLeakage)
     | SafetyAnnotations -> (module EcLeakNormal(EE): EcLeakage)
   ) in
-  let module ES: EcSafety = (val match model with
-    | SafetyAnnotations -> (module EcSafetyAnnotations(EE)(EA): EcSafety)
-    | _ -> (module EcSafetyNormal(EE)(EA): EcSafety)
-  ) in
-  let module E = Extraction(EA)(EL)(ES) in
+  let module E = Extraction(EA)(EL) in
   let prog = E.pp_prog env asmOp fmt globs funcs in
   save_array_theories (Env.array_theories env);
   prog
