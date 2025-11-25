@@ -1,4 +1,4 @@
-#returnaddress=stack
+#[returnaddress=stack]
 fn add(reg u128 x, reg u128 z) -> reg u128 {
   reg u128 y;
   stack u128[2] t;

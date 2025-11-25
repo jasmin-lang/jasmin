@@ -3,7 +3,7 @@ fn main(reg u64 x) -> reg u64 {
     reg u64 ms;
     ms = #init_msf();
 
-    #mmx reg u64 _ms;
+    #[mmx] reg u64 _ms;
     _ms = #mov_msf(ms);
 
     ms = #mov_msf(_ms);

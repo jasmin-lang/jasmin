@@ -51,7 +51,7 @@ in = 0x1000;
 
 inlen = 34;
 
-#inline tmp = poly1305(out, in, inlen, k);
+#[inline] tmp = poly1305(out, in, inlen, k);
 
 for i = 0 to 16 {
   result[i] = [:u8 out + i];

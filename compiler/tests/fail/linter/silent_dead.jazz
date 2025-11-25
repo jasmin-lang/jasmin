@@ -1,7 +1,7 @@
 /* Users may have their own reasons for writing dead code,
-  tag it explicitly with #keep, so there is no warning. */
+  tag it explicitly with #[keep], so there is no warning. */
 export fn keep_not_dead(reg u32 x) {
-  #keep x += 1;
+  #[keep] x += 1;
 }
 
 /* The SCT checker mandates that the LHS of #update_msf be a register

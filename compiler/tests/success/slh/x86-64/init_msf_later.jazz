@@ -1,8 +1,9 @@
+#[sct = "transient → public"]
 export
-fn protect_init_msf_later(#transient reg u64 p) -> #public reg u64 {
+fn protect_init_msf_later(reg u64 p) -> reg u64 {
     reg u64 msf, temp;
-    #public reg u64 sum;
-    #public reg u64 i;
+    reg u64 sum;
+    reg u64 i;
     reg bool b;
 
     _ = #init_msf();

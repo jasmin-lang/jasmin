@@ -1,18 +1,23 @@
-fn foo (#public reg u64 x y) -> #secret reg u64, #secret reg u64 {
+#[ct = "public × public → secret × secret"]
+export
+fn foo (reg u64 x y) -> reg u64, reg u64 {
    reg u64 r1, r2;
    r1 = x;
    r2 = y;
    return r1, r2;
 }
 
-fn foo2 (#poly={l1,l2} reg u64 x y) -> #poly=l1 reg u64, #poly=l2 reg u64 {
-   #public reg u64 r1, r2;
+#[ct = "l1 × l2 → l1 × l2"]
+export
+fn foo2 (reg u64 x y) -> reg u64, reg u64 {
+   reg u64 r1, r2;
    r1 = x;
    r2 = y;
    return r1, r2;
 }
 
-export fn foo1 (#public reg u64 x, #public reg u64 y) -> #secret reg u64 {
+#[ct = "public × public → secret"]
+export fn foo1 (reg u64 x, reg u64 y) -> reg u64 {
    reg u64 r1;
    r1 = x;
    r1 += y;
