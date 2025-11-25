@@ -201,6 +201,12 @@ let main () =
 
     visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
 
+    let prog =
+      if !Glob_options.spill_all
+      then prog |> SpillAll.doit |> refresh_i_loc_p
+      else prog
+    in
+
     (* Now call the coq compiler *)
     let cprog = Conv.cuprog_of_prog prog in
 

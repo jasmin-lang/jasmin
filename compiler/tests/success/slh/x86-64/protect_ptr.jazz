@@ -5,7 +5,7 @@ fn foo() -> reg u64, reg u64 {
     s[0] = 0;
     s[1] = 1;
 
-    reg u64 msf;
+    #[nospill] reg u64 msf;
     msf = #init_msf();
 
     reg ptr u64[2] p;
@@ -25,7 +25,7 @@ fn foo2() -> reg u64 {
     s[0] = 0;
     s[1] = 1;
 
-    reg u64 msf;
+    #[nospill] reg u64 msf;
     msf = #init_msf();
 
     reg ptr u32[2] p;

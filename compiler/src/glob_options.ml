@@ -16,6 +16,8 @@ let stop_after = ref None
 let safety_makeconfigdoc = ref None   
 let trust_aligned = ref false
 
+let spill_all = ref true
+
 let help_version = ref false
 let help_intrinsics = ref false
 type color = | Auto | Always | Never

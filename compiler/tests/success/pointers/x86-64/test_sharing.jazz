@@ -1,4 +1,4 @@
-inline fn mul5 (reg u64 x) -> reg u64 {
+#[nospill] inline fn mul5 (reg u64 x) -> reg u64 {
   stack u64[4] t;
   inline int i;
   for i = 0 to 4 {
@@ -11,7 +11,7 @@ inline fn mul5 (reg u64 x) -> reg u64 {
 }
 
 /* the size of the stack frame should be 32 */
-#[stacksize=32]
+#[stacksize=32, nospill]
 export fn main(reg u64 in) -> reg u64 {
   reg u64 x;
   reg u64 r;

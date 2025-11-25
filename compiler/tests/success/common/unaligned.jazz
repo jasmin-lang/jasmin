@@ -9,6 +9,7 @@ fn main(reg u32 x) -> reg u32 {
 
 /* This example shows that the unaligned 16-bit access is taken into account
   * when computing the alignment for the stack variable. */
+#[nospill]
 #[stackalign=u16]
 export
 fn instack(reg u32 x) -> reg u32 {

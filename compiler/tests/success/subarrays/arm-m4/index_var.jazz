@@ -1,4 +1,5 @@
 // checks that using a variable as index in a subarray is ok
+#[nospill]
 export fn main (reg u32 i) -> reg u32 {
   stack u32[4] s;
   reg ptr u32[1] r;

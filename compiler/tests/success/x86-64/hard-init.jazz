@@ -2,6 +2,7 @@
     Yet, this should not prevent the compiler to correctly process this program. */
 export
 fn f(reg u64 input) -> reg u64 {
+  #[nospill]
   reg u64 result;
   reg bool b;
   b = input == 0;

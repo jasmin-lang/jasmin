@@ -6,7 +6,7 @@ fn no_speculation() -> reg u64 {
 
 export
 fn main_no_spec(reg u64 x) {
-    reg u64 y msf;
+    #[nospill] reg u64 y msf;
 
     msf = #init_msf();
     y = no_speculation();
@@ -15,13 +15,14 @@ fn main_no_spec(reg u64 x) {
     [x] = 0;
 }
 
+#[nospill]
 fn id_msf(reg u64 msf) -> #[msf] reg u64 {
     return msf;
 }
 
 export
 fn main_id(reg u64 x) {
-    reg u64 msf;
+    #[nospill] reg u64 msf;
 
     msf = #init_msf();
     msf = id_msf(msf);
@@ -29,6 +30,7 @@ fn main_id(reg u64 x) {
     [x] = 0;
 }
 
+#[nospill]
 fn my_mov_msf(reg u64 msf) -> #[msf] reg u64 {
     reg u64 msf1;
     msf1 = #mov_msf(msf);
@@ -37,7 +39,7 @@ fn my_mov_msf(reg u64 msf) -> #[msf] reg u64 {
 
 export
 fn main_move(reg u64 x) {
-    reg u64 msf msf1;
+    #[nospill] reg u64 msf msf1;
 
     msf = #init_msf();
 
@@ -50,7 +52,7 @@ fn main_move(reg u64 x) {
     [x] = 0;
 }
 
-#[sct="msf -> msf * msf"]
+#[sct="msf -> msf * msf", nospill]
 fn dup_msf(reg u64 msf) -> reg u64, reg u64 {
     reg u64 msf1 msf2;
     msf1 = #mov_msf(msf);
@@ -60,7 +62,7 @@ fn dup_msf(reg u64 msf) -> reg u64, reg u64 {
 
 export
 fn main_dup(reg u64 x) {
-    reg u64 msf msf1;
+    #[nospill] reg u64 msf msf1;
 
     msf = #init_msf();
 

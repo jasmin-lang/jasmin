@@ -18,7 +18,7 @@ export fn main () -> reg u64 {
 }
 
 /* Variable a must be allocated but its stack slot can be shared with b. */
-#[stacksize = 8] export
+#[stacksize = 8, nospill] export
 fn share_stack(reg u64 x) -> reg u64 {
   stack u64 a b;
   #[keep] a = #MOV(x);

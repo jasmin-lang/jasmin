@@ -3,7 +3,7 @@ fn foo() -> reg u64 {
     reg u64 x;
     x = 0;
 
-    reg u64 msf msf1;
+    #[nospill] reg u64 msf msf1;
     msf = #init_msf();
     x = #protect(x, msf);
 

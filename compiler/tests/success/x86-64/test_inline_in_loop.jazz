@@ -9,7 +9,9 @@ inline fn __fp_rdcn_low(reg ptr u64[1] a) -> reg u64, reg ptr u64[1]
 export fn fp_exp_low() -> reg u64
 {
  stack u64[1] cnr;
- reg u64 k c;
+ reg u64 k;
+ #[nospill]
+ reg u64 c;
 
  k = 0;
  while (k < 64) {
@@ -32,7 +34,9 @@ fn aux() -> reg u64 {
 
 export fn fp_exp_low1() -> reg u64
 {
- reg u64 k c;
+ reg u64 k;
+ #[nospill]
+ reg u64 c;
 
  k = 0;
  while (k < 64) {

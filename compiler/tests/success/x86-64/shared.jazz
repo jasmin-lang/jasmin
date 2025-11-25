@@ -1,4 +1,4 @@
-inline
+#[nospill] inline
 fn f(reg u64 x) -> reg u64 {
 reg u64 r;
 stack u64[1] a b;
@@ -24,8 +24,7 @@ r = b[0];
 return r;
 }
 
-
-#[stacksize=8]
+#[stacksize=8, nospill]
 export
 fn main(reg u64 x) -> reg u64 {
 reg u64 result;

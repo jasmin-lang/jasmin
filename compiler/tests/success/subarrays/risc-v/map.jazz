@@ -4,6 +4,7 @@
 param int L = 5;
 param int N = 10;
 
+#[nospill]
 fn double (reg ptr u32[N] a) -> reg ptr u32[N] {
   inline int i;
   reg u32 tmp tmp2;
@@ -17,6 +18,7 @@ fn double (reg ptr u32[N] a) -> reg ptr u32[N] {
 }
 
 // It works only because array a is put at offset 0
+#[nospill]
 export fn main () -> reg u32 {
   reg u32 i;
   stack u32[L*N] a;

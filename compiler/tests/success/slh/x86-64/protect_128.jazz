@@ -1,6 +1,6 @@
 export
 fn foo (reg u128 x) -> reg u128 {
-    reg u64 msf;
+    #[nospill] reg u64 msf;
     msf = #init_msf();
 
     reg u128 y;

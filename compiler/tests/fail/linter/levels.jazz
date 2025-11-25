@@ -1,5 +1,5 @@
 /* Two warnings: use before initialisation & dead assignment */
-export fn level1() {
+#[nospill] export fn level1() {
   reg u32 uninit;
   uninit = 0 if true;
 }

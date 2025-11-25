@@ -1,20 +1,20 @@
 // the compilation of this file fails without option -lea
 
-fn add (reg u64 x) -> reg u64 {
+#[nospill] fn add (reg u64 x) -> reg u64 {
    reg u64 z;
    z = x;
    z += 1;
    return z;
 }
 
-fn add1 (reg u64 x) -> reg u64 {
+#[nospill] fn add1 (reg u64 x) -> reg u64 {
    reg u64 z;
    z = x + 1;
    z += x;
    return z;
 }
 
-export fn main() -> reg u64 {
+#[nospill] export fn main() -> reg u64 {
    reg u64 z1;
    reg u64 z2;
    z1 = 10;
