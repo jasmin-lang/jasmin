@@ -1,4 +1,4 @@
-#[returnaddress=stack, stacksize=16]
+#[returnaddress=stack, stacksize=16, nospill]
 fn copy(reg u64 x) -> reg u64 {
 reg u64 r;
 stack u64 t;
@@ -7,7 +7,7 @@ r = t;
 return r;
 }
 
-#[stacksize=0]
+#[stacksize=0, nospill]
 export
 fn main(reg u64 arg) -> reg u64 {
 reg u64 result;
@@ -24,7 +24,7 @@ r = t;
 return r;
 }
 
-#[stacksize=0, stackalign=u64]
+#[stacksize=0, stackalign=u64, nospill]
 export
 fn main32(reg u32 arg) -> reg u32 {
 reg u32 result;
@@ -40,7 +40,7 @@ r = t;
 return r;
 }
 
-#[stacksize=0, stackalign=u64] /* u64 come from the push of the ra from the call */
+#[stacksize=0, stackalign=u64, nospill] /* u64 come from the push of the ra from the call */
 export
 fn main32_32(reg u32 arg) -> reg u32 {
 reg u32 result;
@@ -49,7 +49,7 @@ return result;
 }
 
 // Remark: The compiler can reduce the stack space to 32, if it try to fill the hole with q.
-#[returnaddress=stack, stacksize=36, stackalign=u128]
+#[returnaddress=stack, stacksize=36, stackalign=u128, nospill]
 fn copy128(reg u128 x) -> reg u128 {
 reg u128 r w;
 stack u128 t;
@@ -62,7 +62,7 @@ r +4u32= w;
 return r;
 }
 
-#[stacksize=0]
+#[stacksize=0, nospill]
 export
 fn main128(reg u128 arg) -> reg u128 {
 reg u128 result;

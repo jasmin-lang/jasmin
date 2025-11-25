@@ -1,9 +1,8 @@
 #[sct = "transient → public"]
 export
 fn protect_final_value(reg u64 p) -> reg u64 {
-    reg u64 msf, temp;
-    reg u64 sum;
-    reg u64 i;
+    #[nospill] reg u64 msf;
+    reg u64 temp sum i;
     reg bool b;
 
     msf = #init_msf();

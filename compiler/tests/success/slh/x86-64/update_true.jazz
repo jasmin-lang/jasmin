@@ -3,7 +3,7 @@
    as dead code by the compiler). */
 export
 fn main(reg u64 x) -> reg u64 {
-    reg u64 msf;
+    #[nospill] reg u64 msf;
     msf = #init_msf();
     msf = #update_msf(true, msf);
 

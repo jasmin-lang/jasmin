@@ -3,7 +3,7 @@ fn f(reg u64 x) {
 }
 
 export fn main(reg u64 x r) -> reg u64 {
-    reg u64 ms;
+    #[nospill] reg u64 ms;
     ms = #init_msf();
     f(x);
     r = #protect(r, ms);

@@ -1,3 +1,4 @@
+#[nospill]
 export fn main () -> reg u32 {
   stack u32[N] s;
   reg ptr u32[N] r;

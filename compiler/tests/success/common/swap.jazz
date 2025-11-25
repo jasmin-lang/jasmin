@@ -39,13 +39,13 @@ export fn main (reg u32 x y) -> reg u32 {
   return x;
 }
 
-export fn truncate(reg u32 x) -> reg u32, reg u16 {
+export fn truncate(reg u32 x) -> reg u32 {
   reg u16 y;
   reg u32 t = x;
   x = x;
   x, y = #swap(x, t);
   x = x;
-  return x, y;
+  return x;
 }
 
 export fn nolhs(reg u32 x y) {

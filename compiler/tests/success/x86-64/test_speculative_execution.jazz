@@ -1,6 +1,6 @@
 export
 fn main() -> reg u8, reg u128 {
-    reg u64 msf0 msf1;
+    #[nospill] reg u64 msf0 msf1;
     reg bool f;
     reg u8 p8;
     reg u16 p16;

@@ -3,7 +3,7 @@
 
 export
 fn main(reg u64 p) {
-    reg u64 msf;
+    #[nospill] reg u64 msf;
     msf = #init_msf();
 
     inline int i;
