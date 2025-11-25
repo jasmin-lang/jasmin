@@ -8,12 +8,12 @@ fn main(reg u64 x) -> reg u64 {
     inline bool b;
     b = true;
 
-    #inline
+    #[inline]
     if (b) {
         x += 1;
     }
 
-    #inline
+    #[inline]
     if (!b) {
         x += 1;
     }

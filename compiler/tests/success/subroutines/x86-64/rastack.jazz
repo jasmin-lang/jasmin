@@ -7,7 +7,7 @@ r = t;
 return r;
 }
 
-#stacksize=0
+#[stacksize=0]
 export
 fn main(reg u64 arg) -> reg u64 {
 reg u64 result;
@@ -15,7 +15,7 @@ result = copy(arg);
 return result;
 }
 
-#returnaddress=stack
+#[returnaddress=stack]
 fn copy32(reg u32 x) -> reg u32 {
 reg u32 r;
 stack u32 t;
@@ -62,7 +62,7 @@ r +4u32= w;
 return r;
 }
 
-#stacksize=0
+#[stacksize=0]
 export
 fn main128(reg u128 arg) -> reg u128 {
 reg u128 result;

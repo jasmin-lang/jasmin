@@ -2,10 +2,10 @@ export
 fn main(reg u32 a, reg ptr u8[1] arg) {
     if (a == 0) {
         reg u32 x;
-        #keep x = 0;
+        #[keep] x = 0;
     } else {
         reg ptr u8[1] x;
-        #keep x = arg;
+        #[keep] x = arg;
     }
 }
 

@@ -4,6 +4,6 @@ require "../success/x86-64/inline_call_to_export.jazz"
 inline
 fn test() -> reg u64 {
   reg u64 a;
-  #inline a = sum(42, 24);
+  #[inline] a = sum(42, 24);
   return a;
 }

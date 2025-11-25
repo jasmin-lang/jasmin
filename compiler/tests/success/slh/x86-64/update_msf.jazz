@@ -1,4 +1,4 @@
-fn test_if(reg u64 msf, reg u64 x) -> #msf reg u64 {
+fn test_if(reg u64 msf, reg u64 x) -> #[msf] reg u64 {
     reg bool b;
 
     b = x == 0;

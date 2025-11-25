@@ -1,4 +1,4 @@
-fn main(reg u32 x, #msf reg u32 msf) {
+fn main(reg u32 x, #[msf] reg u32 msf) {
     x = #protect(x, msf);
     [x] = 0;
 }

@@ -6,6 +6,6 @@ fn inc(reg u64 x) -> reg u64 {
 export
 fn one() -> reg u64 {
   reg u64 r;
-  #inline r = inc(0);
+  #[inline] r = inc(0);
   return r;
 }
