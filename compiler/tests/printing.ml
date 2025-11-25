@@ -33,7 +33,6 @@ let config path =
         ("success/x86-64/bug_895.jazz", disable_warnings [ UnusedVar ]);
         ( "success/common/test_warn_var.jazz",
           disable_warnings [ UnusedVar; DuplicateVar ] );
-        ("success/x86-64/vpblendvb.jazz", disable_warnings [ Deprecated ]);
       ]
       ()
   with Not_found -> default ()
@@ -88,8 +87,7 @@ and eq_pexpr x y =
   match (x, y) with
   | Pconst a, Pconst b -> Z.equal a b
   | Pbool a, Pbool b -> Stdlib.Bool.equal a b
-  | Parr_init (a, b), Parr_init (c, d) ->
-      Wsize.wsize_eqb a c && eq_pexpr_ b d
+  | Parr_init (a, b), Parr_init (c, d) -> Wsize.wsize_eqb a c && eq_pexpr_ b d
   | Pvar a, Pvar b -> eq_pgvar a b
   | Pget (a, b, c, d, e), Pget (f, g, h, i, j) ->
       a = f && b = g && Wsize.wsize_eqb c h && eq_pgvar d i && eq_pexpr e j
