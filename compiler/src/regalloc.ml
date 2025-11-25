@@ -377,27 +377,50 @@ let collect_equality_constraints_in_prog
    (equality constraints mandated by the architecture).
 *)
 
+type explanation =
+  | Liveness of error_loc * var * var
+  | Calling_convention
+  | ArchInstruction of L.i_loc
+  | ReturnAddressArguments of string * L.t
+  | ReturnAddressKilled of string * L.t
+  | LiveKilled of string * L.t
+  | SyscallLiveKilled of (wsize * BinNums.positive) Syscall_t.syscall_t
+
+(* x -> y -> [list of explanation of why x and y are in conflict] *)
+type explanations =
+  explanation list IntMap.t IntMap.t
+
 module Conflicts :
   sig
     type conflicts
     val empty_conflicts : conflicts
-    val get_conflicts : int -> conflicts -> IntSet.t
-    val add_conflicts : int -> int -> conflicts -> conflicts
+    val get_conflicts : int -> conflicts -> IntSet.t * explanation list IntMap.t
+    val add_conflicts : int -> int -> explanation option -> conflicts -> conflicts
   end
 =
 struct
-  type conflicts = IntSet.t IntMap.t
+  type conflicts = IntSet.t IntMap.t * explanations
 
-  let empty_conflicts = IntMap.empty
+  let empty_conflicts = IntMap.empty, IntMap.empty
 
-  let get_conflicts (v: int) (c: conflicts) : IntSet.t =
-    IntMap.find_default IntSet.empty v c
+  let get_conflicts (v: int) ((c, ex): conflicts) : IntSet.t * explanation list IntMap.t =
+    IntMap.find_default IntSet.empty v c, IntMap.find_default IntMap.empty v ex
 
-  let add_conflicts (v: int) (w: int) (c: conflicts) : conflicts =
+  let add_conflicts (v: int) (w: int) ex ((c, exs): conflicts) : conflicts =
     IntMap.modify_opt v (function
         | None -> Some (IntSet.singleton w)
         | Some x -> Some (IntSet.add w x)
-      ) c
+      ) c,
+      match ex with
+      | None -> exs
+      | Some ex ->
+    IntMap.modify_opt v (function
+      | None -> Some (IntMap.add w [ex] IntMap.empty)
+      | Some m -> Some (IntMap.modify_opt w (function
+        | None -> Some [ex]
+        | Some exs -> Some (ex::exs)
+      ) m)
+    ) exs
 end
 open Conflicts
 
@@ -416,16 +439,17 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   in
   fun a -> loop a e
 
-let conflicts_add_one pd reg_size asmOp tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
+let conflicts_add_one pd reg_size asmOp tbl tr ex loc (v: var) (w: var) (c: conflicts) : conflicts =
   try
     let i = Hv.find tbl v in
     let j = Hv.find tbl w in
+    (* FIXME Porto: better explanation *)
     if i = j then hierror_reg ~loc:loc "conflicting variables “%a” and “%a” must be merged due to:@;<1 2>%a"
                     pp_var v
                     pp_var w
                     (pp_trace pd asmOp i) tr;
     if types_cannot_conflict reg_size v.v_kind v.v_ty w.v_kind w.v_ty then c else
-    c |> add_conflicts i j |> add_conflicts j i
+    c |> add_conflicts i j ex |> add_conflicts j i ex
   with Not_found -> c
 
 (* Some instructions can declare conflicts between the registers appearing
@@ -441,7 +465,7 @@ let collect_opn_conflicts pd reg_size asmOp
       List.fold_left (fun c (a1, a2) ->
         match find_var lvs es a1, find_var lvs es a2 with
         | Some x1, Some x2 ->
-            add_one (Lmore i.i_loc) (L.unloc x1) (L.unloc x2) c
+            add_one (Some (ArchInstruction i.i_loc)) (Lmore i.i_loc) (L.unloc x1) (L.unloc x2) c
         | _, _ -> c) c conflicts
     | Cfor (_, _, s) -> collect_opn_conflicts_stmt c s
     | Cif (_, s1, s2)
@@ -457,11 +481,17 @@ let collect_opn_conflicts pd reg_size asmOp
 
 let collect_conflicts pd reg_size asmOp
       (tbl: int Hv.t) (tr: ('info, 'asm) trace) (f: (Sv.t * Sv.t, 'asm) func) (c: conflicts) : conflicts =
-  let add_one = conflicts_add_one pd reg_size asmOp tbl tr in
+  let add_one = conflicts_add_one pd reg_size asmOp tbl tr None in
   let add (c: conflicts) loc ((i, j): (Sv.t * Sv.t)) : conflicts =
     c
     |> conflicts_in i (add_one loc)
     |> conflicts_in j (add_one loc)
+    |>
+    Sv.fold (fun x c ->
+      Sv.fold (fun y c ->
+       conflicts_add_one pd reg_size asmOp tbl tr (Some (Liveness (loc, x, y))) loc x y c)
+        (Sv.remove x j) c)
+      (Sv.diff j i)
   in
   let rec collect_instr_r c =
     function
@@ -589,7 +619,7 @@ let reverse_classes nv vars : Sv.t array =
   Array.map Sv.of_list classes
 
 let get_conflict_set i (cnf: conflicts) (a: A.allocation) (x: var) : IntSet.t =
-  IntSet.inter (get_conflicts i cnf) (A.rfind x a |> fst)
+  IntSet.inter (fst (get_conflicts i cnf)) (A.rfind x a |> fst)
 
 let does_not_conflict i (cnf: conflicts) (a: A.allocation) (x: var) : bool =
   get_conflict_set i cnf a x |> IntSet.is_empty
@@ -608,6 +638,7 @@ let allocate_one nv vars loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.a
      if IntSet.is_empty c
      then A.set ~names:(Ss.singleton x_.v_name) x r a
      else
+       (* FIXME Porto : better error msg *)
        let regs = reverse_classes nv vars in
        let other = IntSet.fold (fun i -> Sv.union regs.(i)) c Sv.empty |> Sv.elements in
        hierror_reg ~loc:(Lmore loc) "variable %a must be allocated to register %a due to architectural constraints; this register already holds conflicting variable%s: %a"
@@ -735,8 +766,9 @@ module Regalloc (Arch : Arch_full.Arch)
              let rs = List.rev_map Conv.var_of_cvar rs in
               match e with
               | Pvar x ->
+                  (* FIMXE Porto: why Lnone in the current code ???? *)
                   List.fold_left (fun cnf r ->
-                      conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone (L.unloc x.gv) r cnf
+                      conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr (Some (ArchInstruction loc)) Lnone (L.unloc x.gv) r cnf
                   ) cnf rs
               | _ -> cnf
           ) cnf id.i_in es
@@ -882,7 +914,7 @@ let schedule_coloring (size: int) (variables: (int, varset) Hashtbl.t) (cnf: con
     if IntSet.is_empty v then pick g |> IntSet.singleton else v
   in
   let g = Hashtbl.create 97 in
-  Hashtbl.iter (fun i _ -> if not (A.mem i a) then Hashtbl.add g i (get_conflicts i cnf)) variables;
+  Hashtbl.iter (fun i _ -> if not (A.mem i a) then Hashtbl.add g i (fst (get_conflicts i cnf))) variables;
   let rec loop (g: G.t) (order: int list) : int list =
     if Stdlib.Int.equal (Hashtbl.length g) 0
     then order
@@ -945,7 +977,8 @@ let two_phase_coloring
              List.iter (fun i -> ppvl fmt (fst (Hashtbl.find variables i))) unallocated
            end
          in
-         let c = get_conflicts i cnf in
+         (* FIXME Porto: better error message *)
+         let c = fst (get_conflicts i cnf) in
          hierror_reg ~loc:Lnone "no more free register to allocate variable:%a\nConflicts with:\n%a"
            ppvl (fst (Hashtbl.find variables i))
            pp_conflicts c
@@ -1311,9 +1344,10 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
 
   (* In-register return address conflicts with function arguments *)
   let conflicts =
-    let doit ra =
-      List.fold_left (fun cnf x -> conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone ra x cnf) in
+    let doit fn f_loc ra =
+      List.fold_left (fun cnf x -> conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr (Some (ReturnAddressArguments (fn, f_loc))) Lnone ra x cnf) in
     List.fold_left (fun a f ->
+        let doit = doit f.f_name.fn_name f.f_loc in
         match Hf.find return_addresses f.f_name with
         | StackDirect -> a
         | StackByReg (ra_call, ra_return, tmp) ->
@@ -1344,22 +1378,22 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
       conflicts funcs in
   (* Inter-procedural conflicts *)
   let conflicts =
-    let add_conflicts s x = Sv.fold (conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone x) s in
+    let add_conflicts ex s x = Sv.fold (conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr ex Lnone x) s in
     List.fold_right (fun f cnf ->
         let live = get_liveness f.f_name in
         let vars = killed f.f_name in
         let cnf =
           match Hf.find return_addresses f.f_name with
-          | ByReg (ra, _) -> cnf |> add_conflicts (Sv.remove ra vars) ra
+          | ByReg (ra, _) -> cnf |> add_conflicts (Some (ReturnAddressKilled (f.f_name.fn_name, f.f_loc))) (Sv.remove ra vars) ra
           | StackDirect | StackByReg _ -> cnf
         in
-        cnf |> Sv.fold (add_conflicts vars) live
+        cnf |> Sv.fold (add_conflicts (Some (LiveKilled (f.f_name.fn_name, f.f_loc))) vars) live
       ) funcs conflicts in
 
   (* syscall conflicts *)
   let conflicts =
-    let add_conflicts x = Sv.fold (conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone x) Arch.syscall_kill in
-    Hashtbl.fold (fun _o live cnf -> cnf |> Sv.fold add_conflicts live) slive conflicts in
+    let add_conflicts ex x = Sv.fold (conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr ex Lnone x) Arch.syscall_kill in
+    Hashtbl.fold (fun o live cnf -> cnf |> Sv.fold (add_conflicts (Some (SyscallLiveKilled o))) live) slive conflicts in
 
   let a = A.empty nv in
 
