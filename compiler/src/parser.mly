@@ -238,11 +238,6 @@ prim:
  | c=COLON? ct=loc(utype) { c, ct }
 
 %inline mem_access:
-| ct=loc(parens(utype)) LBRACKET al=unaligned? e=pexpr RBRACKET
-  { let s = string_of_swsize_ty (L.unloc ct) in
-    Utils.warning Deprecated (Location.of_loc ct)
-       "Syntax (%s)[e] is deprecated. Use [:%s e] instead" s s ;
-    al, Some ct, e }
 | LBRACKET al=unaligned? ct=access_type? e=pexpr RBRACKET
   {
     let ct =
