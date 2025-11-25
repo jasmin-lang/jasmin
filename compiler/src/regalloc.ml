@@ -379,7 +379,6 @@ let collect_equality_constraints_in_prog
 
 type explanation =
   | Liveness of error_loc * var * var
-  | Calling_convention
   | ArchInstruction of L.i_loc
   | ReturnAddressArguments of string * L.t
   | ReturnAddressKilled of string * L.t
@@ -389,6 +388,25 @@ type explanation =
 (* x -> y -> [list of explanation of why x and y are in conflict] *)
 type explanations =
   explanation list IntMap.t IntMap.t
+
+  (* FIXME Porto: copied from utils... *)
+  let pp_loc fmt loc =
+    let open Utils in
+    match loc with
+    | Lnone -> ()
+    | Lone l -> Format.fprintf fmt "%a:@ " (Location.pp_loc) l
+    | Lmore i_loc -> Format.fprintf fmt "%a:@ " (Location.pp_iloc) i_loc
+let pp_explanation fmt ex =
+  match ex with
+  | Liveness (loc, x, y) ->
+      Format.fprintf fmt "liveness: at line %a, %a becomes live while %a is still live" pp_loc loc pp_var x pp_var y
+  | _ -> ()
+let pp_explanations fmt (ex : explanation list IntMap.t) =
+  Format.fprintf fmt "@[<v>";
+  IntMap.iter (fun i l ->
+    Format.fprintf fmt "%d: @[<v>%a@]@," i (pp_list "@," pp_explanation) l) ex;
+  Format.fprintf fmt "@]"
+
 
 module Conflicts :
   sig
@@ -618,13 +636,15 @@ let reverse_classes nv vars : Sv.t array =
   Hv.iter (fun v i -> classes.(i) <- v :: classes.(i)) vars;
   Array.map Sv.of_list classes
 
-let get_conflict_set i (cnf: conflicts) (a: A.allocation) (x: var) : IntSet.t =
-  IntSet.inter (fst (get_conflicts i cnf)) (A.rfind x a |> fst)
+let get_conflict_set i (cnf: conflicts) (a: A.allocation) (x: var) : IntSet.t * explanation list IntMap.t =
+  let vars = A.rfind x a |> fst in
+  let c,ex = get_conflicts i cnf in
+  IntSet.inter c vars, IntMap.filter (fun i _ -> IntSet.mem i vars) ex
 
 let does_not_conflict i (cnf: conflicts) (a: A.allocation) (x: var) : bool =
-  get_conflict_set i cnf a x |> IntSet.is_empty
+  get_conflict_set i cnf a x |> fst |> IntSet.is_empty
 
-let allocate_one nv vars loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.allocation) : unit =
+let allocate_one nv vars reason loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.allocation) : unit =
   match A.find x a with
   | Some r' when r' = r -> ()
   | Some r' ->
@@ -634,19 +654,21 @@ let allocate_one nv vars loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.a
        pp_var r'
 
   | None ->
-     let c = get_conflict_set x cnf a r in
+     let c,ex = get_conflict_set x cnf a r in
      if IntSet.is_empty c
      then A.set ~names:(Ss.singleton x_.v_name) x r a
      else
        (* FIXME Porto : better error msg *)
        let regs = reverse_classes nv vars in
        let other = IntSet.fold (fun i -> Sv.union regs.(i)) c Sv.empty |> Sv.elements in
-       hierror_reg ~loc:(Lmore loc) "variable %a must be allocated to register %a due to architectural constraints; this register already holds conflicting variable%s: %a"
+       hierror_reg ~loc:(Lmore loc) "variable %a must be allocated to register %a due to %s; this register already holds conflicting variable%s: %a due to constraints %a"
          pp_var x_
          (Printer.pp_var ~debug:false) r
+         reason
          (match other with [ _ ] -> "" | _ -> "s")
          (pp_list "; " pp_var)
          other
+         pp_explanations ex
 
 type reg_oracle_t = {
   ro_to_save : var list;
@@ -740,7 +762,7 @@ module Regalloc (Arch : Arch_full.Arch)
             (Printer.pp_var ~debug:false) y
             (if is_reg_kind x.v_kind then "" else " (consider declaring this variable as “reg”)")
       in
-      allocate_one nv vars loc cnf x i y a
+      allocate_one nv vars "instruction constraints" loc cnf x i y a
     in
     let mallocate_one x y a =
       match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> ()
@@ -784,7 +806,7 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
        hierror_reg ~loc:(Lone f.f_loc) ~funname:f.f_name.fn_name "too many %s according to the ABI (only %d available on this architecture)"
          ctxt num
   in
-  let alloc_from_list loc ~ctxt rs xs q vs : unit =
+  let alloc_from_list reason loc ~ctxt rs xs q vs : unit =
     let f x = Hv.find vars x in
     let num_rs = List.length rs in
     let num_xs = List.length xs in
@@ -806,15 +828,15 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
               hierror_reg ~loc:(Lmore loc) "unknown type %a for forced register %a"
                 PrintCommon.pp_ty ty (Printer.pp_var ~debug:true) p
           in
-          allocate_one nv vars loc cnf p i d a;
+          allocate_one nv vars reason loc cnf p i d a;
           (rs, xs)
         | exception Not_found -> (rs, xs))
       (rs, xs)
       vs
     |> (ignore : var list * var list -> unit)
   in
-  let alloc_args loc get = alloc_from_list loc ~ctxt:"parameters" Arch.argument_vars Arch.xmm_argument_vars get in
-  let alloc_ret loc get = alloc_from_list loc ~ctxt:"return values" Arch.ret_vars Arch.xmm_ret_vars get in
+  let alloc_args loc get = alloc_from_list ("calling convention for parameters of function " ^ f.f_name.fn_name) loc ~ctxt:"parameters" Arch.argument_vars Arch.xmm_argument_vars get in
+  let alloc_ret loc get = alloc_from_list ("calling convention for return values of function " ^ f.f_name.fn_name)  loc ~ctxt:"return values" Arch.ret_vars Arch.xmm_ret_vars get in
   let rec alloc_instr_r loc c =
     function
     | Cfor (_, _, s)
@@ -857,12 +879,12 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
     | StackDirect -> ()
     | StackByReg (ra_call, ra_return, _) ->
       let i = Hv.find vars ra_call in
-      allocate_one nv vars (Location.i_loc f.f_loc []) cnf ra_call i r a;
+      allocate_one nv vars "the return address being passed by register" (Location.i_loc f.f_loc []) cnf ra_call i r a;
       if return then begin
         match ra_return with
         | Some ra_return ->
           let i = Hv.find vars ra_return in
-          allocate_one nv vars (Location.i_loc f.f_loc []) cnf ra_return i r a
+          allocate_one nv vars "the return address being passed by register" (Location.i_loc f.f_loc []) cnf ra_return i r a
         | None ->
           (* calling convention requires the return address to be in a register,
              but there is no booked register. This must not happen. *)
@@ -870,7 +892,7 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
       end
     | ByReg (ra, _) ->
       let i = Hv.find vars ra in
-      allocate_one nv vars (Location.i_loc f.f_loc []) cnf ra i r a
+      allocate_one nv vars "the return address being passed by register" (Location.i_loc f.f_loc []) cnf ra i r a
     end
   | _ -> ());
   cnf
@@ -978,10 +1000,11 @@ let two_phase_coloring
            end
          in
          (* FIXME Porto: better error message *)
-         let c = fst (get_conflicts i cnf) in
-         hierror_reg ~loc:Lnone "no more free register to allocate variable:%a\nConflicts with:\n%a"
+         let c,ex = get_conflicts i cnf in
+         hierror_reg ~loc:Lnone "no more free register to allocate variable:%a\nConflicts with:\n%a due to %a"
            ppvl (fst (Hashtbl.find variables i))
            pp_conflicts c
+           pp_explanations ex
          else hierror_reg ~loc:Lnone "cannot solve the register allocation problem."
       | regs ->
         let names = snd (Hashtbl.find variables i) in
@@ -1400,7 +1423,7 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
   (* Allocate all_vars *)
   let allocate_one x =
     match Hv.find vars x with
-    | i -> allocate_one nv vars L.i_dummy conflicts x i x a
+    | i -> allocate_one nv vars "unclear reason" L.i_dummy conflicts x i x a
     | exception Not_found -> ()
   in
   List.iter allocate_one Arch.all_registers;
