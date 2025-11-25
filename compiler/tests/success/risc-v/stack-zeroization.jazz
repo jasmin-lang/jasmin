@@ -8,32 +8,32 @@ fn f(reg u32 p) {
     [p] = r_s;
 }
 
-#stackzero=loop
+#[stackzero=loop]
 export fn main0(reg u32 p) { f(p); }
 
-#stackzero=loop #stackzerosize=u8
+#[stackzero=loop, stackzerosize=u8]
 export fn main1(reg u32 p) { f(p); }
 
-#stackzero=loop #stackzerosize=u16
+#[stackzero=loop, stackzerosize=u16]
 export fn main2(reg u32 p) { f(p); }
 
-#stackzero=loop #stackzerosize=u32
+#[stackzero=loop, stackzerosize=u32]
 export fn main3(reg u32 p) { f(p); }
 
-#stackzero=loop #stackzerosize=u32
+#[stackzero=loop, stackzerosize=u32]
 export fn main4(reg u32 p) { f(p); }
 
-#stackzero=unrolled
+#[stackzero=unrolled]
 export fn main7(reg u32 p) { f(p); }
 
-#stackzero=unrolled #stackzerosize=u8
+#[stackzero=unrolled, stackzerosize=u8]
 export fn main8(reg u32 p) { f(p); }
 
-#stackzero=unrolled #stackzerosize=u16
+#[stackzero=unrolled, stackzerosize=u16]
 export fn main9(reg u32 p) { f(p); }
 
-#stackzero=unrolled #stackzerosize=u32
+#[stackzero=unrolled, stackzerosize=u32]
 export fn main10(reg u32 p) { f(p); }
 
-#stackzero=unrolled #stackzerosize=u32
+#[stackzero=unrolled, stackzerosize=u32]
 export fn main11(reg u32 p) { f(p); }

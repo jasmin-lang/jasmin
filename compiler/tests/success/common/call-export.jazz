@@ -5,7 +5,7 @@ export fn aux(reg u32 x) -> reg u32 {
 }
 
 export fn main(reg u32 a) -> reg u32 {
-  #inline
+  #[inline]
   a = aux(a);
   return a;
 }

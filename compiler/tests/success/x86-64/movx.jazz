@@ -1,5 +1,5 @@
 export fn f(reg u64 x) -> reg u64 {
-  #mmx reg u64 e;
+  #[mmx] reg u64 e;
   
   e = #MOVX(x);
   x = #MOVX(e);
@@ -21,7 +21,7 @@ export fn f(reg u64 x) -> reg u64 {
 
   stack u64[1] s;
   reg ptr u64[1] r;
-  #mmx reg ptr u64[1] rx;
+  #[mmx] reg ptr u64[1] rx;
 
   s[0] = 0;
   r = s;

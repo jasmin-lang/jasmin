@@ -1,8 +1,8 @@
 
 type arch_size = u64;
 
-#stackzero=loop
+#[stackzero=loop]
 export fn main0(reg u64 p) { f(p); }
 
-#stackzero=loop #stackzerosize=arch_size
+#[stackzero=loop, stackzerosize=arch_size]
 export fn main1(reg u64 p) { f(p); }

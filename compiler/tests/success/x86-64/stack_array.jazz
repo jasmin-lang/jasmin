@@ -7,7 +7,7 @@ fn fill(reg u64 io, reg u64 len) -> reg u64 {
    max = len if len < max;
 
    i = 0;
-   #bounded
+   #[bounded]
    while (i < max) {
      // t[i] = [io + 8 * i];  // works but not in the spirit
      aux = [io + 8 * i];

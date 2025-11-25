@@ -5,44 +5,44 @@ fn f(reg u64 p) {
     [p] = s;
 }
 
-#stackzero=loop
+#[stackzero=loop]
 export fn main0(reg u64 p) { f(p); }
 
-#stackzero=loop #stackzerosize=u8
+#[stackzero=loop, stackzerosize=u8]
 export fn main1(reg u64 p) { f(p); }
 
-#stackzero=loop #stackzerosize=u16
+#[stackzero=loop, stackzerosize=u16]
 export fn main2(reg u64 p) { f(p); }
 
-#stackzero=loop #stackzerosize=u32
+#[stackzero=loop, stackzerosize=u32]
 export fn main3(reg u64 p) { f(p); }
 
-#stackzero=loop #stackzerosize=u64
+#[stackzero=loop, stackzerosize=u64]
 export fn main4(reg u64 p) { f(p); }
 
-#stackzero=loop #stackzerosize=u128
+#[stackzero=loop, stackzerosize=u128]
 export fn main5(reg u64 p) { f(p); }
 
-#stackzero=loop #stackzerosize=u256
+#[stackzero=loop, stackzerosize=u256]
 export fn main6(reg u64 p) { f(p); }
 
-#stackzero=unrolled
+#[stackzero=unrolled]
 export fn main7(reg u64 p) { f(p); }
 
-#stackzero=unrolled #stackzerosize=u8
+#[stackzero=unrolled, stackzerosize=u8]
 export fn main8(reg u64 p) { f(p); }
 
-#stackzero=unrolled #stackzerosize=u16
+#[stackzero=unrolled, stackzerosize=u16]
 export fn main9(reg u64 p) { f(p); }
 
-#stackzero=unrolled #stackzerosize=u32
+#[stackzero=unrolled, stackzerosize=u32]
 export fn main10(reg u64 p) { f(p); }
 
-#stackzero=unrolled #stackzerosize=u64
+#[stackzero=unrolled, stackzerosize=u64]
 export fn main11(reg u64 p) { f(p); }
 
-#stackzero=unrolled #stackzerosize=u128
+#[stackzero=unrolled, stackzerosize=u128]
 export fn main12(reg u64 p) { f(p); }
 
-#stackzero=unrolled #stackzerosize=u256
+#[stackzero=unrolled, stackzerosize=u256]
 export fn main13(reg u64 p) { f(p); }

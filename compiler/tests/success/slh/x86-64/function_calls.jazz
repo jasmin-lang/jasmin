@@ -15,7 +15,7 @@ fn main_no_spec(reg u64 x) {
     [x] = 0;
 }
 
-fn id_msf(reg u64 msf) -> #msf reg u64 {
+fn id_msf(reg u64 msf) -> #[msf] reg u64 {
     return msf;
 }
 
@@ -29,7 +29,7 @@ fn main_id(reg u64 x) {
     [x] = 0;
 }
 
-fn my_mov_msf(reg u64 msf) -> #msf reg u64 {
+fn my_mov_msf(reg u64 msf) -> #[msf] reg u64 {
     reg u64 msf1;
     msf1 = #mov_msf(msf);
     return msf1;

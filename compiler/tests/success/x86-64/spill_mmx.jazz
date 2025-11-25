@@ -1,6 +1,6 @@
 export fn main(reg u32 x, reg u32 y) -> reg u32 
 {
-  #spill_to_mmx reg u32 z;
+  #[spill_to_mmx] reg u32 z;
   stack u32[2] t;
   reg ptr u32[2] p;
   p = t;

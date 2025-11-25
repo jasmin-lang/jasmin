@@ -3,8 +3,8 @@ fn f(reg u64 x) -> reg u64 {
 reg u64 r, y;
 r = 0;
 y = 1;
-#keep _, y = y * x; // y is forced to RAX
-#keep y = r; // r conflicts with y
+#[keep] _, y = y * x; // y is forced to RAX
+#[keep] y = r; // r conflicts with y
 r = x;
 return r; // r is forced to RAX
 }

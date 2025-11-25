@@ -49,5 +49,5 @@ export fn truncate(reg u32 x) -> reg u32, reg u16 {
 }
 
 export fn nolhs(reg u32 x y) {
-  #keep _, _ = #swap(x, y);
+  #[keep] _, _ = #swap(x, y);
 }

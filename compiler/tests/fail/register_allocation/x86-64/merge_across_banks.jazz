@@ -1,5 +1,5 @@
 export fn mmadd(reg u64 x) -> reg u64 {
-  #mmx reg u64 y;
+  #[mmx] reg u64 y;
   y = x + x;
   x = y;
   return x;

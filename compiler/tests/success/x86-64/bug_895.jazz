@@ -29,7 +29,7 @@ fn g(reg ptr u32[12] state, reg u64 column) -> reg ptr u32[12] {
 
 export
 fn jazz_g(reg ptr u32[12] state, reg u64 c) -> reg ptr u32[12] {
-    #inline state = g(state, c);
+    #[inline] state = g(state, c);
     return state;
 }
 
