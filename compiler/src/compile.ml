@@ -342,7 +342,14 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       end;
       let (in_set, out_set) = i.i_info in
       let s = Conv.csv_of_sv (Sv.diff in_set out_set) in
-      Hashtbl.add hvars i.i_loc s
+      if Hashtbl.mem hvars i.i_loc then begin
+          (* If there is an entry already, the i_locs have duplicates:
+             this should not happen, hence the warning, but we can safely continue by
+             assuming that no variable dies here *)
+          Utils.warning Always i.i_loc "Bug! Please report.";
+          Hashtbl.replace hvars i.i_loc Var0.SvExtra.Sv.empty
+      end else
+        Hashtbl.add hvars i.i_loc s
     in
     List.iter analyze live.f_body;
 
