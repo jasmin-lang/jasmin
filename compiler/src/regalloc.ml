@@ -146,11 +146,11 @@ let asm_equality_constraints ~loc pd reg_size asmOp is_move_op (int_of_var: var_
 (* Set of instruction information for each variable equivalence class. *)
 type ('info, 'asm) trace = (int, ('info, 'asm) instr list) Hashtbl.t
 
-let pp_trace pd asmOp (i: int) fmt (tr: ('info, 'asm) trace) =
+let pp_trace pd msfsize asmOp (i: int) fmt (tr: ('info, 'asm) trace) =
   match Hashtbl.find tr i with
   | exception Not_found -> ()
   | j ->
-  let pp_i_noloc = Printer.pp_instr ~debug:(debug()) pd asmOp in
+  let pp_i_noloc = Printer.pp_instr ~debug:(debug()) pd msfsize asmOp in
   let pp_i fmt i =
     Format.fprintf fmt "@[<v>at %a:@;<1 2>%a@]"
       L.pp_iloc i.i_loc
@@ -423,7 +423,7 @@ let conflicts_add_one pd reg_size asmOp tbl tr loc (v: var) (w: var) (c: conflic
     if i = j then hierror_reg ~loc:loc "conflicting variables “%a” and “%a” must be merged due to:@;<1 2>%a"
                     pp_var v
                     pp_var w
-                    (pp_trace pd asmOp i) tr;
+                    (pp_trace pd reg_size asmOp i) tr;
     if types_cannot_conflict reg_size v.v_kind v.v_ty w.v_kind w.v_ty then c else
     c |> add_conflicts i j |> add_conflicts j i
   with Not_found -> c
@@ -1209,7 +1209,7 @@ let pp_liveness vars liveness_per_callsite liveness_table a =
   printf "/* Ready to allocate variables to registers: */@.";
   liveness_table |> Hf.iter (fun fn fd ->
     reset_max();
-    printf "%a@." (pp_fun ~debug:!Glob_options.debug ~pp_locals ~pp_info (pp_opn Arch.reg_size Arch.asmOp) pp_var) fd;
+    printf "%a@." (pp_fun ~debug:!Glob_options.debug ~pp_locals ~pp_info (pp_opn Arch.pointer_data Arch.msf_size Arch.asmOp) pp_var) fd;
     let intern = !m_word, !m_extra, !m_vector, !m_flag in
     reset_max();
     printf "%a@." pp_callsites fn;
@@ -1254,7 +1254,7 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
   let funcs : (unit, 'asm) func list = funcs |> List.rev |> List.rev_map preprocess in
   if !Glob_options.debug then
     Format.printf "Before REGALLOC:@.%a@."
-      Printer.(pp_list "@ @ " (pp_func ~debug:true Arch.reg_size Arch.asmOp)) (List.rev funcs);
+      Printer.(pp_list "@ @ " (pp_func ~debug:true Arch.pointer_data Arch.msf_size Arch.asmOp)) (List.rev funcs);
   (* Live variables at the end of each function, in addition to returned local variables *)
   let get_liveness, slive, liveness_per_callsite =
     let live : (L.i_loc list * Sv.t) list Hf.t = Hf.create 17 in

@@ -194,7 +194,7 @@ let print (type reg) (type regx) (type xreg) (type rflag) (type cond)
        and type cond = cond
        and type asm_op = asm_op
        and type extra_op = extra_op) fmt pprog =
-  Printer.pp_pprog ~debug:true Arch.reg_size Arch.asmOp fmt pprog
+  Printer.pp_pprog ~debug:true Arch.reg_size Arch.msf_size Arch.asmOp fmt pprog
 
 (* Increments its [errors] argument in case of failure. *)
 let parse_and_print fname errors arch =

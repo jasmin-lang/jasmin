@@ -1811,7 +1811,7 @@ struct
       Format.sprintf "%s.randombytes_%i" syscall_mod_arg n
 
   let ec_opn pd asmOp o =
-    let s = Format.asprintf "%a" (pp_opn pd asmOp) o in
+    let s = Format.asprintf "%a" (pp_opn pd pd asmOp) o in
     if Ss.mem s keywords then s^"_" else s
 
   let rec toec_cmd asmOp env c = List.flatten (List.map (toec_instr asmOp env) c)
