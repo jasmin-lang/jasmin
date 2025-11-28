@@ -414,11 +414,9 @@ and type asm_op = X86_instr_decl.x86_op
 
   let data_segment_header =
     let name = global_datas_label in
-    let mname = mangle name in
     [
       Header (".data", []);
       Header (".p2align", [pp_align U256]);
-      Label (mname);
       Label (name);
     ]
 
