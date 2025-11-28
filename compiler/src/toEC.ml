@@ -1310,8 +1310,8 @@ let ty_sopn pd asmOp op es =
     let l = List.map ty_expr es in
     l, l
   | _ ->
-    List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op),
-    List.map Conv.ty_of_cty (Sopn.sopn_tin pd asmOp op)
+    List.map Conv.ty_of_cty (Sopn.sopn_tout pd pd asmOp op),
+    List.map Conv.ty_of_cty (Sopn.sopn_tin pd pd asmOp op)
 
 (* This code replaces for loop that modify the loop counter by while loop,
    it would be nice to prove in Coq the validity of the transformation *)
@@ -1811,7 +1811,7 @@ struct
       Format.sprintf "%s.randombytes_%i" syscall_mod_arg n
 
   let ec_opn pd asmOp o =
-    let s = Format.asprintf "%a" (pp_opn pd asmOp) o in
+    let s = Format.asprintf "%a" (pp_opn pd pd asmOp) o in
     if Ss.mem s keywords then s^"_" else s
 
   let rec toec_cmd asmOp env c = List.flatten (List.map (toec_instr asmOp env) c)

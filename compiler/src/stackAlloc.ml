@@ -212,7 +212,7 @@ let memory_analysis pp_sr pp_err ~debug up =
   
   if debug then
     Format.eprintf "After memory analysis@.%a@."
-      (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) ([], (List.map snd fds));
+      (Printer.pp_prog ~debug:true Arch.pointer_data Arch.msf_size Arch.asmOp) ([], (List.map snd fds));
   
   (* remove unused result *)
   let tokeep = RemoveUnusedResults.analyse fds in
@@ -241,7 +241,7 @@ let memory_analysis pp_sr pp_err ~debug up =
   let fds = List.map deadcode fds in
   if debug then
     Format.eprintf "After remove unused return @.%a@."
-      (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) ([], (List.map snd fds));
+      (Printer.pp_prog ~debug:true Arch.pointer_data Arch.msf_size Arch.asmOp) ([], (List.map snd fds));
   
   (* register allocation *)
   let has_stack f = FInfo.is_export f.f_cc && (Hf.find sao f.f_name).sao_modify_rsp in

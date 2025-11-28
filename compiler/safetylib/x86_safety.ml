@@ -350,7 +350,7 @@ module X86_safety
     | _ ->
       debug (fun () ->
           Format.eprintf "Warning: unknown opn %a, default to ⊤.@."
-            (PrintCommon.pp_opn pointer_data asmOp) (Sopn.Oasm opn));
+            (PrintCommon.pp_opn pointer_data msf_size asmOp) (Sopn.Oasm opn));
       opn_dflt n
 
   (* Post-conditions of operators, that cannot be precisely expressed as an expression of the arguments *)
@@ -427,7 +427,7 @@ module X86_safety
     | _ ->
       debug (fun () ->
           Format.eprintf "No heuristic for the return flags of %a@."
-            (PrintCommon.pp_opn pointer_data asmOp) (Sopn.Oasm opn));
+            (PrintCommon.pp_opn pointer_data msf_size asmOp) (Sopn.Oasm opn));
       None
 
 end

@@ -570,7 +570,7 @@ end = struct
     debug (fun () ->
         Format.eprintf "SSA transform of %s:@;%a"
           f.f_name.fn_name
-          (Printer.pp_func ~debug:true Arch.pointer_data Arch.asmOp) ssa_f);
+          (Printer.pp_func ~debug:true Arch.pointer_data Arch.msf_size Arch.asmOp) ssa_f);
     (* Remark: the program is not used by [Pa], since there are no function
        calls in [f]. *)
     let dp = Pa.pa_make ssa_f None in
