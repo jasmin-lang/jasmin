@@ -179,6 +179,23 @@ type architecture =
   | RISCV
 
 (* -------------------------------------------------------------------- *)
+type system =
+  | MacOS
+  | Other
+
+let target_system = ref Other
+
+let set_target_system os =
+  target_system :=
+    match os with
+    | "macosx" -> MacOS
+    | _ -> Other
+
+let () = set_target_system Config.target_system
+
+let is_target_system_macos () = !target_system = MacOS
+
+(* -------------------------------------------------------------------- *)
 type model =
   | ConstantTime
   | ConstantTimeGlobal
