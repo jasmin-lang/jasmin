@@ -63,14 +63,12 @@ module Make(Target : AsmTarget) : S
 
     let pp_function_header (name:string) decl =
         if decl.asm_fd_export then
-          let mname  = mangle name in
+          let name  = mangle name in
           Target.function_directives
-          @ [
-            Header (".type", [mname; "%function"]);
-            Header (".type", [name; "%function"]);
-            Label mname;
-            Label name;
-          ] @ Target.function_header
+          @ (if is_target_system_macos () then []
+            else [ Header (".type", [name; "%function"]) ])
+          @ Label name
+          :: Target.function_header
         else []
 
     let pp_function_tail decl =
@@ -92,7 +90,6 @@ module Make(Target : AsmTarget) : S
             let fn = escape name.fn_name in
             [
                 Instr (".global", [mangle fn]);
-                Instr (".global", [fn])
             ]
         else []
 

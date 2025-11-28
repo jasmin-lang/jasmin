@@ -15,7 +15,10 @@ let string_of_label name p = Format.asprintf "L%s$%d" (escape name) (Conv.int_of
 let pp_remote_label (fn, lbl) =
   string_of_label fn.fn_name lbl
 
-let mangle x = Format.asprintf "_%s" x
+let mangle x =
+  if is_target_system_macos () then
+    Format.asprintf "_%s" x
+  else x
 
 let string_of_glob occurrences x =
   Hash.modify_def (-1) x.v_name Stdlib.Int.succ occurrences;
