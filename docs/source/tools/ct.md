@@ -213,8 +213,9 @@ label them as secret.
 
 The type-checker supports a `declassify` pseudo-operator that applies to local
 variables and does not produce any output. It tells the checker to label its
-argument as public. It also support a `declassify` annotation on assignments and
-labels the written values as public.
+argument as public. It also support a deprecated `declassify` annotation on
+assignments and labels the written values as public: please use the operator
+rather than the annotation.
 
 For instance, a value read from memory may be *a priori* known to be public
 (although the type-system usually treats memory contents as secret).
