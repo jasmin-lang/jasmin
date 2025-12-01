@@ -78,7 +78,7 @@ Analyzing function main
 
 
 *** Possible Safety Violation(s):
-  "fail/bad_align.jazz", line 6 (2-30): aligned pointer (pt +64u ((64u) 1)) u64
+  "fail/bad_align.jazz", line 6 (2-30): aligned pointer pt +64u (64u) 1 u64
   
 Memory ranges:
   mem_pt: [0; 9]
@@ -114,7 +114,7 @@ Analyzing function uninit
 
 
 *** Possible Safety Violation(s):
-  "fail/bounded_while.jazz", line 15 (2-17): is_init t[(4 - 1)]
+  "fail/bounded_while.jazz", line 15 (2-17): is_init t[4 - 1]
   
 Memory ranges:
   mem_bound: [0; 0]
@@ -276,7 +276,7 @@ Analyzing function f
 
 
 *** Possible Safety Violation(s):
-  "fail/not_in_bounds.jazz", line 2 (2-12): in_bound: t[(- 1)] (length 16 U8)
+  "fail/not_in_bounds.jazz", line 2 (2-12): in_bound: t[- 1] (length 16 U8)
   "fail/not_in_bounds.jazz", line 3 (2-11): in_bound: t[2] (length 16 U8)
   
 Memory ranges:
@@ -312,7 +312,7 @@ Analyzing function undefined
 
 
 *** Possible Safety Violation(s):
-  "fail/shld.jazz", line 2 (2-30): (((uint) ((8u) 17)) % 32) ∈ [0; 16]
+  "fail/shld.jazz", line 2 (2-30): (uint) (8u) 17 % 32 ∈ [0; 16]
   
 Memory ranges:
   mem_x: [0; 0]
