@@ -61,3 +61,32 @@ val pp_ty : Format.formatter -> Prog.ty -> unit
 val pp_datas : Format.formatter -> Obj.t list -> unit
 val pp_var : Format.formatter -> Var0.Var.var -> unit
 val pp_var_i : Format.formatter -> Expr.var_i -> unit
+
+type priority
+(** Priority levels of operators *)
+
+type associativity = Left | NoAssoc | Right  (** Associativity of operators *)
+
+val associativity : priority -> associativity
+(** Associativity of a priority level *)
+
+val priority_min : priority
+(** Minimal priority level *)
+
+val priority_of_op1 : Expr.sop1 -> priority
+(** Priority level of unary operators *)
+
+val priority_of_op2 : Expr.sop2 -> priority
+(** Priority level of binary operators *)
+
+val priority_ternary : priority
+(** Priority level of the ternary “_ ? _ : _” operator *)
+
+val optparent :
+  Format.formatter ->
+  priority ->
+  associativity ->
+  priority ->
+  ('a, Format.formatter, unit) format ->
+  'a
+(** Print within optional enclosing parentheses. *)

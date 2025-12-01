@@ -31,33 +31,34 @@ let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
     let s = if is_gkvar x then "" else "/* global: */ " in
     Format.fprintf fmt "%s%a" s pp_var_i x.gv in
 
-  let rec pp_expr fmt = function
+  let rec pp_expr side prio fmt = function
   | Pconst i    -> Z.pp_print fmt i
   | Pbool  b    -> F.fprintf fmt "%b" b
   | Parr_init _ -> assert false (* This case is handled in pp_gi *)
   | Pvar v      -> pp_gvar fmt v
   | Pget(al,aa,ws,x,e) ->
     let ws = non_default_wsize (L.unloc x.gv) ws in
-    pp_arr_access pp_gvar pp_expr fmt al aa ws x e
+    pp_arr_access pp_gvar (pp_expr NoAssoc priority_min) fmt al aa ws x e
   | Psub(aa,ws,len,x,e) ->
     let ws = non_default_wsize (L.unloc x.gv) ws in
-    pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len
+    pp_arr_slice pp_gvar (pp_expr NoAssoc priority_min) pp_len fmt aa ws x e len
   | Pload(al,ws,e) ->
-    pp_mem_access pp_expr fmt al (Some ws) e
+    pp_mem_access (pp_expr NoAssoc priority_min) fmt al (Some ws) e
   | Papp1(o, e) ->
-    F.fprintf fmt "@[(%s@ %a)@]" (string_of_op1 ~debug o) pp_expr e
+     let p = priority_of_op1 o in
+     optparent fmt prio side p "%s %a" (string_of_op1 ~debug o) (pp_expr Right p) e
   | Papp2(op,e1,e2) ->
-    F.fprintf fmt "@[(%a %s@ %a)@]"
-      pp_expr e1 (string_of_op2 op) pp_expr e2
+     let p = priority_of_op2 op in
+     optparent fmt prio side p "%a %s %a" (pp_expr Left p) e1 (string_of_op2 op) (pp_expr Right p) e2
   | PappN (E.Opack(_sz, pe), es) ->
-    F.fprintf fmt "@[(%du%n)[%a]@]" (List.length es) (int_of_pe pe) (pp_list ",@ " pp_expr) es
+    F.fprintf fmt "@[(%du%n)[%a]@]" (List.length es) (int_of_pe pe) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
   | PappN (Ocombine_flags c, es) ->
-    F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " pp_expr) es
+    F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
   | Pif(_, e,e1,e2) ->
-    F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
-      pp_expr e pp_expr e1 pp_expr e2
+     let p = priority_ternary in
+     optparent fmt prio side p "%a ? %a : %a" (pp_expr Left p) e (pp_expr NoAssoc p) e1 (pp_expr Right p) e2
   in
-  pp_expr
+  pp_expr NoAssoc priority_min
 
 (* -------------------------------------------------------------------- *)
 let pp_glv ~debug pp_len pp_var fmt =
