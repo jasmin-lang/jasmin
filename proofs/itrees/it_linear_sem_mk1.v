@@ -352,9 +352,54 @@ Context (RR : State -> LState -> Prop).
 
 (* here we consider just one function *)
 Lemma linearization_lemma (pd : PointerData) (sp: sprog)
+  (lin_params: linearization_params) :
+  check_prog lin_params sp = ok tt ->
+  (forall (fn: funname) (fd: sfundef),
+      get_fundef (p_funcs sp) fn = Some fd ->
+      let c0 := fd.(f_body) in     
+      let: (_, lc0) :=
+        (linear_c (@linear_i asm_op pd _ lin_params sp fn) c0 xH [::]) in
+      fenv fn = Some lc0) ->
+  forall (fn: funname),
+    let lin_sem := @isem_liniter E2 XI2 XL2 XE2 ((fn, xH)%type) in
+    forall xs es ii, 
+      let source_sem := @denote_instr _ _ _ _ _ _ E1 XI1 XS1 XF1
+                          (MkI ii (Ccall xs fn es)) in
+      @rutt E1 E2 _ _ (fun _ _ _ _ => True) (fun _ _ _ _ _ _ => True)
+            eq source_sem lin_sem.
+Proof.
+  intros.  
+Admitted. 
+
+
+(* here we consider just one function *)
+Lemma linearization_lemma (pd : PointerData) (sp: sprog)
+  (lin_params: linearization_params) :
+  check_prog lin_params sp = ok tt ->
+  (forall (fn: funname) (fd: sfundef),
+      get_fundef (p_funcs sp) fn = Some fd ->
+      let c0 := fd.(f_body) in     
+      let: (_, lc0) :=
+        (linear_c (@linear_i asm_op pd _ lin_params sp fn) c0 xH [::]) in
+      fenv fn = Some lc0) ->
+  forall (fn: funname) (fd: sfundef),
+  get_fundef (p_funcs sp) fn = Some fd ->
+  let c0 := fd.(f_body) in     
+  let lin_sem := @isem_liniter E2 XI2 XL2 XE2 ((fn, xH)%type) in
+  let source_sem := @denote_cmd _ _ _ _ _ _ E1 XI1 XS1 XF1 c0 in
+  @rutt E1 E2 _ _ (fun _ _ _ _ => True) (fun _ _ _ _ _ _ => True)
+    eq source_sem lin_sem.
+Proof.
+  intros.  
+Admitted. 
+
+(*
+(* here we consider just one function *)
+Lemma linearization_lemma (pd : PointerData) (sp: sprog)
   (lin_params: linearization_params)
   (fn: funname) (fd: sfundef) lbl :
-  check_fd lin_params sp fn fd = ok tt -> 
+  check_prog lin_params sp = ok tt ->
+  get_fundef (p_funcs sp) fn = Some fd ->
   let c0 := fd.(f_body) in     
   let lc0 := (linear_c (@linear_i asm_op pd _ lin_params sp fn) c0 lbl [::]) in
   fenv fn = Some (snd lc0) ->
@@ -365,6 +410,7 @@ Lemma linearization_lemma (pd : PointerData) (sp: sprog)
 Proof.
   intros.  
 Admitted. 
+*)
 
 End Transl.
   
