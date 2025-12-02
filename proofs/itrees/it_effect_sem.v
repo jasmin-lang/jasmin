@@ -63,7 +63,7 @@ Definition iresult {T} (F : exec T) (s:estate) : itree E T :=
   err_result (mk_error_data s) F.
 *)
 
-Definition iget_fundef (funcs: fun_decls) (fn: funname) (fs: fstate) :
+Definition iget_fundef (funcs: fun_decls) (fn: funname) (* (fs: fstate) *) :
     itree E fundef :=
   err_option (ErrType, tt) (get_fundef funcs fn).
 
@@ -216,8 +216,8 @@ Definition isem_RetVal {SX: @stateE estate -< E}
 
 (* GetFunDef *)
 
-Definition isem_GetFunDef (fn: funname) (fs: fstate) : itree E fundef :=
-  iget_fundef (p_funcs p) fn fs.
+Definition isem_GetFunDef (fn: funname) (* fs: fstate *) : itree E fundef :=
+  iget_fundef (p_funcs p) fn.
 
 (* GetFunCode *)
 
@@ -281,7 +281,7 @@ Definition handle_FunE {SX: @stateE estate -< E} :
   @FunE asm_op syscall_state sip fstate fundef ~> itree E :=
   fun _ e =>
     match e with
-    | GetFunDef fn fs => isem_GetFunDef fn fs
+    | GetFunDef fn => isem_GetFunDef fn
     | GetFunCode fd => isem_GetFunCode fd
     | InitFunCall fd fs => isem_InitFunCall fd fs
     | FinalizeFunCall fd => isem_FinalizeFunCall fd

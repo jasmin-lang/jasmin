@@ -350,19 +350,15 @@ Context {E2} {XI2 : LinstrE -< E2} {XL2: LinE -< E2} {XS2: StE2 -< E2}
 
 Context (RR : State -> LState -> Prop).
 
-
-(* (asm_op : Type) (pd : PointerData) (asmop : asmOp asm_op),
-         linearization_params
-         → sprog → funname → instr → label → lcmd → label * lcmd. *)
-
+(* here we consider just one function *)
 Lemma linearization_lemma (pd : PointerData) (sp: sprog)
-    (lin_params: linearization_params)                       
-    (fn: funname) (i: instr) (c1: cmd) lbl :
-  let c0 := i :: c1 in
-  let lcmd := (linear_c (@linear_i asm_op pd _ lin_params sp fn)
-                 c0 lbl [::]) in
-  fenv fn = Some (snd lcmd) ->
-  let lin_sem := @isem_liniter E2 XI2 XL2 XE2 ((fn, xH)%type) in
+  (lin_params: linearization_params)
+  (fn: funname) (fd: sfundef) lbl :
+  check_fd lin_params sp fn fd = ok tt -> 
+  let c0 := fd.(f_body) in     
+  let lc0 := (linear_c (@linear_i asm_op pd _ lin_params sp fn) c0 lbl [::]) in
+  fenv fn = Some (snd lc0) ->
+  let lin_sem := @isem_liniter E2 XI2 XL2 XE2 ((fn, lbl)%type) in
   let source_sem := @denote_cmd _ _ _ _ _ _ E1 XI1 XS1 XF1 c0 in
   @rutt E1 E2 _ _ (fun _ _ _ _ => True) (fun _ _ _ _ _ _ => True)
     eq source_sem lin_sem.

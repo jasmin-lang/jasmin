@@ -77,7 +77,7 @@ Variant InstrE : Type -> Type :=
 
 (* function call events *)
 Variant FunE : Type -> Type :=
-  | GetFunDef (fn: funname) (fs: FState) : FunE FunDef
+  | GetFunDef (fn: funname) : FunE FunDef
   | GetFunCode (fd: FunDef) : FunE cmd          
   | InitFunCall (fd: FunDef) (fs: FState) : FunE unit                     
   | FinalizeFunCall (fd: FunDef) : FunE FState.
@@ -165,7 +165,7 @@ Context {XF: FunE -< E}.
 (* semantics of function calls *)
 Definition isem_fcall (fn : funname) (fs : FState) :
   itree (recCall +' E) FState :=
-  fd <- trigger (GetFunDef fn fs) ;;  
+  fd <- trigger (GetFunDef fn) ;;  
   c <- trigger (GetFunCode fd) ;;
   trigger (InitFunCall fd fs) ;;
   isem_cmd c ;;
@@ -204,7 +204,7 @@ Definition denote_fun' (fn : funname) (fs : FState) : itree E FState :=
 (* corresponds to: isem_fun_body with the sem_fun_full instance *) 
 Definition denote_fcall (fn : funname) (fs : FState) :
   itree E FState :=
-  fd <- trigger (GetFunDef fn fs) ;;  
+  fd <- trigger (GetFunDef fn) ;;  
   c <- trigger (GetFunCode fd) ;;
   trigger (InitFunCall fd fs) ;;
   denote_cmd c ;;
@@ -523,7 +523,7 @@ Section SemPFun.
 Context {XF: FunE -< E}.  
 
 Definition isem_fun_body (fn : funname) (fs : FState) : itree E FState :=
-  fd <- trigger (GetFunDef fn fs) ;;  
+  fd <- trigger (GetFunDef fn) ;;  
   c <- trigger (GetFunCode fd) ;;
   trigger (InitFunCall fd fs) ;;
   isem_c_body c ;; 
