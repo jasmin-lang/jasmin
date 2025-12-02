@@ -32,8 +32,8 @@ Section Asm1.
 (* Context
   `{asmop: asmOp}.  *)
 Context  {asm_op: Type}
-            {syscall_state : Type}
-            {sip : SemInstrParams asm_op syscall_state}.  
+         {syscall_state : Type}
+         {sip : SemInstrParams asm_op syscall_state}.  
 (* Context {asm_op: Type} {asmop: asmOp asm_op}. *)
 (*
 Context
@@ -54,6 +54,9 @@ Context {err: error_data}.
 (* instruction events. InitFState allows storing instr_info in FState
  *)
 
+Context (Env: funname -> lcmd).
+Context (FindInstr: lcmd -> label -> option linstr_r).
+
 Variant LinstrE : Type -> Type :=
   | ELopn   : lexprs -> sopn -> rexprs -> LinstrE unit
   | ELsyscall : syscall_t -> LinstrE unit
@@ -67,18 +70,31 @@ Variant LinstrE : Type -> Type :=
   | ELcond  : fexpr -> label -> LinstrE unit.
 
 Variant LinE : Type -> Type :=
-  | FindInstr : LinE linstr
-  | IsFinal : LinE bool.                   
+  | FindNewInstr : LinE remote_label
+  | CheckFinal (lbl: remote_label) : LinE unit.                   
 
-Definition LCntr {E} `{LE: LinE -< E}
-  (f: linstr_r -> itree E unit) (i: linstr_r) :
-  itree E (linstr + unit) :=
-  f i ;;
-  b <- trigger IsFinal ;;
-  if b then Ret (inr tt)
-  else li <- trigger FindInstr ;;
-       Ret (inl li).
-            
+(* Variant LabE : Type -> Type :=
+  | GetLabel : LabE label.
+*)
+
+Definition LCntr {E} `{LE: LinE -< E} 
+  (f: linstr_r -> itree E unit) (lbl: remote_label) :
+  itree E (remote_label + unit) :=
+  let cmd := Env (fst lbl) in
+  let pi := FindInstr cmd (snd lbl) in
+  match pi with
+  | Some i =>
+      f i ;;   
+      lbl1 <- trigger FindNewInstr ;;
+      Ret (inl lbl1)
+  | _ => trigger (CheckFinal lbl) ;; 
+         Ret (inr tt) end.        
+
+(* f i ;; 
+  lbl1 <- trigger FindNewInstr ;;
+  b <- trigger (IsFinal lbl1) ;; 
+  if true then Ret (inr tt) else Ret (inl lbl1).
+*)            
 
 Section SemRec.
   
@@ -109,12 +125,21 @@ Definition exec_linstr (ir : linstr_r) : itree E unit :=
   | Lcond e lbl => trigger (ELcond e lbl)
   end.                         
 
-Definition isem_linstr (i: linstr_r) : itree E (linstr + unit) :=
-  LCntr exec_linstr i.
+Definition isem_linstr (lbl: remote_label) :
+  itree E (remote_label + unit) := LCntr exec_linstr lbl.
 
-(* iterative semantics of a (start) instruction *)
-Definition isem_cmd (i: linstr) : itree E unit :=
-  ITree.iter (fun x => isem_linstr (li_i x)) i.
+(* iterative semantics of a program, from any starting point *)
+Definition isem_fun (lbl: remote_label) : itree E unit :=
+  ITree.iter isem_linstr lbl.
+
+(*
+Definition isem_linstr (fn: funname) (lbl: label) :
+  itree E (remote_label + unit) := LCntr exec_linstr (fn, lbl).
+
+(* iterative semantics of a program, from a function *)
+Definition isem_fun (fn: funname) : itree E unit :=
+  ITree.iter (fun x => isem_linstr (fst x) (snd x)) (fn, xH).
+ *)
 
 End SemRec.
 
@@ -134,8 +159,7 @@ Notation labels := label_in_lprog.
 
 Section Handle.
 
-Context {E: Type -> Type}
-            
+Context {E: Type -> Type}  
         {XS: @stateE lstate -< E} {XE: ErrEvent -< E}.
 
 (* fixme *)
@@ -267,8 +291,8 @@ Definition find_instr_sem (s: lstate) : itree E linstr :=
 Definition handle_lin {T}
   (e: LinE T) : itree E T :=
   match e with
-  | FindInstr => s <- trigger (@Get lstate) ;; find_instr_sem s
-  | IsFinal => s <- trigger (@Get lstate) ;; final_state_sem s                   end.                                         
+  | FindInstr _ => s <- trigger (@Get lstate) ;; find_instr_sem s
+  | IsFinal _ => s <- trigger (@Get lstate) ;; final_state_sem s                   end.                                         
 
 End Handle.
 
@@ -302,6 +326,50 @@ Definition up2state_lin_interp T
 
 End FInterp.
 
+Require Import linearization.
+Require Import it_cflow_sem.
+From ITree Require Import State StateFacts MonadState Rutt.
+Require Import equiv_extras rutt_extras.
+
+Section Transl.
+
+Context {State: Type} {FState : Type} {FunDef: Type}.
+
+Context {LState: Type}.
+
+Notation StE1 := (stateE State).
+
+Notation StE2 := (stateE LState).
+
+Check @InstrE.
+
+Context {E1} {XI1 : @InstrE asm_op syscall_state _ State FState -< E1}
+  {XS1: StE1 -< E1} {XF1: @FunE asm_op syscall_state _ FState FunDef -< E1}.
+ 
+Context {E2} {XI2 : LinstrE -< E2} {XL2: LinE -< E2} {XS2: StE2 -< E2}. 
+
+Context (RR : State -> LState -> Prop).
+
+
+(* (asm_op : Type) (pd : PointerData) (asmop : asmOp asm_op),
+         linearization_params
+         → sprog → funname → instr → label → lcmd → label * lcmd. *)
+
+Lemma linearization_lemma (pd : PointerData) (sp: sprog)
+    (lin_params: linearization_params)                       
+    (fn: funname) (i: instr) (c1: cmd) lbl :
+  let c0 := i :: c1 in
+  let lcmd := (linear_c (@linear_i asm_op pd _ lin_params sp fn)
+                 c0 lbl [::]) in
+  forall li, head (snd lcmd) = Some li -> 
+  let lin_sem := @isem_lcmd E2 XI2 XL2 (snd lcmd) li in
+  let source_sem := @denote_cmd _ _ _ _ _ _ E1 XI1 XS1 XF1 c0 in
+  @rutt E1 E2 _ _ (fun _ _ _ _ => True) (fun _ _ _ _ _ _ => True)
+    eq source_sem lin_sem.
+
+
+End Transl.
+  
 End GInterp.
 
 End Asm1.
