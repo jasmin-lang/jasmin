@@ -34,6 +34,7 @@ Section Asm1.
 Context  {asm_op: Type}
          {syscall_state : Type}
          {sip : SemInstrParams asm_op syscall_state}.  
+Context {err: error_data}. 
 (* Context {asm_op: Type} {asmop: asmOp asm_op}. *)
 (*
 Context
@@ -54,55 +55,61 @@ Context {err: error_data}.
 (* instruction events. InitFState allows storing instr_info in FState
  *)
 
-Context (Env: funname -> lcmd).
-Context (FindInstr: lcmd -> label -> option linstr_r).
+Notation FEnv := (funname -> option lcmd). 
+Context (fenv: FEnv).
 
 Variant LinstrE : Type -> Type :=
-  | ELopn   : lexprs -> sopn -> rexprs -> LinstrE unit
-  | ELsyscall : syscall_t -> LinstrE unit
-  | ELcall    : option var_i -> remote_label -> LinstrE unit
-  | ELret     : LinstrE unit
-  | ELalign :  LinstrE unit
-  | ELlabel : label_kind -> label -> LinstrE unit
-  | ELgoto  : remote_label -> LinstrE unit
-  | ELigoto : rexpr -> LinstrE unit
+  | ELopn        : lexprs -> sopn -> rexprs -> LinstrE unit
+  | ELsyscall    : syscall_t -> LinstrE unit
+  | ELcall       : option var_i -> remote_label -> LinstrE unit
+  | ELret        : LinstrE unit
+  | ELalign      : LinstrE unit
+  | ELlabel      : label_kind -> label -> LinstrE unit
+  | ELgoto       : remote_label -> LinstrE unit
+  | ELigoto      : rexpr -> LinstrE unit
   | ELstoreLabel : var -> label -> LinstrE unit
-  | ELcond  : fexpr -> label -> LinstrE unit.
+  | ELcond       : fexpr -> label -> LinstrE unit.
 
 Variant LinE : Type -> Type :=
-  | FindNewInstr : LinE remote_label
-  | CheckFinal (lbl: remote_label) : LinE unit.                   
+  | MatchExec (lbl: remote_label) : LinE unit
+  | NewExec : LinE remote_label
+  | IsFinal (lbl: remote_label) : LinE bool.                   
 
-(* Variant LabE : Type -> Type :=
-  | GetLabel : LabE label.
-*)
+Definition find_linstr_in_env (lc: lcmd) (lbl: label) : option linstr :=
+  oseq.onth lc (Pos.to_nat lbl).
 
-Definition LCntr {E} `{LE: LinE -< E} 
-  (f: linstr_r -> itree E unit) (lbl: remote_label) :
+Definition is_final (lc: lcmd) (lbl: label) : bool :=
+  (Pos.to_nat lbl) =? (length lc).
+
+Definition LCntr {E} {XL: LinE -< E} {XE: ErrEvent -< E} 
+  (f: linstr_r -> itree E unit) (rlbl: remote_label) :
   itree E (remote_label + unit) :=
-  let cmd := Env (fst lbl) in
-  let pi := FindInstr cmd (snd lbl) in
-  match pi with
-  | Some i =>
-      f i ;;   
-      lbl1 <- trigger FindNewInstr ;;
-      Ret (inl lbl1)
-  | _ => trigger (CheckFinal lbl) ;; 
-         Ret (inr tt) end.        
+  (* the state agrees with the function and the PC agrees with the
+  label (throw error if it doesn't) *)
+  trigger (MatchExec rlbl) ;;
+  let fn := fst rlbl in
+  let lbl := snd rlbl in 
+  (* the optional function body *)
+  let plc := fenv fn in
+  match plc with
+  (* the function exists: find the instruction in its body *)
+  | Some lc => let pi := find_linstr_in_env lc lbl in
+    match pi with
+    (* the instruction exists: execute it and return the next label *) 
+    | Some (MkLI _ i) => f i ;; lbl1 <- trigger NewExec ;; Ret (inl lbl1)
+    (* the instruction does not exists: the execution terminates if the
+       label equals the code length, otherwise throws an error *)        
+    | _ => if is_final lc lbl then Ret (inr tt) else throw err end
+  (* the function does not exist: throw an error *)    
+  | _ => throw err end.        
 
-(* f i ;; 
-  lbl1 <- trigger FindNewInstr ;;
-  b <- trigger (IsFinal lbl1) ;; 
-  if true then Ret (inr tt) else Ret (inl lbl1).
-*)            
 
 Section SemRec.
   
-Context {E} {XI : LinstrE -< E} {XL: LinE -< E}. 
+Context {E} {XI : LinstrE -< E} {XL: LinE -< E} {XE: ErrEvent -< E}. 
 
 (* one-step semantics of instructions *)
 Definition exec_linstr (ir : linstr_r) : itree E unit :=
-(*  let ir := li_i i in *)
   match ir with
   | Lopn xs o es => trigger (ELopn xs o es)
 
@@ -125,21 +132,17 @@ Definition exec_linstr (ir : linstr_r) : itree E unit :=
   | Lcond e lbl => trigger (ELcond e lbl)
   end.                         
 
+(* iterative semantics body *)
 Definition isem_linstr (lbl: remote_label) :
   itree E (remote_label + unit) := LCntr exec_linstr lbl.
 
 (* iterative semantics of a program, from any starting point *)
-Definition isem_fun (lbl: remote_label) : itree E unit :=
+Definition isem_liniter (lbl: remote_label) : itree E unit :=
   ITree.iter isem_linstr lbl.
 
-(*
-Definition isem_linstr (fn: funname) (lbl: label) :
-  itree E (remote_label + unit) := LCntr exec_linstr (fn, lbl).
-
-(* iterative semantics of a program, from a function *)
+(* iterative semantics of a function from its entry point *)
 Definition isem_fun (fn: funname) : itree E unit :=
-  ITree.iter (fun x => isem_linstr (fst x) (snd x)) (fn, xH).
- *)
+  isem_liniter (fn, xH).
 
 End SemRec.
 
@@ -161,12 +164,6 @@ Section Handle.
 
 Context {E: Type -> Type}  
         {XS: @stateE lstate -< E} {XE: ErrEvent -< E}.
-
-(* fixme *)
-Context (IsFinalP : lprog -> lstate -> bool).
-
-Definition final_state_sem (s: lstate) : itree E bool :=
-  Ret (IsFinalP P s).  
 
 Definition lopn_sem (xs: seq.seq lexpr) (o: sopn) (es: seq.seq rexpr)
   (s1: lstate) : exec lstate :=
@@ -285,46 +282,50 @@ Definition handle_linstr {XL: LinE -< E} {T}
   | ELcond e lbl => Linstr_isem (Lcond e lbl)
   end.
 
-Definition find_instr_sem (s: lstate) : itree E linstr :=
-  @err_option E XE _ plain_err (find_instr P s).
-
-Definition handle_lin {T}
-  (e: LinE T) : itree E T :=
-  match e with
-  | FindInstr _ => s <- trigger (@Get lstate) ;; find_instr_sem s
-  | IsFinal _ => s <- trigger (@Get lstate) ;; final_state_sem s                   end.                                         
-
+Definition handle_lin {XE: ErrEvent -< E} {T} (e: LinE T) :
+  itree E T := match e with
+  | MatchExec (fn, lbl)%type =>
+      s <- trigger (@Get lstate) ;;
+      if (fn == s.(lfn)) && (Pos.to_nat lbl == s.(lpc))
+      then Ret tt else throw err 
+  | NewExec =>   
+      s <- trigger (@Get lstate) ;;
+      Ret (s.(lfn), Pos.of_nat (s.(lpc)))
+  | IsFinal (fn, lbl)%type =>
+      match (fenv fn) with
+      | None => throw err
+      | Some lc => Ret (size lc == Pos.to_nat lbl)
+      end               
+  end.
+    
 End Handle.
+
 
 Section Interp.
 
 Context {E: Type -> Type} {XE: ErrEvent -< E} {XS: @stateE lstate -< E}.
 
-(* fixme *)
-Context (IsFinalP : lprog -> lstate -> bool).
-
 Definition interp_LinstrE {XL: LinE -< E} {A: Type}
   (t : itree (LinstrE +' E) A) : itree E A :=
   interp (ext_handler (@handle_linstr E XS XE XL)) t.
 
-Definition interp_LinE {A: Type}
+Definition interp_LinE {A: Type} 
   (t : itree (LinE +' E) A) : itree E A :=
-  interp (ext_handler (@handle_lin E XS XE IsFinalP)) t.
+  interp (ext_handler (@handle_lin E XS XE)) t.
 
 End Interp.
+
 
 Section FInterp.
 
 Context {E: Type -> Type} {XE: ErrEvent -< E} {XS: @stateE lstate -< E}.
 
-(* fixme *)
-Context (IsFinalP : lprog -> lstate -> bool).
-
 Definition up2state_lin_interp T 
   (t: itree (LinstrE +' LinE +' E) T) : itree E T :=
-  interp_LinE IsFinalP (interp_LinstrE t).
+  interp_LinE (interp_LinstrE t).
 
 End FInterp.
+
 
 Require Import linearization.
 Require Import it_cflow_sem.
@@ -341,12 +342,11 @@ Notation StE1 := (stateE State).
 
 Notation StE2 := (stateE LState).
 
-Check @InstrE.
-
 Context {E1} {XI1 : @InstrE asm_op syscall_state _ State FState -< E1}
   {XS1: StE1 -< E1} {XF1: @FunE asm_op syscall_state _ FState FunDef -< E1}.
  
-Context {E2} {XI2 : LinstrE -< E2} {XL2: LinE -< E2} {XS2: StE2 -< E2}. 
+Context {E2} {XI2 : LinstrE -< E2} {XL2: LinE -< E2} {XS2: StE2 -< E2}
+  {XE2: ErrEvent -< E2}. 
 
 Context (RR : State -> LState -> Prop).
 
@@ -361,12 +361,14 @@ Lemma linearization_lemma (pd : PointerData) (sp: sprog)
   let c0 := i :: c1 in
   let lcmd := (linear_c (@linear_i asm_op pd _ lin_params sp fn)
                  c0 lbl [::]) in
-  forall li, head (snd lcmd) = Some li -> 
-  let lin_sem := @isem_lcmd E2 XI2 XL2 (snd lcmd) li in
+  fenv fn = Some (snd lcmd) ->
+  let lin_sem := @isem_liniter E2 XI2 XL2 XE2 ((fn, xH)%type) in
   let source_sem := @denote_cmd _ _ _ _ _ _ E1 XI1 XS1 XF1 c0 in
   @rutt E1 E2 _ _ (fun _ _ _ _ => True) (fun _ _ _ _ _ _ => True)
     eq source_sem lin_sem.
-
+Proof.
+  intros.  
+Admitted. 
 
 End Transl.
   
