@@ -18,3 +18,8 @@ export fn main(reg u32 x, reg u32 y) -> reg u32
   x = x;
   return x;
 }
+
+export fn wint() {
+  reg ui32 x = 0;
+  () = #spill(x);
+}

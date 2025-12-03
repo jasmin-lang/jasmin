@@ -1,12 +1,13 @@
 (* ** Imports and settings *)
 From HB Require Import structures.
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 Require Import expr sem_op_typed compiler_util.
 Import Utf8.
 Import oseq.
 Require Import flag_combination.
+Import pseudo_operator.
 
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
@@ -277,13 +278,26 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec instr_r :=
     ok (Cassgn x tag ty e)
 
   | Copn xs t o es =>
-    Let _ := assert (all (fun e => sign_of_expr e == None) es)
-                    (E.ierror_s "invalid expr in Copn") in
-
-    Let es := mapM wi2i_e es in
+    Let es' := mapM wi2i_e es in
     let xtys := map (to_etype None) (sopn_tout o) in
     Let xs := mapM2 (E.ierror_s "invalid dest in Copn") wi2i_lv xtys xs in
-    ok (Copn xs t o es)
+    Let o :=
+     (* TODO: do that for other operators ? maybe for swap ? *)
+     if sopn.is_spill_op o is Some (k, tys) then
+       (* We check that the operator is well-typed *)
+       let etys := map etype_of_expr es in
+       let tys' := map2 (fun ety ty => to_etype (sign_of_etype ety) ty) etys tys in
+       Let _ := assert (size tys == size es) (E.ierror_s "ill typed spill") in
+       Let _ := assert (all2 esubtype tys' etys) (E.ierror_s "ill typed spill (arguments)") in
+       (* We patch the type of the operator *)
+       let tys := map2 (fun ty e => wi2i_type (sign_of_expr e) ty) tys es in
+       ok (Opseudo_op (Ospill k tys))
+     else
+       Let _ := assert (all (fun e => sign_of_expr e == None) es)
+                    (E.ierror_s "invalid expr in Copn") in
+       ok o
+     in
+    ok (Copn xs t o es')
 
   | Csyscall xs o es =>
     Let _ := assert (all (fun e => sign_of_expr e == None) es)
