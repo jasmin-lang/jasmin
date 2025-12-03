@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From Coq Require Import ZArith Uint63.
-Require Import pseudo_operator expr compiler_util.
+Require Import sopn pseudo_operator expr compiler_util.
 
 Local Open Scope seq_scope.
 
@@ -27,12 +27,6 @@ Section ASM_OP.
 
 Context `{asmop : asmOp}.
 Context (fresh_var_ident: v_kind -> instr_info -> int -> string -> stype -> Ident.ident).
-
-Definition is_spill_op o :=
-  match o with
-  | Opseudo_op (pseudo_operator.Ospill o tys) => Some (o, tys)
-  | _ => None
-  end.
 
 Definition to_spill_e s e :=
   match e with

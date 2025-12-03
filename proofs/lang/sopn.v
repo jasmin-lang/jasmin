@@ -150,6 +150,14 @@ Definition is_Oslh (op : sopn) : option slh_op :=
 Lemma is_OslhP op : is_reflect Oslh op (is_Oslh op).
 Proof. case: op; by constructor. Qed.
 
+Definition is_spill_op o :=
+  if o is Opseudo_op (Ospill o tys) then Some (o, tys)
+  else None.
+
+Lemma is_spill_opP o s tys :
+  is_spill_op o = Some (s, tys) ->
+  o = Opseudo_op (Ospill s tys).
+Proof. by case: o => // -[] // ?? [-> ->]. Qed.
 
 (* ------------------------------------------------------------- *)
 (* Descriptors for speudo operators                              *)
