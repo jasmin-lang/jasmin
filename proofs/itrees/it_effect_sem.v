@@ -314,8 +314,51 @@ Section SemDefs.
  
 Context (p : prog) (ev : extra_val_t).
 
-Context (E: Type -> Type).
+(* Context (E: Type -> Type). *)
 
+Definition interp_InstrFunE E {XE: ErrEvent -< E} {XS: @stateE estate -< E} T
+  (t: itree (@InstrE asm_op syscall_state sip estate fstate
+             +' @FunE asm_op syscall_state sip fstate fundef +' E) T) :
+  itree E T := interp_FunE p ev (interp_InstrE p t).
+
+Definition interp_up2state E {XE: ErrEvent -< E} {XS: @stateE estate -< E} T
+  (t: itree (@callE (funname * fstate) fstate
+             +' @InstrE asm_op syscall_state sip estate fstate
+             +' @FunE asm_op syscall_state sip fstate fundef +' E) T) :
+  itree E T := interp_InstrFunE (interp_recc t).
+(*  itree E T := interp_FunE p ev (interp_InstrE p (interp_recc t)). *)
+
+Definition interp_up2err E {XE: ErrEvent -< E} T
+  (t: itree (@callE (funname * fstate) fstate
+             +' @InstrE asm_op syscall_state sip estate fstate
+             +' @FunE asm_op syscall_state sip fstate fundef
+             +' @stateE estate +' E) T) (s: estate) :
+  itree _ (estate * T) := run_state (interp_up2state t) s.
+
+Definition interp_full E T
+  (t: itree (@callE (funname * fstate) fstate
+             +' @InstrE asm_op syscall_state sip estate fstate
+             +' @FunE asm_op syscall_state sip fstate fundef
+             +' @stateE estate
+             +' ErrEvent +' E) T) (s: estate) :
+  itree E (execS (estate * T)) := interp_Err (interp_up2err t s).
+
+Definition isem_interp_up2state E {XE: ErrEvent -< E}
+  {XS: @stateE estate -< E} {XR: @callE (funname * fstate) fstate -< E} T
+  (t: itree (@InstrE asm_op syscall_state sip estate fstate
+            +' @FunE asm_op syscall_state sip fstate fundef +' E) T) :
+  itree E T := interp_FunE p ev (interp_InstrE p t).
+
+Definition isem_interp_up2rec E {XE: ErrEvent -< E}
+  {XR: @callE (funname * fstate) fstate -< E} T
+  (t: itree (@InstrE asm_op syscall_state sip estate fstate
+            +' @FunE asm_op syscall_state sip fstate fundef
+            +' @stateE estate +' E) T) (s: estate) :
+  itree E (estate * T) :=
+  run_state (isem_interp_up2state t) s.
+
+
+(*
 Definition full_interp T
   (t: itree (@callE (funname * fstate) fstate
              +' @InstrE asm_op syscall_state sip estate fstate
@@ -343,6 +386,9 @@ Definition up2err_interp T
   itree _ (estate * T) :=
   run_state (up2state_interp t) s.
 
+*)
+
+(*
 Definition isem_up2rec_interp T
   (t: itree (@InstrE asm_op syscall_state sip estate fstate
             +' @FunE asm_op syscall_state sip fstate fundef
@@ -364,6 +410,7 @@ Fail Definition isem_up2err_interp T
   itree (ErrEvent +' E) (estate * T) :=
   @interp_recc asm_op syscall_state sip estate fstate fundef (ErrEvent +' E)
     _ _ _ (estate * T) (isem_up2rec_interp t s).
+*)
 
 (*
 Context {XE : ErrEvent -< E} {SX : @stateE estate -< E}. 

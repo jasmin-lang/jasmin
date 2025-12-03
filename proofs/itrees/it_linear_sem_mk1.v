@@ -1,5 +1,3 @@
-(* -> was it_sems_mden4.v *)
-
 From ITree Require Import
      Basics
      ITree
@@ -328,18 +326,88 @@ End FInterp.
 
 
 Require Import linearization.
-Require Import it_cflow_sem.
+Require Import it_cflow_sem it_effect_sem.
 From ITree Require Import State StateFacts MonadState Rutt.
 Require Import equiv_extras rutt_extras.
 
+
+Definition conv_obj T1 T2 (ee: T1 = T2) (u: T1) : T2 :=
+  eq_rect T1 (fun T : Type => T) u T2 ee.
+
+
 Section Transl.
 
-Context {State: Type} {FState : Type} {FunDef: Type}.
+Notation StE1 := (stateE estate).
+Notation StE2 := (stateE lstate).
 
+Context {E1} {XS1: StE1 -< E1} {XE1: ErrEvent -< E1}.
+Context {E2} {XS2: StE2 -< E2} {XE2: ErrEvent -< E2}. 
+Context (RR : estate -> lstate -> Prop).
+
+Context {dc: DirectCall} {pT : progT} {scP : semCallParams}.
+Context {p: prog} {ev : extra_val_t}.
+
+Definition ConvRelate T1 T2 (u1: T1) (u2: T2) :=
+  exists (ee1: T1 = estate) (ee2: T2 = lstate),
+    RR (conv_obj ee1 u1) (conv_obj ee2 u2).
+
+Definition StatePreRel T1 T2 
+  (e1: @stateE estate T1) (e2: @stateE lstate T2) : Prop :=
+   match (e1, e2) with
+   | (Get, Get) => True
+   | (Put s1, Put s2) => RR s1 s2
+   | _ => False end. 
+
+Definition StatePostRel T1 T2 
+  (e1: @stateE estate T1) (u1: T1) (e2: @stateE lstate T2) (u2: T2) : Prop :=
+  StatePreRel e1 e2 /\
+   match (e1, e2) with
+   | (Get, Get) => ConvRelate u1 u2
+   | (Put s1, Put s2) => True
+   | _ => False end. 
+
+Definition PreC T1 T2 (e1: E1 T1) (e2: E2 T2) : Prop :=
+  exists (e01: @stateE estate T1) (e02: @stateE lstate T2),
+    e1 = (subevent _ e01) /\ e2 = (subevent _ e02) /\
+    StatePreRel e01 e02.  
+
+Definition PostC T1 T2 (e1: E1 T1) (u1: T1) (e2: E2 T2) (u2: T2) : Prop :=
+  exists (e01: @stateE estate T1) (e02: @stateE lstate T2),
+    e1 = (subevent _ e01) /\ e2 = (subevent _ e02) /\
+    StatePreRel e01 e02 /\ StatePostRel e01 u1 e02 u2. 
+
+Lemma linearization_lemma (pd : PointerData) (sp: sprog)
+  (lin_params: linearization_params) :
+  check_prog lin_params sp = ok tt ->
+  (forall (fn: funname) (fd: sfundef),
+      get_fundef (p_funcs sp) fn = Some fd ->
+      let c0 := fd.(f_body) in     
+      let: (_, lc0) :=
+        (linear_c (@linear_i asm_op pd _ lin_params sp fn) c0 xH [::]) in
+      fenv fn = Some lc0) ->
+  forall (fn: funname),
+    let lin_sem := @up2state_lin_interp E2 XE2 XS2 _
+                     (isem_liniter (fn, xH)%type) in
+    forall xs es ii,
+      let sden := @isem_instr asm_op syscall_state sip
+                    estate fstate _ _ _ (MkI ii (Ccall xs fn es)) in
+      let source_sem := @interp_up2state asm_op syscall_state
+                          sip withsubword dc ep spp pT scP p ev E1 XE1 XS1
+                          unit sden in  
+      @rutt E1 E2 _ _ PreC PostC eq source_sem lin_sem.
+Proof.
+  intros.  
+Admitted. 
+
+End Transl.
+
+
+Section Test1.
+
+Context {State: Type} {FState : Type} {FunDef: Type}.
 Context {LState: Type}.
 
 Notation StE1 := (stateE State).
-
 Notation StE2 := (stateE LState).
 
 Context {E1} {XI1 : @InstrE asm_op syscall_state _ State FState -< E1}
@@ -350,8 +418,8 @@ Context {E2} {XI2 : LinstrE -< E2} {XL2: LinE -< E2} {XS2: StE2 -< E2}
 
 Context (RR : State -> LState -> Prop).
 
-(* here we consider just one function *)
-Lemma linearization_lemma (pd : PointerData) (sp: sprog)
+(* just a test *)
+Lemma lin_lemma1 (pd : PointerData) (sp: sprog)
   (lin_params: linearization_params) :
   check_prog lin_params sp = ok tt ->
   (forall (fn: funname) (fd: sfundef),
@@ -372,8 +440,8 @@ Proof.
 Admitted. 
 
 
-(* here we consider just one function *)
-Lemma linearization_lemma (pd : PointerData) (sp: sprog)
+(* another test *)
+Lemma lin_lemma2 (pd : PointerData) (sp: sprog)
   (lin_params: linearization_params) :
   check_prog lin_params sp = ok tt ->
   (forall (fn: funname) (fd: sfundef),
@@ -392,6 +460,13 @@ Lemma linearization_lemma (pd : PointerData) (sp: sprog)
 Proof.
   intros.  
 Admitted. 
+  
+End Test1. 
+
+End GInterp.
+
+End Asm1.
+
 
 (*
 (* here we consider just one function *)
@@ -411,10 +486,3 @@ Proof.
   intros.  
 Admitted. 
 *)
-
-End Transl.
-  
-End GInterp.
-
-End Asm1.
-
