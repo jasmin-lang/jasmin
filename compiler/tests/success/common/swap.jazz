@@ -51,3 +51,10 @@ export fn truncate(reg u32 x) -> reg u32, reg u16 {
 export fn nolhs(reg u32 x y) {
   #[keep] _, _ = #swap(x, y);
 }
+
+export fn wint(reg ui32 a) -> reg ui32 {
+  reg ui32 b = 0;
+  a, b = #swap(a, b);
+  a += b;
+  return a;
+}
