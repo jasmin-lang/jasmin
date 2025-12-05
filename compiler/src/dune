@@ -7,6 +7,10 @@
  (flags "--table" "--explain" "--inspection")
  (modules parser))
 
+(rule
+  (target config.ml)
+  (action (write-file %{target} "let target_system = \"%{ocaml-config:system}\"")))
+
 (library
  (name jasmin)
  (public_name jasmin.jasmin)

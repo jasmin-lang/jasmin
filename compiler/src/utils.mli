@@ -107,6 +107,10 @@ type architecture =
   | RISCV
 
 (* -------------------------------------------------------------------- *)
+val set_target_system: string -> unit
+val is_target_system_macos : unit -> bool
+
+(* -------------------------------------------------------------------- *)
 type model = 
   | ConstantTime
   | ConstantTimeGlobal
