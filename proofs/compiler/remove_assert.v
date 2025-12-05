@@ -59,11 +59,15 @@ Fixpoint remove_assert_i (i:instr) : cexec cmd :=
   let (ii, ir) := i in
   add_iinfo ii
   match ir with
-  | Cassert _ => ok ([::])
+  | Copn xs _ o es =>
+    if is_Oassert o is Some _ then ok [::]
+    else
+      Let _ := assert (check_lvals xs && check_es es) E.error in
+      ok [:: i]
   | Cassgn x _ _ e =>
     Let _ := assert (check_lval x && check_e e) E.error in
     ok [:: i]
-  | Copn xs _ _ es | Csyscall xs _ es | Ccall xs _ es =>
+  | Csyscall xs _ es | Ccall xs _ es =>
     Let _ := assert (check_lvals xs && check_es es) E.error in
     ok [:: i]
   | Cif e c1 c2 =>

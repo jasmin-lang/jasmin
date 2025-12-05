@@ -541,14 +541,17 @@ Proof.
   move=> t ht; eapply rhoare_read; last by apply hwr.
   move=> s hP; apply (ho s hP _ ht).
 Qed.
-
+(*
 Lemma hoare_assert (P Q : Pred_c) Qerr ii a :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
   rhoare P (fun s => sem_assert (p_globs p) s a) PredT Qerr ->
   (forall s, P s -> sem_assert (p_globs p) s a = ok tt -> Q s) ->
   hoare P [:: MkI ii (Cassert a)] Q.
 Proof.
-  move=> herr he ha ; rewrite /hoare /isem_cmd_ /=.
+  move=> herr he ha.
+  have := hoare_opn ii _ herr.
+
+ rewrite /hoare /isem_cmd_ /=.
   apply khoare_bind with Q; last by apply khoare_ret.
   apply  khoare_ioP.
   move => s0 hpre.
@@ -567,6 +570,7 @@ Proof.
     move => s heq;subst.
     by apply: ha.
 Qed.
+*)
 
 Lemma hoare_if_full P Q Qerr ii e c c' :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
@@ -907,12 +911,13 @@ Lemma whoare_syscall Rv Ro P Q ii xs sc es :
   whoare p ev P [:: MkI ii (Csyscall xs sc es)] Q.
 Proof. by apply hoare_syscall. Qed.
 
+(*
 Lemma whoare_assert (P Q : Pred_c) ii a :
   rhoare P (fun s => sem_assert (p_globs p) s a) PredT PredT ->
   (forall s, P s -> sem_assert (p_globs p) s a = ok tt -> Q s) ->
   whoare p ev P [:: MkI ii (Cassert a)] Q.
 Proof. by apply hoare_assert. Qed.
-
+*)
 Lemma whoare_if_full P Q ii e c c' :
   rhoare P (sem_cond (p_globs p) e) PredT PredT ->
   (forall b,
@@ -1095,9 +1100,6 @@ Proof.
     apply whoare_syscall with PredT PredT; try auto using rhoare_true.
     move=> v _; apply wrhoareP => s s' <-.
     by rewrite write_Ii write_i_syscall => /vrvsP /=.
-  + move => a ii s0.
-    apply whoare_assert; try auto using rhoare_true.
-    move=> ? -> ? //=.
   + move=> e c1 c2 hc1 hc2 ii s0.
     apply whoare_if; first by auto using rhoare_true.
     move=> b; rewrite write_Ii.

@@ -419,6 +419,20 @@ Proof. by case: t x => /= > <-; exists erefl. Qed.
 Lemma type_of_to_val t (s: sem_t t) : type_of_val (to_val s) = t.
 Proof. by case: t s. Qed.
 
+Lemma to_val_defined t (x : sem_t t) v : to_val x = v -> is_defined v.
+Proof. by move=>/to_valI; case: v. Qed.
+
+Lemma isdef_errtype v t e:
+  is_defined v ->
+  of_val t v = Error e ->
+  e = ErrType.
+Proof.
+  case: t; case: v => //=; rewrite /type_error;
+  try by move=> > ? > ? [].
+  by rewrite /WArray.cast=> > _; case: ifP => // _ [].
+  by move=> > _ /truncate_word_errP[].
+Qed.
+
 Definition oto_val t : sem_ot t -> value :=
   match t return sem_ot t -> value with
   | cbool => fun ob => if ob is Some b then Vbool b else undef_b
@@ -906,12 +920,14 @@ Definition interp_safe_cond (vs : values) (sc : safe_cond) :=
         let ov := (q >? wmax_unsigned sz)%Z in
         ~( (dv == 0)%Z || ov)
       end
+  | ScBool k =>
+    forall b, to_bool (nth undef_b vs k) = ok b -> b
   | ScFalse => False
   end.
 
 Definition sc_needed_args sc :=
   match sc with
-  | NotZero _ k | InRangeMod32 _ _ _ k | AllInit _ _ k | ULt _ k _ | UGe _ _ k => S k
+  | NotZero _ k | InRangeMod32 _ _ _ k | AllInit _ _ k | ULt _ k _ | UGe _ _ k | ScBool k => S k
   | UaddLe _ k1 k2 _ => S (if ssrnat.leq k1 k2 then k2 else k1)
   | X86Division sz sign => 3
   | ScFalse => 0
@@ -934,7 +950,8 @@ Proof.
       have /(@Logic.eq_sym bool) := ssrnat.leqNgt k1 k2.
       by rewrite h1 => /negbFE h2; apply: (ssrnat.leq_trans h2).
     by rewrite !nth_cat hsz1 hsz2.
-  by move=> ws p k hsz; rewrite nth_cat hsz.
+  + by move=> ws p k hsz; rewrite nth_cat hsz.
+  by move=> k hsz; rewrite nth_cat hsz.
 Qed.
 
 Fixpoint interp_safe_cond_ty_aux

@@ -444,8 +444,6 @@ Fixpoint check_i (i : instr) (env : Env.t) : cexec Env.t :=
 
   | Csyscall _ _ _ => ok Env.empty
 
-  | Cassert _ => ok env
-
   | Cif cond c0 c1 =>
       Let _ := chk_mem ii cond in
       Let env0 := check_cmd c0 (Env.update_cond env cond) in
@@ -504,9 +502,6 @@ Fixpoint lower_i (i : instr) : cexec instr :=
       else ok ir
 
     | Csyscall _ _ _ =>
-        ok ir
-
-    | Cassert _ =>
         ok ir
 
     | Cif b c0 c1 =>

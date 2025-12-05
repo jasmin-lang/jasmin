@@ -1765,9 +1765,6 @@ Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region
     Let: (rmap, c) := alloc_syscall ii rmap rs o es in
     ok (table, rmap, c)
 
-  | Cassert _ =>
-    Error (pp_at_ii ii (stk_ierror_no_var "don't deal with assert"))
-
   | Cif e c1 c2 =>
     Let e := add_iinfo ii (alloc_e rmap e abool) in
     Let: (table1, rmap1, c1) := fmapM (alloc_i sao) (table, rmap) c1 in

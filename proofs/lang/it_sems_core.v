@@ -216,8 +216,8 @@ Definition sem_bound (gd : glob_decls) (lo hi : pexpr) (s : estate) :
 Definition isem_bound (lo hi : pexpr) (s : estate) : itree E (Z * Z) :=
   iresult s (sem_bound (p_globs p) lo hi s).
 
-Definition isem_assert (a: assertion) (s: estate) : itree E unit :=
-  iresult s (sem_assert (p_globs p) s a).
+(*Definition isem_assert (a: assertion) (s: estate) : itree E unit :=
+  iresult s (sem_assert (p_globs p) s a). *)
 
 Definition isem_pre {dc : DirectCall} s (fn : funname) (fs:fstate) : itree E unit :=
   iresult s (sem_pre p fn fs).
@@ -295,8 +295,6 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
 
   | Csyscall xs o es => iresult s (sem_syscall p xs o es s)
 
-  | Cassert a => isem_assert p a s;; Ret s
-
   | Cif e c1 c2 =>
     b <- isem_cond p e s;;
     isem_foldr isem_i_body p ev (if b then c1 else c2) s
@@ -311,7 +309,7 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
   | Ccall xs fn args =>
     vargs <- isem_pexprs  (~~direct_call) (p_globs p) args s;;
     let fi := mk_fstate vargs s in
-    isem_pre p s fn fi;; 
+    isem_pre p s fn fi;;
     fs <- sem_fun p ev ii fn fi ;;
     isem_post p s fn vargs fs;;
     iresult s (upd_estate (~~direct_call) (p_globs p) xs fs s)
@@ -384,7 +382,6 @@ Fixpoint esem_i (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
 
   | Csyscall xs o es => sem_syscall p xs o es s
 
-  | Cassert a => Let _ := sem_assert (p_globs p) s a in ok s
   | Cif e c1 c2 =>
     Let b := sem_cond (p_globs p) e s in
     foldM (esem_i p ev) s (if b then c1 else c2)
@@ -419,7 +416,6 @@ Proof.
   + move=> > /= [<-]; reflexivity.
   + by move=> i c hi hc s s' /=; t_xrbindP => s1 /hi ->; rewrite bind_ret_l; apply hc.
   1-3: move=> > /= -> /=; reflexivity.
-  + move=> > /=; t_xrbindP; rewrite /isem_assert => -> ->; rewrite bind_ret_l; reflexivity.
   + move=> > hc1 hc2 ii s s' /=.
     rewrite /isem_cond; t_xrbindP => b -> /=.
     by rewrite bind_ret_l; case: b; [apply hc1 | apply hc2].
@@ -451,6 +447,42 @@ Lemma eEForOne p ev s1 s1' s2 s3 i w ws c :
   esem_for p ev i c s2 ws = ok s3 ->
   esem_for p ev i c s1 (w :: ws) = ok s3.
 Proof. by rewrite /esem => /= -> /= -> /=. Qed.
+
+Lemma sem_opn_assertP (gd : glob_decls) (s s' : estate) lbl e :
+  sem_sopn gd (Opseudo_op (pseudo_operator.Oassert lbl)) s [::] [:: e] = ok s' <->
+  [/\ assert_allowed, sem_cond gd e s = ok true & s' = s].
+Proof.
+  rewrite /sem_sopn /= /exec_sopn /= /sopn_sem /= /sopn_sem_ /= /assert_semi /sem_cond; split; last first.
+  + by move=> []; t_xrbindP => -> ve -> /= -> -> /=; rewrite if_same.
+  t_xrbindP => vs _ ve he <-; rewrite he; case: ifP => hwa; last first.
+  + by t_xrbindP => _ -> <- /=; t_xrbindP => _ _ -> /= -> _ <- [<-].
+  apply (catch_coreP (P := fun vs =>
+      write_lvals true gd s [::] vs = ok s' -> [/\ assert_allowed, Let x := ok ve in to_bool x = ok true & s' = s])).
+  2: by t_xrbindP => _ -> <- /=; t_xrbindP => _ _ -> /= -> _ <- [<-].
+  case: assert_allowed => //=.
+  2: by move=> _ [<-].
+  move=> e0.
+  change (to_bool ve) with (of_val cbool ve).
+  case heq: of_val => [[] | e'] //= [<-].
+  + by move=> _ /(_ lbl).
+  by rewrite (isdef_errtype (sem_pexpr_defined he) heq).
+Qed.
+
+Lemma sem_opn_assertP2 (gd : glob_decls) (s s' : estate) a :
+  sem_sopn gd (Opseudo_op (pseudo_operator.Oassert a.1)) s [::] [:: a.2] = ok s' <->
+  [/\ assert_allowed, sem_cond gd a.2 s = ok true & s' = s].
+Proof. by apply sem_opn_assertP. Qed.
+
+Lemma sem_assertP (gd : glob_decls) (s : estate) a t :
+  sem_assert gd s a = ok t <->
+  assert_allowed /\ sem_cond gd a.2 s = ok true.
+Proof.
+  rewrite /sem_assert; split.
+  + case heq : sem_sopn => [s' | //] _.
+    by move: heq; rewrite sem_opn_assertP => -[].
+  rewrite /sem_sopn /= /exec_sopn /= /sopn_sem /= /sopn_sem_ /= /assert_semi /sem_cond => -[]; t_xrbindP.
+  by move=> -> va -> /= -> /=; rewrite if_same /=; case: t.
+Qed.
 
 End SEM_I.
 
@@ -555,7 +587,7 @@ Definition sem_fun_inline
    (do_inline :  funname (* caller *) -> instr_info -> funname (* callee *) -> bool)
    (caller : funname) :=
  {| sem_fun := fun (p : prog) (ev : extra_val_t) (ii:instr_info) (callee : funname) (fs : fstate) =>
-     if do_inline caller ii callee then 
+     if do_inline caller ii callee then
        isem_fun_rec p ev callee fs (* Interprete the call but not the internal ones *)
      else rec_call (E:=E) ii callee fs (* Do not interprete the call, simply emmit an event *)
  |}.
@@ -626,10 +658,6 @@ Proof.
   + move=> i c hi hc s; rewrite interp_bind;apply eqit_bind; first by apply hi.
     by move=> s'; apply hc.
   1-3: by move=> >; apply interp_iresult.
-  + move => a ii s /=.
-    rewrite interp_bind; apply eqit_bind.
-    + by apply interp_iresult.
-    move => ?; rewrite interp_ret; reflexivity.
   + move=> e c1 c2 hc1 hc2 ii s; rewrite /isem_i /isem_i_rec /=.
     rewrite interp_bind; apply eqit_bind.
     + by apply interp_iresult.
@@ -728,7 +756,7 @@ Proof.
       + rewrite interp_ret; reflexivity.
       by apply interp_cond_throw.
     move=> fd.
-    rewrite interp_bind. 
+    rewrite interp_bind.
     apply eutt_eq_bind'.
     + rewrite interp_cond_iresult; reflexivity.
     move=> ?.
@@ -760,9 +788,6 @@ Proof.
     + by move=> > ? >; apply interp_cond_iresult.
     + by move=> > ? > ? > ; apply interp_cond_iresult.
     + by move=> > ? >; apply interp_cond_iresult.
-    + move=> a ii s; rewrite interp_bind; apply eutt_eq_bind'.
-      + by apply interp_cond_iresult.
-      move=> ?; rewrite interp_ret; reflexivity.
     + move=> e c1 c2 hc1 hc2 ii s; rewrite interp_bind.
       rewrite /isem_cond interp_cond_iresult.
       by apply/eutt_eq_bind; case; [apply hc1 | apply hc2].
@@ -792,7 +817,7 @@ Proof.
     + rewrite /ctx_cond /cond /Handler.case_ /rec_call /F.
       setoid_rewrite interp_trigger; reflexivity.
     move=> ?; rewrite interp_bind; apply eutt_eq_bind'.
-    + by apply interp_cond_iresult. 
+    + by apply interp_cond_iresult.
     by move=> ?; apply interp_cond_iresult.
   apply Proper_interp_mrec => //.
   by move=> T [].

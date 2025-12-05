@@ -221,69 +221,74 @@ Definition sc_lvals (lvs:lvals) okmem : safety_cond :=
 Definition safe_cond_to_e vs sc: pexpr :=
   match sc with
   | NotZero ws k =>
-      match List.nth_error vs k with
-      | Some x => eneqi (eint_of_word Unsigned ws x) (Pconst 0)
-      | None => efalse
-      end
+    match List.nth_error vs k with
+    | Some x => eneqi (eint_of_word Unsigned ws x) (Pconst 0)
+    | None => efalse
+    end
   | InRangeMod32 ws i j k =>
-      match List.nth_error vs k with
-      | Some x =>
-        let e := emodi Unsigned (eint_of_word Unsigned ws x) (Pconst 32) in
-        let e1 := elei (Pconst i) e in
-        let e2 := elei e (Pconst j) in
-        eand e1 e2
-      | None => efalse
-      end
+    match List.nth_error vs k with
+    | Some x =>
+      let e := emodi Unsigned (eint_of_word Unsigned ws x) (Pconst 32) in
+      let e1 := elei (Pconst i) e in
+      let e2 := elei e (Pconst j) in
+      eand e1 e2
+    | None => efalse
+    end
   | ULt ws k z =>
-      match List.nth_error vs k with
-      | Some x => elti (eint_of_word Unsigned ws x) (Pconst z)
-      | None => efalse
-      end
+    match List.nth_error vs k with
+    | Some x => elti (eint_of_word Unsigned ws x) (Pconst z)
+    | None => efalse
+    end
   | UGe ws z k =>
-      match List.nth_error vs k with
-      | Some x => elei (Pconst z) (eint_of_word Unsigned ws x)
-      | None => efalse
-      end
+    match List.nth_error vs k with
+    | Some x => elei (Pconst z) (eint_of_word Unsigned ws x)
+    | None => efalse
+    end
   | UaddLe ws k1 k2 z =>
-      match List.nth_error vs k1 with
-      | Some x =>
-        match List.nth_error vs k2 with
-        | Some y => elei (eaddi (eint_of_word Unsigned ws x) (eint_of_word Unsigned ws y)) (Pconst z)
-        | None => efalse
-        end
+    match List.nth_error vs k1 with
+    | Some x =>
+      match List.nth_error vs k2 with
+      | Some y => elei (eaddi (eint_of_word Unsigned ws x) (eint_of_word Unsigned ws y)) (Pconst z)
       | None => efalse
       end
+    | None => efalse
+    end
   | AllInit ws p k =>
-      match List.nth_error vs k with
-      | Some e =>
-        let len := arr_size ws p in
-        PappN (Ois_arr_init (Z.to_pos len)) [:: e; Pconst 0; Pconst len]
-      | _ => efalse
-      end
+    match List.nth_error vs k with
+    | Some e =>
+      let len := arr_size ws p in
+      PappN (Ois_arr_init (Z.to_pos len)) [:: e; Pconst 0; Pconst len]
+    | _ => efalse
+    end
   | X86Division sz sign =>
     match vs,sign with
-      | hi :: lo :: dv :: _, Signed =>
-        let hi := eint_of_word Signed sz hi in
-        let lo := eint_of_word Unsigned sz lo in
-        let szi := wbase sz in
-        let dd := eaddi (emuli (Pconst szi) (hi)) lo in
-        let dv := eint_of_word Signed sz dv in
-        let q  := edivi Signed dd dv in
-        let r  := emodi Signed dd dv in
-        let ov := eor (elti q (Pconst (wmin_signed sz)))
-                      (elti (Pconst (wmax_signed sz)) q) in
-        eand (eneqi dv ezero) (enot ov)
-      | hi :: lo :: dv :: _, Unsigned =>
-        let hi := eint_of_word Unsigned sz hi in
-        let lo := eint_of_word Unsigned sz lo in
-        let szi := wbase sz in
-        let dd := eaddi (emuli (Pconst szi) (hi)) lo in
-        let dv := eint_of_word Unsigned sz dv in
-        let q  := edivi Unsigned dd dv in
-        let r  := emodi Unsigned dd dv in
-        let ov := elti (Pconst (wmax_unsigned sz)) q in
-        eand (eneqi dv ezero) (enot ov)
-      | _,_ => efalse
+    | hi :: lo :: dv :: _, Signed =>
+      let hi := eint_of_word Signed sz hi in
+      let lo := eint_of_word Unsigned sz lo in
+      let szi := wbase sz in
+      let dd := eaddi (emuli (Pconst szi) (hi)) lo in
+      let dv := eint_of_word Signed sz dv in
+      let q  := edivi Signed dd dv in
+      let r  := emodi Signed dd dv in
+      let ov := eor (elti q (Pconst (wmin_signed sz)))
+                    (elti (Pconst (wmax_signed sz)) q) in
+      eand (eneqi dv ezero) (enot ov)
+    | hi :: lo :: dv :: _, Unsigned =>
+      let hi := eint_of_word Unsigned sz hi in
+      let lo := eint_of_word Unsigned sz lo in
+      let szi := wbase sz in
+      let dd := eaddi (emuli (Pconst szi) (hi)) lo in
+      let dv := eint_of_word Unsigned sz dv in
+      let q  := edivi Unsigned dd dv in
+      let r  := emodi Unsigned dd dv in
+      let ov := elti (Pconst (wmax_unsigned sz)) q in
+      eand (eneqi dv ezero) (enot ov)
+    | _,_ => efalse
+    end
+  | ScBool k =>
+    match List.nth_error vs k with
+    | Some e => e
+    | None => efalse
     end
   | ScFalse => efalse
   end.
@@ -333,9 +338,6 @@ Fixpoint sc_instr_ir ii (ir : instr_r) : (safety_cond *  instr_r) :=
     let sc_c2 := conc_map sc_instr c2 in
     let ir := Cwhile a sc_c1 e ii_w sc_c2 in
     ([::] ,ir)
-  | Cassert a =>
-    let sc_e := sc_pexpr a.2 in
-    (sc_e, ir)
   end
 with sc_instr (i:instr) : cmd :=
   let (ii,ir) := i in

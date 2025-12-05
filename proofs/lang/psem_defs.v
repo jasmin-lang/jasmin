@@ -27,15 +27,26 @@ Definition default_val (t: atype) :=
   | aarr ws len => Varr (WArray.fill_elem (Z.to_pos (arr_size ws len)) 0%R)
   | aword sz => @Vword sz 0%R
   end.
-  
+
+Definition do_not_catch e :=
+  match e with
+  | ErrType | ErrAssert _ => true
+  | _ => false
+  end.
+
+Lemma do_not_catchP e : reflect (e = ErrType \/ exists lbl, e = ErrAssert lbl) (do_not_catch e).
+Proof.
+  case: e => /=; constructor; try (by move=> [ | []]);  eauto.
+Qed.
+
 Definition catch_core {T:Type} (ev : exec T) dfv : exec T :=
   match ev with
   | Ok v => ev
-  | Error e => if is_ErrType e then ev else ok dfv
+  | Error e => if do_not_catch e then ev else ok dfv
   end.
 
 Notation catch ev dfv := (if with_catch then catch_core ev dfv else ev).
-  
+
 Definition sem_sop1 (o: sop1) (v: value) : exec value :=
   Let x := of_val _ v in
   Let r := sem_sop1_typed o x in
@@ -274,11 +285,26 @@ Context
 Definition sem_cond (gd : glob_decls) (e : pexpr) (s : estate) : exec bool :=
   (sem_pexpr true gd s e >>= to_bool)%result.
 
-Definition sem_assert (gd : glob_decls) (s : estate) (e : assertion) : exec unit :=
-  Let _ := assert (assert_allowed) ErrType in
-  Let b := sem_cond gd e.2 s in
-  Let _ := assert b (ErrAssert e.1) in
-  ok tt.
+Lemma catch_coreP {T : Type} (P : T -> Prop) (ex : exec T) (dflt t : T) :
+  (forall e, ex = Error e -> e <> ErrType -> (forall lbl, e <> ErrAssert lbl) -> P dflt) ->
+  (ex = ok t -> P t) ->
+  catch_core ex dflt = ok t -> P t.
+Proof.
+  rewrite /catch_core; case: ex => //.
+  move=> e + _; case: do_not_catchP => // h h1 [<-].
+  have [] : e <> ErrType /\ (∀ lbl : string, e ≠ ErrAssert lbl).
+  + by split => [| lbl] heq; apply h; eauto.
+  by apply: h1.
+Qed.
+
+Lemma catchP {T : Type} (P : T -> Prop) (ex : exec T) (dflt t : T) :
+  (with_catch -> forall e, ex = Error e -> e <> ErrType -> (forall lbl, e <> ErrAssert lbl) -> P dflt) ->
+  (ex = ok t -> P t) ->
+  catch ex dflt = ok t -> P t.
+Proof. by case: with_catch => // /(_ erefl); apply catch_coreP. Qed.
+
+Definition sem_assert (gd : glob_decls) (s : estate) (a : assertion) : exec unit :=
+  Let _ := sem_sopn gd (Opseudo_op (pseudo_operator.Oassert a.1)) s [::] [:: a.2] in ok tt.
 
 Record fstate := { fscs : syscall_state_t; fmem : mem; fvals : values }.
 

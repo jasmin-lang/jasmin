@@ -379,6 +379,16 @@ Fixpoint const_prop_ir cpf (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     (m, [:: MkI ii (Cassgn x tag ty e)])
 
   | Copn xs t o es =>
+    if is_Oassert o is Some lbl then
+      let e := nth (Pbool true) es 0 in
+      let (m, e) := const_prop_e_assert without_globals m e in
+      match is_bool e with
+      | Some b =>
+        let c := if b then [::] else [:: MkI ii (Cassert (lbl ,Pbool b))] in
+        (m, c)
+      | None => (m, [:: MkI ii (Cassert (lbl ,e))])
+      end
+    else
     (* TODO: Improve this *)
     let es := map (const_prop_e without_globals m) es in
     let (m,xs) := const_prop_rvs without_globals m xs in
@@ -394,19 +404,20 @@ Fixpoint const_prop_ir cpf (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let es := map (const_prop_e without_globals m) es in
     let (m,xs) := const_prop_rvs without_globals m xs in
     (m, [:: MkI ii (Csyscall xs o es) ])
-
+(*
+  (* FIXME this look like dead code "safety_inv" is never generated *)
   (* FIXME : provide explanation on this line *)
   | Cassert ("safety_inv",e) =>
     let (m,_) := const_prop_e_assert without_globals m e in
     (m,[:: MkI ii ir])
-  | Cassert (t,e) =>
-    let (m,e) := const_prop_e_assert without_globals m e in
+*)
+ (*   let (m,e) := const_prop_e_assert without_globals m e in
     match is_bool e with
       | Some e =>
         let c := if e then [::] else [:: MkI ii (Cassert (t,Pbool e))] in
         (m, c)
       | None => (m, [:: MkI ii (Cassert (t,e))])
-    end
+    end *)
   | Cif b c1 c2 =>
     let b := const_prop_e without_globals m b in
     match is_bool b with

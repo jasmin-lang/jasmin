@@ -55,7 +55,6 @@ Fixpoint unroll_i (i: instr) : cmd * bool :=
   | Cassgn _ _ _ _
   | Copn _ _ _ _
   | Csyscall _ _ _
-  | Cassert _
   | Ccall _ _ _
     => ([:: i ], false)
   | Cif b c1 c2  =>

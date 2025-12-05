@@ -161,43 +161,6 @@ Proof. by case: s. Qed.
 
 End ESTATE_UTILS.
 
-Section WITHCATCH.
-Context {wc : WithCatch}.
-
-(* TODO : Should we move this and the definition of catch_core in utils ? *)
-Lemma catch_coreP {T : Type} (P : T -> Prop) (ex : exec T) (dflt t : T) :
-  (forall e, ex = Error e -> e <> ErrType -> P dflt) ->
-  (ex = ok t -> P t) ->
-  catch_core ex dflt = ok t -> P t.
-Proof.
-  rewrite /catch_core; case: ex => //.
-  by move=> e + _; case: is_ErrTypeP => // h h1 [<-];apply: h1 h.
-Qed.
-
-Lemma catchP {T : Type} (P : T -> Prop) (ex : exec T) (dflt t : T) :
-  (with_catch -> forall e, ex = Error e -> e <> ErrType -> P dflt) ->
-  (ex = ok t -> P t) ->
-  catch ex dflt = ok t -> P t.
-Proof. by case: with_catch => // /(_ erefl); apply catch_coreP. Qed.
-
-Lemma catchP2 {T1 T2 : Type} (P: T1 -> exec T2 -> Prop) (ex1 : exec T1) (ex2 : exec T2) (dflt1 t1 : T1) (dflt2 : T2) :
-  (forall e1, ex1 = Error e1 -> e1 ≠ ErrType -> P dflt1 ex2) ->
-  (forall e2, ex1 = ok t1 -> ex2 = Error e2 -> e2 ≠ ErrType -> P t1 (ok dflt2)) ->
-  (forall e1 e2, ex1 = Error e1 -> e1 ≠ ErrType -> ex2 = Error e2 -> e2 ≠ ErrType -> P dflt1 (ok dflt2)) ->
-  (ex1 = ok t1 -> P t1 ex2) ->
-  catch ex1 dflt1 = ok t1 -> P t1 (catch ex2 dflt2).
-Proof.
-  case: with_catch => //.
-  rewrite /catch_core; case heq1: ex1 => [t1' | e1].
-  + case heq2: ex2 => [| e2] //; case: is_ErrTypeP => //.
-    by move=> he2 _ h _ _ ?; apply: h he2.
-  case: is_ErrTypeP => // he1 /(_ _ erefl he1) + _ /(_ _ _ erefl he1) + _ [<-].
-  case heq2: ex2 => [t2 | e2] //.
-  by case: is_ErrTypeP => // he2 _ h; apply: h he2.
-Qed.
-
-End WITHCATCH.
-
 (* ** Starting lemmas
  * ------------------------------------------------------------------- *)
 Lemma type_of_get_global gd g v :
@@ -343,6 +306,8 @@ Section WITH_SCS.
   Definition sem_pexprs_with_scs := snd sem_pexpr_es_with_scs.
 
 End WITH_SCS.
+
+
 
 Section EXEC_ASM.
 
@@ -542,6 +507,46 @@ Context {wa : WithAssert}.
 Section WITHCATCH.
 
 Context {wc:WithCatch}.
+
+Lemma sem_pexpr_defined s gd e v : sem_pexpr true gd s e = ok v -> is_defined v.
+Proof.
+  case: e => /=; t_xrbindP; try by move=> *; subst.
+  + by move=> > /get_gvar_compat /= [].
+  + by move=> >; apply: on_arr_gvarP => ????; t_xrbindP => *; subst.
+  + by move=> >; apply: on_arr_gvarP => ????; t_xrbindP => *; subst.
+  + move=> > _; rewrite /sem_sop1; case: wc => -[] /=; first last.
+    + by t_xrbindP => ????; apply to_val_defined.
+    case: of_val=> ? /=; first case: sem_sop1_typed => ? /=.
+    + by move=> [] /to_val_defined.
+    1-2: by case: ifP => //= _ [] <-; apply /is_defined_default_val.
+  + move=> > _ > _ >; rewrite /sem_sop2; case: wc => -[] /=; first last.
+    + by t_xrbindP => ??????; apply to_val_defined.
+    case: of_val=> ? /=; case: of_val=> ? /=; first case: sem_sop2_typed => ? /=.
+    + by move=> [] /to_val_defined.
+    1-4: by case: ifP => //= _ [] <-; apply /is_defined_default_val.
+  + move=> > _; rewrite /sem_opN; case: wc => -[] /=; first last.
+    + by t_xrbindP => ??; apply to_val_defined.
+    case: app_sopn=> ? /=; first by move=> [] /to_val_defined.
+    by case: ifP => //= _ [] <-; apply /is_defined_default_val.
+  + by move=> > _ _ > _ /truncate_val_defined ? > _ /truncate_val_defined ? <-; case: ifP.
+  move=> > ? > ?? > ?? vid > ? /truncate_val_defined.
+  elim: ziota vid => //=.
+  + by move=> ?? [<-].
+  move=> ?? hrec vid _; t_xrbindP => > _ > _ hop2; apply hrec.
+  move: hop2; rewrite /sem_sop2; case: wc hrec => -[] /= hrec; first last.
+  + by t_xrbindP => ??????; apply to_val_defined.
+  + case: of_val => ? /=; case: of_val => ? /=; first case: sem_sop2_typed => ? /=.
+    + by move=> [] /to_val_defined.
+    1-4: by case: ifP => //= _ [] <-; apply /is_defined_default_val.
+  all: by move=> >; apply: on_arr_varP; t_xrbindP => *; subst.
+Qed.
+
+Lemma sem_pexprs_defined s gd es vs : sem_pexprs true gd s es = ok vs -> all is_defined vs.
+Proof.
+  elim : es vs => /= [ | e es hrec] vs; t_xrbindP.
+  + by move=> <-.
+  by move=> ? /sem_pexpr_defined he ? /hrec hes <- /=; rewrite he hes.
+Qed.
 
 Lemma is_wconstP wdb gd s sz e w:
   is_wconst sz e = Some w →
@@ -1588,7 +1593,7 @@ Lemma get_gvar_undef gd vm x v ty h :
 Proof.
   rewrite /get_gvar; case: is_lvar.
   apply : (@catchP wc value (fun v => v <> Vundef ty h)); last by apply get_var_undef.
-  + by move=> _ _ _ _; case: vtype.
+  + by move=> _ _ _ _ _; case: vtype.
   move=> /get_globalI [gv [_ -> _]].
   by case: gv.
 Qed.

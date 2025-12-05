@@ -77,7 +77,6 @@ Fixpoint lower_addressing_i (i: instr) :=
     else [:: i]
   | Cassgn _ _ _ _
   | Csyscall _ _ _
-  | Cassert _
   | Ccall _ _ _ => [:: i]
   | Cif b c1 c2 =>
     let c1 := conc_map lower_addressing_i c1 in

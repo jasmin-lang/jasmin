@@ -111,13 +111,20 @@ Existing Instance _eqT.
 
 Definition asm_op_t {asm_op} {asmop : asmOp asm_op} := asm_op.
 
+Class WithAssert := { assert_allowed : bool }.
+Definition noassert : WithAssert := {| assert_allowed := false |}.
+Definition withassert : WithAssert := {| assert_allowed := true |}.
+
+#[global] Existing Instances noassert | 1000.
+
 Section WITH_PARAMS.
 
 Context
   {asm_op : Type}
   {pd : PointerData}
   {msfsz : MSFsize}
-  {asmop : asmOp asm_op}.
+  {asmop : asmOp asm_op}
+  {wa : WithAssert}.
 
 Variant sopn :=
 | Opseudo_op of pseudo_operator
@@ -139,6 +146,12 @@ Proof.
 Qed.
 
 HB.instance Definition _ := hasDecEq.Build sopn sopn_eq_axiom.
+
+Definition is_Oassert (o : sopn) :=
+  match o with
+  | Opseudo_op (Oassert lbl) => Some lbl
+  | _ => None
+  end.
 
 Definition sopn_copy (ws : wsize) (p : positive) : sopn :=
   Opseudo_op (Ocopy ws p).
@@ -317,6 +330,53 @@ Definition Oswap_instr ty :=
      i_semi_safe  := fun _ => (@sem_prod_ok_safe _ ctys semi);
   |}.
 
+Definition assert_semi (lbl:assertion_label) : sem_prod [::cbool] (exec (sem_tuple [::])) :=
+  fun (b:bool) =>
+  Let _ := assert b (ErrAssert lbl) in
+  ok tt.
+
+Lemma assert_semu (lbl:assertion_label) (vs vs' : seq value) (v : values) :
+   List.Forall2 value_uincl vs vs' ->
+   app_sopn_v (assert_semi lbl) vs = ok v ->
+   exists2 v' : values, app_sopn_v (assert_semi lbl) vs' = ok v' &
+                        List.Forall2 value_uincl v v'.
+Proof.
+  rewrite /app_sopn_v /= => -[] // v1 v2 _ _ hu [] //; rewrite /assert_semi; t_xrbindP => //.
+  move => -[] b1 /to_boolI ? hb1 _ <-; subst v1.
+  by rewrite (value_uinclE hu) hb1 /=; exists [::].
+Qed.
+
+Lemma assert_errty lbl :
+  assert_allowed ->
+  sem_forall (fun r : result error (sem_tuple [seq eval_atype ty | ty <- [::]]) => r <> Error ErrType)
+  [seq eval_atype ty | ty <- [::abool]] (assert_semi lbl).
+Proof. by rewrite /assert_semi => _ /= []. Qed.
+
+Lemma assert_safe lbl :
+  assert_allowed ->
+  interp_safe_cond_ty [:: ScBool 0] (assert_semi lbl).
+Proof.
+  rewrite /interp_safe_cond_ty /assert_semi => _ /= b /List_Forall_inv [] /= /(_ b) -> //=; eauto.
+Qed.
+
+Definition Oassert_instr lbl :=
+  let semi := @assert_semi in
+  {| str    := (fun _ => "swap"%string);
+     tin    := [:: abool];
+     i_in   := [:: E 0]; (* this info is relevant *)
+     tout   := [::];
+     i_out  := [::]; (* this info is relevant *)
+     conflicts:= [::];
+     semi   := assert_semi lbl;
+     semu   := @assert_semu lbl;
+     i_safe := [:: ScBool 0];
+     i_init := [::];
+     i_valid := assert_allowed;
+     i_safe_wf    := refl_equal;
+     i_semi_errty := @assert_errty lbl;
+     i_semi_safe  := @assert_safe lbl;
+  |}.
+
 Definition pseudo_op_get_instr_desc (o : pseudo_operator) : instruction_desc :=
   match o with
   | Ospill o tys => Ospill_instr o tys
@@ -326,6 +386,7 @@ Definition pseudo_op_get_instr_desc (o : pseudo_operator) : instruction_desc :=
   | Oaddcarry sz => Oaddcarry_instr sz
   | Osubcarry sz => Osubcarry_instr sz
   | Oswap     ty => Oswap_instr ty
+  | Oassert   lbl => Oassert_instr lbl
   end.
 
 (* ------------------------------------------------------------- *)

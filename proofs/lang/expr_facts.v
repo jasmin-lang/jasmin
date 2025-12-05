@@ -254,7 +254,7 @@ Let Pc c := forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)).
 Lemma write_c_recE s c : Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
 Proof.
   apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s}
-    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | a | e c1 c2 Hc1 Hc2
+    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | a c e ii c' Hc Hc' | ii xs f es ] s;
     rewrite /write_I /write_I_rec /write_i /write_i_rec -/write_i_rec -/write_I_rec /write_c /=
     ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //;
@@ -286,8 +286,10 @@ Proof. done. Qed.
 Lemma write_i_syscall xs o es : write_i (Csyscall xs o es) = vrvs xs.
 Proof. done. Qed.
 
+(* FIXME : remove ?
 Lemma write_i_assert a : write_i (Cassert a) = Sv.empty.
 Proof. done. Qed.
+*)
 
 Lemma write_i_if e c1 c2 :
   Sv.Equal (write_i (Cif e c1 c2)) (Sv.union (write_c c1) (write_c c2)).
@@ -418,7 +420,7 @@ Let Pc c := forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c)).
 Lemma read_cE s c : Sv.Equal (read_c_rec s c) (Sv.union s (read_c c)).
 Proof.
   apply (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s}
-   [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | a | e c1 c2 Hc1 Hc2
+   [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | a c e ii c' Hc Hc' | ii xs f es ] s;
     rewrite /read_I /read_I_rec /read_i /read_i_rec -/read_i_rec -/read_I_rec /read_c /=
      ?read_rvE ?read_eE ?read_esE ?read_rvE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc' ?Hc ?Hi //;
@@ -449,11 +451,13 @@ Lemma read_i_syscall xs o es:
   Sv.Equal (read_i (Csyscall xs o es)) (Sv.union (read_rvs xs) (read_es es)).
 Proof. rewrite /read_i /write_i /read_i_rec read_esE read_rvsE; clear; SvD.fsetdec. Qed.
 
+(* FIXME: remove ?
 Lemma read_i_assert a :
   Sv.Equal (read_i (Cassert a)) (read_e a.2).
 Proof.
   rewrite /read_i /read_i_rec read_eE;SvD.fsetdec.
 Qed.
+*)
 
 Lemma read_i_if e c1 c2 :
    Sv.Equal (read_i (Cif e c1 c2)) (Sv.union (read_e e) (Sv.union (read_c c1) (read_c c2))).
@@ -489,7 +493,8 @@ Definition read_writeE :=
    read_i_assgn, write_i_assgn,
    read_i_opn, write_i_opn,
    read_i_syscall, write_i_syscall,
-   read_i_assert, write_i_assert,
+   (* FIXME remove *)
+   (*read_i_assert, write_i_assert,*)
    read_i_if, write_i_if,
    read_i_for, write_i_for,
    read_i_while, write_i_while,

@@ -70,7 +70,7 @@ Fixpoint extra_vars_call_i (fv: Sv.t) (i:instr) : cexec cmd :=
         ok (pre ++ [::MkI ii (Ccall xs n params)] ++ post)
       | _ => ok [::i]
       end
-    | Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _ | Cassert _ => ok [::i]
+    | Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _ => ok [::i]
     end.
 
 Definition extra_vars_call_fn (f: ufundef) : cexec ufundef :=

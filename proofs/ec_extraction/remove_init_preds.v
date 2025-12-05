@@ -303,6 +303,13 @@ Fixpoint rm_var_init_i (i : instr) : cmd :=
       | [:: lv], [:: e] => [:: rm_init_copy ii ws n lv e;i]
       | _,_ => [::i]
       end
+    | Opseudo_op (Oassert lbl) =>
+      match es with
+      | [:: e] =>
+        let e := rm_var_init_e e in
+        [:: MkI ii (Cassert (lbl,e))]
+      | _ => [::i]
+      end
     | Oslh (SLHprotect_ptr ws n)
     | Oslh (SLHprotect_ptr_fail ws n) =>
       match lvs, es with
@@ -326,9 +333,6 @@ Fixpoint rm_var_init_i (i : instr) : cmd :=
     let c2 := conc_map rm_var_init_i c2 in
     let ir := MkI ii (Cwhile a c1 e ii_w c2) in
     [:: ir]
-  | Cassert (ak,e) =>
-    let e := rm_var_init_e e in
-    [:: MkI ii (Cassert (ak,e))]
   end.
 
 Definition rm_var_init_cmd (c : cmd) : cmd := conc_map rm_var_init_i c.

@@ -93,9 +93,6 @@ Fixpoint wi2w_ir (ir:instr_r) : instr_r :=
   | Csyscall xs o es =>
     Csyscall (map wi2w_lv xs) o (map wi2w_e es)
 
-  | Cassert a =>
-    Cassert (a.1, wi2w_e a.2)
-
   | Cif b c1 c2 =>
     Cif (wi2w_e b) (map wi2w_i c1) (map wi2w_i c2)
 

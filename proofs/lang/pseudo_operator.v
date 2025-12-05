@@ -32,6 +32,7 @@ Variant pseudo_operator :=
 | Oaddcarry of wsize   (* cpu   : [aword; aword; abool] -> [abool;aword] *)
 | Osubcarry of wsize   (* cpu   : [aword; aword; abool] -> [abool;aword] *)
 | Oswap     of atype   (* [ty; ty] -> [ty; ty] *)
+| Oassert   of assertion_label (* [bool] -> [] *)
 .
 
 #[export]
@@ -50,4 +51,5 @@ Definition string_of_pseudo_operator (o : pseudo_operator) : string :=
   | Oaddcarry ws => pp_sz "adc" ws tt
   | Osubcarry ws => pp_sz "sbb" ws tt
   | Oswap _ => "swap"
+  | Oassert _ => "assert"
   end.

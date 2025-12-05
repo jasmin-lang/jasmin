@@ -651,7 +651,7 @@ Qed.
 Lemma wequiv_opn (Rve Rvo : rel_vs) P Q ii1 xs1 at1 o1 es1 ii2 xs2 at2 o2 es2 :
   wrequiv P (fun s => sem_pexprs1 true (p_globs p1) s es1)
             (fun s => sem_pexprs2 true (p_globs p2) s es2) Rve ->
-  (forall s1 s2, P s1 s2 -> wrequiv Rve (exec_sopn (wc:=wc1) o1) (exec_sopn (wc:=wc2) o2) Rvo) ->
+  (forall s1 s2, P s1 s2 -> wrequiv Rve (exec_sopn (wc:=wc1) (wa:=wa1) o1) (exec_sopn (wc:=wc2) (wa:=wa2) o2) Rvo) ->
   (forall vs1 vs2,
     Rvo vs1 vs2 -> wrequiv P (fun s1 => write_lvals1 true (p_globs p1) s1 xs1 vs1)
                              (fun s2 => write_lvals2 true (p_globs p2) s2 xs2 vs2) Q) ->
@@ -732,17 +732,18 @@ Proof.
 Qed.
 
 Lemma wequiv_assert_esem (P Q : rel_c) ii1 a1 c2 :
-  wrequiv P (fun (s:estate1) => Let _ := sem_assert (wsw:=wsw1) (wc:=wc1) (wa:=wa1) (p_globs p1) s a1 in ok s)
+  wrequiv P (fun (s:estate1) =>
+               sem_sopn (wsw:=wsw1) (wc:=wc1) (wa:=wa1)
+                 (p_globs p1) (Opseudo_op (pseudo_operator.Oassert a1.1)) s [::] [::a1.2])
             (esem (wc:=wc2) (wa:=wa2) p2 ev2 c2) Q ->
   wequiv P [:: MkI ii1 (Cassert a1)] c2 Q.
 Proof.
-  move=> h s t hP /=; rewrite /isem_assert.
-  case heq: sem_assert => [s' | e] /=.
+  move=> h s t hP /=.
+  case heq: sem_sopn => [s' | e] /=.
   + rewrite bind_ret_r.
-    have [|t' /esem_i_bodyP -> hQ /=] := h s t s hP.
-    + by rewrite heq.
-    by rewrite bind_ret_l; apply xrutt.xrutt_Ret.
-  rewrite bind_ret_r bind_vis; apply xrutt_CutL => //.
+    have [t' /esem_i_bodyP -> hQ /=] := h s t s' hP heq.
+    by apply xrutt.xrutt_Ret.
+  rewrite bind_vis; apply xrutt_CutL => //.
   by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
 Qed.
 
@@ -755,10 +756,11 @@ Lemma wequiv_assert (P Q : rel_c) ii1 a1 ii2 a2 :
      sem_cond2 (p_globs p2) a2.2 s2 = ok true /\ Q s1 s2) ->
   wequiv P [:: MkI ii1 (Cassert a1)] [:: MkI ii2 (Cassert a2)] Q.
 Proof.
-  move=> hcond; apply wequiv_assert_esem => s t s' hP /=.
-  rewrite /sem_assert; t_xrbindP.
-  move=> /hcond [-> {}hcond] b1 hsem1 hb1 _ <-; rewrite hb1 in hsem1 => {hb1 b1}.
-  by have [-> hQ /=] := hcond _ _ hP hsem1; exists t.
+  move=> hcond; apply wequiv_assert_esem => s t s' hP /= /sem_opn_assertP [/hcond [hwa2]].
+  move=> /(_ _ _ hP) h /h [hcond2 hQ] ->.
+  exists t => //.
+  have : [/\ assert_allowed, sem_cond (p_globs p2) a2.2 t = ok true & t = t] by done.
+  by rewrite -sem_opn_assertP2 => ->.
 Qed.
 
 Lemma sem_cond_uincl P e1 e2 :
@@ -1284,16 +1286,9 @@ Lemma wequiv_assert_left P Q ii a :
    forall s t, P s t -> sem_pexpr1 true (p_globs p1) s a.2 = ok (Vbool true) -> Q s t) ->
   wequiv P [::MkI ii (Cassert a)] [::] Q.
 Proof.
-  move=> h; rewrite /wequiv /=.
-  apply/wkequiv_bind_ret_left.
-  move=> s1 s2 hP; rewrite /isem_assert.
-  case heq: sem_assert => [ []| e] /=.
-  + rewrite bind_ret_l.
-    move: heq; rewrite /sem_assert /sem_cond; t_xrbindP => hwa [] // v he /to_boolI ? _ _; subst v.
-    by apply/xrutt_Ret/h.
-  rewrite /Exception.throw bind_vis.
-  apply xrutt_CutL => //.
-  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
+  move=> h; apply wequiv_assert_esem => s t s' hP /sem_opn_assertP2 [] /h /(_ _ _ hP) {}h.
+  rewrite /sem_cond; t_xrbindP => v he /to_boolI ? ->; subst v.
+  by exists t => //; apply h.
 Qed.
 
 Lemma wequiv_asserts_left P Q ii (a_s : list assertion) :
@@ -2065,6 +2060,7 @@ Lemma wequiv_opn_eq {wc:WithCatch} P Q ii1 xs1 at1 o es1 ii2 xs2 at2 es2 :
   wequiv (wa1:=wa1) p1 p2 ev1 ev2 P [:: MkI ii1 (Copn xs1 at1 o es1)] [:: MkI ii2 (Copn xs2 at2 o es2)] Q.
 Proof.
   move=> he hx; apply wequiv_opn with eq eq => //.
+Set Printing Implicit.
   + by move=> *; apply wrequiv_eq.
   by move=> > <-; apply hx.
 Qed.
