@@ -230,6 +230,56 @@ Definition Ocopy_instr ws p :=
      i_semi_safe  := fun _ => (@array_copy_safe ws p);
   |}.
 
+Definition declassify_semi ty : sem_prod [:: ty ] (exec (sem_tuple [::])) := fun=> ok tt.
+Arguments declassify_semi _ : clear implicits.
+
+Lemma declassify_semu ty vs vs' u:
+  List.Forall2 value_uincl vs vs' ->
+  app_sopn_v (declassify_semi ty) vs = ok u ->
+  exists2 u', app_sopn_v (declassify_semi ty) vs' = ok u' & List.Forall2 value_uincl u u'.
+Proof.
+  rewrite /app_sopn_v.
+  case: vs => // v /=; t_xrbindP => - [] // /List_Forall2_inv_l[] v' [] _ [] -> [] v_v' /List_Forall2_inv_l -> [] t ok_t hsem <-.
+  have [ t' ok_t' t_t' ] := val_uincl_of_val v_v' ok_t.
+  exists [::]; last by [].
+  by rewrite ok_t'.
+Qed.
+
+Definition Odeclassify_instr ty :=
+  let cty := eval_atype ty in
+  {| str      := pp_s (string_of_pseudo_operator (Odeclassify ty));
+    tin      := [:: ty ];
+    i_in     := [:: E 0 ];
+    tout     := [:: ];
+    i_out    := [:: ];
+    conflicts:= [::];
+    semi     := fun=> ok tt;
+    semu     := @declassify_semu cty;
+    i_safe   := [:: ];
+    i_valid  := true;
+    i_safe_wf    := refl_equal;
+    i_semi_errty := fun _ => (@sem_prod_ok_error _ [:: cty ] _ ErrType);
+    i_semi_safe  := fun _ => (@sem_prod_ok_safe _ [:: cty ] _);
+  |}.
+
+Definition Odeclassify_mem_instr len :=
+  let ty := aword Uptr in
+  let cty := eval_atype ty in
+  {| str      := pp_s (string_of_pseudo_operator (Odeclassify_mem len));
+    tin      := [:: ty ];
+    i_in     := [:: E 0 ];
+    tout     := [:: ];
+    i_out    := [:: ];
+    conflicts:= [::];
+    semi     := fun=> ok tt;
+    semu     := @declassify_semu cty;
+    i_safe   := [:: ];
+    i_valid  := true;
+    i_safe_wf    := refl_equal;
+    i_semi_errty := fun _ => (@sem_prod_ok_error _ [:: cty ] _ ErrType);
+    i_semi_safe  := fun _ => (@sem_prod_ok_safe _ [:: cty ] _);
+  |}.
+
 Definition Onop_instr :=
   mk_instr_desc_safe (pp_s "NOP")
            [::] [::]
@@ -323,6 +373,8 @@ Definition pseudo_op_get_instr_desc (o : pseudo_operator) : instruction_desc :=
   match o with
   | Ospill o tys => Ospill_instr o tys
   | Ocopy ws p   => Ocopy_instr ws p
+  | Odeclassify t=> Odeclassify_instr t
+  | Odeclassify_mem len => Odeclassify_mem_instr len
   | Onop         => Onop_instr
   | Omulu     sz => Omulu_instr sz
   | Oaddcarry sz => Oaddcarry_instr sz

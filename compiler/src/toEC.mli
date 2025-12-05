@@ -9,6 +9,7 @@ val extract :
   ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) Prog.prog ->
   Utils.architecture ->
   Wsize.wsize ->
+  Wsize.wsize ->
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
   Utils.model ->
   amodel ->

@@ -14,7 +14,7 @@ let load_file name =
     name
     |> tt_file Arch.arch_info Env.empty None None
     |> fst |> Env.decls
-    |> Compile.preprocess Arch.reg_size Arch.asmOp
+    |> Compile.preprocess Arch.pointer_data Arch.msf_size Arch.asmOp
     |> Compile.do_spill_unspill Arch.asmOp
   with
   | exception TyError (loc, e) ->

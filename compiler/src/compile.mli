@@ -2,19 +2,19 @@ open Prog
 open Wsize
 open Sopn
 
-val preprocess : wsize -> 'asm asmOp -> (unit, 'asm) pprog -> (unit, 'asm) prog
+val preprocess :
+  wsize -> wsize -> 'asm asmOp -> (unit, 'asm) pprog -> (unit, 'asm) prog
 (** Preprocessing before translation to Coq representation:
-  - substitution of parameters;
-  - inserts `#copy` operators where needed;
-  - fixes the length information in `Ocopy` operations;
-  - typechecks the result.
+    - substitution of parameters;
+    - inserts `#copy` operators where needed;
+    - fixes the length information in `Ocopy` operations;
+    - typechecks the result.
 
-  Raises `Typing.TyError`.
- *)
+    Raises `Typing.TyError`. *)
 
 val parse_file :
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Pretyping.arch_info ->
-  ?idirs: (string * string) list ->
+  ?idirs:(string * string) list ->
   string ->
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op
   Pretyping.Env.env

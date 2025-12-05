@@ -309,8 +309,8 @@ let pp_eptype ~debug fmt ty =
 
 let pp_plval ~debug = pp_glv ~debug (pp_pexpr_ ~debug) pp_pvar
 
-let pp_pprog ~debug pd asmOp fmt p =
-  let pp_opn = pp_opn pd asmOp in
+let pp_pprog ~debug pd msfsize asmOp fmt p =
+  let pp_opn = pp_opn pd msfsize asmOp in
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem ~debug (pp_pexpr_ ~debug) pp_opn pp_pvar)) (List.rev p)
 
@@ -358,13 +358,13 @@ let pp_expr ~debug fmt e =
 let pp_lval ~debug fmt x =
   pp_glv ~debug pp_len (pp_var ~debug) fmt x
 
-let pp_instr ~debug pd asmOp fmt i =
-  let pp_opn = pp_opn pd asmOp in
+let pp_instr ~debug pd msfsize asmOp fmt i =
+  let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   pp_gi ~debug pp_noinfo pp_len pp_opn pp_var fmt i
 
-let pp_stmt ~debug pd asmOp fmt i =
-  let pp_opn = pp_opn pd asmOp in
+let pp_stmt ~debug pd msfsize asmOp fmt i =
+  let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   pp_gc ~debug pp_noinfo pp_len pp_opn pp_var fmt i
 
@@ -372,13 +372,13 @@ let pp_header ~debug fmt fd =
   let pp_var = pp_var ~debug in
   pp_header_ pp_var fmt fd
 
-let pp_ifunc ~debug pp_info pd asmOp fmt fd =
-  let pp_opn = pp_opn pd asmOp in
+let pp_ifunc ~debug pp_info pd msfsize asmOp fmt fd =
+  let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   pp_fun_ ~debug ~pp_info pp_opn pp_var fmt fd
 
-let pp_func ~debug pd asmOp fmt fd =
-  let pp_opn = pp_opn pd asmOp in
+let pp_func ~debug pd msfsize asmOp fmt fd =
+  let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   pp_fun_ ~debug pp_opn pp_var fmt fd
 
@@ -401,15 +401,15 @@ let pp_globs pp_var fmt gds =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_glob pp_var)) (List.rev gds)
 
-let pp_iprog ~debug pp_info pd asmOp fmt (gd, funcs) =
-  let pp_opn = pp_opn pd asmOp in
+let pp_iprog ~debug pp_info pd msfsize asmOp fmt (gd, funcs) =
+  let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
      (pp_globs pp_var) gd
      (pp_list "@ @ " (pp_fun_ ~debug ~pp_info pp_opn pp_var)) (List.rev funcs)
 
-let pp_prog ~debug pd asmOp fmt ((gd, funcs):('info, 'asm) Prog.prog) =
-  let pp_opn = pp_opn pd asmOp in
+let pp_prog ~debug pd msfsize asmOp fmt ((gd, funcs):('info, 'asm) Prog.prog) =
+  let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
      (pp_globs pp_var) gd
@@ -445,8 +445,8 @@ let pp_return_address ~debug fmt = function
 
   | Expr.RAnone   -> Format.fprintf fmt "_"
 
-let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
-  let pp_opn = pp_opn pd asmOp in
+let pp_sprog ~debug pd msfsize asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
+  let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   let pp_f_extra fmt f_extra =
     Format.fprintf fmt "(* @[<v>alignment = %s; argument alignment = [%a];@ stack size = %a + %a; max stack size = %a;@ max call depth = %a;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] *)"

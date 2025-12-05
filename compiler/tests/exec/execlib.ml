@@ -21,7 +21,7 @@ let load_file name =
     name
     |> tt_file Arch.arch_info Env.empty None None
     |> fst |> Env.decls
-    |> Compile.preprocess Arch.reg_size Arch.asmOp
+    |> Compile.preprocess Arch.pointer_data Arch.msf_size Arch.asmOp
   in
   (funnames prog, Conv.cuprog_of_prog prog)
 
@@ -49,4 +49,3 @@ let exec (fs, prog) ms f args =
     | Error err -> Format.fprintf fmt "failed with %a" Evaluator.pp_error err
   in
   Format.printf "%s(%a) %a@." f.fn_name pp_vals args pp_res res
-

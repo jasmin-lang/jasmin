@@ -211,8 +211,11 @@ possible way around this limitation is to use some “declassification”, i.e.,
 explicitly mark some data as public although the rules of the type-system would
 label them as secret.
 
-The type-checker supports a `declassify` annotation on assignments and labels
-the written values as public.
+The type-checker supports a `declassify` pseudo-operator that applies to local
+variables and does not produce any output. It tells the checker to label its
+argument as public. It also support a deprecated `declassify` annotation on
+assignments and labels the written values as public: please use the operator
+rather than the annotation.
 
 For instance, a value read from memory may be *a priori* known to be public
 (although the type-system usually treats memory contents as secret).
@@ -221,10 +224,10 @@ For instance, a value read from memory may be *a priori* known to be public
 #[ct="public → public"]
 fn get_param(reg u64 pointer) -> reg u8 {
   reg u8 value;
+  value = [:u8 pointer];
   // This declassify is safe because we know (by other means…)
   // that pointer targets public data
-  #declassify
-  value = [:u8 pointer];
+  () = #declassify(value);
   return value;
 }
 ~~~
@@ -237,9 +240,9 @@ fn otp(reg u32 msg) -> reg u32, reg u32 {
   stack u32[1] rnd;
   rnd = #randombytes(rnd);
   reg u32 key = rnd[0];
-  // This declassification is safe because msg is encrypted with the secret key
-  #declassify
   msg ^= key;
+  // This declassification is safe because msg is encrypted with the secret key
+  () = #declassify(msg);
   return msg, key;
 }
 ~~~
