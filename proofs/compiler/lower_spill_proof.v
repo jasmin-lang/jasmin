@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import psem compiler_util.
-Require Export pseudo_operator lower_spill.
+Require Import pseudo_operator sopn lower_spill.
 Import Utf8 Uint63.
 
 Local Open Scope seq_scope.
@@ -22,9 +22,6 @@ Context
   (spill_prog_ok : spill_prog fresh_var_ident p = ok p').
 
 Notation gd := (p_globs p).
-
-Lemma is_spill_opP o s tys : is_spill_op o = Some (s, tys) -> o = Opseudo_op (Ospill s tys).
-Proof. by case: o => // -[] // ?? [-> ->]. Qed.
 
 Lemma eq_globs : gd = p_globs p'.
 Proof. by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? _ <-. Qed.
@@ -255,13 +252,13 @@ Proof.
   rewrite /sem_sopn; t_xrbindP.
   move=> vs ves hes hex hws /=.
   rewrite vars_I_opn.
-  case: is_spill_op (@is_spill_opP o); last first.
-  + move=> _ [<- <-] hX hval.
+  case hop: is_spill_op => [ [so tys] | ]; last first.
+  + case/ok_inj => <- <- hX hval.
     rewrite (valid_env_es true gd hval) in hes; last by SvD.fsetdec.
     case: (update_lvsP hval hws); first by SvD.fsetdec.
     move=> vm' hws' hval'; exists vm' => //=.
     by rewrite -eq_globs /sem_sopn hes /= hex /= hws'.
-  move=> [so tys] /(_ _ _ erefl) ?; subst o.
+  move/is_spill_opP: hop => ?; subst o.
   move: hex; rewrite /exec_sopn /=; t_xrbindP => ? h ?; subst vs.
   have [vs' hvs' {h} ] := app_sopn_truncate_val h.
   have ? : s2 = s1; last subst s2.

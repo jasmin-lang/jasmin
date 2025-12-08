@@ -2003,7 +2003,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
                       (tyerror ~loc:(L.loc ey) (TypeMismatch (yty, xty))) in
            let () = match ty with
              | P.ETarr _ -> ()
-             | P.ETword(None, ws) when ws <= U64 -> ()
+             | P.ETword(_, ws) when ws <= U64 -> ()
              | _ ->
                 let w = match ty with P.ETword(w, ws) -> w | _ -> None in
                 let ty = match P.gty_of_gety ty with P.Bty ty -> ty | _ -> assert false in

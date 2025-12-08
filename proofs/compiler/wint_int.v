@@ -1,12 +1,13 @@
 (* ** Imports and settings *)
 From HB Require Import structures.
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 Require Import expr sem_op_typed compiler_util.
 Import Utf8.
 Import oseq.
 Require Import flag_combination.
+Import pseudo_operator.
 
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
@@ -21,10 +22,10 @@ Module Import E.
   Definition ierror := pp_internal_error pass.
 
   Definition ierror_e e :=
-    ierror (pp_nobox [:: pp_s "ill typed expression"; pp_e e]).
+    ierror (pp_nobox [:: pp_s "ill typed expression "; pp_e e]).
 
   Definition ierror_lv lv :=
-    ierror (pp_nobox [:: pp_s "ill typed left value"; pp_lv lv]).
+    ierror (pp_nobox [:: pp_s "ill typed left value "; pp_lv lv]).
 
 End E.
 
@@ -277,20 +278,44 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec instr_r :=
     ok (Cassgn x tag ty e)
 
   | Copn xs t o es =>
-    Let _ := assert (all (fun e => sign_of_expr e == None) es)
-                    (E.ierror_s "invalid expr in Copn") in
-
-    Let es := mapM wi2i_e es in
-    let xtys := map (to_etype None) (sopn_tout o) in
-    Let xs := mapM2 (E.ierror_s "invalid dest in Copn") wi2i_lv xtys xs in
-    ok (Copn xs t o es)
+      match o with
+      | Opseudo_op (Ospill k tys) =>
+          (* We check that the operator is well-typed *)
+          let etys := map etype_of_expr es in
+          let tys' := map2 (fun ety ty => to_etype (sign_of_etype ety) ty) etys tys in
+          Let _ := assert (size tys == size es) (E.ierror_s "ill typed spill") in
+          Let _ := assert (all2 esubtype tys' etys) (E.ierror_s "ill typed spill (arguments)") in
+          (* We patch the type of the operator *)
+          let tys := map2 (fun ty e => wi2i_type (sign_of_expr e) ty) tys es in
+          Let es := mapM wi2i_e es in
+          ok (Copn [::] t (Opseudo_op (Ospill k tys)) es)
+      | Opseudo_op (Oswap ty) =>
+          if es is [:: e1; e2 ] then
+            let ety := etype_of_expr e1 in
+            let sig := [:: ety; ety] in
+            Let _ := assert (all2 (fun ety e => esubtype ety (etype_of_expr e)) sig es)
+                       (E.ierror_s "invalid args in swap") in
+            Let es := mapM wi2i_e es in
+            Let xs := mapM2 (E.ierror_s "invalid dest in swap") wi2i_lv sig xs in
+            let ty := wi2i_type (sign_of_expr e1) ty in
+            ok (Copn xs t (Opseudo_op (Oswap ty)) es)
+          else Error (E.ierror_s "ill-typed swap")
+      | Opseudo_op (Ocopy _ _ | Onop | Omulu _ | Oaddcarry _ | Osubcarry _)
+      | Oslh _ | Oasm _ =>
+          Let _ := assert (all (fun e => sign_of_expr e == None) es)
+                          (E.ierror_s "invalid expr in Copn") in
+          Let es := mapM wi2i_e es in
+          let xtys := map (to_etype None) (sopn_tout o) in
+          Let xs := mapM2 (E.ierror_s "invalid dest in Copn") wi2i_lv xtys xs in
+          ok (Copn xs t o es)
+      end
 
   | Csyscall xs o es =>
     Let _ := assert (all (fun e => sign_of_expr e == None) es)
                     (E.ierror_s "invalid args in Csyscall") in
     Let es := mapM wi2i_e es in
     let xtys := map (to_etype None) (syscall_sig_u o).(scs_tout) in
-    Let xs := mapM2 (E.ierror_s "invalid dest in Copn") wi2i_lv xtys xs in
+    Let xs := mapM2 (E.ierror_s "invalid dest in Csyscall") wi2i_lv xtys xs in
     ok (Csyscall xs o es)
 
   | Cif b c1 c2 =>
