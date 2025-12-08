@@ -1049,28 +1049,6 @@ let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
   let subst = subst_of_allocation vars a in
   Subst.subst_func subst f
 
-(** Returns extra information (k, rsp) for export functions
-    - k: all callee-saved registers overwritten by this function (including rsp)
-    - rsp: if ~stack_needed and if there is a free register, a free register to hold the stack pointer of the caller (aka environment)
-
-*)
-let post_process
-  ~allocatable_vars
-  ~callee_save_vars
-  ~not_saved_stack
-  ~stack_needed
-  (subst: var -> var)
-  ~(killed: funname -> Sv.t)
-  (f: _ func) :
-  var list * var option =
-  let killed_in_f = killed f.f_name |> Sv.map subst in
-  let used_in_f = List.fold_left (fun s x -> Sv.add (subst x) s) killed_in_f f.f_args in
-  let free_regs = Sv.diff allocatable_vars used_in_f in
-  let to_save = Sv.inter callee_save_vars killed_in_f in
-  if stack_needed && Sv.is_empty to_save then
-    [], Sv.Exceptionless.any (Sv.diff free_regs not_saved_stack)
-  else Sv.elements to_save, None
-
 let subroutine_ra_by_stack f =
   assert (FInfo.is_subroutine f.f_cc);
   match Arch.callstyle with
@@ -1392,22 +1370,27 @@ let allocatable_vars = Sv.of_list Arch.allocatable_vars
 let callee_save_vars = Sv.of_list Arch.callee_save_vars
 let not_saved_stack = Sv.of_list (Arch.not_saved_stack @ Arch.callee_save_vars)
 
+(** Computes all callee-saved registers overwritten by this function (including
+    rsp) and, if the function has a stack but no register to save, picks a free
+    register to hold the stack pointer of the caller (aka environment). *)
 let get_reg_oracle
       (has_stack: ('info, 'asm) func -> bool)
       subst
       killed
       f : reg_oracle_t =
   assert (FInfo.is_export f.f_cc);
-  let stack_needed = has_stack f in
-  let ro_to_save, ro_rsp =
-    post_process
-      ~allocatable_vars
-      ~callee_save_vars
-      ~not_saved_stack
-      ~stack_needed
-      ~killed
-      subst
-      f in
+  let killed_in_f = killed f.f_name |> Sv.map subst in
+  let ro_to_save =
+    Sv.elements (Sv.inter callee_save_vars killed_in_f)
+  in
+  let ro_rsp =
+    if has_stack f && ro_to_save = []
+    then
+      let used_in_f = List.fold_left (fun s x -> Sv.add (subst x) s) killed_in_f f.f_args in
+      let free_regs = Sv.diff allocatable_vars used_in_f in
+      Sv.Exceptionless.any (Sv.diff free_regs not_saved_stack)
+    else None
+  in
   { ro_to_save ; ro_rsp }
 
 let alloc_prog return_addresses (dfuncs: ('a * ('info, 'asm) func) list)
