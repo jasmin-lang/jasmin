@@ -202,6 +202,17 @@ Variant x86_op : Type :=
 | SHA256RNDS2
 | SHA256MSG1
 | SHA256MSG2
+
+(* Single Precision Floating Point *)
+(* Double Precision Floating Point *)
+| ADDSD
+| SUBSD
+| MULSD
+| CMPSD
+| ROUNDSD
+| CVTSI2SD  of wsize
+| CVTTSD2SI of wsize
+| CVTSD2SI  of wsize
 .
 
 HB.instance Definition _ := hasDecEq.Build x86_op x86_op_eqb_OK.
@@ -2117,6 +2128,48 @@ Definition Ox86_SHA256MSG2_instr :=
          (check_xmm_xmmm U128) 2 (primM SHA256MSG2) (pp_name_ty "sha256msg2" [::U128;U128]).
 
 (* -------------------------------------------------------------------------------------- *)
+(* Double Scalar Floating Point instructions *)
+Definition x86_ADDSD (w1 w2: u128): tpl (w_ty U128) := w1 (* FIX SEMANTICS! *).
+Definition x86_SUBSD (w1 w2: u128): tpl (w_ty U128) := w1 (* FIX SEMANTICS! *).
+Definition x86_MULSD (w1 w2: u128): tpl (w_ty U128) := w1 (* FIX SEMANTICS! *).
+Definition x86_CMPSD (w1 w2: u128) (w3: u8): tpl (w_ty U128) := w1 (* FIX SEMANTICS! *).
+Definition x86_ROUNDSD (w1: u128) (w2: u8): tpl (w_ty U128) := w1 (* FIX SEMANTICS! *).
+Definition x86_CVTSI2SD sz (w: word sz): tpl (w_ty U128) := wrepr U128 0 (* FIX SEMANTICS! *).
+Definition x86_CVTTSD2SI sz (w: u128): tpl (w_ty sz) := wrepr sz 0 (* FIX SEMANTICS! *).
+Definition x86_CVTSD2SI sz (w: u128): tpl (w_ty sz) := wrepr sz 0 (* FIX SEMANTICS! *).
+
+Definition Ox86_ADDSD_instr :=
+  mk_instr_pp "ADDSD" (w2_ty U128 U128) (w_ty U128) [:: Eu 0; Eu 1] [:: Eu 0] MSB_MERGE x86_ADDSD
+    [:: [:: xmm; xmm ] ] 2 (primM ADDSD) (pp_name_ty "addsd" [::U128;U128]).
+
+Definition Ox86_SUBSD_instr :=
+  mk_instr_pp "SUBSD" (w2_ty U128 U128) (w_ty U128) [:: Eu 0; Eu 1] [:: Eu 0] MSB_MERGE x86_SUBSD
+    [:: [:: xmm; xmm] ] 2 (primM SUBSD) (pp_name_ty "subsd" [::U128;U128]).
+
+Definition Ox86_MULSD_instr :=
+  mk_instr_pp "MULSD" (w2_ty U128 U128) (w_ty U128) [:: Eu 0; Eu 1] [:: Eu 0] MSB_MERGE x86_MULSD
+    [:: [:: xmm; xmm] ] 2 (primM MULSD) (pp_name_ty "mulsd" [::U128;U128]).
+
+Definition Ox86_CMPSD_instr :=
+  mk_instr_pp "CMPSD" (w2w8_ty U128) (w_ty U128) [:: Eu 0; Eu 1; Ea 2] [:: Eu 0] MSB_MERGE x86_CMPSD
+    [:: [:: xmm; xmm; i U8 ] ] 3 (primM CMPSD) (fun args => {| pp_aop_name := "cmpsd"; pp_aop_ext := PP_name; pp_aop_args := zip [:: U128; U128; U8] args; |} ).
+
+Definition Ox86_ROUNDSD_instr :=
+  mk_instr_pp "ROUNDSD" (ww8_ty U128) (w_ty U128) [:: Eu 1; Ea 2] [:: Eu 0] MSB_MERGE x86_ROUNDSD
+    [:: [:: xmm; xmm; i U8] ] 3 (primM ROUNDSD) (fun args => {| pp_aop_name := "roundsd"; pp_aop_ext := PP_name; pp_aop_args := zip [:: U128; U128; U8] args; |} ).
+
+Definition Ox86_CVTSI2SD_instr :=
+  mk_instr_w_w128_10 "CVTSI2SD" MSB_MERGE x86_CVTSI2SD (λ _, [:: [:: xmm; r ] ]) (prim_32_64 CVTSI2SD) size_32_64 (pp_movd "cvtsi2sd").
+
+Definition Ox86_CVTSD2SI_instr :=
+  ( λ sz, mk_instr_safe (pp_s "CVTSD2SI") (w128_ty) (w_ty sz) [:: Eu 1 ] [:: Eu 0 ] MSB_MERGE (x86_CVTSD2SI sz) [:: [:: r; xmm ] ] 2 (size_32_64 sz) (pp_movd "cvtsd2si" sz)
+  , ("CVTSD2SI"%string, prim_32_64 CVTSD2SI) ).
+
+Definition Ox86_CVTTSD2SI_instr :=
+  ( λ sz, mk_instr_safe (pp_s "CVTTSD2SI") (w128_ty) (w_ty sz) [:: Eu 1 ] [:: Eu 0 ] MSB_MERGE (x86_CVTTSD2SI sz) [:: [:: r; xmm ] ] 2 (size_32_64 sz) (pp_movd "cvttsd2si" sz)
+  , ("CVTTSD2SI"%string, prim_32_64 CVTTSD2SI) ).
+
+(* -------------------------------------------------------------------------------------- *)
 
 Definition x86_instr_desc o : instr_desc_t :=
   match o with
@@ -2271,6 +2324,14 @@ Definition x86_instr_desc o : instr_desc_t :=
   | SHA256RNDS2        => Ox86_SHA256RNDS2_instr.1
   | SHA256MSG1         => Ox86_SHA256MSG1_instr.1
   | SHA256MSG2         => Ox86_SHA256MSG2_instr.1
+  | ADDSD              => Ox86_ADDSD_instr.1
+  | SUBSD              => Ox86_SUBSD_instr.1
+  | MULSD              => Ox86_MULSD_instr.1
+  | CMPSD              => Ox86_CMPSD_instr.1
+  | ROUNDSD            => Ox86_ROUNDSD_instr.1
+  | CVTSI2SD sz        => Ox86_CVTSI2SD_instr.1 sz
+  | CVTSD2SI sz        => Ox86_CVTSD2SI_instr.1 sz
+  | CVTTSD2SI sz       => Ox86_CVTTSD2SI_instr.1 sz
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -2428,6 +2489,14 @@ Definition x86_prim_string :=
    Ox86_SHA256RNDS2_instr.2;
    Ox86_SHA256MSG1_instr.2;
    Ox86_SHA256MSG2_instr.2;
+   Ox86_ADDSD_instr.2;
+   Ox86_SUBSD_instr.2;
+   Ox86_MULSD_instr.2;
+   Ox86_CMPSD_instr.2;
+   Ox86_ROUNDSD_instr.2;
+   Ox86_CVTSI2SD_instr.2;
+   Ox86_CVTSD2SI_instr.2;
+   Ox86_CVTTSD2SI_instr.2;
    ("VPMAX"%string,
      primSV_8_32 (fun signedness ve sz =>
               if signedness is Signed then VPMAXS ve sz else VPMAXU ve sz));

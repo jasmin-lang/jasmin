@@ -204,6 +204,15 @@ module X86_core = struct
     | VSHUFPS _ -> false (* Not DOIT *)
     | XCHG _ -> false (* Not DOIT *)
     | XOR _ -> true
+    | ADDSD -> false (* Not DOIT *)
+    | SUBSD -> false (* Not DOIT *)
+    | MULSD -> false (* Not DOIT *)
+    | CMPSD -> false (* Not DOIT *)
+    | ROUNDSD -> false (* Not DOIT *)
+    | CVTSI2SD _ -> false (* Not DOIT *)
+    | CVTTSD2SI _ -> false (* Not DOIT *)
+    | CVTSD2SI _ -> false (* Not DOIT *)
+    
 
   (* All of the extra ops compile into CT instructions (no DIV). *)
   let is_ct_asm_extra (_o : extra_op) = true

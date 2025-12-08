@@ -1,0 +1,182 @@
+
+type double = u128;
+
+inline fn __CMPEQSD
+( reg u128 a b
+) -> reg u128
+{
+  a = #CMPSD(a, b, 0);
+  return a;
+}
+
+inline fn __CMPLTSD
+( reg u128 a b
+) -> reg u128
+{
+  a = #CMPSD(a, b, 1);
+  return a;
+}
+
+inline fn __CMPLESD
+( reg u128 a b
+) -> reg u128
+{
+  a = #CMPSD(a, b, 2);
+  return a;
+}
+
+inline fn __CMPUNORDSD
+( reg u128 a b
+) -> reg u128
+{
+  a = #CMPSD(a, b, 3);
+  return a;
+}
+
+inline fn __CMPNEQSD
+( reg u128 a b
+) -> reg u128
+{
+  a = #CMPSD(a, b, 4);
+  return a;
+}
+
+inline fn __CMPNLTSD
+( reg u128 a b
+) -> reg u128
+{
+  a = #CMPSD(a, b, 5);
+  return a;
+}
+
+inline fn __CMPNLESD
+( reg u128 a b
+) -> reg u128
+{
+  a = #CMPSD(a, b, 6);
+  return a;
+}
+
+inline fn __CMPORDSD
+( reg u128 a b
+) -> reg u128
+{
+  a = #CMPSD(a, b, 7);
+  return a;
+}
+
+
+export
+fn addsd(reg double x y) -> reg double {
+  reg double z;
+  z = #ADDSD(x, y);
+  return z;
+}
+
+export
+fn subsd(reg double x y) -> reg double {
+  reg double z;
+  z = #SUBSD(x, y);
+  return z;
+}
+
+export
+fn mulsd(reg double x y) -> reg double {
+  reg double z;
+  z = #MULSD(x, y);
+  return z;
+}
+
+export
+fn cvtsd2si(reg double x) -> reg u64 {
+  reg u64 z;
+  z = #CVTSD2SI(x);
+  return z;
+}
+
+export
+fn cvttsd2si(reg double x) -> reg u64 {
+  reg u64 z;
+  z = #CVTTSD2SI(x);
+  return z;
+}
+
+export
+fn cvtsi2sd(reg u64 x) -> reg double {
+  reg double z;
+  z = #CVTSI2SD(x);
+  return z;
+}
+
+export
+fn cmpeqsd(reg double x y) -> reg u64 {
+  reg double zmask;
+  reg u64 z;
+  zmask = __CMPEQSD(x, y);
+  z = (64u) zmask;
+  return z;
+}
+
+export
+fn cmplesd(reg double x y) -> reg u64 {
+  reg double zmask;
+  reg u64 z;
+  zmask = __CMPLESD(x, y);
+  z = (64u) zmask;
+  return z;
+}
+
+export
+fn cmpltsd(reg double x y) -> reg u64 {
+  reg double zmask;
+  reg u64 z;
+  zmask = __CMPLTSD(x, y);
+  z = (64u) zmask;
+  return z;
+}
+
+export
+fn cmpunordsd(reg double x y) -> reg u64 {
+  reg double zmask;
+  reg u64 z;
+  zmask = __CMPUNORDSD(x, y);
+  z = (64u) zmask;
+  return z;
+}
+
+export
+fn cmpneqsd(reg double x y) -> reg u64 {
+  reg double zmask;
+  reg u64 z;
+  zmask = __CMPNEQSD(x, y);
+  z = (64u) zmask;
+  return z;
+}
+
+export
+fn cmpnltsd(reg double x y) -> reg u64 {
+  reg double zmask;
+  reg u64 z;
+  zmask = __CMPNLTSD(x, y);
+  z = (64u) zmask;
+  return z;
+}
+
+export
+fn cmpnlesd(reg double x y) -> reg u64 {
+  reg double zmask;
+  reg u64 z;
+  zmask = __CMPNLESD(x, y);
+  z = (64u) zmask;
+  return z;
+}
+
+export
+fn cmpordsd(reg double x y) -> reg u64 {
+  reg double zmask;
+  reg u64 z;
+  zmask = __CMPORDSD(x, y);
+  z = (64u) zmask;
+  return z;
+}
+
