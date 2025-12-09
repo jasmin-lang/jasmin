@@ -461,15 +461,14 @@ end  = struct
     let find (x : A.symbol) (env : 'asm env) =
       find (fun b -> b.gb_vars) x env
 
-    let warn_double_decl v map =
-      let name = v.P.v_name in
+    let warn_double_decl name v map =
       match Map.find name map with
       | exception Not_found -> ()
       | v' -> warn_duplicate_var name (v, (), ()) v'
 
     let push_core (env : 'asm env) (name: P.Name.t) (v : P.pvar) (ty: P.epty) (s : E.v_scope)  =
       let doit m =
-        warn_double_decl v m.gb_vars;
+        warn_double_decl name v m.gb_vars;
         { m with gb_vars = Map.add name (v, ty, s) m.gb_vars }
       in
       let e_bindings =

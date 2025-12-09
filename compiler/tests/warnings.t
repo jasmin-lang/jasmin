@@ -83,3 +83,9 @@
   warning: Variable “x” is affected but never used
 
   $ ../jasminc fail/linter/silent_dead.jazz
+
+  $ ../jasminc warning/common/bug_1347.jazz
+  "warning/common/bug_1347.jazz", line 3 (6-7)
+  warning: the variable g is already declared at "warning/common/bug_1347.jazz", line 2 (6-7)
+  "warning/common/bug_1347.jazz", line 8 (20-21)
+  warning: the variable C::x is already declared at "warning/common/bug_1347.jazz", line 7 (20-21)
