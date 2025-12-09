@@ -300,12 +300,14 @@ Definition wi2i_c (wi2i : instr -> cexec cmd) c :=
 Variant is_Polymorphic_op :=
   | IsSpill of spill_op & seq atype
   | IsSwap  of atype
-  | IsOther. 
+  | IsDeclassify of atype
+  | IsOther.
 
-Definition is_polymorphic_op o := 
+Definition is_polymorphic_op o :=
   match o with
   | Opseudo_op (Ospill k tys) => IsSpill k tys
   | Opseudo_op (Oswap ty) => IsSwap ty
+  | Opseudo_op (Odeclassify ty) => IsDeclassify ty
   | _ => IsOther
   end.
 
@@ -324,7 +326,7 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
 
   | Copn xs t o es =>
     Let es' := wi2i_es wi2i_e es in
-    Let tout_op := 
+    Let tout_op :=
       match is_polymorphic_op o with
       | IsSpill k tys =>
         (* We check that the operator is well typed *)
@@ -344,14 +346,23 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
         Let _ := assert (all2 esubtype tys' etys) (E.ierror_s "ill typed swap (arguments)") in
         let ty := wi2i_type sg ty in
         ok (tys', (Opseudo_op (Oswap ty)))
-      | IsOther => 
+      | IsDeclassify ty =>
+        let e1 := nth etrue es 0 in
+        let sg := sign_of_expr m e1 in
+        let etys := map (etype_of_expr m) es in
+        let ety := to_etype sg ty in
+        let tys' := [::ety] in
+        Let _ := assert (all2 esubtype tys' etys) (E.ierror_s "ill typed declassify (arguments)") in
+        let ty := wi2i_type sg ty in
+        ok ([::], (Opseudo_op (Odeclassify ty)))
+      | IsOther =>
         Let _ := assert (all (fun e => sign_of_expr m e == None) es)
                         (E.ierror_s "invalid expr in Copn") in
         let xtys := map (to_etype None) (sopn_tout o) in
         ok (xtys, o)
       end in
     Let xs := wi2i_lvs "invalid dest in Copn" true tout_op.1 xs in
-    ok (es'.1 ++ xs.1, Copn xs.2 t tout_op.2 es'.2)      
+    ok (es'.1 ++ xs.1, Copn xs.2 t tout_op.2 es'.2)
 
   | Csyscall xs o es =>
     Let _ := assert (all (fun e => sign_of_expr m e == None) es)

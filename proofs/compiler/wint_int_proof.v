@@ -705,7 +705,7 @@ Qed.
 End E.
 
 Lemma sign_to_etype_type_of ty sg sg' v :
-  type_of_val v = eval_atype ty -> 
+  type_of_val v = eval_atype ty ->
   sign_of_etype (to_etype sg ty) = Some sg' ->
   sg = Some sg' /\
   exists ws, v = undef_w \/ exists (w:word ws), v = Vword w.
@@ -718,8 +718,8 @@ Qed.
 Lemma is_awordP ty : is_aword ty -> exists ws, ty = aword ws.
 Proof. case: ty => //; eauto. Qed.
 
-Lemma eval_atypeI ty : 
-  match eval_atype ty with 
+Lemma eval_atypeI ty :
+  match eval_atype ty with
   | cbool => ty = abool
   | cint  => ty = aint
   | carr len => exists ws len', ty = aarr ws len' /\ len = Z.to_pos (arr_size ws len')
@@ -729,7 +729,7 @@ Proof. by case: ty => // ws len'; exists ws, len'. Qed.
 
 Lemma wi2i_lvarP x xi ty ety si si' s v :
   eqst tt si s ->
-  type_of_val v = eval_atype ty -> 
+  type_of_val v = eval_atype ty ->
   wi2i_lvar m FV (to_etype (sign_of_etype ety) ty) x = ok xi ->
   write_var true xi (val_to_int (sign_of_etype (to_etype (sign_of_etype ety) ty)) v) si = ok si' ->
   exists2 s' : estate,
@@ -745,7 +745,7 @@ Proof.
     move=> /write_varP [-> hdb htr].
     have [heq [ws [? | [w ?]]]] := sign_to_etype_type_of heval hsig; subst.
     + by move: hdb; rewrite /DB.
-    move: hsub; rewrite /esubtype hxty heq /=. 
+    move: hsub; rewrite /esubtype hxty heq /=.
     have := eval_atypeI ty; rewrite -heval /= => -> /andP[_ /eqP?]; subst sw.
     rewrite /val_to_int /=.
     exists (with_vm s (evm s).[x <- Vword w]).
@@ -764,7 +764,7 @@ Qed.
 
 Lemma wi2i_lvP ty ety lv lvi si si' s v:
   eqst tt si s ->
-  type_of_val v = eval_atype ty ->  
+  type_of_val v = eval_atype ty ->
   let ety := to_etype (sign_of_etype ety) ty in
   wi2i_lv m FV ety lv = ok lvi ->
   sem_cond gd (eands lvi.1) si = ok true ->
@@ -799,7 +799,7 @@ Proof.
     move=> t' hset hw.
     have := wi2i_varP heqs hinx.
     have hmx : m x = None.
-    + have := hwf_m x; case: m => // -[sg ?] []. 
+    + have := hwf_m x; case: m => // -[sg ?] [].
       by have := eval_atypeI (vtype x); rewrite htx => -[?] [?] [->].
     rewrite /sign_of_var /wi2i_var hmx => /(_ _ hget) [vt] -> /=.
     rewrite val_to_int_None => <- /=.
@@ -903,13 +903,13 @@ Context (p_funcsi : ufun_decls)
 Let pi : uprog := {| p_funcs := p_funcsi; p_globs := gd; p_extra := p_extra p |}.
 
 Definition vs_pre fsig (vargsi vargs: values) :=
-  [/\ 
-    List.Forall2 (fun ety v => exists2 ty, type_of_val v = eval_atype ty & 
+  [/\
+    List.Forall2 (fun ety v => exists2 ty, type_of_val v = eval_atype ty &
                                esubtype ety (to_etype (sign_of_etype ety) ty)) fsig vargs
     & vargsi = map2 (fun ety v => val_to_int (sign_of_etype ety) v) fsig vargs].
 
 Definition vs_post fsig (vargsi vargs: values) :=
-  [/\ List.Forall2 (fun ety v => exists2 ty, type_of_val v = eval_atype ty & 
+  [/\ List.Forall2 (fun ety v => exists2 ty, type_of_val v = eval_atype ty &
                                  ety = (to_etype (sign_of_etype ety) ty)) fsig vargs
     & vargsi = map2 (fun ety v => val_to_int (sign_of_etype ety) v) fsig vargs].
 
@@ -938,7 +938,7 @@ Let Pc c :=
 Lemma esubtype_truncate_vals xs tys vs vis' :
   let etys := map2 (λ (x:var_i) ty, to_etype (sign_of_var m x) ty) xs tys in
   size xs = size tys →
-  List.Forall2 (fun ety v => exists2 ty, type_of_val v = eval_atype ty & 
+  List.Forall2 (fun ety v => exists2 ty, type_of_val v = eval_atype ty &
                                esubtype ety (to_etype (sign_of_etype ety) ty)) etys vs →
   mapM2 ErrType truncate_val
       (map (λ ety, eval_atype (wi2i_type (sign_of_etype ety) (to_atype ety))) etys)
@@ -1038,7 +1038,7 @@ Proof.
   rewrite hfd /wi2i_fun /= /get_sig hfsig /= => /add_funnameP {hfd}; t_xrbindP.
   move=> fc' hfc' /andP [/eqP hsizei /eqP hsizeo] _ _ _ _ _ _ <- /=.
   case: fc hfc' => [fc | //]; t_xrbindP => fci + <-.
-  rewrite /wi2i_ci; t_xrbindP => fpre' hfpre fpre_range hfpre_range. 
+  rewrite /wi2i_ci; t_xrbindP => fpre' hfpre fpre_range hfpre_range.
   move=> fpost' hfpost fpost_range hfpost_range fipar hfipar hires hfires <-.
   move=> vparitr hvpari si hw ? hassert _; rewrite hval in hvpari.
   rewrite -map_comp in hvpari.
@@ -1048,7 +1048,7 @@ Proof.
   apply: wi2i_a_andP heqs hfpre hassert.
 Qed.
 
-Lemma eq_to_etype_eval s1 s2 ty1 ty2 : 
+Lemma eq_to_etype_eval s1 s2 ty1 ty2 :
   to_etype s1 ty1 = to_etype s2 ty2 -> eval_atype ty1 = eval_atype ty2.
 Proof.
   by case: ty1 ty2 => [||w1 len1|w1] [||w2 len2|w2] //= [] h1 h2; rewrite h2 ?h1.
@@ -1073,7 +1073,7 @@ Proof.
   rewrite hval1 -map_comp in hvpari.
   have [vs' -> [? htys]] := esubtype_truncate_vals hsizei hsub1 hvpari => /=; subst vparitr.
   have [s' -> heqs' /=]:= wi2i_write_vars hsizei (esym htys) hfipar (eqst_init hscs hmem) hw1.
-  have [hftyo hsize] : map type_of_val (fvals fr) = map eval_atype ftyo /\ 
+  have [hftyo hsize] : map type_of_val (fvals fr) = map eval_atype ftyo /\
                        size fres = size [seq type_of_val i | i <- fvals fr].
   + elim : (fres) (ftyo) (fvals fr) hsizeo heq2 => [|x xs hrec] [|ty tys] //= [|vr vrs] //=.
     1,2: by move=> _ /List_Forall2_inv.
@@ -1099,7 +1099,7 @@ Lemma wi2i_get_var_is msg xs tys xis vis vis' si s :
     [/\ get_var_is (~~ direct_call) (evm s) xs = ok vs
       , mapM2 ErrType dc_truncate_val (map eval_atype tys) vs = ok vs'
       , vis' =  map2 (λ ety v, val_to_int (sign_of_etype ety) v) etys vs'
-      &  List.Forall2 (fun ety v => exists2 ty, type_of_val v = eval_atype ty & 
+      &  List.Forall2 (fun ety v => exists2 ty, type_of_val v = eval_atype ty &
                                       ety = to_etype (sign_of_etype ety) ty) etys vs'].
 Proof.
   move=> /= heqs; rewrite /get_var_is /=.
@@ -1127,26 +1127,26 @@ Lemma sem_cond_with_scs gd e s scs:
 Proof. by rewrite /sem_cond -sem_pexpr_with_scs. Qed.
 
 (* FIXME: TODO move this in psem *)
-Lemma eandP_inv gd e1 e2 s b : 
-  sem_cond gd (eand e1 e2) s = ok b -> 
+Lemma eandP_inv gd e1 e2 s b :
+  sem_cond gd (eand e1 e2) s = ok b ->
   (Let b1 := sem_cond gd e1 s in
    Let b2 := sem_cond gd e2 s in
-   ok (b1 && b2)) = ok b. 
+   ok (b1 && b2)) = ok b.
 Proof.
   rewrite /eand /sem_cond /= /sem_sop2 /=; t_xrbindP.
   by move=> > -> /= > -> /= > -> > -> <- [<-].
 Qed.
 
-Lemma eandP gd e1 e2 s b1 b2 : 
+Lemma eandP gd e1 e2 s b1 b2 :
   sem_cond gd e1 s = ok b1 ->
-  sem_cond gd e2 s = ok b2 -> 
-  sem_cond gd (eand e1 e2) s = ok (b1 && b2). 
+  sem_cond gd e2 s = ok b2 ->
+  sem_cond gd (eand e1 e2) s = ok (b1 && b2).
 Proof.
   rewrite /eand /sem_cond /= /sem_sop2 /=; t_xrbindP.
   by move=> > -> /= > -> > -> /= ->.
 Qed.
-  
-Lemma eands_consP_inv gd e1 e2 s b : 
+
+Lemma eands_consP_inv gd e1 e2 s b :
   sem_cond gd (eands (e1 :: e2)) s = ok b ->
   (Let b1 := sem_cond gd e1 s in
    Let b2 := sem_cond gd (eands e2) s in
@@ -1157,18 +1157,18 @@ Proof.
   by move=> e2 es2 /eandP_inv.
 Qed.
 
-Lemma eands_consP gd e1 e2 s b1 b2 : 
+Lemma eands_consP gd e1 e2 s b1 b2 :
   sem_cond gd e1 s = ok b1 ->
   sem_cond gd (eands e2) s = ok b2 ->
-  sem_cond gd (eands (e1 :: e2)) s = ok (b1 && b2). 
+  sem_cond gd (eands (e1 :: e2)) s = ok (b1 && b2).
 Proof.
   case: e2.
   + by rewrite eandsE_nil eandsE_1 => -> [<-]; rewrite andbT.
   move=> e2 es2 /=; apply eandP.
 Qed.
 
-Lemma eands_catP_inv gd e1 e2 s b : 
-  sem_cond gd (eands (e1 ++ e2)) s = ok b -> 
+Lemma eands_catP_inv gd e1 e2 s b :
+  sem_cond gd (eands (e1 ++ e2)) s = ok b ->
   (Let b1 := sem_cond gd (eands e1) s in
    Let b2 := sem_cond gd (eands e2) s in
    ok (b1 && b2)) = ok b.
@@ -1177,12 +1177,12 @@ Proof.
   + by rewrite /= => ->.
   rewrite cat_cons => /eands_consP_inv.
   t_xrbindP => b1 hb1 ? /hrec; t_xrbindP => bs1 hbs1 bs2 hbs2 <- <-.
-  by rewrite (eands_consP hb1 hbs1) /= hbs2 /= andbA.  
+  by rewrite (eands_consP hb1 hbs1) /= hbs2 /= andbA.
 Qed.
 
-Lemma eands_catP gd e1 e2 s b1 b2 : 
-  sem_cond gd (eands e1) s = ok b1 -> 
-  sem_cond gd (eands e2) s = ok b2 -> 
+Lemma eands_catP gd e1 e2 s b1 b2 :
+  sem_cond gd (eands e1) s = ok b1 ->
+  sem_cond gd (eands e2) s = ok b2 ->
   sem_cond gd (eands (e1 ++ e2)) s = ok (b1 && b2).
 Proof.
   elim: e1 b1 => [|e1 es1 hrec] b1.
@@ -1193,10 +1193,11 @@ Proof.
 Qed.
 (* END FIXME *)
 
-Lemma is_polymorphic_opP o : 
+Lemma is_polymorphic_opP o :
   match is_polymorphic_op o with
-  | IsSpill k tys => o = Opseudo_op (Ospill k tys) 
-  | IsSwap ty => o = Opseudo_op (Oswap ty) 
+  | IsSpill k tys => o = Opseudo_op (Ospill k tys)
+  | IsSwap ty => o = Opseudo_op (Oswap ty)
+  | IsDeclassify ty => o = Opseudo_op (Odeclassify ty)
   | IsOther => true
   end.
 Proof. by case: o => // -[]. Qed.
@@ -1206,7 +1207,7 @@ Proof. by case: t w. Qed.
 
 Lemma wi2i_callP_aux fn : wiequiv_f pi p ev ev (rpreF (eS:= wi2i_spec)) fn fn (rpostF (eS:=wi2i_spec)).
 Proof.
-  apply wequiv_fun_ind_wa => {fn} fn _ fsi fs [<- [fsig hfsig hrel]] fdi hgeti.
+  apply wequiv_fun_ind_wa => {}fn _ fsi fs [<- [fsig hfsig hrel]] fdi hgeti.
   have [fd hfdi hget] := hp' hgeti.
   exists fd => // {hgeti}.
   move=> hpre; split.
@@ -1260,11 +1261,11 @@ Proof.
   + t_xrbindP => xs tg o es ii sci sce hsce [otys o'].
     case: is_polymorphic_op (is_polymorphic_opP o).
     + move=> k tys -> /=; t_xrbindP => /eqP hsze hsub <- <- /= scx hscx <-.
-      apply wequiv_opn with 
-       (fun vsi vs => 
+      apply wequiv_opn with
+       (fun vsi vs =>
           map type_of_val vs = map (fun e => eval_atype (to_atype (etype_of_expr m e))) es /\
           vsi = map2 (λ (e : pexpr) (v : value), val_to_int (sign_of_expr m e) v) es vs)
-       (fun vsi vs => vsi = vs /\ 
+       (fun vsi vs => vsi = vs /\
           map type_of_val vsi = map eval_atype (sopn_tout (Opseudo_op (Ospill k tys)))).
       + move=> si s vsi [heq /eandsE_cat [] hconde hcondx] hsei.
         have [vs hse ->]:= wi2i_esP hsce heq hconde hsei.
@@ -1281,7 +1282,7 @@ Proof.
         + by case.
         case => // v vs [] htof htofs []hsze /andP [hsub1 hsub].
         t_xrbindP => ov hov h.
-        have {hrect h} := hrect _ _ htofs hsze hsub h.  
+        have {hrect h} := hrect _ _ htofs hsze hsub h.
         t_xrbindP => -[] -> _.
         by have [? -> _]:= esubtype_of_val hsub1 hov htof.
       move=> [|??] _ [<- ] //= _ si s si'.
@@ -1289,8 +1290,8 @@ Proof.
     + move=> ty ->; t_xrbindP => hsub <- <-.
       set (sig := [:: to_etype (sign_of_expr _ _) _; _]).
       move=> rscx hscx <- /=.
-      apply wequiv_opn with 
-       (fun vsi vs => 
+      apply wequiv_opn with
+       (fun vsi vs =>
           map type_of_val vs = map (fun e => eval_atype (to_atype (etype_of_expr m e))) es /\
           vsi = map2 (λ (e : pexpr) (v : value), val_to_int (sign_of_expr m e) v) es vs)
        (vs_post sig).
@@ -1309,7 +1310,7 @@ Proof.
         + by case: vs => // v1 [] // v2 [] //; t_xrbindP.
         move=> /and3P [] hsub1 hsub2 _.
         case: vs => // v1 [] // v2 [] //; t_xrbindP.
-        move=> [htyv1 htyv2] [u1 u2] w1 hw1 w2 hw2 [???]; subst u1 u2 vis. 
+        move=> [htyv1 htyv2] [u1 u2] w1 hw1 w2 hw2 [???]; subst u1 u2 vis.
         have [w1' -> /= htow1'] := esubtype_of_val hsub1 hw1 htyv1.
         set u := oto_val (sem_prod_id w1).
         have hs: sign_of_expr m e1 = sign_of_expr m e2.
@@ -1317,14 +1318,37 @@ Proof.
         move: w2 hw2 htyv2 hsub2; rewrite hs => w2 hw2 htyv2 hsub2; rewrite /u => {u}.
         have [w2' -> /= htow2'] := esubtype_of_val hsub2 hw2 htyv2.
         eexists; eauto; split.
-        + constructor. 
+        + constructor.
           + exists ty; first by rewrite type_of_oto_val.
             by rewrite -(esubtype_sign_of hsub2).
           constructor; last by constructor.
           exists ty; first by rewrite type_of_oto_val.
           by rewrite -(esubtype_sign_of hsub2).
         rewrite /= -(esubtype_sign_of hsub2) !oto_val_sem_prod_id.
-        by rewrite htow1' htow2' -/(sign_of_expr m e1) hs. 
+        by rewrite htow1' htow2' -/(sign_of_expr m e1) hs.
+      move=> vs1 vs2 [hall ->] si1 s1 si2 [heqst /eandsE_cat [_ hsc]] hw.
+      by apply: wi2i_lvsP hscx hsc erefl (fun _ => erefl) heqst hw hall.
+   + move=> ty ->; t_xrbindP => hsub <- <- rscx hscx <- /=.
+      apply wequiv_opn with
+       (fun vsi vs =>
+          map type_of_val vs = map (fun e => eval_atype (to_atype (etype_of_expr m e))) es /\
+          vsi = map2 (λ (e : pexpr) (v : value), val_to_int (sign_of_expr m e) v) es vs)
+       (vs_post [::]).
+      + move=> si s vsi [heq /eandsE_cat [] hconde hcondx] hsei.
+        have [vs hse ->]:= wi2i_esP hsce heq hconde hsei.
+        exists vs => //; split => //.
+        elim: (es) vs hse => [|e' es' hrec'] /= vs.
+        + by move=> -[<-].
+        t_xrbindP => v' hv' vs' hvs' <- /=.
+        by rewrite (sem_pexpr_type_of hv') (hrec' _ hvs').
+      + move=> si s [heq /eandsE_cat [] hconde hcondx] ? vs vis [heval ->].
+        rewrite /exec_sopn /= /sopn_sem_ /= /sopn_tout => {hsce hscx}.
+        case: es hsub heval => // e1 [] //=; last first.
+        + by move=> ??; rewrite andbF.
+        case: vs => // v1 [] //.
+        rewrite andbT; t_xrbindP => hsub1 [htyv1] [] w1 hw1 _ ?; subst vis.
+        exists [::] => //.
+        by have [w1' -> /= htow1'] := esubtype_of_val hsub1 hw1 htyv1.
       move=> vs1 vs2 [hall ->] si1 s1 si2 [heqst /eandsE_cat [_ hsc]] hw.
       by apply: wi2i_lvsP hscx hsc erefl (fun _ => erefl) heqst hw hall.
     move=> _; t_xrbindP => hnone <- <- scx hscx <- /=.
@@ -1332,7 +1356,7 @@ Proof.
     + by apply wi2i_esP_none.
     + move=> s1 s2 _ vs ? vs' <- hex; exists vs' => //.
       by rewrite -(sopn_toutP hex).
-    by move=> vs _ [<- htyof]; apply: wi2i_lvsP_none hscx. 
+    by move=> vs _ [<- htyof]; apply: wi2i_lvsP_none hscx.
   + t_xrbindP => xs o es ii sci hnone sce hsce scx hscx <- /=.
     apply wkequivP' => si0 s0.
     apply wequiv_syscall with
@@ -1391,7 +1415,7 @@ Proof.
     + by move=> _ _ <-.
     move=> vs_ /andP [hsub hsubs] v hv vs hvs <-.
     have [hall ->] := hrec1 _ _ hsubs hvs.
-    rewrite -(esubtype_sign_of hsub); split => //; constructor => //. 
+    rewrite -(esubtype_sign_of hsub); split => //; constructor => //.
     rewrite (sem_pexpr_type_of hv).
     exists (to_atype (etype_of_expr m e)) => //.
     by rewrite -(esubtype_sign_of hsub) to_etype_to_atype.
@@ -1477,7 +1501,7 @@ Lemma wi2w_callP (get_info : _uprog → Sv.t * (var → option (signedness * var
      fn fn
      (λ _ _ _ _ fr1 fr2, fs_rel (vs_post fsig.2) fr1 fr2).
 Proof.
-  rewrite /wi2i_prog. 
+  rewrite /wi2i_prog.
   case: get_info => FV info; t_xrbindP.
   move=> M /build_infoP [hwf_m hMeq] /Sv.subset_spec hFVsub.
   move=> p_funcsi heqp' <-.
