@@ -146,7 +146,9 @@ struct_annot:
   | a=separated_list(COMMA, annotation) { a }
 
 top_annotation:
-  | SHARP a=annotation    { [a] }
+  | SHARP a=loc(annotation)
+    { Utils.warning Deprecated Location.(i_loc0 (loc a)) "annotations should be enclosed within square brackets";
+      [Location.unloc a] }
   | SHARP LBRACKET a=struct_annot RBRACKET { a }
 
 annotations:
