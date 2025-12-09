@@ -1,0 +1,9 @@
+namespace A {
+  u32 g = 0;
+  u64 g = 1;
+}
+
+namespace B {
+  namespace C { u32 x = 2; }
+  namespace C { u16 x = 3; }
+}
