@@ -13,7 +13,7 @@ author = "The Jasmin developer team"
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ["myst_parser", "sphinx_rtd_theme", "sphinx.ext.graphviz"]
+extensions = ["myst_parser", "sphinx_rtd_theme", "sphinx.ext.graphviz", "sphinx_copybutton"]
 
 myst_enable_extensions = ["colon_fence"]
 myst_heading_anchors = 3
