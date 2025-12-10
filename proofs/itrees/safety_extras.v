@@ -77,10 +77,8 @@ Lemma gpaco2_tau E0 V1 b1 b2 (RR : V1 -> V1 -> Prop)
   gpaco2 (eqit_ RR b1 b2 Datatypes.id)
          (eqitC RR b1 b2) r r (Tau t1) (Tau t2).
 Proof.
-  intro K3.
-  gstep. red.
-  econstructor.
-  auto.
+  intro K3; gstep; red.
+  econstructor; auto.
 Qed.  
 
 (*********************************************************************)
@@ -526,10 +524,8 @@ Proof.
     setoid_rewrite tau_eutt in H1; auto.
   }
   { intros t1 t2 H H0 H1; simpl.
-
     setoid_rewrite interp_exec_vis.
     setoid_rewrite interp_exec_vis in H1.
-
     destruct e as [e1 | e1] eqn: was_e ; simpl in *; simpl.    
 
     { destruct e1; simpl in *.
@@ -548,8 +544,8 @@ Proof.
     intro v1.
     unfold Datatypes.id; simpl.
     dependent destruction H1.
-
     specialize (H2 v1 v1).
+    
     assert (PostR u u e1 v1 e1 v1) as K2.
     { eapply PostR_hyp; auto. }
    
@@ -565,14 +561,8 @@ Proof.
   }
 
   { intros t0 t2 H H1 H2; simpl.
-    cut (gpaco2 (eqit_ (ok_ret_rel RR) true true Datatypes.id)
-    (eqitC (ok_ret_rel RR) true true) bot2 r
-    (interp_exec ext_handle_Err t1)
-    (interp_exec ext_handle_Err {| _observe := ot2 |})). 
-    { intro K2.
-      setoid_rewrite interp_exec_tau.
-      setoid_rewrite tau_euttge; auto.
-    }
+    setoid_rewrite interp_exec_tau.
+    setoid_rewrite tau_euttge; auto.
     setoid_rewrite (itree_eta t1).
     eapply IHeqitF; eauto.
     setoid_rewrite tau_euttge in H2.
@@ -580,14 +570,8 @@ Proof.
   }
 
   { intros t1 t0 H H1 H2; simpl.
-    cut (gpaco2 (eqit_ (ok_ret_rel RR) true true Datatypes.id)
-    (eqitC (ok_ret_rel RR) true true) bot2 r
-    (interp_exec ext_handle_Err {| _observe := ot1 |})
-    (interp_exec ext_handle_Err t2)).
-    { intro K2. 
-      setoid_rewrite interp_exec_tau.
-      setoid_rewrite tau_euttge; auto.
-    }
+    setoid_rewrite interp_exec_tau.
+    setoid_rewrite tau_euttge; auto.
     setoid_rewrite tau_euttge in H2. 
     setoid_rewrite (itree_eta t2) in H2.
     setoid_rewrite (itree_eta t2).
@@ -726,7 +710,7 @@ Proof.
   }
   { intros t1 t2 H1 H2.
     setoid_rewrite interp_exec_vis.
-    (* using guclo with rutt: check this *)
+    (* using the analogous of guclo with rutt: check this *)
     eapply gpaco2_uclo; [|eapply rutt_clo_bind|]; eauto with paco.
     econstructor 1 with
       (RU := (fun (r1: execS A) (r2: execS B) =>
@@ -952,9 +936,9 @@ Proof.
     assert (False).
     { destruct H2 as [t1' H2].
       eapply lutt_absurd; eauto. }
-    intuition auto.
-    
+    intuition auto.    
     econstructor; auto.
+    
     { unfold REv_eq; simpl.
       split; eauto.
       exists erefl; simpl; auto.
