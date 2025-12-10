@@ -215,7 +215,7 @@ Context (ctxI: D1 ~> itree (D2 +' E)).
 (* general semantic (recursive) handler *)
 Context (ctxR: D2 ~> itree (D2 +' E)).
 
-(* function to compbine handlers *)
+(* function to combine handlers *)
 Definition joint_handler (h1: D1 ~> itree (D2 +' E))
                          (h2: D2 ~> itree (D2 +' E)) :
                          (D1 +' D2) ~> itree ((D1 +' D2) +' E) :=

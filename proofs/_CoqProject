@@ -156,6 +156,7 @@ itrees/it_cflow_semB.v
 itrees/it_effect_sem.v
 itrees/equiv_extras.v 
 itrees/lutt_extras.v
+itrees/safety_extras.v
 
 lang/array.v
 lang/core_logics.v

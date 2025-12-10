@@ -20,9 +20,12 @@ From ITree Require Import
 
 From mathcomp Require Import word_ssrZ ssreflect ssrfun ssrbool eqtype.
 
-Require Import rutt_extras it_exec exec_extras eutt_extras equiv_extras.
+Require Import rutt_extras it_exec exec_extras eutt_extras
+               equiv_extras tfam_iso core_logics.
+(* 
 Require Import expr psem_defs oseq compiler_util.
-Require Import tfam_iso core_logics.
+Require Import core_logics.
+*)
 
 Import Monads.
 Import MonadNotation.
@@ -778,7 +781,7 @@ End ImgEquivSec.
 Section SafeSec.
 
 Context {E : Type -> Type} {P: forall T0, E T0 -> Prop}.
-  
+
 (*** Safety with respect to a predicate P on events and a predicate R
      on values. psafe implies that every event in the tree satisfies
      P, and every returned value satisfies R. Intuitively, as a
@@ -1794,7 +1797,7 @@ Section Lutt_with_id.
   
 Context {hnd1 : E1 ~> execT (itree E2)}.  
 
-(* proved with axiom; easy to fix. *)
+(* MAIN: proved with axiom; easy to fix. *)
 Lemma luttNL2rutt_inr_exec_with_id (T : Type) 
   (t : itree (E1 +' E2) T) :
   lutt (fun (T0 : Type) e => ~~ is_inlB (T:=T0) e)
@@ -1901,107 +1904,5 @@ Qed.
 End Safe_eutt_sec.
 
 End Safe_sec1R.
-
-(*********************************************************************)
-
-Require Import it_sems_core.
-
-Section Test.
-
-Context {E: Type -> Type}.
-    
-Definition esdflt {A} (a : A) (r : execS A) : A :=
-  if r is ESok v then v else a.
-
-Let foo {E X} (d : X) (t : itree (ErrEvent +' E) X) : itree E X :=
-  ITree.bind (interp_Err t) (fun x => Ret (esdflt d x)).
-
-Lemma test1 V1 d1 d2 
-  (t1: itree (ErrEvent +' E) V1) (t2: itree (ErrEvent +' E) V1) RR :
-  RR d1 d2 ->
-  @safe _ is_inlB V1 t1 ->
-  simple_rutt RR t1 t2 ->
-  simple_rutt RR (foo d1 t1) (foo d2 t2).
-Proof.
-  intros H H0 H1.
-  eapply simple_rutt_eutt_equiv; eauto.
-  eapply rutt2eutt in H1.
-  eapply luttNL2rutt_inr_exec_with_id in H0 as H2. 
-  eapply eqit_bind'.
-  - instantiate (1 := exec_rel RR).
-    unfold interp_Err.
-    eapply interp_exec_eutt; auto.
-  - intros r1 r2 H3.
-    setoid_rewrite <- eqit_Ret.
-    destruct r1 eqn:was_r1; eauto; try (intuition auto with * ).
-    destruct r2 eqn:was_r2; eauto; try (intuition auto with * ).
-    destruct r2 eqn:was_r2; eauto; try (intuition auto with * ).
-    Unshelve.
-    exact (@handle_Err E).
-Qed.
-
-Lemma test2 V1 d1 d2 
-  (t1: itree (ErrEvent +' E) V1) (t2: itree (ErrEvent +' E) V1) RR :
-  @safe _ is_inlB V1 t1 ->
-  simple_rutt RR t1 t2 ->
-  simple_rutt RR (foo d1 t1) (foo d2 t2).
-Proof.
-  unfold safe, lutt.
-  intros H H0.
-  eapply simple_rutt_eutt_equiv; eauto.
-  eapply rutt2eutt in H0.
-  eapply luttNL2rutt_inr_exec_with_id in H as H1.
-  destruct H as [t0 H].
-  eapply eqit_bind'.
-    
-  - instantiate (1 := fun x y => match (x, y) with
-                               | (ESok x', ESok y') => RR x' y'
-                               | _ => False end); simpl. 
-    unfold interp_Err.
-    clear H.
-    eapply rutt_inr2eutt_inr in H1.
-    unfold eqit_inr, eqit_img in H1.
-    unfold hnd_ext in H1.
-    admit.
-   (*  eapply interp_exec_eutt; auto. *)
-  - intros r1 r2 H2.
-    setoid_rewrite <- eqit_Ret.
-    destruct r1 eqn:was_r1; eauto; try (intuition auto).
-    destruct r2 eqn:was_r2; eauto; try (intuition auto).
-    Unshelve.
-    exact (@handle_Err E).
-Admitted. 
-
-Lemma xxx 
-  (V1 : Type)
-  (t1 t2 : itree (ErrEvent +' E) V1)
-  (RR : V1 -> V1 -> Prop)
-  (H0 : eutt RR t1 t2)
-  (H1 :
-    eqit (fun x : V1 => [eta eq (ESok x)]) true true t1
-      (translate inr1 (interp_exec (ext_exec_handler (@handle_Err E)) t1))) :
-  eqit
-    (fun x y : execS V1 =>
-     match x with
-     | ESok x' =>
-         match y with
-         | ESok y' => RR x' y'
-         | @ESerror _ _ => False
-         end
-     | @ESerror _ _ => False
-     end) true true (interp_exec ext_handle_Err t1)
-    (interp_exec ext_handle_Err t2).
-Proof.
-  revert H0 H1.
-  revert t1 t2.
-  ginit.
-  gcofix CIH.
-  intros t1 t2 H0 H1.
-  punfold H0. red in H0.
-  hinduction H0 before CIH.
-  
-Admitted.   
-
-End Test.
 
 

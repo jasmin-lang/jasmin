@@ -3125,7 +3125,7 @@ Proof.
   eapply IHruttF; try reflexivity.
 Qed.
 
-(* inversion lemma? (2b generalized 2b useful):
+(* inversion lemma? (2b generalized 2b useful): 
 Lemma aux1 V1 (RR: V1 -> V1 -> Prop) :
      forall t0 : itree (ErrEvent +' E) V1,
       rutt (REv_eq (fun (T : Type) (e : (ErrEvent +' E) T) => ~~ is_inlB e))
@@ -3134,7 +3134,24 @@ Lemma aux1 V1 (RR: V1 -> V1 -> Prop) :
     exists t1' : itree (ErrEvent +' E) V1,
       rutt (REv_eq (fun (T : Type) (e0 : (ErrEvent +' E) T) => ~~ is_inlB e0))
         (RAns_eq (fun T : Type => fun=> TrueP)) RR (k1 a) t1'.
-*)
+Proof.
+  eapply rutt_inv_Vis_l in H2.
+        destruct H2 as [U3 [e3 [k3 [H2 [H5 H6]]]]].
+        destruct H5 as [_ [hh H5]]; simpl in *.
+        dependent destruction hh; simpl in *.
+        inv H5.
+        destruct H4 as [_ H4].
+        specialize (H4 erefl); simpl in *.
+        inv H4.
+        assert (RAns_eq (fun T : Type => fun=> TrueP)
+                  (@inr1 ErrEvent E _ e) a (inr1 e) a) as K.
+        { split; auto.
+          intros hh.
+          dependent destruction hh; simpl; auto.
+        }  
+        specialize (H6 a a K).
+        exists (k3 a); auto.
+*) 
 
 Lemma lutt2rutt_gen V1 (t1 t2: itree (ErrEvent +' E) V1) RR :
   (*  @safe _ is_inlB V1 t1 -> *)
