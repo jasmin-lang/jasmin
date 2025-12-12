@@ -9,12 +9,28 @@
 , fetchurl
 }:
 
+let markdown = with ocamlPackages;
+  buildDunePackage {
+    pname = "markdown";
+    version = "0.2.1";
+    src = fetchurl {
+      url = "https://github.com/gildor478/ocaml-markdown/releases/download/v0.2.1/markdown-v0.2.1.tbz";
+      hash = "sha256-nFdbdK0UIpqwiYGaNIoaj0UwI7/PHCDrxfxHNDYj3l4=";
+    };
+    propagatedBuildInputs = [
+      batteries
+      tyxml
+    ];
+  };
+in
+
 with {
 
   "dev" = {
     version = "main";
     rev = "????";
     src = builtins.fetchTarball "https://api.github.com/repos/easycrypt/easycrypt/tarball/main";
+    extraBuildInputs = [ markdown ];
   };
 
   "release" = rec {
@@ -26,6 +42,7 @@ with {
       inherit rev;
       hash = "sha256-BLyC8AB075Nyhb5heIKVkxnWWt4Zn8Doo10ShsACJ4g=";
     };
+    extraBuildInputs = [];
   };
 
 }."${ecRef}";
@@ -50,7 +67,7 @@ stdenv.mkDerivation rec {
     why3
     yojson
     zarith
-  ];
+  ] ++ extraBuildInputs;
 
   propagatedBuildInputs = [ why3.out ];
 
