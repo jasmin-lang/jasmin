@@ -228,7 +228,20 @@ Lemma interp_rjoin_equiv {T} (t: itree (D1 +' D2 +' E) T) :
   eutt eq (interp (ext_handler Hnd2) (interp_mrec Hnd1 t))
           (interp_rjoin t).
 Proof.
-  unfold interp_rjoin.
+  unfold interp_rjoin.  
+  set (HndE := (fun T d => translate (@inr1 D2 E) (@Hnd2 T d))).
+
+(* widen  to 
+
+   (interp (ext_handler Hnd2) (interp_rjoin (free2 t)))
+
+   (interp (ext_handler Hnd2) (free2 (interp_rjoin t)))
+
+*)
+  
+(*  setoid_rewrite interp_mrec_as_interp at 2.
+  rewrite interp_translate. *)
+  
   setoid_rewrite free_widening_lemma at 1.
 
   Fail instantiate (1 :=  (fun T d => translate inr1 (Hnd2 d))).
@@ -239,9 +252,6 @@ Admitted.
 
 
 End IEquiv2.
-
-
-
 
 
 
