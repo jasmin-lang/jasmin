@@ -29,7 +29,7 @@ let string_of_combine_flags = function
 let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
   let pp_var_i = pp_gvar_i pp_var in
   let pp_gvar fmt (x: 'len ggvar) =
-    let s = if is_gkvar x || not debug then "" else "/* global: */ " in
+    let s = if is_gkvar x then "" else "/* global: */ " in
     Format.fprintf fmt "%s%a" s pp_var_i x.gv in
 
   let rec pp_expr side prio fmt = function
@@ -82,9 +82,7 @@ let pp_glv ~debug pp_len pp_var fmt =
   let pp_ge = pp_ge ~debug in
   function
   | Lnone (_, ty) -> 
-    if debug then
-      F.fprintf fmt "_ /* %a */" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
-    else F.fprintf fmt "_"
+    F.fprintf fmt "_ /* %a */" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
   | Lvar x  -> pp_gvar_i pp_var fmt x
   | Lmem (al, ws, _, e) ->
     pp_mem_access (pp_ge pp_len pp_var) fmt al (Some ws) e
@@ -152,57 +150,25 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
   F.fprintf fmt "%a" pp_info (i.i_loc, i.i_info);
   F.fprintf fmt "%a" pp_annotations i.i_annot;
   match i.i_desc with
-(*<<<<<<< HEAD
-  | Cassgn(x, tg, ty, Parr_init (ws, n)) ->
+  | Cassgn(x, tg, ty, Parr_init(ws, n)) ->
     F.fprintf fmt "@[<hov 2>ArrayInit(%a); /* length=%s*%a %a%s */@]"
       (pp_glv ~debug pp_len pp_var) x
       (string_of_ws ws) pp_len n
       (pp_gtype pp_len) ty
       (pp_tag tg)
-
-||||||| parent of ef2588949 (Fix syntax and sem up to it_sems_core)
-  | Cassgn(x, tg, ty, Parr_init n) ->
-    F.fprintf fmt "@[<hov 2>ArrayInit(%a); /* length=%a %a%s */@]"
-      (pp_glv ~debug pp_len pp_var) x
-      pp_len n
-      (pp_gtype pp_len) ty
-      (pp_tag tg)
-
-======= *)
-  | Cassgn(x, tg, ty, Parr_init(ws, n)) ->
-     let pp_info fmt = function
-      | true -> 
-        F.fprintf fmt "/* length=%s*%a %a%s */@]"
-          (string_of_ws ws) pp_len n
-          (pp_gtype pp_len) ty
-          (pp_tag tg)
-      | false -> ()
-    in
-    F.fprintf fmt "@[<hov 2>ArrayInit(%a); %a@]"
-        (pp_glv ~debug pp_len pp_var) x
-        pp_info debug
-(*>>>>>>> ef2588949 (Fix syntax and sem up to it_sems_core) *)
   | Cassgn(x , tg, ty, e) ->
-    let pp_info fmt = function
-      | true -> F.fprintf fmt "/* %a%s */"  (pp_gtype pp_len) ty (pp_tag tg)
-      | false -> ()
-    in
-    F.fprintf fmt "@[<hov 2>%a =@ %a; %a @]"
+    F.fprintf fmt "@[<hov 2>%a =@ %a; /* %a%s */@]"
       (pp_glv ~debug pp_len pp_var) x
       (pp_ge ~debug pp_len pp_var) e
-      pp_info debug
+      (pp_gtype pp_len) ty (pp_tag tg)
   | Copn(x, t, o, e) ->
     let pp_cast fmt = function
       | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%du)" (int_of_ws ws)
       | _ -> () in
-    let pp_info fmt = function
-      | true -> F.fprintf fmt "/* %s */" (pp_tag t)
-      | false -> ()
-    in
-    F.fprintf fmt "@[<hov 2>%a =@ %a#%a(%a); %a @]"
+    F.fprintf fmt "@[<hov 2>%a =@ %a#%a(%a); /* %s */@]"
       (pp_glvs ~debug pp_len pp_var) x pp_cast o pp_opn o
       (pp_ges ~debug pp_len pp_var) e
-      pp_info debug
+      (pp_tag t)
   | Csyscall(x, o, e) ->
       F.fprintf fmt "@[<hov 2>%a =@ %s(%a);@]"
         (pp_glvs ~debug pp_len pp_var) x (pp_syscall o) (pp_ges ~debug pp_len pp_var) e
@@ -284,12 +250,6 @@ let pp_return_type pp_size fmt =
   in
   F.fprintf fmt "%a" (pp_list ",@ " pp)
 
-(*<<<<<<< HEAD
-let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
-  let ds = ScopeTree.get_declaration_sites fd in
-||||||| parent of ef2588949 (Fix syntax and sem up to it_sems_core)
-let pp_gfun ~debug pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
-======= *)
 let pp_clause ~debug pp_size pp_var fmt f = Format.fprintf fmt "%a" (pp_ge ~debug pp_size pp_var) f
 
 (* FIXME use pp_list instead *)
