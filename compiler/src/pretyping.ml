@@ -1906,6 +1906,32 @@ let cast_opn ~loc id ws =
   | _ -> invalid ()
 
 (* -------------------------------------------------------------------- *)
+let rec pannot_to_annotations (pannot : Syntax.pannotations) : Annotations.annotations =
+  List.map pannot_to_annotation pannot
+
+and pannot_to_annotation ((id, pattri) : Syntax.pannotation) : Annotations.annotation =
+  (id, Option.map pattri_to_attribute pattri)
+
+and pattri_to_attribute (pattri: Syntax.pattribute) : Annotations.attribute =
+  let loc = L.loc pattri in
+  L.mk_loc loc (pattri_to_simple_attribute (L.unloc pattri))
+
+and pattri_to_simple_attribute (pattri: Syntax.psimple_attribute) : Annotations.simple_attribute =
+  match pattri with
+  | PAint i -> Aint i
+  | PAid id -> Aid id
+  | PAstring s -> Astring s
+  | PAws ws -> Aws ws
+  | PAstruct s -> Astruct (pannot_to_annotations s)
+  | PAexpr e ->
+      match L.unloc e with
+      | PEVar id -> Aid (L.unloc id)
+      | PEInt ir -> Aint (Syntax.parse_int ir)
+      | _ ->
+        rs_tyerror ~loc:(L.loc e)
+          (string_error "complexe expression not allowed in annotation")
+
+(* -------------------------------------------------------------------- *)
 let pexpr_of_plvalue exn l =
   match L.unloc l with
   | S.PLIgnore      -> raise exn
@@ -1922,6 +1948,7 @@ type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {
 }
 
 let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
+  let pimp = Option.map (fun pimp -> L.mk_loc (L.loc pimp) (pannot_to_annotations (L.unloc pimp))) pimp in
   let loc = loc_of_tuples loc (List.map P.L.loc pls) in
 
   let combines =
@@ -2098,16 +2125,19 @@ let assign_from_decl decl =
   (None, [d]), `Raw, e, None
 
 let tt_annot_paramdecls dfl_writable pd env (annot, (ty,vs)) =
-  let aty = annot, ty in
+  let aty = pannot_to_annotations annot, ty in
   let vars = List.map (fun v -> aty, v) vs in
   tt_vardecls_push dfl_writable pd env vars
 
 let tt_annot_vardecls dfl_writable pd env (annot, (ty,vs)) =
-  let aty = annot, ty in
+  let aty = pannot_to_annotations annot, ty in
   let vars = List.map (fun v -> aty, v) vs in
   tt_vardecls_push dfl_writable pd env vars
 
-let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
+
+let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
+
+  let annot = pannot_to_annotations pannot in
   let mk_i ?(annot=annot) instr =
     { P.i_desc = instr; P.i_loc = L.of_loc pi; P.i_info = (); P.i_annot = annot} in
   let default_tag = if Annotations.has_symbol "keep" annot then E.AT_keep else E.AT_none in
@@ -2414,6 +2444,7 @@ let tt_call_conv _loc params returns cc =
 let process_f_annot loc funname f_cc annot =
   let open FInfo in
 
+  let annot = pannot_to_annotations annot in
   let mk_ra = Annot.filter_string_list None ["stack", OnStack; "reg", OnReg] in
 
   let retaddr_kind =
@@ -2536,36 +2567,64 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
     let env = add_known_implicits arch_info env pf.pdf_body.pdb_instr in
     env, List.flatten args in
   let fs_tout = Option.map_default (List.map (tt_type arch_info.pd env |- snd |- snd)) [] pf.pdf_rty in
-  let ret_annot = Option.map_default (List.map fst) [] pf.pdf_rty in
+  let ret_annot =
+    Option.map_default (List.map fst) [] pf.pdf_rty in
+  let ret_annot = List.map pannot_to_annotations ret_annot in
   let body, ret_loc, xret, env = tt_funbody arch_info envb pf.pdf_body in
   let f_args = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) args in
   let fs_tin = List.map (fun x -> snd (L.unloc x)) args in
   let f_ret = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) xret in
   let f_cc = tt_call_conv loc f_args f_ret pf.pdf_cc in
 
-  let aprover annot =
-    match Annot.ensure_uniq1 "prover" (fun (_,r) -> r) annot with
-    | Some (Some aty) ->
-         begin match L.unloc aty with
-         | Astring s 
-         | Aid s-> s
-         | _ -> "Cas"
-         end
-    | _ -> "Cas"
-  in
-  let get_clause env clause  =
-    List.map
-      (fun (annot,c) -> aprover annot, tt_expr_bool arch_info.pd env c)
-      clause
-  in
 
-  let f_pre = pf.pdf_contra.pdc_pre in
-  let f_post = pf.pdf_contra.pdc_post in
+  let annot =
+    List.filter (fun (id, _) -> L.unloc id <> "safety") pf.pdf_annot in
+
+  let safety =
+    List.filter (fun (id, s) -> L.unloc id = "safety") pf.pdf_annot in
 
   let f_contra =
-    match f_pre, f_post with
-    | [] , [] -> None
-    | pre, post ->
+    if safety = [] then None
+    else
+      let requires = ref [] in
+      let ensures = ref [] in
+      let process_fields =
+        List.iter (fun (id, pa) ->
+          if not (L.unloc id = "requires" || L.unloc id = "ensures") then
+            rs_tyerror ~loc:(L.loc id)
+              (string_error "only \"requires\" and \"ensures\" are allowed");
+          match pa with
+          | Some pa ->
+            begin match L.unloc pa with
+            | S.PAexpr e ->
+                if L.unloc id = "requires" then requires := e :: !requires
+                else ensures := e :: !ensures
+            | _ ->
+                rs_tyerror ~loc:(L.loc pa)
+                  (string_error "an expression is expected")
+            end
+          | None ->
+              rs_tyerror ~loc:(L.loc id)
+                (string_error "\"= expression\" is expected after requires and ensures"))
+      in
+      let process_struct (id, pa) =
+        match pa with
+        | Some pa ->
+          begin match L.unloc pa with
+          | S.PAstruct fields -> process_fields fields
+          | _ ->
+            rs_tyerror ~loc:(L.loc pa)
+              (string_error
+                 "{requires = expression; ensures = expression} is expected")
+          end
+        | None ->
+          rs_tyerror ~loc:(L.loc id)
+            (string_error
+               "{requires = expression; ensures = expression} is expected")
+      in
+      List.iter process_struct safety;
+      let pre, post = List.rev !requires, List.rev !ensures in
+
       let aux_env = Env.Vars.clear_locals env0 in
       let env_pre, f_iparams =
         List.map_fold
@@ -2576,7 +2635,8 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
       let f_iparams =
         List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) f_iparams
       in
-
+      let get_clause env l =
+        (List.map (fun e -> ("safety", tt_expr_bool arch_info.pd env e)) l) in
       let f_pre = get_clause env_pre pre in
 
       let mk_ret x =
@@ -2597,7 +2657,7 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
 
   let fdef =
     { P.f_loc   = loc;
-      P.f_annot = process_f_annot loc name f_cc pf.pdf_annot;
+      P.f_annot = process_f_annot loc name f_cc annot;
       P.f_contra = f_contra;
       P.f_cc    = f_cc;
       P.f_info  = ();
