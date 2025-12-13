@@ -35,7 +35,6 @@
 %token DOT
 %token DOWNTO
 %token ELSE
-%token ENSURES
 %token EQ
 %token EQEQ
 %token EXEC
@@ -69,7 +68,6 @@
 %token RARROW
 %token REG
 %token REQUIRE
-%token REQUIRES
 %token RETURN
 %token ROR
 %token ROL
@@ -137,21 +135,35 @@ int:
   | MINUS i=INT { Z.neg (Syntax.parse_int i ) }
 
 simple_attribute:
-  | i=int          { Aint i    }
-  | id=NID         { Aid id    }
-  | s=STRING       { Astring s }
-  | s=keyword      { Astring s }
-  | ws=utype       { Aws (fst ws) }
+  | i=int          { PAint i    }
+  | id=NID         { PAid id    }
+  | s=STRING       { PAstring s }
+  | s=keyword      { PAstring s }
+  | ws=utype       { PAws (fst ws) }
 
 attribute:
   | EQ ap=loc(simple_attribute) { ap }
-  | EQ s=loc(braces(struct_annot)) { Location.mk_loc (Location.loc s) (Astruct (Location.unloc s)) }
+  | EQ s=loc(braces(struct_annot)) { Location.mk_loc (Location.loc s) (PAstruct (Location.unloc s)) }
 
 annotation:
   | k=annotationlabel v=attribute? { k, v }
 
+
+simple_attribute_pexpr:
+  | s=STRING       { PAstring s }
+  | s=keyword      { PAstring s }
+  | ws=utype       { PAws (fst ws) }
+  | e=pexpr        { PAexpr e}
+
+attribute_pexpr:
+  | EQ ap=loc(simple_attribute_pexpr) { ap }
+  | EQ s=loc(braces(struct_annot)) { Location.mk_loc (Location.loc s) (PAstruct (Location.unloc s)) }
+
+annotation_pexpr:
+  | k=annotationlabel v=attribute_pexpr? { k, v }
+
 struct_annot:
-  | a=separated_list(COMMA, annotation) { a }
+  | a=separated_list(COMMA, annotation_pexpr) { a }
 
 top_annotation:
   | SHARP a=loc(annotation)
@@ -498,12 +510,13 @@ call_conv :
 | EXPORT { `Export }
 | INLINE { `Inline }
 
+(*
 requires:
 | REQUIRES a=annotations LBRACE pe=pexpr RBRACE { (a,pe) }
 
 ensures:
 | ENSURES a=annotations LBRACE pe=pexpr RBRACE { (a,pe) }
-
+*)
 pfundef:
 |  pdf_annot = annotations
     cc=call_conv?
@@ -511,12 +524,9 @@ pfundef:
     name = ident
     args = parens_tuple(annot_pparamdecl)
     rty  = prefix(RARROW, tuple(annot_stor_type))?
-    pre = requires*
-    post = ensures*
     body = pfunbody
 
     { { pdf_annot;
-        pdf_contra = {pdc_pre=pre; pdc_post=post};
         pdf_cc   = cc;
         pdf_name = name;
         pdf_args = args;

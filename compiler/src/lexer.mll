@@ -53,9 +53,6 @@
     "si128", T_W (U128, `WInt `Signed);
     "si256", T_W (U256, `WInt `Signed);
 
-    "requires" , REQUIRES;
-    "ensures", ENSURES;
-
     "const" , CONSTANT;
     "downto", DOWNTO ;
     "else"  , ELSE   ;

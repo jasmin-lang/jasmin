@@ -81,7 +81,7 @@ let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
 let pp_glv ~debug pp_len pp_var fmt =
   let pp_ge = pp_ge ~debug in
   function
-  | Lnone (_, ty) -> 
+  | Lnone (_, ty) ->
     F.fprintf fmt "_ /* %a */" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
   | Lvar x  -> pp_gvar_i pp_var fmt x
   | Lmem (al, ws, _, e) ->
@@ -250,17 +250,12 @@ let pp_return_type pp_size fmt =
   in
   F.fprintf fmt "%a" (pp_list ",@ " pp)
 
-let pp_clause ~debug pp_size pp_var fmt f = Format.fprintf fmt "%a" (pp_ge ~debug pp_size pp_var) f
+let pp_clause ~debug pp_size pp_var prepost fmt (_, f) =
+  Format.fprintf fmt "@[<hov 2>%s =@ %a@]" prepost (pp_ge ~debug pp_size pp_var) f
 
-(* FIXME use pp_list instead *)
 let rec pp_clauses ~debug pp_size pp_var prepost fmt cs =
-  match cs with
-  | [] -> Format.fprintf fmt ""
-  | (s,c)::q -> Format.fprintf fmt "@[%s #[prover=%s] {%a}@ %a@]" prepost s
-                   (pp_clause ~debug pp_size pp_var) c
-                   (pp_clauses ~debug pp_size pp_var prepost) q
+  pp_list ",@ " (pp_clause ~debug pp_size pp_var prepost) fmt cs
 
- 
 let rec index_of_post x xs i =
   match xs with
   | [] -> None
@@ -271,12 +266,12 @@ let pp_contra ~debug pp_size pp_var fmt fd =
   | None -> ()
   | Some  ct ->
     let vars_res = List.map L.unloc ct.f_ires in
-    let pp_var_post fmt x = 
+    let pp_var_post fmt x =
        match index_of_post x vars_res 0 with
       | None -> pp_var fmt x
       | Some i -> Format.fprintf fmt "result.%d" i
     in
-    F.fprintf fmt "%a@ %a"
+    F.fprintf fmt "@[<v>#[safety = {@   @[<v>%a@ %a@]}]@ @]"
       (pp_clauses ~debug pp_size pp_var "requires") ct.f_pre
       (pp_clauses ~debug pp_size pp_var_post "ensures") ct.f_post
 
@@ -301,13 +296,13 @@ let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
     F.fprintf fmt "return @[(%a)@];"
       (pp_list ",@ " pp_var) ret in
 
-  F.fprintf fmt "@[<v>%a%afn %s @[(%a)@] -> @[(%a)@]@ %a@ {@   @[<v>%a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>%a%a%afn %s @[(%a)@] -> @[(%a)@]@ {@   @[<v>%a@ %a@]@ }@]"
    pp_annotations fd.f_annot.f_user_annot
+   (pp_contra ~debug pp_size pp_var) fd
    pp_call_conv fd.f_cc
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_return_type pp_size) (List.combine fd.f_ret_info.ret_annot (List.map2 set_var_type ret fd.f_tyout))
-   (pp_contra ~debug pp_size pp_var) fd
    (pp_gc ~debug pp_info pp_size pp_opn pp_var) fd.f_body
    pp_ret ()
 
