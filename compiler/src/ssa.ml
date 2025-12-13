@@ -34,6 +34,7 @@ let rec written_vars_instr_r allvars w =
   function
   | Cfor (_, _, s)
     -> written_vars_stmt allvars w s
+  | Cassert _ -> w
   | Cassgn (x, _, _, _) -> written_vars_lvar allvars w x
   | Copn (xs, _, _, _)
   | Csyscall(xs,_,_)
@@ -73,6 +74,9 @@ let split_live_ranges (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) fun
       let m, ys = rename_lvals allvars m xs in
       m, Ccall (ys, n, es)
     | Cfor _ -> assert false
+    | Cassert (p, a) ->
+      let a = rename_expr m a in
+      m, Cassert (p, a)
     | Cif (e, s1, s2) ->
       let os = written_vars_stmt allvars (written_vars_stmt allvars Sv.empty s1) s2 in
       let e = rename_expr m e in
@@ -130,7 +134,7 @@ let remove_phi_nodes (f: ('info, 'asm) func) : ('info, 'asm) func =
        | _ -> Some i)
     | Cif (b, s1, s2) -> Some (Cif (b, stmt s1, stmt s2))
     | Cwhile (a, s1, b, loc, s2) -> Some (Cwhile (a, stmt s1, b, loc, stmt s2))
-    | (Copn _ | Csyscall _ | Cfor _ | Ccall _) as i -> Some i
+    | (Copn _ | Csyscall _ | Cfor _ | Ccall _ | Cassert _) as i -> Some i
   and instr i =
     try Option.map (fun i_desc -> { i with i_desc }) (instr_r i.i_desc)
     with HiError e -> raise (HiError (add_iloc e i.i_loc))

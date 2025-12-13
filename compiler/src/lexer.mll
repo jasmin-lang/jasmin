@@ -63,6 +63,7 @@
     "from"  , FROM   ;
     "global", GLOBAL ;
     "if"    , IF     ;
+    "assert", ASSERT ;
     "inline", INLINE ;
     "mut"   , MUTABLE;
     "namespace", NAMESPACE;
@@ -81,6 +82,16 @@
   ]
 
   let keywords = Hash.of_enum (List.enum _keywords)
+
+  let _big = [
+    "all"   , ALL    ;
+    "big"   , BIG    ;
+    "exists", EXISTS ;
+    "in"    , IN     ;
+    "sum"   , SUM    ;
+  ]
+
+  let big = Hash.of_enum (List.enum _big)
 
   let sign_of_char =
   function
@@ -176,6 +187,9 @@ rule main = parse
 
   | ident as s
       { Option.default (NID s) (Hash.find_option keywords s) }
+
+  | "\\" (ident as s) 
+    { Option.get_exn (Hash.find_option big s) (S.ParseError (L.of_lexbuf lexbuf, Some "invalid big ops")) }  
 
   | (size as sw) (wsign as s)
       { SWSIZE(size_of_string sw, mkwsign s)  }

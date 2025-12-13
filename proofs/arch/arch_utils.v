@@ -273,15 +273,15 @@ Context
   {reg regx xreg rflag cond : Type}
   {ad : arch_decl reg regx xreg rflag cond}.
 
-Notation idt_dropn semi_dropn semi_errtyp semi_safe :=
+Notation idt_dropn n semi_dropn semi_errtyp semi_safe :=
   (fun idt =>
      {|
        id_valid := id_valid idt;
        id_msb_flag := id_msb_flag idt;
        id_tin := id_tin idt;
        id_in := id_in idt;
-       id_tout := beheadn _ (id_tout idt);
-       id_out := beheadn _ (id_out idt);
+       id_tout := beheadn n (id_tout idt);
+       id_out := beheadn n (id_out idt);
        id_semi := semi_dropn (id_semi idt);
        id_nargs := id_nargs idt;
        id_args_kinds := id_args_kinds idt;
@@ -289,6 +289,7 @@ Notation idt_dropn semi_dropn semi_errtyp semi_safe :=
        id_check_dest := all2_beheadn (id_check_dest idt);
        id_str_jas := id_str_jas idt;
        id_safe := id_safe idt;
+       id_init := beheadn n (id_init idt);
        id_pp_asm := id_pp_asm idt;
        id_safe_wf := id_safe_wf idt;
        id_semi_errty := fun (h : id_valid idt) =>
@@ -297,10 +298,10 @@ Notation idt_dropn semi_dropn semi_errtyp semi_safe :=
           semi_safe (id_tin idt) (id_tout idt) (id_safe idt) (id_semi idt) (id_semi_safe (i:=idt) h);
      |}).
 
-Definition idt_drop1 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop1 semi_drop1_errty semi_drop1_sem_safe.
-Definition idt_drop2 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop2 semi_drop2_errty semi_drop2_sem_safe.
-Definition idt_drop3 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop3 semi_drop3_errty semi_drop3_sem_safe.
-Definition idt_drop4 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop4 semi_drop4_errty semi_drop4_sem_safe.
+Definition idt_drop1 : instr_desc_t -> instr_desc_t := idt_dropn 1 semi_drop1 semi_drop1_errty semi_drop1_sem_safe.
+Definition idt_drop2 : instr_desc_t -> instr_desc_t := idt_dropn 2 semi_drop2 semi_drop2_errty semi_drop2_sem_safe.
+Definition idt_drop3 : instr_desc_t -> instr_desc_t := idt_dropn 3 semi_drop3 semi_drop3_errty semi_drop3_sem_safe.
+Definition idt_drop4 : instr_desc_t -> instr_desc_t := idt_dropn 4 semi_drop4 semi_drop4_errty semi_drop4_sem_safe.
 
 Definition rtuple_drop5th
   {t0 t1 t2 t3 t4 : ctype}

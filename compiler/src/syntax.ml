@@ -180,10 +180,35 @@ type pexpr_r =
   | PEOp1    of peop1 * pexpr
   | PEOp2    of peop2 * (pexpr * pexpr)
   | PEIf of pexpr * pexpr * pexpr
+  | PEbig    of pbig * pident *pexpr * pexpr * pexpr
+  | PEResult of int_representation
+  | PEResultGet of [`Aligned|`Unaligned] option * arr_access * swsize L.located option * int_representation * pexpr * pexpr option
+
 
 and pexpr = pexpr_r L.located
 
 and mem_access = [ `Aligned | `Unaligned ] option * swsize L.located option * pexpr
+
+and pbig =
+  | PEAll
+  | PEExists
+  | PESum
+  | PEBop of peop2 * pexpr
+
+(* -------------------------------------------------------------------- *)
+type psimple_attribute =
+  | PAint    of Z.t
+  | PAid     of symbol
+  | PAstring of string
+  | PAws     of wsize
+  | PAstruct of pannotations
+  | PAexpr   of pexpr
+
+and pattribute = psimple_attribute Location.located
+
+and pannotation = pident * pattribute option
+
+and pannotations = pannotation list
 
 (* -------------------------------------------------------------------- *)
 and psizetype = TypeWsize of swsize | TypeSizeAlias of pident
@@ -197,7 +222,7 @@ type pstorage = [ `Reg of ptr | `Stack of ptr | `Inline | `Global]
 
 (* -------------------------------------------------------------------- *)
 type pstotype = pstorage * ptype
-type annot_pstotype = annotations * pstotype
+type annot_pstotype = pannotations * pstotype
 (* -------------------------------------------------------------------- *)
 type plvalue_r =
   | PLIgnore
@@ -227,16 +252,23 @@ type peqop = [
 (* -------------------------------------------------------------------- *)
 type align = [`Align | `NoAlign]
 
-type plvals = annotations L.located option * plvalue list
+type plvals = pannotations L.located option * plvalue list
 
 
 type vardecls = pstotype * pident list
+
+type assert_kind =
+  [ `Assert | `Assume | `Cut ]
+
+type assert_prover = pident
 
 type pinstr_r =
   | PIArrayInit of pident
       (** ArrayInit(x); *)
   | PIAssign    of plvals * peqop * pexpr * pexpr option
-      (** x, y += z >> 4 if c; *)
+  (** x, y += z >> 4 if c; *)
+  | PIAssert    of pexpr
+  (** assert (x > 0); *)
   | PIIf        of pexpr * pblock * pblock option
       (** if e { … } else { … } *)
   | PIFor       of pident * (fordir * pexpr * pexpr) * pblock
@@ -251,7 +283,7 @@ type pinstr_r =
 and pblock_r = pinstr list
 and fordir   = [ `Down | `Up ]
 
-and pinstr = annotations * pinstr_r L.located
+and pinstr = pannotations * pinstr_r L.located
 and pblock = pblock_r L.located
 
 let string_of_sizetype =
@@ -296,11 +328,11 @@ type pcall_conv = [
 type paramdecls = pstotype * pident list
 
 type pfundef = {
-  pdf_annot : annotations;
+  pdf_annot : pannotations;
   pdf_cc   : pcall_conv option;
   pdf_name : pident;
-  pdf_args : (annotations * paramdecls) list;
-  pdf_rty  : (annotations * pstotype) list option;
+  pdf_args : (pannotations * paramdecls) list;
+  pdf_rty  : (pannotations * pstotype) list option;
   pdf_body : pfunbody;
 }
 

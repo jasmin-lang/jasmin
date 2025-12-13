@@ -1,5 +1,6 @@
 open Jasmin
 open Utils
+open Operators
 open Prog
 open Apron
 open Wsize
@@ -108,7 +109,7 @@ type safe_cond =
   | AlignedPtr  of wsize * expr (* aligned pointer *)
   | AlignedExpr of wsize * expr (* aligned expression *)
 
-  | NotEqual of E.op_kind * expr * expr
+  | NotEqual of op_kind * expr * expr
   | Termination of bool (* the boolean signals whether this is a severe violation *)
 
 let notZero(ws, e) = NotEqual(Op_w ws, e, pcast ws (Pconst (Z.of_int 0)))
@@ -128,8 +129,8 @@ let pp_expr = Printer.pp_expr ~debug:false
 let pp_ws fmt ws = Format.fprintf fmt "%i" (int_of_ws ws)
 let pp_ows fmt ws =
   match ws with
-  | E.Op_int -> ()
-  | E.Op_w ws -> pp_ws fmt ws
+  | Op_int -> ()
+  | Op_w ws -> pp_ws fmt ws
 
 let pp_arr_slice fmt slice =
   let open PrintCommon in
@@ -218,7 +219,6 @@ let v_compare (loc,c) (loc',c') =
   lex [(fun () -> vloc_compare loc loc');
        (fun () ->  Stdlib.compare c c')]
 
-
 type warnings = (Format.formatter -> unit) list
 
 type analyse_res =
@@ -262,7 +262,7 @@ let arr_aligned access ws e = match access with
   | Warray_.AAscale  -> []
   | Warray_.AAdirect ->
      begin match e with
-     | Papp1 (E.Oint_of_word(_, ws'), e) when ws' = Arch.pointer_data -> [AlignedExpr (ws, e)]
+     | Papp1 (Oint_of_word(_, ws'), e) when ws' = Arch.pointer_data -> [AlignedExpr (ws, e)]
      | _ -> [AlignedExpr (ws, Papp1 (Oword_of_int Arch.pointer_data, e))]
      end
 
@@ -275,18 +275,18 @@ let in_wint_range sg sz e =
     InRange(Pconst (Z.neg (half_modulus sz)), Pconst (Z.pred (half_modulus sz)), e)
 
 let wint_to_int sg sz e =
-  Papp1(E.Oint_of_word(sg, sz), e)
+  Papp1(Oint_of_word(sg, sz), e)
 
 let safe_op1 o e1 =
   match o with
-  | E.Owi1(sg, o) ->
+  | Owi1(sg, o) ->
     begin match o with
-    | E.WIwint_of_int sz -> [in_wint_range sg sz e1]
-    | E.WIint_of_wint sz -> []
-    | E.WIword_of_wint _ -> []
-    | E.WIwint_of_word _ -> []
-    | E.WIwint_ext(szo, szi) -> [] (* Check this ! *)
-    | E.WIneg sz ->
+    | WIwint_of_int sz -> [in_wint_range sg sz e1]
+    | WIint_of_wint sz -> []
+    | WIword_of_wint _ -> []
+    | WIwint_of_word _ -> []
+    | WIwint_ext(szo, szi) -> [] (* Check this ! *)
+    | WIneg sz ->
       if sg = Signed then [NotEqual(Op_int, wint_to_int sg sz e1, Pconst (Z.neg (half_modulus sz)))]
       else [InRange(Pconst Z.zero, Pconst Z.zero, wint_to_int sg sz e1)]
     end
@@ -297,28 +297,28 @@ let to_int_op2 sg sz op e1 e2 =
 
 let safe_op2 o e1 e2 =
   match o with
-  | E.Obeq | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _
-  | E.Oland _ | E.Olor _ | E.Olxor _
-  | E.Olsr _ | E.Olsl _ | E.Oasr _
-  | E.Oror _ | E.Orol _
-  | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ -> []
+  | Obeq | Oand | Oor | Oadd _ | Omul _ | Osub _
+  | Oland _ | Olor _ | Olxor _
+  | Olsr _ | Olsl _ | Oasr _
+  | Oror _ | Orol _
+  | Oeq _ | Oneq _ | Olt _ | Ole _ | Ogt _ | Oge _ -> []
 
-  | E.Odiv (_, E.Op_int) -> []
-  | E.Omod (_, E.Op_int)  -> []
-  | E.Odiv (_, E.Op_w s) -> [notZero (s, e2) (* FIXME this is not sufficiant case Signed *) ]
-  | E.Omod (_, E.Op_w s) -> [notZero (s, e2) (* FIXME this is not sufficiant case Signed *) ]
+  | Odiv (_, Op_int) -> []
+  | Omod (_, Op_int)  -> []
+  | Odiv (_, Op_w s) -> [notZero (s, e2) (* FIXME this is not sufficiant case Signed *) ]
+  | Omod (_, Op_w s) -> [notZero (s, e2) (* FIXME this is not sufficiant case Signed *) ]
 
-  | E.Ovadd _ | E.Ovsub _ | E.Ovmul _
-  | E.Ovlsr _ | E.Ovlsl _ | E.Ovasr _ -> []
-  | E.Owi2(sg, sz, o) ->
+  | Ovadd _ | Ovsub _ | Ovmul _
+  | Ovlsr _ | Ovlsl _ | Ovasr _ -> []
+  | Owi2(sg, sz, o) ->
     match o with
-    | WIadd -> [in_wint_range sg sz (to_int_op2 sg sz (E.Oadd Op_int) e1 e2)]
-    | WImul -> [in_wint_range sg sz (to_int_op2 sg sz (E.Omul Op_int) e1 e2)]
-    | WIsub -> [in_wint_range sg sz (to_int_op2 sg sz (E.Osub Op_int) e1 e2)]
+    | WIadd -> [in_wint_range sg sz (to_int_op2 sg sz (Oadd Op_int) e1 e2)]
+    | WImul -> [in_wint_range sg sz (to_int_op2 sg sz (Omul Op_int) e1 e2)]
+    | WIsub -> [in_wint_range sg sz (to_int_op2 sg sz (Osub Op_int) e1 e2)]
     | WIdiv -> [notZero (sz, e2) (* FIXME this is not sufficiant case Signed *) ]
     | WImod -> [notZero (sz, e2) (* FIXME this is not sufficiant case Signed *) ]
     | WIshl ->
-        let e = Papp2 (E.Olsl (Op_w sz), e1, e2) in
+        let e = Papp2 (Olsl (Op_w sz), e1, e2) in
         [in_wint_range sg sz (wint_to_int sg sz e)]
     | WIshr -> [] (* shift rigth is allways in the range *)
     | WIeq | WIneq | WIlt | WIle | WIgt | WIge -> []
@@ -368,6 +368,8 @@ let rec safe_e_rec safe = function
     (* We do not check "is_defined e1 && is_defined e2" since
         (safe_e_rec (safe_e_rec safe e1) e2) implies it *)
     safe_e_rec (safe_e_rec (safe_e_rec safe e1) e2) e3
+  (* FIXME *)
+  | Pbig _ | Pis_var_init _ | Pis_mem_init _ -> assert false
 
 let safe_e = safe_e_rec []
 
@@ -408,14 +410,14 @@ let safe_opn pd asmOp safe opn es =
          [ notZero(sz, List.nth es 2)
          ; match sg with
            | Unsigned ->
-             InRange(Pconst Z.zero, Papp2 (E.Osub E.Op_int, Papp2 (E.Omul E.Op_int, Pconst (modulus sz), d), Pconst Z.one), n)
+             InRange(Pconst Z.zero, Papp2 (Osub Op_int, Papp2 (Omul Op_int, Pconst (modulus sz), d), Pconst Z.one), n)
           | Signed ->
-             InRange (Pconst (Z.neg (half_modulus sz)), Pconst (Z.pred (half_modulus sz)), Papp2 (E.Odiv(Unsigned, E.Op_int), n, d))
+             InRange (Pconst (Z.neg (half_modulus sz)), Pconst (Z.pred (half_modulus sz)), Papp2 (Odiv(Unsigned, Op_int), n, d))
         ]
       | Wsize.InRangeMod32(sz, lo, hi, n) ->
          let n = List.nth es (Conv.int_of_nat n) in
-         let n = Papp1 (E.uint_of_word sz, n) in
-         let n = Papp2 (E.Omod (Unsigned, Op_int), n, Pconst (Z.of_int 32)) in
+         let n = Papp1 (Expr.uint_of_word sz, n) in
+         let n = Papp2 (Omod (Unsigned, Op_int), n, Pconst (Z.of_int 32)) in
          [ InRange(Pconst (Conv.z_of_cz lo), Pconst (Conv.z_of_cz hi), n) ]
       | Wsize.AllInit(ws, p, i) ->
         let e = List.nth es (Conv.int_of_nat i) in
@@ -427,21 +429,21 @@ let safe_opn pd asmOp safe opn es =
 
       | ULt (sz, n, z) ->
         let n = List.nth es (Conv.int_of_nat n) in
-        let n = Papp1 (E.uint_of_word sz, n) in
+        let n = Papp1 (Expr.uint_of_word sz, n) in
         [ InRange(Pconst Z.zero, Pconst (Z.pred (Conv.z_of_cz z)), n)] (* n ∈ [0; z-1] *)
 
       | UGe (sz, z, n) ->
         let n = List.nth es (Conv.int_of_nat n) in
-        let n = Papp1 (E.uint_of_word sz, n) in
+        let n = Papp1 (Expr.uint_of_word sz, n) in
         let z = Pconst (Conv.z_of_cz z) in
         [ InRange(Pconst Z.zero, n, z) ] (* z ∈ [0; n] *)
 
       | UaddLe(sz, n1, n2, z) ->
         let n1 = List.nth es (Conv.int_of_nat n1) in
-        let n1 = Papp1 (E.uint_of_word sz, n1) in
+        let n1 = Papp1 (Expr.uint_of_word sz, n1) in
         let n2 = List.nth es (Conv.int_of_nat n2) in
-        let n2 = Papp1 (E.uint_of_word sz, n2) in
-        let n12 = Papp2 (E.Oadd Op_int, n1, n2) in
+        let n2 = Papp1 (Expr.uint_of_word sz, n2) in
+        let n12 = Papp2 (Oadd Op_int, n1, n2) in
         let z = Pconst (Conv.z_of_cz z) in
         [ InRange(Pconst Z.zero, z, n12) ] (* n1 + n2 ∈ [0; z] *)
 
@@ -452,7 +454,8 @@ let safe_opn pd asmOp safe opn es =
 
 let safe_instr pd asmOp ginstr = match ginstr.i_desc with
   | Cassgn (lv, _, _, e) -> safe_e_rec (safe_lval lv) e
-  | Copn (lvs,_,opn,es) -> safe_opn pd asmOp (safe_lvals lvs @ safe_es es) opn es
+  | Copn (lvs,_,opn, es) -> safe_opn pd asmOp (safe_lvals lvs @ safe_es es) opn es
+  | Cassert _ -> assert false
   | Cif(e, _, _) -> safe_e e
   | Cwhile(_, _, _, _, _) -> []       (* We check the while condition later. *)
   | Ccall(lvs, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
@@ -706,12 +709,12 @@ end = struct
            is no larger than n if the slice is Direct *)
       let lower_bound = match slice.as_access with
         | Warray_.AAscale ->
-          Papp2 (E.Omul E.Op_int,
+          Papp2 (Omul Op_int,
                  slice.as_offset,
                  Pconst (Z.of_int (size_of_ws slice.as_wsize)))
         | Warray_.AAdirect -> slice.as_offset in
 
-      let upper_bound = Papp2 (E.Oadd E.Op_int,
+      let upper_bound = Papp2 (Oadd Op_int,
                        lower_bound,
                        Pconst (Z.of_int (size_of_ws slice.as_wsize *
                                          slice.as_len))) in
@@ -730,9 +733,9 @@ end = struct
       else
         (* We construct the negation of what we want to prove and check that it
            implies false: (0 > lower_bound || upper_bound > n) => false *)
-        let lower_be = Papp2 (E.Ogt E.Cmp_int, Pconst (Z.of_int 0), lower_bound) in
-        let upper_be = Papp2 (E.Ogt E.Cmp_int, upper_bound, Pconst (Z.of_int n)) in
-        let be = Papp2 (E.Oor, lower_be, upper_be) in
+        let lower_be = Papp2 (Ogt Cmp_int, Pconst (Z.of_int 0), lower_bound) in
+        let upper_be = Papp2 (Ogt Cmp_int, upper_bound, Pconst (Z.of_int n)) in
+        let be = Papp2 (Oor, lower_be, upper_be) in
 
         begin match AbsExpr.bexpr_to_btcons be state.abs with
           | None -> false
@@ -742,16 +745,16 @@ end = struct
     | InRange(lo, hi, e) ->
        begin
          let out_of_range =
-           Papp2(E.Oor,
-                 Papp2 (E.Olt E.Cmp_int, e, lo),
-                 Papp2 (E.Olt E.Cmp_int, hi, e)) in
+           Papp2(Oor,
+                 Papp2 (Olt Cmp_int, e, lo),
+                 Papp2 (Olt Cmp_int, hi, e)) in
          let s = state.abs in
          match AbsExpr.bexpr_to_btcons out_of_range s with
          | None -> false
          | Some c -> AbsDom.is_bottom (AbsDom.meet_btcons s c) end
 
     | NotEqual(k, e1, e2) ->
-      let be = Papp2 (E.Oeq k, e1, e2) in
+      let be = Papp2 (Oeq k, e1, e2) in
       begin match AbsExpr.bexpr_to_btcons be state.abs with
         | None -> false
         | Some c ->
@@ -1039,29 +1042,30 @@ end = struct
 
 
   (* -------------------------------------------------------------------- *)
+
   let opn_dflt n = List.init n (fun _ -> None)
 
   (* -------------------------------------------------------------------- *)
   (* FIXME: redo using the generic flags definition above *)
   let mk_addcarry ws es =
     let el,er,eb = as_seq3 es in
-    let w_no_carry = Papp2 (E.Oadd (E.Op_w ws), el, er) in
-    let w_carry = Papp2 (E.Oadd (E.Op_w ws),
+    let w_no_carry = Papp2 (Oadd (Op_w ws), el, er) in
+    let w_carry = Papp2 (Oadd (Op_w ws),
                          w_no_carry,
                          pcast ws (Pconst (Z.of_int 1))) in
 
-    let eli = Papp1 (E.uint_of_word ws, el)    (* (int)el *)
-    and eri = Papp1 (E.uint_of_word ws, er) in (* (int)er *)
+    let eli = Papp1 (Expr.uint_of_word ws, el)    (* (int)el *)
+    and eri = Papp1 (Expr.uint_of_word ws, er) in (* (int)er *)
     let w_i =
-      Papp2 (E.Oadd E.Op_int, eli, eri) in (* (int)el + (int)er *)
+      Papp2 (Oadd Op_int, eli, eri) in (* (int)el + (int)er *)
     let pow_ws = Pconst (Z.pow (Z.of_int 2) (int_of_ws ws)) in (* 2^ws *)
 
     (* cf_no_carry is true <=> 2^ws <= el + er      (addition without modulo) *)
-    let cf_no_carry = Papp2 (E.Ole E.Cmp_int, pow_ws, w_i ) in
+    let cf_no_carry = Papp2 (Ole Cmp_int, pow_ws, w_i ) in
     (* cf_carry    is true <=> 2^ws <= el + er + 1  (addition without modulo) *)
-    let cf_carry = Papp2 (E.Ole E.Cmp_int,
+    let cf_carry = Papp2 (Ole Cmp_int,
                           pow_ws,
-                          Papp2 (E.Oadd E.Op_int,
+                          Papp2 (Oadd Op_int,
                                  w_i,
                                  Pconst (Z.of_int 1))) in
 
@@ -1083,20 +1087,20 @@ end = struct
   (* FIXME: idem *)
   let mk_subcarry ws es =
     let el,er,eb = as_seq3 es in
-    let w_no_carry = Papp2 (E.Osub (E.Op_w ws), el, er) in
-    let w_carry = Papp2 (E.Osub (E.Op_w ws),
+    let w_no_carry = Papp2 (Osub (Op_w ws), el, er) in
+    let w_carry = Papp2 (Osub (Op_w ws),
                          w_no_carry,
                          pcast ws (Pconst (Z.of_int 1))) in
 
-    let eli = Papp1 (E.uint_of_word ws, el)    (* (int)el *)
-    and eri = Papp1 (E.uint_of_word ws, er) in (* (int)er *)
+    let eli = Papp1 (Expr.uint_of_word ws, el)    (* (int)el *)
+    and eri = Papp1 (Expr.uint_of_word ws, er) in (* (int)er *)
 
     (* cf_no_carry is true <=> el < er *)
-    let cf_no_carry = Papp2 (E.Olt E.Cmp_int, eli, eri ) in
+    let cf_no_carry = Papp2 (Olt Cmp_int, eli, eri ) in
     (* cf_carry    is true <=> el < er + 1  (sub without modulo) *)
-    let cf_carry = Papp2 (E.Ole E.Cmp_int,
+    let cf_carry = Papp2 (Ole Cmp_int,
                           eli,
-                          Papp2 (E.Oadd E.Op_int, eri, Pconst (Z.of_int 1))) in
+                          Papp2 (Oadd Op_int, eri, Pconst (Z.of_int 1))) in
 
     match eb with
     | Pbool false ->         (* No carry *)
@@ -1250,6 +1254,7 @@ end = struct
       | Cassgn (lv, _, _, e)    -> nm_lv vs_for lv && nm_e vs_for e
       | Copn (lvs, _, _, es)    -> nm_lvs vs_for lvs && nm_es vs_for es
       | Csyscall(lvs, _ ,es)    -> nm_lvs vs_for lvs && nm_es vs_for es
+      | Cassert _               -> assert false
       | Cif (e, st, st')        ->
         nm_e vs_for e && nm_stmt vs_for st && nm_stmt vs_for st'
       | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
@@ -1272,6 +1277,8 @@ end = struct
       | Papp2 (_, e1, e2)  -> nm_es vs_for [e1; e2]
       | PappN (_,es)       -> nm_es vs_for es
       | Pif (_, e, el, er) -> nm_es vs_for [e; el; er]
+      (* FIXME *)
+      | Pbig _ | Pis_var_init _ | Pis_mem_init _ -> assert false
 
     and nm_es vs_for es = List.for_all (nm_e vs_for) es
 
@@ -1291,7 +1298,7 @@ end = struct
           | Expr.Slocal -> List.mem v.gv vs_for
         end
 
-      | Papp1 (E.Oneg Op_int, e) -> know_offset vs_for e
+      | Papp1 (Oneg Op_int, e) -> know_offset vs_for e
 
       | Papp2 ((Osub Op_int | Omul Op_int | Oadd Op_int), e1, e2) ->
         know_offset vs_for e1 && know_offset vs_for e2
@@ -1431,6 +1438,8 @@ end = struct
         let cr = { ginstr with i_desc = Cassgn (lv, tag, ty2, er) } in
         aeval_if ginstr c [cl] [cr] state
 
+
+      | Cassert _ -> assert false
 
       | Cassgn (lv, _, _, Parr_init _) ->
         let abs = AbsExpr.abs_forget_array_contents state.abs ginstr.i_info lv in
