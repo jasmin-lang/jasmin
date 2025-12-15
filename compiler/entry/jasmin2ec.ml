@@ -2,31 +2,46 @@ open Jasmin
 open Cmdliner
 open CommonCLI
 open Utils
-
-let extract_to_file prog arch pd msfsz asmOp model amodel fnames array_dir
-    outfile =
-  let array_dir =
-    if array_dir = None then Option.map Filename.dirname outfile else array_dir
-  in
-  let fmt, close =
+let format_to_file outfile default_name action =
+  let fmt, close, original_name =
     match outfile with
-    | None -> (Format.std_formatter, fun () -> ())
+    | None ->
+        Format.std_formatter, (fun () -> ()), ""
     | Some f ->
+        let basename = Filename.basename f in
+        let basename' =
+          try Filename.chop_extension basename with Invalid_argument _ -> basename in
+        let filename = default_name ^ basename in
+        let f = Filename.concat (Filename.dirname f) filename in
         let out = open_out f in
         let fmt = Format.formatter_of_out_channel out in
-        (fmt, fun () -> close_out out)
+        fmt, (fun () -> close_out out), String.capitalize basename'
   in
-  try
+  try 
     BatPervasives.finally
       (fun () -> close ())
-      (fun () ->
-        ToEC.extract prog arch pd msfsz asmOp model amodel fnames array_dir fmt)
+      (fun () -> action original_name fmt)
       ()
   with e ->
     BatPervasives.ignore_exceptions
       (fun () -> Option.map Unix.unlink outfile)
       ();
     raise e
+
+let extract_to_file prog arch pd msfsz asmOp model amodel fnames array_dir outfile =
+  let array_dir =
+    if array_dir = None then Option.map Filename.dirname outfile else array_dir
+  in 
+  (if model = SafetyAnnotations then
+    format_to_file outfile "proof_" (fun original_name fmt ->
+      ToEC.generate_safety_lemmas original_name prog arch pd msfsz asmOp model amodel fnames array_dir fmt
+    )
+  );
+  format_to_file outfile "" (fun _ fmt ->
+    ToEC.extract prog arch pd msfsz asmOp model amodel fnames array_dir fmt
+  )
+
+
 
 let parse_and_extract arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in

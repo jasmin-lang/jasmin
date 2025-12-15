@@ -40,10 +40,10 @@ abstract theory ByteArray.
   hint simplify is_init_cellP.
 
 
-  op init_arr (b : W8.t) (l:int) : t =
+  op init_arr (b : W8.t) : t =
     init (fun _ => b).
 
- lemma init_arrP (t:t) (k l:int) : 0<=k /\ k<ByteArray.size => is_init_cell (init_arr (W8.of_int 255) l)  k.
+ lemma init_arrP (t:t) (k:int) : 0<=k /\ k<ByteArray.size => is_init_cell (init_arr (W8.of_int 255))  k.
   proof.
     rewrite /init_arr /is_init_cell  /= initE. have: (W8.of_int 255 <> W8.zero).
     by rewrite to_uint_eq /=. smt().

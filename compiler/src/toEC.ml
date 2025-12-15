@@ -391,6 +391,7 @@ type ec_item =
     | Icomment of string
     | Axiom of  ec_proposition
     | Lemma of ec_proposition * ec_proof
+    | FunSpec of string * string list * ec_expr
 
 type ec_prog = ec_item list
 
@@ -866,6 +867,12 @@ let pp_ec_propostion fmt (n, b, e) =
     n
     (pp_list " " pp_string) b
     pp_ec_ast_expr e
+  
+let pp_ec_funspec fmt (n, b, e) =
+  Format.fprintf fmt "@[%s @[%a@] =@ @[%a@]@]"
+    n
+    (pp_list " " pp_string) b
+    pp_ec_ast_expr e
 
 let rec pp_ec_tatic_args fmt args =
   match args with
@@ -925,7 +932,8 @@ let pp_ec_item fmt it =
     Format.fprintf fmt "@[lemma @[%a@].@]@ @[proof.@]@ @[<v>%a@]"
       pp_ec_propostion p
       (pp_list "@ "pp_ec_tactic) t
-
+  | FunSpec (n, b, e) ->
+    Format.fprintf fmt "@[op @[%a@].@]" pp_ec_funspec (n, b, e)
 let pp_ec_prog fmt prog = Format.fprintf fmt "@[<v>%a@]" (pp_list "@ @ " pp_ec_item) prog
 
 (* ------------------------------------------------------------------- *)
@@ -1926,12 +1934,12 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
   let ec_fun_leak_init env = start_leakacc env
 
   let ec_leak_ret env ret =
-     ret @ [env |> leakacc |> leaklistv]
+    (env |> leakacc |> leaklistv) :: ret
 
   let leak_ret_ty = "JLeakage.leakage"
   let leak_ret_prefix = "leak_c"
 
-  let ec_leak_rty env rtys =  rtys @ [leak_ret_ty]
+  let ec_leak_rty env rtys = leak_ret_ty :: rtys
 
   let ec_leak_call_lvs env = [LvIdent [Env.create_aux env leak_ret_prefix leak_ret_ty]]
 
@@ -1956,6 +1964,7 @@ module type EcSafety = sig
   val ec_safety_call_acc: Env.t -> int glval list -> funname -> exprs -> ec_instr list
 
   val final: Env.t -> ((int, 'a, 'b) gfunc) list  -> int -> ec_item list
+  val generate_proofs: Env.t -> ((int, 'a, 'b) gfunc) list  -> string -> ec_item list
 end
 
 module EcSafetyNormal(EE: EcExpression) (EA: EcArray) : EcSafety = struct
@@ -1975,6 +1984,8 @@ module EcSafetyNormal(EE: EcExpression) (EA: EcArray) : EcSafety = struct
   let ec_safety_call_lvs env _ = []
 
   let final env funcs _ = []
+
+  let generate_proofs env funcs _ = []
 end
 
 module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
@@ -2138,8 +2149,13 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
         let otys, itys = Env.get_funtype env fn in
         let args = List.map (EE.toec_cast env) (List.combine itys es) in
         let params = List.map (fun e -> DProp e) args in
-        let lemma_name = Prop (Format.asprintf "%s_trace" (Env.get_funname env fn)) in
-        let p = p @ [{tname = "ecall"; targs = [Param (lemma_name::params)]};auto_tactic] in
+        (* let lemma_name = Prop (Format.asprintf "%s_proof" (Env.get_funname env fn)) in *)
+        let lemma_name = Format.asprintf "%s_proof" (Env.get_funname env fn) in
+        let lemma_name_aux = Format.asprintf "%s_proof_aux" (Env.get_funname env fn) in
+        let lemma_spec = Format.asprintf "%s_spec" (Env.get_funname env fn) in
+        let tactic_call = "have "^lemma_name_aux^" := "^lemma_name^"; rewrite /"^lemma_spec^" in "^lemma_name_aux^"; ecall" in
+        let p = p @ [{ tname = tactic_call; targs = [Param (Prop(lemma_name_aux)::params)]};auto_tactic ] in
+        (* let p = p @ [{tname = "ecall"; targs = [Param (lemma_name::params)]};auto_tactic] in *)
         pp_valid_trace_instrs env f p t
       | Cif (e, c1, c2) ->
         let c1 = pp_valid_trace_instrs env f [] (List.rev c1) in
@@ -2241,7 +2257,7 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
          Env.set_var_prefix_u env res s)
       env ires
 
-  let pp_valid_trace env extra_ret f =
+  let pp_specs env extra_ret f =
     let fname = Env.get_funname env f.f_name in
 
     let iparams = get_iparams f.f_contra in
@@ -2264,22 +2280,41 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
 
     let post' = fand post valid_trace in
 
-    let name = Format.asprintf "%s_trace" fname in
+    let name = Format.asprintf "%s_spec" fname in
     let module_name =
       if List.is_empty (Env.randombytes env) then "M"
       else "M("^syscall_mod^")"
     in
     let form = EHoare ([module_name;fname], pre, post') in
-    let prop = (name, vars, form) in
+    FunSpec (name, vars, form)
+
+  let final env funcs extra_ret =
+    let p1 = List.map (pp_specs env extra_ret) funcs in
+    let c1 = Icomment "The post and trace are valid." in
+    (c1 :: p1)
+  
+
+  let pp_automatic_proofs env f =
     let locals = Sv.elements (locals f) in
     let env = List.fold_left Env.set_var env (f.f_args @ locals) in
-    let env = Env.new_fun env in
-    let init,final,ilocals,env = ec_fun_safety_init env f in
+    let fname = Env.get_funname env f.f_name in
+    let iparams = get_iparams f.f_contra in
+    let iparams = List.map L.unloc iparams in
+    let env,vars = mk_old_param env f.f_args iparams in
+    let name = Format.asprintf "%s_proof" fname in
+    let spec_name = Format.asprintf "%s_spec" fname in
+    let args = List.map (fun v -> Eident [v]) vars in
+    let form = Eapp (Eident [spec_name],args) in
+    let prop = (name, vars, form) in
     let smt_tactic = get_smt_tactic f.f_annot.f_user_annot in
     let tactics =
       if f.f_contra == None then
         pp_valid_trace_t_t
       else
+        let tactic0 = {
+          tname = "rewrite /"^spec_name;
+          targs = []
+        } in
         let tactic1 = {
           tname = "proc; auto";
           targs = []
@@ -2300,14 +2335,19 @@ module EcSafetyAnnotations (EE: EcExpression) (EA: EcArray): EcSafety = struct
             tname = "qed";
             targs = []
         } in
-        tactic1 ::  tactic2 @ [tactic3]
+        tactic0 :: tactic1 ::  tactic2 @ [tactic3]
       in
     Lemma (prop, tactics)
-  let final env funcs extra_ret =
-    let p1 = List.map (pp_valid_trace env extra_ret) funcs in
 
+  let generate_proofs env funcs filename =
+    let p1 = List.map (pp_automatic_proofs env) funcs in
+    let imports = [
+          IrequireImport ["AllCore"; "IntDiv"; "CoreMap"; "List"; "Distr"];
+          IrequireImport [filename]
+      ] in
     let c1 = Icomment "The post and trace are valid." in
-    (c1 :: p1)
+    (imports @ safety_imports env @ (c1 :: p1))
+  
 end
 
 
@@ -2376,11 +2416,11 @@ struct
     in
     (ec_leaks_lvs env lvs) @ stmt
 
-  let ec_pcall env lvs all_lvs otys f args =
+  let ec_pcall env lvs leak_lvs safety_lvs otys f args =
     if lvals_are_vars lvs && (List.map ty_lval lvs) = otys then
-      (ec_leaks_lvs env lvs) @ [EScall (ec_lvals env lvs @ all_lvs,f,args)]
+      (ec_leaks_lvs env lvs) @ [EScall (leak_lvs @ ec_lvals env lvs @ safety_lvs,f,args)]
     else
-      ec_assgn_f env lvs otys otys (fun lvals -> EScall (lvals @ all_lvs, f, args))
+      ec_assgn_f env lvs otys otys (fun lvals -> EScall (leak_lvs @ lvals @ safety_lvs, f, args))
 
   let ec_expr_assgn env lvs etyso etysi e =
     if lvals_are_vars lvs && (List.map ty_lval lvs) = etyso && etyso = etysi then
@@ -2430,9 +2470,8 @@ struct
           let args = List.map (toec_cast env) (List.combine itys es) in
           let leak_lvs = ec_leak_call_lvs env in
           let safety_lvs = ec_safety_call_lvs env f in
-          let all_lvs =  leak_lvs @ safety_lvs in
           (ec_leaks_es env es) @
-          (ec_pcall env lvs all_lvs otys [Env.get_funname env f] args) @
+          (ec_pcall env lvs leak_lvs safety_lvs otys [Env.get_funname env f] args) @
           (ec_leak_call_acc env) @
           (ec_safety_call_acc env lvs f es)
       | Csyscall (lvs, o, es) ->
@@ -2440,9 +2479,8 @@ struct
           let otys = List.map Conv.ty_of_cty s.scs_tout in
           let itys =  List.map Conv.ty_of_cty s.scs_tin in
           let args = List.map (toec_cast env) (List.combine itys es) in
-          let all_lvs = [] in 
           (ec_leaks_es env es) @
-          (ec_pcall env lvs all_lvs otys [ec_syscall env o] args)
+          (ec_pcall env lvs [] [] otys [ec_syscall env o] args)
       | Cassert a ->
          ec_safety_assert env a
       | Cif (e, c1, c2) ->
@@ -2584,22 +2622,6 @@ struct
         ]
 
   let toec_prog env asmOp globs funcs =
-      let add_glob_env env (x, d) =
-        add_glob_arrsz env (x, d);
-        Env.set_var env x
-      in
-      let add_arrsz env f =
-        let add env x =
-          match x.v_ty with
-          | Arr(ws, n) -> EA.add_jarray env ws n
-          | _ -> ()
-        in
-        let vars = vars_fc f in
-        Sv.iter (add env) vars
-      in
-      let env = List.fold_left Env.set_fun env funcs in
-      let env = List.fold_left add_glob_env env globs in
-      List.iter (add_arrsz env) funcs;
 
       let funs = List.map (toec_fun asmOp env) funcs in
 
@@ -2654,16 +2676,8 @@ and used_func_i used i =
   | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2
   | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
-let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model) amodel fnames array_dir fmt =
-  let save_array_theories array_theories =
-    match array_dir with
-    | Some prefix ->
-        begin
-          Sarraytheory.iter (save_array_theory ~prefix) array_theories
-    end
-    | None -> ()
-  in
-  let fnames =
+let extract_init_env ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model) amodel fnames array_dir fmt extract =
+ let fnames =
     match fnames with
     | [] -> List.map (fun { f_name ; _ } -> f_name.fn_name) funcs
     | fnames -> fnames
@@ -2697,6 +2711,72 @@ let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model
     | _ -> (module EcSafetyNormal(EE)(EA): EcSafety)
   ) in
   let module E = Extraction(EA)(EL)(ES) in
-  let prog = E.pp_prog env asmOp fmt globs funcs in
+  let add_glob_env env (x, d) =
+      E.add_glob_arrsz env (x, d);
+      Env.set_var env x
+    in
+    let add_arrsz env f =
+      let add env x =
+        match x.v_ty with
+        | Arr(ws, n) -> EA.add_jarray env ws n
+        | _ -> ()
+      in
+      let vars = vars_fc f in
+      Sv.iter (add env) vars
+    in
+    let env = List.fold_left Env.set_fun env funcs in
+    let env = List.fold_left add_glob_env env globs in
+    List.iter (add_arrsz env) funcs;
+    env, extract env funcs
+
+
+
+let generate_safety_lemmas fname ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model) amodel fnames array_dir fmt =
+  let module EA: EcArray = (val match amodel with
+    | ArrayOld -> (module EcArrayOld: EcArray)
+    | WArray   -> (module EcWArray  : EcArray)
+    | BArray   -> (module EcBArray  : EcArray)
+  ) in
+  let module EE = EcExpression(EA) in
+  let module ES: EcSafety = (val match model with
+    | SafetyAnnotations -> (module EcSafetyAnnotations(EE)(EA): EcSafety)
+    | _ -> (module EcSafetyNormal(EE)(EA): EcSafety)
+  ) in
+  let _, prog = extract_init_env ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp model amodel fnames array_dir fmt
+    (fun env funcs -> ES.generate_proofs env funcs fname ) in
+  Format.fprintf fmt "%a@." pp_ec_prog prog
+
+
+let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model) amodel fnames array_dir fmt =
+  let save_array_theories array_theories =
+    match array_dir with
+    | Some prefix ->
+        begin
+          Sarraytheory.iter (save_array_theory ~prefix) array_theories
+    end
+    | None -> ()
+  in
+   let module EA: EcArray = (val match amodel with
+    | ArrayOld -> (module EcArrayOld: EcArray)
+    | WArray   -> (module EcWArray  : EcArray)
+    | BArray   -> (module EcBArray  : EcArray)
+  ) in
+  let module EE = EcExpression(EA) in
+  let module EL: EcLeakage = (val match model with
+    | Normal -> (module EcLeakNormal(EE): EcLeakage)
+    | ConstantTime -> (module EcLeakConstantTime(EE): EcLeakage)
+    | ConstantTimeGlobal ->
+        warning Deprecated Location.i_dummy
+          "EasyCrypt extraction for constant-time in CTG mode is deprecated. Use the CT mode instead.";
+        (module EcLeakConstantTimeGlobal(EE): EcLeakage)
+    | SafetyAnnotations -> (module EcLeakNormal(EE): EcLeakage)
+  ) in
+  let module ES: EcSafety = (val match model with
+    | SafetyAnnotations -> (module EcSafetyAnnotations(EE)(EA): EcSafety)
+    | _ -> (module EcSafetyNormal(EE)(EA): EcSafety)
+  ) in
+  let module E = Extraction(EA)(EL)(ES) in
+  let env,prog = extract_init_env ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp model amodel fnames array_dir fmt
+    (fun env funcs -> E.pp_prog env asmOp fmt globs funcs ) in
   save_array_theories (Env.array_theories env);
   prog
