@@ -271,8 +271,9 @@ let pp_contra ~debug pp_size pp_var fmt fd =
       | None -> pp_var fmt x
       | Some i -> Format.fprintf fmt "result.%d" i
     in
-    F.fprintf fmt "@[<v>#[safety = {@   @[<v>%a@ %a@]}]@ @]"
+    F.fprintf fmt "@[<v>#[safety = {@   @[<v>%a%a%a@]}]@ @]"
       (pp_clauses ~debug pp_size pp_var "requires") ct.f_pre
+      (fun fmt l -> if l = [] then () else F.fprintf fmt ",@ ") ct.f_post
       (pp_clauses ~debug pp_size pp_var_post "ensures") ct.f_post
 
 let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
