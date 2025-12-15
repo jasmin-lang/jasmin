@@ -1,5 +1,7 @@
+#[safety =
+   { requires = is_arr_init(x,0,5) }
+ ]
 fn test(reg ptr u8[5] x) -> reg u8
-requires {is_arr_init(x,0,5)}
 {
     reg u8 sum;
     inline int i;
@@ -10,5 +12,4 @@ requires {is_arr_init(x,0,5)}
     return sum;
 }
 
-   
- 
+

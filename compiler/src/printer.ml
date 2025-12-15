@@ -250,11 +250,13 @@ let pp_return_type pp_size fmt =
   in
   F.fprintf fmt "%a" (pp_list ",@ " pp)
 
-let pp_clause ~debug pp_size pp_var prepost fmt (_, f) =
+let mk_clauses pp_var prepost = List.map (fun (_, f) -> (pp_var, prepost, f))
+
+let pp_clause ~debug pp_size fmt (pp_var, prepost, f) =
   Format.fprintf fmt "@[<hov 2>%s =@ %a@]" prepost (pp_ge ~debug pp_size pp_var) f
 
-let rec pp_clauses ~debug pp_size pp_var prepost fmt cs =
-  pp_list ",@ " (pp_clause ~debug pp_size pp_var prepost) fmt cs
+let rec pp_clauses ~debug pp_size fmt cs =
+  pp_list "@ , " (pp_clause ~debug pp_size) fmt cs
 
 let rec index_of_post x xs i =
   match xs with
@@ -271,10 +273,9 @@ let pp_contra ~debug pp_size pp_var fmt fd =
       | None -> pp_var fmt x
       | Some i -> Format.fprintf fmt "result.%d" i
     in
-    F.fprintf fmt "@[<v>#[safety = {@   @[<v>%a%a%a@]}]@ @]"
-      (pp_clauses ~debug pp_size pp_var "requires") ct.f_pre
-      (fun fmt l -> if l = [] then () else F.fprintf fmt ",@ ") ct.f_post
-      (pp_clauses ~debug pp_size pp_var_post "ensures") ct.f_post
+    F.fprintf fmt "@[<v>#[safety =@   @[<v>{ %a }@]@]@ ]@ "
+      (pp_clauses ~debug pp_size) (mk_clauses pp_var      "requires" ct.f_pre @
+                                   mk_clauses pp_var_post "ensures"  ct.f_post)
 
 let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
   let ds = ScopeTree.get_declaration_sites fd in
