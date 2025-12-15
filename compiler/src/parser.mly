@@ -20,6 +20,7 @@
 %token <Syntax.sign> T_INT_CAST
 
 %token SHARP
+%token SHARPLBRACKET
 %token ALIGNED
 %token AMP
 %token AMPAMP
@@ -146,10 +147,7 @@ struct_annot:
   | a=separated_list(COMMA, annotation) { a }
 
 top_annotation:
-  | SHARP a=loc(annotation)
-    { Utils.warning Deprecated Location.(i_loc0 (loc a)) "annotations should be enclosed within square brackets";
-      [Location.unloc a] }
-  | SHARP LBRACKET a=struct_annot RBRACKET { a }
+  | SHARPLBRACKET a=struct_annot RBRACKET { a }
 
 annotations:
   | l=list(top_annotation) { List.concat l }
