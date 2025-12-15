@@ -1,66 +1,103 @@
+(** Safety checker test runner.
+
+    The runner automatically detects the target architecture from the directory structure.
+
+    Directory structure:
+    - success/{x86-64,arm-m4,risc-v,common}/ : Tests that should pass safety checking
+    - fail/{x86-64,arm-m4,risc-v,common}/    : Tests that should fail safety checking
+*)
+
 open Jasmin
+open Prog
 open Utils
 open Jasmin_checksafety
 
-let params =
-  [
-    ("success/loop2.jazz", "poly1305>in;");
-    ("success/loop3.jazz", "poly1305>in;");
-    ("fail/popcnt.jazz", "off_by_one>;");
-  ]
+(** Specific configuration for some example programs. *)
+let config path =
+  Glob_options.safety_param :=
+    List.assoc_opt path
+      [
+        ("success/x86-64/loop2.jazz", "poly1305>in;");
+        ("success/x86-64/loop3.jazz", "poly1305>in;");
+        ("fail/x86-64/popcnt.jazz", "off_by_one>;");
+      ]
 
-module Arch =
-  (val let use_set0 = !Glob_options.set0 and use_lea = !Glob_options.lea in
-       let call_conv = !Glob_options.call_conv in
-       let module C =
-         (val CoreArchFactory.core_arch_x86 ~use_lea ~use_set0 call_conv)
-       in
-       (module Arch_full.Arch_from_Core_arch (C) : Arch_full.Arch
-         with type reg = X86_decl.register
-          and type regx = X86_decl.register_ext
-          and type xreg = X86_decl.xmm_register
-          and type rflag = X86_decl.rflag
-          and type cond = X86_decl.condt
-          and type asm_op = X86_instr_decl.x86_op
-          and type extra_op = X86_extra.x86_extra_op))
+(* taken from main_compiler.ml *)
+module type ArchWithAnalyze = sig
+  module A : Arch_full.Arch
+  val analyze :
+    ?fmt:Format.formatter ->
+    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
+    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
+    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) prog ->
+    bool
+end
 
-module Safety = SafetyMain.Make (X86_safety.X86_safety (Arch))
-
-let load_file name =
+let load_file arch_info pointer_data msf_size asmOp name =
   try
     let open Pretyping in
     name
-    |> tt_file Arch.arch_info Env.empty None None
+    |> tt_file arch_info Env.empty None None
     |> fst |> Env.decls
-    |> Compile.preprocess Arch.pointer_data Arch.msf_size Arch.asmOp
+    |> Compile.preprocess pointer_data msf_size asmOp
   with Syntax.ParseError (loc, msg) ->
     Format.eprintf "%a: %s@." Location.pp_loc loc
       (Option.default "parse error" msg);
     assert false
 
-let load_and_analyze ~fmt expect path name =
-  let name = Filename.concat path name in
-  Format.fprintf fmt "File %s:@." name;
-  Glob_options.safety_param := List.assoc_opt name params;
-  let ((_, fds) as p) = load_file name in
+let load_and_analyze ~fmt expect path arch =
+  let (module P : ArchWithAnalyze) =
+    match arch with
+    | X86_64 ->
+       (module struct
+          module C = (val CoreArchFactory.core_arch_x86 ~use_lea:!Glob_options.lea ~use_set0:!Glob_options.set0 Linux)
+          module A = Arch_full.Arch_from_Core_arch (C)
+          module Safety = SafetyMain.Make (Jasmin_checksafety.X86_safety.X86_safety (A))
+          let analyze = Safety.analyze
+        end)
+    | ARM_M4 ->
+       (module struct
+          module C = CoreArchFactory.Core_arch_ARM
+          module A = Arch_full.Arch_from_Core_arch (C)
+          open Jasmin_checksafety
+          module Safety = SafetyMain.Make (Jasmin_checksafety.Arm_safety.Arm_safety (A))
+          let analyze = Safety.analyze
+        end)
+    | RISCV ->
+       (module struct
+          module C = CoreArchFactory.Core_arch_RISCV
+          module A = Arch_full.Arch_from_Core_arch (C)
+          open Jasmin_checksafety
+          module Safety = SafetyMain.Make (Jasmin_checksafety.Riscv_safety.Riscv_safety (A))
+          let analyze = Safety.analyze
+        end)
+  in
+  let module Arch = P.A in
+  Format.fprintf fmt "File %s:@." path;
+  let ((_, fds) as p) = load_file Arch.arch_info Arch.pointer_data Arch.msf_size Arch.asmOp path in
   List.iter
     (fun fd ->
       if FInfo.is_export fd.Prog.f_cc then
         let () =
           Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
         in
-        let safe = Safety.analyze ~fmt fd fd p in
-        assert (safe = expect))
+        let safe = P.analyze ~fmt fd fd p in
+        if (safe <> expect) then begin
+          Format.eprintf "File %s: the program is %s, while it was expected to be %s@."
+            path
+            (if expect then "unsafe" else "safe")
+            (if expect then "safe" else "unsafe");
+          assert false
+        end)
     fds
 
-let doit ~fmt expect path =
-  let cases = Sys.readdir path in
-  Array.sort String.compare cases;
-  Array.iter (load_and_analyze ~fmt expect path) cases
+let doit ~fmt expect archs path () =
+  config path;
+  List.iter (load_and_analyze ~fmt expect path) archs
 
 let () =
   let fmt = Format.std_formatter in
-  doit ~fmt false "fail";
+  Common.check_dir (doit ~fmt false) [] "fail" ();
   (* Discard messages from successful tests *)
   let fmt = Format.make_formatter (fun _ _ _ -> ()) (fun () -> ()) in
-  doit ~fmt true "success"
+  Common.check_dir (doit ~fmt true) [] "success" ()
