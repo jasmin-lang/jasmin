@@ -60,7 +60,8 @@ proof.
   have -> : (i %/ (n * p) * (n * p) + (i1 %/ p * p + i1 %% p)) =
          ((i %/ (n * p) * n + i1 %/ p) * p + i1 %% p) by ring.
   have hp0 : p <> 0 by smt().
-  rewrite divzMDl 1:// (divz_small (i1%%p) p) 2:/=; 1: smt (edivzP).
+  rewrite divzMDl 1:// (divz_small (i1%%p) p) 2:/=.
+  - by have [_] /(_ hp0) := edivzP i1 p.
   rewrite modzMDl modz_small 2://.
   apply bound_abs;apply divz_cmp => //.
   by apply modz_cmp => /#.
