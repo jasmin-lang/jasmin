@@ -2,7 +2,7 @@ open Jasmin
 open Cmdliner
 open CommonCLI
 open Utils
-let format_to_file outfile default_name action =
+let format_to_file outfile action =
   let fmt, close, original_name =
     match outfile with
     | None ->
@@ -11,13 +11,11 @@ let format_to_file outfile default_name action =
         let basename = Filename.basename f in
         let basename' =
           try Filename.chop_extension basename with Invalid_argument _ -> basename in
-        let filename = default_name ^ basename in
-        let f = Filename.concat (Filename.dirname f) filename in
         let out = open_out f in
         let fmt = Format.formatter_of_out_channel out in
         fmt, (fun () -> close_out out), String.capitalize basename'
   in
-  try 
+  try
     BatPervasives.finally
       (fun () -> close ())
       (fun () -> action original_name fmt)
@@ -28,36 +26,37 @@ let format_to_file outfile default_name action =
       ();
     raise e
 
-let extract_to_file prog arch pd msfsz asmOp model amodel fnames array_dir outfile =
+let extract_to_file prog arch pd msfsz asmOp model amodel fnames array_dir outfile prooffile =
   let array_dir =
     if array_dir = None then Option.map Filename.dirname outfile else array_dir
-  in 
-  (if model = SafetyAnnotations then
-    format_to_file outfile "proof_" (fun original_name fmt ->
-      ToEC.generate_safety_lemmas original_name prog arch pd msfsz asmOp model amodel fnames array_dir fmt
-    )
-  );
-  format_to_file outfile "" (fun _ fmt ->
-    ToEC.extract prog arch pd msfsz asmOp model amodel fnames array_dir fmt
-  )
-
-
+  in
+  let extract () =
+    format_to_file outfile (fun _ fmt ->
+      ToEC.extract prog arch pd msfsz asmOp model amodel fnames array_dir fmt) in
+  let extract_proof () =
+    format_to_file prooffile (fun original_name fmt ->
+      ToEC.generate_safety_lemmas original_name prog arch pd msfsz asmOp model amodel fnames array_dir fmt) in
+  match model, outfile, prooffile with
+  | SafetyAnnotations, None, Some _ -> extract_proof ()
+  | SafetyAnnotations, Some _, None -> extract ()
+  | SafetyAnnotations, _, _         -> extract (); extract_proof ()
+  | _ -> extract ()
 
 let parse_and_extract arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
-  let extract model amodel functions array_dir output pass file =
+  let extract model amodel functions array_dir output output_proof pass file =
     let safety =
       match model with
        | SafetyAnnotations -> true
-       | _ -> false 
+       | _ -> false
     in
     let prog = parse_and_compile (module A) ~wi2i:true ~safety:safety pass file idirs in
     extract_to_file prog arch A.reg_size  A.msf_size A.asmOp model amodel functions
-      array_dir output
+      array_dir output output_proof
   in
-  fun model amodel functions array_dir output pass file warn ->
+  fun model amodel functions array_dir output output_proof pass file warn ->
     if not warn then nowarning ();
-    match extract model amodel functions array_dir output pass file with
+    match extract model amodel functions array_dir output output_proof pass file with
     | () -> ()
     | exception HiError e ->
         Format.eprintf "%a@." pp_hierror e;
@@ -108,6 +107,13 @@ let output =
     & opt (some string) None
     & info [ "o"; "output" ] ~docv:"OUTPUT FILE" ~doc)
 
+let output_proof =
+ let doc = "Output proof file. If not given, output will be printed on stdout." in
+  Arg.(
+    value
+    & opt (some string) None
+    & info [ "output-proof" ] ~docv:"OUTPUT PROOF FILE" ~doc)
+
 let array_dir =
   let doc =
     "Directory for generation of easycrypt array theories. \
@@ -139,5 +145,5 @@ let () =
   Cmd.v info
     Term.(
       const parse_and_extract $ arch $ call_conv $ idirs $ model $ array_model
-      $ functions $ array_dir $ output $ after_pass $ file $ warn)
+      $ functions $ array_dir $ output $ output_proof $ after_pass $ file $ warn)
   |> Cmd.eval |> exit
