@@ -1,0 +1,15 @@
+param int N = 4;
+
+export
+fn test() -> reg u32 {
+  stack u32[N] t;
+  reg u32 i;
+  i = 0;
+  #[bounded]
+  while (i < N) {
+    t[i] = i;
+    i += 1;
+  }
+  i = t[N/2];
+  return i;
+}

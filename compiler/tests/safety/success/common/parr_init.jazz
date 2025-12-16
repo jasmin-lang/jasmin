@@ -1,0 +1,51 @@
+export
+fn reg_arr_init() -> reg u32 {
+  reg u32 r;
+  reg u32[1] a;
+  ArrayInit(a);
+  reg u32 tmp = 1;
+  a[0] = tmp;
+  r = a[0];
+  return r;
+}
+
+export
+fn stack_arr_init() -> reg u32 {
+  reg u32 r;
+  stack u32[1] a;
+  ArrayInit(a);
+  reg u32 tmp = 1;
+  a[0] = tmp;
+  r = a[0];
+  return r;
+}
+
+export
+fn slice_arr_init() -> reg u32 {
+  reg u32 r;
+  stack u32[2] a;
+  reg ptr u32[1] s;
+  reg u32 tmp = 1;
+  a[1] = tmp;
+  s = a[0:1];
+  ArrayInit(s);
+  r = a[1];
+  return r;
+}
+
+export
+fn slices_arr_init(reg u32 b) -> reg u32 {
+  reg u32 r;
+  stack u32[4] a;
+  reg ptr u32[1] s;
+  if b >s 0 {
+    s = a[0:1];
+  } else {
+    s = a[1:1];
+  }
+  ArrayInit(s);
+  reg u32 tmp = 1;
+  a[0] = tmp;
+  r = a[0];
+  return r;
+}

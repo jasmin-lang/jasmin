@@ -1,0 +1,10 @@
+export
+fn main(reg u32 pt) -> reg u32 {
+  reg u32 tmp;
+
+  tmp = [:u32 pt + 0];
+  tmp = [:u32 pt + 4];
+  tmp = [:u32 pt + 12];
+
+  return tmp;
+}

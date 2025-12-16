@@ -1,6 +1,6 @@
 export fn main(){
   stack u16[3 * 4] a;
-  reg u64 i;
+  reg u32 i;
   i = 0;
   while (i < 3 * 3) {
     inline int k;
