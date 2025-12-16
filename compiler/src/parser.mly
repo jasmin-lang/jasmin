@@ -131,13 +131,14 @@ annotationlabel:
   | id=loc(keyword) { id }
   | s=loc(STRING) { s }
 
-int:
+(*int:
   | i=INT       { Syntax.parse_int i }
-  | MINUS i=INT { Z.neg (Syntax.parse_int i ) }
+  | MINUS i=INT { Z.neg (Syntax.parse_int i ) } *)
 
 simple_attribute:
-  | i=int          { PAint i    }
-  | id=NID         { PAid id    }
+ (* | i=int          { PAint i    }
+  | id=NID         { PAid id    } *)
+  | e=pexpr        { PAexpr e}
   | s=STRING       { PAstring s }
   | s=keyword      { PAstring s }
   | ws=utype       { PAws (fst ws) }
@@ -149,8 +150,7 @@ attribute:
 annotation:
   | k=annotationlabel v=attribute? { k, v }
 
-
-simple_attribute_pexpr:
+(*simple_attribute_pexpr:
   | s=STRING       { PAstring s }
   | s=keyword      { PAstring s }
   | ws=utype       { PAws (fst ws) }
@@ -162,9 +162,9 @@ attribute_pexpr:
 
 annotation_pexpr:
   | k=annotationlabel v=attribute_pexpr? { k, v }
-
+*)
 struct_annot:
-  | a=separated_list(COMMA, annotation_pexpr) { a }
+  | a=separated_list(COMMA, annotation) { a }
 
 top_annotation:
   | SHARPLBRACKET a=struct_annot RBRACKET { a }

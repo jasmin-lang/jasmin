@@ -1914,8 +1914,6 @@ and pattri_to_attribute (pattri: Syntax.pattribute) : Annotations.attribute =
 
 and pattri_to_simple_attribute (pattri: Syntax.psimple_attribute) : Annotations.simple_attribute =
   match pattri with
-  | PAint i -> Aint i
-  | PAid id -> Aid id
   | PAstring s -> Astring s
   | PAws ws -> Aws ws
   | PAstruct s -> Astruct (pannot_to_annotations s)
@@ -1923,6 +1921,7 @@ and pattri_to_simple_attribute (pattri: Syntax.psimple_attribute) : Annotations.
       match L.unloc e with
       | PEVar id -> Aid (L.unloc id)
       | PEInt ir -> Aint (Syntax.parse_int ir)
+      | PEOp1 (`Neg None, {L.pl_desc = PEInt ir}) -> Aint (Z.neg (Syntax.parse_int ir))
       | _ ->
         rs_tyerror ~loc:(L.loc e)
           (string_error "complexe expression not allowed in annotation")

@@ -197,8 +197,6 @@ and pbig =
 
 (* -------------------------------------------------------------------- *)
 type psimple_attribute =
-  | PAint    of Z.t
-  | PAid     of symbol
   | PAstring of string
   | PAws     of wsize
   | PAstruct of pannotations

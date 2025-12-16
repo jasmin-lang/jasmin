@@ -171,8 +171,6 @@ let pp_aligned =
 
 let rec pp_simple_attribute fmt a =
   match L.unloc a with
-  | PAint i -> Z.pp_print fmt i
-  | PAid s -> pannot fmt s
   | PAstring s -> pannot fmt (Format.asprintf "%a" pp_string s)
   | PAws ws -> Format.fprintf fmt "%a" ptype (string_of_wsize ws)
   | PAstruct struct_ -> Format.fprintf fmt "\\{%a\\}" pp_struct_attribute struct_
