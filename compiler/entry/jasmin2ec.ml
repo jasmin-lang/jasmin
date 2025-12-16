@@ -13,7 +13,7 @@ let format_to_file outfile action =
           try Filename.chop_extension basename with Invalid_argument _ -> basename in
         let out = open_out f in
         let fmt = Format.formatter_of_out_channel out in
-        fmt, (fun () -> close_out out), String.capitalize basename'
+        fmt, (fun () -> close_out out), String.capitalize_ascii basename'
   in
   try
     BatPervasives.finally
