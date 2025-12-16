@@ -292,7 +292,7 @@ Proof.
   move=> z1 hcast z2 hset hw ?; subst s.
   rewrite read_rvs_cons read_rvs_nil /= read_eE => hsub hvm ok_dst t't''.
   have [ z1' hcast' z1z1' ] := WArray.uincl_cast t't'' hcast.
-  have : get_gvar true gd (evm s1) (mk_lvar x) = ok (Varr a) by apply ok_a.
+  have : get_gvar true gd (evm s1) (mk_lvar x) = ok (Varr a) := ok_a.
   case/(get_gvar_uincl_at (vm2 := vm1)).
   - by apply: hvm => /=; clear -hsub dstX; SvD.fsetdec.
   case => // blen b; rewrite /get_gvar /= => ok_b hab.

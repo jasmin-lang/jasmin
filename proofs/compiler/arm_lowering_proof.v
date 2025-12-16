@@ -538,7 +538,7 @@ Proof.
     apply: rbindP => ? ok_idx /to_intI ?; subst.
     apply: rbindP => r ok_r /ok_inj /Vword_inj[] ??; subst => /=.
     split.
-    + rewrite /= ok_t /=. rewrite ok_idx /= ok_r /=.
+    + rewrite /= ok_t /= ok_idx /= ok_r /=.
       eexists; first reflexivity.
       by rewrite /exec_sopn /= truncate_word_le // /= zero_extend_u.
     done.
