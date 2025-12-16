@@ -50,6 +50,10 @@ let enable_all_warnings () =
   linting_level := 2;
   set_all_warnings ()
 
+let do_auto_spill = ref None
+let set_auto_spill () = do_auto_spill := Some AutoSpill.OptIn
+let set_auto_spill_all () = do_auto_spill := Some AutoSpill.OptOut
+
 let stack_zero_strategy = ref None
 let stack_zero_strategies =
   let open Stack_zero_strategy in
@@ -220,6 +224,8 @@ let options = [
     "-linting-level", Arg.Int set_linting_level, "[n] Set linting level to n (defaults to 1; disable linting when set to 0)";
     "-color", Arg.Symbol (["auto"; "always"; "never"], set_color), " Print messages with color";
     "-help-intrinsics", Arg.Set help_intrinsics, " List the set of intrinsic operators (and exit)";
+    "-auto-spill", Arg.Unit set_auto_spill, " Enable naive spilling of #[spill]-annotated variables";
+    "-auto-spill-all", Arg.Unit set_auto_spill_all, " Enable naive spilling of all reg variables";
     "-print-stack-alloc", Arg.Set print_stack_alloc, " Print the results of the stack allocation OCaml oracle";
     "-print-export-info-json", Arg.Set print_export_info_json, " Print information about exported functions in json";
     "-lazy-regalloc", Arg.Set lazy_regalloc, " Allocate variables to registers in program order";
