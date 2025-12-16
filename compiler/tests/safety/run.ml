@@ -77,7 +77,7 @@ let load_and_analyze ~fmt expect path arch =
         end)
   in
   let module Arch = P.A in
-  Format.fprintf fmt "File %s:@." path;
+  Format.fprintf fmt "File %s (on arch %s):@." path (architecture_to_string arch);
   let ((_, fds) as p) = load_file Arch.arch_info Arch.pointer_data Arch.msf_size Arch.asmOp path in
   List.iter
     (fun fd ->

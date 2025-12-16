@@ -105,6 +105,7 @@ type architecture =
   | X86_64
   | ARM_M4
   | RISCV
+val architecture_to_string : architecture -> string
 
 (* -------------------------------------------------------------------- *)
 val set_target_system: string -> unit

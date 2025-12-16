@@ -117,14 +117,6 @@ and pp_annotations_json fmt a =
 
 (***********************************************************************)
 
-let architecture_to_string arch =
-  match arch with
-  | X86_64 -> "x86-64"
-  | ARM_M4 -> "arm-m4"
-  | RISCV -> "riscv"
-
-(***********************************************************************)
-
 let pp_export_info_json fmt export_info =
   let pp_args fmt args =
     let pp_arg fmt arg =

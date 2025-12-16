@@ -178,6 +178,12 @@ type architecture =
   | ARM_M4
   | RISCV
 
+let architecture_to_string arch =
+  match arch with
+  | X86_64 -> "x86-64"
+  | ARM_M4 -> "arm-m4"
+  | RISCV -> "riscv"
+
 (* -------------------------------------------------------------------- *)
 type system =
   | MacOS
