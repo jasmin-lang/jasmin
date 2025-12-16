@@ -131,13 +131,7 @@ annotationlabel:
   | id=loc(keyword) { id }
   | s=loc(STRING) { s }
 
-(*int:
-  | i=INT       { Syntax.parse_int i }
-  | MINUS i=INT { Z.neg (Syntax.parse_int i ) } *)
-
 simple_attribute:
- (* | i=int          { PAint i    }
-  | id=NID         { PAid id    } *)
   | e=pexpr        { PAexpr e}
   | s=STRING       { PAstring s }
   | s=keyword      { PAstring s }
@@ -150,19 +144,6 @@ attribute:
 annotation:
   | k=annotationlabel v=attribute? { k, v }
 
-(*simple_attribute_pexpr:
-  | s=STRING       { PAstring s }
-  | s=keyword      { PAstring s }
-  | ws=utype       { PAws (fst ws) }
-  | e=pexpr        { PAexpr e}
-
-attribute_pexpr:
-  | EQ ap=loc(simple_attribute_pexpr) { ap }
-  | EQ s=loc(braces(struct_annot)) { Location.mk_loc (Location.loc s) (PAstruct (Location.unloc s)) }
-
-annotation_pexpr:
-  | k=annotationlabel v=attribute_pexpr? { k, v }
-*)
 struct_annot:
   | a=separated_list(COMMA, annotation) { a }
 
@@ -528,12 +509,12 @@ pfundef:
     rty  = prefix(RARROW, tuple(annot_stor_type))?
     body = pfunbody
 
-    { { pdf_annot;
-        pdf_cc   = cc;
-        pdf_name = name;
-        pdf_args = args;
-        pdf_rty  = rty ;
-        pdf_body = body; } }
+  { { pdf_annot;
+      pdf_cc   = cc;
+      pdf_name = name;
+      pdf_args = args;
+      pdf_rty  = rty ;
+      pdf_body = body; } }
 
 (* -------------------------------------------------------------------- *)
 pparam:
