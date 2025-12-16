@@ -5,7 +5,7 @@ export fn main(reg u64 bound data) -> reg u64 {
   #[no_termination_check]
   while {
     sample = [data];
-    () = #declassify(sample);
+    #declassify(sample);
     _ = #init_msf();
   } (sample > bound)
 

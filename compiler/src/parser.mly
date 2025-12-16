@@ -368,6 +368,10 @@ pinstr_r:
 | ARRAYINIT x=parens(var) SEMICOLON
     { PIArrayInit x }
 
+| f=loc(prim) args=parens_tuple(pexpr) SEMICOLON
+    { let { Location.pl_loc = loc; Location.pl_desc = f } = f in
+      PIAssign((None, []), `Raw, Location.mk_loc loc (PEPrim (f, args)), None) }
+
 | x=plvalues o=peqop e=pexpr c=prefix(IF, pexpr)? SEMICOLON
     { PIAssign (x, o, e, c) }
 

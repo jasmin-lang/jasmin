@@ -13,7 +13,7 @@ fn protect_each_iter(reg u64 p) -> reg u64 {
     while{b = i < 10;}(b){
         msf = #update_msf(b, msf);
         temp = [p + i];
-        () = #declassify(temp);
+        #declassify(temp);
         temp = #protect(temp, msf);
         sum += temp;
         i += 1;

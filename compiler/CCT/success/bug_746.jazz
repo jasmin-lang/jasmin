@@ -11,7 +11,7 @@ export fn thing(reg u64 u) -> reg u64 {
   reg u64 b;
 
   b = something(u);
-  () = #declassify(b);
+  #declassify(b);
 
   if (b == 0) {
     b += 1;

@@ -81,7 +81,7 @@ export fn load(reg u64 p i) -> reg u64 {
   if b {
     msf = #update_msf(b, msf);
     r = [p + 8 * i];
-    () = #declassify(r);
+    #declassify(r);
     r = #protect(r, msf);
   }
   return r;
@@ -94,7 +94,7 @@ export fn store(reg u64 p i q, reg u64 v) {
   if i < 2 {
     msf = #update_msf(i < 2, msf);
     j = [p + 8 * i];
-    () = #declassify(j);
+    #declassify(j);
     j = #protect(j, msf);
     [q + 8 * j] = v;
   }

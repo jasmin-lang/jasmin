@@ -16,8 +16,8 @@ export fn main (reg u64 i) -> reg u32 {
 
   r = s[i:1];
   tmp = r[0];
-  () = #spill(i);
-  () = #unspill(i);
+  #spill(i);
+  #unspill(i);
   i2 = i;
   s[i2:1] = r; // i2 is detected as equal to i
 

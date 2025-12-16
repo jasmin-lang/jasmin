@@ -1,4 +1,4 @@
 export
 fn main(reg u32 x) {
-  () = #spill(x);
+  #spill(x);
 }

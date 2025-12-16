@@ -10,7 +10,7 @@
 fn declassify_load (reg u64 p) -> reg u64, reg u64 {
    reg u64 pub sec;
    pub = [p];
-   () = #declassify(pub);
+   #declassify(pub);
    sec = [p + 8];
    return pub, sec;
 }

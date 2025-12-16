@@ -9,7 +9,7 @@ t = msg[i];
 t ^= key[i];
 r[i] = t;
 }
-() = #declassify(r);
+#declassify(r);
 return r;
 }
 #[ct= "public * public * public -> ()"]
@@ -48,7 +48,7 @@ for i = 0 to 32
 {
 t = msg[i];
 t ^= key[i];
-() = #declassify(t);
+#declassify(t);
 r[i] = t;
 }
 r = r;
