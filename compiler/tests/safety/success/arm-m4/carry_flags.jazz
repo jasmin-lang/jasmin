@@ -1,0 +1,19 @@
+export
+fn test() -> reg u32 {
+  reg bool cf;
+  reg u32 i;
+
+  i = -2;
+  cf, i += 1;
+  if (cf){
+    while (true) { i += 1;}
+  }
+
+  i = -1;
+  cf, i += 1;
+  if (!cf){
+    while (true) { i += 1;}
+  }
+
+  return i;
+}

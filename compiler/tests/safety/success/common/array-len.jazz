@@ -1,15 +1,17 @@
 inline
-fn fillhalf(stack u64[16] blk, reg u64 cond) -> stack u64[16] {
+fn fillhalf(stack u32[16] blk, reg u32 cond) -> stack u32[16] {
   inline int i;
+  reg u32 j;
 
   if cond == 0 {
-    // we do not initialize the last element of the array.
-    for i = 0 to 7 {
-      blk[i] = i;
+    for i = 0 to 8 {
+      j = i;
+      blk[i] = j;
     }
   } else {
     for i = 8 to 16 {
-      blk[i] = i;
+      j = i;
+      blk[i] = j;
     }
   }
   
@@ -18,10 +20,10 @@ fn fillhalf(stack u64[16] blk, reg u64 cond) -> stack u64[16] {
 
 
 export
-fn array() -> reg u64 {
+fn array() -> reg u32 {
   inline int i;
-  reg u64 cond, res;
-  stack u64[16] blk;
+  reg u32 cond, res;
+  stack u32[16] blk;
 
   cond = 0;
   blk = fillhalf(blk, cond);
@@ -29,8 +31,10 @@ fn array() -> reg u64 {
   blk = fillhalf(blk, cond);
 
   res = 0;
+  reg u32 k;
   for i = 0 to 16 {
-    res += blk[i];
+    k = blk[i];
+    res += k;
   }
   
   return res;

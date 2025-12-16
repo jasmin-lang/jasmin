@@ -1,7 +1,7 @@
 export
-fn bad_read() -> reg u64 {
-  stack u64[2] t;
-  reg u64 r;
+fn bad_read() -> reg u32 {
+  stack u32[2] t;
+  reg u32 r;
   t[0] = 42;
   t[1] = 33;
   ArrayInit(t);

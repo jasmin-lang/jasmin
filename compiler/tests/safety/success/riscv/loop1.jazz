@@ -1,0 +1,15 @@
+export
+fn poly1305(reg u32 in, reg u32 inlen) -> reg u32 {
+  reg u8 tmp;
+  reg u32 r;
+
+  r = 0;
+
+  while (inlen > 0 ) {
+    tmp = [:u8 in + 0];
+    in += 1;
+    inlen -= 1;
+  }
+
+  return r;
+}

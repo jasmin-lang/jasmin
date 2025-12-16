@@ -1,9 +1,9 @@
 param int SHAKE128_RATE = 168;
 
 export
-fn test() -> reg u64 {
+fn test() -> reg u32 {
   reg bool cond;
-  reg u64 pos = 0, res = 0;
+  reg u32 pos = 0, res = 0;
   while { cond = (pos < SHAKE128_RATE - 2); } (cond) {
     pos += 3;
     res += 1;
@@ -13,8 +13,8 @@ fn test() -> reg u64 {
 
 export
 fn non_regression() {
-  stack u8[SHAKE128_RATE] array;
-  reg u64 i = 0, j = i;
+  stack u32[SHAKE128_RATE] array;
+  reg u32 i = 0, j = i;
   while (i <s SHAKE128_RATE >> 1) {
     array[j] = i;
     array[j + 1] = j;

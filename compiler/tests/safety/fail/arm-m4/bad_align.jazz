@@ -1,0 +1,9 @@
+export
+fn main(reg u32 pt) -> reg u32 {
+  reg u32 tmp;
+
+  tmp = [:u32 pt + 0];
+  tmp = [#aligned:u32 pt + 1];
+  
+  return tmp;
+}

@@ -1,9 +1,0 @@
-export fn BS2POLVECq(reg u64 b) 
-{
- b = 100;
- b &= 0xfe;                 // 255
-
- if (b != 100){
-  while (true) { b += 1;}
- }
-}

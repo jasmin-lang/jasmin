@@ -1,0 +1,8 @@
+export fn test(reg u32 x) -> reg u32 {
+  reg u32[1] r;
+  stack u32[1] s;
+  r[0] = x;
+  s = #copy_32(r);
+  x = s[0];
+  return x;
+}
