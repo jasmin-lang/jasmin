@@ -272,7 +272,7 @@ module Env : sig
   val enter_namespace : 'asm env -> A.pident -> 'asm env
   val exit_namespace : 'asm env -> 'asm env
 
- module Vars : sig
+  module Vars : sig
     val push_global   : 'asm env -> (P.pvar * P.epty * P.pexpr_ P.ggexpr ) -> 'asm env
     val push_param    : 'asm env -> (P.pvar * P.epty * P.pexpr) -> 'asm env
     val push_local    : 'asm env -> P.pvar * P.epty -> 'asm env
@@ -638,10 +638,6 @@ let tt_var_global (mode:tt_mode) (env : 'asm Env.env) v =
   let lc = v.L.pl_loc in
   let x, ty, s = tt_var_core mode env v in
   { P.gv = L.mk_loc lc x; P.gs = s }, ty
-
-let tt_fvar_global (mode:tt_mode) (env : 'asm Env.env) v =
-  let x, ty = tt_var_global mode env v in
-  P.Pvar x, ty
 
 (* -------------------------------------------------------------------- *)
 let tt_fun (env : 'asm Env.env) { L.pl_desc = x; L.pl_loc = loc; } =
@@ -1289,7 +1285,7 @@ let create_is_var_init pd loc args =
 let create_min_e pd loc args =
   if List.length args == 2 then
     let (e1,t1), (e2,t2) = List.at args 0, List.at args 1 in
-    let e1 =  cast_int loc None e1 t1 in
+    let e1 = cast_int loc None e1 t1 in
     let e2 = cast_int loc None e2 t2 in
     let c = P.Papp2 ((Olt Cmp_int), e1, e2) in
     P.Pif (Bty Int,c, e1,e2), P.etint
@@ -1349,11 +1345,11 @@ let bigop_check_type pd ?(mode=`AllVar) (env : 'asm Env.env) op body_ty pe (tt_e
     check_ty_eq ~loc:(L.loc pe) ~from:body_ty ~to_:P.etbool;
     Oor, P.Pbool false
   | S.PESum ->
-      begin match body_ty with
-      | ETint    -> Oadd Op_int, P.Pconst Z.zero
-      | ETword (_, w)  -> Oadd (Op_w w), P.Papp1 (Oword_of_int w, P.Pconst Z.zero)
-      | _ -> raise (tyerror ~loc:(L.loc pe) (StringError "the expression should have type int or uXX"))
-      end
+    begin match body_ty with
+    | ETint    -> Oadd Op_int, P.Pconst Z.zero
+    | ETword (_, w)  -> Oadd (Op_w w), P.Papp1 (Oword_of_int w, P.Pconst Z.zero)
+    | _ -> raise (tyerror ~loc:(L.loc pe) (StringError "the expression should have type int or uXX"))
+    end
 
 (* -------------------------------------------------------------------- *)
 let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
@@ -1368,7 +1364,8 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     P.Pconst (S.parse_int i), P.etint
 
   | S.PEVar x ->
-    tt_fvar_global mode env x
+    let x, ty = tt_var_global mode env x in
+    P.Pvar x, ty
 
   | S.PEFetch me ->
     let ct, _eloc, e, al = tt_mem_access ~mode pd env me in
@@ -1472,12 +1469,11 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
 
   | S.PECall (id,args) ->
     let pa_name = L.unloc id in
-    if Map.mem pa_name init_predicates_map then
-      let args = List.map (tt_expr ~mode pd env) args in
-      let create_pred = Map.find pa_name init_predicates_map in
-      create_pred pd (L.loc id) args
-    else
-      rs_tyerror ~loc:(L.loc pe) CallNotAllowed
+    let args = List.map (tt_expr ~mode pd env) args in
+    begin match Map.find pa_name init_predicates_map with
+    | create_pred -> create_pred pd (L.loc id) args
+    | exception Not_found -> rs_tyerror ~loc:(L.loc pe) CallNotAllowed
+    end
 
   | S.PEPrim _ ->
     rs_tyerror ~loc:(L.loc pe) PrimNotAllowed
@@ -2555,30 +2551,9 @@ let warn_unused_variables env f =
      warning UnusedVar (L.i_loc0 x.v_dloc) "unused variable %a" pp_var x)
     env
 
-let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env =
-  let env = Env.Vars.clear_locals env0 in
-  if is_combine_flags pf.pdf_name then
-    rs_tyerror ~loc:(L.loc pf.pdf_name) (string_error "invalid function name");
-  let inret = Option.map_default (List.map L.unloc) [] (L.unloc pf.pdf_body.pdb_ret) in
-  let dfl_mut x = List.mem x inret in
-
-  let envb, args =
-    let env, args = List.map_fold (tt_annot_paramdecls dfl_mut arch_info.pd) env pf.pdf_args in
-    let env = add_known_implicits arch_info env pf.pdf_body.pdb_instr in
-    env, List.flatten args in
-  let fs_tout = Option.map_default (List.map (tt_type arch_info.pd env |- snd |- snd)) [] pf.pdf_rty in
-  let ret_annot =
-    Option.map_default (List.map fst) [] pf.pdf_rty in
-  let ret_annot = List.map pannot_to_annotations ret_annot in
-  let body, ret_loc, xret, env = tt_funbody arch_info envb pf.pdf_body in
-  let f_args = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) args in
-  let fs_tin = List.map (fun x -> snd (L.unloc x)) args in
-  let f_ret = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) xret in
-  let f_cc = tt_call_conv loc f_args f_ret pf.pdf_cc in
-
-
-  let annot =
-    List.filter (fun (id, _) -> L.unloc id <> "safety") pf.pdf_annot in
+let tt_contra arch_info env0 fs_tout f_ret dfl_mut pf =
+ let annot =
+    List.filter (fun (id, _) -> L.unloc id <> "safety") pf.S.pdf_annot in
 
   let safety =
     List.filter (fun (id, s) -> L.unloc id = "safety") pf.pdf_annot in
@@ -2649,9 +2624,32 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
       let ret = List.map2 (fun a b -> L.unloc a,b) f_ires fs_tout in
       let env_post = Env.add_f_result env_pre ret in
       let f_post = get_clause env_post post in
+      Some {P.f_iparams; f_ires;f_pre;f_post} in
+    annot, f_contra
 
-      Some {P.f_iparams; f_ires;f_pre;f_post}
-  in
+
+let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env =
+  let env = Env.Vars.clear_locals env0 in
+  if is_combine_flags pf.pdf_name then
+    rs_tyerror ~loc:(L.loc pf.pdf_name) (string_error "invalid function name");
+  let inret = Option.map_default (List.map L.unloc) [] (L.unloc pf.pdf_body.pdb_ret) in
+  let dfl_mut x = List.mem x inret in
+
+  let envb, args =
+    let env, args = List.map_fold (tt_annot_paramdecls dfl_mut arch_info.pd) env pf.pdf_args in
+    let env = add_known_implicits arch_info env pf.pdf_body.pdb_instr in
+    env, List.flatten args in
+  let fs_tout = Option.map_default (List.map (tt_type arch_info.pd env |- snd |- snd)) [] pf.pdf_rty in
+  let ret_annot =
+    Option.map_default (List.map fst) [] pf.pdf_rty in
+  let ret_annot = List.map pannot_to_annotations ret_annot in
+  let body, ret_loc, xret, env = tt_funbody arch_info envb pf.pdf_body in
+  let f_args = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) args in
+  let fs_tin = List.map (fun x -> snd (L.unloc x)) args in
+  let f_ret = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) xret in
+  let f_cc = tt_call_conv loc f_args f_ret pf.pdf_cc in
+
+  let annot, f_contra = tt_contra arch_info env0 fs_tout f_ret dfl_mut pf in
 
   let name = L.unloc pf.pdf_name in
 
