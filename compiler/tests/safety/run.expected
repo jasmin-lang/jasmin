@@ -1,4 +1,4 @@
-File fail/arm-m4/array-export.jazz:
+File fail/arm-m4/array-export.jazz (on arch arm-m4):
 Analyzing function main
 
 
@@ -18,7 +18,7 @@ mem_i ∊ [0; 0]
 
 Program is not safe!
 
-File fail/arm-m4/bad_align.jazz:
+File fail/arm-m4/bad_align.jazz (on arch arm-m4):
 Analyzing function main
 
 
@@ -36,7 +36,7 @@ mem_pt ∊ [0; 5]
 
 Program is not safe!
 
-File fail/arm-m4/bad_align2.jazz:
+File fail/arm-m4/bad_align2.jazz (on arch arm-m4):
 Analyzing function main
 
 
@@ -54,7 +54,7 @@ mem_pt ∊ [0; 60]
 
 Program is not safe!
 
-File fail/arm-m4/loop2.jazz:
+File fail/arm-m4/loop2.jazz (on arch arm-m4):
 Analyzing function poly1305
 
 
@@ -72,7 +72,7 @@ mem_in ∊ [0; 4294967295]
 
 Program is not safe!
 
-File fail/common/array-len3.jazz:
+File fail/common/array-len3.jazz (on arch x86-64):
 Analyzing function array
 
 
@@ -86,7 +86,7 @@ Analyzing function array
 
 Program is not safe!
 
-File fail/common/array-len3.jazz:
+File fail/common/array-len3.jazz (on arch arm-m4):
 Analyzing function array
 
 
@@ -100,7 +100,7 @@ Analyzing function array
 
 Program is not safe!
 
-File fail/common/array-len3.jazz:
+File fail/common/array-len3.jazz (on arch riscv):
 Analyzing function array
 
 
@@ -114,7 +114,7 @@ Analyzing function array
 
 Program is not safe!
 
-File fail/common/array_init.jazz:
+File fail/common/array_init.jazz (on arch x86-64):
 Analyzing function bad_read
 
 
@@ -128,7 +128,7 @@ Analyzing function bad_read
 
 Program is not safe!
 
-File fail/common/array_init.jazz:
+File fail/common/array_init.jazz (on arch arm-m4):
 Analyzing function bad_read
 
 
@@ -142,7 +142,7 @@ Analyzing function bad_read
 
 Program is not safe!
 
-File fail/common/array_init.jazz:
+File fail/common/array_init.jazz (on arch riscv):
 Analyzing function bad_read
 
 
@@ -156,7 +156,7 @@ Analyzing function bad_read
 
 Program is not safe!
 
-File fail/common/fail_land.jazz:
+File fail/common/fail_land.jazz (on arch x86-64):
 Analyzing function BS2POLVECq
 
 
@@ -174,7 +174,7 @@ mem_b ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/fail_land.jazz:
+File fail/common/fail_land.jazz (on arch arm-m4):
 Analyzing function BS2POLVECq
 
 
@@ -192,7 +192,7 @@ mem_b ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/fail_land.jazz:
+File fail/common/fail_land.jazz (on arch riscv):
 Analyzing function BS2POLVECq
 
 
@@ -210,7 +210,7 @@ mem_b ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/fail_land2.jazz:
+File fail/common/fail_land2.jazz (on arch x86-64):
 Analyzing function BS2POLVECq
 
 
@@ -228,7 +228,7 @@ mem_b ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/fail_land2.jazz:
+File fail/common/fail_land2.jazz (on arch arm-m4):
 Analyzing function BS2POLVECq
 
 
@@ -246,7 +246,7 @@ mem_b ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/fail_land2.jazz:
+File fail/common/fail_land2.jazz (on arch riscv):
 Analyzing function BS2POLVECq
 
 
@@ -264,7 +264,7 @@ mem_b ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/init-join.jazz:
+File fail/common/init-join.jazz (on arch x86-64):
 Analyzing function main
 
 
@@ -282,7 +282,7 @@ mem_x ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/init-join.jazz:
+File fail/common/init-join.jazz (on arch arm-m4):
 Analyzing function main
 
 
@@ -300,7 +300,7 @@ mem_x ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/init-join.jazz:
+File fail/common/init-join.jazz (on arch riscv):
 Analyzing function main
 
 
@@ -318,7 +318,7 @@ mem_x ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/not_in_bounds.jazz:
+File fail/common/not_in_bounds.jazz (on arch x86-64):
 Analyzing function f
 
 
@@ -337,7 +337,7 @@ mem_t ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/not_in_bounds.jazz:
+File fail/common/not_in_bounds.jazz (on arch arm-m4):
 Analyzing function f
 
 
@@ -356,7 +356,7 @@ mem_t ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/not_in_bounds.jazz:
+File fail/common/not_in_bounds.jazz (on arch riscv):
 Analyzing function f
 
 
@@ -375,7 +375,7 @@ mem_t ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/wint_overflow.jazz:
+File fail/common/wint_overflow.jazz (on arch x86-64):
 Analyzing function wint_overflow
 
 
@@ -389,7 +389,7 @@ Analyzing function wint_overflow
 
 Program is not safe!
 
-File fail/common/wint_overflow.jazz:
+File fail/common/wint_overflow.jazz (on arch arm-m4):
 Analyzing function wint_overflow
 
 
@@ -403,7 +403,7 @@ Analyzing function wint_overflow
 
 Program is not safe!
 
-File fail/common/wint_overflow.jazz:
+File fail/common/wint_overflow.jazz (on arch riscv):
 Analyzing function wint_overflow
 
 
@@ -417,7 +417,7 @@ Analyzing function wint_overflow
 
 Program is not safe!
 
-File fail/risc-v/array-export.jazz:
+File fail/risc-v/array-export.jazz (on arch riscv):
 Analyzing function main
 
 
@@ -437,7 +437,7 @@ mem_i ∊ [0; 0]
 
 Program is not safe!
 
-File fail/risc-v/bad_align.jazz:
+File fail/risc-v/bad_align.jazz (on arch riscv):
 Analyzing function main
 
 
@@ -455,7 +455,7 @@ mem_pt ∊ [0; 5]
 
 Program is not safe!
 
-File fail/risc-v/bad_align2.jazz:
+File fail/risc-v/bad_align2.jazz (on arch riscv):
 Analyzing function main
 
 
@@ -473,7 +473,7 @@ mem_pt ∊ [0; 60]
 
 Program is not safe!
 
-File fail/risc-v/loop2.jazz:
+File fail/risc-v/loop2.jazz (on arch riscv):
 Analyzing function poly1305
 
 
@@ -491,7 +491,7 @@ mem_in ∊ [0; 4294967295]
 
 Program is not safe!
 
-File fail/x86-64/arr_init_fail.jazz:
+File fail/x86-64/arr_init_fail.jazz (on arch x86-64):
 Analyzing function main
 
 
@@ -517,7 +517,7 @@ mem_x3 ∊ [0; 0]
 
 Program is not safe!
 
-File fail/x86-64/array-export.jazz:
+File fail/x86-64/array-export.jazz (on arch x86-64):
 Analyzing function main
 
 
@@ -537,7 +537,7 @@ mem_i ∊ [0; 0]
 
 Program is not safe!
 
-File fail/x86-64/bad_align.jazz:
+File fail/x86-64/bad_align.jazz (on arch x86-64):
 Analyzing function main
 
 
@@ -555,7 +555,7 @@ mem_pt ∊ [0; 9]
 
 Program is not safe!
 
-File fail/x86-64/bad_align2.jazz:
+File fail/x86-64/bad_align2.jazz (on arch x86-64):
 Analyzing function main
 
 
@@ -573,7 +573,7 @@ mem_pt ∊ [0; 120]
 
 Program is not safe!
 
-File fail/x86-64/bounded_while.jazz:
+File fail/x86-64/bounded_while.jazz (on arch x86-64):
 Analyzing function uninit
 
 
@@ -591,7 +591,7 @@ mem_bound ∊ [0; 0]
 
 Program is not safe!
 
-File fail/x86-64/carry_flags_err.jazz:
+File fail/x86-64/carry_flags_err.jazz (on arch x86-64):
 Analyzing function test
 
 
@@ -603,7 +603,7 @@ Bottom ⊥
 
 Program is not safe!
 
-File fail/x86-64/carry_flags_err2.jazz:
+File fail/x86-64/carry_flags_err2.jazz (on arch x86-64):
 Analyzing function test
 
 
@@ -615,7 +615,7 @@ Bottom ⊥
 
 Program is not safe!
 
-File fail/x86-64/decompile_fail.jazz:
+File fail/x86-64/decompile_fail.jazz (on arch x86-64):
 Analyzing function test
 
 
@@ -628,7 +628,7 @@ Bottom ⊥
 
 Program is not safe!
 
-File fail/x86-64/load.jazz:
+File fail/x86-64/load.jazz (on arch x86-64):
 Analyzing function load_last
 
 
@@ -649,7 +649,7 @@ mem_len ∊ [0; 0]
 
 Program is not safe!
 
-File fail/x86-64/loop2.jazz:
+File fail/x86-64/loop2.jazz (on arch x86-64):
 Analyzing function poly1305
 
 
@@ -667,7 +667,7 @@ mem_in ∊ [0; 18446744073709551615]
 
 Program is not safe!
 
-File fail/x86-64/mul0.jazz:
+File fail/x86-64/mul0.jazz (on arch x86-64):
 Analyzing function addNumber
 
 
@@ -679,7 +679,7 @@ Bottom ⊥
 
 Program is not safe!
 
-File fail/x86-64/popcnt.jazz:
+File fail/x86-64/popcnt.jazz (on arch x86-64):
 Analyzing function off_by_one
 
 
@@ -696,7 +696,7 @@ Memory ranges:
 
 Program is not safe!
 
-File fail/x86-64/shld.jazz:
+File fail/x86-64/shld.jazz (on arch x86-64):
 Analyzing function undefined
 
 
