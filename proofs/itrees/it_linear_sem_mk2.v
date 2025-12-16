@@ -106,11 +106,9 @@ Definition incr_label (l: rlabel) : rlabel :=
   match l with (fn, lbl) => (fn, S lbl) end.
 
 Definition LCntr {E} {XE: ErrEvent -< E}  
-  (f: linstr_r -> rlabel -> itree E rlabel)
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (X: lcmd -> nat -> bool)
   (rlbl: rlabel) : itree E (rlabel + rlabel) :=
-  (* the state agrees with the function and the PC agrees with the
-  label (throw error if it doesn't) *)
-(*  trigger (MatchExec rlbl) ;; *)
   let fn := fst rlbl in
   let lbl := snd rlbl in 
   (* the optional function body *)
@@ -120,10 +118,10 @@ Definition LCntr {E} {XE: ErrEvent -< E}
   | Some lc => let pi := find_linstr_in_env lc lbl in
     match pi with
     (* the instruction exists: execute it and return the next label *) 
-    | Some (MkLI _ i) => rlbl1 <- f i rlbl ;; Ret (inl rlbl1)
+    | Some (MkLI _ i) => rlbl1 <- F i rlbl ;; Ret (inl rlbl1)
     (* the instruction does not exists: the execution terminates if the
        label equals the code length, otherwise throws an error *)        
-    | _ => if is_final lc lbl then Ret (inr rlbl) else throw err end
+    | _ => if X lc lbl then Ret (inr rlbl) else throw err end
   (* the function does not exist: throw an error *)    
   | _ => throw err end.        
 
@@ -159,7 +157,7 @@ Definition exec_linstr (ir : linstr_r) (l: rlabel) :
 
 (* iterative semantics body *)
 Definition isem_linstr (lbl: rlabel) :
-  itree E (rlabel + rlabel) := LCntr exec_linstr lbl.
+  itree E (rlabel + rlabel) := LCntr exec_linstr is_final lbl.
 
 (* iterative semantics of a program, from any starting point *)
 Definition isem_liniter (lbl: rlabel) : itree E rlabel :=
@@ -340,17 +338,6 @@ Definition lret_sem (s1: lstate) : exec lstate :=
   Let vm := set_var true s1.(lvm) vrsp (Vword nsp) in
   eval_jump P d (lset_vm s1 vm).
 
-(*
-Lemma xxx (s1: lstate) : lret_sem s1 = ok s1.
-  unfold lret_sem.
-  unfold Result.bind.
-  simpl.
-  unfold get_var. simpl.
-  set rrr := (lvm s1). simpl.
-  unfold rdecode_label. simpl.
-  Print decode_label.
-*)  
-
 Definition lalign_sem (s1: lstate) : exec lstate :=
   ok (lnext_pc s1).
 
@@ -499,7 +486,7 @@ Lemma linearization_lemma (pd : PointerData) (sp: sprog)
       fenv fn = Some lc0) ->
   forall (fn: funname),
     let lin_sem := @interp_up2state_lin E2 XE2 XS2 _
-                     (isem_liniter (fn, xH)%type) in
+                     (isem_liniter (fn, 0)%type) in
     forall xs es ii,
       let sden := @isem_instr asm_op syscall_state sip
                     estate fstate _ _ _ (MkI ii (Ccall xs fn es)) in
@@ -598,3 +585,14 @@ Proof.
   intros.  
 Admitted. 
 *)
+
+(*
+Lemma xxx (s1: lstate) : lret_sem s1 = ok s1.
+  unfold lret_sem.
+  unfold Result.bind.
+  simpl.
+  unfold get_var. simpl.
+  set rrr := (lvm s1). simpl.
+  unfold rdecode_label. simpl.
+  Print decode_label.
+*)  
