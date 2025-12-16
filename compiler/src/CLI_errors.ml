@@ -50,6 +50,10 @@ let check_options () =
   then warning Experimental Location.i_dummy
       "support for windows calling-convention is experimental";
 
+  if !do_auto_spill <> None
+  then warning Experimental Location.i_dummy
+      "automatic spilling is experimental";
+
   if !target_arch = ARM_M4
     then warning Experimental Location.i_dummy
       "support of the ARMv7 architecture is experimental";

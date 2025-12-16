@@ -201,6 +201,12 @@ let main () =
 
     visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
 
+    let prog =
+      match !Glob_options.do_auto_spill with
+      | None -> prog
+      | Some strategy -> AutoSpill.doit strategy prog
+    in
+
     (* Now call the coq compiler *)
     let cprog = Conv.cuprog_of_prog prog in
 
