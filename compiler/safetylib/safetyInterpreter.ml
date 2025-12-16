@@ -368,8 +368,10 @@ let rec safe_e_rec safe = function
     (* We do not check "is_defined e1 && is_defined e2" since
         (safe_e_rec (safe_e_rec safe e1) e2) implies it *)
     safe_e_rec (safe_e_rec (safe_e_rec safe e1) e2) e3
-  (* FIXME *)
-  | Pbig _ | Pis_var_init _ | Pis_mem_init _ -> assert false
+  (* Should we fix this ? This function should disapear anyway because this is done in extraction for safety *)
+  | Pbig _ -> assert false
+  | Pis_var_init _x -> safe
+  | Pis_mem_init (e1, e2) -> safe_e_rec (safe_e_rec safe e1) e2
 
 let safe_e = safe_e_rec []
 
@@ -1278,7 +1280,10 @@ end = struct
       | PappN (_,es)       -> nm_es vs_for es
       | Pif (_, e, el, er) -> nm_es vs_for [e; el; er]
       (* FIXME *)
-      | Pbig _ | Pis_var_init _ | Pis_mem_init _ -> assert false
+      | Pbig (e0, _, _, start, len, body) ->
+          nm_es vs_for [e0; start; len; body]
+      | Pis_var_init _ -> true
+      | Pis_mem_init _ -> false
 
     and nm_es vs_for es = List.for_all (nm_e vs_for) es
 
@@ -1957,7 +1962,7 @@ end
 
 module type ExportWrap = sig
   type extended_op
-  
+
   (* main function, before any compilation pass *)
   val main_source : (unit, extended_op) Prog.func
 
