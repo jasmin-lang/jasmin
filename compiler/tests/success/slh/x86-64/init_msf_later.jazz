@@ -12,7 +12,7 @@ fn protect_init_msf_later(reg u64 p) -> reg u64 {
 
     while{b = i < 10;}(b){
         temp = [p + i];
-        () = #declassify(temp);
+        #declassify(temp);
         sum += temp;
         i += 1;
     }

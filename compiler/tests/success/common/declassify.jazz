@@ -1,14 +1,14 @@
 #[ct = "secret → public"]
 export fn load(reg ptr u32[1] a) -> reg u32 {
   reg u32 x = a[0];
-  () = #declassify(x);
+  #declassify(x);
   return x;
 }
 
 #[ct = "secret × secret → public"]
 export fn wint_otp(reg ui32 msg mask) -> reg ui32 {
   reg ui32 ciphertext = msg + mask;
-  () = #declassify(ciphertext);
+  #declassify(ciphertext);
   return ciphertext;
 }
 
@@ -19,7 +19,7 @@ export fn wint_otp(reg ui32 msg mask) -> reg ui32 {
 #[ct = "secret → secret × public"]
 export fn slice(reg ptr u32[2] data) -> reg u32, reg u32 {
   reg ptr u32[1] end = data[1:1];
-  () = #declassify(end);
+  #declassify(end);
   reg u32 x = data[0], y = end[0];
   return x, y;
 }
