@@ -1,6 +1,6 @@
 export
-fn f() -> reg u64 {
-  reg u64 r;
+fn f() -> reg u32 {
+  reg u32 r;
   inline int i j;
 
   r = 0;

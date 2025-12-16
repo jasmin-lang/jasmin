@@ -2,13 +2,17 @@
 export fn addNumber() {
   reg u64 r r1 r2 r3;
   reg u64 A B;
+  reg u64 tmp;
 
   A = 2;
   B = 21;
 
-  r = A * B;
-  _,_,_,_,_,_,r1 = #IMUL_64  (A, B);
-  _,_,_,_,_,  r2 = #IMULr_64 (A, B);
+  tmp = A;
+  r = tmp * B;
+  tmp = A;
+  _,_,_,_,_,_,r1 = #IMUL_64  (tmp, B);
+  tmp = A;
+  _,_,_,_,_,  r2 = #IMULr_64 (tmp, B);
   _,_,_,_,_,  r3 = #IMULri_64(A, 21);
 
   if (r != 42){

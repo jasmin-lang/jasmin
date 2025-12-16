@@ -17,8 +17,12 @@ let config path =
   Glob_options.safety_param :=
     List.assoc_opt path
       [
-        ("success/x86-64/loop2.jazz", "poly1305>in;");
+        ("fail/x86-64/loop2.jazz", "poly1305>in;");
+        ("fail/arm-m4/loop2.jazz", "poly1305>in;");
+        ("fail/risc-v/loop2.jazz", "poly1305>in;");
         ("success/x86-64/loop3.jazz", "poly1305>in;");
+        ("success/arm-m4/loop3.jazz", "poly1305>in;");
+        ("success/risc-v/loop3.jazz", "poly1305>in;");
         ("fail/x86-64/popcnt.jazz", "off_by_one>;");
       ]
 

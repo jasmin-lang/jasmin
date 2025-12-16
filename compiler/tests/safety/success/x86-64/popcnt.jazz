@@ -14,8 +14,11 @@ export fn main(reg u64 x) -> reg u8 {
 
   reg u8 r;
   r = s[a];
-  r += p[b];
-  r += q[c];
+  reg u64 tmp;
+  tmp = (64u) b;
+  r += p[tmp];
+  tmp = (64u) c;
+  r += q[tmp];
   return r;
 }
 
