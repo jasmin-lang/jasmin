@@ -234,11 +234,11 @@ Section IrrStrength.
   Context (EE2: forall X, E2 X -> bool).
 
   Context (REv REv0 : forall (A B : Type), E1 A -> E2 B -> Prop).
-  Context (RAns : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop).
+  Context (RAns RAns0 : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop).
   Context (RR : R1 -> R2 -> Prop).
 
 (* xrutt can be irrelevantly strengthened by weakening the REv just
-   for cutoffs; general version *)
+   for cutoffs *)
 Lemma xrutt_irr_strength_impl
     (H: forall T1 T2 (e1: E1 T1) (e2: E2 T2),
       REv0 e1 e2 -> REv e1 e2 \/ EE1 e1 \/ EE2 e2) t1 t2 :   
@@ -268,6 +268,46 @@ Proof.
   { econstructor; eauto. }
 Qed.  
 
+(* xrutt can be irrelevantly strengthened by weakening the REv just
+   for cutoffs, and by similarly strengthening the RAns; general
+   version *)
+Lemma xrutt_irr_strength_impl_gen
+  (H: forall T1 T2 (e1: E1 T1) (e2: E2 T2),
+      REv0 e1 e2 -> REv e1 e2 \/ EE1 e1 \/ EE2 e2)  
+  (H0: forall T1 T2 (e1: E1 T1) (e2: E2 T2) u1 u2,
+      RAns e1 u1 e2 u2 -> RAns0 e1 u1 e2 u2 \/ EE1 e1 \/ EE2 e2)
+   t1 t2 :
+  xrutt EE1 EE2 REv0 RAns0 RR t1 t2 ->
+  xrutt EE1 EE2 REv RAns RR t1 t2.
+Proof.
+  revert t1 t2.
+  pcofix CIH; intros t1 t2 H1.
+  pstep; red; punfold H1; red in H1.
+  hinduction H1 before CIH; pclearbot.
+  { econstructor; auto.}
+  { econstructor.
+    right; eapply CIH; eauto.
+  }
+  { specialize (H A B e1 e2).
+    eapply H in H3.
+    destruct H3 as [H3 | [H3 | H3]].
+    - econstructor; eauto. intros a b H5.
+      specialize (H0 A B e1 e2 a b).
+      eapply H0 in H5.
+      destruct H5 as [H5 | [H5 | H5]]; auto.
+      - right; eapply CIH; eauto.
+        eapply H4; eauto.
+      - destruct (EE1 e1); discriminate. 
+        destruct (EE2 e2); discriminate.
+    - destruct (EE1 e1); discriminate.
+    - destruct (EE2 e2); discriminate.
+  }
+  { eapply EqCutL; eauto. }
+  { eapply EqCutR; eauto. }
+  { econstructor; eauto. }
+  { econstructor; eauto. }
+Qed.  
+
 Lemma xrutt_irr_strength_equiv :
   (forall T1 T2 (e1: E1 T1) (e2: E2 T2),
       REv0 e1 e2 <-> REv e1 e2 \/ EE1 e1 \/ EE2 e2) ->   
@@ -286,6 +326,32 @@ Proof.
   - eapply xrutt_irr_strength_impl; eauto.
     eapply H.
 Qed.
+
+Lemma xrutt_irr_strength_equiv_gen :
+  (forall T1 T2 (e1: E1 T1) (e2: E2 T2),
+      REv0 e1 e2 <-> REv e1 e2 \/ EE1 e1 \/ EE2 e2) ->   
+  (forall T1 T2 (e1: E1 T1) (e2: E2 T2) u1 u2,
+      RAns e1 u1 e2 u2 <-> RAns0 e1 u1 e2 u2 \/ EE1 e1 \/ EE2 e2) ->
+  forall t1 t2, 
+  xrutt EE1 EE2 REv RAns RR t1 t2 <-> xrutt EE1 EE2 REv0 RAns0 RR t1 t2.
+Proof.
+  split; intros H1.
+  - eapply xrutt_weaken with (REv := REv) (REv' := REv0)
+                             (RAns := RAns) (RAns' := RAns0).
+    + intros A e1 H2; eexact H2.
+    + intros A e2 H2; eexact H2.
+    + intros T1 T2 e1 e2 H2.
+      eapply H; left; auto.
+    + intros T1 T2 e1 u1 e2 u2 H2 H3 H4 H5.
+      eapply H0; left; auto.
+    + intros; auto.
+    + intros; eauto.
+    + auto.
+  - eapply xrutt_irr_strength_impl_gen; eauto.
+    eapply H.
+    eapply H0.
+Qed.
+
 
 (* just for left cutoffs *)
 Lemma xrutt_left_irr_strength_impl
