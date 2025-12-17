@@ -11,6 +11,7 @@ preprocess[label="Preprocess",fillcolor=moccasin];
 typing[label="Type-check",style="filled,dotted",fillcolor=moccasin];
 jasmin[label="Jasmin",shape=oval,fillcolor=white];
 
+autospill[label="Automated\nspilling",fillcolor=moccasin,href="auto_spill.html",target="_top",tooltip="Insert spilling automatically (experimental)"];
 wintword[label="Replace\nword ints",fillcolor=lightgreen,href="wint_word.html",target="_top",tooltip="Replace word ints"];
 renaming[label="Insert\nrenaming",fillcolor=lightgreen,href="insert_renaming.html",target="_top",tooltip="Insert renaming"];
 arraycopy[label="Array\ncopy",fillcolor=lightgreen,href="array_copy.html",target="_top",tooltip="Array copy"];
@@ -62,9 +63,10 @@ subgraph line1 {
   parse -> preprocess;
   preprocess -> typing;
   typing -> jasmin;
+  jasmin -> autospill;
 }
 
-jasmin -> wintword;
+autospill -> wintword;
 
 subgraph line2 {
   edge[dir=back];
@@ -173,13 +175,16 @@ subgraph caption {
 edge[style=invis];
 
 // This better aligns the blocks
+jazz -> inline;
 rmfunc -> loadconst;
-jazz -> lowerspill -> cstprop -> rmglobals -> propagate -> linearization -> tunnel;
-parse -> addarrinit -> dce -> splitting2 -> slhlowering -> onevarmap -> asmgen;
-preprocess -> arraycopy -> unroll -> arrexp -> stkalloc -> dce2 -> asm;
-typing -> renaming -> rmfunc2 -> makeref -> stack -> ralloc -> prettyprint;
+lowering -> linear;
+parse -> lowerspill -> cstprop -> rmglobals -> propagate -> linearization -> tunnel;
+preprocess -> addarrinit -> dce -> splitting2 -> slhlowering -> onevarmap -> asmgen;
+typing -> arraycopy -> unroll -> arrexp -> stkalloc -> dce2 -> asm;
+jasmin -> renaming -> rmfunc2 -> makeref -> stack -> ralloc -> prettyprint;
 wintword -> splitting;
 rmarrinit -> loweraddr;
+rmreturn -> asmfile;
 
 // This puts the caption below the graph
 proved0[style=invis];
