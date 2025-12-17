@@ -284,7 +284,7 @@ Proof.
   pcofix CIH; intros t1 t2 H1.
   pstep; red; punfold H1; red in H1.
   hinduction H1 before CIH; pclearbot.
-  { econstructor; auto.}
+  { econstructor; auto. }
   { econstructor.
     right; eapply CIH; eauto.
   }
