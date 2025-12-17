@@ -7,9 +7,9 @@ export fn test (reg ptr u64[4] r) -> reg ptr u64[4], reg u64 {
   reg ptr u64[2] r2;
 
   r2 = r[1:2];
-  () = #spill(r);
+  #spill(r);
   r2 = f(r2);
-  () = #unspill(r); // we unspill r, while it is not fully valid
+  #unspill(r); // we unspill r, while it is not fully valid
   r[1:2] = r2; // r is valid
 
   reg u64 res;

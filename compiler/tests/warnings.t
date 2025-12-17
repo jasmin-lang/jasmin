@@ -2,13 +2,13 @@
   warning: support of the RISC-V architecture is experimental
   "warning/risc-v/load_constant_warning.jazz", line 3 (9-15)
   warning: extra assignment introduced:
-             ra = #LI(((32u) 10)); /* :r */
+             ra = #LI((32u) 10); /* :r */
 
   $ ../jasminc -wea warning/x86-64/extra_assignment.jazz
   "warning/x86-64/extra_assignment.jazz", line 9 (2-12)
   from line 15 (2-12)
   warning: extra assignment introduced:
-             RAX = #MOV_64(((64u) 0)); /* :r */
+             RAX = #MOV_64((64u) 0); /* :r */
 
   $ ../jasminc -wlea warning/x86-64/lea.jazz
   "warning/x86-64/lea.jazz", line 6 (2-18)
@@ -83,3 +83,9 @@
   warning: Variable “x” is affected but never used
 
   $ ../jasminc fail/linter/silent_dead.jazz
+
+  $ ../jasminc warning/common/bug_1347.jazz
+  "warning/common/bug_1347.jazz", line 3 (6-7)
+  warning: the variable g is already declared at "warning/common/bug_1347.jazz", line 2 (6-7)
+  "warning/common/bug_1347.jazz", line 8 (20-21)
+  warning: the variable C::x is already declared at "warning/common/bug_1347.jazz", line 7 (20-21)

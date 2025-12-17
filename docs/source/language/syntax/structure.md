@@ -8,6 +8,8 @@ A Jasmin program is a collection of:
   - types aliases;
   - functions.
 
+Each of these can potentially be defined inside a namespace.
+
 ## Require
 
 ```
@@ -171,3 +173,54 @@ is a local function that copies the contents of a register `x` to an address
 from the stack.
 
 TODO: Add link to annotation syntax.
+
+## Namespaces
+
+Jasmin features a simple namespace system, with a syntax similar to that of C++.
+
+A namespace is opened with the keyword `namespace`. It is followed by its name,
+and curly brackets enclosing the definitions placed inside the namespace.
+For instance,
+```
+namespace A {
+  u32 g = 1;
+
+  fn f (reg u32 x) -> reg u32 {
+    return x;
+  }
+}
+```
+defines a global variable called `g` and a function called `f` inside a namespace called `A`.
+
+Referring to an object outside the namespace where it was defined can be done using `::`.
+In the last example, one would write `A::g` and `A::f`.
+
+Namespaces can be nested. For instance,
+```
+namespace A {
+  namespace B {
+    fn f (reg u32 x) -> reg u32 {
+      return x;
+    }
+  }
+}
+```
+defines `f` inside the namespace `B`, which is itself inside the namespace `A`. To refer to `f` outside `A`,
+one would write `A::B::f`.
+
+A namespace can be closed and reopened, but accesses to objects defined in previous blocks
+of the same namespace must be prefixed.
+For instance,
+```
+namespace A {
+  u32 g = 1;
+}
+
+namespace A {
+  u32 g2 = A::g; // g needs to be prefixed
+}
+```
+
+Defining an export function inside a namespace has an impact on its label in the assembly produced
+by the compiler. The rule of thumb is: `::` are replaced with `__`.
+For instance, a function `A::B::f` will have symbol `A__B__f`.

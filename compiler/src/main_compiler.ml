@@ -35,13 +35,13 @@ let parse () =
   | infile :: s :: _ -> raise CLI_errors.(CLIerror (RedundantInputFile (infile, s)))
 
 (* -------------------------------------------------------------------- *)
-let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
+let check_safety_p pd msf_size asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
   let () = if SafetyConfig.sc_print_program () then
       let s1,s2 = Glob_options.print_strings s in
       Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
                       %a@;@]@."
         s1 s2
-        (Printer.pp_prog ~debug:true pd asmOp) p
+        (Printer.pp_prog ~debug:true pd msf_size asmOp) p
   in
 
   let () = SafetyConfig.pp_current_config_diff () in
@@ -147,10 +147,10 @@ let main () =
     let label_errors = Label_check.get_labels_errors pprog in
     List.iter Label_check.warn_duplicate_label label_errors;
 
-    eprint Compiler.Typing (Printer.pp_pprog ~debug:true Arch.reg_size Arch.asmOp) pprog;
+    eprint Compiler.Typing (Printer.pp_pprog ~debug:true Arch.pointer_data Arch.msf_size Arch.asmOp) pprog;
 
     let prog =
-      try Compile.preprocess Arch.reg_size Arch.asmOp pprog
+      try Compile.preprocess Arch.pointer_data Arch.msf_size Arch.asmOp pprog
       with Typing.TyError(loc, code) ->
         hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
     in
@@ -187,7 +187,8 @@ let main () =
     let visit_prog_after_pass ~debug s p =
       if s = SafetyConfig.sc_comp_pass () && !check_safety then
         check_safety_p
-          Arch.reg_size
+          Arch.pointer_data
+          Arch.msf_size
           Arch.asmOp
           P.analyze
           s
@@ -195,10 +196,16 @@ let main () =
           source_prog
         |> fun () -> exit 0
       else
-        eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p
+        eprint s (Printer.pp_prog ~debug Arch.pointer_data Arch.msf_size Arch.asmOp) p
     in
 
     visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
+
+    let prog =
+      match !Glob_options.do_auto_spill with
+      | None -> prog
+      | Some strategy -> AutoSpill.doit strategy prog
+    in
 
     (* Now call the coq compiler *)
     let cprog = Conv.cuprog_of_prog prog in

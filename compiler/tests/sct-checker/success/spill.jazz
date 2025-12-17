@@ -5,8 +5,8 @@ fn spill1(
 ) ->
     reg u64
 {
-    () = #spill(pub, sec);
-    () = #unspill(pub, sec);
+    #spill(pub, sec);
+    #unspill(pub, sec);
     [pub] = sec;
     return pub;
 }
@@ -23,9 +23,9 @@ fn spill2(
     reg u64 msf;
     pub1 = pub;
     msf = #init_msf();
-    () = #spill(pub, pub1, sec);
+    #spill(pub, pub1, sec);
     [pub] = sec;
-    () = #unspill(pub, pub1, sec);
+    #unspill(pub, pub1, sec);
     [pub1] = sec;
     pub = #protect(pub, msf);
     [pub] = sec;

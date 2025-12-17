@@ -461,15 +461,14 @@ end  = struct
     let find (x : A.symbol) (env : 'asm env) =
       find (fun b -> b.gb_vars) x env
 
-    let warn_double_decl v map =
-      let name = v.P.v_name in
+    let warn_double_decl name v map =
       match Map.find name map with
       | exception Not_found -> ()
       | v' -> warn_duplicate_var name (v, (), ()) v'
 
     let push_core (env : 'asm env) (name: P.Name.t) (v : P.pvar) (ty: P.epty) (s : E.v_scope)  =
       let doit m =
-        warn_double_decl v m.gb_vars;
+        warn_double_decl name v m.gb_vars;
         { m with gb_vars = Map.add name (v, ty, s) m.gb_vars }
       in
       let e_bindings =
@@ -2024,6 +2023,13 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       in
       let p = Sopn.Opseudo_op (Oswap Type.Coq_abool) in  (* The type is fixed later *)
       [mk_i (P.Copn(lvs, Option.default default_tag tag, p, es))]
+
+  | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None when L.unloc f = "declassify" ->
+      let loc = L.loc pi in
+      if ls <> None || xs <> [] then rs_tyerror ~loc (string_error "declassify returns no value");
+      let es = tt_exprs arch_info.pd env_rhs args |> List.map fst in
+      let op = Sopn.Opseudo_op (Odeclassify Type.Coq_abool) in
+      [mk_i (P.Copn([], AT_keep, op, es))]
 
   | ls, `Raw, { pl_desc = PEPrim (f, args) }, None ->
       let p = tt_prim arch_info.asmOp f in

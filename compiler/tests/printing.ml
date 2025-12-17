@@ -173,13 +173,18 @@ let eq_pmod_item x y =
 let eq_pmod_items x y = List.for_all2 eq_pmod_item x y
 
 (* ---------------------------------------------------------------- *)
-let parse arch_info fname =
+let parse arch_info ctxt fname =
   try
     try
       let _env, pprog, _ast = Compile.parse_file arch_info fname in
       pprog
-    with Pretyping.TyError (loc, msg) ->
-      hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror msg
+    with
+    | Pretyping.TyError (loc, msg) ->
+        hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror
+          msg
+    | Syntax.ParseError (loc, msg) ->
+        hierror ~loc:(Lone loc) ~kind:"parsing" "%s: %s" ctxt
+          (Option.default "parse error" msg)
   with HiError err ->
     Format.eprintf "%a@." pp_hierror err;
     exit 1
@@ -194,19 +199,19 @@ let print (type reg) (type regx) (type xreg) (type rflag) (type cond)
        and type cond = cond
        and type asm_op = asm_op
        and type extra_op = extra_op) fmt pprog =
-  Printer.pp_pprog ~debug:true Arch.reg_size Arch.asmOp fmt pprog
+  Printer.pp_pprog ~debug:true Arch.reg_size Arch.msf_size Arch.asmOp fmt pprog
 
 (* Increments its [errors] argument in case of failure. *)
 let parse_and_print fname errors arch =
   let module Arch = (val CoreArchFactory.get_arch_module arch Linux) in
-  let pprog = parse Arch.arch_info fname in
+  let pprog = parse Arch.arch_info fname fname in
   let printed =
     BatFile.with_temporary_out ~prefix:"test" ~suffix:".jazz" (fun oc fname ->
         let fmt = BatFormat.formatter_of_out_channel oc in
         print (module Arch) fmt pprog;
         fname)
   in
-  let reparsed = parse Arch.arch_info printed in
+  let reparsed = parse Arch.arch_info fname printed in
   if eq_pmod_items reparsed pprog then errors
   else (
     Format.eprintf "Failure: %s@." fname;

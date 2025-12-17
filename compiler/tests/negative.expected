@@ -48,7 +48,7 @@ fail/arm-m4/add_shift.jazz:
 
 "fail/arm-m4/add_shift.jazz", line 4 (2-20):
 compilation error in function main:
-asmgen: invalid rexpr for oprd (r1 <<32u ((8u) 50))
+asmgen: invalid rexpr for oprd r1 <<32u (8u) 50
         invalid rexpr for word
 
 fail/arm-m4/addw_set_flags.jazz:
@@ -116,7 +116,7 @@ fail/arm-m4/bug_667.jazz:
 "fail/arm-m4/bug_667.jazz", line 9 (2-16):
 compilation error in function main:
 asmgen: the address computation is too complex
-          (sp +32u ((((32u) 4) *32u r0) +32u ((32u) 4)))
+          sp +32u ((32u) 4 *32u r0 +32u (32u) 4)
         an intermediate variable might be needed
 
 fail/arm-m4/cmp_imm_too_large.jazz:
@@ -388,7 +388,7 @@ fail/array_expansion/x86-64/param_not_array.jazz:
 "fail/array_expansion/x86-64/param_not_array.jazz", line 19 (2-32):
 compilation error in function main:
 array expansion: cannot expand expression
-  (cf ? r[0 : 2] : r[1 : 2])
+  cf ? r[0 : 2] : r[1 : 2]
 Only variables and sub-arrays can be expanded in function arguments.
 
 fail/array_expansion/x86-64/sub_array.jazz:
@@ -456,7 +456,7 @@ fail/asmgen/arm-m4/address_too_complex.jazz:
 "fail/asmgen/arm-m4/address_too_complex.jazz", line 2 (2-23):
 compilation error in function f:
 asmgen: the address computation is too complex
-          (r0 +32u ((((32u) 4) *32u (r1 +32u ((32u) 2))) +32u ((32u) 0)))
+          r0 +32u ((32u) 4 *32u (r1 +32u (32u) 2) +32u (32u) 0)
         an intermediate variable might be needed
 
 fail/asmgen/x86-64/incompatible_args.jazz:
@@ -464,7 +464,7 @@ fail/asmgen/x86-64/incompatible_args.jazz:
 "fail/asmgen/x86-64/incompatible_args.jazz", line 4 (2-14):
 compilation error in function main:
 linearization: The following assignment remains:
-[#aligned :u128 (RSP +64u ((64u) 0))] = ((128u) 3000000)
+[#aligned :u128 RSP +64u (64u) 0] = (128u) 3000000
 Is there an instruction in the target architecture that can implement it?
 More information may be found online: https://jasmin-lang.readthedocs.io/en/stable/misc/faq.html#linearization
 
@@ -472,7 +472,7 @@ fail/asmgen/x86-64/invalid_scale.jazz:
 
 "fail/asmgen/x86-64/invalid_scale.jazz", line 2 (2-25):
 compilation error in function f:
-asmgen: Invalid address:  (RDI +64u ((((64u) 8) *64u ((((64u) 3) *64u RSI) +64u ((64u) 2))) +64u ((64u) 0)))
+asmgen: Invalid address:  RDI +64u ((64u) 8 *64u ((64u) 3 *64u RSI +64u (64u) 2) +64u (64u) 0)
         Invalid scale: 24 (should be 1, 2, 4, or 8)
 
 fail/asmgen/x86-64/uninit_flag.jazz:
@@ -855,7 +855,7 @@ fail/register_allocation/x86-64/conflicting_variables.jazz:
 compilation error:
 register allocation: conflicting variables “z” and “res” must be merged due to:
   at "fail/register_allocation/x86-64/conflicting_variables.jazz", line 3 (2-16):
-    ( _0,  _1,  _2,  _3,  _4, res) = #ADD_64(arg, ((64u) 3)); /*  */
+    ( _0,  _1,  _2,  _3,  _4, res) = #ADD_64(arg, (64u) 3); /*  */
   at "fail/register_allocation/x86-64/conflicting_variables.jazz", line 12 (2-11):
     ( _0,  _1,  _2,  _3,  _4, z) = #ADD_64(z, res); /*  */
   at "fail/register_allocation/x86-64/conflicting_variables.jazz", line 11 (2-14):
@@ -952,7 +952,7 @@ fail/slh/x86-64/if_wrong_update.jazz:
 
 "fail/slh/x86-64/if_wrong_update.jazz", line 10 (8-35):
 compilation error in function main:
-speculative execution lowering: Not able to prove that (! __zf__)
+speculative execution lowering: Not able to prove that ! __zf__
                                 evaluate to true,
                                 known expression __zf__
                                 Did you run the speculative constant time checker first?
@@ -990,7 +990,7 @@ fail/slh/x86-64/while_wrong_update.jazz:
 
 "fail/slh/x86-64/while_wrong_update.jazz", line 10 (8-35):
 compilation error in function main:
-speculative execution lowering: Not able to prove that (! __zf__)
+speculative execution lowering: Not able to prove that ! __zf__
                                 evaluate to true,
                                 known expression __zf__
                                 Did you run the speculative constant time checker first?
@@ -1016,7 +1016,7 @@ fail/stack_allocation/x86-64/array_access_too_complex.jazz:
 "fail/stack_allocation/x86-64/array_access_too_complex.jazz", line 6 (2-19):
 compilation error in function main:
 stack allocation: do not know how to compile this array access into a memory access,
-                  the expression ((uint) (i /64u (i +64u ((64u) 1))))
+                  the expression (uint) (i /64u (i +64u (64u) 1))
                   must contain only the operators “+” and “*”
 
 fail/stack_allocation/x86-64/bad_alignment.jazz:
@@ -1113,7 +1113,7 @@ source
     zone = [0:8] }
 and destination
   { region = { slot = s; align = u64; writable = true };
-    zone = [0:16][(8 * ((uint) i)):8] }
+    zone = [0:16][8 * (uint) i:8] }
 regions are not equal
 
 fail/stack_allocation/x86-64/merge_too_large_global.jazz:
@@ -1214,7 +1214,7 @@ compilation error in function main:
 stack allocation: the assignment to array s cannot be turned into a nop
 source
   { region = { slot = s; align = u64; writable = true };
-    zone = [0:16][(8 * ((uint) i)):16] }
+    zone = [0:16][8 * (uint) i:16] }
 and destination
   { region = { slot = s; align = u64; writable = true };
     zone = [0:16] }
@@ -1227,10 +1227,10 @@ compilation error in function main:
 stack allocation: the assignment to sub-array s cannot be turned into a nop
 source
   { region = { slot = s; align = u64; writable = true };
-    zone = [0:16][(8 * ((uint) i)):8] }
+    zone = [0:16][8 * (uint) i:8] }
 and destination
   { region = { slot = s; align = u64; writable = true };
-    zone = [0:16][(8 * ((uint) (i +64u ((64u) 1)))):8] }
+    zone = [0:16][8 * (uint) (i +64u (64u) 1):8] }
 regions are not equal
 
 fail/stack_allocation/x86-64/return_ptr_global.jazz:
@@ -1311,7 +1311,7 @@ compilation error in function main:
 stack allocation: the assignment to array s2 cannot be turned into a nop
 source
   { region = { slot = s; align = u32; writable = true };
-    zone = [0:40][(1 * ((uint) i)):20] }
+    zone = [0:40][1 * (uint) i:20] }
 and destination
   { region = { slot = s; align = u32; writable = true };
     zone = [0:20] }
@@ -1483,7 +1483,7 @@ fail/x86-64/shift.jazz:
 "fail/x86-64/shift.jazz", line 5 (4-12):
 compilation error in function main:
 linearization: The following assignment remains:
-RAX = (RAX <<64u RAX)
+RAX = RAX <<64u RAX
 Is there an instruction in the target architecture that can implement it?
 More information may be found online: https://jasmin-lang.readthedocs.io/en/stable/misc/faq.html#linearization
 

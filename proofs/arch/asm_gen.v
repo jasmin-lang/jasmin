@@ -30,7 +30,7 @@ Definition gen_error (internal:bool) (ii:option instr_info) (vi: option var_info
 Definition internal_error ii msg :=
   gen_error true (Some ii) None (pp_s msg).
 
-Definition unexpected_sopn `{MSFsize} `{asmOp} ii msg op :=
+Definition unexpected_sopn `{PointerData} `{MSFsize} `{asmOp} ii msg op :=
   let err :=
     pp_box [:: pp_s msg; pp_s "unexpected operator"; pp_s (string_of_sopn op) ]
   in
@@ -520,6 +520,8 @@ Definition assemble_sopn rip ii (op: sopn) (outx : lexprs) (inx : rexprs) :=
   | Oasm (ExtOp op) =>
     Let args := to_asm ii op outx inx in
     mapM (assemble_asm_args rip ii) args
+  | Opseudo_op _ =>
+      if outx is [::] then ok [::] else Error (E.unexpected_sopn ii "assemble_sopn.pseudo_op: " op)
   | _ => Error (E.unexpected_sopn ii "assemble_sopn:" op)
   end.
 

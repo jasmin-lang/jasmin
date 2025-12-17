@@ -1,0 +1,13 @@
+export
+fn main(reg u32 x) -> reg u32 {
+  reg u32 r;
+  if x > 0 {
+    r = 0;
+  }
+  return r;
+}
+
+inline fn test() {
+#[inline] _ = main(0);
+}
+exec test()

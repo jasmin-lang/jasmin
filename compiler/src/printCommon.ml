@@ -151,7 +151,7 @@ let string_of_op2 = function
   | Owi2(sg, ws, o) -> string_of_wiop2 sg ws o
 
 (* -------------------------------------------------------------------- *)
-let pp_opn pd asmOp fmt o = pp_string fmt (Sopn.string_of_sopn pd asmOp o)
+let pp_opn pd msfsz asmOp fmt o = pp_string fmt (Sopn.string_of_sopn pd msfsz asmOp o)
 
 (* -------------------------------------------------------------------- *)
 let pp_syscall (o : 'a Syscall_t.syscall_t) =
@@ -242,3 +242,74 @@ let pp_var fmt x =
   fprintf fmt "%s" y.v_name
 
 let pp_var_i fmt x = pp_var fmt x.E.v_var
+
+(* -------------------------------------------------------------------- *)
+type priority =
+  | OpPmin
+  | OpPternary
+  | OpPbor
+  | OpPband
+  | OpPeq
+  | OpPcmp
+  | OpPor
+  | OpPxor
+  | OpPand
+  | OpPshift
+  | OpPsum
+  | OpPprod
+  | OpPunary
+
+let priority_min = OpPmin
+let priority_ternary = OpPternary
+
+let priority_of_wop1 = function
+  | E.WIwint_of_int _ | WIint_of_wint _ | WIword_of_wint _ | WIwint_of_word _
+  | WIwint_ext _ ->
+      OpPunary
+  | WIneg _ -> OpPsum
+
+let priority_of_op1 = function
+  | E.Oword_of_int _ | Oint_of_word _ | Osignext _ | Ozeroext _ | Onot | Olnot _
+    ->
+      OpPunary
+  | Oneg _ -> OpPsum
+  | Owi1 (_, iop) -> priority_of_wop1 iop
+
+let priority_of_wop2 = function
+  | Expr.WIadd | WIsub -> OpPsum
+  | WImul | WIdiv | WImod -> OpPprod
+  | WIshl | WIshr -> OpPshift
+  | WIeq | WIneq -> OpPeq
+  | WIlt | WIle | WIgt | WIge -> OpPcmp
+
+let priority_of_op2 = function
+  | Expr.Obeq | Oeq _ | Oneq _ -> OpPeq
+  | Oand -> OpPband
+  | Oor -> OpPbor
+  | Oadd _ | Osub _ | Ovadd _ | Ovsub _ -> OpPsum
+  | Omul _ | Odiv _ | Omod _ | Ovmul _ -> OpPprod
+  | Oland _ -> OpPand
+  | Olor _ -> OpPor
+  | Olxor _ -> OpPxor
+  | Olsr _ | Olsl _ | Oasr _ | Oror _ | Orol _ | Ovlsr _ | Ovlsl _ | Ovasr _ ->
+      OpPshift
+  | Olt _ | Ole _ | Ogt _ | Oge _ -> OpPcmp
+  | Owi2 (_, _, iop) -> priority_of_wop2 iop
+
+type associativity = Left | NoAssoc | Right
+
+let associativity = function
+  | OpPmin | OpPternary -> NoAssoc
+  | OpPbor | OpPband | OpPeq | OpPcmp | OpPor | OpPxor | OpPand | OpPshift
+  | OpPsum | OpPprod ->
+      Left
+  | OpPunary -> Right
+
+let same_side a b =
+  match (a, b) with Left, Left | Right, Right -> true | _, _ -> false
+
+let optparent fmt ctxt side prio =
+  kdprintf (fun pp ->
+      if prio < ctxt || ((not (same_side (associativity ctxt) side)) && prio = ctxt)
+      then fprintf fmt "(%t)" pp
+      else pp fmt)

@@ -1,0 +1,21 @@
+export
+fn main(reg u32 arg) -> reg ui32 {
+  arg &= 0x1f;
+  reg ui32 result = 1;
+  #[spill] reg u32 i = 0;
+  while (i < arg) {
+    result <<= 1;
+    i += 1;
+  }
+  return result;
+}
+
+export
+fn xor(reg ptr u32[2] arg) -> reg u32 {
+  #[nospill]
+  reg u32 x y z;
+  x = arg[0];
+  y = arg[1];
+  z = x ^ y;
+  return z;
+}

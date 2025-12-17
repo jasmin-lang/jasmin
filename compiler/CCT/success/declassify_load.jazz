@@ -3,13 +3,14 @@
    [p] is the value read from memory the type system considers it as secret.
    #declassify annotation allows to view it as a public value.
    This is a typical example where p is a pointer to a structure containing
-   a public field and a secret field 
- */  
+   a public field and a secret field
+ */
 
 #[ct="public -> public * secret"]
 fn declassify_load (reg u64 p) -> reg u64, reg u64 {
    reg u64 pub sec;
-   #declassify pub = [p];
+   pub = [p];
+   #declassify(pub);
    sec = [p + 8];
    return pub, sec;
 }

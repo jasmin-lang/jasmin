@@ -1,0 +1,36 @@
+inline
+fn fillhalf(stack u32[16] blk, reg u32 cond) -> stack u32[16] {
+  inline int i;
+
+  reg u32 j, k;
+  for i = 0 to 8 {
+    j = i;
+    k = cond + 2*i;
+    blk[k] = j;
+  }
+  
+  return blk;
+}
+
+
+export
+fn array() -> reg u32 {
+  inline int i;
+  reg u32 cond, res;
+  stack u32[16] blk;
+
+  cond = 0;
+  blk = fillhalf(blk, cond);
+  cond = 1;
+  blk = fillhalf(blk, cond);
+
+  res = 0;
+  reg u32 j, k;
+  for i = 0 to 16 {
+    j = i;
+    k = blk[j];
+    res += k;
+  }
+  
+  return res;
+}

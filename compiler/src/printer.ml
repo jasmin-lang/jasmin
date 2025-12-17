@@ -31,33 +31,34 @@ let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
     let s = if is_gkvar x then "" else "/* global: */ " in
     Format.fprintf fmt "%s%a" s pp_var_i x.gv in
 
-  let rec pp_expr fmt = function
+  let rec pp_expr side prio fmt = function
   | Pconst i    -> Z.pp_print fmt i
   | Pbool  b    -> F.fprintf fmt "%b" b
   | Parr_init _ -> assert false (* This case is handled in pp_gi *)
   | Pvar v      -> pp_gvar fmt v
   | Pget(al,aa,ws,x,e) ->
     let ws = non_default_wsize (L.unloc x.gv) ws in
-    pp_arr_access pp_gvar pp_expr fmt al aa ws x e
+    pp_arr_access pp_gvar (pp_expr NoAssoc priority_min) fmt al aa ws x e
   | Psub(aa,ws,len,x,e) ->
     let ws = non_default_wsize (L.unloc x.gv) ws in
-    pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len
+    pp_arr_slice pp_gvar (pp_expr NoAssoc priority_min) pp_len fmt aa ws x e len
   | Pload(al,ws,e) ->
-    pp_mem_access pp_expr fmt al (Some ws) e
+    pp_mem_access (pp_expr NoAssoc priority_min) fmt al (Some ws) e
   | Papp1(o, e) ->
-    F.fprintf fmt "@[(%s@ %a)@]" (string_of_op1 ~debug o) pp_expr e
+     let p = priority_of_op1 o in
+     optparent fmt prio side p "%s %a" (string_of_op1 ~debug o) (pp_expr Right p) e
   | Papp2(op,e1,e2) ->
-    F.fprintf fmt "@[(%a %s@ %a)@]"
-      pp_expr e1 (string_of_op2 op) pp_expr e2
+     let p = priority_of_op2 op in
+     optparent fmt prio side p "%a %s %a" (pp_expr Left p) e1 (string_of_op2 op) (pp_expr Right p) e2
   | PappN (E.Opack(_sz, pe), es) ->
-    F.fprintf fmt "@[(%du%n)[%a]@]" (List.length es) (int_of_pe pe) (pp_list ",@ " pp_expr) es
+    F.fprintf fmt "@[(%du%n)[%a]@]" (List.length es) (int_of_pe pe) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
   | PappN (Ocombine_flags c, es) ->
-    F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " pp_expr) es
+    F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
   | Pif(_, e,e1,e2) ->
-    F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
-      pp_expr e pp_expr e1 pp_expr e2
+     let p = priority_ternary in
+     optparent fmt prio side p "%a ? %a : %a" (pp_expr Left p) e (pp_expr NoAssoc p) e1 (pp_expr Right p) e2
   in
-  pp_expr
+  pp_expr NoAssoc priority_min
 
 (* -------------------------------------------------------------------- *)
 let pp_glv ~debug pp_len pp_var fmt =
@@ -309,8 +310,8 @@ let pp_eptype ~debug fmt ty =
 
 let pp_plval ~debug = pp_glv ~debug (pp_pexpr_ ~debug) pp_pvar
 
-let pp_pprog ~debug pd asmOp fmt p =
-  let pp_opn = pp_opn pd asmOp in
+let pp_pprog ~debug pd msfsize asmOp fmt p =
+  let pp_opn = pp_opn pd msfsize asmOp in
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem ~debug (pp_pexpr_ ~debug) pp_opn pp_pvar)) (List.rev p)
 
@@ -358,13 +359,13 @@ let pp_expr ~debug fmt e =
 let pp_lval ~debug fmt x =
   pp_glv ~debug pp_len (pp_var ~debug) fmt x
 
-let pp_instr ~debug pd asmOp fmt i =
-  let pp_opn = pp_opn pd asmOp in
+let pp_instr ~debug pd msfsize asmOp fmt i =
+  let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   pp_gi ~debug pp_noinfo pp_len pp_opn pp_var fmt i
 
-let pp_stmt ~debug pd asmOp fmt i =
-  let pp_opn = pp_opn pd asmOp in
+let pp_stmt ~debug pd msfsize asmOp fmt i =
+  let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   pp_gc ~debug pp_noinfo pp_len pp_opn pp_var fmt i
 
@@ -372,13 +373,13 @@ let pp_header ~debug fmt fd =
   let pp_var = pp_var ~debug in
   pp_header_ pp_var fmt fd
 
-let pp_ifunc ~debug pp_info pd asmOp fmt fd =
-  let pp_opn = pp_opn pd asmOp in
+let pp_ifunc ~debug pp_info pd msfsize asmOp fmt fd =
+  let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   pp_fun_ ~debug ~pp_info pp_opn pp_var fmt fd
 
-let pp_func ~debug pd asmOp fmt fd =
-  let pp_opn = pp_opn pd asmOp in
+let pp_func ~debug pd msfsize asmOp fmt fd =
+  let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   pp_fun_ ~debug pp_opn pp_var fmt fd
 
@@ -401,15 +402,15 @@ let pp_globs pp_var fmt gds =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_glob pp_var)) (List.rev gds)
 
-let pp_iprog ~debug pp_info pd asmOp fmt (gd, funcs) =
-  let pp_opn = pp_opn pd asmOp in
+let pp_iprog ~debug pp_info pd msfsize asmOp fmt (gd, funcs) =
+  let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
      (pp_globs pp_var) gd
      (pp_list "@ @ " (pp_fun_ ~debug ~pp_info pp_opn pp_var)) (List.rev funcs)
 
-let pp_prog ~debug pd asmOp fmt ((gd, funcs):('info, 'asm) Prog.prog) =
-  let pp_opn = pp_opn pd asmOp in
+let pp_prog ~debug pd msfsize asmOp fmt ((gd, funcs):('info, 'asm) Prog.prog) =
+  let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
      (pp_globs pp_var) gd
@@ -445,8 +446,8 @@ let pp_return_address ~debug fmt = function
 
   | Expr.RAnone   -> Format.fprintf fmt "_"
 
-let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
-  let pp_opn = pp_opn pd asmOp in
+let pp_sprog ~debug pd msfsize asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
+  let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   let pp_f_extra fmt f_extra =
     Format.fprintf fmt "(* @[<v>alignment = %s; argument alignment = [%a];@ stack size = %a + %a; max stack size = %a;@ max call depth = %a;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] *)"

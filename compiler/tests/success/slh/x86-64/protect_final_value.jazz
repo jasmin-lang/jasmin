@@ -12,7 +12,8 @@ fn protect_final_value(reg u64 p) -> reg u64 {
 
     while{b = i < 10;}(b){
         msf = #update_msf(b, msf);
-        #declassify temp = [p + i];
+        temp = [p + i];
+        #declassify(temp);
         sum += temp;
         i += 1;
     }

@@ -1,0 +1,9 @@
+(tests
+  (libraries jasmin.jasmin jasmin_checksafety testlib)
+  (deps
+    (glob_files_rec success/*)
+    (glob_files_rec fail/*))
+  (modules run)
+  (names
+    run))
+

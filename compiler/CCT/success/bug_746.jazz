@@ -1,0 +1,22 @@
+inline fn something(reg u64 u) -> reg u64
+{
+  reg u64 a;
+  a = u;
+  a *= 45;
+  return a;
+}
+
+#[ct = "secret → public"]
+export fn thing(reg u64 u) -> reg u64 {
+  reg u64 b;
+
+  b = something(u);
+  #declassify(b);
+
+  if (b == 0) {
+    b += 1;
+  } else {
+    b += 2;
+  }
+  return b;
+}

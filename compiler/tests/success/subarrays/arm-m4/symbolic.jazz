@@ -19,8 +19,8 @@ export fn main (reg u32 i) -> reg u32 {
   rs = s;
   r = rs[i:1];
   tmp = r[0];
-  () = #spill(i); // STR
-  () = #unspill(i); // LDR
+  #spill(i); // STR
+  #unspill(i); // LDR
   i2 = i; // MOV
   s[i2:1] = r; // i2 is detected as equal to i
 

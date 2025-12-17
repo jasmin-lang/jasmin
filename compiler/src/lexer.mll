@@ -183,6 +183,7 @@ rule main = parse
   | (vsize as r) (signletter as s) (gensize as g)
       { SVSIZE(mkvsizesign r s g)}
 
+  | "#["     { SHARPLBRACKET }
   | "#"     { SHARP      }
   | "["     { LBRACKET   }
   | "]"     { RBRACKET   }

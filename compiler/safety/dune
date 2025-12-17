@@ -1,9 +1,0 @@
-(tests
-  (libraries jasmin.jasmin jasmin_checksafety)
-  (deps
-    (glob_files success/*)
-    (glob_files fail/*))
-  (modules run)
-  (names
-    run))
-

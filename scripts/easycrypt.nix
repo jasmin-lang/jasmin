@@ -15,6 +15,7 @@ with {
     version = "main";
     rev = "????";
     src = builtins.fetchTarball "https://api.github.com/repos/easycrypt/easycrypt/tarball/main";
+    extraBuildInputs = [ ocamlPackages.markdown ];
   };
 
   "release" = rec {
@@ -26,6 +27,7 @@ with {
       inherit rev;
       hash = "sha256-BLyC8AB075Nyhb5heIKVkxnWWt4Zn8Doo10ShsACJ4g=";
     };
+    extraBuildInputs = [];
   };
 
 }."${ecRef}";
@@ -50,7 +52,7 @@ stdenv.mkDerivation rec {
     why3
     yojson
     zarith
-  ];
+  ] ++ extraBuildInputs;
 
   propagatedBuildInputs = [ why3.out ];
 
