@@ -1,2 +1,0 @@
-- The assembly produced by `jasminc` compiler slightly depends on the target system: on macOS exported symbols have a leading underscore whereas on other systems, the assembly features `.type` directives for every function and `.note.GNU-stack` section. The default target system is chosen when building the compiler and can be selected when running it using the new `-target` command-line argument.
-  ([PR #1339](https://github.com/jasmin-lang/jasmin/pull/1339)).
