@@ -125,7 +125,6 @@ let main () =
     let env, pprog, _ast =
       try Compile.parse_file Arch.arch_info ~idirs:!Glob_options.idirs infile
       with
-      | Annot.AnnotationError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
       | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
       | Syntax.ParseError (loc, msg) ->
           let msg =
@@ -264,8 +263,11 @@ let main () =
           if !debug then Format.eprintf "assembly listing written@."
       end else if List.mem Compiler.Assembly !print_list then
           Format.printf "%a%!" Arch.pp_asm asm
+    | exception Annot.AnnotationError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
     end
   with
+
+
   | Utils.HiError e ->
     Format.eprintf "%a@." pp_hierror e;
     exit 1
