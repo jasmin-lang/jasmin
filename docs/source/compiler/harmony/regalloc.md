@@ -345,7 +345,39 @@ export fn h (reg u64 x, reg u64 y, reg u64 w) -> reg u64 {
 }
 ```
 
+## In-place operations
 
+Instructions that have a single destination can be annotated as `inplace`:
+the register allocation will choose the same register for the destination
+and for the first argument.
 
+In the example below, the result of the exclusive or will be written to the
+register that holds the value of `z` at the beginning of the `forget` function.
 
+~~~
+inline fn forget (reg u32 z) {
+  #[keep, inplace]
+  _ = z ^ z;
+}
+
+export fn copy_u32(reg ptr u32[1] d s) -> reg ptr u32[1] {
+  reg u32 a = s[0];
+  d[0] = a;
+  forget(a);
+  return d;
+}
+~~~
+
+When targeting the `arm-m4` architecture, the compiler produces the following
+code. After the call to `forget`, the register `r1` no longer contains the
+value loaded from memory.
+
+~~~
+copy_u32:
+	push	{lr}
+	LDR 	r1, [r1]
+	STR 	r1, [r0]
+	EOR 	r1, r1, r1
+	pop 	{pc}
+~~~
 

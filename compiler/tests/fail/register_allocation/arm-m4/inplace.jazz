@@ -1,0 +1,6 @@
+// Since the xor instruction is “in-place“,
+// the value of b is no longer available after it
+export fn xor(reg u32 a b) -> reg u32 {
+  #[keep, inplace] a = b ^ a;
+  return b;
+}

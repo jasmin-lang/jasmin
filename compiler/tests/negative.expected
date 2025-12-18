@@ -872,6 +872,15 @@ fail/register_allocation/arm-m4/bug_201.jazz:
 compilation error in function main:
 register allocation: too many large parameters according to the ABI (only 0 available on this architecture)
 
+fail/register_allocation/arm-m4/inplace.jazz:
+
+"fail/register_allocation/arm-m4/inplace.jazz", line 4 (19-29):
+compilation error:
+register allocation: conflicting variables “b” and “a” must be merged due to:
+  at "fail/register_allocation/arm-m4/inplace.jazz", line 4 (19-29):
+    #[keep, inplace]
+  a = #EOR(b, a); /* :k */
+
 fail/register_allocation/arm-m4/no_mmx.jazz:
 
 compilation error:
@@ -1695,4 +1704,4 @@ Statistics:
 	Pretyping:  47
 	Parsing:     4
 	Typing:      5
-	Compile:   211
+	Compile:   212
