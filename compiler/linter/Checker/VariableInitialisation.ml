@@ -37,6 +37,12 @@ let check_func fd =
     | Papp2 (_, e1, e2) -> check_es m [ e1; e2 ]
     | PappN (_, es) -> check_es m es
     | Pif (_, e1, e2, e3) -> check_es m [ e1; e2; e3 ]
+    | Pbig (e0, _op, x, start, len, body) ->
+      check_es m [e0; start; len];
+      let m = Annotation.map m (RDDomain.add (Sv.singleton (L.unloc x)) (L.of_loc x)) in
+      check_e m body
+    | Pis_var_init _ -> ()
+    | Pis_mem_init (e1, e2) -> check_es m [e1; e2]
   and check_es m = List.iter (check_e m) in
   let check_lv m = function
     | Lnone _ | Lvar _ -> ()
@@ -54,6 +60,7 @@ let check_func fd =
     | Copn (xs, _, _, es) | Csyscall (xs, _, es) | Ccall (xs, _, es) ->
         check_lvs i_info xs;
         check_es i_info es
+    | Cassert (_, e) -> check_e i_info e
     | Cif (e, _, _) -> check_e i_info e
     | Cfor (_, (_, e1, e2), _) -> check_es i_info [ e1; e2 ]
     | Cwhile (_, _, e, (_, i), _) -> check_e i e

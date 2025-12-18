@@ -24,8 +24,11 @@
 %token ALIGNED
 %token AMP
 %token AMPAMP
+%token ALL
+%token ASSERT
 %token BANG
 %token BANGEQ
+%token BIG
 %token COLON
 %token COLONCOLON
 %token COMMA
@@ -36,6 +39,7 @@
 %token EQ
 %token EQEQ
 %token EXEC
+%token EXISTS
 %token FALSE
 %token FN
 %token FOR
@@ -47,6 +51,7 @@
 %token <Syntax.sign option>GTGT
 %token HAT
 %token IF
+%token IN
 %token INLINE
 %token <Syntax.sign option> LE
 %token <Syntax.sign option> LT
@@ -68,6 +73,7 @@
 %token ROR
 %token ROL
 %token SEMICOLON
+%token SUM
 %token <Syntax.swsize> SWSIZE
 %token <Syntax.svsize> SVSIZE
 %token <Syntax.sign option> SLASH
@@ -125,20 +131,15 @@ annotationlabel:
   | id=loc(keyword) { id }
   | s=loc(STRING) { s }
 
-int:
-  | i=INT       { Syntax.parse_int i }
-  | MINUS i=INT { Z.neg (Syntax.parse_int i ) }
-
 simple_attribute:
-  | i=int          { Aint i    }
-  | id=NID         { Aid id    }
-  | s=STRING       { Astring s }
-  | s=keyword      { Astring s }
-  | ws=utype       { Aws (fst ws) }
+  | e=pexpr        { PAexpr e}
+  | s=STRING       { PAstring s }
+  | s=keyword      { PAstring s }
+  | ws=utype       { PAws (fst ws) }
 
 attribute:
   | EQ ap=loc(simple_attribute) { ap }
-  | EQ s=loc(braces(struct_annot)) { Location.mk_loc (Location.loc s) (Astruct (Location.unloc s)) }
+  | EQ s=loc(braces(struct_annot)) { Location.mk_loc (Location.loc s) (PAstruct (Location.unloc s)) }
 
 annotation:
   | k=annotationlabel v=attribute? { k, v }
@@ -316,8 +317,28 @@ pexpr_r:
 | e1=pexpr QUESTIONMARK e2=pexpr COLON e3=pexpr
     { PEIf(e1, e2, e3) }
 
+| bo= big LPAREN v=var IN e1=pexpr COLON e2=pexpr RPAREN LPAREN b=pexpr RPAREN
+    { PEbig (bo, v, b, e1, e2) }
+
+(* FIXME this syntax is horrible *)
+| v=var DOT i=INT
+    { if L.unloc v <> "result" then
+        Syntax.parse_error ~msg:"`result` expected" (L.loc v);
+      PEResult i }
+
+| v=var DOT index=INT i=arr_access
+    { if L.unloc v <> "result" then
+        Syntax.parse_error ~msg:"`result` expected" (L.loc v);
+      let aa, (ws, e, len, al) = i in PEResultGet (al, aa, ws, index, e, len) }
+
 pexpr:
 | e=loc(pexpr_r) { e }
+
+%inline big:
+| BIG LBRACKET o=peop2 SLASH e0=pexpr RBRACKET   { PEBop(o,e0) }
+| SUM                                            { PESum }
+| ALL                                            { PEAll }
+| EXISTS                                         { PEExists }
 
 (* -------------------------------------------------------------------- *)
 peqop:
@@ -379,6 +400,8 @@ pinstr_r:
     c=prefix(IF, pexpr)? SEMICOLON
     { let { Location.pl_loc = loc; Location.pl_desc = (f, args) } = fc in
       PIAssign ((None, []), `Raw, Location.mk_loc loc (PECall (f, args)), c) }
+
+| ASSERT e=pexpr SEMICOLON { PIAssert e }
 
 | s=pif { s }
 
@@ -470,6 +493,13 @@ call_conv :
 | EXPORT { `Export }
 | INLINE { `Inline }
 
+(*
+requires:
+| REQUIRES a=annotations LBRACE pe=pexpr RBRACE { (a,pe) }
+
+ensures:
+| ENSURES a=annotations LBRACE pe=pexpr RBRACE { (a,pe) }
+*)
 pfundef:
 |  pdf_annot = annotations
     cc=call_conv?
