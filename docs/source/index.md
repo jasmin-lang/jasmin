@@ -9,6 +9,7 @@
 
 language/syntax/index
 language/semantics/index
+language/harmony/index
 :::
 
 :::{toctree}
@@ -16,6 +17,7 @@ language/semantics/index
 
 compiler/passes/index
 compiler/advanced/index
+
 :::
 
 :::{toctree}

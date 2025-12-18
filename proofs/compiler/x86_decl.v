@@ -328,3 +328,11 @@ Definition x86_windows_call_conv : calling_convention :=
    ; call_xreg_ret  := [:: XMM0 ]
    ; call_reg_ret_uniq := erefl true;
   |}.
+
+Definition x86_internal_call_conv : internal_calling_convention :=
+  {| icall_reg    := [:: RDI; RSI; RDX; RCX; R8; R9; RAX; RBX; RBP; R10; R11; R12; R13; R14; R15]
+   ; icall_regx  := [:: MM0; MM1; MM2; MM3; MM4; MM5; MM6; MM7]
+   ; icall_xreg   := [:: XMM0; XMM1; XMM2; XMM3; XMM4; XMM5; XMM6; XMM7; XMM8; XMM9; XMM10; XMM11; XMM12; XMM13; XMM14; XMM15]
+   ; icall_rflag := [:: CF; PF; ZF; SF; OF]
+  |}.
+
