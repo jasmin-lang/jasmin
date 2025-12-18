@@ -16,6 +16,8 @@ language/semantics/index
 
 compiler/passes/index
 compiler/advanced/index
+compiler/harmony/index
+
 :::
 
 :::{toctree}
