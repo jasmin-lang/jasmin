@@ -1,3 +1,50 @@
+# Jasmin 2025.06.3 — Nancy, 2025-12-18
+
+## New features
+
+- The safety checker used to support only x86-64, it now also supports ARMv7 and RISC-V.
+  It has not been specialized yet to these new architectures, so it might be imprecise.
+  ([PR #1316](https://github.com/jasmin-lang/jasmin/pull/1316);
+  fixes [#1315](https://github.com/jasmin-lang/jasmin/issues/1315)).
+
+- Declassification can be expressed using a pseudo-operator that applies to a
+  single variable: `() = #declassify(x)`; the legacy annotation `#[declassify]`
+  on assignements is deprecated
+  ([PR #1328](https://github.com/jasmin-lang/jasmin/pull/1328);
+  fixes [#746](https://github.com/jasmin-lang/jasmin/issues/746)).
+
+- The assembly produced by `jasminc` compiler slightly depends on the target
+  system: on macOS exported symbols have a leading underscore whereas on other
+  systems, the assembly features `.type` directives for every function and
+  `.note.GNU-stack` section. The default target system is chosen when building
+  the compiler and can be selected when running it using the new `-target`
+  command-line argument.
+  ([PR #1339](https://github.com/jasmin-lang/jasmin/pull/1339)).
+
+- The `#swap` pseudo-operator can be applied to word-sized integers
+  ([PR #1342](https://github.com/jasmin-lang/jasmin/pull/1342)).
+
+- When one of the “auto-spill” flag is set on the command-line, automatically
+  insert spill and unspill operations in the program
+  ([PR #1356](https://github.com/jasmin-lang/jasmin/pull/1356)).
+
+## Bug fixes
+
+- Fix extraction to EasyCrypt of (un)spill operations involving word-sized integers
+  ([PR #1341](https://github.com/jasmin-lang/jasmin/pull/1341);
+  fixes [#1335](https://github.com/jasmin-lang/jasmin/issues/1335)).
+
+- Warn as expected when defining two (global) variables with the same name in
+  the same namespace
+  ([PR 1348](https://github.com/jasmin-lang/jasmin/pull/1348);
+  fixes [#1347](https://github.com/jasmin-lang/jasmin/issues/1347)).
+
+## Other changes
+
+- Annotations must be enclosed within square brackets; syntax without square
+  brackets is now deprecated
+  ([PR 1346](https://github.com/jasmin-lang/jasmin/pull/1346)).
+
 # Jasmin 2025.06.2 — Nancy, 2025-11-20
 
 ## New features
