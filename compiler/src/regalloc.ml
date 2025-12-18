@@ -211,6 +211,19 @@ let kind_compatible (x: v_kind) (y: v_kind) : bool =
     -> pointer_compatible a b
   | _, _ -> false
 
+(** Add extra constraints for operators (Copn) annotated with “inplace”. The
+  first argument shall be allocated to the same register as the destination. The
+  annotation is ignored if the operation has several destinations. *)
+let process_inplace_annotation addv (i: ('info, 'asm) instr) : unit =
+  if Annotations.has_symbol "inplace" i.i_annot then
+    begin
+      match i.i_desc with
+      | Copn ([ Lvar x ], _, _, Pvar { gs = E.Slocal; gv = y } :: _) when kind_i x = kind_i y ->
+         addv i x y
+      | Copn _ -> warning Always i.i_loc "ignored “inplace” annotation"
+      | _ -> ()
+    end
+
 let collect_equality_constraints_in_func
       (asmOp:'asm Sopn.asmOp)
       is_move_op
@@ -247,6 +260,7 @@ let collect_equality_constraints_in_func
   let names = ref (Puf.create nv) in
   let renames = ref [] in
   let first_pass ii =
+    process_inplace_annotation addv ii;
     match ii.i_desc with
     | Copn (lvs, _, op, es) ->
         copn_constraints
