@@ -177,3 +177,12 @@ Definition riscv_linux_call_conv : calling_convention :=
  ; call_xreg_ret  := [::]
  ; call_reg_ret_uniq := erefl true;
 |}.
+
+
+Definition riscv_internal_call_conv : internal_calling_convention :=
+  {| icall_reg   := [:: X10; X11; X12; X13; X14; X15; X16; X17; X5; X6; X7; X8; X9;
+                             X18; X19; X20; X21; X22; X23; X24; X25; X26; X27; X28; X29; X30; X31 ]
+   ; icall_regx  := [::]
+   ; icall_xreg  := [::]
+   ; icall_rflag := [::]
+  |}.

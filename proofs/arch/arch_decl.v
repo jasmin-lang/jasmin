@@ -678,6 +678,14 @@ Definition check_call_conv {call_conv:calling_convention} (fd:asm_fundef) :=
         check_list get_ARReg fd.(asm_fd_res) call_reg_ret &
         check_list get_AXReg fd.(asm_fd_res) call_xreg_ret].
 
+
+Class internal_calling_convention :=
+  { icall_reg   : seq reg_t
+  ; icall_regx  : seq regx_t
+  ; icall_xreg  : seq xreg_t
+  ; icall_rflag : seq rflag_t
+  }.
+
 End DECL.
 
 Section ENUM.
