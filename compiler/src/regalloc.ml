@@ -1275,6 +1275,7 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
       | (Export | Internal) -> Sv.empty
       | Subroutine -> vars_retaddr ra
     in
+    (* If stable_call_conv is used then all allowed registers are considered as written *)
     let written_call_conv =
       match process_call_conv f with
       | None -> Sv.empty
@@ -1288,7 +1289,6 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
       Mf.fold (fun fn _locs acc -> Sv.union (fn_vars fn) acc)
         cg all_vars in
     let written = Sv.union ra (Sv.union written_call_conv written) in
-    let written = Sv.union written_call_conv written in
     let killed_by_calls =
       Mf.fold (fun fn _locs acc -> Sv.union (killed fn) acc)
         cg Sv.empty in

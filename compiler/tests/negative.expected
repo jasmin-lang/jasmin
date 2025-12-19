@@ -909,8 +909,8 @@ register allocation: too many return values according to the ABI (only 2 availab
 fail/register_allocation/x86-64/unknown_type_register.jazz:
 
 "fail/register_allocation/x86-64/unknown_type_register.jazz", line 1 (0-28):
-compilation error:
-register allocation: unexpected flag register a
+compilation error in function f:
+register allocation: too many flag parameters according to the ABI (only 0 available on this architecture)
 
 fail/register_allocation/x86-64/var_unallocated.jazz:
 
