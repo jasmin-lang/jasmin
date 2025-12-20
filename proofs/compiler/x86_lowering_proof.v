@@ -606,11 +606,15 @@ Section PROOF.
           1-3: rewrite /= ok_x /exec_sopn /= truncate_word_le // {hle} /= zero_extend_u //.
           do 3 f_equal.
           exact: zero_extend_cut.
-        case: sz Hw hle' => // Hw hle'; case hc: convertible => //.
-        1-2: move: hty; rewrite -(convertible_eval_atype hc) => -[?]; subst sz'.
-        1-2: rewrite /= ok_x /exec_sopn /= truncate_word_le // {hle} /= zero_extend_u //.
-        do 3 f_equal.
-        exact: zero_extend_cut.
+        - case: sz Hw hle' => // Hw hle'; case hc: convertible => //.
+          1-2: move: hty; rewrite -(convertible_eval_atype hc) => -[?]; subst sz'.
+          1-2: rewrite /= ok_x /exec_sopn /= truncate_word_le // {hle} /= zero_extend_u //.
+          do 3 f_equal.
+          exact: zero_extend_cut.
+        case: sz Hw hle' => // Hw hle'; case: andP => // - [] _ hc.
+        move: (convertible_eval_atype hc).
+        rewrite hty; case => ?; subst sz'.
+        by rewrite /= ok_x /= /exec_sopn /= truncate_word_le // /= zero_extend_u.
       (* Olnot *)
       + rewrite /= /sem_sop1 /= => sz; t_xrbindP => w Hz z' /to_wordI' [sz' [z [Hsz ? ->]]] ?; subst.
         case: andP => // - [hsz] hc.
