@@ -146,33 +146,85 @@ Definition XCntrL {E} {XE: ErrEvent -< E}
       else Ret (inr l1)
   end.             
 
-(*
-Definition WCntrL {E} {XE: ErrEvent -< E}  
+Definition XCntrS0 {E} {XE: ErrEvent -< E}  
   (F: linstr_r -> rlabel -> itree E rlabel)
-  (N: rlabel -> )
-  (Y: lcmd -> nat -> rlabel -> bool)
+  (N: rlabel -> lcmd * nat)
   (X: lcmd -> nat -> rlabel -> bool)
-  (l1: rlabel) : itree E ((lcmd * nat * rlabel) + (lcmd * nat * rlabel)) :=
-  let fn := fst l1 in
-  let plc := fenv fn in
-  match plc with
-  | Some lc => XCntrL F fn lc 0 l1
-  | _ => throw err
-  end.             
-*)
-(*
-Definition WCntrL {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> rlabel -> itree E (lcmd * nat * rlabel))
-  (Y: lcmd -> nat -> rlabel -> bool)
-  (X: lcmd -> nat -> rlabel -> bool)
-  (l1: rlabel) : itree E ((lcmd * nat * rlabel) + (lcmd * nat * rlabel)) :=
-  let fn := fst l1 in
-  let plc := fenv fn in
-  match plc with
-  | Some lc => XCntrL F fn lc 0 l1
-  | _ => throw err
-  end.             
-*)
+  (l0: rlabel) : itree E (rlabel + rlabel) :=
+  let fn := fst l0 in
+  let '(lc, n0) := N l0 in
+  match (X lc n0 l0) with
+    (* return inr if the instruction is out of lc *)
+  | false => XCntrL F fn lc n0 l0
+    (* l0 is actually final. do we really need it here? *)                
+  | true => Ret (inr l0)                  
+  end.
+                    
+Definition XCntrS {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (N: rlabel -> lcmd * nat)
+  (l0: rlabel) : itree E (rlabel + rlabel) :=
+  let fn := fst l0 in
+  let '(lc, n0) := N l0 in
+  XCntrL F fn lc n0 l0.
+
+(* iterate XContrS *)
+Definition ICntrS {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (N: rlabel -> lcmd * nat)
+  (l0: rlabel) : itree E rlabel :=
+  ITree.iter (@XCntrS E XE F N) l0.
+
+(* add a termination check to XCntrLF *)
+Definition XCntrSG {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (N: rlabel -> lcmd * nat)
+  (X: rlabel -> bool)
+  (l0: rlabel) : itree E (rlabel + rlabel) :=
+  if (X l0)
+  then Ret (inr l0)
+  else l1 <- ICntrS F N l0 ;; Ret (inl l1).
+
+Definition ICntrSG {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (N: rlabel -> lcmd * nat)
+  (X: rlabel -> bool)
+  (l0: rlabel) : itree E rlabel :=
+  ITree.iter (@XCntrSG E XE F N X) l0.
+
+Definition XCntrSF {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (N: rlabel -> lcmd * nat)
+  (X: rlabel -> bool)
+  (fn: funname) (l0: rlabel) : itree E (rlabel + rlabel) :=
+  if (X l0) && ~~(fn == fst l0) 
+  then Ret (inr l0)
+  else l1 <- ICntrS F N l0 ;; Ret (inl l1).
+            
+Definition ICntrSF {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (N: rlabel -> lcmd * nat)
+  (X: rlabel -> bool)
+  (fn: funname) (l0: rlabel) : itree E rlabel :=
+  ITree.iter (@XCntrSF E XE F N X fn) l0.
+
+Definition XCntrSFG {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (N: rlabel -> lcmd * nat)
+  (X: rlabel -> bool)
+  (l0: rlabel) : itree E (rlabel + rlabel) :=
+  if (X l0)
+  then Ret (inr l0)
+  else l1 <- ICntrSF F N X (fst l0) l0 ;; Ret (inl l1).
+
+Definition ICntrSFG {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (N: rlabel -> lcmd * nat)
+  (X: rlabel -> bool)
+  (l0: rlabel) : itree E rlabel :=
+  ITree.iter (@XCntrSFG E XE F N X) l0.
+
+(*********************************************************)
 
 (* execute the code of fn from 0. can jump into any function code at
    any point *)
@@ -604,8 +656,6 @@ that the code is needed, not just the rlabel.
 
 Require Import linearization.
 
-Check @linearization_params.
-
 Context
 (*  {asm_op : Type}
   {pd : PointerData} *)
@@ -617,10 +667,55 @@ Definition handle2lin
   E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
   (fn: funname) (i:instr) (n0: nat) (lbl0: label) :
+   itree E (nat * label * rlabel) :=
+  let '(n1, lbl1, lc) := linear_Xi liparams SP fn i n0 lbl0 in
+  l1 <- isem_ICntrL fn lc n0 (fn, n0) ;; Ret (n1, lbl1, l1). 
+
+(*
+
+1) define the source code interpretation recursively. ultimately, each
+   source instruction should be mapped to a linear iteration, and so
+   commands (by folding with bind??). use rec call triggers for
+   function calls.
+
+2) define the translation globally (or at least function-wise).  so,
+   basically, lc should be the global code, while a source instruction
+   should be associated to n0 and n1 (start and end of the code
+   segment).
+
+transl : lcmd -> funname -> instr -> nat -> nat
+
+or:
+
+transl : fenv -> funname -> instr -> nat -> nat
+
+or:
+
+transl_rel : fenv -> funname -> instr -> nat -> nat -> Prop
+
+3) introduce halting conditions as parameters on iteration, to model
+   the interpretation of source instructions. so, the exit condition
+   on isem_ICntr should be parameterized on (fn, n0, n1). Also needed:
+   entry conditions (join combinator).
+
+exit: funname -> nat -> nat -> rlabel -> bool
+
+iter n1 n3 (join (iter n1 n2) (iter n2 n3)) = iter n1 n3 
+
+*)
+
+
+Definition handle2lin 
+  E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  (fn: funname) (i:instr) (n0: nat) (lbl0: label) :
    itree E (label * rlabel) :=
   let '(n1, lbl1, lc) := linear_Xi liparams SP fn i n0 lbl0 in
   l1 <- isem_ICntrL fn lc n1 (fn, n1) ;; Ret (lbl1, l1). 
 
+(* basically, we need to translate all the source code, and then for
+each linear code position get the chunk it is included in. need to
+pass n0 around. *)
 
 
 
