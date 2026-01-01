@@ -129,11 +129,11 @@ Definition LCntr {E} {XE: ErrEvent -< E}
    fn: function cc belongs to.
    n0: starting point of cc in 'code fn'. 
    l1: the instruction being executed.
-   the position of the executed intruction in fn is 'n0 + n1'.
+   the position of the executed intruction in fn is 'n1'.
    need to check whether the position returned by F is in fn. *)
 Definition XCntrL {E} {XE: ErrEvent -< E}  
   (F: linstr_r -> rlabel -> itree E rlabel)
-  (fn: funname) (n0: nat) (cc: lcmd) (l1: rlabel) :
+  (fn: funname) (cc: lcmd) (n0: nat) (l1: rlabel) :
   itree E (rlabel + rlabel) :=
   match l1 with
   | (fn1, n1) =>
@@ -146,17 +146,47 @@ Definition XCntrL {E} {XE: ErrEvent -< E}
       else Ret (inr l1)
   end.             
 
-(* ok, can jump into a function at any point *)
+(*
+Definition WCntrL {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (N: rlabel -> )
+  (Y: lcmd -> nat -> rlabel -> bool)
+  (X: lcmd -> nat -> rlabel -> bool)
+  (l1: rlabel) : itree E ((lcmd * nat * rlabel) + (lcmd * nat * rlabel)) :=
+  let fn := fst l1 in
+  let plc := fenv fn in
+  match plc with
+  | Some lc => XCntrL F fn lc 0 l1
+  | _ => throw err
+  end.             
+*)
+(*
+Definition WCntrL {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E (lcmd * nat * rlabel))
+  (Y: lcmd -> nat -> rlabel -> bool)
+  (X: lcmd -> nat -> rlabel -> bool)
+  (l1: rlabel) : itree E ((lcmd * nat * rlabel) + (lcmd * nat * rlabel)) :=
+  let fn := fst l1 in
+  let plc := fenv fn in
+  match plc with
+  | Some lc => XCntrL F fn lc 0 l1
+  | _ => throw err
+  end.             
+*)
+
+(* execute the code of fn from 0. can jump into any function code at
+   any point *)
 Definition XCntrLF {E} {XE: ErrEvent -< E}  
   (F: linstr_r -> rlabel -> itree E rlabel)
   (l1: rlabel) : itree E (rlabel + rlabel) :=
   let fn := fst l1 in
   let plc := fenv fn in
   match plc with
-  | Some lc => XCntrL F fn 0 lc l1
+  | Some lc => XCntrL F fn lc 0 l1
   | _ => throw err
   end.             
 
+(* add a termination check to XCntrLF *)
 Definition XCntrLG {E} {XE: ErrEvent -< E}  
   (F: linstr_r -> rlabel -> itree E rlabel)
   (X: rlabel -> bool)
@@ -165,6 +195,7 @@ Definition XCntrLG {E} {XE: ErrEvent -< E}
   then Ret (inr l1)
   else XCntrLF F l1.
 
+(* iterate XContrLG *)
 Definition ICntrG {E} {XE: ErrEvent -< E}  
   (F: linstr_r -> rlabel -> itree E rlabel)
   (X: rlabel -> bool)
@@ -178,7 +209,7 @@ Definition XCntrFF {E} {XE: ErrEvent -< E}
   itree E (rlabel + rlabel) :=
   let plc := fenv fn in
   match plc with
-  | Some lc => XCntrL F fn 0 lc l1
+  | Some lc => XCntrL F fn lc 0 l1
   | _ => throw err
   end.             
 
@@ -203,9 +234,9 @@ Definition ICntrFG {E} {XE: ErrEvent -< E}
    
 Definition ICntrL {E} {XE: ErrEvent -< E}  
   (F: linstr_r -> rlabel -> itree E rlabel)
-  (fn: funname) (n0: nat) (cc: lcmd) (l1: rlabel) :
+  (fn: funname) (cc: lcmd) (n0: nat) (l1: rlabel) :
   itree E rlabel :=
-  ITree.iter (@XCntrL E XE F fn n0 cc) l1.
+  ITree.iter (@XCntrL E XE F fn cc n0) l1.
 
 Definition halt_pred (l: rlabel) : bool :=
   let fn := fst l in
@@ -351,7 +382,7 @@ Section HandleLin.
 Context {stackAgree : lstate -> alstate -> bool}.
 
 Context {E: Type -> Type} {XA: @stateE alstate -< E}
-        {XS: @stateE lstate -< E}  {XE: ErrEvent -< E}.
+        {XS: @stateE lstate -< E} {XE: ErrEvent -< E}.
 
 (* TODO: incomplete, add missing constructors *)
 Definition handle_LinE {XE: ErrEvent -< E} {T} (e: LinE T) :
@@ -554,6 +585,11 @@ Definition isem_ICntrFG E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   {XST: StackE -< E} (lbl: rlabel) : itree E rlabel :=
   ICntrFG (fun i l => interp_LFlowE (exec_linstr i l)) halt_pred lbl.
 
+Definition isem_ICntrL E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  (fn: funname) (cc: lcmd) (n0: nat) (lbl0: rlabel) : itree E rlabel :=
+  ICntrL (fun i l => interp_LFlowE (exec_linstr i l)) fn cc n0 lbl0.
+
 (* two errors so far.
 
 1) handle_linstr consumes LinstrE events, but this is wrong.  we need
@@ -566,12 +602,28 @@ that the code is needed, not just the rlabel.
 
 *)
 
+Require Import linearization.
 
-Definition handle2lin E (fn: funname) (i:instr) (n0: nat) (lbl0:label) :
-   itree E (rlabel * rlabel) :=
-  let '(n1, lbl1, lc) := linear_Xi fn i n0 lbl0 in
-  
-  
+Check @linearization_params.
+
+Context
+(*  {asm_op : Type}
+  {pd : PointerData} *)
+ (* {asmop : asmOp asm_op} *) 
+  (liparams : @linearization_params asm_op (@_asmop asm_op syscall_state sip)).
+Context (SP : sprog).
+
+Definition handle2lin 
+  E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  (fn: funname) (i:instr) (n0: nat) (lbl0: label) :
+   itree E (label * rlabel) :=
+  let '(n1, lbl1, lc) := linear_Xi liparams SP fn i n0 lbl0 in
+  l1 <- isem_ICntrL fn lc n1 (fn, n1) ;; Ret (lbl1, l1). 
+
+
+
+
   let: (MkI ii ir) := i in
   match ir with
   | Cassgn x tg ty e => throw err
