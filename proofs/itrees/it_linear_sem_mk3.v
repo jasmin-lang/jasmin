@@ -146,20 +146,36 @@ Definition XCntrL {E} {XE: ErrEvent -< E}
       else Ret (inr l1)
   end.             
 
-Definition XCntrS0 {E} {XE: ErrEvent -< E}  
+Definition XCntrK {E} {XE: ErrEvent -< E}  
   (F: linstr_r -> rlabel -> itree E rlabel)
-  (N: rlabel -> lcmd * nat)
-  (X: lcmd -> nat -> rlabel -> bool)
-  (l0: rlabel) : itree E (rlabel + rlabel) :=
-  let fn := fst l0 in
-  let '(lc, n0) := N l0 in
-  match (X lc n0 l0) with
-    (* return inr if the instruction is out of lc *)
-  | false => XCntrL F fn lc n0 l0
-    (* l0 is actually final. do we really need it here? *)                
-  | true => Ret (inr l0)                  
-  end.
-                    
+  (fn: funname) (nS nE: nat) (l1: rlabel) : itree E (rlabel + rlabel) :=
+  match l1 with
+  | (fn1, n1) =>
+  (* the optional function body *)
+    match fenv fn1 with
+    | None => throw err      
+    (* the function exists: find the instruction in its body *)
+    | Some lc =>
+      if (length lc < nE) then throw err else
+      if (fn == fn1) && (nS <= n1) && (n1 < nE)
+      then match find_linstr_in_env lc n1 with
+           (* the instruction exists in the segment: execute it and
+              return the next label *) 
+           | Some (MkLI _ i) => l2 <- F i l1 ;; Ret (inl l2)
+           (* n1 < nE and nE <= length lc, so this cannot happen *) 
+           | _ => throw err                                         
+           end
+          (* the instruction is not in the function code segment *)         
+      else Ret (inr l1)
+    end
+  end.        
+
+(* iterate XContrK *)
+Definition ICntrK {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (fn: funname) (nS nE: nat) (l0: rlabel) : itree E rlabel :=
+  ITree.iter (@XCntrK E XE F fn nS nE) l0.
+                 
 Definition XCntrS {E} {XE: ErrEvent -< E}  
   (F: linstr_r -> rlabel -> itree E rlabel)
   (N: rlabel -> lcmd * nat)
@@ -642,6 +658,13 @@ Definition isem_ICntrL E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   (fn: funname) (cc: lcmd) (n0: nat) (lbl0: rlabel) : itree E rlabel :=
   ICntrL (fun i l => interp_LFlowE (exec_linstr i l)) fn cc n0 lbl0.
 
+(* if the linear translation of i is straightline code, it should
+   return (fn, n1) *)
+Definition isem_ICntrK E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  (fn: funname) (n0 n1: nat) : itree E rlabel :=
+  ICntrK (fun i l => interp_LFlowE (exec_linstr i l)) fn n0 n1 (fn, n0).
+
 (* two errors so far.
 
 1) handle_linstr consumes LinstrE events, but this is wrong.  we need
@@ -672,26 +695,25 @@ Definition handle2lin
   l1 <- isem_ICntrL fn lc n0 (fn, n0) ;; Ret (n1, lbl1, l1). 
 
 (*
-
 1) define the source code interpretation recursively. ultimately, each
    source instruction should be mapped to a linear iteration, and so
-   commands (by folding with bind??). use rec call triggers for
-   function calls.
+   commands (by folding with bind?? no!! by joining and iterating, see
+   below). use rec call triggers for function calls.
 
 2) define the translation globally (or at least function-wise).  so,
    basically, lc should be the global code, while a source instruction
    should be associated to n0 and n1 (start and end of the code
    segment).
 
-transl : lcmd -> funname -> instr -> nat -> nat
+localize_instr : lcmd -> funname -> instr -> nat -> nat
 
 or:
 
-transl : fenv -> funname -> instr -> nat -> nat
+localize_instr : fenv -> funname -> instr -> nat -> nat
 
 or:
 
-transl_rel : fenv -> funname -> instr -> nat -> nat -> Prop
+localize_instr_rel : fenv -> funname -> instr -> nat -> nat -> Prop
 
 3) introduce halting conditions as parameters on iteration, to model
    the interpretation of source instructions. so, the exit condition
@@ -700,9 +722,97 @@ transl_rel : fenv -> funname -> instr -> nat -> nat -> Prop
 
 exit: funname -> nat -> nat -> rlabel -> bool
 
-iter n1 n3 (join (iter n1 n2) (iter n2 n3)) = iter n1 n3 
-
+iter n1 n3 (join (iter n1 n2) (iter n2 n3)) = iter n1 n3
 *)
+
+Fixpoint lsm_cmd E 
+  (R: instr -> rlabel -> itree E rlabel)
+  (cc: cmd) (l1: rlabel) : itree E rlabel :=
+  match cc with
+  | nil => Ret l1
+  | i :: cc0 =>
+      l2 <- R i l1 ;; lsm_cmd R cc0 l2 end.
+
+Fixpoint loc_cmd (loc_instr : instr -> rlabel -> nat)
+  (fn: funname) (cc: cmd) (n0: nat) : nat :=
+  match cc with
+  | nil => n0
+  | i :: cc0 => let n2 := loc_instr i (fn, n0) in
+                loc_cmd loc_instr fn cc0 n2 end.
+
+Definition select E fn (l0: rlabel) (n1: nat) : itree E (rlabel + rlabel) :=
+  let: (fn0, n0) := l0 in
+  if (fn0 == fn) && (n0 < n1) then Ret (inl l0) else Ret (inr l0).
+
+Fixpoint lsm_cmd_NS E
+  (loc_instr : instr -> rlabel -> nat)                  
+  (R: instr -> rlabel -> itree E rlabel)
+  (cc: cmd) (l1: rlabel) : itree E rlabel :=
+  let: (fn, n0) := l1 in 
+  match cc with
+  | nil => Ret l1
+  | i :: cc0 =>
+      let n2 := loc_instr i l1 in
+      let n3 := loc_cmd loc_instr fn cc0 n2 in
+      ITree.iter (fun '(fn, n) => if n < n2
+          then (l0 <- R i (fn, n) ;; select E fn l0 n3)
+          else (l0 <- lsm_cmd_NS loc_instr R cc0 (fn, n) ;;
+                select E fn l0 n3)) l1
+  end.                        
+                
+(* assuming fenv *)
+Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  (loc_instr : instr -> rlabel -> nat)
+  (i : instr) (l1: rlabel) :
+          itree (callE rlabel rlabel +' E) rlabel :=
+  let: (MkI ii ir) := i in
+  let: (fn, n0) := l1 in  
+  match ir with
+  | Cassgn x tg ty e => throw err
+
+  | Copn xs tg o es => let n1 := loc_instr i l1 in
+      isem_ICntrK fn n0 n1                 
+
+  | Csyscall xs o es => let n1 := loc_instr i l1 in
+      isem_ICntrK fn n0 n1    
+                  
+  | _ => throw err end.
+                  
+
+
+
+
+  | Cif e c1 c2 =>
+    b <- trigger (EvalCond e) ;;
+    isem_foldr isem_instr (if b then c1 else c2) 
+               
+  | Cwhile a c1 e ii0 c2 =>
+      isem_while_loop isem_instr (fun e => trigger (EvalCond e))
+        c1 e c2 
+
+  | Cfor i (d, lo, hi) c =>
+    zz <- trigger (EvalBounds lo hi) ;;  
+    isem_for_loop isem_instr (fun w => trigger (WriteIndex i (Vint w)))
+      i c (wrange d (fst zz) (snd zz)) 
+
+  | Ccall xs fn args =>
+    s0 <- trigger (@Get State) ;;  
+    vargs <- trigger (EvalArgs args) ;;
+    fs0 <- trigger (InitFState vargs ii) ;;
+    fs1 <- trigger_inl1 (Call (fn, fs0)) ;; 
+    (* discard current state, use s0 instead *)
+    trigger (RetVal xs fs1 s0)
+  end.
+
+
+
+
+
+
+
+
+(****************
 
 
 Definition handle2lin 
