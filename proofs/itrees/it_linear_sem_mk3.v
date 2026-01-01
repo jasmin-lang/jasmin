@@ -65,20 +65,6 @@ Definition rlabel2remote (l: rlabel) : remote_label :=
 
 Definition remote2rlabel (l: remote_label) : rlabel :=
   match l with (fn, l) => (fn, Pos.to_nat l) end. 
-
-(*
-Variant LinstrE : Type -> Type :=
-  | ELopn        : lexprs -> sopn -> rexprs -> LinstrE unit
-  | ELsyscall    : syscall_t -> LinstrE unit
-  | ELcall       : option var_i -> remote_label -> LinstrE unit
-  | ELret        : LinstrE unit
-  | ELalign      : LinstrE unit
-  | ELlabel      : label_kind -> label -> LinstrE unit
-  | ELgoto       : remote_label -> LinstrE unit
-  | ELigoto      : rexpr -> LinstrE unit
-  | ELstoreLabel : var -> label -> LinstrE unit
-  | ELcond       : fexpr -> label -> LinstrE unit.
-*)
     
 Variant LinstrE : Type -> Type :=
   | ELopn        : lexprs -> sopn -> rexprs -> LinstrE unit
@@ -137,6 +123,181 @@ Definition LCntr {E} {XE: ErrEvent -< E}
   (* the function does not exist: throw an error *)    
   | _ => throw err end.        
 
+Definition XCntrL {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (fn: funname) (n0: nat) (cc: lcmd) (l1: rlabel) :
+  itree E (rlabel + rlabel) :=
+  match l1 with
+  | (fn1, n1) =>
+      if (fn1 == fn) && (n0 <= n1)
+      then let pi := find_linstr_in_env cc (n1 - n0) in
+           match pi with
+           | Some (MkLI _ i) => l2 <- F i l1 ;; Ret (inl l2)  
+           | _ => Ret (inr l1)
+           end
+      else Ret (inr l1)
+  end.             
+
+(* ok, can jump into a function at any point *)
+Definition XCntrLF {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (l1: rlabel) : itree E (rlabel + rlabel) :=
+  let fn := fst l1 in
+  let plc := fenv fn in
+  match plc with
+  | Some lc => XCntrL F fn 0 lc l1
+  | _ => throw err
+  end.             
+
+Definition XCntrLG {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (X: rlabel -> bool)
+  (l1: rlabel) : itree E (rlabel + rlabel) :=
+  if (X l1)
+  then Ret (inr l1)
+  else XCntrLF F l1.
+
+Definition ICntrG {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (X: rlabel -> bool)
+  (l1: rlabel) : itree E rlabel :=
+  ITree.iter (@XCntrLG E XE F X) l1.
+
+(* ok, can jump into a function at any point *)
+Definition XCntrFF {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (fn: funname) (l1: rlabel) :
+  itree E (rlabel + rlabel) :=
+  let plc := fenv fn in
+  match plc with
+  | Some lc => XCntrL F fn 0 lc l1
+  | _ => throw err
+  end.             
+ 
+Definition XCntrFG0 {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (X: rlabel -> bool)
+  (fn: funname) (l1: rlabel) : itree E (rlabel + rlabel) :=
+  if (X l1)
+  then Ret (inr l1)
+  else XCntrFF F fn l1.
+
+(* probably wrong: the iteration might leave the function and then
+   return to it *)
+(*
+Definition ICntrFF {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (fn: funname) : itree E rlabel :=
+  ITree.iter (@XCntrFF E XE F fn) (fn, 0).    
+*)
+
+Definition ICntrFF {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (fn: funname) (l1: rlabel) : itree E rlabel :=
+  ITree.iter (@XCntrFF E XE F fn) l1.    
+
+(*
+Definition XCntrFG {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (X: rlabel -> bool)
+  (l1: rlabel) : itree E (rlabel + rlabel) :=
+  if (X l1)
+  then Ret (inr l1)
+  else let fn := fst l1 in
+       if (snd l1 == 0)
+       then l2 <- ICntrFF F fn ;; Ret (inl l2)
+       else throw err.                               
+*)
+
+Definition XCntrFG {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (X: rlabel -> bool)
+  (l1: rlabel) : itree E (rlabel + rlabel) :=
+  if (X l1)
+  then Ret (inr l1)
+  else l2 <- ICntrFF F (fst l1) l1 ;; Ret (inl l2).
+
+Definition ICntrFG {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (X: rlabel -> bool)
+  (l1: rlabel) : itree E rlabel :=
+  ITree.iter (@XCntrFG E XE F X) l1.   
+
+(*
+Definition ICntrL {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (fn: funname) (n0: nat) (cc: lcmd) :
+  itree E rlabel :=
+  ITree.iter (@XCntrL E XE F fn n0 cc) (fn, n0).
+*)
+   
+Definition ICntrL {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (fn: funname) (n0: nat) (cc: lcmd) (l1: rlabel) :
+  itree E rlabel :=
+  ITree.iter (@XCntrL E XE F fn n0 cc) l1.
+  
+
+(**************************************************************)
+
+
+(* lc: linear code. 
+   fn: function lc belongs to.
+   n0: starting point of lc in 'code fn'. 
+   n1: the lc instruction being executed.
+   so the position in fn of the executed intruction is 'n0 + n1'.
+   need to check whether the position returned by F is in fn. *)
+Definition XCntr0 {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (fn: funname) (n0: nat) (lc: lcmd) (n1: nat) : itree E (nat + rlabel) :=
+  match lc with
+  | nil => throw err
+  | _ => let pi := find_linstr_in_env lc n1 in
+         match pi with
+         | Some (MkLI _ i) => l1 <- F i (fn, n1) ;; throw err 
+         | _ => Ret (inr (fn, n1))
+         end
+  end.         
+
+Definition XCntr {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (fn: funname) (lc: lcmd) (n0: nat) : itree E (nat + rlabel) :=
+  match lc with
+  | nil => throw err
+  | _ => let pi := find_linstr_in_env lc n0 in
+         match pi with
+         | Some (MkLI _ i) => l1 <- F i (fn, n0) ;; Ret (inl l1)  
+         | _ => Ret (inr (fn, n0))
+         end
+  end.         
+
+
+Definition XCntr {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (lc: lcmd)
+  (l0: rlabel) : itree E (rlabel + rlabel) :=
+  match lc with
+  | nil => throw err
+  | _ => let pi := find_linstr_in_env lc l0 in
+         match pi with
+         | Some (MkLI _ i) => l1 <- F i l0 ;; Ret (inl l1)  
+         | _ => Ret (inr l0)
+         end
+  end.         
+                
+      
+  (* the function exists: find the instruction in its body *)
+  | Some lc => let pi := find_linstr_in_env lc lbl in
+    match pi with
+    (* the instruction exists: execute it and return the next label *) 
+    | Some (MkLI _ i) => rlbl1 <- F i rlbl ;; Ret (inl rlbl1)
+    (* the instruction does not exists: the execution terminates if the
+       label equals the code length, otherwise throws an error *)        
+    | _ => if X lc lbl then Ret (inr rlbl) else throw err end
+  (* the function does not exist: throw an error *)    
+  | _ => throw err end.        
+
+
 
 Section SemRec.
   
@@ -146,7 +307,7 @@ Context {E} {XF : LFlowE -< E} {XI : LinstrE -< E} {XE: ErrEvent -< E}.
 Definition exec_linstr (ir : linstr_r) (l: rlabel) :
   itree E rlabel :=
   match ir with
-  | Lopn xs o es => trigger (ELopn xs o es) ;; trigger  (LFopn xs o es l)
+  | Lopn xs o es => trigger (ELopn xs o es) ;; trigger (LFopn xs o es l)
 
   | Lsyscall o => trigger (ELsyscall o) ;; trigger (LFsyscall o l)
 
@@ -202,8 +363,6 @@ Variant LinE : Type -> Type :=
   | EvalExp (e: fexpr) : LinE bool
   | FindLabel (lbl: remote_label) : LinE rlabel
   | FindLocalLabel (fn: funname) (lbl: label) : LinE rlabel. 
-(*  | NewInstr (i: linstr_r) (l: rlabel) : LinE rlabel. *)
-(*  | IsFinal (lbl: rlabel) : LinE bool.  *)                 
 
 Variant StackE : Type -> Type :=
   | Push (l: rlabel) : StackE unit
@@ -212,32 +371,8 @@ Variant StackE : Type -> Type :=
 
 Section HandleLFlow.
   
-Context {E: Type -> Type} {XL: LinE -< E} {XST: StackE -< E} {XE: ErrEvent -< E}. 
-
-(* in progress ... %%%%%%%%%%%%%%%% not needed *)
-Definition linstr_rlabel (i : linstr_r) (l0: rlabel) :
-  itree E rlabel :=
-  match i with 
-  | Lopn xs o es => Ret (incr_label l0)
-  | Lsyscall o => Ret (incr_label l0)
-  | Lcall o d => trigger (Push l0) ;;
-                 l1 <- trigger (FindLabel d) ;;
-                 Ret l1                          
-  | Lret => l1 <- trigger Pop ;; Ret l1
-  | Lalign => Ret (incr_label l0) 
-  | Llabel x y => Ret (incr_label l0)
-  | Lgoto d => l1 <- trigger (FindLabel d) ;;
-               Ret l1
-  | Ligoto e => d <- trigger (EvalLoc e) ;;
-                l1 <- trigger (FindLabel d) ;;
-                Ret l1
-  | LstoreLabel x lbl => Ret (incr_label l0)                           
-  | Lcond e lbl => b <- trigger (EvalExp e) ;;
-                   if b then
-                     l1 <- trigger (FindLocalLabel (fst l0) lbl) ;;
-                     Ret l1
-                   else Ret (incr_label l0)      
-  end.
+Context {E: Type -> Type} {XL: LinE -< E} {XST: StackE -< E}
+    {XE: ErrEvent -< E}. 
 
 (* this is the one *)
 Definition handle_LFlow {T} (e: LFlowE T) : itree E T :=
@@ -263,31 +398,6 @@ Definition handle_LFlow {T} (e: LFlowE T) : itree E T :=
                        else Ret (incr_label l0)      
   end.
   
-(* not needed *)
-Definition LFlow_isem (i : linstr_r) (l0: rlabel) : itree E rlabel :=
-  trigger (MatchLabel l0) ;;
-  trigger MatchStack ;;
-  l1 <- linstr_rlabel i l0 ;;
-  trigger (MatchLabel l1) ;;
-  trigger MatchStack ;;
-  Ret l1.
-
-(*
-Definition handle_linstr {T} (e: LFlowE T) (l0: rlabel) : itree E T :=
-  match e with
-  | ELopn xs o es l0 => LFlow_isem (Lopn xs o es) l0
-  | ELsyscall o l0 => LFlow_isem (Lsyscall o) l0
-  | ELcall o d l0 => LFlow_isem (Lcall o d) l0
-  | ELret l0 => LFlow_isem Lret l0
-  | ELalign l0 => LFlow_isem Lalign l0
-  | ELlabel x y l0 => LFlow_isem (Llabel x y) l0
-  | ELgoto d l0 => LFlow_isem (Lgoto d) l0
-  | ELigoto e l0 => LFlow_isem (Ligoto e) l0
-  | ELstoreLabel x lbl l0 => LFlow_isem (LstoreLabel x lbl) l0
-  | ELcond e lbl l0 => LFlow_isem (Lcond e lbl) l0
-  end.
-*)
-
 End HandleLFlow.
 
 
@@ -295,7 +405,7 @@ Section HandleStack.
 
 Context {E: Type -> Type} {XA: @stateE alstate -< E} {XE: ErrEvent -< E}.
 
-Definition StackE_handle {T} (e: StackE T) : itree E T :=
+Definition handle_StackE {T} (e: StackE T) : itree E T :=
   match e with    
   | Push l => stk <- trigger (@Get alstate) ;;
               trigger (@Put alstate (l :: stk))
@@ -315,8 +425,8 @@ Context {stackAgree : lstate -> alstate -> bool}.
 Context {E: Type -> Type} {XA: @stateE alstate -< E}
         {XS: @stateE lstate -< E}  {XE: ErrEvent -< E}.
 
-(* TODO: add missing constructors *)
-Definition handle_lin {XE: ErrEvent -< E} {T} (e: LinE T) :
+(* TODO: incomplete, add missing constructors *)
+Definition handle_LinE {XE: ErrEvent -< E} {T} (e: LinE T) :
   itree E T := match e with
   | MatchLabel (fn, lbl)%type =>
       s <- trigger (@Get lstate) ;;
@@ -438,7 +548,7 @@ Definition Linstr_isem (i : linstr_r) : itree E unit :=
   s2 <- iresult (linstr_isem i s1) s1 ;;
   trigger (@Put lstate s2).
 
-Definition handle_linstr {XL: LinE -< E} {T}
+Definition handle_LinstrE {XL: LinE -< E} {T}
   (e: LinstrE T) : itree E T :=
   match e with
   | ELopn xs o es => Linstr_isem (Lopn xs o es)
@@ -459,28 +569,53 @@ End HandleState.
 
 Section Interp.
 
-Context {E: Type -> Type} {XE: ErrEvent -< E}.
-
 Context {stackAgree : lstate -> alstate -> bool}.
 
-Definition interp_LinstrE {XL: LinE -< E} {XST: StackE -< E} {A: Type}
-  (t : itree (LinstrE +' E) A) : rlabel -> itree E A :=
-  fun l => interp (ext_handler (fun T x => @handle_linstr E XL XST _ x l)) t.
+(* only cosmetics *)
+Definition interp_LinstrE E {XE: ErrEvent -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E}
+  {XST: StackE -< E} {A: Type}
+  (t : itree (LinstrE +' E) A) : itree E A :=
+  interp (ext_handler (fun T x => @handle_LinstrE E XLS XE XL T x)) t.
+
+(* only cosmetics *)
+Definition interp_LFlowE E {XL: LinE -< E} {XST: StackE -< E} {A: Type}
+  (t : itree (LFlowE +' E) A) : itree E A :=
+  interp (ext_handler (fun T x => @handle_LFlow E XL XST T x)) t.
+
+(* stack events (alstate-based) *)
+Definition interp_StackE E {XE: ErrEvent -< E}
+  {XL: LinE -< E} {XLS: stateE alstate -< E} {A: Type}
+  (t : itree (StackE +' E) A) : itree E A :=
+  interp (ext_handler (fun T x => @handle_StackE E XLS XE T x)) t.
+
+(* lstate-based events *)
+Definition interp_LinE E {XE: ErrEvent -< E}
+  {XLS: stateE alstate -< E}
+  {XS: stateE lstate -< E} {A: Type}
+  (t : itree (LinE +' E) A) : itree E A :=
+  interp (ext_handler
+            (fun T x => @handle_LinE stackAgree E XLS XS XE T x)) t.
+
+Definition interp_up2state E {XE: ErrEvent -< E}
+  {XLS: stateE alstate -< E}
+  {XS: stateE lstate -< E} {A: Type}
+  (t : itree (LinstrE +' LFlowE +' StackE +' LinE +' E) A) : itree E A :=
+  interp_LinE (interp_StackE (interp_LFlowE (interp_LinstrE t))).
 
 (* iterative semantics body *)
-Definition isem_linstrD {XL: LinE -< E} {XST: StackE -< E} (lbl: rlabel) :
+Definition isem_linstrD E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E}
+  {XST: StackE -< E} (lbl: rlabel) :
   itree E (rlabel + rlabel) :=
-  LCntr (fun i l => interp_LinstrE (exec_linstr i l) l) is_final lbl.
+  LCntr (fun i l => interp_LFlowE (exec_linstr i l)) is_final lbl.
 
 (* iterative semantics of a program, from any starting point *)
-Definition isem_liniterD {XL: LinE -< E} {XST: StackE -< E}
-  (lbl: rlabel) : itree E rlabel :=
-  ITree.iter isem_linstrD lbl.
+Definition isem_liniterD E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E}
+  {XST: StackE -< E} (lbl: rlabel) : itree E rlabel :=
+  ITree.iter (@isem_linstrD E XE XI XL XLS XST) lbl.
 
-Definition interp_LinE {XA: @stateE alstate -< E}
-  {XS: @stateE lstate -< E} {A: Type} 
-  (t : itree (LinE +' E) A) : itree E A :=
-  interp (ext_handler (@handle_lin stackAgree E XA XS XE)) t.
 
 (* two errors so far.
 
