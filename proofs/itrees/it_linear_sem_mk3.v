@@ -123,6 +123,14 @@ Definition LCntr {E} {XE: ErrEvent -< E}
   (* the function does not exist: throw an error *)    
   | _ => throw err end.        
 
+(********************************************************************)
+
+(* cc: linear code. 
+   fn: function cc belongs to.
+   n0: starting point of cc in 'code fn'. 
+   l1: the instruction being executed.
+   the position of the executed intruction in fn is 'n0 + n1'.
+   need to check whether the position returned by F is in fn. *)
 Definition XCntrL {E} {XE: ErrEvent -< E}  
   (F: linstr_r -> rlabel -> itree E rlabel)
   (fn: funname) (n0: nat) (cc: lcmd) (l1: rlabel) :
@@ -173,41 +181,11 @@ Definition XCntrFF {E} {XE: ErrEvent -< E}
   | Some lc => XCntrL F fn 0 lc l1
   | _ => throw err
   end.             
- 
-Definition XCntrFG0 {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> rlabel -> itree E rlabel)
-  (X: rlabel -> bool)
-  (fn: funname) (l1: rlabel) : itree E (rlabel + rlabel) :=
-  if (X l1)
-  then Ret (inr l1)
-  else XCntrFF F fn l1.
-
-(* probably wrong: the iteration might leave the function and then
-   return to it *)
-(*
-Definition ICntrFF {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> rlabel -> itree E rlabel)
-  (fn: funname) : itree E rlabel :=
-  ITree.iter (@XCntrFF E XE F fn) (fn, 0).    
-*)
 
 Definition ICntrFF {E} {XE: ErrEvent -< E}  
   (F: linstr_r -> rlabel -> itree E rlabel)
   (fn: funname) (l1: rlabel) : itree E rlabel :=
   ITree.iter (@XCntrFF E XE F fn) l1.    
-
-(*
-Definition XCntrFG {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> rlabel -> itree E rlabel)
-  (X: rlabel -> bool)
-  (l1: rlabel) : itree E (rlabel + rlabel) :=
-  if (X l1)
-  then Ret (inr l1)
-  else let fn := fst l1 in
-       if (snd l1 == 0)
-       then l2 <- ICntrFF F fn ;; Ret (inl l2)
-       else throw err.                               
-*)
 
 Definition XCntrFG {E} {XE: ErrEvent -< E}  
   (F: linstr_r -> rlabel -> itree E rlabel)
@@ -222,82 +200,32 @@ Definition ICntrFG {E} {XE: ErrEvent -< E}
   (X: rlabel -> bool)
   (l1: rlabel) : itree E rlabel :=
   ITree.iter (@XCntrFG E XE F X) l1.   
-
-(*
-Definition ICntrL {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> rlabel -> itree E rlabel)
-  (fn: funname) (n0: nat) (cc: lcmd) :
-  itree E rlabel :=
-  ITree.iter (@XCntrL E XE F fn n0 cc) (fn, n0).
-*)
    
 Definition ICntrL {E} {XE: ErrEvent -< E}  
   (F: linstr_r -> rlabel -> itree E rlabel)
   (fn: funname) (n0: nat) (cc: lcmd) (l1: rlabel) :
   itree E rlabel :=
   ITree.iter (@XCntrL E XE F fn n0 cc) l1.
-  
+
+Definition halt_pred (l: rlabel) : bool :=
+  let fn := fst l in
+  let lbl := snd l in
+  let plc := fenv fn in
+  match plc with
+  | Some lc => if is_final lc lbl then true else false 
+  | _ => false
+  end.             
+
+(* useless *)
+Definition XCntrFG0 {E} {XE: ErrEvent -< E}  
+  (F: linstr_r -> rlabel -> itree E rlabel)
+  (X: rlabel -> bool)
+  (fn: funname) (l1: rlabel) : itree E (rlabel + rlabel) :=
+  if (X l1)
+  then Ret (inr l1)
+  else XCntrFF F fn l1.
 
 (**************************************************************)
-
-
-(* lc: linear code. 
-   fn: function lc belongs to.
-   n0: starting point of lc in 'code fn'. 
-   n1: the lc instruction being executed.
-   so the position in fn of the executed intruction is 'n0 + n1'.
-   need to check whether the position returned by F is in fn. *)
-Definition XCntr0 {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> rlabel -> itree E rlabel)
-  (fn: funname) (n0: nat) (lc: lcmd) (n1: nat) : itree E (nat + rlabel) :=
-  match lc with
-  | nil => throw err
-  | _ => let pi := find_linstr_in_env lc n1 in
-         match pi with
-         | Some (MkLI _ i) => l1 <- F i (fn, n1) ;; throw err 
-         | _ => Ret (inr (fn, n1))
-         end
-  end.         
-
-Definition XCntr {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> rlabel -> itree E rlabel)
-  (fn: funname) (lc: lcmd) (n0: nat) : itree E (nat + rlabel) :=
-  match lc with
-  | nil => throw err
-  | _ => let pi := find_linstr_in_env lc n0 in
-         match pi with
-         | Some (MkLI _ i) => l1 <- F i (fn, n0) ;; Ret (inl l1)  
-         | _ => Ret (inr (fn, n0))
-         end
-  end.         
-
-
-Definition XCntr {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> rlabel -> itree E rlabel)
-  (lc: lcmd)
-  (l0: rlabel) : itree E (rlabel + rlabel) :=
-  match lc with
-  | nil => throw err
-  | _ => let pi := find_linstr_in_env lc l0 in
-         match pi with
-         | Some (MkLI _ i) => l1 <- F i l0 ;; Ret (inl l1)  
-         | _ => Ret (inr l0)
-         end
-  end.         
-                
-      
-  (* the function exists: find the instruction in its body *)
-  | Some lc => let pi := find_linstr_in_env lc lbl in
-    match pi with
-    (* the instruction exists: execute it and return the next label *) 
-    | Some (MkLI _ i) => rlbl1 <- F i rlbl ;; Ret (inl rlbl1)
-    (* the instruction does not exists: the execution terminates if the
-       label equals the code length, otherwise throws an error *)        
-    | _ => if X lc lbl then Ret (inr rlbl) else throw err end
-  (* the function does not exist: throw an error *)    
-  | _ => throw err end.        
-
-
 
 Section SemRec.
   
@@ -616,6 +544,15 @@ Definition isem_liniterD E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   {XST: StackE -< E} (lbl: rlabel) : itree E rlabel :=
   ITree.iter (@isem_linstrD E XE XI XL XLS XST) lbl.
 
+Definition isem_ICntrG E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E}
+  {XST: StackE -< E} (lbl: rlabel) : itree E rlabel :=
+  ICntrG (fun i l => interp_LFlowE (exec_linstr i l)) halt_pred lbl.
+
+Definition isem_ICntrFG E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E}
+  {XST: StackE -< E} (lbl: rlabel) : itree E rlabel :=
+  ICntrFG (fun i l => interp_LFlowE (exec_linstr i l)) halt_pred lbl.
 
 (* two errors so far.
 
@@ -628,6 +565,42 @@ linstr_rlabel the treatment of eg Lgoto is not right. This also means
 that the code is needed, not just the rlabel.
 
 *)
+
+
+Definition handle2lin E (fn: funname) (i:instr) (n0: nat) (lbl0:label) :
+   itree E (rlabel * rlabel) :=
+  let '(n1, lbl1, lc) := linear_Xi fn i n0 lbl0 in
+  
+  
+  let: (MkI ii ir) := i in
+  match ir with
+  | Cassgn x tg ty e => throw err
+
+  | Copn xs tg o es => trigger (OpnE xs tg o es)
+
+  | Csyscall xs o es => trigger (SyscallE xs o es) 
+                                
+  | Cif e c1 c2 =>
+    b <- trigger (EvalCond e) ;;
+    isem_foldr isem_instr (if b then c1 else c2) 
+               
+  | Cwhile a c1 e ii0 c2 =>
+      isem_while_loop isem_instr (fun e => trigger (EvalCond e))
+        c1 e c2 
+
+  | Cfor i (d, lo, hi) c =>
+    zz <- trigger (EvalBounds lo hi) ;;  
+    isem_for_loop isem_instr (fun w => trigger (WriteIndex i (Vint w)))
+      i c (wrange d (fst zz) (snd zz)) 
+
+  | Ccall xs fn args =>
+    s0 <- trigger (@Get State) ;;  
+    vargs <- trigger (EvalArgs args) ;;
+    fs0 <- trigger (InitFState vargs ii) ;;
+    fs1 <- trigger_inl1 (Call (fn, fs0)) ;; 
+    (* discard current state, use s0 instead *)
+    trigger (RetVal xs fs1 s0)
+  end.
 
 
 
