@@ -79,22 +79,34 @@ Variant LinstrE : Type -> Type :=
   | ELstoreLabel : var -> label -> LinstrE unit
   | ELcond       : fexpr -> label -> LinstrE unit.
 *)
-
+    
 Variant LinstrE : Type -> Type :=
-  | ELopn        : lexprs -> sopn -> rexprs -> rlabel ->
-                   LinstrE rlabel
-  | ELsyscall    : syscall_t ->
-                   rlabel -> LinstrE rlabel 
-  | ELcall       : option var_i -> remote_label -> rlabel ->
-                   LinstrE rlabel
-  | ELret        : rlabel -> LinstrE rlabel
-  | ELalign      : rlabel -> LinstrE rlabel
-  | ELlabel      : label_kind -> label -> rlabel ->
-                   LinstrE rlabel 
-  | ELgoto       : remote_label -> rlabel -> LinstrE rlabel
-  | ELigoto      : rexpr -> rlabel -> LinstrE rlabel
-  | ELstoreLabel : var -> label -> rlabel -> LinstrE rlabel
-  | ELcond       : fexpr -> label -> rlabel -> LinstrE rlabel.
+  | ELopn        : lexprs -> sopn -> rexprs -> LinstrE unit
+  | ELsyscall    : syscall_t -> LinstrE unit
+  | ELcall       : option var_i -> remote_label -> LinstrE unit
+  | ELret        : LinstrE unit
+  | ELalign      : LinstrE unit
+  | ELlabel      : label_kind -> label -> LinstrE unit
+  | ELgoto       : remote_label -> LinstrE unit
+  | ELigoto      : rexpr -> LinstrE unit
+  | ELstoreLabel : var -> label -> LinstrE unit
+  | ELcond       : fexpr -> label -> LinstrE unit.
+
+Variant LFlowE : Type -> Type :=
+  | LFopn        : lexprs -> sopn -> rexprs -> rlabel ->
+                   LFlowE rlabel
+  | LFsyscall    : syscall_t ->
+                   rlabel -> LFlowE rlabel 
+  | LFcall       : option var_i -> remote_label -> rlabel ->
+                   LFlowE rlabel
+  | LFret        : rlabel -> LFlowE rlabel
+  | LFalign      : rlabel -> LFlowE rlabel
+  | LFlabel      : label_kind -> label -> rlabel ->
+                   LFlowE rlabel 
+  | LFgoto       : remote_label -> rlabel -> LFlowE rlabel
+  | LFigoto      : rexpr -> rlabel -> LFlowE rlabel
+  | LFstoreLabel : var -> label -> rlabel -> LFlowE rlabel
+  | LFcond       : fexpr -> label -> rlabel -> LFlowE rlabel.
 
 Definition find_linstr_in_env (lc: lcmd) (lbl: nat) : option linstr :=
   oseq.onth lc lbl.
@@ -128,31 +140,32 @@ Definition LCntr {E} {XE: ErrEvent -< E}
 
 Section SemRec.
   
-Context {E} {XI : LinstrE -< E} {XE: ErrEvent -< E}. 
+Context {E} {XF : LFlowE -< E} {XI : LinstrE -< E} {XE: ErrEvent -< E}. 
 
 (* one-step semantics of instructions *)
 Definition exec_linstr (ir : linstr_r) (l: rlabel) :
   itree E rlabel :=
   match ir with
-  | Lopn xs o es => trigger (ELopn xs o es l)
+  | Lopn xs o es => trigger (ELopn xs o es) ;; trigger  (LFopn xs o es l)
 
-  | Lsyscall o => trigger (ELsyscall o l)
+  | Lsyscall o => trigger (ELsyscall o) ;; trigger (LFsyscall o l)
 
-  | Lcall or d => trigger (ELcall or d l)
+  | Lcall or d => trigger (ELcall or d) ;; trigger (LFcall or d l)
 
-  | Lret => trigger (ELret l)
+  | Lret => trigger ELret ;; trigger (LFret l)
 
-  | Lalign => trigger (ELalign l) 
+  | Lalign => trigger ELalign ;; trigger (LFalign l) 
       
-  | Llabel x y => trigger (ELlabel x y l)
+  | Llabel x y => trigger (ELlabel x y) ;; trigger (LFlabel x y l)
 
-  | Lgoto d => trigger (ELgoto d l)
+  | Lgoto d => trigger (ELgoto d) ;; trigger (LFgoto d l)
 
-  | Ligoto e => trigger (ELigoto e l)
+  | Ligoto e => trigger (ELigoto e) ;; trigger (LFigoto e l)
 
-  | LstoreLabel x lbl => trigger (ELstoreLabel x lbl l)                      
+  | LstoreLabel x lbl => trigger (ELstoreLabel x lbl) ;;
+                         trigger (LFstoreLabel x lbl l)                      
 
-  | Lcond e lbl => trigger (ELcond e lbl l)
+  | Lcond e lbl => trigger (ELcond e lbl) ;; trigger (LFcond e lbl l)
   end.                         
 
 (* iterative semantics body *)
@@ -185,8 +198,10 @@ Notation labels := label_in_lprog.
 Variant LinE : Type -> Type :=
   | MatchLabel (lbl: rlabel) : LinE unit
   | MatchStack : LinE unit 
-  | EvalLoc (e: rexpr) : LinE rlabel
-  | EvalExp (e: fexpr) : LinE bool. 
+  | EvalLoc (e: rexpr) : LinE remote_label
+  | EvalExp (e: fexpr) : LinE bool
+  | FindLabel (lbl: remote_label) : LinE rlabel
+  | FindLocalLabel (fn: funname) (lbl: label) : LinE rlabel. 
 (*  | NewInstr (i: linstr_r) (l: rlabel) : LinE rlabel. *)
 (*  | IsFinal (lbl: rlabel) : LinE bool.  *)                 
 
@@ -195,29 +210,61 @@ Variant StackE : Type -> Type :=
   | Pop : StackE rlabel. 
 
 
-Section HandleLinstr.
+Section HandleLFlow.
+  
+Context {E: Type -> Type} {XL: LinE -< E} {XST: StackE -< E} {XE: ErrEvent -< E}. 
 
-Context {E: Type -> Type} {XL: LinE -< E} {XST: StackE -< E}. 
-                                           
+(* in progress ... %%%%%%%%%%%%%%%% not needed *)
 Definition linstr_rlabel (i : linstr_r) (l0: rlabel) :
   itree E rlabel :=
   match i with 
   | Lopn xs o es => Ret (incr_label l0)
   | Lsyscall o => Ret (incr_label l0)
   | Lcall o d => trigger (Push l0) ;;
-                 Ret (remote2rlabel d)                         
+                 l1 <- trigger (FindLabel d) ;;
+                 Ret l1                          
   | Lret => l1 <- trigger Pop ;; Ret l1
   | Lalign => Ret (incr_label l0) 
   | Llabel x y => Ret (incr_label l0)
-  | Lgoto d => Ret (remote2rlabel d)
-  | Ligoto e => trigger (EvalLoc e)
-  | LstoreLabel x lbl => Ret (incr_label l0)
+  | Lgoto d => l1 <- trigger (FindLabel d) ;;
+               Ret l1
+  | Ligoto e => d <- trigger (EvalLoc e) ;;
+                l1 <- trigger (FindLabel d) ;;
+                Ret l1
+  | LstoreLabel x lbl => Ret (incr_label l0)                           
   | Lcond e lbl => b <- trigger (EvalExp e) ;;
-                   let l1 := (fst l0, Pos.to_nat lbl) in
-                   Ret (if b then l1 else incr_label l0)
+                   if b then
+                     l1 <- trigger (FindLocalLabel (fst l0) lbl) ;;
+                     Ret l1
+                   else Ret (incr_label l0)      
   end.
 
-Definition Linstr_isem (i : linstr_r) (l0: rlabel) : itree E rlabel :=
+(* this is the one *)
+Definition handle_LFlow {T} (e: LFlowE T) : itree E T :=
+  match e with 
+  | LFopn xs o es l0 => Ret (incr_label l0)
+  | LFsyscall o l0 => Ret (incr_label l0)
+  | LFcall o d l0 => trigger (Push l0) ;;
+                     l1 <- trigger (FindLabel d) ;;
+                     Ret l1                          
+  | LFret l0 => l1 <- trigger Pop ;; Ret l1
+  | LFalign l0 => Ret (incr_label l0) 
+  | LFlabel x y l0 => Ret (incr_label l0)
+  | LFgoto d l0 => l1 <- trigger (FindLabel d) ;;
+                   Ret l1
+  | LFigoto e l0 => d <- trigger (EvalLoc e) ;;
+                    l1 <- trigger (FindLabel d) ;;
+                    Ret l1
+  | LFstoreLabel x lbl l0 => Ret (incr_label l0)                           
+  | LFcond e lbl l0 => b <- trigger (EvalExp e) ;;
+                       if b 
+                       then l1 <- trigger (FindLocalLabel (fst l0) lbl) ;;
+                            Ret l1
+                       else Ret (incr_label l0)      
+  end.
+  
+(* not needed *)
+Definition LFlow_isem (i : linstr_r) (l0: rlabel) : itree E rlabel :=
   trigger (MatchLabel l0) ;;
   trigger MatchStack ;;
   l1 <- linstr_rlabel i l0 ;;
@@ -225,21 +272,23 @@ Definition Linstr_isem (i : linstr_r) (l0: rlabel) : itree E rlabel :=
   trigger MatchStack ;;
   Ret l1.
 
-Definition handle_linstr {T} (e: LinstrE T) (l0: rlabel) : itree E T :=
+(*
+Definition handle_linstr {T} (e: LFlowE T) (l0: rlabel) : itree E T :=
   match e with
-  | ELopn xs o es l0 => Linstr_isem (Lopn xs o es) l0
-  | ELsyscall o l0 => Linstr_isem (Lsyscall o) l0
-  | ELcall o d l0 => Linstr_isem (Lcall o d) l0
-  | ELret l0 => Linstr_isem Lret l0
-  | ELalign l0 => Linstr_isem Lalign l0
-  | ELlabel x y l0 => Linstr_isem (Llabel x y) l0
-  | ELgoto d l0 => Linstr_isem (Lgoto d) l0
-  | ELigoto e l0 => Linstr_isem (Ligoto e) l0
-  | ELstoreLabel x lbl l0 => Linstr_isem (LstoreLabel x lbl) l0
-  | ELcond e lbl l0 => Linstr_isem (Lcond e lbl) l0
+  | ELopn xs o es l0 => LFlow_isem (Lopn xs o es) l0
+  | ELsyscall o l0 => LFlow_isem (Lsyscall o) l0
+  | ELcall o d l0 => LFlow_isem (Lcall o d) l0
+  | ELret l0 => LFlow_isem Lret l0
+  | ELalign l0 => LFlow_isem Lalign l0
+  | ELlabel x y l0 => LFlow_isem (Llabel x y) l0
+  | ELgoto d l0 => LFlow_isem (Lgoto d) l0
+  | ELigoto e l0 => LFlow_isem (Ligoto e) l0
+  | ELstoreLabel x lbl l0 => LFlow_isem (LstoreLabel x lbl) l0
+  | ELcond e lbl l0 => LFlow_isem (Lcond e lbl) l0
   end.
+*)
 
-End HandleLinstr.
+End HandleLFlow.
 
 
 Section HandleStack.
@@ -266,6 +315,7 @@ Context {stackAgree : lstate -> alstate -> bool}.
 Context {E: Type -> Type} {XA: @stateE alstate -< E}
         {XS: @stateE lstate -< E}  {XE: ErrEvent -< E}.
 
+(* TODO: add missing constructors *)
 Definition handle_lin {XE: ErrEvent -< E} {T} (e: LinE T) :
   itree E T := match e with
   | MatchLabel (fn, lbl)%type =>
@@ -383,10 +433,26 @@ Definition linstr_isem (i : linstr_r) (s1: lstate) : exec lstate :=
   | Lcond e lbl => lcond_sem e lbl s1
   end.
 
-Definition Linstr_isem_with_state (i : linstr_r) : itree E unit :=
+Definition Linstr_isem (i : linstr_r) : itree E unit :=
   s1 <- trigger (@Get lstate) ;;
   s2 <- iresult (linstr_isem i s1) s1 ;;
   trigger (@Put lstate s2).
+
+Definition handle_linstr {XL: LinE -< E} {T}
+  (e: LinstrE T) : itree E T :=
+  match e with
+  | ELopn xs o es => Linstr_isem (Lopn xs o es)
+  | ELsyscall o => Linstr_isem (Lsyscall o)
+  | ELcall o d => Linstr_isem (Lcall o d)
+  | ELret => Linstr_isem Lret 
+  | ELalign => Linstr_isem Lalign
+  | ELlabel x y => Linstr_isem (Llabel x y)
+  | ELgoto d => Linstr_isem (Lgoto d)
+  | ELigoto e => Linstr_isem (Ligoto e)
+  | ELstoreLabel x lbl => Linstr_isem (LstoreLabel x lbl)
+  | ELcond e lbl => Linstr_isem (Lcond e lbl)
+  end.
+
 
 End HandleState.
 
