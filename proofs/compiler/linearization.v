@@ -546,6 +546,22 @@ Section LINEAR_C.
 
 End LINEAR_C.
 
+Section LINEAR_CX.
+
+  Variable linear_x : funname -> instr -> nat -> label -> nat * label * lcmd.
+
+  Fixpoint linear_Xc (fn: funname) (c0: cmd) (n0: nat) (lbl0:label) :
+    nat * label * lcmd :=
+    match c0 with
+    | [::] => (n0, lbl0, nil)
+    | i::c =>
+        let '(n1, lbl1, c1) := linear_x fn i n0 lbl0 in
+        linear_Xc fn c n1 lbl1
+    end.
+
+End LINEAR_CX.
+
+
 Definition add_align ii a (lc:lcmd) :=
   match a with
   | NoAlign => lc
@@ -554,6 +570,7 @@ Definition add_align ii a (lc:lcmd) :=
 
 Definition align ii a (p:label * lcmd) : label * lcmd :=
   (p.1, add_align ii a p.2).
+
 
 Section FUN.
 
@@ -735,7 +752,115 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Cfor _ _ _ => (lbl, lc)
   end.
 
-Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) : label * lcmd :=
+Fixpoint linear_Xi (fn: funname) (i:instr) (n0: nat) (lbl0:label) :
+  (nat * label * lcmd) :=
+  let (ii, ir) := i in
+  match ir with
+  | Cassgn _ _ _ _ => (n0, lbl0, nil) (* absurd case *)
+  | Copn xs _ o es =>
+      match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
+      | Some xs, Some es => (S n0, lbl0, [:: MkLI ii (Lopn xs o es)])
+      | _, _ => (n0, lbl0, nil) (* absurd case *)
+      end
+
+  | Csyscall xs o es => (S n0, lbl0, [:: MkLI ii (Lsyscall o)])
+                          
+  | Cif e [::] c2 =>
+      let lbl1 := next_lbl lbl0 in
+      let '(n2, lbl2, lc) := linear_Xc linear_Xi fn c2 (S n0) lbl1 in     
+      (S n2, lbl2,
+        (MkLI ii (Lcond (to_fexpr e) lbl0)) ::
+          (lc ++ [:: (MkLI ii (Llabel lbl1))]))
+
+  | Cif e c1 [::] =>
+      let lbl1 := next_lbl lbl0 in
+      let '(n2, lbl2, lc) := linear_Xc linear_Xi fn c1 (S n0) lbl1 in     
+      (S n2, lbl2,
+        (MkLI ii (Lcond (to_fexpr (snot e)) lbl0)) ::
+          (lc ++ [:: (MkLI ii (Llabel lbl1))]))
+        
+  | Cif e c1 c2 =>
+      let lbl1 := next_lbl lbl0 in
+      let lbl2 := next_lbl lbl1 in
+      let '(n3, lbl3, lc2) := linear_Xc linear_Xi fn c2 (S n0) lbl2 in
+      let '(n4, lbl4, lc1) := linear_Xc linear_Xi fn c1 (S (S n3)) lbl3 in
+      (S n4, lbl4,
+        MkLI ii (Lcond (to_fexpr e) lbl0) ::
+          (lc2 ++ (MkLI ii (Lgoto (fn, lbl1)) ::
+                     (MkLI ii (Llabel lbl0) ::
+                       (lc1 ++ [:: (MkLI ii (Llabel lbl1))])))))    
+        
+  | Cwhile a c e _ c' =>
+    match is_bool e with
+    | Some true =>
+      let lbl1 := next_lbl lbl0 in
+      let '(n3, lbl3, lc2) := linear_Xc linear_Xi fn c (S n0) lbl1 in
+      let '(n4, lbl4, lc1) := linear_Xc linear_Xi fn c' n3 lbl3 in
+      (S n4, lbl4,  
+       (add_align ii a ((MkLI ii (Llabel lbl0)) :: (lc2 ++ lc1 ++
+                             [:: (MkLI ii (Lgoto (fn, lbl0)))]))))
+
+    | Some false =>
+      linear_Xc linear_Xi fn c n0 lbl0 
+
+    | None =>
+      match c' with
+      | [::] =>
+         let lbl1 := next_lbl lbl0 in
+         let '(n3, lbl3, lc2) := linear_Xc linear_Xi fn c (S n0) lbl1 in
+         (S n3, lbl3, add_align ii a (MkLI ii (Llabel lbl0) ::
+                          (lc2 ++ 
+                             [:: (MkLI ii (Lcond (to_fexpr e) lbl0))])))
+      | _ =>
+         let lbl1 := next_lbl lbl0 in
+         let lbl2 := next_lbl lbl1 in
+         let '(n3, lbl3, lc2) := linear_Xc linear_Xi fn c' (S n0) lbl2 in
+         let '(n4, lbl4, lc1) := linear_Xc linear_Xi fn c (S n3) lbl3 in   
+         (S n4, lbl4, (MkLI ii (Lgoto (fn, lbl0)) ::         
+           (add_align ii a (MkLI ii (Llabel lbl1) ::
+                          (lc2 ++ (MkLI ii (Llabel lbl0) :: (lc1 ++
+                    [:: (MkLI ii (Lcond (to_fexpr e) lbl0))])))))))
+      end
+    end     
+           
+  | Ccall xs fn' es =>
+    if get_fundef (p_funcs p) fn' is Some fd then
+      let e := f_extra fd in
+      let ra := sf_return_address e in
+      if is_RAnone ra then (n0, lbl0, nil)
+      else
+        let sz := stack_frame_allocation_size e in
+        let tmp := tmpi_of_ra ra in
+        let before :=
+          allocate_stack_frame false ii sz tmp (is_RAstack_None_call ra) in
+        let after :=
+          allocate_stack_frame true ii sz tmp (is_RAstack_None_return ra) in
+      (*  let lret := lbl0 in *)
+        let lbl1 := next_lbl lbl0 in
+        (* The test is used for the proof of linear_has_valid_labels *)
+        let lcall := (fn', if fn' == fn
+                           then lbl0    (* Absurd case. *)
+                           else xH      (* Entry point. *)
+                     ) in
+        (* * 1. Allocate stack frame.
+           * 2. Call callee
+           * 3. Insert return label (callee will jump back here).
+           * 4. Free stack frame.
+           * 5. Continue.
+           *)
+        (0, lbl1, before
+              ++ MkLI ii (Lcall (ovari_of_ra ra) lcall)
+              :: MkLI ii (ReturnTarget lbl0)
+              :: after
+          )
+    else (n0, lbl0, nil)
+           
+  | Cfor _ _ _ => (n0, lbl0, nil)
+  end.
+
+
+Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) :
+  label * lcmd :=
   let fentry_ii := entry_info_of_fun_info fi in
   let ret_ii := ret_info_of_fun_info fi in
   let: (tail, head, lbl) :=
@@ -789,6 +914,7 @@ Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) : label * l
   in
   let fd' := linear_c linear_i body lbl tail in
   (fd'.1, head ++ fd'.2).
+
 
 Definition linear_fd (fd: sfundef) :=
   let e := fd.(f_extra) in
