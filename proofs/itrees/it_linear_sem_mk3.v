@@ -748,26 +748,55 @@ Fixpoint lsm_cmd_NS E
   (loc_instr : instr -> rlabel -> nat)                  
   (R: instr -> rlabel -> itree E rlabel)
   (cc: cmd) (l1: rlabel) : itree E rlabel :=
-  let: (fn, n0) := l1 in 
+  let: (fn0, n0) := l1 in 
   match cc with
   | nil => Ret l1
   | i :: cc0 =>
       let n2 := loc_instr i l1 in
-      let n3 := loc_cmd loc_instr fn cc0 n2 in
-      ITree.iter (fun '(fn, n) => if n < n2
+      let n3 := loc_cmd loc_instr fn0 cc0 n2 in
+      ITree.iter (fun '(fn, n) => if (n < n2) && (fn == fn0)
           then (l0 <- R i (fn, n) ;; select E fn l0 n3)
           else (l0 <- lsm_cmd_NS loc_instr R cc0 (fn, n) ;;
                 select E fn l0 n3)) l1
   end.                        
-                
+
+Fixpoint lsm_lcmd_list0 E (n3: nat) (ts: list (nat * itree E rlabel)) 
+  (l1: rlabel) : itree E rlabel :=
+  let: (fn0, n0) := l1 in
+  match ts with
+  | nil => Ret l1  
+  | (n1, t1) :: ts0 =>
+      ITree.iter (fun '(fn, n) =>
+       if (n0 <= n) && (n < n1) then l2 <- t1 ;; select E fn l2 n3
+       else l2 <- lsm_lcmd_list0 n3 ts0 (fn, n) ;; select E fn l2 n3) l1
+ end.                
+
+Fixpoint lsm_lcmd_list E (n3: nat) (ts: list (nat -> itree E rlabel)) 
+  (l1: rlabel) : itree E rlabel :=
+  let: (fn0, n0) := l1 in
+  match ts with
+  | nil => Ret l1  
+  | k1 :: ks0 =>
+      ITree.iter (fun '(fn, n) => l2 <- k1 n ;;                           
+        if (n0 <= n) && (n < snd l2) && (fst l2 == fn)
+        then select E fn l2 n3
+        else l3 <- lsm_lcmd_list n3 ks0 (fn, n) ;; select E fn l3 n3) l1
+ end.                
+
+(* Open Scope list_scope. *)
+
+Import ListNotations. 
+
 (* assuming fenv *)
 Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
   (loc_instr : instr -> rlabel -> nat)
   (i : instr) (l1: rlabel) :
-          itree (callE rlabel rlabel +' E) rlabel :=
+(*   itree E rlabel := *)
+          itree (callE rlabel rlabel +' E) rlabel := 
   let: (MkI ii ir) := i in
-  let: (fn, n0) := l1 in  
+  let: (fn, n0) := l1 in
+  let: n3 := loc_instr i l1 in 
   match ir with
   | Cassgn x tg ty e => throw err
 
@@ -776,41 +805,41 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
 
   | Csyscall xs o es => let n1 := loc_instr i l1 in
       isem_ICntrK fn n0 n1    
-                  
-  | _ => throw err end.
-                  
-
-
-
 
   | Cif e c1 c2 =>
-    b <- trigger (EvalCond e) ;;
-    isem_foldr isem_instr (if b then c1 else c2) 
-               
+      let k0 := fun n => isem_ICntrK fn n (S n) in
+      let k1 :=
+        fun n => @lsm_cmd_NS (callE rlabel rlabel +' E)
+                   loc_instr (lsem_instr loc_instr)
+                     c1 (fn, n) in
+      let k2 :=
+        fun n => @lsm_cmd_NS (callE rlabel rlabel +' E)
+                   loc_instr (lsem_instr loc_instr)
+                     c2 (fn, n) in
+      let ls := ([k0; k2; k0; k0; k1; k0]) in 
+      lsm_lcmd_list n3 ls l1 
+
   | Cwhile a c1 e ii0 c2 =>
-      isem_while_loop isem_instr (fun e => trigger (EvalCond e))
-        c1 e c2 
+      let k0 := fun n => isem_ICntrK fn n (S n) in
+      let k1 :=
+        fun n => @lsm_cmd_NS (callE rlabel rlabel +' E)
+                   loc_instr (lsem_instr loc_instr)
+                     c1 (fn, n) in
+      let k2 :=
+        fun n => @lsm_cmd_NS (callE rlabel rlabel +' E)
+                   loc_instr (lsem_instr loc_instr)
+                     c2 (fn, n) in
+      let ls := ([k0; k0; k2; k0; k0; k1; k0]) in 
+      lsm_lcmd_list n3 ls l1 
 
-  | Cfor i (d, lo, hi) c =>
-    zz <- trigger (EvalBounds lo hi) ;;  
-    isem_for_loop isem_instr (fun w => trigger (WriteIndex i (Vint w)))
-      i c (wrange d (fst zz) (snd zz)) 
+  | Cfor i (d, lo, hi) c => throw err 
 
-  | Ccall xs fn args =>
-    s0 <- trigger (@Get State) ;;  
-    vargs <- trigger (EvalArgs args) ;;
-    fs0 <- trigger (InitFState vargs ii) ;;
-    fs1 <- trigger_inl1 (Call (fn, fs0)) ;; 
-    (* discard current state, use s0 instead *)
-    trigger (RetVal xs fs1 s0)
-  end.
-
-
-
-
-
-
-
+  (* (fn1, n) is actually not an rlabel, 
+     (fn1, 0) is the callee and (fn, n0) the RA *)   
+  | Ccall xs fn1 args => trigger_inl1 (Call (fn1, n0))
+                                  
+ end.
+                  
 
 (****************
 
