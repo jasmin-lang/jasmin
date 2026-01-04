@@ -406,7 +406,7 @@ Definition handle_LFlow {T} (e: LFlowE T) : itree E T :=
   match e with 
   | LFopn xs o es l0 => Ret (incr_label l0)
   | LFsyscall o l0 => Ret (incr_label l0)
-  | LFcall o d l0 => trigger (Push l0) ;;
+  | LFcall o d l0 => trigger (Push (incr_label l0)) ;;
                      l1 <- trigger (FindLabel d) ;;
                      Ret l1                          
   | LFret l0 => l1 <- trigger Pop ;; Ret l1
@@ -424,7 +424,7 @@ Definition handle_LFlow {T} (e: LFlowE T) : itree E T :=
                             Ret l1
                        else Ret (incr_label l0)      
   end.
-  
+
 End HandleLFlow.
 
 
@@ -793,7 +793,7 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   (loc_instr : instr -> rlabel -> nat)
   (i : instr) (l1: rlabel) :
 (*   itree E rlabel := *)
-          itree (callE rlabel rlabel +' E) rlabel := 
+          itree (callE (rlabel * funname) rlabel +' E) rlabel := 
   let: (MkI ii ir) := i in
   let: (fn, n0) := l1 in
   let: n3 := loc_instr i l1 in 
@@ -809,11 +809,11 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   | Cif e c1 c2 =>
       let k0 := fun n => isem_ICntrK fn n (S n) in
       let k1 :=
-        fun n => @lsm_cmd_NS (callE rlabel rlabel +' E)
+        fun n => @lsm_cmd_NS (callE (rlabel * funname) rlabel +' E)
                    loc_instr (lsem_instr loc_instr)
                      c1 (fn, n) in
       let k2 :=
-        fun n => @lsm_cmd_NS (callE rlabel rlabel +' E)
+        fun n => @lsm_cmd_NS (callE (rlabel * funname) rlabel +' E)
                    loc_instr (lsem_instr loc_instr)
                      c2 (fn, n) in
       let ls := ([k0; k2; k0; k0; k1; k0]) in 
@@ -822,11 +822,11 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   | Cwhile a c1 e ii0 c2 =>
       let k0 := fun n => isem_ICntrK fn n (S n) in
       let k1 :=
-        fun n => @lsm_cmd_NS (callE rlabel rlabel +' E)
+        fun n => @lsm_cmd_NS (callE (rlabel * funname) rlabel +' E)
                    loc_instr (lsem_instr loc_instr)
                      c1 (fn, n) in
       let k2 :=
-        fun n => @lsm_cmd_NS (callE rlabel rlabel +' E)
+        fun n => @lsm_cmd_NS (callE (rlabel * funname) rlabel +' E)
                    loc_instr (lsem_instr loc_instr)
                      c2 (fn, n) in
       let ls := ([k0; k0; k2; k0; k0; k1; k0]) in 
@@ -836,97 +836,64 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
 
   (* (fn1, n) is actually not an rlabel, 
      (fn1, 0) is the callee and (fn, n0) the RA *)   
-  | Ccall xs fn1 args => trigger_inl1 (Call (fn1, n0))
+  | Ccall xs fn1 args => trigger_inl1 (Call (l1, fn1))
                                   
  end.
-                  
-
-(****************
 
 
-Definition handle2lin 
-  E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+Fixpoint lsem_cmd E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  (fn: funname) (i:instr) (n0: nat) (lbl0: label) :
-   itree E (label * rlabel) :=
-  let '(n1, lbl1, lc) := linear_Xi liparams SP fn i n0 lbl0 in
-  l1 <- isem_ICntrL fn lc n1 (fn, n1) ;; Ret (lbl1, l1). 
+  (loc_instr : instr -> rlabel -> nat)
+  (cc : cmd) (l1: rlabel) :
+  itree (callE (rlabel * funname) rlabel +' E) rlabel :=
+  @lsm_cmd_NS (callE (rlabel * funname) rlabel +' E)
+                   loc_instr (lsem_instr loc_instr)
+                     cc l1.
 
-(* basically, we need to translate all the source code, and then for
-each linear code position get the chunk it is included in. need to
-pass n0 around. *)
+Variant StackAllocE : Type -> Type :=
+  | Before : rlabel -> StackAllocE unit
+  | After : StackAllocE rlabel.                                  
 
+Definition lsem_fun E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  {FunDef0: Type} {FState0: Type}
+  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
+  {XTSA: StackAllocE -< E}
+  (loc_instr : instr -> rlabel -> nat)
+  (l0: rlabel) (fn: funname) : 
+  itree (callE (rlabel * funname) rlabel +' E) rlabel :=
+  trigger (Before l0) ;; 
+  fd <- trigger (GetFunDef fn) ;;  
+  cc <- trigger (GetFunCode fd) ;;
+  lsem_cmd loc_instr cc (fn, 0) ;;
+  trigger After. 
 
-
-  let: (MkI ii ir) := i in
-  match ir with
-  | Cassgn x tg ty e => throw err
-
-  | Copn xs tg o es => trigger (OpnE xs tg o es)
-
-  | Csyscall xs o es => trigger (SyscallE xs o es) 
-                                
-  | Cif e c1 c2 =>
-    b <- trigger (EvalCond e) ;;
-    isem_foldr isem_instr (if b then c1 else c2) 
-               
-  | Cwhile a c1 e ii0 c2 =>
-      isem_while_loop isem_instr (fun e => trigger (EvalCond e))
-        c1 e c2 
-
-  | Cfor i (d, lo, hi) c =>
-    zz <- trigger (EvalBounds lo hi) ;;  
-    isem_for_loop isem_instr (fun w => trigger (WriteIndex i (Vint w)))
-      i c (wrange d (fst zz) (snd zz)) 
-
-  | Ccall xs fn args =>
-    s0 <- trigger (@Get State) ;;  
-    vargs <- trigger (EvalArgs args) ;;
-    fs0 <- trigger (InitFState vargs ii) ;;
-    fs1 <- trigger_inl1 (Call (fn, fs0)) ;; 
-    (* discard current state, use s0 instead *)
-    trigger (RetVal xs fs1 s0)
-  end.
-
-
-
-
-Definition handle2lin (i: instr) (lbl: rlabel) : itree E (rlabel * rlabel) :=
-  let: (MkI ii ir) := i in
-  match ir with
-  | Cassgn x tg ty e => throw err
-
-  | Copn xs tg o es => trigger (OpnE xs tg o es)
-
-  | Csyscall xs o es => trigger (SyscallE xs o es) 
-                                
-  | Cif e c1 c2 =>
-    b <- trigger (EvalCond e) ;;
-    isem_foldr isem_instr (if b then c1 else c2) 
-               
-  | Cwhile a c1 e ii0 c2 =>
-      isem_while_loop isem_instr (fun e => trigger (EvalCond e))
-        c1 e c2 
-
-  | Cfor i (d, lo, hi) c =>
-    zz <- trigger (EvalBounds lo hi) ;;  
-    isem_for_loop isem_instr (fun w => trigger (WriteIndex i (Vint w)))
-      i c (wrange d (fst zz) (snd zz)) 
-
-  | Ccall xs fn args =>
-    s0 <- trigger (@Get State) ;;  
-    vargs <- trigger (EvalArgs args) ;;
-    fs0 <- trigger (InitFState vargs ii) ;;
-    fs1 <- trigger_inl1 (Call (fn, fs0)) ;; 
-    (* discard current state, use s0 instead *)
-    trigger (RetVal xs fs1 s0)
-  end.
-
-
+Definition handle_LRec E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  {FunDef0: Type} {FState0: Type}
+  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
+  {XTSA: StackAllocE -< E}
+  (loc_instr : instr -> rlabel -> nat) :
+  callE (rlabel * funname) rlabel ~>
+    itree (callE (rlabel * funname) rlabel +' E) :=
+ fun T (rc : callE _ _ T) =>
+   match rc with
+   | Call (l1, fn) => lsem_fun loc_instr l1 fn
+   end.
+  
+Definition interp_LRec E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  {FunDef0: Type} {FState0: Type}
+  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
+  {XTSA: StackAllocE -< E}
+  (loc_instr : instr -> rlabel -> nat)
+  T (t: itree (callE (rlabel * funname) rlabel +' E) T) : itree E T :=
+  interp_mrec (handle_LRec loc_instr) t.
 
 End Interp.
 
 
+(*
 Section FInterp.
 
 Context {E: Type -> Type} {XE: ErrEvent -< E} {XS: @stateE lstate -< E}
@@ -940,7 +907,7 @@ Definition interp_up2state_lin T
   fun l => @interp_LinE _ _ stackAgree _ _ _ (interp_LinstrE t l).
 
 End FInterp.
-
+*)
 
 Require Import linearization.
 Require Import it_cflow_sem it_effect_sem.
@@ -951,14 +918,6 @@ Require Import equiv_extras rutt_extras.
 Definition conv_obj T1 T2 (ee: T1 = T2) (u: T1) : T2 :=
   eq_rect T1 (fun T : Type => T) u T2 ee.
 
-
-Section Transl0.
-
-Fixpoint linear_it (i: instr) (lbl: rlabel) : 
-   
-
-End transl0.
-  
 
 Section Transl.
 
@@ -1001,6 +960,7 @@ Definition PostC T1 T2 (e1: E1 T1) (u1: T1) (e2: E2 T2) (u2: T2) : Prop :=
     e1 = (subevent _ e01) /\ e2 = (subevent _ e02) /\
     StatePreRel e01 e02 /\ StatePostRel e01 u1 e02 u2. 
 
+(*
 Lemma linearization_lemma (pd : PointerData) (sp: sprog)
   (lin_params: linearization_params) :
   check_prog lin_params sp = ok tt ->
@@ -1023,6 +983,7 @@ Lemma linearization_lemma (pd : PointerData) (sp: sprog)
 Proof.
   intros.  
 Admitted. 
+*)
 
 End Transl.
 
@@ -1043,6 +1004,7 @@ Context {E2} {XI2 : LinstrE -< E2} {XL2: LinE -< E2} {XS2: StE2 -< E2}
 
 Context (RR : State -> LState -> Prop).
 
+(*
 (* just a test *)
 Lemma lin_lemma1 (pd : PointerData) (sp: sprog)
   (lin_params: linearization_params) :
@@ -1064,7 +1026,6 @@ Proof.
   intros.  
 Admitted. 
 
-
 (* another test *)
 Lemma lin_lemma2 (pd : PointerData) (sp: sprog)
   (lin_params: linearization_params) :
@@ -1085,7 +1046,8 @@ Lemma lin_lemma2 (pd : PointerData) (sp: sprog)
 Proof.
   intros.  
 Admitted. 
-  
+*)  
+
 End Test1. 
 
 End GInterp.
