@@ -561,6 +561,22 @@ Section LINEAR_CX.
 
 End LINEAR_CX.
 
+Section LINEAR_CY.
+
+  Variable linear_y : funname -> instr -> nat -> nat.
+
+  Fixpoint linear_Yc (fn: funname) (c0: cmd) (n0: nat) :
+    nat :=
+    match c0 with
+    | [::] => n0
+    | i::c =>
+        let n1 := linear_y fn i n0 in
+        linear_Yc fn c n1 
+    end.
+
+End LINEAR_CY.
+
+
 
 Definition add_align ii a (lc:lcmd) :=
   match a with
@@ -856,6 +872,59 @@ Fixpoint linear_Xi (fn: funname) (i:instr) (n0: nat) (lbl0:label) :
     else (n0, lbl0, nil)
            
   | Cfor _ _ _ => (n0, lbl0, nil)
+  end.
+
+Fixpoint linear_Yi (fn: funname) (i:instr) (n0: nat) :
+  nat :=
+  let (ii, ir) := i in
+  match ir with
+  | Cassgn _ _ _ _ => n0 (* absurd case *)
+  | Copn xs _ o es =>
+      match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
+      | Some xs, Some es => S n0
+      | _, _ => n0 (* absurd case *)
+      end
+
+  | Csyscall xs o es => S n0
+                          
+  | Cif e [::] c2 =>
+      let n2 := linear_Yc linear_Yi fn c2 (S n0) in S n2
+
+  | Cif e c1 [::] =>
+      let n2 := linear_Yc linear_Yi fn c1 (S n0) in S n2
+        
+  | Cif e c1 c2 =>
+      let n3 := linear_Yc linear_Yi fn c2 (S n0) in
+      let n4 := linear_Yc linear_Yi fn c1 (S (S n3)) in S n4
+        
+  | Cwhile a c e _ c' =>
+    match is_bool e with
+    | Some true =>
+      let n3 := linear_Yc linear_Yi fn c (S n0) in
+      let n4 := linear_Yc linear_Yi fn c' n3 in S n4
+
+    | Some false => linear_Yc linear_Yi fn c n0
+                              
+    | None =>
+      match c' with
+      | [::] =>
+          let n3 := linear_Yc linear_Yi fn c (S n0) in S n3
+                                                         
+      | _ =>
+         let n3 := linear_Yc linear_Yi fn c' (S n0) in
+         let n4 := linear_Yc linear_Yi fn c (S n3) in S n4
+      end
+    end     
+           
+  | Ccall xs fn' es =>
+    if get_fundef (p_funcs p) fn' is Some fd then
+      let e := f_extra fd in
+      let ra := sf_return_address e in
+      if is_RAnone ra then n0
+      else S n0
+    else n0 
+           
+  | Cfor _ _ _ => n0
   end.
 
 
