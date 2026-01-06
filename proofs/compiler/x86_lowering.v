@@ -270,7 +270,12 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
         | U256 => kb true szo (LowerCopn (Oasm (BaseOp (Some szo, VMOV szi))) [:: a])
         | _ => LowerAssgn
         end
-    | _ => LowerAssgn
+    | U128 =>
+        match szo with
+        | U256 => kb (~~ is_lval_in_memory x) szo (LowerCopn (Oasm (BaseOp (Some szo, VMOVDQU szi))) [:: a ])
+        | _ => LowerAssgn
+        end
+    | U256 => LowerAssgn
     end
 
   | Papp2 op a b =>
