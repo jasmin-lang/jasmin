@@ -110,11 +110,13 @@ module Make(Target : AsmTarget) : S
         let functions_head = pp_functions_decl asm.asm_funcs in
         let functions_body = pp_functions asm.asm_funcs in
         let data_segment = pp_data_segment asm.asm_globs asm.asm_glob_names in
+        let compiler_ident = Header (".ident", [Format.asprintf "\"%s\"" Glob_options.version_string]) in
         let stack_note_segment =
           if is_target_system_macos () then [] else [
               Header (".section", [ "\".note.GNU-stack\""; "\"\""; "%progbits" ]);
             ]
         in
-        headers @ functions_head @ functions_body @ data_segment @ stack_note_segment
+        headers @ functions_head @ functions_body @ data_segment @
+        compiler_ident :: stack_note_segment
 
 end
