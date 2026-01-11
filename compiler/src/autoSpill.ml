@@ -46,7 +46,9 @@ let vars_i = function
   | Cfor _ | Cif _ | Cwhile _ -> assert false
 
 let rec spill_all_i strategy i =
-  let wrap i_desc = { i with i_desc; i_annot = [] } in
+  let wrap i_desc =
+    { i with i_desc; i_loc = L.refresh_i_loc i.i_loc; i_annot = [] }
+  in
   let op o xs = xs |> spillable strategy |> mk_spill o |> wrap in
   match i.i_desc with
   | Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _ ->
@@ -84,7 +86,12 @@ let spill_all_fd strategy fd =
   if has_nospill fd.f_annot.f_user_annot then fd
   else
     let wrap i_desc =
-      { i_desc; i_loc = L.i_dummy; i_info = fd.f_info; i_annot = [] }
+      {
+        i_desc;
+        i_loc = L.(refresh_i_loc i_dummy);
+        i_info = fd.f_info;
+        i_annot = [];
+      }
     in
     let op o xs =
       xs |> Sv.of_list |> spillable strategy |> mk_spill o |> wrap
@@ -92,7 +99,6 @@ let spill_all_fd strategy fd =
     let f_body =
       (op Spill fd.f_args :: spill_all_c strategy fd.f_body)
       @ [ op Unspill (List.map L.unloc fd.f_ret) ]
-      |> refresh_i_loc_c
     in
     { fd with f_body }
 
