@@ -28,10 +28,12 @@ let spillable strategy (s : Sv.t) : Sv.t = Sv.filter (is_spillable strategy) s
 (* **************************************************************** *)
 
 let mk_spill o s =
-  let xs = Sv.elements s in
-  let tys = List.map (fun x -> Conv.cty_of_ty x.v_ty) xs in
-  let es = List.map (fun x -> Pvar (gkvar (L.mk_loc L._dummy x))) xs in
-  Copn ([], AT_none, Sopn.Opseudo_op (Ospill (o, tys)), es)
+  Sv.fold
+    (fun x acc ->
+      let ty = Conv.cty_of_ty x.v_ty in
+      let e = Pvar (gkvar (L.mk_loc L._dummy x)) in
+      Copn ([], AT_none, Sopn.Opseudo_op (Ospill (o, [ ty ])), [ e ]) :: acc)
+    s []
 
 let vars_lv = function
   | Lnone _ | Lvar _ -> Sv.empty
@@ -49,23 +51,21 @@ let rec spill_all_i strategy i =
   let wrap i_desc =
     { i with i_desc; i_loc = L.refresh_i_loc i.i_loc; i_annot = [] }
   in
-  let op o xs = xs |> spillable strategy |> mk_spill o |> wrap in
+  let op o xs = xs |> spillable strategy |> mk_spill o |> List.map wrap in
   match i.i_desc with
   | Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _ ->
-      [ op Unspill (vars_i i.i_desc); i; op Spill (assigns i.i_desc) ]
+      op Unspill (vars_i i.i_desc) @ (i :: op Spill (assigns i.i_desc))
   | Cif (e, c1, c2) ->
-      [
-        op Unspill (vars_e e);
-        {
-          i with
-          i_desc = Cif (e, spill_all_c strategy c1, spill_all_c strategy c2);
-        };
-      ]
+      op Unspill (vars_e e)
+      @ [
+          {
+            i with
+            i_desc = Cif (e, spill_all_c strategy c1, spill_all_c strategy c2);
+          };
+        ]
   | Cfor (x, (d, e1, e2), c) ->
-      [
-        op Unspill (vars_es [ e1; e2 ]);
-        { i with i_desc = Cfor (x, (d, e1, e2), spill_all_c strategy c) };
-      ]
+      op Unspill (vars_es [ e1; e2 ])
+      @ [ { i with i_desc = Cfor (x, (d, e1, e2), spill_all_c strategy c) } ]
   | Cwhile (al, c1, e, ei, c2) ->
       [
         {
@@ -73,7 +73,7 @@ let rec spill_all_i strategy i =
           i_desc =
             Cwhile
               ( al,
-                spill_all_c strategy c1 @ [ op Unspill (vars_e e) ],
+                spill_all_c strategy c1 @ op Unspill (vars_e e),
                 e,
                 ei,
                 spill_all_c strategy c2 );
@@ -94,11 +94,11 @@ let spill_all_fd strategy fd =
       }
     in
     let op o xs =
-      xs |> Sv.of_list |> spillable strategy |> mk_spill o |> wrap
+      xs |> Sv.of_list |> spillable strategy |> mk_spill o |> List.map wrap
     in
     let f_body =
-      (op Spill fd.f_args :: spill_all_c strategy fd.f_body)
-      @ [ op Unspill (List.map L.unloc fd.f_ret) ]
+      (op Spill fd.f_args @ spill_all_c strategy fd.f_body)
+      @ op Unspill (List.map L.unloc fd.f_ret)
     in
     { fd with f_body }
 
