@@ -497,12 +497,21 @@ Definition interp_LinE E {XE: ErrEvent -< E}
   interp (ext_handler
             (fun T x => @handle_LinE stackAgree E XLS XS XE T x)) t.
 
-Definition interp_up2state E {XE: ErrEvent -< E}
+Definition interp_up2lstate E {XE: ErrEvent -< E}
   {XLS: stateE alstate -< E}
   {XS: stateE lstate -< E} {A: Type}
   (t : itree (LinstrE +' LFlowE +' StackE +' LinE +' E) A) : itree E A :=
   interp_LinE (interp_StackE (interp_LFlowE (interp_LinstrE t))).
 
+Definition alstate2lstate E {XS: stateE lstate -< E} T
+  (t: itree (stateE alstate +' E) T) : itree E T.
+Admitted. 
+
+Definition interp_up2lstate_lin E {XE: ErrEvent -< E}
+  {XS: stateE lstate -< E} {A: Type}
+  (t : itree (LinstrE +' LFlowE +' StackE +' LinE +' stateE alstate +' E) A) :
+  itree E A := alstate2lstate (interp_up2lstate t).
+  
 (* if the linear translation of i is straightline code that ends
    without jumps, it will return (fn, n1); the first jump destination
    otherwise *)
@@ -684,6 +693,14 @@ Variant StackAllocE : Type -> Type :=
   | Before : lcpoint -> StackAllocE unit
   | After : StackAllocE lcpoint.                                  
 
+Definition handle_StackAlloc E {XE: ErrEvent -< E} {XST: StackE -< E} {T}
+  (e: StackAllocE T) : itree E T. 
+Admitted. 
+
+Definition interp_StackAlloc E {XE: ErrEvent -< E} {XST: StackE -< E} {T}
+  (t: itree (StackAllocE +' E) T) : itree E T :=
+  interp (ext_handler (fun T x => @handle_StackAlloc E XE XST T x)) t.
+
 (* l1 is the return address *)
 Definition lsem_fun E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
@@ -725,14 +742,37 @@ Lemma LinearSemProj_fun_ok E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
   {FunDef0: Type} {FState0: Type}
   {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
-  {XTSA: StackAllocE -< E}
+  {XTSA: StackAllocE -< E} 
   (loc_instr : instr -> lcpoint -> nat)
   (l0: lcpoint) (c: cmd) :
-  eutt eq (interp_mrec (@handle_LRec E XE XI XL XLS XST FunDef0 FState0
+  eutt eq
+       (interp_mrec (@handle_LRec E XE XI XL XLS XST FunDef0 FState0
                           XF XTSA loc_instr) (lsem_cmdI c l0 l0))
           (interp_LFlowE (isem_lcmd l0)). 
 Admitted. 
 
+Definition interp_LRec1 E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  {FunDef0: Type} {FState0: Type}
+  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
+  (loc_instr : instr -> lcpoint -> nat)
+  T (t: itree (callE (lcpoint * funname) lcpoint +' StackAllocE +' E) T) :
+  itree E T :=
+  interp_StackAlloc (interp_mrec (handle_LRec loc_instr) t).
+
+Lemma LinearSemProj_fun_ok1 E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  {FunDef0: Type} {FState0: Type}
+  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
+  (loc_instr : instr -> lcpoint -> nat)
+  (l0: lcpoint) (c: cmd) :
+  eutt eq ((@interp_LRec1 E XE XI XL XLS XST FunDef0 FState0
+                       XF loc_instr) _ (lsem_cmdI c l0 l0))
+          (interp_LFlowE (isem_lcmd l0)). 
+Admitted. 
+
+
+From ITree Require Import Rutt.
 
 Section Transl.
 
@@ -778,7 +818,6 @@ Definition PostC T1 T2 (e1: E1 T1) (u1: T1) (e2: E2 T2) (u2: T2) : Prop :=
     e1 = (subevent _ e01) /\ e2 = (subevent _ e02) /\
     StatePreRel e01 e02 /\ StatePostRel e01 u1 e02 u2. 
 
-(*
 Lemma linearization_lemma (pd : PointerData) (sp: sprog)
   (lin_params: linearization_params) :
   check_prog lin_params sp = ok tt ->
@@ -787,739 +826,28 @@ Lemma linearization_lemma (pd : PointerData) (sp: sprog)
       let c0 := fd.(f_body) in     
       let: (_, lc0) :=
         (linear_c (@linear_i asm_op pd _ lin_params sp fn) c0 xH [::]) in
-      fenv fn = Some lc0) ->
+      fenv fn = Some lc0) -> 
   forall (fn: funname),
-    let lin_sem := @interp_up2state_lin E2 XE2 XS2 _
-                     (isem_liniter (fn, 0)%type) in
+    let lin_sem := @interp_up2lstate_lin E2 XE2 XS2 _ 
+                     (isem_lfun fn%type) in 
     forall xs es ii,
       let sden := @isem_instr asm_op syscall_state sip
                     estate fstate _ _ _ (MkI ii (Ccall xs fn es)) in
       let source_sem := @interp_up2state asm_op syscall_state
                           sip withsubword dc ep spp pT scP p ev E1 XE1 XS1
                           unit sden in  
-      @rutt E1 E2 _ _ PreC PostC eq source_sem lin_sem.
+      @rutt E1 E2 _ _ PreC PostC (fun n _ => True) source_sem lin_sem.
 Proof.
   intros.  
 Admitted. 
-*)
 
 End Transl.
-
   
 End LinearProjSem.
 
 End Interp.
-
-
-
-
-
-
-(*        fun nA => @lsem_c (callE (lcpoint * funname) lcpoint +' E) _
-                    (lsem_instr loc_instr) fn c1 nA in *)
-(*        fun nA => @lsem_c (callE (lcpoint * funname) lcpoint +' E) _
-                    (lsem_instr loc_instr) fn c2 nA in *)
-
-(********)
-
-Fixpoint nat_switch {B} (f: nat -> B) (ls: list nat) (ks: list (nat -> B))
-  (n: nat) : B :=
-  match (ls, ks) with
-  | (nil, _) => f n
-  | (_, nil) => f n                
-  | (n0 :: ns0, k0 :: ks0) =>
-    if n < n0 then k0 n0 else nat_switch f ns0 ks0 n end.            
-
-
-Definition instr_sem1 E {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (loc_instr : instr -> lcpoint -> nat)
-  (i: instr) (l0 l1: lcpoint) : itree E (lcpoint + lcpoint) :=
-  let: (fn0, n0) := l0 in 
-  let n2 := loc_instr i l0 in
-  XCntrK F fn0 n0 n2 l1. 
-
-Definition instr_sem2 E {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (loc_instr : instr -> lcpoint -> nat)
-  (fn: funname) (n0: nat) (i: instr) (n1: nat) :
-  itree E (lcpoint + lcpoint) :=
-  let n2 := loc_instr i (fn, n0) in
-  XCntrK F fn n0 n2 (fn, n1). 
-
-(* ok to deal with a sequence of source instructions, but not to deal
-   with the list that comes out of a cond or a while; there you need
-   an iter, not a bind *)
-Fixpoint lsm_c E 
-  (R: instr -> lcpoint -> itree E lcpoint)
-  (cc: cmd) (l1: lcpoint) : itree E lcpoint :=
-  match cc with
-  | nil => Ret l1
-  | i :: cc0 => l2 <- R i l1 ;; lsm_c R cc0 l2 end.            
-
-
-
-(*************)
-
-
-Fixpoint ktree_ls_switch00 E (ks: list (nat -> itree E lcpoint))
-  (fn: funname) (nS nE n0: nat) :
-  itree E (lcpoint + lcpoint) :=
-  match ks with
-  | nil => Ret (inr (fn, n0))
-  | k :: ks0 =>
-      ITree.bind (lcp_select E (lcp_in_interval fn nS nE) (fn, n0))
-                 (fun n1 => ktree_ls_switch00 ks0 fn nS nE n1) end.
-  
-
-
-Definition lcp_sem1 E {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (loc_instr : instr -> lcpoint -> nat)
-  (cc: cmd) (l0 l1: lcpoint) : itree E (lcpoint + lcpoint) :=
-  let: (fn0, n0) := l0 in
-  let n2 := loc_cmd loc_instr fn0 cc n0 in
-  XCntrK F fn0 n0 n2 l1. 
-
-Definition lcp_sem2 E {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (loc_instr : instr -> lcpoint -> nat)
-  (fn: funname) (n0: nat) (cc: cmd) (n1: nat) :
-  itree E (lcpoint + lcpoint) :=
-  lcp_sem1 F loc_instr cc (fn, n0) (fn, n1).
-
-Definition lcp_sem1I E {XE: ErrEvent -< E} {XI : LinstrE -< E}
-  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  (loc_instr : instr -> lcpoint -> nat)
-  (cc: cmd) (l0 l1: lcpoint) : itree E (lcpoint + lcpoint) :=
-  lcp_sem1 (fun i l => interp_LFlowE (exec_linstr i l)) loc_instr
-           cc l0 l1.
-
-Definition lcp_sem2I E {XE: ErrEvent -< E} {XI : LinstrE -< E}
-  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  (loc_instr : instr -> lcpoint -> nat)
-  (fn: funname) (n0: nat) (cc: cmd) (n1: nat) :
-  itree E (lcpoint + lcpoint) :=
-  lcp_sem2 (fun i l => interp_LFlowE (exec_linstr i l)) loc_instr
-           fn n0 cc n1.
-
-(*
-Definition lcp_ksem0 E {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (loc_instr : instr -> lcpoint -> nat)
-  (fn: funname) (cc: cmd) (n0: nat) (l1: lcpoint) :
-  itree E (lcpoint + lcpoint) :=
-  lcp_isem F loc_instr cc (fn, n0) l1.
-*)
-(*
-Definition lcp_select00 E fn (l0: lcpoint) (n1: nat) :
-  itree E (lcpoint + lcpoint) :=
-  let: (fn0, n0) := l0 in
-  if (fn0 == fn) && (n0 < n1) then Ret (inl l0) else Ret (inr l0).
-*)
-(* tries to execute point l1 wrt to the linear translation of cc;
-   basically, uses l1 as starting point for the translation of cc, and
-   executes it *)
-(*
-Fixpoint lsm_cmd_NS E
-  (loc_instr : instr -> lcpoint -> nat)                  
-  (R: instr -> lcpoint -> itree E lcpoint)
-  (cc: cmd) (l1: lcpoint) : itree E lcpoint :=
-  let: (fn0, n0) := l1 in 
-  match cc with
-  | nil => Ret l1
-  | i :: cc0 =>
-      let n2 := loc_instr i l1 in
-      let n3 := loc_cmd loc_instr fn0 cc0 n2 in
-      ITree.iter (fun '(fn, n) => if (n < n2) && (fn == fn0)
-          then (l0 <- R i (fn, n) ;; lcp_select E fn l0 n3)
-          else (l0 <- lsm_cmd_NS loc_instr R cc0 (fn, n) ;;
-                lcp_select E fn l0 n3)) l1
-  end.                        
-*)
-(* a list of k-trees executed from fpt (start point) until either
-   there's a jump to another function, or ptE is passed. *)
-(*
-Fixpoint lsm_lcmd_list E (ptE: nat) (ts: list (nat -> itree E lcpoint)) 
-  (fpt: lcpoint) : itree E lcpoint :=
-  let: (fn, pt) := fpt in
-  match ts with
-  | nil => Ret fpt  
-  | k1 :: ks0 =>
-      ITree.iter (fun '(fn0, pt0) => '(fn1, pt1) <- k1 npt0 ;;           
-        if (pt == pt0) && (pt0 < pt1) && (fn1 == fn0)
-        then lcp_select E fn0 (fn1, pt1) ptE
-        else fpt2 <- lsm_lcmd_list ptE ks0 (fn0, pt0) ;;
-             lcp_select E fn0 fpt2 ptE) fpt
- end.                
-*)
-(*
-Fixpoint lsm_lcmd_list E (n3: nat) (ts: list (nat -> itree E lcpoint)) 
-  (l1: lcpoint) : itree E lcpoint :=
-  let: (fn0, n0) := l1 in
-  match ts with
-  | nil => Ret l1  
-  | k1 :: ks0 =>
-      ITree.iter (fun '(fn, n) => l2 <- k1 n ;;                           
-        if (n0 <= n) && (n < snd l2) && (fst l2 == fn)
-        then lcp_select E fn l2 n3
-        else l3 <- lsm_lcmd_list n3 ks0 (fn, n) ;; lcp_select E fn l3 n3) l1
- end.                
-*)
-
-(* assuming fenv *)
-Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
-  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  (loc_instr : instr -> lcpoint -> nat)
-  (i : instr) (l1: lcpoint) :
-(*   itree E lcpoint := *)
-          itree (callE (lcpoint * funname) lcpoint +' E) lcpoint := 
-  let: (MkI ii ir) := i in
-  let: (fn, n0) := l1 in
-  let: n3 := loc_instr i l1 in 
-  match ir with
-  | Cassgn x tg ty e => throw err
-
-  | Copn xs tg o es => let n1 := loc_instr i l1 in
-      isem_ICntrK fn n0 n1                 
-
-  | Csyscall xs o es => let n1 := loc_instr i l1 in
-      isem_ICntrK fn n0 n1    
-
-  | Cif e c1 c2 =>
-      let k0 := fun n2 => isem_ICntrK fn n (S n) in
-      let k1 :=
-        fun n => @lsm_cmd_NS (callE (lcpoint * funname) lcpoint +' E)
-                   loc_instr (lsem_instr loc_instr)
-                     c1 (fn, n) in
-      let k2 :=
-        fun n => @lsm_cmd_NS (callE (lcpoint * funname) lcpoint +' E)
-                   loc_instr (lsem_instr loc_instr)
-                     c2 (fn, n) in
-      let ls := ([k0; k2; k0; k0; k1; k0]) in 
-      lsm_lcmd_list n3 ls l1 
-
-  | Cwhile a c1 e ii0 c2 =>
-      let k0 := fun n => isem_ICntrK fn n (S n) in
-      let k1 :=
-        fun n => @lsm_cmd_NS (callE (lcpoint * funname) lcpoint +' E)
-                   loc_instr (lsem_instr loc_instr)
-                     c1 (fn, n) in
-      let k2 :=
-        fun n => @lsm_cmd_NS (callE (lcpoint * funname) lcpoint +' E)
-                   loc_instr (lsem_instr loc_instr)
-                     c2 (fn, n) in
-      let ls := ([k0; k0; k2; k0; k0; k1; k0]) in 
-      lsm_lcmd_list n3 ls l1 
-
-  | Cfor i (d, lo, hi) c => throw err 
-
-  | Ccall xs fn1 args => trigger_inl1 (Call (l1, fn1))
-                                  
- end.
-
-
-Fixpoint lsem_cmd E {XE: ErrEvent -< E} {XI : LinstrE -< E}
-  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  (loc_instr : instr -> lcpoint -> nat)
-  (cc : cmd) (l1: lcpoint) :
-  itree (callE (lcpoint * funname) lcpoint +' E) lcpoint :=
-  @lsm_cmd_NS (callE (lcpoint * funname) lcpoint +' E)
-                   loc_instr (lsem_instr loc_instr)
-                     cc l1.
-
-Variant StackAllocE : Type -> Type :=
-  | Before : lcpoint -> StackAllocE unit
-  | After : StackAllocE lcpoint.                                  
-
-Definition lsem_fun E {XE: ErrEvent -< E} {XI : LinstrE -< E}
-  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  {FunDef0: Type} {FState0: Type}
-  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
-  {XTSA: StackAllocE -< E}
-  (loc_instr : instr -> lcpoint -> nat)
-  (l0: lcpoint) (fn: funname) : 
-  itree (callE (lcpoint * funname) lcpoint +' E) lcpoint :=
-  trigger (Before l0) ;; 
-  fd <- trigger (GetFunDef fn) ;;  
-  cc <- trigger (GetFunCode fd) ;;
-  lsem_cmd loc_instr cc (fn, 0) ;;
-  trigger After. 
-
-Definition handle_LRec E {XE: ErrEvent -< E} {XI : LinstrE -< E}
-  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  {FunDef0: Type} {FState0: Type}
-  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
-  {XTSA: StackAllocE -< E}
-  (loc_instr : instr -> lcpoint -> nat) :
-  callE (lcpoint * funname) lcpoint ~>
-    itree (callE (lcpoint * funname) lcpoint +' E) :=
- fun T (rc : callE _ _ T) =>
-   match rc with
-   | Call (l1, fn) => lsem_fun loc_instr l1 fn
-   end.
-  
-Definition interp_LRec E {XE: ErrEvent -< E} {XI : LinstrE -< E}
-  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  {FunDef0: Type} {FState0: Type}
-  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
-  {XTSA: StackAllocE -< E}
-  (loc_instr : instr -> lcpoint -> nat)
-  T (t: itree (callE (lcpoint * funname) lcpoint +' E) T) : itree E T :=
-  interp_mrec (handle_LRec loc_instr) t.
-
-End LinearProjSem.
-
-End Interp.
-
-
-(******************************************************)
-(******************************************************)
-
-(* USELESS *)
-
-Fixpoint lsm_lcmd_list0 E (n3: nat) (ts: list (nat * itree E lcpoint)) 
-  (l1: lcpoint) : itree E lcpoint :=
-  let: (fn0, n0) := l1 in
-  match ts with
-  | nil => Ret l1  
-  | (n1, t1) :: ts0 =>
-      ITree.iter (fun '(fn, n) =>
-       if (n0 <= n) && (n < n1) then l2 <- t1 ;; lcp_select E fn l2 n3
-       else l2 <- lsm_lcmd_list0 n3 ts0 (fn, n) ;; lcp_select E fn l2 n3) l1
- end.                
-
-Fixpoint lsm_cmd E 
-  (R: instr -> lcpoint -> itree E lcpoint)
-  (cc: cmd) (l1: lcpoint) : itree E lcpoint :=
-  match cc with
-  | nil => Ret l1
-  | i :: cc0 =>
-      l2 <- R i l1 ;; lsm_cmd R cc0 l2 end.
-
-(* cc: linear code. 
-   fn: function cc belongs to.
-   n0: starting point of cc in 'code fn'. 
-   l1: the linear code point (a linear instruction) being executed.
-   the position of the executed intruction in fn is 'n1'.
-   need to check whether the position returned by F is in fn. *)
-Definition XCntrL {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (fn: funname) (cc: lcmd) (n0: nat) (l1: lcpoint) :
-  itree E (lcpoint + lcpoint) :=
-  match l1 with
-  | (fn1, n1) =>
-      if (fn1 == fn) && (n0 <= n1)
-      then let pi := find_linstr_in_env cc (n1 - n0) in
-           match pi with
-           | Some (MkLI _ i) => l2 <- F i l1 ;; Ret (inl l2)  
-           | _ => Ret (inr l1)
-           end
-      else Ret (inr l1)
-  end.             
-
-Definition XCntrS {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (N: lcpoint -> lcmd * nat)
-  (l0: lcpoint) : itree E (lcpoint + lcpoint) :=
-  let fn := fst l0 in
-  let '(lc, n0) := N l0 in
-  XCntrL F fn lc n0 l0.
-
-(* iterate XContrS *)
-Definition ICntrS {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (N: lcpoint -> lcmd * nat)
-  (l0: lcpoint) : itree E lcpoint :=
-  ITree.iter (@XCntrS E XE F N) l0.
-
-(* add a termination check to XCntrLF *)
-Definition XCntrSG {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (N: lcpoint -> lcmd * nat)
-  (X: lcpoint -> bool)
-  (l0: lcpoint) : itree E (lcpoint + lcpoint) :=
-  if (X l0)
-  then Ret (inr l0)
-  else l1 <- ICntrS F N l0 ;; Ret (inl l1).
-
-Definition ICntrSG {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (N: lcpoint -> lcmd * nat)
-  (X: lcpoint -> bool)
-  (l0: lcpoint) : itree E lcpoint :=
-  ITree.iter (@XCntrSG E XE F N X) l0.
-
-Definition XCntrSF {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (N: lcpoint -> lcmd * nat)
-  (X: lcpoint -> bool)
-  (fn: funname) (l0: lcpoint) : itree E (lcpoint + lcpoint) :=
-  if (X l0) && ~~(fn == fst l0) 
-  then Ret (inr l0)
-  else l1 <- ICntrS F N l0 ;; Ret (inl l1).
-            
-Definition ICntrSF {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (N: lcpoint -> lcmd * nat)
-  (X: lcpoint -> bool)
-  (fn: funname) (l0: lcpoint) : itree E lcpoint :=
-  ITree.iter (@XCntrSF E XE F N X fn) l0.
-
-Definition XCntrSFG {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (N: lcpoint -> lcmd * nat)
-  (X: lcpoint -> bool)
-  (l0: lcpoint) : itree E (lcpoint + lcpoint) :=
-  if (X l0)
-  then Ret (inr l0)
-  else l1 <- ICntrSF F N X (fst l0) l0 ;; Ret (inl l1).
-
-Definition ICntrSFG {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (N: lcpoint -> lcmd * nat)
-  (X: lcpoint -> bool)
-  (l0: lcpoint) : itree E lcpoint :=
-  ITree.iter (@XCntrSFG E XE F N X) l0.
-
-(* execute the code of fn from 0. can jump into any function code at
-   any point *)
-Definition XCntrLF {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (l1: lcpoint) : itree E (lcpoint + lcpoint) :=
-  let fn := fst l1 in
-  let plc := fenv fn in
-  match plc with
-  | Some lc => XCntrL F fn lc 0 l1
-  | _ => throw err
-  end.             
-
-(* add a termination check to XCntrLF *)
-Definition XCntrLG {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (X: lcpoint -> bool)
-  (l1: lcpoint) : itree E (lcpoint + lcpoint) :=
-  if (X l1)
-  then Ret (inr l1)
-  else XCntrLF F l1.
-
-(* iterate XContrLG *)
-Definition ICntrG {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (X: lcpoint -> bool)
-  (l1: lcpoint) : itree E lcpoint :=
-  ITree.iter (@XCntrLG E XE F X) l1.
-
-(* ok, can jump into a function at any point *)
-Definition XCntrFF {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (fn: funname) (l1: lcpoint) :
-  itree E (lcpoint + lcpoint) :=
-  let plc := fenv fn in
-  match plc with
-  | Some lc => XCntrL F fn lc 0 l1
-  | _ => throw err
-  end.             
-
-Definition ICntrFF {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (fn: funname) (l1: lcpoint) : itree E lcpoint :=
-  ITree.iter (@XCntrFF E XE F fn) l1.    
-
-Definition XCntrFG {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (X: lcpoint -> bool)
-  (l1: lcpoint) : itree E (lcpoint + lcpoint) :=
-  if (X l1)
-  then Ret (inr l1)
-  else l2 <- ICntrFF F (fst l1) l1 ;; Ret (inl l2).
-
-Definition ICntrFG {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (X: lcpoint -> bool)
-  (l1: lcpoint) : itree E lcpoint :=
-  ITree.iter (@XCntrFG E XE F X) l1.   
-   
-Definition ICntrL {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (fn: funname) (cc: lcmd) (n0: nat) (l1: lcpoint) :
-  itree E lcpoint :=
-  ITree.iter (@XCntrL E XE F fn cc n0) l1.
-
-Definition XCntrFG0 {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> lcpoint -> itree E lcpoint)
-  (X: lcpoint -> bool)
-  (fn: funname) (l1: lcpoint) : itree E (lcpoint + lcpoint) :=
-  if (X l1)
-  then Ret (inr l1)
-  else XCntrFF F fn l1.
-
-(*********************************************************)
-
-(* USELESS *)
-
-(* iterative semantics body *)
-Definition isem_linstrD E {XE: ErrEvent -< E} {XI : LinstrE -< E}
-  {XL: LinE -< E} {XLS: stateE lstate -< E}
-  {XST: StackE -< E} (lbl: lcpoint) :
-  itree E (lcpoint + lcpoint) :=
-  LCntr (fun i l => interp_LFlowE (exec_linstr i l)) is_final lbl.
-
-(* iterative semantics of a program, from any starting point *)
-Definition isem_liniterD E {XE: ErrEvent -< E} {XI : LinstrE -< E}
-  {XL: LinE -< E} {XLS: stateE lstate -< E}
-  {XST: StackE -< E} (lbl: lcpoint) : itree E lcpoint :=
-  ITree.iter (@isem_linstrD E XE XI XL XLS XST) lbl.
-
-Definition isem_ICntrG E {XE: ErrEvent -< E} {XI : LinstrE -< E}
-  {XL: LinE -< E} {XLS: stateE lstate -< E}
-  {XST: StackE -< E} (lbl: lcpoint) : itree E lcpoint :=
-  ICntrG (fun i l => interp_LFlowE (exec_linstr i l)) halt_pred lbl.
-
-Definition isem_ICntrFG E {XE: ErrEvent -< E} {XI : LinstrE -< E}
-  {XL: LinE -< E} {XLS: stateE lstate -< E}
-  {XST: StackE -< E} (lbl: lcpoint) : itree E lcpoint :=
-  ICntrFG (fun i l => interp_LFlowE (exec_linstr i l)) halt_pred lbl.
-
-Definition isem_ICntrL E {XE: ErrEvent -< E} {XI : LinstrE -< E}
-  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  (fn: funname) (cc: lcmd) (n0: nat) (lbl0: lcpoint) : itree E lcpoint :=
-  ICntrL (fun i l => interp_LFlowE (exec_linstr i l)) fn cc n0 lbl0.
-
-
-Section Interp02.
-
-Context {stackAgree : lstate -> alstate -> bool}.
-Context
-(*  {asm_op : Type} {pd : PointerData} *)
-(* {asmop : asmOp asm_op} *) 
-  (liparams : @linearization_params asm_op (@_asmop asm_op syscall_state sip)).
-Context (SP : sprog).
-
-Definition handle2lin 
-  E {XE: ErrEvent -< E} {XI : LinstrE -< E}
-  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  (fn: funname) (i:instr) (n0: nat) (lbl0: label) :
-   itree E (nat * label * lcpoint) :=
-  let '(n1, lbl1, lc) := linear_full_i liparams SP fn i n0 lbl0 in
-  l1 <- isem_ICntrL fn lc n0 (fn, n0) ;; Ret (n1, lbl1, l1). 
-
-(*
-1) define the source code interpretation recursively. ultimately, each
-   source instruction should be mapped to a linear iteration, and so
-   commands (by folding with bind?? no!! by joining and iterating, see
-   below). use rec call triggers for function calls.
-
-2) define the translation globally (or at least function-wise).  so,
-   basically, lc should be the global code, while a source instruction
-   should be associated to n0 and n1 (start and end of the code
-   segment).
-
-localize_instr : lcmd -> funname -> instr -> nat -> nat
-
-or:
-
-localize_instr : fenv -> funname -> instr -> nat -> nat
-
-or:
-
-localize_instr_rel : fenv -> funname -> instr -> nat -> nat -> Prop
-
-3) introduce halting conditions as parameters on iteration, to model
-   the interpretation of source instructions. so, the exit condition
-   on isem_ICntr should be parameterized on (fn, n0, n1). Also needed:
-   entry conditions (join combinator).
-
-exit: funname -> nat -> nat -> lcpoint -> bool
-
-iter n1 n3 (join (iter n1 n2) (iter n2 n3)) = iter n1 n3
-*)
-
-End Interp02.
-
-
-(*
-Section FInterp.
-
-Context {E: Type -> Type} {XE: ErrEvent -< E} {XS: @stateE lstate -< E}
-  {XA: @stateE alstate -< E} {XST: StackE -< E}.
-
-Context {stackAgree : lstate -> alstate -> bool}.
-
-(* still need to to interpret StackE *)
-Definition interp_up2state_lin T 
-  (t: itree (LinstrE +' LinE +' E) T) : lcpoint -> itree E T :=
-  fun l => @interp_LinE _ _ stackAgree _ _ _ (interp_LinstrE t l).
-
-End FInterp.
-*)
-
-Definition conv_obj T1 T2 (ee: T1 = T2) (u: T1) : T2 :=
-  eq_rect T1 (fun T : Type => T) u T2 ee.
-
-
-Section Transl.
-
-Notation StE1 := (stateE estate).
-Notation StE2 := (stateE lstate).
-
-Context {E1} {XS1: StE1 -< E1} {XE1: ErrEvent -< E1}.
-Context {E2} {XS2: StE2 -< E2} {XE2: ErrEvent -< E2}. 
-Context (RR : estate -> lstate -> Prop).
-
-Context {dc: DirectCall} {pT : progT} {scP : semCallParams}.
-Context {p: prog} {ev : extra_val_t}.
-
-Definition ConvRelate T1 T2 (u1: T1) (u2: T2) :=
-  exists (ee1: T1 = estate) (ee2: T2 = lstate),
-    RR (conv_obj ee1 u1) (conv_obj ee2 u2).
-
-Definition StatePreRel T1 T2 
-  (e1: @stateE estate T1) (e2: @stateE lstate T2) : Prop :=
-   match (e1, e2) with
-   | (Get, Get) => True
-   | (Put s1, Put s2) => RR s1 s2
-   | _ => False end. 
-
-Definition StatePostRel T1 T2 
-  (e1: @stateE estate T1) (u1: T1) (e2: @stateE lstate T2) (u2: T2) : Prop :=
-  StatePreRel e1 e2 /\
-   match (e1, e2) with
-   | (Get, Get) => ConvRelate u1 u2
-   | (Put s1, Put s2) => True
-   | _ => False end. 
-
-Definition PreC T1 T2 (e1: E1 T1) (e2: E2 T2) : Prop :=
-  exists (e01: @stateE estate T1) (e02: @stateE lstate T2),
-    e1 = (subevent _ e01) /\ e2 = (subevent _ e02) /\
-    StatePreRel e01 e02.  
-
-Definition PostC T1 T2 (e1: E1 T1) (u1: T1) (e2: E2 T2) (u2: T2) : Prop :=
-  exists (e01: @stateE estate T1) (e02: @stateE lstate T2),
-    e1 = (subevent _ e01) /\ e2 = (subevent _ e02) /\
-    StatePreRel e01 e02 /\ StatePostRel e01 u1 e02 u2. 
-
-(*
-Lemma linearization_lemma (pd : PointerData) (sp: sprog)
-  (lin_params: linearization_params) :
-  check_prog lin_params sp = ok tt ->
-  (forall (fn: funname) (fd: sfundef),
-      get_fundef (p_funcs sp) fn = Some fd ->
-      let c0 := fd.(f_body) in     
-      let: (_, lc0) :=
-        (linear_c (@linear_i asm_op pd _ lin_params sp fn) c0 xH [::]) in
-      fenv fn = Some lc0) ->
-  forall (fn: funname),
-    let lin_sem := @interp_up2state_lin E2 XE2 XS2 _
-                     (isem_liniter (fn, 0)%type) in
-    forall xs es ii,
-      let sden := @isem_instr asm_op syscall_state sip
-                    estate fstate _ _ _ (MkI ii (Ccall xs fn es)) in
-      let source_sem := @interp_up2state asm_op syscall_state
-                          sip withsubword dc ep spp pT scP p ev E1 XE1 XS1
-                          unit sden in  
-      @rutt E1 E2 _ _ PreC PostC eq source_sem lin_sem.
-Proof.
-  intros.  
-Admitted. 
-*)
-
-End Transl.
-
-
-Section Test1.
-
-Context {State: Type} {FState : Type} {FunDef: Type}.
-Context {LState: Type}.
-
-Notation StE1 := (stateE State).
-Notation StE2 := (stateE LState).
-
-Context {E1} {XI1 : @InstrE asm_op syscall_state _ State FState -< E1}
-  {XS1: StE1 -< E1} {XF1: @FunE asm_op syscall_state _ FState FunDef -< E1}.
- 
-Context {E2} {XI2 : LinstrE -< E2} {XL2: LinE -< E2} {XS2: StE2 -< E2}
-  {XE2: ErrEvent -< E2}. 
-
-Context (RR : State -> LState -> Prop).
-
-(*
-(* just a test *)
-Lemma lin_lemma1 (pd : PointerData) (sp: sprog)
-  (lin_params: linearization_params) :
-  check_prog lin_params sp = ok tt ->
-  (forall (fn: funname) (fd: sfundef),
-      get_fundef (p_funcs sp) fn = Some fd ->
-      let c0 := fd.(f_body) in     
-      let: (_, lc0) :=
-        (linear_c (@linear_i asm_op pd _ lin_params sp fn) c0 xH [::]) in
-      fenv fn = Some lc0) ->
-  forall (fn: funname),
-    let lin_sem := @isem_liniter E2 XI2 XL2 XE2 ((fn, xH)%type) in
-    forall xs es ii, 
-      let source_sem := @denote_instr _ _ _ _ _ _ E1 XI1 XS1 XF1
-                          (MkI ii (Ccall xs fn es)) in
-      @rutt E1 E2 _ _ (fun _ _ _ _ => True) (fun _ _ _ _ _ _ => True)
-            eq source_sem lin_sem.
-Proof.
-  intros.  
-Admitted. 
-
-(* another test *)
-Lemma lin_lemma2 (pd : PointerData) (sp: sprog)
-  (lin_params: linearization_params) :
-  check_prog lin_params sp = ok tt ->
-  (forall (fn: funname) (fd: sfundef),
-      get_fundef (p_funcs sp) fn = Some fd ->
-      let c0 := fd.(f_body) in     
-      let: (_, lc0) :=
-        (linear_c (@linear_i asm_op pd _ lin_params sp fn) c0 xH [::]) in
-      fenv fn = Some lc0) ->
-  forall (fn: funname) (fd: sfundef),
-  get_fundef (p_funcs sp) fn = Some fd ->
-  let c0 := fd.(f_body) in     
-  let lin_sem := @isem_liniter E2 XI2 XL2 XE2 ((fn, xH)%type) in
-  let source_sem := @denote_cmd _ _ _ _ _ _ E1 XI1 XS1 XF1 c0 in
-  @rutt E1 E2 _ _ (fun _ _ _ _ => True) (fun _ _ _ _ _ _ => True)
-    eq source_sem lin_sem.
-Proof.
-  intros.  
-Admitted. 
-*)  
-
-End Test1. 
 
 End AStateLinSem.
 
 End Asm1.
-
-
-(*
-(* here we consider just one function *)
-Lemma linearization_lemma (pd : PointerData) (sp: sprog)
-  (lin_params: linearization_params)
-  (fn: funname) (fd: sfundef) lbl :
-  check_prog lin_params sp = ok tt ->
-  get_fundef (p_funcs sp) fn = Some fd ->
-  let c0 := fd.(f_body) in     
-  let lc0 := (linear_c (@linear_i asm_op pd _ lin_params sp fn) c0 lbl [::]) in
-  fenv fn = Some (snd lc0) ->
-  let lin_sem := @isem_liniter E2 XI2 XL2 XE2 ((fn, lbl)%type) in
-  let source_sem := @denote_cmd _ _ _ _ _ _ E1 XI1 XS1 XF1 c0 in
-  @rutt E1 E2 _ _ (fun _ _ _ _ => True) (fun _ _ _ _ _ _ => True)
-    eq source_sem lin_sem.
-Proof.
-  intros.  
-Admitted. 
-*)
-
-(*
-Lemma xxx (s1: lstate) : lret_sem s1 = ok s1.
-  unfold lret_sem.
-  unfold Result.bind.
-  simpl.
-  unfold get_var. simpl.
-  set rrr := (lvm s1). simpl.
-  unfold rdecode_label. simpl.
-  Print decode_label.
-*)  
+       
