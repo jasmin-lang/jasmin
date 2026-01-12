@@ -167,6 +167,31 @@ Definition XCntrK {E} {XE: ErrEvent -< E}
     end
   end.        
 
+Definition XCntrK1 {E} {XE: ErrEvent -< E}  
+  (F: linstr -> lcpoint -> itree E lcpoint)
+  (fn: funname) (nS nE: nat) (l1: lcpoint) : itree E (lcpoint + lcpoint) :=
+  match l1 with
+  | (fn1, n1) =>
+  (* the optional function body *)
+    match fenv fn1 with
+    | None => throw err      
+    (* the function exists: find the instruction in its body *)
+    | Some lc =>
+      if (length lc < nE) then throw err else
+      if (fn == fn1) && (nS <= n1) && (n1 < nE)
+      (* the instruction exists in the segment: execute it and
+         return the next label *) 
+      then match find_linstr_in_env lc n1 with
+           | Some i => l2 <- F i l1 ;; Ret (inl l2)
+           (* n1 < nE and nE <= length lc, so this cannot happen *) 
+           | _ => throw err                                         
+           end
+      (* the instruction is not in the function code segment *)         
+      else Ret (inr l1)
+    end
+  end.        
+
+
 (* iterate XContrK *)
 Definition ICntrK {E} {XE: ErrEvent -< E}  
   (F: linstr_r -> lcpoint -> itree E lcpoint)
@@ -500,6 +525,10 @@ Context
   (liparams : @linearization_params asm_op (@_asmop asm_op syscall_state sip)).
 Context (SP : sprog).
 
+(* Variable linear_end_c :
+  (funname -> instr -> nat -> nat) -> funname -> cmd -> nat -> nat.
+*)
+
 (* used to 'locate' cc, ie compute the linear code interval associated
    to the translation of cc *)
 Definition loc_cmd (loc_instr : instr -> lcpoint -> nat)
@@ -512,12 +541,174 @@ Definition lcp_select E (P: lcpoint -> bool) (l0: lcpoint) :
   itree E (lcpoint + lcpoint) :=
   if P l0 then Ret (inl l0) else Ret (inr l0).
 
+Definition lcp_lift E {XE: ErrEvent -< E}   
+  (R: instr -> lcpoint -> itree E lcpoint)
+  
+  (P: lcpoint -> bool) (l0: lcpoint) :
+  itree E (lcpoint + lcpoint) :=
+  if P l0 then Ret (inl l0) else Ret (inr l0).
+
+
+Definition lcp_in_interval (fn: funname) (nS nE: nat) (l1: lcpoint) : bool :=
+  match l1 with
+  | (fn0, n0) => (fn == fn0) && (nS <= n0) && (n0 < nE) end. 
+  
 (*
 Definition lcp_select1 E (fn: funname) (nS nE: nat) (l0: lcpoint) :
   itree E (lcpoint + lcpoint) :=
   let P := fun '(fn1 , n1) => (fn1 == fn) && (nS <= n1) && (n1 < nE) in   
   lcp_select E P l0. 
 *)
+
+Definition instr_sem1 E {XE: ErrEvent -< E}  
+  (F: linstr_r -> lcpoint -> itree E lcpoint)
+  (loc_instr : instr -> lcpoint -> nat)
+  (i: instr) (l0 l1: lcpoint) : itree E (lcpoint + lcpoint) :=
+  let: (fn0, n0) := l0 in 
+  let n2 := loc_instr i l0 in
+  XCntrK F fn0 n0 n2 l1. 
+
+Definition instr_sem2 E {XE: ErrEvent -< E}  
+  (F: linstr_r -> lcpoint -> itree E lcpoint)
+  (loc_instr : instr -> lcpoint -> nat)
+  (fn: funname) (n0: nat) (i: instr) (n1: nat) :
+  itree E (lcpoint + lcpoint) :=
+  let n2 := loc_instr i (fn, n0) in
+  XCntrK F fn n0 n2 (fn, n1). 
+
+(* ok to deal with a sequence of source instructions, but not to deal
+   with the list that comes out of a cond or a while; there you need
+   an iter, not a bind *)
+Fixpoint lsm_c E 
+  (R: instr -> lcpoint -> itree E lcpoint)
+  (cc: cmd) (l1: lcpoint) : itree E lcpoint :=
+  match cc with
+  | nil => Ret l1
+  | i :: cc0 => l2 <- R i l1 ;; lsm_c R cc0 l2 end.            
+
+Fixpoint lsm_c1 E {XE: ErrEvent -< E}  
+  (R: instr -> lcpoint -> itree E lcpoint)
+  (fn: funname) (cc: cmd) (n: nat) : itree E lcpoint :=
+  match cc with
+  | nil => Ret (fn, n)
+  | i :: cc0 => '(fn1, n1) <- R i (fn, n) ;;
+                if fn == fn1 then lsm_c1 R fn cc0 n1 else throw err end.            
+Fixpoint nat_switch {B} (f: nat -> B) (ls: list nat) (ks: list (nat -> B))
+  (n: nat) : B :=
+  match (ls, ks) with
+  | (nil, _) => f n
+  | (_, nil) => f n                
+  | (n0 :: ns0, k0 :: ks0) =>
+    if n < n0 then k0 n0 else nat_switch f ns0 ks0 n end.            
+
+Fixpoint nat_it_switch {E} {T} (f: nat -> T)
+  (ls: list nat) (ks: list (nat -> itree E T)) (n: nat) : itree E T :=
+  match (ls, ks) with
+  | (nil, _) => Ret (f n)
+  | (_, nil) => Ret (f n)                
+  | (n0 :: ns0, k0 :: ks0) =>
+    if n < n0 then k0 n0 else nat_it_switch f ns0 ks0 n end.            
+
+(*
+Fixpoint nat_it_switch {E} {T} (fn: funname)
+  (ls: list nat) (ks: list (nat -> itree E T)) (n: nat) : itree E T :=
+  match (ls, ks) with
+  | (nil, _) => Ret (inr1 (fn, n))
+  | (_, nil) => Ret (inr1 (fn, n))                
+  | (n0 :: ns0, k0 :: ks0) =>
+    if n < n0 then k0 n0 else nat_it_switch ns0 ks0 n end.            
+*)
+                     
+Definition ktree_switch E {XE: ErrEvent -< E}  
+  (R: instr -> lcpoint -> itree E lcpoint)
+  (fn: funname) (ls: list nat) (ks: list (nat -> itree E lcpoint))
+  (nS nE: nat) (l0: lcpoint) : itree E (lcpoint + lcpoint) :=
+  let R1 := lcp_select E (lcp_in_interval fn nS nE) in
+  if fst l0 == fn
+  then @nat_it_switch E (lcpoint + lcpoint)
+          (fun n => (inr (fn, n))) ls
+          (map (fun f n => ITree.bind (f n) R1) ks) (snd l0)
+  else Ret (inr l0).         
+      
+(***************)
+
+(* assuming fenv *)
+Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  (loc_instr : instr -> lcpoint -> nat)
+  (i : instr) (l1: lcpoint) :
+(*   itree E lcpoint := *)
+          itree (callE (lcpoint * funname) lcpoint +' E) lcpoint := 
+  let: (MkI ii ir) := i in
+  let: (fn, n0) := l1 in
+  let: nE := loc_instr i l1 in 
+  match ir with
+  | Cassgn x tg ty e => throw err
+
+  | Copn xs tg o es => let n1 := loc_instr i l1 in
+      isem_ICntrK fn n0 n1                 
+
+  | Csyscall xs o es => let n1 := loc_instr i l1 in
+      isem_ICntrK fn n0 n1    
+
+  | Cif e c1 c2 =>
+      let k0 := fun n => isem_ICntrK fn n (S n) in
+      let k1 :=
+        fun nA => @lsm_c1 (callE (lcpoint * funname) lcpoint +' E) _
+                    (lsem_instr loc_instr) fn c1 nA in
+      let k2 :=
+        fun nA => @lsm_c1 (callE (lcpoint * funname) lcpoint +' E) _
+                    (lsem_instr loc_instr) fn c2 nA in
+      let k_n1 := fun nA => loc_cmd loc_instr fn c1 nA in
+      let k_n2 := fun nA => loc_cmd loc_instr fn c2 nA in
+      let n1 := S n0 in
+      let n2 := k_n2 n1 in
+      let n3 := S n2 in
+      let n4 := S n3 in
+      let n5 := k_n1 n4 in
+      let n6 := S n5 in
+      ITree.iter (@ktree_switch (callE (lcpoint * funname) lcpoint +' E) _
+        (lsem_instr loc_instr) fn
+        [n1; n2; n3; n4; n5; n6] [k0; k2; k0; k0; k1; k0] n0 nE) (fn, n0) 
+      
+  | _ => throw err
+  end.             
+
+                 
+  | Cwhile a c1 e ii0 c2 =>
+      let k0 := fun n => isem_ICntrK fn n (S n) in
+      let k1 :=
+        fun n => @lsm_cmd_NS (callE (lcpoint * funname) lcpoint +' E)
+                   loc_instr (lsem_instr loc_instr)
+                     c1 (fn, n) in
+      let k2 :=
+        fun n => @lsm_cmd_NS (callE (lcpoint * funname) lcpoint +' E)
+                   loc_instr (lsem_instr loc_instr)
+                     c2 (fn, n) in
+      let ls := ([k0; k0; k2; k0; k0; k1; k0]) in 
+      lsm_lcmd_list n3 ls l1 
+
+  | Cfor i (d, lo, hi) c => throw err 
+
+  | Ccall xs fn1 args => trigger_inl1 (Call (l1, fn1))
+                                  
+ end.
+
+
+
+
+(********)
+
+Fixpoint ktree_ls_switch00 E (ks: list (nat -> itree E lcpoint))
+  (fn: funname) (nS nE n0: nat) :
+  itree E (lcpoint + lcpoint) :=
+  match ks with
+  | nil => Ret (inr (fn, n0))
+  | k :: ks0 =>
+      ITree.bind (lcp_select E (lcp_in_interval fn nS nE) (fn, n0))
+                 (fun n1 => ktree_ls_switch00 ks0 fn nS nE n1) end.
+  
+
 
 Definition lcp_sem1 E {XE: ErrEvent -< E}  
   (F: linstr_r -> lcpoint -> itree E lcpoint)
@@ -633,7 +824,7 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
       isem_ICntrK fn n0 n1    
 
   | Cif e c1 c2 =>
-      let k0 := fun n => isem_ICntrK fn n (S n) in
+      let k0 := fun n2 => isem_ICntrK fn n (S n) in
       let k1 :=
         fun n => @lsm_cmd_NS (callE (lcpoint * funname) lcpoint +' E)
                    loc_instr (lsem_instr loc_instr)
