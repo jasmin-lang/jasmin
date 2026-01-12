@@ -39,5 +39,3 @@ fn id4(reg u64 arg) -> reg u64 {
 fn id5(reg u64 arg) -> reg u64 {
   return arg;
 }
-
-fn unused_msf(#[msf] reg u64 msf) {}

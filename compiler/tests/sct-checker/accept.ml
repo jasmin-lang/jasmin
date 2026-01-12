@@ -1,4 +1,5 @@
 open Jasmin
+open Utils
 open Common
 open Sct_checker_forward
 
@@ -6,6 +7,10 @@ let path = "success"
 
 let load_and_check n name =
   Format.printf "File %s:@." name;
+  set_warn_recoverable true;
+  set_all_warnings ();
+  if String.equal name "unused-msf.jazz" then
+    List.iter remove_warning [ SCTchecker; UnusedVar ];
   let p = load_file (Filename.concat path name) in
   match ty_prog Arch.is_ct_sopn p [] with
   | exception Utils.HiError e ->

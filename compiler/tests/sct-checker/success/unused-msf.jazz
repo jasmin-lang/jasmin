@@ -1,0 +1,1 @@
+fn unused_msf(#[msf] reg u64 msf) {}
