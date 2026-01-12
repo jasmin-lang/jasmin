@@ -41,12 +41,6 @@ output corruption: #public
  constraints:
 
 
-nomodmsf unused_msf : #msf ->
-
-output corruption: #public
- constraints:
-
-
 File arrays.jazz:
 modmsf transient_read : #[ptr = transient, val = { n = d, s = secret}] *
                         #transient ->
@@ -361,6 +355,13 @@ output corruption: #transient
 modmsf spill2 : #public * #secret ->
 #public
 output corruption: #transient
+ constraints:
+
+
+File unused-msf.jazz:
+nomodmsf unused_msf : #msf ->
+
+output corruption: #public
  constraints:
 
 
