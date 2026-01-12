@@ -546,36 +546,38 @@ Section LINEAR_C.
 
 End LINEAR_C.
 
-Section LINEAR_CX.
 
-  Variable linear_x : funname -> instr -> nat -> label -> nat * label * lcmd.
+Section LINEAR_END_C.
 
-  Fixpoint linear_Xc (fn: funname) (c0: cmd) (n0: nat) (lbl0:label) :
-    nat * label * lcmd :=
-    match c0 with
-    | [::] => (n0, lbl0, nil)
-    | i::c =>
-        let '(n1, lbl1, c1) := linear_x fn i n0 lbl0 in
-        linear_Xc fn c n1 lbl1
-    end.
+  Variable linear_end_i : funname -> instr -> nat -> nat.
 
-End LINEAR_CX.
-
-Section LINEAR_CY.
-
-  Variable linear_y : funname -> instr -> nat -> nat.
-
-  Fixpoint linear_Yc (fn: funname) (c0: cmd) (n0: nat) :
+  Fixpoint linear_end_c (fn: funname) (c0: cmd) (n0: nat) :
     nat :=
     match c0 with
     | [::] => n0
     | i::c =>
-        let n1 := linear_y fn i n0 in
-        linear_Yc fn c n1 
+        let n1 := linear_end_i fn i n0 in
+        linear_end_c fn c n1 
     end.
 
-End LINEAR_CY.
+End LINEAR_END_C.
 
+
+Section LINEAR_FULL_C.
+
+  Variable linear_full_i :
+    funname -> instr -> nat -> label -> nat * label * lcmd.
+
+  Fixpoint linear_full_c (fn: funname) (c0: cmd) (n0: nat) (lbl0:label) :
+    nat * label * lcmd :=
+    match c0 with
+    | [::] => (n0, lbl0, nil)
+    | i::c =>
+        let '(n1, lbl1, c1) := linear_full_i fn i n0 lbl0 in
+        linear_full_c fn c n1 lbl1
+    end.
+
+End LINEAR_FULL_C.
 
 
 Definition add_align ii a (lc:lcmd) :=
@@ -768,7 +770,64 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Cfor _ _ _ => (lbl, lc)
   end.
 
-Fixpoint linear_Xi (fn: funname) (i:instr) (n0: nat) (lbl0:label) :
+(* returns the end point of the linear translation of i, given n0 as
+   its start point *)
+Fixpoint linear_end_i (fn: funname) (i:instr) (n0: nat) : nat :=
+  let (ii, ir) := i in
+  match ir with
+  | Cassgn _ _ _ _ => n0 (* absurd case *)
+  | Copn xs _ o es =>
+      match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
+      | Some xs, Some es => S n0
+      | _, _ => n0 (* absurd case *)
+      end
+
+  | Csyscall xs o es => S n0
+                          
+  | Cif e [::] c2 =>
+      let n2 := linear_end_c linear_end_i fn c2 (S n0) in S n2
+
+  | Cif e c1 [::] =>
+      let n2 := linear_end_c linear_end_i fn c1 (S n0) in S n2
+        
+  | Cif e c1 c2 =>
+      let n3 := linear_end_c linear_end_i fn c2 (S n0) in
+      let n4 := linear_end_c linear_end_i fn c1 (S (S n3)) in S n4
+        
+  | Cwhile a c e _ c' =>
+    match is_bool e with
+    | Some true =>
+      let n3 := linear_end_c linear_end_i fn c (S n0) in
+      let n4 := linear_end_c linear_end_i fn c' n3 in S n4
+
+    | Some false => linear_end_c linear_end_i fn c n0
+                              
+    | None =>
+      match c' with
+      | [::] =>
+          let n3 := linear_end_c linear_end_i fn c (S n0) in S n3
+                                                         
+      | _ =>
+         let n3 := linear_end_c linear_end_i fn c' (S n0) in
+         let n4 := linear_end_c linear_end_i fn c (S n3) in S n4
+      end
+    end     
+           
+  | Ccall xs fn' es =>
+    if get_fundef (p_funcs p) fn' is Some fd then
+      let e := f_extra fd in
+      let ra := sf_return_address e in
+      if is_RAnone ra then n0
+      else S n0
+    else n0 
+           
+  | Cfor _ _ _ => n0
+  end.
+
+
+(* alternative definition of linear_i, inclusive of start and end
+   points (currently not needed). *)
+Fixpoint linear_full_i (fn: funname) (i:instr) (n0: nat) (lbl0:label) :
   (nat * label * lcmd) :=
   let (ii, ir) := i in
   match ir with
@@ -783,14 +842,16 @@ Fixpoint linear_Xi (fn: funname) (i:instr) (n0: nat) (lbl0:label) :
                           
   | Cif e [::] c2 =>
       let lbl1 := next_lbl lbl0 in
-      let '(n2, lbl2, lc) := linear_Xc linear_Xi fn c2 (S n0) lbl1 in     
+      let '(n2, lbl2, lc) :=
+        linear_full_c linear_full_i fn c2 (S n0) lbl1 in     
       (S n2, lbl2,
         (MkLI ii (Lcond (to_fexpr e) lbl0)) ::
           (lc ++ [:: (MkLI ii (Llabel lbl1))]))
 
   | Cif e c1 [::] =>
       let lbl1 := next_lbl lbl0 in
-      let '(n2, lbl2, lc) := linear_Xc linear_Xi fn c1 (S n0) lbl1 in     
+      let '(n2, lbl2, lc) :=
+        linear_full_c linear_full_i fn c1 (S n0) lbl1 in     
       (S n2, lbl2,
         (MkLI ii (Lcond (to_fexpr (snot e)) lbl0)) ::
           (lc ++ [:: (MkLI ii (Llabel lbl1))]))
@@ -798,8 +859,10 @@ Fixpoint linear_Xi (fn: funname) (i:instr) (n0: nat) (lbl0:label) :
   | Cif e c1 c2 =>
       let lbl1 := next_lbl lbl0 in
       let lbl2 := next_lbl lbl1 in
-      let '(n3, lbl3, lc2) := linear_Xc linear_Xi fn c2 (S n0) lbl2 in
-      let '(n4, lbl4, lc1) := linear_Xc linear_Xi fn c1 (S (S n3)) lbl3 in
+      let '(n3, lbl3, lc2) :=
+        linear_full_c linear_full_i fn c2 (S n0) lbl2 in
+      let '(n4, lbl4, lc1) :=
+        linear_full_c linear_full_i fn c1 (S (S n3)) lbl3 in
       (S n4, lbl4,
         MkLI ii (Lcond (to_fexpr e) lbl0) ::
           (lc2 ++ (MkLI ii (Lgoto (fn, lbl1)) ::
@@ -810,28 +873,33 @@ Fixpoint linear_Xi (fn: funname) (i:instr) (n0: nat) (lbl0:label) :
     match is_bool e with
     | Some true =>
       let lbl1 := next_lbl lbl0 in
-      let '(n3, lbl3, lc2) := linear_Xc linear_Xi fn c (S n0) lbl1 in
-      let '(n4, lbl4, lc1) := linear_Xc linear_Xi fn c' n3 lbl3 in
+      let '(n3, lbl3, lc2) :=
+        linear_full_c linear_full_i fn c (S n0) lbl1 in
+      let '(n4, lbl4, lc1) :=
+        linear_full_c linear_full_i fn c' n3 lbl3 in
       (S n4, lbl4,  
        (add_align ii a ((MkLI ii (Llabel lbl0)) :: (lc2 ++ lc1 ++
                              [:: (MkLI ii (Lgoto (fn, lbl0)))]))))
 
     | Some false =>
-      linear_Xc linear_Xi fn c n0 lbl0 
+      linear_full_c linear_full_i fn c n0 lbl0 
 
     | None =>
       match c' with
       | [::] =>
          let lbl1 := next_lbl lbl0 in
-         let '(n3, lbl3, lc2) := linear_Xc linear_Xi fn c (S n0) lbl1 in
+         let '(n3, lbl3, lc2) :=
+           linear_full_c linear_full_i fn c (S n0) lbl1 in
          (S n3, lbl3, add_align ii a (MkLI ii (Llabel lbl0) ::
                           (lc2 ++ 
                              [:: (MkLI ii (Lcond (to_fexpr e) lbl0))])))
       | _ =>
          let lbl1 := next_lbl lbl0 in
          let lbl2 := next_lbl lbl1 in
-         let '(n3, lbl3, lc2) := linear_Xc linear_Xi fn c' (S n0) lbl2 in
-         let '(n4, lbl4, lc1) := linear_Xc linear_Xi fn c (S n3) lbl3 in   
+         let '(n3, lbl3, lc2) :=
+           linear_full_c linear_full_i fn c' (S n0) lbl2 in
+         let '(n4, lbl4, lc1) :=
+           linear_full_c linear_full_i fn c (S n3) lbl3 in   
          (S n4, lbl4, (MkLI ii (Lgoto (fn, lbl0)) ::         
            (add_align ii a (MkLI ii (Llabel lbl1) ::
                           (lc2 ++ (MkLI ii (Llabel lbl0) :: (lc1 ++
@@ -864,7 +932,7 @@ Fixpoint linear_Xi (fn: funname) (i:instr) (n0: nat) (lbl0:label) :
            * 4. Free stack frame.
            * 5. Continue.
            *)
-        (0, lbl1, before
+        (S n0, lbl1, before
               ++ MkLI ii (Lcall (ovari_of_ra ra) lcall)
               :: MkLI ii (ReturnTarget lbl0)
               :: after
@@ -872,59 +940,6 @@ Fixpoint linear_Xi (fn: funname) (i:instr) (n0: nat) (lbl0:label) :
     else (n0, lbl0, nil)
            
   | Cfor _ _ _ => (n0, lbl0, nil)
-  end.
-
-Fixpoint linear_Yi (fn: funname) (i:instr) (n0: nat) :
-  nat :=
-  let (ii, ir) := i in
-  match ir with
-  | Cassgn _ _ _ _ => n0 (* absurd case *)
-  | Copn xs _ o es =>
-      match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
-      | Some xs, Some es => S n0
-      | _, _ => n0 (* absurd case *)
-      end
-
-  | Csyscall xs o es => S n0
-                          
-  | Cif e [::] c2 =>
-      let n2 := linear_Yc linear_Yi fn c2 (S n0) in S n2
-
-  | Cif e c1 [::] =>
-      let n2 := linear_Yc linear_Yi fn c1 (S n0) in S n2
-        
-  | Cif e c1 c2 =>
-      let n3 := linear_Yc linear_Yi fn c2 (S n0) in
-      let n4 := linear_Yc linear_Yi fn c1 (S (S n3)) in S n4
-        
-  | Cwhile a c e _ c' =>
-    match is_bool e with
-    | Some true =>
-      let n3 := linear_Yc linear_Yi fn c (S n0) in
-      let n4 := linear_Yc linear_Yi fn c' n3 in S n4
-
-    | Some false => linear_Yc linear_Yi fn c n0
-                              
-    | None =>
-      match c' with
-      | [::] =>
-          let n3 := linear_Yc linear_Yi fn c (S n0) in S n3
-                                                         
-      | _ =>
-         let n3 := linear_Yc linear_Yi fn c' (S n0) in
-         let n4 := linear_Yc linear_Yi fn c (S n3) in S n4
-      end
-    end     
-           
-  | Ccall xs fn' es =>
-    if get_fundef (p_funcs p) fn' is Some fd then
-      let e := f_extra fd in
-      let ra := sf_return_address e in
-      if is_RAnone ra then n0
-      else S n0
-    else n0 
-           
-  | Cfor _ _ _ => n0
   end.
 
 
