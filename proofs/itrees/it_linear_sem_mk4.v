@@ -544,7 +544,8 @@ Definition lcp_in_interval (fn: funname) (nS nE: nat) (l1: lcpoint) : bool :=
   match l1 with
   | (fn0, n0) => (fn == fn0) && (nS <= n0) && (n0 < nE) end. 
   
-(* used to map lsem_instr to commands *)
+(* sequentialize the application of lsem_instr within a function. used
+   to map lsem_instr to commands *)
 Fixpoint lsem_c E {XE: ErrEvent -< E}  
   (R: instr -> lcpoint -> itree E lcpoint)
   (fn: funname) (cc: cmd) (n: nat) : itree E lcpoint :=
@@ -552,6 +553,27 @@ Fixpoint lsem_c E {XE: ErrEvent -< E}
   | nil => Ret (fn, n)
   | i :: cc0 => '(fn1, n1) <- R i (fn, n) ;;
                 if fn == fn1 then lsem_c R fn cc0 n1 else throw err end.
+
+(* basically, the sequential alternative to ICntrK, relying on cc *)
+Fixpoint lsem_cX E {XE: ErrEvent -< E}            
+  (R: instr -> lcpoint -> itree E lcpoint)
+  (fn: funname) (nS nE: nat)
+  (cc: cmd) (l0: lcpoint) : itree E lcpoint :=
+  if lcp_in_interval fn nS nE l0
+  then match cc with
+       | nil => Ret l0
+       | i :: cc0 => l2 <- R i l0 ;;
+                     lsem_cX R fn nS nE cc0 l2 end
+  else throw err.
+
+Definition lsem_c_seq E {XE: ErrEvent -< E}
+  (loc_instr : instr -> lcpoint -> nat)               
+  (R: instr -> lcpoint -> itree E lcpoint)
+  (cc: cmd) (l0 l1: lcpoint) : itree E lcpoint :=
+  match l0 with
+  | (fn0, nS) =>
+    let nE := localize_cmd loc_instr fn0 cc nS in
+    lsem_cX R fn0 nS nE cc l1 end.
 
 (* basically, switches between different ktrees, depending on an
    ordered list of intervals. ls are the (well-ordered) interval
@@ -564,18 +586,20 @@ Fixpoint nat_kt_switch {E} {T} (f: nat -> T)
   | (n0 :: ns0, k0 :: ks0) =>
     if n < n0 then k0 n0 else nat_kt_switch f ns0 ks0 n end.            
 
-(* applies nat_kt_switch; the exit point is determined by the interval
-   (nS, nE) in the linear code of fn *)
+(* applies nat_kt_switch to produce an iterative body out of a list of
+   alternatives; the exit point is determined by the interval (nS, nE)
+   in the linear code of fn *)
 Definition ktree_switch E {XE: ErrEvent -< E}  
   (R: instr -> lcpoint -> itree E lcpoint)
   (fn: funname) (nS nE: nat)
   (ls: list nat) (ks: list (nat -> itree E lcpoint))
   (l0: lcpoint) : itree E (lcpoint + lcpoint) :=
-  let R1 := lcp_ret_select E (lcp_in_interval fn nS nE) in
-  if lcp_in_interval fn nS nE l0 
+  let InInterval := lcp_in_interval fn nS nE in
+  let RetS := lcp_ret_select E InInterval in
+  let RSLift := fun f n => ITree.bind (f n) RetS in 
+  if InInterval l0 
   then @nat_kt_switch E (lcpoint + lcpoint)
-          (fun n => (inr (fn, n))) ls
-          (map (fun f n => ITree.bind (f n) R1) ks) (snd l0)
+          (fun n => (inr (fn, n))) ls (map RSLift ks) (snd l0)
   else Ret (inr l0).         
       
 (* crucially, by assuming fenv gives the linear code *)
@@ -586,7 +610,12 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
           itree (callE (lcpoint * funname) lcpoint +' E) lcpoint := 
   let: (MkI ii ir) := i in
   let: (fn, n0) := l1 in
-  let: nE := loc_instr i l1 in 
+  let: nE := loc_instr i l1 in
+  let K1 := fun n => isem_ICntrK fn n (S n) in
+  let LocC := fun c nA => localize_cmd loc_instr fn c nA in
+  let LRec := fun c nA =>
+                 @lsem_c (callE (lcpoint * funname) lcpoint +' E) _
+                   (lsem_instr loc_instr) fn c nA in
   match ir with
   | Cassgn x tg ty e => throw err
 
@@ -595,15 +624,10 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   | Csyscall xs o es => isem_ICntrK fn n0 nE    
 
   | Cif e c1 c2 =>
-      let k0 := fun n => isem_ICntrK fn n (S n) in
-      let bld_k :=
-        fun c nA => @lsem_c (callE (lcpoint * funname) lcpoint +' E) _
-                    (lsem_instr loc_instr) fn c nA in
-      let loc_c := fun c nA => localize_cmd loc_instr fn c nA in
-      let k1 := bld_k c1 in 
-      let k2 := bld_k c2 in 
-      let k1_n := loc_c c1 in
-      let k2_n := loc_c c2 in
+      let Kc1 := LRec c1 in 
+      let Kc2 := LRec c2 in 
+      let k1_n := LocC c1 in
+      let k2_n := LocC c2 in
       let n1 := S n0 in
       let n2 := k2_n n1 in
       let n3 := S n2 in
@@ -612,18 +636,13 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
       let n6 := S n5 in
       ITree.iter (@ktree_switch (callE (lcpoint * funname) lcpoint +' E) _
         (lsem_instr loc_instr) fn n0 nE
-        [n1; n2; n3; n4; n5; n6] [k0; k2; k0; k0; k1; k0]) (fn, n0) 
+        [n1; n2; n3; n4; n5; n6] [K1; Kc2; K1; K1; Kc1; K1]) (fn, n0) 
       
   | Cwhile a c1 e ii0 c2 =>
-      let k0 := fun n => isem_ICntrK fn n (S n) in
-      let bld_k :=
-        fun c nA => @lsem_c (callE (lcpoint * funname) lcpoint +' E) _
-                    (lsem_instr loc_instr) fn c nA in
-      let loc_c := fun c nA => localize_cmd loc_instr fn c nA in
-      let k1 := bld_k c1 in 
-      let k2 := bld_k c2 in 
-      let k1_n := loc_c c1 in
-      let k2_n := loc_c c2 in
+      let Kc1 := LRec c1 in 
+      let Kc2 := LRec c2 in 
+      let k1_n := LocC c1 in
+      let k2_n := LocC c2 in
       let n1 := S n0 in
       let n2 := S n1 in
       let n3 := k2_n n2 in
@@ -633,13 +652,80 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
       let n7 := S n6 in
       ITree.iter (@ktree_switch (callE (lcpoint * funname) lcpoint +' E) _
         (lsem_instr loc_instr) fn n0 nE
-        [n1; n2; n3; n4; n5; n6; n7] [k0; k0; k2; k0; k0; k1; k0]) (fn, n0) 
+        [n1; n2; n3; n4; n5; n6; n7] [K1; K1; Kc2; K1; K1; Kc1; K1]) (fn, n0) 
 
   | Cfor i (d, lo, hi) c => throw err 
 
   | Ccall xs fn1 args => trigger_inl1 (Call (l1, fn1))
                                   
  end.
+
+Definition lsem_instrI E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  (i : instr) (l1: lcpoint) :
+          itree (callE (lcpoint * funname) lcpoint +' E) lcpoint := 
+  lsem_instr (fun i '(fn, n) => linear_end_i SP fn i n) i l1.
+
+Fixpoint lsem_cmd E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  (loc_instr : instr -> lcpoint -> nat)
+  (cc : cmd) (l0 l1: lcpoint) :
+     itree (callE (lcpoint * funname) lcpoint +' E) lcpoint := 
+  @lsem_c_seq (callE (lcpoint * funname) lcpoint +' E) _
+              loc_instr (lsem_instr loc_instr) cc l0 l1.
+  
+Definition lsem_cmdI E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  (cc : cmd) (l0 l1: lcpoint) :
+     itree (callE (lcpoint * funname) lcpoint +' E) lcpoint :=
+  lsem_cmd (fun i '(fn, n) => linear_end_i SP fn i n) cc l0 l1.
+
+Variant StackAllocE : Type -> Type :=
+  | Before : lcpoint -> StackAllocE unit
+  | After : StackAllocE lcpoint.                                  
+
+Definition lsem_fun E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  {FunDef0: Type} {FState0: Type}
+  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
+  {XTSA: StackAllocE -< E}
+  (loc_instr : instr -> lcpoint -> nat)
+  (l0: lcpoint) (fn: funname) : 
+  itree (callE (lcpoint * funname) lcpoint +' E) lcpoint :=
+  trigger (Before l0) ;; 
+  fd <- trigger (GetFunDef fn) ;;  
+  cc <- trigger (GetFunCode fd) ;;
+  lsem_cmd loc_instr cc (fn, 0) (fn, 0) ;;
+  trigger After. 
+
+Definition handle_LRec E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  {FunDef0: Type} {FState0: Type}
+  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
+  {XTSA: StackAllocE -< E}
+  (loc_instr : instr -> lcpoint -> nat) :
+  callE (lcpoint * funname) lcpoint ~>
+    itree (callE (lcpoint * funname) lcpoint +' E) :=
+ fun T (rc : callE _ _ T) =>
+   match rc with
+   | Call (l1, fn) => lsem_fun loc_instr l1 fn
+   end.
+  
+Definition interp_LRec E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  {FunDef0: Type} {FState0: Type}
+  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
+  {XTSA: StackAllocE -< E}
+  (loc_instr : instr -> lcpoint -> nat)
+  T (t: itree (callE (lcpoint * funname) lcpoint +' E) T) : itree E T :=
+  interp_mrec (handle_LRec loc_instr) t.
+
+End LinearProjSem.
+
+End Interp.
+
+
+
 
 
 
