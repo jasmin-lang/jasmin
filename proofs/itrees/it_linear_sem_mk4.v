@@ -503,6 +503,12 @@ Definition interp_up2lstate E {XE: ErrEvent -< E}
   (t : itree (LinstrE +' LFlowE +' StackE +' LinE +' E) A) : itree E A :=
   interp_LinE (interp_StackE (interp_LFlowE (interp_LinstrE t))).
 
+Definition interp_up2lstateL E {XE: ErrEvent -< E}
+  {XLS: stateE alstate -< E}
+  {XS: stateE lstate -< E} {A: Type}
+  (t : itree (LinstrE +' StackE +' LinE +' E) A) : itree E A :=
+  interp_LinE (interp_StackE (interp_LinstrE t)).
+
 Definition alstate2lstate E {XS: stateE lstate -< E} T
   (t: itree (stateE alstate +' E) T) : itree E T.
 Admitted. 
@@ -511,7 +517,13 @@ Definition interp_up2lstate_lin E {XE: ErrEvent -< E}
   {XS: stateE lstate -< E} {A: Type}
   (t : itree (LinstrE +' LFlowE +' StackE +' LinE +' stateE alstate +' E) A) :
   itree E A := alstate2lstate (interp_up2lstate t).
-  
+
+Definition interp_up2lstateL_lin E {XE: ErrEvent -< E}
+  {XS: stateE lstate -< E} {A: Type}
+  (t : itree (LinstrE +' StackE +' LinE +' stateE alstate +' E) A) :
+  itree E A := alstate2lstate (interp_up2lstateL t).
+
+
 (* if the linear translation of i is straightline code that ends
    without jumps, it will return (fn, n1); the first jump destination
    otherwise *)
@@ -689,38 +701,40 @@ Definition lsem_cmdI E {XE: ErrEvent -< E} {XI : LinstrE -< E}
      itree (callE (lcpoint * funname) lcpoint +' E) lcpoint :=
   lsem_cmd (fun i '(fn, n) => linear_end_i SP fn i n) cc l0 l1.
 
-Variant StackAllocE : Type -> Type :=
+Variant StackAllocE {FD0: Type} {FS0: Type} : Type -> Type :=
   | Before : lcpoint -> StackAllocE unit
-  | After : StackAllocE lcpoint.                                  
+  | After : StackAllocE lcpoint
+  | LGetFunDef (fn: funname) : StackAllocE FD0
+  | LGetFunCode (fd: FD0) : StackAllocE cmd.
 
-Definition handle_StackAlloc E {XE: ErrEvent -< E} {XST: StackE -< E} {T}
-  (e: StackAllocE T) : itree E T. 
+Definition handle_StackAlloc E
+  {XE: ErrEvent -< E} {XST: StackE -< E} {FD0: Type} {FS0: Type} {T}
+  (e: @StackAllocE FD0 FS0 T) : itree E T. 
 Admitted. 
 
-Definition interp_StackAlloc E {XE: ErrEvent -< E} {XST: StackE -< E} {T}
+Definition interp_StackAlloc E {XE: ErrEvent -< E} {XST: StackE -< E}
+  {FD0: Type} {FS0: Type} {T}
   (t: itree (StackAllocE +' E) T) : itree E T :=
-  interp (ext_handler (fun T x => @handle_StackAlloc E XE XST T x)) t.
+  interp (ext_handler (fun T x => @handle_StackAlloc E XE XST FD0 FS0 T x)) t.
 
 (* l1 is the return address *)
 Definition lsem_fun E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  {FunDef0: Type} {FState0: Type}
-  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
-  {XTSA: StackAllocE -< E}
+  {FD0: Type} {FS0: Type}
+  {XTSA: @StackAllocE FD0 FS0 -< E}
   (loc_instr : instr -> lcpoint -> nat)
   (l1: lcpoint) (fn: funname) : 
   itree (callE (lcpoint * funname) lcpoint +' E) lcpoint :=
   trigger (Before l1) ;; 
-  fd <- trigger (GetFunDef fn) ;;  
-  cc <- trigger (GetFunCode fd) ;;
+  fd <- trigger (LGetFunDef fn) ;;  
+  cc <- trigger (LGetFunCode fd) ;;
   lsem_cmd loc_instr cc (fn, 0) (fn, 0) ;;
   trigger After. 
 
 Definition handle_LRec E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  {FunDef0: Type} {FState0: Type}
-  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
-  {XTSA: StackAllocE -< E}
+  {FD0: Type} {FS0: Type}
+  {XTSA: @StackAllocE FD0 FS0 -< E}
   (loc_instr : instr -> lcpoint -> nat) :
   callE (lcpoint * funname) lcpoint ~>
     itree (callE (lcpoint * funname) lcpoint +' E) :=
@@ -731,43 +745,40 @@ Definition handle_LRec E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   
 Definition interp_LRec E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  {FunDef0: Type} {FState0: Type}
-  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
-  {XTSA: StackAllocE -< E}
+  {FD0: Type} {FS0: Type}
+  {XTSA: @StackAllocE FD0 FS0 -< E}
   (loc_instr : instr -> lcpoint -> nat)
   T (t: itree (callE (lcpoint * funname) lcpoint +' E) T) : itree E T :=
   interp_mrec (handle_LRec loc_instr) t.
 
 Lemma LinearSemProj_fun_ok E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  {FunDef0: Type} {FState0: Type}
-  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
-  {XTSA: StackAllocE -< E} 
+  {FD0: Type} {FS0: Type}
+  {XTSA: @StackAllocE FD0 FS0 -< E} 
   (loc_instr : instr -> lcpoint -> nat)
   (l0: lcpoint) (c: cmd) :
   eutt eq
-       (interp_mrec (@handle_LRec E XE XI XL XLS XST FunDef0 FState0
-                          XF XTSA loc_instr) (lsem_cmdI c l0 l0))
+       (interp_mrec (@handle_LRec E XE XI XL XLS XST FD0 FS0
+                          XTSA loc_instr) (lsem_cmdI c l0 l0))
           (interp_LFlowE (isem_lcmd l0)). 
 Admitted. 
 
 Definition interp_LRec1 E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  {FunDef0: Type} {FState0: Type}
-  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
+  {FD0: Type} {FS0: Type}
   (loc_instr : instr -> lcpoint -> nat)
-  T (t: itree (callE (lcpoint * funname) lcpoint +' StackAllocE +' E) T) :
+  T (t: itree (callE (lcpoint * funname) lcpoint +'
+                       @StackAllocE FD0 FS0 +' E) T) :
   itree E T :=
   interp_StackAlloc (interp_mrec (handle_LRec loc_instr) t).
 
 Lemma LinearSemProj_fun_ok1 E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
-  {FunDef0: Type} {FState0: Type}
-  {XF: @FunE asm_op syscall_state _ FunDef0 FState0 -< E}
+  {FD0: Type} {FS0: Type}
   (loc_instr : instr -> lcpoint -> nat)
   (l0: lcpoint) (c: cmd) :
-  eutt eq ((@interp_LRec1 E XE XI XL XLS XST FunDef0 FState0
-                       XF loc_instr) _ (lsem_cmdI c l0 l0))
+  eutt eq ((@interp_LRec1 E XE XI XL XLS XST 
+                      FD0 FS0 loc_instr) _ (lsem_cmdI c l0 l0))
           (interp_LFlowE (isem_lcmd l0)). 
 Admitted. 
 
@@ -818,6 +829,32 @@ Definition PostC T1 T2 (e1: E1 T1) (u1: T1) (e2: E2 T2) (u2: T2) : Prop :=
     e1 = (subevent _ e01) /\ e2 = (subevent _ e02) /\
     StatePreRel e01 e02 /\ StatePostRel e01 u1 e02 u2. 
 
+Definition lc_end := fun i '(fn, n) => linear_end_i SP fn i n.
+
+Lemma linearization_proj_lemma (pd : PointerData) (sp: sprog)
+  (lin_params: linearization_params) (FD0 FS0: Type) :
+  check_prog lin_params sp = ok tt ->
+  (forall (fn: funname) (fd: sfundef),
+      get_fundef (p_funcs sp) fn = Some fd ->
+      let c0 := fd.(f_body) in     
+      let: (_, lc0) :=
+        (linear_c (@linear_i asm_op pd _ lin_params sp fn) c0 xH [::]) in
+      fenv fn = Some lc0) -> 
+  forall (fn: funname),
+    let lin_sem := @interp_up2lstateL_lin E2 XE2 XS2 _ 
+      (@interp_StackAlloc _ _ _ FD0 FS0 _ (interp_mrec (handle_LRec lc_end) 
+                 (lsem_fun lc_end (fn,0) fn))) in 
+    forall xs es ii,
+      let sden := @isem_instr asm_op syscall_state sip
+                    estate fstate _ _ _ (MkI ii (Ccall xs fn es)) in
+      let source_sem := @interp_up2state asm_op syscall_state
+                          sip withsubword dc ep spp pT scP p ev E1 XE1 XS1
+                          unit sden in  
+      @rutt E1 E2 _ _ PreC PostC (fun n _ => True) source_sem lin_sem.
+Admitted. 
+
+(* to be proved using linearization_proj_lemma and
+   LinearSemProj_fun_ok1 *)
 Lemma linearization_lemma (pd : PointerData) (sp: sprog)
   (lin_params: linearization_params) :
   check_prog lin_params sp = ok tt ->
@@ -829,16 +866,14 @@ Lemma linearization_lemma (pd : PointerData) (sp: sprog)
       fenv fn = Some lc0) -> 
   forall (fn: funname),
     let lin_sem := @interp_up2lstate_lin E2 XE2 XS2 _ 
-                     (isem_lfun fn%type) in 
+                     (isem_lfun fn) in 
     forall xs es ii,
       let sden := @isem_instr asm_op syscall_state sip
                     estate fstate _ _ _ (MkI ii (Ccall xs fn es)) in
       let source_sem := @interp_up2state asm_op syscall_state
                           sip withsubword dc ep spp pT scP p ev E1 XE1 XS1
                           unit sden in  
-      @rutt E1 E2 _ _ PreC PostC (fun n _ => True) source_sem lin_sem.
-Proof.
-  intros.  
+      @rutt E1 E2 _ _ PreC PostC (fun n _ => True) source_sem lin_sem. 
 Admitted. 
 
 End Transl.
