@@ -167,31 +167,6 @@ Definition XCntrK {E} {XE: ErrEvent -< E}
     end
   end.        
 
-Definition XCntrK1 {E} {XE: ErrEvent -< E}  
-  (F: linstr -> lcpoint -> itree E lcpoint)
-  (fn: funname) (nS nE: nat) (l1: lcpoint) : itree E (lcpoint + lcpoint) :=
-  match l1 with
-  | (fn1, n1) =>
-  (* the optional function body *)
-    match fenv fn1 with
-    | None => throw err      
-    (* the function exists: find the instruction in its body *)
-    | Some lc =>
-      if (length lc < nE) then throw err else
-      if (fn == fn1) && (nS <= n1) && (n1 < nE)
-      (* the instruction exists in the segment: execute it and
-         return the next label *) 
-      then match find_linstr_in_env lc n1 with
-           | Some i => l2 <- F i l1 ;; Ret (inl l2)
-           (* n1 < nE and nE <= length lc, so this cannot happen *) 
-           | _ => throw err                                         
-           end
-      (* the instruction is not in the function code segment *)         
-      else Ret (inr l1)
-    end
-  end.        
-
-
 (* iterate XContrK *)
 Definition ICntrK {E} {XE: ErrEvent -< E}  
   (F: linstr_r -> lcpoint -> itree E lcpoint)
