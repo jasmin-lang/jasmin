@@ -163,7 +163,16 @@ Definition LCntrI {E} {XE: ErrEvent -< E}
   (F: linstr_r -> lcpoint -> itree E lcpoint)
   (fn: funname) (nS nE: nat) (l0: lcpoint) : itree E lcpoint :=
   ITree.iter (@LCntr E XE F fn nS nE) l0.
-                 
+
+Definition halt_pred (l: lcpoint) : bool :=
+  let fn := fst l in
+  let lbl := snd l in
+  let plc := fenv fn in
+  match plc with
+  | Some lc => is_final lc lbl 
+  | _ => false
+  end.             
+
 (* abstract for the stack *)
 Definition alstate := list lcpoint.
 
@@ -173,15 +182,6 @@ Definition lcpoint2remote (l: lcpoint) : remote_label :=
 (* not used *)
 Definition remote2lcpoint (l: remote_label) : lcpoint :=
   match l with (fn, l) => (fn, Pos.to_nat l) end. 
-(* not used *)
-Definition halt_pred (l: lcpoint) : bool :=
-  let fn := fst l in
-  let lbl := snd l in
-  let plc := fenv fn in
-  match plc with
-  | Some lc => is_final lc lbl 
-  | _ => false
-  end.             
 
 (**************************************************************)
 
@@ -897,7 +897,7 @@ Lemma LinearSem_fun_correct (pd : PointerData) (sp: sprog)
       let source_sem := @interp_up2state asm_op syscall_state
                           sip withsubword dc ep spp pT scP p ev E1 XE1 XS1
                           unit sden in  
-      @rutt E1 E2 _ _ PreC PostC (fun n _ => True) source_sem lin_sem.
+      @rutt E1 E2 _ _ PreC PostC (fun _ p => halt_pred p) source_sem lin_sem.
 Proof.
   intros.  
 Admitted. 
@@ -925,7 +925,7 @@ Lemma linearization_lemma (pd : PointerData) (sp: sprog)
       let source_sem := @interp_up2state asm_op syscall_state
                           sip withsubword dc ep spp pT scP p ev E1 XE1 XS1
                           unit sden in  
-      @rutt E1 E2 _ _ PreC PostC (fun n _ => True) source_sem lin_sem. 
+      @rutt E1 E2 _ _ PreC PostC (fun _ p => halt_pred p) source_sem lin_sem. 
 Admitted. 
 
 End Transl.
