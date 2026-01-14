@@ -719,7 +719,7 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
                                   
  end.
 
-Fixpoint lsem_cmd E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+Definition lsem_cmd E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
   (loc_instr : instr -> lcpoint -> nat)
   (cc : cmd) (l0 l1: lcpoint) :
@@ -873,9 +873,10 @@ Lemma linearization_proj_lemma (pd : PointerData) (sp: sprog)
         (linear_c (@linear_i asm_op pd _ lin_params sp fn) c0 xH [::]) in
       fenv fn = Some lc0) -> 
   forall (fn: funname),
+    let lden := lsem_fun lc_end (fn,0) fn in
     let lin_sem := @interp_up2lstateL E2 XE2 XS2 sra0 ura0 lra0 _ 
-      (@interp_StackAlloc _ _ _ _ (interp_mrec (handle_LRec lc_end) 
-                 (lsem_fun lc_end (fn,0) fn))) in 
+                     (@interp_StackAlloc _ _ _ _
+                        (interp_mrec (handle_LRec lc_end) lden)) in 
     forall xs es ii,
       let sden := @isem_instr asm_op syscall_state sip
                     estate fstate _ _ _ (MkI ii (Ccall xs fn es)) in
@@ -902,8 +903,8 @@ Lemma linearization_lemma (pd : PointerData) (sp: sprog)
         (linear_c (@linear_i asm_op pd _ lin_params sp fn) c0 xH [::]) in
       fenv fn = Some lc0) -> 
   forall (fn: funname),
-    let lin_sem := @interp_up2lstateG E2 XE2 XS2 sra0 ura0 lra0 _ 
-                     (isem_lfun fn) in 
+    let lden := isem_lfun fn in 
+    let lin_sem := @interp_up2lstateG E2 XE2 XS2 sra0 ura0 lra0 _ lden in 
     forall xs es ii,
       let sden := @isem_instr asm_op syscall_state sip
                     estate fstate _ _ _ (MkI ii (Ccall xs fn es)) in
