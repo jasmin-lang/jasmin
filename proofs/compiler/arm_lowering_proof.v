@@ -1378,6 +1378,15 @@ Proof.
   lia.
 Qed.
 
+Lemma write_Lnone wdb gd x v s s' :
+  isLnone x ->
+  write_lval wdb gd x v s = ok s' ->
+  s = s'.
+Proof.
+  case: x => // ii ty _ /=.
+  by rewrite /write_none /=; t_xrbindP.
+Qed.
+
 Lemma lower_add_carryP s0 s1 ii lvs tag es lvs' op' es' :
   esem_i p' ev (MkI ii (Copn lvs tag (sopn_addcarry U32) es)) s0 = ok s1
   -> lower_add_carry lvs es = Some (lvs', op', es')
@@ -1412,15 +1421,19 @@ Proof.
 
   2: rewrite hseme2 /= {hseme2}.
 
+  all: case no_carry: (isLnone _) => /=.
+
   all: rewrite /exec_sopn /=.
   all: rewrite !truncate_word_le // {hws hws'} /=.
   all: move: hwrite00 hwrite1.
   all: rewrite wunsigned_carry.
 
-  1: move: hseme2 => [?]; subst b.
-  1: rewrite /= Z.add_0_r wrepr0 GRing.addr0.
+  1, 2: move: hseme2 => [?]; subst b.
+  1, 2: rewrite /= Z.add_0_r wrepr0 GRing.addr0.
 
-  all: by move=> -> /= ->.
+  2, 4: by move=> -> /= ->.
+
+  1, 2: by move => /(write_Lnone no_carry) <- ->.
 Qed.
 
 Lemma lower_base_op s0 s1 ii lvs tag aop es lvs' op' es' :
