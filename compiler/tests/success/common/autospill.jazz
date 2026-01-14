@@ -19,3 +19,21 @@ fn xor(reg ptr u32[2] arg) -> reg u32 {
   z = x ^ y;
   return z;
 }
+
+// Non-inlined function with fixed calling convention
+fn move(reg u32 x) -> reg u32 { x = x; return x; }
+
+/* In this example both a and b are given as argument to the same internal
+  function and therefore need to be allocated to the same register.
+  Similarly c and d are the destination of the same function. */
+export
+fn need_spill() -> reg u32 {
+  #[spill] reg u32 a = 0;
+  reg u32 b = 1;
+  #[spill] reg u32 c;
+  reg u32 d;
+  c = move(b);
+  d = move(a);
+  d += c;
+  return d;
+}

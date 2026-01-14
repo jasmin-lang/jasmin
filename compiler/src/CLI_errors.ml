@@ -50,7 +50,7 @@ let check_options () =
   then warning Experimental Location.i_dummy
       "support for windows calling-convention is experimental";
 
-  if !do_auto_spill <> None
+  if !do_auto_spill = Some AutoSpill.OptOut
   then warning Experimental Location.i_dummy
       "automatic spilling is experimental";
 
