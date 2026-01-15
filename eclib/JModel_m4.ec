@@ -2,6 +2,9 @@
 require import AllCore List Bool.
 require export JModel_common JArray JWord_array JMemory JLeakage Jslh.
 
+
+abbrev ptr_modulus = 2^32.
+
 (* -------------------------------------------------------------------- *)
 op nzcv (r: W32.t) (u s: int) : bool * bool * bool * bool =
   (W32.msb r,

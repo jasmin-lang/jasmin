@@ -1,5 +1,6 @@
 open Utils
 open Prog
+open Operators
 module L = Location
 
 (* When there is no location, we report an internal error. *)
@@ -27,6 +28,15 @@ let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gex
   | Papp2 (o, e1, e2)-> Papp2 (o, gsubst_e flen f e1, gsubst_e flen f e2)
   | PappN (o, es) -> PappN (o, List.map (gsubst_e flen f) es)
   | Pif   (ty, e, e1, e2)-> Pif(gsubst_ty (flen ?loc:None) ty, gsubst_e flen f e, gsubst_e flen f e1, gsubst_e flen f e2)
+  | Pbig (e, o, x, e1, e2, e0) ->
+    Pbig(gsubst_e flen f e,
+         o,
+         gsubst_vdest f x,
+         gsubst_e flen f e1,
+         gsubst_e flen f e2,
+         gsubst_e flen f e0)
+  | Pis_var_init v -> Pis_var_init (gsubst_vdest f v)
+  | Pis_mem_init (e1,e2) -> Pis_mem_init (gsubst_e flen f e1,gsubst_e flen f e2)
 
 and gsubst_gvar f v =
   match f v with
@@ -59,6 +69,7 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
       Cassgn(x, tg, ty, e)
     | Copn(x,t,o,e)   -> Copn(gsubst_lvals flen f x, t, o, gsubst_es flen f e)
     | Csyscall(x,o,e)   -> Csyscall(gsubst_lvals flen f x, o, gsubst_es flen f e)
+    | Cassert(p, a) -> Cassert (p, (gsubst_e flen f a))
     | Cif(e,c1,c2)  -> Cif(gsubst_e flen f e, gsubst_c flen f c1, gsubst_c flen f c2)
     | Cfor(x,(d,e1,e2),c) ->
         Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), gsubst_c flen f c)
@@ -69,10 +80,23 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
 
 and gsubst_c flen f c = List.map (gsubst_i flen f) c
 
+let gsubst_cf_cond flen f =
+  List.map (fun (prover,clause) -> prover, gsubst_e flen f clause)
+
+let gsubst_cf_contra flen f c =
+  Some
+  {
+    f_iparams = List.map (gsubst_vdest f) c.f_iparams;
+    f_ires = List.map (gsubst_vdest f) c.f_ires;
+    f_pre = gsubst_cf_cond flen f c.f_pre;
+    f_post = gsubst_cf_cond flen f c.f_post;
+  }
+
 let gsubst_func (flen: ?loc:L.t -> 'len1 -> 'len2) f fc =
   let dov v = L.unloc (gsubst_vdest f (L.mk_loc L._dummy v)) in
   { fc with
     f_tyin = List.map (gsubst_ty (flen ?loc:None)) fc.f_tyin;
+    f_contra = Option.bind fc.f_contra (gsubst_cf_contra flen f);
     f_args = List.map dov fc.f_args;
     f_body = gsubst_c flen f fc.f_body;
     f_tyout = List.map (gsubst_ty (flen ?loc:None)) fc.f_tyout;
@@ -151,9 +175,13 @@ let psubst_prog (prog:('info, 'asm) pprog) =
         let subst_ty = psubst_ty subst_v in
         let dov v =
           L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
+        let aux =
+          gsubst_cf_contra (psubst_e_ subst_v) subst_v
+        in
         let fc = {
             fc with
             f_tyin = List.map subst_ty fc.f_tyin;
+            f_contra = Option.bind fc.f_contra aux;
             f_args = List.map dov fc.f_args;
             f_body = gsubst_c (psubst_e_ subst_v) subst_v fc.f_body;
             f_tyout = List.map subst_ty fc.f_tyout;
@@ -166,7 +194,7 @@ let psubst_prog (prog:('info, 'asm) pprog) =
 (* Simplify type                                                    *)
 let int_of_op1 ?loc =
   function
-  | Expr.Oneg Op_int -> Z.neg
+  | Oneg Op_int -> Z.neg
   | o -> hierror ?loc "unary operator %s not supported in array sizes" (PrintCommon.string_of_op1 ~debug:false o)
 
 let shift_left ?loc (x: Z.t) (y: Z.t) : Z.t =
@@ -181,13 +209,13 @@ let shift_right ?loc (x: Z.t) (y: Z.t) : Z.t =
 
 let int_of_op2 ?loc o =
   match o with
-  | Expr.Oadd Op_int -> Z.add
-  | Expr.Omul Op_int -> Z.mul
-  | Expr.Osub Op_int -> Z.sub
-  | Expr.Odiv(sg, Op_int) -> if sg = Unsigned then Z.ediv else Z.div
-  | Expr.Omod(sg, Op_int) -> if sg = Unsigned then Z.erem else Z.rem
-  | Expr.Olsl Op_int -> shift_left ?loc
-  | Expr.Oasr Op_int -> shift_right ?loc
+  | Oadd Op_int -> Z.add
+  | Omul Op_int -> Z.mul
+  | Osub Op_int -> Z.sub
+  | Odiv(sg, Op_int) -> if sg = Unsigned then Z.ediv else Z.div
+  | Omod(sg, Op_int) -> if sg = Unsigned then Z.erem else Z.rem
+  | Olsl Op_int -> shift_left ?loc
+  | Oasr Op_int -> shift_right ?loc
   | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (PrintCommon.string_of_op2 o)
 
 let rec int_of_expr ?loc e =
@@ -198,8 +226,8 @@ let rec int_of_expr ?loc e =
   | Papp2 (o, e1, e2) ->
       let op = int_of_op2 ?loc o in
       op (int_of_expr ?loc e1) (int_of_expr ?loc e2)
-  | Pbool _ | Parr_init _ | Pvar _
-  | Pget _ | Psub _ | Pload _ | PappN _ | Pif _ ->
+  | Pbool _ | Parr_init _ | Pvar _ | Pis_var_init _ | Pis_mem_init _
+  | Pget _ | Psub _ | Pload _ | PappN _ | Pif _ | Pbig _ ->
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" (Printer.pp_pexpr ~debug:false) e
 
 
@@ -270,6 +298,7 @@ let isubst_prog glob prog =
     let fc = {
         fc with
         f_tyin = List.map isubst_ty fc.f_tyin;
+        f_contra =  Option.bind fc.f_contra (gsubst_cf_contra isubst_len subst_v);
         f_args;
         f_body = gsubst_c isubst_len subst_v fc.f_body;
         f_tyout = List.map isubst_ty fc.f_tyout;
@@ -393,7 +422,7 @@ let clone_func fc =
 let rec extend_iinfo_i pre i =
   let i_desc =
     match i.i_desc with
-    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> i.i_desc
+    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _ -> i.i_desc
     | Cif(e,c1,c2) ->
       Cif(e, extend_iinfo_c pre c1, extend_iinfo_c pre c2)
     | Cfor(x,r,c) ->

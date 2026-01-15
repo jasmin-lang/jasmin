@@ -80,6 +80,7 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
   | Cassgn _ _ _ _
   | Copn _ _ _ _
   | Csyscall _ _ _
+  | Cassert _
     => ok (Sv.union (read_i ir) X, [::i])
   | Cif e c1 c2  =>
     Let c1 := inline_c (inline_i p) c1 X in
@@ -113,10 +114,10 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
 
 Definition inline_fd (p:ufun_decls) (fd:ufundef) :=
   match fd with
-  | MkFun ii tyin params c tyout res ef =>
+  | MkFun ii ci tyin params c tyout res ef =>
     let s := read_es (map Plvar res) in
     Let c := inline_c (inline_i p) c s in
-    ok (MkFun ii tyin params c.2 tyout res ef)
+    ok (MkFun ii ci tyin params c.2 tyout res ef)
   end.
 
 Definition inline_fd_cons (ffd:funname * ufundef) (p:cexec ufun_decls) :=

@@ -128,6 +128,8 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * cmd) :=
   | Csyscall xs o es =>
     ok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
 
+  | Cassert a => ok (read_e_rec s a.2 , [::i])
+
   | Cif b c1 c2 =>
     Let sc1 := dead_code_c dead_code_i c1 s in
     Let sc2 := dead_code_c dead_code_i c2 s in
@@ -169,12 +171,12 @@ Section Section.
 Context {pT: progT}.
 
 Definition dead_code_fd {eft} fn (fd: _fundef eft) : cexec (_fundef eft) :=
-  let 'MkFun ii tyi params c tyo res ef := fd in
+  let 'MkFun ii ci tyi params c tyo res ef := fd in
   let res := fn_keep_only fn res in
   let tyo := fn_keep_only fn tyo in
   let s := read_es (map Plvar res) in
   Let c := dead_code_c dead_code_i c s in
-  ok (MkFun ii tyi params c.2 tyo res ef).
+  ok (MkFun ii ci tyi params c.2 tyo res ef).
 
 Definition dead_code_prog_tokeep (p: prog) : cexec prog :=
   Let funcs := map_cfprog_name dead_code_fd (p_funcs p) in
