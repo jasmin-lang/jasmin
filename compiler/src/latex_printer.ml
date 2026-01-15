@@ -171,12 +171,10 @@ let pp_aligned =
 
 let rec pp_simple_attribute fmt a =
   match L.unloc a with
-  | Aint i -> Z.pp_print fmt i
-  | Aid s -> pannot fmt s
-  | Astring s -> pannot fmt (Format.asprintf "%a" pp_string s)
-  | Aws ws -> Format.fprintf fmt "%a" ptype (string_of_wsize ws)
-  | Astruct struct_ -> Format.fprintf fmt "(%a)" pp_struct_attribute struct_
-
+  | PAstring s -> pannot fmt (Format.asprintf "%a" pp_string s)
+  | PAws ws -> Format.fprintf fmt "%a" ptype (string_of_wsize ws)
+  | PAstruct struct_ -> Format.fprintf fmt "\\{%a\\}" pp_struct_attribute struct_
+  | PAexpr e -> pp_expr fmt e
 and pp_struct_attribute fmt struct_ =
   Format.fprintf fmt "@[<hov 2>%a@]" (pp_list ",@ " pp_annotation) struct_
 
@@ -187,19 +185,12 @@ and pp_attribute fmt = function
 and pp_annotation fmt (id, atr) =
   Format.fprintf fmt "%a%a" pp_attribute_key (L.unloc id) pp_attribute atr
 
-let pp_top_annotations fmt annot =
+and pp_annotations fmt annot =
   match annot with
   | []  -> ()
-  | [a] -> Format.fprintf fmt "@[%a%a\\\\@]\n" sharp () pp_annotation a
   | _   -> Format.fprintf fmt "#[%a]" pp_struct_attribute annot
 
-let pp_inline_annotations fmt annot =
-  match annot with
-  | []  -> ()
-  | [a] -> Format.fprintf fmt "%a%a " sharp () pp_annotation a
-  | _   -> Format.fprintf fmt "#[%a]" pp_struct_attribute annot
-
-let rec pp_expr_rec prio fmt pe =
+and pp_expr_rec prio fmt pe =
   match L.unloc pe with
   | PEParens e -> pp_expr_rec prio fmt e
   | PEVar x -> pp_var fmt x
@@ -267,7 +258,7 @@ let pp_sto_ty fmt (sto, ty) =
   F.fprintf fmt "%a %a" pp_storage sto pp_type ty
 
 let pp_annot_sto_ty fmt (annot, stoty) =
-  F.fprintf fmt "%a%a" pp_inline_annotations annot pp_sto_ty stoty
+  F.fprintf fmt "%a%a" pp_annotations annot pp_sto_ty stoty
 
 let pp_args fmt (sty, xs) =
   F.fprintf
@@ -281,7 +272,7 @@ let pp_varinit fmt v =
   F.fprintf fmt "%a = %a" pp_var x pp_expr e
 
 let pp_annot_args fmt  (annot, args) =
-  F.fprintf fmt "%a%a" pp_inline_annotations annot pp_args args
+  F.fprintf fmt "%a%a" pp_annotations annot pp_args args
 
 let pp_rty =
   pp_opt
@@ -312,7 +303,7 @@ let pp_sidecond fmt =
   F.fprintf fmt " %a %a" kw "if" pp_expr
 
 let rec pp_instr depth fmt (annot, p) =
-  if annot <> [] then F.fprintf fmt "%a%a" indent depth pp_top_annotations annot;
+  if annot <> [] then F.fprintf fmt "%a%a" indent depth pp_annotations annot;
   indent fmt depth;
   match L.unloc p with
   | PIdecl (sty, vds) -> F.fprintf fmt "%a %a;" pp_sto_ty sty (pp_list " " pp_var) vds
@@ -390,7 +381,7 @@ let pp_fundef fmt { pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body ; pdf_anno
   F.fprintf
     fmt
     "%a%a%a %a(%a)%a %a"
-    pp_top_annotations pdf_annot
+    pp_annotations pdf_annot
     pp_cc pdf_cc
     kw "fn"
     dname (L.unloc pdf_name)

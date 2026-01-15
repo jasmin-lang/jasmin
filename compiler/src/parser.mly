@@ -125,20 +125,15 @@ annotationlabel:
   | id=loc(keyword) { id }
   | s=loc(STRING) { s }
 
-int:
-  | i=INT       { Syntax.parse_int i }
-  | MINUS i=INT { Z.neg (Syntax.parse_int i ) }
-
 simple_attribute:
-  | i=int          { Aint i    }
-  | id=NID         { Aid id    }
-  | s=STRING       { Astring s }
-  | s=keyword      { Astring s }
-  | ws=utype       { Aws (fst ws) }
+  | e=pexpr        { PAexpr e}
+  | s=STRING       { PAstring s }
+  | s=keyword      { PAstring s }
+  | ws=utype       { PAws (fst ws) }
 
 attribute:
   | EQ ap=loc(simple_attribute) { ap }
-  | EQ s=loc(braces(struct_annot)) { Location.mk_loc (Location.loc s) (Astruct (Location.unloc s)) }
+  | EQ s=loc(braces(struct_annot)) { Location.mk_loc (Location.loc s) (PAstruct (Location.unloc s)) }
 
 annotation:
   | k=annotationlabel v=attribute? { k, v }

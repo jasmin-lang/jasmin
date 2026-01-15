@@ -186,6 +186,19 @@ and pexpr = pexpr_r L.located
 and mem_access = [ `Aligned | `Unaligned ] option * swsize L.located option * pexpr
 
 (* -------------------------------------------------------------------- *)
+type psimple_attribute =
+  | PAstring of string
+  | PAws     of wsize
+  | PAstruct of pannotations
+  | PAexpr   of pexpr
+
+and pattribute = psimple_attribute Location.located
+
+and pannotation = pident * pattribute option
+
+and pannotations = pannotation list
+
+(* -------------------------------------------------------------------- *)
 and psizetype = TypeWsize of swsize | TypeSizeAlias of pident
 and ptype_r = TBool | TInt | TWord of swsize | TArray of psizetype * pexpr | TAlias of pident
 and ptype   = ptype_r L.located
@@ -197,7 +210,7 @@ type pstorage = [ `Reg of ptr | `Stack of ptr | `Inline | `Global]
 
 (* -------------------------------------------------------------------- *)
 type pstotype = pstorage * ptype
-type annot_pstotype = annotations * pstotype
+type annot_pstotype = pannotations * pstotype
 (* -------------------------------------------------------------------- *)
 type plvalue_r =
   | PLIgnore
@@ -227,7 +240,7 @@ type peqop = [
 (* -------------------------------------------------------------------- *)
 type align = [`Align | `NoAlign]
 
-type plvals = annotations L.located option * plvalue list
+type plvals = pannotations L.located option * plvalue list
 
 
 type vardecls = pstotype * pident list
@@ -251,7 +264,7 @@ type pinstr_r =
 and pblock_r = pinstr list
 and fordir   = [ `Down | `Up ]
 
-and pinstr = annotations * pinstr_r L.located
+and pinstr = pannotations * pinstr_r L.located
 and pblock = pblock_r L.located
 
 let string_of_sizetype =
@@ -296,11 +309,11 @@ type pcall_conv = [
 type paramdecls = pstotype * pident list
 
 type pfundef = {
-  pdf_annot : annotations;
+  pdf_annot : pannotations;
   pdf_cc   : pcall_conv option;
   pdf_name : pident;
-  pdf_args : (annotations * paramdecls) list;
-  pdf_rty  : (annotations * pstotype) list option;
+  pdf_args : (pannotations * paramdecls) list;
+  pdf_rty  : (pannotations * pstotype) list option;
   pdf_body : pfunbody;
 }
 
