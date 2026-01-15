@@ -583,25 +583,6 @@ Definition lsem_LCntrI E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   (fn: funname) (n0 n1: nat) : itree E lcpoint :=
   LCntrI (fun i l => interp_LFlow (isem_linstr i l)) fn n0 n1 (fn, n0).
 
-Definition lsem_LCntr1 E {XE: ErrEvent -< E}
-  {XS: stateE lstate -< E}
-  (sra0 : lcpoint -> lstate -> lstate)
-  (ura0 : lstate -> lstate)
-  (lra0 : lstate -> lcpoint)
-  (fn: funname) (n0 n1: nat) : itree E (lcpoint + lcpoint) :=
-  LCntr (fun i l => interp_up2lstateG sra0 ura0 lra0
-                             (isem_linstr i l)) fn n0 n1 (fn, n0).
-
-Definition lsem_LCntrI1 E {XE: ErrEvent -< E}
-  {XS: stateE lstate -< E}
-  (sra0 : lcpoint -> lstate -> lstate)
-  (ura0 : lstate -> lstate)
-  (lra0 : lstate -> lcpoint)
-  (fn: funname) (n0 n1: nat) : itree E lcpoint :=
-  LCntrI (fun i l => @interp_up2lstateG E XE XS sra0 ura0 lra0
-                      _ (isem_linstr i l)) fn n0 n1 (fn, n0).
-
-
 (************************************************************)
 
 Section LinearProjSem.
@@ -663,26 +644,25 @@ Definition ktree_switch E {XE: ErrEvent -< E}
       
 (* linear semantics of the source code, for the intermediate
    representation. assuming fenv gives the linear code *)
-Fixpoint lsem_instr E {XE: ErrEvent -< E}
-  (LS: funname -> nat -> nat ->
-       itree (callE (lcpoint * funname) lcpoint +' E) lcpoint)
+Fixpoint lsem_instr E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E} 
   (loc_instr : instr -> lcpoint -> nat)
   (i : instr) (l1: lcpoint) :
           itree (callE (lcpoint * funname) lcpoint +' E) lcpoint := 
   let: (MkI ii ir) := i in
   let: (fn, n0) := l1 in
   let: nE := loc_instr i l1 in
-  let K1 := fun n => LS fn n (S n) in
+  let K1 := fun n => lsem_LCntrI fn n (S n) in
   let LocC := fun c nA => localize_cmd loc_instr fn c nA in
   let LRec := fun c nA =>
                  @lsem_c (callE (lcpoint * funname) lcpoint +' E) _
-                   (lsem_instr LS loc_instr) fn c nA in
+                   (lsem_instr loc_instr) fn c nA in
   match ir with
   | Cassgn x tg ty e => throw err
 
-  | Copn xs tg o es => LS fn n0 nE                 
+  | Copn xs tg o es => lsem_LCntrI fn n0 nE                 
 
-  | Csyscall xs o es => LS fn n0 nE    
+  | Csyscall xs o es => lsem_LCntrI fn n0 nE    
 
   | Cif e c1 c2 =>
       let Kc1 := LRec c1 in 
@@ -696,7 +676,7 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E}
       let n5 := k1_n n4 in
       let n6 := S n5 in
       ITree.iter (@ktree_switch (callE (lcpoint * funname) lcpoint +' E) _
-        (lsem_instr LS loc_instr) fn n0 nE
+        (lsem_instr loc_instr) fn n0 nE
         [n1; n2; n3; n4; n5; n6] [K1; Kc2; K1; K1; Kc1; K1]) (fn, n0) 
       
   | Cwhile a c1 e ii0 c2 =>
@@ -712,7 +692,7 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E}
       let n6 := k1_n n5 in
       let n7 := S n6 in
       ITree.iter (@ktree_switch (callE (lcpoint * funname) lcpoint +' E) _
-        (lsem_instr LS loc_instr) fn n0 nE
+        (lsem_instr loc_instr) fn n0 nE
         [n1; n2; n3; n4; n5; n6; n7] [K1; K1; Kc2; K1; K1; Kc1; K1]) (fn, n0) 
 
   | Cfor i (d, lo, hi) c => throw err 
@@ -744,17 +724,6 @@ Definition lsem_c_seq E {XE: ErrEvent -< E}
     lsem_cX R fn0 nS nE cc l1 end.
 
 (* linear semantics of source commands *)
-Definition lsem_cmd E {XE: ErrEvent -< E}
-  (LS: funname -> nat -> nat ->
-       itree (callE (lcpoint * funname) lcpoint +' E) lcpoint)
-  (loc_instr : instr -> lcpoint -> nat)
-  (cc : cmd) (l0 l1: lcpoint) :
-     itree (callE (lcpoint * funname) lcpoint +' E) lcpoint := 
-  @lsem_c_seq (callE (lcpoint * funname) lcpoint +' E) _
-              loc_instr (lsem_instr LS loc_instr) cc l0 l1.
-  
-(*
-(* linear semantics of source commands *)
 Definition lsem_cmd E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
   (loc_instr : instr -> lcpoint -> nat)
@@ -774,7 +743,6 @@ Definition lsem_cmdI E {XE: ErrEvent -< E} {XI : LinstrE -< E}
   (cc : cmd) (l0 l1: lcpoint) :
      itree (callE (lcpoint * funname) lcpoint +' E) lcpoint :=
   lsem_cmd (fun i '(fn, n) => linear_end_i SP fn i n) cc l0 l1.
-*)
 
 (* tmp, just to patch up *)
 Variant StackAllocE : Type -> Type :=
@@ -783,108 +751,43 @@ Variant StackAllocE : Type -> Type :=
   | GetFunSourceCode (fn: funname) : StackAllocE cmd.
 
 Definition handle_StackAlloc E
-  {XE: ErrEvent -< E} {XLS: stateE lstate -< E} {T}
+  {XE: ErrEvent -< E} {XST: StackE -< E} {T}
   (e: @StackAllocE T) : itree E T. 
 Admitted. 
 
-Definition interp_StackAlloc E {XE: ErrEvent -< E} {XLS: stateE lstate -< E}
+Definition interp_StackAlloc E {XE: ErrEvent -< E} {XST: StackE -< E}
   {T} (t: itree (StackAllocE +' E) T) : itree E T :=
-  interp (ext_handler (fun T x => @handle_StackAlloc E XE XLS T x)) t.
+  interp (ext_handler (fun T x => @handle_StackAlloc E XE XST T x)) t.
 
 (* linear semantics of source functions. l1 is the return address *)
-Definition lsem_fun E {XE: ErrEvent -< E} {XTSA: StackAllocE -< E}
-  (LS: funname -> nat -> nat ->
-       itree (callE (lcpoint * funname) lcpoint +' E) lcpoint)
+Definition lsem_fun E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  {XTSA: StackAllocE -< E}
   (loc_instr : instr -> lcpoint -> nat)
   (l1: lcpoint) (fn: funname) : 
   itree (callE (lcpoint * funname) lcpoint +' E) lcpoint :=
   trigger (Before l1) ;;
   cc <- trigger (GetFunSourceCode fn) ;;
-  lsem_cmd LS loc_instr cc (fn, 0) (fn, 0) ;;
+  lsem_cmd loc_instr cc (fn, 0) (fn, 0) ;;
   trigger After. 
 
-Definition handle_LRec E {XE: ErrEvent -< E} {XTSA: StackAllocE -< E}
-  (LS: funname -> nat -> nat ->
-       itree (callE (lcpoint * funname) lcpoint +' E) lcpoint)
+Definition handle_LRec E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  {XTSA: StackAllocE -< E}
   (loc_instr : instr -> lcpoint -> nat) :
   callE (lcpoint * funname) lcpoint ~>
     itree (callE (lcpoint * funname) lcpoint +' E) :=
  fun T (rc : callE _ _ T) =>
    match rc with
-   | Call (l1, fn) => lsem_fun LS loc_instr l1 fn
+   | Call (l1, fn) => lsem_fun loc_instr l1 fn
    end.
   
-Definition interp_LRec E {XE: ErrEvent -< E} {XTSA: StackAllocE -< E}
-  (LS: funname -> nat -> nat ->
-       itree (callE (lcpoint * funname) lcpoint +' E) lcpoint)  
+Definition interp_LRec E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  {XTSA: StackAllocE -< E}
   (loc_instr : instr -> lcpoint -> nat)
   T (t: itree (callE (lcpoint * funname) lcpoint +' E) T) : itree E T :=
-  interp_mrec (handle_LRec LS loc_instr) t.
-
-Definition interp_LRec_cmd E {XE: ErrEvent -< E} {XTSA: StackAllocE -< E}
-  (LS: funname -> nat -> nat ->
-       itree (callE (lcpoint * funname) lcpoint +' E) lcpoint)  
-  (loc_instr : instr -> lcpoint -> nat)
-  (l0: lcpoint) (c: cmd) : itree E _ :=
-  interp_LRec LS loc_instr (lsem_cmd LS loc_instr c l0 l0).
-
-Definition interp_LRecSA E {XE: ErrEvent -< E} {XLS: stateE lstate -< E}
-  (LS: funname -> nat -> nat ->
-       itree (callE (lcpoint * funname) lcpoint +' StackAllocE +' E) lcpoint)  
-  (loc_instr : instr -> lcpoint -> nat)
-  T (t: itree (callE (lcpoint * funname) lcpoint +' StackAllocE +' E) T) :
-  itree E T :=
-  let hnd := (@handle_LRec (StackAllocE +' E) _ _ LS loc_instr) in
-  interp_StackAlloc (interp_mrec hnd t).
-
-Definition interp_LRecSA_cmd E {XE: ErrEvent -< E} {XLS: stateE lstate -< E} 
-  (LS: funname -> nat -> nat ->
-       itree (callE (lcpoint * funname) lcpoint +' StackAllocE +' E) lcpoint)  
-  (loc_instr : instr -> lcpoint -> nat)
-  (l0: lcpoint) (c: cmd) : itree E _ :=
-  interp_LRecSA LS loc_instr (lsem_cmd LS loc_instr c l0 l0).
-
-Definition interp_LRec_cmd_H0 E {XE: ErrEvent -< E}
-  {XI : LinstrE -< E} {XL: LinE -< E} {XLS: stateE lstate -< E}
-  {XST: StackE -< E} {XTSA: StackAllocE -< E}
-  (loc_instr : instr -> lcpoint -> nat)
-  (l0: lcpoint) (c: cmd) : itree E _ :=
-  let E' := (callE (lcpoint * funname) lcpoint +' E) in
-  let LS := @lsem_LCntrI E' _ _ _ _ _ in
-  interp_LRec LS loc_instr (lsem_cmd LS loc_instr c l0 l0).
-  
-Definition interp_LRecSA_cmd_H0 E {XE: ErrEvent -< E}
-  {XI : LinstrE -< E} {XL: LinE -< E} {XLS: stateE lstate -< E}
-  {XST: StackE -< E} 
-  (loc_instr : instr -> lcpoint -> nat)
-  (l0: lcpoint) (c: cmd) : itree E _ :=
-  let E' := (callE (lcpoint * funname) lcpoint +' StackAllocE +' E) in
-  let LS := @lsem_LCntrI E' _ _ _ _ _ in
-  interp_LRecSA LS loc_instr (lsem_cmd LS loc_instr c l0 l0).
-
-(*
-Definition interp_LRec_H0 E {XE: ErrEvent -< E}
-  {XI : LinstrE -< E} {XL: LinE -< E} {XLS: stateE lstate -< E}
-  {XST: StackE -< E} {XTSA: StackAllocE -< E}
-  (loc_instr : instr -> lcpoint -> nat)
-  T (t: itree (callE (lcpoint * funname) lcpoint +' E) T) :
-  itree E T :=
-  let E' := (callE (lcpoint * funname) lcpoint +' E) in
-  let LS := @lsem_LCntrI E' _ _ _ _ _ in
-  interp_LRec LS loc_instr t.
-
-Definition interp_LRecSA_H0 E {XE: ErrEvent -< E}
-  {XI : LinstrE -< E} {XL: LinE -< E} {XLS: stateE lstate -< E}
-  {XST: StackE -< E} 
-  (loc_instr : instr -> lcpoint -> nat)
-  T (t: itree (callE (lcpoint * funname) lcpoint +' StackAllocE +' E) T) :
-  itree E T :=
-  let E' := (callE (lcpoint * funname) lcpoint +' StackAllocE +' E) in
-  let LS := @lsem_LCntrI E' _ _ _ _ _ in
-  interp_LRecSA LS loc_instr t.
-*)
-
-(**************************************************************)
+  interp_mrec (handle_LRec loc_instr) t.
 
 (* relating the linear semantics of source commands (intermediate
    representation) with the direct semantics of their linear
@@ -894,19 +797,28 @@ Lemma LinearIntermediateRep_cmd_ok E {XE: ErrEvent -< E}
   {XST: StackE -< E} {XTSA: StackAllocE -< E}
   (loc_instr : instr -> lcpoint -> nat)
   (l0: lcpoint) (c: cmd) :
-  eutt eq (@interp_LRec_cmd_H0 E XE XI XL XLS XST XTSA loc_instr l0 c)
+  eutt eq (interp_mrec (@handle_LRec E XE XI XL XLS XST XTSA loc_instr) 
+                       (lsem_cmdI c l0 l0))
           (interp_LFlow (isem_lcmd l0)). 
 Admitted. 
 
-(* currently, given the use of StackAlloc events, this is a better
-   version of the above lemma *)
+Definition interp_LRec1 E {XE: ErrEvent -< E} {XI : LinstrE -< E}
+  {XL: LinE -< E} {XLS: stateE lstate -< E} {XST: StackE -< E}
+  (loc_instr : instr -> lcpoint -> nat)
+  T (t: itree (callE (lcpoint * funname) lcpoint +' StackAllocE +' E) T) :
+  itree E T :=
+  interp_StackAlloc (interp_mrec (handle_LRec loc_instr) t).
+
+(* better version of the above lemma, in which we eliminate StackAlloc
+   events on the left *)
 Lemma LinearIntermediateRep_cmd_ok1 E {XE: ErrEvent -< E}
   {XI : LinstrE -< E} {XL: LinE -< E} {XLS: stateE lstate -< E}
   {XST: StackE -< E}
   (loc_instr : instr -> lcpoint -> nat)
   (l0: lcpoint) (c: cmd) :
-  eutt eq (@interp_LRecSA_cmd_H0 E XE XI XL XLS XST loc_instr l0 c)
-          (interp_LFlow (isem_lcmd l0)). 
+  eutt eq
+    ((@interp_LRec1 E XE XI XL XLS XST loc_instr) _ (lsem_cmdI c l0 l0))
+    (interp_LFlow (isem_lcmd l0)). 
 Admitted. 
 
 
@@ -959,7 +871,7 @@ Definition PostC T1 T2 (e1: E1 T1) (u1: T1) (e2: E2 T2) (u2: T2) : Prop :=
 Definition lc_end := fun i '(fn, n) => linear_end_i SP fn i n.
 
 (* relating the linear semantics of a source function (intermediate
-   representation) with its source semantics (tentative). as it is, we
+   representation) with its source semantics (tantative). as it is, we
    probably need to interpret state events. a better way could be to
    combine higher-level events together. WIP *)
 Lemma LinearSem_fun_correct (pd : PointerData) (sp: sprog)
@@ -968,9 +880,6 @@ Lemma LinearSem_fun_correct (pd : PointerData) (sp: sprog)
   (ura0 : lstate -> lstate)
   (lra0 : lstate -> lcpoint) :
   check_prog lin_params sp = ok tt ->
-  let E' := (callE (lcpoint * funname) lcpoint +'
-         StackAllocE +' LinstrE +' StackE +' LinE +' E2) in
-  let LS := @lsem_LCntrI E' _ _ _ _ _ in 
   (forall (fn: funname) (fd: sfundef),
       get_fundef (p_funcs sp) fn = Some fd ->
       let c0 := fd.(f_body) in     
@@ -978,9 +887,10 @@ Lemma LinearSem_fun_correct (pd : PointerData) (sp: sprog)
         (linear_c (@linear_i asm_op pd _ lin_params sp fn) c0 xH [::]) in
       fenv fn = Some lc0) -> 
   forall (fn: funname),
-    let lden := lsem_fun LS lc_end (fn,0) fn in
+    let lden := lsem_fun lc_end (fn,0) fn in
     let lin_sem := @interp_up2lstateL E2 XE2 XS2 sra0 ura0 lra0 _ 
-                      (interp_LRecSA LS lc_end lden) in
+                     (@interp_StackAlloc _ _ _ _
+                        (interp_mrec (handle_LRec lc_end) lden)) in 
     forall xs es ii,
       let sden := @isem_instr asm_op syscall_state sip
                     estate fstate _ _ _ (MkI ii (Ccall xs fn es)) in
