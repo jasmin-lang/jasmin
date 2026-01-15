@@ -1738,6 +1738,31 @@ let cast_opn ~loc id ws =
   | _ -> invalid ()
 
 (* -------------------------------------------------------------------- *)
+let rec pannot_to_annotations (pannot : Syntax.pannotations) : Annotations.annotations =
+  List.map pannot_to_annotation pannot
+
+and pannot_to_annotation ((id, pattri) : Syntax.pannotation) : Annotations.annotation =
+  (id, Option.map pattri_to_attribute pattri)
+
+and pattri_to_attribute (pattri: Syntax.pattribute) : Annotations.attribute =
+  let loc = L.loc pattri in
+  L.mk_loc loc (pattri_to_simple_attribute (L.unloc pattri))
+
+and pattri_to_simple_attribute (pattri: Syntax.psimple_attribute) : Annotations.simple_attribute =
+  match pattri with
+  | PAstring s -> Astring s
+  | PAws ws -> Aws ws
+  | PAstruct s -> Astruct (pannot_to_annotations s)
+  | PAexpr e ->
+      match L.unloc e with
+      | PEVar id -> Aid (L.unloc id)
+      | PEInt ir -> Aint (Syntax.parse_int ir)
+      | PEOp1 (`Neg None, {L.pl_desc = PEInt ir}) -> Aint (Z.neg (Syntax.parse_int ir))
+      | _ ->
+        rs_tyerror ~loc:(L.loc e)
+          (string_error "complexe expression not allowed in annotation")
+
+(* -------------------------------------------------------------------- *)
 let pexpr_of_plvalue exn l =
   match L.unloc l with
   | S.PLIgnore      -> raise exn
@@ -1754,6 +1779,7 @@ type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {
 }
 
 let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
+  let pimp = Option.map (fun pimp -> L.mk_loc (L.loc pimp) (pannot_to_annotations (L.unloc pimp))) pimp in
   let loc = loc_of_tuples loc (List.map P.L.loc pls) in
 
   let combines =
@@ -1930,11 +1956,12 @@ let assign_from_decl decl =
   (None, [d]), `Raw, e, None
 
 let tt_annot_paramdecls dfl_writable pd env (annot, (ty,vs)) =
-  let aty = annot, ty in
+  let aty = pannot_to_annotations annot, ty in
   let vars = List.map (fun v -> aty, v) vs in
   tt_vardecls_push dfl_writable pd env vars
 
-let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
+let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
+  let annot = pannot_to_annotations pannot in
   let mk_i ?(annot=annot) instr =
     { P.i_desc = instr; P.i_loc = L.of_loc pi; P.i_info = (); P.i_annot = annot} in
   let default_tag = if Annotations.has_symbol "keep" annot then E.AT_keep else E.AT_none in
@@ -2227,6 +2254,7 @@ let tt_call_conv _loc params returns cc =
 let process_f_annot loc funname f_cc annot =
   let open FInfo in
 
+  let annot = pannot_to_annotations annot in
   let mk_ra = Annot.filter_string_list None ["stack", OnStack; "reg", OnReg] in
 
   let retaddr_kind =
@@ -2350,6 +2378,7 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
     env, List.flatten args in
   let fs_tout = Option.map_default (List.map (tt_type arch_info.pd env |- snd |- snd)) [] pf.pdf_rty in
   let ret_annot = Option.map_default (List.map fst) [] pf.pdf_rty in
+  let ret_annot = List.map pannot_to_annotations ret_annot in
   let body, ret_loc, xret = tt_funbody arch_info envb pf.pdf_body in
   let f_args = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) args in
   let fs_tin = List.map (fun x -> snd (L.unloc x)) args in
