@@ -153,7 +153,9 @@ itrees/it_exec_sem.v
 itrees/it_cflow_sem.v
 itrees/it_cflow_semA.v
 itrees/it_cflow_semB.v
+itrees/it_cflow_semS.v
 itrees/it_effect_sem.v
+itrees/it_effect_semS.v
 itrees/equiv_extras.v 
 itrees/lutt_extras.v
 itrees/safety_extras.v
