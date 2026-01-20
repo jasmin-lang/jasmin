@@ -63,9 +63,17 @@ Definition iresult {T} (F : exec T) (s:estate) : itree E T :=
   err_result (mk_error_data s) F.
 *)
 
+Definition get_fundef0 (p: prog) (fn: funname) : option fundef :=
+  get_fundef (p_funcs p) fn.
+
+Definition get_funcode0 (fd: fundef) : cmd :=
+  fd.(f_body).
+
+(*
 Definition iget_fundef (funcs: fun_decls) (fn: funname) (* (fs: fstate) *) :
     itree E fundef :=
   err_option (ErrType, tt) (get_fundef funcs fn).
+*)
 
 Definition iwrite_var (wdb : bool) (x : var_i) (v : value) (s : estate) :
     itree E estate :=
@@ -158,6 +166,7 @@ Definition isem_bound (lo hi : pexpr) (s : estate) : itree E (Z * Z) :=
 
 (****************************************************************)
 
+(*
 (* GetFunDef *)
 
 Definition isem_GetFunDef (fn: funname) : itree E fundef :=
@@ -167,6 +176,7 @@ Definition isem_GetFunDef (fn: funname) : itree E fundef :=
 
 Definition isem_GetFunCode (fd: fundef) : itree E cmd :=
   Ret (fd.(f_body)).
+*)
 
 (* InitFunCall *)
 
@@ -174,8 +184,8 @@ Definition estate0 (fs : fstate) :=
   Estate fs.(fscs) fs.(fmem) Vm.init.
 
 Definition initialize_funcall (p : prog) (ev : extra_val_t)
-  (fd : fundef) (fs : fstate) (sinit: estate) : exec estate :=
-(*  let sinit := estate0 fs in *)
+  (fd : fundef) (fs : fstate) : exec estate :=
+  let sinit := estate0 fs in 
   Let vargs' := mapM2 ErrType dc_truncate_val fd.(f_tyin) fs.(fvals) in
   Let s0 := init_state fd.(f_extra) (p_extra p) ev sinit in
   write_vars (~~direct_call) fd.(f_params) vargs' s0.
@@ -190,66 +200,70 @@ Definition finalize_funcall (fd : fundef) (s: estate) : exec fstate :=
   ok {| fscs := scs; fmem := m; fvals := vres'; finfo := None |}.
 
 
-Section InstrFunSem.
+Section InstrSem.
   
-Context {S: Type} {SX: @StE estate fstate S -< E}.
+Context {S: Type} {SX: @StE estate fstate fundef S -< E}.
   
 Definition isem_Assgn 
   (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) (s: S) : itree E S :=
-  s1 <- trigger (@GetSE estate fstate S s) ;;
+  s1 <- trigger (@GetSE estate fstate fundef S s) ;;
   s2 <- isem_assgn x tg ty e s1 ;;
-  trigger (@PutSE estate fstate S s2).
+  trigger (@PutSE estate fstate fundef S s2).
 
 Definition isem_Sopn 
   (o: sopn) (xs: lvals) (es: pexprs) (s: S) : itree E S := 
-  s1 <- trigger (@GetSE estate fstate S s) ;;
+  s1 <- trigger (@GetSE estate fstate fundef S s) ;;
   s2 <- isem_sopn o xs es s1 ;;
-  trigger (@PutSE estate fstate S s2).
+  trigger (@PutSE estate fstate fundef S s2).
 
 Definition isem_Syscall 
   (xs : lvals) (o : syscall_t) (es : pexprs) (s: S) : itree E S := 
-  s1 <- trigger (@GetSE estate fstate S s) ;;
+  s1 <- trigger (@GetSE estate fstate fundef S s) ;;
   s2 <- isem_syscall xs o es s1 ;;
-  trigger (@PutSE estate fstate S s2).
+  trigger (@PutSE estate fstate fundef S s2).
 
 Definition isem_Cond 
   (e : pexpr) (s: S) : itree E bool := 
-  s <- trigger (@GetSE estate fstate S s) ;; isem_cond e s.
+  s <- trigger (@GetSE estate fstate fundef S s) ;; isem_cond e s.
 
 Definition isem_Bound 
   (lo hi : pexpr) (s: S) : itree E (Z * Z) := 
-  s <- trigger (@GetSE estate fstate S s) ;; isem_bound lo hi s.
+  s <- trigger (@GetSE estate fstate fundef S s) ;; isem_bound lo hi s.
 
 Definition isem_WriteIndex 
   (x : var_i) (z : Z) (s: S) : itree E S :=
-  s1 <- trigger (@GetSE estate fstate S s) ;;
+  s1 <- trigger (@GetSE estate fstate fundef S s) ;;
   s2 <- iwrite_var true x (Vint z) s1 ;;
-  trigger (@PutSE estate fstate S s2).
+  trigger (@PutSE estate fstate fundef S s2).
 
 Definition isem_EvalArgs 
   (args: pexprs) (s: S) : itree E values :=
-  s <- trigger (@GetSE estate fstate S s) ;;
+  s <- trigger (@GetSE estate fstate fundef S s) ;;
   isem_pexprs (~~direct_call) (p_globs p) args s.
   
 Definition isem_InitFState 
   (vargs: values) (ii: instr_info) (s: S) : itree E fstate :=
-  s <- trigger (@GetSE estate fstate S s) ;;
+  s <- trigger (@GetSE estate fstate fundef S s) ;;
   Ret (mk_fstateI vargs s ii).
 
 Definition isem_RetVal  
   (xs: lvals) (fs: fstate) (s0: estate) : itree E S :=
   s1 <- iresult (upd_estate (~~direct_call) (p_globs p) xs fs s0) s0 ;;
-  trigger (@PutSE estate fstate S s1).
+  trigger (@PutSE estate fstate fundef S s1).
 
 Definition isem_InitFunCall 
-  (fd: fundef) (fs: fstate) (s: estate) : itree E S :=
-(*  let sinit := estate0 fs in 
-  s0 <- iresult (initialize_funcall p ev fd fs) sinit ;; *)
-  s0 <- iresult (initialize_funcall p ev fd fs s) s ;;
-  trigger (@PutSE estate fstate S s0).
+  (fd: fundef) (fs: fstate) : itree E S :=
+  let sinit := estate0 fs in 
+  s0 <- iresult (initialize_funcall p ev fd fs) sinit ;; 
+  trigger (@PutSE estate fstate fundef S s0).
+
+Definition isem_InitFunCall_S 
+  (fd: fundef) (fs: fstate) : itree E estate :=
+  let sinit := estate0 fs in 
+  iresult (initialize_funcall p ev fd fs) sinit.
 
 Definition isem_FinalizeFunCall (fd: fundef) (s: S) : itree E fstate :=
-  s0 <- trigger (@GetSE estate fstate S s) ;;
+  s0 <- trigger (@GetSE estate fstate fundef S s) ;;
   iresult (finalize_funcall fd s0) s0.
 
 (****************************************************************)
@@ -269,8 +283,6 @@ _prog extra_fun_t extra_prog_t
 
 (** InstrE handler *)
 
-Print InstrE.
-
 Definition handle_InstrE :
   @InstrE asm_op syscall_state sip estate fstate fundef S ~> itree E :=
   fun _ e =>
@@ -284,10 +296,11 @@ Definition handle_InstrE :
     | EvalArgs args s => isem_EvalArgs args s                              
     | InitFState vargs ii s => isem_InitFState vargs ii s
     | RetVal xs fs s0 _ => isem_RetVal xs fs s0 
-    | InitFunCall fd fs s => isem_InitFunCall fd fs s
+(*    | InitFunCall fd fs s => isem_InitFunCall fd fs s *)
     | FinalizeFunCall fd s => isem_FinalizeFunCall fd s
     end.                                            
 
+(*
 (** FunE handler *)
 Definition handle_FunE :
   @FunE asm_op syscall_state sip fstate fundef S ~> itree E :=
@@ -298,6 +311,7 @@ Definition handle_FunE :
     | InitFunCall fd fs => isem_InitFunCall fd fs
     | FinalizeFunCall fd s => isem_FinalizeFunCall fd s
     end.                                             
+*)
 
 Definition ext_handle_InstrE :
   InstrE S +' E ~> itree E := ext_handler handle_InstrE.
@@ -308,6 +322,7 @@ Definition interp_InstrE {A: Type}
   (t : itree (InstrE S +' E) A) : itree E A :=
   interp ext_handle_InstrE t.
 
+(*
 Definition ext_handle_FunE :
   FunE S +' E ~> itree E := ext_handler handle_FunE.
  (* case_ handle_InstrE (id_ E). *)
@@ -316,25 +331,30 @@ Definition ext_handle_FunE :
 Definition interp_FunE {A: Type}
   (t : itree (FunE S +' E) A) : itree E A :=
   interp ext_handle_FunE t.
+*)
 
-End InstrFunSem. 
+End InstrSem. 
 
 Section StSem.
-  
+
 Definition handle_StE_S :
-  @StE estate estate ~> itree E :=
+  @StE estate fstate fundef estate ~> itree E :=
   fun _ e =>
     match e with
     | GetSE s => Ret s
     | PutSE s => Ret s
+    | InitFunCall fd fs => isem_InitFunCall_S fd fs                 
     end.               
 
 Definition handle_StE_U {XS: stateE estate -< E} :
-  @StE estate unit ~> itree E :=
+  @StE estate fstate fundef unit ~> itree E :=
   fun _ e =>
     match e with
     | GetSE _ => trigger (@Get estate)
     | PutSE s => trigger (@Put estate s)
+    | InitFunCall fd fs =>
+        s0 <- isem_InitFunCall_S fd fs ;;           
+        trigger (@Put estate s0)                 
     end.               
 
 (* StE interpreter with state *)
@@ -357,79 +377,74 @@ Section SemDefs.
  
 Context (p : prog) (ev : extra_val_t).
 
+(*
 Definition interp_InstrFunE {S: Type} E
-  {XE: ErrEvent -< E} {XS: @StE estate S -< E} T
+  {XE: ErrEvent -< E} {XS: @StE estate fstate fundef S -< E} T
   (t: itree (@InstrE asm_op syscall_state sip estate fstate S
-             +' @FunE asm_op syscall_state sip fstate fundef S +' E) T) :
+             +' E) T) :
   itree E T := interp_FunE p ev (interp_InstrE p t).
+*)
 
 Definition interp_recc_AbsI {S: Type} (E0: Type -> Type)
-  {XE: ErrEvent -< E0} {XS: @StE estate S -< E0}
-  (HS: forall T : Type,
-        StE S T -> itree (callE (funname * fstate) fstate +' E0) T) :=
-  @interp_recc asm_op syscall_state sip estate fstate fundef E0 S
-  (@handle_InstrE _ _ p S _) HS.
+  {XE: ErrEvent -< E0} {XS: @StE estate fstate fundef S -< E0}
+  (HS: forall T : Type, StE S T -> itree E0 T) :=
+  @interp_recc asm_op syscall_state sip prog estate fstate fundef
+    get_fundef0 get_funcode0 E0 S (@handle_InstrE _ _ p S _) HS.
 
 Notation Evs0 S E :=
-      (@InstrE asm_op syscall_state sip estate fstate S
-       +' @FunE asm_op syscall_state sip fstate fundef S +' E).
+      (@InstrE asm_op syscall_state sip estate fstate fundef S +' E).
 
 Definition interp_up2state S E
   (HS: forall T : Type,
-        StE S T -> itree (callE (funname * fstate) fstate +' Evs0 S E) T)
-  {XE: ErrEvent -< E} {XS: @StE estate S -< E}
+        StE S T -> itree (Evs0 S E) T)
+  {XE: ErrEvent -< E} {XS: @StE estate fstate fundef S -< E}
   T (t: itree (@callE (funname * fstate) fstate +' Evs0 S E) T) :
   itree E T :=
-  interp_InstrFunE (@interp_recc_AbsI S (Evs0 S E) _ _ HS _ _ t).
+  interp_InstrE p (@interp_recc_AbsI S (Evs0 S E) _ _ HS _ p _ t).
 
 Definition interp_up2state_S E
-  {XE: ErrEvent -< E} {XS: @StE estate estate -< E}
+  {XE: ErrEvent -< E} {XS: @StE estate fstate fundef estate -< E}
   T (t: itree (@callE (funname * fstate) fstate +' Evs0 estate E) T) :
-  itree E T := @interp_up2state estate E handle_StE_S XE XS T t.
+  itree E T := @interp_up2state estate E (handle_StE_S p ev) XE XS T t.
 
 Definition interp_up2state_U E
-  {XE: ErrEvent -< E} {XS: @StE estate unit -< E}
+  {XE: ErrEvent -< E} {XS: @StE estate fstate fundef unit -< E}
   {XS2: stateE estate -< E}
   T (t: itree (@callE (funname * fstate) fstate +' Evs0 unit E) T) :
   itree E T :=
-  @interp_up2state unit E handle_StE_U XE XS T t.
+  @interp_up2state unit E (handle_StE_U p ev) XE XS T t.
 
 Definition interp_up2err_S E {XE: ErrEvent -< E} T
   (t: itree (@callE (funname * fstate) fstate
-             +' @InstrE asm_op syscall_state sip estate fstate estate
-             +' @FunE asm_op syscall_state sip fstate fundef estate
-             +' @StE estate estate +' E) T) :
-  itree E T := interp_StE_S (interp_up2state_S t).
+             +' @InstrE asm_op syscall_state sip estate fstate fundef estate
+             +' @StE estate fstate fundef estate +' E) T) :
+  itree E T := interp_StE_S p ev (interp_up2state_S t).
 
 Definition interp_up2mon_state E {XE: ErrEvent -< E} T
   (t: itree (@callE (funname * fstate) fstate
-             +' @InstrE asm_op syscall_state sip estate fstate unit
-             +' @FunE asm_op syscall_state sip fstate fundef unit
-             +' @StE estate unit
+             +' @InstrE asm_op syscall_state sip estate fstate fundef unit
+             +' @StE estate fstate fundef unit
              +' @stateE estate +' E) T) :
-  itree _ T := interp_StE_U (interp_up2state_U t).
+  itree _ T := interp_StE_U p ev (interp_up2state_U t).
 
 Definition interp_up2err_U E {XE: ErrEvent -< E} T
   (t: itree (@callE (funname * fstate) fstate
-             +' @InstrE asm_op syscall_state sip estate fstate unit
-             +' @FunE asm_op syscall_state sip fstate fundef unit
-             +' @StE estate unit
+             +' @InstrE asm_op syscall_state sip estate fstate fundef unit
+             +' @StE estate fstate fundef unit
              +' @stateE estate +' E) T) (s: estate) :
   itree E (estate * T) := run_state (interp_up2mon_state t) s.
 
 Definition interp_full_E E T
   (t: itree (@callE (funname * fstate) fstate
-             +' @InstrE asm_op syscall_state sip estate fstate estate
-             +' @FunE asm_op syscall_state sip fstate fundef estate
-             +' @StE estate estate
+             +' @InstrE asm_op syscall_state sip estate fstate fundef estate
+             +' @StE estate fstate fundef estate 
              +' ErrEvent +' E) T) :
   itree E (execS T) := interp_Err (interp_up2err_S t).
 
 Definition interp_full_U E T
   (t: itree (@callE (funname * fstate) fstate
-             +' @InstrE asm_op syscall_state sip estate fstate unit
-             +' @FunE asm_op syscall_state sip fstate fundef unit
-             +' @StE estate unit
+             +' @InstrE asm_op syscall_state sip estate fstate fundef unit
+             +' @StE estate fstate fundef unit
              +' @stateE estate    
              +' ErrEvent +' E) T) (s: estate) :
   itree E (execS (estate * T)) := interp_Err (interp_up2err_U t s).

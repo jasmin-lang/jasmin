@@ -54,13 +54,13 @@ Section Sem1.
 
 Context {Prog: Type} {State: Type} {FState : Type} {FunDef: Type}.
 Context {GetFunDef : Prog -> funname -> option FunDef}.
-Context {GetFunCode : Prog -> FunDef -> cmd}.
+Context {GetFunCode : FunDef -> cmd}.
 
 (* two-way state events *)
 Variant StE (S: Type) : Type -> Type :=
   | GetSE : S -> StE State
   | PutSE : State -> StE S
-  | InitSE : FState -> StE S.                      
+  | InitFunCall (fd: FunDef) (fs: FState) : StE S.                      
 
 (* instruction events. InitFState can store instr_info in FState *)
 Variant InstrE (S: Type) : Type -> Type :=
@@ -73,7 +73,6 @@ Variant InstrE (S: Type) : Type -> Type :=
   | EvalArgs (args: pexprs) : S -> InstrE values                
   | InitFState (vargs: values) : instr_info -> S -> InstrE FState
   | RetVal (xs: lvals) (fs: FState) (s: State) : S -> InstrE S
-  | InitFunCall (fd: FunDef) (fs: FState) : S -> InstrE S                     
   | FinalizeFunCall (fd: FunDef) : S -> InstrE FState.
 
 (* Notation rec_call f fs := (trigger_inl1 (Call (f, fs))). *)
@@ -179,9 +178,8 @@ Context {XF: ErrEvent -< E} (p: Prog).
 Definition isem_fcall (fn : funname) (fs : FState) :
   itree (recCall +' E) FState :=
   fd <- err_option (ErrType, tt) (GetFunDef p fn) ;;  
-  let c := GetFunCode p fd in 
-  s0 <- HS1 (InitSE S fs) ;; 
-  s1 <- interpHSI1 (InitFunCall fd fs) s0 ;;  
+  let c := GetFunCode fd in  
+  s1 <- HS1 (InitFunCall S fd fs) ;;  
   s2 <- isem_cmd c s1 ;;
   interpHSI1 (FinalizeFunCall fd) s2.
 
@@ -220,9 +218,8 @@ Definition denote_fun' (fn : funname) (fs : FState) : itree E FState :=
 Definition denote_fcall (fn : funname) (fs : FState) :
   itree E FState :=
   fd <- err_option (ErrType, tt) (GetFunDef p fn) ;;  
-  let c := GetFunCode p fd in 
-  s0 <- HS (InitSE S fs) ;; 
-  s1 <- interpHSI (InitFunCall fd fs) s0 ;;  
+  let c := GetFunCode fd in 
+  s1 <- HS (InitFunCall S fd fs) ;;  
   s2 <- denote_cmd c s1 ;;
   interpHSI (FinalizeFunCall fd) s2.
 
@@ -400,12 +397,8 @@ Proof.
     unfold HS1; setoid_rewrite inr_free_interp_lemma; reflexivity.
   - unfold pointwise_relation; intro c.
     rewrite interp_bind.
-    eapply eqit_bind.
-    eapply in_btw1_free_interp_lemma.
-  - unfold pointwise_relation; intro fs1.
-    rewrite interp_bind.
     eapply eqit_bind; try reflexivity.
-  - unfold pointwise_relation; intro u.
+  - unfold pointwise_relation; intro fs1.
     eapply in_btw1_free_interp_lemma.
 Qed.
 
