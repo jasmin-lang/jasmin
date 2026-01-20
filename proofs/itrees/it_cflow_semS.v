@@ -497,9 +497,21 @@ Definition isem_cmd_State (c: cmd) (s: State) :
   itree (recCall +' E) State :=
   @isem_cmd E State HI HS c s.
 
-Definition isem_fcall_State (p: Prog) (fn: funname) (fs: FState) :
+Definition isem_fun_State (p: Prog) (fn: funname) (fs: FState) :
   itree (recCall +' E) FState :=
   @isem_fcall E State HI HS XE p fn fs.
+
+Definition denote_instr_State (p: Prog) (i: instr) (s: State) :
+  itree E State :=
+  @denote_instr E State HI HS XE p i s.
+
+Definition denote_cmd_State (p: Prog) (c: cmd) (s: State) :
+  itree E State :=
+  @denote_cmd E State HI HS XE p c s.
+
+Definition denote_fun_State (p: Prog) (fn: funname) (fs: FState) :
+  itree E FState :=
+  @denote_fun E State HI HS XE p fn fs.
 
 End StateRec.  
 
@@ -519,9 +531,21 @@ Definition isem_cmd_Mon (c: cmd) :
   itree (recCall +' E) unit :=
   @isem_cmd E unit HI HS c tt.
 
-Definition isem_fcall_Mon (p: Prog) (fn: funname) (fs: FState) :
+Definition isem_fun_Mon (p: Prog) (fn: funname) (fs: FState) :
   itree (recCall +' E) FState :=
   @isem_fcall E unit HI HS XE p fn fs.
+
+Definition denote_instr_Mon (p: Prog) (i: instr) :
+  itree E unit :=
+  @denote_instr E unit HI HS XE p i tt.
+
+Definition denote_cmd_Mon (p: Prog) (c: cmd) :
+  itree E unit :=
+  @denote_cmd E unit HI HS XE p c tt.
+
+Definition isem_fcall_Mon (p: Prog) (fn: funname) (fs: FState) :
+  itree E FState :=
+  @denote_fcall E unit HI HS XE p fn fs.
 
 End MonRec.  
 
