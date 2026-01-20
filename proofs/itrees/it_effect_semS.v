@@ -174,8 +174,8 @@ Definition estate0 (fs : fstate) :=
   Estate fs.(fscs) fs.(fmem) Vm.init.
 
 Definition initialize_funcall (p : prog) (ev : extra_val_t)
-  (fd : fundef) (fs : fstate) : exec estate :=
-  let sinit := estate0 fs in
+  (fd : fundef) (fs : fstate) (sinit: estate) : exec estate :=
+(*  let sinit := estate0 fs in *)
   Let vargs' := mapM2 ErrType dc_truncate_val fd.(f_tyin) fs.(fvals) in
   Let s0 := init_state fd.(f_extra) (p_extra p) ev sinit in
   write_vars (~~direct_call) fd.(f_params) vargs' s0.
@@ -192,72 +192,87 @@ Definition finalize_funcall (fd : fundef) (s: estate) : exec fstate :=
 
 Section InstrFunSem.
   
-Context {S: Type} {SX: @StE estate S -< E}.
+Context {S: Type} {SX: @StE estate fstate S -< E}.
   
 Definition isem_Assgn 
   (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) (s: S) : itree E S :=
-  s1 <- trigger (@GetSE estate S s) ;;
+  s1 <- trigger (@GetSE estate fstate S s) ;;
   s2 <- isem_assgn x tg ty e s1 ;;
-  trigger (@PutSE estate S s2).
+  trigger (@PutSE estate fstate S s2).
 
 Definition isem_Sopn 
   (o: sopn) (xs: lvals) (es: pexprs) (s: S) : itree E S := 
-  s1 <- trigger (@GetSE estate S s) ;;
+  s1 <- trigger (@GetSE estate fstate S s) ;;
   s2 <- isem_sopn o xs es s1 ;;
-  trigger (@PutSE estate S s2).
+  trigger (@PutSE estate fstate S s2).
 
 Definition isem_Syscall 
   (xs : lvals) (o : syscall_t) (es : pexprs) (s: S) : itree E S := 
-  s1 <- trigger (@GetSE estate S s) ;;
+  s1 <- trigger (@GetSE estate fstate S s) ;;
   s2 <- isem_syscall xs o es s1 ;;
-  trigger (@PutSE estate S s2).
+  trigger (@PutSE estate fstate S s2).
 
 Definition isem_Cond 
   (e : pexpr) (s: S) : itree E bool := 
-  s <- trigger (@GetSE estate S s) ;; isem_cond e s.
+  s <- trigger (@GetSE estate fstate S s) ;; isem_cond e s.
 
 Definition isem_Bound 
   (lo hi : pexpr) (s: S) : itree E (Z * Z) := 
-  s <- trigger (@GetSE estate S s) ;; isem_bound lo hi s.
+  s <- trigger (@GetSE estate fstate S s) ;; isem_bound lo hi s.
 
 Definition isem_WriteIndex 
   (x : var_i) (z : Z) (s: S) : itree E S :=
-  s1 <- trigger (@GetSE estate S s) ;;
+  s1 <- trigger (@GetSE estate fstate S s) ;;
   s2 <- iwrite_var true x (Vint z) s1 ;;
-  trigger (@PutSE estate S s2).
+  trigger (@PutSE estate fstate S s2).
 
 Definition isem_EvalArgs 
   (args: pexprs) (s: S) : itree E values :=
-  s <- trigger (@GetSE estate S s) ;;
+  s <- trigger (@GetSE estate fstate S s) ;;
   isem_pexprs (~~direct_call) (p_globs p) args s.
   
 Definition isem_InitFState 
   (vargs: values) (ii: instr_info) (s: S) : itree E fstate :=
-  s <- trigger (@GetSE estate S s) ;;
+  s <- trigger (@GetSE estate fstate S s) ;;
   Ret (mk_fstateI vargs s ii).
 
 Definition isem_RetVal  
   (xs: lvals) (fs: fstate) (s0: estate) : itree E S :=
   s1 <- iresult (upd_estate (~~direct_call) (p_globs p) xs fs s0) s0 ;;
-  trigger (@PutSE estate S s1).
+  trigger (@PutSE estate fstate S s1).
 
 Definition isem_InitFunCall 
-  (fd: fundef) (fs: fstate) : itree E S :=
-  let sinit := estate0 fs in
-  s0 <- iresult (initialize_funcall p ev fd fs) sinit ;;
-  trigger (@PutSE estate S s0).
+  (fd: fundef) (fs: fstate) (s: estate) : itree E S :=
+(*  let sinit := estate0 fs in 
+  s0 <- iresult (initialize_funcall p ev fd fs) sinit ;; *)
+  s0 <- iresult (initialize_funcall p ev fd fs s) s ;;
+  trigger (@PutSE estate fstate S s0).
 
 Definition isem_FinalizeFunCall (fd: fundef) (s: S) : itree E fstate :=
-  s0 <- trigger (@GetSE estate S s) ;;
+  s0 <- trigger (@GetSE estate fstate S s) ;;
   iresult (finalize_funcall fd s0) s0.
 
 (****************************************************************)
 
+(*
+Record progT : Type := Build_progT
+  { extra_fun_t : Type;  extra_prog_t : Type;  extra_val_t : Type }.
+
+Definition prog : forall asm_op : Type, asmOp asm_op -> progT -> Type :=
+fun (asm_op : Type) (asmop : asmOp asm_op) (pT : progT) =>
+_prog extra_fun_t extra_prog_t
+     : forall {asm_op : Type}, asmOp asm_op -> progT -> Type
+*)
+
+
 (** Handlers for InstrE and FunE *)
 
 (** InstrE handler *)
+
+Print InstrE.
+
 Definition handle_InstrE :
-  @InstrE asm_op syscall_state sip estate fstate S ~> itree E :=
+  @InstrE asm_op syscall_state sip estate fstate fundef S ~> itree E :=
   fun _ e =>
     match e with
     | AssgnE xs tg ty es s => isem_Assgn xs tg ty es s
@@ -269,6 +284,8 @@ Definition handle_InstrE :
     | EvalArgs args s => isem_EvalArgs args s                              
     | InitFState vargs ii s => isem_InitFState vargs ii s
     | RetVal xs fs s0 _ => isem_RetVal xs fs s0 
+    | InitFunCall fd fs s => isem_InitFunCall fd fs s
+    | FinalizeFunCall fd s => isem_FinalizeFunCall fd s
     end.                                            
 
 (** FunE handler *)

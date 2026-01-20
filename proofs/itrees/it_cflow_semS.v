@@ -14,7 +14,7 @@ Import Basics.Monads.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
 Require Import expr psem_defs psem_core it_exec it_exec_sem tfam_iso
-               eutt_extras rec_facts.
+               eutt_extras rec_facts lutt_extras.
 
 Require Import List.
 
@@ -52,12 +52,15 @@ Context {err: error_data}.
 
 Section Sem1.
 
-Context {State: Type} {FState : Type} {FunDef: Type}.
+Context {Prog: Type} {State: Type} {FState : Type} {FunDef: Type}.
+Context {GetFunDef : Prog -> funname -> option FunDef}.
+Context {GetFunCode : Prog -> FunDef -> cmd}.
 
 (* two-way state events *)
 Variant StE (S: Type) : Type -> Type :=
   | GetSE : S -> StE State
-  | PutSE : State -> StE S.                      
+  | PutSE : State -> StE S
+  | InitSE : FState -> StE S.                      
 
 (* instruction events. InitFState can store instr_info in FState *)
 Variant InstrE (S: Type) : Type -> Type :=
@@ -69,14 +72,9 @@ Variant InstrE (S: Type) : Type -> Type :=
   | WriteIndex (x: var_i) (z: Z) : S -> InstrE S
   | EvalArgs (args: pexprs) : S -> InstrE values                
   | InitFState (vargs: values) : instr_info -> S -> InstrE FState
-  | RetVal (xs: lvals) (fs: FState) (s: State) : S -> InstrE S.
-
-(* function call events *)
-Variant FunE (S: Type): Type -> Type :=
-  | GetFunDef (fn: funname) : FunE FunDef
-  | GetFunCode (fd: FunDef) : FunE cmd          
-  | InitFunCall (fd: FunDef) (fs: FState) : FunE S                     
-  | FinalizeFunCall (fd: FunDef) : S -> FunE FState.
+  | RetVal (xs: lvals) (fs: FState) (s: State) : S -> InstrE S
+  | InitFunCall (fd: FunDef) (fs: FState) : S -> InstrE S                     
+  | FinalizeFunCall (fd: FunDef) : S -> InstrE FState.
 
 (* Notation rec_call f fs := (trigger_inl1 (Call (f, fs))). *)
 (* Local Notation continue_loop := (ret (inl tt)).
@@ -116,44 +114,53 @@ Notation recCall := (callE (funname * FState) FState).
 
 Section SemRec.
   
-Context {E} {S: Type} (* {XI : InstrE S -< E} *) 
-  {HI : InstrE S ~> itree (StE S +' recCall +' E)}
-  {HS : StE S ~> itree (recCall +' E)}.
+Context {E} {S: Type} 
+  {HI : InstrE S ~> itree (StE S +' E)}
+  {HS : StE S ~> itree E}.
 Context {err: error_data}.
 
-Definition interpHSI T (e: S -> InstrE S T) : S -> itree _ T :=
+Definition interpHSI T (e: S -> InstrE S T) : S -> itree E T :=
   fun s => interp (ext_handler HS) (HI (e s)).
+
+Definition HI1 : InstrE S ~> itree (StE S +' recCall +' E) :=
+  fun _ e => translate (@in_btw1 (StE S) E recCall) (HI e).
+
+Definition HS1 : StE S ~> itree (recCall +' E) :=
+  fun _ e => translate inr1 (HS e).
+
+Definition interpHSI1 T (e: S -> InstrE S T) : S -> itree (recCall +' E) T :=
+  fun s => interp (ext_handler HS1) (HI1 (e s)).
 
 (* semantics of instructions *)
 Fixpoint isem_instr (i : instr) : S -> itree (recCall +' E) S :=  
   let: (MkI ii ir) := i in
   fun s =>
     match ir with
-    | Cassgn x tg ty e => interpHSI (AssgnE x tg ty e) s
+    | Cassgn x tg ty e => interpHSI1 (AssgnE x tg ty e) s
 
-    | Copn xs tg o es => interpHSI (OpnE xs tg o es) s
+    | Copn xs tg o es => interpHSI1 (OpnE xs tg o es) s
 
-    | Csyscall xs o es => interpHSI (SyscallE xs o es) s
+    | Csyscall xs o es => interpHSI1 (SyscallE xs o es) s
 
     | Cif e c1 c2 =>
-       b <- interpHSI (EvalCond e) s ;;
+       b <- interpHSI1 (EvalCond e) s ;;
        isem_foldr isem_instr (if b then c1 else c2) s 
 
     | Cwhile a c1 e ii0 c2 =>
-      isem_while_loop isem_instr (fun e => interpHSI (EvalCond e))
+      isem_while_loop isem_instr (fun e => interpHSI1 (EvalCond e))
         c1 e c2 s
 
     | Cfor i (d, lo, hi) c =>
-      zz <- interpHSI (EvalBounds lo hi) s ;;  
-      isem_for_loop isem_instr (fun i w => interpHSI (WriteIndex i (Vint w)))
+      zz <- interpHSI1 (EvalBounds lo hi) s ;;  
+      isem_for_loop isem_instr (fun i w => interpHSI1 (WriteIndex i (Vint w)))
         i c (wrange d (fst zz) (snd zz)) s 
    
     | Ccall xs fn args =>
-      s0 <- HS (GetSE s) ;; 
-      vargs <- interpHSI (EvalArgs args) s ;;
-      fs0 <- interpHSI (InitFState vargs ii) s ;;
+      s0 <- HS1 (GetSE s) ;; 
+      vargs <- interpHSI1 (EvalArgs args) s ;;
+      fs0 <- interpHSI1 (InitFState vargs ii) s ;;
       fs1 <- trigger_inl1 (Call (fn, fs0)) ;; 
-      interpHSI (RetVal xs fs1 s0) s
+      interpHSI1 (RetVal xs fs1 s0) s
 end.
 
 
@@ -166,16 +173,18 @@ Proof. by reflexivity. Qed.
 
 Section SemFun.
 
-Context {XF: FunE S -< E}.  
+Context {XF: ErrEvent -< E} (p: Prog).  
 
 (* semantics of function calls *)
 Definition isem_fcall (fn : funname) (fs : FState) :
   itree (recCall +' E) FState :=
-  fd <- trigger (GetFunDef S fn) ;;  
-  c <- trigger (GetFunCode S fd) ;;
-  s0 <- trigger (InitFunCall S fd fs) ;;
-  s1 <- isem_cmd c s0 ;;
-  trigger (FinalizeFunCall fd s1).
+  fd <- err_option (ErrType, tt) (GetFunDef p fn) ;;  
+  let c := GetFunCode p fd in 
+  s0 <- HS1 (InitSE S fs) ;; 
+  s1 <- interpHSI1 (InitFunCall fd fs) s0 ;;  
+  s2 <- isem_cmd c s1 ;;
+  interpHSI1 (FinalizeFunCall fd) s2.
+
 
 (************************************************************)
 (* full function semantics *)
@@ -210,11 +219,12 @@ Definition denote_fun' (fn : funname) (fs : FState) : itree E FState :=
 (* corresponds to: isem_fun_body with the sem_fun_full instance *) 
 Definition denote_fcall (fn : funname) (fs : FState) :
   itree E FState :=
-  fd <- trigger (GetFunDef S fn) ;;  
-  c <- trigger (GetFunCode S fd) ;;
-  s0 <- trigger (InitFunCall S fd fs) ;;
-  s1 <- denote_cmd c s0 ;;
-  trigger (FinalizeFunCall fd s1).
+  fd <- err_option (ErrType, tt) (GetFunDef p fn) ;;  
+  let c := GetFunCode p fd in 
+  s0 <- HS (InitSE S fs) ;; 
+  s1 <- interpHSI (InitFunCall fd fs) s0 ;;  
+  s2 <- denote_cmd c s1 ;;
+  interpHSI (FinalizeFunCall fd) s2.
 
 
 (********************************************************************)
@@ -377,21 +387,27 @@ Proof.
   unfold isem_fcall.
   rewrite interp_bind.
   eapply eqit_bind.
-  - setoid_rewrite interp_trigger; simpl; reflexivity.
+  - unfold err_option; simpl.
+    destruct (GetFunDef p fn); simpl; try reflexivity.
+    + setoid_rewrite interp_ret; reflexivity.
+    + setoid_rewrite interp_vis; simpl.
+      setoid_rewrite bind_trigger.
+      eapply eqit_Vis; intro u.
+      destruct u.
   - unfold pointwise_relation; intro fd.
     rewrite interp_bind.
     eapply eqit_bind.
-  - setoid_rewrite interp_trigger; simpl; reflexivity.  
+    unfold HS1; setoid_rewrite inr_free_interp_lemma; reflexivity.
   - unfold pointwise_relation; intro c.
     rewrite interp_bind.
     eapply eqit_bind.
-  - setoid_rewrite interp_trigger; simpl; reflexivity.    
+    eapply in_btw1_free_interp_lemma.
   - unfold pointwise_relation; intro fs1.
     rewrite interp_bind.
     eapply eqit_bind; try reflexivity.
   - unfold pointwise_relation; intro u.
-    setoid_rewrite interp_trigger; simpl; reflexivity.    
-Qed.    
+    eapply in_btw1_free_interp_lemma.
+Qed.
 
 
 Section Inline.

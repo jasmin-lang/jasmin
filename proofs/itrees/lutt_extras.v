@@ -551,7 +551,7 @@ Qed.
 End TranslRuttSec.
 
 
-Section FreeHSec.
+Section FreeHSec1.
 
 Context E1 E2 {hnd1 : E1 ~> itree E2}.  
 
@@ -585,7 +585,45 @@ Proof.
   }
 Qed.  
 
-End FreeHSec.
+End FreeHSec1.
+
+Section FreeHSec2.
+
+Lemma in_btw1_free_interp_lemma E1 E2 E3
+  (hnd3: E3 ~> itree E2)
+  (hnd1: E1 ~> itree E2)
+      T (t1: itree (E1 +' E2) T) :
+  eutt eq (interp (ext_handler hnd3) (interp
+    (ext_handler (fun (T : Type) (e : E1 T) => translate inr1 (hnd1 _ e)))
+      (translate in_btw1 t1))) (interp (ext_handler hnd1) t1).
+Proof.
+  setoid_rewrite interp_translate.
+  setoid_rewrite interp_interp.
+  revert t1.
+  ginit; gcofix CIH.
+  intro t.
+  rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot.
+  { gstep; red. simpl. econstructor; auto. }
+  { gstep; red. simpl. econstructor; eauto.
+    gfinal. left. eauto. }
+  { setoid_rewrite interp_vis; simpl.
+    guclo eqit_clo_bind.
+    econstructor 1 with (RU := eq); simpl.
+    - destruct e; simpl.
+      + setoid_rewrite inr_free_interp_lemma; reflexivity.
+      + unfold id_, Id_Handler, Handler.id_.
+        setoid_rewrite interp_trigger; reflexivity.
+    - intros u1 u2 H.
+      inv H.
+      gstep; red. econstructor.
+      gfinal. left.
+      eapply CIH.
+  }
+Qed.  
+  
+End FreeHSec2.  
 
 
 (****** SPECIFIC **************************************************)
