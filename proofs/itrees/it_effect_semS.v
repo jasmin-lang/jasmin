@@ -303,25 +303,42 @@ End CORE.
 
 
 Section SemDefs.
- 
+  
 Context (p : prog) (ev : extra_val_t).
 
-Definition interp_recc_AbsI {S: Type} (E0: Type -> Type)
-  {XE: ErrEvent -< E0} {XS: @StE estate fstate fundef S -< E0}
-  (HS: forall T : Type, StE S T -> itree E0 T) :=
+Definition interp_recc_AbsI {S: Type}
+  (E0: Type -> Type) 
+  (HS: forall T : Type, StE S T -> itree E0 T) 
+  {XE: ErrEvent -< E0} T
+  (t: itree (callE (funname * fstate) fstate +' E0) T) : itree E0 T :=
   @interp_recc asm_op syscall_state sip prog estate fstate fundef
-    get_fundef0 get_funcode0 E0 S (@handle_InstrE _ _ p S _) HS.
+    get_fundef0 get_funcode0 E0 S (@handle_InstrE _ _ p S _) HS XE p T t.
+
+Definition interp_recc_S (E0: Type -> Type) {XE: ErrEvent -< E0} T
+  (t: itree (callE (funname * fstate) fstate +' E0) T) : itree E0 T :=
+  @interp_recc_AbsI estate E0 (handle_StE_S p ev) XE T t.
+
+Definition interp_recc_U_up2state (E0: Type -> Type)
+  {XE: ErrEvent -< E0} {XS2: stateE estate -< E0} T
+  (t: itree (callE (funname * fstate) fstate +' E0) T) : itree E0 T :=
+  @interp_recc_AbsI unit E0 (handle_StE_U p ev) XE T t.
+
+Definition interp_recc_U (E0: Type -> Type) {XE: ErrEvent -< E0} T
+  (t: itree (callE (funname * fstate) fstate +' @stateE estate +' E0) T)
+  (s: estate) : itree E0 (estate * T) :=
+  run_state (@interp_recc_U_up2state (@stateE estate +' E0) _ _ T t) s.
+
 
 Notation Evs0 S E :=
       (@InstrE asm_op syscall_state sip estate fstate fundef S +' E).
 
+(* perhaps unnecessary *)
 Definition interp_up2state S E
-  (HS: forall T : Type,
-        StE S T -> itree (Evs0 S E) T)
-  {XE: ErrEvent -< E} {XS: @StE estate fstate fundef S -< E}
+  (HS: forall T : Type, StE S T -> itree (Evs0 S E) T)
+  {XE: ErrEvent -< E} {XS: @StE estate fstate fundef S -< E} 
   T (t: itree (@callE (funname * fstate) fstate +' Evs0 S E) T) :
   itree E T :=
-  interp_InstrE p (@interp_recc_AbsI S (Evs0 S E) _ _ HS _ p _ t).
+  interp_InstrE p (@interp_recc_AbsI S (Evs0 S E) HS _ _ t).
 
 Definition interp_up2state_S E
   {XE: ErrEvent -< E} {XS: @StE estate fstate fundef estate -< E}
@@ -369,7 +386,6 @@ Definition interp_full_U E T
              +' @stateE estate    
              +' ErrEvent +' E) T) (s: estate) :
   itree E (execS (estate * T)) := interp_Err (interp_up2err_U t s).
-
 
 End SemDefs.
 
