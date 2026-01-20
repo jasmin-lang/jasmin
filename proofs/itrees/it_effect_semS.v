@@ -58,22 +58,11 @@ Section CORE.
 
 Context {E: Type -> Type} {XE : ErrEvent -< E} (p : prog) (ev : extra_val_t).
 
-(* 
-Definition iresult {T} (F : exec T) (s:estate) : itree E T :=
-  err_result (mk_error_data s) F.
-*)
-
 Definition get_fundef0 (p: prog) (fn: funname) : option fundef :=
   get_fundef (p_funcs p) fn.
 
 Definition get_funcode0 (fd: fundef) : cmd :=
   fd.(f_body).
-
-(*
-Definition iget_fundef (funcs: fun_decls) (fn: funname) (* (fs: fstate) *) :
-    itree E fundef :=
-  err_option (ErrType, tt) (get_fundef funcs fn).
-*)
 
 Definition iwrite_var (wdb : bool) (x : var_i) (v : value) (s : estate) :
     itree E estate :=
@@ -164,19 +153,14 @@ Definition sem_bound (gd : glob_decls) (lo hi : pexpr) (s : estate) :
 Definition isem_bound (lo hi : pexpr) (s : estate) : itree E (Z * Z) :=
   iresult (sem_bound (p_globs p) lo hi s) s.
 
-(****************************************************************)
+(* FinalizeFunCall *)
 
-(*
-(* GetFunDef *)
-
-Definition isem_GetFunDef (fn: funname) : itree E fundef :=
-  iget_fundef (p_funcs p) fn.
-
-(* GetFunCode *)
-
-Definition isem_GetFunCode (fd: fundef) : itree E cmd :=
-  Ret (fd.(f_body)).
-*)
+Definition finalize_funcall (fd : fundef) (s: estate) : exec fstate :=
+  Let vres := get_var_is (~~ direct_call) s.(evm) fd.(f_res) in
+  Let vres' := mapM2 ErrType dc_truncate_val fd.(f_tyout) vres in
+  let scs := s.(escs) in
+  let m := finalize fd.(f_extra) s.(emem) in
+  ok {| fscs := scs; fmem := m; fvals := vres'; finfo := None |}.
 
 (* InitFunCall *)
 
@@ -189,15 +173,6 @@ Definition initialize_funcall (p : prog) (ev : extra_val_t)
   Let vargs' := mapM2 ErrType dc_truncate_val fd.(f_tyin) fs.(fvals) in
   Let s0 := init_state fd.(f_extra) (p_extra p) ev sinit in
   write_vars (~~direct_call) fd.(f_params) vargs' s0.
-
-(* FinalizeFunCall *)
-
-Definition finalize_funcall (fd : fundef) (s: estate) : exec fstate :=
-  Let vres := get_var_is (~~ direct_call) s.(evm) fd.(f_res) in
-  Let vres' := mapM2 ErrType dc_truncate_val fd.(f_tyout) vres in
-  let scs := s.(escs) in
-  let m := finalize fd.(f_extra) s.(emem) in
-  ok {| fscs := scs; fmem := m; fvals := vres'; finfo := None |}.
 
 
 Section InstrSem.
@@ -251,38 +226,17 @@ Definition isem_RetVal
   s1 <- iresult (upd_estate (~~direct_call) (p_globs p) xs fs s0) s0 ;;
   trigger (@PutSE estate fstate fundef S s1).
 
-Definition isem_InitFunCall 
-  (fd: fundef) (fs: fstate) : itree E S :=
-  let sinit := estate0 fs in 
-  s0 <- iresult (initialize_funcall p ev fd fs) sinit ;; 
-  trigger (@PutSE estate fstate fundef S s0).
+Definition isem_FinalizeFunCall (fd: fundef) (s: S) : itree E fstate :=
+  s0 <- trigger (@GetSE estate fstate fundef S s) ;;
+  iresult (finalize_funcall fd s0) s0.
 
 Definition isem_InitFunCall_S 
   (fd: fundef) (fs: fstate) : itree E estate :=
   let sinit := estate0 fs in 
   iresult (initialize_funcall p ev fd fs) sinit.
 
-Definition isem_FinalizeFunCall (fd: fundef) (s: S) : itree E fstate :=
-  s0 <- trigger (@GetSE estate fstate fundef S s) ;;
-  iresult (finalize_funcall fd s0) s0.
-
-(****************************************************************)
-
-(*
-Record progT : Type := Build_progT
-  { extra_fun_t : Type;  extra_prog_t : Type;  extra_val_t : Type }.
-
-Definition prog : forall asm_op : Type, asmOp asm_op -> progT -> Type :=
-fun (asm_op : Type) (asmop : asmOp asm_op) (pT : progT) =>
-_prog extra_fun_t extra_prog_t
-     : forall {asm_op : Type}, asmOp asm_op -> progT -> Type
-*)
-
-
-(** Handlers for InstrE and FunE *)
 
 (** InstrE handler *)
-
 Definition handle_InstrE :
   @InstrE asm_op syscall_state sip estate fstate fundef S ~> itree E :=
   fun _ e =>
@@ -296,22 +250,8 @@ Definition handle_InstrE :
     | EvalArgs args s => isem_EvalArgs args s                              
     | InitFState vargs ii s => isem_InitFState vargs ii s
     | RetVal xs fs s0 _ => isem_RetVal xs fs s0 
-(*    | InitFunCall fd fs s => isem_InitFunCall fd fs s *)
     | FinalizeFunCall fd s => isem_FinalizeFunCall fd s
     end.                                            
-
-(*
-(** FunE handler *)
-Definition handle_FunE :
-  @FunE asm_op syscall_state sip fstate fundef S ~> itree E :=
-  fun _ e =>
-    match e with
-    | GetFunDef fn => isem_GetFunDef fn
-    | GetFunCode fd => isem_GetFunCode fd
-    | InitFunCall fd fs => isem_InitFunCall fd fs
-    | FinalizeFunCall fd s => isem_FinalizeFunCall fd s
-    end.                                             
-*)
 
 Definition ext_handle_InstrE :
   InstrE S +' E ~> itree E := ext_handler handle_InstrE.
@@ -322,18 +262,8 @@ Definition interp_InstrE {A: Type}
   (t : itree (InstrE S +' E) A) : itree E A :=
   interp ext_handle_InstrE t.
 
-(*
-Definition ext_handle_FunE :
-  FunE S +' E ~> itree E := ext_handler handle_FunE.
- (* case_ handle_InstrE (id_ E). *)
-  
-(* InstrE interpreter *)
-Definition interp_FunE {A: Type}
-  (t : itree (FunE S +' E) A) : itree E A :=
-  interp ext_handle_FunE t.
-*)
-
 End InstrSem. 
+
 
 Section StSem.
 
@@ -371,19 +301,10 @@ End StSem.
 
 End CORE.
 
-(****************************************************************)
 
 Section SemDefs.
  
 Context (p : prog) (ev : extra_val_t).
-
-(*
-Definition interp_InstrFunE {S: Type} E
-  {XE: ErrEvent -< E} {XS: @StE estate fstate fundef S -< E} T
-  (t: itree (@InstrE asm_op syscall_state sip estate fstate S
-             +' E) T) :
-  itree E T := interp_FunE p ev (interp_InstrE p t).
-*)
 
 Definition interp_recc_AbsI {S: Type} (E0: Type -> Type)
   {XE: ErrEvent -< E0} {XS: @StE estate fstate fundef S -< E0}
