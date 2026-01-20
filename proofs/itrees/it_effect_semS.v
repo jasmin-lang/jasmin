@@ -328,6 +328,24 @@ Definition interp_recc_U (E0: Type -> Type) {XE: ErrEvent -< E0} T
   (s: estate) : itree E0 (estate * T) :=
   run_state (@interp_recc_U_up2state (@stateE estate +' E0) _ _ T t) s.
 
+Definition isem_instr_S (E0: Type -> Type) {XE: ErrEvent -< E0}
+  (i: instr) (s: estate) :
+  itree (callE (funname * fstate) fstate +' E0) estate :=
+  @isem_instr asm_op syscall_state sip estate fstate fundef E0 estate
+      (@handle_InstrE _ _ p estate _) (handle_StE_S p ev) i s.         
+
+Definition isem_cmd_S (E0: Type -> Type) {XE: ErrEvent -< E0}
+  (c: cmd) (s: estate) :
+  itree (callE (funname * fstate) fstate +' E0) estate :=
+  @isem_cmd asm_op syscall_state sip estate fstate fundef E0 estate
+      (@handle_InstrE _ _ p estate _) (handle_StE_S p ev) c s.         
+
+Definition isem_fcall_S (E0: Type -> Type) {XE: ErrEvent -< E0}
+  (fn: funname) (fs: fstate) :
+  itree (callE (funname * fstate) fstate +' E0) fstate :=
+  @isem_fcall asm_op syscall_state sip prog estate fstate fundef
+    get_fundef0 get_funcode0 E0 estate 
+      (@handle_InstrE _ _ p estate _) (handle_StE_S p ev) XE p fn fs.         
 
 Notation Evs0 S E :=
       (@InstrE asm_op syscall_state sip estate fstate fundef S +' E).

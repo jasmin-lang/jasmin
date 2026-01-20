@@ -116,7 +116,7 @@ Section SemRec.
 Context {E} {S: Type} 
   {HI : InstrE S ~> itree (StE S +' E)}
   {HS : StE S ~> itree E}.
-Context {err: error_data}.
+(* Context {err: error_data}. *)
 
 Definition interpHSI T (e: S -> InstrE S T) : S -> itree E T :=
   fun s => interp (ext_handler HS) (HI (e s)).
@@ -481,6 +481,49 @@ End Inline.
 End SemFun.
 
 End SemRec.
+
+Section StateRec.
+
+Context {E} 
+  {HI : InstrE State ~> itree (StE State +' E)}
+  {HS : StE State ~> itree E}
+  {XE: ErrEvent -< E}.
+
+Definition isem_instr_State (i: instr) (s: State) :
+  itree (recCall +' E) State :=
+  @isem_instr E State HI HS i s.
+
+Definition isem_cmd_State (c: cmd) (s: State) :
+  itree (recCall +' E) State :=
+  @isem_cmd E State HI HS c s.
+
+Definition isem_fcall_State (p: Prog) (fn: funname) (fs: FState) :
+  itree (recCall +' E) FState :=
+  @isem_fcall E State HI HS XE p fn fs.
+
+End StateRec.  
+
+
+Section MonRec.
+
+Context {E} 
+  {HI : InstrE unit ~> itree (StE unit +' E)}
+  {HS : StE unit ~> itree E}
+  {XE: ErrEvent -< E}.
+
+Definition isem_instr_Mon (i: instr) :
+  itree (recCall +' E) unit :=
+  @isem_instr E unit HI HS i tt.
+
+Definition isem_cmd_Mon (c: cmd) :
+  itree (recCall +' E) unit :=
+  @isem_cmd E unit HI HS c tt.
+
+Definition isem_fcall_Mon (p: Prog) (fn: funname) (fs: FState) :
+  itree (recCall +' E) FState :=
+  @isem_fcall E unit HI HS XE p fn fs.
+
+End MonRec.  
 
 End Sem1.
 
