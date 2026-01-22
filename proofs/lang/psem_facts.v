@@ -793,7 +793,7 @@ Proof.
   all: apply/andP; split; first by auto.
   - by rewrite wadd_zero_extend // !zero_extend_u wrepr_add.
   - by rewrite wmul_zero_extend // !zero_extend_u wrepr_mul.
-  by rewrite wsub_zero_extend // !zero_extend_u wrepr_sub.
+  by rewrite sub_wordE wsub_zero_extend // !zero_extend_u wrepr_sub.
 Qed.
 
 End WITH_PARAMS.

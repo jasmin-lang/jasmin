@@ -177,6 +177,7 @@ Qed.
 
 Lemma sadd_wP sz e1 e2 : Papp2 (Oadd (Op_w sz)) e1 e2 =E sadd_w sz e1 e2.
 Proof.
+Local Opaque add_word.
 rewrite /sadd_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
@@ -188,12 +189,13 @@ case h2: (is_wconst sz e2) => [ n2 | ] //.
   have! := (is_wconstP wdb gd s h1).
   t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 <-; clarify.
   case: (to_wordI k6) => sz' [w' [? /truncate_word_uincl ?]]; subst.
-  by rewrite GRing.add0r k4;eauto.
+  by rewrite add_wordE GRing.add0r k4;eauto.
 case: eqP => // hz s v /=; rewrite /sem_sop2 /=.
 have! := (is_wconstP wdb gd s h2).
 t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 <-; clarify.
 case: (to_wordI k5) => sz' [w' [? /truncate_word_uincl ?]]; subst.
-by rewrite GRing.addr0 k3;eauto.
+by rewrite add_wordE GRing.addr0 k3;eauto.
+Local Transparent add_word.
 Qed.
 
 Lemma saddP ty e1 e2 : Papp2 (Oadd ty) e1 e2 =E sadd ty e1 e2.
@@ -211,6 +213,7 @@ Qed.
 
 Lemma ssub_wP sz e1 e2 : Papp2 (Osub (Op_w sz)) e1 e2 =E ssub_w sz e1 e2.
 Proof.
+Local Opaque sub_word.
 rewrite /ssub_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
@@ -222,7 +225,8 @@ case: eqP => // hz s v /=; rewrite /sem_sop2 /=.
 have! := (is_wconstP wdb gd s h2).
 t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 <-; clarify.
 case: (to_wordI k5) => sz' [w' [? /truncate_word_uincl ?]]; subst.
-by rewrite GRing.subr0 k3;eauto.
+by rewrite sub_wordE GRing.subr0 k3;eauto.
+Local Transparent sub_word.
 Qed.
 
 Lemma ssubP ty e1 e2 : Papp2 (Osub ty) e1 e2 =E ssub ty e1 e2.
@@ -246,6 +250,7 @@ Qed.
 
 Lemma smul_wP sz e1 e2 : Papp2 (Omul (Op_w sz)) e1 e2 =E smul_w sz e1 e2.
 Proof.
+Local Opaque mul_word.
 rewrite /smul_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
@@ -256,17 +261,18 @@ case h2: (is_wconst sz e2) => [ n2 | ] //.
 + case: eqP => hn1; [| case: eqP => hn2] => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
   have! := (is_wconstP wdb gd s h1);
   t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
-  - rewrite wrepr_unsigned GRing.mul0r;eauto.
+  - by rewrite wrepr0 mul_wordE GRing.mul0r;eauto.
   - case: (to_wordI k6) => {k6} sz' [w] [? /truncate_word_uincl]; subst.
-    by rewrite k4 GRing.mul1r; eauto.
+    by rewrite k4 mul_wordE GRing.mul1r; eauto.
   by rewrite k4 /= k6 /= wrepr_unsigned truncate_word_u /=;eexists;split;eauto => /=.
 case: eqP => hn1; [| case: eqP => hn2] => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
 have! := (is_wconstP wdb gd s h2);
 t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
-- by rewrite wrepr_unsigned GRing.mulr0;eauto.
+- by rewrite wrepr0 mul_wordE GRing.mulr0;eauto.
 - case: (to_wordI k5) => {k5} sz' [w] [? /truncate_word_uincl ?]; subst.
-  by rewrite k3 GRing.mulr1;eauto.
+  by rewrite k3 mul_wordE GRing.mulr1;eauto.
 by rewrite k3 /= k5 /= truncate_word_u wrepr_unsigned /=;eexists;split;eauto => /=.
+Local Transparent mul_word.
 Qed.
 
 Lemma smulP ty e1 e2 : Papp2 (Omul ty) e1 e2 =E smul ty e1 e2.
@@ -1448,6 +1454,7 @@ Qed.
 
 Lemma it_const_prop_callP fn : wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
+Local Opaque opp_word.
   apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
   exists (const_prop_fun (p_globs p) fd).
   + by rewrite get_map_prog hget.
@@ -1588,6 +1595,7 @@ Proof.
   rewrite (surjective_pairing (const_prop_rvs _ _ _)) /=.
   apply wequiv_call_rel_uincl with checker_cp m => // ???.
   exact: wequiv_fun_rec.
+Local Transparent opp_word.
 Qed.
 
 End IT_PROOF.

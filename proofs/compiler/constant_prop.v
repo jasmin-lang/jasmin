@@ -137,9 +137,9 @@ Definition sadd_int e1 e2 :=
 
 Definition sadd_w sz e1 e2 :=
   match is_wconst sz e1, is_wconst sz e2 with
-  | Some n1, Some n2 => wconst (n1 + n2)
-  | Some n, _ => if n == 0%R then e2 else Papp2 (Oadd (Op_w sz)) e1 e2
-  | _, Some n => if n == 0%R then e1 else Papp2 (Oadd (Op_w sz)) e1 e2
+  | Some n1, Some n2 => wconst (n1 + n2)%w
+  | Some n, _ => if n == 0%w then e2 else Papp2 (Oadd (Op_w sz)) e1 e2
+  | _, Some n => if n == 0%w then e1 else Papp2 (Oadd (Op_w sz)) e1 e2
   | _, _ => Papp2 (Oadd (Op_w sz)) e1 e2
   end.
 
@@ -159,8 +159,8 @@ Definition ssub_int e1 e2 :=
 
 Definition ssub_w sz e1 e2 :=
   match is_wconst sz e1, is_wconst sz e2 with
-  | Some n1, Some n2 => wconst (n1 - n2)
-  | _, Some n => if n == 0%R then e1 else Papp2 (Osub (Op_w sz)) e1 e2
+  | Some n1, Some n2 => wconst (n1 - n2)%w
+  | _, Some n => if n == 0%w then e1 else Papp2 (Osub (Op_w sz)) e1 e2
   | _, _ => Papp2 (Osub (Op_w sz)) e1 e2
   end.
 
@@ -186,14 +186,14 @@ Definition smul_int e1 e2 :=
 
 Definition smul_w sz e1 e2 :=
   match is_wconst sz e1, is_wconst sz e2 with
-  | Some n1, Some n2 => wconst (n1 * n2)
+  | Some n1, Some n2 => wconst (n1 * n2)%w
   | Some n, _ =>
-    if n == 0%R then @wconst sz 0
-    else if n == 1%R then e2
+    if n == 0%w then @wconst sz 0%w
+    else if n == 1%w then e2
     else Papp2 (Omul (Op_w sz)) (wconst n) e2
   | _, Some n =>
-    if n == 0%R then @wconst sz 0
-    else if n == 1%R then e1
+    if n == 0%w then @wconst sz 0%w
+    else if n == 1%w then e1
     else Papp2 (Omul (Op_w sz)) e1 (wconst n)
   | _, _ => Papp2 (Omul (Op_w sz)) e1 e2
   end.
@@ -486,7 +486,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let ir :=
       if is_update_imm xs o es is Some (x, b, e) then
         if b then Copn [:: x ] AT_none (Oslh SLHmove) [:: e ]
-        else Cassgn x AT_none ty_msf (wconst (sz := msf_size) (-1))
+        else Cassgn x AT_none ty_msf (wconst (sz := msf_size) (-1%w)%w)
       else (Copn xs t o es)
     in
     (m, [:: MkI ii ir ])

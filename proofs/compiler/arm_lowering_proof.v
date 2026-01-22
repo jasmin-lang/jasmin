@@ -275,7 +275,7 @@ Proof.
    - by rewrite wltsE.
 
    (* Case [w0 <u w1]. *)
-   - by rewrite wleuE ltNge.
+   - by rewrite wleuE ltzE ltNge.
 
    (* Case [w0 <=s w1]. *)
    - by rewrite wlesE'.
@@ -284,16 +284,16 @@ Proof.
    - by rewrite wleuE'.
 
    (* Case [w0 >s w1]. *)
-   - by rewrite wlesE' ltNge.
+   - by rewrite wlesE' ltzE ltNge.
 
    (* Case [w0 >u w1]. *)
-   - by rewrite wleuE' ltNge.
+   - by rewrite wleuE' ltzE ltNge.
 
    (* Case [w0 >=s w1]. *)
-   - by rewrite wltsE leNgt.
+   - by rewrite wltsE lezE leNgt.
 
    (* Case [w0 >=u w1]. *)
-   by rewrite -word.wltuE leNgt.
+   by rewrite -word.wltuE lezE leNgt.
 
   case: op hcf hsemop h => // -[] //= _ [? ->] /(_ erefl) hsemop; subst cf.
   case hlower: lower_TST => [es'|//].
@@ -668,7 +668,7 @@ Proof.
   split; last by [].
   exists [:: v; @Vword U32 0 ].
   - by rewrite /= hseme wrepr0.
-  by rewrite /exec_sopn /= /sopn_sem ok_w' truncate_word_u /= GRing.add0r wnot1_wopp zero_extend_u.
+  by rewrite /exec_sopn /= /sopn_sem ok_w' truncate_word_u /= !add_wordE opp_wordE GRing.add0r wnot1_wopp zero_extend_u.
 Qed.
 
 Lemma mk_sem_divmodP si ws op (w0 w1 : word ws) w :
@@ -708,7 +708,7 @@ Ltac intro_opn_args :=
     match goal with
     | [ |- forall (_ : _ * _), _ ] => move=> []
     | [ |- forall (_ : option bool), _ ] => move=> ?
-    | [ |- forall (_ : _ (word _)), _ ] => move=> ?
+    | [ |- forall (_ : word _), _ ] => move=> ?
     end.
 
 #[local]
@@ -925,7 +925,7 @@ Proof.
     all: rewrite /=.
     4: rewrite (wadd_zero_extend _ _ hws).
     5: rewrite (wmul_zero_extend _ _ hws).
-    6,7: rewrite (wsub_zero_extend _ _ hws) wsub_wnot1.
+    6,7: rewrite !add_wordE !sub_wordE (wsub_zero_extend _ _ hws) wsub_wnot1.
     10: rewrite -(wand_zero_extend _ _ hws).
     11: rewrite -(wor_zero_extend _ _ hws).
     12: rewrite -(wxor_zero_extend _ _ hws).
@@ -936,7 +936,7 @@ Proof.
     1-3: rewrite /sem_sop2 /=; apply: rbindP => ? ->; apply: rbindP => ? -> /ok_inj/Vword_inj[] ??; subst => /=.
     1: have ? := cmp_le_antisym hws hws0; subst.
     2, 3: have ? := cmp_le_antisym hws hws1; subst.
-    2: rewrite GRing.addrC.
+    2: rewrite add_wordE GRing.addrC.
     1-3: by rewrite !zero_extend_u.
 
     all:
@@ -957,7 +957,7 @@ Proof.
     rewrite /sem_rol /sem_shift wrepr_unsigned -wror_opp.
     case: eqP => /= _; do 3 f_equal; apply: wror_m;
       change (wsize_bits _) with (wsize_size U256);
-      by rewrite wunsigned_sub_mod.
+      by rewrite sub_wordE wunsigned_sub_mod.
   }
 
   rewrite /arg_shift /=.

@@ -87,7 +87,7 @@ Module WArray.
     Definition get8 (m:array s) (i:pointer) :=
       Let _ := assert (in_bound m i) ErrOob in
       Let _ := assert (is_init m i) ErrAddrUndef in
-      ok (odflt 0%R (Mz.get m.(arr_data) i)).
+      ok (odflt 0%w (Mz.get m.(arr_data) i)).
 
     Definition set8 (m:array s) (i:pointer) (v:u8) : result _ (array s):=
       Let _ := assert (in_bound m i) ErrOob in

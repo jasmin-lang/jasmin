@@ -437,12 +437,12 @@ Proof.
       + by rewrite ok_v1.
       + apply (minus_insertP h_insert).
         by rewrite ok_v2.
-      by rewrite /= wadd_zero_extend.
+      by rewrite /= sub_wordE wadd_zero_extend.
     move=> [<- <- <-].
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
       Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
-    by rewrite sem_correct //= wsub_zero_extend.
+    by rewrite sem_correct //= /semi_to_atype /= /riscv_sub_semi !sub_wordE wsub_zero_extend.
   + case => // -[] // [] //=.
     + rewrite /sem_sop2 /=.
       t_xrbindP=> w1 ok_w1 w2 ok_w2.

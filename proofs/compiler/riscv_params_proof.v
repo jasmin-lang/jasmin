@@ -104,6 +104,7 @@ Proof.
       exists (evm s2) => //.
       rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb ok_vo /=
         /exec_sopn /= ok_wb ok_wo /= /riscv_add_semi.
+      rewrite add_wordE.
       move: lea_sem; rewrite wrepr1 GRing.mul1r wrepr0 GRing.addr0 => ->.
       by rewrite hw /= with_vm_same.
     move=> [?]; subst wo.
@@ -120,12 +121,14 @@ Proof.
       exists s2.(evm) => //.
       rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
         /exec_sopn /= ok_wb truncate_word_u /= /riscv_add_semi.
+      rewrite add_wordE.
       move: lea_sem; rewrite GRing.mulr0 GRing.addr0 => ->.
       by rewrite hw /= with_vm_same.
     move=> [<-] hw.
     exists s2.(evm) => //.
     rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
       /exec_sopn /= ok_wb truncate_word_u /=.
+    rewrite add_wordE.
     move: lea_sem; rewrite GRing.mulr0 GRing.addr0 => ->.
     by rewrite hw /= with_vm_same.
   move=> al ws_ x_ e_; move: (Lmem al ws_ x_ e_) => {al ws_ x_ e_} x.
