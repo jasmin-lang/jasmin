@@ -75,13 +75,13 @@ Definition Oset0_instr sz  :=
              (map atype_of_ltype (b5w_ty sz)) (map sopn_arg_desc implicit_flags ++ [:: E 0])
              (let vf := Some false in
               let vt := Some true in
-              (::vf, vf, vf, vt, vt & (0%R: word sz)))
+              (::vf, vf, vf, vt, vt & (0%w: word sz)))
               true
   else
     mk_instr_desc_safe (pp_sz "set0" sz)
              [::] [::]
              (map atype_of_ltype (w_ty sz)) [::E 0]
-             (0%R: word sz) true.
+             (0%w: word sz) true.
 
 Definition Oconcat128_instr :=
   mk_instr_desc_safe (pp_s "concat_2u128")

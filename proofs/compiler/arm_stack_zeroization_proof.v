@@ -302,7 +302,7 @@ Proof.
   apply: lsem_step2.
   + rewrite
       /lsem1 /step (find_instr_skip hbody) /= /eval_instr /=
-      /get_var hsr.(srl_off) /= /exec_sopn /= !truncate_word_u /= wsub_wnot1
+      /get_var hsr.(srl_off) /= /exec_sopn /= !truncate_word_u /= add_wordE wsub_wnot1
       /of_estate /= /lnext_pc /= -addnS.
     reflexivity.
   + rewrite /lsem1 /step (find_instr_skip hbody) /= -(addn1 2) addnA addn1.
@@ -398,7 +398,7 @@ Proof.
     exists s3; split.
     + apply: (lsem_step_end hsem3).
       by rewrite /lsem1 /step (find_instr_skip hbody) /= /eval_instr /=
-         /get_var /= hzf3 /= GRing.addrN /ZF_of_word /= eqxx /= /setpc /=
+         /get_var /= hzf3 /= GRing.addrN /ZF_of_word /= /setpc /=
          /lnext_pc /= -addnS.
     by move: hsr3; rewrite Z.sub_diag.
   have hlt3: (0 < n - wsize_size ws)%Z by nia.

@@ -145,7 +145,7 @@ Section PROOF.
     rewrite /sem_sop2 /=; t_xrbindP=> > + ? + ?
         /to_wordI' [? [? [hsz1 ? ->]]] ?
         /to_wordI' [? [? [hsz2 ? ->]]] ?.
-      subst=> h1 h2 [<-]; rewrite wsub_zero_extend // !zero_extend_idem //.
+      subst=> h1 h2 [<-]; rewrite sub_wordE wsub_zero_extend // !zero_extend_idem //.
     exact (lea_subP hsz (He1 _ _ _ (cmp_le_trans hsz' hsz1) Heq1 h1)
                            (He2 _ _ _ (cmp_le_trans hsz' hsz2) Heq2 h2) Hsub).
   Qed.

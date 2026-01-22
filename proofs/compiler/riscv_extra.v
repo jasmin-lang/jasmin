@@ -36,7 +36,7 @@ Definition Oriscv_add_large_imm_instr : instruction_desc :=
   let ty := aword riscv_reg_size in
   let cty := eval_atype ty in
   let ctin := [:: cty; cty] in
-  let semi := fun (x y : word riscv_reg_size) => (x + y)%R in
+  let semi := fun (x y : word riscv_reg_size) => (x + y)%w in
   {| str    := (fun _ => "add_large_imm"%string)
    ; tin    := [:: ty; ty]
    ; i_in   := [:: E 1; E 2]

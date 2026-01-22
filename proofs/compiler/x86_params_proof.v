@@ -141,6 +141,7 @@ Proof.
   rewrite /= Hvm /= /eval_instr /= /sem_sopn /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u /=.
   eexists; split; first reflexivity.
   + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
+  rewrite sub_wordE.
   by rewrite Vm.setP_eq vm_truncate_val_eq.
 Qed.
 
@@ -171,7 +172,7 @@ Proof.
        (if sz != 0%Z then x86_allocate_stack_frame rsp None sz else [::]) = ok (with_vm s vm2).
   + rewrite /vm2; case: eqP => hsz //=.
     rewrite get_var_neq // hget /= /sem_sop2 /= !truncate_word_u /=.
-    by rewrite /exec_sopn /= truncate_word_u /=.
+    by rewrite /exec_sopn /= sub_wordE truncate_word_u /=.
   have -> /= : get_var true vm2 vrsp = ok (Vword (ts - wrepr U64 sz)).
   + rewrite /vm2; case: eqP => ? /=.
     + by subst sz; rewrite get_var_neq // hget wrepr0 GRing.subr0.
@@ -700,7 +701,7 @@ Proof.
     case: xs => // hargs _ [<-] <-; rewrite /se_init_sem.
     case: lvs => // x [] /=; t_xrbindP => // m1 hw ? <- /=; subst m1.
     t_xrbindP => z [op oargs] hass <- <- hlo /=.
-    by rewrite -(wrepr0 U64) in hw; apply (assemble_mov hlo hw hass).
+    by rewrite word0E -(wrepr0 U64) in hw; apply (assemble_mov hlo hw hass).
 
   (* SLHupdate *)
   + rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /x86_se_update_sem /=; t_xrbindP.

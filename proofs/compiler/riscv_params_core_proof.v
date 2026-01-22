@@ -88,6 +88,7 @@ Lemma sub_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr}
 Proof.
   move=> hc.
   rewrite /=; t_xrbindP => *; t_riscv_op.
+  rewrite /= /riscv_sub_semi sub_wordE.
   by rewrite /= set_var_truncate // (convertible_eval_atype hc).
 Qed.
 

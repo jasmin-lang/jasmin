@@ -75,7 +75,7 @@ Definition check_wencoding we z :=
   | W16_encoding => is_w16_encoding z
   end.
 
-Definition check_ei_kind ewe sz (w: ssralg.GRing.ComRing.sort (word sz)) :=
+Definition check_ei_kind ewe sz (w: word sz) :=
   let z := wunsigned w in
   match ei_kind z with
   | EI_pattern | EI_byte => true

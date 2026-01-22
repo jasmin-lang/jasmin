@@ -118,6 +118,7 @@ Proof.
           /exec_sopn /= ok_wb ok_wo /=.
         have := shift_of_scaleP wo hshift.
         rewrite heq wrepr0 wunsigned0 wshl_sem //= wrepr1 GRing.mul1r => ->.
+        rewrite add_wordE.
         move: lea_sem; rewrite wrepr0 GRing.addr0 => ->.
         by rewrite hw /= with_vm_same.
       move=> [<-] hw.
@@ -125,6 +126,7 @@ Proof.
       rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb ok_vo /=
         /exec_sopn /= ok_wb ok_wo truncate_word_u /=.
       rewrite (shift_of_scaleP wo hshift).
+      rewrite add_wordE.
       move: lea_sem; rewrite wrepr0 GRing.addr0 => ->.
       by rewrite hw /= with_vm_same.
     move=> [?]; subst wo.
@@ -141,12 +143,14 @@ Proof.
       exists s2.(evm) => //.
       rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
         /exec_sopn /= ok_wb truncate_word_u /=.
+        rewrite add_wordE.
       move: lea_sem; rewrite GRing.mulr0 GRing.addr0 => ->.
       by rewrite hw /= with_vm_same.
     move=> [<-] hw.
     exists s2.(evm) => //.
     rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
       /exec_sopn /= ok_wb truncate_word_u /=.
+    rewrite add_wordE.
     move: lea_sem; rewrite GRing.mulr0 GRing.addr0 => ->.
     by rewrite hw /= with_vm_same.
   move=> al ws_ x_ e_; move: (Lmem al ws_ x_ e_) => {al ws_ x_ e_} x.
@@ -202,6 +206,7 @@ Proof.
   rewrite /= hget /=; t_arm_op.
   eexists; split; first reflexivity.
   + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
+  rewrite !add_wordE.
   by rewrite Vm.setP_eq wsub_wnot1 vm_truncate_val_eq.
 Qed.
 
