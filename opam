@@ -33,9 +33,9 @@ depends: [
   "yojson" {>= "1.6.0"}
   "angstrom" {>= "0.14.0"}
   "ocamlfind" { build }
-  "coq" {>= "8.20.0" & < "9.1~"}
+  "coq" {>= "8.20.0" & < "9.2~"}
   "coq-elpi" {>= "2.3.0"}
-  "coq-mathcomp-ssreflect" {>= "2.0" & < "2.5~"}
+  "coq-mathcomp-ssreflect" {>= "2.0" & < "2.6~"}
   "coq-mathcomp-algebra"
   "coq-mathcomp-algebra-tactics"
   "coq-mathcomp-word" {>= "3.2"}

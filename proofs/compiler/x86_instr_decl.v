@@ -244,7 +244,7 @@ Definition PF_of_word sz (w : word sz) : bool :=
   foldl xorb true [seq wbit_n w i | i <- iota 0 8].
 
 Definition ZF_of_word sz (w : word sz) :=
-  w == 0%R.
+  w == 0%w.
 
 (* -------------------------------------------------------------------- *)
   (*  OF; CF; SF;    PF;    ZF  *)
@@ -648,7 +648,7 @@ Definition Ox86_PADD_instr :=
   let padd := "PADD"%string in
   (λ (ve: velem) (sz: wsize),
     mk_instr_safe (pp_ve_sz padd ve sz) (w2_ty sz sz) (w_ty sz) [:: Eu 0; Eu 1 ] [:: Eu 0 ] MSB_CLEAR
-      (lift2_vec ve +%R sz) check_padd 2 (size_64_128 sz) (pp_viname "padd" ve sz),
+      (lift2_vec ve +%w sz) check_padd 2 (size_64_128 sz) (pp_viname "padd" ve sz),
    (padd, primMMX PADD)).
 
 Definition check_movsx (_ _:wsize) := [:: r_rm ].
@@ -711,7 +711,7 @@ Definition check_add sz := [:: m_ri (max_32 sz); r_rmi (max_32 sz)].
 
 Definition x86_ADD sz (v1 v2 : word sz) : tpl (b5w_ty sz) :=
   rflags_of_aluop_w
-    (v1 + v2)%R
+    (v1 + v2)%w
     (wunsigned v1 + wunsigned v2)%Z
     (wsigned   v1 + wsigned   v2)%Z.
 
@@ -720,7 +720,7 @@ Definition Ox86_ADD_instr  :=
 
 Definition x86_SUB sz (v1 v2 : word sz) : tpl (b5w_ty sz) :=
   rflags_of_aluop_w
-    (v1 - v2)%R
+    (v1 - v2)%w
     (wunsigned v1 - wunsigned v2)%Z
     (wsigned   v1 - wsigned   v2)%Z.
 
@@ -730,7 +730,7 @@ Definition Ox86_SUB_instr :=
 Definition check_mul (_:wsize) := [:: [::rm true]].
 
 Definition x86_MUL sz (v1 v2: word sz) : tpl (b5w2_ty sz) :=
-  let lo := (v1 * v2)%R in
+  let lo := (v1 * v2)%w in
   let hi := wmulhu v1 v2 in
   let ov := wdwordu hi lo in
   let ov := (ov >? wbase sz - 1)%Z in
@@ -745,7 +745,7 @@ Definition x86_IMUL_overflow sz (hi lo: word sz) : bool :=
   (ov <? wmin_signed sz)%Z || (ov >? wmax_signed sz)%Z.
 
 Definition x86_IMUL sz (v1 v2: word sz) : tpl (b5w2_ty sz) :=
-  let lo := (v1 * v2)%R in
+  let lo := (v1 * v2)%w in
   let hi := wmulhs v1 v2 in
   let ov := x86_IMUL_overflow hi lo in
   flags_w2 (rflags_of_mul ov) (:: hi & lo).
@@ -755,7 +755,7 @@ Definition Ox86_IMUL_instr :=
     check_mul (prim_16_64 IMUL) size_16_64 (pp_iname "imul") .
 
 Definition x86_IMULt sz (v1 v2: word sz) : tpl (b5w_ty sz) :=
-  let lo := (v1 * v2)%R in
+  let lo := (v1 * v2)%w in
   let hi := wmulhs v1 v2 in
   let ov := x86_IMUL_overflow hi lo in
   flags_w (rflags_of_mul ov) lo.
@@ -821,7 +821,7 @@ Definition Ox86_IDIV_instr :=
     (fun ws _ => @Ox86_IDIV_errty ws) (fun ws _ => @Ox86_IDIV_safe ws).
 
 Definition x86_CQO sz (w:word sz) : word sz :=
-  (if msb w then -1 else 0)%R.
+  (if msb w then -1%w else 0)%w.
 
 Definition Ox86_CQO_instr :=
   mk_instr_w_w "CQO" x86_CQO [:: R RAX] [:: R RDX] 0 (fun _ => [:: [::]]) (prim_16_64 CQO) size_16_64 pp_cqo.
@@ -882,9 +882,9 @@ Definition check_neg (_:wsize) := [::[::rm false]].
 
 Definition x86_NEG sz (w: word sz) : tpl (b5w_ty sz) :=
   let vs := (- wsigned w)%Z in
-  let v := (- w)%R in
+  let v := (- w)%w in
   flags_w
-  ((:: Some (wsigned   v != vs), Some ((w != 0)%R), Some (SF_of_word v), Some (PF_of_word v) & Some (ZF_of_word v)) : sem_ltuple b5_ty)
+  ((:: Some (wsigned   v != vs), Some ((w != 0)%w), Some (SF_of_word v), Some (PF_of_word v) & Some (ZF_of_word v)) : sem_ltuple b5_ty)
   v.
 
 Definition Ox86_NEG_instr               :=
@@ -892,7 +892,7 @@ Definition Ox86_NEG_instr               :=
 
 Definition x86_INC sz (w: word sz) : tpl (b4w_ty sz) :=
   rflags_of_aluop_nocf_w
-    (w + 1)
+    (w + 1%w)%w
     (wsigned w + 1)%Z.
 
 Definition Ox86_INC_instr               :=
@@ -900,7 +900,7 @@ Definition Ox86_INC_instr               :=
 
 Definition x86_DEC sz (w: word sz) : tpl (b4w_ty sz) :=
   rflags_of_aluop_nocf_w
-    (w - 1)
+    (w - 1%w)%w
     (wsigned w - 1)%Z.
 
 Definition Ox86_DEC_instr :=
@@ -925,8 +925,8 @@ Definition Ox86_TZCNT_instr               :=
   mk_instr_w_b5w "TZCNT" x86_TZCNT [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 TZCNT) size_16_64 (pp_iname "tzcnt").
 
 Definition x86_BSR sz (w: word sz) : ex_tpl (b5w_ty sz) :=
-  Let _ := assert (w != 0%R) ErrArith in
-  ok (flags_w ((:: None, None, None, None & Some false) : sem_ltuple b5_ty) (wrepr sz (wsize_bits sz - 1) - leading_zero w)%R).
+  Let _ := assert (w != 0%w) ErrArith in
+  ok (flags_w ((:: None, None, None, None & Some false) : sem_ltuple b5_ty) (wrepr sz (wsize_bits sz - 1) - leading_zero w)%w).
 
 Lemma x86_BSR_errty sz :
   size_16_64 sz → sem_lforall (λ r : result error (sem_ltuple (b5w_ty sz)), r ≠ Error ErrType) [:: lword sz] (x86_BSR (sz:=sz)).
@@ -994,7 +994,7 @@ Definition Ox86_TEST_instr              :=
 Definition check_cmp (sz:wsize) := [:: [::rm false; ri (max_32 sz)]; r_rm].
 
 Definition x86_CMP sz (x y: word sz) : tpl b5_ty :=
-  rflags_of_aluop (x - y)
+  rflags_of_aluop (x - y)%w
        (wunsigned x - wunsigned y)%Z (wsigned x - wsigned y)%Z.
 
 Definition Ox86_CMP_instr :=
@@ -1044,12 +1044,12 @@ Definition x86_shift_mask (s:wsize) : u8 :=
 
 Definition x86_ROR sz (v: word sz) (i: u8) : tpl (b2w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
-  if i == 0%R then
+  if i == 0%w then
     (:: None , None & v)
   else
     let r := wror v (wunsigned i) in
     let CF := msb r in
-    let OF := if i == 1%R then Some (CF != msb v) else None in
+    let OF := if i == 1%w then Some (CF != msb v) else None in
     (:: OF , Some CF & r).
 
 Definition Ox86_ROR_instr               :=
@@ -1057,12 +1057,12 @@ Definition Ox86_ROR_instr               :=
 
 Definition x86_ROL sz (v: word sz) (i: u8) : tpl (b2w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
-  if i == 0%R then
+  if i == 0%w then
     (:: None , None & v)
   else
     let r := wrol v (wunsigned i) in
     let CF := lsb r in
-    let OF := if i == 1%R then Some (msb r != CF) else None in
+    let OF := if i == 1%w then Some (msb r != CF) else None in
     (:: OF, Some CF & r ).
 
 Definition Ox86_ROL_instr :=
@@ -1085,7 +1085,7 @@ Definition x86_rotate_with_carry (sz: wsize)
   let r := mathcomp.word.word.w2t r in
   let CF := head false r in
   let r : word sz := mathcomp.word.word.t2w [tuple of behead r] in
-  let OF := if i == 1%R then Some (ovf r CF) else None in
+  let OF := if i == 1%Z then Some (ovf r CF) else None in
   (:: OF, Some CF & r ).
 
 Definition x86_RCR sz (v: word sz) (i: u8) (cf:bool) : tpl (b2w_ty sz) :=
@@ -1101,7 +1101,7 @@ Definition Ox86_RCL_instr :=
   mk_instr_ww8b_b2w_0c0 "RCL" x86_RCL check_ror (prim_8_64 RCL) size_8_64 (pp_iname_w_8 "rcl").
 
 Definition rflags_OF {s} sz (i:word s) (r:word sz) rc OF : tpl (b5w_ty sz) :=
-  let OF := if i == 1%R then Some OF else None in
+  let OF := if i == 1%w then Some OF else None in
   let CF := Some rc in
   let SF := Some (SF_of_word r) in
   let PF := Some (PF_of_word r) in
@@ -1110,7 +1110,7 @@ Definition rflags_OF {s} sz (i:word s) (r:word sz) rc OF : tpl (b5w_ty sz) :=
 
 Definition x86_SHL sz (v: word sz) (i: u8) : tpl (b5w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
-  if i == 0%R then
+  if i == 0%w then
     rflags_None_w v
   else
     let rc := msb (wshl v (wunsigned i - 1)) in
@@ -1122,7 +1122,7 @@ Definition Ox86_SHL_instr :=
 
 Definition x86_SHR sz (v: word sz) (i: u8) : tpl (b5w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
-  if i == 0%R then
+  if i == 0%w then
     rflags_None_w v
   else
     let rc := lsb (wshr v (wunsigned i - 1)) in
@@ -1137,7 +1137,7 @@ Definition Ox86_SAL_instr :=
 
 Definition x86_SAR sz (v: word sz) (i: u8) : tpl (b5w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
-  if i == 0%R then
+  if i == 0%w then
     rflags_None_w v
   else
     let rc := lsb (wsar v (wunsigned i - 1)) in
@@ -1157,7 +1157,7 @@ Definition safe_shxd sz : seq safe_cond :=
 
 Definition x86_SHLD sz (v1 v2: word sz) (i: u8) : ex_tpl (b5w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
-  if i == 0%R then
+  if i == 0%w then
     ok (rflags_None_w v1)
   else
     let j := (wsize_bits sz - wunsigned i)%Z in
@@ -1211,7 +1211,7 @@ Definition Ox86_SHLD_instr :=
 
 Definition x86_SHRD sz (v1 v2: word sz) (i: u8) : ex_tpl (b5w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
-  if i == 0%R then
+  if i == 0%w then
     ok (rflags_None_w v1)
   else
     let j := (wsize_bits sz - wunsigned i)%Z in
@@ -1387,12 +1387,12 @@ Definition x86_VPXOR sz := @wxor sz.
 
 Definition Ox86_VPXOR_instr  := mk_instr_w2_w_120    "VPXOR"   x86_VPXOR  check_xmm_xmm_xmmm (prim_128_256 VPXOR) size_128_256 (pp_name "vpxor").
 
-Definition x86_VPADD (ve: velem) sz := lift2_vec ve +%R sz.
+Definition x86_VPADD (ve: velem) sz := lift2_vec ve +%w sz.
 
 Definition Ox86_VPADD_instr  := mk_ve_instr_w2_w_120 "VPADD"   x86_VPADD  check_xmm_xmm_xmmm (primV VPADD) (fun ve sz => size_128_256 sz) (pp_viname "vpadd").
 
 Definition x86_VPSUB (ve: velem) sz :=
-  lift2_vec ve (fun x y => x - y)%R sz.
+  lift2_vec ve (fun x y => x - y)%w sz.
 
 Definition Ox86_VPSUB_instr  := mk_ve_instr_w2_w_120 "VPSUB"   x86_VPSUB  check_xmm_xmm_xmmm (primV VPSUB) (fun ve sz => size_128_256 sz) (pp_viname "vpsub").
 
@@ -1404,7 +1404,7 @@ Definition Ox86_VPAVG_instr := mk_ve_instr_w2_w_120 "VPAVG" x86_VPAVG check_xmm_
 (fun (ve:velem) sz => size_8_16 ve && size_128_256 sz) (pp_viname "vpavg").
 
 Definition x86_VPMULL (ve: velem) sz v1 v2 :=
-  lift2_vec ve *%R sz v1 v2.
+  lift2_vec ve *%w sz v1 v2.
 
 Definition Ox86_VPMULL_instr := mk_ve_instr_w2_w_120 "VPMULL" x86_VPMULL check_xmm_xmm_xmmm (primV_16_32 VPMULL)
 (fun (ve:velem) sz => size_16_32 ve && size_128_256 sz)  (pp_viname "vpmull").
@@ -1448,7 +1448,7 @@ Definition x86_nelem_mask (sze szc:wsize) : u8 :=
 
 Definition x86_VPEXTR (ve: wsize) (v: u128) (i: u8) : tpl (w_ty ve) :=
   let i := wand i (x86_nelem_mask ve U128) in
-  nth (0%R: word ve) (split_vec ve v) (Z.to_nat (wunsigned i)).
+  nth (0%w: word ve) (split_vec ve v) (Z.to_nat (wunsigned i)).
 
 Definition Ox86_VPEXTR_instr :=
   ((fun sz =>
@@ -1579,7 +1579,7 @@ Definition wpblendw (m : u8) (w1 w2 : word U128) :=
   let v1 := split_vec U16 w1 in
   let v2 := split_vec U16 w2 in
   let b := split_vec 1 m in
-  let r := map3 (λ (b0 : (mathcomp.word.word.word 1 : ringType)) (v3 v4 : mathcomp.word.word.word U16), if b0 == 1%R then v4 else v3) b v1 v2 in
+  let r := map3 (λ (b0 : (mathcomp.word.word.word 1)) (v3 v4 : mathcomp.word.word.word U16), if b0 == word.word.word1 _ then v4 else v3) b v1 v2 in
   make_vec U128 r.
 
 Definition x86_VPBLEND ve sz (v1 v2: word sz) (m: u8) : tpl (w_ty sz) :=
@@ -1687,7 +1687,7 @@ Definition Ox86_VMOVSLDUP_instr :=
 Definition x86_VPALIGNR128 (m:u8) (v1 v2: word U128) : word U128 :=
   let v := make_vec U256 [::v2;v1] in
   let v' := wshr v (wunsigned m * 8) in
-  @nth (word U128) 0%R (split_vec U128 v') 0.
+  @nth (word U128) 0%w (split_vec U128 v') 0.
 
 Definition x86_VPALIGNR sz (v1 v2: word sz) (m:u8) : tpl (w_ty sz) :=
   lift2_vec U128 (x86_VPALIGNR128 m) sz v1 v2.
@@ -1794,7 +1794,7 @@ Definition Ox86_VPCMPGT_instr :=
   ).
 
 Definition x86_VPSIGN (ve: velem) sz (v1 v2: word sz) : tpl (w_ty sz) :=
-  lift2_vec ve (λ x m, match wsigned m with Zpos _ => x | Z0 => 0%R | Zneg _ => (- x)%R end) sz v1 v2.
+  lift2_vec ve (λ x m, match wsigned m with Zpos _ => x | Z0 => 0%w | Zneg _ => (- x)%w end) sz v1 v2.
 
 Definition Ox86_VPSIGN_instr :=
   (fun (ve: velem) sz => mk_instr_safe
@@ -1905,7 +1905,7 @@ Definition Ox86_VPABS_instr  :=
 Definition check_vptest (_:wsize) := [:: xmm_xmmm].
 
 Definition x86_VPTEST sz (x y: word sz) : tpl b5_ty :=
-  (:: Some false, Some (wandn x y == 0%R), Some false, Some false & Some (ZF_of_word (wand x y))).
+  (:: Some false, Some (wandn x y == 0%w), Some false, Some false & Some (ZF_of_word (wand x y))).
 
 Definition Ox86_VPTEST_instr :=
   (fun sz => mk_instr_safe
@@ -2076,11 +2076,11 @@ Description:		Carry-less multiplication of one quadword of ymm2 by one quadword
 
 Definition wclmulq (x1 x2: u64): word U128 :=
  let x := zero_extend U128 x1 in
- foldr (fun k r => wxor (if wbit_n x2 k then wshl x (Z.of_nat k) else 0%R) r) 0%R (iota 0 64).
+ foldr (fun k r => wxor (if wbit_n x2 k then wshl x (Z.of_nat k) else 0%w) r) 0%w (iota 0 64).
 
 Definition wVPCLMULDQD sz (w1 w2: word sz) (k: u8): word sz :=
- let get1 (w: u128) := @nth u64 0%R (split_vec U64 w) (wbit_n k 0) in
- let get2 (w: u128) := @nth u64 0%R (split_vec U64 w) (wbit_n k 4) in
+ let get1 (w: u128) := @nth u64 0%w (split_vec U64 w) (wbit_n k 0) in
+ let get2 (w: u128) := @nth u64 0%w (split_vec U64 w) (wbit_n k 4) in
  let f (w1 w2: u128) := wclmulq (get1 w1) (get2 w2) in
  make_vec sz (map2 f (split_vec U128 w1) (split_vec U128 w2)).
 

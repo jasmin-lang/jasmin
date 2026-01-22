@@ -5,13 +5,13 @@ val pp_remote_label : Label.remote_label -> string
 val mangle : string -> string
 
 val format_glob_data :
-  Obj.t list ->
+  Word0.word list ->
   ((Var0.Var.var * Wsize.wsize) * BinNums.coq_Z) list ->
   PrintASM.asm_element list
 
 val hash_to_string : ('a -> string) -> 'a -> string
 val pp_imm : string -> Z.t -> string
-val pp_rip_address : Obj.t -> string
+val pp_rip_address : Word0.word -> string
 val pp_register : ('reg, _, _, _, _) Arch_decl.arch_decl -> 'reg -> string
 
 type parsed_reg_address = {

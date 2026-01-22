@@ -1505,7 +1505,7 @@ Section EXPR.
       have [ws'' [w [_ ?]]] := get_gvar_word htyx hget; subst v.
       case: hty' => ?; subst ws''.
       have ? := check_validP hcvalid; subst status.
-      rewrite -(GRing.addr0 (_+_)%R) -wrepr0.
+      rewrite add_wordE -(GRing.addr0 (_+_)%R) -wrepr0.
       rewrite (eq_sub_region_val_read_word _ hwf hread eq_addr (w:=zero_extend ws w)).
       + rewrite wrepr0 GRing.addr0.
         rewrite (check_alignP hwf eq_addr halign) /=.
@@ -1541,7 +1541,7 @@ Section EXPR.
       assert (heq := wfr_val hgvalid hget).
       case: heq => hread _.
       have ? := check_validP hcvalid; subst status.
-      rewrite wrepr_add (GRing.addrC (wrepr _ _)) GRing.addrA.
+      rewrite wrepr_add add_wordE (GRing.addrC (wrepr _ _)) GRing.addrA.
       rewrite (eq_sub_region_val_read_word _ hwf hread eq_addr (w:=w)).
       + case: al hw halign => //= hw halign.
         have {}halign := check_alignP hwf eq_addr halign.
@@ -3582,7 +3582,7 @@ Proof.
     apply: is_align_add; first by [].
     by rewrite WArray.arr_is_align.
   have /writeV -/(_ w) [mem2 hmem2] := hvp.
-  rewrite Z.add_comm wrepr_add GRing.addrA hmem2 /=; eexists; first by reflexivity.
+  rewrite Z.add_comm wrepr_add add_wordE GRing.addrA hmem2 /=; eexists; first by reflexivity.
   (* valid_state update array *)
   have hofs: 0 <= i1 * mk_scale aa ws /\ i1 * mk_scale aa ws + csize_of (cword ws) <= csize_of (eval_atype x.(vtype)).
   + by rewrite hty.
@@ -4785,6 +4785,7 @@ Proof.
     have /(_ (with_mem s2 mem2)) []:=
       mov_ofsP hsaparams rip ii P'_globs ok_wey ok_wofsy Hmov_ofs.
     + rewrite /= /get_gvar /get_var vs_rsp /= /sem_sop2 /= !truncate_word_u /= truncate_word_u /=.
+      rewrite add_wordE.
       move: hpaddr; rewrite (sub_region_addr_stkptr _ hlocal) => -[->].
       by rewrite hmem2.
     move=> /= vm2 hsem heq1.

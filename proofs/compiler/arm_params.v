@@ -276,7 +276,7 @@ Fixpoint assemble_cond ii (e : fexpr) : cexec condt :=
   end.
 
 Definition is_valid_address (addr : reg_address) :=
-  match addr.(ad_disp) != 0%R, isSome addr.(ad_offset), addr.(ad_scale) != 0 with
+  match addr.(ad_disp) != 0%w, isSome addr.(ad_offset), addr.(ad_scale) != 0 with
   | false, false, false => true
   | true, false, false => true
   | false, true, false => true

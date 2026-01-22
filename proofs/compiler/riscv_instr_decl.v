@@ -170,7 +170,7 @@ Notation ty_rr := (sem_ltuple [:: lreg; lreg ]) (only parsing).
    instructions have a 32-bit output, this is irrelevant. *)
 
 (* Arithmetic *)
-Definition riscv_add_semi (wn wm : ty_r) : ty_r := (wn + wm)%R.
+Definition riscv_add_semi (wn wm : ty_r) : ty_r := (wn + wm)%w.
 
 Definition riscv_ADD_instr : instr_desc_t := RTypeInstruction riscv_add_semi "ADD" "add".
 Definition prim_ADD := ("ADD"%string, primM ADD).
@@ -179,14 +179,14 @@ Definition riscv_ADDI_instr : instr_desc_t := ITypeInstruction_12s riscv_add_sem
 Definition prim_ADDI := ("ADDI"%string, primM ADDI).
 
 
-Definition riscv_sub_semi (wn wm : ty_r) : ty_r := (wn - wm)%R.
+Definition riscv_sub_semi (wn wm : ty_r) : ty_r := (wn - wm)%w.
 
 Definition riscv_SUB_instr : instr_desc_t := RTypeInstruction riscv_sub_semi "SUB" "sub".
 Definition prim_SUB := ("SUB"%string, primM SUB).
 
 
 (* Set less *)
-Definition riscv_slt_semi (wn wm : ty_r) : ty_r := if (wlt Signed wn wm) then 1%R else 0%R.
+Definition riscv_slt_semi (wn wm : ty_r) : ty_r := if (wlt Signed wn wm) then 1%w else 0%w.
 
 Definition riscv_SLT_instr : instr_desc_t := RTypeInstruction riscv_slt_semi "SLT" "slt".
 Definition prim_SLT := ("SLT"%string, primM SLT).
@@ -195,7 +195,7 @@ Definition riscv_SLTI_instr : instr_desc_t := ITypeInstruction_12s riscv_slt_sem
 Definition prim_SLTI := ("SLTI"%string, primM SLTI).
 
 
-Definition riscv_sltu_semi (wn wm : ty_r) : ty_r := if (wlt Unsigned wn wm) then 1%R else 0%R.
+Definition riscv_sltu_semi (wn wm : ty_r) : ty_r := if (wlt Unsigned wn wm) then 1%w else 0%w.
 
 Definition riscv_SLTU_instr : instr_desc_t := RTypeInstruction riscv_sltu_semi "SLTU" "sltu".
 Definition prim_SLTU := ("SLTU"%string, primM SLTU).
@@ -378,7 +378,7 @@ Definition prim_NOT := ("NOT"%string, primM NOT).
 
 
 Definition riscv_NEG_semi (wn : ty_r) : ty_r :=
-  (- wn)%R.
+  (- wn)%w.
 
 Definition riscv_NEG_instr : instr_desc_t :=
   let tin := [:: lreg ] in
@@ -489,7 +489,7 @@ Definition prim_STORE := ("STORE"%string, primP STORE).
 
 
 (* RISC-V 32M Multiply instructions (operators). *)
-Definition riscv_mul_semi (wn wm: ty_r) : ty_r := (wn * wm)%R.
+Definition riscv_mul_semi (wn wm: ty_r) : ty_r := (wn * wm)%w.
 Definition riscv_MUL_instr : instr_desc_t := RTypeInstruction riscv_mul_semi "MUL" "mul".
 Definition prim_MUL := ("MUL"%string, primM MUL).
 
@@ -510,13 +510,13 @@ Definition prim_MULHSU := ("MULHSU"%string, primM MULHSU).
 
 (* Division by zero is specified, it must return all bits set *)
 Definition riscv_div_semi (wn wm: ty_r) : ty_r :=
-  if wm == 0%R then (-1)%R else wdivi wn wm.
+  if wm == 0%w then (-1%w)%w else wdivi wn wm.
 Definition riscv_DIV_instr : instr_desc_t := RTypeInstruction riscv_div_semi "DIV" "div".
 Definition prim_DIV := ("DIV"%string, primM DIV).
 
 (* Division by zero is specified, it must return all bits set *)
 Definition riscv_divu_semi (wn wm: ty_r) : ty_r :=
-  if wm == 0%R then (-1)%R else wdiv wn wm.
+  if wm == 0%w then (-1%w)%w else wdiv wn wm.
 Definition riscv_DIVU_instr : instr_desc_t := RTypeInstruction riscv_divu_semi "DIVU" "divu".
 Definition prim_DIVU := ("DIVU"%string, primM DIVU).
 

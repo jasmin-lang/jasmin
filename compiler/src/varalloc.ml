@@ -40,7 +40,7 @@ type stk_alloc_oracle_t =
   }
 
 type glob_alloc_oracle_t = 
-  { gao_data : Obj.t list 
+  { gao_data : Word0.word list 
   ; gao_slots  : (var * wsize * int) list 
   ; gao_align : wsize
   ; gao_size  : int               (* Not normalized with respect to sao_local_align *)

@@ -456,8 +456,8 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: atype) (e
   | LowerLea sz (MkLea d b sc o) =>
     let de := wconst (wrepr Uptr d) in
     let sce := wconst (wrepr Uptr sc) in
-    let b := oapp Plvar (@wconst sz 0) b in
-    let o := oapp Plvar (@wconst sz 0) o in
+    let b := oapp Plvar (@wconst sz 0%w) b in
+    let o := oapp Plvar (@wconst sz 0%w) o in
     let lea tt :=
       let ii := warning ii Use_lea in
       let add := Papp2 (Oadd (Op_w sz)) in
@@ -467,9 +467,9 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: atype) (e
     if options.(use_lea) then lea tt
     (* d + b + sc * o *)
     else
-      if d == 0%R then
+      if d == 0%Z then
         (* b + sc * o *)
-        if sc == 1%R then
+        if sc == 1%Z then
           (* b + o *)
           [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; o])]
         else if is_zero sz b then

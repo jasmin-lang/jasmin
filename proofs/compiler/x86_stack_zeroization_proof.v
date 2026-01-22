@@ -193,6 +193,7 @@ Proof.
     rewrite [get_var _ _ rspi]/get_var hsr.(sr_rsp) /=.
     rewrite /sem_sop2 /= (truncate_word_u top) /=.
     rewrite get_var_eq //= !truncate_word_u /= truncate_word_u /=.
+    rewrite add_wordE sub_wordE.
     rewrite hm' /=.
     rewrite /of_estate /= /lnext_pc /=.
     by rewrite -addnS; reflexivity.
@@ -281,7 +282,7 @@ Proof.
       rewrite (find_instr_skip hlinear) /=.
       rewrite /eval_instr /=.
       rewrite /get_var /= hzf3 /=.
-      rewrite GRing.addrN /ZF_of_word /= eqxx /=.
+      rewrite GRing.addrN /ZF_of_word /=.
       rewrite /lnext_pc /=.
       by rewrite -addnS.
     by move: hsr3; rewrite Z.sub_diag.
@@ -372,6 +373,7 @@ Local Opaque wsize_size.
   + rewrite Vm.setP_neq;
       last by apply /eqP => h; apply /rsp_nin /sv_of_listP;
       rewrite !in_cons /= -h eqxx /= ?orbT.
+    rewrite sub_wordE.
     by rewrite Vm.setP_eq.
   by lia.
 Local Transparent wsize_size.
@@ -500,6 +502,7 @@ Proof.
       rewrite !in_cons /= -h eqxx /= ?orbT.
      do 5 rewrite get_var_neq //.
     rewrite /get_var /= hsr.(sr_rsp) /sem_sop2 /= !truncate_word_u /= truncate_word_u /=.
+    rewrite add_wordE sub_wordE.
     rewrite hm' /=.
     rewrite /of_estate /= /lnext_pc.
     by rewrite -addnS; reflexivity.
@@ -590,7 +593,7 @@ Proof.
       rewrite (find_instr_skip hlinear) /=.
       rewrite /eval_instr /=.
       rewrite /get_var /= hzf3 /=.
-      rewrite GRing.addrN /ZF_of_word /= eqxx /=.
+      rewrite GRing.addrN /ZF_of_word /=.
       rewrite /lnext_pc /=.
       by rewrite -addnS.
     by move: hsr3; rewrite Z.sub_diag.
@@ -693,6 +696,7 @@ Local Opaque wsize_size.
   + rewrite Vm.setP_neq;
       last by apply /eqP => h; apply /rsp_nin /sv_of_listP;
       rewrite !in_cons /= -h eqxx /= ?orbT.
+    rewrite sub_wordE.
     by rewrite Vm.setP_eq.
   by lia.
 Local Transparent wsize_size.
@@ -973,7 +977,8 @@ Local Opaque wsize_size.
         apply /eqP => h; apply /rsp_nin /sv_of_listP;
           rewrite !in_cons /= -h eqxx /= ?orbT]).
     by rewrite Vm.setP_eq.
-  + by rewrite Vm.setP_eq.
+  + rewrite sub_wordE.
+    by rewrite Vm.setP_eq.
   by lia.
 Local Transparent wsize_size.
 Qed.
@@ -1239,7 +1244,8 @@ Local Opaque wsize_size.
         apply /eqP => h; apply /rsp_nin /sv_of_listP;
           rewrite !in_cons /= -h eqxx /= ?orbT]).
     by rewrite Vm.setP_eq.
-  + by rewrite Vm.setP_eq.
+  + rewrite sub_wordE.
+    by rewrite Vm.setP_eq.
   by lia.
 Local Transparent wsize_size.
 Qed.

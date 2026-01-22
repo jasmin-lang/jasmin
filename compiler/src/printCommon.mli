@@ -58,7 +58,7 @@ val pp_arr_slice :
 
 val pp_len : Format.formatter -> int -> unit
 val pp_ty : Format.formatter -> Prog.ty -> unit
-val pp_datas : Format.formatter -> Obj.t list -> unit
+val pp_datas : Format.formatter -> Word0.word list -> unit
 val pp_var : Format.formatter -> Var0.Var.var -> unit
 val pp_var_i : Format.formatter -> Expr.var_i -> unit
 

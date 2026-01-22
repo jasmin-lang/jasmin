@@ -38,7 +38,7 @@ Definition sem_sop1_typed (o : sop1) :
   | Onot => mk_sem_sop1 negb
   | Olnot sz => mk_sem_sop1 (@wnot sz)
   | Oneg Op_int => mk_sem_sop1 Z.opp
-  | Oneg (Op_w sz) => mk_sem_sop1 (-%R)%R
+  | Oneg (Op_w sz) => mk_sem_sop1 -%w
   | Owi1 sign o => sem_wiop1_typed sign o
   end.
 
@@ -61,9 +61,9 @@ Definition sem_shl {s} := @sem_shift (@wshl) s.
 Definition sem_ror {s} := @sem_shift (@wror) s.
 Definition sem_rol {s} := @sem_shift (@wrol) s.
 
-Definition sem_vadd (ve:velem) {ws:wsize} := (lift2_vec ve +%R ws).
-Definition sem_vsub (ve:velem) {ws:wsize} := (lift2_vec ve (fun x y => x - y)%R ws).
-Definition sem_vmul (ve:velem) {ws:wsize} := (lift2_vec ve *%R ws).
+Definition sem_vadd (ve:velem) {ws:wsize} := (lift2_vec ve +%w ws).
+Definition sem_vsub (ve:velem) {ws:wsize} := (lift2_vec ve (fun x y => x - y)%w ws).
+Definition sem_vmul (ve:velem) {ws:wsize} := (lift2_vec ve *%w ws).
 
 Definition sem_vshr (ve:velem) {ws:wsize} (v : word ws) (i: u128) :=
   lift1_vec ve (fun x => wshr x (wunsigned i)) ws v.
@@ -75,7 +75,7 @@ Definition sem_vshl (ve:velem) {ws:wsize} (v : word ws) (i: u128) :=
   lift1_vec ve (fun x => wshl x (wunsigned i)) ws v.
 
 Definition mk_sem_divmod (si: signedness) sz o (w1 w2: word sz) : exec (word sz) :=
-  if ((w2 == 0) || [&& si == Signed, wsigned w1 == wmin_signed sz & w2 == -1])%R then Error ErrArith
+  if ((w2 == 0) || [&& si == Signed, wsigned w1 == wmin_signed sz & w2 == -1%w])%w then Error ErrArith
   else ok (o w1 w2).
 
 Definition mk_sem_sop2 (t1 t2 t3: Type) (o:t1 -> t2 -> t3) v1 v2 : exec t3 :=
@@ -125,11 +125,11 @@ Definition sem_sop2_typed (o: sop2) :
   | Oor  => mk_sem_sop2 orb
 
   | Oadd Op_int     => mk_sem_sop2 Z.add
-  | Oadd (Op_w s)   => mk_sem_sop2 +%R
+  | Oadd (Op_w s)   => mk_sem_sop2 +%w
   | Omul Op_int     => mk_sem_sop2 Z.mul
-  | Omul (Op_w s)   => mk_sem_sop2 *%R
+  | Omul (Op_w s)   => mk_sem_sop2 *%w
   | Osub Op_int     => mk_sem_sop2 Z.sub
-  | Osub (Op_w s)   => mk_sem_sop2 (fun x y =>  x - y)%R
+  | Osub (Op_w s)   => mk_sem_sop2 (fun x y =>  x - y)%w
   | Odiv u Op_int   => mk_sem_sop2 (signed Z.div Z.quot u)
   | Odiv u (Op_w s) => @mk_sem_divmod u s (signed wdiv wdivi u)
   | Omod u Op_int   => mk_sem_sop2 (signed Z.modulo Z.rem u)
