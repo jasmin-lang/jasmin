@@ -644,12 +644,12 @@ Fixpoint nat_kt_switch {E} {T} (f: nat -> T)
   | (_, nil) => Ret (f n)                
   | (n0 :: ns0, k0 :: ks0) =>
     if n < n0 then k0 n0 else nat_kt_switch f ns0 ks0 n end.            
+(* should be an equality? *)
 
 (* applies nat_kt_switch to produce an iterative body out of a list of
    alternatives; the exit point is determined by the interval (nS, nE)
    in the linear code of fn *)
 Definition ktree_switch E {XE: ErrEvent -< E}  
-  (R: instr -> lcpoint -> itree E lcpoint)
   (fn: funname) (nS nE: nat)
   (ls: list nat) (ks: list (nat -> itree E lcpoint))
   (l0: lcpoint) : itree E (lcpoint + lcpoint) :=
@@ -695,8 +695,8 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E}
       let n4 := S n3 in
       let n5 := k1_n n4 in
       let n6 := S n5 in
-      ITree.iter (@ktree_switch (callE (lcpoint * funname) lcpoint +' E) _
-        (lsem_instr LS loc_instr) fn n0 nE
+      ITree.iter (@ktree_switch (callE (lcpoint * funname) lcpoint +' E) 
+        _ fn n0 nE
         [n1; n2; n3; n4; n5; n6] [K1; Kc2; K1; K1; Kc1; K1]) (fn, n0) 
       
   | Cwhile a c1 e ii0 c2 =>
@@ -711,8 +711,8 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E}
       let n5 := S n4 in
       let n6 := k1_n n5 in
       let n7 := S n6 in
-      ITree.iter (@ktree_switch (callE (lcpoint * funname) lcpoint +' E) _
-        (lsem_instr LS loc_instr) fn n0 nE
+      ITree.iter (@ktree_switch (callE (lcpoint * funname) lcpoint +' E) 
+        _ fn n0 nE
         [n1; n2; n3; n4; n5; n6; n7] [K1; K1; Kc2; K1; K1; Kc1; K1]) (fn, n0) 
 
   | Cfor i (d, lo, hi) c => throw err 

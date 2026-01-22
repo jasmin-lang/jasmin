@@ -27,6 +27,9 @@ Definition isem_foldr {E} {A B} (sem_i: A -> B -> itree E B) (c: list A) :
     B -> itree E B :=
     foldr (fun i k s => s' <- sem_i i s ;; k s') (fun s: B => Ret s) c.
 
+Definition err_def_option {E: Type -> Type} `{ErrEvent -< E} {V}
+  (o: option V) : itree E V := err_option (ErrType, tt) o.
+
 
 Section Asm1.  
 Context
@@ -177,7 +180,7 @@ Context {XF: ErrEvent -< E} (p: Prog).
 (* semantics of function calls *)
 Definition isem_fcall (fn : funname) (fs : FState) :
   itree (recCall +' E) FState :=
-  fd <- err_option (ErrType, tt) (GetFunDef p fn) ;;  
+  fd <- err_def_option (GetFunDef p fn) ;;  
   let c := GetFunCode fd in  
   s1 <- HS1 (InitFunCall S fd fs) ;;  
   s2 <- isem_cmd c s1 ;;
@@ -217,7 +220,7 @@ Definition denote_fun' (fn : funname) (fs : FState) : itree E FState :=
 (* corresponds to: isem_fun_body with the sem_fun_full instance *) 
 Definition denote_fcall (fn : funname) (fs : FState) :
   itree E FState :=
-  fd <- err_option (ErrType, tt) (GetFunDef p fn) ;;  
+  fd <- err_def_option (GetFunDef p fn) ;;  
   let c := GetFunCode fd in 
   s1 <- HS (InitFunCall S fd fs) ;;  
   s2 <- denote_cmd c s1 ;;
@@ -384,7 +387,7 @@ Proof.
   unfold isem_fcall.
   rewrite interp_bind.
   eapply eqit_bind.
-  - unfold err_option; simpl.
+  - unfold err_def_option, err_option; simpl.
     destruct (GetFunDef p fn); simpl; try reflexivity.
     + setoid_rewrite interp_ret; reflexivity.
     + setoid_rewrite interp_vis; simpl.
