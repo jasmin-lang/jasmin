@@ -1,7 +1,6 @@
 %{
 
   open Syntax
-  open Annotations
 
 %}
 

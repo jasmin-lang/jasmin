@@ -1,5 +1,3 @@
-open Pretyping
-
 let show_intrinsics asmOp fmt =
   let index =
     let open Sopn in
