@@ -1,7 +1,5 @@
 open Arch_decl
-open Prog
 open Riscv_decl
-open Riscv_extra
 
 module type Riscv_input = sig
   val call_conv : (register, Arch_utils.empty, Arch_utils.empty, Arch_utils.empty, condt) calling_convention

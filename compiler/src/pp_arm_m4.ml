@@ -6,9 +6,7 @@ Immediate values (denoted <imm>) are always nonnegative integers.
 
 open Arch_decl
 open Utils
-open PrintCommon
 open PrintASM
-open Prog
 open Asm_utils
 
 (* Architecture imports*)

@@ -1,7 +1,5 @@
 open Utils
-open PrintCommon
 open PrintASM
-open Prog
 open Arch_decl
 open X86_decl
 open Wsize

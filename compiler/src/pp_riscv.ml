@@ -1,8 +1,6 @@
 open Arch_decl
 open AsmTargetBuilder
 open Utils
-open PrintCommon
-open Prog
 open PrintASM
 open Asm_utils
 

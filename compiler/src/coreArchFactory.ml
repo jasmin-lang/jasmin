@@ -1,6 +1,5 @@
 open Glob_options
 open Utils
-open Prog
 open X86_decl
 
 module Core_arch_ARM = Arm_arch_full.Arm (struct
