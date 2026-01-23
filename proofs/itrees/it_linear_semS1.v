@@ -438,7 +438,7 @@ Fixpoint nat_kt_switch {E} {T} (t: T)
 
 Section LSemCore.
 
-Context {XS: @StE S S funname S -< E}.
+(* Context {XS: @StE S S funname S -< E}. *)
 
 (* sequentialize the application of lsem_instr within a function. used
    to map lsem_instr to commands *)
@@ -811,6 +811,19 @@ Lemma LinearSem_fun_correct (pd : PointerData) (sp: sprog)
     @rutt E1 E2 _ _ (fun _ _ _ _ => True) (fun _ _ _ _ _ _ => True) 
         (fun _ s => halt_pred (PC s)) source_sem lsem. 
 Proof.
+  intros.
+  eapply interp_mrec_rutt with (RPreInv := RecPreC) (RPostInv := RecPostC);
+    simpl; intros;
+    set RPreX := (HeterogeneousRelations.sum_prerel _ _);
+    set RPpstX := (HeterogeneousRelations.sum_postrel _ _).
+  { destruct d1 as [[fn1 fs]].
+    destruct d2 as [[fn2 st]]; simpl.
+    unfold isem_fcall, lsem_fun; simpl.
+    admit.
+  }
+  { unfold isem_fcall, linsem_fun, lsem_fun; simpl.
+    admit.
+  }  
 Admitted.
 
 End Transl.
