@@ -1264,7 +1264,7 @@ let init_constraint fenv f =
     error ~loc
       "%s annotation not allowed here" smsf in
 
-  (** The [is_local] argument is true when variable [x] is a local variable as
+  (* The [is_local] argument is true when variable [x] is a local variable as
   opposed to an argument or a returned value which inherits constraints from the call-sites. *)
   let mk_vty loc ~is_local ~(msf:bool) x ls an =
     let msf, ovty =
