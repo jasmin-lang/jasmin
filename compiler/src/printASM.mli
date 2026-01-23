@@ -8,5 +8,7 @@ type asm_element =
   | Comment of string
   | Bytes of string list
 
-val pp_asm : Format.formatter -> asm_element list -> unit
+type asm = asm_element list
+
+val pp_asm : Format.formatter -> asm -> unit
 (** Pretty print assembly code *)
