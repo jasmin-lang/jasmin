@@ -436,8 +436,7 @@ Fixpoint nat_kt_switch {E} {T} (t: T)
     if (snd (PC s)) < n0 then k0 s else nat_kt_switch t ns0 ks0 s end.
 
 
-Section LSemCore.
-
+(* Section LSemCore. *)
 (* Context {XS: @StE S S funname S -< E}. *)
 
 (* sequentialize the application of lsem_instr within a function. used
@@ -569,8 +568,7 @@ Definition lsem_cmd E {XE: ErrEvent -< E}
   @lsem_c_seq (LCall +' E) _
               loc_instr (lsem_instr LS loc_instr) cc l0 s0.
 
-End LSemCore.
-
+(* End LSemCore. *)
 End LSemDefs.
 
 
