@@ -679,15 +679,65 @@ Context {HI : @InstrE asm_op syscall_state sip State FState FunDef State ~>
         {HS : @StE State FState FunDef State ~> itree E1}.
 Context {HA: StackAllocE ~> itree E2}.
 
+(* source semantics defs *)
 Definition source_isem_instr (i: instr) (s: State) :
   itree (SCall +' E1) State :=
   @isem_instr_State asm_op syscall_state sip
     State FState FunDef E1 HI HS i s.                                        
 
+Definition source_isem_cmd (c: cmd) (s: State) :
+  itree (SCall +' E1) State :=
+  @isem_cmd_State asm_op syscall_state sip
+    State FState FunDef E1 HI HS c s.                                        
+
+Definition source_isem_fun (p: Prog) (fn: funname) (fs: FState) :
+  itree (SCall +' E1) FState :=
+  @isem_fun_State asm_op syscall_state sip
+    Prog State FState FunDef GetFunDef GetFunCode E1 HI HS XE1 p fn fs.
+
 Definition source_denote_instr (p: Prog) (i: instr) (s: State) :
   itree E1 State :=
   @denote_instr_State asm_op syscall_state sip
     Prog State FState FunDef GetFunDef GetFunCode E1 HI HS XE1 p i s.
+
+Definition source_denote_cmd (p: Prog) (c: cmd) (s: State) :
+  itree E1 State :=
+  @denote_cmd_State asm_op syscall_state sip
+    Prog State FState FunDef GetFunDef GetFunCode E1 HI HS XE1 p c s.
+
+Definition source_denote_fun (p: Prog) (fn: funname) (fs: FState) :
+  itree E1 FState :=
+  @denote_fun_State asm_op syscall_state sip
+    Prog State FState FunDef GetFunDef GetFunCode E1 HI HS XE1 p fn fs.
+
+(* linear semantics defs *)
+Definition linsem_instr (loc_instr : instr -> lcpoint -> nat)
+  (i : instr) (s0: S) : itree (LCall +' E2) S :=
+  lsem_instr (@lsem_LCntrI RecE2 _) loc_instr i s0.
+
+Definition linsem_cmd (loc_instr : instr -> lcpoint -> nat)
+  (c : cmd) (s0: S) : itree (LCall +' E2) S :=
+  lsem_cmd (@lsem_LCntrI RecE2 _) loc_instr c (PC s0) s0.
+
+Definition linsem_fun (loc_instr : instr -> lcpoint -> nat)
+  (fn : funname) (s0: S) : itree (LCall +' E2) S :=
+  lsem_fun (@lsem_LCntrI RecE2 _) HA loc_instr fn s0.
+
+Definition linsem_rec_instr (loc_instr : instr -> lcpoint -> nat)
+  (i : instr) (s0: S) : itree E2 S :=
+  interp_LRec (@lsem_LCntrI RecE2 _) HA loc_instr
+    (linsem_instr loc_instr i s0).
+
+Definition linsem_rec_cmd (loc_instr : instr -> lcpoint -> nat)
+  (c : cmd) (s0: S) : itree E2 S :=
+  interp_LRec (@lsem_LCntrI RecE2 _) HA loc_instr
+    (linsem_cmd loc_instr c s0).
+
+Definition linsem_rec_fun (loc_instr : instr -> lcpoint -> nat)
+  (fn : funname) (s0: S) : itree E2 S :=
+  interp_LRec (@lsem_LCntrI RecE2 _) HA loc_instr
+    (linsem_fun loc_instr fn s0).
+
 
 Definition lc_end {pd : PointerData} (sp: sprog) :=
   fun i '(fn, n) => linear_end_i sp fn i n. 
@@ -705,12 +755,12 @@ Definition sp_is_ok (pd : PointerData) (sp: sprog)
    representation) with its source semantics (tentative). as it is, we
    probably need to interpret state events. a better way could be to
    combine higher-level events together. WIP *)
-Lemma LinearSem_fun_correct (pd : PointerData) (sp: sprog)
+Lemma LinearSem_fun_body_correct (pd : PointerData) (sp: sprog)
   (lin_params: linearization_params)  :
   check_prog lin_params sp = ok tt ->
   sp_is_ok sp lin_params ->
   let LS := @lsem_LCntrI RecE2 _ in 
-  forall fn  xs es ii sst lst,
+  forall fn xs es ii sst lst,
     RR sst lst ->
     let lin_sem := lsem_fun LS HA (lc_end sp) fn lst in
     let source_sem := source_isem_instr (MkI ii (Ccall xs fn es)) sst in
@@ -724,6 +774,44 @@ Proof.
   unfold lsem_instr. simpl.
 Admitted.   
 
+Lemma LinearSem_instr_correct (pd : PointerData) (sp: sprog) 
+  (lin_params: linearization_params)  :
+  check_prog lin_params sp = ok tt ->
+  sp_is_ok sp lin_params ->
+  forall i sst lst,
+    RR sst lst ->
+    let source_sem := source_denote_instr pp i sst in
+    let lsem := linsem_rec_instr (lc_end sp) i lst in
+    @rutt E1 E2 _ _ (fun _ _ _ _ => True) (fun _ _ _ _ _ _ => True) 
+        (fun _ s => halt_pred (PC s)) source_sem lsem. 
+Proof.
+Admitted.
+
+Lemma LinearSem_cmd_correct (pd : PointerData) (sp: sprog) 
+  (lin_params: linearization_params)  :
+  check_prog lin_params sp = ok tt ->
+  sp_is_ok sp lin_params ->
+  forall c sst lst,
+    RR sst lst ->
+    let source_sem := source_denote_cmd pp c sst in
+    let lsem := linsem_rec_cmd (lc_end sp) c lst in
+    @rutt E1 E2 _ _ (fun _ _ _ _ => True) (fun _ _ _ _ _ _ => True) 
+        (fun _ s => halt_pred (PC s)) source_sem lsem. 
+Proof.
+Admitted.
+
+Lemma LinearSem_fun_correct (pd : PointerData) (sp: sprog) 
+  (lin_params: linearization_params)  :
+  check_prog lin_params sp = ok tt ->
+  sp_is_ok sp lin_params ->
+  forall fn sst lst,
+    FRR sst lst ->
+    let source_sem := source_denote_fun pp fn sst in
+    let lsem := linsem_rec_fun (lc_end sp) fn lst in
+    @rutt E1 E2 _ _ (fun _ _ _ _ => True) (fun _ _ _ _ _ _ => True) 
+        (fun _ s => halt_pred (PC s)) source_sem lsem. 
+Proof.
+Admitted.
 
 End Transl.
 
