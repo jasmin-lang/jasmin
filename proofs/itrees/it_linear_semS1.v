@@ -196,15 +196,14 @@ Definition LCntrI {E} {XE: ErrEvent -< E}
   ITree.iter (@LCntr E XE F fn nS nE) l0.
 
 
-
 (**************************************************************)
 
-Section WithErrSem.
+Section LinstrSem.
 
 Context {E} {XE: ErrEvent -< E}. 
 
 
-Section LinstrSem.
+Section LinstrSemCore.
   
 Context {XI : LinstrE S -< E}. 
 
@@ -241,7 +240,7 @@ Definition isem_lcmd_body (lbl: S) : itree E (S + S) :=
 Definition isem_lcmd (lbl: S) : itree E S :=
   ITree.iter isem_lcmd_body lbl.
 
-End LinstrSem.
+End LinstrSemCore.
 
 
 Section LinSemClass.
@@ -297,10 +296,10 @@ Definition handle_StE_L {InitFun: lcpoint -> S -> option S} :
 
 End LinSemClass.
 
-End WithErrSem.
+End LinstrSem.
 
 
-Section RecSem.
+Section StateRecSem.
 
 Context {LS_I : LinSem} {InitFun: lcpoint -> S -> option S}.
 
@@ -532,6 +531,7 @@ Fixpoint lsem_instr E {XE: ErrEvent -< E}
 
   | Cfor i (d, lo, hi) c => throw err 
 
+  (* TODO: double-check how to take ReturnTarget into account *) 
   | Ccall xs fn1 args => trigger_inl1 (Call (fn1, s0))
                                   
  end.
@@ -584,8 +584,8 @@ Definition lsem_fun0 E {XE: ErrEvent -< E} {XTSA: StackAllocE -< E}
   (LS: funname -> nat -> nat -> S -> itree (LCall +' E) S)
   (loc_instr : instr -> lcpoint -> nat)
   (fn: funname) (s0: S) : itree (LCall +' E) S :=
-  s1 <- trigger (Before s0) ;;
   fd <- err_def_option (GetFunDef pp fn) ;;  
+  s1 <- trigger (Before s0) ;;
   let cc := GetFunCode fd in  
   s2 <- @lsem_cmd E XE LS loc_instr cc (fn, 0) s1 ;;
   trigger (After s2).
@@ -597,8 +597,8 @@ Definition lsem_fun E {XE: ErrEvent -< E}
   (loc_instr : instr -> lcpoint -> nat)
   (fn: funname) (s0: S) : itree (LCall +' E) S :=
   let HA1 := fun _ e => translate inr1 (HA _ e) in 
-  s1 <- HA1 S (Before s0) ;;
   fd <- err_def_option (GetFunDef pp fn) ;;  
+  s1 <- HA1 S (Before s0) ;;
   let cc := GetFunCode fd in  
   s2 <- @lsem_cmd E XE LS loc_instr cc (fn, 0) s1 ;;
   HA1 S (After s2).
@@ -830,7 +830,7 @@ End LinearWithRec.
   
 End LSemSpec.
 
-End RecSem.
+End StateRecSem.
 
 End IterativeSem.
 
