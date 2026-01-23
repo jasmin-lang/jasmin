@@ -352,7 +352,6 @@ type ec_module = {
 type ec_item =
     | IrequireImport of string list
     | Iimport of string list
-    | IfromImport of string * (string list)
     | IfromRequireImport of string * (string list)
     | Iabbrev of string * ec_expr
     | ImoduleType of ec_module_type
@@ -759,8 +758,6 @@ let pp_ec_item fmt it =
     Format.fprintf fmt "@[require import@ @[%a@].@]" (pp_list "@ " pp_string) is
   | Iimport is ->
     Format.fprintf fmt "@[import@ @[%a@].@]" (pp_list "@ " pp_string) is
-  | IfromImport (m, is) ->
-    Format.fprintf fmt "@[from %s import@ @[%a@].@]" m (pp_list "@ " pp_string) is
   | IfromRequireImport (m, is) ->
     Format.fprintf fmt "@[from %s require import@ @[%a@].@]" m (pp_list "@ " pp_string) is
   | Iabbrev (a, e) ->
