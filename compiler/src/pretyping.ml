@@ -635,12 +635,6 @@ let check_ty_eq ~loc ~(from : P.epty) ~(to_ : P.epty) =
     | ETarr _, ETarr _ -> () (* we delay typechecking until we know the lengths *)
     | _, _ -> rs_tyerror ~loc (TypeMismatch (from, to_))
 
-let check_ty_ptr pd ~loc ty =
-  check_ty_eq ~loc ~from:ty ~to_:(P.etw pd)
-
-let check_ty_bool ~loc ty =
-  check_ty_eq ~loc ~from:ty ~to_:P.etbool
-
 (* -------------------------------------------------------------------- *)
 let check_return_statement ~loc name (declared : P.epty list) (given : (L.t * P.epty) list) : unit =
   let given_size = List.length given in
@@ -1368,7 +1362,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     let e2, ty2 = tt_expr ~mode pd env pe2 in
     let e3, ty3 = tt_expr ~mode pd env pe3 in
 
-    check_ty_bool ~loc:(L.loc pe1) ty1;
+    check_ty_eq ~loc:(L.loc pe1) ~from:ty1 ~to_:P.etbool;
     let ty = max_ty ty2 ty3 |> oget ~exn:(tyerror ~loc:(L.loc pe) (TypeMismatch (ty2, ty3))) in
     P.Pif(P.gty_of_gety ty, e1, e2, e3), ty
 

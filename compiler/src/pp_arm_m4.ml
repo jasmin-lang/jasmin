@@ -193,8 +193,6 @@ let pp_ADR pp opts args =
   in
   [ Instr(name_lo, args_lo); Instr(name_hi, args_hi) ]
 
-let arch = arm_decl
-
 module ArmTarget : AsmTargetBuilder.AsmTarget with
 type reg = Arm_decl.register
 and type regx = Arch_utils.empty

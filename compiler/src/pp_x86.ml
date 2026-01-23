@@ -11,9 +11,6 @@ type rsize = [ `U8 | `U16 | `U32 | `U64 ]
 exception InvalidRegSize of wsize
 
 (* -------------------------------------------------------------------- *)
-let iwidth = 4
-
-(* -------------------------------------------------------------------- *)
 type lreg =
   | RNumeric of int
   | RAlpha   of char

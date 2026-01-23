@@ -931,8 +931,6 @@ let ec_vari env (x:var) = Eident [ec_vars env x]
 let glob_mem = ["Glob"; "mem"]
 let glob_memi = Eident glob_mem
 
-let ec_pd env = Eident [Format.sprintf "W%d" (int_of_ws (Env.pd env)); "to_uint"]
-
 let ec_apps1 s e = Eapp (ec_ident s, [e])
 
 let ec_zeroext_sz (szo, szi) e =
@@ -1582,8 +1580,6 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
 
   let asgn s e = ESasgn ([LvIdent [s]], e)
 
-  let int_of_word ws e = Papp1 (E.Oint_of_word(Unsigned, ws), e)
-
   let leak_addr e = Eapp (ec_ident "Leak_int", [e])
 
   let leak_val env e =
@@ -1764,11 +1760,6 @@ struct
   (* Instruction extraction *)
 
   let toec_ty = toec_ty EA.onarray_ty
-
-  let add_ty env = function
-    | Bty _ -> ()
-    | Arr (ws, n) -> EA.add_arr env ws n
-
 
   let ec_assgn env lv (etyo, etyi) e =
       let e = e |> ec_zeroext (etyo, etyi) |> ec_cast env (ty_lval lv, etyo) in
