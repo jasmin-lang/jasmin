@@ -70,9 +70,9 @@ let pp_ext = function
  | PP_name              -> ""
  | PP_iname ws          -> pp_iname_ext ws
  | PP_iname2(s,ws1,ws2) -> pp_iname2_ext s ws1 ws2
- | PP_viname(ve,long)   -> assert false
- | PP_viname2(ve1, ve2) -> assert false
- | PP_ct ct            -> assert false
+ | PP_viname(_ve,_long)   -> assert false
+ | PP_viname2(_ve1, _ve2) -> assert false
+ | PP_ct _ct              -> assert false
 
 let pp_name_ext pp_op =
   Format.asprintf "%s%s" pp_op.pp_aop_name (pp_ext pp_op.pp_aop_ext)

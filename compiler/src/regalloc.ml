@@ -650,7 +650,7 @@ module Regalloc (Arch : Arch_full.Arch)
 
   let create_return_addresses get_internal_size (funcs: ('info, 'asm) sfundef list) : retaddr Hf.t =
       let return_addresses = Hf.create 17 in
-      List.iter (fun ((e, f) as fd) ->
+      List.iter (fun ((_e, f) as fd) ->
       let ra =
          match f.f_cc with
          | Export -> StackDirect
@@ -1402,7 +1402,7 @@ let alloc_prog return_addresses (dfuncs: ('a * ('info, 'asm) func) list)
 
   let extra : 'a Hf.t = Hf.create 17 in
 
-  let funcs, get_liveness, subst, killed =
+  let funcs, _get_liveness, subst, killed =
     dfuncs
     |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
     |> global_allocation return_addresses

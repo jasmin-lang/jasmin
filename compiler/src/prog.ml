@@ -208,7 +208,7 @@ let epty_equal t1 t2 =
   match t1, t2 with
   | ETbool, ETbool | ETint, ETint -> true
   | ETword(s1,sz1), ETword(s2, sz2) -> s1 = s2 && sz1 = sz2
-  | ETarr(b1, e1) , ETarr(b2,e2)    -> b1 = b1 && pexpr__equal e1 e2
+  | ETarr(b1, e1) , ETarr(b2,e2)    -> b1 = b2 && pexpr__equal e1 e2
   | _, _ -> false
 
 let ws_of_ety = function

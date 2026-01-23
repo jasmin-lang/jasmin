@@ -30,12 +30,12 @@ module Riscv_core = struct
     match o with
     | _ -> true
 
-  let is_ct_asm_extra (o : extra_op) = true
+  let is_ct_asm_extra (_o : extra_op) = true
 
-  let is_doit_asm_op (o : asm_op) = true
+  let is_doit_asm_op (_o : asm_op) = true
 
   (* All of the extra ops compile into DIT instructions only, but this needs to be checked manually. *)
-  let is_doit_asm_extra (o : extra_op) = true
+  let is_doit_asm_extra (_o : extra_op) = true
 
 end
 
