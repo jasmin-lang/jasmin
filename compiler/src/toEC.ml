@@ -889,16 +889,16 @@ let fmt_bytearray_decl fmt n =
 let fmt_subbytearray_decl fmt (s:subarray) =
   let arrays = fmt_array_theory (ByteArray s.sizes) in
   let arrayb = fmt_array_theory (ByteArray s.sizeb) in
-  let fmt_insts fmt (s: subarray) =
+  let fmt_insts fmt =
     Format.fprintf fmt "%a,@ %a"
     fmt_th ("Asmall", arrays)
     fmt_th ("Abig", arrayb)
   in
   Format.fprintf fmt "@[<v>from Jasmin require import JByte_array.@ @ ";
   Format.fprintf fmt "@[<v>require import %s %s.@ @ " arrays arrayb;
-  Format.fprintf fmt "clone SubByteArray as %s  with @[%a@].@]@."
+  Format.fprintf fmt "clone SubByteArray as %s  with @[%t@].@]@."
     (fmt_array_theory (SubByteArray s))
-    fmt_insts s
+    fmt_insts
 
 let save_array_theory ~prefix at =
   let fname = Format.sprintf "%s.ec" (fmt_array_theory at) in
@@ -1015,7 +1015,7 @@ module EcArrayOld : EcArray = struct
     let init_fun = Efun1 (i, Eapp (geti, [ec_initi env (e, ne, wse); ec_ident i])) in
     Eapp (ec_Array_init env n, [init_fun])
 
-  let toec_pget env (a, aa, ws, x, e) =
+  let toec_pget env (_a, aa, ws, x, e) =
     let (xws, n) = array_kind x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
        ec_aget (ec_vari env x) e
@@ -1122,7 +1122,7 @@ module EcWArray: EcArray = struct
     let sa = fmt_array_theory (SubArrayCast { sizews; sizewb; sizes = n; sizeb = ne }) in
     Eapp (Eident [sa; "get_sub"], [e; ec_int 0])
 
-  let toec_pget env (a, aa, ws, x, e) =
+  let toec_pget env (_a, aa, ws, x, e) =
     let (xws,n) = array_kind x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
        ec_aget (ec_vari env x) e
@@ -1222,7 +1222,7 @@ module EcBArray : EcArray = struct
   let ec_darray8 (env: Env.t) (sz:int) =
     Eident [ec_BArray env sz; "darray"]
 
-  let ec_cast_array (env:Env.t) (ws1, sz1) (ws2, sz2) e =
+  let ec_cast_array (_env:Env.t) (ws1, sz1) (ws2, sz2) e =
     assert (Prog.arr_size ws1 sz1 = Prog.arr_size ws2 sz2);
     e
 
@@ -1236,7 +1236,7 @@ module EcBArray : EcArray = struct
     | Warray_.AAdirect -> ""
     | Warray_.AAscale -> Format.sprintf "%i" (int_of_ws ws)
 
-  let toec_pget (env:Env.t) (a, aa, ws, x, ei) =
+  let toec_pget (env:Env.t) (_a, aa, ws, x, ei) =
     let (xws, n) = array_kind x.v_ty in
     let sz = arr_size xws n in
     Eapp (Eident [ec_BArray env sz; Format.sprintf "get%i%s" (int_of_ws ws) (direct aa)],
@@ -1481,20 +1481,20 @@ module type EcLeakage = sig
 end
 
 module EcLeakNormal(EE: EcExpression): EcLeakage = struct
-  let ec_leaks_es env es = []
-  let ec_leaks_opn env es = []
+  let ec_leaks_es _env _es = []
+  let ec_leaks_opn _env _es = []
   let ec_leaking_if env e c1 c2 = [ESif (EE.toec_expr env e, c1 env, c2 env)]
   let ec_leaking_while env c1 e c2 =
     c1 env @ [ESwhile (EE.toec_expr env e, (c2 env @ c1 env))]
-  let ec_leaking_for env c e1 e2 init cond i_upd = init @ [ESwhile (cond, c env @ i_upd)]
-  let ec_leaks_lvs env lvs = []
-  let global_leakage_vars env = []
-  let leakage_imports env = []
-  let ec_fun_leak_init env = []
-  let ec_leak_ret env ret = ret
-  let ec_leak_rty env rtys = rtys
-  let ec_leak_call_lvs env = []
-  let ec_leak_call_acc env = []
+  let ec_leaking_for env c _e1 _e2 init cond i_upd = init @ [ESwhile (cond, c env @ i_upd)]
+  let ec_leaks_lvs _env _lvs = []
+  let global_leakage_vars _env = []
+  let leakage_imports _env = []
+  let ec_fun_leak_init _env = []
+  let ec_leak_ret _env ret = ret
+  let ec_leak_rty _env rtys = rtys
+  let ec_leak_call_lvs _env = []
+  let ec_leak_call_acc _env = []
 end
 
 module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
@@ -1560,19 +1560,19 @@ module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
 
   let ec_leaks_lvs env lvs = List.concat_map (ec_leaks_lv env) lvs
 
-  let global_leakage_vars env = [("leakages", "leakages_glob_t")]
+  let global_leakage_vars _env = [("leakages", "leakages_glob_t")]
 
-  let leakage_imports env = [IfromRequireImport ("Jasmin", ["JLeakage"])]
+  let leakage_imports _env = [IfromRequireImport ("Jasmin", ["JLeakage"])]
 
-  let ec_fun_leak_init env = []
+  let ec_fun_leak_init _env = []
 
-  let ec_leak_ret env ret = ret
+  let ec_leak_ret _env ret = ret
 
-  let ec_leak_rty env rtys = rtys
+  let ec_leak_rty _env rtys = rtys
 
-  let ec_leak_call_lvs env = []
+  let ec_leak_call_lvs _env = []
 
-  let ec_leak_call_acc env = []
+  let ec_leak_call_acc _env = []
 end
 
 module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
@@ -1587,7 +1587,7 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
     | Bty Bool -> "bool"
     | Bty Int  -> "int"
     | Bty (U ws) -> fmt_Wsz ws
-    | Arr(ws, n) -> assert false
+    | Arr(_ws, _n) -> assert false
     in
     let leakf = ec_ident (Format.sprintf "Leak_%s" sty) in
     [Eapp (leakf, [toec_expr env e])]
@@ -1698,9 +1698,9 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
     [ESwhile (cond, leak_block env c leak_c @ i_upd)] @
     push_leak (leakacc env) (leaklistv leak_c)
 
-  let global_leakage_vars env = []
+  let global_leakage_vars _env = []
 
-  let leakage_imports env = [IfromRequireImport ("Jasmin", ["JLeakage"])]
+  let leakage_imports _env = [IfromRequireImport ("Jasmin", ["JLeakage"])]
 
   let ec_fun_leak_init env = start_leakacc env
 
@@ -1710,7 +1710,7 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
   let leak_ret_ty = "JLeakage.leakage"
   let leak_ret_prefix = "leak_c"
 
-  let ec_leak_rty env rtys = leak_ret_ty :: rtys
+  let ec_leak_rty _env rtys = leak_ret_ty :: rtys
 
   let ec_leak_call_lvs env = [LvIdent [Env.create_aux env leak_ret_prefix leak_ret_ty]]
 

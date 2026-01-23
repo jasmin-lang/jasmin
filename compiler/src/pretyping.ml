@@ -724,7 +724,7 @@ let max_ty ty1 ty2 =
   | ETword(None, w1), ETword(None, w2) ->
       Some(ETword(None, Utils0.cmp_min W.wsize_cmp w1 w2))
   (* Do not allow implicite cast on wint, this is important for the pass wint_int *)
-  | ETword(Some _b, w1), ETword(Some _b2, _w2) -> None
+  | ETword(Some _b, _w1), ETword(Some _b2, _w2) -> None
   | _, _ -> None
 
 let tt_vsize_op loc op (vs:S.vsize) (ve:S.vesize)  =
@@ -1285,12 +1285,12 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
               let op = if s = W.Unsigned then E.Ozeroext(sz, ws) else E.Osignext(sz, ws) in
               P.Papp1(op, e)
 
-         | `Word s, P.ETword(Some s', ws) ->
+         | `Word _s, P.ETword(Some s', ws) ->
             if W.wsize_cmp ws sz <> Datatypes.Eq then
               rs_tyerror ~loc:(L.loc pe) (InvalidCast(ety,rty));
             Papp1(E.Owi1(s', E.WIword_of_wint ws), e)
 
-         | `Word s, P.ETint ->
+         | `Word _s, P.ETint ->
             Papp1(E.Oword_of_int sz, e)
 
          | `WInt s, P.ETword(None, ws) ->
@@ -1410,7 +1410,7 @@ let tt_expr_int  pd env pe = tt_expr_cast pd env pe P.etint
 let mk_var x sto xety xlc annot =
   let annot =
     match xety with
-    | P.ETword(Some s, ws) ->
+    | P.ETword(Some s, _ws) ->
       let s = if s = W.Signed then Annotations.sint else Annotations.uint in
       Annotations.add_symbol ~loc:xlc s annot
     | _ -> annot
@@ -1644,7 +1644,7 @@ let prim_of_op exn loc o =
     function
     | None -> None
     | Some({L.pl_desc = S.CVS _} ) -> raise exn
-    | Some({L.pl_desc = S.CSS(sz, `WInt _)}) -> raise exn
+    | Some({L.pl_desc = S.CSS(_sz, `WInt _)}) -> raise exn
     | Some({L.pl_desc = S.CSS(sz, _)}) ->
       Some (Annotations.int_of_ws sz)
   in
@@ -2001,7 +2001,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
              | P.ETarr _ -> ()
              | P.ETword(_, ws) when ws <= U64 -> ()
              | _ ->
-                let w = match ty with P.ETword(w, ws) -> w | _ -> None in
+                let w = match ty with P.ETword(w, _ws) -> w | _ -> None in
                 let ty = match P.gty_of_gety ty with P.Bty ty -> ty | _ -> assert false in
                 rs_tyerror ~loc:(L.loc pi)
                   (string_error "the swap primitive is not available at type %a"
@@ -2041,7 +2041,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
       let ws =
         match ct with
         | (ws, `Word _) -> ws
-        | (ws, `WInt _) -> rs_tyerror ~loc (string_error "invalid cast for asm operator")
+        | (_ws, `WInt _) -> rs_tyerror ~loc (string_error "invalid cast for asm operator")
         in
       let p = tt_prim arch_info.asmOp f in
       let id = Sopn.asm_op_instr arch_info.asmOp p in
