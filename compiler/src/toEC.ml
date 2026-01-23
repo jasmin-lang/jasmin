@@ -325,12 +325,12 @@ type ec_var = string * ec_ty
 
 type ec_fun_decl = {
     fname: string;
-    args: (string * ec_ty) list;
+    args: ec_var list;
     rtys: ec_ty list;
 }
 type ec_fun = {
     decl: ec_fun_decl;
-    locals: (string * ec_ty) list;
+    locals: ec_var list;
     stmt: ec_stmt;
 }
 
@@ -399,7 +399,7 @@ end
 
 module Env: EnvT = struct
   module PTcmp = struct
-    type t = string * ec_ty
+    type t = ec_var
     let compare = compare
   end
 
@@ -775,7 +775,7 @@ let pp_ec_item fmt it =
       (fun fmt _ -> if m.vars = [] then (Format.fprintf fmt "") else (Format.fprintf fmt "@ ")) ()
       (pp_list "@ " pp_ec_fun) m.funs
 
-let pp_ec_prog fmt prog = Format.fprintf fmt "@[<v>%a@]" (pp_list "@ @ " pp_ec_item) prog
+let pp_ec_prog fmt (prog:ec_prog) = Format.fprintf fmt "@[<v>%a@]" (pp_list "@ @ " pp_ec_item) prog
 
 (* ------------------------------------------------------------------- *)
 (* Array theory cloning *)
