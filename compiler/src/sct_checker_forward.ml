@@ -382,14 +382,11 @@ module Env : sig
   val dpublic    : env -> vty
   val dsecret    : env -> vty
 
-  val get   : venv -> var -> vty
   val get_i : venv -> var_i -> vty
   val gget  : venv -> int ggvar -> vty
 
-  val fresh  : ?name:string -> env -> Lvl.t
   val fresh2 : ?name:string -> env -> VlPairs.t
 
-  val init_ty : env -> venv -> var -> vty -> venv
   val set_ty : env -> venv -> var_i -> vty -> venv
   val set_init_msf : env -> venv -> var_i option -> venv
 
@@ -742,15 +739,12 @@ module MSF : sig
   val loop : Env.env -> L.i_loc -> t -> t
   val end_loop : L.t -> t -> t -> t
 
-  val pp : Format.formatter -> t -> unit
-
   end = struct
 
   type t = Sv.t * expr option
 
   let toinit = (Sv.empty, None)
   let exact xs = (xs, None)
-  let trans xs e = (xs, Some e)
 
   let exact1 x =
     ensure_register ~direct:true x;
@@ -910,9 +904,6 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
 let ty_lvals1 env (msf_e : msf_e) xs ety : msf_e =
   List.fold_left (fun msf_e x -> ty_lval env msf_e x ety) msf_e xs
 
-let ty_lvals env (msf_e : msf_e) xs tys : msf_e =
-  List.fold_left2 (ty_lval env) msf_e xs tys
-
 
 (* -------------------------------------------------------------- *)
 (* declassify                                                     *)
@@ -928,10 +919,6 @@ let declassify env = function
 let declassify_ty ~loc env annot ty = if CT.is_declassify ~loc annot
   then declassify env ty
   else ty
-
-let declassify_tys ~loc env annot tys = if CT.is_declassify ~loc annot
-  then List.map (declassify env) tys
-  else tys
 
 let declassify_expr ~loc env ((msf, venv) as msf_e) =
   function

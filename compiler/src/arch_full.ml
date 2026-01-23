@@ -98,7 +98,6 @@ module Arch_from_Core_arch (A : Core_arch) :
 
   let arch_decl = A.asm_e._asm._arch_decl
   let reg_size = arch_decl.reg_size
-  let xreg_size = arch_decl.xreg_size
   let pointer_data = arch_pd A.asm_e._asm._arch_decl
   let msf_size = arch_msfsz A.asm_e._asm._arch_decl
 

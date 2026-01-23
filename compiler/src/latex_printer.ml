@@ -40,9 +40,6 @@ let pp_opt p fmt =
   | None -> ()
   | Some x -> p fmt x
 
-let pp_paren p fmt =
-  F.fprintf fmt "(%a)" p
-
 let pp_string fmt s =
   F.asprintf "%S" s |>
   String.iter @@ function
