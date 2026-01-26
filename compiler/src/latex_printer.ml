@@ -1,7 +1,6 @@
 (* * Pretty-print Jasmin program (concrete syntax) as LATEX fragments *)
 
 open Utils
-open Annotations
 open Syntax
 
 module F = Format
@@ -40,9 +39,6 @@ let pp_opt p fmt =
   function
   | None -> ()
   | Some x -> p fmt x
-
-let pp_paren p fmt =
-  F.fprintf fmt "(%a)" p
 
 let pp_string fmt s =
   F.asprintf "%S" s |>

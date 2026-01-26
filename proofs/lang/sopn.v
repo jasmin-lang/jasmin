@@ -389,10 +389,10 @@ Definition pseudo_op_get_instr_desc (o : pseudo_operator) : instruction_desc :=
    Since at source level we do not take into account speculative execution,
    the protect/protect_ptr are simply the identity *)
 
-Definition se_init_sem : wmsf := 0%R.
+Definition se_init_sem : wmsf := 0%w.
 
 Definition se_update_sem (b : bool) (msf : wmsf) : wmsf :=
-  (if b then msf else (-1)%R).
+  (if b then msf else (-1%w)%w).
 
 Definition se_move_sem (w : wmsf) : wmsf := w.
 
@@ -401,7 +401,7 @@ Definition se_protect_sem {ws : wsize} (w : word ws) (msf : wmsf) : word ws := w
 Definition se_protect_ptr_sem {p:positive} (t: WArray.array p) (msf : wmsf) : WArray.array p := t.
 
 Definition se_protect_ptr_fail_sem {p:positive} (t: WArray.array p) (msf : wmsf) : exec (WArray.array p) :=
-  Let _ := assert (msf == 0%R) ErrSemUndef in
+  Let _ := assert (msf == 0%w) ErrSemUndef in
   ok t.
 
 Definition SLHinit_str := "init_msf"%string.
@@ -489,7 +489,7 @@ Proof.
   move=> [ | v1' [ | ]]; [ by t_xrbindP | | by t_xrbindP].
   move=> _ /List_Forall2_inv_l -[v2' [_ [-> [/of_value_uincl_te -/(_ cty_msf) /= hu' /List_Forall2_inv_l ->]]]].
   rewrite /se_protect_ptr_fail_sem; t_xrbindP => /= t a /hu [t' -> ha] w' /hu' -> /eqP -> <- <- /=.
-  by rewrite eqxx /=; exists [::Varr t'] => //; constructor.
+  by exists [::Varr t'] => //; constructor.
 Qed.
 
 Lemma protect_ptr_fail_errty p:

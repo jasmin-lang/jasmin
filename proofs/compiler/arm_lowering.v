@@ -253,8 +253,8 @@ Definition lower_Papp2_op
       else Some (ROR, e0, [:: e1 ])
   | Orol U32 =>
       let%opt c := is_wconst U8 e1 in
-      if c == 0%R then Some (MOV, e0, [::])
-      else Some (ROR, e0, [:: wconst (32 - c) ])
+      if c == 0%w then Some (MOV, e0, [::])
+      else Some (ROR, e0, [:: wconst (wrepr _ 32 - c)%w ])
   | _ =>
       None
   end.

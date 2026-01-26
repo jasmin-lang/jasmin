@@ -52,8 +52,6 @@ module Lvl : sig
 
   val maxs : t list -> t
 
-  val equal : t -> t -> bool
-
   val le : t -> t -> bool
 
   val pp : Format.formatter -> t -> unit
@@ -73,13 +71,6 @@ end = struct
     | Poly l1, Poly l2 -> Poly (Svl.union l1 l2)
 
   let maxs ls = List.fold_left max Public ls
-
-  let equal l1 l2 =
-    match l1, l2 with
-    | Public, Public -> true
-    | Secret, Secret -> true
-    | Poly l1, Poly l2 -> Svl.equal l1 l2
-    | _, _ -> false
 
   let le l1 l2 =
     match l1, l2 with

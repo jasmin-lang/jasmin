@@ -262,7 +262,7 @@ let memory_analysis pp_sr pp_err ~debug up =
     let rastack = Regalloc.subroutine_ra_by_stack fd in
     let extra = [] in
 
-    let extra_size, align, extrapos = Varalloc.extend_sao sao extra in
+    let extra_size, align, _extrapos = Varalloc.extend_sao sao extra in
 
     let align =
       if rastack && wsize_lt align Arch.reg_size then Arch.reg_size

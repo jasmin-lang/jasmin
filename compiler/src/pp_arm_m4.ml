@@ -6,9 +6,7 @@ Immediate values (denoted <imm>) are always nonnegative integers.
 
 open Arch_decl
 open Utils
-open PrintCommon
 open PrintASM
-open Prog
 open Asm_utils
 
 (* Architecture imports*)
@@ -194,8 +192,6 @@ let pp_ADR pp opts args =
     | _ -> assert false
   in
   [ Instr(name_lo, args_lo); Instr(name_hi, args_hi) ]
-
-let arch = arm_decl
 
 module ArmTarget : AsmTargetBuilder.AsmTarget with
 type reg = Arm_decl.register

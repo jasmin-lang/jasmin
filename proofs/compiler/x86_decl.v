@@ -285,7 +285,7 @@ Instance x86_fcp : FlagCombinationParams :=
 
 
 (* -------------------------------------------------------------------- *)
-Definition x86_check_CAimm (checker : caimm_checker_s) ws (w : ssralg.GRing.ComRing.sort(word ws)) : bool :=
+Definition x86_check_CAimm (checker : caimm_checker_s) ws (w : word ws) : bool :=
   match checker with
   | CAimmC_none => true
   | CAimmC_arm_shift_amout _ | CAimmC_arm_wencoding _ | CAimmC_arm_0_8_16_24

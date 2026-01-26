@@ -960,7 +960,7 @@ Proof.
       case: lvs hwrite => //= x []; t_xrbindP => //= s1 hw [?]; subst s1.
       split; last by apply: wf_env_after_assign_vars1 hwf hw.
       do 2!constructor.
-      by rewrite /sem_sopn hsemes /exec_sopn /sopn_sem /sopn_sem_ /= hv1 truncate_word_u /se_protect_ptr_fail_sem /= eqxx /= hw.
+      by rewrite /sem_sopn hsemes /exec_sopn /sopn_sem /sopn_sem_ /= hv1 truncate_word_u /se_protect_ptr_fail_sem /= hw.
     case hlower: shp_lower => [[[lvs' op'] es']|] //= hcheck [<-] hexec.
     have [hs hw]:= lower_slhoP hshparams hwf hcheck hlower hsemes hexec hwrite.
     by split => //; do 2!constructor.
@@ -1353,7 +1353,7 @@ case: is_protect_ptrP hargs hchk hexec => {slho} [[ws sz]|slho] /=; t_xrbindP.
     hsemes (mapM_nth (Pconst 0%Z) (Vint 0) (n := 1) hsemes);
     last by rewrite (size_mapM hsemes).
   move=> [->] ?? /= -> /= ?.
-  rewrite truncate_word_u /= eqxx /= => - _ [->] ?; subst res.
+  rewrite truncate_word_u /= => - _ [->] ?; subst res.
   move: xs hwrite; rewrite /write_lvals; destruct_opn_args=> {}s' hwrite [<-].
   rewrite hwrite; exists s' => //; split=> //.
   exact: wf_env_after_assign_vars1 hwf hwrite.

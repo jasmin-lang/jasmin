@@ -1,7 +1,5 @@
 open Utils
-open PrintCommon
 open PrintASM
-open Prog
 open Arch_decl
 open X86_decl
 open Wsize
@@ -11,9 +9,6 @@ type rsize = [ `U8 | `U16 | `U32 | `U64 ]
 
 (* -------------------------------------------------------------------- *)
 exception InvalidRegSize of wsize
-
-(* -------------------------------------------------------------------- *)
-let iwidth = 4
 
 (* -------------------------------------------------------------------- *)
 type lreg =

@@ -42,10 +42,6 @@ let string_of_cmp_ty = function
   | E.Cmp_w (Unsigned, _) -> "u"
   | E.Cmp_int -> ""
 
-let string_of_cmp_kind = function
-  | E.Cmp_w (sg, sz) -> asprintf " %d%s" (int_of_ws sz) (string_of_signess sg)
-  | E.Cmp_int -> ""
-
 let string_of_w_cast sz =
   asprintf "%du" (int_of_ws sz)
 
@@ -172,7 +168,7 @@ let pp_pointer fmt = function
 let pp_kind fmt = function
   | Const -> fprintf fmt "param"
   | Stack ptr -> fprintf fmt "stack%a" pp_pointer ptr
-  | Reg (k, ptr) -> fprintf fmt "reg%a" pp_pointer ptr
+  | Reg (_k, ptr) -> fprintf fmt "reg%a" pp_pointer ptr
   | Inline -> fprintf fmt "inline"
   | Global -> fprintf fmt "global"
 

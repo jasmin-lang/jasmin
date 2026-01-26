@@ -32,7 +32,7 @@ let make ii = function None -> Tree.root ii | Some t -> Tree.make ii t
 
 type tree = Tree.t Miloc.t
 
-let rec parent_at_depth (d : int) (t : tree) (n : node) : node =
+let parent_at_depth (d : int) (t : tree) (n : node) : node =
   assert (0 <= d);
   let open Tree in
   let rec loop n =

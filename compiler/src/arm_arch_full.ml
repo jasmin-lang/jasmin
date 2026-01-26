@@ -1,5 +1,4 @@
 open Arch_decl
-open Prog
 open Arm_decl
 
 

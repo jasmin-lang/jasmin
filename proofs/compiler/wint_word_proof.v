@@ -100,6 +100,7 @@ Section E.
       1-8: by case: k => /= > -> /= > -> /= > [->] <-; (eexists; first reflexivity).
       case: o; rewrite /= /mk_sem_wiop2 /=.
       1-3: by move=> > -> > -> /= > /wint_of_intP [-> _] <-; (eexists; first reflexivity);
+           rewrite (add_wordE, mul_wordE, sub_wordE);
            rewrite (wrepr_add, wrepr_mul, wrepr_sub) !wrepr_int_of_word.
       1-2: by move=> > -> > -> /= > -> <- /=; (eexists; first reflexivity) => /=.
       + move=> > -> w2 -> /= > /wint_of_intP /= [-> _] <-; (eexists; first reflexivity).

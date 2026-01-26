@@ -128,7 +128,7 @@ Module MemoryI : MemoryT.
 
   Definition get (m:mem) (p:pointer) := 
     Let _ := assert (is_alloc m p && is_init m p) ErrAddrInvalid in
-    ok (odflt 0%R (Mz.get m.(data) (wunsigned p))).
+    ok (odflt 0%w (Mz.get m.(data) (wunsigned p))).
 
   Definition set (m:mem) (p:pointer) (w:u8) :=
     Let _ := assert (is_alloc m p) ErrAddrInvalid in
@@ -455,7 +455,7 @@ Module MemoryI : MemoryT.
       ok
         {| data := Mz.empty _;
            alloc := init_mem_alloc s;
-           stk_limit := 0%R;
+           stk_limit := 0%w;
            stk_root := stk;
            frames := [::];
            framesP := init_mem_framesP stk;
@@ -556,6 +556,7 @@ Module MemoryI : MemoryT.
     wunsigned (stack_limit m) <= wunsigned (top_stack m')
     ∧ wunsigned (top_stack m') + sz + Z.max 0 sz' <= wunsigned (top_stack m).
   Proof.
+  Local Opaque GRing.add.
     rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-].
     rewrite /top_stack /=.
     rewrite !addE.
@@ -572,6 +573,7 @@ Module MemoryI : MemoryT.
     1, 3-4: lia.
     rewrite /f /footprint_of_frame /=.
     lia.
+  Local Transparent GRing.add.
   Qed.
 
   Lemma alloc_stack_ioff  m ws_stk sz ioff sz' m' :
