@@ -251,7 +251,7 @@ let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
     if Miloc.is_empty ds then
       List.iter (fun x ->
           if not (List.mem x fd.f_args) then F.fprintf fmt "%a;@ " pp_vd x) ret;
-    F.fprintf fmt "return @[(%a)@];"
+    F.fprintf fmt "return @[%a@];"
       (pp_list ",@ " pp_var) ret in
 
 
