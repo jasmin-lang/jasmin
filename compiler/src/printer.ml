@@ -85,7 +85,7 @@ let pp_glvs ~debug pp_len pp_var fmt lvs =
   match lvs with
   | [] -> F.fprintf fmt "()"
   | [x] -> pp_glv ~debug pp_len pp_var fmt x
-  | _   -> F.fprintf fmt "(@[%a@])" (pp_list ",@ " (pp_glv ~debug pp_len pp_var)) lvs
+  | _   -> F.fprintf fmt "@[%a@]" (pp_list ",@ " (pp_glv ~debug pp_len pp_var)) lvs
 
 (* -------------------------------------------------------------------- *)
 let pp_escape_string fmt =
