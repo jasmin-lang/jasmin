@@ -128,6 +128,10 @@ let pp_align fmt = function
   | E.Align -> Format.fprintf fmt "#[align]@ "
   | E.NoAlign -> ()
 
+let pp_optional_comment fmt s =
+  if s <> "" then
+    Format.fprintf fmt " /* %s */" s
+
 let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
   F.fprintf fmt "%a" pp_info (i.i_loc, i.i_info);
   F.fprintf fmt "%a" pp_annotations i.i_annot;
@@ -151,10 +155,10 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
       | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%du)" (int_of_ws ws)
       | _ -> () in
 
-    F.fprintf fmt "@[<hov 2>%a =@ %a#%a(%a); /* %s */@]"
+    F.fprintf fmt "@[<hov 2>%a =@ %a#%a(%a);%a@]"
       (pp_glvs ~debug pp_len pp_var) x pp_cast o pp_opn o
       (pp_ges ~debug pp_len pp_var) e
-      (pp_tag t)
+      pp_optional_comment (pp_tag t)
 
   | Csyscall(x, o, e) ->
       F.fprintf fmt "@[<hov 2>%a =@ %s(%a);@]"

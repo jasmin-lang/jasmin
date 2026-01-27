@@ -662,13 +662,13 @@ fail/nolea/x86-64/test_merge.jazz:
 compilation error:
 register allocation: conflicting variables “x” and “z” must be merged due to:
   at "fail/nolea/x86-64/test_merge.jazz", line 12 (3-13):
-     _0,  _1,  _2,  _3, z = #INC_64(x); /*  */
+     _0,  _1,  _2,  _3, z = #INC_64(x);
   at "fail/nolea/x86-64/test_merge.jazz", line 13 (3-10):
-     _4,  _5,  _6,  _7,  _8, z = #ADD_64(z, x); /*  */
+     _4,  _5,  _6,  _7,  _8, z = #ADD_64(z, x);
   at "fail/nolea/x86-64/test_merge.jazz", line 22 (3-15):
-     _0,  _1,  _2,  _3, z1 = #INC_64(z1); /*  */
+     _0,  _1,  _2,  _3, z1 = #INC_64(z1);
   at "fail/nolea/x86-64/test_merge.jazz", line 25 (3-12):
-     _4,  _5,  _6,  _7,  _8, z1 = #ADD_64(z1, z2); /*  */
+     _4,  _5,  _6,  _7,  _8, z1 = #ADD_64(z1, z2);
   at "fail/nolea/x86-64/test_merge.jazz", line 24 (3-17):
     z1 = add1(z1);
 
@@ -855,9 +855,9 @@ fail/register_allocation/x86-64/conflicting_variables.jazz:
 compilation error:
 register allocation: conflicting variables “z” and “res” must be merged due to:
   at "fail/register_allocation/x86-64/conflicting_variables.jazz", line 3 (2-16):
-     _0,  _1,  _2,  _3,  _4, res = #ADD_64(arg, (64u) 3); /*  */
+     _0,  _1,  _2,  _3,  _4, res = #ADD_64(arg, (64u) 3);
   at "fail/register_allocation/x86-64/conflicting_variables.jazz", line 12 (2-11):
-     _0,  _1,  _2,  _3,  _4, z = #ADD_64(z, res); /*  */
+     _0,  _1,  _2,  _3,  _4, z = #ADD_64(z, res);
   at "fail/register_allocation/x86-64/conflicting_variables.jazz", line 11 (2-14):
     res = f(z);
 
