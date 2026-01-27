@@ -599,8 +599,12 @@ Definition lsem_fun E {XE: ErrEvent -< E}
   let HA1 := fun _ e => translate inr1 (HA _ e) in 
   fd <- err_def_option (GetFunDef pp fn) ;;  
   s1 <- HA1 S (Before s0) ;;
-  let cc := GetFunCode fd in  
+  let cc := GetFunCode fd in
+  (* the PC in s2 must be the return target, which is a label *)
   s2 <- @lsem_cmd E XE LS loc_instr cc (fn, 0) s1 ;;
+  (* After can keep the label into account, increasing PC by one as
+     first step. Alternatively, we could introduce a K1 step before
+     After, but this seems more complicated than necessary *)
   HA1 S (After s2).
 
 Definition handle_LRec E {XE: ErrEvent -< E} 

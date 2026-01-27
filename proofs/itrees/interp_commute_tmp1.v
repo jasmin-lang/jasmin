@@ -6,10 +6,13 @@ From ITree Require Import
      ITreeFacts
      Events.Exception
      Interp.Recursion
+     Interp.RecursionFacts
      MonadState
      State
      StateFacts
-     EqAxiom.
+     EqAxiom
+     FailFacts
+     Exception.
 Import Basics.Monads.
 
 Require Import Program.Equality.
@@ -149,7 +152,7 @@ Section IEquiv2.
 
 (* Hnd1 depends on D2 and it is recursive *)  
 Context {E D1 D2: Type -> Type}. 
-Context (Hnd1 : D1 ~> itree (D1 +' (D2 +' E))) (Hnd2 : D2 ~> itree E).
+Context (Hnd1 : D1 ~> itree (D1 +' D2 +' E)) (Hnd2 : D2 ~> itree E).
 
 (* moves D2 event to non-recursive position, leave recursive D2 as
    padding *)
@@ -488,6 +491,170 @@ Definition interpR1X T (t: itree (D1 +' D2 +' E) T) : itree (D2 +' E) T :=
    interp_mrec rjhndX (translate pad3C t).                      
 
 End IEquiv2.
+
+
+Definition sum_perm_x {E1 E2 E3} : E1 +' E2 +' E3 ~> E2 +' E1 +' E3 :=
+  fun T e => match e with
+             | inl1 e1 => inr1 (inl1 e1)
+             | inr1 (inl1 e2) => inl1 e2
+             | inr1 (inr1 e3) => inr1 (inr1 e3) end.
+
+(* function to extend state handlers *)
+Definition ext_state_handler {S: Type} {E1 E2} (h: E1 ~> stateT S (itree E2)) :
+  (E1 +' E2) ~> stateT S (itree E2) := (* case_ h (id_ E2). *)
+  fun T e => match e with
+             | inl1 e1 => h _ e1
+             | inr1 e2 => pure_state _ e2 end.               
+
+Definition inl_state_handler {S: Type} {E1 E2 E3}
+  (h: E1 ~> stateT S (itree E2)) :
+  E1 ~> stateT S (itree (E2 +' E3)) := (* case_ h (id_ E2). *)
+  fun T e s => translate inl1 (h _ e s).
+
+Definition inr_state_handler {S: Type} {E1 E2 E3}
+  (h: E1 ~> stateT S (itree E2)) :
+  E1 ~> stateT S (itree (E3 +' E2)) := (* case_ h (id_ E2). *)
+  fun T e s => translate inr1 (h _ e s).
+
+Definition inl_ext_lift {E1 E2 E3} (f: E1 ~> E2) : E1 +' E3 ~> E2 +' E3 :=
+  fun T e => match e with
+             | inl1 e1 => inl1 (f _ e1)
+             | inr1 e3 => inr1 e3 end.                
+
+
+Section Tests.
+  
+Context (E D2: Type -> Type) (S A V Err: Type) (err: Err).
+
+Context (IE: exceptE Err -< E).
+  
+Notation D1 := (callE A V).
+   
+Context (Hnd1: D1 ~> itree (D1 +' D2 +' E)) (Hnd2: D2 ~> stateT S (itree E)).
+
+Definition interp_one T (t: itree (D1 +' D2 +' E) T) (s: S) :
+  itree E (S *T) := 
+  interp_state (ext_state_handler Hnd2) (interp_mrec Hnd1 t) s.
+
+Notation D3 := (callE (A * S) V).
+
+Definition DLift (s: S) : D1 ~> D3 :=
+  fun T e => match e with Call a => Call (a, s) end.
+
+(* uses both Hnd1 and Hnd2 *)
+Definition Hnd3_aux (a: A) (s: S) : itree (D1 +' E) (S * V) := 
+        let X1 := Hnd1 (Call a) in
+        let X1p := translate sum_perm_x X1 in
+        interp_state (@ext_state_handler S D2 (D1 +' E)
+                     (inr_state_handler Hnd2)) X1p s.
+
+(* converts D1 to D3, lifting by input s, i.e. by uniformly adding s
+   as call local state *)
+Definition D1toD3 T (t: itree (D1 +' E) (S * T)) (s: S) : itree (D3 +' E) T :=
+  let X3 := translate (inl_ext_lift (DLift s)) t 
+  in ITree.bind X3 (fun '(_, r) => Ret r).  
+
+(* converts D1 to D3, lifting by input s, i.e. by uniformly adding s
+   as call local state, but returning the state too *)
+Definition D1toD3s T (t: itree (D1 +' E) (S * T)) (s: S) :
+  itree (D3 +' E) (S * T) :=
+  let X3 := translate (inl_ext_lift (DLift s)) t 
+  in ITree.bind X3 (fun '(s', r) => Ret (s', r)).  
+
+(* recursive handler for D3. uses both Hnd1 and Hnd2, but only depends
+   on the call local state *)
+Definition Hnd3 : D3 ~> itree (D3 +' E) :=
+  fun T e => match e with
+  | Call (a, s) => D1toD3 (Hnd3_aux a s) s end.
+
+(* uses Hnd2 to convert to D3, lifting by the input s. this conversion
+   means that the original D2 events will be handled, possibly leading
+   to a state update. *)
+Definition interp_H2 T (t: itree (D1 +' D2 +' E) T) (s: S) :
+  itree (D3 +' E) (S * T) := 
+  let X1p := translate sum_perm_x t in
+  translate (inl_ext_lift (DLift s))
+    (interp_state (@ext_state_handler S D2 (D1 +' E)
+                     (inr_state_handler Hnd2)) X1p s).
+
+(* intuitive problem: when Hnd3 is applied, it only uses the local
+   state which is s. the output state of interp_H2 is never used, so
+   any state update due to interp_H2 is lost. *)
+Definition interp_two T (t: itree (D1 +' D2 +' E) T) (s: S) :
+  itree E (S * T) := 
+  interp_mrec Hnd3 (interp_H2 t s).
+
+(* update a local call state *)
+Definition update_state_fun (s: S) : D3 ~> D3 :=
+ fun (T : Type) (e : D3 T) =>
+   match e in (callE _ _ T0) return (D3 T0) with
+   | Call (a, _) => Call (a, s) end.
+
+(* update local call states *)
+Definition update_state T (t: itree (D3 +' E) (S * T)) (s: S) :
+  itree (D3 +' E) (S * T) :=
+  translate (inl_ext_lift (update_state_fun s)) t. 
+
+(* applies the state update to the result of interp_H2 *)
+Definition interp_H2SU T (t: itree (D1 +' D2 +' E) T) (s: S) :
+  itree (D3 +' E) (S * T) :=
+  let X1 : itree (D3 +' E) (S * T) := interp_H2 t s in 
+  ITree.bind X1 
+    (fun '(s', _) => update_state X1 s').
+
+(* this should fix the problem noted in interp_two. however: this
+   won't make the recursive interpreter really stateful. each call
+   depends on the same updated local state. this seems still
+   problematic, because Hnd3 uses Hnd2, which is actually stateful. *)
+Definition interp_three T (t: itree (D1 +' D2 +' E) T) (s: S) :
+  itree E (S * T) :=
+   interp_mrec Hnd3 (interp_H2SU t s).
+
+(* recursive handler for D3. uses both Hnd1 and Hnd2, only depends on
+   the call local state but, unlike Hnd3, carries out the local state
+   update. *)
+Definition Hnd3s : D3 ~> itree (D3 +' E) :=
+  fun T e => match e with
+             | Call (a, s) =>
+                 let X1 := D1toD3s (Hnd3_aux a s) s in
+                 '(s', _) <- X1 ;;
+                 '(_, r) <- update_state X1 s' ;;
+                 Ret r end.
+                 
+(* this should fix both problems. *)
+Definition interp_four T (t: itree (D1 +' D2 +' E) T) (s: S) :
+  itree E (S * T) :=
+   interp_mrec Hnd3s (interp_H2SU t s).
+
+
+
+(************** USELESS *)
+
+Definition nouse_Hnd3 T (e: D3 T) : itree (D1 +' E) (S * T) := 
+  match e with
+    | Call (a, s) =>
+        let X1 := Hnd1 (Call a) in
+        let X1p := translate sum_perm_x X1 in
+        interp_state (@ext_state_handler S D2 (D1 +' E)
+                        (inr_state_handler Hnd2)) X1p s end.
+
+End Tests.
+
+
+(*
+Lemma update_state_fun' (s: S) : D3 ~> D3.
+  intros.
+  destruct X as [[a s']].
+  exact (Call (a, s)).
+  Show Proof.  
+ *)
+
+(*
+Definition ext_inl_state_handler {S: Type} {E1 E2 E3}
+  (h: E1 ~> stateT S (itree E2)) :
+  E1 ~> stateT S (itree (E2 +' E3)) := (* case_ h (id_ E2). *)
+  fun T e s => translate inl1 (h _ e s).
+*)
 
 
 
