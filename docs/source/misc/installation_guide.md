@@ -53,6 +53,22 @@ Then update the list of available packages (`sudo apt update`) and install the p
 - **easycrypt** (Trixie only) has the proof assistant
 - **libjasmin-easycrypt** has the EasyCrypt libraries used for verifying Jasmin implementations
 
+#### On Arch Linux
+
+The packages are distributed through Arch User Repository (AUR), the relevant packages are:
+- [**jasmin-compiler-bin**](https://aur.archlinux.org/packages/jasmin-compiler-bin): the command-line tools
+- [**easycrypt-bin**](https://aur.archlinux.org/packages/easycrypt-bin): the proof assistant
+- [**libjasmin-easycrypt-bin**](https://aur.archlinux.org/packages/libjasmin-easycrypt-bin): the EasyCrypt libraries
+
+Install any of them with your AUR Helper with a command like the following:
+~~~
+# with yay
+yay -S jasmin-compiler-bin
+
+# with paru
+paru -S jasmin-compiler-bin
+~~~
+
 #### Using the nix (or lix) package manager, on linux, macos, wsl, etc.
 
 Assuming the package-manager is set up and working (see
