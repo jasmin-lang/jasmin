@@ -1451,6 +1451,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
                   ec_ident (Printer.string_of_combine_flags c),
                   List.map (toec_expr env) es
               )
+          | _ -> assert false (* FIXME *)
           end
       | Pif(_,e1,et,ef) ->
           let ty = ty_expr e in

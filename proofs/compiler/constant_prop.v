@@ -288,10 +288,14 @@ Definition app_sopn := app_sopn of_expr.
 Arguments app_sopn {A} ts _ _.
 
 Definition s_opN (op:opN) (es:pexprs) : pexpr :=
+  if op is Oarray len then
+    PappN op es
+  else
   match app_sopn _ (sem_opN_typed op) es with
   | Ok r =>
     match op return sem_t (eval_atype (type_of_opN op).2) -> _ with
     | Opack ws _ => fun w => Papp1 (Oword_of_int ws) (Pconst (wunsigned w))
+    | Oarray len => fun _ => Pbool false
     | Ocombine_flags _ => fun b => Pbool b
     end r
   | _ => PappN op es

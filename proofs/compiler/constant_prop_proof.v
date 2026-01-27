@@ -488,14 +488,11 @@ Proof.
 
 Opaque app_sopn values.app_sopn.
   rewrite /s_opN.
+  case: op => [ sz' pe | // | c ];
   case h: app_sopn => [r | //].
-  case: op r h => [sz' pe | c] /=.
-
-  + move=> w h.
-    rewrite /sem_sop1 /= wrepr_unsigned /sem_opN /=.
+  + rewrite /= /sem_sop1 /= wrepr_unsigned /sem_opN /=.
     by rewrite -Let_Let (app_sopnP _ h).
 
-  move=> b h.
   rewrite /sem_opN /=.
   by rewrite -Let_Let (app_sopnP s h).
 Transparent app_sopn values.app_sopn.

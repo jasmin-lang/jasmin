@@ -54,6 +54,8 @@ let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
     F.fprintf fmt "@[(%du%n)[%a]@]" (List.length es) (int_of_pe pe) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
   | PappN (Ocombine_flags c, es) ->
     F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
+  | PappN (E.Oarray len, es) ->
+     F.fprintf fmt "/* %du8 */ @[{ %a }@]" (Conv.int_of_pos len) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
   | Pif(_, e,e1,e2) ->
      let p = priority_ternary in
      optparent fmt prio side p "%a ? %a : %a" (pp_expr Left p) e (pp_expr NoAssoc p) e1 (pp_expr Right p) e2
