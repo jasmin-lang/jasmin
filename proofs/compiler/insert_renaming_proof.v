@@ -381,6 +381,7 @@ Section WITH_PARAMS.
       - by move => x tg ty e ii; apply wequiv_assgn_rel_uincl with checker_st_uincl tt.
       - by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
       - by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with checker_st_uincl tt.
+      - by move=> a ii; apply wequiv_assert_rel_uincl with checker_st_uincl.
       - by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
       - by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
       - by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
@@ -397,6 +398,7 @@ Section WITH_PARAMS.
       apply wequiv_fun_ind' => {} fn _ fs ft [] <- hfsu fd hget.
       exists (insert_renaming_fd insert_renaming_p fd).
       - by rewrite get_map_prog hget.
+      move=> _; split => //.
       move => s hinit.
       have htyin := insert_renaming_fd_tyin insert_renaming_p fd.
       have hextra := insert_renaming_fd_extra insert_renaming_p fd.
@@ -410,7 +412,7 @@ Section WITH_PARAMS.
       exists
         (if do_insert then rename_vars (entry_info_of_fun_info (f_info fd)) (f_params fd) ++ f_body fd else f_body fd),
         (if do_insert then rename_vars (ret_info_of_fun_info (f_info fd)) (f_res fd)  else [::]).
-      split; cycle -1.
+      split => //; cycle -1.
       - by apply: fs_uincl_finalize; case: do_insert; eauto.
       - by red; eauto.
       - case: do_insert; last by rewrite cats0.
