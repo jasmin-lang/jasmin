@@ -188,6 +188,9 @@ Definition sem_opN_typed (o: opN) :
   | Opack sz pe =>
       let ty := curry (A := cint) (sz %/ pe) (λ vs, ok (wpack sz pe vs)) in
       ecast l (sem_prod l _) (esym (map_nseq _ _ _)) ty
+  | Oarray len =>
+      let ty := curry (A := cword U8) (Pos.to_nat len) (λ bs, WArray.fill len (rev bs)) in
+      ecast l (sem_prod l _) (esym (map_nseq _ _ _)) ty
   | Ocombine_flags cf =>
       fun b0 b1 b2 b3 => ok (sem_combine_flags cf b0 b1 b2 b3)
   end.

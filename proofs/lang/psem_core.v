@@ -920,7 +920,7 @@ Proof.
   have -> /= := vuincl_sopn _ hvs ok_q.
   + by eauto.
   case: {q ok_q} op => //.
-  by move => sz n; rewrite /= all_map all_nseq orbT.
+  all: by move => *; rewrite /= all_map all_nseq orbT.
 Qed.
 
 Lemma sem_opN_truncate_val o vs v :
