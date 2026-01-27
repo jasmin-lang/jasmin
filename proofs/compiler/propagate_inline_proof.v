@@ -247,10 +247,13 @@ Proof.
   + move=> op e1 hrec1 e2 hrec2 v; t_xrbindP => ve1 /hrec1 [ve1' -> hu1] ve2 /hrec2 [ve2' -> hu2] /= hs.
     by rewrite (vuincl_sem_sop2 hu1 hu2 hs); eauto.
   + move=> o es hrec ?; t_xrbindP => ? /hrec [vs' hs' hu].
-    case: o => [wz pe | c] /=.
+    case: o => [wz pe | len | c] /=.
     + move=> ho; rewrite -/(sem_pexprs wdb gd _ (pi_es pi es)) hs' /=.
       rewrite (vuincl_sem_opN hu ho).
       by eexists; first by reflexivity.
+    + move => /(vuincl_sem_opN hu).
+      rewrite -/(sem_pexprs wdb gd s) hs' /= => ->.
+      by eexists; first reflexivity.
     move=> ho; have ho' := vuincl_sem_opN hu ho.
     by rewrite -/(pi_es pi es) (scfcP hs' ho'); eauto.
   move=> ?? hrec ? hrec1 ? hrec2 v; t_xrbindP.

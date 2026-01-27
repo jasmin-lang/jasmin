@@ -288,13 +288,10 @@ Definition app_sopn := app_sopn of_expr.
 Arguments app_sopn {A} ts _ _.
 
 Definition s_opN (op:opN) (es:pexprs) : pexpr :=
-  match app_sopn _ (sem_opN_typed op) es with
-  | Ok r =>
-    match op return sem_t (eval_atype (type_of_opN op).2) -> _ with
-    | Opack ws _ => fun w => Papp1 (Oword_of_int ws) (Pconst (wunsigned w))
-    | Ocombine_flags _ => fun b => Pbool b
-    end r
-  | _ => PappN op es
+  match op, app_sopn _ (sem_opN_typed op) es with
+  | Opack ws _, Ok w => Papp1 (Oword_of_int ws) (Pconst (wunsigned w))
+  | Ocombine_flags _, Ok b => Pbool b
+  | _, _ => PappN op es
   end.
 
 Definition s_if t e e1 e2 :=

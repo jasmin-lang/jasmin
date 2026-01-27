@@ -1451,6 +1451,11 @@ module EcExpression(EA: EcArray): EcExpression = struct
                   ec_ident (Printer.string_of_combine_flags c),
                   List.map (toec_expr env) es
               )
+          | Oarray len ->
+              Eapp (
+                  EA.of_list env U8 (Conv.int_of_pos len),
+                  [Elist (List.map (toec_expr env) es)]
+              )
           end
       | Pif(_,e1,et,ef) ->
           let ty = ty_expr e in

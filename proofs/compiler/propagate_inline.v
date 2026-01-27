@@ -91,7 +91,7 @@ Fixpoint pi_e (pi:pimap) (e:pexpr) :=
   | PappN o es         => 
     let es := (map (pi_e pi) es) in
     match o with
-    | Opack _ _ => PappN o es
+    | Opack _ _ | Oarray _ => PappN o es
     | Ocombine_flags c => scfc c es
     end
   | Pif t e e1 e2      => Pif t (pi_e pi e) (pi_e pi e1) (pi_e pi e2)
