@@ -1,4 +1,4 @@
-export fn main<|n|> () -> reg u64 {
+export fn main<:n> () -> reg u64 {
   stack u64[n] s; // stack variable of unknown size -> failure
   s[0] = 0;
   reg u64 res = s[0];

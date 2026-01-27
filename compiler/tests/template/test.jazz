@@ -1,4 +1,4 @@
-export fn main<|n, m|>(reg ptr u64[n+m] sres) -> reg u64 {
+export fn main<:n, m>(reg ptr u64[n+m] sres) -> reg u64 {
   reg u64 res = sres[0];
   return res;
 }

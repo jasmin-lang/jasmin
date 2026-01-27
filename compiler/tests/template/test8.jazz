@@ -1,11 +1,11 @@
 // we test make ref arg instantiated on a variable
 
-fn f<|n|>(reg ptr u64[n] r) -> reg u64 {
+fn f<:n>(reg ptr u64[n] r) -> reg u64 {
   reg u64 res = r[0];
   return res;
 }
 
-export fn main<|p,q|> (reg ptr u64[p+q] r) -> reg u64 {
-  reg u64 res = f<|p+q|>(r);
+export fn main<:p,q> (reg ptr u64[p+q] r) -> reg u64 {
+  reg u64 res = f<:p+q>(r);
   return res;
 }

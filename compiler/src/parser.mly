@@ -12,8 +12,8 @@
 %token RBRACE
 %token LPAREN
 %token RPAREN
-%token LABRACKET
-%token RABRACKET
+%token LTEMPLATE
+%token RTEMPLATE
 
 %token T_BOOL
 %token T_INT
@@ -565,7 +565,7 @@ module_:
 | x=delimited(LBRACKET, X, RBRACKET) { x }
 
 %inline abrackets(X):
-| x=delimited(LABRACKET, X, RABRACKET) { x }
+| x=delimited(LTEMPLATE, X, RTEMPLATE) { x }
 
 %inline braces(X):
 | x=delimited(LBRACE, X, RBRACE) { x }
