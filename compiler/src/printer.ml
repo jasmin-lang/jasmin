@@ -82,10 +82,8 @@ let pp_ges ~debug pp_len pp_var fmt es =
 
 (* -------------------------------------------------------------------- *)
 let pp_glvs ~debug pp_len pp_var fmt lvs =
-  match lvs with
-  | [] -> F.fprintf fmt "()"
-  | [x] -> pp_glv ~debug pp_len pp_var fmt x
-  | _   -> F.fprintf fmt "@[%a@]" (pp_list ",@ " (pp_glv ~debug pp_len pp_var)) lvs
+  if lvs != [] then
+    Format.fprintf fmt "@[%a@] =@ " (pp_list ",@ " (pp_glv ~debug pp_len pp_var)) lvs
 
 (* -------------------------------------------------------------------- *)
 let pp_escape_string fmt =
@@ -155,13 +153,13 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
       | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%du)" (int_of_ws ws)
       | _ -> () in
 
-    F.fprintf fmt "@[<hov 2>%a =@ %a#%a(%a);%a@]"
+    F.fprintf fmt "@[<hov 2>%a%a#%a(%a);%a@]"
       (pp_glvs ~debug pp_len pp_var) x pp_cast o pp_opn o
       (pp_ges ~debug pp_len pp_var) e
       pp_optional_comment (pp_tag t)
 
   | Csyscall(x, o, e) ->
-      F.fprintf fmt "@[<hov 2>%a =@ %s(%a);@]"
+      F.fprintf fmt "@[<hov 2>%a%s(%a);@]"
         (pp_glvs ~debug pp_len pp_var) x (pp_syscall o) (pp_ges ~debug pp_len pp_var) e
 
   | Cif(e, c, []) ->
@@ -205,7 +203,7 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
   | Ccall(x, f, e) ->
     let pp_x fmt = function
       | [] -> ()
-      | x -> F.fprintf fmt "%a =@ " (pp_glvs ~debug pp_len pp_var) x in
+      | x -> F.fprintf fmt "%a" (pp_glvs ~debug pp_len pp_var) x in
     F.fprintf fmt "@[<hov 2>%a%s(%a);@]"
       pp_x x f.fn_name (pp_ges ~debug pp_len pp_var) e
 
