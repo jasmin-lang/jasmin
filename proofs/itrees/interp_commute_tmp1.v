@@ -492,6 +492,19 @@ Definition interpR1X T (t: itree (D1 +' D2 +' E) T) : itree (D2 +' E) T :=
 
 End IEquiv2.
 
+Lemma interp_state_vis_Eq
+     : forall (E F : Type -> Type) (S T U : Type) (e : E T)
+         (k : T -> itree E U)
+         (h : forall T0 : Type, E T0 -> stateT S (itree F) T0) 
+         (s : S),
+       interp_state h (Vis e k) s
+       = ITree.bind (h T e s)
+           (fun sx : S * T => Tau (interp_state h (k (snd sx)) (fst sx))).
+Proof.
+  intros.
+  eapply bisimulation_is_eq.
+  eapply interp_state_vis.
+Qed.  
 
 Definition sum_perm_x {E1 E2 E3} : E1 +' E2 +' E3 ~> E2 +' E1 +' E3 :=
   fun T e => match e with
@@ -626,8 +639,419 @@ Definition interp_four T (t: itree (D1 +' D2 +' E) T) (s: S) :
   itree E (S * T) :=
    interp_mrec Hnd3s (interp_H2SU t s).
 
+Require Import FunctionalExtensionality.
+(* From mathcomp Require Import ssreflect. *)
+
+Lemma interp_equiv T (t: itree (D1 +' D2 +' E) T) (s: S) :
+  eutt eq (interp_one t s) (interp_four t s).
+Proof.
+  unfold interp_one, interp_four.
+  unfold Hnd3s, interp_H2SU; simpl.
+  setoid_rewrite interp_mrec_as_interp; simpl.
+  
+  revert s t.
+  ginit. gcofix CIH.
+  intros s t.
+
+  set (F := interp_H2 t).
+  unfold interp_H2 in F.
+  setoid_rewrite (itree_eta_ t).
+
+  set (F1 := fun s : S =>
+    translate (inl_ext_lift (DLift s))
+      (interp_state (ext_state_handler (inr_state_handler Hnd2))
+         (translate sum_perm_x {| _observe := observe t |}) s)).
+
+  assert (F = F1).
+  { subst F F1.
+    eapply functional_extensionality.
+    intro s0.
+    setoid_rewrite (itree_eta_ t) at 1; auto.
+  }  
+   
+  replace F with F1.
+  subst F1. subst F.
+  clear H.
+  remember (observe t) as ot.
+  destruct ot.
+
+  { unfold Hnd3s, interp_H2SU; simpl.
+    setoid_rewrite translate_ret.
+    setoid_rewrite interp_ret.
+    setoid_rewrite interp_state_ret.
+    setoid_rewrite translate_ret.
+    setoid_rewrite bind_ret_l.
+    unfold update_state.
+    repeat setoid_rewrite interp_translate.
+    setoid_rewrite translate_ret.
+    setoid_rewrite interp_state_ret.
+    setoid_rewrite interp_ret.
+    gstep; red.
+    econstructor; auto.
+  }  
+  { unfold Hnd3s, interp_H2SU; simpl.
+    setoid_rewrite translate_tau.
+    setoid_rewrite interp_tau.
+    setoid_rewrite interp_state_tau.
+    setoid_rewrite translate_tau.
+    setoid_rewrite bind_tau.
+    unfold update_state.
+    repeat setoid_rewrite interp_translate.
+    setoid_rewrite interp_tau.
+    set (F1 := translate sum_perm_x (Tau t0)).
+    set (F2 := translate sum_perm_x t0).
+    
+    assert (euttge eq F1 F2) as A1.
+    { subst F1 F2.
+      setoid_rewrite translate_tau.
+      setoid_rewrite tau_euttge.
+      reflexivity.
+    }
+
+    set (G1 := ITree.bind _ _).
+    set (G2 := ITree.bind
+      (translate (inl_ext_lift (DLift s))
+         (interp_state (ext_state_handler (inr_state_handler Hnd2)) F2 s))
+      (fun '(s', _) =>
+       translate (inl_ext_lift (update_state_fun s'))
+         (translate (inl_ext_lift (DLift s))
+            (interp_state (ext_state_handler (inr_state_handler Hnd2)) F2 s)))).
+    assert (euttge eq G1 G2) as A2.
+    { subst G1 G2.
+      eapply eqit_bind; try reflexivity.
+      unfold Morphisms.pointwise_relation.
+      intros [s1 v1].
+      subst F1 F2.
+      setoid_rewrite translate_tau.
+      setoid_rewrite interp_state_tau.
+      repeat setoid_rewrite translate_tau.
+      eapply tau_euttge.
+    }  
+    gstep; red.
+    econstructor. 
+    set (J0 := interp _).
+    set (J1 := interp _).
+    subst J0.
+    assert (euttge eq (J1 _ G1) (J1 _ G2)) as A3.
+    { subst J1 G1 G2.
+      setoid_rewrite A2.
+      reflexivity.
+    }
+    
+    guclo eqit_clo_trans.
+    econstructor.
+    { reflexivity. }
+    { eexact A3. }
+    { gfinal. left.
+      eapply CIH.
+    }
+    { intros x x' y H H0. inv H; auto. }
+    { intros x y y' H H0. inv H; auto. }
+  }
+  
+  { unfold Hnd3s, interp_H2SU; simpl.
+    setoid_rewrite translate_vis.
+    setoid_rewrite interp_vis.
+    setoid_rewrite interp_state_vis.
+    unfold update_state; simpl.
+    setoid_rewrite interp_state_bind.
+    setoid_rewrite interp_state_tau.
+    setoid_rewrite translate_bind.
+    setoid_rewrite bind_bind.
+    setoid_rewrite interp_bind.
+    setoid_rewrite interp_bind.
+    repeat setoid_rewrite translate_tau.
+    setoid_rewrite interp_tau.
+    setoid_rewrite bind_tau.
+    repeat setoid_rewrite interp_translate.
+
+    guclo eqit_clo_bind.
+    econstructor.
+    { instantiate (1 := eq).
+      destruct e as [d1 | [d2 | e]]; simpl.
+      { unfold inl_ext_lift, DLift; simpl.
+        setoid_rewrite interp_vis.
+        setoid_rewrite interp_ret.
+        simpl.
+        setoid_rewrite mrec_as_interp; simpl.
+       (* setoid_rewrite eutt_eq_interp_state_iter. *) 
+        setoid_rewrite tau_euttge.
+        destruct d1; simpl.
+        setoid_rewrite interp_bind.
+        repeat setoid_rewrite bind_bind; simpl.
+
+(*        unfold D1toD3s, Hnd3_aux; simpl.
+        setoid_rewrite bind_bind.
+        setoid_rewrite translate_ret.
+        simpl.
+*)        
+        (* hard *)
+        admit.
+      }
+      { unfold inl_ext_lift, DLift, inr_state_handler; simpl.
+        setoid_rewrite interp_state_trigger.
+        setoid_rewrite interp_translate.
+        unfold ext_state_handler; simpl.
+        setoid_rewrite interp_trigger_h.
+        reflexivity.
+      }
+      { unfold inl_ext_lift, DLift, inr_state_handler; simpl.
+        setoid_rewrite interp_state_trigger.
+        setoid_rewrite interp_vis.
+        setoid_rewrite interp_ret.
+        unfold ext_state_handler; simpl.
+        setoid_rewrite bind_trigger.
+        setoid_rewrite tau_euttge.
+        reflexivity.
+      }
+    }
+      
+    { intros [s1 x1] [s2 x2] H.
+      inv H; simpl.
+      gstep; red.
+      econstructor. 
+
+      set (F1 := translate sum_perm_x (Vis e k)).
+      set (F2 := Vis (sum_perm_x e)
+                   (fun x : X => translate sum_perm_x (k x))).
+      replace F1 with F2.
+
+      2: { subst F1 F2.
+           eapply bisimulation_is_eq.
+           setoid_rewrite translate_vis; reflexivity.
+      }
+
+      subst F1 F2.
+
+      set (hh := ext_state_handler (inr_state_handler Hnd2)).
+      set (kk := fun x : X => translate sum_perm_x (k x)). 
+      set (G1 := interp_state hh (Vis _ _) _).
+      set (G2 := ITree.bind (hh _ (sum_perm_x e) s)
+                   (fun sx => Tau (interp_state hh (kk (snd sx)) (fst sx)))).
+
+      replace G1 with G2.
+      2: { subst G1 G2.
+           eapply bisimulation_is_eq.
+           setoid_rewrite interp_state_vis; reflexivity.
+      }
+      subst G1 G2; simpl.
+
+      set (mm1 := (hh X (sum_perm_x e) s)).
+      set (kk1 := fun sx => Tau (interp_state hh (kk (snd sx)) (fst sx))).
+      set (bb1 := ITree.bind mm1 kk1).
+      set (ff1 := inl_ext_lift (DLift s)).
+      set (F1 := translate ff1 bb1).
+      set (F2 := ITree.bind (translate ff1 mm1)
+                   (fun x => translate ff1 (kk1 x))).
+
+      replace F1 with F2.
+
+      2: { subst F1 F2.
+           eapply bisimulation_is_eq.
+           subst ff1 bb1.
+           setoid_rewrite translate_bind; reflexivity.
+      }
+
+     set (BB1 := mrecursive
+         (fun (T : Type) (e : D3 T) =>
+          match e in (callE _ _ T0) return (itree (D3 +' E) T0) with
+          | Call (a, s) =>
+              ITree.bind (D1toD3s (Hnd3_aux a s) s)
+                (fun x : S * V =>
+                 let (s', _) := x in
+                 ITree.bind
+                   (translate (inl_ext_lift (update_state_fun s'))
+                      (D1toD3s (Hnd3_aux a s) s))
+                   (fun x0 : S * V => let (_, r) := x0 in Ret r))
+          end)).
+
+     set (KK1 := fun r0 => interp BB1 _).      
+     set (MM1 := interp (fun T0 e0 => _) _).  
+
+     set (L1 := fun r0: S * T =>
+                  ITree.bind (translate (inl_ext_lift
+                                           (update_state_fun (fst r0)))
+                                (translate ff1 mm1))
+                    (fun x => translate (inl_ext_lift
+                                           (update_state_fun (fst r0)))
+                                (translate ff1 (kk1 x)))).
+
+     set (KK2 := fun r0 : S * T => interp BB1 (L1 r0)).
+
+     replace KK1 with KK2.
+
+     2: { subst KK1 KK2.
+          eapply functional_extensionality.
+          intros.
+          eapply bisimulation_is_eq.
+          subst L1 F2.
+          admit.
+     }
+
+     subst MM1 KK2 BB1 L1.
+     simpl.
+     setoid_rewrite interp_bind.
+     repeat setoid_rewrite interp_translate.
+     unfold update_state_fun, inl_ext_lift; simpl.
+     unfold D1toD3s, Hnd3_aux; simpl.
+
+Admitted. 
 
 
+
+ (*
+ (fun r0 : S * T =>
+        interp
+          (mrecursive
+             (fun (T0 : Type) (e0 : D3 T0) =>
+              match e0 in (callE _ _ T1) return (itree (D3 +' E) T1) with
+              | Call (a, s0) =>
+                  ITree.bind (D1toD3s (Hnd3_aux a s0) s0)
+                    (fun x : S * V =>
+                     let (s', _) := x in
+                     ITree.bind
+                       (translate (inl_ext_lift (update_state_fun s'))
+                          (D1toD3s (Hnd3_aux a s0) s0))
+                       (fun x0 : S * V => let (_, r1) := x0 in Ret r1))
+              end))
+          (let
+           '(s', _) := r0 in translate (inl_ext_lift (update_state_fun s')) F2)) *)
+
+(*
+     
+     setoid_rewrite bind_bind.
+      
+     
+     Check @interp_state_bind.  
+     
+          
+          eapply eqit_interp.
+          setoid_rewrite translate_bind.
+          
+        Check @interp_bind.
+
+     set (KK3 := 
+               
+         (translate (inl_ext_lift (update_state_fun (fst r0))) F2)).
+     subst F2. 
+
+     
+      set (KK2 := fun r0 : S * T =>
+    interp
+      (mrecursive
+         (fun (T : Type) (e : D3 T) =>
+          match e in (callE _ _ T0) return (itree (D3 +' E) T0) with
+          | Call (a, s) =>
+              ITree.bind (D1toD3s (Hnd3_aux a s) s)
+                (fun x : S * V =>
+                 let (s', _) := x in
+                 ITree.bind
+                   (translate (inl_ext_lift (update_state_fun s'))
+                      (D1toD3s (Hnd3_aux a s) s))
+                   (fun x0 : S * V => let (_, r) := x0 in Ret r))
+          end))
+      (translate (inl_ext_lift (update_state_fun (fst r0))) F2)).
+     subst F2. 
+
+
+
+     
+      Check @translate_bind.  
+
+
+        Check @interp_bind.
+      
+      
+      Check @translate_bind.  
+
+      guclo eqit_clo_trans.
+      econstructor.
+      { reflexivity. }
+      
+
+      
+      Check @translate_bind.
+      
+      
+      setoid_rewrite interp_state_vis_Eq in G1.
+      
+      
+      set (G1 := (fun r0 : S * T => _ )).
+      replace F1 with F2 in G1.
+      
+Check @translate_vis. 
+
+      
+      set (F0 := ITree.bind _).
+      set (F1 := interp _ _).
+      set (F2 := translate).
+      set (F2 := (fun r0 : S * T => _ )).
+      
+
+      setoid_rewrite translate_vis.     
+      
+      
+      
+      setoid_rewrite interp_tau.  
+      
+      setoid_rewrite interp_state_interp.
+      
+    Check @translate_vis.
+
+    
+    
+    setoid_rewrite bind_bind.
+    unfold update_state.
+ 
+  
+    
+    instantiate (1 := Tau (J1 _ G2)).
+    instantiate (1 := eq).
+    pstep. red.
+    econstructor.
+    left.
+     
+    
+    subst G1 G2.
+
+    setoid_rewrite interp_bind.
+    setoid_rewrite A2.
+    
+    
+    assert (eutt eq G () )
+
+    assert () 
+    setoid_rewrite A1.
+     
+      
+    
+    setoid_rewrite interp_state_translate.
+    gstep; red.
+    econstructor.
+    gfinal; left.
+    eapply CIH.
+    setoid_rewrite translate_tau.
+    setoid_rewrite interp_state_ret.
+    setoid_rewrite interp_ret.
+    gstep; red.
+    econstructor; auto.
+
+
+    
+    setoid_rewrite interp_mrec_as_interp at 1; simpl.
+
+    
+    unfold D1toD3s; simpl.
+    unfold interp_H2; simpl.
+    unfold Hnd3_aux; simpl.
+    unfold inl_ext_lift, DLift; simpl.
+    unfold ext_state_handler, inr_state_handler, sum_perm_x; simpl.
+    unfold update_state, update_state_fun; simpl.      
+    unfold inl_ext_lift, DLift; simpl.
+
+    setoid_rewrite interp_mrec_as_interp; simpl.
+*)
+    
 (************** USELESS *)
 
 Definition nouse_Hnd3 T (e: D3 T) : itree (D1 +' E) (S * T) := 
