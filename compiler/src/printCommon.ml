@@ -221,7 +221,7 @@ let pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len =
     pp_access_size ws pp_expr (peel_implicit_cast_to_uint e) pp_len len
 
 (* -------------------------------------------------------------------- *)
-let rec pp_len ~debug fmt (len:length) =
+let pp_len ~debug fmt (len:length) =
   (* TODO: clean that, it was backported from printer.ml *)
   let pp_var =
     if debug then

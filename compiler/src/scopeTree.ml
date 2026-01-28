@@ -92,7 +92,7 @@ let variables_in_plvals (acc : Spv.t) : plvals -> Spv.t =
 
 let variables_in_instr_r : _ pinstr_r -> Spv.t = function
   | Cassgn (x, _, _, e) -> variables_in_pexpr (variables_in_plval Spv.empty x) e
-  | Copn (xs, _, _, es) | Csyscall (xs, _, es) | Ccall (xs, _, es) ->
+  | Copn (xs, _, _, es) | Csyscall (xs, _, es) | Ccall (xs, _, _, es) ->
       variables_in_pexprs (variables_in_plvals Spv.empty xs) es
   | Cfor (x, (_, e1, e2), _) ->
       variables_in_pexprs (Spv.singleton (L.unloc x)) [ e1; e2 ]
