@@ -83,9 +83,7 @@ module GV = struct
 
   let hash v = Uint63.hash v.v_id
 
-  let is_glob v = v.v_kind = Const
-
-  let is_local v = not (is_glob v)
+  let is_length_var v = v.v_kind = Length
 
   (* if the type of the var is a base type, the var can be cast to any type *)
   let cast v =
