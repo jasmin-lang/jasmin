@@ -83,16 +83,29 @@ module GV = struct
 
   let hash v = Uint63.hash v.v_id
 
-  let is_glob v = v.v_kind = Const
+  let is_length_var v = v.v_kind = Length
 
-  let is_local v = not (is_glob v)
+  (* if the type of the var is a base type, the var can be cast to any type *)
+  let cast v =
+    let ty =
+      match v.v_ty with
+      | Bty _ as ty -> ty
+      | _ -> assert false
+    in
+    { v with v_ty = ty }
 end
 
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized variable                                                *)
 
-type ty    = int gty
-type var   = int gvar
+type length =
+  | Const of int (* FIXME: Z.t ? *)
+  | Var of length gvar
+  | Add of length * length
+  | Mul of length * length
+
+type ty    = length gty
+type var   = length gvar
 
 module V = struct
   type t = var

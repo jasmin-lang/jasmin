@@ -431,36 +431,36 @@ End Section.
 
 Module Type VM.
 
-  Parameter t : forall {wsw:WithSubWord}, Type.
+  Parameter t : forall {wsw:WithSubWord}, (length_var -> positive) -> Type.
 
-  Parameter init : forall {wsw:WithSubWord}, t.
+  Parameter init : forall {wsw:WithSubWord} env, t env.
 
-  Parameter get : forall {wsw:WithSubWord}, t -> var -> value.
+  Parameter get : forall {wsw:WithSubWord} env, t env -> var -> value.
 
-  Parameter set : forall {wsw:WithSubWord}, t -> var -> value -> t.
+  Parameter set : forall {wsw:WithSubWord} env, t env -> var -> value -> t env.
 
-  Parameter initP : forall {wsw:WithSubWord} x,
-    get init x = undef_addr (eval_atype (vtype x)).
+  Parameter initP : forall {wsw:WithSubWord} env x,
+    get (init env) x = undef_addr (eval_atype env (vtype x)).
 
-  Parameter getP : forall {wsw:WithSubWord} vm x,
-    compat_val (eval_atype (vtype x)) (get vm x).
+  Parameter getP : forall {wsw:WithSubWord} env (vm : t env) x,
+    compat_val (eval_atype env (vtype x)) (get vm x).
 
-  Parameter setP : forall {wsw:WithSubWord} vm x v y,
-    get (set vm x v) y = if x == y then vm_truncate_val (eval_atype (vtype x)) v else get vm y.
+  Parameter setP : forall {wsw:WithSubWord} env (vm : t env) x v y,
+    get (set vm x v) y = if x == y then vm_truncate_val (eval_atype env (vtype x)) v else get vm y.
 
-  Parameter setP_eq : forall {wsw:WithSubWord} vm x v, get (set vm x v) x = vm_truncate_val (eval_atype (vtype x)) v.
+  Parameter setP_eq : forall {wsw:WithSubWord} env (vm : t env) x v, get (set vm x v) x = vm_truncate_val (eval_atype env (vtype x)) v.
 
-  Parameter setP_neq : forall {wsw:WithSubWord} vm x v y, x != y -> get (set vm x v) y = get vm y.
+  Parameter setP_neq : forall {wsw:WithSubWord} env (vm : t env) x v y, x != y -> get (set vm x v) y = get vm y.
 
 End VM.
 
 Module Vm : VM.
   Section Section.
 
-  Context {wsw: WithSubWord}.
+  Context {wsw: WithSubWord} (env : length_var -> positive).
 
   Definition wf (data: Mvar.t value) :=
-    forall x v, Mvar.get data x = Some v -> compat_val (eval_atype (vtype x)) v.
+    forall x v, Mvar.get data x = Some v -> compat_val (eval_atype env (vtype x)) v.
 
   Record t_ := { data :> Mvar.t value; prop : wf data }.
   Definition t := t_.
@@ -470,28 +470,28 @@ Module Vm : VM.
 
   Definition init := {| prop := init_prop |}.
 
-  Definition get (vm:t) (x:var) := odflt (undef_addr (eval_atype (vtype x))) (Mvar.get vm x).
+  Definition get (vm:t) (x:var) := odflt (undef_addr (eval_atype env (vtype x))) (Mvar.get vm x).
 
-  Lemma set_prop (vm:t) x v : wf (Mvar.set vm x (vm_truncate_val (eval_atype (vtype x)) v)).
+  Lemma set_prop (vm:t) x v : wf (Mvar.set vm x (vm_truncate_val (eval_atype env (vtype x)) v)).
   Proof.
     move=> y vy; rewrite Mvar.setP; case: eqP => [<- [<-] | _ /prop //].
     apply vm_truncate_val_compat.
   Qed.
 
   Definition set (vm:t) (x:var) v :=
-    {| data := Mvar.set vm x (vm_truncate_val (eval_atype (vtype x)) v); prop := @set_prop vm x v |}.
+    {| data := Mvar.set vm x (vm_truncate_val (eval_atype env (vtype x)) v); prop := @set_prop vm x v |}.
 
-  Lemma initP x : get init x = undef_addr (eval_atype (vtype x)).
+  Lemma initP x : get init x = undef_addr (eval_atype env (vtype x)).
   Proof. done. Qed.
 
-  Lemma getP vm x : compat_val (eval_atype (vtype x)) (get vm x).
+  Lemma getP vm x : compat_val (eval_atype env (vtype x)) (get vm x).
   Proof. rewrite /get; case h : Mvar.get => [ v | ] /=;[apply: prop h | apply compat_val_undef_addr]. Qed.
 
   Lemma setP vm x v y :
-    get (set vm x v) y = if x == y then vm_truncate_val (eval_atype (vtype x)) v else get vm y.
+    get (set vm x v) y = if x == y then vm_truncate_val (eval_atype env (vtype x)) v else get vm y.
   Proof. by rewrite /get /set Mvar.setP; case: eqP => [<- | hne]. Qed.
 
-  Lemma setP_eq vm x v : get (set vm x v) x = vm_truncate_val (eval_atype (vtype x)) v.
+  Lemma setP_eq vm x v : get (set vm x v) x = vm_truncate_val (eval_atype env (vtype x)) v.
   Proof. by rewrite setP eqxx. Qed.
 
   Lemma setP_neq vm x v y : x != y -> get (set vm x v) y = get vm y.
@@ -503,36 +503,36 @@ End Vm.
 
 Declare Scope vm_scope.
 Delimit Scope vm_scope with vm.
-Notation "vm .[ x ]" := (@Vm.get _ vm x) : vm_scope.
-Notation "vm .[ x <- v ]" := (@Vm.set _ vm x v) : vm_scope.
+Notation "vm .[ x ]" := (@Vm.get _ _ vm x) : vm_scope.
+Notation "vm .[ x <- v ]" := (@Vm.set _ _ vm x v) : vm_scope.
 Open Scope vm_scope.
 
 
 Section GET_SET.
 
-Context {wsw: WithSubWord}.
+Context {wsw: WithSubWord} (env : length_var -> positive).
 
-Lemma vm_truncate_val_get x vm :
-  vm_truncate_val (eval_atype (vtype x)) vm.[x] = vm.[x].
+Lemma vm_truncate_val_get x (vm : Vm.t env) :
+  vm_truncate_val (eval_atype env (vtype x)) vm.[x] = vm.[x].
 Proof. apply/compat_val_vm_truncate_val/Vm.getP. Qed.
 
-Lemma getP_subctype vm x : subctype (type_of_val vm.[x]) (eval_atype (vtype x)).
+Lemma getP_subctype (vm : Vm.t env) x : subctype (type_of_val vm.[x]) (eval_atype env (vtype x)).
 Proof. apply/compat_ctype_subctype/Vm.getP. Qed.
 
-Lemma subctype_undef_get vm x :
-  subctype (undef_t (eval_atype (vtype x))) (type_of_val vm.[x]).
+Lemma subctype_undef_get (vm : Vm.t env) x :
+  subctype (undef_t (eval_atype env (vtype x))) (type_of_val vm.[x]).
 Proof.
   have /compat_ctype_undef_t <- := Vm.getP vm x.
   apply undef_t_subctype.
 Qed.
 
-Definition set_var wdb vm x v :=
+Definition set_var wdb (vm : Vm.t env) x v :=
   Let _ := assert (DB wdb v) ErrAddrUndef in
-  Let _ := assert (truncatable wdb (eval_atype (vtype x)) v) ErrType in
+  Let _ := assert (truncatable wdb (eval_atype env (vtype x)) v) ErrType in
   ok vm.[x <- v].
 
 (* Ensure that the variable is defined *)
-Definition get_var wdb vm x :=
+Definition get_var wdb (vm : Vm.t env) x :=
   let v := vm.[x]%vm in
   Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in
   ok v.
@@ -540,19 +540,19 @@ Definition get_var wdb vm x :=
 Definition get_vars wdb vm := mapM (get_var wdb vm).
 
 Definition vm_initialized_on vm : seq var → Prop :=
-  all (λ x, is_ok (get_var true vm x >>= of_val (eval_atype (vtype x)))).
+  all (λ x, is_ok (get_var true vm x >>= of_val (eval_atype env (vtype x)))).
 
 Lemma set_varP wdb vm x v vm' :
-  set_var wdb vm x v = ok vm' <-> [/\ DB wdb v, truncatable wdb (eval_atype (vtype x)) v & vm' = vm.[x <- v]].
+  set_var wdb vm x v = ok vm' <-> [/\ DB wdb v, truncatable wdb (eval_atype env (vtype x)) v & vm' = vm.[x <- v]].
 Proof. by rewrite /set_var; split => [ | [-> -> -> //]]; t_xrbindP. Qed.
 
 Lemma set_var_truncate wdb x v :
-  DB wdb v -> truncatable wdb (eval_atype (vtype x)) v ->
+  DB wdb v -> truncatable wdb (eval_atype env (vtype x)) v ->
   forall vm, set_var wdb vm x v = ok vm.[x <- v].
 Proof. by rewrite /set_var => -> ->. Qed.
 
 Lemma set_var_eq_type wdb x v:
-  DB wdb v -> type_of_val v = eval_atype (vtype x) ->
+  DB wdb v -> type_of_val v = eval_atype env (vtype x) ->
   forall vm, set_var wdb vm x v = ok vm.[x <- v].
 Proof. move => h1 h2; apply set_var_truncate => //; rewrite -h2; apply truncatable_type_of. Qed.
 
@@ -560,11 +560,11 @@ Lemma set_varDB wdb vm x v vm' : set_var wdb vm x v = ok vm' -> DB wdb v.
 Proof. by move=> /set_varP []. Qed.
 
 Lemma get_varP wdb vm x v : get_var wdb vm x = ok v ->
-  [/\ v = vm.[x], ~~wdb || is_defined v & compat_val (eval_atype (vtype x)) v].
+  [/\ v = vm.[x], ~~wdb || is_defined v & compat_val (eval_atype env (vtype x)) v].
 Proof. rewrite/get_var;t_xrbindP => ? <-; split => //; apply Vm.getP. Qed.
 
 Lemma get_var_compat wdb vm x v : get_var wdb vm x = ok v ->
-   (~~wdb || is_defined v) /\ compat_val (eval_atype (vtype x)) v.
+   (~~wdb || is_defined v) /\ compat_val (eval_atype env (vtype x)) v.
 Proof. by move=>/get_varP []. Qed.
 
 Lemma get_var_undef vm x v ty h :
@@ -573,18 +573,18 @@ Proof. by move=> /get_var_compat [] * ?; subst. Qed.
 
 Lemma get_varI vm x v : get_var true vm x = ok v ->
   match v with
-  | Vbool _ => eval_atype (vtype x) = cbool
-  | Vint _ => eval_atype (vtype x) = cint
-  | Varr len _ => eval_atype (vtype x) = carr len
+  | Vbool _ => eval_atype env (vtype x) = cbool
+  | Vint _ => eval_atype env (vtype x) = cint
+  | Varr len _ => eval_atype env (vtype x) = carr len
   | Vword ws _ =>
-    exists2 ws', eval_atype (vtype x) = cword ws' &
+    exists2 ws', eval_atype env (vtype x) = cword ws' &
      if sw_allowed then ((ws <= ws')%CMP:Prop) else ws = ws'
   | Vundef ty' _ => False
   end.
 Proof. by move=> /get_var_compat [] + /compat_valE; case: v. Qed.
 
 Lemma get_varE vm x v : get_var true vm x = ok v ->
-  match eval_atype (vtype x) with
+  match eval_atype env (vtype x) with
   | cbool => exists b, v = Vbool b
   | cint  => exists i, v = Vint i
   | carr len => exists t, v = @Varr len t
@@ -598,7 +598,7 @@ Qed.
 
 Lemma type_of_get_var wdb x vm v :
   get_var wdb vm x = ok v ->
-  subctype (type_of_val v) (eval_atype x.(vtype)).
+  subctype (type_of_val v) (eval_atype env x.(vtype)).
 Proof.
   by move=> /get_var_compat [] _; rewrite /compat_val /compat_ctype; case: ifP => // _ /eqP <-.
 Qed.
@@ -607,16 +607,16 @@ Qed.
 Lemma type_of_get_var_not_word vm x v :
   (sw_allowed -> ~ is_aword x.(vtype)) ->
   get_var true vm x = ok v ->
-  type_of_val v = eval_atype x.(vtype).
+  type_of_val v = eval_atype env x.(vtype).
 Proof.
   move=> h /get_var_compat [] /= hdb; rewrite /compat_val /compat_ctype hdb orbF.
   case: ifP => //; last by move=> _ /eqP.
   by move=> /h; case: vtype => //= [||ws len] _ /subctypeE.
 Qed.
 
-Lemma get_word_uincl_eq vm x ws (w:word ws) :
+Lemma get_word_uincl_eq (vm : Vm.t env) x ws (w:word ws) :
   value_uincl (Vword w) vm.[x] ->
-  subctype (eval_atype (vtype x)) (cword ws) ->
+  subctype (eval_atype env (vtype x)) (cword ws) ->
   vm.[x] = Vword w.
 Proof.
   move => /value_uinclE [ws' [w' [heq ]]]; have := getP_subctype vm x; rewrite heq.
@@ -638,29 +638,29 @@ Ltac t_vm_get :=
 
 Section REL.
 
-  Context {wsw1 wsw2 : WithSubWord}.
+  Context {wsw1 wsw2 : WithSubWord} (env : length_var -> positive).
 
   Section Section.
 
   Context (R:value -> value -> Prop).
 
-  Definition vm_rel (P : var -> Prop) (vm1 : @Vm.t wsw1) (vm2 : @Vm.t wsw2) :=
+  Definition vm_rel (P : var -> Prop) (vm1 : @Vm.t wsw1 env) (vm2 : @Vm.t wsw2 env) :=
     forall x, P x -> R (Vm.get vm1 x) (Vm.get vm2 x).
 
   Lemma vm_rel_set (P : var -> Prop) vm1 vm2 x v1 v2 :
-    (P x -> R (vm_truncate_val (wsw:=wsw1) (eval_atype (vtype x)) v1) (vm_truncate_val (wsw:=wsw2) (eval_atype (vtype x)) v2)) ->
+    (P x -> R (vm_truncate_val (wsw:=wsw1) (eval_atype env (vtype x)) v1) (vm_truncate_val (wsw:=wsw2) (eval_atype env (vtype x)) v2)) ->
     vm_rel (fun z => x <> z /\ P z) vm1 vm2 ->
     vm_rel P vm1.[x <- v1] vm2.[x <- v2].
   Proof. move=> h hu y hy; rewrite !Vm.setP; case: eqP => heq; subst; auto. Qed.
 
   Lemma vm_rel_set_r (P : var -> Prop) vm1 vm2 x v2 :
-    (P x -> R vm1.[x] (vm_truncate_val (wsw:=wsw2) (eval_atype (vtype x)) v2)) ->
+    (P x -> R vm1.[x] (vm_truncate_val (wsw:=wsw2) (eval_atype env (vtype x)) v2)) ->
     vm_rel (fun z => x <> z /\ P z) vm1 vm2 ->
     vm_rel P vm1 (vm2.[x <- v2]).
   Proof. move=> h hu y hy; rewrite !Vm.setP; case: eqP => heq; subst; auto. Qed.
 
   Lemma vm_rel_set_l (P : var -> Prop) vm1 vm2 x v1 :
-    (P x -> R (vm_truncate_val (wsw:=wsw1) (eval_atype (vtype x)) v1) vm2.[x]) ->
+    (P x -> R (vm_truncate_val (wsw:=wsw1) (eval_atype env (vtype x)) v1) vm2.[x]) ->
     vm_rel (fun z => x <> z /\ P z) vm1 vm2 ->
     vm_rel P vm1.[x <- v1] vm2.
   Proof. move=> h hu y hy; rewrite !Vm.setP; case: eqP => heq; subst; auto. Qed.
@@ -670,61 +670,61 @@ Section REL.
   #[export] Instance vm_rel_impl :
     Proper (subrelation ==>
             pointwise_lifting (Basics.flip Basics.impl) (Tcons var Tnil) ==>
-            @eq Vm.t ==> @eq Vm.t ==> Basics.impl) vm_rel.
+            @eq (Vm.t env) ==> @eq (Vm.t env) ==> Basics.impl) vm_rel.
   Proof. by move=> R1 R2 hR P1 P2 hP vm1 ? <- vm2 ? <- h x hx; apply/hR/h/hP. Qed.
 
   #[export] Instance vm_rel_m :
     Proper (relation_equivalence ==>
             pointwise_lifting iff (Tcons var Tnil) ==>
-            @eq Vm.t ==> @eq Vm.t ==> iff) vm_rel.
+            @eq (Vm.t env) ==> @eq (Vm.t env) ==> iff) vm_rel.
   Proof.
     move=> R1 R2 hR P1 P2 hP vm1 ? <- vm2 ? <-; split; apply vm_rel_impl => //.
     1,3: by move=> ??;apply hR.
     1,2: by move=> x /=; case: (hP x).
   Qed.
 
-  Definition vm_eq (vm1:Vm.t (wsw:=wsw1)) (vm2:Vm.t (wsw:=wsw2)) :=
+  Definition vm_eq (vm1:Vm.t (wsw:=wsw1) env) (vm2:Vm.t (wsw:=wsw2) env) :=
     forall x, vm1.[x] = vm2.[x].
 
   Definition eq_on     (X:Sv.t) := vm_rel (@eq value) (fun x => Sv.In x X).
   Definition eq_ex (X:Sv.t) := vm_rel (@eq value) (fun x => ~Sv.In x X).
 
-  Definition vm_uincl (vm1:Vm.t (wsw:=wsw1)) (vm2:Vm.t (wsw:=wsw2)) :=
+  Definition vm_uincl (vm1:Vm.t (wsw:=wsw1) env) (vm2:Vm.t (wsw:=wsw2) env) :=
     forall x, value_uincl vm1.[x] vm2.[x].
 
   Definition uincl_on     (X:Sv.t) := vm_rel value_uincl (fun x => Sv.In x X).
   Definition uincl_ex (X:Sv.t) := vm_rel value_uincl (fun x => ~Sv.In x X).
 
   #[export] Instance eq_on_impl :
-    Proper (Basics.flip Sv.Subset ==> @eq Vm.t ==> @eq Vm.t ==> Basics.impl) eq_on.
+    Proper (Basics.flip Sv.Subset ==> @eq (Vm.t env) ==> @eq (Vm.t env) ==> Basics.impl) eq_on.
   Proof. by move=> s1 s2 hS; apply vm_rel_impl. Qed.
 
   #[export] Instance eq_on_m :
-    Proper (Sv.Equal ==> @eq Vm.t ==> @eq Vm.t ==> iff) eq_on.
+    Proper (Sv.Equal ==> @eq (Vm.t env) ==> @eq (Vm.t env) ==> iff) eq_on.
   Proof. by move=> s1 s2 hS; apply vm_rel_m. Qed.
 
   #[export] Instance eq_ex_impl :
-    Proper (Sv.Subset ==> @eq Vm.t ==> @eq Vm.t ==> Basics.impl) eq_ex.
+    Proper (Sv.Subset ==> @eq (Vm.t env) ==> @eq (Vm.t env) ==> Basics.impl) eq_ex.
   Proof. by move=> s1 s2 hS; apply vm_rel_impl => // x hnx hx; apply/hnx/hS. Qed.
 
   #[export] Instance eq_ex_m :
-    Proper (Sv.Equal ==> @eq Vm.t ==> @eq Vm.t ==> iff) eq_ex.
+    Proper (Sv.Equal ==> @eq (Vm.t env) ==> @eq (Vm.t env) ==> iff) eq_ex.
   Proof. by move=> s1 s2 hS; apply vm_rel_m => // x; rewrite hS. Qed.
 
   #[export] Instance uincl_on_impl :
-    Proper (Basics.flip Sv.Subset ==> @eq Vm.t ==> @eq Vm.t ==> Basics.impl) uincl_on.
+    Proper (Basics.flip Sv.Subset ==> @eq (Vm.t env) ==> @eq (Vm.t env) ==> Basics.impl) uincl_on.
   Proof. by move=> s1 s2 hS; apply vm_rel_impl. Qed.
 
   #[export] Instance uincl_on_m :
-    Proper (Sv.Equal ==> @eq Vm.t ==> @eq Vm.t ==> iff) uincl_on.
+    Proper (Sv.Equal ==> @eq (Vm.t env) ==> @eq (Vm.t env) ==> iff) uincl_on.
   Proof. by move=> s1 s2 hS; apply vm_rel_m. Qed.
 
   #[export] Instance uincl_ex_impl :
-    Proper (Sv.Subset ==> @eq Vm.t ==> @eq Vm.t ==> Basics.impl) uincl_ex.
+    Proper (Sv.Subset ==> @eq (Vm.t env) ==> @eq (Vm.t env) ==> Basics.impl) uincl_ex.
   Proof. by move=> s1 s2 hS; apply vm_rel_impl => // x hnx hx; apply/hnx/hS. Qed.
 
   #[export] Instance uincl_ex_m :
-    Proper (Sv.Equal ==> @eq Vm.t ==> @eq Vm.t ==> iff) uincl_ex.
+    Proper (Sv.Equal ==> @eq (Vm.t env) ==> @eq (Vm.t env) ==> iff) uincl_ex.
   Proof. by move=> s1 s2 hS; apply vm_rel_m => // x; rewrite hS. Qed.
 
   Lemma vm_eq_vm_rel vm1 vm2 : vm_eq vm1 vm2 <-> vm_rel (@eq value) (fun _ => True) vm1 vm2.
@@ -759,112 +759,112 @@ Notation "vm1 '<=[\' s ']' vm2" := (uincl_ex s vm1 vm2)
   format "'[hv ' vm1  <=[\ s ] '/'  vm2 ']'") : vm_scope.
 
 Section REL_EQUIV.
-  Context {wsw : WithSubWord}.
+  Context {wsw : WithSubWord} (env : length_var -> positive).
 
-  Lemma vm_rel_refl R P : Reflexive R -> Reflexive (vm_rel R P).
+  Lemma vm_rel_refl R P : Reflexive R -> Reflexive (vm_rel (env:=env) R P).
   Proof. by move=> h x v _. Qed.
 
-  Lemma vm_rel_sym R P : Symmetric R -> Symmetric (vm_rel R P).
+  Lemma vm_rel_sym R P : Symmetric R -> Symmetric (vm_rel (env:=env) R P).
   Proof. by move=> h x y hxy v hv; apply/h/hxy. Qed.
 
-  Lemma vm_rel_trans R P : Transitive R -> Transitive (vm_rel R P).
+  Lemma vm_rel_trans R P : Transitive R -> Transitive (vm_rel (env:=env) R P).
   Proof. move=> h x y z hxy hyz v hv; apply: h (hxy v hv) (hyz v hv). Qed.
 
   Lemma vm_relI R (P1 P2 : var -> Prop) vm1 vm2 :
     (forall x, P1 x -> P2 x) ->
-    vm_rel R P2 vm1 vm2 -> vm_rel R P1 vm1 vm2.
+    vm_rel (env:=env) R P2 vm1 vm2 -> vm_rel (env:=env) R P1 vm1 vm2.
   Proof. by move=> h hvm v /h hv; apply hvm. Qed.
 
-  #[export]Instance equiv_vm_rel R P : Equivalence R -> Equivalence (vm_rel R P).
+  #[export]Instance equiv_vm_rel R P : Equivalence R -> Equivalence (vm_rel (env:=env) R P).
   Proof.
     by constructor; [apply: vm_rel_refl | apply: vm_rel_sym | apply: vm_rel_trans].
   Qed.
 
-  #[export]Instance equiv_vm_eq : Equivalence vm_eq.
+  #[export]Instance equiv_vm_eq : Equivalence (vm_eq (env:=env)).
   Proof. by constructor => > // => [h1 x | h1 h2 x]; rewrite h1 ?h2. Qed.
 
-  #[export]Instance equiv_eq_on s : Equivalence (eq_on s).
+  #[export]Instance equiv_eq_on s : Equivalence (eq_on (env:=env) s).
   Proof. apply equiv_vm_rel; apply eq_equivalence. Qed.
 
-  #[export]Instance equiv_eq_ex s : Equivalence (eq_ex s).
+  #[export]Instance equiv_eq_ex s : Equivalence (eq_ex (env:=env) s).
   Proof. apply equiv_vm_rel; apply eq_equivalence. Qed.
 
-  #[export]Instance po_vm_rel R P: PreOrder R -> PreOrder (vm_rel R P).
+  #[export]Instance po_vm_rel R P: PreOrder R -> PreOrder (vm_rel (env:=env) R P).
   Proof. by constructor; [apply: vm_rel_refl | apply: vm_rel_trans]. Qed.
 
   #[export]Instance po_value_uincl : PreOrder value_uincl.
   Proof. constructor => // ???; apply value_uincl_trans. Qed.
 
-  #[export]Instance po_vm_uincl : PreOrder vm_uincl.
+  #[export]Instance po_vm_uincl : PreOrder (vm_uincl (env:=env)).
   Proof.
    constructor => [ vm1 // | vm1 vm2 vm3].
    rewrite !vm_uincl_vm_rel; apply vm_rel_trans => ???; apply value_uincl_trans.
   Qed.
 
-  #[export]Instance po_uincl_on s : PreOrder (uincl_on s).
+  #[export]Instance po_uincl_on s : PreOrder (uincl_on (env:=env) s).
   Proof. apply po_vm_rel; apply po_value_uincl. Qed.
 
-  #[export]Instance po_uincl_ex s : PreOrder (uincl_ex s).
+  #[export]Instance po_uincl_ex s : PreOrder (uincl_ex (env:=env) s).
   Proof. apply po_vm_rel; apply po_value_uincl. Qed.
 
-  Lemma vm_uincl_refl vm : vm <=1 vm.
+  Lemma vm_uincl_refl (vm : Vm.t env) : vm <=1 vm.
   Proof. done. Qed.
 
-  Lemma vm_uinclT vm2 vm1 vm3 : vm1 <=1 vm2 -> vm2 <=1 vm3 -> vm1 <=1 vm3.
+  Lemma vm_uinclT (vm2 vm1 vm3 : Vm.t env) : vm1 <=1 vm2 -> vm2 <=1 vm3 -> vm1 <=1 vm3.
   Proof. rewrite !vm_uincl_vm_rel; apply vm_rel_trans => ???; apply: value_uincl_trans. Qed.
 
-  Lemma eq_on_refl s vm : vm =[s] vm.
+  Lemma eq_on_refl s (vm : Vm.t env) : vm =[s] vm.
   Proof. by apply vm_rel_refl. Qed.
 
-  Lemma eq_onT vm2 vm1 vm3 s:
+  Lemma eq_onT (vm2 vm1 vm3 : Vm.t env) s:
     vm1 =[s] vm2 -> vm2 =[s] vm3 -> vm1 =[s] vm3.
   Proof. by apply vm_rel_trans => > -> ->. Qed.
 
-  Lemma eq_onS s vm1 vm2 : vm1 =[s] vm2 -> vm2 =[s] vm1.
+  Lemma eq_onS s (vm1 vm2 : Vm.t env) : vm1 =[s] vm2 -> vm2 =[s] vm1.
   Proof. by apply vm_rel_sym. Qed.
 
-  Lemma eq_onI s1 s2 vm1 vm2 : Sv.Subset s1 s2 -> vm1 =[s2] vm2 -> vm1 =[s1] vm2.
+  Lemma eq_onI s1 s2 (vm1 vm2 : Vm.t env) : Sv.Subset s1 s2 -> vm1 =[s2] vm2 -> vm1 =[s1] vm2.
   Proof. move=> h1; apply vm_relI; SvD.fsetdec. Qed.
 
-  Lemma eq_ex_refl s vm : vm =[\s] vm.
+  Lemma eq_ex_refl s (vm : Vm.t env) : vm =[\s] vm.
   Proof. by apply vm_rel_refl. Qed.
 
-  Lemma eq_exT vm2 vm1 vm3 s:
+  Lemma eq_exT (vm2 vm1 vm3 : Vm.t env) s:
     vm1 =[\s] vm2 -> vm2 =[\s] vm3 -> vm1 =[\s] vm3.
   Proof. by apply vm_rel_trans => > -> ->. Qed.
 
-  Lemma eq_exS s vm1 vm2 : vm1 =[\s] vm2 -> vm2 =[\s] vm1.
+  Lemma eq_exS s (vm1 vm2 : Vm.t env) : vm1 =[\s] vm2 -> vm2 =[\s] vm1.
   Proof. by apply vm_rel_sym. Qed.
 
-  Lemma eq_exI s1 s2 vm1 vm2 : Sv.Subset s2 s1 -> vm1 =[\s2] vm2 -> vm1 =[\s1] vm2.
+  Lemma eq_exI s1 s2 (vm1 vm2 : Vm.t env) : Sv.Subset s2 s1 -> vm1 =[\s2] vm2 -> vm1 =[\s1] vm2.
   Proof. move=> h1; apply vm_relI; SvD.fsetdec. Qed.
 
-  Lemma uincl_on_refl vm s : vm <=[s] vm.
+  Lemma uincl_on_refl (vm : Vm.t env) s : vm <=[s] vm.
   Proof. done. Qed.
 
-  Lemma uincl_onT vm2 vm1 vm3 s:
+  Lemma uincl_onT (vm2 vm1 vm3 : Vm.t env) s:
     vm1 <=[s] vm2 -> vm2 <=[s] vm3 -> vm1 <=[s] vm3.
   Proof. apply vm_rel_trans => ???; apply value_uincl_trans. Qed.
 
-  Lemma uincl_onI s1 s2 vm1 vm2 : Sv.Subset s1 s2 -> vm1 <=[s2] vm2 -> vm1 <=[s1] vm2.
+  Lemma uincl_onI s1 s2 (vm1 vm2 : Vm.t env) : Sv.Subset s1 s2 -> vm1 <=[s2] vm2 -> vm1 <=[s1] vm2.
   Proof. move=> h1; apply vm_relI; SvD.fsetdec. Qed.
 
-  Lemma uincl_ex_refl s vm : vm <=[\s] vm.
+  Lemma uincl_ex_refl s (vm : Vm.t env) : vm <=[\s] vm.
   Proof. apply vm_rel_refl => ?; apply value_uincl_refl. Qed.
 
-  Lemma uincl_exT vm2 vm1 vm3 s:
+  Lemma uincl_exT (vm2 vm1 vm3 : Vm.t env) s:
     vm1 <=[\s] vm2 -> vm2 <=[\s] vm3 -> vm1 <=[\s] vm3.
   Proof. apply vm_rel_trans => ???; apply value_uincl_trans. Qed.
 
-  Lemma uincl_exI s1 s2 vm1 vm2 :
+  Lemma uincl_exI s1 s2 (vm1 vm2 : Vm.t env) :
     Sv.Subset s2 s1 -> vm1 <=[\s2] vm2 -> vm1 <=[\s1] vm2.
   Proof. move=> h1; apply vm_relI; SvD.fsetdec. Qed.
 
-  Lemma eq_ex_union s1 s2 vm1 vm2 :
+  Lemma eq_ex_union s1 s2 (vm1 vm2 : Vm.t env) :
     vm1 =[\s1] vm2 -> vm1 =[\Sv.union s1 s2] vm2.
   Proof. apply: eq_exI; SvD.fsetdec. Qed.
 
-  Lemma eq_exTI s1 s2 vm1 vm2 vm3 :
+  Lemma eq_exTI s1 s2 (vm1 vm2 vm3 : Vm.t env) :
     vm1 =[\s1] vm2 ->
     vm2 =[\s2] vm3 ->
     vm1 =[\Sv.union s1 s2] vm3.
@@ -872,13 +872,13 @@ Section REL_EQUIV.
     move => h12 h23; apply: (@eq_exT vm2); apply: eq_exI; eauto; SvD.fsetdec.
   Qed.
 
-  Lemma eq_ex_eq_on x y z e o :
+  Lemma eq_ex_eq_on (x y z : Vm.t env) e o :
     x =[\e]  y →
     z =[o] y →
     x =[Sv.diff o e] z.
   Proof. move => he ho j hj; rewrite he ?ho; SvD.fsetdec. Qed.
 
-  Lemma vm_rel_set_var (wdb:bool) (P : var -> Prop) vm1 vm1' vm2 x v1 v2 :
+  Lemma vm_rel_set_var (wdb:bool) (P : var -> Prop) (vm1 vm1' vm2 : Vm.t env) x v1 v2 :
     value_uincl v1 v2 ->
     vm_rel value_uincl (fun z => x <> z /\ P z) vm1 vm2 ->
     set_var wdb vm1 x v1 = ok vm1' ->
@@ -894,25 +894,25 @@ Section REL_EQUIV.
     by apply value_uincl_vm_truncate.
   Qed.
 
-  Lemma vm_uincl_set vm1 vm2 x v1 v2 :
-    value_uincl (vm_truncate_val (eval_atype (vtype x)) v1) (vm_truncate_val (eval_atype (vtype x)) v2) ->
+  Lemma vm_uincl_set (vm1 vm2 : Vm.t env) x v1 v2 :
+    value_uincl (vm_truncate_val (eval_atype env (vtype x)) v1) (vm_truncate_val (eval_atype env (vtype x)) v2) ->
     vm1 <=1 vm2 ->
     vm1.[x <- v1] <=1 vm2.[x <- v2].
   Proof. by rewrite !vm_uincl_vm_rel => hvu hu; apply vm_rel_set => //; apply: vm_relI hu. Qed.
 
-  Lemma vm_uincl_set_l vm1 vm2 x v :
-    value_uincl (vm_truncate_val (eval_atype (vtype x)) v) vm2.[x] ->
+  Lemma vm_uincl_set_l (vm1 vm2 : Vm.t env) x v :
+    value_uincl (vm_truncate_val (eval_atype env (vtype x)) v) vm2.[x] ->
     vm1 <=1 vm2 ->
     vm1.[x <- v] <=1 vm2.
   Proof. by rewrite !vm_uincl_vm_rel => hvu hu; apply vm_rel_set_l => //; apply: vm_relI hu. Qed.
 
-  Lemma vm_uincl_set_r vm1 vm2 x v :
-    value_uincl vm1.[x] (vm_truncate_val (eval_atype (vtype x)) v) ->
+  Lemma vm_uincl_set_r (vm1 vm2 : Vm.t env) x v :
+    value_uincl vm1.[x] (vm_truncate_val (eval_atype env (vtype x)) v) ->
     vm1 <=1 vm2 ->
     vm1 <=1 vm2.[x <- v].
   Proof. by rewrite !vm_uincl_vm_rel => hvu hu; apply vm_rel_set_r => //; apply: vm_relI hu. Qed.
 
-  Lemma vm_uincl_set_var wdb vm1 vm1' vm2 x v1 v2 :
+  Lemma vm_uincl_set_var wdb (vm1 vm1' vm2 : Vm.t env) x v1 v2 :
     value_uincl v1 v2 ->
     vm1 <=1 vm2 ->
     set_var wdb vm1 x v1 = ok vm1' ->
@@ -923,75 +923,75 @@ Section REL_EQUIV.
     by apply: vm_relI h2.
   Qed.
 
-  Lemma uincl_on_set X vm1 vm2 x v1 v2:
-    (Sv.In x X -> value_uincl (vm_truncate_val (eval_atype (vtype x)) v1) (vm_truncate_val (eval_atype (vtype x)) v2)) ->
+  Lemma uincl_on_set X (vm1 vm2 : Vm.t env) x v1 v2:
+    (Sv.In x X -> value_uincl (vm_truncate_val (eval_atype env (vtype x)) v1) (vm_truncate_val (eval_atype env (vtype x)) v2)) ->
     vm1 <=[Sv.remove x X] vm2 ->
     vm1.[x <- v1] <=[X] vm2.[x <- v2].
   Proof. move=> hvu hu; apply vm_rel_set => //; apply: vm_relI hu; SvD.fsetdec. Qed.
 
-  Lemma uincl_on_set_l X vm1 vm2 x v :
-    (Sv.In x X -> value_uincl (vm_truncate_val (eval_atype (vtype x)) v) vm2.[x]) ->
+  Lemma uincl_on_set_l X (vm1 vm2 : Vm.t env) x v :
+    (Sv.In x X -> value_uincl (vm_truncate_val (eval_atype env (vtype x)) v) vm2.[x]) ->
     vm1 <=[Sv.remove x X] vm2 ->
     vm1.[x <- v] <=[X] vm2.
   Proof. move=> hvu hu; apply vm_rel_set_l => //; apply: vm_relI hu; SvD.fsetdec. Qed.
 
-  Lemma uincl_on_set_r X vm1 vm2 x v :
-    (Sv.In x X ->value_uincl vm1.[x] (vm_truncate_val (eval_atype (vtype x)) v)) ->
+  Lemma uincl_on_set_r X (vm1 vm2 : Vm.t env) x v :
+    (Sv.In x X ->value_uincl vm1.[x] (vm_truncate_val (eval_atype env (vtype x)) v)) ->
     vm1 <=[Sv.remove x X] vm2 ->
     vm1 <=[X] vm2.[x <- v].
   Proof. by move=> hvu hu; apply vm_rel_set_r => //; apply: vm_relI hu; SvD.fsetdec. Qed.
 
-  Lemma uincl_on_set_var (wdb:bool) s vm1 vm1' vm2 x v1 v2 :
+  Lemma uincl_on_set_var (wdb:bool) s (vm1 vm1' vm2 : Vm.t env) x v1 v2 :
     value_uincl v1 v2 ->
     vm1 <=[Sv.remove x s] vm2 ->
     set_var wdb vm1 x v1 = ok vm1' ->
     set_var wdb vm2 x v2 = ok vm2.[x<-v2] /\ vm1' <=[s] vm2.[x<-v2].
   Proof. move=> h1 h2; apply vm_rel_set_var => // z hz; apply h2; SvD.fsetdec. Qed.
 
-  Lemma eq_ex_set s vm1 vm2 x v1 v2 :
-    (~Sv.In x s -> vm_truncate_val (eval_atype (vtype x)) v1 = vm_truncate_val (eval_atype (vtype x)) v2) ->
+  Lemma eq_ex_set s (vm1 vm2 : Vm.t env) x v1 v2 :
+    (~Sv.In x s -> vm_truncate_val (eval_atype env (vtype x)) v1 = vm_truncate_val (eval_atype env (vtype x)) v2) ->
     vm1 =[\Sv.add x s] vm2 ->
     vm1.[x<-v1] =[\ s] vm2.[x<-v2].
   Proof. move=> h1 h2; apply vm_rel_set => // z hz; apply h2; SvD.fsetdec. Qed.
 
-  Lemma eq_ex_set_r s vm1 vm2 x v :
-    (~Sv.In x s -> vm1.[x] = vm_truncate_val (eval_atype (vtype x)) v) ->
+  Lemma eq_ex_set_r s (vm1 vm2 : Vm.t env) x v :
+    (~Sv.In x s -> vm1.[x] = vm_truncate_val (eval_atype env (vtype x)) v) ->
     vm1 =[\Sv.add x s] vm2 ->
     vm1 =[\ s] vm2.[x<-v].
   Proof. move=> h1 h2; apply vm_rel_set_r => // z hz; apply h2; SvD.fsetdec. Qed.
 
-  Lemma eq_ex_set_l s vm1 vm2 x v :
-    (~Sv.In x s -> vm_truncate_val (eval_atype (vtype x)) v = vm2.[x]) ->
+  Lemma eq_ex_set_l s (vm1 vm2 : Vm.t env) x v :
+    (~Sv.In x s -> vm_truncate_val (eval_atype env (vtype x)) v = vm2.[x]) ->
     vm1 =[\Sv.add x s] vm2 ->
     vm1.[x<-v] =[\ s] vm2.
   Proof. move=> h1 h2; apply vm_rel_set_l => // z hz; apply h2; SvD.fsetdec. Qed.
 
-  Lemma uincl_ex_set s vm1 vm2 x v1 v2 :
-    (~Sv.In x s -> value_uincl (vm_truncate_val (eval_atype (vtype x)) v1) (vm_truncate_val (eval_atype (vtype x)) v2)) ->
+  Lemma uincl_ex_set s (vm1 vm2 : Vm.t env) x v1 v2 :
+    (~Sv.In x s -> value_uincl (vm_truncate_val (eval_atype env (vtype x)) v1) (vm_truncate_val (eval_atype env (vtype x)) v2)) ->
     vm1 <=[\Sv.add x s] vm2 ->
     vm1.[x<-v1] <=[\ s] vm2.[x<-v2].
   Proof. move=> h1 h2; apply vm_rel_set => // z hz; apply h2; SvD.fsetdec. Qed.
 
-  Lemma uincl_ex_set_r s vm1 vm2 x v :
-    (~Sv.In x s -> value_uincl vm1.[x] (vm_truncate_val (eval_atype (vtype x)) v)) ->
+  Lemma uincl_ex_set_r s (vm1 vm2 : Vm.t env) x v :
+    (~Sv.In x s -> value_uincl vm1.[x] (vm_truncate_val (eval_atype env (vtype x)) v)) ->
     vm1 <=[\Sv.add x s] vm2 ->
     vm1 <=[\ s] vm2.[x<-v].
   Proof. move=> h1 h2; apply vm_rel_set_r => // z hz; apply h2; SvD.fsetdec. Qed.
 
-  Lemma uincl_ex_set_l s vm1 vm2 x v :
-    (~Sv.In x s -> value_uincl (vm_truncate_val (eval_atype (vtype x)) v) vm2.[x]) ->
+  Lemma uincl_ex_set_l s (vm1 vm2 : Vm.t env) x v :
+    (~Sv.In x s -> value_uincl (vm_truncate_val (eval_atype env (vtype x)) v) vm2.[x]) ->
     vm1 <=[\Sv.add x s] vm2 ->
     vm1.[x<-v] <=[\ s] vm2.
   Proof. move=> h1 h2; apply vm_rel_set_l => // z hz; apply h2; SvD.fsetdec. Qed.
 
-  Lemma uincl_ex_set_var (wdb:bool) s vm1 vm1' vm2 x v1 v2 :
+  Lemma uincl_ex_set_var (wdb:bool) s (vm1 vm1' vm2 : Vm.t env) x v1 v2 :
     value_uincl v1 v2 ->
     vm1 <=[\s] vm2 ->
     set_var wdb vm1 x v1 = ok vm1' ->
     set_var wdb vm2 x v2 = ok vm2.[x<-v2] /\ vm1' <=[\ Sv.remove x s] vm2.[x<-v2].
   Proof. move=> h1 h2; apply vm_rel_set_var => // ??; apply h2; SvD.fsetdec. Qed.
 
-  Lemma uincl_on_vm_uincl vm1 vm2 vm1' vm2' d :
+  Lemma uincl_on_vm_uincl (vm1 vm2 vm1' vm2' : Vm.t env) d :
     vm1  <=1   vm2 →
     vm1' <=[d] vm2' →
     vm1  =[\d] vm1'→
@@ -1003,7 +1003,7 @@ Section REL_EQUIV.
     by move => hx; rewrite -!(t1, t2) //; apply out.
   Qed.
 
-  Lemma eq_on_eq_vm vm1 vm2 vm1' vm2' d :
+  Lemma eq_on_eq_vm (vm1 vm2 vm1' vm2' : Vm.t env) d :
     (vm1  =1   vm2)%vm →
     vm1' =[d] vm2' →
     vm1  =[\d] vm1'→
@@ -1015,7 +1015,7 @@ Section REL_EQUIV.
     by move => hx; rewrite -!(t1, t2) //; apply out.
   Qed.
 
-  Lemma eq_on_union vm1 vm2 vm1' vm2' X Y :
+  Lemma eq_on_union (vm1 vm2 vm1' vm2' : Vm.t env) X Y :
     vm1  =[X]  vm2 →
     vm1' =[Y]  vm2' →
     vm1  =[\Y] vm1'→
@@ -1027,7 +1027,7 @@ Section REL_EQUIV.
     move => hxY; rewrite -!(t1, t2) //; apply out; SvD.fsetdec.
   Qed.
 
-  Lemma uincl_on_union vm1 vm2 vm1' vm2' X Y :
+  Lemma uincl_on_union (vm1 vm2 vm1' vm2' : Vm.t env) X Y :
     vm1  <=[X]  vm2 →
     vm1' <=[Y]  vm2' →
     vm1  =[\Y] vm1'→
@@ -1039,12 +1039,12 @@ Section REL_EQUIV.
     move => hxY; rewrite -!(t1, t2) //; apply out; SvD.fsetdec.
   Qed.
 
-  Lemma set_var_eq_ex (wdb: bool) (x:var) v vm1 vm2 :
+  Lemma set_var_eq_ex (wdb: bool) (x:var) v (vm1 vm2 : Vm.t env) :
     set_var wdb vm1 x v = ok vm2 ->
     vm1 =[\ Sv.singleton x] vm2.
   Proof. move=> /set_varP [??->] z hz; rewrite Vm.setP_neq //; apply/eqP; SvD.fsetdec. Qed.
 
-  Lemma set_var_eq_on1 wdb x v vm1 vm2 vm1':
+  Lemma set_var_eq_on1 wdb x v (vm1 vm2 vm1' : Vm.t env) :
     set_var wdb vm1  x v = ok vm2 ->
     set_var wdb vm1' x v = ok vm1'.[x <- v] /\ vm2 =[Sv.singleton x] vm1'.[x <- v].
   Proof.
@@ -1052,7 +1052,7 @@ Section REL_EQUIV.
     move=> z hz; rewrite !Vm.setP; case: eqP => // hne; SvD.fsetdec.
   Qed.
 
-  Lemma set_var_eq_on wdb s x v vm1 vm2 vm1':
+  Lemma set_var_eq_on wdb s x v (vm1 vm2 vm1' : Vm.t env) :
     set_var wdb vm1 x v = ok vm2 ->
     vm1 =[s] vm1' ->
     set_var wdb vm1' x v = ok vm1'.[x <- v] /\ vm2 =[Sv.add x s] vm1'.[x <- v].
@@ -1062,45 +1062,45 @@ Section REL_EQUIV.
     apply: (eq_on_union hs h); apply: set_var_eq_ex; eauto.
   Qed.
 
-  Lemma get_var_uincl_at wdb x vm1 vm2 v1 :
+  Lemma get_var_uincl_at wdb x (vm1 vm2 : Vm.t env) v1 :
     (value_uincl vm1.[x] vm2.[x]) ->
     get_var wdb vm1 x = ok v1 ->
     exists2 v2, get_var wdb vm2 x = ok v2 & value_uincl v1 v2.
   Proof. rewrite /get_var; t_xrbindP => hu /(value_uincl_defined hu) -> <- /=; eauto. Qed.
 
-  Lemma get_var_uincl wdb x vm1 vm2 v1:
+  Lemma get_var_uincl wdb x (vm1 vm2 : Vm.t env) v1:
     vm1 <=1 vm2 ->
     get_var wdb vm1 x = ok v1 ->
     exists2 v2, get_var wdb vm2 x = ok v2 & value_uincl v1 v2.
   Proof. move => /(_ x); exact: get_var_uincl_at. Qed.
 
-  Lemma eq_on_uincl_on X vm1 vm2 : vm1 =[X] vm2 -> vm1 <=[X] vm2.
+  Lemma eq_on_uincl_on X (vm1 vm2 : Vm.t env) : vm1 =[X] vm2 -> vm1 <=[X] vm2.
   Proof. by move=> H ? /H ->. Qed.
 
-  Lemma eq_ex_uincl_ex X vm1 vm2: vm1 =[\X] vm2 -> vm1 <=[\X] vm2.
+  Lemma eq_ex_uincl_ex X (vm1 vm2 : Vm.t env) : vm1 =[\X] vm2 -> vm1 <=[\X] vm2.
   Proof. by move=> H ? /H ->. Qed.
 
-  Lemma vm_uincl_uincl_on dom vm1 vm2 :
+  Lemma vm_uincl_uincl_on dom (vm1 vm2 : Vm.t env) :
     vm1 <=1 vm2 →
     vm1 <=[dom] vm2.
   Proof. by move => h x _; exact: h. Qed.
 
-  Lemma vm_eq_eq_on dom vm1 vm2 :
+  Lemma vm_eq_eq_on dom (vm1 vm2 : Vm.t env) :
     (vm1 =1 vm2)%vm →
     vm1 =[dom] vm2.
   Proof. by move => h x _; exact: h. Qed.
 
-  Lemma eq_on_empty vm1 vm2 :
+  Lemma eq_on_empty (vm1 vm2 : Vm.t env) :
     vm1 =[Sv.empty] vm2.
   Proof. by move => ?; SvD.fsetdec. Qed.
 
-  Lemma uincl_on_empty vm1 vm2 :
+  Lemma uincl_on_empty (vm1 vm2 : Vm.t env) :
     vm1 <=[Sv.empty] vm2.
   Proof. by move => ?; SvD.fsetdec. Qed.
 
   Hint Resolve eq_on_empty uincl_on_empty : core.
 
-  Lemma uincl_on_union_and dom dom' vm1 vm2 :
+  Lemma uincl_on_union_and dom dom' (vm1 vm2 : Vm.t env) :
    vm1 <=[Sv.union dom dom'] vm2 ↔
    vm1 <=[dom] vm2 ∧ vm1 <=[dom'] vm2.
   Proof.
@@ -1109,31 +1109,31 @@ Section REL_EQUIV.
     by case => h h' x /Sv.union_spec[]; [ exact: h | exact: h' ].
   Qed.
 
-  Lemma vm_uincl_uincl_ex dom vm1 vm2 :
+  Lemma vm_uincl_uincl_ex dom (vm1 vm2 : Vm.t env) :
     vm1 <=1 vm2 →
     vm1 <=[\dom] vm2.
   Proof. by move => h x _; exact: h. Qed.
 
-  Instance uincl_ex_trans dom : Transitive (uincl_ex dom).
+  Instance uincl_ex_trans dom : Transitive (uincl_ex (env:=env) dom).
   Proof. by move => x y z; apply: uincl_exT. Qed.
 
-  Lemma uincl_ex_empty vm1 vm2 :
+  Lemma uincl_ex_empty (vm1 vm2 : Vm.t env) :
     vm1 <=[\ Sv.empty ] vm2 ↔ vm_uincl vm1 vm2.
   Proof.
     split; last exact: vm_uincl_uincl_ex.
     move => h x; apply/h; SvD.fsetdec.
   Qed.
 
-  Lemma eq_ex_disjoint_eq_on s s' x y :
+  Lemma eq_ex_disjoint_eq_on s s' (x y : Vm.t env) :
     x =[\s] y →
     disjoint s s' →
     x =[s'] y.
   Proof. rewrite /disjoint /is_true Sv.is_empty_spec => h d r hr; apply: h; SvD.fsetdec. Qed.
 
-  Lemma vm_uincl_init vm : Vm.init <=1 vm.
+  Lemma vm_uincl_init (vm : Vm.t env) : Vm.init env <=1 vm.
   Proof. move=> z; rewrite Vm.initP; apply/compat_value_uincl_undef/Vm.getP. Qed.
 
-  Lemma set_var_spec wdb x v vm1 vm2 vm1' :
+  Lemma set_var_spec wdb x v (vm1 vm2 vm1' : Vm.t env) :
     set_var wdb vm1 x v = ok vm2 ->
     exists vm2', [/\ set_var wdb vm1' x v = ok vm2', vm1' =[\ Sv.singleton x] vm2'  & vm2'.[x] = vm2.[x]  ].
   Proof.
@@ -1171,6 +1171,6 @@ End REL_EQUIV.
 #[export] Existing Instance po_uincl_ex.
 #[export] Existing Instance uincl_ex_trans.
 
-#[ global ]Arguments get_var {wsw} wdb vm%_vm_scope x.
-#[ global ]Arguments set_var {wsw} wdb vm%_vm_scope x v.
+#[ global ]Arguments get_var {wsw env} wdb vm%_vm_scope x.
+#[ global ]Arguments set_var {wsw env} wdb vm%_vm_scope x v.
 

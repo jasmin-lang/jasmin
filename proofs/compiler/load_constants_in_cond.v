@@ -81,7 +81,7 @@ Fixpoint load_constants_i (i : instr) :=
   | Cassgn _ _ _ _
   | Copn _ _ _ _
   | Csyscall _ _ _
-  | Ccall _ _ _
+  | Ccall _ _ _ _
     => ok [::i]
   | Cif e c1 c2  =>
     Let: (c, e) := process_condition ii e in

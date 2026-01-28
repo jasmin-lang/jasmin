@@ -39,7 +39,7 @@ let pp_s_env fmt env =
   Format.printf fmt "@[<v>global variables:@;%a@]"
     (pp_list (fun fmt (_,(x,sw)) ->
          Format.fprintf fmt "@[%s: %a@]@,"
-           x PrintCommon.pp_ty (Conv.ty_of_cty sw)))
+           x (PrintCommon.pp_ty ~debug:false) (Conv.ty_of_cty sw)))
     (Sv.to_list env.s_glob)
     (pp_list (fun fmt i -> Format.fprintf fmt "%d" i))
 
@@ -133,6 +133,7 @@ let pp_ows fmt ws =
 
 let pp_arr_slice fmt slice =
   let open PrintCommon in
+  let pp_len = pp_len ~debug:false in
   let pp_var = Printer.pp_var ~debug:false in
   let pp_expr = Printer.pp_expr ~debug:false in
   let ws = non_default_wsize slice.as_arr slice.as_wsize in
@@ -141,7 +142,7 @@ let pp_arr_slice fmt slice =
       slice.as_arr slice.as_offset
   else
     pp_arr_slice pp_var pp_expr pp_len fmt slice.as_access ws slice.as_arr
-      slice.as_offset slice.as_len
+      slice.as_offset (Const slice.as_len)
 
 let pp_safety_cond fmt = function
   | Initv x -> Format.fprintf fmt "is_init %a" pp_var x
@@ -235,7 +236,7 @@ module AbsMake (Arch : SafetyArch.SafetyArch) = struct
 let in_bound x access ws e len =
   let ux = L.unloc x in
   match ux.v_ty with
-  | Arr(ws',n) -> [InBound ( n * size_of_ws ws',
+  | Arr(ws',Prog.Const n) -> [InBound ( n * size_of_ws ws',
                              { as_arr = ux;
                                as_len = len;
                                as_wsize = ws;
@@ -353,6 +354,11 @@ let rec safe_e_rec safe = function
     safe
 
   | Psub (access, ws, len, x, e) ->
+    let len =
+      match len with
+      | Const len -> len
+      | _ -> assert false
+    in
     in_bound    x.gv access ws e len @
     (* Remark that we do not have to check initialization for sub-arrays. *)
     (* Note that the length is scaled with the word-size, so we only
@@ -387,6 +393,11 @@ let safe_lval = function
     safe_e_rec [] e
 
   | Lasub(access,ws,len,x,e) ->
+    let len =
+      match len with
+      | Const len -> len
+      | _ -> assert false
+    in
     in_bound x access ws e len @
     arr_aligned (* x  *) access ws e @
     safe_e_rec [] e
@@ -418,6 +429,11 @@ let safe_opn pd asmOp safe opn es =
          let n = Papp2 (E.Omod (Unsigned, Op_int), n, Pconst (Z.of_int 32)) in
          [ InRange(Pconst (Conv.z_of_cz lo), Pconst (Conv.z_of_cz hi), n) ]
       | Wsize.AllInit(ws, p, i) ->
+        let p =
+          match p with
+          | Type.ALConst p -> p
+          | _ -> assert false
+        in
         let e = List.nth es (Conv.int_of_nat i) in
         let y = match e with Pvar y -> y | _ -> assert false in
         List.flatten
@@ -455,7 +471,7 @@ let safe_instr pd asmOp ginstr = match ginstr.i_desc with
   | Copn (lvs,_,opn,es) -> safe_opn pd asmOp (safe_lvals lvs @ safe_es es) opn es
   | Cif(e, _, _) -> safe_e e
   | Cwhile(_, _, _, _, _) -> []       (* We check the while condition later. *)
-  | Ccall(lvs, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
+  | Ccall(lvs, _, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
   | Cfor (_, (_, e1, e2), _) -> safe_es [e1;e2]
 
 let safe_return main_decl =
@@ -1255,7 +1271,7 @@ end = struct
       | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
       | Cwhile (_, st1, e, _, st2) ->
         nm_e vs_for e && nm_stmt vs_for st1 && nm_stmt vs_for st2
-      | Ccall (lvs, fn, es)  ->
+      | Ccall (lvs, fn, _al, es)  ->
         let f' = get_fun_def prog fn |> oget in
         nm_lvs vs_for lvs && nm_es vs_for es && nm_fdecl f'
 
@@ -1388,7 +1404,12 @@ end = struct
   let aeval_syscall state sc lvs _es =
     match sc with
     | Syscall_t.RandomBytes (ws, len) ->
-       let n = BinInt.Z.to_pos (Type.arr_size ws len) in
+       let len =
+         match len with
+         | Prog.Const len -> len
+         | _ -> assert false
+       in
+       let n = Conv.pos_of_int (Prog.arr_size ws len) in
        let cells = match lvs with
          | [ Lnone _ ] -> []
          | [ Lvar x ] -> cells_of_array x 0 n
@@ -1687,7 +1708,7 @@ end = struct
         { state with abs = abs; }
 
 
-      | Ccall(lvs, f, es) ->
+      | Ccall(lvs, f, _al, es) ->
         let f_decl = get_fun_def state.prog f |> oget in
         let fn = f_decl.f_name in
 

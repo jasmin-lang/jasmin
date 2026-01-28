@@ -4,7 +4,7 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
-Require Import gen_map utils strings.
+Require Import gen_map utils strings ident.
 Require Export wsize.
 Import Utf8.
 
@@ -17,12 +17,52 @@ Variant ltype : Set :=
 | lbool
 | lword of wsize.
 
+Record length_var := LV { lvname : Ident.ident }.
+
+Definition length_var_beq (v1 v2:length_var) :=
+  let (i1) := v1 in
+  let (i2) := v2 in
+  i1 == i2.
+
+Lemma length_var_eqP : Equality.axiom length_var_beq.
+Proof.
+  by move=> [i1] [i2]; apply (iffP eqP); congruence.
+Qed.
+
+(* Dummy definition *)
+Definition is_length_var (v : length_var) := unit.
+Lemma is_length_var_inhab v : is_length_var v.
+Proof. apply tt. Qed.
+
+Lemma length_var_beq_correct v1 v2 : length_var_beq v1 v2 = true -> v1 = v2.
+Proof.
+  by move=> /length_var_eqP.
+Qed.
+
+Lemma length_var_beq_refl v : length_var_beq v v = true.
+Proof.
+  by apply /length_var_eqP.
+Qed.
+
+derive.eqbOK.register_axiom length_var is_length_var is_length_var_inhab length_var_beq length_var_beq_correct length_var_beq_refl.
+
+HB.instance Definition _ := hasDecEq.Build length_var length_var_eqP.
+
+#[only(eqbOK)] derive
+Inductive array_length :=
+| ALConst : positive -> array_length
+| ALVar : length_var -> array_length
+| ALAdd : array_length -> array_length -> array_length
+| ALMul : array_length -> array_length -> array_length.
+
+HB.instance Definition _ := hasDecEq.Build array_length array_length_eqb_OK.
+
 (* Syntax types, i.e. types that appear in programs *)
 #[only(eqbOK)] derive
-Variant atype : Set :=
+Variant atype :=
 | abool
 | aint
-| aarr of wsize & positive
+| aarr of wsize & array_length
 | aword of wsize.
 
 (* Value types, i.e. types appearing in the semantics *)
@@ -67,6 +107,70 @@ HB.instance Definition _ := hasDecEq.Build ctype ctype_eqb_OK.
 (* ** Comparison
  * -------------------------------------------------------------------- *)
 
+Definition length_var_cmp (v1 v2 : length_var) :=
+  let (i1) := v1 in
+  let (i2) := v2 in
+  Ident.Mid.K.cmp i1 i2.
+  (* for some reason, this works while the more natural [Tident.cmp i1 i2]
+     produces ill-typed OCaml code *)
+
+Fixpoint array_length_cmp al1 al2 :=
+  match al1, al2 with
+  | ALConst p1, ALConst p2 => Pos.compare p1 p2
+  | ALConst _, _ => Lt
+
+  | ALVar _, ALConst _ => Gt
+  | ALVar x1, ALVar x2 => length_var_cmp x1 x2
+  | ALVar _, _ => Lt
+
+  | ALAdd _ _, ALConst _ => Gt
+  | ALAdd _ _, ALVar _ => Gt
+  | ALAdd al11 al12, ALAdd al21 al22 => Lex (array_length_cmp al11 al21) (array_length_cmp al12 al22)
+  | ALAdd _ _, _ => Lt
+
+  | ALMul al11 al12, ALMul al21 al22 => Lex (array_length_cmp al11 al21) (array_length_cmp al12 al22)
+  | ALMul _ _, _ => Gt
+  end.
+
+Instance length_varO : Cmp length_var_cmp.
+Proof.
+  constructor.
+  + move=> [i1] [i2] /=.
+    by apply (cmp_sym (Cmp:=Ident.Mid.K.cmpO)).
+  + move=> [i1] [i2] [i3] /=.
+    by apply (cmp_ctrans (Cmp:=Ident.Mid.K.cmpO)).
+  move=> [i1] [i2] /=.
+  by move=> /(cmp_eq (Cmp:=Ident.Mid.K.cmpO)) ->.
+Qed.
+
+Instance array_lengthO : Cmp array_length_cmp.
+Proof.
+  constructor.
+  + elim=>
+      [p1|x1|al11 ih1 al12 ih2|al11 ih1 al12 ih2]
+      [p2|x2|al21     al22    |al21     al22    ] //=.
+    + by apply cmp_sym.
+    + by apply cmp_sym.
+    + by rewrite !Lex_lex; apply lex_sym.
+    by rewrite !Lex_lex; apply lex_sym.
+  + elim=>
+      [p1|x1|al11 ih1 al12 ih2|al11 ih1 al12 ih2]
+      [p2|x2|al21     al22    |al21     al22    ]
+      [p3|x3|al31     al32    |al31     al32    ] //=;
+       try (by apply ctrans_Eq); eauto using ctrans_Lt, ctrans_Gt; try apply cmp_ctrans.
+    + move=> c.
+      by rewrite !Lex_lex; apply lex_trans; eauto.
+    move=> c.
+    by rewrite !Lex_lex; apply lex_trans; eauto.
+  elim=>
+    [p1|x1|al11 ih1 al12 ih2|al11 ih1 al12 ih2]
+    [p2|x2|al21     al22    |al21     al22    ] //=.
+  + by move=> /cmp_eq ->.
+  + by move=> /cmp_eq ->.
+  + by rewrite Lex_lex => /lex_eq /= [/ih1 <- /ih2 <-].
+  by rewrite Lex_lex => /lex_eq /= [/ih1 <- /ih2 <-].
+Qed.
+
 Definition atype_cmp t t' :=
   match t, t' with
   | abool   , abool         => Eq
@@ -80,7 +184,7 @@ Definition atype_cmp t t' :=
   | aword w , aword w'      => wsize_cmp w w'
   | aword _ , _             => Gt
 
-  | aarr ws n , aarr ws' n' => Lex (wsize_cmp ws ws') (Pos.compare n n')
+  | aarr ws al , aarr ws' al' => Lex (wsize_cmp ws ws') (array_length_cmp al al')
   | aarr _ _  , _           => Gt
   end.
 
@@ -88,14 +192,14 @@ Definition atype_cmp t t' :=
 Instance atypeO : Cmp atype_cmp.
 Proof.
   constructor.
-  + case => [||ws n|w] [||ws' n'|w'] //=.
+  + case => [||ws al|w] [||ws' al'|w'] //=.
     + by rewrite !Lex_lex lex_sym //=; apply cmp_sym.
     by apply cmp_sym.
-  + move=> y x; case: x y=> [||ws n|w] [||ws' n'|w'] [||ws'' n''|w''] c //=;
+  + move=> y x; case: x y=> [||ws al|w] [||ws' al'|w'] [||ws'' al''|w''] c //=;
        try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt.
     + by rewrite !Lex_lex; apply lex_trans; apply cmp_ctrans.
     by apply cmp_ctrans.
-  case=> [||n ws|w] [||n' ws'|w'] //=.
+  case=> [||al ws|w] [||al' ws'|w'] //=.
   + by rewrite Lex_lex => /lex_eq /= [/cmp_eq <- /cmp_eq <-].
   by move=> /cmp_eq <-.
 Qed.
@@ -155,12 +259,12 @@ Module CEDecAtype.
       | aint => left (erefl aint)
       | _     => right I
       end
-    | aarr ws1 n1 =>
-      match t2 as t0 return {aarr ws1 n1 = t0} + {True} with
-      | aarr ws2 n2 =>
+    | aarr ws1 al1 =>
+      match t2 as t0 return {aarr ws1 al1 = t0} + {True} with
+      | aarr ws2 al2 =>
         match wsize_eq_dec ws1 ws2 with
         | left eqw =>
-          match pos_dec n1 n2 with
+          match array_length_eqb_OK_sumbool al1 al2 with
           | left eqn => left (f_equal2 aarr eqw eqn)
           | right _ => right I
           end
@@ -191,11 +295,10 @@ Module CEDecAtype.
 
   Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 != t2.
   Proof.
-    case: tt;case:t1 t2=> [||ws n|w] [||ws' n'|w'] //=.
+    case: tt;case:t1 t2=> [||ws al|w] [||ws' al'|w'] //=.
     + case: wsize_eq_dec => eqw.
-      + case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ] //=.
-        move => _; apply/eqP => -[].
-        by move/eqP: (neq erefl).
+      + case: array_length_eqb_OK_sumbool => // eqal.
+        by move=> _; apply /eqP; congruence.
       by move=> _; apply/eqP => -[].
     case: wsize_eq_dec => // eqw.
     by move=> _;apply /eqP;congruence.
@@ -257,11 +360,23 @@ Proof. done. Qed.
 
 Opaque arr_size.
 
+Section EVAL.
+
+Context (env : length_var -> positive).
+
+Fixpoint eval (al:array_length) : positive :=
+  match al with
+  | ALConst p => p
+  | ALVar v => env v
+  | ALAdd al1 al2 => eval al1 + eval al2
+  | ALMul al1 al2 => eval al1 * eval al2
+  end.
+
 Definition eval_atype ty :=
   match ty with
   | abool => cbool
   | aint => cint
-  | aarr ws len => carr (Z.to_pos (arr_size ws len))
+  | aarr ws len => carr (Z.to_pos (arr_size ws (eval len)))
   | aword ws => cword ws
   end.
 
@@ -271,10 +386,101 @@ Definition eval_ltype ty :=
   | lword ws => cword ws
   end.
 
+End EVAL.
+
+(* We define a polynom equality checker. This is what ring or lia know how to do.
+   We could probably call functions coming from their implementation instead. *)
+From Equations Require Import Equations.
+(* importing equations messes with erefl/refl_equal for some reason... *)
+Arguments Logic.eq_refl {_} {_}, [_] _.
+From Coq Require Import Lia.
+
+Fixpoint size_poly poly : nat :=
+  match poly with
+  | ALConst _ | ALVar _ => 1
+  | ALAdd p1 p2 | ALMul p1 p2 =>
+    size_poly p1 + size_poly p2
+  end.
+
+Lemma lt0_size_poly p : (0 < size_poly p)%nat.
+Proof. by elim: p => /=; lia. Qed.
+
+Fixpoint size_Mul poly : nat :=
+  match poly with
+  | ALConst _ | ALVar _ => 0
+  | ALAdd p1 p2 => size_Mul p1 + size_Mul p2
+  | ALMul p1 p2 => 1 + size_Mul p1 + size_Mul p2
+  end.
+
+Fixpoint left_Mul_under_Mul poly : nat :=
+  match poly with
+  | ALConst _ | ALVar _ => 0
+  | ALAdd p1 p2 => left_Mul_under_Mul p1 + left_Mul_under_Mul p2
+  | ALMul p1 p2 => size_Mul p1 + left_Mul_under_Mul p2
+  end.
+
+Fixpoint insert_mono x mono :=
+  match mono with
+  | [::] => [:: x]
+  | x2 :: mono =>
+    match length_var_cmp x x2 with
+    | Lt | Eq => x :: x2 :: mono
+    | Gt => x2 :: insert_mono x mono
+    end
+  end.
+
+Fixpoint insert_term cm terms :=
+  match terms with
+  | [::] => [:: cm]
+  | cm2 :: terms =>
+    match List.list_compare length_var_cmp (snd cm) (snd cm2) with
+    | Lt => cm :: cm2 :: terms
+    | Eq => let new_coeff := fst cm + fst cm2 in if new_coeff =? 0 then terms else (new_coeff, snd cm) :: terms
+    | Gt => cm2 :: insert_term cm terms
+    end
+  end%Z.
+Definition insert_term_nice cm terms :=
+  if (fst cm =? 0)%Z then terms else insert_term cm terms.
+
+Equations expanded_form (p : array_length) : list (Z * list length_var) :=
+  expanded_form p := aux [::] 1 [::] p
+
+  where aux (terms : list (Z * list length_var)) (coeff : Z) (mono : list length_var) (p : array_length) : list (Z * list length_var) by wf (size_poly p, left_Mul_under_Mul p) (lexprod _ _ lt lt)  :=
+    aux terms coeff mono (ALConst n) := let coeff := (n * coeff)%Z in insert_term_nice (coeff, mono) terms;
+    aux terms coeff mono (ALVar x) := let mono := insert_mono x mono in insert_term_nice (coeff, mono) terms;
+    aux terms coeff mono (ALAdd e1 e2) := aux (aux terms coeff mono e1) coeff mono e2;
+    aux terms coeff mono (ALMul (ALConst n) e) := let coeff := (n * coeff)%Z in aux terms coeff mono e;
+    aux terms coeff mono (ALMul (ALVar x) e) := let mono := insert_mono x mono in aux terms coeff mono e;
+    aux terms coeff mono (ALMul (ALAdd e11 e12) e2) := aux (aux terms coeff mono (ALMul e11 e2)) coeff mono (ALMul e12 e2);
+    aux terms coeff mono (ALMul (ALMul e11 e12) e2) := aux terms coeff mono (ALMul e11 (ALMul e12 e2)).
+Next Obligation.
+  simpl.
+  left. have := lt0_size_poly e2. lia.
+Qed.
+Next Obligation.
+  simpl.
+  left. have := lt0_size_poly e1. lia.
+Qed.
+Next Obligation.
+  simpl. left. have := lt0_size_poly e12. lia.
+Qed.
+Next Obligation.
+  simpl. left. have := lt0_size_poly e11. lia.
+Qed.
+Final Obligation.
+  simpl. rewrite Nat.add_assoc. right.
+  lia.
+Qed.
+
+Definition compare_array_length '(ws, al) '(ws', al') :=
+  let ef := expanded_form (ALMul (ALConst (Z.to_pos (wsize_size ws))) al) in
+  let ef' := expanded_form (ALMul (ALConst (Z.to_pos (wsize_size ws'))) al') in
+  ef == ef'.
+
 Definition convertible (t t' : atype) :=
   match t with
-  | aarr ws n =>
-    if t' is aarr ws' n' then arr_size ws n == arr_size ws' n' else false
+  | aarr ws al =>
+    if t' is aarr ws' al' then compare_array_length (ws, al) (ws', al') else false
   | _ => t == t'
   end.
 
@@ -285,7 +491,7 @@ Hint Resolve convertible_refl : core.
 
 Lemma convertible_sym ty1 ty2 : convertible ty1 ty2 -> convertible ty2 ty1.
 Proof.
-  case: ty1 ty2 => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
+  case: ty1 ty2 => [||ws1 al1|ws1] [||ws2 al2|ws2] //=.
   + by rewrite eq_sym.
   by rewrite eq_sym.
 Qed.
@@ -293,25 +499,136 @@ Qed.
 Lemma convertible_trans ty2 ty1 ty3 :
   convertible ty1 ty2 -> convertible ty2 ty3 -> convertible ty1 ty3.
 Proof.
-  case: ty1 ty2 => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
+  case: ty1 ty2 => [||ws1 al1|ws1] [||ws2 al2|ws2] //=.
   + by move=> /eqP ->.
   by move=> /eqP ->.
 Qed.
 
+Fixpoint eval_mono (env : length_var -> positive) (mono : list length_var) : Z :=
+  match mono with
+  | [::] => 1
+  | x :: mono => env x * eval_mono env mono
+  end.
+
+Fixpoint eval_expand (env : length_var -> positive) terms : Z :=
+  match terms with
+  | [::] => 0
+  | (count, mono) :: terms =>
+    count * eval_mono env mono + eval_expand env terms
+  end.
+
+Lemma insert_mono_correct env x mono :
+  eval_mono env (insert_mono x mono) = (env x * eval_mono env mono)%Z.
+Proof.
+Local Opaque Z.add Z.mul.
+  elim: mono => [|x2 mono ih] /=.
+  - done.
+  - case: length_var_cmp => //=.
+    rewrite ih. lia.
+Local Transparent Z.add Z.mul.
+Qed.
+
+Lemma insert_term_correct env cm terms :
+  eval_expand env (insert_term cm terms) = (eval_expand env terms + fst cm * eval_mono env (snd cm))%Z.
+Proof.
+  elim: terms => [|cm2 terms ih] //=.
+  - case: cm => [count mono] /=. lia.
+  case: List.list_compareP.
+  + move=> x y. split.
+    + by apply cmp_eq.
+    move=> <-. by apply cmp_refl.
+  + case: cm ih => [coeff mono] /= ih.
+    case: cm2 => [coeff2 mono2] /=.
+    move=> ?; subst mono2.
+    case: Z.eqb_spec.
+    + lia.
+    move=> /=.
+    lia.
+  + case: cm ih => [coeff mono] /= ih.
+    case: cm2 => [coeff2 mono2] /=. move=> ???. lia.
+  + case: cm ih => [coeff mono] /= ih.
+    case: cm2 => [coeff2 mono2] /=. move=> ???. lia.
+  + case: cm ih => [coeff mono] /= ih.
+    case: cm2 => [coeff2 mono2] /=. move=> ???. lia.
+  case: cm ih => [coeff mono] /= ih.
+  case: cm2 => [coeff2 mono2] /=. move=> ???. lia.
+Qed.
+
+Lemma insert_term_nice_correct env cm terms :
+  eval_expand env (insert_term_nice cm terms) = (eval_expand env terms + fst cm * eval_mono env (snd cm))%Z.
+Proof.
+  rewrite /insert_term_nice.
+  case: Z.eqb_spec.
+  + lia.
+  move=> _.
+  by apply insert_term_correct.
+Qed.
+
+Lemma expanded_form_sound p :
+  forall env, eval_expand env (expanded_form p) = eval env p.
+Proof.
+Local Opaque Z.add Z.mul.
+  move=> env. move: p.
+  apply (expanded_form_elim
+    (P := fun p terms => eval_expand env terms = eval env p)
+    (P0 := fun _ terms coeff mono p' terms' => eval_expand env terms' = eval_expand env terms + coeff * eval_mono env mono * eval env p'))%Z.
+  - move=> p /=. lia.
+  - move=> _ terms coeff mono n /=.
+    rewrite insert_term_nice_correct /=. lia.
+  - move=> _ terms coeff mono x /=.
+    rewrite insert_term_nice_correct /=.
+    rewrite insert_mono_correct /=. lia.
+  - move=> p terms coeff mono e1 e2 /= h1 h2.
+    rewrite h2 h1. lia.
+  - move=> p terms coeff mono n e /= h.
+    rewrite h. lia.
+  - move=> p terms coeff mono x e /= h.
+    rewrite h insert_mono_correct. lia.
+  - move=> p terms coeff mono e11 e12 e2 /= h1 h2.
+    rewrite h2 h1. lia.
+  - move=> p terms coeff mono e11 e12 e2 /= h.
+    rewrite h. lia.
+Local Transparent Z.add Z.mul.
+Qed.
+
+Lemma compare_array_length_eval_atype ws1 len1 ws2 len2 :
+  compare_array_length (ws1, len1) (ws2, len2) ->
+  forall env,
+    (arr_size ws1 (eval env len1) = arr_size ws2 (eval env len2))%Z.
+Proof.
+Local Opaque wsize_size.
+  rewrite /compare_array_length => /eqP heq.
+  move=> env.
+  have := expanded_form_sound (ALMul (ALConst (Z.to_pos (wsize_size ws1))) len1) env.
+  have := expanded_form_sound (ALMul (ALConst (Z.to_pos (wsize_size ws2))) len2) env.
+  rewrite /eval /= -/(eval _). rewrite heq. move=> ->.
+  rewrite !arr_sizeE.
+  have: (0 < wsize_size ws1)%Z by [].
+  have: (0 < wsize_size ws2)%Z by [].
+  nia.
+Local Transparent wsize_size.
+Qed.
+
 Lemma convertible_eval_atype ty1 ty2 :
   convertible ty1 ty2 ->
-  eval_atype ty1 = eval_atype ty2.
+  forall env,
+    eval_atype env ty1 = eval_atype env ty2.
 Proof.
-  case: ty1 ty2 => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
-  + by move=> /eqP <-.
+Local Opaque wsize_size.
+  move=> hc env.
+  case: ty1 ty2 hc => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
+  + by move=> /compare_array_length_eval_atype /(_ env) ->.
   by move=> /eqP [<-].
+Local Transparent wsize_size.
 Qed.
 
 Lemma all2_convertible_eval_atype tys1 tys2 :
   all2 convertible tys1 tys2 ->
-  map eval_atype tys1 = map eval_atype tys2.
+  forall env,
+    map (eval_atype env) tys1 = map (eval_atype env) tys2.
 Proof.
-  elim: tys1 tys2 => [|ty1 tys1 ih1] [|ty2 tys2] //=.
+  move=> hc env.
+  elim: tys1 tys2 hc => [|ty1 tys1 ih1] [|ty2 tys2] //=.
   by move=> /andP [/convertible_eval_atype -> /ih1 ->].
 Qed.
 
@@ -328,7 +645,7 @@ Lemma subatypeE ty ty' :
   | _         => convertible ty ty'
 end.
 Proof.
-  case: ty => [||ws n|ws]; try by move/eqP => <-.
+  case: ty => [||ws al|ws]; try by move/eqP => <-.
   + by case: ty'.
   by case: ty' => //; eauto.
 Qed.
@@ -340,20 +657,20 @@ Lemma subatypeEl ty ty' :
   | _        => convertible ty ty'
   end.
 Proof.
-  case: ty => [||ws n|ws] //=.
+  case: ty => [||ws al|ws] //=.
   by case: ty' => //; eauto.
 Qed.
 
 Lemma subatype_refl ty : subatype ty ty.
-Proof. case: ty => //=. Qed.
+Proof. by case: ty => //= ??; rewrite !eq_refl. Qed.
 #[global]
 Hint Resolve subatype_refl : core.
 
 Lemma subatype_trans ty2 ty1 ty3 :
   subatype ty1 ty2 -> subatype ty2 ty3 -> subatype ty1 ty3.
 Proof.
-  case: ty1 => //= [/eqP<-|/eqP<-|ws1 n1|ws1] //.
-  + by case: ty2 => //= ws2 n2 /eqP ->.
+  case: ty1 => //= [/eqP<-|/eqP<-|ws1 al1|ws1] //.
+  + by case: ty2 => //= ws2 al2 /eqP ->.
   by case: ty2 => //= ws2 hle; case: ty3 => //= ws3; apply: cmp_le_trans hle.
 Qed.
 
@@ -405,29 +722,31 @@ Qed.
 
 Lemma subatype_subctype ty1 ty2 :
   subatype ty1 ty2 ->
-  subctype (eval_atype ty1) (eval_atype ty2).
+  forall env,
+    subctype (eval_atype env ty1) (eval_atype env ty2).
 Proof.
-  case: ty1 ty2 => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
-  by move=> /eqP <-.
+  move=> hc env.
+  case: ty1 ty2 hc => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
+  by move=> /compare_array_length_eval_atype /(_ env) ->.
 Qed.
 
 (* -------------------------------------------------------------------- *)
 #[only(eqbOK)] derive
-Variant extended_type (len:Type) : Type :=
+Variant extended_type : Type :=
   | ETbool
   | ETint
-  | ETarr of wsize & len
+  | ETarr of wsize & array_length
   | ETword of (option signedness) & wsize.
 
-Definition tbool {len} := ETbool len.
-Definition tint  {len} := ETint len.
-Definition tarr  {len} (ws : wsize) (l : len) := ETarr ws l.
-Definition tword {len} ws : extended_type len:= ETword len None ws.
-Definition twint {len} (s : signedness) (ws : wsize) := ETword len (Some s) ws.
-Definition tuint {len} ws : extended_type len := twint Unsigned ws.
-Definition tsint {len} ws : extended_type len := twint Signed ws.
+Definition tbool := ETbool.
+Definition tint  := ETint.
+Definition tarr  (ws : wsize) (al : array_length) := ETarr ws al.
+Definition tword ws : extended_type := ETword None ws.
+Definition twint (s : signedness) (ws : wsize) := ETword (Some s) ws.
+Definition tuint ws : extended_type := twint Unsigned ws.
+Definition tsint ws : extended_type := twint Signed ws.
 
-Definition to_atype (t:extended_type positive) : atype :=
+Definition to_atype (t:extended_type) : atype :=
   match t with
   | ETbool      => abool
   | ETint       => aint
@@ -435,8 +754,4 @@ Definition to_atype (t:extended_type positive) : atype :=
   | ETword _ ws => aword ws
   end.
 
-Section EQ.
-Context {L : eqType}.
-
-HB.instance Definition _ := hasDecEq.Build (extended_type L) (extended_type_eqb_OK (@eqP _)).
-End EQ.
+HB.instance Definition _ := hasDecEq.Build extended_type extended_type_eqb_OK.

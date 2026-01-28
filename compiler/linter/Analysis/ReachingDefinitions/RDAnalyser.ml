@@ -34,7 +34,7 @@ module ReachingDefinitionLogic :
     Annotation
       (RDDomain.add (List.fold_left written_lv Sv.empty lvs) loc domain)
 
-  let funcall loc lvs _ _ domain = logic loc lvs domain
+  let funcall loc lvs _ _ _ domain = logic loc lvs domain
   let syscall loc lvs _ _ domain = logic loc lvs domain
   let assign loc lv _ _ _ domain = logic loc [ lv ] domain
   let opn loc lvs _ _ _ domain = logic loc lvs domain

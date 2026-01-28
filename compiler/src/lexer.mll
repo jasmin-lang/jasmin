@@ -130,6 +130,9 @@
    | "si" -> `WInt `Signed
    | "ui" -> `WInt `Unsigned
    | _    -> assert false
+
+  let template_mode = ref false
+  let paren_depth = ref 0
 }
 
 (* -------------------------------------------------------------------- *)
@@ -189,8 +192,9 @@ rule main = parse
   | "]"     { RBRACKET   }
   | "{"     { LBRACE     }
   | "}"     { RBRACE     }
-  | "("     { LPAREN     }
-  | ")"     { RPAREN     }
+  | "("     { if !template_mode then incr paren_depth; LPAREN     }
+  | ")"     { if !template_mode then decr paren_depth; RPAREN     }
+  | "<:"    { template_mode := true; LTEMPLATE  } (* left angle bracket *)
   | "->"    { RARROW     }
   | ","     { COMMA      }
   | ";"     { SEMICOLON  }
@@ -205,8 +209,13 @@ rule main = parse
   | "<"  (signletter as s)? { LT   (mk_sign s) }
   | ">>" (signletter as s)? { GTGT (mk_sign s) }
   | ">=" (signletter as s)? { GE   (mk_sign s) }
-  | ">"  (signletter as s)? { GT   (mk_sign s) }
-
+  | ">"  (signletter as s)? {
+    if !template_mode && !paren_depth = 0 then begin
+      match s with
+      | Some c -> invalid_char (L.of_lexbuf lexbuf) c
+      | None -> template_mode := false; RTEMPLATE
+    end else
+      GT (mk_sign s) }
   | "."  { DOT      }
   | "!"  { BANG     }
   | "+"  { PLUS     }

@@ -50,10 +50,15 @@ Definition to_expr (t:ctype) : sem_t t -> exec pexpr :=
   | cword sz => fun w => ok (wconst w)
   end.
 
+(* FIXME: sem_sop1_typed takes an [env] as an argument, but actually does not
+   use it. We need to provide one here, we provide a dummy one.
+   Ideally, sem_sop1_typed would not depend on an env. *)
+Definition empty_env : length_var -> positive := fun _ => 1%positive.
+
 Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr := 
   let r := 
     Let x := of_expr _ e in
-    Let v := sem_sop1_typed o x in
+    Let v := sem_sop1_typed empty_env o x in
     to_expr v in
   match r with 
   | Ok e => e
@@ -64,7 +69,7 @@ Definition ssem_sop2 (o: sop2) (e1 e2: pexpr) : pexpr :=
   let r := 
     Let x1 := of_expr _ e1 in
     Let x2 := of_expr _ e2 in
-    Let v  := sem_sop2_typed o x1 x2 in
+    Let v  := sem_sop2_typed empty_env o x1 x2 in
     to_expr v in 
   match r with 
   | Ok e => e
@@ -288,9 +293,9 @@ Definition app_sopn := app_sopn of_expr.
 Arguments app_sopn {A} ts _ _.
 
 Definition s_opN (op:opN) (es:pexprs) : pexpr :=
-  match app_sopn _ (sem_opN_typed op) es with
+  match app_sopn _ (sem_opN_typed empty_env op) es with
   | Ok r =>
-    match op return sem_t (eval_atype (type_of_opN op).2) -> _ with
+    match op return sem_t (eval_atype empty_env (type_of_opN op).2) -> _ with
     | Opack ws _ => fun w => Papp1 (Oword_of_int ws) (Pconst (wunsigned w))
     | Ocombine_flags _ => fun b => Pbool b
     end r
@@ -530,10 +535,10 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
       end in
     (m', cw)
 
-  | Ccall xs f es =>
+  | Ccall xs f al es =>
     let es := map (const_prop_e without_globals m) es in
     let (m,xs) := const_prop_rvs without_globals m xs in
-    (m, [:: MkI ii (Ccall xs f es) ])
+    (m, [:: MkI ii (Ccall xs f al es) ])
 
   end
 
@@ -548,9 +553,9 @@ Section Section.
 Context {pT: progT}.
 
 Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
-  let 'MkFun ii si p c so r ev := f in
+  let 'MkFun ii al si p c so r ev := f in
   let (_, c) := const_prop (const_prop_i gd) empty_cpm c in
-  MkFun ii si p c so r ev.
+  MkFun ii al si p c so r ev.
 
 Definition const_prop_prog (p:prog) : prog := map_prog (const_prop_fun p.(p_globs)) p.
 

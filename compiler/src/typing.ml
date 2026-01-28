@@ -19,17 +19,17 @@ let error loc fmt =
 let ty_var (x:var_i) =
   let ty = (L.unloc x).v_ty in
   begin match ty with
-  | Arr(_, n) ->
+  | Arr(_, Const n) ->
       if (n < 1) then
         error (L.i_loc0 (L.unloc x).v_dloc)
           "the variable %a has type %a, its array size should be positive"
-          (Printer.pp_var ~debug:false) (L.unloc x) PrintCommon.pp_ty ty
+          (Printer.pp_var ~debug:false) (L.unloc x) (PrintCommon.pp_ty ~debug:false) ty
   | _ -> ()
   end;
   ty
 
 
-let ty_gvar (x:int ggvar) = ty_var x.gv
+let ty_gvar (x:length ggvar) = ty_var x.gv
 
 (* -------------------------------------------------------------------- *)
 
@@ -39,28 +39,69 @@ let check_array loc e te =
   | _     ->
     error loc
       "the expression %a has type %a while an array is expected"
-      (Printer.pp_expr ~debug:false) e PrintCommon.pp_ty te
+      (Printer.pp_expr ~debug:false) e (PrintCommon.pp_ty ~debug:false) te
+
+let rec insert_mono x mono =
+  match mono with
+  | [] -> [x]
+  | y :: mono' ->
+      if x <= y then x :: mono
+      else y :: insert_mono x mono'
+
+let add_term ((coeff, _) as cm) terms =
+  if coeff = 0 then terms else cm :: terms
+
+let rec insert_term ((coeff, mono) as cm) terms =
+  match terms with
+  | [] -> [cm]
+  | ((coeff', mono') as cm') :: terms' ->
+    if mono < mono' then cm :: terms
+    else if mono = mono' then add_term (coeff + coeff', mono) terms'
+    else cm' :: insert_term cm terms'
+let insert_term ((coeff, _) as cm) terms =
+  if coeff = 0 then terms else insert_term cm terms
+
+let expanded_form len =
+  let rec expanded_form terms coeff mono poly =
+    match poly with
+    | Const n -> let coeff = n * coeff in insert_term (coeff, mono) terms
+    | Var x -> let mono = insert_mono x mono in insert_term (coeff, mono) terms
+    | Add (e1, e2) -> expanded_form (expanded_form terms coeff mono e1) coeff mono e2
+    | Mul (Const n, e) -> let coeff = n * coeff in expanded_form terms coeff mono e
+    | Mul (Var x, e) -> let mono = insert_mono x mono in expanded_form terms coeff mono e
+    | Mul (Add (e11, e12), e2) -> expanded_form terms coeff mono (Add (Mul (e11, e2), Mul (e12, e2)))
+    | Mul (Mul (e11, e12), e2) -> expanded_form terms coeff mono (Mul (e11, Mul (e12, e2)))
+  in
+  expanded_form [] 1 [] len
+
+let compare_array_length (ws, al) (ws', al') =
+  let ef = expanded_form (Mul (Const (size_of_ws ws), al)) in
+  let ef' = expanded_form (Mul (Const (size_of_ws ws'), al')) in
+  ef = ef'
 
 let subtype t1 t2 =
   match t1, t2 with
   | Bty (U ws1), Bty (U ws2) -> wsize_le ws1 ws2
   | Bty bty1, Bty bty2 -> bty1 = bty2
-  | Arr(ws1,len1), Arr(ws2,len2) -> arr_size ws1 len1 == arr_size ws2 len2
+  | Arr(ws1,len1), Arr(ws2,len2) -> compare_array_length (ws1, len1) (ws2, len2)
   | _, _ -> false
 
 let check_type loc e te ty =
   if not (subtype ty te) then
     error loc "the expression %a has type %a while %a is expected"
         (Printer.pp_expr ~debug:false) e
-        PrintCommon.pp_ty te PrintCommon.pp_ty ty
+        (PrintCommon.pp_ty ~debug:true) te (PrintCommon.pp_ty ~debug:true) ty
 
 let check_int loc e te = check_type loc e te tint
 
 let check_ptr pd loc e te = check_type loc e te (tu pd)
 
 let check_length loc len =
+  match len with
+  | Const len ->
   if len <= 0 then
     error loc "the length should be strictly positive"
+  | _ -> ()
 
 (* -------------------------------------------------------------------- *)
 
@@ -160,7 +201,7 @@ let check_lval pd loc x ty =
   if not (subtype tx ty) then
     error loc "the left value %a has type %a while %a is expected"
         (Printer.pp_lval ~debug:false) x
-        PrintCommon.pp_ty tx PrintCommon.pp_ty ty
+        (PrintCommon.pp_ty ~debug:false) tx (PrintCommon.pp_ty ~debug:false) ty
 
 let check_lvals pd loc xs tys =
   let len = List.length tys in
@@ -175,6 +216,17 @@ let getfun env fn =
 
 (* -------------------------------------------------------------------- *)
 
+let rec subst_al (f : var -> length) al =
+  match al with
+  | Const _ -> al
+  | Var x -> f x
+  | Add (al1, al2) -> Add (subst_al f al1, subst_al f al2)
+  | Mul (al1, al2) -> Mul (subst_al f al1, subst_al f al2)
+let subst_ty f ty =
+  match ty with
+  | Bty _ -> ty
+  | Arr (ws, al) -> Arr (ws, subst_al f al)
+
 let rec check_instr pd msfsz asmOp env i =
   let loc = i.i_loc in
   match i.i_desc with
@@ -188,7 +240,7 @@ let rec check_instr pd msfsz asmOp env i =
     check_lvals pd loc xs tout
 
   | Csyscall(xs, o, es) ->
-    let s = Syscall.syscall_sig_u o in
+    let s = Syscall.syscall_sig_u (Conv.map_syscall Conv.cal_of_al o) in
     let tins = List.map Conv.ty_of_cty s.scs_tin in
     let tout = List.map Conv.ty_of_cty s.scs_tout in
     check_exprs pd loc es tins;
@@ -210,10 +262,16 @@ let rec check_instr pd msfsz asmOp env i =
     check_cmd pd msfsz asmOp env c1;
     check_cmd pd msfsz asmOp env c2
 
-  | Ccall(xs,fn,es) ->
+  | Ccall(xs,fn,al,es) ->
     let fd = getfun env fn in
-    check_exprs pd loc es fd.f_tyin;
-    check_lvals pd loc xs fd.f_tyout
+    let f =
+      let l = List.combine fd.f_al al in
+      fun x -> List.assoc x l
+    in
+    let tyin = List.map (subst_ty f) fd.f_tyin in
+    check_exprs pd loc es tyin;
+    let tyout = List.map (subst_ty f) fd.f_tyout in
+    check_lvals pd loc xs tyout
 
 and check_cmd pd msfsz asmOp env c =
   List.iter (check_instr pd msfsz asmOp env) c

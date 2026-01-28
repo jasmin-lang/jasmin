@@ -95,11 +95,11 @@ type ('len, 'info, 'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
-  | Csyscall of 'len glvals * (Wsize.wsize * BinNums.positive) Syscall_t.syscall_t * 'len gexprs
+  | Csyscall of 'len glvals * (Wsize.wsize * 'len) Syscall_t.syscall_t * 'len gexprs
   | Cif    of 'len gexpr * ('len, 'info, 'asm) gstmt * ('len, 'info, 'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len, 'info, 'asm) gstmt
   | Cwhile of E.align * ('len, 'info, 'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len, 'info, 'asm) gstmt
-  | Ccall  of 'len glvals * funname * 'len gexprs
+  | Ccall  of 'len glvals * funname * 'len list * 'len gexprs
 
 and ('len,'info,'asm) ginstr = {
     i_desc : ('len, 'info, 'asm) ginstr_r;
@@ -117,6 +117,7 @@ type ('len, 'info, 'asm) gfunc = {
     f_info : 'info;
     f_cc   : FInfo.call_conv;
     f_name : funname;
+    f_al   : 'len gvar list;
     f_tyin : 'len gty list;
     f_args : 'len gvar list;
     f_body : ('len, 'info, 'asm) gstmt;
@@ -156,7 +157,7 @@ and   pexpr  = pexpr_ gexpr
 and   pexpr_ = PE of pexpr [@@unboxed]
 
 
-type range = int grange
+type range = length grange
 
 type epty   = pexpr_ gety
 
@@ -219,20 +220,20 @@ let ws_of_ety = function
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
 
-type ty    = int gty
-type var   = int gvar
-type var_i = int gvar_i
-type lval  = int glval
-type lvals = int glval list
-type expr  = int gexpr
-type exprs = int gexpr list
+type ty    = length gty
+type var   = length gvar
+type var_i = length gvar_i
+type lval  = length glval
+type lvals = length glval list
+type expr  = length gexpr
+type exprs = length gexpr list
 
-type ('info, 'asm) instr = (int, 'info, 'asm) ginstr
-type ('info, 'asm) instr_r = (int,'info,'asm) ginstr_r
-type ('info, 'asm) stmt  = (int, 'info, 'asm) gstmt
+type ('info, 'asm) instr = (length, 'info, 'asm) ginstr
+type ('info, 'asm) instr_r = (length,'info,'asm) ginstr_r
+type ('info, 'asm) stmt  = (length, 'info, 'asm) gstmt
 
-type ('info, 'asm) func     = (int, 'info, 'asm) gfunc
-type ('info, 'asm) mod_item = (int, 'info, 'asm) gmod_item
+type ('info, 'asm) func     = (length, 'info, 'asm) gfunc
+type ('info, 'asm) mod_item = (length, 'info, 'asm) gmod_item
 type global_decl           = var * Global.glob_value
 type ('info,'asm) prog     = global_decl list * ('info, 'asm) func list
 
@@ -279,7 +280,7 @@ let rec rvars_i f s i =
   | Cfor(x,(_,e1,e2), c) ->
     rvars_c f (rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2) c
   | Cwhile(_, c, e, _, c') -> rvars_c f (rvars_e f (rvars_c f s c') e) c
-  | Ccall(x,_,e) -> rvars_es f (rvars_lvs f s x) e
+  | Ccall(x,_,_,e) -> rvars_es f (rvars_lvs f s x) e
 
 and rvars_c f s c =  List.fold_left (rvars_i f) s c
 
@@ -294,6 +295,7 @@ let fold_vars_fc f z fc =
 let vars_ret fd = fold_vars_ret Sv.add Sv.empty fd
 let vars_lv z x = rvars_lv Sv.add z x
 let vars_e e = rvars_e Sv.add Sv.empty e
+let pvars_e e = rvars_e Spv.add Spv.empty e
 let vars_es es = rvars_es Sv.add Sv.empty es
 let vars_i i = rvars_i Sv.add Sv.empty i
 let vars_c c = rvars_c Sv.add Sv.empty c
@@ -309,8 +311,7 @@ let vars_fc fc =
 
 let locals fc =
   let s1 = params fc in
-  let s2 = Sv.diff (vars_fc fc) s1 in
-  Sv.filter V.is_local s2
+  Sv.diff (vars_fc fc) s1
 
 let written_lv s =
   function
@@ -325,7 +326,7 @@ let rec written_vars_i ((v, f) as acc) i =
   | Cassgn(x, _, _, _) -> written_lv v x, f
   | Copn(xs, _, _, _) | Csyscall(xs, _, _)
     -> List.fold_left written_lv v xs, f
-  | Ccall(xs, fn, _) ->
+  | Ccall(xs, fn, _, _) ->
      List.fold_left written_lv v xs, Mf.modify_def [] fn (fun old -> i.i_loc :: old) f
   | Cif(_, s1, s2)
   | Cwhile(_, s1, _, _, s2)
@@ -403,6 +404,10 @@ let array_kind = function
   | Arr(ws, n) -> ws, n
   | _ -> assert false
 
+let array_kind_const = function
+  | Arr (ws, Const n) -> ws, n
+  | _ -> assert false
+
 let ws_of_ty = function
   | Bty (U ws) -> ws
   | _ -> assert false
@@ -411,8 +416,18 @@ let arr_size ws i = size_of_ws ws * i
 
 let size_of t =
   match t with
+  | Bty (U ws) -> Const (size_of_ws ws)
+  | Arr (ws, len) ->
+      begin match len with
+      | Const n -> Const (arr_size ws n)
+      | _ -> Mul (Const (size_of_ws ws), len)
+      end
+  | _ -> assert false
+
+let size_of_const t =
+  match t with
   | Bty (U ws) -> size_of_ws ws
-  | Arr (ws', n) -> arr_size ws' n
+  | Arr (ws', Const n) -> arr_size ws' n
   | _ -> assert false
 
 (* -------------------------------------------------------------------- *)
@@ -508,7 +523,7 @@ let spilled fc = spilled_c Sv.empty fc.f_body
 
 let assigns = function
   | Cassgn (x, _, _, _) -> written_lv Sv.empty x
-  | Copn (xs, _, _, _) | Csyscall (xs, _, _) | Ccall (xs, _, _) ->
+  | Copn (xs, _, _, _) | Csyscall (xs, _, _) | Ccall (xs, _, _, _) ->
       List.fold_left written_lv Sv.empty xs
   | Cif _ | Cwhile _ |Cfor _ -> Sv.empty
 
