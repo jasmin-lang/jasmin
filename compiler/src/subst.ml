@@ -108,29 +108,27 @@ let psubst_v subst =
   let subst = ref subst in
   let rec aux v : pexpr =
     let k = v.gs in
-    let v = v.gv in
-    let v_ = v.L.pl_desc in
+    let gv = v.gv in
+    let v_ = gv.L.pl_desc in
     let e =
       try Mpv.find v_ !subst
       with Not_found ->
-        (* the Const case can now be a length variable *)
-        (* assert (not (PV.is_glob v_)); *)
-        if PV.is_glob v_ then
-          Pvar {gv=v; gs=k}
+        (* length variables are unchanged *)
+        if PV.is_length_var v_ then
+          Pvar v
         else begin
           let ty = psubst_ty aux v_.v_ty in
           let v' = PV.mk v_.v_name v_.v_kind ty v_.v_dloc v_.v_annot in
-          let v = {v with L.pl_desc = v'} in
-          let v = { gv = v; gs = k } in
+          let gv = {gv with L.pl_desc = v'} in
+          let v = { gv ; gs = k } in
           let e = Pvar v in
-          (* FIXME: I think subst is updated, but then immediately thrown away *)
           subst := Mpv.add v_ e !subst;
           e
         end in
     match e with
     | Pvar x ->
       let k = x.gs in
-      let x = {x.gv with L.pl_loc = L.loc v} in
+      let x = {x.gv with L.pl_loc = L.loc gv} in
       let x = {gv = x; gs = k} in
       Pvar x
     | _      -> e in

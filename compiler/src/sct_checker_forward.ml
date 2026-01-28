@@ -555,7 +555,7 @@ end = struct
         let in_memory = match x.v_kind with
           | Wsize.Global (* likely unused as global variables are not in venv.vars *)
           | Stack _ -> true
-          | Const | Inline | Reg _ -> false
+          | Const | Inline | Reg _ | Length -> false
         in
         let ty =
           match Mv.find x vtype with
@@ -1288,6 +1288,7 @@ let init_constraint fenv f =
         | (Stack (Pointer _) | Reg (_, Pointer _)) -> Indirect(Env.fresh2 env, Env.fresh2 env)
         | Inline -> Env.dpublic env
         | Global -> Env.dpublic env (* unsure *)
+        | Length -> assert false
         end
       | Some ty -> (* this partly has the same role as Env.init_ty. Remove one occurence? *)
         begin match x.v_kind, ty with
@@ -1298,6 +1299,7 @@ let init_constraint fenv f =
         | Reg (_, Pointer _), Indirect _ -> ()
         | Inline, Direct _ -> ()
         | Global, Direct _ -> ()
+        | Length, _ -> assert false
         | _ ->
           error ~loc
             "invalid security annotations for %a" pp_var x

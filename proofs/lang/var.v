@@ -98,7 +98,7 @@ Definition is_inline_var (x: var) : bool :=
 Definition is_var_in_memory (x: var) : bool :=
   match Ident.id_kind x.(vname) with
   | Stack _ | Reg (_, Pointer _) | Global => true
-  | Const | Inline | Reg (_, Direct) => false
+  | Const | Inline | Reg (_, Direct) | Length => false
   end.
 
 Definition is_ptr (x: var) : bool :=

@@ -73,10 +73,7 @@ module GV : sig
 
   val hash : 'len gvar -> int
 
-  val is_glob : 'len gvar -> bool
-
-  (* Fixme : still used *)
-  val is_local : 'len gvar -> bool
+  val is_length_var : 'len gvar -> bool
 
   val cast : 'len1 gvar -> 'len2 gvar
 end
@@ -106,10 +103,7 @@ module V : sig
 
   val hash : var -> int
 
-  val is_glob : var -> bool
-
-  (* Fixme : still used *)
-  val is_local : var -> bool
+  val is_length_var : var -> bool
 end
 
 (* Cident *)

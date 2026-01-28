@@ -141,7 +141,7 @@ module PV : sig
 
   val hash : pvar -> int
 
-  val is_glob : pvar -> bool
+  val is_length_var : pvar -> bool
 end
 
 val gkglob : 'len gvar_i -> 'len ggvar
@@ -198,7 +198,7 @@ module V : sig
 
   val hash : var -> int
 
-  val is_glob : var -> bool
+  val is_length_var : var -> bool
 end
 
 module Sv : Set.S  with type elt = var

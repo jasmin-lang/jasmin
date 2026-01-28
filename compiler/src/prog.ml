@@ -316,8 +316,7 @@ let vars_fc fc =
 
 let locals fc =
   let s1 = params fc in
-  let s2 = Sv.diff (vars_fc fc) s1 in
-  Sv.filter V.is_local s2
+  Sv.diff (vars_fc fc) s1
 
 let written_lv s =
   function
