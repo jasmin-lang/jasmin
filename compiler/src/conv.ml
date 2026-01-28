@@ -46,6 +46,7 @@ let rec cal_of_al al =
   match al with
   | Const n -> ALConst (pos_of_int n)
   | Var x -> ALVar x
+  | Add (Const 0, al) | Add (al, Const 0) -> cal_of_al al (* special case to avoid failing when encountering 0 *)
   | Add (al1, al2) -> ALAdd (cal_of_al al1, cal_of_al al2)
   | Mul (al1, al2) -> ALMul (cal_of_al al1, cal_of_al al2)
 
