@@ -1982,6 +1982,7 @@ let subst f_al alargs tys =
   List.map (subst_one f_al alargs) tys
 
 let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
+  let annot = pannot_to_annotations pannot in
   let mk_i ?(annot=annot) instr =
     { P.i_desc = instr; P.i_loc = L.of_loc pi; P.i_info = (); P.i_annot = annot} in
   let default_tag = if Annotations.has_symbol "keep" annot then E.AT_keep else E.AT_none in

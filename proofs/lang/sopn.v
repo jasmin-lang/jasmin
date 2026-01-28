@@ -261,38 +261,38 @@ Proof.
 Qed.
 
 Definition Odeclassify_instr ty :=
-  let cty := eval_atype ty in
+  let cty env := eval_atype env ty in
   {| str      := pp_s (string_of_pseudo_operator (Odeclassify ty));
     tin      := [:: ty ];
     i_in     := [:: E 0 ];
     tout     := [:: ];
     i_out    := [:: ];
     conflicts:= [::];
-    semi     := fun=> ok tt;
-    semu     := @declassify_semu cty;
+    semi     := fun env => declassify_semi (cty env);
+    semu     := fun env => @declassify_semu (cty env);
     i_safe   := [:: ];
     i_valid  := true;
     i_safe_wf    := refl_equal;
-    i_semi_errty := fun _ => (@sem_prod_ok_error _ [:: cty ] _ ErrType);
-    i_semi_safe  := fun _ => (@sem_prod_ok_safe _ [:: cty ] _);
+    i_semi_errty := fun _ env => (@sem_prod_ok_error _ [:: cty env ] _ ErrType);
+    i_semi_safe  := fun _ env => (@sem_prod_ok_safe _ [:: cty env ] _);
   |}.
 
 Definition Odeclassify_mem_instr len :=
   let ty := aword Uptr in
-  let cty := eval_atype ty in
+  let cty env := eval_atype env ty in
   {| str      := pp_s (string_of_pseudo_operator (Odeclassify_mem len));
     tin      := [:: ty ];
     i_in     := [:: E 0 ];
     tout     := [:: ];
     i_out    := [:: ];
     conflicts:= [::];
-    semi     := fun=> ok tt;
-    semu     := @declassify_semu cty;
+    semi     := fun env => declassify_semi (cty env);
+    semu     := fun env => @declassify_semu (cty env);
     i_safe   := [:: ];
     i_valid  := true;
     i_safe_wf    := refl_equal;
-    i_semi_errty := fun _ => (@sem_prod_ok_error _ [:: cty ] _ ErrType);
-    i_semi_safe  := fun _ => (@sem_prod_ok_safe _ [:: cty ] _);
+    i_semi_errty := fun _ env => (@sem_prod_ok_error _ [:: cty env ] _ ErrType);
+    i_semi_safe  := fun _ env => (@sem_prod_ok_safe _ [:: cty env ] _);
   |}.
 
 Definition Onop_instr :=

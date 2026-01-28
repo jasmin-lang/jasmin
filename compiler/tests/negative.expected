@@ -1392,7 +1392,7 @@ fail/typing/x86-64/init_global.jazz:
 
 fail/typing/x86-64/lval_param.jazz:
 
-"fail/typing/x86-64/lval_param.jazz", line 4 (3-4): param variables are not allowed here
+"fail/typing/x86-64/lval_param.jazz", line 4 (3-4): param and length variables are not allowed here
 
 fail/typing/x86-64/non_inline_stack_arg.jazz:
 
@@ -1406,7 +1406,7 @@ typing error: t has kind stack, only reg or reg ptr are allowed in result of non
 
 fail/typing/x86-64/only_param.jazz:
 
-"fail/typing/x86-64/only_param.jazz", line 3 (10-11): only param variables are allowed here
+"fail/typing/x86-64/only_param.jazz", line 3 (10-11): only param and length variables are allowed here
 
 fail/typing/x86-64/res_wrong_type.jazz:
 
@@ -1414,7 +1414,7 @@ fail/typing/x86-64/res_wrong_type.jazz:
 
 fail/typing/x86-64/subarray_non_const_len.jazz:
 
-"fail/typing/x86-64/subarray_non_const_len.jazz", line 5 (6-7): only param variables are allowed here
+"fail/typing/x86-64/subarray_non_const_len.jazz", line 5 (6-7): only param and length variables are allowed here
 
 fail/typing/x86-64/unsupported_primitive.jazz:
 

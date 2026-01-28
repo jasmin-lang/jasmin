@@ -229,7 +229,7 @@ let rec int_of_expr ?loc e =
         op e1 e2
       end
   | Pvar x ->
-      let { gv; gs } = x in
+      let { gv; gs = _ } = x in
       let v = L.unloc gv in
       Var (GV.cast v)
   | Pbool _ | Parr_init _

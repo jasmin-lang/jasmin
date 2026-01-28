@@ -1760,7 +1760,7 @@ Definition alloc_declassify_array rmap es :=
     if get_local xv is Some pk then
       Let: (p, ofs) := addr_from_pk xv pk in
       let e := add (Plvar p) (cast_const ofs) in
-      let len := Z.to_pos (size_of xv.(vtype)) in
+      let len := size_of xv.(vtype) in
       ok (Copn [::] AT_keep (Opseudo_op (pseudo_operator.Odeclassify_mem len)) [:: e ])
     else Error (stk_ierror_basic xv "register array remains")
   else Error (stk_ierror_no_var "declassify: invalid args").
