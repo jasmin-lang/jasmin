@@ -171,6 +171,7 @@ let pp_kind fmt = function
   | Reg (_k, ptr) -> fprintf fmt "reg%a" pp_pointer ptr
   | Inline -> fprintf fmt "inline"
   | Global -> fprintf fmt "global"
+  | Length -> assert false
 
 (* -------------------------------------------------------------------- *)
 let w_of_signedess = function

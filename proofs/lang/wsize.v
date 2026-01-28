@@ -194,6 +194,7 @@ Variant v_kind :=
 | Reg   of reg_kind * reference (* register variable *)
 | Inline           (* inline variable   *)
 | Global           (* global (in memory) constant *)
+| Length           (* length variable *)
 .
 
 (* -------------------------------------------------------------------- *)
