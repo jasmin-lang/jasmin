@@ -37,21 +37,21 @@ module type SafetyArch = sig
   val split_asm_opn :
     int ->
     extended_op ->
-    expr list ->
+    exprs ->
     expr option list
   (** Architecture-specific assembly operation splitting *)
 
   val post_opn :
     extended_op ->
-    (int glval) list ->
-    expr list ->
+    lvals ->
+    exprs ->
     btcons list
   (** Post-conditions of operators, that cannot be precisely expressed as an expression of the arguments *)
 
   val opn_heur :
     extended_op ->
     mvar ->
-    expr list ->
+    exprs ->
     flags_heur option
   (** Heuristic for flags *)
 end
