@@ -3,7 +3,14 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 Require Import xseq.
+Require Import psem_defs.
 Require Import expr compiler_util.
+
+Definition type_of_glob_value (gv: glob_value) : atype :=
+  match gv with
+  | Gword ws _ => aword ws
+  | Garr p _ => aarr U8 p
+  end.
 
 Local Open Scope seq_scope.
 
@@ -11,8 +18,8 @@ Module Import E.
 
   Definition pass : string := "remove globals".
 
-  Definition rm_glob_error (ii:instr_info) (x:var) := {|
-    pel_msg := pp_box [:: pp_s "Cannot remove global variable"; pp_var x];
+  Definition rm_glob_error_gen (ii: instr_info) (x: var) (extra: seq pp_error) := {|
+    pel_msg := pp_box (pp_s "Cannot remove global variable" :: pp_var x :: extra);
     pel_fn := None;
     pel_fi := None;
     pel_ii := Some ii;
@@ -20,6 +27,8 @@ Module Import E.
     pel_pass := Some pass;
     pel_internal := false
   |}.
+
+  Definition rm_glob_error ii x := rm_glob_error_gen ii x [::].
 
   Definition rm_glob_error_dup (ii:instr_info) (x:var) := {|
     pel_msg := pp_box [:: pp_s "Duplicate definition of global variable"; pp_var x];
@@ -41,32 +50,47 @@ Section REMOVE.
 
   Context `{asmop:asmOp}.
   Context (fresh_id : glob_decls -> var -> Ident.ident).
+  Context {fcp : FlagCombinationParams}.
 
   Notation venv := (Mvar.t var).
 
-  Definition check_data (d:glob_value) (ws:wsize) (w:word ws) := 
-    match d with
-    | @Gword ws' w' => (ws == ws') && (w == zero_extend ws w')
-    | _             => false
+  Definition check_data (d' d: glob_value) : bool :=
+    match d', d with
+    | @Gword ws' w', @Gword ws w => (ws == ws') && (w == zero_extend ws w')
+    | @Garr len' arr', @Garr len arr => WArray.is_uincl arr arr'
+    | _, _ => false
     end.
 
-  Definition find_glob ii (xi:var_i) (gd:glob_decls) (ws:wsize) (w:word ws) :=
-    let test (gv:glob_decl) := 
-      if convertible (aword ws) (vtype gv.1) && (check_data gv.2 w) then Some gv.1
-      else None in 
+  Definition check (gv: glob_value) (gd: glob_decl) : bool :=
+    (convertible (type_of_glob_value gv) (vtype gd.1)) && (check_data gd.2 gv).
+
+  Definition find_glob ii (xi: var_i) (gd: glob_decls) (gv: glob_value) :=
+    let test gd := if check gv gd then Some gd.1 else None in
     match find_map test gd with
     | None => Error (rm_glob_error ii xi)
     | Some g => ok g
-    end. 
+    end.
 
-  Definition add_glob ii (x:var) (gd:glob_decls) (ws:wsize) (w:word ws) :=
-    let test (gv:glob_decl) := 
-       convertible (aword ws) (vtype gv.1) && (check_data gv.2 w) in
-    if has test gd then ok gd 
+  Definition add_glob ii (x: var) (gd: glob_decls) (gv: glob_value) :=
+    if has (check gv) gd then ok gd
     else
       let gx := {| vtype := vtype x; vname := fresh_id gd x |} in
       if has (fun g' => g'.1 == gx) gd then Error (rm_glob_error_dup ii gx)
-      else ok ((gx, Gword w) :: gd).
+      else ok ((gx, gv) :: gd).
+
+  Definition evaluate_bytes ii x : pexprs -> result pp_error_loc values :=
+    mapM (fun pe =>
+      if pe is Papp1 (Oword_of_int sz) (Pconst z)
+      then ok (Vword (wrepr sz z))
+      else Error (rm_glob_error_gen ii x [:: pp_s "a cell has a non-constant value"; pp_e pe ])
+    ).
+
+  Definition array_from_cells ii x (len: positive) (cells: pexprs) : result pp_error_loc (WArray.array len) :=
+    Let bytes := evaluate_bytes ii x cells in
+    match sem_opN (Oarray len) bytes >>= to_arr len with
+    | Ok array => Ok _ array
+    | Error _ => Error (rm_glob_error_gen ii x [:: pp_s "cannot fill the array"])
+    end.
 
   Fixpoint extend_glob_i  (i:instr) (gd:glob_decls) :=
     let (ii,i) := i in
@@ -77,7 +101,10 @@ Section REMOVE.
         let x := xi.(v_var) in
         if is_glob_var x then
           match e with
-          | Papp1 (Oword_of_int ws) (Pconst z) => add_glob ii x gd (wrepr ws z)
+          | Papp1 (Oword_of_int ws) (Pconst z) => add_glob ii x gd (Gword (wrepr ws z))
+          | PappN (Oarray len) cells =>
+              Let array := array_from_cells ii x len cells in
+              add_glob ii x gd (Garr array)
           | _                   => Error (rm_glob_error ii xi)
           end
         else ok gd
@@ -248,9 +275,15 @@ Section REMOVE.
               match e with
               | Papp1 (Oword_of_int ws) (Pconst z) =>
                 if convertible ty (aword ws) && convertible (vtype x) (aword ws) then
-                  Let g := find_glob ii xi gd (wrepr ws z) in
+                  Let g := find_glob ii xi gd (Gword (wrepr ws z)) in
                   ok (Mvar.set env x g, [::])
                 else Error (rm_glob_error ii xi)
+              | PappN (Oarray len) cells =>
+                  if convertible (vtype x) (aarr U8 len) then
+                    Let array := array_from_cells ii x len cells in
+                    Let g := find_glob ii xi gd (Garr array) in
+                    ok (Mvar.set env x g, [::])
+                  else Error (rm_glob_error ii xi)
               | _ => Error (rm_glob_error ii xi)
               end
             else
