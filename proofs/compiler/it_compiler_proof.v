@@ -207,7 +207,7 @@ apply: wiequiv_f_trans_EE_EU.
 apply: wiequiv_f_trans_UU_EU; first exact: it_indirect_to_direct.
 apply: wiequiv_f_trans_EE_EU; first exact: (it_expand_callP ok_pg ok_fn).
 apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_ph.
-apply: wiequiv_f_trans_EE_EU; first exact: RGP.it_remove_globP ok_pi.
+apply: wiequiv_f_trans_EU_EU; first exact: RGP.it_remove_globP ok_pi.
 apply: wiequiv_f_trans_EE_EU; first exact: (it_load_constants_progP ok_plc).
 apply: wiequiv_f_trans_EE_EU; first exact:
   (hlop_it_lower_callP

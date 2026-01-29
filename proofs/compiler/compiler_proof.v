@@ -345,7 +345,8 @@ Proof.
          ok_fvars).
   apply: compose_pass.
   + by move=> vr'; apply: load_constants_progP; apply ok_plc.
-  apply: compose_pass; first by move => vr'; apply: (RGP.remove_globP ok_pi).
+  apply: compose_pass_uincl'.
+  - move => vr'; apply: (RGP.remove_globP ok_pi).
   apply: compose_pass_uincl'.
   - move => vr'; apply: (live_range_splittingP ok_ph).
   apply: compose_pass.
