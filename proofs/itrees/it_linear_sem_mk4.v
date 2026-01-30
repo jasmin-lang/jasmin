@@ -887,8 +887,8 @@ Definition interp_LRecSA_H0 E {XE: ErrEvent -< E}
 (**************************************************************)
 
 (* relating the linear semantics of source commands (intermediate
-   representation) with the direct semantics of their linear
-   translation *)
+   representation) with the direct semantics (interp_LFlow o
+   isem_lcmd) of their linear translation *)
 Lemma LinearIntermediateRep_cmd_ok E {XE: ErrEvent -< E}
   {XI : LinstrE -< E} {XL: LinE -< E} {XLS: stateE lstate -< E}
   {XST: StackE -< E} {XTSA: StackAllocE -< E}
@@ -898,8 +898,8 @@ Lemma LinearIntermediateRep_cmd_ok E {XE: ErrEvent -< E}
           (interp_LFlow (isem_lcmd l0)). 
 Admitted. 
 
-(* currently, given the use of StackAlloc events, this is a better
-   version of the above lemma *)
+(* given StackAlloc events, the following is a better version of the
+   lemma above *)
 Lemma LinearIntermediateRep_cmd_ok1 E {XE: ErrEvent -< E}
   {XI : LinstrE -< E} {XL: LinE -< E} {XLS: stateE lstate -< E}
   {XST: StackE -< E}
@@ -959,9 +959,9 @@ Definition PostC T1 T2 (e1: E1 T1) (u1: T1) (e2: E2 T2) (u2: T2) : Prop :=
 Definition lc_end := fun i '(fn, n) => linear_end_i SP fn i n.
 
 (* relating the linear semantics of a source function (intermediate
-   representation) with its source semantics (tentative). as it is, we
-   probably need to interpret state events. a better way could be to
-   combine higher-level events together. WIP *)
+   representation) with its source semantics (tentative). little point
+   in not in interpreting state events. however, we would like to
+   match recursive events on the two sides. WIP *)
 Lemma LinearSem_fun_correct (pd : PointerData) (sp: sprog)
   (lin_params: linearization_params)
   (sra0 : lcpoint -> lstate -> lstate)
@@ -992,8 +992,10 @@ Proof.
   intros.  
 Admitted. 
 
-(* to be proved using linearization_proj_lemma and
-   LinearIntermediateRep_ok and LinearSem_correct *)
+(* to be proved transitively, by showing that the intermediate
+representation is correct wrt the linear semantics (e.g.
+LinearIntermediateRep_cmd_ok1) and wrt the source semantics
+(e.g. LinearSem_fun_correct) *)
 Lemma linearization_lemma (pd : PointerData) (sp: sprog)
   (lin_params: linearization_params)
   (sra0 : lcpoint -> lstate -> lstate)
@@ -1007,14 +1009,14 @@ Lemma linearization_lemma (pd : PointerData) (sp: sprog)
         (linear_c (@linear_i asm_op pd _ lin_params sp fn) c0 xH [::]) in
       fenv fn = Some lc0) -> 
   forall (fn: funname),
-    let lden := isem_lfun fn in 
-    let lin_sem := @interp_up2lstateG E2 XE2 XS2 sra0 ura0 lra0 _ lden in 
+    let lin_den := isem_lfun fn in 
+    let lin_sem := @interp_up2lstateG E2 XE2 XS2 sra0 ura0 lra0 _ lin_den in 
     forall xs es ii,
-      let sden := @isem_instr asm_op syscall_state sip
+      let source_den := @isem_instr asm_op syscall_state sip
                     estate fstate _ _ _ (MkI ii (Ccall xs fn es)) in
       let source_sem := @interp_up2state asm_op syscall_state
                           sip withsubword dc ep spp pT scP p ev E1 XE1 XS1
-                          unit sden in  
+                          unit source_den in  
       @rutt E1 E2 _ _ PreC PostC (fun _ p => halt_pred p) source_sem lin_sem. 
 Admitted. 
 

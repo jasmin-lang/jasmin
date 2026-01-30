@@ -783,9 +783,9 @@ Lemma LinearSem_instr_correct (pd : PointerData) (sp: sprog)
   forall i sst lst,
     RR sst lst ->
     let source_sem := source_denote_instr pp i sst in
-    let lsem := linsem_rec_instr (lc_end sp) i lst in
+    let lin_sem := linsem_rec_instr (lc_end sp) i lst in
     @rutt E1 E2 _ _ (fun _ _ _ _ => True) (fun _ _ _ _ _ _ => True) 
-        (fun _ s => halt_pred (PC s)) source_sem lsem. 
+        (fun _ s => halt_pred (PC s)) source_sem lin_sem. 
 Proof.
 Admitted.
 
@@ -796,9 +796,9 @@ Lemma LinearSem_cmd_correct (pd : PointerData) (sp: sprog)
   forall c sst lst,
     RR sst lst ->
     let source_sem := source_denote_cmd pp c sst in
-    let lsem := linsem_rec_cmd (lc_end sp) c lst in
+    let lin_sem := linsem_rec_cmd (lc_end sp) c lst in
     @rutt E1 E2 _ _ (fun _ _ _ _ => True) (fun _ _ _ _ _ _ => True) 
-        (fun _ s => halt_pred (PC s)) source_sem lsem. 
+        (fun _ s => halt_pred (PC s)) source_sem lin_sem. 
 Proof.
 Admitted.
 
@@ -809,9 +809,9 @@ Lemma LinearSem_fun_correct (pd : PointerData) (sp: sprog)
   forall fn sst lst,
     FRR sst lst ->
     let source_sem := source_denote_fun pp fn sst in
-    let lsem := linsem_rec_fun (lc_end sp) fn lst in
+    let lin_sem := linsem_rec_fun (lc_end sp) fn lst in
     @rutt E1 E2 _ _ (fun _ _ _ _ => True) (fun _ _ _ _ _ _ => True) 
-        (fun _ s => halt_pred (PC s)) source_sem lsem. 
+        (fun _ s => halt_pred (PC s)) source_sem lin_sem. 
 Proof.
   intros.
   eapply interp_mrec_rutt with (RPreInv := RecPreC) (RPostInv := RecPostC);
