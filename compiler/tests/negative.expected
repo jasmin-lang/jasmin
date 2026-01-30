@@ -742,7 +742,7 @@ fail/param_expansion/x86-64/global_not_constant.jazz:
 
 "fail/param_expansion/x86-64/global_not_constant.jazz", line 2 (4-5):
 compilation error:
-param expansion: the expression assigned to global variable b must evaluate to a constant
+param expansion: the expression assigned to global variable b must evaluate to a constant word
 
 fail/param_expansion/x86-64/operator_arg.jazz:
 
@@ -1354,11 +1354,21 @@ typing error: x has kind stack, only reg or reg ptr are allowed in result of non
 
 fail/typing/x86-64/global_in_global_def.jazz:
 
-"fail/typing/x86-64/global_in_global_def.jazz", line 2 (10-19): the expression has type u8 instead of u16
+"fail/typing/x86-64/global_in_global_def.jazz", line 2 (4-7): can not implicitly cast u8 into u16
 
 fail/typing/x86-64/global_int.jazz:
 
-"fail/typing/x86-64/global_int.jazz", line 1 (0-3): globals should have type word; found: ‘int’
+"fail/typing/x86-64/global_int.jazz", line 1 (4-5):
+compilation error:
+param expansion: globals should have type word; found: ‘int’
+
+fail/typing/x86-64/global_type_mismatch.jazz:
+
+"fail/typing/x86-64/global_type_mismatch.jazz", line 1 (4-5): can not implicitly cast u8[1] into u32
+
+fail/typing/x86-64/global_type_mismatch2.jazz:
+
+"fail/typing/x86-64/global_type_mismatch2.jazz", line 1 (7-8): can not implicitly cast int into u32[1]
 
 fail/typing/x86-64/init_global.jazz:
 
@@ -1523,7 +1533,7 @@ Allowed args are:
 
 Statistics:
 	Annots:      0
-	Pretyping:  45
+	Pretyping:  46
 	Parsing:     4
 	Typing:      1
-	Compile:   190
+	Compile:   191

@@ -289,6 +289,10 @@ pexpr_r:
 | ct=parens(svsize) LBRACKET es=rtuple1(pexpr) RBRACKET
     { PEpack(ct,es) }
 
+| e = STRING { PEstring e }
+
+| LBRACE es = rtuple1(pexpr) RBRACE { PEarray es }
+
 | ct=parens(cast) e=pexpr %prec BANG
     { PEOp1 (`Cast(ct), e) }
 
@@ -486,13 +490,8 @@ pparam:
     { { ppa_ty = ty; ppa_name = x; ppa_init = pe; } }
 
 (* -------------------------------------------------------------------- *)
-pgexpr:
-| e=pexpr { GEword e }
-| LBRACE es = rtuple1(pexpr) RBRACE { GEarray es }
-| e=loc(STRING) { GEstring e }
-
 pglobal:
-| pgd_type=ptype pgd_name=ident EQ pgd_val=pgexpr SEMICOLON
+| pgd_type=ptype pgd_name=ident EQ pgd_val=pexpr SEMICOLON
   { { pgd_type ; pgd_name ; pgd_val  } }
 
 (* -------------------------------------------------------------------- *)

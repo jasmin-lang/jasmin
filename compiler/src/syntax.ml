@@ -172,6 +172,8 @@ type pexpr_r =
   | PEGet    of [`Aligned|`Unaligned] option * arr_access * swsize L.located option * pident * pexpr * pexpr option
   | PEFetch  of mem_access
   | PEpack   of svsize * pexpr list
+  | PEarray of pexpr list
+  | PEstring of string
   | PEBool   of bool
   | PEInt    of int_representation
   | PECall   of pident * pexpr list
@@ -318,12 +320,7 @@ type pfundef = {
 }
 
 (* -------------------------------------------------------------------- *)
-type gpexpr =
-  | GEword  of pexpr
-  | GEarray of pexpr list
-  | GEstring of string L.located
-
-type pglobal = { pgd_type: ptype; pgd_name: pident ; pgd_val: gpexpr }
+type pglobal = { pgd_type: ptype; pgd_name: pident ; pgd_val: pexpr }
 
 (* -------------------------------------------------------------------- *)
 type pexec = {
