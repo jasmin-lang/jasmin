@@ -4,13 +4,16 @@
   | <int>  // Integer constant.
   | <bool>  // Boolean constant.
   | <var>  // Variable.
-  | (<wsize>)[<var> + <expr>] // Memory access.
-  | (<wsize>)[<var> - <expr>] // Memory access.
+  | [<expr>] // Memory access.
+  | [:<wsize> <expr>] // Memory access.
   | <var>[<expr>]  // Array access.
-  | <var>[<wsize> <expr>]  // Array access.
-  | <var>.[<wsize> <expr>]  // Unscaled array access.
-  | <var>[<wsize> <expr> : <expr>]  // Subarray.
-  | <var>.[<wsize> <expr> : <expr>]  // Unscaled subarray.
+  | <var>[:<wsize> <expr>]  // Array access.
+  | <var>.[<expr>]  // Unscaled array access.
+  | <var>.[:<wsize> <expr>]  // Unscaled array access.
+  | <var>[<expr> : <expr>]  // Subarray.
+  | <var>[:<wsize> <expr> : <expr>]  // Subarray.
+  | <var>.[<expr> : <expr>]  // Unscaled subarray.
+  | <var>.[:<wsize> <expr> : <expr>]  // Unscaled subarray.
   | <op1> <expr>  // Unary operation.
   | <expr> <op2> <expr>  // Binary operation.
   | <expr> ? <expr> : <expr>  // Conditional.
@@ -26,8 +29,8 @@ Expressions are made of:
   - packs (`(4u2)[0, 3, 2, 1]`);
   - variables (`x`);
   - parenthesized subexpressions (`(e)`);
-  - memory loads (`(u16)[p + 2 * i]`);
-  - array accesses (`x[i]`);
+  - memory loads (`[:u16 p + 2 * i]`);
+  - array accesses (`x[i]`, `x.[i]`, `x[:u16 i]`);
   - unary operators (`- e`);
   - binary operators (`e - f`);
   - conditional expressions (`c ? th : el`);
