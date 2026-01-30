@@ -1,5 +1,3 @@
-(* -> was it_sems_mden4.v *)
-
 From ITree Require Import
      Basics
      ITree
@@ -535,19 +533,147 @@ Definition inl_ext_lift {E1 E2 E3} (f: E1 ~> E2) : E1 +' E3 ~> E2 +' E3 :=
              | inr1 e3 => inr1 e3 end.                
 
 
+Lemma interp_state_interp (E F G : Type -> Type) (St: Type) 
+  (f : forall T : Type, E T -> itree F T) 
+  (g : forall T : Type, F T -> stateT St (itree G) T)
+  (R : Type) (t : itree E R) (s: St) :
+  eqit eq false false 
+            (interp_state g (interp f t) s)
+            (interp_state (fun _ e s => interp_state g (f _ e) s) t s).
+Admitted. 
+
+ Lemma interp_interp_state (E F G : Type -> Type) (St: Type)  
+  (f : forall T : Type, E T -> stateT St (itree F) T) 
+  (g : forall T : Type, F T -> itree G T)
+  (R : Type) (t : itree E R) (s: St) :
+   eqit eq false false (interp g (interp_state f t s))
+                       (interp_state (fun _ e s => interp g (f _ e s)) t s).
+Admitted.
+ 
+
 Section Tests.
-  
+
 Context (E D2: Type -> Type) (S A V Err: Type) (err: Err).
 
 Context (IE: exceptE Err -< E).
-  
+
+(* F *)
 Notation D1 := (callE A V).
    
 Context (Hnd1: D1 ~> itree (D1 +' D2 +' E)) (Hnd2: D2 ~> stateT S (itree E)).
 
-Definition interp_one T (t: itree (D1 +' D2 +' E) T) (s: S) :
-  itree E (S *T) := 
+(* A ; B path *)
+Definition interp_AB T (t: itree (D1 +' D2 +' E) T) (s: S) : itree E (S *T) := 
   interp_state (ext_state_handler Hnd2) (interp_mrec Hnd1 t) s.
+
+
+Section Test1.
+
+(* F' *)
+Notation D3 := (callE (A * S) (S * V)).
+  
+Definition D1toD3h T (e: D1 T) : stateT S (itree (D3 +' E)) T :=
+  fun s => match e with Call a => trigger (Call (a, s)) end. 
+  
+(* similar to h' *)
+Definition D2toD3h T (e: D2 T) : stateT S (itree (D3 +' E)) T :=
+  fun s => let X1 := Hnd2 e s in translate inr1 X1.
+
+Definition handle_toD3 T (e: (D1 +' D2 +' E) T) :
+  stateT S (itree (D3 +' E)) T :=
+  fun s => (* case_ D1toD3h (case_ D2toD3h pure_state) _ e s. *)
+    match e with
+    | inl1 d1 => D1toD3h d1 s
+    | inr1 (inl1 d2) => D2toD3h d2 s
+    | inr1 (inr1 e0) => pure_state _ (inr1 e0) s   
+    end.                     
+
+(* similar to C *)
+Definition interp_toD3 T (t: itree (D1 +' D2 +' E) T) :
+  stateT S (itree (D3 +' E)) T :=
+  fun s => interp_state handle_toD3 t s.
+
+(* recursive handler for D3 *)
+Definition handleD3 T (e: D3 T) : itree (D3 +' E) T :=
+    match e with Call (a, s) =>
+        let X1 := Hnd1 (Call a) in
+        interp_state handle_toD3 X1 s end.             
+
+Definition interpD3 T (t: itree (D3 +' E) T) : itree E T :=
+  interp_mrec handleD3 t.
+
+Definition handle_CD T (e: (D1 +' D2 +' E) T) : stateT S (itree E) T :=
+  fun s => let X1 := handle_toD3 e s in interpD3 X1.
+
+(* corresponds to the C; D path *)
+Definition interp_CD T (t: itree (D1 +' D2 +' E) T) : stateT S (itree E) T :=
+  fun s => interp_state handle_CD t s.
+
+Lemma interp_equiv T (t: itree (D1 +' D2 +' E) T) (s: S) :
+  eutt eq (interp_AB t s) (interp_CD t s).
+Proof.
+  unfold interp_AB, interp_CD, handle_CD, interpD3, handle_toD3; simpl.
+  setoid_rewrite interp_mrec_as_interp at 1; simpl.
+
+  (* analogous to interp_interp, should be provable *)
+  setoid_rewrite interp_state_interp.
+
+  (* here we could use coinduction and unfold interp. However, as a
+     quick sanity check, we assume to have a stronger form of
+     eutt_interp that works on heterogenous bodies, and we try out
+     reasoning directly by case analysis on events. it probably won't
+     suffice for D1, but it works immediately for D2 and E. *)
+  assert (forall (T0 : Type) (e : (D1 +' D2 +' E) T0) (s0 : S),
+             eutt eq
+               (interp_state (ext_state_handler Hnd2)
+                  (mrecursive Hnd1 T0 e) s0)
+               (interp_mrec handleD3
+                  match e with
+                  | inl1 d1 => D1toD3h d1 s0
+                  | inr1 (inl1 d2) => D2toD3h d2 s0
+                  | inr1 (inr1 e0) => pure_state T0 (inr1 e0) s0
+                  end)) as H0. 
+  clear s t T.
+  intros T e s.    
+  destruct e as [d1 | [d2 | e]]; simpl.
+
+  { unfold ext_state_handler, handleD3, D1toD3h, handle_toD3; simpl.
+    destruct d1; simpl.
+    setoid_rewrite interp_mrec_trigger; simpl.
+    setoid_rewrite mrec_as_interp.
+    simpl.
+    setoid_rewrite interp_state_interp.
+    
+    (* another form of interp_interp, to be proved *)
+    setoid_rewrite interp_interp_state.
+    admit.
+  }
+  { unfold ext_state_handler, handleD3, D1toD3h, handle_toD3; simpl.
+    setoid_rewrite interp_state_trigger.
+    unfold D2toD3h; simpl.
+    setoid_rewrite interp_mrec_as_interp.
+    setoid_rewrite interp_translate; simpl.
+    setoid_rewrite interp_trigger_h.
+    reflexivity.
+  }
+  { setoid_rewrite interp_state_trigger.
+    setoid_rewrite interp_mrec_as_interp.
+    unfold ext_state_handler; simpl.
+    unfold pure_state.
+    setoid_rewrite interp_vis; simpl.
+    setoid_rewrite bind_trigger.
+    setoid_rewrite tau_euttge; simpl.
+    eapply eqit_Vis.
+    intros u.
+    setoid_rewrite interp_ret.
+    reflexivity.
+  }  
+Admitted.     
+  
+End Test1.
+
+
+Section Test2.
 
 Notation D3 := (callE (A * S) V).
 
@@ -593,7 +719,7 @@ Definition interp_H2 T (t: itree (D1 +' D2 +' E) T) (s: S) :
 (* intuitive problem: when Hnd3 is applied, it only uses the local
    state which is s. the output state of interp_H2 is never used, so
    any state update due to interp_H2 is lost. *)
-Definition interp_two T (t: itree (D1 +' D2 +' E) T) (s: S) :
+Definition interp_CD_try1 T (t: itree (D1 +' D2 +' E) T) (s: S) :
   itree E (S * T) := 
   interp_mrec Hnd3 (interp_H2 t s).
 
@@ -619,7 +745,7 @@ Definition interp_H2SU T (t: itree (D1 +' D2 +' E) T) (s: S) :
    won't make the recursive interpreter really stateful. each call
    depends on the same updated local state. this seems still
    problematic, because Hnd3 uses Hnd2, which is actually stateful. *)
-Definition interp_three T (t: itree (D1 +' D2 +' E) T) (s: S) :
+Definition interp_CD_try2 T (t: itree (D1 +' D2 +' E) T) (s: S) :
   itree E (S * T) :=
    interp_mrec Hnd3 (interp_H2SU t s).
 
@@ -635,17 +761,17 @@ Definition Hnd3s : D3 ~> itree (D3 +' E) :=
                  Ret r end.
                  
 (* this should fix both problems. *)
-Definition interp_four T (t: itree (D1 +' D2 +' E) T) (s: S) :
+Definition interp_CD_try3 T (t: itree (D1 +' D2 +' E) T) (s: S) :
   itree E (S * T) :=
    interp_mrec Hnd3s (interp_H2SU t s).
 
 Require Import FunctionalExtensionality.
 (* From mathcomp Require Import ssreflect. *)
 
-Lemma interp_equiv T (t: itree (D1 +' D2 +' E) T) (s: S) :
-  eutt eq (interp_one t s) (interp_four t s).
+Lemma interp_equiv_test T (t: itree (D1 +' D2 +' E) T) (s: S) :
+  eutt eq (interp_AB t s) (interp_CD_try3 t s).
 Proof.
-  unfold interp_one, interp_four.
+  unfold interp_AB, interp_CD_try3.
   unfold Hnd3s, interp_H2SU; simpl.
   setoid_rewrite interp_mrec_as_interp; simpl.
   
@@ -780,11 +906,6 @@ Proof.
         setoid_rewrite interp_bind.
         repeat setoid_rewrite bind_bind; simpl.
 
-(*        unfold D1toD3s, Hnd3_aux; simpl.
-        setoid_rewrite bind_bind.
-        setoid_rewrite translate_ret.
-        simpl.
-*)        
         (* hard *)
         admit.
       }
@@ -897,163 +1018,7 @@ Proof.
 
 Admitted. 
 
-
-
- (*
- (fun r0 : S * T =>
-        interp
-          (mrecursive
-             (fun (T0 : Type) (e0 : D3 T0) =>
-              match e0 in (callE _ _ T1) return (itree (D3 +' E) T1) with
-              | Call (a, s0) =>
-                  ITree.bind (D1toD3s (Hnd3_aux a s0) s0)
-                    (fun x : S * V =>
-                     let (s', _) := x in
-                     ITree.bind
-                       (translate (inl_ext_lift (update_state_fun s'))
-                          (D1toD3s (Hnd3_aux a s0) s0))
-                       (fun x0 : S * V => let (_, r1) := x0 in Ret r1))
-              end))
-          (let
-           '(s', _) := r0 in translate (inl_ext_lift (update_state_fun s')) F2)) *)
-
-(*
-     
-     setoid_rewrite bind_bind.
-      
-     
-     Check @interp_state_bind.  
-     
-          
-          eapply eqit_interp.
-          setoid_rewrite translate_bind.
-          
-        Check @interp_bind.
-
-     set (KK3 := 
-               
-         (translate (inl_ext_lift (update_state_fun (fst r0))) F2)).
-     subst F2. 
-
-     
-      set (KK2 := fun r0 : S * T =>
-    interp
-      (mrecursive
-         (fun (T : Type) (e : D3 T) =>
-          match e in (callE _ _ T0) return (itree (D3 +' E) T0) with
-          | Call (a, s) =>
-              ITree.bind (D1toD3s (Hnd3_aux a s) s)
-                (fun x : S * V =>
-                 let (s', _) := x in
-                 ITree.bind
-                   (translate (inl_ext_lift (update_state_fun s'))
-                      (D1toD3s (Hnd3_aux a s) s))
-                   (fun x0 : S * V => let (_, r) := x0 in Ret r))
-          end))
-      (translate (inl_ext_lift (update_state_fun (fst r0))) F2)).
-     subst F2. 
-
-
-
-     
-      Check @translate_bind.  
-
-
-        Check @interp_bind.
-      
-      
-      Check @translate_bind.  
-
-      guclo eqit_clo_trans.
-      econstructor.
-      { reflexivity. }
-      
-
-      
-      Check @translate_bind.
-      
-      
-      setoid_rewrite interp_state_vis_Eq in G1.
-      
-      
-      set (G1 := (fun r0 : S * T => _ )).
-      replace F1 with F2 in G1.
-      
-Check @translate_vis. 
-
-      
-      set (F0 := ITree.bind _).
-      set (F1 := interp _ _).
-      set (F2 := translate).
-      set (F2 := (fun r0 : S * T => _ )).
-      
-
-      setoid_rewrite translate_vis.     
-      
-      
-      
-      setoid_rewrite interp_tau.  
-      
-      setoid_rewrite interp_state_interp.
-      
-    Check @translate_vis.
-
-    
-    
-    setoid_rewrite bind_bind.
-    unfold update_state.
- 
-  
-    
-    instantiate (1 := Tau (J1 _ G2)).
-    instantiate (1 := eq).
-    pstep. red.
-    econstructor.
-    left.
-     
-    
-    subst G1 G2.
-
-    setoid_rewrite interp_bind.
-    setoid_rewrite A2.
-    
-    
-    assert (eutt eq G () )
-
-    assert () 
-    setoid_rewrite A1.
-     
-      
-    
-    setoid_rewrite interp_state_translate.
-    gstep; red.
-    econstructor.
-    gfinal; left.
-    eapply CIH.
-    setoid_rewrite translate_tau.
-    setoid_rewrite interp_state_ret.
-    setoid_rewrite interp_ret.
-    gstep; red.
-    econstructor; auto.
-
-
-    
-    setoid_rewrite interp_mrec_as_interp at 1; simpl.
-
-    
-    unfold D1toD3s; simpl.
-    unfold interp_H2; simpl.
-    unfold Hnd3_aux; simpl.
-    unfold inl_ext_lift, DLift; simpl.
-    unfold ext_state_handler, inr_state_handler, sum_perm_x; simpl.
-    unfold update_state, update_state_fun; simpl.      
-    unfold inl_ext_lift, DLift; simpl.
-
-    setoid_rewrite interp_mrec_as_interp; simpl.
-*)
-    
-(************** USELESS *)
-
+(* useless *)
 Definition nouse_Hnd3 T (e: D3 T) : itree (D1 +' E) (S * T) := 
   match e with
     | Call (a, s) =>
@@ -1062,23 +1027,9 @@ Definition nouse_Hnd3 T (e: D3 T) : itree (D1 +' E) (S * T) :=
         interp_state (@ext_state_handler S D2 (D1 +' E)
                         (inr_state_handler Hnd2)) X1p s end.
 
+End Test2.
+
 End Tests.
-
-
-(*
-Lemma update_state_fun' (s: S) : D3 ~> D3.
-  intros.
-  destruct X as [[a s']].
-  exact (Call (a, s)).
-  Show Proof.  
- *)
-
-(*
-Definition ext_inl_state_handler {S: Type} {E1 E2 E3}
-  (h: E1 ~> stateT S (itree E2)) :
-  E1 ~> stateT S (itree (E2 +' E3)) := (* case_ h (id_ E2). *)
-  fun T e s => translate inl1 (h _ e s).
-*)
 
 
 
