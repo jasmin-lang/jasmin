@@ -563,8 +563,8 @@ Notation D1 := (callE A V).
 Context (Hnd1: D1 ~> itree (D1 +' D2 +' E)) (Hnd2: D2 ~> stateT S (itree E)).
 
 (* A ; B path *)
-Definition interp_AB T (t: itree (D1 +' D2 +' E) T) (s: S) : itree E (S *T) := 
-  interp_state (ext_state_handler Hnd2) (interp_mrec Hnd1 t) s.
+Definition interp_AB : itree (D1 +' D2 +' E) ~> stateT S (itree E) := 
+ fun _ t s => interp_state (ext_state_handler Hnd2) (interp_mrec Hnd1 t) s.
 
 
 Section Test1.
@@ -572,16 +572,15 @@ Section Test1.
 (* F' *)
 Notation D3 := (callE (A * S) (S * V)).
   
-Definition D1toD3h T (e: D1 T) : stateT S (itree (D3 +' E)) T :=
-  fun s => match e with Call a => trigger (Call (a, s)) end. 
+Definition D1toD3h : D1 ~> stateT S (itree (D3 +' E)) :=
+  fun _ e s => match e with Call a => trigger (Call (a, s)) end. 
   
 (* similar to h' *)
-Definition D2toD3h T (e: D2 T) : stateT S (itree (D3 +' E)) T :=
-  fun s => let X1 := Hnd2 e s in translate inr1 X1.
+Definition D2toD3h : D2 ~> stateT S (itree (D3 +' E)) :=
+  fun _ e s => let X1 := Hnd2 e s in translate inr1 X1.
 
-Definition handle_toD3 T (e: (D1 +' D2 +' E) T) :
-  stateT S (itree (D3 +' E)) T :=
-  fun s => (* case_ D1toD3h (case_ D2toD3h pure_state) _ e s. *)
+Definition handle_toD3 : D1 +' D2 +' E ~> stateT S (itree (D3 +' E)) :=
+  fun _ e s => (* case_ D1toD3h (case_ D2toD3h pure_state) _ e s. *)
     match e with
     | inl1 d1 => D1toD3h d1 s
     | inr1 (inl1 d2) => D2toD3h d2 s
@@ -589,25 +588,24 @@ Definition handle_toD3 T (e: (D1 +' D2 +' E) T) :
     end.                     
 
 (* similar to C *)
-Definition interp_toD3 T (t: itree (D1 +' D2 +' E) T) :
-  stateT S (itree (D3 +' E)) T :=
-  fun s => interp_state handle_toD3 t s.
+Definition interp_toD3 :
+  itree (D1 +' D2 +' E) ~> stateT S (itree (D3 +' E)) :=
+  fun _ t s => interp_state handle_toD3 t s.
 
 (* recursive handler for D3 *)
-Definition handleD3 T (e: D3 T) : itree (D3 +' E) T :=
-    match e with Call (a, s) =>
-        let X1 := Hnd1 (Call a) in
-        interp_state handle_toD3 X1 s end.             
+Definition handleD3 : D3 ~> itree (D3 +' E) :=
+  fun _ e => match e with Call (a, s) =>
+               interp_state handle_toD3 (Hnd1 (Call a)) s end.             
 
-Definition interpD3 T (t: itree (D3 +' E) T) : itree E T :=
-  interp_mrec handleD3 t.
+Definition interpD3 : itree (D3 +' E) ~> itree E :=
+  fun _ t => interp_mrec handleD3 t.
 
-Definition handle_CD T (e: (D1 +' D2 +' E) T) : stateT S (itree E) T :=
-  fun s => let X1 := handle_toD3 e s in interpD3 X1.
+Definition handle_CD : D1 +' D2 +' E ~> stateT S (itree E) :=
+  fun _ e s => interpD3 (handle_toD3 e s).
 
 (* corresponds to the C; D path *)
-Definition interp_CD T (t: itree (D1 +' D2 +' E) T) : stateT S (itree E) T :=
-  fun s => interp_state handle_CD t s.
+Definition interp_CD : itree (D1 +' D2 +' E) ~> stateT S (itree E) :=
+  fun _ t s => interp_state handle_CD t s.
 
 Lemma interp_equiv T (t: itree (D1 +' D2 +' E) T) (s: S) :
   eutt eq (interp_AB t s) (interp_CD t s).
