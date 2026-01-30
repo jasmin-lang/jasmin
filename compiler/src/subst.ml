@@ -122,10 +122,6 @@ let psubst_v subst =
     | _      -> e in
   aux
 
-let psubst_ge f = function
-  | GEword e -> GEword (psubst_e f e)
-  | GEarray es -> GEarray (List.map (psubst_e f) es)
-
 let psubst_prog (prog:('info, 'asm) pprog) =
   let subst = ref (Mpv.empty : pexpr Mpv.t) in
   let rec aux = function
@@ -142,7 +138,7 @@ let psubst_prog (prog:('info, 'asm) pprog) =
         let v =
           gsubst_gvar f {gv = L.mk_loc L._dummy v; gs = Expr.Sglob} in
         assert (not (is_gkvar v)); L.unloc v.gv in
-      let e = psubst_ge f e in
+      let e = psubst_e f e in
       subst := Mpv.add v (Pvar (gkglob (L.mk_loc L._dummy v'))) !subst;
       (v', e) :: g, p
     | MIfun fc :: items ->
@@ -249,10 +245,7 @@ let isubst_prog glob prog =
         gsubst_gvar subst_v {gv = L.mk_loc L._dummy x; gs = Expr.Sglob} in
       assert (not (is_gkvar x)); L.unloc x.gv in
 
-    let gd =
-      match gd with
-      | GEword e -> GEword (gsubst_e isubst_len subst_v e)
-      | GEarray es -> GEarray (List.map (gsubst_e isubst_len subst_v) es) in
+    let gd = gsubst_e isubst_len subst_v gd in
     x, gd in
   let glob = List.map isubst_glob glob in
 
@@ -334,20 +327,20 @@ let remove_params (prog : ('info, 'asm) pprog) =
   let doglob (x, e) =
     let gv =
       match x.v_ty, e with
-      | Bty (U ws), GEword e ->
+      | Bty (U ws), e ->
         begin try Global.Gword (ws, mk_word ws e)
         with NotAConstantExpr ->
-          hierror ~loc:x.v_dloc "the expression assigned to global variable %a must evaluate to a constant"
+          hierror ~loc:x.v_dloc "the expression assigned to global variable %a must evaluate to a constant word"
             (Printer.pp_var ~debug:false) x
         end
-      | Arr (_ws, n), GEarray es when List.length es <> n ->
+      | Arr (_ws, n), PappN (E.Oarray _len, es) when List.length es <> n ->
          let m = List.length es in
          hierror ~loc:x.v_dloc "array size mismatch for global variable %a: %d %s given (%d expected)"
            (Printer.pp_var ~debug:false) x
            (List.length es)
            (if m > 1 then "values" else "value")
            n
-      | Arr (ws, n), GEarray es ->
+      | Arr (ws, n), PappN (E.Oarray _len, es) ->
         let p = Conv.pos_of_int (n * size_of_ws ws) in
         let mk_word_i i e =
           try mk_word ws e
@@ -358,7 +351,11 @@ let remove_params (prog : ('info, 'asm) pprog) =
         in
         let t = Warray_.WArray.of_list ws (List.mapi mk_word_i es) in
         Global.Garr(p, t)
-      | _, _ -> assert false in
+      | Arr _, _ -> hierror ~loc:x.v_dloc "ill-typed global array"
+      | Bty (Bool | Int), _ ->
+         hierror ~loc:x.v_dloc "globals should have type word; found: ‘%a’"
+           PrintCommon.pp_ty x.v_ty
+    in
     add_glob x gv;
     x, gv
   in

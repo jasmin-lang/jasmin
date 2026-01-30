@@ -67,3 +67,10 @@ let () =
 let () =
   let prog = load_file "wide_rotation.jazz" in
   exec prog [] "main" []
+
+let () =
+  let prog = load_file "../success/common/literal-arrays.jazz" in
+  let w z = Jasmin.(Values.Vword (U32, Conv.word_of_z U32 z)) in
+  exec prog [] "test_string" [ w Z.zero ];
+  exec prog [] "test_array" [ w Z.zero ];
+  exec prog [] "combine" [ w Z.zero; w Z.one ]

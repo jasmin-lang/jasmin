@@ -3,6 +3,8 @@
 <expr> ::=
   | <int>  // Integer constant.
   | <bool>  // Boolean constant.
+  | <string> // String constant.
+  | { <expr>, ..., <expr> } // Array.
   | <var>  // Variable.
   | [<expr>] // Memory access.
   | [:<wsize> <expr>] // Memory access.
@@ -27,6 +29,7 @@ Expressions are made of:
 
   - constants (`true`, `false`,  `42`, `0xabcd`);
   - packs (`(4u2)[0, 3, 2, 1]`);
+  - byte arrays (`"Hello World!"`, `{ x, 0o77 }`);
   - variables (`x`);
   - parenthesized subexpressions (`(e)`);
   - memory loads (`[:u16 p + 2 * i]`);

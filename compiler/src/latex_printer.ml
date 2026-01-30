@@ -55,8 +55,6 @@ let pp_string fmt s =
   | '^' -> caret fmt ()
   | c -> F.fprintf fmt "%c" c
 
-let pp_loc_string fmt s = L.unloc s |> pp_string fmt
-
 let pp_cc =
     pp_opt (fun fmt x -> F.fprintf fmt "%a " kw (match x with `Inline -> "inline" | `Export -> "export"))
 
@@ -195,6 +193,12 @@ and pp_expr_rec prio fmt pe =
   | PEFetch me -> pp_mem_access fmt me
   | PEpack (vs,es) ->
     F.fprintf fmt "(%a)[@[%a@]]" pp_svsize vs (pp_list ",@ " pp_expr) es
+  | PEarray es ->
+    F.fprintf fmt "%a @[%a@] %a"
+      openbrace ()
+      (pp_list ",@ " pp_expr) es
+      closebrace ()
+  | PEstring s -> pp_string fmt s
   | PEBool b -> F.fprintf fmt "%s" (if b then "true" else "false")
   | PEInt i -> F.fprintf fmt "%s" i
   | PECall (f, args) -> F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
@@ -392,20 +396,11 @@ let pp_param fmt { ppa_ty ; ppa_name ; ppa_init } =
     dname (L.unloc ppa_name)
     pp_expr ppa_init
 
-let pp_pgexpr fmt = function
-  | GEword e -> pp_expr fmt e
-  | GEarray es ->
-    F.fprintf fmt "%a @[%a@] %a"
-      openbrace ()
-      (pp_list ",@ " pp_expr) es
-      closebrace ()
-  | GEstring e -> pp_loc_string fmt e
-
 let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
   F.fprintf fmt "%a %a = %a;"
     pp_type pgd_type
     dname (L.unloc pgd_name)
-    pp_pgexpr pgd_val
+    pp_expr pgd_val
 
 let pp_path fmt s =
   F.fprintf fmt "%S " (L.unloc s)

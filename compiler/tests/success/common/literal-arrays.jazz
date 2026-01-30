@@ -1,0 +1,32 @@
+export fn test_string(reg u32 x) -> reg u32 {
+  global u8[4] g = "helo";
+  reg u32 y = g[:u32 0];
+  x += y;
+  return x;
+}
+
+inline fn from_parts(inline u8 a b c d) -> reg u32 {
+  global u8[4] u = { a, b, c, d };
+  reg u32 v = u[:u32 0];
+  return v;
+}
+
+export fn test_array(reg u32 x) -> reg u32 {
+  reg u32 y;
+  y = from_parts(1, 2, 3, 4);
+  x += y;
+  y = from_parts(-1, -2, -3, -4);
+  x += y;
+  return x;
+}
+
+export fn combine(reg u32 x y) -> reg u32 {
+  global u8[2] coefficients = { 0, 1 };
+  reg u32 coeff;
+  coeff = (32u)coefficients[0];
+  x *= coeff;
+  coeff = (32u)coefficients[1];
+  y *= coeff;
+  x += y;
+  return x;
+}
