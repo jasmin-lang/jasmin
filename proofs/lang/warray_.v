@@ -227,6 +227,30 @@ Module WArray.
 
   End WITH_POINTER_DATA.
 
+  Definition is_uincl x y (a: array x) (b: array y) : bool :=
+    (x == y) &&
+    (all (fun i => match read a Aligned i U8, read b Aligned i U8 with Ok p, Ok q => p == q | Ok _, Error _ => false | Error _, _ => true end) (ziota 0 x)).
+
+  Lemma is_uinclP x y (a: array x) (b: array y) :
+    reflect (uincl a b) (is_uincl a b).
+  Proof.
+    rewrite /uincl /is_uincl.
+    case: (x =P y); last by right; tauto.
+    move => ?; subst; case: allP => h; [ left | right ].
+    - split; first by [].
+      move => i w; rewrite /read /= is_align8 add_0 /=; t_xrbindP => _ p ok_p <- <-.
+      move: h => /(_ i); rewrite in_ziota => /(_ (get_valid8 ok_p)).
+      rewrite /read /= is_align8 add_0 ok_p /=.
+      by case: get8 => //= => ? /eqP <-.
+    case => _ k; apply: h => i; rewrite in_ziota => i_bounds.
+    move: k => /(_ i).
+    rewrite /read /= is_align8 add_0 /=.
+    case: get8; last by [].
+    move => x /(_ _ erefl).
+    case: get8; last by [].
+    by move => /= ? /ok_inj <-.
+  Qed.
+
   Lemma castK len (a:array len) : WArray.cast len a = ok a.
   Proof. by rewrite /cast eqxx; case: a. Qed.
 
