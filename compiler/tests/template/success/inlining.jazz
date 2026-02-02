@@ -1,22 +1,22 @@
 // we test template function + inlining
-inline fn f<:n>(reg ptr u64[n] r) -> reg u64 {
+inline fn f{n}(reg ptr u64[n] r) -> reg u64 {
   reg u64 res = r[0];
   return res;
 }
 
-export fn main<:M,Q> (reg ptr u64[M+Q] r) -> reg u64 {
-  reg u64 res = f<:M+Q>(r);
+export fn main{M,Q} (reg ptr u64[M+Q] r) -> reg u64 {
+  reg u64 res = f{M+Q}(r);
   return res;
 }
 
 /*
-inline fn f<:n>(reg ptr u64[n] r) -> reg ptr u64[n] {
+inline fn f{n}(reg ptr u64[n] r) -> reg ptr u64[n] {
   r[0] = 1;
   return r;
 }
 
-export fn main<:M,Q> (reg ptr u64[M+Q] r) -> reg ptr u64[M+Q] {
-  r = f<:M+Q>(r);
+export fn main{M,Q} (reg ptr u64[M+Q] r) -> reg ptr u64[M+Q] {
+  r = f{M+Q}(r);
   return r;
 }
 */

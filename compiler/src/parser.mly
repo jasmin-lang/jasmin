@@ -12,8 +12,6 @@
 %token RBRACE
 %token LPAREN
 %token RPAREN
-%token LTEMPLATE
-%token RTEMPLATE
 
 %token T_BOOL
 %token T_INT
@@ -305,7 +303,7 @@ pexpr_noarr_r(parent):
 | e=parens(parent)
     { PEParens e }
 
-| f=var alargs=loption(abrackets_tuple(pexpr)) args=parens_tuple(parent)
+| f=var alargs=loption(braces_tuple(parent)) args=parens_tuple(parent)
     { PECall (f, alargs, args) }
 
 | f=prim args=parens_tuple(parent)
@@ -379,7 +377,7 @@ pinstr_r:
 | x=plvalues o=peqop e=pexpr c=prefix(IF, pexpr)? SEMICOLON
     { PIAssign (x, o, e, c) }
 
-| fc=loc(f=var alargs=loption(abrackets_tuple(pexpr)) args=parens_tuple(pexpr) { (f, alargs, args) })
+| fc=loc(f=var alargs=loption(braces_tuple(pexpr)) args=parens_tuple(pexpr) { (f, alargs, args) })
     c=prefix(IF, pexpr)? SEMICOLON
     { let { Location.pl_loc = loc; Location.pl_desc = (f, alargs, args) } = fc in
       PIAssign ((None, []), `Raw, Location.mk_loc loc (PECall (f, alargs, args)), c) }
@@ -482,7 +480,7 @@ pfundef:
     cc=call_conv?
     FN
     name = ident
-    alargs = loption(abrackets_tuple(var)) (* ident instead of var? *)
+    alargs = loption(braces_tuple(var)) (* ident instead of var? *)
     args = parens_tuple(annot_pparamdecl)
     rty  = prefix(RARROW, tuple(annot_stor_type))?
     body = pfunbody
@@ -564,9 +562,6 @@ module_:
 %inline brackets(X):
 | x=delimited(LBRACKET, X, RBRACKET) { x }
 
-%inline abrackets(X):
-| x=delimited(LTEMPLATE, X, RTEMPLATE) { x }
-
 %inline braces(X):
 | x=delimited(LBRACE, X, RBRACE) { x }
 
@@ -588,5 +583,5 @@ module_:
 %inline brackets_tuple(X):
 | s=brackets(rtuple(X)) { s }
 
-%inline abrackets_tuple(X):
-| s=abrackets(rtuple1(X)) { s }
+%inline braces_tuple(X):
+| s=braces(rtuple1(X)) { s }
