@@ -225,7 +225,7 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
     let pp_al fmt al =
       if al = [] then ()
       else
-        F.fprintf fmt "<:%a>" (pp_list ",@ " pp_len) al
+        F.fprintf fmt "{%a}" (pp_list ",@ " pp_len) al
     in
     F.fprintf fmt "@[<hov 2>%a%s%a(%a);@]"
       pp_x x f.fn_name
@@ -283,7 +283,7 @@ let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
   let pp_al fmt al =
     if al = [] then ()
     else
-      (F.fprintf fmt "@["; Format.fprintf fmt "<:%a>@]" (pp_list ",@ " pp_var) al)
+      (F.fprintf fmt "@["; Format.fprintf fmt "{%a}@]" (pp_list ",@ " pp_var) al)
   in
 
 
@@ -354,7 +354,7 @@ let pp_header_ pp_len pp_var fmt fd =
   let pp_al fmt al =
     if al = [] then ()
     else
-      (F.fprintf fmt "@["; Format.fprintf fmt "<:%a>@]" (pp_list ",@ " pp_var) al)
+      (F.fprintf fmt "@["; Format.fprintf fmt "{%a}@]" (pp_list ",@ " pp_var) al)
   in
   F.fprintf fmt "fn %s%a @[(%a)@] -> @[(%a)@]"
     fd.f_name.fn_name
