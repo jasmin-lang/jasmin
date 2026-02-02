@@ -204,8 +204,51 @@ Definition interp3B T (t: itree (D1 +' D2 +' E) T) : itree (D2 +' E) T :=
 (* seems likely: neither can handle D2 events *)
 Lemma widen_aux1 T (t: itree (D1 +' D2 +' E) T) :
   eutt eq (interpR1 t) (interp3B t).
-Admitted.
+Proof.
+  unfold interpR1, interp3B.
+  unfold rjhnd3B, pad3C; simpl.
 
+  revert t.
+  ginit. gcofix CIH.
+  intros t.
+  setoid_rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot.
+
+  { gstep; red. simpl. econstructor; auto. }
+  { gstep; red. simpl. econstructor; simpl.
+    gfinal. left. eapply CIH.
+  }
+  { setoid_rewrite unfold_interp_mrec. simpl.
+    (* unfold pad3, sum_lassoc; simpl. *)
+    destruct e as [d1 | [d2 | e]]; simpl; try reflexivity.
+    { gstep; red.
+      econstructor.
+      setoid_rewrite <- translate_bind.
+      gfinal; left.
+      eapply CIH.
+    }
+    { gstep; red.
+      econstructor.
+      intros v; simpl.
+      unfold id.
+      gstep; red.
+      econstructor.
+      gfinal. left.
+      eapply CIH.
+    }
+    { gstep; red.
+      econstructor.
+      intros v; simpl.
+      unfold id.
+      gstep; red.
+      econstructor.
+      gfinal. left.
+      eapply CIH.
+    }
+  }
+Qed.  
+    
 (* as expected, the only snag is it requires Hnd2X (adding an extra
    tau) rather than just (case_ Hnd2 (id_ E)) *)
 Lemma widen_aux2 T (t: itree (D1 +' D2 +' E) T) :
@@ -1028,6 +1071,202 @@ Definition nouse_Hnd3 T (e: D3 T) : itree (D1 +' E) (S * T) :=
 End Test2.
 
 End Tests.
+
+Section Test0.
+
+Context (E D2: Type -> Type) (S A V Err: Type) (err: Err).
+
+Context (IE: exceptE Err -< E).
+
+(* F *)
+Notation D1 := (callE A V).
+   
+Context (Hnd1: D1 ~> itree (D1 +' D2 +' E)) (Hnd2: D2 ~> itree E).
+
+(* A ; B path *)
+Definition pinterp_AB : itree (D1 +' D2 +' E) ~> itree E := 
+ fun _ t => interp (ext_handler Hnd2) (interp_mrec Hnd1 t).
+
+Definition Hnd1A : D1 ~> itree ((D1 +' D2) +' E) :=
+  fun T e => translate (@sum_lassoc D1 D2 E) (Hnd1 e). 
+
+Definition Hnd2A : D2 ~> itree ((D1 +' D2) +' E) :=
+  fun T e => translate inr1 (Hnd2 e). 
+
+Definition Hnd12A : (D1 +' D2) ~> itree ((D1 +' D2) +' E) :=
+  fun T e => case_ Hnd1A Hnd2A T e.
+
+(* same as interpR12 above *)
+Definition pinterp_CD : itree (D1 +' D2 +' E) ~> itree E := 
+  fun T t => interp_mrec Hnd12A (translate (@sum_lassoc D1 D2 E) t). 
+
+Lemma pinterp_equiv T (t: itree (D1 +' D2 +' E) T) :
+  eutt eq (pinterp_AB t) (pinterp_CD t).
+Proof.
+  unfold pinterp_AB, pinterp_CD, Hnd12A, Hnd1A, Hnd2A; simpl. 
+(*  setoid_rewrite interp_mrec_as_interp; simpl.
+  setoid_rewrite interp_translate.
+  setoid_rewrite interp_interp. *)
+  revert t.
+  ginit; gcofix CIH.
+  intros t.
+  setoid_rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot; simpl.
+  admit.
+  admit.
+  
+  { setoid_rewrite unfold_interp.
+Abort.
+
+(*
+    setoid_rewrite unfold_interp_mrec.
+    
+  { setoid_rewrite interp_ret.
+    gstep; red; constructor; auto.
+  }
+  { setoid_rewrite interp_tau.
+    gstep; red. econstructor.
+    gfinal; left.
+    eapply CIH.
+  }
+  { setoid_rewrite unfold_interp; simpl.
+    destruct e as [d1 | [d2 | e]]; simpl; try reflexivity.
+    { gstep; red. simpl.
+
+      remember (observe (Hnd1 d1)) as hd1.
+      hinduction hd1 before CIH; simpl.
+
+      { intros. econstructor.
+        gfinal; left.
+        eapply CIH.
+      }
+      { intros. econstructor.
+        guclo eqit_clo_bind.
+        econstructor 1 with (RU := eq).
+        unfold MonadIter_itree.
+        setoid_rewrite interp_mrec_as_interp.
+        setoid_rewrite interp_iter.
+        setoid_rewrite interp_translate.
+        simpl.
+        unfold ext_handler; simpl.
+        setoid_rewrite unfold_iter; simpl.
+        
+
+    setoid_rewrite interp_vis.
+      
+    guclo eqit_clo_bind.
+    econstructor 1 with (RU := eq).
+
+    { destruct e as [d1 | [d2 | e]]; simpl; try reflexivity.
+      { unfold ext_handler; simpl.
+        setoid_rewrite mrec_as_interp.
+        repeat setoid_rewrite interp_translate.
+        setoid_rewrite interp_interp.
+        
+(*
+  interp (ext_handler Hnd2) (interp_mrec Hnd1 t)
+  ≈ interp_mrec
+      (fun (T0 : Type) (e : (D1 +' D2) T0) =>
+       case_
+         (fun (T1 : Type) (e0 : D1 T1) =>
+          translate (@sum_lassoc D1 D2 E) (Hnd1 e0))
+         (fun (T1 : Type) (e0 : D2 T1) => translate inr1 (Hnd2 e0)) T0 e)
+      (translate (@sum_lassoc D1 D2 E) t)
+*)
+        
+        admit.
+      }
+      { setoid_rewrite interp_trigger; simpl.
+        setoid_rewrite mrec_as_interp; simpl.
+        setoid_rewrite interp_translate; simpl.     
+        setoid_rewrite interp_trigger_h; reflexivity.
+      }
+      { setoid_rewrite interp_trigger; reflexivity. }
+    }
+    { intros u1 u2 hh.
+      inv hh.
+      gstep; red; econstructor.
+      gfinal; left; eapply CIH.
+    }
+Admitted.     
+*)
+
+Lemma pinterp_equiv T (t: itree (D1 +' D2 +' E) T) :
+  eutt eq (pinterp_AB t) (pinterp_CD t).
+Proof.
+  unfold pinterp_AB, pinterp_CD, Hnd12A, Hnd1A, Hnd2A; simpl. 
+  setoid_rewrite interp_mrec_as_interp; simpl.
+  setoid_rewrite interp_translate.
+  setoid_rewrite interp_interp. 
+  revert t.
+  ginit; gcofix CIH.
+  intros t.
+  setoid_rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot; simpl.
+  
+  { setoid_rewrite interp_ret.
+    gstep; red; constructor; auto.
+  }
+  { setoid_rewrite interp_tau.
+    gstep; red. econstructor.
+    gfinal; left.
+    eapply CIH.
+  }
+  { setoid_rewrite unfold_interp; simpl.
+    (* setoid_rewrite unfold_bind; simpl. *)
+    
+    guclo eqit_clo_bind.
+    
+    econstructor 1 with (RU := eq).
+
+    { destruct e as [d1 | [d2 | e]]; simpl; try reflexivity.
+      { unfold ext_handler; simpl.
+        setoid_rewrite mrec_as_interp.
+        repeat setoid_rewrite interp_translate.
+        setoid_rewrite interp_interp.
+        setoid_rewrite unfold_interp. simpl.
+
+        remember (observe (Hnd1 d1)) as oh1.
+        destruct oh1; simpl.
+        reflexivity.
+        pstep. red.
+        econstructor.
+        left.
+
+        admit.
+        admit.
+     }   
+        
+(*
+  interp (ext_handler Hnd2) (interp_mrec Hnd1 t)
+  ≈ interp_mrec
+      (fun (T0 : Type) (e : (D1 +' D2) T0) =>
+       case_
+         (fun (T1 : Type) (e0 : D1 T1) =>
+          translate (@sum_lassoc D1 D2 E) (Hnd1 e0))
+         (fun (T1 : Type) (e0 : D2 T1) => translate inr1 (Hnd2 e0)) T0 e)
+      (translate (@sum_lassoc D1 D2 E) t)
+*)
+
+      { setoid_rewrite interp_trigger; simpl.
+        setoid_rewrite mrec_as_interp; simpl.
+        setoid_rewrite interp_translate; simpl.     
+        setoid_rewrite interp_trigger_h; reflexivity.
+      }
+      { setoid_rewrite interp_trigger; reflexivity. }
+    }
+    { intros u1 u2 hh.
+      inv hh.
+      gstep; red; econstructor.
+      gfinal; left; eapply CIH.
+    }
+Admitted.     
+   
+End Test0.
+
+
 
 
 
