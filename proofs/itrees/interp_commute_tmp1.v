@@ -168,7 +168,7 @@ Definition pad_recev : D1 +' D2 +' E ~> (D1 +' D2) +' D2 +' E :=
 Local Definition Hnd1LA : D1 ~> itree ((D1 +' D2) +' E) := 
   fun T d => translate (@sum_lassoc D1 D2 E) (Hnd1 d).
 
-Local Definition Hnd2LA : D2 ~> itree ((D1 +' D2) +' E) := 
+Definition Hnd2LA : D2 ~> itree ((D1 +' D2) +' E) := 
   fun T d => translate inr1 (Hnd2 d).
 
 (* handle both D1 and D2 events *)
@@ -195,13 +195,24 @@ Definition interp1 T (t: itree (D1 +' D2 +' E) T) : itree (D2 +' E) T :=
    interp_mrec Hnd1 t.                      
 
 (* handles both D1 and D2 events *)
-Definition interp12 T (t: itree (D1 +' D2 +' E) T) : itree E T :=
+Definition interp12LA T (t: itree (D1 +' D2 +' E) T) : itree E T :=
    interp_mrec Hnd12LA (translate (@sum_lassoc D1 D2 E) t).            
 
 (* handles only D1 events, but pads recursive events with D2 *)
 Definition interp1LAP T (t: itree (D1 +' D2 +' E) T) : itree (D2 +' E) T :=
    interp_mrec Hnd1LAP_ext (translate pad_recev t).                      
-  
+
+
+(*
+                     LA
+    IT (D1 + D2 + E) --> IT ((D1 + D2) + E)
+       |                  |
+  Hnd1 |                  | Hnd12LA
+       v                  v
+    IT (D2 + E) --------> IT E
+                  Hnd2
+ *)
+
 (* neither can handle D2 events *)
 Lemma widen_rec1_equiv T (t: itree (D1 +' D2 +' E) T) :
   eutt eq (interp1 t) (interp1LAP t).
@@ -241,7 +252,7 @@ Qed.
 (* as expected; the only snag is it requires Hnd2_delay (adding an extra
    tau) rather than just (case_ Hnd2 (id_ E)) *)
 Lemma widen_rec1_interp2_equiv T (t: itree (D1 +' D2 +' E) T) :
-  eutt eq (interp Hnd2_delay (interp1LAP t)) (interp12 t). 
+  eutt eq (interp Hnd2_delay (interp1LAP t)) (interp12LA t). 
 Proof.
   revert t.
   ginit. gcofix CIH.
@@ -254,17 +265,17 @@ Proof.
   { gstep; red. simpl; econstructor; simpl.
     gfinal. left. eapply CIH.
   }
-  { unfold interp12.
+  { unfold interp12LA.
     destruct e as [d1 | [d2 | e]]; simpl.
     { unfold interp1LAP.         
       rewrite unfold_translate; simpl.    
       rewrite unfold_interp_mrec; simpl.
       setoid_rewrite interp_tau.
-      unfold interp12.
+      unfold interp12LA.
       setoid_rewrite unfold_translate at 3; simpl.    
       setoid_rewrite unfold_interp_mrec at 2; simpl.
       setoid_rewrite <- translate_bind.
-      unfold interp12, interp1LAP in CIH.
+      unfold interp12LA, interp1LAP in CIH.
       gstep; red.
       econstructor.
       gfinal. left.
@@ -293,7 +304,7 @@ Proof.
         eapply CIH.
        } 
     }
-    { unfold interp1LAP, interp12.
+    { unfold interp1LAP, interp12LA.
       setoid_rewrite unfold_translate; simpl.
       setoid_rewrite unfold_interp_mrec; simpl.
       setoid_rewrite unfold_interp; simpl.
@@ -357,14 +368,38 @@ Proof.
 Qed.    
 
 (* our goal: *)
-Lemma permute_main T (t: itree (D1 +' D2 +' E) T) :
-  eutt eq (interp (case_ Hnd2 (id_ E)) (interp1 t)) (interp12 t). 
+Lemma permute_main1 T (t: itree (D1 +' D2 +' E) T) :
+  eutt eq (interp (case_ Hnd2 (id_ E)) (interp1 t)) (interp12LA t). 
 Proof.
   rewrite widen_rec1_equiv.
   rewrite <- widen_rec1_interp2_equiv.
   rewrite delay2_is_ok.
   reflexivity.
 Qed.
+
+Definition sum_perm_exp : (D1 +' D2 +' E) ~> (D2 +' D1 +' E) :=
+  fun T e => match e with
+             | inl1 d1 => inr1 (inl1 d1)
+             | inr1 (inl1 d2) => inl1 d2
+             | inr1 (inr1 e) => inr1 (inr1 e) end.                         
+
+Definition Hnd2_ext : (D2 +' D1 +' E) ~> itree (D1 +' E) :=
+  fun T e => match e with
+             | inl1 d2 => translate inr1 (Hnd2 d2)
+             | inr1 d => trigger d end.                       
+
+Definition Hnd1no2 : D1 ~> itree (D1 +' E) := 
+  fun T d => let t0 := Hnd1 d in
+             let t1 := translate sum_perm_exp t0 in
+             interp Hnd2_ext t1.
+
+
+Lemma permute_main2 T (t: itree (D1 +' D2 +' E) T) :
+  eutt eq (interp (case_ Hnd2 (id_ E)) (interp1 t))
+          (interp_mrec Hnd1no2
+              (interp Hnd2_ext (translate sum_perm_exp t))). 
+Proof.
+Admitted.
 
 
 (**************************************************************)
