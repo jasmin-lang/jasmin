@@ -19,14 +19,18 @@ Context
   {sc_sem : syscall_sem syscall_state} .
 
 Definition exec_getrandom_u (scs : syscall_state) len vs :=
-  Let _ :=
+  Let: (a, n) :=
     match vs with
-    | [:: v] => to_arr len v
+    | [:: va; vn] =>
+      Let a := to_arr len va in
+      Let n := to_word Uptr vn in
+      ok (a, n)
     | _ => type_error
     end in
-  let sd := get_random scs (Zpos len) in
+  let sd := get_random scs (wunsigned n) in
   Let t := WArray.fill len sd.2 in
-  ok (sd.1, [::Varr t]).
+  Let a' := WArray.set_sub AAscale (ws:=U8) a 0 t in
+  ok (sd.1, [::Varr a']).
 
 Definition exec_syscall_u
   {pd : PointerData}
@@ -34,37 +38,52 @@ Definition exec_syscall_u
   (scs : syscall_state_t)
   (m : mem)
   (o : syscall_t)
+  (al : seq array_length)
   (vs : values) :
   exec (syscall_state_t * mem * values) :=
   match o with
-  | RandomBytes ws al =>
-      let len := Z.to_pos (arr_size ws (eval env al)) in
-      Let sv := exec_getrandom_u scs len vs in
-      ok (sv.1, m, sv.2)
+  | RandomBytes ws =>
+    Let al :=
+      match al with
+      | [:: al] => ok al
+      | _ => Error ErrType
+      end
+    in
+    let len := Z.to_pos (arr_size ws (eval env al)) in
+    Let sv := exec_getrandom_u scs len vs in
+    ok (sv.1, m, sv.2)
   end.
 
-Lemma exec_syscallPu env scs m o vargs vargs' rscs rm vres :
-  exec_syscall_u env scs m o vargs = ok (rscs, rm, vres) →
+Lemma exec_syscallPu env scs m o al vargs vargs' rscs rm vres :
+  exec_syscall_u env scs m o al vargs = ok (rscs, rm, vres) →
   List.Forall2 value_uincl vargs vargs' →
   exists2 vres' : values,
-    exec_syscall_u env scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'.
+    exec_syscall_u env scs m o al vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'.
 Proof.
-  rewrite /exec_syscall_u; case: o => [ ws p ].
+Local Opaque arr_size.
+  rewrite /exec_syscall_u; case: o => [ ws ].
+  case: al => // al [] //=.
   t_xrbindP => -[scs' v'] /= h ??? hu; subst scs' m v'.
   move: h; rewrite /exec_getrandom_u.
-  case: hu => // va va' ?? /of_value_uincl_te h [] //.
-  t_xrbindP => a /h{h}[? /= -> ?] ra hra ??; subst rscs vres.
-  by rewrite hra /=; eexists; eauto.
+  case: hu => // va va' _ _ /of_value_uincl_te ha [] // vn vn' _ _ /of_value_uincl_te hn [] //=.
+  t_xrbindP => -[_ _] a /(ha (carr _)) {ha} [/= a' -> hincl] n /(hn (cword _)) /= -> [<- <-].
+  t_xrbindP => t ht ra hra ??; subst rscs vres.
+  have [ra' hra' hincl'] := WArray.uincl_set_sub hincl (WArray.uincl_refl _) hra.
+  by rewrite /= ht /= hra' /=; eexists; eauto.
+Local Transparent arr_size.
 Qed.
 
 Definition mem_equiv m1 m2 := stack_stable m1 m2 /\ validw m1 =3 validw m2.
 
-Lemma exec_syscallSu env scs m o vargs rscs rm vres :
-  exec_syscall_u env scs m o vargs = ok (rscs, rm, vres) →
+Lemma exec_syscallSu env scs m o al vargs rscs rm vres :
+  exec_syscall_u env scs m o al vargs = ok (rscs, rm, vres) →
   mem_equiv m rm.
 Proof.
-  rewrite /exec_syscall_u; case: o => [ ws p ].
+Local Opaque arr_size.
+  rewrite /exec_syscall_u; case: o => [ ws ].
+  case: al => // al [] //=.
   by t_xrbindP => -[scs' v'] /= _ _ <- _.
+Local Transparent arr_size.
 Qed.
 
 End SourceSysCall.
@@ -79,7 +98,7 @@ Definition exec_getrandom_s_core (scs : syscall_state_t) (m : mem) (p:pointer) (
   Let m := fill_mem m p sd.2 in
   ok (sd.1, m, p).
 
-Lemma exec_getrandom_s_core_stable scs m p len rscs rm rp : 
+Lemma exec_getrandom_s_core_stable scs m p len rscs rm rp :
   exec_getrandom_s_core scs m p len = ok (rscs, rm, rp) →
   stack_stable m rm.
 Proof. by rewrite /exec_getrandom_s_core; t_xrbindP => rm' /fill_mem_stack_stable hf ? <- ?. Qed.
@@ -92,7 +111,7 @@ Proof. by rewrite /exec_getrandom_s_core; t_xrbindP => rm' /fill_mem_validw_eq h
 Definition sem_syscall (o:syscall_t) :
      forall env, syscall_state_t -> mem -> sem_prod (map (eval_atype env) (syscall_sig_s o).(scs_tin)) (exec (syscall_state_t * mem * sem_tuple (map (eval_atype env) (syscall_sig_s o).(scs_tout)))) := 
   match o with
-  | RandomBytes _ _ => fun _ => exec_getrandom_s_core
+  | RandomBytes _ => fun _ => exec_getrandom_s_core
   end.
 
 Definition exec_syscall_s env (scs : syscall_state_t) (m : mem) (o:syscall_t) vs : exec (syscall_state_t * mem * values) :=
@@ -126,7 +145,7 @@ Lemma sem_syscall_equiv o env scs m :
   mk_forall (fun (rm: (syscall_state_t * mem * _)) => mem_equiv m rm.1.2)
             (sem_syscall o env scs m).
 Proof.
-  case: o => _ws _len /= p len [[scs' rm] t] /= hex; split.
+  case: o => _ws p len [[scs' rm] t] /= hex; split.
   + by apply: exec_getrandom_s_core_stable hex.
   by apply: exec_getrandom_s_core_validw hex.
 Qed.
