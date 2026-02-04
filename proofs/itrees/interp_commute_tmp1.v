@@ -145,12 +145,441 @@ Qed.
   
 End IEquiv1.
 
+Definition delay_hnd {E0 E1: Type -> Type} (h: E0 ~> itree E1) :
+  E0 ~> itree E1 :=
+  fun T e => Tau (h T e).
+
+Lemma delay_interp_equiv {E0 E1: Type -> Type} (h: E0 ~> itree E1)
+  T (t : itree E0 T) :
+  eqit eq true false (interp (delay_hnd h) t) (interp h t).
+Proof.
+  revert t.
+  ginit. gcofix CIH.
+  intros t.
+  setoid_rewrite (itree_eta_ t).
+  remember (observe t) as ot.
+  destruct ot.
+  { setoid_rewrite interp_ret.
+    gstep; red; constructor; auto.
+  }
+  { setoid_rewrite interp_tau.
+    gstep; red; constructor.
+    gfinal; left. eapply CIH.
+  }
+  { setoid_rewrite interp_vis.
+    guclo eqit_clo_bind.
+    econstructor 1 with (RU := eq).
+    { unfold delay_hnd; simpl.
+      rewrite tau_euttge. reflexivity. }
+    { intros u1 u2 hh. inv hh.
+      gstep; red. constructor.
+      gfinal; left.
+      eapply CIH.
+    }
+  }  
+Qed.    
+
+Lemma delay_interp_mrec_equiv {E0 E1: Type -> Type}
+  (h: E0 ~> itree (E0 +' E1)) T (t : itree (E0 +' E1) T) :
+  eqit eq true false (interp_mrec (delay_hnd h) t) (interp_mrec h t).
+Proof.
+  revert t.
+  ginit. gcofix CIH.
+  intros t.
+  setoid_rewrite (itree_eta_ t).
+  remember (observe t) as ot.
+  destruct ot.
+  { setoid_rewrite unfold_interp_mrec; simpl.
+    gstep; red; constructor; auto.
+  }
+  { setoid_rewrite unfold_interp_mrec; simpl.
+    gstep; red; constructor.
+    gfinal; left. eapply CIH.
+  }
+  { setoid_rewrite unfold_interp_mrec; simpl.
+    destruct e as [s0 | e1]; simpl.
+    { unfold delay_hnd.
+      setoid_rewrite bind_tau.
+      setoid_rewrite tau_euttge at 3.
+      gstep; red.
+      econstructor.
+      gfinal; left. eapply CIH.
+    }
+    { gstep; red. econstructor.
+      intro v; unfold id; simpl.
+      gstep; red. econstructor.
+      gfinal; left. eapply CIH.
+    }
+  }
+Qed.  
+    
 
 Section IEquiv2.
 
 (* Hnd1 depends on D2 and it is recursive *)  
 Context {E D1 D2: Type -> Type}. 
 Context (Hnd1 : D1 ~> itree (D1 +' D2 +' E)) (Hnd2 : D2 ~> itree E).
+
+Definition Hnd1LA : D1 ~> itree ((D1 +' D2) +' E) := 
+  fun T d => translate (@sum_lassoc D1 D2 E) (Hnd1 d).
+
+Definition Hnd2LA : D2 ~> itree ((D1 +' D2) +' E) := 
+  fun T d => translate inr1 (Hnd2 d).
+
+(* handle both D1 and D2 events *)
+Definition Hnd12LA : (D1 +' D2) ~> itree ((D1 +' D2) +' E) :=
+  fun T d => case_ Hnd1LA Hnd2LA T d.
+
+(* delay joint handler *)
+Definition Hnd2_delay :  D2 +' E ~> itree E :=
+  delay_hnd (ext_handler Hnd2).
+(*  fun T e => Tau (match e with
+             | inl1 d2 => Hnd2 d2
+             | inr1 e0 => trigger e0 end).                  
+*)
+
+(* handles D1 (recursive) events *)
+Definition interp1 T (t: itree (D1 +' D2 +' E) T) : itree (D2 +' E) T :=
+   interp_mrec Hnd1 t.                      
+
+(* handles both D1 and D2 events *)
+Definition interp12LA T (t: itree (D1 +' D2 +' E) T) : itree E T :=
+   interp_mrec Hnd12LA (translate (@sum_lassoc D1 D2 E) t).            
+
+(*
+                     LA
+    IT (D1 + D2 + E) --> IT ((D1 + D2) + E)
+       |                  |
+  Hnd1 |                  | Hnd12LA
+       v                  v
+    IT (D2 + E) --------> IT E
+                  Hnd2
+ *)
+
+Lemma delay12_is_ok T (t : itree (D2 +' E) T) :
+  eutt eq (interp Hnd2_delay t) (interp (case_ Hnd2 (id_ E)) t).
+Proof.
+  setoid_rewrite delay_interp_equiv; reflexivity.
+Qed.  
+
+Lemma join12_delay_equiv T (t: itree (D1 +' D2 +' E) T) :
+  eutt eq (interp Hnd2_delay (interp1 t)) (interp12LA t). 
+Proof.
+  unfold interp12LA, interp1.
+  revert t.
+  ginit; gcofix CIH.
+  intros t.
+  setoid_rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot; simpl.
+
+  { gstep; red. simpl. econstructor; auto. }
+  { gstep; red. simpl. econstructor; auto.
+    gfinal; left. eapply CIH.
+  }
+  { destruct e as [d1 | [d2 | e]]; simpl. 
+    { setoid_rewrite unfold_interp_mrec at 1; simpl.
+      setoid_rewrite unfold_interp at 1; simpl.
+      setoid_rewrite unfold_translate; simpl.
+      setoid_rewrite unfold_interp_mrec at 2; simpl.
+      gstep; red. econstructor.
+      setoid_rewrite <- translate_bind.
+      gfinal; left. eapply CIH.
+    }
+    { setoid_rewrite unfold_interp_mrec at 1; simpl.
+      setoid_rewrite unfold_interp at 1; simpl. 
+      setoid_rewrite unfold_translate; simpl.
+      setoid_rewrite unfold_interp_mrec at 2; simpl.
+      (* unfold Hnd2_delay. simpl. *)
+      setoid_rewrite bind_tau.
+      gstep; red. econstructor.
+      setoid_rewrite tau_euttge.
+      setoid_rewrite interp_tau.
+      setoid_rewrite tau_euttge; simpl.
+      setoid_rewrite interp_mrec_bind; simpl.
+
+      guclo eqit_clo_bind.
+      econstructor 1 with (RU := eq).
+      setoid_rewrite interp_mrec_as_interp.
+      setoid_rewrite interp_translate; simpl.
+      setoid_rewrite interp_trigger_h; reflexivity.
+
+      intros u1 u2 hh.
+      inv hh.
+      gfinal; left. eapply CIH.
+    }
+    { setoid_rewrite unfold_interp_mrec at 1; simpl.
+      setoid_rewrite unfold_interp at 1; simpl. 
+      setoid_rewrite unfold_translate; simpl.
+      setoid_rewrite unfold_interp_mrec at 2; simpl.
+      setoid_rewrite tau_euttge.
+      setoid_rewrite tau_euttge.
+      unfold Hnd2_delay; simpl.
+      setoid_rewrite bind_trigger.
+      gstep; red.
+      econstructor.
+      intro v; unfold id.
+      gfinal; left. eapply CIH.
+    }
+  }
+Qed.  
+      
+(* our first goal: *)
+Lemma join12_main T (t: itree (D1 +' D2 +' E) T) :
+  eutt eq (interp (case_ Hnd2 (id_ E)) (interp1 t)) (interp12LA t). 
+Proof.
+  rewrite <- join12_delay_equiv.
+  setoid_rewrite <- delay12_is_ok; reflexivity.
+Qed.
+
+Definition sum_perm_exp : (D1 +' D2 +' E) ~> (D2 +' D1 +' E) :=
+  fun T e => match e with
+             | inl1 d1 => inr1 (inl1 d1)
+             | inr1 (inl1 d2) => inl1 d2
+             | inr1 (inr1 e) => inr1 (inr1 e) end.                         
+
+Definition Hnd2_ext : (D2 +' D1 +' E) ~> itree (D1 +' E) :=
+  fun T e => match e with
+             | inl1 d2 => translate inr1 (Hnd2 d2)
+             | inr1 d => trigger d end.                       
+
+Definition Hnd1no2 : D1 ~> itree (D1 +' E) := 
+  fun T d => let t0 := Hnd1 d in
+             let t1 := translate sum_perm_exp t0 in
+             interp Hnd2_ext t1.
+
+Definition Hnd1no2_delay : D1 ~> itree (D1 +' E) := 
+  fun T d => let t0 := Hnd1 d in
+             let t1 := translate sum_perm_exp t0 in
+             interp (delay_hnd Hnd2_ext) t1.
+
+Definition Hnd1PM : D1 ~> itree ((D2 +' D1) +' E) := 
+  fun T d => translate (@sum_lassoc D2 D1 E)
+               (translate sum_perm_exp (Hnd1 d)).
+
+Definition Hnd2PM : D2 ~> itree ((D2 +' D1) +' E) := 
+  fun T d => translate inr1 (Hnd2 d).
+
+(* handle both D1 and D2 events *)
+Definition Hnd21PM : (D2 +' D1) ~> itree ((D2 +' D1) +' E) :=
+  fun T d => case_ Hnd2PM Hnd1PM T d.
+
+Definition interp21PM T (t: itree (D1 +' D2 +' E) T) : itree E T :=
+  interp_mrec Hnd21PM (translate (@sum_lassoc D2 D1 E)
+                                 (translate sum_perm_exp t)).
+  
+Lemma join21_delay_equiv T (t: itree (D1 +' D2 +' E) T) :
+  eutt eq 
+    (interp_mrec Hnd1no2_delay
+       (interp (delay_hnd Hnd2_ext) (translate sum_perm_exp t)))
+    (interp21PM t).
+Proof.
+  unfold interp21PM.  
+  revert t.
+  ginit; gcofix CIH.
+  intros t.
+  setoid_rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot; simpl.
+
+  { gstep; red. simpl.
+    econstructor; auto. }
+  { gstep; red. simpl. econstructor; auto.
+    gfinal; left. eapply CIH.
+  }
+  { destruct e as [d1 | [d2 | e]]; simpl. 
+    { setoid_rewrite unfold_translate at 1; simpl.
+      setoid_rewrite unfold_interp at 1; simpl.
+      setoid_rewrite unfold_translate at 2; simpl.
+      unfold delay_hnd; simpl.
+       unfold Hnd1no2.
+      setoid_rewrite bind_tau.
+      setoid_rewrite bind_trigger.
+      setoid_rewrite tau_euttge at 1.
+      setoid_rewrite unfold_interp_mrec; simpl.
+      setoid_rewrite tau_euttge at 2.
+      gstep; red.
+      econstructor.
+      setoid_rewrite <- translate_bind.
+      setoid_rewrite <- translate_bind.
+      setoid_rewrite <- interp_bind.
+      setoid_rewrite <- translate_bind.
+      gfinal; left. eapply CIH. 
+    }
+    { setoid_rewrite unfold_translate at 1; simpl.
+      setoid_rewrite unfold_interp at 1; simpl.
+      setoid_rewrite unfold_translate at 3; simpl.
+      setoid_rewrite unfold_interp_mrec at 2; simpl.
+      setoid_rewrite interp_mrec_bind.
+      unfold delay_hnd.
+      setoid_rewrite tau_euttge at 2; simpl.
+      setoid_rewrite unfold_interp_mrec at 1; simpl.
+      setoid_rewrite bind_tau.
+      gstep; red.
+      econstructor.
+      guclo eqit_clo_bind.
+      econstructor 1 with (RU := eq); try reflexivity.
+      { unfold Hnd1no2_delay; simpl.
+        unfold delay_hnd; simpl.
+        setoid_rewrite interp_mrec_as_interp.
+        unfold Hnd2PM.
+        setoid_rewrite interp_translate; simpl.
+        reflexivity.
+      }  
+      { intros u1 u2 hh.
+        inv hh.
+        gfinal; left. eapply CIH.
+      }  
+    }
+    { setoid_rewrite unfold_translate at 1; simpl.
+      setoid_rewrite unfold_interp at 1; simpl.
+      setoid_rewrite unfold_translate at 2; simpl.
+      setoid_rewrite unfold_interp_mrec at 2; simpl.
+      setoid_rewrite interp_mrec_bind.   
+      setoid_rewrite tau_euttge. 
+      setoid_rewrite interp_mrec_trigger; simpl.
+      setoid_rewrite bind_trigger.
+      gstep; red. econstructor.
+      intros v; unfold id.
+      gfinal; left. eapply CIH.
+    }
+  }
+Qed.  
+
+Lemma deep_delay_interp_mrec_equiv T (t: itree (D1 +' E) T) : 
+  interp_mrec Hnd1no2_delay t ≈ interp_mrec Hnd1no2 t.
+Proof.
+  revert t.
+  ginit; gcofix CIH.
+  intro t.
+  setoid_rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot; simpl.
+
+  { gstep; red. simpl.
+    econstructor; auto. }
+  { gstep; red. simpl. econstructor; auto.
+    gfinal; left. eapply CIH.
+  }
+  { unfold Hnd1no2_delay, Hnd1no2.
+    destruct e as [d1 | e]; simpl.
+
+    { setoid_rewrite unfold_interp_mrec; simpl.
+      set (XX1 := interp _ _).
+      set (XX2 := interp _ _).
+      assert (eqit eq true false XX1 XX2) as H.
+      { eapply delay_interp_equiv. }
+
+      set (YY1 := ITree.bind XX1 _).
+      set (YY2 := ITree.bind XX2 _).
+      assert (eqit eq true false YY1 YY2) as H0.
+      { subst YY1 YY2. setoid_rewrite H. reflexivity. }
+    
+      gstep; red.
+      econstructor.
+      guclo eqit_clo_trans.
+      econstructor 1.
+      { instantiate (1:= (interp_mrec
+         (fun (T0 : Type) (d : D1 T0) =>
+           interp (delay_hnd Hnd2_ext) (translate sum_perm_exp (Hnd1 d))) YY2)).
+        instantiate (1 := eq).
+        setoid_rewrite H0; reflexivity.
+      }
+      { reflexivity. }
+      { gfinal. left.
+        eapply CIH.
+      }
+      { intros x x' y h1 h2.
+        inv h1; auto.
+      }
+      { intros x y y' h1 h2.
+        inv h1; auto.
+      }
+    }
+    { setoid_rewrite unfold_interp_mrec; simpl.
+      gstep; red.
+      econstructor.
+      intro c; unfold id; simpl.
+      gstep; red.
+      econstructor.
+      gfinal; left. eapply CIH.
+    }
+  }
+Qed.  
+
+Lemma delay21_is_ok T (t: itree (D1 +' D2 +' E) T) :
+  eutt eq 
+    (interp_mrec Hnd1no2_delay
+       (interp (delay_hnd Hnd2_ext) (translate sum_perm_exp t)))
+    (interp_mrec Hnd1no2
+       (interp Hnd2_ext (translate sum_perm_exp t))).
+Proof.
+  set (t1 := interp _ _).
+  set (t2 := interp _ _).
+  assert (eqit eq true false t1 t2) as H.
+  { eapply delay_interp_equiv. }  
+  setoid_rewrite interp_mrec_as_interp.
+  setoid_rewrite H.
+  setoid_rewrite <- interp_mrec_as_interp.
+  eapply deep_delay_interp_mrec_equiv.
+Qed.  
+
+(* our second goal: *)
+Lemma join21_main T (t: itree (D1 +' D2 +' E) T) :
+  eutt eq 
+    (interp_mrec Hnd1no2
+       (interp Hnd2_ext (translate sum_perm_exp t)))
+    (interp21PM t).
+Proof.
+  rewrite <- join21_delay_equiv.
+  setoid_rewrite <- delay21_is_ok; reflexivity.
+Qed.  
+
+Lemma permute_join_equiv T (t: itree (D1 +' D2 +' E) T) :
+  eutt eq (interp12LA t) (interp21PM t).
+Proof.
+  unfold interp12LA, interp21PM, Hnd12LA, Hnd21PM.
+(*  setoid_rewrite interp_mrec_as_interp.
+  repeat setoid_rewrite interp_translate.
+*)
+  revert t.
+  ginit; gcofix CIH.
+  intros t.
+  setoid_rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot; simpl.
+  { gstep; red. simpl. econstructor; auto. }
+  { gstep; red. simpl. econstructor; auto.
+    gfinal; left. eapply CIH.
+  }
+  { setoid_rewrite unfold_interp_mrec.
+    simpl.
+    
+    destruct e as [d1 | [d2 | e]]; simpl. 
+    { unfold case_, Case_sum1_Handler, Handler.case_, Hnd1LA, Hnd1PM; simpl.
+      gstep; red. econstructor.
+      admit.
+    }
+    { unfold case_, Case_sum1_Handler, Handler.case_, Hnd2LA, Hnd2PM; simpl. 
+      gstep; red. econstructor.
+      admit.
+    }
+    { gstep; red.
+      econstructor.
+      intros v. unfold id.
+      gstep; red. econstructor.
+      gfinal. left. eapply CIH.
+    }
+Admitted. 
+
+
+(**************************************************************)
+
+(* USELESS STUFF *)
+
+Definition interp21PM_delay T (t: itree (D1 +' D2 +' E) T) : itree E T :=
+  interp_mrec (delay_hnd Hnd21PM) (translate (@sum_lassoc D2 D1 E)
+                                              (translate sum_perm_exp t)).
 
 (* moves D2 event to non-recursive position, leave recursive D2 as
    padding *)
@@ -165,16 +594,6 @@ Definition pad_move : (D1 +' D2) +' E ~> (D1 +' D2) +' D2 +' E :=
 Definition pad_recev : D1 +' D2 +' E ~> (D1 +' D2) +' D2 +' E :=
   fun T e => pad_move ((@sum_lassoc D1 D2 E) _ e).
 
-Local Definition Hnd1LA : D1 ~> itree ((D1 +' D2) +' E) := 
-  fun T d => translate (@sum_lassoc D1 D2 E) (Hnd1 d).
-
-Definition Hnd2LA : D2 ~> itree ((D1 +' D2) +' E) := 
-  fun T d => translate inr1 (Hnd2 d).
-
-(* handle both D1 and D2 events *)
-Definition Hnd12LA : (D1 +' D2) ~> itree ((D1 +' D2) +' E) :=
-  fun T d => case_ Hnd1LA Hnd2LA T d.
-
 Definition Hnd1LAP : D1 ~> itree ((D1 +' D2) +' (D2 +' E)) := 
   fun T d => translate pad_recev (Hnd1 d).
     
@@ -184,34 +603,9 @@ Definition trigger2LAP : D2 ~> itree ((D1 +' D2) +' (D2 +' E)) :=
 Definition Hnd1LAP_ext : (D1 +' D2) ~> itree ((D1 +' D2) +' (D2 +' E)) :=
    fun T d => case_ Hnd1LAP trigger2LAP T d.
 
-(* delay joint handler *)
-Definition Hnd2_delay :  D2 +' E ~> itree E :=
-  fun T e => Tau (match e with
-             | inl1 d2 => Hnd2 d2
-             | inr1 e0 => trigger e0 end).                  
-
-(* handles D1 (recursive) events *)
-Definition interp1 T (t: itree (D1 +' D2 +' E) T) : itree (D2 +' E) T :=
-   interp_mrec Hnd1 t.                      
-
-(* handles both D1 and D2 events *)
-Definition interp12LA T (t: itree (D1 +' D2 +' E) T) : itree E T :=
-   interp_mrec Hnd12LA (translate (@sum_lassoc D1 D2 E) t).            
-
 (* handles only D1 events, but pads recursive events with D2 *)
 Definition interp1LAP T (t: itree (D1 +' D2 +' E) T) : itree (D2 +' E) T :=
    interp_mrec Hnd1LAP_ext (translate pad_recev t).                      
-
-
-(*
-                     LA
-    IT (D1 + D2 + E) --> IT ((D1 + D2) + E)
-       |                  |
-  Hnd1 |                  | Hnd12LA
-       v                  v
-    IT (D2 + E) --------> IT E
-                  Hnd2
- *)
 
 (* neither can handle D2 events *)
 Lemma widen_rec1_equiv T (t: itree (D1 +' D2 +' E) T) :
@@ -271,7 +665,6 @@ Proof.
       rewrite unfold_translate; simpl.    
       rewrite unfold_interp_mrec; simpl.
       setoid_rewrite interp_tau.
-      unfold interp12LA.
       setoid_rewrite unfold_translate at 3; simpl.    
       setoid_rewrite unfold_interp_mrec at 2; simpl.
       setoid_rewrite <- translate_bind.
@@ -338,74 +731,8 @@ Proof.
   }  
 Qed.    
 
-Lemma delay2_is_ok T (t : itree (D2 +' E) T) :
-  eutt eq (interp (case_ Hnd2 (id_ E)) t) (interp Hnd2_delay t).
-Proof.
-  revert t.
-  ginit. gcofix CIH.
-  intros t.
-  setoid_rewrite (itree_eta_ t).
-  remember (observe t) as ot.
-  destruct ot.
-  { setoid_rewrite interp_ret.
-    gstep; red; constructor; auto.
-  }
-  { setoid_rewrite interp_tau.
-    gstep; red; constructor.
-    gfinal; left. eapply CIH.
-  }
-  { setoid_rewrite interp_vis.
-    guclo eqit_clo_bind.
-    econstructor 1 with (RU := eq).
-    { unfold Hnd2_delay; simpl.
-      rewrite tau_euttge. reflexivity. }
-    { intros u1 u2 hh. inv hh.
-      gstep; red. constructor.
-      gfinal; left.
-      eapply CIH.
-    }
-  }  
-Qed.    
 
-(* our goal: *)
-Lemma permute_main1 T (t: itree (D1 +' D2 +' E) T) :
-  eutt eq (interp (case_ Hnd2 (id_ E)) (interp1 t)) (interp12LA t). 
-Proof.
-  rewrite widen_rec1_equiv.
-  rewrite <- widen_rec1_interp2_equiv.
-  rewrite delay2_is_ok.
-  reflexivity.
-Qed.
-
-Definition sum_perm_exp : (D1 +' D2 +' E) ~> (D2 +' D1 +' E) :=
-  fun T e => match e with
-             | inl1 d1 => inr1 (inl1 d1)
-             | inr1 (inl1 d2) => inl1 d2
-             | inr1 (inr1 e) => inr1 (inr1 e) end.                         
-
-Definition Hnd2_ext : (D2 +' D1 +' E) ~> itree (D1 +' E) :=
-  fun T e => match e with
-             | inl1 d2 => translate inr1 (Hnd2 d2)
-             | inr1 d => trigger d end.                       
-
-Definition Hnd1no2 : D1 ~> itree (D1 +' E) := 
-  fun T d => let t0 := Hnd1 d in
-             let t1 := translate sum_perm_exp t0 in
-             interp Hnd2_ext t1.
-
-
-Lemma permute_main2 T (t: itree (D1 +' D2 +' E) T) :
-  eutt eq (interp (case_ Hnd2 (id_ E)) (interp1 t))
-          (interp_mrec Hnd1no2
-              (interp Hnd2_ext (translate sum_perm_exp t))). 
-Proof.
-Admitted.
-
-
-(**************************************************************)
-
-(* USELESS STUFF *)
-
+      
 (* moves D2 events to non-recursive position, introduces recursive D2
    as padding *)
 Definition padD2A : D1 +' D2 +' E ~> (D1 +' D2) +' D2 +' E :=
