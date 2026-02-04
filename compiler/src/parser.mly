@@ -125,7 +125,7 @@ annotationlabel:
   | s=loc(STRING) { s }
 
 simple_attribute:
-  | e=pexpr        { PAexpr e}
+  | e=pexpr_noarr  { PAexpr e}
   | s=keyword      { PAstring s }
   | ws=utype       { PAws (fst ws) }
 
@@ -266,7 +266,7 @@ arr_access:
    let s = if s = None then Warray_.AAscale else Warray_.AAdirect in
    s, i }
 
-pexpr_r:
+pexpr_noarr_r(parent):
 | v=var
     { PEVar v }
 
@@ -285,33 +285,38 @@ pexpr_r:
 | ma=mem_access
     { PEFetch ma }
 
-| ct=parens(svsize) LBRACKET es=rtuple1(pexpr) RBRACKET
+| ct=parens(svsize) LBRACKET es=rtuple1(parent) RBRACKET
     { PEpack(ct,es) }
 
 | e = STRING { PEstring e }
 
-| LBRACE es = rtuple1(pexpr) RBRACE { PEarray es }
-
-| ct=parens(cast) e=pexpr %prec BANG
+| ct=parens(cast) e=parent %prec BANG
     { PEOp1 (`Cast(ct), e) }
 
-| o=peop1 e=pexpr
+| o=peop1 e=parent
     { PEOp1 (o, e) }
 
-| e1=pexpr o=peop2 e2=pexpr
+| e1=parent o=peop2 e2=parent
     { PEOp2 (o, (e1, e2)) }
 
-| e=parens(pexpr)
+| e=parens(parent)
     { PEParens e }
 
-| f=var args=parens_tuple(pexpr)
+| f=var args=parens_tuple(parent)
     { PECall (f, args) }
 
-| f=prim args=parens_tuple(pexpr)
+| f=prim args=parens_tuple(parent)
     { PEPrim (f, args) }
 
-| e1=pexpr QUESTIONMARK e2=pexpr COLON e3=pexpr
+| e1=parent QUESTIONMARK e2=parent COLON e3=parent
     { PEIf(e1, e2, e3) }
+
+pexpr_noarr:
+| e=loc(pexpr_noarr_r(pexpr_noarr)) { e }
+
+pexpr_r:
+| e = pexpr_noarr_r(pexpr) { e }
+| LBRACE es = rtuple1(pexpr) RBRACE { PEarray es }
 
 pexpr:
 | e=loc(pexpr_r) { e }

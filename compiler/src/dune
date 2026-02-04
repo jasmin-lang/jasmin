@@ -4,7 +4,7 @@
  (modules lexer))
 
 (menhir
- (flags "--table" "--explain" "--inspection")
+ (flags "--table" "--explain" "--inspection" "--strict")
  (modules parser))
 
 (rule
