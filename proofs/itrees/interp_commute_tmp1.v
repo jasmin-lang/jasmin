@@ -552,17 +552,35 @@ Proof.
   { gstep; red. simpl. econstructor; auto.
     gfinal; left. eapply CIH.
   }
-  { setoid_rewrite unfold_interp_mrec.
-    simpl.
-    
+  { setoid_rewrite unfold_interp_mrec; simpl.
     destruct e as [d1 | [d2 | e]]; simpl. 
     { unfold case_, Case_sum1_Handler, Handler.case_, Hnd1LA, Hnd1PM; simpl.
       gstep; red. econstructor.
-      admit.
+      repeat setoid_rewrite <- translate_bind.
+      gfinal; left. eapply CIH.         
     }
-    { unfold case_, Case_sum1_Handler, Handler.case_, Hnd2LA, Hnd2PM; simpl. 
-      gstep; red. econstructor.
+    { gstep; red. econstructor. simpl.
+      setoid_rewrite interp_mrec_bind; simpl.
+ 
+      unfold case_, Case_sum1_Handler, Handler.case_, Hnd2LA, Hnd2PM; simpl. 
+
+      guclo eqit_clo_bind.
+      econstructor 1 with (RU := eq).
+
+      set (t0 := Hnd2 d2).
+      set (t1 := (translate inr1 t0)).
+      set (t2 := (translate inr1 t0)).
+      
       admit.
+
+      intros u1 u2 hh.
+      inv hh.
+      gfinal; left. eapply CIH.
+   (*   eapply eqit_bind'; try reflexivity.
+      setoid_rewrite <- translate_bind.
+      gfinal; left. eapply CIH.          
+      admit.
+    *) 
     }
     { gstep; red.
       econstructor.
