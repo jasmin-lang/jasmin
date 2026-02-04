@@ -126,7 +126,6 @@ annotationlabel:
 
 simple_attribute:
   | e=pexpr        { PAexpr e}
-  | s=STRING       { PAstring s }
   | s=keyword      { PAstring s }
   | ws=utype       { PAws (fst ws) }
 
