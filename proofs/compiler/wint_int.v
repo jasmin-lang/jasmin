@@ -40,6 +40,7 @@ End E.
 Section WITH_PARAMS.
 
 Context `{asmop:asmOp} {pd: PointerData} {msfsz : MSFsize}.
+Context (N : length_var).
 
 Definition sc_op1 := sc_op1 (fun _ _ e => e).
 
@@ -358,13 +359,13 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
     Let xs := wi2i_lvs "invalid dest in Copn" true tout_op.1 xs in
     ok (es'.1 ++ xs.1, Copn xs.2 t tout_op.2 es'.2)
 
-  | Csyscall xs o es =>
+  | Csyscall xs o al es =>
     Let _ := assert (all (fun e => sign_of_expr m e == None) es)
                     (E.ierror_s "invalid args in Csyscall") in
     Let es := wi2i_es wi2i_e es in
     let xtys := map (to_etype None) (syscall_sig_u o).(scs_tout) in
     Let xs := wi2i_lvs "invalid dest in Csyscall" true xtys xs in
-    ok (es.1 ++ xs.1, Csyscall xs.2 o es.2)
+    ok (es.1 ++ xs.1, Csyscall xs.2 o al es.2)
 
   | Cassert a =>
     Let a := wi2i_a_and a in

@@ -958,7 +958,7 @@ let rec ty_instr is_ct_asm fenv env (msf, venv) i =
 and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
   let loc = i.i_loc.L.base_loc in
   match i.i_desc with
-  | Csyscall (xs, o, es) ->
+  | Csyscall (xs, o, _, es) ->
     (* TODO: generalize to other syscalls *)
     assert (match o with Syscall_t.RandomBytes _ -> true);
     List.iter (ensure_public_address_expr env venv loc) es;

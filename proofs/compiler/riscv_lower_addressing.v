@@ -76,7 +76,7 @@ Fixpoint lower_addressing_i (i: instr) :=
       else [:: i]
     else [:: i]
   | Cassgn _ _ _ _
-  | Csyscall _ _ _
+  | Csyscall _ _ _ _
   | Cassert _
   | Ccall _ _ _ _ => [:: i]
   | Cif b c1 c2 =>

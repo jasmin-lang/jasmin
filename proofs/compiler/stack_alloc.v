@@ -1698,7 +1698,7 @@ Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap rs fn al es :=
 Definition alloc_syscall ii rmap rs o es :=
   add_iinfo ii
   match o with
-  | RandomBytes ws n =>
+  | RandomBytes ws =>
     (* FIXME
     (* per the semantics, we have [len <= wbase Uptr], but we need [<] *)
     Let _ := assert (len <? wbase Uptr)%Z
@@ -1715,7 +1715,7 @@ Definition alloc_syscall ii rmap rs o es :=
       let rmap := set_move rmap x sr Valid in
       ok (rmap,
           [:: MkI ii (sap_immediate saparams xlen 2); (* FIXME: dummy value, we probably don't want to reimplement some part of makeref arg that at all anyway *)
-              MkI ii (Csyscall [::Lvar xp] o [:: Plvar p; Plvar xlen])])
+              MkI ii (Csyscall [::Lvar xp] o [::] [:: Plvar p; Plvar xlen])])
     | _, _ =>
       Error (stk_ierror_no_var "randombytes: invalid args or result")
     end
@@ -1824,7 +1824,7 @@ Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region
     Let rs := add_iinfo ii (alloc_lvals rmap rs (sopn_tout o)) in
     ok (table, rs.1, [:: MkI ii (Copn rs.2 t o e)])
 
-  | Csyscall rs o es =>
+  | Csyscall rs o _ es =>
     let table := remove_binding_lvals table rs in
     Let: (rmap, c) := alloc_syscall ii rmap rs o es in
     ok (table, rmap, c)

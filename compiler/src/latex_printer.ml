@@ -143,7 +143,8 @@ and pp_expr_rec prio fmt pe =
   | PECall (f, alargs, args) -> F.fprintf fmt "%a%a(%a)" pp_var f pp_alargs alargs (pp_list ", " pp_expr) args
   | PECombF (f, args) ->
     F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
-  | PEPrim (f, args) -> F.fprintf fmt "%a%a(%a)" sharp () pprim (L.unloc f) (pp_list ", " pp_expr) args
+  | PEPrim (f, alargs, args) ->
+    F.fprintf fmt "%a%a%a(%a)" sharp () pprim (L.unloc f) pp_alargs alargs (pp_list ", " pp_expr) args
   | PEOp1 (op, e) ->
     let p = prio_of_op1 op in
     optparent fmt prio p "(";

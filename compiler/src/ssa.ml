@@ -37,7 +37,7 @@ let rec written_vars_instr_r allvars w =
   | Cassert _ -> w
   | Cassgn (x, _, _, _) -> written_vars_lvar allvars w x
   | Copn (xs, _, _, _)
-  | Csyscall(xs,_,_)
+  | Csyscall(xs,_,_,_)
   | Ccall (xs, _, _, _)
     -> written_vars_lvars allvars w xs
   | Cif (_, s1, s2)
@@ -65,10 +65,10 @@ let split_live_ranges (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) fun
       let es = List.map (rename_expr m) es in
       let m, ys = rename_lvals allvars m xs in
       m, Copn (ys, tg, op, es)
-    | Csyscall (xs, op, es) ->
+    | Csyscall (xs, op, al, es) ->
       let es = List.map (rename_expr m) es in
       let m, ys = rename_lvals allvars m xs in
-      m, Csyscall(ys, op, es)
+      m, Csyscall(ys, op, al, es)
     | Ccall (xs, n, al, es) ->
       let es = List.map (rename_expr m) es in
       let m, ys = rename_lvals allvars m xs in

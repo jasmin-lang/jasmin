@@ -69,6 +69,8 @@ let catch_error cp =
     let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
     raise (HiError e)
 
+let syscall_length_ident = Conv.fresh_var_ident Length IInfo.dummy (Uint63.of_int 0) "N" Coq_aint
+
 let do_wint_int
    (type reg regx xreg rflag cond asm_op extra_op)
     (module Arch : Arch_full.Arch
@@ -102,7 +104,7 @@ let do_wint_int
     Conv.csv_of_sv fv ,info
   in
   let cp = Conv.cuprog_of_prog prog in
-  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.pointer_data Arch.msf_size get_info cp in
+  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.pointer_data Arch.msf_size syscall_length_ident get_info cp in
   let cp = catch_error cp in
   let (gd, fdso) = Conv.prog_of_cuprog cp in
   (* Restore type of array in the functions signature *)
@@ -430,6 +432,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.dead_vars_ufd;
       Compiler.dead_vars_sfd;
       Compiler.pp_sr;
+      Compiler.syscall_length_ident;
     }
   in
 

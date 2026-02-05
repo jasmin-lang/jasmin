@@ -177,7 +177,7 @@ type pexpr_r =
   | PEInt    of int_representation
   | PECall   of pident * pexpr list * pexpr list
   | PECombF  of pident * pexpr list
-  | PEPrim   of pident * pexpr list
+  | PEPrim   of pident * pexpr list * pexpr list
   | PEOp1    of peop1 * pexpr
   | PEOp2    of peop2 * (pexpr * pexpr)
   | PEIf of pexpr * pexpr * pexpr

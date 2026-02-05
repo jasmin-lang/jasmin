@@ -449,7 +449,7 @@ Definition pop_to_save
     | Cassgn lv _ _ e => Error (E.assign_remains ii lv e)
     | Copn xs tag o es =>
       allM (check_rexpr ii) es >> allM (check_lexpr ii) xs
-    | Csyscall xs o es =>
+    | Csyscall xs o _ es =>
       ok tt
     | Cassert _ =>
       Error (E.ii_error ii "assert found in linear")
@@ -655,7 +655,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       | _, _ => (lbl, lc) (* absurd case *)
       end
 
-  | Csyscall xs o es => (lbl, MkLI ii (Lsyscall o) :: lc)
+  | Csyscall xs o _ es => (lbl, MkLI ii (Lsyscall o) :: lc)
 
   | Cassert _ => (lbl, lc) (* absurd case *)
 

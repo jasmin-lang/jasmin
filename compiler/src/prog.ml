@@ -105,7 +105,7 @@ type ('len, 'info, 'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
-  | Csyscall of 'len glvals * (Wsize.wsize * 'len) Syscall_t.syscall_t * 'len gexprs
+  | Csyscall of 'len glvals * Wsize.wsize Syscall_t.syscall_t * 'len list * 'len gexprs
   | Cassert of 'len assertion
   | Cif    of 'len gexpr * ('len, 'info, 'asm) gstmt * ('len, 'info, 'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len, 'info, 'asm) gstmt
@@ -305,7 +305,7 @@ let rvars_as f s es = List.fold_left (fun s (_, a) -> rvars_a f s a) s es
 let rec rvars_i f s i =
   match i.i_desc with
   | Cassgn(x, _, _, e)  -> rvars_e f (rvars_lv f s x) e
-  | Copn(x,_,_,e)  | Csyscall (x, _, e) -> rvars_es f (rvars_lvs f s x) e
+  | Copn(x,_,_,e)  | Csyscall (x, _, _, e) -> rvars_es f (rvars_lvs f s x) e
   | Cassert(_, e) -> rvars_a f s e
   | Cif(e,c1,c2)   -> rvars_c f (rvars_c f (rvars_e f s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
@@ -368,7 +368,7 @@ let written_lv s =
 let rec written_vars_i ((v, f) as acc) i =
   match i.i_desc with
   | Cassgn(x, _, _, _) -> written_lv v x, f
-  | Copn(xs, _, _, _) | Csyscall(xs, _, _)
+  | Copn(xs, _, _, _) | Csyscall(xs, _, _, _)
     -> List.fold_left written_lv v xs, f
   | Ccall(xs, fn, _, _) ->
      List.fold_left written_lv v xs, Mf.modify_def [] fn (fun old -> i.i_loc :: old) f
@@ -568,7 +568,7 @@ let spilled fc = spilled_c Sv.empty fc.f_body
 
 let assigns = function
   | Cassgn (x, _, _, _) -> written_lv Sv.empty x
-  | Copn (xs, _, _, _) | Csyscall (xs, _, _) | Ccall (xs, _, _, _) ->
+  | Copn (xs, _, _, _) | Csyscall (xs, _, _, _) | Ccall (xs, _, _, _) ->
       List.fold_left written_lv Sv.empty xs
   | Cif _ | Cwhile _ | Cassert _ | Cfor _ -> Sv.empty
 
