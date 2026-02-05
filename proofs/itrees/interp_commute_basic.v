@@ -106,6 +106,27 @@ Proof.
   }
 Qed.  
 
+Lemma interp_mrec_trivial_equiv {E E0}
+  (h: E0 ~> itree (E0 +' E)) T (t: itree E T) :
+  eutt eq t (interp_mrec h (translate inr1 t)).
+Proof.
+  revert t. ginit; gcofix CIH. intros t.
+  setoid_rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot; simpl.
+  { gstep; red. simpl. econstructor; auto. }
+  { gstep; red. simpl. econstructor; auto.
+    gfinal; left. eapply CIH.
+  }
+  { setoid_rewrite unfold_translate; simpl.
+    setoid_rewrite unfold_interp_mrec; simpl.
+    setoid_rewrite tau_euttge.
+    gstep; red. econstructor.
+    intro v; unfold id; simpl.
+    gfinal; left. eapply CIH.
+  }
+Qed.  
+
 
 Section Simple.
 
@@ -606,7 +627,7 @@ Qed.
    sequenced interpreters commute. this makes it possible to permute a
    recursive interpreter (based Hnd1) that depends on a simple one
    (based on Hnd2) *)
-Lemma seq12_seq21_commute T (t: itree (D1 +' D2 +' E) T) :
+Lemma seq12_seq21_commute' T (t: itree (D1 +' D2 +' E) T) :
   eutt eq (interp (case_ Hnd2 (id_ E)) (interpR1 t)) 
           (interp_mrec Hnd1with2
              (interp Hnd2_ext (translate sum_perm_ext t))).
@@ -615,6 +636,69 @@ Proof.
   setoid_rewrite seq21_join21_commute.
   setoid_rewrite permute_join_equiv; reflexivity.
 Qed.
+
+(* direct proof: actually much shorter *)
+Lemma seq12_seq21_commute T (t: itree (D1 +' D2 +' E) T) :
+  eutt eq (interp (case_ Hnd2 (id_ E)) (interpR1 t)) 
+          (interp_mrec Hnd1with2
+             (interp Hnd2_ext (translate sum_perm_ext t))).
+Proof.
+  unfold interpR1.
+  revert t. ginit; gcofix CIH. intros t.
+  setoid_rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot; simpl.
+  { gstep; red. simpl. econstructor; auto. }
+  { gstep; red. simpl. econstructor; auto.
+    gfinal; left. eapply CIH.
+  }
+  { destruct e as [d1 | [d2 | e]]; simpl.
+    { setoid_rewrite unfold_interp_mrec at 1; simpl.
+      setoid_rewrite unfold_interp at 1; simpl.
+      setoid_rewrite unfold_interp at 2; simpl.
+      setoid_rewrite bind_trigger.
+      setoid_rewrite tau_euttge at 2.
+      setoid_rewrite unfold_interp_mrec at 2; simpl.
+      gstep; red. econstructor.
+      setoid_rewrite <- interp_bind.
+      setoid_rewrite <- translate_bind.
+      gfinal; left. eapply CIH.
+    }
+    { setoid_rewrite unfold_interp_mrec at 1; simpl.
+      setoid_rewrite unfold_interp at 1; simpl.
+      setoid_rewrite unfold_interp at 2; simpl.
+      setoid_rewrite tau_euttge at 2.
+      setoid_rewrite interp_mrec_bind.
+
+      guclo eqit_clo_bind.
+      econstructor 1 with (RU := eq); simpl.
+      unfold case_; simpl.
+      { eapply interp_mrec_trivial_equiv. }
+      { intros u1 u2 hh.
+        inv hh.
+        setoid_rewrite unfold_interp_mrec at 2; simpl.
+        gstep; red. econstructor; simpl.
+        gfinal; left. eapply CIH.
+      }
+    }  
+    { setoid_rewrite unfold_interp_mrec at 1; simpl.
+      setoid_rewrite unfold_interp at 1; simpl.
+      setoid_rewrite unfold_interp at 2; simpl.
+      unfold case_; simpl.
+      unfold id_, Id_Handler, Handler.id_; simpl.
+      setoid_rewrite bind_trigger; simpl.
+      setoid_rewrite unfold_interp_mrec at 2; simpl.
+      unfold Case_sum1_Handler, Handler.case_; simpl.
+      setoid_rewrite tau_euttge.
+      setoid_rewrite interp_tau.
+      setoid_rewrite unfold_interp_mrec at 2; simpl.
+      gstep; red. econstructor.
+      intro v; unfold id.
+      gstep; red. econstructor.
+      gfinal; left. eapply CIH.
+    }
+  }
+Qed. 
 
 
 (**** Extra stuff (probably useless) *********************************)
