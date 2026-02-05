@@ -171,9 +171,15 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
       (pp_ges ~debug pp_len pp_var) e
       pp_optional_comment (pp_tag t)
 
-  | Csyscall(x, o, e) ->
-      F.fprintf fmt "@[<hov 2>%a%s(%a);@]"
-        (pp_glvs ~debug pp_len pp_var) x (pp_syscall o) (pp_ges ~debug pp_len pp_var) e
+  | Csyscall(x, o, al, e) ->
+      let pp_al fmt al =
+        if al = [] then ()
+        else
+          F.fprintf fmt "{%a}" (pp_list ",@ " pp_len) al
+      in
+      F.fprintf fmt "@[<hov 2>%a%s%a(%a);@]"
+        (pp_glvs ~debug pp_len pp_var) x (pp_syscall o)
+        pp_al al (pp_ges ~debug pp_len pp_var) e
 
   | Cassert(msg, e) ->
     F.fprintf fmt "@[<hov 2>assert(\"%a\", %a);@]"

@@ -477,7 +477,7 @@ let safe_instr pd asmOp ginstr = match ginstr.i_desc with
   | Cassert (_, e) -> safe_e_rec [ GeneralCond e ] e
   | Cif(e, _, _) -> safe_e e
   | Cwhile(_, _, _, _, _) -> []       (* We check the while condition later. *)
-  | Ccall(lvs, _, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
+  | Ccall(lvs, _, _, es) | Csyscall(lvs, _, _, es) -> safe_lvals lvs @ safe_es es
   | Cfor (_, (_, e1, e2), _) -> safe_es [e1;e2]
 
 let safe_return main_decl =
@@ -1277,8 +1277,7 @@ end = struct
     let rec nm_i vs_for i = match i.i_desc with
       | Cassgn (lv, _, _, e)    -> nm_lv vs_for lv && nm_e vs_for e
       | Copn (lvs, _, _, es)    -> nm_lvs vs_for lvs && nm_es vs_for es
-      | Csyscall(lvs, _ ,es)    -> nm_lvs vs_for lvs && nm_es vs_for es
-      | Cassert(_, e)           -> nm_e vs_for e
+      | Csyscall(lvs, _, _ ,es)    -> nm_lvs vs_for lvs && nm_es vs_for es
       | Cif (e, st, st')        ->
         nm_e vs_for e && nm_stmt vs_for st && nm_stmt vs_for st'
       | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
@@ -1416,7 +1415,9 @@ end = struct
 
   let aeval_syscall state sc lvs _es =
     match sc with
-    | Syscall_t.RandomBytes (ws, len) ->
+    | Syscall_t.RandomBytes ws ->
+        (* FIXME *)
+       let len = assert false in
        let len =
          match len with
          | Prog.Const len -> len
@@ -1495,7 +1496,7 @@ end = struct
           { state with abs = abs; }
         end
 
-      | Csyscall(lvs, sc, es) ->
+      | Csyscall(lvs, sc, _, es) ->
          aeval_syscall state sc lvs es
 
       | Cassert _ -> state

@@ -274,7 +274,7 @@ let rec analyze_instr_r params cc a =
   function
   | Cfor _ -> assert false
   | Ccall (xs, fn, _al, es) -> link_array_return params a xs es (cc fn)
-  | Csyscall (xs, o, es) -> link_array_return params a xs es (syscall_cc o)
+  | Csyscall (xs, o, _al, es) -> link_array_return params a xs es (syscall_cc o)
   | Cassgn (x, _, ty, e) -> if is_ty_arr ty then assign_arr params a x e else a
   | Copn (xs, _, o, es) -> 
     (* A special case for operators that can return array *)

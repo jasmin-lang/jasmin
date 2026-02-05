@@ -29,7 +29,6 @@ val z_of_word : wsize -> Word0.word -> Z.t
 val z_unsigned_of_word : wsize -> Word0.word -> Z.t
 
 (* -------------------------------------------------------------------- *)
-val map_syscall : ('a -> 'b) -> (wsize * 'a) Syscall_t.syscall_t -> (wsize * 'b) Syscall_t.syscall_t
 val cal_of_al : length -> Type.array_length
 val al_of_cal : Type.array_length -> length
 val cty_of_ty : Prog.ty -> Type.atype

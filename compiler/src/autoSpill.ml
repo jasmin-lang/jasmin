@@ -40,7 +40,7 @@ let vars_lv = function
 
 let vars_i = function
   | Cassgn (x, _, _, e) -> Sv.union (vars_lv x) (vars_e e)
-  | Copn (xs, _, _, es) | Csyscall (xs, _, es) | Ccall (xs, _, _, es) ->
+  | Copn (xs, _, _, es) | Csyscall (xs, _, _, es) | Ccall (xs, _, _, es) ->
       List.fold Sv.union (vars_es es) (List.map vars_lv xs)
   | Cassert (_, e) -> vars_e e
   | Cfor _ | Cif _ | Cwhile _ -> assert false

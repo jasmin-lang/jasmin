@@ -39,7 +39,7 @@ Proof. done. Qed.
 Lemma gt0_arr_size ws len : (0 < arr_size ws len)%Z.
 Proof. done. Qed.
 
-Opaque arr_size.
+#[global] Opaque arr_size.
 
 (* Size in bits of the elements of a vector. *)
 #[only(eqbOK)] derive

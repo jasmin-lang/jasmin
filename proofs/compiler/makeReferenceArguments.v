@@ -14,8 +14,10 @@ Module Import E.
 End E.
 
 Section Section.
+Context {pd:PointerData}.
 Context `{asmop:asmOp}.
 Context (fresh_reg_ptr : instr_info -> int -> string -> atype -> Ident.ident).
+Context (N : length_var).
 Context (p : uprog).
 
 Definition with_id vi ii ctr id ty :=
@@ -131,7 +133,7 @@ Definition get_sig ii fn :=
   else Error (E.make_ref_error ii "unknown function").
 
 Definition get_syscall_sig o :=
-  let: s := syscall.syscall_sig_u o in
+  let: s := syscall.syscall_sig_u N o in
   (map (fun ty => (is_aarr ty, "__p__"%string, ty)) s.(scs_tin),
    map (fun ty => (is_aarr ty, "__p__"%string, ty)) s.(scs_tout)).
 
@@ -209,11 +211,11 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
     Let xsep := make_epilogue ii X returns xs in
     let: (xs, epilogue) := xsep in
     ok (prologue ++ MkI ii (Ccall xs fn alargs es) :: epilogue)
-  | Csyscall xs o es =>
+  | Csyscall xs o al es =>
     let: (params,returns) := get_syscall_sig o in
     Let: (prologue, es) := make_prologue ii X 0 params es in
     Let: (xs, epilogue) := make_epilogue ii X returns xs in
-    ok (prologue ++ MkI ii (Csyscall xs o es) :: epilogue)
+    ok (prologue ++ MkI ii (Csyscall xs o al es) :: epilogue)
   end.
 
 Definition update_fd (fd: ufundef) :=

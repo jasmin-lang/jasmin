@@ -238,11 +238,11 @@ Fixpoint subst_i f (i:instr) : mon instr :=
     let alargs := map (subst_al f) alargs in
     let%m es := subst_es f es in
     ret (MkI ii (Ccall xs fn alargs es))
-  | Csyscall xs o es =>
+  | Csyscall xs o al es =>
     (* TODO: subst in o too *)
     let%m xs := subst_lvals f xs in
     let%m es := subst_es f es in
-    ret (MkI ii (Csyscall xs o es))
+    ret (MkI ii (Csyscall xs o al es))
   end.
 Definition subst_c f := mapm (subst_i f).
 
@@ -267,7 +267,7 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
   match ir with
   | Cassgn _ _ _ _
   | Copn _ _ _ _
-  | Csyscall _ _ _
+  | Csyscall _ _ _ _
   | Cassert _
     => ok (Sv.union (read_i ir) X, [::i])
   | Cif e c1 c2  =>

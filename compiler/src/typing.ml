@@ -239,10 +239,17 @@ let rec check_instr pd msfsz asmOp env i =
     check_exprs pd loc es tins;
     check_lvals pd loc xs tout
 
-  | Csyscall(xs, o, es) ->
-    let s = Syscall.syscall_sig_u (Conv.map_syscall Conv.cal_of_al o) in
+  | Csyscall(xs, o, al, es) ->
+    let n = assert false in
+    let s = Syscall.syscall_sig_u pd n o in
+    let f =
+      let l = List.combine s.scs_al al in
+      fun x -> List.assoc x l
+    in
     let tins = List.map Conv.ty_of_cty s.scs_tin in
+    let tins = List.map (subst_ty f) tins in
     let tout = List.map Conv.ty_of_cty s.scs_tout in
+    let tout = List.map (subst_ty f) tout in
     check_exprs pd loc es tins;
     check_lvals pd loc xs tout
 

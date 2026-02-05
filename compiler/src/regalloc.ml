@@ -37,7 +37,7 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
     function
     | Cassgn (lv, tg, ty, e) -> Cassgn (fill_lv lv, tg, ty, e)
     | Copn (lvs, tg, op, es) -> Copn (fill_lvs lvs, tg, op, es)
-    | Csyscall (lvs, op, es) -> Csyscall(fill_lvs lvs, op, es)
+    | Csyscall (lvs, op, al, es) -> Csyscall(fill_lvs lvs, op, al, es)
     | Cassert (msg, e) -> Cassert (msg, e)
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
     | Cfor (i, r, s) -> Cfor (i, r, fill_stmt s)
@@ -496,7 +496,7 @@ let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =
     function
     | Cassert (_, e) -> iter_expr e
     | Cassgn (lv, _, _, e) -> iter_lv lv; iter_expr e
-    | (Ccall (lvs, _, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _ , es) -> iter_lvs lvs; iter_exprs es
+    | (Ccall (lvs, _, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _, _, es) -> iter_lvs lvs; iter_exprs es
     | (Cwhile (_, s1, e, _, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
     | Cfor _ -> assert false
   and iter_instr { i_desc } = iter_instr_r i_desc
@@ -792,7 +792,7 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
     | Cfor (_, _, s)
       -> alloc_stmt s c
     | Copn (lvs, _, op, es) -> forced_registers loc nv vars tr c lvs op es a
-    | Csyscall(lvs, _, es) ->
+    | Csyscall(lvs, _, _, es) ->
        let get_a = function Pvar { gv ; gs = Slocal } -> L.unloc gv | _ -> assert false in
        let get_r = function Lvar gv -> L.unloc gv | _ -> assert false in
        alloc_args loc get_a es;
@@ -1240,7 +1240,7 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
   (* Live variables at the end of each function, in addition to returned local variables *)
   let get_liveness, slive, liveness_per_callsite =
     let live : (L.i_loc list * Sv.t) list Hf.t = Hf.create 17 in
-    let slive : ((Wsize.wsize * length) Syscall_t.syscall_t, Sv.t) Hashtbl.t = Hashtbl.create 17 in
+    let slive : (Wsize.wsize Syscall_t.syscall_t, Sv.t) Hashtbl.t = Hashtbl.create 17 in
     List.iter (fun f ->
         let f_with_liveness = Hf.find liveness_table f.f_name in
         let live_when_calling_f = Hf.find_default live f.f_name [[], Sv.empty] in

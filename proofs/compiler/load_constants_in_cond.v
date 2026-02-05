@@ -80,7 +80,7 @@ Fixpoint load_constants_i (i : instr) :=
   match ir with
   | Cassgn _ _ _ _
   | Copn _ _ _ _
-  | Csyscall _ _ _
+  | Csyscall _ _ _ _
   | Cassert _
   | Ccall _ _ _ _
     => ok [::i]

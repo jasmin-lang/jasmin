@@ -1369,7 +1369,7 @@ let rec is_write_i x i =
   match i.i_desc with
   | Cassgn (lv,_,_,_) ->
     is_write_lv x lv
-  | Copn(lvs,_,_,_) | Ccall(lvs, _, _, _) | Csyscall(lvs,_,_) ->
+  | Copn(lvs,_,_,_) | Ccall(lvs, _, _, _) | Csyscall(lvs,_,_,_) ->
     is_write_lvs x lvs
   | Cassert _ -> false
   | Cif(_, c1, c2) | Cwhile(_, c1, _, _, c2) ->
@@ -1846,7 +1846,8 @@ struct
 
   let ec_syscall env o =
     match o with
-    | Syscall_t.RandomBytes (ws, p) ->
+    | Syscall_t.RandomBytes ws ->
+      let p = assert false in (* FIXME *)
       let p =
         match p with
         | Const p -> p
@@ -1891,8 +1892,9 @@ struct
           (ec_leaks_es env es) @
           (ec_pcall env lvs leak_lvs otys [Env.get_funname env f] args) @
           (ec_leak_call_acc env)
-      | Csyscall (lvs, o, es) ->
-          let s = Syscall.syscall_sig_u (Conv.map_syscall Conv.cal_of_al o) in
+      | Csyscall (lvs, o, _al, es) ->
+          let n = assert false in (* FIXME *)
+          let s = Syscall.syscall_sig_u (Env.pd env) n o in
           let otys = List.map Conv.ty_of_cty s.scs_tout in
           let itys =  List.map Conv.ty_of_cty s.scs_tin in
           let args = List.map (toec_cast env) (List.combine itys es) in

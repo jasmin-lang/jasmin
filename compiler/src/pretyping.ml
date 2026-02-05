@@ -1736,10 +1736,10 @@ let prim_of_pe pe =
           | _, _ -> o, pe1, pe2, L.mk_loc (L.loc pe2) (S.PEBool false)
         in
 
-        S.PEPrim(prim_of_op exn loc o, [pe1; pe2; pe3])
+        S.PEPrim(prim_of_op exn loc o, [], [pe1; pe2; pe3])
 
       | _  ->
-        S.PEPrim(prim_of_op exn loc o, [pe1; pe2])
+        S.PEPrim(prim_of_op exn loc o, [], [pe1; pe2])
     in
     L.mk_loc (L.loc pe) desc
   | _ -> raise exn
@@ -2011,9 +2011,10 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
       in
       (* FIXME: List.map (fun e -> P.PE e) is ugly *)
       [mk_i ~annot (mk_call (L.loc pi) is_inline lvs f (List.map (fun e -> P.PE e) alargs) es)]
-  | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None
+  | (ls, xs), `Raw, { pl_desc = PEPrim (f, alargs, args) }, None
         when L.unloc f = "spill" || L.unloc f = "unspill"  ->
     let op = L.unloc f in
+    if alargs <> [] then rs_tyerror ~loc:(L.loc pi) (string_error "%s does not support templating" op);
     if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "%s expects no implicit result" op);
     if xs <> [] then rs_tyerror ~loc:(L.loc pi) (string_error "%s expects no result" op);
     let es = tt_exprs arch_info.pd env_rhs args in
@@ -2026,7 +2027,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
     let p = Sopn.Opseudo_op (Ospill(op, [] (* dummy info, will be fixed latter *))) in
     [mk_i ~annot (P.Copn([], AT_keep, p, es))]
 
-  | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None when L.unloc f = "randombytes" ->
+  | (ls, xs), `Raw, { pl_desc = PEPrim (f, _alargs, args) }, None when L.unloc f = "randombytes" ->
       (* FIXME syscall *)
       (* This is dirty but ... *)
       if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "randombytes expects no implicit arguments");
@@ -2044,10 +2045,11 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
             (string_error "only a single variable is allowed as destination of randombytes") in
       let _ = tt_as_array (loc, ty) in
       let es = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args [ty] in
-      [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (U8, PE (Pconst Z.one)), es))]
+      [mk_i (P.Csyscall([x], Syscall_t.RandomBytes U8, [PE (P.Pconst Z.one)], es))]
 
-  | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None when L.unloc f = "swap" ->
+  | (ls, xs), `Raw, { pl_desc = PEPrim (f, alargs, args) }, None when L.unloc f = "swap" ->
       let loc = L.loc pi in
+      if alargs <> [] then rs_tyerror ~loc (string_error "swap does not support templating");
       if ls <> None then rs_tyerror ~loc (string_error "swap expects no implicit arguments");
       let ty, es =
         match args with
@@ -2080,14 +2082,16 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
       let p = Sopn.Opseudo_op (Oswap Type.Coq_abool) in  (* The type is fixed later *)
       [mk_i (P.Copn(lvs, Option.default default_tag tag, p, es))]
 
-  | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None when L.unloc f = "declassify" ->
+  | (ls, xs), `Raw, { pl_desc = PEPrim (f, alargs, args) }, None when L.unloc f = "declassify" ->
       let loc = L.loc pi in
+      if alargs <> [] then rs_tyerror ~loc (string_error "declassify does not support templating");
       if ls <> None || xs <> [] then rs_tyerror ~loc (string_error "declassify returns no value");
       let es = tt_exprs arch_info.pd env_rhs args |> List.map fst in
       let op = Sopn.Opseudo_op (Odeclassify Type.Coq_abool) in
       [mk_i (P.Copn([], AT_keep, op, es))]
 
-  | ls, `Raw, { pl_desc = PEPrim (f, args) }, None ->
+  | ls, `Raw, { pl_desc = PEPrim (f, alargs, args) }, None ->
+      if alargs <> [] then rs_tyerror ~loc:(L.loc pi) (string_error "assembly instructions do not support templating");
       let p = tt_prim arch_info.asmOp f in
       let tlvs, tes, arguments = prim_sig arch_info.asmOp p in
       let lvs, einstr = tt_lvalues arch_info env_lhs (L.loc pi) ls (Some arguments) tlvs in
@@ -2095,13 +2099,14 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
       let must_keep = lvs = [] || match p with Oslh _ -> true | _ -> false in
       mk_i (P.Copn(lvs, Option.default (if must_keep then E.AT_keep else default_tag) tag, p, es)) :: einstr
 
-  | ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) }); pl_loc = loc} , None
+  | ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, alargs, args) }); pl_loc = loc} , None
       ->
       let ws =
         match ct with
         | (ws, `Word _) -> ws
         | (_ws, `WInt _) -> rs_tyerror ~loc (string_error "invalid cast for asm operator")
         in
+      if alargs <> [] then rs_tyerror ~loc:(L.loc pi) (string_error "assembly instructions do not support templating");
       let p = tt_prim arch_info.asmOp f in
       let id = Sopn.asm_op_instr arch_info.asmOp p in
       let p = cast_opn ~loc:(L.loc pi) id ws p in

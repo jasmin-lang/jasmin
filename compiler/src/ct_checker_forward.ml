@@ -557,7 +557,7 @@ let rec ty_instr is_ct_asm fenv env i =
     let env, lvl = ty_exprs_max ~public env es in
     ty_lvals1 env xs (declassify_lvl ~loc i.i_annot lvl)
 
-  | Csyscall(xs, RandomBytes _, es) ->
+  | Csyscall(xs, RandomBytes _, _al, es) ->
     let env, _ = ty_exprs_max ~public:true env es in
     ty_lvals1 env xs (declassify_lvl ~loc i.i_annot Secret)
 

@@ -349,16 +349,6 @@ Definition is_not_carr t := ~~ is_carr t.
 End OtherDefs.
 
 (* -------------------------------------------------------------------- *)
-Definition arr_size (ws:wsize) (len:positive)  := 
-   (wsize_size ws * len)%Z.
-
-Lemma arr_sizeE ws len : arr_size ws len = (wsize_size ws * len)%Z.
-Proof. done. Qed.
-
-Lemma gt0_arr_size ws len : (0 < arr_size ws len)%Z.
-Proof. done. Qed.
-
-Opaque arr_size.
 
 Section EVAL.
 

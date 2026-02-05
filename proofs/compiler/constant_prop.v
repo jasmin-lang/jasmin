@@ -496,10 +496,10 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     in
     (m, [:: MkI ii ir ])
 
-  | Csyscall xs o es =>
+  | Csyscall xs o al es =>
     let es := map (const_prop_e without_globals m) es in
     let (m,xs) := const_prop_rvs without_globals m xs in
-    (m, [:: MkI ii (Csyscall xs o es) ])
+    (m, [:: MkI ii (Csyscall xs o al es) ])
 
   | Cassert a =>
     let b := const_prop_e without_globals m a.2 in

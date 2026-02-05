@@ -20,7 +20,7 @@ module type Logic = sig
   val syscall :
        Location.i_loc
     -> lvals
-    -> (Wsize.wsize * length) Syscall_t.syscall_t
+    -> Wsize.wsize Syscall_t.syscall_t
     -> exprs
     -> domain
     -> domain annotation
@@ -211,9 +211,9 @@ struct
       | Ccall (lvs, fn, al, es) ->
           let annotation = Annotation.bind annotation (L.funcall loc lvs fn al es) in
           (Ccall (lvs, fn, al, es), annotation)
-      | Csyscall (lvs, sc, es) ->
+      | Csyscall (lvs, sc, al, es) ->
           let annotation = Annotation.bind annotation (L.syscall loc lvs sc es) in
-          (Csyscall (lvs, sc, es), annotation)
+          (Csyscall (lvs, sc, al, es), annotation)
       | Cif (cond, th, el) ->
           let th, annotation_th = analyse_stmt th annotation in
           let el, annotation_el = analyse_stmt el annotation in

@@ -32,6 +32,7 @@ End E.
 Section WITH_PARAMS.
 
 Context `{asmop:asmOp} {pd: PointerData} {msfsz : MSFsize}.
+Context (N : length_var).
 
 #[local]
 Existing Instance progUnit.
@@ -316,13 +317,13 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec instr_r :=
           ok (Copn xs t o es)
       end
 
-  | Csyscall xs o es =>
+  | Csyscall xs o al es =>
     Let _ := assert (all (fun e => sign_of_expr e == None) es)
                     (E.ierror_s "invalid args in Csyscall") in
     Let es := mapM wi2i_e es in
-    let xtys := map (to_etype None) (syscall_sig_u o).(scs_tout) in
+    let xtys := map (to_etype None) (syscall_sig_u N o).(scs_tout) in
     Let xs := mapM2 (E.ierror_s "invalid dest in Csyscall") wi2i_lv xtys xs in
-    ok (Csyscall xs o es)
+    ok (Csyscall xs o al es)
 
   | Cassert (msg, e) =>
     Let e := wi2i_e e in

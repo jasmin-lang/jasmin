@@ -62,6 +62,8 @@ let do_spill_unspill asmop ?(debug = false) cp =
   | Utils0.Error msg -> Error (Conv.error_of_cerror (Printer.pp_err ~debug) msg)
   | Utils0.Ok p -> Ok (Conv.prog_of_cuprog p)
 
+let syscall_length_ident = Conv.fresh_var_ident Length IInfo.dummy (Uint63.of_int 0) "N" Coq_aint
+
 let do_wint_int
    (type reg regx xreg rflag cond asm_op extra_op)
     (module Arch : Arch_full.Arch
@@ -91,7 +93,7 @@ let do_wint_int
   let info x =
     let x = Conv.var_of_cvar x in
      Mv.find_opt x m in
-  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.pointer_data Arch.msf_size info cp in
+  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.pointer_data Arch.msf_size syscall_length_ident info cp in
   let cp =
     match cp with
     | Utils0.Ok cp -> cp
@@ -419,6 +421,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.dead_vars_ufd;
       Compiler.dead_vars_sfd;
       Compiler.pp_sr;
+      Compiler.syscall_length_ident;
     }
   in
 

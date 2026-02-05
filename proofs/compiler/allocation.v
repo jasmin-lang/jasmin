@@ -574,8 +574,9 @@ Fixpoint check_i (i1 i2:instr_r) r :=
       Let _ := assert (o1 == o2) (alloc_error "operators not equals") in
       check_es es1 es2 r >>= check_lvals xs1 xs2
 
-    | Csyscall xs1 o1 es1, Csyscall xs2 o2 es2 =>
+    | Csyscall xs1 o1 al1 es1, Csyscall xs2 o2 al2 es2 =>
       Let _ := assert (o1 == o2) (alloc_error "syscall not equals") in
+      Let _ := assert (al1 == al2) (alloc_error "lengths not equal") in
       check_es es1 es2 r >>= check_lvals xs1 xs2
 
     | Ccall x1 f1 al1 arg1, Ccall x2 f2 al2 arg2 =>

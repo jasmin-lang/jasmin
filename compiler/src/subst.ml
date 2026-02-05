@@ -59,7 +59,7 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
       let ty = gsubst_ty (flen ?loc:None) ty in
       Cassgn(x, tg, ty, e)
     | Copn(x,t,o,e)   -> Copn(gsubst_lvals flen f x, t, o, gsubst_es flen f e)
-    | Csyscall(x,o,e)   -> Csyscall(gsubst_lvals flen f x, Conv.map_syscall (flen ?loc:None) o, gsubst_es flen f e)
+    | Csyscall(x,o,al,e)   -> Csyscall(gsubst_lvals flen f x, o, List.map (flen ?loc:None) al, gsubst_es flen f e)
     | Cassert (msg, e)  -> Cassert (msg, gsubst_e flen f e)
     | Cif(e,c1,c2)  -> Cif(gsubst_e flen f e, gsubst_c flen f c1, gsubst_c flen f c2)
     | Cfor(x,(d,e1,e2),c) ->

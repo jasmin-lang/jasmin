@@ -306,8 +306,8 @@ pexpr_noarr_r(parent):
 | f=var alargs=loption(braces_tuple(parent)) args=parens_tuple(parent)
     { PECall (f, alargs, args) }
 
-| f=prim args=parens_tuple(parent)
-    { PEPrim (f, args) }
+| f=prim alargs=loption(braces_tuple(parent)) args=parens_tuple(parent)
+    { PEPrim (f, alargs, args) }
 
 | e1=parent QUESTIONMARK e2=parent COLON e3=parent
     { PEIf(e1, e2, e3) }
@@ -370,9 +370,9 @@ pinstr_r:
 | ARRAYINIT x=parens(var) SEMICOLON
     { PIArrayInit x }
 
-| f=loc(prim) args=parens_tuple(pexpr) SEMICOLON
+| f=loc(prim) alargs=loption(braces_tuple(pexpr)) args=parens_tuple(pexpr) SEMICOLON
     { let { Location.pl_loc = loc; Location.pl_desc = f } = f in
-      PIAssign((None, []), `Raw, Location.mk_loc loc (PEPrim (f, args)), None) }
+      PIAssign((None, []), `Raw, Location.mk_loc loc (PEPrim (f, alargs, args)), None) }
 
 | x=plvalues o=peqop e=pexpr c=prefix(IF, pexpr)? SEMICOLON
     { PIAssign (x, o, e, c) }

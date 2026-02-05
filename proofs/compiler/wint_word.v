@@ -84,8 +84,8 @@ Fixpoint wi2w_ir (ir:instr_r) : instr_r :=
   | Copn xs t o es =>
     Copn (map wi2w_lv xs) t o (map wi2w_e es)
 
-  | Csyscall xs o es =>
-    Csyscall (map wi2w_lv xs) o (map wi2w_e es)
+  | Csyscall xs o al es =>
+    Csyscall (map wi2w_lv xs) o al (map wi2w_e es)
 
   | Cassert (msg, e) =>
     Cassert (msg, wi2w_e e)

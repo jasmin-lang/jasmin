@@ -442,7 +442,7 @@ Fixpoint check_i (i : instr) (env : Env.t) : cexec Env.t :=
       then check_slho ii lvs slho es env
       else ok (Env.after_assign_vars env (vrvs lvs))
 
-  | Csyscall _ _ _ => ok Env.empty
+  | Csyscall _ _ _ _ => ok Env.empty
 
   | Cassert _ => ok env
 
@@ -503,7 +503,7 @@ Fixpoint lower_i (i : instr) : cexec instr :=
       then lower_slho ii lvs tg slho es
       else ok ir
 
-    | Csyscall _ _ _ =>
+    | Csyscall _ _ _ _ =>
         ok ir
 
     | Cassert _ =>

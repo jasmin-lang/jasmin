@@ -160,10 +160,6 @@ let expr_of_cexprs es = List.map (expr_of_cexpr) es
 
 (* ------------------------------------------------------------------------ *)
 
-let map_syscall (f : 'a -> 'b) (o : (W.wsize * 'a) Syscall_t.syscall_t) : (W.wsize * 'b) Syscall_t.syscall_t =
-  match o with
-  | RandomBytes (ws, x) -> RandomBytes (ws, f x)
-
 let rec cinstr_of_instr i =
   let n = i.i_loc, i.i_annot in
   cinstr_r_of_instr_r n i.i_desc
@@ -180,9 +176,9 @@ and cinstr_r_of_instr_r p i =
       C.Copn(clval_of_lvals x, t, o, cexpr_of_exprs e) in
     C.MkI(p, ir)
 
-  | Csyscall(x,o,e) ->
+  | Csyscall(x,o,al,e) ->
     let ir =
-      C.Csyscall(clval_of_lvals x, map_syscall cal_of_al o, cexpr_of_exprs e) in
+      C.Csyscall(clval_of_lvals x, o, List.map cal_of_al al, cexpr_of_exprs e) in
     C.MkI(p, ir)
 
   | Cassert (msg, e) ->
@@ -226,8 +222,8 @@ and instr_r_of_cinstr_r = function
   | C.Copn(x,t,o,e) ->
     Copn(lval_of_clvals x, t, o, expr_of_cexprs e)
 
-  | C.Csyscall(x,o,e) ->
-    Csyscall(lval_of_clvals x, map_syscall al_of_cal o, expr_of_cexprs e)
+  | C.Csyscall(x,o,al,e) ->
+    Csyscall(lval_of_clvals x, o, List.map al_of_cal al, expr_of_cexprs e)
 
   | C.Cassert (msg, e) ->
      Cassert (msg, expr_of_cexpr e)

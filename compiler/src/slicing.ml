@@ -31,7 +31,7 @@ and inspect_instr k i = inspect_instr_r k i.i_desc
 
 and inspect_instr_r k = function
   | Cassgn (x, _, _, e) -> inspect_lv (inspect_e k e) x
-  | Copn (xs, _, _, es) | Csyscall (xs, _, es) ->
+  | Copn (xs, _, _, es) | Csyscall (xs, _, _, es) ->
       inspect_lvs (inspect_es k es) xs
   | Cassert (_, e) -> inspect_e k e
   | Cif (g, a, b) | Cwhile (_, a, g, _, b) ->

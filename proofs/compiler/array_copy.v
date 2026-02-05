@@ -143,7 +143,7 @@ Fixpoint array_copy_i V (i:instr) : cexec cmd :=
 
     | _ => ok [:: i]
     end
-  | Csyscall _ _ _ | Cassert _ => ok [:: i]
+  | Csyscall _ _ _ _ | Cassert _ => ok [:: i]
   | Cif e c1 c2    =>
       Let c1 := array_copy_c V array_copy_i c1 in
       Let c2 := array_copy_c V array_copy_i c2 in

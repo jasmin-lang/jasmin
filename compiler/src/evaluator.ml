@@ -103,10 +103,12 @@ let small_step1 ep spp sip env s =
       let s2 = exn_exec ii (sem_sopn nosubword ep spp sip._asmop env gd op s1 xs es) in
       { s with s_cmd = c; s_estate = s2 }
 
-    | Csyscall(xs,o, es) ->
+    | Csyscall(xs,o,al,es) ->
+      let ps = List.map (eval env) al in
       let ves = exn_exec ii (sem_pexprs nosubword ep spp env true gd s1 es) in
+      let n = assert false in (* FIXME *)
       let ((scs, m), vs) =
-        exn_exec ii (syscall_sem__ sip._sc_sem ep._pd env s1.escs s1.emem o ves) in
+        exn_exec ii (syscall_sem__ ep._pd sip._sc_sem n s1.escs s1.emem o ps ves) in
       let s2 = exn_exec ii (write_lvals nosubword ep spp env true gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
       { s with s_cmd = c; s_estate = s2 }
 

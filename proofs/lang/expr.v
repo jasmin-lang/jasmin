@@ -393,7 +393,7 @@ Context `{asmop:asmOp}.
 Inductive instr_r :=
 | Cassgn   : lval -> assgn_tag -> atype -> pexpr -> instr_r
 | Copn     : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
-| Csyscall : lvals -> syscall_t -> pexprs -> instr_r
+| Csyscall : lvals -> syscall_t -> seq array_length -> pexprs -> instr_r
 | Cassert  : assertion -> instr_r
 | Cif      : pexpr -> seq instr -> seq instr  -> instr_r
 | Cfor     : var_i -> range -> seq instr -> instr_r
@@ -416,7 +416,7 @@ Section CMD_RECT.
   Hypothesis Hcons: forall i c, Pi i -> Pc c -> Pc (i::c).
   Hypothesis Hasgn: forall x tg ty e, Pr (Cassgn x tg ty e).
   Hypothesis Hopn : forall xs t o es, Pr (Copn xs t o es).
-  Hypothesis Hsyscall : forall xs o es, Pr (Csyscall xs o es).
+  Hypothesis Hsyscall : forall xs o al es, Pr (Csyscall xs o al es).
   Hypothesis Hassert : forall a, Pr (Cassert a).
   Hypothesis Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
@@ -441,7 +441,7 @@ Section CMD_RECT.
     match i return Pr i with
     | Cassgn x tg ty e => Hasgn x tg ty e
     | Copn xs t o es => Hopn xs t o es
-    | Csyscall xs o es => Hsyscall xs o es
+    | Csyscall xs o al es => Hsyscall xs o al es
     | Cassert a => Hassert a
     | Cif e c1 c2  => @Hif e c1 c2 (cmd_rect_aux instr_Rect c1) (cmd_rect_aux instr_Rect c2)
     | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
@@ -819,7 +819,7 @@ Fixpoint write_i_rec s (i:instr_r) :=
   match i with
   | Cassgn x _ _ _  => vrv_rec s x
   | Copn xs _ _ _   => vrvs_rec s xs
-  | Csyscall xs _ _ => vrvs_rec s xs
+  | Csyscall xs _ _ _ => vrvs_rec s xs
   | Cassert _       => s
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
@@ -895,7 +895,7 @@ Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   match i with
   | Cassgn x _ _ e => read_rv_rec (read_e_rec s e) x
   | Copn xs _ _ es => read_es_rec (read_rvs_rec s xs) es
-  | Csyscall xs _ es => read_es_rec (read_rvs_rec s xs) es
+  | Csyscall xs _ _ es => read_es_rec (read_rvs_rec s xs) es
   | Cassert a => read_e_rec s a.2
   | Cif b c1 c2 =>
     let s := foldl read_I_rec s c1 in

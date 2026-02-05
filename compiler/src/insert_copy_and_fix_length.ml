@@ -93,7 +93,7 @@ and iac_instr_r pd loc ir =
     | Sopn.Oasm _, _ -> ir
     end
 
-  | Csyscall(xs, o, es) ->
+  | Csyscall(xs, o, _al, es) ->
     begin match o with
     | Syscall_t.RandomBytes _ ->
       (* Fix the size it is dummy for the moment *)
@@ -102,7 +102,7 @@ and iac_instr_r pd loc ir =
         | [x] -> Typing.ty_lval pd loc x
         | _ -> assert false in
       let ws, len = array_kind_const ty in
-      Csyscall(xs, Syscall_t.RandomBytes (ws, Const len), es)
+      Csyscall(xs, Syscall_t.RandomBytes ws, [Prog.Const len], es)
     end
 
   | Ccall _ | Cassert _ -> ir
