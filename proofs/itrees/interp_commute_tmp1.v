@@ -535,13 +535,44 @@ Proof.
   setoid_rewrite <- delay21_is_ok; reflexivity.
 Qed.  
 
+Lemma permute_join_equiv_aux T (t: itree E T) :
+  eutt eq (interp_mrec
+       (fun (T0 : Type) (d : (D1 +' D2) T0) =>
+        match d with
+        | inl1 a => Hnd1LA a
+        | inr1 b => translate inr1 (Hnd2 b)
+        end) (translate inr1 t))
+    (interp_mrec
+       (fun (T0 : Type) (d : (D2 +' D1) T0) =>
+        match d with
+        | inl1 a => translate inr1 (Hnd2 a)
+        | inr1 b => Hnd1PM b
+        end) (translate inr1 t)).
+Proof.
+  revert t.
+  ginit; gcofix CIH.
+  intros t.
+  setoid_rewrite (itree_eta t).
+  remember (observe t) as ot.
+  destruct ot; simpl.
+  { gstep; red. simpl. econstructor; auto. }
+  { gstep; red. simpl. econstructor; auto.
+    gfinal; left. eapply CIH.
+  }
+  { setoid_rewrite translate_vis.
+    setoid_rewrite unfold_interp_mrec; simpl.
+    gstep; red. econstructor.
+    intro v; unfold id; simpl.
+    gstep; red. econstructor.
+    gfinal; left. eapply CIH.
+  }
+Qed.  
+
+(* our third goal: *)
 Lemma permute_join_equiv T (t: itree (D1 +' D2 +' E) T) :
   eutt eq (interp12LA t) (interp21PM t).
 Proof.
   unfold interp12LA, interp21PM, Hnd12LA, Hnd21PM.
-(*  setoid_rewrite interp_mrec_as_interp.
-  repeat setoid_rewrite interp_translate.
-*)
   revert t.
   ginit; gcofix CIH.
   intros t.
@@ -566,21 +597,11 @@ Proof.
 
       guclo eqit_clo_bind.
       econstructor 1 with (RU := eq).
-
-      set (t0 := Hnd2 d2).
-      set (t1 := (translate inr1 t0)).
-      set (t2 := (translate inr1 t0)).
-      
-      admit.
-
-      intros u1 u2 hh.
-      inv hh.
-      gfinal; left. eapply CIH.
-   (*   eapply eqit_bind'; try reflexivity.
-      setoid_rewrite <- translate_bind.
-      gfinal; left. eapply CIH.          
-      admit.
-    *) 
+      { eapply permute_join_equiv_aux. }
+      { intros u1 u2 hh.
+        inv hh.
+        gfinal; left. eapply CIH.
+      }
     }
     { gstep; red.
       econstructor.
@@ -588,7 +609,21 @@ Proof.
       gstep; red. econstructor.
       gfinal. left. eapply CIH.
     }
-Admitted. 
+  }
+Qed.
+
+(* putting all together: permuting a recursive interpreter depending
+   on a simple one *)
+Lemma permute_DRS_interp_equiv T (t: itree (D1 +' D2 +' E) T) :
+  eutt eq (interp (case_ Hnd2 (id_ E)) (interp1 t)) 
+          (interp_mrec Hnd1no2
+             (interp Hnd2_ext (translate sum_perm_exp t))).
+Proof.
+  setoid_rewrite join12_main.
+  setoid_rewrite join21_main.
+  setoid_rewrite permute_join_equiv; reflexivity.
+Qed.
+
 
 
 (**************************************************************)
