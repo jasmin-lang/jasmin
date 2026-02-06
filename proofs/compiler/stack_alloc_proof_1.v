@@ -7019,7 +7019,7 @@ Lemma fill_fill_mem table rmap vme m0 s1 s2 sr len addr l a :
   exists m2, fill_mem (emem s2) addr l = ok m2.
 Proof.
   move=> hvs hwf ok_addr.
-  rewrite /WArray.fill /fill_mem.
+  rewrite /WArray.fill /WArray.fill_aux /fill_mem.
   t_xrbindP=> /eqP hsize [i {}a] /= hfold _.
 
   have hvp: forall k, 0 <= k < len -> validw (emem s2) Aligned (addr + wrepr _ k)%R U8.

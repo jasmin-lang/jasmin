@@ -152,12 +152,15 @@ Module WArray.
   Definition copy ws p (a:array (Z.to_pos (arr_size ws p))) := 
     fcopy ws a (WArray.empty _) 0 p.
 
-  Definition fill len (l:list u8) : exec (array len) :=
-    Let _ := assert (Pos.to_nat len == size l) ErrType in 
-    Let pt := 
-      foldM (fun w pt =>
-             Let t := set pt.2 Aligned AAscale pt.1 w in
-             ok (pt.1 + 1, t)) (0%Z, empty len) l in
+  Definition fill_aux len : seq u8 → exec (pointer * array len) :=
+    foldM (λ w pt,
+        Let t := set pt.2 Aligned AAscale pt.1 w in
+         ok (pt.1 + 1, t))
+      (0%Z, empty len).
+
+  Definition fill len (bytes: seq u8) : exec (array len) :=
+    Let _ := assert (size bytes == Pos.to_nat len) ErrType in
+    Let pt := fill_aux len bytes in
     ok pt.2.
 
   Definition get_sub_data (aa:arr_access) ws len (a:Mz.t u8) p := 
@@ -411,6 +414,22 @@ Module WArray.
     t_xrbindP => a' w /(uincl_get hu) -> /= ->; apply: hrec.
   Qed.
 
+  Lemma fill_aux_ok len bytes : size bytes ≤ Pos.to_nat len → is_ok (fill_aux len bytes).
+  Proof.
+    move => hsize.
+    have : (0, empty len).1 + Z.of_nat (size bytes) <= len by rewrite /=; lia.
+    clear hsize.
+    have : bytes = [::] ∨ in_bound (0, empty len).2 (0, empty len).1 by right.
+    rewrite /fill_aux; move: (0, empty len).
+    elim: bytes => // b bytes ih [] p t /= [ // | ] hpt.
+    rewrite {2}/set -set_write8 /= /set8 Z.mul_1_r hpt /= => hsize.
+    case/in_boundP: hpt => le0p lept.
+    apply: ih; last by rewrite /=; lia.
+    case: bytes hsize; first by left.
+    move => x bytes /= hsize; right.
+    apply/in_boundP; lia.
+  Qed.
+
   Definition fill_size len l a :
     fill len l = ok a ->
     Pos.to_nat len = size l.
@@ -423,7 +442,7 @@ Module WArray.
         if (0 <=? k) && (k <? len) then ok (nth 0%R l (Z.to_nat k))
         else Error ErrOob.
   Proof.
-    rewrite /fill; t_xrbindP=> /eqP hsize -[z {}a] /= hfold <- k.
+    rewrite /fill /fill_aux; t_xrbindP=> /eqP hsize -[z {}a] /= hfold <- k.
     have: forall z0 a0,
       foldM (fun w pt => Let t := set pt.2 Aligned AAscale pt.1 w in ok (pt.1 + 1, t)) (z0, a0) l = ok (z, a) ->
       read a Aligned k U8 =
@@ -433,7 +452,7 @@ Module WArray.
       last first.
     + move=> /(_ _ _ hfold) ->.
       rewrite Z.sub_0_r get_empty /=.
-      rewrite -hsize positive_nat_Z.
+      rewrite hsize positive_nat_Z.
       by case: andb.
     elim: l {hsize hfold} => [ | w l ih] z0 a0 /=.
     + move=> [_ <-].

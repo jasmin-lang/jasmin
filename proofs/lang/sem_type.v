@@ -148,6 +148,29 @@ Lemma sem_prod_ok_error {T: Type} (tin : seq ctype) (o : sem_prod tin T) e :
   sem_forall (fun et => et <> Error e) tin (sem_prod_ok tin o).
 Proof. by elim: tin o => /= [o | a l hrec o v]; eauto. Qed.
 
+Lemma sem_forall_m {T: Type} (P Q: T → Prop) (tin: seq ctype) (o: sem_prod tin T) :
+  (∀ t, P t → Q t) →
+  sem_forall P tin o →
+  sem_forall Q tin o.
+Proof. move => ?; elim: tin o => // t ts ih o h /= v; exact: ih. Qed.
+
+(* -------------------------------------------------------------------- *)
+Fixpoint collect {A: ctype} (n: nat) : seq (sem_t A) → sem_prod (nseq n A) (seq (sem_t A)) :=
+  match n return seq (sem_t A) → sem_prod (nseq n A) (seq (sem_t A)) with
+  | 0 => rev
+  | S n => λ (acc: seq (sem_t A)) (a : sem_t A), (collect n (a :: acc) : sem_prod (nseq n A) (seq (sem_t A)))
+  end.
+
+Lemma size_collect {A} n acc :
+  sem_forall (λ x, size x = n + size acc) (nseq n A) (collect n acc).
+Proof.
+  elim: n acc.
+  + by move => acc; rewrite /= size_rev.
+  move => n ih acc /= a /=.
+  move: ih => /(_ (a :: acc)) /=.
+  by apply: sem_forall_m => x; rewrite addSnnS.
+Qed.
+
 (* -------------------------------------------------------------------- *)
 
 Notation wmsf := (word msf_size).
@@ -212,3 +235,14 @@ Fixpoint app_sopn A ts : sem_prod ts (exec A) → seq T → exec A :=
   end.
 
 End APP.
+
+(* -------------------------------------------------------------------- *)
+Lemma sem_forall_prod_app {A B} (f: A → B) (P: A → Prop) (Q: B → Prop) tin x :
+  (∀ a, P a → Q (f a)) →
+  sem_forall P tin x →
+  sem_forall Q tin (sem_prod_app x f).
+Proof.
+  move => hpq.
+  elim: tin x; first by move => x; exact: hpq.
+  move => t ts ih o hPo /= v; exact: ih.
+Qed.
