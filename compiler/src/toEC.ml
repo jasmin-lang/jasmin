@@ -242,7 +242,7 @@ let ec_keyword =
  ; "section"
  ; "subtype"
  ; "type"
- ; "class"
+ ; "class" (* No longer a keyword since 2026.02 *)
  ; "instance"
  ; "print"
  ; "search"
