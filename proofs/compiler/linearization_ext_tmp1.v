@@ -1022,96 +1022,163 @@ Definition linear_fd (fd: sfundef) :=
     ; lfd_align_args := sf_align_args e
     |}).
 
-
-Variant LAtom (fn: funname) (n: nat) : Type :=
+Variant LAtom (fn0: funname) (n: nat) : Type :=
 | MkLAtom (ii: instr_info) (i: linstr_r).  
 
-Variant LAtomL (fn: funname) (n: nat) (lbl: label) : Type :=
+Variant LAtomL (fn0: funname) (n: nat) (lbl: label) : Type :=
 | MkLAtomL (ii: instr_info) (l: label_kind). 
 
-Inductive LTree (fn: funname) : nat -> nat -> label -> label -> Type :=
-| LErrLeaf : forall n lbl, LTree n n lbl lbl
-| LLeaf : forall n lbl, LAtom fn n -> LTree n (S n) lbl lbl
-| LLeafL : forall n lbl0,
+Notation lcinfo := (nat * label)%type.
+
+Definition incrLC1 (lc: lcinfo) := (fst lc + 1, snd lc).
+
+Inductive LTree (fn0: funname) : lcinfo -> lcinfo -> Type :=
+| LErrLeaf : forall lc, LTree lc lc
+| LLeaf : forall lc,
+   let n := fst lc in
+   let lbl := snd lc in 
+   LAtom fn0 n -> LTree lc (incrLC1 lc)
+| LLeafL : forall lc,
+   let n0 := fst lc in
+   let lbl0 := snd lc in
    let lbl1 := next_lbl lbl0 in
-   LAtomL fn n lbl0 -> LTree n (S n) lbl0 lbl1
-(* | LIf2Node : forall n0 n1 lbl0 lbl1 
-     (la_cond: LAtom fn n0) (lc2: LTreeList (S n0) n1 lbl0 lbl1),
-   LTree n0 n1 lbl0 lbl1        *)   
-| LIf1Node : forall n0 n1 lbl0 lbl1 
-     (la_cond: LAtom fn n0) (lc1: LTreeList (S n0) n1 lbl0 lbl1),
-   LTree n0 n1 lbl0 lbl1           
-| LIfNode : forall n0 n1 n2 lbl0 lbl1 lbl2,
+   LAtomL fn0 n0 lbl0 -> LTree lc (n0 + 1, lbl1)
+| LIf1Node : forall lc0 lc1,
+   let n0 := fst lc0 in
+   let lbl0 := snd lc0 in
+   let n1 := fst lc1 in
+   let lbl1 := snd lc1 in 
+   forall (la_cond: LAtom fn0 n0) (lcm1: LTreeList (incrLC1 lc0) lc1),
+   LTree lc0 lc1           
+| LIfNode : (* forall n0 n1 n2 lbl0 lbl1 lbl2, *)
+   forall lc0 lc1 lc2,
+   let n0 := fst lc0 in
+   let lbl0 := snd lc0 in
+   let n1 := fst lc1 in
+   let lbl1 := snd lc1 in
+   let n2 := fst lc2 in
+   let lbl2 := snd lc2 in    
    let lbl01 := next_lbl lbl0 in
    let lbl02 := next_lbl lbl01 in
-   forall (la_cond1: LAtom fn n0)
-          (lc2: LTreeList (n0 + 1) n1 lbl1 lbl2)
-          (la_goto2: LAtom fn n1)
-          (la_label1: LAtomL fn (n1 + 1) lbl0)
-          (lc1: LTreeList (n1 + 2) n2 lbl02 lbl1)
-          (la_label2: LAtomL fn n2 lbl01),
-   LTree n0 (S n2) lbl0 lbl2                 
-| LWhileTNode : forall n0 n1 n2 lbl0 lbl1 lbl2 (la_align: bool),
+   forall (la_cond1: LAtom fn0 n0)
+          (lcm2: LTreeList (n0 + 1, lbl1) (n1, lbl2))
+          (la_goto2: LAtom fn0 n1)
+          (la_label1: LAtomL fn0 (n1 + 1) lbl0)
+          (lcm1: LTreeList (n1 + 2, lbl02) (n2, lbl1))
+          (la_label2: LAtomL fn0 n2 lbl01),
+   LTree lc0 (S n2, lbl2)                 
+| LWhileTNode : 
+  (*  forall n0 n1 n2 lbl0 lbl1 lbl2 *)
+   forall lc0 lc1 lc2 (la_align: bool),
+   let n0 := fst lc0 in
+   let lbl0 := snd lc0 in
+   let n1 := fst lc1 in
+   let lbl1 := snd lc1 in
+   let n2 := fst lc2 in
+   let lbl2 := snd lc2 in    
    let n00 := if la_align then n0 else S n0 in  
    let lbl01 := next_lbl lbl0 in
-   forall (la_label1: LAtomL fn n00 lbl0)
-          (lc1: LTreeList (n00 + 1) n1 lbl1 lbl2)
-          (lc2: LTreeList n1 n2 lbl01 lbl1)
-          (la_goto1: LAtom fn n2),
-   LTree n0 (S n2) lbl0 lbl2            
-| LWhileFNode : forall n0 n1 lbl0 lbl1 (lc1: LTreeList n0 n1 lbl0 lbl1),
-   LTree n0 n1 lbl0 lbl1    
-| LWhile1Node : forall n0 n1 lbl0 lbl2 (la_align: bool),
+   forall (la_label1: LAtomL fn0 n00 lbl0)
+          (lcm1: LTreeList (n00 + 1, lbl1) (n1, lbl2))
+          (lcm2: LTreeList (n1, lbl01) (n2, lbl1))
+          (la_goto1: LAtom fn0 n2),
+   LTree (n0, lbl0) (S n2, lbl2)            
+| LWhileFNode : forall lc0 lc1 (lcm1: LTreeList lc0 lc1),
+   LTree lc0 lc1    
+| LWhile1Node : (* forall n0 n1 lbl0 lbl2 *)
+   forall lc0 lc1 (la_align: bool),
+   let n0 := fst lc0 in
+   let lbl0 := snd lc0 in
+   let n1 := fst lc1 in
+   let lbl1 := snd lc1 in
    let n00 := if la_align then n0 else S n0 in  
-   let lbl1 := next_lbl lbl0 in
-   forall (la_label1: LAtomL fn n00 lbl0)
-          (lc1: LTreeList (n00 + 1) n1 lbl1 lbl2)
-          (la_cond1: LAtom fn n1),
-   LTree n0 (S n1) lbl0 lbl2  
-| LWhileNode : forall n0 n1 n2 lbl0 lbl1 lbl2 (la_align: bool),
+   let lbl01 := next_lbl lbl0 in
+   forall (la_label1: LAtomL fn0 n00 lbl0)
+          (lcm1: LTreeList (n00 + 1, lbl01) (n1, lbl1))
+          (la_cond1: LAtom fn0 n1),
+   LTree lc0 (incrLC1 lc1)  
+| LWhileNode : (* forall n0 n1 n2 lbl0 lbl1 lbl2 (la_align: bool), *)
+   forall lc0 lc1 lc2 (la_align: bool),
+   let n0 := fst lc0 in
+   let lbl0 := snd lc0 in
+   let n1 := fst lc1 in
+   let lbl1 := snd lc1 in
+   let n2 := fst lc2 in
+   let lbl2 := snd lc2 in      
    let n01 := if la_align then n0 else S n0 in  
    let lbl01 := next_lbl lbl0 in
    let lbl02 := next_lbl lbl01 in
-   forall (la_goto1: LAtom fn n0)
-          (la_label2: LAtomL fn (n01 + 1) lbl01)
-          (lc2: LTreeList (n01 + 2) n1 lbl1 lbl2)
-          (la_label1: LAtomL fn n1 lbl0)
-          (lc1: LTreeList (n1 + 1) n2 lbl02 lbl1)
-          (la_cond2: LAtom fn n2),
-   LTree n0 (S n2) lbl0 lbl2  
-| LCallNode : forall n0 n1 n2 lbl0,
+   forall (la_goto1: LAtom fn0 n0)
+          (la_label2: LAtomL fn0 (n01 + 1) lbl01)
+          (lcm2: LTreeList (n01 + 2, lbl1) (n1, lbl2))
+          (la_label1: LAtomL fn0 n1 lbl0)
+          (lcm1: LTreeList (n1 + 1, lbl02) (n2, lbl1))
+          (la_cond2: LAtom fn0 n2),
+   LTree lc0 (incrLC1 lc2)  
+| LCallNode : forall lc0 n1 n2,
+   let n0 := fst lc0 in
+   let lbl0 := snd lc0 in
    let lbl1 := next_lbl lbl0 in
    forall (fn': funname)
-          (la_before: LTreeList n0 n1 lbl0 lbl0)
-          (la_call: LAtom fn n1)
-          (la_ret: LAtomL fn (n1 + 1) lbl0)
-          (la_after: LTreeList (n1 + 2) n2 lbl0 lbl0),
-   LTree n0 n2 lbl0 lbl1        
-with LTreeList (fn: funname) : nat -> nat -> label -> label -> Type := 
-| LListNil : forall n lbl, LTreeList n n lbl lbl
-| LListCons : forall n0 n1 n2 lbl0 lbl1 lbl2,
-    LTree n0 n1 lbl1 lbl2 -> LTreeList n1 n2 lbl0 lbl1 ->
-    LTreeList n0 n2 lbl0 lbl2.
+          (la_before: LTreeList lc0 (n1, lbl0))
+          (la_call: LAtom fn0 n1)
+          (la_ret: LAtomL fn0 (n1 + 1) lbl0)
+          (la_after: LTreeList (n1 + 2, lbl0) (n2, lbl0)),
+   LTree lc0 (n2, lbl1)        
+with LTreeList (fn0: funname) : lcinfo -> lcinfo -> Type := 
+| LListNil : forall lc, LTreeList lc lc
+| LListCons : forall lc0 lc1 lc2,
+   let n0 := fst lc0 in
+   let lbl0 := snd lc0 in
+   let n1 := fst lc1 in
+   let lbl1 := snd lc1 in
+   let n2 := fst lc2 in
+   let lbl2 := snd lc2 in    
+(*  forall n0 n1 n2 lbl0 lbl1 lbl2, *)
+    LTree (n0, lbl1) (n1, lbl2) -> LTreeList (n1, lbl0) (n2, lbl1) ->
+    LTreeList lc0 lc2.
 
 (*
-Fixpoint interm_i (fn: funname) (i:instr) (n0: nat) (lbl: label) :
-  LTree fn n0 lbl :=
+Fixpoint interm_i (fn0: funname) (i:instr) (pl0: lcinfo) :
+  sigT (fun pl1 => LTree fn0 pl0 pl1) :=
+  let '(n0, lbl) := pl0 in 
+  let (ii, ir) := i in
+  existT _ pl0 (LErrLeaf fn0 pl0).
+
+Proof.
+  destruct i as [ii ir].
+  econstructor.
+  instantiate (1:= pl0).
+  exact (LErrLeaf fn0 pl0).
+  Show Proof.
+*)
+
+Fixpoint interm_i (fn0: funname) (i:instr) (pl0: lcinfo) :
+  sigT (fun pl1 => LTree fn0 pl0 pl1) :=
+(*  let '(n0, lbl) := pl0 in *)
   let (ii, ir) := i in
   match ir with
-  | Cassgn _ _ _ _ => LErrLeaf fn n0 lbl (* absurd case *)
+  | Cassgn _ _ _ _ =>
+      existT _ pl0 (LErrLeaf fn0 pl0)  (* absurd case *)
   | Copn xs _ o es =>
       match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
       | Some xs, Some es =>
-          LLeaf fn n0 lbl (MkLAtom fn n0 ii (Lopn xs o es))
+          let atm := MkLAtom fn0 (fst pl0) ii (Lopn xs o es) in 
+          existT _ (incrLC1 pl0) (LLeaf atm)
    (*       (lbl, MkLI ii (Lopn xs o es) :: lc) *)
-      | _, _ => LErrLeaf fn n0 lbl (* absurd case *)
+      | _, _ =>
+          existT _ pl0 (LErrLeaf fn0 pl0) (* absurd case *)
       end
-
+        
   | Csyscall xs o es =>
-       LLeaf fn n0 lbl (MkLAtom fn n0 ii (Lsyscall o))
+    let atm := MkLAtom fn0 (fst pl0) ii (Lsyscall o) in 
+    existT _ (incrLC1 pl0) (LLeaf atm)
+     (*  LLeaf fn n0 lbl (MkLAtom fn n0 ii (Lsyscall o)) *)
       (* (lbl, MkLI ii (Lsyscall o) :: lc) *)
+           
+  | _ => existT _ pl0 (LErrLeaf fn0 pl0) end.
 
-*)
+       
 
 (*
 Variant LAtom : Type :=
