@@ -1139,7 +1139,11 @@ with LTreeList (fn0: funname) : plinfo -> plinfo -> Type :=
 | LListCons : forall pl0 pl1 pl2,
     LTree pl0 pl1 -> LTreeList pl1 pl2 -> LTreeList pl0 pl2.
 
-Fixpoint interm_cmd
+Scheme LTree_mut := Induction for LTree Sort Type
+with LTreeList_mut := Induction for LTreeList Sort Type.
+
+
+Fixpoint interm_cmd_aux
   (LI: forall (fn0: funname) (i: instr) (pl0: plinfo),
       sigT (fun pl1 => LTree fn0 pl0 pl1))
   (fn0: funname) (cc: cmd) (pl0: plinfo) :
@@ -1151,16 +1155,19 @@ Fixpoint interm_cmd
            let: (n0, lbl0) := pl0 in
            let X1 := LI fn0 i pl0 in
            let pl1 := projT1 X1 in
-           let X2 := interm_cmd LI fn0 cc0 pl1 in
+           let X2 := interm_cmd_aux LI fn0 cc0 pl1 in
            let: pl2 := projT1 X2 in 
            existT _ pl2 (@LListCons fn0 pl0 pl1 pl2  
                                     (projT2 X1) (projT2 X2)) end.
 
 Fixpoint interm_i
-  (LC: forall (fn0: funname) (c: cmd) (pl0: plinfo),
-      sigT (fun pl1 => LTreeList fn0 pl0 pl1))
+(*  (LC: forall (fn0: funname) (c: cmd) (pl0: plinfo),
+      sigT (fun pl1 => LTreeList fn0 pl0 pl1)) *)
   (fn0: funname) (i: instr) (pl0: plinfo) :
   sigT (fun pl1 => LTree fn0 pl0 pl1) :=
+  let LC: forall (fn0: funname) (c: cmd) (pl0: plinfo),
+      sigT (fun pl1 => LTreeList fn0 pl0 pl1) :=
+      interm_cmd_aux interm_i in                                                
   let (ii, ir) := i in
   match ir with
   | Cassgn _ _ _ _ =>
@@ -1311,6 +1318,10 @@ Fixpoint interm_i
 
   | _ => existT _ pl0 (LErrLeaf fn0 pl0)   (* absurd case, no for loops *)
   end.
+
+Definition interm_cmd (fn0: funname) (cc: cmd) (pl0: plinfo) :
+  sigT (fun pl1 => LTreeList fn0 pl0 pl1) :=
+  interm_cmd_aux interm_i fn0 cc pl0.
 
 
 (*
