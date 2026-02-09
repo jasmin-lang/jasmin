@@ -678,6 +678,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
   | Cassgn _ _ _ _ => (lbl, lc) (* absurd case *)
+
   | Copn xs _ o es =>
       match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
       | Some xs, Some es => (lbl, MkLI ii (Lopn xs o es) :: lc)
@@ -689,12 +690,14 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Cif e [::] c2 =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
-    MkLI ii (Lcond (to_fexpr e) L1) >; linear_c linear_i c2 lbl (MkLI ii (Llabel L1) :: lc)
+    MkLI ii (Lcond (to_fexpr e) L1) >;
+      linear_c linear_i c2 lbl (MkLI ii (Llabel L1) :: lc)
 
   | Cif e c1 [::] =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
-    MkLI ii (Lcond (to_fexpr (snot e)) L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L1) :: lc)
+    MkLI ii (Lcond (to_fexpr (snot e)) L1) >;
+      linear_c linear_i c1 lbl (MkLI ii (Llabel L1) :: lc)
 
   | Cif e c1 c2 =>
     let L1 := lbl in
@@ -745,8 +748,10 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       else
         let sz := stack_frame_allocation_size e in
         let tmp := tmpi_of_ra ra in
-        let before := allocate_stack_frame false ii sz tmp (is_RAstack_None_call ra) in
-        let after := allocate_stack_frame true ii sz tmp (is_RAstack_None_return ra) in
+        let Before := allocate_stack_frame false ii sz tmp
+                        (is_RAstack_None_call ra) in
+        let After := allocate_stack_frame true ii sz tmp
+                        (is_RAstack_None_return ra) in
         let lret := lbl in
         let lbl := next_lbl lbl in
         (* The test is used for the proof of linear_has_valid_labels *)
@@ -760,13 +765,14 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
            * 4. Free stack frame.
            * 5. Continue.
            *)
-        (lbl,    before
+        (lbl, Before
               ++ MkLI ii (Lcall (ovari_of_ra ra) lcall)
               :: MkLI ii (ReturnTarget lret)
-              :: after
+              :: After
               ++ lc
           )
     else (lbl, lc )
+
   | Cfor _ _ _ => (lbl, lc)
   end.
 
@@ -776,6 +782,7 @@ Fixpoint linear_end_i (fn: funname) (i:instr) (n0: nat) : nat :=
   let (ii, ir) := i in
   match ir with
   | Cassgn _ _ _ _ => n0 (* absurd case *)
+
   | Copn xs _ o es =>
       match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
       | Some xs, Some es => S n0
@@ -785,31 +792,35 @@ Fixpoint linear_end_i (fn: funname) (i:instr) (n0: nat) : nat :=
   | Csyscall xs o es => S n0
                           
   | Cif e [::] c2 =>
-      let n2 := linear_end_c linear_end_i fn c2 (S n0) in S n2
+      let n1 := linear_end_c linear_end_i fn c2 (S n0) in S n1
 
   | Cif e c1 [::] =>
-      let n2 := linear_end_c linear_end_i fn c1 (S n0) in S n2
+      let n1 := linear_end_c linear_end_i fn c1 (S n0) in S n1
         
   | Cif e c1 c2 =>
-      let n3 := linear_end_c linear_end_i fn c2 (S n0) in
-      let n4 := linear_end_c linear_end_i fn c1 (S (S n3)) in S n4
+      let n1 := linear_end_c linear_end_i fn c2 (S n0) in
+      let n2 := linear_end_c linear_end_i fn c1 (S (S n1)) in S n2
         
   | Cwhile a c e _ c' =>
+   let aI := match a with
+             | NoAlign => 0
+             | Align => 1
+             end in             
     match is_bool e with
     | Some true =>
-      let n3 := linear_end_c linear_end_i fn c (S n0) in
-      let n4 := linear_end_c linear_end_i fn c' n3 in S n4
+      let n1 := linear_end_c linear_end_i fn c (S n0 + aI) in
+      let n2 := linear_end_c linear_end_i fn c' n1 in S n2
 
     | Some false => linear_end_c linear_end_i fn c n0
                               
     | None =>
       match c' with
       | [::] =>
-          let n3 := linear_end_c linear_end_i fn c (S n0) in S n3
+          let n3 := linear_end_c linear_end_i fn c (S n0 + aI) in S n3
                                                          
       | _ =>
-         let n3 := linear_end_c linear_end_i fn c' (S n0) in
-         let n4 := linear_end_c linear_end_i fn c (S n3) in S n4
+         let n1 := linear_end_c linear_end_i fn c' (S n0 + aI + 1) in
+         let n2 := linear_end_c linear_end_i fn c (S n1) in S n2
       end
     end     
            
@@ -818,7 +829,13 @@ Fixpoint linear_end_i (fn: funname) (i:instr) (n0: nat) : nat :=
       let e := f_extra fd in
       let ra := sf_return_address e in
       if is_RAnone ra then n0
-      else S n0
+      else
+        let sz := stack_frame_allocation_size e in
+        let tmp := tmpi_of_ra ra in
+        let before := allocate_stack_frame false ii sz tmp
+                        (is_RAstack_None_call ra) in
+        let bn := List.length before in 
+        n0 + 2 * (bn + 1)
     else n0 
            
   | Cfor _ _ _ => n0
@@ -875,11 +892,11 @@ Fixpoint linear_full_i (fn: funname) (i:instr) (n0: nat) (lbl0:label) :
     match is_bool e with
     | Some true =>
       let lbl1 := next_lbl lbl0 in
-      let '(n3, lbl3, lc2) :=
+      let '(n2, lbl2, lc2) :=
         linear_full_c linear_full_i fn c (S n0) lbl1 in
-      let '(n4, lbl4, lc1) :=
-        linear_full_c linear_full_i fn c' n3 lbl3 in
-      (S n4, lbl4,  
+      let '(n3, lbl3, lc1) :=
+        linear_full_c linear_full_i fn c' n2 lbl2 in
+      (S n3, lbl3,  
        (add_align ii a ((MkLI ii (Llabel lbl0)) :: (lc2 ++ lc1 ++
                              [:: (MkLI ii (Lgoto (fn, lbl0)))]))))
 
@@ -890,9 +907,9 @@ Fixpoint linear_full_i (fn: funname) (i:instr) (n0: nat) (lbl0:label) :
       match c' with
       | [::] =>
          let lbl1 := next_lbl lbl0 in
-         let '(n3, lbl3, lc2) :=
+         let '(n2, lbl2, lc2) :=
            linear_full_c linear_full_i fn c (S n0) lbl1 in
-         (S n3, lbl3, add_align ii a (MkLI ii (Llabel lbl0) ::
+         (S n2, lbl2, add_align ii a (MkLI ii (Llabel lbl0) ::
                           (lc2 ++ 
                              [:: (MkLI ii (Lcond (to_fexpr e) lbl0))])))
       | _ =>
@@ -910,34 +927,38 @@ Fixpoint linear_full_i (fn: funname) (i:instr) (n0: nat) (lbl0:label) :
     end     
            
   | Ccall xs fn' es =>
-    if get_fundef (p_funcs p) fn' is Some fd then
+    if get_fundef (p_funcs p) fn' is Some fd
+    then
       let e := f_extra fd in
       let ra := sf_return_address e in
-      if is_RAnone ra then (n0, lbl0, nil)
+      if is_RAnone ra
+      then (n0, lbl0, nil)
       else
         let sz := stack_frame_allocation_size e in
         let tmp := tmpi_of_ra ra in
-        let before :=
+        let Before :=
           allocate_stack_frame false ii sz tmp (is_RAstack_None_call ra) in
-        let after :=
+        let After :=
           allocate_stack_frame true ii sz tmp (is_RAstack_None_return ra) in
       (*  let lret := lbl0 in *)
         let lbl1 := next_lbl lbl0 in
         (* The test is used for the proof of linear_has_valid_labels *)
-        let lcall := (fn', if fn' == fn
+      (*  let lcall := (fn', if fn' == fn
                            then lbl0    (* Absurd case. *)
                            else xH      (* Entry point. *)
-                     ) in
+                     ) in *)
+        let lcall := (fn', xH) in
         (* * 1. Allocate stack frame.
            * 2. Call callee
            * 3. Insert return label (callee will jump back here).
            * 4. Free stack frame.
            * 5. Continue.
            *)
-        (S n0, lbl1, before
+        let n1 := List.length Before in
+        (n0 + 2 * (n1 + 1), lbl1, Before
               ++ MkLI ii (Lcall (ovari_of_ra ra) lcall)
               :: MkLI ii (ReturnTarget lbl0)
-              :: after
+              :: After
           )
     else (n0, lbl0, nil)
            
@@ -1022,124 +1043,316 @@ Definition linear_fd (fd: sfundef) :=
     ; lfd_align_args := sf_align_args e
     |}).
 
-Variant LAtom (fn0: funname) (n: nat) : Type :=
-| MkLAtom (ii: instr_info) (i: linstr_r).  
 
-Variant LAtomL (fn0: funname) (n: nat) (lbl: label) : Type :=
+Notation plinfo := (nat * label)%type.
+
+Variant LAtomL (fn: funname) (lbl: label) : Type :=
 | MkLAtomL (ii: instr_info) (l: label_kind). 
 
-Notation lcinfo := (nat * label)%type.
+Definition incrP1 (pl: plinfo) := (S (fst pl), snd pl).
 
-Definition incrLC1 (lc: lcinfo) := (fst lc + 1, snd lc).
+Definition does_align (ii: instr_info) (a: expr.align) : bool :=
+  match a with | NoAlign => false | Align => true end.
 
-Inductive LTree (fn0: funname) : lcinfo -> lcinfo -> Type :=
-| LErrLeaf : forall lc, LTree lc lc
-| LLeaf : forall lc,
-   let n := fst lc in
-   let lbl := snd lc in 
-   LAtom fn0 n -> LTree lc (incrLC1 lc)
-| LLeafL : forall lc,
-   let n0 := fst lc in
-   let lbl0 := snd lc in
+Inductive LTree (fn0: funname) : plinfo -> plinfo -> Type :=
+| LErrLeaf : forall pl, LTree pl pl
+| LLeaf : forall pl,
+   linstr -> LTree pl (incrP1 pl)
+| LLeafL : forall pl,
+   let n0 := fst pl in
+   let lbl0 := snd pl in
    let lbl1 := next_lbl lbl0 in
-   LAtomL fn0 n0 lbl0 -> LTree lc (n0 + 1, lbl1)
-| LIf1Node : forall lc0 lc1,
-   let n0 := fst lc0 in
-   let lbl0 := snd lc0 in
-   let n1 := fst lc1 in
-   let lbl1 := snd lc1 in 
-   forall (la_cond: LAtom fn0 n0) (lcm1: LTreeList (incrLC1 lc0) lc1),
-   LTree lc0 lc1           
-| LIfNode : (* forall n0 n1 n2 lbl0 lbl1 lbl2, *)
-   forall lc0 lc1 lc2,
-   let n0 := fst lc0 in
-   let lbl0 := snd lc0 in
-   let n1 := fst lc1 in
-   let lbl1 := snd lc1 in
-   let n2 := fst lc2 in
-   let lbl2 := snd lc2 in    
+   LAtomL fn0 lbl0 -> LTree pl (S n0, lbl1)
+| LIf1Node : forall pl0 pl1,
+   let n0 := fst pl0 in
+   let lbl0 := snd pl0 in
+   let lbl01 := next_lbl lbl0 in
+   forall (la_cond: linstr)
+          (lcm1: LTreeList (S n0, lbl01) pl1)
+          (la_label1: LAtomL fn0 lbl0),
+   LTree pl0 (incrP1 pl1)           
+| LIfNode : forall pl0 pl1 pl2,
+   let n0 := fst pl0 in
+   let lbl0 := snd pl0 in
    let lbl01 := next_lbl lbl0 in
    let lbl02 := next_lbl lbl01 in
-   forall (la_cond1: LAtom fn0 n0)
-          (lcm2: LTreeList (n0 + 1, lbl1) (n1, lbl2))
-          (la_goto2: LAtom fn0 n1)
-          (la_label1: LAtomL fn0 (n1 + 1) lbl0)
-          (lcm1: LTreeList (n1 + 2, lbl02) (n2, lbl1))
-          (la_label2: LAtomL fn0 n2 lbl01),
-   LTree lc0 (S n2, lbl2)                 
-| LWhileTNode : 
-  (*  forall n0 n1 n2 lbl0 lbl1 lbl2 *)
-   forall lc0 lc1 lc2 (la_align: bool),
-   let n0 := fst lc0 in
-   let lbl0 := snd lc0 in
-   let n1 := fst lc1 in
-   let lbl1 := snd lc1 in
-   let n2 := fst lc2 in
-   let lbl2 := snd lc2 in    
-   let n00 := if la_align then n0 else S n0 in  
+   let n1 := fst pl1 in
+   let lbl1 := snd pl1 in
+   forall (la_cond1: linstr)
+          (lcm2: LTreeList (S n0, lbl02) pl1)
+          (la_goto2: linstr)
+          (la_label1: LAtomL fn0 lbl0)
+          (lcm1: LTreeList (S (S n1), lbl1) pl2)
+          (la_label2: LAtomL fn0 lbl01),
+   LTree pl0 (incrP1 pl2)                  
+| LWhileTNode : forall pl0 pl1 pl2 (la_align: bool), 
+   let n0 := fst pl0 in
+   let lbl0 := snd pl0 in
+   let n00 := if la_align then S n0 else n0 in  
    let lbl01 := next_lbl lbl0 in
-   forall (la_label1: LAtomL fn0 n00 lbl0)
-          (lcm1: LTreeList (n00 + 1, lbl1) (n1, lbl2))
-          (lcm2: LTreeList (n1, lbl01) (n2, lbl1))
-          (la_goto1: LAtom fn0 n2),
-   LTree (n0, lbl0) (S n2, lbl2)            
-| LWhileFNode : forall lc0 lc1 (lcm1: LTreeList lc0 lc1),
-   LTree lc0 lc1    
-| LWhile1Node : (* forall n0 n1 lbl0 lbl2 *)
-   forall lc0 lc1 (la_align: bool),
-   let n0 := fst lc0 in
-   let lbl0 := snd lc0 in
-   let n1 := fst lc1 in
-   let lbl1 := snd lc1 in
-   let n00 := if la_align then n0 else S n0 in  
+   forall (la_label1: LAtomL fn0 lbl0)
+          (lcm1: LTreeList (S n00, lbl01) pl1)
+          (lcm2: LTreeList pl1 pl2)
+          (la_goto1: linstr),
+   LTree pl0 (incrP1 pl2)            
+| LWhileFNode : forall pl0 pl1 (lcm1: LTreeList pl0 pl1),
+   LTree pl0 pl1    
+| LWhile1Node : forall pl0 pl1 (la_align: bool),
+   let n0 := fst pl0 in
+   let lbl0 := snd pl0 in
+   let n00 := if la_align then S n0 else n0 in  
    let lbl01 := next_lbl lbl0 in
-   forall (la_label1: LAtomL fn0 n00 lbl0)
-          (lcm1: LTreeList (n00 + 1, lbl01) (n1, lbl1))
-          (la_cond1: LAtom fn0 n1),
-   LTree lc0 (incrLC1 lc1)  
-| LWhileNode : (* forall n0 n1 n2 lbl0 lbl1 lbl2 (la_align: bool), *)
-   forall lc0 lc1 lc2 (la_align: bool),
-   let n0 := fst lc0 in
-   let lbl0 := snd lc0 in
-   let n1 := fst lc1 in
-   let lbl1 := snd lc1 in
-   let n2 := fst lc2 in
-   let lbl2 := snd lc2 in      
-   let n01 := if la_align then n0 else S n0 in  
+   let n1 := fst pl1 in
+   let lbl1 := snd pl1 in
+   forall (la_label1: LAtomL fn0 lbl0)
+          (lcm1: LTreeList (S n00, lbl01) pl1)
+          (la_cond1: linstr),
+   LTree pl0 (incrP1 pl1)  
+| LWhileNode : forall pl0 pl1 pl2 (la_align: bool),
+   let n0 := fst pl0 in
+   let lbl0 := snd pl0 in
+   let n00 := if la_align then S n0 else n0 in  
    let lbl01 := next_lbl lbl0 in
    let lbl02 := next_lbl lbl01 in
-   forall (la_goto1: LAtom fn0 n0)
-          (la_label2: LAtomL fn0 (n01 + 1) lbl01)
-          (lcm2: LTreeList (n01 + 2, lbl1) (n1, lbl2))
-          (la_label1: LAtomL fn0 n1 lbl0)
-          (lcm1: LTreeList (n1 + 1, lbl02) (n2, lbl1))
-          (la_cond2: LAtom fn0 n2),
-   LTree lc0 (incrLC1 lc2)  
-| LCallNode : forall lc0 n1 n2,
-   let n0 := fst lc0 in
-   let lbl0 := snd lc0 in
+   let n1 := fst pl1 in
+   let lbl1 := snd pl1 in
+   forall (la_goto1: linstr)
+          (la_label2: LAtomL fn0 lbl01)
+          (lcm2: LTreeList (S (S n00), lbl02) pl1)
+          (la_label1: LAtomL fn0 lbl0)
+          (lcm1: LTreeList (S n1, lbl1) pl2)
+          (la_cond2: linstr),
+   LTree pl0 (incrP1 pl2)  
+| LCallNode : forall pl0 nb na,
+   let n0 := fst pl0 in
+   let lbl0 := snd pl0 in
    let lbl1 := next_lbl lbl0 in
+   let n1 := n0 + nb in
+   let n2 := S n1 in 
    forall (fn': funname)
-          (la_before: LTreeList lc0 (n1, lbl0))
-          (la_call: LAtom fn0 n1)
-          (la_ret: LAtomL fn0 (n1 + 1) lbl0)
-          (la_after: LTreeList (n1 + 2, lbl0) (n2, lbl0)),
-   LTree lc0 (n2, lbl1)        
-with LTreeList (fn0: funname) : lcinfo -> lcinfo -> Type := 
-| LListNil : forall lc, LTreeList lc lc
-| LListCons : forall lc0 lc1 lc2,
-   let n0 := fst lc0 in
-   let lbl0 := snd lc0 in
-   let n1 := fst lc1 in
-   let lbl1 := snd lc1 in
-   let n2 := fst lc2 in
-   let lbl2 := snd lc2 in    
-(*  forall n0 n1 n2 lbl0 lbl1 lbl2, *)
-    LTree (n0, lbl1) (n1, lbl2) -> LTreeList (n1, lbl0) (n2, lbl1) ->
-    LTreeList lc0 lc2.
+          (la_before la_after: lcmd),
+     forall (la_call: linstr)
+            (la_ret: LAtomL fn0 lbl0),
+     LTree pl0 (n2 + na, lbl1)        
+with LTreeList (fn0: funname) : plinfo -> plinfo -> Type := 
+| LListNil : forall pl, LTreeList pl pl
+| LListCons : forall pl0 pl1 pl2,
+    LTree pl0 pl1 -> LTreeList pl1 pl2 -> LTreeList pl0 pl2.
+
+Fixpoint interm_cmd
+  (LI: forall (fn0: funname) (i: instr) (pl0: plinfo),
+      sigT (fun pl1 => LTree fn0 pl0 pl1))
+  (fn0: funname) (cc: cmd) (pl0: plinfo) :
+  sigT (fun pl1 => LTreeList fn0 pl0 pl1) :=
+       match cc with
+       | nil =>   
+          existT _ pl0 (LListNil fn0 pl0)
+       | i :: cc0 =>
+           let: (n0, lbl0) := pl0 in
+           let X1 := LI fn0 i pl0 in
+           let pl1 := projT1 X1 in
+           let X2 := interm_cmd LI fn0 cc0 pl1 in
+           let: pl2 := projT1 X2 in 
+           existT _ pl2 (@LListCons fn0 pl0 pl1 pl2  
+                                    (projT2 X1) (projT2 X2)) end.
+
+Fixpoint interm_i
+  (LC: forall (fn0: funname) (c: cmd) (pl0: plinfo),
+      sigT (fun pl1 => LTreeList fn0 pl0 pl1))
+  (fn0: funname) (i: instr) (pl0: plinfo) :
+  sigT (fun pl1 => LTree fn0 pl0 pl1) :=
+  let (ii, ir) := i in
+  match ir with
+  | Cassgn _ _ _ _ =>
+      existT _ pl0 (LErrLeaf fn0 pl0)  (* absurd case *)
+             
+  | Copn xs _ o es =>
+      match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
+      | Some xs, Some es =>
+          let atm := MkLI ii (Lopn xs o es) in 
+          existT _ (incrP1 pl0) (LLeaf fn0 pl0 atm)
+      | _, _ =>
+          existT _ pl0 (LErrLeaf fn0 pl0) (* absurd case *)
+      end
+        
+  | Csyscall xs o es =>
+    let atm := MkLI ii (Lsyscall o) in 
+    existT _ (incrP1 pl0) (LLeaf fn0 pl0 atm)
+
+  | Cif e [::] c2 =>
+    let n0 := fst pl0 in
+    let lbl0 := snd pl0 in
+    let lbl01 := next_lbl lbl0 in
+    let A1 := MkLI ii (Lcond (to_fexpr e) lbl0) in
+    let X1 := LC fn0 c2 (S n0, lbl01) in
+    let pl1 := projT1 X1 in
+    let A2 := MkLAtomL fn0 lbl0 ii InternalLabel in 
+    existT _ (incrP1 pl1) (@LIf1Node fn0 pl0 pl1 A1 (projT2 X1) A2)
+           
+  | Cif e c1 [::] =>
+    let n0 := fst pl0 in
+    let lbl0 := snd pl0 in
+    let lbl01 := next_lbl lbl0 in
+    let A1 := MkLI ii (Lcond (to_fexpr e) lbl0) in
+    let X1 := LC fn0 c1 (S n0, lbl01) in
+    let pl1 := projT1 X1 in
+    let A2 := MkLAtomL fn0 lbl0 ii InternalLabel in 
+    existT _ (incrP1 pl1) (@LIf1Node fn0 pl0 pl1 A1 (projT2 X1) A2)
+
+  | Cif e c1 c2 =>
+    let n0 := fst pl0 in
+    let lbl0 := snd pl0 in
+    let lbl01 := next_lbl lbl0 in
+    let lbl02 := next_lbl lbl01 in
+    let A1 := MkLI ii (Lcond (to_fexpr e) lbl0) in
+    let X2 := LC fn0 c2 (S n0, lbl02) in
+    let pl1 := projT1 X2 in
+    let n1 := fst pl1 in
+    let lbl1 := snd pl1 in
+    let A2 := MkLI ii (Lgoto (fn0, lbl1)) in
+    let A3 := MkLAtomL fn0 lbl0 ii InternalLabel in 
+    let X1 := LC fn0 c1 (S (S n1), lbl1) in
+    let pl2 := projT1 X1 in
+    let A4 := MkLAtomL fn0 lbl01 ii InternalLabel in 
+    existT _ (incrP1 pl2) (@LIfNode fn0 pl0 pl1 pl2 A1
+                             (projT2 X2) A2 A3 (projT2 X1) A4)
+
+  | Cwhile a c1 e _ c2 =>
+  let n0 := fst pl0 in
+(*  let lbl0 := snd pl0 in
+    let la_align := does_align ii a in
+    let n00 := if la_align then n0 else S n0 in  *)
+    match is_bool e with
+    | Some true =>
+      let n0 := fst pl0 in
+      let lbl0 := snd pl0 in
+      let la_align := does_align ii a in
+      let n00 := if la_align then S n0 else n0 in 
+      
+      let lbl01 := next_lbl lbl0 in
+      let A1 := MkLAtomL fn0 lbl0 ii InternalLabel in 
+      let X1 := LC fn0 c1 (S n00, lbl01) in
+      let pl1 := projT1 X1 in
+      let X2 := LC fn0 c2 pl1 in
+      let pl2 := projT1 X2 in
+      let A2 := MkLI ii (Lgoto (fn0, lbl0)) in
+      existT _ (incrP1 pl2) (@LWhileTNode fn0 pl0 pl1 pl2 la_align
+                               A1 (projT2 X1) (projT2 X2) A2)
+    | Some false =>        
+      let X1 := LC fn0 c1 pl0 in
+      let pl1 := projT1 X1 in   
+      existT _ pl1 (@LWhileFNode fn0 pl0 pl1 (projT2 X1))
+             
+    | None =>
+      match c2 with
+      | [::] =>  
+        let n0 := fst pl0 in
+        let lbl0 := snd pl0 in
+        let la_align := does_align ii a in
+        let n00 := if la_align then S n0 else n0 in 
+
+        let lbl01 := next_lbl lbl0 in
+        let A1 := MkLAtomL fn0 lbl0 ii InternalLabel in 
+        let X1 := LC fn0 c1 (S n00, lbl01) in
+        let pl1 := projT1 X1 in       
+        let A2 := MkLI ii (Lcond (to_fexpr e) lbl0) in
+        existT _ (incrP1 pl1) (@LWhile1Node fn0 pl0 pl1 la_align
+                                 A1 (projT2 X1) A2)
+
+      | _ =>
+        let n0 := fst pl0 in
+        let lbl0 := snd pl0 in
+        let la_align := does_align ii a in
+        let n00 := if la_align then S n0 else n0 in 
+          
+        let lbl01 := next_lbl lbl0 in
+        let lbl02 := next_lbl lbl01 in
+        let A1 := MkLI ii (Lgoto (fn0, lbl0)) in
+        let A2 := MkLAtomL fn0 lbl01 ii InternalLabel in 
+        let X2 := LC fn0 c2 (S (S n00), lbl02) in
+        let pl1 := projT1 X2 in
+        let A3 := MkLAtomL fn0 lbl0 ii InternalLabel in 
+        let X1 := LC fn0 c1 (incrP1 pl1) in
+        let pl2 := projT1 X1 in
+        let A4 := MkLI ii (Lcond (to_fexpr e) lbl0) in
+        existT _ (incrP1 pl2) (@LWhileNode fn0 pl0 pl1 pl2 la_align
+                               A1 A2 (projT2 X2) A3 (projT2 X1) A4)
+     end                                                                    
+    end
+
+  | Ccall xs fn' es =>
+    let n0 := fst pl0 in
+    let lbl0 := snd pl0 in
+    let lbl1 := next_lbl lbl0 in
+
+    if get_fundef (p_funcs p) fn' is Some fd
+    then
+      let e := f_extra fd in
+      let ra := sf_return_address e in
+      if is_RAnone ra
+      then existT _ pl0 (LErrLeaf fn0 pl0)  (* absurd case *)
+      else
+        let sz := stack_frame_allocation_size e in
+        let tmp := tmpi_of_ra ra in
+        let Before :=
+          allocate_stack_frame false ii sz tmp (is_RAstack_None_call ra) in
+        let After :=
+          allocate_stack_frame true ii sz tmp (is_RAstack_None_return ra) in
+        let lcall := (fn', xH) in
+        let nb := List.length Before in
+        let na := List.length After in
+        let n1 := n0 + nb in
+        let n2 := S n1 + na in 
+        let A1 := MkLI ii (Lcall (ovari_of_ra ra) lcall) in
+        let A2 := MkLAtomL fn0 lbl0 ii ExternalLabel in 
+        existT _ (n2, lbl1) (@LCallNode fn0 pl0 nb na fn' Before After A1 A2)   
+        
+    else existT _ pl0 (LErrLeaf fn0 pl0)  (* absurd case *)
+
+  | _ => existT _ pl0 (LErrLeaf fn0 pl0)   (* absurd case, no for loops *)
+  end.
+
 
 (*
-Fixpoint interm_i (fn0: funname) (i:instr) (pl0: lcinfo) :
+Fixpoint interm_i (fn0: funname) (i: instr) (pl0: plinfo) :
+  sigT (fun pl1 => LTree fn0 pl0 pl1) :=
+  let (ii, ir) := i in
+  match ir with
+  | Cassgn _ _ _ _ =>
+      existT _ pl0 (LErrLeaf fn0 pl0)  (* absurd case *)
+
+  | Copn xs _ o es =>
+      match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
+      | Some xs, Some es =>
+          let atm := MkLAtom fn0 (fst pl0) ii (Lopn xs o es) in 
+          existT _ (incrP1 pl0) (LLeaf atm)
+      | _, _ =>
+          existT _ pl0 (LErrLeaf fn0 pl0) (* absurd case *)
+      end
+        
+  | Csyscall xs o es =>
+    let atm := MkLAtom fn0 (fst pl0) ii (Lsyscall o) in 
+    existT _ (incrP1 pl0) (LLeaf atm)
+           
+  | _ => existT _ pl0 (LErrLeaf fn0 pl0)
+  end
+with interm_cmd (fn0: funname) (cc: cmd) (pl0: plinfo) :
+  sigT (fun pl1 => LTreeList fn0 pl0 pl1) :=
+       match cc with
+       | nil =>   
+          existT _ pl0 (LListNil fn0 pl0)
+       | i :: cc0 =>
+           let: (n0, lbl0) := pl0 in
+           let X1 := interm_i fn0 i pl0 in
+           let pl1 := projT1 X1 in
+           let X2 := interm_cmd fn0 cc0 pl1 in
+           let: pl2 := projT1 X2 in 
+           existT _ pl2 (@LListCons fn0 pl0 pl1 pl2  
+                                    (projT2 X1) (projT2 X2)) end.
+*)
+
+(*
+Fixpoint interm_i (fn0: funname) (i:instr) (pl0: plinfo) :
   sigT (fun pl1 => LTree fn0 pl0 pl1) :=
   let '(n0, lbl) := pl0 in 
   let (ii, ir) := i in
@@ -1153,74 +1366,15 @@ Proof.
   Show Proof.
 *)
 
-Fixpoint interm_i (fn0: funname) (i:instr) (pl0: lcinfo) :
-  sigT (fun pl1 => LTree fn0 pl0 pl1) :=
-(*  let '(n0, lbl) := pl0 in *)
-  let (ii, ir) := i in
-  match ir with
-  | Cassgn _ _ _ _ =>
-      existT _ pl0 (LErrLeaf fn0 pl0)  (* absurd case *)
-  | Copn xs _ o es =>
-      match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
-      | Some xs, Some es =>
-          let atm := MkLAtom fn0 (fst pl0) ii (Lopn xs o es) in 
-          existT _ (incrLC1 pl0) (LLeaf atm)
-   (*       (lbl, MkLI ii (Lopn xs o es) :: lc) *)
-      | _, _ =>
-          existT _ pl0 (LErrLeaf fn0 pl0) (* absurd case *)
-      end
-        
-  | Csyscall xs o es =>
-    let atm := MkLAtom fn0 (fst pl0) ii (Lsyscall o) in 
-    existT _ (incrLC1 pl0) (LLeaf atm)
-     (*  LLeaf fn n0 lbl (MkLAtom fn n0 ii (Lsyscall o)) *)
-      (* (lbl, MkLI ii (Lsyscall o) :: lc) *)
-           
-  | _ => existT _ pl0 (LErrLeaf fn0 pl0) end.
-
-       
-
 (*
-Variant LAtom : Type :=
-| LAtomC (fn: funname) (n: nat) (lbl: label) (ii: instr_info) (i: linstr_r).  
-
-Inductive LTree : Type :=
-| LLeaf (la: LAtom)
-(*    (fn: funname) (n: nat) (lbl: label) (ii: instr_info) (i: linstr_r) *)    
-| LErrLeaf (la: LAtom)
-(*    (fn: funname) (n: nat) (lbl: label) (ii: instr_info) (i: linstr_r)  *)    
-| LCond2Node
-    (fn: funname) (n: nat) (lbl: label)
-    (la_cond: LAtom) (lc2: list LTree) 
-| LCond1Node
-    (fn: funname) (n: nat) (lbl: label)
-    (la_cond: LAtom) (lc1: list LTree)     
-| LCondNode
-    (fn: funname) (n: nat) (lbl: label)
-    (la_cond1: LAtom) (lc2: list LTree) (la_goto2: LAtom)
-    (la_label1: LAtom) (lc1: list LTree) (la_label2: LAtom)
-| LWhileTNode
-    (fn: funname) (n: nat) (lbl: label)
-    (la_align: option LAtom)
-    (la_label1: LAtom) (lc1: list LTree) (lc2: list LTree) (la_goto1: LAtom)
-| LWhileFNode
-    (fn: funname) (n: nat) (lbl: label)
-    (lc1: list LTree)
-| LWhile1Node
-    (fn: funname) (n: nat) (lbl: label)
-    (la_align: option LAtom)
-    (la_label1: LAtom) (lc1: list LTree) (la_cond1: LAtom)
-| LWhileNode
-    (fn: funname) (n: nat) (lbl: label)
-    (la_align: option LAtom)
-    (la_goto1: LAtom) 
-    (la_label2: LAtom) (lc2: list LTree)
-    (la_label1: LAtom) (lc1: list LTree) (la_cond2: LAtom)
-| LCallNode   
-    (fn: funname) (n: nat) (lbl: label)
-    (fn': funname) (la_before: list LAtom)
-    (la_call: LAtom) (la_ret: LAtom) (la_after: list LAtom).
+Definition if_align_else (ii: instr_info) (a: expr.align) (n0 n1: nat) :
+  nat := match a with | NoAlign => n0 | Align => n1 end.
 *)
+(*
+Variant LAtom (fn0: funname) (n: nat) : Type :=
+| MkLAtom (ii: instr_info) (i: linstr_r).  
+*)
+
 
 End FUN.
 
