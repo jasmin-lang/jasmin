@@ -9,7 +9,7 @@ Require Import expr compiler_util.
 Definition type_of_glob_value (gv: glob_value) : atype :=
   match gv with
   | Gword ws _ => aword ws
-  | Garr p _ => aarr U8 p
+  | Garr p _ => aarr U8 (ALConst p)
   end.
 
 Local Open Scope seq_scope.
@@ -87,7 +87,8 @@ Section REMOVE.
 
   Definition array_from_cells ii x (len: positive) (cells: pexprs) : result pp_error_loc (WArray.array len) :=
     Let bytes := evaluate_bytes ii x cells in
-    match sem_opN (Oarray len) bytes >>= to_arr len with
+    let env := fun (_ : length_var) => 1%positive in
+    match sem_opN env (Oarray len) bytes >>= to_arr len with
     | Ok array => Ok _ array
     | Error _ => Error (rm_glob_error_gen ii x [:: pp_s "cannot fill the array"])
     end.
@@ -279,7 +280,7 @@ Section REMOVE.
                   ok (Mvar.set env x g, [::])
                 else Error (rm_glob_error ii xi)
               | PappN (Oarray len) cells =>
-                  if convertible (vtype x) (aarr U8 len) then
+                  if convertible (vtype x) (aarr U8 (ALConst len)) then
                     Let array := array_from_cells ii x len cells in
                     Let g := find_glob ii xi gd (Garr array) in
                     ok (Mvar.set env x g, [::])

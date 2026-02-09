@@ -267,7 +267,7 @@ arr_access:
    let s = if s = None then Warray_.AAscale else Warray_.AAdirect in
    s, i }
 
-pexpr_noarr_r(parent):
+pexpr_noarr_nocall_r(parent):
 | v=var
     { PEVar v }
 
@@ -303,20 +303,31 @@ pexpr_noarr_r(parent):
 | e=parens(parent)
     { PEParens e }
 
-| f=var alargs=loption(braces_tuple(parent)) args=parens_tuple(parent)
-    { PECall (f, alargs, args) }
-
 | f=prim alargs=loption(braces_tuple(parent)) args=parens_tuple(parent)
     { PEPrim (f, alargs, args) }
 
 | e1=parent QUESTIONMARK e2=parent COLON e3=parent
     { PEIf(e1, e2, e3) }
 
+pexpr_noarr_r:
+| e=pexpr_noarr_nocall_r(pexpr_noarr) { e }
+| f=var alargs=loption(braces_tuple(pexpr_noarr)) args=parens_tuple(pexpr_noarr)
+    { PECall (f, alargs, args) }
+
 pexpr_noarr:
-| e=loc(pexpr_noarr_r(pexpr_noarr)) { e }
+| e=loc(pexpr_noarr_r) { e }
+
+pexpr_nocall_r:
+| e=pexpr_noarr_nocall_r(pexpr_nocall) { e }
+| LBRACE es = rtuple1(pexpr_nocall) RBRACE { PEarray es }
+
+pexpr_nocall:
+| e=loc(pexpr_nocall_r) { e }
 
 pexpr_r:
-| e = pexpr_noarr_r(pexpr) { e }
+| e = pexpr_noarr_nocall_r(pexpr) { e }
+| f=var alargs=loption(braces_tuple(pexpr)) args=parens_tuple(pexpr)
+    { PECall (f, alargs, args) }
 
 pexpr:
 | e=loc(pexpr_r) { e }
@@ -387,10 +398,10 @@ pinstr_r:
 
 | s=pif { s }
 
-| FOR v=var EQ ce1=pexpr TO ce2=pexpr is=pblock
+| FOR v=var EQ ce1=pexpr TO ce2=pexpr_nocall is=pblock
     { PIFor (v, (`Up, ce1, ce2), is) }
 
-| FOR v=var EQ ce1=pexpr DOWNTO ce2=pexpr is=pblock
+| FOR v=var EQ ce1=pexpr DOWNTO ce2=pexpr_nocall is=pblock
     { PIFor (v, (`Down, ce2, ce1), is) }
 
 | WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock?
@@ -403,10 +414,10 @@ pinstr_r:
     { PIdecl (ty, vs) }
 
 pif:
-| IF c=pexpr i1s=pblock
+| IF c=pexpr_nocall i1s=pblock
     { PIIf (c, i1s, None) }
 
-| IF c=pexpr i1s=pblock ELSE i2s=pelse
+| IF c=pexpr_nocall i1s=pblock ELSE i2s=pelse
     { PIIf (c, i1s, Some i2s) }
 
 pelseif:

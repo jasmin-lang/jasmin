@@ -8,7 +8,8 @@ export fn test2(reg u64 skp)
   
   skp = skp;
 
-  rb = #randombytes(rb);
+  reg u64 len = KYBER_SYMBYTES;
+  rb = #randombytes(rb, len);
 
   for i=0 to KYBER_SYMBYTES/8
   {

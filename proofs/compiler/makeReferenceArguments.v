@@ -134,7 +134,8 @@ Definition get_sig ii fn :=
 
 Definition get_syscall_sig o :=
   let: s := syscall.syscall_sig_u N o in
-  (map (fun ty => (is_aarr ty, "__p__"%string, ty)) s.(scs_tin),
+  (s.(scs_al),
+   map (fun ty => (is_aarr ty, "__p__"%string, ty)) s.(scs_tin),
    map (fun ty => (is_aarr ty, "__p__"%string, ty)) s.(scs_tout)).
 
 Definition is_swap_op (op: sopn) : option atype :=
@@ -211,11 +212,12 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
     Let xsep := make_epilogue ii X returns xs in
     let: (xs, epilogue) := xsep in
     ok (prologue ++ MkI ii (Ccall xs fn alargs es) :: epilogue)
-  | Csyscall xs o al es =>
-    let: (params,returns) := get_syscall_sig o in
+  | Csyscall xs o alargs es =>
+    let: (al, params,returns) := get_syscall_sig o in
+    Let: (params, returns) := subst_sig ii al alargs (params, returns) in
     Let: (prologue, es) := make_prologue ii X 0 params es in
     Let: (xs, epilogue) := make_epilogue ii X returns xs in
-    ok (prologue ++ MkI ii (Csyscall xs o al es) :: epilogue)
+    ok (prologue ++ MkI ii (Csyscall xs o alargs es) :: epilogue)
   end.
 
 Definition update_fd (fd: ufundef) :=
