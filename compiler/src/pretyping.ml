@@ -2044,7 +2044,8 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
           rs_tyerror ~loc:(L.loc pi)
             (string_error "only a single variable is allowed as destination of randombytes") in
       let _ = tt_as_array (loc, ty) in
-      let es = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args [ty] in
+      let ty2 = Prog.ETword (None, arch_info.pd) in
+      let es = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args [ty; ty2] in
       [mk_i (P.Csyscall([x], Syscall_t.RandomBytes U8, [PE (P.Pconst Z.one)], es))]
 
   | (ls, xs), `Raw, { pl_desc = PEPrim (f, alargs, args) }, None when L.unloc f = "swap" ->

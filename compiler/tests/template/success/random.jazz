@@ -1,0 +1,8 @@
+// we cannot pass a literal to randombytes
+// should we catch it earlier? pretyping?
+export fn main () -> reg u8 {
+  stack u8[1] s;
+  s = #randombytes(s, 1);
+  reg u8 res = s[0];
+  return res;
+}

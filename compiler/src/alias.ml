@@ -177,7 +177,11 @@ let compare_gvar params x gx y gy =
             | false, true -> 1
             | _, _ -> V.compare x y
           else c
-        | _ -> assert false
+        | _ ->
+            Format.eprintf "%a vs %a@."
+              (Printer.pp_var ~debug:true) x
+              (Printer.pp_var ~debug:true) y;
+            assert false
         end
 
 (* Precondition: s1 and s2 are normal forms (aka roots) in a *)

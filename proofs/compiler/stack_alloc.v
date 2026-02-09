@@ -1686,7 +1686,9 @@ Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap rs fn al es :=
   let es  := map snd es in
   ok (rs.1, Ccall rs.2 fn al es).
 
-(* Before stack_alloc :
+(* FIXME: outdated comment
+
+   Before stack_alloc :
      Csyscall [::x] (getrandom len) [::t]
      t : arr n & len <= n.
      return arr len.
@@ -1705,17 +1707,14 @@ Definition alloc_syscall ii rmap rs o es :=
                     (stk_error_no_var "randombytes: the requested size is too large")
     in *)
     match rs, es with
-    | [::Lvar x], [::Pvar xe] =>
+    | [::Lvar x], [::Pvar xe; Pvar xlen] =>
       let xe := xe.(gv) in
-      let xlen := with_var xe (vxlen pmap) in
       Let p  := get_regptr xe in
       Let xp := get_regptr x in
       Let sr := get_sub_region rmap xe in
       Let rmap := set_clear rmap xe sr in
       let rmap := set_move rmap x sr Valid in
-      ok (rmap,
-          [:: MkI ii (sap_immediate saparams xlen 2); (* FIXME: dummy value, we probably don't want to reimplement some part of makeref arg that at all anyway *)
-              MkI ii (Csyscall [::Lvar xp] o [::] [:: Plvar p; Plvar xlen])])
+      ok (rmap, MkI ii (Csyscall [::Lvar xp] o [::] [:: Plvar p; Pvar xlen]))
     | _, _ =>
       Error (stk_ierror_no_var "randombytes: invalid args or result")
     end
@@ -1826,8 +1825,8 @@ Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region
 
   | Csyscall rs o _ es =>
     let table := remove_binding_lvals table rs in
-    Let: (rmap, c) := alloc_syscall ii rmap rs o es in
-    ok (table, rmap, c)
+    Let: (rmap, i) := alloc_syscall ii rmap rs o es in
+    ok (table, rmap, [:: i])
 
   | Cassert _ =>
     Error (pp_at_ii ii (stk_ierror_no_var "don't deal with assert"))

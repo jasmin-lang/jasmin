@@ -2,11 +2,13 @@ open Utils
 open Prog
 open Glob_options
 
+let syscall_length_ident = Conv.fresh_var_ident Length IInfo.dummy (Uint63.of_int 0) "N" Coq_aint
+
 let preprocess pd msfsize asmOp p =
   let p =
     p |> Subst.remove_params |> Insert_copy_and_fix_length.doit pd
   in
-  Typing.check_prog pd msfsize asmOp p;
+  Typing.check_prog pd msfsize asmOp syscall_length_ident p;
   p
 
 (* -------------------------------------------------------------------- *)
@@ -61,8 +63,6 @@ let do_spill_unspill asmop ?(debug = false) cp =
   match Lower_spill.spill_uprog asmop Conv.fresh_var_ident p with
   | Utils0.Error msg -> Error (Conv.error_of_cerror (Printer.pp_err ~debug) msg)
   | Utils0.Ok p -> Ok (Conv.prog_of_cuprog p)
-
-let syscall_length_ident = Conv.fresh_var_ident Length IInfo.dummy (Uint63.of_int 0) "N" Coq_aint
 
 let do_wint_int
    (type reg regx xreg rflag cond asm_op extra_op)

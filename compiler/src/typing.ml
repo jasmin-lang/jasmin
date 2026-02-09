@@ -227,7 +227,7 @@ let subst_ty f ty =
   | Bty _ -> ty
   | Arr (ws, al) -> Arr (ws, subst_al f al)
 
-let rec check_instr pd msfsz asmOp env i =
+let rec check_instr pd msfsz asmOp n env i =
   let loc = i.i_loc in
   match i.i_desc with
   | Cassgn(x,_,ty,e) ->
@@ -240,7 +240,6 @@ let rec check_instr pd msfsz asmOp env i =
     check_lvals pd loc xs tout
 
   | Csyscall(xs, o, al, es) ->
-    let n = assert false in
     let s = Syscall.syscall_sig_u pd n o in
     let f =
       let l = List.combine s.scs_al al in
@@ -258,19 +257,19 @@ let rec check_instr pd msfsz asmOp env i =
 
   | Cif(e,c1,c2) ->
     check_expr pd loc e tbool;
-    check_cmd pd msfsz asmOp env c1;
-    check_cmd pd msfsz asmOp env c2
+    check_cmd pd msfsz asmOp n env c1;
+    check_cmd pd msfsz asmOp n env c2
 
   | Cfor(i,(_,e1,e2),c) ->
     check_expr pd loc (Pvar (gkvar i)) tint;
     check_expr pd loc e1 tint;
     check_expr pd loc e2 tint;
-    check_cmd pd msfsz asmOp env c
+    check_cmd pd msfsz asmOp n env c
 
   | Cwhile(_, c1, e, _, c2) ->
     check_expr pd loc e tbool;
-    check_cmd pd msfsz asmOp env c1;
-    check_cmd pd msfsz asmOp env c2
+    check_cmd pd msfsz asmOp n env c1;
+    check_cmd pd msfsz asmOp n env c2
 
   | Ccall(xs,fn,al,es) ->
     let fd = getfun env fn in
@@ -283,8 +282,8 @@ let rec check_instr pd msfsz asmOp env i =
     let tyout = List.map (subst_ty f) fd.f_tyout in
     check_lvals pd loc xs tyout
 
-and check_cmd pd msfsz asmOp env c =
-  List.iter (check_instr pd msfsz asmOp env) c
+and check_cmd pd msfsz asmOp n env c =
+  List.iter (check_instr pd msfsz asmOp n env) c
 
 (* -------------------------------------------------------------------- *)
 let check_global_decl (g, d) =
@@ -293,33 +292,33 @@ let check_global_decl (g, d) =
     error (L.i_loc0 g.v_dloc)
       "global variable %a has type %a but its value has type %a"
       (Printer.pp_var ~debug:false)
-      g PrintCommon.pp_ty ty PrintCommon.pp_ty vty
+      g (PrintCommon.pp_ty ~debug:false) ty (PrintCommon.pp_ty ~debug:false) vty
   in
   match d with
   | Global.Garr (len, _) ->
       if
         match ty with
-        | Arr (ws, len') -> Conv.int_of_pos len <> arr_size ws len'
+        | Arr (ws, Const len') -> Conv.int_of_pos len <> arr_size ws len'
         | _ -> true
-      then error (Arr (U8, Conv.int_of_pos len))
+      then error (Arr (U8, Const (Conv.int_of_pos len)))
   | Gword (ws, _) ->
       if match ty with Bty (U ws') -> not (wsize_le ws ws') | _ -> true then
         error (Bty (U ws))
 
 (* -------------------------------------------------------------------- *)
 
-let check_fun pd msfsz asmOp env fd =
+let check_fun pd msfsz asmOp n env fd =
   let args = List.map (fun x -> Pvar (gkvar (L.mk_loc x.v_dloc x))) fd.f_args in
   let res = List.map (fun x -> Pvar (gkvar x)) fd.f_ret in
   let i_loc = L.i_loc0 fd.f_loc in
   check_exprs pd i_loc args fd.f_tyin;
   check_exprs pd i_loc res fd.f_tyout;
-  check_cmd pd msfsz asmOp env fd.f_body;
+  check_cmd pd msfsz asmOp n env fd.f_body;
   Hf.add env fd.f_name fd
 
 (* -------------------------------------------------------------------- *)
 
-let check_prog pd msfsz asmOp (gds, funcs) =
+let check_prog pd msfsz asmOp n (gds, funcs) =
   let env = Hf.create 107 in
   List.iter check_global_decl gds;
-  List.iter (check_fun pd msfsz asmOp env) (List.rev funcs)
+  List.iter (check_fun pd msfsz asmOp n env) (List.rev funcs)

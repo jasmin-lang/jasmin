@@ -1413,15 +1413,13 @@ end = struct
     let x = L.unloc x in
     List.init (Conv.int_of_pos n) (fun i -> SafetyVar.AarraySlice (x, U8, ofs + i))
 
-  let aeval_syscall state sc lvs _es =
+  let aeval_syscall state sc lvs al _es =
     match sc with
     | Syscall_t.RandomBytes ws ->
-        (* FIXME *)
-       let len = assert false in
-       let len =
-         match len with
-         | Prog.Const len -> len
-         | _ -> assert false
+        let len =
+          match al with
+          | [ Prog.Const len ] -> len
+          | _ -> assert false (* FIXME: deal with non-constant cases *)
        in
        let n = Conv.pos_of_int (Prog.arr_size ws len) in
        let cells = match lvs with
@@ -1496,8 +1494,8 @@ end = struct
           { state with abs = abs; }
         end
 
-      | Csyscall(lvs, sc, _, es) ->
-         aeval_syscall state sc lvs es
+      | Csyscall(lvs, sc, al, es) ->
+         aeval_syscall state sc lvs al es
 
       | Cassert _ -> state
 

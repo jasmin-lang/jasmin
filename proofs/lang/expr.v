@@ -204,7 +204,7 @@ Definition type_of_opN (op: opN) : seq atype * atype :=
   | Opack ws p =>
     let n := nat_of_wsize ws %/ nat_of_pelem p in
     (nseq n aint, aword ws)
-  | Oarray len => (nseq (Pos.to_nat len) (aword U8), aarr U8 len)
+  | Oarray len => (nseq (Pos.to_nat len) (aword U8), aarr U8 (ALConst len))
   | Ocombine_flags c => (tin_combine_flags, abool)
   end.
 
