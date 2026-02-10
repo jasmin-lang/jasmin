@@ -21,7 +21,7 @@ We additionally maintain two invariants:
 
 *)
 
-Require memory_model array type.
+Require memory_model type.
 
 Import Utf8.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.

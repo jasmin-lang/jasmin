@@ -144,7 +144,6 @@ itrees/rec_facts.v
 itrees/rutt_extras.v
 itrees/xrutt.v
 itrees/xrutt_facts.v
-lang/array.v
 lang/core_logics.v
 lang/expr.v
 lang/expr_facts.v

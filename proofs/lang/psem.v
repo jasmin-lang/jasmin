@@ -5,7 +5,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From ITree Require Import ITreeFacts.
 
 Require Import xseq.
-Require Export array type expr gen_map warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
+Require Export type expr gen_map warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
 Require Export psem_core it_sems_core hoare_logic relational_logic.
 Require Export
   flag_combination
