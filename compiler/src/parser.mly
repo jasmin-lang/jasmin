@@ -319,7 +319,7 @@ pexpr_noarr:
 
 pexpr_nocall_r:
 | e=pexpr_noarr_nocall_r(pexpr_nocall) { e }
-| LBRACE es = rtuple1(pexpr_nocall) RBRACE { PEarray es }
+| LBRACE es = rtuple1(pexpr_nocall) RBRACE { GEarray es }
 
 pexpr_nocall:
 | e=loc(pexpr_nocall_r) { e }

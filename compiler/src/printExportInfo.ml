@@ -14,7 +14,7 @@ module F = Format
 type export_info = {
   arch_target : architecture;
   funcs : export_info_fn list;
-  params : (pexpr_ gvar * pexpr_ gexpr) list;
+  params : (var * expr) list;
 }
 
 and export_info_fn = {
@@ -149,7 +149,7 @@ let pp_export_info_json fmt export_info =
     let pp_param fmt (var, expr) =
       let pp_gvar fmt var = F.fprintf fmt "%S" var.v_name in
       F.fprintf fmt "@[<v>{@[<hov>\"name\" : %a,@ \"expr\" : @[<h>\"%a\"@]@]}@]"
-        pp_gvar var (pp_pexpr ~debug:false) expr
+        pp_gvar var (pp_expr ~debug:false) expr
     in
     F.fprintf fmt "@[<v>%a@]" (pp_list ",@ " pp_param) globals
   in
