@@ -220,6 +220,70 @@ let ws_of_ety = function
   | ETword(_, ws) -> ws
   | _ -> assert false
 
+let rec insert_mono x mono =
+  match mono with
+  | [] -> [x]
+  | y :: mono' ->
+      if x <= y then x :: mono
+      else y :: insert_mono x mono'
+
+let add_term ((coeff, _) as cm) terms =
+  if coeff = 0 then terms else cm :: terms
+
+let rec insert_term ((coeff, mono) as cm) terms =
+  match terms with
+  | [] -> [cm]
+  | ((coeff', mono') as cm') :: terms' ->
+    if mono < mono' then cm :: terms
+    else if mono = mono' then add_term (coeff + coeff', mono) terms'
+    else cm' :: insert_term cm terms'
+let insert_term ((coeff, _) as cm) terms =
+  if coeff = 0 then terms else insert_term cm terms
+
+let expanded_form len =
+  let rec expanded_form terms coeff mono poly =
+    match poly with
+    | Const n -> let coeff = n * coeff in insert_term (coeff, mono) terms
+    | Var x -> let mono = insert_mono x mono in insert_term (coeff, mono) terms
+    | Add (e1, e2) -> expanded_form (expanded_form terms coeff mono e1) coeff mono e2
+    | Mul (Const n, e) -> let coeff = n * coeff in expanded_form terms coeff mono e
+    | Mul (Var x, e) -> let mono = insert_mono x mono in expanded_form terms coeff mono e
+    | Mul (Add (e11, e12), e2) -> expanded_form terms coeff mono (Add (Mul (e11, e2), Mul (e12, e2)))
+    | Mul (Mul (e11, e12), e2) -> expanded_form terms coeff mono (Mul (e11, Mul (e12, e2)))
+  in
+  expanded_form [] 1 [] len
+
+let size_of_ws = function
+  | U8   -> 1
+  | U16  -> 2
+  | U32  -> 4
+  | U64  -> 8
+  | U128 -> 16
+  | U256 -> 32
+
+(* FIXME: [=] might be too strict *)
+let compare_array_length (ws, al) (ws', al') =
+  let ef = expanded_form (Mul (Const (size_of_ws ws), al)) in
+  let ef' = expanded_form (Mul (Const (size_of_ws ws'), al')) in
+  ef = ef'
+
+let ety_equal t1 t2 =
+  match t1, t2 with
+  | ETbool, ETbool | ETint, ETint -> true
+  | ETword(s1,sz1), ETword(s2, sz2) -> s1 = s2 && sz1 = sz2
+  | ETarr(ws1, len1) , ETarr(ws2, len2)    -> compare_array_length (ws1, len1) (ws2, len2)
+  | _, _ -> false
+
+let rec al_of_expr e =
+  match e with
+  | Pconst n -> Const (Z.to_int n)
+  | Pvar x -> assert (is_gkvar x); Var (L.unloc x.gv)
+  | Papp2 (Oadd Op_int, e1, e2) ->
+      Add (al_of_expr e1, al_of_expr e2)
+  | Papp2 (Omul Op_int, e1, e2) ->
+      Mul (al_of_expr e1, al_of_expr e2)
+  | _ -> assert false
+
 
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
@@ -231,6 +295,8 @@ type lval  = length glval
 type lvals = length glval list
 type expr  = length gexpr
 type exprs = length gexpr list
+
+type ety   = length gety
 
 type ('info, 'asm) instr = (length, 'info, 'asm) ginstr
 type ('info, 'asm) instr_r = (length,'info,'asm) ginstr_r
@@ -250,6 +316,13 @@ let ident_of_var (x:var) : CoreIdent.var = x
 
 (* -------------------------------------------------------------------- *)
 (* used variables                                                       *)
+
+let rec rvars_al f s al =
+  match al with
+  | Const _ -> s
+  | Var x -> f x s
+  | Add (al1, al2) -> rvars_al f (rvars_al f s al1) al2
+  | Mul (al1, al2) -> rvars_al f (rvars_al f s al1) al2
 
 let rvars_v f x s =
   if is_gkvar x then f (L.unloc x.gv) s
@@ -296,7 +369,7 @@ let fold_vars_fc f z fc =
   let a = fold_vars_ret f z fc in
   rvars_c f a fc.f_body
 
-
+let vars_al al = rvars_al Sv.add Sv.empty al
 let vars_ret fd = fold_vars_ret Sv.add Sv.empty fd
 let vars_lv z x = rvars_lv Sv.add z x
 let vars_e e = rvars_e Sv.add Sv.empty e
@@ -374,14 +447,6 @@ let refresh_i_loc_p (p:('info, 'asm) prog) : ('info, 'asm) prog =
 (* Functions on types                                                   *)
 
 let int_of_ws = Annotations.int_of_ws
-
-let size_of_ws = function
-  | U8   -> 1
-  | U16  -> 2
-  | U32  -> 4
-  | U64  -> 8
-  | U128 -> 16
-  | U256 -> 32
 
 let string_of_ws = Annotations.string_of_ws
 

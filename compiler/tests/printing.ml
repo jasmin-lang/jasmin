@@ -55,44 +55,46 @@ and eq_simple_attribute x y =
   | Astruct a, Astruct b -> eq_annotations a b
   | (Aint _ | Aid _ | Astring _ | Aws _ | Astruct _), _ -> false
 
-let rec eq_pty x y =
-  match (x, y) with
-  | Bty a, Bty b -> a = b
-  | Arr (a, n), Arr (b, m) -> Wsize.wsize_eqb a b && eq_pexpr_ n m
-  | (Bty _ | Arr _), _ -> false
-
-and eq_pvar x y =
-  x.v_name = y.v_name && x.v_kind = y.v_kind && eq_pty x.v_ty y.v_ty
+  (* FIXME: we need to compare length to compare types, but to compare lengths,
+     we need to be able to compare vars that contain types...
+     We break the cycle by defining a dedicated check for length vars,
+     and check that types are equal to int.
+  *)
+  let eq_length_var x y =
+  x.v_name = y.v_name && x.v_kind = y.v_kind && x.v_ty = Bty Int && y.v_ty = Bty Int
   && eq_annotations x.v_annot y.v_annot
 
-and eq_pvar_i x y = eq_pvar (L.unloc x) (L.unloc y)
-and eq_pgvar x y = eq_pvar_i x.gv y.gv && x.gs = y.gs
+let rec eq_al x y =
+  match x, y with
+  | Const n1, Const n2 -> n1 = n2
+  | Var x1, Var x2 -> eq_length_var x1 x2
+  | Add (al11, al12), Add (al21, al22) -> eq_al al11 al21 && eq_al al12 al22
+  | Mul (al11, al12), Mul (al21, al22) -> eq_al al11 al21 && eq_al al12 al22
+  | _, _ -> false
 
-and eq_plval x y =
+let eq_ty x y =
   match (x, y) with
-  | Lnone (_, a), Lnone (_, b) -> eq_pty a b
-  | Lvar a, Lvar b -> eq_pvar_i a b
-  | Lmem (a, b, _, d), Lmem (e, f, _, h) ->
-      a = e && Wsize.wsize_eqb b f && eq_pexpr d h
-  | Laset (a, b, c, d, e), Laset (f, g, h, i, j) ->
-      a = f && b = g && Wsize.wsize_eqb c h && eq_pvar_i d i && eq_pexpr e j
-  | Lasub (a, b, c, d, e), Lasub (f, g, h, i, j) ->
-      a = f && Wsize.wsize_eqb b g && eq_pexpr_ c h && eq_pvar_i d i
-      && eq_pexpr e j
-  | (Lnone _ | Lvar _ | Lmem _ | Laset _ | Lasub _), _ -> false
+  | Bty a, Bty b -> a = b
+  | Arr (a, n), Arr (b, m) -> Wsize.wsize_eqb a b && eq_al n m
+  | (Bty _ | Arr _), _ -> false
 
-and eq_plvals x y = List.for_all2 eq_plval x y
+  let eq_pvar x y =
+  x.v_name = y.v_name && x.v_kind = y.v_kind && eq_ty x.v_ty y.v_ty
+  && eq_annotations x.v_annot y.v_annot
 
-and eq_pexpr x y =
+  let eq_pvar_i x y = eq_pvar (L.unloc x) (L.unloc y)
+  let eq_pgvar x y = eq_pvar_i x.gv y.gv && x.gs = y.gs
+
+  let rec eq_pexpr x y =
   match (x, y) with
   | Pconst a, Pconst b -> Z.equal a b
   | Pbool a, Pbool b -> Stdlib.Bool.equal a b
-  | Parr_init (a, b), Parr_init (c, d) -> Wsize.wsize_eqb a c && eq_pexpr_ b d
+  | Parr_init (a, b), Parr_init (c, d) -> Wsize.wsize_eqb a c && eq_al b d
   | Pvar a, Pvar b -> eq_pgvar a b
   | Pget (a, b, c, d, e), Pget (f, g, h, i, j) ->
       a = f && b = g && Wsize.wsize_eqb c h && eq_pgvar d i && eq_pexpr e j
   | Psub (a, b, c, d, e), Psub (f, g, h, i, j) ->
-      a = f && Wsize.wsize_eqb b g && eq_pexpr_ c h && eq_pgvar d i
+      a = f && Wsize.wsize_eqb b g && eq_al c h && eq_pgvar d i
       && eq_pexpr e j
   | Pload (a, b, d), Pload (e, f, h) ->
       a = e && Wsize.wsize_eqb b f && eq_pexpr d h
@@ -100,14 +102,12 @@ and eq_pexpr x y =
   | Papp2 (a, b, c), Papp2 (d, e, f) -> a = d && eq_pexpr b e && eq_pexpr c f
   | PappN (a, b), PappN (c, d) -> a = c && eq_pexprs b d
   | Pif (a, b, c, d), Pif (e, f, g, h) ->
-      eq_pty a e && eq_pexpr b f && eq_pexpr c g && eq_pexpr d h
+      eq_ty a e && eq_pexpr b f && eq_pexpr c g && eq_pexpr d h
   | ( ( Pconst _ | Pbool _ | Parr_init _ | Pvar _ | Pget _ | Psub _ | Pload _
       | Papp1 _ | Papp2 _ | PappN _ | Pif _ ),
       _ ) ->
       false
-
 and eq_pexprs x y = List.for_all2 eq_pexpr x y
-and eq_pexpr_ (PE x) (PE y) = eq_pexpr x y
 
 let eq_pgexpr x y =
   match (x, y) with
@@ -115,7 +115,7 @@ let eq_pgexpr x y =
   | GEarray a, GEarray b -> eq_pexprs a b
   | (GEword _ | GEarray _), _ -> false
 
-let eq_prange (x : pexpr_ grange) (y : pexpr_ grange) =
+let eq_prange (x : length grange) (y : length grange) =
   let a, b, c = x and d, e, f = y in
   a = d && eq_pexpr b e && eq_pexpr c f
 
@@ -124,22 +124,22 @@ let rec eq_pstmt x y = List.for_all2 eq_pinstr x y
 and eq_pinstr x y =
   eq_annotations x.i_annot y.i_annot && eq_pinstr_r x.i_desc y.i_desc
 
-and eq_pinstr_r (x : _ pinstr_r) y =
+and eq_pinstr_r (x : _ instr_r) y =
   match (x, y) with
   | Cassgn (a, b, c, d), Cassgn (e, f, g, h) ->
-      eq_plval a e && b = f && eq_pty c g && eq_pexpr d h
+      eq_plval a e && b = f && eq_ty c g && eq_pexpr d h
   | Copn (a, b, c, d), Copn (e, f, g, h) ->
       eq_plvals a e && b = f && c = g && eq_pexprs d h
   | Cassert (a, b), Cassert (c, d) -> a = c && eq_pexpr b d
   | Csyscall (a, b, c, d), Csyscall (e, f, g, h) ->
-      eq_plvals a e && b = f && eq_pexprs (List.map (fun (PE e) -> e) c) (List.map (fun (PE e) -> e) g) && eq_pexprs d h
+      eq_plvals a e && b = f && List.for_all2 eq_al c g && eq_pexprs d h
   | Cif (a, b, c), Cif (d, e, f) -> eq_pexpr a d && eq_pstmt b e && eq_pstmt c f
   | Cfor (a, b, c), Cfor (d, e, f) ->
       eq_pvar_i a d && eq_prange b e && eq_pstmt c f
   | Cwhile (a, b, c, _d, e), Cwhile (f, g, h, _i, j) ->
       a = f && eq_pstmt b g && eq_pexpr c h && eq_pstmt e j
   | Ccall (a, b, c, d), Ccall (e, f, g, h) ->
-      eq_plvals a e && b.fn_name = f.fn_name && eq_pexprs (List.map (fun (PE e) -> e) c) (List.map (fun (PE e) -> e) g) && eq_pexprs d h
+      eq_plvals a e && b.fn_name = f.fn_name && List.for_all2 eq_al c q && eq_pexprs d h
   | ( ( Cassgn _ | Copn _ | Csyscall _ | Cassert _ | Cif _ | Cfor _ | Cwhile _
       | Ccall _ ),
       _ ) ->
@@ -159,9 +159,9 @@ let eq_pfunc x y =
   eq_f_annot x.f_annot y.f_annot
   && x.f_cc = y.f_cc
   && String.equal x.f_name.fn_name y.f_name.fn_name
-  && List.for_all2 eq_pty x.f_tyin y.f_tyin
+  && List.for_all2 eq_ty x.f_tyin y.f_tyin
   && List.for_all2 eq_pvar x.f_args y.f_args
-  && List.for_all2 eq_pty x.f_tyout y.f_tyout
+  && List.for_all2 eq_ty x.f_tyout y.f_tyout
   && List.for_all2 eq_annotations x.f_ret_info.ret_annot y.f_ret_info.ret_annot
   && List.for_all2 eq_pvar_i x.f_ret y.f_ret
   && eq_pstmt x.f_body y.f_body

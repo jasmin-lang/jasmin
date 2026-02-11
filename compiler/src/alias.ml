@@ -21,7 +21,7 @@ type slice = { in_var : var ; scope : E.v_scope ; range : int * length; kind : s
 
 let eq_slice s1 s2 =
   let eq_range (n1, len1) (n2, len2) =
-    n1 = n2 && Typing.compare_array_length (U8, len1) (U8, len2)
+    n1 = n2 && compare_array_length (U8, len1) (U8, len2)
   in
   s1.in_var = s2.in_var && s1.scope = s2.scope && eq_range s1.range s2.range && s1.kind = s2.kind
 

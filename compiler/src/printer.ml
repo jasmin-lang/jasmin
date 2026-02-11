@@ -270,8 +270,8 @@ let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
   let ds = ScopeTree.get_declaration_sites fd in
   let pp_vd =  pp_var_decl pp_var pp_size in
   let pp_info fmt (n, _) =
-    Miloc.find_default Spv.empty n ds
-    |> Spv.iter (F.fprintf fmt "%a;@ " pp_vd)
+    Miloc.find_default Sv.empty n ds
+    |> Sv.iter (F.fprintf fmt "%a;@ " pp_vd)
   in
   let ret = List.map L.unloc fd.f_ret in
   let set_var_type x ty = GV.mk x.v_name x.v_kind ty x.v_dloc x.v_annot in
@@ -332,7 +332,7 @@ and pp_pexpr_ ~debug fmt (PE e) = pp_pexpr ~debug fmt e
 let pp_ptype ~debug = pp_gtype (pp_pexpr_ ~debug)
 
 
-let pp_eptype ~debug fmt ty =
+let pp_egtype ~debug pp_len fmt ty =
   match ty with
   | ETbool -> Format.fprintf fmt "bool"
   | ETint -> Format.fprintf fmt "int"
@@ -344,15 +344,18 @@ let pp_eptype ~debug fmt ty =
       in
       Format.fprintf fmt "%s%i" sg (int_of_ws sz)
   | ETarr(ws, len) ->
-      Format.fprintf fmt "%a[%a]" (pp_btype ?w:None) (U ws) (pp_pexpr_ ~debug) len
+      Format.fprintf fmt "%a[%a]" (pp_btype ?w:None) (U ws) (pp_len ~debug) len
 
+let pp_eptype ~debug = pp_egtype ~debug pp_pexpr_
+
+let pp_etype ~debug = pp_egtype ~debug pp_len
 
 let pp_plval ~debug = pp_glv ~debug (pp_pexpr_ ~debug) pp_pvar
 
 let pp_pprog ~debug pd msfsize asmOp fmt p =
   let pp_opn = pp_opn pd msfsize asmOp in
   Format.fprintf fmt "@[<v>%a@]"
-    (pp_list "@ @ " (pp_pitem ~debug (pp_pexpr_ ~debug) pp_opn pp_pvar)) (List.rev p)
+    (pp_list "@ @ " (pp_pitem ~debug (pp_len ~debug:false) pp_opn pp_pvar)) (List.rev p)
 
 let pp_header_ pp_len pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in

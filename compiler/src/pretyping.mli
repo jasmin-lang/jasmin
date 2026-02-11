@@ -4,13 +4,13 @@ exception TyError of Location.t * tyerror
 
 val pp_tyerror : Format.formatter -> tyerror -> unit
 
-type fun_sig = { fs_al : Prog.pvar list; fs_tin : Prog.epty list ; fs_tout : Prog.epty list }
+type fun_sig = { fs_al : Prog.var list; fs_tin : Prog.ety list ; fs_tout : Prog.ety list }
 
 module Env : sig
   type 'asm env
 
   val empty : 'asm env
-  val decls : 'asm env -> (unit, 'asm) Prog.pmod_item list
+  val decls : 'asm env -> (unit, 'asm) Prog.mod_item list
   val add_from : 'asm env -> string * string -> 'asm env
   val dependencies : 'asm env -> string list list
 
@@ -24,12 +24,12 @@ module Env : sig
   val exit_file : 'asm env -> 'asm env
 
   module Funs : sig
-    val push : 'asm env -> (unit, 'asm) Prog.pfunc -> fun_sig -> 'asm env
+    val push : 'asm env -> (unit, 'asm) Prog.func -> fun_sig -> 'asm env
 
     val find :
       Annotations.symbol ->
       'asm env ->
-      ((unit, 'asm) Prog.pfunc * fun_sig) option
+      ((unit, 'asm) Prog.func * fun_sig) option
   end
 
   module Exec : sig
@@ -73,14 +73,14 @@ val tt_global :
 val tt_fun :
   'asm Env.env ->
   Annotations.symbol Location.located ->
-  (unit, 'asm) Prog.pfunc * fun_sig
+  (unit, 'asm) Prog.func * fun_sig
 
 val tt_program :
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
   string ->
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
-  * (unit, ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op) Prog.pmod_item
+  * (unit, ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op) Prog.mod_item
     list
   * Syntax.pprogram
 
