@@ -44,7 +44,7 @@ and iac_instr_r pd loc ir =
          Typing.check_length loc (Const n);
           warning IntroduceArrayCopy
             loc "an array copy is introduced";
-          let op = Pseudo_operator.Ocopy(ws, ALConst (Conv.pos_of_int n)) in
+          let op = Pseudo_operator.Ocopy(ws, ALConst (CoreConv.cz_of_int n)) in
           Copn([x], t, Sopn.Opseudo_op op, [e])
     else ir
   | Cif (b, th, el) -> Cif (b, iac_stmt pd th, iac_stmt pd el)
@@ -69,7 +69,7 @@ and iac_instr_r pd loc ir =
       else
         let len = xn / wsn in
         Typing.check_length loc (Const len);
-        let op = Pseudo_operator.Ocopy (ws, ALConst (Conv.pos_of_int len)) in
+        let op = Pseudo_operator.Ocopy (ws, ALConst (CoreConv.cz_of_int len)) in
         Copn(xs,t,Sopn.Opseudo_op op, es)
     | Sopn.Opseudo_op(Ocopy _), _ -> assert false
     | Sopn.Opseudo_op(Pseudo_operator.Oswap _), x::_ ->
@@ -81,7 +81,7 @@ and iac_instr_r pd loc ir =
       (* Fix the size it is dummy for the moment *)
       let ws, len = array_kind_const (L.unloc x).v_ty in
       Typing.check_length loc (Const len);
-      let op = Slh_ops.SLHprotect_ptr (ws, ALConst (Conv.pos_of_int len)) in
+      let op = Slh_ops.SLHprotect_ptr (ws, ALConst (CoreConv.cz_of_int len)) in
       Copn(xs,t, Sopn.Oslh op, es)
     | Sopn.Oslh (SLHprotect_ptr _), _ -> assert false
     | Sopn.Opseudo_op (Odeclassify _), _ ->

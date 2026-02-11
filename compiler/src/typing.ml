@@ -298,9 +298,9 @@ let check_global_decl (g, d) =
   | Global.Garr (len, _) ->
       if
         match ty with
-        | Arr (ws, Const len') -> Conv.int_of_pos len <> arr_size ws len'
+        | Arr (ws, Const len') -> CoreConv.int_of_cz len <> arr_size ws len'
         | _ -> true
-      then error (Arr (U8, Const (Conv.int_of_pos len)))
+      then error (Arr (U8, Const (CoreConv.int_of_cz len)))
   | Gword (ws, _) ->
       if match ty with Bty (U ws') -> not (wsize_le ws ws') | _ -> true then
         error (Bty (U ws))

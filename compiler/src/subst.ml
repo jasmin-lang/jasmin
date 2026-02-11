@@ -206,8 +206,8 @@ let int_of_op2 ?loc o =
 
 let op_of_op2 ?loc o =
   match o with
-  | Expr.Oadd Op_int -> fun e1 e2 -> Add (e1, e2)
-  | Expr.Omul Op_int -> fun e1 e2 -> Mul (e1, e2)
+  | Oadd Op_int -> fun e1 e2 -> Add (e1, e2)
+  | Omul Op_int -> fun e1 e2 -> Mul (e1, e2)
   | _     -> hierror ?loc "operator %s not allowed in array size" (PrintCommon.string_of_op2 o)
 
 let rec int_of_expr ?loc e =
@@ -382,7 +382,7 @@ let remove_params (prog : ('info, 'asm) pprog) =
            (if m > 1 then "values" else "value")
            n
       | Arr (ws, Const n), GEarray es ->
-        let p = Conv.pos_of_int (n * size_of_ws ws) in
+        let p = CoreConv.cz_of_int (n * size_of_ws ws) in
         let mk_word_i i e =
           try mk_word ws e
           with NotAConstantExpr ->

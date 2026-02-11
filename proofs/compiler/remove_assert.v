@@ -15,7 +15,7 @@ Fixpoint remove_assert_i (i: instr) : cmd :=
   match ir with
   | Cassert _ => [::]
   | Cassgn _ _ _ _
-  | Copn _ _ _ _ | Csyscall _ _ _ | Ccall _ _ _ =>
+  | Copn _ _ _ _ | Csyscall _ _ _ _ | Ccall _ _ _ _ =>
     [:: i]
   | Cif e c1 c2 =>
     let c1 := remove_assert_c remove_assert_i c1 in
@@ -35,6 +35,7 @@ Context {pT:progT}.
 Definition remove_assert_fd (fd: fundef) :=
   let c := remove_assert_c remove_assert_i fd.(f_body) in
   {| f_info   := fd.(f_info);
+     f_al     := fd.(f_al);
      f_tyin   := fd.(f_tyin);
      f_params := fd.(f_params);
      f_body   := c;

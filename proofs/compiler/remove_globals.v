@@ -85,9 +85,9 @@ Section REMOVE.
       else Error (rm_glob_error_gen ii x [:: pp_s "a cell has a non-constant value"; pp_e pe ])
     ).
 
-  Definition array_from_cells ii x (len: positive) (cells: pexprs) : result pp_error_loc (WArray.array len) :=
+  Definition array_from_cells ii x (len: Z) (cells: pexprs) : result pp_error_loc (WArray.array len) :=
     Let bytes := evaluate_bytes ii x cells in
-    let env := fun (_ : length_var) => 1%positive in
+    let env := fun (_ : length_var) => None in
     match sem_opN env (Oarray len) bytes >>= to_arr len with
     | Ok array => Ok _ array
     | Error _ => Error (rm_glob_error_gen ii x [:: pp_s "cannot fill the array"])

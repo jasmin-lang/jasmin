@@ -243,6 +243,9 @@ Fixpoint subst_i f (i:instr) : mon instr :=
     let%m xs := subst_lvals f xs in
     let%m es := subst_es f es in
     ret (MkI ii (Csyscall xs o al es))
+  | Cassert (lbl, e) =>
+    let%m e := subst_e f e in
+    ret (MkI ii (Cassert (lbl, e)))
   end.
 Definition subst_c f := mapm (subst_i f).
 

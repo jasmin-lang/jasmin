@@ -1,4 +1,5 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
+From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith Setoid Morphisms.
 Require Export var type values.
 Import Utf8 ssrbool.
@@ -63,7 +64,7 @@ Definition vm_truncate_val ty v :=
  match v, ty with
  | Vbool _, cbool => v
  | Vint _, cint   => v
- | Varr p _, carr p' => if p == p' then v else undef_addr ty
+ | Varr len _, carr len' => if len == len' then v else undef_addr ty
  | Vword ws w, cword ws' =>
    if (sw_allowed || (ws' <= ws)%CMP) then
      if (ws <= ws')%CMP then Vword w else Vword (zero_extend ws' w)
@@ -431,7 +432,7 @@ End Section.
 
 Module Type VM.
 
-  Parameter t : forall {wsw:WithSubWord}, (length_var -> positive) -> Type.
+  Parameter t : forall {wsw:WithSubWord}, (length_var -> option Z) -> Type.
 
   Parameter init : forall {wsw:WithSubWord} env, t env.
 
@@ -457,7 +458,7 @@ End VM.
 Module Vm : VM.
   Section Section.
 
-  Context {wsw: WithSubWord} (env : length_var -> positive).
+  Context {wsw: WithSubWord} (env : length_var -> option Z).
 
   Definition wf (data: Mvar.t value) :=
     forall x v, Mvar.get data x = Some v -> compat_val (eval_atype env (vtype x)) v.
@@ -510,7 +511,7 @@ Open Scope vm_scope.
 
 Section GET_SET.
 
-Context {wsw: WithSubWord} (env : length_var -> positive).
+Context {wsw: WithSubWord} (env : length_var -> option Z).
 
 Lemma vm_truncate_val_get x (vm : Vm.t env) :
   vm_truncate_val (eval_atype env (vtype x)) vm.[x] = vm.[x].
@@ -593,7 +594,7 @@ Lemma get_varE vm x v : get_var true vm x = ok v ->
       if sw_allowed then ((ws' <= ws)%CMP:Prop) else ws = ws'
   end.
 Proof.
-  by move=> /get_var_compat [] h1 /compat_valEl h2; case:vtype h2 h1 => [ | | len | ws] // [->|].
+  by move=> /get_var_compat [] h1 /compat_valEl h2; case:eval_atype h2 h1 => [ | | len | ws] // [->|].
 Qed.
 
 Lemma type_of_get_var wdb x vm v :
@@ -638,7 +639,7 @@ Ltac t_vm_get :=
 
 Section REL.
 
-  Context {wsw1 wsw2 : WithSubWord} (env : length_var -> positive).
+  Context {wsw1 wsw2 : WithSubWord} (env : length_var -> option Z).
 
   Section Section.
 
@@ -759,7 +760,7 @@ Notation "vm1 '<=[\' s ']' vm2" := (uincl_ex s vm1 vm2)
   format "'[hv ' vm1  <=[\ s ] '/'  vm2 ']'") : vm_scope.
 
 Section REL_EQUIV.
-  Context {wsw : WithSubWord} (env : length_var -> positive).
+  Context {wsw : WithSubWord} (env : length_var -> option Z).
 
   Lemma vm_rel_refl R P : Reflexive R -> Reflexive (vm_rel (env:=env) R P).
   Proof. by move=> h x v _. Qed.

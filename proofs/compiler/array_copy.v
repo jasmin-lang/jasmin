@@ -64,7 +64,7 @@ Definition indirect_copy ws x y i :=
 Definition needs_temporary x y : bool :=
   is_var_in_memory x && is_var_in_memory y.
 
-Definition array_copy ii (x: var_i) (ws: wsize) (n: positive) (y: gvar) :=
+Definition array_copy ii (x: var_i) (ws: wsize) (n: Z) (y: gvar) :=
   let i_name := fresh_counter in
   let i := {| v_var := {| vtype := aint ; vname := i_name |}; v_info := v_info x |} in
   let ei := Pvar (mk_lvar i) in

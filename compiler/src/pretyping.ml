@@ -1105,7 +1105,7 @@ let conv_ty : T.extended_type -> P.epty = function
     | T.ETword(s,ws) -> P.ETword(s,ws)
     | T.ETarr (ws, al) ->
       begin match al with
-      | ALConst n -> P.ETarr (ws, PE (P.cnst (Conv.z_of_pos n)))
+      | ALConst n -> P.ETarr (ws, PE (P.cnst (Conv.z_of_cz n)))
       | _ -> assert false
       end
 
@@ -1115,7 +1115,7 @@ let conv_cty : T.atype -> P.epty = function
     | T.Coq_aword ws -> P.etw ws
     | T.Coq_aarr (ws, al) ->
       begin match al with
-      | ALConst n -> P.ETarr (ws, PE (P.cnst (Conv.z_of_pos n)))
+      | ALConst n -> P.ETarr (ws, PE (P.cnst (Conv.z_of_cz n)))
       | _ -> assert false
       end
 
@@ -1388,8 +1388,8 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
 
   | S.PEstring s ->
      let es = array_of_string s in
-     let len = Conv.pos_of_int (List.length es) in
-     P.PappN (Oarray len, es), P.(ETarr (U8, PE (Pconst (Conv.z_of_pos len))))
+     let len = Z.of_int (List.length es) in
+     P.PappN (Oarray (CoreConv.cz_of_z len), es), P.(ETarr (U8, PE (Pconst len)))
 
   | S.PEIf (pe1, pe2, pe3) ->
     let e1, ty1 = tt_expr ~mode pd env pe1 in

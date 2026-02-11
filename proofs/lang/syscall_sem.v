@@ -55,10 +55,10 @@ Definition exec_syscall_u
     ok (sv.1, m, sv.2)
   end. *)
 
-Definition exec_getrandom_u_core ws (scs : syscall_state_t) (m : mem) N (a : WArray.array (Z.to_pos (arr_size ws N))) (n:pointer) :=
-  let len := arr_size ws (Z.to_pos (wunsigned n)) in
+Definition exec_getrandom_u_core ws (scs : syscall_state_t) (m : mem) N (a : WArray.array (arr_size ws N)) (n:pointer) :=
+  let len := arr_size ws (wunsigned n) in
   let sd := get_random scs len in
-  Let t := WArray.fill (Z.to_pos len) sd.2 in
+  Let t := WArray.fill len sd.2 in
   Let a' := WArray.set_sub AAscale a 0 t in
   ok (sd.1, m, a').
 
@@ -79,23 +79,22 @@ Definition sem_syscall_u (N : length_var) (o : syscall_t) :
   syscall_state_t -> mem ->
   dep_type (size (syscall_sig_u N o).(scs_al))
     (fun l =>
-      let env : length_var -> positive :=
+      let env :=
         let als := zip (syscall_sig_u N o).(scs_al) l in
-        fun x =>
-        odflt 1%positive (xseq.assoc als x) (* should we fail instead of this default value? *)
+        xseq.assoc als
        in
     (sem_prod (map (eval_atype env) (syscall_sig_u N o).(scs_tin))
          (exec (syscall_state_t * mem * sem_tuple (map (eval_atype env) (syscall_sig_u N o).(scs_tout)))))) :=
   match o with
   | RandomBytes ws =>
-    ecast b (_ -> _ -> forall a,
-      sem_prod [:: carr (Z.to_pos (arr_size ws (odflt 1%positive (if b then Some a else None)))); cword Uptr]
-        (exec (_ * _ * sem_tuple [:: carr (Z.to_pos (arr_size ws (odflt 1%positive (if b then Some a else None))))])))
+    ecast b (_ -> _ -> forall len,
+      sem_prod [:: carr (arr_size ws (if (if b then Some len else None) is Some z then if 0 <? z then z else 0 else 0)); cword Uptr]
+        (exec (_ * _ * sem_tuple [:: carr (arr_size ws (if (if b then Some len else None) is Some z then if 0 <? z then z else 0 else 0))])))
       (esym (eqtype.eq_refl N))
-      (@exec_getrandom_u_core ws)
+      (fun scs m len => @exec_getrandom_u_core ws scs m _)
   end.
 
-Definition exec_syscall_u (N:length_var) (scs : syscall_state_t) (m : mem) (o:syscall_t) (alargs: seq positive) (vs:values) : exec (syscall_state_t * mem * values) :=
+Definition exec_syscall_u (N:length_var) (scs : syscall_state_t) (m : mem) (o:syscall_t) (alargs: seq Z) (vs:values) : exec (syscall_state_t * mem * values) :=
   let semi := sem_syscall_u N o in
   Let semi := app_dep (semi scs m) alargs in
   Let: (scs', m', t) := app_sopn _ semi vs in
@@ -154,9 +153,9 @@ Lemma exec_syscallPu N scs m o alargs vargs vargs' rscs rm vres :
   exists2 vres' : values,
     exec_syscall_u N scs m o alargs vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'.
 Proof.
-Local Opaque arr_size.
   rewrite /exec_syscall_u; case: o => [ ws ].
   case: alargs => // al [] //=.
+  rewrite /eval /=.
   rewrite -> eqtype.eq_refl; move=> /=.
   move=> + hu.
   case: hu => // va va' {}vargs {}vargs' /of_value_uincl_te ha.
@@ -178,6 +177,7 @@ Lemma exec_syscallSu N scs m o alargs vargs rscs rm vres :
 Proof.
   rewrite /exec_syscall_u; case: o => [ ws ].
   case: alargs => // al [] //=.
+  rewrite /eval /=.
   rewrite -> eqtype.eq_refl; move=> /=.
   case: vargs => // va.
   case; first by t_xrbindP.
@@ -214,10 +214,9 @@ Definition sem_syscall_s (o : syscall_t) :
   syscall_state_t -> mem ->
   dep_type (size (syscall_sig_s o).(scs_al))
     (fun l =>
-      let env : length_var -> positive :=
+      let env :=
         let als := zip (syscall_sig_s o).(scs_al) l in
-        fun x =>
-        odflt 1%positive (xseq.assoc als x) (* should we fail instead of this default value? *)
+        xseq.assoc als
        in
     (sem_prod (map (eval_atype env) (syscall_sig_s o).(scs_tin))
          (exec (syscall_state_t * mem * sem_tuple (map (eval_atype env) (syscall_sig_s o).(scs_tout)))))) :=

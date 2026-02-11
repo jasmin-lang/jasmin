@@ -189,20 +189,26 @@ Definition sem_opN_typed env (o: opN) :
       let ty := curry (A := cint) (sz %/ pe) (λ vs, ok (wpack sz pe vs)) in
       ecast l (sem_prod l _) (esym (map_nseq _ _ _)) ty
   | Oarray len =>
-      let ty := sem_prod_app (collect (Pos.to_nat len) [::]) (λ vs : seq (sem_t (cword U8)), WArray.fill len vs) in
+      let ty := sem_prod_app (collect (Z.to_nat len) [::]) (λ vs : seq (sem_t (cword U8)), WArray.fill _ vs) in
       ecast l (sem_prod l _) (esym (map_nseq _ _ _)) ty
   | Ocombine_flags cf =>
       fun b0 b1 b2 b3 => ok (sem_combine_flags cf b0 b1 b2 b3)
   end.
 
-Lemma sem_opN_typed_ok (op: opN) :
-  sem_forall (@is_ok _ _) _ (sem_opN_typed op).
+Lemma sem_opN_typed_ok env (op: opN) :
+  sem_forall (@is_ok _ _) _ (sem_opN_typed env op).
 Proof.
   case: op => // [ ws pe | len ] /=; rewrite -> map_nseq => /=.
   + by case: ws pe => - [].
-  apply: sem_forall_prod_app (size_collect (Pos.to_nat len) [::]) => bytes /=.
-  rewrite ssrnat.addn0 /WArray.fill => hlen; rewrite hlen eqxx /=.
-  by case/is_okP: (WArray.fill_aux_ok (Nat.eq_le_incl _ _ hlen)) => ? ->.
+  apply: sem_forall_prod_app (size_collect (Z.to_nat len) [::]) => bytes /=.
+  rewrite ssrnat.addn0 => hlen.
+  rewrite /WArray.fill arr_sizeE wsize8 Z.mul_1_l hlen /eval /=.
+  case: ZltP => [hpos|hneg].
+  + rewrite eqxx /=.
+    by case/is_okP: (WArray.fill_aux_ok (Nat.eq_le_incl _ _ hlen)) => ? ->.
+  move: hlen.
+  rewrite Z_to_nat_le0 /=; last by Lia.lia.
+  by move=> /size0nil -> /=.
 Qed.
 
 End WITH_PARAMS.

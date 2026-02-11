@@ -274,10 +274,22 @@ module SPrinter = struct
     | PEstring s -> pp_string fmt s
     | PEBool b -> F.fprintf fmt "%s" (if b then "true" else "false")
     | PEInt i -> F.fprintf fmt "%s" i
-    | PECall (f, args) -> F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
+    | PECall (f, al, args) ->
+        let pp_al fmt al =
+          if al = [] then ()
+          else
+            F.fprintf fmt "{%a}" (pp_list ",@ " pp_expr) al
+        in
+        F.fprintf fmt "%a%a(%a)" pp_var f pp_al al (pp_list ", " pp_expr) args
     | PECombF (f, args) ->
       F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
-    | PEPrim (f, args) -> F.fprintf fmt "%a%s(%a)" sharp () (L.unloc f) (pp_list ", " pp_expr) args
+    | PEPrim (f, al, args) ->
+        let pp_al fmt al =
+          if al = [] then ()
+          else
+            F.fprintf fmt "{%a}" (pp_list ",@ " pp_expr) al
+        in
+        F.fprintf fmt "%a%s%a(%a)" sharp () (L.unloc f) pp_al al (pp_list ", " pp_expr) args
     | PEOp1 (op, e) ->
       let p = prio_of_op1 op in
       optparent fmt prio p "(";

@@ -315,8 +315,8 @@ Proof.
   case: ty1; case: ty2; try (right; discriminate).
   + by left; reflexivity.
   + by left; reflexivity.
-  + move=> p1 p2.
-    case: (Pos.eq_dec p1 p2).
+  + move=> z1 z2.
+    case: (Z.eq_dec z1 z2).
     + by left; congruence.
     + by right; congruence.
   move=> ws1 ws2.
@@ -359,7 +359,7 @@ Lemma sc_needed_args_map_safe_cond {A B} (f : A -> B) s :
 Proof. by case: s. Qed.
 
 Lemma semi_to_atype_safe_wf tin safe :
-  all (fun sc : safe_cond positive => ssrnat.leq (sc_needed_args sc) (size tin)) safe ->
+  all (fun sc : safe_cond Z => ssrnat.leq (sc_needed_args sc) (size tin)) safe ->
   all (fun sc : safe_cond array_length => ssrnat.leq (sc_needed_args sc) (size (map atype_of_ltype tin))) (map safe_cond_to_array_length safe).
 Proof.
   rewrite size_map.
@@ -377,17 +377,37 @@ Proof.
   by rewrite -> e1, -> e2.
 Qed.
 
-Lemma safe_cond_to_array_lengthP env : eval_safe_cond env \o safe_cond_to_array_length =1 id.
-Proof. by case. Qed.
+Lemma safe_cond_to_array_lengthP env vs c :
+  interp_safe_cond vs (eval_safe_cond env (safe_cond_to_array_length c)) ->
+  interp_safe_cond vs c.
+Proof.
+  case: c => //= ws len n.
+  rewrite /eval /=.
+  case: ZltP => // hneg.
+  by Lia.lia.
+Qed.
+
+Lemma map_safe_cond_to_array_lengthP env vs sc :
+  ListDef.Forall (interp_safe_cond vs) (map (eval_safe_cond env) (map safe_cond_to_array_length sc)) ->
+  ListDef.Forall (interp_safe_cond vs) sc.
+Proof.
+  elim: sc => [|c sc ih] //=.
+  move=> /List_Forall_inv [hsafe /ih{}ih].
+  constructor=> //.
+  by apply: safe_cond_to_array_lengthP hsafe.
+Qed.
 
 Lemma semi_to_atype_safe tin tout (semi: sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout)))) safe env :
   interp_safe_cond_ty safe semi ->
   interp_safe_cond_ty (map (eval_safe_cond env) (map safe_cond_to_array_length safe)) (semi_to_atype semi env).
 Proof.
-  rewrite -(map_comp (eval_safe_cond env)) (eq_map (safe_cond_to_array_lengthP env)) map_id.
   rewrite /semi_to_atype.
-  move: (computational_eq _) (computational_eq _) semi => e1 e2.
-  by rewrite -> e1, -> e2.
+  move: (computational_eq _) (computational_eq _) => e1 e2.
+  rewrite <- e1, <- e2. move=> {e1 e2}.
+  rewrite /interp_safe_cond_ty.
+  elim: tin semi (@nil values.value) => //= [ | t ts hrec] semi vs.
+  + by move=> + /map_safe_cond_to_array_lengthP.
+  by eauto.
 Qed.
 
 Definition get_instr_desc (o: extended_op) : instruction_desc :=

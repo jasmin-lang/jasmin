@@ -495,7 +495,7 @@ let alloc_mem (gtbl: wsize Hv.t) globs =
       List.iteri (fun i w -> t.(ofs + i) <- w) w 
 
     | Global.Garr(p, gt) ->
-      let ip = Conv.int_of_pos p in
+      let ip = CoreConv.int_of_cz p in
       for i = 0 to ip - 1 do
         let w = 
           match Warray_.WArray.get p Aligned Warray_.AAdirect U8 gt (Conv.cz_of_int i) with

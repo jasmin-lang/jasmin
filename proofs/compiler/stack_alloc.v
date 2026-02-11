@@ -713,11 +713,11 @@ Definition check_stack_ptr rv s ws cs x' :=
 (* FIXME: redundancy with mk_len_int/symbolic_of_arr_type? *)
 Definition size_of (t:atype) :=
   match t with
-  | aword sz => ALConst (Z.to_pos (wsize_size sz))
+  | aword sz => ALConst (wsize_size sz)
   | aarr ws al =>
     match al with
-    | ALConst len => ALConst (Z.to_pos (arr_size ws len))
-    | _ => ALMul (ALConst (Z.to_pos (wsize_size ws))) al
+    | ALConst len => ALConst (arr_size ws len)
+    | _ => ALMul (ALConst (wsize_size ws)) al
     end
   | abool | aint => ALConst 1
   end.
@@ -2161,7 +2161,7 @@ Definition check_glob data gv :=
 Definition size_glob gv :=
   match gv with
   | @Gword ws _ => wsize_size ws
-  | @Garr p _ => Zpos p
+  | @Garr p _ => p
   end.
 
 Definition init_map (l:list (var * wsize * Z)) data (gd:glob_decls) : cexec (Mvar.t (Z*wsize)) :=

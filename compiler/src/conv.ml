@@ -36,7 +36,7 @@ let z_unsigned_of_word sz z = z_of_cz (Word0.wunsigned sz z)
 let rec al_of_cal cal =
   let open Type in
   match cal with
-  | ALConst n -> Const (int_of_pos n)
+  | ALConst n -> Const (int_of_cz n)
   | ALVar x -> Var x
   | ALAdd (al1, al2) -> Add (al_of_cal al1, al_of_cal al2)
   | ALMul (al1, al2) -> Mul (al_of_cal al1, al_of_cal al2)
@@ -44,7 +44,7 @@ let rec al_of_cal cal =
 let rec cal_of_al al =
   let open Type in
   match al with
-  | Const n -> ALConst (pos_of_int n)
+  | Const n -> ALConst (cz_of_int n)
   | Var x -> ALVar x
   | Add (Const 0, al) | Add (al, Const 0) -> cal_of_al al (* special case to avoid failing when encountering 0 *)
   | Add (al1, al2) -> ALAdd (cal_of_al al1, cal_of_al al2)

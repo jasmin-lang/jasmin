@@ -53,7 +53,7 @@ Definition to_expr (t:ctype) : sem_t t -> exec pexpr :=
 (* FIXME: sem_sop1_typed takes an [env] as an argument, but actually does not
    use it. We need to provide one here, we provide a dummy one.
    Ideally, sem_sop1_typed would not depend on an env. *)
-Definition empty_env : length_var -> positive := fun _ => 1%positive.
+Definition empty_env : length_var -> option Z := fun _ => None.
 
 Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr := 
   let r := 

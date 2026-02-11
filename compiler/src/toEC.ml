@@ -1496,7 +1496,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
               )
           | Oarray len ->
               Eapp (
-                  EA.of_list env U8 (Conv.int_of_pos len),
+                  EA.of_list env U8 (CoreConv.int_of_cz len),
                   [Elist (List.map (toec_expr env) es)]
               )
           end

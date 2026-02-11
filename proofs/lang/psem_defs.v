@@ -60,7 +60,7 @@ Context {wsw:WithSubWord}.
 Record estate
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
-  (env : length_var -> positive) := Estate
+  (env : length_var -> option Z) := Estate
   {
     escs : syscall_state;
     emem : mem;
@@ -96,7 +96,7 @@ Section ESTATE_UTILS.
 Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
-  (env : length_var -> positive).
+  (env : length_var -> option Z).
 
 Definition with_vm (s:estate env) (vm : Vm.t env) :=
   {| escs := s.(escs); emem := s.(emem); evm := vm |}.
@@ -115,7 +115,7 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  (env : length_var -> positive)
+  (env : length_var -> option Z)
   (wdb : bool)
   (gd : glob_decls).
 
@@ -124,7 +124,7 @@ Fixpoint sem_pexpr (s:estate env) (e : pexpr) : exec value :=
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
   | Parr_init ws al =>
-    let len := Z.to_pos (arr_size ws (eval env al)) in
+    let len := arr_size ws (eval env al) in
     ok (Varr (WArray.empty len))
   | Pvar v => get_gvar wdb gd s.(evm) v
   | Pget al aa ws x e =>
@@ -192,7 +192,7 @@ Definition write_lval (l : lval) (v : value) (s : estate env) : exec (estate env
     Let (n,t) := wdb, s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     let len := eval env len in
-    Let t' := to_arr (Z.to_pos (arr_size ws len)) v in
+    Let t' := to_arr (arr_size ws len) v in
     Let t := @WArray.set_sub n aa ws len t i t' in
     write_var x (@to_val (carr n) t) s
   end.
@@ -209,7 +209,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {asmop : asmOp asm_op}
-  (env : length_var -> positive).
+  (env : length_var -> option Z).
 
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=
   Let semi := sopn_sem o in
