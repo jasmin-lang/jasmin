@@ -442,7 +442,7 @@ let safe_opn pd asmOp safe opn es =
         let e = List.nth es (Conv.int_of_nat i) in
         let y = match e with Pvar y -> y | _ -> assert false in
         List.flatten
-          (List.init (Conv.int_of_pos p) (fun i -> init_get y Warray_.AAscale ws (Pconst (Z.of_int i)) 1))
+          (List.init (CoreConv.int_of_cz p) (fun i -> init_get y Warray_.AAscale ws (Pconst (Z.of_int i)) 1))
       | NotZero (sz, n) ->
         [ notZero(sz, List.nth es (Conv.int_of_nat n)) ]
 

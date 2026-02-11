@@ -30,14 +30,14 @@ Definition wsize_size (sz: wsize) : Z :=
   | U256 => 32
   end.
 
-Definition arr_size (ws:wsize) (len:positive) :=
+Definition arr_size (ws:wsize) (len:Z) :=
  (wsize_size ws * len)%Z.
 
 Lemma arr_sizeE ws len : arr_size ws len = (wsize_size ws * len)%Z.
 Proof. done. Qed.
 
-Lemma gt0_arr_size ws len : (0 < arr_size ws len)%Z.
-Proof. done. Qed.
+Lemma gt0_arr_size ws len : (0 < len)%Z -> (0 < arr_size ws len)%Z.
+Proof. by move=> ?; rewrite arr_sizeE; apply Z.mul_pos_pos. Qed.
 
 #[global] Opaque arr_size.
 

@@ -502,7 +502,7 @@ Proof.
   rewrite /eq_rect_r /=; apply.
 Qed.
 
-Lemma safe_wf_cat (tin tin' : seq ltype) (sc : seq (safe_cond positive)) :
+Lemma safe_wf_cat (tin tin' : seq ltype) (sc : seq (safe_cond Z)) :
   all (fun sc => sc_needed_args sc <= size tin) sc ->
   all (fun sc => sc_needed_args sc <= size (tin ++ tin')) sc.
 Proof. apply sub_all => c h; rewrite size_cat; apply: (leq_trans h); apply leq_addr. Qed.
@@ -1406,7 +1406,7 @@ Definition arm_BFC_semi (x : wreg) (lsb width : word U8) : exec wreg :=
   in
   ok (winit reg_size mk).
 
-Definition arm_BFC_semi_sc : seq (safe_cond positive) := [:: ULt U8 1 32%Z; UGe U8 1%Z 2; UaddLe U8 2 1 32%Z].
+Definition arm_BFC_semi_sc : seq (safe_cond Z) := [:: ULt U8 1 32%Z; UGe U8 1%Z 2; UaddLe U8 2 1 32%Z].
 
 Lemma arm_BFC_semi_errty :
   sem_lforall (fun r : result error (sem_ltuple [:: lreg ]) => r <> Error ErrType)
@@ -1462,7 +1462,7 @@ Definition arm_BFI_semi (x y : wreg) (lsb width : word U8) : exec wreg :=
   in
   ok (winit reg_size mk).
 
-Definition arm_BFI_semi_sc  : seq (safe_cond positive) := [:: ULt U8 2 32%Z; UGe U8 1%Z 3; UaddLe U8 3 2 32%Z].
+Definition arm_BFI_semi_sc  : seq (safe_cond Z) := [:: ULt U8 2 32%Z; UGe U8 1%Z 3; UaddLe U8 3 2 32%Z].
 
 Lemma arm_BFI_semi_errty :
   sem_lforall (fun r : result error (sem_ltuple [:: lreg ]) => r <> Error ErrType)
@@ -1948,7 +1948,7 @@ Definition bit_field_extract_semi
   Let _ := assert [&& 1 <=? width & width <? 33-idx]%Z E.no_semantics in
   ok (shr (wshl wn (32 - width - idx)%Z) (32 - width)%Z).
 
-Definition bit_field_extract_semi_sc : seq (safe_cond positive) := [:: UGe U8 1%Z 2; UaddLe U8 2 1 32%Z].
+Definition bit_field_extract_semi_sc : seq (safe_cond Z) := [:: UGe U8 1%Z 2; UaddLe U8 2 1 32%Z].
 
 Lemma bit_field_extract_semi_errty shr :
   sem_lforall (fun r : result error (sem_ltuple [:: lreg ]) => r <> Error ErrType)

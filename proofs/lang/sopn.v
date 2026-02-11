@@ -41,8 +41,8 @@ Definition map_safe_cond {A B} (f : A -> B) c :=
   | ScFalse => ScFalse
   end.
 
-Definition eval_safe_cond (env : length_var -> positive) c :=
-  map_safe_cond (eval env) c.
+Definition eval_safe_cond (env : length_var -> option Z) c :=
+  map_safe_cond (fun al => eval env al) c.
 
 Record instruction_desc := mkInstruction {
   str      : unit -> string;
@@ -186,7 +186,7 @@ Proof. by case: o => // -[] // ?? [-> ->]. Qed.
 Local Notation E n := (ADExplicit n ACR_any).
 
 Lemma array_copy_errty ws p:
-  let sz := Z.to_pos (arr_size ws p) in
+  let sz := arr_size ws p in
   let tin := [:: carr sz] in
   let semi := @WArray.copy ws p in
   sem_forall (fun r : result error (sem_tuple [:: carr sz]) => r <> Error ErrType) tin semi.
@@ -208,7 +208,7 @@ Proof.
 Qed.
 
 Lemma array_copy_safe ws p:
-  let sz := Z.to_pos (arr_size ws p) in
+  let sz := arr_size ws p in
   let tin := [:: carr sz] in
   let semi := @WArray.copy ws p in
   interp_safe_cond_ty (tin:=tin) [:: AllInit ws p 0] semi.
@@ -220,12 +220,12 @@ Proof.
   + by move=> /=; eauto.
   move=> j js hj hrec t1 /=.
   have [w -> /=] := h _ hj; rewrite /WArray.set.
-  have := [elaborate (writeV (CM:= WArray.array_CM (Z.to_pos (arr_size ws p))))].
+  have := [elaborate (writeV (CM:= WArray.array_CM (arr_size ws p)))].
   move => /(_ _ w t1 Aligned (j * mk_scale AAscale ws)%Z) wP.
   assert (h1 : validw t1 Aligned (j * mk_scale AAscale ws)%Z ws).
   + rewrite /validw /is_aligned_if WArray.is_align_scale andTb.
     apply ziota_ind => //= i ? hi ->; rewrite andbT; apply/WArray.in_boundP.
-    rewrite WArray.addE; change (Zpos _) with ((wsize_size ws) * p)%Z;Lia.nia.
+    rewrite WArray.addE arr_sizeE; Lia.nia.
   move/wP: h1 => [t2 ->] /=; apply hrec.
 Qed.
 
@@ -413,9 +413,9 @@ Definition se_move_sem (w : wmsf) : wmsf := w.
 
 Definition se_protect_sem {ws : wsize} (w : word ws) (msf : wmsf) : word ws := w.
 
-Definition se_protect_ptr_sem {p:positive} (t: WArray.array p) (msf : wmsf) : WArray.array p := t.
+Definition se_protect_ptr_sem {p} (t: WArray.array p) (msf : wmsf) : WArray.array p := t.
 
-Definition se_protect_ptr_fail_sem {p:positive} (t: WArray.array p) (msf : wmsf) : exec (WArray.array p) :=
+Definition se_protect_ptr_fail_sem {p} (t: WArray.array p) (msf : wmsf) : exec (WArray.array p) :=
   Let _ := assert (msf == 0%w) ErrSemUndef in
   ok t.
 
@@ -477,7 +477,7 @@ Definition SLHprotect_ptr_str := "protect_ptr"%string.
 Definition SLHprotect_ptr_instr ws al :=
   let tin := [:: aarr ws al; ty_msf ] in
   let ctin env := map (eval_atype env) tin in
-  let semi env := @se_protect_ptr_sem (Z.to_pos (arr_size ws (eval env al))) in
+  let semi env := @se_protect_ptr_sem (arr_size ws (eval env al)) in
   {| str      := pp_s SLHprotect_ptr_str;
      tin      := tin;
      i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
@@ -485,7 +485,7 @@ Definition SLHprotect_ptr_instr ws al :=
      i_out    := [:: E 2 ]; (* this info is irrelevant *)
      conflicts:=[::];
      semi     := fun env => sem_prod_ok (ctin env) (semi env);
-     semu     := fun env => @protect_ptr_semu (Z.to_pos (arr_size ws (eval env al)));
+     semu     := fun env => @protect_ptr_semu (arr_size ws (eval env al));
      i_safe   := [::];
      i_valid  := true;
      i_safe_wf    := refl_equal;
@@ -527,7 +527,7 @@ Qed.
 
 Definition SLHprotect_ptr_fail_str := "protect_ptr_fail"%string.
 Definition SLHprotect_ptr_fail_instr ws al :=
-  let len env := Z.to_pos (arr_size ws (eval env al)) in
+  let len env := arr_size ws (eval env al) in
   {| str      := pp_s SLHprotect_ptr_fail_str;
      tin      := [:: aarr ws al; ty_msf ];
      i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
