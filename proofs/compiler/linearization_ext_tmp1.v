@@ -1330,12 +1330,12 @@ Definition imed_cmd (fn0: funname) (cc: cmd) (pl0: plinfo) :
   imed_cmd_aux imed_i fn0 cc pl0.
 
 
-Fixpoint imed_i_forget
+Fixpoint forget_imed_i
   (fn0: funname) (pl0 pl1: plinfo)
   (tl: LTree fn0 pl0 pl1) : (plinfo * lcmd) :=
   let LC : (forall (fn0: funname) (pl0 pl1: plinfo)
                    (tl: LTreeList fn0 pl0 pl1), (plinfo * lcmd)) :=
-    imed_cmd_forget in 
+    forget_imed_cmd in 
   match tl with
   | LErrLeaf _ => (pl1, nil)
   | LLeaf _ li => (pl1, [:: li])
@@ -1367,76 +1367,144 @@ Fixpoint imed_i_forget
   | LCallNode _ _ _ _ la_before la_after la_call la_ret =>
       (pl1, la_before ++ (la_call :: la_ret :: la_after))      
   end
-with imed_cmd_forget (fn0: funname) (pl0 pl1: plinfo)
+with forget_imed_cmd (fn0: funname) (pl0 pl1: plinfo)
   (tl: LTreeList fn0 pl0 pl1) : (plinfo * lcmd) :=
   match tl with
   | LListNil _ => (pl1, nil)
   | LListCons _ _ _ t0 tl0 =>
-      let (_, lcm1) := @imed_i_forget _ _ _ t0 in
-      let (_, lcm2) := @imed_cmd_forget _ _ _ tl0 in
+      let (_, lcm1) := @forget_imed_i _ _ _ t0 in
+      let (_, lcm2) := @forget_imed_cmd _ _ _ tl0 in
       (pl1, lcm1 ++ lcm2)
   end.              
 
-(* Require Import Equality. *)
 
-Definition imed_forget_ok_i_stat (i: instr) :=
+
+Require Import Equality. 
+
+Definition forget_imed_i_ok_stat (i: instr) :=
   forall (fn0: funname) (pl0: plinfo),
     let X := imed_i fn0 i pl0 in
-    projT1 X = fst (imed_i_forget (projT2 X)).
+    projT1 X = fst (forget_imed_i (projT2 X)).
 
-Definition imed_forget_ok_cmd_stat (c: cmd) :=
+Definition forget_imed_cmd_ok_stat (c: cmd) :=
   forall (fn0: funname) (pl0: plinfo),
     let X := imed_cmd fn0 c pl0 in
-    projT1 X = fst (imed_cmd_forget (projT2 X)).
+    projT1 X = fst (forget_imed_cmd (projT2 X)).
 
-Lemma imed_forget_ok (i: instr) : imed_forget_ok_i_stat i.
-  set Pi := imed_forget_ok_i_stat.
-  set Pi_r := fun i => forall ii, imed_forget_ok_i_stat (MkI ii i).
-  set Pc := imed_forget_ok_cmd_stat.
-  set IP := instr_Rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc).
-  subst Pi Pi_r Pc.
-  eapply IP; clear IP.
-  { intros. eapply H. }
-  { unfold imed_forget_ok_cmd_stat; simpl.
-    intros fn0 [n0 lbl0]; simpl; auto.
+Lemma forget_imed_i_ok (i: instr) : forget_imed_i_ok_stat i.
+  unfold forget_imed_i_ok_stat.
+  intros.
+  destruct pl0; simpl.
+  destruct (imed_i fn0 i (n,l)); simpl.
+  destruct x; simpl.
+  destruct l0; simpl; eauto.
+  { destruct (forget_imed_cmd _); simpl; auto. }
+  { set X := (@forget_imed_cmd _ _ _ _).
+    destruct X; simpl.
+    set X := (@forget_imed_cmd _ _ _ _).
+    destruct X; simpl; auto.
   }
-Admitted.   
+  { set X := (@forget_imed_cmd _ _ _ _).
+    destruct X; simpl.
+    set X := (@forget_imed_cmd _ _ _ _).
+    destruct X; simpl; auto.
+  }
+  { set X := (@forget_imed_cmd _ _ _ _).
+    destruct X; simpl; auto.
+  }  
+  { set X := (@forget_imed_cmd _ _ _ _).
+    destruct X; simpl; auto.
+  }
+  { set X := (@forget_imed_cmd _ _ _ _).
+    destruct X; simpl.
+    set X := (@forget_imed_cmd _ _ _ _).
+    destruct X; simpl; auto.
+  }
+Qed.  
 
-
-Definition imed_correct_i_stat (i: instr) :=
+Lemma forget_imed_cmd_ok (c: cmd) : forget_imed_cmd_ok_stat c.
+  unfold forget_imed_cmd_ok_stat.
+  intros.
+  destruct pl0; simpl.
+  destruct (imed_cmd fn0 c (n,l)); simpl.
+  destruct x; simpl.
+  destruct l0; simpl; eauto.
+  destruct (forget_imed_i _); simpl.
+  destruct (@forget_imed_cmd _ _ _ _); simpl; auto.
+Qed.
+  
+Definition imed_i_correct_stat (i: instr) :=
   forall (fn0: funname) (pl0: plinfo),
-    linear_l2r_i fn0 i pl0 = imed_i_forget (projT2 (imed_i fn0 i pl0)).
+    linear_l2r_i fn0 i pl0 = forget_imed_i (projT2 (imed_i fn0 i pl0)).
 
-Definition imed_correct_cmd_stat (c: cmd) :=
+Definition imed_cmd_correct_stat (c: cmd) :=
   forall (fn0: funname) (pl0: plinfo),
      linear_l2r_c linear_l2r_i fn0 c pl0 = 
-     imed_cmd_forget (projT2 (imed_cmd fn0 c pl0)).
+     forget_imed_cmd (projT2 (imed_cmd fn0 c pl0)).
 
-Lemma imed_correct (i: instr) : imed_correct_i_stat i.
+Lemma imed_correct (i: instr) : imed_i_correct_stat i.
 Proof.
-  set Pi := imed_correct_i_stat.
-  set Pi_r := fun i => forall ii, imed_correct_i_stat (MkI ii i).
-  set Pc := imed_correct_cmd_stat.
+  set Pi := imed_i_correct_stat.
+  set Pi_r := fun i => forall ii, imed_i_correct_stat (MkI ii i).
+  set Pc := imed_cmd_correct_stat.
   set IP := instr_Rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc).
   subst Pi Pi_r Pc.
   eapply IP; clear IP.
   { intros. eapply H. }
-  { unfold imed_correct_cmd_stat; simpl.
+  { unfold imed_cmd_correct_stat; simpl.
     intros fn0 [n0 lbl0]; simpl; auto.
   }
-Admitted. 
+  { unfold imed_i_correct_stat, imed_cmd_correct_stat.
+    intros i0 c H H0 fn0 [n0 lbl0]; simpl.
+    clear i.
+    specialize (H fn0 (n0, lbl0)); simpl in *.
+    remember (linear_l2r_i _ _ _) as fullI0.
+    destruct fullI0 as [pl1 lc1]; simpl in *.
+    rewrite <- H.
+    specialize (H0 fn0 pl1).
+    remember (linear_l2r_c _ _ _ _) as X.
 
-(* alternative version *)
-Fixpoint imed_i_forgetA
+    assert ((projT1 (imed_i fn0 i0 (n0, lbl0))) = fst (pl1, lc1)) as A1.
+    { 
+      rewrite HeqfullI0.
+      rewrite forget_imed_i_ok.
+      rewrite <- H; simpl.
+      rewrite <- HeqfullI0; simpl. auto.
+    }
+    simpl in A1.
+    destruct X as [pl2 lc2]; simpl in *.
+    rewrite A1; simpl.
+    unfold imed_cmd in H0.
+    rewrite <- H0.
+    
+    assert ((projT1 (imed_cmd_aux imed_i fn0 c pl1)) = fst (pl2, lc2)) as A2.
+    { rewrite H0.
+      eapply forget_imed_cmd_ok; eauto.
+    }  
+    simpl in A2.
+    rewrite A2; auto.
+  }
+  { unfold imed_i_correct_stat; simpl; intros; auto. }
+  { unfold imed_i_correct_stat; simpl; intros.
+    destruct (oseq.omap lexpr_of_lval xs); simpl; auto.
+    destruct (oseq.omap _ _); simpl; auto.
+  }
+  { unfold imed_i_correct_stat; simpl; intros; auto. }
+  
+Admitted.   
+    
+
+(* alternative version (probably not useful, just more verbose) *)
+Fixpoint forgetA_imed_i
   (fn0: funname) (plI plF: plinfo)
   (tl: LTree fn0 plI plF) : (plinfo * lcmd) :=
   let LC : (forall (fn0: funname) (pl0 pl1: plinfo)
                    (tl: LTreeList fn0 pl0 pl1), (plinfo * lcmd)) :=
-    imed_cmd_forgetA in 
+    forgetA_imed_cmd in 
   match tl with
   | LErrLeaf pl => (pl, nil)
-  | LLeaf pl li => (pl, [:: li])
-  | LLeafL pl li => (pl, [:: li ])
+  | LLeaf pl li => (incrP1 pl, [:: li])
+  | LLeafL pl li => (incrPL1 pl, [:: li ])
   | LIf1Node pl0 pl1 la_cond0 tl1 la_lbl0 =>
       let (_, lcm1) := LC fn0 (incrPL1 pl0) pl1 tl1 in  
       (incrP1 pl1, la_cond0 :: (lcm1 ++ [:: la_lbl0]))
@@ -1466,17 +1534,60 @@ Fixpoint imed_i_forgetA
       let n1 := S (fst pl0 + nb) in
       ((n1 + na, lbl1), la_before ++ (la_call :: la_ret :: la_after))      
   end
-with imed_cmd_forgetA (fn0: funname) (plI plF: plinfo)
+with forgetA_imed_cmd (fn0: funname) (plI plF: plinfo)
   (tl: LTreeList fn0 plI plF) : (plinfo * lcmd) :=
   match tl with
   | LListNil pl => (pl, nil)
   | LListCons pl0 pl1 pl2 t0 tl0 => 
-      let (pl01, lcm1) := @imed_i_forgetA _ pl0 pl1 t0 in
-      let (pl02, lcm2) := @imed_cmd_forgetA _ pl1 pl2 tl0 in
+      let (pl01, lcm1) := @forgetA_imed_i _ pl0 pl1 t0 in
+      let (pl02, lcm2) := @forgetA_imed_cmd _ pl1 pl2 tl0 in
       (pl2, lcm1 ++ lcm2)
 (*      if (pl1 == pl01) && (pl2 == pl02) then
       (pl2, lcm1 ++ lcm2) else (plI, nil) *)
   end.              
+
+Definition forgetA_imed_i_ok_stat (i: instr) :=
+  forall (fn0: funname) (pl0: plinfo),
+    let X := imed_i fn0 i pl0 in
+    projT1 X = fst (forgetA_imed_i (projT2 X)).
+
+Definition forgetA_imed_cmd_ok_stat (c: cmd) :=
+  forall (fn0: funname) (pl0: plinfo),
+    let X := imed_cmd fn0 c pl0 in
+    projT1 X = fst (forgetA_imed_cmd (projT2 X)).
+
+(* same proof as before, not very interesting *)
+Lemma forgetA_imed_ok (i: instr) : forgetA_imed_i_ok_stat i.
+  unfold forgetA_imed_i_ok_stat.
+  intros.
+  destruct pl0; simpl.
+  destruct (imed_i fn0 i (n,l)); simpl.
+  destruct x; simpl.
+  destruct l0; simpl; eauto.
+  { destruct (forgetA_imed_cmd _); simpl; auto. }
+  { set X := (@forgetA_imed_cmd _ _ _ _).
+    destruct X; simpl.
+    set X := (@forgetA_imed_cmd _ _ _ _).
+    destruct X; simpl; auto.
+  }
+  { set X := (@forgetA_imed_cmd _ _ _ _).
+    destruct X; simpl.
+    set X := (@forgetA_imed_cmd _ _ _ _).
+    destruct X; simpl; auto.
+  }
+  { set X := (@forgetA_imed_cmd _ _ _ _).
+    destruct X; simpl; auto.
+  }  
+  { set X := (@forgetA_imed_cmd _ _ _ _).
+    destruct X; simpl; auto.
+  }
+  { set X := (@forgetA_imed_cmd _ _ _ _).
+    destruct X; simpl.
+    set X := (@forgetA_imed_cmd _ _ _ _).
+    destruct X; simpl; auto.
+  }
+Qed.  
+
 
 End FUN.
 
