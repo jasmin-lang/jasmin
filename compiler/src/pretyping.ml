@@ -2202,10 +2202,7 @@ let tt_call_conv _loc params returns cc =
           if writable = Constant then
             warning Always (L.i_loc0 loc) "no need to return a [reg const ptr] %a"
               Printer.pp_pvar x;
-          let i = List.index_of x args in
-          if i = None then
-            warning PedanticPretyping (L.i_loc0 loc) "%a should be one of the paramaters" Printer.pp_pvar x;
-          i
+          List.index_of x args
         | _ -> assert false) returns in
     let is_writable_ptr k =
       match k with
