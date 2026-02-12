@@ -136,10 +136,10 @@ module MakePreAnalysis (Arch : SafetyArch.SafetyArch) = struct
 let decompose_address e =
   let rec aux e =
     match e with
-    | Pvar x -> x, Papp1 (E.Oword_of_int Arch.pointer_data, Pconst Z.zero)
-    | Papp2(E.Oadd (Op_w ws), Pvar x, offset) when ws = Arch.pointer_data -> x, offset
-    | Papp2(E.Owi2 (_, ws, E.WIadd ), Pvar x, offset) when ws = Arch.pointer_data -> x, offset
-    | Papp1(E.Owi1 (_, E.WIword_of_wint ws), e) when ws = Arch.pointer_data -> aux e
+    | Pvar x -> x, Papp1 (Oword_of_int Arch.pointer_data, Pconst Z.zero)
+    | Papp2(Oadd (Op_w ws), Pvar x, offset) when ws = Arch.pointer_data -> x, offset
+    | Papp2(Owi2 (_, ws, WIadd ), Pvar x, offset) when ws = Arch.pointer_data -> x, offset
+    | Papp1(Owi1 (_, WIword_of_wint ws), e) when ws = Arch.pointer_data -> aux e
     | _ -> raise Not_found in
   let x, offset = aux e in
   if x.gs = Slocal then L.unloc x.gv, offset

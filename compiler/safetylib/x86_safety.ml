@@ -3,6 +3,7 @@ open Utils
 open Prog
 open Apron
 open Wsize
+open Operators
 
 open SafetyUtils
 open SafetyExpr
@@ -40,7 +41,7 @@ module X86_safety
 
   (* Carry flag is true if [w] and [vu] are not equal. *)
   let cf_of_word sz w vu =
-    Some (Papp2 (E.Oneq (E.Op_int),
+    Some (Papp2 (Oneq (Op_int),
                  Papp1(E.uint_of_word sz,w),
                  vu))
 
@@ -53,7 +54,7 @@ module X86_safety
   (* lsb w. *)
 
   let zf_of_word sz w =
-    Some (Papp2 (E.Oeq (E.Op_w sz),
+    Some (Papp2 (Oeq (Op_w sz),
                  w,
                  pcast sz (Pconst (Z.of_int 0))))
 
@@ -69,12 +70,12 @@ module X86_safety
      the flags to have simpler and more precise expressions for the
      carry and zero flags. *)
   let rflags_of_sub sz w1 w2 =
-    let sub = Papp2 (E.Osub (E.Op_w sz), w1, w2) in
+    let sub = Papp2 (Osub (Op_w sz), w1, w2) in
     let of_f = None               (* FIXME *)
-    and cf   = Some (Papp2 (E.Olt (E.Cmp_w (Unsigned, sz)), w1,w2))
+    and cf   = Some (Papp2 (Olt (Cmp_w (Unsigned, sz)), w1,w2))
     and sf   = sf_of_word sz sub
     and pf   = pf_of_word sz sub
-    and zf   = Some (Papp2 (E.Oeq (E.Op_w sz), w1,w2))
+    and zf   = Some (Papp2 (Oeq (Op_w sz), w1,w2))
     in
     [of_f;cf;sf;pf;zf]
 
@@ -135,7 +136,7 @@ module X86_safety
 
   let opn_sub sz es =
     let el,er = as_seq2 es in
-    let w = Papp2 (E.Osub (E.Op_w sz), el, er) in
+    let w = Papp2 (Osub (Op_w sz), el, er) in
     let rflags = rflags_of_sub sz el er in
     rflags @ [Some w]
 
@@ -171,13 +172,13 @@ module X86_safety
     | Arch_extra.ExtOp X86_extra.Ox86MOVZX32 ->
       let e = as_seq1 es in
       (* Cast [e], seen as an U32, to an integer, and then back to an U64. *)
-      [Some (Papp1(E.Oword_of_int U64, Papp1(E.uint_of_word U32, e)))]
+      [Some (Papp1(Oword_of_int U64, Papp1(E.uint_of_word U32, e)))]
 
     (* Idem than Ox86MOVZX32, but with different sizes. *)
     | Arch_extra.BaseOp (None, X86_instr_decl.MOVZX (sz_o, sz_i)) ->
       assert (int_of_ws sz_o >= int_of_ws sz_i);
       let e = as_seq1 es in
-      [Some (Papp1(E.Oword_of_int sz_o, Papp1(E.uint_of_word sz_i, e)))]
+      [Some (Papp1(Oword_of_int sz_o, Papp1(E.uint_of_word sz_i, e)))]
 
     (* CMP flags are identical to SUB flags. *)
     | Arch_extra.BaseOp (_, X86_instr_decl.CMP ws) ->
@@ -187,7 +188,7 @@ module X86_safety
 
     (* add unsigned / signed *)
     | Arch_extra.BaseOp (None, X86_instr_decl.ADD ws) ->
-      opn_bin_alu ws (E.Oadd (E.Op_w ws)) (E.Oadd E.Op_int) es
+      opn_bin_alu ws (Oadd (Op_w ws)) (Oadd Op_int) es
 
     (* sub unsigned / signed *)
     | Arch_extra.BaseOp (None, X86_instr_decl.SUB ws) ->
@@ -201,7 +202,7 @@ module X86_safety
        we do the same thing than for unsigned multiplication. *)
     | Arch_extra.BaseOp (None, X86_instr_decl.IMUL ws) ->
       let el,er = as_seq2 es in
-      let w = Papp2 (E.Omul (E.Op_w ws), el, er) in
+      let w = Papp2 (Omul (Op_w ws), el, er) in
       (* FIXME: overflow bit to have the precise flags *)
       (* let ov = ?? in
        * let rflags = rflags_of_mul ov in *)
@@ -213,7 +214,7 @@ module X86_safety
     | Arch_extra.BaseOp (None, X86_instr_decl.IMULr ws)
     | Arch_extra.BaseOp (None, X86_instr_decl.IMULri ws) ->
       let el,er = as_seq2 es in
-      let w = Papp2 (E.Omul (E.Op_w ws), el, er) in
+      let w = Papp2 (Omul (Op_w ws), el, er) in
       (* FIXME: overflow bit to have the precise flags *)
       (* let ov = ?? in
        * let rflags = rflags_of_mul ov in *)
@@ -224,23 +225,23 @@ module X86_safety
     (* div unsigned *)
     | Arch_extra.BaseOp (None, X86_instr_decl.DIV ws) ->
       let n, d = split_div Unsigned ws es in
-      let w = Papp1 (E.Oword_of_int ws, Papp2 (E.Odiv(Unsigned, E.Op_int), n, d)) in
+      let w = Papp1 (Oword_of_int ws, Papp2 (Odiv(Unsigned, Op_int), n, d)) in
       let rflags = rflags_of_div in
       rflags @ [None; Some w]
 
     (* div signed *)
     | Arch_extra.BaseOp (None, X86_instr_decl.IDIV ws) ->
       let n, d = split_div Signed ws es in
-      let w = Papp1 (E.Oword_of_int ws, Papp2 (E.Odiv(Unsigned, E.Op_int), n, d)) in
+      let w = Papp1 (Oword_of_int ws, Papp2 (Odiv(Unsigned, Op_int), n, d)) in
       let rflags = rflags_of_div in
       rflags @ [None; Some w]
 
     (* increment *)
     | Arch_extra.BaseOp (None, X86_instr_decl.INC ws) ->
       let e = Utils.as_seq1 es in
-      let w = Papp2 (E.Oadd (E.Op_w ws), e,
-                     Papp1(E.Oword_of_int ws, Pconst (Z.of_int 1))) in
-      let vu = Papp2 (E.Oadd E.Op_int,
+      let w = Papp2 (Oadd (Op_w ws), e,
+                     Papp1(Oword_of_int ws, Pconst (Z.of_int 1))) in
+      let vu = Papp2 (Oadd Op_int,
                       Papp1(E.uint_of_word ws,e),
                       Pconst (Z.of_int 1)) in
       let vs = () in
@@ -250,9 +251,9 @@ module X86_safety
     (* decrement *)
     | Arch_extra.BaseOp (None, X86_instr_decl.DEC ws) ->
       let e = as_seq1 es in
-      let w = Papp2 (E.Osub (E.Op_w ws), e,
-                     Papp1(E.Oword_of_int ws,Pconst (Z.of_int 1))) in
-      let vu = Papp2 (E.Osub E.Op_int,
+      let w = Papp2 (Osub (Op_w ws), e,
+                     Papp1(Oword_of_int ws,Pconst (Z.of_int 1))) in
+      let vu = Papp2 (Osub Op_int,
                       Papp1(E.uint_of_word ws,e),
                       Pconst (Z.of_int 1)) in
       let vs = () in
@@ -262,7 +263,7 @@ module X86_safety
     (* negation *)
     | Arch_extra.BaseOp (None, X86_instr_decl.NEG ws) ->
       let e = as_seq1 es in
-      let w = Papp1 (E.Oneg (E.Op_w ws), e) in
+      let w = Papp1 (Oneg (Op_w ws), e) in
       let vs = () in
       let rflags = rflags_of_neg ws w vs in
       rflags @ [Some w]
@@ -275,19 +276,19 @@ module X86_safety
     (* shift, unsigned / left  *)
     | Arch_extra.BaseOp (None, X86_instr_decl.SHL ws) ->
       let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Olsl (E.Op_w ws), e1, e2) in
+      let e = Papp2 (Olsl (Op_w ws), e1, e2) in
       rflags_unknwon @ [Some e]
 
     (* shift, unsigned / right  *)
     | Arch_extra.BaseOp (None, X86_instr_decl.SHR ws) ->
       let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Olsr ws, e1, e2) in
+      let e = Papp2 (Olsr ws, e1, e2) in
       rflags_unknwon @ [Some e]
 
     (* shift, signed / right  *)
     | Arch_extra.BaseOp (None, X86_instr_decl.SAR ws) ->
       let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Oasr (E.Op_w ws), e1, e2) in
+      let e = Papp2 (Oasr (Op_w ws), e1, e2) in
       rflags_unknwon @ [Some e]
 
     (* FIXME: adding bit shift with flags *)
@@ -316,29 +317,29 @@ module X86_safety
     (* bitwise operators *)
     | Arch_extra.BaseOp (None, X86_instr_decl.AND ws) ->
       let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Oland ws, e1, e2) in
+      let e = Papp2 (Oland ws, e1, e2) in
       rflags_unknwon @ [Some e]
 
     | Arch_extra.BaseOp (None, X86_instr_decl.OR ws) ->
       let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Olor ws, e1, e2) in
+      let e = Papp2 (Olor ws, e1, e2) in
       rflags_unknwon @ [Some e]
 
     | Arch_extra.BaseOp (None, X86_instr_decl.XOR ws) ->
       let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Olxor ws, e1, e2) in
+      let e = Papp2 (Olxor ws, e1, e2) in
       rflags_unknwon @ [Some e]
 
     | Arch_extra.BaseOp (None, X86_instr_decl.NOT ws) ->
       let e1 = as_seq1 es in
-      let e = Papp1 (E.Olnot ws, e1) in
+      let e = Papp1 (Olnot ws, e1) in
       [Some e]
 
     | Arch_extra.BaseOp (_, X86_instr_decl.LEA ws) ->
       let e1 = as_seq1 es in
       let e =
         match ty_expr e1 with
-        | Bty (U ws') when int_of_ws ws < int_of_ws ws' -> Papp1 (E.Ozeroext (ws, ws'), e1)
+        | Bty (U ws') when int_of_ws ws < int_of_ws ws' -> Papp1 (Ozeroext (ws, ws'), e1)
         | _ -> e1 in
       [Some e]
 
@@ -410,8 +411,8 @@ module X86_safety
         | Pvar x ->
           check_is_word x;
           Mtexpr.var (mvar_of_var x)
-        | Papp1 (E.Oword_of_int _, e) -> to_mvar e
-        | Papp1 (E.Oint_of_word (s, _), e) ->
+        | Papp1 (Oword_of_int _, e) -> to_mvar e
+        | Papp1 (Oint_of_word (s, _), e) ->
           assert (s = Signed); (* FIXME wint2 *)
           to_mvar e
         | _ -> raise Opn_heur_failed in

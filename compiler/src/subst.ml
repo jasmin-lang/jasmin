@@ -1,5 +1,6 @@
 open Utils
 open Prog
+open Operators
 module L = Location
 
 (* When there is no location, we report an internal error. *)
@@ -162,7 +163,7 @@ let psubst_prog (prog:('info, 'asm) pprog) =
 (* Simplify type                                                    *)
 let int_of_op1 ?loc =
   function
-  | Expr.Oneg Op_int -> Z.neg
+  | Oneg Op_int -> Z.neg
   | o -> hierror ?loc "unary operator %s not supported in array sizes" (PrintCommon.string_of_op1 ~debug:false o)
 
 let shift_left ?loc (x: Z.t) (y: Z.t) : Z.t =
@@ -177,13 +178,13 @@ let shift_right ?loc (x: Z.t) (y: Z.t) : Z.t =
 
 let int_of_op2 ?loc o =
   match o with
-  | Expr.Oadd Op_int -> Z.add
-  | Expr.Omul Op_int -> Z.mul
-  | Expr.Osub Op_int -> Z.sub
-  | Expr.Odiv(sg, Op_int) -> if sg = Unsigned then Z.ediv else Z.div
-  | Expr.Omod(sg, Op_int) -> if sg = Unsigned then Z.erem else Z.rem
-  | Expr.Olsl Op_int -> shift_left ?loc
-  | Expr.Oasr Op_int -> shift_right ?loc
+  | Oadd Op_int -> Z.add
+  | Omul Op_int -> Z.mul
+  | Osub Op_int -> Z.sub
+  | Odiv(sg, Op_int) -> if sg = Unsigned then Z.ediv else Z.div
+  | Omod(sg, Op_int) -> if sg = Unsigned then Z.erem else Z.rem
+  | Olsl Op_int -> shift_left ?loc
+  | Oasr Op_int -> shift_right ?loc
   | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (PrintCommon.string_of_op2 o)
 
 let rec int_of_expr ?loc e =
@@ -333,14 +334,14 @@ let remove_params (prog : ('info, 'asm) pprog) =
           hierror ~loc:x.v_dloc "the expression assigned to global variable %a must evaluate to a constant word"
             (Printer.pp_var ~debug:false) x
         end
-      | Arr (_ws, n), PappN (E.Oarray _len, es) when List.length es <> n ->
+      | Arr (_ws, n), PappN (Oarray _len, es) when List.length es <> n ->
          let m = List.length es in
          hierror ~loc:x.v_dloc "array size mismatch for global variable %a: %d %s given (%d expected)"
            (Printer.pp_var ~debug:false) x
            (List.length es)
            (if m > 1 then "values" else "value")
            n
-      | Arr (ws, n), PappN (E.Oarray _len, es) ->
+      | Arr (ws, n), PappN (Oarray _len, es) ->
         let p = Conv.pos_of_int (n * size_of_ws ws) in
         let mk_word_i i e =
           try mk_word ws e

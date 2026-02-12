@@ -1,10 +1,10 @@
 (* -------------------------------------------------------------------- *)
 open Utils
 open Prog
+open Operators
 open PrintCommon
 module W = Wsize
 module T = Type
-module E = Expr
 module F = Format
 
 (* -------------------------------------------------------------------- *)
@@ -17,12 +17,12 @@ let pp_gvar_i pp_var fmt v = pp_var fmt (L.unloc v)
 (* -------------------------------------------------------------------- *)
 
 let string_of_combine_flags = function
-  | E.CF_LT s -> Format.sprintf "_%sLT" (string_of_signess s)
-  | E.CF_LE s -> Format.sprintf "_%sLE" (string_of_signess s)
-  | E.CF_EQ   -> Format.sprintf "_EQ"
-  | E.CF_NEQ  -> Format.sprintf "_NEQ"
-  | E.CF_GE s -> Format.sprintf "_%sGE" (string_of_signess s)
-  | E.CF_GT s -> Format.sprintf "_%sGT" (string_of_signess s)
+  | CF_LT s -> Format.sprintf "_%sLT" (string_of_signess s)
+  | CF_LE s -> Format.sprintf "_%sLE" (string_of_signess s)
+  | CF_EQ   -> Format.sprintf "_EQ"
+  | CF_NEQ  -> Format.sprintf "_NEQ"
+  | CF_GE s -> Format.sprintf "_%sGE" (string_of_signess s)
+  | CF_GT s -> Format.sprintf "_%sGT" (string_of_signess s)
 
 (* -------------------------------------------------------------------- *)
 let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
@@ -50,11 +50,11 @@ let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
   | Papp2(op,e1,e2) ->
      let p = priority_of_op2 op in
      optparent fmt prio side p "%a %s %a" (pp_expr Left p) e1 (string_of_op2 op) (pp_expr Right p) e2
-  | PappN (E.Opack(_sz, pe), es) ->
+  | PappN (Opack(_sz, pe), es) ->
     F.fprintf fmt "@[(%du%n)[%a]@]" (List.length es) (int_of_pe pe) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
   | PappN (Ocombine_flags c, es) ->
     F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
-  | PappN (E.Oarray len, es) ->
+  | PappN (Oarray len, es) ->
      F.fprintf fmt "/* %du8 */ @[{ %a }@]" (Conv.int_of_pos len) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
   | Pif(_, e,e1,e2) ->
      let p = priority_ternary in

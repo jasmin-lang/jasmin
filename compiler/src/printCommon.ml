@@ -2,7 +2,7 @@ open Format
 open Utils
 open Prog
 open Wsize
-module E = Expr
+open Operators
 
 (* -------------------------------------------------------------------- *)
 let escape = String.map (fun c -> if c = '.' || c = ':' || c = '#' then '_' else c)
@@ -38,20 +38,20 @@ let string_of_velem s ws ve =
 (* -------------------------------------------------------------------- *)
 
 let string_of_cmp_ty = function
-  | E.Cmp_w (Signed, _) -> "s"
-  | E.Cmp_w (Unsigned, _) -> "u"
-  | E.Cmp_int -> ""
+  | Cmp_w (Signed, _) -> "s"
+  | Cmp_w (Unsigned, _) -> "u"
+  | Cmp_int -> ""
 
 let string_of_w_cast sz =
   asprintf "%du" (int_of_ws sz)
 
 let string_of_op_kind = function
-  | E.Op_w ws -> string_of_w_cast ws
-  | E.Op_int -> ""
+  | Op_w ws -> string_of_w_cast ws
+  | Op_int -> ""
 
 let string_of_div_kind sg = function
-  | E.Op_w ws -> asprintf "%d%s" (int_of_ws ws) (string_of_signess sg)
-  | E.Op_int -> if sg = Signed then (string_of_signess sg) else ""
+  | Op_w ws -> asprintf "%d%s" (int_of_ws ws) (string_of_signess sg)
+  | Op_int -> if sg = Signed then (string_of_signess sg) else ""
 
 (* -------------------------------------------------------------------- *)
 
@@ -67,7 +67,7 @@ let string_of_wi_cast sg sz =
   asprintf "%d%s" (int_of_ws sz) (string_of_wi sg)
 
 let string_of_wiop1 ~debug sg = function
-  | E.WIwint_of_int sz ->
+  | WIwint_of_int sz ->
       asprintf "(%s%s)" (string_of_wi_cast sg sz)
         (if debug then " /* of int */" else "")
   | WIint_of_wint sz ->
@@ -85,59 +85,59 @@ let string_of_wiop1 ~debug sg = function
       asprintf "-%s" (string_of_wi_cast sg sz)
 
 let string_of_op1 ~debug = function
-  | E.Oint_of_word (s, sz) ->
+  | Oint_of_word (s, sz) ->
       asprintf "(%s%s)" (string_of_int_cast s)
         (if debug then " /* of " ^ (string_of_w_ty sz) ^ " */" else "")
-  | E.Oword_of_int szo  -> asprintf "(%du)" (int_of_ws szo)
-  | E.Osignext (szo, _) -> asprintf "(%ds)" (int_of_ws szo)
-  | E.Ozeroext (szo, _) -> asprintf "(%du)" (int_of_ws szo)
-  | E.Olnot sz ->
+  | Oword_of_int szo  -> asprintf "(%du)" (int_of_ws szo)
+  | Osignext (szo, _) -> asprintf "(%ds)" (int_of_ws szo)
+  | Ozeroext (szo, _) -> asprintf "(%du)" (int_of_ws szo)
+  | Olnot sz ->
       asprintf "!%s" (string_of_w_cast sz)
-  | E.Onot -> "!"
-  | E.Oneg k -> "-" ^ string_of_op_kind k
-  | E.Owi1(sg, o) -> string_of_wiop1 ~debug sg o
+  | Onot -> "!"
+  | Oneg k -> "-" ^ string_of_op_kind k
+  | Owi1(sg, o) -> string_of_wiop1 ~debug sg o
 
 let string_of_wiop2 sg sz = function
-  | E.WIadd -> "+" ^ string_of_wi_cast sg sz
-  | E.WImul -> "*" ^ string_of_wi_cast sg sz
-  | E.WIsub -> "-" ^ string_of_wi_cast sg sz
-  | E.WIdiv -> "/" ^ string_of_wi_cast sg sz
-  | E.WImod -> "%" ^ string_of_wi_cast sg sz
+  | WIadd -> "+" ^ string_of_wi_cast sg sz
+  | WImul -> "*" ^ string_of_wi_cast sg sz
+  | WIsub -> "-" ^ string_of_wi_cast sg sz
+  | WIdiv -> "/" ^ string_of_wi_cast sg sz
+  | WImod -> "%" ^ string_of_wi_cast sg sz
 
-  | E.WIshr -> ">>" ^ string_of_wi_cast sg sz
-  | E.WIshl -> "<<" ^ string_of_wi_cast sg sz
+  | WIshr -> ">>" ^ string_of_wi_cast sg sz
+  | WIshl -> "<<" ^ string_of_wi_cast sg sz
 
-  | E.WIeq  -> "==" ^ string_of_wi_cast sg sz
-  | E.WIneq -> "!=" ^ string_of_wi_cast sg sz
-  | E.WIlt  -> "<"  ^ string_of_wi_cast sg sz
-  | E.WIle  -> "<=" ^ string_of_wi_cast sg sz
-  | E.WIgt  -> ">"  ^ string_of_wi_cast sg sz
-  | E.WIge  -> ">=" ^ string_of_wi_cast sg sz
+  | WIeq  -> "==" ^ string_of_wi_cast sg sz
+  | WIneq -> "!=" ^ string_of_wi_cast sg sz
+  | WIlt  -> "<"  ^ string_of_wi_cast sg sz
+  | WIle  -> "<=" ^ string_of_wi_cast sg sz
+  | WIgt  -> ">"  ^ string_of_wi_cast sg sz
+  | WIge  -> ">=" ^ string_of_wi_cast sg sz
 
 let string_of_op2 = function
-  | E.Obeq -> "=="
-  | E.Oand -> "&&"
-  | E.Oor -> "||"
-  | E.Oadd k -> "+" ^ string_of_op_kind k
-  | E.Omul k -> "*" ^ string_of_op_kind k
-  | E.Osub k -> "-" ^ string_of_op_kind k
-  | E.Odiv(s, k) -> "/" ^ string_of_div_kind s k
-  | E.Omod(s, k) -> "%" ^ string_of_div_kind s k
-  | E.Oland w -> "&"  ^ string_of_w_cast w
-  | E.Olor  w -> "|"  ^ string_of_w_cast w
-  | E.Olxor w -> "^"  ^ string_of_w_cast w
-  | E.Olsr  w -> ">>" ^ string_of_w_cast w
-  | E.Olsl k -> "<<" ^ string_of_op_kind k
-  | E.Oasr E.Op_int -> ">>s"
-  | E.Oasr (E.Op_w w) -> asprintf ">>%ds" (int_of_ws w)
-  | E.Oror w -> ">>r " ^ string_of_w_cast w
-  | E.Orol w -> "<<r " ^ string_of_w_cast w
-  | E.Oeq k -> "==" ^ string_of_op_kind k
-  | E.Oneq k -> "!=" ^ string_of_op_kind k
-  | E.Olt k -> "<" ^ string_of_cmp_ty k
-  | E.Ole k -> "<=" ^ string_of_cmp_ty k
-  | E.Ogt k -> ">" ^ string_of_cmp_ty k
-  | E.Oge k -> ">=" ^ string_of_cmp_ty k
+  | Obeq -> "=="
+  | Oand -> "&&"
+  | Oor -> "||"
+  | Oadd k -> "+" ^ string_of_op_kind k
+  | Omul k -> "*" ^ string_of_op_kind k
+  | Osub k -> "-" ^ string_of_op_kind k
+  | Odiv(s, k) -> "/" ^ string_of_div_kind s k
+  | Omod(s, k) -> "%" ^ string_of_div_kind s k
+  | Oland w -> "&"  ^ string_of_w_cast w
+  | Olor  w -> "|"  ^ string_of_w_cast w
+  | Olxor w -> "^"  ^ string_of_w_cast w
+  | Olsr  w -> ">>" ^ string_of_w_cast w
+  | Olsl k -> "<<" ^ string_of_op_kind k
+  | Oasr Op_int -> ">>s"
+  | Oasr (Op_w w) -> asprintf ">>%ds" (int_of_ws w)
+  | Oror w -> ">>r " ^ string_of_w_cast w
+  | Orol w -> "<<r " ^ string_of_w_cast w
+  | Oeq k -> "==" ^ string_of_op_kind k
+  | Oneq k -> "!=" ^ string_of_op_kind k
+  | Olt k -> "<" ^ string_of_cmp_ty k
+  | Ole k -> "<=" ^ string_of_cmp_ty k
+  | Ogt k -> ">" ^ string_of_cmp_ty k
+  | Oge k -> ">=" ^ string_of_cmp_ty k
   | Ovadd (ve, ws) -> asprintf "+%s" (string_of_velem Unsigned ws ve)
   | Ovsub (ve, ws) -> asprintf "-%s" (string_of_velem Unsigned ws ve)
   | Ovmul (ve, ws) -> asprintf "*%s" (string_of_velem Unsigned ws ve)
@@ -195,7 +195,7 @@ let non_default_wsize x ws =
 
 let peel_implicit_cast_to_uint =
   function
-  | Papp1 (Expr.Oint_of_word (Unsigned, _), e)
+  | Papp1 (Oint_of_word (Unsigned, _), e)
   | e -> e
 
 let pp_access_size fmt = function
@@ -259,27 +259,27 @@ let priority_min = OpPmin
 let priority_ternary = OpPternary
 
 let priority_of_wop1 = function
-  | E.WIwint_of_int _ | WIint_of_wint _ | WIword_of_wint _ | WIwint_of_word _
+  | WIwint_of_int _ | WIint_of_wint _ | WIword_of_wint _ | WIwint_of_word _
   | WIwint_ext _ ->
       OpPunary
   | WIneg _ -> OpPsum
 
 let priority_of_op1 = function
-  | E.Oword_of_int _ | Oint_of_word _ | Osignext _ | Ozeroext _ | Onot | Olnot _
+  | Oword_of_int _ | Oint_of_word _ | Osignext _ | Ozeroext _ | Onot | Olnot _
     ->
       OpPunary
   | Oneg _ -> OpPsum
   | Owi1 (_, iop) -> priority_of_wop1 iop
 
 let priority_of_wop2 = function
-  | Expr.WIadd | WIsub -> OpPsum
+  | WIadd | WIsub -> OpPsum
   | WImul | WIdiv | WImod -> OpPprod
   | WIshl | WIshr -> OpPshift
   | WIeq | WIneq -> OpPeq
   | WIlt | WIle | WIgt | WIge -> OpPcmp
 
 let priority_of_op2 = function
-  | Expr.Obeq | Oeq _ | Oneq _ -> OpPeq
+  | Obeq | Oeq _ | Oneq _ -> OpPeq
   | Oand -> OpPband
   | Oor -> OpPbor
   | Oadd _ | Osub _ | Ovadd _ | Ovsub _ -> OpPsum
