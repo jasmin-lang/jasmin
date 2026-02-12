@@ -176,13 +176,15 @@ let shift_right ?loc (x: Z.t) (y: Z.t) : Z.t =
   | exception Z.Overflow -> hierror ?loc "overflow in right shift by %s" (Z.to_string y)
   | y -> if y < 0 then Z.shift_left x (-y) else Z.shift_right x y
 
+let zremu (x : Z.t) (y : Z.t) = Z.(of_int (sign y) * erem (of_int (sign y) * x) y)
+
 let int_of_op2 ?loc o =
   match o with
   | Oadd Op_int -> Z.add
   | Omul Op_int -> Z.mul
   | Osub Op_int -> Z.sub
-  | Odiv(sg, Op_int) -> if sg = Unsigned then Z.ediv else Z.div
-  | Omod(sg, Op_int) -> if sg = Unsigned then Z.erem else Z.rem
+  | Odiv(sg, Op_int) -> if sg = Unsigned then Z.fdiv else Z.div
+  | Omod(sg, Op_int) -> if sg = Unsigned then zremu else Z.rem
   | Olsl Op_int -> shift_left ?loc
   | Oasr Op_int -> shift_right ?loc
   | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (PrintCommon.string_of_op2 o)
