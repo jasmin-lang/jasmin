@@ -1,6 +1,7 @@
 (* ------------------------------------------------------------------------ *)
 open Utils
 open Wsize
+open Operators
 
 (* ------------------------------------------------------------------------ *)
 
@@ -25,9 +26,9 @@ type 'len gexpr =
   | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr
   | Pload  of Memory_model.aligned * wsize * 'len gexpr
-  | Papp1  of E.sop1 * 'len gexpr
-  | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
-  | PappN of E.opN * 'len gexpr list
+  | Papp1  of sop1 * 'len gexpr
+  | Papp2  of sop2 * 'len gexpr * 'len gexpr
+  | PappN of opN * 'len gexpr list
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
 
 type 'len gexprs = 'len gexpr list
@@ -430,12 +431,12 @@ let is_stack_array x =
 let ( ++ ) e1 e2 =
   match e1, e2 with
   | Pconst n1, Pconst n2 -> Pconst (Z.add n1 n2)
-  | _, _                 -> Papp2(E.Oadd Op_int, e1, e2)
+  | _, _                 -> Papp2(Oadd Op_int, e1, e2)
 
 let ( ** ) e1 e2 =
   match e1, e2 with
   | Pconst n1, Pconst n2 -> Pconst (Z.mul n1 n2)
-  | _, _                 -> Papp2(E.Omul Op_int, e1, e2)
+  | _, _                 -> Papp2(Omul Op_int, e1, e2)
 
 let cnst i = Pconst i
 let icnst i = cnst (Z.of_int i)

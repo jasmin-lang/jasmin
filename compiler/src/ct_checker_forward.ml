@@ -1,5 +1,6 @@
 open Utils
 open Prog
+open Operators
 
 module A = Annotations
 module S = Syntax
@@ -309,15 +310,15 @@ let instanciate_fty fty lvls  =
   tyout
 
 (* -----------------------------------------------------------*)
-let is_ct_op1 (_: Expr.sop1) = true
+let is_ct_op1 (_: sop1) = true
 
-let is_ct_op2 (o: Expr.sop2) =
+let is_ct_op2 (o: sop2) =
   match o with
   | Omod (_, Op_w _) | Odiv (_, Op_w _) -> false
   | Owi2(_, _, (WImod | WIdiv)) -> false
   | _ -> true
 
-let is_ct_opN (_ : Expr.opN) = true
+let is_ct_opN (_ : opN) = true
 
 let is_ct_sopn is_ct_asm (o : 'a Sopn.sopn) =
   match o with

@@ -228,12 +228,12 @@ let int_of_word sg ws e =
   | Unsigned -> Papp1 (E.uint_of_word ws, e)
   | Signed ->
      let m = Pconst (half_modulus ws) in
-     Papp2 (E.Osub Op_int,
-            Papp1 (E.uint_of_word ws, Papp2 (E.Oadd (E.Op_w ws), e, Papp1 (E.Oword_of_int ws, m))),
+     Papp2 (Osub Op_int,
+            Papp1 (E.uint_of_word ws, Papp2 (Oadd (Op_w ws), e, Papp1 (Oword_of_int ws, m))),
             m)
 
 let int_of_words sg ws hi lo =
-  Papp2 (E.Oadd E.Op_int, Papp2 (E.Omul E.Op_int, Pconst (modulus ws), int_of_word sg ws hi), int_of_word Unsigned ws lo)
+  Papp2 (Oadd Op_int, Papp2 (Omul Op_int, Pconst (modulus ws), int_of_word sg ws hi), int_of_word Unsigned ws lo)
 
 let split_div sg ws es =
   let hi, lo, d = Utils.as_seq3 es in
