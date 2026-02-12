@@ -42,12 +42,6 @@ let config path =
         ( "fail/register_allocation/x86-64/unknown_type_register.jazz",
           disable_warnings [ UnusedVar ] );
         ("fail/slh/x86-64/export_takes_msf.jazz", disable_renaming);
-        ( "fail/stack_allocation/x86-64/return_ptr_global.jazz",
-          disable_warnings [ PedanticPretyping ] );
-        ( "fail/stack_allocation/x86-64/return_ptr_local.jazz",
-          disable_warnings [ PedanticPretyping ] );
-        ( "fail/stack_allocation/x86-64/return_subslice.jazz",
-          disable_warnings [ PedanticPretyping ] );
         ( "fail/typing/x86-64/bug_488.jazz",
           disable_warnings [ SimplifyVectorSuffix ] );
         ( "fail/typing/x86-64/export_stack_array_res.jazz",
@@ -55,8 +49,6 @@ let config path =
         ("fail/typing/x86-64/export_stack_res.jazz", reset_warn_recoverable);
         ("fail/typing/x86-64/non_inline_stack_arg.jazz", reset_warn_recoverable);
         ("fail/typing/x86-64/non_inline_stack_res.jazz", reset_warn_recoverable);
-        ( "fail/typing/x86-64/res_wrong_type.jazz",
-          disable_warnings [ PedanticPretyping ] );
         ( "fail/typing/x86-64/write_constant_pointer_direct_array.jazz",
           reset_warn_recoverable );
         ( "fail/typing/x86-64/write_constant_pointer_subproc_array.jazz",
