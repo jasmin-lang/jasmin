@@ -2204,7 +2204,7 @@ let tt_call_conv _loc params returns cc =
               Printer.pp_pvar x;
           let i = List.index_of x args in
           if i = None then
-            warning PedanticPretyping (L.i_loc0 loc) "%a should be one of the paramaters" Printer.pp_pvar x;
+            warning PedanticPretyping (L.i_loc0 loc) "%a should be one of the parameters" Printer.pp_pvar x;
           i
         | _ -> assert false) returns in
     let is_writable_ptr k =
