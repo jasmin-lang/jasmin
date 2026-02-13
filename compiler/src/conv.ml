@@ -38,17 +38,28 @@ let rec al_of_cal cal =
   match cal with
   | ALConst n -> Const (int_of_cz n)
   | ALVar x -> Var x
+  | ALNeg al -> Neg (al_of_cal al)
   | ALAdd (al1, al2) -> Add (al_of_cal al1, al_of_cal al2)
+  | ALSub (al1, al2) -> Sub (al_of_cal al1, al_of_cal al2)
   | ALMul (al1, al2) -> Mul (al_of_cal al1, al_of_cal al2)
+  | ALDiv (sg, al1, al2) -> Div (sg, al_of_cal al1, al_of_cal al2)
+  | ALMod (sg, al1, al2) -> Mod (sg, al_of_cal al1, al_of_cal al2)
+  | ALShl (al1, al2) -> Shl (al_of_cal al1, al_of_cal al2)
+  | ALShr (al1, al2) -> Shr (al_of_cal al1, al_of_cal al2)
 
 let rec cal_of_al al =
   let open Type in
   match al with
   | Const n -> ALConst (cz_of_int n)
   | Var x -> ALVar x
-  | Add (Const 0, al) | Add (al, Const 0) -> cal_of_al al (* special case to avoid failing when encountering 0 *)
+  | Neg al -> ALNeg (cal_of_al al)
   | Add (al1, al2) -> ALAdd (cal_of_al al1, cal_of_al al2)
+  | Sub (al1, al2) -> ALSub (cal_of_al al1, cal_of_al al2)
   | Mul (al1, al2) -> ALMul (cal_of_al al1, cal_of_al al2)
+  | Div (sg, al1, al2) -> ALDiv (sg, cal_of_al al1, cal_of_al al2)
+  | Mod (sg, al1, al2) -> ALMod (sg, cal_of_al al1, cal_of_al al2)
+  | Shl (al1, al2) -> ALShl (cal_of_al al1, cal_of_al al2)
+  | Shr (al1, al2) -> ALShr (cal_of_al al1, cal_of_al al2)
 
 let cty_of_ty = function
   | Bty Bool      -> T.Coq_abool

@@ -245,13 +245,26 @@ let expanded_form len =
     match poly with
     | Const n -> let coeff = n * coeff in insert_term (coeff, mono) terms
     | Var x -> let mono = insert_mono x mono in insert_term (coeff, mono) terms
+    | Neg e -> expanded_form terms (-coeff) mono e
     | Add (e1, e2) -> expanded_form (expanded_form terms coeff mono e1) coeff mono e2
+    | Sub (e1, e2) -> expanded_form (expanded_form terms coeff mono e1) (-coeff) mono e2
     | Mul (Const n, e) -> let coeff = n * coeff in expanded_form terms coeff mono e
     | Mul (Var x, e) -> let mono = insert_mono x mono in expanded_form terms coeff mono e
+    | Mul (Neg e1, e2) -> expanded_form terms (-coeff) mono (Mul (e1, e2))
     | Mul (Add (e11, e12), e2) -> expanded_form terms coeff mono (Add (Mul (e11, e2), Mul (e12, e2)))
+    | Mul (Sub (e11, e12), e2) -> expanded_form terms coeff mono (Sub (Mul (e11, e2), Mul (e12, e2)))
     | Mul (Mul (e11, e12), e2) -> expanded_form terms coeff mono (Mul (e11, Mul (e12, e2)))
+    | Mul ((Div _ | Mod _ | Shl _ | Shr _), _) -> []
+    | Div _ | Mod _ | Shl _ | Shr _ -> []
   in
   expanded_form [] 1 [] len
+
+let rec is_poly al =
+  match al with
+  | Const _ | Var _ -> true
+  | Neg al -> is_poly al
+  | Add (al1, al2) | Sub (al1, al2) | Mul (al1, al2) -> is_poly al1 && is_poly al2
+  | Div _ | Mod _ | Shl _ | Shr _ -> false
 
 let size_of_ws = function
   | U8   -> 1
@@ -263,9 +276,12 @@ let size_of_ws = function
 
 (* FIXME: [=] might be too strict *)
 let compare_array_length (ws, al) (ws', al') =
-  let ef = expanded_form (Mul (Const (size_of_ws ws), al)) in
-  let ef' = expanded_form (Mul (Const (size_of_ws ws'), al')) in
-  ef = ef'
+  if is_poly al && is_poly al' then
+    let ef = expanded_form (Mul (Const (size_of_ws ws), al)) in
+    let ef' = expanded_form (Mul (Const (size_of_ws ws'), al')) in
+    ef = ef'
+  else
+    (ws = ws') && (al = al')
 
 let ety_equal t1 t2 =
   match t1, t2 with
@@ -276,13 +292,32 @@ let ety_equal t1 t2 =
 
 let rec al_of_expr e =
   match e with
-  | Pconst n -> Const (Z.to_int n)
+  | Pconst n ->
+    (* FIXME: change Const to Z and remove this error *)
+      begin try Const (Z.to_int n)
+      with Z.Overflow ->
+        hierror ~loc:Lnone ~kind:"compilation error" ~sub_kind:"param expansion" "number too big"
+      end
   | Pvar x -> assert (is_gkvar x); Var (L.unloc x.gv)
+  | Papp1 (Oneg Op_int, e) ->
+      Neg (al_of_expr e)
   | Papp2 (Oadd Op_int, e1, e2) ->
       Add (al_of_expr e1, al_of_expr e2)
+  | Papp2 (Osub Op_int, e1, e2) ->
+      Sub (al_of_expr e1, al_of_expr e2)
   | Papp2 (Omul Op_int, e1, e2) ->
       Mul (al_of_expr e1, al_of_expr e2)
-  | _ -> assert false
+  | Papp2 (Odiv (sg, Op_int), e1, e2) ->
+      Div (sg, al_of_expr e1, al_of_expr e2)
+  | Papp2 (Omod (sg, Op_int), e1, e2) ->
+      Mod (sg, al_of_expr e1, al_of_expr e2)
+  | Papp2 (Olsl Op_int, e1, e2) ->
+      Shl (al_of_expr e1, al_of_expr e2)
+  | Papp2 (Oasr Op_int, e1, e2) ->
+      Shr (al_of_expr e1, al_of_expr e2)
+  | _ ->
+    (* FIXME: better error message *)
+    hierror ~loc:Lnone ~kind:"compilation error" ~sub_kind:"param expansion" "operations too complex"
 
 
 (* ------------------------------------------------------------------------ *)
@@ -321,8 +356,8 @@ let rec rvars_al f s al =
   match al with
   | Const _ -> s
   | Var x -> f x s
-  | Add (al1, al2) -> rvars_al f (rvars_al f s al1) al2
-  | Mul (al1, al2) -> rvars_al f (rvars_al f s al1) al2
+  | Neg al -> rvars_al f s al
+  | Add (al1, al2) | Sub (al1, al2) | Mul (al1, al2) | Div (_, al1, al2) | Mod (_, al1, al2) | Shl (al1, al2) | Shr (al1, al2)  -> rvars_al f (rvars_al f s al1) al2
 
 let rvars_v f x s =
   if is_gkvar x then f (L.unloc x.gv) s

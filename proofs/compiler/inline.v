@@ -97,26 +97,6 @@ Notation "'let%m' x ':=' m 'in' body" := (bind m (fun x => body)) (x name, at le
 Definition mapm {A B} (f : A -> mon B) (l : seq A) : mon (seq B) :=
   fun sm => fmap (fun sm x => f x sm) sm l.
 
-Fixpoint subst_al (f: length_var -> array_length) al :=
-  match al with
-  | ALConst _ => al
-  | ALVar x => f x
-  | ALAdd al1 al2 =>
-    let al1 := subst_al f al1 in
-    let al2 := subst_al f al2 in
-    ALAdd al1 al2
-  | ALMul al1 al2 =>
-    let al1 := subst_al f al1 in
-    let al2 := subst_al f al2 in
-    ALMul al1 al2
-  end.
-Definition subst_ty f ty :=
-  match ty with
-  | aarr ws al =>
-    let al := subst_al f al in
-    aarr ws al
-  | _ => ty
-  end.
 Definition clone_with_ty (x:var) n ty :=
   let xn :=
     fresh_var_ident (Ident.id_kind x.(vname)) n (Ident.id_name x.(vname)) ty
@@ -296,7 +276,7 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
       Let fd := add_iinfo iinfo (get_fun p fn) in
       let f :=
         let als := zip fd.(f_al) alargs in
-        fun x => odflt (ALVar x) (assoc als x)
+        assoc als
       in
       let (_, fd') := subst_fd f fd empty_sm in
       (* no real need to rename, but it changes the instr_info, so we keep it *)

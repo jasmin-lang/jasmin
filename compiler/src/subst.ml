@@ -97,8 +97,14 @@ let rec psubst_al (f: lsubst) (al: length) : length =
       (* x is a var, but we need a ggvar... *)
       let x = gkvar (L.mk_loc L._dummy x) in
       al_of_expr (f x)
+  | Neg al -> Neg (psubst_al f al)
   | Add (al1, al2) -> Add (psubst_al f al1, psubst_al f al2)
+  | Sub (al1, al2) -> Sub (psubst_al f al1, psubst_al f al2)
   | Mul (al1, al2) -> Mul (psubst_al f al1, psubst_al f al2)
+  | Div (sg, al1, al2) -> Div (sg, psubst_al f al1, psubst_al f al2)
+  | Mod (sg, al1, al2) -> Mod (sg, psubst_al f al1, psubst_al f al2)
+  | Shl (al1, al2) -> Shl (psubst_al f al1, psubst_al f al2)
+  | Shr (al1, al2) -> Shr (psubst_al f al1, psubst_al f al2)
 let psubst_al f ?loc:_ = psubst_al f
 
 let psubst_e (f: lsubst) (e: expr) : expr =
@@ -248,9 +254,10 @@ let rec int_of_expr ?loc e =
       hierror ?loc "expression %a not allowed in array size (only arithmetic expressions are allowed)" (Printer.pp_pexpr ~debug:false) e
 *)
 
+
 let isubst_al ?loc:_ al =
-  match Prog.expanded_form al with
-  | [(n, [])] -> Const n
+  match Type.eval_opt (fun _ -> None) (Conv.cal_of_al al) with
+  | Some n -> Const (CoreConv.int_of_cz n)
   | _ -> al
 
 let isubst_ty ?loc:_ = function
