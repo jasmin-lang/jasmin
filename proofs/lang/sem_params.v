@@ -62,3 +62,9 @@ Definition noassert : WithAssert := {| assert_allowed := false |}.
 Definition withassert : WithAssert := {| assert_allowed := true |}.
 
 #[global] Existing Instances noassert | 1000.
+
+Class WithCatch := { with_catch : bool }.
+Definition nocatch : WithCatch := {| with_catch := false |}.
+Definition withcatch : WithCatch := {| with_catch := true |}.
+
+#[global] Existing Instances nocatch | 1000.

@@ -389,6 +389,9 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
     | Parr_init _ | Pget _ | Psub _
     | Pload _ | PappN _ | Pif _ -> None
 
+    (* FIXME *)
+    | Pbig _ | Pis_var_init _ | Pis_mem_init _ -> None
+
 
   (* Try to evaluate e to a constant expression (of type word) in abs.
      Superficial checks only. *)
@@ -470,7 +473,17 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
       | Pload _ -> raise Expr_contain_load
 
       | Pif (_,_,e1,e2) (* FIXME: why the condition is not added ? *)
-      | Papp2 (_, e1, e2) -> aux (aux acc e1) e2 in
+      | Papp2 (_, e1, e2) -> aux (aux acc e1) e2
+
+      | Pbig(e0, _op, x, start, len, body) ->
+        let x = mvar_of_scoped_var Slocal (L.unloc x) in
+        let xs = aux [] body in
+        let xs = List.filter (fun y -> x <> y) xs in
+        let acc = xs @ acc in
+        aux (aux (aux acc e0) start) len
+      | Pis_var_init x -> mvar_of_scoped_var Slocal (L.unloc x) :: acc
+      | Pis_mem_init (e1, e2) -> aux (aux acc e1) e2
+    in
 
     try PtVars (aux [] e) with Expr_contain_load -> PtTopExpr
 
@@ -718,12 +731,22 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
         | e :: r_es -> match remove_if_expr_aux e with
           | None -> f_expl (i + 1) r_es
           | Some _ as r -> (i,r) in
-
+      begin
       match f_expl 0 es with
       | _,None -> None
       | i,Some (ty, b, el, er) ->
         let repi ex = List.mapi (fun j x -> if j = i then ex else x) es in
         Some (ty, b, PappN (opn, repi el), PappN (opn, repi er))
+    end
+
+    | Pis_var_init _ -> None
+    | Pis_mem_init (e1, e2) ->
+      begin match remove_if_expr_aux e1 with
+      | Some _ as e_opt -> map_f (fun ex -> Pis_mem_init(ex, e2)) e_opt
+      | None -> remove_if_expr_aux e2
+                |> map_f (fun ex -> Pis_mem_init(e1, ex)) end
+    | Pbig _ -> None
+
 
 
   let rec remove_if_expr (e : 'a Prog.gexpr) = match remove_if_expr_aux e with
@@ -1120,7 +1143,8 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
             apply_offset_expr abs outv info y er
           else aeval_top_offset abs outv
 
-        | _ -> aeval_top_offset abs outv end
+        | _ -> aeval_top_offset abs outv
+        end
 
     | Some outv, _ -> aeval_top_offset abs outv
 

@@ -258,7 +258,7 @@ Section LEMMA.
     }.
 
   Instance match_estate_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) match_estate.
-  Proof. 
+  Proof.
     by move => x y x_eq_y s _ <- t _ <-; split => - [] ?; rewrite ?x_eq_y => ?; constructor => //; rewrite x_eq_y.
   Qed.
 
@@ -305,7 +305,7 @@ Section LEMMA.
       2: exact: (mvp_stack_aligned ok_W).
       by move: (mvp_not_written ok_W); rewrite write_c_cons; apply: disjoint_w;
         move: (write_I i) (write_c c) (* SvD.fsetdec faster *); SvD.fsetdec.
-    have [t2 [ki texec_i hki] sim2] := hi _ _ _ _ ok_i ok_W1 sim1. 
+    have [t2 [ki texec_i hki] sim2] := hi _ _ _ _ ok_i ok_W1 sim1.
     have ok_W2 : merged_vmap_precondition (write_c c) sz (emem s2) (evm t2).
     - have [ not_written_gd not_written_rsp ] := not_written_magic (mvp_not_written ok_W1).
       split.
@@ -586,7 +586,7 @@ Section LEMMA.
          List.Forall2 value_uincl res res'
         ].
 
-  Lemma all2_get_pvar args xs : 
+  Lemma all2_get_pvar args xs :
     all2
       (λ (e : pexpr) (a : var_i),
         match e with
@@ -601,8 +601,8 @@ Section LEMMA.
   Qed.
 
   Lemma all2_get_lvar xs res :
-    all2 
-     (λ (x : lval) (r : var_i), 
+    all2
+     (λ (x : lval) (r : var_i),
       match x with
       | Lvar v => v_var v == r
       | _ => false
@@ -663,7 +663,7 @@ Section LEMMA.
     case: d hxd => // d hxd /andP [] /= /eqP hxq hall2 s3 s4 w ws.
     move: hx; rewrite /= inE orbX; case/orP; last first.
     + by move => hx; exact: ih _ _ vs_vs' _ hx hxds hqs hall2 _ ws.
-    case/andP => /eqP hyq /negbTE x_not_in_ys. 
+    case/andP => /eqP hyq /negbTE x_not_in_ys.
     have <- := vrvsP ws; last by rewrite (vrvs_vars hxds) -Sv.mem_spec sv_of_listE /= x_not_in_ys.
     move/write_varP: w vv' => [-> ? /vm_truncate_value_uincl].
     rewrite hxq -hyq Vm.setP_eq; apply: value_uincl_trans.

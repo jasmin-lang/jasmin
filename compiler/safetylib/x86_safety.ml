@@ -41,7 +41,7 @@ module X86_safety
 
   (* Carry flag is true if [w] and [vu] are not equal. *)
   let cf_of_word sz w vu =
-    Some (Papp2 (Oneq (Op_int),
+    Some (Papp2 (Oneq Op_int,
                  Papp1(E.uint_of_word sz,w),
                  vu))
 

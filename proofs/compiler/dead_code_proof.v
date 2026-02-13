@@ -496,7 +496,7 @@ Section PROOF.
     have dcok : map_cfprog_name (dead_code_fd is_move_op do_nop onfun) (p_funcs p) = ok (p_funcs p').
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [f' Hf'1 Hf'2] := get_map_cfprog_name_gen dcok Hfun.
-    case: f Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hscs Hfi => fi ft fp /= c f_tyout res fb
+    case: f Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hscs Hfi => fi fci ft fp /= c f_tyout res fb
       Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hscs Hfi.
     move: Hf'1; t_xrbindP => -[sv sc] Hd H; subst f'.
     move: Hw; rewrite (write_vars_lvals _ gd) => Hw.
@@ -530,6 +530,7 @@ Section PROOF.
     eexists vres2; split=> //=.
     apply EcallRun with  {|
            f_info := fi;
+           f_contra := fci;
            f_tyin := ft;
            f_params := fp;
            f_body := sc;
@@ -608,7 +609,7 @@ Section PROOF.
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [fd' hfd' hget'] := get_map_cfprog_name_gen dcok hget.
     exists fd' => // {hget}.
-    case: fd hfd' => fi ftyin fp /= c ftyout res fextra.
+    case: fd hfd' => fi fci ftyin fp /= c ftyout res fextra.
     set fd := {| f_info := _ |}.
     t_xrbindP; set O := read_es _; move=> [I c'] hc ?; subst fd'.
     set fd' := {| f_info := _ |}.
@@ -820,7 +821,7 @@ Lemma dead_code_fd_meta do_nop onfun fn (fd fd': sfundef) :
    fd'.(f_extra) = fd.(f_extra)
   ].
 Proof.
-  by case: fd => /= ; t_xrbindP => /= ????????? <-.
+  by case: fd => /= ; t_xrbindP => /= ?????????? <-.
 Qed.
 
 End IT.

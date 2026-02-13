@@ -18,6 +18,7 @@
 -R arch Jasmin
 -R compiler Jasmin
 -R lang Jasmin
+-R ec_extraction Jasmin
 -R ssrmisc Jasmin
 -R itrees Jasmin
 
@@ -93,6 +94,8 @@ compiler/merge_varmaps_proof.v
 compiler/post_unrolling_check.v
 compiler/propagate_inline.v
 compiler/propagate_inline_proof.v
+compiler/remove_assert.v
+compiler/remove_assert_proof.v
 compiler/riscv.v
 compiler/riscv_decl.v
 compiler/riscv_instr_decl.v
@@ -129,6 +132,7 @@ compiler/unionfind_proof.v
 compiler/unrolling.v
 compiler/unrolling_proof.v
 compiler/wint_int.v
+compiler/wint_int_proof.v
 compiler/wint_word.v
 compiler/wint_word_proof.v
 compiler/x86_decl.v
@@ -141,6 +145,13 @@ compiler/x86_params_proof.v
 compiler/x86_stack_zeroization.v
 compiler/x86_stack_zeroization_proof.v
 compiler/x86.v
+ec_extraction/compiler_extraction.v
+ec_extraction/constant_prop_extraction.v
+ec_extraction/contracts_asserts.v
+ec_extraction/extra_vars_call.v
+ec_extraction/insert_cast.v
+ec_extraction/insert_cast_proof.v
+ec_extraction/remove_init_preds.v
 itrees/it_exec.v
 itrees/rec_facts.v
 itrees/rutt_extras.v
@@ -175,6 +186,10 @@ lang/psem_of_sem_proof.v
 lang/pseudo_operator.v
 lang/psem_facts.v
 lang/relational_logic.v
+lang/safety.v
+lang/safety_proof.v
+lang/safety_shared.v
+lang/safety_shared_proof.v
 lang/sem_one_varmap.v
 lang/sem_op_typed.v
 lang/sem_one_varmap_facts.v

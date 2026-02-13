@@ -1,0 +1,13 @@
+fn test(reg u64 x, reg u64 y) -> reg u32
+{
+    reg u32 sum;
+    sum = x +32u y;
+    return sum;
+}
+
+fn test1(reg u64 x, reg u64 y) -> reg u32
+{
+    reg u32 sum;
+    _,_,_,_,_,sum = #ADD_32(x, y);
+    return sum;
+}

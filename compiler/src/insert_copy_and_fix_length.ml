@@ -32,11 +32,61 @@ let size_of_lval =
   | Lasub (_, ws, len, _, _) -> arr_size ws len
   | Lnone _ | Lmem _ | Laset _ -> assert false
 
+
+let rec fix_length_e e =
+  match e with
+  | Pconst _ | Pbool _ | Pvar _ | Parr_init _ | Pis_var_init _ -> e
+  | Papp1 (o, e) ->
+    let e = fix_length_e e in
+    Papp1 (o, e)
+  | Papp2 (o, e1, e2) ->
+    let e1 = fix_length_e e1 in
+    let e2 = fix_length_e e2 in
+    Papp2(o, e1, e2)
+  | PappN (o, es) ->
+    let es = List.map fix_length_e es in
+    begin match o, es with
+
+    | Ois_arr_init _, e::_ ->
+      let ty = Typing.type_of_expr e in
+      let len = size_of ty in
+      PappN (Ois_arr_init (Conv.pos_of_int len), es)
+    | Ois_arr_init _, _ -> assert false
+
+    | Ois_barr_init _,  e::_ ->
+      let ty = Typing.type_of_expr e in
+      let len = size_of ty in
+      PappN (Ois_barr_init (Conv.pos_of_int len), es)
+    | Ois_barr_init _, _ -> assert false
+
+    | Opack _, _ | Ocombine_flags _, _ | Oarray _, _ -> PappN (o, es)
+    end
+  | Pget (al, aa, ws, x, e) -> Pget (al, aa, ws, x, fix_length_e e)
+  | Psub (aa, ws, len, x, e) -> Psub (aa, ws, len, x, fix_length_e e)
+  | Pload (al, ws, e) -> Pload (al, ws, fix_length_e e)
+  | Pif (ty, e, e1, e2) -> Pif (ty, fix_length_e e, fix_length_e e1, fix_length_e e2)
+  | Pbig(e1, op, x, e2, e3, e4) -> Pbig(fix_length_e e1, op, x, fix_length_e e2, fix_length_e e3, fix_length_e e4)
+  | Pis_mem_init(e1, e2) -> Pis_mem_init(fix_length_e e1, fix_length_e e2)
+
+let fix_length_es = List.map fix_length_e
+
+let fix_length_lv lv =
+ match lv with
+ | Lnone _ | Lvar _ -> lv
+ | Lmem(al, ws, l, e) ->  Lmem(al, ws, l, fix_length_e e)
+ | Laset(al, aa, ws, x, e) -> Laset(al, aa, ws, x, fix_length_e e)
+ | Lasub(aa, ws, len, x, e) -> Lasub(aa, ws, len, x, fix_length_e e)
+
+let fix_length_lvs = List.map fix_length_lv
+
+let fix_length_assert (s,e) =  (s,fix_length_e e)
+
 let rec iac_stmt pd is = List.map (iac_instr pd) is
 and iac_instr pd i = { i with i_desc = iac_instr_r pd i.i_loc i.i_desc }
 and iac_instr_r pd loc ir =
   match ir with
   | Cassgn (x, t, _, e) ->
+    let x, e = fix_length_lv x, fix_length_e e in
     if !Glob_options.introduce_array_copy then
       match is_array_copy x e with
       | None -> ir
@@ -47,11 +97,14 @@ and iac_instr_r pd loc ir =
           let op = Pseudo_operator.Ocopy(ws, Conv.pos_of_int n) in
           Copn([x], t, Sopn.Opseudo_op op, [e])
     else ir
-  | Cif (b, th, el) -> Cif (b, iac_stmt pd th, iac_stmt pd el)
-  | Cfor (i, r, s) -> Cfor (i, r, iac_stmt pd s)
-  | Cwhile (a, c1, t, info, c2) -> Cwhile (a, iac_stmt pd c1, t, info, iac_stmt pd c2)
+  | Cif (b, th, el) -> Cif (fix_length_e b, iac_stmt pd th, iac_stmt pd el)
+  | Cfor (i, (d, e1, e2), s) ->
+    let e1, e2 = fix_length_e e1, fix_length_e e2 in
+    Cfor (i, (d, e1, e2), iac_stmt pd s)
+  | Cwhile (a, c1, t, info, c2) ->
+    Cwhile (a, iac_stmt pd c1, fix_length_e t, info, iac_stmt pd c2)
   | Copn (xs,t,o,es) ->
-
+    let xs, es = fix_length_lvs xs, fix_length_es es in
     begin match o, xs with
     | Sopn.Opseudo_op(Pseudo_operator.Ospill(o,_)), _ ->
       let tys = List.map (fun e -> Conv.cty_of_ty (Typing.ty_expr pd loc e)) es in
@@ -94,6 +147,7 @@ and iac_instr_r pd loc ir =
     end
 
   | Csyscall(xs, o, es) ->
+    let xs, es = fix_length_lvs xs, fix_length_es es in
     begin match o with
     | Syscall_t.RandomBytes _ ->
       (* Fix the size it is dummy for the moment *)
@@ -105,10 +159,23 @@ and iac_instr_r pd loc ir =
       Csyscall(xs, Syscall_t.RandomBytes (ws, Conv.pos_of_int len), es)
     end
 
-  | Ccall _ | Cassert _ -> ir
+  | Ccall (xs, f, es) ->
+    let xs, es = fix_length_lvs xs, fix_length_es es in
+    Ccall(xs, f, es)
+
+  | Cassert (s,e) -> Cassert(s,fix_length_e e)
+
+let fix_length_contra fc =
+  { fc with
+    f_pre = List.map fix_length_assert fc.f_pre;
+    f_post = List.map fix_length_assert fc.f_post
+  }
 
 let iac_func pd f =
-  { f with f_body = iac_stmt pd f.f_body }
+  { f with
+    f_body = iac_stmt pd f.f_body;
+    f_contra = Option.map fix_length_contra f.f_contra
+  }
 
 let doit pd (p:(unit, 'asm) Prog.prog) : (unit, 'asm) Prog.prog =
   (fst p, List.map (iac_func pd) (snd p))

@@ -62,6 +62,7 @@ Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
 Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
 
+
 #[local] Existing Instance progUnit.
 
 Lemma compiler_third_part_meta entries (p p' : sprog) :
@@ -316,7 +317,7 @@ Lemma compiler_first_partP entries (p: prog) (p': uprog) scs m fn va scs' m' vr 
     List.Forall2 value_uincl vr vr' &
     sem_call (dc:=direct_c) p' tt scs m fn va scs' m' vr'.
 Proof.
-  rewrite /compiler_first_part; t_xrbindP => paw.
+  rewrite /compiler_first_part; t_xrbindP => pra ok_pra paw.
   rewrite print_uprogP => ok_paw pa0.
   rewrite !print_uprogP => ok_pa0 pb.
   rewrite print_uprogP => ok_pb pa ok_pa pc ok_pc ok_puc ok_puc'.
@@ -382,10 +383,10 @@ Proof.
   apply: compose_pass_uincl'.
   + by move=> vr'; apply: wi2w_progP; apply ok_paw.
   apply: compose_pass.
-  + move => vr'; exact: remove_assert_progP.
+  - move=> vr'; apply: (remove_assert_progP); apply ok_pra.
   apply: compose_pass; first by move => vr'; exact: psem_call_u.
   exists vr => //.
-  exact: values_uincl_refl.
+  exact: (List_Forall2_refl _ value_uincl_refl).
 Qed.
 
 Lemma compiler_third_partP returned_params (p p' : @sprog _pd _ _asmop) :

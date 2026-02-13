@@ -60,22 +60,29 @@ let find_common_ancestor (t : tree) (nodes : nodeset) : node =
 (* --------------------------------------------------------------- *)
 (* Compute variable occurrences in expressions and instructions *)
 
+let variables_in_gvar gv (acc : Spv.t) : Spv.t =
+  let x = L.unloc gv in
+  if x.v_kind <> Const then Spv.add x acc else acc
+
 let variables_in_ggvar { gs; gv } (acc : Spv.t) : Spv.t =
   match gs with
   | E.Sglob -> acc
-  | E.Slocal ->
-      let x = L.unloc gv in
-      if x.v_kind <> Const then Spv.add x acc else acc
+  | E.Slocal -> variables_in_gvar gv acc
 
 let rec variables_in_pexpr (acc : Spv.t) (e : pexpr) : Spv.t =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ -> acc
   | Pvar x -> variables_in_ggvar x acc
+  | Pis_var_init x -> variables_in_gvar x acc
   | Pget (_, _, _, x, e) | Psub (_, _, _, x, e) ->
       variables_in_pexpr (variables_in_ggvar x acc) e
   | Pload (_, _, e) | Papp1 (_, e) -> variables_in_pexpr acc e
-  | Papp2 (_, e1, e2) | Pif (_, _, e1, e2) -> variables_in_pexprs acc [ e1; e2 ]
+  | Papp2 (_, e1, e2) | Pis_mem_init (e1, e2) | Pif (_, _, e1, e2) -> variables_in_pexprs acc [ e1; e2 ]
   | PappN (_, es) -> variables_in_pexprs acc es
+  | Pbig (idx, _op, x, e, start, len)  -> 
+      let acc1 = variables_in_pexpr Spv.empty e in 
+      let acc = Spv.union acc (Spv.remove (L.unloc x) acc1) in
+      variables_in_pexprs acc [ idx; start; len ]
 
 and variables_in_pexprs (acc : Spv.t) (es : pexpr list) : Spv.t =
   List.fold_left variables_in_pexpr acc es

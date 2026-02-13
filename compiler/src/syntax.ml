@@ -181,10 +181,20 @@ type pexpr_r =
   | PEOp1    of peop1 * pexpr
   | PEOp2    of peop2 * (pexpr * pexpr)
   | PEIf of pexpr * pexpr * pexpr
+  | PEbig    of pbig * pident *pexpr * pexpr * pexpr
+  | PEResult of int_representation
+  | PEResultGet of [`Aligned|`Unaligned] option * arr_access * swsize L.located option * int_representation * pexpr * pexpr option
+
 
 and pexpr = pexpr_r L.located
 
 and mem_access = [ `Aligned | `Unaligned ] option * swsize L.located option * pexpr
+
+and pbig =
+  | PEAll
+  | PEExists
+  | PESum
+  | PEBop of peop2 * pexpr
 
 (* -------------------------------------------------------------------- *)
 type psimple_attribute =
@@ -245,6 +255,11 @@ type plvals = pannotations L.located option * plvalue list
 
 
 type vardecls = pstotype * pident list
+
+type assert_kind =
+  [ `Assert | `Assume | `Cut ]
+
+type assert_prover = pident
 
 type pinstr_r =
   | PIArrayInit of pident
