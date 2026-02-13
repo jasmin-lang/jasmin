@@ -529,11 +529,33 @@ Definition get_sub_status (status:status) s :=
 
 Fixpoint symbolic_of_al (al : array_length) :=
   match al with
-  | ALConst n => Sconst n
-  | ALVar x => Slvar x
-  | ALAdd al1 al2 => Sadd Op_int (symbolic_of_al al1) (symbolic_of_al al2)
-  | ALMul al1 al2 => Smul Op_int (symbolic_of_al al1) (symbolic_of_al al2)
+  | ALConst n => Some (Sconst n)
+  | ALVar x => Some (Slvar x)
+  | ALNeg al =>
+    let%opt al := symbolic_of_al al in
+    Some (Sneg Op_int al)
+  | ALAdd al1 al2 =>
+    let%opt al1 := symbolic_of_al al1 in
+    let%opt al2 := symbolic_of_al al2 in
+    Some (Sadd Op_int al1 al2)
+  | ALSub al1 al2 =>
+    let%opt al1 := symbolic_of_al al1 in
+    let%opt al2 := symbolic_of_al al2 in
+    Some (Ssub Op_int al1 al2)
+  | ALMul al1 al2 =>
+    let%opt al1 := symbolic_of_al al1 in
+    let%opt al2 := symbolic_of_al al2 in
+    Some (Smul Op_int al1 al2)
+  | ALDiv _ _ _ | ALMod _ _ _ | ALShl _ _ | ALShr _ _ => None
   end.
+
+(* TODO: better error message (pp_al?) *)
+Definition get_symbolic_of_al al :=
+  let err :=
+    stk_error_no_var_box (pp_hov [::
+      pp_s "this array length expression is too complex"])
+  in
+  o2r err (symbolic_of_al al).
 
 Definition mk_len_int ws len :=
   let sz := wsize_size ws in
@@ -541,12 +563,15 @@ Definition mk_len_int ws len :=
   else Smul Op_int (Sconst sz) len.
 
 Definition symbolic_of_arr_type ty :=
-  if ty is aarr ws al then mk_len_int ws (symbolic_of_al al)
-  else Sconst 0 (* impossible case *).
+  if ty is aarr ws al then
+    Let e := get_symbolic_of_al al in
+    ok (mk_len_int ws e)
+  else Error (stk_ierror_no_var "symbolic_of_arr_type") (* impossible case *).
 
 Definition sub_region_status_at_ofs (x:var_i) sr status ofs len :=
-  if (ofs == Sconst 0) && (len == symbolic_of_arr_type x.(vtype)) then
-    (sr, status)
+  Let e := symbolic_of_arr_type x.(vtype) in
+  if (ofs == Sconst 0) && (len == e) then
+    ok (sr, status)
   else
     let sr := sub_region_at_ofs sr ofs len in
     let status :=
@@ -555,7 +580,7 @@ Definition sub_region_status_at_ofs (x:var_i) sr status ofs len :=
       else
         Unknown
     in
-    (sr, status).
+    ok (sr, status).
 
 (* Returns a zone [z] such that z2 = z1 ++ z, if possible.
    None => non-disjoint zones, error
@@ -679,18 +704,20 @@ Definition set_move (rmap:region_map) x sr status :=
      region_var := rv |}.
 
 Definition insert_status x status ofs len statusy :=
-  if (ofs == Sconst 0) && (len == symbolic_of_arr_type x.(vtype)) then statusy
+  Let e := symbolic_of_arr_type x.(vtype) in
+  if (ofs == Sconst 0) && (len == e) then ok statusy
   else
     let s := {| ss_ofs := ofs; ss_len := len |} in
     if get_sub_status statusy {| ss_ofs := Sconst 0; ss_len := len |} then
-      fill_status status s
+      ok (fill_status status s)
     else
-      odflt Unknown (clear_status status [:: s]).
+      ok (odflt Unknown (clear_status status [:: s])).
 
 Definition set_move_sub (rmap:region_map) r x status ofs len substatus :=
-  let rv := set_move_status rmap x r (insert_status x status ofs len substatus) in
-  {| var_region := rmap.(var_region);
-     region_var := rv |}.
+  Let status := insert_status x status ofs len substatus in
+  let rv := set_move_status rmap x r status in
+  ok {| var_region := rmap.(var_region);
+        region_var := rv |}.
 
 Definition zone_of_cs cs : symbolic_zone :=
   [:: {| ss_ofs := Sconst cs.(cs_ofs); ss_len := Sconst cs.(cs_len) |}].
@@ -723,9 +750,9 @@ Definition size_of (t:atype) :=
   end.
 
 Definition sub_region_full x r :=
-  let len := symbolic_of_al (size_of x.(vtype)) in
+  Let len := get_symbolic_of_al (size_of x.(vtype)) in
   let z := [:: {| ss_ofs := Sconst 0; ss_len := len |}] in
-  {| sr_region := r; sr_zone := z |}.
+  ok {| sr_region := r; sr_zone := z |}.
 
 Definition sub_region_glob x ws :=
   let r := {| r_slot := x; r_align := ws; r_writable := false |} in
@@ -742,7 +769,7 @@ Definition get_sub_region_status (rmap:region_map) (x:var_i) :=
 Definition get_gsub_region_status rmap (x:var_i) vpk :=
   match vpk with
   | VKglob (_, ws) =>
-    let sr := sub_region_glob x ws in
+    Let sr := sub_region_glob x ws in
     ok (sr, Valid)
   | VKptr _pk =>
     get_sub_region_status rmap x
@@ -1243,8 +1270,9 @@ Definition alloc_array_move table rmap r tag e :=
         Let: (sr, status) := get_gsub_region_status rmap yv vpk in
         Let: (table, se1) := get_symbolic_of_pexpr table e1 in
         let ofs := mk_ofs_int aa ws se1 in
-        let len := mk_len_int ws (symbolic_of_al len) in
-        let (sr, status) := sub_region_status_at_ofs yv sr status ofs len in
+        Let len := get_symbolic_of_al len in
+        let len := mk_len_int ws len in
+        Let: (sr, status) := sub_region_status_at_ofs yv sr status ofs len in
         Let eofs := addr_from_vpk_pexpr rmap yv vpk in
         Let e1 := alloc_e rmap e1 aint in
         ok (table, sr, status, mk_mov vpk, eofs.1, mk_ofs aa ws e1 eofs.2)
@@ -1297,13 +1325,14 @@ Definition alloc_array_move table rmap r tag e :=
       Let: (sr, status) := get_sub_region_status rmap x in
       Let: (table, e) := get_symbolic_of_pexpr table e in
       let ofs := mk_ofs_int aa ws e in
-      let len := mk_len_int ws (symbolic_of_al len) in
-      let (sr', _) := sub_region_status_at_ofs x sr status ofs len in
+      Let len := get_symbolic_of_al len in
+      let len := mk_len_int ws len in
+      Let: (sr', _) := sub_region_status_at_ofs x sr status ofs len in
       Let _ :=
         assert (sry == sr')
                (regions_are_not_equal "sub-array" x sry sr')
       in
-      let rmap := set_move_sub rmap sr.(sr_region) x status ofs len statusy in
+      Let rmap := set_move_sub rmap sr.(sr_region) x status ofs len statusy in
       ok (table, rmap, nop)
     end
 
@@ -2035,7 +2064,7 @@ Definition init_param (mglob stack : Mvar.t (Z * wsize)) accu pi (x:var_i) :=
     let r :=
       {| r_slot := x;
          r_align := pi.(pp_align); r_writable := pi.(pp_writable) |} in
-    let sr := sub_region_full x r in
+    Let sr := sub_region_full x r in
     ok (Sv.add pi.(pp_ptr) disj,
         Mvar.set lmap x (Pregptr pi.(pp_ptr)),
         set_move rmap x sr Valid,

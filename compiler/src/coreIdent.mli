@@ -82,13 +82,23 @@ end
 (* Non parametrized variable                                                *)
 
 type length =
-  | Const of int (* FIXME: Z.t *)
+  | Const of int (* FIXME: Z.t ? *)
   | Var of length gvar
+  | Neg of length
   | Add of length * length
+  | Sub of length * length
   | Mul of length * length
+  | Div of signedness * length * length
+  | Mod of signedness * length * length
+  | Shl of length * length
+  | Shr of length * length
 
 type ty    = length gty
 type var   = length gvar
+
+val subst_al : (var -> length option) -> length -> length
+val subst_ety : (var -> length option) -> length gety -> length gety
+val subst_ty : (var -> length option) -> ty -> ty
 
 module V : sig
   type t = var

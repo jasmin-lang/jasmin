@@ -233,8 +233,14 @@ let pp_len ~debug fmt (len:length) =
     match len with
     | Const n -> fprintf fmt "%i" n
     | Var x -> fprintf fmt "%a" pp_var x
+    | Neg al -> fprintf fmt "- (%a)" pp_len al
     | Add (e1, e2) -> fprintf fmt "(%a) + (%a)" pp_len e1 pp_len e2
+    | Sub (e1, e2) -> fprintf fmt "(%a) - (%a)" pp_len e1 pp_len e2
     | Mul (e1, e2) -> fprintf fmt "(%a) * (%a)" pp_len e1 pp_len e2
+    | Div (sg, e1, e2) -> fprintf fmt "(%a) /%s (%a)" pp_len e1 (string_of_div_kind sg Op_int) pp_len e2
+    | Mod (sg, e1, e2) -> fprintf fmt "(%a) %%%s (%a)" pp_len e1 (string_of_div_kind sg Op_int) pp_len e2
+    | Shl (e1, e2) -> fprintf fmt "(%a) << (%a)" pp_len e1 pp_len e2
+    | Shr (e1, e2) -> fprintf fmt "(%a) >>s (%a)" pp_len e1 pp_len e2
   in
   pp_len fmt len
 let pp_ty ~debug fmt = pp_gtype (pp_len ~debug) fmt

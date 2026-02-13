@@ -2055,21 +2055,14 @@ let rec tt_assert pd env pe =
     P.Pand (tt_assert pd env pe1, tt_assert pd env pe2)
   | _ -> P.Pexpr (tt_expr_bool pd env pe)
 
-let rec subst_al (f : P.var -> P.length) al =
-  let open Prog in
-  match al with
-  | Const n -> Const n
-  | Var x -> f x
-  | Add (al1, al2) -> Add (subst_al f al1, subst_al f al2)
-  | Mul (al1, al2) -> Mul (subst_al f al1, subst_al f al2)
-let subst_ety f ty =
-  match ty with
-  | P.ETarr (ws, len) -> P.ETarr (ws, subst_al f len)
-  | _ -> ty
 let subst_one (f_al:P.var list) alargs ty =
   let als = List.combine f_al alargs in
-  let f x = if x.P.v_kind = Length then List.assoc x als else P.Var x in
-  subst_ety f ty
+  let f x =
+    let al = List.assoc_opt x als in
+    assert (al = None && x.P.v_kind = Const);
+    al
+  in
+  P.subst_ety f ty
 let subst f_al alargs tys =
   List.map (subst_one f_al alargs) tys
 

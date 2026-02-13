@@ -209,17 +209,6 @@ let getfun env fn =
 
 (* -------------------------------------------------------------------- *)
 
-let rec subst_al (f : var -> length) al =
-  match al with
-  | Const _ -> al
-  | Var x -> f x
-  | Add (al1, al2) -> Add (subst_al f al1, subst_al f al2)
-  | Mul (al1, al2) -> Mul (subst_al f al1, subst_al f al2)
-let subst_ty f ty =
-  match ty with
-  | Bty _ -> ty
-  | Arr (ws, al) -> Arr (ws, subst_al f al)
-
 let rec check_instr pd msfsz asmOp n env i =
   let loc = i.i_loc in
   match i.i_desc with
@@ -236,7 +225,7 @@ let rec check_instr pd msfsz asmOp n env i =
     let s = Syscall.syscall_sig_u pd n o in
     let f =
       let l = List.combine s.scs_al al in
-      fun x -> List.assoc x l
+      fun x -> List.assoc_opt x l
     in
     let tins = List.map Conv.ty_of_cty s.scs_tin in
     let tins = List.map (subst_ty f) tins in
@@ -268,7 +257,7 @@ let rec check_instr pd msfsz asmOp n env i =
     let fd = getfun env fn in
     let f =
       let l = List.combine fd.f_al al in
-      fun x -> List.assoc x l
+      fun x -> List.assoc_opt x l
     in
     let tyin = List.map (subst_ty f) fd.f_tyin in
     check_exprs pd loc es tyin;

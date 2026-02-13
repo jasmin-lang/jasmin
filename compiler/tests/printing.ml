@@ -68,8 +68,14 @@ let rec eq_al x y =
   match x, y with
   | Const n1, Const n2 -> n1 = n2
   | Var x1, Var x2 -> eq_length_var x1 x2
+  | Neg al1, Neg al2 -> eq_al al1 al2
   | Add (al11, al12), Add (al21, al22) -> eq_al al11 al21 && eq_al al12 al22
+  | Sub (al11, al12), Sub (al21, al22) -> eq_al al11 al21 && eq_al al12 al22
   | Mul (al11, al12), Mul (al21, al22) -> eq_al al11 al21 && eq_al al12 al22
+  | Div (sg1, al11, al12), Div (sg2, al21, al22) -> sg1 = sg2 && eq_al al11 al21 && eq_al al12 al22
+  | Mod (sg1, al11, al12), Mod (sg2, al21, al22) -> sg1 = sg2 && eq_al al11 al21 && eq_al al12 al22
+  | Shl (al11, al12), Shl (al21, al22) -> eq_al al11 al21 && eq_al al12 al22
+  | Shr (al11, al12), Shr (al21, al22) -> eq_al al11 al21 && eq_al al12 al22
   | _, _ -> false
 
 let eq_ty x y =
