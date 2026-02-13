@@ -128,15 +128,15 @@ Section REMOVE.
   Section GD.
     Context (gd:glob_decls).
 
-    Definition get_var_ ii (env:venv) (xi:gvar) := 
+    Definition get_var_ ii (env:venv) (xi:gvar) :=
       if is_lvar xi then
-        let vi := xi.(gv) in 
+        let vi := xi.(gv) in
         let x := vi.(v_var) in
         if is_glob_var x then
           match Mvar.get env x with
           | Some g => ok (mk_gvar (VarI g vi.(v_info)))
           | None   => Error (rm_glob_error ii vi)
-          end 
+          end
         else ok xi
       else ok xi.
 
@@ -176,6 +176,20 @@ Section REMOVE.
         Let e1 := remove_glob_e ii env e1 in
         Let e2 := remove_glob_e ii env e2 in
         ok (Pif t e e1 e2)
+      | Pbig idx op x body start len =>
+        Let _     := assert (~~ is_glob_var x) (rm_glob_error ii x) in
+        Let idx   := remove_glob_e ii env idx in
+        Let start := remove_glob_e ii env start in
+        Let len   := remove_glob_e ii env len in
+        Let body  := remove_glob_e ii env body in
+        ok (Pbig idx op x body start len)
+
+      | Pis_var_init _ => ok e
+
+      | Pis_mem_init e1 e2 =>
+        Let e1 := remove_glob_e ii env e1 in
+        Let e2 := remove_glob_e ii env e2 in
+        ok (Pis_mem_init e1 e2)
       end.
 
     Definition remove_glob_lv ii (env:venv) (lv:lval) :=
@@ -351,6 +365,7 @@ Section REMOVE.
       Let envc := remove_glob remove_glob_i env f.(f_body) in
       ok
         {| f_info   := f.(f_info);
+           f_contra := f.(f_contra);
            f_tyin   := f.(f_tyin);
            f_params := f.(f_params);
            f_body   := envc.2;

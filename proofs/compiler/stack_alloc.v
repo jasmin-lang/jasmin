@@ -1053,6 +1053,12 @@ Fixpoint alloc_e (e:pexpr) ty :=
     Let e1 := alloc_e e1 ty in
     Let e2 := alloc_e e2 ty in
     ok (Pif ty e e1 e2)
+
+  | Pbig _ _ _ _ _ _ => Error (stk_ierror_no_var "Pbig is not supported in stack_alloc")
+
+  | Pis_var_init _ => Error (stk_ierror_no_var "Pis_var_init is not supported in stack_alloc")
+
+  | Pis_mem_init e1 e2 => Error (stk_ierror_no_var "Pis_mem_init is not supported in stack_alloc")
   end.
 
 Definition alloc_es es ty := mapM2 bad_arg_number alloc_e es ty.
@@ -1298,7 +1304,7 @@ Definition alloc_protect_ptr rmap ii r t e msf :=
   in
 
   match r with
-  | Lvar x => 
+  | Lvar x =>
     match get_local x with
     | None => Error (stk_ierror_basic x "register array remains")
     | Some pk =>
@@ -2042,6 +2048,7 @@ Definition alloc_fd_aux P p_extra mglob (local_alloc: funname -> stk_alloc_oracl
       check_results pmap rmap paramsi fd.(f_params) sao.(sao_return) fd.(f_res) in
   ok {|
     f_info := f_info fd;
+    f_contra := None;
     f_tyin := map2 (fun o ty => if o is Some _ then aword Uptr else ty) sao.(sao_params) fd.(f_tyin);
     f_params := params;
     f_body := flatten body;

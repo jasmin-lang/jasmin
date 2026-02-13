@@ -806,6 +806,8 @@ Context
     have [|]:= make_prologueP plE (@SvP.MP.subset_refl X) _ hes heqX; first by SvD.fsetdec.
     move=> vmx [/(esem_i_bodyP (sem_F := sem_fun_rec _)) sem_pl eval_args' eq_vm1_vmx].
     rewrite sem_pl /= Eqit.bind_ret_l.
+    rewrite /isem_pre /isem_post /sem_pre /sem_post /=.
+    repeat setoid_rewrite Eqit.bind_ret_l.
     rewrite /isem_pexprs eval_args' /= Eqit.bind_ret_l Eqit.bind_bind.
     set fs1 := mk_fstate ves s; set fs2 := mk_fstate ves (with_vm s vmx).
     apply xrutt_facts.xrutt_bind with (rpostF (eS:=mra_spec) f f fs1 fs2);
@@ -815,7 +817,7 @@ Context
     case h3 : write_lvals => [s' | e /=]; last first.
     + apply xrutt.xrutt_CutL => //.
       by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
-    have [|vm2 [s3] []] :=  make_epilogueP epE _ h3 htr (eq_onT heqX eq_vm1_vmx).
+    have [|vm2 [s3] []] := make_epilogueP epE _ h3 htr (eq_onT heqX eq_vm1_vmx).
     + by SvD.fsetdec.
     move=> /= -> /(esem_i_bodyP (sem_F := sem_fun_rec _)) hsem eq_s2_vm2 /=.
     rewrite Eqit.bind_ret_l hsem /=.

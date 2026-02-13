@@ -165,12 +165,13 @@ Lemma it_compiler_first_part {entries p p' ev fn} :
   compiler_first_part aparams cparams entries p = ok p' ->
   fn \in entries ->
   wiequiv_f
-    (wa1 := withassert) (wa2 := noassert)
-    (wsw1 := nosubword) (wsw2 := withsubword)
-    (dc1 := indirect_c) (dc2 := direct_c)
+    (wc1  := nocatch)    (wc2  := nocatch)
+    (wa1  := withassert) (wa2  := noassert)
+    (wsw1 := nosubword)  (wsw2 := withsubword)
+    (dc1  := indirect_c) (dc2  := direct_c)
     p p' ev ev pre_eq fn fn post_incl.
 Proof.
-rewrite /compiler_first_part; t_xrbindP => paw.
+rewrite /compiler_first_part; t_xrbindP => pra ok_pra paw.
 rewrite print_uprogP => ok_paw pa0.
 rewrite !print_uprogP => ok_pa0 pb.
 rewrite print_uprogP => ok_pb pa ok_pa pc ok_pc ok_puc ok_puc'.
@@ -184,7 +185,7 @@ rewrite !print_uprogP => ok_fvars pj ok_pj pp.
 rewrite !print_uprogP => ok_pp <- {p'} ok_fn.
 
 apply: (wiequiv_f_trans_EE_EU (wsw2:=nosubword) (dc2:=indirect_c)).
-+ by apply: (it_remove_assert_progP (dc:=indirect_c) (sip:=sip_of_asm_e) (pT:=progUnit) (wsw:=nosubword) ev).
++ by apply: (it_remove_assert_progP (dc:=indirect_c) (sip:=sip_of_asm_e) (pT:=progUnit) (wsw:=nosubword) ev ok_pra).
 
 apply: (wiequiv_f_trans_EE_EU (wsw2:= withsubword) (dc2:=indirect_c)).
 + exact: it_psem_call_u.
@@ -306,7 +307,7 @@ apply: (
 - move=> s1 _ s3 r1 r3 [_ <-] _ [r2 [?? hvals2] [?? hvals3]].
   split; only 1,2: congruence.
   exact: values_uincl_trans hvals2 hvals3.
-exact: (it_sem_uincl_f (sCP := sCP_stack) p' ev (fn := fn)).
+by apply: (it_sem_uincl_f_wa (sip:=sip_of_asm_e) (p:=p')).
 Qed.
 
 End THIRD_PART.
@@ -378,7 +379,7 @@ rewrite /compiler_front_end; t_xrbindP=> p1 ok_p1 check_p1 p2 ok_p2 p3.
 rewrite print_sprogP => ok_p3 p4.
 set rp := fun (fn : funname) => _.
 rewrite print_sprogP => ok_sp ? ok_fn; subst p4.
-apply: (wequiv_fun_get (scP1 := sCP_unit) (scP2 := sCP_stack)) => /= fd get_fd.
+apply: (wequiv_fun_get_wa (scP1 := sCP_unit) (scP2 := sCP_stack)) => /= fd get_fd.
 
 have [mglob ok_mglob] := [elaborate alloc_prog_get_fundef ok_p2 ].
 have [_ p2_p3_extra] :=
@@ -405,7 +406,7 @@ apply: (
   apply: Forall2_trans hres; first exact: value_uincl_trans.
   exact: (Forall2_drop hval1).
 
-apply: (wequiv_fun_get (scP1 := sCP_unit) (scP2 := sCP_stack)) => /= fd1
+apply: (wequiv_fun_get_wa (scP1 := sCP_unit) (scP2 := sCP_stack)) => /= fd1
   get_fd1.
 move: h => /(_ _ _ get_fd1)[] fd2 /[dup] ok_fd2 h get_fd2.
 have [fd3 get_fd3 [_ _ _ _ _ fd2_fd3_extra]] :=

@@ -519,7 +519,7 @@ Lemma wsigned_range_m szi szo:
   (wmin_signed szo <= wmin_signed szi /\ wmax_signed szi <= wmax_signed szo)%Z.
 Proof. by case: szi; case: szo. Qed.
 
-Lemma half_modulues_pos sz : (0 < half_modulus sz)%Z.
+Lemma half_modulus_pos sz : (0 < half_modulus sz)%Z.
 Proof. by case: sz. Qed.
 
 Lemma wsar_alt sz (x: word sz) n :

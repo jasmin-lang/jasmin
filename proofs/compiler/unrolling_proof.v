@@ -177,7 +177,7 @@ Section PROOF.
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
     move => scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
-    case: f=> fi ftyi fparams fc ftyo fres fe /= Hget Htyi Hi Hw _ Hc Hres Htyo Hsys Hfi.
+    case: f=> fi ci ftyi fparams fc ftyo fres fe /= Hget Htyi Hi Hw _ Hc Hres Htyo Hsys Hfi.
     move/p'_get_fundef: Hget Hc.
     rewrite /Pc /=.
     case: unroll_cmd => c _ /= Hget Hc.
@@ -238,7 +238,7 @@ Section PROOF.
     exists (unroll_fun (fn, fd)).1.2.
     + by apply: p'_get_fundef hfd.
     move=> s {hfd}.
-    case: fd => /= finfo ftyin fparams fbody ftyout fres fextra.
+    case: fd => /= finfo fcontract ftyin fparams fbody ftyout fres fextra.
     case heq: unroll_cmd => [c' b] /= hinit.
     exists s.
     + by move: hinit; rewrite /initialize_funcall /= p'_extra.

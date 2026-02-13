@@ -223,7 +223,6 @@ let v_compare (loc,c) (loc',c') =
   lex [(fun () -> vloc_compare loc loc');
        (fun () ->  Stdlib.compare c c')]
 
-
 type warnings = (Format.formatter -> unit) list
 
 type analyse_res =
@@ -373,6 +372,10 @@ let rec safe_e_rec safe = function
     (* We do not check "is_defined e1 && is_defined e2" since
         (safe_e_rec (safe_e_rec safe e1) e2) implies it *)
     safe_e_rec (safe_e_rec (safe_e_rec safe e1) e2) e3
+  (* Should we fix this ? This function should disapear anyway because this is done in extraction for safety *)
+  | Pbig _ -> assert false
+  | Pis_var_init _x -> safe
+  | Pis_mem_init (e1, e2) -> safe_e_rec (safe_e_rec safe e1) e2
 
 let safe_e = safe_e_rec []
 
@@ -419,7 +422,7 @@ let safe_opn pd asmOp safe opn es =
         ]
       | Wsize.InRangeMod32(sz, lo, hi, n) ->
          let n = List.nth es (Conv.int_of_nat n) in
-         let n = Papp1 (E.uint_of_word sz, n) in
+         let n = Papp1 (Expr.uint_of_word sz, n) in
          let n = Papp2 (Omod (Unsigned, Op_int), n, Pconst (Z.of_int 32)) in
          [ InRange(Pconst (Conv.z_of_cz lo), Pconst (Conv.z_of_cz hi), n) ]
       | Wsize.AllInit(ws, p, i) ->
@@ -432,20 +435,20 @@ let safe_opn pd asmOp safe opn es =
 
       | ULt (sz, n, z) ->
         let n = List.nth es (Conv.int_of_nat n) in
-        let n = Papp1 (E.uint_of_word sz, n) in
+        let n = Papp1 (Expr.uint_of_word sz, n) in
         [ InRange(Pconst Z.zero, Pconst (Z.pred (Conv.z_of_cz z)), n)] (* n ∈ [0; z-1] *)
 
       | UGe (sz, z, n) ->
         let n = List.nth es (Conv.int_of_nat n) in
-        let n = Papp1 (E.uint_of_word sz, n) in
+        let n = Papp1 (Expr.uint_of_word sz, n) in
         let z = Pconst (Conv.z_of_cz z) in
         [ InRange(Pconst Z.zero, n, z) ] (* z ∈ [0; n] *)
 
       | UaddLe(sz, n1, n2, z) ->
         let n1 = List.nth es (Conv.int_of_nat n1) in
-        let n1 = Papp1 (E.uint_of_word sz, n1) in
+        let n1 = Papp1 (Expr.uint_of_word sz, n1) in
         let n2 = List.nth es (Conv.int_of_nat n2) in
-        let n2 = Papp1 (E.uint_of_word sz, n2) in
+        let n2 = Papp1 (Expr.uint_of_word sz, n2) in
         let n12 = Papp2 (Oadd Op_int, n1, n2) in
         let z = Pconst (Conv.z_of_cz z) in
         [ InRange(Pconst Z.zero, z, n12) ] (* n1 + n2 ∈ [0; z] *)
@@ -1051,6 +1054,7 @@ end = struct
 
 
   (* -------------------------------------------------------------------- *)
+
   let opn_dflt n = List.init n (fun _ -> None)
 
   (* -------------------------------------------------------------------- *)
@@ -1062,8 +1066,8 @@ end = struct
                          w_no_carry,
                          pcast ws (Pconst (Z.of_int 1))) in
 
-    let eli = Papp1 (E.uint_of_word ws, el)    (* (int)el *)
-    and eri = Papp1 (E.uint_of_word ws, er) in (* (int)er *)
+    let eli = Papp1 (Expr.uint_of_word ws, el)    (* (int)el *)
+    and eri = Papp1 (Expr.uint_of_word ws, er) in (* (int)er *)
     let w_i =
       Papp2 (Oadd Op_int, eli, eri) in (* (int)el + (int)er *)
     let pow_ws = Pconst (Z.pow (Z.of_int 2) (int_of_ws ws)) in (* 2^ws *)
@@ -1100,8 +1104,8 @@ end = struct
                          w_no_carry,
                          pcast ws (Pconst (Z.of_int 1))) in
 
-    let eli = Papp1 (E.uint_of_word ws, el)    (* (int)el *)
-    and eri = Papp1 (E.uint_of_word ws, er) in (* (int)er *)
+    let eli = Papp1 (Expr.uint_of_word ws, el)    (* (int)el *)
+    and eri = Papp1 (Expr.uint_of_word ws, er) in (* (int)er *)
 
     (* cf_no_carry is true <=> el < er *)
     let cf_no_carry = Papp2 (Olt Cmp_int, eli, eri ) in
@@ -1285,6 +1289,11 @@ end = struct
       | Papp2 (_, e1, e2)  -> nm_es vs_for [e1; e2]
       | PappN (_,es)       -> nm_es vs_for es
       | Pif (_, e, el, er) -> nm_es vs_for [e; el; er]
+      (* FIXME *)
+      | Pbig (e0, _, _, start, len, body) ->
+          nm_es vs_for [e0; start; len; body]
+      | Pis_var_init _ -> true
+      | Pis_mem_init _ -> false
 
     and nm_es vs_for es = List.for_all (nm_e vs_for) es
 
@@ -1443,7 +1452,6 @@ end = struct
         let cl = { ginstr with i_desc = Cassgn (lv, tag, ty1, el) } in
         let cr = { ginstr with i_desc = Cassgn (lv, tag, ty2, er) } in
         aeval_if ginstr c [cl] [cr] state
-
 
       | Cassgn (lv, _, _, Parr_init _) ->
         let abs = AbsExpr.abs_forget_array_contents state.abs ginstr.i_info lv in
@@ -1963,7 +1971,7 @@ end
 
 module type ExportWrap = sig
   type extended_op
-  
+
   (* main function, before any compilation pass *)
   val main_source : (unit, extended_op) Prog.func
 

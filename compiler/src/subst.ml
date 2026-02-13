@@ -28,6 +28,15 @@ let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gex
   | Papp2 (o, e1, e2)-> Papp2 (o, gsubst_e flen f e1, gsubst_e flen f e2)
   | PappN (o, es) -> PappN (o, List.map (gsubst_e flen f) es)
   | Pif   (ty, e, e1, e2)-> Pif(gsubst_ty (flen ?loc:None) ty, gsubst_e flen f e, gsubst_e flen f e1, gsubst_e flen f e2)
+  | Pbig (e, o, x, e1, e2, e0) ->
+    Pbig(gsubst_e flen f e,
+         o,
+         gsubst_vdest f x,
+         gsubst_e flen f e1,
+         gsubst_e flen f e2,
+         gsubst_e flen f e0)
+  | Pis_var_init v -> Pis_var_init (gsubst_vdest f v)
+  | Pis_mem_init (e1,e2) -> Pis_mem_init (gsubst_e flen f e1,gsubst_e flen f e2)
 
 and gsubst_gvar f v =
   match f v with
@@ -71,10 +80,23 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
 
 and gsubst_c flen f c = List.map (gsubst_i flen f) c
 
+let gsubst_cf_cond flen f =
+  List.map (fun (prover,clause) -> prover, gsubst_e flen f clause)
+
+let gsubst_cf_contra flen f c =
+  Some
+  {
+    f_iparams = List.map (gsubst_vdest f) c.f_iparams;
+    f_ires = List.map (gsubst_vdest f) c.f_ires;
+    f_pre = gsubst_cf_cond flen f c.f_pre;
+    f_post = gsubst_cf_cond flen f c.f_post;
+  }
+
 let gsubst_func (flen: ?loc:L.t -> 'len1 -> 'len2) f fc =
   let dov v = L.unloc (gsubst_vdest f (L.mk_loc L._dummy v)) in
   { fc with
     f_tyin = List.map (gsubst_ty (flen ?loc:None)) fc.f_tyin;
+    f_contra = Option.bind fc.f_contra (gsubst_cf_contra flen f);
     f_args = List.map dov fc.f_args;
     f_body = gsubst_c flen f fc.f_body;
     f_tyout = List.map (gsubst_ty (flen ?loc:None)) fc.f_tyout;
@@ -153,9 +175,13 @@ let psubst_prog (prog:('info, 'asm) pprog) =
         let subst_ty = psubst_ty subst_v in
         let dov v =
           L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
+        let aux =
+          gsubst_cf_contra (psubst_e_ subst_v) subst_v
+        in
         let fc = {
             fc with
             f_tyin = List.map subst_ty fc.f_tyin;
+            f_contra = Option.bind fc.f_contra aux;
             f_args = List.map dov fc.f_args;
             f_body = gsubst_c (psubst_e_ subst_v) subst_v fc.f_body;
             f_tyout = List.map subst_ty fc.f_tyout;
@@ -202,8 +228,8 @@ let rec int_of_expr ?loc e =
   | Papp2 (o, e1, e2) ->
       let op = int_of_op2 ?loc o in
       op (int_of_expr ?loc e1) (int_of_expr ?loc e2)
-  | Pbool _ | Parr_init _ | Pvar _
-  | Pget _ | Psub _ | Pload _ | PappN _ | Pif _ ->
+  | Pbool _ | Parr_init _ | Pvar _ | Pis_var_init _ | Pis_mem_init _
+  | Pget _ | Psub _ | Pload _ | PappN _ | Pif _ | Pbig _ ->
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" (Printer.pp_pexpr ~debug:false) e
 
 
@@ -274,6 +300,7 @@ let isubst_prog glob prog =
     let fc = {
         fc with
         f_tyin = List.map isubst_ty fc.f_tyin;
+        f_contra =  Option.bind fc.f_contra (gsubst_cf_contra isubst_len subst_v);
         f_args;
         f_body = gsubst_c isubst_len subst_v fc.f_body;
         f_tyout = List.map isubst_ty fc.f_tyout;

@@ -23,6 +23,22 @@ abstract theory ByteArray.
 
   op is_init (t:t) (k l : int): bool = forall i, k <= i => i < k + l => is_init_cell t i.
 
+  lemma is_init_one (t:t) (k :int):
+    is_init t k 1 = is_init_cell t k.
+  proof.
+    smt().
+  qed.
+  hint simplify is_init_one.
+
+  lemma is_init_cellP (t:t) (i j: int) (v:W8.t):
+      is_init_cell t.[i<-v] j = if (i=j /\ 0<=i<ByteArray.size) then v = (W8.of_int 255) else is_init_cell t j.
+  proof.
+    smt(get_set_if).
+  qed.
+
+  hint simplify is_init_cellP.
+
+
   op init_arr (b : W8.t) : t =
     init (fun _ => b).
 
@@ -31,7 +47,7 @@ abstract theory ByteArray.
 
  lemma is_init_set_last t len :
    is_init t 0 len => is_init t.[len <- W8.of_int 255] 0 (len + 1).
- proof. move => h k k0 klen k_in_bounds; rewrite get_set_if /#. qed.
+ proof. move => h k k0 klen k_in_bounds /#. qed.
 
   abstract theory WSB.
     type B.
@@ -174,6 +190,7 @@ abstract theory ByteArray.
 
     op of_list'S (l:B list) =
       init (fun i => if i < List.size l * r then nth _zero l (i%/r) \bits8 (i%%r) else W8.zero).
+
 
     lemma get8_of_list'S l i :
       (of_list'S l).[i] =

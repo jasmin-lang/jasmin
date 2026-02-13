@@ -52,6 +52,7 @@ Definition Oarm_add_large_imm_instr : instruction_desc :=
    ; semi   := sem_prod_ok ctin semi
    ; semu   := @values.vuincl_app_sopn_v ctin [:: cty] (sem_prod_ok ctin semi) refl_equal
    ; i_safe := [::]
+   ; i_init := [:: IBool true]
    ; i_valid := true
    ; i_safe_wf := refl_equal
    ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=ctin) semi _
@@ -64,7 +65,7 @@ Definition smart_li_instr (ws : wsize) : instruction_desc :=
     [:: aword ws ] [:: E 0 ]
     [:: aword ws ] [:: E 1 ]
     (fun x => x)
-    true.
+    true [:: IBool true].
 
 Definition smart_li_instr_cc (ws : wsize) : instruction_desc :=
   mk_instr_desc_safe
@@ -72,7 +73,7 @@ Definition smart_li_instr_cc (ws : wsize) : instruction_desc :=
     [:: aword ws; abool; aword ws ] [:: E 0; E 2; E 1 ]
     [:: aword ws ] [:: E 1 ]
     (fun x b y => if b then x else y)
-    true.
+    true [:: IBool true].
 
 Definition get_instr_desc (o: arm_extra_op) : instruction_desc :=
   match o with

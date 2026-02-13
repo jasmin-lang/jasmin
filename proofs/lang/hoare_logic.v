@@ -93,6 +93,7 @@ Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {wc : WithCatch}
   {wa: WithAssert}
   {asm_op: Type}
   {sip : SemInstrParams asm_op syscall_state}
@@ -586,7 +587,7 @@ Qed.
 
 Lemma hoare_if P Q Qerr ii e c c' :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
-  rhoare P (sem_cond (p_globs p) e) (fun _ => True) Qerr ->
+  rhoare P (sem_cond (p_globs p) e) PredT Qerr ->
   (forall b, hoare P (if b then c else c') Q) ->
   hoare P [:: MkI ii (Cif e c c')] Q.
 Proof.
@@ -669,21 +670,42 @@ Lemma hoare_call (Pf : PreF) (Qf : PostF) Rv P Q Qerr ii xs fn es :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
   rhoare P (fun s => sem_pexprs (~~ direct_call) (p_globs p) s es) Rv Qerr ->
   (forall s vs, P s -> Rv vs -> Pf fn (mk_fstate vs s)) ->
+  (forall vs, Rv vs -> rhoare PredT (fun s => sem_pre p fn (mk_fstate vs s)) PredT Qerr) ->
   hoare_f_ii Pf ii fn Qf ->
+  (forall vs fs fr,
+      Rv vs ->
+      hoare_f_ii Pf ii fn Qf -> Qf fn fs fr ->
+      rhoare PredT
+        (fun _:estate => sem_post p fn vs fr) PredT Qerr) ->
   (forall fs fr,
     Pf fn fs -> Qf fn fs fr ->
     rhoare P (upd_estate (~~ direct_call) (p_globs p) xs fr) Q Qerr) ->
   hoare P [:: MkI ii (Ccall xs fn es)] Q.
 Proof.
-  move=> herr hes hPPf hCall hPQf; rewrite /hoare /isem_cmd_ /=.
+  move=> herr hes hPPf hpre hCall hpost hPQf; rewrite /hoare /isem_cmd_ /=.
   apply khoare_bind with Q; last by apply khoare_ret.
   apply khoare_read with Rv.
   + by apply (khoare_iresult herr) => >; apply: hes.
   move=> vs hvs; apply khoare_eq_pred => s0.
   set (fs := mk_fstate vs s0).
+  apply khoare_read with PredT.
+  + apply khoare_iresult with Qerr.
+    + move => s e [] heq;subst.
+      exact: herr.
+    move => s [] heq hpre'; subst.
+    by apply: (hpre _ hvs).
+  move => _ _.
   apply khoare_read with (Qf fn fs).
   + by move=> _ [-> hP]; apply/hCall/hPPf.
-  move=> fr hQf; apply khoare_iresult with Qerr.
+  move=> fr hQf.
+  apply khoare_read with PredT.
+  + apply khoare_iresult with Qerr.
+    + move => s e [] heq;subst.
+      exact: herr.
+    move => s [] heq hpre';subst.
+    by apply : (hpost _ _ _ hvs hCall hQf).
+  move => _ _.
+  apply khoare_iresult with Qerr.
   + by move=> > []; auto.
   move=> _ [-> hP]; apply (hPQf fs fr) => //.
   by apply hPPf.
@@ -696,6 +718,8 @@ Definition hoare_fun_body_hyp (Pf : PreF) fn (Qf : PostF) Qerr :=
   match get_fundef (p_funcs p) fn with
   | None => Qerr ErrType
   | Some fd =>
+      sem_pre p  fn fs = ok tt /\
+      (forall fr, Qf fn fs fr -> sem_post p fn fs.(fvals) fr = ok tt) /\
     exists (P Q : Pred_c),
       [/\ rhoare (Pf fn) (initialize_funcall p ev fd) P Qerr
         , hoare P fd.(f_body) Q
@@ -716,19 +740,41 @@ Proof.
   + rewrite /kget_fundef => ??.
     case: get_fundef hf => /= [fd | ] h; [apply lutt_Ret | apply lutt_Vis] => //.
     by rewrite preInv_Throw; apply herr.
-  move=> fd hfd; move: hf; rewrite hfd => -[P] [Q] [hinit hbody hQerr hfin].
-  apply khoare_bind with P.
+  move=> fd hfd; move: hf; rewrite hfd => [[Pre]] [Post] -[P] [Q] [hinit hbody hQerr hfin].
+  apply khoare_read with PredT.
+  + move => ? ?; subst.
+    rewrite /isem_pre Pre => //=.
+    by apply lutt_Ret.
+  move => _ _.
+  apply khoare_read with P.
   + move=> _ ->; have := hinit _ hPf.
     case: initialize_funcall => [s | e] h; [apply lutt_Ret | apply lutt_Vis] => //.
     by rewrite preInv_Throw; apply herr.
-  by apply: (khoare_bind hbody); apply (khoare_iresult hQerr).
+    move => s1 hs1.
+  eapply khoare_read.
+  + move => s hpre'.
+    by apply hbody.
+  move => s hQ.
+  eapply khoare_read.
+  + move => s' hpre'.
+    by apply: (khoare_iresult hQerr hfin).
+  move => s' hQf.
+  apply khoare_read with PredT.
+  + move => ? ?; subst.
+    rewrite /isem_post Post => //=.
+    by apply lutt_Ret.
+  move => ????; subst.
+  by apply lutt_Ret.
 Qed.
 
 End HOARE_CORE.
 
 Section TRIVIAL.
 
-Context {E E0: Type -> Type}  {sem_F : sem_Fun E} {wE: with_Error E E0}.
+  Context
+    {E E0: Type -> Type}
+    {sem_F : sem_Fun E}
+    {wE: with_Error E E0}.
 
 Context (p : prog) (ev: extra_val_t).
 
@@ -753,7 +799,11 @@ Notation ihoare   := (hoare (sem_F := sem_fun_full)).
 
 Section HOARE_FUN.
 
-Context {E E0: Type -> Type} {wE: with_Error E E0} {iE0 : InvEvent E0} {iEr : InvErr}.
+  Context
+      {E E0: Type -> Type}
+      {wE: with_Error E E0}
+      {iE0 : InvEvent E0}
+      {iEr : InvErr}.
 
 Context (p : prog) (ev: extra_val_t) (spec : HoareSpec).
 
@@ -770,6 +820,8 @@ Definition hoare_fun_body_hyp_rec Pf fn Qf Qerr :=
   match get_fundef (p_funcs p) fn with
   | None => Qerr ErrType
   | Some fd =>
+      sem_pre p  fn fs = ok tt /\
+      (forall fr, Qf fn fs fr -> sem_post p fn fs.(fvals) fr = ok tt) /\
     exists (P Q : Pred_c),
       [/\ rhoare (Pf fn) (initialize_funcall p ev fd) P Qerr
         , hoare_rec P fd.(f_body) Q
@@ -809,8 +861,8 @@ Proof.
     move=> ? [ii_ fn fs] /= hpre.
     have := hoare_fun_body (iE0 := invEvent_recCall spec) (hbody fn) hpre.
     apply lutt_weaken; auto using weak_pre, weak_post.
-  have := hoare_fun_body (iE0 := invEvent_recCall spec) (hbody fn) hpre.
-  apply lutt_weaken; auto using weak_pre, weak_post.
+    have := hoare_fun_body (iE0 := invEvent_recCall spec) (hbody fn) hpre.
+    apply lutt_weaken; auto using weak_pre, weak_post.
 Qed.
 
 End HOARE_FUN.
@@ -824,7 +876,11 @@ Notation whoare_f := (hoare_f_ii (iEr := invErrT)).
 
 Section WHOARE_CORE.
 
-Context {E E0: Type -> Type}  {sem_F : sem_Fun E} {wE: with_Error E E0} {iE0 : InvEvent E0}.
+Context
+  {E E0: Type -> Type}
+  {sem_F : sem_Fun E}
+  {wE: with_Error E E0}
+  {iE0 : InvEvent E0}.
 
 Context (p : prog) (ev: extra_val_t).
 
@@ -858,14 +914,14 @@ Lemma whoare_assert (P Q : Pred_c) ii a :
 Proof. by apply hoare_assert. Qed.
 
 Lemma whoare_if_full P Q ii e c c' :
-  rhoare P (sem_cond (p_globs p) e) (fun _ => True) PredT ->
+  rhoare P (sem_cond (p_globs p) e) PredT PredT ->
   (forall b,
      whoare p ev (fun s => P s /\ sem_cond (p_globs p) e s = ok b) (if b then c else c') Q) ->
   whoare p ev P [:: MkI ii (Cif e c c')] Q.
 Proof. by apply hoare_if_full. Qed.
 
 Lemma whoare_if P Q ii e c c' :
-  rhoare P (sem_cond (p_globs p) e) (fun _ => True) PredT ->
+  rhoare P (sem_cond (p_globs p) e) PredT PredT ->
   (forall b, whoare p ev P (if b then c else c') Q) ->
   whoare p ev P [:: MkI ii (Cif e c c')] Q.
 Proof. by apply hoare_if. Qed.
@@ -881,7 +937,7 @@ Lemma whoare_for_full P Pb Pi ii i d lo hi c :
 Proof. by apply hoare_for_full. Qed.
 
 Lemma whoare_for P Pi ii i d lo hi c :
-  rhoare P (sem_bound (p_globs p) lo hi) (fun _ => True) PredT ->
+  rhoare P (sem_bound (p_globs p) lo hi) PredT PredT ->
   (forall (j:Z), rhoare P (write_var true i (Vint j)) Pi PredT) ->
   whoare p ev Pi c P ->
   whoare p ev P [:: MkI ii (Cfor i (d, lo, hi) c)] P.
@@ -889,7 +945,7 @@ Proof. by apply hoare_for. Qed.
 
 Lemma whoare_while_full I I' ii al e inf c c' :
   whoare p ev I c I' ->
-  rhoare I' (sem_cond (p_globs p) e) (fun _ => True) PredT  ->
+  rhoare I' (sem_cond (p_globs p) e) PredT PredT  ->
   whoare p ev (fun s => I' s /\ sem_cond (p_globs p) e s = ok true) c' I ->
   whoare p ev I [:: MkI ii (Cwhile al c e inf c')]
      (fun s => I' s /\ sem_cond (p_globs p) e s = ok false).
@@ -897,7 +953,7 @@ Proof. by apply hoare_while_full. Qed.
 
 Lemma whoare_while I I' ii al e inf c c' :
   whoare p ev I c I' ->
-  rhoare I' (sem_cond (p_globs p) e) (fun _ => True) PredT  ->
+  rhoare I' (sem_cond (p_globs p) e) PredT PredT  ->
   whoare p ev I' c' I ->
   whoare p ev I [:: MkI ii (Cwhile al c e inf c')] I'.
 Proof. by apply hoare_while. Qed.
@@ -905,7 +961,13 @@ Proof. by apply hoare_while. Qed.
 Lemma whoare_call (Pf : PreF) (Qf : PostF) Rv P Q ii xs fn es :
   rhoare P (fun s => sem_pexprs (~~ direct_call) (p_globs p) s es) Rv PredT ->
   (forall s vs, P s -> Rv vs -> Pf fn (mk_fstate vs s)) ->
+  (forall vs, Rv vs -> rhoare PredT (fun s => sem_pre p fn (mk_fstate vs s)) PredT PredT) ->
   whoare_f p ev Pf ii fn Qf ->
+  (forall vs fs fr,
+      Rv vs ->
+      whoare_f p ev Pf ii fn Qf -> Qf fn fs fr ->
+      rhoare PredT
+        (fun _:estate => sem_post p fn vs fr) PredT PredT) ->
   (forall fs fr,
     Pf fn fs -> Qf fn fs fr ->
     rhoare P (upd_estate (~~ direct_call) (p_globs p) xs fr) Q PredT) ->
@@ -919,7 +981,10 @@ Notation iwhoare   := (hoare (sem_F := sem_fun_full) (iEr := invErrT)).
 
 Section WHOARE_FUN.
 
-Context {E E0: Type -> Type} {wE: with_Error E E0} {iE0 : InvEvent E0}.
+Context
+  {E E0: Type -> Type}
+  {wE: with_Error E E0}
+  {iE0 : InvEvent E0}.
 
 Context (p : prog) (ev: extra_val_t) (spec : HoareSpec).
 
@@ -933,6 +998,8 @@ Definition whoare_fun_body_hyp_rec Pf fn Qf :=
   forall fs,
   Pf fn fs ->
   forall fd, get_fundef (p_funcs p) fn = Some fd ->
+  sem_pre p  fn fs = ok tt /\
+  (forall fr, Qf fn fs fr -> sem_post p fn fs.(fvals) fr = ok tt) /\
   exists (P Q : Pred_c),
     [/\ rhoare (Pf fn) (initialize_funcall p ev fd) P PredT
       , whoare_rec P fd.(f_body) Q
@@ -946,7 +1013,12 @@ Proof.
   move=> h; apply ihoare_fun with PredT.
   move=> /h{}h fn fs /h{}h; split => //.
   case heq : get_fundef => [fd | ] //.
-  by have [P [Q [???]]]:= h _ heq; exists P, Q.
+  have [Pre [Post [P [Q [???]]]]] := h _ heq.
+  split.
+  + exact: Pre.
+  split.
+  + exact: Post.
+ by exists P, Q.
 Qed.
 
 End WHOARE_FUN.
@@ -969,8 +1041,9 @@ Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  {asm_op: Type}
+  {wc : WithCatch }
   {wa: WithAssert}
+  {asm_op: Type}
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
   {wsw : WithSubWord}
@@ -1061,5 +1134,3 @@ Proof.
 Qed.
 
 End Test.
-
-
