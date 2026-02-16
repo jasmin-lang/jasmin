@@ -71,6 +71,10 @@ let get_stack_pointer pd x =
     r
 in
 
+let is_ty_word =
+  function Bty (U _) -> true | _ -> false
+in
+
 let preprocess_liveset (s: Sv.t) : Sv.t =
   Sv.fold (fun x s ->
       if is_ty_arr x.v_ty
@@ -85,7 +89,7 @@ let preprocess_liveset (s: Sv.t) : Sv.t =
         then Sv.add (get_stack_pointer pd x) s
         else s
       else
-        if is_stack_kind x.v_kind
+        if is_stack_kind x.v_kind && is_ty_word x.v_ty
         then Sv.add x s
         else s
     ) s Sv.empty
@@ -244,11 +248,14 @@ let init_slots pd stack_pointers alias coloring fv =
             (* TODO: do we need to check that we are exact and fail otherwise? *)
             add_local v (Direct (slot, r2i c.range, E.Slocal))
           end
-      else
-        let sz = size_of v.v_ty in
-        let slot = get_slot coloring v in
-        add_slot slot;
-        add_local v (Direct (slot, r2i(0, sz), E.Slocal))
+      else begin match v.v_ty with
+           | Bty (U ws) ->
+              let sz = size_of_ws ws in
+              let slot = get_slot coloring v in
+              add_slot slot;
+              add_local v (Direct (slot, r2i(0, sz), E.Slocal))
+           | _ -> ()
+           end
 
     | Stack (Pointer _) ->
       let xp = get_stack_pointer stack_pointers v in

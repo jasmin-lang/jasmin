@@ -1,0 +1,5 @@
+export fn stack_int() -> reg u32 {
+  stack int x = 0;
+  reg u32 y = (64u)x;
+  return y;
+}
