@@ -8,7 +8,7 @@ Require Export xseq word utils var warray_.
 
 Variant glob_value := 
   | Gword : forall (ws:wsize), word ws -> glob_value
-  | Garr  : forall (p:positive), WArray.array p -> glob_value.
+  | Garr  : forall (len:N), WArray.array len -> glob_value.
 
 (* ---------------------------------------------------------------------- *)
 

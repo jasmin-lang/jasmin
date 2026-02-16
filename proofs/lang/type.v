@@ -22,7 +22,7 @@ Variant ltype : Set :=
 Variant atype : Set :=
 | abool
 | aint
-| aarr of wsize & positive
+| aarr of wsize & N
 | aword of wsize.
 
 (* Value types, i.e. types appearing in the semantics *)
@@ -30,7 +30,7 @@ Variant atype : Set :=
 Variant ctype : Set :=
 | cbool
 | cint
-| carr  of positive
+| carr  of N
 | cword of wsize.
 
 Definition atype_of_ltype ty :=
@@ -80,7 +80,7 @@ Definition atype_cmp t t' :=
   | aword w , aword w'      => wsize_cmp w w'
   | aword _ , _             => Gt
 
-  | aarr ws n , aarr ws' n' => Lex (wsize_cmp ws ws') (Pos.compare n n')
+  | aarr ws n , aarr ws' n' => Lex (wsize_cmp ws ws') (N.compare n n')
   | aarr _ _  , _           => Gt
   end.
 
@@ -114,35 +114,6 @@ Module CEDecAtype.
 
   Definition t : eqType := atype.
 
-  Fixpoint pos_dec (p1 p2:positive) : {p1 = p2} + {True} :=
-    match p1 as p1' return {p1' = p2} + {True} with
-    | xH =>
-      match p2 as p2' return {xH = p2'} + {True} with
-      | xH => left (erefl xH)
-      | _  => right I
-      end
-    | xO p1' =>
-      match p2 as p2' return {xO p1' = p2'} + {True} with
-      | xO p2' =>
-        match pos_dec p1' p2' with
-        | left eq =>
-          left (eq_rect p1' (fun p => xO p1' = xO p) (erefl (xO p1')) p2' eq)
-        | _ => right I
-        end
-      | _ => right I
-      end
-    | xI p1' =>
-      match p2 as p2' return {xI p1' = p2'} + {True} with
-      | xI p2' =>
-        match pos_dec p1' p2' with
-        | left eq =>
-          left (eq_rect p1' (fun p => xI p1' = xI p) (erefl (xI p1')) p2' eq)
-        | _ => right I
-        end
-      | _ => right I
-      end
-    end.
-
   Definition eq_dec (t1 t2:t) : {t1 = t2} + {True} :=
     match t1 as t return {t = t2} + {True} with
     | abool =>
@@ -160,7 +131,7 @@ Module CEDecAtype.
       | aarr ws2 n2 =>
         match wsize_eq_dec ws1 ws2 with
         | left eqw =>
-          match pos_dec n1 n2 with
+          match N.eq_dec n1 n2 with
           | left eqn => left (f_equal2 aarr eqw eqn)
           | right _ => right I
           end
@@ -179,23 +150,12 @@ Module CEDecAtype.
       end
     end.
 
-  Lemma pos_dec_r n1 n2 tt: pos_dec n1 n2 = right tt -> n1 != n2.
-  Proof.
-    case: tt.
-    elim: n1 n2 => [n1 Hrec|n1 Hrec|] [n2|n2|] //=.
-    + case: pos_dec (Hrec n2) => //= -[] /(_ (erefl _)) /eqP ? _.
-      by apply /eqP; congruence.
-    case: pos_dec (Hrec n2) => //= -[] /(_ (erefl _)) /eqP ? _.
-    by apply /eqP; congruence.
-  Qed.
-
   Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 != t2.
   Proof.
     case: tt;case:t1 t2=> [||ws n|w] [||ws' n'|w'] //=.
     + case: wsize_eq_dec => eqw.
-      + case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ] //=.
-        move => _; apply/eqP => -[].
-        by move/eqP: (neq erefl).
+      + case: N.eq_dec => // hneq.
+        by move=> _; apply /eqP => -[].
       by move=> _; apply/eqP => -[].
     case: wsize_eq_dec => // eqw.
     by move=> _;apply /eqP;congruence.
@@ -246,14 +206,18 @@ Definition is_not_carr t := ~~ is_carr t.
 End OtherDefs.
 
 (* -------------------------------------------------------------------- *)
-Definition arr_size (ws:wsize) (len:positive)  := 
-   (wsize_size ws * len)%Z.
+Definition arr_size (ws:wsize) (len:N) :=
+   (wsize_size ws * Z.of_N len)%Z.
 
-Lemma arr_sizeE ws len : arr_size ws len = (wsize_size ws * len)%Z.
+Lemma arr_sizeE ws len : arr_size ws len = (wsize_size ws * Z.of_N len)%Z.
 Proof. done. Qed.
 
-Lemma gt0_arr_size ws len : (0 < arr_size ws len)%Z.
-Proof. done. Qed.
+Lemma ge0_arr_size ws len : (0 <= arr_size ws len)%Z.
+Proof.
+  rewrite arr_sizeE; apply Z.mul_nonneg_nonneg => //.
+  by apply N2Z.is_nonneg.
+Qed.
+#[export] Hint Resolve ge0_arr_size : core.
 
 Opaque arr_size.
 
@@ -261,7 +225,7 @@ Definition eval_atype ty :=
   match ty with
   | abool => cbool
   | aint => cint
-  | aarr ws len => carr (Z.to_pos (arr_size ws len))
+  | aarr ws len => carr (Z.to_N (arr_size ws len))
   | aword ws => cword ws
   end.
 
@@ -427,7 +391,7 @@ Definition twint {len} (s : signedness) (ws : wsize) := ETword len (Some s) ws.
 Definition tuint {len} ws : extended_type len := twint Unsigned ws.
 Definition tsint {len} ws : extended_type len := twint Signed ws.
 
-Definition to_atype (t:extended_type positive) : atype :=
+Definition to_atype (t:extended_type N) : atype :=
   match t with
   | ETbool      => abool
   | ETint       => aint

@@ -17,6 +17,17 @@ let rec z_of_pos pos =
   | BinNums.Coq_xO p -> Z.shift_left (z_of_pos p) 1
   | BinNums.Coq_xI p -> Z.shift_left (z_of_pos p) 1 + Z.one
 
+let n_of_z z =
+  let open Z.Compare in
+  assert (Z.zero <= z);
+  if z = Z.zero then BinNums.N0
+  else BinNums.Npos (pos_of_z z)
+
+let z_of_n n =
+  match n with
+  | BinNums.N0 -> Z.zero
+  | BinNums.Npos p -> z_of_pos p
+
 let cz_of_z z =
   let open Z.Compare in
   if z = Z.zero then BinNums.Z0
