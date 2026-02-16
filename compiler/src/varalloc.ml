@@ -254,7 +254,9 @@ let init_slots pd stack_pointers alias coloring fv =
               let slot = get_slot coloring v in
               add_slot slot;
               add_local v (Direct (slot, r2i(0, sz), E.Slocal))
-           | _ -> ()
+           | _ -> hierror ~loc:(Lone v.v_dloc) "cannot allocate in the stack the variable “%a” of type %a"
+                    (Printer.pp_var ~debug:false) v
+                    PrintCommon.pp_ty v.v_ty
            end
 
     | Stack (Pointer _) ->

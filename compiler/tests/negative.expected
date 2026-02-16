@@ -997,17 +997,21 @@ speculative execution lowering: Not able to prove that ! __zf__
 
 fail/stack_allocation/arm-m4/bug_1384.jazz:
 
+"fail/stack_allocation/arm-m4/bug_1384.jazz", line 3 (14-15):
 compilation error:
-register allocation: unable to allocate variable x: no register bank for type int
+variable allocation: cannot allocate in the stack the variable “x” of type int
 
 fail/stack_allocation/arm-m4/bug_1384a.jazz:
 
-"fail/stack_allocation/arm-m4/bug_1384a.jazz", line 2 (2-18):
-compilation error in function stack_int:
-linearization: The following assignment remains:
-x = 0
-Is there an instruction in the target architecture that can implement it?
-More information may be found online: https://jasmin-lang.readthedocs.io/en/stable/misc/faq.html#linearization
+"fail/stack_allocation/arm-m4/bug_1384a.jazz", line 2 (12-17):
+compilation error:
+variable allocation: cannot allocate in the stack the variable “x” of type int
+
+fail/stack_allocation/arm-m4/bug_1384b.jazz:
+
+"fail/stack_allocation/arm-m4/bug_1384b.jazz", line 3 (13-21):
+compilation error:
+variable allocation: cannot allocate in the stack the variable “b” of type bool
 
 fail/stack_allocation/arm-m4/cannot_compute_address.jazz:
 
@@ -1550,4 +1554,4 @@ Statistics:
 	Pretyping:  46
 	Parsing:     4
 	Typing:      1
-	Compile:   193
+	Compile:   194
