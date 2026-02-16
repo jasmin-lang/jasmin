@@ -1303,8 +1303,8 @@ let ty_expr = function
 let ty_sopn pd msfsz asmOp op es =
   match op with
   (* Do a special case for copy since the Coq type loose information  *)
-  | Sopn.Opseudo_op (Pseudo_operator.Ocopy(ws, p)) ->
-    let l = [Arr(ws, Conv.int_of_pos p)] in
+  | Sopn.Opseudo_op (Pseudo_operator.Ocopy(ws, n)) ->
+    let l = [Arr(ws, Conv.int_of_n n)] in
     l, l
   | Sopn.Opseudo_op (Pseudo_operator.Oswap _) ->
     let l = List.map ty_expr es in
@@ -1454,7 +1454,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
               )
           | Oarray len ->
               Eapp (
-                  EA.of_list env U8 (Conv.int_of_pos len),
+                  EA.of_list env U8 (Conv.int_of_n len),
                   [Elist (List.map (toec_expr env) es)]
               )
           end
@@ -1804,8 +1804,8 @@ struct
 
   let ec_syscall env o =
     match o with
-    | Syscall_t.RandomBytes (ws, p) ->
-      let n = arr_size ws (Conv.int_of_pos p) in
+    | Syscall_t.RandomBytes (ws, n) ->
+      let n = arr_size ws (Conv.int_of_n n) in
       Env.add_randombytes env n;
       Format.sprintf "%s.randombytes_%i" syscall_mod_arg n
 

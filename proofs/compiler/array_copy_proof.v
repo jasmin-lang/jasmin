@@ -135,7 +135,7 @@ Proof.
   by rewrite /get_gvar /= /get_var /= Vm.setP_eq /= eqxx.
 Qed.
 
-Lemma array_copyP ii (dst: var_i) ws n src s vm1 (t t': WArray.array (Z.to_pos (arr_size ws n))) :
+Lemma array_copyP ii (dst: var_i) ws n src s vm1 (t t': WArray.array (Z.to_N (arr_size ws n))) :
   convertible (vtype dst) (aarr ws n) →
   not_tmp (read_gvar src) →
   evm s <=[X] vm1 →
@@ -143,12 +143,12 @@ Lemma array_copyP ii (dst: var_i) ws n src s vm1 (t t': WArray.array (Z.to_pos (
   WArray.copy t = ok t' →
   ∃ vm2, [/\
     evm s <=[Sv.remove dst X] vm2,
-    (exists2 a : WArray.array (Z.to_pos (arr_size ws n)), vm2.[dst] = Varr a & WArray.uincl t' a) &
+    (exists2 a : WArray.array (Z.to_N (arr_size ws n)), vm2.[dst] = Varr a & WArray.uincl t' a) &
     esem p2 ev (array_copy fresh_var_ident ii dst ws n src) (with_vm s vm1) = ok (with_vm s vm2)
   ].
 Proof.
   move: t t'.
-  set len := Z.to_pos _.
+  set len := Z.to_N _.
 Opaque esem.
   case: dst => -[] ty dst dsti t t' /convertible_eval_atype /= hty hsub hvm ok_t hcopy.
   set x := {| vtype := _ |}.
@@ -174,21 +174,21 @@ Opaque esem.
   move: hcopy; rewrite /WArray.copy -/len => /(WArray.fcopy_uincl (WArray.uincl_empty tx0 erefl))
     => -[tx'] hcopy hutx.
   have :
-    forall (j:Z), 0 <= j -> j <= n ->
+    forall (j:Z), 0 <= j -> j <= Z.of_N n ->
       forall vm1' (tx0:WArray.array len),
       vm1 <=[Sv.union (read_gvar src) (Sv.remove x X)] vm1' ->
       vm1'.[x] = Varr tx0 ->
-      WArray.fcopy ws t tx0 (Zpos n - j) j = ok tx' ->
+      WArray.fcopy ws t tx0 (Z.of_N n - j) j = ok tx' ->
       exists2 vm2,
         (vm1 <=[Sv.union (read_gvar src) (Sv.remove x X)]  vm2 /\ vm2.[x] = Varr tx') &
-        esem_for p2 ev i c (with_vm s vm1') (ziota (Zpos n - j) j) = ok (with_vm s vm2).
+        esem_for p2 ev i c (with_vm s vm1') (ziota (Z.of_N n - j) j) = ok (with_vm s vm2).
   + clear -fresh_counter fresh_temporary ok_t Hp hsub ok_t hty.
     apply: natlike_ind => [ | j hj hrec] hjn vm1' tx hvm1' hx.
     + by rewrite /WArray.fcopy ziota0 /= => -[?]; subst tx; exists vm1'.
     Opaque Z.sub esem_for.
-    rewrite /WArray.fcopy ziotaS_cons //=; have -> : n - Z.succ j + 1 = n - j by ring.
+    rewrite /WArray.fcopy ziotaS_cons //=; have -> : Z.of_N n - Z.succ j + 1 = Z.of_N n - j by ring.
     t_xrbindP => tx1 w hget hset hcopy.
-    set vm2' := vm1'.[i <- Vint (n - Z.succ j)].
+    set vm2' := vm1'.[i <- Vint (Z.of_N n - Z.succ j)].
     set tmp := {| vtype := aword ws; vname := fresh_temporary ws |}.
     have [] := hrec _ ((if cond then vm2'.[tmp <- Vword w] else vm2').[x <- Varr tx1]) tx1 => //.
     + by lia.
@@ -214,7 +214,7 @@ Opaque esem.
       by clear; rewrite /tmp_var /tmp /fresh_temporary /=; SvD.fsetdec.
     + by rewrite Vm.setP_eq hty /= eqxx.
     move=> vm2 h1 h2; exists vm2 => //.
-    apply: (eEForOne (s1' := with_vm s vm1'.[i <- Vint (n - Z.succ j)])) h2.
+    apply: (eEForOne (s1' := with_vm s vm1'.[i <- Vint (Z.of_N n - Z.succ j)])) h2.
     + by rewrite write_var_eq_type.
     have fresh_not_y : {| vtype := aint; vname := fresh_counter |} ≠ gv src.
     + by move=> heqy; move: ok_t => /= /type_of_get_gvar /= /compat_ctypeEl; rewrite -heqy.
@@ -246,7 +246,7 @@ Transparent esem.
     rewrite /= get_var_neq; last by move=> [? _]; subst ty.
     rewrite /= /get_var hx /= truncate_word_u /=.
     by rewrite hset /= write_var_eq_type.
-  move=> /(_ n _ _ vm1' tx0 hvm1' htx0) [] => //;first by lia.
+  move=> /(_ (Z.of_N n) _ _ vm1' tx0 hvm1' htx0) []; [lia|lia|..].
   + by rewrite Z.sub_diag.
   rewrite Z.sub_diag => vm2 [] hvm2 htx' hfor; exists vm2; split.
   + apply: uincl_onT.
@@ -254,7 +254,7 @@ Transparent esem.
     by apply: uincl_onI hvm2; clear; SvD.fsetdec.
   + by exists tx'.
   rewrite esem_cons hipre /=.
-  have /= -> : wrange UpTo 0 n = ziota 0 n by rewrite /wrange ziotaE Z.sub_0_r.
+  have /= -> : wrange UpTo 0 (Z.of_N n) = ziota 0 (Z.of_N n) by rewrite /wrange ziotaE Z.sub_0_r.
 Transparent esem_for.
   by move: hfor; rewrite /esem_for => ->.
 Qed.

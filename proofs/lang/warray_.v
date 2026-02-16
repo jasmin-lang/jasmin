@@ -24,10 +24,10 @@ Definition mk_scale (aa:arr_access) ws :=
 
 Module WArray.
 
-  Record array (s:positive)  :=
+  Record array (s:N) :=
     { arr_data : Mz.t u8 }.
 
-  Definition empty (s:positive) : array s :=
+  Definition empty (s:N) : array s :=
     {| arr_data := Mz.empty _ |}.
 
   #[ local ]
@@ -71,11 +71,11 @@ Module WArray.
   Qed.
 
   Section CM.
-    Variable (s:positive).
+    Variable (s:N).
 
-    Definition in_bound (_:array s) p := (0 <=? p) && (p <? s).
+    Definition in_bound (_:array s) p := (0 <=? p) && (p <? Z.of_N s).
 
-    Lemma in_boundP m p : reflect (0 <= p < s) (in_bound m p).
+    Lemma in_boundP m p : reflect (0 <= p < Z.of_N s) (in_bound m p).
     Proof. by apply (iffP andP); rewrite !zify. Qed.
 
     Definition is_init (m:array s) (i:pointer) :=
@@ -117,10 +117,10 @@ Module WArray.
       CoreMem set8P valid8P get_valid8 valid8_set.
 
     Definition in_range (p:pointer) (ws:wsize) :=
-      ((0 <=? p) && (p + wsize_size ws <=? s))%Z.
+      ((0 <=? p) && (p + wsize_size ws <=? Z.of_N s))%Z.
 
     Lemma in_rangeP p ws:
-      reflect (0 <= p /\ p + wsize_size ws <= s)%Z (in_range p ws).
+      reflect (0 <= p /\ p + wsize_size ws <= Z.of_N s)%Z (in_range p ws).
     Proof.
       rewrite /in_range; case: andP => h; constructor; move: h; rewrite !zify; nia.
     Qed.
@@ -149,8 +149,8 @@ Module WArray.
              Let w := get Aligned AAscale ws a i in set t Aligned AAscale i w) t
       (ziota i j).
 
-  Definition copy ws p (a:array (Z.to_pos (arr_size ws p))) :=
-    fcopy ws a (WArray.empty _) 0 p.
+  Definition copy ws p (a:array (Z.to_N (arr_size ws p))) :=
+    fcopy ws a (WArray.empty _) 0 (Z.of_N p).
 
   Definition fill_aux len : seq u8 → exec (pointer * array len) :=
     foldM (λ w pt,
@@ -159,7 +159,7 @@ Module WArray.
       (0%Z, empty len).
 
   Definition fill len (bytes: seq u8) : exec (array len) :=
-    Let _ := assert (size bytes == Pos.to_nat len) ErrType in
+    Let _ := assert (size bytes == N.to_nat len) ErrType in
     Let pt := fill_aux len bytes in
     ok pt.2.
 
@@ -172,11 +172,11 @@ Module WArray.
        | Some w => Mz.set data i w
        end) (Mz.empty _) (ziota 0 size).
 
-  Definition get_sub lena (aa:arr_access) ws len (a:array lena) p  : exec (array (Z.to_pos (arr_size ws len))) :=
+  Definition get_sub lena (aa:arr_access) ws len (a:array lena) p  : exec (array (Z.to_N (arr_size ws len))) :=
      let size := arr_size ws len in
      let start := (p * mk_scale aa ws)%Z in
-     if (0 <=? start) && (start + size <=? lena) then
-       ok (Build_array (Z.to_pos size) (get_sub_data aa ws len (arr_data a) p))
+     if (0 <=? start) && (start + size <=? Z.of_N lena) then
+       ok (Build_array (Z.to_N size) (get_sub_data aa ws len (arr_data a) p))
      else Error ErrOob.
 
   Definition set_sub_data (aa:arr_access) ws len (a:Mz.t u8) p (b:Mz.t u8) :=
@@ -188,10 +188,10 @@ Module WArray.
       | Some w => Mz.set data (start + i) w
       end) a (ziota 0 size).
 
-  Definition set_sub lena (aa:arr_access) ws len (a:array lena) p (b:array (Z.to_pos (arr_size ws len))) : exec (array lena) :=
+  Definition set_sub lena (aa:arr_access) ws len (a:array lena) p (b:array (Z.to_N (arr_size ws len))) : exec (array lena) :=
     let size := arr_size ws len in
     let start := (p * mk_scale aa ws)%Z in
-    if (0 <=? start) && (start + size <=? lena) then
+    if (0 <=? start) && (start + size <=? Z.of_N lena) then
       ok (Build_array lena (set_sub_data aa ws len (arr_data a) p (arr_data b)))
     else Error ErrOob.
 
@@ -199,7 +199,7 @@ Module WArray.
     if len' == len then ok {| arr_data := a.(arr_data) |}
     else type_error.
 
-  Definition of_list {ws} (l:list (word ws)) : array (Z.to_pos (Z.of_nat (size l) * wsize_size ws)) :=
+  Definition of_list {ws} (l:list (word ws)) : array (Z.to_N (Z.of_nat (size l) * wsize_size ws)) :=
     let m := Mz.empty in
     let do8 (mz: Mz.t _ * Z) (w:u8) :=
       let '(m,z) := mz in
@@ -232,7 +232,7 @@ Module WArray.
 
   Definition is_uincl x y (a: array x) (b: array y) : bool :=
     (x == y) &&
-    (all (fun i => match read a Aligned i U8, read b Aligned i U8 with Ok p, Ok q => p == q | Ok _, Error _ => false | Error _, _ => true end) (ziota 0 x)).
+    (all (fun i => match read a Aligned i U8, read b Aligned i U8 with Ok p, Ok q => p == q | Ok _, Error _ => false | Error _, _ => true end) (ziota 0 (Z.of_N x))).
 
   Lemma is_uinclP x y (a: array x) (b: array y) :
     reflect (uincl a b) (is_uincl a b).
@@ -272,7 +272,7 @@ Module WArray.
     cast len1 m = ok m' ->
     forall k,
       read m' Aligned k U8 =
-        if k <? len1 then read m Aligned k U8 else Error ErrOob.
+        if k <? Z.of_N len1 then read m Aligned k U8 else Error ErrOob.
   Proof.
     rewrite /cast; case: eqP => // hle [<-] k.
     rewrite -!get_read8 /memory_model.get /= /get8 /is_init /in_bound /=.
@@ -329,7 +329,7 @@ Module WArray.
   Lemma get_bound ws len al aa (t:array len) i w :
     get al aa ws t i = ok w ->
     [/\ 0 <= i * mk_scale aa ws,
-        i * mk_scale aa ws + wsize_size ws <= len &
+        i * mk_scale aa ws + wsize_size ws <= Z.of_N len &
         is_aligned_if al (i * mk_scale aa ws) ws]%Z.
   Proof.
     move=> hg; assert (h := readV hg); move: h.
@@ -339,20 +339,20 @@ Module WArray.
   Lemma set_bound ws len al aa (a t:array len) i (w:word ws) :
     set a al aa i w = ok t ->
     [/\ 0 <= i * mk_scale aa ws,
-        i * mk_scale aa ws +  wsize_size ws <= len &
+        i * mk_scale aa ws +  wsize_size ws <= Z.of_N len &
         is_aligned_if al (i * mk_scale aa ws) ws]%Z.
   Proof.
     move=> hs; have : validw a al (i * mk_scale aa ws) ws by apply /(writeV w); exists t.
     by rewrite validw_in_range => /andP [] ? /in_rangeP [].
   Qed.
 
-  Lemma get_empty (n:positive) off :
-    read (empty n) Aligned off U8 = if (0 <=? off) && (off <? n) then Error ErrAddrUndef else Error ErrOob.
+  Lemma get_empty (n:N) off :
+    read (empty n) Aligned off U8 = if (0 <=? off) && (off <? Z.of_N n) then Error ErrAddrUndef else Error ErrOob.
   Proof.
     by rewrite -get_read8 /memory_model.get /= /get8 /in_bound /is_init /=; case: ifP.
   Qed.
 
-  Lemma get0 (n:positive) off : (0 <= off ∧ off < n)%Z ->
+  Lemma get0 (n:N) off : (0 <= off ∧ off < Z.of_N n)%Z ->
     read (empty n) Aligned off U8 = Error ErrAddrUndef.
   Proof. by rewrite get_empty => -[/ZleP -> /ZltP ->]. Qed.
 
@@ -414,12 +414,15 @@ Module WArray.
     t_xrbindP => a' w /(uincl_get hu) -> /= ->; apply: hrec.
   Qed.
 
-  Lemma fill_aux_ok len bytes : size bytes ≤ Pos.to_nat len → is_ok (fill_aux len bytes).
+  Lemma fill_aux_ok len bytes : size bytes ≤ N.to_nat len → is_ok (fill_aux len bytes).
   Proof.
     move => hsize.
-    have : (0, empty len).1 + Z.of_nat (size bytes) <= len by rewrite /=; lia.
+    have [hneg|hpos] := Z.nonpos_pos_cases (Z.of_N len).
+    + have: size bytes = 0%nat by lia.
+      by move=> /size0nil ->.
+    have : (0, empty len).1 + Z.of_nat (size bytes) <= Z.of_N len by rewrite /=; lia.
     clear hsize.
-    have : bytes = [::] ∨ in_bound (0, empty len).2 (0, empty len).1 by right.
+    have : bytes = [::] ∨ in_bound (0, empty len).2 (0, empty len).1 by right; apply /ZltP.
     rewrite /fill_aux; move: (0, empty len).
     elim: bytes => // b bytes ih [] p t /= [ // | ] hpt.
     rewrite {2}/set -set_write8 /= /set8 Z.mul_1_r hpt /= => hsize.
@@ -432,14 +435,14 @@ Module WArray.
 
   Definition fill_size len l a :
     fill len l = ok a ->
-    Pos.to_nat len = size l.
+    N.to_nat len = size l.
   Proof. by rewrite /fill; t_xrbindP => /eqP. Qed.
 
   Lemma fill_get8 len l a :
     fill len l = ok a ->
     forall k,
       read a Aligned k U8 =
-        if (0 <=? k) && (k <? len) then ok (nth 0%R l (Z.to_nat k))
+        if (0 <=? k) && (k <? Z.of_N len) then ok (nth 0%R l (Z.to_nat k))
         else Error ErrOob.
   Proof.
     rewrite /fill /fill_aux; t_xrbindP=> /eqP hsize -[z {}a] /= hfold <- k.
@@ -452,7 +455,7 @@ Module WArray.
       last first.
     + move=> /(_ _ _ hfold) ->.
       rewrite Z.sub_0_r get_empty /=.
-      rewrite hsize positive_nat_Z.
+      rewrite hsize N_nat_Z.
       by case: andb.
     elim: l {hsize hfold} => [ | w l ih] z0 a0 /=.
     + move=> [_ <-].
@@ -481,7 +484,7 @@ Module WArray.
   Proof.
     rewrite /set_sub_data.
     elim /natlike_ind: (arr_size ws len) a;
-      last by apply: Z.lt_le_incl (gt0_arr_size _ _).
+      last by apply ge0_arr_size.
     + move=> data; rewrite ziota0 /=; case: andP => // -[]; rewrite !zify; lia.
     move=> sz hsz ih data; rewrite ziotaS_cat // foldr_cat Z.add_0_l /= ih.
     case: ifPn; rewrite !zify => h3; case: ifPn; rewrite !zify => h4 //.
@@ -506,27 +509,25 @@ Module WArray.
   Proof.
     rewrite /set_sub; case: andP => // -[/ZleP h1 /ZleP h2] [<-] /= k.
     rewrite -!get_read8 /memory_model.get /= /get8 /is_init /in_bound set_sub_data_get8 /=.
+    rewrite Z2N.id //.
     case: andP; rewrite !zify //= => ?; case: andP; rewrite !zify //= => ?; lia.
   Qed.
 
   Lemma set_sub_bound aa ws lena a len p t a' :
     @set_sub lena aa ws len a p t = ok a' ->
-    0 <= p * mk_scale aa ws /\ p * mk_scale aa ws + arr_size ws len <= lena.
+    0 <= p * mk_scale aa ws /\ p * mk_scale aa ws + arr_size ws len <= Z.of_N lena.
   Proof. by rewrite /set_sub; case: ifP => //; rewrite !zify. Qed.
 
   Transparent arr_size. Opaque Z.mul ziota.
-  Lemma set_sub_get lena ws len (t: array lena) i (s: array (Z.to_pos (arr_size ws len))) t':
+  Lemma set_sub_get lena ws len (t: array lena) i (s: array (Z.to_N (arr_size ws len))) t':
     set_sub AAscale t i s = ok t' ->
     forall j,
     get Aligned AAscale ws t' j =
-      if ((i <=? j) && (j <? i + len))%Z then get Aligned AAscale ws s (j - i)%Z
+      if ((i <=? j) && (j <? i + Z.of_N len))%Z then get Aligned AAscale ws s (j - i)%Z
       else get Aligned AAscale ws t j.
   Proof.
     move=> hget j.
     have ht':= set_sub_get8 hget.
-    have := set_sub_bound hget.
-    have ltws := wsize_size_pos ws; rewrite /arr_size /mk_scale => hb.
-    have [{hb} h0i hilen'] : (0 <= i /\ i + len <= lena)%Z by nia.
     rewrite /get !readE !is_aligned_if_is_align ?is_align_scale // /=.
     case: ifPn.
     + move=> /andP[]/ZleP ? /ZltP ?.
@@ -556,7 +557,7 @@ Module WArray.
   Proof.
     rewrite /get_sub_data -(Mz.get0 u8 k).
     elim /natlike_ind: (arr_size ws len) (Mz.empty u8);
-      last by apply: Z.lt_le_incl (gt0_arr_size _ _).
+      last by apply ge0_arr_size.
     + move => b; rewrite ziota0 /=; case: andP => //; rewrite !zify; lia.
     move=> sz hsz ih b; rewrite ziotaS_cat // foldr_cat Z.add_0_l /= ih.
     case: ifPn; rewrite !zify => h3; case: ifPn; rewrite !zify => h4 //.
@@ -579,12 +580,13 @@ Module WArray.
   Proof.
     rewrite /get_sub; case: andP => // -[/ZleP h1 /ZleP h2] [<-] /= k.
     rewrite -!get_read8 /memory_model.get /= /get8 /is_init /in_bound get_sub_data_get8 /=.
+    rewrite Z2N.id //.
     case: andP; rewrite !zify //= => ?; case: andP; rewrite !zify //= => ?; lia.
   Qed.
 
   Lemma get_sub_bound aa ws lena a len p a' :
     @get_sub lena aa ws len a p = ok a' ->
-    0 <= p * mk_scale aa ws /\ p * mk_scale aa ws + arr_size ws len <= lena.
+    0 <= p * mk_scale aa ws /\ p * mk_scale aa ws + arr_size ws len <= Z.of_N lena.
   Proof. by rewrite /get_sub; case: ifP => //; rewrite !zify. Qed.
 
   Lemma uincl_get_sub {len1 len2} (a1 : array len1) (a2 : array len2)
@@ -603,7 +605,7 @@ Module WArray.
   Qed.
 
   Lemma uincl_set_sub {ws len1 len2 len} (a1 a1': array len1) (a2: array len2) aa i
-        (t1 t2:array (Z.to_pos (arr_size ws len))) :
+        (t1 t2:array (Z.to_N (arr_size ws len))) :
     uincl a1 a2 -> uincl t1 t2 ->
     set_sub aa a1 i t1 = ok a1' ->
     exists2 a2', set_sub aa a2 i t2 = ok a2' & uincl a1' a2'.
@@ -620,7 +622,7 @@ Module WArray.
   Transparent arr_size.
   Lemma get_sub_get ws lena len (t:WArray.array lena) i st:
     WArray.get_sub AAscale ws len t i = ok st ->
-    forall j, (0 <= j < len)%Z ->
+    forall j, (0 <= j < Z.of_N len)%Z ->
     WArray.get Aligned AAscale ws st j = WArray.get Aligned AAscale ws t (i + j)%Z.
   Proof.
     move=> /WArray.get_sub_get8 => hr j hj.
