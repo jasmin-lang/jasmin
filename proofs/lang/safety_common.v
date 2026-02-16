@@ -9,7 +9,7 @@ Context (m: var -> option (signedness * var)).
 
 Definition safety_cond := seq eassert.
 
-Definition esubtype (ty1 ty2 : extended_type positive) :=
+Definition esubtype (ty1 ty2 : extended_type Z) :=
  match ty1, ty2 with
  | ETword None w, ETword None w' => (w ≤ w')%CMP
  | ETword (Some sg) w, ETword (Some sg') w' => (sg == sg') && (w == w')
@@ -35,7 +35,7 @@ Fixpoint aands es :=
   | e::es => Pand e (aands es)
   end.
 
-Definition to_etype sg (t:atype) : extended_type positive:=
+Definition to_etype sg (t:atype) : extended_type Z :=
   match t with
   | abool    => tbool
   | aint     => tint
@@ -45,7 +45,7 @@ Definition to_etype sg (t:atype) : extended_type positive:=
 
 Definition sign_of_var x := Option.map fst (m x).
 
-Definition etype_of_var x : extended_type positive :=
+Definition etype_of_var x : extended_type Z :=
   to_etype (sign_of_var x) (vtype x).
 
 Definition sign_of_gvar (x : gvar) :=
@@ -54,13 +54,13 @@ Definition sign_of_gvar (x : gvar) :=
 
 Definition etype_of_gvar x := to_etype (sign_of_gvar x) (vtype (gv x)).
 
-Definition sign_of_etype (ty: extended_type positive) : option signedness :=
+Definition sign_of_etype (ty: extended_type Z) : option signedness :=
   match ty with
   | ETword (Some s) _ => Some s
   | _ => None
   end.
 
-Fixpoint etype_of_expr (e:pexpr) : extended_type positive :=
+Fixpoint etype_of_expr (e:pexpr) : extended_type Z :=
   match e with
   | Pconst _ => tint
   | Pbool _ => tbool
