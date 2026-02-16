@@ -526,7 +526,7 @@ Definition assemble_sopn rip ii (op: sopn) (outx : lexprs) (inx : rexprs) :=
 
 Variant declassify_op :=
   | Odeclassify of atype
-  | Odeclassify_mem of positive.
+  | Odeclassify_mem of Z.
 
 Definition is_declassify (op: sopn) :=
   match op with

@@ -8,7 +8,7 @@ From Coq Require ExtrOCamlInt63.
 
 (* This is a hack to force the extraction to keep the singleton here,
    This need should be removed if we add more constructor to syscall_t *)
-Extract Inductive syscall.syscall_t => "(Wsize.wsize * BinNums.positive) Syscall_t.syscall_t" ["Syscall_t.RandomBytes"].
+Extract Inductive syscall.syscall_t => "(Wsize.wsize * BinNums.coq_Z) Syscall_t.syscall_t" ["Syscall_t.RandomBytes"].
 Set Extraction File Comment "This prelude is added at extraction time. See lang/extraction.v. *) [@@@ocaml.warning ""-9-20-27-32-33-34-37-39-50-67""] (* End of prelude. ".
 
 Extraction Inline ssrbool.is_left.

@@ -28,7 +28,7 @@ val parse_reg_address :
 
 val declassify_mem :
    ('a, 'b, 'c, 'd, 'e) Arch_decl.arch_decl ->
-   Label.label ->
+   BinNums.coq_Z ->
    ('a, 'f, 'g, 'h, 'i) Arch_decl.address ->
    PrintASM.asm
 
