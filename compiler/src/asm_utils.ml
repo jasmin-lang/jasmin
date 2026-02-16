@@ -106,7 +106,7 @@ let pp_address (arch : ('a, 'b, 'c, 'd, 'e) arch_decl) = function
 
 
 let declassify_mem (arch : ('a, 'b, 'c, 'd, 'e) arch_decl) len a =
-  let s = Format.sprintf "declassify_mem %s [%s]" (Z.to_string (Conv.z_of_pos len)) (pp_address arch a) in
+  let s = Format.sprintf "declassify_mem %s [%s]" (Z.to_string (Conv.z_of_cz len)) (pp_address arch a) in
   [Comment s]
 
 let declassify_val pp_asm_arg_ty lty a =

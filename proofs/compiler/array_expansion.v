@@ -95,7 +95,7 @@ Definition init_array_info (x : varr_info) (svm:Sv.t * Mvar.t array_info) :=
   let vars := map (fun id => {| vtype := ty; vname := id |}) x.(vi_n) in
   Let svelems := foldM init_elems (sv,0%Z) vars in
   let '(sv, len) := svelems in
-  Let _ := assert [&& (0 <? len)%Z & convertible (vtype (vi_v x)) (aarr x.(vi_s) (Z.to_pos len))]
+  Let _ := assert [&& (0 <? len)%Z & convertible (vtype (vi_v x)) (aarr x.(vi_s) len)]
              (reg_ierror_no_var "init_array_info") in
   ok (sv, Mvar.set m x.(vi_v) {| ai_ty := x.(vi_s); ai_len := len; ai_elems := vars |}).
 

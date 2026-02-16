@@ -200,8 +200,8 @@ Variant safe_cond :=
   | UGe of wsize & Z & nat
   (*  the sum of the nth arguments (unsigned interpretation) must be in the <= z *)
   | UaddLe of wsize & nat & nat & Z
-  (* the nth argument of is an array ws[p] where all ceil are initialized *)
-  | AllInit of wsize & positive & nat
+  (* the nth argument is an array ws[n] where all cells are initialized *)
+  | AllInit of wsize & Z & nat
   (* Unsatisfiable safe_cond *)
   | ScFalse.
 
