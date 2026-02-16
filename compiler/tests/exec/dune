@@ -15,7 +15,6 @@
     vpsxldq.jazz ../success/x86-64/vpsxldq.jazz
     sem_unit.jazz
     ../success/x86-64/test_global_string_literal.jazz
-    ../success/common/literal-arrays.jazz
     wide_rotation.jazz
   )
   (names

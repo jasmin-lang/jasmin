@@ -2,6 +2,3 @@ add_in_mem.ec
 gcd.ec
 loops.ec
 sdiv.ec
-string.ec
-Array2.ec
-BArray2.ec

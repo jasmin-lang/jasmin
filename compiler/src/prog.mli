@@ -93,10 +93,14 @@ type ('len, 'info, 'asm) gfunc = {
     f_ret  : 'len gvar_i list
   }
 
+type 'len ggexpr =
+  | GEword of 'len gexpr
+  | GEarray of 'len gexprs
+
 type ('len, 'info, 'asm) gmod_item =
   | MIfun   of ('len, 'info, 'asm) gfunc
   | MIparam of ('len gvar * 'len gexpr)
-  | MIglobal of ('len gvar * 'len gexpr)
+  | MIglobal of ('len gvar * 'len ggexpr)
 
 type ('len, 'info, 'asm) gprog = ('len, 'info, 'asm) gmod_item list
    (* first declaration occur at the end (i.e reverse order) *)

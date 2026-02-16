@@ -126,6 +126,7 @@ annotationlabel:
 
 simple_attribute:
   | e=pexpr_noarr  { PAexpr e}
+  | s=STRING       { PAstring s }
   | s=keyword      { PAstring s }
   | ws=utype       { PAws (fst ws) }
 
@@ -288,8 +289,6 @@ pexpr_noarr_r(parent):
 | ct=parens(svsize) LBRACKET es=rtuple1(parent) RBRACKET
     { PEpack(ct,es) }
 
-| e = STRING { PEstring e }
-
 | ct=parens(cast) e=parent %prec BANG
     { PEOp1 (`Cast(ct), e) }
 
@@ -316,7 +315,6 @@ pexpr_noarr:
 
 pexpr_r:
 | e = pexpr_noarr_r(pexpr) { e }
-| LBRACE es = rtuple1(pexpr) RBRACE { PEarray es }
 
 pexpr:
 | e=loc(pexpr_r) { e }
@@ -494,8 +492,13 @@ pparam:
     { { ppa_ty = ty; ppa_name = x; ppa_init = pe; } }
 
 (* -------------------------------------------------------------------- *)
+pgexpr:
+| e=pexpr { GEword e }
+| LBRACE es = rtuple1(pexpr) RBRACE { GEarray es }
+| e=loc(STRING) { GEstring e }
+
 pglobal:
-| pgd_type=ptype pgd_name=ident EQ pgd_val=pexpr SEMICOLON
+| pgd_type=ptype pgd_name=ident EQ pgd_val=pgexpr SEMICOLON
   { { pgd_type ; pgd_name ; pgd_val  } }
 
 (* -------------------------------------------------------------------- *)

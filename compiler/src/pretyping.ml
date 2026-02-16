@@ -36,6 +36,9 @@ type tyerror =
   | TypeNotFound        of A.symbol
   | InvalidTypeAlias    of A.symbol L.located option * P.epty
   | InvalidCast         of P.epty pair
+  | InvalidTypeForGlobal of P.epty
+  | GlobArrayNotWord
+  | GlobWordNotArray
   | EqOpWithNoLValue
   | CallNotAllowed
   | PrimNotAllowed
@@ -102,6 +105,16 @@ let pp_tyerror fmt (code : tyerror) =
   | InvalidCast (t1,t2) ->
     F.fprintf fmt "can not implicitly cast %a into %a"
       pp_eptype t1 pp_eptype t2
+
+  | InvalidTypeForGlobal ty ->
+      F.fprintf fmt "globals should have type word; found: ‘%a’"
+        pp_eptype ty
+
+  | GlobArrayNotWord ->
+    F.fprintf fmt "the definition is an array and not a word"
+
+  | GlobWordNotArray ->
+    F.fprintf fmt "the definition is a word and not an array"
 
   | InvalidOperator o ->
     F.fprintf fmt "invalid operator %s"
@@ -254,7 +267,7 @@ module Env : sig
   val exit_namespace : 'asm env -> 'asm env
 
   module Vars : sig
-    val push_global   : 'asm env -> (P.pvar * P.epty * P.pexpr) -> 'asm env
+    val push_global   : 'asm env -> (P.pvar * P.epty * P.pexpr_ P.ggexpr ) -> 'asm env
     val push_param    : 'asm env -> (P.pvar * P.epty * P.pexpr) -> 'asm env
     val push_local    : 'asm env -> P.pvar * P.epty -> 'asm env
     val push_implicit : 'asm env -> P.pvar * P.epty -> 'asm env
@@ -1214,12 +1227,6 @@ let word_of_wint wint_of_word ws (cast : W.signedness option) e =
 *)
 
 (* -------------------------------------------------------------------- *)
-let array_of_string s =
-  s |> String.to_list |> List.map @@ fun c ->
-  c |> Char.code |> Z.of_int |> fun z ->
-  P.(Papp1 (op_word_of_int(Word, W.Unsigned, W.U8), Pconst z))
-
-(* -------------------------------------------------------------------- *)
 let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   match L.unloc pe with
   | S.PEParens pe ->
@@ -1350,18 +1357,6 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     let alen = List.length args in
     if alen <> len then rs_tyerror ~loc (PackWrongLength (len, alen));
     P.PappN (Opack (sz, pz), args), P.etw sz
-
-  | S.PEarray es ->
-     let loc = L.loc pe in
-     let es = List.map (tt_expr ~mode pd env) es in
-     let es = List.map (fun (e, ty) -> cast loc e ty (ETword (None, U8))) es in
-     let len = Conv.pos_of_int (List.length es) in
-     P.PappN (Oarray len, es), P.(ETarr (U8, PE (Pconst (Conv.z_of_pos len))))
-
-  | S.PEstring s ->
-     let es = array_of_string s in
-     let len = Conv.pos_of_int (List.length es) in
-     P.PappN (Oarray len, es), P.(ETarr (U8, PE (Pconst (Conv.z_of_pos len))))
 
   | S.PEIf (pe1, pe2, pe3) ->
     let e1, ty1 = tt_expr ~mode pd env pe1 in
@@ -2318,11 +2313,47 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
   Env.Funs.push env0 fdef {fs_tin; fs_tout}
 
 (* -------------------------------------------------------------------- *)
+let tt_global_def pd env (gd:S.gpexpr) =
+  let f e =
+    let pe,ety = tt_expr ~mode:`AllVar pd env e in
+    (L.mk_loc e.pl_loc pe, ety) in
+  let array_of_string s =
+    L.unloc s |> String.to_list |> List.map @@ fun c ->
+    c |> Char.code |> Z.of_int |> fun z ->
+    P.(L.mk_loc (L.loc s) (Papp1 (op_word_of_int(Word, W.Unsigned, W.U8), Pconst z)), P.etw U8) in
+  match gd with
+  | S.GEword e ->
+    `Word (f e)
+  | S.GEarray es ->
+    `Array (List.map f es)
+  | S.GEstring e ->
+    `Array (array_of_string e)
+
 let tt_global pd (env : 'asm Env.env) _loc (gd: S.pglobal) : 'asm Env.env =
 
-  let ty = tt_type pd env gd.S.pgd_type in
-  let d, dty = tt_expr ~mode:`AllVar pd env gd.S.pgd_val in
-  let d = cast (L.loc gd.S.pgd_name) d dty ty in
+  let open P in
+  let mk_pe ws (pe,ety) =
+    match ety with
+    | P.ETword(wk, ews) when wk = None && Utils0.cmp_le Wsize.wsize_cmp ws ews ->
+      L.unloc pe
+    | P.ETint -> Papp1 (op_word_of_int(Word, W.Unsigned, ws), L.unloc pe)
+    | _ -> rs_tyerror ~loc:(L.loc pe) (TypeMismatch (ety, P.etw ws))
+    in
+
+  let ty, d =
+    match tt_type pd env gd.S.pgd_type, tt_global_def pd env gd.S.pgd_val with
+    | P.ETword(None, ws) as ty, `Word (pe,ety) ->
+      let pe = mk_pe ws (pe,ety) in
+      ty, P.GEword pe
+    | (P.ETint | P.ETbool | P.ETword _), `Array _ ->
+      rs_tyerror ~loc:(L.loc gd.S.pgd_type) GlobArrayNotWord
+    | P.ETarr(ws, _n) as ty, `Array es ->
+      let pes = List.map (mk_pe ws) es in
+      ty, P.GEarray pes
+    | P.ETarr _, `Word _ ->
+      rs_tyerror ~loc:(L.loc gd.S.pgd_type) GlobWordNotArray
+    | ty,_ -> rs_tyerror ~loc:(L.loc gd.S.pgd_type) (InvalidTypeForGlobal ty)
+  in
 
   let x = mk_var (L.unloc gd.S.pgd_name) W.Global ty (L.loc gd.S.pgd_name) [] in
 

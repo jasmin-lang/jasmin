@@ -22,7 +22,6 @@ and pattri_to_simple_attribute (pattri: Syntax.psimple_attribute) : Annotations.
       | PEVar id -> Aid (L.unloc id)
       | PEInt ir -> Aint (Syntax.parse_int ir)
       | PEOp1 (`Neg None, {L.pl_desc = PEInt ir}) -> Aint (Z.neg (Syntax.parse_int ir))
-      | PEstring s -> Astring s
       | _ ->
         hierror ~kind:"syntax" ~loc:(Lone (L.loc e))
           "complex expressions not allowed in annotations"
