@@ -995,6 +995,20 @@ speculative execution lowering: Not able to prove that ! __zf__
                                 known expression __zf__
                                 Did you run the speculative constant time checker first?
 
+fail/stack_allocation/arm-m4/bug_1384.jazz:
+
+compilation error:
+register allocation: unable to allocate variable x: no register bank for type int
+
+fail/stack_allocation/arm-m4/bug_1384a.jazz:
+
+"fail/stack_allocation/arm-m4/bug_1384a.jazz", line 2 (2-18):
+compilation error in function stack_int:
+linearization: The following assignment remains:
+x = 0
+Is there an instruction in the target architecture that can implement it?
+More information may be found online: https://jasmin-lang.readthedocs.io/en/stable/misc/faq.html#linearization
+
 fail/stack_allocation/arm-m4/cannot_compute_address.jazz:
 
 "fail/stack_allocation/arm-m4/cannot_compute_address.jazz", line 6 (2-4):
@@ -1536,4 +1550,4 @@ Statistics:
 	Pretyping:  46
 	Parsing:     4
 	Typing:      1
-	Compile:   191
+	Compile:   193
