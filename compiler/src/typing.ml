@@ -16,20 +16,20 @@ let error loc fmt =
     bfmt fmt
 
 (* -------------------------------------------------------------------- *)
-let ty_var (x: var) =
-  let ty = x.v_ty in
+let ty_var (x:var_i) =
+  let ty = (L.unloc x).v_ty in
   begin match ty with
   | Arr(_, n) ->
       if (n < 1) then
-        error (L.i_loc0 x.v_dloc)
+        error (L.i_loc0 (L.unloc x).v_dloc)
           "the variable %a has type %a, its array size should be positive"
-          (Printer.pp_var ~debug:false) x PrintCommon.pp_ty ty
+          (Printer.pp_var ~debug:false) (L.unloc x) PrintCommon.pp_ty ty
   | _ -> ()
   end;
   ty
 
 
-let ty_gvar (x: int ggvar) = ty_var (L.unloc x.gv)
+let ty_gvar (x:int ggvar) = ty_var x.gv
 
 (* -------------------------------------------------------------------- *)
 
@@ -150,7 +150,7 @@ and ty_get_set_sub pd loc ws len x e =
 
 let ty_lval pd loc = function
   | Lnone (_, ty) -> ty
-  | Lvar x -> ty_var (L.unloc x)
+  | Lvar x -> ty_var x
   | Lmem(_, ws,_,e) -> ty_load_store pd loc ws e
   | Laset(_al,_aa,ws,x,e) -> ty_get_set pd loc ws (gkvar x) e
   | Lasub(_aa,ws,len,x,e) -> ty_get_set_sub pd loc ws len (gkvar x) e
@@ -219,26 +219,6 @@ and check_cmd pd msfsz asmOp env c =
   List.iter (check_instr pd msfsz asmOp env) c
 
 (* -------------------------------------------------------------------- *)
-let check_global_decl (g, d) =
-  let ty = ty_var g in
-  let error vty =
-    error (L.i_loc0 g.v_dloc)
-      "global variable %a has type %a but its value has type %a"
-      (Printer.pp_var ~debug:false)
-      g PrintCommon.pp_ty ty PrintCommon.pp_ty vty
-  in
-  match d with
-  | Global.Garr (len, _) ->
-      if
-        match ty with
-        | Arr (ws, len') -> Conv.int_of_pos len <> arr_size ws len'
-        | _ -> true
-      then error (Arr (U8, Conv.int_of_pos len))
-  | Gword (ws, _) ->
-      if match ty with Bty (U ws') -> not (wsize_le ws ws') | _ -> true then
-        error (Bty (U ws))
-
-(* -------------------------------------------------------------------- *)
 
 let check_fun pd msfsz asmOp env fd =
   let args = List.map (fun x -> Pvar (gkvar (L.mk_loc x.v_dloc x))) fd.f_args in
@@ -251,7 +231,6 @@ let check_fun pd msfsz asmOp env fd =
 
 (* -------------------------------------------------------------------- *)
 
-let check_prog pd msfsz asmOp (gds, funcs) =
+let check_prog pd msfsz asmOp (_,funcs) =
   let env = Hf.create 107 in
-  List.iter check_global_decl gds;
   List.iter (check_fun pd msfsz asmOp env) (List.rev funcs)

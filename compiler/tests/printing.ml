@@ -109,6 +109,12 @@ and eq_pexpr x y =
 and eq_pexprs x y = List.for_all2 eq_pexpr x y
 and eq_pexpr_ (PE x) (PE y) = eq_pexpr x y
 
+let eq_pgexpr x y =
+  match (x, y) with
+  | GEword a, GEword b -> eq_pexpr a b
+  | GEarray a, GEarray b -> eq_pexprs a b
+  | (GEword _ | GEarray _), _ -> false
+
 let eq_prange (x : pexpr_ grange) (y : pexpr_ grange) =
   let a, b, c = x and d, e, f = y in
   a = d && eq_pexpr b e && eq_pexpr c f
@@ -161,7 +167,7 @@ let eq_pmod_item x y =
   match (x, y) with
   | MIfun f, MIfun g -> eq_pfunc f g
   | MIparam (x, i), MIparam (y, j) -> eq_pvar x y && eq_pexpr i j
-  | MIglobal (x, i), MIglobal (y, j) -> eq_pvar x y && eq_pexpr i j
+  | MIglobal (x, i), MIglobal (y, j) -> eq_pvar x y && eq_pgexpr i j
   | (MIfun _ | MIparam _ | MIglobal _), _ -> false
 
 let eq_pmod_items x y = List.for_all2 eq_pmod_item x y

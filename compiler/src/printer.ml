@@ -270,6 +270,10 @@ let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
 
 let pp_noinfo _ _ = ()
 
+let pp_gexpr ~debug pp_len pp_var fmt = function
+  | GEword e -> pp_ge ~debug pp_len pp_var fmt e
+  | GEarray es -> Format.fprintf fmt "{@[%a@]}" (pp_ges ~debug pp_len pp_var) es
+
 let pp_pitem ~debug pp_len pp_opn pp_var =
   let aux fmt = function
    | MIfun fd -> pp_gfun ~debug pp_len pp_opn pp_var fmt fd
@@ -281,7 +285,7 @@ let pp_pitem ~debug pp_len pp_opn pp_var =
       F.fprintf fmt "%a %a = %a;"
         (pp_gtype pp_len) x.v_ty
         pp_var x
-        (pp_ge ~debug pp_len pp_var) e
+        (pp_gexpr ~debug pp_len pp_var) e
  in
   aux
 
