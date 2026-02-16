@@ -484,11 +484,11 @@ let alloc_mem (gtbl: wsize Hv.t) globs =
       let w = Memory_model.LE.encode ws w in
       List.iteri (fun i w -> t.(ofs + i) <- w) w 
 
-    | Global.Garr(p, gt) ->
-      let ip = Conv.int_of_pos p in
-      for i = 0 to ip - 1 do
-        let w = 
-          match Warray_.WArray.get p Aligned Warray_.AAdirect U8 gt (Conv.cz_of_int i) with
+    | Global.Garr(n, gt) ->
+      let ni = Conv.int_of_n n in
+      for i = 0 to ni - 1 do
+        let w =
+          match Warray_.WArray.get n Aligned Warray_.AAdirect U8 gt (Conv.cz_of_int i) with
           | Ok w -> w
           | _    -> assert false in
         t.(ofs + i) <- w

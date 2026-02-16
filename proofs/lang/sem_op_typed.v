@@ -189,7 +189,7 @@ Definition sem_opN_typed (o: opN) :
       let ty := curry (A := cint) (sz %/ pe) (λ vs, ok (wpack sz pe vs)) in
       ecast l (sem_prod l _) (esym (map_nseq _ _ _)) ty
   | Oarray len =>
-      let ty := sem_prod_app (collect (Pos.to_nat len) [::]) (λ vs : seq (sem_t (cword U8)), WArray.fill len vs) in
+      let ty := sem_prod_app (collect (N.to_nat len) [::]) (λ vs : seq (sem_t (cword U8)), WArray.fill _ vs) in
       ecast l (sem_prod l _) (esym (map_nseq _ _ _)) ty
   | Ocombine_flags cf =>
       fun b0 b1 b2 b3 => ok (sem_combine_flags cf b0 b1 b2 b3)
@@ -200,8 +200,9 @@ Lemma sem_opN_typed_ok (op: opN) :
 Proof.
   case: op => // [ ws pe | len ] /=; rewrite -> map_nseq => /=.
   + by case: ws pe => - [].
-  apply: sem_forall_prod_app (size_collect (Pos.to_nat len) [::]) => bytes /=.
-  rewrite ssrnat.addn0 /WArray.fill => hlen; rewrite hlen eqxx /=.
+  apply: sem_forall_prod_app (size_collect (N.to_nat len) [::]) => bytes /=.
+  rewrite ssrnat.addn0 => hlen.
+  rewrite /WArray.fill arr_sizeE wsize8 Z.mul_1_l N2Z.id hlen eqxx /=.
   by case/is_okP: (WArray.fill_aux_ok (Nat.eq_le_incl _ _ hlen)) => ? ->.
 Qed.
 
@@ -213,10 +214,10 @@ Definition sem_opN_safety_typed (o: opN_safety) :
   sem_prod t.1 (exec (sem_t t.2)) :=
   match o with
   | Ois_arr_init alen =>
-      fun (a:WArray.array alen) (lo:Z) (len:Z) =>
+      fun (a:WArray.array _) (lo:Z) (len:Z) =>
         ok (all (WArray.is_init a) (ziota lo len))
   | Ois_barr_init alen =>
-      fun (a:WArray.array alen) (lo:Z) (len:Z) =>
+      fun (a:WArray.array _) (lo:Z) (len:Z) =>
         ok (all (WArray.is_initb a) (ziota lo len))
   end.
 
