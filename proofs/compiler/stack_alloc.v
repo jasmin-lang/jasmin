@@ -1712,7 +1712,7 @@ Definition alloc_declassify_array rmap es :=
     if get_local xv is Some pk then
       Let: (p, ofs) := addr_from_pk xv pk in
       let e := add (Plvar p) (cast_const ofs) in
-      let len := Z.to_pos (size_of xv.(vtype)) in
+      let len := size_of xv.(vtype) in
       ok (Copn [::] AT_keep (Opseudo_op (pseudo_operator.Odeclassify_mem len)) [:: e ])
     else Error (stk_ierror_basic xv "register array remains")
   else Error (stk_ierror_no_var "declassify: invalid args").
@@ -1824,12 +1824,14 @@ Definition init_stack_layout (mglob : Mvar.t (Z * wsize)) sao :=
     else
       if (p <= ofs)%CMP then
         let len := size_slot x in
-        if (ws <= sao.(sao_align))%CMP then
-          if (Z.land ofs (wsize_size ws - 1) == 0)%Z then
-            let stack := Mvar.set stack x (ofs, ws) in
-            ok (stack, (ofs + len)%Z)
-          else Error (stk_ierror_no_var "bad stack region alignment")
-        else Error (stk_ierror_no_var "bad stack alignment")
+        if (0 <? len)%Z then
+          if (ws <= sao.(sao_align))%CMP then
+            if (Z.land ofs (wsize_size ws - 1) == 0)%Z then
+              let stack := Mvar.set stack x (ofs, ws) in
+              ok (stack, (ofs + len)%Z)
+            else Error (stk_ierror_no_var "bad stack region alignment")
+          else Error (stk_ierror_no_var "bad stack alignment")
+        else Error (stk_ierror_no_var "a slot has negative size")
       else Error (stk_ierror_no_var "stack region overlap") in
   Let _ := assert (0 <=? sao.(sao_ioff))%Z (stk_ierror_no_var "negative initial stack offset") in
   Let sp := foldM add (Mvar.empty _, sao.(sao_ioff)) sao.(sao_slots) in
@@ -2107,7 +2109,7 @@ Definition check_glob data gv :=
 Definition size_glob gv :=
   match gv with
   | @Gword ws _ => wsize_size ws
-  | @Garr p _ => Zpos p
+  | @Garr len _ => len
   end.
 
 Definition init_map (l:list (var * wsize * Z)) data (gd:glob_decls) : cexec (Mvar.t (Z*wsize)) :=
@@ -2117,20 +2119,22 @@ Definition init_map (l:list (var * wsize * Z)) data (gd:glob_decls) : cexec (Mva
     if (pos <=? p)%Z then
       if Z.land p (wsize_size ws - 1) == 0%Z then
         let s := size_slot v in
-        match ztake (p - pos) data with
-        | None => Error (stk_ierror_no_var "bad data 1")
-        | Some (_, data) =>
-        match ztake s data with
-        | None =>  Error (stk_ierror_no_var "bad data 2")
-        | Some (vdata, data) =>
-          match assoc gd v with
-          | None => Error (stk_ierror_no_var "unknown var")
-          | Some gv =>
-            Let _ := assert (s == size_glob gv) (stk_ierror_no_var "bad size") in
-            Let _ := check_glob vdata gv in
-            ok (Mvar.set mvar v (p,ws), p + s, data)%Z
-          end
-        end end
+        if (0 <? s)%Z then
+          match ztake (p - pos) data with
+          | None => Error (stk_ierror_no_var "bad data 1")
+          | Some (_, data) =>
+          match ztake s data with
+          | None =>  Error (stk_ierror_no_var "bad data 2")
+          | Some (vdata, data) =>
+            match assoc gd v with
+            | None => Error (stk_ierror_no_var "unknown var")
+            | Some gv =>
+              Let _ := assert (s == size_glob gv) (stk_ierror_no_var "bad size") in
+              Let _ := check_glob vdata gv in
+              ok (Mvar.set mvar v (p,ws), p + s, data)%Z
+            end
+          end end
+        else Error (stk_ierror_no_var "a global slot has negative size")
       else Error (stk_ierror_no_var "bad global alignment")
     else Error (stk_ierror_no_var "global overlap") in
   Let globals := foldM add (Mvar.empty (Z*wsize), 0%Z, data) l in

@@ -201,8 +201,9 @@ Proof.
   case: op => // [ ws pe | len ] /=; rewrite -> map_nseq => /=.
   + by case: ws pe => - [].
   apply: sem_forall_prod_app (size_collect (Pos.to_nat len) [::]) => bytes /=.
-  rewrite ssrnat.addn0 /WArray.fill => hlen; rewrite hlen eqxx /=.
-  by case/is_okP: (WArray.fill_aux_ok (Nat.eq_le_incl _ _ hlen)) => ? ->.
+  rewrite ssrnat.addn0 => /(f_equal Z.of_nat); rewrite positive_nat_Z => hlen.
+  rewrite /WArray.fill hlen eqxx /=.
+  by case/is_okP: (WArray.fill_aux_ok (Z.eq_le_incl _ _ hlen)) => ? ->.
 Qed.
 
 End WITH_PARAMS.

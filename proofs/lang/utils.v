@@ -1541,6 +1541,7 @@ Proof. move=> /P_ltP ? /P_leP ?;apply /P_ltP; Lia.lia. Qed.
 
 (* TODO: when elpi.derive supports it, register Pos.eqb_spec instead *)
 #[only(eqbOK)] derive positive.
+#[only(eqbOK)] derive Z.
 
 HB.instance Definition _ := hasDecEq.Build positive positive_eqb_OK.
 
