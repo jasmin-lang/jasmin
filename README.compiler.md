@@ -1,9 +1,5 @@
 # Jasmin
 
-[![pipeline status](https://gitlab.com/jasmin-lang/jasmin/badges/main/pipeline.svg)](https://gitlab.com/jasmin-lang/jasmin/-/commits/main)
-[![project chat](https://readthedocs.org/projects/jasmin-lang/badge/)](https://jasmin-lang.readthedocs.org)
-[![project chat](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://formosa-crypto.zulipchat.com)
-
 ## About
 
 Jasmin denotes both a language and a compiler designed for
@@ -11,6 +7,15 @@ writing high-assurance and high-speed cryptography.
 Jasmin implementations aim at being efficient, safe, correct, and secure.
 
 Reference documentation of the language and compiler are on [readthedocs](https://jasmin-lang.readthedocs.io).
+
+## What is this repository?
+
+The code in this repository is automatically extracted from
+Jasmin’s source on [GitHub](https://github.com/jasmin-lang/jasmin/).
+The original code is a mix of OCaml and Rocq, while this extracted
+code contains OCaml only.
+It enables compiling the Jasmin tools from source without having to install
+Rocq and the Rocq dependencies used by Jasmin.
 
 ## Installation
 
@@ -43,5 +48,3 @@ The [Formosa-Crypto Zulip Chat](https://formosa-crypto.zulipchat.com/) is meant 
 
 Jasmin is free software. All files in this distribution are, unless specified
 otherwise, licensed under the [MIT license](LICENSE).
-The documentation (under `docs/`) is licensed separately from the
-compiler, under the [CC-BY 4.0](docs/LICENSE).
