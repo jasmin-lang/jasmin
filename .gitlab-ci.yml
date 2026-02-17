@@ -281,9 +281,9 @@ push-compiler-code:
   - git clone git@gitlab.com:jasmin-lang/jasmin-compiler.git _deploy
   - cd _deploy
   - git checkout $CI_COMMIT_REF_NAME || git checkout --orphan $CI_COMMIT_REF_NAME
-  - rm -rf compiler eclib Makefile jasmin.opam
+  - rm -rf compiler eclib Makefile jasmin.opam README.md LICENSE
   - tar xzvf ../compiler/$TARBALL.tgz
   - mv $TARBALL/* .
-  - git add compiler eclib Makefile jasmin.opam
+  - git add compiler eclib Makefile jasmin.opam README.md LICENSE
   - git commit -m "Jasmin compiler on branch “$CI_COMMIT_REF_NAME” at $CI_COMMIT_SHORT_SHA"  || true
   - git push --set-upstream origin $CI_COMMIT_REF_NAME
