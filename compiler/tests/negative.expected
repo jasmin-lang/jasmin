@@ -742,7 +742,7 @@ fail/param_expansion/x86-64/global_not_constant.jazz:
 
 "fail/param_expansion/x86-64/global_not_constant.jazz", line 2 (4-5):
 compilation error:
-param expansion: the expression assigned to global variable b must evaluate to a constant
+param expansion: the expression assigned to global variable b must evaluate to a constant word
 
 fail/param_expansion/x86-64/operator_arg.jazz:
 
@@ -1378,6 +1378,14 @@ fail/typing/x86-64/global_int.jazz:
 
 "fail/typing/x86-64/global_int.jazz", line 1 (0-3): globals should have type word; found: ‘int’
 
+fail/typing/x86-64/global_type_mismatch.jazz:
+
+"fail/typing/x86-64/global_type_mismatch.jazz", line 1 (0-3): the definition is an array and not a word
+
+fail/typing/x86-64/global_type_mismatch2.jazz:
+
+"fail/typing/x86-64/global_type_mismatch2.jazz", line 1 (0-6): the definition is a word and not an array
+
 fail/typing/x86-64/init_global.jazz:
 
 "fail/typing/x86-64/init_global.jazz", line 4 (12-13): global variables are not allowed here
@@ -1541,7 +1549,7 @@ Allowed args are:
 
 Statistics:
 	Annots:      0
-	Pretyping:  45
+	Pretyping:  47
 	Parsing:     4
 	Typing:      1
 	Compile:   193

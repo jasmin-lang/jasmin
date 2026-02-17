@@ -25,6 +25,13 @@ let string_of_combine_flags = function
   | CF_GT s -> Format.sprintf "_%sGT" (string_of_signess s)
 
 (* -------------------------------------------------------------------- *)
+let as_string es =
+  List.map (function
+  | Papp1 (Oword_of_int U8, Pconst z) -> char_of_int (Z.to_int z)
+  | _ -> raise Not_found
+  ) es |> String.of_list
+
+(* -------------------------------------------------------------------- *)
 let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
   let pp_var_i = pp_gvar_i pp_var in
   let pp_gvar fmt (x: 'len ggvar) =
@@ -55,7 +62,11 @@ let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
   | PappN (Ocombine_flags c, es) ->
     F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
   | PappN (Oarray len, es) ->
+     begin match as_string es with
+     | s -> F.fprintf fmt "%S" s
+     | exception Not_found ->
      F.fprintf fmt "/* %du8 */ @[{ %a }@]" (Conv.int_of_pos len) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
+     end
   | Pif(_, e,e1,e2) ->
      let p = priority_ternary in
      optparent fmt prio side p "%a ? %a : %a" (pp_expr Left p) e (pp_expr NoAssoc p) e1 (pp_expr Right p) e2

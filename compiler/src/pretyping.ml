@@ -1227,6 +1227,12 @@ let word_of_wint wint_of_word ws (cast : W.signedness option) e =
 *)
 
 (* -------------------------------------------------------------------- *)
+let array_of_string s =
+  s |> String.to_list |> List.map @@ fun c ->
+  c |> Char.code |> Z.of_int |> fun z ->
+  P.(Papp1 (op_word_of_int(Word, W.Unsigned, W.U8), Pconst z))
+
+(* -------------------------------------------------------------------- *)
 let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   match L.unloc pe with
   | S.PEParens pe ->
@@ -1357,6 +1363,11 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     let alen = List.length args in
     if alen <> len then rs_tyerror ~loc (PackWrongLength (len, alen));
     P.PappN (Opack (sz, pz), args), P.etw sz
+
+  | S.PEstring s ->
+     let es = array_of_string s in
+     let len = Conv.pos_of_int (List.length es) in
+     P.PappN (Oarray len, es), P.(ETarr (U8, PE (Pconst (Conv.z_of_pos len))))
 
   | S.PEIf (pe1, pe2, pe3) ->
     let e1, ty1 = tt_expr ~mode pd env pe1 in
@@ -2317,17 +2328,14 @@ let tt_global_def pd env (gd:S.gpexpr) =
   let f e =
     let pe,ety = tt_expr ~mode:`AllVar pd env e in
     (L.mk_loc e.pl_loc pe, ety) in
-  let array_of_string s =
-    L.unloc s |> String.to_list |> List.map @@ fun c ->
-    c |> Char.code |> Z.of_int |> fun z ->
-    P.(L.mk_loc (L.loc s) (Papp1 (op_word_of_int(Word, W.Unsigned, W.U8), Pconst z)), P.etw U8) in
   match gd with
-  | S.GEword e ->
+  | S.GEexpr { pl_loc = loc; pl_desc = PEstring s } ->
+     let es = array_of_string s in
+     `Array (List.map (fun e -> L.mk_loc loc e, P.etw U8) es)
+  | S.GEexpr e ->
     `Word (f e)
   | S.GEarray es ->
     `Array (List.map f es)
-  | S.GEstring e ->
-    `Array (array_of_string e)
 
 let tt_global pd (env : 'asm Env.env) _loc (gd: S.pglobal) : 'asm Env.env =
 

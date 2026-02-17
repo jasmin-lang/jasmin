@@ -25,3 +25,9 @@ fn divu64() -> reg u64, reg u64 {
   reg u64 x = 1 << 63, y = -1, z = x / y, r = x % y;
   return z, r;
 }
+
+u16[1] g = { 0xabcd };
+fn global_u16() -> reg u8, reg u8 {
+  reg u8 lo = g[:u8 0], hi = g[:u8 1];
+  return hi, lo;
+}
