@@ -340,7 +340,7 @@ let remove_params (prog : ('info, 'asm) pprog) =
       | Bty (U ws), GEword e ->
         begin try Global.Gword (ws, mk_word ws e)
         with NotAConstantExpr ->
-          hierror ~loc:x.v_dloc "the expression assigned to global variable %a must evaluate to a constant"
+          hierror ~loc:x.v_dloc "the expression assigned to global variable %a must evaluate to a constant word"
             (Printer.pp_var ~debug:false) x
         end
       | Arr (_ws, n), GEarray es when List.length es <> n ->

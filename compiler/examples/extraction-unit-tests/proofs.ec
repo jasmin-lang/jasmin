@@ -5,6 +5,7 @@ require Gcd.
 require Loops.
 require Sdiv.
 require Add_in_mem.
+require String.
 
 lemma loops_forty_correct : hoare [ Loops.M.forty: true ==> res = W32.of_int 40 ].
 proof. by proc; unroll for ^while; auto. qed.
@@ -41,6 +42,11 @@ proof.
   skip => &m [] /= <- <- _ g' ->.
   by rewrite gcd0z.
 qed.
+
+(* ------------------------------------------------ *)
+hoare string_correct :
+  String.M.main : true ==> res = W32.of_int 16416.
+proof. by proc; auto => />; rewrite to_uint_eq !(to_uintD, to_uint_shl, of_uintK). qed.
 
 (* ------------------------------------------------ *)
 
