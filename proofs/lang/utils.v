@@ -1576,7 +1576,7 @@ Proof.
   apply Z.compare_eq.
 Qed.
 
-Lemma Z_to_nat_le0 z : z <= 0 -> Z.to_nat z = 0%N.
+Lemma Z_to_nat_le0 z : z <= 0 -> Z.to_nat z = 0%nat.
 Proof. by rewrite /Z.to_nat; case: z => //=; rewrite /Z.le. Qed.
 
 Lemma Z_odd_pow_2 n x :
