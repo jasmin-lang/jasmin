@@ -422,7 +422,7 @@ let safe_opn pd asmOp safe opn es =
         let e = List.nth es (Conv.int_of_nat i) in
         let y = match e with Pvar y -> y | _ -> assert false in
         List.flatten
-          (List.init (Conv.int_of_pos p) (fun i -> init_get y Warray_.AAscale ws (Pconst (Z.of_int i)) 1))
+          (List.init (Conv.int_of_cz p) (fun i -> init_get y Warray_.AAscale ws (Pconst (Z.of_int i)) 1))
       | NotZero (sz, n) ->
         [ notZero(sz, List.nth es (Conv.int_of_nat n)) ]
 
@@ -1384,12 +1384,12 @@ end = struct
 
   let cells_of_array x ofs n =
     let x = L.unloc x in
-    List.init (Conv.int_of_pos n) (fun i -> SafetyVar.AarraySlice (x, U8, ofs + i))
+    List.init (Conv.int_of_cz n) (fun i -> SafetyVar.AarraySlice (x, U8, ofs + i))
 
   let aeval_syscall state sc lvs _es =
     match sc with
     | Syscall_t.RandomBytes (ws, len) ->
-       let n = BinInt.Z.to_pos (Type.arr_size ws len) in
+       let n = Type.arr_size ws len in
        let cells = match lvs with
          | [ Lnone _ ] -> []
          | [ Lvar x ] -> cells_of_array x 0 n

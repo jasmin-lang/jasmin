@@ -318,7 +318,7 @@ Context
         DB true va & is_defined va].
       + move=> {haX hX}; case: a E hva => //=.
         + move=> xe; case: ifP => // /and4P=> -[ _ /is_aarrP [ws [len hlen]] hc _] [<-] hget /=.
-          have : type_of_val va = carr (Z.to_pos (arr_size ws len)).
+          have : type_of_val va = carr (arr_size ws len).
           + by rewrite (type_of_get_gvar_not_word _ hget) hlen.
           by move=> /type_of_valI [t ->]; rewrite (convertible_eval_atype hc) hlen /truncate_val /= WArray.castK.
         move=> a ws len xe e; case: ifP => // /andP [_ hc] [<-] /=.

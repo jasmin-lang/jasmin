@@ -351,7 +351,7 @@ let remove_params (prog : ('info, 'asm) pprog) =
            (if m > 1 then "values" else "value")
            n
       | Arr (ws, n), GEarray es ->
-        let p = Conv.pos_of_int (n * size_of_ws ws) in
+        let len = Conv.cz_of_int (n * size_of_ws ws) in
         let mk_word_i i e =
           try mk_word ws e
           with NotAConstantExpr ->
@@ -360,7 +360,7 @@ let remove_params (prog : ('info, 'asm) pprog) =
               i
         in
         let t = Warray_.WArray.of_list ws (List.mapi mk_word_i es) in
-        Global.Garr(p, t)
+        Global.Garr(len, t)
       | _, _ -> assert false in
     add_glob x gv;
     x, gv

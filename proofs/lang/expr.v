@@ -257,10 +257,10 @@ Definition is_glob (x:gvar) := x.(gs) == Sglob.
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
-| Parr_init : wsize -> positive → pexpr
+| Parr_init : wsize -> Z → pexpr
 | Pvar   :> gvar -> pexpr
 | Pget   : aligned -> arr_access -> wsize -> gvar -> pexpr -> pexpr
-| Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr
+| Psub   : arr_access -> wsize -> Z -> gvar -> pexpr -> pexpr
 | Pload  : aligned -> wsize -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
@@ -301,7 +301,7 @@ Variant lval : Type :=
 | Lvar  `(var_i)
 | Lmem  of aligned & wsize & var_info & pexpr
 | Laset of aligned & arr_access & wsize & var_i & pexpr
-| Lasub of arr_access & wsize & positive & var_i & pexpr.
+| Lasub of arr_access & wsize & Z & var_i & pexpr.
 
 Coercion Lvar : var_i >-> lval.
 

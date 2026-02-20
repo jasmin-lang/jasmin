@@ -1,4 +1,5 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
+From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith Setoid Morphisms.
 Require Export var type values.
 Import Utf8 ssrbool.
@@ -48,7 +49,7 @@ Definition truncatable wdb ty v :=
  match v, ty with
  | Vbool _, cbool => true
  | Vint _, cint   => true
- | Varr p _, carr p' => p == p'
+ | Varr len _, carr len' => len == len'
  (* TODO: change the order of the conditions to simplify proofs
   suggestion: ws' ≤ ws || sw_allowed || ~~ wdb *)
  | Vword ws w, cword ws' =>  ~~wdb || (sw_allowed || (ws' <= ws)%CMP)
@@ -63,7 +64,7 @@ Definition vm_truncate_val ty v :=
  match v, ty with
  | Vbool _, cbool => v
  | Vint _, cint   => v
- | Varr p _, carr p' => if p == p' then v else undef_addr ty
+ | Varr len _, carr len' => if len == len' then v else undef_addr ty
  | Vword ws w, cword ws' =>
    if (sw_allowed || (ws' <= ws)%CMP) then
      if (ws <= ws')%CMP then Vword w else Vword (zero_extend ws' w)

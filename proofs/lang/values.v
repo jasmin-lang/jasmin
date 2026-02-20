@@ -55,12 +55,12 @@ Lemma Varr_inj n n' t t' (e: @Varr n t = @Varr n' t') :
   exists en: n = n', eq_rect n (λ s, WArray.array s) t n' en = t'.
 Proof.
   case: e => ?; subst n'; exists erefl.
-  exact: (Eqdep_dec.inj_pair2_eq_dec _ Pos.eq_dec).
+  exact: (Eqdep_dec.inj_pair2_eq_dec _ Z.eq_dec).
 Qed.
 
 Corollary Varr_inj1 n t t' : @Varr n t = @Varr n t' -> t = t'.
 Proof.
-  by move=> /Varr_inj [en ]; rewrite (Eqdep_dec.UIP_dec Pos.eq_dec en erefl).
+  by move=> /Varr_inj [en ]; rewrite (Eqdep_dec.UIP_dec Z.eq_dec en erefl).
 Qed.
 
 Lemma Vword_inj sz sz' w w' (e: @Vword sz w = @Vword sz' w') :
@@ -792,12 +792,12 @@ Proof.
   by rewrite (vuincl_sopn hall hu h1) /= h2.
 Qed.
 
-Lemma vuincl_copy_eq ws p :
-  let sz := Z.to_pos (arr_size ws p) in
+Lemma vuincl_copy_eq ws n :
+  let len := arr_size ws n in
   forall vs vs' v,
   List.Forall2 value_uincl vs vs' ->
-  @app_sopn_v [::carr sz] [::carr sz] (@WArray.copy ws p) vs = ok v ->
-  @app_sopn_v [::carr sz] [::carr sz] (@WArray.copy ws p) vs' = ok v.
+  @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs = ok v ->
+  @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs' = ok v.
 Proof.
   move=> sz _ _ v [// | v1 v2 [_ /value_uinclE hu /List_Forall2_inv_l -> |]];
     rewrite /app_sopn_v /=; t_xrbindP=> // ??.
@@ -815,12 +815,12 @@ Proof.
   by exists v => //; exact: List_Forall2_refl.
 Qed.
 
-Lemma vuincl_copy ws p :
-  let sz := Z.to_pos (arr_size ws p) in
+Lemma vuincl_copy ws n :
+  let len := arr_size ws n in
   forall vs vs' v,
   List.Forall2 value_uincl vs vs' ->
-  @app_sopn_v [::carr sz] [::carr sz] (@WArray.copy ws p) vs = ok v ->
-  exists2 v' : values, @app_sopn_v [::carr sz] [::carr sz] (@WArray.copy ws p) vs' = ok v' & List.Forall2 value_uincl v v'.
+  @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs = ok v ->
+  exists2 v' : values, @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs' = ok v' & List.Forall2 value_uincl v v'.
 Proof.
   move=> ??? v /vuincl_copy_eq h/h{h}?.
   by exists v => //; exact: List_Forall2_refl.
@@ -903,9 +903,9 @@ Definition interp_safe_cond (vs : values) (sc : safe_cond) :=
     forall w1 w2, to_word ws (nth undef_b vs k1) = ok w1 ->
                   to_word ws (nth undef_b vs k2) = ok w2 ->
                   (wunsigned w1 + wunsigned w2 <= z)%Z
-  | AllInit ws p k =>
-    forall t, to_arr (Z.to_pos (arr_size ws p)) (nth undef_b vs k) = ok t ->
-    forall i, (0 <= i < p)%Z ->
+  | AllInit ws n k =>
+    forall t, to_arr (arr_size ws n) (nth undef_b vs k) = ok t ->
+    forall i, (0 <= i < n)%Z ->
      exists w, WArray.get Aligned AAscale ws t i = ok w
   | X86Division sz sign =>
     forall hi lo dv,

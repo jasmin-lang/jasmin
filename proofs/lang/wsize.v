@@ -206,7 +206,7 @@ Variant safe_cond :=
   (*  the sum of the nth arguments (unsigned interpretation) must be in the <= z *)
   | UaddLe of wsize & nat & nat & Z
   (* the nth argument of is an array ws[p] where all ceil are initialized *)
-  | AllInit of wsize & positive & nat
+  | AllInit of wsize & Z & nat
   (* Unsatisfiable safe_cond *)
   | ScFalse.
 

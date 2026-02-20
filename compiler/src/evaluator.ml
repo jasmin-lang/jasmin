@@ -211,19 +211,19 @@ let pp_val fmt v =
   match v with
   | Vbool b -> Format.fprintf fmt "%b" b
   | Vint z  -> Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_cz z)
-  | Varr(p,t) ->
-    let ip = Conv.int_of_pos p in
+  | Varr(n,t) ->
+    let ni = Conv.int_of_cz n in
     let pp_res fmt = function 
       | Ok w               -> pp_word fmt U8 w
       | Error ErrAddrUndef -> pp_undef fmt (Coq_cword U8)
       | Error _            -> assert false in
     Format.fprintf fmt "@[[";
-    for i = 0 to ip-2 do
+    for i = 0 to ni-2 do
       let i = Conv.cz_of_int i in
-      Format.fprintf fmt "%a;@ " pp_res (WArray.get p Aligned AAscale U8 t i);
+      Format.fprintf fmt "%a;@ " pp_res (WArray.get n Aligned AAscale U8 t i);
     done;
-    if 0 < ip then 
-      pp_res fmt (WArray.get p Aligned AAscale U8 t (Conv.cz_of_int (ip-1)));
+    if 0 < ni then
+      pp_res fmt (WArray.get n Aligned AAscale U8 t (Conv.cz_of_int (ni-1)));
     Format.fprintf fmt "]@]";
   | Vword(ws, w) -> pp_word fmt ws w
   | Vundef ty -> pp_undef fmt ty
