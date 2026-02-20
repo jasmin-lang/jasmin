@@ -18,10 +18,14 @@ let funnames prog =
 let load_file name =
   let prog =
     let open Pretyping in
-    name
-    |> tt_file Arch.arch_info Env.empty None None
-    |> fst |> Env.decls
-    |> Compile.preprocess Arch.pointer_data Arch.msf_size Arch.asmOp
+    try
+      name
+      |> tt_file Arch.arch_info Env.empty None None
+      |> fst |> Env.decls
+      |> Compile.preprocess Arch.pointer_data Arch.msf_size Arch.asmOp
+    with TyError (loc, e) ->
+      Format.eprintf "%a: %a@." Location.pp_loc loc pp_tyerror e;
+      assert false
   in
   (funnames prog, Conv.cuprog_of_prog prog)
 
@@ -45,7 +49,8 @@ let exec (fs, prog) ms f args =
   in
   let pp_vals = Utils.pp_list "; " Evaluator.pp_val in
   let pp_res fmt = function
-    | Ok res -> Format.fprintf fmt "= %a" pp_vals res
+    | Ok res ->
+        Format.fprintf fmt "=%s%a" (if res <> [] then " " else "") pp_vals res
     | Error err -> Format.fprintf fmt "failed with %a" Evaluator.pp_error err
   in
   Format.printf "%s(%a) %a@." f.fn_name pp_vals args pp_res res
