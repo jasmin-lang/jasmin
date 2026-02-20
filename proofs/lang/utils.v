@@ -4,7 +4,7 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype choice.
 From mathcomp Require Import fintype finfun.
 From Coq.Unicode Require Import Utf8.
-From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses.
+From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses String.
 Require Import xseq oseq.
 From mathcomp Require Import word_ssrZ.
 
@@ -214,8 +214,11 @@ Lemma map_errP eT1 eT2 aT (f : eT1 -> eT2) (r : result eT1 aT) x :
 Proof. by case: r => //= ? [->]. Qed.
 Arguments map_errP {_ _ _ _ _ _}.
 
+Definition assertion_label := string.
+
 Variant error :=
- | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith | ErrSemUndef.
+ | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith | ErrSemUndef
+ | ErrAssert of assertion_label.
 
 Definition exec t := result error t.
 
@@ -499,6 +502,9 @@ Qed.
 Lemma mapM_ok {eT} {A B:Type} (f: A -> B) (l:list A) :
   mapM (eT:=eT) (fun x => ok (f x)) l = ok (map f l).
 Proof. by elim l => //= ?? ->. Qed.
+
+Definition sndM eT aT bT cT (f : bT -> result eT cT) (ab : aT * bT) : result eT (aT * cT) :=
+  Let c := f ab.2 in ok (ab.1, c).
 
 Section FOLDM.
 

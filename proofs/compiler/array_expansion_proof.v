@@ -967,6 +967,7 @@ Proof.
     by apply wequiv_opn_rel_eq with checker_exp m.
   + move=> xs1 o es1 ii i2_ /=; t_xrbindP => xs2 hxs es2 hes <-.
     by apply wequiv_syscall_rel_eq with checker_exp m.
+  + by move=> *; apply wequiv_noassert.
   + move=> e1 c1 c1' hc1 hc1' ii i2_ /=; t_xrbindP => e2 he c2 /hc1{}hc1 c2' /hc1'{}hc1' <-.
     apply wequiv_if_rel_eq with checker_exp m m m => //.
     by split => //=; rewrite he.

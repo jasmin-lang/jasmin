@@ -324,6 +324,10 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec instr_r :=
     Let xs := mapM2 (E.ierror_s "invalid dest in Csyscall") wi2i_lv xtys xs in
     ok (Csyscall xs o es)
 
+  | Cassert (msg, e) =>
+    Let e := wi2i_e e in
+    ok (Cassert (msg, e))
+
   | Cif b c1 c2 =>
     Let b := wi2i_e b in
     Let c1 := mapM wi2i_i c1 in

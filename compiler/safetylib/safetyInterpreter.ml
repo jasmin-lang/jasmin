@@ -112,6 +112,8 @@ type safe_cond =
   | NotEqual of op_kind * expr * expr
   | Termination of bool (* the boolean signals whether this is a severe violation *)
 
+  | GeneralCond of expr
+
 let notZero(ws, e) = NotEqual(Op_w ws, e, pcast ws (Pconst (Z.of_int 0)))
 
 let severe_violation =
@@ -165,6 +167,8 @@ let pp_safety_cond fmt = function
     Format.fprintf fmt "aligned %a u%a" pp_expr e pp_ws sz
 
   | Termination b -> Format.fprintf fmt "termination%s" (if b then "" else " has not been checked")
+
+  | GeneralCond e -> Format.fprintf fmt "%a" pp_expr e
 
 type violation_loc =
   | InProg of Prog.L.i_loc
@@ -454,6 +458,7 @@ let safe_opn pd asmOp safe opn es =
 let safe_instr pd asmOp ginstr = match ginstr.i_desc with
   | Cassgn (lv, _, _, e) -> safe_e_rec (safe_lval lv) e
   | Copn (lvs,_,opn,es) -> safe_opn pd asmOp (safe_lvals lvs @ safe_es es) opn es
+  | Cassert (_, e) -> safe_e_rec [ GeneralCond e ] e
   | Cif(e, _, _) -> safe_e e
   | Cwhile(_, _, _, _, _) -> []       (* We check the while condition later. *)
   | Ccall(lvs, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
@@ -757,6 +762,12 @@ end = struct
         | None -> false
         | Some c ->
           AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
+
+    | GeneralCond e ->
+       let ne = Papp1 (Onot, e) in
+       begin match AbsExpr.bexpr_to_btcons ne state.abs with
+       | None -> false
+       | Some c -> AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
 
     (* These are checked elsewhere *)
     | AlignedPtr _ | AlignedExpr _ | Valid _ | Termination _ -> true
@@ -1251,6 +1262,7 @@ end = struct
       | Cassgn (lv, _, _, e)    -> nm_lv vs_for lv && nm_e vs_for e
       | Copn (lvs, _, _, es)    -> nm_lvs vs_for lvs && nm_es vs_for es
       | Csyscall(lvs, _ ,es)    -> nm_lvs vs_for lvs && nm_es vs_for es
+      | Cassert(_, e)           -> nm_e vs_for e
       | Cif (e, st, st')        ->
         nm_e vs_for e && nm_stmt vs_for st && nm_stmt vs_for st'
       | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
@@ -1464,6 +1476,8 @@ end = struct
 
       | Csyscall(lvs, sc, es) ->
          aeval_syscall state sc lvs es
+
+      | Cassert _ -> state
 
       | Cif(e,c1,c2) ->
         aeval_if ginstr e c1 c2 state

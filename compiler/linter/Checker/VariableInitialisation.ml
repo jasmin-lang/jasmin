@@ -54,6 +54,7 @@ let check_func fd =
     | Copn (xs, _, _, es) | Csyscall (xs, _, es) | Ccall (xs, _, es) ->
         check_lvs i_info xs;
         check_es i_info es
+    | Cassert (_, e)
     | Cif (e, _, _) -> check_e i_info e
     | Cfor (_, (_, e1, e2), _) -> check_es i_info [ e1; e2 ]
     | Cwhile (_, _, e, (_, i), _) -> check_e i e

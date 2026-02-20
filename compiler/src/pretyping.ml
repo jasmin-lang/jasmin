@@ -2137,6 +2137,10 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
 
   | S.PIAssign (ls, eqop, pe, ocp) -> env, tt_assign env env ls eqop pe ocp
 
+  | PIAssert (msg, pe) ->
+     let e  = tt_expr_bool arch_info.pd env pe in
+     env, [mk_i (P.Cassert (L.unloc msg, e))]
+
   | PIIf (cp, st, sf) ->
       let c  = tt_expr_bool arch_info.pd env cp in
       let st = tt_block arch_info env st in
@@ -2236,7 +2240,7 @@ let rec add_reserved_i env (_,i) =
      List.fold_left (fun env id -> Env.add_reserved env (L.unloc id)) env ids
   | S.PIdeclinit (_, ids) ->
       List.fold_left (fun env id -> Env.add_reserved env (L.unloc (fst (L.unloc id)))) env ids
-  | PIArrayInit _ | PIAssign _ -> env
+  | PIArrayInit _ | PIAssign _ | PIAssert _ -> env
   | PIIf(_, c, oc) -> add_reserved_oc (add_reserved_c' env c) oc
   | PIFor(_, _, c) -> add_reserved_c' env c
   | PIWhile(oc1, _, oc2) -> add_reserved_oc (add_reserved_oc env oc1) oc2

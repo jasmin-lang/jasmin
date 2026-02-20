@@ -33,6 +33,7 @@ Require Import
   propagate_inline
   slh_lowering
   remove_globals
+  remove_assert
   stack_alloc
   stack_zeroization
   tunneling
@@ -85,6 +86,7 @@ Section COMPILER.
 Variant compiler_step :=
   | Typing                      : compiler_step
   | ParamsExpansion             : compiler_step
+  | RemoveAssertion             : compiler_step
   | InsertRenaming              : compiler_step
   | WintWord                    : compiler_step
   | ArrayCopy                   : compiler_step
@@ -122,6 +124,7 @@ Definition compiler_step_list := [::
     Typing
   ; ParamsExpansion
   ; InsertRenaming
+  ; RemoveAssertion
   ; WintWord
   ; ArrayCopy
   ; AddArrInit
@@ -256,6 +259,9 @@ Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
   ok p.
 
 Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :=
+
+  let p := remove_assert_prog p in
+  let p := cparams.(print_uprog) RemoveAssertion p in
 
   Let p := wi2w_prog (wsw:=withsubword) cparams.(remove_wint_annot) cparams.(dead_vars_ufd) p in
   let p := cparams.(print_uprog) WintWord p in

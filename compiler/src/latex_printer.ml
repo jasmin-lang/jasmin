@@ -328,6 +328,8 @@ let rec pp_instr depth fmt (annot, p) =
     F.fprintf fmt "%a%a;"
       pp_expr e
       (pp_opt pp_sidecond) cnd
+  | PIAssert (msg, e) ->
+     F.fprintf fmt "%a(%a, %a)" kw "assert" pp_string (L.unloc msg) pp_expr e
   | PIIf (b, th, el) ->
     begin
     F.fprintf fmt "%a %a %a"

@@ -50,9 +50,7 @@ Section INCL.
     apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => // {c}.
     + move=> i c Hi Hc X1 c' X2 /=.
       by t_xrbindP => -[Xc cc] /Hc -> /= -[Xi ci] /Hi -> /= -> <-.
-    + by move=> * ?.
-    + by move=> * ?.
-    + by move=> * ?.
+    1-4: by move=> * ?.
     + move=> e c1 c2 Hc1 Hc2 ii X1 c' X2 /=.
       by t_xrbindP => -[Xc1 c1'] /Hc1 -> /= -[Xc2 c2'] /Hc2 -> /= <- <-.
     + move=> i dir lo hi c Hc ii X1 c0 X2 /=.
@@ -157,6 +155,9 @@ Section SUBSET.
   Local Lemma Ssyscall   : forall xs o es, Pr (Csyscall xs o es).
   Proof. by move=> ??? ii X2 Xc /= [<-]. Qed.
 
+  Local Lemma Sassert : forall a, Pr (Cassert a).
+  Proof. by move=> ? ii X2 Xc /= [<-]. Qed.
+
   Local Lemma Sif    : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
     move=> e c1 c2 Hc1 Hc2 ii X2 Xc /=.
@@ -182,19 +183,19 @@ Section SUBSET.
 
   Lemma inline_c_subset c : Pc c.
   Proof.
-    exact: (cmd_rect Smk Snil Scons Sasgn Sopn Ssyscall Sif Sfor Swhile Scall).
+    exact: (cmd_rect Smk Snil Scons Sasgn Sopn Ssyscall Sassert Sif Sfor Swhile Scall).
   Qed.
 
   Lemma inline_i_subset i : Pr i.
   Proof.
     exact:
-      (instr_r_Rect Smk Snil Scons Sasgn Sopn Ssyscall Sif Sfor Swhile Scall).
+      (instr_r_Rect Smk Snil Scons Sasgn Sopn Ssyscall Sassert Sif Sfor Swhile Scall).
   Qed.
 
   Lemma inline_i'_subset i : Pi i.
   Proof.
     exact:
-      (instr_Rect Smk Snil Scons Sasgn Sopn Ssyscall Sif Sfor Swhile Scall).
+      (instr_Rect Smk Snil Scons Sasgn Sopn Ssyscall Sassert Sif Sfor Swhile Scall).
   Qed.
 
 End SUBSET.
@@ -724,6 +725,7 @@ Proof.
   + move=> xs o es ii X1 X2 _ [? <-].
     by apply wequiv_syscall_rel_uincl with checker_st_uincl_on X1 => //=; subst X1; split => //;
       rewrite !read_writeE; SvD.fsetdec.
+  + by move=> ? ii ??? _; apply wequiv_noassert.
   + move=> e c1 c2 hc1 hc2 ii X1 X2 c_; t_xrbindP.
     move=> [X11 c1'] /hc1{}hc1 [X12 c2'] /hc2{}hc2 ? <-.
     apply wequiv_if_rel_uincl with checker_st_uincl_on X1 X2 X2 => //=; subst X1.

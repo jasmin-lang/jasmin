@@ -138,6 +138,16 @@ module type Logic =
       Jasmin.Expr.assgn_tag ->
       'asm Jasmin.Sopn.sopn ->
       Jasmin.Prog.exprs -> domain -> domain Annotation.annotation
+
+    (**
+    Function to handle assert instruction
+    *)
+    val assertion :
+      Jasmin.Location.i_loc ->
+      string ->
+      Jasmin.Prog.expr ->
+      domain -> domain Annotation.annotation
+
   end
 
 (**

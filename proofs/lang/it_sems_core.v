@@ -135,6 +135,7 @@ Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {wa: WithAssert}
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
   {scP : semCallParams}.
@@ -203,6 +204,12 @@ Definition sem_syscall (xs : lvals) (o : syscall_t) (es : pexprs)
 Definition sem_cond (gd : glob_decls) (e : pexpr) (s : estate) : exec bool :=
   (sem_pexpr true gd s e >>= to_bool)%result.
 
+Definition sem_assert (gd : glob_decls) (s : estate) (e : assertion) : exec unit :=
+  Let _ := assert (assert_allowed) ErrType in
+  Let b := sem_cond gd e.2 s in
+  Let _ := assert b (ErrAssert e.1) in
+  ok tt.
+
 Lemma sem_cond_sem_pexpr gd e s b :
   sem_cond gd e s = ok b -> sem_pexpr true gd s e = ok (Vbool b).
 Proof. rewrite /sem_cond /=; by t_xrbindP=> _ -> /to_boolI ->. Qed.
@@ -218,6 +225,9 @@ Definition sem_bound (gd : glob_decls) (lo hi : pexpr) (s : estate) :
 
 Definition isem_bound (lo hi : pexpr) (s : estate) : itree E (Z * Z) :=
   iresult s (sem_bound (p_globs p) lo hi s).
+
+Definition isem_assert (a: assertion) (s: estate) : itree E unit :=
+  iresult s (sem_assert (p_globs p) s a).
 
 (* recCall trigger *)
 Definition rec_call (ii:instr_info) (f : funname) (fs : fstate) :
@@ -287,6 +297,8 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
   | Copn xs tg o es => iresult s (sem_sopn (p_globs p) o s xs es)
 
   | Csyscall xs o es => iresult s (sem_syscall p xs o es s)
+
+  | Cassert a => isem_assert p a s;; Ret s
 
   | Cif e c1 c2 =>
     b <- isem_cond p e s;;
@@ -368,6 +380,8 @@ Fixpoint esem_i (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
 
   | Csyscall xs o es => sem_syscall p xs o es s
 
+  | Cassert a => Let _ := sem_assert (p_globs p) s a in ok s
+
   | Cif e c1 c2 =>
     Let b := sem_cond (p_globs p) e s in
     foldM (esem_i p ev) s (if b then c1 else c2)
@@ -402,6 +416,7 @@ Proof.
   + move=> > /= [<-]; reflexivity.
   + by move=> i c hi hc s s' /=; t_xrbindP => s1 /hi ->; rewrite bind_ret_l; apply hc.
   1-3: move=> > /= -> /=; reflexivity.
+  + move => a ii s s' /=; t_xrbindP; rewrite /isem_assert => -> <-; rewrite bind_ret_l; reflexivity.
   + move=> > hc1 hc2 ii s s' /=.
     rewrite /isem_cond; t_xrbindP => b -> /=.
     by rewrite bind_ret_l; case: b; [apply hc1 | apply hc2].
@@ -605,6 +620,10 @@ Proof.
   + move=> i c hi hc s; rewrite interp_bind;apply eqit_bind; first by apply hi.
     by move=> s'; apply hc.
   1-3: by move=> >; apply interp_iresult.
+  + move => a ii s /=.
+    rewrite interp_bind; apply eqit_bind.
+    + by apply interp_iresult.
+    move => ?; rewrite interp_ret; reflexivity.
   + move=> e c1 c2 hc1 hc2 ii s; rewrite /isem_i /isem_i_rec /=.
     rewrite interp_bind; apply eqit_bind.
     + by apply interp_iresult.
@@ -714,6 +733,9 @@ Proof.
     + by move=> > ? >; apply interp_cond_iresult.
     + by move=> > ? > ? > ; apply interp_cond_iresult.
     + by move=> > ? >; apply interp_cond_iresult.
+    + move=> a ii s; rewrite interp_bind; apply eutt_eq_bind'.
+      + by apply interp_cond_iresult.
+      by move=> ?; rewrite interp_ret; reflexivity.
     + move=> e c1 c2 hc1 hc2 ii s; rewrite interp_bind.
       rewrite /isem_cond interp_cond_iresult.
       by apply/eutt_eq_bind; case; [apply hc1 | apply hc2].

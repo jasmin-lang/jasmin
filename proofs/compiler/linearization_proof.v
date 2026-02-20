@@ -138,6 +138,10 @@ Section CAT.
   Proof. by []. Qed.
 
   #[ local ]
+  Lemma cat_assert : forall a, Pr (Cassert a).
+  Proof. by []. Qed.
+
+  #[ local ]
   Lemma cat_if   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
     move=> e c1 c2 Hc1 Hc2 ii fn lbl l /=.
@@ -185,7 +189,7 @@ Section CAT.
      let: (lbl, lc) := linear_i fn i lbl [::] in (lbl, lc ++ tail).
   Proof.
     exact:
-      (instr_Rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_if cat_for cat_while cat_call).
+      (instr_Rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_assert cat_if cat_for cat_while cat_call).
   Qed.
 
   Lemma linear_c_nil fn c lbl tail :
@@ -193,7 +197,7 @@ Section CAT.
      let: (lbl, lc) := linear_c (linear_i fn) c lbl [::] in (lbl, lc ++ tail).
   Proof.
     exact:
-      (cmd_rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_if cat_for cat_while cat_call).
+      (cmd_rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_assert cat_if cat_for cat_while cat_call).
   Qed.
 
 End CAT.
@@ -830,6 +834,10 @@ Section VALIDITY.
   Proof. move => ?; exact: default. Qed.
 
   #[ local ]
+  Lemma valid_labels_assert (a : assertion) : Pr (Cassert a).
+  Proof. move=> ?; exact: default. Qed.
+
+  #[ local ]
   Lemma valid_labels_if (e : pexpr) (c1 c2 : cmd) : Pc c1 → Pc c2 → Pr (Cif e c1 c2).
   Proof.
     move => hc1 hc2 ii fn lbl /=.
@@ -921,10 +929,10 @@ Section VALIDITY.
   Qed.
 
   Definition linear_has_valid_labels : ∀ c, Pc c :=
-    cmd_rect valid_labels_MkI valid_labels_nil valid_labels_cons valid_labels_assign valid_labels_opn valid_labels_syscall valid_labels_if valid_labels_for valid_labels_while valid_labels_call.
+    cmd_rect valid_labels_MkI valid_labels_nil valid_labels_cons valid_labels_assign valid_labels_opn valid_labels_syscall valid_labels_assert valid_labels_if valid_labels_for valid_labels_while valid_labels_call.
 
   Definition linear_has_valid_labels_instr : ∀ i, Pi i :=
-    instr_Rect valid_labels_MkI valid_labels_nil valid_labels_cons valid_labels_assign valid_labels_opn valid_labels_syscall valid_labels_if valid_labels_for valid_labels_while valid_labels_call.
+    instr_Rect valid_labels_MkI valid_labels_nil valid_labels_cons valid_labels_assign valid_labels_opn valid_labels_syscall valid_labels_assert valid_labels_if valid_labels_for valid_labels_while valid_labels_call.
 
 End VALIDITY.
 
@@ -987,6 +995,10 @@ Section NUMBER_OF_LABELS.
   #[ local ]
   Lemma nb_labels_syscall (xs : lvals) (o : syscall_t) (es : pexprs) : Pr (Csyscall xs o es).
   Proof. by move=> ii fn lbl /=; apply Z.le_refl. Qed.
+
+  #[ local ]
+  Lemma nb_labels_assert (a : assertion) : Pr (Cassert a).
+  Proof. by move => ii fn lbl /=; apply Z.le_refl. Qed.
 
   #[ local ]
   Lemma nb_labels_if (e : pexpr) (c1 c2 : cmd) : Pc c1 → Pc c2 → Pr (Cif e c1 c2).
@@ -1078,10 +1090,10 @@ Section NUMBER_OF_LABELS.
   Qed.
 
   Definition linear_c_nb_labels : ∀ c, Pc c :=
-    cmd_rect nb_labels_MkI nb_labels_nil nb_labels_cons nb_labels_assign nb_labels_opn nb_labels_syscall nb_labels_if nb_labels_for nb_labels_while nb_labels_call.
+    cmd_rect nb_labels_MkI nb_labels_nil nb_labels_cons nb_labels_assign nb_labels_opn nb_labels_syscall nb_labels_assert nb_labels_if nb_labels_for nb_labels_while nb_labels_call.
 
   Definition linear_i_nb_labels : ∀ i, Pi i :=
-    instr_Rect nb_labels_MkI nb_labels_nil nb_labels_cons nb_labels_assign nb_labels_opn nb_labels_syscall nb_labels_if nb_labels_for nb_labels_while nb_labels_call.
+    instr_Rect nb_labels_MkI nb_labels_nil nb_labels_cons nb_labels_assign nb_labels_opn nb_labels_syscall nb_labels_assert nb_labels_if nb_labels_for nb_labels_while nb_labels_call.
 
   Lemma linear_body_nb_labels fn fi e body :
     let: (lbl, lc) := linear_body liparams p fn fi e body in

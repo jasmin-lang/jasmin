@@ -655,6 +655,9 @@ Section PROOF.
       apply wequiv_syscall_rel_uincl with checker_st_uincl_on I => //=; subst I.
       + by split => //; rewrite read_esE; SvD.fsetdec.
       by split => //; rewrite read_esE read_rvsE; SvD.fsetdec.
+    + move=> /= a ii I c' O [hI <-].
+      apply wequiv_assert_rel_uincl with checker_st_uincl_on => //=; subst I.
+      by split => //; rewrite read_eE; SvD.fsetdec.
     + move=> e c1 c2 hc1 hc2 ii I c' O /=; t_xrbindP.
       move=> [I1 c1'] /hc1{}hc1 [I2 c2'] /hc2{}hc2 [??]; subst I c'.
       apply wequiv_if_rel_uincl with checker_st_uincl_on (read_e_rec (Sv.union I1 I2) e) O O => //=.

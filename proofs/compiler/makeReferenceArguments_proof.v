@@ -771,6 +771,9 @@ Context
       move=> ? hes ? [[??]?] /= ho [<-] /= hw.
       have [vm2 ??] := sem_syscall_update_i hes ho hw hup hsub heq.
       by exists (with_vm t vm2).
+    + move=> a ii X c' /= [<-]; rewrite !read_writeE => hsub.
+      apply wequiv_assert_rel_eq with checker_st_eq_on => //.
+      by split => //; SvD.fsetdec.
     + move=> e c1 c2 hc1 hc2 ii X c' /=; t_xrbindP.
       move=> c1' hc1' c2' hc2' <-; rewrite !read_writeE => hsub.
       apply wequiv_if_rel_eq with checker_st_eq_on X X X => //.

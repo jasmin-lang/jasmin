@@ -445,6 +445,7 @@ Proof.
   + by move=> x tg ty e ii; apply wequiv_assgn_rel_uincl with checker_wi2w tt.
   + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_wi2w tt.
   + by move=> xs o es ii; apply wequiv_syscall_rel_uincl with checker_wi2w tt.
+  + by move=> >; apply wequiv_noassert.
   + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_wi2w tt tt tt.
   + by move=> v dir lo hi c hc ii; apply wequiv_for_rel_uincl with checker_wi2w tt tt.
   + by move=> a c e ii' c' hc hc' ii; apply wequiv_while_rel_uincl with checker_wi2w tt.

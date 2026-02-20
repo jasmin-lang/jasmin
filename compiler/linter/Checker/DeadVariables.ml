@@ -31,7 +31,7 @@ let create_dv_error_instr loc =
 let has_keep_tag =
   function
   | Cassgn (_, tag, _, _) | Copn (_, tag, _, _) -> tag = AT_keep
-  | Csyscall _ | Cif _ | Cfor _ | Cwhile _ | Ccall _ -> false
+  | Csyscall _ | Cif _ | Cfor _ | Cwhile _ | Ccall _ | Cassert _ -> false
 
 let check_func func =
   let dv_errors = ref [] in

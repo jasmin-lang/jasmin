@@ -105,7 +105,7 @@ in
 
 let rec live_ranges_instr_r d_acc =
   function
-  | (Cassgn _ | Copn _ | Csyscall _ | Ccall _) -> d_acc
+  | (Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _) -> d_acc
   | Cif (_, s1, s2)
   | Cwhile (_, s1, _, _, s2) ->
      let d_acc = live_ranges_stmt d_acc s1 in
@@ -201,6 +201,7 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
     try match i.i_desc with
     | Cassgn(x,_,_,e) -> add_lv x; add_e e
     | Copn(xs,_,_,es) | Csyscall(xs,_,es) -> add_lvs xs; add_es es
+    | Cassert (_, e) -> add_e e
     | Cif(e, _, _) | Cwhile (_, _, e, _, _) -> add_e e
     | Cfor _ -> assert false
     | Ccall(xs, fn, es) ->

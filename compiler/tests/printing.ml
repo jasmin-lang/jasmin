@@ -130,6 +130,7 @@ and eq_pinstr_r (x : _ pinstr_r) y =
       eq_plval a e && b = f && eq_pty c g && eq_pexpr d h
   | Copn (a, b, c, d), Copn (e, f, g, h) ->
       eq_plvals a e && b = f && c = g && eq_pexprs d h
+  | Cassert (a, b), Cassert (c, d) -> a = c && eq_pexpr b d
   | Csyscall (a, b, c), Csyscall (d, e, f) ->
       eq_plvals a d && b = e && eq_pexprs c f
   | Cif (a, b, c), Cif (d, e, f) -> eq_pexpr a d && eq_pstmt b e && eq_pstmt c f
@@ -139,7 +140,9 @@ and eq_pinstr_r (x : _ pinstr_r) y =
       a = f && eq_pstmt b g && eq_pexpr c h && eq_pstmt e j
   | Ccall (a, b, c), Ccall (d, e, f) ->
       eq_plvals a d && b.fn_name = e.fn_name && eq_pexprs c f
-  | (Cassgn _ | Copn _ | Csyscall _ | Cif _ | Cfor _ | Cwhile _ | Ccall _), _ ->
+  | ( ( Cassgn _ | Copn _ | Csyscall _ | Cassert _ | Cif _ | Cfor _ | Cwhile _
+      | Ccall _ ),
+      _ ) ->
       false
 
 let eq_f_annot x y =

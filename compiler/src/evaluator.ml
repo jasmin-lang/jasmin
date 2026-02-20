@@ -23,6 +23,7 @@ let pp_error fmt err =
   | ErrType  -> "type error"
   | ErrArith -> "arithmetic error"
   | ErrSemUndef -> "undefined semantics"
+  | ErrAssert _ -> "assertion violation"
 
 let exn_exec (ii:instr_info) (r: 't exec) = 
   match r with
@@ -108,6 +109,12 @@ let small_step1 ep spp sip s =
         exn_exec ii (syscall_sem__ sip._sc_sem ep._pd s1.escs s1.emem o ves) in
       let s2 = exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
       { s with s_cmd = c; s_estate = s2 }
+
+    | Cassert (p,a) ->
+      let v = exn_exec ii (sem_pexpr nosubword ep spp true gd s1 a) in
+      let b = of_val_b ii v in
+      if not b then raise (Eval_error(ii, ErrAssert p));
+      { s with s_cmd = c }
 
     | Cif(e,c1,c2) ->
       let b = of_val_b ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 e)) in

@@ -30,6 +30,7 @@ with i_Calls_r (i : instr_r) {struct i} : Sf.t :=
   | Cassgn _ _ _ _
   | Copn   _ _ _ _
   | Csyscall _ _ _
+  | Cassert _
     => Sf.empty
   | Cif    _  c1 c2   => Sf.union (c_Calls c1) (c_Calls c2)
   | Cfor   _  _  c1   => c_Calls c1
@@ -98,14 +99,12 @@ Lemma c_callsE c i : Sf.Equal (c_calls c i) (Sf.union c (c_Calls i)).
 Proof.
 move: c.
 apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /=
-  [ i0 ii Hi | | i0 c0 Hi Hc | x t ty e | xs t o es | xs o es | e c1 c2 Hc1 Hc2
+  [ i0 ii Hi | | i0 c0 Hi Hc | x t ty e | xs t o es | xs o es | a | e c1 c2 Hc1 Hc2
     | v dir lo hi c0 Hc | a c0 e ei c' Hc Hc' | ii xs f es ] c /=.
 + by apply Hi.
 + rewrite CallsE; SfD.fsetdec.
 + rewrite CallsE Hc Hi; SfD.fsetdec.
-+ SfD.fsetdec.
-+ SfD.fsetdec.
-+ SfD.fsetdec.
+1-4: SfD.fsetdec.
 + rewrite /i_calls_r  -/(foldl _ _) -/(foldl _ _) -/(c_calls _ _) -/(c_calls _ _)
     Hc2 Hc1 -/(c_Calls _) -/(c_Calls _); SfD.fsetdec.
 + by apply Hc.
@@ -388,6 +387,7 @@ Section PROOF.
     + by move=> > _; apply wequiv_assgn_rel_eq with checker_st_eq tt.
     + by move=> > _; apply wequiv_opn_rel_eq with checker_st_eq tt.
     + by move=> > _; apply wequiv_syscall_rel_eq with checker_st_eq tt.
+    + by move=> > _; apply wequiv_assert_rel_eq with checker_st_eq.
     + move=> > hc1 hc2 ii; rewrite !CallsE => /def_incl_union [??].
       apply wequiv_if_rel_eq with checker_st_eq tt tt tt => //.
       + by apply hc1.

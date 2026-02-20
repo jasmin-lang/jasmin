@@ -337,6 +337,7 @@ Proof.
   + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
   + move=> xs sc es ii; apply wequiv_syscall_rel_uincl_core with checker_st_uincl tt => //.
     by apply fs_uincl_syscall.
+  + by move=> >; apply wequiv_noassert.
   + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
   + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
   + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.

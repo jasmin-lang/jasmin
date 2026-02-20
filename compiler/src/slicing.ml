@@ -33,6 +33,7 @@ and inspect_instr_r k = function
   | Cassgn (x, _, _, e) -> inspect_lv (inspect_e k e) x
   | Copn (xs, _, _, es) | Csyscall (xs, _, es) ->
       inspect_lvs (inspect_es k es) xs
+  | Cassert (_, e) -> inspect_e k e
   | Cif (g, a, b) | Cwhile (_, a, g, _, b) ->
       inspect_stmt (inspect_stmt (inspect_e k g) a) b
   | Cfor (_, (_, e1, e2), s) -> inspect_stmt (inspect_es k [ e1; e2 ]) s

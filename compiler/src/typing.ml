@@ -194,6 +194,9 @@ let rec check_instr pd msfsz asmOp env i =
     check_exprs pd loc es tins;
     check_lvals pd loc xs tout
 
+  | Cassert(_p, a) ->
+    check_expr pd loc a tbool
+
   | Cif(e,c1,c2) ->
     check_expr pd loc e tbool;
     check_cmd pd msfsz asmOp env c1;

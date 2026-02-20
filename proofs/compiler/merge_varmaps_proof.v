@@ -174,6 +174,7 @@ Section LEMMA.
     - by move => x tg ty e s; rewrite /write_i /write_i_rec -vrv_recE.
     - by move => xs tg op es s; rewrite /write_i /write_i_rec -vrvs_recE.
     - by move => xs op es s; rewrite /write_i /write_i_rec !vrvs_recE; SvD.fsetdec.
+    - by move=> a s; rewrite /write_i /write_i_rec; SvD.fsetdec.
     - by move => e c1 c2 h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
     - by move => v d lo hi body h s; rewrite /write_i /write_i_rec -!/write_c_rec !h; SvD.fsetdec.
     - by move => a c1 e ei c2  h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.

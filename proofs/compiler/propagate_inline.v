@@ -172,7 +172,11 @@ Fixpoint pi_i (pi:pimap) (i:instr) :=
     let (pi, xs) := pi_lvs pi xs in
     ok (pi, MkI ii (Csyscall xs o es))
 
-  | Cif e c1 c2 => 
+  | Cassert (msg, e) =>
+    let e := pi_e pi e in
+    ok (pi, MkI ii (Cassert (msg, e)))
+
+  | Cif e c1 c2 =>
     let e := pi_e pi e in
     Let pic1 := pi_c pi_i pi c1 in
     Let pic2 := pi_c pi_i pi c2 in

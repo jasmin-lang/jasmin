@@ -1,0 +1,11 @@
+export fn safe() { assert("", true); }
+
+export fn repeated_ifs(reg u32 x y) {
+  reg u32 z = 0;
+  if x < y {
+    z = 1;
+  }
+  if x < y {
+    assert("again", z == 1);
+  }
+}

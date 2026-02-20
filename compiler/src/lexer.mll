@@ -63,6 +63,7 @@
     "from"  , FROM   ;
     "global", GLOBAL ;
     "if"    , IF     ;
+    "assert", ASSERT ;
     "inline", INLINE ;
     "mut"   , MUTABLE;
     "namespace", NAMESPACE;

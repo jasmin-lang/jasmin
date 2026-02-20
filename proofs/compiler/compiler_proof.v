@@ -25,6 +25,7 @@ Require Import
   dead_code_proof
   array_expansion
   array_expansion_proof
+  remove_assert_proof
   remove_globals_proof
   stack_alloc_proof_2
   tunneling_proof
@@ -315,7 +316,8 @@ Lemma compiler_first_partP entries (p: prog) (p': uprog) scs m fn va scs' m' vr 
     List.Forall2 value_uincl vr vr' &
     sem_call (dc:=direct_c) p' tt scs m fn va scs' m' vr'.
 Proof.
-  rewrite /compiler_first_part; t_xrbindP => paw ok_paw pa0.
+  rewrite /compiler_first_part; t_xrbindP => paw.
+  rewrite print_uprogP => ok_paw pa0.
   rewrite !print_uprogP => ok_pa0 pb.
   rewrite print_uprogP => ok_pb pa ok_pa pc ok_pc ok_puc ok_puc'.
   rewrite !print_uprogP => pd ok_pd.
@@ -379,6 +381,8 @@ Proof.
     exact.
   apply: compose_pass_uincl'.
   + by move=> vr'; apply: wi2w_progP; apply ok_paw.
+  apply: compose_pass.
+  + move => vr'; exact: remove_assert_progP.
   apply: compose_pass; first by move => vr'; exact: psem_call_u.
   exists vr => //.
   exact: values_uincl_refl.

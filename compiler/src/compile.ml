@@ -50,7 +50,7 @@ let rec warn_extra_i pd msfsize asmOp i =
   | Cfor _ ->
       hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
         "for loop remains"
-  | Ccall _ | Csyscall _ -> ()
+  | Ccall _ | Csyscall _ | Cassert _ -> ()
 
 let warn_extra_fd pd msfsize asmOp (_, fd) = List.iter (warn_extra_i pd msfsize asmOp) fd.f_body
 

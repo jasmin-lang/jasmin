@@ -1,0 +1,10 @@
+export fn noop() {
+  assert("trivial", true);
+}
+
+export fn checked(reg u32 a) -> reg u32 {
+  if a < 100 {
+    assert("basic math", a < 100);
+  }
+  return a;
+}
