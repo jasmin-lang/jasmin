@@ -306,6 +306,7 @@ Proof.
     by apply hu.
   + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
   + by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with checker_st_uincl tt.
+  + by move=> a ii; apply wequiv_assert_rel_uincl with checker_st_uincl.
   + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
   + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
   + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
@@ -728,7 +729,7 @@ Proof.
    apply wequiv_cat with (cmpl_inv I').
    + by have /= := hi I; rewrite heqi.
    by have /= := hc I'; rewrite heqc.
- 1-3, 5-7: by move=> * ii I; apply/it_aux.
+ 1-4, 6-8: by move=> * ii I; apply/it_aux.
  move=> e c1 c2 hc1 hc2 ii I /=.
  case heq1 : add_init_c => [c1' I1].
  case heq2 : add_init_c => [c2' I2] /=.

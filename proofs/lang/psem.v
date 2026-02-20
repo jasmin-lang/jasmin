@@ -370,6 +370,7 @@ Lemma sem_iE s i s' :
     [/\ sem_pexprs true gd s es = ok ves,
         exec_syscall s.(escs) s.(emem) o ves = ok (scs, m, vs) &
         write_lvals true gd (with_scs (with_mem s m) scs) xs vs = ok s']
+  | Cassert _ => False
   | Cif e th el =>
     ∃ b, sem_pexpr true gd s e = ok (Vbool b) ∧ sem s (if b then th else el) s'
   | Cfor i (d, lo, hi) c =>
@@ -647,6 +648,7 @@ Proof.
   + by move=> >;apply wequiv_assgn_rel_eq with checker_st_eq tt.
   + by move=> >; apply wequiv_opn_rel_eq with checker_st_eq tt.
   + by move=> >; apply wequiv_syscall_rel_eq with checker_st_eq tt.
+  + by move=> a ii; apply wequiv_assert_rel_eq with checker_st_eq.
   + by move=> > hc1 hc2 ii; apply wequiv_if_rel_eq with checker_st_eq tt tt tt.
   + by move=> > hc ii; apply wequiv_for_rel_eq with checker_st_eq tt tt.
   + by move=> > hc hc' ii; apply wequiv_while_rel_eq with checker_st_eq tt.
@@ -1061,6 +1063,8 @@ Proof.
     by apply wequiv_opn_rel_eq with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
   + move=> xs sc es ii X. rewrite read_i_syscall => hsub.
     by apply wequiv_syscall_rel_eq with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
+  + move=> a ii X; rewrite read_i_assert => hsub.
+    by apply wequiv_assert_rel_eq with checker_st_eq_on => //; split.
   + move=> e c1 c2 hc1 hc2 ii X. rewrite read_i_if => hsub.
     apply wequiv_if_rel_eq with checker_st_eq_on X X X => //.
     + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
@@ -1506,6 +1510,7 @@ Proof.
   + by move=> x tg ty e ii; apply wequiv_assgn_rel_uincl with checker_st_uincl tt.
   + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
   + by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with checker_st_uincl tt.
+  + by move=> a ii; apply wequiv_assert_rel_uincl with checker_st_uincl.
   + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
   + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
   + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
@@ -1765,6 +1770,7 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {wsw1 wsw2 wsw3 : WithSubWord}
+  {wa1 wa2 wa3 : WithAssert}
   {scP1 : semCallParams (wsw := wsw1) (pT := pT1)}
   {scP2 : semCallParams (wsw := wsw2) (pT := pT2)}
   {scP3 : semCallParams (wsw := wsw3) (pT := pT3)}
@@ -1791,6 +1797,7 @@ Context
 Let wiequiv_f_trans' :=
   wiequiv_f_trans
     (wsw1 := wsw1) (wsw2 := wsw2) (wsw3 := wsw3)
+    (wa1 := wa1) (wa2 := wa2) (wa3 := wa3)
     (scP1 := scP1) (scP2 := scP2) (scP3 := scP3)
     (dc1 := dc1) (dc2 := dc2) (dc3 := dc3)
     (p1 := p1) (p2 := p2) (p3 := p3)

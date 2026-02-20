@@ -23,6 +23,7 @@
 %token ALIGNED
 %token AMP
 %token AMPAMP
+%token ASSERT
 %token BANG
 %token BANGEQ
 %token COLON
@@ -380,6 +381,9 @@ pinstr_r:
     c=prefix(IF, pexpr)? SEMICOLON
     { let { Location.pl_loc = loc; Location.pl_desc = (f, args) } = fc in
       PIAssign ((None, []), `Raw, Location.mk_loc loc (PECall (f, args)), c) }
+
+| ASSERT LPAREN msg=loc(STRING) COMMA e=pexpr RPAREN SEMICOLON
+    { PIAssert(msg, e) }
 
 | s=pif { s }
 

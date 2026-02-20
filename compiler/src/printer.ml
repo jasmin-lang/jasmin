@@ -175,6 +175,11 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
       F.fprintf fmt "@[<hov 2>%a%s(%a);@]"
         (pp_glvs ~debug pp_len pp_var) x (pp_syscall o) (pp_ges ~debug pp_len pp_var) e
 
+  | Cassert(msg, e) ->
+    F.fprintf fmt "@[<hov 2>assert(\"%a\", %a);@]"
+      pp_escape_string msg
+     (pp_ge ~debug pp_len pp_var) e
+
   | Cif(e, c, []) ->
     F.fprintf fmt "@[<v>if %a %a@]"
       (pp_ge ~debug pp_len pp_var) e (pp_cblock ~debug pp_info pp_len pp_opn pp_var) c

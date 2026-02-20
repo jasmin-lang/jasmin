@@ -38,3 +38,7 @@ inline fn mem1() -> reg u32 {
 
   return r;
 }
+
+inline fn test_assert(reg bool x) {
+  assert("label", x);
+}

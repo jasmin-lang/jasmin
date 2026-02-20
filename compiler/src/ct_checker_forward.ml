@@ -561,6 +561,9 @@ let rec ty_instr is_ct_asm fenv env i =
     let env, _ = ty_exprs_max ~public:true env es in
     ty_lvals1 env xs (declassify_lvl ~loc i.i_annot Secret)
 
+  (* We ignore the contents of assertion *)
+  | Cassert _ -> env
+
   | Cif(e, c1, c2) ->
     let env, _ = ty_expr ~public:true env e in
     let env1 = ty_cmd is_ct_asm fenv env c1 in

@@ -1329,6 +1329,7 @@ let rec is_write_i x i =
     is_write_lv x lv
   | Copn(lvs,_,_,_) | Ccall(lvs, _, _) | Csyscall(lvs,_,_) ->
     is_write_lvs x lvs
+  | Cassert _ -> false
   | Cif(_, c1, c2) | Cwhile(_, c1, _, _, c2) ->
     is_write_c x c1 || is_write_c x c2
   | Cfor(x',_,c) ->
@@ -1339,7 +1340,7 @@ and is_write_c x c = List.exists (is_write_i x) c
 let rec remove_for_i i =
   let i_desc =
     match i.i_desc with
-    | Cassgn _ | Copn _ | Ccall _ | Csyscall _ -> i.i_desc
+    | Cassgn _ | Copn _ | Ccall _ | Csyscall _ | Cassert _ -> i.i_desc
     | Cif(e, c1, c2) -> Cif(e, remove_for c1, remove_for c2)
     | Cwhile(a, c1, e, loc, c2) -> Cwhile(a, remove_for c1, e, loc, remove_for c2)
     | Cfor(j,r,c) ->
@@ -1850,6 +1851,7 @@ struct
           let args = List.map (toec_cast env) (List.combine itys es) in
           (ec_leaks_es env es) @
           (ec_pcall env lvs [] otys [ec_syscall env o] args)
+      | Cassert _a -> [(* TODO *)]
       | Cif (e, c1, c2) ->
           let c1 env = toec_cmd asmOp env c1 in
           let c2 env = toec_cmd asmOp env c2 in
@@ -2048,7 +2050,7 @@ and used_func_c used c =
 
 and used_func_i used i =
   match i.i_desc with
-  | Cassgn _ | Copn _ | Csyscall _ -> used
+  | Cassgn _ | Copn _ | Csyscall _ | Cassert _ -> used
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
   | Cfor(_,_,c)       -> used_func_c used c
   | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2

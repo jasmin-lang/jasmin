@@ -86,6 +86,8 @@ end = struct
       Cassgn (mk_lval fn lv, tag, ty, mk_expr fn e)
     | Copn (lvls, tag, opn, exprs) ->
       Copn (mk_lvals fn lvls, tag, opn, mk_exprs fn exprs)
+    | Cassert (msg, e) ->
+       Cassert (msg, mk_expr fn e)
     | Csyscall (lvls, o, exprs) ->
         Csyscall(mk_lvals fn lvls, o, mk_exprs fn exprs)
     | Cif (e, st, st') ->
@@ -357,6 +359,8 @@ end = struct
           | _ -> assert false
       else None
 
+    | Cassert _ -> None
+
     | Cif (_, c1, c2) ->
       begin match pa_flag_setfrom v c1, pa_flag_setfrom v c2 with
         | None, None -> None
@@ -379,6 +383,8 @@ end = struct
 
     | Copn (lvs, _, _, es) | Csyscall(lvs, _, es) -> List.fold_left (fun st lv ->
         List.fold_left (fun st e -> pa_lv st lv e) st es) st lvs
+
+    | Cassert _ -> st
 
     | Cif (b, c1, c2) ->
       let vs,st = expr_vars st b in
@@ -547,6 +553,7 @@ end = struct
       let sv = collect_vars_lv sv lv in
       collect_vars_e sv e
     | Ccall _ -> raise Fcall
+    | Cassert (_, e) ->  collect_vars_e sv e
 
   and collect_vars_is sv is = List.fold_left collect_vars_i sv is
 

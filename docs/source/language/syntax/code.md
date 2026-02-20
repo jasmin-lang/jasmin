@@ -10,6 +10,7 @@ Jasmin code comprises the following constructs:
 <instr> ::=
   | <instr_assign>
   | <instr_intrinsic>
+  | <instr_assert>
   | <instr_conditional>
   | <instr_while>
   | <instr_for>
@@ -107,6 +108,19 @@ function name.
 The list of available architecture-specific instructions can be seen using
 `$ jasminc -help-intrinsics`.
 
+
+## Assertions
+
+```
+<instr_assert> ::=
+  | assert("label", <expr>);
+```
+
+Assertions do nothing, provided their argument evaluates properly to `true`.
+They can be used in the [reference
+interpreter](../../tools/reference_interpreter). The compiler erases the
+assertions in an early pass (soon after type-checking): they do not contribute
+to any code in the target assembly program.
 
 ## Conditionals
 

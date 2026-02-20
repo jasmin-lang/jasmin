@@ -381,6 +381,7 @@ Section WITH_PARAMS.
       - by move => x tg ty e ii; apply wequiv_assgn_rel_uincl with checker_st_uincl tt.
       - by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
       - by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with checker_st_uincl tt.
+      - by move=> a ii; apply wequiv_assert_rel_uincl with checker_st_uincl.
       - by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
       - by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
       - by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.

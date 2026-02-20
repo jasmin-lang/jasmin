@@ -2015,6 +2015,8 @@ Opaque esem.
     rewrite /disj_fvars vars_I_syscall => /disjoint_union [hdisjx hdisje].
     apply (wequiv_syscall_rel_eq (sip:=sip)) with
        checker_st_eq_ex fvars => //.
+  (* Assert *)
+  + by move=> ? ii _; apply wequiv_noassert with (ev1:=ev) (ii:=ii).
   (* If *)
   + move=> e c1 c2 hc1 hc2 ii /disj_fvars_vars_I_Cif [hfve /hc1{}hc1 /hc2{}hc2] /=.
     case heq: lower_condition => [pre e'].

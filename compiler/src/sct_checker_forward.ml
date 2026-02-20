@@ -159,6 +159,7 @@ let rec modmsf_i fenv i =
       let r = modmsf_c fenv c0 in
       if is_Modified r then r else modmsf_c fenv c1
     else modified_here
+  | Cassert _
   | Cassgn _ -> NotModified
   | Copn (_, _, o, _) ->
     begin match is_special o with
@@ -266,6 +267,8 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
         error ~loc "syscalls destroy msf variables, %a are required" pp_vset ms;
       (* withcheck => is_empty ms *)
       ms
+
+  | Cassert _ -> ms
 
   | Cif (_, c1, c2) ->
     let ms1 = infer_msf_c ~withcheck fenv tbl c1 ms in
@@ -1014,6 +1017,8 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
       let ety = ty_exprs_max ~public env venv loc es in
       ty_lvals1 env msf_e xs (declassify_ty ~loc:i.i_loc env i.i_annot ety)
     end
+
+  | Cassert _ -> msf_e
 
   | Cif(e, c1, c2) ->
     let msf1, msf2 =

@@ -261,6 +261,7 @@ Module INCL. Section INCL.
     + by move=> >; apply wequiv_assgn_rel_eq with checker_equal tt.
     + by move=> >; apply wequiv_opn_rel_eq with checker_equal tt.
     + by move=> >; apply wequiv_syscall_rel_eq with checker_equal tt.
+    + by move=> a ii; apply wequiv_assert_rel_eq with checker_equal.
     + by move=> > hc1 hc2 ii; apply wequiv_if_rel_eq with checker_equal tt tt tt.
     + by move=> > hc ii; apply wequiv_for_rel_eq with checker_equal tt tt.
     + by move=> > hc hc' ii; apply wequiv_while_rel_eq with checker_equal tt.
@@ -346,6 +347,9 @@ Section PROOFS.
   Local Lemma Hsyscall : forall xs o es, Pr (Csyscall xs o es).
   Proof. by move=> xs o es ii gd1 gd2 /= [<-]. Qed.
 
+  Local Lemma Hassert : forall a, Pr (Cassert a).
+  Proof. by move=> a ii gd1 gd2 /= [<-]. Qed.
+
   Local Lemma Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
     move=> e c1 c2 hc1 hc2 ii gd1 gd2 /=.
@@ -368,7 +372,7 @@ Section PROOFS.
     foldM (extend_glob_i fresh_id) gd1 c = ok gd2 ->
     gd_incl gd1 gd2.
   Proof.
-    exact: (cmd_rect Hmk Hnil Hcons Hasgn Hopn Hsyscall Hif Hfor Hwhile Hcall).
+    exact: (cmd_rect Hmk Hnil Hcons Hasgn Hopn Hsyscall Hassert Hif Hfor Hwhile Hcall).
   Qed.
 
 End PROOFS.
@@ -1149,6 +1153,9 @@ Module RGP. Section PROOFS.
       apply wequiv_syscall_rel_uincl_core_R with (checker_valid ii) d d => //.
       + by move=> > []. + by move=> > [?????].
       exact: fs_uincl_syscall.
+    + move=> a ii d dc_ /=; rewrite /sndM; t_xrbindP => _ e he <- <-.
+      apply wequiv_assert_rel_uincl with (checker_valid ii) => //.
+      by split => //=; rewrite he.
     + move=> e c1 c2 hc1 hc2 ii d dc_ /=; t_xrbindP.
       move=> e' he' dc1 /hc1{}hc1 dc2 /hc2{}hc2 <- /=.
       apply wequiv_if_rel_uincl_R with (checker_valid ii) d dc1.1 dc2.1 => //.

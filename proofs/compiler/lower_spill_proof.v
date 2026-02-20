@@ -784,6 +784,9 @@ Proof.
     apply wequiv_syscall_rel_eq with (checker_st_ve S) env => //.
     + by split => //; SvD.fsetdec.
     split => //; SvD.fsetdec.
+  + move=> a ii env env' c' [<- <-]; rewrite vars_I_assert => hsub.
+    apply wequiv_assert_rel_eq with (checker_st_ve S) => //.
+    by split => //; SvD.fsetdec.
   + move=> e c1 c2 hc1 hc2 ii env env' c' /=; t_xrbindP.
     move=> [env1 c1'] hc1' [env2 c2'] hc2' <- <-.
     rewrite vars_I_if => hsub.

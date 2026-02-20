@@ -251,6 +251,7 @@ type pinstr_r =
       (** ArrayInit(x); *)
   | PIAssign    of plvals * peqop * pexpr * pexpr option
       (** x, y += z >> 4 if c; *)
+  | PIAssert    of pident * pexpr
   | PIIf        of pexpr * pblock * pblock option
       (** if e { … } else { … } *)
   | PIFor       of pident * (fordir * pexpr * pexpr) * pblock

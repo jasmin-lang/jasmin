@@ -252,6 +252,7 @@ let rec analyze_instr_r params cc a =
     | None -> a 
     | Some l -> link_array_return params a xs es l
     end
+  | Cassert _ -> a
   | Cif(_, s1, s2) ->
      let a1 = analyze_stmt params cc a s1 |> normalize_map in
      let a2 = analyze_stmt params cc a s2 |> normalize_map in

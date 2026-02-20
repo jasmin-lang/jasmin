@@ -868,6 +868,8 @@ Section PROOF.
         by apply/valid_pi_with_scs/valid_pi_remove_m.
       + by rewrite /check_lvals /= /check_lvals_pi heq.
       by apply fs_uincl_syscall.
+    + case => msg e ii d _ /ok_inj<-.
+      by apply wequiv_assert_rel_uincl with checker_pi.
     + move=> e c1 c2 hc1 hc2 ii d di /=; t_xrbindP => di1 /hc1{}hc1 di2 /hc2{}hc2 <- /=.
       apply wequiv_if_rel_uincl_R with checker_pi d di1.1 di2.1 => //.
       + by apply/st_pi_incl/incl_merge_l.

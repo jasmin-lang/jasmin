@@ -93,6 +93,7 @@ Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {wa: WithAssert}
   {asm_op: Type}
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
@@ -540,9 +541,35 @@ Proof.
   move=> s hP; apply (ho s hP _ ht).
 Qed.
 
+Lemma hoare_assert (P Q : Pred_c) Qerr ii a :
+  (forall s e, P s -> Qerr e -> rInvErr s e) ->
+  rhoare P (fun s => sem_assert (p_globs p) s a) PredT Qerr ->
+  (forall s, P s -> sem_assert (p_globs p) s a = ok tt -> Q s) ->
+  hoare P [:: MkI ii (Cassert a)] Q.
+Proof.
+  move=> herr he ha ; rewrite /hoare /isem_cmd_ /=.
+  apply khoare_bind with Q; last by apply khoare_ret.
+  apply  khoare_ioP.
+  move => s0 hpre.
+  apply khoare_read with (R:= (fun _ => P s0 /\ sem_assert (p_globs p) s0 a = ok tt)).
+  + rewrite /isem_assert.
+    apply khoare_iresult with (Qerr).
+    + move => s e h; subst.
+      exact: (herr _ _ hpre).
+    move => s hpre';subst.
+    have := he s0 hpre.
+    case (sem_assert (p_globs p) s0 a).
+    + by move => [] ?.
+    done.
+    move => _ [] _ has.
+    apply khoare_ret.
+    move => s heq;subst.
+    by apply: ha.
+Qed.
+
 Lemma hoare_if_full P Q Qerr ii e c c' :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
-  rhoare P (sem_cond (p_globs p) e) (fun _ => True) Qerr ->
+  rhoare P (sem_cond (p_globs p) e) PredT Qerr ->
   (forall b,
      hoare (fun s => P s /\ sem_cond (p_globs p) e s = ok b) (if b then c else c') Q) ->
   hoare P [:: MkI ii (Cif e c c')] Q.
@@ -590,7 +617,7 @@ Qed.
 
 Lemma hoare_for P Pi Qerr ii i d lo hi c :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
-  rhoare P (sem_bound (p_globs p) lo hi) (fun _ => True) Qerr ->
+  rhoare P (sem_bound (p_globs p) lo hi) PredT Qerr ->
   (forall (j:Z), rhoare P (write_var true i (Vint j)) Pi Qerr) ->
   hoare Pi c P ->
   hoare P [:: MkI ii (Cfor i (d, lo, hi) c)] P.
@@ -602,7 +629,7 @@ Qed.
 Lemma hoare_while_full I I' Qerr ii al e inf c c' :
   (forall s e, I' s -> Qerr e -> rInvErr s e) ->
   hoare I c I' ->
-  rhoare I' (sem_cond (p_globs p) e) (fun _ => True) Qerr  ->
+  rhoare I' (sem_cond (p_globs p) e) PredT Qerr  ->
   hoare (fun s => I' s /\ sem_cond (p_globs p) e s = ok true) c' I ->
   hoare I [:: MkI ii (Cwhile al c e inf c')]
      (fun s => I' s /\ sem_cond (p_globs p) e s = ok false).
@@ -627,7 +654,7 @@ Qed.
 Lemma hoare_while I I' Qerr ii al e inf c c' :
   (forall s e, I' s -> Qerr e -> rInvErr s e) ->
   hoare I c I' ->
-  rhoare I' (sem_cond (p_globs p) e) (fun _ => True) Qerr  ->
+  rhoare I' (sem_cond (p_globs p) e) PredT Qerr  ->
   hoare I' c' I ->
   hoare I [:: MkI ii (Cwhile al c e inf c')] I'.
 Proof.
@@ -790,7 +817,7 @@ End HOARE_FUN.
 
 (* Weak version of hoare logic where the post condition on errors is True *)
 Definition invErrT : InvErr :=
-  {| invErr_ := fun=> True |}.
+  {| invErr_ := PredT |}.
 
 Notation whoare := (hoare (iEr := invErrT)).
 Notation whoare_f := (hoare_f_ii (iEr := invErrT)).
@@ -823,6 +850,12 @@ Lemma whoare_syscall Rv Ro P Q ii xs sc es :
      rhoare P (upd_estate true (p_globs p) xs fs) Q PredT) ->
   whoare p ev P [:: MkI ii (Csyscall xs sc es)] Q.
 Proof. by apply hoare_syscall. Qed.
+
+Lemma whoare_assert (P Q : Pred_c) ii a :
+  rhoare P (fun s => sem_assert (p_globs p) s a) PredT PredT ->
+  (forall s, P s -> sem_assert (p_globs p) s a = ok tt -> Q s) ->
+  whoare p ev P [:: MkI ii (Cassert a)] Q.
+Proof. by apply hoare_assert. Qed.
 
 Lemma whoare_if_full P Q ii e c c' :
   rhoare P (sem_cond (p_globs p) e) (fun _ => True) PredT ->
@@ -937,6 +970,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {asm_op: Type}
+  {wa: WithAssert}
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
   {wsw : WithSubWord}
@@ -988,6 +1022,9 @@ Proof.
     apply whoare_syscall with PredT PredT; try auto using rhoare_true.
     move=> v _; apply wrhoareP => s s' <-.
     by rewrite write_Ii write_i_syscall => /vrvsP /=.
+  + move => a ii s0.
+    apply whoare_assert; try auto using rhoare_true.
+    move=> ? -> ? //=.
   + move=> e c1 c2 hc1 hc2 ii s0.
     apply whoare_if; first by auto using rhoare_true.
     move=> b; rewrite write_Ii.

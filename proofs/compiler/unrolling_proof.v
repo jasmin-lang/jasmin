@@ -252,6 +252,7 @@ Section PROOF.
     + by move=> ????? /=; apply wequiv_assgn_rel_eq with checker_st_eq tt.
     + by move=> ????? /=; apply wequiv_opn_rel_eq with checker_st_eq tt.
     + by move=> ???? /=; apply wequiv_syscall_rel_eq with checker_st_eq tt.
+    + by move=> ?? /=; apply wequiv_assert_rel_eq with checker_st_eq.
     + by move=> > ??? /=; surjpairing; apply wequiv_if_rel_eq with checker_st_eq tt tt tt.
     + move=> i d lo hi c hc ii /=; surjpairing.
       case: is_constP => [{}lo | {}lo]; last by apply wequiv_for_rel_eq with checker_st_eq tt tt.

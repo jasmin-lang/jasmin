@@ -2383,6 +2383,9 @@ Proof.
   by apply wfr_VARS_STATUS_merge.
 Qed.
 
+Local Lemma Wassert a: Pi_r (Cassert a).
+Proof. done. Qed.
+
 Local Lemma Wif e c1 c2: Pc c1 -> Pc c2 -> Pi_r (Cif e c1 c2).
 Proof.
   move=> Hc1 Hc2 table1 rmap1 table2 rmap2 ii c /=.
@@ -2456,7 +2459,7 @@ Lemma alloc_i_invariant table1 rmap1 i table2 rmap2 c2 :
   wf_table_vars table1 rmap1 ->
   wf_table_vars table2 rmap2 /\ Sv.Subset table1.(vars) table2.(vars).
 Proof.
-  exact: (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wif Wfor Wwhile Wcall).
+  exact: (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wassert Wif Wfor Wwhile Wcall).
 Qed.
 
 Lemma alloc_is_invariant table1 rmap1 c1 table2 rmap2 c2 :
@@ -2464,7 +2467,7 @@ Lemma alloc_is_invariant table1 rmap1 c1 table2 rmap2 c2 :
   wf_table_vars table1 rmap1 ->
   wf_table_vars table2 rmap2 /\ Sv.Subset table1.(vars) table2.(vars).
 Proof.
-  exact: (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wif Wfor Wwhile Wcall).
+  exact: (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wassert Wif Wfor Wwhile Wcall).
 Qed.
 
 End SYNTACTIC_INVARIANTS.

@@ -42,13 +42,14 @@ let vars_i = function
   | Cassgn (x, _, _, e) -> Sv.union (vars_lv x) (vars_e e)
   | Copn (xs, _, _, es) | Csyscall (xs, _, es) | Ccall (xs, _, es) ->
       List.fold Sv.union (vars_es es) (List.map vars_lv xs)
+  | Cassert (_, e) -> vars_e e
   | Cfor _ | Cif _ | Cwhile _ -> assert false
 
 let rec spill_all_i strategy i =
   let wrap i_desc = { i with i_desc; i_annot = [] } in
   let op o xs = xs |> spillable strategy |> mk_spill o |> wrap in
   match i.i_desc with
-  | Cassgn _ | Copn _ | Csyscall _ | Ccall _ ->
+  | Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _ ->
       [ op Unspill (vars_i i.i_desc); i; op Spill (assigns i.i_desc) ]
   | Cif (e, c1, c2) ->
       [

@@ -364,6 +364,7 @@ Proof.
   + move=> ????; apply wequiv_syscall_rel_eq_core with checker_st_eq tt => //.
     move=> [???] [???] ? [<- <- <-]; rewrite /fexec_syscall /=.
     by t_xrbindP => -[[??]?] /= /hsyscall -> [<-] /=; eauto.
+  + by move=> a ii; apply wequiv_assert_rel_eq with checker_st_eq.
   + by move=> > hc1 hc2 ii; apply wequiv_if_rel_eq with checker_st_eq tt tt tt.
   + by move=> > hc ii; apply wequiv_for_rel_eq with checker_st_eq tt tt.
   + by move=> > hc hc' ii; apply wequiv_while_rel_eq with checker_st_eq tt.

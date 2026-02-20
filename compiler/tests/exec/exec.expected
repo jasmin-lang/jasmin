@@ -2,6 +2,8 @@ f() = 0X5; 0X6
 ft() = [0X1; 0X0; 0X0; 0X0; 0XF; 0X0; 0X0; 0X0]
 mem() = 0XFF
 mem1() = 0XFF
+test_assert(true) =
+test_assert(false) failed with assertion violation
 test_stc() = 0X1
 test_clc() = 0X0
 test_poly1305() = [0XA8; 0X6; 0X1D; 0XC1; 0X30; 0X51; 0X36; 0XC6; 0XC2; 0X2B;

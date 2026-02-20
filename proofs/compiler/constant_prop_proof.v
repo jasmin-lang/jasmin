@@ -892,6 +892,14 @@ Section PROPER.
     by do 3 f_equal; apply: map_ext => z _; rewrite Heq.
   Qed.
 
+  Local Lemma Wassert a : Pr (Cassert a).
+  Proof.
+    move=> ii m1 m2 Heq /=.
+    rewrite /const_prop_ir.
+    split => //=; rewrite /RelationPairs.RelCompFun /=.
+    by do 4 f_equal; rewrite Heq.
+  Qed.
+
   Local Lemma Wif e c1 c2: Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
     move=> Hc1 Hc2 ii m1 m2 Heq /=.
@@ -949,7 +957,7 @@ Lemma const_prop_i_m :
 Proof.
   move=> g _ <- m1 m2 Hm i1 i2 <-.
   exact:
-    (instr_Rect (Wmk (gd:=g)) (Wnil g) (Wcons (gd:=g)) (Wasgn g) (Wopn g) (Wsyscall g)
+    (instr_Rect (Wmk (gd:=g)) (Wnil g) (Wcons (gd:=g)) (Wasgn g) (Wopn g) (Wsyscall g) (Wassert g)
        (Wif (gd:=g)) (Wfor (gd:=g)) (Wwhile (gd:=g)) (Wcall g)).
 Qed.
 
@@ -958,7 +966,7 @@ Lemma const_prop_i_r_m :
 Proof.
   move=> g _ <- m1 m2 Hm ii1 ii2 <- i1 i2 <-.
   exact:
-    (instr_r_Rect (Wmk (gd:=g)) (Wnil g) (Wcons (gd:=g)) (Wasgn g) (Wopn g) (Wsyscall g)
+    (instr_r_Rect (Wmk (gd:=g)) (Wnil g) (Wcons (gd:=g)) (Wasgn g) (Wopn g) (Wsyscall g) (Wassert g)
        (Wif (gd:=g)) (Wfor (gd:=g)) (Wwhile (gd:=g)) (Wcall g)).
 Qed.
 
@@ -967,7 +975,7 @@ Lemma const_prop_m g :
 Proof.
   move=> m1 m2 Hm c1 c2 <-.
   exact:
-    (cmd_rect (Wmk (gd:=g)) (Wnil g) (Wcons (gd:=g)) (Wasgn g) (Wopn g) (Wsyscall g)
+    (cmd_rect (Wmk (gd:=g)) (Wnil g) (Wcons (gd:=g)) (Wasgn g) (Wopn g) (Wsyscall g) (Wassert g)
        (Wif (gd:=g)) (Wfor (gd:=g)) (Wwhile (gd:=g)) (Wcall g)).
 Qed.
 
@@ -1532,6 +1540,8 @@ Local Opaque opp_word.
   + move=> xs o es ii m /=.
     rewrite (surjective_pairing (const_prop_rvs _ _ _)) /=.
     by apply wequiv_syscall_rel_uincl with checker_cp m.
+  + move=> a ii m /=.
+    by apply wequiv_assert_rel_uincl with checker_cp.
   + move=> e c1 c2 hc1 hc2 ii m /=.
     case heq : is_bool => [b|].
     + apply wequiv_if_rcond with b.
