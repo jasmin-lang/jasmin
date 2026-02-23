@@ -1471,7 +1471,93 @@ Proof.
     destruct (oseq.omap _ _); simpl; auto.
   }
   { unfold imed_i_correct_statm; simpl; intros; auto. }
-  
+  { unfold imed_i_correct_statm. 
+    intros e c1 c2 H H0 ii fn0 pl0.
+    destruct c1.
+    - simpl in *.
+      unfold imed_cmd_correct_statm in *.
+      unfold imed_i_correct_statm; simpl in *. clear H.
+      specialize (H0 fn0 (incrP1 pl0)).
+      set X0 := (imed_cmd _ _ _) in H0.
+      set X1 := (forget_imed_cmd _) in H0. 
+      assert (projT1 X0 = fst X1) as A1.
+      { eapply forget_imed_cmd_ok. }
+
+      subst X0 X1.
+      unfold imed_cmd in *.
+      remember (imed_cmd_aux _ _ _ _) as Y0.
+      destruct Y0 as [[n2 lbl2] lc2]; simpl in *.
+      rewrite <- H0.
+      remember (linear_l2r_c _ _ _ _) as Y1.
+      destruct Y1 as [[n3 lbl3] lc3]; simpl in *.
+      unfold incrPL1, next_lbl; simpl.
+      destruct (forget_imed_cmd lc2) as [[n4 lbl4] lc4]; simpl in *.
+      inversion H0; subst.
+      inversion A1; subst; auto.
+    - destruct c2.
+      + simpl in *.
+        unfold imed_cmd_correct_statm in *.
+        unfold imed_i_correct_statm; simpl in *. clear H0.
+        specialize (H fn0 (incrP1 pl0)).
+        set X0 := (imed_cmd _ _ _) in H.
+        set X1 := (forget_imed_cmd _) in H. 
+        assert (projT1 X0 = fst X1) as A1.
+        { eapply forget_imed_cmd_ok. }
+       
+        subst X0 X1; simpl in *.
+        destruct pl0 as [n0 lbl0]; simpl in *.
+        unfold imed_cmd in *.
+        remember (imed_cmd_aux _ _ _ _) as Y0.
+        destruct Y0 as [[n2 lbl2] lc2]; simpl in *.
+        rewrite <- H.
+
+
+
+        
+        remember (linear_l2r_c _ _ _ _) as Y1.
+      destruct Y1 as [[n3 lbl3] lc3]; simpl in *.
+      unfold incrPL1, next_lbl; simpl.
+      destruct (forget_imed_cmd lc2) as [[n4 lbl4] lc4]; simpl in *.
+      inversion H0; subst.
+      inversion A1; subst; auto.
+        
+        
+      simpl in *. clear H.
+       
+        
+      
+      
+      unfold imed_cmd_aux in HeqY0.
+      
+      remember (forget_imed_cmd _) as Y1.
+      unfold 
+      remember (imed_cmd_aux _ _ _ _) as Y0.
+      rewrite <- H0.
+      
+    unfold imed_i_correct_statm, imed_cmd_correct_statm; simpl; intros.
+    destruct c1; simpl.
+    specialize (H0 fn0 (incrP1 pl0)).
+    unfold imed_cmd in H0.
+    remember (imed_cmd_aux _ _ _ _) as A0.
+    destruct A0 as [[n2 lbl2] lc2]; simpl.
+    remember (forget_imed_cmd lc2) as A1.
+    destruct A1 as [[n3 lbl3] lc3]; simpl.
+
+    
+    dependent destruction X0; simpl.
+    
+    destruct X0 as [[n2 lbl2] lc2]; simpl.
+    unfold forget_imed_cmd; simpl.
+    
+    rewrite <- H0.
+    
+    rewrite H0; simpl.
+    set X0 := (forget_imed_cmd _).
+    destruct X0 as [[n1 lbl1] lc1]; simpl.
+    
+    
+    eapply H0.
+  } 
 Admitted.   
     
 
