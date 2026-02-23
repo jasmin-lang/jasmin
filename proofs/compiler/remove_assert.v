@@ -1,5 +1,5 @@
-From Coq Require Import ssreflect.
-Require Import expr compiler_util ZArith.
+From Coq Require Import ZArith.
+Require Import expr compiler_util.
 
 Section ASM_OP.
 
