@@ -858,14 +858,11 @@ Fixpoint linear_end_i (fn: funname) (i:instr) (n0: nat) : nat :=
 Definition does_align (ii: instr_info) (a: expr.align) : bool :=
   match a with | NoAlign => false | Align => true end.
 
-(* alternative definition of linear_i, inclusive of start and end
-   points (currently not needed). *)
+(* alternative left-to-right definition of linear_i, inclusive of
+   start and end points. *)
 Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
   (plinfo * lcmd) :=
-  let (ii, ir) := i in
-
-(* let (n0: nat) (lbl0:label) *)
-  
+  let (ii, ir) := i in  
   match ir with
   | Cassgn _ _ _ _ => (pl0, nil) (* absurd case *)
   | Copn xs _ o es =>
@@ -955,9 +952,8 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
           allocate_stack_frame false ii sz tmp (is_RAstack_None_call ra) in
         let After :=
           allocate_stack_frame true ii sz tmp (is_RAstack_None_return ra) in
-      (*  let lret := lbl0 in *)
         let lbl1 := next_lbl lbl0 in
-        (* The test is used for the proof of linear_has_valid_labels *)
+      (* The test is used for the proof of linear_has_valid_labels *)
       (*  let lcall := (fn', if fn' == fn
                            then lbl0    (* Absurd case. *)
                            else xH      (* Entry point. *)
@@ -1520,13 +1516,69 @@ Proof.
         destruct (forget_imed_i _) as [[n6 lbl6] lc6]; simpl in *.
         inversion H; subst.
         auto.
-      + admit.
+      + unfold imed_cmd_correct_statm in *.
+        unfold imed_i_correct_statm.
+        specialize (H0 fn0 (incrP1 pl0)).
+        simpl in H0. 
+        set X0 := (imed_cmd_aux _ _ _ _) in H0.
+        set X1 := (forget_imed_cmd _) in H0.
+        assert (projT1 X0 = fst X1) as A1.
+        { eapply forget_imed_cmd_ok. }
+        subst X0 X1.
+        set X0 := (imed_i _ _ _) in H0.
+        set X1 := (forget_imed_i _) in H0.
+        assert (projT1 X0 = fst X1) as A2.
+        { eapply forget_imed_i_ok. }
+        subst X0 X1.
+        set W0 := (linear_l2r_i _ _ _).
+        simpl in W0.
+        remember (linear_l2r_i fn0 i1 (incrP1 pl0)) as X1.
+        destruct X1 as [[n1 lbl1] lc1]; simpl in W0.
+        remember (linear_l2r_c linear_l2r_i fn0 c2 (n1, lbl1)) as X2.
+        destruct X2 as [[n2 lbl2] lc2]; simpl in W0.
+        remember (linear_l2r_i fn0 i0 (incrP2 (n2, lbl2))) as X3.
+        destruct X3 as [[n3 lbl3] lc3]; simpl in W0.
+        remember (linear_l2r_c linear_l2r_i fn0 c1 (n3, lbl3)) as X4.
+        destruct X4 as [[n4 lbl4] lc4]; simpl in W0.
+        specialize (H fn0 (incrP2 (n2, lbl2))); simpl in H.
+        set X0 := (imed_cmd_aux _ _ _ _) in H.
+        set X1 := (forget_imed_cmd _) in H.
+        assert (projT1 X0 = fst X1) as A3.
+        { eapply forget_imed_cmd_ok. }
+        subst X0 X1.
+        set X0 := (imed_i _ _ _) in H.
+        set X1 := (forget_imed_i _) in H.
+        assert (projT1 X0 = fst X1) as A4.
+        { eapply forget_imed_i_ok. }
+        subst X0 X1.
+        rewrite <- HeqX3 in H.
+        rewrite <- HeqX4 in H.
 
+        simpl.
+        set X3 := (imed_cmd_aux _ _ _ _).
+
+        admit.
+
+(*        
+        set (W1 := imed_i _ _ _).
+        remember W1 as W11.
+        destruct W11 as [[n5 lbl5] lc5].
+        simpl in W1.
+        clear HeqW11. 
+        set X3 := (imed_cmd_aux _ _ _ _) in W1.
+        simpl in *.
+        simpl in W1.
+        simpl.
+*)        
+                
   }
+  { unfold imed_i_correct_statm; simpl; intros; auto. }
+  
+  admit.
+  admit.
   
 Admitted.   
     
-
 
 End FUN.
 
