@@ -1713,14 +1713,13 @@ Proof.
         rewrite Y7; auto.
   }   
 
-  { 
-        
-        admit.           
-        
-  }
-  
-Admitted.   
-    
+  { unfold imed_i_correct_statm, imed_cmd_correct_statm.
+    intros xs fn1 es ii0 fn0 [n0 lbl0]; simpl.
+    destruct (get_fundef _ _) eqn: fdef; simpl in *; auto.
+    destruct (is_RAnone _) eqn: ranone; simpl in *; auto.
+  }  
+Qed.
+
 
 End FUN.
 
