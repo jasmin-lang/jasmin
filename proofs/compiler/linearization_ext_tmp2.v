@@ -902,7 +902,7 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
   | Cwhile a c e _ c' =>
     let '(n0, lbl0) := pl0 in 
     let la_align := does_align ii a in
-    let n00 := if la_align then n0 else S n0 in      
+    let n00 := if la_align then S n0 else n0 in      
     match is_bool e with
     | Some true =>
       let '(pl1, lc2) :=
@@ -1581,9 +1581,20 @@ Proof.
   
   { unfold imed_i_correct_statm; simpl; intros; auto. }
 
+  { unfold imed_i_correct_statm. 
+    intros a c1 e ii0 c2 H H0 ii fn0 pl0.
+    destruct pl0 as [n0 lblb0]; simpl in *.
+    
+    destruct (is_bool e) as [[ | ] | ]; simpl in *.
+    generalize (does_align ii a); intro alg_b.
+    
+    
+    
   
+    admit.
+
+  }
   
-  admit.
   admit.
   
 Admitted.   
