@@ -598,6 +598,12 @@ Definition add_align ii a (lc:lcmd) :=
   | Align   =>  MkLI ii Lalign :: lc
   end.
 
+Definition add_alignB (b: bool) ii (lc:lcmd) :=
+  match b with
+  | false => lc
+  | true =>  MkLI ii Lalign :: lc
+  end.
+
 Definition align ii a (p:label * lcmd) : label * lcmd :=
   (p.1, add_align ii a p.2).
 
@@ -910,7 +916,7 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
       let '((n2, lbl2), lc1) :=
         linear_l2r_c linear_l2r_i fn c' pl1 in
       ((S n2, next_lbl lbl2),  
-       (add_align ii a ((MkLI ii (Llabel lbl2)) :: (lc2 ++ lc1 ++
+       (add_alignB la_align ii ((MkLI ii (Llabel lbl2)) :: (lc2 ++ lc1 ++
                              [:: (MkLI ii (Lgoto (fn, lbl2)))]))))
 
     | Some false =>
@@ -921,7 +927,8 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
       | [::] =>
          let '((n1, lbl1), lc1) :=
            linear_l2r_c linear_l2r_i fn c (S n00, lbl0) in
-         ((S n1, next_lbl lbl1), add_align ii a (MkLI ii (Llabel lbl1) ::
+         ((S n1, next_lbl lbl1),
+           add_alignB la_align ii (MkLI ii (Llabel lbl1) ::
                           (lc1 ++ 
                              [:: (MkLI ii (Lcond (to_fexpr e) lbl1))])))
       | _ =>
@@ -931,7 +938,7 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
            linear_l2r_c linear_l2r_i fn c (incrP1 pl1) in
          let lbl3 := next_lbl lbl2 in 
          ((S n2, next_lbl lbl3), (MkLI ii (Lgoto (fn, lbl2)) ::         
-           (add_align ii a (MkLI ii (Llabel lbl3) ::
+           (add_alignB la_align ii (MkLI ii (Llabel lbl3) ::
                           (lc2 ++ (MkLI ii (Llabel lbl2) :: (lc1 ++
                     [:: (MkLI ii (Lcond (to_fexpr e) lbl3))])))))))
       end
@@ -1063,7 +1070,6 @@ Definition linear_fd (fd: sfundef) :=
 Variant LAtomL (fn: funname) (lbl: label) : Type :=
 | MkLAtomL (ii: instr_info) (lk: label_kind). 
 *)
-
 Inductive LTree (fn0: funname) : plinfo -> plinfo -> Type :=
 | LErrLeaf : forall pl, LTree pl pl
 | LLeaf : forall pl,
@@ -1083,7 +1089,7 @@ Inductive LTree (fn0: funname) : plinfo -> plinfo -> Type :=
           (lcm1: LTreeList (incrP2 pl1) pl2)
           (la_lbl2: linstr),
    LTree pl0 (incrPL1 (incrL1 pl2))                  
-| LWhileTNode : forall pl0 pl1 pl2 (la_align: bool), 
+| LWhileTNode : forall pl0 pl1 pl2 (la_align: bool) (ii: instr_info), 
    let n0 := fst pl0 in
    let lbl0 := snd pl0 in
    let n00 := if la_align then S n0 else n0 in  
@@ -1094,7 +1100,7 @@ Inductive LTree (fn0: funname) : plinfo -> plinfo -> Type :=
    LTree pl0 (incrPL1 pl2)            
 | LWhileFNode : forall pl0 pl1 (lcm1: LTreeList pl0 pl1),
    LTree pl0 pl1    
-| LWhile1Node : forall pl0 pl1 (la_align: bool),
+| LWhile1Node : forall pl0 pl1 (la_align: bool) (ii: instr_info),
    let n0 := fst pl0 in
    let lbl0 := snd pl0 in
    let n00 := if la_align then S n0 else n0 in  
@@ -1102,7 +1108,7 @@ Inductive LTree (fn0: funname) : plinfo -> plinfo -> Type :=
           (lcm1: LTreeList (S n00, lbl0) pl1)
           (la_cond1: linstr),
    LTree pl0 (incrPL1 pl1)  
-| LWhileNode : forall pl0 pl1 pl2 (la_align: bool),
+| LWhileNode : forall pl0 pl1 pl2 (la_align: bool) (ii: instr_info),
    let n0 := fst pl0 in
    let lbl0 := snd pl0 in
    let n00 := if la_align then S n0 else n0 in  
@@ -1223,7 +1229,7 @@ Fixpoint imed_i
       let A1 := MkLI ii (Llabel lbl2) in 
       let A2 := MkLI ii (Lgoto (fn0, lbl2)) in
       existT _ (incrPL1 pl2) (@LWhileTNode fn0 pl0 pl1 pl2 la_align
-                               A1 (projT2 X1) (projT2 X2) A2)
+                               ii A1 (projT2 X1) (projT2 X2) A2)
     | Some false =>        
       let X1 := LC fn0 c pl0 in
       let pl1 := projT1 X1 in   
@@ -1244,7 +1250,7 @@ Fixpoint imed_i
         let A1 := MkLI ii (Llabel lbl1) in 
         let A2 := MkLI ii (Lcond (to_fexpr e) lbl1) in
         existT _ (incrPL1 pl1) (@LWhile1Node fn0 pl0 pl1 la_align
-                                 A1 (projT2 X1) A2)
+                                 ii A1 (projT2 X1) A2)
 
       | _ =>
         let n0 := fst pl0 in
@@ -1267,7 +1273,7 @@ Fixpoint imed_i
 
         existT _ (S n2, next_lbl lbl3)
           (@LWhileNode fn0 pl0 pl1 pl2 la_align
-                               A1 A2 (projT2 X1) A3 (projT2 X2) A4)
+                               ii A1 A2 (projT2 X1) A3 (projT2 X2) A4)
      end                                                                    
     end
 
@@ -1326,21 +1332,22 @@ Fixpoint forget_imed_i
       (pl1, la_cond0 :: (lcm2 ++
                            la_goto01 :: la_lbl0 ::
                            (lcm1 ++ [:: la_lbl01])))
-  | LWhileTNode _ _ _ _ la_lbl0 tl1 tl2 la_goto0 =>
+  | LWhileTNode _ _ _ la_align ii la_lbl0 tl1 tl2 la_goto0 =>
       let (_, lcm1) := LC _ _ _ tl1 in  
       let (_, lcm2) := LC _ _ _ tl2 in  
-      (pl1, la_lbl0 :: (lcm1 ++ (lcm2 ++ [:: la_goto0])))
+      (pl1, add_alignB la_align ii
+              (la_lbl0 :: (lcm1 ++ (lcm2 ++ [:: la_goto0]))))
   | LWhileFNode _ _ tl1 =>
       let (_, lcm1) := LC _ _ _ tl1 in   
       (pl1, lcm1)
-  | LWhile1Node _ _ _ la_lbl0 tl1 la_cond0 =>
+  | LWhile1Node _ _ la_align ii la_lbl0 tl1 la_cond0 =>
       let (_, lcm1) := LC _ _ _ tl1 in  
-      (pl1, la_lbl0 :: (lcm1 ++ [:: la_cond0]))
-  | LWhileNode _ _ _ _ la_goto0 la_lbl01 tl2 la_lbl0 tl1 la_cond01 =>
+      (pl1, add_alignB la_align ii (la_lbl0 :: (lcm1 ++ [:: la_cond0])))
+  | LWhileNode _ _ _ la_align ii la_goto0 la_lbl01 tl2 la_lbl0 tl1 la_cond01 =>
       let (_, lcm2) := LC _ _ _ tl2 in  
       let (_, lcm1) := LC _ _ _ tl1 in  
-      (pl1, la_goto0 :: la_lbl01 :: (lcm2 ++
-                           (la_lbl0 :: (lcm1 ++ [:: la_cond01]))))
+      (pl1, la_goto0 :: (add_alignB la_align ii (la_lbl01 :: (lcm2 ++
+                           (la_lbl0 :: (lcm1 ++ [:: la_cond01]))))))
   | LCallNode _ _ _ _ la_before la_after la_call la_ret =>
       (pl1, la_before ++ (la_call :: la_ret :: la_after))      
   end
@@ -1581,21 +1588,136 @@ Proof.
   
   { unfold imed_i_correct_statm; simpl; intros; auto. }
 
-  { unfold imed_i_correct_statm. 
+  { unfold imed_cmd_correct_statm, imed_i_correct_statm, imed_cmd.
     intros a c1 e ii0 c2 H H0 ii fn0 pl0.
-    destruct pl0 as [n0 lblb0]; simpl in *.
+    destruct pl0 as [n0 lbl0].
+    remember (is_bool e) as ee.
+    destruct ee as [[ | ] | ].
     
-    destruct (is_bool e) as [[ | ] | ]; simpl in *.
-    generalize (does_align ii a); intro alg_b.
-    
-    
-    
-  
-    admit.
+    - simpl in *. rewrite <- Heqee. simpl in *.
+      generalize (does_align ii a); intro alg_b.
+      remember (if alg_b then n0.+1 else n0) as n00.
+      specialize (H fn0 (S n00, lbl0)).      
+      set X0 := (imed_cmd_aux _ _ _ _) in H.
+      set X1 := (forget_imed_cmd _) in H.
+      assert (projT1 X0 = fst X1) as A1.
+      { eapply forget_imed_cmd_ok. }
+      subst X0 X1.
+      rewrite <- H.
+      remember (linear_l2r_c linear_l2r_i fn0 c1 _) as Y0.
+      destruct Y0 as [[n1 lbl1] lc1]; simpl in *.
+      remember (forget_imed_cmd _) as Y1.
+      destruct Y1 as [[n2 lbl2] lc2]; simpl in *. 
+      inversion H; subst; simpl in *.
+      specialize (H0 fn0 (n2, lbl2)).
+      set X0 := (imed_cmd_aux _ _ _ _) in H0.
+      set X1 := (forget_imed_cmd _) in H0.
+      assert (projT1 X0 = fst X1) as A2.
+      { eapply forget_imed_cmd_ok. }
+      subst X0 X1.
+      remember (linear_l2r_c linear_l2r_i fn0 c2 _) as Y2.
+      destruct Y2 as [[n3 lbl3] lc3]; simpl in *.
+      set (Y30 := forget_imed_cmd _) in H0.
+      remember Y30 as Y3.
+      destruct Y3 as [[n4 lbl4] lc4]; simpl in *. subst Y30.
+      inversion H0; subst; simpl in *.
+      rewrite A1; simpl.
+      remember (imed_cmd_aux imed_i fn0 c2 (n2, lbl2)) as Y4.
+      destruct Y4 as [[n5 lbl5] lc5]; simpl in *.
+      destruct (forget_imed_cmd lc5) as [[n6 lbl6] lc6]; simpl in *.
+      inversion HeqY3; subst.
+      inversion A2; subst; simpl; auto.
+    - simpl in *. rewrite <- Heqee. simpl in *.
+      rewrite H.  
+      set X0 := (imed_cmd_aux _ _ _ _).
+      set X1 := (forget_imed_cmd _).
+      assert (projT1 X0 = fst X1) as A2.
+      { eapply forget_imed_cmd_ok. }
+      subst X0 X1.      
+      remember (imed_cmd_aux imed_i fn0 c1 (n0, lbl0)) as X0.
+      destruct X0 as [[n1 lbl1] lc1];
+        simpl in *.
+      remember (forget_imed_cmd lc1) as X1.
+      destruct X1 as [[n2 lbl2] lc2]; simpl in *.
+      inversion A2; subst; auto.
+    - destruct c2.
+      + simpl in *. rewrite <- Heqee. simpl in *.
+        remember (does_align ii a) as alg_b.
+        set (n00 := if alg_b then n0.+1 else n0).
+        specialize (H fn0 (S n00, lbl0)).
+        set X0 := (imed_cmd_aux _ _ _ _) in H.
+        set X1 := (forget_imed_cmd _) in H.
+        assert (projT1 X0 = fst X1) as A1.
+        { eapply forget_imed_cmd_ok. }
+        subst X0 X1.      
+        remember (imed_cmd_aux imed_i fn0 c1 _) as X0.
+        destruct X0 as [[n1 lbl1] lc1]; simpl in *.
+        rewrite H.
+        remember (forget_imed_cmd lc1) as X1.
+        destruct X1 as [[n2 lbl2] lc2]; simpl in *.
+        inversion A1; subst.
+        destruct (does_align ii a); simpl.
+        * subst n00; simpl in *.
+          destruct (forget_imed_cmd lc1) as [[n3 lbl3] lc3]; simpl in *.
+          inversion HeqX1; subst; auto.
+        * subst n00; simpl in *.
+          destruct (forget_imed_cmd lc1) as [[n3 lbl3] lc3]; simpl in *.
+          inversion HeqX1; subst; auto.
+      + (* set (W0 := imed_i fn0 (MkI ii (Cwhile a c1 e ii0 (i0 :: c2)))). *)
+        simpl.
+        rewrite <- Heqee; simpl.  
+        set (alg_b := does_align ii a).
+        set (n00 := if alg_b then n0.+1 else n0).
+        specialize (H0 fn0 (S (S n00), lbl0)).
+        simpl in H0.
+        remember (linear_l2r_i fn0 i0 (n00.+2, lbl0)) as Y1.
+        destruct Y1 as [[n1 lbl1] lc1]; simpl in *.
+        remember (linear_l2r_c linear_l2r_i fn0 c2 (n1, lbl1)) as Y2.
+        destruct Y2 as [[n2 lbl2] lc2]; simpl in *.
+        set X0 := (imed_i _ _ _) in H0.
+        set X1 := (forget_imed_i _) in H0.
+        assert (projT1 X0 = fst X1) as A1.
+        { eapply forget_imed_i_ok. }
+        subst X0 X1.
+        remember (imed_i fn0 i0 (n00.+2, lbl0)) as Y3.
+        destruct Y3 as [[n3 lbl3] lc3]; simpl in *.
+        remember (forget_imed_i lc3) as Y4.
+        destruct Y4 as [[n4 lbl4] lc4]; simpl in *.
+        dependent destruction A1.
+    (*    inversion A1; subst. clear A1.     *)   
+        set X0 := (imed_cmd_aux _ _ _ _) in H0.
+        set X1 := (forget_imed_cmd _) in H0.
+        assert (projT1 X0 = fst X1) as A2.
+        { eapply forget_imed_cmd_ok. }
+        subst X0 X1.
+        remember (imed_cmd_aux imed_i fn0 c2 (n4, lbl4)) as Y4.
+        destruct Y4 as [[n5 lbl5] lc5]; simpl in *.
+        remember (forget_imed_cmd lc5) as Y5.
+        destruct Y5 as [[n6 lbl6] lc6]; simpl in *.
+     (*   dependent destruction A2. *)
+        inversion A2; subst. clear A2.
+        inversion H0; subst; simpl in *. clear H0.
+        specialize (H fn0 (S n6, lbl6)); simpl in H.
+        set X0 := (imed_cmd_aux _ _ _ _) in H.
+        set X1 := (forget_imed_cmd _) in H.
+        assert (projT1 X0 = fst X1) as A3.
+        { eapply forget_imed_cmd_ok. }
+        subst X0 X1.
+        destruct (linear_l2r_c linear_l2r_i fn0 c1 _) as [[n7 lbl7] lc7]
+                                                           eqn: Y5.
+        destruct (imed_cmd_aux imed_i fn0 c1 _) as [[n8 lbl8] lc8] eqn: Y6.
+        simpl in *.
+        destruct (forget_imed_cmd lc8) as [[n9 lbl9] lc9] eqn: Y7.
+        inversion H; subst. clear H. simpl in *.
+        inversion A3; subst; clear A3. simpl in *.
+        rewrite Y7; auto.
+  }   
 
+  { 
+        
+        admit.           
+        
   }
-  
-  admit.
   
 Admitted.   
     
