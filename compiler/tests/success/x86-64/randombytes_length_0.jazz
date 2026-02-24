@@ -1,0 +1,13 @@
+param int N = 0;
+
+export fn main (reg ptr u64[N] r) -> reg ptr u64[N], reg u64 {
+  r = #randombytes(r);
+  reg u64 res i;
+  res = 0;
+  i = 0;
+  while (i <s N) {
+    res += r[i];
+    i += 1;
+  }
+  return r, res;
+}

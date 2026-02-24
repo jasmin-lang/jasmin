@@ -111,7 +111,6 @@ Qed.
 Lemma init_mapP : forall x1 ofs1 ws1,
   Mvar.get mglob x1 = Some (ofs1, ws1) -> [/\
     ofs1 mod wsize_size ws1 = 0,
-    0 < size_slot x1,
     0 <= ofs1 /\ ofs1 + size_slot x1 <= glob_size,
     (forall gv, get_global_value gd x1 = Some gv ->
                 forall k w, get_val_byte (gv2val gv) k = ok w ->
@@ -130,7 +129,6 @@ Proof.
     forall x1 ofs1 ws1,
     Mvar.get (Mvar.empty (Z * wsize), 0, global_data).1.1 x1 = Some (ofs1, ws1) -> [/\
     ofs1 mod wsize_size ws1 = 0,
-    0 < size_slot x1,
     0 <= ofs1 /\ ofs1 + size_slot x1 <= (Mvar.empty (Z * wsize), 0, global_data).1.2,
     (forall gv, get_global_value gd x1 = Some gv ->
                 forall k w, get_val_byte (gv2val gv) k = ok w ->
@@ -141,14 +139,14 @@ Proof.
   + by split => //; exists [::].
   elim: global_alloc (Mvar.empty _, 0, global_data).
   + move=> [[mglob0 size0] data0] /= [] ? [l [hsize heq]] hbase2 [???]; subst mglob0 size0 data0.
-    move=> ??? /hbase2 [?????]; split=> //.
+    move=> ??? /hbase2 [????]; split=> //.
     rewrite /glob_size heq size_cat hsize Nat2Z.inj_add Z2Nat.id //.
     by lia.
   move=> [[x wsx] ofsx] l ih [[mglob0 size0] data0] /= [hbase1 [l0 [heqsz heq]] hbase2].
   t_xrbindP=> -[[mglob1 size1] data1].
   case: ZleP => [h1|//].
   case: eqP => [h2|//].
-  case: ZltP => [h3|//].
+  case: ZleP => [h3|//].
   case heqt : (ztake (ofsx - size0) data0) => [[rdata ldata] | //].
   case heqt' : (ztake (size_slot x) ldata) => [[vdata data] | //].
   rewrite -/(get_global_value gd x).
@@ -191,8 +189,8 @@ Proof.
     move=> x2 ofs2 ws2.
     rewrite Mvar.setP.
     case: eqP => [//|_].
-    by move=> /hbase2 [_ _ ? _ _] _; right; lia.
-  move=> /hbase2 [?????]; split=> //.
+    by move=> /hbase2 [_ ? _ _] _; right; lia.
+  move=> /hbase2 [????]; split=> //.
   + by lia.
   move=> x2 ofs2 ws2.
   rewrite Mvar.setP.
@@ -202,17 +200,12 @@ Qed.
 
 Lemma init_map_align x1 ofs1 ws1 :
   Mvar.get mglob x1 = Some (ofs1, ws1) -> ofs1 mod wsize_size ws1 = 0.
-Proof. by move=> /init_mapP [? _ _ _ _]. Qed.
-
-Lemma init_map_size_slot_pos x1 ofs1 ws1 :
-  Mvar.get mglob x1 = Some (ofs1, ws1) ->
-  0 < size_slot x1.
-Proof. by move=> /init_mapP [_ ? _ _ _]. Qed.
+Proof. by move=> /init_mapP [? _ _ _]. Qed.
 
 Lemma init_map_bounded x1 ofs1 ws1 :
   Mvar.get mglob x1 = Some (ofs1, ws1) ->
   0 <= ofs1 /\ ofs1 + size_slot x1 <= glob_size.
-Proof. by move=> /init_mapP [_ _ ? _ _]. Qed.
+Proof. by move=> /init_mapP [_ ? _ _]. Qed.
 
 Lemma init_map_full : forall x gv,
   get_global_value gd x = Some gv ->
@@ -251,7 +244,7 @@ Lemma check_globsP g gv :
 Proof.
   move=> h; move: (h) => /init_map_full [ofs [ws hget]].
   exists ofs, ws; split => //.
-  have [_ _ _ h1 _] := init_mapP hget.
+  have [_ _ h1 _] := init_mapP hget.
   apply (h1 _ h).
 Qed.
 
@@ -269,7 +262,6 @@ Lemma init_stack_layoutP :
         Mvar.get stack x1 = Some (ofs1, ws1) -> [/\
           (ws1 <= sao.(sao_align))%CMP,
           ofs1 mod wsize_size ws1 = 0,
-          0 < size_slot x1,
           sao.(sao_ioff) <= ofs1 /\ ofs1 + size_slot x1 <= sao.(sao_size),
           (forall x2 ofs2 ws2,
             Mvar.get stack x2 = Some (ofs2, ws2) -> x1 <> x2 ->
@@ -284,7 +276,6 @@ Proof.
     forall x1 ofs1 ws1,
     Mvar.get stack x1 = Some (ofs1, ws1) -> [/\
       (ws1 ≤ sao_align sao)%CMP, ofs1 mod wsize_size ws1 = 0,
-      0 < size_slot x1,
       sao.(sao_ioff) <= ofs1 /\ ofs1 + size_slot x1 <= size,
       (forall x2 ofs2 ws2,
         Mvar.get stack x2 = Some (ofs2, ws2) -> x1 <> x2 ->
@@ -299,7 +290,6 @@ Proof.
     Mvar.get (Mvar.empty (Z * wsize), sao.(sao_ioff)).1 x1 = Some (ofs1, ws1) -> [/\
       (ws1 <= sao.(sao_align))%CMP,
       ofs1 mod wsize_size ws1 = 0,
-      0 < size_slot x1,
       sao.(sao_ioff) <= ofs1 /\ ofs1 + size_slot x1 <= (Mvar.empty (Z * wsize), sao.(sao_ioff)).2,
       (forall x2 ofs2 ws2,
         Mvar.get (Mvar.empty (Z * wsize), sao.(sao_ioff)).1 x2 = Some (ofs2, ws2) -> x1 <> x2 ->
@@ -313,7 +303,7 @@ Proof.
   case: Mvar.get => //.
   case heq: Mvar.get => //.
   case: ifP => [|//]; rewrite zify => /ZleP h1.
-  case: ZltP => [h2|//].
+  case: ZleP => [h2|//].
   case: ifP => [h3|//].
   case: eqP => [h4|//].
   move=> [<- <-].
@@ -330,8 +320,8 @@ Proof.
     move=> x2 ofs2 ws2.
     rewrite Mvar.setP.
     case: eqP => [|_]; first by congruence.
-    by move=> /hbase2 [_ _ _ ? _ _]; lia.
-  move=> /hbase2 /= [??????]; split=> //.
+    by move=> /hbase2 [_ _ ? _ _]; lia.
+  move=> /hbase2 /= [?????]; split=> //.
   + by lia.
   move=> x2 ofs2 ws2.
   rewrite Mvar.setP.
@@ -344,36 +334,32 @@ Proof. by have [? ? _] := init_stack_layoutP; lia. Qed.
 
 Lemma init_stack_layout_stack_align x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) -> (ws1 <= sao.(sao_align))%CMP.
-Proof. by have [_ _ h] := init_stack_layoutP => /h [? _ _ _ _ _]. Qed.
+Proof. by have [_ _ h] := init_stack_layoutP => /h [? _ _ _ _]. Qed.
 
 Lemma init_stack_layout_align x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) -> ofs1 mod wsize_size ws1 = 0.
-Proof. by have [_ _ h] := init_stack_layoutP => /h [_ ? _ _ _ _]. Qed.
-
-Lemma init_stack_layout_size_slot_pos x1 ofs1 ws1 :
-  Mvar.get stack x1 = Some (ofs1, ws1) -> 0 < size_slot x1.
-Proof. by have [_ _ h] := init_stack_layoutP => /h [_ _ ? _ _ _]. Qed.
+Proof. by have [_ _ h] := init_stack_layoutP => /h [_ ? _ _ _]. Qed.
 
 Lemma init_stack_layout_bounded_ioff x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) ->
   sao.(sao_ioff) <= ofs1 /\ ofs1 + size_slot x1 <= sao.(sao_size).
-Proof. by have [_ _ h] := init_stack_layoutP => /h [_ _ _ ? _ _]. Qed.
+Proof. by have [_ _ h] := init_stack_layoutP => /h [_ _ ? _ _]. Qed.
 
 Lemma init_stack_layout_bounded x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) ->
   0 <= ofs1 /\ ofs1 + size_slot x1 <= sao.(sao_size).
-Proof. have [? _ h] := init_stack_layoutP => /h [_ _ _ ? _ _]; lia. Qed.
+Proof. have [? _ h] := init_stack_layoutP => /h [_ _ ? _ _]; lia. Qed.
 
 Lemma init_stack_layout_disjoint x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) ->
   forall x2 ofs2 ws2,
     Mvar.get stack x2 = Some (ofs2, ws2) -> x1 <> x2 ->
     ofs1 + size_slot x1 <= ofs2 \/ ofs2 + size_slot x2 <= ofs1.
-Proof. by have [_ _ h] := init_stack_layoutP => /h [_ _ _ _ ? _]. Qed.
+Proof. by have [_ _ h] := init_stack_layoutP => /h [_ _ _ ? _]. Qed.
 
 Lemma init_stack_layout_not_glob x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) -> Mvar.get mglob x1 = None.
-Proof. by have [_ _ h] := init_stack_layoutP => /h [_ _ _ _ _ ?]. Qed.
+Proof. by have [_ _ h] := init_stack_layoutP => /h [_ _ _ _ ?]. Qed.
 
 (* We pack the hypotheses about slots in a record for the sake of simplicity. *)
 Record wf_Slots (Slots : Sv.t) Addr (Writable:slot-> bool) Align := {
@@ -504,55 +490,59 @@ Definition Align := pick_slot Align_globals Align_locals Align_params.
 
 Lemma wunsigned_Addr_globals s ofs ws :
   Mvar.get mglob s = Some (ofs, ws) ->
+  0 < size_slot s ->
   wunsigned (Addr_globals s) = wunsigned rip + ofs.
 Proof.
   clear rsp_align rip_align.
   clear disjoint_zrange_globals_locals.
-  move=> hget.
+  move=> hget hpos.
   rewrite /Addr_globals /Offset_slots hget.
   rewrite wunsigned_add //.
   have hbound := init_map_bounded hget.
   move: no_overflow_glob_size; rewrite /no_overflow zify => hover.
   have := wunsigned_range rip.
-  have := init_map_size_slot_pos hget.
   by lia.
 Qed.
 
 Lemma zbetween_Addr_globals s :
   Sv.In s Slots_globals ->
+  0 < size_slot s ->
   zbetween rip glob_size (Addr_globals s) (size_slot s).
 Proof.
   clear rsp_align rip_align.
   move=> /in_Slots_slots.
   case heq: Mvar.get => [[ofs ws]|//] _.
-  rewrite /zbetween !zify (wunsigned_Addr_globals heq).
+  move=> hpos.
+  rewrite /zbetween !zify (wunsigned_Addr_globals heq hpos).
   have hbound := init_map_bounded heq.
   by lia.
 Qed.
 
 Lemma wunsigned_Addr_locals s ofs ws :
   Mvar.get stack s = Some (ofs, ws) ->
+  0 < size_slot s ->
   wunsigned (Addr_locals s) = wunsigned rsp + ofs.
 Proof.
   clear disjoint_zrange_globals_locals rsp_align rip_align.
-  move=> hget.
+  move=> hget hpos.
   rewrite /Addr_locals /Offset_slots hget.
   rewrite wunsigned_add //.
   have hbound := init_stack_layout_bounded hget.
   move: no_overflow_size; rewrite /no_overflow zify => hover.
   have := wunsigned_range rsp.
-  have := init_stack_layout_size_slot_pos hget.
   by lia.
 Qed.
 
 Lemma zbetween_Addr_locals s :
   Sv.In s Slots_locals ->
+  0 < size_slot s ->
   zbetween rsp sao.(sao_size) (Addr_locals s) (size_slot s).
 Proof.
   clear rsp_align rip_align.
   move=> /in_Slots_slots.
   case heq: Mvar.get => [[ofs ws]|//] _.
-  rewrite /zbetween !zify (wunsigned_Addr_locals heq).
+  move=> hpos.
+  rewrite /zbetween !zify (wunsigned_Addr_locals heq hpos).
   have hbound := init_stack_layout_bounded heq.
   by lia.
 Qed.
@@ -560,12 +550,14 @@ Qed.
 Lemma zbetween_Addr_locals_ioff s :
   wunsigned (rsp + wrepr _ sao.(sao_ioff)) = wunsigned rsp + sao.(sao_ioff) ->
   Sv.In s Slots_locals ->
+  0 < size_slot s ->
   zbetween (rsp + wrepr _ sao.(sao_ioff)) (sao.(sao_size) - sao.(sao_ioff)) (Addr_locals s) (size_slot s).
 Proof.
   clear rsp_align rip_align.
   move=> hadd /in_Slots_slots.
   case heq: Mvar.get => [[ofs ws]|//] _.
-  rewrite /zbetween !zify (wunsigned_Addr_locals heq).
+  move=> hpos.
+  rewrite /zbetween !zify (wunsigned_Addr_locals heq hpos).
   have hbound := init_stack_layout_bounded_ioff heq.
   rewrite hadd.
   by lia.
@@ -872,7 +864,12 @@ Qed.
 
 Lemma Haddr_no_overflow : forall s, Sv.In s Slots -> no_overflow (Addr s) (size_slot s).
 Proof.
-  move=> s /in_Slots [hin|[hin|hin]].
+  move=> s hin.
+  case: (Z.nonpos_pos_cases (size_slot s)) => [hneg|hpos].
+  + rewrite /no_overflow zify.
+    have := wunsigned_range (Addr s).
+    by clear -hneg; lia.
+  move: hin => /in_Slots [hin|[hin|hin]].
   + rewrite /Addr (pick_slot_globals hin).
     apply: no_overflow_incl no_overflow_glob_size.
     by apply zbetween_Addr_globals.
@@ -913,8 +910,8 @@ Proof.
       case heq1 : Mvar.get => [[ofs1 ws1]|//] _.
       move /in_Slots_slots : hin2.
       case heq2 : Mvar.get => [[ofs2 ws2]|//] _.
-      rewrite (wunsigned_Addr_locals heq1).
-      rewrite (wunsigned_Addr_locals heq2).
+      rewrite (wunsigned_Addr_locals heq1 hpos1).
+      rewrite (wunsigned_Addr_locals heq2 hpos2).
       have := init_stack_layout_disjoint heq1 heq2 hneq.
       by lia.
     rewrite /Addr (pick_slot_locals hin1) (pick_slot_params hin2).
@@ -1782,6 +1779,8 @@ Proof.
   move=> hext hass hrsp hneq /=.
   constructor=> //=.
   + move=> s w hin hb.
+    case: (Z.nonpos_pos_cases (size_slot s)) => [hneg|hpos].
+    + by exfalso; move: hb; rewrite /between /zbetween wsize8 !zify; clear -hneg; lia.
     rewrite hass.(ass_valid); apply /orP.
     case /in_Slots : hin => [hin|[hin|hin]].
     + left.
@@ -1789,12 +1788,12 @@ Proof.
       apply /orP; right.
       apply: zbetween_trans hb.
       rewrite /Addr (pick_slot_globals hin).
-      by apply (zbetween_Addr_globals hin).
+      by apply (zbetween_Addr_globals hin hpos).
     + right.
       apply: zbetween_trans hb.
       rewrite /Addr (pick_slot_locals hin).
       have := (ass_add_ioff hass). rewrite -{1 2}hrsp => hadd.
-      have := zbetween_Addr_locals_ioff hadd hin.
+      have := zbetween_Addr_locals_ioff hadd hin hpos.
       by rewrite hrsp.
     left.
     have /in_Slots_params := hin.
@@ -1809,15 +1808,15 @@ Proof.
     case /in_Slots : hin => [hin|[hin|hin]].
     + rewrite /Addr (pick_slot_globals hin).
       move=> hpos _.
-      apply (disjoint_zrange_incl_l (zbetween_Addr_globals hin)).
+      apply (disjoint_zrange_incl_l (zbetween_Addr_globals hin hpos)).
       apply: (hext.(em_fresh) hvalid) => //.
       move /in_Slots_slots : hin.
       case heq: Mvar.get => [[??]|//] _.
       have := init_map_bounded heq.
       by lia.
     + rewrite /Addr (pick_slot_locals hin).
-      move=> _ _.
-      apply: (disjoint_zrange_incl_l (zbetween_Addr_locals hin)).
+      move=> hpos _.
+      apply: (disjoint_zrange_incl_l (zbetween_Addr_locals hin hpos)).
       have hvalid2: validw m2 Aligned w U8.
       + apply hext.(em_valid).
         by rewrite hvalid.
@@ -1920,7 +1919,7 @@ Proof.
   + by move: hw; rewrite /Writable (pick_slot_globals hin).
   + rewrite /Addr (pick_slot_locals hin).
     move=> hpos _.
-    apply (disjoint_zrange_incl_l (zbetween_Addr_locals hin)).
+    apply (disjoint_zrange_incl_l (zbetween_Addr_locals hin hpos)).
     apply hdisj2 => //.
     move /in_Slots_slots : hin.
     case heq: Mvar.get => [[??]|//] _.
