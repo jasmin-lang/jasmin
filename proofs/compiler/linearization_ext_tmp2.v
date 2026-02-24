@@ -1556,23 +1556,32 @@ Proof.
 
         simpl.
         set X3 := (imed_cmd_aux _ _ _ _).
-
-        admit.
-
-(*        
-        set (W1 := imed_i _ _ _).
-        remember W1 as W11.
-        destruct W11 as [[n5 lbl5] lc5].
-        simpl in W1.
-        clear HeqW11. 
-        set X3 := (imed_cmd_aux _ _ _ _) in W1.
-        simpl in *.
-        simpl in W1.
-        simpl.
-*)        
-                
+        simpl in A1.
+        
+        destruct (imed_i fn0 i1 (incrP1 pl0)) as [[n6 lbl6] lc6];
+          simpl in *.
+        destruct (forget_imed_i lc6) as [[n7 lbl7] lc7]; simpl in *.
+        inversion A2; subst.
+        destruct (imed_cmd_aux imed_i fn0 c2 (n7, lbl7)) as [[n8 lbl8] lc8];
+          simpl in *.
+        destruct (forget_imed_cmd lc8) as [[n9 lbl9] lc9]; simpl in *.
+        inversion A1; subst.
+        inversion H0; subst; simpl in *.
+        destruct (imed_i fn0 i0 (incrP2 (n9, lbl9))) as [[n10 lbl10] lc10];
+          simpl in *.
+        destruct (forget_imed_i lc10) as [[n11 lbl11] lc11]; simpl in *. 
+        inversion A4; subst.
+        destruct (imed_cmd_aux imed_i fn0 c1 (n11, lbl11))
+          as [[n12 lbl12] lc12]; simpl in *.
+        destruct (forget_imed_cmd lc12) as [[n13 lbl13] lc13]; simpl in *.
+        inversion A3; subst.
+        inversion H; subst.
+        subst W0; auto.
   }
+  
   { unfold imed_i_correct_statm; simpl; intros; auto. }
+
+  
   
   admit.
   admit.
