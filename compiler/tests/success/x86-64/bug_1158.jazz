@@ -1,0 +1,16 @@
+param int T = 0;
+export fn test1(reg ptr u8[10] t) {
+  reg u8[0] r = #copy(t[0:T]);
+}
+
+inline
+fn test2(reg u8[T] t) {
+  reg u8[T] r = t;
+}
+
+param int N = 0;
+fn test3(reg ptr u8[10] p, reg u64 msf) -> reg ptr u8[10] {
+  reg ptr u8[N] r = #protect_ptr(p[0:N], msf);
+  p[0:N] = r;
+  return p;
+}

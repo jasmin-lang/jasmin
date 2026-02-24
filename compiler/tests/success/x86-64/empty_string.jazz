@@ -1,0 +1,9 @@
+// passing an empty string is ok
+
+param int N = 0;
+
+inline fn f(inline u8[N] a) {}
+
+export fn test() {
+  f("");
+}
