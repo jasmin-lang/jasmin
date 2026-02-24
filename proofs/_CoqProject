@@ -139,6 +139,8 @@ compiler/x86_stack_zeroization.v
 compiler/x86_stack_zeroization_proof.v
 compiler/x86.v
 
+compiler/linearization_ext.v
+
 itrees/xrutt.v
 itrees/xrutt_facts.v
 itrees/relaxed_xrutt.v

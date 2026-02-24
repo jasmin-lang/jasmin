@@ -10,6 +10,8 @@ Require Import expr fexpr compiler_util label constant_prop.
 Require Export linear linear_util.
 Import word_ssrZ.
 
+Require Import Equality. 
+
 Local Open Scope seq_scope.
 
 Module E.
@@ -533,6 +535,8 @@ Notation "c1 ';;' c2" :=  (let: (lbl,lc) := c2 in c1 lbl lc)
 Notation "c1 '>;' c2" :=  (let: (lbl,lc) := c2 in (lbl, c1::lc))
    (at level 26, right associativity).
 
+(* pair of a program point (or position, as a natural number) and a
+  label (a symbolic label, represented as a positive binary number) *)
 Notation plinfo := (nat * label)%type.
 
 Definition incrP1 (pl: plinfo) := (S (fst pl), snd pl).
@@ -692,6 +696,9 @@ Definition is_RAstack_None_return ra :=
 Let ReturnTarget := Llabel ExternalLabel.
 Let Llabel := linear.Llabel InternalLabel.
 
+(* the linearization function used by the compiler. translate from
+ source to linear, also computing the next fresh label. notice that
+ labels are computed from right to left *)
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
@@ -860,12 +867,14 @@ Fixpoint linear_end_i (fn: funname) (i:instr) (n0: nat) : nat :=
   end.
 
 
-
 Definition does_align (ii: instr_info) (a: expr.align) : bool :=
   match a with | NoAlign => false | Align => true end.
 
-(* alternative left-to-right definition of linear_i, inclusive of
-   start and end points. *)
+(* left-to-right alternative definition of linear_i; on top of labels,
+   it also deals with program points (or positions), expressed as
+   natural numbers; the input is the starting point in the translation
+   of the source instruction, the output is the end point. the labels
+   are produced in reverse order wrt linear_i. *)
 Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
   (plinfo * lcmd) :=
   let (ii, ir) := i in  
@@ -974,6 +983,7 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
            *)
         let nb := List.length Before in
         let na := List.length After in
+        (* NOTE: here I have dropped the non-recursive check *)
         ((n0 + nb + S (S na), lbl1),
               Before
               ++ MkLI ii (Lcall (ovari_of_ra ra) lcall)
@@ -1063,13 +1073,7 @@ Definition linear_fd (fd: sfundef) :=
     ; lfd_align_args := sf_align_args e
     |}).
 
-
-(* Notation plinfo := (nat * label)%type. *)
-
-(*
-Variant LAtomL (fn: funname) (lbl: label) : Type :=
-| MkLAtomL (ii: instr_info) (lk: label_kind). 
-*)
+(* The datatype that defines the Intermediate language *)
 Inductive LTree (fn0: funname) : plinfo -> plinfo -> Type :=
 | LErrLeaf : forall pl, LTree pl pl
 | LLeaf : forall pl,
@@ -1153,6 +1157,7 @@ Fixpoint imed_cmd_aux
            existT _ pl2 (@LListCons fn0 pl0 pl1 pl2  
                                     (projT2 X1) (projT2 X2)) end.
 
+(* the translation from Source to Intermediate *)
 Fixpoint imed_i
   (fn0: funname) (i: instr) (pl0: plinfo) :
   sigT (fun pl1 => LTree fn0 pl0 pl1) :=
@@ -1312,7 +1317,7 @@ Definition imed_cmd (fn0: funname) (cc: cmd) (pl0: plinfo) :
   sigT (fun pl1 => LTreeList fn0 pl0 pl1) :=
   imed_cmd_aux imed_i fn0 cc pl0.
 
-
+(* the translation from Intermediate to Linear *)
 Fixpoint forget_imed_i
   (fn0: funname) (pl0 pl1: plinfo)
   (tl: LTree fn0 pl0 pl1) : (plinfo * lcmd) :=
@@ -1361,10 +1366,6 @@ with forget_imed_cmd (fn0: funname) (pl0 pl1: plinfo)
       (pl1, lcm1 ++ lcm2)
   end.              
 
-
-
-Require Import Equality. 
-
 Definition forget_imed_i_ok_statm (i: instr) :=
   forall (fn0: funname) (pl0: plinfo),
     let X := imed_i fn0 i pl0 in
@@ -1375,6 +1376,7 @@ Definition forget_imed_cmd_ok_statm (c: cmd) :=
     let X := imed_cmd fn0 c pl0 in
     projT1 X = fst (forget_imed_cmd (projT2 X)).
 
+(* auxiliary lemma which helps to deal with the dependant type *)
 Lemma forget_imed_i_ok (i: instr) : forget_imed_i_ok_statm i.
   unfold forget_imed_i_ok_statm.
   intros.
@@ -1426,6 +1428,20 @@ Definition imed_cmd_correct_statm (c: cmd) :=
      linear_l2r_c linear_l2r_i fn0 c pl0 = 
      forget_imed_cmd (projT2 (imed_cmd fn0 c pl0)).
 
+(* the intermediate representation is ok:
+  
+   Source          ==          Source        
+      |                          |
+   imed_i                        |   
+      |                          |
+      V                      linear_l2r_i
+  Intermediate     ##            |  
+      |                          | 
+  forget_imed_i                  |  
+      |                          |  
+      V                          V  
+    Linear         ==          Linear    
+ *)
 Lemma imed_i_correct (i: instr) : imed_i_correct_statm i.
 Proof.
   set Pi := imed_i_correct_statm.
