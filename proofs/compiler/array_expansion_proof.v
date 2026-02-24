@@ -9,7 +9,7 @@ Local Open Scope seq_scope.
 
 Record wf_ai (m : t) (x:var) ai := {
   x_nin : ~ Sv.In x m.(svars);
-  len_pos : (0 < ai.(ai_len))%Z;
+  len_pos : (0 <= ai.(ai_len))%Z;
   len_def : ai_len ai = Z.of_nat (size (ai_elems ai));
   x_ty    : convertible (vtype x) (aarr ai.(ai_ty) (Z.to_N ai.(ai_len)));
   xi_nin  : forall xi, xi \in ai_elems ai -> ~ Sv.In xi m.(svars);
@@ -369,7 +369,7 @@ Local Opaque wsize_size.
   rewrite expand_vP /=; eexists; eauto.
   rewrite mapM_map /comp /= /get_gvar /get_var /= mapM_ok /=; do 2!f_equal.
   have := WArray.get_sub_bound hst.
-  rewrite Z2N.id // /arr_size /= Z2N.id; last by apply (Z.lt_le_incl _ _ vai.(len_pos)).
+  rewrite Z2N.id // /arr_size /= Z2N.id; last by apply vai.(len_pos).
   move=> hi.
   have ? := wsize_size_pos (ai_ty a).
   rewrite (wf_take_drop (v_var (gv g)) vai); last by apply N2Z.is_nonneg. 2,3: by nia.
@@ -469,8 +469,8 @@ Proof.
   t_xrbindP => sa /to_arrI -> ra hra /write_varP [] -> _ _.
   rewrite expand_vP => -[?]; subst vs'.
   have := WArray.set_sub_bound hra.
-  have [ltws lt0len]:= (wsize_size_pos (ai_ty ai), len_pos hva).
-  rewrite Z2N.id // /arr_size /mk_scale {1}Z2N.id; last by apply (Z.lt_le_incl _ _ lt0len).
+  have [ltws le0len]:= (wsize_size_pos (ai_ty ai), len_pos hva).
+  rewrite Z2N.id // /arr_size /mk_scale {1}Z2N.id; last by apply le0len.
   move=> hb; have [{hb} h0i hilen'] : (0 <= i /\ i + Z.of_N len' <= ai_len ai)%Z by nia.
   have -> := wf_take_drop (v_var x) hva h0i hilen' (N2Z.is_nonneg _).
   rewrite -map_comp /comp.
@@ -593,7 +593,7 @@ Proof.
     + apply /andP; split => //; apply /negP => hin.
       by apply (hdis x); [clear; SvD.fsetdec | apply /sv_of_listP/map_f].
     have /= -> := Nat2Z.inj_succ (size elems); ring.
-  move=> [heq /disjointP hdis huni hlen] /andP [] /ZltP h0len hty <-.
+  move=> [heq /disjointP hdis huni hlen] /andP [] /ZleP h0len hty <-.
   case: hwf => /= hwf hincl hget.
   split => /=.
   + move=> x ai /=; rewrite Mvar.setP; case: eqP.

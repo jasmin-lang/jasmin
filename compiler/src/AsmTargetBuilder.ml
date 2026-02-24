@@ -98,11 +98,14 @@ module Make(Target : AsmTarget) : S
     let pp_data_segment_body globs names = Asm_utils.format_glob_data globs names
 
     let pp_data_segment globs names =
-    if not (List.is_empty globs) then
+      (* If there are only global slots of length 0, [globs] is empty,
+         but we still need to print the global label.
+         We check [names] rather than [globs] to solve the issue. *)
+      if not (List.is_empty names) then
         let headers = Target.data_segment_header in
         let data = pp_data_segment_body globs names in
         headers @ data
-    else
+      else
         []
 
     let asm_of_prog (asm: (reg,regx,xreg,rflag,cond,asm_op) asm_prog) : asm_element list =

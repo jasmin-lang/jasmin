@@ -1,0 +1,12 @@
+param int N = 0;
+
+export fn main () -> reg u64 {
+  reg u64[N] r;
+  reg u64 res = 0;
+  inline int i;
+  for i = 0 to N {
+    r[i] = 0;
+    res += r[i];
+  }
+  return res;
+}
