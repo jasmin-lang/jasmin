@@ -1828,7 +1828,7 @@ Definition init_stack_layout (mglob : Mvar.t (Z * wsize)) sao :=
     else
       if (p <= ofs)%CMP then
         let len := size_slot x in
-        if (0 <? len)%Z then
+        if (0 <=? len)%Z then
           if (ws <= sao.(sao_align))%CMP then
             if (Z.land ofs (wsize_size ws - 1) == 0)%Z then
               let stack := Mvar.set stack x (ofs, ws) in
@@ -2124,7 +2124,7 @@ Definition init_map (l:list (var * wsize * Z)) data (gd:glob_decls) : cexec (Mva
     if (pos <=? p)%Z then
       if Z.land p (wsize_size ws - 1) == 0%Z then
         let s := size_slot v in
-        if (0 <? s)%Z then
+        if (0 <=? s)%Z then
           match ztake (p - pos) data with
           | None => Error (stk_ierror_no_var "bad data 1")
           | Some (_, data) =>
