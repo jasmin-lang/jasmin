@@ -874,7 +874,8 @@ Definition does_align (ii: instr_info) (a: expr.align) : bool :=
    it also deals with program points (or positions), expressed as
    natural numbers; the input is the starting point in the translation
    of the source instruction, the output is the end point. the labels
-   are produced in reverse order wrt linear_i. *)
+   are produced in reverse order wrt linear_i. 
+   TODO: show equivalence with linear_i modulo renaming. *)
 Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
   (plinfo * lcmd) :=
   let (ii, ir) := i in  
