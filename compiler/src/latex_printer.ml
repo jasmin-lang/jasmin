@@ -163,6 +163,23 @@ let pp_aligned =
       F.fprintf fmt "%a%a " sharp () pannot (string_of_align al)
     )
 
+let pp_result fmt i = Format.fprintf fmt "result.%s" i
+
+let pp_ws fmt w =
+  F.fprintf fmt "%a" ptype (string_of_swsize_ty w)
+
+let pp_arr_access_gen fmt al aa ws pp_var x pp_expr e len =
+  let ws = Option.map L.unloc ws in
+  let pp_olen fmt len =
+    match len with
+    | None -> ()
+    | Some len -> Format.fprintf fmt " : %a" pp_expr len in
+  F.fprintf fmt "%a%s[%a%a%a%a%a]"
+    pp_var x
+    (if aa = Warray_.AAdirect then "." else "")
+    pp_aligned (Option.bind len (fun _ -> al))
+    (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e pp_olen len
+
 let rec pp_simple_attribute fmt a =
   match L.unloc a with
   | PAstring s -> pannot fmt (Format.asprintf "%a" pp_string s)
@@ -215,11 +232,23 @@ and pp_expr_rec prio fmt pe =
     optparent fmt prio p "(";
     F.fprintf fmt "%a ? %a : %a" (pp_expr_rec p) e1 (pp_expr_rec p) e2 (pp_expr_rec p) e3;
     optparent fmt prio p ")"
+  | PEbig(bop, x, body, start, len) ->
+    Format.fprintf fmt "@[<hov 2>%a@ (%a in %a : %a)@ (%a)@]"
+      pp_big bop pp_var x pp_expr start pp_expr len pp_expr body
+  | PEResult i -> pp_result fmt i
+  | PEResultGet (al, aa, ws, i, e, len) ->
+    pp_arr_access_gen fmt al aa ws pp_result i pp_expr e len
+
+and pp_big fmt bop =
+  match bop with
+  | PEBop(o, e0) -> Format.fprintf fmt "%a[%a/%a]" kw "big" pp_op2 o pp_expr e0
+  | PESum-> kw fmt "sum"
+  | PEAll -> kw fmt "all"
+  | PEExists -> kw fmt "exists"
 
 and pp_mem_access fmt (al, ty, e) =
   let pp_size fmt ws = Format.fprintf fmt ":%a " pp_ws ws in
   F.fprintf fmt "[%a%a%a]" pp_aligned al (pp_opt pp_size) (Option.map L.unloc ty)  pp_expr e
-
 
 and pp_type fmt ty =
   match L.unloc ty with
@@ -229,22 +258,9 @@ and pp_type fmt ty =
   | TArray (w, e) -> F.fprintf fmt "%a[%a]" ptype (Syntax.string_of_sizetype w) pp_expr e
   | TAlias id -> F.fprintf fmt "%a" ptype (L.unloc id)
 
-and pp_ws fmt w =
-  F.fprintf fmt "%a" ptype (string_of_swsize_ty w)
-
 and pp_expr fmt e = pp_expr_rec Pmin fmt e
 
-and pp_arr_access fmt al aa ws x e len=
- let ws = Option.map L.unloc ws in
- let pp_olen fmt len =
-   match len with
-   | None -> ()
-   | Some len -> Format.fprintf fmt " : %a" pp_expr len in
- F.fprintf fmt "%a%s[%a%a%a%a%a]"
-    pp_var x
-    (if aa = Warray_.AAdirect then "." else "")
-    pp_aligned (Option.bind len (fun _ -> al))
-    (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e pp_olen len
+and pp_arr_access fmt al aa ws x e len = pp_arr_access_gen fmt al aa ws pp_var x pp_expr e len
 
 let pp_storage fmt s =
   latex "storageclass" fmt (pp_storage s)

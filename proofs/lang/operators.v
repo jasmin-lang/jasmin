@@ -121,6 +121,8 @@ Variant opN :=
 | Opack of wsize & pelem (* Pack words of size pelem into one word of wsize *)
 | Oarray of positive (* Literal array of bytes *)
 | Ocombine_flags of combine_flags
+| Ois_arr_init of positive
+| Ois_barr_init of positive
 .
 
 HB.instance Definition _ := hasDecEq.Build op_kind op_kind_eqb_OK.
@@ -132,3 +134,12 @@ HB.instance Definition _ := hasDecEq.Build sop2 sop2_eqb_OK.
 HB.instance Definition _ := hasDecEq.Build opN opN_eqb_OK.
 
 (* ----------------------------------------------------------------------------- *)
+
+
+Inductive init_cond :=
+  | IBool of bool
+  | IConst of Z
+  | IVar of nat
+  | IOp1 of sop1 & init_cond
+  | IOp2 of sop2 & init_cond & init_cond
+.

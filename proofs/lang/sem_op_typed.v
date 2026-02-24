@@ -2,7 +2,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype div ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Export type expr sem_type.
-Require Export flag_combination.
+Require Export flag_combination sem_params.
 Import Utf8.
 
 Definition mk_sem_sop1 (t1 t2 : Type) (o:t1 -> t2) v1 : exec t2 :=
@@ -180,7 +180,7 @@ Context {cfcd : FlagCombinationParams}.
 Definition sem_combine_flags (cf : combine_flags) (b0 b1 b2 b3 : bool) : bool :=
   cf_xsem negb andb orb (fun x y => x == y) b0 b1 b2 b3 cf.
 
-Definition sem_opN_typed (o: opN) :
+Definition sem_opN_typed {wa:WithAssert} (o: opN) :
   let t := type_of_opN o in
   let t := (map eval_atype t.1, eval_atype t.2) in
   sem_prod t.1 (exec (sem_t t.2)) :=
@@ -193,10 +193,18 @@ Definition sem_opN_typed (o: opN) :
       ecast l (sem_prod l _) (esym (map_nseq _ _ _)) ty
   | Ocombine_flags cf =>
       fun b0 b1 b2 b3 => ok (sem_combine_flags cf b0 b1 b2 b3)
+  | Ois_arr_init alen =>
+      fun (a:WArray.array alen) (lo:Z) (len:Z) =>
+        Let _ := assert assert_allowed ErrType in
+        ok (all (WArray.is_init a) (ziota lo len))
+  | Ois_barr_init alen =>
+      fun (a:WArray.array alen) (lo:Z) (len:Z) =>
+        Let _ := assert assert_allowed ErrType in
+        ok (all (WArray.is_initb a) (ziota lo len))
   end.
 
 Lemma sem_opN_typed_ok (op: opN) :
-  sem_forall (@is_ok _ _) _ (sem_opN_typed op).
+  sem_forall (@is_ok _ _) _ (sem_opN_typed (wa := withassert) op).
 Proof.
   case: op => // [ ws pe | len ] /=; rewrite -> map_nseq => /=.
   + by case: ws pe => - [].

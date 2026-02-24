@@ -1,0 +1,39 @@
+#[safety =
+   { requires = 0 <= i && i < 5
+   , ensures = \all (k \in 0:5) (is_arr_init(result.0,k,1) == (k==i || is_arr_init(x,k,1))) }
+ ]
+fn init_pos(reg ptr u8[5] x, reg int i) -> reg ptr u8[5]
+{
+    x[i] = 0;
+    return x;
+}
+
+#[safety =
+   { requires = is_arr_init(x,0,5) }
+ ]
+fn test2(reg ptr u8[5] x) -> reg ptr u8[5]
+{
+    stack u8[5] y;
+    inline int i;
+    i = 2;
+    y = init_pos(x,i);
+    x[2] = y[3];
+    return x;
+}
+
+#[safety =
+   { ensures = is_arr_init(result.0,0,5) }
+ ]
+fn test(reg ptr u8[5] x) -> reg ptr u8[5]
+{
+    inline int i;
+    i = 0;
+    while (i < 5) {
+      assert("safety_inv", 0<=i && i<=5 && is_arr_init (x,0,i));
+      x = init_pos(x,i);
+      i += 1;
+    }
+    i = x[2];
+    return x;
+}
+

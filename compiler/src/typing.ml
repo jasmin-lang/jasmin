@@ -82,6 +82,22 @@ let type_of_sopn loc pd msfsz asmOp op =
   List.map Conv.ty_of_cty (Sopn.sopn_tin pd msfsz asmOp op),
   List.map Conv.ty_of_cty (Sopn.sopn_tout pd msfsz asmOp op)
 
+(* Return the type of the expression but do not type check it *)
+let type_of_expr e =
+  match e with
+  | Pconst _    -> tint
+  | Pbool _  | Pis_var_init _ | Pis_mem_init _ -> tbool
+  | Parr_init (ws, len) -> Arr (ws, len)
+  | Pvar x      -> ty_gvar x
+  | Pget(_al, _aa,ws, _x, _e) -> tu ws
+  | Psub(_aa, ws, len, _x, _e) -> Arr(ws, len)
+  | Pload(_, ws, _e) -> tu ws
+  | Papp1(op, _e) -> snd (type_of_op1 op)
+  | Papp2(op, _e1, _e2) -> snd (type_of_op2 op)
+  | PappN(op, _es) -> snd (type_of_opN op)
+  | Pif(ty, _b, _e1, _e2) -> ty
+  | Pbig(_e, op, _x, _e1, _e2, _e0) -> snd (type_of_op2 op)
+
 (* -------------------------------------------------------------------- *)
 
 let rec ty_expr pd loc (e:expr) =
@@ -89,6 +105,11 @@ let rec ty_expr pd loc (e:expr) =
   | Pconst _    -> tint
   | Pbool _     -> tbool
   | Parr_init (ws, len) -> Arr (ws, len)
+  | Pis_var_init _ -> tbool
+  | Pis_mem_init (e1, e2) -> 
+    ignore (ty_load_store pd loc Wsize.U8 e1);
+    check_expr pd loc e2 tint;
+    tbool
   | Pvar x      -> ty_gvar x
   | Pget(_al, _aa,ws,x,e) ->
     ty_get_set pd loc ws x e
@@ -115,6 +136,16 @@ let rec ty_expr pd loc (e:expr) =
     check_expr pd loc e1 ty;
     check_expr pd loc e2 ty;
     ty
+  | Pbig(e, op, _x, e1, e2, e0) ->
+    let (tin1, tin2), tout = type_of_op2 op in
+    check_expr pd loc e  tout;
+    check_expr pd loc e1 tint;
+    check_expr pd loc e2 tint;
+    check_expr pd loc e0 tout;
+    (* FIXME *)
+    if not (subtype tin1 tout) && not (subtype tin2 tout) then
+      error loc "invalid big op type";
+    tout
 
 and check_expr pd loc e ty =
   let te = ty_expr pd loc e in

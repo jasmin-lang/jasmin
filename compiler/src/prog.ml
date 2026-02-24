@@ -30,6 +30,9 @@ type 'len gexpr =
   | Papp2  of sop2 * 'len gexpr * 'len gexpr
   | PappN of opN * 'len gexpr list
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
+  | Pbig   of 'len gexpr * sop2 * 'len gvar_i * 'len gexpr * 'len gexpr * 'len gexpr
+  | Pis_var_init of 'len gvar_i
+  | Pis_mem_init of 'len gexpr * 'len gexpr
 
 type 'len gexprs = 'len gexpr list
 
@@ -115,10 +118,18 @@ and ('len,'info,'asm) ginstr = {
 and ('len, 'info, 'asm) gstmt = ('len, 'info, 'asm) ginstr list
 
 (* ------------------------------------------------------------------------ *)
+type 'len gfcontract = {
+  f_iparams : 'len gvar_i list;
+  f_ires : 'len gvar_i list;
+  f_pre : 'len assertion list;
+  f_post : 'len assertion list;
+}
+
 type ('len, 'info, 'asm) gfunc = {
     f_loc  : L.t;
     f_annot: FInfo.f_annot;
     f_info : 'info;
+    f_contra: 'len gfcontract option;
     f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
@@ -263,6 +274,11 @@ let rec rvars_e f s = function
   | Papp2(_,e1,e2) -> rvars_e f (rvars_e f s e1) e2
   | PappN (_, es) -> rvars_es f s es
   | Pif(_,e,e1,e2)   -> rvars_e f (rvars_e f (rvars_e f s e) e1) e2
+  | Pbig(e, _, x, e1, e2, e0) -> 
+    let s = f (L.unloc x) s in
+    List.fold_left (rvars_e f) s [e; e1; e2; e0;]
+  | Pis_var_init x -> f (L.unloc x) s
+  | Pis_mem_init (e1,e2) -> rvars_e f (rvars_e f s e1) e2
 
 and rvars_es f s es = List.fold_left (rvars_e f) s es
 
@@ -311,6 +327,19 @@ let vars_fc fc =
   let s = params fc in
   let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) s fc.f_ret in
   rvars_c Sv.add s fc.f_body
+
+let vars_contract f_contra =
+  match f_contra with
+  | None -> Sv.empty
+  | Some f_contra ->
+    let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) Sv.empty f_contra.f_iparams in
+    let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) s f_contra.f_ires in
+    let s = rvars_es Sv.add s (List.map snd f_contra.f_pre) in
+    rvars_es Sv.add s (List.map snd f_contra.f_post)
+
+let vars_fc_contracts fc =
+  let s = vars_fc fc in
+  Sv.union s (vars_contract fc.f_contra)
 
 let locals fc =
   let s1 = params fc in

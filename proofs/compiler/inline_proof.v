@@ -67,7 +67,7 @@ Section INCL.
     inline_fd' p  fd = ok fd' ->
     inline_fd' p' fd = ok fd'.
   Proof.
-    by case: fd => fi ftin fp fb ftout fr fe /=;apply: rbindP => -[??] /inline_c_incl -> [<-].
+    by case: fd => fi ci ftin fp fb ftout fr fe /=;apply: rbindP => -[??] /inline_c_incl -> [<-].
   Qed.
 
 End INCL.
@@ -521,7 +521,7 @@ Section PROOF.
   Proof.
     move=> scs1 m1 scs2 m2 fn fd vargs vargs' s0 s1 svm2 vres vres' Hget Htin Hi Hw Hsem Hc Hres Htout Hscs Hfi.
     have [fd' [Hfd']{Hget}] := inline_progP' uniq_funname Hp Hget.
-    case: fd Htin Hi Hw Hsem Hc Hres Htout Hfi => /= fi tin fx fc tout fxr fe
+    case: fd Htin Hi Hw Hsem Hc Hres Htout Hfi => /= fi ci tin fx fc tout fxr fe
              Htin Hi Hw Hsem Hc Hres Htout Hfi.
     apply: rbindP => -[X fc'] /Hc{}Hc [] ?;subst fd'.
     move=> vargs1 Hall;move: Hw; rewrite (write_vars_lvals _ gd) => Hw.
@@ -664,7 +664,7 @@ Proof.
   move=> fs1 fs2 hpre.
   rewrite (isem_call_inline p1 ev do_inline).
   move: fs1 fs2 hpre.
-  apply wequiv_fun_ind => fn1 _ fs1 fs2 [<- hu] fd1 hfd1.
+  apply wequiv_fun_ind_wa => fn1 _ fs1 fs2 [<- hu] fd1 hfd1.
   have : if fn1 == fn then fd1 = fd /\ get_fundef (p_funcs p2) fn1 = Some fd' else get_fundef (p_funcs p2) fn1 = Some fd1.
   + move: hfd1; rewrite /p1 /p2 /get_fundef /= !assoc_cat.
     move: (uniq_funname); rewrite /pfuncs map_cat cat_uniq => /and3P [_ hhas _].
@@ -674,7 +674,7 @@ Proof.
     by rewrite /=; case: eqP => // ? [->].
   case: eqP; last first.
   (* First we show that for fn1 <> fn the semantic does not change *)
-  + move=> hfn ->; exists fd1 => //.
+  + move=> hfn ->; exists fd1 => // _; split => //.
     move=> s1 hinit.
     have [s1' hinit' hus1] :=
       [elaborate fs_uincl_initialize (p:=p1) (p':=p2) (fs:= fs1) (fs':= fs2) erefl erefl erefl erefl hu hinit].
@@ -687,7 +687,7 @@ Proof.
                          (sem_fun (sem_Fun := sem_fun_rec E) p1 ev ii fn fs).
     + move=> ii fn2 fs /=; rewrite /do_inline; case: eqP => //= ?; reflexivity.
     rewrite (isem_cmd_ext h) => {h}.
-    by move: s t; apply it_sem_uincl_aux => // ?????; apply: wequiv_fun_rec.
+    move: s t; apply it_sem_uincl_aux_wa => // ?????; exact/wequiv_fun_rec.
   (* Second it works for fn1 *)
   move=> ? [? ->]; subst fn1 fd1; exists fd' => //.
   have : exists2 Xc,
@@ -697,7 +697,7 @@ Proof.
     by t_xrbindP => Xc h <-; exists Xc.
   move=> [[X1 c']].
   set X2 := read_es _.
-  move=> hc' -> /= s1 hinit.
+  move=> hc' -> /= _; split => // s1 hinit.
   have [s1' hinit' hus1] :=
       [elaborate fs_uincl_initialize (p:=p1) (p':=p2) (fd:=fd) (fd':= with_body fd c')
                  (fs:= fs1) (fs':= fs2) erefl erefl erefl erefl hu hinit].
@@ -771,6 +771,7 @@ Proof.
   + rewrite ITree.Eq.Eqit.bind_vis.
     apply xrutt.xrutt_CutL => //.
     by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
+  rewrite ITree.Eq.Eqit.bind_ret_l /isem_pre /sem_pre /isem_post /sem_post /=.
   rewrite ITree.Eq.Eqit.bind_ret_l ITree.Eq.Eqit.bind_bind /kget_fundef.
   have -> /= : get_fundef pfuncs f = Some ffd.
   + move: uniq_funname; rewrite /get_fundef /pfuncs map_cat cat_uniq assoc_cat => /and3P [_ /= hhas /andP [hnin _]].
@@ -780,7 +781,7 @@ Proof.
       by apply: assoc_mem_dom' ha1.
     case: eqP => // ?; subst f.
     by move: hnin; rewrite (assoc_mem_dom' hffd).
-  rewrite ITree.Eq.Eqit.bind_ret_l ITree.Eq.Eqit.bind_bind.
+  rewrite !ITree.Eq.Eqit.bind_ret_l ITree.Eq.Eqit.bind_bind.
   case hinit : initialize_funcall => [s1 /= | ?]; last first.
   + rewrite ITree.Eq.Eqit.bind_vis.
     apply xrutt.xrutt_CutL => //.
@@ -815,11 +816,13 @@ Proof.
     (fun s2 s3 : estate => evm (with_vm s1 vm2) =[\write_c (f_body ffd')] evm s3 /\ st_eq_alloc r2 s2 s3).
   + by apply h.
   move=> s' t' [heqex {}heqa].
+  rewrite ITree.Eq.Eqit.bind_bind.
   case hfinal : finalize_funcall => [fr /= | ?]; last first.
   + rewrite ITree.Eq.Eqit.bind_vis.
     apply xrutt.xrutt_CutL => //.
     by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
   rewrite ITree.Eq.Eqit.bind_ret_l.
+  rewrite ITree.Eq.Eqit.bind_bind !ITree.Eq.Eqit.bind_ret_l. 
   case hupd : upd_estate => [s1' /= | ?]; last first.
   + apply xrutt.xrutt_CutL => //.
     by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
@@ -899,7 +902,7 @@ Proof.
   rewrite /inline_prog_err; case: ifP => //; t_xrbindP => huniq pfuncs h <-.
   have /(_ [::]) /= := inline_fd_consP h.
   rewrite cats0 => /(_ huniq) [_ ]; apply => fn'; rewrite (surj_prog p).
-  apply it_sem_uincl_f.
+  by apply it_sem_uincl_f_wa.
 Qed.
 
 End IT.

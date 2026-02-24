@@ -11,6 +11,9 @@ Require Import flag_combination.
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
 
+(* This pass is used as a first step for the compilation.
+   It replaces wint operator by the corresponding word operator
+ *)
 
 Definition wi2w_wiop1 s (o : wiop1) (e : pexpr) : pexpr :=
   match o with
@@ -61,6 +64,9 @@ Fixpoint wi2w_e (e: pexpr) : pexpr :=
   | Papp2 o e1 e2 => Papp2 (wi2w_op2 o) (wi2w_e e1) (wi2w_e e2)
   | PappN o es => PappN o (map wi2w_e es)
   | Pif ty e1 e2 e3 => Pif ty (wi2w_e e1) (wi2w_e e2) (wi2w_e e3)
+  | Pbig ei o v e es el => Pbig (wi2w_e ei) (wi2w_op2 o) v (wi2w_e e) (wi2w_e es) (wi2w_e el)
+  | Pis_var_init _ => e
+  | Pis_mem_init e1 e2 => Pis_mem_init (wi2w_e e1) (wi2w_e e2)
   end.
 
 Definition wi2w_lv (x : lval) : lval :=

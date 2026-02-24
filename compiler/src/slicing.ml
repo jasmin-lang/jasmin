@@ -17,6 +17,10 @@ let rec inspect_e k = function
   | Papp2 (_, e1, e2) -> inspect_e (inspect_e k e1) e2
   | PappN (_, es) -> inspect_es k es
   | Pif (_, e1, e2, e3) -> inspect_e (inspect_e (inspect_e k e1) e2) e3
+  | Pbig(e, _op2, _x, e1, e2, e0) ->
+    List.fold_left inspect_e k [e;e1;e2; e0]
+  | Pis_var_init _ -> k
+  | Pis_mem_init (e1,e2) -> inspect_e (inspect_e k e1) e2
 
 and inspect_es k es = List.fold_left inspect_e k es
 
