@@ -186,6 +186,137 @@ and pexpr = pexpr_r L.located
 
 and mem_access = [ `Aligned | `Unaligned ] option * swsize L.located option * pexpr
 
+
+(* Printing of pexpr *)
+let string_of_align =
+  function
+  | `Aligned -> "aligned"
+  | `Unaligned -> "unaligned"
+
+module SPrinter = struct
+
+  module F = Format
+
+  let pp_var fmt x =
+    F.fprintf fmt "%s" (L.unloc x)
+
+  let pp_opt p fmt = function
+    | None -> ()
+    | Some x -> p fmt x
+
+  let sharp fmt () = F.fprintf fmt "#"
+
+  let pp_aligned fmt al =
+    pp_opt (fun fmt al ->
+      F.fprintf fmt "%a%s " sharp () (string_of_align al)
+    ) fmt al
+
+  type prio =
+    | Pmin
+    | Pternary
+    | Por
+    | Pand
+    | Pbwor
+    | Pbwxor
+    | Pbwand
+    | Pcmpeq
+    | Pcmp
+    | Pshift
+    | Padd
+    | Pmul
+    | Punary
+    | Pbang
+
+  let prio_of_op1 =
+    function
+    | `Cast _
+    | `Not _ -> Pbang
+    | `Neg _ -> Punary
+
+  let prio_of_op2 =
+    function
+    | `Add _ | `Sub _ -> Padd
+    | `Mul _ | `Div _ | `Mod _ -> Pmul
+    | `And -> Pand
+    | `Or -> Por
+    | `BAnd _ -> Pbwand
+    | `BOr _ -> Pbwor
+    | `BXOr _ -> Pbwxor
+    | `ShR _  | `ShL _ | `ROR _ | `ROL _ -> Pshift
+    | `Eq _ | `Neq _ -> Pcmpeq
+    | `Lt _ | `Le _ | `Gt _ | `Ge _
+      -> Pcmp
+
+  let optparent fmt ctxt prio p =
+    if prio < ctxt then F.fprintf fmt "%s" p
+
+  let pp_svsize fmt (vs,s,ve) =
+    Format.fprintf fmt "%d%s%d"
+      (int_of_vsize vs) (string_of_sign s) (bits_of_vesize ve)
+
+  let pp_op2 fmt op = Format.fprintf fmt "%s" (string_of_peop2 op)
+
+  let pp_ws fmt w =
+    F.fprintf fmt "%s" (string_of_swsize_ty w)
+
+  let pp_space fmt _ =
+    F.fprintf fmt " "
+
+  let rec pp_expr_rec prio fmt pe =
+     match L.unloc pe with
+    | PEParens e -> pp_expr_rec prio fmt e
+    | PEVar x -> pp_var fmt x
+    | PEGet (al, aa, ws, x, e, len) ->
+      pp_arr_access fmt al aa ws x e len
+    | PEFetch me -> pp_mem_access fmt me
+    | PEpack (vs,es) ->
+      F.fprintf fmt "(%a)[@[%a@]]" pp_svsize vs (pp_list ",@ " pp_expr) es
+    | PEstring s -> pp_string fmt s
+    | PEBool b -> F.fprintf fmt "%s" (if b then "true" else "false")
+    | PEInt i -> F.fprintf fmt "%s" i
+    | PECall (f, args) -> F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
+    | PECombF (f, args) ->
+      F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
+    | PEPrim (f, args) -> F.fprintf fmt "%a%s(%a)" sharp () (L.unloc f) (pp_list ", " pp_expr) args
+    | PEOp1 (op, e) ->
+      let p = prio_of_op1 op in
+      optparent fmt prio p "(";
+      F.fprintf fmt "%s %a" (string_of_peop1 op) (pp_expr_rec p) e;
+      optparent fmt prio p ")"
+    | PEOp2 (op, (e, r)) ->
+      let p = prio_of_op2 op in
+      optparent fmt prio p "(";
+      F.fprintf fmt "%a %a %a" (pp_expr_rec p) e pp_op2 op (pp_expr_rec p) r;
+      optparent fmt prio p ")"
+    | PEIf (e1, e2, e3) ->
+      let p = Pternary in
+      optparent fmt prio p "(";
+      F.fprintf fmt "%a ? %a : %a" (pp_expr_rec p) e1 (pp_expr_rec p) e2 (pp_expr_rec p) e3;
+      optparent fmt prio p ")"
+
+  and pp_mem_access fmt (al, ty, e) =
+    let pp_size fmt ws = Format.fprintf fmt ":%a " pp_ws ws in
+    F.fprintf fmt "[%a%a%a]" pp_aligned al (pp_opt pp_size) (Option.map L.unloc ty)  pp_expr e
+
+  and pp_expr fmt e = pp_expr_rec Pmin fmt e
+
+  and pp_arr_access fmt al aa ws x e len=
+   let ws = Option.map L.unloc ws in
+   let pp_olen fmt len =
+     match len with
+     | None -> ()
+     | Some len -> Format.fprintf fmt " : %a" pp_expr len
+   in
+     F.fprintf fmt "%a%s[%a%a%a%a%a]"
+      pp_var x
+      (if aa = Warray_.AAdirect then "." else "")
+      pp_aligned (Option.bind len (fun _ -> al))
+      (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e pp_olen len
+
+end
+
+
+
 (* -------------------------------------------------------------------- *)
 type psimple_attribute =
   | PAstring of string

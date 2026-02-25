@@ -23,9 +23,7 @@ and pattri_to_simple_attribute (pattri: Syntax.psimple_attribute) : Annotations.
       | PEInt ir -> Aint (Syntax.parse_int ir)
       | PEOp1 (`Neg None, {L.pl_desc = PEInt ir}) -> Aint (Z.neg (Syntax.parse_int ir))
       | PEstring s -> Astring s
-      | _ ->
-        hierror ~kind:"syntax" ~loc:(Lone (L.loc e))
-          "complex expressions not allowed in annotations"
+      | _ -> Astring (Format.asprintf "%a" Syntax.SPrinter.pp_expr e)
 
 (* -------------------------------------------------------------------- *)
 let process_f_annot loc funname f_cc annot =
