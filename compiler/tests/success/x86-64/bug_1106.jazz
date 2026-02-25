@@ -1,0 +1,10 @@
+// A subarray of length 0 is ok
+
+export fn main () -> reg u32 {
+  stack u32[1] a b;
+  a[0] = 1;
+  b[0] = 2;
+  a[0:0] = b[0:0];
+  reg u32 res = b[0];
+  return res;
+}

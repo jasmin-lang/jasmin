@@ -1087,17 +1087,17 @@ let cast_int loc os e ety =
 
 
 (* -------------------------------------------------------------------- *)
-let conv_ty : BinNums.positive T.extended_type -> P.epty = function
+let conv_ty : BinNums.coq_N T.extended_type -> P.epty = function
     | T.ETbool       -> P.etbool
     | T.ETint        -> P.etint
     | T.ETword(s,ws) -> P.ETword(s,ws)
-    | T.ETarr (ws, p) -> P.ETarr (ws, PE (P.cnst (Conv.z_of_pos p)))
+    | T.ETarr (ws, n) -> P.ETarr (ws, PE (P.cnst (Conv.z_of_n n)))
 
 let conv_cty : T.atype -> P.epty = function
     | T.Coq_abool    -> P.etbool
     | T.Coq_aint     -> P.etint
     | T.Coq_aword ws -> P.etw ws
-    | T.Coq_aarr (ws, p) -> P.ETarr (ws, PE (P.cnst (Conv.z_of_pos p)))
+    | T.Coq_aarr (ws, n) -> P.ETarr (ws, PE (P.cnst (Conv.z_of_n n)))
 
 let type_of_op2 op =
   let (ty1, ty2), tyo = E.etype_of_op2 op in
@@ -1366,8 +1366,8 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
 
   | S.PEstring s ->
      let es = array_of_string s in
-     let len = Conv.pos_of_int (List.length es) in
-     P.PappN (Oarray len, es), P.(ETarr (U8, PE (Pconst (Conv.z_of_pos len))))
+     let len = Z.of_int (List.length es) in
+     P.PappN (Oarray (Conv.n_of_z len), es), P.(ETarr (U8, PE (Pconst len)))
 
   | S.PEIf (pe1, pe2, pe3) ->
     let e1, ty1 = tt_expr ~mode pd env pe1 in
@@ -1997,7 +1997,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
             (string_error "only a single variable is allowed as destination of randombytes") in
       let _ = tt_as_array (loc, ty) in
       let es = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args [ty] in
-      [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (U8, Conv.pos_of_int 1), es))]
+      [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (U8, Conv.n_of_int 1), es))]
 
   | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None when L.unloc f = "swap" ->
       let loc = L.loc pi in

@@ -430,7 +430,7 @@ Section ADD_INIT.
     set i' := MkI _ _.
     have [vm2 heq2 hi']: exists2 vm2, evm s1 =1 vm2 & sem_I p' ev (with_vm s1 vm1) i' (with_vm s1 vm2).
     + rewrite /i'; have := hu x; rewrite in_cons eq_refl /= => /(_ erefl) {hu i'} hx.
-      exists (vm1.[x <- Varr (WArray.empty (Z.to_pos (arr_size ws len)))]).
+      exists (vm1.[x <- Varr (WArray.empty (Z.to_N (arr_size ws len)))]).
       + move: hu1; rewrite !vm_eq_vm_rel => hu1; apply vm_rel_set_r.
         + by move=> _ /=; rewrite hx heq /= eqxx.
         by apply: vm_relI hu1.

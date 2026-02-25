@@ -646,7 +646,8 @@ Module RGP. Section PROOFS.
       by rewrite zero_extend_u.
     case: ty => // ws n /eqP; rewrite arr_sizeE Z.mul_1_l => eq_len /WArray.is_uinclP => h.
     split; last by [].
-    by case: h => ? _; subst; congr carr; rewrite -eq_len.
+    case: h => ? _; subst; congr carr; rewrite -eq_len.
+    by rewrite N2Z.id.
   Qed.
 
   Lemma find_globP ii xi gv g :

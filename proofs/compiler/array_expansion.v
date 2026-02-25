@@ -95,7 +95,7 @@ Definition init_array_info (x : varr_info) (svm:Sv.t * Mvar.t array_info) :=
   let vars := map (fun id => {| vtype := ty; vname := id |}) x.(vi_n) in
   Let svelems := foldM init_elems (sv,0%Z) vars in
   let '(sv, len) := svelems in
-  Let _ := assert [&& (0 <? len)%Z & convertible (vtype (vi_v x)) (aarr x.(vi_s) (Z.to_pos len))]
+  Let _ := assert [&& (0 <=? len)%Z & convertible (vtype (vi_v x)) (aarr x.(vi_s) (Z.to_N len))]
              (reg_ierror_no_var "init_array_info") in
   ok (sv, Mvar.set m x.(vi_v) {| ai_ty := x.(vi_s); ai_len := len; ai_elems := vars |}).
 
@@ -215,7 +215,7 @@ Definition expand_param (m : t) ex (e : pexpr) : cexec _ :=
       Let _ := assert (aa == AAscale) (reg_error (gv x) "(the default scale must be used)") in
       Let i := o2r (reg_error (gv x) "(the index is not a constant)") (is_const e) in
       Let ai := o2r (reg_error (gv x) "(not a reg array)") (Mvar.get m.(sarrs) (gv x)) in
-      Let _ := assert [&& ws == ai_ty ai, ws' == ws, len == len' & is_lvar x]
+      Let _ := assert [&& ws == ai_ty ai, ws' == ws, len == Z.of_N len' & is_lvar x]
                       (reg_error (gv x) "(type mismatch)") in
       let elems := take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai)) in
       let vi := v_info (gv x) in
@@ -241,7 +241,7 @@ Definition expand_return m ex x :=
       Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
       Let i := o2r (reg_error x "(the index is not a constant)") (is_const e) in
       Let ai := o2r (reg_error x "(not a reg array)") (Mvar.get m.(sarrs) x) in
-      Let _ := assert [&& ws == ai_ty ai, ws' == ws & len == len']
+      Let _ := assert [&& ws == ai_ty ai, ws' == ws & len == Z.of_N len']
                       (reg_error x "(type mismatch)") in
       let vi := v_info x in
       let elems := take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai)) in

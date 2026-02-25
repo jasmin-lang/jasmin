@@ -1547,6 +1547,7 @@ Proof. move=> /P_ltP ? /P_leP ?;apply /P_ltP; Lia.lia. Qed.
 
 (* TODO: when elpi.derive supports it, register Pos.eqb_spec instead *)
 #[only(eqbOK)] derive positive.
+#[only(eqbOK)] derive N.
 
 HB.instance Definition _ := hasDecEq.Build positive positive_eqb_OK.
 
@@ -1564,6 +1565,19 @@ Proof.
 Qed.
 
 #[global]
+Instance NO : Cmp N.compare.
+Proof.
+  constructor.
+  + by move=> ??;rewrite N.compare_antisym.
+  + move=> ????;case:N.compare_spec=> [->|H1|H1];
+    case:N.compare_spec=> H2 //= -[] <- //;subst;
+    rewrite ?N.compare_lt_iff ?N.compare_gt_iff //.
+    + by apply: N.lt_trans H1 H2.
+    by apply: N.lt_trans H2 H1.
+  apply N.compare_eq.
+Qed.
+
+#[global]
 Instance ZO : Cmp Z.compare.
 Proof.
   constructor.
@@ -1576,7 +1590,7 @@ Proof.
   apply Z.compare_eq.
 Qed.
 
-Lemma Z_to_nat_le0 z : z <= 0 -> Z.to_nat z = 0%N.
+Lemma Z_to_nat_le0 z : z <= 0 -> Z.to_nat z = 0%nat.
 Proof. by rewrite /Z.to_nat; case: z => //=; rewrite /Z.le. Qed.
 
 Lemma Z_odd_pow_2 n x :
