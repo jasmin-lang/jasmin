@@ -113,7 +113,7 @@ let small_step1 ep spp sip env s =
       { s with s_cmd = c; s_estate = s2 }
 
     | Cassert (p,a) ->
-      let v = exn_exec ii (sem_pexpr nosubword ep spp true gd s1 a) in
+      let v = exn_exec ii (sem_pexpr nosubword ep spp env true gd s1 a) in
       let b = of_val_b ii v in
       if not b then raise (Eval_error(ii, ErrAssert p));
       { s with s_cmd = c }

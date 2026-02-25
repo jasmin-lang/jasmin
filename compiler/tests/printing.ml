@@ -113,7 +113,24 @@ let eq_ty x y =
       | Papp1 _ | Papp2 _ | PappN _ | Pif _ ),
       _ ) ->
       false
+
 and eq_pexprs x y = List.for_all2 eq_pexpr x y
+
+let eq_plval x y =
+  match (x, y) with
+  | Lnone (_, a), Lnone (_, b) -> eq_ty a b
+  | Lvar a, Lvar b -> eq_pvar_i a b
+  | Lmem (a, b, _, d), Lmem (e, f, _, h) ->
+      a = e && Wsize.wsize_eqb b f && eq_pexpr d h
+  | Laset (a, b, c, d, e), Laset (f, g, h, i, j) ->
+      a = f && b = g && Wsize.wsize_eqb c h && eq_pvar_i d i && eq_pexpr e j
+  | Lasub (a, b, c, d, e), Lasub (f, g, h, i, j) ->
+      a = f && Wsize.wsize_eqb b g && eq_al c h && eq_pvar_i d i
+      && eq_pexpr e j
+  | (Lnone _ | Lvar _ | Lmem _ | Laset _ | Lasub _), _ -> false
+
+  let eq_plvals x y = List.for_all2 eq_plval x y
+
 
 let eq_pgexpr x y =
   match (x, y) with
@@ -145,7 +162,7 @@ and eq_pinstr_r (x : _ instr_r) y =
   | Cwhile (a, b, c, _d, e), Cwhile (f, g, h, _i, j) ->
       a = f && eq_pstmt b g && eq_pexpr c h && eq_pstmt e j
   | Ccall (a, b, c, d), Ccall (e, f, g, h) ->
-      eq_plvals a e && b.fn_name = f.fn_name && List.for_all2 eq_al c q && eq_pexprs d h
+      eq_plvals a e && b.fn_name = f.fn_name && List.for_all2 eq_al c g && eq_pexprs d h
   | ( ( Cassgn _ | Copn _ | Csyscall _ | Cassert _ | Cif _ | Cfor _ | Cwhile _
       | Ccall _ ),
       _ ) ->
