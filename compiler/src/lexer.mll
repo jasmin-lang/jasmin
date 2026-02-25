@@ -131,6 +131,7 @@
    | "si" -> `WInt `Signed
    | "ui" -> `WInt `Unsigned
    | _    -> assert false
+
 }
 
 (* -------------------------------------------------------------------- *)
@@ -207,7 +208,6 @@ rule main = parse
   | ">>" (signletter as s)? { GTGT (mk_sign s) }
   | ">=" (signletter as s)? { GE   (mk_sign s) }
   | ">"  (signletter as s)? { GT   (mk_sign s) }
-
   | "."  { DOT      }
   | "!"  { BANG     }
   | "+"  { PLUS     }

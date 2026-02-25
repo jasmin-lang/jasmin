@@ -8,7 +8,8 @@ export fn syscall() {
   stack u8[1] t;
   reg u64 x;
   x = #init_msf();
-  t = #randombytes(t);
+  reg u64 len = 1;
+  t = #randombytes{1}(t, len);
   x = #protect(x, x);
 }
 export fn update_msf_not_trans() {

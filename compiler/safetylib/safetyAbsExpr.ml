@@ -28,7 +28,13 @@ type msub = int gmsub
 let check_msub ms =
   let gv = ms.ms_v in
   (* array size, in bytes   *)
-  let arr_size = arr_range gv * (size_of_ws (arr_size gv)) in
+  let len = arr_range gv in
+  let len =
+    match len with
+    | Const len -> len
+    | _ -> assert false
+  in
+  let arr_size = len * (size_of_ws (arr_size gv)) in
   (* sub-array size, in bytes * *)
   let sub_size = ms.ms_len * (size_of_ws ms.ms_ws) in
   let offset = ms.ms_offset in
@@ -40,10 +46,16 @@ let check_msubo ms = match ms.ms_offset with
   | Some off -> check_msub { ms with ms_offset = off }
 
 let msub_of_arr gv sc =
+  let len = arr_range gv in
+  let len =
+    match len with
+    | Const len -> len
+    | _ -> assert false
+  in
   let msub = { ms_v      = gv;
                ms_sc     = sc;
                ms_ws     = arr_size gv;
-               ms_len    = arr_range gv;
+               ms_len    = len;
                ms_offset = Some 0; } in
   check_msubo msub;
   msub
@@ -216,7 +228,7 @@ let print_not_word_expr e =
   Format.eprintf "@[<v>Should be a word expression:@;\
                   @[%a@]@;Type:@;@[%a@]@]@."
     (Printer.pp_expr ~debug:(!Glob_options.debug)) e
-    (PrintCommon.pp_ty) (Conv.ty_of_cty (Conv.cty_of_ty (ty_expr e)))
+    (Printer.pp_ty ~debug:false) (Conv.ty_of_cty (Conv.cty_of_ty (ty_expr e)))
 
 let check_is_int v =
   let gv = L.unloc v.gv in
@@ -224,7 +236,7 @@ let check_is_int v =
   | Bty Int -> ()
   | _ ->
     Format.eprintf "%s should be an int but is a %a@."
-      gv.v_name PrintCommon.pp_ty gv.v_ty;
+      gv.v_name (Printer.pp_ty ~debug:false) gv.v_ty;
     raise (Aint_error "Bad type")
 
 let check_is_word v =
@@ -233,7 +245,7 @@ let check_is_word v =
   | Bty (U _) -> ()
   | _ ->
     Format.eprintf "%s should be a word but is a %a@."
-      gv.v_name PrintCommon.pp_ty gv.v_ty;
+      gv.v_name (Printer.pp_ty ~debug:false) gv.v_ty;
     raise (Aint_error "Bad type")
 
 
@@ -416,8 +428,14 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
   (*-------------------------------------------------------------------------*)
   let arr_full_range x =
+    let len = arr_range x in
+    let len =
+      match len with
+      | Const len -> len
+      | _ -> assert false
+    in
     List.init
-      (arr_range x * size_of_ws (arr_size x))
+      (len * size_of_ws (arr_size x))
       (fun i -> AarraySlice (x, U8, i))
 
   (* let abs_arr_range_at abs x acc ws ei = match aeval_cst_int abs ei with
@@ -452,7 +470,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
   (*-------------------------------------------------------------------------*)
   (* Collect all variables appearing in e. *)
-  let ptr_expr_of_expr abs e =
+  let ptr_expr_of_expr abs (e:length gexpr) =
     let exception Expr_contain_load in
     let rec aux acc e = match e with
       | Pbool _ | Parr_init _ | Pconst _ -> acc
@@ -462,6 +480,11 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
       | Pget(_, access,ws,x,ei) ->
         abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws 1   ei @ acc
       | Psub (access, ws, len, x, ei) ->
+        let len =
+          match len with
+          | Const len -> len
+          | _ -> assert false
+        in
         abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws len ei @ acc
 
       | Papp1 (_, e1) -> aux acc e1
@@ -1068,6 +1091,11 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
       end
 
     | Lasub (acc, ws, len, x, ei) ->
+      let len =
+        match len with
+        | Const len -> len
+        | _ -> assert false
+      in
       let offset = match aeval_cst_int abs ei with
         | Some i -> Some (access_offset acc ws i)
         | None -> None in
@@ -1079,7 +1107,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
       MLasub (loc, msub)
 
-  let apply_offset_expr abs outv info (inv : int ggvar) offset_expr =
+  let apply_offset_expr abs outv info (inv : length ggvar) offset_expr =
     (* Global variable cannot alias to a input pointer. *)
     assert (inv.gs = Expr.Slocal);
     let inv = L.unloc inv.gv in
@@ -1146,6 +1174,11 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
   let msub_of_sub_expr abs = function
     | Psub (acc, ws, len, ggv, ei) ->
+      let len =
+        match len with
+        | CoreIdent.Const len -> len
+        | _ -> assert false
+      in
       let offset = match aeval_cst_int abs ei with
         | Some i -> Some (access_offset acc ws i)
         | None -> None in

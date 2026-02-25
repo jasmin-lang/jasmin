@@ -2,11 +2,13 @@ open Utils
 open Prog
 open Glob_options
 
+let syscall_length_ident = Conv.fresh_var_ident Length IInfo.dummy (Uint63.of_int 0) "N" Coq_aint
+
 let preprocess pd msfsize asmOp p =
   let p =
     p |> Subst.remove_params |> Insert_copy_and_fix_length.doit pd
   in
-  Typing.check_prog pd msfsize asmOp p;
+  Typing.check_prog pd msfsize asmOp syscall_length_ident p;
   p
 
 (* -------------------------------------------------------------------- *)
@@ -26,7 +28,7 @@ let get_jasminpath () =
 let parse_file arch_info ?(idirs=[]) fname =
   let idirs = idirs @ get_jasminpath () in
   let env = List.fold_left Pretyping.Env.add_from Pretyping.Env.empty idirs in
-  Pretyping.tt_program arch_info env fname
+  Pretyping.tt_program arch_info syscall_length_ident env fname
 
 (* -------------------------------------------------------------------- *)
 let rec warn_extra_i pd msfsize asmOp i =
@@ -91,7 +93,7 @@ let do_wint_int
   let info x =
     let x = Conv.var_of_cvar x in
      Mv.find_opt x m in
-  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.pointer_data Arch.msf_size info cp in
+  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.pointer_data Arch.msf_size syscall_length_ident info cp in
   let cp =
     match cp with
     | Utils0.Ok cp -> cp
@@ -100,9 +102,10 @@ let do_wint_int
       raise (HiError e) in
   let (gd, fdso) = Conv.prog_of_cuprog cp in
   (* Restore type of array in the functions signature *)
+  (* FIXME: is this needed now that we preserve ws on Rocq's side? *)
   let restore_ty tyi tyo =
     match tyi, tyo with
-    | Arr(ws1, l1), Arr(ws2, l2) -> assert (arr_size ws1 l1 = arr_size ws2 l2); tyi
+    | Arr(ws1, Const l1), Arr(ws2, Const l2) -> assert (arr_size ws1 l1 = arr_size ws2 l2); tyi
     | Bty (U _), Bty Int -> tyo
     | _, _ -> assert (tyi = tyo); tyo
   in
@@ -418,6 +421,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.dead_vars_ufd;
       Compiler.dead_vars_sfd;
       Compiler.pp_sr;
+      Compiler.syscall_length_ident;
     }
   in
 

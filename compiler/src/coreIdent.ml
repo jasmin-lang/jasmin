@@ -83,16 +83,62 @@ module GV = struct
 
   let hash v = Uint63.hash v.v_id
 
-  let is_glob v = v.v_kind = Const
+  let is_length_var v = v.v_kind = Length
 
-  let is_local v = not (is_glob v)
+  (* if the type of the var is a base type, the var can be cast to any type *)
+  let cast v =
+    let ty =
+      match v.v_ty with
+      | Bty _ as ty -> ty
+      | _ -> assert false
+    in
+    { v with v_ty = ty }
 end
 
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized variable                                                *)
 
-type ty    = int gty
-type var   = int gvar
+type length =
+  | Const of int (* FIXME: Z.t ? *)
+  | Var of length gvar
+  | Neg of length
+  | Add of length * length
+  | Sub of length * length
+  | Mul of length * length
+  | Div of signedness * length * length
+  | Mod of signedness * length * length
+  | Shl of length * length
+  | Shr of length * length
+
+type ty    = length gty
+type var   = length gvar
+
+let rec subst_al (f : var -> length option) al =
+  match al with
+  | Const _ -> al
+  | Var x ->
+    begin match f x with
+    | None -> al
+    | Some al' -> al'
+    end
+  | Neg al -> Neg (subst_al f al)
+  | Add (al1, al2) -> Add (subst_al f al1, subst_al f al2)
+  | Sub (al1, al2) -> Sub (subst_al f al1, subst_al f al2)
+  | Mul (al1, al2) -> Mul (subst_al f al1, subst_al f al2)
+  | Div (sg, al1, al2) -> Div (sg, subst_al f al1, subst_al f al2)
+  | Mod (sg, al1, al2) -> Mod (sg, subst_al f al1, subst_al f al2)
+  | Shl (al1, al2) -> Shl (subst_al f al1, subst_al f al2)
+  | Shr (al1, al2) -> Shr (subst_al f al1, subst_al f al2)
+
+let subst_ety f ty =
+  match ty with
+  | ETarr (ws, len) -> ETarr (ws, subst_al f len)
+  | _ -> ty
+
+let subst_ty f ty =
+  match ty with
+  | Arr (ws, len) -> Arr (ws, subst_al f len)
+  | _ -> ty
 
 module V = struct
   type t = var

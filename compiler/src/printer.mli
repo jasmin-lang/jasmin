@@ -11,11 +11,12 @@ val pp_eptype : debug:bool -> Format.formatter -> epty -> unit
 val pp_plval : debug:bool -> Format.formatter -> plval -> unit
 val pp_pexpr : debug:bool -> Format.formatter -> pexpr -> unit
 val pp_pprog : debug:bool -> Wsize.wsize -> Wsize.wsize -> ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
-               Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) pprog -> unit
+               Format.formatter -> (length,'info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) gprog -> unit
 
 val pp_var   : debug:bool -> Format.formatter -> var -> unit
 val pp_dvar  : debug:bool -> Format.formatter -> var -> unit
 
+val pp_etype : debug:bool -> Format.formatter -> ety -> unit
 val string_of_combine_flags : Operators.combine_flags -> string
 
 val pp_expr  : debug:bool -> Format.formatter -> expr -> unit
@@ -82,3 +83,5 @@ val pp_sprog : debug:bool ->
                ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
                Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) sprog -> unit
 
+val pp_len : debug:bool -> Format.formatter -> CoreIdent.length -> unit
+val pp_ty : debug:bool -> Format.formatter -> Prog.ty -> unit

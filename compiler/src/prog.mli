@@ -65,12 +65,12 @@ type ('len, 'info, 'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
-  | Csyscall of 'len glvals * (Wsize.wsize * BinNums.positive) Syscall_t.syscall_t * 'len gexprs
+  | Csyscall of 'len glvals * Wsize.wsize Syscall_t.syscall_t * 'len list * 'len gexprs
   | Cassert of 'len assertion
   | Cif    of 'len gexpr * ('len, 'info, 'asm) gstmt * ('len, 'info, 'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len, 'info, 'asm) gstmt
   | Cwhile of E.align * ('len, 'info, 'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len, 'info, 'asm) gstmt
-  | Ccall  of 'len glvals * funname * 'len gexprs
+  | Ccall  of 'len glvals * funname * 'len list * 'len gexprs
 
 and ('len, 'info, 'asm) ginstr = {
     i_desc : ('len, 'info, 'asm) ginstr_r;
@@ -88,6 +88,7 @@ type ('len, 'info, 'asm) gfunc = {
     f_info : 'info;
     f_cc   : FInfo.call_conv;
     f_name : funname;
+    f_al : 'len gvar list;
     f_tyin : 'len gty list;
     f_args : 'len gvar list;
     f_body : ('len, 'info, 'asm) gstmt;
@@ -140,7 +141,7 @@ module PV : sig
 
   val hash : pvar -> int
 
-  val is_glob : pvar -> bool
+  val is_length_var : pvar -> bool
 end
 
 val gkglob : 'len gvar_i -> 'len ggvar
@@ -155,28 +156,34 @@ val pexpr_equal : pexpr -> pexpr -> bool
 
 val epty_equal : epty -> epty -> bool
 
-val ws_of_ety : epty -> wsize
 
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
 
-type ty    = int gty
-type var   = int gvar
-type var_i = int gvar_i
-type lval  = int glval
-type lvals = int glval list
-type expr  = int gexpr
-type exprs = int gexpr list
+type ty    = length gty
+type var   = length gvar
+type var_i = length gvar_i
+type lval  = length glval
+type lvals = length glval list
+type expr  = length gexpr
+type exprs = length gexpr list
 
+type ety   = length gety
+val ety_equal : ety -> ety -> bool
+val ws_of_ety : ety -> wsize
+val al_of_expr : expr -> length
+val expr_of_al : length -> expr
+val expanded_form : length -> (int * length gvar list) list
+val compare_array_length : wsize * length -> wsize * length -> bool
 
-type range = int grange
+type range = length grange
 
-type ('info, 'asm) instr = (int, 'info, 'asm) ginstr
-type ('info, 'asm) instr_r = (int,'info,'asm) ginstr_r
-type ('info, 'asm) stmt  = (int, 'info, 'asm) gstmt
+type ('info, 'asm) instr = (length, 'info, 'asm) ginstr
+type ('info, 'asm) instr_r = (length,'info,'asm) ginstr_r
+type ('info, 'asm) stmt  = (length, 'info, 'asm) gstmt
 
-type ('info, 'asm) func     = (int, 'info, 'asm) gfunc
-type ('info, 'asm) mod_item = (int, 'info, 'asm) gmod_item
+type ('info, 'asm) func     = (length, 'info, 'asm) gfunc
+type ('info, 'asm) mod_item = (length, 'info, 'asm) gmod_item
 type global_decl           = var * Global.glob_value
 type ('info, 'asm) prog     = global_decl list * ('info, 'asm) func list
 
@@ -197,7 +204,7 @@ module V : sig
 
   val hash : var -> int
 
-  val is_glob : var -> bool
+  val is_length_var : var -> bool
 end
 
 module Sv : Set.S  with type elt = var
@@ -216,9 +223,11 @@ val ty_i   : 'len gvar_i -> 'len gty
 val fold_vars_ret : ('ty gvar -> 'acc -> 'acc) -> 'acc -> ('ty, 'info, 'asm) gfunc -> 'acc
 val fold_vars_fc : ('ty gvar -> 'acc -> 'acc) -> 'acc -> ('ty, 'info, 'asm) gfunc -> 'acc
 
+val vars_al : length -> Sv.t
 val vars_ret : ('info, 'asm) func -> Sv.t
 val vars_lv : Sv.t -> lval -> Sv.t
 val vars_e  : expr -> Sv.t
+val pvars_e  : pexpr -> Spv.t
 val vars_es : expr list -> Sv.t
 val vars_i  : ('info, 'asm) instr -> Sv.t
 val vars_c  : ('info, 'asm) stmt  -> Sv.t
@@ -261,9 +270,11 @@ val int_of_velem : velem -> int
 
 val is_ty_arr : 'e gty -> bool
 val array_kind : 'e gty -> wsize * 'e
+val array_kind_const : ty -> wsize * int
 val ws_of_ty   : 'e gty -> wsize
 val arr_size : wsize -> int -> int
-val size_of  : ty -> int
+val size_of  : ty -> length
+val size_of_const  : ty -> int
 val access_offset : Warray_.arr_access -> wsize -> int -> int
 
 (* -------------------------------------------------------------------- *)

@@ -73,18 +73,32 @@ module GV : sig
 
   val hash : 'len gvar -> int
 
-  val is_glob : 'len gvar -> bool
+  val is_length_var : 'len gvar -> bool
 
-  (* Fixme : still used *)
-  val is_local : 'len gvar -> bool
-
+  val cast : 'len1 gvar -> 'len2 gvar
 end
 
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized variable                                                *)
 
-type ty    = int gty
-type var   = int gvar
+type length =
+  | Const of int (* FIXME: Z.t ? *)
+  | Var of length gvar
+  | Neg of length
+  | Add of length * length
+  | Sub of length * length
+  | Mul of length * length
+  | Div of signedness * length * length
+  | Mod of signedness * length * length
+  | Shl of length * length
+  | Shr of length * length
+
+type ty    = length gty
+type var   = length gvar
+
+val subst_al : (var -> length option) -> length -> length
+val subst_ety : (var -> length option) -> length gety -> length gety
+val subst_ty : (var -> length option) -> ty -> ty
 
 module V : sig
   type t = var
@@ -99,10 +113,7 @@ module V : sig
 
   val hash : var -> int
 
-  val is_glob : var -> bool
-
-  (* Fixme : still used *)
-  val is_local : var -> bool
+  val is_length_var : var -> bool
 end
 
 (* Cident *)

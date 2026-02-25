@@ -3,7 +3,8 @@ export
 fn main() -> reg u64 {
   stack u64[1] s;
   reg u64 r;
-  s = #randombytes(s);
+  reg u64 len = 8;
+  s = #randombytes{1}(s,len);
   r = s[0];
   while (r < 64) {
     r += 64;

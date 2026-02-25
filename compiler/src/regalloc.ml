@@ -37,12 +37,12 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
     function
     | Cassgn (lv, tg, ty, e) -> Cassgn (fill_lv lv, tg, ty, e)
     | Copn (lvs, tg, op, es) -> Copn (fill_lvs lvs, tg, op, es)
-    | Csyscall (lvs, op, es) -> Csyscall(fill_lvs lvs, op, es)
+    | Csyscall (lvs, op, al, es) -> Csyscall(fill_lvs lvs, op, al, es)
     | Cassert (msg, e) -> Cassert (msg, e)
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
     | Cfor (i, r, s) -> Cfor (i, r, fill_stmt s)
     | Cwhile (a, s, e, loc, s') -> Cwhile (a, fill_stmt s, e, loc, fill_stmt s')
-    | Ccall (lvs, f, es) -> Ccall (fill_lvs lvs, f, es)
+    | Ccall (lvs, f, al, es) -> Ccall (fill_lvs lvs, f, al, es)
   and fill_instr i = { i with i_desc = fill_instr_r i.i_desc }
   and fill_stmt s = List.map fill_instr s in
   let f_body = fill_stmt f.f_body in
@@ -56,7 +56,7 @@ let string_of_kind =
   | Extra -> "extra (aka mmx)"
   | Vector -> "vector"
   | Flag -> "flag"
-  | Unknown ty -> Format.asprintf "(unknown of type %a)" PrintCommon.pp_ty ty
+  | Unknown ty -> Format.asprintf "(unknown of type %a)" (Printer.pp_ty ~debug:false) ty
 
 let kind_of_type reg_size k =
   function
@@ -277,7 +277,7 @@ let collect_equality_constraints_in_func
        end
     | Cassgn _ -> ()
     | Cassert _ -> ()
-    | Ccall (xs, fn, es) ->
+    | Ccall (xs, fn, _al, es) ->
       let get_Pvar a =
         match a with
         | Pvar { gs = Expr.Slocal ; gv } -> gv
@@ -496,7 +496,7 @@ let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =
     function
     | Cassert (_, e) -> iter_expr e
     | Cassgn (lv, _, _, e) -> iter_lv lv; iter_expr e
-    | (Ccall (lvs, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _ , es) -> iter_lvs lvs; iter_exprs es
+    | (Ccall (lvs, _, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _, _, es) -> iter_lvs lvs; iter_exprs es
     | (Cwhile (_, s1, e, _, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
     | Cfor _ -> assert false
   and iter_instr { i_desc } = iter_instr_r i_desc
@@ -701,7 +701,7 @@ module Regalloc (Arch : Arch_full.Arch)
       then hierror_reg ~loc:(Lmore loc) "variable %a (declared at %a with type “%a”) must be allocated to register %a from an incompatible bank"
           (Printer.pp_var ~debug:true) x
           L.pp_sloc x.v_dloc
-          PrintCommon.pp_ty x.v_ty
+          (Printer.pp_ty ~debug:false) x.v_ty
           (Printer.pp_var ~debug:false) y;
       let i =
         try Hv.find vars x
@@ -776,7 +776,7 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
                hierror_reg ~loc:(Lmore loc) "unexpected flag register %a" pp_var p
             | Unknown ty ->
               hierror_reg ~loc:(Lmore loc) "unknown type %a for forced register %a"
-                PrintCommon.pp_ty ty (Printer.pp_var ~debug:true) p
+                (Printer.pp_ty ~debug:false) ty (Printer.pp_var ~debug:true) p
           in
           allocate_one nv vars loc cnf p i d a;
           (rs, xs)
@@ -792,7 +792,7 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
     | Cfor (_, _, s)
       -> alloc_stmt s c
     | Copn (lvs, _, op, es) -> forced_registers loc nv vars tr c lvs op es a
-    | Csyscall(lvs, _, es) ->
+    | Csyscall(lvs, _, _, es) ->
        let get_a = function Pvar { gv ; gs = Slocal } -> L.unloc gv | _ -> assert false in
        let get_r = function Lvar gv -> L.unloc gv | _ -> assert false in
        alloc_args loc get_a es;
@@ -804,7 +804,7 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
         -> alloc_stmt s1 c |> alloc_stmt s2
     | Cassgn _ | Cassert _
       -> c
-    | Ccall (lvs, _, es) ->
+    | Ccall (lvs, _, _, es) ->
        (* TODO: check this *)
        (*
        let args = List.map (function Pvar { gv ; gs = Slocal } -> (L.unloc gv) | _ -> assert false) es in
@@ -1003,7 +1003,7 @@ let greedy_allocation
       | Flag -> push_var flags i v
       | Unknown ty ->
           hierror_reg ~loc:Lnone "unable to allocate variable %a: no register bank for type %a"
-            pp_var v PrintCommon.pp_ty ty
+            pp_var v (Printer.pp_ty ~debug:false) ty
       ) vars;
   two_phase_coloring Arch.allocatable_vars scalars cnf fr a;
   two_phase_coloring Arch.extra_allocatable_vars extra_scalars cnf fr a;
@@ -1092,7 +1092,7 @@ let pp_liveness vars liveness_per_callsite liveness_table a =
   let pp_variable fmt i = fprintf fmt "v%d" i in
   let pp_reg fmt r = pp_var fmt ~debug:false r in
   let pp_nonreg fmt x = pp_var fmt ~debug:true x in
-  let pp_decl_type fmt x = fprintf fmt "%a %a" pp_kind x.v_kind pp_ty x.v_ty in
+  let pp_decl_type fmt x = fprintf fmt "%a %a" pp_kind x.v_kind (pp_ty ~debug:false) x.v_ty in
   let pp_var fmt x =
     match Hv.find vars x with
     | exception Not_found -> pp_nonreg fmt x
@@ -1240,7 +1240,7 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
   (* Live variables at the end of each function, in addition to returned local variables *)
   let get_liveness, slive, liveness_per_callsite =
     let live : (L.i_loc list * Sv.t) list Hf.t = Hf.create 17 in
-    let slive : ((Wsize.wsize * BinNums.positive) Syscall_t.syscall_t, Sv.t) Hashtbl.t = Hashtbl.create 17 in
+    let slive : (Wsize.wsize Syscall_t.syscall_t, Sv.t) Hashtbl.t = Hashtbl.create 17 in
     List.iter (fun f ->
         let f_with_liveness = Hf.find liveness_table f.f_name in
         let live_when_calling_f = Hf.find_default live f.f_name [[], Sv.empty] in

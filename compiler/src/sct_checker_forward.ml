@@ -168,7 +168,7 @@ let rec modmsf_i fenv i =
     | Mov_msf | Protect | Other -> NotModified
     end
   | Cfor(_, _, c) -> modmsf_c fenv c
-  | Ccall (_, f, _) ->
+  | Ccall (_, f, _, _) ->
     match (FEnv.get_fty fenv f).modmsf with
     | Modified (l, tr) -> Modified(i.i_loc, (l, f) :: tr)
     | NotModified -> NotModified
@@ -309,7 +309,7 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
   | Cassgn _ ->
     ms
 
-  | Ccall(xs, f, es) ->
+  | Ccall(xs, f, _, es) ->
     let fty = FEnv.get_fty fenv f in
     let ms =
       let doout ms vfty x =
@@ -386,7 +386,7 @@ module Env : sig
   val dsecret    : env -> vty
 
   val get_i : venv -> var_i -> vty
-  val gget  : venv -> int ggvar -> vty
+  val gget  : venv -> length ggvar -> vty
 
   val fresh2 : ?name:string -> env -> VlPairs.t
 
@@ -555,7 +555,7 @@ end = struct
         let in_memory = match x.v_kind with
           | Wsize.Global (* likely unused as global variables are not in venv.vars *)
           | Stack _ -> true
-          | Const | Inline | Reg _ -> false
+          | Const | Inline | Reg _ | Length -> false
         in
         let ty =
           match Mv.find x vtype with
@@ -610,7 +610,7 @@ let ssafe_test x aa ws i =
   let x = L.unloc x in
   match x.v_kind, x.v_ty, i with
   | Reg (_, Direct), _, _ -> true
-  | _, Arr (ws1, len), Pconst v ->
+  | _, Arr (ws1, Const len), Pconst v ->
       let len = Z.of_int (arr_size ws1 len) in
       let v = Z.of_int (access_offset aa ws (Z.to_int v)) in
       let v_max = Z.add v (Z.of_int (size_of_ws ws - 1)) in
@@ -958,7 +958,7 @@ let rec ty_instr is_ct_asm fenv env (msf, venv) i =
 and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
   let loc = i.i_loc.L.base_loc in
   match i.i_desc with
-  | Csyscall (xs, o, es) ->
+  | Csyscall (xs, o, _, es) ->
     (* TODO: generalize to other syscalls *)
     assert (match o with Syscall_t.RandomBytes _ -> true);
     List.iter (ensure_public_address_expr env venv loc) es;
@@ -1078,7 +1078,7 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
     Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
     MSF.enter_if msf2 (Papp1(Onot, e)), venv2
 
-  | Ccall (xs, f, es) ->
+  | Ccall (xs, f, _, es) ->
     let fty = FEnv.get_fty fenv f in
     let modmsf = fty.modmsf in
     let tyout, tyin, resulting_corruption = Env.clone_for_call env fty in
@@ -1288,6 +1288,7 @@ let init_constraint fenv f =
         | (Stack (Pointer _) | Reg (_, Pointer _)) -> Indirect(Env.fresh2 env, Env.fresh2 env)
         | Inline -> Env.dpublic env
         | Global -> Env.dpublic env (* unsure *)
+        | Length -> assert false
         end
       | Some ty -> (* this partly has the same role as Env.init_ty. Remove one occurence? *)
         begin match x.v_kind, ty with
@@ -1298,6 +1299,7 @@ let init_constraint fenv f =
         | Reg (_, Pointer _), Indirect _ -> ()
         | Inline, Direct _ -> ()
         | Global, Direct _ -> ()
+        | Length, _ -> assert false
         | _ ->
           error ~loc
             "invalid security annotations for %a" pp_var x

@@ -437,8 +437,8 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
     Let _ := assert (n1 == n2) error_e in ok m
   | Pbool  b1, Pbool  b2 =>
     Let _ := assert (b1 == b2) error_e in ok m
-  | Parr_init ws1 n1, Parr_init ws2 n2 =>
-    Let _  := assert (arr_size ws1 n1 == arr_size ws2 n2) error_e in ok m
+  | Parr_init ws1 al1, Parr_init ws2 al2 =>
+    Let _  := assert (convertible (aarr ws1 al1) (aarr ws2 al2)) error_e in ok m
   | Pvar   x1, Pvar   x2 => check_gv x1 x2 m
   | Pget al1 aa1 w1 x1 e1, Pget al2 aa2 w2 x2 e2 =>
     Let _ := assert ((al1 == al2) && (aa1 == aa2) && (w1 == w2)) error_e in
@@ -574,12 +574,14 @@ Fixpoint check_i (i1 i2:instr_r) r :=
       Let _ := assert (o1 == o2) (alloc_error "operators not equals") in
       check_es es1 es2 r >>= check_lvals xs1 xs2
 
-    | Csyscall xs1 o1 es1, Csyscall xs2 o2 es2 =>
+    | Csyscall xs1 o1 al1 es1, Csyscall xs2 o2 al2 es2 =>
       Let _ := assert (o1 == o2) (alloc_error "syscall not equals") in
+      Let _ := assert (al1 == al2) (alloc_error "lengths not equal") in
       check_es es1 es2 r >>= check_lvals xs1 xs2
 
-    | Ccall x1 f1 arg1, Ccall x2 f2 arg2 =>
+    | Ccall x1 f1 al1 arg1, Ccall x2 f2 al2 arg2 =>
       Let _ := assert (f1 == f2) (alloc_error "functions not equals") in
+      Let _ := assert (al1 == al2) (alloc_error "lengths not equal") in
       check_es arg1 arg2 r >>= check_lvals x1 x2
 
     | Cif e1 c11 c12, Cif e2 c21 c22 =>

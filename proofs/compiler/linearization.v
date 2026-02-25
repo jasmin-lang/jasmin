@@ -449,7 +449,7 @@ Definition pop_to_save
     | Cassgn lv _ _ e => Error (E.assign_remains ii lv e)
     | Copn xs tag o es =>
       allM (check_rexpr ii) es >> allM (check_lexpr ii) xs
-    | Csyscall xs o es =>
+    | Csyscall xs o _ es =>
       ok tt
     | Cassert _ =>
       Error (E.ii_error ii "assert found in linear")
@@ -463,7 +463,7 @@ Definition pop_to_save
       | Some true => check_c check_i c >> check_c check_i c'
       | None => check_fexpr ii e >> check_c check_i c >> check_c check_i c'
       end
-    | Ccall xs fn es =>
+    | Ccall xs fn _ es =>
       Let _ := assert (fn != this) (E.ii_error ii "call to self") in
       if get_fundef (p_funcs p) fn is Some fd then
         let e := f_extra fd in
@@ -655,7 +655,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       | _, _ => (lbl, lc) (* absurd case *)
       end
 
-  | Csyscall xs o es => (lbl, MkLI ii (Lsyscall o) :: lc)
+  | Csyscall xs o _ es => (lbl, MkLI ii (Lsyscall o) :: lc)
 
   | Cassert _ => (lbl, lc) (* absurd case *)
 
@@ -710,7 +710,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       end
     end
 
-  | Ccall xs fn' es =>
+  | Ccall xs fn' _ es =>
     if get_fundef (p_funcs p) fn' is Some fd then
       let e := f_extra fd in
       let ra := sf_return_address e in

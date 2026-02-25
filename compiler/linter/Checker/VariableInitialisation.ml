@@ -51,7 +51,7 @@ let check_func fd =
     | Cassgn (x, _, _, e) ->
         check_lv i_info x;
         check_e i_info e
-    | Copn (xs, _, _, es) | Csyscall (xs, _, es) | Ccall (xs, _, es) ->
+    | Copn (xs, _, _, es) | Csyscall (xs, _, _, es) | Ccall (xs, _, _, es) ->
         check_lvs i_info xs;
         check_es i_info es
     | Cassert (_, e)

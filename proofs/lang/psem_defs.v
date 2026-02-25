@@ -16,20 +16,20 @@ Open Scope vm_scope.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
-Definition sem_sop1 (o: sop1) (v: value) : exec value :=
+Definition sem_sop1 env (o: sop1) (v: value) : exec value :=
   Let x := of_val _ v in
-  Let r := sem_sop1_typed o x in
+  Let r := sem_sop1_typed env o x in
   ok (to_val r).
 
-Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
+Definition sem_sop2 env (o: sop2) (v1 v2: value) : exec value :=
   Let x1 := of_val _ v1 in
   Let x2 := of_val _ v2 in
-  Let r  := sem_sop2_typed o x1 x2 in
+  Let r  := sem_sop2_typed env o x1 x2 in
   ok (to_val r).
 
 Definition sem_opN
-  {cfcd : FlagCombinationParams} (op: opN) (vs: values) : exec value :=
-  Let w := app_sopn _ (sem_opN_typed op) vs in
+  {cfcd : FlagCombinationParams} env (op: opN) (vs: values) : exec value :=
+  Let w := app_sopn _ (sem_opN_typed env op) vs in
   ok (to_val w).
 
 (* ** Global access
@@ -43,10 +43,11 @@ Definition gv2val (gd:glob_value) :=
   | Garr p a   => Varr a
   end.
 
-Definition get_global gd g : exec value :=
+(* FIXME: is it normal that [get_global] depends on an [env]? *)
+Definition get_global env gd g : exec value :=
   if get_global_value gd g is Some ga then
     let v := gv2val ga in
-    if type_of_val v == eval_atype (vtype g) then ok v
+    if type_of_val v == eval_atype env (vtype g) then ok v
     else type_error
   else type_error.
 
@@ -58,23 +59,24 @@ Context {wsw:WithSubWord}.
 
 Record estate
   {syscall_state : Type}
-  {ep : EstateParams syscall_state} := Estate
+  {ep : EstateParams syscall_state}
+  (env : length_var -> option Z) := Estate
   {
     escs : syscall_state;
     emem : mem;
-    evm  : Vm.t
+    evm  : Vm.t env
   }.
 
-Arguments Estate {syscall_state}%_type_scope {ep} _ _ _%_vm_scope.
+Arguments Estate {syscall_state}%_type_scope {ep} _ _ _ _%_vm_scope.
 
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 
-Definition get_gvar (wdb : bool) (gd : glob_decls) (vm : Vm.t) (x : gvar) :=
+Definition get_gvar env (wdb : bool) (gd : glob_decls) (vm : Vm.t env) (x : gvar) :=
   if is_lvar x then get_var wdb vm x.(gv)
-  else get_global gd x.(gv).
+  else get_global env gd x.(gv).
 
-Definition get_var_is wdb vm := mapM (fun x => get_var wdb vm (v_var x)).
+Definition get_var_is env wdb (vm : Vm.t env) := mapM (fun x => get_var wdb vm (v_var x)).
 
 Definition on_arr_var A (v:exec value) (f:forall n, WArray.array n -> exec A) :=
   Let v := v  in
@@ -93,15 +95,16 @@ Section ESTATE_UTILS.
 
 Context
   {syscall_state : Type}
-  {ep : EstateParams syscall_state}.
+  {ep : EstateParams syscall_state}
+  (env : length_var -> option Z).
 
-Definition with_vm (s:estate) vm :=
+Definition with_vm (s:estate env) (vm : Vm.t env) :=
   {| escs := s.(escs); emem := s.(emem); evm := vm |}.
 
-Definition with_mem (s:estate) m :=
+Definition with_mem (s:estate env) m :=
   {| escs := s.(escs); emem := m; evm := s.(evm) |}.
 
-Definition with_scs (s:estate) scs :=
+Definition with_scs (s:estate env) scs :=
   {| escs := scs; emem := s.(emem); evm := s.(evm) |}.
 
 End ESTATE_UTILS.
@@ -112,15 +115,16 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  (env : length_var -> option Z)
   (wdb : bool)
   (gd : glob_decls).
 
-Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
+Fixpoint sem_pexpr (s:estate env) (e : pexpr) : exec value :=
   match e with
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
-  | Parr_init ws n =>
-    let len := Z.to_pos (arr_size ws n) in
+  | Parr_init ws al =>
+    let len := arr_size ws (eval env al) in
     ok (Varr (WArray.empty len))
   | Pvar v => get_gvar wdb gd s.(evm) v
   | Pget al aa ws x e =>
@@ -131,7 +135,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Psub aa ws len x e =>
     Let (n, t) := wdb, gd, s.[x] in
     Let i := sem_pexpr s e >>= to_int in
-    Let t' := WArray.get_sub aa ws len t i in
+    Let t' := WArray.get_sub aa ws (eval env len) t i in
     ok (Varr t')
   | Pload al sz e =>
     Let w2 := sem_pexpr s e >>= to_pointer in
@@ -139,16 +143,16 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     ok (@to_val (cword sz) w)
   | Papp1 o e1 =>
     Let v1 := sem_pexpr s e1 in
-    sem_sop1 o v1
+    sem_sop1 env o v1
   | Papp2 o e1 e2 =>
     Let v1 := sem_pexpr s e1 in
     Let v2 := sem_pexpr s e2 in
-    sem_sop2 o v1 v2
+    sem_sop2 env o v1 v2
   | PappN op es =>
     Let vs := mapM (sem_pexpr s) es in
-    sem_opN op vs
+    sem_opN env op vs
   | Pif t e e1 e2 =>
-    let t := eval_atype t in
+    let t := eval_atype env t in
     Let b := sem_pexpr s e >>= to_bool in
     Let v1 := sem_pexpr s e1 >>= truncate_val t in
     Let v2 := sem_pexpr s e2 >>= truncate_val t in
@@ -157,21 +161,21 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
 
 Definition sem_pexprs s := mapM (sem_pexpr s).
 
-Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
+Definition write_var (x:var_i) (v:value) (s:estate env) : exec (estate env) :=
   Let vm := set_var wdb s.(evm) x v in
   ok (with_vm s vm).
 
 Definition write_vars xs vs s :=
   fold2 ErrType write_var xs vs s.
 
-Definition write_none (s : estate) ty v :=
+Definition write_none (s : estate env) ty v :=
   Let _ := assert (truncatable wdb ty v) ErrType in
   Let _ := assert (DB wdb v) ErrAddrUndef in
   ok s.
 
-Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
+Definition write_lval (l : lval) (v : value) (s : estate env) : exec (estate env) :=
   match l with
-  | Lnone _ ty => write_none s (eval_atype ty) v
+  | Lnone _ ty => write_none s (eval_atype env ty) v
   | Lvar x => write_var x v s
   | Lmem al sz x e =>
     Let p := sem_pexpr s e >>= to_pointer in
@@ -187,12 +191,13 @@ Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
   | Lasub aa ws len x i =>
     Let (n,t) := wdb, s.[x] in
     Let i := sem_pexpr s i >>= to_int in
-    Let t' := to_arr (Z.to_pos (arr_size ws len)) v in
+    let len := eval env len in
+    Let t' := to_arr (arr_size ws len) v in
     Let t := @WArray.set_sub n aa ws len t i t' in
     write_var x (@to_val (carr n) t) s
   end.
 
-Definition write_lvals (s : estate) xs vs :=
+Definition write_lvals (s : estate env) xs vs :=
    fold2 ErrType write_lval xs vs s.
 
 End SEM_PEXPR.
@@ -203,14 +208,15 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  {asmop : asmOp asm_op}.
+  {asmop : asmOp asm_op}
+  (env : length_var -> option Z).
 
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=
   Let semi := sopn_sem o in
-  Let t := app_sopn _ semi vs in
+  Let t := app_sopn _ (semi env) vs in
   ok (list_ltuple t).
 
-Definition sem_sopn gd o m lvs args :=
+Definition sem_sopn gd o (m : estate env) lvs args :=
   sem_pexprs true gd m args >>= exec_sopn o >>= write_lvals true gd m lvs.
 
 End EXEC_ASM.

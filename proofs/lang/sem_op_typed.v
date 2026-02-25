@@ -8,9 +8,9 @@ Import Utf8.
 Definition mk_sem_sop1 (t1 t2 : Type) (o:t1 -> t2) v1 : exec t2 :=
   ok (o v1).
 
-Definition sem_wiop1_typed (sign : signedness) (o: wiop1) :
+Definition sem_wiop1_typed env (sign : signedness) (o: wiop1) :
   let t := type_of_wiop1 o in
-  let t := (eval_atype t.1, eval_atype t.2) in
+  let t := (eval_atype env t.1, eval_atype env t.2) in
   sem_t t.1 → exec (sem_t t.2) :=
   match o with
   | WIwint_of_int sz => wint_of_int sign sz
@@ -26,9 +26,9 @@ Definition sem_wiop1_typed (sign : signedness) (o: wiop1) :
 
 Arguments sem_wiop1_typed : clear implicits.
 
-Definition sem_sop1_typed (o : sop1) :
+Definition sem_sop1_typed env (o : sop1) :
   let t := type_of_op1 o in
-  let t := (eval_atype t.1, eval_atype t.2) in
+  let t := (eval_atype env t.1, eval_atype env t.2) in
   sem_t t.1 → exec (sem_t t.2) :=
   match o with
   | Oword_of_int sz => mk_sem_sop1 (wrepr sz)
@@ -39,7 +39,7 @@ Definition sem_sop1_typed (o : sop1) :
   | Olnot sz => mk_sem_sop1 (@wnot sz)
   | Oneg Op_int => mk_sem_sop1 Z.opp
   | Oneg (Op_w sz) => mk_sem_sop1 -%w
-  | Owi1 sign o => sem_wiop1_typed sign o
+  | Owi1 sign o => sem_wiop1_typed env sign o
   end.
 
 Arguments sem_sop1_typed : clear implicits.
@@ -90,9 +90,9 @@ Definition mk_sem_wishift sign sz (o:Z -> Z -> Z) (w1 : word sz) (w2 : word U8) 
 Definition mk_sem_wicmp sign sz (o:Z -> Z -> bool) (w1 w2 : word sz) : exec bool :=
   ok (o (int_of_word sign w1) (int_of_word sign w2)).
 
-Definition sem_wiop2_typed (sign : signedness) (sz : wsize) ( o : wiop2) :
+Definition sem_wiop2_typed env (sign : signedness) (sz : wsize) ( o : wiop2) :
   let t := type_of_wiop2 sz o in
-  let t := (eval_atype t.1.1, eval_atype t.1.2, eval_atype t.2) in
+  let t := (eval_atype env t.1.1, eval_atype env t.1.2, eval_atype env t.2) in
   sem_t t.1.1 → sem_t t.1.2 → exec (sem_t t.2) :=
   match o with
 
@@ -115,9 +115,9 @@ Definition sem_wiop2_typed (sign : signedness) (sz : wsize) ( o : wiop2) :
 
 Arguments sem_wiop2_typed : clear implicits.
 
-Definition sem_sop2_typed (o: sop2) :
+Definition sem_sop2_typed env (o: sop2) :
   let t := type_of_op2 o in
-  let t := (eval_atype t.1.1, eval_atype t.1.2, eval_atype t.2) in
+  let t := (eval_atype env t.1.1, eval_atype env t.1.2, eval_atype env t.2) in
   sem_t t.1.1 → sem_t t.1.2 → exec (sem_t t.2) :=
   match o with
   | Obeq => mk_sem_sop2 (@eq_op bool)
@@ -168,7 +168,7 @@ Definition sem_sop2_typed (o: sop2) :
   | Ovlsl ve ws     => mk_sem_sop2 (sem_vshl ve)
   | Ovasr ve ws     => mk_sem_sop2 (sem_vsar ve)
 
-  | Owi2 s sz o => sem_wiop2_typed s sz o
+  | Owi2 s sz o => sem_wiop2_typed env s sz o
   end.
 
 Arguments sem_sop2_typed : clear implicits.
@@ -180,29 +180,35 @@ Context {cfcd : FlagCombinationParams}.
 Definition sem_combine_flags (cf : combine_flags) (b0 b1 b2 b3 : bool) : bool :=
   cf_xsem negb andb orb (fun x y => x == y) b0 b1 b2 b3 cf.
 
-Definition sem_opN_typed (o: opN) :
+Definition sem_opN_typed env (o: opN) :
   let t := type_of_opN o in
-  let t := (map eval_atype t.1, eval_atype t.2) in
+  let t := (map (eval_atype env) t.1, eval_atype env t.2) in
   sem_prod t.1 (exec (sem_t t.2)) :=
   match o with
   | Opack sz pe =>
       let ty := curry (A := cint) (sz %/ pe) (λ vs, ok (wpack sz pe vs)) in
       ecast l (sem_prod l _) (esym (map_nseq _ _ _)) ty
   | Oarray len =>
-      let ty := sem_prod_app (collect (Pos.to_nat len) [::]) (λ vs : seq (sem_t (cword U8)), WArray.fill len vs) in
+      let ty := sem_prod_app (collect (Z.to_nat len) [::]) (λ vs : seq (sem_t (cword U8)), WArray.fill _ vs) in
       ecast l (sem_prod l _) (esym (map_nseq _ _ _)) ty
   | Ocombine_flags cf =>
       fun b0 b1 b2 b3 => ok (sem_combine_flags cf b0 b1 b2 b3)
   end.
 
-Lemma sem_opN_typed_ok (op: opN) :
-  sem_forall (@is_ok _ _) _ (sem_opN_typed op).
+Lemma sem_opN_typed_ok env (op: opN) :
+  sem_forall (@is_ok _ _) _ (sem_opN_typed env op).
 Proof.
   case: op => // [ ws pe | len ] /=; rewrite -> map_nseq => /=.
   + by case: ws pe => - [].
-  apply: sem_forall_prod_app (size_collect (Pos.to_nat len) [::]) => bytes /=.
-  rewrite ssrnat.addn0 /WArray.fill => hlen; rewrite hlen eqxx /=.
-  by case/is_okP: (WArray.fill_aux_ok (Nat.eq_le_incl _ _ hlen)) => ? ->.
+  apply: sem_forall_prod_app (size_collect (Z.to_nat len) [::]) => bytes /=.
+  rewrite ssrnat.addn0 => hlen.
+  rewrite /WArray.fill arr_sizeE wsize8 Z.mul_1_l hlen /eval /=.
+  case: ZltP => [hpos|hneg].
+  + rewrite eqxx /=.
+    by case/is_okP: (WArray.fill_aux_ok (Nat.eq_le_incl _ _ hlen)) => ? ->.
+  move: hlen.
+  rewrite Z_to_nat_le0 /=; last by Lia.lia.
+  by move=> /size0nil -> /=.
 Qed.
 
 End WITH_PARAMS.

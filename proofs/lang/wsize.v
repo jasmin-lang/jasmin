@@ -30,6 +30,17 @@ Definition wsize_size (sz: wsize) : Z :=
   | U256 => 32
   end.
 
+Definition arr_size (ws:wsize) (len:Z) :=
+ (wsize_size ws * len)%Z.
+
+Lemma arr_sizeE ws len : arr_size ws len = (wsize_size ws * len)%Z.
+Proof. done. Qed.
+
+Lemma gt0_arr_size ws len : (0 < len)%Z -> (0 < arr_size ws len)%Z.
+Proof. by move=> ?; rewrite arr_sizeE; apply Z.mul_pos_pos. Qed.
+
+#[global] Opaque arr_size.
+
 (* Size in bits of the elements of a vector. *)
 #[only(eqbOK)] derive
 Variant velem := VE8 | VE16 | VE32 | VE64.
@@ -188,10 +199,11 @@ Variant v_kind :=
 | Reg   of reg_kind * reference (* register variable *)
 | Inline           (* inline variable   *)
 | Global           (* global (in memory) constant *)
+| Length           (* length variable *)
 .
 
 (* -------------------------------------------------------------------- *)
-Variant safe_cond :=
+Variant safe_cond (len : Type) :=
   (* the nth argument must be different from 0 *)
   | NotZero of wsize & nat
   (* this is a division instruction, two words by one word;
@@ -206,9 +218,17 @@ Variant safe_cond :=
   (*  the sum of the nth arguments (unsigned interpretation) must be in the <= z *)
   | UaddLe of wsize & nat & nat & Z
   (* the nth argument of is an array ws[p] where all ceil are initialized *)
-  | AllInit of wsize & positive & nat
+  | AllInit of wsize & len & nat
   (* Unsatisfiable safe_cond *)
   | ScFalse.
+Arguments NotZero {_} _ _.
+Arguments X86Division {_} _ _.
+Arguments InRangeMod32 {_} _ _ _ _.
+Arguments ULt {_} _ _ _.
+Arguments UGe {_} _ _ _.
+Arguments UaddLe {_} _ _ _ _.
+Arguments AllInit {_} _ _ _.
+Arguments ScFalse {_}.
 
 (* -------------------------------------------------------------------- *)
 Class PointerData := {

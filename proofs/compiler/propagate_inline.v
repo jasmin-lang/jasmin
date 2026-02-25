@@ -165,12 +165,12 @@ Fixpoint pi_i (pi:pimap) (i:instr) :=
     let (pi, xs) := pi_lvs pi xs in
     ok (pi, MkI ii (Copn xs tag o es))
 
-  | Csyscall xs o es =>
+  | Csyscall xs o al es =>
     let es := pi_es pi es in
     (* Remark: for uprog it is not necessary *)
     let pi := remove_m pi in
     let (pi, xs) := pi_lvs pi xs in
-    ok (pi, MkI ii (Csyscall xs o es))
+    ok (pi, MkI ii (Csyscall xs o al es))
 
   | Cassert (msg, e) =>
     let e := pi_e pi e in
@@ -194,10 +194,10 @@ Fixpoint pi_i (pi:pimap) (i:instr) :=
     let:(pi, c1, e, c2) := pic in
     ok (pi, MkI ii (Cwhile a c1 e info c2))
 
-  | Ccall xs f es =>
+  | Ccall xs f al es =>
     let es := pi_es pi es in
     let (pi, xs) := pi_lvs (remove_m pi) xs in
-    ok (pi, MkI ii (Ccall xs f es))
+    ok (pi, MkI ii (Ccall xs f al es))
 
   end.
 
@@ -206,9 +206,9 @@ Section Section.
 Context {pT:progT}.
 
 Definition pi_fun  (f:fundef) :=
-  let 'MkFun ii si p c so r ev := f in
+  let 'MkFun ii al si p c so r ev := f in
   Let pic := pi_c pi_i piempty c in 
-  ok (MkFun ii si p pic.2 so r ev).
+  ok (MkFun ii al si p pic.2 so r ev).
 
 Definition pi_prog (p:prog) := 
   Let funcs := map_cfprog pi_fun (p_funcs p) in

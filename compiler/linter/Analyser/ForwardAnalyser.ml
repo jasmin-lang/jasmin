@@ -17,12 +17,12 @@ module type Logic = sig
 
   val forget : var_i -> domain -> domain annotation
 
-  val funcall : Location.i_loc -> lvals -> funname -> exprs -> domain -> domain annotation
+  val funcall : Location.i_loc -> lvals -> funname -> length list -> exprs -> domain -> domain annotation
 
   val syscall :
        Location.i_loc
     -> lvals
-    -> (Wsize.wsize * BinNums.positive) Syscall_t.syscall_t
+    -> Wsize.wsize Syscall_t.syscall_t
     -> exprs
     -> domain
     -> domain annotation
@@ -185,12 +185,12 @@ module Make (Logic : Logic) : S with type domain = Logic.domain = struct
       | Cassert (msg, e) ->
           let annotation = Annotation.bind annotation (Logic.assertion loc msg e) in
           (Cassert (msg, e), annotation)
-      | Ccall (lvs, fn, es) ->
-          let annotation = Annotation.bind annotation (Logic.funcall loc lvs fn es) in
-          (Ccall (lvs, fn, es), annotation)
-      | Csyscall (lvs, sc, es) ->
+      | Ccall (lvs, fn, al, es) ->
+          let annotation = Annotation.bind annotation (Logic.funcall loc lvs fn al es) in
+          (Ccall (lvs, fn, al, es), annotation)
+      | Csyscall (lvs, sc, al, es) ->
           let annotation = Annotation.bind annotation (Logic.syscall loc lvs sc es) in
-          (Csyscall (lvs, sc, es), annotation)
+          (Csyscall (lvs, sc, al, es), annotation)
       | Cif (expr, th, el) ->
           let annotation_th, annotation_el = Logic.assume expr annotation in
           let th, annotation_th = analyse_stmt th annotation_th in

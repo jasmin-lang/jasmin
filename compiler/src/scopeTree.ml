@@ -60,14 +60,14 @@ let find_common_ancestor (t : tree) (nodes : nodeset) : node =
 (* --------------------------------------------------------------- *)
 (* Compute variable occurrences in expressions and instructions *)
 
-let variables_in_ggvar { gs; gv } (acc : Spv.t) : Spv.t =
+let variables_in_ggvar { gs; gv } (acc : Sv.t) : Sv.t =
   match gs with
   | E.Sglob -> acc
   | E.Slocal ->
       let x = L.unloc gv in
-      if x.v_kind <> Const then Spv.add x acc else acc
+      if x.v_kind <> Const then Sv.add x acc else acc
 
-let rec variables_in_pexpr (acc : Spv.t) (e : pexpr) : Spv.t =
+let rec variables_in_pexpr (acc : Sv.t) (e : expr) : Sv.t =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ -> acc
   | Pvar x -> variables_in_ggvar x acc
@@ -77,35 +77,35 @@ let rec variables_in_pexpr (acc : Spv.t) (e : pexpr) : Spv.t =
   | Papp2 (_, e1, e2) | Pif (_, _, e1, e2) -> variables_in_pexprs acc [ e1; e2 ]
   | PappN (_, es) -> variables_in_pexprs acc es
 
-and variables_in_pexprs (acc : Spv.t) (es : pexpr list) : Spv.t =
+and variables_in_pexprs (acc : Sv.t) (es : expr list) : Sv.t =
   List.fold_left variables_in_pexpr acc es
 
-let variables_in_plval (acc : Spv.t) : plval -> Spv.t = function
+let variables_in_plval (acc : Sv.t) : lval -> Sv.t = function
   | Lnone _ -> acc
-  | Lvar x -> Spv.add (L.unloc x) acc
+  | Lvar x -> Sv.add (L.unloc x) acc
   | Lmem (_, _, _, e) -> variables_in_pexpr acc e
   | Laset (_, _, _, x, e) | Lasub (_, _, _, x, e) ->
-      Spv.add (L.unloc x) (variables_in_pexpr acc e)
+      Sv.add (L.unloc x) (variables_in_pexpr acc e)
 
-let variables_in_plvals (acc : Spv.t) : plvals -> Spv.t =
+let variables_in_plvals (acc : Sv.t) : lvals -> Sv.t =
   List.fold_left variables_in_plval acc
 
-let variables_in_instr_r : _ pinstr_r -> Spv.t = function
-  | Cassgn (x, _, _, e) -> variables_in_pexpr (variables_in_plval Spv.empty x) e
-  | Copn (xs, _, _, es) | Csyscall (xs, _, es) | Ccall (xs, _, es) ->
-      variables_in_pexprs (variables_in_plvals Spv.empty xs) es
+let variables_in_instr_r : _ instr_r -> Sv.t = function
+  | Cassgn (x, _, _, e) -> variables_in_pexpr (variables_in_plval Sv.empty x) e
+  | Copn (xs, _, _, es) | Csyscall (xs, _, _, es) | Ccall (xs, _, _, es) ->
+      variables_in_pexprs (variables_in_plvals Sv.empty xs) es
   | Cfor (x, (_, e1, e2), _) ->
-      variables_in_pexprs (Spv.singleton (L.unloc x)) [ e1; e2 ]
-  | Cif (e, _, _) | Cwhile (_, _, e, _, _) | Cassert (_, e) -> variables_in_pexpr Spv.empty e
+      variables_in_pexprs (Sv.singleton (L.unloc x)) [ e1; e2 ]
+  | Cif (e, _, _) | Cwhile (_, _, e, _, _) | Cassert (_, e) -> variables_in_pexpr Sv.empty e
 
 (** Maps each variable to the set of nodes at which it occurs *)
-let variable_occurrences (c : _ pstmt) : nodeset Mpv.t =
-  let tbl = ref Mpv.empty in
-  let insert (n : node) (x : pvar) =
-    tbl := Mpv.modify_def Siloc.empty x (Siloc.add n) !tbl
+let variable_occurrences (c : _ stmt) : nodeset Mv.t =
+  let tbl = ref Mv.empty in
+  let insert (n : node) (x : var) =
+    tbl := Mv.modify_def Siloc.empty x (Siloc.add n) !tbl
   in
   iter_instr
-    (fun i -> i.i_desc |> variables_in_instr_r |> Spv.iter (insert i.i_loc))
+    (fun i -> i.i_desc |> variables_in_instr_r |> Sv.iter (insert i.i_loc))
     c;
   !tbl
 
@@ -132,10 +132,10 @@ and tree_of_stmt (acc : tree) (t : Tree.t option) (c : _ gstmt) :
 
 (** Reverse a map from variable to nodes into the corresponding map from nodes
     to sets of variables *)
-let reverse (m : node Mpv.t) : Spv.t Miloc.t =
-  Mpv.fold (fun x n -> Miloc.modify_def Spv.empty n (Spv.add x)) m Miloc.empty
+let reverse (m : node Mv.t) : Sv.t Miloc.t =
+  Mv.fold (fun x n -> Miloc.modify_def Sv.empty n (Sv.add x)) m Miloc.empty
 
-let get_declaration_sites (fd : _ pfunc) : Spv.t Miloc.t =
+let get_declaration_sites (fd : _ func) : Sv.t Miloc.t =
   let t, last = tree_of_stmt Miloc.empty None fd.f_body in
   let occ = variable_occurrences fd.f_body in
   (* Add occurrences of returned variables at the last instruction, if any *)
@@ -145,9 +145,9 @@ let get_declaration_sites (fd : _ pfunc) : Spv.t Miloc.t =
     | Some t ->
         List.fold_left
           (fun occ x ->
-            Mpv.modify_def Siloc.empty (L.unloc x) (Siloc.add t.data) occ)
+            Mv.modify_def Siloc.empty (L.unloc x) (Siloc.add t.data) occ)
           occ fd.f_ret
   in
   (* Remove function arguments as they must not be declared *)
-  let occ = List.fold_left (fun occ x -> Mpv.remove x occ) occ fd.f_args in
-  Mpv.map (find_common_ancestor t) occ |> reverse
+  let occ = List.fold_left (fun occ x -> Mv.remove x occ) occ fd.f_args in
+  Mv.map (find_common_ancestor t) occ |> reverse

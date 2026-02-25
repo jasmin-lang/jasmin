@@ -7,7 +7,7 @@ type sub_slice_kind =
     (* the precise offset is not known, we remember that it is a subpart
        and its alignment *)
 
-type slice = { in_var : var ; scope : E.v_scope ; range : int * int; kind : sub_slice_kind }
+type slice = { in_var : var ; scope : E.v_scope ; range : int * length; kind : sub_slice_kind }
 
 type alias = slice Mv.t
 
@@ -20,3 +20,5 @@ val classes : alias -> Sv.t Mv.t
 val pp_slice : Format.formatter -> slice -> unit
 
 val pp_alias  : Format.formatter -> alias -> unit
+
+val eq_slice : slice -> slice -> bool

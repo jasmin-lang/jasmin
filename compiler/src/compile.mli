@@ -2,8 +2,10 @@ open Prog
 open Wsize
 open Sopn
 
+val syscall_length_ident : Type.length_var
+
 val preprocess :
-  wsize -> wsize -> 'asm asmOp -> (unit, 'asm) pprog -> (unit, 'asm) prog
+  wsize -> wsize -> 'asm asmOp -> (unit, 'asm) mod_item list -> (unit, 'asm) prog
 (** Preprocessing before translation to Coq representation:
     - substitution of parameters;
     - inserts `#copy` operators where needed;
@@ -27,7 +29,7 @@ val parse_file :
         'asm_op,
         'extra_op )
       Arch_extra.extended_op )
-    pmod_item
+    mod_item
     list
   * Syntax.pprogram
 (** Parsing and pre-typing of a complete file. Require directives are resolved

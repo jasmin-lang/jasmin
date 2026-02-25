@@ -1,0 +1,26 @@
+namespace sum10 {
+  param int N = 10;
+  require "sum_10_20_namespace.jinc"
+}
+
+namespace sum20 {
+  param int N = 20;
+  require "sum_10_20_namespace.jinc"
+}
+
+export fn main () -> reg u64 {
+  stack u64[20] s;
+  inline int i;
+  for i = 0 to 20 {
+    s[i] = i;
+  }
+
+  reg u64 res10 = sum10::sumN (s[0:10]);
+
+  reg u64 res20 = sum20::sumN (s);
+
+  reg u64 res = res10 + res20;
+
+  return res;
+}
+

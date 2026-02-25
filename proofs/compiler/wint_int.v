@@ -32,6 +32,7 @@ End E.
 Section WITH_PARAMS.
 
 Context `{asmop:asmOp} {pd: PointerData} {msfsz : MSFsize}.
+Context (N : length_var).
 
 #[local]
 Existing Instance progUnit.
@@ -63,13 +64,13 @@ Definition wi2i_op2 (o : sop2) : sop2 :=
   | None => o
   end.
 
-Definition esubtype (ty1 ty2 : extended_type positive) :=
+Definition esubtype (ty1 ty2 : extended_type) :=
  match ty1, ty2 with
  | ETword None w, ETword None w' => (w ≤ w')%CMP
  | ETword (Some sg) w, ETword (Some sg') w' => (sg == sg') && (w == w')
  | ETint, ETint => true
  | ETbool, ETbool => true
- | ETarr ws l, ETarr ws' l' => arr_size ws l == arr_size ws' l'
+ | ETarr ws al, ETarr ws' al' => convertible (aarr ws al) (aarr ws' al')
  | _, _ => false
  end.
 
@@ -106,17 +107,17 @@ Section Section.
 Context (m: var -> option (signedness * var)).
 Context (FV: Sv.t).
 
-Definition to_etype sg (t:atype) : extended_type positive:=
+Definition to_etype sg (t:atype) : extended_type :=
   match t with
   | abool     => tbool
   | aint      => tint
   | aarr ws l => tarr ws l
-  | aword ws  => ETword _ sg ws
+  | aword ws  => ETword sg ws
   end.
 
 Definition sign_of_var x := Option.map fst (m x).
 
-Definition etype_of_var x : extended_type positive :=
+Definition etype_of_var x : extended_type :=
   to_etype (sign_of_var x) (vtype x).
 
 Definition sign_of_gvar (x : gvar) :=
@@ -125,13 +126,13 @@ Definition sign_of_gvar (x : gvar) :=
 
 Definition etype_of_gvar x := to_etype (sign_of_gvar x) (vtype (gv x)).
 
-Definition sign_of_etype (ty: extended_type positive) : option signedness :=
+Definition sign_of_etype (ty: extended_type) : option signedness :=
   match ty with
   | ETword (Some s) _ => Some s
   | _ => None
   end.
 
-Fixpoint etype_of_expr (e:pexpr) : extended_type positive :=
+Fixpoint etype_of_expr (e:pexpr) : extended_type :=
   match e with
   | Pconst _ => tint
   | Pbool _ => tbool
@@ -222,12 +223,12 @@ Fixpoint wi2i_e (e0:pexpr) : cexec pexpr :=
     ok (Pif ty e1 e2 e3)
   end.
 
-Definition wi2i_lvar (ety : extended_type positive) (x : var_i) : cexec var_i :=
+Definition wi2i_lvar (ety : extended_type) (x : var_i) : cexec var_i :=
   Let _ := assert (esubtype (etype_of_var x) ety)
                   (E.ierror_lv (Lvar x)) in
   wi2i_vari x.
 
-Definition wi2i_lv (ety : extended_type positive) (lv : lval) : cexec lval :=
+Definition wi2i_lv (ety : extended_type) (lv : lval) : cexec lval :=
   let s := sign_of_etype ety in
   match lv with
   | Lnone vi ty =>
@@ -256,7 +257,7 @@ Definition wi2i_lv (ety : extended_type positive) (lv : lval) : cexec lval :=
     ok (Lasub aa ws len x e)
   end.
 
-Context (sigs : funname -> option (list (extended_type positive) * list (extended_type positive))).
+Context (sigs : funname -> option (list extended_type * list extended_type)).
 
 Definition get_sig f :=
   match sigs f with
@@ -316,13 +317,13 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec instr_r :=
           ok (Copn xs t o es)
       end
 
-  | Csyscall xs o es =>
+  | Csyscall xs o al es =>
     Let _ := assert (all (fun e => sign_of_expr e == None) es)
                     (E.ierror_s "invalid args in Csyscall") in
     Let es := mapM wi2i_e es in
-    let xtys := map (to_etype None) (syscall_sig_u o).(scs_tout) in
+    let xtys := map (to_etype None) (syscall_sig_u N o).(scs_tout) in
     Let xs := mapM2 (E.ierror_s "invalid dest in Csyscall") wi2i_lv xtys xs in
-    ok (Csyscall xs o es)
+    ok (Csyscall xs o al es)
 
   | Cassert (msg, e) =>
     Let e := wi2i_e e in
@@ -347,13 +348,13 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec instr_r :=
     Let c' := mapM wi2i_i c' in
     ok (Cwhile a c e info c')
 
-  | Ccall xs f es =>
+  | Ccall xs f al es =>
     Let sig := get_sig f in
     Let _ := assert (all2 (fun ety e => esubtype ety (etype_of_expr e)) sig.1 es)
                     (E.ierror_s "invalid args in Ccall") in
     Let xs := mapM2 (E.ierror_s "bad xs length in Ccall") wi2i_lv sig.2 xs in
     Let es := mapM wi2i_e es in
-    ok (Ccall xs f es)
+    ok (Ccall xs f al es)
   end
 
 with wi2i_i (i:instr) : cexec instr :=
@@ -365,7 +366,7 @@ with wi2i_i (i:instr) : cexec instr :=
 Definition wi2i_fun (fn:funname) (f: fundef) :=
   add_funname fn (
   Let sig := get_sig fn in
-  let 'MkFun ii si p c so r ev := f in
+  let 'MkFun ii al si p c so r ev := f in
   Let p := mapM2 (E.ierror_s "bad params in fun") wi2i_lvar sig.1 p in
   Let c := mapM wi2i_i c in
   Let r := mapM2 (E.ierror_s "bad return in fun") (fun ety x =>
@@ -375,10 +376,10 @@ Definition wi2i_fun (fn:funname) (f: fundef) :=
   let mk := map (fun ety => wi2i_type (sign_of_etype ety) (to_atype ety)) in
   let tin := mk sig.1 in
   let tout := mk sig.2 in
-  ok (MkFun ii tin p c tout r ev)).
+  ok (MkFun ii al tin p c tout r ev)).
 
 Definition build_sig (fd : funname * fundef) :=
- let 'MkFun ii si p c so r ev := fd.2 in
+ let 'MkFun ii al si p c so r ev := fd.2 in
  let mk := map2 (fun (x:var_i) ty => to_etype (sign_of_var x) ty) in
  (fd.1, (mk p si, mk r so)).
 

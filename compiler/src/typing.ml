@@ -19,17 +19,17 @@ let error loc fmt =
 let ty_var (x: var) =
   let ty = x.v_ty in
   begin match ty with
-  | Arr(_, n) ->
+  | Arr(_, Const n) ->
       if (n < 1) then
         error (L.i_loc0 x.v_dloc)
           "the variable %a has type %a, its array size should be positive"
-          (Printer.pp_var ~debug:false) x PrintCommon.pp_ty ty
+          (Printer.pp_var ~debug:false) x (Printer.pp_ty ~debug:false) ty
   | _ -> ()
   end;
   ty
 
 
-let ty_gvar (x: int ggvar) = ty_var (L.unloc x.gv)
+let ty_gvar (x: length ggvar) = ty_var (L.unloc x.gv)
 
 (* -------------------------------------------------------------------- *)
 
@@ -39,28 +39,31 @@ let check_array loc e te =
   | _     ->
     error loc
       "the expression %a has type %a while an array is expected"
-      (Printer.pp_expr ~debug:false) e PrintCommon.pp_ty te
+      (Printer.pp_expr ~debug:false) e (Printer.pp_ty ~debug:false) te
 
 let subtype t1 t2 =
   match t1, t2 with
   | Bty (U ws1), Bty (U ws2) -> wsize_le ws1 ws2
   | Bty bty1, Bty bty2 -> bty1 = bty2
-  | Arr(ws1,len1), Arr(ws2,len2) -> arr_size ws1 len1 == arr_size ws2 len2
+  | Arr(ws1,len1), Arr(ws2,len2) -> Prog.compare_array_length (ws1, len1) (ws2, len2)
   | _, _ -> false
 
 let check_type loc e te ty =
   if not (subtype ty te) then
     error loc "the expression %a has type %a while %a is expected"
         (Printer.pp_expr ~debug:false) e
-        PrintCommon.pp_ty te PrintCommon.pp_ty ty
+        (Printer.pp_ty ~debug:true) te (Printer.pp_ty ~debug:true) ty
 
 let check_int loc e te = check_type loc e te tint
 
 let check_ptr pd loc e te = check_type loc e te (tu pd)
 
 let check_length loc len =
+  match len with
+  | Const len ->
   if len <= 0 then
     error loc "the length should be strictly positive"
+  | _ -> ()
 
 (* -------------------------------------------------------------------- *)
 
@@ -160,7 +163,7 @@ let check_lval pd loc x ty =
   if not (subtype tx ty) then
     error loc "the left value %a has type %a while %a is expected"
         (Printer.pp_lval ~debug:false) x
-        PrintCommon.pp_ty tx PrintCommon.pp_ty ty
+        (Printer.pp_ty ~debug:false) tx (Printer.pp_ty ~debug:false) ty
 
 let check_lvals pd loc xs tys =
   let len = List.length tys in
@@ -175,7 +178,7 @@ let getfun env fn =
 
 (* -------------------------------------------------------------------- *)
 
-let rec check_instr pd msfsz asmOp env i =
+let rec check_instr pd msfsz asmOp n env i =
   let loc = i.i_loc in
   match i.i_desc with
   | Cassgn(x,_,ty,e) ->
@@ -187,10 +190,16 @@ let rec check_instr pd msfsz asmOp env i =
     check_exprs pd loc es tins;
     check_lvals pd loc xs tout
 
-  | Csyscall(xs, o, es) ->
-    let s = Syscall.syscall_sig_u o in
+  | Csyscall(xs, o, al, es) ->
+    let s = Syscall.syscall_sig_u pd n o in
+    let f =
+      let l = List.combine s.scs_al al in
+      fun x -> List.assoc_opt x l
+    in
     let tins = List.map Conv.ty_of_cty s.scs_tin in
+    let tins = List.map (subst_ty f) tins in
     let tout = List.map Conv.ty_of_cty s.scs_tout in
+    let tout = List.map (subst_ty f) tout in
     check_exprs pd loc es tins;
     check_lvals pd loc xs tout
 
@@ -199,27 +208,33 @@ let rec check_instr pd msfsz asmOp env i =
 
   | Cif(e,c1,c2) ->
     check_expr pd loc e tbool;
-    check_cmd pd msfsz asmOp env c1;
-    check_cmd pd msfsz asmOp env c2
+    check_cmd pd msfsz asmOp n env c1;
+    check_cmd pd msfsz asmOp n env c2
 
   | Cfor(i,(_,e1,e2),c) ->
     check_expr pd loc (Pvar (gkvar i)) tint;
     check_expr pd loc e1 tint;
     check_expr pd loc e2 tint;
-    check_cmd pd msfsz asmOp env c
+    check_cmd pd msfsz asmOp n env c
 
   | Cwhile(_, c1, e, _, c2) ->
     check_expr pd loc e tbool;
-    check_cmd pd msfsz asmOp env c1;
-    check_cmd pd msfsz asmOp env c2
+    check_cmd pd msfsz asmOp n env c1;
+    check_cmd pd msfsz asmOp n env c2
 
-  | Ccall(xs,fn,es) ->
+  | Ccall(xs,fn,al,es) ->
     let fd = getfun env fn in
-    check_exprs pd loc es fd.f_tyin;
-    check_lvals pd loc xs fd.f_tyout
+    let f =
+      let l = List.combine fd.f_al al in
+      fun x -> List.assoc_opt x l
+    in
+    let tyin = List.map (subst_ty f) fd.f_tyin in
+    check_exprs pd loc es tyin;
+    let tyout = List.map (subst_ty f) fd.f_tyout in
+    check_lvals pd loc xs tyout
 
-and check_cmd pd msfsz asmOp env c =
-  List.iter (check_instr pd msfsz asmOp env) c
+and check_cmd pd msfsz asmOp n env c =
+  List.iter (check_instr pd msfsz asmOp n env) c
 
 (* -------------------------------------------------------------------- *)
 let check_global_decl (g, d) =
@@ -228,33 +243,33 @@ let check_global_decl (g, d) =
     error (L.i_loc0 g.v_dloc)
       "global variable %a has type %a but its value has type %a"
       (Printer.pp_var ~debug:false)
-      g PrintCommon.pp_ty ty PrintCommon.pp_ty vty
+      g (Printer.pp_ty ~debug:false) ty (Printer.pp_ty ~debug:false) vty
   in
   match d with
   | Global.Garr (len, _) ->
       if
         match ty with
-        | Arr (ws, len') -> Conv.int_of_pos len <> arr_size ws len'
+        | Arr (ws, Const len') -> CoreConv.int_of_cz len <> arr_size ws len'
         | _ -> true
-      then error (Arr (U8, Conv.int_of_pos len))
+      then error (Arr (U8, Const (CoreConv.int_of_cz len)))
   | Gword (ws, _) ->
       if match ty with Bty (U ws') -> not (wsize_le ws ws') | _ -> true then
         error (Bty (U ws))
 
 (* -------------------------------------------------------------------- *)
 
-let check_fun pd msfsz asmOp env fd =
+let check_fun pd msfsz asmOp n env fd =
   let args = List.map (fun x -> Pvar (gkvar (L.mk_loc x.v_dloc x))) fd.f_args in
   let res = List.map (fun x -> Pvar (gkvar x)) fd.f_ret in
   let i_loc = L.i_loc0 fd.f_loc in
   check_exprs pd i_loc args fd.f_tyin;
   check_exprs pd i_loc res fd.f_tyout;
-  check_cmd pd msfsz asmOp env fd.f_body;
+  check_cmd pd msfsz asmOp n env fd.f_body;
   Hf.add env fd.f_name fd
 
 (* -------------------------------------------------------------------- *)
 
-let check_prog pd msfsz asmOp (gds, funcs) =
+let check_prog pd msfsz asmOp n (gds, funcs) =
   let env = Hf.create 107 in
   List.iter check_global_decl gds;
-  List.iter (check_fun pd msfsz asmOp env) (List.rev funcs)
+  List.iter (check_fun pd msfsz asmOp n env) (List.rev funcs)

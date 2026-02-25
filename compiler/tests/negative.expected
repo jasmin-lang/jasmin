@@ -686,51 +686,43 @@ param expansion: array size mismatch for global variable g: 1 value given (4 exp
 
 fail/param_expansion/x86-64/array_too_large_arg.jazz:
 
-"fail/param_expansion/x86-64/array_too_large_arg.jazz", line 2 (37-38):
-compilation error in function main:
-param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
+compilation error:
+param expansion: number too big
 
 fail/param_expansion/x86-64/array_too_large_expr.jazz:
 
-"fail/param_expansion/x86-64/array_too_large_expr.jazz", line 5 (8-9):
-compilation error in function main:
-param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
+compilation error:
+param expansion: number too big
 
 fail/param_expansion/x86-64/array_too_large_global.jazz:
 
-"fail/param_expansion/x86-64/array_too_large_global.jazz", line 1 (25-26):
 compilation error:
-param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
+param expansion: number too big
 
 fail/param_expansion/x86-64/array_too_large_lval.jazz:
 
-"fail/param_expansion/x86-64/array_too_large_lval.jazz", line 5 (4-5):
-compilation error in function main:
-param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
+compilation error:
+param expansion: number too big
 
 fail/param_expansion/x86-64/expression_arg.jazz:
 
-"fail/param_expansion/x86-64/expression_arg.jazz", line 3 (24-25):
-compilation error in function f:
-param expansion: unary operator (64u) not supported in array sizes
+compilation error:
+param expansion: operations too complex
 
 fail/param_expansion/x86-64/expression_global.jazz:
 
-"fail/param_expansion/x86-64/expression_global.jazz", line 2 (7-8):
 compilation error:
-param expansion: unary operator (64u) not supported in array sizes
+param expansion: operations too complex
 
 fail/param_expansion/x86-64/expression_global2.jazz:
 
-"fail/param_expansion/x86-64/expression_global2.jazz", line 2 (18-19):
 compilation error:
-param expansion: unary operator (64u) not supported in array sizes
+param expansion: operations too complex
 
 fail/param_expansion/x86-64/expression_res.jazz:
 
-"fail/param_expansion/x86-64/expression_res.jazz", line 4 (13-14):
-compilation error in function f:
-param expansion: unary operator (64u) not supported in array sizes
+compilation error:
+param expansion: operations too complex
 
 fail/param_expansion/x86-64/global_array_not_constant.jazz:
 
@@ -746,21 +738,18 @@ param expansion: the expression assigned to global variable b must evaluate to a
 
 fail/param_expansion/x86-64/operator_arg.jazz:
 
-"fail/param_expansion/x86-64/operator_arg.jazz", line 3 (26-27):
-compilation error in function f:
-param expansion: operator &256u not allowed in array size (only standard arithmetic operators and modulo are allowed)
+compilation error:
+param expansion: operations too complex
 
 fail/param_expansion/x86-64/operator_global.jazz:
 
-"fail/param_expansion/x86-64/operator_global.jazz", line 2 (9-10):
 compilation error:
-param expansion: operator &256u not allowed in array size (only standard arithmetic operators and modulo are allowed)
+param expansion: operations too complex
 
 fail/param_expansion/x86-64/operator_res.jazz:
 
-"fail/param_expansion/x86-64/operator_res.jazz", line 4 (15-16):
-compilation error in function f:
-param expansion: operator &256u not allowed in array size (only standard arithmetic operators and modulo are allowed)
+compilation error:
+param expansion: operations too complex
 
 fail/pointers/x86-64/test_writable_arguments.jazz:
 
@@ -1392,7 +1381,7 @@ fail/typing/x86-64/init_global.jazz:
 
 fail/typing/x86-64/lval_param.jazz:
 
-"fail/typing/x86-64/lval_param.jazz", line 4 (3-4): param variables are not allowed here
+"fail/typing/x86-64/lval_param.jazz", line 4 (3-4): param and length variables are not allowed here
 
 fail/typing/x86-64/non_inline_stack_arg.jazz:
 
@@ -1406,7 +1395,7 @@ typing error: t has kind stack, only reg or reg ptr are allowed in result of non
 
 fail/typing/x86-64/only_param.jazz:
 
-"fail/typing/x86-64/only_param.jazz", line 3 (10-11): only param variables are allowed here
+"fail/typing/x86-64/only_param.jazz", line 3 (10-11): only param and length variables are allowed here
 
 fail/typing/x86-64/res_wrong_type.jazz:
 
@@ -1414,7 +1403,7 @@ fail/typing/x86-64/res_wrong_type.jazz:
 
 fail/typing/x86-64/subarray_non_const_len.jazz:
 
-"fail/typing/x86-64/subarray_non_const_len.jazz", line 5 (6-7): only param variables are allowed here
+"fail/typing/x86-64/subarray_non_const_len.jazz", line 5 (6-7): only param and length variables are allowed here
 
 fail/typing/x86-64/unsupported_primitive.jazz:
 

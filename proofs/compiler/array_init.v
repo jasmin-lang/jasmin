@@ -31,7 +31,7 @@ Fixpoint remove_init_i i :=
         if t then [::] else [::i]
       else [::i]
     | Copn _ _ _ _
-    | Csyscall _ _ _
+    | Csyscall _ _ _ _
     | Cassert _ => [::i]
     | Cif e c1 c2  =>
       let c1 := foldr (fun i c => remove_init_i i ++ c) [::] c1 in
@@ -44,7 +44,7 @@ Fixpoint remove_init_i i :=
       let c := foldr (fun i c => remove_init_i i ++ c) [::] c in
       let c' := foldr (fun i c => remove_init_i i ++ c) [::] c' in
       [:: MkI ii (Cwhile a c e info c') ]
-    | Ccall _ _ _  => [::i]
+    | Ccall _ _ _ _  => [::i]
     end
   end.
 
@@ -54,6 +54,7 @@ Context {pT: progT}.
 
 Definition remove_init_fd (fd:fundef) :=
   {| f_info   := fd.(f_info);
+     f_al     := fd.(f_al);
      f_tyin   := fd.(f_tyin);
      f_params := fd.(f_params);
      f_body   := remove_init_c fd.(f_body);
@@ -86,10 +87,10 @@ End Section.
 
 Definition add_init_aux ii x c :=
   match x.(vtype) with
-  | aarr ws n =>
+  | aarr ws al =>
     if ~~ is_ptr x then
       let x := VarI x (var_info_of_ii ii) in
-      MkI ii (Cassgn (Lvar x) AT_none (aarr ws n) (Parr_init ws n)) :: c
+      MkI ii (Cassgn (Lvar x) AT_none (aarr ws al) (Parr_init ws al)) :: c
     else c
   | _ => c
   end.
@@ -119,6 +120,7 @@ Definition add_init_fd (fd:fundef) :=
   let I := vrvs [seq (Lvar i) | i <- f_params fd] in
   let f_body  := (add_init_c add_init_i I fd.(f_body)).1 in
   {| f_info   := fd.(f_info);
+     f_al     := fd.(f_al);
      f_tyin   := fd.(f_tyin);
      f_params := fd.(f_params);
      f_body   := f_body;

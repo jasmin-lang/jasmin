@@ -40,7 +40,7 @@ Local Notation E n := (sopn.ADExplicit n sopn.ACR_any).
    argument. *)
 Definition Oarm_add_large_imm_instr : instruction_desc :=
   let ty := aword arm_reg_size in
-  let cty := eval_atype ty in
+  let cty := cword arm_reg_size in
   let ctin := [:: cty; cty] in
   let semi := fun (x y : word arm_reg_size) => (x + y)%w in
   {| str    := (fun _ => "add_large_imm"%string)
@@ -49,13 +49,13 @@ Definition Oarm_add_large_imm_instr : instruction_desc :=
    ; tout   := [:: ty]
    ; i_out  := [:: E 0]
    ; conflicts := [:: (APout 0, APin 0)]
-   ; semi   := sem_prod_ok ctin semi
-   ; semu   := @values.vuincl_app_sopn_v ctin [:: cty] (sem_prod_ok ctin semi) refl_equal
+   ; semi   := fun _ => sem_prod_ok ctin semi
+   ; semu   := fun _ => @values.vuincl_app_sopn_v ctin [:: cty] (sem_prod_ok ctin semi) refl_equal
    ; i_safe := [::]
    ; i_valid := true
    ; i_safe_wf := refl_equal
-   ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=ctin) semi _
-   ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=ctin) semi
+   ; i_semi_errty :=  fun _ _ => sem_prod_ok_error (tin:=ctin) semi _
+   ; i_semi_safe := fun _ _ => values.sem_prod_ok_safe (tin:=ctin) semi
  |}.
 
 Definition smart_li_instr (ws : wsize) : instruction_desc :=

@@ -29,6 +29,8 @@ val z_of_word : wsize -> Word0.word -> Z.t
 val z_unsigned_of_word : wsize -> Word0.word -> Z.t
 
 (* -------------------------------------------------------------------- *)
+val cal_of_al : length -> Type.array_length
+val al_of_cal : Type.array_length -> length
 val cty_of_ty : Prog.ty -> Type.atype
 val ty_of_cty : Type.atype -> Prog.ty
 
@@ -57,7 +59,7 @@ val fdef_of_csfdef : Var0.funname * 'asm Expr._sfundef -> (unit, 'asm) sfundef
 val prog_of_csprog : 'asm Expr._sprog -> (unit, 'asm) sprog
 
 val to_array : 
-  Prog.ty -> BinNums.positive -> Warray_.WArray.array -> wsize * Z.t array
+  Prog.ty -> BinNums.coq_Z -> Warray_.WArray.array -> wsize * Z.t array
 
 val error_of_cerror :
   (Format.formatter -> Compiler_util.pp_error -> unit) ->

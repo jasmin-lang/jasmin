@@ -54,9 +54,9 @@ Fixpoint unroll_i (i: instr) : cmd * bool :=
   match ir with
   | Cassgn _ _ _ _
   | Copn _ _ _ _
-  | Csyscall _ _ _
+  | Csyscall _ _ _ _
   | Cassert _
-  | Ccall _ _ _
+  | Ccall _ _ _ _
     => ([:: i ], false)
   | Cif b c1 c2  =>
       let: (c1', b1) := unroll_cmd unroll_i c1 in
@@ -82,9 +82,9 @@ Section Section.
 Context {pT: progT}.
 
 Definition unroll_fun (f: fun_decl) :=
-  let: (fn, MkFun ii si p c so r ev) := f in
+  let: (fn, MkFun ii al si p c so r ev) := f in
   let: (c', b) := unroll_cmd unroll_i c in
-  ((fn, MkFun ii si p c' so r ev), b).
+  ((fn, MkFun ii al si p c' so r ev), b).
 
 Definition unroll_prog (p: prog) : prog * bool :=
   let: (fds, b) := map_repeat unroll_fun (p_funcs p) in

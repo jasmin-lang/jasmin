@@ -16,7 +16,17 @@ all y[i] is init (ok u)
 Module Import E.
   Definition pass : string := "array copy".
 
-  Definition error := pp_internal_error_s pass "fresh variables are not fresh ...".
+  Definition fresh_error := pp_internal_error_s pass "fresh variables are not fresh ...".
+
+  Definition error ii msg := {|
+    pel_msg := pp_box [:: compiler_util.pp_s msg];
+    pel_fn := None;
+    pel_fi := None;
+    pel_ii := Some ii;
+    pel_vi := None;
+    pel_pass := Some pass;
+    pel_internal := false
+  |}.
 
 End E.
 
@@ -54,7 +64,7 @@ Definition indirect_copy ws x y i :=
 Definition needs_temporary x y : bool :=
   is_var_in_memory x && is_var_in_memory y.
 
-Definition array_copy ii (x: var_i) (ws: wsize) (n: positive) (y: gvar) :=
+Definition array_copy ii (x: var_i) (ws: wsize) (n: Z) (y: gvar) :=
   let i_name := fresh_counter in
   let i := {| v_var := {| vtype := aint ; vname := i_name |}; v_info := v_info x |} in
   let ei := Pvar (mk_lvar i) in
@@ -62,7 +72,7 @@ Definition array_copy ii (x: var_i) (ws: wsize) (n: positive) (y: gvar) :=
     if eq_gvar (mk_lvar x) y
     || is_ptr x
     then Copn [::] AT_none sopn_nop [::]
-    else Cassgn (Lvar x) AT_none (aarr ws n) (Parr_init ws n) in
+    else Cassgn (Lvar x) AT_none (aarr ws (ALConst n)) (Parr_init ws (ALConst n)) in
   [:: MkI ii pre;
       MkI ii
         (Cfor i (UpTo, Pconst 0, Pconst n)
@@ -111,22 +121,29 @@ Definition get_target V ii (xs: lvals) : cexec (var_i * cmd) :=
     end
   else Error (pp_internal_error_s_at E.pass ii "copy should have a single destination").
 
+Definition get_const ii al :=
+  match al with
+  | ALConst n => ok n
+  | _ => Error (E.error ii "the array length is not a constant")
+  end.
+
 Fixpoint array_copy_i V (i:instr) : cexec cmd :=
   let:(MkI ii id) := i in
   match id with
   | Cassgn _ _ _ _ => ok [:: i]
   | Copn xs _ o es =>
     match is_copy o with
-    | Some (ws, n) =>
+    | Some (ws, al) =>
       Let: (y, pre) := get_source V ii es in
       Let: (x, post) := get_target V ii xs in
-          Let _ := assert (convertible (vtype x) (aarr ws n))
-                          (pp_internal_error_s_at E.pass ii "bad type for copy") in
-          ok (pre ++ array_copy ii x ws n y ++ post)
+      Let _ := assert (convertible (vtype x) (aarr ws al))
+                      (pp_internal_error_s_at E.pass ii "bad type for copy") in
+      Let n := get_const ii al in
+      ok (pre ++ array_copy ii x ws n y ++ post)
 
     | _ => ok [:: i]
     end
-  | Csyscall _ _ _ | Cassert _ => ok [:: i]
+  | Csyscall _ _ _ _ | Cassert _ => ok [:: i]
   | Cif e c1 c2    =>
       Let c1 := array_copy_c V array_copy_i c1 in
       Let c2 := array_copy_c V array_copy_i c2 in
@@ -138,20 +155,20 @@ Fixpoint array_copy_i V (i:instr) : cexec cmd :=
       Let c1 := array_copy_c V array_copy_i c1 in
       Let c2 := array_copy_c V array_copy_i c2 in
       ok [:: MkI ii (Cwhile a c1 e info c2)]
-  | Ccall _ _ _ => ok [:: i]
+  | Ccall _ _ _ _ => ok [:: i]
   end.
 
 Context {pT: progT}.
 
 Definition array_copy_fd V (f:fundef) :=
-  let 'MkFun fi tyin params c tyout res ev := f in
+  let 'MkFun fi al tyin params c tyout res ev := f in
   Let c := array_copy_c V array_copy_i c in
-  ok (MkFun fi tyin params c tyout res ev).
+  ok (MkFun fi al tyin params c tyout res ev).
 
 Definition array_copy_prog (p:prog) :=
   let V := vars_p (p_funcs p) in
   let fresh := Sv.add {| vtype := aint ; vname := fresh_counter |} (sv_of_list tmp_var wsizes) in
-  Let _ := assert (disjoint fresh V) E.error in
+  Let _ := assert (disjoint fresh V) E.fresh_error in
   Let fds := map_cfprog (array_copy_fd V) (p_funcs p) in
   ok {| p_funcs := fds;
         p_globs := p_globs p;

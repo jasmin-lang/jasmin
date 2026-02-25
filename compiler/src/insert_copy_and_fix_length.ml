@@ -7,12 +7,12 @@ let is_array_copy (x:lval) (e:expr) =
   | Lvar x ->
     let x = L.unloc x in
     begin match x.v_ty with
-    | Arr (xws, xn) ->
+    | Arr (xws, Const xn) ->
       begin match e with
       | Pvar y ->
         let y = L.unloc y.gv in
         begin match y.v_ty with
-        | Arr(yws, yn) ->
+        | Arr(yws, Const yn) ->
            (* Ignore ill-typed copies: they are later rejected by “typing”. *)
            if arr_size yws yn < arr_size xws xn then None else
            if x.v_kind = Reg(Normal, Direct) then Some (xws, xn)
@@ -28,9 +28,9 @@ let is_array_copy (x:lval) (e:expr) =
 
 let size_of_lval =
   function
-  | Lvar x -> size_of (L.unloc x).v_ty
-  | Lasub (_, ws, len, _, _) -> arr_size ws len
-  | Lnone _ | Lmem _ | Laset _ -> assert false
+  | Lvar x -> size_of_const (L.unloc x).v_ty
+  | Lasub (_, ws, Const len, _, _) -> arr_size ws len
+  | Lasub _ | Lnone _ | Lmem _ | Laset _ -> assert false
 
 let rec iac_stmt pd is = List.map (iac_instr pd) is
 and iac_instr pd i = { i with i_desc = iac_instr_r pd i.i_loc i.i_desc }
@@ -41,10 +41,10 @@ and iac_instr_r pd loc ir =
       match is_array_copy x e with
       | None -> ir
       | Some (ws, n) ->
-         Typing.check_length loc n;
+         Typing.check_length loc (Const n);
           warning IntroduceArrayCopy
             loc "an array copy is introduced";
-          let op = Pseudo_operator.Ocopy(ws, Conv.pos_of_int n) in
+          let op = Pseudo_operator.Ocopy(ws, ALConst (CoreConv.cz_of_int n)) in
           Copn([x], t, Sopn.Opseudo_op op, [e])
     else ir
   | Cif (b, th, el) -> Cif (b, iac_stmt pd th, iac_stmt pd el)
@@ -68,8 +68,8 @@ and iac_instr_r pd loc ir =
           xn wsn
       else
         let len = xn / wsn in
-        Typing.check_length loc len;
-        let op = Pseudo_operator.Ocopy (ws, Conv.pos_of_int len) in
+        Typing.check_length loc (Const len);
+        let op = Pseudo_operator.Ocopy (ws, ALConst (CoreConv.cz_of_int len)) in
         Copn(xs,t,Sopn.Opseudo_op op, es)
     | Sopn.Opseudo_op(Ocopy _), _ -> assert false
     | Sopn.Opseudo_op(Pseudo_operator.Oswap _), x::_ ->
@@ -79,9 +79,9 @@ and iac_instr_r pd loc ir =
     | Sopn.Opseudo_op(Pseudo_operator.Oswap _), [] -> assert false
     | Sopn.Oslh (SLHprotect_ptr _), [Lvar x] ->
       (* Fix the size it is dummy for the moment *)
-      let ws, len = array_kind (L.unloc x).v_ty in
-      Typing.check_length loc len;
-      let op = Slh_ops.SLHprotect_ptr (ws, Conv.pos_of_int len) in
+      let ws, len = array_kind_const (L.unloc x).v_ty in
+      Typing.check_length loc (Const len);
+      let op = Slh_ops.SLHprotect_ptr (ws, ALConst (CoreConv.cz_of_int len)) in
       Copn(xs,t, Sopn.Oslh op, es)
     | Sopn.Oslh (SLHprotect_ptr _), _ -> assert false
     | Sopn.Opseudo_op (Odeclassify _), _ ->
@@ -93,17 +93,7 @@ and iac_instr_r pd loc ir =
     | Sopn.Oasm _, _ -> ir
     end
 
-  | Csyscall(xs, o, es) ->
-    begin match o with
-    | Syscall_t.RandomBytes _ ->
-      (* Fix the size it is dummy for the moment *)
-      let ty =
-        match xs with
-        | [x] -> Typing.ty_lval pd loc x
-        | _ -> assert false in
-      let ws, len = array_kind ty in
-      Csyscall(xs, Syscall_t.RandomBytes (ws, Conv.pos_of_int len), es)
-    end
+  | Csyscall _ -> ir
 
   | Ccall _ | Cassert _ -> ir
 

@@ -502,7 +502,8 @@ module Env: EnvT = struct
 
   let add_ty env = function
       | Bty _ -> ()
-      | Arr (_ws, n) -> add_Array env n
+      | Arr (_ws, Const n) -> add_Array env n
+      | _ -> assert false (* not supported yet *)
 
   let empty arch pd msfsz array_theories =
     {
@@ -573,9 +574,10 @@ end
 
 let check_array env x =
   match (L.unloc x).v_ty with
-  | Arr(ws, n) ->
+  | Arr(ws, Const n) ->
       Sarraytheory.mem (Array n) (Env.array_theories env) &&
       Sarraytheory.mem (WArray (arr_size ws n)) (Env.array_theories env)
+  | Arr _ -> assert false (* not supported *)
   | _ -> true
 
 (* ------------------------------------------------------------------- *)
@@ -959,6 +961,11 @@ let toec_ty onarray env ty = match ty with
     | Arr(ws,n) -> onarray env ws n
 
 let onarray_ty_dfl env ws n =
+  let n =
+    match n with
+    | Const n -> n
+    | _ -> assert false
+  in
   Format.sprintf "%s.t %s.t" (fmt_Wsz ws) (ec_Array env n)
 
 let of_list_dfl env _ws n =
@@ -969,13 +976,13 @@ let of_list_dfl env _ws n =
 
 module type EcArray = sig
   val ec_darray8: Env.t -> int -> ec_expr
-  val ec_cast_array: Env.t -> wsize * int -> wsize * int -> ec_expr -> ec_expr
+  val ec_cast_array: Env.t -> wsize * length -> wsize * length -> ec_expr -> ec_expr
   val toec_pget: Env.t -> Memory_model.aligned * Warray_.arr_access * wsize * var * ec_expr -> ec_expr
-  val toec_psub: Env.t -> Warray_.arr_access * wsize * int * int ggvar * ec_expr -> ec_expr
+  val toec_psub: Env.t -> Warray_.arr_access * wsize * length * length ggvar * ec_expr -> ec_expr
   val toec_laset: Env.t -> Warray_.arr_access * wsize * var * ec_expr -> ec_expr -> ec_instr
-  val toec_lasub: Env.t -> Warray_.arr_access * wsize * int * var L.located * ec_expr -> ec_expr -> ec_expr
+  val toec_lasub: Env.t -> Warray_.arr_access * wsize * length * var L.located * ec_expr -> ec_expr -> ec_expr
 
-  val onarray_ty: Env.t -> wsize -> int -> string
+  val onarray_ty: Env.t -> wsize -> length -> string
   val add_arr: Env.t -> wsize -> int -> unit
   val add_jarray: Env.t -> wsize -> int -> unit
   val of_list:  Env.t -> wsize -> int -> ec_expr
@@ -991,7 +998,8 @@ module EcArrayOld : EcArray = struct
     let i = Env.create_name env "i" in
     Eapp (ec_WArray_init env ws n, [Efun1 (i, f i)])
 
-  let ec_Array_init env len = Eident [ec_Array env len; "init"]
+  let ec_Array_init env len =
+    Eident [ec_Array env len; "init"]
 
   let ec_initi env (x, n, ws) =
     let f i = ec_aget x (ec_ident i) in
@@ -1010,13 +1018,16 @@ module EcArrayOld : EcArray = struct
           )
 
   let ec_cast_array env (ws, n) (wse, ne) e =
-    let i = Env.create_name env "i" in
-    let geti = ec_ident (Format.sprintf "get%i" (int_of_ws ws)) in
-    let init_fun = Efun1 (i, Eapp (geti, [ec_initi env (e, ne, wse); ec_ident i])) in
-    Eapp (ec_Array_init env n, [init_fun])
+    match n, ne with
+    | Const n, Const ne ->
+      let i = Env.create_name env "i" in
+      let geti = ec_ident (Format.sprintf "get%i" (int_of_ws ws)) in
+      let init_fun = Efun1 (i, Eapp (geti, [ec_initi env (e, ne, wse); ec_ident i])) in
+      Eapp (ec_Array_init env n, [init_fun])
+    | _, _ -> assert false (* not supported *)
 
   let toec_pget env (_a, aa, ws, x, e) =
-    let (xws, n) = array_kind x.v_ty in
+    let (xws, n) = array_kind_const x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
        ec_aget (ec_vari env x) e
     else
@@ -1026,10 +1037,12 @@ module EcArrayOld : EcArray = struct
        )
 
   let toec_psub env (aa, ws, len, x, e) =
+    match len with
+    | Const len ->
     assert (check_array env x.gv);
     let i = Env.create_name env "i" in
     let x = L.unloc x.gv in
-    let (xws,n) = array_kind x.v_ty in
+    let (xws,n) = array_kind_const x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
         Eapp (
             ec_Array_init env len,
@@ -1046,9 +1059,10 @@ module EcArrayOld : EcArray = struct
             ])
                 )
         ])
+    | _ -> assert false (* not supported *)
 
   let toec_laset env (aa, ws, x, e1) e =
-    let (xws,n) = array_kind x.v_ty in
+    let (xws,n) = array_kind_const x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
       ESasgn ([LvArrItem ([ec_vars env x], e1)], e)
     else
@@ -1064,8 +1078,13 @@ module EcArrayOld : EcArray = struct
 
   let toec_lasub env (aa, ws, len, x, e1) e =
     assert (check_array env x);
+    let len =
+      match len with
+      | Const len -> len
+      | _ -> assert false
+    in
     let x = L.unloc x in
-    let (xws, n) = array_kind x.v_ty in
+    let (xws, n) = array_kind_const x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
         let i = Env.create_name env "i" in
         let range_ub = Eop2 (Plus, e1, ec_int len) in
@@ -1116,14 +1135,17 @@ module EcWArray: EcArray = struct
           )
 
   let ec_cast_array env (ws, n) (wse, ne) e =
-    let sizews = ws2bytes ws in
-    let sizewb = ws2bytes wse in
-    Env.add_SubArrayCast env sizews sizewb n ne;
-    let sa = fmt_array_theory (SubArrayCast { sizews; sizewb; sizes = n; sizeb = ne }) in
-    Eapp (Eident [sa; "get_sub"], [e; ec_int 0])
+    match n, ne with
+    | Const n, Const ne ->
+      let sizews = ws2bytes ws in
+      let sizewb = ws2bytes wse in
+      Env.add_SubArrayCast env sizews sizewb n ne;
+      let sa = fmt_array_theory (SubArrayCast { sizews; sizewb; sizes = n; sizeb = ne }) in
+      Eapp (Eident [sa; "get_sub"], [e; ec_int 0])
+    | _ -> assert false (* not supported *)
 
   let toec_pget env (_a, aa, ws, x, e) =
-    let (xws,n) = array_kind x.v_ty in
+    let (xws,n) = array_kind_const x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
        ec_aget (ec_vari env x) e
     else
@@ -1135,37 +1157,40 @@ module EcWArray: EcArray = struct
       Eapp (Eident [arrayaccesscast; getf], [ec_vari env x; e])
 
   let toec_psub env (aa, ws, len, x, e) =
-    assert (check_array env x.gv);
-    let x = L.unloc x.gv in
-    let (xws,n) = array_kind x.v_ty in
-    let subf =
-      if ws = xws then
-        if aa = Warray_.AAscale then begin
-          (* Sub-array access aligned *)
-          Env.add_SubArray env len n;
-          let subarray = fmt_array_theory (SubArray { sizes = len; sizeb = n }) in
-          Eident [subarray; "get_sub"]
-        end else begin
-          (* Sub-array access unaligned *)
-          let sizew = ws2bytes ws in
-          Env.add_SubArrayDirect env sizew len n;
-          let sa = fmt_array_theory (SubArrayDirect { sizew; sizes = len; sizeb = n }) in
-          Eident [sa; "get_sub_direct"]
+    match len with
+    | Const len ->
+      assert (check_array env x.gv);
+      let x = L.unloc x.gv in
+      let (xws,n) = array_kind_const x.v_ty in
+      let subf =
+        if ws = xws then
+          if aa = Warray_.AAscale then begin
+            (* Sub-array access aligned *)
+            Env.add_SubArray env len n;
+            let subarray = fmt_array_theory (SubArray { sizes = len; sizeb = n }) in
+            Eident [subarray; "get_sub"]
+          end else begin
+            (* Sub-array access unaligned *)
+            let sizew = ws2bytes ws in
+            Env.add_SubArrayDirect env sizew len n;
+            let sa = fmt_array_theory (SubArrayDirect { sizew; sizes = len; sizeb = n }) in
+            Eident [sa; "get_sub_direct"]
+          end
+        else begin
+          (* Sub-array access typecast (direct or not) *)
+          let get_sub = if aa = Warray_.AAscale then "get_sub" else "get_sub_direct" in
+          let sizews = ws2bytes ws in
+          let sizewb = ws2bytes xws in
+          Env.add_SubArrayCast env sizews sizewb len n;
+          let sa = fmt_array_theory (SubArrayCast { sizews; sizewb; sizes = len; sizeb = n }) in
+          Eident [sa; get_sub]
         end
-      else begin
-        (* Sub-array access typecast (direct or not) *)
-        let get_sub = if aa = Warray_.AAscale then "get_sub" else "get_sub_direct" in
-        let sizews = ws2bytes ws in
-        let sizewb = ws2bytes xws in
-        Env.add_SubArrayCast env sizews sizewb len n;
-        let sa = fmt_array_theory (SubArrayCast { sizews; sizewb; sizes = len; sizeb = n }) in
-        Eident [sa; get_sub]
-      end
-    in
-    Eapp (subf, [ec_vari env x; e])
+      in
+      Eapp (subf, [ec_vari env x; e])
+    | _ -> assert false (* not supported *)
 
   let toec_laset env (aa, ws, x, e1) e =
-    let (xws,n) = array_kind x.v_ty in
+    let (xws,n) = array_kind_const x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
       ESasgn ([LvArrItem ([ec_vars env x], e1)], e)
     else
@@ -1181,8 +1206,13 @@ module EcWArray: EcArray = struct
 
   let toec_lasub env (aa, ws, len, x, e1) e =
     assert (check_array env x);
+    let len =
+      match len with
+      | Const len -> len
+      | _ -> assert false
+    in
     let x = L.unloc x in
-    let (xws, n) = array_kind x.v_ty in
+    let (xws, n) = array_kind_const x.v_ty in
     let subf =
       if ws = xws then
         if aa = Warray_.AAscale then begin
@@ -1223,8 +1253,11 @@ module EcBArray : EcArray = struct
     Eident [ec_BArray env sz; "darray"]
 
   let ec_cast_array (_env:Env.t) (ws1, sz1) (ws2, sz2) e =
-    assert (Prog.arr_size ws1 sz1 = Prog.arr_size ws2 sz2);
-    e
+    match sz1, sz2 with
+    | Const sz1, Const sz2 ->
+      assert (Prog.arr_size ws1 sz1 = Prog.arr_size ws2 sz2);
+      e
+    | _, _ -> assert false (* not supported *)
 
   let direct aa =
     match aa with
@@ -1237,13 +1270,13 @@ module EcBArray : EcArray = struct
     | Warray_.AAscale -> Format.sprintf "%i" (int_of_ws ws)
 
   let toec_pget (env:Env.t) (_a, aa, ws, x, ei) =
-    let (xws, n) = array_kind x.v_ty in
+    let (xws, n) = array_kind_const x.v_ty in
     let sz = arr_size xws n in
     Eapp (Eident [ec_BArray env sz; Format.sprintf "get%i%s" (int_of_ws ws) (direct aa)],
           [ec_vari env x; ei])
 
   let toec_laset (env:Env.t) (aa, ws, x, ei) e =
-    let (xws,n) = array_kind x.v_ty in
+    let (xws,n) = array_kind_const x.v_ty in
     let sz = arr_size xws n in
     let eset =
       Eapp (Eident [ec_BArray env sz; Format.sprintf "set%i%s" (int_of_ws ws) (direct aa)],
@@ -1251,17 +1284,25 @@ module EcBArray : EcArray = struct
     ESasgn ([LvIdent [ec_vars env x]], eset)
 
   let toec_psub (env:Env.t) (aa, ws, len, x, ei) =
-    let x = L.unloc x.gv in
-    let (xws,n) = array_kind x.v_ty in
-    let sizes = arr_size ws len in
-    let sizeb = arr_size xws n in
-    let s = { sizes; sizeb } in
-    Eapp(Eident [ec_SBArray env s; Format.sprintf "get_sub%s" (scale aa ws)],
-         [ec_vari env x; ei])
+    match len with
+    | Const len ->
+      let x = L.unloc x.gv in
+      let (xws,n) = array_kind_const x.v_ty in
+      let sizes = arr_size ws len in
+      let sizeb = arr_size xws n in
+      let s = { sizes; sizeb } in
+      Eapp(Eident [ec_SBArray env s; Format.sprintf "get_sub%s" (scale aa ws)],
+           [ec_vari env x; ei])
+    | _ -> assert false (* not supported *)
 
   let toec_lasub (env:Env.t) (aa, ws, len, x, ei) e =
+    let len =
+      match len with
+      | Const len -> len
+      | _ -> assert false
+    in
     let x = L.unloc x in
-    let (xws,n) = array_kind x.v_ty in
+    let (xws,n) = array_kind_const x.v_ty in
     let sizes = arr_size ws len in
     let sizeb = arr_size xws n in
     let s = { sizes; sizeb } in
@@ -1269,6 +1310,11 @@ module EcBArray : EcArray = struct
          [ec_vari env x; ei; e])
 
   let onarray_ty env ws n =
+    let n =
+      match n with
+      | Const n -> n
+      | _ -> assert false
+    in
     Format.sprintf "%s.t" (ec_BArray env (arr_size ws n))
 
   let add_arr env ws n = Env.add_BArray env (arr_size ws n)
@@ -1302,10 +1348,6 @@ let ty_expr = function
 
 let ty_sopn pd msfsz asmOp op es =
   match op with
-  (* Do a special case for copy since the Coq type loose information  *)
-  | Sopn.Opseudo_op (Pseudo_operator.Ocopy(ws, p)) ->
-    let l = [Arr(ws, Conv.int_of_pos p)] in
-    l, l
   | Sopn.Opseudo_op (Pseudo_operator.Oswap _) ->
     let l = List.map ty_expr es in
     l, l
@@ -1327,7 +1369,7 @@ let rec is_write_i x i =
   match i.i_desc with
   | Cassgn (lv,_,_,_) ->
     is_write_lv x lv
-  | Copn(lvs,_,_,_) | Ccall(lvs, _, _) | Csyscall(lvs,_,_) ->
+  | Copn(lvs,_,_,_) | Ccall(lvs, _, _, _) | Csyscall(lvs,_,_,_) ->
     is_write_lvs x lvs
   | Cassert _ -> false
   | Cif(_, c1, c2) | Cwhile(_, c1, _, _, c2) ->
@@ -1454,7 +1496,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
               )
           | Oarray len ->
               Eapp (
-                  EA.of_list env U8 (Conv.int_of_pos len),
+                  EA.of_list env U8 (CoreConv.int_of_cz len),
                   [Elist (List.map (toec_expr env) es)]
               )
           end
@@ -1804,8 +1846,14 @@ struct
 
   let ec_syscall env o =
     match o with
-    | Syscall_t.RandomBytes (ws, p) ->
-      let n = arr_size ws (Conv.int_of_pos p) in
+    | Syscall_t.RandomBytes ws ->
+      let p = assert false in (* FIXME *)
+      let p =
+        match p with
+        | Const p -> p
+        | _ -> assert false
+      in
+      let n = arr_size ws p in
       Env.add_randombytes env n;
       Format.sprintf "%s.randombytes_%i" syscall_mod_arg n
 
@@ -1836,7 +1884,7 @@ struct
           let ec_e op = Eapp (ec_op op, List.map (toec_cast env) (List.combine itys es)) in
           (ec_leaks_opn env es) @
           (ec_expr_assgn env lvs otys otys' (ec_e op'))
-      | Ccall (lvs, f, es) ->
+      | Ccall (lvs, f, _al, es) ->
           let env = Env.new_aux_range env in
           let otys, itys = Env.get_funtype env f in
           let args = List.map (toec_cast env) (List.combine itys es) in
@@ -1844,8 +1892,9 @@ struct
           (ec_leaks_es env es) @
           (ec_pcall env lvs leak_lvs otys [Env.get_funname env f] args) @
           (ec_leak_call_acc env)
-      | Csyscall (lvs, o, es) ->
-          let s = Syscall.syscall_sig_u o in
+      | Csyscall (lvs, o, _al, es) ->
+          let n = assert false in (* FIXME *)
+          let s = Syscall.syscall_sig_u (Env.pd env) n o in
           let otys = List.map Conv.ty_of_cty s.scs_tout in
           let itys =  List.map Conv.ty_of_cty s.scs_tin in
           let args = List.map (toec_cast env) (List.combine itys es) in
@@ -1955,7 +2004,7 @@ struct
 
   let ec_randombytes env =
       let randombytes_decl a n =
-          let arr_ty = toec_ty env (Arr (U8, n)) in
+          let arr_ty = toec_ty env (Arr (U8, Const n)) in
           {
               fname = Format.sprintf "randombytes_%i" n;
               args = [(a, arr_ty)];
@@ -1995,7 +2044,8 @@ struct
       let add_arrsz env f =
         let add env x =
           match x.v_ty with
-          | Arr(ws, n) -> EA.add_jarray env ws n
+          | Arr(ws, Const n) -> EA.add_jarray env ws n
+          | Arr _ -> assert false
           | _ -> ()
         in
         let vars = vars_fc f in
@@ -2054,7 +2104,7 @@ and used_func_i used i =
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
   | Cfor(_,_,c)       -> used_func_c used c
   | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2
-  | Ccall (_,f,_)   -> Ss.add f.fn_name used
+  | Ccall (_,f,_,_)   -> Ss.add f.fn_name used
 
 let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model) amodel fnames array_dir fmt =
   let save_array_theories array_theories =

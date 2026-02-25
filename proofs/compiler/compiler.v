@@ -202,7 +202,13 @@ Record compiler_params
   dead_vars_sfd    : _sfun_decl -> instr_info -> Sv.t;
     (* Same as dead_vars_ufd, but for _sfun_decl instead of _ufun_decl. *)
   pp_sr            : sub_region -> pp_error;
+  syscall_length_ident : Ident.ident;
 }.
+
+Let syscall_length_var {asm_op : Type}
+  {asmop : asmOp asm_op}
+  (lowering_options : Type)
+  (cparams : compiler_params lowering_options) := LV cparams.(syscall_length_ident).
 
 Context
   {reg regx xreg rflag cond asm_op extra_op : Type}
@@ -251,7 +257,7 @@ Definition live_range_splitting (p: uprog) : cexec uprog :=
   ok p.
 
 Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
-  Let p := inline_prog_err (wsw := withsubword) cparams.(rename_fd) cparams.(dead_vars_ufd) p in
+  Let p := inline_prog_err (fun vk n id ty => cparams.(fresh_var_ident) vk dummy_instr_info n id ty) cparams.(rename_fd) p in
   let p := cparams.(print_uprog) Inlining p in
 
   Let p := dead_calls_err_seq to_keep p in
@@ -296,7 +302,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
   let pr := remove_init_prog is_reg_array pv in
   let pr := cparams.(print_uprog) RemoveArrInit pr in
 
-  Let pa := makereference_prog (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pr in
+  Let pa := makereference_prog (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) (syscall_length_var cparams) pr in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
 
   Let pe := expand_prog cparams.(expand_fd) to_keep pa in

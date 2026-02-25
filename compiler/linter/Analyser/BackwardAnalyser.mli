@@ -86,6 +86,7 @@ module type Logic =
       Jasmin.Location.i_loc ->
       Jasmin.Prog.lvals ->
       Jasmin.CoreIdent.funname ->
+      Jasmin.Prog.length list ->
       Jasmin.Prog.exprs -> domain -> domain Annotation.annotation
 
     (**
@@ -94,7 +95,7 @@ module type Logic =
     val syscall :
       Jasmin.Location.i_loc ->
       Jasmin.Prog.lvals ->
-      (Jasmin.Wsize.wsize * Jasmin.BinNums.positive) Jasmin.Syscall_t.syscall_t ->
+      Jasmin.Wsize.wsize Jasmin.Syscall_t.syscall_t ->
       Jasmin.Prog.exprs -> domain -> domain Annotation.annotation
 
     (**

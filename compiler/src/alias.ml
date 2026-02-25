@@ -1,7 +1,7 @@
 open Utils
 open Printer
-open Prog
 open Wsize
+open Prog
 
 let hierror = hierror ~kind:"compilation error" ~sub_kind:"stack allocation"
 (* Most of the errors have no location initially, but they are added later
@@ -15,7 +15,15 @@ type sub_slice_kind =
     (* the precise offset is not known, we remember that it is a subpart
        and its alignment *)
 
-type slice = { in_var : var ; scope : E.v_scope ; range : int * int; kind : sub_slice_kind }
+type slice = { in_var : var ; scope : E.v_scope ; range : int * length; kind : sub_slice_kind }
+(* range: the high part of a slice can be a [length] expression.
+   This high part is used only when it is [Const], to perform some checks. *)
+
+let eq_slice s1 s2 =
+  let eq_range (n1, len1) (n2, len2) =
+    n1 = n2 && compare_array_length (U8, len1) (U8, len2)
+  in
+  s1.in_var = s2.in_var && s1.scope = s2.scope && eq_range s1.range s2.range && s1.kind = s2.kind
 
 type alias = slice Mv.t
 
@@ -26,7 +34,7 @@ let pp_scope fmt s =
   Format.fprintf fmt "%s" (if s = E.Slocal then "" else "#g:")
 
 let pp_range fmt (lo, hi) =
-  Format.fprintf fmt "%d; %d" lo hi
+  Format.fprintf fmt "%d; %a" lo (Printer.pp_len ~debug:false) hi
 
 let pp_slice fmt s =
   match s.kind with
@@ -56,15 +64,25 @@ let align_of_offset lo =
 
 let wsize_min = Utils0.cmp_min wsize_cmp
 
+let add_int_length n len =
+  match len with
+  | Const len -> Const (n + len)
+  | _ -> Add (Const n, len)
+
 let range_in_slice (lo, hi) kind s =
   match kind, s.kind with
   | Exact, Exact ->
       let (u, v) = s.range in
-      if u + hi <= v
-      then { s with range = u + lo, u + hi }
-      else
-        hierror_no_loc "cannot access the subarray [%a[ of %a, the access overflows, your program is probably unsafe"
-          pp_range (lo, hi) pp_slice s
+      let () =
+        begin match hi, v with
+        | Const hi', Const v' ->
+          if not (u + hi' <= v') then
+            hierror_no_loc "cannot access the subarray [%a[ of %a, the access overflows, your program is probably unsafe"
+              pp_range (lo, hi) pp_slice s
+        | _ -> ()
+            end
+      in
+      { s with range = u + lo, add_int_length u hi }
   | Sub ws, Exact ->
       { s with kind = Sub (wsize_min ws (align_of_offset (fst s.range))) }
   | Exact, Sub ws ->
@@ -119,9 +137,12 @@ let incl a1 a2 =
 (* Partial order on variables, by scope and size *)
 let compare_gvar params x gx y gy =
   let check_size kind x1 s1 x2 s2 =
-    if not (s1 <= s2) then
-      hierror_no_loc "cannot merge a %s and a local that is larger (%a of size %i, and %a of size %i)"
-        kind pp_var x2 s2 pp_var x1 s1
+    match s1, s2 with
+    | Const s1, Const s2 ->
+      if not (s1 <= s2) then
+        hierror_no_loc "cannot merge a %s and a local that is larger (%a of size %i, and %a of size %i)"
+          kind pp_var x2 s2 pp_var x1 s1
+    | _ -> ()
   in
 
   if V.equal x y
@@ -147,13 +168,21 @@ let compare_gvar params x gx y gy =
       | true, false -> check_size "param" y sy x sx; 1
       | false, true -> check_size "param" x sx y sy; -1
       | false, false ->
-        let c = Stdlib.Int.compare sx sy in
-        if c = 0 then
-          match is_ptr x.v_kind, is_ptr y.v_kind with
-          | true, false -> -1
-          | false, true -> 1
-          | _, _ -> V.compare x y
-        else c
+        begin match sx, sy with
+        | Const sx, Const sy ->
+          let c = Stdlib.Int.compare sx sy in
+          if c = 0 then
+            match is_ptr x.v_kind, is_ptr y.v_kind with
+            | true, false -> -1
+            | false, true -> 1
+            | _, _ -> V.compare x y
+          else c
+        | _ ->
+            Format.eprintf "%a vs %a@."
+              (Printer.pp_var ~debug:true) x
+              (Printer.pp_var ~debug:true) y;
+            assert false
+        end
 
 (* Precondition: s1 and s2 are normal forms (aka roots) in a *)
 (* x1[e1:n1] = x2[e2:n2] *)
@@ -171,8 +200,8 @@ let merge_slices params a s1 s2 =
     let x = s1.in_var in
     let y = s2.in_var in
     let lo = fst s2.range - fst s1.range in
-    let hi = lo + size_of x.v_ty in
-    if lo < 0 || size_of y.v_ty < hi
+    let hi = add_int_length lo (size_of x.v_ty) in
+    if lo < 0 || begin match size_of y.v_ty, hi with | Const n, Const hi -> n < hi | _ -> false end
     then hierror_no_loc "merging slices %a and %a may introduce invalid accesses; consider declaring variable %a smaller" pp_slice s1 pp_slice s2 pp_var x;
     Mv.add x { s2 with range = lo, hi; kind = s1.kind } a
 
@@ -183,6 +212,11 @@ let merge params a1 a2 =
       let s2 = normalize_slice a (slice_of_var x) in
       merge_slices params a s1 s2
     ) a1 a2
+
+let arr_size ws len =
+  match len with
+  | Const len -> Const (arr_size ws len)
+  | _ -> Mul (Const (size_of_ws ws), len)
 
 let range_of_asub aa ws len _gv i =
   match get_ofs aa ws i with
@@ -195,7 +229,7 @@ let range_of_asub aa ws len _gv i =
         end
       in
       range, kind
-  | Some start -> (start, start + arr_size ws len), Exact
+  | Some start -> (start, add_int_length start (arr_size ws len)), Exact
 
 let normalize_asub a aa ws len x i =
   let s = normalize_gvar a x in
@@ -243,8 +277,8 @@ let opn_cc o =
 let rec analyze_instr_r params cc a =
   function
   | Cfor _ -> assert false
-  | Ccall (xs, fn, es) -> link_array_return params a xs es (cc fn)
-  | Csyscall (xs, o, es) -> link_array_return params a xs es (syscall_cc o)
+  | Ccall (xs, fn, _al, es) -> link_array_return params a xs es (cc fn)
+  | Csyscall (xs, o, _al, es) -> link_array_return params a xs es (syscall_cc o)
   | Cassgn (x, _, ty, e) -> if is_ty_arr ty then assign_arr params a x e else a
   | Copn (xs, _, o, es) -> 
     (* A special case for operators that can return array *)
