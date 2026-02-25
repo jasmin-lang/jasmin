@@ -1,7 +1,7 @@
 export fn main () -> reg u8 {
   stack u8[1] s;
   reg u64 len = 1;
-  s = #randombytes{1}(s, len);
+  s = #randombytes{1,2}(s, len); // 2 length arguments instead of 1
   reg u8 res = s[0];
   return res;
 }

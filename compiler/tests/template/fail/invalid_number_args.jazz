@@ -1,0 +1,18 @@
+fn f{k}(reg ptr u64[k] r, reg ptr u64[k] r2) -> reg u64 {
+  reg u64 res = r[0];
+  return res;
+}
+
+param int N = 5;
+
+export fn main () -> reg u64 {
+  stack u64[N] s;
+  inline int i;
+  for i = 0 to N {
+    s[i] = i;
+  }
+  reg u64 res = f(s); // not the right number of args,
+                      // but still the length arg of f is inferred;
+                      // it fails with the expected "not the right number of args"
+  return res;
+}
