@@ -801,6 +801,82 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Cfor _ _ _ => (lbl, lc)
   end.
 
+Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) :
+  label * lcmd :=
+  let fentry_ii := entry_info_of_fun_info fi in
+  let ret_ii := ret_info_of_fun_info fi in
+  let: (tail, head, lbl) :=
+     match sf_return_address e with
+     | RAreg r _ =>
+       ( [:: MkLI ret_ii (Ligoto (Rexpr (Fvar (mk_var_i r)))) ]
+       , [:: MkLI fentry_ii (Llabel 1) ]
+       , 2%positive
+       )
+     | RAstack ra_call ra_return z _ =>
+       ( if ra_return is Some ra_return
+         then [:: lload ret_ii (mk_var_i ra_return) rspi z;
+                  MkLI ret_ii (Ligoto (Rexpr (Fvar (mk_var_i ra_return)))) ]
+         else [:: MkLI ret_ii Lret ]
+       , MkLI fentry_ii (Llabel 1) ::
+         (if ra_call is Some ra_call
+          then [:: lstore fentry_ii rspi z (mk_var_i ra_call) ]
+          else [::])
+       , 2%positive
+       )
+     | RAnone =>
+       let sf_sz := (sf_stk_sz e + sf_stk_extra_sz e)%Z in
+       match sf_save_stack e with
+       | SavedStackNone =>
+         ([::], [::], 1%positive)
+       | SavedStackReg x =>
+         (* Tail: R[rsp] := R[x]
+          * Head: R[x] := R[rsp]
+          *       Setup stack.
+          *)
+         let r := mk_var_i x in
+         ( [:: lmove ret_ii rspi r ]
+         , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r (mk_var_i var_tmp)
+         , 1%positive
+         )
+       | SavedStackStk ofs =>
+         (* Tail: Load saved registers.
+          *       R[rsp] := M[R[rsp] + ofs]
+          * Head: R[r] := R[rsp]
+          *       Setup stack.
+          *       M[R[rsp] + ofs] := R[r]
+          *       Push registers to save to the stack.
+          *)
+         let r := mk_var_i var_tmp in
+         ( pop_to_save ret_ii e.(sf_to_save) ofs
+         , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r (mk_var_i var_tmp2)
+             ++ push_to_save fentry_ii e.(sf_to_save) (var_tmp, ofs)
+         , 1%positive)
+       end
+     end
+  in
+  let fd' := linear_c linear_i body lbl tail in
+  (fd'.1, head ++ fd'.2).
+
+Definition linear_fd (fd: sfundef) :=
+  let e := fd.(f_extra) in
+  let is_export := is_RAnone (sf_return_address e) in
+  let res := if is_export then f_res fd else [::] in
+  let body := linear_body fd.(f_info) e fd.(f_body) in
+  (body.1,
+    {| lfd_info := f_info fd
+    ; lfd_align := sf_align e
+    ; lfd_tyin := f_tyin fd
+    ; lfd_arg := f_params fd
+    ; lfd_body := body.2
+    ; lfd_tyout := f_tyout fd
+    ; lfd_res := res
+    ; lfd_export := is_export
+    ; lfd_callee_saved := if is_export then map fst e.(sf_to_save) else [::]
+    ; lfd_stk_max := sf_stk_max e
+    ; lfd_frame_size := frame_size e
+    ; lfd_align_args := sf_align_args e
+    |}).
+
 (* returns the end point of the linear translation of i, given n0 as
    its start point *)
 Fixpoint linear_end_i (fn: funname) (i:instr) (n0: nat) : nat :=
@@ -996,9 +1072,8 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
   | Cfor _ _ _ => (pl0, nil)
   end.
 
-
-Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) :
-  label * lcmd :=
+Definition linear_l2r_body (fn: funname)
+  (fi: fun_info) (e: stk_fun_extra) (body: cmd) : plinfo * lcmd :=
   let fentry_ii := entry_info_of_fun_info fi in
   let ret_ii := ret_info_of_fun_info fi in
   let: (tail, head, lbl) :=
@@ -1050,15 +1125,16 @@ Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) :
        end
      end
   in
-  let fd' := linear_c linear_i body lbl tail in
-  (fd'.1, head ++ fd'.2).
+  let n_pre := List.length head in
+  let n_post := List.length tail in
+  let: (n1, lbl1, lc1) := linear_l2r_c linear_l2r_i fn body (n_pre, lbl) in
+  (n1 + n_post, lbl1, head ++ lc1 ++ tail).
 
-
-Definition linear_fd (fd: sfundef) :=
+Definition linear_l2r_fd (fn: funname) (fd: sfundef) : (plinfo * lfundef) :=
   let e := fd.(f_extra) in
   let is_export := is_RAnone (sf_return_address e) in
   let res := if is_export then f_res fd else [::] in
-  let body := linear_body fd.(f_info) e fd.(f_body) in
+  let body := linear_l2r_body fn fd.(f_info) e fd.(f_body) in
   (body.1,
     {| lfd_info := f_info fd
     ; lfd_align := sf_align e
@@ -2048,5 +2124,27 @@ Definition linear_prog : cexec lprog :=
         lp_glob_names := p.(p_extra).(sp_glob_names);
         lp_funcs := funcs.2 |}.
 
+(* version with linear_l2r_i.  TODO: proving equivalence with
+   linear_i. Should not be problematic. *)
+Definition linear_l2r_prog : cexec lprog :=
+  Let _ := check_prog in
+  Let _ := assert (size p.(p_globs) == 0)
+             (E.internal_error "invalid p_globs") in
+  let funcs := fmap (fun nb_lbl '(f,fd) =>
+    let: (_, lbl1, lc1) := linear_l2r_fd f fd in
+    ((nb_lbl + lbl1)%positive, (f, lc1))) (1%positive) p.(p_funcs)
+  in
+  Let _ := assert (funcs.1 <=? wbase Uptr)%Z
+                  (E.internal_error "too many labels")
+  in
+  ok {| lp_rip   := p.(p_extra).(sp_rip);
+        lp_rsp   := p.(p_extra).(sp_rsp);
+        lp_globs := p.(p_extra).(sp_globs);
+        lp_glob_names := p.(p_extra).(sp_glob_names);
+        lp_funcs := funcs.2 |}.
+
+
 End PROG.
 End WITH_PARAMS.
+
+
