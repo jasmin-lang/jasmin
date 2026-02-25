@@ -29,6 +29,8 @@ type tyerror =
   | NoReturnStatement   of P.funname * int
   | InvalidReturnStatement of P.funname * int * int
   | InvalidSignatureStorage of P.funname * S.pstorage * A.symbol * W.v_kind
+  | FailedLengthInference
+  | InvalidLengthCount  of int * int
   | InvalidArgCount     of int * int
   | InvalidLvalCount    of int * int
   | DuplicateFun        of A.symbol * L.t
@@ -147,6 +149,13 @@ let pp_tyerror fmt (code : tyerror) =
         var_name
         PrintCommon.pp_kind var_kind
         (S.pp_storage sto)
+
+  | FailedLengthInference ->
+      F.fprintf fmt "inference of length arguments failed"
+
+  | InvalidLengthCount (n1, n2) ->
+      F.fprintf fmt
+        "invalid number of length arguments, %d provided instead of %d" n1 n2
 
   | InvalidArgCount (n1, n2) ->
       F.fprintf fmt
@@ -1968,16 +1977,41 @@ let tt_annot_paramdecls dfl_writable pd env (annot, (ty,vs)) =
   let vars = List.map (fun v -> aty, v) vs in
   tt_vardecls_push dfl_writable pd env vars
 
-let subst_one (f_al:P.var list) alargs ty =
-  let als = List.combine f_al alargs in
+let subst_one als ty =
   let f x =
     let al = List.assoc_opt x als in
     assert (al <> None || x.P.v_kind = Const);
     al
   in
   P.subst_ety f ty
-let subst f_al alargs tys =
-  List.map (subst_one f_al alargs) tys
+
+let subst loc f_al alargs tys =
+  let n1 = List.length alargs in
+  let n2 = List.length f_al in
+  if n1 <> n2 then
+    rs_tyerror ~loc (InvalidLengthCount (n1, n2));
+  let als = List.combine f_al alargs in
+  List.map (subst_one als) tys
+
+(* We try to be resilient, errors will be caught later anyway. *)
+let infer_length loc al tys1 tys2 =
+  let rec aux m tys1 tys2 =
+    match tys1, tys2 with
+    | [], _ | _, [] -> m
+    | ty1 :: tys1, ty2 :: tys2 ->
+        let acc =
+          match ty1, ty2 with
+          | P.ETarr (ws1, P.Var x1), P.ETarr (ws2, len2) when ws1 = ws2 ->
+              (* if [x1] is already in the map, we preserve the old binding *)
+              P.Mv.modify_opt x1 (function | None -> Some len2 | Some _ as len -> len) m
+          | _ ,_ -> m
+        in
+        aux acc tys1 tys2
+  in
+  let m = aux P.Mv.empty tys1 tys2 in
+  try
+    List.map (fun x -> P.Mv.find x m) al
+  with Not_found -> rs_tyerror ~loc FailedLengthInference
 
 let rec tt_instr arch_info n (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.instr list  =
   let annot = pannot_to_annotations pannot in
@@ -1997,10 +2031,17 @@ let rec tt_instr arch_info n (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'as
         List.map (fun alarg -> tt_expr_cast arch_info.pd ~mode:`OnlyParam env_rhs alarg Prog.ETint) alargs
       in
       let alargs = List.map P.al_of_expr alargs in
-      let tout = subst fsig.fs_al alargs fsig.fs_tout in
+      let alargs =
+        if alargs = [] && fsig.fs_al <> [] then
+          (* we try to infer the constraints *)
+          let tys = tt_exprs arch_info.pd env args in
+          infer_length (L.loc pi) fsig.fs_al fsig.fs_tin (List.map snd tys)
+        else alargs
+      in
+      let tout = subst (L.loc pi) fsig.fs_al alargs fsig.fs_tout in
       let lvs, is = tt_lvalues arch_info env_lhs (L.loc pi) ls None tout in
       assert (is = []);
-      let tin = subst fsig.fs_al alargs fsig.fs_tin in
+      let tin = subst (L.loc pi) fsig.fs_al alargs fsig.fs_tin in
       let es  = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args tin in
       let is_inline = P.is_inline annot f.P.f_cc in
       let annot =
@@ -2043,10 +2084,17 @@ let rec tt_instr arch_info n (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'as
         List.map (fun alarg -> tt_expr_cast arch_info.pd ~mode:`OnlyParam env_rhs alarg Prog.ETint) alargs
       in
       let alargs = List.map P.al_of_expr alargs in
-      let tout = subst fsig.scs_al alargs (List.map conv_cty fsig.scs_tout) in
+      let alargs =
+        if alargs = [] && fsig.scs_al <> [] then
+          (* we try to infer the constraints *)
+          let tys = tt_exprs arch_info.pd env args in
+          infer_length (L.loc pi) fsig.scs_al (List.map conv_cty fsig.scs_tin) (List.map snd tys)
+        else alargs
+      in
+      let tout = subst (L.loc pi) fsig.scs_al alargs (List.map conv_cty fsig.scs_tout) in
       let lvs, is = tt_lvalues arch_info env_lhs (L.loc pi) ls None tout in
       assert (is = []);
-      let tin = subst fsig.scs_al alargs (List.map conv_cty fsig.scs_tin) in
+      let tin = subst (L.loc pi) fsig.scs_al alargs (List.map conv_cty fsig.scs_tin) in
       let es  = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args tin in
       [mk_i (P.Csyscall(lvs, Syscall_t.RandomBytes ws, alargs, es))]
 
