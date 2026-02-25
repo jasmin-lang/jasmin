@@ -34,7 +34,7 @@ let pp_scope fmt s =
   Format.fprintf fmt "%s" (if s = E.Slocal then "" else "#g:")
 
 let pp_range fmt (lo, hi) =
-  Format.fprintf fmt "%d; %a" lo (PrintCommon.pp_len ~debug:false) hi
+  Format.fprintf fmt "%d; %a" lo (Printer.pp_len ~debug:false) hi
 
 let pp_slice fmt s =
   match s.kind with

@@ -6,7 +6,7 @@ open Regalloc
 let pp_var = Printer.pp_var ~debug:true
 
 let pp_var_ty fmt x =
- Format.fprintf fmt "%a %a" (PrintCommon.pp_ty ~debug:true) x.v_ty pp_var x
+ Format.fprintf fmt "%a %a" (Printer.pp_ty ~debug:true) x.v_ty pp_var x
 
 let pp_param_info fmt pi =
   let open Stack_alloc in

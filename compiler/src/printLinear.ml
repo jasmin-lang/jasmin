@@ -53,9 +53,11 @@ let pp_instr pd msfsize asmOp fmt i =
   | LstoreLabel (x, lbl) -> F.fprintf fmt "%a = Label %a" pp_var x pp_label lbl
   | Lcond (e, lbl) -> F.fprintf fmt "If %a goto %a" pp_fexpr e pp_label lbl
 
+(* arrays should no longer be there, hence the [assert false] *)
+let pp_ty = PrintCommon.pp_gtype (fun _ _ -> assert false)
 let pp_param fmt x =
   let y = Conv.var_of_cvar x.E.v_var in
-  F.fprintf fmt "%a %a %s" pp_kind y.P.v_kind (pp_ty ~debug:false) y.P.v_ty y.P.v_name
+  F.fprintf fmt "%a %a %s" pp_kind y.P.v_kind pp_ty y.P.v_ty y.P.v_name
 
 let pp_stackframe fmt (sz, ws) =
   F.fprintf fmt "maximal stack usage: %a, alignment = %s"
