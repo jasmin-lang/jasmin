@@ -8,3 +8,8 @@ export fn noop() {}
 
 #[array = {a, b}, struct = {y = 0, z}, other_struct = { p, q = 1}]
 export fn dummy() {}
+
+param int N = 42;
+
+#[name = N, double = N + N]
+export fn expression_in_annotation() {}

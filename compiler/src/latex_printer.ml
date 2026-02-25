@@ -2,7 +2,7 @@
 
 open Utils
 open Syntax
-
+open SPrinter
 module F = Format
 module L = Location
 
@@ -35,11 +35,6 @@ let quotedouble fmt () = F.fprintf fmt "\\textquotedbl{}"
 
 let indent fmt d = if d > 0 then latex "indent" fmt (string_of_int d)
 
-let pp_opt p fmt =
-  function
-  | None -> ()
-  | Some x -> p fmt x
-
 let pp_string fmt s =
   F.asprintf "%S" s |>
   String.iter @@ function
@@ -57,9 +52,6 @@ let pp_string fmt s =
 
 let pp_cc =
     pp_opt (fun fmt x -> F.fprintf fmt "%a " kw (match x with `Inline -> "inline" | `Export -> "export"))
-
-let pp_var fmt x =
-  F.fprintf fmt "%s" (L.unloc x)
 
 let pp_castop fmt =
   function
@@ -100,50 +92,7 @@ let pp_op2 fmt =
   | `Ge s -> g s ">="
   | `Raw -> ret ""
 
-type prio =
-  | Pmin
-  | Pternary
-  | Por
-  | Pand
-  | Pbwor
-  | Pbwxor
-  | Pbwand
-  | Pcmpeq
-  | Pcmp
-  | Pshift
-  | Padd
-  | Pmul
-  | Punary
-  | Pbang
-
-let prio_of_op1 =
-  function
-  | `Cast _
-  | `Not _ -> Pbang
-  | `Neg _ -> Punary
-
-let prio_of_op2 =
-  function
-  | `Add _ | `Sub _ -> Padd
-  | `Mul _ | `Div _ | `Mod _ -> Pmul
-  | `And -> Pand
-  | `Or -> Por
-  | `BAnd _ -> Pbwand
-  | `BOr _ -> Pbwor
-  | `BXOr _ -> Pbwxor
-  | `ShR _  | `ShL _ | `ROR _ | `ROL _ -> Pshift
-  | `Eq _ | `Neq _ -> Pcmpeq
-  | `Lt _ | `Le _ | `Gt _ | `Ge _
-    -> Pcmp
-
-let optparent fmt ctxt prio p =
-  if prio < ctxt then F.fprintf fmt "%s" p
-
 let string_of_wsize w = Format.sprintf "u%d" (bits_of_wsize w)
-
-let pp_svsize fmt (vs,s,ve) =
-  Format.fprintf fmt "%d%s%d"
-    (int_of_vsize vs) (string_of_sign s) (bits_of_vesize ve)
 
 let pp_space fmt _ =
   F.fprintf fmt " "
@@ -152,11 +101,6 @@ let pp_attribute_key fmt s =
   if String.for_all (function 'a' .. 'z' | 'A' .. 'Z' | '_' -> true | _ -> false) s
   then pannot fmt s
   else F.fprintf fmt "%S" s
-
-let string_of_align =
-  function
-  | `Aligned -> "aligned"
-  | `Unaligned -> "unaligned"
 
 let pp_aligned =
   pp_opt (fun fmt al ->
