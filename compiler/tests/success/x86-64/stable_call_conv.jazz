@@ -1,0 +1,43 @@
+#[stable_call_conv = {reg = 5, flag = 5}]
+fn f(reg u64 x1, reg u64 x2) -> reg u64 {
+   reg u64 x3 = x1;
+   x3 += x2;
+   reg u64 x4 = x2;
+   x4 += x3;
+
+   reg u64 x5 = x4;
+   x5 += x3;
+   x5 += x4;
+   x5 += x3;
+   x5 += x2;
+   x5 += x1;
+   x5 = x5;
+   return x5;
+}
+
+#[stable_call_conv = {reg = 5, flag}]
+fn g1(reg u64 x1, reg u64 x2) -> reg u64 {
+   #spill(x2);
+   x1 = f(x1, x2);
+   #unspill(x2);
+   x1 += x2;
+   return x1;
+}
+
+#[stable_call_conv = {reg = 6, flag}]
+fn g2(reg u64 x1, reg u64 x2) -> reg u64 {
+   reg u64 x3 = x2;
+   x1 = f(x1, x2);
+   x1 += x3;
+   return x1;
+}
+
+export fn h (reg u64 x, reg u64 y, reg u64 w) -> reg u64 {
+   reg u64 z;
+   #spill(y);
+   z = g1(x, y);
+   #unspill(y);
+   z = g2(z, y);
+   z += w;
+   return z;
+}

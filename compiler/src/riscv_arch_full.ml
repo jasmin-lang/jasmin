@@ -57,4 +57,6 @@ module Riscv (Lowering_params : Riscv_input) : Arch_full.Core_arch
   let pp_asm = Pp_riscv.print_prog
 
   let callstyle = Arch_full.ByReg { call = Some RA; return = true }
+
+  let internal_call_conv = Riscv_decl.riscv_internal_call_conv
 end
