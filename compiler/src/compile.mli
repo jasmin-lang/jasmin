@@ -2,6 +2,8 @@ open Prog
 open Wsize
 open Sopn
 
+val syscall_length_ident : Type.length_var
+
 val preprocess :
   wsize -> wsize -> 'asm asmOp -> (unit, 'asm) mod_item list -> (unit, 'asm) prog
 (** Preprocessing before translation to Coq representation:

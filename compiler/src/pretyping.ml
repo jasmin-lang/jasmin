@@ -1972,14 +1972,14 @@ let subst_one (f_al:P.var list) alargs ty =
   let als = List.combine f_al alargs in
   let f x =
     let al = List.assoc_opt x als in
-    assert (al = None && x.P.v_kind = Const);
+    assert (al <> None || x.P.v_kind = Const);
     al
   in
   P.subst_ety f ty
 let subst f_al alargs tys =
   List.map (subst_one f_al alargs) tys
 
-let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.instr list  =
+let rec tt_instr arch_info n (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.instr list  =
   let annot = pannot_to_annotations pannot in
   let mk_i ?(annot=annot) instr =
     { P.i_desc = instr; P.i_loc = L.of_loc pi; P.i_info = (); P.i_annot = annot} in
@@ -2026,26 +2026,29 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
     let p = Sopn.Opseudo_op (Ospill(op, [] (* dummy info, will be fixed latter *))) in
     [mk_i ~annot (P.Copn([], AT_keep, p, es))]
 
-  | (ls, xs), `Raw, { pl_desc = PEPrim (f, _alargs, args) }, None when L.unloc f = "randombytes" ->
-      (* FIXME syscall *)
-      (* This is dirty but ... *)
-      if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "randombytes expects no implicit arguments");
-      let loc, x, ty =
-        match xs with
-        | [x] ->
-          let loc, x, oty = tt_lvalue arch_info.pd env_lhs x in
-          let ty =
-            match oty with
-            | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
-            | Some ty -> ty in
-          loc, x ty, ty
-        | _ ->
-          rs_tyerror ~loc:(L.loc pi)
-            (string_error "only a single variable is allowed as destination of randombytes") in
-      let _ = tt_as_array (loc, ty) in
-      let ty2 = Prog.ETword (None, arch_info.pd) in
-      let es = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args [ty; ty2] in
-      [mk_i (P.Csyscall([x], Syscall_t.RandomBytes U8, [Const 1], es))]
+  | ls, `Raw, { pl_desc = PEPrim (f, alargs, args) }, None when L.unloc f = "randombytes" ->
+      (* we must first pick the right [ws], then we can typecheck the syscall
+         exactly like a standard call *)
+      let ws =
+        match args with
+        | [] -> W.U8 (* default value, typechecking will fail anyway *)
+        | arg :: _ ->
+            let _, ty = tt_expr arch_info.pd env_rhs arg in
+            match ty with
+            | ETarr (ws, _) -> ws
+            | _ -> W.U8
+      in
+      let fsig = Syscall.syscall_sig_u arch_info.pd n (RandomBytes ws) in
+      let alargs =
+        List.map (fun alarg -> tt_expr_cast arch_info.pd ~mode:`OnlyParam env_rhs alarg Prog.ETint) alargs
+      in
+      let alargs = List.map P.al_of_expr alargs in
+      let tout = subst fsig.scs_al alargs (List.map conv_cty fsig.scs_tout) in
+      let lvs, is = tt_lvalues arch_info env_lhs (L.loc pi) ls None tout in
+      assert (is = []);
+      let tin = subst fsig.scs_al alargs (List.map conv_cty fsig.scs_tin) in
+      let es  = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args tin in
+      [mk_i (P.Csyscall(lvs, Syscall_t.RandomBytes ws, alargs, es))]
 
   | (ls, xs), `Raw, { pl_desc = PEPrim (f, alargs, args) }, None when L.unloc f = "swap" ->
       let loc = L.loc pi in
@@ -2195,8 +2198,8 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
 
   | PIIf (cp, st, sf) ->
       let c  = tt_expr_bool arch_info.pd env cp in
-      let st = tt_block arch_info env st in
-      let sf = Option.map_default (tt_block arch_info env) [] sf in
+      let st = tt_block arch_info n env st in
+      let sf = Option.map_default (tt_block arch_info n env) [] sf in
       env, [mk_i (P.Cif (c, st, sf))]
 
   | PIFor ({ pl_loc = lx } as x, (d, i1, i2), s) ->
@@ -2204,34 +2207,34 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
       let i2   = tt_expr_int arch_info.pd env i2 in
       let vx, xty = tt_var `AllVar env x in
       check_ty_eq ~loc:lx ~from:xty ~to_:P.etint;
-      let s    = tt_block arch_info env s in
+      let s    = tt_block arch_info n env s in
       let d    = match d with `Down -> E.DownTo | `Up -> E.UpTo in
       env, [mk_i (P.Cfor (L.mk_loc lx vx, (d, i1, i2), s))]
 
   | PIWhile (s1, e, s2) ->
       let c  = tt_expr_bool arch_info.pd env e in
-      let s1 = Option.map_default (tt_block arch_info env) [] s1 in
-      let s2 = Option.map_default (tt_block arch_info env) [] s2 in
+      let s1 = Option.map_default (tt_block arch_info n env) [] s1 in
+      let s2 = Option.map_default (tt_block arch_info n env) [] s2 in
       let a =
         Option.map_default (fun () -> E.Align) E.NoAlign (Annot.ensure_uniq1 "align" Annot.none annot) in
       let annot = Annot.consume "align" annot in
       env, [mk_i ~annot (P.Cwhile (a, s1, c, ((L.of_loc e, []), ()), s2))]
 
 (* -------------------------------------------------------------------- *)
-and tt_block arch_info env (pb : S.pblock) =
-  snd (tt_cmd arch_info env (L.unloc pb))
+and tt_block arch_info n env (pb : S.pblock) =
+  snd (tt_cmd arch_info n env (L.unloc pb))
 
-and tt_cmd arch_info env c =
+and tt_cmd arch_info n env c =
   match c with
   | [] -> env, []
   | i::c ->
-    let env, i = tt_instr arch_info env i in
-    let env, c = tt_cmd arch_info env c in
+    let env, i = tt_instr arch_info n env i in
+    let env, c = tt_cmd arch_info n env c in
     env, i @ c
 
 (* -------------------------------------------------------------------- *)
-let tt_funbody arch_info env (pb : S.pfunbody) =
-  let env, bdy = tt_cmd arch_info env pb.S.pdb_instr in
+let tt_funbody arch_info n env (pb : S.pfunbody) =
+  let env, bdy = tt_cmd arch_info n env pb.S.pdb_instr in
   let ret_loc = L.loc pb.pdb_ret in
   let ret =
     let for1 x = L.mk_loc (L.loc x) (tt_var `AllVar env x) in
@@ -2341,7 +2344,7 @@ let warn_unused_variables env f =
      warning UnusedVar (L.i_loc0 x.v_dloc) "unused variable %a" pp_var x)
     env
 
-let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env =
+let tt_fundef arch_info n (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env =
   let env = Env.Vars.clear_locals env0 in
   if is_combine_flags pf.pdf_name then
     rs_tyerror ~loc:(L.loc pf.pdf_name) (string_error "invalid function name");
@@ -2357,7 +2360,7 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
   let fs_tout = Option.map_default (List.map (tt_type arch_info.pd env |- snd |- snd)) [] pf.pdf_rty in
   let ret_annot = Option.map_default (List.map fst) [] pf.pdf_rty in
   let ret_annot = List.map pannot_to_annotations ret_annot in
-  let body, ret_loc, xret = tt_funbody arch_info envb pf.pdf_body in
+  let body, ret_loc, xret = tt_funbody arch_info n envb pf.pdf_body in
   let f_args = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) args in
   let fs_tin = List.map (fun x -> snd (L.unloc x)) args in
   let f_ret = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) xret in
@@ -2437,10 +2440,10 @@ let tt_typealias arch_info env id ty =
   Env.TypeAlias.push env id alias
 
 (* -------------------------------------------------------------------- *)
-let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
+let rec tt_item arch_info n (env : 'asm Env.env) pt : 'asm Env.env =
   match L.unloc pt with
   | S.PParam  pp -> tt_param  arch_info.pd env (L.loc pt) pp
-  | S.PFundef pf -> tt_fundef arch_info env (L.loc pt) pf
+  | S.PFundef pf -> tt_fundef arch_info n env (L.loc pt) pf
   | S.PGlobal pg -> tt_global arch_info.pd env (L.loc pt) pg
   | S.Pexec   pf ->
     Env.Exec.push (L.loc pt)
@@ -2448,18 +2451,18 @@ let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
       (List.map (fun (x, y) -> S.parse_int x, S.parse_int y) pf.pex_mem)
       env
   | S.Prequire (from, fs) ->
-    List.fold_left (tt_file_loc arch_info from) env fs
+    List.fold_left (tt_file_loc arch_info n from) env fs
   | S.PNamespace (ns, items) ->
      let env = Env.enter_namespace env ns in
-     let env = List.fold_left (tt_item arch_info) env items in
+     let env = List.fold_left (tt_item arch_info n) env items in
      let env = Env.exit_namespace env in
      env
   | S.PTypeAlias (id,ty) -> tt_typealias arch_info env id ty
 
-and tt_file_loc arch_info from env fname =
-  fst (tt_file arch_info env from (Some (L.loc fname)) (L.unloc fname))
+and tt_file_loc arch_info n from env fname =
+  fst (tt_file arch_info n env from (Some (L.loc fname)) (L.unloc fname))
 
-and tt_file arch_info env from loc fname =
+and tt_file arch_info n env from loc fname =
   match Env.enter_file env from loc fname with
   | None -> env, []
   | Some(env, fname) ->
@@ -2470,12 +2473,12 @@ and tt_file arch_info env from loc fname =
         let loc = Option.map_default (fun l -> Lone l) Lnone loc in
         hierror ~loc ~kind:"typing" "error reading file %S (%s)" fname err
     in
-    let env   = List.fold_left (tt_item arch_info) env ast in
+    let env   = List.fold_left (tt_item arch_info n) env ast in
     Env.exit_file env, ast
 
 (* -------------------------------------------------------------------- *)
-let tt_program arch_info (env : 'asm Env.env) (fname : string) =
-  let env, ast = tt_file arch_info env None None fname in
+let tt_program arch_info n (env : 'asm Env.env) (fname : string) =
+  let env, ast = tt_file arch_info n env None None fname in
   env, Env.decls env, ast
 
 (* FIXME :

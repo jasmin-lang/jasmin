@@ -9,7 +9,7 @@ export fn syscall() {
   reg u64 x;
   x = #init_msf();
   reg u64 len = 1;
-  t = #randombytes(t, len);
+  t = #randombytes{1}(t, len);
   x = #protect(x, x);
 }
 export fn update_msf_not_trans() {

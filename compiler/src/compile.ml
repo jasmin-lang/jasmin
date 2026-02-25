@@ -28,7 +28,7 @@ let get_jasminpath () =
 let parse_file arch_info ?(idirs=[]) fname =
   let idirs = idirs @ get_jasminpath () in
   let env = List.fold_left Pretyping.Env.add_from Pretyping.Env.empty idirs in
-  Pretyping.tt_program arch_info env fname
+  Pretyping.tt_program arch_info syscall_length_ident env fname
 
 (* -------------------------------------------------------------------- *)
 let rec warn_extra_i pd msfsize asmOp i =
