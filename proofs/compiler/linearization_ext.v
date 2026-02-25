@@ -1031,10 +1031,13 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
     end     
            
   | Ccall xs fn' es =>
-    let (n0, lbl0) := pl0 in 
+    let (n0, lbl0) := pl0 in
+    (* get the definition of the callee fn' *)  
     if get_fundef (p_funcs p) fn' is Some fd
     then
       let e := f_extra fd in
+      (* ra: the location of the return address: 
+             either a register or the stack *)
       let ra := sf_return_address e in
       if is_RAnone ra
       then (pl0, nil)
@@ -1046,11 +1049,13 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
         let After :=
           allocate_stack_frame true ii sz tmp (is_RAstack_None_return ra) in
         let lbl1 := next_lbl lbl0 in
-      (* The test is used for the proof of linear_has_valid_labels *)
-      (*  let lcall := (fn', if fn' == fn
+        (* The test is used for the proof of linear_has_valid_labels *)
+        (* NOTE: here I have dropped the non-recursive check *)
+        (*  let lcall := (fn', if fn' == fn
                            then lbl0    (* Absurd case. *)
                            else xH      (* Entry point. *)
                      ) in *)
+        (* the callee entry point *)
         let lcall := (fn', xH) in
         (* * 1. Allocate stack frame.
            * 2. Call callee
@@ -1060,10 +1065,14 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
            *)
         let nb := List.length Before in
         let na := List.length After in
-        (* NOTE: here I have dropped the non-recursive check *)
+        (* Lcall ra lbl: if ra = Some r the return adress is stored in r 
+                         else on top of the stack *)
         ((n0 + nb + S (S na), lbl1),
               Before
+              (* jump to the callee entry point *)
               ++ MkLI ii (Lcall (ovari_of_ra ra) lcall)
+              (* the label to jump back to. NOTE: pointwise, this is
+                 one plus the call point *)  
               :: MkLI ii (ReturnTarget lbl0)
               :: After
           )
@@ -1130,6 +1139,8 @@ Definition linear_l2r_body (fn: funname)
   let: (n1, lbl1, lc1) := linear_l2r_c linear_l2r_i fn body (n_pre, lbl) in
   (n1 + n_post, lbl1, head ++ lc1 ++ tail).
 
+(* version based on linear_l2r. TODO: currently not covered by the
+   translation to Intermediate. new type of node needed. *)
 Definition linear_l2r_fd (fn: funname) (fd: sfundef) : (plinfo * lfundef) :=
   let e := fd.(f_extra) in
   let is_export := is_RAnone (sf_return_address e) in
@@ -1150,7 +1161,9 @@ Definition linear_l2r_fd (fn: funname) (fd: sfundef) : (plinfo * lfundef) :=
     ; lfd_align_args := sf_align_args e
     |}).
 
-(* The datatype that defines the Intermediate language *)
+(* The datatype that defines the Intermediate language. NOTE: LLeafL
+   is not used, whereas we could probably use a node built out of a
+   sequential list wrt linear_fd (TODO). *)
 Inductive LTree (fn0: funname) : plinfo -> plinfo -> Type :=
 | LErrLeaf : forall pl, LTree pl pl
 | LLeaf : forall pl,
@@ -1234,7 +1247,13 @@ Fixpoint imed_cmd_aux
            existT _ pl2 (@LListCons fn0 pl0 pl1 pl2  
                                     (projT2 X1) (projT2 X2)) end.
 
-(* the translation from Source to Intermediate *)
+(* The translation from Source to Intermediate.  NOTE: we could have
+   defined this using linear_i instead, but then we should have
+   computed the code bounds on the fly, by the list length. To do
+   that, we could either 1) call recursively LC as well as linear_i in
+   order to get the flat list, or 2) flatten each time the result of a
+   recursive LC call. Both ways would seemingly lead to more
+   complicated definitions.  *)
 Fixpoint imed_i
   (fn0: funname) (i: instr) (pl0: plinfo) :
   sigT (fun pl1 => LTree fn0 pl0 pl1) :=
@@ -1810,6 +1829,8 @@ Proof.
   }  
 Qed.
 
+(* NOTE: massive code duplication wrt imed_i_correct. TODO: check how
+   to avoid it. *)
 Lemma imed_cmd_correct (c: cmd) : imed_cmd_correct_statm c.
 Proof.
   set Pi := imed_i_correct_statm.
@@ -2124,8 +2145,8 @@ Definition linear_prog : cexec lprog :=
         lp_glob_names := p.(p_extra).(sp_glob_names);
         lp_funcs := funcs.2 |}.
 
-(* version with linear_l2r_i.  TODO: proving equivalence with
-   linear_i. Should not be problematic. *)
+(* version with linear_l2r_i. TODO: proving equivalence with
+   linear_prog. Should not be problematic. *)
 Definition linear_l2r_prog : cexec lprog :=
   Let _ := check_prog in
   Let _ := assert (size p.(p_globs) == 0)
