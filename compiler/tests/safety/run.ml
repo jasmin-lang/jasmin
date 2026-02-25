@@ -41,7 +41,7 @@ let load_file arch_info pointer_data msf_size asmOp name =
   try
     let open Pretyping in
     name
-    |> tt_file arch_info Env.empty None None
+    |> tt_file arch_info Compile.syscall_length_ident Env.empty None None
     |> fst |> Env.decls
     |> Compile.preprocess pointer_data msf_size asmOp
   with | Syntax.ParseError (loc, msg) ->

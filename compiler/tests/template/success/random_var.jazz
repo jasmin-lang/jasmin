@@ -1,0 +1,6 @@
+export fn main{N} (reg ptr u64[N] r, reg u64 n) -> reg ptr u64[N], reg u64 {
+  reg u64 len = 8 * n;
+  r = #randombytes{N}(r, len);
+  reg u64 res = r[0];
+  return r, res;
+}

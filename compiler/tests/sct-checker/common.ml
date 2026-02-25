@@ -12,7 +12,7 @@ let load_file name =
   let open Pretyping in
   match
     name
-    |> tt_file Arch.arch_info Env.empty None None
+    |> tt_file Arch.arch_info Compile.syscall_length_ident Env.empty None None
     |> fst |> Env.decls
     |> Compile.preprocess Arch.pointer_data Arch.msf_size Arch.asmOp
     |> Compile.do_spill_unspill Arch.asmOp

@@ -53,6 +53,7 @@ type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {
 
 val tt_item :
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
+  Type.length_var ->
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
   Syntax.pitem Location.located ->
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
@@ -62,6 +63,7 @@ val tt_param :
 
 val tt_fundef :
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
+  Type.length_var ->
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
   Location.t ->
   Syntax.pfundef ->
@@ -77,6 +79,7 @@ val tt_fun :
 
 val tt_program :
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
+  Type.length_var ->
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
   string ->
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
@@ -86,6 +89,7 @@ val tt_program :
 
 val tt_file :
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
+  Type.length_var ->
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
   Annotations.pident option ->
   Location.t option ->

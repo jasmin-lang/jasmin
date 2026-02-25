@@ -4,7 +4,7 @@ fn randombyte() -> reg u8 {
     stack u8[1] buf;
     reg u8 r;
     reg u64 len = 1;
-    buf = #randombytes(buf, len);
+    buf = #randombytes{1}(buf, len);
     r = buf[0];
     return r;
 }

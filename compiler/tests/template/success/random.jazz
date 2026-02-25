@@ -2,7 +2,8 @@
 // should we catch it earlier? pretyping?
 export fn main () -> reg u8 {
   stack u8[1] s;
-  s = #randombytes(s, 1);
+  reg u64 len = 1;
+  s = #randombytes{1}(s, len);
   reg u8 res = s[0];
   return res;
 }

@@ -1,0 +1,9 @@
+fn sumN (reg ptr u64[N] r) -> reg u64 {
+  reg u64 res = 0;
+  reg u64 i = 0;
+  while (i < N) {
+    res += r[i];
+    i += 1;
+  }
+  return res;
+}

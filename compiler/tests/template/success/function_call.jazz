@@ -1,11 +1,9 @@
-// fails with bad error
-
 fn f{p}(reg ptr u64[p] r) -> reg u64 {
   reg u64 res = r [0];
   return res;
 }
 
-export fn main{p,q} (reg u64[p+q] r) -> reg u64 {
+export fn main{p,q} (reg ptr u64[p+q] r) -> reg u64 {
   reg u64 res = f{p+q}(r);
   return res;
 }

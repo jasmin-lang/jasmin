@@ -8,7 +8,7 @@ fn toss(reg u64 a b) -> reg u64 {
   input[0] = a;
   input[1] = b;
   reg u64 len = 1;
-  s = #randombytes(s, len);
+  s = #randombytes{1}(s, len);
   t = s[0];
   r = input[0];
   r = input[1] if t <s 0;

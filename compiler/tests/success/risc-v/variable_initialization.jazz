@@ -1,7 +1,7 @@
 fn test_randombytes () {
     stack u8[1] r;
     reg u64 len = 1;
-    reg ptr u8[1] q = #randombytes(r, len);
+    reg ptr u8[1] q = #randombytes{1}(r, len);
 }
 
 /* stack zeroization uses the alignment of the function as the default clear
@@ -14,7 +14,7 @@ fn test_randombytes () {
 export fn rand() -> reg u32 {
   stack u8[4] _x x;
   reg u32 len = 4;
-  x = #randombytes(_x, len);
+  x = #randombytes{4}(_x, len);
   reg u32 r;
   r = x[:u32 0];
   return r;
