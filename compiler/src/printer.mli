@@ -83,3 +83,5 @@ val pp_sprog : debug:bool ->
                ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
                Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) sprog -> unit
 
+val pp_len : debug:bool -> Format.formatter -> CoreIdent.length -> unit
+val pp_ty : debug:bool -> Format.formatter -> Prog.ty -> unit

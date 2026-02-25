@@ -23,7 +23,7 @@ let ty_var (x: var) =
       if (n < 1) then
         error (L.i_loc0 x.v_dloc)
           "the variable %a has type %a, its array size should be positive"
-          (Printer.pp_var ~debug:false) x (PrintCommon.pp_ty ~debug:false) ty
+          (Printer.pp_var ~debug:false) x (Printer.pp_ty ~debug:false) ty
   | _ -> ()
   end;
   ty
@@ -39,7 +39,7 @@ let check_array loc e te =
   | _     ->
     error loc
       "the expression %a has type %a while an array is expected"
-      (Printer.pp_expr ~debug:false) e (PrintCommon.pp_ty ~debug:false) te
+      (Printer.pp_expr ~debug:false) e (Printer.pp_ty ~debug:false) te
 
 let subtype t1 t2 =
   match t1, t2 with
@@ -52,7 +52,7 @@ let check_type loc e te ty =
   if not (subtype ty te) then
     error loc "the expression %a has type %a while %a is expected"
         (Printer.pp_expr ~debug:false) e
-        (PrintCommon.pp_ty ~debug:true) te (PrintCommon.pp_ty ~debug:true) ty
+        (Printer.pp_ty ~debug:true) te (Printer.pp_ty ~debug:true) ty
 
 let check_int loc e te = check_type loc e te tint
 
@@ -163,7 +163,7 @@ let check_lval pd loc x ty =
   if not (subtype tx ty) then
     error loc "the left value %a has type %a while %a is expected"
         (Printer.pp_lval ~debug:false) x
-        (PrintCommon.pp_ty ~debug:false) tx (PrintCommon.pp_ty ~debug:false) ty
+        (Printer.pp_ty ~debug:false) tx (Printer.pp_ty ~debug:false) ty
 
 let check_lvals pd loc xs tys =
   let len = List.length tys in
@@ -243,7 +243,7 @@ let check_global_decl (g, d) =
     error (L.i_loc0 g.v_dloc)
       "global variable %a has type %a but its value has type %a"
       (Printer.pp_var ~debug:false)
-      g (PrintCommon.pp_ty ~debug:false) ty (PrintCommon.pp_ty ~debug:false) vty
+      g (Printer.pp_ty ~debug:false) ty (Printer.pp_ty ~debug:false) vty
   in
   match d with
   | Global.Garr (len, _) ->

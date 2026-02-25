@@ -348,14 +348,7 @@ let pp_egtype ~debug pp_len fmt ty =
 
 let pp_eptype ~debug = pp_egtype ~debug pp_pexpr_
 
-let pp_etype ~debug = pp_egtype ~debug pp_len
-
 let pp_plval ~debug = pp_glv ~debug (pp_pexpr_ ~debug) pp_pvar
-
-let pp_pprog ~debug pd msfsize asmOp fmt p =
-  let pp_opn = pp_opn pd msfsize asmOp in
-  Format.fprintf fmt "@[<v>%a@]"
-    (pp_list "@ @ " (pp_pitem ~debug (pp_len ~debug:false) pp_opn pp_pvar)) (List.rev p)
 
 let pp_header_ pp_len pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
@@ -371,6 +364,31 @@ let pp_header_ pp_len pp_var fmt fd =
     (pp_list ",@ " pp_vd) fd.f_args
     (pp_list ",@ " (pp_ty_decl pp_len)) ret
 
+let pp_var ~debug =
+    if debug then
+      fun fmt x -> F.fprintf fmt "%s.%s" x.v_name (string_of_uid x.v_id)
+    else
+      fun fmt x -> F.fprintf fmt "%s" x.v_name
+
+let pp_dvar ~debug fmt x =
+  let pp_dloc fmt d =
+    if not (L.isdummy d) then F.fprintf fmt " (defined at %a)" L.pp_loc d
+  in
+  F.fprintf fmt "%a%a" (pp_var ~debug) x pp_dloc x.v_dloc
+
+let rec pp_expr ~debug fmt e =
+  pp_ge ~debug (pp_len ~debug) (pp_var ~debug) fmt e
+and pp_len ~debug fmt (len:length) =
+  pp_expr ~debug fmt (Prog.expr_of_al len)
+let pp_ty ~debug fmt = pp_gtype (pp_len ~debug) fmt
+
+let pp_etype ~debug = pp_egtype ~debug pp_len
+
+let pp_pprog ~debug pd msfsize asmOp fmt p =
+  let pp_opn = pp_opn pd msfsize asmOp in
+  Format.fprintf fmt "@[<v>%a@]"
+    (pp_list "@ @ " (pp_pitem ~debug (pp_len ~debug:false) pp_opn pp_pvar)) (List.rev p)
+
 let pp_fun ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var (pp_len ~debug) in
   let pp_locals = Option.default (fun fmt -> Sv.iter (F.fprintf fmt "%a;@ " pp_vd)) pp_locals in
@@ -385,21 +403,6 @@ let pp_fun ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
    pp_locals locals
    (pp_gc ~debug pp_info (pp_len ~debug) pp_opn pp_var) fd.f_body
    pp_ret ()
-
-let pp_var ~debug =
-    if debug then
-      fun fmt x -> F.fprintf fmt "%s.%s" x.v_name (string_of_uid x.v_id)
-    else
-      fun fmt x -> F.fprintf fmt "%s" x.v_name
-
-let pp_dvar ~debug fmt x =
-  let pp_dloc fmt d =
-    if not (L.isdummy d) then F.fprintf fmt " (defined at %a)" L.pp_loc d
-  in
-  F.fprintf fmt "%a%a" (pp_var ~debug) x pp_dloc x.v_dloc
-
-let pp_expr ~debug fmt e =
-  pp_ge ~debug (pp_len ~debug) (pp_var ~debug) fmt e
 
 let pp_lval ~debug fmt x =
   pp_glv ~debug (pp_len ~debug) (pp_var ~debug) fmt x

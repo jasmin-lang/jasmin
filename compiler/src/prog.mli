@@ -172,6 +172,7 @@ type ety   = length gety
 val ety_equal : ety -> ety -> bool
 val ws_of_ety : ety -> wsize
 val al_of_expr : expr -> length
+val expr_of_al : length -> expr
 val expanded_form : length -> (int * length gvar list) list
 val compare_array_length : wsize * length -> wsize * length -> bool
 

@@ -319,6 +319,18 @@ let rec al_of_expr e =
     (* FIXME: better error message *)
     hierror ~loc:Lnone ~kind:"compilation error" ~sub_kind:"param expansion" "operations too complex"
 
+let rec expr_of_al al =
+  match al with
+  | Const n -> Pconst (Z.of_int n)
+  | Var x -> Pvar (gkvar (L.mk_loc L._dummy x))
+  | Neg al -> Papp1 (Oneg Op_int, expr_of_al al)
+  | Add (al1, al2) -> Papp2 (Oadd Op_int, expr_of_al al1, expr_of_al al2)
+  | Sub (al1, al2) -> Papp2 (Osub Op_int, expr_of_al al1, expr_of_al al2)
+  | Mul (al1, al2) -> Papp2 (Omul Op_int, expr_of_al al1, expr_of_al al2)
+  | Div (sg, al1, al2) -> Papp2 (Odiv (sg, Op_int), expr_of_al al1, expr_of_al al2)
+  | Mod (sg, al1, al2) -> Papp2 (Omod (sg, Op_int), expr_of_al al1, expr_of_al al2)
+  | Shl (al1, al2) -> Papp2 (Olsl Op_int, expr_of_al al1, expr_of_al al2)
+  | Shr (al1, al2) -> Papp2 (Oasr Op_int, expr_of_al al1, expr_of_al al2)
 
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)

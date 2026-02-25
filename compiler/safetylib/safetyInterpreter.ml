@@ -40,7 +40,7 @@ let pp_s_env fmt env =
   Format.printf fmt "@[<v>global variables:@;%a@]"
     (pp_list (fun fmt (_,(x,sw)) ->
          Format.fprintf fmt "@[%s: %a@]@,"
-           x (PrintCommon.pp_ty ~debug:false) (Conv.ty_of_cty sw)))
+           x (Printer.pp_ty ~debug:false) (Conv.ty_of_cty sw)))
     (Sv.to_list env.s_glob)
     (pp_list (fun fmt i -> Format.fprintf fmt "%d" i))
 
@@ -136,7 +136,7 @@ let pp_ows fmt ws =
 
 let pp_arr_slice fmt slice =
   let open PrintCommon in
-  let pp_len = pp_len ~debug:false in
+  let pp_len = Printer.pp_len ~debug:false in
   let pp_var = Printer.pp_var ~debug:false in
   let pp_expr = Printer.pp_expr ~debug:false in
   let ws = non_default_wsize slice.as_arr slice.as_wsize in
