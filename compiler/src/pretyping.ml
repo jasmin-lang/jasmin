@@ -2129,7 +2129,7 @@ let rec tt_instr arch_info n (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'as
             (* if not the right number of args, we exit early *)
             (* TODO: remove duplication with tt_exprs_cast *)
             rs_tyerror ~loc:(L.loc pi) (InvalidArgCount (n1, n2));
-          let tys = tt_exprs arch_info.pd env args in
+          let tys = tt_exprs arch_info.pd env_rhs args in
           infer_length (L.loc pi) fsig.fs_al fsig.fs_tin (List.map snd tys)
         else alargs
       in
@@ -2177,7 +2177,7 @@ let rec tt_instr arch_info n (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'as
           if n1 <> n2 then
             (* if not the right number of args, we exit early *)
             rs_tyerror ~loc:(L.loc pi) (InvalidArgCount (n1, n2));
-          let tys = tt_exprs arch_info.pd env args in
+          let tys = tt_exprs arch_info.pd env_rhs args in
           infer_length (L.loc pi) fsig.scs_al (List.map conv_cty fsig.scs_tin) (List.map snd tys)
         else alargs
       in
