@@ -43,6 +43,11 @@ Definition lpoint : Type := (funname * nat)%type.
 Definition incr_lpoint (l: lpoint) : lpoint :=
   match l with (fn, pt) => (fn, S pt) end.
 
+(* the program point is in the interval *)
+Definition lcp_in_interval (nS nE: nat) (l1: lpoint) : bool :=
+  match l1 with
+  | (_, n0) => (nS <= n0) && (n0 < nE) end. 
+
 (* abstract stack *)
 Definition astack := list lpoint.
 
@@ -73,7 +78,8 @@ Variant LEvalE : Type -> Type :=
 Variant LCheckE : Type -> Type :=
   | MatchLabel (lbl: lpoint) : LCheckE unit
   | MatchStack : LCheckE unit. 
-                              
+
+
 Section Asm1.  
 
 Context  {asm_op: Type}
@@ -95,6 +101,13 @@ Context
   {scP : semCallParams}.
 Context {err: error_data}. 
 *)
+
+Definition find_linstr (lc: lcmd) (pt: nat) : option linstr :=
+  oseq.onth lc pt.
+
+Definition is_final (lc: lcmd) (pt: nat) : bool :=
+  pt =? (length lc).
+
 
 Section LinSemClass.
 
@@ -199,23 +212,11 @@ Definition handle_AStackL {T} (e: AStackE T) : itree E T :=
 End HandleStackA.
 
 
-Section Iterator.
+Section Iterators.
 
 (* the output of the linearization pass *)
 Notation LFEnv := (funname -> option lcmd). 
 Context (lfenv: LFEnv).
-Context {S: Type} {PC : S -> lpoint}. 
-
-Definition find_linstr_in_env (lc: lcmd) (pt: nat) : option linstr :=
-  oseq.onth lc pt.
-
-Definition is_final (lc: lcmd) (pt: nat) : bool :=
-  pt =? (length lc).
-
-(* the program point is in the interval *)
-Definition lcp_in_interval (fn: funname) (nS nE: nat) (l1: lpoint) : bool :=
-  match l1 with
-  | (fn0, n0) => (fn == fn0) && (nS <= n0) && (n0 < nE) end. 
 
 Definition halt_pred (l: lpoint) : bool :=
   let fn := fst l in
@@ -226,43 +227,74 @@ Definition halt_pred (l: lpoint) : bool :=
   | _ => false
   end.             
 
+Definition not_possible (fn: funname) (n: nat) : bool :=
+  let lc := lfenv fn in
+  match lc with
+  | Some lc => if (length lc < n) then true else false 
+  | _ => true
+  end.             
 
-(* the 'local' iteration body used in the linear projection semantics
-   of the source code. nS and nE are the start and end points of the
-   linear code interval that contextualize the execution. l1 is the
-   linear code point being executed. *)
+Definition find_linstr_in_fun (lp : lpoint) : option linstr :=
+  match lfenv (fst lp) with
+  | Some lc => find_linstr lc (snd lp)
+  | _ => None
+  end.                         
+
+(* the generic iteration body used in the Linear and Intermediate
+    semantics. l0 is the linear code point being executed. *)
+Definition ACntr {E} {XE: ErrEvent -< E}  
+  (Sem: linstr_r -> lpoint -> itree E lpoint)
+  (NoExit: lpoint -> bool) (TryFnd: lpoint -> option linstr)
+  (l0: lpoint) : itree E (lpoint + lpoint) :=
+  (* check whether the exit condition is satisfied *)  
+  if NoExit l0    
+  (* tries to find the next instruction *)  
+  then match TryFnd l0 with
+       | Some (MkLI _ i) => l1 <- Sem i l0 ;; Ret (inl l1)
+       | _ => throw err                                         
+       end        
+  else Ret (inr l0).
+
+(* iterate ACntr *)
+Definition ACntrI {E} {XE: ErrEvent -< E}  
+  (Sem: linstr_r -> lpoint -> itree E lpoint)
+  (NoExit: lpoint -> bool) (TryFnd: lpoint -> option linstr)
+  (lp0: lpoint) : itree E lpoint :=
+  ITree.iter (@ACntr E XE Sem NoExit TryFnd) lp0.
+
+(* the 'local' iteration body for the Intermediate semantics. nS and
+   nE are the start and end points in the fn linear code wrt to which
+   execution is contextual. *)
 Definition LCntr {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> S -> itree E S)
-  (fn: funname) (nS nE: nat) (l0: S) : itree E (S + S) :=
-  let l1 := PC l0 in
-  match l1 with
-  | (fn1, n1) =>
-  (* the optional function body *)
-    match lfenv fn1 with
-    | None => throw err      
-    (* the function exists: find the instruction in its body *)
-    | Some lc =>
-      if (length lc < nE) then throw err else
-      if lcp_in_interval fn nS nE l1
-      (* (fn == fn1) && (nS <= n1) && (n1 < nE) *)
-      (* the instruction exists in the segment: execute it and
-         return the next label *) 
-      then match find_linstr_in_env lc n1 with
-           | Some (MkLI _ i) => l2 <- F i l0 ;; Ret (inl l2)
-           (* n1 < nE and nE <= length lc, so this cannot happen *) 
-           | _ => throw err                                         
-           end
-      (* the instruction is not in the function code segment *)         
-      else Ret (inr l0)
-    end
-  end.        
+  (Sem: linstr_r -> lpoint -> itree E lpoint)
+  (fn: funname) (nS nE: nat) (lp0: lpoint) :
+  itree E (lpoint + lpoint) :=
+  ACntr Sem
+    (* exit condition: when it jumps to another function or get out of
+       the range. NOTE: actually, should make sure the jump isn't a
+       recursive call *)
+    (fun lp => (fn == (fst lp)) && (nS <= snd lp) && (snd lp < nE))
+    (fun lp => if (not_possible (fst lp) nE) then None
+               else find_linstr_in_fun lp) lp0.
 
 (* iterate LCntr *)
 Definition LCntrI {E} {XE: ErrEvent -< E}  
-  (F: linstr_r -> S -> itree E S)
-  (fn: funname) (nS nE: nat) (l0: S) : itree E S :=
-  ITree.iter (@LCntr E XE F fn nS nE) l0.
+  (Sem: linstr_r -> lpoint -> itree E lpoint)
+  (fn: funname) (nS nE: nat) (lp0: lpoint) : itree E lpoint :=
+  ITree.iter (@LCntr E XE Sem fn nS nE) lp0.
 
-End Iterator.
+(* the 'global' iteration body for the Linear semantics. *)
+Definition GCntr {E} {XE: ErrEvent -< E}  
+  (Sem: linstr_r -> lpoint -> itree E lpoint)
+  (lp0: lpoint) : itree E (lpoint + lpoint) :=
+  ACntr Sem halt_pred find_linstr_in_fun lp0.
+
+(* iterate GCntr *)
+Definition GCntrI {E} {XE: ErrEvent -< E}  
+  (Sem: linstr_r -> lpoint -> itree E lpoint)
+  (lp0: lpoint) : itree E lpoint :=
+  ITree.iter (@GCntr E XE Sem) lp0.
+
+End Iterators.
 
 
