@@ -1,6 +1,9 @@
 #[safety =
-   { requires = 0 <= i && i < 5
-   , ensures = \all (k \in 0:5) (is_arr_init(result.0,k,1) == (k==i || is_arr_init(x,k,1))) }
+   { args = {x0 , i }
+   , res = {x }
+
+   , requires = 0 <= i && i < 5
+   , ensures = \all (k \in 0:5) (is_arr_init(x,k,1) == (k==i || is_arr_init(x0,k,1))) }
  ]
 fn init_pos(reg ptr u8[5] x, reg int i) -> reg ptr u8[5]
 {
@@ -22,7 +25,7 @@ fn test2(reg ptr u8[5] x) -> reg ptr u8[5]
 }
 
 #[safety =
-   { ensures = is_arr_init(result.0,0,5) }
+   { ensures = is_arr_init(x,0,5) }
  ]
 fn test(reg ptr u8[5] x) -> reg ptr u8[5]
 {

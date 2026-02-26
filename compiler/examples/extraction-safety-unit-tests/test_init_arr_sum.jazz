@@ -1,6 +1,6 @@
 #[safety =
    { requires = is_arr_init(x,0,10) && is_arr_init(y,0,10)
-   , ensures = is_arr_init(result.0,0,10) }
+   , ensures = is_arr_init(z,0,10) }
  ]
 fn test(reg ptr u16[5] x,reg ptr u16[5] y,reg ptr u16[5] z) -> reg ptr u16[5]
 {
