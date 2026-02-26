@@ -20,7 +20,7 @@ module type Logic = sig
   val syscall :
        Location.i_loc
     -> lvals
-    -> Wsize.wsize Syscall_t.syscall_t
+    -> Syscall.syscall_t
     -> exprs
     -> domain
     -> domain annotation

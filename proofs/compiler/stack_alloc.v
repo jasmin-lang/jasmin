@@ -1729,7 +1729,7 @@ Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap rs fn al es :=
 Definition alloc_syscall ii rmap rs o es :=
   add_iinfo ii
   match o with
-  | RandomBytes ws =>
+  | RandomBytes =>
     (* FIXME
     (* per the semantics, we have [len <= wbase Uptr], but we need [<] *)
     Let _ := assert (len <? wbase Uptr)%Z

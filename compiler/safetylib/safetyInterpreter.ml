@@ -1438,13 +1438,13 @@ end = struct
 
   let aeval_syscall state sc lvs al _es =
     match sc with
-    | Syscall_t.RandomBytes ws ->
+    | Syscall.RandomBytes ->
         let len =
           match al with
           | [ Prog.Const len ] -> len
           | _ -> assert false (* FIXME: deal with non-constant cases *)
        in
-       let n = Conv.pos_of_int (Prog.arr_size ws len) in
+       let n = Conv.pos_of_int (Prog.arr_size U8 len) in
        let cells = match lvs with
          | [ Lnone _ ] -> []
          | [ Lvar x ] -> cells_of_array x 0 n

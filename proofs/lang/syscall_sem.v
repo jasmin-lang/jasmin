@@ -55,8 +55,8 @@ Definition exec_syscall_u
     ok (sv.1, m, sv.2)
   end. *)
 
-Definition exec_getrandom_u_core ws (scs : syscall_state_t) (m : mem) N (a : WArray.array (arr_size ws N)) (n:pointer) :=
-  let len := arr_size ws (wunsigned n) in
+Definition exec_getrandom_u_core (scs : syscall_state_t) (m : mem) N (a : WArray.array (arr_size U8 N)) (n:pointer) :=
+  let len := arr_size U8 (wunsigned n) in
   let sd := get_random scs len in
   Let t := WArray.fill len sd.2 in
   Let a' := WArray.set_sub AAscale a 0 t in
@@ -86,12 +86,12 @@ Definition sem_syscall_u (N : length_var) (o : syscall_t) :
     (sem_prod (map (eval_atype env) (syscall_sig_u N o).(scs_tin))
          (exec (syscall_state_t * mem * sem_tuple (map (eval_atype env) (syscall_sig_u N o).(scs_tout)))))) :=
   match o with
-  | RandomBytes ws =>
+  | RandomBytes =>
     ecast b (_ -> _ -> forall len,
-      sem_prod [:: carr (arr_size ws (if (if b then Some len else None) is Some z then if 0 <? z then z else 0 else 0)); cword Uptr]
-        (exec (_ * _ * sem_tuple [:: carr (arr_size ws (if (if b then Some len else None) is Some z then if 0 <? z then z else 0 else 0))])))
+      sem_prod [:: carr (arr_size U8 (if (if b then Some len else None) is Some z then if 0 <? z then z else 0 else 0)); cword Uptr]
+        (exec (_ * _ * sem_tuple [:: carr (arr_size U8 (if (if b then Some len else None) is Some z then if 0 <? z then z else 0 else 0))])))
       (esym (eqtype.eq_refl N))
-      (fun scs m len => @exec_getrandom_u_core ws scs m _)
+      (fun scs m len => @exec_getrandom_u_core scs m _)
   end.
 
 Definition exec_syscall_u (N:length_var) (scs : syscall_state_t) (m : mem) (o:syscall_t) (alargs: seq Z) (vs:values) : exec (syscall_state_t * mem * values) :=
@@ -153,7 +153,7 @@ Lemma exec_syscallPu N scs m o alargs vargs vargs' rscs rm vres :
   exists2 vres' : values,
     exec_syscall_u N scs m o alargs vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'.
 Proof.
-  rewrite /exec_syscall_u; case: o => [ ws ].
+  rewrite /exec_syscall_u; case: o.
   case: alargs => // al [] //=.
   rewrite /eval /=.
   rewrite -> eqtype.eq_refl; move=> /=.
@@ -175,7 +175,7 @@ Lemma exec_syscallSu N scs m o alargs vargs rscs rm vres :
   exec_syscall_u N scs m o alargs vargs = ok (rscs, rm, vres) →
   mem_equiv m rm.
 Proof.
-  rewrite /exec_syscall_u; case: o => [ ws ].
+  rewrite /exec_syscall_u; case: o.
   case: alargs => // al [] //=.
   rewrite /eval /=.
   rewrite -> eqtype.eq_refl; move=> /=.
@@ -221,7 +221,7 @@ Definition sem_syscall_s (o : syscall_t) :
     (sem_prod (map (eval_atype env) (syscall_sig_s o).(scs_tin))
          (exec (syscall_state_t * mem * sem_tuple (map (eval_atype env) (syscall_sig_s o).(scs_tout)))))) :=
   match o with
-  | RandomBytes _ => exec_getrandom_s_core
+  | RandomBytes => exec_getrandom_s_core
   end.
 
 Definition exec_syscall_s (scs : syscall_state_t) (m : mem) (o:syscall_t) alargs vs : exec (syscall_state_t * mem * values) :=
@@ -257,7 +257,7 @@ Lemma sem_syscall_s_equiv o scs m alargs semi :
   app_dep (sem_syscall_s o scs m) alargs = ok semi ->
   mk_forall (fun (rm: (syscall_state_t * mem * _)) => mem_equiv m rm.1.2) semi.
 Proof.
-  case: o semi => _ws /=.
+  case: o semi => /=.
   case: alargs => // _ [<-] /= p n [[scs' rm] t] hex; split.
   + by apply: exec_getrandom_s_core_stable hex.
   by apply: exec_getrandom_s_core_validw hex.

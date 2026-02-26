@@ -1848,14 +1848,14 @@ struct
 
   let ec_syscall env o =
     match o with
-    | Syscall_t.RandomBytes ws ->
+    | Syscall.RandomBytes ->
       let p = assert false in (* FIXME *)
       let p =
         match p with
         | Const p -> p
         | _ -> assert false
       in
-      let n = arr_size ws p in
+      let n = arr_size U8 p in
       Env.add_randombytes env n;
       Format.sprintf "%s.randombytes_%i" syscall_mod_arg n
 

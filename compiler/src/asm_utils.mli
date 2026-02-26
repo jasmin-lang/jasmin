@@ -1,5 +1,5 @@
 val global_datas_label : string
-val pp_syscall : 'a Syscall_t.syscall_t -> string
+val pp_syscall : Syscall.syscall_t -> string
 val string_of_label : string -> Label.label -> string
 val pp_remote_label : Label.remote_label -> string
 val mangle : string -> string

@@ -960,7 +960,7 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
   match i.i_desc with
   | Csyscall (xs, o, _, es) ->
     (* TODO: generalize to other syscalls *)
-    assert (match o with Syscall_t.RandomBytes _ -> true);
+    assert (match o with Syscall.RandomBytes -> true);
     List.iter (ensure_public_address_expr env venv loc) es;
     (* We don't known what happen to MSF after external function call *)
     ty_lvals1 env (MSF.toinit, venv) xs (Env.dsecret env)

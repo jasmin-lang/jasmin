@@ -2100,6 +2100,8 @@ let infer_length loc al tys1 tys2 =
     List.map (fun x -> P.Mv.find x m) al
   with Not_found -> rs_tyerror ~loc FailedLengthInference
 
+let syscalls = ["randombytes", Syscall.RandomBytes]
+
 let rec tt_instr arch_info n (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.instr list  =
   let annot = pannot_to_annotations pannot in
   let mk_i ?(annot=annot) instr =
@@ -2154,19 +2156,9 @@ let rec tt_instr arch_info n (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'as
     let p = Sopn.Opseudo_op (Ospill(op, [] (* dummy info, will be fixed latter *))) in
     [mk_i ~annot (P.Copn([], AT_keep, p, es))]
 
-  | ls, `Raw, { pl_desc = PEPrim (f, alargs, args) }, None when L.unloc f = "randombytes" ->
-      (* we must first pick the right [ws], then we can typecheck the syscall
-         exactly like a standard call *)
-      let ws =
-        match args with
-        | [] -> W.U8 (* default value, typechecking will fail anyway *)
-        | arg :: _ ->
-            let _, ty = tt_expr arch_info.pd env_rhs arg in
-            match ty with
-            | ETarr (ws, _) -> ws
-            | _ -> W.U8
-      in
-      let fsig = Syscall.syscall_sig_u arch_info.pd n (RandomBytes ws) in
+  | ls, `Raw, { pl_desc = PEPrim (f, alargs, args) }, None when List.mem_assoc (L.unloc f) syscalls ->
+      let o = List.assoc (L.unloc f) syscalls in
+      let fsig = Syscall.syscall_sig_u arch_info.pd n o in
       let alargs =
         List.map (fun alarg -> tt_expr_cast arch_info.pd ~mode:`OnlyParam env_rhs alarg Prog.ETint) alargs
       in
@@ -2183,7 +2175,7 @@ let rec tt_instr arch_info n (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'as
       assert (is = []);
       let tin = subst (L.loc pi) fsig.scs_al alargs (List.map conv_cty fsig.scs_tin) in
       let es  = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args tin in
-      [mk_i (P.Csyscall(lvs, Syscall_t.RandomBytes ws, alargs, es))]
+      [mk_i (P.Csyscall(lvs, o, alargs, es))]
 
   | (ls, xs), `Raw, { pl_desc = PEPrim (f, alargs, args) }, None when L.unloc f = "swap" ->
       let loc = L.loc pi in

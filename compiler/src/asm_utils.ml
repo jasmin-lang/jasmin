@@ -6,9 +6,9 @@ open PrintASM
 
 let global_datas_label = "glob_data"
 
-let pp_syscall (o : _ Syscall_t.syscall_t) =
+let pp_syscall (o : Syscall.syscall_t) =
   match o with
-  | Syscall_t.RandomBytes _ -> "__jasmin_syscall_randombytes__"
+  | Syscall.RandomBytes -> "__jasmin_syscall_randombytes__"
 
 let string_of_label name p = Format.asprintf "L%s$%a" (escape name) Z.pp_print (Conv.z_of_pos p)
 
