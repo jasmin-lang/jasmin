@@ -75,10 +75,11 @@ Variant LEvalE : Type -> Type :=
    lpoint) will come from the lstate and should agree it. Needed as
    internal check in Linear. However, these might just be invariants
    in the end. *)
+(*
 Variant LCheckE : Type -> Type :=
   | MatchLabel (lbl: lpoint) : LCheckE unit
   | MatchStack : LCheckE unit. 
-
+*)
 
 Section Asm1.  
 
