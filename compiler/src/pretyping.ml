@@ -2123,6 +2123,12 @@ let rec tt_instr arch_info n (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'as
       let alargs =
         if alargs = [] && fsig.fs_al <> [] then
           (* we try to infer the constraints *)
+          let n1 = List.length args in
+          let n2 = List.length fsig.fs_tin in
+          if n1 <> n2 then
+            (* if not the right number of args, we exit early *)
+            (* TODO: remove duplication with tt_exprs_cast *)
+            rs_tyerror ~loc:(L.loc pi) (InvalidArgCount (n1, n2));
           let tys = tt_exprs arch_info.pd env args in
           infer_length (L.loc pi) fsig.fs_al fsig.fs_tin (List.map snd tys)
         else alargs
@@ -2166,6 +2172,11 @@ let rec tt_instr arch_info n (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'as
       let alargs =
         if alargs = [] && fsig.scs_al <> [] then
           (* we try to infer the constraints *)
+          let n1 = List.length args in
+          let n2 = List.length fsig.scs_tin in
+          if n1 <> n2 then
+            (* if not the right number of args, we exit early *)
+            rs_tyerror ~loc:(L.loc pi) (InvalidArgCount (n1, n2));
           let tys = tt_exprs arch_info.pd env args in
           infer_length (L.loc pi) fsig.scs_al (List.map conv_cty fsig.scs_tin) (List.map snd tys)
         else alargs
