@@ -2462,7 +2462,7 @@ let warn_unused_variables env f =
      warning UnusedVar (L.i_loc0 x.v_dloc) "unused variable %a" pp_var x)
     env
 
-let tt_contra arch_info env0 fs_tout f_ret dfl_mut pf =
+let tt_contra arch_info env0 f_ret dfl_mut pf =
  let annot =
     List.filter (fun (id, _) -> L.unloc id <> "safety") pf.S.pdf_annot in
 
@@ -2470,52 +2470,80 @@ let tt_contra arch_info env0 fs_tout f_ret dfl_mut pf =
     List.filter (fun (id, _s) -> L.unloc id = "safety") pf.pdf_annot in
 
   let f_contra =
-    if safety = [] then None
-    else
+    match safety with
+    | [] -> None
+    | _ :: (id, _) :: _ -> rs_tyerror ~loc:(L.loc id)(string_error "only one safety annotation is expected")
+    | [ id, pa] ->
       let requires = ref [] in
       let ensures = ref [] in
+      let input = ref None in
+      let output = ref None in
+
+      let add_cond loc s r pa =
+        match pa with
+        | None -> rs_tyerror ~loc (string_error "\"= expression\" is expected after %s" s)
+        | Some pa ->
+          match L.unloc pa with
+          | S.PAexpr e -> r := e :: !r
+          | _ -> rs_tyerror ~loc (string_error "an expression is expected after %s =" s)
+      in
+
+      let add_vars loc nvars s r pa =
+        match pa with
+        | None -> rs_tyerror ~loc (string_error "\"= { vars }\" is expected after %s" s)
+        | Some pa ->
+          match L.unloc pa with
+          | S.PAstruct str ->
+            if !r <> None then rs_tyerror ~loc:(L.loc pa) (string_error "%s already defined" s);
+            let process_var (id, pa) =
+              if pa <> None then rs_tyerror ~loc:(L.loc id) (string_error "no argument is expected");
+              id
+            in
+            let l = List.map process_var str in
+            let nl = List.length l in
+            if nl <> nvars then rs_tyerror ~loc:(L.loc pa) (string_error "got %i variables instead of %i" nl nvars);
+            r := Some (List.map process_var str)
+          | _ -> rs_tyerror ~loc:(L.loc pa) (string_error "\" { vars }\" is expected after %s =" s)
+      in
+
+      let error loc = rs_tyerror ~loc (string_error "the general syntax is : safety = { args = { IDENT*}, res = { IDENT* }, requires = EXPR, ensures = EXPR }") in
+      let pdf_args =
+        List.flatten (List.map (fun (a, (ty, ids)) -> List.map (fun id -> (a, (ty, [id]))) ids) pf.pdf_args) in
+      let pdf_rty = Option.map_default (fun l -> l) [] pf.pdf_rty in
       let process_fields =
         List.iter (fun (id, pa) ->
-          if not (L.unloc id = "requires" || L.unloc id = "ensures") then
-            rs_tyerror ~loc:(L.loc id)
-              (string_error "only \"requires\" and \"ensures\" are allowed");
-          match pa with
-          | Some pa ->
-            begin match L.unloc pa with
-            | S.PAexpr e ->
-                if L.unloc id = "requires" then requires := e :: !requires
-                else ensures := e :: !ensures
-            | _ ->
-                rs_tyerror ~loc:(L.loc pa)
-                  (string_error "an expression is expected")
-            end
-          | None ->
-              rs_tyerror ~loc:(L.loc id)
-                (string_error "\"= expression\" is expected after requires and ensures"))
+          let loc = L.loc id in
+          let s = L.unloc id in
+          match s with
+          | "requires" -> add_cond loc s requires pa
+          | "ensures"  -> add_cond loc s ensures pa
+          | "args"     -> add_vars loc (List.length pdf_args) s input pa
+          | "res"      -> add_vars loc (List.length pdf_rty) s output pa
+          | _ ->  error loc )
       in
-      let process_struct (id, pa) =
-        match pa with
-        | Some pa ->
-          begin match L.unloc pa with
-          | S.PAstruct fields -> process_fields fields
-          | _ ->
-            rs_tyerror ~loc:(L.loc pa)
-              (string_error
-                 "{requires = expression; ensures = expression} is expected")
-          end
-        | None ->
-          rs_tyerror ~loc:(L.loc id)
-            (string_error
-               "{requires = expression; ensures = expression} is expected")
-      in
-      List.iter process_struct safety;
+
+      begin match pa with
+      | Some pa ->
+        begin match L.unloc pa with
+        | S.PAstruct fields -> process_fields fields
+        | _ -> error (L.loc pa)
+        end
+      | None -> error (L.loc id)
+      end;
+
       let pre, post = List.rev !requires, List.rev !ensures in
 
       let aux_env = Env.Vars.clear_locals env0 in
       let env_pre, f_iparams =
+        let args =
+          match !input with
+          | None -> pdf_args
+          | Some ids ->
+            List.map2 (fun (a, (s, _)) id -> a, (s, [id])) pdf_args ids
+        in
         List.map_fold
           (tt_annot_vardecls dfl_mut arch_info.pd)
-          aux_env pf.pdf_args
+          aux_env args
       in
       let f_iparams = List.flatten f_iparams in
       let f_iparams =
@@ -2525,18 +2553,27 @@ let tt_contra arch_info env0 fs_tout f_ret dfl_mut pf =
         (List.map (fun e -> ("safety", tt_expr_bool arch_info.pd env e)) l) in
       let f_pre = get_clause env_pre pre in
 
-      let mk_ret x =
-        let x = L.unloc x in
-        L.mk_loc
-          L._dummy
-          (Prog.(P.PV.mk x.v_name x.v_kind x.v_ty x.v_dloc x.v_annot))
+      let env_post, f_ires =
+        let outputs =
+          match !output with
+          | None -> List.map (fun x -> L.mk_loc (L.loc x) (L.unloc x).P.v_name) f_ret
+          | Some ids -> ids in
+        let outputs =
+          List.map2 (fun (a, ty) id -> (a, (ty, [id]))) pdf_rty outputs in
+        List.map_fold
+          (tt_annot_vardecls dfl_mut arch_info.pd)
+          env_pre outputs
       in
-      let f_ires = List.map mk_ret f_ret in
-      let ret = List.map2 (fun a b -> L.unloc a,b) f_ires fs_tout in
-      let env_post = Env.add_f_result env_pre ret in
+      let f_ires = List.flatten f_ires in
+      let ret = List.map L.unloc f_ires in
+      let f_ires = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) f_ires in
+
+      (* FIXME remove this once we don't need "result.i" *)
+      let env_post = Env.add_f_result env_post ret in
       let f_post = get_clause env_post post in
-      Some {P.f_iparams; f_ires;f_pre;f_post} in
-    annot, f_contra
+      Some {P.f_iparams; f_ires; f_pre; f_post}
+  in
+  annot, f_contra
 
 
 let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env =
@@ -2559,7 +2596,7 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
   let f_ret = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) xret in
   let f_cc = tt_call_conv loc f_args f_ret pf.pdf_cc in
 
-  let annot, f_contra = tt_contra arch_info env0 fs_tout f_ret dfl_mut pf in
+  let annot, f_contra = tt_contra arch_info env0 f_ret dfl_mut pf in
 
   let name = L.unloc pf.pdf_name in
 
