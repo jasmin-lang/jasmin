@@ -499,7 +499,7 @@ Qed.
 
 Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
 Proof.
-  move=> scs1 m1 scs2 m2 fn [fi tin params body tout res extra] /=.
+  move=> scs1 m1 scs2 m2 fn fd /=.
   move=> vargs vargs' s0 s1 s2 vres vres' hget hca hi hw _ hc hres hcr hscs hfi vargs1 hva.
   have [fd2 hfd hget']:= all_checked hget.
   have hpex : p_extra p1 = p_extra p2.
@@ -588,7 +588,7 @@ Proof.
         , array_copy_c X (array_copy_i fresh_var_ident) (f_body fd1) = ok (f_body fd2)
         & f_res fd1 = f_res fd2
        ].
-  + by case: (fd1) hcopy => /= >; t_xrbindP => c' -> <-.
+  + by case: (fd1) hcopy => /= >; rewrite /array_copy_fd; t_xrbindP => c' -> <-.
   have [t -> hst] := [elaborate fs_uincl_initialize hin hex hpar eq_extra hfsu hinit].
   exists t => //.
   exists (st_uincl_on X), (st_uincl_on X); split => //.

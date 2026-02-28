@@ -630,8 +630,8 @@ Proof.
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
   have [f' hf'1 hf'2] := get_map_cfprog_name_gen spillok hfun.
   case: f hfun htra hinit hw hsc hc hres hfull hf'1 hf'2 =>
-    fi ft fp /= c f_tyout res fb hfun htra hinit hw hsc [hc_ hc] hres hfull hf'1 hf'2.
-  case: ifP hf'1.
+    fi fci ft fp /= c f_tyout res fb hfun htra hinit hw hsc [hc_ hc] hres hfull hf'1 hf'2.
+  move: hf'1; rewrite /spill_fd; case: ifP.
   + by move=> hX [?]; subst f'; econstructor; eauto => //=; rewrite -eq_p_extra.
   case ok_m: init_map => [ m _count ].
   t_xrbindP=> ? hcm [env' c'] hc' ?; subst f'.
@@ -724,8 +724,7 @@ Proof.
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
   have [fd' hfd'1 hfd'2] := get_map_cfprog_name_gen spillok hget.
   exists fd' => // {hget hfd'2}.
-  case: fd hfd'1 => fi ft fp /= c f_tyout res fb.
-  case: ifP.
+  move: hfd'1; rewrite /spill_fd; case: ifP.
   + move=> _ [<-] /= s hinit.
     exists s.
     + by move: hinit; rewrite /initialize_funcall /= eq_p_extra.
@@ -747,25 +746,23 @@ Proof.
   exists (st_ve S Sv.empty), (st_ve S env); split => //.
   + by split => //; split => // ? /Sv_memP.
   2: {
-    apply wrequiv_weaken with (st_eq_on (vars_l res)) eq => //.
+    apply wrequiv_weaken with (st_eq_on (vars_l (f_res fd))) eq => //.
     move=> ?? [??[h ?]]; split => //.
     + by apply: eq_onI h; rewrite /= /X; SvD.fsetdec.
-    set fd := {| f_info := _ |}.
-    have -> : res = (f_res fd) by done.
     by apply st_eq_on_finalize.
   }
-  have : Sv.Subset (vars_c c) (X S).
+  have : Sv.Subset (vars_c (f_body fd)) (X S).
   + by rewrite /X; SvD.fsetdec.
   move: Sv.empty env c' hcc'.
   change get_spill' with (get_spill S).
   move: S => S.
-  clear hinit s ok_m hcm get_spill' X' m fb res f_tyout fp ft fi fd' spillok fs fn.
+  clear hinit s ok_m hcm get_spill' X' m fd' spillok fs fn.
   set Pi := fun i => forall env env' c', spill_i (get_spill S) env i = ok (env', c') ->
         Sv.Subset (vars_I i) (X S) → wequiv_rec p p' ev ev eq_spec (st_ve S env) [::i] c' (st_ve S env').
   set Pr := fun i => forall ii, Pi (MkI ii i).
   set Pc := fun c => forall env env' c', spill_c (spill_i (get_spill S)) env c = ok (env', c') ->
         Sv.Subset (vars_c c) (X S) → wequiv_rec p p' ev ev eq_spec (st_ve S env) c c' (st_ve S env').
-  move: c; apply (cmd_rect (Pr:=Pr) (Pi:=Pi) (Pc:=Pc)) => //.
+  move: (f_body fd) => {fd}; apply (cmd_rect (Pr:=Pr) (Pi:=Pi) (Pc:=Pc)) => //.
   + by move=> ??? /= [<- <-] _; apply wequiv_nil.
   + move=> > hi hc env env' c2 /=.
     t_xrbindP => -[envi i'] hi' [envc c'] hc' /= <- <-; rewrite vars_c_cons => hsub.

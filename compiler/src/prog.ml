@@ -115,10 +115,19 @@ and ('len,'info,'asm) ginstr = {
 and ('len, 'info, 'asm) gstmt = ('len, 'info, 'asm) ginstr list
 
 (* ------------------------------------------------------------------------ *)
+
+type 'len gfcontract = {
+  f_iparams : 'len gvar_i list;
+  f_ires : 'len gvar_i list;
+  f_pre : 'len assertion list;
+  f_post : 'len assertion list;
+}
+
 type ('len, 'info, 'asm) gfunc = {
     f_loc  : L.t;
     f_annot: FInfo.f_annot;
     f_info : 'info;
+    f_contra: 'len gfcontract option;
     f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
@@ -311,6 +320,19 @@ let vars_fc fc =
   let s = params fc in
   let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) s fc.f_ret in
   rvars_c Sv.add s fc.f_body
+
+let vars_contract f_contra =
+  match f_contra with
+  | None -> Sv.empty
+  | Some f_contra ->
+    let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) Sv.empty f_contra.f_iparams in
+    let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) s f_contra.f_ires in
+    let s = rvars_es Sv.add s (List.map snd f_contra.f_pre) in
+    rvars_es Sv.add s (List.map snd f_contra.f_post)
+
+let vars_fc_contracts fc =
+  let s = vars_fc fc in
+  Sv.union s (vars_contract fc.f_contra)
 
 let locals fc =
   let s1 = params fc in
