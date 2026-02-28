@@ -26,6 +26,9 @@ let inspect_lv k = function
 
 let inspect_lvs k xs = List.fold_left inspect_lv k xs
 
+let inspect_a k (_, e) = inspect_e k e
+let inspect_as = List.fold_left inspect_a
+
 let rec inspect_stmt k stmt = List.fold_left inspect_instr k stmt
 and inspect_instr k i = inspect_instr_r k i.i_desc
 
@@ -38,6 +41,13 @@ and inspect_instr_r k = function
       inspect_stmt (inspect_stmt (inspect_e k g) a) b
   | Cfor (_, (_, e1, e2), s) -> inspect_stmt (inspect_es k [ e1; e2 ]) s
   | Ccall (xs, fn, es) -> with_fun (inspect_lvs (inspect_es k es) xs) fn
+
+let inspect_fun k fd =
+  let k =
+    match fd.f_contract with
+    | None -> k
+    | Some fc -> inspect_as (inspect_as k fc.f_pre) fc.f_post in
+  inspect_stmt k fd.f_body
 
 let slice fs (gd, fds) =
   let funs =
@@ -53,7 +63,7 @@ let slice fs (gd, fds) =
   let k =
     List.fold_left
       (fun k fd ->
-        if Sf.mem fd.f_name k.funs then inspect_stmt k fd.f_body else k)
+        if Sf.mem fd.f_name k.funs then inspect_fun k fd else k)
       { vars = Sv.empty; funs } fds
   in
   (* Keep only global variables that are referenced *)

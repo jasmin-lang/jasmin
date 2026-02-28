@@ -176,8 +176,7 @@ Section PROOF.
 
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
-    move => scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
-    case: f=> fi ftyi fparams fc ftyo fres fe /= Hget Htyi Hi Hw _ Hc Hres Htyo Hsys Hfi.
+    move => scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' /= Hget Htyi Hi Hw _ Hc Hres Htyo Hsys Hfi.
     move/p'_get_fundef: Hget Hc.
     rewrite /Pc /=.
     case: unroll_cmd => c _ /= Hget Hc.
@@ -237,16 +236,13 @@ Section PROOF.
     apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hfd.
     exists (unroll_fun (fn, fd)).1.2.
     + by apply: p'_get_fundef hfd.
-    move=> s {hfd}.
-    case: fd => /= finfo ftyin fparams fbody ftyout fres fextra.
-    case heq: unroll_cmd => [c' b] /= hinit.
+    move=> s {hfd} hinit.
     exists s.
     + by move: hinit; rewrite /initialize_funcall /= p'_extra.
     exists (st_eq tt), (st_eq tt); split => //.
     2: by apply st_eq_finalize.
-    have -> : c' = (unroll_cmd unroll_i fbody).1 by rewrite heq.
-    clear heq hinit c' b fn fs s finfo ftyin fparams ftyout fres fextra.
-    apply (cmd_rect (Pi:=Pi) (Pr:=Pi_r) (Pc:=Pc)) => // {fbody}; rewrite /Pi_r /Pi /Pc.
+    move=> {s hinit}.
+    apply (cmd_rect (Pi:=Pi) (Pr:=Pi_r) (Pc:=Pc)) => //; rewrite /Pi_r /Pi /Pc.
     + by apply wequiv_nil.
     + by move=> > hi hc /=; surjpairing; rewrite /= -cat1s; apply wequiv_cat with (st_eq tt).
     + by move=> ????? /=; apply wequiv_assgn_rel_eq with checker_st_eq tt.

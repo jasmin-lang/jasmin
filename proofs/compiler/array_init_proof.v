@@ -699,7 +699,7 @@ Proof.
  rewrite /add_init_fd /=.
  set I := (I in add_init_c _ I _).
  set cm := add_init_c _ _ _.
- set fd' := {| f_info := _|}.
+ set fd' := with_body _ _.
  move=> s1 hinit.
  exists s1=> //; exists (cmpl_inv I), (cmpl_inv cm.2); split => //.
  + move: hinit; rewrite /initialize_funcall.

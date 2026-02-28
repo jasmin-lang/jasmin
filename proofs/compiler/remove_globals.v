@@ -349,15 +349,8 @@ Section REMOVE.
       Let _ := mapM check_var f.(f_params) in
       Let _ := mapM check_var f.(f_res) in
       Let envc := remove_glob remove_glob_i env f.(f_body) in
-      ok
-        {| f_info   := f.(f_info);
-           f_tyin   := f.(f_tyin);
-           f_params := f.(f_params);
-           f_body   := envc.2;
-           f_tyout  := f.(f_tyout);
-           f_res    := f.(f_res);
-           f_extra  := f.(f_extra);
-        |}.
+      ok (with_body f envc.2).
+
   End GD.
 
   Definition remove_glob_prog (p:uprog) :=
