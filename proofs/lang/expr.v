@@ -488,8 +488,16 @@ Class progT := {
   extra_val_t  : Type;
 }.
 
+Record fun_contract := MkContra {
+    f_iparams : seq var_i;  (* names of the parameters used in pre and post *)
+    f_ires    : seq var_i;  (* name of the result used in post *)
+    f_pre     : assertions;
+    f_post    : assertions;
+  }.
+
 Record _fundef (extra_fun_t: Type) := MkFun {
   f_info   : fun_info;
+  f_contract : option fun_contract;
   f_tyin   : seq atype;
   f_params : seq var_i;
   f_body   : cmd;
@@ -672,23 +680,25 @@ Definition to_sprog (p:_sprog) : sprog := p.
 
 (* Update functions *)
 Definition with_body eft (fd:_fundef eft) (body : cmd) := {|
-  f_info   := fd.(f_info);
-  f_tyin   := fd.(f_tyin);
-  f_params := fd.(f_params);
-  f_body   := body;
-  f_tyout  := fd.(f_tyout);
-  f_res    := fd.(f_res);
-  f_extra  := fd.(f_extra);
+  f_info     := fd.(f_info);
+  f_contract := fd.(f_contract);
+  f_tyin     := fd.(f_tyin);
+  f_params   := fd.(f_params);
+  f_body     := body;
+  f_tyout    := fd.(f_tyout);
+  f_res      := fd.(f_res);
+  f_extra    := fd.(f_extra);
 |}.
 
 Definition swith_extra {_: PointerData} (fd:ufundef) f_extra : sfundef := {|
-  f_info   := fd.(f_info);
-  f_tyin   := fd.(f_tyin);
-  f_params := fd.(f_params);
-  f_body   := fd.(f_body);
-  f_tyout  := fd.(f_tyout);
-  f_res    := fd.(f_res);
-  f_extra  := f_extra;
+  f_info     := fd.(f_info);
+  f_contract := fd.(f_contract);
+  f_tyin     := fd.(f_tyin);
+  f_params   := fd.(f_params);
+  f_body     := fd.(f_body);
+  f_tyout    := fd.(f_tyout);
+  f_res      := fd.(f_res);
+  f_extra    := f_extra;
 |}.
 
 End ASM_OP.

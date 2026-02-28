@@ -669,21 +669,42 @@ Lemma hoare_call (Pf : PreF) (Qf : PostF) Rv P Q Qerr ii xs fn es :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
   rhoare P (fun s => sem_pexprs (~~ direct_call) (p_globs p) s es) Rv Qerr ->
   (forall s vs, P s -> Rv vs -> Pf fn (mk_fstate vs s)) ->
+  (forall vs, Rv vs -> rhoare PredT (fun s => sem_pre p fn (mk_fstate vs s)) PredT Qerr) ->
   hoare_f_ii Pf ii fn Qf ->
+  (forall vs fs fr,
+      Rv vs ->
+      hoare_f_ii Pf ii fn Qf -> Qf fn fs fr ->
+      rhoare PredT
+        (fun _:estate => sem_post p fn vs fr) PredT Qerr) ->
   (forall fs fr,
     Pf fn fs -> Qf fn fs fr ->
     rhoare P (upd_estate (~~ direct_call) (p_globs p) xs fr) Q Qerr) ->
   hoare P [:: MkI ii (Ccall xs fn es)] Q.
 Proof.
-  move=> herr hes hPPf hCall hPQf; rewrite /hoare /isem_cmd_ /=.
+  move=> herr hes hPPf hpre hCall hpost hPQf; rewrite /hoare /isem_cmd_ /=.
   apply khoare_bind with Q; last by apply khoare_ret.
   apply khoare_read with Rv.
   + by apply (khoare_iresult herr) => >; apply: hes.
   move=> vs hvs; apply khoare_eq_pred => s0.
   set (fs := mk_fstate vs s0).
+  apply khoare_read with PredT.
+  + apply khoare_iresult with Qerr.
+    + move => s e [] heq;subst.
+      exact: herr.
+    move => s [] heq hpre'; subst.
+    by apply: (hpre _ hvs).
+  move => _ _.
   apply khoare_read with (Qf fn fs).
   + by move=> _ [-> hP]; apply/hCall/hPPf.
-  move=> fr hQf; apply khoare_iresult with Qerr.
+  move=> fr hQf.
+  apply khoare_read with PredT.
+  + apply khoare_iresult with Qerr.
+    + move => s e [] heq;subst.
+      exact: herr.
+    move => s [] heq hpre';subst.
+    by apply : (hpost _ _ _ hvs hCall hQf).
+  move => _ _.
+  apply khoare_iresult with Qerr.
   + by move=> > []; auto.
   move=> _ [-> hP]; apply (hPQf fs fr) => //.
   by apply hPPf.
@@ -696,11 +717,13 @@ Definition hoare_fun_body_hyp (Pf : PreF) fn (Qf : PostF) Qerr :=
   match get_fundef (p_funcs p) fn with
   | None => Qerr ErrType
   | Some fd =>
-    exists (P Q : Pred_c),
-      [/\ rhoare (Pf fn) (initialize_funcall p ev fd) P Qerr
-        , hoare P fd.(f_body) Q
-        , (forall s e, Q s -> Qerr e -> rInvErr (estate0 fs) e)
-        & rhoare Q (finalize_funcall fd) (Qf fn fs) Qerr]
+    [/\ sem_pre p  fn fs = ok tt
+      , forall fr, Qf fn fs fr -> sem_post p fn fs.(fvals) fr = ok tt
+      & exists (P Q : Pred_c),
+        [/\ rhoare (Pf fn) (initialize_funcall p ev fd) P Qerr
+          , hoare P fd.(f_body) Q
+          , (forall s e, Q s -> Qerr e -> rInvErr (estate0 fs) e)
+          & rhoare Q (finalize_funcall fd) (Qf fn fs) Qerr]]
   end.
 
 Lemma preInv_Throw e : preInv (subevent void (Throw e)) = invErr e.
@@ -716,12 +739,31 @@ Proof.
   + rewrite /kget_fundef => ??.
     case: get_fundef hf => /= [fd | ] h; [apply lutt_Ret | apply lutt_Vis] => //.
     by rewrite preInv_Throw; apply herr.
-  move=> fd hfd; move: hf; rewrite hfd => -[P] [Q] [hinit hbody hQerr hfin].
-  apply khoare_bind with P.
+  move=> fd hfd; move: hf; rewrite hfd => -[Pre Post [P] [Q] [hinit hbody hQerr hfin]].
+  apply khoare_read with PredT.
+  + move => ? ?; subst.
+    rewrite /isem_pre Pre => //=.
+    by apply lutt_Ret.
+  move => _ _.
+  apply khoare_read with P.
   + move=> _ ->; have := hinit _ hPf.
     case: initialize_funcall => [s | e] h; [apply lutt_Ret | apply lutt_Vis] => //.
     by rewrite preInv_Throw; apply herr.
-  by apply: (khoare_bind hbody); apply (khoare_iresult hQerr).
+    move => s1 hs1.
+  eapply khoare_read.
+  + move => s hpre'.
+    by apply hbody.
+  move => s hQ.
+  eapply khoare_read.
+  + move => s' hpre'.
+    by apply: (khoare_iresult hQerr hfin).
+  move => s' hQf.
+  apply khoare_read with PredT.
+  + move => ? ?; subst.
+    rewrite /isem_post Post => //=.
+    by apply lutt_Ret.
+  move => ????; subst.
+  by apply lutt_Ret.
 Qed.
 
 End HOARE_CORE.
@@ -770,11 +812,13 @@ Definition hoare_fun_body_hyp_rec Pf fn Qf Qerr :=
   match get_fundef (p_funcs p) fn with
   | None => Qerr ErrType
   | Some fd =>
-    exists (P Q : Pred_c),
-      [/\ rhoare (Pf fn) (initialize_funcall p ev fd) P Qerr
-        , hoare_rec P fd.(f_body) Q
-        , (forall s e, Q s -> Qerr e -> rInvErr (estate0 fs) e)
-        & rhoare Q (finalize_funcall fd) (Qf fn fs) Qerr]
+    [/\ sem_pre p  fn fs = ok tt
+      , forall fr, Qf fn fs fr -> sem_post p fn fs.(fvals) fr = ok tt
+      & exists (P Q : Pred_c),
+        [/\ rhoare (Pf fn) (initialize_funcall p ev fd) P Qerr
+          , hoare_rec P fd.(f_body) Q
+          , (forall s e, Q s -> Qerr e -> rInvErr (estate0 fs) e)
+          & rhoare Q (finalize_funcall fd) (Qf fn fs) Qerr]]
   end.
 
 Lemma weak_pre  (T : Type) (e : (recCall +' E) T) :
@@ -905,7 +949,13 @@ Proof. by apply hoare_while. Qed.
 Lemma whoare_call (Pf : PreF) (Qf : PostF) Rv P Q ii xs fn es :
   rhoare P (fun s => sem_pexprs (~~ direct_call) (p_globs p) s es) Rv PredT ->
   (forall s vs, P s -> Rv vs -> Pf fn (mk_fstate vs s)) ->
+  (forall vs, Rv vs -> rhoare PredT (fun s => sem_pre p fn (mk_fstate vs s)) PredT PredT) ->
   whoare_f p ev Pf ii fn Qf ->
+  (forall vs fs fr,
+      Rv vs ->
+      whoare_f p ev Pf ii fn Qf -> Qf fn fs fr ->
+      rhoare PredT
+        (fun _:estate => sem_post p fn vs fr) PredT PredT) ->
   (forall fs fr,
     Pf fn fs -> Qf fn fs fr ->
     rhoare P (upd_estate (~~ direct_call) (p_globs p) xs fr) Q PredT) ->
@@ -933,10 +983,12 @@ Definition whoare_fun_body_hyp_rec Pf fn Qf :=
   forall fs,
   Pf fn fs ->
   forall fd, get_fundef (p_funcs p) fn = Some fd ->
-  exists (P Q : Pred_c),
-    [/\ rhoare (Pf fn) (initialize_funcall p ev fd) P PredT
-      , whoare_rec P fd.(f_body) Q
-      & rhoare Q (finalize_funcall fd) (Qf fn fs) PredT].
+  [/\ sem_pre p  fn fs = ok tt
+    , forall fr, Qf fn fs fr -> sem_post p fn fs.(fvals) fr = ok tt
+    & exists (P Q : Pred_c),
+      [/\ rhoare (Pf fn) (initialize_funcall p ev fd) P PredT
+        , whoare_rec P fd.(f_body) Q
+        & rhoare Q (finalize_funcall fd) (Qf fn fs) PredT]].
 
 Lemma iwhoare_fun :
   ((forall ii fn, whoare_f_rec preF ii fn postF) ->
@@ -946,7 +998,8 @@ Proof.
   move=> h; apply ihoare_fun with PredT.
   move=> /h{}h fn fs /h{}h; split => //.
   case heq : get_fundef => [fd | ] //.
-  by have [P [Q [???]]]:= h _ heq; exists P, Q.
+  have [Pre Post [P [Q [???]]]] := h _ heq; split => //.
+  by exists P, Q.
 Qed.
 
 End WHOARE_FUN.
