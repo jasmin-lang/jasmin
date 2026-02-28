@@ -231,10 +231,10 @@ Definition find_linstr_in_fun (lp : lpoint) : option linstr :=
 
 (* the generic iteration body used in the Linear and Intermediate
     semantics. l0 is the linear code point being executed. *)
-Definition ACntr {S: Type} {E} {XE: ErrEvent -< E}                 
-  (Sem: linstr_r -> S -> itree E S)
-  (NoExit: S -> option bool) (TryFnd: S -> option linstr)
-  (l0: S) : itree E (S + S) :=
+Definition ACntr {L: Type} {E} {XE: ErrEvent -< E}                 
+  (Sem: linstr_r -> L -> itree E L)
+  (NoExit: L -> option bool) (TryFnd: L -> option linstr)
+  (l0: L) : itree E (L + L) :=
   (* check whether the exit condition is satisfied *)
   match NoExit l0 with
   | Some b =>
@@ -248,11 +248,31 @@ Definition ACntr {S: Type} {E} {XE: ErrEvent -< E}
   end.
 
 (* iterate ACntr *)
-Definition ACntrI {S: Type} {E} {XE: ErrEvent -< E}  
-  (Sem: linstr_r -> S -> itree E S)
-  (NoExit: S -> option bool) (TryFnd: S -> option linstr)
-  (lp0: S) : itree E S :=
-  ITree.iter (@ACntr S E XE Sem NoExit TryFnd) lp0.
+Definition ACntrI {L: Type} {E} {XE: ErrEvent -< E}  
+  (Sem: linstr_r -> L -> itree E L)
+  (NoExit: L -> option bool) (TryFnd: L -> option linstr)
+  (lp0: L) : itree E L :=
+  ITree.iter (@ACntr L E XE Sem NoExit TryFnd) lp0.
+
+Definition LACntr {L: Type} {PC: L -> lpoint} {E} {XE: ErrEvent -< E}  
+  (Sem: linstr_r -> L -> itree E L)
+  (fn: funname) (nS nE: nat) (l1: L) :
+  itree E (L + L) :=
+  ACntr Sem
+    (* exit condition: when it jumps to another function, gets out of
+       the range, or makes a recursive call (n0 = 0) *)
+    (fun l0 =>
+       let '(fn0, n0) := PC l0 in  
+       if (not_possible fn0 nE) then None
+       else Some ((fn == fn0) 
+            && (nS <= n0) && (n0 < nE) && (0 < n0)))
+    (fun l0 => find_linstr_in_fun (PC l0)) l1.
+
+Definition LACntrI {L: Type} {PC: L -> lpoint} {E} {XE: ErrEvent -< E}  
+  (Sem: linstr_r -> L -> itree E L)
+  (fn: funname) (nS nE: nat) (lp0: L) : itree E L :=
+  ITree.iter (@LACntr L PC E XE Sem fn nS nE) lp0.
+
 
 (* the 'local' iteration body for the Intermediate semantics. nS and
    nE are the start and end points in the fn linear code wrt to which
@@ -288,8 +308,27 @@ Definition GCntrI {E} {XE: ErrEvent -< E}
   (lp0: lpoint) : itree E lpoint :=
   ITree.iter (@GCntr E XE Sem) lp0.
 
+(* iterative semantics body *)
+Definition iisem_lcmd_body (lbl: lpoint) :
+  itree E (lpoint + lpoint) := GCntr isem_linstr lbl.
 
-(***************************************************************)
+(* iterative semantics of a linear program, from any starting point *)
+Definition iisem_lcmd (lbl: lpoint) : itree E lpoint :=
+  ITree.iter iisem_lcmd_body lbl.
+
+(* iterative semantics of a linear function from its entry point *)
+Definition iisem_lfun (fn: funname) : itree E lpoint :=
+  iisem_lcmd (fn, 0).
+
+(* stateful iterative semantics body *)
+Definition isem_lcmd_body (Hlt: LState -> option bool)
+  (Fnd: LState -> option linstr) (lbl: LState) :
+  itree E (LState + LState) := ACntr isem_i_lplain Hlt Fnd lbl.
+
+(* stateful iterative semantics of a linear program, from any state *)
+Definition isem_lcmd (Hlt: LState -> option bool)
+  (Fnd: LState -> option linstr) (lbl: LState) : itree E LState :=
+  ITree.iter (isem_lcmd_body Hlt Fnd) lbl.
 
 
 Section HandleStackA.
@@ -316,28 +355,6 @@ Definition handle_AStackL {T} (e: AStackE T) : itree E T :=
 
 End HandleStackA.
 
-(* iterative semantics body *)
-Definition iisem_lcmd_body (lbl: lpoint) :
-  itree E (lpoint + lpoint) := GCntr isem_linstr lbl.
-
-(* iterative semantics of a linear program, from any starting point *)
-Definition iisem_lcmd (lbl: lpoint) : itree E lpoint :=
-  ITree.iter iisem_lcmd_body lbl.
-
-(* iterative semantics of a linear function from its entry point *)
-Definition iisem_lfun (fn: funname) : itree E lpoint :=
-  iisem_lcmd (fn, 0).
-
-(* stateful iterative semantics body *)
-Definition isem_lcmd_body (Hlt: LState -> option bool)
-  (Fnd: LState -> option linstr) (lbl: LState) :
-  itree E (LState + LState) := ACntr isem_i_lplain Hlt Fnd lbl.
-
-(* stateful iterative semantics of a linear program, from any state *)
-Definition isem_lcmd (Hlt: LState -> option bool)
-  (Fnd: LState -> option linstr) (lbl: LState) : itree E LState :=
-  ITree.iter (isem_lcmd_body Hlt Fnd) lbl.
-
 End Iterators.
 
 
@@ -345,8 +362,77 @@ End Iterators.
 
 Notation plinfo := (nat * label)%type.
 
-Check Llabel.
-Print label_kind.
+(* maps a point to a left (continue) or right (exit) return value,
+   depending on whether it satisfies P *)
+Definition ret_lp_select {L: Type} {PC: L -> lpoint}
+  E (P: lpoint -> bool) (l0: L) :
+  itree E (L + L) :=
+  if P (PC l0) then Ret (inl l0) else Ret (inr l0).
+
+(* basically, switches between different ktrees, depending on an
+   ordered list of intervals. ls are the (well-ordered) interval
+   end-points; ks are the ktrees *)
+Fixpoint nat_kt_switch_n {E} {T} (t: T)
+  (ls: list nat) (ks: list (nat -> itree E T)) (n: nat) : itree E T :=
+  match (ls, ks) with
+  | (nil, _) => Ret t
+  | (_, nil) => Ret t                
+  | (n0 :: ns0, k0 :: ks0) =>
+    if n < n0 then k0 n0 else nat_kt_switch_n t ns0 ks0 n end.            
+
+Fixpoint nat_kt_switch {L: Type} {PC: L -> lpoint} {E} {T} (t: T)
+  (ls: list nat) (ks: list (L -> itree E T)) (s: L) : itree E T :=
+  match (ls, ks) with
+  | (nil, _) => Ret t
+  | (_, nil) => Ret t                
+  | (n0 :: ns0, k0 :: ks0) =>  
+      if (snd (PC s)) < n0 then k0 s
+      else @nat_kt_switch L PC E T t ns0 ks0 s end.
+
+(* sequentialize the application of lsem_instr within a function. used
+   to map lsem_instr to commands *)
+Fixpoint lsem_c {L: Type} {PC: L -> lpoint}
+  {E} {XE: ErrEvent -< E} (R: instr -> L -> itree E L)
+  (fn: funname) (cc: cmd) (s: L) : itree E L :=
+  let: (fn0, n) := PC s in
+  if fn0 == fn then 
+     match cc with
+     | nil => Ret s
+     | i :: cc0 => s' <- R i s ;;
+                   @lsem_c L PC E XE R fn cc0 s' end
+  else throw err.     
+
+(* applies nat_kt_switch to produce an iterative body out of a list of
+   alternatives; the exit point is determined by the interval (nS, nE)
+   in the linear code of fn *)
+Definition ktree_switch_n {L: Type} {PC: L -> lpoint}
+  {E} {XE: ErrEvent -< E}
+  (fn: funname) (nS nE: nat)
+  (ls: list nat) (ks: list (nat -> itree E L))
+  (s0: L) : itree E (L + L) := 
+  let l0 := PC s0 in 
+  let InInterval := lcp_in_interval nS nE in 
+  let RetS := @ret_lp_select L PC E InInterval in
+  let RSLift := fun f n => ITree.bind (f n) RetS in 
+  if InInterval l0 && ((fst l0) == fn)
+  then @nat_kt_switch_n E (L + L)
+          (inr s0) ls (map RSLift ks) (snd l0)
+  else Ret (inr s0).         
+
+Definition ktree_switch {L: Type} {PC: L -> lpoint}
+  {E} {XE: ErrEvent -< E} 
+  (fn: funname) (nS nE: nat)
+  (ls: list nat) (ks: list (L -> itree E L))
+  (s0: L) : itree E (L + L) :=
+  let l0 := PC s0 in 
+  let InInterval := lcp_in_interval nS nE in
+  let RetS := @ret_lp_select L PC E InInterval in
+  let RSLift := fun f n => ITree.bind (f n) RetS in 
+  if InInterval l0 && ((fst l0) == fn)
+  then @nat_kt_switch L PC E (L + L)
+          (inr s0) ls (map RSLift ks) s0
+  else Ret (inr s0).         
+
 
 Definition lsem_instr 
   (fn0: funname) (pl0 pl1: plinfo)
