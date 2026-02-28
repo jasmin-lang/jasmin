@@ -1165,7 +1165,7 @@ Qed.
 
 Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
 Proof.
-  move=> scs1 m1 _ _ fn [f_i f_tyi f_p f_b f_tyo f_r f_e] /= vargs vargs' s0 s1 s2 vres vres'
+  move=> scs1 m1 _ _ fn fd /= vargs vargs' s0 s1 s2 vres vres'
     hf htargs hinit hwargs _ hrec hrres htres -> ->.
   move: (hp); rewrite /lower_slh_prog; t_xrbindP => hent fds hmap heq.
   have [fd' + hget]:= get_map_cfprog_name_gen hmap hf.
@@ -1208,7 +1208,7 @@ Proof.
    move: (hp); rewrite /lower_slh_prog; t_xrbindP => /allP -/(_ _ hent).
    rewrite heq => /= hall fds hmap heq1.
    have [fd' + hget'] := get_map_cfprog_name_gen hmap hget.
-   rewrite /lower_fd /check_fd /= heq; t_xrbindP=> z hz _ _ _ _ _ {heq hsem}.
+   rewrite /lower_fd /check_fd /= heq; t_xrbindP => z hz _ _ _ _ _ _ _ {heq hsem}.
    apply: all_is_slh_none hall.
    rewrite -(size_init_fun_env hz).
    by have := size_mapM2 hm; rewrite size_map => -[-> _].
@@ -1255,8 +1255,8 @@ Lemma lower_fdP fn fd fd' :
     & f_extra fd' = f_extra fd
   ].
 Proof.
-case: fd; case: fd'; rewrite /lower_fd;
-  by t_xrbindP=> /= > -> _ -> -> -> -> -> -> -> ->.
+case: fd; case: fd'; rewrite /lower_fd.
+by t_xrbindP=> /= > -> ? -> // *; subst.
 Qed.
 
 Definition st_eq (env : Env.t) (s t : estate) : Prop :=

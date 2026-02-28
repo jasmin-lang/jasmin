@@ -65,9 +65,7 @@ Section INCL.
   Lemma inline_incl fd fd' :
     inline_fd' p  fd = ok fd' ->
     inline_fd' p' fd = ok fd'.
-  Proof.
-    by case: fd => fi ftin fp fb ftout fr fe /=;apply: rbindP => -[??] /inline_c_incl -> [<-].
-  Qed.
+  Proof. by rewrite /inline_fd'; t_xrbindP => -[??] /inline_c_incl -> <-. Qed.
 
 End INCL.
 
@@ -529,12 +527,10 @@ Section PROOF.
   Proof.
     move=> scs1 m1 scs2 m2 fn fd vargs vargs' s0 s1 svm2 vres vres' Hget Htin Hi Hw Hsem Hc Hres Htout Hscs Hfi.
     have [fd' [Hfd']{Hget}] := inline_progP' uniq_funname Hp Hget.
-    case: fd Htin Hi Hw Hsem Hc Hres Htout Hfi => /= fi tin fx fc tout fxr fe
-             Htin Hi Hw Hsem Hc Hres Htout Hfi.
     apply: rbindP => -[X fc'] /Hc{}Hc [] ?;subst fd'.
     move=> vargs1 Hall;move: Hw; rewrite (write_vars_lvals _ gd) => Hw.
-    have heq : Sv.Equal (read_rvs [seq Lvar i | i <- fx]) Sv.empty.
-    + elim: (fx);first by rewrite read_rvs_nil;SvD.fsetdec.
+    have heq : Sv.Equal (read_rvs [seq Lvar i | i <- f_params fd]) Sv.empty.
+    + elim: (f_params fd);first by rewrite read_rvs_nil;SvD.fsetdec.
       by move=> ?? Hrec; rewrite /= read_rvs_cons /=;SvD.fsetdec.
     have [vargs1' htin' Hall'] := mapM2_truncate_val Htin Hall.
     have [|/=vm1] := write_lvals_uincl_on _ Hall' Hw (@uincl_on_refl _ _ X).
@@ -778,6 +774,7 @@ Proof.
   + rewrite ITree.Eq.Eqit.bind_vis.
     apply xrutt.xrutt_CutL => //.
     by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
+  rewrite ITree.Eq.Eqit.bind_ret_l /isem_pre /sem_pre /isem_post /sem_post /=.
   rewrite ITree.Eq.Eqit.bind_ret_l ITree.Eq.Eqit.bind_bind /kget_fundef.
   have -> /= : get_fundef pfuncs f = Some ffd.
   + move: uniq_funname; rewrite /get_fundef /pfuncs map_cat cat_uniq assoc_cat => /and3P [_ /= hhas /andP [hnin _]].
@@ -787,7 +784,7 @@ Proof.
       by apply: assoc_mem_dom' ha1.
     case: eqP => // ?; subst f.
     by move: hnin; rewrite (assoc_mem_dom' hffd).
-  rewrite ITree.Eq.Eqit.bind_ret_l ITree.Eq.Eqit.bind_bind.
+  rewrite !ITree.Eq.Eqit.bind_ret_l ITree.Eq.Eqit.bind_bind.
   case hinit : initialize_funcall => [s1 /= | ?]; last first.
   + rewrite ITree.Eq.Eqit.bind_vis.
     apply xrutt.xrutt_CutL => //.
@@ -818,11 +815,13 @@ Proof.
     (fun s2 s3 : estate => evm (with_vm s1 vm2) =[\write_c (extend_iinfo_cmd extend_iinfo ii (f_body ffd))] evm s3 /\ st_uincl tt s2 s3).
   + by apply h.
   move=> s' t' [heqex {}huincl].
+  rewrite ITree.Eq.Eqit.bind_bind.
   case hfinal : finalize_funcall => [fr /= | ?]; last first.
   + rewrite ITree.Eq.Eqit.bind_vis.
     apply xrutt.xrutt_CutL => //.
     by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
   rewrite ITree.Eq.Eqit.bind_ret_l.
+  rewrite ITree.Eq.Eqit.bind_bind !ITree.Eq.Eqit.bind_ret_l.
   case hupd : upd_estate => [s1' /= | ?]; last first.
   + apply xrutt.xrutt_CutL => //.
     by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.

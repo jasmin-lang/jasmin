@@ -829,7 +829,7 @@ Proof.
   have [fd1 [fd2 [m [inout [Hget2 hsigs /=]]]] {Hget}]:= all_checked Hget.
   rewrite /expand_fsig; t_xrbindP => -[mt finf].
   case: f Hca Hw Hc Hres Hcr => /=.
-  move=> finfo ftyin fparams fbody ftyout fres fextra.
+  move=> finfo fci ftyin fparams fbody ftyout fres fextra.
   set fd := {| f_info := finfo |} => Hca Hw Hc Hres Hcr hinit.
   t_xrbindP => ins hparams outs hres <- ??; subst mt inout.
   t_xrbindP => c hc ?; subst fd1.
@@ -1006,7 +1006,7 @@ Proof.
   have [fd1 [fd2 [m [inout [hget2 hsigs /=]]]]]:= all_checked hget1.
   rewrite /expand_fsig; t_xrbindP => -[mt finf].
   case: fd hget1.
-  move=> finfo ftyin fparams fbody ftyout fres fextra hget1.
+  move=> finfo fci ftyin fparams fbody ftyout fres fextra hget1.
   set fd := {| f_info := finfo |} => hinit.
   t_xrbindP => ins hparams outs hres <- ??; subst mt inout.
   t_xrbindP => c hc ?; exists fd1; subst fd1 => // s1.
@@ -1117,7 +1117,7 @@ Proof.
     move/mapM2_Forall3: hz1; elim => //= > + _ ->.
     by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.
   apply wkequiv_io_weaken with (rpreF (eS:=exp_spec s1) f f) (rpostF (eS:=exp_spec s1) f f) => //.
-  + move=> fs1 fs2 [] [_ <-] [s]; rewrite /initialize_funcall; t_xrbindP.
+  + move=> fs1 fs2 [] [_ <-] _ [s]; rewrite /initialize_funcall; t_xrbindP.
     move=> vs htri _ _ _; split => //; split => //.
     eexists; first exact hgets.
     exists [seq [:: x] | x <- (fvals fs1)] => /=.

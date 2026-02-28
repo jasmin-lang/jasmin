@@ -209,16 +209,15 @@ Definition check_map (m:Mvar.t var) X :=
   Mvar.fold (fun (x:var) (sx:var) bX =>
     (bX.1 && ~~Sv.mem sx bX.2, Sv.add sx bX.2)) m (true, X).
 
-Definition spill_fd (fn:funname) (fd: fundef) : cexec fundef :=
-  let 'MkFun fi tyi params c tyo res ef := fd in
-  let s := foldl to_spill_i (Sv.empty, false) c in
+Definition spill_fd (fn:funname) (fd: fundef) : cexec fundef :=  
+  let s := foldl to_spill_i (Sv.empty, false) (f_body fd) in
   if ~~s.2 then ok fd else
-  let: (m, _) := init_map fi s.1 in
+  let: (m, _) := init_map (f_info fd) s.1 in
   let X := vars_fd fd in
   let b := check_map m X in
   Let _ := assert b.1 (pp_internal_error E.pass (pp_s "invalid map")) in
-  Let ec := spill_c (spill_i (get_spill m)) Sv.empty c in
-  ok (MkFun fi tyi params ec.2 tyo res ef).
+  Let ec := spill_c (spill_i (get_spill m)) Sv.empty (f_body fd) in
+  ok (with_body fd ec.2). 
 
 Definition spill_prog (p: prog) : cexec prog :=
   Let funcs := map_cfprog_name spill_fd (p_funcs p) in
