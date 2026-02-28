@@ -533,9 +533,8 @@ Definition lower_cmd (c : cmd) : cexec cmd := rec_cmd lower_i c.
 
 Definition lower_fd (fn:funname) (fd:fundef) :=
   Let _ := check_fd fn fd in
-  let 'MkFun ii si p c so r ev := fd in
-  Let c := lower_cmd c in
-  ok (MkFun ii si p c so r ev).
+  Let c := lower_cmd fd.(f_body) in
+  ok (with_body fd c).
 
 Definition is_slh_none ty := if ty is Slh_None then true else false.
 

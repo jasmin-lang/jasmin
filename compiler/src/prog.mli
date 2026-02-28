@@ -82,10 +82,18 @@ and ('len, 'info, 'asm) ginstr = {
 and ('len, 'info, 'asm) gstmt = ('len, 'info, 'asm) ginstr list
 
 (* ------------------------------------------------------------------------ *)
+type 'len gfcontract = {
+  f_iparams : 'len gvar_i list;
+  f_ires : 'len gvar_i list;
+  f_pre : 'len assertion list;
+  f_post : 'len assertion list;
+}
+
 type ('len, 'info, 'asm) gfunc = {
     f_loc  : L.t;
     f_annot: FInfo.f_annot;
     f_info : 'info;
+    f_contra: 'len gfcontract option;
     f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
@@ -224,6 +232,7 @@ val vars_i  : ('info, 'asm) instr -> Sv.t
 val vars_c  : ('info, 'asm) stmt  -> Sv.t
 val pvars_c : ('info, 'asm) pstmt  -> Spv.t
 val vars_fc : ('info, 'asm) func  -> Sv.t
+val vars_fc_contracts : ('info, 'asm) func  -> Sv.t
 
 val locals  : ('info, 'asm) func -> Sv.t
 

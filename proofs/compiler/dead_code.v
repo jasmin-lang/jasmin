@@ -171,12 +171,19 @@ Section Section.
 Context {pT: progT}.
 
 Definition dead_code_fd {eft} fn (fd: _fundef eft) : cexec (_fundef eft) :=
-  let 'MkFun ii tyi params c tyo res ef := fd in
-  let res := fn_keep_only fn res in
-  let tyo := fn_keep_only fn tyo in
+  let res := fn_keep_only fn fd.(f_res) in
+  let tyo := fn_keep_only fn fd.(f_tyout) in
   let s := read_es (map Plvar res) in
-  Let c := dead_code_c dead_code_i c s in
-  ok (MkFun ii tyi params c.2 tyo res ef).
+  Let c := dead_code_c dead_code_i fd.(f_body) s in
+  ok {| f_info := f_info fd;
+        f_contra := f_contra fd;
+        f_tyin := f_tyin fd;
+        f_params := f_params fd;
+        f_body := c.2;
+        f_tyout := tyo;
+        f_res := res;
+        f_extra := f_extra fd
+     |}.
 
 Definition dead_code_prog_tokeep (p: prog) : cexec prog :=
   Let funcs := map_cfprog_name dead_code_fd (p_funcs p) in

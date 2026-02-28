@@ -806,6 +806,8 @@ Context
     have [|]:= make_prologueP plE (@SvP.MP.subset_refl X) _ hes heqX; first by SvD.fsetdec.
     move=> vmx [/(esem_i_bodyP (sem_F := sem_fun_rec _)) sem_pl eval_args' eq_vm1_vmx].
     rewrite sem_pl /= Eqit.bind_ret_l.
+    rewrite /isem_pre /isem_post /sem_pre /sem_post /=.
+    repeat setoid_rewrite Eqit.bind_ret_l.
     rewrite /isem_pexprs eval_args' /= Eqit.bind_ret_l Eqit.bind_bind.
     set fs1 := mk_fstate ves s; set fs2 := mk_fstate ves (with_vm s vmx).
     apply xrutt_facts.xrutt_bind with (rpostF (eS:=mra_spec) f f fs1 fs2);

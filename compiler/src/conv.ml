@@ -231,6 +231,18 @@ and instr_r_of_cinstr_r = function
 and stmt_of_cstmt c =
   List.map instr_of_cinstr c
 
+(* ------------------------------------------------------------------------ *)
+let contra_of_ccontra c =
+  let aux =
+    List.map (fun (prover,clause) -> prover,cexpr_of_expr clause)
+  in
+  Some
+  {
+    C.f_iparams =  List.map cvari_of_vari c.f_iparams;
+    C.f_ires = List.map cvari_of_vari c.f_ires;
+    C.f_pre = aux c.f_pre;
+    C.f_post = aux c.f_post;
+  }
 
 (* ------------------------------------------------------------------------ *)
 let cufdef_of_fdef fd =
@@ -241,6 +253,7 @@ let cufdef_of_fdef fd =
   let f_body = cstmt_of_stmt fd.f_body in
   let f_res = List.map cvari_of_vari fd.f_ret in
   fn, { C.f_info   = f_info;
+        C.f_contra = Option.bind fd.f_contra contra_of_ccontra;
         C.f_tyin   = List.map cty_of_ty fd.f_tyin;
         C.f_params = f_params;
         C.f_body   = f_body;
@@ -249,11 +262,23 @@ let cufdef_of_fdef fd =
         C.f_extra  = ();
       }
 
+let ccontra_of_contra c =
+  let aux =
+    List.map (fun (prover,clause) -> prover,expr_of_cexpr clause)
+  in
+  Some
+  {
+    f_iparams = List.map vari_of_cvari C.(c.f_iparams);
+    f_ires = List.map vari_of_cvari C.(c.f_ires);
+    f_pre = aux C.(c.f_pre);
+    f_post = aux C.(c.f_post);
+  }
 
 let fdef_of_cufdef (fn, fd) =
   let f_loc, f_annot, f_cc, f_ret_info = fd.C.f_info in
   { f_loc;
     f_annot;
+    f_contra = Option.bind fd.f_contra ccontra_of_contra;
     f_cc;
     f_info = ();
     f_name = fn;
