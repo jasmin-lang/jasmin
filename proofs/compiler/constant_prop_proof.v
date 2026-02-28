@@ -1285,18 +1285,17 @@ Section PROOF.
 
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
-    move => scs1 m1 sc2 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
-    case: f=> fi ftin fparams fc ftout fres fex /= Hget Hargs Hi Hw _ Hc Hres Hfull Hscs Hfi.
+    move => scs1 m1 sc2 m2 fn f vargs vargs' s0 s1 s2 vres vres' /= Hget Hargs Hi Hw _ Hc Hres Hfull Hscs Hfi.
     generalize (get_map_prog (const_prop_fun gd) p fn); rewrite Hget /=.
     have : valid_cpm (evm s1) empty_cpm by move=> x n;rewrite Mvar.get0.
-    move=> /Hc [];case: const_prop => m c' /= hcpm hc' hget vargs1 hargs'.
+    move=> /Hc [] /= hcpm hc' hget vargs1 hargs'.
     have [vargs1' htr hu1]:= mapM2_dc_truncate_val Hargs hargs'.
     have [vm3 /= hw hu3]:= write_vars_uincl (vm_uincl_refl _) hu1 Hw.
     have [vm4 /= []hc hu4]:= hc' _ hu3.
     have [vres1 hvres1 hu5] := get_var_is_uincl hu4 Hres.
     have [vres1' ??]:= mapM2_dc_truncate_val Hfull hu5.
-    exists vres1';split => //.
-    econstructor;eauto => /=.
+    exists vres1';split => //=.
+    econstructor; eauto => /=.
     by move: hw;rewrite with_vm_same.
   Qed.
 
@@ -1473,8 +1472,7 @@ Local Opaque opp_word.
         , f_extra fd = f_extra (const_prop_fun gd fd)
         , f_params fd = f_params (const_prop_fun gd fd)
         & f_res fd = f_res (const_prop_fun gd fd)
-       ].
-  + by case fd => /= >; case: (const_prop _ _ _).
+       ] by done.
   have : exists2 t1, initialize_funcall p' ev (const_prop_fun gd fd) ft = ok t1 &
                        cmpl_inv empty_cpm s1 t1.
   + by have [t h1 []] := fs_uincl_initialize (p':=p') hin hex hpar erefl hfsu hinit; exists t.
@@ -1484,8 +1482,7 @@ Local Opaque opp_word.
   + apply wrequiv_weaken with (st_uincl tt) fs_uincl => //.
     + by move=> > [] ?? [??].
     by apply fs_uincl_finalize.
-  have -> : f_body (const_prop_fun gd fd) = (const_prop (const_prop_i gd) empty_cpm (f_body fd)).2.
-  + by case fd => /= >; case: const_prop.
+  have -> : f_body (const_prop_fun gd fd) = (const_prop (const_prop_i gd) empty_cpm (f_body fd)).2 by done.
   apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {fd fn fs hfsu hinit hin hout hex hpar hres hinv ht1 t1 ft s1}.
   + by move=> ?; apply wequiv_nil.
   + move=> i c hi hc m /=.

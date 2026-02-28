@@ -192,14 +192,15 @@ Section REMOVE_ASSERT.
   Lemma it_remove_assert_progP fn :
     wiequiv_f (wa1 := withassert) (wa2 := noassert) p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof.
-    apply wequiv_fun_ind => {fn}.
+    apply wequiv_fun_ind_wa => {fn}.
     move=> fn _ fs ft [<- <-] fd hget.
     rewrite -{1 2}remove_assert_ok get_map_prog hget /=.
     eexists; first reflexivity.
+    move=> _; split => //.
     move=> s1 hinit; exists s1 => //=.
-    exists st_eq, st_eq; split; cycle -1.
+    + by apply: eq_initialize hinit => //; rewrite eq_p_extra.
+    exists st_eq, st_eq; split => //; cycle -1.
     + by move => ? _ fr /st_rel_eq <- hfin; exists fr.
-    + done.
     move: (f_body fd) => {hget hinit s1 fs ft fn fd}.
     apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) => //.
     + by apply wequiv_nil.
@@ -216,7 +217,7 @@ Section REMOVE_ASSERT.
     + move=> > hc hc' >.
       by apply wequiv_while_rel_eq with checker_ra_eq tt.
     move=> >.
-    apply wequiv_call_rel_eq with checker_ra_eq tt => //.
+    apply wequiv_call_rel_eq_wa with checker_ra_eq tt => //.
     move=> ?? <-; exact/wequiv_fun_rec.
   Qed.
 

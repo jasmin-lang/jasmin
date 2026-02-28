@@ -71,10 +71,23 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
 
 and gsubst_c flen f c = List.map (gsubst_i flen f) c
 
+let gsubst_cf_cond flen f =
+  List.map (fun (prover,clause) -> prover, gsubst_e flen f clause)
+
+let gsubst_cf_contra flen f c =
+  Some
+  {
+    f_iparams = List.map (gsubst_vdest f) c.f_iparams;
+    f_ires = List.map (gsubst_vdest f) c.f_ires;
+    f_pre = gsubst_cf_cond flen f c.f_pre;
+    f_post = gsubst_cf_cond flen f c.f_post;
+  }
+
 let gsubst_func (flen: ?loc:L.t -> 'len1 -> 'len2) f fc =
   let dov v = L.unloc (gsubst_vdest f (L.mk_loc L._dummy v)) in
   { fc with
     f_tyin = List.map (gsubst_ty (flen ?loc:None)) fc.f_tyin;
+    f_contra = Option.bind fc.f_contra (gsubst_cf_contra flen f);
     f_args = List.map dov fc.f_args;
     f_body = gsubst_c flen f fc.f_body;
     f_tyout = List.map (gsubst_ty (flen ?loc:None)) fc.f_tyout;
@@ -274,6 +287,7 @@ let isubst_prog glob prog =
     let fc = {
         fc with
         f_tyin = List.map isubst_ty fc.f_tyin;
+        f_contra =  Option.bind fc.f_contra (gsubst_cf_contra isubst_len subst_v);
         f_args;
         f_body = gsubst_c isubst_len subst_v fc.f_body;
         f_tyout = List.map isubst_ty fc.f_tyout;

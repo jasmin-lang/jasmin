@@ -398,7 +398,7 @@ Section WITH_PARAMS.
       apply wequiv_fun_ind' => {} fn _ fs ft [] <- hfsu fd hget.
       exists (insert_renaming_fd insert_renaming_p fd).
       - by rewrite get_map_prog hget.
-      move => s hinit.
+      move => _; split => // s hinit.
       have htyin := insert_renaming_fd_tyin insert_renaming_p fd.
       have hextra := insert_renaming_fd_extra insert_renaming_p fd.
       have hparams := insert_renaming_fd_params insert_renaming_p fd.
@@ -411,7 +411,7 @@ Section WITH_PARAMS.
       exists
         (if do_insert then rename_vars (entry_info_of_fun_info (f_info fd)) (f_params fd) ++ f_body fd else f_body fd),
         (if do_insert then rename_vars (ret_info_of_fun_info (f_info fd)) (f_res fd)  else [::]).
-      split; cycle -1.
+      split => //; cycle -1.
       - by apply: fs_uincl_finalize; case: do_insert; eauto.
       - by red; eauto.
       - case: do_insert; last by rewrite cats0.
