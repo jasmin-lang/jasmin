@@ -964,7 +964,7 @@ speculative constant type checker: instruction assigns msf, which is required to
 
 fail/slh/x86-64/invalid_type.jazz:
 
-"fail/slh/x86-64/invalid_type.jazz", line 2 (4-5): the expression has type u64 instead of u32
+"fail/slh/x86-64/invalid_type.jazz", line 2 (4-5): the expression has type u32 instead of u64
 
 fail/slh/x86-64/mov_msf.jazz:
 
@@ -1354,6 +1354,10 @@ fail/typing/x86-64/bug_69.jazz:
 
 "fail/typing/x86-64/bug_69.jazz", line 5 (3-28): primitive operator AND_64 returns an output of size 64; it cannot be zero-extended to size 32
 
+fail/typing/x86-64/conditional_op_mismatch.jazz:
+
+"fail/typing/x86-64/conditional_op_mismatch.jazz", line 4 (14-15): the expression has type u64 instead of bool
+
 fail/typing/x86-64/export_reg_array_res.jazz:
 
 "fail/typing/x86-64/export_reg_array_res.jazz", line 14 (9-11):
@@ -1390,6 +1394,10 @@ fail/typing/x86-64/init_global.jazz:
 
 "fail/typing/x86-64/init_global.jazz", line 4 (12-13): global variables are not allowed here
 
+fail/typing/x86-64/lval_mismatch.jazz:
+
+"fail/typing/x86-64/lval_mismatch.jazz", line 4 (7-8): the expression has type bool instead of u64
+
 fail/typing/x86-64/lval_param.jazz:
 
 "fail/typing/x86-64/lval_param.jazz", line 4 (3-4): param variables are not allowed here
@@ -1407,6 +1415,10 @@ typing error: t has kind stack, only reg or reg ptr are allowed in result of non
 fail/typing/x86-64/only_param.jazz:
 
 "fail/typing/x86-64/only_param.jazz", line 3 (10-11): only param variables are allowed here
+
+fail/typing/x86-64/param_type_mismatch.jazz:
+
+"fail/typing/x86-64/param_type_mismatch.jazz", line 1 (14-18): the expression has type bool instead of int
 
 fail/typing/x86-64/res_wrong_type.jazz:
 
@@ -1553,7 +1565,7 @@ Allowed args are:
 
 Statistics:
 	Annots:      0
-	Pretyping:  48
+	Pretyping:  51
 	Parsing:     4
 	Typing:      1
 	Compile:   193

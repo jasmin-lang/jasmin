@@ -1,0 +1,7 @@
+export fn f () -> reg u64 {
+  reg u64 res = 0;
+  reg bool b;
+  ?{}, b = #ADD(res, res);
+  res = b ? 1 : 0;
+  return res;
+}
