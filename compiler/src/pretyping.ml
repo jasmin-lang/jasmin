@@ -1825,9 +1825,8 @@ let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
 
       let rec aux arguments pls =
         match arguments, pls with
-        | [], _                      -> pls
+        | [], _ | None :: _, []       -> pls
         | None :: arguments, x :: pls -> x :: aux arguments pls
-        | None :: _, []              -> assert false
         | Some i :: arguments, pls    -> get_implicit i :: aux arguments pls in
       let a = aux arguments pls in
       a, pimp_c, !implicits

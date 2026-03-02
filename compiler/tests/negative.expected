@@ -1453,6 +1453,10 @@ internal compilation error:
   unrolling: loop iterator too small
 Please report at https://github.com/jasmin-lang/jasmin/issues
 
+fail/x86-64/bug_1366.jazz:
+
+"fail/x86-64/bug_1366.jazz", line 2 (2-21): invalid number of lvalues, 1 provided instead of 2
+
 fail/x86-64/mmx_conflicts.jazz:
 
 compilation error:
@@ -1549,7 +1553,7 @@ Allowed args are:
 
 Statistics:
 	Annots:      0
-	Pretyping:  47
+	Pretyping:  48
 	Parsing:     4
 	Typing:      1
 	Compile:   193
