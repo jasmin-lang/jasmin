@@ -294,7 +294,7 @@ Definition LCntr {E} {XE: ErrEvent -< E}
 Definition LCntrI {E} {XE: ErrEvent -< E}  
   (Sem: linstr_r -> lpoint -> itree E lpoint)
   (fn: funname) (nS nE: nat) (lp0: lpoint) : itree E lpoint :=
-  ITree.iter (@LCntr E XE Sem fn nS nE) lp0.
+  ITree.iter (@LCntr E XE Sem fn nS nE) (fn, nS).
 
 (* the 'global' iteration body for the Linear semantics. *)
 Definition GCntr {E} {XE: ErrEvent -< E}  
@@ -313,8 +313,8 @@ Definition iisem_lcmd_body (lbl: lpoint) :
   itree E (lpoint + lpoint) := GCntr isem_linstr lbl.
 
 (* iterative semantics of a linear program, from any starting point *)
-Definition iisem_lcmd (lbl: lpoint) : itree E lpoint :=
-  ITree.iter iisem_lcmd_body lbl.
+Definition iisem_lcmd (lp : lpoint) : itree E lpoint :=
+  ITree.iter iisem_lcmd_body lp.
 
 (* iterative semantics of a linear function from its entry point *)
 Definition iisem_lfun (fn: funname) : itree E lpoint :=
@@ -362,6 +362,7 @@ End Iterators.
 
 Notation plinfo := (nat * label)%type.
 
+(*
 (* maps a point to a left (continue) or right (exit) return value,
    depending on whether it satisfies P *)
 Definition ret_lp_select {L: Type} {PC: L -> lpoint}
@@ -388,9 +389,12 @@ Fixpoint nat_kt_switch {L: Type} {PC: L -> lpoint} {E} {T} (t: T)
   | (n0 :: ns0, k0 :: ks0) =>  
       if (snd (PC s)) < n0 then k0 s
       else @nat_kt_switch L PC E T t ns0 ks0 s end.
+*)
 
 (* sequentialize the application of lsem_instr within a function. used
-   to map lsem_instr to commands *)
+   to map lsem_instr to commands 
+USELESS *)
+(*
 Fixpoint lsem_c {L: Type} {PC: L -> lpoint}
   {E} {XE: ErrEvent -< E} (R: instr -> L -> itree E L)
   (fn: funname) (cc: cmd) (s: L) : itree E L :=
@@ -401,10 +405,12 @@ Fixpoint lsem_c {L: Type} {PC: L -> lpoint}
      | i :: cc0 => s' <- R i s ;;
                    @lsem_c L PC E XE R fn cc0 s' end
   else throw err.     
+*)
 
 (* applies nat_kt_switch to produce an iterative body out of a list of
    alternatives; the exit point is determined by the interval (nS, nE)
    in the linear code of fn *)
+(*
 Definition ktree_switch_n {L: Type} {PC: L -> lpoint}
   {E} {XE: ErrEvent -< E}
   (fn: funname) (nS nE: nat)
@@ -432,25 +438,102 @@ Definition ktree_switch {L: Type} {PC: L -> lpoint}
   then @nat_kt_switch L PC E (L + L)
           (inr s0) ls (map RSLift ks) s0
   else Ret (inr s0).         
+*)
 
 
-Definition lsem_instr 
-  (fn0: funname) (pl0 pl1: plinfo)
-  (lt : LTree fn0 pl0 pl1) (l0: lpoint) : itree E lpoint :=
+Notation LCall := (callE funname unit).
+
+(*
+Definition LLeaf_ok (fn fn0 : funname) (li: linstr) : bool :=
+ if (fn == fn0) 
+ then match li with
+      | MkLI ii (Lopn xs o es) => true 
+      | MkLI ii (Lsyscall o) => true      
+      | _ => false
+      end
+ else false.   
+*)
+
+Definition LLeaf_ok (li: linstr) : bool :=
+  match li with
+  | MkLI ii (Lopn xs o es) => true 
+  | MkLI ii (Lsyscall o) => true      
+  | _ => false
+  end.   
+
+Definition LIf1Node_ok (li1 li2: linstr) : bool :=
+  match (li1, li2) with
+  | (MkLI ii0 (Lcond e lbl), MkLI ii1 (Llabel InternalLabel lbl')) =>
+      lbl == lbl'
+  | _ => false
+  end.         
+
+Definition LCallNode_ok (nb na: nat) (fn: funname)
+  (lcb lca: lcmd) (li1 li2: linstr) :
+  bool :=
+  if (length lcb == nb)
+  then if (length lca == na)   
+       then match (li1, li2) with
+       | (MkLI ii0 (Lcall _ (fn0, xH)),
+           MkLI ii1 (Llabel ExternalLabel _)) => fn == fn0
+       | _ => false
+       end         
+       else false
+  else false.            
+
+(* linear semantics of the source code, for the intermediate
+   representation. assuming lfenv gives the linear code *)
+Fixpoint lsem_i_imed 
+  {E} {XE: ErrEvent -< E}
+  (LS1: linstr_r -> lpoint -> itree (LCall +' E) lpoint)
+  (LSC: lcmd -> itree (LCall +' E) unit)
+  (LS2: funname -> nat -> nat ->
+        lpoint -> itree (LCall +' E) (lpoint + lpoint))
+  (fn: funname) (plS plE: plinfo)
+  (lt : LTree fn plS plE) : itree (LCall +' E) lpoint :=
+  let '(p0, lbl0) := plS in 
+  let LRec := @lsem_cmd_imed E XE LS1 LSC LS2 in
   match lt with
-  | LErrLeaf => throw err
-  | LLeaf li => match li with
-                | Copn xs _ o es => isem_linstr i l0    
-                | Csyscall xs o es => isem_linstr i l0      
-                | _ => throw err
-                end
-  | LLeafL _ -> throw err                
-  | LIf1Node (Lcond e lbl) lc (Llabel InternalLabel lbl') =>
-      match (lbl == lbl') with
+  | LErrLeaf _ => throw err
+  | LLeaf _ (MkLI ii ir) => if LLeaf_ok (MkLI ii ir)
+                            then LS1 ir (fn, p0)
+                            else throw err                                 
+  | LLeafL _ _ => throw err
+  | LIf1Node _ pl1 li1 lc li2 =>
+      match LIf1Node_ok li1 li2 with
       | false => throw err
-      | true => let
-                 
-                
+      | true => 
+          let Bd := fun '(fnA, pA) =>
+                      if (fnA == fn)
+                      then if (pA == p0) then LS2 fn p0 (fst pl1) (fn, pA)
+                           else if (pA == S p0)
+                                then x <- LRec _ _ _ lc ;; Ret (inl x)
+                                else if pA == fst pl1
+                                     then LS2 fn p0 (fst pl1) (fn, pA)
+                                     else Ret (inr (fn, (fst plE)))     
+                      else throw err in
+          ITree.iter Bd (fn, p0) 
+      end
+  | LCallNode _ nb na fn' lcb lca li1 li2 =>
+      match LCallNode_ok nb na fn' lcb lca li1 li2 with
+      | false => throw err  
+      | true => (LSC (lcb ++ [li1])) ;;
+                (trigger_inl1 (Call fn')) ;;
+                LSC (li2 :: lca) ;;
+                Ret (fn, p0 + nb + S (S na))            
+      end 
+  | _ => throw err end
+with lsem_cmd_imed 
+  {E} {XE: ErrEvent -< E}
+  (LS1: linstr_r -> lpoint -> itree (LCall +' E) lpoint)  
+  (LSC: lcmd -> itree (LCall +' E) unit)
+  (LS2: funname -> nat -> nat ->
+        lpoint -> itree (LCall +' E) (lpoint + lpoint))
+  (fn: funname) (plS plE: plinfo)
+  (lt : LTreeList fn plS plE) : itree (LCall +' E) lpoint :=
+  throw err.     
+
+
 
                   
 (* linear semantics of the source code, for the intermediate
