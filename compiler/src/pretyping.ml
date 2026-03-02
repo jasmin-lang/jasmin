@@ -694,7 +694,7 @@ let check_sig_lvs loc sig_ lvs =
 
   List.iter2
     (fun ty (loc, _, lty) -> lty
-      |> Option.may (fun lty -> check_ty_eq ~loc ~from:ty ~to_:lty))
+      |> Option.may (fun lty -> check_ty_eq ~loc ~from:lty ~to_:ty))
      sig_ lvs;
 
   List.map2 (fun ty (_,flv,_) -> flv ty) sig_ lvs
@@ -1375,7 +1375,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     let e3, ty3 = tt_expr ~mode pd env pe3 in
 
     check_ty_eq ~loc:(L.loc pe1) ~from:ty1 ~to_:P.etbool;
-    let ty = max_ty ty2 ty3 |> oget ~exn:(tyerror ~loc:(L.loc pe) (TypeMismatch (ty2, ty3))) in
+    let ty = max_ty ty2 ty3 |> oget ~exn:(tyerror ~loc:(L.loc pe3) (TypeMismatch (ty3, ty2))) in
     P.Pif(P.gty_of_gety ty, e1, e2, e3), ty
 
 and tt_expr_cast pd ?(mode=`AllVar) (env : 'asm Env.env) pe ty =
@@ -1450,7 +1450,7 @@ let tt_param pd (env : 'asm Env.env) _loc (pp : S.pparam) : 'asm Env.env =
   let ty = tt_type pd env pp.ppa_ty in
   let pe, ety = tt_expr ~mode:`OnlyParam pd env pp.S.ppa_init in
 
-  check_ty_eq ~loc:(L.loc pp.ppa_init) ~from:ty ~to_:ety;
+  check_ty_eq ~loc:(L.loc pp.ppa_init) ~from:ety ~to_:ty;
 
   let x = mk_var (L.unloc pp.ppa_name) W.Const ty (L.loc pp.ppa_name) [] in
   let env = Env.Vars.push_param env (x,ety, pe) in
