@@ -498,7 +498,7 @@ Fixpoint lsem_i_imed
   | LLeaf _ (MkLI ii ir) => if LLeaf_ok (MkLI ii ir)
                             then LS1 ir (fn, p0)
                             else throw err                                 
-  | LLeafL _ _ => throw err
+(*  | LLeafL _ _ => throw err *)
   | LIf1Node _ pl1 li1 lc li2 =>
       match LIf1Node_ok li1 li2 with
       | false => throw err

@@ -1081,6 +1081,78 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
   | Cfor _ _ _ => (pl0, nil)
   end.
 
+
+
+Definition linear_l2r_body_prepost (fn: funname)
+  (fi: fun_info) (e: stk_fun_extra) : (lcmd * lcmd * label) :=
+  let fentry_ii := entry_info_of_fun_info fi in
+  let ret_ii := ret_info_of_fun_info fi in
+  let: (tail, head, lbl) :=  
+     match sf_return_address e with
+     | RAreg r _ =>
+       ( [:: MkLI ret_ii (Ligoto (Rexpr (Fvar (mk_var_i r)))) ]
+       , [:: MkLI fentry_ii (Llabel 1) ]
+       , 2%positive
+       )
+     | RAstack ra_call ra_return z _ =>
+       ( if ra_return is Some ra_return
+         then [:: lload ret_ii (mk_var_i ra_return) rspi z;
+                  MkLI ret_ii (Ligoto (Rexpr (Fvar (mk_var_i ra_return)))) ]
+         else [:: MkLI ret_ii Lret ]
+       , MkLI fentry_ii (Llabel 1) ::
+         (if ra_call is Some ra_call
+          then [:: lstore fentry_ii rspi z (mk_var_i ra_call) ]
+          else [::])
+       , 2%positive
+       )
+     | RAnone =>
+       let sf_sz := (sf_stk_sz e + sf_stk_extra_sz e)%Z in
+       match sf_save_stack e with
+       | SavedStackNone =>
+         ([::], [::], 1%positive)
+       | SavedStackReg x =>
+         (* Tail: R[rsp] := R[x]
+          * Head: R[x] := R[rsp]
+          *       Setup stack.
+          *)
+         let r := mk_var_i x in
+         ( [:: lmove ret_ii rspi r ]
+         , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r
+               (mk_var_i var_tmp)
+         , 1%positive
+         )
+       | SavedStackStk ofs =>
+         (* Tail: Load saved registers.
+          *       R[rsp] := M[R[rsp] + ofs]
+          * Head: R[r] := R[rsp]
+          *       Setup stack.
+          *       M[R[rsp] + ofs] := R[r]
+          *       Push registers to save to the stack.
+          *)
+         let r := mk_var_i var_tmp in
+         ( pop_to_save ret_ii e.(sf_to_save) ofs
+         , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r (mk_var_i var_tmp2)
+             ++ push_to_save fentry_ii e.(sf_to_save) (var_tmp, ofs)
+         , 1%positive)
+       end
+     end
+  in (tail, head, lbl).
+
+Definition linear_l2r_body_core (fn: funname)
+  (fi: fun_info) (e: stk_fun_extra) (body: cmd) :
+  (lcmd * lcmd * lcmd * nat * label * label) :=
+  let: (tail, head, lbl) := linear_l2r_body_prepost fn fi e in
+  let n_pre := List.length head in
+  let: (n1, lbl1, lc1) := linear_l2r_c linear_l2r_i fn body (n_pre, lbl) in
+  (head, tail, lc1, n1, lbl, lbl1).
+
+Definition linear_l2r_bodyA (fn: funname)
+  (fi: fun_info) (e: stk_fun_extra) (body: cmd) : plinfo * lcmd :=
+  let: (head, tail, lc1, n1, lbl, lbl1) :=
+    linear_l2r_body_core fn fi e body in
+  let n_post := List.length tail in
+  (n1 + n_post, lbl1, head ++ lc1 ++ tail).
+
 Definition linear_l2r_body (fn: funname)
   (fi: fun_info) (e: stk_fun_extra) (body: cmd) : plinfo * lcmd :=
   let fentry_ii := entry_info_of_fun_info fi in
@@ -1168,8 +1240,8 @@ Inductive LTree (fn0: funname) : plinfo -> plinfo -> Type :=
 | LErrLeaf : forall pl, LTree pl pl
 | LLeaf : forall pl,
    linstr -> LTree pl (incrP1 pl)
-| LLeafL : forall pl,
-   linstr -> LTree pl (incrPL1 pl)
+(* | LLeafL : forall pl,
+   linstr -> LTree pl (incrPL1 pl) *)
 | LIf1Node : forall pl0 pl1
        (la_cond1: linstr)
        (lcm1: LTreeList (incrP1 pl0) pl1)
@@ -1413,6 +1485,17 @@ Definition imed_cmd (fn0: funname) (cc: cmd) (pl0: plinfo) :
   sigT (fun pl1 => LTreeList fn0 pl0 pl1) :=
   imed_cmd_aux imed_i fn0 cc pl0.
 
+Variant LTreeFun (fn: funname) : Type :=
+  LTFun : forall lbl pl1 (lc1 lc2: lcmd),
+      let n1 := List.length lc1 in
+      forall lt: LTreeList fn (n1, lbl) pl1, LTreeFun. 
+
+Definition imed_fun  (fn: funname)
+  (fi: fun_info) (e: stk_fun_extra) (body: cmd) : LTreeFun fn :=
+  let: (tail, head, lbl) := linear_l2r_body_prepost fn fi e in
+  let X1 := @imed_cmd fn body (List.length head, lbl) in
+  @LTFun fn lbl (projT1 X1) head tail (projT2 X1).
+
 (* the translation from Intermediate to Linear *)
 Fixpoint forget_imed_i
   (fn0: funname) (pl0 pl1: plinfo)
@@ -1423,7 +1506,7 @@ Fixpoint forget_imed_i
   match tl with
   | LErrLeaf _ => (pl1, nil)
   | LLeaf _ li => (pl1, [:: li])
-  | LLeafL _ li => (pl1, [:: li ])
+(*  | LLeafL _ li => (pl1, [:: li ]) *)
   | LIf1Node _ _ la_cond0 tl1 la_lbl0 =>
       let (_, lcm1) := LC _ _ _ tl1 in  
       (pl1, la_cond0 :: (lcm1 ++ [:: la_lbl0]))
