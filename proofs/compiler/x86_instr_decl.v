@@ -1482,7 +1482,7 @@ Definition check_xmm_xmm_imm8 (_:wsize) := [:: [:: xmm; xmm; i U8]].
 
 Definition x86_u128_shift sz' sz (op: word sz' → Z → word sz')
   (v: word sz) (c: word U128) : tpl (w_ty sz) :=
-  lift1_vec sz' (λ v, op v (wunsigned c)) sz v.
+  lift1_vec sz' (λ v, op v (wunsigned (zero_extend U64 c))) sz v.
 
 Arguments x86_u128_shift : clear implicits.
 

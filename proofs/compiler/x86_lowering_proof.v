@@ -449,6 +449,55 @@ Section PROOF.
     by rewrite wand_zero_extend; last exact: wsize_le_U8.
   Qed.
 
+  Lemma wsize_bits_velem (ve: velem) :
+    ((8 <= wsize_bits ve <= 64))%Z.
+  Proof. by case: ve. Qed.
+
+  Lemma check_wide_shift_amountP ve e a s w :
+    check_wide_shift_amount ve e = Some a →
+    sem_pexpr true gd s e = ok w →
+    exists2 n, sem_pexpr true gd s a >>= to_word U128 >>= @truncate_word U64 _ = ok n & w = Vword (zero_extend U128 n).
+  Proof.
+    case: e => // - [] // [] //.
+    - case => // z /=; case: andP; last by [].
+      case => /ZleP hz0 /ZleP hz /Some_inj <-{a} /ok_inj ?; subst w.
+      rewrite /= truncate_word_le // zero_extend_u /=.
+      eexists; first exact: truncate_word_le.
+      congr (Vword _).
+      apply wunsigned_inj.
+      have z_range : ∀ sz, (0 <= z < wbase sz)%Z.
+      + move => sz.
+        have := wsize_bits_velem ve.
+        have := wbase_m (wsize_le_U8 sz).
+        change (wbase U8) with 256%Z.
+        lia.
+      by rewrite !wunsigned_repr_small.
+    move => arg [] // [] // [] // [] // z /=.
+    case: eqP; last by [].
+    move => ->{z} /Some_inj <-{a}; t_xrbindP => z -> /=.
+    rewrite /sem_sop2 /=; t_xrbindP => n /to_wordI[] sz' [] n' [] ->{z} /truncate_wordP[] hsz' ->{n}.
+    rewrite truncate_word_u => _ /ok_inj <- <-{w} /=.
+    rewrite truncate_word_le; last exact: cmp_le_trans hsz'.
+    eexists; first exact: truncate_word_le.
+    congr (Vword _).
+    rewrite (zero_extend_idem n'); last by [].
+    apply/eqP/eq_from_wbit_n => /= i.
+    rewrite wandE !wbit_zero_extend /=.
+    case: (_ i <= nat127); last by [].
+    case: (wbit_n n' _) => /= ; last by rewrite andbF.
+    rewrite andbT; case: i.
+    by do 128! (case; first by []).
+  Qed.
+
+  Lemma wunsigned_zero_extend_range sz sz' (x: word sz') :
+    (sz ≤ sz')%CMP →
+    (0 <= wunsigned (zero_extend sz x) < wbase sz')%Z.
+  Proof.
+    move => /wbase_m.
+    have := wunsigned_range (zero_extend sz x).
+    lia.
+  Qed.
+
   Lemma lower_cassgn_classifyP e l s s' v ty v' (Hs: sem_pexpr true gd s e = ok v)
       (Hv': truncate_val (eval_atype ty) v = ok v')
       (Hw: write_lval true gd l v' s = ok s'):
@@ -1011,38 +1060,53 @@ Section PROOF.
         rewrite /size_16_32 hle1 (size_128_256_ge hle2).
         by rewrite !truncate_word_le.
       (* Ovlsr ve sz *)
-      + case: ifP => // /andP [/andP [hle1 hle2] hc].
+      + case good_shift: check_wide_shift_amount; last by [].
+        case: ifP => // /andP [/andP [hle1 hle2] hc].
         rewrite /= /sem_sop2 /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype !computational_eq_refl.
         t_xrbindP => v1 ok_v1 v2 ok_v2.
         move => ? /to_wordI' [sz1] [w1] [hw1 ??]; subst.
         move => ? /to_wordI' [sz2] [w2] [hw2 ??]; subst.
         move => ?; subst v.
         move: Hv'; rewrite -(convertible_eval_atype hc) /truncate_val /= truncate_word_u => /ok_inj ?; subst v'.
-        rewrite ok_v1 /= ok_v2 /= /x86_VPSRL /x86_u128_shift /=.
-        rewrite (size_128_256_ge hle2) (size_16_64_ve hle1) /=.
-        by rewrite !truncate_word_le.
+        case: (check_wide_shift_amountP good_shift ok_v2) => v64; t_xrbindP => v128 v ok_v ok_v128.
+        case/truncate_wordP => _ ->{v64}.
+        case/Vword_inj => ?; subst => /= ?; subst.
+        rewrite ok_v1 ok_v (size_16_64_ve hle1) (size_128_256_ge hle2) /=.
+        rewrite !truncate_word_le // ok_v128 /=.
+        rewrite /x86_VPSRL /x86_u128_shift /sem_vshr /= zero_extend_u.
+        by rewrite (wunsigned_repr_small (wunsigned_zero_extend_range _ (erefl (U64 ≤ U128)%CMP))).
       (* Ovlsl ve sz *)
-      + case: ifP => // /andP [/andP [hle1 hle2] hc].
+      + case good_shift: check_wide_shift_amount; last by [].
+        case: ifP => // /andP [/andP [hle1 hle2] hc].
         rewrite /= /sem_sop2 /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype !computational_eq_refl.
         t_xrbindP => v1 ok_v1 v2 ok_v2.
         move => ? /to_wordI' [sz1] [w1] [hw1 ??]; subst.
         move => ? /to_wordI' [sz2] [w2] [hw2 ??]; subst.
         move => ?; subst v.
         move: Hv'; rewrite -(convertible_eval_atype hc) /truncate_val /= truncate_word_u => /ok_inj ?; subst v'.
-        rewrite ok_v1 /= ok_v2 /= /x86_VPSLL /x86_u128_shift /=.
-        rewrite (size_128_256_ge hle2) (size_16_64_ve hle1) /=.
-        by rewrite !truncate_word_le.
+        case: (check_wide_shift_amountP good_shift ok_v2) => v64; t_xrbindP => v128 v ok_v ok_v128.
+        case/truncate_wordP => _ ->{v64}.
+        case/Vword_inj => ?; subst => /= ?; subst.
+        rewrite ok_v1 ok_v (size_16_64_ve hle1) (size_128_256_ge hle2) /=.
+        rewrite !truncate_word_le // ok_v128 /=.
+        rewrite /x86_VPSLL /x86_u128_shift /sem_vshl /= zero_extend_u.
+        by rewrite (wunsigned_repr_small (wunsigned_zero_extend_range _ (erefl (U64 ≤ U128)%CMP))).
       (* Ovasr ve sz *)
-      + case: ifP => // /andP [/andP [hle1 hle2] hc].
+      + case good_shift: check_wide_shift_amount; last by [].
+        case: ifP => // /andP [/andP [hle1 hle2] hc].
         rewrite /= /sem_sop2 /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype !computational_eq_refl.
         t_xrbindP => v1 ok_v1 v2 ok_v2.
         move => ? /to_wordI' [sz1] [w1] [hw1 ??]; subst.
         move => ? /to_wordI' [sz2] [w2] [hw2 ??]; subst.
         move => ?; subst v.
         move: Hv'; rewrite -(convertible_eval_atype hc) /truncate_val /= truncate_word_u => /ok_inj ?; subst v'.
-        rewrite ok_v1 /= ok_v2 /= /x86_VPSRA /x86_u128_shift /=.
-        rewrite (size_128_256_ge hle2) hle1 /=.
-        by rewrite !truncate_word_le.
+        case: (check_wide_shift_amountP good_shift ok_v2) => v64; t_xrbindP => v128 v ok_v ok_v128.
+        case/truncate_wordP => _ ->{v64}.
+        case/Vword_inj => ?; subst => /= ?; subst.
+        rewrite ok_v1 ok_v hle1 (size_128_256_ge hle2) /=.
+        rewrite !truncate_word_le // ok_v128 /=.
+        rewrite /x86_VPSRA /x86_u128_shift /sem_vsar /= zero_extend_u.
+        by rewrite (wunsigned_repr_small (wunsigned_zero_extend_range _ (erefl (U64 ≤ U128)%CMP))).
     (* PappN *)
     + case: op => // - [] // - [] //.
       case: es => // - [] // [] // [] // [] // hi.
