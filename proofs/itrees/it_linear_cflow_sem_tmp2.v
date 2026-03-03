@@ -331,12 +331,36 @@ Definition isem_lcmd (Hlt: LState -> option bool)
   ITree.iter (isem_lcmd_body Hlt Fnd) lbl.
 
 
+Section HandleStackS.
+  
+Context {writeRA : lpoint -> LState -> LState}
+        {readRA : LState -> lpoint}.
+
+(* AStack handling for Linear *)
+Definition handle_AStackS {T} (e: AStackE T) : itree E T :=
+  match e with    
+  | Push l => st <- trigger (@Get LState) ;;
+              trigger (@Put LState (writeRA l st))
+  | Pop => st <- trigger (@Get LState) ;;
+           Ret (readRA st) 
+  | FindLabel rlbl =>
+      match lfenv (fst rlbl) with
+      | Some lc =>
+          n <- err_result (fun _ => err) (find_label (snd rlbl) lc) ;;
+          Ret (fst rlbl, n)
+      | _ => throw err
+      end             
+  end.   
+
+End HandleStackS.
+
+
 Section HandleStackA.
 
 Context {XSa: @stateE astack -< E}.
 
 (* AStack handling for Linear *)
-Definition handle_AStackL {T} (e: AStackE T) : itree E T :=
+Definition handle_AStackA {T} (e: AStackE T) : itree E T :=
   match e with    
   | Push l => stk <- trigger (@Get astack) ;;
               trigger (@Put astack (l :: stk))
@@ -362,97 +386,7 @@ End Iterators.
 
 Notation plinfo := (nat * label)%type.
 
-(*
-(* maps a point to a left (continue) or right (exit) return value,
-   depending on whether it satisfies P *)
-Definition ret_lp_select {L: Type} {PC: L -> lpoint}
-  E (P: lpoint -> bool) (l0: L) :
-  itree E (L + L) :=
-  if P (PC l0) then Ret (inl l0) else Ret (inr l0).
-
-(* basically, switches between different ktrees, depending on an
-   ordered list of intervals. ls are the (well-ordered) interval
-   end-points; ks are the ktrees *)
-Fixpoint nat_kt_switch_n {E} {T} (t: T)
-  (ls: list nat) (ks: list (nat -> itree E T)) (n: nat) : itree E T :=
-  match (ls, ks) with
-  | (nil, _) => Ret t
-  | (_, nil) => Ret t                
-  | (n0 :: ns0, k0 :: ks0) =>
-    if n < n0 then k0 n0 else nat_kt_switch_n t ns0 ks0 n end.            
-
-Fixpoint nat_kt_switch {L: Type} {PC: L -> lpoint} {E} {T} (t: T)
-  (ls: list nat) (ks: list (L -> itree E T)) (s: L) : itree E T :=
-  match (ls, ks) with
-  | (nil, _) => Ret t
-  | (_, nil) => Ret t                
-  | (n0 :: ns0, k0 :: ks0) =>  
-      if (snd (PC s)) < n0 then k0 s
-      else @nat_kt_switch L PC E T t ns0 ks0 s end.
-*)
-
-(* sequentialize the application of lsem_instr within a function. used
-   to map lsem_instr to commands 
-USELESS *)
-(*
-Fixpoint lsem_c {L: Type} {PC: L -> lpoint}
-  {E} {XE: ErrEvent -< E} (R: instr -> L -> itree E L)
-  (fn: funname) (cc: cmd) (s: L) : itree E L :=
-  let: (fn0, n) := PC s in
-  if fn0 == fn then 
-     match cc with
-     | nil => Ret s
-     | i :: cc0 => s' <- R i s ;;
-                   @lsem_c L PC E XE R fn cc0 s' end
-  else throw err.     
-*)
-
-(* applies nat_kt_switch to produce an iterative body out of a list of
-   alternatives; the exit point is determined by the interval (nS, nE)
-   in the linear code of fn *)
-(*
-Definition ktree_switch_n {L: Type} {PC: L -> lpoint}
-  {E} {XE: ErrEvent -< E}
-  (fn: funname) (nS nE: nat)
-  (ls: list nat) (ks: list (nat -> itree E L))
-  (s0: L) : itree E (L + L) := 
-  let l0 := PC s0 in 
-  let InInterval := lcp_in_interval nS nE in 
-  let RetS := @ret_lp_select L PC E InInterval in
-  let RSLift := fun f n => ITree.bind (f n) RetS in 
-  if InInterval l0 && ((fst l0) == fn)
-  then @nat_kt_switch_n E (L + L)
-          (inr s0) ls (map RSLift ks) (snd l0)
-  else Ret (inr s0).         
-
-Definition ktree_switch {L: Type} {PC: L -> lpoint}
-  {E} {XE: ErrEvent -< E} 
-  (fn: funname) (nS nE: nat)
-  (ls: list nat) (ks: list (L -> itree E L))
-  (s0: L) : itree E (L + L) :=
-  let l0 := PC s0 in 
-  let InInterval := lcp_in_interval nS nE in
-  let RetS := @ret_lp_select L PC E InInterval in
-  let RSLift := fun f n => ITree.bind (f n) RetS in 
-  if InInterval l0 && ((fst l0) == fn)
-  then @nat_kt_switch L PC E (L + L)
-          (inr s0) ls (map RSLift ks) s0
-  else Ret (inr s0).         
-*)
-
-
 Notation LCall := (callE funname unit).
-
-(*
-Definition LLeaf_ok (fn fn0 : funname) (li: linstr) : bool :=
- if (fn == fn0) 
- then match li with
-      | MkLI ii (Lopn xs o es) => true 
-      | MkLI ii (Lsyscall o) => true      
-      | _ => false
-      end
- else false.   
-*)
 
 Definition LLeaf_ok (li: linstr) : bool :=
   match li with
@@ -533,63 +467,20 @@ with lsem_cmd_imed
   (lt : LTreeList fn plS plE) : itree (LCall +' E) lpoint :=
   throw err.     
 
+(* linear semantics of source functions. l1 is the return address *)
+Definition lsem_fun {E} {XE: ErrEvent -< E}
+  (LS1: linstr_r -> lpoint -> itree (LCall +' E) lpoint)  
+  (LSC: lcmd -> itree (LCall +' E) unit)
+  (LS2: funname -> nat -> nat ->
+        lpoint -> itree (LCall +' E) (lpoint + lpoint))
+  (fn: funname) (fd: LTreeFun fn) : itree (LCall +' E) lpoint :=
+  match fd with
+  | LTFun lbl pl1 lc1 lc2 lt =>
+      LSC lc1 ;; l <- @lsem_cmd_imed E XE LS1 LSC LS2 _ _ _ lt ;;
+      LSC lc2 ;; Ret l
+  end.                   
+  
+             
+End LinearSem.
 
-
-                  
-(* linear semantics of the source code, for the intermediate
-   representation. assuming lfenv gives the linear code *)
-Fixpoint lsem_instr E {XE: ErrEvent -< E}
-  (LS: funname -> nat -> nat -> S -> itree (LCall +' E) S)
-  (loc_instr : instr -> lcpoint -> nat)
-  (i : instr) (s0: S) : itree (LCall +' E) S :=
-  let l1 := PC s0 in 
-  let: (MkI ii ir) := i in
-  let: (fn, n0) := l1 in
-  let: nE := loc_instr i l1 in
-  let K1 := fun s => let n := snd (PC s) in LS fn n (Datatypes.S n) s in
-  let LocC := fun c nA => localize_cmd loc_instr fn c nA in
-  let LRec := fun c nA =>
-                 lsem_c (lsem_instr LS loc_instr) fn c nA in
-  match ir with
-  | Cassgn x tg ty e => throw err
-
-  | Copn xs tg o es => LS fn n0 nE s0                
-
-  | Csyscall xs o es => LS fn n0 nE s0   
-
-  | Cif e c1 c2 =>
-      let Kc1 := LRec c1 in 
-      let Kc2 := LRec c2 in 
-      let k1_n := LocC c1 in
-      let k2_n := LocC c2 in
-      let n1 := Datatypes.S n0 in
-      let n2 := k2_n n1 in
-      let n3 := Datatypes.S n2 in
-      let n4 := Datatypes.S n3 in
-      let n5 := k1_n n4 in
-      let n6 := Datatypes.S n5 in
-      ITree.iter (ktree_switch fn n0 nE
-        [n1; n2; n3; n4; n5; n6] [K1; Kc2; K1; K1; Kc1; K1]) s0 
-      
-  | Cwhile a c1 e ii0 c2 =>
-      let Kc1 := LRec c1 in 
-      let Kc2 := LRec c2 in 
-      let k1_n := LocC c1 in
-      let k2_n := LocC c2 in
-      let n1 := Datatypes.S n0 in
-      let n2 := Datatypes.S n1 in
-      let n3 := k2_n n2 in
-      let n4 := Datatypes.S n3 in
-      let n5 := Datatypes.S n4 in
-      let n6 := k1_n n5 in
-      let n7 := Datatypes.S n6 in
-      ITree.iter (ktree_switch fn n0 nE
-        [n1; n2; n3; n4; n5; n6; n7] [K1; K1; Kc2; K1; K1; Kc1; K1]) s0 
-
-  | Cfor i (d, lo, hi) c => throw err 
-
-  (* TODO: double-check how to take ReturnTarget into account *) 
-  | Ccall xs fn1 args => trigger_inl1 (Call (fn1, s0))
-                                  
- end.
-
+End Asm1.
