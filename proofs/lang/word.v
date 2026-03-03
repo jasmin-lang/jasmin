@@ -109,6 +109,17 @@ Proof. by case: sz. Qed.
 Lemma wsize_sizeE sz : wsize_size sz =  wsize_bits sz / 8.
 Proof. by case: sz. Qed.
 
+Lemma wsize_bits_wbase sz : 2 ^ wsize_bits sz = wbase sz.
+Proof. by case: sz. Qed.
+
+Lemma log2_wsize_bits sz x :
+  0 <= x < wbase sz →
+  Z.log2 x < wsize_bits sz.
+Proof.
+  case => /Z.le_lteq[]; last by move => <-; clear; case: sz.
+  by move => h0; rewrite -Z.log2_lt_pow2 // -wbaseE.
+Qed.
+
 Lemma wsize_size_pos sz :
   0 < wsize_size sz.
 Proof. done. Qed.
@@ -411,12 +422,45 @@ Lemma wle_refl sz sg (w: word sz) :
 Proof. case: sg; exact: Z.leb_refl. Qed.
 
 Definition wshr sz (x: word sz) (n: Z) : word sz :=
+  mkword sz (Z.shiftr (wunsigned x) (Z.min (wsize_bits sz) n)).
+
+Definition wshr_naive sz (x: word sz) (n: Z) : word sz :=
   mkword sz (Z.shiftr (wunsigned x) n).
 
+Lemma wshr_alt sz (x: word sz) n :
+  wshr x n = wshr_naive x n.
+Proof.
+  rewrite /wshr /wshr_naive.
+  case: (Z.min_spec (wsize_bits sz) n) => - [] h ->; last reflexivity.
+  have hr := wunsigned_range x.
+  have ? := log2_wsize_bits hr.
+  case: hr => ??.
+  rewrite !Z.shiftr_eq_0 //; lia.
+Qed.
+
 Definition wshl sz (x: word sz) (n: Z) : word sz :=
+  mkword sz (Z.shiftl (wunsigned x) (Z.min (wsize_bits sz) n)).
+
+Definition wshl_naive sz (x: word sz) (n: Z) : word sz :=
   mkword sz (Z.shiftl (wunsigned x) n).
 
+Lemma wshl_alt sz (x: word sz) n :
+  wshl x n = wshl_naive x n.
+Proof.
+  rewrite /wshl.
+  case: (Z.min_spec (wsize_bits sz) n) => - [] h ->; last reflexivity.
+  have h0 : 0 <= wsize_bits sz by case: (sz).
+  rewrite /wshl_naive -!/(wrepr sz _).
+  have -> : n = wsize_bits sz + (n - wsize_bits sz) by lia.
+  rewrite -Z.shiftl_shiftl //.
+  rewrite !Z.shiftl_mul_pow2; only 2, 3: lia.
+  by rewrite !wrepr_mul wsize_bits_wbase wreprB mulr0 mul0r.
+Qed.
+
 Definition wsar sz (x: word sz) (n: Z) : word sz :=
+  mkword sz (Z.shiftr (wsigned x) (Z.min (wsize_bits sz) n)).
+
+Definition wsar_naive sz (x: word sz) (n: Z) : word sz :=
   mkword sz (Z.shiftr (wsigned x) n).
 
 Definition high_bits sz (n : Z) : word sz :=
@@ -477,6 +521,30 @@ Proof. by case: szi; case: szo. Qed.
 
 Lemma half_modulues_pos sz : (0 < half_modulus sz)%Z.
 Proof. by case: sz. Qed.
+
+Lemma wsar_alt sz (x: word sz) n :
+  wsar x n = wsar_naive x n.
+Proof.
+  rewrite /wsar /wsar_naive.
+  case: (Z.min_spec (wsize_bits sz) n) => - [] h ->; last reflexivity.
+  have [h0 hx] := wsigned_range x.
+  case: (Z.neg_nonneg_cases (wsigned x)); last first.
+  + move => {}h0.
+    have hr : 0 <= wsigned x < wbase sz.
+    - move: hx; rewrite /wmax_signed wbase_twice_half; lia.
+    have ? := log2_wsize_bits hr.
+    rewrite !Z.shiftr_eq_0 //.
+    lia.
+  move => {}hx.
+  have hr : 0 <= -wsigned x < wbase sz.
+  - move: h0; rewrite /wmin_signed wbase_twice_half; lia.
+  have hrlog := log2_wsize_bits hr.
+  have ? : 0 <= wsize_bits sz by case: (sz).
+  have ? : 0 <= n by lia.
+  rewrite !Z.shiftr_div_pow2 // -(Z.opp_involutive (wsigned x)) !(Z.div_opp_l_nz (- wsigned x)); only 2, 4: lia.
+  + rewrite -!Z.shiftr_div_pow2 // !Z.shiftr_eq_0 //; lia.
+  all: rewrite Z.mod_small ?Z.log2_lt_pow2; lia.
+Qed.
 
 Notation u8   := (word U8).
 Notation u16  := (word U16).
@@ -582,7 +650,7 @@ Lemma wshrE sz (x: word sz) c i :
   wbit_n (wshr x c) i = wbit_n x (Z.to_nat c + i).
 Proof.
   move/Z2Nat.id => {1}<-.
-  rewrite /wshr -urepr_lsr ureprK.
+  rewrite wshr_alt /wshr_naive -urepr_lsr ureprK.
   exact: wbit_lsr.
 Qed.
 
@@ -600,7 +668,7 @@ Proof.
   rewrite -(Z.mod_small (wunsigned x / 2 ^ Z.of_nat c) (modulus sz)) //.
   rewrite -wunsigned_repr.
   congr wunsigned.
-  rewrite /wshr -urepr_lsr ureprK.
+  rewrite wshr_alt /wshr_naive -urepr_lsr ureprK.
   apply/eqP/eq_from_wbit_n => i.
   rewrite /wbit_n wbit_lsr wunsigned_repr /wbit.
   rewrite Z.mod_small //.
@@ -614,7 +682,7 @@ Lemma wshlE sz (w: word sz) c i :
   wbit_n (wshl w c) i = (Z.to_nat c <= i <= wsize_size_minus_1 sz)%nat && wbit_n w (i - Z.to_nat c).
 Proof.
   move/Z2Nat.id => {1}<-.
-  rewrite /wbit_n /wshl /=.
+  rewrite /wbit_n wshl_alt /wshl_naive /=.
   case: leP => hic /=;
     last (rewrite wbit_lsl_lo //; apply/leP; lia).
   have eqi : (Z.to_nat c + (i - Z.to_nat c))%nat = i.
@@ -629,7 +697,7 @@ Local Ltac lia :=
 Lemma wunsigned_wshl sz (x: word sz) c :
   wunsigned (wshl x (Z.of_nat c)) = (wunsigned x * 2 ^ Z.of_nat c) mod wbase sz.
 Proof.
-  rewrite -wunsigned_repr.
+  rewrite -wunsigned_repr wshl_alt.
   congr wunsigned.
   apply/eqP/eq_from_wbit_n => i.
   rewrite /wbit_n wunsigned_repr /modulus two_power_nat_equiv.
