@@ -109,7 +109,7 @@ Section E.
         by have := wunsigned_range w2; Lia.lia.
       + rewrite /mk_sem_wishift; case: si => /= w1 -> w2 -> > /=;
         move=> /wint_of_intP [-> ?] <-;  (eexists; first reflexivity) => /=;
-        rewrite /sem_sar /sem_shr /sem_shift /wsar /wshr /zasr /zlsl;
+        rewrite /sem_sar /sem_shr /sem_shift ?wsar_alt /wsar_naive ?wshr_alt /wshr_naive /zasr /zlsl;
         have [h _ ] := wunsigned_range w2;
         (case: ZleP;
         [ case/Zle_lt_or_eq: h; first Lia.lia;
