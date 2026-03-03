@@ -210,6 +210,15 @@ Definition mulr sz a b :=
         else None
     | _ => None end.
 
+  Definition check_wide_shift_amount (ve: velem) e :=
+    match e with
+    | Papp1 (Oword_of_int U128) (Pconst z) => if ((0 <=? z) && (z <=? wsize_bits ve))%Z then Some e else None
+    | Papp2 (Oland U128) a (Papp1 (Oword_of_int U128) (Pconst z)) =>
+        if z == wmax_unsigned U64 then Some a
+        else None
+    | _ => None
+    end.
+
 Definition check_signed_range (m: option wsize) sz' (n: Z) : bool :=
   if m is Some ws then (
       let z := wsigned (wrepr sz' n) in
@@ -364,11 +373,17 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
     | Ovmul ve sz =>
       kb ((U16 ≤ ve) && (wsize_of_velem ve ≤ U32) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPMULL ve sz)) [::a; b])
     | Ovlsl ve sz =>
-      kb ((U16 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPSLL ve sz)) [::a; b])
+      if check_wide_shift_amount ve b is Some b then
+        kb ((U16 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPSLL ve sz)) [::a; b])
+      else LowerAssgn
     | Ovlsr ve sz =>
-      kb ((U16 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPSRL ve sz)) [::a; b])
+      if check_wide_shift_amount ve b is Some b then
+        kb ((U16 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPSRL ve sz)) [::a; b])
+      else LowerAssgn
     | Ovasr ve sz =>
-      kb ((size_16_32 ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPSRA ve sz)) [::a; b])
+      if check_wide_shift_amount ve b is Some b then
+        kb ((size_16_32 ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPSRA ve sz)) [::a; b])
+      else LowerAssgn
 
     | _ => LowerAssgn
     end
