@@ -48,28 +48,26 @@ Definition lcp_in_interval (nS nE: nat) (l1: lpoint) : bool :=
   match l1 with
   | (_, n0) => (nS <= n0) && (n0 < nE) end. 
 
-(* abstract stack *)
-Definition astack := list lpoint.
-
-(* Push and Pop are only needed in the Linear semantics, to model
-   control-flow while abstracting from the state. In the Intermediate
-   one, we can model control-flow without maintaining a stack as we
-   have recursive calls. So in there these events should disappear (by
-   interpreting them as skips). FindLabel might need to be interpreted
+(* FindLabel might need to be interpreted
    differently in Linear and Intermediate, too.  Basically: need to be
    interpreted in both Linear and Intermediate, but possibly in
-   different ways.  *)
-Variant AStackE : Type -> Type :=
-  | Push (l: lpoint) : AStackE unit
-  | Pop : AStackE lpoint
-  | FindLabel (lbl: remote_label) : AStackE lpoint. 
+   different ways. *)
+Variant LFindE : Type -> Type :=
+  | FindLabel (lbl: remote_label) : LFindE lpoint. 
+
+(* JumpForth and JumpBack can be used in the Linear semantics, to
+   model control-flow while abstracting from the state. In the
+   Intermediate one, they are not needed anyway.  *)
+Variant LFunE : Type -> Type :=
+  | JumpForth (l: lpoint) (lbl: remote_label) : LFunE lpoint
+  | JumpBack : LFunE lpoint.
 
 (* Linear actions we are currently abstracting on (might ultimately
    replaced by parameters). Need to be interpreted only for the
-   comparison with Source. *)
+   comparison with Source.  *)
 Variant LEvalE : Type -> Type :=
   | EvalLoc (e: rexpr) : LEvalE remote_label
-  | EvalExp (e: fexpr) : LEvalE bool.
+  | EvalExp (e: fexpr) : LEvalE bool. 
 
 (* Ultimately, both the abstract pc (as an lpoint) and the abtract
    stack will come from the lstate and should agree it. This are
@@ -155,7 +153,7 @@ Section LinearSem.
   
 Context (LState: Type) (LS_I : LinSem LState).
 
-Context {E} {XA: AStackE -< E} {XL: LEvalE -< E }
+Context {E} {XF: LFindE -< E} {XA: LFunE -< E} {XL: LEvalE -< E }
             {XSl: @stateE LState -< E} {XE: ErrEvent -< E}.
 
 (* core semantics of linear instructions, abstracting LState in
@@ -170,8 +168,10 @@ Definition isem_i_lflow (ir : linstr_r) (l0 : lpoint) : itree E lpoint :=
   match ir with
   | Lopn xs o es => Ret (incr_lpoint l0)
   | Lsyscall o => Ret (incr_lpoint l0)
-  | Lcall o d => trigger (Push (incr_lpoint l0)) ;; trigger (FindLabel d)
-  | Lret => trigger Pop
+  | Lcall o d => trigger (JumpForth (incr_lpoint l0) d)
+  | Lret => trigger JumpBack 
+(*  | Lcall o d => trigger (Push (incr_lpoint l0)) ;; trigger (FindLabel d) 
+  | Lret => trigger Pop *)
   | Lalign => Ret (incr_lpoint l0)
   | Llabel x y => Ret (incr_lpoint l0)
   | Lgoto d => trigger (FindLabel d)
@@ -331,18 +331,9 @@ Definition isem_lcmd (Hlt: LState -> option bool)
   ITree.iter (isem_lcmd_body Hlt Fnd) lbl.
 
 
-Section HandleStackS.
-  
-Context {writeRA : lpoint -> LState -> LState}
-        {readRA : LState -> lpoint}.
-
-(* AStack handling for Linear *)
-Definition handle_AStackS {T} (e: AStackE T) : itree E T :=
+(* LFindE handling *)
+Definition handle_LFind {T} (e: LFindE T) : itree E T :=
   match e with    
-  | Push l => st <- trigger (@Get LState) ;;
-              trigger (@Put LState (writeRA l st))
-  | Pop => st <- trigger (@Get LState) ;;
-           Ret (readRA st) 
   | FindLabel rlbl =>
       match lfenv (fst rlbl) with
       | Some lc =>
@@ -352,29 +343,42 @@ Definition handle_AStackS {T} (e: AStackE T) : itree E T :=
       end             
   end.   
 
+
+Section HandleStackS.
+  
+Context {readRA : LState -> lpoint}.
+
+(* LFunE handling for Linear *)
+Definition handle_LFunS {T} (e: LFunE T) : itree E T :=
+  match e with    
+  | JumpForth l rlbl => st <- trigger (@Get LState) ;;
+                  match (readRA st == l) with
+                  | true => trigger (FindLabel rlbl)
+                  | _ => throw err
+                  end     
+  | JumpBack => st <- trigger (@Get LState) ;; Ret (readRA st) 
+  end.   
+
 End HandleStackS.
 
+
+(* abstract stack *)
+Definition astack := list lpoint.
 
 Section HandleStackA.
 
 Context {XSa: @stateE astack -< E}.
 
 (* AStack handling for Linear *)
-Definition handle_AStackA {T} (e: AStackE T) : itree E T :=
+Definition handle_AStackA {T} (e: LFunE T) : itree E T :=
   match e with    
-  | Push l => stk <- trigger (@Get astack) ;;
-              trigger (@Put astack (l :: stk))
-  | Pop => stk <- trigger (@Get astack) ;;
+  | JumpForth l rlbl => stk <- trigger (@Get astack) ;;
+                        trigger (@Put astack (l :: stk)) ;;
+                         trigger (FindLabel rlbl)
+  | JumpBack => stk <- trigger (@Get astack) ;;
            match stk with
            | nil => throw err
            | l0 :: ls => trigger (@Put astack ls) ;; Ret l0 end
-  | FindLabel rlbl =>
-      match lfenv (fst rlbl) with
-      | Some lc =>
-          n <- err_result (fun _ => err) (find_label (snd rlbl) lc) ;;
-          Ret (fst rlbl, n)
-      | _ => throw err
-      end             
   end.   
 
 End HandleStackA.
