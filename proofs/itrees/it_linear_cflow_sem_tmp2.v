@@ -76,6 +76,8 @@ Variant LEvalE : Type -> Type :=
 
 Section Asm1.  
 
+Notation plinfo := (nat * label)%type.
+
 Context  {asm_op: Type}
          {syscall_state : Type}
          {sip : SemInstrParams asm_op syscall_state}.  
@@ -203,9 +205,26 @@ Definition isem_i_lplain (PC: LState -> lpoint) (i : linstr_r) :
 
 Section Iterators.
 
-(* the output of the linearization pass; should use linear_l2r_fd *)
-Notation LFEnv := (funname -> option lcmd). 
-Context (lfenv: LFEnv).
+(* the output of the linearization pass; lfenv should be defined using
+   linear_l2r_fd and imed_fun. then the axiom holds by
+   forget_imed_fun_ok. *)
+Notation GLFEnv :=
+    (forall fn: funname, option (plinfo * lfundef * LTreeFun fn)). 
+Context (glfenv: GLFEnv).
+Context (GLFEnvAx : forall (fn: funname) pl fd lt,
+            glfenv fn = Some (pl, fd, lt) ->
+            forget_imed_fun lt = (pl, lfd_body fd)).
+
+Notation LFEnv := (funname -> option lcmd).
+Notation IFEnv := (forall fn: funname, option (LTreeFun fn)).
+
+Definition lfenv : LFEnv := fun fn => match glfenv fn with
+                       | Some (_, fd, _) => Some (lfd_body fd)
+                       | _ => None end.                              
+
+Definition ifenv : IFEnv := fun fn => match glfenv fn with
+                       | Some (_, _, lt) => Some lt
+                       | _ => None end.                              
 
 Definition halt_pred (l: lpoint) : option bool :=
   let fn := fst l in
@@ -387,8 +406,6 @@ End Iterators.
 
 
 (*******************************************************************)
-
-Notation plinfo := (nat * label)%type.
 
 Notation LCall := (callE funname unit).
 
