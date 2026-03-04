@@ -187,6 +187,13 @@ end.
 Definition isem_li_flow (i : linstr_r) (l0: lpoint) : itree E lpoint :=
   isem_li_acore i ;; instrum_lflow i l0.
 
+(* only meaningful when lcmd is straightline code *)
+Fixpoint isem_lcmd_acore (lc: lcmd) : itree E unit :=
+  match lc with
+  | nil => Ret tt
+  | (MkLI ii li) :: lc0 => isem_li_acore li ;; isem_lcmd_acore lc0
+  end.             
+
 
 Section Iterators.
 
@@ -313,24 +320,28 @@ Definition GCntrI {E} {XE: ErrEvent -< E}
   (lp0: lpoint) : itree E lpoint :=
   ITree.iter (@GCntr E XE Sem) lp0.
 
-(* iterative semantics body *)
+(***** LINEAR SEMANTICS *)
+
+(* iterative flow semantics body *)
 Definition isem_lcmd_flow_body (lbl: lpoint) :
   itree E (lpoint + lpoint) := GCntr isem_li_flow lbl.
 
-(* iterative semantics of a linear program, from any starting point *)
+(* iterative flow semantics of a linear program, from any starting point *)
 Definition isem_lcmd_flow (lp : lpoint) : itree E lpoint :=
   ITree.iter isem_lcmd_flow_body lp.
 
-(* iterative semantics of a linear function from its entry point *)
+(* iterative flow semantics of a linear function from its entry point
+*)
 Definition isem_lfun_flow (fn: funname) : itree E lpoint :=
   isem_lcmd_flow (fn, 0).
 
-(* stateful iterative semantics body *)
+(* iterative core semantics body, relying on Hlt (halting condition)
+   and Fnd (to find the next instruction from the state) *)
 Definition isem_lcmd_core_body (Hlt: LState -> option bool)
   (Fnd: LState -> option linstr) (lbl: LState) :
   itree E (LState + LState) := ACntr isem_li_core Hlt Fnd lbl.
 
-(* stateful iterative semantics of a linear program, from any state *)
+(* iterative core semantics of a linear program, from any state *)
 Definition isem_lcmd_core (Hlt: LState -> option bool)
   (Fnd: LState -> option linstr) (lbl: LState) : itree E LState :=
   ITree.iter (isem_lcmd_core_body Hlt Fnd) lbl.
@@ -391,7 +402,8 @@ End HandleStackA.
 End Iterators.
 
 
-(*******************************************************************)
+
+(***** INTERMEDIATE SEMANTICS *)
 
 Notation LCall := (callE funname unit).
 
@@ -422,8 +434,10 @@ Definition LCallNode_ok (nb na: nat) (fn: funname)
        else false
   else false.            
 
-(* linear semantics of the source code, for the intermediate
-   representation. assuming lfenv gives the linear code *)
+(* intermediate semantics of instructions.
+   LS1 -> isem_li_flow
+   LC -> binding isem_li_acore 
+   LS2 ->  LCntr isem_li_flow *)
 Fixpoint lsem_i_imed 
   {E} {XE: ErrEvent -< E}
   (LS1: linstr_r -> lpoint -> itree (LCall +' E) lpoint)
@@ -487,7 +501,13 @@ Definition lsem_fun {E} {XE: ErrEvent -< E}
       LSC lc2 ;; Ret l
   end.                   
   
-             
+
+(* TODO: 
+define LRec handler
+fix instrumentation wrt PC, using a parameter readPC
+*)
+
+
 End LinearSem.
 
 End Asm1.
