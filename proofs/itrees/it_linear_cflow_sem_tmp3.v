@@ -531,7 +531,8 @@ End Asm1.
 
 
 (* TODO: 
-fix instrumentation wrt PC, using a parameter readPC
+Check the parameters of the core semantics. 
+Complete lsem_i_imed.
 *)
 
 (*
