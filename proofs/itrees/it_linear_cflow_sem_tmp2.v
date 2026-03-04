@@ -422,8 +422,6 @@ Notation LCall := (callE funname lpoint).
 
 Context {E} {XE: ErrEvent -< E}.
 
-(***** INTERMEDIATE SEMANTICS *)
-
 (* intermediate semantics of instructions.
    LS1 -> isem_li_flow
    LC -> binding isem_li_acore 
@@ -498,13 +496,11 @@ Definition lsem_fun_imed
   fd <- err_def_option (ifenv fn) ;;
   lsem_fun_imed_aux LS1 LSC LS2 fd.
 
-(* TODO: 
-fix instrumentation wrt PC, using a parameter readPC
-*)
+
+(***** INTERMEDIATE SEMANTICS *)
 
 Section InterSemDef.
-
-Context {XF: LFindE -< E} {XA: LFunE -< E} {XL: LEvalE -< E }
+  Context {XF: LFindE -< E} {XA: LFunE -< E} {XL: LEvalE -< E }
         {XSl: @stateE LState -< E}.
   
 Definition lsem_i_imedI  
@@ -527,7 +523,8 @@ Definition handle_LRec : LCall ~> itree (LCall +' E) :=
    | Call fn => lsem_fun_imedI fn
    end.                            
 
-Definition lsem_imed (fn: funname) (plS plE: plinfo)
+(* LRec interpretation *)
+Definition lsem_imed_rec (fn: funname) (plS plE: plinfo)
   (lt : LTreeList fn plS plE) : itree E lpoint := 
   interp_mrec handle_LRec (lsem_cmd_imedI lt).
 
@@ -539,6 +536,10 @@ End LinSemContext.
 
 End Asm1.
 
+
+(* TODO: 
+fix instrumentation wrt PC, using a parameter readPC
+*)
 
 (*
 Definition LACntr {L: Type} {PC: L -> lpoint} {E} {XE: ErrEvent -< E}  
