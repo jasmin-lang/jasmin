@@ -48,36 +48,20 @@ Definition lcp_in_interval (nS nE: nat) (l1: lpoint) : bool :=
   match l1 with
   | (_, n0) => (nS <= n0) && (n0 < nE) end. 
 
-(* FindLabel is interpereted in Linear, but GLFEnvAx makes this agree
+(* FindLabel is interpreted in Linear, but GLFEnvAx makes this agree
    with Intermediate. *)
 Variant LFindE : Type -> Type :=
   | FindLabelE (lbl: remote_label) : LFindE lpoint. 
 
+(* events mainly used to intstrument the Linear semantics (though
+   EvalLoc and EvalExp play a role also in Intermediate) *)
 Variant LEvalE : Type -> Type :=
   | RA_readE : LEvalE lpoint
-  | RA_isE (x: lpoint) : LEvalE lpoint                    
-  | PC_isE (x: lpoint) : LEvalE lpoint
+  | RA_isE (x: lpoint) : LEvalE unit                    
+  | PC_isE (x: lpoint) : LEvalE unit
   | EvalLocE (e: rexpr) : LEvalE remote_label
   | EvalExpE (e: fexpr) : LEvalE bool. 
                               
-                              
-(* JumpForth and JumpBack are used to instrument the Linear semantics;
-   two possible interpretations: directly with LState, or more
-   abstractly with astack.  *)
-(*
-Variant LFunE : Type -> Type :=
-  | JumpForth (l: lpoint) (lbl: remote_label) : LFunE lpoint
-  | JumpBack : LFunE lpoint.
-*)
-
-(* Linear actions we are abstracting on (might be ultimately replaced
-   by parameters). Need to be interpreted only for the comparison with
-   Source.  *)
-(*
-Variant LEvalE : Type -> Type :=
-  | EvalLoc (e: rexpr) : LEvalE remote_label
-  | EvalExp (e: fexpr) : LEvalE bool. 
-*)
 
 Section Asm1.  
 
@@ -206,9 +190,9 @@ Notation EvalLoc x := (trigger (EvalLocE x)).
 Notation EvalExp x := (trigger (EvalExpE x)).
 Notation FindLabel x := (trigger (FindLabelE x)).
 
-(* instrumenting semantics of control-flow abstraction, used to
-   instrument the core one *)
-Definition instrum_lflow (t: itree E unit)
+(* instrumented semantics, used to highlight control flow information
+   on top of the core semantics *)
+Definition lflow_abs (t: itree E unit)
   (ir : linstr_r) (l0 : lpoint) : itree E lpoint :=
   match ir with
   | Lopn xs o es => t ;; PC_ret (incr_lpoint l0)
@@ -230,9 +214,10 @@ end.
 (* semantics of linear instruction, instrumented with control-flow
    abstraction *)
 Definition isem_li_flow (i : linstr_r) (l0: lpoint) : itree E lpoint :=
-  PC_is l0 ;; instrum_lflow (isem_li_acore i) i l0.
+  PC_is l0 ;; lflow_abs (isem_li_acore i) i l0.
 
-(* only meaningful when lcmd is straightline code *)
+(* similar for linear commands; only meaningful when lcmd is
+   straightline code (used in Intermediate) *)
 Fixpoint isem_lcmd_acore (lc: lcmd) : itree E unit :=
   match lc with
   | nil => Ret tt
@@ -366,44 +351,31 @@ Definition handle_LFind {T} (e: LFindE T) : itree E T :=
   end.   
 
 
-Section HandleLFunS.
+Section HandleLEval.
   
-Context {readRA : LState -> lpoint} {readPC: LState -> lpoint}.
+Context {readRA : LState -> lpoint} {readPC: LState -> lpoint}
+        {evalLoc : LState -> rexpr -> remote_label}
+        {evalExp : LState -> fexpr -> bool}.
 
-(* LFunE handling for Linear *)
-Definition handle_LFunS {T} (e: LFunE T) : itree E T :=
+(* LEvalE handling for Linear and Intermediate *)
+Definition handle_LEval {T} (e: LEvalE T) : itree E T :=
   match e with    
-  | JumpForth l rlbl => st <- trigger (@Get LState) ;;
+  | RA_readE => st <- trigger (@Get LState) ;; Ret (readRA st) 
+  | RA_isE l => st <- trigger (@Get LState) ;;
                   match (readRA st == l) with
-                  | true => trigger (FindLabel rlbl)
+                  | true => Ret tt
                   | _ => throw err
                   end     
-  | JumpBack => st <- trigger (@Get LState) ;; Ret (readRA st) 
+  | PC_isE l => st <- trigger (@Get LState) ;;
+                  match (readPC st == l) with
+                  | true => Ret tt
+                  | _ => throw err
+                  end
+  | EvalLocE e => st <- trigger (@Get LState) ;; Ret (evalLoc st e)            
+  | EvalExpE e => st <- trigger (@Get LState) ;; Ret (evalExp st e)            
   end.   
 
-End HandleLFunS.
-
-
-Section HandleLFunA.
-
-(* version with abstract stack *)
-Notation astack := (list lpoint).
-  
-Context {XSa: @stateE astack -< E}.
-
-(* AStack handling for Linear *)
-Definition handle_AStackA {T} (e: LFunE T) : itree E T :=
-  match e with    
-  | JumpForth l rlbl => stk <- trigger (@Get astack) ;;
-                        trigger (@Put astack (l :: stk)) ;;
-                         trigger (FindLabel rlbl)
-  | JumpBack => stk <- trigger (@Get astack) ;;
-           match stk with
-           | nil => throw err
-           | l0 :: ls => trigger (@Put astack ls) ;; Ret l0 end
-  end.   
-
-End HandleLFunA.
+End HandleLEval.
 
 End LinSemIT.
 
@@ -522,8 +494,7 @@ Definition lsem_fun_imed
 (***** INTERMEDIATE SEMANTICS *)
 
 Section InterSemDef.
-  Context {XF: LFindE -< E} {XA: LFunE -< E} {XL: LEvalE -< E }
-        {XSl: @stateE LState -< E}.
+Context {XF: LFindE -< E} {XL: LEvalE -< E } {XSl: @stateE LState -< E}.
   
 Definition lsem_i_imedI  
   (fn: funname) (plS plE: plinfo)
