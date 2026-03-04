@@ -48,9 +48,8 @@ Definition lcp_in_interval (nS nE: nat) (l1: lpoint) : bool :=
   match l1 with
   | (_, n0) => (nS <= n0) && (n0 < nE) end. 
 
-(* FindLabel could be interpreted differently in Linear and
-   Intermediate (using LFenv and IFEnv; anyway, GLFEnvAx makes the
-   difference inessential). *)
+(* FindLabel is interpereted in Linear, but GLFEnvAx makes this agree
+   with Intermediate. *)
 Variant LFindE : Type -> Type :=
   | FindLabel (lbl: remote_label) : LFindE lpoint. 
 
@@ -332,7 +331,7 @@ Definition isem_lcmd_core (Hlt: LState -> option bool)
 
 (***** HANDLERS *)
 
-(* LFindE handling (here defined wrt lfenv ) *)
+(* LFindE handling (defined wrt lfenv ) *)
 Definition handle_LFind {T} (e: LFindE T) : itree E T :=
   match e with    
   | FindLabel rlbl =>
@@ -417,7 +416,9 @@ Definition LCallNode_ok (nb na: nat) (fn: funname)
 
 Section InterSemIT.
 
-Notation LCall := (callE funname unit).
+(* the return value is not really used; it is the instruction after
+   the call, but interpretation inlines the function code. *)  
+Notation LCall := (callE funname lpoint).
 
 Context {E} {XE: ErrEvent -< E}.
 
@@ -456,12 +457,12 @@ Fixpoint lsem_i_imed
                       else throw err in
           ITree.iter Bd (fn, p0) 
       end
-  | LCallNode _ nb na fn' lcb lca li1 li2 =>
-      match LCallNode_ok nb na fn' lcb lca li1 li2 with
+  | LCallNode _ nb na fn' lc_bef lc_aft li1 li2 =>
+      match LCallNode_ok nb na fn' lc_bef lc_aft li1 li2 with
       | false => throw err  
-      | true => LSC (lcb ++ [li1]) ;;
+      | true => LSC (lc_bef ++ [li1]) ;;
                 (trigger_inl1 (Call fn')) ;;
-                LSC (li2 :: lca) ;;
+                LSC (li2 :: lc_aft) ;;
                 Ret (fn, p0 + nb + S (S na))            
       end 
   | _ => throw err end
@@ -476,7 +477,7 @@ with lsem_cmd_imed
   throw err.     
 
 (* linear semantics of source functions. l1 is the return address *)
-Definition lsem_fun_imed 
+Definition lsem_fun_imed_aux 
   (LS1: linstr_r -> lpoint -> itree (LCall +' E) lpoint)  
   (LSC: lcmd -> itree (LCall +' E) unit)
   (LS2: funname -> nat -> nat ->
@@ -487,17 +488,24 @@ Definition lsem_fun_imed
       LSC lc1 ;; l <- @lsem_cmd_imed E XE LS1 LSC LS2 _ _ _ lt ;;
       LSC lc2 ;; Ret l
   end.                   
-  
+
+Definition lsem_fun_imed 
+  (LS1: linstr_r -> lpoint -> itree (LCall +' E) lpoint)  
+  (LSC: lcmd -> itree (LCall +' E) unit)
+  (LS2: funname -> nat -> nat ->
+        lpoint -> itree (LCall +' E) (lpoint + lpoint))
+  (fn: funname) : itree (LCall +' E) lpoint :=
+  fd <- err_def_option (ifenv fn) ;;
+  lsem_fun_imed_aux LS1 LSC LS2 fd.
 
 (* TODO: 
-define LRec handler
 fix instrumentation wrt PC, using a parameter readPC
 *)
 
 Section InterSemDef.
 
 Context {XF: LFindE -< E} {XA: LFunE -< E} {XL: LEvalE -< E }
-            {XSl: @stateE LState -< E}.
+        {XSl: @stateE LState -< E}.
   
 Definition lsem_i_imedI  
   (fn: funname) (plS plE: plinfo)
@@ -510,8 +518,18 @@ Definition lsem_cmd_imedI
   lsem_cmd_imed isem_li_flow isem_lcmd_acore (LCntr isem_li_flow) lt.
 
 Definition lsem_fun_imedI  
-  (fn: funname) (fd: LTreeFun fn) : itree (LCall +' E) lpoint :=
-  lsem_fun_imed isem_li_flow isem_lcmd_acore (LCntr isem_li_flow) fd.
+  (fn: funname) : itree (LCall +' E) lpoint :=
+  lsem_fun_imed isem_li_flow isem_lcmd_acore (LCntr isem_li_flow) fn.
+
+Definition handle_LRec : LCall ~> itree (LCall +' E) :=
+  fun T  (rc : callE _ _ T) =>
+   match rc with
+   | Call fn => lsem_fun_imedI fn
+   end.                            
+
+Definition lsem_imed (fn: funname) (plS plE: plinfo)
+  (lt : LTreeList fn plS plE) : itree E lpoint := 
+  interp_mrec handle_LRec (lsem_cmd_imedI lt).
 
 End InterSemDef.
 
