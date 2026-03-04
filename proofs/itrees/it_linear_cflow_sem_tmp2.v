@@ -48,30 +48,25 @@ Definition lcp_in_interval (nS nE: nat) (l1: lpoint) : bool :=
   match l1 with
   | (_, n0) => (nS <= n0) && (n0 < nE) end. 
 
-(* FindLabel might need to be interpreted
-   differently in Linear and Intermediate, too.  Basically: need to be
-   interpreted in both Linear and Intermediate, but possibly in
-   different ways. *)
+(* FindLabel could be interpreted differently in Linear and
+   Intermediate (using LFenv and IFEnv; anyway, GLFEnvAx makes the
+   difference inessential). *)
 Variant LFindE : Type -> Type :=
   | FindLabel (lbl: remote_label) : LFindE lpoint. 
 
-(* JumpForth and JumpBack can be used in the Linear semantics, to
-   model control-flow while abstracting from the state. In the
-   Intermediate one, they are not needed anyway.  *)
+(* JumpForth and JumpBack are used to instrument the Linear semantics;
+   two possible interpretations: directly with LState, or more
+   abstractly with astack.  *)
 Variant LFunE : Type -> Type :=
   | JumpForth (l: lpoint) (lbl: remote_label) : LFunE lpoint
   | JumpBack : LFunE lpoint.
 
-(* Linear actions we are currently abstracting on (might ultimately
-   replaced by parameters). Need to be interpreted only for the
-   comparison with Source.  *)
+(* Linear actions we are abstracting on (might be ultimately replaced
+   by parameters). Need to be interpreted only for the comparison with
+   Source.  *)
 Variant LEvalE : Type -> Type :=
   | EvalLoc (e: rexpr) : LEvalE remote_label
   | EvalExp (e: fexpr) : LEvalE bool. 
-
-(* Ultimately, both the abstract pc (as an lpoint) and the abtract
-   stack will come from the lstate and should agree it. This are
-   invariants that can be treated as internal to Linear.  *)
 
 
 Section Asm1.  
@@ -109,8 +104,8 @@ Section LinSemClass.
 
 Context (S: Type).
 
-(* We use this class to help abstracting over the paramters required
-   by lstate, with which we will instantiate S. *)
+(* We use this class on S to abstract over the paramters required by
+   lstate. *)
 Class LinSem : Type := {
   Lopn_sem (xs: seq.seq lexpr) (o: sopn) (es: seq.seq rexpr) (s1: S) : exec S ;
 
@@ -158,22 +153,25 @@ Context (LState: Type) (LS_I : LinSem LState).
 Context {E} {XF: LFindE -< E} {XA: LFunE -< E} {XL: LEvalE -< E }
             {XSl: @stateE LState -< E} {XE: ErrEvent -< E}.
 
-(* core semantics of linear instructions, abstracting LState in
-   linstr_sem *)
-Definition isem_i_lcore (i : linstr_r) : itree E unit :=
+(* the core semantics of linear instructions, based on linstr_sem *)
+Definition isem_li_core (i : linstr_r) (s: LState) :
+  itree E LState :=
+  iresult (linstr_sem i s) s.
+
+(* abstract core semantics of linear instructions, hiding the state *)
+Definition isem_li_acore (i : linstr_r) : itree E unit :=
   s1 <- trigger (@Get LState) ;;
-  s2 <- iresult (linstr_sem i s1) s1 ;;
+  s2 <- isem_li_core i s1 ;;
   trigger (@Put LState s2).
 
-(* semantics of control-flow abstraction *)
-Definition isem_i_lflow (ir : linstr_r) (l0 : lpoint) : itree E lpoint :=
+(* instrumenting semantics of control-flow abstraction, used to
+   instrument the core one *)
+Definition instrum_lflow (ir : linstr_r) (l0 : lpoint) : itree E lpoint :=
   match ir with
   | Lopn xs o es => Ret (incr_lpoint l0)
   | Lsyscall o => Ret (incr_lpoint l0)
   | Lcall o d => trigger (JumpForth (incr_lpoint l0) d)
   | Lret => trigger JumpBack 
-(*  | Lcall o d => trigger (Push (incr_lpoint l0)) ;; trigger (FindLabel d) 
-  | Lret => trigger Pop *)
   | Lalign => Ret (incr_lpoint l0)
   | Llabel x y => Ret (incr_lpoint l0)
   | Lgoto d => trigger (FindLabel d)
@@ -186,22 +184,9 @@ end.
 
 (* semantics of linear instruction, instrumented with control-flow
    abstraction *)
-Definition isem_linstr (i : linstr_r) (l0: lpoint) : itree E lpoint :=
-  isem_i_lcore i ;; isem_i_lflow i l0.
+Definition isem_li_flow (i : linstr_r) (l0: lpoint) : itree E lpoint :=
+  isem_li_acore i ;; instrum_lflow i l0.
 
-(* the concrete semantics, where the lpoint is derived from the lstate
-*)
-Definition isem_i_lplain (i : linstr_r) (s: LState) :
-  itree E LState :=
-  iresult (linstr_sem i s) s.
-
-(*
-Definition isem_i_lplain (PC: LState -> lpoint) (i : linstr_r) :
-  itree E lpoint :=
-  s1 <- trigger (@Get LState) ;;
-  s2 <- iresult (linstr_sem i s1) s1 ;;
-  trigger (@Put LState s2) ;; Ret (PC s2).
-*)
 
 Section Iterators.
 
@@ -273,6 +258,7 @@ Definition ACntrI {L: Type} {E} {XE: ErrEvent -< E}
   (lp0: L) : itree E L :=
   ITree.iter (@ACntr L E XE Sem NoExit TryFnd) lp0.
 
+(*
 Definition LACntr {L: Type} {PC: L -> lpoint} {E} {XE: ErrEvent -< E}  
   (Sem: linstr_r -> L -> itree E L)
   (fn: funname) (nS nE: nat) (l1: L) :
@@ -291,7 +277,7 @@ Definition LACntrI {L: Type} {PC: L -> lpoint} {E} {XE: ErrEvent -< E}
   (Sem: linstr_r -> L -> itree E L)
   (fn: funname) (nS nE: nat) (lp0: L) : itree E L :=
   ITree.iter (@LACntr L PC E XE Sem fn nS nE) lp0.
-
+*)
 
 (* the 'local' iteration body for the Intermediate semantics. nS and
    nE are the start and end points in the fn linear code wrt to which
@@ -328,26 +314,26 @@ Definition GCntrI {E} {XE: ErrEvent -< E}
   ITree.iter (@GCntr E XE Sem) lp0.
 
 (* iterative semantics body *)
-Definition iisem_lcmd_body (lbl: lpoint) :
-  itree E (lpoint + lpoint) := GCntr isem_linstr lbl.
+Definition isem_lcmd_flow_body (lbl: lpoint) :
+  itree E (lpoint + lpoint) := GCntr isem_li_flow lbl.
 
 (* iterative semantics of a linear program, from any starting point *)
-Definition iisem_lcmd (lp : lpoint) : itree E lpoint :=
-  ITree.iter iisem_lcmd_body lp.
+Definition isem_lcmd_flow (lp : lpoint) : itree E lpoint :=
+  ITree.iter isem_lcmd_flow_body lp.
 
 (* iterative semantics of a linear function from its entry point *)
-Definition iisem_lfun (fn: funname) : itree E lpoint :=
-  iisem_lcmd (fn, 0).
+Definition isem_lfun_flow (fn: funname) : itree E lpoint :=
+  isem_lcmd_flow (fn, 0).
 
 (* stateful iterative semantics body *)
-Definition isem_lcmd_body (Hlt: LState -> option bool)
+Definition isem_lcmd_core_body (Hlt: LState -> option bool)
   (Fnd: LState -> option linstr) (lbl: LState) :
-  itree E (LState + LState) := ACntr isem_i_lplain Hlt Fnd lbl.
+  itree E (LState + LState) := ACntr isem_li_core Hlt Fnd lbl.
 
 (* stateful iterative semantics of a linear program, from any state *)
-Definition isem_lcmd (Hlt: LState -> option bool)
+Definition isem_lcmd_core (Hlt: LState -> option bool)
   (Fnd: LState -> option linstr) (lbl: LState) : itree E LState :=
-  ITree.iter (isem_lcmd_body Hlt Fnd) lbl.
+  ITree.iter (isem_lcmd_core_body Hlt Fnd) lbl.
 
 
 (* LFindE handling *)
@@ -472,7 +458,7 @@ Fixpoint lsem_i_imed
   | LCallNode _ nb na fn' lcb lca li1 li2 =>
       match LCallNode_ok nb na fn' lcb lca li1 li2 with
       | false => throw err  
-      | true => (LSC (lcb ++ [li1])) ;;
+      | true => LSC (lcb ++ [li1]) ;;
                 (trigger_inl1 (Call fn')) ;;
                 LSC (li2 :: lca) ;;
                 Ret (fn, p0 + nb + S (S na))            
