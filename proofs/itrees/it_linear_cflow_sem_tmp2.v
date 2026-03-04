@@ -146,9 +146,33 @@ Definition linstr_sem {LS_I : LinSem} (i : linstr_r)
 End LinSemClass.
 
 
-Section LinearSem.
+Section LinSemContext.
   
 Context (LState: Type) (LS_I : LinSem LState).
+
+(* the output of the linearization pass; lfenv should be defined using
+   linear_l2r_fd and imed_fun. then the axiom holds by
+   forget_imed_fun_ok. *)
+Notation GLFEnv :=
+    (forall fn: funname, option (plinfo * lfundef * LTreeFun fn)). 
+Context (glfenv: GLFEnv).
+Context (GLFEnvAx : forall (fn: funname) pl fd lt,
+            glfenv fn = Some (pl, fd, lt) ->
+            forget_imed_fun lt = (pl, lfd_body fd)).
+
+Notation LFEnv := (funname -> option lcmd).
+Notation IFEnv := (forall fn: funname, option (LTreeFun fn)).
+
+Definition lfenv : LFEnv := fun fn => match glfenv fn with
+                       | Some (_, fd, _) => Some (lfd_body fd)
+                       | _ => None end.                              
+
+Definition ifenv : IFEnv := fun fn => match glfenv fn with
+                       | Some (_, _, lt) => Some lt
+                       | _ => None end.                              
+
+
+Section LinSemIT.
 
 Context {E} {XF: LFindE -< E} {XA: LFunE -< E} {XL: LEvalE -< E }
             {XSl: @stateE LState -< E} {XE: ErrEvent -< E}.
@@ -195,28 +219,7 @@ Fixpoint isem_lcmd_acore (lc: lcmd) : itree E unit :=
   end.             
 
 
-Section Iterators.
-
-(* the output of the linearization pass; lfenv should be defined using
-   linear_l2r_fd and imed_fun. then the axiom holds by
-   forget_imed_fun_ok. *)
-Notation GLFEnv :=
-    (forall fn: funname, option (plinfo * lfundef * LTreeFun fn)). 
-Context (glfenv: GLFEnv).
-Context (GLFEnvAx : forall (fn: funname) pl fd lt,
-            glfenv fn = Some (pl, fd, lt) ->
-            forget_imed_fun lt = (pl, lfd_body fd)).
-
-Notation LFEnv := (funname -> option lcmd).
-Notation IFEnv := (forall fn: funname, option (LTreeFun fn)).
-
-Definition lfenv : LFEnv := fun fn => match glfenv fn with
-                       | Some (_, fd, _) => Some (lfd_body fd)
-                       | _ => None end.                              
-
-Definition ifenv : IFEnv := fun fn => match glfenv fn with
-                       | Some (_, _, lt) => Some lt
-                       | _ => None end.                              
+(***** ITERATORS *)
 
 Definition halt_pred (l: lpoint) : option bool :=
   let fn := fst l in
@@ -265,27 +268,6 @@ Definition ACntrI {L: Type} {E} {XE: ErrEvent -< E}
   (lp0: L) : itree E L :=
   ITree.iter (@ACntr L E XE Sem NoExit TryFnd) lp0.
 
-(*
-Definition LACntr {L: Type} {PC: L -> lpoint} {E} {XE: ErrEvent -< E}  
-  (Sem: linstr_r -> L -> itree E L)
-  (fn: funname) (nS nE: nat) (l1: L) :
-  itree E (L + L) :=
-  ACntr Sem
-    (* exit condition: when it jumps to another function, gets out of
-       the range, or makes a recursive call (n0 = 0) *)
-    (fun l0 =>
-       let '(fn0, n0) := PC l0 in  
-       if (not_possible fn0 nE) then None
-       else Some ((fn == fn0) 
-            && (nS <= n0) && (n0 < nE) && (0 < n0)))
-    (fun l0 => find_linstr_in_fun (PC l0)) l1.
-
-Definition LACntrI {L: Type} {PC: L -> lpoint} {E} {XE: ErrEvent -< E}  
-  (Sem: linstr_r -> L -> itree E L)
-  (fn: funname) (nS nE: nat) (lp0: L) : itree E L :=
-  ITree.iter (@LACntr L PC E XE Sem fn nS nE) lp0.
-*)
-
 (* the 'local' iteration body for the Intermediate semantics. nS and
    nE are the start and end points in the fn linear code wrt to which
    execution is contextual. *)
@@ -320,6 +302,7 @@ Definition GCntrI {E} {XE: ErrEvent -< E}
   (lp0: lpoint) : itree E lpoint :=
   ITree.iter (@GCntr E XE Sem) lp0.
 
+
 (***** LINEAR SEMANTICS *)
 
 (* iterative flow semantics body *)
@@ -347,7 +330,9 @@ Definition isem_lcmd_core (Hlt: LState -> option bool)
   ITree.iter (isem_lcmd_core_body Hlt Fnd) lbl.
 
 
-(* LFindE handling *)
+(***** HANDLERS *)
+
+(* LFindE handling (here defined wrt lfenv ) *)
 Definition handle_LFind {T} (e: LFindE T) : itree E T :=
   match e with    
   | FindLabel rlbl =>
@@ -360,7 +345,7 @@ Definition handle_LFind {T} (e: LFindE T) : itree E T :=
   end.   
 
 
-Section HandleStackS.
+Section HandleLFunS.
   
 Context {readRA : LState -> lpoint}.
 
@@ -375,14 +360,14 @@ Definition handle_LFunS {T} (e: LFunE T) : itree E T :=
   | JumpBack => st <- trigger (@Get LState) ;; Ret (readRA st) 
   end.   
 
-End HandleStackS.
+End HandleLFunS.
 
 
-(* abstract stack *)
-Definition astack := list lpoint.
+Section HandleLFunA.
 
-Section HandleStackA.
-
+(* version with abstract stack *)
+Notation astack := (list lpoint).
+  
 Context {XSa: @stateE astack -< E}.
 
 (* AStack handling for Linear *)
@@ -397,15 +382,10 @@ Definition handle_AStackA {T} (e: LFunE T) : itree E T :=
            | l0 :: ls => trigger (@Put astack ls) ;; Ret l0 end
   end.   
 
-End HandleStackA.
+End HandleLFunA.
 
-End Iterators.
+End LinSemIT.
 
-
-
-(***** INTERMEDIATE SEMANTICS *)
-
-Notation LCall := (callE funname unit).
 
 Definition LLeaf_ok (li: linstr) : bool :=
   match li with
@@ -434,12 +414,20 @@ Definition LCallNode_ok (nb na: nat) (fn: funname)
        else false
   else false.            
 
+
+Section InterSemIT.
+
+Notation LCall := (callE funname unit).
+
+Context {E} {XE: ErrEvent -< E}.
+
+(***** INTERMEDIATE SEMANTICS *)
+
 (* intermediate semantics of instructions.
    LS1 -> isem_li_flow
    LC -> binding isem_li_acore 
    LS2 ->  LCntr isem_li_flow *)
 Fixpoint lsem_i_imed 
-  {E} {XE: ErrEvent -< E}
   (LS1: linstr_r -> lpoint -> itree (LCall +' E) lpoint)
   (LSC: lcmd -> itree (LCall +' E) unit)
   (LS2: funname -> nat -> nat ->
@@ -453,7 +441,6 @@ Fixpoint lsem_i_imed
   | LLeaf _ (MkLI ii ir) => if LLeaf_ok (MkLI ii ir)
                             then LS1 ir (fn, p0)
                             else throw err                                 
-(*  | LLeafL _ _ => throw err *)
   | LIf1Node _ pl1 li1 lc li2 =>
       match LIf1Node_ok li1 li2 with
       | false => throw err
@@ -489,7 +476,7 @@ with lsem_cmd_imed
   throw err.     
 
 (* linear semantics of source functions. l1 is the return address *)
-Definition lsem_fun {E} {XE: ErrEvent -< E}
+Definition lsem_fun_imed 
   (LS1: linstr_r -> lpoint -> itree (LCall +' E) lpoint)  
   (LSC: lcmd -> itree (LCall +' E) unit)
   (LS2: funname -> nat -> nat ->
@@ -507,9 +494,51 @@ define LRec handler
 fix instrumentation wrt PC, using a parameter readPC
 *)
 
+Section InterSemDef.
 
-End LinearSem.
+Context {XF: LFindE -< E} {XA: LFunE -< E} {XL: LEvalE -< E }
+            {XSl: @stateE LState -< E}.
+  
+Definition lsem_i_imedI  
+  (fn: funname) (plS plE: plinfo)
+  (lt : LTree fn plS plE) : itree (LCall +' E) lpoint :=
+  lsem_i_imed isem_li_flow isem_lcmd_acore (LCntr isem_li_flow) lt.
+
+Definition lsem_cmd_imedI  
+  (fn: funname) (plS plE: plinfo)
+  (lt : LTreeList fn plS plE) : itree (LCall +' E) lpoint :=
+  lsem_cmd_imed isem_li_flow isem_lcmd_acore (LCntr isem_li_flow) lt.
+
+Definition lsem_fun_imedI  
+  (fn: funname) (fd: LTreeFun fn) : itree (LCall +' E) lpoint :=
+  lsem_fun_imed isem_li_flow isem_lcmd_acore (LCntr isem_li_flow) fd.
+
+End InterSemDef.
+
+End InterSemIT.
+
+End LinSemContext.
 
 End Asm1.
 
 
+(*
+Definition LACntr {L: Type} {PC: L -> lpoint} {E} {XE: ErrEvent -< E}  
+  (Sem: linstr_r -> L -> itree E L)
+  (fn: funname) (nS nE: nat) (l1: L) :
+  itree E (L + L) :=
+  ACntr Sem
+    (* exit condition: when it jumps to another function, gets out of
+       the range, or makes a recursive call (n0 = 0) *)
+    (fun l0 =>
+       let '(fn0, n0) := PC l0 in  
+       if (not_possible fn0 nE) then None
+       else Some ((fn == fn0) 
+            && (nS <= n0) && (n0 < nE) && (0 < n0)))
+    (fun l0 => find_linstr_in_fun (PC l0)) l1.
+
+Definition LACntrI {L: Type} {PC: L -> lpoint} {E} {XE: ErrEvent -< E}  
+  (Sem: linstr_r -> L -> itree E L)
+  (fn: funname) (nS nE: nat) (lp0: L) : itree E L :=
+  ITree.iter (@LACntr L PC E XE Sem fn nS nE) lp0.
+*)
