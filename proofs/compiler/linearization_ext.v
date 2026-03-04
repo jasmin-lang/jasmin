@@ -857,7 +857,7 @@ Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) :
   let fd' := linear_c linear_i body lbl tail in
   (fd'.1, head ++ fd'.2).
 
-Definition linear_fd (fd: sfundef) :=
+Definition linear_fd (fd: sfundef) : (label * lfundef) :=
   let e := fd.(f_extra) in
   let is_export := is_RAnone (sf_return_address e) in
   let res := if is_export then f_res fd else [::] in
@@ -1083,7 +1083,7 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
 
 
 
-Definition linear_l2r_body_prepost (fn: funname)
+Definition linear_l2r_body_proepi (fn: funname)
   (fi: fun_info) (e: stk_fun_extra) : (lcmd * lcmd * label) :=
   let fentry_ii := entry_info_of_fun_info fi in
   let ret_ii := ret_info_of_fun_info fi in
@@ -1141,19 +1141,20 @@ Definition linear_l2r_body_prepost (fn: funname)
 Definition linear_l2r_body_core (fn: funname)
   (fi: fun_info) (e: stk_fun_extra) (body: cmd) :
   (lcmd * lcmd * lcmd * nat * label * label) :=
-  let: (tail, head, lbl) := linear_l2r_body_prepost fn fi e in
+  let: (tail, head, lbl) := linear_l2r_body_proepi fn fi e in
   let n_pre := List.length head in
   let: (n1, lbl1, lc1) := linear_l2r_c linear_l2r_i fn body (n_pre, lbl) in
   (head, tail, lc1, n1, lbl, lbl1).
 
-Definition linear_l2r_bodyA (fn: funname)
+Definition linear_l2r_body (fn: funname)
   (fi: fun_info) (e: stk_fun_extra) (body: cmd) : plinfo * lcmd :=
   let: (head, tail, lc1, n1, lbl, lbl1) :=
     linear_l2r_body_core fn fi e body in
   let n_post := List.length tail in
   (n1 + n_post, lbl1, head ++ lc1 ++ tail).
 
-Definition linear_l2r_body (fn: funname)
+(*
+Definition linear_l2r_body_OLD (fn: funname)
   (fi: fun_info) (e: stk_fun_extra) (body: cmd) : plinfo * lcmd :=
   let fentry_ii := entry_info_of_fun_info fi in
   let ret_ii := ret_info_of_fun_info fi in
@@ -1210,9 +1211,9 @@ Definition linear_l2r_body (fn: funname)
   let n_post := List.length tail in
   let: (n1, lbl1, lc1) := linear_l2r_c linear_l2r_i fn body (n_pre, lbl) in
   (n1 + n_post, lbl1, head ++ lc1 ++ tail).
+*)
 
-(* version based on linear_l2r. TODO: currently not covered by the
-   translation to Intermediate. new type of node needed. *)
+(* version based on linear_l2r. *)
 Definition linear_l2r_fd (fn: funname) (fd: sfundef) : (plinfo * lfundef) :=
   let e := fd.(f_extra) in
   let is_export := is_RAnone (sf_return_address e) in
@@ -1485,17 +1486,6 @@ Definition imed_cmd (fn0: funname) (cc: cmd) (pl0: plinfo) :
   sigT (fun pl1 => LTreeList fn0 pl0 pl1) :=
   imed_cmd_aux imed_i fn0 cc pl0.
 
-Variant LTreeFun (fn: funname) : Type :=
-  LTFun : forall lbl pl1 (lc1 lc2: lcmd),
-      let n1 := List.length lc1 in
-      forall lt: LTreeList fn (n1, lbl) pl1, LTreeFun. 
-
-Definition imed_fun  (fn: funname)
-  (fi: fun_info) (e: stk_fun_extra) (body: cmd) : LTreeFun fn :=
-  let: (tail, head, lbl) := linear_l2r_body_prepost fn fi e in
-  let X1 := @imed_cmd fn body (List.length head, lbl) in
-  @LTFun fn lbl (projT1 X1) head tail (projT2 X1).
-
 (* the translation from Intermediate to Linear *)
 Fixpoint forget_imed_i
   (fn0: funname) (pl0 pl1: plinfo)
@@ -1545,6 +1535,29 @@ with forget_imed_cmd (fn0: funname) (pl0 pl1: plinfo)
       (pl1, lcm1 ++ lcm2)
   end.              
 
+(* lbl is the label after the prelude lc1, pl1 is the lpoint after the
+   body lt, lc2 is the epilogue *)
+Variant LTreeFun (fn: funname) : Type :=
+  LTFun : forall lbl pl1 (lc1 lc2: lcmd),
+      let n1 := List.length lc1 in
+      forall lt: LTreeList fn (n1, lbl) pl1, LTreeFun. 
+
+Definition imed_fun (fn: funname)
+  (fi: fun_info) (e: stk_fun_extra) (body: cmd) : LTreeFun fn :=
+  let: (tail, head, lbl) := linear_l2r_body_proepi fn fi e in
+  let X1 := @imed_cmd fn body (List.length head, lbl) in
+  @LTFun fn lbl (projT1 X1) head tail (projT2 X1).
+
+Definition forget_imed_fun (fn: funname)
+  (lt: LTreeFun fn) : (plinfo * lcmd) :=
+  match lt with
+  | LTFun lbl pl1 head tail lt1 =>
+      let nt := List.length tail in
+      let '(pl1, body) := forget_imed_cmd lt1 in 
+      let pl2 := (fst pl1 + nt, snd pl1) in 
+      (pl2, head ++ body ++ tail)
+  end.        
+  
 Definition forget_imed_i_ok_statm (i: instr) :=
   forall (fn0: funname) (pl0: plinfo),
     let X := imed_i fn0 i pl0 in
@@ -2207,7 +2220,18 @@ Proof.
   }  
 Qed.
 
-
+Lemma forget_imed_fun_ok (fn0: funname)
+  (fi: fun_info) (e: stk_fun_extra) (body: cmd) :
+  forget_imed_fun (imed_fun fn0 fi e body) = linear_l2r_body fn0 fi e body.
+Proof.
+  unfold linear_l2r_body, imed_fun, forget_imed_fun,
+    linear_l2r_body_core; simpl.
+  destruct (linear_l2r_body_proepi fn0 fi e) as [[lc1 lc2] l]; simpl.
+  rewrite imed_cmd_correct.
+  destruct (forget_imed_cmd _); simpl.
+  destruct p0; simpl; auto.
+Qed.
+  
 End FUN.
 
 
