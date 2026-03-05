@@ -468,21 +468,41 @@ Fixpoint lsem_i_imed
   | LLeaf _ (MkLI ii ir) => if LLeaf_ok (MkLI ii ir)
                             then LS1 ir (fn, p0)
                             else throw err                                 
-  | LIf1Node _ pl1 li1 lc li2 =>
+  | LIf1Node _ (p1, _) li1 lc li2 =>
+      (* note: fst plE = S p1 *)
+      let OneStep := LS2 fn p0 (S p1) in 
       match LIf1Node_ok li1 li2 with
       | false => throw err
-      | true => 
-          let Bd := fun '(fnA, pA) =>
-                      if (fnA == fn)
-                      then if (pA == p0) then LS2 fn p0 (fst pl1) (fn, pA)
-                           else if (pA == S p0)
-                                then x <- LRec _ _ _ lc ;; Ret (inl x)
-                                else if pA == fst pl1
-                                     then LS2 fn p0 (fst pl1) (fn, pA)
-                                     else Ret (inr (fn, (fst plE)))     
-                      else throw err in
+      | true => let Bd := fun '(fnA, pA) =>
+          if (fnA == fn) 
+          then if (pA == p0) || (pA == p1) then OneStep (fn, pA)
+               else if (pA == S p0)
+                    then x <- LRec _ _ _ lc ;; Ret (inl x)
+                    else if (pA == S p1)
+                         then Ret (inr (fn, (fst plE)))
+                         else throw err         
+          else throw err in
           ITree.iter Bd (fn, p0) 
       end
+  | LIfNode _ (p1, _) (p2, _) li1 lc2 li2 li3 lc1 li4 =>
+      (* note: fst plE = S p2 *)
+      let OneStep := LS2 fn p0 (S p2) in 
+      match LIf1Node_ok li1 li2 with
+      | false => throw err
+      | true => let Bd := fun '(fnA, pA) =>
+          if (fnA == fn) 
+          then if (pA == p0) || (pA == p1) ||
+                  (pA == S p1) || (pA == p2) then OneStep (fn, pA)
+               else if (pA == S p0)
+                    then x <- LRec _ _ _ lc2 ;; Ret (inl x)
+                    else if (pA == S (S p1))
+                         then x <- LRec _ _ _ lc1 ;; Ret (inl x) 
+                         else if (pA == S p2)
+                              then Ret (inr (fn, (fst plE)))
+                              else throw err         
+          else throw err in
+          ITree.iter Bd (fn, p0)
+       end                    
   | LCallNode _ nb na fn' lc_bef lc_aft li1 li2 =>
       match LCallNode_ok nb na fn' lc_bef lc_aft li1 li2 with
       | false => throw err  
