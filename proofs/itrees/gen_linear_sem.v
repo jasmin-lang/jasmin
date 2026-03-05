@@ -496,7 +496,7 @@ Fixpoint lsem_i_imed
   (lt : LTree fn plS plE) : itree (LCall +' E) lpoint :=
   let '(pS, _) := plS in 
   let '(pE, _) := plE in 
-  let LRec := @lsem_cmd_imed E XE LSC LSI in
+  let LRec := @lsem_cmd_imed LSC LSI in
   match lt with
   | LErrLeaf _ => throw err
   | LLeaf _ (MkLI ii ir) => if LLeaf_ok (MkLI ii ir)
@@ -514,7 +514,6 @@ Fixpoint lsem_i_imed
       end
   | LIfNode _ (p1, _) (p2, _) li1 lc2 li2 li3 lc1 li4 =>
       (* note: fst plE = S p2 *)
-    (*  let OneStep := LS2 fn pS (S p2) in *)
       match LIfNode_ok li1 li2 li3 li4 with
       | false => throw err
       | true => let Bd := fun '(fnA, pA) =>
@@ -535,12 +534,16 @@ Fixpoint lsem_i_imed
       end 
   | _ => throw err end
 with lsem_cmd_imed 
-  {E} {XE: ErrEvent -< E}
   (LSC: lcmd -> itree (LCall +' E) unit)
   (LSI: lpoint -> itree (LCall +' E) lpoint)
   (fn: funname) (plS plE: plinfo)
   (lt : LTreeList fn plS plE) : itree (LCall +' E) lpoint :=
-  throw err.     
+   match lt with
+   | LListNil pl => Ret (fn, fst pl)
+   | LListCons _ pl1 pl2 lt ltl =>
+       @lsem_i_imed LSC LSI _ _ _ lt ;;
+       @lsem_cmd_imed LSC LSI _ _ _ ltl
+   end.                   
 
 (* linear semantics of source functions. l1 is the return address *)
 Definition lsem_fun_imed_aux 
@@ -549,7 +552,7 @@ Definition lsem_fun_imed_aux
   (fn: funname) (fd: LTreeFun fn) : itree (LCall +' E) lpoint :=
   match fd with
   | LTFun lbl pl1 lc1 lc2 lt =>
-      LSC lc1 ;; l <- @lsem_cmd_imed E XE LSC LSI _ _ _ lt ;;
+      LSC lc1 ;; l <- @lsem_cmd_imed LSC LSI _ _ _ lt ;;
       LSC lc2 ;; Ret l
   end.                   
 
