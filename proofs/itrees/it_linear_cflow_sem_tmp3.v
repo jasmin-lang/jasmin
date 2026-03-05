@@ -324,16 +324,34 @@ Definition isem_lcmd_flow (lp : lpoint) : itree E lpoint :=
 Definition isem_lfun_flow (fn: funname) : itree E lpoint :=
   isem_lcmd_flow (fn, 0).
 
+
+Section CoreLinSem.
+
+Context {readPC: LState -> option lpoint}.
+
+Definition state_find_linstr (st: LState) : option linstr :=
+  match (readPC st) with
+  | Some l => find_linstr_in_fun l
+  | None => None
+  end.            
+
+Definition halt_state_pred (st: LState) : option bool :=
+  match (readPC st) with
+  | Some l => halt_pred l
+  | _ => None
+  end.         
+
 (* iterative core semantics body, relying on Hlt (halting condition)
-   and Fnd (to find the next instruction from the state) *)
-Definition isem_lcmd_core_body (Hlt: LState -> option bool)
-  (Fnd: LState -> option linstr) (lbl: LState) :
-  itree E (LState + LState) := ACntr isem_li_core Hlt Fnd lbl.
+   and readPC (to find the next instruction from the state) *)
+Definition isem_lcmd_core_body (lbl: LState) :
+  itree E (LState + LState) :=
+  ACntr isem_li_core halt_state_pred state_find_linstr  lbl.
 
 (* iterative core semantics of a linear program, from any state *)
-Definition isem_lcmd_core (Hlt: LState -> option bool)
-  (Fnd: LState -> option linstr) (lbl: LState) : itree E LState :=
-  ITree.iter (isem_lcmd_core_body Hlt Fnd) lbl.
+Definition isem_lcmd_core (lbl: LState) : itree E LState :=
+  ITree.iter isem_lcmd_core_body lbl.
+
+End CoreLinSem.
 
 
 (***** HANDLERS *)
@@ -353,26 +371,34 @@ Definition handle_LFind {T} (e: LFindE T) : itree E T :=
 
 Section HandleLEval.
   
-Context {readRA : LState -> lpoint} {readPC: LState -> lpoint}
-        {evalLoc : LState -> rexpr -> remote_label}
-        {evalExp : LState -> fexpr -> bool}.
+Context {readRA : LState -> option lpoint}
+        {readPC: LState -> option lpoint}
+        {evalLoc : LState -> rexpr -> option remote_label}
+        {evalExp : LState -> fexpr -> option bool}.
+
+
+Check @err_result.
+Locate err_result.
 
 (* LEvalE handling for Linear and Intermediate *)
 Definition handle_LEval {T} (e: LEvalE T) : itree E T :=
   match e with    
-  | RA_readE => st <- trigger (@Get LState) ;; Ret (readRA st) 
+  | RA_readE => st <- trigger (@Get LState) ;;
+                err_option err (readRA st) 
   | RA_isE l => st <- trigger (@Get LState) ;;
-                  match (readRA st == l) with
-                  | true => Ret tt
-                  | _ => throw err
-                  end     
+                match (readRA st == Some l) with
+                | true => Ret tt 
+                | _ => throw err 
+                end
   | PC_isE l => st <- trigger (@Get LState) ;;
-                  match (readPC st == l) with
-                  | true => Ret tt
-                  | _ => throw err
-                  end
-  | EvalLocE e => st <- trigger (@Get LState) ;; Ret (evalLoc st e)            
-  | EvalExpE e => st <- trigger (@Get LState) ;; Ret (evalExp st e)            
+                match (readPC st == Some l) with
+                | true => Ret tt
+                | _ => throw err
+                end       
+  | EvalLocE e => st <- trigger (@Get LState) ;;
+                  err_option err (evalLoc st e)            
+  | EvalExpE e => st <- trigger (@Get LState) ;;
+                  err_option err (evalExp st e)            
   end.   
 
 End HandleLEval.
@@ -417,9 +443,11 @@ Notation LCall := (callE funname lpoint).
 Context {E} {XE: ErrEvent -< E}.
 
 (* intermediate semantics of instructions.
-   LS1 -> isem_li_flow
-   LC -> binding isem_li_acore 
-   LS2 ->  LCntr isem_li_flow *)
+     LS1 -> isem_li_flow
+     LC -> binding isem_li_acore 
+     LS2 ->  LCntr isem_li_flow *)
+(* TODO: Complete lsem_i_imed with the remaining cases (anyway, all
+   similar to LIf1Node) *)
 Fixpoint lsem_i_imed 
   (LS1: linstr_r -> lpoint -> itree (LCall +' E) lpoint)
   (LSC: lcmd -> itree (LCall +' E) unit)
@@ -521,6 +549,9 @@ Definition lsem_imed_rec (fn: funname) (plS plE: plinfo)
   (lt : LTreeList fn plS plE) : itree E lpoint := 
   interp_mrec handle_LRec (lsem_cmd_imedI lt).
 
+Lemma core2instrumented 
+
+
 End InterSemDef.
 
 End InterSemIT.
@@ -530,10 +561,6 @@ End LinSemContext.
 End Asm1.
 
 
-(* TODO: 
-Check the parameters of the core semantics. 
-Complete lsem_i_imed.
-*)
 
 (*
 Definition LACntr {L: Type} {PC: L -> lpoint} {E} {XE: ErrEvent -< E}  
