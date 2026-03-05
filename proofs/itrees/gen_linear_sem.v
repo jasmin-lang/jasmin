@@ -463,6 +463,13 @@ Definition LIfNode_ok (li1 li2 li3 li4: linstr) : bool :=
   | _ => false
   end.         
 
+Definition LWhileTNode_ok (li1 li2: linstr) : bool :=
+  match (li1, li2) with
+  | (MkLI _ (Llabel InternalLabel lbl1), MkLI _ (Lgoto (fn, lbl2))) =>
+      lbl1 == lbl2 
+  | _ => false
+  end.         
+
 Definition LCallNode_ok (nb na: nat) (fn: funname)
   (lcb lca: lcmd) (li1 li2: linstr) :
   bool :=
@@ -523,7 +530,21 @@ Fixpoint lsem_i_imed
             else if (pA == S (S p1)) then LRec _ _ _ lc1 
             else throw err in
           LACntrI Bd fn pS pE (fn, pS)
-      end                    
+      end
+        
+  | LWhileTNode _ (p1, _) (p2, _) b ii li1 lc1 lc2 li2 =>
+      (* note: fst plE = S p2 *)
+      match LWhileTNode_ok li1 li2 with
+      | false => throw err
+      | true =>
+         let bn := if b then 1 else 0 in  
+         let Bd := fun '(fnA, pA) => 
+            if (pA == pS) || (pA == pS + bn) || (pA == p2) then LSI (fn, pA)
+            else if (pA == S (pS + bn)) then LRec _ _ _ lc1
+            else if (pA == p1) then LRec _ _ _ lc2
+            else throw err in                                       
+          LACntrI Bd fn pS pE (fn, pS)
+      end                       
   | LCallNode _ nb na fn' lc_bef lc_aft li1 li2 =>
       match LCallNode_ok nb na fn' lc_bef lc_aft li1 li2 with
       | false => throw err  
