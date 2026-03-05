@@ -244,8 +244,7 @@ Definition find_linstr_in_fun (lp : lpoint) : option linstr :=
    nE are the start and end points in the fn linear code wrt to which
    execution is contextual. *)
 Definition LACntr (Bd: lpoint -> itree E lpoint)
-  (fn: funname) (nS nE: nat) (lp0: lpoint) :
-  itree E (lpoint + lpoint) :=
+  (fn: funname) (nS nE: nat) (lp0: lpoint) : itree E (lpoint + lpoint) :=
   ACntr Bd
     (* exit condition: when it jumps to another function, gets out of
        the range, or makes a recursive call (n0 = 0) *)
@@ -254,6 +253,11 @@ Definition LACntr (Bd: lpoint -> itree E lpoint)
        else Some ((fn == fn0) 
             && (nS <= n0) && (n0 < nE) && (0 < n0)))
     lp0.
+
+(* iterate LACntr *)
+Definition LACntrI (Bd: lpoint -> itree E lpoint)
+  (fn: funname) (nS nE: nat) (lp0: lpoint) : itree E lpoint :=
+  ITree.iter (@LACntr Bd fn nS nE) (fn, nS).
 
 (* specialized version *)
 Definition LCntr (Sem: linstr_r -> lpoint -> itree E lpoint)
@@ -444,8 +448,18 @@ Definition LLeaf_ok (li: linstr) : bool :=
 
 Definition LIf1Node_ok (li1 li2: linstr) : bool :=
   match (li1, li2) with
-  | (MkLI ii0 (Lcond e lbl), MkLI ii1 (Llabel InternalLabel lbl')) =>
+  | (MkLI ii (Lcond e lbl), MkLI ii' (Llabel InternalLabel lbl')) =>
       lbl == lbl'
+  | _ => false
+  end.         
+
+Definition LIfNode_ok (li1 li2 li3 li4: linstr) : bool :=
+  match (li1, li2, li3, li4) with
+  | (MkLI _ (Lcond e lbl),
+     MkLI _ (Lgoto (fn, lbl1)),
+     MkLI _ (Llabel InternalLabel lbl'),  
+     MkLI _ (Llabel InternalLabel lbl1')) =>
+      (lbl == lbl') && (lbl1 == lbl1')
   | _ => false
   end.         
 
@@ -472,60 +486,44 @@ Notation LCall := (callE funname lpoint).
 Context {E} {XE: ErrEvent -< E}.
 
 (* intermediate semantics of instructions.
-     LS1 -> isem_li_flow
-     LC -> binding isem_li_acore 
-     LS2 ->  LCntr isem_li_flow *)
-(* TODO: Complete lsem_i_imed with the remaining cases (anyway, all
-   similar to LIf1Node) *)
+     LC -> isem_lcmd_acore 
+     LSI -> isem_li_aflow *)
+(* TODO: complete with the remaining cases *)
 Fixpoint lsem_i_imed 
-  (LS1: linstr_r -> lpoint -> itree (LCall +' E) lpoint)
   (LSC: lcmd -> itree (LCall +' E) unit)
-  (LS2: funname -> nat -> nat ->
-        lpoint -> itree (LCall +' E) (lpoint + lpoint))
+  (LSI: lpoint -> itree (LCall +' E) lpoint)
   (fn: funname) (plS plE: plinfo)
   (lt : LTree fn plS plE) : itree (LCall +' E) lpoint :=
-  let '(p0, lbl0) := plS in 
-  let LRec := @lsem_cmd_imed E XE LS1 LSC LS2 in
+  let '(pS, _) := plS in 
+  let '(pE, _) := plE in 
+  let LRec := @lsem_cmd_imed E XE LSC LSI in
   match lt with
   | LErrLeaf _ => throw err
   | LLeaf _ (MkLI ii ir) => if LLeaf_ok (MkLI ii ir)
-                            then LS1 ir (fn, p0)
+                            then LSI (fn, pS)
                             else throw err                                 
   | LIf1Node _ (p1, _) li1 lc li2 =>
       (* note: fst plE = S p1 *)
-      let OneStep := LS2 fn p0 (S p1) in 
-      let OneStep := LS2 fn p0 (S p1) in 
       match LIf1Node_ok li1 li2 with
       | false => throw err
       | true => let Bd := fun '(fnA, pA) =>
-          if (fnA == fn) 
-          then if (pA == p0) || (pA == p1) then OneStep (fn, pA)
-               else if (pA == S p0)
-                    then x <- LRec _ _ _ lc ;; Ret (inl x)
-                    else if (pA == S p1)
-                         then Ret (inr (fn, (fst plE)))
-                         else throw err         
-          else throw err in
-          ITree.iter Bd (fn, p0) 
+            if (pA == pS) || (pA == p1) then LSI (fn, pA)
+            else if (pA == S pS) then LRec _ _ _ lc 
+            else throw err in 
+          LACntrI Bd fn pS pE (fn, pS) 
       end
   | LIfNode _ (p1, _) (p2, _) li1 lc2 li2 li3 lc1 li4 =>
       (* note: fst plE = S p2 *)
-      let OneStep := LS2 fn p0 (S p2) in 
-      match LIf1Node_ok li1 li2 with
+    (*  let OneStep := LS2 fn pS (S p2) in *)
+      match LIfNode_ok li1 li2 li3 li4 with
       | false => throw err
       | true => let Bd := fun '(fnA, pA) =>
-          if (fnA == fn) 
-          then if (pA == p0) || (pA == p1) ||
-                  (pA == S p1) || (pA == p2) then OneStep (fn, pA)
-               else if (pA == S p0)
-                    then x <- LRec _ _ _ lc2 ;; Ret (inl x)
-                    else if (pA == S (S p1))
-                         then x <- LRec _ _ _ lc1 ;; Ret (inl x) 
-                         else if (pA == S p2)
-                              then Ret (inr (fn, (fst plE)))
-                              else throw err         
-          else throw err in
-          ITree.iter Bd (fn, p0)
+            if (pA == pS) || (pA == p1) ||
+               (pA == S p1) || (pA == p2) then LSI (fn, pA)
+            else if (pA == S pS) then LRec _ _ _ lc2
+            else if (pA == S (S p1)) then LRec _ _ _ lc1 
+            else throw err in
+          LACntrI Bd fn pS pE (fn, pS)
       end                    
   | LCallNode _ nb na fn' lc_bef lc_aft li1 li2 =>
       match LCallNode_ok nb na fn' lc_bef lc_aft li1 li2 with
@@ -533,40 +531,34 @@ Fixpoint lsem_i_imed
       | true => LSC (lc_bef ++ [li1]) ;;
                 (trigger_inl1 (Call fn')) ;;
                 LSC (li2 :: lc_aft) ;;
-                Ret (fn, p0 + nb + S (S na))            
+                Ret (fn, pS + nb + S (S na))            
       end 
   | _ => throw err end
 with lsem_cmd_imed 
   {E} {XE: ErrEvent -< E}
-  (LS1: linstr_r -> lpoint -> itree (LCall +' E) lpoint)  
   (LSC: lcmd -> itree (LCall +' E) unit)
-  (LS2: funname -> nat -> nat ->
-        lpoint -> itree (LCall +' E) (lpoint + lpoint))
+  (LSI: lpoint -> itree (LCall +' E) lpoint)
   (fn: funname) (plS plE: plinfo)
   (lt : LTreeList fn plS plE) : itree (LCall +' E) lpoint :=
   throw err.     
 
 (* linear semantics of source functions. l1 is the return address *)
 Definition lsem_fun_imed_aux 
-  (LS1: linstr_r -> lpoint -> itree (LCall +' E) lpoint)  
   (LSC: lcmd -> itree (LCall +' E) unit)
-  (LS2: funname -> nat -> nat ->
-        lpoint -> itree (LCall +' E) (lpoint + lpoint))
+  (LSI: lpoint -> itree (LCall +' E) lpoint)
   (fn: funname) (fd: LTreeFun fn) : itree (LCall +' E) lpoint :=
   match fd with
   | LTFun lbl pl1 lc1 lc2 lt =>
-      LSC lc1 ;; l <- @lsem_cmd_imed E XE LS1 LSC LS2 _ _ _ lt ;;
+      LSC lc1 ;; l <- @lsem_cmd_imed E XE LSC LSI _ _ _ lt ;;
       LSC lc2 ;; Ret l
   end.                   
 
 Definition lsem_fun_imed 
-  (LS1: linstr_r -> lpoint -> itree (LCall +' E) lpoint)  
   (LSC: lcmd -> itree (LCall +' E) unit)
-  (LS2: funname -> nat -> nat ->
-        lpoint -> itree (LCall +' E) (lpoint + lpoint))
+  (LSI: lpoint -> itree (LCall +' E) lpoint)
   (fn: funname) : itree (LCall +' E) lpoint :=
   fd <- err_def_option (ifenv fn) ;;
-  lsem_fun_imed_aux LS1 LSC LS2 fd.
+  lsem_fun_imed_aux LSC LSI fd.
 
 
 (***** INTERMEDIATE SEMANTICS *)
@@ -577,16 +569,16 @@ Context {XF: LFindE -< E} {XL: LEvalE -< E } {XSl: @stateE LState -< E}.
 Definition lsem_i_imedI  
   (fn: funname) (plS plE: plinfo)
   (lt : LTree fn plS plE) : itree (LCall +' E) lpoint :=
-  lsem_i_imed isem_li_flow isem_lcmd_acore (LCntr isem_li_flow) lt.
+  lsem_i_imed isem_lcmd_acore isem_li_aflow lt.
 
 Definition lsem_cmd_imedI  
   (fn: funname) (plS plE: plinfo)
   (lt : LTreeList fn plS plE) : itree (LCall +' E) lpoint :=
-  lsem_cmd_imed isem_li_flow isem_lcmd_acore (LCntr isem_li_flow) lt.
+  lsem_cmd_imed isem_lcmd_acore isem_li_aflow lt.
 
 Definition lsem_fun_imedI  
   (fn: funname) : itree (LCall +' E) lpoint :=
-  lsem_fun_imed isem_li_flow isem_lcmd_acore (LCntr isem_li_flow) fn.
+  lsem_fun_imed isem_lcmd_acore isem_li_aflow fn.
 
 Definition handle_LRec : LCall ~> itree (LCall +' E) :=
   fun T  (rc : callE _ _ T) =>
