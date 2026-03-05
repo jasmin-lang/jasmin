@@ -210,8 +210,11 @@ libjade-compile-to-asm:
     paths:
     - libjade/src/check.tar.gz
 
-libjade-xmss:
+libjade:
   stage: test
+  parallel:
+    matrix:
+      - PRIMITIVE: [ mlkem, xmss ]
   variables:
     EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true
   extends: .common
@@ -219,7 +222,7 @@ libjade-xmss:
   - coq-program
   - ocaml
   script:
-  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'JOBS=$NIX_BUILD_CORES ./scripts/test-xmss.sh'
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'JOBS=$NIX_BUILD_CORES ./scripts/test-$PRIMITIVE.sh'
 
 libjade-extract-to-ec:
   stage: test
