@@ -459,7 +459,7 @@ Definition LIfNode_ok (li1 li2 li3 li4: linstr) : bool :=
      MkLI _ (Lgoto (fn, lbl1)),
      MkLI _ (Llabel InternalLabel lbl'),  
      MkLI _ (Llabel InternalLabel lbl1')) =>
-      (lbl == lbl') && (lbl1 == lbl1')
+           (lbl == lbl') && (lbl1 == lbl1')
   | _ => false
   end.         
 
@@ -470,6 +470,16 @@ Definition LWhileTNode_ok (li1 li2: linstr) : bool :=
   | _ => false
   end.         
 
+Definition LWhileNode_ok (li1 li2 li3 li4: linstr) : bool :=
+  match (li1, li2, li3, li4) with
+  | (MkLI _ (Lgoto (fn, lbl)),
+     MkLI _ (Llabel InternalLabel lbl1),
+     MkLI _ (Llabel InternalLabel lbl'),
+     MkLI _ (Lcond e lbl1')) =>
+           (lbl == lbl') && (lbl1 == lbl1')
+  | _ => false
+  end.         
+      
 Definition LWhile1Node_ok (li1 li2: linstr) : bool :=
   match (li1, li2) with
   | (MkLI _ (Llabel InternalLabel lbl1), MkLI _ (Lcond e lbl2)) =>
@@ -502,7 +512,6 @@ Context {E} {XE: ErrEvent -< E}.
 (* intermediate semantics of instructions.
      LC -> isem_lcmd_acore 
      LSI -> isem_li_aflow *)
-(* TODO: complete with the remaining cases *)
 Fixpoint lsem_i_imed 
   (LSC: lcmd -> itree (LCall +' E) unit)
   (LSI: lpoint -> itree (LCall +' E) lpoint)
@@ -521,9 +530,7 @@ Fixpoint lsem_i_imed
       match LIf1Node_ok li1 li2 with
       | false => throw err
       | true => let Bd := fun '(fnA, pA) =>
-
-
-                            if (pA == pS) || (pA == p1) then LSI (fn, pA)
+            if (pA == pS) || (pA == p1) then LSI (fn, pA)
             else if (pA == S pS) then LRec _ _ _ lc 
             else throw err in 
           LACntrI Bd fn pS pE (fn, pS) 
@@ -555,7 +562,7 @@ Fixpoint lsem_i_imed
       end
   | LWhileFNode _ _ lc => LRec _ _ _ lc
   | LWhile1Node _ (p1, _) b ii li1 lc li2 =>
-      (* note: fst plE = S p2 *)
+      (* note: fst plE = S p1 *)
       match LWhile1Node_ok li1 li2 with
       | false => throw err
       | true =>
@@ -566,7 +573,21 @@ Fixpoint lsem_i_imed
             else throw err in                                       
           LACntrI Bd fn pS pE (fn, pS)
       end
-   
+  | LWhileNode _ (p1, _) (p2, _) b ii li1 li2 lc2 li3 lc1 li4 =>
+      (* note: fst plE = S p2 *)
+      match LWhileNode_ok li1 li2 li3 li4 with
+      | false => throw err
+      | true =>
+         let bn := if b then 1 else 0 in
+         let pS1 := pS + bn in 
+         let Bd := fun '(fnA, pA) => 
+            if (pA == pS) || (pA == pS1) || (pA == S pS1)
+               || (pA == p1) || (pA == p2) then LSI (fn, pA)
+            else if (pA == S (S (pS1))) then LRec _ _ _ lc2
+            else if (pA == S p1) then LRec _ _ _ lc1
+            else throw err in                                       
+          LACntrI Bd fn pS pE (fn, pS)
+      end        
   | LCallNode _ nb na fn' lc_bef lc_aft li1 li2 =>
       match LCallNode_ok nb na fn' lc_bef lc_aft li1 li2 with
       | false => throw err  
@@ -575,7 +596,7 @@ Fixpoint lsem_i_imed
                 LSC (li2 :: lc_aft) ;;
                 Ret (fn, pS + nb + S (S na))            
       end 
-  | _ => throw err end
+  end
 with lsem_cmd_imed 
   (LSC: lcmd -> itree (LCall +' E) unit)
   (LSI: lpoint -> itree (LCall +' E) lpoint)
