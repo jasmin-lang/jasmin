@@ -178,31 +178,40 @@ Context {E} {XE: ErrEvent -< E}.
 
 
 Section AbsIterators.
-(***** ABSTRACT (GENERIC) ITERATORS *)
+(***** ABSTRACT ITERATORS *)
 Context {L: Type}.
-  
+
 (* the generic iteration body used in the Linear and Intermediate
     semantics. l0 is the linear code point being executed. *)
-Definition ACntr (Sem: linstr_r -> L -> itree E L)
-  (NoExit: L -> option bool) (TryFnd: L -> option linstr)
+Definition ACntr (Bd: L -> itree E L) (NoExit: L -> option bool)
   (l0: L) : itree E (L + L) :=
   (* check whether the exit condition is satisfied *)
   match NoExit l0 with
   | Some b =>
-    (* tries to find the next instruction *)  
-    if b then match TryFnd l0 with
-              | Some (MkLI _ i) => l1 <- Sem i l0 ;; Ret (inl l1)
-              | None => throw err                                         
-              end        
+    if b then l1 <- Bd l0 ;; Ret (inl l1)      
     else Ret (inr l0)
   | None => throw err
   end.
 
-(* iterate ACntr *)
-Definition ACntrI (Sem: linstr_r -> L -> itree E L)
+(* 'abstract' semantics of linear instruction *)
+Definition ALSem (Sem: linstr_r -> L -> itree E L)
+  (TryFnd: L -> option linstr) : L -> itree E L :=
+  fun l => match TryFnd l with
+              | Some (MkLI _ i) => Sem i l
+              | None => throw err                                         
+           end.  
+
+(* generic iterator specialized to a semantics of instructions *)
+Definition SCntr (Sem: linstr_r -> L -> itree E L)
+  (NoExit: L -> option bool) (TryFnd: L -> option linstr)
+  (l0: L) : itree E (L + L) :=
+  ACntr (ALSem Sem TryFnd) NoExit l0.
+         
+(* iterate SCntr *)
+Definition SCntrI (Sem: linstr_r -> L -> itree E L)
   (NoExit: L -> option bool) (TryFnd: L -> option linstr)
   (lp0: L) : itree E L :=
-  ITree.iter (@ACntr Sem NoExit TryFnd) lp0.
+  ITree.iter (@SCntr Sem NoExit TryFnd) lp0.
 
 End AbsIterators.
 
@@ -229,32 +238,41 @@ Definition find_linstr_in_fun (lp : lpoint) : option linstr :=
   | _ => None
   end.                         
 
-(***** SPECIALIZED ITERATORS *)
+(***** LOCAL ITERATORS *)
 
 (* the 'local' iteration body for the Intermediate semantics. nS and
    nE are the start and end points in the fn linear code wrt to which
    execution is contextual. *)
-Definition LCntr (Sem: linstr_r -> lpoint -> itree E lpoint)
+Definition LACntr (Bd: lpoint -> itree E lpoint)
   (fn: funname) (nS nE: nat) (lp0: lpoint) :
   itree E (lpoint + lpoint) :=
-  ACntr Sem
+  ACntr Bd
     (* exit condition: when it jumps to another function, gets out of
        the range, or makes a recursive call (n0 = 0) *)
     (fun '(fn0, n0) => 
        if (not_possible fn0 nE) then None
        else Some ((fn == fn0) 
             && (nS <= n0) && (n0 < nE) && (0 < n0)))
-    find_linstr_in_fun lp0.
+    lp0.
+
+(* specialized version *)
+Definition LCntr (Sem: linstr_r -> lpoint -> itree E lpoint)
+  (fn: funname) (nS nE: nat) (lp0: lpoint) :
+  itree E (lpoint + lpoint) :=
+  LACntr (ALSem Sem find_linstr_in_fun) fn nS nE lp0.
 
 (* iterate LCntr *)
 Definition LCntrI (Sem: linstr_r -> lpoint -> itree E lpoint)
   (fn: funname) (nS nE: nat) (lp0: lpoint) : itree E lpoint :=
   ITree.iter (@LCntr Sem fn nS nE) (fn, nS).
 
+
+(***** GLOBAL ITERATORS *)
+
 (* the 'global' iteration body for the Linear semantics. *)
 Definition GCntr (Sem: linstr_r -> lpoint -> itree E lpoint)
   (lp0: lpoint) : itree E (lpoint + lpoint) :=
-  ACntr Sem halt_pred find_linstr_in_fun lp0.
+  SCntr Sem halt_pred find_linstr_in_fun lp0.
 
 (* iterate GCntr *)
 Definition GCntrI (Sem: linstr_r -> lpoint -> itree E lpoint)
@@ -286,7 +304,7 @@ Definition halt_state_pred (st: LState) : option bool :=
    and readPC (to find the next instruction from the state) *)
 Definition isem_lcmd_core_body (st: LState) :
   itree E (LState + LState) :=
-  ACntr isem_li_core halt_state_pred state_find_linstr st.
+  SCntr isem_li_core halt_state_pred state_find_linstr st.
 
 (* iterative core semantics of a linear program, from any state *)
 Definition isem_lcmd_core (st: LState) : itree E LState :=
@@ -338,6 +356,11 @@ end.
    abstraction *)
 Definition isem_li_flow (i : linstr_r) (l0: lpoint) : itree E lpoint :=
   PC_is l0 ;; lflow_abs (isem_li_acore i) i l0.
+
+(* instrumented semantics of linear instruction abstracted from
+   instructions *)
+Definition isem_li_aflow (l0: lpoint) : itree E lpoint :=
+  ALSem isem_li_flow find_linstr_in_fun l0.
 
 (* similar for linear commands; only meaningful when lcmd is
    straightline code (used in Intermediate) *)
@@ -471,6 +494,7 @@ Fixpoint lsem_i_imed
   | LIf1Node _ (p1, _) li1 lc li2 =>
       (* note: fst plE = S p1 *)
       let OneStep := LS2 fn p0 (S p1) in 
+      let OneStep := LS2 fn p0 (S p1) in 
       match LIf1Node_ok li1 li2 with
       | false => throw err
       | true => let Bd := fun '(fnA, pA) =>
@@ -502,7 +526,7 @@ Fixpoint lsem_i_imed
                               else throw err         
           else throw err in
           ITree.iter Bd (fn, p0)
-       end                    
+      end                    
   | LCallNode _ nb na fn' lc_bef lc_aft li1 li2 =>
       match LCallNode_ok nb na fn' lc_bef lc_aft li1 li2 with
       | false => throw err  
