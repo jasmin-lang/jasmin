@@ -383,6 +383,7 @@ Fixpoint isem_lcmd_acore (lc: lcmd) : itree E unit :=
   end.             
 
 
+
 (***** INSTRUMENTED LINEAR SEMANTICS *)
 (* iterative flow semantics body *)
 Definition isem_lcmd_flow_body (lbl: lpoint) :
@@ -514,7 +515,7 @@ Section IntermediateSem.
 
 (* the return value is not really used; it is the instruction after
    the call, but interpretation inlines the function code. *)  
-Notation LCall := (callE funname lpoint).
+Notation LCall := (callE funname unit).
 
 Context {E} {XE: ErrEvent -< E}.
 
@@ -522,7 +523,7 @@ Context {E} {XE: ErrEvent -< E}.
      LC -> isem_lcmd_acore; alternatively, isem_lcmd_seq_flow.  
      LSI -> isem_li_aflow. *)
 Fixpoint lsem_i_imed 
-  (LSC: lcmd -> lpoint -> itree (LCall +' E) lpoint)
+  (LSC: lcmd -> itree (LCall +' E) unit)
   (LSI: lpoint -> itree (LCall +' E) lpoint)
   (fn: funname) (plS plE: plinfo)
   (lt : LTree fn plS plE) : itree (LCall +' E) lpoint :=
@@ -600,14 +601,14 @@ Fixpoint lsem_i_imed
   | LCallNode _ nb na fn' lc_bef lc_aft li1 li2 =>
       match LCallNode_ok nb na fn' lc_bef lc_aft li1 li2 with
       | false => throw err  
-      | true => LSC (lc_bef ++ [li1]) (fn, pS) ;;
-                l1 <- (trigger_inl1 (Call fn')) ;;
-                LSC (li2 :: lc_aft) l1 ;;
+      | true => LSC (lc_bef ++ [li1]) ;;
+                (trigger_inl1 (Call fn')) ;;
+                LSC (li2 :: lc_aft) ;;
                 Ret (fn, pS + nb + S (S na))            
       end 
   end
 with lsem_cmd_imed 
-  (LSC: lcmd -> lpoint -> itree (LCall +' E) lpoint)
+  (LSC: lcmd -> itree (LCall +' E) unit)
   (LSI: lpoint -> itree (LCall +' E) lpoint)
   (fn: funname) (plS plE: plinfo)
   (lt : LTreeList fn plS plE) : itree (LCall +' E) lpoint :=
@@ -618,21 +619,21 @@ with lsem_cmd_imed
        @lsem_cmd_imed LSC LSI _ _ _ ltl
    end.                   
 
-(* linear semantics of source functions. l1 is the return address (not
-   used here, because we LSC returns an lpoint) *)
+(* linear semantics of source functions. l1 is the return address *)
 Definition lsem_fun_imed_aux 
-  (LSC: lcmd -> lpoint -> itree (LCall +' E) lpoint)
+  (LSC: lcmd -> itree (LCall +' E) unit)
   (LSI: lpoint -> itree (LCall +' E) lpoint)
-  (fn: funname) (fd: LTreeFun fn) : itree (LCall +' E) lpoint :=
+  (fn: funname) (fd: LTreeFun fn) : itree (LCall +' E) unit :=
   match fd with
   | LTFun lbl pl1 lc1 lc2 lt =>
-      LSC lc1 (fn, 0) ;; l <- @lsem_cmd_imed LSC LSI _ _ _ lt ;; LSC lc2 l 
+      LSC lc1 ;; @lsem_cmd_imed LSC LSI _ _ _ lt ;;
+      LSC lc2 
   end.                   
 
 Definition lsem_fun_imed 
-  (LSC: lcmd -> lpoint -> itree (LCall +' E) lpoint)
+  (LSC: lcmd -> itree (LCall +' E) unit)
   (LSI: lpoint -> itree (LCall +' E) lpoint)
-  (fn: funname) : itree (LCall +' E) lpoint :=
+  (fn: funname) : itree (LCall +' E) unit :=
   fd <- err_def_option (ifenv fn) ;;
   lsem_fun_imed_aux LSC LSI fd.
 
@@ -645,16 +646,16 @@ Context {XF: LFindE -< E} {XL: LEvalE -< E } {XSl: @stateE LState -< E}.
 Definition lsem_i_imedI  
   (fn: funname) (plS plE: plinfo)
   (lt : LTree fn plS plE) : itree (LCall +' E) lpoint :=
-  lsem_i_imed isem_lcmd_seq_flow isem_li_aflow lt.
+  lsem_i_imed isem_lcmd_acore isem_li_aflow lt.
 
 Definition lsem_cmd_imedI  
   (fn: funname) (plS plE: plinfo)
   (lt : LTreeList fn plS plE) : itree (LCall +' E) lpoint :=
-  lsem_cmd_imed isem_lcmd_seq_flow isem_li_aflow lt.
+  lsem_cmd_imed isem_lcmd_acore isem_li_aflow lt.
 
 Definition lsem_fun_imedI  
-  (fn: funname) : itree (LCall +' E) lpoint :=
-  lsem_fun_imed isem_lcmd_seq_flow isem_li_aflow fn.
+  (fn: funname) : itree (LCall +' E) unit :=
+  lsem_fun_imed isem_lcmd_acore isem_li_aflow fn.
 
 Definition handle_LRec : LCall ~> itree (LCall +' E) :=
   fun T  (rc : callE _ _ T) =>
