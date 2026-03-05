@@ -563,13 +563,15 @@ Section Lemmas.
 Context {XF: LFindE -< E} {XL: LEvalE -< E }.
 Context {readPC: LState -> option lpoint}.
 
+(* equivalence between core and instrumented semantics *)
 Lemma core2instrumented_lfun (fn: funname) (st: LState) :
   readPC st = Some (fn, 0) ->
   eutt (fun x y => x = fst y) (@isem_lcmd_core E _ readPC st)
     (run_state (@isem_lfun_flow (@stateE LState +' E) _ _ _ inl1 fn) st).
 Admitted.
 
-(* note: both semantics depend implicitly on glfenv *)
+(* equivalence between instrumented and intermediate semantics.
+   note: both semantics depend implicitly on glfenv *)
 Lemma instrumented2intermediate_lcmd {XS: stateE LState -< E}
   (fn: funname) (plS plE: plinfo)
   (lt : LTreeList fn plS plE) :
@@ -578,6 +580,7 @@ Lemma instrumented2intermediate_lcmd {XS: stateE LState -< E}
 Admitted.
 
 (* TODO: cleanup it_cflow_sem and redefine the lemma *)
+(* equivalence between intermediate and source semantics *)
 (* Lemma intermediate2source  *)
 
 End Lemmas.
