@@ -218,17 +218,13 @@ Definition wandn sz (x y: word sz) : word sz := wand (wnot x) y.
 
 Definition wunsigned {s} (w: word s) : Z :=
   urepr w.
+Arguments wunsigned : simpl never.
 
 Definition wsigned {s} (w: word s) : Z :=
   srepr w.
 
 Definition wrepr s (z: Z) : word s :=
   mkword (wsize_size_minus_1 s).+1 z.
-
-Lemma word_ext n x y h h' :
-  x = y →
-  @mkWord n x h = @mkWord n y h'.
-Proof. by move => e; apply/val_eqP/eqP. Qed.
 
 Lemma wunsigned_inj sz : injective (@wunsigned sz).
 Proof. by move => x y /eqP /val_eqP. Qed.
@@ -245,7 +241,7 @@ Proof. by rewrite /wrepr /wsigned sreprK. Qed.
 
 Lemma wunsigned_repr s z :
   wunsigned (wrepr s z) = z mod modulus (wsize_size_minus_1 s).+1.
-Proof. done. Qed.
+Proof. by rewrite /wunsigned /wrepr mkwordK. Qed.
 
 Lemma wrepr0 sz : wrepr sz 0 = 0%R.
 Proof. by apply/eqP. Qed.
@@ -268,15 +264,24 @@ Proof. move=> h; rewrite wunsigned_repr; apply: Zmod_small h. Qed.
 
 Lemma wrepr_add sz (x y: Z) :
   wrepr sz (x + y) = (wrepr sz x + wrepr sz y)%R.
-Proof. by apply: word_ext; rewrite /wrepr !mkwordK Zplus_mod. Qed.
+Proof.
+  apply: wunsigned_inj.
+  by rewrite wunsigned_repr Zplus_mod /wunsigned addwE !mkwordK.
+Qed.
 
 Lemma wrepr_sub sz (x y: Z) :
   wrepr sz (x - y) = (wrepr sz x - wrepr sz y)%R.
-Proof. by apply: word_ext; rewrite /wrepr !mkwordK -Zminus_mod_idemp_r -Z.add_opp_r Zplus_mod. Qed.
+Proof.
+  apply: wunsigned_inj.
+  by rewrite wunsigned_repr Zminus_mod /wunsigned subwE !mkwordK.
+Qed.
 
 Lemma wrepr_mul sz (x y: Z) :
   wrepr sz (x * y) = (wrepr sz x * wrepr sz y)%R.
-Proof. by apply: word_ext; rewrite /wrepr !mkwordK Zmult_mod. Qed.
+Proof.
+  apply: wunsigned_inj.
+  by rewrite wunsigned_repr Zmult_mod /wunsigned mulwE !mkwordK.
+Qed.
 
 Lemma wrepr_m1 sz :
   wrepr sz (-1) = (-1)%R.
@@ -724,7 +729,7 @@ Lemma wsigned_repr sz z :
   wmin_signed sz <= z <= wmax_signed sz →
   wsigned (wrepr sz z) = z.
 Proof.
-  rewrite wsignedE msb_wordE msbE /= wunsigned_repr -/(wbase _) => z_range.
+  rewrite wsignedE msb_wordE msbE mkword_valK wunsigned_repr -/(wbase _) => z_range.
   elim_div => a b [] // ? [] b_range; last by have := wbase_pos sz; lia.
   subst z.
   case: ifP => /ZleP.
@@ -806,9 +811,8 @@ Lemma zero_extend_sign_extend sz sz' s (w: word s) :
  (sz ≤ sz')%CMP →
   zero_extend sz (sign_extend sz' w) = sign_extend sz w.
 Proof.
-move => hsz; rewrite /sign_extend; apply: word_ext.
-move: (wsigned w) => {w} z.
-rewrite wunsigned_repr.
+move => hsz; apply: wunsigned_inj.
+rewrite !wunsigned_repr /=.
 case: (modulus_m (wsize_size_m hsz)) => n hn.
 by rewrite hn mod_pq_mod_q.
 Qed.
@@ -818,8 +822,8 @@ Lemma zero_extend_wrepr sz sz' z :
   zero_extend sz (wrepr sz' z) = wrepr sz z.
 Proof.
 move/wsize_size_m => hle.
-apply: word_ext.
-rewrite /wunsigned /urepr /wrepr /=.
+apply: wunsigned_inj.
+rewrite !wunsigned_repr.
 case: (modulus_m hle) => n -> {hle}.
 exact: mod_pq_mod_q.
 Qed.
@@ -866,10 +870,9 @@ Lemma sign_extend_truncate s s' (w: word s') :
   (s ≤ s')%CMP →
   sign_extend s w = zero_extend s w.
 Proof.
-  rewrite /sign_extend /zero_extend /wsigned /wunsigned.
-  rewrite mathcomp.word.word.sreprE /= /wrepr.
-  move: (mathcomp.word.word.urepr w) => z hle.
-  apply/word_ext.
+  rewrite /sign_extend /zero_extend /wsigned /wunsigned sreprE /= /wrepr.
+  move: (urepr w) => z hle.
+  apply: wunsigned_inj; rewrite /wunsigned !mkwordK.
   have [n ->] := modulus_m (wsize_size_m hle).
   case: word_ssrZ.ltzP => // hgt.
   by rewrite Zminus_mod Z_mod_mult Z.sub_0_r Zmod_mod.
@@ -998,7 +1001,7 @@ Lemma wxor_xx sz (x: word sz) : wxor x x = 0%R.
 Proof. by apply/eqP/eq_from_wbit; rewrite /= Z.lxor_nilpotent. Qed.
 
 Lemma wmulE sz (x y: word sz) : (x * y)%R = wrepr sz (wunsigned x * wunsigned y).
-Proof. by rewrite /wunsigned /wrepr; apply: word_ext. Qed.
+Proof. by rewrite wrepr_mul !wrepr_unsigned. Qed.
 
 Lemma wror0 sz (w : word sz) : wror w 0 = w.
 Proof.
@@ -1022,11 +1025,9 @@ Lemma wadd_zero_extend sz sz' (x y: word sz') :
   (sz ≤ sz')%CMP →
   zero_extend sz (x + y) = (zero_extend sz x + zero_extend sz y)%R.
 Proof.
-move => hle; apply: word_ext.
-rewrite /wrepr !mkwordK -Zplus_mod.
-rewrite /wunsigned /urepr /=.
-change (x + y)%R with (add_word x y).
-rewrite /add_word /= /urepr /=.
+move => hle; apply: wunsigned_inj.
+rewrite {1}/zero_extend wunsigned_repr /wunsigned !addwE.
+rewrite !mkwordK -Zplus_mod.
 case: (modulus_m (wsize_size_m hle)) => n -> {hle}.
 by rewrite mod_pq_mod_q.
 Qed.
@@ -1035,11 +1036,9 @@ Lemma wmul_zero_extend sz sz' (x y: word sz') :
   (sz ≤ sz')%CMP →
   zero_extend sz (x * y) = (zero_extend sz x * zero_extend sz y)%R.
 Proof.
-move => hle; apply: word_ext.
-rewrite /wrepr !mkwordK -Zmult_mod.
-rewrite /wunsigned /urepr /=.
-change (x * y)%R with (mul_word x y).
-rewrite /mul_word /= /urepr /=.
+move => hle; apply: wunsigned_inj.
+rewrite /zero_extend !wunsigned_repr !mkwordK.
+rewrite /wunsigned /urepr /= -Zmult_mod.
 case: (modulus_m (wsize_size_m hle)) => n -> {hle}.
 by rewrite mod_pq_mod_q.
 Qed.
@@ -1295,8 +1294,9 @@ Lemma mkwordI n x y :
   (0 <= y < modulus n)%R ->
   mkword n x = mkword n y -> x = y.
 Proof.
-by case/andP => /ZleP ? /ZltP ? /andP[] /ZleP ? /ZltP ? [];
-  rewrite !Z.mod_small.
+case/andP => /ZleP ? /ZltP ? /andP[] /ZleP ? /ZltP ? h.
+have : urepr (mkword n x) = urepr (mkword n y) by rewrite h.
+by clear h; rewrite !mkwordK !Z.mod_small.
 Qed.
 
 Lemma make_vec_inj sz (bs bs': seq u8) :
@@ -1998,8 +1998,8 @@ Qed.
 Lemma wrepr_xor ws (x y : Z) :
   wxor (wrepr ws x) (wrepr ws y) = wrepr ws (Z.lxor x y).
 Proof.
-  apply: word_ext.
-  rewrite /wrepr /=.
+  apply: wunsigned_inj.
+  rewrite wunsigned_repr /wunsigned urepr_wxor !mkwordK.
   set wsz := (wsize_size_minus_1 ws).+1.
   change (word.modulus wsz) with (two_power_nat wsz).
   rewrite two_power_nat_equiv.
@@ -2118,7 +2118,7 @@ Lemma subword_make_vec_bits_low (n m : nat) x y :
 Proof.
   move=> h.
   apply/eqP/word.eq_from_wbit => i.
-  rewrite subwordE wbit_t2wE /word.word.wbit /=.
+  rewrite subwordE wbit_t2wE /word.word.wbit mkword_valK /=.
   rewrite (nth_map i); last by rewrite size_enum_ord.
   rewrite addn0 nth_ord_enum modulusZE.
   rewrite Z.shiftl_0_l Z.lor_0_r.
