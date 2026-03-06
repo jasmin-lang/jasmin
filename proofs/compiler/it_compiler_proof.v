@@ -193,7 +193,7 @@ apply: wiequiv_f_trans_UU_EU; first exact (it_wi2w_progP _ _ ok_paw).
 apply: wiequiv_f_trans_UU_EU; first exact: (it_insert_renaming_callP (insert_renaming cparams)).
 apply: wiequiv_f_trans_UU_EU; first exact: (it_array_copy_fdP _ ok_pa0).
 apply: wiequiv_f_trans_EE_EU; first exact: it_add_init_callP.
-apply: wiequiv_f_trans_EE_EU; first exact: (it_alloc_callP _ ok_pb).
+apply: wiequiv_f_trans_EE_EU; first exact: (it_lower_spill_fdP _ ok_pb).
 apply: wiequiv_f_trans_UU_EU.
 apply [elaborate it_inliningP (ev := ev) ok_fn ok_pa ].
 apply: wiequiv_f_trans_UU_EU; first exact: it_unrollP ok_pc.

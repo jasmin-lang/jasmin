@@ -716,7 +716,7 @@ Proof.
 Qed.
 #[local] Hint Resolve checker_st_veP : core.
 
-Lemma it_alloc_callP fn :
+Lemma it_lower_spill_fdP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
   apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
