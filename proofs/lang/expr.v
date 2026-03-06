@@ -379,6 +379,11 @@ Variant align :=
   | Align
   | NoAlign.
 
+(* We avoid clash with [is_align] using option "module". *)
+#[only(eqbOK),module] derive align.
+
+HB.instance Definition _ := hasDecEq.Build align align.eqb_OK.
+
 (* -------------------------------------------------------------------- *)
 
 Definition assertion := (assertion_label * pexpr)%type.
@@ -967,6 +972,54 @@ Fixpoint eq_expr (e e' : pexpr) :=
     (t == t') && eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
   | _             , _                 => false
   end.
+
+Definition eq_lval (x x': lval) : bool :=
+  match x, x' with
+  | Lnone _ ty, Lnone _ ty' => ty == ty'
+  | Lvar v, Lvar v' => v_var v == v_var v'
+  | Lmem al w _ e, Lmem al' w' _ e' => (al == al') && (w == w') && eq_expr e e'
+  | Laset al aa w v e, Laset al' aa' w' v' e' =>
+      (al == al') && (aa == aa') && (w == w') && (v_var v == v_var v') && eq_expr e e'
+  | Lasub aa w len v e, Lasub aa' w' len' v' e' =>
+      (aa == aa') && (w == w') && (len == len') && (v_var v == v_var v') && eq_expr e e'
+
+  | _, _ => false
+  end.
+
+(* --------------------------------------------------------------------- *)
+(* Test the equality of two instructions modulo variable & instr info    *)
+
+Section EQ_INSTR.
+
+Context {asm_op : Type} {asmop : asmOp asm_op}.
+
+Fixpoint eq_instr_r (i1 i2:instr_r) :=
+  match i1, i2 with
+  | Cassgn x1 tag1 ty1 e1, Cassgn x2 tag2 ty2 e2 =>
+     (tag1 == tag2) && (ty1 == ty2) && eq_lval x1 x2 && eq_expr e1 e2
+  | Copn x1 tag1 o1 e1, Copn x2 tag2 o2 e2 =>
+     all2 eq_lval x1 x2 && (tag1 == tag2) && (o1 == o2) && all2 eq_expr e1 e2
+  | Csyscall xs1 o1 es1, Csyscall xs2 o2 es2 =>
+     all2 eq_lval xs1 xs2 && (o1 == o2) && all2 eq_expr es1 es2
+  | Cassert a1, Cassert a2 => (a1.1 == a2.1) && eq_expr a1.2 a2.2
+  | Cif e1 c11 c12, Cif e2 c21 c22 =>
+    eq_expr e1 e2 && all2 eq_instr c11 c21 && all2 eq_instr c12 c22
+  | Cfor i1 (dir1,lo1,hi1) c1, Cfor i2 (dir2,lo2,hi2) c2 =>
+    (v_var i1 == v_var i2) && (dir1 == dir2) && eq_expr lo1 lo2 && eq_expr hi1 hi2 && all2 eq_instr c1 c2
+  | Cwhile a1 c1 e1 _ c1' , Cwhile a2 c2 e2 _ c2' =>
+    (a1 == a2) && all2 eq_instr c1 c2 && eq_expr e1 e2 && all2 eq_instr c1' c2'
+  | Ccall x1 f1 arg1, Ccall x2 f2 arg2 =>
+    all2 eq_lval x1 x2 && (f1 == f2) && all2 eq_expr arg1 arg2
+  | _, _ => false
+  end
+with eq_instr i1 i2 :=
+  match i1, i2 with
+  | MkI _ i1, MkI _ i2 => eq_instr_r i1 i2
+  end.
+
+Definition eq_cmd c1 c2 := all2 eq_instr c1 c2.
+
+End EQ_INSTR.
 
 (* ------------------------------------------------------------------- *)
 Definition to_lvals (l:seq var) : seq lval :=
