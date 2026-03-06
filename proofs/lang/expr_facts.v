@@ -1,5 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From Coq Require Import Utf8.
+Require Import seq_extra.
 Require Export expr.
 
 Lemma var_i_surj x :
@@ -728,6 +729,399 @@ Section EQ_EXPR_READ_E.
   Qed.
 
 End EQ_EXPR_READ_E.
+
+Lemma eq_lval_refl lv : eq_lval lv lv.
+Proof. by case: lv => //= *; rewrite ?eqxx ?eq_expr_refl. Qed.
+
+Lemma eq_lval_symm lv1 lv2 :
+  eq_lval lv1 lv2 -> eq_lval lv2 lv1.
+Proof.
+  case: lv1 lv2 => [ ?? | ? | ???? | ????? | ????? ]
+                   [ ?? | ? | ???? | ????? | ????? ] //=.
+  + by move=> /eqP ->.
+  + by move=> /eqP ->.
+  + by move=> /andP[] /andP[] /eqP -> /eqP -> /eq_expr_symm ->; rewrite !eqxx.
+  + by move=> /andP[] /andP[] /andP[] /andP[] /eqP -> /eqP -> /eqP -> /eqP -> /eq_expr_symm ->; rewrite !eqxx.
+  by move=> /andP[] /andP[] /andP[] /andP[] /eqP -> /eqP -> /eqP -> /eqP -> /eq_expr_symm ->; rewrite !eqxx.
+Qed.
+
+Lemma eq_lval_trans lv2 lv1 lv3 :
+  eq_lval lv1 lv2 -> eq_lval lv2 lv3 -> eq_lval lv1 lv3.
+Proof.
+  case: lv1 lv2 lv3 => [ ?? | ? | ???? | ????? | ????? ]
+                       [ ?? | ? | ???? | ????? | ????? ]
+                       [ ?? | ? | ???? | ????? | ????? ] //=.
+  + by move=> /eqP -> /eqP ->.
+  + by move=> /eqP -> /eqP ->.
+  + move=> /andP[] /andP[] /eqP -> /eqP -> h12 /andP[] /andP[] /eqP -> /eqP -> h23.
+    by rewrite !eqxx (eq_expr_trans h12 h23).
+  + move=> /andP[] /andP[] /andP[] /andP[] /eqP -> /eqP -> /eqP -> /eqP -> h12
+           /andP[] /andP[] /andP[] /andP[] /eqP -> /eqP -> /eqP -> /eqP -> h23.
+    by rewrite !eqxx (eq_expr_trans h12 h23).
+  move=> /andP[] /andP[] /andP[] /andP[] /eqP -> /eqP -> /eqP -> /eqP -> h12
+         /andP[] /andP[] /andP[] /andP[] /eqP -> /eqP -> /eqP -> /eqP -> h23.
+  by rewrite !eqxx (eq_expr_trans h12 h23).
+Qed.
+
+Lemma eq_lval_vrv lv1 lv2 :
+  eq_lval lv1 lv2 ->
+  Sv.Equal (vrv lv1) (vrv lv2).
+Proof.
+  case: lv1 lv2 => [ ?? | ? | ???? | ????? | ????? ]
+                   [ ?? | ? | ???? | ????? | ????? ] //=.
+  + by move=> /eqP ->.
+  + by move=> /andP[] /andP[] /andP[] /andP[] _ _ _ /eqP -> _.
+  by move=> /andP[] /andP[] /andP[] /andP[] _ _ _ /eqP -> _.
+Qed.
+
+Lemma eq_lvals_vrvs lvs1 lvs2 :
+  all2 eq_lval lvs1 lvs2 ->
+  Sv.Equal (vrvs lvs1) (vrvs lvs2).
+Proof.
+  elim: lvs1 lvs2 => [|lv1 lvs1 ih] [|lv2 lvs2] //=.
+  move=> /andP [/eq_lval_vrv h /ih hs].
+  by rewrite !vrvs_cons h hs.
+Qed.
+
+Section EQ_CMD.
+
+Context {asm_op : Type} {asmop:asmOp asm_op}.
+
+Section REFL.
+
+Let Pr i := eq_instr_r i i.
+Let Pi i := eq_instr i i.
+Let Pc c := eq_cmd c c.
+
+Lemma Hrefl_mk : forall i ii, Pr i -> Pi (MkI ii i).
+Proof. done. Qed.
+
+Lemma Hrefl_nil : Pc [::].
+Proof. done. Qed.
+
+Lemma Hrefl_cons: forall i c, Pi i -> Pc c -> Pc (i::c).
+Proof. by move=> i c; rewrite /Pi /Pc /= => -> ->. Qed.
+
+Lemma Hrefl_asgn: forall x tg ty e, Pr (Cassgn x tg ty e).
+Proof. by move=> ????; rewrite /Pr /= !eqxx eq_lval_refl eq_expr_refl. Qed.
+
+Lemma Hrefl_opn : forall xs t o es, Pr (Copn xs t o es).
+Proof. by move=> ????; rewrite /Pr /= !eqxx (all2_refl eq_lval_refl) (all2_refl eq_expr_refl). Qed.
+
+Lemma Hrefl_syscall : forall xs o es, Pr (Csyscall xs o es).
+Proof. by move=> ???; rewrite /Pr /= eqxx (all2_refl eq_lval_refl) (all2_refl eq_expr_refl). Qed.
+
+Lemma Hrefl_assert : forall a, Pr (Cassert a).
+Proof. by move=> ?; rewrite /Pr /= eqxx eq_expr_refl. Qed.
+
+Lemma Hrefl_if : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
+Proof. by move=> ???; rewrite /Pc /Pr /= eq_expr_refl -!/(eq_cmd _ _) => -> ->. Qed.
+
+Lemma Hrefl_for : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
+Proof. by move=> ?????; rewrite /Pc /Pr /= !eqxx !eq_expr_refl -/(eq_cmd _ _) => ->. Qed.
+
+Lemma Hrefl_while : forall a c e info c', Pc c -> Pc c' -> Pr (Cwhile a c e info c').
+Proof. by move=> ?????; rewrite /Pc /Pr /= eqxx eq_expr_refl -!/(eq_cmd _ _) => -> ->. Qed.
+
+Lemma Hrefl_call: forall xs f es, Pr (Ccall xs f es).
+Proof. by move=> ???; rewrite /Pr /= eqxx (all2_refl eq_lval_refl) (all2_refl eq_expr_refl). Qed.
+
+Lemma eq_instr_r_refl i : eq_instr_r i i.
+Proof.
+  exact:
+    (instr_r_Rect Hrefl_mk Hrefl_nil Hrefl_cons Hrefl_asgn Hrefl_opn
+      Hrefl_syscall Hrefl_assert Hrefl_if Hrefl_for Hrefl_while Hrefl_call).
+Qed.
+
+Lemma eq_instr_refl i : eq_instr i i.
+Proof.
+  exact:
+    (instr_Rect Hrefl_mk Hrefl_nil Hrefl_cons Hrefl_asgn Hrefl_opn
+      Hrefl_syscall Hrefl_assert Hrefl_if Hrefl_for Hrefl_while Hrefl_call).
+Qed.
+
+Lemma eq_cmd_refl c : eq_cmd c c.
+Proof.
+  exact:
+    (cmd_rect Hrefl_mk Hrefl_nil Hrefl_cons Hrefl_asgn Hrefl_opn
+      Hrefl_syscall Hrefl_assert Hrefl_if Hrefl_for Hrefl_while Hrefl_call).
+Qed.
+
+End REFL.
+
+Section SYMM.
+
+Let Pr i := forall i2, eq_instr_r i i2 -> eq_instr_r i2 i.
+Let Pi i := forall i2, eq_instr i i2 -> eq_instr i2 i.
+Let Pc c := forall c2, eq_cmd c c2 -> eq_cmd c2 c.
+
+Lemma Hsymm_mk : forall i ii, Pr i -> Pi (MkI ii i).
+Proof. by move=> i ii hi [ii2 i2] /=; apply hi. Qed.
+
+Lemma Hsymm_nil : Pc [::].
+Proof. by move=> [|//]. Qed.
+
+Lemma Hsymm_cons: forall i c, Pi i -> Pc c -> Pc (i::c).
+Proof. by move=> i c hi hc [//|i2 c2] /= /andP [/hi -> /hc ->]. Qed.
+
+Lemma Hsymm_asgn: forall x tg ty e, Pr (Cassgn x tg ty e).
+Proof.
+  move=> ???? [] //= ???? /andP[] /andP[] /andP[] /eqP -> /eqP -> /eq_lval_symm -> /eq_expr_symm ->.
+  by rewrite !eqxx.
+Qed.
+
+Lemma Hsymm_opn : forall xs t o es, Pr (Copn xs t o es).
+Proof.
+  move=> ???? [] //= ???? /andP[] /andP[] /andP[]
+    /(all2_symm eq_lval_symm) -> /eqP -> /eqP -> /(all2_symm eq_expr_symm) ->.
+  by rewrite !eqxx.
+Qed.
+
+Lemma Hsymm_syscall : forall xs o es, Pr (Csyscall xs o es).
+Proof.
+  move=> ??? [] //= ??? /andP[] /andP[] /(all2_symm eq_lval_symm) -> /eqP -> /(all2_symm eq_expr_symm) ->.
+  by rewrite eqxx.
+Qed.
+
+Lemma Hsymm_assert : forall a, Pr (Cassert a).
+Proof. by move=> ? [] //= ? /andP[] /eqP -> /eq_expr_symm ->; rewrite eqxx. Qed.
+
+Lemma Hsymm_if : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
+Proof.
+  move=> ??? hc1 hc2 [] //= ??? /andP[] /andP[] /eq_expr_symm -> /hc1{}hc1 /hc2{}hc2.
+  by rewrite -!/(eq_cmd _ _) hc1 hc2.
+Qed.
+
+Lemma Hsymm_for : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
+Proof.
+  move=> ????? hc [] //= ? [[??]?] ? /andP[] /andP[] /andP[] /andP[]
+    /eqP -> /eqP -> /eq_expr_symm -> /eq_expr_symm -> /hc{}hc.
+  by rewrite !eqxx -/(eq_cmd _ _) hc.
+Qed.
+
+Lemma Hsymm_while : forall a c e info c', Pc c -> Pc c' -> Pr (Cwhile a c e info c').
+Proof.
+  move=> ????? hc hc' [] //= ????? /andP[] /andP[] /andP[] /eqP -> /hc{}hc /eq_expr_symm -> /hc'{}hc'.
+  by rewrite eqxx -!/(eq_cmd _ _) hc hc'.
+Qed.
+
+Lemma Hsymm_call: forall xs f es, Pr (Ccall xs f es).
+Proof.
+  move=> ??? [] //= ??? /andP[] /andP[] /(all2_symm eq_lval_symm) -> /eqP -> /(all2_symm eq_expr_symm) ->.
+  by rewrite eqxx.
+Qed.
+
+Lemma eq_instr_r_symm i1 i2 : eq_instr_r i1 i2 -> eq_instr_r i2 i1.
+Proof.
+  exact:
+    (instr_r_Rect Hsymm_mk Hsymm_nil Hsymm_cons Hsymm_asgn Hsymm_opn
+      Hsymm_syscall Hsymm_assert Hsymm_if Hsymm_for Hsymm_while Hsymm_call).
+Qed.
+
+Lemma eq_instr_symm i1 i2 : eq_instr i1 i2 -> eq_instr i2 i1.
+Proof.
+  exact:
+    (instr_Rect Hsymm_mk Hsymm_nil Hsymm_cons Hsymm_asgn Hsymm_opn
+      Hsymm_syscall Hsymm_assert Hsymm_if Hsymm_for Hsymm_while Hsymm_call).
+Qed.
+
+Lemma eq_cmd_symm c1 c2 : eq_cmd c1 c2 -> eq_cmd c2 c1.
+Proof.
+  exact:
+    (cmd_rect Hsymm_mk Hsymm_nil Hsymm_cons Hsymm_asgn Hsymm_opn
+      Hsymm_syscall Hsymm_assert Hsymm_if Hsymm_for Hsymm_while Hsymm_call).
+Qed.
+
+End SYMM.
+
+Section TRANS.
+
+Let Pr i := forall i2 i3, eq_instr_r i i2 -> eq_instr_r i2 i3 -> eq_instr_r i i3.
+Let Pi i := forall i2 i3, eq_instr i i2 -> eq_instr i2 i3 -> eq_instr i i3.
+Let Pc c := forall c2 c3, eq_cmd c c2 -> eq_cmd c2 c3 -> eq_cmd c c3.
+
+Lemma Htrans_mk : forall i ii, Pr i -> Pi (MkI ii i).
+Proof. by move=> i ii hi [??] [??] /=; apply hi. Qed.
+
+Lemma Htrans_nil : Pc [::].
+Proof. by move=> [|//]. Qed.
+
+Lemma Htrans_cons: forall i c, Pi i -> Pc c -> Pc (i::c).
+Proof. by move=> i c hi hc [//|i2 c2] [//|i3 c3] /= /andP [/hi{}hi /hc{}hc] /andP [/hi -> /hc ->]. Qed.
+
+Lemma Htrans_asgn: forall x tg ty e, Pr (Cassgn x tg ty e).
+Proof.
+  move=> ???? [] //= ???? [] //= ????
+    /andP[] /andP[] /andP[] /eqP -> /eqP -> h12 h12'
+    /andP[] /andP[] /andP[] /eqP -> /eqP -> h23 h23'.
+  by rewrite !eqxx (eq_lval_trans h12 h23) (eq_expr_trans h12' h23').
+Qed.
+
+Lemma Htrans_opn : forall xs t o es, Pr (Copn xs t o es).
+Proof.
+  move=> ???? [] //= ???? [] //= ????
+    /andP[] /andP[] /andP[] h12 /eqP -> /eqP -> h12'
+    /andP[] /andP[] /andP[] h23 /eqP -> /eqP -> h23'.
+  by rewrite !eqxx (all2_trans eq_lval_trans h12 h23) (all2_trans eq_expr_trans h12' h23').
+Qed.
+
+Lemma Htrans_syscall : forall xs o es, Pr (Csyscall xs o es).
+Proof.
+  move=> ??? [] //= ??? [] //= ???
+    /andP[] /andP[] h12 /eqP -> h12'
+    /andP[] /andP[] h23 /eqP -> h23'.
+  by rewrite eqxx (all2_trans eq_lval_trans h12 h23) (all2_trans eq_expr_trans h12' h23').
+Qed.
+
+Lemma Htrans_assert : forall a, Pr (Cassert a).
+Proof.
+  move=> ? [] //= ? [] //= ? /andP[] /eqP -> h12 /andP[] /eqP -> h23.
+  by rewrite eqxx (eq_expr_trans h12 h23).
+Qed.
+
+Lemma Htrans_if : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
+Proof.
+  move=> ??? hc1 hc2 [] //= ??? [] //= ???
+    /andP[] /andP[] h12 h12' h12''
+    /andP[] /andP[] h23 h23' h23''.
+  by rewrite (eq_expr_trans h12 h23) -!/(eq_cmd _ _) (hc1 _ _ h12' h23') (hc2 _ _ h12'' h23'').
+Qed.
+
+Lemma Htrans_for : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
+Proof.
+  move=> ????? hc [] //= ? [[??]?] ? [] //= ? [[??]?] ?
+    /andP[] /andP[] /andP[] /andP[] /eqP -> /eqP -> h12 h12' h12''
+    /andP[] /andP[] /andP[] /andP[] /eqP -> /eqP -> h23 h23' h23''.
+  by rewrite !eqxx (eq_expr_trans h12 h23) (eq_expr_trans h12' h23') -/(eq_cmd _ _) (hc _ _ h12'' h23'').
+Qed.
+
+Lemma Htrans_while : forall a c e info c', Pc c -> Pc c' -> Pr (Cwhile a c e info c').
+Proof.
+  move=> ????? hc hc' [] //= ????? [] //= ?????
+    /andP[] /andP[] /andP[] /eqP -> h12 h12' h12''
+    /andP[] /andP[] /andP[] /eqP -> h23 h23' h23''.
+  by rewrite eqxx (eq_expr_trans h12' h23') -!/(eq_cmd _ _) (hc _ _ h12 h23) (hc' _ _ h12'' h23'').
+Qed.
+
+Lemma Htrans_call: forall xs f es, Pr (Ccall xs f es).
+Proof.
+  move=> ??? [] //= ??? [] //= ???
+    /andP[] /andP[] h12 /eqP -> h12'
+    /andP[] /andP[] h23 /eqP -> h23'.
+  by rewrite eqxx (all2_trans eq_lval_trans h12 h23) (all2_trans eq_expr_trans h12' h23').
+Qed.
+
+Lemma eq_instr_r_trans i2 i1 i3 :
+  eq_instr_r i1 i2 -> eq_instr_r i2 i3 -> eq_instr_r i1 i3.
+Proof.
+  exact:
+    (instr_r_Rect Htrans_mk Htrans_nil Htrans_cons Htrans_asgn Htrans_opn
+      Htrans_syscall Htrans_assert Htrans_if Htrans_for Htrans_while Htrans_call).
+Qed.
+
+Lemma eq_instr_trans i2 i1 i3 : eq_instr i1 i2 -> eq_instr i2 i3 -> eq_instr i1 i3.
+Proof.
+  exact:
+    (instr_Rect Htrans_mk Htrans_nil Htrans_cons Htrans_asgn Htrans_opn
+      Htrans_syscall Htrans_assert Htrans_if Htrans_for Htrans_while Htrans_call).
+Qed.
+
+Lemma eq_cmd_trans c2 c1 c3 : eq_cmd c1 c2 -> eq_cmd c2 c3 -> eq_cmd c1 c3.
+Proof.
+  exact:
+    (cmd_rect Htrans_mk Htrans_nil Htrans_cons Htrans_asgn Htrans_opn
+      Htrans_syscall Htrans_assert Htrans_if Htrans_for Htrans_while Htrans_call).
+Qed.
+
+End TRANS.
+
+Section WRITE_C.
+
+Let Pr i := forall i2, eq_instr_r i i2 -> Sv.Equal (write_i i) (write_i i2).
+Let Pi i := forall i2, eq_instr i i2 -> Sv.Equal (write_I i) (write_I i2).
+Let Pc c := forall c2, eq_cmd c c2 -> Sv.Equal (write_c c) (write_c c2).
+
+Lemma Hwrite_mk : forall i ii, Pr i -> Pi (MkI ii i).
+Proof. by move=> i ii hi [??] /=; rewrite !write_Ii; apply hi. Qed.
+
+Lemma Hwrite_nil : Pc [::].
+Proof. by move=> [|//]. Qed.
+
+Lemma Hwrite_cons: forall i c, Pi i -> Pc c -> Pc (i::c).
+Proof.
+  move=> i c hi hc [//|i2 c2] /= /andP [/hi{}hi /hc{}hc].
+  by rewrite !write_c_cons hi hc.
+Qed.
+
+Lemma Hwrite_asgn: forall x tg ty e, Pr (Cassgn x tg ty e).
+Proof.
+  move=> ???? [] //= ???? /andP[] /andP[] /andP[] _ _ h _.
+  by rewrite !write_i_assgn (eq_lval_vrv h).
+Qed.
+
+Lemma Hwrite_opn : forall xs t o es, Pr (Copn xs t o es).
+Proof.
+  move=> ???? [] //= ???? /andP[] /andP[] /andP[] h _ _ _.
+  by rewrite !write_i_opn (eq_lvals_vrvs h).
+Qed.
+
+Lemma Hwrite_syscall : forall xs o es, Pr (Csyscall xs o es).
+Proof.
+  move=> ??? [] //= ??? /andP[] /andP[] h _ _.
+  by rewrite !write_i_syscall (eq_lvals_vrvs h).
+Qed.
+
+Lemma Hwrite_assert : forall a, Pr (Cassert a).
+Proof. by move=> ? [] //. Qed.
+
+Lemma Hwrite_if : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
+Proof.
+  move=> ??? hc1 hc2 [] //= ??? /andP[] /andP[] _ /hc1{}hc1 /hc2{}hc2.
+  by rewrite !write_i_if hc1 hc2.
+Qed.
+
+Lemma Hwrite_for : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
+Proof.
+  move=> [??]???? hc [] //= [??] [[??]?] ? /andP[] /andP[] /andP[] /andP[] /eqP -> _ _ _ /hc{}hc.
+  by rewrite !write_i_for hc.
+Qed.
+
+Lemma Hwrite_while : forall a c e info c', Pc c -> Pc c' -> Pr (Cwhile a c e info c').
+Proof.
+  move=> ????? hc hc' [] //= ????? /andP[] /andP[] /andP[] _ /hc{}hc _ /hc'{}hc'.
+  by rewrite !write_i_while hc hc'.
+Qed.
+
+Lemma Hwrite_call: forall xs f es, Pr (Ccall xs f es).
+Proof.
+  move=> ??? [] //= ??? /andP[] /andP[] h _ _.
+  by rewrite !write_i_call (eq_lvals_vrvs h).
+Qed.
+
+Lemma eq_instr_r_write_i i1 i2 : eq_instr_r i1 i2 -> Sv.Equal (write_i i1) (write_i i2).
+Proof.
+  exact:
+    (instr_r_Rect Hwrite_mk Hwrite_nil Hwrite_cons Hwrite_asgn Hwrite_opn
+      Hwrite_syscall Hwrite_assert Hwrite_if Hwrite_for Hwrite_while Hwrite_call).
+Qed.
+
+Lemma eq_instr_write_I i1 i2 : eq_instr i1 i2 -> Sv.Equal (write_I i1) (write_I i2).
+Proof.
+  exact:
+    (instr_Rect Hwrite_mk Hwrite_nil Hwrite_cons Hwrite_asgn Hwrite_opn
+      Hwrite_syscall Hwrite_assert Hwrite_if Hwrite_for Hwrite_while Hwrite_call).
+Qed.
+
+Lemma eq_cmd_write_c c1 c2 : eq_cmd c1 c2 -> Sv.Equal (write_c c1) (write_c c2).
+Proof.
+  exact:
+    (cmd_rect Hwrite_mk Hwrite_nil Hwrite_cons Hwrite_asgn Hwrite_opn
+      Hwrite_syscall Hwrite_assert Hwrite_if Hwrite_for Hwrite_while Hwrite_call).
+Qed.
+
+End WRITE_C.
+
+End EQ_CMD.
 
 (* -------------------------------------------------------------------- *)
 

@@ -1439,6 +1439,27 @@ Lemma eq_exprsP wdb gd m es1 es2:
   all2 eq_expr es1 es2 → sem_pexprs wdb gd m es1 = sem_pexprs wdb gd m es2.
 Proof. exact: (proj2 (eq_exprP_pair wdb gd m)). Qed.
 
+Lemma eq_lvalP wdb gd m lv lv' v :
+  eq_lval lv lv' ->
+  write_lval wdb gd lv v m = write_lval wdb gd lv' v m.
+Proof.
+  case: lv lv'=> [ ?? | [??] | al sz ? e | al aa sz [??] e | aa sz len [??] e]
+                 [ ?? | [??] | al' sz' ? e' | al' aa' sz' [??] e' | aa' sz' len' [??] e'] //=.
+  + by move=> /eqP ->.
+  + by move=> /eqP ->.
+  + by case/andP => /andP [] /eqP -> /eqP -> /eq_exprP ->.
+  + by move=> /andP [] /andP [] /andP [] /andP [] /eqP -> /eqP -> /eqP -> /eqP -> /eq_exprP ->.
+  by move=> /andP [] /andP [] /andP [] /andP [] /eqP -> /eqP -> /eqP -> /eqP -> /eq_exprP ->.
+Qed.
+
+Lemma eq_lvalsP wdb gd m ls1 ls2 vs:
+  all2 eq_lval ls1 ls2 → write_lvals wdb gd m ls1 vs = write_lvals wdb gd m ls2 vs.
+Proof.
+ rewrite /write_lvals.
+ elim: ls1 ls2 vs m => [ | l1 ls1 Hrec] [ | l2 ls2] //= [] // v vs m.
+ by move=> /andP [] /eq_lvalP -> /Hrec; case: write_lval => /=.
+Qed.
+
 Lemma get_var_undef vm x v ty h :
   get_var true vm x = ok v -> v <> Vundef ty h.
 Proof. by move=> /get_var_compat [] * ?; subst. Qed.

@@ -93,3 +93,17 @@ Proof.
     by rewrite pt.
   by case: (ih ps r) => y Y Z; exists y; first right.
 Qed.
+
+Lemma all2_symm T (p : rel T) : pre_symmetric p → pre_symmetric (all2 p).
+Proof.
+  move=> hsymm.
+  elim=> [|x1 l1 ih] [|x2 l2] //=.
+  by move=> /andP [/hsymm -> /ih ->].
+Qed.
+
+Lemma all2_trans T (p : rel T) : transitive p → transitive (all2 p).
+Proof.
+  move=> htrans.
+  elim=> [|x1 l1 ih] [|x2 l2] [|x3 l3] //=.
+  by move=> /andP [/htrans{}htrans /ih{}ih] /andP [/htrans -> /ih ->].
+Qed.
