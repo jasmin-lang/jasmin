@@ -23,10 +23,14 @@ End E.
 Section Section.
 
 Context `{asmop:asmOp}.
-Context (fresh_var_ident: v_kind → string → atype → Ident.ident).
+Context (fresh_var_ident: v_kind → instr_info -> string → atype → Ident.ident).
 
-Let fresh_counter : Ident.ident := fresh_var_ident Inline "i__copy" aint.
-Let fresh_temporary (ws: wsize) : Ident.ident := fresh_var_ident (Reg (Normal, Direct)) "tmp" (aword ws).
+Let fresh_counter fi : Ident.ident := fresh_var_ident Inline (entry_info_of_fun_info fi) "i__copy" aint.
+Let fresh_temporary fi (ws: wsize) : Ident.ident := fresh_var_ident (Reg (Normal, Direct)) (entry_info_of_fun_info fi) "tmp" (aword ws).
+
+Section FUNCTION.
+
+Context (fi : fun_info).
 
 (** Replaces each x = #copy(y) with the following:
 
@@ -44,7 +48,7 @@ Definition direct_copy ws x y i :=
   [:: Cassgn (Laset Aligned AAscale ws x i) AT_none (aword ws) (Pget Aligned AAscale ws y i) ].
 
 Definition tmp_var ws :=
-  {| vtype := aword ws; vname := fresh_temporary ws |}.
+  {| vtype := aword ws; vname := fresh_temporary fi ws |}.
 
 Definition indirect_copy ws x y i :=
   let tmp := {| v_var := tmp_var ws ; v_info := v_info x |} in
@@ -55,7 +59,7 @@ Definition needs_temporary x y : bool :=
   is_var_in_memory x && is_var_in_memory y.
 
 Definition array_copy ii (x: var_i) (ws: wsize) (n: positive) (y: gvar) :=
-  let i_name := fresh_counter in
+  let i_name := fresh_counter fi in
   let i := {| v_var := {| vtype := aint ; vname := i_name |}; v_info := v_info x |} in
   let ei := Pvar (mk_lvar i) in
   let pre :=
@@ -85,7 +89,7 @@ Definition get_source V ii (es: pexprs) : cexec (gvar * cmd) :=
     | Pvar x => ok (x, [::])
     | Psub aa ws len x ofs =>
         let ty := aarr ws len in
-        let y_name := fresh_var_ident (Ident.id_kind x.(gv).(v_var).(vname)) "src" ty in
+        let y_name := fresh_var_ident (Ident.id_kind x.(gv).(v_var).(vname)) ii "src" ty in
         let y_var := {| v_var := Var ty y_name ; v_info := var_info_of_ii ii |} in
         Let _ := assert (~~ Sv.mem y_var V)
                    (pp_internal_error_s_at E.pass ii "fresh source not fresh") in
@@ -101,7 +105,7 @@ Definition get_target V ii (xs: lvals) : cexec (var_i * cmd) :=
     | Lvar x => ok (x, [::])
     | Lasub aa ws len x ofs =>
         let ty := aarr ws len in
-        let x_name := fresh_var_ident (Ident.id_kind x.(v_var).(vname)) "dst" ty in
+        let x_name := fresh_var_ident (Ident.id_kind x.(v_var).(vname)) ii "dst" ty in
         let x_var := {| v_var := Var ty x_name ; v_info := var_info_of_ii ii |} in
         Let _ := assert (~~ Sv.mem x_var V)
                         (pp_internal_error_s_at E.pass ii "fresh destination not fresh") in
@@ -141,18 +145,20 @@ Fixpoint array_copy_i V (i:instr) : cexec cmd :=
   | Ccall _ _ _ => ok [:: i]
   end.
 
+End FUNCTION.
+
 Context {pT: progT}.
 
-Definition array_copy_fd V (f:fundef) :=
+Definition array_copy_fd (f:fundef) :=
   let 'MkFun fi tyin params c tyout res ev := f in
-  Let c := array_copy_c V array_copy_i c in
+  let V := vars_fd f in
+  let fresh := Sv.add {| vtype := aint ; vname := fresh_counter fi |} (sv_of_list (tmp_var fi) wsizes) in
+  Let _ := assert (disjoint fresh V) E.error in
+  Let c := array_copy_c V (array_copy_i fi) c in
   ok (MkFun fi tyin params c tyout res ev).
 
 Definition array_copy_prog (p:prog) :=
-  let V := vars_p (p_funcs p) in
-  let fresh := Sv.add {| vtype := aint ; vname := fresh_counter |} (sv_of_list tmp_var wsizes) in
-  Let _ := assert (disjoint fresh V) E.error in
-  Let fds := map_cfprog (array_copy_fd V) (p_funcs p) in
+  Let fds := map_cfprog array_copy_fd (p_funcs p) in
   ok {| p_funcs := fds;
         p_globs := p_globs p;
         p_extra := p_extra p|}.

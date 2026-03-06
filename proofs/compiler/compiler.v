@@ -269,7 +269,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
   let p := insert_renaming_prog cparams.(insert_renaming) p in
   let p := cparams.(print_uprog) InsertRenaming p in
 
-  Let p := array_copy_prog (λ k, cparams.(fresh_var_ident) k dummy_instr_info 0) p in
+  Let p := array_copy_prog (λ k ii, cparams.(fresh_var_ident) k ii 0) p in
   let p := cparams.(print_uprog) ArrayCopy p in
 
   let p := add_init_prog p in
