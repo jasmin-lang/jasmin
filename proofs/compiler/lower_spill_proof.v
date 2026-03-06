@@ -321,8 +321,8 @@ Proof.
   by rewrite hc /=; move/SvD.F.subset_iff: hsub2 => ->.
 Qed.
 
-Lemma init_map_ty toS x sx :
-  let: (m, _) := init_map fresh_var_ident toS in
+Lemma init_map_ty fi toS x sx :
+  let: (m, _) := init_map fresh_var_ident fi toS in
   Mvar.get m x = Some sx -> vtype x = vtype sx.
 Proof.
   have : Mvar.get (Mvar.empty var) x = Some sx -> vtype x = vtype sx by done.
@@ -387,14 +387,14 @@ Proof.
   + by SvD.fsetdec. + by SvD.fsetdec.
 Qed.
 
-Lemma lower_get_spillP toS X m count :
-  init_map fresh_var_ident toS = (m, count) ->
+Lemma lower_get_spillP fi toS X m count :
+  init_map fresh_var_ident fi toS = (m, count) ->
   let get_spill := lower_spill.get_spill m in
   (check_map m X).1 ->
   ∀ (ii : instr_info) (x sx : var), get_spill ii x = ok sx → vtype x = vtype sx ∧ ¬ Sv.In sx X.
 Proof.
   move=> /= ok_m /check_mapP [hget _] ii x sx; rewrite /lower_spill.get_spill.
-  have := @init_map_ty toS x.
+  have := @init_map_ty fi toS x.
   rewrite ok_m.
   by case: Mvar.get (hget x) => // sx' /(_ _ erefl) ? /(_ _ erefl) -> /ok_inj <-.
 Qed.
@@ -404,8 +404,8 @@ Lemma lower_get_spill_ii m :
   ∀ (ii : instr_info) (x sx : var), get_spill ii x = ok sx → ∀ ii' : instr_info, get_spill ii' x = ok sx.
 Proof. by rewrite /lower_spill.get_spill => ii x sx hx ii'; case: Mvar.get hx. Qed.
 
-Lemma lower_get_spill_inj toS X m count :
-  init_map fresh_var_ident toS = (m, count) ->
+Lemma lower_get_spill_inj fi toS X m count :
+  init_map fresh_var_ident fi toS = (m, count) ->
   let get_spill := lower_spill.get_spill m in
   (check_map m X).1 ->
   ∀ (ii ii' : instr_info) (x x' sx : var), get_spill ii x = ok sx → get_spill ii' x' = ok sx → x = x'.
@@ -734,11 +734,10 @@ Proof.
     by apply st_eq_finalize.
   case ok_m: init_map => [ m _count ].
   t_xrbindP => _.
-  set X' := Sv.union _ _.
   set get_spill' := lower_spill.get_spill m.
   move=> hcm [env c'] hcc' <- /=.
   set S := {| get_spill     := get_spill';
-               X             := X';
+               X             := vars_fd _;
                get_spillP    := lower_get_spillP ok_m hcm;
                get_spill_ii  := @lower_get_spill_ii m;
                get_spill_inj := lower_get_spill_inj ok_m hcm |}.
@@ -749,17 +748,17 @@ Proof.
   2: {
     apply wrequiv_weaken with (st_eq_on (vars_l res)) eq => //.
     move=> ?? [??[h ?]]; split => //.
-    + by apply: eq_onI h; rewrite /= /X; SvD.fsetdec.
+    + by apply: eq_onI h; rewrite /X /= /vars_fd /=; clear; SvD.fsetdec.
     set fd := {| f_info := _ |}.
     have -> : res = (f_res fd) by done.
     by apply st_eq_on_finalize.
   }
   have : Sv.Subset (vars_c c) (X S).
-  + by rewrite /X; SvD.fsetdec.
+  + by rewrite /X /= /vars_fd /=; clear; SvD.fsetdec.
   move: Sv.empty env c' hcc'.
   change get_spill' with (get_spill S).
   move: S => S.
-  clear hinit s ok_m hcm get_spill' X' m fb res f_tyout fp ft fi fd' spillok fs fn.
+  clear hinit s ok_m hcm get_spill' m fb res f_tyout fp ft fi fd' spillok fs fn.
   set Pi := fun i => forall env env' c', spill_i (get_spill S) env i = ok (env', c') ->
         Sv.Subset (vars_I i) (X S) → wequiv_rec p p' ev ev eq_spec (st_ve S env) [::i] c' (st_ve S env').
   set Pr := fun i => forall ii, Pi (MkI ii i).

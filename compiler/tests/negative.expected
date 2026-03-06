@@ -999,7 +999,7 @@ fail/stack_allocation/arm-m4/bug_1384.jazz:
 
 "fail/stack_allocation/arm-m4/bug_1384.jazz", line 3 (14-15):
 compilation error:
-variable allocation: cannot allocate in the stack the variable “x” of type int
+variable allocation: cannot allocate in the stack the variable “x_spill” of type int
 
 fail/stack_allocation/arm-m4/bug_1384a.jazz:
 
