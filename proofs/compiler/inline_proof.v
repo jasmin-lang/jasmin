@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 From Coq Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import psem allocation_proof compiler_util.
+Require Import psem compiler_util.
 Require Export inline.
 
 Local Open Scope seq_scope.
@@ -14,16 +14,15 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  (rename_fd : instr_info -> funname -> ufundef -> ufundef)
-  (dead_vars_fd : ufun_decl -> instr_info -> Sv.t).
+  (extend_iinfo : instr_info -> instr_info -> instr_info).
 
 Lemma get_funP p f fd :
   get_fun p f = ok fd -> get_fundef p f = Some fd.
 Proof. by rewrite /get_fun;case:get_fundef => // ? [->]. Qed.
 
-Notation inline_i' := (inline_i rename_fd dead_vars_fd).
-Notation inline_fd' := (inline_fd rename_fd dead_vars_fd).
-Notation inline_prog' := (inline_prog rename_fd dead_vars_fd).
+Notation inline_i' := (inline_i extend_iinfo).
+Notation inline_fd' := (inline_fd extend_iinfo).
+Notation inline_prog' := (inline_prog extend_iinfo).
 
 #[local] Existing Instance indirect_c.
 
@@ -251,6 +250,18 @@ Proof.
   by move=> y Hy;rewrite Heqe //;apply (vrvP Hw);SvD.fsetdec.
 Qed.
 
+Lemma extend_iinfo_cmd_eq_cmd info c :
+  eq_cmd c (extend_iinfo_cmd extend_iinfo info c).
+Proof.
+  by apply (cmd_rect
+      (Pi := fun i => eq_instr i (extend_iinfo_i extend_iinfo info i))
+      (Pr := fun i => forall ii, eq_instr (MkI ii i) (extend_iinfo_i extend_iinfo info (MkI ii i)))
+      (Pc := fun c => eq_cmd c (extend_iinfo_cmd extend_iinfo info c))) => // {c};
+    move=> * /=;
+    rewrite ?eqxx ?eq_expr_refl ?eq_lval_refl ?(all2_refl eq_expr_refl) ?(all2_refl eq_lval_refl) //=;
+    repeat (apply /andP; split=> //).
+Qed.
+
 Section PROOF.
 
   Variable p p' : uprog.
@@ -468,7 +479,7 @@ Section PROOF.
       by apply sem_seq1;constructor;eapply Ecall;eauto;rewrite -eq_globs.
     t_xrbindP => fd' /get_funP Hfd'.
     have [fd [Hfd Hinline]] := inline_progP uniq_funname Hp Hfd'.
-    rewrite /check_rename; t_xrbindP => Hcheckf /=.
+    rewrite /check_disjoint.
     case:ifP => // Hdisj _ ??;subst X1 c' => vm1 Hvm1.
     have /(_ Sv.empty vm1) [|vargs' /= Hvargs' Huargs]:= sem_pexprs_uincl_on' _ Hes.
     + by apply: uincl_onI Hvm1;rewrite read_i_call;SvD.fsetdec.
@@ -476,44 +487,41 @@ Section PROOF.
     case: (sem_callE Hscall) => f [].
     rewrite Hfd' => /Some_inj <- {f}.
     case => vargs0 [s0] [s1] [svm2] [vres] [hvs' [hs0 hs1] hsvm2 [hvres hvres1] [hscs2 hm2]].
-    have [vm0_ [vm1_ [vm2_ [vres2 [vres' [Htin [Hi Hwv] Hbody [Hvs Hall Htout] [hscs2' hm2']]]]]]] :=
-      alloc_fun_uprogP_eq Hcheckf hvs' hs0 hs1 hsvm2 hvres hvres1 hscs2 hm2.
-    move: hs0 Hi hm2'; rewrite /init_state /finalize /=.
-    move=> [?]; subst s0 => -[] ? _; subst vm0_ m2.
-    move=> {hvs' hs1 hsvm2 Hfd' Hfd Hcheckf Hsc Hinline}.
-    move: Hdisj Hvm1;rewrite read_i_call.
-    move: Htin Htout Hvs Hwv Hbody;set rfd := rename_fd _ _ => Htin Htout Hvs Hwv Hbody Hdisjoint Hvm1.
-    rewrite (write_vars_lvals _ gd) in Hwv.
+    move: hs0 hm2; rewrite /init_state /finalize /=.
+    move=> [?] ?; subst s0 m2.
+    move: Hdisj Hvm1; rewrite read_i_call => Hdisj Hvm1.
+    rewrite (write_vars_lvals _ gd) in hs1.
     have [||/= vm1' Wvm1' Uvm1'] :=
-      writes_uincl (vm1 := vm1) (v2 := vargs0) _ _ Hwv.
+      writes_uincl (vm1 := vm1) (v2 := vargs0) _ _ hs1.
     + apply vm_uincl_init. + by apply List_Forall2_refl.
-    have Uvmi : evm (with_vm s1 vm1_) <=1 vm1' by done.
-    have [/=vm3 [Hsem' Uvm3]]:= sem_uincl Uvmi Hbody.
-    have [/=vs2' Hvs' Uvs'] := get_var_is_uincl Uvm3 Hvs.
-    have [vs' Htout' Uvs]:= mapM2_truncate_val Htout Uvs'.
+    have [/=vm3 [Hsem' Uvm3]]:= sem_uincl Uvm1' hsvm2.
+    have [/=vs2' Hvs' Uvs'] := get_var_is_uincl Uvm3 hvres.
+    have [vs' Htout' Uvs]:= mapM2_truncate_val hvres1 Uvs'.
     have Heqvm : svm1 <=[Sv.union (read_rvs xs) X2] vm3.
     + apply: uincl_onT;first by apply: uincl_onI Hvm1;SvD.fsetdec.
       apply: eq_on_uincl_on;apply eq_onT with vm1'.
       + apply: disjoint_eq_ons Wvm1'.
-        move: Hdisjoint;rewrite /disjoint /is_true !Sv.is_empty_spec.
+        move: Hdisj;rewrite /disjoint /is_true !Sv.is_empty_spec.
         by rewrite /locals_p vrvs_recE;SvD.fsetdec.
       move=> z Hz;apply (writeP Hsem').
-      move: Hdisjoint;rewrite /disjoint /is_true /locals /locals_p !Sv.is_empty_spec.
+      move: Hdisj;rewrite /disjoint /is_true /locals /locals_p !Sv.is_empty_spec.
       by rewrite vrvs_recE read_cE write_c_recE ;SvD.fsetdec.
     have HH: List.Forall2 value_uincl vs vs'.
-    + by apply: (Forall2_trans value_uincl_trans Hvres); apply: (Forall2_trans value_uincl_trans Hall).
+    + by apply: (Forall2_trans value_uincl_trans Hvres Uvs).
     have [|vm4 /= Hvm4 Hw']:= write_lvals_uincl_on _ HH Hw Heqvm;first by SvD.fsetdec.
     exists vm4.
     + by apply: uincl_onI Hvm4;SvD.fsetdec.
     apply sem_app with (with_vm s1 vm1').
-    + rewrite eq_globs !with_vm_idem in Hvargs', Wvm1'.
-      apply/esem_sem; apply: assgn_tuple_Lvar Hvargs' Htin Wvm1' => //.
-      by move: Hdisjoint;rewrite /disjoint /is_true !Sv.is_empty_spec /locals /locals_p vrvs_recE;SvD.fsetdec.
-    apply: (sem_app Hsem').
+    + rewrite eq_globs in Hvargs', Wvm1'.
+      apply/esem_sem; apply: assgn_tuple_Lvar Hvargs' hvs' Wvm1'.
+      by move: Hdisj;rewrite /disjoint /is_true !Sv.is_empty_spec /locals /locals_p vrvs_recE;SvD.fsetdec.
+    apply sem_app with (with_vm svm2 vm3).
+    + apply (eq_cmdP (extend_iinfo_cmd_eq_cmd ii' fd'.(f_body))).
+      exact: Hsem'.
     rewrite eq_globs in Hw' => {Hw}; subst scs2.
     case: (svm2) Hw' => escs2 emem2 evm2 Hw'.
     apply/esem_sem; apply: assgn_tuple_Pvar Htout' Hw' => //;last first.
-    move: Hdisjoint;rewrite /disjoint /is_true !Sv.is_empty_spec.
+    move: Hdisj;rewrite /disjoint /is_true !Sv.is_empty_spec.
     by rewrite /locals /locals_p vrvs_recE read_cE write_c_recE;SvD.fsetdec.
   Qed.
 
@@ -579,7 +587,7 @@ Section PROOF.
 End PROOF.
 
 Lemma inline_call_errP p p' f ev scs mem scs' mem' va va' vr:
-  inline_prog_err rename_fd dead_vars_fd p = ok p' ->
+  inline_prog_err extend_iinfo p = ok p' ->
   List.Forall2 value_uincl va va' ->
   sem_call p ev scs mem f va scs' mem' vr ->
   exists2 vr',
@@ -631,7 +639,7 @@ Let pfuncs := pfuncs1 ++ (fn, fd) :: pfuncs2.
 
 Hypothesis uniq_funname : uniq [seq x.1 | x <- pfuncs].
 
-Hypothesis (inline_fd_ok : inline_fd rename_fd dead_vars_fd pfuncs2 fd = ok fd').
+Hypothesis (inline_fd_ok : inline_fd extend_iinfo pfuncs2 fd = ok fd').
 
 Let p1 : uprog :=
   {|p_funcs := pfuncs; p_globs := p_globs p; p_extra := p_extra p |}.
@@ -760,10 +768,9 @@ Proof.
     + by split => //; rewrite !read_writeE; clear; SvD.fsetdec.
     move=> i1 i2 h; rewrite /= /do_inline eqxx hinline /=.
     exact/(wequiv_fun_rec (p1 := p1) (p2 := p2)).
-  rewrite /check_rename.
+  rewrite /check_disjoint.
   t_xrbindP => ffd /get_funP hffd.
-  case: ifP => //; set ffd' := rename_fd ii f ffd.
-  move=> hdisj hrename _ ? <-.
+  case: ifP => // hdisj _ ? <-.
   move=> s t hpre /=.
   rewrite /do_inline eqxx hinline /=.
   rewrite ITree.Eq.Eqit.bind_ret_r /isem_fun_rec /isem_fun_body /isem_pexprs.
@@ -788,33 +795,29 @@ Proof.
   rewrite ITree.Eq.Eqit.bind_ret_l ITree.Eq.Eqit.bind_bind.
   move: hinit; rewrite /initialize_funcall /=; t_xrbindP => vs' htr hws.
   rewrite isem_cmd_cat.
-  move: hrename; rewrite /= /check_f_extra_u; t_xrbindP.
-  move=> /and3P [] _ htyin htyout r1 hextra hparams r2 hc r3 hres _.
   have /(_ X1 es es X1 _ _ _ _ hpre hes) [|] := checker_st_uincl_onP_.(ucheck_esP) wdb_ok_true.
   + by subst X1; split => //; rewrite !read_writeE; clear; SvD.fsetdec.
   move=> vst hes' huvs.
   have [vst' htr' huvs'] := mapM2_dc_truncate_val htr huvs.
-  have heqa_empty: eq_alloc M.empty (evm (estate0 (mk_fstate vs s))) (evm t).
-  + by split => * //; rewrite Vm.initP.
   rewrite (write_vars_lvals _ (p_globs p1)) in hws.
-  have [vm2 hws' heqa] := [elaborate check_lvalsP hparams heqa_empty huvs' hws].
+  have [|/= vm2 hws' huincl] := writes_uincl (vm1:=evm t) _ huvs' hws.
+  + by apply vm_uincl_init.
   have heqt: (with_vm (estate0 (mk_fstate vs s)) (evm t)) = t.
   + by move: hpre => /st_relP [-> /=].
   rewrite heqt in hws'.
-  have hdisje : disjoint (vrvs [seq Lvar i | i <- f_params ffd']) (read_es es).
+  have hdisje : disjoint (vrvs [seq Lvar i | i <- f_params ffd]) (read_es es).
   + apply /disjointP => z hz.
     move/disjointP: hdisj => /(_ z).
     rewrite /locals_p !read_writeE vrvs_recE; move: hz; clear; SvD.fsetdec.
   have /(esem_i_bodyP (sem_F := sem_fun_rec E)) h := assgn_tuple_Lvar ev (ii_with_location ii) AT_rename hdisje hes' htr' hws'.
-  rewrite -(convertible_assgn_tuple htyin) h.
-  clear h => /=.
+  rewrite {}h /=.
   rewrite ITree.Eq.Eqit.bind_ret_l isem_cmd_cat.
-  have := [elaborate it_alloc_cP (p1 := p1) (p2 := p2) ev erefl hc ].
+  have := [elaborate it_eq_cmdP_rec(p:=p1) (p':=p2) ev ev erefl (extend_iinfo_cmd_eq_cmd ii ((f_body ffd)))].
   move=> /wequiv_write2 -/(_ (with_vm s1 vm2)) h.
   apply xrutt_facts.xrutt_bind with
-    (fun s2 s3 : estate => evm (with_vm s1 vm2) =[\write_c (f_body ffd')] evm s3 /\ st_eq_alloc r2 s2 s3).
+    (fun s2 s3 : estate => evm (with_vm s1 vm2) =[\write_c (extend_iinfo_cmd extend_iinfo ii (f_body ffd))] evm s3 /\ st_uincl tt s2 s3).
   + by apply h.
-  move=> s' t' [heqex {}heqa].
+  move=> s' t' [heqex {}huincl].
   case hfinal : finalize_funcall => [fr /= | ?]; last first.
   + rewrite ITree.Eq.Eqit.bind_vis.
     apply xrutt.xrutt_CutL => //.
@@ -826,9 +829,8 @@ Proof.
   move: hfinal hupd.
   rewrite /finalize_funcall /upd_estate; t_xrbindP.
   move=> rvs hget rvs' {}htr <- {fr} /= {}hws.
-  move/st_relP : (heqa) => [heqt' {}heqa'].
-  have [_ /(_ rvs)]:= [elaborate check_esP (p1:=p1) (p2:=p2) erefl true hres heqa'].
-  rewrite !sem_pexprs_get_var => /(_ hget) [rvst [hget' hu]].
+  move/st_relP : (huincl) => [heqt' huincl'].
+  have [rvst hget' hu] := get_var_is_uincl huincl' hget.
   have [rvst' {}htr' {}hu] := mapM2_dc_truncate_val htr hu.
   have /(_ X1 xs xs X1 _ _ _ hu _ t' _ _ hws) [||]:= checker_st_uincl_onP_.(ucheck_lvalsP) wdb_ok_true.
   + split => //; first by clear;SvD.fsetdec.
@@ -837,6 +839,7 @@ Proof.
     rewrite -heqex; last first.
     + move/disjointP: hdisj => /(_ z).
       rewrite /locals_p vrvs_recE read_cE write_c_recE vars_l_read_es.
+      rewrite -(eq_cmd_write_c (extend_iinfo_cmd_eq_cmd _ _)).
       by move: hz; clear; SvD.fsetdec.
     rewrite -(vrvsP hws'); last first.
     + move/disjointP: hdisj => /(_ z).
@@ -844,14 +847,13 @@ Proof.
       by move: hz; clear; SvD.fsetdec.
     by case: hpre => _ _; apply.
   move=> t1' hws1 hpost.
-  have hdisjr : disjoint (vrvs xs) (read_es [seq Plvar i | i <- f_res ffd']).
+  have hdisjr : disjoint (vrvs xs) (read_es [seq Plvar i | i <- f_res ffd]).
   + apply/disjointP => z; rewrite vars_l_read_es => hz.
     move/disjointP: hdisj => /(_ z).
     rewrite /locals_p vrvs_recE read_cE write_c_recE vars_l_read_es.
     by move: hz; clear; SvD.fsetdec.
   have := assgn_tuple_Pvar _ (ii_with_location ii) AT_rename hdisjr hget' htr'.
-  rewrite -heqt' => /(_ p2 ev t1' hws1) /(esem_i_bodyP (sem_F := sem_fun_rec E)).
-  rewrite (convertible_assgn_tuple htyout) => -> /=.
+  move=> /(_ p2 ev t1' hws1) /(esem_i_bodyP (sem_F := sem_fun_rec E)) -> /=.
   apply xrutt.xrutt_Ret.
   by apply: st_rel_weaken hpost; subst X1 => ??; apply: uincl_onI; SvD.fsetdec.
 Qed.
@@ -865,7 +867,7 @@ Context
 .
 
 Lemma inline_fd_consP (pfuncs1 pfuncs0 pfuncs2 pfuncs: ufun_decls) :
-  foldr (inline_fd_cons  rename_fd dead_vars_fd) (ok pfuncs2) pfuncs1 = ok pfuncs ->
+  foldr (inline_fd_cons extend_iinfo) (ok pfuncs2) pfuncs1 = ok pfuncs ->
   let p1 := {|p_funcs := pfuncs0 ++ pfuncs1 ++ pfuncs2; p_globs := p_globs p; p_extra := p_extra p |} in
   let p2 := {|p_funcs := pfuncs0 ++ pfuncs; p_globs := p_globs p; p_extra := p_extra p |} in
   uniq [seq x.1 | x <- p_funcs p1] ->
@@ -893,7 +895,7 @@ Proof.
 Qed.
 
 Lemma it_inline_call_errP p' fn :
-  inline_prog_err rename_fd dead_vars_fd p = ok p' ->
+  inline_prog_err extend_iinfo p = ok p' ->
   wiequiv_f p p' ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   rewrite /inline_prog_err; case: ifP => //; t_xrbindP => huniq pfuncs h <-.
