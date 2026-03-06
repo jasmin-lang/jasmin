@@ -1601,6 +1601,23 @@ Proof. by apply it_sem_uincl_aux => //; move=> ? fn ?? h; apply it_sem_uincl_f. 
 
 End REFL.
 
+Section REC.
+
+Context (p p':prog) (ev ev': extra_val_t).
+
+Context (eq_globs: p_globs p = p_globs p').
+
+Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+
+Lemma it_sem_uincl_rec c :
+  wequiv_rec p p' ev ev' uincl_spec (st_uincl tt) c c (st_uincl tt).
+Proof.
+  apply it_sem_uincl_aux => //.
+  by move=> ii f s t hu; apply xrutt_facts.xrutt_trigger.
+Qed.
+
+End REC.
+
 Context
   {pT1 : progT}
   {wsw1 : WithSubWord}
