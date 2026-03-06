@@ -621,71 +621,6 @@ Section PROOF.
     by exists vm2 =>//; econstructor;eauto;rewrite -?eq_globs.
   Qed.
 
-  Section REFL.
-
-    Hypothesis eq_prog : p1 = p2.
-
-    Local Lemma Hproc_eq scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres':
-      get_fundef (p_funcs p1) fn = Some f ->
-      mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyin)) vargs' = ok vargs ->
-      init_state f.(f_extra) (p_extra p1) ev (Estate scs1 m1 Vm.init) = ok s0 ->
-      write_vars (~~direct_call) (f_params f) vargs s0 = ok s1 ->
-      sem p1 ev s1 (f_body f) s2 ->
-      Pc s1 (f_body f) s2 ->
-      get_var_is (~~ direct_call) s2.(evm) (f_res f) = ok vres ->
-      mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyout)) vres = ok vres' ->
-      scs2 = s2.(escs) ->
-      m2 = finalize f.(f_extra) s2.(emem) ->
-      Pfun scs1 m1 fn vargs' scs2 m2 vres'.
-    Proof.
-      move=> Hget Hca Hi Hw Hsem _ Hres Hcr hscs Hfi vargs2 Hvargs2; rewrite -eq_prog.
-      have h : sem_call p1 ev scs1 m1 fn vargs' scs2 m2 vres' by econstructor;eauto.
-      have [?[]]:= sem_call_uincl Hvargs2 h; eauto.
-    Qed.
-
-    Lemma alloc_funP_eq_aux fn f f' scs1 m1 scs2 m2 vargs vargs' vres s0 s1 s2 vres':
-      check_fundef ep1 ep2 (fn, f) (fn, f') tt = ok tt ->
-      mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyin)) vargs' = ok vargs ->
-      init_state f.(f_extra) (p_extra p1) ev (Estate scs1 m1 Vm.init) = ok s0 ->
-      write_vars (~~direct_call) (f_params f) vargs s0 = ok s1 ->
-      sem p1 ev s1 (f_body f) s2 ->
-      get_var_is (~~ direct_call) (evm s2) (f_res f) = ok vres ->
-      mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyout)) vres = ok vres' ->
-      scs2 = s2.(escs) ->
-      m2 = finalize f.(f_extra) s2.(emem) ->
-      exists vm0' vm1' vm2' vres1 vres1',
-       [ /\ mapM2 ErrType dc_truncate_val (map eval_atype f'.(f_tyin)) vargs' = ok vargs,
-            init_state f'.(f_extra) (p_extra p2) ev (Estate scs1 m1 Vm.init) = ok (with_vm s0 vm0') /\
-            write_vars (~~direct_call) (f_params f') vargs (with_vm s0 vm0') = ok (with_vm s1 vm1'),
-            sem p2 ev (with_vm s1 vm1') (f_body f') (with_vm s2 vm2'),
-            [ /\ get_var_is (~~ direct_call) (evm (with_vm s2 vm2')) (f_res f') = ok vres1,
-                 List.Forall2 value_uincl vres' vres1' &
-                mapM2 ErrType dc_truncate_val (map eval_atype f'.(f_tyout)) vres1 = ok vres1'] &
-            scs2 = s2.(escs) /\ m2 = finalize f'.(f_extra) s2.(emem) ].
-    Proof.
-      rewrite /check_fundef eq_refl => /=.
-      t_xrbindP => /andP[] htyin htyout r0 Hcinit r1 /check_f_extraP[] Hcparams hinit hfinalize r2 Hcc r3 Hcres _ Hca.
-      move=> /(init_allocP Hcinit) [vm0 [Hi0 Hvm0]].
-      rewrite (write_vars_lvals (~~direct_call) gd)=> /(check_lvalsP Hcparams).
-      move=> /(_ vargs _ Hvm0) [ | vm3 /= Hw2 Hvm3].
-      + by apply: List_Forall2_refl.
-      move=> /(sem_Ind Hskip Hcons HmkI Hassgn Hopn Hsyscall Hif_true Hif_false
-                Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc_eq) Hc.
-      have [vm4 /= Hvm4 Hsc2 Hres Hcr]:= Hc _ _ _ _ _ Hvm3 Hcc.
-      have := check_esP (~~direct_call) Hcres Hvm4.
-      move=> [Hr3];rewrite sem_pexprs_get_var => /(_ _ Hres) [vres1' /= []].
-      rewrite sem_pexprs_get_var => hmap huincl ??.
-      have [vres2' ??]:= mapM2_dc_truncate_val Hcr huincl.
-      do 5 eexists;split;eauto.
-      + by rewrite -(all2_convertible_eval_atype htyin).
-      + split; first by eauto.
-        by rewrite (write_vars_lvals _ gd).
-      + by rewrite -(all2_convertible_eval_atype htyout);split;eauto.
-      by rewrite -hfinalize.
-    Qed.
-
-  End REFL.
-
   Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
   Proof.
     move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hget Hca Hi Hw _ Hc Hres Hcr Hscs Hfi.
@@ -908,27 +843,6 @@ Proof.
   by apply alloc_callP_aux.
 Qed.
 
-Lemma alloc_funP_eq p ev fn f f' scs1 m1 scs2 m2 vargs vargs' vres vres' s0 s1 s2:
-  check_fundef (p_extra p) (p_extra p) (fn, f) (fn, f') tt = ok tt ->
-  mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyin)) vargs' = ok vargs ->
-  init_state (f_extra f) (p_extra p) ev (Estate scs1 m1 Vm.init) = ok s0 ->
-  write_vars (~~direct_call) (f_params f) vargs s0 = ok s1 ->
-  sem p ev s1 (f_body f) s2 ->
-  get_var_is (~~ direct_call) (evm s2) (f_res f) = ok vres ->
-  mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyout)) vres = ok vres' ->
-  scs2 = s2.(escs) ->
-  m2 = finalize f.(f_extra) s2.(emem) ->
-  exists vm0' vm1' vm2' vres1 vres1',
-       [ /\ mapM2 ErrType dc_truncate_val (map eval_atype f'.(f_tyin)) vargs' = ok vargs,
-            init_state f'.(f_extra) (p_extra p) ev (Estate scs1 m1 Vm.init) = ok (with_vm s0 vm0') /\
-            write_vars (~~direct_call) (f_params f') vargs (with_vm s0 vm0') = ok (with_vm s1 vm1'),
-            sem p ev (with_vm s1 vm1') (f_body f') (with_vm s2 vm2'),
-            [ /\ get_var_is (~~ direct_call) (evm (with_vm s2 vm2')) (f_res f') = ok vres1,
-                 List.Forall2 value_uincl vres' vres1' &
-                mapM2 ErrType dc_truncate_val (map eval_atype f'.(f_tyout)) vres1 = ok vres1'] &
-            scs2 = s2.(escs) /\ m2 = finalize f'.(f_extra) s2.(emem) ].
-Proof. by apply alloc_funP_eq_aux. Qed.
-
 End PROG.
 
 Section UPROG.
@@ -974,27 +888,6 @@ Proof.
 Qed.
 
 End IT.
-
-Lemma alloc_fun_uprogP_eq dead_vars_fd p ev fn f f' scs1 m1 scs2 m2 vargs vargs' vres vres' s0 s1 s2:
-  check_fundef init_alloc_uprog check_f_extra_u dead_vars_fd (p_extra p) (p_extra p) (fn, f) (fn, f') tt = ok tt ->
-  mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyin)) vargs' = ok vargs ->
-  init_state (f_extra f) (p_extra p) ev (Estate scs1 m1 Vm.init) = ok s0 ->
-  write_vars (~~direct_call) (f_params f) vargs s0 = ok s1 ->
-  sem p ev s1 (f_body f) s2 ->
-  get_var_is (~~ direct_call) (evm s2) (f_res f) = ok vres ->
-  mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyout)) vres = ok vres' ->
-  scs2 = s2.(escs) ->
-  m2 = finalize f.(f_extra) s2.(emem) ->
-  exists vm0' vm1' vm2' vres1 vres1',
-       [ /\ mapM2 ErrType dc_truncate_val (map eval_atype f'.(f_tyin)) vargs' = ok vargs,
-            init_state f'.(f_extra) (p_extra p) ev (Estate scs1 m1 Vm.init) = ok (with_vm s0 vm0') /\
-            write_vars (~~direct_call) (f_params f') vargs (with_vm s0 vm0') = ok (with_vm s1 vm1'),
-            sem p ev (with_vm s1 vm1') (f_body f') (with_vm s2 vm2'),
-            [ /\ get_var_is (~~ direct_call) (evm (with_vm s2 vm2')) (f_res f') = ok vres1,
-                 List.Forall2 value_uincl vres' vres1' &
-                mapM2 ErrType dc_truncate_val (map eval_atype f'.(f_tyout)) vres1 = ok vres1'] &
-            scs2 = s2.(escs) /\ m2 = finalize f'.(f_extra) s2.(emem) ].
-Proof. by apply (alloc_funP_eq_aux init_alloc_uprogP). Qed.
 
 End UPROG.
 
