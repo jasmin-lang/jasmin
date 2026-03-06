@@ -212,13 +212,18 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let pp_linear fmt lp = PrintLinear.pp_prog Arch.pointer_data Arch.msf_size Arch.asmOp fmt lp in
 
-  let rename_fd ii fn cfd =
-    let ii, _ = ii in
-    let doit fd =
-      let fd = Subst.clone_func fd in
-      Subst.extend_iinfo ii fd
+  let extend_iinfo ii1 ii2 =
+    let l1 =
+      let ii1, _ = ii1 in
+      let { L.base_loc = b1; L.stack_loc = l1 } = ii1 in
+      b1 :: l1
     in
-    apply "rename_fd" doit fn cfd
+    let ii2, annot2 = ii2 in
+    let ii2 =
+      let { L.base_loc = b2; L.stack_loc = l2 } = ii2 in
+      L.i_loc b2 (l2 @ l1)
+    in
+    ii2, annot2
   in
 
   let expand_fd fn cfd =
@@ -375,7 +380,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let cparams =
     {
-      Compiler.rename_fd;
+      Compiler.extend_iinfo;
       Compiler.expand_fd;
       Compiler.split_live_ranges_fd =
         apply "split live ranges" split_live_ranges_fd;
