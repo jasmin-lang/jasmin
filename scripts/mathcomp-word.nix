@@ -2,17 +2,17 @@
 
 let inherit (coqPackages) coq; in
 
-let rev = "ab88e47277a24cbab4c0eaa6c15bd067be94153f"; in
+let rev = "8a677724135da3ef369f154b060c7fd97239ff15"; in
 
 stdenv.mkDerivation rec {
-  version = "3.2-git-${builtins.substring 0 8 rev}";
+  version = "3.3-git-${builtins.substring 0 8 rev}";
   pname = "coq${coq.coq-version}-mathcomp-word";
 
   src = fetchFromGitHub {
     owner = "jasmin-lang";
     repo = "coqword";
     inherit rev;
-    hash = "sha256-wn4slBYFZtWZBVBGak5ELUIJZBEYdRmdDs1UNGfXT4A=";
+    hash = "sha256-5ZKz2QKOfMRCfppR/3oKzIghEU1pMUB0128OdSP6ptw=";
   };
 
   buildInputs = [ coq ocaml dune_3 ];
