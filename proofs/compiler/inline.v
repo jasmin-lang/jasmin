@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 From Coq Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool.
-Require Import expr compiler_util allocation.
+Require Import expr compiler_util.
 
 Local Open Scope seq_scope.
 
@@ -27,11 +27,9 @@ End E.
 Section INLINE.
 
 Context
-  {wsw : WithSubWord}
   {asm_op syscall_state : Type}
   {asmop:asmOp asm_op}
-  (rename_fd : instr_info -> funname -> ufundef -> ufundef)
-  (dead_vars_fd : ufun_decl -> instr_info -> Sv.t)
+  (extend_iinfo : instr_info -> instr_info -> instr_info)
 .
 
 Definition get_flag (x:lval) flag :=
@@ -62,9 +60,8 @@ Definition locals_p (fd:ufundef) :=
 Definition locals fd :=
   Sv.diff (locals_p fd) (sparams fd).
 
-Definition check_rename f (fd1 fd2:ufundef) (s:Sv.t) :=
-  Let _ := check_ufundef dead_vars_fd tt tt (f,fd1) (f,fd2) tt in
-  let s2 := locals_p fd2 in
+Definition check_disjoint (fd:ufundef) (s:Sv.t) :=
+  let s2 := locals_p fd in
   if disjoint s s2 then ok tt
   else Error (inline_error (pp_s "invalid refreshing in function")).
 
@@ -73,6 +70,28 @@ Definition get_fun (p:ufun_decls) (f:funname) :=
   | Some fd => ok fd
   | None    => Error (inline_error (pp_box [::pp_s "Unknown function"; PPEfunname f]))
   end.
+
+Fixpoint extend_iinfo_i ii i : instr :=
+  let '(MkI iinfo ir) := i in
+  let ir :=
+    match ir with
+    | Cassgn _ _ _ _
+    | Copn _ _ _ _
+    | Csyscall _ _ _
+    | Cassert _
+    | Ccall _ _ _ => ir
+    | Cif e c1 c2 =>
+      Cif e (map (extend_iinfo_i ii) c1) (map (extend_iinfo_i ii) c2)
+    | Cfor x (d,lo,hi) c =>
+      Cfor x (d,lo,hi) (map (extend_iinfo_i ii) c)
+    | Cwhile a c e info c' =>
+      Cwhile a (map (extend_iinfo_i ii) c) e info (map (extend_iinfo_i ii) c')
+    end
+  in
+  let iinfo := extend_iinfo ii iinfo in
+  MkI iinfo ir.
+
+Definition extend_iinfo_cmd ii c := map (extend_iinfo_i ii) c.
 
 Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
   let '(MkI iinfo ir) := i in
@@ -99,16 +118,18 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
     let X := Sv.union (read_i ir) X in
     if ii_is_inline iinfo then
       Let fd := add_iinfo iinfo (get_fun p f) in
-      let fd' := rename_fd iinfo f fd in
-      Let _ := add_iinfo iinfo (check_rename f fd fd' (Sv.union (vrvs xs) X)) in
+      Let _ := add_iinfo iinfo (check_disjoint fd (Sv.union (vrvs xs) X)) in
       let ii := ii_with_location iinfo in
       let rename_args :=
-        assgn_tuple ii (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es
+        assgn_tuple ii (map Lvar fd.(f_params)) AT_rename fd.(f_tyin) es
+      in
+      let body :=
+        extend_iinfo_cmd iinfo fd.(f_body)
       in
       let rename_res :=
-        assgn_tuple ii xs AT_rename fd'.(f_tyout) (map Plvar fd'.(f_res))
+        assgn_tuple ii xs AT_rename fd.(f_tyout) (map Plvar fd.(f_res))
       in
-      ok (X, rename_args ++ fd'.(f_body) ++ rename_res)
+      ok (X, rename_args ++ body ++ rename_res)
     else ok (X, [::i])
   end.
 
