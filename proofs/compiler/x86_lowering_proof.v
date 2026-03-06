@@ -1238,10 +1238,10 @@ Section PROOF.
         exists wb, wo; split.
         - subst ob; case: b Hwb {hrl} => [ b | ] /=; t_xrbindP.
           * by rewrite /get_gvar => vb -> /to_wordI' [sz'] [w'] [h -> ->]; rewrite /= truncate_word_le.
-          by move => <-; rewrite truncate_word_u; f_equal; apply: word_ext.
+          by move => <-; rewrite truncate_word_u wrepr_unsigned.
         - subst oo; case: o Hwo {hrl} => [ o | ] /=; t_xrbindP.
           * by rewrite /get_gvar => vb -> /to_wordI' [sz'] [w'] [h -> ->]; rewrite /= truncate_word_le.
-          by move => <-; rewrite truncate_word_u; f_equal; apply: word_ext.
+          by move => <-; rewrite truncate_word_u wrepr_unsigned.
         by subst.
       move: Hwb; apply: rbindP => vb Hvb Hwb.
       move: Hwo; apply: rbindP => vo Hvo Hwo.
