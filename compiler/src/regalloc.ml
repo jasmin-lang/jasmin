@@ -246,7 +246,7 @@ let collect_equality_constraints_in_func
   in
   let addf i j = s.cac_friends <- set_friend i j s.cac_friends in
   let names = ref (Puf.create nv) in
-  let renames = ref [] in
+  let renames = Hv.create 97 in
   let first_pass ii =
     match ii.i_desc with
     | Copn (lvs, _, op, es) ->
@@ -268,7 +268,7 @@ let collect_equality_constraints_in_func
        is_gkvar y
        && kind_compatible (kind_i x) (kind_i y.gv)
        && not (is_stack_array x) ->
-       renames := (ii, x, y.gv) :: !renames
+       Hv.modify_def [] (L.unloc y.gv) (fun l -> (L.loc y.gv, ii, x) :: l) renames
     | Cassgn (Lvar x, _, _, Pvar y) when is_gkvar y && kind_i x = kind_i y.gv &&
                                           not (is_stack_array x) ->
        begin match int_of_var x, int_of_var y.gv with
@@ -301,35 +301,36 @@ let collect_equality_constraints_in_func
   (* Checks whether it is safe to remove a “renaming” copy from y to x (i.e., x = y) at position ii.
      It looks for assignments (distinct from ii) that assign x (or an alias) after which y is live.
    *)
-  let renames = !renames in
   let phi_aliases = !names in
   let checked_renamings = Hiloc.create 17 in
   let second_pass { i_desc; i_info; i_loc; _ } =
     let live_out = get_live_out i_info in
-    List.iter (fun (ii, x, y) ->
-        if Sv.mem (L.unloc y) live_out
-        then
+    Sv.iter (fun y ->
+      List.iter (fun (_, ii, x) ->
           let ii = ii.i_loc in
           let intersects =
             let x = Puf.find phi_aliases (Hv.find tbl (L.unloc x)) in
             Sv.exists (fun z -> x = Puf.find phi_aliases (Hv.find tbl z)) in
           if i_loc.uid_loc <> ii.L.uid_loc && intersects (assigns i_desc) then
             Hiloc.modify_def [] ii (List.cons i_loc) checked_renamings
-      ) renames
+      ) (Hv.find_default renames y [])
+    ) live_out
   in
   iter_instr second_pass f.f_body;
-  List.iter (fun (ii, x, y) ->
+  Hv.iter (fun y l ->
+    List.iter (fun (yloc, ii, x) ->
       match Hiloc.find_default checked_renamings ii.i_loc [] with
-      | [] -> addv ii x y
+      | [] -> addv ii x (L.mk_loc yloc y)
       | warnings ->
          let warnings = List.filter (fun ii -> not L.(isdummy ii.base_loc)) warnings in
          warning KeptRenaming ii.i_loc
            "Cannot elide renaming of %a to %a due to the following assignment%s:%a"
-           pp_var (L.unloc y)
+           pp_var y
            pp_var (L.unloc x)
            (match warnings with [ _ ] -> "" | _ -> "s")
            (pp_list "\n" Location.pp_iloc) warnings
-    ) renames
+    ) l
+  ) renames
 
 let normalize_friend (eqc: Puf.t) (fr: friend) : friend =
   IntMap.filter_map (
