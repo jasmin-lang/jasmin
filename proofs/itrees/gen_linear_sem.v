@@ -455,11 +455,16 @@ Definition isem_lfloc_body (lp0: lpoint) :
 Definition isem_lfloc (lp0: lpoint) :
   itree E lpoint := ITree.iter isem_lfloc_body lp0.
                     
+End InstrumentedSem.
 
+End LinSem. 
+
+  
 (***** HANDLERS *)
 
 (* LFindE handling (defined wrt lfenv ) *)
-Definition handle_LFind {T} (e: LFindE T) : itree E T :=
+  Definition handle_LFind {E0} {XE: ErrEvent -< E0}
+    {T} (e: LFindE T) : itree E0 T :=
   match e with    
   | FindLabelE rlbl =>
       match lfenv (fst rlbl) with
@@ -470,8 +475,9 @@ Definition handle_LFind {T} (e: LFindE T) : itree E T :=
       end             
   end.   
 
-Definition interp_LFind {T} (t: itree (LFindE +' E) T) : itree E T :=
-  interp (ext_handler (@handle_LFind)) t.
+Definition interp_LFind {E0} {XE: ErrEvent -< E0}
+    {T} (t: itree (LFindE +' E0) T) : itree E0 T :=
+  interp (ext_handler (@handle_LFind _ _)) t.
 (*  interp (case_ (@handle_LFind) id_) t.   *)                          
 
 
@@ -483,7 +489,8 @@ Context {readRA : LState -> option lpoint}
         {evalExp : LState -> fexpr -> option bool}.
 
 (* LEvalE handling for Linear and Intermediate *)
-Definition handle_LEval {T} (e: LEvalE T) : itree E T :=
+Definition handle_LEval {E0} {XE: ErrEvent -< E0} {XSl: @stateE LState -< E0}
+  {T} (e: LEvalE T) : itree E0 T :=
   match e with    
   | RA_readE => st <- trigger (@Get LState) ;;
                 err_option err (readRA st) 
@@ -503,20 +510,17 @@ Definition handle_LEval {T} (e: LEvalE T) : itree E T :=
                   err_option err (evalExp st e)            
   end.   
 
-Definition interp_LEval {T} (t: itree (LEvalE +' E) T) : itree E T :=
-  interp (ext_handler (@handle_LEval)) t.
+Definition interp_LEval {E0} {XE: ErrEvent -< E0}
+  {XSl: @stateE LState -< E0} {T}
+  (t: itree (LEvalE +' E0) T) : itree E0 T :=
+  interp (ext_handler (@handle_LEval _ _ _)) t.
 
-(*
-Definition interp_LInstr {T}
-  (t: itree (LEvalE +' LFindE +' E) T) : itree E T :=
+Definition interp_LInstr {E0} {XE: ErrEvent -< E0}
+  {XSl: @stateE LState -< E0} {T}
+  (t: itree (LEvalE +' LFindE +' E0) T) : itree E0 T :=
   interp_LFind (interp_LEval t).
-*)
 
 End HandleLEval.
-
-End InstrumentedSem.
-
-End LinSem.
 
 
 Definition LLeaf_ok (li: linstr) : bool :=
@@ -1184,20 +1188,27 @@ Definition lsem_imed_recF (fn: funname) (plS plE: plinfo)
 End FInterSemDef.
 *)
 
-
 Section Lemmas.
-(* TODO: The points to prove *)
-Context {XF: LFindE -< E} {XL: LEvalE -< E }.
-Context {readPC: LState -> option lpoint}.
+  (* TODO: The points to prove *) 
+Context {readRA : LState -> option lpoint}
+        {readPC: LState -> option lpoint}
+        {evalLoc : LState -> rexpr -> option remote_label}
+        {evalExp : LState -> fexpr -> option bool}.
 
 (* equivalence between core and instrumented global semantics; where
-   most of the low-level effort will go. note: events (LEval and
-   LFind) actually need to be handled on the right. *)
+   most of the low-level effort will go. notice that in Instrumented
+   events LEval and LFind need to be handled first, even if they do
+   not actually change the state. *)
 Lemma core2instrumented_global_lfun (fn: funname) (st: LState) :
   readPC st = Some (fn, 0) ->
   eutt (fun x y => x = fst y) (@isem_lcmd_core E _ readPC st)
-    (run_state (@isem_lfun_flow (@stateE LState +' E) _ _ _ inl1 fn) st).
+    (run_state (@interp_LInstr readRA readPC evalLoc evalExp _ _ _ _
+    (@isem_lfun_flow (LEvalE +' LFindE +' @stateE LState +' E) _ _ _ _ fn)) st).
 Admitted.
+
+
+Section Lemmas1.
+Context {XF: LFindE -< E} {XL: LEvalE -< E }.
 
 (* equivalence between instrumented global and function-localised
    semantics; se we can semantically distinguish between internal
@@ -1265,6 +1276,8 @@ Admitted.
 (* TODO: cleanup it_cflow_sem and redefine the lemma *)
 (* equivalence between intermediate and source semantics *)
 (* Lemma intermediate2source  *)
+
+End Lemmas1.
 
 End Lemmas.
 
