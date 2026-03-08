@@ -400,23 +400,6 @@ Definition isem_lcmd_seq_inl_flow (lc: lcmd) (l0: lpoint) :
               | _ => throw err end) lc 
     (inl l0).
 
-(*
-(* similar for sequential linear commands; only meaningful when lcmd is
-   straightline code (used in Intermediate) *)
-Fixpoint isem_lcmd_seq_flow (lc: lcmd) (l0: lpoint) : itree E lpoint :=
-  match lc with
-  | nil => Ret l0
-  | (MkLI ii li) :: lc0 =>
-      l1 <- isem_li_flow li l0 ;; isem_lcmd_seq_flow lc0 l1
-  end.             
-
-(* version based on the core semantics *)
-Fixpoint isem_lcmd_acore (lc: lcmd) : itree E unit :=
-  match lc with
-  | nil => Ret tt
-  | (MkLI ii li) :: lc0 => isem_li_acore li ;; isem_lcmd_acore lc0
-  end.             
-*)
 
 (***** INSTRUMENTED GLOBAL LINEAR SEMANTICS *)
 
@@ -617,96 +600,6 @@ Definition Id_cmb {E0} : (lpoint -> itree E0 lpoint) ->
   funname -> nat -> nat -> lpoint -> itree E0 lpoint :=
   fun f _ _ _ => f.
 
-(* NOT USED 
-(* intermediate semantics of instructions.
-     LC -> isem_lcmd_seq_flow (isem_lcmd_acore could also do).  
-     LSI -> isem_li_aflow *)
-Definition lsem_i_imed_body 
-  (LSC: lcmd -> lpoint -> itree (LCall +' E) lpoint)
-  (LSI: lpoint -> itree (LCall +' E) lpoint)
-  (LRec: forall (fn: funname) (plS plE: plinfo),
-           LTreeList fn plS plE -> lpoint -> itree (LCall +' E) lpoint)
-  (fn: funname) (plS plE: plinfo)
-  (lt : LTree fn plS plE) : lpoint -> itree (LCall +' E) lpoint :=
-  fun plA =>
-  let '(fnA, pA) := plA in
-  let '(pS, _) := plS in 
-  let '(pE, _) := plE in 
-(*  let LRec := @lsem_cmd_imed LSC LSI CNT in *)
-  if fst plA == fn then 
-  match lt with
-  | LErrLeaf _ => throw err
-  | LLeaf _ (MkLI ii ir) =>
-                            if LLeaf_ok (MkLI ii ir)
-                            then LSI plA
-                            else throw err                                 
-  | LIf1Node _ (p1, _) li1 lc li2 =>
-      (* note: fst plE = S p1 *)
-      match LIf1Node_ok li1 li2 with
-      | false => throw err
-      | true => 
-             if (pA == pS) || (pA == p1) then LSI plA
-             else if in_btw (S pS) p1 pA then LRec _ _ _ lc plA
-             else throw err 
-      end
-  | LIfNode _ (p1, _) (p2, _) li1 lc2 li2 li3 lc1 li4 => 
-      (* note: fst plE = S p2 *)
-      match LIfNode_ok li1 li2 li3 li4 with
-      | false => throw err
-      | true => 
-            if (pA == pS) || (pA == p1) ||
-               (pA == S p1) || (pA == p2) then LSI plA
-            else if in_btw (S pS) p1 pA then LRec _ _ _ lc2 plA
-            else if in_btw (S (S p1)) p2 pA then LRec _ _ _ lc1 plA
-            else throw err 
-      end     
-  | LWhileTNode _ (p1, _) (p2, _) b ii li1 lc1 lc2 li2 =>
-      (* note: fst plE = S p2 *)
-      match LWhileTNode_ok li1 li2 with
-      | false => throw err
-      | true => 
-            let bn := if b then 1 else 0 in  
-            if (pA == pS) || (pA == pS + bn) || (pA == p2) then LSI plA
-            else if in_btw (S (pS + bn)) p1 pA then LRec _ _ _ lc1 plA
-            else if in_btw p1 p2 pA then LRec _ _ _ lc2 plA
-            else throw err 
-      end
-  | LWhileFNode _ _ lc => LRec _ _ _ lc plA
-  | LWhile1Node _ (p1, _) b ii li1 lc li2 =>
-      (* note: fst plE = S p1 *)
-      match LWhile1Node_ok li1 li2 with
-      | false => throw err
-      | true => 
-            let bn := if b then 1 else 0 in   
-            if (pA == pS) || (pA == pS + bn) || (pA == p1) then LSI plA
-            else if in_btw (S (pS + bn)) p1 pA then LRec _ _ _ lc plA
-            else throw err 
-      end
-  | LWhileNode _ (p1, _) (p2, _) b ii li1 li2 lc2 li3 lc1 li4 =>
-      (* note: fst plE = S p2 *)
-      match LWhileNode_ok li1 li2 li3 li4 with
-      | false => throw err
-      | true =>
-            let bn := if b then 1 else 0 in
-            let pS1 := pS + bn in  
-            if (pA == pS) || (pA == pS1) || (pA == S pS1)
-               || (pA == p1) || (pA == p2) then LSI plA
-            else if in_btw (S (S (pS1))) p1 pA then LRec _ _ _ lc2 plA
-            else if in_btw (S p1) p2 pA then LRec _ _ _ lc1 plA
-            else throw err 
-      end        
-  | LCallNode _ nb na fn' lc_bef lc_aft li1 li2 =>
-      match LCallNode_ok nb na fn' lc_bef lc_aft li1 li2 with
-      | false => throw err  
-      | true => LSC (lc_bef ++ [li1]) plA ;;
-                l1 <- (trigger_inl1 (Call fn')) ;;
-                LSC (li2 :: lc_aft) l1 ;;
-                Ret (fn, pS + nb + S (S na))            
-      end 
-  end
-  else throw err.   
-*)
-
 (* parameterized semantics of intermediate instructions and commands *)
 (* IBT -> (L) at_start (F) in_btw
    CNT -> (L) LACntrI (F) id    
@@ -901,6 +794,164 @@ Definition lsem_fun_imedAF
   fd <- err_def_option (ifenv fn) ;;
   lsem_fun_imed_auxAF LSC LSI fd.
 
+
+(***** INTERMEDIATE LOCAL SEMANTICS *)
+(* introduce an iteration for each Intermediate instruction *)
+
+Section LInterSemDef.
+Context {XF: LFindE -< E} {XL: LEvalE -< E } {XSl: @stateE LState -< E}.
+  
+Definition lsem_i_imedL  
+  (fn: funname) (plS plE: plinfo)
+  (lt : LTree fn plS plE) : lpoint -> itree (LCall +' E) lpoint :=
+  @lsem_i_imedAL 
+    isem_lcmd_seq_flow isem_li_aflow _ _ _ lt.
+               
+Definition lsem_cmd_imedL  
+  (fn: funname) (plS plE: plinfo)
+  (lt : LTreeList fn plS plE) : lpoint -> itree (LCall +' E) lpoint :=
+  @lsem_cmd_imedAL
+    isem_lcmd_seq_flow isem_li_aflow _ _ _ lt.
+
+Definition lsem_fun_imedL  
+  (fn: funname) : itree (LCall +' E) lpoint :=
+  lsem_fun_imedAL 
+    isem_lcmd_seq_flow isem_li_aflow fn.
+
+Definition handle_LRecL : LCall ~> itree (LCall +' E) :=
+  fun T  (rc : callE _ _ T) =>
+   match rc with
+   | Call fn => lsem_fun_imedL fn
+   end.                            
+
+(* LRec interpretation *)
+Definition lsem_imed_recL (fn: funname) (plS plE: plinfo)
+  (lt : LTreeList fn plS plE) (lp0: lpoint) : itree E lpoint := 
+  interp_mrec handle_LRecL (lsem_cmd_imedL lt lp0).
+
+End LInterSemDef.
+
+
+(***** INTERMEDIATE FUNCTION-GLOBALISED SEMANTICS *)
+(* introduces an iteration for each function *)
+
+Section FInterSemDef.
+Context {XF: LFindE -< E} {XL: LEvalE -< E } {XSl: @stateE LState -< E}.
+  
+Definition lsem_i_imedF  
+  (fn: funname) (plS plE: plinfo)
+  (lt : LTree fn plS plE) : lpoint -> itree (LCall +' E) lpoint :=
+  @lsem_i_imedAF 
+    isem_lcmd_seq_flow isem_li_aflow _ _ _ lt.
+               
+Definition lsem_cmd_imedF  
+  (fn: funname) (plS plE: plinfo)
+  (lt : LTreeList fn plS plE) : lpoint -> itree (LCall +' E) lpoint :=
+  @lsem_cmd_imedAF
+    isem_lcmd_seq_flow isem_li_aflow _ _ _ lt.
+
+Definition lsem_fun_imedF  
+  (fn: funname) : itree (LCall +' E) lpoint :=
+  lsem_fun_imedAF 
+    isem_lcmd_seq_flow isem_li_aflow fn.
+
+Definition handle_LRecF : LCall ~> itree (LCall +' E) :=
+  fun T  (rc : callE _ _ T) =>
+   match rc with
+   | Call fn => lsem_fun_imedF fn
+   end.                            
+
+(* LRec interpretation *)
+Definition lsem_imed_recF (fn: funname) (plS plE: plinfo)
+  (lt : LTreeList fn plS plE) (lp0: lpoint) : itree E lpoint := 
+  interp_mrec handle_LRecF (lsem_cmd_imedF lt lp0).
+
+End FInterSemDef.
+
+
+Section Lemmas.
+  (* TODO: The points to prove *) 
+Context {readRA : LState -> option lpoint}
+        {readPC: LState -> option lpoint}
+        {evalLoc : LState -> rexpr -> option remote_label}
+        {evalExp : LState -> fexpr -> option bool}.
+
+(* equivalence between core and instrumented global semantics; where
+   most of the low-level effort will go. notice that in Instrumented
+   events LEval and LFind need to be handled first, even if they do
+   not actually change the state. *)
+Lemma core2instrumented_global_lfun (fn: funname) (st: LState) :
+  readPC st = Some (fn, 0) ->
+  eutt (fun x y => x = fst y) (@isem_lcmd_core E _ readPC st)
+    (run_state (@interp_LInstr readRA readPC evalLoc evalExp _ _ _ _
+    (@isem_lfun_flow (LEvalE +' LFindE +' @stateE LState +' E) _ _ _ _ fn)) st).
+Admitted.
+
+
+Section Lemmas1.
+Context {XF: LFindE -< E} {XL: LEvalE -< E }.
+
+(* equivalence between instrumented global and function-localised
+   semantics; se we can semantically distinguish between internal
+   jumps, controlled by a function-level iterations, and external
+   jumps, controlled by the global iteration. *)
+Lemma instrumented_local2instrumented_funloc_lfun {XS: stateE LState -< E}
+  (fn: funname) :
+  eutt eq (@isem_lfun_flow E _ _ _ _ fn)
+    (@isem_lfloc E _ _ _ _ code_length (fn, 0)).  
+Admitted. 
+  
+(* equivalence between intemediate local and function-globablised
+   semantics; the idea being that in Intermediate, local iterations
+   can be pushed out up to functions; should be proved before
+   interpreting LRec, otherwise one might end up with an infinite
+   number of local iterations. probably the hardest bit *)
+Lemma intemediate_local2intermediate_funglobal_fun {XS: stateE LState -< E}
+  (fn: funname) :
+  eutt eq (lsem_fun_imedL fn) (lsem_fun_imedF fn).
+Admitted. 
+
+(* similar, for commands *)
+Lemma intemediate_local2intermediate_funglobal_lcmd {XS: stateE LState -< E}
+  (fn: funname) (plS plE: plinfo)
+  (lt : LTreeList fn plS plE) (pl0: lpoint) :
+  eutt eq (lsem_cmd_imedL lt pl0) (lsem_cmd_imedF lt pl0).
+Proof.
+  unfold lsem_imed_recL, isem_lcmd_flow, lsem_imed_recF; simpl.
+Admitted.
+
+(* equivalence between instrumented function-localised and
+   intermediate function-globalised; basically, we need to match the
+   global iteration with the mrec interpretation. *)
+Lemma instrumented_funlocal2intermediate_funglobal_lcmd {XS: stateE LState -< E}
+  (fn: funname) (plS plE: plinfo)
+  (lt : LTreeList fn plS plE) :
+  eutt eq (@isem_lfloc E _ _ _ _ code_length (fn, fst plS))
+    (lsem_imed_recF lt (fn, fst plS)).
+Proof.
+Admitted.
+
+(* equivalence between instrumented global and intermediate local
+   semantics then will follow. note: both semantics depend implicitly
+   on glfenv *)
+Lemma intermediate_local2instrumented_lcmd {XS: stateE LState -< E}
+  (fn: funname) (plS plE: plinfo)
+  (lt : LTreeList fn plS plE) :
+  eutt eq (lsem_imed_recL lt (fn, fst plS))
+    (isem_lcmd_flow (fn, fst (fst (forget_imed_cmd lt)))).
+Proof.
+Admitted.
+
+(* TODO: cleanup it_cflow_sem and redefine the lemma *)
+(* equivalence between intermediate and source semantics *)
+(* Lemma intermediate2source  *)
+
+End Lemmas1.
+
+End Lemmas.
+
+
+(* NOT USED *)
 (* probably useless; similar to Intermediate Local; the only
   difference is that it inserts only the iterators that are strictly
   necessary. noethelss it reads slightly better, so for now I'm
@@ -908,14 +959,14 @@ Definition lsem_fun_imedAF
   parameterized intermediate local strict semantics.  
   LC -> isem_lcmd_seq_flow (isem_lcmd_acore could also do).  
   LSI -> isem_li_aflow *)
-Fixpoint lsem_i_imed 
+Fixpoint lsem_i_imedSL 
   (LSC: lcmd -> lpoint -> itree (LCall +' E) lpoint)
   (LSI: lpoint -> itree (LCall +' E) lpoint)
   (fn: funname) (plS plE: plinfo)
   (lt : LTree fn plS plE) : itree (LCall +' E) lpoint :=
   let '(pS, _) := plS in 
   let '(pE, _) := plE in 
-  let LRec := @lsem_cmd_imed LSC LSI in
+  let LRec := @lsem_cmd_imedSL LSC LSI in
   match lt with
   | LErrLeaf _ => throw err
   | LLeaf _ (MkLI ii ir) => if LLeaf_ok (MkLI ii ir)
@@ -993,7 +1044,7 @@ Fixpoint lsem_i_imed
                 Ret (fn, pS + nb + S (S na))            
       end 
   end
-with lsem_cmd_imed 
+with lsem_cmd_imedSL 
   (LSC: lcmd -> lpoint -> itree (LCall +' E) lpoint)
   (LSI: lpoint -> itree (LCall +' E) lpoint)
   (fn: funname) (plS plE: plinfo)
@@ -1001,28 +1052,159 @@ with lsem_cmd_imed
    match lt with
    | LListNil pl => Ret (fn, fst pl)
    | LListCons _ pl1 pl2 lt ltl =>
-       @lsem_i_imed LSC LSI _ _ _ lt ;;
-       @lsem_cmd_imed LSC LSI _ _ _ ltl
+       @lsem_i_imedSL LSC LSI _ _ _ lt ;;
+       @lsem_cmd_imedSL LSC LSI _ _ _ ltl
    end.                   
 
 (* linear semantics of source functions. l1 is the return address (not
    used here, because LSC returns an lpoint) *)
-Definition lsem_fun_imed_aux 
+Definition lsem_fun_imed_auxSL 
   (LSC: lcmd -> lpoint -> itree (LCall +' E) lpoint)
   (LSI: lpoint -> itree (LCall +' E) lpoint)
   (fn: funname) (fd: LTreeFun fn) : itree (LCall +' E) lpoint :=
   match fd with
   | LTFun lbl pl1 lc1 lc2 lt =>
       LSC lc1 (fn, 0) ;;
-      l <- @lsem_cmd_imed LSC LSI _ _ _ lt ;; LSC lc2 l 
+      l <- @lsem_cmd_imedSL LSC LSI _ _ _ lt ;; LSC lc2 l 
   end.                   
 
-Definition lsem_fun_imed 
+Definition lsem_fun_imedSL 
   (LSC: lcmd -> lpoint -> itree (LCall +' E) lpoint)
   (LSI: lpoint -> itree (LCall +' E) lpoint)
   (fn: funname) : itree (LCall +' E) lpoint :=
   fd <- err_def_option (ifenv fn) ;;
-  lsem_fun_imed_aux LSC LSI fd.
+  lsem_fun_imed_auxSL LSC LSI fd.
+
+  
+(***** INTERMEDIATE LOCAL STRICT SEMANTICS *)
+(* probably not needed *)
+
+Section SLInterSemDef.
+Context {XF: LFindE -< E} {XL: LEvalE -< E } {XSl: @stateE LState -< E}. 
+  
+Definition lsem_i_imedI  
+  (fn: funname) (plS plE: plinfo)
+  (lt : LTree fn plS plE) : itree (LCall +' E) lpoint :=
+  @lsem_i_imedSL isem_lcmd_seq_flow isem_li_aflow _ _ _ lt.
+
+Definition lsem_cmd_imedI  
+  (fn: funname) (plS plE: plinfo)
+  (lt : LTreeList fn plS plE) : itree (LCall +' E) lpoint :=
+  lsem_cmd_imedSL isem_lcmd_seq_flow isem_li_aflow lt.
+
+Definition lsem_fun_imedI  
+  (fn: funname) : itree (LCall +' E) lpoint :=
+  lsem_fun_imedSL isem_lcmd_seq_flow isem_li_aflow fn.
+
+Definition handle_LRecI : LCall ~> itree (LCall +' E) :=
+  fun T (rc : callE _ _ T) =>
+   match rc with
+   | Call fn => lsem_fun_imedI fn
+   end.                            
+
+(* LRec interpretation *)
+Definition lsem_imed_recSL (fn: funname) (plS plE: plinfo)
+  (lt : LTreeList fn plS plE) : itree E lpoint := 
+  interp_mrec handle_LRecI (lsem_cmd_imedI lt).
+
+End SLInterSemDef.
+
+End IntermediateSem.
+
+End LinSemContext.
+
+End Asm1.
+
+
+(* LEGACY - NOT USED 
+(* intermediate semantics of instructions.
+     LC -> isem_lcmd_seq_flow (isem_lcmd_acore could also do).  
+     LSI -> isem_li_aflow *)
+Definition lsem_i_imed_body 
+  (LSC: lcmd -> lpoint -> itree (LCall +' E) lpoint)
+  (LSI: lpoint -> itree (LCall +' E) lpoint)
+  (LRec: forall (fn: funname) (plS plE: plinfo),
+           LTreeList fn plS plE -> lpoint -> itree (LCall +' E) lpoint)
+  (fn: funname) (plS plE: plinfo)
+  (lt : LTree fn plS plE) : lpoint -> itree (LCall +' E) lpoint :=
+  fun plA =>
+  let '(fnA, pA) := plA in
+  let '(pS, _) := plS in 
+  let '(pE, _) := plE in 
+(*  let LRec := @lsem_cmd_imed LSC LSI CNT in *)
+  if fst plA == fn then 
+  match lt with
+  | LErrLeaf _ => throw err
+  | LLeaf _ (MkLI ii ir) =>
+                            if LLeaf_ok (MkLI ii ir)
+                            then LSI plA
+                            else throw err                                 
+  | LIf1Node _ (p1, _) li1 lc li2 =>
+      (* note: fst plE = S p1 *)
+      match LIf1Node_ok li1 li2 with
+      | false => throw err
+      | true => 
+             if (pA == pS) || (pA == p1) then LSI plA
+             else if in_btw (S pS) p1 pA then LRec _ _ _ lc plA
+             else throw err 
+      end
+  | LIfNode _ (p1, _) (p2, _) li1 lc2 li2 li3 lc1 li4 => 
+      (* note: fst plE = S p2 *)
+      match LIfNode_ok li1 li2 li3 li4 with
+      | false => throw err
+      | true => 
+            if (pA == pS) || (pA == p1) ||
+               (pA == S p1) || (pA == p2) then LSI plA
+            else if in_btw (S pS) p1 pA then LRec _ _ _ lc2 plA
+            else if in_btw (S (S p1)) p2 pA then LRec _ _ _ lc1 plA
+            else throw err 
+      end     
+  | LWhileTNode _ (p1, _) (p2, _) b ii li1 lc1 lc2 li2 =>
+      (* note: fst plE = S p2 *)
+      match LWhileTNode_ok li1 li2 with
+      | false => throw err
+      | true => 
+            let bn := if b then 1 else 0 in  
+            if (pA == pS) || (pA == pS + bn) || (pA == p2) then LSI plA
+            else if in_btw (S (pS + bn)) p1 pA then LRec _ _ _ lc1 plA
+            else if in_btw p1 p2 pA then LRec _ _ _ lc2 plA
+            else throw err 
+      end
+  | LWhileFNode _ _ lc => LRec _ _ _ lc plA
+  | LWhile1Node _ (p1, _) b ii li1 lc li2 =>
+      (* note: fst plE = S p1 *)
+      match LWhile1Node_ok li1 li2 with
+      | false => throw err
+      | true => 
+            let bn := if b then 1 else 0 in   
+            if (pA == pS) || (pA == pS + bn) || (pA == p1) then LSI plA
+            else if in_btw (S (pS + bn)) p1 pA then LRec _ _ _ lc plA
+            else throw err 
+      end
+  | LWhileNode _ (p1, _) (p2, _) b ii li1 li2 lc2 li3 lc1 li4 =>
+      (* note: fst plE = S p2 *)
+      match LWhileNode_ok li1 li2 li3 li4 with
+      | false => throw err
+      | true =>
+            let bn := if b then 1 else 0 in
+            let pS1 := pS + bn in  
+            if (pA == pS) || (pA == pS1) || (pA == S pS1)
+               || (pA == p1) || (pA == p2) then LSI plA
+            else if in_btw (S (S (pS1))) p1 pA then LRec _ _ _ lc2 plA
+            else if in_btw (S p1) p2 pA then LRec _ _ _ lc1 plA
+            else throw err 
+      end        
+  | LCallNode _ nb na fn' lc_bef lc_aft li1 li2 =>
+      match LCallNode_ok nb na fn' lc_bef lc_aft li1 li2 with
+      | false => throw err  
+      | true => LSC (lc_bef ++ [li1]) plA ;;
+                l1 <- (trigger_inl1 (Call fn')) ;;
+                LSC (li2 :: lc_aft) l1 ;;
+                Ret (fn, pS + nb + S (S na))            
+      end 
+  end
+  else throw err.   
+*)
 
 (*
 (* used to introduce function-global iterations *)
@@ -1055,113 +1237,7 @@ Definition lsem_fun_imed_F
   fd <- err_def_option (ifenv fn) ;;
   lsem_fun_imed_aux_F LSC LSI CNT CNT_F fd.
 *)
-  
-(***** INTERMEDIATE LOCAL STRICT SEMANTICS *)
-(* probably not needed *)
 
-Section LSInterSemDef.
-Context {XF: LFindE -< E} {XL: LEvalE -< E } {XSl: @stateE LState -< E}. 
-  
-Definition lsem_i_imedI  
-  (fn: funname) (plS plE: plinfo)
-  (lt : LTree fn plS plE) : itree (LCall +' E) lpoint :=
-  @lsem_i_imed isem_lcmd_seq_flow isem_li_aflow _ _ _ lt.
-
-Definition lsem_cmd_imedI  
-  (fn: funname) (plS plE: plinfo)
-  (lt : LTreeList fn plS plE) : itree (LCall +' E) lpoint :=
-  lsem_cmd_imed isem_lcmd_seq_flow isem_li_aflow lt.
-
-Definition lsem_fun_imedI  
-  (fn: funname) : itree (LCall +' E) lpoint :=
-  lsem_fun_imed isem_lcmd_seq_flow isem_li_aflow fn.
-
-Definition handle_LRec : LCall ~> itree (LCall +' E) :=
-  fun T (rc : callE _ _ T) =>
-   match rc with
-   | Call fn => lsem_fun_imedI fn
-   end.                            
-
-(* LRec interpretation *)
-Definition lsem_imed_rec (fn: funname) (plS plE: plinfo)
-  (lt : LTreeList fn plS plE) : itree E lpoint := 
-  interp_mrec handle_LRec (lsem_cmd_imedI lt).
-
-End LSInterSemDef.
-
-
-(***** INTERMEDIATE LOCAL SEMANTICS *)
-(* introduce an iteration for each Intermediate instruction *)
-
-Section LInterSemDef.
-Context {XF: LFindE -< E} {XL: LEvalE -< E } {XSl: @stateE LState -< E}.
-  
-Definition lsem_i_imedL  
-  (fn: funname) (plS plE: plinfo)
-  (lt : LTree fn plS plE) : lpoint -> itree (LCall +' E) lpoint :=
-  @lsem_i_imedAL 
-    isem_lcmd_seq_flow isem_li_aflow _ _ _ lt.
-               
-Definition lsem_cmd_imedL  
-  (fn: funname) (plS plE: plinfo)
-  (lt : LTreeList fn plS plE) : lpoint -> itree (LCall +' E) lpoint :=
-  @lsem_cmd_imedAL
-    isem_lcmd_seq_flow isem_li_aflow _ _ _ lt.
-
-Definition lsem_fun_imedL  
-  (fn: funname) : itree (LCall +' E) lpoint :=
-  lsem_fun_imedAL 
-    isem_lcmd_seq_flow isem_li_aflow fn.
-
-Definition handle_LRecL : LCall ~> itree (LCall +' E) :=
-  fun T  (rc : callE _ _ T) =>
-   match rc with
-   | Call fn => lsem_fun_imedL fn
-   end.                            
-
-(* LRec interpretation *)
-Definition lsem_imed_recL (fn: funname) (plS plE: plinfo)
-  (lt : LTreeList fn plS plE) (lp0: lpoint) : itree E lpoint := 
-  interp_mrec handle_LRecL (lsem_cmd_imedL lt lp0).
-
-End LInterSemDef.
-
-
-(***** INTERMEDIATE FUNCTION-GLOBALISED SEMANTICS *)
-(* introduces an iteration for each function *)
-
-Section FInterSemDef.
-Context {XF: LFindE -< E} {XL: LEvalE -< E } {XSl: @stateE LState -< E}.
-  
-Definition lsem_i_imedF  
-  (fn: funname) (plS plE: plinfo)
-  (lt : LTree fn plS plE) : lpoint -> itree (LCall +' E) lpoint :=
-  @lsem_i_imedAF 
-    isem_lcmd_seq_flow isem_li_aflow _ _ _ lt.
-               
-Definition lsem_cmd_imedF  
-  (fn: funname) (plS plE: plinfo)
-  (lt : LTreeList fn plS plE) : lpoint -> itree (LCall +' E) lpoint :=
-  @lsem_cmd_imedAF
-    isem_lcmd_seq_flow isem_li_aflow _ _ _ lt.
-
-Definition lsem_fun_imedF  
-  (fn: funname) : itree (LCall +' E) lpoint :=
-  lsem_fun_imedAF 
-    isem_lcmd_seq_flow isem_li_aflow fn.
-
-Definition handle_LRecF : LCall ~> itree (LCall +' E) :=
-  fun T  (rc : callE _ _ T) =>
-   match rc with
-   | Call fn => lsem_fun_imedF fn
-   end.                            
-
-(* LRec interpretation *)
-Definition lsem_imed_recF (fn: funname) (plS plE: plinfo)
-  (lt : LTreeList fn plS plE) (lp0: lpoint) : itree E lpoint := 
-  interp_mrec handle_LRecF (lsem_cmd_imedF lt lp0).
-
-End FInterSemDef.
 
 (* WRONG 
 (***** INTERMEDIATE FUNCTION-GLOBAL SEMANTICS *)
@@ -1188,68 +1264,6 @@ Definition lsem_imed_recF (fn: funname) (plS plE: plinfo)
 End FInterSemDef.
 *)
 
-Section Lemmas.
-  (* TODO: The points to prove *) 
-Context {readRA : LState -> option lpoint}
-        {readPC: LState -> option lpoint}
-        {evalLoc : LState -> rexpr -> option remote_label}
-        {evalExp : LState -> fexpr -> option bool}.
-
-(* equivalence between core and instrumented global semantics; where
-   most of the low-level effort will go. notice that in Instrumented
-   events LEval and LFind need to be handled first, even if they do
-   not actually change the state. *)
-Lemma core2instrumented_global_lfun (fn: funname) (st: LState) :
-  readPC st = Some (fn, 0) ->
-  eutt (fun x y => x = fst y) (@isem_lcmd_core E _ readPC st)
-    (run_state (@interp_LInstr readRA readPC evalLoc evalExp _ _ _ _
-    (@isem_lfun_flow (LEvalE +' LFindE +' @stateE LState +' E) _ _ _ _ fn)) st).
-Admitted.
-
-
-Section Lemmas1.
-Context {XF: LFindE -< E} {XL: LEvalE -< E }.
-
-(* equivalence between instrumented global and function-localised
-   semantics; se we can semantically distinguish between internal
-   jumps, controlled by a function-level iterations, and external
-   jumps, controlled by the global iteration. *)
-Lemma instrumented_local2instrumented_funloc_lfun {XS: stateE LState -< E}
-  (fn: funname) :
-  eutt eq (@isem_lfun_flow E _ _ _ _ fn)
-    (@isem_lfloc E _ _ _ _ code_length (fn, 0)).  
-Admitted. 
-  
-(* equivalence between intemediate local and function-globablised
-   semantics; the idea being that in Intermediate, local iterations
-   can be pushed out up to functions; should be proved before
-   interpreting LRec, otherwise one might end up with an infinite
-   number of local iterations. probably the hardest bit *)
-Lemma intemediate_local2intermediate_funglobal_fun {XS: stateE LState -< E}
-  (fn: funname) :
-  eutt eq (lsem_fun_imedL fn) (lsem_fun_imedF fn).
-Admitted. 
-
-(* similar, for commands *)
-Lemma intemediate_local2intermediate_funglobal_lcmd {XS: stateE LState -< E}
-  (fn: funname) (plS plE: plinfo)
-  (lt : LTreeList fn plS plE) (pl0: lpoint) :
-  eutt eq (lsem_cmd_imedL lt pl0) (lsem_cmd_imedF lt pl0).
-Proof.
-  unfold lsem_imed_rec, isem_lcmd_flow, lsem_imed_recF; simpl.
-Admitted.
-
-(* equivalence between instrumented function-localised and
-   intermediate function-globalised; basically, we need to match the
-   global iteration with the mrec interpretation. *)
-Lemma instrumented_funlocal2intermediate_funglobal_lcmd {XS: stateE LState -< E}
-  (fn: funname) (plS plE: plinfo)
-  (lt : LTreeList fn plS plE) :
-  eutt eq (@isem_lfloc E _ _ _ _ code_length (fn, fst plS))
-    (lsem_imed_recF lt (fn, fst plS)).
-Proof.
-Admitted.
-
 (*
 (* given only global iteration, intermediate and instrumented are
    equivalent; after interpreting LRec *)
@@ -1262,28 +1276,22 @@ Proof.
 Admitted. 
  *)
 
-(* equivalence between instrumented global and intermediate local
-   semantics then will follow. note: both semantics depend implicitly
-   on glfenv *)
-Lemma intermediate_local2instrumented_lcmd {XS: stateE LState -< E}
-  (fn: funname) (plS plE: plinfo)
-  (lt : LTreeList fn plS plE) :
-  eutt eq (lsem_imed_rec lt)
-    (isem_lcmd_flow (fn, fst (fst (forget_imed_cmd lt)))).
-Proof.
-Admitted.
+(*
+(* similar for sequential linear commands; only meaningful when lcmd is
+   straightline code (used in Intermediate) *)
+Fixpoint isem_lcmd_seq_flow (lc: lcmd) (l0: lpoint) : itree E lpoint :=
+  match lc with
+  | nil => Ret l0
+  | (MkLI ii li) :: lc0 =>
+      l1 <- isem_li_flow li l0 ;; isem_lcmd_seq_flow lc0 l1
+  end.             
 
-(* TODO: cleanup it_cflow_sem and redefine the lemma *)
-(* equivalence between intermediate and source semantics *)
-(* Lemma intermediate2source  *)
+(* version based on the core semantics *)
+Fixpoint isem_lcmd_acore (lc: lcmd) : itree E unit :=
+  match lc with
+  | nil => Ret tt
+  | (MkLI ii li) :: lc0 => isem_li_acore li ;; isem_lcmd_acore lc0
+  end.             
+*)
 
-End Lemmas1.
-
-End Lemmas.
-
-End IntermediateSem.
-
-End LinSemContext.
-
-End Asm1.
 
