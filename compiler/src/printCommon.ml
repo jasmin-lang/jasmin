@@ -1,8 +1,8 @@
 open Format
 open Utils
 open Prog
-open Wsize
 open Operators
+open Wsize
 
 (* -------------------------------------------------------------------- *)
 let escape = String.map (fun c -> if c = '.' || c = ':' || c = '#' then '_' else c)

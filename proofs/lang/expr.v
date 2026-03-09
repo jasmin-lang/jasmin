@@ -55,7 +55,7 @@ Lemma e_type_of_opk k : type_of_opk k = to_atype (etype_of_opk k).
 Proof. by case: k. Qed.
 
 (* Type of unany operators: input, output *)
-Definition etype_of_op1 {len} (o: sop1) : extended_type len * extended_type len :=
+Definition etype_of_op1 (o: sop1) : extended_type positive * extended_type positive :=
   match o with
   | Oword_of_int sz => (tint, tword sz)
   | Oint_of_word _ sz => (tword sz, tint)
@@ -206,6 +206,8 @@ Definition type_of_opN (op: opN) : seq atype * atype :=
     (nseq n aint, aword ws)
   | Oarray len => (nseq (Pos.to_nat len) (aword U8), aarr U8 len)
   | Ocombine_flags c => (tin_combine_flags, abool)
+  | Ois_arr_init len => ([:: aarr U8 len; aint; aint], abool)
+  | Ois_barr_init len => ([:: aarr U8 len; aint; aint], abool)
   end.
 
 (* ** Expressions
@@ -240,7 +242,7 @@ Notation vid ident :=
   (mk_var_i {| vtype := aword Uptr; vname := ident%string; |}).
 
 #[only(eqbOK)] derive
-Variant v_scope := 
+Variant v_scope :=
   | Slocal
   | Sglob.
 
@@ -265,7 +267,12 @@ Inductive pexpr : Type :=
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
 | PappN of opN & seq pexpr
-| Pif    : atype -> pexpr -> pexpr -> pexpr -> pexpr.
+| Pif    : atype -> pexpr -> pexpr -> pexpr -> pexpr
+| Pbig : pexpr -> sop2 -> var_i -> pexpr -> pexpr -> pexpr -> pexpr
+(** Pbig idx op x e start len = big idx op (fun x => e) [iota start len] *)
+| Pis_var_init : var_i → pexpr
+(* FIXME : this should be an operator *)
+| Pis_mem_init : pexpr → pexpr → pexpr.
 
 Notation pexprs := (seq pexpr).
 
@@ -483,8 +490,16 @@ Class progT := {
   extra_val_t  : Type;
 }.
 
+Record fun_contract := MkContra {
+    f_iparams : seq var_i;  (* initial value of the parameter *)
+    f_ires    : seq var_i;  (* name of the result used in post *)
+    f_pre     : assertions;
+    f_post    : assertions;
+  }.
+
 Record _fundef (extra_fun_t: Type) := MkFun {
   f_info   : fun_info;
+  f_contra : option fun_contract;
   f_tyin   : seq atype;
   f_params : seq var_i;
   f_body   : cmd;
@@ -668,6 +683,7 @@ Definition to_sprog (p:_sprog) : sprog := p.
 (* Update functions *)
 Definition with_body eft (fd:_fundef eft) (body : cmd) := {|
   f_info   := fd.(f_info);
+  f_contra := fd.(f_contra);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
   f_body   := body;
@@ -678,6 +694,7 @@ Definition with_body eft (fd:_fundef eft) (body : cmd) := {|
 
 Definition swith_extra {_: PointerData} (fd:ufundef) f_extra : sfundef := {|
   f_info   := fd.(f_info);
+  f_contra := fd.(f_contra);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
   f_body   := fd.(f_body);
@@ -719,6 +736,7 @@ Definition is_load (e: pexpr) : bool :=
   | Pconst _ | Pbool _ | Parr_init _ _
   | Psub _ _ _ _ _
   | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pif _ _ _ _
+  | Pbig _ _ _ _ _ _
     => false
   | Pvar {| gs := Sglob |}
   | Pget _ _ _ _ _
@@ -726,6 +744,7 @@ Definition is_load (e: pexpr) : bool :=
     => true
   | Pvar {| gs := Slocal ; gv := x |}
     => is_var_in_memory x
+  | _ => false (* tocheck *)
   end.
 
 Definition is_array_init (e : pexpr) :=
@@ -841,12 +860,13 @@ Definition write_c c := write_c_rec Sv.empty c.
 
 Fixpoint use_mem (e : pexpr) :=
   match e with
-  | Pconst _ | Pbool _ | Parr_init _ _ | Pvar _ => false
-  | Pload _ _ _ => true
+  | Pconst _ | Pbool _ | Parr_init _ _ | Pvar _ | Pis_var_init _ => false
+  | Pload _ _ _ | Pis_mem_init _ _ => true
   | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
+  | Pbig idx _ _ body start len => use_mem idx || use_mem body || use_mem start || use_mem len
   end.
 
 (* ** Compute read variables
@@ -869,6 +889,11 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | PappN _ es     => foldl read_e_rec s es
   | Pif  _ t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
+  | Pbig idx _ x body start len =>
+    Sv.union (Sv.remove x (read_e_rec Sv.empty body))
+             (read_e_rec (read_e_rec (read_e_rec s len) start) idx)
+  | Pis_var_init x => Sv.add x s
+  | Pis_mem_init e1 e2 => read_e_rec (read_e_rec s e2) e1
   end.
 
 Definition read_e := read_e_rec Sv.empty.
@@ -965,6 +990,12 @@ Fixpoint eq_expr (e e' : pexpr) :=
   | PappN o es, PappN o' es' => (o == o') && (all2 eq_expr es es')
   | Pif t e e1 e2, Pif t' e' e1' e2' =>
     (t == t') && eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
+  | Pbig idx op x body start len, Pbig idx' op' x' body' start' len' =>
+    eq_expr idx idx' && (op == op') && (v_var x == v_var x') &&
+    eq_expr body body' &&
+    eq_expr start start' && eq_expr len len'
+  | Pis_var_init x  , Pis_var_init x' => v_var x == v_var x'
+  | Pis_mem_init e1 e2  , Pis_mem_init e1' e2' =>  eq_expr e1 e1' && eq_expr e2 e2'
   | _             , _                 => false
   end.
 

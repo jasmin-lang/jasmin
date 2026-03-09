@@ -659,9 +659,10 @@ let rec ty_expr env venv loc (e:expr) : vty =
     ty_exprs_max ~public env venv loc es
 
   | Pif(_, e1, e2, e3) ->
-      let ty1 = ty_expr env venv loc e1 in
-      let ty2 = ty_expr env venv loc e2 in
-      let ty3 = ty_expr env venv loc e3 in
+    let ty1 = ty_expr env venv loc e1 in
+    let ty2 = ty_expr env venv loc e2 in
+    let ty3 = ty_expr env venv loc e3 in
+    begin
       match ty1 with
       | Indirect _ -> assert false
       | Direct l1 ->
@@ -683,6 +684,8 @@ let rec ty_expr env venv loc (e:expr) : vty =
           do_indirect lp2 le2 (Env.public2 env) le3
         | Direct le2, Indirect (lp3, le3) ->
           do_indirect (Env.public2 env) le2 lp3 le3
+    end
+  | Pbig _ | Pis_var_init _ | Pis_mem_init _ -> assert false
 
 and ensure_smaller env venv loc e l =
   let ety = ty_expr env venv loc e in

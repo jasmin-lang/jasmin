@@ -91,10 +91,22 @@ Fixpoint pi_e (pi:pimap) (e:pexpr) :=
   | PappN o es         => 
     let es := (map (pi_e pi) es) in
     match o with
-    | Opack _ _ | Oarray _ => PappN o es
     | Ocombine_flags c => scfc c es
+    | Opack _ _ | Oarray _ | Ois_arr_init _ | Ois_barr_init _ => PappN o es
     end
   | Pif t e e1 e2      => Pif t (pi_e pi e) (pi_e pi e1) (pi_e pi e2)
+  | Pbig idx op x body start len =>
+    let idx   := pi_e pi idx in
+    let body  := pi_e (remove pi x) body in
+    let start := pi_e pi start in
+    let len   := pi_e pi len in
+    Pbig idx op x body start len
+  | Pis_var_init x =>
+    match Mvar.get pi x with
+    | Some c => c.(pi_def)
+    | None => e
+    end
+  | Pis_mem_init e1 e2 => Pis_mem_init (pi_e pi e1) (pi_e pi e2)
   end.
 
 Definition pi_es (pi:pimap) (es:pexprs) := 
@@ -206,9 +218,9 @@ Section Section.
 Context {pT:progT}.
 
 Definition pi_fun  (f:fundef) :=
-  let 'MkFun ii si p c so r ev := f in
+  let 'MkFun ii ci si p c so r ev := f in
   Let pic := pi_c pi_i piempty c in 
-  ok (MkFun ii si p pic.2 so r ev).
+  ok (MkFun ii ci si p pic.2 so r ev).
 
 Definition pi_prog (p:prog) := 
   Let funcs := map_cfprog pi_fun (p_funcs p) in

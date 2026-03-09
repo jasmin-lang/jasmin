@@ -2306,6 +2306,9 @@ Proof.
   by apply (wfr_VARS_STATUS_alloc_syscall halloc).
 Qed.
 
+Local Lemma Wassert a: Pi_r (Cassert a).
+Proof. done. Qed.
+
 (* in practice, vars = Sv.inter var1 vars2, but we don't need it *)
 Lemma wfr_VARS_ZONE_merge vars1 vars2 rmap1 rmap2 vars :
   wfr_VARS_ZONE vars1 rmap1 ->
@@ -2382,9 +2385,6 @@ Proof.
   + by apply wfr_VARS_ZONE_merge.
   by apply wfr_VARS_STATUS_merge.
 Qed.
-
-Local Lemma Wassert a: Pi_r (Cassert a).
-Proof. done. Qed.
 
 Local Lemma Wif e c1 c2: Pc c1 -> Pc c2 -> Pi_r (Cif e c1 c2).
 Proof.
@@ -4450,7 +4450,7 @@ Proof.
     have /vs_top_stack -> := hvs.
     by apply is_align_m.
 
-  apply wequiv_call_core with sa_pre sa_post Rv.
+  apply wequiv_call_core_wa with sa_pre sa_post Rv => //.
   + move => _ _ vargs1 [-> ->] hvargs1.
     have [vargs2 [*]]:= alloc_call_argsP hwf_Slots.(wfsl_no_overflow) hwf_Slots.(wfsl_disjoint)
       hwf_Slots.(wfsl_align) hwf_Slots.(wfsl_not_glob) hwf_pmap hvs hcargs hvargs1.

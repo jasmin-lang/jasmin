@@ -197,7 +197,7 @@ Opaque esem.
       + subst z; rewrite Vm.setP_eq.
         have [hxy hyl]: v_var (gv src) = x /\ is_lvar src.
         + by move: hz; rewrite /read_gvar; case: ifP => ?; first split => //; [clear -hz|clear]; SvD.fsetdec.
-        move: ok_t; rewrite /= /get_gvar hyl /get_gvar hxy /get_var; t_xrbindP => _ heq.
+        move: ok_t; rewrite /= /get_gvar hyl /get_gvar hxy /get_var /=; t_xrbindP => _ heq.
         rewrite heq /len hty eqxx; split => //.
         move: hvm1' => /(_ _ hz) /=; rewrite hx heq /= => hu k w8.
         case: (hu) => _ h /h hw8; rewrite (write_read8 hset) /=.
@@ -227,7 +227,7 @@ Transparent esem.
     { rewrite /= /sem_assgn /=.
       rewrite /= get_gvar_neq // -eq_globs.
       move: hv => /= => -> /=.
-      rewrite (@get_gvar_eq _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget) /=.
+      rewrite (@get_gvar_eq _ _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget) /=.
       rewrite /truncate_val /= truncate_word_u /= write_var_eq_type //.
       rewrite /mk_lvar /= /get_gvar get_var_eq /= cmp_le_refl orbT //.
       rewrite /truncate_val /= truncate_word_u /=.
@@ -292,7 +292,7 @@ Proof.
   move=> z1 hcast z2 hset hw ?; subst s.
   rewrite read_rvs_cons read_rvs_nil /= read_eE => hsub hvm ok_dst t't''.
   have [ z1' hcast' z1z1' ] := WArray.uincl_cast t't'' hcast.
-  have : get_gvar true gd (evm s1) (mk_lvar x) = ok (Varr a) := ok_a.
+  have : get_gvar true gd (evm s1) (mk_lvar x) = ok (Varr a) by apply ok_a.
   case/(get_gvar_uincl_at (vm2 := vm1)).
   - by apply: hvm => /=; clear -hsub dstX; SvD.fsetdec.
   case => // blen b; rewrite /get_gvar /= => ok_b hab.
@@ -499,7 +499,7 @@ Qed.
 
 Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
 Proof.
-  move=> scs1 m1 scs2 m2 fn [fi tin params body tout res extra] /=.
+  move=> scs1 m1 scs2 m2 fn [fi ci tin params body tout res extra] /=.
   move=> vargs vargs' s0 s1 s2 vres vres' hget hca hi hw _ hc hres hcr hscs hfi vargs1 hva.
   have [fd2 hfd hget']:= all_checked hget.
   have hpex : p_extra p1 = p_extra p2.

@@ -181,11 +181,20 @@ type pexpr_r =
   | PEOp1    of peop1 * pexpr
   | PEOp2    of peop2 * (pexpr * pexpr)
   | PEIf of pexpr * pexpr * pexpr
+  | PEbig    of pbig * pident *pexpr * pexpr * pexpr
+  | PEResult of int_representation
+  | PEResultGet of [`Aligned|`Unaligned] option * arr_access * swsize L.located option * int_representation * pexpr * pexpr option
+
 
 and pexpr = pexpr_r L.located
 
 and mem_access = [ `Aligned | `Unaligned ] option * swsize L.located option * pexpr
 
+and pbig =
+  | PEAll
+  | PEExists
+  | PESum
+  | PEBop of peop2 * pexpr
 
 (* Printing of pexpr *)
 let string_of_align =
@@ -293,6 +302,18 @@ module SPrinter = struct
       optparent fmt prio p "(";
       F.fprintf fmt "%a ? %a : %a" (pp_expr_rec p) e1 (pp_expr_rec p) e2 (pp_expr_rec p) e3;
       optparent fmt prio p ")"
+    | PEbig(bop, x, body, start, len) ->
+       Format.fprintf fmt "@[<hov 2>%a@ (%a in %a : %a)@ (%a)@]"
+       pp_big bop pp_var x pp_expr start pp_expr len pp_expr body
+    | PEResult _ | PEResultGet _ -> assert false
+
+  and pp_big fmt bop =
+    match bop with
+    | PEBop(o, e0) -> Format.fprintf fmt "%s[%a/%a]" "big" pp_op2 o pp_expr e0
+    | PESum-> Format.fprintf fmt "sum"
+    | PEAll -> Format.fprintf fmt "all"
+    | PEExists -> Format.fprintf fmt "exists"
+
 
   and pp_mem_access fmt (al, ty, e) =
     let pp_size fmt ws = Format.fprintf fmt ":%a " pp_ws ws in
@@ -314,9 +335,6 @@ module SPrinter = struct
       (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e pp_olen len
 
 end
-
-
-
 (* -------------------------------------------------------------------- *)
 type psimple_attribute =
   | PAstring of string
@@ -376,6 +394,11 @@ type plvals = pannotations L.located option * plvalue list
 
 
 type vardecls = pstotype * pident list
+
+type assert_kind =
+  [ `Assert | `Assume | `Cut ]
+
+type assert_prover = pident
 
 type pinstr_r =
   | PIArrayInit of pident

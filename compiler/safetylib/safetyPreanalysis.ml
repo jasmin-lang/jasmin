@@ -113,6 +113,11 @@ end = struct
     | PappN (op,es) -> PappN (op, List.map (mk_expr fn) es)
     | Pif (ty, e, el, er)  ->
       Pif (ty, mk_expr fn e, mk_expr fn el, mk_expr fn er)
+    (* FIXME *)
+    | Pbig(e0, op, x, start, len, body) ->
+      Pbig(mk_expr fn e0, op, mk_v_loc fn x, mk_expr fn start, mk_expr fn len, mk_expr fn body)
+    | Pis_var_init x -> Pis_var_init (mk_v_loc fn x)
+    | Pis_mem_init (e1, e2) -> Pis_mem_init (mk_expr fn e1, mk_expr fn e2)
 
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
 
@@ -212,6 +217,7 @@ end = struct
     | PappN (_,es) -> List.fold_left (fun dp e -> app_expr dp v e ct) dp es
     | Pif (_,b,e1,e2) ->
       app_expr (app_expr (app_expr dp v b ct) v e1 ct) v e2 ct
+    | Pbig _ | Pis_var_init _ | Pis_mem_init _ -> dp
 
   and app_expr_load dp e ct =
     match decompose_address e with
@@ -254,7 +260,15 @@ end = struct
       | Papp1 (_,e1) -> aux (acc,st) e1
       | Papp2  (_,e1,e2) -> aux (aux (acc,st) e1) e2
       | PappN (_,es) -> List.fold_left aux (acc,st) es
-      | Pif (_,b,e1,e2) -> aux (aux (aux (acc,st) e1) e2) b in
+      | Pif (_,b,e1,e2) -> aux (aux (aux (acc,st) e1) e2) b
+      | Pis_var_init x ->
+         begin match (L.unloc x).v_ty with
+         | Bty _ -> (L.unloc x) :: acc, st
+         | Arr _ -> acc, st
+         end
+      | Pis_mem_init(e1, e2) -> assert false
+      | Pbig (e0, _, x, start, len, body) -> assert false
+    in
 
     aux ([],st) e
 
@@ -278,7 +292,10 @@ end = struct
       | Papp1 (_,e1) -> aux acc e1
       | Papp2  (_,e1,e2) -> aux (aux acc e1) e2
       | PappN (_,es) -> List.fold_left aux acc es
-      | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b in
+      | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b
+      (* FIXME *)
+      | Pbig _ | Pis_var_init _ | Pis_mem_init _ -> assert false
+    in
 
     aux acc e
 
@@ -526,6 +543,9 @@ end = struct
     | Papp2 (_,e1,e2) -> collect_vars_es sv [e1;e2]
     | PappN (_, el)  -> collect_vars_es sv el
     | Pif (_, e1, e2, e3) -> collect_vars_es sv [e1;e2;e3]
+    (* FIXME *)
+    | Pbig _ | Pis_var_init _ | Pis_mem_init _ -> assert false
+
   and collect_vars_es sv es = List.fold_left collect_vars_e sv es
 
   let collect_vars_lv sv = function
