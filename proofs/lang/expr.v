@@ -206,6 +206,8 @@ Definition type_of_opN (op: opN) : seq atype * atype :=
     (nseq n aint, aword ws)
   | Oarray len => (nseq (Pos.to_nat len) (aword U8), aarr U8 len)
   | Ocombine_flags c => (tin_combine_flags, abool)
+  | Ois_arr_init len => ([:: aarr U8 len; aint; aint], abool)
+  | Ois_barr_init len => ([:: aarr U8 len; aint; aint], abool)
   end.
 
 (* ** Expressions
@@ -265,7 +267,9 @@ Inductive pexpr : Type :=
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
 | PappN of opN & seq pexpr
-| Pif    : atype -> pexpr -> pexpr -> pexpr -> pexpr.
+| Pif    : atype -> pexpr -> pexpr -> pexpr -> pexpr
+| Pis_var_init : var_i → pexpr
+| Pis_mem_init : pexpr → pexpr → pexpr.
 
 Notation pexprs := (seq pexpr).
 
@@ -736,6 +740,7 @@ Definition is_load (e: pexpr) : bool :=
     => true
   | Pvar {| gs := Slocal ; gv := x |}
     => is_var_in_memory x
+  | Pis_var_init _ | Pis_mem_init _ _ => false
   end.
 
 Definition is_array_init (e : pexpr) :=
@@ -851,8 +856,8 @@ Definition write_c c := write_c_rec Sv.empty c.
 
 Fixpoint use_mem (e : pexpr) :=
   match e with
-  | Pconst _ | Pbool _ | Parr_init _ _ | Pvar _ => false
-  | Pload _ _ _ => true
+  | Pconst _ | Pbool _ | Parr_init _ _ | Pvar _ | Pis_var_init _ => false
+  | Pload _ _ _ | Pis_mem_init _ _ => true
   | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
@@ -879,6 +884,8 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | PappN _ es     => foldl read_e_rec s es
   | Pif  _ t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
+  | Pis_var_init x => Sv.add x s
+  | Pis_mem_init e1 e2 => read_e_rec (read_e_rec s e2) e1
   end.
 
 Definition read_e := read_e_rec Sv.empty.
@@ -975,6 +982,8 @@ Fixpoint eq_expr (e e' : pexpr) :=
   | PappN o es, PappN o' es' => (o == o') && (all2 eq_expr es es')
   | Pif t e e1 e2, Pif t' e' e1' e2' =>
     (t == t') && eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
+  | Pis_var_init x, Pis_var_init x' => v_var x == v_var x'
+  | Pis_mem_init e1 e2, Pis_mem_init e1' e2' =>  eq_expr e1 e1' && eq_expr e2 e2'
   | _             , _                 => false
   end.
 

@@ -115,6 +115,11 @@ let rec ty_expr pd loc (e:expr) =
     check_expr pd loc e1 ty;
     check_expr pd loc e2 ty;
     ty
+  | Pis_var_init _ -> tbool
+  | Pis_mem_init (e1, e2) ->
+    ignore (ty_load_store pd loc Wsize.U8 e1);
+    check_expr pd loc e2 tint;
+    tbool
 
 and check_expr pd loc e ty =
   let te = ty_expr pd loc e in

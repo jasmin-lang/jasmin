@@ -170,7 +170,7 @@ Lemma it_compiler_first_part {entries p p' ev fn} :
     (dc1 := indirect_c) (dc2 := direct_c)
     p p' ev ev pre_eq fn fn post_incl.
 Proof.
-rewrite /compiler_first_part; t_xrbindP => paw.
+rewrite /compiler_first_part; t_xrbindP => pra ok_pra paw.
 rewrite print_uprogP => ok_paw pa0.
 rewrite !print_uprogP => ok_pa0 pb.
 rewrite print_uprogP => ok_pb pa ok_pa pc ok_pc ok_puc ok_puc'.
@@ -184,7 +184,7 @@ rewrite !print_uprogP => ok_fvars pj ok_pj pp.
 rewrite !print_uprogP => ok_pp <- {p'} ok_fn.
 
 apply: (wiequiv_f_trans_EE_EU (wsw2:=nosubword) (dc2:=indirect_c)).
-+ by apply: (it_remove_assert_progP (dc:=indirect_c) (sip:=sip_of_asm_e) (pT:=progUnit) (wsw:=nosubword) ev).
++ by apply: (it_remove_assert_progP (dc:=indirect_c) (sip:=sip_of_asm_e) (pT:=progUnit) (wsw:=nosubword) ev ok_pra).
 
 apply: (wiequiv_f_trans_EE_EU (wsw2:= withsubword) (dc2:=indirect_c)).
 + exact: it_psem_call_u.

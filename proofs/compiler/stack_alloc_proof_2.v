@@ -4784,7 +4784,7 @@ Proof.
   rewrite /finalize_stk_mem.
   apply: (alloc_free_stack_stable hass _ hfss).
   apply: stack_stable_trans hstable.
-  rewrite (@write_vars_lvals _ _ _ _ _ [::]) in hs2.
+  rewrite (@write_vars_lvals _ _ _ _ _ _ [::]) in hs2.
   apply: write_lvals_stack_stable hs2.
 Qed.
 

@@ -373,6 +373,8 @@ let rec safe_e_rec safe = function
     (* We do not check "is_defined e1 && is_defined e2" since
         (safe_e_rec (safe_e_rec safe e1) e2) implies it *)
     safe_e_rec (safe_e_rec (safe_e_rec safe e1) e2) e3
+  | Pis_var_init _ -> safe
+  | Pis_mem_init (e1, e2) -> safe_e_rec (safe_e_rec safe e1) e2
 
 let safe_e = safe_e_rec []
 
@@ -1277,10 +1279,10 @@ end = struct
     and nm_stmt vs_for stmt = List.for_all (nm_i vs_for) stmt
 
     and nm_e vs_for = function
-      | Pconst _ | Pbool _ | Parr_init _ | Pvar _ -> true
+      | Pconst _ | Pbool _ | Parr_init _ | Pvar _ | Pis_var_init _ -> true
       | Pget (_,_,_,_,  e)
       | Psub (_,_,_, _, e) -> know_offset vs_for e && nm_e vs_for e
-      | Pload _            -> false
+      | Pload _ | Pis_mem_init _ -> false
       | Papp1 (_, e)       -> nm_e vs_for e
       | Papp2 (_, e1, e2)  -> nm_es vs_for [e1; e2]
       | PappN (_,es)       -> nm_es vs_for es
@@ -1963,7 +1965,7 @@ end
 
 module type ExportWrap = sig
   type extended_op
-  
+
   (* main function, before any compilation pass *)
   val main_source : (unit, extended_op) Prog.func
 

@@ -98,6 +98,8 @@ let rec cexpr_of_expr = function
                                 cexpr_of_expr e,
                                 cexpr_of_expr e1,
                                 cexpr_of_expr e2)
+  | Pis_var_init x -> C.Pis_var_init (cvari_of_vari x)
+  | Pis_mem_init (e1,e2) -> C.Pis_mem_init (cexpr_of_expr e1,cexpr_of_expr e2)
 
 let rec expr_of_cexpr = function
   | C.Pconst z          -> Pconst (z_of_cz z)
@@ -113,6 +115,10 @@ let rec expr_of_cexpr = function
   | C.Pif (ty, e, e1, e2) -> Pif(ty_of_cty ty, expr_of_cexpr e,
                                expr_of_cexpr e1,
                                expr_of_cexpr e2)
+  | C.Pis_var_init x -> Pis_var_init (vari_of_cvari x)
+  | C.Pis_mem_init (e1,e2) -> Pis_mem_init (expr_of_cexpr e1,expr_of_cexpr e2)
+
+
 
 
 (* ------------------------------------------------------------------------ *)

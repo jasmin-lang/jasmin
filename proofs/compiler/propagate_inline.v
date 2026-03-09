@@ -73,6 +73,12 @@ Definition scfc (cf : combine_flags) (es : seq pexpr) : pexpr :=
   then cf_xsem snot sand sor sbeq eof ecf esf ezf cf
   else PappN (Ocombine_flags cf) es. (* Never happens. *)
 
+Definition is_Ocombine_flags (o : opN) :=
+  match o with
+  | Ocombine_flags c => Some c
+  | _ => None
+  end.
+
 Fixpoint pi_e (pi:pimap) (e:pexpr) :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ _ => e
@@ -90,11 +96,10 @@ Fixpoint pi_e (pi:pimap) (e:pexpr) :=
   | Papp2 o e1 e2      => Papp2 o (pi_e pi e1) (pi_e pi e2)
   | PappN o es         =>
     let es := (map (pi_e pi) es) in
-    match o with
-    | Opack _ _ | Oarray _ => PappN o es
-    | Ocombine_flags c => scfc c es
-    end
+    if is_Ocombine_flags o is Some c then scfc c es
+    else PappN o es
   | Pif t e e1 e2      => Pif t (pi_e pi e) (pi_e pi e1) (pi_e pi e2)
+  | Pis_var_init _ | Pis_mem_init _ _ => e (* Absurd noassert *)
   end.
 
 Definition pi_es (pi:pimap) (es:pexprs) :=

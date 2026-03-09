@@ -1299,6 +1299,7 @@ let ty_expr = function
   | Papp2 (op,_,_) -> Conv.ty_of_cty (snd (E.type_of_op2 op))
   | PappN (op, _)  -> Conv.ty_of_cty (snd (E.type_of_opN op))
   | Pif (ty,_,_,_) -> ty
+  | Pis_var_init _ | Pis_mem_init _ -> tbool
 
 let ty_sopn pd msfsz asmOp op es =
   match op with
@@ -1457,6 +1458,10 @@ module EcExpression(EA: EcArray): EcExpression = struct
                   EA.of_list env U8 (Conv.int_of_pos len),
                   [Elist (List.map (toec_expr env) es)]
               )
+          | Ois_arr_init _ -> assert false
+          | Ois_barr_init len ->
+              Eapp (Eident [ec_BArray env (Conv.int_of_pos len); "is_init"],
+                    List.map (toec_expr env) es)
           end
       | Pif(_,e1,et,ef) ->
           let ty = ty_expr e in
@@ -1466,6 +1471,13 @@ module EcExpression(EA: EcArray): EcExpression = struct
               toec_cast env (ty, et),
               toec_cast env (ty, ef)
           )
+      | Pis_var_init _ -> assert false
+      | Pis_mem_init _ -> assert false (* FIXME *)
+(*    | Pis_mem_init (e1,e2) ->
+        let e1 = toec_expr env (int_of_ptr (Env.pd env) e1) in
+        let e2 = toec_expr env e2 in
+        Eapp (ec_ident "is_valid", [ Eident ["ptr_modulus"];glob_mem_vi;e1; e2])
+*)
 
   and toec_cast env (ty, e) = ec_cast env (ty, ty_expr e) (toec_expr env e)
 end
@@ -1508,13 +1520,14 @@ module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
 
   let rec leaks_e_rec pd leaks e =
     match e with
-    | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> leaks
+    | Pconst _ | Pbool _ | Parr_init _ |Pvar _ | Pis_var_init _ -> leaks
     | Pload (_,_,e) -> leaks_e_rec pd (int_of_ptr pd e :: leaks) e
     | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec pd (e::leaks) e
     | Papp1 (_, e) -> leaks_e_rec pd leaks e
-    | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
+    | Papp2 (_, e1, e2) | Pis_mem_init (e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
     | PappN (_, es) -> leaks_es_rec pd leaks es
     | Pif  (_, e1, e2, e3) -> leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) e3
+
   and leaks_es_rec pd leaks es = List.fold_left (leaks_e_rec pd) leaks es
 
   let leaks_e pd e = leaks_e_rec pd [] e
@@ -1605,11 +1618,11 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
 
   let rec leaks_e_rec env leaks e =
     match e with
-    | Pconst _ | Pbool _ | Parr_init _ | Pvar _ -> leaks
+    | Pconst _ | Pbool _ | Parr_init _ | Pvar _ | Pis_var_init _ -> leaks
     | Pload (_,_,e) -> leaks_e_rec env ((leak_addr_mem env e) @ leaks) e
     | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec env ([leak_addr (toec_expr env e)] @ leaks) e
     | Papp1 (_, e) -> leaks_e_rec env leaks e
-    | Papp2 (_, e1, e2) -> leaks_es_rec env leaks [e1; e2]
+    | Papp2 (_, e1, e2) | Pis_mem_init (e1, e2) -> leaks_es_rec env leaks [e1; e2]
     | PappN (_, es) -> leaks_es_rec env leaks es
     | Pif  (_, e1, e2, e3) -> leaks_es_rec env leaks [e1; e2; e3]
 

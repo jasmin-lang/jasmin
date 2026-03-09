@@ -47,7 +47,7 @@ Section CONST_PROP.
   #[local]
   Lemma use_mem_snot e :
     use_mem (snot e) = use_mem e.
-  Proof. elim: e => [||||||| [] | [] ||] //=; congruence. Qed.
+  Proof. elim: e => [||||||| [] | [] ||||] //=; congruence. Qed.
 
   #[local]
   Lemma use_mem_sneg_int e :
@@ -132,7 +132,7 @@ Section CONST_PROP.
       | op2 e0 hinde0 e1 hinde1
       | opn es hindes
       | ty e hinde e0 hinde0 e1 hinde1
-      ] //= h.
+      ||] //= h.
 
     - by case: x => x [] //; case: Mvar.get => // - [].
 
@@ -151,7 +151,7 @@ Section CONST_PROP.
         apply: (hind hes) => e' he'.
         apply: hindes.
         by right.
-      case: opn => [ sz' pe | len | c ] => //; by case: app_sopn.
+      case: opn => [ sz' pe | len | c | | ] => //; by case: app_sopn.
 
     rewrite /s_if /=.
     move: h => /norP [] /norP [] /hinde h /hinde0 h0 /hinde1 h1.

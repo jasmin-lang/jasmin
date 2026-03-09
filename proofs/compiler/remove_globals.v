@@ -176,6 +176,7 @@ Section REMOVE.
         Let e1 := remove_glob_e ii env e1 in
         Let e2 := remove_glob_e ii env e2 in
         ok (Pif t e e1 e2)
+      | Pis_var_init _ | Pis_mem_init _ _ => Error (pp_safety_remains E.pass)
       end.
 
     Definition remove_glob_lv ii (env:venv) (lv:lval) :=

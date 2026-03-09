@@ -110,7 +110,7 @@ Section CHECK_EP.
   Lemma check_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
   Proof.
   Local Opaque arr_size.
-    apply: pexprs_ind_pair; split; subst P Q => /=.
+    apply: pexprs_ind_pair; split; subst P Q => //=.
     - case => // r _ vm1 _ [<-] h; split => // scs m _ [<-] /=; eauto.
     - move => e1 he1 es1 hes1 [] // e2 es2 r re vm1 err; t_xrbindP => r' ok_r' ok_re h.
       move: he1 => /(_ e2 r r' vm1 ok_r' h) [] h' he1.
@@ -1029,7 +1029,7 @@ Lemma init_alloc_sprogP :
       eq_alloc r s1.(evm) vm2.
 Proof.
   rewrite /init_alloc_sprog /init_state /= /init_stk_state /check_vars.
-  t_xrbindP => ef ep1 ep2 ev s1 scs m r hc m' ha; rewrite (@write_vars_lvals _ _ _ _ _ [::]) => hw.
+  t_xrbindP => ef ep1 ep2 ev s1 scs m r hc m' ha; rewrite (@write_vars_lvals _ _ _ _ _ _ [::]) => hw.
   have [vm2 ]:= check_lvalsP (s1 := (Estate scs m' Vm.init)) hc eq_alloc_empty
                          (List_Forall2_refl _ (@value_uincl_refl)) hw.
   rewrite ha -write_vars_lvals => ??.

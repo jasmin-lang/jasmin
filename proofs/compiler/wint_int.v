@@ -204,6 +204,17 @@ Fixpoint wi2i_e (e0:pexpr) : cexec (safety_cond * pexpr) :=
     Let e3 := wi2i_e e3 in
     ok (e1.1 ++ e2.1 ++ e3.1, Pif ty e1.2 e2.2 e3.2)
 
+  | Pis_var_init x =>
+    Let x := wi2i_vari x in
+    ok ([::], Pis_var_init x)
+
+  | Pis_mem_init e1 e2 =>
+    Let _ := assert [&& etype_of_expr m e1 == ETword _ None Uptr
+                      & etype_of_expr m e2 == ETint _] (E.ierror_e e0) in
+    Let e1 := wi2i_e e1 in
+    Let e2 := wi2i_e e2 in
+    ok (e1.1 ++ e2.1, Pis_mem_init e1.2 e2.2)
+
   end.
 
 Definition wi2i_lvar (ety : extended_type positive) (x : var_i) : cexec var_i :=

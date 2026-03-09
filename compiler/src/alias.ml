@@ -130,19 +130,19 @@ let compare_gvar params x gx y gy =
     let sx = size_of x.v_ty in
     let sy = size_of y.v_ty in
     match gx, gy with
-    | E.Sglob, E.Sglob -> 
+    | E.Sglob, E.Sglob ->
       hierror_no_loc "cannot merge two globals (%a and %a)" pp_var x pp_var y
-    | E.Sglob, E.Slocal -> 
+    | E.Sglob, E.Slocal ->
       if (Sv.mem y params) then hierror_no_loc "cannot merge a global and a param (%a and %a)" pp_var x pp_var y;
       check_size "global" y sy x sx;
       1
-    | E.Slocal, E.Sglob -> 
+    | E.Slocal, E.Sglob ->
       if (Sv.mem x params) then hierror_no_loc "cannot merge a param and a global (%a and %a)" pp_var x pp_var y;
       check_size "global" x sx y sy;
       -1
     | E.Slocal, E.Slocal ->
       match Sv.mem x params, Sv.mem y params with
-      | true, true -> 
+      | true, true ->
         hierror_no_loc "cannot merge two params (%a and %a)" pp_var x pp_var y;
       | true, false -> check_size "param" y sy x sx; 1
       | false, true -> check_size "param" x sx y sy; -1
@@ -208,8 +208,9 @@ let slice_of_pexpr a =
   | Pvar x -> Some (normalize_gvar a x)
   | Psub (aa, ws, len, x, i) -> Some (normalize_asub a aa ws len x i)
   | PappN (Oarray _, _) -> hierror_no_loc "stack literal arrays are not supported"
-  | (Pconst _ | Pbool _ | Pget _ | Pload _ | Papp1 _ | Papp2 _ | PappN _ ) -> assert false
+  | (Pconst _ | Pbool _ | Pget _ | Pload _ | Papp1 _ | Papp2 _ | PappN _ | Pis_var_init _ | Pis_mem_init _) -> assert false
   | Pif _ -> hierror_no_loc "conditional move of (ptr) arrays is not supported yet"
+
 
 let slice_of_lval a =
   function
@@ -234,11 +235,11 @@ let link_array_return params a xs es cc =
         )
         a xs cc
 
-let opn_cc o = 
+let opn_cc o =
   match o with
   | Sopn.Oslh (SLHprotect_ptr_fail _) -> Some [Some 0]
   | Sopn.Opseudo_op(Pseudo_operator.Oswap _) -> Some [Some 1; Some 0]
-  | _ -> None 
+  | _ -> None
 
 let rec analyze_instr_r params cc a =
   function
@@ -246,10 +247,10 @@ let rec analyze_instr_r params cc a =
   | Ccall (xs, fn, es) -> link_array_return params a xs es (cc fn)
   | Csyscall (xs, o, es) -> link_array_return params a xs es (syscall_cc o)
   | Cassgn (x, _, ty, e) -> if is_ty_arr ty then assign_arr params a x e else a
-  | Copn (xs, _, o, es) -> 
+  | Copn (xs, _, o, es) ->
     (* A special case for operators that can return array *)
-    begin match opn_cc o with 
-    | None -> a 
+    begin match opn_cc o with
+    | None -> a
     | Some l -> link_array_return params a xs es l
     end
   | Cassert _ -> a

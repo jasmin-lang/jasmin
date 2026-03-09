@@ -494,7 +494,7 @@ Proof.
 
 Opaque app_sopn values.app_sopn.
   rewrite /s_opN.
-  case: op => [ sz' pe | // | c ];
+  case: op => // [ sz' pe | c ];
   case h: app_sopn => [r | //].
   + rewrite /= /sem_sop1 /= wrepr_unsigned /sem_opN /=.
     by rewrite -Let_Let (app_sopnP _ h).
@@ -773,7 +773,8 @@ Proof.
     elim: es h => // e es ih rec /=; f_equal.
     - by apply: rec; left.
     by apply: ih => e' he'; apply: rec; right.
-  by move=> ?? -> ? -> ? ->.
+  + by move=> ?? -> ? -> ? ->.
+  by move=> ? -> ? ->.
 Qed.
 
 #[local]
@@ -1263,7 +1264,7 @@ Section PROOF.
     have /(Hf _ Heqm) Hc'': valid_cpm (evm s2) m.
     + have -> := valid_cpm_m (refl_equal (evm s2)) Heqm.
       apply: valid_cpm_rm Hm'=> z Hz;apply: (writeP Hsemc);SvD.fsetdec.
-    have /(_ _ _ (value_uincl_refl _)) [vm1' hw hvm1'] := write_var_uincl hvm1 _ Hw.
+    have /(_ _ _ _ (value_uincl_refl _)) [vm1' hw hvm1'] := write_var_uincl hvm1 _ Hw.
     have [vm2 [hc' /Hc'' [vm3 [hfor U]]]]:= Hc' _ hvm1';exists vm3;split => //.
     by apply: EForOne hc' hfor.
   Qed.
@@ -1566,7 +1567,7 @@ Local Opaque opp_word.
           by case: Mvar.get => // a []; rewrite write_i_for;SvD.fsetdec.
         have -> := valid_cpm_m (refl_equal (evm s1')) Hmi.
         by apply: remove_cpm1P Hw hval.
-      have /(_ _ _ (value_uincl_refl _)) [vm1' -> hvm1'] := write_var_uincl hvm1 _ Hw.
+      have /(_ _ _ _ (value_uincl_refl _)) [vm1' -> hvm1'] := write_var_uincl hvm1 _ Hw.
       by eexists.
     apply: remove_cpm_write1 hc => //.
     by rewrite write_i_for; SvD.fsetdec.
