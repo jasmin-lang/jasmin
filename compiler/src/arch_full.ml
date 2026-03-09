@@ -44,6 +44,7 @@ module type Core_arch = sig
   val is_ct_asm_extra : extra_op -> bool
   val is_doit_asm_extra : extra_op -> bool
 
+  val internal_call_conv : (reg, regx, xreg, rflag, cond) internal_calling_convention
 end
 
 module type Arch = sig
@@ -81,6 +82,8 @@ module type Arch = sig
   val arch_info : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Pretyping.arch_info
 
   val is_ct_sopn : ?doit:bool -> extended_op -> bool
+
+  val internal_call_conv : (var, var, var, var, cond) internal_calling_convention
 end
 
 module Arch_from_Core_arch (A : Core_arch) :
@@ -213,4 +216,10 @@ module Arch_from_Core_arch (A : Core_arch) :
    | BaseOp (_, o) -> (if doit then is_doit_asm_op else is_ct_asm_op) o
    | ExtOp o -> (if doit then is_doit_asm_extra else is_ct_asm_extra) o
 
+  let internal_call_conv =
+    { icall_reg   = List.map var_of_reg  internal_call_conv.icall_reg
+    ; icall_regx  = List.map var_of_regx internal_call_conv.icall_regx
+    ; icall_xreg  = List.map var_of_xreg internal_call_conv.icall_xreg
+    ; icall_rflag = List.map var_of_flag internal_call_conv.icall_rflag
+    }
 end
