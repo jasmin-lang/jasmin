@@ -150,7 +150,8 @@ Section CoreMem.
 
   Definition write (m:core_mem) (al: aligned) (ptr:pointer) (sz:wsize) (w: word sz) : exec core_mem :=
     Let _ := assert (is_aligned_if al ptr sz) ErrAddrInvalid in
-    foldM (fun k m => set m (add ptr k) (LE.wread8 w k)) m (ziota 0 (wsize_size sz)).
+    let bytes := LE.encode w in
+    foldM (fun k m => set m (add ptr k) (nth 0%w bytes (Z.to_nat k))) m (ziota 0 (wsize_size sz)).
 
   Definition validw (m:core_mem) (al: aligned) (ptr:pointer) (sz:wsize) :=
     is_aligned_if al ptr sz && all (fun k => valid8 m (add ptr k)) (ziota 0 (wsize_size sz)).
@@ -182,8 +183,9 @@ Section CoreMem.
 
   Lemma set_write8 m al p w: set m p w = write m al p w.
   Proof.
-    rewrite /write is_aligned_if_is_align /= ?is_align8 // /= add_0.
+    rewrite /write is_aligned_if_is_align; last by rewrite is_align8.
     have := LE.encode8E w; rewrite LE.encodeE /= => -[->].
+    rewrite add_0.
     by case: set.
   Qed.
 
