@@ -166,9 +166,13 @@ let psubst_prog (prog:('info, 'asm) pprog) =
         let subst_ty = psubst_ty subst_v in
         let dov v =
           L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
+        let subst_contra =
+          gsubst_cf_contra (psubst_e_ subst_v) subst_v
+        in
         let fc = {
             fc with
             f_tyin = List.map subst_ty fc.f_tyin;
+            f_contra = Option.bind fc.f_contra subst_contra;
             f_args = List.map dov fc.f_args;
             f_body = gsubst_c (psubst_e_ subst_v) subst_v fc.f_body;
             f_tyout = List.map subst_ty fc.f_tyout;
