@@ -5,17 +5,17 @@ let inherit (coqPackages) coq; in
 let mathcomp = coqPackages.mathcomp.override { version = "2.2.0"; }
 ; in
 
-let rev = "8a677724135da3ef369f154b060c7fd97239ff15"; in
+let rev = "cc1b73985d5d6a575d79fb70584171a5b2f08fb3"; in
 
 stdenv.mkDerivation rec {
-  version = "3.3-git-${builtins.substring 0 8 rev}";
+  version = "3.4-git-${builtins.substring 0 8 rev}";
   pname = "coq${coq.coq-version}-mathcomp-word";
 
   src = fetchFromGitHub {
     owner = "jasmin-lang";
     repo = "coqword";
     inherit rev;
-    hash = "sha256-5ZKz2QKOfMRCfppR/3oKzIghEU1pMUB0128OdSP6ptw=";
+    hash = "sha256-yRB7hcttDJCQ8Y2Xbj2iuQSSAlL0MdyAJibJWU+hnrA=";
   };
 
   buildInputs = [ coq ocaml dune_3 ];

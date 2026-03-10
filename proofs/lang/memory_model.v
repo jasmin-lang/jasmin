@@ -38,9 +38,11 @@ Module LE.
 
   Lemma encode8E (w: u8): encode w = [:: w].
   Proof.
+  Local Opaque word.subword.
     have {2}<-:= decodeK w.
     rewrite /encode /decode /make_vec /split_vec divnn modnn /= mul0n.
     by rewrite Z.lor_0_r /wrepr word.ureprK.
+  Local Transparent word.subword.
   Qed.
 
   Lemma encodeE s (w:word s) : encode w = [seq wread8 w k | k <- ziota 0 (wsize_size s)].

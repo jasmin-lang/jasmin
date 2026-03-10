@@ -30,7 +30,7 @@ depends: [
   "coq" {>= "8.18.0" & < "8.20~"}
   "coq-mathcomp-ssreflect" {>= "2.0" & < "2.3~"}
   "coq-mathcomp-algebra"
-  "coq-mathcomp-word" {>= "3.3"}
+  "coq-mathcomp-word" {>= "3.4"}
 ]
 conflicts: [
   "ez-conf-lib"
