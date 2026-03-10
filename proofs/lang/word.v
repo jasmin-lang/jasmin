@@ -219,6 +219,7 @@ Definition wandn sz (x y: word sz) : word sz := wand (wnot x) y.
 
 Definition wunsigned {s} (w: word s) : Z :=
   urepr w.
+Arguments wunsigned : simpl never.
 
 Definition wsigned {s} (w: word s) : Z :=
   srepr w.
