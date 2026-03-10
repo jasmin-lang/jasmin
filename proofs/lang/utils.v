@@ -1248,14 +1248,15 @@ Definition conc_map aT bT (f : aT -> seq bT) (l : seq aT) :=
 
 Section CTRANS.
 
-  Definition ctrans c1 c2 := nosimpl (
+  Definition ctrans c1 c2 :=
     match c1, c2 with
     | Eq, _  => Some c2
     | _ , Eq => Some c1
     | Lt, Lt => Some Lt
     | Gt, Gt => Some Gt
     | _ , _  => None
-    end).
+    end.
+  Arguments ctrans : simpl never.
 
   Lemma ctransI c : ctrans c c = Some c.
   Proof. by case: c. Qed.
