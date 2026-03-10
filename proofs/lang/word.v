@@ -854,9 +854,8 @@ Lemma wsigned_repr sz z :
   wmin_signed sz <= z <= wmax_signed sz →
   wsigned (wrepr sz z) = z.
 Proof.
-  rewrite wsignedE msb_wordE msbE wunsigned_repr -/(wbase _) => z_range.
+  rewrite wsignedE msb_wordE msbE mkword_valK /= wunsigned_repr -/(wbase _) => z_range.
   elim_div => a b [] // ? [] b_range; last by have := wbase_pos sz; lia.
-  rewrite Nat.pred_succ mkword_valK.
   subst z.
   case: ifP => /ZleP.
   all: move: sz z_range b_range.
