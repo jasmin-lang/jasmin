@@ -2503,7 +2503,7 @@ Section PROOF.
     move: a => []; last by rewrite cats0 -hpc setpc_id.
     rewrite size_cat /= addn1.
     move=> hbody hpc' /lsem_split_start [? | [ls0 hsem1 hsem]].
-    - subst ls'. move: hpc. rewrite hpc' /addn /addn_rec. clear; lia.
+    - subst ls'. move: hpc. rewrite hpc' /addn. clear; lia.
     apply: (lsem_trans _ hsem).
     move: hsem1.
     rewrite /lsem1 /step (find_instr_skip0 hbody) //= -hpc.
@@ -2520,7 +2520,7 @@ Section PROOF.
     lsem p' (setpc ls (size P).+1) ls'.
   Proof.
     move=> hbody hpc' /lsem_split_start [? | [ls0 hsem1 hsem]].
-    - subst ls'. move: hpc. rewrite hpc' /addn /addn_rec. clear; lia.
+    - subst ls'. move: hpc. rewrite hpc' /addn. clear; lia.
     apply: (lsem_trans _ hsem).
     move: hsem1.
     rewrite /lsem1 /step (find_instr_skip0 hbody) //= -hpc.
@@ -2540,7 +2540,7 @@ Section PROOF.
     lsem p' (setpc ls (size P + size Q).+2) ls'.
   Proof.
     move=> hbody hpc' Dp Dq /lsem_split_start [? | [ls0 hsem1 hsem]].
-    - subst ls'. move: hpc. rewrite hpc' /addn /addn_rec. clear; lia.
+    - subst ls'. move: hpc. rewrite hpc' /addn. clear; lia.
     apply: (lsem_trans _ hsem).
     move: hsem1.
     rewrite /lsem1 /step (find_instr_skip0 hbody) //=.
