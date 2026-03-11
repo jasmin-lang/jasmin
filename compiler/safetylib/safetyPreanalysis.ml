@@ -113,6 +113,8 @@ end = struct
     | PappN (op,es) -> PappN (op, List.map (mk_expr fn) es)
     | Pif (ty, e, el, er)  ->
       Pif (ty, mk_expr fn e, mk_expr fn el, mk_expr fn er)
+    | Pis_var_init x -> Pis_var_init (mk_v_loc fn x)
+    | Pis_mem_init (e1, e2) -> Pis_mem_init (mk_expr fn e1, mk_expr fn e2)
 
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
 
@@ -212,7 +214,7 @@ end = struct
     | PappN (_,es) -> List.fold_left (fun dp e -> app_expr dp v e ct) dp es
     | Pif (_,b,e1,e2) ->
       app_expr (app_expr (app_expr dp v b ct) v e1 ct) v e2 ct
-
+    | Pis_var_init _ | Pis_mem_init _ -> dp
   and app_expr_load dp e ct =
     match decompose_address e with
     | x, ei -> app_expr dp x ei ct
@@ -252,10 +254,15 @@ end = struct
         acc, { st with dp = dp }
 
       | Papp1 (_,e1) -> aux (acc,st) e1
-      | Papp2  (_,e1,e2) -> aux (aux (acc,st) e1) e2
+      | Papp2  (_,e1,e2) | Pis_mem_init(e1, e2) -> aux (aux (acc,st) e1) e2
       | PappN (_,es) -> List.fold_left aux (acc,st) es
-      | Pif (_,b,e1,e2) -> aux (aux (aux (acc,st) e1) e2) b in
-
+      | Pif (_,b,e1,e2) -> aux (aux (aux (acc,st) e1) e2) b
+      | Pis_var_init x ->
+         begin match (L.unloc x).v_ty with
+         | Bty _ -> (L.unloc x) :: acc, st
+         | Arr _ -> acc, st
+         end
+    in
     aux ([],st) e
 
   (* Compute the list of variables occuring in an expression. *)
@@ -276,10 +283,10 @@ end = struct
       | Pload (_, _, ei) -> aux acc ei
 
       | Papp1 (_,e1) -> aux acc e1
-      | Papp2  (_,e1,e2) -> aux (aux acc e1) e2
+      | Papp2  (_,e1,e2) | Pis_mem_init(e1,e2) -> aux (aux acc e1) e2
       | PappN (_,es) -> List.fold_left aux acc es
-      | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b in
-
+      | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b
+      | Pis_var_init x -> aux_v acc x in
     aux acc e
 
   let st_merge st1 st2 ct =
@@ -523,9 +530,10 @@ end = struct
     | Psub (_,_,_, v, e) -> collect_vars_e (Sv.add (L.unloc v.gv) sv) e
     | Pload (_, _, e) -> collect_vars_e sv e
     | Papp1 (_,e) -> collect_vars_e sv e
-    | Papp2 (_,e1,e2) -> collect_vars_es sv [e1;e2]
+    | Papp2 (_,e1,e2) | Pis_mem_init(e1, e2) -> collect_vars_es sv [e1;e2]
     | PappN (_, el)  -> collect_vars_es sv el
     | Pif (_, e1, e2, e3) -> collect_vars_es sv [e1;e2;e3]
+    | Pis_var_init v -> Sv.add (L.unloc v) sv
   and collect_vars_es sv es = List.fold_left collect_vars_e sv es
 
   let collect_vars_lv sv = function

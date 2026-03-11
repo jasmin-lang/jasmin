@@ -387,7 +387,9 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
     | Papp1 _ | Papp2 _ | Pbool _
     | Parr_init _ | Pget _ | Psub _
-    | Pload _ | PappN _ | Pif _ -> None
+    | Pload _ | PappN _ | Pif _
+    (* Can we do beter for this two case *)
+    | Pis_var_init _ | Pis_mem_init _ -> None
 
 
   (* Try to evaluate e to a constant expression (of type word) in abs.
@@ -470,7 +472,8 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
       | Pload _ -> raise Expr_contain_load
 
       | Pif (_,_,e1,e2) (* FIXME: why the condition is not added ? *)
-      | Papp2 (_, e1, e2) -> aux (aux acc e1) e2 in
+      | Papp2 (_, e1, e2) | Pis_mem_init(e1, e2) -> aux (aux acc e1) e2
+      | Pis_var_init x -> mvar_of_scoped_var E.Slocal (L.unloc x) :: acc in
 
     try PtVars (aux [] e) with Expr_contain_load -> PtTopExpr
 
@@ -687,7 +690,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
     (ty * Prog.expr * Prog.expr * Prog.expr) option = function
     | Pif (ty,e1,et,ef) -> Some (ty,e1,et,ef)
 
-    | Pconst _  | Pbool _ | Parr_init _ | Pvar _  -> None
+    | Pconst _  | Pbool _ | Parr_init _ | Pvar _  | Pis_var_init _ -> None
 
     | Pget(al,acc,ws,x,e1) ->
       remove_if_expr_aux e1
@@ -711,6 +714,12 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
         | Some _ as e_opt -> map_f (fun ex -> Papp2 (op2, ex, e2)) e_opt
         | None -> remove_if_expr_aux e2
                   |> map_f (fun ex -> Papp2 (op2, e1, ex)) end
+
+    | Pis_mem_init (e1, e2) ->
+      begin match remove_if_expr_aux e1 with
+        | Some _ as e_opt -> map_f (fun ex -> Pis_mem_init(ex, e2)) e_opt
+        | None -> remove_if_expr_aux e2
+                  |> map_f (fun ex -> Pis_mem_init (e1, ex)) end
 
     | PappN (opn, es) ->
       let rec f_expl i es = match es with

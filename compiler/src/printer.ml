@@ -67,9 +67,16 @@ let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
      | exception Not_found ->
      F.fprintf fmt "/* %du8 */ @[{ %a }@]" (Conv.int_of_pos len) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
      end
+  | PappN (Ois_arr_init _len, es) ->
+    F.fprintf fmt "@[is_arr_init(%a)@]" (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
+  | PappN(Ois_barr_init _len, es) ->
+    F.fprintf fmt "@[is_barr_init(%a)@]" (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
+
   | Pif(_, e,e1,e2) ->
      let p = priority_ternary in
      optparent fmt prio side p "%a ? %a : %a" (pp_expr Left p) e (pp_expr NoAssoc p) e1 (pp_expr Right p) e2
+  | Pis_var_init x -> F.fprintf fmt "is_var_init(%a)" pp_var_i x
+  | Pis_mem_init (e1,e2) -> F.fprintf fmt "is_mem_init(%a,%a)" (pp_expr NoAssoc priority_min) e1 (pp_expr NoAssoc priority_min) e2
   in
   pp_expr NoAssoc priority_min
 

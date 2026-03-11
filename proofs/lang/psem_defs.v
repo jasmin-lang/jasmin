@@ -112,6 +112,7 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {wa : WithAssert}
   (wdb : bool)
   (gd : glob_decls).
 
@@ -153,6 +154,16 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     Let v1 := sem_pexpr s e1 >>= truncate_val t in
     Let v2 := sem_pexpr s e2 >>= truncate_val t in
     ok (if b then v1 else v2)
+  | Pis_var_init x =>
+    Let _ := assert (assert_allowed) ErrType in
+    let v := (evm s).[x] in
+    ok (Vbool (is_defined v))
+  | Pis_mem_init e1 e2 =>
+    Let _ := assert (assert_allowed) ErrType in
+    Let lo := sem_pexpr s e1 >>= to_pointer in
+    Let sz := sem_pexpr s e2 >>= to_int in
+    let b := all (fun i => is_ok (read s.(emem) Unaligned (lo + (wrepr Uptr i))%R U8)) (ziota 0 sz) in
+    ok (Vbool b)
   end.
 
 Definition sem_pexprs s := mapM (sem_pexpr s).
@@ -203,6 +214,7 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {wa : WithAssert}
   {asmop : asmOp asm_op}.
 
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=

@@ -47,7 +47,7 @@ Section CONST_PROP.
   #[local]
   Lemma use_mem_snot e :
     use_mem (snot e) = use_mem e.
-  Proof. elim: e => [||||||| [] | [] ||] //=; congruence. Qed.
+  Proof. elim: e => [||||||| [] | [] ||||] //=; congruence. Qed.
 
   #[local]
   Lemma use_mem_sneg_int e :
@@ -132,7 +132,7 @@ Section CONST_PROP.
       | op2 e0 hinde0 e1 hinde1
       | opn es hindes
       | ty e hinde e0 hinde0 e1 hinde1
-      ] //= h.
+      ||] //= h.
 
     - by case: x => x [] //; case: Mvar.get => // - [].
 
@@ -151,7 +151,7 @@ Section CONST_PROP.
         apply: (hind hes) => e' he'.
         apply: hindes.
         by right.
-      case: opn => [ sz' pe | len | c ] => //; by case: app_sopn.
+      case: opn => [ sz' pe | len | c | | ] => //; by case: app_sopn.
 
     rewrite /s_if /=.
     move: h => /norP [] /norP [] /hinde h /hinde0 h0 /hinde1 h1.
@@ -1165,7 +1165,7 @@ Qed.
 
 Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
 Proof.
-  move=> scs1 m1 _ _ fn [f_i f_tyi f_p f_b f_tyo f_r f_e] /= vargs vargs' s0 s1 s2 vres vres'
+  move=> scs1 m1 _ _ fn fd /= vargs vargs' s0 s1 s2 vres vres'
     hf htargs hinit hwargs _ hrec hrres htres -> ->.
   move: (hp); rewrite /lower_slh_prog; t_xrbindP => hent fds hmap heq.
   have [fd' + hget]:= get_map_cfprog_name_gen hmap hf.
@@ -1208,7 +1208,7 @@ Proof.
    move: (hp); rewrite /lower_slh_prog; t_xrbindP => /allP -/(_ _ hent).
    rewrite heq => /= hall fds hmap heq1.
    have [fd' + hget'] := get_map_cfprog_name_gen hmap hget.
-   rewrite /lower_fd /check_fd /= heq; t_xrbindP=> z hz _ _ _ _ _ {heq hsem}.
+   rewrite /lower_fd /check_fd /= heq; t_xrbindP => z hz _ _ _ _ _ _ _ {heq hsem}.
    apply: all_is_slh_none hall.
    rewrite -(size_init_fun_env hz).
    by have := size_mapM2 hm; rewrite size_map => -[-> _].
@@ -1255,8 +1255,8 @@ Lemma lower_fdP fn fd fd' :
     & f_extra fd' = f_extra fd
   ].
 Proof.
-case: fd; case: fd'; rewrite /lower_fd;
-  by t_xrbindP=> /= > -> _ -> -> -> -> -> -> -> ->.
+case: fd; case: fd'; rewrite /lower_fd.
+by t_xrbindP=> /= > -> ? -> // *; subst.
 Qed.
 
 Definition st_eq (env : Env.t) (s t : estate) : Prop :=

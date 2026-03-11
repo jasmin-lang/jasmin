@@ -222,9 +222,16 @@ Let Q es : Prop :=
   forall vs, sem_pexprs wdb gd s es = ok vs ->
   exists2 vs', sem_pexprs wdb gd s (pi_es pi es) = ok vs' & List.Forall2 value_uincl vs vs'.
 
+Lemma is_Ocombine_flagsP o :
+  match is_Ocombine_flags o with
+  | Some c => o = Ocombine_flags c
+  | _ => True
+  end.
+Proof. by case: o. Qed.
+
 Lemma pi_eP_and : (forall e, P e) /\ (forall es, Q es).
 Proof.
-  apply: pexprs_ind_pair; subst P Q; split => /=.
+  apply: pexprs_ind_pair; subst P Q; split => //=.
   + by move=> ? [<-]; exists [::].
   + move=> e hrec es hrecs vs; t_xrbindP => ? /hrec [v' -> hu] ? /hrecs [vs' -> hus] <- /=.
     by exists (v'::vs'); auto.
@@ -247,15 +254,12 @@ Proof.
   + move=> op e1 hrec1 e2 hrec2 v; t_xrbindP => ve1 /hrec1 [ve1' -> hu1] ve2 /hrec2 [ve2' -> hu2] /= hs.
     by rewrite (vuincl_sem_sop2 hu1 hu2 hs); eauto.
   + move=> o es hrec ?; t_xrbindP => ? /hrec [vs' hs' hu].
-    case: o => [wz pe | len | c] /=.
-    + move=> ho; rewrite -/(sem_pexprs wdb gd _ (pi_es pi es)) hs' /=.
-      rewrite (vuincl_sem_opN hu ho).
-      by eexists; first by reflexivity.
-    + move => /(vuincl_sem_opN hu).
-      rewrite -/(sem_pexprs wdb gd s) hs' /= => ->.
-      by eexists; first reflexivity.
-    move=> ho; have ho' := vuincl_sem_opN hu ho.
-    by rewrite -/(pi_es pi es) (scfcP hs' ho'); eauto.
+    case: is_Ocombine_flags (is_Ocombine_flagsP o) => [ c -> | _] /=.
+    + move=> ho; have ho' := vuincl_sem_opN hu ho.
+      by rewrite -/(pi_es pi es) (scfcP hs' ho'); eauto.
+    move=> ho; rewrite -/(sem_pexprs wdb gd _ (pi_es pi es)) hs' /=.
+    rewrite (vuincl_sem_opN hu ho).
+    by eexists; first by reflexivity.
   move=> ?? hrec ? hrec1 ? hrec2 v; t_xrbindP.
   move=> ?? /hrec [? -> /of_value_uincl_te h] /(h cbool) /= ->.
   move=> ?? /hrec1 [? -> hu1] /= /(value_uincl_truncate hu1) [? -> hu1'].
@@ -709,10 +713,10 @@ Section PROOF.
 
   Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
   Proof.
-    move=> scs1 m1 scs2 m2 fn [ii si p c so r ev0] /= vargs' vargs s0 s1 s2 vres vres'.
+    move=> scs1 m1 scs2 m2 fn fd /= vargs' vargs s0 s1 s2 vres vres'.
     move=> hget htr hinit hwr _ hc hres hrtr hscs hfin.
     have [fd2 /=]:= all_checked hget.
-    t_xrbindP => -[pi2 c'] hc_ ? hget2 vargs1 hvargs1; subst fd2.
+    rewrite /pi_fun; t_xrbindP => -[pi2 c'] hc_ ? hget2 vargs1 hvargs1; subst fd2.
     have [vargs1' {}htr hua] := mapM2_dc_truncate_val htr hvargs1.
     have [{hua hwr} vm1 hwr hu] := write_vars_uincl (vm_uincl_refl _) hua hwr.
     have [{hc hc_ hu}vm2 [hu' hv' hs]] := hc _ _ _ hc_ hu (valid_pi_empty _ _).

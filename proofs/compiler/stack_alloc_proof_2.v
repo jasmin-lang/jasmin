@@ -4450,7 +4450,7 @@ Proof.
     have /vs_top_stack -> := hvs.
     by apply is_align_m.
 
-  apply wequiv_call_core with sa_pre sa_post Rv.
+  apply wequiv_call_core_wa with sa_pre sa_post Rv => //.
   + move => _ _ vargs1 [-> ->] hvargs1.
     have [vargs2 [*]]:= alloc_call_argsP hwf_Slots.(wfsl_no_overflow) hwf_Slots.(wfsl_disjoint)
       hwf_Slots.(wfsl_align) hwf_Slots.(wfsl_not_glob) hwf_pmap hvs hcargs hvargs1.
@@ -4784,7 +4784,7 @@ Proof.
   rewrite /finalize_stk_mem.
   apply: (alloc_free_stack_stable hass _ hfss).
   apply: stack_stable_trans hstable.
-  rewrite (@write_vars_lvals _ _ _ _ _ [::]) in hs2.
+  rewrite (@write_vars_lvals _ _ _ _ _ _ [::]) in hs2.
   apply: write_lvals_stack_stable hs2.
 Qed.
 

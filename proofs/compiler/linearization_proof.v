@@ -1570,8 +1570,7 @@ Section PROOF.
 
     Lemma match_mem_gen_sem_pexpr_pair : (∀ e, P e) ∧ (∀ es, Q es).
     Proof.
-      apply: pexprs_ind_pair; split.
-      - by [].
+      apply: pexprs_ind_pair; split => //.
       - by move => e ihe es ihes vs /=; t_xrbindP => ? /ihe -> /= ? /ihes -> /= ->.
       1-4: by rewrite /P /=.
       - move => al aa sz x e ihe vs /=.

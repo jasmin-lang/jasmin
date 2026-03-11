@@ -61,6 +61,7 @@ Fixpoint wi2w_e (e: pexpr) : pexpr :=
   | Papp2 o e1 e2 => Papp2 (wi2w_op2 o) (wi2w_e e1) (wi2w_e e2)
   | PappN o es => PappN o (map wi2w_e es)
   | Pif ty e1 e2 e3 => Pif ty (wi2w_e e1) (wi2w_e e2) (wi2w_e e3)
+  | Pis_var_init _ | Pis_mem_init _ _ => e (* Absurd noassert *)
   end.
 
 Definition wi2w_lv (x : lval) : lval :=

@@ -165,10 +165,10 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
     else set al x' E.Sglob ws in
 
   let rec add_e = function
-    | Pconst _ | Pbool _ | Parr_init _  | Pvar _ -> ()
+    | Pconst _ | Pbool _ | Parr_init _  | Pvar _ | Pis_var_init _ -> ()
     | Pget (al, _, ws, x, e) -> add_ggvar al x ws 0; add_e e
     | Psub (_,_,_,_,e) | Pload (_, _, e) | Papp1 (_, e) -> add_e e
-    | Papp2 (_, e1,e2) -> add_e e1; add_e e2
+    | Papp2 (_, e1,e2) | Pis_mem_init(e1,e2)-> add_e e1; add_e e2
     | PappN (_, es) -> add_es es 
     | Pif (_,e1,e2,e3) -> add_e e1; add_e e2; add_e e3 
   and add_es es = List.iter add_e es in

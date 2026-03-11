@@ -121,6 +121,8 @@ Variant opN :=
 | Opack of wsize & pelem (* Pack words of size pelem into one word of wsize *)
 | Oarray of positive (* Literal array of bytes *)
 | Ocombine_flags of combine_flags
+| Ois_arr_init of positive
+| Ois_barr_init of positive
 .
 
 HB.instance Definition _ := hasDecEq.Build op_kind op_kind_eqb_OK.

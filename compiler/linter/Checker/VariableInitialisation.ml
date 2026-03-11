@@ -37,6 +37,8 @@ let check_func fd =
     | Papp2 (_, e1, e2) -> check_es m [ e1; e2 ]
     | PappN (_, es) -> check_es m es
     | Pif (_, e1, e2, e3) -> check_es m [ e1; e2; e3 ]
+    | Pis_var_init _ -> ()
+    | Pis_mem_init (e1, e2) -> check_es m [e1; e2]
   and check_es m = List.iter (check_e m) in
   let check_lv m = function
     | Lnone _ | Lvar _ -> ()

@@ -101,8 +101,10 @@ and eq_pexpr x y =
   | PappN (a, b), PappN (c, d) -> a = c && eq_pexprs b d
   | Pif (a, b, c, d), Pif (e, f, g, h) ->
       eq_pty a e && eq_pexpr b f && eq_pexpr c g && eq_pexpr d h
+  | Pis_var_init a , Pis_var_init b -> eq_pvar_i a b
+  | Pis_mem_init (a, b), Pis_mem_init (c, d) -> eq_pexpr a c && eq_pexpr b d
   | ( ( Pconst _ | Pbool _ | Parr_init _ | Pvar _ | Pget _ | Psub _ | Pload _
-      | Papp1 _ | Papp2 _ | PappN _ | Pif _ ),
+      | Papp1 _ | Papp2 _ | PappN _ | Pif _ | Pis_var_init _ | Pis_mem_init _),
       _ ) ->
       false
 

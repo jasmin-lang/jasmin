@@ -496,9 +496,9 @@ Section PROOF.
     have dcok : map_cfprog_name (dead_code_fd is_move_op do_nop onfun) (p_funcs p) = ok (p_funcs p').
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [f' Hf'1 Hf'2] := get_map_cfprog_name_gen dcok Hfun.
-    case: f Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hscs Hfi => fi ft fp /= c f_tyout res fb
+    case: f Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hscs Hfi => fi fc ft fp /= c f_tyout res fb
       Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hscs Hfi.
-    move: Hf'1; t_xrbindP => -[sv sc] Hd H; subst f'.
+    move: Hf'1; rewrite /dead_code_fd; t_xrbindP => -[sv sc] Hd H; subst f'.
     move: Hw; rewrite (write_vars_lvals _ gd) => Hw.
     have heq : Sv.Equal (read_rvs [seq Lvar i | i <- fp]) Sv.empty.
     + elim: (fp);first by rewrite read_rvs_nil;SvD.fsetdec.
@@ -511,7 +511,7 @@ Section PROOF.
     have {}Hc:= Hc _ _ _ Hd.
     have Hvm : evm s1 <=[sv] vm1. + by apply: uincl_onI Hvm2'2;SvD.fsetdec.
     move: (Hc vm1 Hvm). move=> [vm2'] /= [Hvm2'1] Hsem'.
-    move: Hres; have /= <-:= @sem_pexprs_get_var _ _ _ _ _ gd s2 => Hres.
+    move: Hres; have /= <-:= @sem_pexprs_get_var _ _ _ _ _ _ gd s2 => Hres.
     case: s2 Hsem Hscs Hfi Hvm2'1 Hsem' Hres Hc=> escs2 emem2 evm2 Hsem Hscs Hfi Hvm2'1 Hsem' Hres Hc.
     have Hres' : sem_pexprs (~~direct_call) gd {| escs := escs2; emem := emem2; evm := evm2 |}
            [seq Plvar i | i <- fn_keep_only onfun fn res] = ok (fn_keep_only onfun fn vres).
@@ -530,6 +530,7 @@ Section PROOF.
     eexists vres2; split=> //=.
     apply EcallRun with  {|
            f_info := fi;
+           f_contra := fc;
            f_tyin := ft;
            f_params := fp;
            f_body := sc;
@@ -608,9 +609,9 @@ Section PROOF.
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [fd' hfd' hget'] := get_map_cfprog_name_gen dcok hget.
     exists fd' => // {hget}.
-    case: fd hfd' => fi ftyin fp /= c ftyout res fextra.
+    case: fd hfd' => fi fc ftyin fp /= c ftyout res fextra.
     set fd := {| f_info := _ |}.
-    t_xrbindP; set O := read_es _; move=> [I c'] hc ?; subst fd'.
+    rewrite /dead_code_fd /=; t_xrbindP; set O := read_es _; move=> [I c'] hc ?; subst fd'.
     set fd' := {| f_info := _ |}.
     move=> s1 hinit.
     have [s1' hinit' hu1] := fs_uincl_initialize (fd':= fd') erefl erefl erefl eq_p_extra hfsu hinit.
@@ -619,7 +620,7 @@ Section PROOF.
     split => //;first (by case: hu1 => *; split); last first.
     + move=> s2 s2' fr /st_relP [-> /= hu2].
       rewrite /finalize_funcall; t_xrbindP => vres.
-      have /= <-:= @sem_pexprs_get_var _ _ _ _ _ gd s2 => hvres vrestr htr <-.
+      have /= <-:= @sem_pexprs_get_var _ _ _ _ _ _ gd s2 => hvres vrestr htr <-.
       have hvres' : sem_pexprs (~~direct_call) gd s2 [seq Plvar i | i <- fn_keep_only onfun fn res] =
              ok (fn_keep_only onfun fn vres).
       + rewrite /fn_keep_only /=; case: onfun => [tokeep | //].
@@ -639,7 +640,7 @@ Section PROOF.
       have [vres2 -> /= ?] := mapM2_dc_truncate_val htr' Hvl.
       by eexists; eauto.
     rewrite /=; move: (I) (c') (O) hc.
-    move => { hu1 hinit' s1' hinit s1 fd' fd hget' fextra res ftyout fp ftyin fi hfsu fs ft I O fn dcok c'}.
+    move => { hu1 hinit' s1' hinit s1 fd' fd hget' fextra res ftyout fp ftyin fi fc hfsu fs ft I O fn dcok c'}.
     apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; rewrite /Pi_r /Pi /Pc; clear Pi_r Pi Pc c.
     + by move=> _ _ O [<- <-]; apply wequiv_nil.
     + move=> i c hi hc I c_ O /=; t_xrbindP.
@@ -820,7 +821,7 @@ Lemma dead_code_fd_meta do_nop onfun fn (fd fd': sfundef) :
    fd'.(f_extra) = fd.(f_extra)
   ].
 Proof.
-  by case: fd => /= ; t_xrbindP => /= ????????? <-.
+  by rewrite /dead_code_fd; t_xrbindP => > _ <-.
 Qed.
 
 End IT.
