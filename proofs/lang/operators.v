@@ -119,7 +119,7 @@ Variant combine_flags :=
 #[only(eqbOK)] derive
 Variant opN :=
 | Opack of wsize & pelem (* Pack words of size pelem into one word of wsize *)
-| Oarray of positive (* Literal array of bytes *)
+| Oarray of N (* Literal array of bytes *)
 | Ocombine_flags of combine_flags
 .
 

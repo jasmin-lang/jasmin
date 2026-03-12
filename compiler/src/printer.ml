@@ -65,7 +65,7 @@ let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
      begin match as_string es with
      | s -> F.fprintf fmt "%S" s
      | exception Not_found ->
-     F.fprintf fmt "/* %du8 */ @[{ %a }@]" (Conv.int_of_pos len) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
+     F.fprintf fmt "/* %du8 */ @[{ %a }@]" (Conv.int_of_n len) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
      end
   | Pif(_, e,e1,e2) ->
      let p = priority_ternary in

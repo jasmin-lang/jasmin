@@ -204,7 +204,7 @@ Definition type_of_opN (op: opN) : seq atype * atype :=
   | Opack ws p =>
     let n := nat_of_wsize ws %/ nat_of_pelem p in
     (nseq n aint, aword ws)
-  | Oarray len => (nseq (Pos.to_nat len) (aword U8), aarr U8 len)
+  | Oarray len => (nseq (N.to_nat len) (aword U8), aarr U8 len)
   | Ocombine_flags c => (tin_combine_flags, abool)
   end.
 
@@ -257,10 +257,10 @@ Definition is_glob (x:gvar) := x.(gs) == Sglob.
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
-| Parr_init : wsize -> positive → pexpr
+| Parr_init : wsize -> N → pexpr
 | Pvar   :> gvar -> pexpr
 | Pget   : aligned -> arr_access -> wsize -> gvar -> pexpr -> pexpr
-| Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr
+| Psub   : arr_access -> wsize -> N -> gvar -> pexpr -> pexpr
 | Pload  : aligned -> wsize -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
@@ -301,7 +301,7 @@ Variant lval : Type :=
 | Lvar  `(var_i)
 | Lmem  of aligned & wsize & var_info & pexpr
 | Laset of aligned & arr_access & wsize & var_i & pexpr
-| Lasub of arr_access & wsize & positive & var_i & pexpr.
+| Lasub of arr_access & wsize & N & var_i & pexpr.
 
 Coercion Lvar : var_i >-> lval.
 

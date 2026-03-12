@@ -1,0 +1,15 @@
+// a stack array of length 0 is ok
+
+param int N = 0;
+
+export fn main () -> reg u64 {
+  stack u64[N] s;
+  reg u64 res = 0;
+  reg u64 i = 0;
+  while (i < N) {
+    s[i] = 0;
+    res += s[i];
+    i += 1;
+  }
+  return res;
+}

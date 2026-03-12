@@ -499,7 +499,7 @@ pparam:
 (* -------------------------------------------------------------------- *)
 pgexpr:
 | e=pexpr { GEexpr e }
-| LBRACE es = rtuple1(pexpr) RBRACE { GEarray es }
+| LBRACE es = rtuple(pexpr) RBRACE { GEarray es }
 
 pglobal:
 | pgd_type=ptype pgd_name=ident EQ pgd_val=pgexpr SEMICOLON

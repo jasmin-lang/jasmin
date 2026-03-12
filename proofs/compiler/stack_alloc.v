@@ -1712,7 +1712,7 @@ Definition alloc_declassify_array rmap es :=
     if get_local xv is Some pk then
       Let: (p, ofs) := addr_from_pk xv pk in
       let e := add (Plvar p) (cast_const ofs) in
-      let len := Z.to_pos (size_of xv.(vtype)) in
+      let len := Z.to_N (size_of xv.(vtype)) in
       ok (Copn [::] AT_keep (Opseudo_op (pseudo_operator.Odeclassify_mem len)) [:: e ])
     else Error (stk_ierror_basic xv "register array remains")
   else Error (stk_ierror_no_var "declassify: invalid args").
@@ -2110,7 +2110,7 @@ Definition check_glob data gv :=
 Definition size_glob gv :=
   match gv with
   | @Gword ws _ => wsize_size ws
-  | @Garr p _ => Zpos p
+  | @Garr len _ => Z.of_N len
   end.
 
 Definition init_map (l:list (var * wsize * Z)) data (gd:glob_decls) : cexec (Mvar.t (Z*wsize)) :=

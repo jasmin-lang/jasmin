@@ -63,7 +63,7 @@ Definition wi2i_op2 (o : sop2) : sop2 :=
   | None => o
   end.
 
-Definition esubtype (ty1 ty2 : extended_type positive) :=
+Definition esubtype (ty1 ty2 : extended_type N) :=
  match ty1, ty2 with
  | ETword None w, ETword None w' => (w ≤ w')%CMP
  | ETword (Some sg) w, ETword (Some sg') w' => (sg == sg') && (w == w')
@@ -106,7 +106,7 @@ Section Section.
 Context (m: var -> option (signedness * var)).
 Context (FV: Sv.t).
 
-Definition to_etype sg (t:atype) : extended_type positive:=
+Definition to_etype sg (t:atype) : extended_type N :=
   match t with
   | abool     => tbool
   | aint      => tint
@@ -116,7 +116,7 @@ Definition to_etype sg (t:atype) : extended_type positive:=
 
 Definition sign_of_var x := Option.map fst (m x).
 
-Definition etype_of_var x : extended_type positive :=
+Definition etype_of_var x : extended_type N :=
   to_etype (sign_of_var x) (vtype x).
 
 Definition sign_of_gvar (x : gvar) :=
@@ -125,13 +125,13 @@ Definition sign_of_gvar (x : gvar) :=
 
 Definition etype_of_gvar x := to_etype (sign_of_gvar x) (vtype (gv x)).
 
-Definition sign_of_etype (ty: extended_type positive) : option signedness :=
+Definition sign_of_etype (ty: extended_type N) : option signedness :=
   match ty with
   | ETword (Some s) _ => Some s
   | _ => None
   end.
 
-Fixpoint etype_of_expr (e:pexpr) : extended_type positive :=
+Fixpoint etype_of_expr (e:pexpr) : extended_type N :=
   match e with
   | Pconst _ => tint
   | Pbool _ => tbool
@@ -222,12 +222,12 @@ Fixpoint wi2i_e (e0:pexpr) : cexec pexpr :=
     ok (Pif ty e1 e2 e3)
   end.
 
-Definition wi2i_lvar (ety : extended_type positive) (x : var_i) : cexec var_i :=
+Definition wi2i_lvar (ety : extended_type N) (x : var_i) : cexec var_i :=
   Let _ := assert (esubtype (etype_of_var x) ety)
                   (E.ierror_lv (Lvar x)) in
   wi2i_vari x.
 
-Definition wi2i_lv (ety : extended_type positive) (lv : lval) : cexec lval :=
+Definition wi2i_lv (ety : extended_type N) (lv : lval) : cexec lval :=
   let s := sign_of_etype ety in
   match lv with
   | Lnone vi ty =>
@@ -256,7 +256,7 @@ Definition wi2i_lv (ety : extended_type positive) (lv : lval) : cexec lval :=
     ok (Lasub aa ws len x e)
   end.
 
-Context (sigs : funname -> option (list (extended_type positive) * list (extended_type positive))).
+Context (sigs : funname -> option (list (extended_type N) * list (extended_type N))).
 
 Definition get_sig f :=
   match sigs f with

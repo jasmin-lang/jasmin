@@ -315,8 +315,8 @@ Proof.
   case: ty1; case: ty2; try (right; discriminate).
   + by left; reflexivity.
   + by left; reflexivity.
-  + move=> p1 p2.
-    case: (Pos.eq_dec p1 p2).
+  + move=> n1 n2.
+    case: (N.eq_dec n1 n2).
     + by left; congruence.
     + by right; congruence.
   move=> ws1 ws2.

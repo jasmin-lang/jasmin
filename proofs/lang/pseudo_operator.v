@@ -26,9 +26,9 @@ Canonical spill_op_eqType := @ceqT_eqType _ eqTC_spill_op.
 #[only(eqbOK)] derive
 Variant pseudo_operator :=
 | Ospill    of spill_op & seq atype
-| Ocopy     of wsize & positive
+| Ocopy     of wsize & N
 | Odeclassify of atype
-| Odeclassify_mem of positive
+| Odeclassify_mem of N
 | Onop
 | Omulu     of wsize   (* cpu   : [aword; aword]        -> [aword;aword] *)
 | Oaddcarry of wsize   (* cpu   : [aword; aword; abool] -> [abool;aword] *)

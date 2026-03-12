@@ -24,7 +24,7 @@ Definition exec_getrandom_u (scs : syscall_state) len vs :=
     | [:: v] => to_arr len v
     | _ => type_error
     end in
-  let sd := get_random scs (Zpos len) in
+  let sd := get_random scs (Z.of_N len) in
   Let t := WArray.fill len sd.2 in
   ok (sd.1, [::Varr t]).
 
@@ -36,8 +36,8 @@ Definition exec_syscall_u
   (vs : values) :
   exec (syscall_state_t * mem * values) :=
   match o with
-  | RandomBytes ws p =>
-      let len := Z.to_pos (arr_size ws p) in
+  | RandomBytes ws n =>
+      let len := Z.to_N (arr_size ws n) in
       Let sv := exec_getrandom_u scs len vs in
       ok (sv.1, m, sv.2)
   end.
