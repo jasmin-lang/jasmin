@@ -1537,7 +1537,7 @@ with forget_imed_cmd (fn0: funname) (pl0 pl1: plinfo)
 
 (* lbl is the label after the prelude lc1, pl1 is the lpoint after the
    body lt, lc2 is the epilogue *)
-Variant LTreeFun (fn: funname) : Type :=
+Inductive LTreeFun (fn: funname) : Type :=
   LTFun : forall lbl pl1 (lc1 lc2: lcmd),
       let n1 := List.length lc1 in
       forall lt: LTreeList fn (n1, lbl) pl1, LTreeFun. 
