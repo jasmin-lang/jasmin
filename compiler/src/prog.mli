@@ -225,6 +225,11 @@ val vars_c  : ('info, 'asm) stmt  -> Sv.t
 val pvars_c : ('info, 'asm) pstmt  -> Spv.t
 val vars_fc : ('info, 'asm) func  -> Sv.t
 
+val rvars_e : ('a gvar -> 'b -> 'b) -> 'b -> 'a gexpr -> 'b
+val rvars_es : ('a gvar -> 'b -> 'b) -> 'b -> 'a gexprs -> 'b
+val rvars_lv : ('a gvar -> 'b -> 'b) -> 'b -> 'a glval -> 'b
+val rvars_lvs : ('a gvar -> 'b -> 'b) -> 'b -> 'a glvals -> 'b
+
 val locals  : ('info, 'asm) func -> Sv.t
 
 val spilled :  ('info, 'asm) func -> Sv.t
