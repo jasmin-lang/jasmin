@@ -60,35 +60,14 @@ let find_common_ancestor (t : tree) (nodes : nodeset) : node =
 (* --------------------------------------------------------------- *)
 (* Compute variable occurrences in expressions and instructions *)
 
-let variables_in_ggvar { gs; gv } (acc : Spv.t) : Spv.t =
-  match gs with
-  | E.Sglob -> acc
-  | E.Slocal ->
-      let x = L.unloc gv in
-      if x.v_kind <> Const then Spv.add x acc else acc
+let variables_in_gvar x (acc : Spv.t) : Spv.t =
+  if x.v_kind <> Const then Spv.add x acc else acc
 
-let rec variables_in_pexpr (acc : Spv.t) (e : pexpr) : Spv.t =
-  match e with
-  | Pconst _ | Pbool _ | Parr_init _ -> acc
-  | Pvar x -> variables_in_ggvar x acc
-  | Pget (_, _, _, x, e) | Psub (_, _, _, x, e) ->
-      variables_in_pexpr (variables_in_ggvar x acc) e
-  | Pload (_, _, e) | Papp1 (_, e) -> variables_in_pexpr acc e
-  | Papp2 (_, e1, e2) | Pif (_, _, e1, e2) -> variables_in_pexprs acc [ e1; e2 ]
-  | PappN (_, es) -> variables_in_pexprs acc es
+let variables_in_pexpr = rvars_e variables_in_gvar
+let variables_in_pexprs = rvars_es variables_in_gvar
 
-and variables_in_pexprs (acc : Spv.t) (es : pexpr list) : Spv.t =
-  List.fold_left variables_in_pexpr acc es
-
-let variables_in_plval (acc : Spv.t) : plval -> Spv.t = function
-  | Lnone _ -> acc
-  | Lvar x -> Spv.add (L.unloc x) acc
-  | Lmem (_, _, _, e) -> variables_in_pexpr acc e
-  | Laset (_, _, _, x, e) | Lasub (_, _, _, x, e) ->
-      Spv.add (L.unloc x) (variables_in_pexpr acc e)
-
-let variables_in_plvals (acc : Spv.t) : plvals -> Spv.t =
-  List.fold_left variables_in_plval acc
+let variables_in_plval = rvars_lv variables_in_gvar
+let variables_in_plvals = rvars_lvs variables_in_gvar
 
 let variables_in_instr_r : _ pinstr_r -> Spv.t = function
   | Cassgn (x, _, _, e) -> variables_in_pexpr (variables_in_plval Spv.empty x) e
