@@ -467,8 +467,8 @@ End FunInfoT.
 Module FunInfo : FunInfoT.
   Definition t := positive.
   Definition witness : t := 1%positive.
-  Definition entry_info of t := dummy_instr_info.
-  Definition ret_info of t := dummy_instr_info.
+  Definition entry_info (_: t) := dummy_instr_info.
+  Definition ret_info (_: t) := dummy_instr_info.
 End FunInfo.
 
 Definition fun_info := FunInfo.t.
