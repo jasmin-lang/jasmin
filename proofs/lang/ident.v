@@ -26,8 +26,8 @@ Module Cident : CORE_IDENT.
   Lemma tagI : injective tag.
   Proof. done. Qed.
 
-  Definition id_name of t : string := "".
-  Definition id_kind of t := wsize.Const.
+  Definition id_name & t : string := "".
+  Definition id_kind & t := wsize.Const.
 
   Definition spill_to_mmx (x : t) := false.
 End Cident.
