@@ -955,7 +955,7 @@ Definition x86_SETcc (b:bool) : tpl (w_ty U8) := wrepr U8 (Z.b2z b).
 Definition Ox86_SETcc_instr             :=
   mk_instr_pp "SETcc" b_ty w8_ty [:: Eu 0] [:: Eu 1] (reg_msb_flag U8) x86_SETcc check_setcc 2 (primM SETcc) (pp_ct "set" U8).
 
-Definition check_bt of wsize := [:: [:: r; ri U8 ]].
+Definition check_bt & wsize := [:: [:: r; ri U8 ]].
 
 Definition x86_BT sz (x y: word sz) : tpl (b_ty) :=
   Some (wbit x y).
@@ -1240,7 +1240,7 @@ Definition Ox86_SHRD_instr :=
   mk_instr_w2w8_b5w_01c0 "SHRD" x86_SHRD check_shld safe_shxd (prim_16_64 SHRD) size_16_64 (pp_iname_ww_8 "shrd")
    safe_wf_shxdP (fun ws _ => @x86_SHRD_errtyp ws) x86_SHRD_safe.
 
-Definition check_rorx of wsize := [::[::r ; rm true; i U8]].
+Definition check_rorx & wsize := [::[::r ; rm true; i U8]].
 
 Definition x86_RORX sz (v: word sz) (i: u8) : word sz :=
   let i := wand i (x86_shift_mask sz) in
@@ -1253,7 +1253,7 @@ Definition x86_bmi_shift sz (op: word sz → Z → word sz) (v i: word sz) : wor
   let i := Z.land (wunsigned i) (wunsigned (x86_shift_mask sz)) in
   op v i.
 
-Definition check_sarx of wsize := [::[::r ; rm true; r]].
+Definition check_sarx & wsize := [::[::r ; rm true; r]].
 
 Definition x86_SARX sz := x86_bmi_shift (@wsar sz).
 
@@ -1486,7 +1486,7 @@ Definition x86_u128_shift sz' sz (op: word sz' → Z → word sz')
 
 Arguments x86_u128_shift : clear implicits.
 
-Definition check_xmm_xmm_xmmmi of wsize := [:: xmm_xmm_xmmmi U8 ].
+Definition check_xmm_xmm_xmmmi & wsize := [:: xmm_xmm_xmmmi U8 ].
 
 Definition x86_VPSLL (ve: velem) sz := x86_u128_shift ve sz (@wshl _).
 
