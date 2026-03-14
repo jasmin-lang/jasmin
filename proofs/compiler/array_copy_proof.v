@@ -494,7 +494,7 @@ Qed.
 
 Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
 Proof.
-  move=> scs1 m1 scs2 m2 fn [fi tin params body tout res extra] /=.
+  move=> scs1 m1 scs2 m2 fn fd /=.
   move=> vargs vargs' s0 s1 s2 vres vres' hget hca hi hw _ hc hres hcr hscs hfi vargs1 hva.
   have [fd2 hfd hget']:= all_checked hget.
   have hpex : p_extra p1 = p_extra p2.
@@ -504,7 +504,7 @@ Proof.
   move: hfd; rewrite /array_copy_fd.
   set X := vars_fd _.
   t_xrbindP=> hdisj body' heq ?; subst fd2.
-  have freshX : not_tmp fi X.
+  have freshX : not_tmp (f_info fd) X.
   + move: hdisj => /disjointP H; split => [ | ws ]; apply H.
     - exact: SvD.F.add_1.
     apply: SvD.F.add_2.
