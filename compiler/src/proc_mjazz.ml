@@ -110,7 +110,7 @@ module MEnv = struct
     ; mi_ast: (S.pitem L.located) list
     ; mi_decls : (P.pexpr_, unit, 'asm) M.gmodule_item list
     ; mi_opened: M.modulename list
-    ; mi_instances : ((P.pexpr_ M.modulearg list)*M.modulename) list
+    ; mi_instances : (((string,string) Map.t)*(P.pexpr_ M.modulearg list)*M.modulename) list
     }
 
   let functor_from_modinfo modname modinfo =
@@ -191,15 +191,17 @@ let pp_pprog ~debug fmt p =
     (pp_list "@ @ " (Printer.pp_pitem ~debug (Printer.pp_pexpr_ ~debug) pp_opn Printer.pp_pvar)) (List.rev p)
 
   let upd_storedecls
+      add_d
       (f: 'asm Env.store -> 'asm Env.store * (unit, 'asm) P.pmod_item list)
       (menv: 'asm menv)
     : 'asm menv =
     let st, l = f menv.me_store
     in 
     if !Glob_options.debug
-    then 
-      pp_pprog ~debug:true Format.std_formatter l;
-      let menv = add_decls menv (List.map (fun x->M.MdItem x) l)
+    then
+       Format.eprintf "Updated program: @.%a@." (pp_pprog ~debug:true) l;
+      let menv = if add_d then add_decls menv (List.map (fun x->M.MdItem x) l)
+                 else menv 
       in { menv with  me_store = st }
 
 (*
@@ -215,18 +217,25 @@ let pp_pprog ~debug fmt p =
 
 (*  let mk_fun *)
 
+  let fully_qualified_modname st =
+    match st.Env.s_bindings with
+    | [], _ -> 
+      rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "empty module stack")
+    | (ns,_,_)::xs, _ ->
+      List.fold_left (fun nn (n,_,o) -> if o then nn else qualify n nn) ns xs
+
   let push_modparam pd (st: 'asm Env.store) (mparam: S.modsigentry)
     : 'asm Env.store * P.pexpr_ M.mparamdecl =
     match mparam with
     | MSparam (ty, name) ->
       let ty = tt_type pd st ty
       in let x = P.PV.mk (L.unloc name) W.Const (P.gty_of_gety ty) (L.loc name) []
-      in let st = Env.Vars.push_modp_param st (L.loc name) x ty
+      in let x, st = Env.Vars.push_modp_param st (L.loc name) x ty
       in st, M.Param x
     | MSglob (ty, name) ->
       let ty = tt_type pd st ty
       in let x = P.PV.mk (L.unloc name) W.Const (P.gty_of_gety ty) (L.loc name) []
-      in let st = Env.Vars.push_modp_global st x ty
+      in let x, st = Env.Vars.push_modp_global st x ty
       in st, M.Glob x
     | MSfn (name, tyin, tyout) ->
       let tyins = List.map (tt_type pd st) tyin
@@ -237,11 +246,11 @@ let pp_pprog ~debug fmt p =
                        ; Env.f_tyout =  List.map (P.gty_of_gety) tyouts
                        ; Env.f_pfunc = None
                        }
-      in let fsig = {
-                M.fs_tyin = funcsig.f_tyin
-              ; M.fs_tyout = funcsig.f_tyout
-              }
-      in let st = Env.Funs.push_modp_fun st funcsig { fs_tin = tyins; fs_tout = tyouts}
+
+      in let funcsig,st = Env.Funs.push_modp_fun st funcsig { fs_tin = tyins; fs_tout = tyouts}
+      in let fsig = { M.fs_tyin = funcsig.f_tyin
+                    ; M.fs_tyout = funcsig.f_tyout
+      }
       in st, M.Fun fsig
 
   let rec push_modparams pd (st: 'asm Env.store) =
@@ -251,6 +260,62 @@ let pp_pprog ~debug fmt p =
       let st, p = push_modparam pd st x
       in let st, ps = push_modparams pd st xs
       in st, p::ps
+
+
+  let push_ground_modparam _ (st: 'asm Env.store) mparam arg =
+    match mparam, arg with
+    | Mprog.MaParam x, Mprog.Param x' ->  
+      let ty = P.gety_of_gty x'.v_ty in
+      Env.Vars.push_param st (x', ty, x,x)
+      (* let param:S.pparam = { ppa_ty = ty; ppa_name = name; ppa_init = x} in *)
+      (* let ty = P.gety_of_gty x'.v_ty in
+      let v = mk_var x'.v_name W.Const ty (x'.v_dloc) [] in *)
+      (* 
+      let x = P.PV.mk (L.unloc name) W.Const (P.gty_of_gety ty) (L.loc name) []
+      in let st = Env.Vars.push_param st (L.loc name) x *)
+      (* Env.Vars.push_modp_param  *)
+    (* | MaGlob (v), MSglob(ty,name) ->
+      rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Type error (param glob)") *)
+      (*FIXME*)
+    |_, _ ->
+      rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Type error")
+      (*FIXME*)
+      (* let tyins = List.map (tt_type pd st) tyin
+      in let tyouts = List.map (tt_type pd st) tyout
+      in let funcsig = { Env.f_loc = L.loc name
+                       ; Env.f_name = P.F.mk (L.unloc name)
+                       ; Env.f_tyin = List.map (P.gty_of_gety) tyins
+                       ; Env.f_tyout =  List.map (P.gty_of_gety) tyouts
+                       ; Env.f_pfunc = None
+                       }
+      in let fsig = { (*M.fs_name = funcsig.f_name
+                    ; M.fs_loc = funcsig.f_loc
+                    ; *)M.fs_tyin = funcsig.f_tyin
+                    ; M.fs_tyout = funcsig.f_tyout
+                    }
+      in let st = Env.Funs.push_modp_fun st funcsig
+      in st, M.Fun fsig *)
+
+  let rec push_ground_modparams pd (st: 'asm Env.store) =
+    function
+    | [],_ 
+    | _, [] -> st, []
+    | x::xs, a::args ->
+      let st, p = push_ground_modparam pd st x a
+      in let st, ps = push_ground_modparams pd st (xs,args)
+      in st, p::ps
+
+  let enter_ground_module pd modname mparams args menv =
+    let menv = upd_store (Env.enter_namespace modname) menv in
+    let st, plist = push_ground_modparams pd menv.me_store (mparams,args)
+    in if !Glob_options.debug
+      then (Printf.eprintf "\nENTER ground %s #mparams %d,%d \n%!" (L.unloc modname) (List.length mparams) (List.length plist));
+    { menv with 
+      me_store = st
+    ; me_gmod = (mparams=[]) :: menv.me_gmod       
+    ; me_decls = []::menv.me_decls
+    }
+    , plist
 
   let enter_module pd modname mparams menv =
     let menv = upd_store (Env.enter_namespace modname) menv
@@ -264,18 +329,37 @@ let pp_pprog ~debug fmt p =
     }
     , plist
 
-  let fully_qualified_modname st =
-    match st.Env.s_bindings with
-    | [], _ -> 
-      rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "empty module stack")
-    | (ns,_,_)::xs, _ ->
-      List.fold_left (fun nn (n,_,o) -> if o then nn else qualify n nn) ns xs
+
 
 
 let pp_mpprog ~debug fmt p =
   let pp_opn _ _ = () in
   Format.fprintf fmt "@[<v>%a@]"
     (Printer.pp_gmprog ~debug true (Printer.pp_pexpr_ ~debug) pp_opn Printer.pp_pvar) p
+
+let exit_module_moduleapp menv mname modname: 'asm menv =
+   let rec loop = function
+      | [], _ ->
+        rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "empty module stack")
+      | (_,_,true) :: _, _ ->
+        rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "unexpected opened module at top of stack")
+      | (m1,bs1,false) :: [], bot ->
+        let merged = Env.merge_bindings (m1,bs1) bot
+          in ([], merged), []
+      | top :: (m, _,true) :: stack, bot ->
+        let bs, omods = loop (top::stack, bot)
+        in bs, m::omods
+      | (m1, bs1, false) :: (m2, bs2, false) :: stack, bot ->
+        Format.eprintf "Merging module app %s into %s \n%!" m1 m2;
+        let merged = Env.merge_bindings (m1,bs1) bs2
+          in ((m2, merged, false) :: stack, bot), []
+      in let glob_bs, _ = loop menv.me_store.s_bindings
+      in let menv, _ = pop_ldecls menv
+      in let menv = { menv with
+                    me_store = {menv.me_store with s_bindings = glob_bs }
+                  ; me_gmod = List.tl menv.me_gmod
+                  }
+      in upd_store (fun st -> Env.Modules.push st mname modname) menv
 
 
   (** exit of a non-toplevel module *)
@@ -306,7 +390,7 @@ let pp_mpprog ~debug fmt p =
     in let menv, mdecls = pop_ldecls menv
     in 
       if !Glob_options.debug
-      then pp_mpprog ~debug:true Format.std_formatter mdecls;
+      then Format.eprintf "Updated program: @.%a@." (pp_mpprog ~debug:true) mdecls;
       let modinfo =
          { mi_store = mod_bs
          ; mi_params = mparams
@@ -515,7 +599,7 @@ let merge_top st modname bs =
 4) adiciona bindings de [minfo] no contexto actual com chave [mname]
 *)
 
-let mt_margs pd menv mname mparams margs =
+let mt_margs pd menv _ mparams margs =
   if !Glob_options.debug
   then (Printf.eprintf "\nTypeCheck ModApp %d,%d \n%!" (List.length mparams) (List.length margs));
   let rec tc_list loc l1 l2 =
@@ -590,15 +674,108 @@ let mt_margs pd menv mname mparams margs =
        match mparams, margs with
        | [], [] -> {menv with MEnv.me_store = st}, [], []
        | p::ps, e::es ->
-         let st, a, _ = mt_marg st p e
+         let st, a, adecl = mt_marg st p e
          in let menv, al, adecls = doit st ps es
-         in menv, a::al, adecls
+         in menv, a::al, adecl::adecls
        | _, _ -> 
          rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Typing error: wrong number of module arguments")
-  in let st = Env.enter_namespace mname menv.MEnv.me_store
-  in doit st mparams margs
+  in doit menv.MEnv.me_store mparams margs
 
-let rec mt_item (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_info) (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
+let has_instance insts args =
+  match List.find_opt (fun (_,a,_) -> a=args) insts with
+  | Some (_,_,iname) -> Some iname
+  | None -> None
+
+let print_margs fmt (args:P.pexpr_ M.moduleargs) =
+  let pp_arg fmt = function
+    | M.MaParam e -> Format.fprintf fmt "param(%a);" (Printer.pp_pexpr ~debug:true) e
+    | M.MaGlob v -> Format.fprintf fmt "glob(%s);" v.pl_desc.v_name
+    | M.MaFun f -> Format.fprintf fmt "fun(%s);" f.fn_name
+  in
+  Format.fprintf fmt "[%a]" (pp_list "" pp_arg) args
+
+let rename_module_bindings _ full_name _ modfunc (st:'asm Env.global_bindings) =
+  let rename_value v =
+    String.concat "" [full_name;(String.sub v (String.length modfunc) (String.length v - String.length modfunc))]
+  in
+  (* let rename_key k = mname ^ "::" ^ k in *)
+  let rename_bindings f m =
+    List.fold_left (fun acc k -> 
+      let value = Map.find k m in
+      let renamed_value = f value in
+      (* let renamed_key = rename_key k in *)
+      Map.add k renamed_value acc
+    ) Map.empty (BatList.of_enum (Map.keys m)) in
+  let f_funs (func, sig_) =
+    let new_f_name = P.F.mk (rename_value (func.Env.f_name.fn_name)) in
+    let f_pfunc = 
+      match func.Env.f_pfunc with
+      | Some pf -> 
+        let f_name = P.F.mk (rename_value (pf.f_name.fn_name)) in
+        Some { pf with f_name }
+      | None -> None
+      in
+    let renamed_func = { func with Env.f_name = new_f_name; f_pfunc} in
+    (renamed_func, sig_)
+  in
+  let f_vars (v,ty,s) =
+    let new_v_name = rename_value v.CoreIdent.v_name in
+    let renamed_v = CoreIdent.GV.mk new_v_name v.v_kind (P.gty_of_gety ty) v.v_dloc v.v_annot in
+    (renamed_v, ty, s)
+  in
+  let f_modules modname = L.mk_loc (L.loc modname) (rename_value (L.unloc modname)) in
+  let gb_funs = rename_bindings f_funs st.gb_funs in
+  let gb_vars = rename_bindings f_vars st.gb_vars in
+  let gb_modules = rename_bindings f_modules st.gb_modules in
+  { st with
+      gb_funs;
+      gb_vars;
+      gb_modules
+  }
+ 
+let rec get_instance_modules (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_info) imodules (menv: 'asm MEnv.menv) body =
+  match body with
+  | [] -> menv,imodules
+  | mitem::rest ->
+      match L.unloc mitem with
+    | S.PModule (mname, mparams, body) ->
+      let menv, mparams = MEnv.enter_module arch_info.pd mname mparams menv
+      in let menv,imodules = get_instance_modules arch_info imodules menv body
+      in let menv = MEnv.exit_module mname mparams body menv
+      in
+      get_instance_modules arch_info imodules menv rest
+    | S.PModuleApp (mname, modfuncname, margs) ->
+      let (_,_), modfunc = Env.Modules.get menv.me_store modfuncname in
+      let modinfo =
+         match Map.find (L.unloc modfunc) menv.me_env with
+         | modi -> modi
+         | exception Not_found ->
+           rs_mjazzerror ~loc:(L.loc modfunc)
+             (NonExistentMod (L.unloc modfunc)) in
+      let menv, margs, _ = mt_margs arch_info.pd menv mname modinfo.mi_params margs in
+      let menv, imodules = 
+        match has_instance modinfo.mi_instances margs with
+          | Some instname ->  menv, Map.add (L.unloc mname) instname imodules 
+          | None -> 
+            let instance_name = (L.unloc modfunc) ^ "_" ^ (string_of_int (List.length modinfo.mi_instances)) in
+            let mi_instances = (Map.empty,margs,instance_name) :: modinfo.mi_instances in
+            let new_modinfo = { modinfo with mi_instances } in
+            let me_env = Map.add (L.unloc modfunc) new_modinfo menv.me_env in
+             { menv with me_env }, Map.add (L.unloc mname) instance_name imodules
+      in
+      get_instance_modules arch_info imodules menv rest
+    | S.PParam pp -> 
+      let me_store, _ = tt_param arch_info.pd (L.loc mitem) pp menv.me_store in
+      let menv = { menv with me_store } in
+      get_instance_modules arch_info imodules menv rest
+    | S.PGlobal pg ->
+      let me_store, _ = tt_global arch_info.pd (L.loc mitem) pg menv.me_store in
+      let menv = { menv with me_store } in
+      get_instance_modules arch_info imodules menv rest
+    | _ ->
+      get_instance_modules arch_info imodules menv rest
+
+let rec mt_item (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_info) add_d (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
   match L.unloc mitem with
   | S.PModule (mname, mparams, body) ->
     (* reject nested parametric modules *)
@@ -607,13 +784,13 @@ let rec mt_item (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_inf
     then rs_mjazzerror ~loc:(L.loc mname) (InnerPModule (L.unloc mname));
     (* proceed... *)
     let menv, mparams = MEnv.enter_module arch_info.pd mname mparams menv
-    in let menv = List.fold_left (mt_item arch_info) menv body
+    in let menv = List.fold_left (mt_item arch_info add_d) menv body
     in let menv = MEnv.exit_module mname mparams body menv
     in menv
   | S.PModuleApp (mname, modfunc, margs) ->
     if !Glob_options.debug
     then (Printf.eprintf "\nModApp %s=%s(...) \n%!" (L.unloc mname) (L.unloc modfunc));
-    mt_moduleapp arch_info menv mname modfunc margs
+    mt_moduleapp arch_info add_d menv mname modfunc margs
 (*
     let funcname = L.unloc modfunc
     in let modfunc = Env.Modules.get menv.me_store modfunc
@@ -641,34 +818,103 @@ let rec mt_item (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_inf
   | S.PTypeAlias (id,ty) ->
     MEnv.upd_store (tt_typealias arch_info id ty) menv
   | S.PParam pp -> 
-    MEnv.upd_storedecls (tt_param arch_info.pd (L.loc mitem) pp) menv
+    MEnv.upd_storedecls add_d (tt_param arch_info.pd (L.loc mitem) pp) menv
   | S.PGlobal pg ->
-    MEnv.upd_storedecls (tt_global arch_info.pd (L.loc mitem) pg) menv
+    MEnv.upd_storedecls add_d (tt_global arch_info.pd (L.loc mitem) pg) menv
   | S.PFundef pf ->
-    MEnv.upd_storedecls (tt_fundef arch_info (L.loc mitem) pf) menv
+    MEnv.upd_storedecls add_d (tt_fundef arch_info (L.loc mitem) pf) menv
 
-and mt_moduleapp arch_info menv mname modfuncname margs =
-    let (_,gb), modfunc = Env.Modules.get menv.me_store modfuncname
-    in let modinfo =
+and mt_moduleapp arch_info _ menv mname modfuncname margs_original =
+    let (_,_), modfunc = Env.Modules.get menv.me_store modfuncname in
+    let modinfo =
          match Map.find (L.unloc modfunc) menv.me_env with
          | modi -> modi
          | exception Not_found ->
            rs_mjazzerror ~loc:(L.loc modfunc)
-             (NonExistentMod (L.unloc modfunc))
-    (* locate the place in global_bindings of the enclosing functor
+             (NonExistentMod (L.unloc modfunc)) in
+
+    let full_name = qualify (MEnv.fully_qualified_modname menv.MEnv.me_store) (L.unloc mname) in 
+    (* let ground_module = List.for_all identity menv.MEnv.me_gmod   in   *)
+    let menv, margs, _ = mt_margs arch_info.pd menv mname modinfo.mi_params margs_original in
+    let mi_store = rename_module_bindings (L.unloc mname) full_name (L.unloc modfuncname) (L.unloc modfunc) modinfo.mi_store in
+    let s_bindings = match menv.me_store with
+      | {s_bindings = stack, bot} -> ((L.unloc mname), mi_store, false)::stack, bot
+      in
+    let menv =
+     { menv with
+       me_gmod = (margs=[]) :: menv.me_gmod       
+     ; me_decls = []::menv.me_decls;
+        me_store = { menv.me_store with s_bindings };
+       MEnv.me_env =
+         Map.add
+           full_name
+           {modinfo with mi_store; mi_params = [] }
+           menv.MEnv.me_env
+     } in
+    let menv = MEnv.exit_module_moduleapp menv mname full_name in
+  (*  if ground_module
+    then if margs = []
+      then (* pickup module *)
+        MEnv.add_decls menv
+            [ M.MdModApp { ma_name = full_name
+               ; ma_func = (L.unloc modfunc)
+               ; ma_args = []
+               } ]
+      else (* pickup/gen instance *)
+        match has_instance modinfo.mi_instances margs with
+        | Some instname ->
+            MEnv.add_decls menv
+            [ M.MdModApp { ma_name = full_name
+               ; ma_func = instname
+               ; ma_args = []
+               } ]
+        | None ->
+          Format.eprintf "Generating new instance for %s\n%!" full_name;
+          
+          (* let menv' = {
+            menv with
+             me_store = { menv.me_store with s_bindings = gb }
+          } in
+          let menv', margs, _ = mt_margs arch_info.pd menv' mname modinfo.mi_params margs_original in *)
+          (* find way to add args correctly *)
+          let _, instance_modules = get_instance_modules arch_info Map.empty menv modinfo.mi_ast in
+          let instances = (instance_modules,margs,full_name) :: modinfo.mi_instances
+          in let new_modinfo = { modinfo with mi_instances = instances }
+          in let me_env = Map.add (L.unloc modfunc) new_modinfo menv.me_env
+          in let menv = {menv with me_env = me_env} 
+          in MEnv.add_decls menv
+            [ M.MdModApp { ma_name = full_name
+               ; ma_func = (L.unloc modfunc)
+               ; ma_args = margs
+               } ]
+    else *)
+      MEnv.add_decls menv
+            [ M.MdModApp { ma_name = full_name
+               ; ma_func = (L.unloc modfunc)
+               ; ma_args = margs
+               } ]
+
+
+    (* MEnv.add_decls menv
+      [ M.MdModApp { ma_name = (L.unloc mname)
+                   ; ma_func = (L.unloc modfuncname)
+                   ; ma_args = [] (*margs*)
+                   } ] *)
+ 
+   (* locate the place in global_bindings of the enclosing functor
        obs: na verdade, o MEnv fica dessincronizado neste ponto (o
        corte nos bindings não se reflete no lista de declarações). Mas
        o invariante do processamento da nova instância deverá assegurar que
        quando se voltar a juntar os bindings, a lista de declarações está
        no mesmo ponto.
     *)
-    in let menv_at = { menv with
+   (*let menv_at = { menv with
                        MEnv.me_store =
                          { menv.MEnv.me_store with
                            s_bindings = gb
                          }
-                     }
-    (* typecheck module arguments... *)
+                     } in*)
+    (* typecheck module arguments... *)(*
     in let _, margs, _ = mt_margs arch_info.pd menv_at mname modinfo.mi_params margs
     in let ground_module = List.for_all identity menv.MEnv.me_gmod
     in let menv =
@@ -691,7 +937,7 @@ and mt_moduleapp arch_info menv mname modfuncname margs =
       [ M.MdModApp { ma_name = (L.unloc mname)
                    ; ma_func = (L.unloc modfuncname)
                    ; ma_args = [] (*margs*)
-                   } ]
+                   } ]*)
 
 (*
     (* add bindings to module-env (for openings) *) 
@@ -857,7 +1103,7 @@ and mt_file arch_info menv from loc fname =
   match MEnv.enter_file menv from loc fname with
   | menv, None -> menv
   | menv, Some (ast,saved) ->
-    let menv = List.fold_left (mt_item arch_info) menv ast
+    let menv = List.fold_left (mt_item arch_info true) menv ast
     in MEnv.exit_file menv saved
 
 let mt_mprogram arch_info menv (fname: string) =
@@ -874,13 +1120,244 @@ let parse_mfile arch_info idirs fname =
   let menv = MEnv.empty idirs
   in mt_mprogram arch_info menv fname
 
-let instantiate_mprog _ =
-  [] (*FIXME *)
+
+let rec add_suffix_gexpr new_vars expr =  
+    match expr with
+    | P.Pvar v ->
+        let v' = get_new_var new_vars v in
+        P.Pvar v'
+    | Pget (a,aa,ws,v,ge) ->
+        let ge = add_suffix_gexpr new_vars ge in
+        let v' = get_new_var new_vars v in
+        P.Pget (a,aa,ws,v',ge)
+    | Psub(aa,ws,size,v,ge) ->
+        let ge = add_suffix_gexpr new_vars ge in
+        let v' = get_new_var new_vars v in
+        P.Psub(aa,ws,size,v',ge)
+    | Pload(a,ws,ge) ->
+        let ge = add_suffix_gexpr new_vars ge in
+        P.Pload(a,ws,ge)
+    | Papp1(o,ge) ->
+        let ge = add_suffix_gexpr new_vars ge in
+        P.Papp1(o,ge)
+    | Papp2(o,ge1,ge2) ->
+        let ge1 = add_suffix_gexpr new_vars ge1 in
+        let ge2 = add_suffix_gexpr new_vars ge2 in
+        P.Papp2(o,ge1,ge2)
+    | PappN(o,ges) ->
+        let ges = List.map (add_suffix_gexpr new_vars) ges in
+        P.PappN(o,ges)
+    | Pif (ty, ge1,ge2,ge3) ->
+        let ge1 = add_suffix_gexpr new_vars ge1 in
+        let ge2 = add_suffix_gexpr new_vars ge2 in
+        let ge3 = add_suffix_gexpr new_vars ge3 in
+        P.Pif (ty, ge1,ge2,ge3)
+    | _ -> expr
+and get_new_var new_vars (v:'len P.ggvar) = 
+  let v' = L.unloc v.gv in
+  begin match Map.find v'.v_name new_vars with
+  | new_var -> {gv = L.mk_loc (L.loc v.gv) new_var; gs = v.gs}
+  | exception Not_found -> v
+  end
+
+
+let add_suffix_ggexpr new_vars expr =  
+    match expr with
+    | P.GEword e -> P.GEword (add_suffix_gexpr new_vars e)
+    | P.GEarray es -> P.GEarray (List.map (add_suffix_gexpr new_vars) es)
+
+let change_ty new_vars ty =
+  match ty with
+  | P.Bty _ -> ty
+  | P.Arr (size,P.PE e) -> 
+      let ty' = P.Arr (size,P.PE (add_suffix_gexpr new_vars e)) in
+      ty'
+
+let get_new_gvar new_vars (v:'len P.gvar) = 
+  match Map.find v.v_name new_vars with 
+  | new_var -> new_vars,new_var
+  | exception Not_found -> 
+    let v_ty = change_ty new_vars v.v_ty in
+    let v' = P.PV.mk v.v_name v.v_kind v_ty v.v_dloc v.v_annot in
+    let new_vars = Map.add v.v_name v' new_vars in
+    new_vars, v'
+  
+
+let get_new_lvar new_vars (lv:'len P.glval) =
+  match lv with
+  | Lvar  v ->
+    let v' = {P.gv=v; P.gs =Slocal} in
+    P.Lvar ((get_new_var new_vars v').gv)
+  | Lmem (a,ws,l,e) ->
+    let e' = add_suffix_gexpr new_vars e in
+    P.Lmem (a,ws,l,e')
+  | Laset (al,acc,ws,v,e) ->
+      let v' = {P.gv=v; P.gs =Slocal} in
+      let v' = (get_new_var new_vars v').gv in
+      let e' = add_suffix_gexpr new_vars e in
+      P.Laset (al,acc,ws,v',e')
+  | Lasub (acc,ws,size,v,e) ->
+      let v' = {P.gv=v; P.gs =Slocal} in
+      let v' = (get_new_var new_vars v').gv in
+      let e' = add_suffix_gexpr new_vars e in
+      P.Lasub (acc,ws,size,v',e')
+  | _ -> lv
+
+let rec add_suffix_instr new_vars new_funcs (instr:('len,'info,'asm) P.ginstr) =
+  let i_desc = 
+    match instr.i_desc with
+    | Cassgn (lv,at,ty,e) ->
+        let lv' = get_new_lvar new_vars lv in
+        let e' = add_suffix_gexpr new_vars e in
+        P.Cassgn (lv',at,ty,e')
+    | Copn (lvs, at,o,es) ->
+        let lvs' = List.map (get_new_lvar new_vars) lvs in
+        let es' = List.map (add_suffix_gexpr new_vars) es in
+        Copn (lvs', at,o,es')
+    | Csyscall(lvs,sc,es) ->
+        let lvs' = List.map (get_new_lvar new_vars) lvs in
+        let es' = List.map (add_suffix_gexpr new_vars) es in
+        P.Csyscall(lvs',sc,es')
+    | Cassert(s,ge) -> 
+        let ge' = add_suffix_gexpr new_vars ge in
+        P.Cassert(s,ge')
+    | Cif (e,s1,s2) ->
+      let e' = add_suffix_gexpr new_vars e in
+      let s1' = List.map (add_suffix_instr new_vars new_funcs) s1 in
+      let s2' = List.map (add_suffix_instr new_vars new_funcs) s2 in
+      P.Cif (e',s1',s2')
+    | Cfor (v,(d,e1,e2),s) ->
+      let v' = {P.gv=v; P.gs =Slocal} in
+      let v' = (get_new_var new_vars v').gv in
+      let e1' = add_suffix_gexpr new_vars e1 in
+      let e2' = add_suffix_gexpr new_vars e2 in
+      let s' = List.map (add_suffix_instr new_vars new_funcs) s in
+      P.Cfor (v',(d,e1',e2'),s')
+    | Cwhile(a,s1,e,ii,s2) ->
+      let e' = add_suffix_gexpr new_vars e in
+      let s1' = List.map (add_suffix_instr new_vars new_funcs) s1 in
+      let s2' = List.map (add_suffix_instr new_vars new_funcs) s2 in
+      P.Cwhile(a,s1',e',ii,s2')
+    | Ccall (lvs,fname,es) ->
+      let lvs' = List.map (get_new_lvar new_vars) lvs in
+      let es' = List.map (add_suffix_gexpr new_vars) es in
+      match Map.find_opt fname new_funcs with
+      | Some fname' -> P.Ccall (lvs',fname',es')
+      | None -> P.Ccall (lvs',fname,es')
+    in
+    { instr with i_desc }
+
+let add_suffix_item new_vars new_funcs suffix item =
+  if suffix = "" then new_vars,new_funcs,item else  
+  match item with 
+  | P.MIfun f ->
+      let new_vars', f_args = List.fold_left (fun (nv, args) arg ->
+            let nv', arg' = get_new_gvar nv arg in
+            (nv', args @ [arg'])
+            ) (new_vars, []) f.f_args in
+      let f_tyin = List.map (fun ty -> change_ty new_vars' ty) f.f_tyin in
+      let f_tyout = List.map (fun ty -> change_ty new_vars' ty ) f.f_tyout in
+      let f_body = List.map (add_suffix_instr new_vars' new_funcs) f.f_body in
+      let _, f_ret = List.fold_left (fun (nv, rets) v ->
+            let v' = L.unloc v in
+            let nv', v' = get_new_gvar nv v' in
+            let v' = L.mk_loc (L.loc v) v' in
+            (nv', rets @ [v'])
+            ) (new_vars', []) f.f_ret in
+      let f' = {f with P.f_name = P.F.mk (f.f_name.P.fn_name ^ suffix); f_args;f_tyin;f_tyout;f_ret;f_body} in
+      let new_funcs = Map.add f.f_name f'.P.f_name new_funcs in
+      new_vars, new_funcs, P.MIfun f'
+  | P.MIglobal (v, ge) ->
+      let v' = P.PV.mk (v.v_name ^ suffix) v.v_kind v.v_ty v.v_dloc v.v_annot in
+      let ge = add_suffix_ggexpr new_vars ge in
+      let new_vars = Map.add v.v_name v' new_vars in
+      new_vars, new_funcs, P.MIglobal (v', ge)
+  | P.MIparam (v, e) ->
+      let v' = P.PV.mk (v.v_name ^ suffix) v.v_kind v.v_ty v.v_dloc v.v_annot in
+      let e = add_suffix_gexpr new_vars e in
+      let new_vars = Map.add v.v_name v' new_vars in
+      new_vars, new_funcs, P.MIparam (v', e)
+
+
+let instantiate_pprog menv =
+  let mprog = List.hd menv.MEnv.me_decls in
+  let rec mprog_topprog new_vars new_funcs suffix acc = function
+    | [] -> []
+    | x::xs ->
+      (* Format.eprintf "MPROG TO PPROG: @.%a@. \n\n\n"
+      (Printer.pp_gmprog ~debug:true false (Printer.pp_pexpr_ ~debug:true) (fun _ _ -> ()) Printer.pp_pvar) [x]; *)
+      match x with 
+      | Mprog.MdItem item -> 
+        let new_vars, new_funcs, item = add_suffix_item new_vars new_funcs suffix item in
+        item :: mprog_topprog new_vars new_funcs suffix acc xs
+      | Mprog.MdFunctor m -> 
+        if m.functorparams = []
+        then 
+          (mprog_topprog new_vars new_funcs suffix acc (List.rev m.Mprog.functorbody)) @ (mprog_topprog new_vars new_funcs suffix acc xs)
+        else 
+          let acc = Map.add (m.Mprog.functorname) (m.Mprog.functorparams, List.rev m.Mprog.functorbody,[]) acc in
+          mprog_topprog new_vars new_funcs suffix acc xs
+      | Mprog.MdModApp module_app  ->
+        if module_app.Mprog.ma_args = []
+        then mprog_topprog new_vars new_funcs suffix acc xs
+        else 
+          let mparams, modinfo, instances =
+            match Map.find module_app.Mprog.ma_func acc with
+            | mi -> mi
+            | exception Not_found ->
+              rs_mjazzerror ~loc:(L._dummy)
+                  (NonExistentMod module_app.Mprog.ma_func)
+          in
+          if List.exists (fun a -> a = module_app.Mprog.ma_args) instances
+          then mprog_topprog new_vars new_funcs suffix acc xs
+          else
+            let suffix_mod =  "::" ^ String.of_int(List.length instances) in
+            let inst_param new_vars mp arg = 
+              match mp, arg with
+              | Mprog.Param v, Mprog.MaParam e -> 
+                let new_name = (module_app.Mprog.ma_func ^ "::" ^ v.v_name) in
+                let new_name_mod = (new_name ^ suffix_mod) in
+                let v = P.PV.mk new_name_mod v.v_kind (change_ty new_vars v.v_ty) v.v_dloc v.v_annot in
+                let new_vars = Map.add new_name v new_vars in
+                let e = add_suffix_gexpr new_vars e in
+                new_vars,P.MIparam (v , e)
+              | Mprog.Glob v, Mprog.MaGlob v' ->
+                let new_name = (module_app.Mprog.ma_func ^ "::" ^ v.v_name) in
+                let new_name_mod = new_name ^ suffix in
+                let v = P.PV.mk new_name_mod v.v_kind (change_ty new_vars v.v_ty) v.v_dloc v.v_annot in
+                let new_vars = Map.add new_name v new_vars in
+                let v_gg = {P.gv = v' ; gs = Sglob} in
+                new_vars,P.MIglobal ( v , GEword (Pvar v_gg) )
+              (* | Mprog.Fun fs, Mprog.MaFun f -> Mprog.MaFun f *)
+              | _ , _ -> rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Instantiation error: wrong module argument")
+            in let rec inst_params new_vars m a =
+              match m, a with
+              | mp::mps , arg::args ->
+                let new_vars, p = inst_param new_vars mp arg in
+                let new_vars', p' = inst_params new_vars mps args in
+                Map.merge (fun _ v1 v2 -> 
+                   begin match v1, v2 with
+                    | Some v, None -> Some v
+                    | None, Some v -> Some v
+                    | Some _, Some v2 -> Some v2 
+                    | None, None -> None
+                    end
+                  ) new_vars new_vars', p::p'
+              | _ , _ -> new_vars, []
+            in let new_vars_mod,inst_args = inst_params new_vars mparams module_app.Mprog.ma_args
+            in let instances = List.append instances [module_app.Mprog.ma_args]
+            in let acc = Map.add module_app.Mprog.ma_func (mparams, modinfo, instances) acc in
+            inst_args @ (mprog_topprog new_vars_mod new_funcs suffix_mod acc modinfo) @ (mprog_topprog new_vars new_funcs suffix acc xs)
+  in
+  List.rev (mprog_topprog Map.empty Map.empty "" Map.empty (List.rev mprog))
 
 (** Parses (modular) program and resolves instantiation *)
 let parse_file arch_info idirs fname =
   let menv = parse_mfile arch_info idirs fname
   in let deps: Path.t list =
-       List.map (fun x->snd x) menv.me_processed
-  in deps, [], instantiate_mprog menv, List.hd menv.me_decls
+       List.map (fun x->snd x) menv.me_processed in
+  Format.eprintf "Updated program: @.%a@."
+    (Printer.pp_gmprog ~debug:true true (Printer.pp_pexpr_ ~debug:true) (fun _ _ -> ()) Printer.pp_pvar)
+    (List.hd menv.me_decls);
+  deps, [], [](*instantiate_pprog menv*) , List.hd menv.me_decls
 

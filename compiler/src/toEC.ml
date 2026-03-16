@@ -356,7 +356,10 @@ type ec_item =
     | Iabbrev of string * ec_expr
     | ImoduleType of ec_module_type
     | Imodule of ec_module
-
+    | Itheory of string
+    | IopA of string * ec_modty
+    | Iop of string * ec_expr
+    | Iclone of string * string * ((string * ec_expr) list)
 type ec_prog = ec_item list
 
 
@@ -774,6 +777,16 @@ let pp_ec_item fmt it =
       (pp_list "@ " (fun fmt (v, t) -> Format.fprintf fmt "@[var %s : %s@]" v t)) m.vars
       (fun fmt _ -> if m.vars = [] then (Format.fprintf fmt "") else (Format.fprintf fmt "@ ")) ()
       (pp_list "@ " pp_ec_fun) m.funs
+  | Itheory th ->
+    Format.fprintf fmt "@[theory %s.@]" th
+  | IopA (op, mt) ->
+    Format.fprintf fmt "@[op %s : %s.@]" op mt
+  | Iop (op, e) ->
+    Format.fprintf fmt "@[op %s = %a.@]" op pp_ec_ast_expr e
+  | Iclone (mnew, mold, args) ->
+    Format.fprintf fmt "@[clone %s as %s with %a.@]"
+      mold mnew
+      (pp_list ",@ " (fun fmt (s, e) -> Format.fprintf fmt "op %s <- %a" s pp_ec_ast_expr e)) args
 
 let pp_ec_prog fmt (prog:ec_prog) = Format.fprintf fmt "@[<v>%a@]" (pp_list "@ @ " pp_ec_item) prog
 
@@ -2034,8 +2047,132 @@ struct
       (ec_randombytes env) @
       [top_mod]
 
+  let toec_paramdecl env p =
+      match p with
+      | Mprog.Param v
+      | Glob v -> 
+        let env = Env.set_var env v in
+        env, IopA(v.v_name,(toec_ty env v.v_ty))
+      | Fun _ -> assert false
+    
+  let toec_modulearg env arg =
+      match arg with
+      | Mprog.MaParam e -> "", toec_expr env e
+      | MaGlob v -> "",  Eident [(L.unloc v).v_name]
+      | MaFun _ -> assert false
+    
+  let in_range s sz i =
+    if s = Wsize.Signed &&
+       not (Z.lt i (Z.shift_left Z.one ((int_of_ws sz)/2))) then
+       Z.sub i (Z.shift_left Z.one (int_of_ws sz))
+    else i
+
+  let rec constant_of_expr (e: Prog.expr) : Z.t =
+  let open Prog in
+
+  match e with
+  | Papp1 (Oword_of_int sz, e) ->
+      clamp sz (constant_of_expr e)
+
+  | Papp1(Oint_of_word(s, sz), e) ->
+      let i = clamp sz (constant_of_expr e) in
+      in_range s sz i
+
+  | Pconst z ->
+      z
+
+  | _ -> assert false
+
+  let doglob (x, e) =
+    let global_tbl = Hv.create 101 in
+    let add_glob x gv = Hv.add global_tbl x gv in
+    let get_glob x = Hv.find_option global_tbl (Conv.var_of_cvar x) in
+    let mk_word ws e =
+      let open Constant_prop in
+      let e = Conv.cexpr_of_expr e in
+      let e = Wint_word.wi2w_e e in
+      let c = const_prop_e (fun _ -> assert false) (Some get_glob) Var0.Mvar.empty e in
+      let z = constant_of_expr (Conv.expr_of_cexpr c) in
+      Word0.wrepr ws (Conv.cz_of_z (clamp ws z)) in
+    let gv =
+      match x.v_ty, e with
+      | Bty (U ws), GEword e ->
+        Global.Gword (ws, mk_word ws e)
+      | Arr (_ws, n), GEarray es when List.length es <> n -> assert false
+      | Arr (ws, n), GEarray es ->
+        let p = Conv.pos_of_int (n * size_of_ws ws) in
+        let mk_word_i _ e =
+          mk_word ws e
+        in
+        let t = Warray_.WArray.of_list ws (List.mapi mk_word_i es) in
+        Global.Garr(p, t)
+      | _, _ -> assert false in
+      add_glob x gv;
+      x, gv
+
+  let rec toec_gitem asmOp env item =
+    match item with
+      | Mprog.MdItem item -> 
+        begin match item with
+        | Prog.MIfun f -> 
+          let env = Env.set_fun env  f in
+          env,[Imodule {
+          name = "teste";
+          params = [];
+          ty = None;
+          vars = [];
+          funs = [toec_fun asmOp env f];
+        }]
+        | MIparam (v,e)-> 
+          let env = Env.set_var env v in
+          env,[Iop(v.v_name,toec_expr env e)]
+        | MIglobal g ->  
+          let g = doglob g in
+          let env = Env.set_var env (fst g) in
+          env,[ec_glob_decl env g]
+        end
+      | MdFunctor f -> 
+        let theory  = Itheory(f.functorname) in
+        let env, params = List.fold_left (fun acc p ->
+          let env,params = acc in
+          let env,param = toec_paramdecl env p in
+          (env,params @ [param])
+        ) (env,[]) f.functorparams in
+        let env,items = List.fold_left (fun (env, items) item ->
+          let env, item = toec_gitem asmOp env item in
+          (env, items @ item)
+        ) (env, []) f.functorbody in
+        env,(theory :: params) @ items
+      | MdModApp m -> 
+        env,[Iclone(m.ma_name,m.ma_func, List.map (toec_modulearg env) m.ma_args)]
+
+
+  let toec_mprog mprog env asmOp =
+      let pp_array_theories ats = match Sarraytheory.elements ats with
+          | [] -> []
+          | l -> [IrequireImport (List.map fmt_array_theory l)]
+      in
+      let glob_imports = [
+          IrequireImport ["AllCore"; "IntDiv"; "CoreMap"; "List"; "Distr"];
+          IfromRequireImport ("Jasmin", [jmodel env]);
+          Iimport [lib_slh env];
+      ] in
+      let items, _ = List.fold_left (fun acc item ->
+        let items,env = acc in
+        let env,item = toec_gitem asmOp env item in
+        (items @ item, env)
+      ) ([],env) mprog in
+      glob_imports @
+      (leakage_imports env) @
+      pp_array_theories (Env.array_theories env) @
+      (ec_randombytes env) @
+      items
+      
   let pp_prog env asmOp fmt globs funcs =
     Format.fprintf fmt "%a@." pp_ec_prog (toec_prog env asmOp globs funcs)
+
+  let pp_mprog mprog env asmOp fmt =
+    Format.fprintf fmt "%a@." pp_ec_prog (toec_mprog mprog env asmOp)
 
 end
 
@@ -2097,3 +2234,33 @@ let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model
   let prog = E.pp_prog env asmOp fmt globs funcs in
   save_array_theories (Env.array_theories env);
   prog
+
+let extract_modular mprog arch pd msfsz asmOp (model: model) amodel _ array_dir fmt =
+   let save_array_theories array_theories =
+    match array_dir with
+    | Some prefix ->
+        begin
+          Sarraytheory.iter (save_array_theory ~prefix) array_theories
+    end
+    | None -> ()
+  in
+  let array_theories = ref Sarraytheory.empty in
+  let env = Env.empty arch pd msfsz array_theories in
+  let module EA: EcArray = (val match amodel with
+    | ArrayOld -> (module EcArrayOld: EcArray)
+    | WArray   -> (module EcWArray  : EcArray)
+    | BArray   -> (module EcBArray  : EcArray)
+  ) in
+  let module EE = EcExpression(EA) in
+  let module EL: EcLeakage = (val match model with
+    | Normal -> (module EcLeakNormal(EE): EcLeakage)
+    | ConstantTime -> (module EcLeakConstantTime(EE): EcLeakage)
+    | ConstantTimeGlobal ->
+        warning Deprecated Location.i_dummy
+          "EasyCrypt extraction for constant-time in CTG mode is deprecated. Use the CT mode instead.";
+        (module EcLeakConstantTimeGlobal(EE): EcLeakage)
+  ) in
+  let module E = Extraction(EA)(EL) in
+  let mprog = E.pp_mprog mprog env asmOp fmt in
+  save_array_theories (Env.array_theories env);
+  mprog

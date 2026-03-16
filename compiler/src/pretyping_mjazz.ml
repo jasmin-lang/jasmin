@@ -361,6 +361,22 @@ end *) = struct
     ; e_loader  : loader
     }
 
+  let print_bindings st =
+    Format.eprintf "Bindings:@.";
+    let print_map f m =
+      BatList.iter (fun k -> 
+        let v = Map.find k m in
+        Format.eprintf "  %s -> %a@." k f v
+      ) (BatList.of_enum (Map.keys m))
+    in
+    Format.eprintf "Funs:@.@.";
+    print_map (fun fmt (func, _) -> Format.fprintf fmt "%s" func.f_name.fn_name) st.gb_funs;
+    Format.eprintf "Vars:@.@.";
+    print_map (fun fmt (v, _, _) -> Format.fprintf fmt "%s" v.CoreIdent.v_name) st.gb_vars;
+    Format.eprintf "Modules:@.@.";
+    print_map (fun fmt modname -> Format.fprintf fmt "%s" (L.unloc modname)) st.gb_modules;
+    Format.eprintf "@."
+
   let upd_store
       (f: 'asm store -> 'asm store)
       (env: 'asm env)
@@ -631,7 +647,7 @@ end *) = struct
     let push_modp_global st x ty =
       let name = x.P.v_name
       in let x = rename_var (fully_qualified (fst st.s_bindings) name) x
-      in push_core st name x ty Sglob
+      in x, push_core st name x ty Sglob
 
     let push_param' st (x, ty, e, enorm) =
       let st = push_core st x.P.v_name x ty Slocal
@@ -650,8 +666,8 @@ end *) = struct
     let push_modp_param st loc x ty =
       let name = x.P.v_name
       in let x = rename_var (fully_qualified (fst st.s_bindings) name) x
-      in let st = push_core st name x ty Slocal
-      in { st with s_params = Map.add x (P.Pvar { gv = L.mk_loc loc x; gs=Slocal}) st.s_params } 
+      in let st = push_core st name x ty Slocal in
+      x,{ st with s_params = Map.add x (P.Pvar { gv = L.mk_loc loc x; gs=Slocal}) st.s_params } 
 
     let push_local (st : 'asm store) ((v,ty) : P.pvar * P.epty)
       : 'asm store =
@@ -800,7 +816,7 @@ end *) = struct
               | (_, _, true) :: _, _ -> assert false 	(* opened namespaces are readonly *)
               | (ns, top, false) :: stack, bot ->
                 (ns, doit top, false) :: stack, bot
-         in { st with s_bindings }
+         in v,{ st with s_bindings }
       | Some fd ->
          err_duplicate_fun name (v, ()) fd
 
@@ -2379,6 +2395,10 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
         then Annotations.add_symbol ~loc:el "inline" annot
         else annot
       in
+      (* (match fsig.f_pfunc with
+      | Some f ->
+         (Format.eprintf "Function %s, with %s \n" fsig.f_name.fn_name f.f_name.fn_name);
+      | _ -> ()); *)
       [mk_i ~annot (mk_call (L.loc pi) is_inline lvs fsig es)]
     | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None
       when L.unloc f = "spill" || L.unloc f = "unspill"  ->

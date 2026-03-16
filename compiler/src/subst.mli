@@ -7,6 +7,9 @@ val gsubst_func : (?loc:L.t -> 'ty1 -> 'ty2) -> ('ty1 ggvar -> 'ty2 gexpr) -> ('
 val subst_func : ('ty gvar_i -> 'ty gexpr) -> ('ty, 'info, 'asm) gfunc -> ('ty, 'info, 'asm) gfunc
 
 (* replace parameter by their definition everywhere in the program *)
+val remove_params_modular : ('info, 'asm) Mprog.mpprog ->  (int,'info,'asm) Mprog.gmodule_item list
+
+(* replace parameter by their definition everywhere in the program *)
 val remove_params : ('info, 'asm) pprog -> ('info, 'asm) prog
 
 (* rename all variable using fresh variables *)

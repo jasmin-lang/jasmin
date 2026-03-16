@@ -318,6 +318,210 @@ let rec constant_of_expr (e: Prog.expr) : Z.t =
 
   | _ -> raise NotAConstantExpr
 
+(* let psubst_prog_modular mprog =
+  let subst = ref (Mpv.empty : pexpr Mpv.t) in
+  let rec aux_gitem = function
+    | MIparam(v,e) ->
+        let f = psubst_v !subst in
+        subst := Mpv.add v (psubst_e f e) !subst;
+         []
+    | MIglobal (v, e)  ->
+      let f = psubst_v !subst in
+      let v' =
+        let v =
+          gsubst_gvar f {gv = L.mk_loc L._dummy v; gs = Expr.Sglob} in
+        assert (not (is_gkvar v)); L.unloc v.gv in
+      let e = psubst_ge f e in
+      subst := Mpv.add v (Pvar (gkglob (L.mk_loc L._dummy v'))) !subst;
+      [MIglobal(v', e)]
+    | MIfun fc -> 
+        let subst_v = psubst_v !subst in
+        let subst_ty = psubst_ty subst_v in
+        let dov v =
+          L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
+        let fc = {
+            fc with
+            f_tyin = List.map subst_ty fc.f_tyin;
+            f_args = List.map dov fc.f_args;
+            f_body = gsubst_c (psubst_e_ subst_v) subst_v fc.f_body;
+            f_tyout = List.map subst_ty fc.f_tyout;
+            f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
+          } in
+        [MIfun fc] in
+  let rec aux = function
+     | Mprog.MdItem mi -> 
+       begin match aux_gitem mi with
+        | [] -> []
+        | [mi] ->  [Mprog.MdItem mi]
+        | _ -> assert false
+       end
+     | Mprog.MdFunctor fd ->
+        let functorbody = List.concat_map aux fd.functorbody in
+        let _ = List.fold_left (fun s param ->
+          match param with
+          | Mprog.Param v ->
+              subst := Mpv.add v (Pvar (gkglob (L.mk_loc L._dummy v))) !subst;
+              s
+          | Glob v ->
+              subst := Mpv.add v (Pvar (gkglob (L.mk_loc L._dummy v))) !subst;
+              s
+          | Fun fs ->
+              s
+        ) !subst fd.functorparams in
+        let fd = {
+          Mprog.functorname = fd.functorname;
+          functorparams = fd.functorparams;
+          functorbody
+        } in
+        [Mprog.MdFunctor fd]
+      | Mprog.MdModApp ma ->
+          let f = psubst_v !subst in
+          let ma_args =
+            List.map (function
+              | Mprog.MaParam (PE e) ->
+                  let e = psubst_e f e in
+                  Mprog.MaParam (PE e)
+              | Mprog.MaGlob v ->
+                Mprog.MaGlob v
+              | Mprog.MaFun fn ->
+                  Mprog.MaFun fn
+            ) ma.ma_args in
+          let ma = {
+            Mprog.ma_name = ma.ma_name;
+            ma_func = ma.ma_func;
+            ma_args
+          } in
+          [Mprog.MdModApp ma]
+   in
+    List.concat_map aux mprog *)
+
+let remove_params_modular (mprog : ('info, 'asm) Mprog.mpprog) =
+  let isubst_v subst =
+    let aux v0 =
+      let k = v0.gs in
+      let v = v0.gv in
+      let v_ = v.L.pl_desc in
+      let e =
+        try Mpv.find v_ !subst
+        with Not_found ->
+          let ty = isubst_ty ~loc:v_.v_dloc v_.v_ty in
+          let v1 = V.mk v_.v_name v_.v_kind ty v_.v_dloc v_.v_annot in
+          let v  = { v with L.pl_desc = v1 } in
+          let v0 = { gv = v; gs = k } in
+          let e = Pvar v0 in
+          subst := Mpv.add v_ e !subst;
+          e in
+      match e with
+      | Pvar x ->
+        let k = x.gs in
+        let x = {x.gv with L.pl_loc = L.loc v} in
+        let x = {gv = x; gs = k} in
+        Pvar x
+      | _      -> e in
+    aux in
+
+  let subst : expr Mpv.t ref = ref Mpv.empty in
+
+  let subst = !subst in
+
+  let isubst_func fc =
+    let subst = ref subst in
+    let subst_v = isubst_v subst in
+    let dov v =
+      L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
+    (* Order matters so that the clearest error is triggered first.
+       We use let-in to enforce the right order *)
+    let f_args = List.map dov fc.f_args in
+    let f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret in
+    let fc = {
+        fc with
+        f_tyin = List.map isubst_ty fc.f_tyin;
+        f_args;
+        f_body = gsubst_c isubst_len subst_v fc.f_body;
+        f_tyout = List.map isubst_ty fc.f_tyout;
+        f_ret;
+      } in
+    fc
+  in
+  let isubst_func fc =
+    try isubst_func fc
+    with HiError e -> raise (HiError { e with err_funname = Some fc.f_name.fn_name })
+  in
+
+  let isubst_ggexpr subst_v = function
+    | GEword e -> GEword (gsubst_e isubst_len subst_v e)
+    | GEarray es -> GEarray (List.map (gsubst_e isubst_len subst_v) es)
+  in
+
+  let rec isubst_item = function
+    | Mprog.MdItem mi ->
+        Mprog.MdItem (match mi with
+          | Prog.MIfun fc -> Prog.MIfun (isubst_func fc)
+          | MIparam (v,e) ->
+              let subst = ref subst in
+              let subst_v = isubst_v subst in
+              let v = gsubst_gvar subst_v {gv = L.mk_loc L._dummy v; gs = Expr.Sglob} in
+              let e = gsubst_e isubst_len subst_v e in
+              MIparam (L.unloc (v.gv), e)
+         | MIglobal (v,e) ->
+              let subst = ref subst in
+              let subst_v = isubst_v subst in
+              let v = gsubst_gvar subst_v {gv = L.mk_loc L._dummy v; gs = Expr.Sglob} in
+              let e = isubst_ggexpr subst_v e in
+              MIglobal (L.unloc (v.gv), e))
+    | Mprog.MdFunctor fd ->
+        let functorbody = List.map isubst_item fd.functorbody in
+        let functorparams = List.map (function
+          | Mprog.Param v ->
+              let subst = ref subst in
+              let subst_v = isubst_v subst in
+              let v = gsubst_gvar subst_v {gv = L.mk_loc L._dummy v; gs = Expr.Sglob} in
+              Mprog.Param (L.unloc (v.gv))
+          | Glob v ->
+              let subst = ref subst in
+              let subst_v = isubst_v subst in
+              let v = gsubst_gvar subst_v {gv = L.mk_loc L._dummy v; gs = Expr.Sglob} in
+              Glob (L.unloc (v.gv))
+          | Fun fs ->
+              let fs_tyin = List.map isubst_ty fs.fs_tyin in
+              let fs_tyout = List.map isubst_ty fs.fs_tyout in
+              Fun { fs_tyin; fs_tyout }
+        ) fd.functorparams in
+        let fd = {
+          Mprog.functorname = fd.functorname;
+          functorparams;
+          functorbody
+        } in
+        Mprog.MdFunctor fd
+    | Mprog.MdModApp ma ->
+        let ma_args =
+          List.map (function
+            | Mprog.MaParam e ->
+                let subst = ref subst in
+                let subst_v = isubst_v subst in
+                let e = gsubst_e isubst_len subst_v e in
+                Mprog.MaParam e
+            | Mprog.MaGlob v ->
+                let subst = ref subst in
+                let subst_v = isubst_v subst in
+                let v = gsubst_gvar subst_v {gv = v; gs = Expr.Sglob} in
+                Mprog.MaGlob (v.gv)
+            | Mprog.MaFun fn ->
+                Mprog.MaFun fn
+          ) ma.ma_args in
+        let ma = {
+          Mprog.ma_name = ma.ma_name;
+          ma_func = ma.ma_func;
+          ma_args
+        } in
+        Mprog.MdModApp ma
+      in
+
+  let mprog = List.map isubst_item mprog in
+  mprog
+
+
+
 let remove_params (prog : ('info, 'asm) pprog) =
   let globals, prog = psubst_prog prog in
   let globals, prog = isubst_prog globals prog in
