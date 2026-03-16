@@ -30,4 +30,15 @@ val parse_and_compile :
       'asm_op,
       'extra_op )
     Arch_extra.extended_op )
-  Prog.prog
+  Prog.prog * 
+  ( unit,
+      ( 'reg,
+        'regx,
+        'xreg,
+        'rflag,
+        'cond,
+        'asm_op,
+        'extra_op )
+      Arch_extra.extended_op )
+    Mprog.mpprog
+ 

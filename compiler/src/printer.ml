@@ -352,7 +352,8 @@ let pp_pitem ~debug pp_len pp_opn pp_var =
  in
   aux
 
-let pp_pvar fmt x = F.fprintf fmt "%s" x.v_name
+let pp_pvar fmt x = F.fprintf fmt "%s.%s" x.v_name (string_of_uid x.v_id)
+  (* F.fprintf fmt "%s" x.v_name *)
 
 let rec pp_pexpr ~debug fmt e = pp_ge ~debug (pp_pexpr_ ~debug) pp_pvar fmt e
 and pp_pexpr_ ~debug fmt (PE e) = pp_pexpr ~debug fmt e

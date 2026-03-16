@@ -1,4 +1,5 @@
 param int n = 2;
+param int m = 4;
 
 module M1
  with
@@ -8,8 +9,14 @@ module M1
  fn f(reg ptr u64[nn] a) -> reg ptr u64[n]
  { return a; }
 
+ fn g(reg ptr u64[nn] a) -> reg ptr u64[nn]
+ { 
+  a = f(a);
+  return a; }
+
 }
 
 module A2 = M1(n);
 module A4 = M1(2*n);
-
+module Adois = M1(2);
+module Aquatro = M1(m);
