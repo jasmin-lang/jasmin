@@ -13,7 +13,7 @@ let checksafety arch call_conv idirs slice safety_param no_check_alignment
   let module P = (val SafetyMain.get_arch_with_analyze arch call_conv) in
   let module Arch = P.A in
   let after_pass = SafetyConfig.sc_comp_pass () in
-  let prog =
+  let prog, _ =
     try parse_and_compile (module Arch) ~slice ~wi2i:false after_pass file idirs
     with HiError err ->
       Format.eprintf "%a@." pp_hierror err;

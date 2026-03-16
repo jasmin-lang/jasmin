@@ -1,0 +1,13 @@
+
+param int n = 3;
+
+fn f() { }
+
+module M1 {
+
+ param int n = 2;
+ fn f() { }
+
+}
+
+module M2 = M1();

@@ -3,8 +3,8 @@ open Cmdliner
 open CommonCLI
 open Utils
 
-let extract_to_file prog arch pd msfsz asmOp model amodel global_options
-    fnames array_dir outfile =
+let extract_to_file prog mprog arch pd msfsz asmOp model amodel global_options 
+    fnames array_dir outfile mjazz =
   let array_dir =
     if array_dir = None then Option.map Filename.dirname outfile else array_dir
   in
@@ -20,8 +20,14 @@ let extract_to_file prog arch pd msfsz asmOp model amodel global_options
     BatPervasives.finally
       (fun () -> close ())
       (fun () ->
-        ToEC.extract prog arch pd msfsz asmOp model amodel global_options
-          fnames array_dir fmt)
+        if mjazz then
+          let mprog = Subst.remove_params_modular mprog in
+          ToEC.extract_modular mprog arch pd msfsz asmOp model amodel global_options
+          fnames array_dir fmt
+        else
+          ToEC.extract prog arch pd msfsz asmOp model amodel global_options
+          fnames array_dir fmt
+      )
       ()
   with e ->
     BatPervasives.ignore_exceptions
@@ -31,19 +37,20 @@ let extract_to_file prog arch pd msfsz asmOp model amodel global_options
 
 let parse_and_extract arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
-  let extract model amodel global_options functions array_dir output pass file =
-    let prog = parse_and_compile (module A) ~wi2i:true pass file idirs
-      |> Compile.do_toec (module A) in
+  let extract model amodel global_options functions array_dir output pass file modular_jazz =
+    if modular_jazz then Glob_options.modular_jazz := true;
+    let prog,mprog = parse_and_compile (module A) ~wi2i:true pass file idirs in
+    let prog = Compile.do_toec (module A) prog in
     try
-      extract_to_file prog arch A.reg_size A.msf_size A.asmOp model amodel
-        global_options functions array_dir output
+      extract_to_file prog mprog arch A.reg_size A.msf_size A.asmOp model amodel
+        global_options functions array_dir output modular_jazz
     with Annot.AnnotationError (loc, code) ->
       hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
   in
-  fun model amodel global_options functions array_dir output pass file warn ->
+  fun model amodel global_options functions array_dir output pass file warn modular_jazz ->
     if not warn then nowarning ();
     match
-      extract model amodel global_options functions array_dir output pass file
+      extract model amodel global_options functions array_dir output pass file modular_jazz
     with
     | () -> ()
     | exception HiError e ->
@@ -182,6 +189,10 @@ let file =
   let doc = "The Jasmin source file to extract" in
   Arg.(required & pos 0 (some non_dir_file) None & info [] ~docv:"JAZZ" ~doc)
 
+let modular_jazz =
+  let doc = "Indicates that the input Jasmin file is in modular Jazz format." in
+  Arg.(value & flag & info [ "mjazz" ] ~doc)
+
 let () =
   let doc = "Extract Jasmin program to easycrypt" in
   let man =
@@ -199,5 +210,5 @@ let () =
     Term.(
       const parse_and_extract $ arch $ call_conv $ idirs $ model $ array_model
       $ global_model $ functions $ array_dir $ output $ after_pass
-      $ file $ warn)
+      $ file $ warn $ modular_jazz)
   |> Cmd.eval |> exit

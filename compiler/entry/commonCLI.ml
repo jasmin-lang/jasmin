@@ -98,4 +98,4 @@ let parse_and_compile (type asm_op extra_op)
           raise (HiError e)
       | exception Found -> !res
   in
-  prog
+  prog,_mprog

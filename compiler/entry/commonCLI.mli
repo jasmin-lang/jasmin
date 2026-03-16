@@ -19,3 +19,6 @@ val parse_and_compile :
   string ->
   (string * string) list ->
   (unit, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) Prog.prog
+* (unit, ('asm_op, 'extra_op) Arch_extra.extended_op_gen)
+    Mprog.mpprog
+ 

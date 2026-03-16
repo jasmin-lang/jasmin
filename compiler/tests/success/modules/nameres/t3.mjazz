@@ -4,23 +4,22 @@ module M1
  with
   param int n;
 {
- param int nn = n;
- fn f(reg ptr u64[nn] a) -> reg ptr u64[n]
- { return a; }
+  param int nn = n;
+  fn f(reg ptr u64[n] a) -> reg ptr u64[n]
+  { return a; }
 
 }
 
 module M2
- with
-  param int n;
+  with
+   param int c;
 {
-  module B = M1(2*n);
-  fn ff(reg ptr u64[n] a) -> reg ptr u64[n] {
-    a = B::f(a);
-    return a;
-  }
+   module B = M1(2*c);
+   fn ff(reg ptr u64[2*c] a) -> reg ptr u64[2*c] {
+     a = B::f(a);
+     return a;
+   }
 }
 
 module A2 = M2(n);
 module A4 = M1(2*n);
-
