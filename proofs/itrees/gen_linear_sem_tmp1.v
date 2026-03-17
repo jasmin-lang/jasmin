@@ -22,6 +22,7 @@ Require Import linearization_ext.
 Require Import it_cflow_sem it_effect_sem equiv_extras rutt_extras.
 
 From ITree Require Import Rutt RuttFacts.
+From ITree Require Import CategorySub.
 
 Import Memory.
 Require oseq.
@@ -271,6 +272,15 @@ Section LinSem.
 
 Context {E} {XE: ErrEvent -< E}.
 
+Definition aloop :=
+  @loop Type (ktree E) sum
+    (@Id_Kleisli (itree E) (@Monad_itree E))
+    (@Cat_Kleisli (itree E) (@Monad_itree E))
+    (@Case_Kleisli (itree E))
+    (@Inl_Kleisli (itree E) (@Monad_itree E))
+    (@Inr_Kleisli (itree E) (@Monad_itree E))
+    (@Iter_Kleisli (itree E) (@MonadIter_itree E)).
+
 
 Section AbsIterators.
 (***** ABSTRACT ITERATORS *)
@@ -280,14 +290,22 @@ Context {L: Type}.
     semantics. l0 is the linear code point being executed. used for
     Instrumented Function-Localised Linear Semantics. *)
 Definition ACntr (Bd: L -> itree E L) (NoExit: L -> option bool)
-  (l0: L) : itree E (L + L) :=
-  (* check whether the exit condition is satisfied *)
+  (pe: L + L) : itree E (L + L) :=
+  (* checks whether the exit condition is satisfied *)
+  let l0 := match pe with
+            | inl l => l
+            | inr l => l end in  
   match NoExit l0 with
   | Some b =>
     if b then l1 <- Bd l0 ;; Ret (inl l1)      
     else Ret (inr l0)
   | None => throw err
   end.
+
+(* iterates ACntr *)
+Definition ACntrI (Bd: L -> itree E L) (NoExit: L -> option bool) :
+  L -> itree E L :=
+  fun l0 => aloop (ACntr Bd NoExit) l0.
 
 (* 'abstract' semantics of linear instruction *)
 Definition ALSem (Sem: linstr_r -> L -> itree E L)
@@ -299,16 +317,16 @@ Definition ALSem (Sem: linstr_r -> L -> itree E L)
 
 (* generic iterator specialized to a semantics of instructions. used
    for Linear Core Semantics *)
-Definition SCntr (Sem: linstr_r -> L -> itree E L)
-  (NoExit: L -> option bool) (TryFnd: L -> option linstr)
-  (l0: L) : itree E (L + L) :=
-  ACntr (ALSem Sem TryFnd) NoExit l0.
+Definition SCntr
+  (Sem: linstr_r -> L -> itree E L) (TryFnd: L -> option linstr)
+  (NoExit: L -> option bool) (pe: L + L) : itree E (L + L) :=
+  ACntr (ALSem Sem TryFnd) NoExit pe.
          
-(* iterate SCntr *)
-Definition SCntrI (Sem: linstr_r -> L -> itree E L)
-  (NoExit: L -> option bool) (TryFnd: L -> option linstr)
-  (lp0: L) : itree E L :=
-  ITree.iter (@SCntr Sem NoExit TryFnd) lp0.
+(* iterates SCntr *)
+Definition SCntrI
+  (Sem: linstr_r -> L -> itree E L) (TryFnd: L -> option linstr)
+  (NoExit: L -> option bool) (l0: L) : itree E L :=
+  aloop (@SCntr Sem TryFnd NoExit) l0.
 
 End AbsIterators.
 
@@ -341,7 +359,8 @@ Definition find_linstr_in_fun (lp : lpoint) : option linstr :=
    nE are the start and end points in the fn linear code wrt to which
    execution is contextual. *)
 Definition LACntr (Bd: lpoint -> itree E lpoint)
-  (fn: funname) (nS nE: nat) (lp0: lpoint) : itree E (lpoint + lpoint) :=
+  (fn: funname) (nS nE: nat) :
+  (lpoint + lpoint) -> itree E (lpoint + lpoint) :=
   ACntr Bd
     (* exit condition: whenever either it jumps to another function,
        it gets out of range, or it makes a recursive call (n0 = 0).
@@ -349,39 +368,38 @@ Definition LACntr (Bd: lpoint -> itree E lpoint)
        0 is the entry point in every function. *)
     (fun '(fn0, n0) => 
        if (not_possible fn0 nE) then None
-       else Some ((fn == fn0) && (nS <= n0) && (n0 < nE) && (0 < n0)))
-    lp0.
+       else Some ((fn == fn0) && (nS <= n0) && (n0 < nE) && (0 < n0))).
 
-(* iterate LACntr *)
+(* iterates LACntr *)
 Definition LACntrI (Bd: lpoint -> itree E lpoint)
   (fn: funname) (nS nE: nat) (lp0: lpoint) : itree E lpoint :=
-  ITree.iter (@LACntr Bd fn nS nE) (fn, nS).
+  aloop (@LACntr Bd fn nS nE) lp0. (* (fn, nS). *)
 
 (* specialized version, using ALSem. used for Instrumented
     Function-Localised Linear Semantics. *)
 Definition LCntr (Sem: linstr_r -> lpoint -> itree E lpoint)
-  (fn: funname) (nS nE: nat) (lp0: lpoint) :
-  itree E (lpoint + lpoint) :=
-  LACntr (ALSem Sem find_linstr_in_fun) fn nS nE lp0.
+  (fn: funname) (nS nE: nat) :
+  (lpoint + lpoint) -> itree E (lpoint + lpoint) :=
+  LACntr (ALSem Sem find_linstr_in_fun) fn nS nE.
 
 (* iterate LCntr *)
 Definition LCntrI (Sem: linstr_r -> lpoint -> itree E lpoint)
   (fn: funname) (nS nE: nat) (lp0: lpoint) : itree E lpoint :=
-  ITree.iter (@LCntr Sem fn nS nE) (fn, nS).
+  aloop (@LCntr Sem fn nS nE) lp0. (* (fn, nS). *)
 
 
 (***** GLOBAL ITERATORS *)
 
 (* the 'global' iteration body for the Linear semantics. used for
    Instrumented Global Linear Semantics *)
-Definition GCntr (Sem: linstr_r -> lpoint -> itree E lpoint)
-  (lp0: lpoint) : itree E (lpoint + lpoint) :=
-  SCntr Sem halt_pred find_linstr_in_fun lp0.
+Definition GCntr (Sem: linstr_r -> lpoint -> itree E lpoint) :
+  (lpoint + lpoint) -> itree E (lpoint + lpoint) :=
+  SCntr Sem find_linstr_in_fun halt_pred.
 
 (* iterate GCntr *)
 Definition GCntrI (Sem: linstr_r -> lpoint -> itree E lpoint)
   (lp0: lpoint) : itree E lpoint :=
-  ITree.iter (@GCntr Sem) lp0.
+  aloop (@GCntr Sem) lp0.
 
 (* the core semantics of linear instructions, based on linstr_sem *)
 Definition isem_li_core (i : linstr_r) (s: LState) : itree E LState :=
@@ -406,13 +424,13 @@ Definition halt_state_pred (st: LState) : option bool :=
 (* LINEAR CORE SEMANTICS (with explicit state) *)
 (* iterative core semantics body, relying on Hlt (halting condition)
    and readPC (to find the next instruction from the state) *)
-Definition isem_lcmd_core_body (st: LState) :
-  itree E (LState + LState) :=
-  SCntr isem_li_core halt_state_pred state_find_linstr st.
+Definition isem_lcmd_core_body :
+  (LState + LState) -> itree E (LState + LState) :=
+  SCntr isem_li_core state_find_linstr halt_state_pred.
 
 (* iterative core semantics of a linear program, from any state *)
 Definition isem_lcmd_core (st: LState) : itree E LState :=
-  ITree.iter isem_lcmd_core_body st.
+  aloop isem_lcmd_core_body st.
 
 End CoreLinSem.
 
@@ -499,12 +517,12 @@ Definition isem_lcmd_seq_inl_flow (lc: lcmd) (l0: lpoint) :
 (***** INSTRUMENTED GLOBAL LINEAR SEMANTICS *)
 
 (* iterative flow semantics body *)
-Definition isem_lcmd_flow_body (lbl: lpoint) :
-  itree E (lpoint + lpoint) := GCntr isem_li_flow lbl.
+Definition isem_lcmd_flow_body :
+  (lpoint + lpoint) -> itree E (lpoint + lpoint) := GCntr isem_li_flow.
 
 (* iterative flow semantics of a linear program, from any starting point *)
 Definition isem_lcmd_flow (lp : lpoint) : itree E lpoint :=
-  ITree.iter isem_lcmd_flow_body lp.
+  aloop isem_lcmd_flow_body lp.
 
 (* iterative flow semantics of a linear function from its entry point
 *)
@@ -516,22 +534,26 @@ Definition isem_lfun_flow (fn: funname) : itree E lpoint :=
 
 (* note: the exit condition is the local one, defined in LACntr; so it
    covers all function calls (inclusive of recursive ones to fn) *)
-Definition isem_lfun_lfloc_body (fn: funname) (lp0: lpoint) :
-  itree E (lpoint + lpoint) :=
-  LCntr isem_li_flow fn 0 (code_length fn) lp0.
+Definition isem_lfun_lfloc_body (fn: funname) :
+  (lpoint + lpoint) -> itree E (lpoint + lpoint) :=
+  LCntr isem_li_flow fn 0 (code_length fn).
 
 (* iterates over all internal jumps *)
 Definition isem_lfun_lfloc (fn: funname) (lp0: lpoint) :
-  itree E lpoint := ITree.iter (isem_lfun_lfloc_body fn) lp0.
+  itree E lpoint := aloop (isem_lfun_lfloc_body fn) lp0.
+
+Definition llp2funname (pe: lpoint + lpoint) : funname :=
+  match pe with | inl l => fst l | inr l => fst l end.
 
 (* note: here the exit condition is the global one *)
-Definition isem_lfloc_body (lp0: lpoint) :
-  itree E (lpoint + lpoint) := let fn := fst lp0 in
-   ACntr (isem_lfun_lfloc fn) halt_pred lp0.                
+Definition isem_lfloc_body :
+  (lpoint + lpoint) -> itree E (lpoint + lpoint) :=
+  fun pe => let fn := llp2funname pe in
+      ACntr (isem_lfun_lfloc fn) halt_pred pe.                
 
 (* iterates on the function calls *)
 Definition isem_lfloc (lp0: lpoint) :
-  itree E lpoint := ITree.iter isem_lfloc_body lp0.
+  itree E lpoint := aloop isem_lfloc_body lp0.
                     
 End InstrumentedSem.
 
@@ -1009,54 +1031,13 @@ Proof.
   unfold lsem_fun_imedAL, lsem_fun_imedAF; simpl.
   eapply eqit_bind; eauto; try reflexivity.
   intros ltf.
-  
-  destruct ltf as [lbl0 plf lc1 lc2 n1 ltt] eqn:was_ltf.
-  set lsemAL := (lsem_fun_imed_auxAL _ _).
-  set lsemAF := (lsem_fun_imed_auxAF _ _).
-  clear was_ltf.
-  revert ltt.
-  revert n1.
-  revert lc1 lc2.
- (* 
-  set (Pt := fun pl0 pl1 (lt0: LTree fn pl0 pl1) =>
-               eutt eq (lsemAL fn (LTFun lc2 []
-               eutt eq (lsem_i_imedL lt0 (fn, fst pl0))
-                       (lsem_i_imedF lt0 (fn, fst pl0))). 
-  set (Ptl := fun pl0 pl1 (lts: LTreeList fn pl0 pl1) =>
-               eutt eq (lsem_cmd_imedL lts (fn, fst pl0))
-                       (lsem_cmd_imedF lts (fn, fst pl0))). 
-
-
-
-  simpl.
-  unfold LACntrI; simpl.
-  unfold LACntr; simpl.
-  rewrite unfold_iter; simpl.
-  eapply eqit_bind'; simpl.
-  unfold isem_lcmd_seq_flow.
-  unfold ACntr; simpl.
-*)
-(*  
-  set (Pltree := fun lt => forall pl0,
-      eutt eq (@lsem_i_imedAL isem_lcmd_seq_flow isem_li_aflow fn _ _ lt pl0)
-              (@lsem_i_imedAF isem_lcmd_seq_flow isem_li_aflow fn _ _ lt pl0)).
-
-  eapply LTreeList_mut; simpl.
-*)  
+  (* need an inductive proof with a different statement; see below *)
 Admitted. 
 
-Check  (@LTreeList_mut asm_op _).
-
-(* similar, for commands. but NOTE: this does not hold, need to add a
+(* similar, for commands. but NOTE: it would not hold without the
    top-level iteration on the left *)
-Lemma intemediate_local2intermediate_funglobal_lcmd0 {XS: stateE LState -< E}
-  (fn: funname) (plS plE: plinfo)
-  (lt : LTreeList fn plS plE) (pl0: lpoint) :
-  eutt eq (lsem_cmd_imedL lt pl0) (lsem_cmd_imedF lt pl0).
-Admitted.
-
-Lemma intemediate_local2intermediate_funglobal_lcmd {XS: stateE LState -< E}
-  (fn: funname) (plS plE: plinfo)
+Lemma intemediate_local2intermediate_funglobal_lcmd_aux
+  {XS: stateE LState -< E} (fn: funname) (plS plE: plinfo)
   (lt : LTreeList fn plS plE) (lp0: lpoint) :
   eutt eq (lsem_cmd_imedL lt lp0)
           (LACntrI (lsem_cmd_imedF lt) fn (fst plS) (fst plE) lp0).
@@ -1097,6 +1078,7 @@ Proof.
     unfold Ptl in *.
     unfold LACntrI; simpl.
     destruct lp0 eqn: was_lp0; simpl.
+    destruct pl1 eqn: was_pl1; simpl.
     (* here unfolding the top iter does not make sense, because on the
        left threre is an inner iter while on the right there is
        none. Indeed, we've got an induction hypothesis that does the
@@ -1104,17 +1086,82 @@ Proof.
        unfold the iter, leading to a mismatch). However, in order to
        apply the induction hyp without unfolding, we need some lemmas,
        and in particular one that is very similar to
-       'loop_asm_correct'; however, this lemma is proved for loop. We
-       would need something for iter, and even more specifically for
-       LCntrI. But then it seems perhaps more convenient to try
-       encoding LCntrI as a loop. *)
+       'loop_asm_correct'; for this reason, we rely on encoding LCntrI
+       as a loop. *)
     unfold lsem_cmd_imedL in H; simpl in *.
     unfold lsem_cmd_imedF in H; simpl in *.
     unfold lsem_cmd_imedAL in H; simpl in *.
     unfold lsem_cmd_imedAF in H; simpl in *.
-    unfold LACntr; simpl.
 
+    (* purely local *)
+    set PL := (fun (lc: LTreeList fn (incrP1 (n, l)) (n1, l0))
+                    (lpA: lpoint) =>
+          if lpA.1 == fn
+          then
+           if LIf1Node_ok la_cond1 la_lbl1
+           then
+            if (lpA.2 == n) || (lpA.2 == n1)
+            then isem_li_aflow lpA
+            else
+             if in_btw n.+1 n1 lpA.2
+             then
+              lsem_cmd_imedA in_btw
+                (fun (Bd : lpoint -> itree (LCall +' E) lpoint)
+                     (fn0 : funname) (nS nE : nat) (lp1 : lpoint) =>
+                   aloop (LACntr Bd fn0 nS nE) lp1)
+                      Bind_cmb isem_lcmd_seq_flow isem_li_aflow lcm1 lpA
+             else throw err
+           else throw err
+          else throw err).
 
+    (* with a partially pushed out iter *)
+    set PO := (fun (lc: LTreeList fn (incrP1 (n, l)) (n1, l0))
+                   (lpA: lpoint) =>
+          if lpA.1 == fn
+          then
+           if LIf1Node_ok la_cond1 la_lbl1
+           then
+            if (lpA.2 == n) || (lpA.2 == n1)
+            then isem_li_aflow lpA
+            else
+             if in_btw n.+1 n1 lpA.2
+             then aloop (fun (peA: lpoint + lpoint) =>
+               let lpD := match peA with inl x => x | inr x => x end in
+                     (lpC <- lsem_cmd_imedA in_btw
+                             (fun (f0 : lpoint -> itree (LCall +' E) lpoint)
+                                  (_ : funname) (_ _ : nat) => f0)
+                             Switch_cmb isem_lcmd_seq_flow
+                             isem_li_aflow lcm1 lpD ;;
+                      Ret (inl lpC))) lpA  
+             else throw err    
+           else throw err
+          else throw err).
+
+    (* induction hyp needed *)
+    assert (forall (lpA: lpoint), 
+               eutt eq (PL lcm1 lpA) (PO lcm1 lpA)) as W1.
+    { subst PL PO; simpl.
+      intros lpA.
+      destruct lpA eqn:was_lpA; simpl.
+      destruct (f0 == fn) eqn:was_e1; simpl; try reflexivity.
+      destruct (LIf1Node_ok la_cond1 la_lbl1); try reflexivity; simpl.
+      destruct ((n2 == n) || (n2 == n1)); try reflexivity; simpl.
+      destruct (in_btw n.+1 n1 n2); try reflexivity; simpl.
+      unfold LACntrI in H; simpl in *.
+      rewrite H.
+      unfold aloop.
+      unfold loop.
+      unfold CategoryOps.cat, CategoryOps.iter; simpl.
+      unfold inr_; simpl.
+      rewrite bind_ret_l; simpl.
+      unfold Iter_Kleisli; simpl.
+      unfold Basics.iter; simpl.
+      unfold MonadIter_itree; simpl.
+      rewrite bind_ret_l; simpl.
+      unfold LACntr; simpl.
+      unfold ACntr; simpl.
+
+      
 (* (* mock-proof, by unfolding iter *)    
     eapply eutt_iter.
     intros lp1.
@@ -1341,7 +1388,7 @@ End LinSemContext.
 End Asm1.
 
 
-(* LEGACY - NOT USED 
+(* NOT USED 
 (* intermediate semantics of instructions.
      LC -> isem_lcmd_seq_flow (isem_lcmd_acore could also do).  
      LSI -> isem_li_aflow *)
