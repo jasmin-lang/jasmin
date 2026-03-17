@@ -3,6 +3,8 @@ From Coq Require Import Utf8.
 Require Import seq_extra.
 Require Export expr.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Lemma var_i_surj x :
   x = {| v_var := v_var x; v_info := v_info x; |}.
 Proof. by move: x => []. Qed.

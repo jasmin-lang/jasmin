@@ -6,6 +6,8 @@ Require Import xseq.
 Require Import compiler_util expr psem remove_globals low_memory.
 Import Utf8.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Definition gd_incl (gd1 gd2: glob_decls) :=
   forall g v, get_global gd1 g = ok v -> get_global gd2 g = ok v.
 

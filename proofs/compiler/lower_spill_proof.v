@@ -4,6 +4,8 @@ Require Import psem compiler_util.
 Require Import pseudo_operator sopn lower_spill.
 Import Utf8 Uint63.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Local Open Scope seq_scope.
 
 Section WITH_PARAMS.

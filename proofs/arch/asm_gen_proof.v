@@ -21,6 +21,8 @@ Require Export asm_gen.
 Import Utf8.
 Import oseq.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Section ASM_EXTRA.
 
 #[local] Existing Instance withsubword.

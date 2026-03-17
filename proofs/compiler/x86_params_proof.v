@@ -38,6 +38,8 @@ Require Import
   x86_stack_zeroization_proof.
 Require Export x86_params.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 #[local] Existing Instance withsubword.
 #[local] Existing Instance direct_c.
 

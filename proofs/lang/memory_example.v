@@ -32,6 +32,8 @@ Import memory_model.
 Import GRing.Theory.
 Import ssrring.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Local Open Scope Z_scope.
 
 Lemma orX (a b: bool) (P: Prop) :

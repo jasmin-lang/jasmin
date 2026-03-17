@@ -9,6 +9,8 @@ Import psem.
 Import merge_varmaps.
 Import compiler_util.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 #[local] Existing Instance withsubword.
 #[local] Existing Instance direct_c.
 

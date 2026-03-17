@@ -23,6 +23,8 @@ Require Import
   arm_instr_decl_lemmas
   arm_lowering.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Lemma chk_ws_regP {A ws a} {oa : option A} :
   (let%opt _ := chk_ws_reg ws in oa) = Some a
   -> ws = reg_size /\ oa = Some a.

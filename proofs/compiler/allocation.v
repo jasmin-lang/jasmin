@@ -5,6 +5,8 @@ From Coq Require Import ZArith.
 Require Import expr compiler_util.
 Import Utf8.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Module E.
 
 Definition pass_name := "allocation"%string.

@@ -15,6 +15,8 @@ Import word_ssrZ.
 Import GRing.Theory Num.Theory Order.POrderTheory Order.TotalTheory.
 Import ssrnat.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Local Open Scope Z_scope.
 
 (* -------------------------------------------------------------- *)
