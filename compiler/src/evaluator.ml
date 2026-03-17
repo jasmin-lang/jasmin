@@ -1,5 +1,5 @@
 open BinNums
-open Utils0 
+open Utils0
 open Type
 open Sem_type
 open Warray_
@@ -10,8 +10,8 @@ open Expr
 open Psem_defs
 open Values
 open Sem_params
-         
-exception Eval_error of instr_info * Utils0.error 
+
+exception Eval_error of instr_info * Utils0.error
 
 let pp_error fmt err =
   Format.fprintf fmt "%s" @@
@@ -25,21 +25,21 @@ let pp_error fmt err =
   | ErrSemUndef -> "undefined semantics"
   | ErrAssert _ -> "assertion violation"
 
-let exn_exec (ii:instr_info) (r: 't exec) = 
+let exn_exec (ii:instr_info) (r: 't exec) =
   match r with
   | Ok r -> r
   | Error e -> raise (Eval_error(ii, e))
 
-let of_val_z ii v : coq_Z = 
+let of_val_z ii v : coq_Z =
   Obj.magic (exn_exec ii (of_val Coq_cint v))
 
-let of_val_b ii v : bool = 
+let of_val_b ii v : bool =
   Obj.magic (exn_exec ii (of_val Coq_cbool v))
 
 (* ----------------------------------------------------------------- *)
-type 'asm stack = 
+type 'asm stack =
   | Sempty of instr_info * 'asm fundef
-  | Scall of 
+  | Scall of
       instr_info * 'asm fundef * lval list * Vm.t * 'asm instr list * 'asm stack
   | Sfor of instr_info * var_i * coq_Z list * 'asm instr list * 'asm instr list * 'asm stack
 
@@ -58,19 +58,19 @@ let return ep spp s =
   | Sempty(ii, f) ->
     let s2 = s.s_estate in
     let m2 = s2.emem and vm2 = s2.evm in
-    let vres = 
+    let vres =
       exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword true vm2 x.v_var) f.f_res) in
     let vres' = exn_exec ii (mapM2 ErrType truncate_val (List.map Type.eval_atype f.f_tyout) vres) in
     raise (Final(m2, vres'))
-    
+
   | Scall(ii,f,xs,vm1,c,stk) ->
     let gd = s.s_prog.p_globs in
     let {escs = scs2; emem = m2; evm = vm2} = s.s_estate in
-    let vres = 
+    let vres =
       exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword true vm2 x.v_var) f.f_res) in
     let vres' = exn_exec ii (mapM2 ErrType truncate_val (List.map Type.eval_atype f.f_tyout) vres) in
     let s1 = exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs2; emem = m2; evm = vm1 } xs vres') in
-    { s with 
+    { s with
       s_cmd = c;
       s_estate = s1;
       s_stk = stk }
@@ -128,20 +128,20 @@ let small_step1 ep spp sip s =
       let s =
         {s with s_cmd = []; s_stk = Sfor(ii, i, rng, body, c, s.s_stk) } in
       return ep spp s
- 
+
     | Cwhile (_, c1, e, _, c2) ->
       { s with s_cmd = c1 @ MkI(ii, Cif(e, c2@[i],[])) :: c }
 
     | Ccall(xs,fn,es) ->
       let vargs' = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
-      let f = 
+      let f =
         match get_fundef s.s_prog.p_funcs fn with
         | Some f -> f
         | None -> assert false in
       let vargs = exn_exec ii (mapM2 ErrType truncate_val (List.map eval_atype f.f_tyin) vargs') in
       let {escs; emem = m1; evm = vm1}  = s1 in
       let stk = Scall(ii,f, xs, vm1, c, s.s_stk) in
-      let sf = 
+      let sf =
         exn_exec ii (write_vars nosubword ep true f.f_params vargs {escs; emem = m1; evm = Vm.init nosubword}) in
       {s with s_cmd = f.f_body;
               s_estate = sf;
@@ -162,7 +162,7 @@ let init_state ep scs0 p ii fn args m =
 let exec ep spp sip scs0 p ii fn args m =
   let s = init_state ep scs0 p ii fn args m in
   try small_step ep spp sip s
-  with Final(m,vs) -> m, vs 
+  with Final(m,vs) -> m, vs
 
 (* ----------------------------------------------------------- *)
 let initial_memory reg_size rsp alloc =
@@ -208,19 +208,19 @@ let pp_undef fmt cty =
     PrintCommon.pp_btype fmt bty
   in
   Format.fprintf fmt "undef<%a>" pp_ctype cty
- 
-let pp_word fmt ws w = 
+
+let pp_word fmt ws w =
   let z = Word0.wunsigned ws w in
   let z = Conv.z_of_cz z in
   Printer.pp_print_X fmt z
-  
-let pp_val fmt v = 
+
+let pp_val fmt v =
   match v with
   | Vbool b -> Format.fprintf fmt "%b" b
   | Vint z  -> Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_cz z)
   | Varr(p,t) ->
     let ip = Conv.int_of_pos p in
-    let pp_res fmt = function 
+    let pp_res fmt = function
       | Ok w               -> pp_word fmt U8 w
       | Error ErrAddrUndef -> pp_undef fmt (Coq_cword U8)
       | Error _            -> assert false in
@@ -229,16 +229,8 @@ let pp_val fmt v =
       let i = Conv.cz_of_int i in
       Format.fprintf fmt "%a;@ " pp_res (WArray.get p Aligned AAscale U8 t i);
     done;
-    if 0 < ip then 
+    if 0 < ip then
       pp_res fmt (WArray.get p Aligned AAscale U8 t (Conv.cz_of_int (ip-1)));
     Format.fprintf fmt "]@]";
   | Vword(ws, w) -> pp_word fmt ws w
   | Vundef ty -> pp_undef fmt ty
-
-
- 
-
-      
-
-
-
