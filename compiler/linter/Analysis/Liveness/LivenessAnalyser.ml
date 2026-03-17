@@ -78,7 +78,7 @@ module LivenessDomain : BackwardAnalyser.Logic with type domain = Sv.t = struct
       Annotation (live_assigns domain lvs exprs)
 
   let assertion _loc _msg e domain =
-    Annotation (Sv.union domain (Prog.vars_e e))
+    Annotation (Sv.union domain (Prog.vars_a e))
 
 end
 

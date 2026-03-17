@@ -208,6 +208,11 @@ Definition type_of_opN (op: opN) : seq atype * atype :=
   | Ocombine_flags c => (tin_combine_flags, abool)
   end.
 
+Definition type_of_opN_safety (op: opN_safety) : seq atype * atype :=
+  (match op with
+   | Ois_arr_init len | Ois_barr_init len => [:: aarr U8 len; aint; aint]
+   end, abool).
+
 (* ** Expressions
  * -------------------------------------------------------------------- *)
 (* Used only by the ocaml compiler *)
@@ -240,7 +245,7 @@ Notation vid ident :=
   (mk_var_i {| vtype := aword Uptr; vname := ident%string; |}).
 
 #[only(eqbOK)] derive
-Variant v_scope := 
+Variant v_scope :=
   | Slocal
   | Sglob.
 
@@ -268,6 +273,15 @@ Inductive pexpr : Type :=
 | Pif    : atype -> pexpr -> pexpr -> pexpr -> pexpr.
 
 Notation pexprs := (seq pexpr).
+
+Local Set Elimination Schemes.
+
+Inductive eassert : Type :=
+| Pexpr : pexpr → eassert
+| PappN_safety : opN_safety → seq pexpr -> eassert
+| Pis_var_init : var_i → eassert
+| Pis_mem_init : pexpr → pexpr → eassert
+| Pand : eassert → eassert → eassert.
 
 Definition Plvar x : pexpr := Pvar (mk_lvar x).
 
@@ -386,7 +400,7 @@ HB.instance Definition _ := hasDecEq.Build align align.eqb_OK.
 
 (* -------------------------------------------------------------------- *)
 
-Definition assertion := (assertion_label * pexpr)%type.
+Definition assertion := (assertion_label * eassert)%type.
 Definition assertions := seq assertion.
 
 (* -------------------------------------------------------------------- *)
@@ -903,12 +917,23 @@ Definition read_rv := read_rv_rec Sv.empty.
 Definition read_rvs_rec := foldl read_rv_rec.
 Definition read_rvs := read_rvs_rec Sv.empty.
 
+Fixpoint read_eassert_rec (s:Sv.t) (e:eassert) :=
+  match e with
+  | Pexpr e => read_e_rec s e
+  | PappN_safety _ es => read_es_rec s es
+  | Pis_var_init x => Sv.add x s
+  | Pis_mem_init e1 e2 => read_e_rec (read_e_rec s e2) e1
+  | Pand e1 e2 => read_eassert_rec (read_eassert_rec s e2) e1
+  end.
+
+Definition read_eassert := read_eassert_rec Sv.empty.
+
 Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   match i with
   | Cassgn x _ _ e => read_rv_rec (read_e_rec s e) x
   | Copn xs _ _ es => read_es_rec (read_rvs_rec s xs) es
   | Csyscall xs _ es => read_es_rec (read_rvs_rec s xs) es
-  | Cassert a => read_e_rec s a.2
+  | Cassert a => read_eassert_rec s a.2
   | Cif b c1 c2 =>
     let s := foldl read_I_rec s c1 in
     let s := foldl read_I_rec s c2 in
@@ -996,6 +1021,16 @@ Definition eq_lval (x x': lval) : bool :=
   | _, _ => false
   end.
 
+Fixpoint eq_eassert (e e' : eassert) : bool :=
+  match e, e' with
+  | Pexpr e, Pexpr e' => eq_expr e e'
+  | PappN_safety o es, PappN_safety o' es' => (o == o') && all2 eq_expr es es'
+  | Pis_var_init x, Pis_var_init x' => v_var x == v_var x'
+  | Pis_mem_init e1 e2, Pis_mem_init e1' e2' => eq_expr e1 e1' && eq_expr e2 e2'
+  | Pand e1 e2, Pand e1' e2' => eq_eassert e1 e1' && eq_eassert e2 e2'
+  | _, _ => false
+  end.
+
 (* --------------------------------------------------------------------- *)
 (* Test the equality of two instructions modulo variable & instr info    *)
 
@@ -1011,7 +1046,7 @@ Fixpoint eq_instr_r (i1 i2:instr_r) :=
      all2 eq_lval x1 x2 && (tag1 == tag2) && (o1 == o2) && all2 eq_expr e1 e2
   | Csyscall xs1 o1 es1, Csyscall xs2 o2 es2 =>
      all2 eq_lval xs1 xs2 && (o1 == o2) && all2 eq_expr es1 es2
-  | Cassert a1, Cassert a2 => (a1.1 == a2.1) && eq_expr a1.2 a2.2
+  | Cassert a1, Cassert a2 => (a1.1 == a2.1) && eq_eassert a1.2 a2.2
   | Cif e1 c11 c12, Cif e2 c21 c22 =>
     eq_expr e1 e2 && all2 eq_instr c11 c21 && all2 eq_instr c12 c22
   | Cfor i1 (dir1,lo1,hi1) c1, Cfor i2 (dir2,lo2,hi2) c2 =>

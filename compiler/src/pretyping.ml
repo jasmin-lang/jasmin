@@ -269,7 +269,7 @@ module Env : sig
   module Vars : sig
     val push_global   : 'asm env -> (P.pvar * P.epty * P.pexpr_ P.ggexpr ) -> 'asm env
     val push_param    : 'asm env -> (P.pvar * P.epty * P.pexpr) -> 'asm env
-    val push_local    : 'asm env -> P.pvar * P.epty -> 'asm env
+    val push_local    : ?warn:bool -> 'asm env -> P.pvar * P.epty -> 'asm env
     val push_implicit : 'asm env -> P.pvar * P.epty -> 'asm env
 
     val find : A.symbol -> 'asm env -> (P.pvar * P.epty * E.v_scope) option
@@ -468,9 +468,9 @@ end  = struct
       | exception Not_found -> ()
       | v' -> warn_duplicate_var name (v, (), ()) v'
 
-    let push_core (env : 'asm env) (name: P.Name.t) (v : P.pvar) (ty: P.epty) (s : E.v_scope)  =
+    let push_core ?(warn=true) (env : 'asm env) (name: P.Name.t) (v : P.pvar) (ty: P.epty) (s : E.v_scope)  =
       let doit m =
-        warn_double_decl name v m.gb_vars;
+        if warn then warn_double_decl name v m.gb_vars;
         { m with gb_vars = Map.add name (v, ty, s) m.gb_vars }
       in
       let e_bindings =
@@ -496,9 +496,9 @@ end  = struct
       let env = push_core env name x ty Slocal in
       { env with e_decls = P.MIparam (x, e) :: env.e_decls }
 
-    let push_local (env : 'asm env) ((v,ty) : P.pvar * P.epty) =
+    let push_local ?(warn=true) (env : 'asm env) ((v,ty) : P.pvar * P.epty) =
       env.e_declared := P.Spv.add v !(env.e_declared);
-      push_core env v.P.v_name v ty Slocal
+      push_core ~warn env v.P.v_name v ty Slocal
 
     let push_implicit (env : 'asm env) ((v,ty) : P.pvar * P.epty) =
       let vars = match env.e_bindings with (_, b) :: _, _ | [], b -> b.gb_vars in
@@ -1471,10 +1471,10 @@ let tt_vardecl dfl_writable pd (env : 'asm Env.env) ((annot, (sto, xty)), x) =
   L.mk_loc xlc (x, xety)
 
 (* -------------------------------------------------------------------- *)
-let tt_vardecls_push dfl_writable pd (env : 'asm Env.env) pxs =
+let tt_vardecls_push ?(warn=true) dfl_writable pd (env : 'asm Env.env) pxs =
   let xs  = List.map (tt_vardecl dfl_writable pd env) pxs in
   let env =
-    List.fold_left (fun env x -> Env.Vars.push_local env (L.unloc x)) env xs in
+    List.fold_left (fun env x -> Env.Vars.push_local ~warn env (L.unloc x)) env xs in
   (env, xs)
 
 (* -------------------------------------------------------------------- *)
@@ -1968,10 +1968,66 @@ let assign_from_decl decl =
   let d = L.mk_loc (L.loc decl) (S.PLVar v) in
   (None, [d]), `Raw, e, None
 
-let tt_annot_paramdecls dfl_writable pd env (annot, (ty,vs)) =
+let tt_annot_paramdecls ?(warn=true) dfl_writable pd env (annot, (ty,vs)) =
   let aty = pannot_to_annotations annot, ty in
   let vars = List.map (fun v -> aty, v) vs in
-  tt_vardecls_push dfl_writable pd env vars
+  tt_vardecls_push ~warn dfl_writable pd env vars
+
+(* -------------------------------------------------------------------- *)
+(* Specific operators that can be used only in assertions *)
+
+let create_is_mem_init pd loc args =
+  if List.length args == 2 then
+    let (e1,t1), (e2,t2) = List.at args 0, List.at args 1 in
+    let _ = check_ty_eq ~loc ~from:t1 ~to_:(P.etw pd) in
+    let e2 = cast_int loc None e2 t2 in
+    P.Pis_mem_init (e1,e2)
+  else
+    rs_tyerror ~loc (InvalidArgCount(2, List.length args))
+
+let create_is_arr_init _pd loc args =
+  if List.length args == 3 then
+    let (e1,t1), (e2,t2), (e3,t3) = List.at args 0, List.at args 1, List.at args 2 in
+    let _ = match t1 with
+      | P.ETarr _ -> ()
+      | _ -> rs_tyerror ~loc (InvalidArrayType (t1))
+    in
+    let e2 = cast_int loc None e2 t2 in
+    let e3 = cast_int loc None e3 t3 in
+    (* The size will be fixed later *)
+    P.PappN_safety (Ois_arr_init (Conv.pos_of_int 1) , [ e1; e2; e3])
+  else
+    rs_tyerror ~loc (InvalidArgCount(3, List.length args))
+
+let create_is_var_init _pd loc args =
+  if List.length args == 1 then
+    let (e, _t) = List.at args 0 in
+    let var_e = match e with
+      | P.Pvar v -> v.gv
+      | _ -> rs_tyerror ~loc (string_error "is_var_init expects a variable as an argument")
+    in
+    P.Pis_var_init (var_e)
+  else
+    rs_tyerror ~loc (InvalidArgCount(1, List.length args))
+
+let safety_map = Map.of_seq @@ List.to_seq [
+  ("is_mem_init",create_is_mem_init);
+  ("is_arr_init",create_is_arr_init);
+  ("is_var_init",create_is_var_init);
+]
+
+let rec tt_assert pd env pe =
+  match L.unloc pe with
+  | S.PEParens pe ->
+    tt_assert pd env pe
+  | S.PECall (id,args) when Map.mem (L.unloc id) safety_map ->
+    let pa_name = L.unloc id in
+    let args = List.map (tt_expr pd env) args in
+    let create_pred = Map.find pa_name safety_map in
+    create_pred pd (L.loc id) args
+  | S.PEOp2 (`And, (pe1, pe2)) ->
+    P.Pand (tt_assert pd env pe1, tt_assert pd env pe2)
+  | _ -> P.Pexpr (tt_expr_bool pd env pe)
 
 let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
   let annot = pannot_to_annotations pannot in
@@ -2169,7 +2225,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
   | S.PIAssign (ls, eqop, pe, ocp) -> env, tt_assign env env ls eqop pe ocp
 
   | PIAssert (msg, pe) ->
-     let e  = tt_expr_bool arch_info.pd env pe in
+     let e  = tt_assert arch_info.pd env pe in
      env, [mk_i (P.Cassert (L.unloc msg, e))]
 
   | PIIf (cp, st, sf) ->
@@ -2315,6 +2371,148 @@ let warn_unused_variables env f =
      warning UnusedVar (L.i_loc0 x.v_dloc) "unused variable %a" pp_var x)
     env
 
+(* -------------------------------------------------------------------- *)
+let tt_contract arch_info env0 f_ret dfl_mut pf =
+  let safety, annot =
+    List.partition (fun (id, _) -> String.equal "safety" (L.unloc id)) pf.S.pdf_annot
+  in
+
+  let f_contract =
+    match safety with
+    | [] -> None
+    | _ :: (id, _) :: _ ->
+        rs_tyerror ~loc:(L.loc id)
+          (string_error "only one safety annotation is expected")
+    | [ (id, pa) ] ->
+        let requires = ref [] in
+        let ensures = ref [] in
+        let input = ref None in
+        let output = ref None in
+
+        let add_cond loc s r pa =
+          match pa with
+          | None ->
+              rs_tyerror ~loc
+                (string_error "“= expression” is expected after %s" s)
+          | Some pa -> (
+              match L.unloc pa with
+              | S.PAexpr e -> r := e :: !r
+              | _ ->
+                  rs_tyerror ~loc
+                    (string_error "an expression is expected after %s =" s))
+        in
+
+        let add_vars loc nvars s r pa =
+          match pa with
+          | None ->
+              rs_tyerror ~loc
+                (string_error "“= { vars }” is expected after %s" s)
+          | Some pa -> (
+              match L.unloc pa with
+              | S.PAstruct str ->
+                  if !r <> None then
+                    rs_tyerror ~loc:(L.loc pa)
+                      (string_error "%s already defined" s);
+                  let process_var (id, pa) =
+                    if pa <> None then
+                      rs_tyerror ~loc:(L.loc id)
+                        (string_error "no argument is expected");
+                    id
+                  in
+                  let l = List.map process_var str in
+                  let nl = List.length l in
+                  if nl <> nvars then
+                    rs_tyerror ~loc:(L.loc pa)
+                      (string_error "got %i variables instead of %i" nl nvars);
+                  r := Some (List.map process_var str)
+              | _ ->
+                  rs_tyerror ~loc:(L.loc pa)
+                    (string_error "“{ vars }” is expected after %s =" s))
+        in
+
+        let error loc =
+          rs_tyerror ~loc
+            (string_error
+               "the general syntax is : safety = { args = { IDENT*}, res = { \
+                IDENT* }, requires = EXPR, ensures = EXPR }")
+        in
+        let pdf_args =
+          List.flatten
+            (List.map
+               (fun (a, (ty, ids)) ->
+                 List.map (fun id -> (a, (ty, [ id ]))) ids)
+               pf.pdf_args)
+        in
+        let pdf_rty = Option.default [] pf.pdf_rty in
+        let process_fields =
+          List.iter (fun (id, pa) ->
+              let loc = L.loc id in
+              let s = L.unloc id in
+              match s with
+              | "requires" -> add_cond loc s requires pa
+              | "ensures" -> add_cond loc s ensures pa
+              | "args" -> add_vars loc (List.length pdf_args) s input pa
+              | "res" -> add_vars loc (List.length pdf_rty) s output pa
+              | _ -> error loc)
+        in
+
+        begin match pa with
+        | Some pa -> begin
+            match L.unloc pa with
+            | S.PAstruct fields -> process_fields fields
+            | _ -> error (L.loc pa)
+          end
+        | None -> error (L.loc id)
+        end;
+
+        let pre, post = (List.rev !requires, List.rev !ensures) in
+
+        let aux_env = Env.Vars.clear_locals env0 in
+        let env_pre, f_iparams =
+          let args =
+            match !input with
+            | None -> pdf_args
+            | Some ids ->
+                List.map2 (fun (a, (s, _)) id -> (a, (s, [ id ]))) pdf_args ids
+          in
+          List.map_fold (tt_annot_paramdecls dfl_mut arch_info.pd) aux_env args
+        in
+        let f_iparams = List.flatten f_iparams in
+        let f_iparams =
+          List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) f_iparams
+        in
+        let get_clause env l =
+          List.map (fun e -> ("safety", tt_assert arch_info.pd env e)) l
+        in
+        let f_pre = get_clause env_pre pre in
+
+        let env_post, f_ires =
+          let outputs =
+            match !output with
+            | None ->
+                List.map
+                  (fun x -> L.mk_loc (L.loc x) (L.unloc x).P.v_name)
+                  f_ret
+            | Some ids -> ids
+          in
+          let outputs =
+            List.map2 (fun (a, ty) id -> (a, (ty, [ id ]))) pdf_rty outputs
+          in
+          List.map_fold
+            (tt_annot_paramdecls ~warn:false dfl_mut arch_info.pd)
+            env_pre outputs
+        in
+        let f_ires = List.flatten f_ires in
+        let f_ires =
+          List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) f_ires
+        in
+        let f_post = get_clause env_post post in
+
+        Some { P.f_iparams; f_ires; f_pre; f_post }
+  in
+  (annot, f_contract)
+
+(* -------------------------------------------------------------------- *)
 let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env =
   let env = Env.Vars.clear_locals env0 in
   if is_combine_flags pf.pdf_name then
@@ -2334,11 +2532,12 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
   let fs_tin = List.map (fun x -> snd (L.unloc x)) args in
   let f_ret = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) xret in
   let f_cc = tt_call_conv loc f_args f_ret pf.pdf_cc in
+  let annot, f_contract = tt_contract arch_info env0 f_ret dfl_mut pf in
   let name = L.unloc pf.pdf_name in
   let fdef =
     { P.f_loc   = loc;
-      P.f_annot = process_f_annot loc name f_cc pf.pdf_annot;
-      P.f_contract = None; (* FIXME once all operators/expr are added *)
+      P.f_annot = process_f_annot loc name f_cc annot;
+      P.f_contract;
       P.f_cc    = f_cc;
       P.f_info  = ();
       P.f_name  = P.F.mk name;

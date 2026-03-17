@@ -258,7 +258,7 @@ Proof.
       (Pr := fun i => forall ii, eq_instr (MkI ii i) (extend_iinfo_i extend_iinfo info (MkI ii i)))
       (Pc := fun c => eq_cmd c (extend_iinfo_cmd extend_iinfo info c))) => // {c};
     move=> * /=;
-    rewrite ?eqxx ?eq_expr_refl ?eq_lval_refl ?(all2_refl eq_expr_refl) ?(all2_refl eq_lval_refl) //=;
+    rewrite ?eqxx ?eq_expr_refl ?eq_eassert_refl ?eq_lval_refl ?(all2_refl eq_expr_refl) ?(all2_refl eq_lval_refl) //=;
     repeat (apply /andP; split=> //).
 Qed.
 

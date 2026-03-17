@@ -109,6 +109,33 @@ and eq_pexpr x y =
 and eq_pexprs x y = List.for_all2 eq_pexpr x y
 and eq_pexpr_ (PE x) (PE y) = eq_pexpr x y
 
+let rec push_and (e: pexpr) : pexpr_ gassert =
+  match e with
+  | Papp2 (Operators.Oand, e1, e2) ->
+    Pand (push_and e1, push_and e2)
+  | _ -> Pexpr e
+
+let rec push_and_a (e : pexpr_ gassert) : pexpr_ gassert =
+  match e with
+  | Pexpr e -> push_and e
+  | Pand (e1, e2) -> Pand(push_and_a e1, push_and_a e2)
+  | _ -> e
+
+let rec eq_gassert e1 e2 =
+  match e1, e2 with
+  | Pexpr e1, Pexpr e2 -> eq_pexpr e1 e2
+  | PappN_safety(o1, es1), PappN_safety(o2, es2) -> o1 = o2 && eq_pexprs es1 es2
+  | Pis_var_init x1, Pis_var_init x2 -> eq_pvar_i x1 x2
+  | Pis_mem_init (e1, e1'), Pis_mem_init(e2, e2') -> eq_pexprs [e1; e1'] [e2; e2']
+  | Pand(e1, e1'), Pand(e2, e2') -> eq_gassert e1 e2 && eq_gassert e1' e2'
+  | (Pexpr _ | PappN_safety _ | Pis_var_init _ | Pis_mem_init _ | Pand _), _ -> false
+
+let eq_assertion (msg1, e1) (msg2, e2) =
+  msg1 = msg2 &&
+  let e1 = push_and_a e1 in
+  let e2 = push_and_a e2 in
+  eq_gassert e1 e2
+
 let eq_pgexpr x y =
   match (x, y) with
   | GEword a, GEword b -> eq_pexpr a b
@@ -130,7 +157,7 @@ and eq_pinstr_r (x : _ pinstr_r) y =
       eq_plval a e && b = f && eq_pty c g && eq_pexpr d h
   | Copn (a, b, c, d), Copn (e, f, g, h) ->
       eq_plvals a e && b = f && c = g && eq_pexprs d h
-  | Cassert (a, b), Cassert (c, d) -> a = c && eq_pexpr b d
+  | Cassert (a, b), Cassert (c, d) -> eq_assertion (a, b) (c, d)
   | Csyscall (a, b, c), Csyscall (d, e, f) ->
       eq_plvals a d && b = e && eq_pexprs c f
   | Cif (a, b, c), Cif (d, e, f) -> eq_pexpr a d && eq_pstmt b e && eq_pstmt c f
@@ -155,6 +182,12 @@ let eq_f_annot x y =
   && x.stack_zero_strategy = y.stack_zero_strategy
   && eq_annotations x.f_user_annot y.f_user_annot
 
+let eq_contract x y =
+  List.for_all2 eq_pvar_i x.f_iparams y.f_iparams
+  && List.for_all2 eq_pvar_i x.f_ires y.f_ires
+  && List.for_all2 eq_assertion x.f_pre y.f_pre
+  && List.for_all2 eq_assertion x.f_post y.f_post
+
 let eq_pfunc x y =
   eq_f_annot x.f_annot y.f_annot
   && x.f_cc = y.f_cc
@@ -164,6 +197,7 @@ let eq_pfunc x y =
   && List.for_all2 eq_pty x.f_tyout y.f_tyout
   && List.for_all2 eq_annotations x.f_ret_info.ret_annot y.f_ret_info.ret_annot
   && List.for_all2 eq_pvar_i x.f_ret y.f_ret
+  && Option.eq ~eq:eq_contract x.f_contract y.f_contract
   && eq_pstmt x.f_body y.f_body
 
 let eq_pmod_item x y =

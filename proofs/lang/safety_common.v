@@ -7,7 +7,7 @@ Section DEFS.
 Context `{asmop:asmOp}.
 Context (m: var -> option (signedness * var)).
 
-Definition safety_cond := seq pexpr.
+Definition safety_cond := seq eassert.
 
 Definition esubtype (ty1 ty2 : extended_type positive) :=
  match ty1, ty2 with
@@ -26,6 +26,13 @@ Fixpoint eands es :=
   | [::] => etrue
   | [::e] => e
   | e::es => eand e (eands es)
+  end.
+
+Fixpoint aands es :=
+  match es with
+  | [::] => Pexpr etrue
+  | [::e] => e
+  | e::es => Pand e (aands es)
   end.
 
 Definition to_etype sg (t:atype) : extended_type positive:=

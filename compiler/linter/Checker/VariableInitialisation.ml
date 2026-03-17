@@ -46,6 +46,14 @@ let check_func fd =
         check_e m e
   in
   let check_lvs m = List.iter (check_lv m) in
+  let rec check_a m e =
+    match e with
+    | Pexpr e -> check_e m e
+    | PappN_safety(_, es) -> check_es m es
+    | Pis_var_init _ -> ()
+    | Pis_mem_init(e1, e2) -> check_es m [e1; e2]
+    | Pand(e1, e2) -> check_a m e1; check_a m e2 in
+
   let check_instr { i_desc; i_info; _ } =
     match i_desc with
     | Cassgn (x, _, _, e) ->
@@ -54,7 +62,7 @@ let check_func fd =
     | Copn (xs, _, _, es) | Csyscall (xs, _, es) | Ccall (xs, _, es) ->
         check_lvs i_info xs;
         check_es i_info es
-    | Cassert (_, e)
+    | Cassert (_, e) -> check_a i_info e
     | Cif (e, _, _) -> check_e i_info e
     | Cfor (_, (_, e1, e2), _) -> check_es i_info [ e1; e2 ]
     | Cwhile (_, _, e, (_, i), _) -> check_e i e

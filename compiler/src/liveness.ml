@@ -46,7 +46,7 @@ and live_d weak d (s_o: Sv.t) =
     s_i, s_o, Copn(xs,t,o,es)
 
   | Cassert (msg, e) ->
-     let s_i = Sv.union (vars_e e) s_o in
+     let s_i = Sv.union (vars_a e) s_o in
      s_i, s_o, Cassert (msg, e)
 
   | Cif(e,c1,c2) ->

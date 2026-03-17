@@ -84,6 +84,12 @@ Module WArray.
       | None   => false
       end.
 
+    Definition is_initb (m:array s) (i:pointer) :=
+      match Mz.get m.(arr_data) i with
+      | Some w => (w == wrepr U8 (-1))
+      | None   => false
+      end.
+
     Definition get8 (m:array s) (i:pointer) :=
       Let _ := assert (in_bound m i) ErrOob in
       Let _ := assert (is_init m i) ErrAddrUndef in

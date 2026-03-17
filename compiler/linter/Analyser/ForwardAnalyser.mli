@@ -145,7 +145,7 @@ module type Logic =
     val assertion :
       Jasmin.Location.i_loc ->
       string ->
-      Jasmin.Prog.expr ->
+      Jasmin.Prog.eassert ->
       domain -> domain Annotation.annotation
 
   end

@@ -32,6 +32,18 @@ let size_of_lval =
   | Lasub (_, ws, len, _, _) -> arr_size ws len
   | Lnone _ | Lmem _ | Laset _ -> assert false
 
+let rec fix_length_eassert e =
+  match e with
+  | Pexpr _ -> e
+  | PappN_safety (o, es) ->
+    let e = List.hd es in
+    let ty = Typing.type_of_expr e in
+    let len = Conv.pos_of_int (size_of ty) in
+    let o = match o with Ois_arr_init _ -> Operators.Ois_arr_init len | Ois_barr_init _ -> Ois_barr_init len in
+    PappN_safety(o, es)
+  | Pis_var_init _ | Pis_mem_init _ -> e
+  | Pand(e1, e2) -> Pand (fix_length_eassert e1, fix_length_eassert e2)
+
 let rec iac_stmt pd is = List.map (iac_instr pd) is
 and iac_instr pd i = { i with i_desc = iac_instr_r pd i.i_loc i.i_desc }
 and iac_instr_r pd loc ir =
@@ -104,11 +116,21 @@ and iac_instr_r pd loc ir =
       let ws, len = array_kind ty in
       Csyscall(xs, Syscall_t.RandomBytes (ws, Conv.pos_of_int len), es)
     end
+  | Cassert (msg, e) ->
+    Cassert (msg, fix_length_eassert e)
 
-  | Ccall _ | Cassert _ -> ir
+  | Ccall _ -> ir
+
+
+let fix_length_contract fc =
+  let doit = List.map (fun (msg, e) -> (msg, fix_length_eassert e)) in
+  {fc with
+    f_pre = doit fc.f_pre;
+    f_post = doit fc.f_post }
 
 let iac_func pd f =
-  { f with f_body = iac_stmt pd f.f_body }
+  { f with f_body = iac_stmt pd f.f_body;
+           f_contract = Option.map fix_length_contract f.f_contract}
 
 let doit pd (p:(unit, 'asm) Prog.prog) : (unit, 'asm) Prog.prog =
   (fst p, List.map (iac_func pd) (snd p))

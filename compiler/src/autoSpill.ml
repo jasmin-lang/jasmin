@@ -42,7 +42,7 @@ let vars_i = function
   | Cassgn (x, _, _, e) -> Sv.union (vars_lv x) (vars_e e)
   | Copn (xs, _, _, es) | Csyscall (xs, _, es) | Ccall (xs, _, es) ->
       List.fold Sv.union (vars_es es) (List.map vars_lv xs)
-  | Cassert (_, e) -> vars_e e
+  | Cassert (_, e) -> vars_a e
   | Cfor _ | Cif _ | Cwhile _ -> assert false
 
 let rec spill_all_i strategy i =

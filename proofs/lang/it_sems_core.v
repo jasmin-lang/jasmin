@@ -204,12 +204,6 @@ Definition sem_syscall (xs : lvals) (o : syscall_t) (es : pexprs)
 Definition sem_cond (gd : glob_decls) (e : pexpr) (s : estate) : exec bool :=
   (sem_pexpr true gd s e >>= to_bool)%result.
 
-Definition sem_assert (gd : glob_decls) (s : estate) (e : assertion) : exec unit :=
-  Let _ := assert (assert_allowed) ErrType in
-  Let b := sem_cond gd e.2 s in
-  Let _ := assert b (ErrAssert e.1) in
-  ok tt.
-
 Lemma sem_cond_sem_pexpr gd e s b :
   sem_cond gd e s = ok b -> sem_pexpr true gd s e = ok (Vbool b).
 Proof. rewrite /sem_cond /=; by t_xrbindP=> _ -> /to_boolI ->. Qed.

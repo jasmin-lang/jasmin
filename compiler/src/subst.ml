@@ -50,6 +50,16 @@ let gsubst_lval (flen: ?loc:L.t -> 'len1 -> 'len2) f lv =
 let gsubst_lvals flen f  = List.map (gsubst_lval flen f)
 let gsubst_es flen f = List.map (gsubst_e flen f)
 
+let rec gsubst_a flen f = function
+  | Pexpr e -> Pexpr (gsubst_e flen f e)
+  | PappN_safety (o, es) -> PappN_safety(o, gsubst_es flen f es)
+  | Pis_var_init x -> Pis_var_init (gsubst_vdest f x)
+  | Pis_mem_init (e1, e2) -> Pis_mem_init(gsubst_e flen f e1, gsubst_e flen f e2)
+  | Pand (e1, e2) -> Pand (gsubst_a flen f e1, gsubst_a flen f e2)
+
+let gsubst_as flen f = List.map (fun (msg,a) -> (msg, gsubst_a flen f a))
+
+
 let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
   let i_desc =
     match i.i_desc with
@@ -60,7 +70,7 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
       Cassgn(x, tg, ty, e)
     | Copn(x,t,o,e)   -> Copn(gsubst_lvals flen f x, t, o, gsubst_es flen f e)
     | Csyscall(x,o,e)   -> Csyscall(gsubst_lvals flen f x, o, gsubst_es flen f e)
-    | Cassert (msg, e)  -> Cassert (msg, gsubst_e flen f e)
+    | Cassert (msg, e)  -> Cassert (msg, gsubst_a flen f e)
     | Cif(e,c1,c2)  -> Cif(gsubst_e flen f e, gsubst_c flen f c1, gsubst_c flen f c2)
     | Cfor(x,(d,e1,e2),c) ->
         Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), gsubst_c flen f c)
@@ -71,15 +81,12 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
 
 and gsubst_c flen f c = List.map (gsubst_i flen f) c
 
-let gsubst_cf_cond flen f =
-  List.map (fun (prover,clause) -> prover, gsubst_e flen f clause)
-
 let gsubst_cf_contract flen f c =
   {
     f_iparams = List.map (gsubst_vdest f) c.f_iparams;
     f_ires = List.map (gsubst_vdest f) c.f_ires;
-    f_pre = gsubst_cf_cond flen f c.f_pre;
-    f_post = gsubst_cf_cond flen f c.f_post;
+    f_pre = gsubst_as flen f c.f_pre;
+    f_post = gsubst_as flen f c.f_post;
   }
 
 let gsubst_func (flen: ?loc:L.t -> 'len1 -> 'len2) f fc =
@@ -448,6 +455,9 @@ let vsubst_es s = gsubst_es (fun ?loc:_ ty -> ty) (vsubst_ve s)
 
 let vsubst_lval  s = gsubst_lval  (fun ?loc:_ ty -> ty) (vsubst_ve s)
 let vsubst_lvals s = gsubst_lvals (fun ?loc:_ ty -> ty) (vsubst_ve s)
+
+let vsubst_a  s = gsubst_a  (fun ?loc:_ ty -> ty) (vsubst_ve s)
+let vsubst_as s = gsubst_as (fun ?loc:_ ty -> ty) (vsubst_ve s)
 
 let vsubst_i s = gsubst_i (fun ?loc:_ ty -> ty) (vsubst_ve s)
 let vsubst_c s = gsubst_c (fun ?loc:_ ty -> ty) (vsubst_ve s)

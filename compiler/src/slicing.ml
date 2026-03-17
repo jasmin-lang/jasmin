@@ -20,14 +20,20 @@ let rec inspect_e k = function
 
 and inspect_es k es = List.fold_left inspect_e k es
 
+let rec inspect_a k = function
+  | Pexpr e -> inspect_e k e
+  | PappN_safety (_, es) -> inspect_es k es
+  | Pis_var_init _x -> k
+  | Pis_mem_init (e1, e2) -> inspect_es k [e1; e2]
+  | Pand (e1, e2) -> inspect_a (inspect_a k e1) e2
+
+let inspect_as =  List.fold_left (fun k (_,a) -> inspect_a k a)
+
 let inspect_lv k = function
   | Lnone _ | Lvar _ -> k
   | Lmem (_, _, _, e) | Laset (_, _, _, _, e) | Lasub (_, _, _, _, e) -> inspect_e k e
 
 let inspect_lvs k xs = List.fold_left inspect_lv k xs
-
-let inspect_a k (_, e) = inspect_e k e
-let inspect_as = List.fold_left inspect_a
 
 let rec inspect_stmt k stmt = List.fold_left inspect_instr k stmt
 and inspect_instr k i = inspect_instr_r k i.i_desc
@@ -36,7 +42,7 @@ and inspect_instr_r k = function
   | Cassgn (x, _, _, e) -> inspect_lv (inspect_e k e) x
   | Copn (xs, _, _, es) | Csyscall (xs, _, es) ->
       inspect_lvs (inspect_es k es) xs
-  | Cassert (_, e) -> inspect_e k e
+  | Cassert (_, e) -> inspect_a k e
   | Cif (g, a, b) | Cwhile (_, a, g, _, b) ->
       inspect_stmt (inspect_stmt (inspect_e k g) a) b
   | Cfor (_, (_, e1, e2), s) -> inspect_stmt (inspect_es k [ e1; e2 ]) s

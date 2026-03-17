@@ -123,6 +123,12 @@ Variant opN :=
 | Ocombine_flags of combine_flags
 .
 
+#[only(eqbOK)] derive
+Variant opN_safety :=
+| Ois_arr_init of positive
+| Ois_barr_init of positive
+.
+
 HB.instance Definition _ := hasDecEq.Build op_kind op_kind_eqb_OK.
 
 HB.instance Definition _ := hasDecEq.Build sop1 sop1_eqb_OK.
@@ -130,5 +136,7 @@ HB.instance Definition _ := hasDecEq.Build sop1 sop1_eqb_OK.
 HB.instance Definition _ := hasDecEq.Build sop2 sop2_eqb_OK.
 
 HB.instance Definition _ := hasDecEq.Build opN opN_eqb_OK.
+
+HB.instance Definition _ := hasDecEq.Build opN_safety opN_safety_eqb_OK.
 
 (* ----------------------------------------------------------------------------- *)

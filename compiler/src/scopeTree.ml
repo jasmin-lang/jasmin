@@ -75,7 +75,8 @@ let variables_in_instr_r : _ pinstr_r -> Spv.t = function
       variables_in_pexprs (variables_in_plvals Spv.empty xs) es
   | Cfor (x, (_, e1, e2), _) ->
       variables_in_pexprs (Spv.singleton (L.unloc x)) [ e1; e2 ]
-  | Cif (e, _, _) | Cwhile (_, _, e, _, _) | Cassert (_, e) -> variables_in_pexpr Spv.empty e
+  | Cif (e, _, _) | Cwhile (_, _, e, _, _) -> variables_in_pexpr Spv.empty e
+  | Cassert (_, e) -> rvars_a variables_in_gvar Spv.empty e
 
 (** Maps each variable to the set of nodes at which it occurs *)
 let variable_occurrences (c : _ pstmt) : nodeset Mpv.t =

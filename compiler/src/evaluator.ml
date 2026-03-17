@@ -38,9 +38,9 @@ let of_val_b ii v : bool =
 
 (* ----------------------------------------------------------------- *)
 type 'asm stack =
-  | Sempty of instr_info * 'asm fundef
+  | Sempty of instr_info * 'asm fundef * value list
   | Scall of
-      instr_info * 'asm fundef * lval list * Vm.t * 'asm instr list * 'asm stack
+      instr_info * 'asm fundef * value list * lval list * Vm.t * 'asm instr list * 'asm stack
   | Sfor of instr_info * var_i * coq_Z list * 'asm instr list * 'asm instr list * 'asm stack
 
 type ('syscall_state, 'asm) state =
@@ -52,24 +52,44 @@ type ('syscall_state, 'asm) state =
 
 exception Final of Memory.mem * values
 
+let withassert = Sem_params.withassert
+
+let exec_pre ep spp ii fc gd escs emem (vargs:value list) =
+  let s1 = exn_exec ii (write_vars nosubword ep true fc.f_iparams vargs {escs; emem; evm = Vm.init nosubword}) in
+  List.iter (fun pa -> exn_exec ii (sem_assert nosubword withassert ep spp gd s1 pa)) fc.f_pre
+
+let exec_post ep spp ii fc gd escs emem (vargs:value list) (vres: value list) =
+  let s1 = exn_exec ii (write_vars nosubword ep true fc.f_iparams vargs {escs; emem; evm = Vm.init nosubword}) in
+  let s1 = exn_exec ii (write_vars nosubword ep true fc.f_ires vres s1) in
+  List.iter (fun pa -> exn_exec ii (sem_assert nosubword withassert ep spp gd s1 pa)) fc.f_post
+
+let init_estate ep spp p ii fn scs0 m vargs =
+  let f = BatOption.get (get_fundef p.p_funcs fn) in
+  let gd = p.p_globs in
+  let vargs = exn_exec ii (mapM2 ErrType truncate_val (List.map eval_atype f.f_tyin) vargs) in
+  BatOption.may (fun fc -> exec_pre ep spp ii fc gd scs0 m vargs) f.f_contract;
+  let s_estate = { escs = scs0; emem = m; evm = Vm.init nosubword} in
+  let s_estate = exn_exec ii (write_vars nosubword ep true f.f_params vargs s_estate) in
+  f, vargs, s_estate
+
+let finalize_estate ep spp p ii f vargs (s: _ estate) =
+  let gd = p.p_globs in
+  let vres = exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword true s.evm x.v_var) f.f_res) in
+  let vres = exn_exec ii (mapM2 ErrType truncate_val (List.map Type.eval_atype f.f_tyout) vres) in
+  BatOption.may (fun fc -> exec_post ep spp ii fc gd s.escs s.emem vargs vres) f.f_contract;
+  s.escs, s.emem, vres
+
 let return ep spp s =
   assert (s.s_cmd = []);
   match s.s_stk with
-  | Sempty(ii, f) ->
-    let s2 = s.s_estate in
-    let m2 = s2.emem and vm2 = s2.evm in
-    let vres =
-      exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword true vm2 x.v_var) f.f_res) in
-    let vres' = exn_exec ii (mapM2 ErrType truncate_val (List.map Type.eval_atype f.f_tyout) vres) in
-    raise (Final(m2, vres'))
+  | Sempty(ii, f, vargs) ->
+    let _, m, vres = finalize_estate ep spp s.s_prog ii f vargs s.s_estate in
+    raise (Final(m, vres))
 
-  | Scall(ii,f,xs,vm1,c,stk) ->
+  | Scall(ii,f, vargs, xs,vm1,c,stk) ->
+    let escs, emem, vres = finalize_estate ep spp s.s_prog ii f vargs s.s_estate in
     let gd = s.s_prog.p_globs in
-    let {escs = scs2; emem = m2; evm = vm2} = s.s_estate in
-    let vres =
-      exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword true vm2 x.v_var) f.f_res) in
-    let vres' = exn_exec ii (mapM2 ErrType truncate_val (List.map Type.eval_atype f.f_tyout) vres) in
-    let s1 = exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs2; emem = m2; evm = vm1 } xs vres') in
+    let s1 = exn_exec ii (write_lvals nosubword ep spp true gd {escs; emem; evm = vm1 } xs vres) in
     { s with
       s_cmd = c;
       s_estate = s1;
@@ -111,9 +131,7 @@ let small_step1 ep spp sip s =
       { s with s_cmd = c; s_estate = s2 }
 
     | Cassert (p,a) ->
-      let v = exn_exec ii (sem_pexpr nosubword ep spp true gd s1 a) in
-      let b = of_val_b ii v in
-      if not b then raise (Eval_error(ii, ErrAssert p));
+      let _ = exn_exec ii (sem_assert nosubword withassert ep spp gd s1 (p, a)) in
       { s with s_cmd = c }
 
     | Cif(e,c1,c2) ->
@@ -133,34 +151,24 @@ let small_step1 ep spp sip s =
       { s with s_cmd = c1 @ MkI(ii, Cif(e, c2@[i],[])) :: c }
 
     | Ccall(xs,fn,es) ->
-      let vargs' = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
-      let f =
-        match get_fundef s.s_prog.p_funcs fn with
-        | Some f -> f
-        | None -> assert false in
-      let vargs = exn_exec ii (mapM2 ErrType truncate_val (List.map eval_atype f.f_tyin) vargs') in
-      let {escs; emem = m1; evm = vm1}  = s1 in
-      let stk = Scall(ii,f, xs, vm1, c, s.s_stk) in
-      let sf =
-        exn_exec ii (write_vars nosubword ep true f.f_params vargs {escs; emem = m1; evm = Vm.init nosubword}) in
+      let vargs = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
+      let f, vargs, s_estate = init_estate ep spp s.s_prog ii fn s1.escs s1.emem  vargs in
+      let stk = Scall(ii,f, vargs, xs, s1.evm, c, s.s_stk) in
       {s with s_cmd = f.f_body;
-              s_estate = sf;
+              s_estate;
               s_stk = stk }
 
 
 let rec small_step ep spp sip s =
   small_step ep spp sip (small_step1 ep spp sip s)
 
-let init_state ep scs0 p ii fn args m =
-  let f = BatOption.get (get_fundef p.p_funcs fn) in
-  let vargs = exn_exec ii (mapM2 ErrType truncate_val (List.map eval_atype f.f_tyin) args) in
-  let s_estate = { escs = scs0; emem = m; evm = Vm.init nosubword} in
-  let s_estate = exn_exec ii (write_vars nosubword ep true f.f_params vargs s_estate) in
-  { s_prog = p; s_cmd = f.f_body; s_estate; s_stk = Sempty (ii, f) }
+let init_state ep spp p ii fn scs0 m vargs =
+  let f, vargs, s_estate = init_estate ep spp p ii fn scs0 m vargs in
+  { s_prog = p; s_cmd = f.f_body; s_estate; s_stk = Sempty (ii, f, vargs) }
 
 
-let exec ep spp sip scs0 p ii fn args m =
-  let s = init_state ep scs0 p ii fn args m in
+let exec ep spp sip scs0 p ii fn vargs m =
+  let s = init_state ep spp p ii fn scs0 m vargs in
   try small_step ep spp sip s
   with Final(m,vs) -> m, vs
 

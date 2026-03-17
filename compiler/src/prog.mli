@@ -31,6 +31,13 @@ type 'len gexpr =
 
 type 'len gexprs = 'len gexpr list
 
+type 'len gassert =
+ | Pexpr of 'len gexpr
+ | PappN_safety of opN_safety * 'len gexpr list
+ | Pis_var_init of 'len gvar_i
+ | Pis_mem_init of 'len gexpr * 'len gexpr
+ | Pand of 'len gassert * 'len gassert
+
 val is_stack_kind   : v_kind -> bool
 val is_reg_kind     : v_kind -> bool
 val reg_kind        : v_kind -> reg_kind
@@ -59,7 +66,7 @@ type 'len grange = E.dir * 'len gexpr * 'len gexpr
    This is durty ...
 *)
 
-type 'len assertion = string * 'len gexpr
+type 'len assertion = string * 'len gassert
 
 type ('len, 'info, 'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
@@ -175,7 +182,7 @@ type lval  = int glval
 type lvals = int glval list
 type expr  = int gexpr
 type exprs = int gexpr list
-
+type eassert = int gassert
 
 type range = int grange
 
@@ -228,6 +235,7 @@ val vars_ret : ('info, 'asm) func -> Sv.t
 val vars_lv : Sv.t -> lval -> Sv.t
 val vars_e  : expr -> Sv.t
 val vars_es : expr list -> Sv.t
+val vars_a  : eassert -> Sv.t
 val vars_i  : ('info, 'asm) instr -> Sv.t
 val vars_c  : ('info, 'asm) stmt  -> Sv.t
 val pvars_c : ('info, 'asm) pstmt  -> Spv.t
@@ -238,6 +246,9 @@ val rvars_e : ('a gvar -> 'b -> 'b) -> 'b -> 'a gexpr -> 'b
 val rvars_es : ('a gvar -> 'b -> 'b) -> 'b -> 'a gexprs -> 'b
 val rvars_lv : ('a gvar -> 'b -> 'b) -> 'b -> 'a glval -> 'b
 val rvars_lvs : ('a gvar -> 'b -> 'b) -> 'b -> 'a glvals -> 'b
+
+val rvars_a : ('a gvar -> 'b -> 'b) -> 'b -> 'a gassert -> 'b
+val rvars_as : ('a gvar -> 'b -> 'b) -> 'b -> 'a assertion list -> 'b
 
 val locals  : ('info, 'asm) func -> Sv.t
 

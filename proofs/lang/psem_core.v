@@ -729,6 +729,27 @@ Proof.
   by case: s' eq_mem => /= > <-.
 Qed.
 
+Lemma eq_on_sem_eassert s' gd s e :
+  emem s = emem s' →
+  evm s =[read_eassert e] evm s' →
+  sem_eassert gd s e = sem_eassert gd s' e.
+Proof.
+  move=> hmem; elim: e.
+  + by move=> e; rewrite read_eassert_Pexpr /= => /(eq_on_sem_pexpr true gd hmem) ->.
+  + move=> o es; rewrite read_eassert_PappN /= => hes.
+    have := eq_on_sem_pexprs true gd hmem hes.
+    by rewrite /sem_pexprs => ->.
+  + move=> x; rewrite read_eassert_Pis_var_init /= => hx.
+    by rewrite (hx x) //; clear; SvD.fsetdec.
+  + move=> e1 e2; rewrite read_eassert_Pis_mem_init /= => h.
+    rewrite !(eq_on_sem_pexpr true gd hmem) ?hmem //;
+    by apply: eq_onI h; clear; SvD.fsetdec.
+  move=> e1 he1 e2 he2.
+  rewrite read_eassert_Pand /= => h.
+  rewrite he1 ?he2 //;
+  by apply: eq_onI h; clear; SvD.fsetdec.
+Qed.
+
 Section UseMem.
 
 Context (wdb : bool) (s1 s2 : estate) (heq : evm s1 = evm s2).
@@ -1378,6 +1399,11 @@ Lemma sem_pexprs_ext_eq es vm :
   (evm s =1 vm)%vm ->
   sem_pexprs wdb gd s es = sem_pexprs wdb gd (with_vm s vm) es.
 Proof. by move=> heq; apply/read_es_eq_on_empty/vm_eq_eq_on. Qed.
+
+Lemma sem_eassert_ext_eq e vm :
+  (evm s =1 vm)%vm ->
+   sem_eassert gd s e = sem_eassert gd (with_vm s vm) e.
+Proof. by move=> heq; apply/eq_on_sem_eassert. Qed.
 
 Lemma write_lvar_ext_eq x v s1 s2 vm1 :
   (evm s1 =1 vm1)%vm ->
