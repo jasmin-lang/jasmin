@@ -190,16 +190,14 @@ Definition eval_Jcc lbl ct (s : asm_state) : asm_result_state :=
 Definition word_of_scale (n:nat) : pointer := wrepr Uptr (two_power_nat n).
 
 (* -------------------------------------------------------------------- *)
-Definition decode_reg_addr (s : asmmem) (a : reg_address) : pointer :=
+Definition decode_reg_addr (s : asmmem) (a : reg_address) : pointer := nosimpl (
   let: disp   := a.(ad_disp) in
   let: base   := odflt 0%R (Option.map (s.(asm_reg)) a.(ad_base)) in
   let: scale  := word_of_scale a.(ad_scale) in
   let: offset := odflt 0%R (Option.map (s.(asm_reg)) a.(ad_offset)) in
-  (disp + base + scale * offset)%R.
+  disp + base + scale * offset)%R.
 
-Arguments decode_reg_addr : simpl never.
-
-Definition decode_addr (s:asmmem) (a:address) : pointer :=
+Definition decode_addr (s:asmmem) (a:address) : pointer := 
   match a with
   | Areg ra => decode_reg_addr s ra
   | Arip ofs => (s.(asm_rip) + ofs)%R
