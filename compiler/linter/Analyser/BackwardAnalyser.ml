@@ -46,7 +46,7 @@ module type Logic = sig
     val assertion :
       Location.i_loc ->
       string ->
-      expr ->
+      eassert ->
       domain -> domain Annotation.annotation
 end
 

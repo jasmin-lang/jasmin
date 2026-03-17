@@ -302,8 +302,7 @@ Section REMOVE.
           Let es  := mapM (remove_glob_e ii env) es in
           ok (env, [::MkI ii (Csyscall lvs o es)])
         | Cassert a =>
-          Let a := sndM (remove_glob_e ii env) a in
-          ok (env, [::MkI ii (Cassert a)])
+          Error (pp_safety_remains_at E.pass ii)
         | Cif e c1 c2 =>
           Let e := remove_glob_e ii env e in
           Let envc1 := remove_glob remove_glob_i env c1 in

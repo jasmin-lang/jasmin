@@ -382,6 +382,34 @@ Lemma read_e_Pif ty e e0 e1 :
     (Sv.union (read_e e) (Sv.union (read_e e0) (read_e e1))).
 Proof. by rewrite {1}/read_e /= 2!read_eE. Qed.
 
+Lemma read_eassertE e s : Sv.Equal (read_eassert_rec s e) (Sv.union (read_eassert e) s).
+Proof.
+  rewrite /read_eassert; elim: e s => /= >.
+  + by rewrite read_eE.
+  + by move => _ >; rewrite read_esE.
+  + clear; SvD.fsetdec.
+  + rewrite !read_eE; clear; SvD.fsetdec.
+  move=> > he1 > he2 >. rewrite he1 he2 -/(read_eassert _) he1 -!/(read_eassert _); clear.
+  SvD.fsetdec.
+Qed.
+
+Lemma read_eassert_Pexpr e : read_eassert (Pexpr e) = read_e e.
+Proof. done. Qed.
+
+Lemma read_eassert_PappN o es : read_eassert (PappN_safety o es) = read_es es.
+Proof. done. Qed.
+
+Lemma read_eassert_Pis_var_init x : Sv.Equal (read_eassert (Pis_var_init x)) (Sv.singleton x).
+Proof. rewrite /read_eassert /=; clear; SvD.fsetdec. Qed.
+
+Lemma read_eassert_Pis_mem_init e1 e2 :
+  Sv.Equal (read_eassert (Pis_mem_init e1 e2)) (Sv.union (read_e e1) (read_e e2)).
+Proof. rewrite /read_eassert /= !read_eE; clear; SvD.fsetdec. Qed.
+
+Lemma read_eassert_Pand e1 e2 :
+  Sv.Equal (read_eassert (Pand e1 e2)) (Sv.union (read_eassert e1) (read_eassert e2)).
+Proof. by rewrite /read_eassert /= read_eassertE -!/(read_eassert _). Qed.
+
 Let Pr i := forall s, Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)).
 Let Pi i := forall s, Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)).
 Let Pc c := forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c)).
@@ -392,7 +420,7 @@ Proof.
    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | a | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | a c e ii c' Hc Hc' | ii xs f es ] s;
     rewrite /read_I /read_I_rec /read_i /read_i_rec -/read_i_rec -/read_I_rec /read_c /=
-     ?read_rvE ?read_eE ?read_esE ?read_rvE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc' ?Hc ?Hi //;
+     ?read_rvE ?read_eE ?read_esE ?read_eassertE ?read_rvE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc' ?Hc ?Hi //;
     by clear; SvD.fsetdec.
 Qed.
 
@@ -421,9 +449,9 @@ Lemma read_i_syscall xs o es:
 Proof. rewrite /read_i /write_i /read_i_rec read_esE read_rvsE; clear; SvD.fsetdec. Qed.
 
 Lemma read_i_assert a :
-  Sv.Equal (read_i (Cassert a)) (read_e a.2).
+  Sv.Equal (read_i (Cassert a)) (read_eassert a.2).
 Proof.
-  rewrite /read_i /read_i_rec read_eE;SvD.fsetdec.
+  rewrite /read_i /read_i_rec read_eassertE;SvD.fsetdec.
 Qed.
 
 Lemma read_i_if e c1 c2 :
@@ -496,7 +524,7 @@ Lemma vars_I_syscall ii xs o es:
 Proof. by rewrite /vars_I read_Ii write_Ii read_i_syscall write_i_syscall /vars_lvals; clear; SvD.fsetdec. Qed.
 
 Lemma vars_I_assert ii a:
-  Sv.Equal (vars_I (MkI ii (Cassert a))) (read_e a.2).
+  Sv.Equal (vars_I (MkI ii (Cassert a))) (read_eassert a.2).
 Proof. rewrite /vars_I read_Ii write_Ii //= !read_writeE; SvD.fsetdec. Qed.
 
 Lemma vars_I_if ii e c1 c2:
@@ -549,22 +577,24 @@ End ASM_OP.
 Lemma eq_gvar_refl x : eq_gvar x x.
 Proof. by rewrite /eq_gvar ?eqxx. Qed.
 
-Lemma eq_expr_refl e : eq_expr e e.
+Lemma eq_expr_refl_e_es : (∀ e, eq_expr e e) ∧ (∀ es, all2 eq_expr es es).
 Proof.
-  suff : (∀ e, eq_expr e e) ∧ (∀ es, all2 eq_expr es es) by case.
   by apply: pexprs_ind_pair; split => //= [ ? -> ? -> | ?? | ? | ????? -> | ????? -> | ??? -> | ?? -> | ?? -> ? -> | ?? -> | ?? -> ? -> ];
   rewrite ?eqxx ?eq_gvar_refl //.
 Qed.
+
+Lemma eq_expr_refl e : eq_expr e e.
+Proof. by case eq_expr_refl_e_es. Qed.
+
+Lemma eq_exprs_refl es : all2 eq_expr es es.
+Proof. by case eq_expr_refl_e_es. Qed.
 
 Lemma eq_gvar_symm gx gy :
   eq_gvar gx gy -> eq_gvar gy gx.
 Proof. rewrite /eq_gvar. move=> /andP [] /eqP -> /eqP ->. by rewrite !eqxx. Qed.
 
-Lemma eq_expr_symm e0 e1 :
-  eq_expr e0 e1 -> eq_expr e1 e0.
+Lemma eq_expr_symm_aux : (∀ e0 e1, eq_expr e0 e1 -> eq_expr e1 e0) ∧ (∀ es es', all2 eq_expr es es' → all2 eq_expr es' es).
 Proof.
-  suff : (∀ e0 e1, eq_expr e0 e1 -> eq_expr e1 e0) ∧ (∀ es es', all2 eq_expr es es' → all2 eq_expr es' es).
-  - case=> h _; exact: h.
   apply: pexprs_ind_pair; split => //= [ [] |????[]|?[]|?[]|??[]|?[]|??????[]|??????[]|????[]|???[]|?????[]|???[]|???????[]] //= *.
 
   all:
@@ -590,14 +620,21 @@ Proof.
   all: by rewrite ?eqxx //=; eauto.
 Qed.
 
+Lemma eq_expr_symm e0 e1 :
+  eq_expr e0 e1 -> eq_expr e1 e0.
+Proof. case: eq_expr_symm_aux => + _; apply. Qed.
+
+Lemma eq_exprs_symm e0 e1 :
+  all2 eq_expr e0 e1 -> all2 eq_expr e1 e0.
+Proof. case: eq_expr_symm_aux => _; apply. Qed.
+
 Lemma eq_gvar_trans x2 x1 x3 : eq_gvar x1 x2 → eq_gvar x2 x3 → eq_gvar x1 x3.
 Proof. by rewrite /eq_gvar => /andP[] /eqP -> /eqP -> /andP[] /eqP -> /eqP ->; rewrite !eqxx. Qed.
 
-Lemma eq_expr_trans e2 e1 e3 :
-  eq_expr e1 e2 -> eq_expr e2 e3 -> eq_expr e1 e3.
+Lemma eq_expr_trans_aux :
+  (∀ e1 e2 e3, eq_expr e1 e2 -> eq_expr e2 e3 -> eq_expr e1 e3) ∧
+  (∀ x y z, all2 eq_expr x y → all2 eq_expr y z → all2 eq_expr x z).
 Proof.
-  suff : (∀ e1 e2 e3, eq_expr e1 e2 -> eq_expr e2 e3 -> eq_expr e1 e3) ∧
-           (∀ x y z, all2 eq_expr x y → all2 eq_expr y z → all2 eq_expr x z) by case; eauto.
   apply: pexprs_ind_pair; split => //=.
   + by case.
   + by move => ???? [] // ?? [] // ?? /andP[] /= ?? /andP[] ??; apply/andP; split; eauto.
@@ -629,6 +666,14 @@ Proof.
   by move=> /andP[]/andP[]/andP[] /eqP-> /h -> /h1 -> /h2 ->; rewrite eqxx.
 Qed.
 
+Lemma eq_expr_trans e2 e1 e3 :
+  eq_expr e1 e2 -> eq_expr e2 e3 -> eq_expr e1 e3.
+Proof. case: eq_expr_trans_aux => + _; apply. Qed.
+
+Lemma eq_exprs_trans e2 e1 e3 :
+  all2 eq_expr e1 e2 -> all2 eq_expr e2 e3 -> all2 eq_expr e1 e3.
+Proof. case: eq_expr_trans_aux => _; apply. Qed.
+
 #[export]
 Instance equiv_eq_expr : Equivalence eq_expr.
 Proof.
@@ -637,6 +682,50 @@ Proof.
   - exact: eq_expr_symm.
   move=> x y z.
   exact: eq_expr_trans.
+Qed.
+
+Lemma eq_eassert_refl e : eq_eassert e e.
+Proof.
+  elim: e => //= >.
+  + by apply eq_expr_refl.
+  + by rewrite eqxx eq_exprs_refl.
+  + by rewrite !eq_expr_refl.
+  by move=> -> > ->.
+Qed.
+
+Lemma eq_eassert_symm e1 e2 : eq_eassert e1 e2 -> eq_eassert e2 e1.
+Proof.
+  elim: e1 e2 =>
+    [e1 | o1 es1 | x1 | e1 e1' | e1 he1 e1' he1']
+    [e2 | o2 es2 | x2 | e2 e2' | e2 e2'] => //= >.
+  + by apply eq_expr_symm.
+  + by move=> /andP [/eqP -> /eq_exprs_symm ->]; rewrite eqxx.
+  + by move=> /eqP ->.
+  + by move=> /andP [] /eq_expr_symm -> /eq_expr_symm ->.
+  by move=> /andP [] /he1 -> /he1' ->.
+Qed.
+
+Lemma eq_eassert_trans e2 e1 e3 :
+  eq_eassert e1 e2 -> eq_eassert e2 e3 -> eq_eassert e1 e3.
+Proof.
+  elim: e2 e1 e3 => [e2 | o2 es2 | x2 | e2 e2' | e2 he2 e2' he2']
+    [e1 | o1 es1 | x1 | e1 e1' | e1 e1'] //=
+    [e3 | o3 es3 | x3 | e3 e3' | e3 e3'] //=.
+  + by apply eq_expr_trans.
+  + by move=> /andP[] /eqP -> + /andP[] /eqP ->; rewrite eqxx; apply eq_exprs_trans.
+  + by move=> /eqP -> /eqP ->.
+  + by move=> /andP[h1 h1'] /andP [h2 h2']; rewrite (eq_expr_trans h1 h2) (eq_expr_trans h1' h2').
+  by move=> /andP[h1 h1'] /andP [h2 h2']; rewrite (he2 _ _ h1 h2) (he2' _ _ h1' h2').
+Qed.
+
+#[export]
+Instance equiv_eq_eassert : Equivalence eq_eassert.
+Proof.
+  constructor.
+  - exact: eq_eassert_refl.
+  - exact: eq_eassert_symm.
+  move=> x y z.
+  exact: eq_eassert_trans.
 Qed.
 
 (* Memory accesses are independent from variable info. *)
@@ -716,18 +805,37 @@ Section EQ_EXPR_READ_E.
     t_eq_rewrites;
     t_apply.
 
-  Definition eq_expr_read_e e0 e1 :
-    eq_expr e0 e1
-    -> Sv.Equal (read_e e0) (read_e e1).
+  Lemma eq_expr_read_e_es :
+      (∀ e e', eq_expr e e' → Sv.Equal (read_e e) (read_e e'))
+    ∧ (∀ es es', all2 eq_expr es es' → Sv.Equal (read_es es) (read_es es')).
   Proof.
-    suff : (∀ e e', eq_expr e e' → Sv.Equal (read_e e) (read_e e'))
-           ∧ (∀ es es', all2 eq_expr es es' → Sv.Equal (read_es es) (read_es es')) by case; eauto.
-    clear; apply: pexprs_ind_pair; split => //
+    apply: pexprs_ind_pair; split => //
     [|e he es hes|?|?|??|?|??????|??????|????|???|?????|? es hes|???????] [] //= >;
     try by t_solve.
     - by rewrite !read_es_cons => /andP[] /he -> /hes ->.
     - by move => /eq_gvar_read_gvar; rewrite /read_e /= => ->.
     by rewrite /read_e /= -/read_es_rec !read_esE => /andP[] _ /hes ->.
+  Qed.
+
+  Lemma eq_expr_read_e e0 e1 :
+    eq_expr e0 e1
+    -> Sv.Equal (read_e e0) (read_e e1).
+  Proof. by case eq_expr_read_e_es; eauto. Qed.
+
+  Lemma eq_expr_read_es es es' : all2 eq_expr es es' → Sv.Equal (read_es es) (read_es es').
+  Proof. by case eq_expr_read_e_es; eauto. Qed.
+
+  Lemma eq_eassert_read_eassert e0 e1 :
+    eq_eassert e0 e1 -> Sv.Equal (read_eassert e0) (read_eassert e1).
+  Proof.
+    elim: e0 e1 => [?|??|?|??|? ih1 ? ih2] [] > //=;
+    rewrite ?read_eassert_Pexpr ?read_eassert_PappN ?read_eassert_Pis_var_init
+               ?read_eassert_Pis_mem_init ?read_eassert_Pand.
+    + by apply eq_expr_read_e.
+    + by move=> /andP[] _; apply eq_expr_read_es.
+    + by move=> /eqP ->.
+    + by move=> /andP[] /eq_expr_read_e -> /eq_expr_read_e ->.
+    by move=> /andP[] /ih1 -> /ih2 ->.
   Qed.
 
 End EQ_EXPR_READ_E.
@@ -814,7 +922,7 @@ Lemma Hrefl_syscall : forall xs o es, Pr (Csyscall xs o es).
 Proof. by move=> ???; rewrite /Pr /= eqxx (all2_refl eq_lval_refl) (all2_refl eq_expr_refl). Qed.
 
 Lemma Hrefl_assert : forall a, Pr (Cassert a).
-Proof. by move=> ?; rewrite /Pr /= eqxx eq_expr_refl. Qed.
+Proof. by move=> ?; rewrite /Pr /= eqxx eq_eassert_refl. Qed.
 
 Lemma Hrefl_if : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
 Proof. by move=> ???; rewrite /Pc /Pr /= eq_expr_refl -!/(eq_cmd _ _) => -> ->. Qed.
@@ -886,7 +994,7 @@ Proof.
 Qed.
 
 Lemma Hsymm_assert : forall a, Pr (Cassert a).
-Proof. by move=> ? [] //= ? /andP[] /eqP -> /eq_expr_symm ->; rewrite eqxx. Qed.
+Proof. by move=> ? [] //= ? /andP[] /eqP -> /eq_eassert_symm ->; rewrite eqxx. Qed.
 
 Lemma Hsymm_if : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
 Proof.
@@ -978,7 +1086,7 @@ Qed.
 Lemma Htrans_assert : forall a, Pr (Cassert a).
 Proof.
   move=> ? [] //= ? [] //= ? /andP[] /eqP -> h12 /andP[] /eqP -> h23.
-  by rewrite eqxx (eq_expr_trans h12 h23).
+  by rewrite eqxx (eq_eassert_trans h12 h23).
 Qed.
 
 Lemma Htrans_if : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).

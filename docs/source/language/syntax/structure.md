@@ -174,6 +174,24 @@ from the stack.
 
 TODO: Add link to annotation syntax.
 
+### Safety annotations
+
+Function definitions can be annotated with safety contracts, whose syntax is illustrated below.
+
+```
+#[safety = {
+   args = {<var>, …, <var>},
+   res = {<var>, …, <var>},
+   requires = <expr_assert>,
+   ensures = <expr_assert>
+  } ]
+```
+
+Field `args` (resp. `res`) is optional: by default it is filled with the
+function parameters (resp. function returned variables).
+
+[The assertions (`<expr_assert>`) are described in a dedicated section.](./code.md#assertions)
+
 ## Namespaces
 
 Jasmin features a simple namespace system, with a syntax similar to that of C++.

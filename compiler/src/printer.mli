@@ -20,6 +20,7 @@ val string_of_combine_flags : Operators.combine_flags -> string
 
 val pp_expr  : debug:bool -> Format.formatter -> expr -> unit
 val pp_lval  : debug:bool -> Format.formatter -> lval -> unit
+val pp_eassert : debug:bool -> Format.formatter -> eassert -> unit
 
 val pp_instr : debug:bool ->
                Wsize.wsize ->

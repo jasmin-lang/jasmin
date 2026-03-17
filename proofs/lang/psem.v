@@ -619,6 +619,13 @@ Proof.
   by have [vm2 h ->] := write_lvars_ext_eq h1 h2; eexists; eauto.
 Qed.
 
+Lemma st_eq_sem_eassert d e :
+  wrequiv (st_eq d) ((sem_eassert (p_globs p))^~ e) ((sem_eassert (p_globs p'))^~ e) eq.
+Proof.
+  move=> s t v /st_relP [-> /=] hvm; rewrite eq_globs.
+  rewrite -sem_eassert_ext_eq //; eauto.
+Qed.
+
 Lemma wdb_ok_eq wdb1 wdb2 : wdb_ok wdb1 wdb2 -> wdb1 = wdb2.
 Proof. by case => -[-> ->]. Qed.
 
@@ -628,7 +635,10 @@ Proof.
   + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- <-; apply st_eq_sem_pexprs.
   move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- <- vs; apply st_eq_write_lvals.
 Qed.
-#[local] Hint Resolve checker_st_eqP : core.
+
+Lemma checker_a_st_eqP : Checker_a_eq p p' checker_a_st_eq.
+Proof. constructor; move=> > ->; apply st_eq_sem_eassert. Qed.
+#[local] Hint Resolve checker_st_eqP checker_a_st_eqP : core.
 
 Section FUN.
 
@@ -650,7 +660,7 @@ Proof.
   + by move=> >;apply wequiv_assgn_rel_eq with checker_st_eq tt.
   + by move=> >; apply wequiv_opn_rel_eq with checker_st_eq tt.
   + by move=> >; apply wequiv_syscall_rel_eq with checker_st_eq tt.
-  + by move=> a ii; apply wequiv_assert_rel_eq with checker_st_eq.
+  + by move=> a ii; apply wequiv_assert_rel_eq with checker_a_st_eq.
   + by move=> > hc1 hc2 ii; apply wequiv_if_rel_eq with checker_st_eq tt tt tt.
   + by move=> > hc ii; apply wequiv_for_rel_eq with checker_st_eq tt tt.
   + by move=> > hc hc' ii; apply wequiv_while_rel_eq with checker_st_eq tt.
@@ -926,6 +936,15 @@ Proof.
   by apply: (eq_onI hsub).
 Qed.
 
+Lemma read_eassert_st_eq_on gd e X :
+  Sv.Subset (read_eassert e) X ->
+  wrequiv (st_eq_on X) ((sem_eassert gd)^~ e) ((sem_eassert gd)^~ e) eq.
+Proof.
+  move=> hsub s t b [???]. rewrite (eq_on_sem_eassert _ (s' := t)) //.
+  + by move => ->; eauto.
+  by apply: (eq_onI hsub).
+Qed.
+
 Lemma write_lvals_st_eq_on gd wdb xs vs X :
   Sv.Subset (read_rvs xs) X ->
   wrequiv
@@ -951,6 +970,17 @@ Definition checker_st_eq_on : Checker_e (st_rel eq_on) :=
   {| check_es := check_es_st_eq_on;
      check_lvals := check_lvals_st_eq_on;
      check_esP_rel := check_esP_R_st_eq_on |}.
+
+Definition check_a_st_eq_on (X:Sv.t) (e1 e2 : eassert) (X':Sv.t) :=
+  [/\ Sv.Subset X' X, e1 = e2 & Sv.Subset (read_eassert e1) X].
+
+Lemma check_aP_st_eq_on X e1 e2 X':
+  check_a_st_eq_on X e1 e2 X' → ∀ s1 s2, st_rel eq_on X s1 s2 → st_rel eq_on X' s1 s2.
+Proof. by move=> [h _ _]; apply st_rel_weaken => vm1 vm2; apply eq_onI. Qed.
+
+Definition checker_a_st_eq_on : Checker_a (st_rel eq_on) :=
+  {| check_a := check_a_st_eq_on
+   ; check_aP_rel := check_aP_st_eq_on |}.
 
 Definition st_uincl_on X := st_rel uincl_on X.
 
@@ -1017,7 +1047,15 @@ Proof.
   + by apply st_rel_weaken => ??; apply eq_onI.
   by apply write_lvals_st_eq_on.
 Qed.
-#[local] Hint Resolve checker_st_eq_onP : core.
+
+Lemma checker_a_st_eq_onP : Checker_a_eq p p' checker_a_st_eq_on.
+Proof.
+  constructor.
+  move=> d es1 es2 d' [? <- ?]; rewrite eq_globs.
+  by apply read_eassert_st_eq_on.
+Qed.
+
+#[local] Hint Resolve checker_st_eq_onP checker_a_st_eq_onP: core.
 
 Lemma checker_st_uincl_onP : Checker_uincl p p' checker_st_uincl_on.
 Proof.
@@ -1066,7 +1104,7 @@ Proof.
   + move=> xs sc es ii X. rewrite read_i_syscall => hsub.
     by apply wequiv_syscall_rel_eq with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
   + move=> a ii X; rewrite read_i_assert => hsub.
-    by apply wequiv_assert_rel_eq with checker_st_eq_on => //; split.
+    by apply wequiv_assert_rel_eq with checker_a_st_eq_on => //; split.
   + move=> e c1 c2 hc1 hc2 ii X. rewrite read_i_if => hsub.
     apply wequiv_if_rel_eq with checker_st_eq_on X X X => //.
     + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
@@ -1512,7 +1550,7 @@ Proof.
   + by move=> x tg ty e ii; apply wequiv_assgn_rel_uincl with checker_st_uincl tt.
   + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
   + by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with checker_st_uincl tt.
-  + by move=> a ii; apply wequiv_assert_rel_uincl with checker_st_uincl.
+  + by move=> a ii; apply wequiv_noassert.
   + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
   + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
   + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
@@ -1895,8 +1933,7 @@ Proof.
   + move=> xs o es [] //= xs' o' es' /andP[] /andP[] heq1 /eqP -> heq2 ??.
     by apply wequiv_syscall_rel_uincl with checker_eq_cmd tt.
   + move=> [??] [] //= [??] /= /andP[] /eqP -> heq ??.
-    apply wequiv_assert_rel_uincl with checker_eq_cmd => //.
-    by rewrite /= /check_es_eq_cmd /= andbT.
+    by apply wequiv_noassert.
   + move=> e c1 c2 hc1 hc2 [] //= e' c1' c2' /andP[] /andP[] heq /hc1{}hc1 /hc2{}hc2 ??.
     apply wequiv_if_rel_uincl with checker_eq_cmd tt tt tt => //.
     by rewrite /= /check_es_eq_cmd /= andbT.

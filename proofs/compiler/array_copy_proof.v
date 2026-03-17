@@ -647,8 +647,8 @@ Proof.
     apply wequiv_syscall_rel_uincl with checker_st_uincl_on X => //.
     + by split => //; clear -hsub; SvD.fsetdec.
     by split => //; clear -hsub; SvD.fsetdec.
-  + move=> ?? fi X; rewrite vars_I_assert /= => freshX hsub _ [<-].
-    by apply wequiv_assert_rel_uincl with checker_st_uincl_on => //; split.
+  + move=> ?? fi X freshX hsub ??.
+    by apply wequiv_noassert.
   + move=> e c1 c2 hc1 hc2 ii fi X; rewrite vars_I_if => freshX hsub i2 /=.
     t_xrbindP => c1' hc1' c2' hc2' <-.
     apply wequiv_if_rel_uincl with checker_st_uincl_on X X X => //.

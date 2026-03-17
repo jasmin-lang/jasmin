@@ -201,7 +201,7 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
     try match i.i_desc with
     | Cassgn(x,_,_,e) -> add_lv x; add_e e
     | Copn(xs,_,_,es) | Csyscall(xs,_,es) -> add_lvs xs; add_es es
-    | Cassert (_, e) -> add_e e
+    | Cassert _ -> assert false (* used after remove_assert *)
     | Cif(e, _, _) | Cwhile (_, _, e, _, _) -> add_e e
     | Cfor _ -> assert false
     | Ccall(xs, fn, es) ->

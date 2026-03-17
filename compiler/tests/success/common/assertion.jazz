@@ -8,3 +8,28 @@ export fn checked(reg u32 a) -> reg u32 {
   }
   return a;
 }
+
+#[safety = { ensures = is_arr_init(x, 0, 32) } ]
+export fn set_zero(reg ptr u8[4] x) -> reg ptr u8[4] {
+  reg u32 zero = 0;
+  x[:u32 0] = zero;
+  return x;
+}
+
+#[safety = {
+    res = { result },
+    ensures = result == min(a, b)
+  }]
+export fn min(reg si32 a b) -> reg si32 {
+  if b < a {
+    a = b;
+  }
+  return a;
+}
+
+export fn non_trivial_init() -> reg u32 {
+  reg u32 x;
+  if true { x = 0; }
+  assert("after if", is_var_init(x));
+  return x;
+}

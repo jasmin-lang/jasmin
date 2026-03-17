@@ -387,7 +387,7 @@ Section PROOF.
     + by move=> > _; apply wequiv_assgn_rel_eq with checker_st_eq tt.
     + by move=> > _; apply wequiv_opn_rel_eq with checker_st_eq tt.
     + by move=> > _; apply wequiv_syscall_rel_eq with checker_st_eq tt.
-    + by move=> > _; apply wequiv_assert_rel_eq with checker_st_eq.
+    + by move=> > _; apply wequiv_noassert.
     + move=> > hc1 hc2 ii; rewrite !CallsE => /def_incl_union [??].
       apply wequiv_if_rel_eq with checker_st_eq tt tt tt => //.
       + by apply hc1.

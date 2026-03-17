@@ -87,7 +87,7 @@ end = struct
     | Copn (lvls, tag, opn, exprs) ->
       Copn (mk_lvals fn lvls, tag, opn, mk_exprs fn exprs)
     | Cassert (msg, e) ->
-       Cassert (msg, mk_expr fn e)
+       Cassert (msg, mk_eassert fn e)
     | Csyscall (lvls, o, exprs) ->
         Csyscall(mk_lvals fn lvls, o, mk_exprs fn exprs)
     | Cif (e, st, st') ->
@@ -115,6 +115,14 @@ end = struct
       Pif (ty, mk_expr fn e, mk_expr fn el, mk_expr fn er)
 
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
+
+  and mk_eassert fn e =
+    match e with
+    | Pexpr e -> Pexpr (mk_expr fn e)
+    | PappN_safety(op, es) -> PappN_safety(op, mk_exprs fn es)
+    | Pis_var_init x -> Pis_var_init (mk_v_loc fn x)
+    | Pis_mem_init(e1, e2) -> Pis_mem_init(mk_expr fn e1, mk_expr fn e2)
+    | Pand(e1, e2) -> Pand(mk_eassert fn e1, mk_eassert fn e2)
 
   let mk_uniq main_decl ((glob_decls, fun_decls) : (unit, 'asm) prog) =
     Hashtbl.clear ht_uniq;
@@ -511,6 +519,9 @@ module FSPa : sig
   val fs_pa_make : ('info, Arch.extended_op) func -> (unit, Arch.extended_op) func * Pa.pa_res
 end = struct
   exception Fcall
+
+  (* This is very close to vars_e, vars_es, vars_lv, vars_a, vars_i and vars_c.
+     The only diff is that this function fail if a call remains *)
   let rec collect_vars_e sv = function
     | Pconst _ | Pbool _ | Parr_init _ -> sv
     | Pvar v ->
@@ -537,6 +548,8 @@ end = struct
 
   let collect_vars_lvs sv = List.fold_left collect_vars_lv sv
 
+  let collect_vars_eassert sv a = Sv.union sv (vars_a a)
+
   let rec collect_vars_i sv i = match i.i_desc with
     | Cif (e, st1, st2)
     | Cwhile (_, st1, e, _, st2) ->
@@ -553,7 +566,7 @@ end = struct
       let sv = collect_vars_lv sv lv in
       collect_vars_e sv e
     | Ccall _ -> raise Fcall
-    | Cassert (_, e) ->  collect_vars_e sv e
+    | Cassert (_, e) ->  collect_vars_eassert sv e
 
   and collect_vars_is sv is = List.fold_left collect_vars_i sv is
 

@@ -123,7 +123,7 @@ Definition wint_contract_condition (x:var_i) :=
   Let xi := wi2i_vari x in
   match m x.(v_var) , x.(v_var).(vtype) with
   | Some (s,_) , aword sz  =>
-    ok [::(safety_lbl,  sc_wi_range s sz (Plvar xi))]
+    ok [::(safety_lbl, Pexpr (sc_wi_range s sz (Plvar xi)))]
   | _ , _ => ok [::]
   end.
 
@@ -250,10 +250,34 @@ Definition wi2i_lvs msg okmem xtys xs :=
   Let _ := assert (check_xs okmem Sv.empty xs scs) err in
   ok (flatten scs, xs).
 
+Fixpoint wi2i_eassert (e:eassert) : cexec (safety_cond * eassert) :=
+  match e with
+  | Pexpr e => Let ce := wi2i_e e in ok (ce.1, Pexpr ce.2)
+  | PappN_safety o es =>
+    Let _ := assert (all (fun e => sign_of_expr m e == None) es)
+                    (E.ierror_s "ill typed appN_assert") in
+    Let es := wi2i_es wi2i_e es in
+    ok (es.1, PappN_safety o es.2)
+
+  | Pis_var_init x =>
+    Let x := wi2i_vari x in
+    ok ([::], Pis_var_init x)
+
+  | Pis_mem_init e1 e2 =>
+    Let _ := assert [&& etype_of_expr m e1 == ETword _ None Uptr
+                      & etype_of_expr m e2 == ETint _] (E.ierror_s "ill typed is_mem_init") in
+    Let e1 := wi2i_e e1 in
+    Let e2 := wi2i_e e2 in
+    ok (e1.1 ++ e2.1, Pis_mem_init e1.2 e2.2)
+  | Pand e1 e2 =>
+    Let e1 := wi2i_eassert e1 in
+    Let e2 := wi2i_eassert e2 in
+    ok (e1.1 ++ e2.1, Pand e1.2 e2.2)
+  end.
 
 Definition wi2i_a_and (a : assertion) :=
-  Let e := wi2i_e a.2 in
-  ok (a.1, eands (rcons e.1 e.2)).
+  Let e := wi2i_eassert a.2 in
+  ok (a.1, aands (rcons (map Pexpr e.1) e.2)).
 
 Context (sigs : funname -> option (list (extended_type positive) * list (extended_type positive))).
 
@@ -364,7 +388,7 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
     Let e := wi2i_e e in
     Let c := wi2i_c wi2i_i c in
     Let c' := wi2i_c wi2i_i c' in
-    ok ([::], Cwhile a (c ++ safe_assert ii' e.1) e.2 ii' c')
+    ok ([::], Cwhile a (c ++ safe_assert ii' (map Pexpr e.1)) e.2 ii' c')
 
   | Ccall xs f es =>
     Let sig := get_sig f in
@@ -378,7 +402,7 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
 with wi2i_i (i:instr) : cexec cmd :=
   let (ii,ir) := i in
   Let ir := add_iinfo ii (wi2i_ir ir) in
-  ok (rcons (safe_assert ii ir.1) (MkI ii ir.2)).
+  ok (rcons (safe_assert ii (map Pexpr ir.1)) (MkI ii ir.2)).
 
 Definition wi2i_ci ci sig :=
   Let ci_pre := mapM wi2i_a_and ci.(f_pre) in

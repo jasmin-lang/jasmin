@@ -885,6 +885,14 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
       Some (AbsDom.subst_btcons abs c)
     with Bop_not_supported -> None
 
+  let rec eassert_to_btcons (e : 'a Prog.gassert) (abs: AbsDom.t) : btcons option =
+    match e with
+    | Prog.Pexpr e -> bexpr_to_btcons e abs
+    | PappN_safety _ | Pis_var_init _ | Pis_mem_init _ -> None
+    | Pand(e1, e2) ->
+      match eassert_to_btcons e1 abs, eassert_to_btcons e2 abs with
+      | Some e1, Some e2 -> Some (BAnd(e1, e2))
+      | _, _ -> None
 
   let linearize_if_iexpr : 'a Prog.gexpr -> AbsDom.t -> s_expr =
     fun e abs ->

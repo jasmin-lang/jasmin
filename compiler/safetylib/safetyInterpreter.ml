@@ -112,7 +112,7 @@ type safe_cond =
   | NotEqual of op_kind * expr * expr
   | Termination of bool (* the boolean signals whether this is a severe violation *)
 
-  | GeneralCond of expr
+  | GeneralCond of eassert (* Without Pand *)
 
 let notZero(ws, e) = NotEqual(Op_w ws, e, pcast ws (Pconst (Z.of_int 0)))
 
@@ -168,7 +168,7 @@ let pp_safety_cond fmt = function
 
   | Termination b -> Format.fprintf fmt "termination%s" (if b then "" else " has not been checked")
 
-  | GeneralCond e -> Format.fprintf fmt "%a" pp_expr e
+  | GeneralCond e -> Format.fprintf fmt "%a" (Printer.pp_eassert ~debug:false) e
 
 type violation_loc =
   | InProg of Prog.L.i_loc
@@ -455,10 +455,20 @@ let safe_opn pd asmOp safe opn es =
     )
      id.i_safe) @ safe
 
+let rec safe_eassert cs e =
+    match e with
+    | Pexpr e' -> safe_e_rec (GeneralCond e::cs) e'
+    | PappN_safety (_, es) ->
+        List.fold_left safe_e_rec (GeneralCond e::cs) es
+    | Pis_var_init x -> Initv (L.unloc x) :: cs
+    | Pis_mem_init (e1, e2) ->
+        List.fold_left safe_e_rec (GeneralCond e::cs) [e1; e2]
+    | Pand(e1, e2) -> safe_eassert (safe_eassert cs e2) e1
+
 let safe_instr pd asmOp ginstr = match ginstr.i_desc with
   | Cassgn (lv, _, _, e) -> safe_e_rec (safe_lval lv) e
   | Copn (lvs,_,opn,es) -> safe_opn pd asmOp (safe_lvals lvs @ safe_es es) opn es
-  | Cassert (_, e) -> safe_e_rec [ GeneralCond e ] e
+  | Cassert (_, e) -> safe_eassert [] e
   | Cif(e, _, _) -> safe_e e
   | Cwhile(_, _, _, _, _) -> []       (* We check the while condition later. *)
   | Ccall(lvs, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
@@ -764,10 +774,14 @@ end = struct
           AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
 
     | GeneralCond e ->
-       let ne = Papp1 (Onot, e) in
-       begin match AbsExpr.bexpr_to_btcons ne state.abs with
+       begin match AbsExpr.eassert_to_btcons e state.abs with
        | None -> false
-       | Some c -> AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
+       | Some c ->
+         match flip_btcons c with
+         | None -> false
+         | Some nc ->
+             AbsDom.is_bottom (AbsDom.meet_btcons state.abs nc)
+       end
 
     (* These are checked elsewhere *)
     | AlignedPtr _ | AlignedExpr _ | Valid _ | Termination _ -> true
@@ -1262,7 +1276,7 @@ end = struct
       | Cassgn (lv, _, _, e)    -> nm_lv vs_for lv && nm_e vs_for e
       | Copn (lvs, _, _, es)    -> nm_lvs vs_for lvs && nm_es vs_for es
       | Csyscall(lvs, _ ,es)    -> nm_lvs vs_for lvs && nm_es vs_for es
-      | Cassert(_, e)           -> nm_e vs_for e
+      | Cassert(_, e)           -> nm_a vs_for e
       | Cif (e, st, st')        ->
         nm_e vs_for e && nm_stmt vs_for st && nm_stmt vs_for st'
       | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
@@ -1287,6 +1301,14 @@ end = struct
       | Pif (_, e, el, er) -> nm_es vs_for [e; el; er]
 
     and nm_es vs_for es = List.for_all (nm_e vs_for) es
+
+    and nm_a vs_for e =
+      match e with
+      | Pexpr e -> nm_e vs_for e
+      | PappN_safety (_, es) -> nm_es vs_for es
+      | Pis_var_init _ -> true
+      | Pis_mem_init _ -> false
+      | Pand(e1, e2) -> nm_a vs_for e1 && nm_a vs_for e2
 
     and nm_lv vs_for = function
       | Lnone _ | Lvar _ -> true
@@ -1963,7 +1985,7 @@ end
 
 module type ExportWrap = sig
   type extended_op
-  
+
   (* main function, before any compilation pass *)
   val main_source : (unit, extended_op) Prog.func
 

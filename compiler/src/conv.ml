@@ -88,13 +88,13 @@ let rec cexpr_of_expr = function
   | Parr_init (ws, n) -> C.Parr_init (ws, pos_of_int n)
   | Pvar x            -> C.Pvar (cgvari_of_gvari x)
   | Pget (al, aa,ws, x,e) -> C.Pget (al, aa, ws, cgvari_of_gvari x, cexpr_of_expr e)
-  | Psub (aa,ws,len, x,e) -> 
+  | Psub (aa,ws,len, x,e) ->
     C.Psub (aa, ws, pos_of_int len, cgvari_of_gvari x, cexpr_of_expr e)
   | Pload (al, ws, e)  -> C.Pload(al, ws, cexpr_of_expr e)
   | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr e)
   | Papp2 (o, e1, e2) -> C.Papp2(o, cexpr_of_expr e1, cexpr_of_expr e2)
   | PappN (o, es) -> C.PappN (o, List.map (cexpr_of_expr) es)
-  | Pif   (ty, e, e1, e2) -> C.Pif(cty_of_ty ty, 
+  | Pif   (ty, e, e1, e2) -> C.Pif(cty_of_ty ty,
                                 cexpr_of_expr e,
                                 cexpr_of_expr e1,
                                 cexpr_of_expr e2)
@@ -122,7 +122,7 @@ let clval_of_lval = function
   | Lvar x          -> C.Lvar  (cvari_of_vari x)
   | Lmem (al, ws, loc, e) -> C.Lmem (al, ws, loc, cexpr_of_expr e)
   | Laset(al, aa,ws,x,e)-> C.Laset (al, aa, ws, cvari_of_vari x, cexpr_of_expr e)
-  | Lasub(aa,ws,len,x,e)-> 
+  | Lasub(aa,ws,len,x,e)->
     C.Lasub (aa, ws, pos_of_int len, cvari_of_vari x, cexpr_of_expr e)
 
 let lval_of_clval = function
@@ -130,7 +130,7 @@ let lval_of_clval = function
   | C.Lvar x        -> Lvar (vari_of_cvari x)
   | C.Lmem(al,ws,loc,e)  -> Lmem (al, ws, loc, expr_of_cexpr e)
   | C.Laset(al, aa,ws,x,e) -> Laset (al, aa,ws, vari_of_cvari x, expr_of_cexpr e)
-  | C.Lasub(aa,ws,len,x,e) -> 
+  | C.Lasub(aa,ws,len,x,e) ->
     Lasub (aa,ws, int_of_pos len, vari_of_cvari x, expr_of_cexpr e)
 
 (* ------------------------------------------------------------------------ *)
@@ -140,6 +140,29 @@ let lval_of_clvals xs = List.map (lval_of_clval) xs
 
 let cexpr_of_exprs es = List.map (cexpr_of_expr) es
 let expr_of_cexprs es = List.map (expr_of_cexpr) es
+
+(* ------------------------------------------------------------------------ *)
+
+let rec ceassert_of_eassert = function
+  | Pexpr e -> C.Pexpr (cexpr_of_expr e)
+  | PappN_safety(o, es) -> C.PappN_safety(o, cexpr_of_exprs es)
+  | Pis_var_init x -> C.Pis_var_init (cvari_of_vari x)
+  | Pis_mem_init (e1, e2) -> C.Pis_mem_init(cexpr_of_expr e1, cexpr_of_expr e2)
+  | Pand (e1, e2) -> C.Pand(ceassert_of_eassert e1, ceassert_of_eassert e2)
+
+let rec eassert_of_ceassert = function
+  | C.Pexpr e -> Pexpr (expr_of_cexpr e)
+  | C.PappN_safety(o, es) -> PappN_safety(o, expr_of_cexprs es)
+  | C.Pis_var_init x -> Pis_var_init (vari_of_cvari x)
+  | C.Pis_mem_init (e1, e2) -> Pis_mem_init(expr_of_cexpr e1, expr_of_cexpr e2)
+  | C.Pand (e1, e2) -> Pand(eassert_of_ceassert e1, eassert_of_ceassert e2)
+
+
+let cassertion_of_assertion (msg, e) = (msg, ceassert_of_eassert e)
+let assertion_of_cassertion (msg, e) = (msg, eassert_of_ceassert e)
+
+let cassertion_of_assertions = List.map cassertion_of_assertion
+let assertion_of_cassertions  = List.map assertion_of_cassertion
 
 (* ------------------------------------------------------------------------ *)
 
@@ -165,7 +188,7 @@ and cinstr_r_of_instr_r p i =
     C.MkI(p, ir)
 
   | Cassert (msg, e) ->
-     let ir = C.Cassert (msg, cexpr_of_expr e) in
+     let ir = C.Cassert (msg, ceassert_of_eassert e) in
      C.MkI (p, ir)
 
   | Cif(e,c1,c2) ->
@@ -209,7 +232,7 @@ and instr_r_of_cinstr_r = function
     Csyscall(lval_of_clvals x, o, expr_of_cexprs e)
 
   | C.Cassert (msg, e) ->
-     Cassert (msg, expr_of_cexpr e)
+     Cassert (msg, eassert_of_ceassert e)
 
   | C.Cif(e,c1,c2) ->
     let c1 = stmt_of_cstmt c1 in
@@ -232,15 +255,12 @@ and stmt_of_cstmt c =
   List.map instr_of_cinstr c
 
 (* ------------------------------------------------------------------------ *)
-let contract_of_ccontract c =
-  let aux =
-    List.map (fun (prover,clause) -> prover,cexpr_of_expr clause)
-  in
+let ccontract_of_contract c =
   {
     C.f_iparams =  List.map cvari_of_vari c.f_iparams;
     C.f_ires = List.map cvari_of_vari c.f_ires;
-    C.f_pre = aux c.f_pre;
-    C.f_post = aux c.f_post;
+    C.f_pre = cassertion_of_assertions c.f_pre;
+    C.f_post = cassertion_of_assertions c.f_post;
   }
 
 (* ------------------------------------------------------------------------ *)
@@ -252,7 +272,7 @@ let cufdef_of_fdef fd =
   let f_body = cstmt_of_stmt fd.f_body in
   let f_res = List.map cvari_of_vari fd.f_ret in
   fn, { C.f_info   = f_info;
-        C.f_contract = Option.map contract_of_ccontract fd.f_contract;
+        C.f_contract = Option.map ccontract_of_contract fd.f_contract;
         C.f_tyin   = List.map cty_of_ty fd.f_tyin;
         C.f_params = f_params;
         C.f_body   = f_body;
@@ -261,22 +281,19 @@ let cufdef_of_fdef fd =
         C.f_extra  = ();
       }
 
-let ccontract_of_contract c =
-  let aux =
-    List.map (fun (prover,clause) -> prover,expr_of_cexpr clause)
-  in
+let contract_of_ccontract c =
   {
     f_iparams = List.map vari_of_cvari C.(c.f_iparams);
     f_ires = List.map vari_of_cvari C.(c.f_ires);
-    f_pre = aux C.(c.f_pre);
-    f_post = aux C.(c.f_post);
+    f_pre = assertion_of_cassertions C.(c.f_pre);
+    f_post = assertion_of_cassertions C.(c.f_post);
   }
 
 let fdef_of_cufdef (fn, fd) =
   let f_loc, f_annot, f_cc, f_ret_info = fd.C.f_info in
   { f_loc;
     f_annot;
-    f_contract = Option.map ccontract_of_contract fd.f_contract;
+    f_contract = Option.map contract_of_ccontract fd.f_contract;
     f_cc;
     f_info = ();
     f_name = fn;
@@ -318,9 +335,9 @@ let prog_of_csprog p =
 
 
 (* ---------------------------------------------------------------------------- *)
-let to_array ty p t = 
+let to_array ty p t =
   let ws, n = array_kind ty in
-  let get i = 
+  let get i =
     match Warray_.WArray.get p Aligned Warray_.AAscale ws t (cz_of_int i) with
     | Utils0.Ok w -> z_of_word ws w
     | _    -> assert false in

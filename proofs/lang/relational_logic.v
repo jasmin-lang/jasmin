@@ -762,8 +762,8 @@ Lemma wequiv_assert (P Q : rel_c) ii1 a1 ii2 a2 :
    assert_allowed (WithAssert:=wa2) /\
    forall s1 s2,
      P s1 s2 ->
-     sem_cond (p_globs p1) a1.2 s1 = ok true ->
-     sem_cond (p_globs p2) a2.2 s2 = ok true /\ Q s1 s2) ->
+     sem_eassert (p_globs p1) s1 a1.2 = ok true ->
+     sem_eassert (p_globs p2) s2 a2.2 = ok true /\ Q s1 s2) ->
   wequiv P [:: MkI ii1 (Cassert a1)] [:: MkI ii2 (Cassert a2)] Q.
 Proof.
   move=> hcond; apply wequiv_assert_esem => s t s' hP /=.
@@ -780,43 +780,25 @@ Proof.
   move=> he; apply: wrequiv_bind wrequiv_to_bool; apply he.
 Qed.
 
-Lemma wequiv_assert_uincl (P Q : rel_c) ii1 a1 ii2 a2 :
+Lemma wequiv_assert_eq (P Q : rel_c) ii1 a1 ii2 a2 :
   (assert_allowed (WithAssert:=wa1) ->
      assert_allowed (WithAssert:=wa2) /\
-     wrequiv P (fun s => sem_pexpr true (p_globs p1) s a1.2)
-               (fun s => sem_pexpr true (p_globs p2) s a2.2) value_uincl) ->
+     wrequiv P (fun s => sem_eassert (p_globs p1) s a1.2)
+               (fun s => sem_eassert (p_globs p2) s a2.2) eq) ->
   (assert_allowed (WithAssert:=wa1) ->
    assert_allowed (WithAssert:=wa2) ->
    forall s1 s2,
      P s1 s2 ->
-     sem_pexpr true (p_globs p1) s1 a1.2 = ok (Vbool true) ->
-     sem_pexpr true (p_globs p2) s2 a2.2 = ok (Vbool true) ->
+     sem_eassert (p_globs p1) s1 a1.2 = ok true ->
+     sem_eassert (p_globs p2) s2 a2.2 = ok true ->
      Q s1 s2) ->
   wequiv P [:: MkI ii1 (Cassert a1)] [:: MkI ii2 (Cassert a2)] Q.
 Proof.
   move=> hcond hweak; apply wequiv_assert => haa1.
   have [haa2 h] := hcond haa1; split => //.
   move=> s1 s2 hP hsem1.
-  have [o2 hsem2 ?]:= sem_cond_uincl h hP hsem1; subst o2; split => //.
-  by apply hweak => //;[ move: hsem1 | move: hsem2]; rewrite /sem_cond; t_xrbindP => ? -> /to_boolI ->.
-Qed.
-
-Lemma wequiv_assert_eq (P Q : rel_c) ii1 a1 ii2 a2 :
-  (assert_allowed (WithAssert:=wa1) ->
-     assert_allowed (WithAssert:=wa2) /\
-     wrequiv P (fun s => sem_pexpr true (p_globs p1) s a1.2)
-               (fun s => sem_pexpr true (p_globs p2) s a2.2) eq) ->
-  (assert_allowed (WithAssert:=wa1) ->
-   assert_allowed (WithAssert:=wa2) ->
-   forall s1 s2,
-     P s1 s2 ->
-     sem_pexpr true (p_globs p1) s1 a1.2 = ok (Vbool true) ->
-     sem_pexpr true (p_globs p2) s2 a2.2 = ok (Vbool true) ->
-     Q s1 s2) ->
-  wequiv P [:: MkI ii1 (Cassert a1)] [:: MkI ii2 (Cassert a2)] Q.
-Proof.
-  move=> hcond; apply wequiv_assert_uincl => /hcond [? he]; split => //.
-  by apply: wrequiv_weaken he => // > ->.
+  have [b hsem2 ?]:= h _ _ _ hP hsem1; subst b; split => //.
+  by apply hweak.
 Qed.
 
 Section ST_REL.
@@ -1330,7 +1312,7 @@ Qed.
 
 Lemma wequiv_assert_left P Q ii a :
   (assert_allowed (WithAssert:=wa1) ->
-   forall s t, P s t -> sem_pexpr true (p_globs p1) s a.2 = ok (Vbool true) -> Q s t) ->
+   forall s t, P s t -> sem_eassert (p_globs p1) s a.2 = ok true -> Q s t) ->
   wequiv P [::MkI ii (Cassert a)] [::] Q.
 Proof.
   move=> h; rewrite /wequiv /=.
@@ -1338,7 +1320,7 @@ Proof.
   move=> s1 s2 hP; rewrite /isem_assert.
   case heq: sem_assert => [ []| e] /=.
   + rewrite bind_ret_l.
-    move: heq; rewrite /sem_assert /sem_cond; t_xrbindP => hwa [] // v he /to_boolI ? _ _; subst v.
+    move: heq; rewrite /sem_assert /sem_cond; t_xrbindP => hwa [] // he _ _.
     by apply/xrutt_Ret/h.
   rewrite /Exception.throw bind_vis.
   apply xrutt_CutL => //.
@@ -1357,7 +1339,13 @@ Class Checker_e :=
    forall d es1 es2 d', check_es d es1 es2 d' -> forall s1 s2, R d s1 s2 -> R d' s1 s2
  }.
 
-Context {ce : Checker_e}.
+Class Checker_a :=
+ { check_a     : D -> eassert -> eassert -> D -> Prop
+ ; check_aP_rel :
+   forall d a1 a2 d', check_a d a1 a2 d' -> forall s1 s2, R d s1 s2 -> R d' s1 s2
+ }.
+
+Context {ce : Checker_e} {ca : Checker_a}.
 
 Definition wdb_ok (wdb1 wdb2 : bool) :=
   wdb1 /\ wdb2 \/ wdb1 = ~~@direct_call dc1 /\ wdb2 = ~~@direct_call dc2.
@@ -1398,6 +1386,13 @@ Class Checker_eq :=
      forall vs,
      wrequiv (R d) (λ s1 : estate, write_lvals wdb1 (p_globs p1) s1 xs1 vs)
                           (λ s2 : estate, write_lvals wdb2 (p_globs p2) s2 xs2 vs) (R d')
+ }.
+
+Class Checker_a_eq :=
+ { echeck_aP   :
+   forall d a1 a2 d',
+     check_a d a1 a2 d' ->
+     wrequiv (R d) ((sem_eassert (p_globs p1))^~ a1) ((sem_eassert (p_globs p2))^~ a2) eq
  }.
 
 Section UINCL.
@@ -1451,16 +1446,6 @@ Proof.
   move=> v1 v2 hu; apply wrequiv_weaken with (R de) (R d') => //.
   + by apply: check_esP_rel hes.
   by apply: ucheck_lvalsP hxs v1 v2 hu.
-Qed.
-
-Lemma wequiv_assert_rel_uincl d de ii1 a1 ii2 a2 :
-  (assert_allowed (WithAssert:=wa1) → assert_allowed (WithAssert:=wa2)) ->
-  check_es d [::a1.2] [::a2.2] de ->
-  wequiv (R d) [:: MkI ii1 (Cassert a1)] [:: MkI ii2 (Cassert a2)] (R de).
-Proof.
-  move=> hassert hes; apply wequiv_assert_uincl.
-  + move=> /hassert ?; split => //; apply: ucheck_eP hes.
-  by move=> _ _ + + + _ _; apply: check_esP_rel hes.
 Qed.
 
 Lemma wequiv_if_rel_uincl_R d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
@@ -1561,7 +1546,7 @@ End UINCL.
 
 Section EQ.
 
-Context {cu:Checker_eq}.
+Context {cu:Checker_eq} {caP: Checker_a_eq}.
 
 Lemma echeck_eP d e1 e2 d' :
   check_es d [::e1] [::e2] d' ->
@@ -1613,13 +1598,13 @@ Qed.
 
 Lemma wequiv_assert_rel_eq d de ii1 a1 ii2 a2 :
   (assert_allowed (WithAssert:=wa1) → assert_allowed (WithAssert:=wa2)) ->
-  check_es d [::a1.2] [::a2.2] de ->
+  check_a d a1.2 a2.2 de ->
   wequiv (R d) [:: MkI ii1 (Cassert a1)] [:: MkI ii2 (Cassert a2)] (R de).
 Proof.
-  move=> hassert hes.
+  move=> hassert ha.
   apply wequiv_assert_eq.
-  + by move=> /hassert ?; split => //; apply: echeck_eP hes.
-  by move=> _ _ + + + _ _; apply: check_esP_rel hes.
+  + by move=> /hassert ?; split => //; apply: echeck_aP ha.
+  by move=> _ _ + + + _ _; apply: check_aP_rel ha.
 Qed.
 
 Lemma wequiv_if_rel_eq_R d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
@@ -1851,12 +1836,23 @@ Definition check_lvals_st_eq (_:unit) (xs1 xs2 : lvals) (_:unit) := xs1 = xs2.
 
 Lemma check_esP_R_st_eq (d : unit) (es1 es2 : pexprs) (d' : unit) :
   check_es_st_eq d es1 es2 d' → ∀ s1 s2, st_rel _vm_eq d s1 s2 → st_rel _vm_eq d' s1 s2.
-Proof. by move=> ?; apply st_rel_weaken. Qed.
+Proof. done. Qed.
 
 Definition checker_st_eq : Checker_e (st_rel _vm_eq) :=
   {| check_es := check_es_st_eq;
      check_lvals := check_lvals_st_eq;
      check_esP_rel := check_esP_R_st_eq |}.
+
+Definition check_a_st_eq (_:unit) (a1 a2: eassert) (_:unit) := a1 = a2.
+
+Lemma check_aP_st_eq (d : unit) (a1 a2 : eassert) (d' : unit) :
+  check_a_st_eq d a1 a2 d' →
+  ∀ (s1 : estate1) (s2 : estate2), st_rel _vm_eq d s1 s2 → st_rel _vm_eq d' s1 s2.
+Proof. done. Qed.
+
+Definition checker_a_st_eq : Checker_a (st_rel _vm_eq) :=
+  {| check_a := check_a_st_eq
+   ; check_aP_rel := check_aP_st_eq |}.
 
 Notation _vm_uincl := (fun (_:unit) => vm_uincl (wsw1:=wsw1) (wsw2:=wsw2)).
 Definition st_uincl := st_rel _vm_uincl.
@@ -2369,6 +2365,9 @@ End SYSCALL.
 
 Arguments Checker_eq {syscall_state} {ep spp} {asm_op} {sip pT1 pT2 wsw1 wsw2 dc1 dc2}
   _ _ {D} [R] ce.
+
+Arguments Checker_a_eq {syscall_state} {ep spp} {asm_op} {sip pT1 pT2 wsw1 wsw2}
+  _ _ {D} [R] ca.
 
 Arguments Checker_uincl {syscall_state} {ep spp} {asm_op} {sip pT1 pT2 wsw1 wsw2 dc1 dc2}
   _ _ {D} [R] ce.

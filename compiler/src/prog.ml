@@ -33,6 +33,13 @@ type 'len gexpr =
 
 type 'len gexprs = 'len gexpr list
 
+type 'len gassert =
+ | Pexpr of 'len gexpr
+ | PappN_safety of opN_safety * 'len gexpr list
+ | Pis_var_init of 'len gvar_i
+ | Pis_mem_init of 'len gexpr * 'len gexpr
+ | Pand of 'len gassert * 'len gassert
+
 let kind_i v = (L.unloc v).v_kind
 let ty_i v = (L.unloc v).v_ty
 
@@ -92,7 +99,7 @@ type 'len glvals = 'len glval list
 
 type 'len grange = E.dir * 'len gexpr * 'len gexpr
 
-type 'len assertion = string * 'len gexpr
+type 'len assertion = string * 'len gassert
 
 type ('len, 'info, 'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
@@ -239,7 +246,7 @@ type lval  = int glval
 type lvals = int glval list
 type expr  = int gexpr
 type exprs = int gexpr list
-
+type eassert = int gassert
 type ('info, 'asm) instr = (int, 'info, 'asm) ginstr
 type ('info, 'asm) instr_r = (int,'info,'asm) ginstr_r
 type ('info, 'asm) stmt  = (int, 'info, 'asm) gstmt
@@ -284,11 +291,20 @@ let rvars_lv f s = function
 
 let rvars_lvs f s lvs = List.fold_left (rvars_lv f) s lvs
 
+let rec rvars_a f s = function
+ | Pexpr e -> rvars_e f s e
+ | PappN_safety (_, es) -> rvars_es f s es
+ | Pis_var_init x -> f (L.unloc x) s
+ | Pis_mem_init (e1, e2) -> rvars_es f s [e1; e2]
+ | Pand (e1, e2) -> rvars_a f (rvars_a f s e1) e2
+
+let rvars_as f s es = List.fold_left (fun s (_, a) -> rvars_a f s a) s es
+
 let rec rvars_i f s i =
   match i.i_desc with
   | Cassgn(x, _, _, e)  -> rvars_e f (rvars_lv f s x) e
   | Copn(x,_,_,e)  | Csyscall (x, _, e) -> rvars_es f (rvars_lvs f s x) e
-  | Cassert(_, e) -> rvars_e f s e
+  | Cassert(_, e) -> rvars_a f s e
   | Cif(e,c1,c2)   -> rvars_c f (rvars_c f (rvars_e f s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
     rvars_c f (rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2) c
@@ -304,11 +320,11 @@ let fold_vars_fc f z fc =
   let a = fold_vars_ret f z fc in
   rvars_c f a fc.f_body
 
-
 let vars_ret fd = fold_vars_ret Sv.add Sv.empty fd
 let vars_lv z x = rvars_lv Sv.add z x
 let vars_e e = rvars_e Sv.add Sv.empty e
 let vars_es es = rvars_es Sv.add Sv.empty es
+let vars_a a = rvars_a Sv.add Sv.empty a
 let vars_i i = rvars_i Sv.add Sv.empty i
 let vars_c c = rvars_c Sv.add Sv.empty c
 let pvars_c c = rvars_c Spv.add Spv.empty c
@@ -327,8 +343,8 @@ let vars_contract f_contract =
   | Some f_contract ->
     let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) Sv.empty f_contract.f_iparams in
     let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) s f_contract.f_ires in
-    let s = rvars_es Sv.add s (List.map snd f_contract.f_pre) in
-    rvars_es Sv.add s (List.map snd f_contract.f_post)
+    let s = rvars_as Sv.add s f_contract.f_pre in
+    rvars_as Sv.add s f_contract.f_post
 
 let vars_fc_contract fc =
   let s = vars_fc fc in

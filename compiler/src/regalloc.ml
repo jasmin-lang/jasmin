@@ -493,9 +493,10 @@ let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =
   let iter_lvs lvs = List.fold_left vars_lv Sv.empty lvs |> iter_sv in
   let iter_expr e = vars_e e |> iter_sv in
   let iter_exprs es = vars_es es |> iter_sv in
+  let iter_assert e = vars_a e |> iter_sv in
   let rec iter_instr_r =
     function
-    | Cassert (_, e) -> iter_expr e
+    | Cassert (_, e) -> iter_assert e
     | Cassgn (lv, _, _, e) -> iter_lv lv; iter_expr e
     | (Ccall (lvs, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _ , es) -> iter_lvs lvs; iter_exprs es
     | (Cwhile (_, s1, e, _, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2

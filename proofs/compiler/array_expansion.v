@@ -278,8 +278,7 @@ Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
     ok (MkI ii (Csyscall xs o es))
 
   | Cassert a =>
-    Let a := add_iinfo ii (sndM (expand_e m) a) in
-    ok (MkI ii (Cassert a))
+    Error (pp_safety_remains_at E.pass ii)
 
   | Cif b c1 c2 =>
     Let b  := add_iinfo ii (expand_e m b) in

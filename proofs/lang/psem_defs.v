@@ -32,6 +32,9 @@ Definition sem_opN
   Let w := app_sopn _ (sem_opN_typed op) vs in
   ok (to_val w).
 
+Definition sem_opN_safety (op: opN_safety) (vs: values) : exec bool :=
+  app_sopn _ (sem_opN_safety_typed op) vs.
+
 (* ** Global access
  * -------------------------------------------------------------------- *)
 Definition get_global_value (gd: glob_decls) (g: var) : option glob_value :=
@@ -196,6 +199,42 @@ Definition write_lvals (s : estate) xs vs :=
    fold2 ErrType write_lval xs vs s.
 
 End SEM_PEXPR.
+
+Section SEM_EASSERT.
+
+Context
+  {wa:WithAssert}
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  (gd : glob_decls).
+
+Fixpoint sem_eassert (s : estate) (e : eassert) : exec bool :=
+  match e with
+  | Pexpr e => sem_pexpr true gd s e >>= to_bool
+  | PappN_safety op es =>
+    Let vs := mapM (sem_pexpr true gd s) es in
+    sem_opN_safety op vs
+  | Pis_var_init x =>
+    let v := (evm s).[x] in
+    ok (is_defined v)
+  | Pis_mem_init e1 e2 =>
+    Let lo := sem_pexpr true gd s e1 >>= to_pointer in
+    Let sz := sem_pexpr true gd s e2 >>= to_int in
+    ok (all (fun i => is_ok (read s.(emem) Unaligned (lo + wrepr Uptr i)%w U8)) (ziota 0 sz))
+  | Pand e1 e2 =>
+    Let b1 := sem_eassert s e1 in
+    Let b2 := sem_eassert s e2 in
+    ok (b1 && b2)
+  end.
+
+Definition sem_assert (s : estate) (e : assertion) : exec unit :=
+  Let _ := assert (assert_allowed) ErrType in
+  Let b := sem_eassert s e.2 in
+  Let _ := assert b (ErrAssert e.1) in
+  ok tt.
+
+End SEM_EASSERT.
 
 Section EXEC_ASM.
 

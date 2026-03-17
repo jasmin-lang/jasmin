@@ -32,7 +32,7 @@ module type Logic = sig
   val opn :
     Location.i_loc -> lvals -> E.assgn_tag -> 'asm Sopn.sopn -> exprs -> domain -> domain annotation
 
-  val assertion : Location.i_loc -> string -> expr -> domain -> domain annotation
+  val assertion : Location.i_loc -> string -> eassert -> domain -> domain annotation
 end
 
 module type S = sig
