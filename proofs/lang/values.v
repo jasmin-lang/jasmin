@@ -7,6 +7,8 @@ Require Import xseq.
 Require Export warray_ word sem_type.
 Import Utf8.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 (* ----------------------------------------------------------- *)
 
 Definition is_undef_t (t: ctype) := [|| t == cbool, t == cint | t == cword U8].

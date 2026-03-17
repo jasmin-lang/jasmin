@@ -7,6 +7,8 @@ Require Export stack_alloc stack_alloc_params_proof.
 Require slh_lowering_proof.
 Import Utf8 Lia.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
 

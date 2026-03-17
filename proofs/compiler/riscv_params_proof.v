@@ -40,6 +40,8 @@ Require Import
   riscv_stack_zeroization_proof.
 Require Export riscv_params.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Section Section.
 
 Context

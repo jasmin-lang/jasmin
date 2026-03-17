@@ -53,6 +53,8 @@ Require Import
   asm_gen_proof
   sem_params_of_arch_extra.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Section IT.
 
 Context

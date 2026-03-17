@@ -5,6 +5,8 @@ From Coq Require Import ZArith.
 Require Import psem array_expansion compiler_util.
 Import Utf8 Lia.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Local Open Scope seq_scope.
 
 Record wf_ai (m : t) (x:var) ai := {

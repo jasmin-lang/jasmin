@@ -7,6 +7,8 @@ Require Export lea.
 Import Utf8.
 Import ssrring.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Local Open Scope seq_scope.
 
 

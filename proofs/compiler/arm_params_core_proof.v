@@ -21,6 +21,8 @@ Require Import
   arm_instr_decl
   arm_params_core.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Module ARMFopn_coreP.
 
 Section Section.

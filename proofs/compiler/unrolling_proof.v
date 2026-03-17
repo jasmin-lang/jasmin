@@ -4,6 +4,8 @@ From Coq Require Import ZArith.
 Require Import psem compiler_util.
 Require Export unrolling.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Local Open Scope seq_scope.
 
 Section PROOF.

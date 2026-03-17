@@ -22,6 +22,8 @@ Require Import
   riscv_instr_decl
   riscv_lowering.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Section PROOF.
 
 Context

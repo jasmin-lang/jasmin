@@ -12,6 +12,8 @@ Require Export
   sem_params.
 Import Utf8.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Local Open Scope Z_scope.
 Local Open Scope seq_scope.
 Open Scope vm_scope.

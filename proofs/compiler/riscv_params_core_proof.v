@@ -23,6 +23,8 @@ Require Import
   riscv
   riscv_params_core.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Module RISCVFopn_coreP.
 
 Section Section.
