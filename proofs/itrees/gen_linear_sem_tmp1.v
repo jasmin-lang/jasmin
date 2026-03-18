@@ -861,6 +861,21 @@ Definition lsem_fun_imed_auxAL
   (LSI: lpoint -> itree (LCall +' E) lpoint)
   (fn: funname) (fd: LTreeFun fn) : itree (LCall +' E) lpoint :=
   match fd with
+  | @LTFun _ _ _ lbl pl1 lc1 lc2 n1 lt =>
+    let clen := code_length fn in
+    let pre_l := List.length lc1 in
+    if (n1 == pre_l) && (fst pl1 == (pre_l + clen)) then
+      lp0 <- LSC lc1 (fn, 0) ;;
+      lp1 <- @lsem_cmd_imedAL LSC LSI _ _ _ lt lp0 ;; LSC lc2 lp1 
+    else throw err                                               
+  end.                   
+
+(* alternative version, without checks *)
+Definition lsem_fun_imed_auxAL0
+  (LSC: lcmd -> lpoint -> itree (LCall +' E) lpoint)
+  (LSI: lpoint -> itree (LCall +' E) lpoint)
+  (fn: funname) (fd: LTreeFun fn) : itree (LCall +' E) lpoint :=
+  match fd with
   | LTFun lbl pl1 lc1 lc2 lt =>
       lp0 <- LSC lc1 (fn, 0) ;;
       lp1 <- @lsem_cmd_imedAL LSC LSI _ _ _ lt lp0 ;; LSC lc2 lp1 
@@ -892,6 +907,7 @@ Definition lsem_cmd_imedAF
   (lt : LTreeList fn plS plE) : lpoint -> itree (LCall +' E) lpoint :=
   lsem_cmd_imedA in_btw Id_cmb Switch_cmb LSC LSI lt.
 
+(* currently preferred version *)
 Definition lsem_fun_imed_auxAF 
   (LSC: lcmd -> lpoint -> itree (LCall +' E) lpoint)
   (LSI: lpoint -> itree (LCall +' E) lpoint)
@@ -900,15 +916,14 @@ Definition lsem_fun_imed_auxAF
   | @LTFun _ _ _ lbl pl1 lc1 lc2 n1 lt =>
     let clen := code_length fn in
     let pre_l := List.length lc1 in
-    let epi_l := List.length lc2 in
-    let nE := clen + pre_l + epi_l in
     if (n1 == pre_l) && (fst pl1 == (pre_l + clen)) then
        lp0 <- LSC lc1 (fn, 0) ;;
        lp1 <- LACntrI (@lsem_cmd_imedAF LSC LSI fn (n1, lbl) pl1 lt)
-                fn pre_l (pre_l + clen) lp0 ;; LSC lc2 lp1
+                fn pre_l (fst pl1) lp0 ;; LSC lc2 lp1
     else throw err                                               
   end.                   
 
+(* alternative version *)
 Definition lsem_fun_imed_auxAF0 
   (LSC: lcmd -> lpoint -> itree (LCall +' E) lpoint)
   (LSI: lpoint -> itree (LCall +' E) lpoint)
@@ -923,7 +938,6 @@ Definition lsem_fun_imed_auxAF0
        lp1 <- @lsem_cmd_imedAF LSC LSI fn (n1, lbl) pl1 lt lp0 ;; LSC lc2 lp1)
        fn 0 nE (fn, 0) 
   end.                   
-
 
 (* parameterized intermediate function-globablised semantics of functions. *)
 Definition lsem_fun_imedAF 
@@ -943,19 +957,16 @@ Context {XF: LFindE -< E} {XL: LEvalE -< E } {XSl: @stateE LState -< E}.
 Definition lsem_i_imedL  
   (fn: funname) (plS plE: plinfo)
   (lt : LTree fn plS plE) : lpoint -> itree (LCall +' E) lpoint :=
-  @lsem_i_imedAL 
-    isem_lcmd_seq_flow isem_li_aflow _ _ _ lt.
+  @lsem_i_imedAL isem_lcmd_seq_flow isem_li_aflow _ _ _ lt.
                
 Definition lsem_cmd_imedL  
   (fn: funname) (plS plE: plinfo)
   (lt : LTreeList fn plS plE) : lpoint -> itree (LCall +' E) lpoint :=
-  @lsem_cmd_imedAL
-    isem_lcmd_seq_flow isem_li_aflow _ _ _ lt.
+  @lsem_cmd_imedAL isem_lcmd_seq_flow isem_li_aflow _ _ _ lt.
 
 Definition lsem_fun_imedL  
   (fn: funname) : itree (LCall +' E) lpoint :=
-  lsem_fun_imedAL 
-    isem_lcmd_seq_flow isem_li_aflow fn.
+  lsem_fun_imedAL isem_lcmd_seq_flow isem_li_aflow fn.
 
 Definition handle_LRecL : LCall ~> itree (LCall +' E) :=
   fun T  (rc : callE _ _ T) =>
@@ -1317,19 +1328,10 @@ Proof.
            else
             if in_btw n.+1 n1 lpA.2
             then
-          (*  aloop
-               (λ peA : lpoint + lpoint,
-                  if match peA with
-                     | inl x | inr x => x
-                     end.1 == fn
-                  then *)
               (lsem_cmd_imedA in_btw
                  (λ (f0 : lpoint → itree (LCall +' E) lpoint)
                     (_ : funname) (_ _ : nat), f0)
                         Switch_cmb isem_lcmd_seq_flow isem_li_aflow lcm1 lpA) 
-           (*  else Ret (inr match peA with
-                                | inl x | inr x => x
-                                end)) lpA *)
             else throw err
           else throw err
          else throw err) fn n n1.+1)).
@@ -1372,23 +1374,13 @@ Proof.
 
     unfold aloop; simpl.
 
-    (* at this point we would like to apply something like *)
+    (* we would like to conlcude by applying something like *)
     (* eapply loop_vanishing_2. *)
-    (* but we aren't readuy yet. *)  
+    (* but we aren't there yet. *)  
      admit.
   }
 
 Admitted.     
-
-Lemma intemediate_local2intermediate_funglobal_lcmd_aux0
-  {XS: stateE LState -< E} (fn: funname) (plS plE: plinfo)
-  (lt : LTreeList fn plS plE) (lp0: lpoint) :
-  eutt eq (lsem_cmd_imedL lt lp0)
-          (LACntrI (lsem_cmd_imedF lt) fn (fst plS) (fst plE) lp0).
-Proof.
-  unfold lsem_cmd_imedL, lsem_cmd_imedF.
-Admitted.   
-
 
 (* equivalence between intemediate local and function-globablised
    semantics; the idea being that in Intermediate, local iterations
@@ -1402,26 +1394,19 @@ Proof.
   unfold lsem_fun_imedL, lsem_fun_imedF; simpl.
   unfold lsem_fun_imedAL, lsem_fun_imedAF; simpl.
   eapply eqit_bind; eauto; try reflexivity.
-  intros ltf.
   unfold lsem_fun_imed_auxAL, lsem_fun_imed_auxAF.
-  destruct ltf; simpl.
+  intros ltf; destruct ltf; simpl.
   destruct ((Datatypes.length lc1 == Datatypes.length lc1) &&
-              (pl1.1 == Datatypes.length lc1 + code_length fn)) eqn: was_e;
-    simpl.
+    (pl1.1 == Datatypes.length lc1 + code_length fn)) eqn: was_e; simpl;
+      try reflexivity.
   eapply eqit_bind; try reflexivity.
   intros lp0.
   eapply eqit_bind; try reflexivity.
-
   set W := (intemediate_local2intermediate_funglobal_lcmd_aux lt lp0).
   unfold lsem_cmd_imedL, lsem_cmd_imedF in W; simpl in *.
-  rewrite W.
-  assert (pl1.1 = Datatypes.length lc1 + code_length fn) as E1. 
-  { admit. }
-  rewrite E1; reflexivity.
-  admit.
-Admitted. 
-  
-  
+  rewrite W; reflexivity.
+Qed. 
+    
 (* equivalence between instrumented function-localised and
    intermediate function-globalised; basically, we need to match the
    global iteration with the mrec interpretation. *)
