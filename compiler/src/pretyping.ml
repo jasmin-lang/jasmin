@@ -1233,6 +1233,32 @@ let array_of_string s =
   P.(Papp1 (op_word_of_int(Word, W.Unsigned, W.U8), Pconst z))
 
 (* -------------------------------------------------------------------- *)
+let create_min_e _pd loc args =
+  if List.length args == 2 then
+    let (e1,t1), (e2,t2) = List.at args 0, List.at args 1 in
+    let e1 = cast_int loc None e1 t1 in
+    let e2 = cast_int loc None e2 t2 in
+    let c = P.Papp2 ((Olt Cmp_int), e1, e2) in
+    P.Pif (Bty Int,c, e1,e2), P.etint
+  else
+    rs_tyerror ~loc (InvalidArgCount(2, List.length args))
+
+let create_max_e _pd loc args =
+  if List.length args == 2 then
+    let (e1,t1), (e2,t2) = List.at args 0, List.at args 1 in
+    let e1 = cast_int loc None e1 t1 in
+    let e2 = cast_int loc None e2 t2 in
+    let c = P.Papp2 ((Olt Cmp_int), e2, e1) in
+    P.Pif (Bty Int,c, e1,e2), P.etint
+  else
+    rs_tyerror ~loc (InvalidArgCount(2, List.length args))
+
+let extra_op_map = Map.of_seq @@ List.to_seq [
+  ("min", create_min_e);
+  ("max", create_max_e);
+]
+
+(* -------------------------------------------------------------------- *)
 let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   match L.unloc pe with
   | S.PEParens pe ->
@@ -1347,6 +1373,12 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
 
   | S.PECall (id, args) when is_combine_flags id ->
     tt_expr ~mode pd env (L.mk_loc (L.loc pe) (S.PECombF(id,args)))
+
+  | S.PECall (id, args) when Map.mem (L.unloc id) extra_op_map ->
+    let pa_name = L.unloc id in
+    let args = List.map (tt_expr ~mode pd env) args in
+    let create_pred = Map.find pa_name extra_op_map in
+    create_pred pd (L.loc id) args
 
   | S.PECall _ ->
     rs_tyerror ~loc:(L.loc pe) CallNotAllowed
