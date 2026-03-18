@@ -107,7 +107,7 @@ Storage type is thus not a type, and should not be aliased.
 
 ## Global variables
 
-A global variable is a named valued. Unlike parameters, said value is not
+A global variable is a named value. Unlike parameters, said value is not
 available at compile-time
 (i.e., it cannot be used as part of a type), but it is available at run-time.
 
