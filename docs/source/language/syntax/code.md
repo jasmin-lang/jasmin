@@ -126,9 +126,9 @@ to any code in the target assembly program.
 
 ```
 <instr_conditional> ::=
-  | if ( <expr> ) { <code> }
-  | if ( <expr> ) { <code> } else { <code> }
-  | if ( <expr> ) { <code> } else <instr_conditional>  // else-if syntax.
+  | if <expr> { <code> }
+  | if <expr> { <code> } else { <code> }
+  | if <expr> { <code> } else <instr_conditional>  // else-if syntax.
 ```
 
 Conditionals take an expression and two pieces of code, and execute one piece
