@@ -364,11 +364,13 @@ Definition LACntr (Bd: lpoint -> itree E lpoint)
   ACntr Bd
     (* exit condition: whenever either it jumps to another function,
        it gets out of range, or it makes a recursive call (n0 = 0).
-       note: actually, the last dijunct makes the first redundant, as
-       0 is the entry point in every function. *)
-    (fun '(fn0, n0) => 
-       if (not_possible fn0 nE) then None
-       else Some ((fn == fn0) && (nS <= n0) && (n0 < nE) && (0 < n0))).
+       note: the last disjunct should cover recursive calls, 
+       as 0 is the entry point in every function. *)
+    (fun '(fn0, n0) =>
+       if fn == fn0 then
+          if (not_possible fn0 nE) then None
+          else Some ((nS <= n0) && (n0 < nE) && (0 < n0))
+       else Some false).
 
 (* iterates LACntr *)
 Definition LACntrI (Bd: lpoint -> itree E lpoint)
@@ -895,13 +897,33 @@ Definition lsem_fun_imed_auxAF
   (LSI: lpoint -> itree (LCall +' E) lpoint)
   (fn: funname) (fd: LTreeFun fn) : itree (LCall +' E) lpoint :=
   match fd with
-  | LTFun lbl pl1 lc1 lc2 lt =>
+  | @LTFun _ _ _ lbl pl1 lc1 lc2 n1 lt =>
+    let clen := code_length fn in
+    let pre_l := List.length lc1 in
+    let epi_l := List.length lc2 in
+    let nE := clen + pre_l + epi_l in
+    if (n1 == pre_l) && (fst pl1 == (pre_l + clen)) then
+       lp0 <- LSC lc1 (fn, 0) ;;
+       lp1 <- LACntrI (@lsem_cmd_imedAF LSC LSI fn (n1, lbl) pl1 lt)
+                fn pre_l (pre_l + clen) lp0 ;; LSC lc2 lp1
+    else throw err                                               
+  end.                   
+
+Definition lsem_fun_imed_auxAF0 
+  (LSC: lcmd -> lpoint -> itree (LCall +' E) lpoint)
+  (LSI: lpoint -> itree (LCall +' E) lpoint)
+  (fn: funname) (fd: LTreeFun fn) : itree (LCall +' E) lpoint :=
+  match fd with
+  | @LTFun _ _ _ lbl pl1 lc1 lc2 n1 lt =>
     let clen := code_length fn in 
+    let pre_l := List.length lc1 in
+    let epi_l := List.length lc2 in
     let nE := clen + List.length lc1 + List.length lc2 in  
     LACntrI (fun lpA => lp0 <- LSC lc1 lpA ;;
-       lp1 <- @lsem_cmd_imedAF LSC LSI _ _ _ lt lp0 ;; LSC lc2 lp1)
+       lp1 <- @lsem_cmd_imedAF LSC LSI fn (n1, lbl) pl1 lt lp0 ;; LSC lc2 lp1)
        fn 0 nE (fn, 0) 
   end.                   
+
 
 (* parameterized intermediate function-globablised semantics of functions. *)
 Definition lsem_fun_imedAF 
@@ -1018,21 +1040,126 @@ Lemma instrumented_local2instrumented_funloc_lfun {XS: stateE LState -< E}
     (@isem_lfloc E _ _ _ _ code_length (fn, 0)).  
 Admitted. 
   
-(* equivalence between intemediate local and function-globablised
-   semantics; the idea being that in Intermediate, local iterations
-   can be pushed out up to functions; should be proved before
-   interpreting LRec, otherwise one might end up with an infinite
-   number of local iterations. probably the hardest bit *)
-Lemma intemediate_local2intermediate_funglobal_fun {XS: stateE LState -< E}
-  (fn: funname) :
-  eutt eq (lsem_fun_imedL fn) (lsem_fun_imedF fn).
+(*******************************************************************)
+
+Lemma aloop_aux1 {XS: stateE LState -< E}
+  (fn : funname) (n0 n1 n2: nat) (l0 l1: label)
+  (lcm: LTreeList fn (incrP1 (n0, l0)) (n1, l1))
+  (A1: n0 <= n2) (A2: n2 < n1) (A3: not_possible fn n1 == false) :
+  eutt eq (aloop (LACntr (lsem_cmd_imedF lcm) fn n0.+1 n1) (fn, n2))
+          (aloop
+      (fun peA : lpoint + lpoint =>
+         if match peA with
+            | inl x | inr x => x
+            end.1 == fn
+         then           
+         ITree.bind
+           (lsem_cmd_imedA in_btw
+              (fun (f1 : lpoint -> itree (LCall +' E) lpoint)
+                   (_ : funname) (_ _ : nat) => f1)
+              Switch_cmb isem_lcmd_seq_flow isem_li_aflow lcm
+              match peA with | inl x | inr x => x end)
+           (fun (lpC : lpoint) => Ret (inl lpC))
+          else Ret (inr match peA with
+                       | inl x | inr x => x
+                       end)) (fn, n2)).
 Proof.
-  unfold lsem_fun_imedL, lsem_fun_imedF; simpl.
-  unfold lsem_fun_imedAL, lsem_fun_imedAF; simpl.
-  eapply eqit_bind; eauto; try reflexivity.
-  intros ltf.
-  (* need an inductive proof with a different statement; see below *)
+  unfold aloop.
+  unfold loop.
+  unfold CategoryOps.cat.
+  unfold Cat_Kleisli; simpl.
+  eapply eqit_bind; try reflexivity.
+  intros pe.
+  unfold CategoryOps.cat, CategoryOps.iter; simpl.
+  unfold Iter_Kleisli; simpl.
+  unfold Basics.iter; simpl.
+  unfold MonadIter_itree; simpl.
+  eapply eutt_iter.
+  intros pe1.
+  clear pe.
+  unfold lsem_cmd_imedF, lsem_cmd_imedAF; simpl.
+  set imedA := (lsem_cmd_imedA in_btw Id_cmb Switch_cmb isem_lcmd_seq_flow
+                  isem_li_aflow lcm).
+  unfold LACntr, ACntr; simpl.
+
+  destruct pe1 as [lp0 | lp0] eqn: was_pe1; simpl;
+    destruct lp0 as [fnX nX] eqn: was_l; simpl.
+  { destruct (fn == fnX) eqn: was_e1.
+    2: { rewrite bind_ret_l; simpl.
+         destruct (fnX == fn) eqn: was_e2.
+         { admit. }
+         { rewrite bind_ret_l; simpl.
+           reflexivity.
+         }
+       }  
+    assert (fn = fnX) as A0.
+    { admit. }
+    inversion A0; subst.
+    clear H.
+    destruct (fnX == fnX); try congruence.
+    destruct (not_possible fnX n1); try congruence.
+    - intuition.
+    - destruct ((n0 < nX < n1) && (0 < nX)) eqn: was_e3.
+      reflexivity.
+    - rewrite bind_ret_l; simpl.
+      rewrite bind_bind.
+      assert (eutt eq (imedA (fnX, nX))
+                ((Ret (fnX, nX)): itree (LCall +' E) lpoint)) as A0.
+      { admit. }
+      rewrite A0.      
+      setoid_rewrite bind_ret_l; simpl.
+      setoid_rewrite bind_ret_l; simpl.
+      unfold bimap; simpl.
+      unfold Bimap_Coproduct; simpl.
+      unfold case_; simpl.
+      unfold Case_Kleisli; simpl.
+      unfold CategoryOps.cat; simpl.
+      unfold id_; simpl.
+      unfold inr_; simpl.
+      unfold inl_; simpl.
+      unfold Datatypes.id.
+      rewrite bind_ret_l; simpl.
+      { admit. (* PROBLEM *) }
+  } 
+  { destruct (fn == fnX) eqn: was_e1.
+    2: { rewrite bind_ret_l; simpl.
+         destruct (fnX == fn) eqn: was_e2.
+         { admit. }
+         { rewrite bind_ret_l; simpl.
+           reflexivity.
+         }
+       }  
+    assert (fn = fnX) as A0.
+    { admit. }
+    inversion A0; subst.
+    clear H.
+    destruct (fnX == fnX); try congruence.
+    destruct (not_possible fnX n1); try congruence.
+    - intuition.
+    - destruct ((n0 < nX < n1) && (0 < nX)) eqn: was_e3.
+      reflexivity.
+    - rewrite bind_ret_l; simpl.
+      rewrite bind_bind.
+      assert (eutt eq (imedA (fnX, nX))
+                ((Ret (fnX, nX)): itree (LCall +' E) lpoint)) as A0.
+      { admit. }
+      rewrite A0.      
+      setoid_rewrite bind_ret_l; simpl.
+      setoid_rewrite bind_ret_l; simpl.
+      unfold bimap; simpl.
+      unfold Bimap_Coproduct; simpl.
+      unfold case_; simpl.
+      unfold Case_Kleisli; simpl.
+      unfold CategoryOps.cat; simpl.
+      unfold id_; simpl.
+      unfold inr_; simpl.
+      unfold inl_; simpl.
+      unfold Datatypes.id.
+      rewrite bind_ret_l; simpl.
+      { admit. (* PROBLEM *) }
+  } 
 Admitted. 
+  
 
 (* similar, for commands. but NOTE: it would not hold without the
    top-level iteration on the left *)
@@ -1042,7 +1169,7 @@ Lemma intemediate_local2intermediate_funglobal_lcmd_aux
   eutt eq (lsem_cmd_imedL lt lp0)
           (LACntrI (lsem_cmd_imedF lt) fn (fst plS) (fst plE) lp0).
 Proof.
-  unfold lsem_imed_recL, isem_lcmd_flow, lsem_imed_recF; simpl.
+(*  unfold lsem_imed_recL, isem_lcmd_flow, lsem_imed_recF; simpl. *)
   revert lp0.
   revert lt.
   revert plS plE.
@@ -1071,11 +1198,11 @@ Proof.
     reflexivity.
   }
   { intros; subst Pt; simpl; intros.
-    unfold lsem_i_imedL, lsem_i_imedF; simpl.
-    unfold lsem_i_imedAL, lsem_i_imedAF; simpl.
+    unfold Ptl in *.
+    unfold lsem_i_imedL, lsem_i_imedAL; simpl.
+    unfold lsem_i_imedF, lsem_i_imedAF; simpl.
     destruct pl0 eqn: was_pl0 ; simpl.
     unfold Id_cmb; simpl.
-    unfold Ptl in *.
     unfold LACntrI; simpl.
     destruct lp0 eqn: was_lp0; simpl.
     destruct pl1 eqn: was_pl1; simpl.
@@ -1088,22 +1215,21 @@ Proof.
        and in particular one that is very similar to
        'loop_asm_correct'; for this reason, we rely on encoding LCntrI
        as a loop. *)
-    unfold lsem_cmd_imedL in H; simpl in *.
-    unfold lsem_cmd_imedF in H; simpl in *.
-    unfold lsem_cmd_imedAL in H; simpl in *.
+    unfold lsem_cmd_imedL, lsem_cmd_imedAL in H; simpl in *.
+(*    unfold lsem_cmd_imedF in H; simpl in *.
     unfold lsem_cmd_imedAF in H; simpl in *.
-
+*)
+    
     (* purely local *)
-    set PL := (fun (lc: LTreeList fn (incrP1 (n, l)) (n1, l0))
-                    (lpA: lpoint) =>
+    set PL := (fun '((_, pA) as lpA) =>
           if lpA.1 == fn
           then
            if LIf1Node_ok la_cond1 la_lbl1
            then
-            if (lpA.2 == n) || (lpA.2 == n1)
+            if (pA == n) || (pA == n1)
             then isem_li_aflow lpA
             else
-             if in_btw n.+1 n1 lpA.2
+             if in_btw n.+1 n1 pA
              then
               lsem_cmd_imedA in_btw
                 (fun (Bd : lpoint -> itree (LCall +' E) lpoint)
@@ -1115,8 +1241,7 @@ Proof.
           else throw err).
 
     (* with a partially pushed out iter *)
-    set PO := (fun (lc: LTreeList fn (incrP1 (n, l)) (n1, l0))
-                   (lpA: lpoint) =>
+    set PO := (fun (lpA: lpoint) =>
           if lpA.1 == fn
           then
            if LIf1Node_ok la_cond1 la_lbl1
@@ -1127,19 +1252,25 @@ Proof.
              if in_btw n.+1 n1 lpA.2
              then aloop (fun (peA: lpoint + lpoint) =>
                let lpD := match peA with inl x => x | inr x => x end in
-                     (lpC <- lsem_cmd_imedA in_btw
+                     (if lpD.1 == fn then  
+                      lpC <- lsem_cmd_imedA in_btw
                              (fun (f0 : lpoint -> itree (LCall +' E) lpoint)
                                   (_ : funname) (_ _ : nat) => f0)
                              Switch_cmb isem_lcmd_seq_flow
                              isem_li_aflow lcm1 lpD ;;
-                      Ret (inl lpC))) lpA  
+                      Ret (inl lpC)
+                      else Ret (inr lpD))) lpA  
              else throw err    
            else throw err
           else throw err).
 
-    (* induction hyp needed *)
+    (* induction hyp used; basically, this is the 'smallest' rewrite
+       for which it makes sense to apply the induction hyp; it allows
+       us to get rid of the local loops (as they are in PL), by
+       pushing them out 'just a bit' (yet: there are problems to be
+       fixed with the aloop_aux1 lemma). *)
     assert (forall (lpA: lpoint), 
-               eutt eq (PL lcm1 lpA) (PO lcm1 lpA)) as W1.
+               eutt eq (PL lpA) (PO lpA)) as W1.
     { subst PL PO; simpl.
       intros lpA.
       destruct lpA eqn:was_lpA; simpl.
@@ -1148,50 +1279,149 @@ Proof.
       destruct ((n2 == n) || (n2 == n1)); try reflexivity; simpl.
       destruct (in_btw n.+1 n1 n2); try reflexivity; simpl.
       unfold LACntrI in H; simpl in *.
+      (* NOTE: apply the inductive hyp *)
       rewrite H.
-      unfold aloop.
-      unfold loop.
-      unfold CategoryOps.cat, CategoryOps.iter; simpl.
-      unfold inr_; simpl.
-      rewrite bind_ret_l; simpl.
-      unfold Iter_Kleisli; simpl.
-      unfold Basics.iter; simpl.
-      unfold MonadIter_itree; simpl.
-      rewrite bind_ret_l; simpl.
+
+      assert (f0 = fn) as A0.
+      { admit. }
+      inversion A0; subst.
+      clear H0.
+      eapply aloop_aux1.
+      admit.
+      admit.
+      admit.
+    }
+
+    (* this now should be easy *)
+    assert (∀ lpA : lpoint, aloop (LACntr PL fn n n1.+1) lpA ≈
+                            aloop (LACntr PO fn n n1.+1) lpA) as W2. 
+    { admit. }
+
+    subst PO PL.
+    specialize (W2 (f, n0)); simpl in *.
+    (* here we apply the rewrite *)
+    setoid_rewrite W2.
+    clear W1 W2.
+
+    (* now we need to fully push outward the inner loop on the left *)
+
+    set PL := (fun lpA: lpoint => _).
+    
+    set (PO := aloop (LACntr (λ lpA : lpoint,
+         if lpA.1 == fn
+         then
+          if LIf1Node_ok la_cond1 la_lbl1
+          then
+           if (lpA.2 == n) || (lpA.2 == n1)
+           then isem_li_aflow lpA
+           else
+            if in_btw n.+1 n1 lpA.2
+            then
+          (*  aloop
+               (λ peA : lpoint + lpoint,
+                  if match peA with
+                     | inl x | inr x => x
+                     end.1 == fn
+                  then *)
+              (lsem_cmd_imedA in_btw
+                 (λ (f0 : lpoint → itree (LCall +' E) lpoint)
+                    (_ : funname) (_ _ : nat), f0)
+                        Switch_cmb isem_lcmd_seq_flow isem_li_aflow lcm1 lpA) 
+           (*  else Ret (inr match peA with
+                                | inl x | inr x => x
+                                end)) lpA *)
+            else throw err
+          else throw err
+         else throw err) fn n n1.+1)).
+
+    assert (forall (lpA: lpoint), 
+               eutt eq (PL lpA) (PO lpA)) as W1.
+    { subst PL PO.
+      intros lpA; simpl.
+      destruct lpA eqn: was_lpA; simpl.
+      destruct (f0 == fn) eqn: was_e1; simpl.
+      2: { (* unfold the left loop *) admit. }
+      assert (f0 = fn) as A0.
+      { admit. }
+      inversion A0; subst.
+      clear H0.
+      destruct (LIf1Node_ok la_cond1 la_lbl1) eqn: was_e2; simpl.
+      2: { (* unfold the left loop *) admit. }
+      destruct ((n2 == n) || (n2 == n1)) eqn: was_e3.
       unfold LACntr; simpl.
-      unfold ACntr; simpl.
+      (* unfold the left loop *)
+      admit.
+      destruct (in_btw n.+1 n1 n2) eqn: was_e4; simpl.
 
-      
-(* (* mock-proof, by unfolding iter *)    
-    eapply eutt_iter.
-    intros lp1.
-    destruct lp1 eqn: was_lp1; simpl.
-    unfold LACntr; simpl.
-    unfold ACntr; simpl.
-    destruct (not_possible f0 pl1.1.+1); try reflexivity.
-    destruct ((fn == f0) && (n <= n1) && (n1 < pl1.1.+1) && (0 < n1));
-      try reflexivity.
-    eapply eqit_bind; try reflexivity.
-    destruct (f0 == fn); try reflexivity; simpl.
-    destruct (LIf1Node_ok la_cond1 la_lbl1); try reflexivity; simpl.
+      (* unfold both loops *)
+      admit.
+      (* unfold the left loop *)
+      admit.
+    }
 
-    destruct pl1 eqn: was_pl1; simpl.
-    destruct ((n1 == n) || (n1 == n2)); try reflexivity; simpl.
-    destruct (in_btw n.+1 n2 n1); try reflexivity; simpl.
+    (* this now should be easy *)
+    assert (∀ lpA : lpoint, aloop (LACntr PL fn n n1.+1) lpA ≈
+                            aloop (LACntr PO fn n n1.+1) lpA) as W2. 
+    { admit. }
 
-    unfold lsem_cmd_imedL in H; simpl in *.
-    unfold lsem_cmd_imedF in H; simpl in *.
-    unfold lsem_cmd_imedAL in H; simpl in *.
-    unfold lsem_cmd_imedAF in H; simpl in *.
-    rewrite H.
-*) 
-   
-    admit.
+    subst PO PL.
+    specialize (W2 (f, n0)); simpl in *.
+    (* here we apply the rewrite *)
+    setoid_rewrite W2.
+    clear W1 W2.
+
+    unfold aloop; simpl.
+
+    (* at this point we would like to apply something like *)
+    (* eapply loop_vanishing_2. *)
+    (* but we aren't readuy yet. *)  
+     admit.
   }
 
-Admitted.
+Admitted.     
+
+Lemma intemediate_local2intermediate_funglobal_lcmd_aux0
+  {XS: stateE LState -< E} (fn: funname) (plS plE: plinfo)
+  (lt : LTreeList fn plS plE) (lp0: lpoint) :
+  eutt eq (lsem_cmd_imedL lt lp0)
+          (LACntrI (lsem_cmd_imedF lt) fn (fst plS) (fst plE) lp0).
+Proof.
+  unfold lsem_cmd_imedL, lsem_cmd_imedF.
+Admitted.   
 
 
+(* equivalence between intemediate local and function-globablised
+   semantics; the idea being that in Intermediate, local iterations
+   can be pushed out up to functions; should be proved before
+   interpreting LRec, otherwise one might end up with an infinite
+   number of local iterations. probably the hardest bit *)
+Lemma intemediate_local2intermediate_funglobal_fun {XS: stateE LState -< E}
+  (fn: funname) :
+  eutt eq (lsem_fun_imedL fn) (lsem_fun_imedF fn).
+Proof.
+  unfold lsem_fun_imedL, lsem_fun_imedF; simpl.
+  unfold lsem_fun_imedAL, lsem_fun_imedAF; simpl.
+  eapply eqit_bind; eauto; try reflexivity.
+  intros ltf.
+  unfold lsem_fun_imed_auxAL, lsem_fun_imed_auxAF.
+  destruct ltf; simpl.
+  destruct ((Datatypes.length lc1 == Datatypes.length lc1) &&
+              (pl1.1 == Datatypes.length lc1 + code_length fn)) eqn: was_e;
+    simpl.
+  eapply eqit_bind; try reflexivity.
+  intros lp0.
+  eapply eqit_bind; try reflexivity.
+
+  set W := (intemediate_local2intermediate_funglobal_lcmd_aux lt lp0).
+  unfold lsem_cmd_imedL, lsem_cmd_imedF in W; simpl in *.
+  rewrite W.
+  assert (pl1.1 = Datatypes.length lc1 + code_length fn) as E1. 
+  { admit. }
+  rewrite E1; reflexivity.
+  admit.
+Admitted. 
+  
+  
 (* equivalence between instrumented function-localised and
    intermediate function-globalised; basically, we need to match the
    global iteration with the mrec interpretation. *)
