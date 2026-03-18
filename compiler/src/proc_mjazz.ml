@@ -110,7 +110,7 @@ module MEnv = struct
     ; mi_ast: (S.pitem L.located) list
     ; mi_decls : (P.pexpr_, unit, 'asm) M.gmodule_item list
     ; mi_opened: M.modulename list
-    ; mi_instances : (((string,string) Map.t)*(P.pexpr_ M.modulearg list)*M.modulename) list
+    ; mi_instances : ((P.pexpr_ M.modulearg list)*(M.modulename list)*M.modulename) list
     }
 
   let functor_from_modinfo modname modinfo =
@@ -266,6 +266,11 @@ let pp_pprog ~debug fmt p =
     match mparam, arg with
     | Mprog.MaParam x, Mprog.Param x' ->  
       let ty = P.gety_of_gty x'.v_ty in
+      let new_name = match BatString.split_on_string ~by:"::" x'.v_name with
+        | [] -> x'.v_name
+        | names -> List.hd (List.rev names)
+      in
+      let x' = P.PV.mk (new_name) W.Const x'.v_ty (x'.v_dloc) [] in
       Env.Vars.push_param st (x', ty, x,x)
       (* let param:S.pparam = { ppa_ty = ty; ppa_name = name; ppa_init = x} in *)
       (* let ty = P.gety_of_gty x'.v_ty in
@@ -610,7 +615,8 @@ let mt_margs pd menv _ mparams margs =
       in let t2 = P.gety_of_gty t2
     in
       if t1 <> t2
-      then rs_tyerror ~loc:loc (TypeMismatch (t1,t2))
+      then
+        rs_tyerror ~loc:loc (TypeMismatch (t1,t2)) 
       else tc_list loc tl1 tl2
     | _, _ ->
       rs_mjazzerror ~loc:loc (MJazzStringError "Type error: wrong signature in module fn param")
@@ -619,15 +625,15 @@ let mt_margs pd menv _ mparams margs =
     | M.Param pi, _ ->
       (* params are the only arguments that need not be instantiated
         into bare symbols -- reason why they induce declarations *)
-      let _, et, e = tt_expr pd ~mode:`OnlyParam st pe
-      in let e = match e with
+      let _, et, e = tt_expr pd ~mode:`OnlyParam st pe in
+      let e = match e with
         | Some e -> e
         | None -> assert false
       in let pty = P.gety_of_gty pi.v_ty
       in if pty <> et
       then rs_tyerror ~loc:(L.loc pe) (TypeMismatch (pty,et));
-      let st, adecls = Env.Vars.push_param st (pi,et,e,e)
-      in st, M.MaParam e, adecls
+      let st, adecls = Env.Vars.push_param st (pi,et,e,e) in
+      st, M.MaParam e, adecls
     (* | M.Glob pg, S.PEVar pv ->
       let v,vt,_ = tt_var_global `AllVar st pv
       in let pgty = P.gety_of_gty pg.P.v_ty
@@ -682,8 +688,8 @@ let mt_margs pd menv _ mparams margs =
   in doit menv.MEnv.me_store mparams margs
 
 let has_instance insts args =
-  match List.find_opt (fun (_,a,_) -> a=args) insts with
-  | Some (_,_,iname) -> Some iname
+  match List.find_opt (fun (a,_,_) -> a=args) insts with
+  | Some (_,mnames,iname) -> Some (mnames,iname)
   | None -> None
 
 let print_margs fmt (args:P.pexpr_ M.moduleargs) =
@@ -733,47 +739,78 @@ let rename_module_bindings _ full_name _ modfunc (st:'asm Env.global_bindings) =
       gb_modules
   }
  
-let rec get_instance_modules (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_info) imodules (menv: 'asm MEnv.menv) body =
+let merge_instances (menv:'asm MEnv.menv) (menv': 'asm MEnv.menv) =
+  let me_env = Map.union_stdlib (
+    fun _ minfo minfo' -> 
+      Some {minfo with MEnv.mi_instances = minfo'.MEnv.mi_instances}) menv.me_env menv'.me_env in
+  { menv with me_env }
+
+let rec get_instance_modules (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_info) (menv: 'asm MEnv.menv) body =
   match body with
-  | [] -> menv,imodules
+  | [] -> menv
   | mitem::rest ->
       match L.unloc mitem with
     | S.PModule (mname, mparams, body) ->
       let menv, mparams = MEnv.enter_module arch_info.pd mname mparams menv
-      in let menv,imodules = get_instance_modules arch_info imodules menv body
+      in let menv = get_instance_modules arch_info menv body
       in let menv = MEnv.exit_module mname mparams body menv
       in
-      get_instance_modules arch_info imodules menv rest
+      get_instance_modules arch_info menv rest
     | S.PModuleApp (mname, modfuncname, margs) ->
-      let (_,_), modfunc = Env.Modules.get menv.me_store modfuncname in
-      let modinfo =
-         match Map.find (L.unloc modfunc) menv.me_env with
-         | modi -> modi
-         | exception Not_found ->
-           rs_mjazzerror ~loc:(L.loc modfunc)
-             (NonExistentMod (L.unloc modfunc)) in
-      let menv, margs, _ = mt_margs arch_info.pd menv mname modinfo.mi_params margs in
-      let menv, imodules = 
-        match has_instance modinfo.mi_instances margs with
-          | Some instname ->  menv, Map.add (L.unloc mname) instname imodules 
-          | None -> 
-            let instance_name = (L.unloc modfunc) ^ "_" ^ (string_of_int (List.length modinfo.mi_instances)) in
-            let mi_instances = (Map.empty,margs,instance_name) :: modinfo.mi_instances in
-            let new_modinfo = { modinfo with mi_instances } in
-            let me_env = Map.add (L.unloc modfunc) new_modinfo menv.me_env in
-             { menv with me_env }, Map.add (L.unloc mname) instance_name imodules
-      in
-      get_instance_modules arch_info imodules menv rest
+      if margs = [] then get_instance_modules arch_info menv rest
+      else
+        let (_,gb) , modfunc = Env.Modules.get menv.me_store modfuncname in
+        let modinfo =
+           match Map.find (L.unloc modfunc) menv.me_env with
+           | modi -> modi
+           | exception Not_found ->
+             rs_mjazzerror ~loc:(L.loc modfunc)
+               (NonExistentMod (L.unloc modfunc)) in
+        let full_name = qualify (MEnv.fully_qualified_modname menv.MEnv.me_store) (L.unloc mname) in 
+        let menv, margs, _ = mt_margs arch_info.pd menv mname modinfo.mi_params margs in
+        let menv = 
+          match has_instance modinfo.mi_instances margs with
+            | Some (mnames,iname) -> 
+              let rec insert_instance margs = function
+                | [] -> []
+                | (a,_,_)::xs when a=margs -> (margs,full_name::mnames,iname)::xs
+                | x::xs -> x::(insert_instance margs xs)
+              in
+              let instances = insert_instance margs modinfo.mi_instances in
+              let new_modinfo = { modinfo with mi_instances = instances } in
+              let me_env = Map.add (L.unloc modfunc) new_modinfo menv.me_env
+              in {menv with me_env = me_env} 
+            | None -> 
+              Format.eprintf "Generating new instance for %s\n%!" full_name;
+              let menv' = { menv with
+                       MEnv.me_store =
+                         { menv.MEnv.me_store with
+                           s_bindings = gb
+                         }
+                     } in
+              let instance_number = string_of_int (List.length modinfo.mi_instances) in
+              let name = L.mk_loc (L.loc modfunc) instance_number in
+              let menv',_ = MEnv.enter_ground_module arch_info.pd name margs modinfo.mi_params menv' in
+              let menv' = get_instance_modules arch_info menv' modinfo.mi_ast in
+              let menv = merge_instances menv menv' in
+              let iname = (L.unloc modfunc) ^ "_" ^ instance_number in
+              let instances = (margs,[full_name], iname) :: modinfo.mi_instances
+              in let new_modinfo = { modinfo with mi_instances = instances }
+              in let me_env = Map.add (L.unloc modfunc) new_modinfo menv.me_env
+              in {menv with me_env = me_env} 
+        in
+        get_instance_modules arch_info menv rest
     | S.PParam pp -> 
       let me_store, _ = tt_param arch_info.pd (L.loc mitem) pp menv.me_store in
       let menv = { menv with me_store } in
-      get_instance_modules arch_info imodules menv rest
+      get_instance_modules arch_info menv rest
     | S.PGlobal pg ->
       let me_store, _ = tt_global arch_info.pd (L.loc mitem) pg menv.me_store in
       let menv = { menv with me_store } in
-      get_instance_modules arch_info imodules menv rest
+      get_instance_modules arch_info menv rest
     | _ ->
-      get_instance_modules arch_info imodules menv rest
+      get_instance_modules arch_info menv rest
+
 
 let rec mt_item (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_info) add_d (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
   match L.unloc mitem with
@@ -825,7 +862,7 @@ let rec mt_item (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_inf
     MEnv.upd_storedecls add_d (tt_fundef arch_info (L.loc mitem) pf) menv
 
 and mt_moduleapp arch_info _ menv mname modfuncname margs_original =
-    let (_,_), modfunc = Env.Modules.get menv.me_store modfuncname in
+    let (_,gb), modfunc = Env.Modules.get menv.me_store modfuncname in
     let modinfo =
          match Map.find (L.unloc modfunc) menv.me_env with
          | modi -> modi
@@ -834,7 +871,7 @@ and mt_moduleapp arch_info _ menv mname modfuncname margs_original =
              (NonExistentMod (L.unloc modfunc)) in
 
     let full_name = qualify (MEnv.fully_qualified_modname menv.MEnv.me_store) (L.unloc mname) in 
-    (* let ground_module = List.for_all identity menv.MEnv.me_gmod   in   *)
+    let ground_module = List.for_all identity menv.MEnv.me_gmod   in
     let menv, margs, _ = mt_margs arch_info.pd menv mname modinfo.mi_params margs_original in
     let mi_store = rename_module_bindings (L.unloc mname) full_name (L.unloc modfuncname) (L.unloc modfunc) modinfo.mi_store in
     let s_bindings = match menv.me_store with
@@ -852,43 +889,39 @@ and mt_moduleapp arch_info _ menv mname modfuncname margs_original =
            menv.MEnv.me_env
      } in
     let menv = MEnv.exit_module_moduleapp menv mname full_name in
-  (*  if ground_module
-    then if margs = []
-      then (* pickup module *)
-        MEnv.add_decls menv
-            [ M.MdModApp { ma_name = full_name
-               ; ma_func = (L.unloc modfunc)
-               ; ma_args = []
-               } ]
-      else (* pickup/gen instance *)
+    let menv = if ground_module && margs != [] then 
         match has_instance modinfo.mi_instances margs with
-        | Some instname ->
-            MEnv.add_decls menv
-            [ M.MdModApp { ma_name = full_name
-               ; ma_func = instname
-               ; ma_args = []
-               } ]
+        | Some (mnames,iname) -> 
+          let rec insert_instance margs = function
+            | [] -> []
+            | (a,_,_)::xs when a=margs -> (margs,full_name::mnames,iname)::xs
+            | x::xs -> x::(insert_instance margs xs) (*FIX ME: duplicate work*)
+          in
+          let instances = insert_instance margs modinfo.mi_instances in
+          let new_modinfo = { modinfo with mi_instances = instances } in
+          let me_env = Map.add (L.unloc modfunc) new_modinfo menv.me_env
+          in {menv with me_env = me_env} 
         | None ->
           Format.eprintf "Generating new instance for %s\n%!" full_name;
-          
-          (* let menv' = {
-            menv with
-             me_store = { menv.me_store with s_bindings = gb }
-          } in
-          let menv', margs, _ = mt_margs arch_info.pd menv' mname modinfo.mi_params margs_original in *)
-          (* find way to add args correctly *)
-          let _, instance_modules = get_instance_modules arch_info Map.empty menv modinfo.mi_ast in
-          let instances = (instance_modules,margs,full_name) :: modinfo.mi_instances
+          let menv' = { menv with
+                       MEnv.me_store =
+                         { menv.MEnv.me_store with
+                           s_bindings = gb
+                         }
+                     } in
+          let instance_number = string_of_int (List.length modinfo.mi_instances) in
+          let iname = (L.unloc modfunc) ^ "::" ^ instance_number in
+          let l_iname = L.mk_loc (L.loc modfunc) iname in
+          let menv',_ = MEnv.enter_ground_module arch_info.pd l_iname margs modinfo.mi_params menv' in
+          let menv' = get_instance_modules arch_info menv' modinfo.mi_ast in
+          let menv = merge_instances menv menv' in
+          let instances = (margs,[full_name], iname) :: modinfo.mi_instances
           in let new_modinfo = { modinfo with mi_instances = instances }
           in let me_env = Map.add (L.unloc modfunc) new_modinfo menv.me_env
-          in let menv = {menv with me_env = me_env} 
-          in MEnv.add_decls menv
-            [ M.MdModApp { ma_name = full_name
-               ; ma_func = (L.unloc modfunc)
-               ; ma_args = margs
-               } ]
-    else *)
-      MEnv.add_decls menv
+          in {menv with me_env = me_env} 
+        else menv
+        in 
+    MEnv.add_decls menv
             [ M.MdModApp { ma_name = full_name
                ; ma_func = (L.unloc modfunc)
                ; ma_args = margs
