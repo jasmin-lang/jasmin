@@ -107,7 +107,7 @@ Proof.
     Lia.lia.
   etransitivity; last exact: (proj2 (Memory.alloc_stackP A).(ass_above_limit)).
   rewrite (alloc_stack_top_stack A) (top_stack_after_aligned_alloc _ AL) wrepr_opp.
-  Lia.lia.
+  by move: (_ - _)%R; Lia.lia.
 Qed.
 
 (* -------------------------------------------------------------- *)
