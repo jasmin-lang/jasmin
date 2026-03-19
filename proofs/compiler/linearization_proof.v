@@ -4502,20 +4502,7 @@ Section PROOF.
           rewrite -ts_rsp (alloc_stack_top_stack ok_m1').
           rewrite top_stack_after_aligned_alloc // wrepr_opp.
           have := ass_ioff (alloc_stackP ok_m1'); rewrite -hioff => uptr_sz.
-          clear - stk_sz_pos stk_extra_sz_pos frame_noof uptr_sz.
-          have := round_ws_range (sf_align (f_extra fd)) (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)).
-          rewrite -/(stack_frame_allocation_size (f_extra fd)) => hround.
-          set L := stack_limit (emem s1).
-          have L_range := wunsigned_range L.
-          move: (stack_frame_allocation_size _) hround frame_noof => SF hround frame_noof.
-          move: (top_stack (emem s1)) => T above_limit.
-          have SF_range : (0 <= SF < wbase Uptr)%Z.
-          - by move: (sf_stk_sz (f_extra fd)) (sf_stk_extra_sz (f_extra fd)) stk_sz_pos stk_extra_sz_pos hround; lia.
-          have X : (wunsigned (T - wrepr Uptr SF) <= wunsigned T)%Z.
-          * move: (sf_stk_sz _) stk_sz_pos above_limit => n; lia.
-          have {X} TmS := wunsigned_sub_small SF_range X.
-          rewrite TmS in above_limit.
-          lia.
+          by clear -uptr_sz; lia.
         exists m1s; split=> //.
         + apply: (eval_lsem_step1 (pre := [:: P1 ]) ok_body) => //.
           apply: (spec_lstore hliparams) => //=.
