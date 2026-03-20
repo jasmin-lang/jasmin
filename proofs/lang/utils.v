@@ -1932,8 +1932,6 @@ Variant and10 (P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 : Prop) : Prop :=
 
 Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
   (and6 P1 P2 P3 P4 P5 P6) : type_scope.
-Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
-  (and6 P1 P2 P3 P4 P5 P6) : type_scope.
 Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 & P7 ]" :=
   (and7 P1 P2 P3 P4 P5 P6 P7) : type_scope.
 Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 , P7 & P8 ]" :=
