@@ -1,5 +1,14 @@
-(* Adversarial model and compiler security. *)
-From mathcomp Require Import ssreflect ssrbool ssralg ssrfun ssrnum.
+(* Indistinguishability under chosen ciphertext attack (INDCCA). *)
+
+From mathcomp Require Import
+  ssreflect
+  ssrbool
+  ssralg
+  ssrfun
+  ssrnum
+  ssrnat
+  order
+.
 From mathcomp Require Import
   choice
   constructive_ereal
@@ -20,12 +29,13 @@ From ITree Require Import
   InterpFacts
   Rutt
   RuttFacts
+  State
 .
+Import Monads.
 
 Require Import distr.
 
 #[local] Open Scope order_scope.
-
 #[local] Open Scope ring_scope.
 
 Notation "'let*' p ':=' c1 'in' c2" :=
@@ -33,8 +43,6 @@ Notation "'let*' p ':=' c1 'in' c2" :=
   (at level 61, p as pattern, c1 at next level, right associativity).
 
 Notation "x |> f" := (f x) (only parsing, at level 25).
-
-Arguments eutt_clo_bind {_ _ _ _ _ _} _ {_ _ _ _}.
 
 Section MAIN.
 
@@ -60,6 +68,9 @@ Section GAME.
        that performs a guess, and can query the decapsulation algorithm except
        on the provided encapsulation.
 
+     The adversary is allowed to make at most [Q] queries to the decapsulation
+     oracle.
+
      The security game is as follows:
          pk, sk <- GenKey()
          st <- Query[Decap(sk)](pk)
@@ -67,7 +78,7 @@ Section GAME.
          m_1 <- random message
          b <- random boolean
          g <- Guess[Decap*(sk)](st, pk, ct, m_b)
-         return (g == b)
+         return (g == b && number of queries <= Q)
 
      We write A[C] for the ITree that interprets the [Dec] events of [A] calling
      [C] and [C*] for the decapsulation algorithm that fails on [ct]. *)
@@ -96,41 +107,42 @@ Section GAME.
       Guess : advmem -> pkey -> ciphert -> msg -> itree (Dec +' Rnd) bool;
     }.
 
-  Context (C : Challenger) (A : Adversary).
+  Context (C : Challenger) (A : Adversary) (Q : nat).
+
+  Definition tick E `{stateE nat -< E} : itree E unit :=
+    let* n := get in put n.+1.
 
   (* Handle a decapsulation query from the attacker, given a secret key [sk]
      and an exception [ex]. *)
   Definition handle_Dec
-    (sk : skey) (ex : option ciphert) : (Dec +' Rnd) ~> itree Rnd :=
+    (sk : skey) (ex : option ciphert) : Dec ~> itree (stateE nat +' Rnd) :=
     fun T e =>
-      match e with
-      | inl1 e =>
-          match e in Dec T return itree Rnd T with
-          | Decapsulate c => if Some c == ex then Ret dummy else C.(Decap) sk c
-          end
-      | inr1 e => trigger e
-      end.
+      let 'Decapsulate c := e in
+      let* _ := tick in
+      if Some c == ex then Ret dummy
+      else translate inr1 (C.(Decap) sk c).
 
   Definition interact
     (X : Type)
     (A : itree (Dec +' Rnd) X)
     (sk : skey)
     (ex : option ciphert) :
-    itree Rnd X :=
-    interp (handle_Dec sk ex) A.
+    itree Rnd (nat * X) :=
+    let t := interp (case_ (handle_Dec sk ex) inr_) A in
+    run_state t O.
 
   Definition flip : itree Rnd bool := trigger (GetRnd (dunif bool)).
   Definition rnd_msg : itree Rnd msg := trigger (GetRnd (dunif msg)).
 
   Definition game : itree Rnd bool :=
     let* (pk, sk) := C.(GenKey) in
-    let* amem := interact (A.(Query) pk) sk None in
+    let* (nq, amem) := interact (A.(Query) pk) sk None in
     let* (ct, m0) := C.(Encap) pk in
     let* m1 := rnd_msg in
     let* b := flip in
     let mb := if b then m1 else m0 in
-    let* g := interact (A.(Guess) amem pk ct mb) sk (Some ct) in
-    Ret (g == b).
+    let* (ng, g) := interact (A.(Guess) amem pk ct mb) sk (Some ct) in
+    Ret [&& g == b & (nq + ng <= Q)%N ]. (* Why doesn't this work with order? *)
 
   Definition dgame : distr bool := dinterp game.
 
@@ -155,7 +167,8 @@ Section REDUCE.
   (* Every adversary for [C1] can be converted into an adversary for [C2] that
      performs at most the same number of oracle queries and whose advantage is
      at least that of the former's. *)
-  Definition reduction C1 C2 := forall A1, advantage C1 A1 = advantage C2 A1.
+  Definition reduction C1 C2 :=
+    forall A1 Q, advantage C1 A1 Q = advantage C2 A1 Q.
 
 End REDUCE.
 

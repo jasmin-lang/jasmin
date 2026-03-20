@@ -61,7 +61,7 @@ Require Import
 Require allocation.
 
 Require Import
-  adv
+  indcca
   it_sems_core
   psem
   psem_facts
@@ -1096,44 +1096,46 @@ Let C_t :=
     fn_genkey fn_encap fn_decap
     mt ppk psk pct pmsg.
 
-Lemma handle_DecP T sk ex (e : (Dec +' distr.Rnd) T) :
-  eutt eq
-    (handle_Dec (dummy := dummymsg) C_s sk ex e)
-    (handle_Dec (dummy := dummymsg) C_t sk ex e).
+Notation handle_Dec := (handle_Dec (dummy := dummymsg)) (only parsing).
+Notation interact := (interact (dummy := dummymsg)) (only parsing).
+Notation game := (game (dummy := dummymsg)) (only parsing).
+
+Lemma handle_DecP T sk ex (e : Dec T) :
+  eutt eq (handle_Dec C_s sk ex e) (handle_Dec C_t sk ex e).
 Proof.
-move: T e => _ [[c] | []] /=; last reflexivity.
+move: T e => _ [c] /=; apply/eutt_eq_bind => _.
 case: (_ == _); first reflexivity.
-exact/eutt_translateE/eutt_Decap.
+exact/eutt_translate'/eutt_translateE/eutt_Decap.
 Qed.
 
 Lemma interactP T (A : itree _ T) sk ex :
-  eutt eq
-    (interact (dummy := dummymsg) C_s A sk ex)
-    (interact (dummy := dummymsg) C_t A sk ex).
+  eutt eq (interact C_s A sk ex) (interact C_t A sk ex).
 Proof.
-apply: eutt_interp; last reflexivity. move=> Y e; exact: handle_DecP.
+rewrite /adv.interact; set ds := interp _ _; set dt := interp _ _.
+suff -> : eutt eq ds dt by reflexivity.
+apply/eutt_interp; last reflexivity.
+move=> ??; apply/Proper_Case_Handler; last reflexivity.
+move=> *; exact: handle_DecP.
 Qed.
 
-Theorem eutt_game {A : KEM_Adversary} :
-  eutt eq
-    (game (dummy := dummymsg) C_s A)
-    (game (dummy := dummymsg) C_t A).
+Theorem eutt_game {A : KEM_Adversary} {Q} :
+  eutt eq (game C_s A Q) (game C_t A Q).
 Proof.
 rewrite /game /= (eutt_translateE eutt_GenKey).
 apply: eutt_eq_bind => -[pk sk].
-rewrite interactP; apply: eutt_eq_bind => l.
+rewrite interactP; apply: eutt_eq_bind => -[nq amem].
 rewrite (eutt_translateE eutt_Encap); apply: eutt_eq_bind => -[m0 c].
 apply: eutt_eq_bind => m1; apply: eutt_eq_bind => b.
 rewrite interactP; reflexivity.
 Qed.
 
-Corollary deqX_game {A : KEM_Adversary} :
-  dgame (dummy := dummymsg) C_s A =1 dgame (dummy := dummymsg) C_t A.
+Corollary deqX_game {A : KEM_Adversary} {Q}:
+  dgame (dummy := dummymsg) C_s A Q =1 dgame (dummy := dummymsg) C_t A Q.
 Proof. exact/dinterp_eutt/eutt_game. Qed.
 
 Corollary reduction :
   reduction (advmem := advmem) (dummy := dummymsg) C_s C_t.
-Proof. move=> A; by rewrite /advantage (eq_mu_pr _ deqX_game). Qed.
+Proof. move=> A Q. by rewrite /advantage [in LHS](eq_mu_pr _ deqX_game). Qed.
 
 End THEOREM.
 
