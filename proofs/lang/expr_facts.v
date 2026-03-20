@@ -52,6 +52,8 @@ Section PEXPR_IND.
 
 End PEXPR_IND.
 
+Register Scheme pexpr_ind as ind_dep for pexpr.
+
 (* Mutual induction scheme for pexpr and pexprs *)
 Section PEXPRS_IND.
   Context
