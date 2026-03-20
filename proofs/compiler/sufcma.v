@@ -101,14 +101,13 @@ Section GAME.
   Context (C : Challenger) (A : Adversary) (Q : nat).
 
   (* Log for the game.
-     It tracks the number of queries and the list of messages and signatures
-     that have been queried. *)
-  Definition S : Type := nat * seq (msg * signature).
+     It tracks the list of messages and signatures that have been queried. *)
+  Definition S : Type := seq (msg * signature).
 
   (* Increment the number of queries and log a message-signature pair. *)
-  Definition tick_log
+  Definition log
     E `{stateE S -< E} (m : msg) (s : signature) : itree E unit :=
-    let* (n, l) := get in put (n.+1, (m, s) :: l).
+    let* l := get in put ((m, s) :: l).
 
   (* Handle a signing query by incrementing the query count and recording the
      message and signature. *)
@@ -116,19 +115,19 @@ Section GAME.
     fun T e =>
       let 'EvSign m := e in
       let* s := translate inr1 (C.(Sign) sk m) in
-      let* _ := tick_log m s in
+      let* _ := log m s in
       Ret s.
 
   Definition interact
     (X : Type) (A : itree (ESign +' Rnd) X) (sk : skey) : itree Rnd (S * X) :=
     let t := interp (case_ (handle_ESign sk) inr_) A in
-    run_state t (O, [::]).
+    run_state t [::].
 
   Definition game : itree Rnd bool :=
     let* (pk, sk) := C.(GenKey) in
-    let* ((n, l), f) := interact (A.(Query) pk) sk in
+    let* (l, f) := interact (A.(Query) pk) sk in
     let* b := C.(Verify) pk f in
-    Ret [&& b, f \notin l & (n <= Q)%N ]. (* Why doesn't this work with order? *)
+    Ret [&& b, f \notin l & (size l <= Q)%N ]. (* HELP: Why doesn't this work with order? *)
 
   (* Interpret the game as a distribution. *)
   Definition dgame : distr bool := dinterp game.
