@@ -96,7 +96,8 @@ let ec_keyword =
  ; "match"
  ; "for"
  ; "while"
- ; "assert"
+ ; "raise"
+ ; "assert" (* No longer a keyword since 2026.03 *)
  ; "return"
  ; "res"
  ; "equiv"
@@ -232,6 +233,7 @@ let ec_keyword =
  ; "of"
  ; "const"
  ; "op"
+ ; "exception"
  ; "pred"
  ; "inductive"
  ; "notation"
