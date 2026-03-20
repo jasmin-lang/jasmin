@@ -743,7 +743,7 @@ Fixpoint lsem_i_imedA
   (fun lpA =>
   let '(fnA, pA) := lpA in
   let LRec := @lsem_cmd_imedA IBT CNT CNN LSC LSI in
-  if fst lpA == fn then 
+  if fn == fst lpA then 
   match lt with
   | LErrLeaf _ => throw err
   | LLeaf _ (MkLI ii ir) =>
@@ -1053,6 +1053,7 @@ Admitted.
   
 (*******************************************************************)
 
+(* Not so good. *)
 Lemma aloop_aux1 {XS: stateE LState -< E}
   (fn : funname) (n0 n1 n2: nat) (l0 l1: label)
   (lcm: LTreeList fn (incrP1 (n0, l0)) (n1, l1))
@@ -1172,7 +1173,7 @@ Proof.
 Admitted. 
   
 
-(* similar, for commands. but NOTE: it would not hold without the
+(* Wrong track. NOTE: it would not hold without the
    top-level iteration on the left *)
 Lemma intemediate_local2intermediate_funglobal_lcmd_aux
   {XS: stateE LState -< E} (fn: funname) (plS plE: plinfo)
@@ -1211,12 +1212,17 @@ Proof.
   { intros; subst Pt; simpl; intros.
     unfold Ptl in *.
     unfold lsem_i_imedL, lsem_i_imedAL; simpl.
-    unfold lsem_i_imedF, lsem_i_imedAF; simpl.
+    unfold lsem_i_imedF, lsem_i_imedAF; simpl. 
     destruct pl0 eqn: was_pl0 ; simpl.
-    unfold Id_cmb; simpl.
-    unfold LACntrI; simpl.
-    destruct lp0 eqn: was_lp0; simpl.
+    unfold Id_cmb at 1; simpl.
+    unfold LACntrI at 1 3; simpl.
+    unfold aloop.
+    unfold lsem_cmd_imedL, lsem_cmd_imedAL in H; simpl in *.
+    unfold lsem_cmd_imedF, lsem_cmd_imedAF in H; simpl in *.
+    unfold LACntrI in H at 2; unfold aloop in H; simpl in *.
     destruct pl1 eqn: was_pl1; simpl.
+ (*   setoid_rewrite <- loop_vanishing_2. *)
+    
     (* here unfolding the top iter does not make sense, because on the
        left threre is an inner iter while on the right there is
        none. Indeed, we've got an induction hypothesis that does the
@@ -1226,161 +1232,550 @@ Proof.
        and in particular one that is very similar to
        'loop_asm_correct'; for this reason, we rely on encoding LCntrI
        as a loop. *)
-    unfold lsem_cmd_imedL, lsem_cmd_imedAL in H; simpl in *.
 (*    unfold lsem_cmd_imedF in H; simpl in *.
     unfold lsem_cmd_imedAF in H; simpl in *.
 *)
+
+(* NOTE: two possible strategies: 1) push out the inner loop on the
+   right (which requires applying the induction hyp), until it can
+   vanish.  2) insert a vanishing loop on the left and pull it in,
+   until it matches the induction hyp. following 2, PROBLEM:
+   duplicating the loop is not enough, we need to dupplicate LACntrI
+   in order to apply the induction hyp. *)
     
-    (* purely local *)
-    set PL := (fun '((_, pA) as lpA) =>
-          if lpA.1 == fn
-          then
-           if LIf1Node_ok la_cond1 la_lbl1
-           then
-            if (pA == n) || (pA == n1)
-            then isem_li_aflow lpA
-            else
-             if in_btw n.+1 n1 pA
-             then
-              lsem_cmd_imedA in_btw
-                (fun (Bd : lpoint -> itree (LCall +' E) lpoint)
-                     (fn0 : funname) (nS nE : nat) (lp1 : lpoint) =>
-                   aloop (LACntr Bd fn0 nS nE) lp1)
-                      Bind_cmb isem_lcmd_seq_flow isem_li_aflow lcm1 lpA
-             else throw err
-           else throw err
-          else throw err).
+ (*   unfold LACntr at 2. unfold ACntr. simpl. *)
+        
+    unfold loop, CategoryOps.cat, Cat_Kleisli; simpl.
+    eapply eqit_bind; try reflexivity.
+    intros pe0.
+    unfold CategoryOps.iter, Iter_Kleisli, Basics.iter, MonadIter_itree; simpl.
 
-    (* with a partially pushed out iter *)
-    set PO := (fun (lpA: lpoint) =>
-          if lpA.1 == fn
-          then
-           if LIf1Node_ok la_cond1 la_lbl1
-           then
-            if (lpA.2 == n) || (lpA.2 == n1)
-            then isem_li_aflow lpA
-            else
-             if in_btw n.+1 n1 lpA.2
-             then aloop (fun (peA: lpoint + lpoint) =>
-               let lpD := match peA with inl x => x | inr x => x end in
-                     (if lpD.1 == fn then  
-                      lpC <- lsem_cmd_imedA in_btw
-                             (fun (f0 : lpoint -> itree (LCall +' E) lpoint)
-                                  (_ : funname) (_ _ : nat) => f0)
-                             Switch_cmb isem_lcmd_seq_flow
-                             isem_li_aflow lcm1 lpD ;;
-                      Ret (inl lpC)
-                      else Ret (inr lpD))) lpA  
-             else throw err    
-           else throw err
-          else throw err).
-
-    (* induction hyp used; basically, this is the 'smallest' rewrite
-       for which it makes sense to apply the induction hyp; it allows
-       us to get rid of the local loops (as they are in PL), by
-       pushing them out 'just a bit' (yet: there are problems to be
-       fixed with the aloop_aux1 lemma). *)
-    assert (forall (lpA: lpoint), 
-               eutt eq (PL lpA) (PO lpA)) as W1.
-    { subst PL PO; simpl.
-      intros lpA.
-      destruct lpA eqn:was_lpA; simpl.
-      destruct (f0 == fn) eqn:was_e1; simpl; try reflexivity.
-      destruct (LIf1Node_ok la_cond1 la_lbl1); try reflexivity; simpl.
-      destruct ((n2 == n) || (n2 == n1)); try reflexivity; simpl.
-      destruct (in_btw n.+1 n1 n2); try reflexivity; simpl.
-      unfold LACntrI in H; simpl in *.
-      (* NOTE: apply the inductive hyp *)
-      rewrite H.
-
-      assert (f0 = fn) as A0.
-      { admit. }
-      inversion A0; subst.
-      clear H0.
-      eapply aloop_aux1.
-      admit.
-      admit.
-      admit.
-    }
-
-    (* this now should be easy *)
-    assert (∀ lpA : lpoint, aloop (LACntr PL fn n n1.+1) lpA ≈
-                            aloop (LACntr PO fn n n1.+1) lpA) as W2. 
-    { admit. }
-
-    subst PO PL.
-    specialize (W2 (f, n0)); simpl in *.
-    (* here we apply the rewrite *)
-    setoid_rewrite W2.
-    clear W1 W2.
-
-    (* now we need to fully push outward the inner loop on the left *)
-
-    set PL := (fun lpA: lpoint => _).
-    
-    set (PO := aloop (LACntr (λ lpA : lpoint,
-         if lpA.1 == fn
-         then
-          if LIf1Node_ok la_cond1 la_lbl1
-          then
-           if (lpA.2 == n) || (lpA.2 == n1)
-           then isem_li_aflow lpA
-           else
-            if in_btw n.+1 n1 lpA.2
-            then
-              (lsem_cmd_imedA in_btw
-                 (λ (f0 : lpoint → itree (LCall +' E) lpoint)
-                    (_ : funname) (_ _ : nat), f0)
-                        Switch_cmb isem_lcmd_seq_flow isem_li_aflow lcm1 lpA) 
-            else throw err
-          else throw err
-         else throw err) fn n n1.+1)).
-
-    assert (forall (lpA: lpoint), 
-               eutt eq (PL lpA) (PO lpA)) as W1.
-    { subst PL PO.
-      intros lpA; simpl.
-      destruct lpA eqn: was_lpA; simpl.
-      destruct (f0 == fn) eqn: was_e1; simpl.
-      2: { (* unfold the left loop *) admit. }
-      assert (f0 = fn) as A0.
-      { admit. }
-      inversion A0; subst.
-      clear H0.
+    (* here we try unfolding on both sides *)
+    setoid_rewrite unfold_iter.
+    setoid_rewrite bind_bind.
+    unfold LACntr at 1 3; unfold ACntr.
+    destruct pe0 as [[fn1 n1] | [fn1 n1]] eqn: was_pe0; simpl.
+  
+    - destruct (fn == fn1) eqn:was_e0; simpl.
+      2: { setoid_rewrite bind_ret_l; simpl.
+           setoid_rewrite bind_bind.
+           unfold id_; simpl; unfold Datatypes.id; simpl.
+           setoid_rewrite bind_ret_l; simpl.
+           unfold inr_; simpl.
+           setoid_rewrite bind_ret_l; simpl; reflexivity.
+      }
+      destruct (if not_possible fn1 n0.+1 then None
+                else Some ((n <= n1 < n0.+1) && (0 < n1))) eqn:was_e1; simpl.
+      2: { setoid_rewrite bind_vis.
+           eapply eqit_Vis.
+           intro u. destruct u.
+      }
+      destruct b; simpl.
+      2: { setoid_rewrite bind_ret_l.
+           setoid_rewrite bind_bind.
+           unfold id_; simpl; unfold Datatypes.id; simpl.
+           setoid_rewrite bind_ret_l; simpl.
+           unfold inr_; simpl.
+           setoid_rewrite bind_ret_l; simpl; reflexivity.
+      }
+      setoid_rewrite bind_bind.
       destruct (LIf1Node_ok la_cond1 la_lbl1) eqn: was_e2; simpl.
-      2: { (* unfold the left loop *) admit. }
-      destruct ((n2 == n) || (n2 == n1)) eqn: was_e3.
-      unfold LACntr; simpl.
-      (* unfold the left loop *)
-      admit.
-      destruct (in_btw n.+1 n1 n2) eqn: was_e4; simpl.
+      2: { setoid_rewrite bind_vis.
+           eapply eqit_Vis.
+           intro u. destruct u.
+      }
+      destruct ((n1 == n) || (n1 == n0)) eqn: was_e3; simpl.
+      { set W := (isem_li_aflow _).
+        assert (exists pp, eutt eq W (Ret pp)) as H0.
+        { admit. }
+        destruct H0 as [lp2 H0].
+        setoid_rewrite H0.
+        setoid_rewrite bind_ret_l; simpl.
+        setoid_rewrite bind_ret_l; simpl.
+        setoid_rewrite bind_bind.
+        unfold inl_; simpl.
+        setoid_rewrite bind_ret_l; simpl.
+        setoid_rewrite bind_ret_l; simpl.
+        admit.
+        (* need coinductive hyp? *)
+      }
+      { destruct (in_btw n.+1 n0 n1) eqn: was_e4.
+        eapply eqit_bind.
+      (* BAD: even if we had the coinductive hyp for the continuation,
+         the first arguments wouldn't match by the induction hyp. This
+         means: a loop must materialize by all means on the right. *)
 
-      (* unfold both loops *)
-      admit.
-      (* unfold the left loop *)
+Abort.      
+     
+
+(* equivalence for commands. but NOTE: this would not hold without the
+   top-level iteration on the left *)
+Lemma intemediate_local2intermediate_funglobal_lcmd_aux
+  {XS: stateE LState -< E} (fn: funname) (plS plE: plinfo)
+  (lt : LTreeList fn plS plE) (lp0: lpoint) :
+  eutt eq (lsem_cmd_imedL lt lp0)
+          (LACntrI (lsem_cmd_imedF lt) fn (fst plS) (fst plE) lp0).
+Proof.
+(*  unfold lsem_imed_recL, isem_lcmd_flow, lsem_imed_recF; simpl. *)
+  revert lp0.
+  revert lt.
+  revert plS plE.
+  
+  set (Pt := fun plS plE (lt0: LTree fn plS plE) =>
+             forall lp0, eutt eq (lsem_i_imedL lt0 lp0)
+                 (LACntrI (lsem_i_imedF lt0)
+                    fn (fst plS) (fst plE) lp0)). 
+  set (Ptl := fun plS plE (lts: LTreeList fn plS plE) =>
+             forall lp0, eutt eq (lsem_cmd_imedL lts lp0)
+                 (LACntrI (lsem_cmd_imedF lts)
+                    fn (fst plS) (fst plE) lp0)). 
+  eapply (@LTreeList_mut asm_op _ fn Pt Ptl). 
+  { intros; subst Pt; simpl; intros.
+    unfold lsem_i_imedL, lsem_i_imedF; simpl.
+    unfold lsem_i_imedAL, lsem_i_imedAF; simpl.
+    destruct pl eqn: was_pl ; simpl.
+    unfold Id_cmb; simpl.
+    reflexivity.
+  }
+  { intros; subst Pt; simpl; intros.
+    unfold lsem_i_imedL, lsem_i_imedF; simpl.
+    unfold lsem_i_imedAL, lsem_i_imedAF; simpl.
+    destruct pl eqn: was_pl ; simpl.
+    unfold Id_cmb; simpl.
+    reflexivity.
+  }
+  { intros; subst Pt; simpl; intros.
+    unfold Ptl in *.
+    unfold lsem_i_imedL, lsem_i_imedAL; simpl.
+    unfold lsem_i_imedF, lsem_i_imedAF; simpl. 
+    destruct pl0 eqn: was_pl0 ; simpl.
+    unfold Id_cmb at 1; simpl.
+    unfold LACntrI at 1 3; simpl.
+    unfold aloop.
+    unfold lsem_cmd_imedL, lsem_cmd_imedAL in H; simpl in *.
+    unfold lsem_cmd_imedF, lsem_cmd_imedAF in H; simpl in *.
+    unfold LACntrI in H at 2; unfold aloop in H; simpl in *.
+    destruct pl1 eqn: was_pl1; simpl.
+    simpl in *.
+    
+    set PL := (fun '((_, pA) as lpA) => _).
+    set PO := (fun '((_, pA) as lpA) => _).
+    set PO0 := aloop (LACntr PO fn n n0.+1).
+    set PO1 := aloop (LACntr PO fn n.+1 n0).
+    set PO2 := aloop (LACntr PO1 fn n n0.+1).
+
+    (* we want transform the right-hand side tree (PO, the non-local
+       one) to get it into a shape where the induction hyp is
+       usable. first we introduce a (redundant) inner loop. should be
+       similar to loop_vanishing_2. *)
+    assert (eutt eq (PO2 lp0) (PO0 lp0)) as A1.
+    { subst PO0 PO2 PO1 PO; simpl.
       admit.
     }
 
-    (* this now should be easy *)
-    assert (∀ lpA : lpoint, aloop (LACntr PL fn n n1.+1) lpA ≈
-                            aloop (LACntr PO fn n n1.+1) lpA) as W2. 
-    { admit. }
+    set PI := (λ '((_, pA) as lpA),
+                if fn == lpA.1
+                then
+                 if LIf1Node_ok la_cond1 la_lbl1
+                 then
+                  if (pA == n) || (pA == n0)
+                  then isem_li_aflow lpA
+                  else
+                   if in_btw n.+1 n0 pA
+                   then aloop (LACntr (lsem_cmd_imedA in_btw Id_cmb
+                                    Switch_cmb isem_lcmd_seq_flow
+                                    isem_li_aflow lcm1)
+                                 fn n.+1 n0) lpA
+                   else throw err
+                 else throw err
+                else throw err). 
+    set PI0 := aloop (LACntr PI fn n n0.+1).
 
-    subst PO PL.
-    specialize (W2 (f, n0)); simpl in *.
-    (* here we apply the rewrite *)
-    setoid_rewrite W2.
-    clear W1 W2.
+    (* we now want to push this loop further inward, to match a local
+       one. maybe could just prove PO1 ~~ PI? probably not. *)
+    assert (eutt eq (PO2 lp0) (PI0 lp0)) as A2.
+    { subst PO0 PO2 PO1 PO PI0 PI; simpl.
+      admit.
+    }
 
-    unfold aloop; simpl.
+    (* now we can apply these two lemmas to ge the right-hand side in
+    the right shape. *)
+    subst PO0; rewrite <- A1.
+    rewrite A2.
+    subst PI0 PL PI; simpl in *.
+    
+    unfold aloop, loop, CategoryOps.cat, Cat_Kleisli; simpl.
+    eapply eqit_bind; try reflexivity.
+    intros pe0.
+    unfold CategoryOps.iter, Iter_Kleisli, Basics.iter, MonadIter_itree; simpl.
+    eapply eutt_iter.
+    intros pe.
+    unfold LACntr at 1 2; unfold ACntr; simpl.
+    clear pe0.
+    (* annoying duplication. to be fixed somehow *)
+    destruct pe as [[fn1 n1] | [fn1 n1]] eqn: was_e0; simpl.
+    { destruct (fn == fn1) eqn: was_e1; try reflexivity.
+      destruct (not_possible fn1 n0.+1) eqn: was_e2; try reflexivity.    
+      destruct ((n <= n1 < n0.+1) && (0 < n1)) eqn: was_e3; try reflexivity.
+      setoid_rewrite bind_bind.
+      destruct (LIf1Node_ok la_cond1 la_lbl1) eqn: was_e4; try reflexivity.
+      destruct ((n1 == n) || (n1 == n0)) eqn: was_e5; try reflexivity.
+      destruct (in_btw n.+1 n0 n1) eqn: was_e6; try reflexivity.
+      setoid_rewrite bind_bind.
+      setoid_rewrite bind_ret_l.
+      (* now applying the induction hyp *)
+      rewrite H.
+      eapply eqit_bind; try reflexivity.
+      unfold aloop, loop, CategoryOps.cat, Cat_Kleisli; simpl.
+      setoid_rewrite bind_ret_l; reflexivity.      
+      intros pl3.
+      setoid_rewrite bind_ret_l.
+      unfold bimap, Case_Kleisli, Bimap_Coproduct, case_,
+        CategoryOps.cat; simpl.
+      setoid_rewrite bind_ret_l; reflexivity.
+    }
+    { destruct (fn == fn1) eqn: was_e1; try reflexivity.
+      destruct (not_possible fn1 n0.+1) eqn: was_e2; try reflexivity.    
+      destruct ((n <= n1 < n0.+1) && (0 < n1)) eqn: was_e3; try reflexivity.
+      setoid_rewrite bind_bind.
+      destruct (LIf1Node_ok la_cond1 la_lbl1) eqn: was_e4; try reflexivity.
+      destruct ((n1 == n) || (n1 == n0)) eqn: was_e5; try reflexivity.
+      destruct (in_btw n.+1 n0 n1) eqn: was_e6; try reflexivity.
+      setoid_rewrite bind_bind.
+      setoid_rewrite bind_ret_l.
+      (* now applying the induction hyp *)
+      rewrite H.
+      eapply eqit_bind; try reflexivity.
+      unfold aloop, loop, CategoryOps.cat, Cat_Kleisli; simpl.
+      setoid_rewrite bind_ret_l; reflexivity.      
+      intros pl3.
+      setoid_rewrite bind_ret_l.
+      unfold bimap, Case_Kleisli, Bimap_Coproduct, case_,
+        CategoryOps.cat; simpl.
+      setoid_rewrite bind_ret_l; reflexivity.
+    }
+  }     
+      
+Admitted.
 
-    (* we would like to conlcude by applying something like *)
-    (* eapply loop_vanishing_2. *)
-    (* but we aren't there yet. *)  
-     admit.
-  }
 
-Admitted.     
+(* this is A2. should work either on the right-hand side, pushing the
+   inner loop inwards, or on the left-hand side, pushing the local
+   loop outwards. *)
+Lemma aloop_aux2 {XS: stateE LState -< E}
+  (la_cond1 la_lbl1: linstr) (fn fn0 : funname) (n0 n1 n2: nat) (l0 l1: label)
+  (lcm1: LTreeList fn (incrP1 (n0, l0)) (n1, l1))
+  (A1: n0 <= n2) (A2: n2 < n1) (A3: not_possible fn n1 == false) :
+ let lp0 := (fn0, n2) in  
+ (* PO2 *)
+  aloop
+     (LACntr
+        (aloop
+          (LACntr
+             (λ '((_, pA) as lpA),
+                if fn == lpA.1
+                then
+                 if LIf1Node_ok la_cond1 la_lbl1
+                 then
+                  if (pA == n0) || (pA == n1)
+                  then isem_li_aflow lpA
+                  else if in_btw n0.+1 n1 pA
+                       then lsem_cmd_imedF lcm1 lpA else throw err
+                 else throw err
+                else throw err) fn n0.+1 n1)) fn n0 n1.+1) lp0 ≈
+  (* PI0 *)  
+  aloop
+      (LACntr
+         (λ '((_, pA) as lpA),
+            if fn == lpA.1
+            then
+             if LIf1Node_ok la_cond1 la_lbl1
+             then
+              if (pA == n0) || (pA == n1)
+              then isem_li_aflow lpA
+              else
+                if in_btw n0.+1 n1 pA
+                then aloop (LACntr (lsem_cmd_imedF lcm1) fn n0.+1 n1) lpA
+                else throw err
+             else throw err
+            else throw err) fn n0 n1.+1) lp0.
+Proof.
+Admitted. 
+
+
+(* probably not good *)
+Lemma aloop_aux2_inner {XS: stateE LState -< E}
+  (la_cond1 la_lbl1: linstr) (fn fn0 : funname) (n0 n1 n2: nat) (l0 l1: label)
+  (lcm1: LTreeList fn (incrP1 (n0, l0)) (n1, l1))
+  (A1: n0 <= n2) (A2: n2 < n1) (A3: not_possible fn n1 == false) :
+ let lp0 := (fn0, n2) in  
+       (aloop
+          (LACntr
+             (λ '((_, pA) as lpA),
+                if fn == lpA.1
+                then
+                 if LIf1Node_ok la_cond1 la_lbl1
+                 then
+                  if (pA == n0) || (pA == n1)
+                  then isem_li_aflow lpA
+                  else if in_btw n0.+1 n1 pA
+                       then lsem_cmd_imedF lcm1 lpA else throw err
+                 else throw err
+                else throw err) fn n0.+1 n1)) lp0
+  ≈ (λ '((_, pA) as lpA),
+            if fn == lpA.1
+            then
+             if LIf1Node_ok la_cond1 la_lbl1
+             then
+              if (pA == n0) || (pA == n1)
+              then isem_li_aflow lpA
+              else
+                if in_btw n0.+1 n1 pA
+                then aloop (LACntr (lsem_cmd_imedF lcm1) fn n0.+1 n1) lpA
+                else throw err
+             else throw err
+            else throw err) lp0.
+Proof.
+  unfold aloop; simpl.
+  unfold LACntr, ACntr at 1; simpl.
+(*  rewrite <- loop_natural_left. *)
+Abort.
+
+(* wrong shape? *)
+Lemma aloop_aux2a {XS: stateE LState -< E}
+  (la_cond1 la_lbl1: linstr) (fn fn0 : funname) (n0 n1 n2: nat) (l0 l1: label)
+  (lcm1: LTreeList fn (incrP1 (n0, l0)) (n1, l1))
+  (A1: n0 <= n2) (A2: n2 < n1) (A3: not_possible fn n1 == false) :
+  let lp0 := (fn0, n2) in
+  let F := (LACntr (λ '((_, pA) as lpA),
+     if LIf1Node_ok la_cond1 la_lbl1
+     then if (pA == n0) || (pA == n1)
+          then isem_li_aflow lpA
+          else if in_btw n0.+1 n1 pA
+               then lsem_cmd_imedF lcm1 lpA
+                (* aloop (LACntr (lsem_cmd_imedF lcm1) fn n0.+1 n1) lpA *)
+               else throw err
+          else throw err) fn n0.+1 n1) in
+  let G := (fun lp1: lpoint => if fn == lp1.1 then Ret lp1 else throw err) in 
+  (aloop (LACntr (λ '((_, pA) as lpA),
+     if fn == lpA.1
+     then if LIf1Node_ok la_cond1 la_lbl1
+          then if (pA == n0) || (pA == n1)
+               then isem_li_aflow lpA
+               else if in_btw n0.+1 n1 pA
+                    then lsem_cmd_imedF lcm1 lpA
+                    else throw err
+           else throw err
+     else throw err) fn n0.+1 n1)) lp0
+   ≈ CategoryOps.cat (aloop F) G lp0.
+     (*  (x <- (aloop F lp0) ;; G x). *)
+Proof.
+  intros.
+(*  Set Printing Implicit. *)
+  unfold aloop.
+  intros. simpl.  
+  set W := (@loop_natural_right Type (ktree (LCall +' E)) _ _  
+    (@Id_Kleisli (itree (LCall +' E)) (@Monad_itree (LCall +' E)))
+    (@Cat_Kleisli (itree (LCall +' E)) (@Monad_itree (LCall +' E)))
+     _ sum (@Case_Kleisli (itree (LCall +' E)))
+    (@Inl_Kleisli (itree (LCall +' E)) (@Monad_itree (LCall +' E)))
+    (@Inr_Kleisli (itree (LCall +' E)) (@Monad_itree (LCall +' E))) _ 
+    (@Iter_Kleisli (itree (LCall +' E)) (@MonadIter_itree (LCall +' E))) _
+    lpoint lpoint lpoint lpoint 
+    F G).
+  rewrite W.
+  clear W.
+  unfold loop, CategoryOps.cat, Cat_Kleisli; simpl.
+  subst F G; simpl.
+  setoid_rewrite bind_ret_l; try reflexivity.
+  unfold lsem_cmd_imedF, lsem_cmd_imedAF.
+  eapply eutt_iter; try reflexivity.
+  intros pe.
+  rewrite bind_bind.  
+  eapply eqit_bind; try reflexivity.
+  - unfold LACntr, ACntr; simpl.
+    destruct pe as [[fn3 n3] | [fn3 n3]]; simpl.
+    { destruct (fn == fn3) eqn: was_e0; simpl; try reflexivity. }
+    { destruct (fn == fn3) eqn: was_e0; simpl; try reflexivity. }
+  - intros pe1.
+    destruct pe1 as [[fn3 n3] | [fn3 n3]]; simpl.
+    + setoid_rewrite bind_bind.
+      setoid_rewrite bind_ret_l.
+      setoid_rewrite bind_ret_l; simpl.
+      unfold bimap, Case_Kleisli, Bimap_Coproduct, case_,
+        CategoryOps.cat; simpl.
+      setoid_rewrite bind_ret_l; simpl; reflexivity.    
+    + setoid_rewrite bind_bind.
+      setoid_rewrite bind_ret_l.
+      setoid_rewrite bind_ret_l; simpl.
+      unfold bimap, Case_Kleisli, Bimap_Coproduct, case_,
+        CategoryOps.cat; simpl.
+      unfold not_possible in A3.
+      destruct (fn == fn3); simpl.
+      * setoid_rewrite bind_ret_l; simpl; reflexivity.    
+      * (* PROBLEM *)
+        admit.
+Abort.
+
+Lemma aloop_aux2a {XS: stateE LState -< E}
+  (la_cond1 la_lbl1: linstr) (fn fn0 : funname) (n0 n1 n2: nat) (l0 l1: label)
+  (lcm1: LTreeList fn (incrP1 (n0, l0)) (n1, l1))
+  (A1: n0 <= n2) (A2: n2 < n1) (A3: not_possible fn n1 == false) :
+  let lp0 := (fn0, n2) in
+  let F := (LACntr (λ '((_, pA) as lpA),
+     if LIf1Node_ok la_cond1 la_lbl1
+     then if (pA == n0) || (pA == n1)
+          then isem_li_aflow lpA
+          else if in_btw n0.+1 n1 pA
+               then lsem_cmd_imedF lcm1 lpA
+                (* aloop (LACntr (lsem_cmd_imedF lcm1) fn n0.+1 n1) lpA *)
+               else throw err
+          else throw err) fn n0.+1 n1) in
+  let G := (fun lp1: lpoint => if fn == lp1.1 then Ret lp1 else throw err) in 
+  (aloop (LACntr (λ '((_, pA) as lpA),
+     if fn == lpA.1
+     then if LIf1Node_ok la_cond1 la_lbl1
+          then if (pA == n0) || (pA == n1)
+               then isem_li_aflow lpA
+               else if in_btw n0.+1 n1 pA
+                    then lsem_cmd_imedF lcm1 lpA
+                    else throw err
+           else throw err
+     else throw err) fn n0.+1 n1)) lp0
+   ≈ CategoryOps.cat (aloop F) G lp0.
+     (*  (x <- (aloop F lp0) ;; G x). *)
+Proof.
+  intros.
+(*  Set Printing Implicit. *)
+  unfold aloop.
+  intros. simpl.  
+  set W := (@loop_natural_right Type (ktree (LCall +' E)) _ _  
+    (@Id_Kleisli (itree (LCall +' E)) (@Monad_itree (LCall +' E)))
+    (@Cat_Kleisli (itree (LCall +' E)) (@Monad_itree (LCall +' E)))
+     _ sum (@Case_Kleisli (itree (LCall +' E)))
+    (@Inl_Kleisli (itree (LCall +' E)) (@Monad_itree (LCall +' E)))
+    (@Inr_Kleisli (itree (LCall +' E)) (@Monad_itree (LCall +' E))) _ 
+    (@Iter_Kleisli (itree (LCall +' E)) (@MonadIter_itree (LCall +' E))) _
+    lpoint lpoint lpoint lpoint 
+    F G).
+  rewrite W.
+  clear W.
+  unfold loop, CategoryOps.cat, Cat_Kleisli; simpl.
+  subst F G; simpl.
+  setoid_rewrite bind_ret_l; try reflexivity.
+  unfold lsem_cmd_imedF, lsem_cmd_imedAF.
+  eapply eutt_iter; try reflexivity.
+  intros pe.
+  destruct pe as [[fn3 n3] | [fn3 n3]]; simpl.
+  { rewrite bind_bind.  
+    unfold LACntr, ACntr; simpl.
+    destruct (fn == fn3) eqn: was_e0; simpl.
+    { eapply eqit_bind; try reflexivity.
+      intros pe1.
+      destruct pe1 as [[fn4 n4] | [fn4 n4]]; simpl.
+      + setoid_rewrite bind_bind.
+        setoid_rewrite bind_ret_l.
+        setoid_rewrite bind_ret_l; simpl.
+        unfold bimap, Case_Kleisli, Bimap_Coproduct, case_,
+          CategoryOps.cat; simpl.
+        setoid_rewrite bind_ret_l; simpl; reflexivity.    
+      + setoid_rewrite bind_bind.
+        setoid_rewrite bind_ret_l.
+        setoid_rewrite bind_ret_l; simpl.
+        unfold bimap, Case_Kleisli, Bimap_Coproduct, case_,
+          CategoryOps.cat; simpl.
+        unfold not_possible in A3.
+      destruct (fn == fn3); simpl.
+      
+(*    
+    { destruct (fn == fn3) eqn: was_e0; simpl; try reflexivity. }
+    { destruct (fn == fn3) eqn: was_e0; simpl; try reflexivity. }
+  - intros pe1.
+    destruct pe1 as [[fn3 n3] | [fn3 n3]]; simpl.
+    + setoid_rewrite bind_bind.
+      setoid_rewrite bind_ret_l.
+      setoid_rewrite bind_ret_l; simpl.
+      unfold bimap, Case_Kleisli, Bimap_Coproduct, case_,
+        CategoryOps.cat; simpl.
+      setoid_rewrite bind_ret_l; simpl; reflexivity.    
+    + setoid_rewrite bind_bind.
+      setoid_rewrite bind_ret_l.
+      setoid_rewrite bind_ret_l; simpl.
+      unfold bimap, Case_Kleisli, Bimap_Coproduct, case_,
+        CategoryOps.cat; simpl.
+      unfold not_possible in A3.
+      destruct (fn == fn3); simpl.
+      * setoid_rewrite bind_ret_l; simpl; reflexivity.    
+      * (* PROBLEM *)
+        admit.
+Admitted. 
+*)        
+Abort.
+        
+(* wrong shape? indeed *)
+Lemma aloop_aux2b {XS: stateE LState -< E}
+  (la_cond1 la_lbl1: linstr) (fn fn0 : funname) (n0 n1 n2: nat) (l0 l1: label)
+  (lcm1: LTreeList fn (incrP1 (n0, l0)) (n1, l1))
+  (A1: n0 <= n2) (A2: n2 < n1) (A3: not_possible fn n1 == false) :
+  let lp0 := (fn0, n2) in
+  let F := (LACntr
+                 (λ '((_, pA) as lpA),
+                  if LIf1Node_ok la_cond1 la_lbl1
+                  then
+                     if (pA == n0) || (pA == n1)
+                     then isem_li_aflow lpA
+                     else
+                       if in_btw n0.+1 n1 pA
+                       then aloop (LACntr (lsem_cmd_imedF lcm1) fn n0.+1 n1)
+                              lpA
+                       else throw err
+                  else throw err) fn n0.+1 n1) in
+  let G := (fun x: lpoint => if fn == fn0 then Ret x else throw err) in 
+  (aloop (LACntr
+           (λ '((_, pA) as lpA),
+                if fn == lpA.1
+                then
+                 if LIf1Node_ok la_cond1 la_lbl1
+                 then
+                  if (pA == n0) || (pA == n1)
+                  then isem_li_aflow lpA
+                  else if in_btw n0.+1 n1 pA
+                       then lsem_cmd_imedF lcm1 lpA
+                       else throw err
+                 else throw err
+                else throw err) fn n0.+1 n1)) lp0
+    ≈ CategoryOps.cat (aloop F) G lp0.
+     (*  (x <- (aloop F lp0) ;; G x). *)
+Proof.
+  intros.
+(*  Set Printing Implicit. *)
+  unfold aloop.
+  intros. simpl.  
+  set W := (@loop_natural_right Type (ktree (LCall +' E)) _ _  
+    (@Id_Kleisli (itree (LCall +' E)) (@Monad_itree (LCall +' E)))
+    (@Cat_Kleisli (itree (LCall +' E)) (@Monad_itree (LCall +' E)))
+     _ sum (@Case_Kleisli (itree (LCall +' E)))
+    (@Inl_Kleisli (itree (LCall +' E)) (@Monad_itree (LCall +' E)))
+    (@Inr_Kleisli (itree (LCall +' E)) (@Monad_itree (LCall +' E))) _ 
+    (@Iter_Kleisli (itree (LCall +' E)) (@MonadIter_itree (LCall +' E))) _
+    lpoint lpoint lpoint lpoint 
+    F G).
+  rewrite W.
+  unfold loop, CategoryOps.cat, Cat_Kleisli; simpl.
+  setoid_rewrite bind_ret_l; try reflexivity.
+  unfold lsem_cmd_imedF, lsem_cmd_imedAF.
+  eapply eutt_iter.
+  intros pe.
+  subst F G; simpl.
+  rewrite bind_bind.
+  eapply eqit_bind; try reflexivity.
+  - unfold LACntr, ACntr; simpl.
+    destruct pe as [[fn3 n3] | [fn3 n3]]; simpl.
+Abort.
+
+
+(********************************************************************)
+
 
 (* equivalence between intemediate local and function-globablised
    semantics; the idea being that in Intermediate, local iterations
