@@ -1,12 +1,20 @@
 (* * Semantics of the linear language *)
 
 (* ** Imports and settings *)
+From ITree Require Import
+     Basics
+     ITree
+     ITreeFacts
+     Events.Exception
+     Interp.Recursion
+     MonadState.
+Import Basics.Monads.
 
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssralg eqtype.
 From Coq Require Import ZArith Utf8.
 Import Relations.
 Require oseq.
-Require Import psem fexpr_sem compiler_util label one_varmap linear sem_one_varmap.
+Require Import it_sems_core psem fexpr_sem compiler_util label one_varmap linear sem_one_varmap.
 
 Import Memory.
 
@@ -309,6 +317,40 @@ Variant lsem_exportcall (scs:syscall_state_t) (m: mem) (fn: funname) (vm: Vm.t) 
   & lsem (ls_export_initial scs m vm fn) (ls_export_final scs' m' vm' fn fd)
   & vm =[ callee_saved ] vm'
 .
+
+(* ITree based Semantics *)
+Section ITREE.
+
+Context {E E0} {wE : with_Error E E0}.
+
+Definition istep (s: lstate) : itree E lstate :=
+  iresult (to_estate s) (step s).
+
+Local Notation continue_loop s := (ret (inl s)).
+Local Notation exit_loop s := (ret (inr s)).
+
+Import MonadNotation.
+Local Open Scope monad_scope.
+
+Definition ilsem_body (endpc : funname * nat) (s:lstate) :=
+  if endpc == (s.(lfn), s.(lpc)) then exit_loop s
+  else
+    s <- istep s;;
+    continue_loop s.
+
+Definition ilsem (endpc : funname * nat) (s:lstate) :=
+  ITree.iter (ilsem_body endpc) s.
+
+Definition ilsem_exportcall (scs:syscall_state_t) (m: mem) (fn: funname) (vm: Vm.t) :=
+  let s := (ls_export_initial scs m vm fn) in
+  fd <-ioget (ErrType, tt) (get_fundef P.(lp_funcs) fn);;
+  _ <- iresult (to_estate s) (assert (lfd_export fd) ErrSemUndef);;
+  s' <- ilsem (fn, size (lfd_body fd)) s;;
+  let vm' := s'.(lvm) in
+  _ <- iresult (to_estate s') (assert (all (fun x => value_eqb vm.[x] vm'.[x]) (Sv.elements callee_saved)) ErrSemUndef);;
+  Ret (s'.(lscs), s'.(lmem), vm').
+
+End ITREE.
 
 End SEM.
 

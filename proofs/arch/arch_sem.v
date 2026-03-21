@@ -1,3 +1,12 @@
+From ITree Require Import
+     Basics
+     ITree
+     ITreeFacts
+     Events.Exception
+     Interp.Recursion
+     MonadState.
+Import Basics.Monads.
+
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype finfun.
 From mathcomp Require Import ssralg word_ssrZ.
 Require oseq.
@@ -16,6 +25,8 @@ Require Import
   syscall syscall_sem
   label
   arch_decl.
+
+Require Export it_sems_core_defs.
 
 (* -------------------------------------------------------------------- *)
 
@@ -103,6 +114,14 @@ Definition preserved_register (r : asm_typed_reg) (m0 m1 : asmmem) :=
   | ARegX r => (asm_regx m0) r = (asm_regx m1) r
   | AXReg r => (asm_xreg m0) r = (asm_xreg m1) r
   | ABReg r => (asm_flag m0) r = (asm_flag m1) r
+  end.
+
+Definition preserved_registerb (r : asm_typed_reg) (m0 m1 : asmmem) :=
+  match r with
+  | ARReg r => (asm_reg  m0) r == (asm_reg  m1) r
+  | ARegX r => (asm_regx m0) r == (asm_regx m1) r
+  | AXReg r => (asm_xreg m0) r == (asm_xreg m1) r
+  | ABReg r => (asm_flag m0) r == (asm_flag m1) r
   end.
 
 (* FIXME we need to generalize this *)
@@ -265,7 +284,7 @@ Definition mem_write_rflag (s : asmmem) (f:rflag_t) (b:option bool) :=
      asm_scs  := s.(asm_scs);
      asm_reg  := s.(asm_reg);
      asm_regx := s.(asm_regx);
-     asm_rip  := s.(asm_rip); 
+     asm_rip  := s.(asm_rip);
      asm_xreg := s.(asm_xreg);
      asm_flag := RflagMap.set s.(asm_flag) f (o2rflagv b);
    |}.
@@ -277,7 +296,7 @@ Definition mem_write_mem al (l : pointer) sz (w : word sz) (s : asmmem) :=
      asm_scs  := s.(asm_scs);
      asm_reg  := s.(asm_reg);
      asm_regx := s.(asm_regx);
-     asm_rip  := s.(asm_rip); 
+     asm_rip  := s.(asm_rip);
      asm_xreg := s.(asm_xreg);
      asm_flag := s.(asm_flag);
   |}.
@@ -300,7 +319,7 @@ Definition mem_write_reg (f: msb_flag) (r: reg_t) sz (w: word sz) (m: asmmem) :=
     asm_scs  := m.(asm_scs);
     asm_reg  := RegMap.set m.(asm_reg) r (word_extend f (m.(asm_reg) r) w);
     asm_regx := m.(asm_regx);
-    asm_rip  := m.(asm_rip); 
+    asm_rip  := m.(asm_rip);
     asm_xreg := m.(asm_xreg);
     asm_flag := m.(asm_flag);
   |}.
@@ -312,7 +331,7 @@ Definition mem_write_regx (f: msb_flag) (r: regx_t) sz (w: word sz) (m: asmmem) 
     asm_scs  := m.(asm_scs);
     asm_reg  := m.(asm_reg);
     asm_regx := RegXMap.set m.(asm_regx) r (word_extend f (m.(asm_regx) r) w);
-    asm_rip  := m.(asm_rip); 
+    asm_rip  := m.(asm_rip);
     asm_xreg := m.(asm_xreg);
     asm_flag := m.(asm_flag);
   |}.
@@ -379,7 +398,7 @@ Definition mem_write_val (f:msb_flag) (args:asm_args) (aty: arg_desc * ltype) (v
   Let v := oof_val aty.2 v in
   mem_write_ty f s args aty.1 v.
 
-Definition mem_write_vals 
+Definition mem_write_vals
   (f:msb_flag) (s:asmmem) (args:asm_args) (a: seq arg_desc) (ty: seq ltype) (vs:values) :=
   fold2 ErrType (mem_write_val f args) (zip a ty) vs s.
 
@@ -387,7 +406,7 @@ Definition exec_instr_op idesc args (s:asmmem) : exec asmmem :=
   Let vs := eval_instr_op idesc args s in
   mem_write_vals idesc.(id_msb_flag) s args idesc.(id_out) idesc.(id_tout) vs.
 
-Definition eval_op o args m := 
+Definition eval_op o args m :=
   exec_instr_op (instr_desc_op o) args m.
 
 (* -------------------------------------------------------------------- *)
@@ -574,6 +593,32 @@ Proof.
   by elim/Operators_Properties.clos_refl_trans_ind_left => {s'} // ? ? _ -> /asmsem1_invariant.
 Qed.
 
+
+(* ITree based Semantics *)
+Section ITREE.
+
+Context {E E0} {wE : with_Error E E0}.
+
+Definition ifetch_and_eval (s: asm_state) : itree E asm_state :=
+  err_result (fun e => (e, tt)) (fetch_and_eval s).
+
+Local Notation continue_loop s := (ret (inl s)).
+Local Notation exit_loop s := (ret (inr s)).
+
+Import MonadNotation.
+Local Open Scope monad_scope.
+
+Definition iasm_sem_body (endpc : funname * nat) (s:asm_state) :=
+  if endpc == (s.(asm_f), s.(asm_ip)) then exit_loop s
+  else
+    s <- ifetch_and_eval s;;
+    continue_loop s.
+
+Definition iasm_sem (endpc : funname * nat) (s:asm_state) :=
+  ITree.iter (iasm_sem_body endpc) s.
+
+End ITREE.
+
 End PROG.
 
 (* -------------------------------------------------------------------- *)
@@ -607,5 +652,28 @@ Variant asmsem_exportcall
            r \in callee_saved
            -> preserved_register r m m')
       -> asmsem_exportcall.
+
+Section ITREE.
+
+Context {E E0} {wE : with_Error E E0}.
+
+Import MonadNotation.
+Local Open Scope monad_scope.
+
+Definition iasm_exportcall (p : asm_prog) (fn : funname) (m : asmmem) :=
+  fd <- ioget (ErrType, tt) (get_fundef (asm_funcs p) fn);;
+  _ <- err_result (fun e => (e, tt)) (assert (asm_fd_export fd) ErrSemUndef);;
+  let s := {| asm_m := m
+                   ; asm_f := fn
+                   ; asm_c := asm_fd_body fd
+                   ; asm_ip := 0
+                  |} in
+  s' <- iasm_sem p (fn, size (asm_fd_body fd)) s;;
+  let m' := s.(asm_m) in
+  _ <- err_result (fun e => (e, tt))
+         (assert (all (fun x => preserved_registerb x m m') callee_saved) ErrSemUndef);;
+  Ret m'.
+
+End ITREE.
 
 End SEM.
