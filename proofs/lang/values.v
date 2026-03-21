@@ -980,3 +980,40 @@ Proof. elim: tin vs o => //=; eauto. Qed.
 Lemma sem_prod_ok_safe {T:Type} (tin : seq ctype) (o: sem_prod tin T) :
    interp_safe_cond_ty [::] (sem_prod_ok tin o).
 Proof. apply sem_prod_ok_safe_aux. Qed.
+
+Definition value_eqb (v1 v2:value) :=
+  match v1, v2 with
+  | Vbool b1, Vbool b2 => b1 == b2
+  | Vint n1, Vint n2   => n1 == n2
+  | Vword sz1 w1, Vword sz2 _ =>
+    if sz1 == sz2 then
+      match to_word sz1 v2 with
+      | Ok w2 => w1 == w2
+      | _ => false
+      end
+    else false
+  | Vundef t1 _, Vundef t2 _ => t1 == t2
+  | _, _ => false
+  end.
+
+Lemma value_eqb_eq v1 v2 : value_eqb v1 v2 -> v1 = v2.
+Proof.
+  case: v1 v2 =>
+   [b1 | n1 | ?? | sz1 w1 | t1 ht1] [b2 | n2 | ?? | sz2 w2 | t2 ht2] //=.
+  1,2: by move=> /eqP ->.
+  + case: eqP => // ?; subst sz2.
+    by rewrite truncate_word_u => /eqP ->.
+  move=> /eqP; apply Vundef_eq.
+Qed.
+
+Lemma value_eqb_refl v :
+   match v with
+   | Varr _ _ => false
+   | _ => true
+   end ->
+  value_eqb v v.
+Proof.
+  by case: v => //= sz w _; rewrite eqxx truncate_word_u.
+Qed.
+
+
