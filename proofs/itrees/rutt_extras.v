@@ -26,6 +26,75 @@ From mathcomp Require Import ssreflect ssrfun ssrbool.
 
 Require Import xrutt xrutt_facts.
 
+Fixpoint iter_n (E : Type -> Type) {I R} (body : I -> itree E (I + R))
+    (n : nat) (i : I) : itree E (I + R) :=
+  match n with
+  | O => body i
+  | S n =>
+    ITree.bind (body i)
+      (fun ir : I + R =>
+       match ir with
+       | inl i => Tau (iter_n body n i)
+       | inr r => Ret (inr r)
+       end)
+  end.
+
+Lemma unfold_iter_n (E : Type -> Type) {I R} (body : I -> itree E (I + R))
+         (n : nat) (i:I) :
+  eq_itree eq (ITree.iter body i)
+  (ITree.bind (iter_n body n i)
+    (fun lr : I + R =>
+     match lr with
+     | inl l => Tau (ITree.iter body l)
+     | inr r => Ret r
+     end)).
+Proof.
+  elim: n i => /= [ | n hn] i; rewrite unfold_iter.
+  + reflexivity.
+  rewrite bind_bind.
+  eapply eqit_bind; try reflexivity.
+  move=> [l | r].
+  + rewrite bind_tau hn; reflexivity.
+  rewrite bind_ret_l; reflexivity.
+Qed.
+
+Lemma rutt_iter_n (E1 E2 : Type -> Type) {I1 I2 R1 R2}
+      (RI : I1 -> I2 -> Prop)
+      (RR : R1 -> R2 -> Prop)
+      (body1 : I1 -> itree E1 (I1 + R1))
+      (body2 : I2 -> itree E2 (I2 + R2))
+      (RPreE : forall A B : Type, E1 A -> E2 B -> Prop)
+      (RPostE : forall A B : Type, E1 A -> A -> E2 B -> B -> Prop) :
+  (forall j1 j2, RI j1 j2 ->
+     exists n,
+       rutt RPreE RPostE (sum_rel RI RR) (body1 j1) (iter_n body2 n j2)) ->
+  forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
+    @rutt E1 E2 R1 R2 RPreE RPostE RR
+      (ITree.iter body1 i1) (ITree.iter body2 i2).
+Proof.
+  ginit. gcofix CIH.
+  intros.
+  rewrite unfold_iter.
+  have [n hn] := H0 _ _ RI_i.
+  rewrite (unfold_iter_n body2 n).
+  eapply gpaco2_uclo; [|eapply rutt_clo_bind|]; eauto with paco.
+  econstructor; eauto. intros; subst. gfinal. right.
+  destruct u1; try discriminate.
+  destruct u2; try discriminate.
+  pstep; red.
+  econstructor.
+  right.
+  eapply CIH; eauto.
+  inversion H; subst; auto.
+  pstep; red.
+  inversion H; subst.
+  destruct u2; try discriminate.
+  inversion H; subst.
+  pstep; red.
+  econstructor.
+  inversion H; subst; auto.
+Qed.
+
 Lemma rutt_iter (E1 E2 : Type -> Type) {I1 I2 R1 R2}
       (RI : I1 -> I2 -> Prop)
       (RR : R1 -> R2 -> Prop)
@@ -38,6 +107,7 @@ Lemma rutt_iter (E1 E2 : Type -> Type) {I1 I2 R1 R2}
   forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
     @rutt E1 E2 R1 R2 RPreE RPostE RR
       (ITree.iter body1 i1) (ITree.iter body2 i2).
+Proof.
   ginit. gcofix CIH.
   intros.
   rewrite !unfold_iter.
