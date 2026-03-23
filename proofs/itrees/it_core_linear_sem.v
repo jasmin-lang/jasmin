@@ -37,11 +37,6 @@ Definition iresult {E} `{ErrEvent -< E} {T} {S}
 Definition plain_err : error_data := (ErrType, tt).
 
 Notation err := plain_err.
-
-Fixpoint seq_exists {A} (f: A -> bool) (ls: list A) : bool :=
-  match ls with
-  | nil => false
-  | l :: ls' => if f l then true else seq_exists f ls' end.           
                                                 
 (* point in the linear code of a function *)
 Definition lpoint : Type := (funname * nat)%type.
@@ -244,10 +239,10 @@ Notation readPC := (fun s => Some (lfn s, lpc s)).
 
 Notation lfenv := (lfenv_ext lfdenv).
 
-Notation IsFinalP := (fun s => (seq_exists 
-                                 (fun x => is_final (lfd_body x) (lpc s))
-                                 (map snd (lp_funcs P)))).
-
+Notation IsFinalP := (fun s => match lfdenv (lfn s) with
+                               | Some fd => is_final (lfd_body fd) (lpc s) 
+                               | _ => false end). 
+                                                    
 Definition final_state_sem (s: lstate) : itree E bool :=
   Ret (IsFinalP s).  
 
@@ -370,3 +365,14 @@ End AbsLinear.
 
 
 
+(*
+Notation IsFinalP := (fun s => (seq_exists 
+                                 (fun x => is_final (lfd_body x) (lpc s))
+                                 (map snd (lp_funcs P)))).
+*)
+(* not needed:
+Fixpoint seq_exists {A} (f: A -> bool) (ls: list A) : bool :=
+  match ls with
+  | nil => false
+  | l :: ls' => if f l then true else seq_exists f ls' end.           
+*)
