@@ -2,74 +2,54 @@ From ITree Require Import
      Basics
      ITree
      ITreeFacts
-     Events.Exception
-     Interp.Recursion
-     MonadState
-     State
-     StateFacts.
+     Events.Exception.
 Import Basics.Monads.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssrnat ssralg. 
-From Coq Require Import ZArith Utf8.
 
 Require Import expr fexpr label sopn.
 Require Import fexpr_sem compiler_util label one_varmap
                linear sem_one_varmap linear_sem label
-               psem_defs psem_core.
+               psem_defs psem_core. 
 
-Require Import it_exec it_exec_sem tfam_iso
-               eutt_extras rec_facts.
-Require Import linearization_ext.
-Require Import it_cflow_sem it_effect_sem equiv_extras rutt_extras.
-
-From ITree Require Import Rutt RuttFacts.
-From ITree Require Import CategorySub.
-
-Import Memory.
-Require oseq.
-Require Import Relations.
+Require Import it_exec it_exec_sem. 
 Require Import List.
 
-Import ListNotations. 
+Import ListNotations.  
 Import MonadNotation.
 Local Open Scope monad_scope.
 
 (** some is GENERAL -> move elsewhere *)
 
-
 Definition err_def_option {E: Type -> Type} `{ErrEvent -< E} {V}
   (o: option V) : itree E V := err_option (ErrType, tt) o.
 
-Definition conv_obj T1 T2 (ee: T1 = T2) (u: T1) : T2 :=
-  eq_rect T1 (fun T : Type => T) u T2 ee.
+Definition mk_error_data {S: Type} (s: S) (e: error) : error_data :=
+  (e, tt).
+
+Definition mk_error {S: Type} (s: S) : error_data :=
+  mk_error_data s ErrType.
+
+Definition iresult {E} `{ErrEvent -< E} {T} {S}
+  (F : exec T) (s: S) : itree E T :=
+  err_result (mk_error_data s) F.
+
+Definition plain_err : error_data := (ErrType, tt).
+
+Notation err := plain_err.
 
 (* point in the linear code of a function *)
 Definition lpoint : Type := (funname * nat)%type.
 
-(*
-Definition incr_lpoint (l: lpoint) : lpoint :=
-  match l with (fn, pt) => (fn, S pt) end.
-
-(* the program point is in the interval *)
-Definition lcp_in_interval (nS nE: nat) (l1: lpoint) : bool :=
-  match l1 with
-  | (_, n0) => (nS <= n0) && (n0 < nE) end. 
-*)
-
-(************************************************************)
-
-Section Asm1.
-  
-Context {err: error_data}. 
-
 
 Section AbsIterators.
-(***** ABSTRACT ITERATORS *)
+(**** Definition of the semantic iterators, abstracting both from the
+      language (L) and the semantics (Sem). *)
 Context {St L: Type}.
-(* Section LinSem. *)
 Context {E} {XE: ErrEvent -< E}.
 
-(* the generic iteration body used to define the semantics. *)
+(* the generic iteration body used to define the semantics (with
+   ITree.iter) *)
 Definition ACntr (Bd: St -> itree E St) (NoExit: St -> option bool)
   (s0: St) : itree E (St + St) :=
   (* check whether the exit condition is satisfied *)
@@ -80,7 +60,7 @@ Definition ACntr (Bd: St -> itree E St) (NoExit: St -> option bool)
   | None => throw err
   end.
 
-(* 'abstract' semantics of linear instruction *)
+(* 'abstract' semantics of linear instructions *)
 Definition ASem (Sem: L -> St -> itree E St)
   (TryFnd: St -> option L) : St -> itree E St :=
   fun s0 => match TryFnd s0 with
@@ -95,7 +75,7 @@ Definition SACntr (Sem: L -> St -> itree E St)
   (s0: St) : itree E (St + St) :=
   ACntr (ASem Sem TryFnd) NoExit s0.
          
-(* iterates SCntr *)
+(* iterates SACntr *)
 Definition SACntrI (Sem: L -> St -> itree E St)
   (NoExit: St -> option bool) (TryFnd: St -> option L)
   (s0: St) : itree E St :=
@@ -105,7 +85,8 @@ End AbsIterators.
 
 
 Section AbsLinear.  
-
+(**** Semantic tools for the Linear language, abstracting from its
+      concrete semantics. *)
 Context  {asm_op: Type}
          {syscall_state : Type}
          {sip : SemInstrParams asm_op syscall_state}.
@@ -118,10 +99,10 @@ Definition is_final (lc: lcmd) (pt: nat) : bool :=
 
 
 Section LinSemClass.
+(**** the type class that abstracts the Linear semantics, given LState
+      as abstraction of the linear state. *)  
 Context (LState: Type).
 
-(* We use this class on S to abstract over the paramters required by
-   lstate. *)
 Class LinSem : Type := {
   Lopn_sem (xs: seq.seq lexpr) (o: sopn) (es: seq.seq rexpr)
     : LState -> exec LState ;
@@ -144,8 +125,8 @@ Class LinSem : Type := {
 
   Lcond_sem (e: fexpr) (lbl: label) : LState -> exec LState ; }.
 
-(* basically, same as eval_instr (in the old semantics, with S =
-   lstate) *)
+(* abstract version of what is eval_instr in the old semantics (with
+   LState = lstate) *)
 Definition linstr_asem {LS_I : LinSem} (i : linstr_r)
   (s1: LState) : exec LState := match i with
   | Lopn xs o es => Lopn_sem xs o es s1
@@ -164,7 +145,8 @@ End LinSemClass.
 
 
 Section ALinSem.
-
+(**** we instantiate the abstract iterators with the Linear language,
+      and the abstract version of the Linear semantics. *)
 Context (LState: Type).
 Context {E} {XE: ErrEvent -< E}.
 
@@ -178,16 +160,19 @@ Definition SCntrI (Sem: linstr -> LState -> itree E LState)
   (s0: LState) : itree E LState :=
   SACntrI Sem NoExit TryFnd s0.
 
+Definition lfenv_ext (fe: funname -> option lfundef) : funname -> option lcmd :=
+  fun fn => match fe fn with
+            | Some fd => Some (lfd_body fd)
+            | _ => None end.                              
+
 
 Section CoreLinSem.
+(**** we introduce the function environment as abstraction of a given
+      program *)
 Context {LS_I : LinSem LState}.
-
-Notation LFDEnv := (funname -> option lfundef). 
-Context (lfdenv: LFDEnv).
-Notation LFEnv := (funname -> option lcmd).
-Definition lfenv : LFEnv := fun fn => match lfdenv fn with
-                       | Some fd => Some (lfd_body fd)
-                       | _ => None end.                              
+Notation LFEnv := (funname -> option lcmd). 
+Context (lfenv: LFEnv).
+Context (readPC: LState -> option lpoint).
 
 Definition halt_pred (l: lpoint) : option bool :=
   let fn := fst l in
@@ -204,15 +189,13 @@ Definition find_linstr_in_fun (lp : lpoint) : option linstr :=
   | _ => None
   end.                         
 
-Definition state_find_linstr {readPC: LState -> option lpoint}
-  (st: LState) : option linstr :=
+Definition state_find_linstr (st: LState) : option linstr :=
   match (readPC st) with
   | Some l => find_linstr_in_fun l
   | None => None
   end.            
 
-Definition halt_state_pred {readPC: LState -> option lpoint}
-  (st: LState) : option bool :=
+Definition halt_state_pred (st: LState) : option bool :=
   match (readPC st) with
   | Some l => halt_pred l
   | _ => None
@@ -220,24 +203,17 @@ Definition halt_state_pred {readPC: LState -> option lpoint}
 
 (* the 'abstract' core semantics of linear instructions, based on
    linstr_asem *)
-Definition acore_li_sem {readPC: LState -> option lpoint}
-  (i : linstr) (s: LState) : itree E LState :=
+Definition acore_li_sem (i : linstr) (s: LState) : itree E LState :=
   match i with MkLI _ ir => iresult (linstr_asem ir s) s end.
 
-(*** LINEAR CORE SEMANTICS *)
+(*** LINEAR CORE SEMANTICS (abstract) *)
 (* core semantics body *)
-Definition acore_lcmd_sem_body {readPC: LState -> option lpoint} :
-  LState -> itree E (LState + LState) :=
-  SCntr (@acore_li_sem readPC)
-    (@halt_state_pred readPC)
-    (@state_find_linstr readPC).
+Definition acore_lcmd_sem_body : LState -> itree E (LState + LState) :=
+  SCntr acore_li_sem halt_state_pred state_find_linstr.
 
-(* iterative core semantics of a linear program, from any state *)
-Definition acore_lcmd_sem {readPC: LState -> option lpoint}
-  (s: LState) : itree E LState :=
-  SCntrI (@acore_li_sem readPC)
-    (@halt_state_pred readPC)
-    (@state_find_linstr readPC) s.
+(* iterative core semantics of a linear program *)
+Definition acore_lcmd_sem (s: LState) : itree E LState :=
+  SCntrI acore_li_sem halt_state_pred state_find_linstr s.
 
 End CoreLinSem.
 
@@ -245,7 +221,7 @@ End ALinSem.
 
 
 Section ConcreteSem.
-
+(***** we finally concretize the semantics *)
 Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
@@ -258,10 +234,11 @@ Context {E} {XE: ErrEvent -< E}.
 Local Open Scope seq_scope.
 Notation labels := label_in_lprog.
 
-(* FIXME *)
+(* TODO: to be defined *)
 Context (lfdenv: funname -> option lfundef). 
 Context (IsFinalP : lprog -> lstate -> bool).
 Context (readPC: lstate -> option lpoint).
+Notation lfenv := (lfenv_ext lfdenv).
 
 Definition final_state_sem (s: lstate) : itree E bool :=
   Ret (IsFinalP P s).  
@@ -367,21 +344,46 @@ Definition linstr_sem (i : linstr_r)
   (s1: lstate) : exec lstate := linstr_asem i s1.
 
 Definition core_li_sem (i : linstr) (s: lstate) : itree E lstate :=
-   @acore_li_sem _ _ _ _ readPC i s.
+  acore_li_sem i s. 
 
-(*** LINEAR CORE SEMANTICS *)
+(*** LINEAR CORE SEMANTICS (concrete) *)
 (* core semantics body *)
 Definition core_lcmd_sem_body 
   (s: lstate) : itree E (lstate + lstate) :=
-  @acore_lcmd_sem_body _ _ _ _ lfdenv readPC s.
+  acore_lcmd_sem_body lfenv readPC s.
 
-(* iterative core semantics of a linear program, from any state *)
+(* iterative core semantics of a linear program *)
 Definition core_lcmd_sem (s: lstate) : itree E lstate :=
-  ITree.iter core_lcmd_sem_body s.
-
+  acore_lcmd_sem lfenv readPC s.
+  
 End ConcreteSem.
 
 End AbsLinear.
 
-End Asm1.
+
+
+(* End Asm1. *)
+
+(*
+Definition conv_obj T1 T2 (ee: T1 = T2) (u: T1) : T2 :=
+  eq_rect T1 (fun T : Type => T) u T2 ee.
+
+Definition incr_lpoint (l: lpoint) : lpoint :=
+  match l with (fn, pt) => (fn, S pt) end.
+
+(* the program point is in the interval *)
+Definition lcp_in_interval (nS nE: nat) (l1: lpoint) : bool :=
+  match l1 with
+  | (_, n0) => (nS <= n0) && (n0 < nE) end. 
+*)
+
+(************************************************************)
+
+(*
+Section Asm1.
+  
+Context {err: error_data}. 
+*)
+
+
 
