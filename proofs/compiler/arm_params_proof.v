@@ -912,10 +912,45 @@ Proof.
   exact: assemble_smart_li_cc_correct.
 Qed.
 
+Lemma arm_assemble_extra_sz ii op lvs args ops :
+   to_asm ii op lvs args = ok ops -> ssrnat.leq 1 (size ops).
+Proof.
+  rewrite /to_asm /= /assemble_extra /=.
+  case: op.
+  + move=> w; case: eqP => // _.
+    case: lvs => // -[] // ? [] // -[] // ? [] //.
+    case: args => // -[] // [] // ? [] // [] // [] // ? [] //.
+    by t_xrbindP => _ _ _ <-.
+  + case: lvs => // -[] // ? [] //.
+    case: args => // -[] // [] // ? [] // [] // [] // [] // ? [] // ? [] //.
+    t_xrbindP => /negPf hne _ <-.
+    rewrite /asm_args_of_opn_args /= /ARMFopn_core.smart_addi /=.
+    rewrite /ARMFopn_core.gen_smart_opi /ARMFopn_core.smart_mov.
+    case: ifP => //.
+    + by rewrite hne.
+    case: ifP => //.
+    by rewrite size_map size_rcons.
+  + move=> w. rewrite /assemble_smart_li /= /smart_li_args.
+    t_xrbindP => ?? -[] ???.
+    t_xrbindP => ?? -[] ??? [<-] [<-].
+    rewrite /asm_args_of_opn_args /= /ARMFopn_core.li.
+    case: ifP => //; case: ifP => //.
+  move=> w. rewrite /assemble_smart_li_cc /smart_li_args.
+  t_xrbindP => ?? -[] ???.
+  t_xrbindP => ?? -[] ??? [<-].
+  t_xrbindP => -[] ???.
+  t_xrbindP => ? -[] ???.
+  rewrite /ARMFopn_core.li /=.
+  case: ifP => _ //=.
+  + by move=> [<-].
+  by case: ifP => _ [<-].
+Qed.
+
 Definition arm_hagparams : h_asm_gen_params (ap_agp arm_params) :=
   {|
     hagp_eval_assemble_cond := arm_eval_assemble_cond;
     hagp_assemble_extra_op := arm_assemble_extra_op;
+    hagp_assemble_extra_sz := arm_assemble_extra_sz;
   |}.
 
 End ASM_GEN.
