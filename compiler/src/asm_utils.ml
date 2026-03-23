@@ -86,3 +86,31 @@ let parse_reg_address (arch : ('a, 'b, 'c, 'd, 'e) arch_decl) addr =
         if Z.equal scale Z.zero then None else Some (Z.to_string scale)
       in
       { base; displacement; offset; scale }
+
+let pp_reg_address (arch : ('a, 'b, 'c, 'd, 'e) arch_decl) addr =
+  let addr = parse_reg_address arch addr in
+  let base = addr.base in
+  let pp_opt op fmt os  =
+    match os with
+    | None -> ()
+    | Some s -> Format.fprintf fmt " %s %s" op s in
+  let pp_off fmt (offset, scale) =
+    if offset <> None then
+      Format.fprintf fmt "%a%a" (pp_opt "+") offset (pp_opt "<<") scale
+  in
+  Format.asprintf "%s%a%a" base (pp_opt "+") addr.displacement pp_off (addr.offset, addr.scale)
+
+let pp_address (arch : ('a, 'b, 'c, 'd, 'e) arch_decl) = function
+ | Areg ra -> pp_reg_address arch ra
+ | Arip r -> pp_rip_address r
+
+
+let declassify_mem (arch : ('a, 'b, 'c, 'd, 'e) arch_decl) len a =
+  let s = Format.sprintf "declassify_mem %s [%s]" (Z.to_string (Conv.z_of_pos len)) (pp_address arch a) in
+  [Comment s]
+
+let declassify_val pp_asm_arg_ty lty a =
+    let sa = pp_asm_arg_ty lty a in
+    let s = Format.sprintf "declassify_val %s %s" (PrintCommon.string_of_ltype lty) sa in
+    [Comment s]
+

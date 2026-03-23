@@ -478,6 +478,12 @@ Definition eval_instr (i : asm_i_r) (s: asm_state) : exec asm_state :=
   | SysCall o =>
     Let m := eval_syscall o s.(asm_m) in
     ok (st_update_next m s)
+  | Declassify_val ty arg =>
+   (* Let v := eval_asm_arg (AK_mem Unaligned) s arg ty in *)
+    ok (st_update_next (asm_m s) s)
+  | Declassify_mem _ addr =>
+   (* let v := decode_addr s addr in *)
+    ok (st_update_next (asm_m s) s)
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -559,7 +565,7 @@ Lemma eval_instr_invariant (i: asm_i_r) (s s': asm_state) :
   eval_instr i s = ok s' →
   s ≡ s'.
 Proof.
-  case: i => [ | ? ? | ? ? | ? | ? | ? ? | ? ? | ? | | ? ? | ?] /=.
+  case: i => [ | ? ? | ? ? | ? | ? | ? ? | ? ? | ? | | ? ? | ? | ?? | ?] /=.
   1, 2: by move => /ok_inj <-.
   - by case: encode_label => // ? /ok_inj <-.
   - exact: eval_JMP_invariant.
@@ -573,9 +579,11 @@ Proof.
   - rewrite /eval_POP; t_xrbindP => _ ? _ ? _ <-.
     by case: decode_label => // ? /eval_JMP_invariant <-.
   - by rewrite /eval_op /exec_instr_op; t_xrbindP => ? ? ? /mem_write_vals_invariant -> <-.
-  t_xrbindP => m hm <-.
-  have /= [h1 h2 h3]:= eval_syscall_spec1 hm; split => //.
-  by have [] := exec_syscallSs h1.
+  - t_xrbindP => m hm <-.
+    have /= [h1 h2 h3]:= eval_syscall_spec1 hm; split => //.
+    by have [] := exec_syscallSs h1.
+  - by move=> [<-].
+  by move=> _ [<-].
 Qed.
 
 Lemma asmsem1_invariant (s s': asm_state) :

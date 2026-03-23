@@ -270,6 +270,12 @@ and type asm_op = arm_op
     | SysCall op ->
         [Instr ("bl", [ pp_syscall op ])]
 
+    | Declassify_val (lty, a) ->
+        declassify_val (fun _lty a -> Option.default "" (pp_asm_arg a)) lty a
+
+    | Declassify_mem (len, a) ->
+        declassify_mem arch len a
+
     | AsmOp (op, args) ->
         let id = instr_desc arm_decl arm_op_decl (None, op) in
         let pp = id.id_pp_asm args in
@@ -285,6 +291,7 @@ and type asm_op = arm_op
             in
             let args = pp_shift op args in
             get_IT i @ [ Instr (name, args) ]
+
 
 end
 
