@@ -25,3 +25,12 @@ val parse_reg_address :
   ('reg, _, _, _, _) Arch_decl.arch_decl ->
   ('reg, _, _, _, _) Arch_decl.reg_address ->
   parsed_reg_address
+
+val declassify_mem :
+   ('a, 'b, 'c, 'd, 'e) Arch_decl.arch_decl ->
+   Label.label ->
+   ('a, 'f, 'g, 'h, 'i) Arch_decl.address ->
+   PrintASM.asm
+
+val declassify_val : (Type.ltype -> 'a -> string) -> Type.ltype -> 'a -> PrintASM.asm
+

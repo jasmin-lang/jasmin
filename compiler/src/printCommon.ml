@@ -7,6 +7,10 @@ open Operators
 (* -------------------------------------------------------------------- *)
 let escape = String.map (fun c -> if c = '.' || c = ':' || c = '#' then '_' else c)
 
+let string_of_ltype = function
+  | Type.Coq_lbool  -> "bool"
+  | Type.Coq_lword sz -> Format.sprintf "u%s" (string_of_wsize sz)
+
 (* -------------------------------------------------------------------- *)
 
 let pp_wsize fmt sz = fprintf fmt "%s" (string_of_wsize sz)

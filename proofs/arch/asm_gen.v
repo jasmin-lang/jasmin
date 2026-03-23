@@ -520,9 +520,36 @@ Definition assemble_sopn rip ii (op: sopn) (outx : lexprs) (inx : rexprs) :=
   | Oasm (ExtOp op) =>
     Let args := to_asm ii op outx inx in
     mapM (assemble_asm_args rip ii) args
-  | Opseudo_op _ =>
-      if outx is [::] then ok [::] else Error (E.unexpected_sopn ii "assemble_sopn.pseudo_op: " op)
+  | Opseudo_op _ => Error (E.unexpected_sopn ii "assemble_sopn.pseudo_op: " op)
   | _ => Error (E.unexpected_sopn ii "assemble_sopn:" op)
+  end.
+
+Variant declassify_op :=
+  | Odeclassify of atype
+  | Odeclassify_mem of positive.
+
+Definition is_declassify (op: sopn) :=
+  match op with
+  | Opseudo_op (pseudo_operator.Odeclassify ty) => Some (Odeclassify ty)
+  | Opseudo_op (pseudo_operator.Odeclassify_mem len) => Some (Odeclassify_mem len)
+  | _ => None
+  end.
+
+Definition assemble_declassify rip ii d es :=
+  match d, es with
+  | Odeclassify ty, [:: e] =>
+    Let lty :=
+      match ltype_of_atype ty with
+      | Some lty => ok lty
+      | None => Error (E.internal_error ii "declassify array")
+      end in
+    Let a := arg_of_rexpr (AK_mem Unaligned) rip ii lty e in
+    ok (Declassify_val lty a)
+
+  | Odeclassify_mem len, [:: Rexpr e] =>
+    Let a := addr_of_fexpr rip ii Uptr e in
+    ok (Declassify_mem len a)
+  | _, _ => Error (E.internal_error ii "declassify : bad number of arguments")
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -534,9 +561,14 @@ Definition assemble_i (rip : var) (i : linstr) : cexec (seq asm_i) :=
   let mk i := {| asmi_i := i ; asmi_ii := ii |} in
   match ir with
   | Lopn ds op es =>
+    match is_declassify op with
+    | Some d =>
+      Let i := assemble_declassify rip ii d es in
+      ok [:: mk i]
+    | None =>
       Let args := assemble_sopn rip ii op ds es in
       ok (map (fun x => mk (AsmOp x.1 x.2)) args)
-
+    end
   | Lalign =>
       ok [:: mk ALIGN ]
 

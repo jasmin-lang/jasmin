@@ -1133,9 +1133,7 @@ Lemma assemble_sopnP rip ii op lvs args ops m xs ys m' s:
   lom_eqv rip m s ->
   exists2 s', foldM (fun '(op'', asm_args) s => eval_op op'' asm_args s) s ops = ok s' & lom_eqv rip m' s'.
 Proof.
-  case: op => //= [ | ].
-  + case: lvs => //; case: ys => // op ok_xs hsem /ok_inj <- /ok_inj <- eq_m_s.
-    by exists s.
+  case: op => //=.
   case=> //=.
   + move=> a h1 h2 h3; t_xrbindP => -[op' args'] h4 <- h5.
     by have [s' hs' heq] := assemble_asm_opP h1 h2 h3 h4 h5; exists s' => //=; rewrite hs'.
@@ -1186,9 +1184,14 @@ Proof.
   move=> li ai lc ac ok_ai _.
   rewrite /label_in_lcmd -cat1s pmap_cat -(cat1s ai) flatten_cat /label_in_asm pmap_cat => ->; f_equal.
   case: li ok_ai => ii [ l o es| | [] | | | | | | | ] /=; try (by t_xrbindP => *; subst).
+  case: is_declassify.
+  + case => [aty | len] /=.
+    + case: es => //= e [] //=.
+      by t_xrbindP => ?? _ ? _ <- <-.
+    case: es => //= -[] //= ? [] //=.
+    by t_xrbindP => ?? _ <- <-.
   t_xrbindP => ops hops <-.
-  case: o hops => // [ | ].
-  + by case: l => // op /ok_inj <-.
+  case: o hops => //.
   by case => // op; t_xrbindP => *; subst => //=; elim: (ops).
 Qed.
 
@@ -1207,7 +1210,11 @@ Lemma assemble_i_is_label (li : linstr) ai lbl :
 Proof.
   rewrite /assemble_i /linear.is_label ; case li =>  ii
    [es o xs | s [<-]| xi r | [<-]| [<-] | lk l [<-]| r [<-]| x | x l | e l] //=; t_xrbindP.
-  + by move=> z _ <-; elim z.
+  + case: is_declassify; t_xrbindP.
+    + case => [aty | len] ?.
+      + by case: xs => // ? [] //=; t_xrbindP => ? _ ? _ <- <-.
+      by case: xs => // -[]// e [] //=; t_xrbindP => ? _ <- <-.
+    by move=> z _ <-; elim z.
   + by case xi => [lr| > [<-] //]; case: to_reg => //= > [<-].
   + by rewrite orbC.
   + by move=> _ ? _ <-.
@@ -1494,19 +1501,20 @@ Proof.
 Qed.
 
 Lemma asm_pos_AsmOp fd ls ii les op res c ac0 :
+  is_declassify op = None ->
   onth (lfd_body fd) (lpc ls) = Some (MkLI ii (Lopn les op res)) ->
   mapM (assemble_i agparams rip) (take (lpc ls) (lfd_body fd)) = ok ac0 ->
   assemble_sopn agparams rip ii op les res = ok c ->
   asm_pos rip (lpc ls) (lfd_body fd) = size (flatten ac0)
   /\ asm_pos rip (lpc ls).+1 (lfd_body fd) = size (flatten ac0) + size c.
 Proof.
-  move=> honth hac0 hc.
-  + rewrite /asm_pos (onth_split honth) !take_cat !size_take.
-    case: (ltnP (lpc ls) (size (lfd_body fd))) honth => [hn ok_i |];
+  move=> hdecl honth hac0 hc.
+  rewrite /asm_pos (onth_split honth) !take_cat !size_take.
+  case: (ltnP (lpc ls) (size (lfd_body fd))) honth => [hn ok_i |];
       last by move=> /onth_default ->.
-    rewrite ltnn ltnNge leqnSn /= subnn subSnn /= take0.
-    rewrite /assemble_c !mapM_cat hac0 /= hc /=.
-    by rewrite cats0 flatten_cat /= cats0 size_cat size_map.
+  rewrite ltnn ltnNge leqnSn /= subnn subSnn /= take0.
+  rewrite /assemble_c !mapM_cat hac0 /= hc /= hdecl /=.
+  by rewrite cats0 flatten_cat /= cats0 size_cat size_map.
 Qed.
 
 Lemma step_AsmOp fd ii ac0 ac1 c c' ls s xm xm' :
@@ -1719,6 +1727,36 @@ Proof.
   by case: (asm_flag _ _).
 Qed.
 
+Lemma is_declassifyP op :
+  match is_declassify op with
+  | None => True
+  | Some o =>
+    op = match o with
+         | Odeclassify ty => Opseudo_op (pseudo_operator.Odeclassify ty)
+         | Odeclassify_mem len => Opseudo_op (pseudo_operator.Odeclassify_mem len)
+         end
+  end.
+Proof. by case: op => // -[]. Qed.
+
+(* FIXME: move this *)
+Lemma onth_size (A:Type) (l:list A) n a :
+  onth l n = Some a -> n < size l.
+Proof.
+  rewrite onth_nth => h.
+  rewrite - (size_map Some).
+  by apply (nth_not_default h).
+Qed.
+
+Lemma assemble_c_cat l1 l2 :
+   assemble_c agparams rip (l1 ++ l2) =
+   Let c1 := assemble_c agparams rip l1 in
+   Let c2 := assemble_c agparams rip l2 in
+   ok (c1 ++ c2).
+Proof.
+  rewrite /assemble_c mapM_cat.
+  by case: (mapM _ l1) => //= ?; case: (mapM _ l2) => //=?; rewrite flatten_cat.
+Qed.
+
 Lemma match_state_step ls ls' lc xs :
   ssrfun.omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc
   -> match_state rip ls lc xs
@@ -1743,25 +1781,53 @@ Proof.
     case: (ltnP (lpc ls) (size (lfd_body fd))) ok_i => [hn ok_i| /onth_default -> //].
     by rewrite ltnn subnn take0 cats0 hac /= -heq onth_cat ltnn subnn.
   case: i ok_i haci hsem => /= li_ii [].
-  - move=> lvs op pes; rewrite /linear_sem.eval_instr /=; t_xrbindP.
-    move=> honth c hopc ? args ok_args res ok_res m hw ?; subst aci ls'.
-    have [m' hf hloeq'] := assemble_sopnP ok_args ok_res hw hopc hloeq.
-    rewrite /= ok_fd /=.
+  - move=> lvs op pes; rewrite /linear_sem.eval_instr /=.
+    case hdecl : is_declassify => [ d | ]; last first.
+    + t_xrbindP.
+      move=> honth c hopc ? args ok_args res ok_res m hw ?; subst aci ls'.
+      have [m' hf hloeq'] := assemble_sopnP ok_args ok_res hw hopc hloeq.
+      rewrite /= ok_fd /=.
 
-    have [???] :
-      let: ls' := of_estate m (lfn ls) (lpc ls).+1 in
-      exists2 xs',
-        asmsem p' xs xs'
-        & match_state rip ls' (lfd_body fd) xs';
-      last first.
-    + eexists; first by eauto. eexists; by eauto.
+      have [???] :
+        let: ls' := of_estate m (lfn ls) (lpc ls).+1 in
+        exists2 xs',
+          asmsem p' xs xs'
+          & match_state rip ls' (lfd_body fd) xs';
+        last first.
+      + eexists; first by eauto. eexists; by eauto.
 
-    move=> {hloeq hnth}.
-    case: xs ms hass hf hip heqf heq => /= m0 f c0 ip ms hass hf ???; subst f ip c0.
-    have [heq1 heq2] := asm_pos_AsmOp honth hac hopc.
-    have := step_AsmOp (c' := [::]) (ls := ls) hass hloeq' _ hf.
-    rewrite /= addn0 heq1.
-    move=> []; by eauto.
+      move=> {hloeq hnth}.
+      case: xs ms hass hf hip heqf heq => /= m0 f c0 ip ms hass hf ???; subst f ip c0.
+      have [heq1 heq2] := asm_pos_AsmOp hdecl honth hac hopc.
+      have := step_AsmOp (c' := [::]) (ls := ls) hass hloeq' _ hf.
+      rewrite /= addn0 heq1.
+      move=> []; by eauto.
+    have := is_declassifyP op; rewrite hdecl => {hdecl} ?; subst op.
+    t_xrbindP => honth i hi ?; subst aci.
+    case: d hi honth => [aty | len].
+    + case: pes => // e [] //=; t_xrbindP => lty hlty a.
+      move=> h0 ? honth ??? <- ?.
+      rewrite /exec_sopn /=; t_xrbindP => ???? <- ?.
+      case: lvs honth => // honth [?] ?; subst.
+      apply (match_state_step1 hnth) => /=.
+      exists (st_update_next xs xs) => //.
+      rewrite ok_fd; eexists; first reflexivity.
+      constructor => //.
+      rewrite /asm_pos /= (onth_split honth).
+      rewrite take_cat size_take.
+      rewrite (onth_size honth) -(addn1 (lpc _)) lt_nm_n sub_nmn /= take0 assemble_c_cat.
+      by move: hip; rewrite /asm_pos /assemble_c hac /= hlty /= h0 /= size_cat /= addn1 => ->.
+    case: pes => //= -[] //= e [] //; t_xrbindP => a h0 ? honth ???? [] ???; subst.
+    rewrite /exec_sopn /=; t_xrbindP => ??????; subst.
+    case: lvs honth => // honth [?] ?; subst.
+    apply (match_state_step1 hnth) => /=.
+    exists (st_update_next xs xs) => //.
+    rewrite ok_fd; eexists; first reflexivity.
+    constructor => //.
+    rewrite /asm_pos /= (onth_split honth).
+    rewrite take_cat size_take.
+    rewrite (onth_size honth) -(addn1 (lpc _)) lt_nm_n sub_nmn /= take0 assemble_c_cat.
+    by move: hip; rewrite /asm_pos /assemble_c hac /= h0 /= size_cat /= addn1 => ->.
 
   - move=> sc ok_i [?]; subst aci. by eauto using match_state_SysCall.
 
