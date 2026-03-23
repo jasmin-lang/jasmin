@@ -710,6 +710,7 @@ Record h_asm_gen_params :=
     hagp_eval_assemble_cond : assemble_cond_spec;
 
     hagp_assemble_extra_op : forall op, assemble_extra_correct op;
+    hagp_assemble_extra_sz : forall ii op lvs args ops, to_asm ii op lvs args = ok ops -> 0 < size ops
   }.
 
 Context

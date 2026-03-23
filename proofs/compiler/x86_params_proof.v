@@ -876,10 +876,33 @@ Transparent cat.
   by rewrite !Vm.setP_neq.
 Qed.
 
+Lemma assemble_extra_sz ii op lvs args ops :
+   to_asm ii op lvs args = ok ops -> ssrnat.leq 1 (size ops).
+Proof.
+  rewrite /to_asm /= /assemble_extra /=.
+  case: op.
+  + move=> w.
+    by case: (rev lvs) => // -[] //; t_xrbindP => *; subst.
+  + by case: args => // ? [] // [] // [] // ? [] //; t_xrbindP => *; subst.
+  + by case: lvs => // -[] // ? [] //= [<-].
+  + by move=> ?; case: lvs => // -[] // ? [] // [] // ? [] //; t_xrbindP => *; subst.
+  + by move=> w; case: lvs => // -[] // ? [] //; t_xrbindP => *; subst.
+  + by move=> [<-].
+  + rewrite /assemble_slh_update; case: lvs => // -[] // ? [] // ? [] //.
+    by case: args => // -[] // ? [] // ? [] //; t_xrbindP => *; subst.
+  + by move=> [<-].
+  move=> r w; rewrite /assemble_slh_protect.
+  case: ifP => _.
+  + by move=> [<-].
+  case: lvs => // -[] // ? [] // ? [] //.
+  by case: args => // ? [] // ? [] //; t_xrbindP => *; subst.
+Qed.
+
 Definition x86_hagparams : h_asm_gen_params (ap_agp x86_params) :=
   {|
     hagp_eval_assemble_cond := eval_assemble_cond;
     hagp_assemble_extra_op := assemble_extra_op;
+    hagp_assemble_extra_sz := assemble_extra_sz;
   |}.
 
 End ASM_GEN.
