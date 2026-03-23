@@ -1061,7 +1061,7 @@ Proof.
       s0 <- isem_foldr isem_i_body p2 ev2 c s0';;
       b <- isem_cond p2 e2 s0;; (if b then s1 <- isem_foldr isem_i_body p2 ev2 c2' s0;; ret (inl s1) else ret (inr s0)))).
   + move=> > _. rewrite -/(isem_cmd_ p2 ev2 (c2 ++ c)) isem_cmd_cat.
-    rewrite Monad.bind_bind; reflexivity.
+    rewrite -> Monad.bind_bind; reflexivity.
   apply (wkequiv_bind hc).
   move=> s t hI1 /=.
   rewrite /isem_cond.
