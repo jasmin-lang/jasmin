@@ -566,10 +566,30 @@ Proof.
   exact: assemble_add_large_imm_correct.
 Qed.
 
+Lemma risc_assemble_extra_sz ii op lvs args ops :
+   to_asm ii op lvs args = ok ops -> ssrnat.leq 1 (size ops).
+Proof.
+  rewrite /to_asm /= /assemble_extra /=.
+  case: op.
+  + move=> w; case: eqP => // _.
+    case: lvs => // -[] // ? [] // -[] // ? [] //.
+    case: args => // -[] // [] // ? [] // [] // [] // ? [] //.
+    by t_xrbindP => _ _ _ <-.
+  case: lvs => // -[] // ? [] //.
+  case: args => // -[] // [] // ? [] // [] // [] // [] // ? [] // ? [] //.
+  t_xrbindP => /negPf hne _ <-.
+  rewrite /asm_args_of_opn_args /= /RISCVFopn_core.smart_addi /=.
+  rewrite /RISCVFopn_core.gen_smart_opi /RISCVFopn_core.smart_mov.
+  case: ifP => //.
+  + by rewrite hne.
+  by case: ifP.
+Qed.
+
 Definition riscv_hagparams : h_asm_gen_params (ap_agp riscv_params) :=
   {|
     hagp_eval_assemble_cond := riscv_eval_assemble_cond;
     hagp_assemble_extra_op := riscv_assemble_extra_op;
+    hagp_assemble_extra_sz := risc_assemble_extra_sz;
   |}.
 
 End ASM_GEN.
