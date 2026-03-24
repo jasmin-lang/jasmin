@@ -137,8 +137,8 @@ Qed.
 
 HB.instance Definition _ := hasDecEq.Build sopn sopn_eq_axiom.
 
-Definition sopn_copy (ws : wsize) (p : positive) : sopn :=
-  Opseudo_op (Ocopy ws p).
+Definition sopn_copy (ws : wsize) (len : Z) : sopn :=
+  Opseudo_op (Ocopy ws len).
 Definition sopn_nop : sopn := Opseudo_op Onop.
 Definition sopn_mulu (ws : wsize) : sopn := Opseudo_op (Omulu ws).
 Definition sopn_addcarry (ws : wsize) : sopn := Opseudo_op (Oaddcarry ws).
@@ -170,11 +170,11 @@ Proof. by case: o => // -[] // ?? [-> ->]. Qed.
 
 Local Notation E n := (ADExplicit n ACR_any).
 
-Lemma array_copy_errty ws p:
-  let sz := Z.to_pos (arr_size ws p) in
-  let tin := [:: carr sz] in
-  let semi := @WArray.copy ws p in
-  sem_forall (fun r : result error (sem_tuple [:: carr sz]) => r <> Error ErrType) tin semi.
+Lemma array_copy_errty ws n:
+  let len := arr_size ws n in
+  let tin := [:: carr len] in
+  let semi := @WArray.copy ws n in
+  sem_forall (fun r : result error (sem_tuple [:: carr len]) => r <> Error ErrType) tin semi.
 Proof.
   move=> /= t; rewrite /WArray.copy /WArray.fcopy.
   elim: ziota (WArray.empty _) => // j js hrec t1 /=.
@@ -192,11 +192,11 @@ Proof.
   rewrite {2}/WArray.set8; case: WArray.in_bound => [ | [<-]] //=; apply: hrec'.
 Qed.
 
-Lemma array_copy_safe ws p:
-  let sz := Z.to_pos (arr_size ws p) in
-  let tin := [:: carr sz] in
-  let semi := @WArray.copy ws p in
-  interp_safe_cond_ty (tin:=tin) [:: AllInit ws p 0] semi.
+Lemma array_copy_safe ws n:
+  let len := arr_size ws n in
+  let tin := [:: carr len] in
+  let semi := @WArray.copy ws n in
+  interp_safe_cond_ty (tin:=tin) [:: AllInit ws n 0] semi.
 Proof.
   move=> /= t /= h; have /= {h} := List.Forall_inv h.
   rewrite WArray.castK => /(_ _ erefl) h.
@@ -205,12 +205,12 @@ Proof.
   + by move=> /=; eauto.
   move=> j js hj hrec t1 /=.
   have [w -> /=] := h _ hj; rewrite /WArray.set.
-  have := [elaborate (writeV (CM:= WArray.array_CM (Z.to_pos (arr_size ws p))))].
+  have := [elaborate (writeV (CM:= WArray.array_CM (arr_size ws n)))].
   move => /(_ _ w t1 Aligned (j * mk_scale AAscale ws)%Z) wP.
   assert (h1 : validw t1 Aligned (j * mk_scale AAscale ws)%Z ws).
   + rewrite /validw /is_aligned_if WArray.is_align_scale andTb.
     apply ziota_ind => //= i ? hi ->; rewrite andbT; apply/WArray.in_boundP.
-    rewrite WArray.addE; change (Zpos _) with ((wsize_size ws) * p)%Z;Lia.nia.
+    by rewrite WArray.addE arr_sizeE; Lia.nia.
   move/wP: h1 => [t2 ->] /=; apply hrec.
 Qed.
 
@@ -398,9 +398,9 @@ Definition se_move_sem (w : wmsf) : wmsf := w.
 
 Definition se_protect_sem {ws : wsize} (w : word ws) (msf : wmsf) : word ws := w.
 
-Definition se_protect_ptr_sem {p:positive} (t: WArray.array p) (msf : wmsf) : WArray.array p := t.
+Definition se_protect_ptr_sem {len:Z} (t: WArray.array len) (msf : wmsf) : WArray.array len := t.
 
-Definition se_protect_ptr_fail_sem {p:positive} (t: WArray.array p) (msf : wmsf) : exec (WArray.array p) :=
+Definition se_protect_ptr_fail_sem {len:Z} (t: WArray.array len) (msf : wmsf) : exec (WArray.array len) :=
   Let _ := assert (msf == 0%w) ErrSemUndef in
   ok t.
 
@@ -459,18 +459,18 @@ Proof.
 Qed.
 
 Definition SLHprotect_ptr_str := "protect_ptr"%string.
-Definition SLHprotect_ptr_instr ws p :=
-  let tin := [:: aarr ws p; ty_msf ] in
+Definition SLHprotect_ptr_instr ws len :=
+  let tin := [:: aarr ws len; ty_msf ] in
   let ctin := map eval_atype tin in
-  let semi := @se_protect_ptr_sem (Z.to_pos (arr_size ws p)) in
+  let semi := @se_protect_ptr_sem (arr_size ws len) in
   {| str      := pp_s SLHprotect_ptr_str;
      tin      := tin;
      i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
-     tout     := [:: aarr ws p ];
+     tout     := [:: aarr ws len ];
      i_out    := [:: E 2 ]; (* this info is irrelevant *)
      conflicts:=[::];
      semi     := sem_prod_ok ctin semi;
-     semu     := @protect_ptr_semu (Z.to_pos (arr_size ws p));
+     semu     := @protect_ptr_semu (arr_size ws len);
      i_safe   := [::];
      i_valid  := true;
      i_safe_wf    := refl_equal;
@@ -512,7 +512,7 @@ Qed.
 
 Definition SLHprotect_ptr_fail_str := "protect_ptr_fail"%string.
 Definition SLHprotect_ptr_fail_instr ws p :=
-  let len := (Z.to_pos (arr_size ws p)) in
+  let len := arr_size ws p in
   {| str      := pp_s SLHprotect_ptr_fail_str;
      tin      := [:: aarr ws p; ty_msf ];
      i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
