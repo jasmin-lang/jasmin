@@ -1890,6 +1890,14 @@ Proof.
   by rewrite nth_default in hnth.
 Qed.
 
+Lemma onth_size (A:Type) (l:list A) n a :
+  onth l n = Some a -> (n < size l)%nat.
+Proof.
+  rewrite onth_nth => h.
+  rewrite - (size_map Some).
+  by apply (nth_not_default h).
+Qed.
+
 Lemma all_behead {A} {p : A -> bool} {xs : seq A} :
   all p xs -> all p (behead xs).
 Proof.

@@ -560,6 +560,38 @@ End XRuttRec.
 
 (** Relating [X-rutt] and [iter] *)
 
+Fixpoint iter_n (E : Type -> Type) {I R} (body : I -> itree E (I + R))
+    (n : nat) (i : I) : itree E (I + R) :=
+  match n with
+  | O => body i
+  | S n =>
+    ITree.bind (body i)
+      (fun ir : I + R =>
+       match ir with
+       | inl i => Tau (iter_n body n i)
+       | inr r => Ret (inr r)
+       end)
+  end.
+
+Lemma unfold_iter_n (E : Type -> Type) {I R} (body : I -> itree E (I + R))
+         (n : nat) (i:I) :
+  eq_itree eq (ITree.iter body i)
+  (ITree.bind (iter_n body n i)
+    (fun lr : I + R =>
+     match lr with
+     | inl l => Tau (ITree.iter body l)
+     | inr r => Ret r
+     end)).
+Proof.
+  generalize i; clear i; elim n; clear n; simpl; [ intros i | intros n hn i]; rewrite unfold_iter.
+  { reflexivity. }
+  rewrite bind_bind.
+  eapply eqit_bind; try reflexivity.
+  intros lr; case lr; [intros l | intros r].
+  { rewrite bind_tau, hn; reflexivity. }
+  rewrite bind_ret_l; reflexivity.
+Qed.
+
 Section XRuttIter.
   Context {E1 E2 : Type -> Type}.
 
@@ -596,8 +628,39 @@ Proof.
   - pstep; red; constructor; assumption.
 Qed.
 
-End XRuttIter.
+Lemma xrutt_iter_n :
+  (forall j1 j2, RI j1 j2 ->
+     exists n,
+       xrutt EE1 EE2 RPreE RPostE
+          (sum_rel RI RR) (body1 j1) (iter_n body2 n j2)) ->
+  forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
+    @xrutt E1 E2 R1 R2 EE1 EE2 RPreE RPostE RR
+      (ITree.iter body1 i1) (ITree.iter body2 i2).
+Proof.
+  ginit. gcofix CIH.
+  intros.
+  rewrite unfold_iter.
+  case (H0 _ _ RI_i); intros n hn.
+  rewrite (unfold_iter_n body2 n).
+  eapply gpaco2_uclo; [|eapply xrutt_clo_bind|]; eauto with paco.
+  econstructor; eauto. intros; subst. gfinal. right.
+  destruct u1; try discriminate.
+  destruct u2; try discriminate.
+  pstep; red.
+  econstructor.
+  right.
+  eapply CIH; eauto.
+  inversion H; subst; auto.
+  pstep; red.
+  inversion H; subst.
+  destruct u2; try discriminate.
+  inversion H; subst.
+  pstep; red.
+  econstructor.
+  inversion H; subst; auto.
+Qed.
 
+End XRuttIter.
 
 (* weakening lemmas *)
 
@@ -784,7 +847,7 @@ Proof.
         (* vis3 *)
         { remember (VisF e1 k1) as ot2.
           hinduction H3 before CIH; intros; try discriminate.
-  
+
           { dependent destruction Heqot2.
             constructor; eauto.
             - econstructor; eauto.
@@ -863,7 +926,7 @@ Proof.
       { eapply EqTauR.
         eapply IHINR; eauto.
       }
-  }  
+  }
   (* 6: tau1 *)
   { constructor. eapply IHINL; eauto. }
   (* 7: tau2 *)
