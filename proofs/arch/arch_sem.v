@@ -24,7 +24,8 @@ Require Import
   sem_type
   syscall syscall_sem
   label
-  arch_decl.
+  arch_decl
+  xrutt xrutt_facts.
 
 Require Export it_sems_core_defs.
 
@@ -616,14 +617,66 @@ Local Notation exit_loop s := (ret (inr s)).
 Import MonadNotation.
 Local Open Scope monad_scope.
 
-Definition iasm_sem_body (endpc : funname * nat) (s:asm_state) :=
+Definition iasmsem_body (endpc : funname * nat) (s:asm_state) :=
   if endpc == (s.(asm_f), s.(asm_ip)) then exit_loop s
   else
     s <- ifetch_and_eval s;;
     continue_loop s.
 
-Definition iasm_sem (endpc : funname * nat) (s:asm_state) :=
-  ITree.iter (iasm_sem_body endpc) s.
+Definition iasmsem (endpc : funname * nat) (s:asm_state) :=
+  ITree.iter (iasmsem_body endpc) s.
+
+Definition asmsem_body endpc s :=
+  if endpc == (asm_f s, asm_ip s) then ok (inr s)
+  else Let s0 := fetch_and_eval s in ok (inl s0).
+
+Fixpoint asmsem_body_n endpc n s :=
+  Let ins := asmsem_body endpc s in
+  match n with
+  | 0 => ok ins
+  | S n =>
+    match ins with
+    | inl s => asmsem_body_n endpc n s
+    | inr s => ok (inr s)
+    end
+  end.
+
+Lemma asmsem_body_nE endpc n s :
+  asmsem_body_n endpc n s =
+  Let ins := asmsem_body endpc s in
+  match n with
+  | 0 => ok ins
+  | S n =>
+    match ins with
+    | inl s => asmsem_body_n endpc n s
+    | inr s => ok (inr s)
+    end
+  end.
+Proof. by case: n. Qed.
+
+Lemma i_asmsem_body endpc s :
+  iasmsem_body endpc s ≅ err_result (pair^~ tt) (asmsem_body endpc s).
+Proof.
+  rewrite /iasmsem_body /ifetch_and_eval /asmsem_body; case: eqP => h /=.
+  + reflexivity.
+  case: fetch_and_eval => [s' | ] /=.
+  + rewrite bind_ret_l; reflexivity.
+  move=> e; apply bind_throw.
+Qed.
+
+Lemma i_asmsem_body_n endpc n s :
+  eqit eq true true
+    (xrutt_facts.iter_n (iasmsem_body endpc) n s)
+    (err_result (pair^~ tt) (asmsem_body_n endpc n s)).
+Proof.
+  elim: n s => /= [ | n hn] s.
+  + rewrite i_asmsem_body; case: asmsem_body => [ ins|] /=; reflexivity.
+  rewrite i_asmsem_body; case: asmsem_body => [ ins|] /=.
+  + rewrite bind_ret_l; case: ins => s' /=; last reflexivity.
+    by apply eqit_Tau_l; apply hn.
+  move=> e; rewrite /Exception.throw /= bind_vis.
+  apply eqit_Vis; case.
+Qed.
 
 End ITREE.
 
@@ -668,7 +721,7 @@ Context {E E0} {wE : with_Error E E0}.
 Import MonadNotation.
 Local Open Scope monad_scope.
 
-Definition iasm_exportcall (p : asm_prog) (fn : funname) (m : asmmem) :=
+Definition iasmsem_exportcall (p : asm_prog) (fn : funname) (m : asmmem) :=
   fd <- ioget (ErrType, tt) (get_fundef (asm_funcs p) fn);;
   _ <- err_result (fun e => (e, tt)) (assert (asm_fd_export fd) ErrSemUndef);;
   let s := {| asm_m := m
@@ -676,8 +729,8 @@ Definition iasm_exportcall (p : asm_prog) (fn : funname) (m : asmmem) :=
                    ; asm_c := asm_fd_body fd
                    ; asm_ip := 0
                   |} in
-  s' <- iasm_sem p (fn, size (asm_fd_body fd)) s;;
-  let m' := s.(asm_m) in
+  s' <- iasmsem p (fn, size (asm_fd_body fd)) s;;
+  let m' := s'.(asm_m) in
   _ <- err_result (fun e => (e, tt))
          (assert (all (fun x => preserved_registerb x m m') callee_saved) ErrSemUndef);;
   Ret m'.

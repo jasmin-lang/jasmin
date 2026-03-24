@@ -1252,7 +1252,7 @@ Proof.
   move: (hepilogue s1' s1' s2') (hfin s1') => {hfin hepilogue}.
   case: finalize_funcall => [ fs1' | err1 ]; last first.
   + move=> _ _; rewrite /=.
-    rewrite /Exception.throw bind_vis; apply xrutt_CutL => //.
+    rewrite bind_throw; apply xrutt_CutL => //.
     by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
   move => /(_ (conj erefl (conj hQ (ex_intro _ _ erefl)))) /= hepilogue /(_ _ _ _ erefl) hres.
   setoid_rewrite <- (bind_ret_l s1' (λ _, Ret fs1')); rewrite bind_bind.
@@ -1322,8 +1322,7 @@ Proof.
   + rewrite bind_ret_l.
     move: heq; rewrite /sem_assert /sem_cond; t_xrbindP => hwa [] // he _ _.
     by apply/xrutt_Ret/h.
-  rewrite /Exception.throw bind_vis.
-  apply xrutt_CutL => //.
+  rewrite bind_throw; apply xrutt_CutL => //.
   by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
 Qed.
 
@@ -2160,7 +2159,7 @@ Lemma wequiv_noassert ii a c P Q :
   wequiv p1 p2 ev1 ev2 P [:: MkI ii (Cassert a)] c Q.
 Proof.
   move=> s1 s2 _ /=.
-  rewrite bind_ret_r /isem_assert /= /Exception.throw bind_vis; apply xrutt_CutL => //.
+  rewrite bind_ret_r /isem_assert /= bind_throw; apply xrutt_CutL => //.
   by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
 Qed.
 
