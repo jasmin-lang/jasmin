@@ -9,9 +9,8 @@ lemma Test_arr_sum_ok _x _b_x : Test_arr_sum.test_spec _x _b_x.
 proof.
   rewrite /Test_arr_sum.test_spec .
   proc; auto .
-  while ((valid trace_test) /\ (0 <= i)).
-  + auto => &m.
-    rewrite /valid all_cat => /> _ /#.
+  while (0 <= i).
+  + auto => &m => /> _ /#.
   auto.
 qed.
 
@@ -50,11 +49,11 @@ lemma Test_init_arr_sum_ok _x _b_x _y _b_y _z _b_z :
 proof.
   rewrite /test_spec.
   proc; auto.
-  while ((valid trace_test) /\ 0 <= i /\ BArray10.is_init b_z 0 (2 * i)).
+  while (0 <= i /\ BArray10.is_init b_z 0 (2 * i)).
   + auto => &m.
-    rewrite /is_init /valid !all_cat => /> /#.
+    rewrite /is_init => /> /#.
   auto => &m.
-  rewrite /is_init /valid !all_cat => /> /#.
+  rewrite /is_init => /> /#.
 qed.
 
 (* ----------------------------------------------------------------------------*)
@@ -65,7 +64,7 @@ proof.
   rewrite /Test_init_pos_func.init_pos_spec.
   proc; auto.
   move=> &hr.
-  rewrite !and_iota /= /is_init /valid /= /#.
+  rewrite !and_iota /= /is_init /= /#.
 qed .
 
 lemma test2_proof _x _b_x : Test_init_pos_func.test2_spec _x _b_x.
@@ -75,8 +74,8 @@ proof.
   have init_pos_proof_aux := init_pos_proof; rewrite /Test_init_pos_func.init_pos_spec in init_pos_proof_aux;
   ecall (init_pos_proof_aux param_0 (BArray5.init_arr (W8.of_int 255)) param).
   auto => &hr.
-  rewrite and_iota /is_init /valid /= => /> ? result.
-  rewrite and_iota /= all_cat /= => />.
+  rewrite and_iota /is_init  /= => /> ? result.
+  rewrite and_iota  /= => />.
   by move => ->.
 qed .
 
@@ -84,18 +83,17 @@ lemma test_proof _x _b_x : Test_init_pos_func.test_spec _x _b_x.
 proof.
   rewrite /test_spec.
   proc; auto.
-  while ((valid trace_test) /\  (((0 <= i) /\ (i <= 5)) /\
+  while ( (((0 <= i) /\ (i <= 5)) /\
                                 (BArray5.is_init b_x 0 i))).
   + auto.
     have init_pos_proof_aux := init_pos_proof; rewrite /init_pos_spec in init_pos_proof_aux;
      ecall (init_pos_proof_aux param_0 b_param param).
     auto.
-    rewrite /is_init /valid /= => /> &hr 5? result.
-    rewrite !and_iota /= !all_cat /= => 2?.
+    rewrite /is_init /= => /> &hr 5? result.
+    rewrite !and_iota /= => ?.
     smt().
   auto => &m.
-  rewrite /is_init /valid => />; split; first smt().
-  move => *; rewrite all_cat /= /#.
+  rewrite /is_init => /> /#.
 qed .
 
 (* ----------------------------------------------------------------------------*)
@@ -104,6 +102,5 @@ require Test_mem.
 lemma Test_mem_ok _str : Test_mem.test_spec _str.
 proof.
 rewrite /test_spec.
-proc; auto => &m /> *.
-smt (all_cat).
+proc; auto => &m /> * /#.
 qed.
