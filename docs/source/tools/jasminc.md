@@ -10,3 +10,9 @@ the generated assembly is written to that file.
 
 The assembly program is ready to be consumed by common assemblers,
 such as the GNU assembler.
+
+When the `-g` option is enabled, the generated assembly is annotated with DWARF2 line number information.
+This allows debuggers such as `gdb` to map assembly instructions back to their corresponding source code lines,
+making it easier to understand and debug the program.
+
+Declassification instructions are emitted as comments in the assembly output.
