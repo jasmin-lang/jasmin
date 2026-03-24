@@ -119,14 +119,14 @@ Variant combine_flags :=
 #[only(eqbOK)] derive
 Variant opN :=
 | Opack of wsize & pelem (* Pack words of size pelem into one word of wsize *)
-| Oarray of positive (* Literal array of bytes *)
+| Oarray of N (* Literal array of bytes *)
 | Ocombine_flags of combine_flags
 .
 
 #[only(eqbOK)] derive
 Variant opN_safety :=
-| Ois_arr_init of positive
-| Ois_barr_init of positive
+| Ois_arr_init of N
+| Ois_barr_init of N
 .
 
 HB.instance Definition _ := hasDecEq.Build op_kind op_kind_eqb_OK.

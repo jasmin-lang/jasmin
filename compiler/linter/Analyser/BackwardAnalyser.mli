@@ -94,7 +94,7 @@ module type Logic =
     val syscall :
       Jasmin.Location.i_loc ->
       Jasmin.Prog.lvals ->
-      (Jasmin.Wsize.wsize * Jasmin.BinNums.positive) Jasmin.Syscall_t.syscall_t ->
+      (Jasmin.Wsize.wsize * Jasmin.BinNums.coq_N) Jasmin.Syscall_t.syscall_t ->
       Jasmin.Prog.exprs -> domain -> domain Annotation.annotation
 
     (**
