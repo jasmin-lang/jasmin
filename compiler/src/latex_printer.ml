@@ -140,10 +140,11 @@ and pp_expr_rec prio fmt pe =
   | PEstring s -> pp_string fmt s
   | PEBool b -> F.fprintf fmt "%s" (if b then "true" else "false")
   | PEInt i -> F.fprintf fmt "%s" i
-  | PECall (f, args) -> F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
+  | PECall (f, alargs, args) -> F.fprintf fmt "%a%a(%a)" pp_var f pp_alargs alargs (pp_list ", " pp_expr) args
   | PECombF (f, args) ->
     F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
-  | PEPrim (f, args) -> F.fprintf fmt "%a%a(%a)" sharp () pprim (L.unloc f) (pp_list ", " pp_expr) args
+  | PEPrim (f, alargs, args) ->
+    F.fprintf fmt "%a%a%a(%a)" sharp () pprim (L.unloc f) pp_alargs alargs (pp_list ", " pp_expr) args
   | PEOp1 (op, e) ->
     let p = prio_of_op1 op in
     optparent fmt prio p "(";
@@ -189,6 +190,10 @@ and pp_arr_access fmt al aa ws x e len=
     (if aa = Warray_.AAdirect then "." else "")
     pp_aligned (Option.bind len (fun _ -> al))
     (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e pp_olen len
+
+and pp_alargs fmt alargs =
+  if alargs <> [] then
+    F.fprintf fmt "<%a>" (pp_list ", " pp_expr) alargs
 
 let pp_storage fmt s =
   latex "storageclass" fmt (pp_storage s)

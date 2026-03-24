@@ -1,5 +1,6 @@
 export
 fn rand(reg ptr u8[32] io) -> reg ptr u8[32] {
-  io = #randombytes(io);
+  reg u64 len = 32;
+  io = #randombytes{32}(io, len);
   return io;
 }

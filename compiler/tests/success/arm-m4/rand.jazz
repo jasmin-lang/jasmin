@@ -9,7 +9,8 @@ fn random32() -> reg u32 {
   stack u8[4] s;
   reg ptr u8[4] p;
   p = s;
-  s = #randombytes(p);
+  reg u32 len = 4;
+  s = #randombytes{4}(p, len);
   reg u32 r x;
   inline int i;
   r = (32u)s[0];

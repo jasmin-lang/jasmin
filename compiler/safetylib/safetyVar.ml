@@ -34,7 +34,7 @@ type mvar =
 (* Must the variable [v] be handled as a weak variable. *)
 let weak_update v = 
   let weak_update_kind = function
-    | Const -> assert false     (* should not happen *)
+    | Const | Length -> assert false     (* should not happen *)
     | Stack _
     | Reg _
     | Inline
@@ -103,7 +103,7 @@ let mvar_ignore = function
   | _ -> false
     
 (*---------------------------------------------------------------*)
-let arr_range (v : var) : int = match v.v_ty with
+let arr_range (v : var) : length = match v.v_ty with
   | Arr (_,i) -> i
   | _ -> assert false
 
@@ -169,7 +169,7 @@ let mvar_of_scoped_var (s : Expr.v_scope) (uv : var) =
 
   of_scope s at
 
-let mvar_of_var (v : int Prog.ggvar) =
+let mvar_of_var (v : length Prog.ggvar) =
   mvar_of_scoped_var v.gs (L.unloc v.gv)
 
 (*---------------------------------------------------------------*)
@@ -180,6 +180,11 @@ let u8_blast_at ~blast_arrays scope at =
       if blast_arrays then
         let iws = size_of_ws (arr_size v) in
         let r = arr_range v in
+        let r =
+          match r with
+          | Const r -> r
+          | _ -> assert false
+        in
         let vi i = AarraySlice (v,U8,i) in
         List.init (r * iws) vi
       else [at]
@@ -211,6 +216,11 @@ let rec expand_arr_vars = function
       match v.v_ty with
       | Bty _ -> assert false
       | Arr (ws, n) ->
+        let n =
+          match n with
+          | Const n -> n
+          | _ -> assert false
+        in
         let wsz = size_of_ws ws in
         List.init n (fun i -> of_scope scope (AarraySlice (v,ws,wsz * i)))
         @ expand_arr_vars t

@@ -1149,7 +1149,7 @@ Definition Ox86_SAR_instr :=
 
 Definition check_shld (_:wsize):= [::[::rm false; r; ri U8]].
 
-Definition safe_shxd sz : seq safe_cond :=
+Definition safe_shxd sz : seq (safe_cond Z) :=
   match sz with
   | U16 => [:: InRangeMod32 U8 0 16 2 ]
   | _ => [::]
@@ -1193,7 +1193,7 @@ Opaque Z.sub.
 Transparent Z.sub.
 Qed.
 
-Lemma safe_wf_shxdP ws : all (λ sc : safe_cond, values.sc_needed_args sc <= size (w2w8_ty ws)) (safe_shxd ws).
+Lemma safe_wf_shxdP ws : all (λ sc : safe_cond Z, values.sc_needed_args sc <= size (w2w8_ty ws)) (safe_shxd ws).
 Proof. by case: ws. Qed.
 
 Lemma x86_SHLD_safe (ws : wsize) :

@@ -4,6 +4,7 @@ val exec :
   'syscall_state Sem_params.coq_EstateParams ->
   Sem_params.coq_SemPexprParams ->
   ('asm_op, 'syscall_state) Sem_params.coq_SemInstrParams ->
+  (Type.length_var -> BinNums.coq_Z option) ->
   'syscall_state ->
   'asm_op Expr.prog ->
   Expr.instr_info ->

@@ -150,8 +150,8 @@ let string_of_op2 = function
 let pp_opn pd msfsz asmOp fmt o = pp_string fmt (Sopn.string_of_sopn pd msfsz asmOp o)
 
 (* -------------------------------------------------------------------- *)
-let pp_syscall (o : 'a Syscall_t.syscall_t) =
-  match o with Syscall_t.RandomBytes _ -> "#randombytes"
+let pp_syscall (o : Syscall.syscall_t) =
+  match o with Syscall.RandomBytes -> "#randombytes"
 
 (* -------------------------------------------------------------------- *)
 let pp_bool fmt b = if b then fprintf fmt "true" else fprintf fmt "false"
@@ -171,6 +171,7 @@ let pp_kind fmt = function
   | Reg (_k, ptr) -> fprintf fmt "reg%a" pp_pointer ptr
   | Inline -> fprintf fmt "inline"
   | Global -> fprintf fmt "global"
+  | Length -> assert false
 
 (* -------------------------------------------------------------------- *)
 let w_of_signedess = function
@@ -218,10 +219,6 @@ let pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len =
   fprintf fmt "%a%s[%a%a : %a]" pp_gvar x
     (if aa = Warray_.AAdirect then "." else "")
     pp_access_size ws pp_expr (peel_implicit_cast_to_uint e) pp_len len
-
-(* -------------------------------------------------------------------- *)
-let pp_len fmt len = fprintf fmt "%i" len
-let pp_ty fmt = pp_gtype pp_len fmt
 
 (* -------------------------------------------------------------------- *)
 let pp_datas fmt data =

@@ -267,7 +267,7 @@ arr_access:
    let s = if s = None then Warray_.AAscale else Warray_.AAdirect in
    s, i }
 
-pexpr_noarr_r(parent):
+pexpr_noarr_nocall_r(parent):
 | v=var
     { PEVar v }
 
@@ -303,20 +303,30 @@ pexpr_noarr_r(parent):
 | e=parens(parent)
     { PEParens e }
 
-| f=var args=parens_tuple(parent)
-    { PECall (f, args) }
-
-| f=prim args=parens_tuple(parent)
-    { PEPrim (f, args) }
+| f=prim alargs=loption(braces_tuple(parent)) args=parens_tuple(parent)
+    { PEPrim (f, alargs, args) }
 
 | e1=parent QUESTIONMARK e2=parent COLON e3=parent
     { PEIf(e1, e2, e3) }
 
+pexpr_noarr_r:
+| e=pexpr_noarr_nocall_r(pexpr_noarr) { e }
+| f=var alargs=loption(braces_tuple(pexpr_noarr)) args=parens_tuple(pexpr_noarr)
+    { PECall (f, alargs, args) }
+
 pexpr_noarr:
-| e=loc(pexpr_noarr_r(pexpr_noarr)) { e }
+| e=loc(pexpr_noarr_r) { e }
+
+pexpr_nocall_r:
+| e=pexpr_noarr_nocall_r(pexpr_nocall) { e }
+
+pexpr_nocall:
+| e=loc(pexpr_nocall_r) { e }
 
 pexpr_r:
-| e = pexpr_noarr_r(pexpr) { e }
+| e = pexpr_noarr_nocall_r(pexpr) { e }
+| f=var alargs=loption(braces_tuple(pexpr)) args=parens_tuple(pexpr)
+    { PECall (f, alargs, args) }
 
 pexpr:
 | e=loc(pexpr_r) { e }
@@ -370,27 +380,27 @@ pinstr_r:
 | ARRAYINIT x=parens(var) SEMICOLON
     { PIArrayInit x }
 
-| f=loc(prim) args=parens_tuple(pexpr) SEMICOLON
+| f=loc(prim) alargs=loption(braces_tuple(pexpr)) args=parens_tuple(pexpr) SEMICOLON
     { let { Location.pl_loc = loc; Location.pl_desc = f } = f in
-      PIAssign((None, []), `Raw, Location.mk_loc loc (PEPrim (f, args)), None) }
+      PIAssign((None, []), `Raw, Location.mk_loc loc (PEPrim (f, alargs, args)), None) }
 
 | x=plvalues o=peqop e=pexpr c=prefix(IF, pexpr)? SEMICOLON
     { PIAssign (x, o, e, c) }
 
-| fc=loc(f=var args=parens_tuple(pexpr) { (f, args) })
+| fc=loc(f=var alargs=loption(braces_tuple(pexpr)) args=parens_tuple(pexpr) { (f, alargs, args) })
     c=prefix(IF, pexpr)? SEMICOLON
-    { let { Location.pl_loc = loc; Location.pl_desc = (f, args) } = fc in
-      PIAssign ((None, []), `Raw, Location.mk_loc loc (PECall (f, args)), c) }
+    { let { Location.pl_loc = loc; Location.pl_desc = (f, alargs, args) } = fc in
+      PIAssign ((None, []), `Raw, Location.mk_loc loc (PECall (f, alargs, args)), c) }
 
 | ASSERT LPAREN msg=loc(STRING) COMMA e=pexpr RPAREN SEMICOLON
     { PIAssert(msg, e) }
 
 | s=pif { s }
 
-| FOR v=var EQ ce1=pexpr TO ce2=pexpr is=pblock
+| FOR v=var EQ ce1=pexpr TO ce2=pexpr_nocall is=pblock
     { PIFor (v, (`Up, ce1, ce2), is) }
 
-| FOR v=var EQ ce1=pexpr DOWNTO ce2=pexpr is=pblock
+| FOR v=var EQ ce1=pexpr DOWNTO ce2=pexpr_nocall is=pblock
     { PIFor (v, (`Down, ce2, ce1), is) }
 
 | WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock?
@@ -403,10 +413,10 @@ pinstr_r:
     { PIdecl (ty, vs) }
 
 pif:
-| IF c=pexpr i1s=pblock
+| IF c=pexpr_nocall i1s=pblock
     { PIIf (c, i1s, None) }
 
-| IF c=pexpr i1s=pblock ELSE i2s=pelse
+| IF c=pexpr_nocall i1s=pblock ELSE i2s=pelse
     { PIIf (c, i1s, Some i2s) }
 
 pelseif:
@@ -480,6 +490,7 @@ pfundef:
     cc=call_conv?
     FN
     name = ident
+    alargs = loption(braces_tuple(var)) (* ident instead of var? *)
     args = parens_tuple(annot_pparamdecl)
     rty  = prefix(RARROW, tuple(annot_stor_type))?
     body = pfunbody
@@ -487,6 +498,7 @@ pfundef:
   { { pdf_annot;
       pdf_cc   = cc;
       pdf_name = name;
+      pdf_alargs = alargs;
       pdf_args = args;
       pdf_rty  = rty ;
       pdf_body = body; } }
@@ -580,3 +592,6 @@ module_:
 
 %inline brackets_tuple(X):
 | s=brackets(rtuple(X)) { s }
+
+%inline braces_tuple(X):
+| s=braces(rtuple1(X)) { s }

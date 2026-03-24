@@ -1,0 +1,22 @@
+fn test_randombytes () {
+    stack u8[1] r;
+    reg u64 len = 1;
+    reg ptr u8[1] q = #randombytes{1}(r, len);
+}
+
+/* stack zeroization uses the alignment of the function as the default clear
+   step size. Due to the system call, the function is aligned on u128, but stack
+   zeroization is not implemented for u128 on RISC-V. Thus we introduce this
+   annotation to use u32 for the clear step size instead.
+*/
+#[stackzerosize=u32]
+#[stacksize = 4]
+export fn rand() -> reg u32 {
+  stack u8[4] _x x;
+  reg u32 len = 4;
+  x = #randombytes{4}(_x, len);
+  reg u32 r;
+  r = x[:u32 0];
+  return r;
+}
+

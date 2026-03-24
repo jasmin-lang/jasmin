@@ -1,0 +1,7 @@
+// n does not really exist as a value, should it fail?
+// what if the function is inline?
+
+export fn main{n} () -> reg u64 {
+  reg u64 res = n;
+  return res;
+}

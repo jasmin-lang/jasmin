@@ -1,6 +1,6 @@
-(lang dune 3.7)
+(lang dune 3.18)
 (name jasmin)
 (package (name jasmin))
 (license MIT)
 (authors "The Jasmin development team")
-(using menhir 2.1)
+(using menhir 3.0)

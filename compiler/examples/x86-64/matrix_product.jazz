@@ -65,7 +65,7 @@ fn productMM(reg u64 x y z) {
   inline int i;
   stack u64[N * N] mx my mz;
   reg u64 tmp;
-  for i = 0 to N * N {
+  for i = 0 to (N * N) {
     tmp = [:u64 x + 8 * i];
     mx[i] = tmp;
     tmp = [:u64 y + 8 * i];

@@ -14,8 +14,10 @@ Module Import E.
 End E.
 
 Section Section.
+Context {pd:PointerData}.
 Context `{asmop:asmOp}.
 Context (fresh_reg_ptr : instr_info -> int -> string -> atype -> Ident.ident).
+Context (N : length_var).
 Context (p : uprog).
 
 Definition with_id vi ii ctr id ty :=
@@ -126,17 +128,31 @@ Definition mk_info (x:var_i) (ty:atype) :=
 
 Definition get_sig ii fn :=
   if get_fundef p.(p_funcs) fn is Some fd then
-      ok (map2 mk_info fd.(f_params) fd.(f_tyin),
+      ok (fd.(f_al), map2 mk_info fd.(f_params) fd.(f_tyin),
            map2 mk_info fd.(f_res) fd.(f_tyout))
   else Error (E.make_ref_error ii "unknown function").
 
 Definition get_syscall_sig o :=
-  let: s := syscall.syscall_sig_u o in
-  (map (fun ty => (is_aarr ty, "__p__"%string, ty)) s.(scs_tin),
+  let: s := syscall.syscall_sig_u N o in
+  (s.(scs_al),
+   map (fun ty => (is_aarr ty, "__p__"%string, ty)) s.(scs_tin),
    map (fun ty => (is_aarr ty, "__p__"%string, ty)) s.(scs_tout)).
 
 Definition is_swap_op (op: sopn) : option atype :=
   if op is Opseudo_op (pseudo_operator.Oswap (aarr _ _ as ty)) then Some ty else None.
+
+(* TODO: should we fail if subst fails? or just returns the original? *)
+Definition subst_sig al alargs '((params,returns) : seq (bool * string * atype) * seq (bool * string * atype)) :=
+  let f :=
+    let als := zip al alargs in
+    assoc als
+  in
+  let subst :=
+    map (fun '(b, s, ty) => (b, s, subst_ty f ty))
+  in
+  let params := subst params in
+  let returns := subst returns in
+  (params, returns).
 
 Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in
@@ -163,18 +179,20 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
     Let c  := update_c (update_i X) c in
     Let c' := update_c (update_i X) c' in
     ok [::MkI ii (Cwhile a c e info c')]
-  | Ccall xs fn es =>
-    Let: (params,returns) := get_sig ii fn in
+  | Ccall xs fn alargs es =>
+    Let: (al,params,returns) := get_sig ii fn in
+    let (params, returns) := subst_sig al alargs (params, returns) in
     Let pres := make_prologue ii X 0 params es in
     let: (prologue, es) := pres in
     Let xsep := make_epilogue ii X returns xs in
     let: (xs, epilogue) := xsep in
-    ok (prologue ++ MkI ii (Ccall xs fn es) :: epilogue)
-  | Csyscall xs o es =>
-    let: (params,returns) := get_syscall_sig o in
+    ok (prologue ++ MkI ii (Ccall xs fn alargs es) :: epilogue)
+  | Csyscall xs o alargs es =>
+    let: (al, params,returns) := get_syscall_sig o in
+    let (params, returns) := subst_sig al alargs (params, returns) in
     Let: (prologue, es) := make_prologue ii X 0 params es in
     Let: (xs, epilogue) := make_epilogue ii X returns xs in
-    ok (prologue ++ MkI ii (Csyscall xs o es) :: epilogue)
+    ok (prologue ++ MkI ii (Csyscall xs o alargs es) :: epilogue)
   end.
 
 Definition update_fd (fd: ufundef) :=

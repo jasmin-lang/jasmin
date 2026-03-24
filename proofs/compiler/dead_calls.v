@@ -26,11 +26,11 @@ with i_calls_r (c : Sf.t) (i : instr_r) {struct i} : Sf.t :=
   in
 
   match i with
-  | Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _ | Cassert _ => c
+  | Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _ _ | Cassert _ => c
   | Cif    _  c1 c2   => c_calls (c_calls c c1) c2
   | Cfor   _  _  c1   => c_calls c c1
   | Cwhile _ c1 _ _ c2 => c_calls (c_calls c c1) c2
-  | Ccall _ f _ => Sf.add f c
+  | Ccall _ f _ _ => Sf.add f c
   end.
 
 Definition c_calls (c : Sf.t) (cmd : cmd) :=
