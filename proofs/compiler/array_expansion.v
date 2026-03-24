@@ -333,7 +333,7 @@ Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef)
     let tyout  := map (fun x => fst (fst x)) outs in
     let res    := map (fun x => snd (fst x)) outs in
     let outs   := map snd outs in
-    ok (MkFun fi al ci (flatten tyin) (flatten params) c (flatten tyout) (flatten res) ef,
+    ok (MkFun fi ci al (flatten tyin) (flatten params) c (flatten tyout) (flatten res) ef,
         m, (ins, outs))
   end.
 

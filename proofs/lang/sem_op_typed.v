@@ -213,16 +213,16 @@ Qed.
 
 End WITH_PARAMS.
 
-Definition sem_opN_safety_typed (o: opN_safety) :
+Definition sem_opN_safety_typed env (o: opN_safety) :
   let t := type_of_opN_safety o in
-  let t := (map eval_atype t.1, eval_atype t.2) in
+  let t := (map (eval_atype env) t.1, eval_atype env t.2) in
   sem_prod t.1 (exec (sem_t t.2)) :=
   match o with
   | Ois_arr_init alen =>
-      fun (a:WArray.array alen) (lo:Z) (len:Z) =>
+      fun (a:WArray.array _) (lo:Z) (len:Z) =>
         ok (all (WArray.is_init a) (ziota lo len))
   | Ois_barr_init alen =>
-      fun (a:WArray.array alen) (lo:Z) (len:Z) =>
+      fun (a:WArray.array _) (lo:Z) (len:Z) =>
         ok (all (WArray.is_initb a) (ziota lo len))
   end.
 

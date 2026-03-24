@@ -199,7 +199,7 @@ let psubst_prog (prog:('info, 'asm) mod_item list) =
         let dov v =
           L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
         let subst_contract =
-          gsubst_cf_contract (psubst_e_ subst_v) subst_v
+          gsubst_cf_contract (psubst_al subst_v) subst_v
         in
         let fc = {
             fc with
@@ -344,7 +344,7 @@ let isubst_prog glob prog =
         fc with
         f_al = List.map GV.cast fc.f_al;
         f_tyin = List.map isubst_ty fc.f_tyin;
-        f_contract = Option.map (gsubst_cf_contract isubst_len subst_v) fc.f_contract;
+        f_contract = Option.map (gsubst_cf_contract isubst_al subst_v) fc.f_contract;
         f_args;
         f_body = gsubst_c isubst_al subst_v fc.f_body;
         f_tyout = List.map isubst_ty fc.f_tyout;

@@ -38,7 +38,7 @@ let rec fix_length_eassert e =
   | PappN_safety (o, es) ->
     let e = List.hd es in
     let ty = Typing.type_of_expr e in
-    let len = Conv.pos_of_int (size_of ty) in
+    let len = Conv.cal_of_al (size_of ty) in
     let o = match o with Ois_arr_init _ -> Operators.Ois_arr_init len | Ois_barr_init _ -> Ois_barr_init len in
     PappN_safety(o, es)
   | Pis_var_init _ | Pis_mem_init _ -> e
@@ -106,6 +106,9 @@ and iac_instr_r pd loc ir =
     end
 
   | Csyscall _ -> ir
+
+  | Cassert (msg, e) ->
+    Cassert (msg, fix_length_eassert e)
 
   | Ccall _ -> ir
 

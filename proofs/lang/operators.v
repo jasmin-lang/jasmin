@@ -1,4 +1,4 @@
-Require Import utils wsize.
+Require Import utils wsize type.
 From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import eqtype.
@@ -125,8 +125,8 @@ Variant opN :=
 
 #[only(eqbOK)] derive
 Variant opN_safety :=
-| Ois_arr_init of positive
-| Ois_barr_init of positive
+| Ois_arr_init of array_length
+| Ois_barr_init of array_length
 .
 
 HB.instance Definition _ := hasDecEq.Build op_kind op_kind_eqb_OK.

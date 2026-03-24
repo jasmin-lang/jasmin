@@ -159,8 +159,6 @@ let lval_of_clval = function
   | C.Lmem(al,ws,loc,e)  -> Lmem (al, ws, loc, expr_of_cexpr e)
   | C.Laset(al, aa,ws,x,e) -> Laset (al, aa,ws, vari_of_cvari x, expr_of_cexpr e)
   | C.Lasub(aa,ws,len,x,e) ->
-    Lasub (aa,ws, int_of_pos len, vari_of_cvari x, expr_of_cexpr e)
-  | C.Lasub(aa,ws,len,x,e) ->
     Lasub (aa,ws, al_of_cal len, vari_of_cvari x, expr_of_cexpr e)
 
 (* ------------------------------------------------------------------------ *)

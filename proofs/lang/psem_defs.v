@@ -32,8 +32,8 @@ Definition sem_opN
   Let w := app_sopn _ (sem_opN_typed env op) vs in
   ok (to_val w).
 
-Definition sem_opN_safety (op: opN_safety) (vs: values) : exec bool :=
-  app_sopn _ (sem_opN_safety_typed op) vs.
+Definition sem_opN_safety env (op: opN_safety) (vs: values) : exec bool :=
+  app_sopn _ (sem_opN_safety_typed env op) vs.
 
 (* ** Global access
  * -------------------------------------------------------------------- *)
@@ -214,12 +214,12 @@ Context
   {spp : SemPexprParams}
   (gd : glob_decls).
 
-Fixpoint sem_eassert (s : estate) (e : eassert) : exec bool :=
+Fixpoint sem_eassert env (s : estate env) (e : eassert) : exec bool :=
   match e with
   | Pexpr e => sem_pexpr true gd s e >>= to_bool
   | PappN_safety op es =>
     Let vs := mapM (sem_pexpr true gd s) es in
-    sem_opN_safety op vs
+    sem_opN_safety env op vs
   | Pis_var_init x =>
     let v := (evm s).[x] in
     ok (is_defined v)
@@ -233,7 +233,7 @@ Fixpoint sem_eassert (s : estate) (e : eassert) : exec bool :=
     ok (b1 && b2)
   end.
 
-Definition sem_assert (s : estate) (e : assertion) : exec unit :=
+Definition sem_assert env (s : estate env) (e : assertion) : exec unit :=
   Let _ := assert (assert_allowed) ErrType in
   Let b := sem_eassert s e.2 in
   Let _ := assert b (ErrAssert e.1) in

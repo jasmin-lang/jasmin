@@ -29,6 +29,7 @@ Section INLINE.
 Context
   {asm_op syscall_state : Type}
   {asmop:asmOp asm_op}
+  (fresh_var_ident  : v_kind -> int -> string -> atype -> Ident.ident)
   (extend_iinfo : instr_info -> instr_info -> instr_info)
 .
 
@@ -77,9 +78,9 @@ Fixpoint extend_iinfo_i ii i : instr :=
     match ir with
     | Cassgn _ _ _ _
     | Copn _ _ _ _
-    | Csyscall _ _ _
+    | Csyscall _ _ _ _
     | Cassert _
-    | Ccall _ _ _ => ir
+    | Ccall _ _ _ _ => ir
     | Cif e c1 c2 =>
       Cif e (map (extend_iinfo_i ii) c1) (map (extend_iinfo_i ii) c2)
     | Cfor x (d,lo,hi) c =>
@@ -201,6 +202,25 @@ Definition subst_lval f lv :=
   end.
 Definition subst_lvals f := mapm (subst_lval f).
 
+Fixpoint subst_a f (a : eassert) : mon eassert :=
+  match a with
+  | Pexpr e =>
+    let%m e := subst_e f e in
+    ret (Pexpr e)
+  | PappN_safety o es =>
+    let%m es := subst_es f es in
+    ret (PappN_safety o es)
+  | Pis_var_init _ => ret a
+  | Pis_mem_init e1 e2 =>
+    let%m e1 := subst_e f e1 in
+    let%m e2 := subst_e f e2 in
+    ret (Pis_mem_init e1 e2)
+  | Pand a1 a2 =>
+    let%m a1 := subst_a f a1 in
+    let%m a2 := subst_a f a2 in
+    ret (Pand a1 a2)
+  end.
+
 Fixpoint subst_i f (i:instr) : mon instr :=
   let (ii,ir) := i in
   match ir with
@@ -241,8 +261,8 @@ Fixpoint subst_i f (i:instr) : mon instr :=
     let%m xs := subst_lvals f xs in
     let%m es := subst_es f es in
     ret (MkI ii (Csyscall xs o al es))
-  | Cassert (lbl, e) =>
-    let%m e := subst_e f e in
+  | Cassert (lbl, a) =>
+    let%m e := subst_a f a in
     ret (MkI ii (Cassert (lbl, e)))
   end.
 Definition subst_c f := mapm (subst_i f).
@@ -253,6 +273,7 @@ Definition subst_fd f (fd:ufundef) :=
   let%m body := subst_c f fd.(f_body) in
   ret
     {| f_info := fd.(f_info);
+       f_contract := fd.(f_contract); (* FIXME: is this correct? *)
        f_al := [::];
        f_tyin := map (subst_ty f) fd.(f_tyin);
        f_params := params;
@@ -297,18 +318,17 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
         assoc als
       in
       let (_, fd') := subst_fd f fd empty_sm in
-      Let _ := add_iinfo iinfo (check_rename fn fd' (Sv.union (vrvs xs) X)) in
+      Let _ := add_iinfo iinfo (check_disjoint fd' (Sv.union (vrvs xs) X)) in
       let ii := ii_with_location iinfo in
       let rename_args :=
-        assgn_tuple ii (map Lvar fd.(f_params)) AT_rename fd.(f_tyin) es
+        assgn_tuple ii (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es
       in
       let body :=
         extend_iinfo_cmd iinfo fd'.(f_body)
       in
       let rename_res :=
-        assgn_tuple ii xs AT_rename fd.(f_tyout) (map Plvar fd.(f_res))
+        assgn_tuple ii xs AT_rename fd'.(f_tyout) (map Plvar fd'.(f_res))
       in
-<<<<<<< HEAD
       ok (X, rename_args ++ body ++ rename_res)
     else ok (X, [::i])
   end.

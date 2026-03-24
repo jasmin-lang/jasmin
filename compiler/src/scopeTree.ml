@@ -61,7 +61,7 @@ let find_common_ancestor (t : tree) (nodes : nodeset) : node =
 (* Compute variable occurrences in expressions and instructions *)
 
 let variables_in_gvar x (acc : Sv.t) : Sv.t =
-  if x.v_kind <> Const then Spv.add x acc else acc
+  if x.v_kind <> Const then Sv.add x acc else acc
 
 let variables_in_pexpr = rvars_e variables_in_gvar
 let variables_in_pexprs = rvars_es variables_in_gvar

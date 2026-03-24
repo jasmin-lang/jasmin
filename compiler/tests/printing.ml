@@ -116,13 +116,13 @@ let eq_ty x y =
 
 and eq_pexprs x y = List.for_all2 eq_pexpr x y
 
-let rec push_and (e: pexpr) : pexpr_ gassert =
+let rec push_and (e: expr) : length gassert =
   match e with
   | Papp2 (Operators.Oand, e1, e2) ->
     Pand (push_and e1, push_and e2)
   | _ -> Pexpr e
 
-let rec push_and_a (e : pexpr_ gassert) : pexpr_ gassert =
+let rec push_and_a (e : _ gassert) : _ gassert =
   match e with
   | Pexpr e -> push_and e
   | Pand (e1, e2) -> Pand(push_and_a e1, push_and_a e2)

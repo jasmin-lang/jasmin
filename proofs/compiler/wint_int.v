@@ -265,8 +265,8 @@ Fixpoint wi2i_eassert (e:eassert) : cexec (safety_cond * eassert) :=
     ok ([::], Pis_var_init x)
 
   | Pis_mem_init e1 e2 =>
-    Let _ := assert [&& etype_of_expr m e1 == ETword _ None Uptr
-                      & etype_of_expr m e2 == ETint _] (E.ierror_s "ill typed is_mem_init") in
+    Let _ := assert [&& etype_of_expr m e1 == ETword None Uptr
+                      & etype_of_expr m e2 == ETint] (E.ierror_s "ill typed is_mem_init") in
     Let e1 := wi2i_e e1 in
     Let e2 := wi2i_e e2 in
     ok (e1.1 ++ e2.1, Pis_mem_init e1.2 e2.2)
@@ -363,7 +363,7 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
     Let _ := assert (all (fun e => sign_of_expr m e == None) es)
                     (E.ierror_s "invalid args in Csyscall") in
     Let es := wi2i_es wi2i_e es in
-    let xtys := map (to_etype None) (syscall_sig_u o).(scs_tout) in
+    let xtys := map (to_etype None) (syscall_sig_u N o).(scs_tout) in
     Let xs := wi2i_lvs "invalid dest in Csyscall" true xtys xs in
     ok (es.1 ++ xs.1, Csyscall xs.2 o al es.2)
 
@@ -378,7 +378,7 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
     ok (b.1, Cif b.2 c1 c2)
 
   | Cfor x (dir, e1, e2) c =>
-    Let _ := assert [&& in_FV_var x, vtype x == aint, etype_of_expr m e1 == ETint _ & etype_of_expr m e2 == ETint _]
+    Let _ := assert [&& in_FV_var x, vtype x == aint, etype_of_expr m e1 == ETint & etype_of_expr m e2 == ETint]
                 (E.ierror_s "invalid loop counter") in
     Let e1 := wi2i_e e1 in
     Let e2 := wi2i_e e2 in

@@ -15,7 +15,7 @@ Definition esubtype (ty1 ty2 : extended_type) :=
  | ETword (Some sg) w, ETword (Some sg') w' => (sg == sg') && (w == w')
  | ETint, ETint => true
  | ETbool, ETbool => true
- | ETarr ws l, ETarr ws' l' => convertible (aarr ws al) (aarr ws' al')
+ | ETarr ws al, ETarr ws' al' => convertible (aarr ws al) (aarr ws' al')
  | _, _ => false
  end.
 
@@ -40,7 +40,7 @@ Definition to_etype sg (t:atype) : extended_type :=
   | abool    => tbool
   | aint     => tint
   | aarr ws l => tarr ws l
-  | aword ws => ETword _ sg ws
+  | aword ws => ETword sg ws
   end.
 
 Definition sign_of_var x := Option.map fst (m x).

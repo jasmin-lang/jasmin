@@ -243,8 +243,8 @@ Let Pc c := forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)).
 Lemma write_c_recE s c : Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
 Proof.
   apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s}
-    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | a | e c1 c2 Hc1 Hc2
-    | v dir lo hi c Hc | a c e ii c' Hc Hc' | ii xs f es ] s;
+    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | xs o al es | a | e c1 c2 Hc1 Hc2
+    | v dir lo hi c Hc | a c e ii c' Hc Hc' | xs f al es ] s;
     rewrite /write_I /write_I_rec /write_i /write_i_rec -/write_i_rec -/write_I_rec /write_c /=
     ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //;
     by clear; SvD.fsetdec.
@@ -272,7 +272,7 @@ Proof. done. Qed.
 Lemma write_i_opn xs t o es : write_i (Copn xs t o es) = vrvs xs.
 Proof. done. Qed.
 
-Lemma write_i_syscall xs o es : write_i (Csyscall xs o es) = vrvs xs.
+Lemma write_i_syscall xs o al es : write_i (Csyscall xs o al es) = vrvs xs.
 Proof. done. Qed.
 
 Lemma write_i_assert a : write_i (Cassert a) = Sv.empty.
@@ -299,8 +299,8 @@ Proof.
     clear; SvD.fsetdec.
 Qed.
 
-Lemma write_i_call xs f es :
-  write_i (Ccall xs f es) = vrvs xs.
+Lemma write_i_call xs f al es :
+  write_i (Ccall xs f al es) = vrvs xs.
 Proof. done. Qed.
 
 Lemma write_Ii ii i: write_I (MkI ii i) = write_i i.
@@ -419,8 +419,8 @@ Let Pc c := forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c)).
 Lemma read_cE s c : Sv.Equal (read_c_rec s c) (Sv.union s (read_c c)).
 Proof.
   apply (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s}
-   [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | a | e c1 c2 Hc1 Hc2
-    | v dir lo hi c Hc | a c e ii c' Hc Hc' | ii xs f es ] s;
+   [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | xs o al es | a | e c1 c2 Hc1 Hc2
+    | v dir lo hi c Hc | a c e ii c' Hc Hc' | xs f al es ] s;
     rewrite /read_I /read_I_rec /read_i /read_i_rec -/read_i_rec -/read_I_rec /read_c /=
      ?read_rvE ?read_eE ?read_esE ?read_eassertE ?read_rvE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc' ?Hc ?Hi //;
     by clear; SvD.fsetdec.
@@ -446,8 +446,8 @@ Lemma read_i_opn xs t o es:
   Sv.Equal (read_i (Copn xs t o es)) (Sv.union (read_rvs xs) (read_es es)).
 Proof. by rewrite /read_i /read_i_rec read_esE read_rvsE; clear; SvD.fsetdec. Qed.
 
-Lemma read_i_syscall xs o es:
-  Sv.Equal (read_i (Csyscall xs o es)) (Sv.union (read_rvs xs) (read_es es)).
+Lemma read_i_syscall xs o al es:
+  Sv.Equal (read_i (Csyscall xs o al es)) (Sv.union (read_rvs xs) (read_es es)).
 Proof. rewrite /read_i /write_i /read_i_rec read_esE read_rvsE; clear; SvD.fsetdec. Qed.
 
 Lemma read_i_assert a :
@@ -476,8 +476,8 @@ Proof.
   rewrite /read_i /read_i_rec -/read_c_rec !read_eE read_cE; clear; SvD.fsetdec.
 Qed.
 
-Lemma read_i_call xs f es :
-  Sv.Equal (read_i (Ccall xs f es)) (Sv.union (read_rvs xs) (read_es es)).
+Lemma read_i_call xs f al es :
+  Sv.Equal (read_i (Ccall xs f al es)) (Sv.union (read_rvs xs) (read_es es)).
 Proof. rewrite /read_i /read_i_rec read_esE read_rvsE; clear; SvD.fsetdec. Qed.
 
 Lemma read_Ii ii i: read_I (MkI ii i) = read_i i.
@@ -521,8 +521,8 @@ Lemma vars_I_opn ii xs t o es:
   Sv.Equal (vars_I (MkI ii (Copn xs t o es))) (Sv.union (vars_lvals xs) (read_es es)).
 Proof. by rewrite /vars_I read_Ii write_Ii read_i_opn write_i_opn /vars_lvals; clear; SvD.fsetdec. Qed.
 
-Lemma vars_I_syscall ii xs o es:
-  Sv.Equal (vars_I (MkI ii (Csyscall xs o es))) (Sv.union (vars_lvals xs) (read_es es)).
+Lemma vars_I_syscall ii xs o al es:
+  Sv.Equal (vars_I (MkI ii (Csyscall xs o al es))) (Sv.union (vars_lvals xs) (read_es es)).
 Proof. by rewrite /vars_I read_Ii write_Ii read_i_syscall write_i_syscall /vars_lvals; clear; SvD.fsetdec. Qed.
 
 Lemma vars_I_assert ii a:
@@ -550,8 +550,8 @@ Lemma vars_I_for ii i d lo hi c:
            (Sv.union (Sv.union (vars_c c) (Sv.singleton i)) (Sv.union (read_e lo) (read_e hi))).
 Proof. rewrite /vars_I read_Ii write_Ii read_i_for write_i_for /vars_c; clear; SvD.fsetdec. Qed.
 
-Lemma vars_I_call ii xs fn args:
-  Sv.Equal (vars_I (MkI ii (Ccall xs fn args))) (Sv.union (vars_lvals xs) (read_es args)).
+Lemma vars_I_call ii xs fn al args:
+  Sv.Equal (vars_I (MkI ii (Ccall xs fn al args))) (Sv.union (vars_lvals xs) (read_es args)).
 Proof. rewrite /vars_I read_Ii write_Ii read_i_call write_i_call /vars_lvals; clear; SvD.fsetdec. Qed.
 
 Lemma vars_pP p fn fd : get_fundef p fn = Some fd -> Sv.Subset (vars_fd fd) (vars_p p).
@@ -920,8 +920,8 @@ Proof. by move=> ????; rewrite /Pr /= !eqxx eq_lval_refl eq_expr_refl. Qed.
 Lemma Hrefl_opn : forall xs t o es, Pr (Copn xs t o es).
 Proof. by move=> ????; rewrite /Pr /= !eqxx (all2_refl eq_lval_refl) (all2_refl eq_expr_refl). Qed.
 
-Lemma Hrefl_syscall : forall xs o es, Pr (Csyscall xs o es).
-Proof. by move=> ???; rewrite /Pr /= eqxx (all2_refl eq_lval_refl) (all2_refl eq_expr_refl). Qed.
+Lemma Hrefl_syscall : forall xs o al es, Pr (Csyscall xs o al es).
+Proof. by move=> ????; rewrite /Pr /= !eqxx (all2_refl eq_lval_refl) (all2_refl eq_expr_refl). Qed.
 
 Lemma Hrefl_assert : forall a, Pr (Cassert a).
 Proof. by move=> ?; rewrite /Pr /= eqxx eq_eassert_refl. Qed.
@@ -935,8 +935,8 @@ Proof. by move=> ?????; rewrite /Pc /Pr /= !eqxx !eq_expr_refl -/(eq_cmd _ _) =>
 Lemma Hrefl_while : forall a c e info c', Pc c -> Pc c' -> Pr (Cwhile a c e info c').
 Proof. by move=> ?????; rewrite /Pc /Pr /= eqxx eq_expr_refl -!/(eq_cmd _ _) => -> ->. Qed.
 
-Lemma Hrefl_call: forall xs f es, Pr (Ccall xs f es).
-Proof. by move=> ???; rewrite /Pr /= eqxx (all2_refl eq_lval_refl) (all2_refl eq_expr_refl). Qed.
+Lemma Hrefl_call: forall xs f al es, Pr (Ccall xs f al es).
+Proof. by move=> ????; rewrite /Pr /= !eqxx (all2_refl eq_lval_refl) (all2_refl eq_expr_refl). Qed.
 
 Lemma eq_instr_r_refl i : eq_instr_r i i.
 Proof.
@@ -989,10 +989,10 @@ Proof.
   by rewrite !eqxx.
 Qed.
 
-Lemma Hsymm_syscall : forall xs o es, Pr (Csyscall xs o es).
+Lemma Hsymm_syscall : forall xs o al es, Pr (Csyscall xs o al es).
 Proof.
-  move=> ??? [] //= ??? /andP[] /andP[] /(all2_symm eq_lval_symm) -> /eqP -> /(all2_symm eq_expr_symm) ->.
-  by rewrite eqxx.
+  move=> ???? [] //= ???? /andP[] /andP[] /andP[] /(all2_symm eq_lval_symm) -> /eqP -> /eqP -> /(all2_symm eq_expr_symm) ->.
+  by rewrite !eqxx.
 Qed.
 
 Lemma Hsymm_assert : forall a, Pr (Cassert a).
@@ -1017,10 +1017,10 @@ Proof.
   by rewrite eqxx -!/(eq_cmd _ _) hc hc'.
 Qed.
 
-Lemma Hsymm_call: forall xs f es, Pr (Ccall xs f es).
+Lemma Hsymm_call: forall xs f al es, Pr (Ccall xs f al es).
 Proof.
-  move=> ??? [] //= ??? /andP[] /andP[] /(all2_symm eq_lval_symm) -> /eqP -> /(all2_symm eq_expr_symm) ->.
-  by rewrite eqxx.
+  move=> ???? [] //= ???? /andP[] /andP[] /andP[] /(all2_symm eq_lval_symm) -> /eqP -> /eqP -> /(all2_symm eq_expr_symm) ->.
+  by rewrite !eqxx.
 Qed.
 
 Lemma eq_instr_r_symm i1 i2 : eq_instr_r i1 i2 -> eq_instr_r i2 i1.
@@ -1077,12 +1077,12 @@ Proof.
   by rewrite !eqxx (all2_trans eq_lval_trans h12 h23) (all2_trans eq_expr_trans h12' h23').
 Qed.
 
-Lemma Htrans_syscall : forall xs o es, Pr (Csyscall xs o es).
+Lemma Htrans_syscall : forall xs o al es, Pr (Csyscall xs o al es).
 Proof.
-  move=> ??? [] //= ??? [] //= ???
-    /andP[] /andP[] h12 /eqP -> h12'
-    /andP[] /andP[] h23 /eqP -> h23'.
-  by rewrite eqxx (all2_trans eq_lval_trans h12 h23) (all2_trans eq_expr_trans h12' h23').
+  move=> ???? [] //= ???? [] //= ????
+    /andP[] /andP[] /andP[] h12 /eqP -> /eqP -> h12'
+    /andP[] /andP[] /andP[] h23 /eqP -> /eqP -> h23'.
+  by rewrite !eqxx (all2_trans eq_lval_trans h12 h23) (all2_trans eq_expr_trans h12' h23').
 Qed.
 
 Lemma Htrans_assert : forall a, Pr (Cassert a).
@@ -1115,12 +1115,12 @@ Proof.
   by rewrite eqxx (eq_expr_trans h12' h23') -!/(eq_cmd _ _) (hc _ _ h12 h23) (hc' _ _ h12'' h23'').
 Qed.
 
-Lemma Htrans_call: forall xs f es, Pr (Ccall xs f es).
+Lemma Htrans_call: forall xs f al es, Pr (Ccall xs f al es).
 Proof.
-  move=> ??? [] //= ??? [] //= ???
-    /andP[] /andP[] h12 /eqP -> h12'
-    /andP[] /andP[] h23 /eqP -> h23'.
-  by rewrite eqxx (all2_trans eq_lval_trans h12 h23) (all2_trans eq_expr_trans h12' h23').
+  move=> ???? [] //= ???? [] //= ????
+    /andP[] /andP[] /andP[] h12 /eqP -> /eqP -> h12'
+    /andP[] /andP[] /andP[] h23 /eqP -> /eqP -> h23'.
+  by rewrite !eqxx (all2_trans eq_lval_trans h12 h23) (all2_trans eq_expr_trans h12' h23').
 Qed.
 
 Lemma eq_instr_r_trans i2 i1 i3 :
@@ -1177,9 +1177,9 @@ Proof.
   by rewrite !write_i_opn (eq_lvals_vrvs h).
 Qed.
 
-Lemma Hwrite_syscall : forall xs o es, Pr (Csyscall xs o es).
+Lemma Hwrite_syscall : forall xs o al es, Pr (Csyscall xs o al es).
 Proof.
-  move=> ??? [] //= ??? /andP[] /andP[] h _ _.
+  move=> ???? [] //= ???? /andP[] /andP[] /andP[] h _ _.
   by rewrite !write_i_syscall (eq_lvals_vrvs h).
 Qed.
 
@@ -1204,9 +1204,9 @@ Proof.
   by rewrite !write_i_while hc hc'.
 Qed.
 
-Lemma Hwrite_call: forall xs f es, Pr (Ccall xs f es).
+Lemma Hwrite_call: forall xs f al es, Pr (Ccall xs f al es).
 Proof.
-  move=> ??? [] //= ??? /andP[] /andP[] h _ _.
+  move=> ???? [] //= ???? /andP[] /andP[] /andP[] h _ _.
   by rewrite !write_i_call (eq_lvals_vrvs h).
 Qed.
 

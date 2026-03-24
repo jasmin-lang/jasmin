@@ -166,8 +166,12 @@ End FUNCTION.
 
 Context {pT: progT}.
 
-Definition array_copy_fd V (f:fundef) :=
-  Let c := array_copy_c V array_copy_i f.(f_body) in
+Definition array_copy_fd (f:fundef) :=
+  let V := vars_fd f in
+  let fi := f.(f_info) in
+  let fresh := Sv.add {| vtype := aint ; vname := fresh_counter fi |} (sv_of_list (tmp_var fi) wsizes) in
+  Let _ := assert (disjoint fresh V) E.fresh_error in
+  Let c := array_copy_c V (array_copy_i fi) f.(f_body) in
   ok (with_body f c).
 
 Definition array_copy_prog (p:prog) :=

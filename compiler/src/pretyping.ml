@@ -1398,7 +1398,9 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
       rs_tyerror ~loc:(L.loc pe) LengthNotAllowed;
     tt_expr ~mode pd env (L.mk_loc (L.loc pe) (S.PECombF(id,args)))
 
-  | S.PECall (id, args) when Map.mem (L.unloc id) extra_op_map ->
+  | S.PECall (id, alargs, args) when Map.mem (L.unloc id) extra_op_map ->
+    if alargs <> [] then
+      rs_tyerror ~loc:(L.loc pe) LengthNotAllowed;
     let pa_name = L.unloc id in
     let args = List.map (tt_expr ~mode pd env) args in
     let create_pred = Map.find pa_name extra_op_map in
@@ -2030,7 +2032,7 @@ let create_is_arr_init _pd loc args =
     let e2 = cast_int loc None e2 t2 in
     let e3 = cast_int loc None e3 t3 in
     (* The size will be fixed later *)
-    P.PappN_safety (Ois_arr_init (Conv.pos_of_int 1) , [ e1; e2; e3])
+    P.PappN_safety (Ois_arr_init (ALConst Z0) , [ e1; e2; e3])
   else
     rs_tyerror ~loc (InvalidArgCount(3, List.length args))
 
@@ -2055,7 +2057,10 @@ let rec tt_assert pd env pe =
   match L.unloc pe with
   | S.PEParens pe ->
     tt_assert pd env pe
-  | S.PECall (id,args) when Map.mem (L.unloc id) safety_map ->
+  | S.PECall (id,alargs,args) when Map.mem (L.unloc id) safety_map ->
+      (* FIXME *)
+      if alargs <> [] then
+        rs_tyerror ~loc:(L.loc pe) LengthNotAllowed;
     let pa_name = L.unloc id in
     let args = List.map (tt_expr pd env) args in
     let create_pred = Map.find pa_name safety_map in

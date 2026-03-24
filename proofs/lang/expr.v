@@ -1047,8 +1047,8 @@ Fixpoint eq_instr_r (i1 i2:instr_r) :=
      (tag1 == tag2) && (ty1 == ty2) && eq_lval x1 x2 && eq_expr e1 e2
   | Copn x1 tag1 o1 e1, Copn x2 tag2 o2 e2 =>
      all2 eq_lval x1 x2 && (tag1 == tag2) && (o1 == o2) && all2 eq_expr e1 e2
-  | Csyscall xs1 o1 es1, Csyscall xs2 o2 es2 =>
-     all2 eq_lval xs1 xs2 && (o1 == o2) && all2 eq_expr es1 es2
+  | Csyscall xs1 o1 al1 es1, Csyscall xs2 o2 al2 es2 =>
+     all2 eq_lval xs1 xs2 && (o1 == o2) && (al1 == al2) && all2 eq_expr es1 es2
   | Cassert a1, Cassert a2 => (a1.1 == a2.1) && eq_eassert a1.2 a2.2
   | Cif e1 c11 c12, Cif e2 c21 c22 =>
     eq_expr e1 e2 && all2 eq_instr c11 c21 && all2 eq_instr c12 c22
@@ -1056,8 +1056,8 @@ Fixpoint eq_instr_r (i1 i2:instr_r) :=
     (v_var i1 == v_var i2) && (dir1 == dir2) && eq_expr lo1 lo2 && eq_expr hi1 hi2 && all2 eq_instr c1 c2
   | Cwhile a1 c1 e1 _ c1' , Cwhile a2 c2 e2 _ c2' =>
     (a1 == a2) && all2 eq_instr c1 c2 && eq_expr e1 e2 && all2 eq_instr c1' c2'
-  | Ccall x1 f1 arg1, Ccall x2 f2 arg2 =>
-    all2 eq_lval x1 x2 && (f1 == f2) && all2 eq_expr arg1 arg2
+  | Ccall x1 f1 al1 arg1, Ccall x2 f2 al2 arg2 =>
+    all2 eq_lval x1 x2 && (f1 == f2) && (al1 == al2) && all2 eq_expr arg1 arg2
   | _, _ => false
   end
 with eq_instr i1 i2 :=
