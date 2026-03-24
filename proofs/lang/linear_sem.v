@@ -348,7 +348,21 @@ Definition ilsem_exportcall (scs:syscall_state_t) (m: mem) (fn: funname) (vm: Vm
   s' <- ilsem (fn, size (lfd_body fd)) s;;
   let vm' := s'.(lvm) in
   _ <- iresult (to_estate s') (assert (all (fun x => value_eqb vm.[x] vm'.[x]) (Sv.elements callee_saved)) ErrSemUndef);;
-  Ret (s'.(lscs), s'.(lmem), vm').
+  Ret {| escs := s'.(lscs); emem := s'.(lmem); evm := vm'; |}.
+
+Definition lsem_body endpc s :=
+  if endpc == (lfn s, lpc s) then ok (inr s)
+  else Let s := step s in ok (inl s).
+
+Lemma i_lsem_body endpc s : ilsem_body endpc s ≅ iresult (to_estate s) (lsem_body endpc s).
+Proof.
+  rewrite /ilsem_body /lsem_body; case: eqP => h /=.
+  + reflexivity.
+  rewrite /istep.
+  case: step => [s' | ] /=.
+  + rewrite bind_ret_l; reflexivity.
+  move=> e; apply bind_throw.
+Qed.
 
 End ITREE.
 

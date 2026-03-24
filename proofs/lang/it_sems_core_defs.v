@@ -125,3 +125,11 @@ Instance FIso_suml : FIso (E1 +' E) (Err +' (E1 +' E0)) :=
    ; mid21 := mfun_suml_21 |}.
 
 End FIso_suml.
+
+Lemma bind_throw E E0 {wE : with_Error E E0} A B e (F : A -> itree E B):
+    ITree.bind (Exception.throw e) F
+    ≅ Exception.throw e.
+Proof.
+  rewrite /Exception.throw /= bind_vis.
+  apply eqit_Vis; case.
+Qed.
