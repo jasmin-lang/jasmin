@@ -35,6 +35,77 @@ Local Open Scope monad_scope.
 
 (** some is GENERAL -> move elsewhere *)
 
+From Paco Require Import paco.
+
+Lemma bind_iterX {E A B C D} (f : A -> itree E (A + B))
+  (g : D -> itree E (D + C)) (h: B -> D)
+  : forall x,
+    (ITree.bind (ITree.iter f x) (fun b => (ITree.iter g) (h b)))
+      ≈ 
+      ITree.iter (fun ad =>
+       match ad with
+       | inl a => ITree.map inl
+                    (ITree.map (fun ab => match ab with
+                                  | inl a => inl a
+                                  | inr b => inr (h b) end) (f a))
+       | inr d => ITree.map (bimap inr (id_ _)) (g d)
+       end) (inl x).
+Proof.
+  einit. ecofix CIH. intros.
+  rewrite !unfold_iter.
+  rewrite bind_map bind_bind.
+  ebind; econstructor.
+  instantiate (1:= fun (ab: A + B) (ad: A + D) =>
+                     match (ab, ad) with
+                     | (inl a1, inl a2) => eq a1 a2
+                     | (inr b, inr d) => eq (h b) d
+                     | _ => False
+                     end).
+  { generalize (f x).
+    clear x.
+    unfold ITree.map; simpl.
+    ginit; gcofix CIH.
+    intro t.
+    rewrite (itree_eta t); simpl.
+    remember (observe t) as ofx.
+    destruct ofx; simpl.
+    rewrite bind_ret_l.
+    { destruct r0; try reflexivity.
+      gstep; red.
+      econstructor; auto.
+      gstep; red.
+      econstructor; auto.
+    }
+    { rewrite bind_tau.
+      gstep; red. econstructor.
+      gfinal. left.
+      eapply CIH.
+    }
+    { rewrite bind_vis; simpl.
+      gstep; red. econstructor.
+      intros v; unfold Datatypes.id; simpl.
+      gfinal. left.
+      eapply CIH.
+    }  
+  }
+  intros [a1 | b] [a2 | d] hh.
+  inversion hh; subst. clear H.
+  - rewrite bind_tau. etau.
+  - intuition.
+  - intuition.
+  - rewrite bind_ret_l; setoid_rewrite tau_euttge.
+    rewrite hh.
+    clear hh.
+    revert d. ecofix CIH'. intros.
+    rewrite !unfold_iter.
+    rewrite bind_map.
+    ebind; econstructor; try reflexivity.
+    intros [d' | c] _ []; cbn. 
+    + etau. 
+    + reflexivity.  
+Qed.
+
+
 Definition err_def_option {E: Type -> Type} `{ErrEvent -< E} {V}
   (o: option V) : itree E V := err_option (ErrType, tt) o.
 
@@ -286,33 +357,663 @@ Definition abimap := (@bimap Type (ktree E) sum
                            (Kleisli (itree E)) Cat_Kleisli sum
                            Case_Kleisli Inl_Kleisli Inr_Kleisli)).
 
+Definition acat := @Cat_Kleisli (itree E) (@Monad_itree E).
+(*  (λ (a b c : Type) (u : ktree E a b) (v : ktree E b c) (x : a),
+     ITree.bind (u x) [eta v]) *)
+
 
 Section AbsIterators.
 (***** ABSTRACT ITERATORS *)
 Context {L: Type}.
 
+(* basic iteration intuition; however, it seems better to make the
+   exit check BEFORE executing the body. *)
+Definition Cntr_basic (Sem: L -> itree E L) (Init InRange Final: L -> bool)
+  (l0: L) : itree E (L + L) :=
+  match ((Init l0) || (InRange l0)) with
+  | true => l1 <- Sem l0 ;; Ret (inl l1)
+  | false => match (Final l0) with
+             | true => Ret (inr l0)
+             | false => throw err
+             end
+  end.             
+
+(* lift a semantics to the body of a loop. note: Init, Final and
+   InRange are not necessarily disjoint. *)
+Definition BKT (Sem: L -> itree E L) (Init Final InRange: L -> bool)
+  (pe: L + L) : itree E (L + L) :=
+  match pe with
+  | inl l0 => match Final l0 with
+              | true => Ret (inr l0)
+              | false => match InRange l0 with
+                         | true => l1 <- Sem l0 ;; Ret (inl l1)  
+                         | false => throw err
+                         end
+                   end
+  | inr l0 => match Final l0 with
+              | true => Ret (inr l0)
+              | false => match (Init l0) with
+                         | true => l1 <- Sem l0 ;; Ret (inl l1)  
+                         | false => throw err
+                         end
+                   end
+  end.                   
+
+Notation BKT_loop Sem Init Final InRange :=
+  (aloop (BKT Sem Init Final InRange)).
+
+(*
+Definition BKT_loop (Sem: L -> itree E L) (Init Final InRange: L -> bool)
+  (l0: L) : itree E L := aloop (BKT Sem Init Final InRange) l0.
+*)
+
+Lemma BKT_vanishing (Sem: L -> itree E L)
+  (Init Final InRange1 InRange2: L -> bool) (l0: L) :
+  eutt eq (ITree.bind (BKT_loop Sem (fun x => (InRange2 x) || (Init x))
+                           (fun x => (InRange2 x) || (Final x))
+                            InRange1 l0) 
+                      (BKT_loop Sem Init Final InRange2))
+          (BKT_loop Sem Init Final
+                  (fun x => (InRange1 x) || (InRange2 x)) l0).
+Proof.
+Admitted. 
+
+
+(* alternative: lift a semantics to the body of an iter. *)
+Definition MKT (Sem: L -> itree E L) (Final InRange: L -> bool)
+  (l0: L) : itree E (L + L) :=
+  match Final l0 with
+  | true => Ret (inr l0)
+  | false => match InRange l0 with
+             | true => l1 <- Sem l0 ;; Ret (inl l1)  
+             | false => throw err
+             end
+  end.
+
+Notation MKT_iter Sem Final InRange :=
+  (ITree.iter (MKT Sem Final InRange)).
+
+(*
+Definition MKT_iter (Sem: L -> itree E L) (Final InRange: L -> bool)
+  (l0: L) : itree E L := ITree.iter (MKT Sem Final InRange) l0.
+*)
+
+Lemma MKT_vanishing (Sem: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) (l0: L) :
+  eutt eq (ITree.bind (MKT_iter Sem (fun x => (InRange2 x) || (Final x))
+                            InRange1 l0) 
+                      (MKT_iter Sem Final InRange2))
+          (MKT_iter Sem Final
+                  (fun x => (InRange1 x) || (InRange2 x)) l0).
+Proof.
+  unfold aloop; simpl.
+  unfold MKT at 1 3; simpl.
+  setoid_rewrite bind_iterX.
+  unfold MKT; simpl.
+  unfold bimap, Bimap_Coproduct; simpl.
+    unfold CategoryOps.cat, case_, inl_; simpl.
+  unfold Case_Kleisli, case_sum, Cat_Fun, sum_inl, inr_, id_,
+      sum_inr, Id_Fun; simpl.
+
+  (* refactor the goal to make it more readable *)
+  assert (ITree.iter
+    (λ ad : L + L,
+       match ad with
+       | inl a =>
+           ITree.map inl
+                (if InRange2 a || Final a
+                 then Ret (inr a) (* inl a -> inl (inr a) *)
+                 else if InRange1 a
+                      then ITree.bind (Sem a) (λ l1 : L, Ret (inl l1))
+                                    (* inl a -> inl (inl a) *)  
+                      else throw err)
+       | inr d => ITree.map (λ x : L + L, match x with
+                                   | inl a => inl (inr a)
+                                   | inr b => inr b
+                                   end)
+             (if Final d
+              then Ret (inr d) (* inr d -> inr d *)
+              else if InRange2 d
+                   then ITree.bind (Sem d) (λ l1 : L, Ret (inl l1))
+                       (* inr d -> inl (inr d) *)             
+                   else throw err)               
+       end) (inl l0)
+  ≈ ITree.iter
+      (λ l1 : L,
+         if Final l1
+         then Ret (inr l1)
+         else if InRange1 l1 || InRange2 l1
+              then ITree.bind (Sem l1) (λ l2 : L, Ret (inl l2))
+              else throw err) l0
+         ) as W.
+  { eapply eutt_iter' with  
+    (RI := fun (x: L + L) (y: L) =>
+             (match x with
+             | inl l1 => l1 = y 
+             | inr l1 => l1 = y 
+             end)); simpl; try reflexivity.
+
+  intros j1 j2 H.
+  clear l0.
+  destruct j1 as [j1 | j1]; simpl.
+  { inversion H; subst; simpl. clear H0.    
+    destruct (Final j2) eqn: was_e0; simpl.
+    { destruct (InRange2 j2 || true) eqn: was_e1; simpl; try congruence.
+      2: { compute in was_e1.
+         destruct (InRange2 j2); try congruence.
+      }      
+      setoid_rewrite bind_ret_l; simpl.
+      pstep; red; econstructor.
+      (* PROBLEM: what is wrong? *)
+      (* econstructor *)
+      admit.
+    }
+      
+    destruct (InRange2 j2) eqn: was_e3; simpl.    
+    { destruct (InRange1 j2 || true) eqn: was_e4; simpl.
+      2: { compute in was_e4.
+           destruct (InRange1 j2); try congruence.
+      }
+      unfold ITree.map; setoid_rewrite bind_ret_l.
+      (* actually, PROBLEM: extra step on the right *)
+      admit.
+    }
+      
+    { destruct (InRange1 j2) eqn: was_e5; simpl.    
+      - unfold ITree.map; setoid_rewrite bind_bind.
+        eapply eqit_bind'; try reflexivity.
+        intros r1 r2 H.
+        inversion H; subst.
+        rewrite bind_ret_l.
+        pstep; red; econstructor.
+        econstructor; auto.
+      - setoid_rewrite bind_vis.
+        eapply eqit_Vis.
+        intro u. destruct u.
+    } 
+  }  
+Abort.    
+    
+Lemma MKT_vanishing (Sem: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) (l0: L) :
+  eutt eq (ITree.bind (MKT_iter Sem (fun x => (InRange2 x) || (Final x))
+                            InRange1 l0) 
+                      (MKT_iter Sem Final InRange2))
+          (MKT_iter Sem Final
+                  (fun x => (InRange1 x) || (InRange2 x)) l0).
+Proof.
+  unfold aloop; simpl.
+  unfold MKT at 1 3; simpl.
+  setoid_rewrite bind_iterX.
+  unfold MKT; simpl.
+  unfold bimap, Bimap_Coproduct; simpl.
+    unfold CategoryOps.cat, case_, inl_; simpl.
+  unfold Case_Kleisli, case_sum, Cat_Fun, sum_inl, inr_, id_,
+      sum_inr, Id_Fun; simpl.
+
+  (* refactor the goal to make it more readable *)
+  assert (ITree.iter
+    (λ ad : L + L,
+       match ad with
+       | inl a =>
+           ITree.map inl
+                (if InRange2 a || Final a
+                 then Ret (inr a) (* inl a -> inl (inr a) *)
+                 else if InRange1 a
+                      then ITree.bind (Sem a) (λ l1 : L, Ret (inl l1))
+                                    (* inl a -> inl (inl a) *)  
+                      else throw err)
+       | inr d => ITree.map (λ x : L + L, match x with
+                                   | inl a => inl (inr a)
+                                   | inr b => inr b
+                                   end)
+             (if Final d
+              then Ret (inr d) (* inr d -> inr d *)
+              else if InRange2 d
+                   then ITree.bind (Sem d) (λ l1 : L, Ret (inl l1))
+                       (* inr d -> inl (inr d) *)             
+                   else throw err)               
+       end) (inl l0)
+  ≈ ITree.iter
+      (λ l1 : L,
+         if Final l1
+         then Ret (inr l1)
+         else if InRange1 l1 || InRange2 l1
+              then ITree.bind (Sem l1) (λ l2 : L, Ret (inl l2))
+              else throw err) l0
+         ) as W.
+  { setoid_rewrite unfold_iter.
+
+    destruct (Final l0) eqn: was_e0; simpl.
+    { destruct (InRange2 l0 || true) eqn: was_e1; simpl.
+      2: { compute in was_e1.
+           destruct (InRange2 l0); try congruence.
+      }   
+      rewrite bind_bind.
+      setoid_rewrite bind_ret_l; simpl.
+      setoid_rewrite bind_ret_l; simpl.
+      setoid_rewrite tau_euttge.
+      admit.
+    }
+    { destruct (InRange2 l0) eqn: was_e2; simpl.
+      { destruct (InRange1 l0 || true) eqn: was_e3; simpl.
+        2: { compute in was_e3.
+             destruct (InRange1 l0); try congruence.
+        }
+        rewrite bind_bind.
+        setoid_rewrite bind_ret_l; simpl.
+        setoid_rewrite bind_ret_l; simpl.
+        setoid_rewrite tau_euttge; simpl.
+        admit.
+      }
+      { destruct (InRange1 l0) eqn: was_e4; simpl.
+        { setoid_rewrite bind_bind.  
+          setoid_rewrite bind_bind.  
+          setoid_rewrite bind_ret_l; simpl.
+          setoid_rewrite bind_ret_l; simpl.
+          eapply eqit_bind; try reflexivity.
+          intros l1.
+          admit.
+        }
+        { rewrite bind_bind.
+          setoid_rewrite bind_vis.
+          eapply eqit_Vis.
+          intro u. destruct u.
+        }
+     }
+    }
+  }
+  { rewrite <- W.
+    eapply eutt_iter.
+    intros [l | l]; try reflexivity.
+    eapply eqit_bind; try reflexivity.
+    unfold ITree.map; destruct (InRange2 l || Final l); simpl; try reflexivity.
+    { rewrite bind_ret_l; simpl; try reflexivity. }
+    { destruct (InRange1 l); try reflexivity.
+      - rewrite bind_bind; simpl.
+        eapply eqit_bind; try reflexivity.
+        intro pe; setoid_rewrite bind_ret_l; try reflexivity.
+      - setoid_rewrite bind_vis.
+        eapply eqit_Vis.
+        intro u. destruct u.
+    } 
+  } 
+Admitted.                 
+
+
+(* interesting; the left reduces to a 'deep' nesting on iters, 
+   while the right to a top-level iter (using bind_iterX) *)
+Lemma BKT_vanishing_aux1 (Sem: L -> itree E L)
+  (Init Final InRange1 InRange2: L -> bool) (l0: L) :  
+  eutt eq (BKT_loop (BKT_loop Sem Init Final InRange2)
+                 (fun x => (InRange2 x) || (Init x))
+                 (fun x => (InRange2 x) || (Final x))
+                 InRange1 l0)
+          (ITree.bind (BKT_loop Sem (fun x => (InRange2 x) || (Init x))
+                           (fun x => (InRange2 x) || (Final x))
+                            InRange1 l0) 
+                      (BKT_loop Sem Init Final InRange2)).
+Proof.
+  unfold aloop; simpl.
+  unfold BKT at 1 3; simpl.
+  unfold loop.
+  rewrite bind_bind; simpl.
+  eapply eqit_bind; try reflexivity.
+  intros pe.
+  unfold CategoryOps.iter.
+  unfold Iter_Kleisli, Basics.iter, MonadIter_itree; simpl.
+  unfold CategoryOps.cat; simpl.
+  unfold Cat_Kleisli; simpl.
+  setoid_rewrite bind_ret_l.
+  setoid_rewrite bind_iterX.
+  unfold BKT; simpl.
+Admitted.
+
+(*
+Variable (P1 : (L + L + (L + L)) -> (L + L) -> bool).
+Variable (P2 : (L + L + (L + L)) -> (L + L) -> bool).
+Variable (P3 : (L + L + (L + L)) -> (L + L) -> bool).
+Variable (P4 : (L + L + (L + L)) -> (L + L) -> bool).
+
+End AbsIterators.
+
+Notation L:= nat.
+
+Lemma BKT_vanishing_aux2 (Sem: L -> itree E L)
+  (Init Final InRange1 InRange2: L -> bool) (l0: L) :
+  eutt eq (ITree.bind (BKT_L Sem (fun x => (InRange2 x) || (Init x))
+                                (fun x => (InRange2 x) || (Final x))
+                                 InRange1 l0) 
+                      (BKT_L Sem Init Final InRange2))
+          (BKT_L Sem Init Final 
+                    (fun x => (InRange1 x) || (InRange2 x)) l0).
+Proof.
+  unfold BKT_L, aloop; simpl.
+  unfold BKT at 1 3; simpl.
+  unfold loop.
+  rewrite bind_bind; simpl.
+  eapply eqit_bind; try reflexivity.
+  intros pe.
+  unfold CategoryOps.iter.
+  unfold Iter_Kleisli, Basics.iter, MonadIter_itree; simpl.
+  unfold CategoryOps.cat; simpl.
+  unfold Cat_Kleisli; simpl.
+  setoid_rewrite bind_ret_l.
+  setoid_rewrite bind_iterX.
+  unfold BKT; simpl.
+  unfold ITree.map; simpl.
+  set LB := (fun ad : L + L + (L + L) => _).
+  set RB := (fun x : L + L => _).
+  set LT := (ITree.iter LB _).
+  set RT := (ITree.iter RB _).
+
+  destruct pe as [l1 | l1]; simpl.
+    
+(*  set X := (fun (x: L + L + (L + L)) (y: L + L) =>
+             (match (x, y) return bool with
+             | (inr (inr l1), inr l2) => (l1 == l2) 
+          
+             | (inl (inl l1), inl l2) => (l1 == l2) 
+             | (inl (inr l1), inr l2) => (l1 == l2) 
+             | _ => false
+             end)).
+*)  
+
+  eapply eutt_iter' with  
+    (RI := fun (x: L + L + (L + L)) (y: L + L) =>
+             (match (x, y) with
+             | (inr (inl l1), inl l2) => l1 = l2 
+             | (inr (inr l1), inr l2) => l1 = l2 
+             | (inl (inl l1), inl l2) => l1 = l2 
+             | (inl (inr l1), inr l2) => l1 = l2 
+             | _ => True
+             end)); simpl; try reflexivity.
+
+  intros j1 j2 H.
+  clear l0.
+  (*
+  rewrite H; simpl.
+  clear H.
+  clear j1.
+   *)
+  destruct j1 as [[j1 | j1] | [j1 | j1]]; try congruence; 
+  destruct j2 as [j2 | j2]; try congruence.
+  
+  { inversion H; subst; simpl.
+    
+    subst LB RB.
+    setoid_rewrite bind_bind.
+    setoid_rewrite bind_bind.
+    destruct (Final j2) eqn: was_e0; simpl.
+    destruct (InRange2 j2 || true) eqn: was_e1; simpl; try congruence.
+    2: { compute in was_e1.
+         destruct (InRange2 j2); try congruence.
+       }      
+    setoid_rewrite bind_ret_l; simpl.
+    unfold bimap, Bimap_Coproduct; simpl.
+    unfold CategoryOps.cat, case_, inl_; simpl.
+    
+    rewrite bind_bind; unfold id_; simpl.
+    setoid_rewrite bind_ret_l.
+    setoid_rewrite bind_ret_l.
+    setoid_rewrite bind_ret_l.
+    pstep; red; econstructor; simpl.
+    unfold Datatypes.id; simpl.
+    econstructor.
+
+    econstructor.
+    unfold LB; simpl.
+    unfold Datatypes.id; simpl.
+    reflexivity.
+    
+
+
+  
+Lemma BKT_vanishing_aux2 (Sem: L -> itree E L)
+  (Init Final InRange1 InRange2: L -> bool) (l0: L) :
+  eutt eq (ITree.bind (BKT_L Sem (fun x => (InRange2 x) || (Init x))
+                                (fun x => (InRange2 x) || (Final x))
+                                 InRange1 l0) 
+                      (BKT_L Sem Init Final InRange2))
+          (BKT_L Sem Init Final 
+                    (fun x => (InRange1 x) || (InRange2 x)) l0).
+Proof.
+  unfold BKT_L, aloop; simpl.
+  unfold BKT at 1 3; simpl.
+  unfold loop.
+  rewrite bind_bind; simpl.
+  eapply eqit_bind; try reflexivity.
+  intros pe.
+  unfold CategoryOps.iter.
+  unfold Iter_Kleisli, Basics.iter, MonadIter_itree; simpl.
+  unfold CategoryOps.cat; simpl.
+  unfold Cat_Kleisli; simpl.
+  setoid_rewrite bind_ret_l.
+  setoid_rewrite bind_iterX.
+  unfold BKT; simpl.
+  unfold ITree.map; simpl.
+  set LB := (fun ad : L + L + (L + L) => _).
+  set RB := (fun x : L + L => _).
+
+(*  
+  eapply eutt_iter' with
+    (RI := fun (x: L + L + (L + L)) (y: L + L) => eq x (inl y));
+    simpl; try reflexivity.
+ *)
+
+  eapply eutt_iter' with
+    (RI := fun (x: L + L + (L + L)) (y: L + L) =>
+             match (x, y) with
+             | (inr (inr l1), inr l2) => l1 == l2 
+          
+             | (inl (inl l1), inl l2) => l1 == l2 
+             | (inl (inr l1), inr l2) => l1 == l2 
+             | _ => false
+             end) ;
+    simpl; try reflexivity.
+
+(*  
+  eapply eutt_iter' with
+    (RI := fun (x: L + L + (L + L)) (y: L + L) => P1 x y);
+    simpl; try reflexivity.
+*)  
+
+  intros j1 j2 H.
+  clear l0.
+  clear pe.
+  (*
+  rewrite H; simpl.
+  clear H.
+  clear j1.
+   *)
+  destruct j1 as [[j1 | j1] | [j1 | j1]]; try congruence; 
+  destruct j2 as [j2 | j2]; try congruence.
+  
+  { inversion H; subst; simpl.
+    
+    subst LB RB.
+    setoid_rewrite bind_bind.
+    setoid_rewrite bind_bind.
+    destruct (Final j2) eqn: was_e0; simpl.
+    destruct (InRange2 j2 || true) eqn: was_e1; simpl; try congruence.
+    2: { compute in was_e1.
+         destruct (InRange2 j2); try congruence.
+       }      
+    setoid_rewrite bind_ret_l; simpl.
+    unfold bimap, Bimap_Coproduct; simpl.
+    unfold CategoryOps.cat, case_, inl_; simpl.
+    rewrite bind_bind; unfold id_; simpl.
+    setoid_rewrite bind_ret_l.
+    setoid_rewrite bind_ret_l.
+    setoid_rewrite bind_ret_l.
+    pstep; red; econstructor; simpl.
+    unfold Datatypes.id; simpl.
+    econstructor.
+
+    econstructor.
+    unfold LB; simpl.
+    unfold Datatypes.id; simpl.
+    reflexivity.
+    
+
+       
+  destruct j2; simpl.
+
+  { destruct (Final l) eqn: was_e0; simpl.
+    destruct (InRange2 l || true) eqn: was_e1; simpl; try congruence.
+    2: { compute in was_e1.
+         destruct (InRange2 l); try congruence.
+       }  
+    setoid_rewrite bind_ret_l; simpl.
+    unfold bimap, Bimap_Coproduct; simpl.
+    unfold CategoryOps.cat, case_, inl_; simpl.
+    rewrite bind_bind; unfold id_; simpl.
+    setoid_rewrite bind_ret_l.
+    setoid_rewrite bind_ret_l.
+    setoid_rewrite bind_ret_l.
+    pstep; red; econstructor; simpl.
+    unfold LB; simpl.
+    unfold Datatypes.id; simpl.
+    reflexivity.
+    
+  
+  
+  set RB := (fun x : L + L => _).
+
+  
+  
+  
+  destruct pe; simpl.
+
+  { 
+  eapply eutt_iter'.
+  instantiate (1 := fun x y => eq x (inl y)).
+  { simpl; intros j1 j2 H.
+    subst LB RB; simpl.
+    rewrite H; simpl.
+    unfold ITree.map; simpl.
+    setoid_rewrite bind_bind.
+    setoid_rewrite bind_bind.
+    clear H. clear j1.
+    destruct j2; simpl; try reflexivity.
+    
+    
+  
+  set XL := (ITree.iter _).
+  set XR := (ITree.iter _).
+  
+  
+Admitted. 
+
+
+
+Lemma BKT_vanishing2a (Sem: L -> itree E L)
+  (Init Final InRange1 InRange2: L -> bool) (l0: L) :
+  eutt eq (acat (BKT_L Sem (fun x => (InRange2 x) || (Init x))
+                           (fun x => (InRange2 x) || (Final x))
+                            InRange1) 
+                (BKT_L Sem Init Final InRange2) l0)
+         (BKT_L Sem Init Final
+                  (fun x => (InRange1 x) || (InRange2 x)) l0).
+Proof.
+  unfold BKT_L, aloop; simpl.
+  unfold BKT at 1 3; simpl.
+  unfold acat; simpl.
+  set W := (@loop_natural_right Type (ktree E) _ _  
+    (@Id_Kleisli (itree E) (@Monad_itree E))
+    (@Cat_Kleisli (itree E) (@Monad_itree E))
+     _ sum (@Case_Kleisli (itree E))
+    (@Inl_Kleisli (itree E) (@Monad_itree E))
+    (@Inr_Kleisli (itree E) (@Monad_itree E)) _ 
+    (@Iter_Kleisli (itree E) (@MonadIter_itree E)) _
+    lpoint lpoint lpoint lpoint).
+
+
+  loop; simpl.
+  unfold CategoryOps.cat; simpl.
+  rewrite bind_bind.
+  eapply eqit_bind; try reflexivity.
+  set X := iter_natural.
+  unfold eq2 in X; simpl in X.
+  unfold Eq2_Handler in X; simpl in X.
+  unfold eutt_Handler in X; simpl in X.
+  unfold Relation.i_pointwise in X; simpl in X.
+  unfold Handler in X; simpl in X.
+(*  unfold CategoryOps.cat in X; simpl in X.
+  unfold Cat_Handler in X; simpl in X.
+  unfold Handler.cat in X; simpl in X.
+  unfold interp in X; simpl in X.
+ *)
+    set W := (@loop_natural_right Type (ktree E) _ _  
+    (@Id_Kleisli (itree E) (@Monad_itree E))
+    (@Cat_Kleisli (itree E) (@Monad_itree E))
+     _ sum (@Case_Kleisli (itree E))
+    (@Inl_Kleisli (itree E) (@Monad_itree E))
+    (@Inr_Kleisli (itree E) (@Monad_itree E)) _ 
+    (@Iter_Kleisli (itree E) (@MonadIter_itree E)) _
+    lpoint lpoint lpoint lpoint).
+    unfold loop in W; simpl.
+
+  
+  set Y := loop_natural_right.
+  
+  intros pe; simpl.  
+*)
+
+(*
+Lemma BKT_vanishing2r (Sem: L -> itree E L)
+  (Init Final InRange1 InRange2: L -> bool) (l0: L) :
+  eutt eq (BKT_L (BKT_L Sem Init Final InRange2)
+                 (fun x => (InRange2 x) || (Init x))
+                 (fun x => (InRange2 x) || (Final x))
+                 InRange1 l0)
+          (BKT_L Sem Init Final
+                 (fun x => (InRange1 x) || (InRange2 x)) l0).
+Proof.
+  unfold BKT_L, aloop; simpl.
+  unfold BKT at 1 3; simpl.
+  unfold loop; simpl.
+  unfold CategoryOps.cat; simpl.
+  eapply eqit_bind; try reflexivity.
+  intros pe; simpl.
+  clear l0.
+  Check @iter_natural.
+  
+  iter (f >>> case_ (inl_ >>> inl_) inr_) >>> case_ (inl_ >>> inl_) inr_
+  ⩯ iter (f >>> case_ (inl_ >>> inl_) (case_ (inl_ >>> inl_) inr_ >>> inr_))
+
+Admitted.
+
+*)
+
+(* reversing: exit check after sem step *)
+Definition RACntr (Sem: L -> itree E L) (NoExit: L -> bool)
+  (l0: L) : itree E (L + L) :=
+  l1 <- Sem l0 ;; if NoExit l1 then Ret (inl l1) else Ret (inr l0).
+
+
 (* the generic iteration body used to define the semantics (with
    ITree.iter) *)
-Definition ACntr (Bd: L -> itree E L) (NoExit: L -> bool)
+Definition ACntr (Sem: L -> itree E L) (NoExit: L -> bool)
   (l0: L) : itree E (L + L) :=
   (* check whether the exit condition is satisfied *)
-  if NoExit l0 then l1 <- Bd l0 ;; Ret (inl l1) else Ret (inr l0).
+  if NoExit l0 then l1 <- Sem l0 ;; Ret (inl l1) else Ret (inr l0).
 
 (* the generic iteration body used to define the semantics (with
    loop). *)
-Definition ACntr2 (Bd: L -> itree E L) (NoExit: L -> bool)
+Definition ACntr2 (Sem: L -> itree E L) (NoExit: L -> bool)
   (pe: L + L) : itree E (L + L) :=
-  case_sum _ _ _ (ACntr Bd NoExit) (ACntr Bd NoExit) pe.
+  case_sum _ _ _ (ACntr Sem NoExit) (ACntr Sem NoExit) pe.
 
 (* iterates ACntr *)
-Definition ACntrI (Bd: L -> itree E L) (NoExit: L -> bool) :
+Definition ACntrI (Sem: L -> itree E L) (NoExit: L -> bool) :
   L -> itree E L :=
-  fun l0 => ITree.iter (ACntr Bd NoExit) l0.
+  fun l0 => ITree.iter (ACntr Sem NoExit) l0.
 
 (* loops ACntr2 *)
-Definition ACntrL (Bd: L -> itree E L) (NoExit: L -> bool) :
+Definition ACntrL (Sem: L -> itree E L) (NoExit: L -> bool) :
   L -> itree E L :=
-  fun l0 => aloop (ACntr2 Bd NoExit) l0.
+  fun l0 => aloop (ACntr2 Sem NoExit) l0.
 
 (* 'abstract' semantics of linear instruction *)
 Definition ALSem (Sem: linstr -> L -> itree E L)
@@ -381,10 +1082,10 @@ Definition find_linstr_in_fun (lp : lpoint) : option linstr :=
 (* the 'local' iteration body for the Intermediate semantics. nS and
    nE are the start and end points in the fn linear code wrt to which
    execution is contextual. *)
-Definition LACntr_weak (Bd: lpoint -> itree E lpoint)
+Definition LACntr_weak (Sem: lpoint -> itree E lpoint)
   (fn: funname) (nS nE: nat) :
   (lpoint + lpoint) -> itree E (lpoint + lpoint) :=
-  ACntr2 Bd
+  ACntr2 Sem
     (* exit condition: whenever either it jumps to another function,
        it gets out of range, or it makes a recursive call (n0 = 0).
        note: the last disjunct should cover recursive calls, as 0 is
@@ -393,10 +1094,10 @@ Definition LACntr_weak (Bd: lpoint -> itree E lpoint)
     (fun '(fn0, n0) =>
        (fn == fn0) && (nS <= n0) && (n0 < nE) && (0 < n0)).
 
-Definition LACntr (Bd: lpoint -> itree E lpoint)
+Definition LACntr (Sem: lpoint -> itree E lpoint)
   (fn: funname) (nS nE: nat) :
   (lpoint + lpoint) -> itree E (lpoint + lpoint) :=
-  ACntr2 Bd
+  ACntr2 Sem
     (* exit condition: whenever either it jumps to another function,
        it gets out of range, or it makes a recursive call (n0 = 0).
        note: the last disjunct should cover recursive calls, as 0 is
@@ -406,9 +1107,9 @@ Definition LACntr (Bd: lpoint -> itree E lpoint)
        (loc_possible fn fn0 nE) && (nS <= n0) && (n0 < nE) && (0 < n0)).
 
 (* iterates LACntr *)
-Definition LACntrI (Bd: lpoint -> itree E lpoint)   
+Definition LACntrI (Sem: lpoint -> itree E lpoint)   
   (fn: funname) (nS nE: nat) (lp0: lpoint) : itree E lpoint :=
-  aloop (@LACntr Bd fn nS nE) lp0. (* (fn, nS). *)
+  aloop (@LACntr Sem fn nS nE) lp0. (* (fn, nS). *)
 
 (* specialized version, using ALSem. used for Instrumented
     Function-Localised Linear Semantics. *)
@@ -1186,6 +1887,18 @@ Lemma aloop_aux1 {XS: stateE LState -< E}
                 if in_btw n0.+1 n1 pA
                 then lsem_cmd_imedF lcm1 lpA
                 else throw err) fn n0 n1.+1) lp0.
+Proof.
+  unfold LACntr at 1.
+  set LAL := (ACntr2 (aloop _)).
+  unfold aloop in LAL.
+  unfold ACntr2, ACntr in LAL.
+  
+  unfold aloop.
+(*  
+  unfold LACntr at 1 3.
+  unfold ACntr2, ACntr; simpl.
+  unfold case_sum; simpl.
+*)  
 Admitted. 
 
 (* this is A2. should work either on the right-hand side, pushing the
