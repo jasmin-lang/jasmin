@@ -428,6 +428,7 @@ Definition MKT (Sem: L -> itree E L) (Final InRange: L -> bool)
 Notation MKT_iter Sem Final InRange :=
   (ITree.iter (MKT Sem Final InRange)).
 
+(* here we use the WRONG strategy *)
 Lemma bind_MKTI (Sem: L -> itree E L)
   (Final InRange1 InRange2: L -> bool) (l0: L) :
   eutt eq (ITree.bind (MKT_iter Sem (fun x => (InRange2 x) || (Final x))
@@ -476,7 +477,8 @@ Proof.
               then ITree.bind (Sem l1) (λ l2 : L, Ret (inl l2))
               else throw err) l0
          ) as W.
-  { eapply eutt_iter' with  
+  { (* we are comparing the bodies: and it fails *)
+    eapply eutt_iter' with  
     (RI := fun (x: L + L) (y: L) =>
              (match x with
              | inl l1 => l1 = y 
@@ -523,7 +525,8 @@ Proof.
     } 
   }  
 Abort.    
-    
+
+(* better strategy, but we need coinduction *)
 Lemma bind_MKTI (Sem: L -> itree E L)
   (Final InRange1 InRange2: L -> bool) (l0: L) :
   eutt eq (ITree.bind (MKT_iter Sem (fun x => (InRange2 x) || (Final x))
@@ -572,7 +575,8 @@ Proof.
               then ITree.bind (Sem l1) (λ l2 : L, Ret (inl l2))
               else throw err) l0
          ) as W.
-  { setoid_rewrite unfold_iter.
+  { (* we should use coinduction, though *)
+    setoid_rewrite unfold_iter.
 
     destruct (Final l0) eqn: was_e0; simpl.
     { destruct (InRange2 l0 || true) eqn: was_e1; simpl.
@@ -583,7 +587,11 @@ Proof.
       setoid_rewrite bind_ret_l; simpl.
       setoid_rewrite bind_ret_l; simpl.
       setoid_rewrite tau_euttge.
-      admit.
+      rewrite unfold_iter; simpl.
+      rewrite bind_bind.
+      rewrite was_e0; simpl.
+      rewrite bind_ret_l.
+      rewrite bind_ret_l; reflexivity.
     }
     { destruct (InRange2 l0) eqn: was_e2; simpl.
       { destruct (InRange1 l0 || true) eqn: was_e3; simpl.
@@ -593,7 +601,17 @@ Proof.
         rewrite bind_bind.
         setoid_rewrite bind_ret_l; simpl.
         setoid_rewrite bind_ret_l; simpl.
-        setoid_rewrite tau_euttge; simpl.
+        setoid_rewrite tau_euttge at 1; simpl.
+        setoid_rewrite unfold_iter at 1; simpl.
+        rewrite bind_bind.
+        rewrite was_e0; simpl.
+        rewrite was_e2; simpl.
+        rewrite bind_bind.
+        setoid_rewrite bind_ret_l.
+        setoid_rewrite bind_ret_l.
+        eapply eqit_bind; try reflexivity.
+        intros l1.
+        (* should go through by CIH *)
         admit.
       }
       { destruct (InRange1 l0) eqn: was_e4; simpl.
@@ -603,6 +621,7 @@ Proof.
           setoid_rewrite bind_ret_l; simpl.
           eapply eqit_bind; try reflexivity.
           intros l1.
+        (* should go through by CIH *)          
           admit.
         }
         { rewrite bind_bind.
@@ -630,9 +649,9 @@ Proof.
   } 
 Admitted.                 
 
-
-(* interesting; the left reduces to a 'deep' nesting on iters, 
-   while the right to a top-level iter (using bind_iterX) *)
+(* interesting, but is it right? probably not. the left reduces to a
+   'deep' nesting on iters, while the right to a top-level iter (using
+   bind_iterX) *)
 Lemma bind_BKTL_vanishing (Sem: L -> itree E L)
   (Init Final InRange1 InRange2: L -> bool) (l0: L) :  
   eutt eq (BKT_loop (BKT_loop Sem Init Final InRange2)
@@ -659,6 +678,7 @@ Proof.
   unfold BKT; simpl.
 Admitted.
 
+(* might also be wrong *)
 Lemma BKTL_split (Sem: L -> itree E L)
   (Init Final InRange1 InRange2: L -> bool) (l0: L) :
   eutt eq (BKT_loop (BKT_loop Sem Init Final InRange2)
@@ -678,6 +698,7 @@ Lemma BKTL_aux1 (Sem: L -> itree E L)
                     Init Final InRange l0)
           (BKT_loop Sem Init Final InRange l0).
 Proof.
+  unfold aloop, BKT; simpl.
 Admitted. 
 
 Lemma BKTL_aux2 (Sem: L -> itree E L)
@@ -700,6 +721,39 @@ Lemma MKTI_aux1 (Sem: L -> itree E L)
                     Final InRange l0)
           (MKT_iter Sem Final InRange l0).
 Proof.
+  unfold MKT; simpl.
+  setoid_rewrite unfold_iter; simpl.
+  destruct (Final l0) eqn: was_e0; simpl.    
+  { setoid_rewrite bind_ret_l; simpl; try reflexivity. }
+  destruct (InRange l0) eqn: was_e1; simpl.
+  { setoid_rewrite bind_bind; simpl.
+    setoid_rewrite bind_ret_l; simpl.
+    (* wrong approach *)
+(*    eapply eqit_bind; simpl.
+    rewrite unfold_iter; simpl.
+    rewrite was_e0; simpl.
+    rewrite was_e1; simpl.
+    rewrite bind_bind.
+    setoid_rewrite bind_ret_l; simpl.
+*)  
+    setoid_rewrite tau_euttge at 1.
+    rewrite bind_iter.
+    rewrite unfold_iter.
+    rewrite was_e0; simpl.
+    rewrite was_e1; simpl.
+    setoid_rewrite bind_bind; simpl.
+    setoid_rewrite bind_bind; simpl.
+    eapply eqit_bind; try reflexivity.
+    intro l1.
+    rewrite bind_ret_l.
+    rewrite bind_ret_l.
+    (* maybe by CIH? *)
+    admit.
+  }
+  { setoid_rewrite bind_vis.
+    eapply eqit_Vis.
+    intro u. destruct u.
+  }      
 Admitted. 
 
 Lemma MKTI_aux2 (Sem: L -> itree E L)
@@ -714,6 +768,81 @@ Lemma MKTI_aux2 (Sem: L -> itree E L)
                     else throw err)               
                Final InRange12 l0).
 Proof.
+  simpl. unfold MKT.
+  setoid_rewrite unfold_iter.
+  destruct (Final l0) eqn: was_e0; simpl.    
+  { setoid_rewrite bind_ret_l; simpl; try reflexivity. }
+  destruct (InRange1 l0 || InRange2 l0) eqn: was_e1; simpl.
+  { setoid_rewrite bind_bind; simpl.
+    setoid_rewrite bind_ret_l; simpl.
+    destruct (InRange1 l0) eqn: was_e2; simpl.
+    (* eapply eqit_bind; try reflexivity. *)
+    (* does not look right *)
+    { setoid_rewrite tau_euttge at 1.
+      setoid_rewrite bind_iter.
+      setoid_rewrite unfold_iter at 1.  
+      rewrite was_e0; simpl.
+      rewrite bind_bind.
+      destruct (InRange1 l0 || InRange2 l0) eqn: was_e3; simpl.
+      2: { setoid_rewrite was_e2 in was_e3; simpl in *.
+           intuition.
+      }
+      setoid_rewrite bind_ret_l.
+      setoid_rewrite bind_bind.
+
+      setoid_rewrite tau_euttge at 2.
+      setoid_rewrite bind_iter.
+      setoid_rewrite unfold_iter at 2.
+      rewrite was_e0; simpl.
+      rewrite was_e2; simpl.
+      rewrite bind_bind.
+      rewrite bind_bind.
+      eapply eqit_bind; try reflexivity.
+      intro l1.
+      setoid_rewrite bind_ret_l.
+      setoid_rewrite bind_ret_l.
+      (* CIH? *)
+      admit.
+    }
+    { setoid_rewrite tau_euttge; simpl.
+      destruct (InRange2 l0) eqn: was_e4; simpl.
+      { setoid_rewrite bind_iter.
+        setoid_rewrite unfold_iter.
+        rewrite was_e0; simpl.
+        rewrite was_e4; simpl.
+        destruct (InRange1 l0 || true) eqn: was_e5; simpl.
+        2: { compute in was_e5.
+             rewrite was_e2 in was_e5; simpl in *.
+             intuition.
+        }
+        eapply eqit_bind; try reflexivity.
+        intro te1.
+        destruct te1 as [[l1 | l1] | l1]; simpl; try reflexivity.
+        (* CIH? *)
+        admit.
+        admit.
+      }
+      { simpl.
+        setoid_rewrite bind_iter at 1.
+        rewrite unfold_iter.
+        rewrite was_e0; simpl.
+        destruct (InRange1 l0 || InRange2 l0) eqn: was_e6; simpl.
+        { rewrite was_e2 in was_e6.
+          rewrite was_e4 in was_e6.
+          compute in was_e6; intuition.
+        }
+        { rewrite bind_bind.
+          setoid_rewrite bind_vis.
+          eapply eqit_Vis.
+          intro u. destruct u.
+        }      
+      }
+    }
+  }
+  { setoid_rewrite bind_vis.
+    eapply eqit_Vis.
+    intro u. destruct u.
+  }              
 Admitted. 
 
 
