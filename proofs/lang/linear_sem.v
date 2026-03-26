@@ -364,6 +364,57 @@ Proof.
   move=> e; apply bind_throw.
 Qed.
 
+Fixpoint lsem_body_n endpc n s :=
+  Let ins := lsem_body endpc s in
+  match n with
+  | 0 => ok ins
+  | S n =>
+    match ins with
+    | inl s => lsem_body_n endpc n s
+    | inr s => ok (inr s)
+    end
+  end.
+
+Lemma lsem_body_nE endpc n s :
+  lsem_body_n endpc n s =
+  Let ins := lsem_body endpc s in
+  match n with
+  | 0 => ok ins
+  | S n =>
+    match ins with
+    | inl s => lsem_body_n endpc n s
+    | inr s => ok (inr s)
+    end
+  end.
+Proof. by case: n. Qed.
+
+Lemma i_lsem_body_n endpc n s :
+  eqit eq true true
+    (xrutt_facts.iter_n (ilsem_body endpc) n s)
+    (err_result (pair^~ tt) (lsem_body_n endpc n s)).
+Proof.
+  elim: n s => /= [ | n hn] s.
+  + rewrite i_lsem_body; case: lsem_body => [ ins|] /=; reflexivity.
+  rewrite i_lsem_body; case: lsem_body => [ ins|] /=.
+  + rewrite bind_ret_l; case: ins => s' /=; last reflexivity.
+    by apply eqit_Tau_l; apply hn.
+  move=> e; rewrite /Exception.throw /= bind_vis.
+  apply eqit_Vis; case.
+Qed.
+
+Lemma lsem_body_n_add endpc n m s :
+  lsem_body_n endpc (n + m.+1) s =
+  Let ins := lsem_body_n endpc n s in
+  match ins with
+  | inl s => lsem_body_n endpc m s
+  | inr s => ok (inr s)
+  end.
+Proof.
+  elim: n s => /= [ | n ih] s.
+  + by case: (lsem_body endpc s).
+  by case: (lsem_body endpc s) => // -[].
+Qed.
+
 End ITREE.
 
 End SEM.

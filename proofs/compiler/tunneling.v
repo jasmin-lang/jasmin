@@ -26,8 +26,13 @@ Section LprogSem.
   Definition labels_of_body fb :=
     pmap (λ li, if li_i li is Llabel _ lbl then Some lbl else None) fb.
 
-  Definition goto_targets fb :=
-    pmap (λ li, if li_i li is Lgoto lbl then Some lbl else None) fb.
+  Definition goto_targets fn fb :=
+    pmap (λ li,
+      match li_i li with
+      | Lgoto lbl => Some lbl
+      | Lcond _ lbl => Some (fn, lbl)
+      | _ => None
+      end) fb.
 
   Definition setfb fd fb : lfundef :=
     LFundef
@@ -109,7 +114,7 @@ Section TunnelingWF.
     uniq lbls &&
     all
       (fun '(fn', l) => (fn != fn') || (l \in lbls))
-      (goto_targets fb).
+      (goto_targets fn fb).
 
   Definition well_formed_funcs lf :=
     uniq (map fst lf)
