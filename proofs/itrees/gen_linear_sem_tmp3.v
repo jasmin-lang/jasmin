@@ -659,6 +659,64 @@ Proof.
   unfold BKT; simpl.
 Admitted.
 
+Lemma BKTL_split (Sem: L -> itree E L)
+  (Init Final InRange1 InRange2: L -> bool) (l0: L) :
+  eutt eq (BKT_loop (BKT_loop Sem Init Final InRange2)
+                 (fun x => (InRange2 x) || (Init x))
+                 (fun x => (InRange2 x) || (Final x))
+                 InRange1 l0)
+          (BKT_loop Sem Init Final
+                  (fun x => (InRange1 x) || (InRange2 x)) l0).
+Proof.
+Admitted. 
+
+(*****************************************************************)
+
+Lemma BKTL_aux1 (Sem: L -> itree E L)
+  (Init Final InRange: L -> bool) (l0: L) :
+  eutt eq (BKT_loop (BKT_loop Sem Init Final InRange)
+                    Init Final InRange l0)
+          (BKT_loop Sem Init Final InRange l0).
+Proof.
+Admitted. 
+
+Lemma BKTL_aux2 (Sem: L -> itree E L)
+  (Init Final InRange1 InRange2: L -> bool) (l0: L) :
+  let InRange12 := fun x => InRange1 x || InRange2 x in 
+  eutt eq (BKT_loop (BKT_loop Sem Init Final InRange12)
+                    Init Final InRange12 l0)
+          (BKT_loop (fun l1 => if InRange1 l1
+               then BKT_loop Sem Init Final InRange1 l1
+               else if InRange2 l1
+                    then BKT_loop Sem Init Final InRange2 l1
+                    else throw err)               
+               Init Final InRange12 l0).
+Proof.
+Admitted. 
+
+Lemma MKTI_aux1 (Sem: L -> itree E L)
+  (Final InRange: L -> bool) (l0: L) :
+  eutt eq (MKT_iter (MKT_iter Sem Final InRange)
+                    Final InRange l0)
+          (MKT_iter Sem Final InRange l0).
+Proof.
+Admitted. 
+
+Lemma MKTI_aux2 (Sem: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) (l0: L) :
+  let InRange12 := fun x => InRange1 x || InRange2 x in 
+  eutt eq (MKT_iter (MKT_iter Sem Final InRange12)
+                    Final InRange12 l0)
+          (MKT_iter (fun l1 => if InRange1 l1
+               then MKT_iter Sem Final InRange1 l1
+               else if InRange2 l1
+                    then MKT_iter Sem Final InRange2 l1
+                    else throw err)               
+               Final InRange12 l0).
+Proof.
+Admitted. 
+
+
 (*
 Variable (P1 : (L + L + (L + L)) -> (L + L) -> bool).
 Variable (P2 : (L + L + (L + L)) -> (L + L) -> bool).
@@ -1882,7 +1940,6 @@ Proof.
   set LAL := (ACntr2 (aloop _)).
   unfold aloop in LAL.
   unfold ACntr2, ACntr in LAL.
-  
   unfold aloop.
 (*  
   unfold LACntr at 1 3.
