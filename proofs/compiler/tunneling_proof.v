@@ -142,7 +142,7 @@ Section LprogSemProps.
   Lemma get_fundef_setfunc lf fn fn' fd :
     get_fundef (setfunc lf fn fd) fn' =
     if fn == fn'
-    then 
+    then
       if fn \in map fst lf
       then Some fd
       else None
@@ -459,7 +459,7 @@ Section TunnelingProps.
 
   | TL_Otherwise :
       ~~ ((li_is_label (nth Linstr_align (Linstr_align :: lc) pc) &&
-           li_is_label (nth Linstr_align (Linstr_align :: lc) pc.+1)) || 
+           li_is_label (nth Linstr_align (Linstr_align :: lc) pc.+1)) ||
           (li_is_label (nth Linstr_align (Linstr_align :: lc) pc) &&
            li_is_goto (nth Linstr_align (Linstr_align :: lc) pc.+1))) ->
       tunnel_lcmd_pc_spec lc.
@@ -548,7 +548,7 @@ Section TunnelingProps.
       set uf:= tunnel_plan _ _ _; rewrite tunnel_head_union //.
       rewrite find_tunnel_plan_rcons_id //.
       by rewrite labels_of_body_rcons /= rcons_uniq Hnotin'.
-    + case: ifP; first by move => /eqP ?; subst fn'; rewrite eq_refl in Hneqfn. 
+    + case: ifP; first by move => /eqP ?; subst fn'; rewrite eq_refl in Hneqfn.
       by move => -> /= {Heq}; rewrite tunnel_head_empty.
     move: Hnor {Heq}; case c'' => [ii i]; case c''' => [ii' i'].
     by case i => [? ? ?|?|? ?| | |[] ?|[? ?]|?|? ?|? ?]; (case i' => [? ? ?|? ?|?| | |[] ?|[? ?]|?|? ?|? ?] //=);
@@ -720,19 +720,22 @@ Section TunnelingWFProps.
       |Hneg Heq].
     3-4:
       by rewrite -!Heq.
-    + clear Heq Htunnel_lcmd.
-      all: rewrite !all_pmap all_map => /allE/List.Forall_forall h; apply/allE/List.Forall_forall => i hi.
-      all: move/h: (hi).
-      all: case: i hi => ii [] // [] /= f lbl hi.
-      all: case: ifP => /= -> //=.
-      all: rewrite LUF.find_union !LUF.find_empty.
-      all: case: eqP => // ? _; subst lbl.
-      { case/is_label_nth_onth: HSpc => jj [] k /= /(@onth_In _ _); clear.
-        elim: fb; first by [].
-        case => ii /= i m ih [].
-        - by case => _{ii} ->{i}; rewrite inE eqxx.
-       by move/ih; case: i => //= ? ?; rewrite inE => ->; rewrite orbT. }
-      case/is_goto_nth_onth: HSpc => jj /= /(@onth_In _ _ _ _) /h.
+    1: clear Heq Htunnel_lcmd.
+    all: rewrite !all_pmap all_map => /allE/List.Forall_forall h; apply/allE/List.Forall_forall => i hi.
+    all: move/h: (hi).
+    all: case: i hi => ii [] //= => [ [f lbl] | e lbl] hi /=.
+    1, 3: case: ifP => /= -> //=.
+    3, 4: rewrite eqxx /=.
+    all: try rewrite LUF.find_union !LUF.find_empty.
+    all: try case: eqP => // ? _; subst lbl.
+    1, 3:
+      case/is_label_nth_onth: HSpc => jj [] k /= /(@onth_In _ _); clear;
+      elim: fb; first by [];
+      case => ii /= i m ih [];
+      [ by case => _{ii} ->{i}; rewrite inE eqxx
+      | by move/ih; case: i => //= ? ?; rewrite inE => ->; rewrite orbT].
+    1, 2:
+      case/is_goto_nth_onth: HSpc => jj /= /(@onth_In _ _ _ _) /h;
       by rewrite /= eqxx.
   Qed.
 
@@ -917,15 +920,15 @@ Section TunnelingSem.
           ( ~~ ((((ssrfun.omap
                      (fun c => is_local_goto_to_label fn c (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc))
                      oc) == Some true) &&
-                   li_is_label (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1)) || 
+                   li_is_label (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1)) ||
                 ((ssrfun.omap
                     (fun c => is_cond_to_label c (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc))
                     oc == Some true) &&
-                  li_is_label (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1)) || 
+                  li_is_label (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1)) ||
                 ((ssrfun.omap
                     (fun c => is_local_goto_to_label fn c (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc))
                     oc == Some true) &&
-                  li_is_local_goto fn (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1)) || 
+                  li_is_local_goto fn (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1)) ||
                 ((ssrfun.omap
                     (fun c => is_cond_to_label c (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc))
                     oc == Some true) &&
@@ -1370,7 +1373,7 @@ Section TunnelingProof.
     (forall s1 s2,
       lsem (tunnel_lprog p) s1 s2 ->
       lsem p s1 s2) /\
-    forall s1 s2, 
+    forall s1 s2,
       lsem p s1 s2 ->
       exists s3, lsem p s2 s3 /\
              lsem (tunnel_lprog p) s1 s3.

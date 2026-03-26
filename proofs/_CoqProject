@@ -126,6 +126,7 @@ compiler/stack_zeroization.v
 compiler/stack_zeroization_proof.v
 compiler/tunneling.v
 compiler/tunneling_proof.v
+compiler/tunneling_proof_2.v
 compiler/unionfind.v
 compiler/unionfind_proof.v
 compiler/unrolling.v

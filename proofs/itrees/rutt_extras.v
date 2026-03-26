@@ -58,6 +58,41 @@ Proof.
   rewrite bind_ret_l; reflexivity.
 Qed.
 
+Lemma eqit_iter_n (E : Type -> Type) {I1 I2 R1 R2}
+      b1 b2
+      (RI : I1 -> I2 -> Prop)
+      (RR : R1 -> R2 -> Prop)
+      (body1 : I1 -> itree E (I1 + R1))
+      (body2 : I2 -> itree E (I2 + R2)) :
+  (forall j1 j2, RI j1 j2 ->
+     exists n,
+       eqit (sum_rel RI RR) b1 b2 (body1 j1) (iter_n body2 n j2)) ->
+  forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
+    eqit RR b1 b2 (ITree.iter body1 i1) (ITree.iter body2 i2).
+Proof.
+  ginit. gcofix CIH.
+  intros.
+  rewrite unfold_iter.
+  have [n hn] := H0 _ _ RI_i.
+  rewrite (unfold_iter_n body2 n).
+  eapply gpaco2_uclo; [|eapply eqit_clo_bind|]; eauto with paco.
+  econstructor; eauto. intros; subst. gfinal. right.
+  destruct u1; try discriminate.
+  destruct u2; try discriminate.
+  pstep; red.
+  econstructor.
+  right.
+  eapply CIH; eauto.
+  inversion H; subst; auto.
+  pstep; red.
+  inversion H; subst.
+  destruct u2; try discriminate.
+  inversion H; subst.
+  pstep; red.
+  econstructor.
+  inversion H; subst; auto.
+Qed.
+
 Lemma rutt_iter_n (E1 E2 : Type -> Type) {I1 I2 R1 R2}
       (RI : I1 -> I2 -> Prop)
       (RR : R1 -> R2 -> Prop)
