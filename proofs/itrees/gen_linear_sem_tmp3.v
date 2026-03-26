@@ -402,12 +402,7 @@ Definition BKT (Sem: L -> itree E L) (Init Final InRange: L -> bool)
 Notation BKT_loop Sem Init Final InRange :=
   (aloop (BKT Sem Init Final InRange)).
 
-(*
-Definition BKT_loop (Sem: L -> itree E L) (Init Final InRange: L -> bool)
-  (l0: L) : itree E L := aloop (BKT Sem Init Final InRange) l0.
-*)
-
-Lemma BKT_vanishing (Sem: L -> itree E L)
+Lemma bind_BKTL (Sem: L -> itree E L)
   (Init Final InRange1 InRange2: L -> bool) (l0: L) :
   eutt eq (ITree.bind (BKT_loop Sem (fun x => (InRange2 x) || (Init x))
                            (fun x => (InRange2 x) || (Final x))
@@ -433,12 +428,7 @@ Definition MKT (Sem: L -> itree E L) (Final InRange: L -> bool)
 Notation MKT_iter Sem Final InRange :=
   (ITree.iter (MKT Sem Final InRange)).
 
-(*
-Definition MKT_iter (Sem: L -> itree E L) (Final InRange: L -> bool)
-  (l0: L) : itree E L := ITree.iter (MKT Sem Final InRange) l0.
-*)
-
-Lemma MKT_vanishing (Sem: L -> itree E L)
+Lemma bind_MKTI (Sem: L -> itree E L)
   (Final InRange1 InRange2: L -> bool) (l0: L) :
   eutt eq (ITree.bind (MKT_iter Sem (fun x => (InRange2 x) || (Final x))
                             InRange1 l0) 
@@ -534,7 +524,7 @@ Proof.
   }  
 Abort.    
     
-Lemma MKT_vanishing (Sem: L -> itree E L)
+Lemma bind_MKTI (Sem: L -> itree E L)
   (Final InRange1 InRange2: L -> bool) (l0: L) :
   eutt eq (ITree.bind (MKT_iter Sem (fun x => (InRange2 x) || (Final x))
                             InRange1 l0) 
@@ -643,7 +633,7 @@ Admitted.
 
 (* interesting; the left reduces to a 'deep' nesting on iters, 
    while the right to a top-level iter (using bind_iterX) *)
-Lemma BKT_vanishing_aux1 (Sem: L -> itree E L)
+Lemma bind_BKTL_vanishing (Sem: L -> itree E L)
   (Init Final InRange1 InRange2: L -> bool) (l0: L) :  
   eutt eq (BKT_loop (BKT_loop Sem Init Final InRange2)
                  (fun x => (InRange2 x) || (Init x))
@@ -1860,7 +1850,7 @@ Proof.
 Qed.
 
 
-(* this is A1. similar to loop_vanishing_2 *)
+(* this is Lm1. similar to loop_vanishing_2 *)
 Lemma aloop_aux1 {XS: stateE LState -< E}
   (fn fn0 : funname) (n0 n1 n2: nat) (l0 l1: label)
   (lcm1: LTreeList fn (incrP1 (n0, l0)) (n1, l1)) :
@@ -1901,7 +1891,7 @@ Proof.
 *)  
 Admitted. 
 
-(* this is A2. should work either on the right-hand side, pushing the
+(* this is Lm2. should work either on the right-hand side, pushing the
    inner loop inwards, or on the left-hand side, pushing the local
    loop outwards. *)
 Lemma aloop_aux2 {XS: stateE LState -< E}
@@ -1993,6 +1983,45 @@ Proof.
                  push the inner loop inward on the left, 
                  apply the inductive hyp H to the right, 
                  reflexivity. *)
+
+(*
+here we have A ~ B. what we prove (in the following) is A ~ C. 
+we need to prove aux12: B ~ C.
+we try to do this working on B by: 
+  a) doubling the top-level loop (aux1), 
+  b) pushing the inner loop inward (aux2). 
+
+A := loop (LACntr
+       (λ '((_, pA) as lpA),
+          if (pA == n0) || (pA == n1)
+          then isem_li_aflow lpA
+          else
+           if in_btw n0.+1 n1 pA
+           then lsem_cmd_imedA in_btw LACntrI 
+                   Bind_cmb isem_lcmd_seq_flow isem_li_aflow lcm1 lpA
+           else throw err) fn n0 n1.+1) (fn0, nA)
+B := loop (LACntr
+         (λ '((_, pA) as lpA),
+            if (pA == n0) || (pA == n1)
+            then isem_li_aflow lpA
+            else
+             if in_btw n0.+1 n1 pA
+             then lsem_cmd_imedA in_btw Id_cmb 
+                    Switch_cmb isem_lcmd_seq_flow isem_li_aflow lcm1 lpA
+             else throw err) fn n0 n1.+1) (fn0, nA)
+C := loop (LACntr
+         (λ '((_, pA) as lpA),
+            if (pA == n0) || (pA == n1)
+            then isem_li_aflow lpA
+            else
+             if in_btw n0.+1 n1 pA
+             then
+              loop
+                (LACntr (lsem_cmd_imedA in_btw Id_cmb 
+                    Switch_cmb isem_lcmd_seq_flow isem_li_aflow lcm1) 
+                        fn n0.+1 n1) lpA
+             else throw err) fn n0 n1.+1) (fn0, nA)
+*)    
     
     set PL := (fun '((_, pA) as lpA) => _).
     set PO := (fun '((_, pA) as lpA) => _).
@@ -2004,7 +2033,7 @@ Proof.
        one) to get it into a shape where the induction hyp is
        usable. first we introduce a (redundant) inner loop. should be
        similar to loop_vanishing_2. *)
-    assert (eutt eq (PO2 lp0) (PO1 lp0)) as A1.
+    assert (eutt eq (PO2 lp0) (PO1 lp0)) as Lm1.
     { subst PO2 PO1 PO; simpl.
       subst lp0; eapply aloop_aux1.
     }
@@ -2023,20 +2052,20 @@ Proof.
 
     (* we now want to push this loop further inward, to match a local
        one. maybe could just prove PO1 ~~ PI? probably not. *)
-    assert (eutt eq (PO2 lp0) (PI0 lp0)) as A2.
+    assert (eutt eq (PO2 lp0) (PI0 lp0)) as Lm2.
     { subst PO2 PO1 PO PI0 PI; simpl.
-      clear A1. subst PL.
+      clear Lm1. subst PL.
       subst lp0; eapply aloop_aux2.
     }
     
     (* now we can apply these two lemmas to ge the right-hand side in
     the right shape. *)
-    rewrite A1 in A2.
+    rewrite Lm1 in Lm2.
     subst PO1 PI0.
-    subst lp0. unfold aloop in A2.
-    rewrite A2.
+    subst lp0. unfold aloop in Lm2.
+    rewrite Lm2.
     subst PO PO2 PL PI; simpl in *.
-    clear A1 A2.
+    clear Lm1 Lm2.
     
     unfold aloop, loop, CategoryOps.cat, Cat_Kleisli; simpl.
     eapply eqit_bind; try reflexivity.
