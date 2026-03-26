@@ -1075,7 +1075,7 @@ Proof.
   }              
 Abort. 
 
-(* looks better... *)
+(* looks better but... *)
 Lemma MKTI_aux2 (Sem: L -> itree E L)
   (Final InRange1 InRange2: L -> bool) (l0: L) :
   let InRange12 := fun x => InRange1 x || InRange2 x in 
@@ -1090,9 +1090,333 @@ Lemma MKTI_aux2 (Sem: L -> itree E L)
                     else throw err)               
                Final InRange12 l0).
 Proof.
+  simpl. unfold MKT.
+  setoid_rewrite unfold_iter.
 
-Admitted. 
+  eapply eqit_bind.
+  destruct (Final l0) eqn: was_e0; simpl; try reflexivity.
+  destruct (InRange1 l0 || InRange2 l0) eqn: was_e1; simpl;
+    try reflexivity.
+  eapply eqit_bind; try reflexivity.
+  destruct (InRange1 l0) eqn: was_e2; simpl.
+  admit.
 
+  admit.
+
+  intros pe.
+  destruct pe as [l1 | l1]; simpl; try reflexivity.
+  
+(* yes, should CIH *)  
+  admit.
+Admitted.   
+  
+(*
+ ITree.iter
+    (λ l1 : L,
+       if Final l1
+       then Ret (inr l1)
+       else
+        if InRange1 l1 || InRange2 l1
+        then
+         l2 <-
+         ITree.iter
+           (λ l2 : L,
+              if Final l2
+              then Ret (inr l2)
+              else
+               if InRange1 l2 || InRange2 l2
+               then l3 <- Sem l2;; Ret (inl l3)
+               else throw err) l1;; Ret (inl l2)
+        else throw err) l0
+  ≈ ITree.iter
+      (λ l1 : L,
+         if Final l1
+         then Ret (inr l1)
+         else
+          if InRange1 l1 || InRange2 l1
+          then
+           l2 <-
+           (if InRange1 l1
+            then
+             ITree.iter
+               (λ l2 : L,
+                  if Final l2 || InRange2 l2
+                  then Ret (inr l2)
+                  else
+                   if InRange1 l2
+                   then l3 <- Sem l2;; Ret (inl l3)
+                   else throw err) l1
+            else
+             if InRange2 l1
+             then
+              ITree.iter
+                (λ l2 : L,
+                   if Final l2 || InRange1 l2
+                   then Ret (inr l2)
+                   else
+                    if InRange2 l2
+                    then l3 <- Sem l2;; Ret (inl l3)
+                    else throw err) l1
+             else throw err);; Ret (inl l2)
+          else throw err) l0
+
+*)
+  
+
+  
+  destruct (Final l0) eqn: was_e0; simpl.    
+  { setoid_rewrite bind_ret_l; simpl; try reflexivity. }
+  destruct (InRange1 l0 || InRange2 l0) eqn: was_e1; simpl.
+  { setoid_rewrite bind_bind; simpl.
+    setoid_rewrite bind_ret_l; simpl.
+    destruct (InRange1 l0) eqn: was_e2; simpl.
+    (* eapply eqit_bind; try reflexivity. *)
+    (* does not look right *)
+    { setoid_rewrite tau_euttge.
+      setoid_rewrite bind_iter.
+      setoid_rewrite unfold_iter.  
+      rewrite was_e0; simpl.
+      rewrite bind_bind.
+      destruct (InRange1 l0 || InRange2 l0) eqn: was_e3; simpl.
+      2: { setoid_rewrite was_e2 in was_e3; simpl in *.
+           intuition.
+      }
+      setoid_rewrite bind_ret_l.
+      setoid_rewrite bind_bind.
+
+      destruct (InRange2 l0) eqn: was_e4; simpl.
+      { (* range 1 and range 2 need to be disjoint *)
+        admit.
+      }
+      rewrite was_e2; simpl.
+      rewrite bind_bind.  
+      eapply eqit_bind; try reflexivity.
+      intros l1.
+      setoid_rewrite bind_ret_l.
+      setoid_rewrite bind_ret_l.
+
+      (* CIH? not quite... *)
+
+(*
+ eqit eq true true
+    (ITree.iter
+       (λ ab : L + L,
+          match ab with
+          | inl a =>
+              ITree.map inl
+                (if Final a
+                 then Ret (inr a)
+                 else if InRange1 a || InRange2 a then ITree.bind (Sem a) (λ l0 : L, Ret (inl l0)) else throw err)
+          | inr b =>
+              ITree.map (bimap inr (id_ L))
+                (if Final b
+                 then Ret (inr b)
+                 else
+                  if InRange1 b || InRange2 b
+                  then
+                   ITree.bind
+                     (ITree.iter
+                        (λ l0 : L,
+                           if Final l0
+                           then Ret (inr l0)
+                           else
+                            if InRange1 l0 || InRange2 l0
+                            then ITree.bind (Sem l0) (λ l2 : L, Ret (inl l2))
+                            else throw err) b) (λ l0 : L, Ret (inl l0))
+                  else throw err)
+          end) (inr l1))
+    (ITree.iter
+       (λ ab : L + L,
+          match ab with
+          | inl a =>
+              ITree.map inl
+                (if Final a || InRange2 a
+                 then Ret (inr a)
+                 else if InRange1 a then ITree.bind (Sem a) (λ l0 : L, Ret (inl l0)) else throw err)
+          | inr b =>
+              ITree.map (bimap inr (id_ L))
+                (if Final b
+                 then Ret (inr b)
+                 else
+                  if InRange1 b || InRange2 b
+                  then
+                   ITree.bind
+                     (if InRange1 b
+                      then
+                       ITree.iter
+                         (λ l0 : L,
+                            if Final l0 || InRange2 l0
+                            then Ret (inr l0)
+                            else if InRange1 l0 then ITree.bind (Sem l0) (λ l2 : L, Ret (inl l2)) else throw err) b
+                      else
+                       if InRange2 b
+                       then
+                        ITree.iter
+                          (λ l0 : L,
+                             if Final l0 || InRange1 l0
+                             then Ret (inr l0)
+                             else if InRange2 l0 then ITree.bind (Sem l0) (λ l2 : L, Ret (inl l2)) else throw err) b
+                       else throw err) (λ l0 : L, Ret (inl l0))
+                  else throw err)
+          end) (inr l1))
+
+*)      
+      clear was_e0 was_e1 was_e2 was_e3 was_e4.
+      clear l0.
+      setoid_rewrite tau_euttge.
+      setoid_rewrite unfold_iter.
+      destruct (Final l1) eqn: was_e0; simpl.    
+      { setoid_rewrite bind_ret_l; simpl.
+        setoid_rewrite bind_ret_l; simpl.
+        (* CIH? *)
+        setoid_rewrite tau_euttge.
+        admit.
+      }
+      { setoid_rewrite bind_bind.
+        destruct (InRange2 l1) eqn:was_e1; simpl.
+        destruct (InRange1 l1 || true) eqn:was_e2; simpl.
+        2: { compute in was_e2. destruct (InRange1 l1); intuition. }
+        setoid_rewrite bind_bind.
+        setoid_rewrite bind_ret_l; simpl.
+        setoid_rewrite bind_ret_l; simpl.
+        setoid_rewrite tau_euttge at 2.
+        setoid_rewrite unfold_iter at 2.
+        setoid_rewrite bind_bind.
+        rewrite was_e0; simpl.
+        rewrite was_e1; simpl.
+        rewrite was_e2; simpl.
+        rewrite bind_bind.
+        destruct (InRange1 l1) eqn:was_e3.
+        { admit. }
+        simpl.
+        setoid_rewrite unfold_iter at 2.
+        setoid_rewrite bind_bind.
+        rewrite was_e0.
+        rewrite was_e3; simpl.
+        rewrite was_e1; simpl.
+        rewrite bind_bind.
+        eapply eqit_bind; try reflexivity.
+        intros l2.
+        setoid_rewrite bind_ret_l; simpl.
+        setoid_rewrite bind_ret_l; simpl.
+        setoid_rewrite bind_ret_l; simpl.
+        setoid_rewrite tau_euttge at 2 3.
+        setoid_rewrite tau_euttge at 1.
+        setoid_rewrite bind_iterX.
+        setoid_rewrite unfold_iter at 2; simpl.
+        setoid_rewrite bind_bind.
+        setoid_rewrite bind_bind.
+        setoid_rewrite bind_ret_l; simpl.
+        setoid_rewrite bind_ret_l; simpl.
+        setoid_rewrite unfold_iter at 1; simpl.
+        eapply eqit_bind'.
+      admit.
+
+(*
+eqit eq true true
+    (ITree.iter
+       (λ ab : L + L,
+          match ab with
+          | inl a =>
+              ITree.map inl
+                (if Final a
+                 then Ret (inr a)
+                 else
+                  if InRange1 a || InRange2 a
+                  then ITree.bind (Sem a) (λ l0 : L, Ret (inl l0))
+                  else throw err)
+          | inr b =>
+              ITree.map (bimap inr (id_ L))
+                (if Final b
+                 then Ret (inr b)
+                 else
+                  if InRange1 b || InRange2 b
+                  then
+                   ITree.bind
+                     (ITree.iter
+                        (λ l0 : L,
+                           if Final l0
+                           then Ret (inr l0)
+                           else
+                            if InRange1 l0 || InRange2 l0
+                            then ITree.bind (Sem l0) (λ l2 : L, Ret (inl l2))
+                            else throw err) b) (λ l0 : L, Ret (inl l0))
+                  else throw err)
+          end) (inl l1))
+    (ITree.iter
+       (λ ab : L + L,
+          match ab with
+          | inl a =>
+              ITree.map inl
+                (if Final a || InRange2 a
+                 then Ret (inr a)
+                 else
+                  if InRange1 a
+                  then ITree.bind (Sem a) (λ l0 : L, Ret (inl l0))
+                  else throw err)
+          | inr b =>
+              ITree.map (bimap inr (id_ L))
+                (if Final b
+                 then Ret (inr b)
+                 else
+                  if InRange1 b || InRange2 b
+                  then
+                   ITree.bind
+                     (if InRange1 b
+                      then
+                       ITree.iter
+                         (λ l0 : L,
+                            if Final l0 || InRange2 l0
+                            then Ret (inr l0)
+                            else
+                             if InRange1 l0
+                             then ITree.bind (Sem l0) (λ l2 : L, Ret (inl l2))
+                             else throw err) b
+                      else
+                       if InRange2 b
+                       then
+                        ITree.iter
+                          (λ l0 : L,
+                             if Final l0 || InRange1 l0
+                             then Ret (inr l0)
+                             else
+                              if InRange2 l0
+                              then
+                               ITree.bind (Sem l0) (λ l2 : L, Ret (inl l2))
+                              else throw err) b
+                       else throw err) (λ l0 : L, Ret (inl l0))
+                  else throw err)
+          end) (inl l1))
+
+*)  
+    
+    }
+    { destruct (InRange2 l0) eqn: was_e3; simpl.
+      2: { compute in was_e1; intuition. }
+      eapply eqit_bind.
+      (* prove it by coinduction as separate lemma *)
+      { setoid_rewrite unfold_iter.
+        rewrite was_e2; simpl.
+        rewrite was_e0; simpl.
+        rewrite was_e3; simpl.
+        setoid_rewrite bind_bind.
+        eapply eqit_bind; try reflexivity.
+        intro l2.
+        setoid_rewrite bind_ret_l; simpl.
+        admit.
+      }
+      intro l2.
+      (* CIH? *)
+      admit.
+    }
+  }  
+  { setoid_rewrite bind_vis.
+    eapply eqit_Vis.
+    intro u. destruct u.
+  }    
+Admitted.       
+      
+ 
 (*
 Variable (P1 : (L + L + (L + L)) -> (L + L) -> bool).
 Variable (P2 : (L + L + (L + L)) -> (L + L) -> bool).
