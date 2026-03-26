@@ -451,6 +451,29 @@ Proof.
   apply/eqit_Tau_l/hn.
 Qed.
 
+Lemma unfold_lsem endpc s :
+  eqit eq true true
+    (ilsem endpc s) (ITree.bind (ilsem_body endpc s)
+                      (fun ins => match ins with
+                        | inl s' => ilsem endpc s'
+                        | inr s'  => Ret s'
+                        end)).
+Proof.
+  rewrite {1}/ilsem unfold_iter.
+  apply eqit_bind; first reflexivity.
+  move=> [] s'; last reflexivity.
+  apply eqit_Tau_l; reflexivity.
+Qed.
+
+Lemma lsem_n_ilsem s2 s1 endpc :
+  lsem_n endpc s1 s2 ->
+  eqit eq true true (ilsem endpc s1) (ilsem endpc s2).
+Proof.
+  move=> [n]; elim: n s1 => [ | n ih] s1 /=; t_xrbindP.
+  + by move=> <-; reflexivity.
+  move=> [ s1' | //] hstep /ih <-.
+  rewrite unfold_lsem i_lsem_body hstep /= bind_ret_l; reflexivity.
+Qed.
 
 End ITREE.
 
