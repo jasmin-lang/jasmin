@@ -318,7 +318,84 @@ Variant lsem_exportcall (scs:syscall_state_t) (m: mem) (fn: funname) (vm: Vm.t) 
   & vm =[ callee_saved ] vm'
 .
 
-(* ITree based Semantics *)
+(* ----------------------------------------------------------------- *)
+(* ITree based Semantics                                             *)
+
+Definition lsem_body endpc s :=
+  if endpc == (lfn s, lpc s) then ok (inr s)
+  else Let s := step s in ok (inl s).
+
+Fixpoint lsem_body_n endpc n s :=
+  match n with
+  | 0 => ok (inl s)
+  | S n =>
+    Let ins := lsem_body endpc s in
+    match ins with
+    | inl s => lsem_body_n endpc n s
+    | inr s => ok (inr s)
+    end
+  end.
+
+Lemma lsem_body_n_add endpc n m s :
+  lsem_body_n endpc (n + m) s =
+  Let ins := lsem_body_n endpc n s in
+  match ins with
+  | inl s => lsem_body_n endpc m s
+  | inr s => ok (inr s)
+  end.
+Proof.
+  elim: n s => /= [ | n ih] s.
+  + by case: (lsem_body endpc s).
+  by case: (lsem_body endpc s) => // -[].
+Qed.
+
+Definition lsem_n endpc (s:lstate) (s':lstate) :=
+  exists n, lsem_body_n endpc n s = ok (inl s').
+
+Lemma lsem_n_lsem endpc s s' :
+  lsem_n endpc s s' ->
+  lsem s s'.
+Proof.
+  move=> [n]; elim: n s => /= [ | n ih] s.
+  + by move=> [<-]; apply rt_refl.
+  t_xrbindP => ins.
+  rewrite /lsem_body; case:ifP => _.
+  + by move=> [<-].
+  t_xrbindP => s1 hstep <- /ih.
+  apply: lsem_step hstep.
+Qed.
+
+Lemma lsem_n_trans s2 s1 s3 endpc :
+  lsem_n endpc s1 s2 -> lsem_n endpc s2 s3 -> lsem_n endpc s1 s3.
+Proof.
+  move=> [n1 hn1] [n2 hn2]; exists (n1 + n2).
+  by rewrite lsem_body_n_add hn1 /=.
+Qed.
+
+Lemma lsem_n_step s2 s1 s3 endpc :
+  endpc <> (lfn s1, lpc s1) ->
+  step s1 = ok s2 ->
+  lsem_n endpc s2 s3 ->
+  lsem_n endpc s1 s3.
+Proof.
+  move=> /eqP/negPf hend hstep [n hn].
+  by exists n.+1; rewrite /= /lsem_body hend hstep /=.
+Qed.
+
+Definition endpc_fd (fn:funname) fd := (fn, size (lfd_body fd)).
+
+Lemma lsem_n_step_get s2 s1 s3 fd :
+  get_fundef (lp_funcs P) (lfn s1) = Some fd ->
+  step s1 = ok s2 ->
+  lsem_n (endpc_fd (lfn s1) fd) s2 s3 ->
+  lsem_n (endpc_fd (lfn s1) fd) s1 s3.
+Proof.
+  move=> hget hstep; apply lsem_n_step => // -[] hsize.
+  move: hstep; rewrite /step /find_instr hget.
+  case heq : oseq.onth => [i|//] _.
+  by have := onth_size heq; rewrite hsize ltnn.
+Qed.
+
 Section ITREE.
 
 Context {E E0} {wE : with_Error E E0}.
@@ -350,10 +427,6 @@ Definition ilsem_exportcall (scs:syscall_state_t) (m: mem) (fn: funname) (vm: Vm
   _ <- iresult (to_estate s') (assert (all (fun x => value_eqb vm.[x] vm'.[x]) (Sv.elements callee_saved)) ErrSemUndef);;
   Ret {| escs := s'.(lscs); emem := s'.(lmem); evm := vm'; |}.
 
-Definition lsem_body endpc s :=
-  if endpc == (lfn s, lpc s) then ok (inr s)
-  else Let s := step s in ok (inl s).
-
 Lemma i_lsem_body endpc s : ilsem_body endpc s ≅ iresult (to_estate s) (lsem_body endpc s).
 Proof.
   rewrite /ilsem_body /lsem_body; case: eqP => h /=.
@@ -364,56 +437,20 @@ Proof.
   move=> e; apply bind_throw.
 Qed.
 
-Fixpoint lsem_body_n endpc n s :=
-  Let ins := lsem_body endpc s in
-  match n with
-  | 0 => ok ins
-  | S n =>
-    match ins with
-    | inl s => lsem_body_n endpc n s
-    | inr s => ok (inr s)
-    end
-  end.
-
-Lemma lsem_body_nE endpc n s :
-  lsem_body_n endpc n s =
-  Let ins := lsem_body endpc s in
-  match n with
-  | 0 => ok ins
-  | S n =>
-    match ins with
-    | inl s => lsem_body_n endpc n s
-    | inr s => ok (inr s)
-    end
-  end.
-Proof. by case: n. Qed.
-
 Lemma i_lsem_body_n endpc n s :
   eqit eq true true
     (xrutt_facts.iter_n (ilsem_body endpc) n s)
-    (err_result (pair^~ tt) (lsem_body_n endpc n s)).
+    (err_result (pair^~ tt) (lsem_body_n endpc n.+1 s)).
 Proof.
-  elim: n s => /= [ | n hn] s.
-  + rewrite i_lsem_body; case: lsem_body => [ ins|] /=; reflexivity.
-  rewrite i_lsem_body; case: lsem_body => [ ins|] /=.
-  + rewrite bind_ret_l; case: ins => s' /=; last reflexivity.
-    by apply eqit_Tau_l; apply hn.
-  move=> e; rewrite /Exception.throw /= bind_vis.
-  apply eqit_Vis; case.
+  rewrite /=; elim: n s => /= [ | n hn] s.
+  + rewrite i_lsem_body. case: (lsem_body endpc s) => [ins | e] /=; last by reflexivity.
+    case: ins; reflexivity.
+  rewrite i_lsem_body; case: lsem_body => [ ins| e] /=;
+    last by rewrite bind_throw; reflexivity.
+  rewrite bind_ret_l; case: ins => s' /=; last reflexivity.
+  apply/eqit_Tau_l/hn.
 Qed.
 
-Lemma lsem_body_n_add endpc n m s :
-  lsem_body_n endpc (n + m.+1) s =
-  Let ins := lsem_body_n endpc n s in
-  match ins with
-  | inl s => lsem_body_n endpc m s
-  | inr s => ok (inr s)
-  end.
-Proof.
-  elim: n s => /= [ | n ih] s.
-  + by case: (lsem_body endpc s).
-  by case: (lsem_body endpc s) => // -[].
-Qed.
 
 End ITREE.
 

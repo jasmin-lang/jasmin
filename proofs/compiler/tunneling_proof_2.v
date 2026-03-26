@@ -50,7 +50,7 @@ Definition path_to fn endpc l l' :=
     eval_jump p (fn, l) s1 = ok s2 ->
     exists n,
       exists2 s3,
-        lsem_body_n p endpc n s2 = ok (inl s3)
+        lsem_body_n p endpc n.+1 s2 = ok (inl s3)
       & eval_jump p (fn, l') s1 = ok s3.
 
 Definition path_to0 fn endpc l l' :=
@@ -82,7 +82,7 @@ Proof.
   rewrite (to_estate_eq_eval_jump (fn, l2) (eval_jump_to_estate hj1)) in hj2.
   have [n2 [s4 hsem2 hj3]] := h23 s2 s3 hj2.
   exists (n1 + n2.+1); exists s4.
-  + by rewrite lsem_body_n_add hsem1 /= hsem2.
+  + by rewrite -addSn lsem_body_n_add hsem1.
   rewrite -hj3.
   apply/to_estate_eq_eval_jump/(eval_jump_to_estate hj1).
 Qed.
@@ -413,8 +413,9 @@ Proof.
       rewrite /= eqxx andbT /= => /labels_of_find [pc ->] /=; by eauto.
     have [n [s3 hsem hev]]:= hp _ _ heval.
     exists n.+1 => /=.
-    rewrite {1}/lsem_body hne /= /step hfindi.
-    rewrite /eval_instr /li_i heval hev /= hsem /=; reflexivity.
+    rewrite {2}/lsem_body hne /= /step hfindi.
+    rewrite /eval_instr /li_i heval hev /=.
+    rewrite /= in hsem; rewrite hsem /=; reflexivity.
   move=> f r hfindi /=.
   have := huf r; rewrite /path_to0.
   case: (r =P LUF.find uf r).
@@ -434,8 +435,8 @@ Proof.
   + exists 0; rewrite /= /lsem_body hne /step /= hfindi /eval_instr /li_i.
     rewrite heq /=; reflexivity.
   exists n.+1.
-  rewrite hev /= /lsem_body hne /step /= hfindi /eval_instr /li_i heval heq /=.
-  rewrite hsem /=; reflexivity.
+  rewrite hev /= {2}/lsem_body hne /step /= hfindi /eval_instr /li_i heval heq /=.
+  rewrite /= in hsem; rewrite hsem /=; reflexivity.
 Qed.
 
 Lemma tunnel_funcs fn scs m vm :
