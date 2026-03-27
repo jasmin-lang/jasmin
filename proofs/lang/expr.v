@@ -321,6 +321,15 @@ Coercion Lvar : var_i >-> lval.
 
 Notation lvals := (seq lval).
 
+Definition aligned_of_lval (x: lval) : aligned :=
+  match x with
+  | Lnone _ _
+  | Lvar _ => Aligned
+  | Lmem al _ _ _
+  | Laset al _ _ _ _ => al
+  | Lasub _ _ _ _ _ => Unaligned (* dummy value *)
+  end.
+
 Definition get_pvar (e: pexpr) : exec var :=
   if e is Pvar {| gv := x ; gs := Slocal |} then ok (v_var x) else type_error.
 
