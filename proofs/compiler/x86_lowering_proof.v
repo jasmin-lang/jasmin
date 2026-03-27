@@ -500,6 +500,14 @@ Section PROOF.
     lia.
   Qed.
 
+  Lemma sopn_sem_VMOVDQ al sz :
+    sopn_sem (Ox86 (VMOVDQ al sz)) =
+      assert (U128 ≤ sz)%CMP ErrType >> ok (sopn_sem_ (Ox86 (VMOVDQ al sz))).
+  Proof. by case: al; rewrite /sopn_sem /= /size_128_256 wsize_ge_U256 andbT. Qed.
+
+  Lemma nle_u64_u128_le sz : (U128 ≤ sz)%CMP = ~~ (sz ≤ U64)%CMP.
+  Proof. by case: sz. Qed.
+
   Lemma lower_cassgn_classifyP e l s s' v ty v' (Hs: sem_pexpr true gd s e = ok v)
       (Hv': truncate_val (eval_atype ty) v = ok v')
       (Hw: write_lval true gd l v' s = ok s'):
@@ -571,6 +579,7 @@ Section PROOF.
       case: (write_lval_undef Hw hty) => w ? {hty}; subst v'.
       case/truncate_valI: Hv' => s'' [] w'' [] hty ok_w ?; subst.
       case: Hs => ?; subst s''.
+      rewrite /classify_pget.
       case: ifP.
       * move => h; eexists; first reflexivity.
         split; first exact: (cmp_le_trans hle (cmp_le_trans Hs' h)).
@@ -578,8 +587,8 @@ Section PROOF.
       move => hsz_le_64.
       case: ty hty => //= _ [->].
       case: ifP => h128_le_sz''.
-      * rewrite /= ok_v /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
-        by rewrite ok_w /x86_VMOVDQ /size_128_256 h128_le_sz'' wsize_ge_U256.
+      * rewrite /= ok_v /exec_sopn sopn_sem_VMOVDQ h128_le_sz'' /=.
+        by case: aligned_of_lval; rewrite /sopn_sem_ /= /semi_to_atype computational_eq_refl ok_w.
       case: ifP => // hsz''.
       rewrite /= ok_v /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
       rewrite /x86_MOVX /size_32_64 hsz'' ok_w.
@@ -588,6 +597,7 @@ Section PROOF.
     + rewrite /=; apply: rbindP => - [] // len a /= ok_a; t_xrbindP => i j ok_j ok_i w ok_w ?; subst v.
       case: x ok_a => x xs ok_a.
       case/truncate_valE: Hv' => sz' [] w' [] hty ok_w' ?; subst v'.
+      rewrite /classify_pget.
       case: ifP => hsz.
       * rewrite hty.
         eexists; first reflexivity.
@@ -596,8 +606,9 @@ Section PROOF.
         by eauto.
       case: ty hty => //= _ [->].
       case: ifP => h128_le_sz'.
-      * rewrite /= ok_a ok_j /= ok_i /= ok_w /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
-        by rewrite /x86_VMOVDQ /size_128_256 h128_le_sz' ok_w' wsize_ge_U256.
+      * rewrite /= ok_a ok_j /= ok_i /= ok_w /exec_sopn sopn_sem_VMOVDQ h128_le_sz' /=.
+        case: min_aligned;
+        by rewrite /sopn_sem_ /= /semi_to_atype computational_eq_refl ok_w'.
       case: ifP => // hsz''.
       rewrite /= ok_a ok_j /= ok_i /= ok_w /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
       rewrite /x86_MOVX /size_32_64 hsz'' ok_w'.
@@ -612,11 +623,9 @@ Section PROOF.
         by eauto.
       case hc: convertible => //.
       move: hty; rewrite -(convertible_eval_atype hc) => -[?]; subst sz'.
-      rewrite /= he /= hz /= hload /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
-      rewrite /x86_VMOVDQ truncate_word_u /=.
-      set b := (X in assert X).
-      suff -> : b; first by rewrite zero_extend_u.
-      by subst b; move: hsz; clear; case: sz.
+      rewrite /= he /= hz /= hload /exec_sopn sopn_sem_VMOVDQ nle_u64_u128_le hsz /=.
+      case: al {hload};
+      by rewrite /sopn_sem_ /= /semi_to_atype computational_eq_refl truncate_word_u zero_extend_u.
     + case: o => //.
       (* Oword_of_int *)
       - move => sz; case: e => // z [?]; subst v.
