@@ -68,7 +68,8 @@ Class OracleSystem :=
 Context {O : OracleSystem}.
 
 (* An exchange: the name of an oracle, an input to that oracle, and the output
-   returned by that oracle. *)
+   returned by that oracle.
+   TODO use Tagged2 instead of Tagged *)
 Definition Xch := { o : No & (In o * Out o)%type }.
 
 (* A trace is a sequence of exchanges and intermediate memories. *)
@@ -78,24 +79,34 @@ Definition trace := seq (Mo * Xch).
 Variant Exch : Type -> Type :=
   Exchange : forall o : No, In o -> Exch (Out o).
 
+(* The adversary is an arbitrary computation that triggers exchange events.
+   It may be stateful, probabilistic, and almost-surely terminating. *)
 Class Adversary :=
   {
-    Ma : choiceType; (* Adversary's memory. *)
-    Aa : itree Exch Ma; (* Adversary's algorithm. *)
+    Aa : itree (Exch +' Rnd) unit; (* Adversary's algorithm. *)
   }.
 
 Context {A : Adversary}.
 
+(* Get the latest oracle memory, or the initial memory if there is no trace. *)
 Definition get_Mo E `{stateE trace -< E} : itree E Mo :=
   let* t := get in Ret (head orac_init_mem [seq fst x | x <- t ]).
 
 Definition mk {o : No} (m : Mo) (i : In o) (r : Out o) : Mo * Xch :=
   (m, existT (fun _ => _)%type o (i, r)).
 
+(* Log an exchange by adding it to the front of the trace. *)
 Definition log E `{stateE trace -< E}
   (m : Mo) (o : No) (i : In o) (r : Out o) : itree E unit :=
   let* t := get in put (mk m i r :: t).
 
+(* Oracle query handler.
+   This
+     1. Gets the oracle name and input from the event
+     2. Gets the latest oracle memory from the trace
+     3. Runs the oracle implementation
+     4. Logs the exchange and the resulting memory
+     5. Return the oracle's output. *)
 Definition handle_Exch : Exch ~> itree (stateE trace +' Rnd) :=
   fun T e =>
     let 'Exchange o i := e in
@@ -104,19 +115,23 @@ Definition handle_Exch : Exch ~> itree (stateE trace +' Rnd) :=
     let* _ := log m' i r in
     Ret r.
 
-Definition interact : itree Rnd (trace * Ma) :=
-  run_state (interp handle_Exch Aa) [::].
+(* Adversary-Oracle interaction. *)
+Definition interact : itree Rnd trace :=
+  let: H := case_ handle_Exch inr_ in
+  let* (t, _) := run_state (interp H Aa) [::] in
+  Ret t.
 
-Definition dinteract : distr (trace * Ma)%type := dinterp interact.
+(* Interpret the interaction as a distribution over traces. *)
+Definition dinteract : distr trace := dinterp interact.
 
 Class WinningCondition :=
   {
-    win : trace -> Ma -> bool;
+    win : trace -> bool;
   }.
 
 Context {W : WinningCondition}.
 
-Definition pwin : R := \P_[ dinteract ] (fun p => win p.1 p.2).
+Definition pwin : R := \P_[ dinteract ] win.
 
 End CIL.
 
@@ -150,17 +165,20 @@ Definition game := indcca.game (dummy := dummy) C A Q.
 
 Definition _Mo := option (skey * msg).
 
-Definition _No := option bool. (* finType doesn't work with a variant... *)
+(* TODO use a Variant and figure out choiceType *)
+Definition _No := (bool * bool)%type.
 
-Notation "'GenKey'" := (None) (at level 0, only parsing).
-Notation "'Encap'" := (Some true) (at level 0, only parsing).
-Notation "'Decap'" := (Some false) (at level 0, only parsing).
+Notation "'GenKey'" := (true, true) (at level 0, only parsing).
+Notation "'Encap'" := (true, false) (at level 0, only parsing).
+Notation "'Decap'" := (false, true) (at level 0, only parsing).
+Notation "'Win'" := (false, false) (at level 0, only parsing).
 
 Definition _In (x : _No) : choiceType :=
   match x with
   | GenKey => unit
   | Encap => pkey
   | Decap => ciphert
+  | Win => msg
   end.
 
 Definition _Out (x : _No) : choiceType :=
@@ -168,6 +186,7 @@ Definition _Out (x : _No) : choiceType :=
   | GenKey => pkey
   | Encap => ciphert
   | Decap => msg
+  | Win => bool
   end.
 
 Definition _Oo (x : _No) : _In x -> _Mo -> itree Rnd (_Out x * _Mo) :=
@@ -187,6 +206,12 @@ Definition _Oo (x : _No) : _In x -> _Mo -> itree Rnd (_Out x * _Mo) :=
           let* m := C.(indcca.Decap) sk ct in
           Ret (m, s)
         else Ret (dummy, None)
+  | Win =>
+      fun m s =>
+        if s is Some (sk, m0) then
+          if m0 != dummy then Ret (m == m0, s)
+          else Ret (false, s)
+        else Ret (false, s)
   end.
 
 Instance INDCCA : OracleSystem :=
