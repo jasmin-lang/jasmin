@@ -33,6 +33,9 @@ Variant lexpr :=
 Notation rexprs := (seq rexpr).
 Notation lexprs := (seq lexpr).
 
+Definition aligned_of_lexpr (x: lexpr) : aligned :=
+  if x is Store al _ _ then al else Aligned.
+
 (* -------------------------------------------------------------------------- *)
 Fixpoint fexpr_of_pexpr (e: pexpr) : option fexpr :=
   match e with
