@@ -233,36 +233,6 @@ Hypothesis HLCons : forall (pl0 pl1 pl2 : plinfo) (l : LTree fn0 pl0 pl1),
 Hypothesis HLFun : forall (lbl : label) (pl1 : plinfo) (lc1 lc2 : lcmd) 
           (n1 := Datatypes.length lc1) (lt : LTreeList fn0 (n1, lbl) pl1),
           Pf (LTFun lc2 lt).
-
-(*
-Hypothesis HH : forall 
-
-Check (@LTree_mut asm_op _ fn0 Pt Ptl HErr HLeaf HIf1 HIf HWhileT
-         HWhileF HWhile1 HWhile HCall HLNil HLCons).
-
-Check (@LTreeList_mut asm_op _ fn0 Pt Ptl HErr HLeaf HIf1 HIf HWhileT
-         HWhileF HWhile1 HWhile HCall HLNil HLCons).
-
-Check (@LTreeFun_rect  asm_op _ fn0 Pf).
-
-Hypothesis HLFun : forall (lbl : label) (pl1 : plinfo) (lc1 lc2 : lcmd) 
-          (n1 := Datatypes.length lc1) (lt : LTreeList fn0 (n1, lbl) pl1),
-          Pf (LTFun lc2 lt).
-
-
-Definition LTreeFun_Rect 
-
-Check LTreeFun_Rect.
-
-
-Search LTreeFun.
-About LTreeFun.
-Search "Fun_ind".
-
-Check @LTreeFun_ind.
-
-Variables (Pr: )
-*)
   
 End ICMD_RECT.  
 
@@ -378,41 +348,6 @@ Definition Cntr_basic (Sem: L -> itree E L) (Init InRange Final: L -> bool)
              end
   end.             
 
-(* lift a semantics to the body of a loop. note: Init, Final and
-   InRange are not necessarily disjoint. *)
-Definition BKT (Sem: L -> itree E L) (Init Final InRange: L -> bool)
-  (pe: L + L) : itree E (L + L) :=
-  match pe with
-  | inl l0 => match Final l0 with
-              | true => Ret (inr l0)
-              | false => match InRange l0 with
-                         | true => l1 <- Sem l0 ;; Ret (inl l1)  
-                         | false => throw err
-                         end
-                   end
-  | inr l0 => match Final l0 with
-              | true => Ret (inr l0)
-              | false => match (Init l0) with
-                         | true => l1 <- Sem l0 ;; Ret (inl l1)  
-                         | false => throw err
-                         end
-                   end
-  end.                   
-
-Notation BKT_loop Sem Init Final InRange :=
-  (aloop (BKT Sem Init Final InRange)).
-
-Lemma bind_BKTL (Sem: L -> itree E L)
-  (Init Final InRange1 InRange2: L -> bool) (l0: L) :
-  eutt eq (ITree.bind (BKT_loop Sem (fun x => (InRange2 x) || (Init x))
-                           (fun x => (InRange2 x) || (Final x))
-                            InRange1 l0) 
-                      (BKT_loop Sem Init Final InRange2))
-          (BKT_loop Sem Init Final
-                  (fun x => (InRange1 x) || (InRange2 x)) l0).
-Proof.
-Admitted. 
-
 (* alternative: lift a semantics to the body of an iter. *)
 Definition MKT (Sem: L -> itree E L) (Final InRange: L -> bool)
   (l0: L) : itree E (L + L) :=
@@ -426,290 +361,6 @@ Definition MKT (Sem: L -> itree E L) (Final InRange: L -> bool)
 
 Notation MKT_iter Sem Final InRange :=
   (ITree.iter (MKT Sem Final InRange)).
-
-(* OK strategy, but we need coinduction *)
-Lemma bind_MKTI (Sem: L -> itree E L)
-  (Final InRange1 InRange2: L -> bool) (l0: L) :
-  eutt eq (ITree.bind (MKT_iter Sem (fun x => (InRange2 x) || (Final x))
-                            InRange1 l0) 
-                      (MKT_iter Sem Final InRange2))
-          (MKT_iter Sem Final
-                  (fun x => (InRange1 x) || (InRange2 x)) l0).
-Proof.
-  unfold aloop; simpl.
-  unfold MKT at 1 3; simpl.
-  setoid_rewrite bind_iterX.
-  unfold MKT; simpl.
-  unfold bimap, Bimap_Coproduct; simpl.
-    unfold CategoryOps.cat, case_, inl_; simpl.
-  unfold Case_Kleisli, case_sum, Cat_Fun, sum_inl, inr_, id_,
-      sum_inr, Id_Fun; simpl.
-
-  (* refactor the goal to make it more readable *)
-  assert (ITree.iter
-    (λ ad : L + L,
-       match ad with
-       | inl a =>
-           ITree.map inl
-                (if InRange2 a || Final a
-                 then Ret (inr a) (* inl a -> inl (inr a) *)
-                 else if InRange1 a
-                      then ITree.bind (Sem a) (λ l1 : L, Ret (inl l1))
-                                    (* inl a -> inl (inl a) *)  
-                      else throw err)
-       | inr d => ITree.map (λ x : L + L, match x with
-                                   | inl a => inl (inr a)
-                                   | inr b => inr b
-                                   end)
-             (if Final d
-              then Ret (inr d) (* inr d -> inr d *)
-              else if InRange2 d
-                   then ITree.bind (Sem d) (λ l1 : L, Ret (inl l1))
-                       (* inr d -> inl (inr d) *)             
-                   else throw err)               
-       end) (inl l0)
-  ≈ ITree.iter
-      (λ l1 : L,
-         if Final l1
-         then Ret (inr l1)
-         else if InRange1 l1 || InRange2 l1
-              then ITree.bind (Sem l1) (λ l2 : L, Ret (inl l2))
-              else throw err) l0
-         ) as W.
-  { (* we should use coinduction, though *)
-    setoid_rewrite unfold_iter.
-
-    destruct (Final l0) eqn: was_e0; simpl.
-    { destruct (InRange2 l0 || true) eqn: was_e1; simpl.
-      2: { compute in was_e1.
-           destruct (InRange2 l0); try congruence.
-      }   
-      rewrite bind_bind.
-      setoid_rewrite bind_ret_l; simpl.
-      setoid_rewrite bind_ret_l; simpl.
-      setoid_rewrite tau_euttge.
-      rewrite unfold_iter; simpl.
-      rewrite bind_bind.
-      rewrite was_e0; simpl.
-      rewrite bind_ret_l.
-      rewrite bind_ret_l; reflexivity.
-    }
-    { destruct (InRange2 l0) eqn: was_e2; simpl.
-      { destruct (InRange1 l0 || true) eqn: was_e3; simpl.
-        2: { compute in was_e3.
-             destruct (InRange1 l0); try congruence.
-        }
-        rewrite bind_bind.
-        setoid_rewrite bind_ret_l; simpl.
-        setoid_rewrite bind_ret_l; simpl.
-        setoid_rewrite tau_euttge at 1; simpl.
-        setoid_rewrite unfold_iter at 1; simpl.
-        rewrite bind_bind.
-        rewrite was_e0; simpl.
-        rewrite was_e2; simpl.
-        rewrite bind_bind.
-        setoid_rewrite bind_ret_l.
-        setoid_rewrite bind_ret_l.
-        eapply eqit_bind; try reflexivity.
-        intros l1.
-        (* should go through by CIH *)
-        admit.
-      }
-      { destruct (InRange1 l0) eqn: was_e4; simpl.
-        { setoid_rewrite bind_bind.  
-          setoid_rewrite bind_bind.  
-          setoid_rewrite bind_ret_l; simpl.
-          setoid_rewrite bind_ret_l; simpl.
-          eapply eqit_bind; try reflexivity.
-          intros l1.
-        (* should go through by CIH *)          
-          admit.
-        }
-        { rewrite bind_bind.
-          setoid_rewrite bind_vis.
-          eapply eqit_Vis.
-          intro u. destruct u.
-        }
-     }
-    }
-  }
-  { rewrite <- W.
-    eapply eutt_iter.
-    intros [l | l]; try reflexivity.
-    eapply eqit_bind; try reflexivity.
-    unfold ITree.map; destruct (InRange2 l || Final l); simpl; try reflexivity.
-    { rewrite bind_ret_l; simpl; try reflexivity. }
-    { destruct (InRange1 l); try reflexivity.
-      - rewrite bind_bind; simpl.
-        eapply eqit_bind; try reflexivity.
-        intro pe; setoid_rewrite bind_ret_l; try reflexivity.
-      - setoid_rewrite bind_vis.
-        eapply eqit_Vis.
-        intro u. destruct u.
-    } 
-  } 
-Admitted.                 
-
-
-(*****************************************************************)
-
-Lemma BKTL_aux1 (Sem: L -> itree E L)
-  (Init Final InRange: L -> bool) (l0: L) :
-  eutt eq (BKT_loop (BKT_loop Sem Init Final InRange)
-                    Init Final InRange l0)
-          (BKT_loop Sem Init Final InRange l0).
-Proof.
-  unfold aloop, BKT; simpl.
-Admitted. 
-
-Lemma BKTL_aux2 (Sem: L -> itree E L)
-  (Init Final InRange1 InRange2: L -> bool) (l0: L) :
-  let InRange12 := fun x => InRange1 x || InRange2 x in 
-  eutt eq (BKT_loop (BKT_loop Sem Init Final InRange12)
-                    Init Final InRange12 l0)
-          (BKT_loop (fun l1 => if InRange1 l1
-               then BKT_loop Sem Init Final InRange1 l1
-               else if InRange2 l1
-                    then BKT_loop Sem Init Final InRange2 l1
-                    else throw err)               
-               Init Final InRange12 l0).
-Proof.
-Admitted. 
-
-(*
-  ITree.iter
-    (λ l1 : L,
-       if Final l1
-       then Ret (inr l1)
-       else
-        if InRange l1
-        then
-         ITree.bind
-           (ITree.iter
-              (λ l2 : L,
-                 if Final l2
-                 then Ret (inr l2)
-                 else if InRange l2 
-                      then ITree.bind (Sem l2) (λ l3 : L, Ret (inl l3)) 
-                      else throw err) l1)
-           (λ l2 : L, Ret (inl l2))
-        else throw err) l0
-  ≈ ITree.iter
-      (λ l1 : L,
-         if Final l1
-         then Ret (inr l1)
-         else if InRange l1 
-              then ITree.bind (Sem l1) (λ l2 : L, Ret (inl l2)) 
-              else throw err) l0
-*)
-(* OK, breaking it into two and using coinduction *)
-Lemma MKTI_aux1 (Sem: L -> itree E L)
-  (Final InRange: L -> bool) (l0: L) :
-  eutt eq (MKT_iter (MKT_iter Sem Final InRange)
-                    Final InRange l0)
-          (MKT_iter Sem Final InRange l0).
-Proof.
-  unfold MKT; simpl.
-  setoid_rewrite unfold_iter; simpl.
-  destruct (Final l0) eqn: was_e0; simpl.    
-  { setoid_rewrite bind_ret_l; simpl; try reflexivity. }
-  destruct (InRange l0) eqn: was_e1; simpl.
-  { setoid_rewrite bind_bind; simpl.
-    setoid_rewrite bind_ret_l; simpl.
-    (* wrong approach *)
-(*    eapply eqit_bind; simpl.
-    rewrite unfold_iter; simpl.
-    rewrite was_e0; simpl.
-    rewrite was_e1; simpl.
-    rewrite bind_bind.
-    setoid_rewrite bind_ret_l; simpl.
-*)  
-    setoid_rewrite tau_euttge at 1.
-    rewrite bind_iter.
-    rewrite unfold_iter.
-    rewrite was_e0; simpl.
-    rewrite was_e1; simpl.
-    setoid_rewrite bind_bind; simpl.
-    setoid_rewrite bind_bind; simpl.
-    eapply eqit_bind; try reflexivity.
-    intro l1.
-    rewrite bind_ret_l.
-    rewrite bind_ret_l.
-    (* maybe by CIH? not quite but... *)
-
-    clear was_e0 was_e1.
-    clear l0.
-    setoid_rewrite tau_euttge.
-    setoid_rewrite unfold_iter.
-    destruct (Final l1) eqn: was_e0; simpl.    
-    { setoid_rewrite bind_ret_l; simpl.
-      rewrite bind_ret_l.
-      setoid_rewrite tau_euttge.
-      rewrite unfold_iter.
-      rewrite was_e0; simpl.
-      rewrite bind_bind.
-      rewrite bind_ret_l; simpl.
-      rewrite bind_ret_l; simpl.
-      reflexivity.
-    }
-    destruct (InRange l1) eqn: was_e1; simpl.
-    2: { setoid_rewrite bind_bind. 
-         setoid_rewrite bind_vis.
-         eapply eqit_Vis.
-         intro u. destruct u.
-    }
-    rewrite bind_bind; simpl.
-    setoid_rewrite bind_bind; simpl.
-    setoid_rewrite bind_bind; simpl.
-    eapply eqit_bind; try reflexivity.
-    intro l2.
-    setoid_rewrite bind_ret_l; simpl.
-    setoid_rewrite bind_ret_l; simpl.
-    (* CIH! *)
-    setoid_rewrite tau_euttge.
-    
-    admit.
-  }
-  {
-    setoid_rewrite bind_vis.
-    eapply eqit_Vis.
-    intro u. destruct u.
-  }      
-Admitted. 
-
-(*
-   eqit eq true true
-    (ITree.iter
-       (λ ab : L + L,
-          match ab with
-          | inl a =>
-              ITree.map inl
-                (if Final a
-                 then Ret (inr a)
-                 else if InRange a then ITree.bind (Sem a) (λ l0 : L, Ret (inl l0)) else throw err)
-          | inr b =>
-              ITree.map (bimap inr (id_ L))
-                (if Final b
-                 then Ret (inr b)
-                 else
-                  if InRange b
-                  then
-                   ITree.bind
-                     (ITree.iter
-                        (λ l0 : L,
-                           if Final l0
-                           then Ret (inr l0)
-                           else if InRange l0 then ITree.bind (Sem l0) (λ l3 : L, Ret (inl l3)) else throw err) b)
-                     (λ l0 : L, Ret (inl l0))
-                  else throw err)
-          end) (inl l2))
-    (ITree.iter
-       (λ l0 : L,
-          if Final l0
-          then Ret (inr l0)
-          else if InRange l0 then ITree.bind (Sem l0) (λ l3 : L, Ret (inl l3)) else throw err) l2)
-
- *)
 
 Lemma iter_final_simpl (Sem: L -> itree E L)
   (Final InRange: L -> bool) 
@@ -921,20 +572,6 @@ Proof.
   reflexivity.
 Admitted. 
     
-(*
-Check @bind_iter.
-@bind_iter
-     : ∀ (E : Type → Type) (A B C : Type) (f : A → itree E (A + B)) 
-         (g : B → itree E (B + C)) (x : A),
-         ITree.bind (ITree.iter f x) (ITree.iter g)
-         ≈ ITree.iter
-             (λ ab : A + B,
-                match ab with
-                | inl a => ITree.map inl (f a)
-                | inr b => ITree.map (bimap inr (id_ C)) (g b)
-                end : itree E ((A + B) + C) ) (inl x)
-*)
-
 (* TOP GOAL *)
 Lemma MKTI_aux2 (Sem: L -> itree E L)
   (Final InRange1 InRange2: L -> bool)  
@@ -1111,583 +748,22 @@ Proof.
   }
 Admitted.   
     
-
-    
- 
-(* reduces from left *)
-Lemma MKTI_auxA (Sem: L -> itree E L)
-  (Final InRange1 InRange2: L -> bool) (l0: L) :
-  let InRange12 := fun x => InRange1 x || InRange2 x in 
-  eutt eq (MKT_iter Sem Final InRange12 l0)
-          ((fun l1 => if InRange1 l1
-           then MKT_iter Sem Final InRange12 l1
-           else if InRange2 l1
-                then MKT_iter Sem Final InRange12 l1
-                else if Final l1
-                     then Ret l1
-                     else throw err) l0).        
-Proof.
-  simpl; unfold MKT.
-  destruct (InRange1 l0) eqn: was_e1; simpl; try reflexivity.
-  destruct (InRange2 l0) eqn: was_e2; simpl; try reflexivity.
-  rewrite unfold_iter.
-  destruct (Final l0) eqn: was_e3; simpl; try reflexivity.
-  rewrite bind_ret_l; reflexivity.
-  rewrite was_e1.
-  rewrite was_e2.
-  simpl.
-  rewrite bind_vis.
-  eapply eqit_Vis.
-  intro u; destruct u.
-Qed.
-
-Definition SemSwitch (InRange1 InRange2: L -> bool)
-  (Sem1 Sem2: L -> itree E L) : L -> itree E L :=
-  fun l0 => if InRange1 l0
-            then Sem1 l0
-            else if InRange2 l0
-                 then Sem2 l0
-                 else throw err.          
-
-(* reduces from left, with switch *)
-Lemma MKTI_auxA2 (Sem1 Sem2: L -> itree E L)
-  (Final InRange1 InRange2: L -> bool) (l0: L) :
-  let Sem12 := SemSwitch InRange1 InRange2 Sem1 Sem2 in 
-  let InRange12 := fun x => InRange1 x || InRange2 x in 
-  eutt eq (MKT_iter Sem12 Final InRange12 l0)
-          ((fun l1 => if InRange1 l1
-           then MKT_iter Sem12 Final InRange12 l1
-           else if InRange2 l1
-                then MKT_iter Sem12 Final InRange12 l1
-                else if Final l1
-                     then Ret l1
-                     else throw err) l0).        
-Proof.
-  simpl; eapply MKTI_auxA.
-Qed.  
-
-(* the top iter on the left can be made redundant *)
-Lemma MKTI_auxB2 (Sem1 Sem2: L -> itree E L)
-  (Final InRange1 InRange2: L -> bool) (l0: L) :
-  let InRange12 := fun x => InRange1 x || InRange2 x in 
-  eutt eq (MKT_iter (fun l1 => if InRange1 l1
-           then MKT_iter Sem1 Final InRange12 l1
-           else if InRange2 l1
-                then MKT_iter Sem2 Final InRange12 l1
-                else throw err) Final InRange12 l0)
-          ((fun l1 => if InRange1 l1
-           then MKT_iter Sem1 Final InRange12 l1
-           else if InRange2 l1
-                then MKT_iter Sem2 Final InRange12 l1
-                else if Final l1
-                     then Ret l1
-                     else throw err) l0).        
-Proof.
-  simpl; unfold MKT.
-  rewrite unfold_iter.
-  destruct (Final l0) eqn: was_e3; simpl; try reflexivity.
-  { assert (InRange1 l0 = false) as A1.
-    { admit. }
-    rewrite A1.
-    assert (InRange2 l0 = false) as A2.
-    { admit. }
-    rewrite A2.
-    rewrite bind_ret_l; reflexivity.
-  }
-  {  destruct (InRange1 l0 || InRange2 l0) eqn: was_e12; simpl.
-     2: { admit. }
-     destruct (InRange1 l0) eqn: was_e1; simpl.
-     { setoid_rewrite bind_bind.
-       setoid_rewrite bind_ret_l; simpl.
-       (* should be ok *)
-       admit.
-     }
-     { assert (InRange2 l0 = true) as A2.
-       { admit. }
-       rewrite A2.
-       setoid_rewrite bind_bind.
-       setoid_rewrite bind_ret_l; simpl.
-       (* should be ok *)
-        admit.
-     }
-   }   
-Admitted.    
-
-(* crucial bit: WRONG. what happens if l0 is in Range2? on the left it gets processed, 
-   on the right it cannot be, it will simply keep bouncing back. *)
-Lemma MTKI_xxx1 (Sem: L -> itree E L)
-  (Final InRange1 InRange2: L -> bool) (l0: L) :
-  let InRange12 := fun x => InRange1 x || InRange2 x in 
-(*  let Final1 := fun x => Final x || InRange1 x in *)
-  let Final2 := fun x => Final x || InRange2 x in
-  eutt eq (MKT_iter Sem Final InRange12 l0)
-          (MKT_iter (MKT_iter Sem Final2 InRange1) Final InRange12 l0).
-Proof.
-  simpl; unfold MKT.
-  revert l0.
-  ginit. gcofix CIH.
-  intro l0.
-  setoid_rewrite unfold_iter.
-Admitted.
-
-(* WRONG *)
-Lemma MTKI_xxx2 (Sem: L -> itree E L)
-  (Final InRange1 InRange2: L -> bool) (l0: L) :
-  let InRange12 := fun x => InRange1 x || InRange2 x in 
-  let Final1 := fun x => Final x || InRange1 x in 
-(*  let Final2 := fun x => Final x || InRange2 x in *)
-  eutt eq (MKT_iter Sem Final InRange12 l0)
-          (MKT_iter (MKT_iter Sem Final1 InRange2) Final InRange12 l0).
-Proof.
-  simpl; unfold MKT.
-  revert l0.
-  ginit. gcofix CIH.
-  intro l0.
-  setoid_rewrite unfold_iter.
-Admitted. 
-
-(* ok *)
-Lemma MKTI_www (Sem: L -> itree E L)
-  (Final InRange1 InRange2: L -> bool) (l0: L) :
-  let InRange12 := fun x => InRange1 x || InRange2 x in 
-  let Final1 := fun x => Final x || InRange1 x in 
-  let Final2 := fun x => Final x || InRange2 x in
-  let SemS1 := MKT_iter Sem Final2 InRange1 in 
-  let SemS2 := MKT_iter Sem Final1 InRange2 in 
-  let SemSS1 := MKT_iter SemS1 Final InRange12 in 
-  let SemSS2 := MKT_iter SemS2 Final InRange12 in 
-(*  let SemSS12 := SemSwitch InRange1 InRange2 SemSS1 SemSS2 in *)
-  eutt eq (MKT_iter (fun l1 => if InRange1 l1
-               then SemSS1 l1
-               else if InRange2 l1
-                    then SemSS2 l1
-                    else throw err)               
-               Final InRange12 l0) 
-          ((fun l1 => if InRange1 l1
-           then SemSS1 l1
-           else if InRange2 l1
-                then SemSS2 l1
-                else if Final l1
-                     then Ret l1
-                     else throw err) l0).        
-Proof.
-  simpl. eapply MKTI_auxB2.
-Qed.
-
-(* WRONG *)
-Lemma MKTI_yyy (Sem: L -> itree E L)
-  (Final InRange1 InRange2: L -> bool) (l0: L) :
-  let InRange12 := fun x => InRange1 x || InRange2 x in 
-  let Final1 := fun x => Final x || InRange1 x in 
-  let Final2 := fun x => Final x || InRange2 x in
-  let SemS1 := MKT_iter Sem Final2 InRange1 in 
-  let SemS2 := MKT_iter Sem Final1 InRange2 in 
-  let SemSS1 := MKT_iter SemS1 Final InRange12 in 
-  let SemSS2 := MKT_iter SemS2 Final InRange12 in 
-(*  let SemSS12 := SemSwitch InRange1 InRange2 SemSS1 SemSS2 in *)
-  eutt eq ((fun l1 => if InRange1 l1
-           then MKT_iter Sem Final InRange12 l1
-           else if InRange2 l1
-                then MKT_iter Sem Final InRange12 l1
-                else if Final l1
-                     then Ret l1
-                     else throw err) l0) 
-          ((fun l1 => if InRange1 l1
-           then SemSS1 l1
-           else if InRange2 l1
-                then SemSS2 l1
-                else if Final l1
-                     then Ret l1
-                     else throw err) l0).
-Proof.
-  simpl.
-  destruct (InRange1 l0) eqn: was_e1; simpl.
-  setoid_rewrite <- MTKI_xxx1. reflexivity.
-  destruct (InRange2 l0) eqn: was_e2; simpl.
-  setoid_rewrite <- MTKI_xxx2; reflexivity.
-  destruct (Final l0); try reflexivity.
-Qed.
-
-(* this can't be true: the right can go further than the left *)
-Lemma MKTI_auxC (Sem1 Sem2: L -> itree E L)
-  (Final InRange1 InRange2: L -> bool) (l0: L) :
-  let InRange12 := fun x => InRange1 x || InRange2 x in 
-  eutt eq (MKT_iter (fun l1 => if InRange1 l1
-           then MKT_iter Sem1 Final InRange12 l1
-           else if InRange2 l1
-                then MKT_iter Sem2 Final InRange12 l1
-                else throw err) Final InRange12 l0)
-          (MKT_iter (fun l1 => if InRange1 l1
-           then Sem1 l1
-           else if InRange2 l1
-                then Sem2 l1
-                else throw err) Final InRange12 l0).
-Proof.
-  simpl. unfold MKT.
-  setoid_rewrite unfold_iter at 4.
-  rewrite MKTI_auxB2.
-  unfold MKT; simpl.
-  destruct (InRange1 l0) eqn: was_e1; simpl.
-  { setoid_rewrite unfold_iter at 1.
-    destruct (Final l0) eqn: was_e2; simpl.
-    - admit. (* absurd *)
-    - rewrite was_e1.
-      destruct (InRange2 l0) eqn: was_e3; simpl.
-      + admit. (* absurd *)
-      + setoid_rewrite bind_bind.
-        setoid_rewrite bind_ret_l.
-        eapply eqit_bind; try reflexivity.
-        intro l1.
-Abort.      
-
-
-(* better *)
-Lemma MKTI_auxB2G (Sem1 Sem2: L -> itree E L)
-  (Final InRange1 InRange2: L -> bool) (l0: L) :
-  let InRange12 := fun x => InRange1 x || InRange2 x in 
-  eutt eq (MKT_iter (fun l1 => if InRange1 l1
-           then Sem1 l1
-           else if InRange2 l1
-                then Sem2 l1
-                else throw err) Final InRange12 l0)
-          ((fun l1 => if InRange1 l1
-           then Sem1 l1
-           else if InRange2 l1
-                then Sem2 l1
-                else if Final l1
-                     then Ret l1
-                     else throw err) l0).        
-Proof.
-  simpl; unfold MKT.
-  rewrite unfold_iter.
-  destruct (Final l0) eqn: was_e3; simpl; try reflexivity.
-  { assert (InRange1 l0 = false) as A1.
-    { admit. }
-    rewrite A1.
-    assert (InRange2 l0 = false) as A2.
-    { admit. }
-    rewrite A2.
-    rewrite bind_ret_l; reflexivity.
-  }
-  {  destruct (InRange1 l0 || InRange2 l0) eqn: was_e12; simpl.
-     2: { admit. }
-     destruct (InRange1 l0) eqn: was_e1; simpl.
-     { setoid_rewrite bind_bind.
-       setoid_rewrite bind_ret_l; simpl.
-       (* should be ok *)
-       admit.
-     }
-     { assert (InRange2 l0 = true) as A2.
-       { admit. }
-       rewrite A2.
-       setoid_rewrite bind_bind.
-       setoid_rewrite bind_ret_l; simpl.
-       (* should be ok *)
-        admit.
-     }
-   }   
-Admitted.   
-
-
-(* the top iter on the left can be made redundant *)
-Lemma MKTI_auxB (Sem: L -> itree E L)
-  (Final InRange1 InRange2: L -> bool) (l0: L) :
-  let InRange12 := fun x => InRange1 x || InRange2 x in 
-  eutt eq (MKT_iter (fun l1 => if InRange1 l1
-           then MKT_iter Sem Final InRange12 l1
-           else if InRange2 l1
-                then MKT_iter Sem Final InRange12 l1
-                else throw err) Final InRange12 l0)
-          ((fun l1 => if InRange1 l1
-           then MKT_iter Sem Final InRange12 l1
-           else if InRange2 l1
-                then MKT_iter Sem Final InRange12 l1
-                else if Final l1
-                     then Ret l1
-                     else throw err) l0).        
-Proof.
-  simpl; unfold MKT.
-  rewrite unfold_iter.
-  destruct (Final l0) eqn: was_e3; simpl; try reflexivity.
-  { assert (InRange1 l0 = false) as A1.
-    { admit. }
-    rewrite A1.
-    assert (InRange2 l0 = false) as A2.
-    { admit. }
-    rewrite A2.
-    rewrite bind_ret_l; reflexivity.
-  }
-  {  destruct (InRange1 l0 || InRange2 l0) eqn: was_e12; simpl.
-     2: { admit. }
-     destruct (InRange1 l0) eqn: was_e1; simpl.
-     { setoid_rewrite bind_bind.
-       setoid_rewrite bind_ret_l; simpl.
-       (* should be ok *)
-       admit.
-     }
-     { assert (InRange2 l0 = true) as A2.
-       { admit. }
-       rewrite A2.
-       setoid_rewrite bind_bind.
-       setoid_rewrite bind_ret_l; simpl.
-       (* should be ok *)
-        admit.
-     }
-   }   
-Admitted.    
-
-Lemma MKTI_auxC (Sem: L -> itree E L)
-  (Final InRange1 InRange2: L -> bool) (l0: L) :
-  let InRange12 := fun x => InRange1 x || InRange2 x in 
-  let Final1 := fun x => Final x || InRange1 x in
-  let Final2 := fun x => Final x || InRange2 x in
-  eutt eq (MKT_iter (fun l1 => if InRange1 l1
-                then MKT_iter Sem Final2 InRange1 l1
-                else if InRange2 l1
-                     then MKT_iter Sem Final1 InRange2 l1
-                     else throw err) Final InRange12 l0)
-          ((fun l1 => if InRange1 l1
-            then MKT_iter (MKT_iter Sem Final2 InRange1) Final InRange12 l1
-            else if InRange2 l1
-                 then MKT_iter Sem Final InRange12 l1
-                 else if Final l1
-                      then Ret l1
-                      else throw err) l0).
-Proof.
-  simpl; unfold MKT.
-  revert l0.
-  ginit. gcofix CIH.
-  intro l0.
-  setoid_rewrite unfold_iter at 1.
-
-  destruct (Final l0) eqn: was_e3; simpl; try reflexivity.
-  { assert (InRange1 l0 = false) as A1.
-    { admit. }
-    rewrite A1.
-    assert (InRange2 l0 = false) as A2.
-    { admit. }
-    rewrite A2.
-    rewrite bind_ret_l.
-    gstep; red. econstructor; auto.
-  }
-
-  { destruct (InRange1 l0 || InRange2 l0) eqn: was_e12; simpl.
-    2: { admit. }
-    destruct (InRange1 l0) eqn: was_e1; simpl.
-    { setoid_rewrite bind_bind.
-      setoid_rewrite bind_ret_l; simpl.
-      setoid_rewrite unfold_iter at 5.
-      rewrite was_e3; simpl.
-      rewrite was_e1; simpl.
-      setoid_rewrite bind_bind.
-      guclo eqit_clo_bind.
-      econstructor 1 with (RU := eq); try reflexivity.
-      intros u1 u2 hh.
-      inversion hh; subst.
-      setoid_rewrite bind_ret_l.
-      admit.
-    }
-Admitted.   
-
-
-(* looks OK *)
-Lemma MKTI_aux2' (Sem: L -> itree E L)
-  (Final InRange1 InRange2: L -> bool) (l0: L) :
-  let InRange12 := fun x => InRange1 x || InRange2 x in 
-  let Final1 := fun x => Final x || InRange1 x in
-  let Final2 := fun x => Final x || InRange2 x in
-  eutt eq (* (MKT_iter Sem Final InRange12 l0) *)
-          (MKT_iter (fun l1 => if InRange1 l1
-               then MKT_iter Sem Final2 InRange1 l1
-               else if InRange2 l1
-                    then MKT_iter Sem Final1 InRange2 l1
-                    else throw err)               
-               Final InRange12 l0)
-          (ITree.bind ((fun l1 => if InRange1 l1
-               then MKT_iter Sem Final2 InRange1 l1
-               else if InRange2 l1
-                    then MKT_iter Sem Final1 InRange2 l1
-                    else if Final l1
-                         then (Ret l1)         
-                         else throw err) l0)               
-               (MKT_iter Sem Final InRange12)). 
-Proof.
-  simpl. unfold MKT.
-  revert l0.
-  ginit. gcofix CIH.
-  intro l0.
-
-  setoid_rewrite unfold_iter at 1.
-  guclo eqit_clo_bind.
-  econstructor 1 with (RU := fun x y => match x with
-                                        | inr x1 => x1 = y
-                                        | inl x1 => x1 = y end).
-  destruct (Final l0) eqn: was_e0; simpl.
-  { assert (InRange1 l0 = false) as A1.
-    { admit. }
-    rewrite A1.
-    assert (InRange2 l0 = false) as A2.
-    { admit. }
-    rewrite A2.
-    pstep. red. econstructor; auto.
-  }
-  { destruct (InRange1 l0 || InRange2 l0) eqn: was_e1; simpl; try reflexivity.
-    destruct (InRange1 l0) eqn: was_e2; simpl; try reflexivity.
-    admit.
-    
-    assert (InRange2 l0 = true) as A2.
-    { admit. }
-    rewrite A2.
-    admit.
-
-    assert (InRange1 l0 = false) as A1.
-    { admit. }
-    rewrite A1.
-    assert (InRange2 l0 = false) as A2.
-    { admit. }
-    rewrite A2.
-    pstep. red. econstructor; eauto.
-    intro v; destruct v.
-  }
-  { intros u1 u2 hh.
-    destruct u1 as [u1 | u1]; simpl in *; inversion hh; subst.
-Abort.    
-    
-(* looks OK *)
-Lemma MKTI_aux2' (Sem: L -> itree E L)
-  (Final InRange1 InRange2: L -> bool) (l0: L) :
-  let InRange12 := fun x => InRange1 x || InRange2 x in 
-  let Final1 := fun x => Final x || InRange1 x in
-  let Final2 := fun x => Final x || InRange2 x in
-  eutt eq (MKT_iter (MKT_iter Sem Final InRange12)
-                    Final InRange12 l0)
-          (MKT_iter (fun l1 => if InRange1 l1
-               then MKT_iter Sem Final2 InRange1 l1
-               else if InRange2 l1
-                    then MKT_iter Sem Final1 InRange2 l1
-                    else throw err)               
-               Final InRange12 l0).
-Proof.
-  simpl. unfold MKT.
-  setoid_rewrite unfold_iter.
-
-  eapply eqit_bind.
-  destruct (Final l0) eqn: was_e0; simpl; try reflexivity.
-  destruct (InRange1 l0 || InRange2 l0) eqn: was_e1; simpl;
-    try reflexivity.
-  eapply eqit_bind; try reflexivity.
-  destruct (InRange1 l0) eqn: was_e2; simpl.
-  admit.
-
-  admit.
-
-  intros pe.
-  destruct pe as [l1 | l1]; simpl; try reflexivity.
-  
-(* yes, should be CIH *)  
-  admit.
-Admitted.   
-  
 (*
- ITree.iter
-    (λ l1 : L,
-       if Final l1
-       then Ret (inr l1)
-       else
-        if InRange1 l1 || InRange2 l1
-        then
-         l2 <-
-         ITree.iter
-           (λ l2 : L,
-              if Final l2
-              then Ret (inr l2)
-              else
-               if InRange1 l2 || InRange2 l2
-               then l3 <- Sem l2;; Ret (inl l3)
-               else throw err) l1;; Ret (inl l2)
-        else throw err) l0
-  ≈ ITree.iter
-      (λ l1 : L,
-         if Final l1
-         then Ret (inr l1)
-         else
-          if InRange1 l1 || InRange2 l1
-          then
-           l2 <-
-           (if InRange1 l1
-            then
-             ITree.iter
-               (λ l2 : L,
-                  if Final l2 || InRange2 l2
-                  then Ret (inr l2)
-                  else
-                   if InRange1 l2
-                   then l3 <- Sem l2;; Ret (inl l3)
-                   else throw err) l1
-            else
-             if InRange2 l1
-             then
-              ITree.iter
-                (λ l2 : L,
-                   if Final l2 || InRange1 l2
-                   then Ret (inr l2)
-                   else
-                    if InRange2 l2
-                    then l3 <- Sem l2;; Ret (inl l3)
-                    else throw err) l1
-             else throw err);; Ret (inl l2)
-          else throw err) l0
-
+Check @bind_iter.
+@bind_iter
+     : ∀ (E : Type → Type) (A B C : Type) (f : A → itree E (A + B)) 
+         (g : B → itree E (B + C)) (x : A),
+         ITree.bind (ITree.iter f x) (ITree.iter g)
+         ≈ ITree.iter
+             (λ ab : A + B,
+                match ab with
+                | inl a => ITree.map inl (f a)
+                | inr b => ITree.map (bimap inr (id_ C)) (g b)
+                end : itree E ((A + B) + C) ) (inl x)
 *)
-  
-(*******************************************************************)
 
-(* interesting, but is it right? probably not. the left reduces to a
-   'deep' nesting on iters, while the right to a top-level iter (using
-   bind_iterX) *)
-Lemma bind_BKTL_vanishing (Sem: L -> itree E L)
-  (Init Final InRange1 InRange2: L -> bool) (l0: L) :  
-  eutt eq (BKT_loop (BKT_loop Sem Init Final InRange2)
-                 (fun x => (InRange2 x) || (Init x))
-                 (fun x => (InRange2 x) || (Final x))
-                 InRange1 l0)
-          (ITree.bind (BKT_loop Sem (fun x => (InRange2 x) || (Init x))
-                           (fun x => (InRange2 x) || (Final x))
-                            InRange1 l0) 
-                      (BKT_loop Sem Init Final InRange2)).
-Proof.
-  unfold aloop; simpl.
-  unfold BKT at 1 3; simpl.
-  unfold loop.
-  rewrite bind_bind; simpl.
-  eapply eqit_bind; try reflexivity.
-  intros pe.
-  unfold CategoryOps.iter.
-  unfold Iter_Kleisli, Basics.iter, MonadIter_itree; simpl.
-  unfold CategoryOps.cat; simpl.
-  unfold Cat_Kleisli; simpl.
-  setoid_rewrite bind_ret_l.
-  setoid_rewrite bind_iterX.
-  unfold BKT; simpl.
-Admitted.
-
-(* might also be wrong *)
-Lemma BKTL_split (Sem: L -> itree E L)
-  (Init Final InRange1 InRange2: L -> bool) (l0: L) :
-  eutt eq (BKT_loop (BKT_loop Sem Init Final InRange2)
-                 (fun x => (InRange2 x) || (Init x))
-                 (fun x => (InRange2 x) || (Final x))
-                 InRange1 l0)
-          (BKT_loop Sem Init Final
-                  (fun x => (InRange1 x) || (InRange2 x)) l0).
-Proof.
-Admitted. 
-
-
-(******************************************************************)
-
-(* here we use the WRONG strategy *)
-Lemma bind_MKTI_wrong (Sem: L -> itree E L)
+(* not needed. OK strategy, but we need coinduction *)
+Lemma bind_MKTI (Sem: L -> itree E L)
   (Final InRange1 InRange2: L -> bool) (l0: L) :
   eutt eq (ITree.bind (MKT_iter Sem (fun x => (InRange2 x) || (Final x))
                             InRange1 l0) 
@@ -1735,599 +811,157 @@ Proof.
               then ITree.bind (Sem l1) (λ l2 : L, Ret (inl l2))
               else throw err) l0
          ) as W.
-  { (* we are comparing the bodies: and it fails *)
-    eapply eutt_iter' with  
-    (RI := fun (x: L + L) (y: L) =>
-             (match x with
-             | inl l1 => l1 = y 
-             | inr l1 => l1 = y 
-             end)); simpl; try reflexivity.
+  { (* we should use coinduction, though *)
+    setoid_rewrite unfold_iter.
 
-  intros j1 j2 H.
-  clear l0.
-  destruct j1 as [j1 | j1]; simpl.
-  { inversion H; subst; simpl. clear H0.    
-    destruct (Final j2) eqn: was_e0; simpl.
-    { destruct (InRange2 j2 || true) eqn: was_e1; simpl; try congruence.
+    destruct (Final l0) eqn: was_e0; simpl.
+    { destruct (InRange2 l0 || true) eqn: was_e1; simpl.
       2: { compute in was_e1.
-         destruct (InRange2 j2); try congruence.
-      }      
+           destruct (InRange2 l0); try congruence.
+      }   
+      rewrite bind_bind.
       setoid_rewrite bind_ret_l; simpl.
-      pstep; red; econstructor.
-      (* PROBLEM: what is wrong? *)
-      (* econstructor *)
-      admit.
-    }
-      
-    destruct (InRange2 j2) eqn: was_e3; simpl.    
-    { destruct (InRange1 j2 || true) eqn: was_e4; simpl.
-      2: { compute in was_e4.
-           destruct (InRange1 j2); try congruence.
-      }
-      unfold ITree.map; setoid_rewrite bind_ret_l.
-      (* actually, PROBLEM: extra step on the right *)
-      admit.
-    }
-      
-    { destruct (InRange1 j2) eqn: was_e5; simpl.    
-      - unfold ITree.map; setoid_rewrite bind_bind.
-        eapply eqit_bind'; try reflexivity.
-        intros r1 r2 H.
-        inversion H; subst.
-        rewrite bind_ret_l.
-        pstep; red; econstructor.
-        econstructor; auto.
-      - setoid_rewrite bind_vis.
-        eapply eqit_Vis.
-        intro u. destruct u.
-    } 
-  }  
-Abort.    
-
-
-(************************************************)
-(* AUX2: problematic *)
-(*
-  ITree.iter
-    (λ l1 : L,
-       if Final l1
-       then Ret (inr l1)
-       else if InRange1 l1 || InRange2 l1
-        then l2 <-
-         ITree.iter
-           (λ l2 : L,
-              if Final l2
-              then Ret (inr l2)
-              else if InRange1 l2 || InRange2 l2 
-                   then l3 <- Sem l2;; Ret (inl l3) 
-                   else throw err) l1;; 
-         Ret (inl l2)
-        else throw err) l0
-  ≈ ITree.iter
-      (λ l1 : L,
-         if Final l1
-         then Ret (inr l1)
-         else if InRange1 l1 || InRange2 l1
-          then l2 <-
-           (if InRange1 l1
-            then ITree.iter
-               (λ l2 : L,
-                  if Final l2 
-                  then Ret (inr l2) 
-                  else if InRange1 l2 
-                       then l3 <- Sem l2;; Ret (inl l3) 
-                       else throw err) l1
-            else if InRange2 l1
-                 then ITree.iter
-                    (λ l2 : L,
-                     if Final l2 
-                     then Ret (inr l2) 
-                     else if InRange2 l2 
-                          then l3 <- Sem l2;; Ret (inl l3) 
-                          else throw err) l1
-                 else throw err);; Ret (inl l2)
-          else throw err) l0
- *)
-(* NOT ok *)
-Lemma MKTI_aux2_wrong (Sem: L -> itree E L)
-  (Final InRange1 InRange2: L -> bool) (l0: L) :
-  let InRange12 := fun x => InRange1 x || InRange2 x in 
-  eutt eq (MKT_iter (MKT_iter Sem Final InRange12)
-                    Final InRange12 l0)
-          (MKT_iter (fun l1 => if InRange1 l1
-               then MKT_iter Sem Final InRange1 l1
-               else if InRange2 l1
-                    then MKT_iter Sem Final InRange2 l1
-                    else throw err)               
-               Final InRange12 l0).
-Proof.
-  simpl. unfold MKT.
-  setoid_rewrite unfold_iter.
-  destruct (Final l0) eqn: was_e0; simpl.    
-  { setoid_rewrite bind_ret_l; simpl; try reflexivity. }
-  destruct (InRange1 l0 || InRange2 l0) eqn: was_e1; simpl.
-  { setoid_rewrite bind_bind; simpl.
-    setoid_rewrite bind_ret_l; simpl.
-    destruct (InRange1 l0) eqn: was_e2; simpl.
-    (* eapply eqit_bind; try reflexivity. *)
-    (* does not look right *)
-    { setoid_rewrite tau_euttge at 1.
-      setoid_rewrite bind_iter.
-      setoid_rewrite unfold_iter at 1.  
-      rewrite was_e0; simpl.
-      rewrite bind_bind.
-      destruct (InRange1 l0 || InRange2 l0) eqn: was_e3; simpl.
-      2: { setoid_rewrite was_e2 in was_e3; simpl in *.
-           intuition.
-      }
-      setoid_rewrite bind_ret_l.
-      setoid_rewrite bind_bind.
-
-      setoid_rewrite tau_euttge at 2.
-      setoid_rewrite bind_iter.
-      setoid_rewrite unfold_iter at 2.
-      rewrite was_e0; simpl.
-      rewrite was_e2; simpl.
-      rewrite bind_bind.
-      rewrite bind_bind.
-      eapply eqit_bind; try reflexivity.
-      intro l1.
-      setoid_rewrite bind_ret_l.
-      setoid_rewrite bind_ret_l.
-      (* CIH? not quite... *)
-
-(* 
-  eqit eq true true
-    (ITree.iter
-       (λ ab : L + L,
-          match ab with
-          | inl a =>
-              ITree.map inl
-                (if Final a
-                 then Ret (inr a)
-                 else if InRange1 a || InRange2 a then ITree.bind (Sem a) (λ l0 : L, Ret (inl l0)) else throw err)
-          | inr b =>
-              ITree.map (bimap inr (id_ L))
-                (if Final b
-                 then Ret (inr b)
-                 else
-                  if InRange1 b || InRange2 b
-                  then
-                   ITree.bind
-                     (ITree.iter
-                        (λ l0 : L,
-                           if Final l0
-                           then Ret (inr l0)
-                           else
-                            if InRange1 l0 || InRange2 l0
-                            then ITree.bind (Sem l0) (λ l2 : L, Ret (inl l2))
-                            else throw err) b) (λ l0 : L, Ret (inl l0))
-                  else throw err)
-          end) (inl l1))
-    (ITree.iter
-       (λ ab : L + L,
-          match ab with
-          | inl a =>
-              ITree.map inl
-                (if Final a
-                 then Ret (inr a)
-                 else if InRange1 a then ITree.bind (Sem a) (λ l0 : L, Ret (inl l0)) else throw err)
-          | inr b =>
-              ITree.map (bimap inr (id_ L))
-                (if Final b
-                 then Ret (inr b)
-                 else
-                  if InRange1 b || InRange2 b
-                  then
-                   ITree.bind
-                     (if InRange1 b
-                      then
-                       ITree.iter
-                         (λ l0 : L,
-                            if Final l0
-                            then Ret (inr l0)
-                            else if InRange1 l0 then ITree.bind (Sem l0) (λ l2 : L, Ret (inl l2)) else throw err) b
-                      else
-                       if InRange2 b
-                       then
-                        ITree.iter
-                          (λ l0 : L,
-                             if Final l0
-                             then Ret (inr l0)
-                             else if InRange2 l0 then ITree.bind (Sem l0) (λ l2 : L, Ret (inl l2)) else throw err) b
-                       else throw err) (λ l0 : L, Ret (inl l0))
-                  else throw err)
-          end) (inl l1))
-*)
-      
-      clear was_e0 was_e1 was_e2 was_e3.
-      clear l0.
+      setoid_rewrite bind_ret_l; simpl.
       setoid_rewrite tau_euttge.
-      setoid_rewrite unfold_iter.
-      destruct (Final l1) eqn: was_e0; simpl.
-      { setoid_rewrite bind_bind; simpl.
-        setoid_rewrite bind_ret_l; simpl.
-        setoid_rewrite bind_ret_l; simpl.
-        (* CIH! *)
-        setoid_rewrite tau_euttge.
-        admit.
-      }
-      { setoid_rewrite bind_bind; simpl.
-        
-        destruct (InRange1 l1) eqn:was_e1; simpl. 
-        { setoid_rewrite bind_bind.
-          eapply eqit_bind; try reflexivity.
-          setoid_rewrite bind_ret_l; simpl.
-          setoid_rewrite bind_ret_l; simpl.
-          intro l2.
-          (* CIH! *)
-          setoid_rewrite tau_euttge.
-              
-          admit.
-        }
-        { (* PROBLEM *)
-          admit.
-        }   
-      }
+      rewrite unfold_iter; simpl.
+      rewrite bind_bind.
+      rewrite was_e0; simpl.
+      rewrite bind_ret_l.
+      rewrite bind_ret_l; reflexivity.
     }
-    { setoid_rewrite tau_euttge; simpl.
-      destruct (InRange2 l0) eqn: was_e4; simpl.
-      { setoid_rewrite bind_iter.
-        setoid_rewrite unfold_iter.
-        rewrite was_e0; simpl.
-        rewrite was_e4; simpl.
-        destruct (InRange1 l0 || true) eqn: was_e5; simpl.
-        2: { compute in was_e5.
-             rewrite was_e2 in was_e5; simpl in *.
-             intuition.
+    { destruct (InRange2 l0) eqn: was_e2; simpl.
+      { destruct (InRange1 l0 || true) eqn: was_e3; simpl.
+        2: { compute in was_e3.
+             destruct (InRange1 l0); try congruence.
         }
+        rewrite bind_bind.
+        setoid_rewrite bind_ret_l; simpl.
+        setoid_rewrite bind_ret_l; simpl.
+        setoid_rewrite tau_euttge at 1; simpl.
+        setoid_rewrite unfold_iter at 1; simpl.
+        rewrite bind_bind.
+        rewrite was_e0; simpl.
+        rewrite was_e2; simpl.
+        rewrite bind_bind.
+        setoid_rewrite bind_ret_l.
+        setoid_rewrite bind_ret_l.
         eapply eqit_bind; try reflexivity.
-        intro te1.
-        destruct te1 as [[l1 | l1] | l1]; simpl; try reflexivity.
-        (* CIH? *)
-        admit.
+        intros l1.
+        (* should go through by CIH *)
         admit.
       }
-      { simpl.
-        setoid_rewrite bind_iter at 1.
-        rewrite unfold_iter.
-        rewrite was_e0; simpl.
-        destruct (InRange1 l0 || InRange2 l0) eqn: was_e6; simpl.
-        { rewrite was_e2 in was_e6.
-          rewrite was_e4 in was_e6.
-          compute in was_e6; intuition.
+      { destruct (InRange1 l0) eqn: was_e4; simpl.
+        { setoid_rewrite bind_bind.  
+          setoid_rewrite bind_bind.  
+          setoid_rewrite bind_ret_l; simpl.
+          setoid_rewrite bind_ret_l; simpl.
+          eapply eqit_bind; try reflexivity.
+          intros l1.
+        (* should go through by CIH *)          
+          admit.
         }
         { rewrite bind_bind.
           setoid_rewrite bind_vis.
           eapply eqit_Vis.
           intro u. destruct u.
-        }      
-      }
+        }
+     }
     }
   }
-  { setoid_rewrite bind_vis.
+  { rewrite <- W.
+    eapply eutt_iter.
+    intros [l | l]; try reflexivity.
+    eapply eqit_bind; try reflexivity.
+    unfold ITree.map; destruct (InRange2 l || Final l); simpl; try reflexivity.
+    { rewrite bind_ret_l; simpl; try reflexivity. }
+    { destruct (InRange1 l); try reflexivity.
+      - rewrite bind_bind; simpl.
+        eapply eqit_bind; try reflexivity.
+        intro pe; setoid_rewrite bind_ret_l; try reflexivity.
+      - setoid_rewrite bind_vis.
+        eapply eqit_Vis.
+        intro u. destruct u.
+    } 
+  } 
+Admitted.                 
+
+(* not needed. OK, breaking it into two and using coinduction *)
+Lemma MKTI_aux1 (Sem: L -> itree E L)
+  (Final InRange: L -> bool) (l0: L) :
+  eutt eq (MKT_iter (MKT_iter Sem Final InRange)
+                    Final InRange l0)
+          (MKT_iter Sem Final InRange l0).
+Proof.
+  unfold MKT; simpl.
+  setoid_rewrite unfold_iter; simpl.
+  destruct (Final l0) eqn: was_e0; simpl.    
+  { setoid_rewrite bind_ret_l; simpl; try reflexivity. }
+  destruct (InRange l0) eqn: was_e1; simpl.
+  { setoid_rewrite bind_bind; simpl.
+    setoid_rewrite bind_ret_l; simpl.
+    (* wrong approach *)
+(*    eapply eqit_bind; simpl.
+    rewrite unfold_iter; simpl.
+    rewrite was_e0; simpl.
+    rewrite was_e1; simpl.
+    rewrite bind_bind.
+    setoid_rewrite bind_ret_l; simpl.
+*)  
+    setoid_rewrite tau_euttge at 1.
+    rewrite bind_iter.
+    rewrite unfold_iter.
+    rewrite was_e0; simpl.
+    rewrite was_e1; simpl.
+    setoid_rewrite bind_bind; simpl.
+    setoid_rewrite bind_bind; simpl.
+    eapply eqit_bind; try reflexivity.
+    intro l1.
+    rewrite bind_ret_l.
+    rewrite bind_ret_l.
+    (* maybe by CIH? not quite but... *)
+
+    clear was_e0 was_e1.
+    clear l0.
+    setoid_rewrite tau_euttge.
+    setoid_rewrite unfold_iter.
+    destruct (Final l1) eqn: was_e0; simpl.    
+    { setoid_rewrite bind_ret_l; simpl.
+      rewrite bind_ret_l.
+      setoid_rewrite tau_euttge.
+      rewrite unfold_iter.
+      rewrite was_e0; simpl.
+      rewrite bind_bind.
+      rewrite bind_ret_l; simpl.
+      rewrite bind_ret_l; simpl.
+      reflexivity.
+    }
+    destruct (InRange l1) eqn: was_e1; simpl.
+    2: { setoid_rewrite bind_bind. 
+         setoid_rewrite bind_vis.
+         eapply eqit_Vis.
+         intro u. destruct u.
+    }
+    rewrite bind_bind; simpl.
+    setoid_rewrite bind_bind; simpl.
+    setoid_rewrite bind_bind; simpl.
+    eapply eqit_bind; try reflexivity.
+    intro l2.
+    setoid_rewrite bind_ret_l; simpl.
+    setoid_rewrite bind_ret_l; simpl.
+    (* CIH! *)
+    setoid_rewrite tau_euttge.
+    
+    admit.
+  }
+  {
+    setoid_rewrite bind_vis.
     eapply eqit_Vis.
     intro u. destruct u.
-  }              
-Abort. 
-
-
-(*
-Variable (P1 : (L + L + (L + L)) -> (L + L) -> bool).
-Variable (P2 : (L + L + (L + L)) -> (L + L) -> bool).
-Variable (P3 : (L + L + (L + L)) -> (L + L) -> bool).
-Variable (P4 : (L + L + (L + L)) -> (L + L) -> bool).
-
-End AbsIterators.
-
-Notation L:= nat.
-
-Lemma BKT_vanishing_aux2 (Sem: L -> itree E L)
-  (Init Final InRange1 InRange2: L -> bool) (l0: L) :
-  eutt eq (ITree.bind (BKT_L Sem (fun x => (InRange2 x) || (Init x))
-                                (fun x => (InRange2 x) || (Final x))
-                                 InRange1 l0) 
-                      (BKT_L Sem Init Final InRange2))
-          (BKT_L Sem Init Final 
-                    (fun x => (InRange1 x) || (InRange2 x)) l0).
-Proof.
-  unfold BKT_L, aloop; simpl.
-  unfold BKT at 1 3; simpl.
-  unfold loop.
-  rewrite bind_bind; simpl.
-  eapply eqit_bind; try reflexivity.
-  intros pe.
-  unfold CategoryOps.iter.
-  unfold Iter_Kleisli, Basics.iter, MonadIter_itree; simpl.
-  unfold CategoryOps.cat; simpl.
-  unfold Cat_Kleisli; simpl.
-  setoid_rewrite bind_ret_l.
-  setoid_rewrite bind_iterX.
-  unfold BKT; simpl.
-  unfold ITree.map; simpl.
-  set LB := (fun ad : L + L + (L + L) => _).
-  set RB := (fun x : L + L => _).
-  set LT := (ITree.iter LB _).
-  set RT := (ITree.iter RB _).
-
-  destruct pe as [l1 | l1]; simpl.
-    
-(*  set X := (fun (x: L + L + (L + L)) (y: L + L) =>
-             (match (x, y) return bool with
-             | (inr (inr l1), inr l2) => (l1 == l2) 
-          
-             | (inl (inl l1), inl l2) => (l1 == l2) 
-             | (inl (inr l1), inr l2) => (l1 == l2) 
-             | _ => false
-             end)).
-*)  
-
-  eapply eutt_iter' with  
-    (RI := fun (x: L + L + (L + L)) (y: L + L) =>
-             (match (x, y) with
-             | (inr (inl l1), inl l2) => l1 = l2 
-             | (inr (inr l1), inr l2) => l1 = l2 
-             | (inl (inl l1), inl l2) => l1 = l2 
-             | (inl (inr l1), inr l2) => l1 = l2 
-             | _ => True
-             end)); simpl; try reflexivity.
-
-  intros j1 j2 H.
-  clear l0.
-  (*
-  rewrite H; simpl.
-  clear H.
-  clear j1.
-   *)
-  destruct j1 as [[j1 | j1] | [j1 | j1]]; try congruence; 
-  destruct j2 as [j2 | j2]; try congruence.
-  
-  { inversion H; subst; simpl.
-    
-    subst LB RB.
-    setoid_rewrite bind_bind.
-    setoid_rewrite bind_bind.
-    destruct (Final j2) eqn: was_e0; simpl.
-    destruct (InRange2 j2 || true) eqn: was_e1; simpl; try congruence.
-    2: { compute in was_e1.
-         destruct (InRange2 j2); try congruence.
-       }      
-    setoid_rewrite bind_ret_l; simpl.
-    unfold bimap, Bimap_Coproduct; simpl.
-    unfold CategoryOps.cat, case_, inl_; simpl.
-    
-    rewrite bind_bind; unfold id_; simpl.
-    setoid_rewrite bind_ret_l.
-    setoid_rewrite bind_ret_l.
-    setoid_rewrite bind_ret_l.
-    pstep; red; econstructor; simpl.
-    unfold Datatypes.id; simpl.
-    econstructor.
-
-    econstructor.
-    unfold LB; simpl.
-    unfold Datatypes.id; simpl.
-    reflexivity.
-    
-
-
-  
-Lemma BKT_vanishing_aux2 (Sem: L -> itree E L)
-  (Init Final InRange1 InRange2: L -> bool) (l0: L) :
-  eutt eq (ITree.bind (BKT_L Sem (fun x => (InRange2 x) || (Init x))
-                                (fun x => (InRange2 x) || (Final x))
-                                 InRange1 l0) 
-                      (BKT_L Sem Init Final InRange2))
-          (BKT_L Sem Init Final 
-                    (fun x => (InRange1 x) || (InRange2 x)) l0).
-Proof.
-  unfold BKT_L, aloop; simpl.
-  unfold BKT at 1 3; simpl.
-  unfold loop.
-  rewrite bind_bind; simpl.
-  eapply eqit_bind; try reflexivity.
-  intros pe.
-  unfold CategoryOps.iter.
-  unfold Iter_Kleisli, Basics.iter, MonadIter_itree; simpl.
-  unfold CategoryOps.cat; simpl.
-  unfold Cat_Kleisli; simpl.
-  setoid_rewrite bind_ret_l.
-  setoid_rewrite bind_iterX.
-  unfold BKT; simpl.
-  unfold ITree.map; simpl.
-  set LB := (fun ad : L + L + (L + L) => _).
-  set RB := (fun x : L + L => _).
-
-(*  
-  eapply eutt_iter' with
-    (RI := fun (x: L + L + (L + L)) (y: L + L) => eq x (inl y));
-    simpl; try reflexivity.
- *)
-
-  eapply eutt_iter' with
-    (RI := fun (x: L + L + (L + L)) (y: L + L) =>
-             match (x, y) with
-             | (inr (inr l1), inr l2) => l1 == l2 
-          
-             | (inl (inl l1), inl l2) => l1 == l2 
-             | (inl (inr l1), inr l2) => l1 == l2 
-             | _ => false
-             end) ;
-    simpl; try reflexivity.
-
-(*  
-  eapply eutt_iter' with
-    (RI := fun (x: L + L + (L + L)) (y: L + L) => P1 x y);
-    simpl; try reflexivity.
-*)  
-
-  intros j1 j2 H.
-  clear l0.
-  clear pe.
-  (*
-  rewrite H; simpl.
-  clear H.
-  clear j1.
-   *)
-  destruct j1 as [[j1 | j1] | [j1 | j1]]; try congruence; 
-  destruct j2 as [j2 | j2]; try congruence.
-  
-  { inversion H; subst; simpl.
-    
-    subst LB RB.
-    setoid_rewrite bind_bind.
-    setoid_rewrite bind_bind.
-    destruct (Final j2) eqn: was_e0; simpl.
-    destruct (InRange2 j2 || true) eqn: was_e1; simpl; try congruence.
-    2: { compute in was_e1.
-         destruct (InRange2 j2); try congruence.
-       }      
-    setoid_rewrite bind_ret_l; simpl.
-    unfold bimap, Bimap_Coproduct; simpl.
-    unfold CategoryOps.cat, case_, inl_; simpl.
-    rewrite bind_bind; unfold id_; simpl.
-    setoid_rewrite bind_ret_l.
-    setoid_rewrite bind_ret_l.
-    setoid_rewrite bind_ret_l.
-    pstep; red; econstructor; simpl.
-    unfold Datatypes.id; simpl.
-    econstructor.
-
-    econstructor.
-    unfold LB; simpl.
-    unfold Datatypes.id; simpl.
-    reflexivity.
-    
-
-       
-  destruct j2; simpl.
-
-  { destruct (Final l) eqn: was_e0; simpl.
-    destruct (InRange2 l || true) eqn: was_e1; simpl; try congruence.
-    2: { compute in was_e1.
-         destruct (InRange2 l); try congruence.
-       }  
-    setoid_rewrite bind_ret_l; simpl.
-    unfold bimap, Bimap_Coproduct; simpl.
-    unfold CategoryOps.cat, case_, inl_; simpl.
-    rewrite bind_bind; unfold id_; simpl.
-    setoid_rewrite bind_ret_l.
-    setoid_rewrite bind_ret_l.
-    setoid_rewrite bind_ret_l.
-    pstep; red; econstructor; simpl.
-    unfold LB; simpl.
-    unfold Datatypes.id; simpl.
-    reflexivity.
-    
-  
-  
-  set RB := (fun x : L + L => _).
-
-  
-  
-  
-  destruct pe; simpl.
-
-  { 
-  eapply eutt_iter'.
-  instantiate (1 := fun x y => eq x (inl y)).
-  { simpl; intros j1 j2 H.
-    subst LB RB; simpl.
-    rewrite H; simpl.
-    unfold ITree.map; simpl.
-    setoid_rewrite bind_bind.
-    setoid_rewrite bind_bind.
-    clear H. clear j1.
-    destruct j2; simpl; try reflexivity.
-    
-    
-  
-  set XL := (ITree.iter _).
-  set XR := (ITree.iter _).
-  
-  
+  }      
 Admitted. 
 
 
-
-Lemma BKT_vanishing2a (Sem: L -> itree E L)
-  (Init Final InRange1 InRange2: L -> bool) (l0: L) :
-  eutt eq (acat (BKT_L Sem (fun x => (InRange2 x) || (Init x))
-                           (fun x => (InRange2 x) || (Final x))
-                            InRange1) 
-                (BKT_L Sem Init Final InRange2) l0)
-         (BKT_L Sem Init Final
-                  (fun x => (InRange1 x) || (InRange2 x)) l0).
-Proof.
-  unfold BKT_L, aloop; simpl.
-  unfold BKT at 1 3; simpl.
-  unfold acat; simpl.
-  set W := (@loop_natural_right Type (ktree E) _ _  
-    (@Id_Kleisli (itree E) (@Monad_itree E))
-    (@Cat_Kleisli (itree E) (@Monad_itree E))
-     _ sum (@Case_Kleisli (itree E))
-    (@Inl_Kleisli (itree E) (@Monad_itree E))
-    (@Inr_Kleisli (itree E) (@Monad_itree E)) _ 
-    (@Iter_Kleisli (itree E) (@MonadIter_itree E)) _
-    lpoint lpoint lpoint lpoint).
-
-
-  loop; simpl.
-  unfold CategoryOps.cat; simpl.
-  rewrite bind_bind.
-  eapply eqit_bind; try reflexivity.
-  set X := iter_natural.
-  unfold eq2 in X; simpl in X.
-  unfold Eq2_Handler in X; simpl in X.
-  unfold eutt_Handler in X; simpl in X.
-  unfold Relation.i_pointwise in X; simpl in X.
-  unfold Handler in X; simpl in X.
-(*  unfold CategoryOps.cat in X; simpl in X.
-  unfold Cat_Handler in X; simpl in X.
-  unfold Handler.cat in X; simpl in X.
-  unfold interp in X; simpl in X.
- *)
-    set W := (@loop_natural_right Type (ktree E) _ _  
-    (@Id_Kleisli (itree E) (@Monad_itree E))
-    (@Cat_Kleisli (itree E) (@Monad_itree E))
-     _ sum (@Case_Kleisli (itree E))
-    (@Inl_Kleisli (itree E) (@Monad_itree E))
-    (@Inr_Kleisli (itree E) (@Monad_itree E)) _ 
-    (@Iter_Kleisli (itree E) (@MonadIter_itree E)) _
-    lpoint lpoint lpoint lpoint).
-    unfold loop in W; simpl.
-
-  
-  set Y := loop_natural_right.
-  
-  intros pe; simpl.  
-*)
-
-(*
-Lemma BKT_vanishing2r (Sem: L -> itree E L)
-  (Init Final InRange1 InRange2: L -> bool) (l0: L) :
-  eutt eq (BKT_L (BKT_L Sem Init Final InRange2)
-                 (fun x => (InRange2 x) || (Init x))
-                 (fun x => (InRange2 x) || (Final x))
-                 InRange1 l0)
-          (BKT_L Sem Init Final
-                 (fun x => (InRange1 x) || (InRange2 x)) l0).
-Proof.
-  unfold BKT_L, aloop; simpl.
-  unfold BKT at 1 3; simpl.
-  unfold loop; simpl.
-  unfold CategoryOps.cat; simpl.
-  eapply eqit_bind; try reflexivity.
-  intros pe; simpl.
-  clear l0.
-  Check @iter_natural.
-  
-  iter (f >>> case_ (inl_ >>> inl_) inr_) >>> case_ (inl_ >>> inl_) inr_
-  ⩯ iter (f >>> case_ (inl_ >>> inl_) (case_ (inl_ >>> inl_) inr_ >>> inr_))
-
-Admitted.
-
-*)
+(*********************************************************)
 
 (* reversing: exit check after sem step *)
 Definition RACntr (Sem: L -> itree E L) (NoExit: L -> bool)
@@ -3330,6 +1964,8 @@ Proof.
   
     destruct (LIf1Node_ok la_cond1 la_lbl1) eqn: was_E1;
       try reflexivity.
+
+    unfold LACntr, ACntr2, ACntr; simpl.
 
     (* strategy: double the outer loop on the left, 
                  push the inner loop inward on the left, 
