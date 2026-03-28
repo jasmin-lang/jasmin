@@ -711,8 +711,850 @@ Admitted.
 
  *)
 
-(* looks OK *)
+Lemma iter_final_simpl (Sem: L -> itree E L)
+  (Final InRange: L -> bool) 
+  (DC1: forall x, InRange x -> Final x -> False) (l0: L) :
+    Final l0 = true ->  
+    eq_itree eq (ITree.iter
+          (λ l1 : L,
+             if Final l1
+             then Ret (inr l1)
+             else
+              if InRange l1
+              then ITree.bind (Sem l1) (λ l2 : L, Ret (inl l2))
+              else throw err) l0) (Ret l0).
+Proof.
+  intros H.
+  rewrite unfold_iter.
+  rewrite H.
+  rewrite bind_ret_l; reflexivity.
+Qed.
+
+Lemma iter_inrange1_simpl (Sem: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) 
+  (DC12: forall x, InRange1 x -> InRange2 x -> False)
+  (DC1: forall x, InRange1 x -> Final x -> False)
+  (DC2: forall x, InRange2 x -> Final x -> False) (l0: L) :
+    InRange1 l0 = true ->  
+
+    eq_itree eq (ITree.bind
+          (ITree.iter
+             (λ l1 : L,
+                if Final l1 || InRange2 l1
+                then Ret (inr l1)
+                else
+                 if InRange1 l1
+                 then ITree.bind (Sem l1) (λ l2 : L, Ret (inl l2))
+                 else throw err) l0)
+       (fun r => Tau (ITree.iter  
+               (λ l1 : L,
+                  if Final l1
+                  then Ret (inr l1)
+                  else
+                   if InRange1 l1 || InRange2 l1
+                   then
+                    ITree.bind
+                      (if InRange1 l1
+                       then
+                        ITree.iter
+                          (λ l2 : L,
+                             if Final l2 || InRange2 l2
+                             then Ret (inr l2)
+                             else
+                              if InRange1 l2
+                              then
+                               ITree.bind (Sem l2) (λ l3 : L, Ret (inl l3))
+                              else throw err) l1
+                       else
+                        if InRange2 l1
+                        then
+                         ITree.iter
+                           (λ l2 : L,
+                              if Final l2 || InRange1 l2
+                              then Ret (inr l2)
+                              else
+                               if InRange2 l2
+                               then
+                                ITree.bind (Sem l2) (λ l3 : L, Ret (inl l3))
+                               else throw err) l1
+                        else throw err) (λ l2 : L, Ret (inl l2))
+                   else throw err) r)))
+     (ITree.iter
+               (λ l1 : L,
+                  if Final l1
+                  then Ret (inr l1)
+                  else
+                   if InRange1 l1 || InRange2 l1
+                   then
+                    ITree.bind
+                      (if InRange1 l1
+                       then
+                        ITree.iter
+                          (λ l2 : L,
+                             if Final l2 || InRange2 l2
+                             then Ret (inr l2)
+                             else
+                              if InRange1 l2
+                              then
+                               ITree.bind (Sem l2) (λ l3 : L, Ret (inl l3))
+                              else throw err) l1
+                       else
+                        if InRange2 l1
+                        then
+                         ITree.iter
+                           (λ l2 : L,
+                              if Final l2 || InRange1 l2
+                              then Ret (inr l2)
+                              else
+                               if InRange2 l2
+                               then
+                                ITree.bind (Sem l2) (λ l3 : L, Ret (inl l3))
+                               else throw err) l1
+                        else throw err) (λ l2 : L, Ret (inl l2))
+                   else throw err) l0).
+Proof.
+  intros H.
+  setoid_rewrite unfold_iter at 5.
+  assert (Final l0 = false) as A1.
+  { admit. }
+  rewrite A1; simpl.
+  rewrite H; simpl.
+  setoid_rewrite bind_bind.
+  setoid_rewrite bind_ret_l; simpl.
+  reflexivity.
+Admitted. 
+
+Lemma iter_inrange2_simpl (Sem: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) 
+  (DC12: forall x, InRange1 x -> InRange2 x -> False)
+  (DC1: forall x, InRange1 x -> Final x -> False)
+  (DC2: forall x, InRange2 x -> Final x -> False) (l0: L) :
+    InRange2 l0 = true ->  
+
+    eq_itree eq (ITree.bind
+          (ITree.iter
+             (λ l1 : L,
+                if Final l1 || InRange1 l1
+                then Ret (inr l1)
+                else
+                 if InRange2 l1
+                 then ITree.bind (Sem l1) (λ l2 : L, Ret (inl l2))
+                 else throw err) l0)
+       (fun r => Tau (ITree.iter  
+               (λ l1 : L,
+                  if Final l1
+                  then Ret (inr l1)
+                  else
+                   if InRange1 l1 || InRange2 l1
+                   then
+                    ITree.bind
+                      (if InRange1 l1
+                       then
+                        ITree.iter
+                          (λ l2 : L,
+                             if Final l2 || InRange2 l2
+                             then Ret (inr l2)
+                             else
+                              if InRange1 l2
+                              then
+                               ITree.bind (Sem l2) (λ l3 : L, Ret (inl l3))
+                              else throw err) l1
+                       else
+                        if InRange2 l1
+                        then
+                         ITree.iter
+                           (λ l2 : L,
+                              if Final l2 || InRange1 l2
+                              then Ret (inr l2)
+                              else
+                               if InRange2 l2
+                               then
+                                ITree.bind (Sem l2) (λ l3 : L, Ret (inl l3))
+                               else throw err) l1
+                        else throw err) (λ l2 : L, Ret (inl l2))
+                   else throw err) r)))
+     (ITree.iter
+               (λ l1 : L,
+                  if Final l1
+                  then Ret (inr l1)
+                  else
+                   if InRange1 l1 || InRange2 l1
+                   then
+                    ITree.bind
+                      (if InRange1 l1
+                       then
+                        ITree.iter
+                          (λ l2 : L,
+                             if Final l2 || InRange2 l2
+                             then Ret (inr l2)
+                             else
+                              if InRange1 l2
+                              then
+                               ITree.bind (Sem l2) (λ l3 : L, Ret (inl l3))
+                              else throw err) l1
+                       else
+                        if InRange2 l1
+                        then
+                         ITree.iter
+                           (λ l2 : L,
+                              if Final l2 || InRange1 l2
+                              then Ret (inr l2)
+                              else
+                               if InRange2 l2
+                               then
+                                ITree.bind (Sem l2) (λ l3 : L, Ret (inl l3))
+                               else throw err) l1
+                        else throw err) (λ l2 : L, Ret (inl l2))
+                   else throw err) l0).
+Proof.
+  intros H.
+  setoid_rewrite unfold_iter at 5.
+  assert (Final l0 = false) as A1.
+  { admit. }
+  assert (InRange1 l0 = false) as A2.
+  { admit. }
+  rewrite A1; simpl.
+  rewrite A2; simpl.
+  rewrite H; simpl.
+  setoid_rewrite bind_bind.
+  setoid_rewrite bind_ret_l; simpl.
+  reflexivity.
+Admitted. 
+    
+(*
+Check @bind_iter.
+@bind_iter
+     : ∀ (E : Type → Type) (A B C : Type) (f : A → itree E (A + B)) 
+         (g : B → itree E (B + C)) (x : A),
+         ITree.bind (ITree.iter f x) (ITree.iter g)
+         ≈ ITree.iter
+             (λ ab : A + B,
+                match ab with
+                | inl a => ITree.map inl (f a)
+                | inr b => ITree.map (bimap inr (id_ C)) (g b)
+                end : itree E ((A + B) + C) ) (inl x)
+*)
+
+(* TOP GOAL *)
 Lemma MKTI_aux2 (Sem: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool)  
+  (DC12: forall x, InRange1 x -> InRange2 x -> False)
+  (DC1: forall x, InRange1 x -> Final x -> False)
+  (DC2: forall x, InRange2 x -> Final x -> False) (l0: L) :
+  let InRange12 := fun x => InRange1 x || InRange2 x in 
+  let Final1 := fun x => Final x || InRange1 x in
+  let Final2 := fun x => Final x || InRange2 x in
+  eutt eq (MKT_iter Sem Final InRange12 l0)
+          (MKT_iter (fun l1 => if InRange1 l1
+               then MKT_iter Sem Final2 InRange1 l1
+               else if InRange2 l1
+                    then MKT_iter Sem Final1 InRange2 l1
+                    else throw err)               
+               Final InRange12 l0).
+Proof.
+  assert (forall x, Final x \/ InRange1 x \/ InRange2 x
+                    \/ ((Final x = false /\
+                         InRange1 x = false /\
+                         InRange2 x = false))) as IV.
+  { admit. }
+  revert l0.
+  unfold MKT; simpl.
+  ginit. gcofix CIH.
+  intro l0.
+  setoid_rewrite unfold_iter.
+  destruct (Final l0) eqn: was_e0; simpl. try reflexivity.
+  { setoid_rewrite bind_ret_l; simpl.
+    gstep; red; econstructor; auto.
+  }  
+  destruct (InRange1 l0 || InRange2 l0) eqn: was_e12; simpl. 
+  2: { admit. }
+  setoid_rewrite bind_bind.
+  destruct (InRange1 l0) eqn: was_e1; simpl.
+  { (* InRange1 l0 *)
+    setoid_rewrite bind_ret_l; simpl.
+    setoid_rewrite unfold_iter at 2.
+    setoid_rewrite bind_bind.
+    rewrite was_e0; simpl.
+    rewrite was_e1; simpl.
+    assert (InRange2 l0 = false) as A1.
+    { admit. }
+    rewrite A1; simpl.
+    setoid_rewrite bind_bind.
+    setoid_rewrite bind_ret_l; simpl.
+    
+    guclo eqit_clo_bind.
+    econstructor 1 with (RU := eq); try reflexivity.
+    clear was_e0 was_e1 was_e12 A1. clear l0.
+    
+    intros l2 l1 hh.
+    inversion hh; subst. clear H.
+    specialize (IV l1).
+    destruct IV as [IV | [IV | [IV | IV]]].
+                
+    { (* Final l1 *)
+      assert (Final l1 || InRange2 l1) as A1.
+      { admit. }
+      assert (forall x, InRange1 x -> Final x || InRange2 x -> False) as A2.
+      { admit. }
+      set X := (@iter_final_simpl Sem
+                (fun l1 => Final l1 || InRange2 l1) _ A2 l1 A1).
+      rewrite X.
+      rewrite bind_tau.
+      setoid_rewrite bind_ret_l; simpl.
+      setoid_rewrite tau_euttge at 2.
+      gstep; red; econstructor.
+      gfinal; left. eapply CIH.
+    }
+    { (* InRange1 l1 *)
+      setoid_rewrite bind_tau.
+      set X := (@iter_inrange1_simpl Sem Final InRange1 InRange2
+                  DC12 DC1 DC2 l1 IV).
+      setoid_rewrite X.
+      gstep; red; econstructor.
+      gfinal; left. eapply CIH.
+    }
+    { (* InRange2 l1 *)
+      assert (Final l1 || InRange2 l1) as A1.
+      { admit. }
+      assert (forall x, InRange1 x -> Final x || InRange2 x -> False) as A2.
+      { admit. }
+      set X := (@iter_final_simpl Sem
+                (fun l1 => Final l1 || InRange2 l1) _ A2 l1 A1).
+      rewrite X.
+      rewrite bind_tau.
+      setoid_rewrite bind_ret_l; simpl.
+      setoid_rewrite tau_euttge at 2.
+      gstep; red; econstructor.
+      gfinal; left. eapply CIH.
+    }
+    { destruct IV as [IV1 [IV2 IV3]].  
+      setoid_rewrite tau_euttge.
+      setoid_rewrite unfold_iter.
+      rewrite IV1; simpl.
+      rewrite IV2; simpl.
+      rewrite IV3; simpl.
+      rewrite bind_bind.
+      setoid_rewrite bind_vis.
+      gstep; red. econstructor.
+      intro v; destruct v.
+    }
+  }
+  { (* InRange2 l0 *)
+    assert (InRange2 l0 = true) as A1.
+    { admit. }
+    setoid_rewrite bind_ret_l; simpl.
+    rewrite A1; simpl.
+    setoid_rewrite unfold_iter at 2.
+    setoid_rewrite bind_bind.
+    rewrite was_e0; simpl.
+    rewrite was_e1; simpl.
+    rewrite A1; simpl.
+    setoid_rewrite bind_bind.
+    setoid_rewrite bind_ret_l; simpl.
+
+    guclo eqit_clo_bind.
+    econstructor 1 with (RU := eq); try reflexivity.
+    clear was_e0 was_e1 was_e12 A1. clear l0.
+
+    intros l2 l1 hh.
+    inversion hh; subst. clear H.
+    specialize (IV l1).
+    destruct IV as [IV | [IV | [IV | IV]]].
+                
+    { (* Final l1 *)
+      assert (Final l1 || InRange1 l1) as A1.
+      { admit. }
+      assert (forall x, InRange2 x -> Final x || InRange1 x -> False) as A2.
+      { admit. }
+      set X := (@iter_final_simpl Sem
+                (fun l1 => Final l1 || InRange1 l1) _ A2 l1 A1).
+      rewrite X.
+      rewrite bind_tau.
+      setoid_rewrite bind_ret_l; simpl.
+      setoid_rewrite tau_euttge at 2.
+      gstep; red; econstructor.
+      gfinal; left. eapply CIH.
+    }
+    { (* InRange1 l1 *)
+      assert (Final l1 || InRange1 l1) as A1.
+      { admit. }
+      assert (forall x, InRange2 x -> Final x || InRange1 x -> False) as A2.
+      { admit. }
+      set X := (@iter_final_simpl Sem
+                (fun l1 => Final l1 || InRange1 l1) _ A2 l1 A1).
+      rewrite X.
+      rewrite bind_tau.
+      setoid_rewrite bind_ret_l; simpl.
+      setoid_rewrite tau_euttge at 2.
+      gstep; red; econstructor.
+      gfinal; left. eapply CIH.
+    }
+    { (* InRange2 l1 *)     
+      setoid_rewrite bind_tau.
+      set X := (@iter_inrange2_simpl Sem Final InRange1 InRange2
+                  DC12 DC1 DC2 l1 IV).
+      setoid_rewrite X.
+      gstep; red; econstructor.
+      gfinal; left. eapply CIH.
+    }
+    { destruct IV as [IV1 [IV2 IV3]].  
+      setoid_rewrite tau_euttge.
+      setoid_rewrite unfold_iter.
+      rewrite IV1; simpl.
+      rewrite IV2; simpl.
+      rewrite IV3; simpl.
+      rewrite bind_bind.
+      setoid_rewrite bind_vis.
+      gstep; red. econstructor.
+      intro v; destruct v.
+    }
+  }
+Admitted.   
+    
+
+    
+ 
+(* reduces from left *)
+Lemma MKTI_auxA (Sem: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) (l0: L) :
+  let InRange12 := fun x => InRange1 x || InRange2 x in 
+  eutt eq (MKT_iter Sem Final InRange12 l0)
+          ((fun l1 => if InRange1 l1
+           then MKT_iter Sem Final InRange12 l1
+           else if InRange2 l1
+                then MKT_iter Sem Final InRange12 l1
+                else if Final l1
+                     then Ret l1
+                     else throw err) l0).        
+Proof.
+  simpl; unfold MKT.
+  destruct (InRange1 l0) eqn: was_e1; simpl; try reflexivity.
+  destruct (InRange2 l0) eqn: was_e2; simpl; try reflexivity.
+  rewrite unfold_iter.
+  destruct (Final l0) eqn: was_e3; simpl; try reflexivity.
+  rewrite bind_ret_l; reflexivity.
+  rewrite was_e1.
+  rewrite was_e2.
+  simpl.
+  rewrite bind_vis.
+  eapply eqit_Vis.
+  intro u; destruct u.
+Qed.
+
+Definition SemSwitch (InRange1 InRange2: L -> bool)
+  (Sem1 Sem2: L -> itree E L) : L -> itree E L :=
+  fun l0 => if InRange1 l0
+            then Sem1 l0
+            else if InRange2 l0
+                 then Sem2 l0
+                 else throw err.          
+
+(* reduces from left, with switch *)
+Lemma MKTI_auxA2 (Sem1 Sem2: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) (l0: L) :
+  let Sem12 := SemSwitch InRange1 InRange2 Sem1 Sem2 in 
+  let InRange12 := fun x => InRange1 x || InRange2 x in 
+  eutt eq (MKT_iter Sem12 Final InRange12 l0)
+          ((fun l1 => if InRange1 l1
+           then MKT_iter Sem12 Final InRange12 l1
+           else if InRange2 l1
+                then MKT_iter Sem12 Final InRange12 l1
+                else if Final l1
+                     then Ret l1
+                     else throw err) l0).        
+Proof.
+  simpl; eapply MKTI_auxA.
+Qed.  
+
+(* the top iter on the left can be made redundant *)
+Lemma MKTI_auxB2 (Sem1 Sem2: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) (l0: L) :
+  let InRange12 := fun x => InRange1 x || InRange2 x in 
+  eutt eq (MKT_iter (fun l1 => if InRange1 l1
+           then MKT_iter Sem1 Final InRange12 l1
+           else if InRange2 l1
+                then MKT_iter Sem2 Final InRange12 l1
+                else throw err) Final InRange12 l0)
+          ((fun l1 => if InRange1 l1
+           then MKT_iter Sem1 Final InRange12 l1
+           else if InRange2 l1
+                then MKT_iter Sem2 Final InRange12 l1
+                else if Final l1
+                     then Ret l1
+                     else throw err) l0).        
+Proof.
+  simpl; unfold MKT.
+  rewrite unfold_iter.
+  destruct (Final l0) eqn: was_e3; simpl; try reflexivity.
+  { assert (InRange1 l0 = false) as A1.
+    { admit. }
+    rewrite A1.
+    assert (InRange2 l0 = false) as A2.
+    { admit. }
+    rewrite A2.
+    rewrite bind_ret_l; reflexivity.
+  }
+  {  destruct (InRange1 l0 || InRange2 l0) eqn: was_e12; simpl.
+     2: { admit. }
+     destruct (InRange1 l0) eqn: was_e1; simpl.
+     { setoid_rewrite bind_bind.
+       setoid_rewrite bind_ret_l; simpl.
+       (* should be ok *)
+       admit.
+     }
+     { assert (InRange2 l0 = true) as A2.
+       { admit. }
+       rewrite A2.
+       setoid_rewrite bind_bind.
+       setoid_rewrite bind_ret_l; simpl.
+       (* should be ok *)
+        admit.
+     }
+   }   
+Admitted.    
+
+(* crucial bit: WRONG. what happens if l0 is in Range2? on the left it gets processed, 
+   on the right it cannot be, it will simply keep bouncing back. *)
+Lemma MTKI_xxx1 (Sem: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) (l0: L) :
+  let InRange12 := fun x => InRange1 x || InRange2 x in 
+(*  let Final1 := fun x => Final x || InRange1 x in *)
+  let Final2 := fun x => Final x || InRange2 x in
+  eutt eq (MKT_iter Sem Final InRange12 l0)
+          (MKT_iter (MKT_iter Sem Final2 InRange1) Final InRange12 l0).
+Proof.
+  simpl; unfold MKT.
+  revert l0.
+  ginit. gcofix CIH.
+  intro l0.
+  setoid_rewrite unfold_iter.
+Admitted.
+
+(* WRONG *)
+Lemma MTKI_xxx2 (Sem: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) (l0: L) :
+  let InRange12 := fun x => InRange1 x || InRange2 x in 
+  let Final1 := fun x => Final x || InRange1 x in 
+(*  let Final2 := fun x => Final x || InRange2 x in *)
+  eutt eq (MKT_iter Sem Final InRange12 l0)
+          (MKT_iter (MKT_iter Sem Final1 InRange2) Final InRange12 l0).
+Proof.
+  simpl; unfold MKT.
+  revert l0.
+  ginit. gcofix CIH.
+  intro l0.
+  setoid_rewrite unfold_iter.
+Admitted. 
+
+(* ok *)
+Lemma MKTI_www (Sem: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) (l0: L) :
+  let InRange12 := fun x => InRange1 x || InRange2 x in 
+  let Final1 := fun x => Final x || InRange1 x in 
+  let Final2 := fun x => Final x || InRange2 x in
+  let SemS1 := MKT_iter Sem Final2 InRange1 in 
+  let SemS2 := MKT_iter Sem Final1 InRange2 in 
+  let SemSS1 := MKT_iter SemS1 Final InRange12 in 
+  let SemSS2 := MKT_iter SemS2 Final InRange12 in 
+(*  let SemSS12 := SemSwitch InRange1 InRange2 SemSS1 SemSS2 in *)
+  eutt eq (MKT_iter (fun l1 => if InRange1 l1
+               then SemSS1 l1
+               else if InRange2 l1
+                    then SemSS2 l1
+                    else throw err)               
+               Final InRange12 l0) 
+          ((fun l1 => if InRange1 l1
+           then SemSS1 l1
+           else if InRange2 l1
+                then SemSS2 l1
+                else if Final l1
+                     then Ret l1
+                     else throw err) l0).        
+Proof.
+  simpl. eapply MKTI_auxB2.
+Qed.
+
+(* WRONG *)
+Lemma MKTI_yyy (Sem: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) (l0: L) :
+  let InRange12 := fun x => InRange1 x || InRange2 x in 
+  let Final1 := fun x => Final x || InRange1 x in 
+  let Final2 := fun x => Final x || InRange2 x in
+  let SemS1 := MKT_iter Sem Final2 InRange1 in 
+  let SemS2 := MKT_iter Sem Final1 InRange2 in 
+  let SemSS1 := MKT_iter SemS1 Final InRange12 in 
+  let SemSS2 := MKT_iter SemS2 Final InRange12 in 
+(*  let SemSS12 := SemSwitch InRange1 InRange2 SemSS1 SemSS2 in *)
+  eutt eq ((fun l1 => if InRange1 l1
+           then MKT_iter Sem Final InRange12 l1
+           else if InRange2 l1
+                then MKT_iter Sem Final InRange12 l1
+                else if Final l1
+                     then Ret l1
+                     else throw err) l0) 
+          ((fun l1 => if InRange1 l1
+           then SemSS1 l1
+           else if InRange2 l1
+                then SemSS2 l1
+                else if Final l1
+                     then Ret l1
+                     else throw err) l0).
+Proof.
+  simpl.
+  destruct (InRange1 l0) eqn: was_e1; simpl.
+  setoid_rewrite <- MTKI_xxx1. reflexivity.
+  destruct (InRange2 l0) eqn: was_e2; simpl.
+  setoid_rewrite <- MTKI_xxx2; reflexivity.
+  destruct (Final l0); try reflexivity.
+Qed.
+
+(* this can't be true: the right can go further than the left *)
+Lemma MKTI_auxC (Sem1 Sem2: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) (l0: L) :
+  let InRange12 := fun x => InRange1 x || InRange2 x in 
+  eutt eq (MKT_iter (fun l1 => if InRange1 l1
+           then MKT_iter Sem1 Final InRange12 l1
+           else if InRange2 l1
+                then MKT_iter Sem2 Final InRange12 l1
+                else throw err) Final InRange12 l0)
+          (MKT_iter (fun l1 => if InRange1 l1
+           then Sem1 l1
+           else if InRange2 l1
+                then Sem2 l1
+                else throw err) Final InRange12 l0).
+Proof.
+  simpl. unfold MKT.
+  setoid_rewrite unfold_iter at 4.
+  rewrite MKTI_auxB2.
+  unfold MKT; simpl.
+  destruct (InRange1 l0) eqn: was_e1; simpl.
+  { setoid_rewrite unfold_iter at 1.
+    destruct (Final l0) eqn: was_e2; simpl.
+    - admit. (* absurd *)
+    - rewrite was_e1.
+      destruct (InRange2 l0) eqn: was_e3; simpl.
+      + admit. (* absurd *)
+      + setoid_rewrite bind_bind.
+        setoid_rewrite bind_ret_l.
+        eapply eqit_bind; try reflexivity.
+        intro l1.
+Abort.      
+
+
+(* better *)
+Lemma MKTI_auxB2G (Sem1 Sem2: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) (l0: L) :
+  let InRange12 := fun x => InRange1 x || InRange2 x in 
+  eutt eq (MKT_iter (fun l1 => if InRange1 l1
+           then Sem1 l1
+           else if InRange2 l1
+                then Sem2 l1
+                else throw err) Final InRange12 l0)
+          ((fun l1 => if InRange1 l1
+           then Sem1 l1
+           else if InRange2 l1
+                then Sem2 l1
+                else if Final l1
+                     then Ret l1
+                     else throw err) l0).        
+Proof.
+  simpl; unfold MKT.
+  rewrite unfold_iter.
+  destruct (Final l0) eqn: was_e3; simpl; try reflexivity.
+  { assert (InRange1 l0 = false) as A1.
+    { admit. }
+    rewrite A1.
+    assert (InRange2 l0 = false) as A2.
+    { admit. }
+    rewrite A2.
+    rewrite bind_ret_l; reflexivity.
+  }
+  {  destruct (InRange1 l0 || InRange2 l0) eqn: was_e12; simpl.
+     2: { admit. }
+     destruct (InRange1 l0) eqn: was_e1; simpl.
+     { setoid_rewrite bind_bind.
+       setoid_rewrite bind_ret_l; simpl.
+       (* should be ok *)
+       admit.
+     }
+     { assert (InRange2 l0 = true) as A2.
+       { admit. }
+       rewrite A2.
+       setoid_rewrite bind_bind.
+       setoid_rewrite bind_ret_l; simpl.
+       (* should be ok *)
+        admit.
+     }
+   }   
+Admitted.   
+
+
+(* the top iter on the left can be made redundant *)
+Lemma MKTI_auxB (Sem: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) (l0: L) :
+  let InRange12 := fun x => InRange1 x || InRange2 x in 
+  eutt eq (MKT_iter (fun l1 => if InRange1 l1
+           then MKT_iter Sem Final InRange12 l1
+           else if InRange2 l1
+                then MKT_iter Sem Final InRange12 l1
+                else throw err) Final InRange12 l0)
+          ((fun l1 => if InRange1 l1
+           then MKT_iter Sem Final InRange12 l1
+           else if InRange2 l1
+                then MKT_iter Sem Final InRange12 l1
+                else if Final l1
+                     then Ret l1
+                     else throw err) l0).        
+Proof.
+  simpl; unfold MKT.
+  rewrite unfold_iter.
+  destruct (Final l0) eqn: was_e3; simpl; try reflexivity.
+  { assert (InRange1 l0 = false) as A1.
+    { admit. }
+    rewrite A1.
+    assert (InRange2 l0 = false) as A2.
+    { admit. }
+    rewrite A2.
+    rewrite bind_ret_l; reflexivity.
+  }
+  {  destruct (InRange1 l0 || InRange2 l0) eqn: was_e12; simpl.
+     2: { admit. }
+     destruct (InRange1 l0) eqn: was_e1; simpl.
+     { setoid_rewrite bind_bind.
+       setoid_rewrite bind_ret_l; simpl.
+       (* should be ok *)
+       admit.
+     }
+     { assert (InRange2 l0 = true) as A2.
+       { admit. }
+       rewrite A2.
+       setoid_rewrite bind_bind.
+       setoid_rewrite bind_ret_l; simpl.
+       (* should be ok *)
+        admit.
+     }
+   }   
+Admitted.    
+
+Lemma MKTI_auxC (Sem: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) (l0: L) :
+  let InRange12 := fun x => InRange1 x || InRange2 x in 
+  let Final1 := fun x => Final x || InRange1 x in
+  let Final2 := fun x => Final x || InRange2 x in
+  eutt eq (MKT_iter (fun l1 => if InRange1 l1
+                then MKT_iter Sem Final2 InRange1 l1
+                else if InRange2 l1
+                     then MKT_iter Sem Final1 InRange2 l1
+                     else throw err) Final InRange12 l0)
+          ((fun l1 => if InRange1 l1
+            then MKT_iter (MKT_iter Sem Final2 InRange1) Final InRange12 l1
+            else if InRange2 l1
+                 then MKT_iter Sem Final InRange12 l1
+                 else if Final l1
+                      then Ret l1
+                      else throw err) l0).
+Proof.
+  simpl; unfold MKT.
+  revert l0.
+  ginit. gcofix CIH.
+  intro l0.
+  setoid_rewrite unfold_iter at 1.
+
+  destruct (Final l0) eqn: was_e3; simpl; try reflexivity.
+  { assert (InRange1 l0 = false) as A1.
+    { admit. }
+    rewrite A1.
+    assert (InRange2 l0 = false) as A2.
+    { admit. }
+    rewrite A2.
+    rewrite bind_ret_l.
+    gstep; red. econstructor; auto.
+  }
+
+  { destruct (InRange1 l0 || InRange2 l0) eqn: was_e12; simpl.
+    2: { admit. }
+    destruct (InRange1 l0) eqn: was_e1; simpl.
+    { setoid_rewrite bind_bind.
+      setoid_rewrite bind_ret_l; simpl.
+      setoid_rewrite unfold_iter at 5.
+      rewrite was_e3; simpl.
+      rewrite was_e1; simpl.
+      setoid_rewrite bind_bind.
+      guclo eqit_clo_bind.
+      econstructor 1 with (RU := eq); try reflexivity.
+      intros u1 u2 hh.
+      inversion hh; subst.
+      setoid_rewrite bind_ret_l.
+      admit.
+    }
+Admitted.   
+
+
+(* looks OK *)
+Lemma MKTI_aux2' (Sem: L -> itree E L)
+  (Final InRange1 InRange2: L -> bool) (l0: L) :
+  let InRange12 := fun x => InRange1 x || InRange2 x in 
+  let Final1 := fun x => Final x || InRange1 x in
+  let Final2 := fun x => Final x || InRange2 x in
+  eutt eq (* (MKT_iter Sem Final InRange12 l0) *)
+          (MKT_iter (fun l1 => if InRange1 l1
+               then MKT_iter Sem Final2 InRange1 l1
+               else if InRange2 l1
+                    then MKT_iter Sem Final1 InRange2 l1
+                    else throw err)               
+               Final InRange12 l0)
+          (ITree.bind ((fun l1 => if InRange1 l1
+               then MKT_iter Sem Final2 InRange1 l1
+               else if InRange2 l1
+                    then MKT_iter Sem Final1 InRange2 l1
+                    else if Final l1
+                         then (Ret l1)         
+                         else throw err) l0)               
+               (MKT_iter Sem Final InRange12)). 
+Proof.
+  simpl. unfold MKT.
+  revert l0.
+  ginit. gcofix CIH.
+  intro l0.
+
+  setoid_rewrite unfold_iter at 1.
+  guclo eqit_clo_bind.
+  econstructor 1 with (RU := fun x y => match x with
+                                        | inr x1 => x1 = y
+                                        | inl x1 => x1 = y end).
+  destruct (Final l0) eqn: was_e0; simpl.
+  { assert (InRange1 l0 = false) as A1.
+    { admit. }
+    rewrite A1.
+    assert (InRange2 l0 = false) as A2.
+    { admit. }
+    rewrite A2.
+    pstep. red. econstructor; auto.
+  }
+  { destruct (InRange1 l0 || InRange2 l0) eqn: was_e1; simpl; try reflexivity.
+    destruct (InRange1 l0) eqn: was_e2; simpl; try reflexivity.
+    admit.
+    
+    assert (InRange2 l0 = true) as A2.
+    { admit. }
+    rewrite A2.
+    admit.
+
+    assert (InRange1 l0 = false) as A1.
+    { admit. }
+    rewrite A1.
+    assert (InRange2 l0 = false) as A2.
+    { admit. }
+    rewrite A2.
+    pstep. red. econstructor; eauto.
+    intro v; destruct v.
+  }
+  { intros u1 u2 hh.
+    destruct u1 as [u1 | u1]; simpl in *; inversion hh; subst.
+Abort.    
+    
+(* looks OK *)
+Lemma MKTI_aux2' (Sem: L -> itree E L)
   (Final InRange1 InRange2: L -> bool) (l0: L) :
   let InRange12 := fun x => InRange1 x || InRange2 x in 
   let Final1 := fun x => Final x || InRange1 x in
