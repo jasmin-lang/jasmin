@@ -186,4 +186,37 @@ Proof.
   apply interp_mrec_loop2.
 Qed.
 
+Definition loop_body {E} {I} (cond : I -> bool) (step : I -> itree E I) (i:I) :=
+  if cond i then (i' <- step i;; Ret (inl i'))%itree else Ret (inr i).
 
+Definition loop  {E} { I} (cond : I -> bool) (step : I -> itree E I) :=
+  ITree.iter (loop_body cond step).
+
+Lemma loop_split {E} {I} (cond1 cond2 : I -> bool) (step : I -> itree E I) i :
+  (i' <- loop (fun i => andb (cond1 i) (cond2 i)) step i;; loop cond2 step i') ≈
+  loop cond2 step i.
+Proof.
+  unfold loop.
+  generalize i; clear i; einit.
+  ecofix SELF; intros i.
+  rewrite unfold_iter, bind_bind.
+  unfold loop_body at 1.
+  case (cond1 i); simpl.
+  { rewrite unfold_iter.
+    unfold loop_body at 3.
+    case_eq (cond2 i); intros heq2; simpl.
+    { rewrite 2 bind_bind.
+      constructor. guclo eqit_clo_bind.
+      econstructor. reflexivity.
+      intros u1 u2 heq; rewrite <- heq; clear heq.
+      rewrite 2 bind_ret_l.
+      rewrite bind_tau.
+      etau. }
+    rewrite 3 bind_ret_l.
+    rewrite unfold_iter.
+    unfold loop_body at 1; rewrite heq2, bind_ret_l.
+    eret.
+  }
+  rewrite 2 bind_ret_l.
+  reflexivity.
+Qed.

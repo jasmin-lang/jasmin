@@ -10,7 +10,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From Coq Require Import ZArith.
 From Coq Require Import Utf8.
 
-Require Import expr_facts compiler_util label linear linear_sem it_sems_core_defs relational_logic.
+Require Import expr_facts compiler_util label linear linear_sem linear_facts it_sems_core_defs relational_logic.
 Require Import sem_params.
 Import word_ssrZ.
 
@@ -50,7 +50,7 @@ Definition path_to fn endpc l l' :=
     eval_jump p (fn, l) s1 = ok s2 ->
     exists n,
       exists2 s3,
-        lsem_body_n p endpc n.+1 s2 = ok (inl s3)
+        lsem_body_n p (untilpc endpc) n.+1 s2 = ok (inl s3)
       & eval_jump p (fn, l') s1 = ok s3.
 
 Definition path_to0 fn endpc l l' :=
@@ -237,7 +237,7 @@ Proof.
       have [hj hsz hfindi]:= eval_jump_label2 s1 hget hu hcat.
       rewrite hj => -[?]; subst s2.
       exists 0; exists (setcpc s1 fn (size lc1).+2).
-      + rewrite /= /lsem_body /=; case: eqP.
+      + rewrite /= /lsem_body /= /untilpc; case: eqP.
         + move=> ?; subst endpc.
           by move: hend; rewrite /wfend /= hget.
         by rewrite /step hfindi.
@@ -257,7 +257,7 @@ Proof.
     move: hgoto; rewrite -hcat /goto_targets pmap_cat /= all_cat /=.
     move=> /and3P [_ + _]; rewrite eqxx /= hcat => /labels_of_find [pc hpc].
     exists (setcpc s1 fn pc.+1).
-    + rewrite /= /lsem_body /=; case: eqP.
+    + rewrite /= /lsem_body /untilpc /=; case: eqP.
       + move=> ?; subst endpc.
         by move: hend; rewrite /wfend /= hget.
       by rewrite /step hfindi /= /eval_instr /= hget /= hpc /=.
@@ -377,20 +377,20 @@ Qed.
 
 Lemma tunnel_cmd endpc s :
   wfend endpc ->
-  eqit eq true true (ilsem p' endpc s) (ilsem p endpc s).
+  eqit eq true true (ilsem p' (untilpc endpc) s) (ilsem p (untilpc endpc) s).
 Proof.
   move=> hend.
   apply rutt_extras.eqit_iter_n with eq => //.
   move=> {}s _ <-.
   setoid_rewrite i_lsem_body_n; setoid_rewrite i_lsem_body.
-  rewrite /lsem_body; case: ifP.
-  + move=> /eqP ->; exists 0; rewrite /= /lsem_body eqxx /=.
+  rewrite /lsem_body /untilpc; case: eqP.
+  + move=> ->; exists 0; rewrite /= /lsem_body eqxx /=.
     by apply eqit_Ret; constructor.
-  move=> hne; rewrite /step.
+  move=> /eqP/negPf hne; rewrite /step.
   have := find_instrE s.
   case hi : find_instr => [[ii i] | /=]; last first.
   + move=> ->; exists 0.
-    rewrite /= /lsem_body hne /step /= hi /=; reflexivity.
+    rewrite /= /lsem_body /untilpc hne /step /= hi /=; reflexivity.
   move=> [fd hget] ->.
   have huf := tunnel_plan_wf hend p_wf hget.
   rewrite /= in huf; move: (tunnel_plan _ _ _) huf => uf huf.
@@ -439,17 +439,19 @@ Proof.
   rewrite /= in hsem; rewrite hsem /=; reflexivity.
 Qed.
 
-Lemma tunnel_funcs fn scs m vm :
-  eqit eq true true (ilsem_exportcall p scs m fn vm) (ilsem_exportcall p' scs m fn vm).
+Lemma tunnel_funcs fn s :
+  eqit eq true true (ilsem_exportcall p fn s) (ilsem_exportcall p' fn s).
 Proof.
   symmetry.
-  rewrite /ilsem_exportcall.
+  rewrite /ilsem_exportcall /endpc.
   rewrite get_fundefE; case hget: get_fundef => [fd | ] /=; last first.
   + rewrite !bind_throw; reflexivity.
   rewrite !bind_ret_l.
   apply eqit_bind; first reflexivity.
   move=> _; apply eqit_bind.
-  + rewrite size_map; apply tunnel_cmd.
+  + rewrite size_map.
+    have := [elaborate endpc_untilpc hget]; rewrite /endpc hget => hcond.
+    rewrite !(eq_ilsem _ _ hcond); apply tunnel_cmd.
     by rewrite /wfend /= hget.
   move=> s'; reflexivity.
 Qed.
