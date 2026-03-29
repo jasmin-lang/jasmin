@@ -1,3 +1,12 @@
+From ITree Require Import
+     Basics
+     ITree
+     ITreeFacts
+     Events.Exception
+     Interp.Recursion
+     MonadState.
+Import Basics.Monads.
+
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype finfun.
 From mathcomp Require Import ssralg word_ssrZ.
 Require oseq.
@@ -15,7 +24,10 @@ Require Import
   sem_type
   syscall syscall_sem
   label
-  arch_decl.
+  arch_decl
+  xrutt xrutt_facts.
+
+Require Export it_sems_core_defs.
 
 (* -------------------------------------------------------------------- *)
 
@@ -103,6 +115,14 @@ Definition preserved_register (r : asm_typed_reg) (m0 m1 : asmmem) :=
   | ARegX r => (asm_regx m0) r = (asm_regx m1) r
   | AXReg r => (asm_xreg m0) r = (asm_xreg m1) r
   | ABReg r => (asm_flag m0) r = (asm_flag m1) r
+  end.
+
+Definition preserved_registerb (r : asm_typed_reg) (m0 m1 : asmmem) :=
+  match r with
+  | ARReg r => (asm_reg  m0) r == (asm_reg  m1) r
+  | ARegX r => (asm_regx m0) r == (asm_regx m1) r
+  | AXReg r => (asm_xreg m0) r == (asm_xreg m1) r
+  | ABReg r => (asm_flag m0) r == (asm_flag m1) r
   end.
 
 (* FIXME we need to generalize this *)
@@ -265,7 +285,7 @@ Definition mem_write_rflag (s : asmmem) (f:rflag_t) (b:option bool) :=
      asm_scs  := s.(asm_scs);
      asm_reg  := s.(asm_reg);
      asm_regx := s.(asm_regx);
-     asm_rip  := s.(asm_rip); 
+     asm_rip  := s.(asm_rip);
      asm_xreg := s.(asm_xreg);
      asm_flag := RflagMap.set s.(asm_flag) f (o2rflagv b);
    |}.
@@ -277,7 +297,7 @@ Definition mem_write_mem al (l : pointer) sz (w : word sz) (s : asmmem) :=
      asm_scs  := s.(asm_scs);
      asm_reg  := s.(asm_reg);
      asm_regx := s.(asm_regx);
-     asm_rip  := s.(asm_rip); 
+     asm_rip  := s.(asm_rip);
      asm_xreg := s.(asm_xreg);
      asm_flag := s.(asm_flag);
   |}.
@@ -300,7 +320,7 @@ Definition mem_write_reg (f: msb_flag) (r: reg_t) sz (w: word sz) (m: asmmem) :=
     asm_scs  := m.(asm_scs);
     asm_reg  := RegMap.set m.(asm_reg) r (word_extend f (m.(asm_reg) r) w);
     asm_regx := m.(asm_regx);
-    asm_rip  := m.(asm_rip); 
+    asm_rip  := m.(asm_rip);
     asm_xreg := m.(asm_xreg);
     asm_flag := m.(asm_flag);
   |}.
@@ -312,7 +332,7 @@ Definition mem_write_regx (f: msb_flag) (r: regx_t) sz (w: word sz) (m: asmmem) 
     asm_scs  := m.(asm_scs);
     asm_reg  := m.(asm_reg);
     asm_regx := RegXMap.set m.(asm_regx) r (word_extend f (m.(asm_regx) r) w);
-    asm_rip  := m.(asm_rip); 
+    asm_rip  := m.(asm_rip);
     asm_xreg := m.(asm_xreg);
     asm_flag := m.(asm_flag);
   |}.
@@ -379,7 +399,7 @@ Definition mem_write_val (f:msb_flag) (args:asm_args) (aty: arg_desc * ltype) (v
   Let v := oof_val aty.2 v in
   mem_write_ty f s args aty.1 v.
 
-Definition mem_write_vals 
+Definition mem_write_vals
   (f:msb_flag) (s:asmmem) (args:asm_args) (a: seq arg_desc) (ty: seq ltype) (vs:values) :=
   fold2 ErrType (mem_write_val f args) (zip a ty) vs s.
 
@@ -387,7 +407,7 @@ Definition exec_instr_op idesc args (s:asmmem) : exec asmmem :=
   Let vs := eval_instr_op idesc args s in
   mem_write_vals idesc.(id_msb_flag) s args idesc.(id_out) idesc.(id_tout) vs.
 
-Definition eval_op o args m := 
+Definition eval_op o args m :=
   exec_instr_op (instr_desc_op o) args m.
 
 (* -------------------------------------------------------------------- *)
@@ -459,6 +479,12 @@ Definition eval_instr (i : asm_i_r) (s: asm_state) : exec asm_state :=
   | SysCall o =>
     Let m := eval_syscall o s.(asm_m) in
     ok (st_update_next m s)
+  | Declassify_val ty arg =>
+   (* Let v := eval_asm_arg (AK_mem Unaligned) s arg ty in *)
+    ok (st_update_next (asm_m s) s)
+  | Declassify_mem _ addr =>
+   (* let v := decode_addr s addr in *)
+    ok (st_update_next (asm_m s) s)
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -540,7 +566,7 @@ Lemma eval_instr_invariant (i: asm_i_r) (s s': asm_state) :
   eval_instr i s = ok s' →
   s ≡ s'.
 Proof.
-  case: i => [ | ? ? | ? ? | ? | ? | ? ? | ? ? | ? | | ? ? | ?] /=.
+  case: i => [ | ? ? | ? ? | ? | ? | ? ? | ? ? | ? | | ? ? | ? | ?? | ?] /=.
   1, 2: by move => /ok_inj <-.
   - by case: encode_label => // ? /ok_inj <-.
   - exact: eval_JMP_invariant.
@@ -554,9 +580,11 @@ Proof.
   - rewrite /eval_POP; t_xrbindP => _ ? _ ? _ <-.
     by case: decode_label => // ? /eval_JMP_invariant <-.
   - by rewrite /eval_op /exec_instr_op; t_xrbindP => ? ? ? /mem_write_vals_invariant -> <-.
-  t_xrbindP => m hm <-.
-  have /= [h1 h2 h3]:= eval_syscall_spec1 hm; split => //.
-  by have [] := exec_syscallSs h1.
+  - t_xrbindP => m hm <-.
+    have /= [h1 h2 h3]:= eval_syscall_spec1 hm; split => //.
+    by have [] := exec_syscallSs h1.
+  - by move=> [<-].
+  by move=> _ [<-].
 Qed.
 
 Lemma asmsem1_invariant (s s': asm_state) :
@@ -573,6 +601,84 @@ Lemma asmsem_invariantP (s s': asm_state) :
 Proof.
   by elim/Operators_Properties.clos_refl_trans_ind_left => {s'} // ? ? _ -> /asmsem1_invariant.
 Qed.
+
+
+(* ITree based Semantics *)
+Section ITREE.
+
+Context {E E0} {wE : with_Error E E0}.
+
+Definition ifetch_and_eval (s: asm_state) : itree E asm_state :=
+  err_result (fun e => (e, tt)) (fetch_and_eval s).
+
+Local Notation continue_loop s := (ret (inl s)).
+Local Notation exit_loop s := (ret (inr s)).
+
+Import MonadNotation.
+Local Open Scope monad_scope.
+
+Definition iasmsem_body (endpc : funname * nat) (s:asm_state) :=
+  if endpc == (s.(asm_f), s.(asm_ip)) then exit_loop s
+  else
+    s <- ifetch_and_eval s;;
+    continue_loop s.
+
+Definition iasmsem (endpc : funname * nat) (s:asm_state) :=
+  ITree.iter (iasmsem_body endpc) s.
+
+Definition asmsem_body endpc s :=
+  if endpc == (asm_f s, asm_ip s) then ok (inr s)
+  else Let s0 := fetch_and_eval s in ok (inl s0).
+
+Fixpoint asmsem_body_n endpc n s :=
+  Let ins := asmsem_body endpc s in
+  match n with
+  | 0 => ok ins
+  | S n =>
+    match ins with
+    | inl s => asmsem_body_n endpc n s
+    | inr s => ok (inr s)
+    end
+  end.
+
+Lemma asmsem_body_nE endpc n s :
+  asmsem_body_n endpc n s =
+  Let ins := asmsem_body endpc s in
+  match n with
+  | 0 => ok ins
+  | S n =>
+    match ins with
+    | inl s => asmsem_body_n endpc n s
+    | inr s => ok (inr s)
+    end
+  end.
+Proof. by case: n. Qed.
+
+Lemma i_asmsem_body endpc s :
+  iasmsem_body endpc s ≅ err_result (pair^~ tt) (asmsem_body endpc s).
+Proof.
+  rewrite /iasmsem_body /ifetch_and_eval /asmsem_body; case: eqP => h /=.
+  + reflexivity.
+  case: fetch_and_eval => [s' | ] /=.
+  + rewrite bind_ret_l; reflexivity.
+  move=> e; apply bind_throw.
+Qed.
+
+Lemma i_asmsem_body_n endpc n s :
+  eqit eq true true
+    (xrutt_facts.iter_n (iasmsem_body endpc) n s)
+    (err_result (pair^~ tt) (asmsem_body_n endpc n s)).
+Proof.
+  elim: n s => /= [ | n hn] s.
+  + rewrite i_asmsem_body; case: asmsem_body => [ ins|] /=; reflexivity.
+  rewrite i_asmsem_body; case: asmsem_body => [ ins|] /=.
+  + rewrite bind_ret_l; case: ins => s' /=; last reflexivity.
+    by apply eqit_Tau_l; apply hn.
+  move=> e; rewrite /Exception.throw /= bind_vis.
+  apply eqit_Vis; case.
+Qed.
+
+End ITREE.
 
 End PROG.
 
@@ -607,5 +713,28 @@ Variant asmsem_exportcall
            r \in callee_saved
            -> preserved_register r m m')
       -> asmsem_exportcall.
+
+Section ITREE.
+
+Context {E E0} {wE : with_Error E E0}.
+
+Import MonadNotation.
+Local Open Scope monad_scope.
+
+Definition iasmsem_exportcall (p : asm_prog) (fn : funname) (m : asmmem) :=
+  fd <- ioget (ErrType, tt) (get_fundef (asm_funcs p) fn);;
+  _ <- err_result (fun e => (e, tt)) (assert (asm_fd_export fd) ErrSemUndef);;
+  let s := {| asm_m := m
+                   ; asm_f := fn
+                   ; asm_c := asm_fd_body fd
+                   ; asm_ip := 0
+                  |} in
+  s' <- iasmsem p (fn, size (asm_fd_body fd)) s;;
+  let m' := s'.(asm_m) in
+  _ <- err_result (fun e => (e, tt))
+         (assert (all (fun x => preserved_registerb x m m') callee_saved) ErrSemUndef);;
+  Ret m'.
+
+End ITREE.
 
 End SEM.

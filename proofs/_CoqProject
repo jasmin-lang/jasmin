@@ -126,6 +126,7 @@ compiler/stack_zeroization.v
 compiler/stack_zeroization_proof.v
 compiler/tunneling.v
 compiler/tunneling_proof.v
+compiler/tunneling_proof_2.v
 compiler/unionfind.v
 compiler/unionfind_proof.v
 compiler/unrolling.v
@@ -161,6 +162,7 @@ lang/global.v
 lang/hoare_logic.v
 lang/ident.v
 lang/it_sems_core.v
+lang/it_sems_core_defs.v
 lang/linear.v
 lang/linear_facts.v
 lang/linear_sem.v
