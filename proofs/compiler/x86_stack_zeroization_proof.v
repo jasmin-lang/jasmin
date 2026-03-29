@@ -70,12 +70,11 @@ Let offi : var_i := gv off.
 Let vlri : var_i := gv vlr.
 Let zfi : var_i := gv zf.
 
-Context (lp : lprog) (fn : funname) (lfd : lfundef) (lc : lcmd).
+Context (lp : lprog) (fn : funname) (lc : lcmd).
 Context (ws_align : wsize) (ws : wsize) (stk_max : Z).
 Context (lt_0_stk_max : (0 < stk_max)%Z).
 Context (halign : is_align stk_max ws).
 Context (le_ws_ws_align : (ws <= ws_align)%CMP).
-Context (hlfd : get_fundef lp.(lp_funcs) fn = Some lfd).
 Context (ptr : pointer).
 Context (hstack : (stk_max <= wunsigned (align_word ws_align ptr))%Z).
 Let top := (align_word ws_align ptr - wrepr Uptr stk_max)%R.
@@ -131,7 +130,7 @@ Section SMALL.
 Context (hsmall : (ws <= U64)%CMP).
 (* We introduce [cmd] to deal with Loop and LoopSCT at the same time. *)
 Context (cmd : seq linstr).
-Context (hbody : lfd.(lfd_body) = lc ++ loop_small_cmd rspn lbl ws_align ws stk_max ++ cmd).
+Context (hbody : is_linear_of lp fn (lc ++ loop_small_cmd rspn lbl ws_align ws stk_max ++ cmd)).
 Context (rsp_nin : ~ Sv.In rspi loop_small_vars).
 (* FIXME: rename bottom into top/top_max in other files *)
 
@@ -139,7 +138,7 @@ Lemma loop_small_bodyP s1 s2 n :
   state_rel_loop_small loop_small_vars s1 s2 n top ->
   (0 < n)%Z ->
   exists s3,
-    [/\ lsem lp (of_estate s2 fn (size lc + 5))
+    [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size lc + 5))
                 (of_estate s3 fn (size lc + 7)),
         s3.(evm).[zfi] = Vbool (ZF_of_word (wrepr U64 n - wrepr U64 (wsize_size ws)))
       & state_rel_loop_small loop_small_vars s1 s3 (n - wsize_size ws) top].
@@ -152,9 +151,6 @@ Proof.
     move=> /eqP /Z.mod_divide [//|m ?].
     have ? := wsize_size_pos ws.
     have: (0 < m)%Z; nia.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ loop_small_cmd rspn lbl ws_align ws stk_max ++ cmd))].
-  + by exists lfd.
   have: validw (emem s2) Aligned (top + (wrepr Uptr n - wrepr Uptr (wsize_size ws)))%R ws.
   + apply /validwP; split.
     + rewrite /= (is_align_addE top_aligned).
@@ -171,17 +167,13 @@ Proof.
     by rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
   eexists (Estate _ _ _); split=> /=.
-  + apply: lsem_step.
-    + rewrite /lsem1 /step.
-      rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+  + apply: (lsem_n_eval_lin (n:=5) hbody) => //=.
+    + rewrite /eval_instr /=.
       rewrite /get_var hsr.(srls_off) /=.
       rewrite /exec_sopn /= !truncate_word_u /=.
       rewrite /of_estate /= /lnext_pc /=.
-      by rewrite -addnS; reflexivity.
-    apply: lsem_step1.
-    rewrite /lsem1 /step.
-    rewrite (find_instr_skip hlinear) /=.
+      by rewrite -addnS.
+    apply: (lsem_n_eval_lin1 (n:=6) hbody) => //=.
     rewrite /eval_instr /=.
     rewrite wrepr0.
     have -> /=: exec_sopn (Ox86 (MOV ws)) [:: @Vword ws 0] = ok [:: @Vword ws 0].
@@ -198,7 +190,7 @@ Proof.
     rewrite add_wordE sub_wordE.
     rewrite hm' /=.
     rewrite /of_estate /= /lnext_pc /=.
-    by rewrite -addnS; reflexivity.
+    by rewrite -addnS.
   + rewrite Vm.setP_neq //.
     by rewrite Vm.setP_eq.
   case: hsr => hoff [hscs hmem hvalid hdisj hzero hvm htmp hrsp haligned hbound].
@@ -253,14 +245,11 @@ Lemma loop_small_loopP s1 s2 n :
   state_rel_loop_small loop_small_vars s1 s2 n top ->
   (0 < n)%Z ->
   exists s3,
-    [/\ lsem lp (of_estate s2 fn (size lc + 5))
+    [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size lc + 5))
                 (of_estate s3 fn (size lc + 8))
       & state_rel_loop_small loop_small_vars s1 s3 0 top].
 Proof.
   move=> hsr hlt.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ loop_small_cmd rspn lbl ws_align ws stk_max ++ cmd))].
-  + by exists lfd.
   have [k hn]: (exists k, n = Z.of_nat k * wsize_size ws)%Z.
   + have := hsr.(sr_aligned).
     rewrite /is_align WArray.p_to_zE.
@@ -278,10 +267,8 @@ Proof.
   + subst k.
     move: hn; rewrite Z.mul_1_l => ?; subst n.
     exists s3; split.
-    + apply: (lsem_trans hsem3).
-      apply lsem_step1.
-      rewrite /lsem1 /step.
-      rewrite (find_instr_skip hlinear) /=.
+    + apply: (lsem_n_trans hsem3).
+      apply: (lsem_n_eval_lin1 (n:=7) hbody) => //=.
       rewrite /eval_instr /=.
       rewrite /get_var /= hzf3 /=.
       rewrite GRing.addrN /ZF_of_word /=.
@@ -292,10 +279,8 @@ Proof.
   have hn3: (n - wsize_size ws)%Z = (Z.of_nat k * wsize_size ws)%Z by lia.
   have [s4 [hsem4 hsr4]] := ih _ _ hsr3 hlt3 hn3.
   exists s4; split=> //.
-  apply: (lsem_trans hsem3).
-  apply: lsem_step hsem4.
-  rewrite /lsem1 /step.
-  rewrite (find_instr_skip hlinear) /=.
+  apply: (lsem_n_trans hsem3).
+  apply: (lsem_n_eval_lin (n:=7) hbody) => //=; last by apply hsem4.
   rewrite /eval_instr /=.
   rewrite /get_var /= hzf3 /=.
   have ->: ~~ ZF_of_word (wrepr U64 n - wrepr U64 (wsize_size ws)).
@@ -306,7 +291,7 @@ Proof.
     have! := (wunsigned_range (align_word ws_align ptr)).
     have := wsize_size_pos ws.
     by lia.
-  rewrite hlfd /= hbody.
+  have [lfd -> -> /=] := hbody.
   rewrite (find_label_cat_hd (sip := sip_of_asm_e) _ hlabel).
   do 5 rewrite (find_labelE (sip := sip_of_asm_e)) /=.
   rewrite /is_label /= eqxx /=.
@@ -318,46 +303,39 @@ Lemma loop_small_initP (s1 : estate) :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
-    lsem lp (of_estate s1 fn (size lc)) (of_estate s2 fn (size lc + 5)) /\
+    lsem_n lp (endpc lp fn) (of_estate s1 fn (size lc)) (of_estate s2 fn (size lc + 5)) /\
     state_rel_loop_small loop_small_vars s1 s2 stk_max top.
 Proof.
 Local Opaque wsize_size.
   move=> hvalid hrsp.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ loop_small_cmd rspn lbl ws_align ws stk_max ++ cmd))].
-  + by exists lfd.
   eexists (Estate _ _ _); split.
-  + apply: lsem_step5; rewrite /lsem1 /step /=.
-    * rewrite -(addn0 (size lc)) (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+  + apply: (lsem_n_eval_lin (n:=0) hbody) => //=; first by rewrite addn0.
+    * rewrite /eval_instr /=.
       rewrite /get_var /= hrsp /=.
       rewrite /exec_sopn /= truncate_word_u /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
-    * rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+      rewrite /of_estate /= /lnext_pc /=.
+      by rewrite -addn1.
+    apply: (lsem_n_eval_lin (n:=1) hbody) => //=.
+    * rewrite /eval_instr /=.
       rewrite get_var_neq;
         last by move=> h; apply /rsp_nin /sv_of_listP;
         rewrite !in_cons /= -h eqxx /= ?orbT.
       rewrite /get_var /= hrsp /=.
       rewrite /exec_sopn /= !truncate_word_u /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
-    * rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+      by rewrite /of_estate /= /lnext_pc /= -addnS.
+    apply: (lsem_n_eval_lin (n:=2) hbody) => //=.
+    * rewrite /eval_instr /=.
       rewrite get_var_eq /=; last by [].
       rewrite /exec_sopn /= !truncate_word_u /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
-    * rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+      by rewrite /of_estate /= /lnext_pc /= -addnS.
+    apply: (lsem_n_eval_lin (n:=3) hbody).
+    1-3: done.
+    * rewrite /eval_instr /=.
       rewrite /exec_sopn /= truncate_word_u /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
-    * rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
-      rewrite /setpc /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
+      by rewrite /of_estate /= /lnext_pc /= -addnS.
+    apply: (lsem_n_eval_lin1 (n:=4) hbody) => //=.
+    rewrite /eval_instr /=.
+    by rewrite /setpc /of_estate /= /lnext_pc /= -addnS.
   split=> /=.
   + by rewrite Vm.setP_eq.
   split=> //=.
@@ -384,24 +362,18 @@ Qed.
 Lemma loop_small_finalP (s1 s2 : estate) :
   state_rel_loop_small loop_small_vars s1 s2 0 top ->
   exists s3,
-    lsem lp
+    lsem_n lp (endpc lp fn)
       (of_estate s2 fn (size lc + 8))
       (of_estate s3 fn (size lc + size (loop_small_cmd rspn lbl ws_align ws stk_max))) /\
     state_rel_loop_small loop_small_vars s1 s3 0 ptr.
 Proof.
   move=> hsr.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ loop_small_cmd rspn lbl ws_align ws stk_max ++ cmd))].
-  + by exists lfd.
   eexists (Estate _ _ _); split=> /=.
-  + apply: lsem_step1.
-    rewrite /lsem1 /step.
-    rewrite (find_instr_skip hlinear) /=.
+  + apply: (lsem_n_eval_lin1 (n:=8) hbody) => //=.
     rewrite /eval_instr /=.
     rewrite /get_var /= hsr.(sr_tmp) /=.
     rewrite /exec_sopn /= truncate_word_u /=.
-    rewrite /of_estate /= /lnext_pc.
-    by rewrite -addnS; reflexivity.
+    by rewrite /of_estate /= /lnext_pc /= -addnS.
   case: hsr => hoff [hscs hmem hvalid hdisj hzero hvm htmp hrsp haligned hbound].
   split=> /=.
   + rewrite Vm.setP_neq;
@@ -421,7 +393,7 @@ Lemma loop_smallP (s1 : estate) :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
-    lsem lp
+    lsem_n lp (endpc lp fn)
       (of_estate s1 fn (size lc))
       (of_estate s2 fn (size lc + size (loop_small_cmd rspn lbl ws_align ws stk_max))) /\
     state_rel_loop_small loop_small_vars s1 s2 0 ptr.
@@ -431,8 +403,8 @@ Proof.
   have [s3 [hsem3 hsr3]] := loop_small_loopP hsr2 lt_0_stk_max.
   have [s4 [hsem4 hsr4]] := loop_small_finalP hsr3.
   exists s4; split=> //.
-  apply (lsem_trans hsem2).
-  by apply (lsem_trans hsem3).
+  apply (lsem_n_trans hsem2).
+  by apply (lsem_n_trans hsem3).
 Qed.
 
 End SMALL.
@@ -442,7 +414,7 @@ Section LARGE.
 Context (hlarge : ~ (ws <= U64)%CMP).
 (* We introduce [cmd] to deal with Loop and LoopSCT at the same time. *)
 Context (cmd : seq linstr).
-Context (hbody : lfd.(lfd_body) = lc ++ loop_large_cmd rspn lbl ws_align ws stk_max ++ cmd).
+Context (hbody : is_linear_of lp fn (lc ++ loop_large_cmd rspn lbl ws_align ws stk_max ++ cmd)).
 Context (rsp_nin : ~ Sv.In rspi loop_large_vars).
 (* FIXME: rename bottom into top/top_max in other files *)
 
@@ -450,7 +422,7 @@ Lemma loop_large_bodyP s1 s2 n :
   state_rel_loop_large loop_large_vars s1 s2 n top ->
   (0 < n)%Z ->
   exists s3,
-    [/\ lsem lp (of_estate s2 fn (size lc + 6))
+    [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size lc + 6))
                 (of_estate s3 fn (size lc + 8)),
         s3.(evm).[zfi] = Vbool (ZF_of_word (wrepr U64 n - wrepr U64 (wsize_size ws)))
       & state_rel_loop_large loop_large_vars s1 s3 (n - wsize_size ws) top].
@@ -463,9 +435,6 @@ Proof.
     move=> /eqP /Z.mod_divide [//|m ?].
     have ? := wsize_size_pos ws.
     have: (0 < m)%Z; nia.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ loop_large_cmd rspn lbl ws_align ws stk_max ++ cmd))].
-  + by exists lfd.
   have: validw (emem s2) Aligned (top + (wrepr Uptr n - wrepr Uptr (wsize_size ws)))%R ws.
   + apply /validwP; split.
     + rewrite /= (is_align_addE top_aligned).
@@ -482,17 +451,12 @@ Proof.
     by rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
   eexists (Estate _ _ _); split=> /=.
-  + apply: lsem_step.
-    + rewrite /lsem1 /step.
-      rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+  + apply: (lsem_n_eval_lin (n:=6) hbody) => //=.
+    + rewrite /eval_instr /=.
       rewrite /get_var hsr.(srls_off) /=.
       rewrite /exec_sopn /= !truncate_word_u /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
-    apply: lsem_step1.
-    rewrite /lsem1 /step.
-    rewrite (find_instr_skip hlinear) /=.
+      by rewrite /of_estate /= /lnext_pc /= -addnS.
+    apply: (lsem_n_eval_lin1 (n:=7) hbody) => //=.
     rewrite /eval_instr /=.
     do 6 rewrite (@get_var_neq _ _ _ vlri) //.
     rewrite [get_var _ _ vlri]/get_var hsr.(srll_vlr) /=.
@@ -506,8 +470,7 @@ Proof.
     rewrite /get_var /= hsr.(sr_rsp) /sem_sop2 /= !truncate_word_u /= truncate_word_u /=.
     rewrite add_wordE sub_wordE.
     rewrite hm' /=.
-    rewrite /of_estate /= /lnext_pc.
-    by rewrite -addnS; reflexivity.
+    by rewrite /of_estate /= /lnext_pc /= -addnS.
   + rewrite Vm.setP_neq //.
     by rewrite Vm.setP_eq.
   case: hsr => hvlr [hoff [hscs hmem hvalid hdisj hzero hvm htmp hrsp haligned hbound]].
@@ -564,14 +527,11 @@ Lemma loop_large_loopP s1 s2 n :
   state_rel_loop_large loop_large_vars s1 s2 n top ->
   (0 < n)%Z ->
   exists s3,
-    [/\ lsem lp (of_estate s2 fn (size lc + 6))
+    [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size lc + 6))
                 (of_estate s3 fn (size lc + 9))
       & state_rel_loop_large loop_large_vars s1 s3 0 top].
 Proof.
   move=> hsr hlt.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ loop_large_cmd rspn lbl ws_align ws stk_max ++ cmd))].
-  + by exists lfd.
   have [k hn]: (exists k, n = Z.of_nat k * wsize_size ws)%Z.
   + have := hsr.(sr_aligned).
     rewrite /is_align WArray.p_to_zE.
@@ -589,24 +549,19 @@ Proof.
   + subst k.
     move: hn; rewrite Z.mul_1_l => ?; subst n.
     exists s3; split.
-    + apply: (lsem_trans hsem3).
-      apply lsem_step1.
-      rewrite /lsem1 /step.
-      rewrite (find_instr_skip hlinear) /=.
+    + apply: (lsem_n_trans hsem3).
+      apply: (lsem_n_eval_lin1 (n:=8) hbody) => //=.
       rewrite /eval_instr /=.
       rewrite /get_var /= hzf3 /=.
       rewrite GRing.addrN /ZF_of_word /=.
-      rewrite /lnext_pc /=.
-      by rewrite -addnS.
+      by rewrite /lnext_pc /= -addnS.
     by move: hsr3; rewrite Z.sub_diag.
   have hlt3: (0 < n - wsize_size ws)%Z by nia.
   have hn3: (n - wsize_size ws)%Z = (Z.of_nat k * wsize_size ws)%Z by lia.
   have [s4 [hsem4 hsr4]] := ih _ _ hsr3 hlt3 hn3.
   exists s4; split=> //.
-  apply: (lsem_trans hsem3).
-  apply: lsem_step hsem4.
-  rewrite /lsem1 /step.
-  rewrite (find_instr_skip hlinear) /=.
+  apply: (lsem_n_trans hsem3).
+  apply: (lsem_n_eval_lin (n:=8) hbody) => //=; last by apply hsem4.
   rewrite /eval_instr /=.
   rewrite /get_var /= hzf3 /=.
   have ->: ~~ ZF_of_word (wrepr U64 n - wrepr U64 (wsize_size ws)).
@@ -617,7 +572,7 @@ Proof.
     have! := (wunsigned_range (align_word ws_align ptr)).
     have := wsize_size_pos ws.
     by lia.
-  rewrite hlfd /= hbody.
+  have [lfd -> -> /=] := hbody.
   rewrite (find_label_cat_hd (sip := sip_of_asm_e) _ hlabel).
   do 6 rewrite (find_labelE (sip := sip_of_asm_e)) /=.
   rewrite /is_label /= eqxx /=.
@@ -629,55 +584,46 @@ Lemma loop_large_initP (s1 : estate) :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
-    lsem lp (of_estate s1 fn (size lc)) (of_estate s2 fn (size lc + 6)) /\
+    lsem_n lp (endpc lp fn) (of_estate s1 fn (size lc)) (of_estate s2 fn (size lc + 6)) /\
     state_rel_loop_large loop_large_vars s1 s2 stk_max top.
 Proof.
 Local Opaque wsize_size.
   move=> hvalid hrsp.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ loop_large_cmd rspn lbl ws_align ws stk_max ++ cmd))].
-  + by exists lfd.
   eexists (Estate _ _ _); split.
-  + apply: lsem_step6; rewrite /lsem1 /step.
-    * rewrite -(addn0 (size lc)) (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+  + apply: (lsem_n_eval_lin (n:=0) hbody) => //=; first by rewrite addn0.
+    * rewrite /eval_instr /=.
       rewrite /get_var /= hrsp /=.
       rewrite /exec_sopn /= truncate_word_u /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
-    * rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+      by rewrite /of_estate /= /lnext_pc /= -addn1.
+    apply: (lsem_n_eval_lin (n:=1) hbody) => //=.
+    * rewrite /eval_instr /=.
       have -> /=: exec_sopn (Oasm (ExtOp (Oset0 ws))) [::] = ok [:: @Vword ws 0].
       + rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /=.
         rewrite /Oset0_instr.
         by move /negP/negPf : hlarge => -> /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
-    * rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+      by rewrite /of_estate /= /lnext_pc /= -addnS.
+    apply: (lsem_n_eval_lin (n:=2) hbody) => //=.
+    * rewrite /eval_instr /=.
       rewrite get_var_neq //.
       rewrite get_var_neq;
         last by move=> h; apply /rsp_nin /sv_of_listP;
         rewrite !in_cons /= -h eqxx /= ?orbT.
       rewrite /get_var /= hrsp /=.
       rewrite /exec_sopn /= !truncate_word_u /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
-    * rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+      by rewrite /of_estate /= /lnext_pc /= -addnS.
+    apply: (lsem_n_eval_lin (n:=3) hbody) => //=.
+    * rewrite /eval_instr /=.
       rewrite get_var_eq /=; last by [].
       rewrite /exec_sopn /= !truncate_word_u /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
-    * rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+      by rewrite /of_estate /= /lnext_pc /= -addnS.
+    apply: (lsem_n_eval_lin (n:=4) hbody).
+    1-3: done.
+    * rewrite /eval_instr /=.
       rewrite /exec_sopn /= truncate_word_u /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
-    * rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
-      rewrite /setpc /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
+      by rewrite /of_estate /= /lnext_pc /= -addnS.
+    apply: (lsem_n_eval_lin1 (n:=5) hbody) => //=.
+    rewrite /eval_instr /=.
+    by rewrite /setpc /of_estate /= /lnext_pc /= -addnS.
   split=> /=.
   + do 13 rewrite Vm.setP_neq //.
     by rewrite Vm.setP_eq /= wsize_ge_U256.
@@ -707,24 +653,18 @@ Qed.
 Lemma loop_large_finalP (s1 s2 : estate) :
   state_rel_loop_large loop_large_vars s1 s2 0 top ->
   exists s3,
-    lsem lp
+    lsem_n lp (endpc lp fn)
       (of_estate s2 fn (size lc + 9))
       (of_estate s3 fn (size lc + size (loop_large_cmd rspn lbl ws_align ws stk_max))) /\
     state_rel_loop_large loop_large_vars s1 s3 0 ptr.
 Proof.
   move=> hsr.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ loop_large_cmd rspn lbl ws_align ws stk_max ++ cmd))].
-  + by exists lfd.
   eexists (Estate _ _ _); split=> /=.
-  + apply: lsem_step1.
-    rewrite /lsem1 /step.
-    rewrite (find_instr_skip hlinear) /=.
+  + apply: (lsem_n_eval_lin1 (n:=9) hbody) => //=.
     rewrite /eval_instr /=.
     rewrite /get_var /= hsr.(sr_tmp) /=.
     rewrite /exec_sopn /= truncate_word_u /=.
-    rewrite /of_estate /= /lnext_pc.
-    by rewrite -addnS; reflexivity.
+    by rewrite /of_estate /= /lnext_pc /= -addnS.
   case: hsr => hvlr [hoff [hscs hmem hvalid hdisj hzero hvm htmp hrsp haligned hbound]].
   split=> /=.
   + by rewrite Vm.setP_neq.
@@ -746,7 +686,7 @@ Lemma loop_largeP (s1 : estate) :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
-    lsem lp
+    lsem_n lp (endpc lp fn)
       (of_estate s1 fn (size lc))
       (of_estate s2 fn (size lc + size (loop_large_cmd rspn lbl ws_align ws stk_max))) /\
     state_rel_loop_large loop_large_vars s1 s2 0 ptr.
@@ -756,20 +696,20 @@ Proof.
   have [s3 [hsem3 hsr3]] := loop_large_loopP hsr2 lt_0_stk_max.
   have [s4 [hsem4 hsr4]] := loop_large_finalP hsr3.
   exists s4; split=> //.
-  apply (lsem_trans hsem2).
-  by apply (lsem_trans hsem3).
+  apply (lsem_n_trans hsem2).
+  by apply (lsem_n_trans hsem3).
 Qed.
 
 End LARGE.
 
 Lemma loopP (s1 : estate) cmd vars cmd' :
   x86_stack_zero_loop rspn lbl ws_align ws stk_max = (cmd, vars) ->
-  lfd_body lfd = lc ++ cmd ++ cmd' ->
+  is_linear_of lp fn (lc ++ cmd ++ cmd') ->
   ~ Sv.In rspi vars ->
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
-    lsem lp
+    lsem_n lp (endpc lp fn)
       (of_estate s1 fn (size lc))
       (of_estate s2 fn (size lc + size cmd)) /\
     state_rel_loop_small vars s1 s2 0 ptr.
@@ -789,22 +729,19 @@ Section UNROLLED.
 Section SMALL.
 
 Context (hsmall : (ws <= U64)%CMP).
-Context (hbody : lfd.(lfd_body) = lc ++ unrolled_small_cmd rspn ws_align ws stk_max).
+Context (hbody : is_linear_of lp fn (lc ++ unrolled_small_cmd rspn ws_align ws stk_max)).
 Context (rsp_nin : ~ Sv.In rspi unrolled_small_vars).
 
 Lemma unrolled_small_bodyP s1 s2 n :
   state_rel_unrolled_small unrolled_small_vars s1 s2 (stk_max - Z.of_nat n * wsize_size ws) top ->
   (Z.of_nat n < stk_max / wsize_size ws)%Z ->
   exists s3,
-    [/\ lsem lp (of_estate s2 fn (size lc + 3 + n))
+    [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size lc + 3 + n))
                 (of_estate s3 fn (size lc + 3 + n.+1))
       & state_rel_unrolled_small unrolled_small_vars s1 s3 (stk_max - Z.of_nat n.+1 * wsize_size ws) top].
 Proof.
 Local Opaque wsize_size Z.of_nat.
   move=> hsr hlt.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ unrolled_small_cmd rspn ws_align ws stk_max))].
-  + by exists lfd.
   have hlt': (0 < Z.of_nat n.+1 * wsize_size ws <= stk_max)%Z.
   + split; first by have := wsize_size_pos ws; lia.
     etransitivity; last by apply (Z.mul_div_le _ (wsize_size ws)).
@@ -826,19 +763,18 @@ Local Opaque wsize_size Z.of_nat.
     by rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
   eexists (Estate _ _ _); split.
-  + apply: lsem_step1.
-    rewrite /lsem1 /step.
-    rewrite -addnA (find_instr_skip hlinear) /=.
-    rewrite onth_map.
-    rewrite oseq.onth_cat !size_map size_rev size_ziota.
-    have hlt'': n < Z.to_nat (stk_max / wsize_size ws) by apply /ltP; lia.
-    rewrite hlt''.
-    rewrite !onth_map.
-    rewrite oseq.onth_nth (nth_map 0%Z); last by rewrite size_rev size_ziota.
-    have ->:
-      (nth 0 (rev (ziota 0 (stk_max / wsize_size ws))) n * wsize_size ws =
-        stk_max - Z.of_nat n.+1 * wsize_size ws)%Z.
-    + rewrite nth_rev; last by rewrite size_ziota.
+  + apply: (lsem_n_eval_lin1 (n:= (3+n)) hbody) => //=.
+    + by rewrite addnA.
+    + rewrite onth_map.
+      rewrite oseq.onth_cat !size_map size_rev size_ziota.
+      have hlt'': n < Z.to_nat (stk_max / wsize_size ws) by apply /ltP; lia.
+      rewrite hlt''.
+      rewrite !onth_map.
+      rewrite oseq.onth_nth (nth_map 0%Z); last by rewrite size_rev size_ziota.
+      have ->//:
+        (nth 0 (rev (ziota 0 (stk_max / wsize_size ws))) n * wsize_size ws =
+          stk_max - Z.of_nat n.+1 * wsize_size ws)%Z.
+      rewrite nth_rev; last by rewrite size_ziota.
       rewrite nth_ziota /=; last first.
       + by rewrite size_ziota -minusE; apply /ltP; lia.
       rewrite size_ziota.
@@ -857,7 +793,7 @@ Local Opaque wsize_size Z.of_nat.
     rewrite !truncate_word_u /= truncate_word_u /=.
     rewrite hm' /=.
     rewrite /of_estate /= /lnext_pc /=.
-    by rewrite -!addnS addnA.
+    by rewrite -addnS.
   case: hsr => hscs hmem hvalid hdisj hzero hvm htmp hrsp haligned hbound.
   split=> //=.
   + apply (mem_equiv_trans hmem).
@@ -898,14 +834,11 @@ Qed.
 Lemma unrolled_small_loopP s1 s2 :
   state_rel_unrolled_small unrolled_small_vars s1 s2 stk_max top ->
   exists s3,
-    [/\ lsem lp (of_estate s2 fn (size lc + 3))
+    [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size lc + 3))
                 (of_estate s3 fn (size lc + 3 + Z.to_nat (stk_max / wsize_size ws)))
       & state_rel_unrolled_small unrolled_small_vars s1 s3 0 top].
 Proof.
   move=> hsr.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ unrolled_small_cmd rspn ws_align ws stk_max))].
-  + by exists lfd.
   have [k [hmax hbound]]:
     exists k, (stk_max = Z.of_nat k * wsize_size ws)%Z
            /\ k <= Z.to_nat (stk_max / wsize_size ws).
@@ -922,51 +855,43 @@ Proof.
   rewrite Z.div_mul // Nat2Z.id.
   elim: k s2 hbound hsr => [|k ih] s2 hbound hsr.
   + rewrite /= addn0 Z.sub_0_r.
-    exists s2; split=> //.
-    by apply Relation_Operators.rt_refl.
+    by exists s2; split=> //; apply lsem_n_0.
   have [s3 [hsem3 hsr3]] := ih _ (ltnW hbound) hsr.
   have hbound': (Z.of_nat k < stk_max / wsize_size ws)%Z.
   + by move/leP: hbound; lia.
   have [s4 [hsem4 hsr4]] := unrolled_small_bodyP hsr3 hbound'.
   exists s4; split=> //.
-  by apply (lsem_trans hsem3).
+  by apply (lsem_n_trans hsem3).
 Qed.
 
 Lemma unrolled_small_initP (s1 : estate) :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
-    lsem lp (of_estate s1 fn (size lc)) (of_estate s2 fn (size lc + 3)) /\
+    lsem_n lp (endpc lp fn) (of_estate s1 fn (size lc)) (of_estate s2 fn (size lc + 3)) /\
     state_rel_unrolled_small unrolled_small_vars s1 s2 stk_max top.
 Proof.
 Local Opaque wsize_size.
   move=> hvalid hrsp.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ unrolled_small_cmd rspn ws_align ws stk_max))].
-  + by exists lfd.
   eexists (Estate _ _ _); split.
-  + apply: lsem_step3; rewrite /lsem1 /step.
-    * rewrite -(addn0 (size lc)) (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+  + apply: (lsem_n_eval_lin (n:=0) hbody) => //=; first by rewrite addn0.
+    * rewrite /eval_instr /=.
       rewrite /get_var /= hrsp /=.
       rewrite /exec_sopn /= truncate_word_u /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
-    * rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+      by rewrite /of_estate /= /lnext_pc /= -addn1.
+    apply: (lsem_n_eval_lin (n:=1) hbody) => //=.
+    * rewrite /eval_instr /=.
       rewrite get_var_neq;
         last by move=> h; apply /rsp_nin /sv_of_listP;
         rewrite !in_cons /= -h eqxx /= ?orbT.
       rewrite /get_var /= hrsp /=.
       rewrite /exec_sopn /= !truncate_word_u /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
-    * rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
-      rewrite get_var_eq /=; last by [].
-      rewrite /exec_sopn /= !truncate_word_u /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
+      by rewrite /of_estate /= /lnext_pc /= -addnS.
+    apply: (lsem_n_eval_lin1 (n:=2) hbody) => //=.
+    rewrite /eval_instr /=.
+    rewrite get_var_eq /=; last by [].
+    rewrite /exec_sopn /= !truncate_word_u /=.
+    by rewrite /of_estate /= /lnext_pc /= -addnS.
   split=> //=.
   + move=> p.
     by rewrite Z.sub_diag /between (negbTE (not_zbetween_neg _ _ _ _)).
@@ -988,31 +913,26 @@ Qed.
 Lemma unrolled_small_finalP (s1 s2 : estate) :
   state_rel_unrolled_small unrolled_small_vars s1 s2 0 top ->
   exists s3,
-    lsem lp
+    lsem_n lp (endpc lp fn)
       (of_estate s2 fn (size lc + 3 + Z.to_nat (stk_max / wsize_size ws)))
       (of_estate s3 fn (size lc + size (unrolled_small_cmd rspn ws_align ws stk_max))) /\
     state_rel_unrolled_small unrolled_small_vars s1 s3 0 ptr.
 Proof.
   move=> hsr.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ unrolled_small_cmd rspn ws_align ws stk_max))].
-  + by exists lfd.
   have ->: size (unrolled_small_cmd rspn ws_align ws stk_max) =
         (3 + Z.to_nat (stk_max / wsize_size ws)).+1.
   + rewrite /= size_map size_cat !size_map size_rev size_ziota /=.
     by rewrite addnS addn0 -addSn.
   eexists (Estate _ _ _); split=> /=.
-  + apply: lsem_step1.
-    rewrite /lsem1 /step.
-    rewrite -addnA (find_instr_skip hlinear) /=.
-    rewrite onth_map.
-    rewrite oseq.onth_cat !size_map size_rev size_ziota.
-    rewrite ltnn subnn /=.
+  + apply: (lsem_n_eval_lin1 (n:= (3 + Z.to_nat (stk_max / wsize_size ws))) hbody) => //=.
+    + by rewrite addnA.
+    + rewrite onth_map.
+      rewrite oseq.onth_cat !size_map size_rev size_ziota.
+      by rewrite ltnn subnn /=.
     rewrite /eval_instr /=.
     rewrite /get_var /= hsr.(sr_tmp) /=.
     rewrite /exec_sopn /= truncate_word_u /=.
-    rewrite /of_estate /= /lnext_pc /=.
-    by rewrite -addnS; reflexivity.
+    by rewrite /of_estate /= /lnext_pc /= -addnS -addnA.
   case: hsr => hscs hmem hvalid hdisj hzero hvm htmp hrsp haligned hbound.
   split=> //=.
   + by rewrite (eq_ex_set_l _ (eq_ex_refl _));
@@ -1027,7 +947,7 @@ Lemma unrolled_smallP (s1 : estate) :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
-    lsem lp
+    lsem_n lp (endpc lp fn)
       (of_estate s1 fn (size lc))
       (of_estate s2 fn (size lc + size (unrolled_small_cmd rspn ws_align ws stk_max))) /\
     state_rel_unrolled_small unrolled_small_vars s1 s2 0 ptr.
@@ -1037,8 +957,8 @@ Proof.
   have [s3 [hsem3 hsr3]] := unrolled_small_loopP hsr2.
   have [s4 [hsem4 hsr4]] := unrolled_small_finalP hsr3.
   exists s4; split=> //.
-  apply (lsem_trans hsem2).
-  by apply (lsem_trans hsem3).
+  apply (lsem_n_trans hsem2).
+  by apply (lsem_n_trans hsem3).
 Qed.
 
 End SMALL.
@@ -1046,22 +966,19 @@ End SMALL.
 Section LARGE.
 
 Context (hlarge : ~ (ws <= U64)%CMP).
-Context (hbody : lfd.(lfd_body) = lc ++ unrolled_large_cmd rspn ws_align ws stk_max).
+Context (hbody : is_linear_of lp fn (lc ++ unrolled_large_cmd rspn ws_align ws stk_max)).
 Context (rsp_nin : ~ Sv.In rspi unrolled_large_vars).
 
 Lemma unrolled_large_bodyP s1 s2 n :
   state_rel_unrolled_large unrolled_large_vars s1 s2 (stk_max - Z.of_nat n * wsize_size ws) top ->
   (Z.of_nat n < stk_max / wsize_size ws)%Z ->
   exists s3,
-    [/\ lsem lp (of_estate s2 fn (size lc + 4 + n))
+    [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size lc + 4 + n))
                 (of_estate s3 fn (size lc + 4 + n.+1))
       & state_rel_unrolled_large unrolled_large_vars s1 s3 (stk_max - Z.of_nat n.+1 * wsize_size ws) top].
 Proof.
 Local Opaque wsize_size Z.of_nat.
   move=> hsr hlt.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ unrolled_large_cmd rspn ws_align ws stk_max))].
-  + by exists lfd.
   have hlt': (0 < Z.of_nat n.+1 * wsize_size ws <= stk_max)%Z.
   + split; first by have := wsize_size_pos ws; lia.
     etransitivity; last by apply (Z.mul_div_le _ (wsize_size ws)).
@@ -1083,19 +1000,18 @@ Local Opaque wsize_size Z.of_nat.
     by rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
   eexists (Estate _ _ _); split.
-  + apply: lsem_step1.
-    rewrite /lsem1 /step.
-    rewrite -addnA (find_instr_skip hlinear) /=.
-    rewrite onth_map.
-    rewrite oseq.onth_cat !size_map size_rev size_ziota.
-    have hlt'': n < Z.to_nat (stk_max / wsize_size ws) by apply /ltP; lia.
-    rewrite hlt''.
-    rewrite !onth_map.
-    rewrite oseq.onth_nth (nth_map 0%Z); last by rewrite size_rev size_ziota.
-    have ->:
-      (nth 0 (rev (ziota 0 (stk_max / wsize_size ws))) n * wsize_size ws =
-        stk_max - Z.of_nat n.+1 * wsize_size ws)%Z.
-    + rewrite nth_rev; last by rewrite size_ziota.
+  + apply: (lsem_n_eval_lin1 (n:= 4+n) hbody) => //=.
+    + by rewrite addnA.
+    + rewrite onth_map.
+      rewrite oseq.onth_cat !size_map size_rev size_ziota.
+      have hlt'': n < Z.to_nat (stk_max / wsize_size ws) by apply /ltP; lia.
+      rewrite hlt''.
+      rewrite !onth_map.
+      rewrite oseq.onth_nth (nth_map 0%Z); last by rewrite size_rev size_ziota.
+      have -> //:
+        (nth 0 (rev (ziota 0 (stk_max / wsize_size ws))) n * wsize_size ws =
+          stk_max - Z.of_nat n.+1 * wsize_size ws)%Z.
+      rewrite nth_rev; last by rewrite size_ziota.
       rewrite nth_ziota /=; last first.
       + by rewrite size_ziota -minusE; apply /ltP; lia.
       rewrite size_ziota.
@@ -1110,8 +1026,7 @@ Local Opaque wsize_size Z.of_nat.
     rewrite wsize_nle_u64_size_128_256 /=; last by apply /negbTE /negP.
     rewrite /get_var /= hsr.(sr_rsp) /sem_sop2 /= !truncate_word_u /= truncate_word_u /=.
     rewrite hm' /=.
-    rewrite /of_estate /= /lnext_pc /=.
-    by rewrite -!addnS addnA.
+    by rewrite /of_estate /= /lnext_pc /= -addnS.
   case: hsr => hvlr [hscs hmem hvalid hdisj hzero hvm htmp hrsp haligned hbound].
   split=> //=.
   split=> //=.
@@ -1153,14 +1068,11 @@ Qed.
 Lemma unrolled_large_loopP s1 s2 :
   state_rel_unrolled_large unrolled_large_vars s1 s2 stk_max top ->
   exists s3,
-    [/\ lsem lp (of_estate s2 fn (size lc + 4))
+    [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size lc + 4))
                 (of_estate s3 fn (size lc + 4 + Z.to_nat (stk_max / wsize_size ws)))
       & state_rel_unrolled_large unrolled_large_vars s1 s3 0 top].
 Proof.
   move=> hsr.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ unrolled_large_cmd rspn ws_align ws stk_max))].
-  + by exists lfd.
   have [k [hmax hbound]]:
     exists k, (stk_max = Z.of_nat k * wsize_size ws)%Z
            /\ k <= Z.to_nat (stk_max / wsize_size ws).
@@ -1177,60 +1089,51 @@ Proof.
   rewrite Z.div_mul // Nat2Z.id.
   elim: k s2 hbound hsr => [|k ih] s2 hbound hsr.
   + rewrite /= addn0 Z.sub_0_r.
-    exists s2; split=> //.
-    by apply Relation_Operators.rt_refl.
+    by exists s2; split=> //; apply lsem_n_0.
   have [s3 [hsem3 hsr3]] := ih _ (ltnW hbound) hsr.
   have hbound': (Z.of_nat k < stk_max / wsize_size ws)%Z.
   + by move/leP: hbound; lia.
   have [s4 [hsem4 hsr4]] := unrolled_large_bodyP hsr3 hbound'.
   exists s4; split=> //.
-  by apply (lsem_trans hsem3).
+  by apply (lsem_n_trans hsem3).
 Qed.
 
 Lemma unrolled_large_initP (s1 : estate) :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
-    lsem lp (of_estate s1 fn (size lc)) (of_estate s2 fn (size lc + 4)) /\
+    lsem_n lp (endpc lp fn) (of_estate s1 fn (size lc)) (of_estate s2 fn (size lc + 4)) /\
     state_rel_unrolled_large unrolled_large_vars s1 s2 stk_max top.
 Proof.
 Local Opaque wsize_size.
   move=> hvalid hrsp.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ unrolled_large_cmd rspn ws_align ws stk_max))].
-  + by exists lfd.
   eexists (Estate _ _ _); split.
-  + apply: lsem_step4; rewrite /lsem1 /step.
-    * rewrite -(addn0 (size lc)) (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+  + apply: (lsem_n_eval_lin (n:=0) hbody) => //=; first by rewrite addn0.
+    * rewrite /eval_instr /=.
       rewrite /get_var /= hrsp /=.
       rewrite /exec_sopn /= truncate_word_u /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
-    * rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+      by rewrite /of_estate /= /lnext_pc /= -addn1.
+    apply: (lsem_n_eval_lin (n:=1) hbody) => //=.
+    * rewrite /eval_instr /=.
       have -> /=: exec_sopn (Oasm (ExtOp (Oset0 ws))) [::] = ok [:: @Vword ws 0].
       + rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /=.
         rewrite /Oset0_instr.
         by move /negP/negPf : hlarge => -> /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
-    * rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
+      by rewrite /of_estate /= /lnext_pc /= -addnS.
+    apply: (lsem_n_eval_lin (n:=2) hbody) => //=.
+    * rewrite /eval_instr /=.
       rewrite get_var_neq //.
       rewrite get_var_neq;
         last by move=> h; apply /rsp_nin /sv_of_listP;
         rewrite !in_cons /= -h eqxx /= ?orbT.
       rewrite /get_var /= hrsp /=.
       rewrite /exec_sopn /= !truncate_word_u /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
-    * rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
-      rewrite get_var_eq /=; last by [].
-      rewrite /exec_sopn /= !truncate_word_u /=.
-      rewrite /of_estate /= /lnext_pc.
-      by rewrite -addnS; reflexivity.
+      by rewrite /of_estate /= /lnext_pc /= -addnS.
+    apply: (lsem_n_eval_lin1 (n:=3) hbody) => //=.
+    rewrite /eval_instr /=.
+    rewrite get_var_eq /=; last by [].
+    rewrite /exec_sopn /= !truncate_word_u /=.
+    by rewrite /of_estate /= /lnext_pc /= -addnS.
   split=> /=.
   + do 12 rewrite Vm.setP_neq //.
     by rewrite Vm.setP_eq /= wsize_ge_U256.
@@ -1255,31 +1158,26 @@ Qed.
 Lemma unrolled_large_finalP (s1 s2 : estate) :
   state_rel_unrolled_large unrolled_large_vars s1 s2 0 top ->
   exists s3,
-    lsem lp
+    lsem_n lp (endpc lp fn)
       (of_estate s2 fn (size lc + 4 + Z.to_nat (stk_max / wsize_size ws)))
       (of_estate s3 fn (size lc + size (unrolled_large_cmd rspn ws_align ws stk_max))) /\
     state_rel_unrolled_large unrolled_large_vars s1 s3 0 ptr.
 Proof.
   move=> hsr.
-  have hlinear:
-    [elaborate (is_linear_of lp fn (lc ++ unrolled_large_cmd rspn ws_align ws stk_max))].
-  + by exists lfd.
   have ->: size (unrolled_large_cmd rspn ws_align ws stk_max) =
         (4 + Z.to_nat (stk_max / wsize_size ws)).+1.
   + rewrite /= size_map size_cat !size_map size_rev size_ziota /=.
     by rewrite addnS addn0 -addSn.
   eexists (Estate _ _ _); split=> /=.
-  + apply: lsem_step1.
-    rewrite /lsem1 /step.
-    rewrite -addnA (find_instr_skip hlinear) /=.
-    rewrite onth_map.
-    rewrite oseq.onth_cat !size_map size_rev size_ziota.
-    rewrite ltnn subnn /=.
+  + apply: (lsem_n_eval_lin1 (n:=4 + Z.to_nat (stk_max / wsize_size ws)) hbody) => //=.
+    + by rewrite addnA.
+    + rewrite onth_map.
+      rewrite oseq.onth_cat !size_map size_rev size_ziota.
+      by rewrite ltnn subnn /=.
     rewrite /eval_instr /=.
     rewrite /get_var /= hsr.(sr_tmp) /=.
     rewrite /exec_sopn /= truncate_word_u /=.
-    rewrite /of_estate /= /lnext_pc /=.
-    by rewrite -addnS; reflexivity.
+    by rewrite /of_estate /= /lnext_pc /= -addnS -addnA.
   case: hsr => hvlr [hscs hmem hvalid hdisj hzero hvm htmp hrsp haligned hbound].
   split=> /=.
   + by rewrite Vm.setP_neq.
@@ -1296,7 +1194,7 @@ Lemma unrolled_largeP (s1 : estate) :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
-    lsem lp
+    lsem_n lp (endpc lp fn)
       (of_estate s1 fn (size lc))
       (of_estate s2 fn (size lc + size (unrolled_large_cmd rspn ws_align ws stk_max))) /\
     state_rel_unrolled_large unrolled_large_vars s1 s2 0 ptr.
@@ -1306,20 +1204,20 @@ Proof.
   have [s3 [hsem3 hsr3]] := unrolled_large_loopP hsr2.
   have [s4 [hsem4 hsr4]] := unrolled_large_finalP hsr3.
   exists s4; split=> //.
-  apply (lsem_trans hsem2).
-  by apply (lsem_trans hsem3).
+  apply (lsem_n_trans hsem2).
+  by apply (lsem_n_trans hsem3).
 Qed.
 
 End LARGE.
 
 Lemma unrolledP (s1 : estate) cmd vars :
   x86_stack_zero_unrolled rspn ws_align ws stk_max = (cmd, vars) ->
-  lfd_body lfd = lc ++ cmd ->
+  is_linear_of lp fn (lc ++ cmd) ->
   ~ Sv.In rspi vars ->
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
-    lsem lp
+    lsem_n lp (endpc lp fn)
       (of_estate s1 fn (size lc))
       (of_estate s2 fn (size lc + size cmd)) /\
     state_rel_unrolled_small vars s1 s2 0 ptr.
@@ -1354,55 +1252,45 @@ Lemma x86_stack_zero_cmdP szs rspn lbl ws_align ws stk_max cmd vars :
   x86_stack_zero_cmd szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
   stack_zeroization_proof.sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars.
 Proof.
-  move=> hcmd rsp_nin lt_0_stk_max halign le_ws_ws_align lp fn lfd lc
-    /negP hlabel hlfd hbody ls ptr hfn hpc hstack hrsp top hvalid.
+  move=> hcmd rsp_nin lt_0_stk_max halign le_ws_ws_align lp fn lc
+    /negP hlabel hbody ls ptr hfn hpc hstack hrsp top hvalid.
   have [s2 [hsem hsr]]: [elaborate
     exists s2,
-      lsem lp ls (of_estate s2 fn (size lc + size cmd))
+      lsem_n lp (endpc lp fn) ls (of_estate s2 fn (size lc + size cmd))
       /\ state_rel_unrolled_small
           rspn ws_align ws stk_max ptr vars (to_estate ls) s2 0 ptr].
   + move: hcmd; rewrite /x86_stack_zero_cmd.
     case: szs.
     + move=> [hcmd].
-      have {}hbody: lfd_body lfd = lc ++ cmd ++ [::].
-      + by rewrite cats0.
+      rewrite -(cats0 cmd) in hbody.
       have [s2 [hsem hsr]] :=
-        loopP lt_0_stk_max halign le_ws_ws_align hlfd hstack hlabel hcmd
+        loopP lt_0_stk_max halign le_ws_ws_align hstack hlabel hcmd
           hbody rsp_nin (s1 := to_estate _) hvalid hrsp.
       exists s2; split=> //.
-      + by rewrite -{1}hfn -{1}hpc of_estate_to_estate in hsem.
+      + by move: hsem; rewrite -hfn -hpc of_estate_to_estate.
       by case: hsr.
     + move=> [].
       rewrite /x86_stack_zero_loopSCT.
       case hcmd: (x86_stack_zero_loop rspn lbl ws_align ws stk_max)
         => [cmd' vars'] [??]; subst cmd vars.
       have [s2 [hsem hsr]] :=
-        loopP lt_0_stk_max halign le_ws_ws_align hlfd hstack hlabel hcmd
+        loopP lt_0_stk_max halign le_ws_ws_align hstack hlabel hcmd
           hbody rsp_nin (s1 := to_estate _) hvalid hrsp.
       exists s2; split; last by case: hsr.
-      rewrite -{1}hfn -{1}hpc of_estate_to_estate in hsem.
-      apply: (lsem_step_end hsem).
-      rewrite /lsem1 /step.
-      have hlinear:
-        [elaborate
-          is_linear_of lp fn
-            ((lc ++ cmd') ++
-              [:: {| li_ii := dummy_instr_info;
-                     li_i := Lopn [::] (Ox86 LFENCE) [::] |}])].
-      + by rewrite -catA; exists lfd.
-      rewrite -{1}size_cat -(addn0 (size _)).
-      rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
-      rewrite /of_estate /=.
-      by rewrite size_cat /= addnA addn1.
+      rewrite -{2}hfn -{1}hpc of_estate_to_estate in hsem.
+      apply: (lsem_n_step_end hsem).
+      rewrite catA in hbody.
+      rewrite /step -size_cat -(addn0 (size (lc ++ cmd'))) (find_instr_skip hbody) /=.
+      rewrite /eval_instr /= /lnext_pc /= /of_estate /=.
+      by rewrite !size_cat /= addnA addnS.
     move=> [hcmd].
     have :=
-      unrolledP lt_0_stk_max halign le_ws_ws_align hlfd hstack hcmd
+      unrolledP lt_0_stk_max halign le_ws_ws_align hstack hcmd
         hbody rsp_nin (s1 := to_estate _) hvalid hrsp.
-    by rewrite -{1}hfn -{1}hpc of_estate_to_estate.
+    by rewrite -{2}hfn -{1}hpc of_estate_to_estate.
 
   exists (emem s2), (evm s2); split=> //.
-  + by rewrite -hfn /of_estate -hsr.(sr_scs) in hsem.
+  + by rewrite -{2}hfn /of_estate -hsr.(sr_scs) in hsem.
   + move=> x hin.
     case: (x =P vid rspn) => [->|hneq].
     + by rewrite hsr.(sr_rsp).

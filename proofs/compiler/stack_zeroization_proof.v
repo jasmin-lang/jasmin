@@ -1,4 +1,14 @@
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
+From Paco Require Import paco.
+
+From ITree Require Import
+  ITree
+  ITreeFacts
+  Basics.HeterogeneousRelations
+  Interp.Recursion
+  Eq.Rutt
+  Eq.RuttFacts.
+
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 
@@ -10,7 +20,7 @@ Require Import
   linear_util
   linear_sem
   linear_facts.
-Require Import seq_extra compiler_util.
+Require Import seq_extra compiler_util relational_logic.
 Require Export stack_zeroization.
 
 Section WITH_PARAMS.
@@ -27,10 +37,9 @@ Definition sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars : Prop :=
   (0 < stk_max)%Z ->
   is_align stk_max ws ->
   (ws <= ws_align)%CMP ->
-  forall (lp : lprog) fn lfd lc,
+  forall (lp : lprog) fn lc,
   ~ has (is_label lbl) lc ->
-  get_fundef lp.(lp_funcs) fn = Some lfd ->
-  lfd.(lfd_body) = lc ++ cmd ->
+  is_linear_of lp fn (lc ++ cmd) ->
   forall ls ptr,
   lfn ls = fn ->
   lpc ls = size lc ->
@@ -40,7 +49,7 @@ Definition sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars : Prop :=
   valid_between (lmem ls) top stk_max ->
   exists m' vm',
     [/\ let: ls' := setpc (lset_mem_vm ls m' vm') (size lc + size cmd) in
-        lsem lp ls ls'
+        lsem_n lp (endpc lp fn) ls ls'
       , lvm ls =[\ vars ] vm'
       , validw (lmem ls) =3 validw m'
       , zero_between m' top stk_max
@@ -359,22 +368,220 @@ Proof.
     have [_ /= <-] := lsem_mem_equiv hsem.
     by apply hvalid.
 
+  have hlin : is_linear_of lp' fn (lfd_body lfd ++ cmd).
+  + by rewrite /is_linear_of; eauto.
   have [m'' [vm'' [hsem' heqvm' hvalid'' hzero huntouched]]] :=
     hszp_cmdP
-      hszparams hcmd rsp_nin hlt halign2 hle (next_lfd_lblP (lfd := lfd)) hlfd'
-      hbody (ls := {| lscs := scs'; |}) erefl erefl enough_stk' hrsp hvalid'.
-
+      hszparams hcmd rsp_nin hlt halign2 hle (next_lfd_lblP (lfd := lfd)) hlin
+      (ls := {| lscs := scs'; |}) erefl erefl enough_stk' hrsp hvalid'.
   exists m'', vm''; split=> //.
   + econstructor; eauto.
     + by rewrite -hmap.
     + apply: (lsem_trans (stack_zeroization_lprog_lsem hzerolp hsem)).
-      by rewrite /ls_export_final hbody size_cat.
+      rewrite /ls_export_final hbody size_cat.
+      by apply: lsem_n_lsem hsem'.
     apply (eq_onT heqvm).
     apply (eq_ex_disjoint_eq_on heqvm').
     by have [/disjoint_sym ? _] := disjoint_union (disjoint_sym hdisj).
   apply (eq_ex_disjoint_eq_on heqvm').
   by have [_ /disjoint_sym ?] := disjoint_union (disjoint_sym hdisj).
 Qed.
+
+(* TODO: move this *)
+
+Lemma eval_jump_in_bound lp lfd s s' r:
+  get_fundef (lp_funcs lp) (lfn s') = Some lfd ->
+  eval_jump lp r s = ok s' -> lpc s' <= size (lfd_body lfd).
+Proof.
+  move=> hget; rewrite /eval_jump.
+  case: r => fn lbl.
+  case hget1 : get_fundef => [lfd1 |] //=.
+  rewrite /find_label; case: ifP => //=.
+  move=> hlt [?]; subst s' => /=.
+  by move: hget; rewrite /= hget1 => -[<-].
+Qed.
+
+Lemma step_in_bound lp lfd s s':
+  get_fundef (lp_funcs lp) (lfn s') = Some lfd ->
+  step lp s = ok s' ->
+  lpc s' <= size (lfd_body lfd).
+Proof.
+  move=> hget; rewrite /step /find_instr.
+  case hget1 : get_fundef => [lfd1 | //].
+  case honth: oseq.onth => [pc | //].
+  have {honth}hsz:= onth_size honth.
+  rewrite /eval_instr.
+  case: li_i; t_xrbindP.
+  + by move=> *; subst s' => /=; move: hget; rewrite /= hget1 => -[<-].
+  + move=> > _ [[??]?] _; t_xrbindP => *; subst s' => /=.
+    by move: hget; rewrite /= hget1 => -[<-].
+  + by move=> [x|] r; t_xrbindP => *; apply: (eval_jump_in_bound hget); eauto.
+  + by move=> *; apply: (eval_jump_in_bound hget); eauto.
+  + by move=> *; subst s' => /=; move: hget; rewrite /= hget1 => -[<-].
+  + by move=> *; subst s' => /=; move: hget; rewrite /= hget1 => -[<-].
+  + by move=> *; apply: (eval_jump_in_bound hget); eauto.
+  + by move=> *; apply: (eval_jump_in_bound hget); eauto.
+  + by move=> *; subst s' => /=; move: hget; rewrite /= hget1 => -[<-].
+  move=> ?? [].
+  + by move=> *; apply: (eval_jump_in_bound hget); eauto.
+  by move=> > _ _ [?]; subst s' => /=; move: hget; rewrite /= hget1 => -[<-].
+Qed.
+
+Section ITREE.
+
+Context {E E0: Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+
+Section EXPORT.
+
+Context (lp lp' : lprog)
+        (pp' : stack_zeroization_lprog lp = ok lp')
+        (fn : funname)
+        (lfd : lfundef)
+        (cmd : lcmd)
+        (hget : get_fundef (lp_funcs lp) fn = Some lfd)
+        (hget' : get_fundef (lp_funcs lp') fn = Some (map_lfundef (cat^~ cmd) lfd))
+        (hexp : lfd_export lfd).
+
+Let pre s1 s2 :=
+  s1 = s2 /\ (lfn s1 = fn -> lpc s1 <= size (lfd_body lfd)).
+
+Let post s1 s2 :=
+  s1 = s2 /\ ~endpc lp fn s1.
+
+Lemma istack_zeroization_lprog_lsem :
+  wkequiv pre (ilsem lp (endpc lp fn)) (ilsem lp' (fun s => endpc lp fn s && endpc lp' fn s)) post.
+Proof.
+  apply wkequiv_iter.
+  rewrite /rec_facts.loop_body => s _ [<-] hpre.
+  case: ifPn => hpc /=; last first.
+  + by apply xrutt.xrutt_Ret; constructor; split => //; apply /negP.
+  have -> : endpc lp' fn s.
+  + move: hpc; rewrite /endpc hget hget' /= size_cat; case: eqP => //.
+    move=> h; have := hpre (sym_eq h).
+    rewrite leq_eqVlt => /orP [->// | ] hlt _; apply /eqP => heq.
+    by have := lt_nm_n (size (lfd_body lfd)) (size cmd); rewrite -heq hlt.
+  apply xrutt_facts.xrutt_bind with pre; last first.
+  + by move=> s1 s2 hpre'; apply xrutt.xrutt_Ret; constructor.
+  apply wkequiv_iresult with (P:= pre); last by split.
+  move=> {hpre hpc}s _ s' [<- hpre] hstep; exists s'.
+  + by apply: stack_zeroization_lprog_lsem1 pp' hstep.
+  split => // ?; subst fn.
+  by apply: step_in_bound hstep.
+Qed.
+
+End EXPORT.
+
+Lemma istack_zeroization_lprogP lp lp' fn lfd ptr :
+  Sv.In (vid (lp_rsp lp)) callee_saved ->
+  stack_zeroization_lprog lp = ok lp' ->
+  get_fundef lp.(lp_funcs) fn = Some lfd ->
+  (lfd.(lfd_stk_max) + wsize_size lfd.(lfd_align) - 1 <= wunsigned ptr)%Z ->
+  let bottom := (align_word lfd.(lfd_align) ptr - wrepr _ lfd.(lfd_stk_max))%R in
+  wkequiv
+    (fun s1 s2 => [/\ s1 = s2, valid_between (emem s1) bottom (lfd_stk_max lfd) &
+                      (evm s1).[vid (lp_rsp lp)] = @Vword Uptr ptr])
+    (ilsem_exportcall lp fn)
+    (ilsem_exportcall lp' fn)
+    (fun s1 s2 =>
+      [/\ escs s1 = escs s2
+        , (evm s1) =[sv_of_list v_var lfd.(lfd_res)] (evm s2)
+        & match_mem_zero_export (emem s1) (emem s2) bottom lfd.(lfd_stk_max) (szs_of_fn fn)]).
+Proof.
+  move=> hin hzerolp hlfd enough_stk bottom s _ [<-] hvalid hrsp.
+  rewrite /ilsem_exportcall hlfd /=.
+  have [lfd' hzero hlfd'] := stack_zeroization_lprog_get_fundef hzerolp hlfd.
+  rewrite hlfd' /= 2!bind_ret_l.
+  set s1 := (ls_export_initial (escs s) (emem s) (evm s) fn).
+  have hpre1: s1 = s1 /\ (lfn s1 = fn -> lpc s1 <= size (lfd_body lfd)) by split.
+  have []: (lfd = lfd' /\ if szs_of_fn fn is Some _ then ~(lfd_export lfd /\ (0 <? lfd_stk_max lfd)%Z) else True) \/
+         exists szs ws,
+          [/\ szs_of_fn fn = Some (szs, ws)
+            , lfd_export lfd
+            , (0 < lfd_stk_max lfd)%Z
+            & stack_zeroization_lfd_body szparams (lp_rsp lp) lfd szs ws = ok lfd'].
+  + move: hzero; rewrite /stack_zeroization_lfd.
+    case: szs_of_fn => [ [szs ws]| [<-]]; last by auto.
+    case: andP; last by move=> ? [<-]; auto.
+    by move=> []? /ZltP??; right; exists szs, ws.
+  + move=> [? hszs]; subst lfd'. apply xrutt_facts.xrutt_bind with (fun _ _ => lfd_export lfd).
+    + by apply rutt_iresult; t_xrbindP => ->; exists tt.
+    move=> _ _ hexport; apply xrutt_facts.xrutt_bind with eq.
+    + have /(_ [::]):= istack_zeroization_lprog_lsem hzerolp hlfd _ hpre1.
+      have heq : (fun s0 : lstate => endpc lp fn s0 && endpc lp' fn s0) =1 endpc lp' fn.
+      + move=> s2 /=; rewrite /endpc hlfd hlfd'.
+        by have /= -> := orKb _ false.
+      rewrite (eq_ilsem lp' s1 heq).
+      have h : get_fundef (lp_funcs lp') fn = Some (map_lfundef (cat^~ [::]) lfd).
+      + by rewrite hlfd'; case: (lfd) => > /=; rewrite /map_lfundef /= cats0.
+      move=> /(_ h).
+      by apply xrutt_facts.xrutt_weaken => // ?? [].
+    move=> r _ <-.
+    apply xrutt_facts.xrutt_bind with eq.
+    + by apply rutt_iresult => ? ->; eauto.
+    move=> _ _ _; apply xrutt.xrutt_Ret; split => //.
+    rewrite /match_mem_zero_export.
+    case: szs_of_fn hszs => [_|//].
+    move=> /andP; rewrite hexport /= => /ZltP/Z.le_ngt ?.
+    split => // p.
+    by rewrite /between (negbTE (not_zbetween_neg _ _ _ _)).
+  rewrite /match_mem_zero_export /stack_zeroization_lfd_body => -[szs[ws [-> hexport hlt]]].
+  t_xrbindP=> halign1 halign2 hle [cmd vars] hcmd.
+  t_xrbindP=> /Sv_memP rsp_nin hdisj hmap; subst lfd' => /=.
+  apply xrutt_facts.xrutt_bind with eq.
+  + by rewrite hexport; apply xrutt.xrutt_Ret.
+  move=> _ _ _; rewrite {2}/ilsem.
+  rewrite -(rec_facts.loop_split (endpc lp fn)).
+  rewrite bind_bind.
+  apply xrutt_facts.xrutt_bind with (fun s1' s2' =>
+    [/\ s1' = s2', mem_equiv (lmem s1) (lmem s1') & ~ endpc lp fn s1']).
+  + have h1 := istack_zeroization_lprog_lsem hzerolp hlfd hlfd' hpre1.
+    have hpreh : mem_equiv (lmem s1) (lmem s1) by done.
+    have h2 := [elaborate ilsem_mem_equiv lp (endpc lp fn) hpreh].
+    have := core_logics.lutt_xrutt_trans_l h2 h1.
+    apply xrutt_facts.xrutt_weaken => //.
+    + by move=> > [].
+    + move=> T1 T2 e1 t1 e2 t2 + _ [].
+      rewrite /core_logics.errcutoff /is_error /preInv /EPreRel /EPostRel /postInv /=.
+      by case: (mfun1 e1); case: (mfun1 e2).
+    by move=> > [?[]].
+  have hlin : is_linear_of lp' fn (lfd_body lfd ++ cmd).
+  + by rewrite /is_linear_of; eauto.
+  move=> s2 _ [<- [_ hvalid_eq]]; rewrite (endpc_untilpc hlfd) (rwP negP) /untilpc negbK.
+  move=> /eqP [? hsz]; subst fn.
+  have enough_stk': (lfd.(lfd_stk_max) <= wunsigned (align_word lfd.(lfd_align) ptr))%Z.
+  + by have := align_word_range (lfd_align lfd) ptr; Lia.lia.
+  have hvalid':
+    let: n := lfd_stk_max lfd in
+    let: p := (align_word (lfd_align lfd) ptr - wrepr Uptr n)%R in
+    valid_between (lmem s2) p n.
+  + by move=> p hb; rewrite -hvalid_eq; apply hvalid.
+  have hbody: lfd_body (map_lfundef (cat^~ cmd) lfd) = lfd_body lfd ++ cmd by done.
+  case: allP => hall; last first.
+  + rewrite /iresult /= bind_throw; apply xrutt.xrutt_CutL => //.
+    by rewrite /core_logics.errcutoff /is_error /subevent /resum /fromErr mid12.
+  have {}hrsp: (lvm s2).[vid (lp_rsp lp)] = Vword ptr.
+  + have <- // : (evm s).[vid (lp_rsp lp)] = (lvm s2).[vid (lp_rsp lp)].
+    by apply /value_eqb_eq/hall/Sv_elemsP.
+  have [m'' [vm'' [hsem' heqvm' hvalid'' {}hzero huntouched]]] :=
+    hszp_cmdP
+      hszparams hcmd rsp_nin hlt halign2 hle (next_lfd_lblP (lfd := lfd)) hlin
+      (ls := s2) erefl (sym_eq hsz) enough_stk' hrsp hvalid'.
+  have /= := [elaborate lsem_n_ilsem hsem'].
+  rewrite /ilsem => ->.
+  rewrite /rec_facts.loop /rec_facts.loop_body unfold_iter/=.
+  rewrite /endpc /= eqxx hlfd' /= size_cat eqxx /= !bind_ret_l /=.
+  have -> /= : (all (fun x : var => value_eqb (evm s).[x] vm''.[x]) (Sv.elements callee_saved)).
+  + apply /allP => x hx.
+    have <- : (lvm s2).[x] = vm''.[x]; last by apply hall.
+    apply heqvm'.
+    have [/disjointP hd _] := disjoint_union (disjoint_sym hdisj).
+    by apply/hd/Sv_elemsP.
+  rewrite bind_ret_l; apply xrutt.xrutt_Ret; split => //=.
+  apply (eq_ex_disjoint_eq_on heqvm').
+  by have [_ /disjoint_sym ?] := disjoint_union (disjoint_sym hdisj).
+Qed.
+
+End ITREE.
 
 End STACK_ZEROIZATION.
 
