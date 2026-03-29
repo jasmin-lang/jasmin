@@ -18,6 +18,7 @@ Require Import
   one_varmap sem_one_varmap
   linear
   linear_sem
+  linear_facts
   fexpr
   fexpr_sem.
 Require Import
@@ -2168,11 +2169,11 @@ Lemma imatch_state_step endpc endpc' ls xs :
   xrutt.xrutt
     (core_logics.errcutoff (is_error wE)) core_logics.nocutoff EPreRel EPostRel
     (HeterogeneousRelations.sum_rel inv inv)
-    (ilsem_body p endpc ls)
+    (rec_facts.loop_body (untilpc endpc) (istep p) ls)
     (xrutt_facts.iter_n (iasmsem_body p' endpc') n xs).
 Proof.
   move=> hwfend [lc omap_lc] ms.
-  rewrite /ilsem_body.
+  rewrite /rec_facts.loop_body /untilpc.
   case: eqP.
   + move=> heq; exists 0; rewrite /= /iasmsem_body.
     suff -> : endpc' == (asm_f xs, asm_ip xs).
@@ -2411,7 +2412,7 @@ Lemma imatch_state_sem endpc endpc' ls xs :
   xrutt.xrutt
     (core_logics.errcutoff (is_error wE)) core_logics.nocutoff EPreRel EPostRel
     inv
-    (ilsem p endpc ls)
+    (ilsem p (untilpc endpc) ls)
     (iasmsem p' endpc' xs).
 Proof.
   move=> hwf hinv; rewrite /ilsem /iasmsem.
@@ -2420,15 +2421,15 @@ Proof.
   by apply: imatch_state_step.
 Qed.
 
-Lemma iasm_gen_exportcall fn scs m vm :
-  vm_initialized_on vm (seq.map var_of_asm_typed_reg callee_saved)
+Lemma iasm_gen_exportcall fn ls :
+  vm_initialized_on (evm ls) (seq.map var_of_asm_typed_reg callee_saved)
   -> forall xm,
-      lom_eqv rip {| escs := scs; emem := m; evm := vm; |} xm
+      lom_eqv rip ls xm
   -> xrutt.xrutt
        (core_logics.errcutoff (is_error wE)) core_logics.nocutoff EPreRel EPostRel
        (fun s' xm' =>
          lom_eqv rip s' xm')
-       (ilsem_exportcall p scs m fn vm)
+       (ilsem_exportcall p fn ls)
        (iasmsem_exportcall p' fn xm).
 Proof.
   move=> /allP ok_vm xm M.
@@ -2446,13 +2447,17 @@ Proof.
     apply xrutt.xrutt_CutL.
     by rewrite /core_logics.errcutoff /is_error /subevent /resum /fromErr mid12.
   move=> _ _ _.
-  set l := ls_export_initial scs m vm fn.
+  set l := ls_export_initial _ _ _ _.
   set s := {| asm_m := xm; asm_f := fn; asm_c := c; asm_ip := 0; |}.
   have hwfend : wf_endpc (fn, size (lfd_body fd)) (fn, size c).
   + by rewrite /wf_endpc /= ok_fd ok_fd' /=.
   have hinv : inv l s.
   + rewrite /inv ok_fd /=; eexists; first eauto.
-    by constructor => //; rewrite /asm_pos take0.
+    constructor => //.
+    + by move: M; rewrite /l /s /ls_export_initial /= /to_estate; case: (ls) => //=.
+    by rewrite /asm_pos take0.
+    have h := [elaborate (eq_ilsem p l (endpc_untilpc (sip:=sip_of_asm_e) ok_fd))].
+    rewrite h => {h}.
   apply: (xrutt_facts.xrutt_bind (imatch_state_sem hwfend hinv)).
   move=> l' s' [lc _ [M' _ _ _]].
   apply xrutt_facts.xrutt_bind with (fun _ _ => True); last first.
@@ -2471,7 +2476,7 @@ Proof.
   + by apply/Sv_elemsP/sv_of_listP.
   case: M => /= _ _ _ _ Mr Mrx Mxr Mf.
   case: M' => /= _ _ _ _ Mr' Mrx' Mxr' Mf'.
-  assert (h1 := Vm.getP vm (var_of_asm_typed_reg r)).
+  assert (h1 := Vm.getP (evm ls) (var_of_asm_typed_reg r)).
   move/ok_vm: hr h1.
   case: r E1 => r /= E1;
     [ move: (Mr' r) (Mr r) | move: (Mrx' r) (Mrx r) | move: (Mxr' r) (Mxr r) | move: (Mf' r) (Mf r) ];

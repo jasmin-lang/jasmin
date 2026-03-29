@@ -76,15 +76,15 @@ Proof.
   have [n hn] := H0 _ _ RI_i.
   rewrite (unfold_iter_n body2 n).
   eapply gpaco2_uclo; [|eapply eqit_clo_bind|]; eauto with paco.
-  econstructor; eauto. intros; subst. gfinal. right.
+  econstructor; eauto. intros. gfinal. right.
   destruct u1; try discriminate.
   destruct u2; try discriminate.
-  pstep; red.
-  econstructor.
-  right.
-  eapply CIH; eauto.
-  inversion H; subst; auto.
-  pstep; red.
+  - pstep; red.
+    econstructor.
+    right.
+    eapply CIH; eauto.
+    inversion H; subst; auto.
+  - pstep; red.
   inversion H; subst.
   destruct u2; try discriminate.
   inversion H; subst.
