@@ -1252,6 +1252,7 @@ Proof.
   intuition.
 Qed.  
 
+(* HERE *)
 Lemma lsem_aux2 (Sem: L -> itree E L)
   (NoExit1 NoExit2: L -> bool)  
   (DC12: forall x, NoExit1 x -> NoExit2 x -> False) (l0: L) :
@@ -1776,11 +1777,14 @@ Fixpoint lsem_i_imedA
   | LLeaf _ (MkLI ii ir) => match LLeaf_ok (MkLI ii ir) with 
                             | false => throw err
                             | true => LSI lpA end                        
-  | LIf1Node _ (p1, _) li1 lc li2 =>
+  | LIf1Node _ (p1, l1) li1 lc li2 =>
       (* note: fst plE = S p1 *)
       match LIf1Node_ok li1 li2 with
       | false => throw err
-      | true => 
+      | true =>
+         (* let lt1 := LLeaf fnA (p1, l1) li1 in
+            let ltl1 := LListCons lt1 (LListNil fnA (p1.+1, l1)) in 
+        if (pA == pS) || (pA == p1) then LRec _ _ _ ltl1 lpA *)
              if (pA == pS) || (pA == p1) then LSI lpA
              else if IBT (S pS) p1 pA then LRec _ _ _ lc lpA
              else throw err 
@@ -1868,7 +1872,7 @@ Definition lsem_i_imedAL
   (LSI: lpoint -> itree (LCall +' E) lpoint)
   (fn: funname) (plS plE: plinfo)
   (lt : LTree fn plS plE) : lpoint -> itree (LCall +' E) lpoint :=
-  lsem_i_imedA in_btw LACntrI Bind_cmb LSC LSI lt.
+  lsem_i_imedA in_btw LACntrI Switch_cmb LSC LSI lt.
 
 (* parameterized intermediate local semantics of
    commands. NOTE: here at_start can replace in_btw. *)
@@ -1877,7 +1881,7 @@ Definition lsem_cmd_imedAL
   (LSI: lpoint -> itree (LCall +' E) lpoint)
   (fn: funname) (plS plE: plinfo)
   (lt : LTreeList fn plS plE) : lpoint -> itree (LCall +' E) lpoint :=
-  lsem_cmd_imedA in_btw LACntrI Bind_cmb LSC LSI lt.
+  lsem_cmd_imedA in_btw LACntrI Switch_cmb LSC LSI lt.
 
 Definition lsem_fun_imed_auxAL 
   (LSC: lcmd -> lpoint -> itree (LCall +' E) lpoint)
@@ -2182,12 +2186,12 @@ Admitted.
 (* this is Lm2. should work either on the right-hand side, pushing the
    inner loop inwards, or on the left-hand side, pushing the local
    loop outwards. *)
-Lemma aloop_aux2 {XS: stateE LState -< E}
+Lemma lsem_aux_lm2 {XS: stateE LState -< E}
   (fn fn0 : funname) (n0 n1 n2: nat) (l0 l1: label)
   (lcm1: LTreeList fn (incrP1 (n0, l0)) (n1, l1))
 (*  (A1: not_locally_possible fn fn0 n1 == false) *) :
  let lp0 := (fn0, n2) in  
- (* PO2 *)
+ (* PO1 *)
  ITree.iter (LACntr
              (λ '((_, pA) as lpA),
                   if (pA == n0) || (pA == n1)
@@ -2208,7 +2212,6 @@ Lemma aloop_aux2 {XS: stateE LState -< E}
 Proof.
   unfold LACntr, ACntr; simpl.
 Admitted. 
-
 
 (* equivalence for commands. but NOTE: this would not hold without the
    top-level iteration on the left *)
@@ -2268,65 +2271,8 @@ Proof.
     
     unfold LACntr, ACntr; simpl.
 
-    (* strategy: double the outer loop on the left, 
-                 push the inner loop inward on the left, 
-                 apply the inductive hyp H to the right, 
-                 reflexivity. *)
-
-(*
-here we have A ~ B. what we prove (in the following) is A ~ C. 
-we need to prove aux12: B ~ C.
-we try to do this working on B by: 
-  a) doubling the top-level loop (aux1), 
-  b) pushing the inner loop inward (aux2). 
-
-A := loop (LACntr
-       (λ '((_, pA) as lpA),
-          if (pA == n0) || (pA == n1)
-          then isem_li_aflow lpA
-          else
-           if in_btw n0.+1 n1 pA
-           then lsem_cmd_imedA in_btw LACntrI 
-                   Bind_cmb isem_lcmd_seq_flow isem_li_aflow lcm1 lpA
-           else throw err) fn n0 n1.+1) (fn0, nA)
-B := loop (LACntr
-         (λ '((_, pA) as lpA),
-            if (pA == n0) || (pA == n1)
-            then isem_li_aflow lpA
-            else
-             if in_btw n0.+1 n1 pA
-             then lsem_cmd_imedA in_btw Id_cmb 
-                    Switch_cmb isem_lcmd_seq_flow isem_li_aflow lcm1 lpA
-             else throw err) fn n0 n1.+1) (fn0, nA)
-C := loop (LACntr
-         (λ '((_, pA) as lpA),
-            if (pA == n0) || (pA == n1)
-            then isem_li_aflow lpA
-            else
-             if in_btw n0.+1 n1 pA
-             then
-              loop
-                (LACntr (lsem_cmd_imedA in_btw Id_cmb 
-                    Switch_cmb isem_lcmd_seq_flow isem_li_aflow lcm1) 
-                        fn n0.+1 n1) lpA
-             else throw err) fn n0 n1.+1) (fn0, nA)
-*)    
-    
-(*    set PL := (fun l2 => _).
-    set PO := (fun l2 => _). *)
-  (*  set PO0 := aloop (LACntr PO fn n n0.+1). *)
     set PO1 := ITree.iter (LACntr PO fn n0 n1.+1).
 
-    (* we want transform the right-hand side tree (PO, the non-local
-       one) to get it into a shape where the induction hyp is
-       usable. first we introduce a (redundant) inner loop. should be
-       similar to loop_vanishing_2. *)
-(*    assert (eutt eq (PO2 lp0) (PO1 lp0)) as Lm1.
-    { subst PO2 PO1 PO; simpl.
-      subst lp0; eapply aloop_aux1.
-    }
-*)  
-  
     set PI := (λ '((_, pA) as lpA),
                   if (pA == n0) || (pA == n1)
                   then isem_li_aflow lpA
@@ -2339,18 +2285,11 @@ C := loop (LACntr
                    else throw err).
     set PI0 := ITree.iter (LACntr PI fn n0 n1.+1).
 
-    (* we now want to push this loop further inward, to match a local
-       one. maybe could just prove PO1 ~~ PI? probably not. *)
     assert (eutt eq (PO1 lp0) (PI0 lp0)) as Lm2.
     { subst PO1 PO PI0 PI; simpl.
       admit.
     }
     
-    (* now we can apply these two lemmas to ge the right-hand side in
-    the right shape. *)
-(*    rewrite Lm1 in Lm2.
-    subst PO1 PI0.
-    subst lp0. unfold aloop in Lm2. *)
     subst PO1 PI0 PO PL PI lp0; simpl in *.
     rewrite Lm2.
     clear Lm2.
@@ -2370,9 +2309,173 @@ C := loop (LACntr
     rewrite H.
     eapply eqit_bind; try reflexivity.
   }
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+  { intros; subst Ptl; simpl; intros.
+    unfold lsem_cmd_imedL, lsem_cmd_imedF; simpl.
+    unfold lsem_cmd_imedAL, lsem_cmd_imedAF; simpl.
+    unfold LACntrI, LACntr, ACntr; simpl.
+    destruct pl as [nH lblH] eqn: was_pl ; simpl.
+    destruct lp0 as [fn0 n0] eqn: was_lp0; simpl.
+    rewrite unfold_iter; simpl.
+    admit.
+ (*   destruct 
+      (loc_possible fn fn0 nH && (nH <= n0) && (n0 < nH) && (0 < n0))
+        eqn: was_cond1.
+    rewrite bind_bind.
+    setoid_rewrite bind_ret_l.
+    destruct (n0 == nH); simpl.
+    setoid_rewrite bind_ret_l.
+    setoid_rewrite tau_euttge.
+  *)
+  }
+  { intros; subst Pt Ptl; simpl; intros.
+    unfold lsem_cmd_imedL, lsem_cmd_imedF; simpl.
+    unfold lsem_cmd_imedAL, lsem_cmd_imedAF; simpl.
+    unfold LACntrI, LACntr, ACntr; simpl.
+    intros.
+    rename l into ltl1.
+    rename l0 into ltl2.
+    destruct pl0 as [n0 lbl0] eqn: was_pl0; simpl.
+    destruct pl1 as [n1 lbl1] eqn: was_pl1; simpl.
+    destruct pl2 as [n2 lbl2] eqn: was_pl2; simpl.
+    unfold Switch_cmb; simpl.
+    unfold in_btw; simpl.
+    destruct lp0 as [fnA nA] eqn: was_lp0; simpl.
+         
+    destruct (n0 <= nA < n1) eqn: was_e1. 
+
+    { setoid_rewrite H.
+      unfold LACntrI, LACntr, ACntr; simpl.
+
+      setoid_rewrite unfold_iter.
+      destruct (loc_possible fn fnA n1 && (n0 <= nA) && (nA < n1) && (0 < nA))
+               eqn: was_e2; simpl.
+      { setoid_rewrite bind_bind.
+        destruct (loc_possible fn fnA n2 && (n0 <= nA) && (nA < n2) && (0 < nA))
+          eqn: was_e3; simpl.
+        2: { admit. (* absurd *) }
+        setoid_rewrite bind_bind.
+        rewrite was_e1; simpl.
+        unfold lsem_i_imedF, lsem_i_imedAF; simpl.
+        unfold Id_cmb, Switch_cmb; simpl.
+        eapply eqit_bind; try reflexivity.
+
+        intro l2.
+        setoid_rewrite bind_ret_l.
+        (* more unfolding, but should go through *)
+        admit.
+      }
+      { rewrite bind_ret_l.
+        (* from was_e1 and was_e2, either nA is 0 or not loc_possible *)
+        admit.
+      }
+    }
+
+    { destruct (n1 <= nA < n2) eqn: was_e2. 
+      setoid_rewrite H0.
       
+      unfold LACntrI, LACntr, ACntr; simpl.
+      setoid_rewrite unfold_iter.
+      destruct (loc_possible fn fnA n2 && (n1 <= nA) &&
+                  (nA < n2) && (0 < nA)) eqn:was_e4.
+      { (* absurd *)
+        admit. }
+      { rewrite bind_ret_l.
+        (* either nA = 0 or not loc_possible *)
+        admit.
+      }
+      { rewrite unfold_iter.
+        destruct (loc_possible fn fnA n2 && (n0 <= nA) &&
+                    (nA < n2) && (0 < nA)) eqn:was_e4.
+        (* either nA = 0 or not loc_possible *)
+        admit.
+        rewrite bind_ret_l.
+        (* PROBLEM 
+           need a guard against was_e1 and was_e2 *)
+        admit.
+      }
+    }  
+  }
+
 Admitted.
 
+(* unfolded version of lsem_aux_lm2 *)
+Lemma lsem_aux_lm2' {XS: stateE LState -< E}
+  (fn fn0 : funname) (n0 n1 n2: nat) (l0 l1: label)
+  (lcm1: LTreeList fn (incrP1 (n0, l0)) (n1, l1))
+  (*  (A1: not_locally_possible fn fn0 n1 == false) *) :
+  let lp0 := (fn0, n2) in
+  ITree.iter
+    (LACntr
+       (λ '((_, pA) as lpA),
+          if (pA == n0) || (pA == n1)
+          then isem_li_aflow lpA
+          else
+           if in_btw n0.+1 n1 pA
+           then
+            lsem_cmd_imedA in_btw Id_cmb Switch_cmb isem_lcmd_seq_flow
+              isem_li_aflow lcm1 lpA
+           else throw err) fn n0 n1.+1) lp0
+  ≈ ITree.iter
+      (LACntr
+         (λ '((_, pA) as lpA),
+            if (pA == n0) || (pA == n1)
+            then isem_li_aflow lpA
+            else
+             if in_btw n0.+1 n1 pA
+             then
+              ITree.iter
+                (LACntr
+                   (lsem_cmd_imedA in_btw Id_cmb Switch_cmb isem_lcmd_seq_flow
+                      isem_li_aflow lcm1) fn n0.+1 n1) lpA
+             else throw err) fn n0 n1.+1) lp0.
+Proof.
+  unfold LACntr.
+Admitted.   
+
+(*
+Lemma xxx {XS: stateE LState -< E}
+  (fn fn0 : funname) (n0 n1 n2: nat) (l0 l1: label)
+  (lcm1: LTreeList fn (incrP1 (n0, l0)) (n1, l1))
+  (*  (A1: not_locally_possible fn fn0 n1 == false) *) :
+  let lp0 := (fn0, n2) in
+  let NoExit12 := (λ '(fn1, n3),
+                    loc_possible fn fn1 n1.+1 && (n0 <= n3)
+                    && (n3 < n1.+1) && (0 < n3)) in
+  let NoExit1 := fun pA => (pA == n0) || (pA == n1) in
+  let NoExit2 := in_btw n0.+1 n1 in 
+  eutt eq (ITree.iter (ACntr
+       (λ '((_, pA) as lpA),
+          if NoExit1 pA
+          then isem_li_aflow lpA
+          else
+           if NoExit2 pA
+           then
+            lsem_cmd_imedA in_btw Id_cmb Switch_cmb isem_lcmd_seq_flow
+              isem_li_aflow lcm1 lpA
+           else throw err)
+       NoExit12) lp0)
+    (ITree.iter (ACntr
+       (λ '((_, pA) as lpA),
+          if NoExit1 pA
+          then lsem_cmd_imedA in_btw Id_cmb Switch_cmb isem_lcmd_seq_flow
+                 isem_li_aflow
+                 
+                 
+                 lpA
+          else
+           if NoExit2 pA
+           then
+            lsem_cmd_imedA in_btw Id_cmb Switch_cmb isem_lcmd_seq_flow
+              isem_li_aflow lcm1 lpA
+           else throw err)       
+    ) lp0).
+*)  
 
 (* equivalence between intemediate local and function-globablised
    semantics; the idea being that in Intermediate, local iterations

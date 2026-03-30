@@ -10,6 +10,8 @@ Require Import expr fexpr compiler_util label constant_prop.
 Require Export linear linear_util.
 Import word_ssrZ.
 
+Require Import Equality. 
+
 Local Open Scope seq_scope.
 
 Module E.
@@ -533,6 +535,8 @@ Notation "c1 ';;' c2" :=  (let: (lbl,lc) := c2 in c1 lbl lc)
 Notation "c1 '>;' c2" :=  (let: (lbl,lc) := c2 in (lbl, c1::lc))
    (at level 26, right associativity).
 
+(* pair of a program point (or position, as a natural number) and a
+  label (a symbolic label, represented as a positive binary number) *)
 Notation plinfo := (nat * label)%type.
 
 Definition incrP1 (pl: plinfo) := (S (fst pl), snd pl).
@@ -692,6 +696,9 @@ Definition is_RAstack_None_return ra :=
 Let ReturnTarget := Llabel ExternalLabel.
 Let Llabel := linear.Llabel InternalLabel.
 
+(* the linearization function used by the compiler. translate from
+ source to linear, also computing the next fresh label. notice that
+ labels are computed from right to left *)
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
@@ -794,6 +801,82 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Cfor _ _ _ => (lbl, lc)
   end.
 
+Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) :
+  label * lcmd :=
+  let fentry_ii := entry_info_of_fun_info fi in
+  let ret_ii := ret_info_of_fun_info fi in
+  let: (tail, head, lbl) :=
+     match sf_return_address e with
+     | RAreg r _ =>
+       ( [:: MkLI ret_ii (Ligoto (Rexpr (Fvar (mk_var_i r)))) ]
+       , [:: MkLI fentry_ii (Llabel 1) ]
+       , 2%positive
+       )
+     | RAstack ra_call ra_return z _ =>
+       ( if ra_return is Some ra_return
+         then [:: lload ret_ii (mk_var_i ra_return) rspi z;
+                  MkLI ret_ii (Ligoto (Rexpr (Fvar (mk_var_i ra_return)))) ]
+         else [:: MkLI ret_ii Lret ]
+       , MkLI fentry_ii (Llabel 1) ::
+         (if ra_call is Some ra_call
+          then [:: lstore fentry_ii rspi z (mk_var_i ra_call) ]
+          else [::])
+       , 2%positive
+       )
+     | RAnone =>
+       let sf_sz := (sf_stk_sz e + sf_stk_extra_sz e)%Z in
+       match sf_save_stack e with
+       | SavedStackNone =>
+         ([::], [::], 1%positive)
+       | SavedStackReg x =>
+         (* Tail: R[rsp] := R[x]
+          * Head: R[x] := R[rsp]
+          *       Setup stack.
+          *)
+         let r := mk_var_i x in
+         ( [:: lmove ret_ii rspi r ]
+         , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r (mk_var_i var_tmp)
+         , 1%positive
+         )
+       | SavedStackStk ofs =>
+         (* Tail: Load saved registers.
+          *       R[rsp] := M[R[rsp] + ofs]
+          * Head: R[r] := R[rsp]
+          *       Setup stack.
+          *       M[R[rsp] + ofs] := R[r]
+          *       Push registers to save to the stack.
+          *)
+         let r := mk_var_i var_tmp in
+         ( pop_to_save ret_ii e.(sf_to_save) ofs
+         , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r (mk_var_i var_tmp2)
+             ++ push_to_save fentry_ii e.(sf_to_save) (var_tmp, ofs)
+         , 1%positive)
+       end
+     end
+  in
+  let fd' := linear_c linear_i body lbl tail in
+  (fd'.1, head ++ fd'.2).
+
+Definition linear_fd (fd: sfundef) : (label * lfundef) :=
+  let e := fd.(f_extra) in
+  let is_export := is_RAnone (sf_return_address e) in
+  let res := if is_export then f_res fd else [::] in
+  let body := linear_body fd.(f_info) e fd.(f_body) in
+  (body.1,
+    {| lfd_info := f_info fd
+    ; lfd_align := sf_align e
+    ; lfd_tyin := f_tyin fd
+    ; lfd_arg := f_params fd
+    ; lfd_body := body.2
+    ; lfd_tyout := f_tyout fd
+    ; lfd_res := res
+    ; lfd_export := is_export
+    ; lfd_callee_saved := if is_export then map fst e.(sf_to_save) else [::]
+    ; lfd_stk_max := sf_stk_max e
+    ; lfd_frame_size := frame_size e
+    ; lfd_align_args := sf_align_args e
+    |}).
+
 (* returns the end point of the linear translation of i, given n0 as
    its start point *)
 Fixpoint linear_end_i (fn: funname) (i:instr) (n0: nat) : nat :=
@@ -860,12 +943,15 @@ Fixpoint linear_end_i (fn: funname) (i:instr) (n0: nat) : nat :=
   end.
 
 
-
 Definition does_align (ii: instr_info) (a: expr.align) : bool :=
   match a with | NoAlign => false | Align => true end.
 
-(* alternative left-to-right definition of linear_i, inclusive of
-   start and end points. *)
+(* left-to-right alternative definition of linear_i; on top of labels,
+   it also deals with program points (or positions), expressed as
+   natural numbers; the input is the starting point in the translation
+   of the source instruction, the output is the end point. the labels
+   are produced in reverse order wrt linear_i. 
+   TODO: show equivalence with linear_i modulo renaming. *)
 Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
   (plinfo * lcmd) :=
   let (ii, ir) := i in  
@@ -945,10 +1031,13 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
     end     
            
   | Ccall xs fn' es =>
-    let (n0, lbl0) := pl0 in 
+    let (n0, lbl0) := pl0 in
+    (* get the definition of the callee fn' *)  
     if get_fundef (p_funcs p) fn' is Some fd
     then
       let e := f_extra fd in
+      (* ra: the location of the return address: 
+             either a register or the stack *)
       let ra := sf_return_address e in
       if is_RAnone ra
       then (pl0, nil)
@@ -960,11 +1049,13 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
         let After :=
           allocate_stack_frame true ii sz tmp (is_RAstack_None_return ra) in
         let lbl1 := next_lbl lbl0 in
-      (* The test is used for the proof of linear_has_valid_labels *)
-      (*  let lcall := (fn', if fn' == fn
+        (* The test is used for the proof of linear_has_valid_labels *)
+        (* NOTE: here I have dropped the non-recursive check *)
+        (*  let lcall := (fn', if fn' == fn
                            then lbl0    (* Absurd case. *)
                            else xH      (* Entry point. *)
                      ) in *)
+        (* the callee entry point *)
         let lcall := (fn', xH) in
         (* * 1. Allocate stack frame.
            * 2. Call callee
@@ -974,9 +1065,14 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
            *)
         let nb := List.length Before in
         let na := List.length After in
+        (* Lcall ra lbl: if ra = Some r the return adress is stored in r 
+                         else on top of the stack *)
         ((n0 + nb + S (S na), lbl1),
               Before
+              (* jump to the callee entry point *)
               ++ MkLI ii (Lcall (ovari_of_ra ra) lcall)
+              (* the label to jump back to. NOTE: pointwise, this is
+                 one plus the call point *)  
               :: MkLI ii (ReturnTarget lbl0)
               :: After
           )
@@ -986,8 +1082,80 @@ Fixpoint linear_l2r_i (fn: funname) (i:instr) (pl0: plinfo) :
   end.
 
 
-Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) :
-  label * lcmd :=
+
+Definition linear_l2r_body_proepi (fn: funname)
+  (fi: fun_info) (e: stk_fun_extra) : (lcmd * lcmd * label) :=
+  let fentry_ii := entry_info_of_fun_info fi in
+  let ret_ii := ret_info_of_fun_info fi in
+  let: (tail, head, lbl) :=  
+     match sf_return_address e with
+     | RAreg r _ =>
+       ( [:: MkLI ret_ii (Ligoto (Rexpr (Fvar (mk_var_i r)))) ]
+       , [:: MkLI fentry_ii (Llabel 1) ]
+       , 2%positive
+       )
+     | RAstack ra_call ra_return z _ =>
+       ( if ra_return is Some ra_return
+         then [:: lload ret_ii (mk_var_i ra_return) rspi z;
+                  MkLI ret_ii (Ligoto (Rexpr (Fvar (mk_var_i ra_return)))) ]
+         else [:: MkLI ret_ii Lret ]
+       , MkLI fentry_ii (Llabel 1) ::
+         (if ra_call is Some ra_call
+          then [:: lstore fentry_ii rspi z (mk_var_i ra_call) ]
+          else [::])
+       , 2%positive
+       )
+     | RAnone =>
+       let sf_sz := (sf_stk_sz e + sf_stk_extra_sz e)%Z in
+       match sf_save_stack e with
+       | SavedStackNone =>
+         ([::], [::], 1%positive)
+       | SavedStackReg x =>
+         (* Tail: R[rsp] := R[x]
+          * Head: R[x] := R[rsp]
+          *       Setup stack.
+          *)
+         let r := mk_var_i x in
+         ( [:: lmove ret_ii rspi r ]
+         , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r
+               (mk_var_i var_tmp)
+         , 1%positive
+         )
+       | SavedStackStk ofs =>
+         (* Tail: Load saved registers.
+          *       R[rsp] := M[R[rsp] + ofs]
+          * Head: R[r] := R[rsp]
+          *       Setup stack.
+          *       M[R[rsp] + ofs] := R[r]
+          *       Push registers to save to the stack.
+          *)
+         let r := mk_var_i var_tmp in
+         ( pop_to_save ret_ii e.(sf_to_save) ofs
+         , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r (mk_var_i var_tmp2)
+             ++ push_to_save fentry_ii e.(sf_to_save) (var_tmp, ofs)
+         , 1%positive)
+       end
+     end
+  in (tail, head, lbl).
+
+Definition linear_l2r_body_core (fn: funname)
+  (fi: fun_info) (e: stk_fun_extra) (body: cmd) :
+  (lcmd * lcmd * lcmd * nat * label * label) :=
+  let: (tail, head, lbl) := linear_l2r_body_proepi fn fi e in
+  let n_pre := List.length head in
+  let: (n1, lbl1, lc1) := linear_l2r_c linear_l2r_i fn body (n_pre, lbl) in
+  (head, tail, lc1, n1, lbl, lbl1).
+
+Definition linear_l2r_body (fn: funname)
+  (fi: fun_info) (e: stk_fun_extra) (body: cmd) : plinfo * lcmd :=
+  let: (head, tail, lc1, n1, lbl, lbl1) :=
+    linear_l2r_body_core fn fi e body in
+  let n_post := List.length tail in
+  (n1 + n_post, lbl1, head ++ lc1 ++ tail).
+
+(*
+Definition linear_l2r_body_OLD (fn: funname)
+  (fi: fun_info) (e: stk_fun_extra) (body: cmd) : plinfo * lcmd :=
   let fentry_ii := entry_info_of_fun_info fi in
   let ret_ii := ret_info_of_fun_info fi in
   let: (tail, head, lbl) :=
@@ -1039,15 +1207,18 @@ Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) :
        end
      end
   in
-  let fd' := linear_c linear_i body lbl tail in
-  (fd'.1, head ++ fd'.2).
+  let n_pre := List.length head in
+  let n_post := List.length tail in
+  let: (n1, lbl1, lc1) := linear_l2r_c linear_l2r_i fn body (n_pre, lbl) in
+  (n1 + n_post, lbl1, head ++ lc1 ++ tail).
+*)
 
-
-Definition linear_fd (fd: sfundef) :=
+(* version based on linear_l2r. *)
+Definition linear_l2r_fd (fn: funname) (fd: sfundef) : (plinfo * lfundef) :=
   let e := fd.(f_extra) in
   let is_export := is_RAnone (sf_return_address e) in
   let res := if is_export then f_res fd else [::] in
-  let body := linear_body fd.(f_info) e fd.(f_body) in
+  let body := linear_l2r_body fn fd.(f_info) e fd.(f_body) in
   (body.1,
     {| lfd_info := f_info fd
     ; lfd_align := sf_align e
@@ -1064,18 +1235,67 @@ Definition linear_fd (fd: sfundef) :=
     |}).
 
 
-(* Notation plinfo := (nat * label)%type. *)
-
-(*
-Variant LAtomL (fn: funname) (lbl: label) : Type :=
-| MkLAtomL (ii: instr_info) (lk: label_kind). 
-*)
+(* The datatype that defines the Intermediate language. NOTE: LLeafL
+   is not used, whereas we could probably use a node built out of a
+   sequential list wrt linear_fd (TODO). *)
 Inductive LTree (fn0: funname) : plinfo -> plinfo -> Type :=
 | LErrLeaf : forall pl, LTree pl pl
 | LLeaf : forall pl,
    linstr -> LTree pl (incrP1 pl)
-| LLeafL : forall pl,
-   linstr -> LTree pl (incrPL1 pl)
+(* | LLeafL : forall pl,
+   linstr -> LTree pl (incrPL1 pl) *)
+| LIf1Node : forall pl0 pl1 (ii: instr_info) (e: fexpr), 
+    (* NOTE: 'e' is either 'e' or 'snot e'. *)
+    let n0 := fst pl0 in 
+    let lbl1 := snd pl1 in
+    forall 
+       (la_cond1: LTreeList (n0, lbl1) (S n0, lbl1))
+       (* let la_cond1 := 
+          LListCons (n0, lbl1) (S n0, lbl1  
+              (LLeaf _ (MkLI ii (Lcond (to_fexpr e) lbl1)))
+              (LListNil _) *)
+       (lcm1: LTreeList (incrP1 pl0) pl1)
+       (la_lbl1: LTreeList pl1 (incrPL1 pl1)),
+       (* let la_lbl1 := 
+          LListCons pl1 (incrPL1 pl1)  
+               (LLeaf pl1 (MkLI ii (Llabel lbl1)))
+               (LListNil (incrPL1 pl1)) *)
+   LTree pl0 (incrPL1 pl1)           
+| LIfNode : forall pl0 pl1 pl2 (ii: instr_info) (e: fexpr),
+   let n0 := fst pl0 in 
+   let n1 := fst pl1 in 
+   let n2 := fst pl2 in 
+   let lbl2 := snd pl2 in
+   let lbl3 := next_lbl lbl2 in
+   forall (la_cond3: LTreeList (n0, lbl2) (S n0, lbl2))
+       (* let la_cond3 := 
+          LListCons (n0, lbl2) (S n0, lbl2)) 
+              (LLeaf (n0, lbl2) (MkLI ii (Lcond (to_fexpr e) lbl3)))
+              (LListNil (S n0, lbl2)) *)
+          (lcm2: LTreeList (incrP1 pl0) pl1)
+          (la_goto2: LTreeList (n1, lbl2) (S n1, lbl2))
+       (* lbl3 := next_lbl lbl2 ;
+          let la_goto2 := 
+          LListCons (n1, lbl2) (S n1, lbl2)  
+              (LLeaf _ (MkLI ii (Lgoto (fn, lbl2))))
+              (LListNil _) *)          
+          (la_lbl3: LTreeList (S n1, lbl2) (S (S n1), lbl3))
+          (lcm1: LTreeList (incrP2 pl1) pl2)
+          (la_lbl2: LTreeList (S n2, next_lbl lbl3) (incrPL1 (incrL1 pl2))),
+   LTree pl0 (incrPL1 (incrL1 pl2))                  
+
+(*
+| LIf1Node : forall pl0 pl1 (ii: instr_info) (e: fexpr), 
+    (* let lbl1 := snd pl1 in *)
+    forall 
+       (la_cond1: LTree pl0 (incrP1 pl0))
+       (* let la_cond1 := LLeaf pl0 (MkLI ii (Lcond (to_fexpr e) lbl1)) *)
+       (lcm1: LTreeList (incrP1 pl0) pl1)
+       (la_lbl1: LTree pl1 (incrPL1 pl1)),
+       (* let la_lbl1 := LLeaf pl1 (MkLI ii (Llabel lbl1)) *)
+   LTree pl0 (incrPL1 pl1)           
+*)
+(*         
 | LIf1Node : forall pl0 pl1
        (la_cond1: linstr)
        (lcm1: LTreeList (incrP1 pl0) pl1)
@@ -1128,6 +1348,7 @@ Inductive LTree (fn0: funname) : plinfo -> plinfo -> Type :=
      forall (la_call: linstr)
             (la_ret: linstr),
      LTree pl0 (n1, next_lbl lbl0)        
+*)
 with LTreeList (fn0: funname) : plinfo -> plinfo -> Type := 
 | LListNil : forall pl, LTreeList pl pl
 | LListCons : forall pl0 pl1 pl2,
@@ -1153,6 +1374,13 @@ Fixpoint imed_cmd_aux
            existT _ pl2 (@LListCons fn0 pl0 pl1 pl2  
                                     (projT2 X1) (projT2 X2)) end.
 
+(* The translation from Source to Intermediate.  NOTE: we could have
+   defined this using linear_i instead, but then we should have
+   computed the code bounds on the fly, by the list length. To do
+   that, we could either 1) call recursively LC as well as linear_i in
+   order to get the flat list, or 2) flatten each time the result of a
+   recursive LC call. Both ways would seemingly lead to more
+   complicated definitions.  *)
 Fixpoint imed_i
   (fn0: funname) (i: instr) (pl0: plinfo) :
   sigT (fun pl1 => LTree fn0 pl0 pl1) :=
@@ -1312,7 +1540,7 @@ Definition imed_cmd (fn0: funname) (cc: cmd) (pl0: plinfo) :
   sigT (fun pl1 => LTreeList fn0 pl0 pl1) :=
   imed_cmd_aux imed_i fn0 cc pl0.
 
-
+(* the translation from Intermediate to Linear *)
 Fixpoint forget_imed_i
   (fn0: funname) (pl0 pl1: plinfo)
   (tl: LTree fn0 pl0 pl1) : (plinfo * lcmd) :=
@@ -1322,7 +1550,7 @@ Fixpoint forget_imed_i
   match tl with
   | LErrLeaf _ => (pl1, nil)
   | LLeaf _ li => (pl1, [:: li])
-  | LLeafL _ li => (pl1, [:: li ])
+(*  | LLeafL _ li => (pl1, [:: li ]) *)
   | LIf1Node _ _ la_cond0 tl1 la_lbl0 =>
       let (_, lcm1) := LC _ _ _ tl1 in  
       (pl1, la_cond0 :: (lcm1 ++ [:: la_lbl0]))
@@ -1361,10 +1589,29 @@ with forget_imed_cmd (fn0: funname) (pl0 pl1: plinfo)
       (pl1, lcm1 ++ lcm2)
   end.              
 
+(* lbl is the label after the prelude lc1, pl1 is the lpoint after the
+   body lt, lc2 is the epilogue *)
+Inductive LTreeFun (fn: funname) : Type :=
+  LTFun : forall lbl pl1 (lc1 lc2: lcmd),
+      let n1 := List.length lc1 in
+      forall lt: LTreeList fn (n1, lbl) pl1, LTreeFun. 
 
+Definition imed_fun (fn: funname)
+  (fi: fun_info) (e: stk_fun_extra) (body: cmd) : LTreeFun fn :=
+  let: (tail, head, lbl) := linear_l2r_body_proepi fn fi e in
+  let X1 := @imed_cmd fn body (List.length head, lbl) in
+  @LTFun fn lbl (projT1 X1) head tail (projT2 X1).
 
-Require Import Equality. 
-
+Definition forget_imed_fun (fn: funname)
+  (lt: LTreeFun fn) : (plinfo * lcmd) :=
+  match lt with
+  | LTFun lbl pl1 head tail lt1 =>
+      let nt := List.length tail in
+      let '(pl1, body) := forget_imed_cmd lt1 in 
+      let pl2 := (fst pl1 + nt, snd pl1) in 
+      (pl2, head ++ body ++ tail)
+  end.        
+  
 Definition forget_imed_i_ok_statm (i: instr) :=
   forall (fn0: funname) (pl0: plinfo),
     let X := imed_i fn0 i pl0 in
@@ -1375,6 +1622,7 @@ Definition forget_imed_cmd_ok_statm (c: cmd) :=
     let X := imed_cmd fn0 c pl0 in
     projT1 X = fst (forget_imed_cmd (projT2 X)).
 
+(* auxiliary lemma which helps to deal with the dependant type *)
 Lemma forget_imed_i_ok (i: instr) : forget_imed_i_ok_statm i.
   unfold forget_imed_i_ok_statm.
   intros.
@@ -1426,6 +1674,20 @@ Definition imed_cmd_correct_statm (c: cmd) :=
      linear_l2r_c linear_l2r_i fn0 c pl0 = 
      forget_imed_cmd (projT2 (imed_cmd fn0 c pl0)).
 
+(* the intermediate representation is ok:
+  
+   Source          ==          Source        
+      |                          |
+   imed_i                        |   
+      |                          |
+      V                      linear_l2r_i
+  Intermediate     ##            |  
+      |                          | 
+  forget_imed_i                  |  
+      |                          |  
+      V                          V  
+    Linear         ==          Linear    
+ *)
 Lemma imed_i_correct (i: instr) : imed_i_correct_statm i.
 Proof.
   set Pi := imed_i_correct_statm.
@@ -1717,6 +1979,8 @@ Proof.
   }  
 Qed.
 
+(* NOTE: massive code duplication wrt imed_i_correct. TODO: check how
+   to avoid it. *)
 Lemma imed_cmd_correct (c: cmd) : imed_cmd_correct_statm c.
 Proof.
   set Pi := imed_i_correct_statm.
@@ -2010,7 +2274,18 @@ Proof.
   }  
 Qed.
 
-
+Lemma forget_imed_fun_ok (fn0: funname)
+  (fi: fun_info) (e: stk_fun_extra) (body: cmd) :
+  forget_imed_fun (imed_fun fn0 fi e body) = linear_l2r_body fn0 fi e body.
+Proof.
+  unfold linear_l2r_body, imed_fun, forget_imed_fun,
+    linear_l2r_body_core; simpl.
+  destruct (linear_l2r_body_proepi fn0 fi e) as [[lc1 lc2] l]; simpl.
+  rewrite imed_cmd_correct.
+  destruct (forget_imed_cmd _); simpl.
+  destruct p0; simpl; auto.
+Qed.
+  
 End FUN.
 
 
@@ -2031,5 +2306,27 @@ Definition linear_prog : cexec lprog :=
         lp_glob_names := p.(p_extra).(sp_glob_names);
         lp_funcs := funcs.2 |}.
 
+(* version with linear_l2r_i. TODO: proving equivalence with
+   linear_prog. Should not be problematic. *)
+Definition linear_l2r_prog : cexec lprog :=
+  Let _ := check_prog in
+  Let _ := assert (size p.(p_globs) == 0)
+             (E.internal_error "invalid p_globs") in
+  let funcs := fmap (fun nb_lbl '(f,fd) =>
+    let: (_, lbl1, lc1) := linear_l2r_fd f fd in
+    ((nb_lbl + lbl1)%positive, (f, lc1))) (1%positive) p.(p_funcs)
+  in
+  Let _ := assert (funcs.1 <=? wbase Uptr)%Z
+                  (E.internal_error "too many labels")
+  in
+  ok {| lp_rip   := p.(p_extra).(sp_rip);
+        lp_rsp   := p.(p_extra).(sp_rsp);
+        lp_globs := p.(p_extra).(sp_globs);
+        lp_glob_names := p.(p_extra).(sp_glob_names);
+        lp_funcs := funcs.2 |}.
+
+
 End PROG.
 End WITH_PARAMS.
+
+
