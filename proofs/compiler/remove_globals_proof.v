@@ -282,18 +282,16 @@ Context {spp: SemPexprParams}.
 
 Section PROOFS.
 
-  Context (fresh_id : glob_decls -> var -> Ident.ident).
-
   Let Pi (i:instr) :=
     forall gd1 gd2,
-      extend_glob_i fresh_id i gd1 = ok gd2 ->
+      extend_glob_i i gd1 = ok gd2 ->
       gd_incl gd1 gd2.
 
   Let Pr (i:instr_r) := forall ii, Pi (MkI ii i).
 
   Let Pc (c:cmd) :=
     forall gd1 gd2,
-      foldM (extend_glob_i fresh_id) gd1 c = ok gd2 ->
+      foldM extend_glob_i gd1 c = ok gd2 ->
       gd_incl gd1 gd2.
 
   Local Lemma Hmk  : forall i ii, Pr i -> Pi (MkI ii i).
@@ -323,7 +321,7 @@ Section PROOFS.
   Qed.
 
   Lemma add_glob_gd_incl ii x gd1 gv gd2 :
-      add_glob fresh_id ii x gd1 gv = ok gd2 →
+      add_glob ii x gd1 gv = ok gd2 →
       gd_incl gd1 gd2.
   Proof.
     rewrite /add_glob.
@@ -371,7 +369,7 @@ Section PROOFS.
   Proof. by move=> xs f es ii gd1 gd2 /= [<-]. Qed.
 
   Local Lemma extend_glob_cP c gd1 gd2 :
-    foldM (extend_glob_i fresh_id) gd1 c = ok gd2 ->
+    foldM extend_glob_i gd1 c = ok gd2 ->
     gd_incl gd1 gd2.
   Proof.
     exact: (cmd_rect Hmk Hnil Hcons Hasgn Hopn Hsyscall Hassert Hif Hfor Hwhile Hcall).
@@ -379,8 +377,8 @@ Section PROOFS.
 
 End PROOFS.
 
-Lemma extend_glob_progP fresh_id P gd' :
-  extend_glob_prog fresh_id P = ok gd' ->
+Lemma extend_glob_progP P gd' :
+  extend_glob_prog P = ok gd' ->
   gd_incl (p_globs P) gd'.
 Proof.
   rewrite /extend_glob_prog.
@@ -400,8 +398,7 @@ Module RGP. Section PROOFS.
     {asm_op syscall_state : Type}
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
-    {sip : SemInstrParams asm_op syscall_state}
-    (fresh_id : glob_decls -> var -> Ident.ident).
+    {sip : SemInstrParams asm_op syscall_state}.
 
   Notation venv := (Mvar.t var).
 
@@ -1190,7 +1187,7 @@ Module RGP. Section PROOFS.
   End FDS.
 
   Lemma remove_globP P P' f ev scs mem scs' mem' va vr :
-    remove_glob_prog fresh_id P = ok P' ->
+    remove_glob_prog P = ok P' ->
     sem_call P ev scs mem f va scs' mem' vr ->
     exists2 vr',
      List.Forall2 value_uincl vr vr' &
@@ -1206,7 +1203,7 @@ Module RGP. Section PROOFS.
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rE0_trans : EventRels_trans rE0 rE0 rE0}.
 
   Lemma it_remove_globP P P' ev fn:
-    remove_glob_prog fresh_id P = ok P' ->
+    remove_glob_prog P = ok P' ->
     wiequiv_f P P' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:= uincl_spec)).
   Proof.
     rewrite /remove_glob_prog; t_xrbindP => gd' /extend_glob_progP hgd.

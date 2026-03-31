@@ -189,7 +189,6 @@ Record compiler_params
   warning          : instr_info -> warning_msg -> instr_info;
   lowering_opt     : lowering_options;
   insert_renaming  : fun_info -> bool;
-  fresh_id         : glob_decls -> var -> Ident.ident;
   fresh_var_ident  : v_kind -> instr_info -> int -> string -> atype -> Ident.ident;
   slh_info         : _uprog → funname → seq slh_t * seq slh_t;
   stack_zero_info  : funname -> option (stack_zero_strategy * option wsize);
@@ -304,7 +303,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
 
   Let pe := live_range_splitting pe in
 
-  Let pg := remove_glob_prog cparams.(fresh_id) pe in
+  Let pg := remove_glob_prog pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
   Let pp := load_constants_prog (fresh_var_ident cparams (Reg (Normal, Direct))) aparams.(ap_plp) pg in
