@@ -234,7 +234,7 @@ Proof. by []. Qed.
 
 Lemma Hcall_nw : sem_Ind_call p var_tmp Pi_r Pfun.
 Proof.
-  move=> ii k s1 s2 res fn args xargs xres ???.
+  move=> ii k s1 s2 res fn args ?.
   rewrite /Pfun /Pi_r /kill_tmp_call /= => h1 x hx.
   have /Sv_memP/negbTE hn : ¬ Sv.In x (fd_tmp_call p fn) by SvD.fsetdec.
   rewrite kill_varsE hn -h1 ?kill_varsE ?hn //; SvD.fsetdec.

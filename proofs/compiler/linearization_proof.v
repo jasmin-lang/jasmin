@@ -3076,8 +3076,8 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p var_tmps Pi_r Pfun.
   Proof.
-    move=> ii k s1 s2 res fn' args xargs xres
-      ok_xargs ok_xres exec_call ih fn lbl /checked_iE[] fd ok_fd chk_call.
+    move=> ii k s1 s2 res fn' args
+      exec_call ih fn lbl /checked_iE[] fd ok_fd chk_call.
     case linear_eq: linear_i => [lbli li].
     move=> ls m1 vm2 P Q M X D C hpc hfn sp hsp S MAX.
     move: chk_call => /=.
