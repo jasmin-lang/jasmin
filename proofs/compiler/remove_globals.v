@@ -49,7 +49,6 @@ End E.
 Section REMOVE.
 
   Context `{asmop:asmOp}.
-  Context (fresh_id : glob_decls -> var -> Ident.ident).
   Context {fcp : FlagCombinationParams}.
 
   Notation venv := (Mvar.t var).
@@ -74,9 +73,10 @@ Section REMOVE.
   Definition add_glob ii (x: var) (gd: glob_decls) (gv: glob_value) :=
     if has (check gv) gd then ok gd
     else
-      let gx := {| vtype := vtype x; vname := fresh_id gd x |} in
-      if has (fun g' => g'.1 == gx) gd then Error (rm_glob_error_dup ii gx)
-      else ok ((gx, gv) :: gd).
+      (* at that point of the compiler, liverange splitting made variable names
+         unique, so we keep the same name *)
+      if has (fun g' => g'.1 == x) gd then Error (rm_glob_error_dup ii x)
+      else ok ((x, gv) :: gd).
 
   Definition evaluate_bytes ii x : pexprs -> result pp_error_loc values :=
     mapM (fun pe =>

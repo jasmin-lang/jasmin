@@ -266,11 +266,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     ii
   in
 
-  let fresh_id _gd x =
-    let x = Conv.var_of_cvar x in
-    Prog.V.clone x
-  in
-
   let split_live_ranges_fd fd = Ssa.split_live_ranges true fd in
   let renaming_fd fd = RA.renaming fd in
   let remove_phi_nodes_fd fd = Ssa.remove_phi_nodes fd in
@@ -416,7 +411,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.refresh_instr_info;
       Compiler.warning;
       Compiler.lowering_opt = Arch.lowering_opt;
-      Compiler.fresh_id;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
       Compiler.slh_info;
       Compiler.stack_zero_info = szs_of_fn;
