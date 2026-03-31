@@ -117,6 +117,8 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
   | Ccall xs f es =>
     let X := Sv.union (read_i ir) X in
     if ii_is_inline iinfo then
+      (* we no longer rename the variables occurring in [fd], we rely on the
+         compiler ensuring variable names are disjoint between functions *)
       Let fd := add_iinfo iinfo (get_fun p f) in
       Let _ := add_iinfo iinfo (check_disjoint fd (Sv.union (vrvs xs) X)) in
       let ii := ii_with_location iinfo in
