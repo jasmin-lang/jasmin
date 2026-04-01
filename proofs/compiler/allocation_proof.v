@@ -425,6 +425,7 @@ Section PROOF.
   Local Lemma HmkI : sem_Ind_mkI p1 ev Pi_r Pi.
   Proof.
     move=> ii i s1 s2 _ Hi dead_vars r1 [? i2] /=.
+    rewrite /check_I.
     t_xrbindP=> _ vm1 /Hi Hvm r2 /Hvm [vm2 Hvm2 Hsem] <-.
     exists vm2 => //.
     apply: eq_alloc_incl Hvm2.
@@ -548,7 +549,10 @@ Section PROOF.
     move /Hc': (Hrevm2) (Cc2')=> H /H {H} [vm3 Hvm3 /= Hc2'].
     have /Hw {Hw} Hw:= eq_alloc_incl Hir3 Hvm3.
     have : check_i dead_vars (Cwhile a c e ei c') (Cwhile a2 c2 e2 ei2 c2') r2' = ok re.
-    + by rewrite /= Loop.nbP /= Cc2 /= Hre /= Cc2' /= Hir3 /=.
+    + change (Let r := loop2 (λ r : M.t_, Let r2 := fold2 E.fold2 (check_I dead_vars) c c2 r in
+             (Let re0 := check_e e e2 r2 in (Let r'0 := fold2 E.fold2 (check_I dead_vars) c' c2' re0 in
+             ok (re0, r'0)))) Loop.nb r2' in ok r = ok re).
+      by rewrite Loop.nbP /= Cc2 /= Hre /= Cc2' /= Hir3 /=.
     move=> /Hw [vm4 Hvm4 Hsw];exists vm4 => //.
     by apply: Ewhile_true Hsw;eauto;rewrite -eq_globs Hse2.
   Qed.
