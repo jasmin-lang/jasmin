@@ -18,6 +18,7 @@ End E.
 Section ASM_OP.
 
 Context `{asmop : asmOp}.
+Context {LC : LoopCounter}.
 
 Definition dead_code_c (dead_code_i: instr -> Sv.t -> cexec (Sv.t * cmd))
                        c s :  cexec (Sv.t * cmd) :=
@@ -138,7 +139,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * cmd) :=
     ok (read_e_rec (Sv.union s1 s2) b, [:: MkI ii (Cif b c1 c2)])
 
   | Cfor x (dir, e1, e2) c =>
-    Let sc := loop (dead_code_c dead_code_i c) ii Loop.nb
+    Let sc := loop (dead_code_c dead_code_i c) ii loop_counter
                    (read_rv (Lvar x)) (vrv (Lvar x)) s in
     let: (s, c) := sc in
     ok (read_e_rec (read_e_rec s e2) e1, [:: MkI ii (Cfor x (dir,e1,e2) c)])
@@ -151,7 +152,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * cmd) :=
       Let sci' := dead_code_c dead_code_i c' s_i in
       let: (s_i', c') := sci' in
       ok (s_i', (s_i, (c,c'))) in
-    Let sc := wloop dobody ii Loop.nb s in
+    Let sc := wloop dobody ii loop_counter s in
     let: (s, (c,c')) := sc in
     ok (s, [:: MkI ii (Cwhile a c e info c')])
 

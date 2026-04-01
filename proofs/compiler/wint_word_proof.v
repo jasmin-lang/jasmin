@@ -13,7 +13,8 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {sip : SemInstrParams asm_op syscall_state}
+  {LC : LoopCounter}.
 
 Context
   (remove_wint_annot: funname -> fundef -> fundef)

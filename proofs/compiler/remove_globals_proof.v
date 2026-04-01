@@ -398,7 +398,9 @@ Module RGP. Section PROOFS.
     {asm_op syscall_state : Type}
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
-    {sip : SemInstrParams asm_op syscall_state}.
+    {sip : SemInstrParams asm_op syscall_state}
+    {LC : LoopCounter}
+  .
 
   Notation venv := (Mvar.t var).
 
@@ -954,7 +956,7 @@ Module RGP. Section PROOFS.
     have [s3' [hs3 hc2]]:= h2' _ hs2.
     have : remove_glob_i gd m3 (MkI ii (Cwhile a c e ei c')) =
              ok (m', [::MkI ii (Cwhile a c1' e' ei c2')]).
-    + by rewrite /= Loop.nbP /= h1 /= he1 /= h2 /= hm.
+    + by rewrite /= loop_counterP /= h1 /= he1 /= h2 /= hm.
     move=> /hw{}hw; have /hw : valid m3 s3 s3' by apply: (valid_Mincl hm).
     move=> [s4' [hs4 /semE hw']]; exists s4';split => //.
     apply sem_seq1; constructor; apply: Ewhile_true;eauto.

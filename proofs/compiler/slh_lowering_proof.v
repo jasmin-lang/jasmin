@@ -209,7 +209,10 @@ Import Env.
 
 Section WITH_PARAMS.
 
-Context {fcparams : flag_combination.FlagCombinationParams}.
+Context
+  {LC : LoopCounter}
+  {fcparams : flag_combination.FlagCombinationParams}
+.
 
 Lemma empty_msf_vars x :
   ~~ is_msf_var empty x.
@@ -275,6 +278,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
+  {LC : LoopCounter}
 .
 
 Definition wf_vars (msf_vars: Sv.t) (vm:Vm.t) :=
@@ -640,7 +644,7 @@ Section LOWER_SLHO.
          split => //;
          apply: (hshp_spec_lower hshparams) hsemes hexec hwrite.
     move: hwf hcheck hsemes hexec hwrite.
-    clear.
+    clear hlower.
     case: slho => [|||ws|ws sz|ws sz].
     - exact: lower_SLHinit.
     - exact: lower_SLHupdate.
@@ -1068,7 +1072,7 @@ Proof.
   have hcheck :
     check_i fun_info (MkI ii (Cwhile al c0 cond cond_info c1)) env_fix
     = ok (Env.update_cond env0 (enot cond)).
-  - by rewrite /= hmem /= Loop.nbP /= hcheck0 /= hcheck1 /= hle1.
+  - by rewrite /= hmem /= loop_counterP /= hcheck0 /= hcheck1 /= hle1.
 
   have [hsem hwf0'] := hind _ _ _ _ hwffix hcheck hlower.
 

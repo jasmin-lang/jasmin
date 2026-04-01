@@ -20,7 +20,8 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {sip : SemInstrParams asm_op syscall_state}
+  {LC : LoopCounter}.
 
 Lemma init_stk_stateI fex pex gd s s' :
   pex.(sp_rip) != pex.(sp_rsp) →
@@ -223,7 +224,7 @@ Section LEMMA.
             Sv.Subset D D1 /\ Sv.Subset D2 D1 ].
   Proof.
     rewrite /check_instr_r -/check_instr; case: is_falseP => // _.
-    elim: Loop.nb D => // n ih /=; t_xrbindP => D D1 h1 he D2 h2.
+    elim: loop_counter D => // n ih /=; t_xrbindP => D D1 h1 he D2 h2.
     case: (equivP idP (Sv.subset_spec _ _)) => d.
     - case => ?; subst D1; exists D, D2; split => //; last by split.
       by rewrite h1 /= he /= h2 /=; move /Sv.subset_spec : d => ->.

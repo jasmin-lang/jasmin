@@ -48,6 +48,13 @@ Require
 (* FIXME: expr exports wsize, which overrides this. *)
 Definition pp_s := compiler_util.pp_s.
 
+#[export]
+Instance default_LoopCounter : LoopCounter :=
+  {
+    loop_counter := 100;
+    loop_counterP := erefl;
+  }.
+
 Section IS_MOVE_OP.
 
 Context
@@ -75,7 +82,7 @@ Fixpoint unroll (n: nat) (p: uprog) : cexec uprog :=
 
 Definition unroll_loop (p: uprog) :=
   Let p := postprocess p in
-  unroll Loop.nb p.
+  unroll loop_counter p.
 
 End IS_MOVE_OP.
 

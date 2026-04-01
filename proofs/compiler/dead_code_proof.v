@@ -15,6 +15,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
+  {LC : LoopCounter}
   (is_move_op : asm_op_t -> bool)
   (is_move_opP :
     forall op vx v,
@@ -411,7 +412,7 @@ Section PROOF.
   Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
   Proof.
     move=> s1 s2 i d lo hi c vlo vhi Hlo Hhi Hc Hfor ii I c_ O /=.
-    case Hloop: (loop (dead_code_c (dead_code_i is_move_op do_nop onfun) c) ii Loop.nb Sv.empty (Sv.add i Sv.empty) O)=> [[sv1 sc1] /=|//] [??]; subst I c_.
+    case Hloop: (loop (dead_code_c (dead_code_i is_move_op do_nop onfun) c) ii loop_counter Sv.empty (Sv.add i Sv.empty) O)=> [[sv1 sc1] /=|//] [??]; subst I c_.
     move: (loopP Hloop)=> [H1 [sv2 [H2 H2']]] vm1' Hvm.
     have [|vm2' [Hvm2'1 Hvm2'2]] := Hfor _ _ _ H2 H2' vm1'.
     + move: Hvm; rewrite !read_eE=> Hvm.

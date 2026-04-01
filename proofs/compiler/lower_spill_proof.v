@@ -17,6 +17,7 @@ Context
   {ep  : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
+  {LC  : LoopCounter}
   {pT  : progT}
   {sCP : semCallParams}
   (fresh_var_ident : v_kind -> instr_info -> int -> string -> atype -> Ident.ident)

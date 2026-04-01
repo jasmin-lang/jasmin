@@ -216,7 +216,8 @@ Context
   {asmop : asmOp asm_op}
   {msfsz : MSFsize}
   {fcparams : flag_combination.FlagCombinationParams}
-  {pT : progT}.
+  {pT : progT}
+  {LC : LoopCounter}.
 
 Section CHECK_SLHO.
 
@@ -452,11 +453,11 @@ Fixpoint check_i (i : instr) (env : Env.t) : cexec Env.t :=
       Let env1 := check_cmd c1 (Env.update_cond env (enot cond)) in
       ok (Env.meet env0 env1)
 
-  | Cfor x _ c => check_for ii x (check_cmd c) Loop.nb env
+  | Cfor x _ c => check_for ii x (check_cmd c) loop_counter env
 
   | Cwhile _ c0 cond _ c1 =>
       Let _ := chk_mem ii cond in
-      check_while ii cond (check_cmd c0) (check_cmd c1) Loop.nb env
+      check_while ii cond (check_cmd c0) (check_cmd c1) loop_counter env
 
   | Ccall xs fn es =>
       let '(in_t, out_t) := fun_info fn in

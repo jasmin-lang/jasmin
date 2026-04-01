@@ -17,7 +17,8 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {sip : SemInstrParams asm_op syscall_state}
+  {LC : LoopCounter}.
 
 Definition eq_alloc (r:M.t) (vm1 vm2:Vm.t) :=
     [/\ (forall x, ~Sv.In x (M.mset r) -> vm1.[x] = undef_addr (eval_atype x.(vtype))) &
@@ -554,7 +555,7 @@ Section PROOF.
     move /Hc': (Hrevm2) (Cc2')=> H /H {H} [vm3 Hvm3 /= Hc2'].
     have /Hw{}Hw := eq_alloc_incl Hir3 Hvm3.
     have : check_i dead_vars (Cwhile a c e ei c') (Cwhile a2 c2 e2 ei2 c2') r2' = ok re.
-    + by rewrite /= Loop.nbP /= Cc2 /= Hre /= Cc2' /= Hir3 /=.
+    + by rewrite /= loop_counterP /= Cc2 /= Hre /= Cc2' /= Hir3 /=.
     move=> /Hw [vm4 Hvm4 Hsw];exists vm4 => //.
     by apply: Ewhile_true Hsw;eauto;rewrite -eq_globs Hse2.
   Qed.
