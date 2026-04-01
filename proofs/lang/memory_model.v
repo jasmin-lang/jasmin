@@ -125,6 +125,9 @@ HB.instance Definition _ := hasDecEq.Build aligned aligned_eqb_OK.
 Definition aligned_le (x y: aligned) : bool :=
   (x == Unaligned) || (y == Aligned).
 
+Definition min_aligned (a b: aligned) : aligned :=
+  if a is Aligned then b else a.
+
 (* -------------------------------------------------------------------- *)
 Module Export CoreMem.
 Section CoreMem.

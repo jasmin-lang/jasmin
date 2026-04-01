@@ -226,6 +226,17 @@ Definition check_signed_range (m: option wsize) sz' (n: Z) : bool :=
       if h <=? z then z <? -h else false)%Z
   else false.
 
+Definition classify_pget ty e x (al: aligned) sz v : lower_cassgn_t :=
+    if (sz ≤ U64)%CMP
+    then LowerMov (if is_var_in_memory v then is_lval_in_memory x else false)
+    else if ty is aword szo
+    then if (U128 ≤ szo)%CMP then
+           let al := min_aligned al (aligned_of_lval x) in
+           LowerCopn (Ox86 (VMOVDQ al szo)) [:: e ]
+    else if (U32 ≤ szo)%CMP then LowerCopn (Ox86 (MOVV szo)) [:: e ]
+    else LowerAssgn
+    else LowerAssgn.
+
 (* x =(ty) e *)
 Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
   let chk (b: bool) r := if b then r else LowerAssgn in
@@ -234,19 +245,13 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
   let k16 sz := kb ((U16 ≤ sz) && (sz ≤ U64))%CMP sz in
   let k32 sz := kb ((U32 ≤ sz) && (sz ≤ U64))%CMP sz in
   match e with
-  | Pget _ _ sz {| gv := v |} _
+  | Pget al _ sz {| gv := v |} _ => classify_pget ty e x al sz v
   | Pvar {| gv := ({| v_var := {| vtype := aword sz |} |} as v) |} =>
-    if (sz ≤ U64)%CMP
-    then LowerMov (if is_var_in_memory v then is_lval_in_memory x else false)
-    else if ty is aword szo
-    then if (U128 ≤ szo)%CMP then LowerCopn (Ox86 (VMOVDQU szo)) [:: e ]
-    else if (U32 ≤ szo)%CMP then LowerCopn (Ox86 (MOVV szo)) [:: e ]
-    else LowerAssgn
-    else LowerAssgn
-  | Pload _ sz _ =>
+      classify_pget ty e x Aligned sz v
+  | Pload al sz _ =>
       if (sz ≤ U64)%CMP
       then LowerMov (is_lval_in_memory x)
-      else kb true sz (LowerCopn (Ox86 (VMOVDQU sz)) [:: e ])
+      else kb true sz (LowerCopn (Ox86 (VMOVDQ al sz)) [:: e ])
 
   | Papp1 (Oword_of_int sz) (Pconst z) =>
       if ty is aword sz' then
