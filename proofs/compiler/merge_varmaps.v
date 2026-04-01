@@ -39,7 +39,7 @@ Definition ii_loop_iterator :=
 End E.
 
 Section PROG.
-Context {pd: PointerData} {syscall_state : Type} {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap_info}.
+Context {pd: PointerData} {syscall_state : Type} {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap_info} {LC : LoopCounter}.
 Context (p: sprog).
 Context (var_tmp : Sv.t).
 
@@ -185,7 +185,7 @@ Section CHECK.
       Error (E.internal_error ii "for loop should be unrolled")
     | Cwhile _ c e _ c' =>
       if is_false e then check_c (check_i sz) D c
-      else wloop (check_i sz) ii c (read_e e) c' Loop.nb D
+      else wloop (check_i sz) ii c (read_e e) c' loop_counter D
 
     | Ccall xs fn es =>
       if get_fundef (p_funcs p) fn is Some fd then

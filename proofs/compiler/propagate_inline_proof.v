@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import psem psem_facts constant_prop constant_prop_proof.
+Require Import psem psem_facts compiler_util constant_prop constant_prop_proof.
 Require Export propagate_inline.
 
 Import Utf8 ZArith Morphisms Classes.RelationClasses.
@@ -21,6 +21,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
   {sCP : semCallParams}
+  {LC : LoopCounter}
 .
 
 Definition dfl_cel :=
@@ -481,7 +482,7 @@ Section PROOF.
     rewrite /=; t_xrbindP => -[[[pi2' c1'] e'] c2'] hl [<-] /=.
     have [pi [pi3 [hc1 hc2 he [hi1 hi2]]]]:= loop_whileP hl; subst e'.
     exists pi, pi3, c1', c2'; split => //.
-    by rewrite compiler_util.Loop.nbP /= hc1 /= hc2 /= hi1 /=.
+    by rewrite loop_counterP /= hc1 /= hc2 /= hi1 /=.
   Qed.
 
   Local Lemma loop_forP ii x c n pi1 pi c' :

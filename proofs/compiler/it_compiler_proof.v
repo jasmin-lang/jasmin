@@ -134,7 +134,7 @@ Lemma it_unrollP {dc : DirectCall} (fn : funname) (p p' : prog) ev :
   wiequiv_f (dc1 := dc) (dc2 := dc)
     p p' ev ev pre_incl fn fn post_incl.
 Proof.
-rewrite /unroll_loop; t_xrbindP; elim: Loop.nb p => [// | n hind] /= p pu hpu.
+rewrite /unroll_loop; t_xrbindP; elim: loop_counter p => [// | n hind] /= p pu hpu.
 case hu: unroll_prog => [pu' []]; last first.
 - move=> [<-]; exact: it_postprocessP hpu.
 move: hu; rewrite (surjective_pairing (unroll_prog pu)) => -[? _]; subst pu'.

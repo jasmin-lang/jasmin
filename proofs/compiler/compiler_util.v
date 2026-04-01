@@ -279,16 +279,11 @@ Definition pp_safety_remains pass :=
 Definition pp_safety_remains_at pass ii :=
   pp_internal_error_s_at pass ii safety_expression_remains.
 
-Module Type LoopCounter.
-  Parameter nb  : nat.
-  Parameter nbP : nb = (nb.-1).+1.
-End LoopCounter.
-
-Module Loop : LoopCounter.
-  Definition nb := 100.
-  Lemma nbP : nb = (nb.-1).+1.
-  Proof. done. Qed.
-End Loop.
+Class LoopCounter :=
+  {
+    loop_counter : nat;
+    loop_counterP : loop_counter = (loop_counter.-1).+1;
+  }.
 
 Ltac t_xrbindP :=
   match goal with

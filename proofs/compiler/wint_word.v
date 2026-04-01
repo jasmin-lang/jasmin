@@ -74,7 +74,10 @@ Definition wi2w_lv (x : lval) : lval :=
 
 Section WITH_PARAMS.
 
-Context `{asmop:asmOp}.
+Context
+  `{asmop:asmOp}
+   {LC : LoopCounter}
+.
 
 Fixpoint wi2w_ir (ir:instr_r) : instr_r :=
   match ir with
