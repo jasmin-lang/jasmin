@@ -458,7 +458,9 @@ let alloc_stack_fd callstyle pd get_info gtbl fd =
   let sao_alloc = List.iter (Hv.remove lalloc) fd.f_args; lalloc in
 
   let sao_modify_rsp =
-    sao_size <> 0 || has_syscall fd.f_body ||
+    (* a slot can have size 0, so the condition on [sao_slots] is not redundant
+       with the condition on [sao_size] *)
+    sao_size <> 0 || List.length sao_slots <> 0 || has_syscall fd.f_body ||
       Sf.exists (fun fn -> (get_info fn).sao_modify_rsp) sao_calls in
   let sao = {
     sao_calls;
@@ -484,11 +486,11 @@ let alloc_mem (gtbl: wsize Hv.t) globs =
       let w = Memory_model.LE.encode ws w in
       List.iteri (fun i w -> t.(ofs + i) <- w) w 
 
-    | Global.Garr(p, gt) ->
-      let ip = Conv.int_of_pos p in
-      for i = 0 to ip - 1 do
-        let w = 
-          match Warray_.WArray.get p Aligned Warray_.AAdirect U8 gt (Conv.cz_of_int i) with
+    | Global.Garr(n, gt) ->
+      let ni = Conv.int_of_n n in
+      for i = 0 to ni - 1 do
+        let w =
+          match Warray_.WArray.get n Aligned Warray_.AAdirect U8 gt (Conv.cz_of_int i) with
           | Ok w -> w
           | _    -> assert false in
         t.(ofs + i) <- w
