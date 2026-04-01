@@ -4510,10 +4510,10 @@ Section PROOF.
           have SF_range : (0 <= SF < wbase Uptr)%Z.
           - by move: (sf_stk_sz (f_extra fd)) (sf_stk_extra_sz (f_extra fd)) stk_sz_pos stk_extra_sz_pos hround; lia.
           have X : (wunsigned (T - wrepr Uptr SF) <= wunsigned T)%Z.
-          * move: (sf_stk_sz _) stk_sz_pos above_limit => n; lia.
+          * move: (sf_stk_sz _) (wunsigned (_ - _)) stk_sz_pos above_limit => n m; clear; lia.
           have {X} TmS := wunsigned_sub_small SF_range X.
-          rewrite TmS in above_limit.
-          lia.
+          move: above_limit; rewrite TmS.
+          clear -uptr_sz; lia.
         exists m1s; split=> //.
         + apply: (eval_lsem_step1 (pre := [:: P1 ]) ok_body) => //.
           apply: (spec_lstore hliparams) => //=.
