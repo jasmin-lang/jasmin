@@ -9,6 +9,7 @@
 
 language/syntax/index
 language/semantics/index
+language/annotations/index
 :::
 
 :::{toctree}
