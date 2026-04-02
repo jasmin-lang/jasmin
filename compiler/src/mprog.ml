@@ -41,3 +41,13 @@ type ('len,'info,'asm) gmprog = ('len,'info,'asm) gmodule_item list
    (* first declaration occur at the end (i.e reverse order) *)
 
 type ('info, 'asm) mpprog = (pexpr_,'info,'asm) gmprog
+
+
+type ('len,'info, 'asm) module_summary = {
+  name : string;
+  params : 'len mparamdecl list;
+  funcs : ('len, 'info, 'asm) gfunc list;
+  globs : ('len gvar * 'len ggexpr) list;
+  renames : 'len module_app list;
+  imodules : ('len,'info,'asm) module_summary list;
+}
