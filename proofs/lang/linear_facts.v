@@ -2,6 +2,7 @@ From Coq Require Import Relations.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 
 Require Import
+  while
   fexpr_facts
   label
   linear
@@ -309,7 +310,7 @@ Lemma ilsem_mem_equiv lp cond m :
     (fun s => mem_equiv m (lmem s)).
 Proof.
   apply khoare_iter.
-  rewrite /rec_facts.loop_body => s hmem /=.
+  rewrite /while_body => s hmem /=.
   case: ifP => _; last by apply core_logics.lutt_Ret.
   apply core_logics.lutt_bind with (fun s => mem_equiv m (lmem s)); last by move=> *; apply core_logics.lutt_Ret.
   rewrite /istep; case heq: step => [s' | e] /=.

@@ -13,6 +13,7 @@ From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 
 Require Import
+  while
   label
   psem
   one_varmap
@@ -452,7 +453,7 @@ Lemma istack_zeroization_lprog_lsem :
   wkequiv pre (ilsem lp (endpc lp fn)) (ilsem lp' (fun s => endpc lp fn s && endpc lp' fn s)) post.
 Proof.
   apply wkequiv_iter.
-  rewrite /rec_facts.loop_body => s _ [<-] hpre.
+  rewrite /while_body => s _ [<-] hpre.
   case: ifPn => hpc /=; last first.
   + by apply xrutt.xrutt_Ret; constructor; split => //; apply /negP.
   have -> : endpc lp' fn s.
@@ -530,7 +531,7 @@ Proof.
   apply xrutt_facts.xrutt_bind with eq.
   + by rewrite hexport; apply xrutt.xrutt_Ret.
   move=> _ _ _; rewrite {2}/ilsem.
-  rewrite -(rec_facts.loop_split (endpc lp fn)).
+  rewrite (split_while (endpc lp fn)).
   rewrite bind_bind.
   apply xrutt_facts.xrutt_bind with (fun s1' s2' =>
     [/\ s1' = s2', mem_equiv (lmem s1) (lmem s1') & ~ endpc lp fn s1']).
@@ -568,8 +569,7 @@ Proof.
       (ls := s2) erefl (sym_eq hsz) enough_stk' hrsp hvalid'.
   have /= := [elaborate lsem_n_ilsem hsem'].
   rewrite /ilsem => ->.
-  rewrite /rec_facts.loop /rec_facts.loop_body unfold_iter/=.
-  rewrite /endpc /= eqxx hlfd' /= size_cat eqxx /= !bind_ret_l /=.
+  rewrite unfold_while /endpc /= eqxx hlfd' /= size_cat eqxx /= !bind_ret_l /=.
   have -> /= : (all (fun x : var => value_eqb (evm s).[x] vm''.[x]) (Sv.elements callee_saved)).
   + apply /allP => x hx.
     have <- : (lvm s2).[x] = vm''.[x]; last by apply hall.

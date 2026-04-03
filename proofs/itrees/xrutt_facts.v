@@ -18,7 +18,7 @@ From ITree Require Import
   Basics.HeterogeneousRelations
   Props.Leaf.
 
-Require Import xrutt.
+Require Import xrutt while.
 
 (* Morphisms related to [REv] and [RAns]. Symmetry results when
 flipped. Note: the first section is copied from RuttFacts.v in ITree;
@@ -559,38 +559,6 @@ Section XRuttRec.
 End XRuttRec.
 
 (** Relating [X-rutt] and [iter] *)
-
-Fixpoint iter_n (E : Type -> Type) {I R} (body : I -> itree E (I + R))
-    (n : nat) (i : I) : itree E (I + R) :=
-  match n with
-  | O => body i
-  | S n =>
-    ITree.bind (body i)
-      (fun ir : I + R =>
-       match ir with
-       | inl i => Tau (iter_n body n i)
-       | inr r => Ret (inr r)
-       end)
-  end.
-
-Lemma unfold_iter_n (E : Type -> Type) {I R} (body : I -> itree E (I + R))
-         (n : nat) (i:I) :
-  eq_itree eq (ITree.iter body i)
-  (ITree.bind (iter_n body n i)
-    (fun lr : I + R =>
-     match lr with
-     | inl l => Tau (ITree.iter body l)
-     | inr r => Ret r
-     end)).
-Proof.
-  generalize i; clear i; elim n; clear n; simpl; [ intros i | intros n hn i]; rewrite unfold_iter.
-  { reflexivity. }
-  rewrite bind_bind.
-  eapply eqit_bind; try reflexivity.
-  intros lr; case lr; [intros l | intros r].
-  { rewrite bind_tau, hn; reflexivity. }
-  rewrite bind_ret_l; reflexivity.
-Qed.
 
 Section XRuttIter.
   Context {E1 E2 : Type -> Type}.
