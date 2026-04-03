@@ -14,7 +14,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssralg eqtype.
 From Coq Require Import ZArith Utf8.
 Import Relations.
 Require oseq.
-Require Import rec_facts it_sems_core psem fexpr_sem compiler_util label one_varmap linear sem_one_varmap .
+Require Import while it_sems_core psem fexpr_sem compiler_util label one_varmap linear sem_one_varmap .
 
 Import Memory.
 
@@ -414,7 +414,7 @@ Import MonadNotation.
 Local Open Scope monad_scope.
 
 Definition ilsem (cond : lstate -> bool) (s:lstate) :=
-  loop cond istep s.
+  while cond istep s.
 
 Definition ilsem_exportcall (fn: funname) (es:estate) :=
   let s := (ls_export_initial (escs es) (emem es) (evm es) fn) in
@@ -425,9 +425,9 @@ Definition ilsem_exportcall (fn: funname) (es:estate) :=
   _ <- iresult (to_estate s') (assert (all (fun x => value_eqb (evm es).[x] vm'.[x]) (Sv.elements callee_saved)) ErrSemUndef);;
   Ret (to_estate s').
 
-Lemma i_lsem_body cond s : loop_body cond istep s ≅ iresult (to_estate s) (lsem_body cond s).
+Lemma i_lsem_body cond s : while_body cond istep s ≅ iresult (to_estate s) (lsem_body cond s).
 Proof.
-  rewrite /loop_body /lsem_body; case: ifP => h /=; last reflexivity.
+  rewrite /while_body /lsem_body; case: ifP => h /=; last reflexivity.
   rewrite /istep.
   case: step => [s' | ] /=.
   + rewrite bind_ret_l; reflexivity.
@@ -435,9 +435,8 @@ Proof.
 Qed.
 
 Lemma i_lsem_body_n cond n s :
-  eqit eq true true
-    (xrutt_facts.iter_n (loop_body cond istep) n s)
-    (err_result (pair^~ tt) (lsem_body_n cond n.+1 s)).
+  iter_n (while_body cond istep) n s ≈
+    err_result (pair^~ tt) (lsem_body_n cond n.+1 s).
 Proof.
   rewrite /=; elim: n s => /= [ | n hn] s.
   + rewrite i_lsem_body. case: (lsem_body cond s) => [ins | e] /=; last by reflexivity.
@@ -449,14 +448,14 @@ Proof.
 Qed.
 
 Lemma unfold_lsem cond s :
-  eqit eq true true
-    (ilsem cond s) (ITree.bind (loop_body cond istep s)
-                      (fun ins => match ins with
-                        | inl s' => ilsem cond s'
-                        | inr s'  => Ret s'
-                        end)).
+  ilsem cond s ≈
+    (ins <- while_body cond istep s;;
+     match ins with
+     | inl s' => ilsem cond s'
+     | inr s'  => Ret s'
+     end)%itree.
 Proof.
-  rewrite {1}/ilsem {1}/loop unfold_iter.
+  rewrite {1}/ilsem {1}/while unfold_iter.
   apply eqit_bind; first reflexivity.
   move=> [] s'; last reflexivity.
   apply eqit_Tau_l; reflexivity.
@@ -464,7 +463,7 @@ Qed.
 
 Lemma lsem_n_ilsem s2 s1 cond :
   lsem_n cond s1 s2 ->
-  eqit eq true true (ilsem cond s1) (ilsem cond s2).
+  ilsem cond s1 ≈ ilsem cond s2.
 Proof.
   move=> [n]; elim: n s1 => [ | n ih] s1 /=; t_xrbindP.
   + by move=> <-; reflexivity.
@@ -474,10 +473,10 @@ Qed.
 
 Lemma eq_ilsem cond1 cond2 s:
   cond1 =1 cond2 ->
-  eutt eq (ilsem cond1 s) (ilsem cond2 s).
+  ilsem cond1 s ≈ ilsem cond2 s.
 Proof.
   move=> hcond; apply eutt_iter' with eq => //.
-  move=> {}s _ <-; rewrite /loop_body hcond; reflexivity.
+  move=> {}s _ <-; rewrite /while_body hcond; reflexivity.
 Qed.
 
 End ITREE.

@@ -10,6 +10,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From mathcomp Require Import fintype finfun ssralg.
 From Coq Require Import Relation_Operators.
 Require Import
+  while
   compiler_util
   psem
   psem_facts
@@ -2169,11 +2170,11 @@ Lemma imatch_state_step endpc endpc' ls xs :
   xrutt.xrutt
     (core_logics.errcutoff (is_error wE)) core_logics.nocutoff EPreRel EPostRel
     (HeterogeneousRelations.sum_rel inv inv)
-    (rec_facts.loop_body (untilpc endpc) (istep p) ls)
-    (xrutt_facts.iter_n (iasmsem_body p' endpc') n xs).
+    (while_body (untilpc endpc) (istep p) ls)
+    (iter_n (iasmsem_body p' endpc') n xs).
 Proof.
   move=> hwfend [lc omap_lc] ms.
-  rewrite /rec_facts.loop_body /untilpc.
+  rewrite /while_body /untilpc.
   case: eqP.
   + move=> heq; exists 0; rewrite /= /iasmsem_body.
     suff -> : endpc' == (asm_f xs, asm_ip xs).
