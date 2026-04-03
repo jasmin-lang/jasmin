@@ -25,7 +25,7 @@ Require Import
   syscall syscall_sem
   label
   arch_decl
-  xrutt xrutt_facts.
+  while.
 
 Require Export it_sems_core_defs.
 
@@ -665,8 +665,7 @@ Proof.
 Qed.
 
 Lemma i_asmsem_body_n endpc n s :
-  eqit eq true true
-    (xrutt_facts.iter_n (iasmsem_body endpc) n s)
+    (iter_n (iasmsem_body endpc) n s) ≈
     (err_result (pair^~ tt) (asmsem_body_n endpc n s)).
 Proof.
   elim: n s => /= [ | n hn] s.
