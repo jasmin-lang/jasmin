@@ -161,7 +161,7 @@ Proof.
     rewrite heq -!catA; split => //.
     have ? := size_slot_gt0 x.
     rewrite -Nat2Z.inj_iff !size_cat !Nat2Z.inj_add Z2Nat.id //; last by lia.
-    by rewrite hsz1 hsz2 heqsz !Z2Nat.id //; first ring; lia.
+    by rewrite hsz1 hsz2 heqsz !Z2Nat.id //; first ((rewrite ?(addZE, subZE); ring) || ring); lia.  (* remove the last "|| ring" when requiring MC >= 2.7 *)
   move=> x1 ofs1 ws1.
   rewrite Mvar.setP.
   case: eqP => [|_].
