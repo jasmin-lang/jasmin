@@ -106,7 +106,6 @@ Proof. by rewrite /LE.decode /make_vec /= Z.lor_0_r wrepr_unsigned. Qed.
 
 Section SAFE.
 
-  Require Import core_logics.
   From Paco Require Import paco.
   From ITree Require Import
     ITree
@@ -177,9 +176,7 @@ Lemma lutt_xrutt_trans_l' t1 t2 (REv' : prerel E1 E2) (RAns' : postrel E1 E2) RR
   xrutt (errcutoff is_error) nocutoff REv' RAns' RR' t1 t2.
 Proof.
 move=> he ha hr h1 h2.
-apply: xrutt_weaken_v2; last exact: lutt_xrutt_trans_l h1 h2.
-- done.
-- done.
+apply: xrutt_weaken_v2; [ done | done | | | | exact: lutt_xrutt_trans_l h1 h2 ].
 - move=> ???? []; exact: he.
 - move=> ???????? []; exact: ha.
 move=> ?? []; exact: hr.
@@ -927,7 +924,7 @@ Lemma eutt_GenKey :
 Proof.
 have [hfd _ _ _ _] := ok_genkey.
 rewrite /semS_GenKey /semT_GenKey.
-apply: (eutt_clo_bind (exec_rel (aux_post fn_genkey _ _))).
+apply/(eutt_clo_bind eq (UU := exec_rel (aux_post fn_genkey _ _))).
 - apply/interp_exec_eutt/(correct_comp _ hfd) => //; exact: pre_GenKey.
 move=> [s'|?] [t'|?] => //; last reflexivity.
 move=> [] /[swap] hdef /[swap] /(_ _ hfd) [] st.
@@ -983,7 +980,7 @@ Lemma eutt_Encap {pk} :
 Proof.
 rewrite /semS_Encap /semT_Encap; case hpk: pk_of_w => [apk|]; last reflexivity.
 have [hfd _ _ _ _] := ok_encap apk.
-apply: (eutt_clo_bind (exec_rel (aux_post fn_encap _ _))).
+apply: (eutt_clo_bind eq (UU := exec_rel (aux_post fn_encap _ _))).
 - apply/interp_exec_eutt/(correct_comp _ hfd) => //; exact: pre_Encap hpk.
 move=> [s'|?] [t'|?] => //; last reflexivity.
 move=> [] /[swap] hdef /[swap] /(_ _ hfd) [] st.
@@ -1061,7 +1058,7 @@ rewrite /semS_Decap /semT_Decap.
 case hsk: sk_of_w => [ask|]; last reflexivity.
 case hct: ct_of_w => [act|]; last reflexivity.
 have [hfd _ _ _ _] := ok_decap ask act.
-apply: (eutt_clo_bind (exec_rel (aux_post fn_decap _ _))).
+apply: (eutt_clo_bind eq (UU := exec_rel (aux_post fn_decap _ _))).
 - apply/interp_exec_eutt/(correct_comp _ hfd) => //; exact: pre_Decap hsk hct.
 move=> [s'|?] [t'|?] => //; last reflexivity.
 move=> [] /[swap] hdef /[swap] /(_ _ hfd) [] st.
@@ -1111,7 +1108,7 @@ Qed.
 Lemma interactP T (A : itree _ T) sk ex :
   eutt eq (interact C_s A sk ex) (interact C_t A sk ex).
 Proof.
-rewrite /adv.interact; set ds := interp _ _; set dt := interp _ _.
+rewrite /indcca.interact; set ds := interp _ _; set dt := interp _ _.
 suff -> : eutt eq ds dt by reflexivity.
 apply/eutt_interp; last reflexivity.
 move=> ??; apply/Proper_Case_Handler; last reflexivity.
