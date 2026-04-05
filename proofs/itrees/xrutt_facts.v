@@ -929,3 +929,29 @@ Lemma xrutt_trans {E1 E2 E3: Type -> Type} {R1 R2 R3 : Type}
 Proof.
   now apply xrutt_gen_trans.
 Qed.
+
+Lemma xrutt_refl {E} {R: Type}
+  (EE1: forall X, E X -> bool)
+  (EE2: forall X, E X -> bool)
+  (REv : prerel E E)
+  (RAns: postrel E E) :
+  (forall T (ev:E T), IsNoCut_ EE1 T ev -> IsNoCut_ EE2 T ev -> REv T T ev ev) ->
+  (forall T (ev:E T) (t1 t2:T) , IsNoCut_ EE1 T ev -> IsNoCut_ EE2 T ev -> RAns T T ev t1 ev t2 -> t1 = t2 ) ->
+  forall (t: itree E R), xrutt (@EE1) (@EE2) REv RAns eq t t.
+Proof.
+  intros hpre hans.
+  ginit. gcofix CIH. intros t.
+  rewrite itree_eta.
+  destruct (observe t); gstep.
+  + constructor; trivial.
+  + apply EqTau; constructor; constructor; right; apply CIH.
+  case_eq (EE1 X e); intros heq1.
+  + apply EqCutL; trivial.
+  case_eq (EE2 X e); intros heq2.
+  + apply EqCutR; trivial.
+  apply EqVis; trivial.
+  + apply hpre; trivial.
+  intros t1 t2 hpost.
+  rewrite (hans _ _ _ _ heq1 heq2 hpost).
+  constructor; constructor; right; apply CIH.
+Qed.
