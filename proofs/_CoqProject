@@ -171,6 +171,7 @@ lang/low_memory.v
 lang/lowering_lemmas.v
 lang/memory_example.v
 lang/memory_model.v
+lang/mix_to_small_steps.v
 lang/one_varmap.v
 lang/operators.v
 lang/psem.v

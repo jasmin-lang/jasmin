@@ -14,7 +14,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssralg eqtype.
 From Coq Require Import ZArith Utf8.
 Import Relations.
 Require oseq.
-Require Import while it_sems_core psem fexpr_sem compiler_util label one_varmap linear sem_one_varmap .
+Require Import while it_sems_core psem fexpr_sem compiler_util label one_varmap linear sem_one_varmap mix_to_small_steps.
 
 Import Memory.
 
@@ -403,7 +403,7 @@ Proof.
   by apply/eqP => h; have := onth_size heq; rewrite h ltnn.
 Qed.
 
-Section ITREE.
+Section SMALL_STEP.
 
 Context {E E0} {wE : with_Error E E0}.
 
@@ -479,7 +479,82 @@ Proof.
   move=> {}s _ <-; rewrite /while_body hcond; reflexivity.
 Qed.
 
-End ITREE.
+End SMALL_STEP.
+
+Section MIX_STEP.
+
+Import MonadNotation.
+Local Open Scope monad_scope.
+
+Context {E E0} {wE : with_Error E E0}.
+
+Definition is_call (s : lstate) :=
+  if find_instr s is Some i then
+    if li_i i is Lcall _ d then Some d.1
+    else None
+  else None.
+
+Definition mix_ilstep s :=
+  s' <- istep (E:=CallE funname lstate +' E) s;;
+  match is_call s with
+  | Some fn => trigger_inl1 (Call fn s')
+  | None => Ret s'
+  end.
+
+Definition mix_ilsteps cond s :=
+  while cond mix_ilstep s.
+
+Definition in_fn fn s :=
+  (fn == s.(lfn)) && endpc fn s.
+
+Definition handle_call (T : Type) (c : CallE funname lstate T) :=
+  match c in (CallE _ _ T0) return (itree (CallE funname lstate +' E) T0) with
+  | Call fn s => mix_ilsteps (in_fn fn) s
+  end.
+
+Definition mix_ilsem cond s :=
+  interp_mrec handle_call (mix_ilsteps cond s).
+
+Definition mix_ilsem_exportcall (fn: funname) (es:estate) :=
+  let s := (ls_export_initial (escs es) (emem es) (evm es) fn) in
+  fd <-ioget (ErrType, tt) (get_fundef P.(lp_funcs) fn);;
+  _ <- iresult (to_estate s) (assert (lfd_export fd) ErrSemUndef);;
+  s' <- mix_ilsem (endpc fn) s;;
+  let vm' := s'.(lvm) in
+  _ <- iresult (to_estate s') (assert (all (fun x => value_eqb (evm es).[x] vm'.[x]) (Sv.elements callee_saved)) ErrSemUndef);;
+  Ret (to_estate s').
+
+Lemma mix_ilsteps_eq cond s : mix_ilsteps cond s ≈ mix_steps istep is_call cond s.
+Proof.
+  apply eutt_iter' with eq => // {}s _ <-.
+  rewrite /while_body; case: ifP => _.
+  + apply eutt_clo_bind with eq.
+    + rewrite /mix_ilstep /mix_step.
+      apply eutt_clo_bind with eq.
+      + rewrite /istep /iresult /=; case: step => [s' | e] /=.
+        + rewrite translate_ret; reflexivity.
+        by rewrite translate_vis; apply eqit_Vis => -[].
+      by move=> ? _ <-; reflexivity.
+    by move=> ? _ <-; apply eqit_Ret; constructor.
+  by apply eqit_Ret; constructor.
+Qed.
+
+Lemma mix_ilsem_ilsem fn s :
+  mix_ilsem (endpc fn) s ≈ ilsem (endpc fn) s.
+Proof.
+  have -> : mix_ilsem (endpc fn) s ≈ mix_sem istep in_fn is_call (endpc fn) s.
+  + apply Proper_interp_mrec.
+    + by move=> _ [] fn' {}s /=; apply mix_ilsteps_eq.
+    by apply mix_ilsteps_eq.
+  have -> : ilsem (endpc fn) s ≈ ss_sem istep (endpc fn) s by reflexivity.
+  apply mix_sem_ss_sem.
+  move=> {}s; rewrite /istep; case:step => [s' | e] /=.
+  + apply eqit_Ret; split => //; case: is_call => // ?? /andP [] /eqP ->.
+    by rewrite /endpc eqxx; case: eqP => // ->.
+  apply eqit_Vis => -[].
+Qed.
+
+End MIX_STEP.
 
 End SEM.
 
