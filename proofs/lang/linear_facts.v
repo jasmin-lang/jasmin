@@ -2,6 +2,7 @@ From Coq Require Import Relations.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 
 Require Import
+  while
   fexpr_facts
   label
   linear
@@ -10,6 +11,7 @@ Require Import
   psem
   psem_facts
   sem_one_varmap
+  hoare_logic
 .
 
 Section WITH_PARAMS.
@@ -245,6 +247,80 @@ Proof.
   move: s1 s2; apply lsem_ind => // s1 s2 s3 /lsem1_mem_equiv heq1 _ heq2.
   exact: mem_equiv_trans heq1 heq2.
 Qed.
+
+Lemma lsem_n_0 lp cond s :
+  lsem_n lp cond s s.
+Proof. by exists 0. Qed.
+
+Lemma lsem_n_eval_lin lp n i s2 s1 s3 c1 c2 fn :
+  is_linear_of lp fn (c1 ++ c2) ->
+  lfn s1 = fn ->
+  lpc s1 = size c1 + n ->
+  oseq.onth c2 n = Some i ->
+  eval_instr lp i s1 = ok s2 ->
+  lsem_n lp (endpc lp fn) s2 s3 ->
+  lsem_n lp (endpc lp fn) s1 s3.
+Proof.
+  move=> hlin hfn hpc hi hev; apply lsem_n_endpc_step => //.
+  by rewrite /step (find_instr_skip' hlin hpc) // hi.
+Qed.
+
+Lemma lsem_n_eval_lin1 lp n i s1 s2 c1 c2 fn :
+  is_linear_of lp fn (c1 ++ c2) ->
+  lfn s1 = fn ->
+  lpc s1 = size c1 + n ->
+  oseq.onth c2 n = Some i ->
+  eval_instr lp i s1 = ok s2 ->
+  lsem_n lp (endpc lp fn) s1 s2.
+Proof.
+  move=> hlin hfn hpc hi hev.
+  apply: lsem_n_eval_lin hlin hfn hpc hi hev (lsem_n_0 lp (endpc lp fn) s2).
+Qed.
+
+Lemma lsem_n_step_end lp fn s2 s1 s3 :
+  lsem_n lp (endpc lp fn) s1 s2 ->
+  step lp s2 = ok s3 ->
+  lsem_n lp (endpc lp fn) s1 s3.
+Proof.
+  move=> hsem hstep.
+  apply: (lsem_n_trans hsem).
+  apply (lsem_n_endpc_step hstep).
+  apply lsem_n_0.
+Qed.
+
+Lemma endpc_untilpc lp fn fd :
+  get_fundef (lp_funcs lp) fn = Some fd ->
+  endpc lp fn =1 untilpc (fn, size (lfd_body fd)).
+Proof.
+  rewrite /endpc /untilpc => -> s0; case: eqP.
+  + move=> -> /=; case: eqP.
+    + by move=> ->; rewrite eqxx.
+    by move=> h; symmetry; apply /eqP => /= -[] h1; apply h; rewrite h1.
+  by move=> h; symmetry; apply /eqP => -[].
+Qed.
+
+Section ITREE.
+
+Context {E E0: Type -> Type} {wE: with_Error E E0}.
+
+Lemma ilsem_mem_equiv lp cond m :
+  khoare (iE0 := trivial_invEvent E0) (iEr := invErrT)
+    (fun s => mem_equiv m (lmem s))
+    (ilsem lp cond)
+    (fun s => mem_equiv m (lmem s)).
+Proof.
+  apply khoare_iter.
+  rewrite /while_body => s hmem /=.
+  case: ifP => _; last by apply core_logics.lutt_Ret.
+  apply core_logics.lutt_bind with (fun s => mem_equiv m (lmem s)); last by move=> *; apply core_logics.lutt_Ret.
+  rewrite /istep; case heq: step => [s' | e] /=.
+  + apply core_logics.lutt_Ret.
+    by apply: mem_equiv_trans (lsem1_mem_equiv heq).
+  apply core_logics.lutt_Vis => //=.
+  by rewrite /preInv /= /Subevent.subevent /= /CategoryOps.resum /= /fromErr mid12.
+Qed.
+
+End ITREE.
 
 End MEM_EQUIV.
 

@@ -157,6 +157,12 @@ module RiscVTarget: AsmTarget
     | SysCall op ->
         [Instr ("call", [ Asm_utils.pp_syscall op ])]
 
+    | Declassify_val (lty, a) ->
+        declassify_val (fun _lty a -> Option.default "" (pp_asm_arg a)) lty a
+
+    | Declassify_mem (len, a) ->
+        declassify_mem arch len a
+
     | AsmOp (op, args) ->
         let id = instr_desc riscv_decl riscv_op_decl (None, op) in
         let pp = id.id_pp_asm args in
