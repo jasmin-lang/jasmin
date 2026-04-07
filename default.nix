@@ -36,7 +36,7 @@ let coqPackages =
       paco = super.paco.override { version = "master"; };
       ITree = super.ITree.override { version = "master"; };
     })
-  else coqPackages_8_20.overrideScope (self: super: {
+  else coqPackages_9_0.overrideScope (self: super: {
       coq-elpi = super.coq-elpi.override {
         version = "2.5.2";
         elpi-version = "2.0.7";
