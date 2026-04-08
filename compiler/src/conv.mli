@@ -7,11 +7,16 @@ val int_of_nat : Datatypes.nat -> int
 val nat_of_int : int -> Datatypes.nat
 
 val pos_of_int : int -> BinNums.positive
+val n_of_int : int -> BinNums.coq_N
 val cz_of_int   : int -> BinNums.coq_Z
 val int_of_pos : BinNums.positive -> int
+val int_of_n : BinNums.coq_N -> int
 
 val pos_of_z : Z.t -> BinNums.positive
 val z_of_pos : BinNums.positive -> Z.t
+
+val n_of_z : Z.t -> BinNums.coq_N
+val z_of_n : BinNums.coq_N -> Z.t
 
 val cz_of_z : Z.t -> BinNums.coq_Z
 val z_of_cz : BinNums.coq_Z -> Z.t
@@ -57,7 +62,7 @@ val fdef_of_csfdef : Var0.funname * 'asm Expr._sfundef -> (unit, 'asm) sfundef
 val prog_of_csprog : 'asm Expr._sprog -> (unit, 'asm) sprog
 
 val to_array : 
-  Prog.ty -> BinNums.positive -> Warray_.WArray.array -> wsize * Z.t array
+  Prog.ty -> BinNums.coq_N -> Warray_.WArray.array -> wsize * Z.t array
 
 val error_of_cerror :
   (Format.formatter -> Compiler_util.pp_error -> unit) ->
