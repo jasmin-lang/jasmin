@@ -781,7 +781,6 @@ let rec get_instance_modules (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_u
               let me_env = Map.add (L.unloc modfunc) new_modinfo menv.me_env
               in {menv with me_env = me_env} 
             | None -> 
-              Format.eprintf "Generating new instance for %s\n%!" full_name;
               let menv' = { menv with
                        MEnv.me_store =
                          { menv.MEnv.me_store with
@@ -1340,7 +1339,6 @@ let add_new_items (new_vars:(string,P.pvar) Utils.Map.t) new_funcs module_name i
    let new_funcs = List.fold_left (fun new_funcs (name,(pfs,_)) -> 
     let name_func_instance = module_name ^ "::" ^ name in
     let fi_name = replace_with_suffix instance_name pfs.Env.f_name.fn_name in
-    Printf.eprintf "Adding new function %s - %s for module %s instance %s (original var name: %s)\n%!" name_func_instance fi_name module_name (snd instance_name) pfs.f_name.fn_name;
     let f = Map.find fi_name new_funcs in
     let new_funcs = Map.add name_func_instance f new_funcs in
     new_funcs
@@ -1423,10 +1421,7 @@ let instantiate_pprog menv =
           match List.find_map (fun (_, names, iname) ->
             if List.exists (fun n -> n = mname) names
             then Some iname
-            else (
-              Printf.eprintf "In instance %s for module %s not found in names -  %s\n%!" iname mname (String.concat "," names);
-              None
-            )
+            else None
           ) modinfo.mi_instances with
           | iname -> iname
           | exception Not_found ->
