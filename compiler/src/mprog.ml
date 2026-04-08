@@ -15,7 +15,8 @@ type 'len module_app =
     ma_args : 'len moduleargs; }
 
 type 'len funsig =
-  { fs_tyin : 'len gty list;
+  { (*FIXME: add name?*)
+    fs_tyin : 'len gty list;
     fs_tyout : 'len gty list;
   }
 
