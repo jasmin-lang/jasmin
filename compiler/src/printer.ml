@@ -472,6 +472,23 @@ let pp_var ~debug =
     else
       fun fmt x -> F.fprintf fmt "%s" x.v_name
 
+let rec pp_module_summary ~debug pd msfsz asmOp fmt ms =
+  let pp_int fmt i = Format.fprintf fmt "%i" i in
+  let pp_glob_decl fmt (x, _) =
+    pp_var_decl pp_pvar (pp_int) fmt x
+  in
+  let pp_modapp fmt fa =
+    F.fprintf fmt "@[<v>module %s = %s @[%a@]; @]"
+      fa.ma_name fa.ma_func
+      (pp_gmargs pp_pvar (pp_ge ~debug (pp_int) pp_pvar)) fa.ma_args
+  in
+  F.fprintf fmt "Module name: %s\n Params: %a\n Globals: %a\n Renames: %a\n %a"
+    ms.Mprog.name
+    (pp_list "@ " (pp_gmdecl pp_pvar (pp_int))) ms.params
+    (pp_list "@ " pp_glob_decl) ms.globs
+    (pp_list "@ " (pp_modapp)) ms.renames
+    (pp_list "@ " (pp_module_summary ~debug pd msfsz asmOp)) ms.imodules
+
 let pp_dvar ~debug fmt x =
   let pp_dloc fmt d =
     if not (L.isdummy d) then F.fprintf fmt " (defined at %a)" L.pp_loc d

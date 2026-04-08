@@ -379,7 +379,7 @@ let rec psubst_item subst = function
 let get_param_decls subst =
   List.map (function
     | Mprog.Param v -> 
-      subst := Mpv.add v (Pvar (gkglob (L.mk_loc L._dummy v)))  !subst;
+      subst := Mpv.add v (Pvar (gkglob (L.mk_loc L._dummy v))) !subst;
       Mprog.Param v 
     | Glob v -> 
       let f = psubst_v !subst in
@@ -397,7 +397,20 @@ let get_param_decls subst =
             fs_tyout = List.map subst_ty fs.fs_tyout;
           } in
         Fun fs
-  )  
+  )
+
+let get_args subst = 
+  List.map (function
+  | Mprog.MaParam e -> Mprog.MaParam (psubst_e (psubst_v !subst) e)
+  | MaGlob gvi -> MaGlob gvi
+     (* let f = psubst_v !subst in
+      let v' = 
+        let v = gsubst_gvar f {gv = L.mk_loc L._dummy (L.unloc gvi); gs = Expr.Sglob} in
+        assert (not (is_gkvar v)); L.unloc v.gv
+      in
+      subst := Mpv.add (L.unloc gvi) (Pvar (gkglob (L.mk_loc L._dummy v'))) !subst;
+      MaGlob (L.mk_loc (L.loc gvi) v')*)
+  | MaFun funname -> MaFun funname)
 
 let rec psubst_mprog prog =
   let subst = ref (Mpv.empty : pexpr Mpv.t) in
@@ -413,12 +426,12 @@ and psubst_mbody subst mbody =
   let rec aux =
     function
      | [] -> [], [], [], []
-     | Mprog.MdFunctor fd :: items ->  
+     | Mprog.MdFunctor fd :: items ->
         let funcs,globs,renames,imodules = aux items in
         let mitems = psubst_mprog [Mprog.MdFunctor fd] in
         funcs,globs,renames,imodules @ mitems 
      | MdModApp ma :: items ->
-        let args = [] in (*TODO*)
+        let args = get_args subst ma.ma_args in
         let funcs,globs,renames,imodules = aux items in
         let ma = { ma with ma_args = args; } in
         funcs,globs,renames@[ma],imodules
@@ -476,8 +489,7 @@ and psubst_mbody subst mbody =
         Pvar x
       | _      -> e in
     aux 
-  let isubst_glob (x, gd) (subst:expr Mpv.t) =
-    let subst = ref subst in
+  let isubst_glob (x, gd) subst =
     let subst_v = isubst_v subst in
     let x =
       let x =
@@ -491,7 +503,6 @@ and psubst_mbody subst mbody =
     x, gd 
   
    let isubst_item subst fc =
-    let subst = ref subst in
     let subst_v = isubst_v subst in
     let dov v =
       L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
@@ -511,7 +522,6 @@ and psubst_mbody subst mbody =
     fc
 
 let isubst_params subst = 
-  let subst = ref subst in
   function
   | Mprog.Param gv -> 
       let e = isubst_gv E.Sglob subst gv in
@@ -531,7 +541,6 @@ let isubst_params subst =
       Fun {fs_tyin;fs_tyout}
 
 let isubst_arg subst =
-    let subst = ref subst in
     function
     | Mprog.MaParam e -> Mprog.MaParam (gsubst_e isubst_len (isubst_v subst) e)
     | MaGlob gvi -> 
@@ -546,10 +555,9 @@ let isubst_arg subst =
 let rec isubst_mprog : (pexpr_, 'info, 'asm) Mprog.module_summary list -> (int, 'info, 'asm) Mprog.module_summary list =
   fun mprog ->
   let subst : expr Mpv.t ref = ref Mpv.empty in
-  let subst = !subst in
   match mprog with
   | [] -> []
-  | minfo::modules->
+  | minfo::modules ->
      let globs =  List.map (fun g -> isubst_glob g subst) minfo.Mprog.globs in
      let funcs = List.map (isubst_item subst) minfo.funcs in 
      let params = List.map (isubst_params subst) minfo.params in

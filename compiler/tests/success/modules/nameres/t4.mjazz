@@ -7,7 +7,7 @@ module M1
  param int nn = n;
  fn f(reg ptr u64[5] a) -> reg ptr u64[5]
  { 
-  //a[n] = 1; 
+  a[nn] = 1; 
   return a; 
  }
 
@@ -19,7 +19,7 @@ module M2
 {
   module B = M1(n);
   fn ff(reg ptr u64[5] a) -> reg ptr u64[5] {
-    //a = B::f(a);
+    a = B::f(a);
     return a;
   }
 }
