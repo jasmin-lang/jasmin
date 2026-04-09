@@ -126,7 +126,7 @@ let psubst_v subst =
     let e =
       try Mpv.find v_ !subst
       with Not_found ->
-        assert (not (PV.is_glob v_));
+        (* assert (not (PV.is_glob v_)); *)
         let ty = psubst_ty aux v_.v_ty in
         let v' = PV.mk v_.v_name v_.v_kind ty v_.v_dloc v_.v_annot in
         let v = {v with L.pl_desc = v'} in
@@ -402,14 +402,7 @@ let get_param_decls subst =
 let get_args subst = 
   List.map (function
   | Mprog.MaParam e -> Mprog.MaParam (psubst_e (psubst_v !subst) e)
-  | MaGlob gvi -> MaGlob gvi
-     (* let f = psubst_v !subst in
-      let v' = 
-        let v = gsubst_gvar f {gv = L.mk_loc L._dummy (L.unloc gvi); gs = Expr.Sglob} in
-        assert (not (is_gkvar v)); L.unloc v.gv
-      in
-      subst := Mpv.add (L.unloc gvi) (Pvar (gkglob (L.mk_loc L._dummy v'))) !subst;
-      MaGlob (L.mk_loc (L.loc gvi) v')*)
+  | MaGlob e -> MaGlob (psubst_e (psubst_v !subst) e)
   | MaFun funname -> MaFun funname)
 
 let rec psubst_mprog prog =
@@ -431,8 +424,8 @@ and psubst_mbody subst mbody =
         let mitems = psubst_mprog [Mprog.MdFunctor fd] in
         funcs,globs,renames,imodules @ mitems 
      | MdModApp ma :: items ->
-        let args = get_args subst ma.ma_args in
         let funcs,globs,renames,imodules = aux items in
+        let args = get_args subst ma.ma_args in
         let ma = { ma with ma_args = args; } in
         funcs,globs,renames@[ma],imodules
      | MdItem mi :: items ->
@@ -543,12 +536,7 @@ let isubst_params subst =
 let isubst_arg subst =
     function
     | Mprog.MaParam e -> Mprog.MaParam (gsubst_e isubst_len (isubst_v subst) e)
-    | MaGlob gvi -> 
-      let v = isubst_gv E.Sglob subst (L.unloc gvi) in
-      begin match v with
-        | Pvar v -> MaGlob (L.mk_loc (L.loc gvi) (L.unloc v.gv))
-        | _ -> assert false
-      end
+    | MaGlob e ->  Mprog.MaGlob (gsubst_e isubst_len (isubst_v subst) e)
     | MaFun funname -> MaFun funname
 
 

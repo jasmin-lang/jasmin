@@ -18,5 +18,5 @@ module M1
 
 module A2 = M1(n);
 module A4 = M1(2*n);
-module Adois = M1(2);
-module Aquatro = M1(m);
+module Atwo = M1(2);
+module Afour = M1(m);

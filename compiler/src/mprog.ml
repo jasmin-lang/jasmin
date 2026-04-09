@@ -4,7 +4,7 @@ type modulename = Name.t
 
 type 'len modulearg =
   | MaParam of 'len gexpr
-  | MaGlob  of 'len gvar_i
+  | MaGlob  of 'len gexpr
   | MaFun   of funname
 
 type 'len moduleargs = 'len modulearg list

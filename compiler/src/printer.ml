@@ -407,20 +407,20 @@ let pp_gmparams pp_var pp_size fmt l =
     F.fprintf fmt "@[<v>with %a @]"
       (pp_list "@ " (pp_gmdecl pp_var pp_size)) l
 
-let pp_gmarg pp_var pp_size fmt (arg: 'len modulearg) =
+let pp_gmarg pp_size fmt (arg: 'len modulearg) =
   match arg with
   | MaParam pa ->
     F.fprintf fmt "%a" pp_size pa
   | MaGlob pa ->
-    F.fprintf fmt "%a" (pp_gvar_i pp_var) pa
+    F.fprintf fmt "%a" pp_size pa
   | MaFun pa ->
     F.fprintf fmt "%s" pa.fn_name
 
-let pp_gmargs pp_var pp_size fmt = function
+let pp_gmargs pp_size fmt = function
   | [] -> ()
   | l ->
     F.fprintf fmt "(@[<v>%a@])"
-      (pp_list ",@," (pp_gmarg pp_var pp_size)) l
+      (pp_list ",@," (pp_gmarg pp_size)) l
 
 let rec pp_gmitem ~debug rr pp_len pp_opn pp_var fmt =
   function
@@ -433,7 +433,7 @@ let rec pp_gmitem ~debug rr pp_len pp_opn pp_var fmt =
   | MdModApp fa ->
     F.fprintf fmt "@[<v>module %s = %s @[%a@]; @]"
       fa.ma_name fa.ma_func
-      (pp_gmargs pp_var (pp_ge ~debug pp_len pp_var)) fa.ma_args
+      (pp_gmargs (pp_ge ~debug pp_len pp_var)) fa.ma_args
 
 and pp_gmprog ~debug rr pp_len pp_opn pp_var fmt p =
   let p = if rr then List.rev p else p in
@@ -480,7 +480,7 @@ let rec pp_module_summary ~debug pd msfsz asmOp fmt ms =
   let pp_modapp fmt fa =
     F.fprintf fmt "@[<v>module %s = %s @[%a@]; @]"
       fa.ma_name fa.ma_func
-      (pp_gmargs pp_pvar (pp_ge ~debug (pp_int) pp_pvar)) fa.ma_args
+      (pp_gmargs (pp_ge ~debug (pp_int) pp_pvar)) fa.ma_args
   in
   F.fprintf fmt "Module name: %s\n Params: %a\n Globals: %a\n Renames: %a\n %a"
     ms.Mprog.name

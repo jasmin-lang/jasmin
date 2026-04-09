@@ -2105,8 +2105,8 @@ struct
     
   let toec_modulearg env arg arg_name =
       match arg with
-      | Mprog.MaParam e -> arg_name, toec_expr env e
-      | MaGlob v -> arg_name, Eident [(L.unloc v).v_name]
+      | Mprog.MaParam e 
+      | MaGlob e -> arg_name, toec_expr env e
       | MaFun _ -> assert false
     
   let in_range s sz i =
