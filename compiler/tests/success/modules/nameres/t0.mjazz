@@ -1,13 +1,10 @@
 
-param int n = 3;
-
-fn f() { }
-
-module M1 {
-
- param int n = 2;
- fn f() { }
+module M1
+ with
+  param int n;
+{
+  param int nn = n;
+  fn f(reg ptr u64[n] a) -> reg ptr u64[n]
+  { return a; }
 
 }
-
-module M2 = M1();

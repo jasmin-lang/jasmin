@@ -1,4 +1,5 @@
 param int n = 2;
+u64 y = 5;
 
 module M1
  with
@@ -16,14 +17,17 @@ module M1
 module M2
  with
   param int n;
+  global u64 x;
 {
-  module B = M1(n);
+  module B = M1(n*2);
   fn ff(reg ptr u64[5] a) -> reg ptr u64[5] {
     a = B::f(a);
+    a[0] = x;
     return a;
   }
 }
 
-module A2 = M2(n);
-module A4 = M2(2*n);
-
+module A2 = M2(n,y);
+module A3 = M2(n,(64u) 5);
+module A4 = M1(2*n);
+module A5 = M2(n,((64u) 5) + y);

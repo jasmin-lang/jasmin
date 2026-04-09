@@ -1,0 +1,36 @@
+param int n = 2;
+u64 y = 5;
+
+module M1
+ with
+  param int n;
+{ 
+ param int nn = n;
+ fn f(reg ptr u64[5] a) -> reg ptr u64[5]
+ { 
+  a[nn] = 1; 
+  return a; 
+ }
+
+}
+
+module M2
+ with
+  param int n;
+  fn i(u64) -> u64;
+{
+  module B = M1(n*2);
+  fn ff(reg ptr u64[5] a) -> reg ptr u64[5] {
+    a = B::f(a);
+    a[0] = i(a[0]);
+    return a;
+  }
+}
+
+fn inc(reg u64 x) -> reg u64 {
+  x += 1;
+  return x;
+}
+
+module A2 = M2(n,y);
+module A3 = M2(n,(64u) 5);
