@@ -65,6 +65,8 @@ Class OracleSystem :=
     orac_init_mem : Mo; (* Initial oracle memory. *)
     init_oracle : No; (* Oracle called first by the adversary. *)
     final_oracle : No; (* Oracle called last by the adversary. *)
+    In_init : In init_oracle = unit;
+    Out_final : Out final_oracle = unit;
   }.
 
 Context {O : OracleSystem}.
@@ -144,6 +146,47 @@ Arguments interact {_} _ _.
 
 Require indcca.
 
+(* Oracle names for IND-CCA instantiation. *)
+
+#[only(eqbOK)] derive
+Variant oracle_name : Type :=
+| OGenKey
+| ODecap
+| OGetChallenge
+| OSubmitGuess
+.
+
+HB.instance Definition _ := hasDecEq.Build oracle_name oracle_name_eqb_OK.
+
+Definition oracle_name_pickle (x : oracle_name) : nat :=
+  match x with
+  | OGenKey => 0
+  | ODecap => 1
+  | OGetChallenge => 2
+  | OSubmitGuess => 3
+  end.
+
+Definition oracle_name_unpickle (n : nat) : option oracle_name :=
+  match n with
+  | 0 => Some OGenKey
+  | 1 => Some ODecap
+  | 2 => Some OGetChallenge
+  | 3 => Some OSubmitGuess
+  | _ => None
+  end.
+
+Lemma oracle_name_pickleK : pcancel oracle_name_pickle oracle_name_unpickle.
+Proof. by case. Qed.
+
+HB.instance Definition _ := PCanIsCountable oracle_name_pickleK.
+
+Definition oracle_names := [:: OGenKey; ODecap; OGetChallenge; OSubmitGuess].
+
+Lemma oracle_name_fin_axiom : Finite.axiom oracle_names.
+Proof. by case. Qed.
+
+HB.instance Definition _ := isFinite.Build oracle_name oracle_name_fin_axiom.
+
 Section INSTANCE.
 
 Context
@@ -164,15 +207,6 @@ Notation OracleSystem := (OracleSystem (R := R)).
 Notation Adversary := (Adversary (R := R)).
 Notation WinningCondition := (WinningCondition (R := R)).
 
-(* --- Oracle system definition --- *)
-
-Definition _No := (bool * bool)%type.
-
-Notation "'OGenKey'"       := (true, true)   (at level 0, only parsing).
-Notation "'ODecap'"        := (true, false)  (at level 0, only parsing).
-Notation "'OGetChallenge'" := (false, true)  (at level 0, only parsing).
-Notation "'OSubmitGuess'"  := (false, false) (at level 0, only parsing).
-
 (* Oracle memory:
    - keys: set after GenKey
    - chall: (hidden bit, challenge ciphertext), set after GetChallenge
@@ -189,7 +223,7 @@ Definition _Mo :=
 
 Definition _orac_init_mem : _Mo := (None, None, [::], [::], false, None).
 
-Definition _In (x : _No) : choiceType :=
+Definition _In (x : oracle_name) : choiceType :=
   match x with
   | OGenKey       => unit
   | ODecap        => ciphert
@@ -197,7 +231,7 @@ Definition _In (x : _No) : choiceType :=
   | OSubmitGuess  => bool
   end.
 
-Definition _Out (x : _No) : choiceType :=
+Definition _Out (x : oracle_name) : choiceType :=
   match x with
   | OGenKey       => pkey
   | ODecap        => msg
@@ -238,7 +272,7 @@ Definition _Oo_SubmitGuess (guess : bool) (mo : _Mo) : itree Rnd (unit * _Mo) :=
   let '(keys, chall, lq, lg, ph, _) := mo in
   Ret (tt, (keys, chall, lq, lg, ph, Some guess)).
 
-Definition _Oo (x : _No) : _In x -> _Mo -> itree Rnd (_Out x * _Mo) :=
+Definition _Oo (x : oracle_name) : _In x -> _Mo -> itree Rnd (_Out x * _Mo) :=
   match x return _In x -> _Mo -> itree Rnd (_Out x * _Mo) with
   | OGenKey       => _Oo_GenKey
   | ODecap        => _Oo_Decap
@@ -249,20 +283,22 @@ Definition _Oo (x : _No) : _In x -> _Mo -> itree Rnd (_Out x * _Mo) :=
 Instance INDCCA : OracleSystem :=
   {|
     Mo := _Mo;
-    No := _No;
+    No := oracle_name;
     In := _In;
     Out := _Out;
     Oo := _Oo;
     orac_init_mem := _orac_init_mem;
     init_oracle := OGenKey;
     final_oracle := OSubmitGuess;
+    In_init := erefl;
+    Out_final := erefl;
   |}.
 
 (* --- CIL adversary --- *)
 
 Let EE := @Exch R INDCCA.
 
-Definition exch {o : _No} (i : _In o) : EE (_Out o) :=
+Definition exch {o : oracle_name} (i : _In o) : EE (_Out o) :=
   @Exchange R INDCCA o i.
 
 Definition dec_to_exch : indcca.Dec ~> itree (EE +' Rnd) :=
@@ -304,54 +340,20 @@ Instance W : WinningCondition := {| win := _win |}.
 
 Definition advantage := indcca.advantage C A Q.
 
-Lemma pr_dlet_id T (mu : distr.distr R T) E :
-  \P_[mu] E = \P_[ \dlet_(x <- mu) dunit (E x) ] id.
-Proof. by rewrite -dmarginE pr_dmargin. Qed.
+(* Relation between CIL traces and IND-CCA game results. *)
+Definition game_RR
+  (tr : @trace _ INDCCA)
+  (bg : bool * (indcca.S * indcca.S * ciphert)) : Prop :=
+  _win tr = (bg.1 && indcca.valid Q bg.2).
 
-Lemma dinterp_bind (T1 T2 : choiceType) (t : itree Rnd T1) (k : T1 -> itree Rnd T2) :
-  dinterp (let* x := t in k x) = \dlet_(x <- dinterp t) dinterp (k x).
-Admitted.
-
-Lemma dinterp_Ret (T : choiceType) (r : T) :
-  dinterp (R := R) (Ret r) =1 dunit r.
-Proof.
-move=> x; rewrite -dlim_bump (eq_dlim (g := fun=> dunit r)) //; exact/dlimC.
-Qed.
-
-Definition interact_aux : itree Rnd bool :=
-  let* t := interact INDCCA A' in Ret (_win t).
-
-Lemma interact_auxP : pwin INDCCA A' W = \P_[ dinterp interact_aux ] id.
-Proof.
-rewrite /pwin /interact_aux pr_dlet_id; apply/eq_mu_pr => x.
-rewrite dinterp_bind; apply/eq_in_dlet; last done.
-move=> t _ b; by rewrite dinterp_Ret.
-Qed.
-
-Definition game_bool : itree Rnd bool :=
-  let* (b, t) := indcca.game C A in
-  Ret (b && indcca.valid Q t).
-
-Lemma game_boolP :
-  \P_[dinterp game_bool] id =
-  \P_[dinterp (indcca.game C A)] (fun '(b, t) => b && indcca.valid Q t).
-Proof.
-have h : dinterp game_bool =1
-  dmargin (fun '(b, t) => b && indcca.valid Q t) (dinterp (indcca.game C A)).
-{ move=> x; rewrite /game_bool dinterp_bind dmarginE.
-  apply/eq_in_dlet; last done.
-  move=> [b t] _ y; by rewrite dinterp_Ret. }
-by rewrite (eq_mu_pr _ h) pr_dmargin.
-Qed.
-
-Lemma eutt_interact_game : eutt eq interact_aux game_bool.
+Lemma eutt_interact_game :
+  eutt game_RR (interact INDCCA A') (indcca.game C A).
 Admitted.
 
 Lemma correct_indcca : `| pwin INDCCA A' W - 1/2 | = advantage.
 Proof.
-rewrite /advantage /indcca.advantage interact_auxP; do 2!f_equal.
-rewrite (eq_mu_pr _ (dinterp_eutt eutt_interact_game)).
-exact: game_boolP.
+rewrite /advantage /indcca.advantage /pwin; do 2!f_equal.
+apply: (eutt_deqX eutt_interact_game) => tr [b t]; exact: id.
 Qed.
 
 End INSTANCE.
