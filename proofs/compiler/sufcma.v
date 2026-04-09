@@ -79,7 +79,7 @@ Section GAME.
 
   Context
     {pkey skey : Type}
-    {msg signature : eqType}
+    {msg signature : choiceType}
   .
 
   Variant ESign : Type -> Type :=
@@ -123,17 +123,25 @@ Section GAME.
     let t := interp (case_ (handle_ESign sk) inr_) A in
     run_state t [::].
 
-  Definition game : itree Rnd bool :=
+  (* The trace records the query log and the forgery. *)
+  Definition trace : Type := S * (msg * signature).
+
+  Definition game : itree Rnd (bool * trace) :=
     let* (pk, sk) := C.(GenKey) in
     let* (l, f) := interact (A.(Query) pk) sk in
     let* b := C.(Verify) pk f in
-    Ret [&& b, f \notin l & (size l <= Q)%N ]. (* HELP: Why doesn't this work with order? *)
+    Ret (b, (l, f)).
 
   (* Interpret the game as a distribution. *)
-  Definition dgame : distr bool := dinterp game.
+  Definition dgame : distr (bool * trace)%type := dinterp game.
+
+  Definition valid (t : trace) : bool :=
+    let '(l, f) := t in
+    [&& f \notin l & (size l <= Q)%N].
 
   (* The adversary's advantage is the probability of winning the game. *)
-  Definition advantage : R := \P_[ dgame ] id.
+  Definition advantage : R :=
+    \P_[ dgame ] (fun '(b, t) => b && valid t).
 
 End GAME.
 
@@ -144,7 +152,7 @@ Section REDUCE.
 
   Context
     {pkey skey : Type}
-    {msg signature : eqType}
+    {msg signature : choiceType}
   .
 
   Notation advantage := (@advantage pkey skey msg signature).

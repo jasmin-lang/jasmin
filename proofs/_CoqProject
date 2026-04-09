@@ -23,9 +23,11 @@
 -R ssrmisc Jasmin
 -R itrees Jasmin
 
+compiler/cil.v
 compiler/indcca.v
 compiler/sufcma.v
 compiler/end_to_end.v
+
 compiler/distr.v
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v

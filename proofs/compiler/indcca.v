@@ -53,7 +53,7 @@ Notation Rnd := (Rnd (R := R)).
 
 Section GAME.
 
-  (* Security games for implicitly rejecting KEMs.
+  (* Security games for implicitly rejecting KEMs (penalty style).
 
      The challenger [(GenKey, Encap, Decap)] comprises:
      - A key generation algorithm [GenKey : itree Rnd (pkey * skey)].
@@ -65,11 +65,12 @@ Section GAME.
        the decapsulation algorithm and produces an adversary advmem.
      - A second stage
        [Guess : advmem -> pkey -> ciphert -> msg -> itree (Dec +' Rnd) bool]
-       that performs a guess, and can query the decapsulation algorithm except
-       on the provided encapsulation.
+       that performs a guess and can query the decapsulation algorithm.
 
      The adversary is allowed to make at most [Q] queries to the decapsulation
-     oracle.
+     oracle. All queries are logged and answered honestly. The adversary is
+     penalized (game returns false) if they query the chosen ciphertext during
+     the guess phase.
 
      The security game is as follows:
          pk, sk <- GenKey()
@@ -77,17 +78,14 @@ Section GAME.
          ct, m_0 <- Encap(pk)
          m_1 <- random message
          b <- random boolean
-         g <- Guess[Decap*(sk)](st, pk, ct, m_b)
-         return (g == b && number of queries <= Q)
-
-     We write A[C] for the ITree that interprets the [Dec] events of [A] calling
-     [C] and [C*] for the decapsulation algorithm that fails on [ct]. *)
+         g <- Guess[Decap(sk)](st, pk, ct, m_b)
+         return (g == b && ct not queried in guess phase
+                        && number of queries <= Q) *)
 
   Context
     {pkey skey advmem : Type}
-    {ciphert : eqType}
+    {ciphert : choiceType}
     {msg : finType}
-    {dummy : msg}
   .
 
   Variant Dec : Type -> Type :=
@@ -109,44 +107,56 @@ Section GAME.
 
   Context (C : Challenger) (A : Adversary) (Q : nat).
 
-  Definition tick E `{stateE nat -< E} : itree E unit :=
-    let* n := get in put n.+1.
+  (* Log for the game.
+     It tracks the list of ciphertexts that have been queried. *)
+  Definition S : Type := seq ciphert.
 
-  (* Handle a decapsulation query from the attacker, given a secret key [sk]
-     and an exception [ex]. *)
+  (* Log a decapsulation query. *)
+  Definition log E `{stateE S -< E} (c : ciphert) : itree E unit :=
+    let* l := get in put (c :: l).
+
+  (* Handle a decapsulation query from the attacker, given a secret key [sk].
+     The query is logged and answered honestly. *)
   Definition handle_Dec
-    (sk : skey) (ex : option ciphert) : Dec ~> itree (stateE nat +' Rnd) :=
+    (sk : skey) : Dec ~> itree (stateE S +' Rnd) :=
     fun T e =>
       let 'Decapsulate c := e in
-      let* _ := tick in
-      if Some c == ex then Ret dummy
-      else translate inr1 (C.(Decap) sk c).
+      let* _ := log c in
+      translate inr1 (C.(Decap) sk c).
 
   Definition interact
     (X : Type)
     (A : itree (Dec +' Rnd) X)
-    (sk : skey)
-    (ex : option ciphert) :
-    itree Rnd (nat * X) :=
-    let t := interp (case_ (handle_Dec sk ex) inr_) A in
-    run_state t O.
+    (sk : skey) :
+    itree Rnd (S * X) :=
+    let t := interp (case_ (handle_Dec sk) inr_) A in
+    run_state t [::].
 
   Definition flip : itree Rnd bool := trigger (GetRnd (dunif bool)).
   Definition rnd_msg : itree Rnd msg := trigger (GetRnd (dunif msg)).
 
-  Definition game : itree Rnd bool :=
+  (* The trace records the query and guess phase logs, and the chosen
+     ciphertext. *)
+  Definition trace : Type := S * S * ciphert.
+
+  Definition game : itree Rnd (bool * trace) :=
     let* (pk, sk) := C.(GenKey) in
-    let* (nq, amem) := interact (A.(Query) pk) sk None in
+    let* (lq, amem) := interact (A.(Query) pk) sk in
     let* (ct, m0) := C.(Encap) pk in
     let* m1 := rnd_msg in
     let* b := flip in
     let mb := if b then m1 else m0 in
-    let* (ng, g) := interact (A.(Guess) amem pk ct mb) sk (Some ct) in
-    Ret [&& g == b & (nq + ng <= Q)%N ]. (* Why doesn't this work with order? *)
+    let* (lg, g) := interact (A.(Guess) amem pk ct mb) sk in
+    Ret (g == b, (lq, lg, ct)).
 
-  Definition dgame : distr bool := dinterp game.
+  Definition dgame : distr (bool * trace)%type := dinterp game.
 
-  Definition advantage : R := `| \P_[ dgame ] id - 1/2 |.
+  Definition valid (t : trace) : bool :=
+    let '(lq, lg, ct) := t in
+    [&& ct \notin lg & (size lq + size lg <= Q)%N].
+
+  Definition advantage : R :=
+    `| \P_[ dgame ] (fun '(b, t) => b && valid t) - 1/2 |.
 
 End GAME.
 
@@ -157,12 +167,11 @@ Section REDUCE.
 
   Context
     {pkey skey advmem : Type}
-    {ciphert : eqType}
+    {ciphert : choiceType}
     {msg : finType}
-    {dummy : msg}
   .
 
-  Notation advantage := (@advantage pkey skey advmem ciphert msg dummy).
+  Notation advantage := (@advantage pkey skey advmem ciphert msg).
 
   (* Every adversary for [C1] can be converted into an adversary for [C2] that
      performs at most the same number of oracle queries and whose advantage is

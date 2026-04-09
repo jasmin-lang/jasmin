@@ -63,6 +63,8 @@ Class OracleSystem :=
     Oo : (* Oracle implementation. *)
       forall (o : No), In o -> Mo -> itree Rnd (Out o * Mo);
     orac_init_mem : Mo; (* Initial oracle memory. *)
+    init_oracle : No; (* Oracle called first by the adversary. *)
+    final_oracle : No; (* Oracle called last by the adversary. *)
   }.
 
 Context {O : OracleSystem}.
@@ -138,6 +140,7 @@ End CIL.
 End MAIN.
 
 Arguments pwin {_} _ _ _.
+Arguments interact {_} _ _.
 
 Require indcca.
 
@@ -149,6 +152,7 @@ Context
   {ciphert : choiceType}
   {msg : finType}
   {dummy : msg}
+  {dummy_ct : ciphert}
   {C : @indcca.Challenger R pkey skey ciphert msg}
   {A : @indcca.Adversary R pkey advmem ciphert msg}
   {Q : nat}
@@ -160,58 +164,86 @@ Notation OracleSystem := (OracleSystem (R := R)).
 Notation Adversary := (Adversary (R := R)).
 Notation WinningCondition := (WinningCondition (R := R)).
 
-Definition advantage := indcca.advantage (dummy := dummy) C A Q.
-Definition game := indcca.game (dummy := dummy) C A Q.
+(* --- Oracle system definition --- *)
 
-Definition _Mo := option (skey * msg).
-
-(* TODO use a Variant and figure out choiceType *)
 Definition _No := (bool * bool)%type.
 
-Notation "'GenKey'" := (true, true) (at level 0, only parsing).
-Notation "'Encap'" := (true, false) (at level 0, only parsing).
-Notation "'Decap'" := (false, true) (at level 0, only parsing).
-Notation "'Win'" := (false, false) (at level 0, only parsing).
+Notation "'OGenKey'"       := (true, true)   (at level 0, only parsing).
+Notation "'ODecap'"        := (true, false)  (at level 0, only parsing).
+Notation "'OGetChallenge'" := (false, true)  (at level 0, only parsing).
+Notation "'OSubmitGuess'"  := (false, false) (at level 0, only parsing).
+
+(* Oracle memory:
+   - keys: set after GenKey
+   - chall: (hidden bit, challenge ciphertext), set after GetChallenge
+   - lq/lg: query/guess phase Decap logs
+   - ph: phase flag (false = query, true = guess)
+   - guess: adversary's guess, set after SubmitGuess *)
+Definition _Mo :=
+  (option (pkey * skey) *
+   option (bool * ciphert) *
+   seq ciphert *
+   seq ciphert *
+   bool *
+   option bool)%type.
+
+Definition _orac_init_mem : _Mo := (None, None, [::], [::], false, None).
 
 Definition _In (x : _No) : choiceType :=
   match x with
-  | GenKey => unit
-  | Encap => pkey
-  | Decap => ciphert
-  | Win => msg
+  | OGenKey       => unit
+  | ODecap        => ciphert
+  | OGetChallenge => unit
+  | OSubmitGuess  => bool
   end.
 
 Definition _Out (x : _No) : choiceType :=
   match x with
-  | GenKey => pkey
-  | Encap => ciphert
-  | Decap => msg
-  | Win => bool
+  | OGenKey       => pkey
+  | ODecap        => msg
+  | OGetChallenge => (ciphert * msg)%type
+  | OSubmitGuess  => unit
   end.
+
+Definition _Oo_GenKey (_ : unit) (mo : _Mo) : itree Rnd (pkey * _Mo) :=
+  let '(_, chall, lq, lg, ph, g) := mo in
+  let* (pk, sk) := C.(indcca.GenKey) in
+  Ret (pk, (Some (pk, sk), chall, lq, lg, ph, g)).
+
+Definition _Oo_Decap (ct : ciphert) (mo : _Mo) : itree Rnd (msg * _Mo) :=
+  let '(keys, chall, lq, lg, ph, g) := mo in
+  match keys with
+  | Some (_, sk) =>
+      let* m := C.(indcca.Decap) sk ct in
+      if ph
+      then Ret (m, (keys, chall, lq, ct :: lg, ph, g))
+      else Ret (m, (keys, chall, ct :: lq, lg, ph, g))
+  | None => Ret (dummy, mo)
+  end.
+
+Definition _Oo_GetChallenge (_ : unit) (mo : _Mo) :
+  itree Rnd ((ciphert * msg)%type * _Mo) :=
+  let '(keys, _, lq, lg, _, g) := mo in
+  match keys with
+  | Some (pk, sk) =>
+      let* (ct, m0) := C.(indcca.Encap) pk in
+      let* m1 := indcca.rnd_msg in
+      let* b := indcca.flip in
+      let mb := if b then m1 else m0 in
+      Ret ((ct, mb), (Some (pk, sk), Some (b, ct), lq, lg, true, g))
+  | None => Ret ((dummy_ct, dummy), mo)
+  end.
+
+Definition _Oo_SubmitGuess (guess : bool) (mo : _Mo) : itree Rnd (unit * _Mo) :=
+  let '(keys, chall, lq, lg, ph, _) := mo in
+  Ret (tt, (keys, chall, lq, lg, ph, Some guess)).
 
 Definition _Oo (x : _No) : _In x -> _Mo -> itree Rnd (_Out x * _Mo) :=
   match x return _In x -> _Mo -> itree Rnd (_Out x * _Mo) with
-  | GenKey =>
-      fun _ _ =>
-        let* (pk, sk) := C.(indcca.GenKey) in
-        Ret (pk, Some (sk, dummy))
-  | Encap =>
-      fun pk s =>
-        let* (ct, m) := C.(indcca.Encap) pk in
-        if s is Some (sk, _) then Ret (ct, Some (sk, m))
-        else Ret (ct, None)
-  | Decap =>
-      fun ct s =>
-        if s is Some (sk, _) then
-          let* m := C.(indcca.Decap) sk ct in
-          Ret (m, s)
-        else Ret (dummy, None)
-  | Win =>
-      fun m s =>
-        if s is Some (sk, m0) then
-          if m0 != dummy then Ret (m == m0, s)
-          else Ret (false, s)
-        else Ret (false, s)
+  | OGenKey       => _Oo_GenKey
+  | ODecap        => _Oo_Decap
+  | OGetChallenge => _Oo_GetChallenge
+  | OSubmitGuess  => _Oo_SubmitGuess
   end.
 
 Instance INDCCA : OracleSystem :=
@@ -221,15 +253,56 @@ Instance INDCCA : OracleSystem :=
     In := _In;
     Out := _Out;
     Oo := _Oo;
-    orac_init_mem := None;
+    orac_init_mem := _orac_init_mem;
+    init_oracle := OGenKey;
+    final_oracle := OSubmitGuess;
   |}.
 
-Context {A' : Adversary}.
+(* --- CIL adversary --- *)
 
-Instance W : WinningCondition. Admitted. (* ?? *)
+Let EE := @Exch R INDCCA.
 
-Definition interact_aux : itree Rnd bool :=
-  let* (t, m) := interact in Ret (win t m).
+Definition exch {o : _No} (i : _In o) : EE (_Out o) :=
+  @Exchange R INDCCA o i.
+
+Definition dec_to_exch : indcca.Dec ~> itree (EE +' Rnd) :=
+  fun T e =>
+    match e in indcca.Dec T return itree (EE +' Rnd) T with
+    | indcca.Decapsulate c => trigger (inl1 (exch (o := ODecap) c))
+    end.
+
+Definition trig {T} (e : EE T) : itree (EE +' Rnd) T :=
+  trigger (inl1 e : (EE +' Rnd) T).
+
+Definition cil_adversary : itree (EE +' Rnd) unit :=
+  let* pk := trig (exch (o := OGenKey) tt) in
+  let* amem := interp (case_ dec_to_exch inr_) (A.(indcca.Query) pk) in
+  let* (ct, mb) := trig (exch (o := OGetChallenge) tt) in
+  let* g := interp (case_ dec_to_exch inr_) (A.(indcca.Guess) amem pk ct mb) in
+  let* _ := trig (exch (o := OSubmitGuess) g) in
+  Ret tt.
+
+Instance A' : Adversary := {| Aa := cil_adversary |}.
+
+(* --- Winning condition --- *)
+
+Definition _win (t : @trace _ INDCCA) : bool :=
+  match t with
+  | (mo, _) :: _ =>
+      let '(_, chall, lq, lg, _, guess) := mo in
+      match chall, guess with
+      | Some (b, ct), Some g =>
+          [&& g == b, ct \notin lg & (size lq + size lg <= Q)%N]
+      | _, _ => false
+      end
+  | _ => false
+  end.
+
+Instance W : WinningCondition := {| win := _win |}.
+
+(* --- Equivalence proof --- *)
+
+Definition advantage := indcca.advantage C A Q.
 
 Lemma pr_dlet_id T (mu : distr.distr R T) E :
   \P_[mu] E = \P_[ \dlet_(x <- mu) dunit (E x) ] id.
@@ -245,20 +318,40 @@ Proof.
 move=> x; rewrite -dlim_bump (eq_dlim (g := fun=> dunit r)) //; exact/dlimC.
 Qed.
 
+Definition interact_aux : itree Rnd bool :=
+  let* t := interact INDCCA A' in Ret (_win t).
+
 Lemma interact_auxP : pwin INDCCA A' W = \P_[ dinterp interact_aux ] id.
 Proof.
-rewrite /pwin/interact_aux pr_dlet_id; apply/eq_mu_pr => x.
+rewrite /pwin /interact_aux pr_dlet_id; apply/eq_mu_pr => x.
 rewrite dinterp_bind; apply/eq_in_dlet; last done.
-move=> [t m] _ b; by rewrite dinterp_Ret.
+move=> t _ b; by rewrite dinterp_Ret.
 Qed.
 
-Lemma eutt_interact_game : eutt eq interact_aux game.
+Definition game_bool : itree Rnd bool :=
+  let* (b, t) := indcca.game C A in
+  Ret (b && indcca.valid Q t).
+
+Lemma game_boolP :
+  \P_[dinterp game_bool] id =
+  \P_[dinterp (indcca.game C A)] (fun '(b, t) => b && indcca.valid Q t).
+Proof.
+have h : dinterp game_bool =1
+  dmargin (fun '(b, t) => b && indcca.valid Q t) (dinterp (indcca.game C A)).
+{ move=> x; rewrite /game_bool dinterp_bind dmarginE.
+  apply/eq_in_dlet; last done.
+  move=> [b t] _ y; by rewrite dinterp_Ret. }
+by rewrite (eq_mu_pr _ h) pr_dmargin.
+Qed.
+
+Lemma eutt_interact_game : eutt eq interact_aux game_bool.
 Admitted.
 
 Lemma correct_indcca : `| pwin INDCCA A' W - 1/2 | = advantage.
 Proof.
-rewrite interact_auxP /advantage /indcca.advantage; do 2!f_equal.
-exact/eq_mu_pr/dinterp_eutt/eutt_interact_game.
+rewrite /advantage /indcca.advantage interact_auxP; do 2!f_equal.
+rewrite (eq_mu_pr _ (dinterp_eutt eutt_interact_game)).
+exact: game_boolP.
 Qed.
 
 End INSTANCE.
