@@ -31,10 +31,14 @@ From ITree Require Import
   Rutt
   RuttFacts
   State
+  Events.StateFacts
+  Interp.TranslateFacts
 .
+From Paco Require Import paco.
 Import Monads.
 
 Require Import distr.
+Require Import rutt_extras.
 
 #[local] Open Scope order_scope.
 #[local] Open Scope ring_scope.
@@ -143,6 +147,9 @@ End MAIN.
 
 Arguments pwin {_} _ _ _.
 Arguments interact {_} _ _.
+
+(* -------------------------------------------------------------------------- *)
+(* Instantiation for INDCCA, doesn't work and the encoding is probably wrong *)
 
 Require indcca.
 
@@ -346,8 +353,94 @@ Definition game_RR
   (bg : bool * (indcca.S * indcca.S * ciphert)) : Prop :=
   _win tr = (bg.1 && indcca.valid Q bg.2).
 
+Let H : (EE +' Rnd) ~> itree (stateE (@trace _ INDCCA) +' Rnd) :=
+  case_ (@handle_Exch R INDCCA) inr_.
+
+Let iinteract := indcca.interact C.
+
+(* State invariant for the Dec-phase simulation.
+   Relates a CIL trace to an IND-CCA log. *)
+Definition dec_inv
+  (pk : pkey) (sk : skey) (chall : option (bool * ciphert))
+  (other_log : seq ciphert) (ph : bool) (g0 : option bool)
+  (tr : @trace _ INDCCA) (log : indcca.S) : Prop :=
+  exists rest xch,
+    tr = ((Some (pk, sk), chall,
+           (if ph then other_log else log ++ other_log),
+           (if ph then log ++ other_log else other_log),
+           ph, g0), xch) :: rest.
+
+(* Dec-phase simulation: the CIL handling of Dec events is eutt to
+   the IND-CCA handling, preserving the state invariant. *)
+Local Lemma sim_dec (X : Type) (t : itree (indcca.Dec +' Rnd) X)
+  (sk : skey) (pk : pkey) (chall : option (bool * ciphert))
+  (other_log : seq ciphert) (ph : bool) (g0 : option bool)
+  (tr0 : @trace _ INDCCA) :
+  dec_inv pk sk chall other_log ph g0 tr0 [::] ->
+  eutt (fun '(tr, x) '(log, x') =>
+          x = x' /\ dec_inv pk sk chall other_log ph g0 tr log)
+    (run_state (interp H (interp (case_ dec_to_exch inr_) t)) tr0)
+    (run_state (interp (case_ (indcca.handle_Dec C sk) inr_) t) [::]).
+Admitted.
+
+(* GenKey oracle step. *)
+Local Lemma step_genkey :
+  eutt (fun '(tr, pk) '(pk', sk') =>
+          pk = pk' /\ dec_inv pk' sk' None [::] false None tr [::])
+    (run_state (interp H (trig (exch (o := OGenKey) tt))) [::])
+    (C.(indcca.GenKey)).
+Admitted.
+
+(* GetChallenge oracle step. *)
+Local Lemma step_getchallenge
+  (pk : pkey) (sk : skey) (lq : seq ciphert)
+  (tr0 : @trace _ INDCCA) :
+  dec_inv pk sk None [::] false None tr0 lq ->
+  eutt (fun '(tr, p) '(ct', mb') =>
+          p.1 = ct' /\ p.2 = mb' /\
+          exists b, mb' = (if b then p.2 else p.2) /\
+            dec_inv pk sk (Some (b, ct')) lq true None tr [::])
+    (run_state (interp H (trig (exch (o := OGetChallenge) tt))) tr0)
+    (ITree.bind (C.(indcca.Encap) pk) (fun '(ct, m0) =>
+     ITree.bind indcca.rnd_msg (fun m1 =>
+     ITree.bind indcca.flip (fun b =>
+     Ret (ct, if b then m1 else m0))))).
+Admitted.
+
+(* SubmitGuess oracle step. *)
+Local Lemma step_submitguess
+  (pk : pkey) (sk : skey) (b : bool) (ct : ciphert)
+  (lq lg : seq ciphert) (g : bool)
+  (tr0 : @trace _ INDCCA) :
+  dec_inv pk sk (Some (b, ct)) lq true None tr0 lg ->
+  eutt (fun '(tr, _) _ =>
+          _win tr = [&& g == b, ct \notin lg & (size lq + size lg <= Q)%N])
+    (run_state (interp H (trig (exch (o := OSubmitGuess) g))) tr0)
+    (Ret tt).
+Admitted.
+
+(* Helper: decompose run_state (interp H (bind t k)). *)
+Local Lemma rs_interp_bind (T U : Type)
+  (t : itree (EE +' Rnd) T) (k : T -> itree (EE +' Rnd) U)
+  (s : @trace _ INDCCA) :
+  eq_itree eq
+    (run_state (interp H (ITree.bind t k)) s)
+    (ITree.bind (run_state (interp H t) s)
+                (fun p => run_state (interp H (k p.2)) p.1)).
+Proof.
+etransitivity.
+{ apply eq_itree_interp_state. exact: interp_bind. reflexivity. }
+etransitivity. exact: interp_state_bind.
+eapply eqit_bind'; first reflexivity.
+intros ? ? <-; reflexivity.
+Qed.
+
 Lemma eutt_interact_game :
   eutt game_RR (interact INDCCA A') (indcca.game C A).
+Proof.
+(* This lemma is proved by decomposing the CIL interaction step by step
+   and showing it mirrors the IND-CCA game at each step. The proof remains
+   admitted pending the detailed ITree equational reasoning for each step. *)
 Admitted.
 
 Lemma correct_indcca : `| pwin INDCCA A' W - 1/2 | = advantage.
