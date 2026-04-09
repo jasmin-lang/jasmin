@@ -272,34 +272,16 @@ let pp_pprog ~debug fmt p =
       in
       let x' = P.PV.mk (new_name) W.Const x'.v_ty (x'.v_dloc) [] in
       Env.Vars.push_param st (x', ty, x,x)
-      (* let param:S.pparam = { ppa_ty = ty; ppa_name = name; ppa_init = x} in *)
-      (* let ty = P.gety_of_gty x'.v_ty in
-      let v = mk_var x'.v_name W.Const ty (x'.v_dloc) [] in *)
-      (* 
-      let x = P.PV.mk (L.unloc name) W.Const (P.gty_of_gety ty) (L.loc name) []
-      in let st = Env.Vars.push_param st (L.loc name) x *)
-      (* Env.Vars.push_modp_param  *)
-    (* | MaGlob (v), MSglob(ty,name) ->
-      rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Type error (param glob)") *)
-      (*FIXME*)
+    | Mprog.MaGlob x, Mprog.Glob x' ->
+      let ty = P.gety_of_gty x'.v_ty in
+      let new_name = match BatString.split_on_string ~by:"::" x'.v_name with
+        | [] -> x'.v_name
+        | names -> List.hd (List.rev names)
+      in
+      let x' = P.PV.mk (new_name) W.Const x'.v_ty (x'.v_dloc) [] in
+      Env.Vars.push_global st (x', ty, P.GEword (x))
     |_, _ ->
       rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Type error")
-      (*FIXME*)
-      (* let tyins = List.map (tt_type pd st) tyin
-      in let tyouts = List.map (tt_type pd st) tyout
-      in let funcsig = { Env.f_loc = L.loc name
-                       ; Env.f_name = P.F.mk (L.unloc name)
-                       ; Env.f_tyin = List.map (P.gty_of_gety) tyins
-                       ; Env.f_tyout =  List.map (P.gty_of_gety) tyouts
-                       ; Env.f_pfunc = None
-                       }
-      in let fsig = { (*M.fs_name = funcsig.f_name
-                    ; M.fs_loc = funcsig.f_loc
-                    ; *)M.fs_tyin = funcsig.f_tyin
-                    ; M.fs_tyout = funcsig.f_tyout
-                    }
-      in let st = Env.Funs.push_modp_fun st funcsig
-      in st, M.Fun fsig *)
 
   let rec push_ground_modparams pd (st: 'asm Env.store) =
     function
@@ -633,16 +615,20 @@ let mt_margs pd menv _ mparams margs =
       then rs_tyerror ~loc:(L.loc pe) (TypeMismatch (pty,et));
       let st, adecls = Env.Vars.push_param st (pi,et,e,e) in
       st, M.MaParam e, adecls
-    (* | M.Glob pg, S.PEVar pv ->
+    | M.Glob pg, S.PEVar pv ->
       let v,vt,_ = tt_var_global `AllVar st pv
       in let pgty = P.gety_of_gty pg.P.v_ty
       in if pgty <> vt
       then rs_tyerror ~loc:(L.loc pe) (TypeMismatch (pgty,vt));
       let st, _ = Env.Vars.push_global st (pg, vt ,P.GEword (P.Pvar v))
-      
-      in st, M.MaGlob v.gv, [] *)
-    | M.Glob _, _ ->
-      rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Type error (param glob)")
+      in st, M.MaGlob (Pvar v), []
+    | M.Glob pg , _ ->
+      let e, et, _ = tt_expr pd ~mode:`NoParam st pe in
+      let pty = P.gety_of_gty pg.v_ty
+      in if pty <> et
+      then rs_tyerror ~loc:(L.loc pe) (TypeMismatch (pty,et));
+      let st, _ = Env.Vars.push_global st (pg, et ,P.GEword e) in
+      st, MaGlob e, []
     | M.Fun pf, S.PEVar v ->
       let func,_ = tt_fun v st
       in let tres, targs = f_sig func
@@ -694,7 +680,7 @@ let has_instance insts args =
 let print_margs fmt (args:P.pexpr_ M.moduleargs) =
   let pp_arg fmt = function
     | M.MaParam e -> Format.fprintf fmt "param(%a);" (Printer.pp_pexpr ~debug:true) e
-    | M.MaGlob v -> Format.fprintf fmt "glob(%s);" v.pl_desc.v_name
+    | M.MaGlob e -> Format.fprintf fmt "glob(%a);" (Printer.pp_pexpr ~debug:true) e
     | M.MaFun f -> Format.fprintf fmt "fun(%s);" f.fn_name
   in
   Format.fprintf fmt "[%a]" (pp_list "" pp_arg) args
@@ -1384,12 +1370,11 @@ let instantiate_pprog menv =
                   let new_vars = Map.add v.v_name v new_vars in
                   let e = add_suffix_gexpr new_vars suffix e in
                   new_vars,P.MIparam (v , e)
-                | Mprog.Glob v, Mprog.MaGlob v' ->
-                  let new_name_mod = replace_with_suffix suffix v.v_name in
+                | Mprog.Glob v, Mprog.MaGlob e ->
+                  let new_name_mod = replace_with_suffix suffix_mod v.v_name in
                   let v = P.PV.mk new_name_mod v.v_kind (change_ty new_vars suffix v.v_ty) v.v_dloc v.v_annot in
                   let new_vars = Map.add v.v_name v new_vars in
-                  let v_gg = {P.gv = v' ; gs = Sglob} in
-                  new_vars,P.MIglobal ( v , GEword (Pvar v_gg) )
+                  new_vars,P.MIglobal ( v , GEword e)
                 (* | Mprog.Fun fs, Mprog.MaFun f -> Mprog.MaFun f *)
                 | _ , _ -> rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Instantiation error: functions not supported yet") 
                 in

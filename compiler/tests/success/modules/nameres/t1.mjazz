@@ -1,12 +1,18 @@
-require "u.mjazz"
+require "tests/success/modules/nameres/t0.mjazz"
 
-param int n = n;
+param int n = 2;
 
-fn f() { }
-
-module M1 {
-
- param int n = U::n;
- fn f() { }
-
+module M2
+  with
+   param int c;
+{
+   module B = M1(2*c);
+   fn ff(reg ptr u64[2*c] a) -> reg ptr u64[2*c] {
+     a = B::f(a);
+     return a;
+   }
 }
+
+module A2 = M2(n);
+module A4 = M1(2*n);
+module B4 = M2(4);
