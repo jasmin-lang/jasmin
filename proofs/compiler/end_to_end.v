@@ -1093,20 +1093,15 @@ Let C_t :=
     fn_genkey fn_encap fn_decap
     mt ppk psk pct pmsg.
 
-Notation handle_Dec := (handle_Dec (dummy := dummymsg)) (only parsing).
-Notation interact := (interact (dummy := dummymsg)) (only parsing).
-Notation game := (game (dummy := dummymsg)) (only parsing).
-
-Lemma handle_DecP T sk ex (e : Dec T) :
-  eutt eq (handle_Dec C_s sk ex e) (handle_Dec C_t sk ex e).
+Lemma handle_DecP T sk (e : Dec T) :
+  eutt eq (handle_Dec C_s sk e) (handle_Dec C_t sk e).
 Proof.
 move: T e => _ [c] /=; apply/eutt_eq_bind => _.
-case: (_ == _); first reflexivity.
 exact/eutt_translate'/eutt_translateE/eutt_Decap.
 Qed.
 
-Lemma interactP T (A : itree _ T) sk ex :
-  eutt eq (interact C_s A sk ex) (interact C_t A sk ex).
+Lemma interactP T (A : itree _ T) sk :
+  eutt eq (interact C_s A sk) (interact C_t A sk).
 Proof.
 rewrite /indcca.interact; set ds := interp _ _; set dt := interp _ _.
 suff -> : eutt eq ds dt by reflexivity.
@@ -1115,23 +1110,23 @@ move=> ??; apply/Proper_Case_Handler; last reflexivity.
 move=> *; exact: handle_DecP.
 Qed.
 
-Theorem eutt_game {A : KEM_Adversary} {Q} :
-  eutt eq (game C_s A Q) (game C_t A Q).
+Theorem eutt_game {A : KEM_Adversary} :
+  eutt eq (game C_s A) (game C_t A).
 Proof.
 rewrite /game /= (eutt_translateE eutt_GenKey).
 apply: eutt_eq_bind => -[pk sk].
-rewrite interactP; apply: eutt_eq_bind => -[nq amem].
-rewrite (eutt_translateE eutt_Encap); apply: eutt_eq_bind => -[m0 c].
+rewrite interactP; apply: eutt_eq_bind => -[lq amem].
+rewrite (eutt_translateE eutt_Encap); apply: eutt_eq_bind => -[ct m0].
 apply: eutt_eq_bind => m1; apply: eutt_eq_bind => b.
 rewrite interactP; reflexivity.
 Qed.
 
-Corollary deqX_game {A : KEM_Adversary} {Q}:
-  dgame (dummy := dummymsg) C_s A Q =1 dgame (dummy := dummymsg) C_t A Q.
+Corollary deqX_game {A : KEM_Adversary} :
+  dgame C_s A =1 dgame C_t A.
 Proof. exact/dinterp_eutt/eutt_game. Qed.
 
 Corollary reduction :
-  reduction (advmem := advmem) (dummy := dummymsg) C_s C_t.
+  reduction (advmem := advmem) C_s C_t.
 Proof. move=> A Q. by rewrite /advantage [in LHS](eq_mu_pr _ deqX_game). Qed.
 
 End THEOREM.
