@@ -723,6 +723,7 @@ Local Open Scope monad_scope.
 Definition iasmsem_exportcall (p : asm_prog) (fn : funname) (m : asmmem) :=
   fd <- ioget (ErrType, tt) (get_fundef (asm_funcs p) fn);;
   _ <- err_result (fun e => (e, tt)) (assert (asm_fd_export fd) ErrSemUndef);;
+  _ <- err_result (fun e => (e, tt)) (assert (check_call_conv fd) ErrSemUndef);;
   let s := {| asm_m := m
                    ; asm_f := fn
                    ; asm_c := asm_fd_body fd
