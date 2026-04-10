@@ -166,6 +166,7 @@ lang/gen_map.v
 lang/global.v
 lang/hoare_logic.v
 lang/ident.v
+lang/itree_safety_facts.v
 lang/it_sems_core.v
 lang/linear.v
 lang/linear_facts.v

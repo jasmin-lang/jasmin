@@ -76,8 +76,7 @@ Class OracleSystem :=
 Context {O : OracleSystem}.
 
 (* An exchange: the name of an oracle, an input to that oracle, and the output
-   returned by that oracle.
-   TODO use Tagged2 instead of Tagged *)
+   returned by that oracle. *)
 Definition Xch := { o : No & (In o * Out o)%type }.
 
 (* A trace is a sequence of exchanges and intermediate memories. *)
