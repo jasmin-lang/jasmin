@@ -21,6 +21,8 @@ From mathcomp Require Import
   word_ssrZ
 .
 
+From Paco Require paco.
+
 From ITree Require Import
   Basics
   ITree
@@ -106,8 +108,8 @@ Proof. by rewrite /LE.decode /make_vec /= Z.lor_0_r wrepr_unsigned. Qed.
 
 Section SAFE.
 
-  From Paco Require Import paco.
-  From ITree Require Import
+  Import paco.
+  Import
     ITree
     ITreeFacts
     Basics.HeterogeneousRelations
@@ -115,7 +117,7 @@ Section SAFE.
     Eq.Paco2
     Eq.Rutt
     Eq.RuttFacts.
-  Require Import xrutt xrutt_facts rutt_extras.
+  Import xrutt xrutt_facts rutt_extras.
 
 Definition EPreRel_safe E1 E2 is_error (REv : prerel E1 E2) : prerel E1 E2 :=
   fun A B e1 e2 => [\/ is_error _ e1 | REv A B e1 e2 ].
@@ -190,6 +192,7 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {wa : WithAssert}
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
   {wsw : WithSubWord}
@@ -213,12 +216,14 @@ Lemma isem_fun_finalize p ev fn fd fs :
 Proof.
 move=> h.
 rewrite isem_call_unfold /isem_fun_body /kget_fundef h /= bind_ret_l.
-apply: lutt_bind; first exact: lutt_true.
-move=> s _; apply: lutt_bind; first exact: lutt_true.
-move=> s' _; exists (iresult s' (finalize_funcall fd s')).
-case h': finalize_funcall => [fs' | e].
-- apply: rutt_Ret; split=> //; by exists s'.
-apply: rutt_Vis => //; split=> //; by exists erefl.
+apply: lutt_bind => [|_ _]; first exact: lutt_true.
+apply: lutt_bind => [|s _]; first exact: lutt_true.
+apply: lutt_bind => [|s' _]; first exact: lutt_true.
+apply: (lutt_bind (R := is_finalize fd)) => [|fr fin].
+- case h': finalize_funcall => [fs'|]; last exact/lutt_Vis.
+  apply/(lutt_Ret _ _ (is_finalize _)); by exists s'.
+apply: lutt_bind => [|_ _]; first exact: lutt_true.
+exact/(lutt_Ret _ _ (is_finalize _))/fin.
 Qed.
 
 End ISEM_FINALIZE.
@@ -331,7 +336,7 @@ Lemma fill_fill_mem (n : positive) a m p bytes :
   WArray.fill n bytes = ok a ->
   exists m', fill_mem m p bytes = ok m'.
 Proof.
-move=> hv; rewrite /WArray.fill /fill_mem.
+move=> hv; rewrite /WArray.fill /WArray.fill_aux /fill_mem.
 t_xrbindP=> /eqP hn [? a'] hfold /= ?; subst a'.
 elim: bytes m 0 (WArray.empty n) {hn} hv hfold => [|b bytes hind] m z a0 hv /=;
   first by exists m.
@@ -498,6 +503,7 @@ Let isemS (p : uprog) :=
     (asm_op := extended_op)
     (ep := ep_of_asm_e)
     (spp := spp_of_asm_e)
+    (wa := withassert)
     (sip := sip_of_asm_e)
     (scP := sCP_unit)
     (E := E)
@@ -511,6 +517,7 @@ Let isemT (q : sprog) (rip : pointer) :=
     (asm_op := extended_op)
     (ep := ep_of_asm_e)
     (spp := spp_of_asm_e)
+    (wa := noassert)
     (sip := sip_of_asm_e)
     (scP := sCP_stack)
     (E := E)
@@ -762,7 +769,7 @@ Context
     exists pk sk,
       [/\ f_params ufd_genkey = [:: pk; sk ]
         , f_res ufd_genkey = [:: pk; sk ]
-        , f_tyout ufd_genkey = [:: sarr pkbytes; sarr skbytes ]
+        , f_tyout ufd_genkey = [:: aarr U8 pkbytes; aarr U8 skbytes ]
         , wptr_status pk = Some true
         & wptr_status sk = Some true
   ])
@@ -771,7 +778,7 @@ Context
     exists pk ct msg,
       [/\ f_params ufd_encap = [:: ct; msg; pk ]
         , f_res ufd_encap = [:: ct; msg ]
-        , f_tyout ufd_encap = [:: sarr ctbytes; sarr msgbytes ]
+        , f_tyout ufd_encap = [:: aarr U8 ctbytes; aarr U8 msgbytes ]
         , wptr_status pk = Some false
         , wptr_status ct = Some true
         & wptr_status msg = Some true
@@ -781,7 +788,7 @@ Context
     exists sk ct msg,
       [/\ f_params ufd_decap = [:: msg; ct; sk ]
         , f_res ufd_decap = [:: msg ]
-        , f_tyout ufd_decap = [:: sarr msgbytes ]
+        , f_tyout ufd_decap = [:: aarr U8 msgbytes ]
         , wptr_status sk = Some false
         , wptr_status ct = Some false
         & wptr_status msg = Some true
@@ -884,13 +891,14 @@ apply: (lutt_xrutt_trans_l'
   (RAns := RAeq)
   (RR := fun s' t' => all val_is_def (fvals s') /\ rpostF fn fn s t s' t'));
   cycle -2.
-- exact: (isem_fun_finalize (scP := sCP_unit)) hfd.
+- exact: (isem_fun_finalize (wa := withassert) (scP := sCP_unit)) hfd.
 - apply: (lutt_xrutt_trans_l'
     (REv := EPreRel (rE0 := HandlerContract))
-    (RAns := EPostRel (rE0 := HandlerContract))); cycle -2.
+    (RAns := EPostRel (rE0 := HandlerContract))
+    (RR := rpostF fn fn s t)
+  ); cycle -2.
   + exact: hdef.
-  + exact: (it_compiler_front_endP
-              haparams print_uprogP print_sprogP hcomp hfn hpre).
+  + exact: it_compiler_front_endP hcomp hfn _ _ hpre.
   + move=> T1 T2 [|[[] n1]]; first by left.
     move=> [//|[[] _]] _ [_ <-]; right; by exists erefl.
   + move=> T1 T2 [//|e1] r1 [//|e2] r2 _ _ [] _.
