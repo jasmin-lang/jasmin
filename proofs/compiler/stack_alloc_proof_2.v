@@ -160,7 +160,9 @@ Proof.
   + exists (l0 ++ rdata ++ vdata).
     rewrite heq -!catA; split => //.
     have slot_x_gt0 := size_slot_gt0 x.
-    by rewrite !size_cat hsz1 hsz2 heqsz; clear -hbase1 h1 slot_x_gt0; lia.
+    rewrite !size_cat hsz1 hsz2 heqsz; clear -hbase1 h1 slot_x_gt0.
+    do 2![rewrite -Z2Nat.z2nD /GRing.zero/=; [|by apply/ZleP; lia..]].
+    lia.
   move=> x1 ofs1 ws1.
   rewrite Mvar.setP.
   case: eqP => [|_].
