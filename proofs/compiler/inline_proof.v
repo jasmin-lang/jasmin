@@ -608,6 +608,7 @@ Section AUX.
    instances of the typeclasses involved. *)
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0} {sem_F : sem_Fun (pT:=progUnit) E}.
+Context {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE}.
 
 Lemma convertible_assgn_tuple tys1 tys2 :
   all2 convertible tys1 tys2 ->
@@ -695,7 +696,7 @@ Proof.
     rewrite (isem_cmd_ext h) => {h}.
     move: s t; apply it_sem_uincl_aux => //.
     + by apply RndE0_recall.
-    by move=> ii fn2 ???; apply hrec.
+    by move=> ii fn2 ???; apply: wequiv_fun_rec.
   (* Second it works for fn1 *)
   move=> ? [? ->]; subst fn1 fd1; exists fd' => //.
   have : exists2 Xc,

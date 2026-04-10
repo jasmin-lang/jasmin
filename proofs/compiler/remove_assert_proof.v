@@ -163,6 +163,7 @@ Section REMOVE_ASSERT.
   Section IT.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE}.
 
   #[local] Notation st_eq := (st_rel (λ _ : unit, eq) tt).
 
@@ -208,7 +209,7 @@ Section REMOVE_ASSERT.
     + by move => >; apply wequiv_assgn_rel_eq with checker_ra_eq tt.
     + by move => >; apply wequiv_opn_rel_eq with checker_ra_eq tt.
     + move => >; apply wequiv_syscall_rel_eq_core with checker_ra_eq tt => //.
-      by move => > <- ->; eauto.
+      by move => >; apply eq_syscall.
     + by move => >; apply wequiv_assert_left.
     + move=> > hc1 hc2 ii.
       by apply wequiv_if_rel_eq with checker_ra_eq tt tt tt.

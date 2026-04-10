@@ -351,6 +351,7 @@ Section WITH_PARAMS.
       {E E0: Type → Type}
         {wE: with_Error E E0}
         {rE: EventRels E0}.
+    Context {rndE0 : RndE0 syscall_state E0} {rndE0_refl : RndE0_refl rE}.
 
     Context (insert_renaming_p: fun_info → bool).
     Context (p: prog) (ev: extra_val_t).
