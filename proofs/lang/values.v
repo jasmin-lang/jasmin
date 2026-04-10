@@ -980,3 +980,6 @@ Proof. elim: tin vs o => //=; eauto. Qed.
 Lemma sem_prod_ok_safe {T:Type} (tin : seq ctype) (o: sem_prod tin T) :
    interp_safe_cond_ty [::] (sem_prod_ok tin o).
 Proof. apply sem_prod_ok_safe_aux. Qed.
+
+Definition arr_is_def (n : positive) (a : WArray.array n) : bool :=
+  all (WArray.is_init a) (ziota 0 n).

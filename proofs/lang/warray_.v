@@ -648,3 +648,16 @@ End WArray.
 
 #[global]
 Hint Resolve WArray.uincl_refl : core.
+
+Lemma valid_getP n (a : WArray.array n) i :
+  reflect
+    (exists w, WArray.get8 a i = ok w)
+    (WArray.in_bound a i && WArray.is_init a i).
+Proof.
+rewrite /WArray.get8; case: WArray.in_bound; last by constructor => -[].
+case: WArray.is_init; last by constructor => -[].
+constructor; eexists; reflexivity.
+Qed.
+
+Lemma decode_u8 (w : u8) : LE.decode U8 [:: w ] = w.
+Proof. by rewrite /LE.decode /make_vec /= Z.lor_0_r wrepr_unsigned. Qed.

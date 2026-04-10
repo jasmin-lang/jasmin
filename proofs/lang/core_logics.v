@@ -14,6 +14,9 @@ From ITree Require Import
   Eq.Paco2
   Eq.Rutt
   Eq.RuttFacts.
+Import Monads.
+Import MonadNotation.
+Local Open Scope monad_scope.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 
@@ -526,3 +529,9 @@ Proof.
 Qed.
 
 End SAFE_RUTT.
+
+Lemma safe_bind {E} R1 R2 is_error t (k : R1 -> itree E R2) :
+  safe is_error t ->
+  (forall r, safe is_error (k r)) ->
+  safe is_error (r <- t ;; k r).
+Proof. move=> ht hk; apply: (lutt_bind ht) => t1 _; exact: hk. Qed.

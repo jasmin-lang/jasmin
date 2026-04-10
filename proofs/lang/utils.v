@@ -171,6 +171,9 @@ Definition o2r eT aT (e : eT) (o : option aT) :=
   | Some x => Ok eT x
   end.
 
+Definition r2o {E A} (r : result E A) : option A :=
+  if r is Ok v then Some v else None.
+
 Notation rapp  := Result.apply.
 Notation rdflt := Result.default.
 Notation rbind := Result.bind.
@@ -2172,3 +2175,16 @@ Lemma is_reflect_some_inv {A B : Type} {P : A -> B} {e a} :
   is_reflect P e (Some a) ->
   e = P a.
 Proof. by rewrite -/(if Some a is Some a' then e = P a' else True) => -[]. Qed.
+
+Lemma lt_succ_r x y : x <? Z.succ y = (x <=? y).
+Proof. by case: ZleP => /Z.lt_succ_r /ltzP // /negPf. Qed.
+
+Lemma uniq_ziota n m : uniq (ziota n m).
+Proof.
+rewrite ziotaE map_inj_uniq; first exact: iota_uniq.
+by move=> ?? /Z.add_reg_l /Nat2Z.inj.
+Qed.
+
+Lemma count_ziota n m x :
+  count (pred1 x) (ziota n m) = [&& n <=? x & x <? n + m ].
+Proof. rewrite count_uniq_mem; by [rewrite in_ziota | exact: uniq_ziota ]. Qed.

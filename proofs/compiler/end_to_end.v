@@ -40,7 +40,9 @@ Require Import
   distr
   itree_safety_facts
   utils
+  values
   word
+  wseq
 .
 Require Import
   arch_decl
@@ -88,210 +90,7 @@ Notation "'let*' p ':=' c1 'in' c2" :=
 
 Notation "x |> f" := (f x) (only parsing, at level 25).
 
-Definition r2o {E A} (r : result E A) : option A :=
-  if r is Ok v then Some v else None.
-
-Definition rdflt {E A} (d : A) (r : result E A) : A :=
-  if r is Ok v then v else d.
-
-Lemma valid_getP n (a : WArray.array n) i :
-  reflect
-    (exists w, WArray.get8 a i = ok w)
-    (WArray.in_bound a i && WArray.is_init a i).
-Proof.
-rewrite /WArray.get8; case: WArray.in_bound; last by constructor => -[].
-case: WArray.is_init; last by constructor => -[].
-constructor; eexists; reflexivity.
-Qed.
-
-Lemma decode_u8 (w : u8) : LE.decode U8 [:: w ] = w.
-Proof. by rewrite /LE.decode /make_vec /= Z.lor_0_r wrepr_unsigned. Qed.
-
-Section ISEM_FINALIZE.
-
-Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
-  {spp : SemPexprParams}
-  {wa : WithAssert}
-  {sip : SemInstrParams asm_op syscall_state}
-  {pT : progT}
-  {wsw : WithSubWord}
-  {scP : semCallParams}
-  {dc : DirectCall}
-  {E E0 : Type -> Type}
-  {wE : with_Error E E0}
-  {rE : RndE0 syscall_state E0}
-.
-
-Definition is_finalize fd fs := exists st, finalize_funcall fd st = ok fs.
-
-#[local] Existing Instance trivial_invEvent.
-
-Lemma isem_fun_finalize p ev fn fd fs :
-  get_fundef (p_funcs p) fn = Some fd ->
-  lutt
-    (fun _ => PredT) (fun _ _ => PredT)
-    (is_finalize fd)
-    (isem_fun p ev fn fs).
-Proof.
-move=> h.
-rewrite isem_call_unfold /isem_fun_body /kget_fundef h /= bind_ret_l.
-apply: lutt_bind => [|_ _]; first exact: lutt_true.
-apply: lutt_bind => [|s _]; first exact: lutt_true.
-apply: lutt_bind => [|s' _]; first exact: lutt_true.
-apply: (lutt_bind (R := is_finalize fd)) => [|fr fin].
-- case h': finalize_funcall => [fs'|]; last exact/lutt_Vis.
-  apply/(lutt_Ret _ _ (is_finalize _)); by exists s'.
-apply: lutt_bind => [|_ _]; first exact: lutt_true.
-exact/(lutt_Ret _ _ (is_finalize _))/fin.
-Qed.
-
-End ISEM_FINALIZE.
-
-Section ITREE.
-
-Lemma safe_bind E R1 R2 is_error t (k : R1 -> itree E R2) :
-  safe is_error t ->
-  (forall r, safe is_error (k r)) ->
-  safe is_error (let* r := t in k r).
-Proof. move=> ht hk; apply: (lutt_bind ht) => t1 _; exact: hk. Qed.
-End ITREE.
-
-Section WORD.
-
-Lemma wunsigned_inj' ws (x y : word ws) :
-  (wunsigned x == wunsigned y) = (x == y).
-Proof.
-case: (x =P y) => [<-|h]; first by rewrite eqxx.
-by apply/eqP => /wunsigned_inj.
-Qed.
-
-Lemma lt_succ_r (x y : Z) : (x < Z.succ y) = (x <= y).
-Proof. by case: lezP => /Z.lt_succ_r /ltzP // /negPf. Qed.
-
-Lemma count_ziota (n m x : Z) :
-  count (pred1 x) (ziota n m) = (n <= x < n + m).
-Proof.
-case: (Z.le_ge_cases m 0).
-- by rewrite -in_ziota => /ziota_neg ->.
-move: m; apply: natlike_ind => [|m hm hind].
-- by rewrite -in_ziota.
-rewrite ziotaS_cat // count_cat hind /= addn0 Z.add_succ_r lt_succ_r
-  [in x <= _]le_eqVlt eq_sym.
-case: (x =P n + m); lia.
-Qed.
-
-Context {ws : wsize}.
-
-Definition enum_word := map (wrepr ws) (ziota 0 (wbase ws)).
-
-Lemma word_enumP : Finite.axiom enum_word.
-Proof.
-move=> b.
-rewrite count_map (eq_in_count (a2 := pred1 (wunsigned b))).
-- rewrite count_ziota; by have [/lezP -> /ltzP /= ->] := wunsigned_range b.
-move=> /= x; rewrite in_ziota => /andP [/lezP ? /ltzP ?].
-by rewrite -wunsigned_inj' wunsigned_repr_small.
-Qed.
-
-HB.instance Definition _ := [Countable of (word ws) by <: ].
-HB.instance Definition _ := isFinite.Build (word ws) word_enumP.
-
-End WORD.
-
-Definition arr_is_def (n : positive) (a : WArray.array n) : bool :=
-  all (WArray.is_init a) (ziota 0 n).
-
-Section WSEQ.
-
-Definition wseq := seq u8.
-
-Definition dummy_wseq : wseq := [::].
-
-Definition wseq_of_arr (len : positive) (a : WArray.array len) : wseq :=
-  rdflt [::] (mapM (WArray.get8 a) (ziota 0 len)).
-
-Section READ_WRITE.
-
-  Context {pd : PointerData}.
-
-  Definition read8 m p i := CoreMem.read m Aligned (p + wrepr Uptr i)%R U8.
-
-  Definition write8 m p i (b : u8) :=
-    CoreMem.write m Aligned (p + wrepr Uptr i)%R b.
-
-  Definition read_wseq m p len : wseq :=
-    rdflt [::] (mapM (read8 m p) (ziota 0 len)).
-
-  Definition write_wseq m p (bs : wseq) : mem :=
-    rdflt m (fill_mem m p bs).
-
-End READ_WRITE.
-
-Section PD.
-
-Context {pd : PointerData}.
-
-Lemma write_wseq_stack_stable {m p bytes} :
-  stack_stable m (write_wseq m p bytes).
-Proof.
-rewrite /write_wseq; case h: fill_mem => //; exact: fill_mem_stack_stable h.
-Qed.
-
-Lemma write_wseq_validw_eq m p bytes :
-  validw m =3 validw (write_wseq m p bytes).
-Proof.
-rewrite /write_wseq; case h: fill_mem => [m'|//]; exact: fill_mem_validw_eq h.
-Qed.
-
-Lemma write_wseq_disjoint m p bytes al p' ws :
-  disjoint_zrange p (Z.of_nat (size bytes)) p' (wsize_size ws) ->
-  read m al p' ws = read (write_wseq m p bytes) al p' ws.
-Proof.
-rewrite /write_wseq; by case h: fill_mem => [m'|//] /(fill_mem_disjoint h).
-Qed.
-
-Lemma fill_fill_mem (n : positive) a m p bytes :
-  (forall k : Z, 0 <= k < n -> validw m Aligned (p + wrepr _ k)%R U8) ->
-  WArray.fill n bytes = ok a ->
-  exists m', fill_mem m p bytes = ok m'.
-Proof.
-move=> hv; rewrite /WArray.fill /WArray.fill_aux /fill_mem.
-t_xrbindP=> /eqP hn [? a'] hfold /= ?; subst a'.
-elim: bytes m 0 (WArray.empty n) {hn} hv hfold => [|b bytes hind] m z a0 hv /=;
-  first by exists m.
-t_xrbindP=> _ a' hset <- /hind {}hind.
-move: hset => /WArray.set_bound.
-rewrite WArray.mk_scale_U8 Z.mul_1_r wsize8 => -[h1 h2 _].
-suff [m0 hm0] :
-  exists m0, [elaborate write m Aligned (p + wrepr Uptr z)%R b = ok m0 ].
-- rewrite hm0; apply: hind => k hk.
-  rewrite (write_validw_eq hm0); apply: hv; lia.
-apply/writeV.
-rewrite /validw /= is_align8 (valid8_validw _ Aligned) andbT /= add_0.
-apply: hv; lia.
-Qed.
-
-Lemma read_write_wseq bytes (n : positive) a (i : Z) w p m :
-  (Zpos n <= wbase Uptr) ->
-  (forall k : Z, 0 <= k < n -> validw m Aligned (p + wrepr _ k)%R U8) ->
-  WArray.fill n bytes = ok a ->
-  read a Aligned i U8 = ok w ->
-  read (write_wseq m p bytes) Aligned (p + wrepr Uptr i)%R U8 = ok w.
-Proof.
-move=> hn hv ha; have [m' hm'] := fill_fill_mem hv ha.
-rewrite (WArray.fill_get8 ha) /write_wseq hm' /= (fill_mem_read8 _ hm') /=
-  -(WArray.fill_size ha); last lia.
-case: andP => // -[??] <-.
-rewrite subE -{2 4 6}(GRing.addr0 p) (GRing.addrC p (wrepr _ _)) GRing.addrKA
-  GRing.subr0 wunsigned_repr_small; last lia.
-case: ifP => //; lia.
-Qed.
-
-End PD.
-
-Section EP.
+Section WSEQ_EP.
 
 Context {syscall_state : Type} {ep : EstateParams syscall_state}.
 
@@ -359,29 +158,7 @@ move=> x hx; rewrite -(hgd _ hx); apply: (fill_mem_disjoint hm').
 exact: disjoint_zrange_byte hrip hx.
 Qed.
 
-End EP.
-
-End WSEQ.
-
-Section WVEC.
-
-Definition wvec (n : nat) : Type := 'rV[u8]_n.
-Definition mkwvec (n : nat) (s : seq u8) : wvec n := \row_i nth 0%R s i.
-Definition dummy_wvec (n : nat) : wvec n := \row_i 0%R.
-
-Coercion wseq_of_wvec (n : nat) (v : wvec n) : wseq :=
-  [seq v ord0 i | i <- enum 'I_n ].
-
-Definition wvec_of_arr n (a : WArray.array n) : wvec n :=
-  mkwvec n (wseq_of_arr a).
-
-Definition read_wvec {_ : PointerData} m p (len : positive) : wvec len :=
-  mkwvec len (read_wseq m p len).
-
-Definition wvec_of_val (n : positive) (v : value) : wvec n :=
-  if to_arr n v is Ok a then wvec_of_arr a else dummy_wvec n.
-
-End WVEC.
+End WSEQ_EP.
 
 Section MAIN.
 
@@ -892,9 +669,9 @@ split=> //.
   + exists pct; split=> //= i w; by rewrite WArray.get_empty -fun_if.
   + exists pmsg; split=> //= i w; by rewrite WArray.get_empty -fun_if.
   exists ppk; split=> //= i w hw.
-  apply: (read_write_wseq small_pkbytes _ hpk hw).
+  apply: (read_write_wseq (lezP small_pkbytes) _ hpk hw).
   move=> k hk; apply: hv; apply: (between_byte hov); first exact: zbetween_refl.
-  by rewrite !(rwP ltzP, rwP lezP) (rwP andP) hk.
+  exact hk.
 apply: write_wseq_extend_mem (ok_extend_mem);
   rewrite -(WArray.fill_size hpk) positive_nat_Z.
 - exact: small_pkbytes.
@@ -953,10 +730,10 @@ split=> //.
 - constructor; last constructor; last constructor; last by constructor.
   + exists pmsg; split=> //= i w; by rewrite WArray.get_empty -fun_if.
   + exists pct; split=> //= i w hw.
-    apply: (read_write_wseq small_ctbytes _ hct hw).
+    apply: (read_write_wseq (lezP small_ctbytes) _ hct hw).
     move=> k hk; rewrite -(write_wseq_validw_eq); apply: ct_v.
     apply: (between_byte ct_ov); first exact: zbetween_refl.
-    by rewrite !(rwP ltzP, rwP lezP) (rwP andP) hk.
+    exact hk.
   exists psk; split=> //= i w hw.
   rewrite -(write_wseq_disjoint (write_wseq mt _ _)); first last.
   + rewrite -(WArray.fill_size hct) positive_nat_Z.
@@ -964,9 +741,9 @@ split=> //.
     rewrite -(WArray.get8_read _ AAdirect) in hw.
     have [+ + _] := WArray.get_bound hw.
     rewrite /= /wsize_size; lia.
-  apply: (read_write_wseq small_skbytes _ hsk hw) => k hk.
+  apply: (read_write_wseq (lezP small_skbytes) _ hsk hw) => k hk.
   apply: sk_v; apply: (between_byte sk_ov); first exact: zbetween_refl.
-  by rewrite !(rwP ltzP, rwP lezP) (rwP andP) hk.
+  exact hk.
 apply: write_wseq_extend_mem; rewrite -?(WArray.fill_size hct) ?positive_nat_Z.
 - exact: small_ctbytes.
 - rewrite -/(size_glob sp); exact/disjoint_zrange_sym/pct_not_rip.

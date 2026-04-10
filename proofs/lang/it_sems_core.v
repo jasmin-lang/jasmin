@@ -10,6 +10,7 @@ Import Basics.Monads.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 
 Require Import word expr psem_defs psem_core it_exec rec_facts.
+Require Import core_logics.
 
 Import MonadNotation.
 Local Open Scope monad_scope.
@@ -859,3 +860,44 @@ Qed.
 End CoreLemmas.
 
 End WSW.
+
+Section ISEM_FINALIZE.
+
+Context
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {wa : WithAssert}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT : progT}
+  {wsw : WithSubWord}
+  {scP : semCallParams}
+  {dc : DirectCall}
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : RndEvent syscall_state -< E}
+.
+
+Definition is_finalize (fd : fundef) (fs : fstate) : Prop :=
+  exists st, finalize_funcall fd st = ok fs.
+
+Lemma isem_fun_finalize (p : prog) ev fn fd fs :
+  get_fundef (p_funcs p) fn = Some fd ->
+  lutt
+    (fun _ _ => True) (fun _ _ _ => True)
+    (is_finalize fd)
+    (isem_fun p ev fn fs).
+Proof.
+move=> h.
+rewrite isem_call_unfold /isem_fun_body /kget_fundef h /= bind_ret_l.
+apply: lutt_bind => [|_ _]; first exact: lutt_true.
+apply: lutt_bind => [|s _]; first exact: lutt_true.
+apply: lutt_bind => [|s' _]; first exact: lutt_true.
+apply: (lutt_bind (R := is_finalize fd)) => [|fr fin].
+- case h': finalize_funcall => [fs'|]; last exact/lutt_Vis.
+  apply/(lutt_Ret _ _ (is_finalize _)); by exists s'.
+apply: lutt_bind => [|_ _]; first exact: lutt_true.
+exact/(lutt_Ret _ _ (is_finalize _))/fin.
+Qed.
+
+End ISEM_FINALIZE.

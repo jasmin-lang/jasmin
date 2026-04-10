@@ -207,4 +207,5 @@ lang/varmap.v
 lang/waes.v
 lang/warray_.v
 lang/word.v
+lang/wseq.v
 lang/wsize.v
