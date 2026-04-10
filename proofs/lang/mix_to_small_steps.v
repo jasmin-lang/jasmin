@@ -217,7 +217,7 @@ Proof.
   etau.
 Qed.
 
-(* The big step semantics we want for the proof of linearization *)
+(* The mix step semantics we want for the proof of linearization *)
 
 Definition mix_step (s:lstate) : itree (CallE +' E) lstate :=
   s' <- translate inr1 (istep s);;

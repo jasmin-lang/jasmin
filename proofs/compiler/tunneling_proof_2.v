@@ -42,7 +42,8 @@ Proof. by move: pp'; rewrite /tunnel_program; case: ifP. Qed.
    forall state s, if we can jump just after label (fn, l),
    then we can do a finite number of steps to reach the position
    just after label (fn, l').
-   Furthermore the result state is unchanged, excepted the current program counter.
+   The predicate shows that the resulting state is equal to the orginal where only the
+   the program counter has been updated.
 *)
 
 Definition path_to fn endpc l l' :=
@@ -380,7 +381,7 @@ Lemma tunnel_cmd endpc s :
   eqit eq true true (ilsem p' (untilpc endpc) s) (ilsem p (untilpc endpc) s).
 Proof.
   move=> hend.
-  apply rutt_extras.eqit_iter_n with eq => //.
+  apply while.eqit_iter_n with eq => //.
   move=> {}s _ <-.
   setoid_rewrite i_lsem_body_n; setoid_rewrite i_lsem_body.
   rewrite /lsem_body /untilpc; case: eqP.

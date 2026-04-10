@@ -2459,6 +2459,7 @@ Proof.
     by rewrite /asm_pos take0.
     have h := [elaborate (eq_ilsem p l (endpc_untilpc (sip:=sip_of_asm_e) ok_fd))].
     rewrite h => {h}.
+  rewrite ok_call_conv /= bind_ret_l.
   apply: (xrutt_facts.xrutt_bind (imatch_state_sem hwfend hinv)).
   move=> l' s' [lc _ [M' _ _ _]].
   apply xrutt_facts.xrutt_bind with (fun _ _ => True); last first.
