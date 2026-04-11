@@ -37,7 +37,7 @@ From ITree Require Import
 From Paco Require Import paco.
 Import Monads.
 
-Require Import distr.
+Require Import distr_extra dinterp.
 Require Import rutt_extras.
 
 #[local] Open Scope order_scope.

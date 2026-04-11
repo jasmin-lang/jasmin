@@ -33,7 +33,7 @@ From ITree Require Import
 .
 Import Monads.
 
-Require Import distr.
+Require Import distr_extra dinterp.
 
 #[local] Open Scope order_scope.
 #[local] Open Scope ring_scope.

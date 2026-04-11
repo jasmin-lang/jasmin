@@ -37,7 +37,8 @@ Import ITree.
 Require Import
   compiler
   core_logics
-  distr
+  distr_extra
+  dinterp
   itree_safety_facts
   utils
   values
@@ -174,12 +175,12 @@ Definition E := ErrEvent +' RndEvent unit.
 Existing Instance with_Error0.
 Existing Instance RndE00.
 
-Definition handleE : RndEvent unit ~> itree (distr.Rnd (R := R)) :=
+Definition handleE : RndEvent unit ~> itree (dinterp.Rnd (R := R)) :=
   fun _ '(Rnd _ len) =>
     let* bs := unif_rV (Z.to_nat len) in
     Ret (tt, wseq_of_wvec bs).
 
-Definition translateE : itree (RndEvent unit) ~> itree distr.Rnd :=
+Definition translateE : itree (RndEvent unit) ~> itree dinterp.Rnd :=
   fun _ t => interp handleE t.
 
 Context

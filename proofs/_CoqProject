@@ -28,7 +28,7 @@ compiler/indcca.v
 compiler/sufcma.v
 compiler/end_to_end.v
 
-compiler/distr.v
+
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
 3rdparty/ssrring.v
@@ -153,6 +153,7 @@ itrees/it_exec.v
 itrees/rec_facts.v
 itrees/rutt_extras.v
 itrees/xrutt.v
+itrees/eqit_facts.v
 itrees/xrutt_facts.v
 lang/core_logics.v
 lang/expr.v
@@ -175,6 +176,8 @@ lang/low_memory.v
 lang/lowering_lemmas.v
 lang/memory_example.v
 lang/memory_model.v
+lang/distr_extra.v
+lang/dinterp.v
 lang/one_varmap.v
 lang/operators.v
 lang/psem.v

@@ -16,102 +16,14 @@ From mathcomp Require Import
   realsum
   seq
 .
-
-Import GRing.Theory Num.Theory Order Order.Theory.
-
-From ITree Require Import ITree ITreeFacts.
-From Paco Require Import paco.
+Import GRing.Theory Num.Theory Order.Theory.
 
 #[local] Open Scope order_scope.
 #[local] Open Scope ring_scope.
 
-Notation "'let*' p ':=' c1 'in' c2" :=
-  (@ITree.bind _ _ _ c1 (fun p => c2))
-  (at level 61, p as pattern, c1 at next level, right associativity).
-
-Section ITREE.
-
-Context
-  {E : Type -> Type}
-  {R R' : Type}
-  (RR : R -> R' -> Prop)
-  (weakL weakR : bool)
-.
-
-Notation eqit := (eqit RR weakL weakR) (only parsing).
-Notation eqitF := (eqitF RR weakL weakR id eqit) (only parsing).
-
-Lemma eqitE (t : itree E R) (t' : itree E R') :
-  eqit t t' <-> eqitF (observe t) (observe t').
-Proof.
-split.
-- move=> h. punfold h. red in h. apply: eqitF_mono;
-    [exact: h | exact: eqit_idclo_mono | done | by move=> ?? -[]].
-move=> h. pstep. red. apply: eqitF_mono;
-  [exact: h | exact: eqit_idclo_mono | done | by left ].
-Qed.
-
-Context
-  (P : itree E R -> itree E R' -> Prop)
-  (hret :
-    forall t t' r r',
-      observe t = RetF r ->
-      observe t' = RetF r' ->
-      RR r r' ->
-      P t t')
-  (htau :
-    forall t t' ot ot',
-      observe t = TauF ot ->
-      observe t' = TauF ot' ->
-      eqit ot ot' ->
-      P t t')
-  (hvis :
-    forall t t' A e k k',
-      observe t = VisF e k ->
-      observe t' = VisF e k' ->
-      (forall v : A, eqit (k v) (k' v)) ->
-      P t t')
-  (htaul :
-    forall t ot t',
-      observe t = TauF ot ->
-      weakL ->
-      eqitF (observe ot) (observe t') ->
-      P ot t' ->
-      P t t')
-  (htaur :
-    forall t' t ot',
-      observe t' = TauF ot' ->
-      weakR ->
-      eqitF (observe t) (observe ot') ->
-      P t ot' ->
-      P t t').
-
-Lemma eqit_ind t t' : eqit t t' -> P t t'.
-Proof.
-move=> h.
-punfold h; red in h.
-elim: h {-2}t {-2}t' (erefl (observe t)) (erefl (observe t')) => {t t'}
-  [ r1 r2 h t t' ht ht'
-  | ot ot' [h|//] t t' ht ht'
-  | A e k k' h t t' ht ht'
-  | t0 ot hweakL h hind t t' ht ht'
-  | t0 ot hweakR h hind t t' ht ht' ].
-- exact: hret ht ht' h.
-- exact: htau ht ht' h.
-- apply: (hvis ht ht') => v; by case: (h v).
-- apply: (htaul ht hweakL); last exact: hind.
-  apply/eqitE. pstep. red. by rewrite ht'.
-apply: (htaur  ht' hweakR); last exact: hind.
-apply/eqitE. pstep. red. by rewrite ht.
-Qed.
-
-End ITREE.
-
-Section MAIN.
+Section REAL.
 
 Context {R : realType}.
-
-Section DEFS.
 
 Definition dunif (T : finType) : distr R T := duni (Finite.enum T).
 
@@ -140,7 +52,7 @@ Proof. move=> h x; rewrite !pr_pred1; by apply: h => ?? ->. Qed.
 
 Lemma dle_anti {T T'} RR (mu1 : distr R T) (mu2 : distr R T') :
   dleX RR mu1 mu2 ->
-  dleX (flip RR) mu2 mu1 ->
+  dleX (fun x y => RR y x) mu2 mu1 ->
   deqX RR mu1 mu2.
 Proof.
 move=> hle hge X Y hXY.
@@ -382,104 +294,4 @@ move=> hmf hmg h E E' hE; apply: le_pr_dlim => n; move: (h n) => [m {}h].
 exact: hmg.
 Qed.
 
-Variant Rnd : Type -> Type :=
-| GetRnd : forall {A : finType}, distr R A -> Rnd A.
-
-Definition unif_rV {T : finType} (n : nat) : itree Rnd 'rV[T]_n :=
-  trigger (GetRnd (dunif 'rV[T]_n)).
-
-Section INTERP.
-
-  Context {T : choiceType}.
-
-  Fixpoint dinterp' (t : itree' Rnd T) (n : nat) : distr R T :=
-    if n is n.+1 then
-      match t with
-      | RetF r => dunit r
-      | TauF t => dinterp' (observe t) n
-      | VisF _ e k =>
-          match e in Rnd A return (A -> itree Rnd T) -> distr R T with
-          | GetRnd _ mu =>
-              fun k0 => \dlet_(t <- mu) (dinterp' (observe (k0 t)) n)
-          end k
-      end
-    else dnull.
-
-  Definition dinterp (t : itree Rnd T) : distr R T :=
-    dlim (dinterp' (observe t)).
-
-  Lemma dinterp'_step t n : dle (dinterp' t n) (dinterp' t n.+1).
-  Proof.
-  elim: n t => [|n hind] t s; first exact: lef_dnull.
-  case: t => [//| t | A e k]; first exact: hind.
-  case: e k => A' mu k. apply: le_in_dlet => /= bs hbs s'. exact: hind.
-  Qed.
-
-  Lemma dinterp'_mono t n m :
-    (n <= m)%nat ->
-    dle (dinterp' t n) (dinterp' t m).
-  Proof.
-  move=> h; rewrite -(addnK n m) subDnCA //. elim: (m - n)%nat => [|d hind].
-  - by rewrite addn0.
-  rewrite addnS => s; exact: Order.le_trans (hind _) (dinterp'_step _ _ _).
-  Qed.
-
-End INTERP.
-
-End DEFS.
-
-Section ONE.
-
-Context {T T' : choiceType} (RR : T -> T' -> Prop).
-
-Notation eqit_ind := (eqit_ind (E := Rnd) (R := T) (R' := T')).
-
-Lemma one_way (t : itree Rnd T) (t' : itree Rnd T') :
-  eutt RR t t' ->
-  forall n, exists m,
-    dleX RR (dinterp' (observe t) n) (dinterp' (observe t') m).
-Proof.
-move=> h n; elim: n t t' h => [|n hind] t t' h.
-- exists 0 => X Y _; by rewrite pr_dnull ge0_pr.
-elim/eqit_ind: h =>
-  {t t'} [ _ _ r1 r2 -> -> h
-         | _ _ t t' -> -> h
-         | _ _ _ [A mu] k k' -> -> h
-         | _ ot t -> _ h [m hm]
-         | _ t ot -> _ h [m hm] ].
-- exists 1 => X Y /(_ r1 r2 h) hXY; rewrite /= !pr_dunit.
-  by case hx: (X _) hXY => // /(_ erefl) ->.
-- move: h => /hind [m hle]; by exists m.+1.
-- have:
-    forall v,
-      exists m,
-        dleX RR (dinterp' (observe (k v)) n) (dinterp' (observe (k' v)) m).
-  + move=> v; apply: hind; exact: h.
-  move=> /ClassicalChoice.choice [get {}h].
-  exists (\max_i get i).+1 => X Y hXY /=.
-  apply: (Order.le_trans (pr_dlet _ h hXY)). apply: le_mu_pr => r2 hX hX'.
-  apply: le_in_dlet => /= t ht r2' {r2 hX hX'}. apply: dinterp'_mono.
-  exact: leq_bigmax.
-- apply/hind/eqitE; exact: h.
-exists m.+1; exact: hm.
-Qed.
-
-End ONE.
-
-Lemma eutt_deqX {T T' : choiceType} RR (t : itree Rnd T) (t' : itree Rnd T') :
-  eutt RR t t' ->
-  deqX RR (dinterp t) (dinterp t').
-Proof.
-have hmonot := dinterp'_mono (observe t).
-have hmonot' := dinterp'_mono (observe t').
-move=> h; apply: dle_anti.
-+ by apply (leX_dlim hmonot hmonot'), one_way.
-apply (leX_dlim hmonot' hmonot), one_way; exact: eutt_flip h.
-Qed.
-
-Theorem dinterp_eutt {T : choiceType} (t t' : itree Rnd T) :
-  eutt eq t t' ->
-  dinterp t =1 dinterp t'.
-Proof. move=> h; exact/deqX_eq/eutt_deqX. Qed.
-
-End MAIN.
+End REAL.
