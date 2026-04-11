@@ -9,18 +9,13 @@ From mathcomp Require Import
   bigop
   boolp
   choice
-  classical_sets
   constructive_ereal
   distr
   eqtype
   fintype
-  finmap
   matrix
   order
   reals
-  realseq
-  realsum
-  seq
 .
 From ExtLib Require Structures.Functor Structures.Monad.
 From ITree Require Basics.Basics.
@@ -117,13 +112,16 @@ End ITREE.
 Import ITree.ITree Structures.Functor Structures.Monad Basics.Basics.
 
 #[bypass_check(universes)]
-Definition dinterp_itree {R : realType} {T} (t : itree (@Rnd R) T) : @DistrM R T :=
-  @iter _ (@MonadIter_DistrM R) _ _
+Definition dinterp_itree
+{R : realType} {T} (t : itree (Rnd (R := R)) T) : DistrM (R := R) T :=
+  iter (M := DistrM (R := R))
     (fun t0 =>
       match observe t0 with
-      | RetF r => @ret _ (@Monad_DistrM R) _ (inr r)
-      | TauF t => @ret _ (@Monad_DistrM R) _ (inl t)
-      | VisF _ e k => @fmap _ (@Functor_DistrM R) _ _ (fun x => inl (k x)) (@handle_Rnd R _ e)
+      | RetF r => ret (m := DistrM (R := R)) (inr r)
+      | TauF t => ret (m := DistrM (R := R)) (inl t)
+      | VisF _ e k =>
+          fmap (F := DistrM (R := R))
+            (fun x => inl (k x)) (handle_Rnd (R := R) e)
       end) t.
 
 (* -------------------------------------------------------------------------- *)

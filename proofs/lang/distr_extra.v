@@ -3,13 +3,11 @@ From mathcomp Require Import
   bigop
   boolp
   choice
-  classical_sets
   constructive_ereal
   distr
   eqtype
   fintype
   finmap
-  matrix
   order
   reals
   realseq
@@ -70,9 +68,8 @@ Lemma has_exp_bd {T} (mu : distr R T) f :
   (forall x, 0 <= f x <= 1) ->
   \E?_[mu] f.
 Proof.
-move=> h. apply: (eq_summable (S1 := fun x => mu x * f x)).
-+ move=> x. exact: mulrC.
-exact: summable_mu_wgtd h.
+move=> h; apply: bounded_has_exp; exists 1 => x.
+by rewrite ger0_norm; [exact: (andP (h x)).2 | exact: (andP (h x)).1].
 Qed.
 
 Lemma exp_bd {T} (mu : distr R T) f :
@@ -104,48 +101,14 @@ Qed.
 Lemma eq_mu_pr {T} (mu1 mu2 : distr R T) A :
   mu1 =1 mu2 ->
   \P_[mu1] A = \P_[mu2] A.
-Proof.
-move=> h. rewrite /pr (eq_psum (F2 := fun x => (A x)%:R * mu1 x)) // => x.
-by rewrite h.
-Qed.
-
-Lemma le_pr_dlim' {T T'} E E' (f : nat -> distr R T) (g : nat -> distr R T') :
-  (forall n, exists m, \P_[f n] E <= \P_[g m] E') ->
-  (exists m : nat, forall (n : nat) (x : T), f n x <= f m x) ->
-  (forall n m : nat, (n <= m)%N -> forall x : T, f n x <= f m x) ->
-  (forall n m : nat, (n <= m)%N -> forall x : T', g n x <= g m x) ->
-  \P_[dlim f] E <= \P_[dlim g] E'.
-Proof.
-move => + [xf hleubf] hmonof hmonog.
-rewrite /pr => h.
-have h12 := dlim_ub _ hmonof (f := f).
-have h22 := dlim_ub _ hmonog (f := g).
-specialize (h xf) as [xg h].
-have h23 := (leub_dlim (f := f)) (f xf) hleubf.
-have h32 := h12 xf.
-have heqf : (forall x : T, f xf x = (\dlim_(n) f n) x).
-+ intros x.
-  specialize (h32 x).
-  specialize (h23 x).
-  by apply: Order.le_anti; apply/andP; split.
-move => {h32 h23 hleubf h12 hmonof hmonog}.
-rewrite (eq_psum (F2:= (fun x : T => (E x)%:R * f xf x)));
-  last by move => x; rewrite heqf.
-apply: Order.le_trans.
- + exact: h.
-apply le_psum.
-+ move => x; apply /andP;split.
-  + apply mulr_ge0 => //=.
-  apply ler_pM => //=.
-exact: summable_pr.
-Qed.
+Proof. move=> h; apply: eq_psum => x; by rewrite h. Qed.
 
 Lemma ncvg_sum {T : eqType} [f : nat -> T -> R] [l : T -> R] [J : seq T] :
   (forall x, ncvg (fun n => f n x) (l x)%:E) ->
   ncvg (fun n => \sum_(x <- J) f n x) (\sum_(x <- J) l x)%:E.
 Proof.
 move=> hcvg; elim: J => //= [|j J ih].
-- rewrite big_nil; apply/(@ncvg_eq _ (fun _ => 0))/ncvgC.
+- rewrite big_nil; apply/(ncvg_eq (v := fun _ => 0))/ncvgC.
   by move=> n /=; rewrite big_nil.
 - rewrite big_cons; have := ncvgD (hcvg j) ih; apply/ncvg_eq.
   by move=> n /=; rewrite big_cons.
@@ -157,54 +120,26 @@ Lemma sum_dlim {T : choiceType} (E : pred T) (f : nat -> distr R T) :
     fine (nlim (fun n => psum (fun x : T => (E x)%:R * f n x))).
 Proof.
 move=> hmono.
-have cvg_f: forall x, exists l, ncvg (fun n => f n x) l%:E.
-- move=> x; apply: ncvg_mono_bnd; first by move=> *; apply: hmono.
-  apply/asboolP/nboundedP => /=; exists 2%:R => //.
-  move=> n; rewrite ger0_norm ?ge0_mu //; apply: (@le_lt_trans _ _ 1%:R).
-  - by apply: le1_mu1. - by apply: ltr_nat.
-have [l cvgfx]: exists l, forall x, ncvg (fun n => f n x) (l x)%:E.
-- have wtn: forall x, exists l, `[< ncvg (fun n => f n x) l%:E >].
-  - by move=> x; apply/exists_asboolP/asboolP.
-  exists (fun x => xchoose (wtn x)) => x.
-  by apply/asboolP/(xchooseP (wtn x)).
-have cvgEfx: forall x, ncvg (fun n => (E x)%:R * f n x) ((E x)%:R * l x)%:E.
-- by move=> x; apply/ncvgZ.
-have ge0_l: forall x, 0 <= l x.
-- by move=> x; apply: (ncvg_geC _ (cvgfx x)) => n; apply: ge0_mu.
-transitivity (psum (fun x => fine (nlim (fun n => (E x)%:R * f n x)))).
-- apply: eq_psum => x /=; rewrite dlimE (nlimE (cvgfx x)) /=.
-  by have /(ncvgZ (c := (E x)%:R)) /nlimE -> /= := cvgfx x.
-transitivity (psum (fun x => (E x)%:R * l x)); first apply: eq_psum.
-- by move=> x /=; have /(ncvgZ (c := (E x)%:R)) /nlimE -> := cvgfx x.
+have /dcvgP cvg_f := dcvg_homo hmono.
+have cvgfx: forall x, ncvg (f^~ x) (dlim f x)%:E.
+  by move=> x; have [l _ h] := cvg_f x; rewrite dlimE (nlimE h).
+have cvgEfx: forall x, ncvg (fun n => (E x)%:R * f n x) ((E x)%:R * dlim f x)%:E.
+  by move=> x; apply/ncvgZ/(cvgfx x).
 have smb_Efn: forall n, summable (fun x => (E x)%:R * f n x).
-- by move=> n; apply: (summable_pr E (f n)).
+  by move=> n; exact: summable_pr.
 have mono_psum_Efn: forall m n, (m <= n)%N ->
   psum (fun x => (E x)%:R * f m x) <= psum (fun x => (E x)%:R * f n x).
-- move=> m n le_mn; apply/le_psum/smb_Efn => x; rewrite mulr_ge0 //=.
+  move=> m n le_mn; apply/le_psum/smb_Efn => x; rewrite mulr_ge0 //=.
   by apply: ler_pM => //; apply: hmono.
-have le1_psum_Efn: forall n, psum (fun x => (E x)%:R * f n x) <= 1.
-- by move=> n; apply/le1_pr.
 have [lp ncvg_lp]: exists lp, ncvg (fun n => psum (fun x => (E x)%:R * f n x)) lp%:E.
-- apply: ncvg_mono_bnd; first by apply: mono_psum_Efn.
+  apply: ncvg_mono_bnd; first exact: mono_psum_Efn.
   apply/asboolP/nboundedP => /=; exists 2 => // n.
-  by rewrite ger0_norm 1?ge0_psum //; apply/(le_lt_trans (y := 1))/ltr1n/le1_psum_Efn.
-have le1_lp: lp <= 1.
-- by move/ncvg_leC: ncvg_lp; apply; apply/le1_psum_Efn.
-have smb_Ef: summable (fun x => (E x)%:R * l x).
-- exists 1 => J; rewrite -(big_seq_fsetE _ _ predT (fun x => `|(E x)%:R * l x|)) /=.
-  apply: (le_trans (y := \sum_(x <- J) (l x))).
-  - apply: ler_sum => /= j _; rewrite ger0_norm 1?mulr_ge0 //.
-    by apply: ler_piMl => //; case: (E _).
-  have: ncvg (fun n => \sum_(x <- J) (f n x)) (\sum_(x <- J) l x)%:E.
-  - by apply: ncvg_sum.
-  move/ncvg_leC => /(_ 1); apply => n /=.
-  have /gerfin_psum := summable_mu (f n) => /(_ J).
-  move/le_trans => /= /(_ _ (le1_mu (f n))); apply/le_trans.
-  by rewrite big_seq_fsetE; apply: ler_sum => j _ /=; apply/ler_norm.
+  by rewrite ger0_norm 1?ge0_psum //; apply/(le_lt_trans (y := 1))/ltr1n/le1_pr.
+have smb_Ef := summable_pr E (dlim f).
 apply/eqP; rewrite eq_le; apply/andP; split.
 - apply: psum_le => J uqJ; have ncvgJ:
-    ncvg (fun n => \sum_(j <- J) (E j)%:R * f n j) (\sum_(j <- J) (E j)%:R * (l j))%:E.
-  - by apply: (ncvg_sum cvgEfx).
+    ncvg (fun n => \sum_(j <- J) (E j)%:R * f n j) (\sum_(j <- J) (E j)%:R * (dlim f j))%:E.
+    by apply: (ncvg_sum cvgEfx).
   apply: (le_trans (y := fine (nlim (fun n => \sum_(j <- J) (E j)%:R * f n j)))); last first.
   - rewrite (nlimE ncvgJ) (nlimE ncvg_lp) /=.
     apply: (ncvg_le _ ncvg_lp ncvgJ) => n.
@@ -223,11 +158,10 @@ Lemma ncvg_extract (f : nat -> R) (i : nat -> nat) (l : R) :
   ncvg f l%:E ->
   ncvg (f \o i) l%:E.
 Proof.
-move=> imono hcvg; elim/nbh_finW => /= e gt0_e.
-case: (hcvg (NFin l gt0_e)) => /= K hK; exists K.
-move=> n le_Kn; rewrite inE; apply: hK.
-apply: (leq_trans le_Kn); elim: {+}n => [|m ih] //=. (* FIXME: should exist *)
-by apply: (@leq_ltn_trans (i m)).
+move=> imono hcvg; apply: ncvg_sub hcvg.
+move=> x y; elim: y x => [|y ih] x; first by rewrite ltn0.
+rewrite ltnS leq_eqVlt => /orP[/eqP <- |hxy]; first exact: imono.
+exact: ltn_trans (ih _ hxy) (imono y).
 Qed.
 
 Lemma le_dlim (f : nat -> R) (g : nat -> R) :

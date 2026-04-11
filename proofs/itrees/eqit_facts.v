@@ -1,4 +1,3 @@
-From Coq Require Import Classical.
 From mathcomp Require Import ssreflect ssrbool ssrfun.
 
 From ITree Require Import ITree ITreeFacts.
