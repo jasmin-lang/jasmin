@@ -67,7 +67,6 @@ compiler/array_init_proof.v
 compiler/compiler_util.v
 compiler/compiler.v
 compiler/compiler_proof.v
-compiler/it_compiler_proof.v
 compiler/constant_prop.v
 compiler/constant_prop_proof.v
 compiler/dead_calls.v
@@ -79,6 +78,8 @@ compiler/inline.v
 compiler/inline_proof.v
 compiler/insert_renaming.v
 compiler/insert_renaming_proof.v
+compiler/it_compiler_proof.v
+compiler/it_merge_varmaps_proof.v
 compiler/jasmin_compiler.v
 compiler/lea.v
 compiler/lea_proof.v
@@ -166,6 +167,7 @@ lang/hoare_logic.v
 lang/ident.v
 lang/it_sems_core.v
 lang/it_sems_core_defs.v
+lang/it_sems_one_varmap.v
 lang/linear.v
 lang/linear_facts.v
 lang/linear_sem.v

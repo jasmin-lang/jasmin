@@ -194,10 +194,10 @@ Section CHECK.
         Let _ := assert (sf_align (f_extra fd) ≤ sz)%CMP
           (E.internal_error ii "alignment constraints error") in
         Let _ := assert
-          (all2 (λ e a, if e is Pvar (Gvar v Slocal) then v_var v == v_var a else false) es (f_params fd))
+          (all2 (λ e a, if e is Pvar (Gvar v Slocal) then v_var v == a else false) es (map v_var (f_params fd)))
           (E.internal_error ii "bad call args") in
         Let _ := assert
-          (all2 (λ x r, if x is Lvar v then v_var v == v_var r else false) xs (f_res fd))
+          (all2 (λ x r, if x is Lvar v then v_var v == r else false) xs (map v_var (f_res fd)))
           (E.internal_error ii "bad call dests") in
         let W := writefun_ra writefun fn in
         let res := sv_of_list v_var (f_res fd) in
