@@ -45,21 +45,47 @@ Proof.
 Qed.
 
 Lemma split_while {E} {I} (cond1 cond2 : I -> bool) (step : I -> itree E I) i :
-  while cond2 step i ≈
+  while cond2 step i ≅
   (i' <- while (fun i => andb (cond1 i) (cond2 i)) step i;; while cond2 step i').
 Proof.
   symmetry.
-  generalize i; clear i; einit.
-  ecofix SELF; intros i.
+  generalize i; clear i; ginit.
+  gcofix SELF; intros i.
   rewrite unfold_while.
-  case (cond1 i) => /=; last by rewrite bind_ret_l; reflexivity.
+  case (cond1 i) => /=; last first.
+  + rewrite bind_ret_l.
+    apply gpaco2_mon with bot2 bot2 => //.
+    gfinal; right; rewrite -/(eqit eq false false); reflexivity.
   rewrite unfold_while.
   case: ifP => heq2.
   + rewrite !bind_bind.
-    constructor. guclo eqit_clo_bind.
+    guclo eqit_clo_bind.
     econstructor; first reflexivity.
-    by move=> i' _ <-; rewrite bind_tau; etau.
-  by rewrite bind_ret_l unfold_while heq2; eret.
+    intros u1 u2 heq; rewrite <- heq; clear heq.
+    rewrite bind_tau.
+    gstep. constructor. gfinal. left. apply SELF.
+  by rewrite bind_ret_l unfold_while heq2; gstep; constructor.
+Qed.
+
+Lemma while_eq {E} {I} (cond1 cond2 : I -> bool) (step : I -> itree E I) i :
+  cond1 =1 cond2 ->
+  while cond1 step i ≅ while cond2 step i.
+Proof.
+  rewrite /while => hcond.
+  apply KTreeFacts.eq_itree_iter' with eq => // {i}.
+  move=> i _ <-.
+  rewrite /while_body hcond; reflexivity.
+Qed.
+
+Lemma split_while_imp {E} {I} (cond1 cond2 : I -> bool) (step : I -> itree E I) i :
+  (forall i, cond1 i -> cond2 i) ->
+  while cond2 step i ≅
+  (i' <- while cond1 step i;; while cond2 step i').
+Proof.
+  rewrite (split_while cond1) => hcond.
+  have heq : (fun i => cond1 i && cond2 i) =1 cond1.
+  + by move=> i0; move: (hcond i0); case: (cond1 i0) => // /(_ erefl) ->.
+  have -> := while_eq _ _ heq; reflexivity.
 Qed.
 
 Fixpoint iter_n {E : Type -> Type} {I R} (body : I -> itree E (I + R))

@@ -583,9 +583,9 @@ Proof.
     case: szs_of_fn => [ [szs ws]| [<-]]; last by auto.
     case: andP; last by move=> ? [<-]; auto.
     by move=> []? /ZltP??; right; exists szs, ws.
-  + move=> [? hszs]; subst lfd'. apply xrutt_bind with (fun _ _ => lfd_export lfd).
-    + by apply rutt_iresult; t_xrbindP => ->; exists tt.
-    move=> _ _ hexport; apply xrutt_bind with eq.
+  + move=> [? hszs]; subst lfd'. apply xrutt_facts.xrutt_bind with (fun _ _ => lfd_export lfd).
+    + by apply xrutt_iresult; t_xrbindP => ->; exists tt.
+    move=> _ _ hexport; apply xrutt_facts.xrutt_bind with eq.
     + have /(_ [::]):= istack_zeroization_lprog_lsem hzerolp hlfd _ hpre1.
       have heq : (fun s0 : lstate => endpc lp fn s0 && endpc lp' fn s0) =1 endpc lp' fn.
       + move=> s2 /=; rewrite /endpc hlfd hlfd'.
@@ -596,9 +596,9 @@ Proof.
       move=> /(_ h).
       by apply xrutt_weaken => // ?? [].
     move=> r _ <-.
-    apply xrutt_bind with eq.
-    + by apply rutt_iresult => ? ->; eauto.
-    move=> _ _ _; apply xrutt_Ret; split => //.
+    apply xrutt_facts.xrutt_bind with eq.
+    + by apply xrutt_iresult => ? ->; eauto.
+    move=> _ _ _; apply xrutt.xrutt_Ret; split => //.
     rewrite /match_mem_zero_export.
     case: szs_of_fn hszs => [_|//].
     move=> /andP; rewrite hexport /= => /ZltP/Z.le_ngt ?.

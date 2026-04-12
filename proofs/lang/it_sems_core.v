@@ -187,6 +187,18 @@ Definition isem_while_loop (c1 : cmd) (e:pexpr) (c2: cmd) (s : estate) :
 
 End SEM_C.
 
+Definition estate0 (fs : fstate) :=
+  Estate fs.(fscs) fs.(fmem) Vm.init.
+
+Definition is_init_state_ok (p:prog) ev (fn:funname) (fs:fstate) :=
+  match get_fundef (p_funcs p) fn with
+  | Some fd =>
+    let sinit := estate0 fs in
+    Let _ := init_state fd.(f_extra) (p_extra p) ev sinit in
+    ok tt
+  | None => Error ErrSemUndef
+  end.
+
 Class sem_Fun (E : Type -> Type) :=
   { sem_fun : prog -> extra_val_t -> instr_info -> funname -> fstate -> itree E fstate }.
 
@@ -207,6 +219,8 @@ Definition fexec_syscall (s : estate) (o : syscall_t) (fs:fstate) : itree E fsta
 
 (* semantics of instructions, abstracting on function calls (through
    sem_fun) *)
+
+
 Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
     itree E estate :=
   let: (MkI ii i) := i in
@@ -266,9 +280,6 @@ Proof.
   rewrite -/isem_cmd_ isem_cmd_cat; rewrite !bind_bind.
   apply eutt_eq_bind => {}s /= ; rewrite bind_ret_l !bind_ret_r tau_eutt; reflexivity.
 Qed.
-
-Definition estate0 (fs : fstate) :=
-  Estate fs.(fscs) fs.(fmem) Vm.init.
 
 Definition initialize_funcall (p : prog) (ev : extra_val_t) (fd : fundef) (fs : fstate) : exec estate :=
   let sinit := estate0 fs in
@@ -735,7 +746,7 @@ Proof.
     rewrite /isem_pexprs interp_cond_iresult; apply eutt_eq_bind => ?.
     rewrite interp_bind; apply eutt_eq_bind'.
     + by apply interp_cond_iresult.
-    move=> _; rewrite interp_bind; apply eutt_eq_bind'.
+    move=> _. rewrite interp_bind; apply eutt_eq_bind'.
     + rewrite /ctx_cond /cond /Handler.case_ /rec_call /F.
       setoid_rewrite interp_trigger; reflexivity.
     move=> ?; rewrite interp_bind; apply eutt_eq_bind'.

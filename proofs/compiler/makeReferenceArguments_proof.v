@@ -785,7 +785,7 @@ Context
       + move=> s1 s2 /st_relP [-> _] vs _ <-.
         rewrite /fexec_syscall /=.
         apply xrutt_facts.xrutt_bind with eq.
-        + by apply rutt_iresult => v1 ->; exists v1.
+        + by apply xrutt_iresult => v1 ->; exists v1.
         move=> len _ <-.
         apply xrutt_facts.xrutt_bind with eq.
         + apply xrutt.xrutt_Vis => /=.

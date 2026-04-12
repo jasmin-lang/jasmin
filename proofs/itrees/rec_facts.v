@@ -30,8 +30,151 @@ From ITree Require Import
      Interp.Interp
      Interp.InterpFacts
      Interp.Recursion
-     Interp.RecursionFacts.
+     Interp.RecursionFacts
+     TranslateFacts
+     Exception.
+
+Require Import it_sems_core_defs.
+
 Import ITreeNotations.
+
+Inductive itree_case {E R} (t : itree E R) : Prop :=
+| CaseRet r : Ret r ≅ t -> itree_case
+| CaseTau u : Tau u ≅ t -> itree_case
+| CaseVis A (e : E A) k : Vis e k ≅ t -> itree_case .
+
+Lemma case_itree {E R} (t : itree E R) : itree_case t.
+Proof.
+  destruct (observe t) eqn:Eq.
+  - econstructor 1. rewrite <- Eq, <- itree_eta; reflexivity.
+  - econstructor 2. rewrite <- Eq, <- itree_eta; reflexivity.
+  - econstructor 3. rewrite <- Eq, <- itree_eta; reflexivity.
+Qed.
+
+Lemma interp_mrec_translate {D E1 : Type -> Type} (handle: forall T : Type, D T -> itree (D +' E1) T)
+                            [T : Type] (it:itree E1 T) :
+  interp_mrec handle (translate inr1 it) ≳ it.
+Proof.
+  revert it.
+  ginit. gcofix CIH; intros it.
+  rewrite (itree_eta it).
+  destruct (observe it) as [ res| t | X e k]; simpl.
+  + rewrite translate_ret, unfold_interp_mrec; simpl.
+    gstep; constructor; trivial.
+  + rewrite translate_tau, unfold_interp_mrec; simpl.
+    gstep; constructor; gfinal; left; trivial.
+  + rewrite translate_vis, unfold_interp_mrec; simpl.
+    setoid_rewrite tau_euttge.
+    gstep; constructor; intros x; gfinal; left; apply CIH; trivial.
+Qed.
+
+Module CHECK.
+
+Section CONTEXT.
+Context {D E E0 : Type -> Type} {wE : with_Error E E0}.
+Context (ctx : forall T : Type, D T -> itree (D +' E) T).
+Context (check : forall T : Type, D T -> bool).
+Context (exn : it_exec.error_data).
+Context (ncheck_throw :
+  forall (T : Type) (d : D T), check d = false -> ctx d ≳ Exception.throw exn).
+
+Definition dup T (d: D T) : itree (D +' E) T :=
+  _ <- (if check d then Ret tt else Exception.throw exn);;
+  ITree.trigger (inl1 d).
+
+Definition ctx1 T (t: itree (D +' E) T) : itree (D +' E) T :=
+  interp (case_ dup inr_) t.
+
+Definition ctx' T (d: D T) : itree (D +' E) T :=
+  ctx1 (ctx d).
+
+Inductive invariant {R}
+  : itree (D +' E) R -> itree (D +' E) R -> Prop :=
+| Equal {t} : invariant t t
+| Interp {A} {t:itree (D +'E) A} {k k' : A -> _} :
+  (forall a, invariant (k a) (k' a)) ->
+  invariant (t >>= k) (ctx1 t >>= k')
+| Bind {A} {t : itree (D +' E) A} {k k' : A -> _} :
+  (forall (a : A), invariant (k a) (k' a)) ->
+  invariant (t >>= k) (t >>= k')
+.
+Hint Constructors invariant : core.
+
+Lemma interp_mrec_check_aux :
+  forall T (t1 t2 : itree (D +' E) T),
+  invariant t1 t2 ->
+  interp_mrec ctx t1 ≈ interp_mrec ctx' t2.
+Proof.
+  intros T; einit; ecofix cih.
+  induction 1 as [t | A t k k' hinv ih | A t k k' hinv ih].
+  { destruct (case_itree t) as [ ? H | u H | A [d|e] k H ];
+      rewrite <- H, 2 unfold_interp_mrec; simpl.
+    { eret. }
+    { etau. }
+    { etau. }
+    evis. }
+  { unfold ctx1; destruct (case_itree t) as [ ? W | u W | ? [d|e] k1 W ]; rewrite <- W.
+    { rewrite interp_ret, 2 bind_ret_l; apply ih. }
+    { rewrite interp_tau, 2 bind_tau, 2 unfold_interp_mrec; simpl; etau. }
+    { rewrite interp_vis, bind_bind. setoid_rewrite tau_euttge.
+      unfold case_ at 1; simpl.
+      unfold dup at 1.
+      rewrite bind_bind, bind_vis, unfold_interp_mrec; simpl.
+      case_eq (check d); intros hcheck.
+      { rewrite bind_ret_l.
+        setoid_rewrite unfold_interp_mrec at 2; simpl.
+        setoid_rewrite bind_ret_l.
+        etau; ebase. }
+      rewrite bind_throw, (ncheck_throw hcheck), bind_throw.
+      rewrite tau_euttge, 2 unfold_interp_mrec; simpl; evis. }
+    rewrite interp_vis, bind_bind; setoid_rewrite tau_euttge.
+    setoid_rewrite bind_vis.
+    rewrite 2 unfold_interp_mrec; simpl.
+    evis; intros x.
+    rewrite bind_ret_l.
+    etau. }
+  destruct (case_itree t) as [ ? W | ? W | ? [d|e] k1 W]; rewrite <- W.
+  { rewrite 2 bind_ret_l; apply ih. }
+  { rewrite 2 bind_tau, 2 unfold_interp_mrec; simpl; etau. }
+  { rewrite 2 bind_vis, 2 unfold_interp_mrec; simpl; etau; ebase. }
+  rewrite 2 bind_vis, 2 unfold_interp_mrec; simpl; evis; etau.
+Qed.
+
+Lemma interp_mrec_check {R} (t : itree (D +' E) R) : interp_mrec ctx t ≈ interp_mrec ctx' t.
+Proof. apply interp_mrec_check_aux; constructor. Qed.
+
+Lemma mrec_check {R} (d : D R) : mrec ctx d ≈ mrec ctx' d.
+Proof.
+  unfold mrec; rewrite <- interp_mrec_check .
+  unfold ctx', ctx1. generalize (ctx d); clear d.
+  ginit; pcofix cih; intros t.
+  destruct (case_itree t) as [ ? W | u W | ? [d|e] k1 W ]; rewrite <- W.
+  { rewrite interp_ret, unfold_interp_mrec; simpl.
+    gstep; constructor; trivial. }
+  { rewrite interp_tau, 2 unfold_interp_mrec; simpl.
+    gstep; constructor; gfinal; left; apply cih. }
+  { rewrite interp_vis. unfold case_ at 1; simpl.
+    unfold dup at 1.
+    rewrite bind_bind, unfold_interp_mrec; simpl.
+    case_eq (check d); intros hcheck.
+    { rewrite bind_ret_l; setoid_rewrite unfold_interp_mrec at 2; simpl.
+      gstep; constructor.
+      rewrite 2 interp_mrec_bind; setoid_rewrite bind_ret_l; setoid_rewrite tau_euttge.
+      guclo eqit_clo_bind; econstructor; [reflexivity|].
+      intros ? _ []; gfinal; left; apply cih. }
+    rewrite bind_throw, (ncheck_throw hcheck), bind_throw.
+    rewrite tau_euttge, unfold_interp_mrec; simpl.
+    gstep; constructor => -[]. }
+  rewrite interp_vis. setoid_rewrite tau_euttge.
+  setoid_rewrite bind_vis.
+  rewrite 2 unfold_interp_mrec; simpl.
+  setoid_rewrite tau_euttge. setoid_rewrite bind_ret_l.
+  gstep; constructor => x; gfinal; left; apply cih.
+Qed.
+
+End CONTEXT.
+
+End CHECK.
 
 Definition ctx_cond {D E} (cond : forall T, D T -> bool) (ctx : D ~> itree (D +' E)) :=
   Handler.case_ (fun T (d:D T) => if cond T d then ctx T d else inl_ T d) inr_.
@@ -55,18 +198,6 @@ Inductive invariant {D E} (cond : forall T1, D T1 -> forall T2, D T2 -> bool) (c
 .
 Hint Constructors invariant : core.
 
-Inductive itree_case {E R} (t : itree E R) : Prop :=
-| CaseRet r : Ret r ≅ t -> itree_case
-| CaseTau u : Tau u ≅ t -> itree_case
-| CaseVis A (e : E A) k : Vis e k ≅ t -> itree_case .
-
-Lemma case_itree {E R} (t : itree E R) : itree_case t.
-Proof.
-  destruct (observe t) eqn:Eq.
-  - econstructor 1. rewrite <- Eq, <- itree_eta; reflexivity.
-  - econstructor 2. rewrite <- Eq, <- itree_eta; reflexivity.
-  - econstructor 3. rewrite <- Eq, <- itree_eta; reflexivity.
-Qed.
 
 Lemma interp_mrec_loop2_ {D E} (cond : forall T1, D T1 -> forall T2, D T2 -> bool) (ctx : D ~> itree (D +' E)) {R} :
   forall {t : itree (D +' E) R} {u : itree (D +' E) R},
@@ -79,7 +210,7 @@ Proof with auto.
     + eret.
     + etau.
     + etau.
-      ebase; right. apply SELFL.
+      ebase. right. apply SELFL.
       apply Interp; intros; constructor.
     + evis.
   - destruct (case_itree t) as [ ? W | u W | ? [d|e] h W ]; rewrite <- W.
