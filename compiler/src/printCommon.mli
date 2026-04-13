@@ -1,6 +1,7 @@
 val escape : string -> string
 (** replace dots & columns by underscores *)
 
+val string_of_ltype : Type.ltype -> string
 val pp_wsize : Format.formatter -> Wsize.wsize -> unit
 val string_of_signess : Wsize.signedness -> string
 val string_of_velem : Wsize.signedness -> Wsize.wsize -> Wsize.velem -> string

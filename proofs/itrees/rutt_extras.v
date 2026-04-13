@@ -24,7 +24,44 @@ From ITree Require Import
 
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 
-Require Import xrutt xrutt_facts.
+Require Import xrutt xrutt_facts while.
+
+Lemma rutt_iter_n (E1 E2 : Type -> Type) {I1 I2 R1 R2}
+      (RI : I1 -> I2 -> Prop)
+      (RR : R1 -> R2 -> Prop)
+      (body1 : I1 -> itree E1 (I1 + R1))
+      (body2 : I2 -> itree E2 (I2 + R2))
+      (RPreE : forall A B : Type, E1 A -> E2 B -> Prop)
+      (RPostE : forall A B : Type, E1 A -> A -> E2 B -> B -> Prop) :
+  (forall j1 j2, RI j1 j2 ->
+     exists n,
+       rutt RPreE RPostE (sum_rel RI RR) (body1 j1) (iter_n body2 n j2)) ->
+  forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
+    @rutt E1 E2 R1 R2 RPreE RPostE RR
+      (ITree.iter body1 i1) (ITree.iter body2 i2).
+Proof.
+  ginit. gcofix CIH.
+  intros.
+  rewrite unfold_iter.
+  have [n hn] := H0 _ _ RI_i.
+  rewrite (unfold_iter_n body2 n).
+  eapply gpaco2_uclo; [|eapply rutt_clo_bind|]; eauto with paco.
+  econstructor; eauto. intros; subst. gfinal. right.
+  destruct u1; try discriminate.
+  destruct u2; try discriminate.
+  pstep; red.
+  econstructor.
+  right.
+  eapply CIH; eauto.
+  inversion H; subst; auto.
+  pstep; red.
+  inversion H; subst.
+  destruct u2; try discriminate.
+  inversion H; subst.
+  pstep; red.
+  econstructor.
+  inversion H; subst; auto.
+Qed.
 
 Lemma rutt_iter (E1 E2 : Type -> Type) {I1 I2 R1 R2}
       (RI : I1 -> I2 -> Prop)
@@ -38,6 +75,7 @@ Lemma rutt_iter (E1 E2 : Type -> Type) {I1 I2 R1 R2}
   forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
     @rutt E1 E2 R1 R2 RPreE RPostE RR
       (ITree.iter body1 i1) (ITree.iter body2 i2).
+Proof.
   ginit. gcofix CIH.
   intros.
   rewrite !unfold_iter.

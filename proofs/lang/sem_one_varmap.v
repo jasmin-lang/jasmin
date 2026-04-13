@@ -71,7 +71,7 @@ Let vrsp : var := vid p.(p_extra).(sp_rsp).
 
 #[local] Notation magic_variables := (magic_variables p).
 
-Definition ra_valid fd (ii:instr_info) (k: Sv.t) : bool :=
+Definition ra_valid fd (k: Sv.t) : bool :=
   match fd.(f_extra).(sf_return_address) with
   | RAstack ra_call ra_return _ _ =>
     (if ra_call is Some ra_call then (ra_call != vgd) && (ra_call != vrsp)
@@ -179,7 +179,7 @@ with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
 with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :=
 | EcallRun ii k s1 s2 fn f m1 s2' :
     get_fundef (p_funcs p) fn = Some f →
-    ra_valid f ii k →
+    ra_valid f k →
     saved_stack_valid f k →
     top_stack_aligned f s1.(emem) →
     valid_RSP s1.(emem) s1.(evm) →
@@ -292,7 +292,7 @@ Lemma sem_callE ii k s fn s' :
   sem_call ii k s fn s' →
   ex4_10
     (λ f _ _ _, get_fundef (p_funcs p) fn = Some f)
-    (λ f _ _ k', ra_valid f ii k')
+    (λ f _ _ k', ra_valid f k')
     (λ f _ _ k', saved_stack_valid f k')
     (λ f _ _ _, top_stack_aligned f s.(emem))
     (λ _ _ _ _, valid_RSP s.(emem) s.(evm))
@@ -409,7 +409,7 @@ Section SEM_IND.
   Definition sem_Ind_proc : Prop :=
     ∀ (ii: instr_info) (k: Sv.t) (s1 s2: estate) (fn: funname) fd m1 s2',
       get_fundef (p_funcs p) fn = Some fd →
-      ra_valid fd ii k →
+      ra_valid fd k →
       saved_stack_valid fd k →
       top_stack_aligned fd s1.(emem) →
       valid_RSP s1.(emem) s1.(evm) →

@@ -1,6 +1,7 @@
 #[ct = "secret → public"]
 export fn load(reg ptr u32[1] a) -> reg u32 {
   reg u32 x = a[0];
+  #declassify(a[0]);
   #declassify(x);
   return x;
 }
@@ -23,3 +24,4 @@ export fn slice(reg ptr u32[2] data) -> reg u32, reg u32 {
   reg u32 x = data[0], y = end[0];
   return x, y;
 }
+

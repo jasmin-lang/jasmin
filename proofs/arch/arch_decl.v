@@ -583,7 +583,9 @@ Variant asm_i_r : Type :=
   | POPPC (* Pop a destination from the stack and jump there, arm : POP PC, x86 : RET *)
   (* Instructions exposed at source-level *)
   | AsmOp  of asm_op_t' & asm_args
-  | SysCall of syscall_t.
+  | SysCall of syscall_t
+  | Declassify_val of ltype & asm_arg
+  | Declassify_mem of positive & address.
 
 Record asm_i : Type := MkAI { asmi_ii : instr_info; asmi_i : asm_i_r }.
 
