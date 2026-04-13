@@ -111,6 +111,8 @@ End ITREE.
 
 Import ITree.ITree Structures.Functor Structures.Monad Basics.Basics.
 
+(* The bypass is apparently needed and rules out many lemmas from ITrees and
+   mathcomp. *)
 #[bypass_check(universes)]
 Definition dinterp_itree
 {R : realType} {T} (t : itree (Rnd (R := R)) T) : DistrM (R := R) T :=
