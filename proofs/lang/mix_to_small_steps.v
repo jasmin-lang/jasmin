@@ -1,3 +1,49 @@
+(* Small-step and mixed-step semantics equivalence.
+
+   This file define infinite traces of small-step semantics, infinite traces of
+   mixed-step semantics, and prove their equivalence. The small-step semantics
+   applies a transition function until reaching a stopping condition. The
+   mixed-step semantics does the same but sometimes fast-forwards some subtraces
+   according to a parameter, and then fills in the subtraces with itself.
+
+   Given a transition function [istep : lstate -> itree E lstate], the
+   small-step trace [ss_sem cond s] applies the transition until some predicate
+   [cond : lstate -> bool] fails. That is, it is [while cond istep s].
+
+   The mixed-step trace [mix_sem cond s] does the same but with big steps in
+   between: a step that yields a state satisfying [is_call f] goes in one step
+   to the result of the trace until a predicate [fun_cond f] fails. This
+   semantics is defined using events and the mutual recursion operator.
+
+   The proof of the equivalence goes in three hops, introducing two intermediate
+   semantics that keep track of a stack of conditions to synchronize [ss_sem]
+   and [mix_sem]. The two semantics work on pairs
+   [lstate * list (lstate -> bool)] but in the end return just the [lstate].
+
+   First, we show that the small-step trace is equivalent to a small-step stack
+   semantics [ss_stk_sem]. This semantics behaves like [ss_sem] but it tracks a
+   stack of conditions. The condition is checked before stepping. If it fails,
+   the semantics stutters for one step and drops the condition. If it succeeds,
+   the semantics steps, and, additionally, if the state *before stepping* is a
+   call state, it pushes a new condition on the stack of the resulting state.
+   Naturally it is equivalent to the small-step semantics when the stack
+   contains the stopping condition and every further condition we push is
+   stronger than that one (this is called [wf_stk]).
+
+   Secondly, we show that the small-step stack semantics is equivalent to the
+   mixed-step semantics but with stack [mix_stk_steps_sem]. This semantics
+   keeps a stack but it only has one element at a time (it is used to
+   synchronize with [ss_stk_sem]. Steps that fail the condition remove it in the
+   same way as [ss_stk_sem], but calls raise events. The events expect just a
+   state so the stack does not change. The handler runs the same semantics but
+   with *just* the condition of the call on the stack. The key lemma is
+   [bind_mix_stk_steps] which says that the mixed-step stack semantics behaves
+   as if it pushed conditions on the stack. "In reality," [mix_stk_steps_sem]
+   has only one element on the stack.
+
+   Lastly, the equivalence between [mix_stk_steps_sem] and [mix_sem] shows that
+   the stack can be ignored because. *)
+
 Require Import Paco.paco.
 From Coq Require Import
      Program.Tactics
