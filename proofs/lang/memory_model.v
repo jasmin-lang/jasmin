@@ -929,9 +929,25 @@ End SPEC.
 #[ global ] Arguments stack_stable {_ _ _} _ _.
 #[ global ] Arguments free_stack_spec {_ _ _} _ _.
 
+Definition is_stack_stable mem {CM : coreMem pointer mem} {M : memory CM} m m' :=
+  [&& stack_root m == stack_root m'
+    , stack_limit m == stack_limit m'
+    & frames m == frames m'].
+
+Lemma stack_stableP mem {CM : coreMem pointer mem} {M : memory CM} m m' :
+  reflect (stack_stable m m') (is_stack_stable m m').
+Proof.
+  apply: (equivP and3P); split.
+  + by move=> [/eqP ? /eqP ? /eqP ?]; constructor.
+  by move=> [-> -> ->]; rewrite !eqxx.
+Qed.
+
 Lemma stack_stable_trans mem {CM : coreMem pointer mem} {M : memory CM} m2 m1 m3 :
    stack_stable m1 m2 -> stack_stable m2 m3 -> stack_stable m1 m3.
 Proof. by move=> [???] [???]; split; congruence. Qed.
+
+Lemma stack_stable_sym mem {CM : coreMem pointer mem} {M : memory CM} m1 m2 : stack_stable m1 m2 -> stack_stable m2 m1.
+Proof. by case; constructor. Qed.
 
 Lemma top_stack_after_aligned_alloc p ws sz :
   is_align p ws ->
