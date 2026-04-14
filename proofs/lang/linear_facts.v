@@ -356,4 +356,52 @@ Proof.
   by have := hrec _ _ hsem hlin; rewrite size_rcons; apply.
 Qed.
 
+Lemma lsem_body_weak lp (cond1 cond2:lstate -> bool) s1 s2 :
+  (forall s, cond1 s -> cond2 s) ->
+  lsem_body lp cond1 s1 = ok (inl s2) -> lsem_body lp cond2 s1 = ok (inl s2).
+Proof. by rewrite /lsem_body => /(_ s1); case: cond1 => // ->. Qed.
+
+Lemma lsem_n_weak lp (cond1 cond2:lstate -> bool) s1 s2 :
+  (forall s, cond1 s -> cond2 s) ->
+  lsem_n lp cond1 s1 s2 -> lsem_n lp cond2 s1 s2.
+Proof.
+  move=> hcond [n hsem]; exists n.
+  elim: n s1 hsem => //= n ih s1.
+  have /(_ lp s1) := lsem_body_weak hcond.
+  by case: lsem_body => //= -[] // ? /(_ _ erefl) -> /= /ih.
+Qed.
+
+Definition pc_between fn pcs pce (s:lstate) :=
+  if lfn s == fn then pcs <= lpc s < pce
+  else true.
+
+Lemma pc_between_weak fn pcs1 pce1 pcs2 pce2 s :
+  pcs2 <= pcs1 -> pce1 <= pce2 ->
+  pc_between fn pcs1 pce1 s -> pc_between fn pcs2 pce2 s.
+Proof.
+  rewrite /pc_between; case: ifP => // _ hs he /andP [] hle hlt.
+  by rewrite (leq_trans hs hle) /= (leq_trans hlt he).
+Qed.
+
+Lemma sem_fopns_args_lsem_n lp fn P Q ii lc s1 s2 :
+  sem_fopns_args s1 lc = ok s2 ->
+  is_linear_of lp fn (P ++ map (li_of_fopn_args ii) lc ++ Q) ->
+  let pcs := size P in
+  let pce := size P + size lc in
+  lsem_n lp (pc_between fn pcs pce) (of_estate s1 fn pcs) (of_estate s2 fn pce).
+Proof.
+  elim: lc P s1 => /= [ | [[xs o] es] lc hrec] P s1.
+  + by move=> [<-] _; rewrite addn0; apply lsem_n_0.
+  rewrite /sem_fopn_args; t_xrbindP=> s1' evs hes rvs hex hw hsem hlin.
+  apply: lsem_n_step.
+  + by rewrite /pc_between /= eqxx leqnn /= -addSnnS ltn_addr.
+  + rewrite /lsem1/step -{1}(addn0 (size P)).
+    have  /(_ (of_estate s1 fn (size P + 0)) 0) := find_instr_skip hlin.
+    rewrite /of_estate /setpc /= /eval_instr => -> //=.
+    by rewrite to_estate_of_estate hes /= hex /= hw /=; reflexivity.
+  move: hlin; rewrite -addSnnS -cat_rcons => hlin.
+  have := hrec _ _ hsem hlin; rewrite size_rcons.
+  by apply: lsem_n_weak => s; apply pc_between_weak.
+Qed.
+
 End WITH_PARAMS.
