@@ -337,7 +337,7 @@ Context (hcall : forall ii1 fn1 fn2,
     wkequiv_io
       (preF fn1 fn2)
       (sem_fun (sem_Fun := sem_F1) p global_data ii1 fn1)
-      (sem_funK (sem_FunK := sem_F2) p global_data fn2)
+      (sem_funK (sem_FunK := sem_F2) p fn2)
       (postF fn1 fn2)).
 
 Context (m0:mem)
@@ -364,7 +364,7 @@ Definition Pc (c:cmd) :=
     wkequiv_io
       (fun s1 kt1 => merged_vmap_inv I s1 kt1.2)
       (it_sems_core.isem_cmd_ (sem_F:=sem_F1) p global_data c)
-      (it_sems_one_varmap.isem_cmd_ (it_sems_one_varmap.isem_i (sem_F:=sem_F2)) p global_data c)
+      (it_sems_one_varmap.isem_cmd_ (it_sems_one_varmap.isem_i (sem_F:=sem_F2)) p c)
       (fun s1 kt1 s2 kt2 =>
          [/\ merged_vmap_inv O s2 kt2.2
            , evm kt1.2 =[\ write_c c] evm kt2.2
@@ -377,7 +377,7 @@ Definition Pi (i:instr) :=
     wkequiv_io
       (merged_vmap_inv I)
       (it_sems_core.isem_i_body (sem_F:=sem_F1) p global_data i)
-      (it_sems_one_varmap.isem_i (sem_F:=sem_F2) p global_data i)
+      (it_sems_one_varmap.isem_i (sem_F:=sem_F2) p i)
       (fun s1 t1 s2 kt2 =>
          [/\ merged_vmap_inv O s2 kt2.2
            , evm t1 =[\ write_I i] evm kt2.2
@@ -390,7 +390,7 @@ Definition Pi_r (i:instr_r) :=
     wkequiv_io
       (merged_vmap_inv I)
       (it_sems_core.isem_i_body (sem_F:=sem_F1) p global_data (MkI ii i))
-      (it_sems_one_varmap.isem_ir (sem_F:=sem_F2) p global_data i)
+      (it_sems_one_varmap.isem_ir (sem_F:=sem_F2) p i)
       (fun s1 t1 s2 kt2 =>
          [/\ merged_vmap_inv O s2 kt2.2
            , evm t1 =[\ write_i i] evm kt2.2
@@ -820,7 +820,7 @@ Lemma merge_varmaps_funP fn1 fn2 :
   wkequiv_io
     (preF fn1 fn2)
     (sem_fun (sem_Fun := sem_fun_full) p global_data dummy_instr_info fn1)
-    (sem_funK (sem_FunK := it_sems_one_varmap.sem_fun_full var_tmps) p global_data fn2)
+    (sem_funK (sem_FunK := it_sems_one_varmap.sem_fun_full var_tmps) p fn2)
     (postF fn1 fn2).
 Proof.
   move=> fs1 t1 hpre /=.
@@ -906,11 +906,11 @@ Proof.
   rewrite /it_sems_one_varmap.initialize_funcall.
   rewrite -hmem hal /valid_RSP hrsp value_eqb_refl //=.
   rewrite ok_m' /= bind_ret_l.
-  set t1' := (t1' in it_sems_one_varmap.isem_cmd _ _ _ t1').
+  set t1' := (t1' in it_sems_one_varmap.isem_cmd _ _ t1').
   have hfun : ∀ (ii1 : instr_info) (fn1 fn2 : funname),
       wkequiv_io (preF fn1 fn2)
         (sem_fun (sem_Fun:= sem_fun_rec _) p global_data ii1 fn1)
-        (sem_funK (sem_FunK :=  it_sems_one_varmap.sem_funK_rec _) p global_data fn2)
+        (sem_funK (sem_FunK :=  it_sems_one_varmap.sem_funK_rec _) p fn2)
         (postF fn1 fn2).
   + move=> ii1 fn1 fn2 s t hpre /=.
     apply xrutt.xrutt_Vis => // s' t' /= hpost.

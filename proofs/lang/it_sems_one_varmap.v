@@ -55,8 +55,8 @@ Context
 Section SEM_C.
 
 Context {E E0} {wE : with_Error E E0}
-        (sem_i: sprog -> extra_val_t -> instr -> estate -> itree E (Sv.t * estate))
-        (p : prog) (ev : extra_val_t).
+        (sem_i: sprog -> instr -> estate -> itree E (Sv.t * estate))
+        (p : prog).
 
 (* folding instruction semantics on commands *)
 
@@ -78,7 +78,7 @@ Fixpoint isem_cmd_ (c: cmd) : Sv.t * estate -> itree E (Sv.t * estate) :=
   fun ks =>
    match c with
    | [::] => Ret ks
-   | i :: c => ks' <- sem_i p ev i ks.2;; isem_cmd_ c (Sv.union ks.1 ks'.1, ks'.2)
+   | i :: c => ks' <- sem_i p i ks.2;; isem_cmd_ c (Sv.union ks.1 ks'.1, ks'.2)
    end.
 
 (* Make global definition *)
@@ -114,7 +114,7 @@ Variant recCallK : Type -> Type :=
  | RecCallK (f:funname) (fs: estate) : recCallK (Sv.t * estate).
 
 Class sem_FunK (E : Type -> Type) :=
-  { sem_funK : sprog -> extra_val_t -> funname -> estate -> itree E (Sv.t * estate) }.
+  { sem_funK : sprog -> funname -> estate -> itree E (Sv.t * estate) }.
 
 (* recCall trigger *)
 Definition rec_callK {E : Type -> Type} (f : funname) (fs : estate) :
@@ -123,7 +123,7 @@ Definition rec_callK {E : Type -> Type} (f : funname) (fs : estate) :
 
 #[global]
 Instance sem_funK_rec (E : Type -> Type) : sem_FunK (recCallK +' E) | 0 :=
-  {| sem_funK := fun _ _ => rec_callK (E:=E) |}.
+  {| sem_funK := fun _ => rec_callK (E:=E) |}.
 
 Context (var_tmp : Sv.t).
 
@@ -131,13 +131,13 @@ Section SEM_I.
 
 Context {E E0} {wE : with_Error E E0} {sem_F : sem_FunK E}.
 
-Fixpoint isem_i(p:sprog) (ev:extra_val_t) (i : instr) (s : estate) :
+Fixpoint isem_i(p : sprog) (i : instr) (s : estate) :
     itree E (Sv.t * estate) :=
   let: (MkI ii i) := i in
-  ks <- isem_ir p ev i s;;
+  ks <- isem_ir p i s;;
   _ <- iresult (ks.2) (assert (disjoint ks.1 (magic_variables p)) ErrSemUndef);;
   Ret ks
-with isem_ir (p:sprog) (ev:extra_val_t) (i : instr_r) (s : estate) : itree E (Sv.t * estate) :=
+with isem_ir (p : sprog) (i : instr_r) (s : estate) : itree E (Sv.t * estate) :=
   match i with
   | Cassgn x tg ty e => iresult s (add_fv (vrv x) (sem_assgn p x tg ty e s))
 
@@ -149,29 +149,29 @@ with isem_ir (p:sprog) (ev:extra_val_t) (i : instr_r) (s : estate) : itree E (Sv
 
   | Cif e c1 c2 =>
     b <- isem_cond p e s;;
-    isem_cmd_ isem_i p ev (if b then c1 else c2) (Sv.empty, s)
+    isem_cmd_ isem_i p (if b then c1 else c2) (Sv.empty, s)
 
   | Cwhile a c1 e i c2 =>
-    isem_while_loop isem_i p ev c1 e c2 (Sv.empty, s)
+    isem_while_loop isem_i p c1 e c2 (Sv.empty, s)
 
   | Ccall xs fn args =>
     let fi := s in
-    fs <- sem_funK p ev fn fi;;
+    fs <- sem_funK p fn fi;;
     Ret (Sv.union fs.1 (fd_tmp_call p fn), kill_tmp_call p fn fs.2)
 
   | Cassert _ => Exception.throw (ErrSemUndef, tt)
   | Cfor _ _ _ => Exception.throw (ErrSemUndef, tt)
   end.
 
-Definition isem_cmd (p:sprog) (ev:extra_val_t) c s :=
-  isem_cmd_ isem_i p ev c (Sv.empty, s).
+Definition isem_cmd (p:sprog) c s :=
+  isem_cmd_ isem_i p c (Sv.empty, s).
 
 Let vrsp (p:sprog) : var := vid p.(p_extra).(sp_rsp).
 
 Definition valid_RSP p m vm :=
   value_eqb vm.[vrsp p] (Vword (top_stack m)).
 
-Definition initialize_funcall (p:sprog) (ev:extra_val_t) f (fs:estate) :=
+Definition initialize_funcall (p:sprog) f (fs:estate) :=
  Let _ := assert (top_stack_aligned f fs.(emem) &&
                   valid_RSP p fs.(emem) fs.(evm)) ErrSemUndef in
  Let m1 :=
@@ -199,11 +199,11 @@ Definition is_stack_stable (m m' : mem) :=
     , stack_limit m == stack_limit m'
     & frames m == frames m'].
 
-Definition isem_fun_body (p : prog) (ev : extra_val_t)
+Definition isem_fun_body (p : prog)
    (fn : funname) (fs : estate) :=
    fd <- ioget (ErrType, tt) (get_fundef (p_funcs p) fn);;
-   s1 <- iresult fs (initialize_funcall p ev fd fs);;
-   ks2 <- isem_cmd p ev fd.(f_body) s1;;
+   s1 <- iresult fs (initialize_funcall p fd fs);;
+   ks2 <- isem_cmd p fd.(f_body) s1;;
    ks3 <- iresult ks2.2 (finalize_funcall p fd ks2);;
    _ <- iresult ks3.2 (assert (is_stack_stable (emem fs) (emem ks3.2)) ErrSemUndef);;
    Ret ks3.
@@ -215,46 +215,46 @@ End SEM_I.
 Section REC.
 Context {E E0} {wE : with_Error E E0}.
 
-Definition isem_ir_rec (p : sprog) (ev : extra_val_t) (i : instr_r) (s : estate)
+Definition isem_ir_rec (p : sprog) (i : instr_r) (s : estate)
   : itree (recCallK +' E) (Sv.t * estate) :=
-  isem_ir (sem_F := sem_funK_rec E) p ev i s.
+  isem_ir (sem_F := sem_funK_rec E) p i s.
 
-Definition isem_i_rec (p : sprog) (ev : extra_val_t) (i : instr) (s : estate)
+Definition isem_i_rec (p : sprog) (i : instr) (s : estate)
   : itree (recCallK +' E) (Sv.t * estate) :=
-  isem_i (sem_F := sem_funK_rec E) p ev i s.
+  isem_i (sem_F := sem_funK_rec E) p i s.
 
 (* similar, for commands *)
-Definition isem_cmd_rec (p : sprog) (ev : extra_val_t) (c : cmd) (s : estate)
+Definition isem_cmd_rec (p : sprog) (c : cmd) (s : estate)
   : itree (recCallK +' E) (Sv.t * estate) :=
-  isem_cmd (sem_F := sem_funK_rec E) p ev c s.
+  isem_cmd (sem_F := sem_funK_rec E) p c s.
 
 (* similar, for function calls *)
-Definition isem_fun_rec (p : sprog) (ev : extra_val_t)
+Definition isem_fun_rec (p : sprog)
    (fn : funname) (fs : estate) : itree (recCallK +' E) (Sv.t * estate) :=
-  isem_fun_body (sem_F := sem_funK_rec E) p ev fn fs.
+  isem_fun_body (sem_F := sem_funK_rec E) p fn fs.
 
 (* handler of recCallK events *)
 Definition handle_recCallK {sem_F : funname -> sem_FunK (recCallK +' E)}
-  (p : sprog) (ev : extra_val_t) :
+  (p : sprog) :
    recCallK ~> itree (recCallK +' E) :=
  fun T (rc : recCallK T) =>
    match rc with
-   | RecCallK fn fs => isem_fun_body (sem_F:=sem_F fn) p ev fn fs
+   | RecCallK fn fs => isem_fun_body (sem_F:=sem_F fn) p fn fs
    end.
 
 (* intepreter of recCall events for functions, giving us the recursive
    semantics of functions *)
-Definition isem_fun_def {sem_F : funname -> sem_FunK (recCallK +' E)} (p : sprog) (ev : extra_val_t) (fn : funname) (fs : estate) : itree E (Sv.t * estate) :=
-  mrec (handle_recCallK (sem_F := sem_F) p ev) (RecCallK fn fs).
+Definition isem_fun_def {sem_F : funname -> sem_FunK (recCallK +' E)} (p : sprog) (fn : funname) (fs : estate) : itree E (Sv.t * estate) :=
+  mrec (handle_recCallK (sem_F := sem_F) p) (RecCallK fn fs).
 
 Definition isem_fun := isem_fun_def (sem_F := fun _ => sem_funK_rec E).
 
 #[global]
 Instance sem_fun_full : sem_FunK E | 100 :=
-  {| sem_funK := fun p ev => isem_fun p ev |}.
+  {| sem_funK := fun p => isem_fun p |}.
 
-Definition isem_cmd_full (p : prog) (ev : extra_val_t) (c : cmd) (s : estate) : itree E (Sv.t * estate) :=
-  isem_cmd (sem_F := sem_fun_full) p ev c s.
+Definition isem_cmd_full (p : prog) (c : cmd) (s : estate) : itree E (Sv.t * estate) :=
+  isem_cmd (sem_F := sem_fun_full) p c s.
 
 Definition isem_exportcall (p:sprog) (gd: @extra_val_t progStack) fn (s:estate) :=
   fd <-ioget (ErrType, tt) (get_fundef p.(p_funcs) fn);;
@@ -266,7 +266,7 @@ Definition isem_exportcall (p:sprog) (gd: @extra_val_t progStack) fn (s:estate) 
                            , ~~ Sv.mem vrsp (sv_of_list v_var fd.(f_res))
                            & value_eqb vm.[vgd] (Vword gd)]
                           ErrSemUndef);;
-  ks2 <- isem_fun p gd fn s;;
+  ks2 <- isem_fun p fn s;;
   let (k, s2) := (ks2.1, ks2.2) in
   _ <- iresult s2 (assert (Sv.subset (Sv.inter callee_saved (Sv.union k (ra_undef fd var_tmp)))
                                      (sv_of_list fst fd.(f_extra).(sf_to_save)))
