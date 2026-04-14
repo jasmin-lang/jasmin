@@ -40,7 +40,7 @@ Delimit Scope ssring with S.
 Declare Scope ssfield.
 
 Notation "c %:S"   := (FEc c)     : ssfield.
-Notation "''X_' i" := (FEX _ i)   : ssfield.
+Notation "''X_' i" := (@FEX _ i)   : ssfield.
 Notation "x + y"   := (FEadd x y) : ssfield.
 Notation "x - y"   := (FEsub x y) : ssfield.
 Notation "- x"     := (FEopp x  ) : ssfield.
@@ -413,7 +413,7 @@ Ltac ssring :=
   let xe := fresh "xe" in
     apply/eqP; rewrite -subr_eq0; apply/eqP;
     reify xt xe;
-    apply (@Rcorrect _ 100 xe [::] xt (Coq.setoid_ring.Ring_polynom.PEc 0%Z) I);
+    apply (@Rcorrect _ 100 xe [::] xt (@PEc _ 0%Z) I);
     vm_compute;exact (erefl true).
 
 (* -------------------------------------------------------------------- *)
@@ -422,7 +422,7 @@ Ltac ssfield :=
   let xe := fresh "xe" in
     apply/eqP; rewrite -subr_eq0; apply/eqP;
       (* rewrite ?(mulr0, mul0r, mulr1, mul1r); *) freify xt xe;
-      move: (@Fcorrect _ 100 xe [::] xt (Field_theory.FEc 0) I [::] (erefl [::]));
+      move: (@Fcorrect _ 100 xe [::] xt (@FEc _ 0) I [::] (erefl [::]));
       move/(_ _ (erefl _) _ (erefl _) (erefl true)); rewrite !PEFeval;
       apply=> /=; do? split; cbv delta[BinPos.Pos.to_nat] => /= {xt xe};
       try (exact I || apply/eqP).
