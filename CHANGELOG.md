@@ -1,3 +1,16 @@
+# Jasmin 2026.03.1 — 2026-04-14
+
+## New features
+
+- Extraction as EasyCrypt code targets version 2026.03
+  ([PR #1420](https://github.com/jasmin-lang/jasmin/pull/1420)).
+
+## Other changes
+
+- Zero-extension from 32/64 to 128 bits on x86 uses the AVX instructions
+  (`VMOVD`/`VMOVQ`) instead of the SSE2 instructions (`MOVD`/`MOVQ`)
+  ([PR 1433](https://github.com/jasmin-lang/jasmin/pull/1433)).
+
 # Jasmin 2026.03.0 — 2026-03-09
 
 ## New features
