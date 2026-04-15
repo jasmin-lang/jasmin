@@ -32,7 +32,7 @@ Import Order.TTheory.
 
 Section WSEQ.
 
-Definition wseq := seq u8.
+Definition wseq : Type := seq u8.
 
 Definition dummy_wseq : wseq := [::].
 
@@ -123,6 +123,8 @@ End WSEQ.
 
 Section WVEC.
 
+#[local] Coercion Pos.to_nat : positive >-> nat.
+
 Definition wvec (n : nat) : Type := 'rV[u8]_n.
 Definition mkwvec (n : nat) (s : seq u8) : wvec n := \row_i nth 0%R s i.
 Definition dummy_wvec (n : nat) : wvec n := \row_i 0%R.
@@ -130,13 +132,28 @@ Definition dummy_wvec (n : nat) : wvec n := \row_i 0%R.
 Coercion wseq_of_wvec (n : nat) (v : wvec n) : wseq :=
   [seq v ord0 i | i <- enum 'I_n ].
 
-Definition wvec_of_arr n (a : WArray.array n) : wvec (Pos.to_nat n) :=
-  mkwvec (Pos.to_nat n) (wseq_of_arr a).
+Definition wvec_of_arr (n : positive) (a : WArray.array n) : wvec n :=
+  mkwvec n (wseq_of_arr a).
 
-Definition read_wvec {_ : PointerData} m p len : wvec (Pos.to_nat len) :=
-  mkwvec (Pos.to_nat len) (read_wseq m p len).
+Definition read_wvec
+  {_ : PointerData} (m : mem) (p : pointer) (len : positive) : wvec len :=
+  mkwvec len (read_wseq m p len).
 
-Definition wvec_of_val n (v : value) : wvec (Pos.to_nat n) :=
-  if to_arr n v is Ok a then wvec_of_arr a else dummy_wvec (Pos.to_nat n).
+Definition pad0 (n : positive) (s : wseq) : wseq :=
+  nseq (n - size s) 0%R ++ take n s.
+
+(* TODO lia solves it in cil
+Lemma size_pad0 n s : size (pad0 n s) = n.
+Proof.
+  rewrite /pad0 size_cat size_nseq size_take; case: ifP => ?; lia.
+*)
+
+Definition wvec_of_val (n : positive) (v : value) : wvec (Pos.to_nat n) :=
+  let d := dummy_wvec n in
+  match v with
+  | Vword ws w => mkwvec n (pad0 n (split_vec 8 w))
+  | Varr _ a => if WArray.cast n a is Ok a' then wvec_of_arr a' else d
+  | _ => d
+  end.
 
 End WVEC.

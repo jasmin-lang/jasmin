@@ -29,7 +29,7 @@ compiler/cil.v
 compiler/indcca.v
 compiler/sufcma.v
 compiler/end_to_end.v
-
+compiler/end_to_end_indcca.v
 
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v

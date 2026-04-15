@@ -48,36 +48,6 @@ Notation "'let*' p ':=' c1 'in' c2" :=
 
 Notation "x |> f" := (f x) (only parsing, at level 25).
 
-Section UTILS.
-
-(* foldl (fun s x => if p x then x :: s else s) [::] s *)
-Fixpoint take_while T (p : pred T) (s : seq T) : seq T :=
-  if s is x :: s then
-    if p x then x :: take_while p s else [::]
-  else s.
-
-Fixpoint drop_while T (p : pred T) (s : seq T) : seq T :=
-  if s is x :: s then
-    if p x then drop_while p s else x :: s
-  else s.
-
-Fixpoint split_after T (p : pred T) (s : seq T) : seq T * seq T :=
-  if s is x :: s then
-    if p x then
-      let: (s1, s2) := split_after p s in
-      (x :: s1, s2)
-    else ([::], x :: s)
-  else ([::], [::]).
-
-Lemma split_after_take_drop T p (s : seq T) :
-  split_after p s = (take_while p s, drop_while p s).
-Proof. elim: s => [|x s hi] //=; case: ifP => _ //; by rewrite hi. Qed.
-
-Definition uncons T (s : seq T) : option (T * seq T) :=
-  if s is x :: s then Some (x, s) else None.
-
-End UTILS.
-
 Section REAL.
 
 Context {R : realType}.
@@ -98,10 +68,6 @@ Class OracleSystem :=
     Oo : (* Oracle implementation. *)
       forall (o : No), In o -> Mo -> itree Rnd (Out o * Mo);
     mi : Mo; (* Initial oracle memory. *)
-    oI : No; (* Initial oracle. *)
-    oF : No; (* Final oracle. *)
-    In_oI : In oI = unit;
-    Out_oF : Out oF = unit;
   }.
 
 Context {O : OracleSystem}.
@@ -304,10 +270,6 @@ Instance INDCCA : OracleSystem :=
     Out := _Out;
     Oo := _Oo;
     mi := _mi;
-    oI := OGenKey;
-    oF := OSubmitGuess;
-    In_oI := erefl;
-    Out_oF := erefl;
   |}.
 
 Definition is_genkey (x : Xch) : option pkey :=
