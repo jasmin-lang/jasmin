@@ -505,7 +505,7 @@ Proof.
     case: andP; last by move=> ? [<-]; auto.
     by move=> []? /ZltP??; right; exists szs, ws.
   + move=> [? hszs]; subst lfd'. apply xrutt_facts.xrutt_bind with (fun _ _ => lfd_export lfd).
-    + by apply rutt_iresult; t_xrbindP => ->; exists tt.
+    + by apply xrutt_iresult; t_xrbindP => ->; exists tt.
     move=> _ _ hexport; apply xrutt_facts.xrutt_bind with eq.
     + have /(_ [::]):= istack_zeroization_lprog_lsem hzerolp hlfd _ hpre1.
       have heq : (fun s0 : lstate => endpc lp fn s0 && endpc lp' fn s0) =1 endpc lp' fn.
@@ -518,7 +518,7 @@ Proof.
       by apply xrutt_facts.xrutt_weaken => // ?? [].
     move=> r _ <-.
     apply xrutt_facts.xrutt_bind with eq.
-    + by apply rutt_iresult => ? ->; eauto.
+    + by apply xrutt_iresult => ? ->; eauto.
     move=> _ _ _; apply xrutt.xrutt_Ret; split => //.
     rewrite /match_mem_zero_export.
     case: szs_of_fn hszs => [_|//].

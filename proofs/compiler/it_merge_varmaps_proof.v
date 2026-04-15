@@ -600,6 +600,9 @@ Proof.
     apply (xrutt_facts.xrutt_bind hi).
     move=> s2 kt2 [hinv2 hex2 hsub2].
     have {}hsub : Sv.Subset kt2.1 W by apply: SvD.F.Subset_trans hsub2 hsub.
+    have /stack_stableP -> :=
+      stack_stable_trans (stack_stable_sym (mvs_stable (mvi_stable hinv1)))
+                   (mvs_stable (mvi_stable hinv2)).
     rewrite (disjoint_w hsub mvp_not_written) /= bind_ret_l.
     by apply xrutt.xrutt_Ret.
   (* nil *)
@@ -621,7 +624,7 @@ Proof.
   (* assgn *)
   + move=> x tg ty e ii I O.
     rewrite /write_i /= => hsub; t_xrbindP => he hx s1 t1 hinv1.
-    apply rutt_iresult => s2; rewrite /sem_assgn.
+    apply xrutt_iresult => s2; rewrite /sem_assgn.
     t_xrbindP => v ok_v v' ok_v' ok_s2.
     have [w -> /= vw] := check_eP he (mvi_match hinv1) ok_v.
     have [w' -> /= vw'] := value_uincl_truncate vw ok_v'.
@@ -631,7 +634,7 @@ Proof.
   (* opn *)
   + move=> xs t o es ii I O.
     rewrite /write_i /= => hsub; t_xrbindP => he hx s1 t1 hinv1.
-    apply rutt_iresult => s2; rewrite /sem_sopn.
+    apply xrutt_iresult => s2; rewrite /sem_sopn.
     t_xrbindP => ws vs ok_v ok_ws ok_s2.
     have [w -> /= vw] := check_esP he (mvi_match hinv1) ok_v.
     have [ws' -> /= vw'] := vuincl_exec_opn vw ok_ws.
@@ -641,7 +644,7 @@ Proof.
   (* syscall *)
   + move=> xs o es ii I O.
     rewrite /write_i /= => hsub; t_xrbindP => he halles hallxs <- s1 t1 hinv1.
-    apply rutt_iresult => s2; rewrite /sem_syscall /upd_estate.
+    apply xrutt_iresult => s2; rewrite /sem_syscall /upd_estate.
     t_xrbindP => vs ok_v fs ok_fs ok_s2.
     rewrite /it_sems_one_varmap.sem_syscall.
     have [ves' hves' uves]:= check_esP he (mvi_match hinv1) ok_v.
@@ -685,7 +688,7 @@ Proof.
   + move=> e c1 c2 hc1 hc2 ii I O.
     rewrite {1}write_i_if /=; t_xrbindP => hsub hche O1 hch1 O2 hch2 <- s1 t1 hinv1 /=.
     apply xrutt_facts.xrutt_bind with eq.
-    + apply rutt_iresult => b; rewrite /sem_cond; t_xrbindP => v he.
+    + apply xrutt_iresult => b; rewrite /sem_cond; t_xrbindP => v he.
       have [v' -> /= hu hto]:= check_eP hche (mvi_match hinv1) he.
       by have [? -> <-] := wrequiv_to_bool hu hto; eexists; eauto.
     have [hsub1 hsub2] := SvSubset_and hsub.
@@ -726,7 +729,7 @@ Proof.
       apply: (eq_exT hex1); apply: eq_exI hex2.
       by rewrite write_i_while; clear; SvD.fsetdec.
     apply xrutt_facts.xrutt_bind with eq.
-    + apply rutt_iresult => b; rewrite /sem_cond; t_xrbindP => v he.
+    + apply xrutt_iresult => b; rewrite /sem_cond; t_xrbindP => v he.
       have [v' -> /= hu hto]:= check_eP hche (mvi_match hinv2) he.
       by have [? -> <-] := wrequiv_to_bool hu hto; eexists; eauto.
     move=> + _ <- => -[]; last first.
@@ -806,13 +809,6 @@ Proof.
 Qed.
 
 End CMD.
-
-Lemma stack_stableP m m' : reflect (stack_stable m m') (is_stack_stable m m').
-Proof.
-  apply: (equivP and3P); split.
-  + by move=> [/eqP ? /eqP ? /eqP ?]; constructor.
-  by move=> [-> -> ->]; rewrite !eqxx.
-Qed.
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 

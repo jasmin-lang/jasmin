@@ -135,7 +135,7 @@ Fixpoint isem_i(p : sprog) (i : instr) (s : estate) :
     itree E (Sv.t * estate) :=
   let: (MkI ii i) := i in
   ks <- isem_ir p i s;;
-  _ <- iresult (ks.2) (assert (disjoint ks.1 (magic_variables p)) ErrSemUndef);;
+  _ <- iresult (ks.2) (assert (is_stack_stable (emem s) (emem ks.2) && disjoint ks.1 (magic_variables p)) ErrSemUndef);;
   Ret ks
 with isem_ir (p : sprog) (i : instr_r) (s : estate) : itree E (Sv.t * estate) :=
   match i with
@@ -193,11 +193,6 @@ Definition finalize_funcall p f ks2 :=
   let s2 := {| escs := s2'.(escs); emem := m2 ; evm := set_RSP p m2 vm2 |} in
   let k' := Sv.union (ra_undef f var_tmp) (ra_vm_return f.(f_extra)) in
   ok (Sv.union k k', s2).
-
-Definition is_stack_stable (m m' : mem) :=
-  [&& stack_root m == stack_root m'
-    , stack_limit m == stack_limit m'
-    & frames m == frames m'].
 
 Definition isem_fun_body (p : prog)
    (fn : funname) (fs : estate) :=

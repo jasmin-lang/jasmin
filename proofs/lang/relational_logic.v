@@ -478,7 +478,7 @@ Section IRESULT.
 Context {E_l E0_l : Type -> Type} {wE_l: with_Error E_l E0_l}
         {E_r E0_r : Type -> Type} {wE_r: with_Error E_r E0_r} {rE0 : EventRels2 E0_l E0_r}.
 
-Lemma rutt_iresult (T1 T2:Type) (s1 : estate1) (s2 : estate2) (x1 : exec T1) (x2 : exec T2) (R : T1 -> T2 -> Prop) :
+Lemma xrutt_iresult (T1 T2:Type) (s1 : estate1) (s2 : estate2) (x1 : exec T1) (x2 : exec T2) (R : T1 -> T2 -> Prop) :
   (forall v1, x1 = ok v1 -> exists2 v2, x2 = ok v2 & R v1 v2) ->
   xrutt (errcutoff (is_error wE_l)) nocutoff EPreRel EPostRel R (iresult s1 x1) (iresult s2 x2).
 Proof.
@@ -489,10 +489,21 @@ Proof.
   by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
 Qed.
 
+Lemma xrutt_iresult_left (T1 T2:Type) (s1 : estate1) (x1 : exec T1) (v2 : T2) (R : T1 -> T2 -> Prop) :
+  (forall v1, x1 = ok v1 -> R v1 v2) ->
+  xrutt (errcutoff (is_error wE_l)) nocutoff EPreRel EPostRel R (iresult s1 x1) (Ret v2).
+Proof.
+  rewrite /iresult => h.
+  case heq: x1 => [v1 | e] /=.
+  + by apply/xrutt_Ret/h.
+  apply xrutt_CutL.
+  by rewrite /errcutoff /is_error /subevent /= /resum /fromErr mid12.
+Qed.
+
 Lemma wkequiv_iresult {I1 I2 O1 O2} (P : rel I1 I2) (Q : rel O1 O2) (f1 : I1 -> estate1) (f2 : I2 -> estate2) F1 F2 :
   wrequiv P F1 F2 Q ->
   wkequiv P (fun i => iresult (wE:=wE_l) (f1 i) (F1 i)) (fun i => iresult (wE:=wE_r) (f2 i) (F2 i)) Q.
-Proof. by move=> h i1 i2 hP; apply rutt_iresult => s1'; apply: h. Qed.
+Proof. by move=> h i1 i2 hP; apply xrutt_iresult => s1'; apply: h. Qed.
 
 Lemma wkequiv_iresult_right (P : rel estate1 estate2) (Q : rel estate1 estate2) (f2 : estate2 -> estate2) F2 :
   (forall s t, P s t -> exists2 t', F2 t = ok t' & Q s t') ->
@@ -505,11 +516,7 @@ Lemma wkequiv_iresult_left (P : rel estate1 estate2) (Q : rel estate1 estate2) (
   (forall s s' t, P s t -> F1 s = ok s' -> Q s' t) ->
   wkequiv P (fun s => iresult (wE:=wE_l) (f1 s) (F1 s)) (fun t => Ret t) Q.
 Proof.
-  move=> h s t /h{}h; rewrite /iresult.
-  case heq: (F1 s) => [s' | e] /=.
-  + by apply/xrutt_Ret/h.
-  apply xrutt_CutL.
-  by rewrite /errcutoff /is_error /subevent /= /resum /fromErr mid12.
+  by move=> h s t /h{}h; apply xrutt_iresult_left.
 Qed.
 
 End IRESULT.
@@ -1268,7 +1275,7 @@ Proof.
   apply (xrutt_bind hepilogue) => _ r2 [-> /hres [fs2' -> hRP]].
   rewrite /= !bind_ret_l /=.
   apply xrutt_bind with (fun _ _ => true).
-  + by apply rutt_iresult => -[] /(hpost _ _ hRP) ->; exists tt.
+  + by apply xrutt_iresult => -[] /(hpost _ _ hRP) ->; exists tt.
   by move=> _ _ _;  apply xrutt_Ret.
 Qed.
 
