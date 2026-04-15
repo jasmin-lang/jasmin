@@ -248,6 +248,7 @@ Definition mo_with_bit (m : _Mo) (b : bool) : _Mo :=
 
 Definition _mi : _Mo := {| mo_keys := None; mo_bit := None; |}.
 
+(* Oracle input types. *)
 Definition _In (x : oracle_name) : choiceType :=
   match x with
   | OGenKey => unit
@@ -256,6 +257,7 @@ Definition _In (x : oracle_name) : choiceType :=
   | OSubmitGuess => bool
   end.
 
+(* Oracle output types. *)
 Definition _Out (x : oracle_name) : choiceType :=
   match x with
   | OGenKey => pkey
@@ -288,6 +290,7 @@ Definition _Oo_GetChallenge
 Definition _Oo_SubmitGuess (g : bool) (_ : _Mo) : itree Rnd (unit * _Mo) :=
   Ret (tt, _mi).
 
+(* Oracle implementation. *)
 Definition _Oo (x : oracle_name) : _In x -> _Mo -> itree Rnd (_Out x * _Mo) :=
   match x return _In x -> _Mo -> itree Rnd (_Out x * _Mo) with
   | OGenKey => _Oo_GenKey
@@ -341,7 +344,8 @@ Definition is_submitguess (x : Xch) : option bool :=
   | _ => fun _ => None
   end p.
 
-Definition destruct_trace
+(* Check that the trace follows the INDCCA game *)
+Definition indcca_trace
   (t : trace) : option (bool * seq ctxt * seq ctxt * ctxt) :=
   (* First query is to [GenKey]. *)
   let%opt ((x, _), t) := uncons t in
@@ -368,7 +372,7 @@ Definition destruct_trace
   Some (g == b, qs, qs', ct).
 
 Definition _win (t : trace) : bool :=
-  if destruct_trace t is Some  (b, qs, qs', ct) then
+  if indcca_trace t is Some  (b, qs, qs', ct) then
     [&& b & indcca.valid Q (qs, qs', ct) ]
   else false.
 
