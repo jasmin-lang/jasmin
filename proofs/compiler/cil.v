@@ -34,8 +34,6 @@ From ITree Require Import
   Events.StateFacts
   Interp.TranslateFacts
 .
-From Paco Require Import paco.
-Import Monads.
 
 Require Import distr_extra dinterp.
 Require Import rutt_extras oseq utils.
@@ -424,6 +422,9 @@ Section ADV.
 
 Lemma eutt_games {advmem} {A : @indcca.Adversary R pkey advmem ctxt msg} :
   eutt match_res (indcca.game C A) (interact INDCCA (A_of_indcca A)).
+Proof.
+rewrite /indcca.game /interact /indcca.interact /run_state /interp_state /=
+  /_Aa.
 Admitted.
 
 Lemma correct_indcca advmem (A : @indcca.Adversary R _ advmem _ _) :
