@@ -57,14 +57,14 @@ Section GAME.
 
      The challenger [(GenKey, Encap, Decap)] comprises:
      - A key generation algorithm [GenKey : itree Rnd (pkey * skey)].
-     - An encapsulation algorithm [Encap : pkey -> itree Rnd (ciphert * msg)].
-     - A decapsulation algorithm [Decap : skey -> ciphert -> itree Rnd msg].
+     - An encapsulation algorithm [Encap : pkey -> itree Rnd (ctxt * msg)].
+     - A decapsulation algorithm [Decap : skey -> ctxt -> itree Rnd msg].
 
      The adversary [(Query, Guess)] comprises:
      - A first stage [Query : pkey -> itree (Dec +' Rnd) advmem] that queries
        the decapsulation algorithm and produces an adversary advmem.
      - A second stage
-       [Guess : advmem -> pkey -> ciphert -> msg -> itree (Dec +' Rnd) bool]
+       [Guess : advmem -> pkey -> ctxt -> msg -> itree (Dec +' Rnd) bool]
        that performs a guess and can query the decapsulation algorithm.
 
      The adversary is allowed to make at most [Q] queries to the decapsulation
@@ -84,41 +84,40 @@ Section GAME.
 
   Context
     {pkey skey advmem : Type}
-    {ciphert : choiceType}
+    {ctxt : choiceType}
     {msg : finType}
   .
 
   Variant Dec : Type -> Type :=
-  | Decapsulate : ciphert -> Dec msg.
+  | Decapsulate : ctxt -> Dec msg.
 
   Record Challenger :=
     {
       GenKey : itree Rnd (pkey * skey);
-      Encap : pkey -> itree Rnd (ciphert * msg);
-      Decap : skey -> ciphert -> itree Rnd msg;
+      Encap : pkey -> itree Rnd (ctxt * msg);
+      Decap : skey -> ctxt -> itree Rnd msg;
     }.
 
   (* Adversary can run Encap by themselves because they have [pk]. *)
   Record Adversary :=
     {
       Query : pkey -> itree (Dec +' Rnd) advmem;
-      Guess : advmem -> pkey -> ciphert -> msg -> itree (Dec +' Rnd) bool;
+      Guess : advmem -> pkey -> ctxt -> msg -> itree (Dec +' Rnd) bool;
     }.
 
   Context (C : Challenger) (A : Adversary) (Q : nat).
 
   (* Log for the game.
      It tracks the list of ciphertexts that have been queried. *)
-  Definition S : Type := seq ciphert.
+  Definition S : Type := seq ctxt.
 
   (* Log a decapsulation query. *)
-  Definition log E `{stateE S -< E} (c : ciphert) : itree E unit :=
+  Definition log E `{stateE S -< E} (c : ctxt) : itree E unit :=
     let* l := get in put (c :: l).
 
   (* Handle a decapsulation query from the attacker, given a secret key [sk].
      The query is logged and answered honestly. *)
-  Definition handle_Dec
-    (sk : skey) : Dec ~> itree (stateE S +' Rnd) :=
+  Definition handle_Dec (sk : skey) : Dec ~> itree (stateE S +' Rnd) :=
     fun T e =>
       let 'Decapsulate c := e in
       let* _ := log c in
@@ -137,7 +136,7 @@ Section GAME.
 
   (* The trace records the query and guess phase logs, and the chosen
      ciphertext. *)
-  Definition trace : Type := S * S * ciphert.
+  Definition trace : Type := S * S * ctxt.
 
   Definition game : itree Rnd (bool * trace) :=
     let* (pk, sk) := C.(GenKey) in
@@ -153,7 +152,7 @@ Section GAME.
 
   Definition valid (t : trace) : bool :=
     let '(lq, lg, ct) := t in
-    [&& ct \notin lg & (size lq + size lg <= Q)%N].
+    [&& ct \notin lg & (size lq + size lg + 2 <= Q)%N ].
 
   Definition advantage : R :=
     `| \P_[ dgame ] (fun '(b, t) => b && valid t) - 1/2 |.
@@ -167,11 +166,11 @@ Section REDUCE.
 
   Context
     {pkey skey advmem : Type}
-    {ciphert : choiceType}
+    {ctxt : choiceType}
     {msg : finType}
   .
 
-  Notation advantage := (@advantage pkey skey advmem ciphert msg).
+  Notation advantage := (@advantage pkey skey advmem ctxt msg).
 
   (* Every adversary for [C1] can be converted into an adversary for [C2] that
      performs at most the same number of oracle queries and whose advantage is
