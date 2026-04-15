@@ -343,6 +343,7 @@ Definition is_submitguess (x : Xch) : option bool :=
 
 Definition destruct_trace
   (t : trace) : option (bool * seq ctxt * seq ctxt * ctxt) :=
+  let t := rev t in
   (* First query is to [GenKey]. *)
   let%opt ((x, _), t) := uncons t in
   let%opt _ := oassert (isSome (is_genkey x)) in
@@ -365,7 +366,7 @@ Definition destruct_trace
   let%opt g := is_submitguess x in (* Guess bit. *)
   let%opt _ := oassert (nilp t) in
 
-  Some (g == b, qs, qs', ct).
+  Some (g == b, rev qs, rev qs', ct).
 
 Definition _win (t : trace) : bool :=
   if destruct_trace t is Some  (b, qs, qs', ct) then
@@ -420,11 +421,66 @@ Section ADV.
 
  End ADV.
 
+(* Convert eq_itree to eutt. *)
+Local Lemma eqi2eutt {E0 X0} (t1 t2 : itree E0 X0) : t1 ≅ t2 -> t1 ≈ t2.
+Proof. exact: eq_sub_eutt. Qed.
+
+(* One-step unfolding of run_state (interp hI (Ret/Tau/Vis)). *)
+
+Lemma rsi_ret {E F0 St X} (hI : E ~> itree (stateE St +' F0)) (r : X) (s : St) :
+  run_state (interp hI (Ret r)) s ≈ Ret (s, r).
+Proof.
+rewrite /run_state; etransitivity.
+{ eapply eutt_interp_state_eq; last reflexivity.
+  apply eqi2eutt; exact (interp_ret (f := hI) r). }
+apply eqi2eutt; apply interp_state_ret.
+Qed.
+
+Lemma rsi_tau {E F0 St X} (hI : E ~> itree (stateE St +' F0))
+  (t : itree E X) (s : St) :
+  run_state (interp hI (Tau t)) s ≈ Tau (run_state (interp hI t) s).
+Proof.
+rewrite /run_state; etransitivity.
+{ eapply eutt_interp_state_eq; last reflexivity.
+  apply eqi2eutt; exact (interp_tau (f := hI) t). }
+apply eqi2eutt; apply interp_state_tau.
+Qed.
+
+Lemma rsi_vis {E F0 St X T} (hI : E ~> itree (stateE St +' F0))
+  (e : E T) (k : T -> itree E X) (s : St) :
+  run_state (interp hI (Vis e k)) s ≈
+  let* sx := run_state (@hI T e) s in
+    Tau (run_state (interp hI (k sx.2)) sx.1).
+Proof.
+rewrite /run_state; etransitivity.
+{ eapply eutt_interp_state_eq; last reflexivity.
+  apply eqi2eutt; exact (interp_vis (f := hI) T e k). }
+etransitivity.
+{ apply eqi2eutt; apply interp_state_bind. }
+apply eutt_clo_bind with (UU := eq).
+- reflexivity.
+- move=> [s' x] _ <-.
+  apply eqi2eutt; apply interp_state_tau.
+Qed.
+
+(* Helper lemma: both sides of the adversary phase produce the same
+   adversary output. The left side interprets Dec events directly (with
+   handle_Dec), while the right side first translates Dec to Exchange events
+   and then handles them through the oracle system. *)
+Lemma eutt_adv_phase {X : choiceType}
+  (t : itree (indcca.Dec +' Rnd) X) sk pk lq (s : trace) :
+  mo_keys (head mi [seq x.2 | x <- s]) = Some (pk, sk) ->
+  eutt (fun '(_, x) '(_, x') => x = x')
+    (run_state (interp (case_ (indcca.handle_Dec C sk) inr_) t) lq)
+    (run_state (interp (case_ handle_Exch inr_)
+                  (interp (case_ Exch_of_Dec inr_) t)) s).
+Proof.
+Admitted.
+
 Lemma eutt_games {advmem} {A : @indcca.Adversary R pkey advmem ctxt msg} :
   eutt match_res (indcca.game C A) (interact INDCCA (A_of_indcca A)).
 Proof.
-rewrite /indcca.game /interact /indcca.interact /run_state /interp_state /=
-  /_Aa.
+rewrite /indcca.game /interact /_Aa.
 Admitted.
 
 Lemma correct_indcca advmem (A : @indcca.Adversary R _ advmem _ _) :
