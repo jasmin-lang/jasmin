@@ -178,14 +178,9 @@ Opaque esem.
         (vm1 <=[Sv.union (read_gvar src) (Sv.remove x X)]  vm2 /\ vm2.[x] = Varr tx') &
         esem_for p2 ev i c (with_vm s vm1') (ziota (n - j) j) = ok (with_vm s vm2).
   + clear -fresh_counter fresh_temporary ok_t Hp freshX hsub ok_t hty.
-    move=> j.
-    have [hneg|hpos] := Z.nonpos_nonneg_cases j.
-    + move=> _ vm1' tx hvm1' hx.
-      rewrite /WArray.fcopy ziota_neg //= => -[<-].
+    apply: natlike_ind_full => [ j hneg | j hj hrec] hjn vm1' tx hvm1' hx.
+    + rewrite /WArray.fcopy ziota_neg //= => -[<-].
       by exists vm1'.
-    move: j hpos.
-    apply: natlike_ind => [ | j hj hrec] hjn vm1' tx hvm1' hx.
-    + by rewrite /WArray.fcopy ziota0 /= => -[?]; subst tx; exists vm1'.
     Opaque Z.sub esem_for.
     rewrite /WArray.fcopy ziotaS_cons //=; have -> : n - Z.succ j + 1 = n - j by ring.
     t_xrbindP => tx1 w hget hset hcopy.
