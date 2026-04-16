@@ -247,10 +247,11 @@ let pp_pprog ~debug fmt p =
                        }
 
       in let funcsig,st = Env.Funs.push_modp_fun st funcsig { fs_tin = tyins; fs_tout = tyouts}
-      in let fsig = { M.fs_tyin = funcsig.f_tyin
+      in let fsig = { M.name = funcsig.f_name
+                    ; M.fs_tyin = funcsig.f_tyin
                     ; M.fs_tyout = funcsig.f_tyout
-      }
-      in st, M.Fun fsig
+      } in
+      st, M.Fun fsig
 
   let rec push_modparams pd (st: 'asm Env.store) =
     function
@@ -279,8 +280,22 @@ let pp_pprog ~debug fmt p =
       in
       let x' = P.PV.mk (new_name) W.Const x'.v_ty (x'.v_dloc) [] in
       Env.Vars.push_global st (x', ty, P.GEword (x))
+    | Mprog.MaFun f, Fun _ ->
+      (*
+      let fs_tin = f'.fs_tyin |> List.map P.gety_of_gty in
+      let fs_tout = f'.fs_tyout |> List.map P.gety_of_gty in
+      (*FIXME: confirm if function types match*)
+      *)
+      let name = match BatString.split_on_string ~by:"::" f.fn_name with (*FIXME - refactor this logic *)
+        | [] -> f.fn_name
+        | names -> List.hd (List.rev names) 
+      in
+      let pfs,fs = Env.Funs.find name st |> Option.get in
+      let f = Option.get pfs.f_pfunc in
+      let st = Env.Funs.push st f fs in
+      st
     |_, _ ->
-      rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Type error")
+      rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Type error: wrong type of module argument")
 
   let rec push_ground_modparams pd (st: 'asm Env.store) =
     function
@@ -883,7 +898,7 @@ and mt_moduleapp arch_info _ menv mname modfuncname margs_original =
           let me_env = Map.add (L.unloc modfunc) new_modinfo menv.me_env
           in {menv with me_env = me_env} 
         | None ->
-          Format.eprintf "Generating new instance for %s - %s\n%!" full_name (L.unloc modfunc);
+          (* Format.eprintf "Generating new instance for %s - %s\n%!" full_name (L.unloc modfunc); *)
           let menv' = { menv with
                        MEnv.me_store =
                          { menv.MEnv.me_store with
@@ -908,208 +923,6 @@ and mt_moduleapp arch_info _ menv mname modfuncname margs_original =
                ; ma_args = margs
                } ]
 
-
-    (* MEnv.add_decls menv
-      [ M.MdModApp { ma_name = (L.unloc mname)
-                   ; ma_func = (L.unloc modfuncname)
-                   ; ma_args = [] (*margs*)
-                   } ] *)
- 
-   (* locate the place in global_bindings of the enclosing functor
-       obs: na verdade, o MEnv fica dessincronizado neste ponto (o
-       corte nos bindings não se reflete no lista de declarações). Mas
-       o invariante do processamento da nova instância deverá assegurar que
-       quando se voltar a juntar os bindings, a lista de declarações está
-       no mesmo ponto.
-    *)
-   (*let menv_at = { menv with
-                       MEnv.me_store =
-                         { menv.MEnv.me_store with
-                           s_bindings = gb
-                         }
-                     } in*)
-    (* typecheck module arguments... *)(*
-    in let _, margs, _ = mt_margs arch_info.pd menv_at mname modinfo.mi_params margs
-    in let ground_module = List.for_all identity menv.MEnv.me_gmod
-    in let menv =
-         if false && ground_module
-         then if margs = []
-           then (* pickup module *)
-             menv
-           else (* pickup/gen instance *)
-             menv
-         else (* parametric module: proceed without really instantiating
-                 the module, just to present sensible error messages
-                 to the user... *)
-           { menv with
-             MEnv.me_store =
-               { menv.MEnv.me_store with
-                 s_bindings = merge_top menv.MEnv.me_store (L.unloc mname) modinfo.MEnv.mi_store
-               }
-           }
-    in MEnv.add_decls menv
-      [ M.MdModApp { ma_name = (L.unloc mname)
-                   ; ma_func = (L.unloc modfuncname)
-                   ; ma_args = [] (*margs*)
-                   } ]*)
-
-(*
-    (* add bindings to module-env (for openings) *) 
-    in let fullmname = qualify cur_modname (MEnv.fully_qualified_modname menv.MEnv.me_store) (L.unloc mname)
-    in let menv =
-         { menv with
-           MEnv.me_env =
-             Map.add
-               modname
-               { modinfo with MEnv.mi_params = [] }
-               menv.MEnv.me_env
-         }
-
-    in let ground_module = List.for_all identity menv.MEnv.me_gmod
-    in let menv =
-         if ground_module
-         then if margs = []
-           then (* pickup module *)
-             let 
-             in let menv =
-                  { menv with
-                    MEnv.me_env =
-                      Map.add fullmname
-                        { modinfo with MEnv.mi_params = [] }
-                        menv.MEnv.me_env
-                  }
-           else (* pickup/gen instance *)
-             menv
-         else (* parametric module: proceed without really instantiating
-                 the module, just to present sensible error messages
-                 to the user... *)
-           menv
-
-    in let cur_modname = MEnv.fully_qualified_modname menv.MEnv.me_store
-    (* 2) add bindings to module-env (to allow opennings) *)
-    in let modname = qualify cur_modname (L.unloc mname)
-    in let menv = { menv with
-                    MEnv.me_env =
-                      Map.add
-                        modname
-                        { modinfo with MEnv.mi_params = [] }
-                        menv.MEnv.me_env
-                  }
-    in let menv = MEnv.upd_store (fun st -> Env.Modules.push st mname modname) menv
-    in let menv =
-         MEnv.add_decls menv
-           [ M.MdModApp { ma_name = (L.unloc mname)
-                        ; ma_func = (L.unloc modfunc)
-                        ; ma_args = margs
-                        } ]
-           
-    (* 3) process instance *)
-    in let ground_module = List.for_all identity menv.MEnv.me_gmod
-    in let menv =
-         if ground_module 
-         then
-           if margs = []
-           then (* pick appropriate module instance *)
-             { menv with
-               MEnv.me_store =
-                 { menv.MEnv.me_store with
-                   s_bindings = merge_top menv.MEnv.me_store (L.unloc mname) modinfo.MEnv.mi_store
-                 }
-             }
-           else (* re-process from source *)
-             let menv = { menv with
-                          MEnv.me_store = st.me_store (*{ menv.me_store with s_bindings = st.me_store.s_bindings}*)
-                        ; MEnv.me_gmod = true::menv.me_gmod 
-                        ; MEnv.me_decls = []::menv.me_decls
-                        }
-             in let menv = List.fold_left (mt_item arch_info) menv modinfo.MEnv.mi_ast
-             in MEnv.exit_module mname [] modinfo.MEnv.mi_ast
-               { menv with
-                 MEnv.me_store =
-                 { menv.MEnv.me_store with
-                   s_bindings = merge_top menv.MEnv.me_store (L.unloc mname) modinfo.MEnv.mi_store
-                 }
-               }
-         else (* proceed without really instantiating the module, just
-                 to present sensible error messages to the user... *)
-           { menv with
-             MEnv.me_store =
-               { menv.MEnv.me_store with
-                 s_bindings = merge_top menv.MEnv.me_store (L.unloc mname) modinfo.MEnv.mi_store
-               }
-           }
-    in menv
-*)
-(*
-and mt_moduleapp2 arch_info menv mname (funcname, funcminfo) margs =
-  let cur_modname = MEnv.fully_qualified_modname menv.MEnv.me_store
-  (* 2) add bindings to module-env (to allow opennings) *)
-  in let modname = qualify cur_modname (L.unloc mname)
-  in let menv = { menv with
-                  MEnv.me_env =
-                    Map.add
-                      modname
-                      { funcminfo with MEnv.mi_params = [] }
-                      menv.MEnv.me_env
-                }
-  in let menv = MEnv.upd_store (fun st -> Env.Modules.push st mname modname) menv
-  in let menv =
-       MEnv.add_decls menv
-         [ M.MdModApp { ma_name = (L.unloc mname)
-                      ; ma_func = funcname
-                      ; ma_args = margs
-                      } ]
-  
-  (* 3) register instance *)
-  in let ground_module = List.for_all identity menv.MEnv.me_gmod
-  in let menv =
-       if ground_module 
-       then 
-         let imodname, imodinfo, menv = 
-           mt_mod_instance arch_info menv modfunc funcminfo margs
-         in { menv with
-              MEnv.me_store =
-                { menv.MEnv.me_store with
-                  s_bindings = merge_top menv.MEnv.me_store (L.unloc mname) imodinfo.MEnv.mi_store
-                }
-            }
-       else (* proceed without really instantiating the module, just
-               to present sensible error messages to the user... *)
-         { menv with
-           MEnv.me_store =
-             { menv.MEnv.me_store with
-               s_bindings = merge_top menv.MEnv.me_store (L.unloc mname) funcminfo.MEnv.mi_store
-             }
-         }
-  in menv
-
-and mt_mod_instance arch_info menv funcname funcminfo margs =
-  if margs = []
-  then funcname, funcminfo, menv
-  else
-    let rec get_instance n = function
-      | [] ->
-        let mname = funcname ^ ":::" ^ Stdlib.string_of_int n
-        in mt_modinstance arch_info menv mname margs funcminfo
-      | ((margs',mname')::xs) ->
-        if margs' = margs
-        then mname', Map.find mname' menv.MEnv.me_env, menv
-        else get_instance (n+1) xs
-    in get_instance 1 funcminfo.MEnv.mi_instances
-(*
-and mt_modinstance arch_info (menv: 'asm MEnv.menv) mname margs funcminfo =
-  let push_param st = function
-    | M.MaParam e ->
-      Env.Vars.push_param st (e
-
-  let menv = upd_store (Env.enter_namespace mname) menv
-
-  let menv, mparams = MEnv.enter_module arch_info.pd mname mparams menv
-  in let menv = List.fold_left (mt_item arch_info) menv body
-  in let menv = MEnv.exit_module mname mparams body menv
-  in menv
-*)  
-*)
 and mt_file_loc arch_info from menv fname =
   mt_file arch_info menv from (Some (L.loc fname)) (L.unloc fname)
 
@@ -1337,6 +1150,8 @@ let add_new_items (new_vars:(string,P.pvar) Utils.Map.t) new_funcs module_name i
    let new_funcs = List.fold_left (fun new_funcs (name,(pfs,_)) -> 
     let name_func_instance = module_name ^ "::" ^ name in
     let fi_name = replace_with_suffix instance_name pfs.Env.f_name.fn_name in
+    (* Printf.eprintf "Searching for function instance %s \n%!" fi_name;
+    Map.iter (fun k _ -> Printf.eprintf "Existing function in new_funcs: %s \n%!" k) new_funcs; *)
     let f = Map.find fi_name new_funcs in
     let new_funcs = Map.add name_func_instance f new_funcs in
     new_funcs
@@ -1374,31 +1189,44 @@ let instantiate_pprog menv =
                 (NonExistentMod (L.unloc modfunc)) in
             let new_vars, new_funcs, items = List.fold_left (fun (new_vars,new_funcs,items)(args,_,name) ->
               let suffix_mod = (L.unloc modfunc,name) in
-              let inst_param new_vars mp arg = 
+              let inst_param new_vars new_funcs mp arg = 
                 match mp, arg with
                 | Mprog.Param v, Mprog.MaParam e -> 
                   let new_name_mod = replace_with_suffix suffix_mod v.v_name in
                   let v = P.PV.mk new_name_mod v.v_kind (change_ty new_vars suffix v.v_ty) v.v_dloc v.v_annot in
                   let new_vars = Map.add v.v_name v new_vars in
                   let e = add_suffix_gexpr new_vars suffix e in
-                  new_vars,P.MIparam (v , e)
+                  new_vars, new_funcs, P.MIparam (v , e)
                 | Mprog.Glob v, Mprog.MaGlob e ->
                   let new_name_mod = replace_with_suffix suffix_mod v.v_name in
                   let v = P.PV.mk new_name_mod v.v_kind (change_ty new_vars suffix v.v_ty) v.v_dloc v.v_annot in
                   let new_vars = Map.add v.v_name v new_vars in
-                  new_vars,P.MIglobal ( v , GEword e)
-                (* | Mprog.Fun fs, Mprog.MaFun f -> Mprog.MaFun f *)
-                | _ , _ -> rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Instantiation error: functions not supported yet") 
+                  new_vars, new_funcs, P.MIglobal ( v , GEword e)
+               | Mprog.Fun fs, Mprog.MaFun fn -> 
+                  let name = replace_with_suffix suffix_mod (fs.name.fn_name) in
+                  let fname = P.F.mk name in
+                  let new_funcs = Map.add name fname new_funcs in
+                  let f =  match Env.Funs.find fn.fn_name menv.me_store with
+                  | Some (pfs,_) -> 
+                    begin match pfs.Env.f_pfunc with
+                    | Some pf -> pf
+                    | None -> rs_mjazzerror ~loc:(pfs.f_loc) (MJazzStringError "Expected a declared function")
+                    end
+                  | None -> rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Expected a declared function")
+                  in
+                  
+                  new_vars, new_funcs, P.MIfun {f with P.f_name = fname}
+                | _ , _ -> rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Mismatch between module parameters and arguments") 
                 in
-                let rec inst_params new_vars m a =
+                let rec inst_params new_vars new_funcs m a =
                   match m, a with
                   | mp::mps , arg::args ->
-                    let new_vars, p = inst_param new_vars mp arg in
-                    let new_vars', p' = inst_params new_vars mps args in
-                    Map.union_stdlib (fun _ _ v2 -> Some v2) new_vars new_vars', p::p'
-                  | _ , _ -> new_vars, []
+                    let new_vars, new_funcs, p = inst_param new_vars new_funcs mp arg in
+                    let new_vars', new_funcs', p' = inst_params new_vars new_funcs mps args in
+                    Map.union_stdlib (fun _ _ v2 -> Some v2) new_vars new_vars', Map.union_stdlib (fun _ _ v2 -> Some v2) new_funcs new_funcs', p::p'
+                  | _ , _ -> new_vars, new_funcs, []
                 in 
-                let new_vars,items' = inst_params new_vars modinfo.mi_params args in
+                let new_vars, new_funcs, items' = inst_params new_vars new_funcs modinfo.mi_params args in
                 let new_vars, new_funcs, body = mprog_topprog new_vars new_funcs suffix_mod (List.rev m.Mprog.functorbody) in
                 new_vars, new_funcs, items @ items' @ body
               ) (new_vars,new_funcs,[]) modinfo.mi_instances in
