@@ -128,6 +128,8 @@ Definition preserved_registerb (r : asm_typed_reg) (m0 m1 : asmmem) :=
 (* FIXME we need to generalize this *)
 Class asm_syscall_sem := {
   eval_syscall : syscall_t -> asmmem -> exec asmmem;
+
+  (* FIXME This one is probably not needed and derivable *)
   eval_syscall_spec1 :
     forall o s1 s2,
       eval_syscall o s1 = ok s2 ->
@@ -136,6 +138,7 @@ Class asm_syscall_sem := {
       [/\ exec_syscall_s s1.(asm_scs) s1.(asm_mem) o vargs = ok (s2.(asm_scs), s2.(asm_mem), vres),
           (forall r, r \in callee_saved -> preserved_register r s1 s2) &
           s1.(asm_rip) = s2.(asm_rip)];
+
   eval_syscall_spec2 :
     forall o s1 vargs scs m vres,
       exec_syscall_s s1.(asm_scs) s1.(asm_mem) o vargs = ok (scs, m, vres) ->

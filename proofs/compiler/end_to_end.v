@@ -78,17 +78,19 @@ Require Import
 
 Import Order.TTheory.
 
+(* TODO remove *) Require end_to_end_indcca.
+
 #[local] Open Scope ring_scope.
 #[local] Open Scope Z.
 #[local] Open Scope order_scope.
 
-Coercion Pos.to_nat : positive >-> nat.
+#[local] Coercion Pos.to_nat : positive >-> nat.
 
-Notation "'let*' p ':=' c1 'in' c2" :=
+#[local] Notation "'let*' p ':=' c1 'in' c2" :=
   (@ITree.bind _ _ _ c1 (fun p => c2))
     (at level 61, p as pattern, c1 at next level, right associativity).
 
-Notation "x |> f" := (f x) (only parsing, at level 25).
+#[local] Notation "x |> f" := (f x) (only parsing, at level 25).
 
 Section CHOICEOF.
 
@@ -231,26 +233,20 @@ Let isemS (p : uprog) :=
     (pT := progUnit)
     p tt.
 
-Let isemT (q : sprog) (rip : pointer) :=
-  isem_fun
-    (asm_op := extended_op)
-    (ep := ep_of_asm_e)
-    (spp := spp_of_asm_e)
-    (wa := noassert)
-    (sip := sip_of_asm_e)
-    (scP := sCP_stack)
+Let isemT (q : asm_prog) :=
+  iasmsem_exportcall
+    (asm_d := _asm asm_e)
+    (call_conv := call_conv)
+    (sc_sem :=
     (E := E)
-    (wsw := withsubword)
-    (dc := direct_c)
-    (pT := progStack)
-    q rip.
+    q.
 
 Section DEFS.
 
 Context
   (p : uprog)
   (entries : seq funname)
-  (mi : mem)
+  (mI : mem)
 .
 
 Definition _Mo : choiceType := {choice mem}.
@@ -263,27 +259,45 @@ Record export_funname :=
 
 Definition _No : choiceType := {choice export_funname}.
 
-Definition _In (o : _No) : choiceType :=
+(* TODO Do we want to restrict the number of arguments?
   if get_fundef (p_funcs p) o is Some fd then
-    {choice ltuple [seq sem_t (eval_atype t) | t <- f_tyin fd ]}
+    {choice ltuple (nseq (size (f_tyin fd)) wseq)}
   else void.
+  or use [sem_t]?
+*)
+Definition _In (o : _No) : choiceType := seq wseq.
 
-Definition _Out (o : _No) : choiceType :=
-  if get_fundef (p_funcs p) o is Some fd then
-    {choice ltuple [seq sem_t (eval_atype t) | t <- f_tyout fd ]}
-  else void.
+Definition _Out (o : _No) : choiceType := seq wseq.
 
-(*Definition mkfs (m : mem) (args : seq wvec)*)
-
-(* We assume that signatures contain only arrays and words. *)
-
-Definition get_res (n : positive) (vs : seq value) (i : nat) : wvec n :=
-  nth (Vbool true) vs i |> wvec_of_val n.
-
-Definition _Oo (o : _No) (i : _In o) (m : _Mo) : itree Rnd (_Out o * _Mo).
-move: o i m; rewrite /_No /_In /_Out /= => o + m.
-case: get_fundef => [fd|] //= args.
+Definition val_of_wseq (t : atype) (a : wseq) : value.
 Admitted.
+
+Definition wseq_of_val (v : value) : wseq.
+Admitted.
+
+Definition mkfsS (fn : funname) (m : mem) (args : seq wseq) : fstate :=
+  let vs :=
+    if get_fundef (p_funcs p) fn is Some fd then
+      [seq val_of_wseq p.1 p.2 | p <- zip (f_tyin fd) args ]
+    else [::] (* absurd *)
+  in
+  {| fscs := tt; fmem := m; fvals := vs; |}.
+
+Definition unmkfsS (fs : fstate) : seq wseq * mem :=
+  ([seq wseq_of_val v | v <- fs.(fvals) ], fs.(fmem)).
+
+(* TODO Why doesn't [|>] work for [translateE]? *)
+Definition _OoS (o : _No) (i : _In o) (m : _Mo) : itree Rnd (_Out o * _Mo) :=
+  let fs := mkfsS o m i in
+  let* ofs' := translateE (isemS p o fs |> interp_Err) in
+  if ofs' is ESok fs' then Ret (unmkfsS fs')
+  else Ret ([::], mI) (* absurd *).
+
+Definition _OoT (o : _No) (i : _In o) (m : _Mo) : itree Rnd (_Out o * _Mo) :=
+  let fs := mkfsT o m i in
+  let* ofs' := translateE (isemT q o fs |> interp_Err) in
+  if ofs' is ESok fs' then Ret (unmkfsS fs')
+  else Ret ([::], mI) (* absurd *).
 
 Instance Source : OracleSystem :=
   {|
@@ -291,8 +305,18 @@ Instance Source : OracleSystem :=
     No := _No;
     In := _In;
     Out := _Out;
-    Oo := _Oo;
-    cil.mi := mi;
+    Oo := _OoS;
+    mi := mS;
+  |}.
+
+Instance Target : OracleSystem :=
+  {|
+    Mo := _Mo;
+    No := _No;
+    In := _In;
+    Out := _Out;
+    Oo := _OoT;
+    mi := mT;
   |}.
 
 End DEFS.

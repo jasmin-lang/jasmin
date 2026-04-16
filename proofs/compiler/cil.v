@@ -166,7 +166,6 @@ Lemma oracle_name_pickleK : pcancel oracle_name_pickle oracle_name_unpickle.
 Proof. by case. Qed.
 
 HB.instance Definition _ := PCanIsCountable oracle_name_pickleK.
-HB.instance Definition _ := Choice.copy oracle_name (pcan_type oracle_name_pickleK).
 
 Lemma oracle_name_fin_axiom : Finite.axiom oracle_names.
 Proof. by case. Qed.
@@ -182,8 +181,8 @@ Context
   {C : indcca.Challenger
       (R := R) (pkey := pkey) (skey := skey) (ctxt := ctxt) (msg := msg)}
   (Q : nat)
-  (dummy_ct : ctxt)
-  (dummy_msg : msg)
+  (dummy_ct : ctxt) (* Malformed interactions return dummies. *)
+  (dummy_msg : msg) (* Malformed interactions return dummies. *)
 .
 
 (* Oracle memory:
@@ -196,13 +195,13 @@ Record _Mo :=
     mo_bit : option bool;
   }.
 
-(* Alternative definition that is a [choiceType]. *)
-Definition _Mo_choice : Type := option (pkey * skey) * option bool.
+(* Isomorphic definition to prove that [_Mo] is a [choiceType]. *)
+Let _Mo_choice : Type := option (pkey * skey) * option bool.
 
-Definition pickle__Mo (m : _Mo) : _Mo_choice :=
+Let pickle__Mo (m : _Mo) : _Mo_choice :=
   (mo_keys m, mo_bit m).
 
-Definition unpickle__Mo (mk : _Mo_choice) : _Mo :=
+Let unpickle__Mo (mk : _Mo_choice) : _Mo :=
   {| mo_keys := mk.1; mo_bit := mk.2; |}.
 
 Lemma pickle__MoK : cancel pickle__Mo unpickle__Mo.
@@ -213,9 +212,9 @@ HB.instance Definition _ := Choice.copy _Mo (can_type pickle__MoK).
 Definition mo_with_bit (m : _Mo) (b : bool) : _Mo :=
   {| mo_keys := mo_keys m; mo_bit := Some b; |}.
 
-Definition _mi : _Mo := {| mo_keys := None; mo_bit := None; |}.
+Let _mi : _Mo := {| mo_keys := None; mo_bit := None; |}.
 
-Definition _In (x : oracle_name) : choiceType :=
+Let _In (x : oracle_name) : choiceType :=
   match x with
   | OGenKey => unit
   | ODecap => ctxt
@@ -223,7 +222,7 @@ Definition _In (x : oracle_name) : choiceType :=
   | OSubmitGuess => bool
   end.
 
-Definition _Out (x : oracle_name) : choiceType :=
+Let _Out (x : oracle_name) : choiceType :=
   match x with
   | OGenKey => pkey
   | ODecap => msg
@@ -231,18 +230,18 @@ Definition _Out (x : oracle_name) : choiceType :=
   | OSubmitGuess => unit
   end%type.
 
-Definition _Oo_GenKey (_ : unit) (_ : _Mo) : itree Rnd (pkey * _Mo) :=
+Let _Oo_GenKey (_ : unit) (_ : _Mo) : itree Rnd (pkey * _Mo) :=
   let* (pk, sk) := C.(indcca.GenKey) in
   let mo := {| mo_keys := Some (pk, sk); mo_bit := None; |} in
   Ret (pk, mo).
 
-Definition _Oo_Decap (ct : ctxt) (mo : _Mo) : itree Rnd (msg * _Mo) :=
+Let _Oo_Decap (ct : ctxt) (mo : _Mo) : itree Rnd (msg * _Mo) :=
   if mo_keys mo is Some (_, sk) then
     let* m := C.(indcca.Decap) sk ct in
     Ret (m, mo)
   else Ret (dummy_msg, mo).
 
-Definition _Oo_GetChallenge
+Let _Oo_GetChallenge
   (_ : unit) (mo : _Mo) : itree Rnd ((ctxt * msg) * _Mo) :=
   if mo_keys mo is Some (pk, _) then
     let* (ct, m0) := C.(indcca.Encap) pk in
@@ -252,10 +251,10 @@ Definition _Oo_GetChallenge
     Ret ((ct, mb), mo_with_bit mo b)
   else Ret ((dummy_ct, dummy_msg), mo).
 
-Definition _Oo_SubmitGuess (g : bool) (_ : _Mo) : itree Rnd (unit * _Mo) :=
+Let _Oo_SubmitGuess (g : bool) (_ : _Mo) : itree Rnd (unit * _Mo) :=
   Ret (tt, _mi).
 
-Definition _Oo (x : oracle_name) : _In x -> _Mo -> itree Rnd (_Out x * _Mo) :=
+Let _Oo (x : oracle_name) : _In x -> _Mo -> itree Rnd (_Out x * _Mo) :=
   match x return _In x -> _Mo -> itree Rnd (_Out x * _Mo) with
   | OGenKey => _Oo_GenKey
   | ODecap => _Oo_Decap
@@ -304,9 +303,12 @@ Definition is_submitguess (x : Xch) : option bool :=
   | _ => fun _ => None
   end p.
 
+(* Return the same as the IND-CCA game, thus we can use the same winning
+   condition. *)
 Definition destruct_trace
   (t : trace) : option (bool * seq ctxt * seq ctxt * ctxt) :=
-  let t := rev t in
+  let t := rev t in (* Oldest first. *)
+
   (* First query is to [GenKey]. *)
   let%opt ((x, _), t) := uncons t in
   let%opt _ := oassert (isSome (is_genkey x)) in
@@ -331,258 +333,14 @@ Definition destruct_trace
 
   Some (g == b, rev qs, rev qs', ct).
 
-Definition _win (t : trace) : bool :=
+Let _win (t : trace) : bool :=
   if destruct_trace t is Some  (b, qs, qs', ct) then
     [&& b & indcca.valid Q (qs, qs', ct) ]
   else false.
 
 Instance W : WinningCondition := {| win := _win; |}.
 
-Definition indcca_adv A := `| pwin INDCCA A W - 1/2 |.
-
-Section PROOF.
-
-Definition match_res
-  (t : bool * indcca.trace (ctxt := ctxt)) (t' : trace) : bool :=
-  if destruct_trace t' is Some (b2, qs2, qs2', ct2) then
-    let: (b1, (qs1, qs1', ct1)) := t in
-    [&& b1 == b2, ct1 == ct2, qs1 == qs2 & qs1' == qs2' ]
-  else false.
-
-Lemma match_resP t t' :
-  match_res t t' ->
-  [&& t.1 & indcca.valid Q t.2 ] = win t'.
-Proof.
-rewrite /match_res /= /_win; case: destruct_trace => // -[[[b2 qs2] qs2'] ct2].
-by move: t => [b1 [[qs1 qs1'] ct1]] /and4P [/eqP -> /eqP -> /eqP -> /eqP ->].
-Qed.
-
-Section ADV.
-
-  Context
-    {advmem : Type}
-    (A : @indcca.Adversary R pkey advmem ctxt msg)
-  .
-
-  Definition Exch_of_Dec : Handler indcca.Dec (Exch +' Rnd) :=
-    fun T e =>
-      let 'indcca.Decapsulate ct := e in
-      trigger (Exchange ODecap ct).
-
-  Let Query pk := interp (case_ Exch_of_Dec inr_) (A.(indcca.Query) pk).
-  Let Guess st pk ct msg :=
-    interp (case_ Exch_of_Dec inr_) (A.(indcca.Guess) st pk ct msg).
-
-  Definition _Aa  : itree (Exch +' Rnd) unit :=
-    let* pk := trigger (Exchange OGenKey tt) in
-    let* st := Query pk in
-    let* (ct, msg) := trigger (Exchange OGetChallenge tt) in
-    let* b := Guess st pk ct msg in
-    trigger (Exchange OSubmitGuess b).
-
-  #[export] Instance A_of_indcca : Adversary := {| Aa := _Aa; |}.
-
- End ADV.
-
-(* Convert eq_itree to eutt. *)
-Local Lemma eqi2eutt {E0 X0} (t1 t2 : itree E0 X0) : t1 ≅ t2 -> t1 ≈ t2.
-Proof. exact: eq_sub_eutt. Qed.
-
-(* One-step unfolding of run_state (interp hI (Ret/Tau/Vis)). *)
-
-Lemma rsi_ret {E F0 St X} (hI : E ~> itree (stateE St +' F0)) (r : X) (s : St) :
-  run_state (interp hI (Ret r)) s ≈ Ret (s, r).
-Proof.
-rewrite /run_state; etransitivity.
-{ eapply eutt_interp_state_eq; last reflexivity.
-  apply eqi2eutt; exact (interp_ret (f := hI) r). }
-apply eqi2eutt; apply interp_state_ret.
-Qed.
-
-Lemma rsi_tau {E F0 St X} (hI : E ~> itree (stateE St +' F0))
-  (t : itree E X) (s : St) :
-  run_state (interp hI (Tau t)) s ≈ Tau (run_state (interp hI t) s).
-Proof.
-rewrite /run_state; etransitivity.
-{ eapply eutt_interp_state_eq; last reflexivity.
-  apply eqi2eutt; exact (interp_tau (f := hI) t). }
-apply eqi2eutt; apply interp_state_tau.
-Qed.
-
-Lemma rsi_vis {E F0 St X T} (hI : E ~> itree (stateE St +' F0))
-  (e : E T) (k : T -> itree E X) (s : St) :
-  run_state (interp hI (Vis e k)) s ≈
-  let* sx := run_state (@hI T e) s in
-    Tau (run_state (interp hI (k sx.2)) sx.1).
-Proof.
-rewrite /run_state; etransitivity.
-{ eapply eutt_interp_state_eq; last reflexivity.
-  apply eqi2eutt; exact (interp_vis (f := hI) T e k). }
-etransitivity.
-{ apply eqi2eutt; apply interp_state_bind. }
-apply eutt_clo_bind with (UU := eq).
-- reflexivity.
-- move=> [s' x] _ <-.
-  apply eqi2eutt; apply interp_state_tau.
-Qed.
-
-Lemma rsi_bind {E F0 St X Y} (hI : E ~> itree (stateE St +' F0))
-  (t : itree E X) (k : X -> itree E Y) (s : St) :
-  run_state (interp hI (ITree.bind t k)) s ≈
-  ITree.bind (run_state (interp hI t) s) (fun sx =>
-    run_state (interp hI (k (snd sx))) (fst sx)).
-Proof.
-rewrite /run_state; etransitivity.
-{ eapply eutt_interp_state_eq; last reflexivity.
-  apply eqi2eutt; exact (interp_bind hI t k). }
-apply eqi2eutt.
-Admitted.
-
-(* Observation-based variants: given observe t = ..., unfold run_state(interp). *)
-Local Lemma obs_eq {E X} (t : itree E X) ot :
-  observe t = ot -> t ≅ go ot.
-Proof. intro H; subst; exact (itree_eta_ t). Qed.
-
-Lemma rsi_obs_ret {E F0 St X} (hI : E ~> itree (stateE St +' F0))
-  (t : itree E X) (s : St) r :
-  observe t = RetF r ->
-  run_state (interp hI t) s ≈ Ret (s, r).
-Proof.
-move=> /obs_eq Ht. setoid_rewrite Ht. exact (rsi_ret hI r s).
-Qed.
-
-Lemma rsi_obs_tau {E F0 St X} (hI : E ~> itree (stateE St +' F0))
-  (t : itree E X) (s : St) t' :
-  observe t = TauF t' ->
-  run_state (interp hI t) s ≈ Tau (run_state (interp hI t') s).
-Proof.
-move=> /obs_eq Ht. setoid_rewrite Ht. exact (rsi_tau hI t' s).
-Qed.
-
-Lemma rsi_obs_vis {E F0 St X T} (hI : E ~> itree (stateE St +' F0))
-  (t : itree E X) (s : St) (e : E T) (k : T -> itree E X) :
-  observe t = VisF e k ->
-  run_state (interp hI t) s ≈
-  let* sx := run_state (@hI T e) s in
-    Tau (run_state (interp hI (k sx.2)) sx.1).
-Proof.
-move=> /obs_eq Ht. setoid_rewrite Ht. exact (rsi_vis hI e k s).
-Qed.
-
-Definition oracle_inv pk sk (s : trace) : Prop :=
-  mo_keys ((head mi [seq x.2 | x <- s]) : _Mo) = Some (pk, sk).
-
-(* Helper lemma: both sides of the adversary phase produce the same
-   adversary output. The left side interprets Dec events directly (with
-   handle_Dec), while the right side first translates Dec to Exchange events
-   and then handles them through the oracle system. *)
-Lemma eutt_adv_phase {X}
-  (t : itree (indcca.Dec +' Rnd) X) sk pk lq (s : trace) :
-  oracle_inv pk sk s ->
-  eutt (fun '(_, x) '(s', x') => x = x' /\ oracle_inv pk sk s')
-    (run_state (interp (case_ (indcca.handle_Dec C sk) inr_) t) lq)
-    (run_state (interp (case_ handle_Exch inr_)
-                  (interp (case_ Exch_of_Dec inr_) t)) s).
-Proof.
-intro Hinv; revert t lq s Hinv.
-einit. ecofix CIH. intros t0 lq0 s0 Hinv0.
-pose proof (obs_eq (ot := observe t0) erefl) as Ht.
-destruct (observe t0) as [r | t' | T0 e0 k0] eqn:Hobs; simpl in Ht.
-- setoid_rewrite Ht; do 2 setoid_rewrite (interp_ret r);
-   by rewrite /run_state !unfold_interp_state /=; eret.
-- rewrite /=. setoid_rewrite Ht. admit.
-setoid_rewrite Ht. admit.
-Admitted.
-
-(* GenKey step: the oracle system's GenKey produces the same keys as C.GenKey,
-   and establishes the oracle invariant. *)
-Lemma step_genkey :
-  eutt (fun '(pk, sk) sx => pk = snd sx /\ oracle_inv pk sk (fst sx))
-    C.(indcca.GenKey)
-    (run_state (interp (case_ handle_Exch inr_)
-      (trigger (Exchange OGenKey tt))) [::]).
-Proof.
-rewrite /run_state.
-setoid_rewrite interp_trigger.
-rewrite /= /handle_Exch /get_Mo /log /_Oo /= /_Oo_GenKey /=.
-rewrite !interp_state_bind interp_state_trigger /= !bind_ret_l /=.
-setoid_rewrite translate_bind.
-setoid_rewrite interp_state_bind.
-rewrite -[in eutt _ _](bind_ret_r (indcca.GenKey C)).
-eapply eutt_clo_bind; last first.
-- (* Continuation *)
-  move=> [pk sk] [s' [r m']] /= HUU.
-  repeat setoid_rewrite interp_state_bind.
-  repeat setoid_rewrite interp_state_trigger.
-  repeat setoid_rewrite bind_ret_l.
-  simpl.
-  (* Goal: eutt RR (Ret (pk,sk)) (right side with state ops) *)
-  (* HUU constrains (r, m') to match (pk, sk) *)
-  admit.
-- (* Head: C.GenKey vs interp_state(translate inr1 C.GenKey) [::] *)
-  (* The translate/interp_state passes C.GenKey's Rnd events through *)
-  admit.
-Admitted.
-
-(* Remaining steps after GenKey + Query: GetChallenge, Guess, SubmitGuess. *)
-(* Steps 3-5: GetChallenge, Guess, SubmitGuess.
-   The left side is the tail of indcca.game after GenKey + Query.
-   The right side is the decomposed oracle computation. *)
-Lemma step_getchallenge_to_end
-  {advmem} {A : @indcca.Adversary R pkey advmem ctxt msg}
-  pk sk (lq : indcca.S (ctxt := ctxt)) amem (s : trace) right
-  (Hinv : oracle_inv pk sk s) :
-  eutt match_res
-    (@ITree.bind _ _ _ (C.(indcca.Encap) pk) (fun p1 =>
-     let '(ct, m0) := p1 in
-     @ITree.bind _ _ _ indcca.rnd_msg (fun m1 =>
-     @ITree.bind _ _ _ indcca.flip (fun b =>
-     let mb := if b then m1 else m0 in
-     @ITree.bind _ _ _
-       (run_state (interp (case_ (indcca.handle_Dec C sk) inr_)
-         (A.(indcca.Guess) amem pk ct mb)) [::])
-       (fun p2 => let '(lg, g) := p2 in
-        Ret (g == b, (lq, lg, ct)))))))
-    right.
-Proof. Admitted.
-
-Lemma eutt_games {advmem} {A : @indcca.Adversary R pkey advmem ctxt msg} :
-  eutt match_res (indcca.game C A) (interact INDCCA (A_of_indcca A)).
-Proof.
-rewrite /indcca.game /interact /_Aa.
-(* Decompose right side: split run_state(interp H (bind chain)) into steps *)
-repeat setoid_rewrite (rsi_bind (case_ handle_Exch inr_)).
-(* Reassociate all binds *)
-repeat setoid_rewrite bind_bind.
-(* Step 1: GenKey — both sides sample (pk, sk) from C.GenKey *)
-apply eutt_clo_bind with (UU := fun '(pk, sk) sx =>
-  pk = snd sx /\ oracle_inv pk sk (fst sx)).
-{ exact step_genkey. }
-move=> [pk sk] [s1 ?] /= [<- Hinv1].
-(* Step 2: Query — use eutt_adv_phase *)
-apply eutt_clo_bind with
-  (UU := fun '(_, x) '(s', x') => x = x' /\ oracle_inv pk sk s').
-{ rewrite /indcca.interact. exact (@eutt_adv_phase _ _ sk pk _ _ Hinv1). }
-move=> [lq amem] [s2 st] /= [? Hinv2]; subst st.
-(* Steps 3-5: GetChallenge, Guess, SubmitGuess *)
-exact (@step_getchallenge_to_end _ _ pk sk lq amem s2 _ Hinv2).
-Qed.
-
-Lemma correct_indcca advmem (A : @indcca.Adversary R _ advmem _ _) :
-  exists A', indcca.advantage C A Q =  indcca_adv A'.
-Proof.
-exists (A_of_indcca A); rewrite /indcca_adv /indcca.advantage; do 2!f_equal.
-by apply/(eutt_deqX eutt_games) => /= -[b t] t' /match_resP ->.
-Qed.
-
-(* This is a problem because I don't know how to pick [advmem] such that we
-   can split the adversary in two. *)
-Lemma complete_indcca (A : Adversary) :
-  exists advmem (A' : @indcca.Adversary R _ advmem _ _),
-    indcca.advantage C A' Q = indcca_adv A.
-Proof. Admitted.
-
-End PROOF.
+Definition indcca_adv (A : Adversary) : R := `| pwin INDCCA A W - 1/2 |.
 
 End INSTANCE.
 

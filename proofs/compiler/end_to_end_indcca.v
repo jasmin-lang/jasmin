@@ -83,13 +83,13 @@ Import Order.TTheory.
 #[local] Open Scope Z.
 #[local] Open Scope order_scope.
 
-Coercion Pos.to_nat : positive >-> nat.
+#[local] Coercion Pos.to_nat : positive >-> nat.
 
-Notation "'let*' p ':=' c1 'in' c2" :=
+#[local] Notation "'let*' p ':=' c1 'in' c2" :=
   (@ITree.bind _ _ _ c1 (fun p => c2))
     (at level 61, p as pattern, c1 at next level, right associativity).
 
-Notation "x |> f" := (f x) (only parsing, at level 25).
+#[local] Notation "x |> f" := (f x) (only parsing, at level 25).
 
 Section WSEQ_EP.
 

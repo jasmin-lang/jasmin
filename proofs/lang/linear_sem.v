@@ -405,13 +405,34 @@ Qed.
 
 Section SMALL_STEP.
 
-Context {E E0} {wE : with_Error E E0}.
-
-Definition istep (s: lstate) : itree E lstate :=
-  iresult (to_estate s) (step s).
-
 Import MonadNotation.
 Local Open Scope monad_scope.
+
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : RndEvent syscall_state -< E}
+.
+
+Definition next_is_syscall (s : lstate) : option syscall_t :=
+  if find_instr s is Some {| li_i := Lsyscall o; |} then Some o else None.
+
+Definition lset_fstate (xs : seq var) (s : lstate) (fs : fstate) : exec lstate :=
+  Let e := upd_estate true [::] (to_lvals xs) fs (to_estate s) in
+  ok (lset_estate' s e).
+
+Definition lexec_syscall (s : lstate) (o : syscall_t) : itree E lstate :=
+  let sig := syscall_sig o in
+  let e := to_estate s in
+  ves <- iresult e (get_vars true s.(lvm) sig.(scs_vin));;
+  let fs := {| fscs := s.(lscs); fmem := s.(lmem); fvals := ves; |} in
+  fs' <- fexec_syscall (scP := sCP_stack) e o fs;;
+  s' <- iresult e (lset_fstate sig.(scs_vout) s fs');;
+  Ret (lnext_pc s').
+
+Definition istep (s: lstate) : itree E lstate :=
+  if next_is_syscall s is Some o then lexec_syscall s o
+  else iresult (to_estate s) (step s).
 
 Definition ilsem (cond : lstate -> bool) (s:lstate) :=
   while cond istep s.
@@ -425,7 +446,9 @@ Definition ilsem_exportcall (fn: funname) (es:estate) :=
   _ <- iresult (to_estate s') (assert (all (fun x => value_eqb (evm es).[x] vm'.[x]) (Sv.elements callee_saved)) ErrSemUndef);;
   Ret (to_estate s').
 
-Lemma i_lsem_body cond s : while_body cond istep s ≅ iresult (to_estate s) (lsem_body cond s).
+(*
+Lemma i_lsem_body cond s :
+  while_body cond istep s ≅ iresult (to_estate s) (lsem_body cond s).
 Proof.
   rewrite /while_body /lsem_body; case: ifP => h /=; last reflexivity.
   rewrite /istep.
@@ -446,6 +469,7 @@ Proof.
   rewrite bind_ret_l; case: ins => s' /=; last reflexivity.
   apply/eqit_Tau_l/hn.
 Qed.
+*)
 
 Lemma unfold_lsem cond s :
   ilsem cond s ≈
@@ -461,6 +485,7 @@ Proof.
   apply eqit_Tau_l; reflexivity.
 Qed.
 
+(*
 Lemma lsem_n_ilsem s2 s1 cond :
   lsem_n cond s1 s2 ->
   ilsem cond s1 ≈ ilsem cond s2.
@@ -470,6 +495,7 @@ Proof.
   move=> [ s1' | //] hstep /ih <-.
   rewrite unfold_lsem i_lsem_body hstep /= bind_ret_l; reflexivity.
 Qed.
+*)
 
 Lemma eq_ilsem cond1 cond2 s:
   cond1 =1 cond2 ->
@@ -486,7 +512,11 @@ Section MIX_STEP.
 Import MonadNotation.
 Local Open Scope monad_scope.
 
-Context {E E0} {wE : with_Error E E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : RndEvent syscall_state -< E}
+.
 
 Definition is_call (s : lstate) :=
   if find_instr s is Some i then
@@ -524,19 +554,60 @@ Definition mix_ilsem_exportcall (fn: funname) (es:estate) :=
   _ <- iresult (to_estate s') (assert (all (fun x => value_eqb (evm es).[x] vm'.[x]) (Sv.elements callee_saved)) ErrSemUndef);;
   Ret (to_estate s').
 
+Lemma translate_err_result E' T f (r : exec T) :
+  eutt eq (translate inr1 (err_result f r)) (err_result (E := E' +' E) f r).
+Proof.
+case: r => [v|e] /=.
+- rewrite translate_ret; reflexivity.
+by rewrite translate_vis; apply: eqit_Vis => [].
+Qed.
+
+Lemma translate_iresult E' T f (r : result error T) :
+  eutt eq (translate inr1 (iresult f r)) (iresult (E := E' +' E) f r).
+Proof. exact: translate_err_result. Qed.
+
+Lemma translate_fexec_syscall E' e s o :
+  eutt eq
+    (translate inr1 (fexec_syscall (scP := sCP_stack) e o s))
+    (fexec_syscall (E := E' +' E) e o s).
+Proof.
+rewrite /fexec_syscall translate_bind translate_iresult.
+apply/eutt_eq_bind => ?; rewrite translate_bind.
+rewrite translate_trigger.
+apply/eutt_eq_bind => ?; rewrite translate_bind translate_iresult.
+apply/eutt_eq_bind => ?; rewrite translate_ret; reflexivity.
+Qed.
+
+Lemma translate_lexec_syscall E' s o :
+  eutt eq
+    (translate inr1 (lexec_syscall s o))
+    (lexec_syscall (E := E' +' E) s o).
+Proof.
+rewrite /lexec_syscall translate_bind translate_iresult.
+apply/eutt_eq_bind => ?; rewrite translate_bind.
+apply eutt_clo_bind with eq; first exact: translate_fexec_syscall.
+move=> _ ? ->; rewrite translate_bind translate_iresult.
+apply/eutt_eq_bind => ?; rewrite translate_ret; reflexivity.
+Qed.
+
+Lemma translate_istep E' s :
+  eutt eq
+    (translate inr1 (istep s))
+    (istep (E := E' +' E) s).
+Proof.
+rewrite /istep /iresult /=; case: next_is_syscall => [o|];
+  [ exact: translate_lexec_syscall | exact: translate_err_result ].
+Qed.
+
 Lemma mix_ilsteps_eq cond s : mix_ilsteps cond s ≈ mix_steps istep is_call cond s.
 Proof.
-  apply eutt_iter' with eq => // {}s _ <-.
-  rewrite /while_body; case: ifP => _.
-  + apply eutt_clo_bind with eq.
-    + rewrite /mix_ilstep /mix_step.
-      apply eutt_clo_bind with eq.
-      + rewrite /istep /iresult /=; case: step => [s' | e] /=.
-        + rewrite translate_ret; reflexivity.
-        by rewrite translate_vis; apply eqit_Vis => -[].
-      by move=> ? _ <-; reflexivity.
-    by move=> ? _ <-; apply eqit_Ret; constructor.
-  by apply eqit_Ret; constructor.
+apply eutt_iter' with eq => // {}s _ <-.
+rewrite /while_body; case: ifP => _.
+- apply eutt_clo_bind with eq.
+  + rewrite /mix_ilstep /mix_step translate_istep; apply: eutt_eq_bind => s'.
+    reflexivity.
+  by move=> ? _ <-; apply eqit_Ret; constructor.
+by apply eqit_Ret; constructor.
 Qed.
 
 Lemma mix_ilsem_ilsem fn s :
@@ -547,9 +618,13 @@ Proof.
     + by move=> _ [] fn' {}s /=; apply mix_ilsteps_eq.
     by apply mix_ilsteps_eq.
   have -> : ilsem (endpc fn) s ≈ ss_sem istep (endpc fn) s by reflexivity.
-  apply mix_sem_ss_sem.
-  move=> {}s; rewrite /istep; case:step => [s' | e] /=.
-  + apply eqit_Ret; split => //; case: is_call => // ?? /andP [] /eqP ->.
+  apply: mix_sem_ss_sem => {}s; rewrite /istep; case: next_is_syscall => [o|].
+  - apply: eutt_eq_bind => vs; apply: eutt_eq_bind => fs /=.
+    apply: eutt_eq_bind => s'; apply eqit_Ret.
+    split => //; case: is_call => // ?? /andP [] /eqP ->.
+    by rewrite /endpc eqxx; case: eqP => // ->.
+  case: step => [s'|e].
+  - apply eqit_Ret; split => //; case: is_call => // ?? /andP [] /eqP ->.
     by rewrite /endpc eqxx; case: eqP => // ->.
   apply eqit_Vis => -[].
 Qed.
