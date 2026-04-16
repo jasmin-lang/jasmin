@@ -11,6 +11,7 @@ From Coq Require Import ZArith.
 From Coq Require Import Utf8.
 
 Require Import expr_facts compiler_util label linear linear_sem linear_facts it_sems_core_defs relational_logic.
+Require Import psem.
 Require Import sem_params.
 Import word_ssrZ.
 
@@ -285,7 +286,12 @@ Proof.
   rewrite heq /=; apply => // l; rewrite LUF.find_empty /path_to0; auto.
 Qed.
 
-Context {E E0: Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE0 : EventRels E0}
+  {rE : RndEvent syscall_state -< E}
+.
 
 Import Monads.
 Import MonadNotation.

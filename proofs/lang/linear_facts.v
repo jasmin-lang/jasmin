@@ -1,6 +1,11 @@
 From Coq Require Import Relations.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 
+From ITree Require Import
+  Basics
+  ITree
+.
+
 Require Import
   while
   fexpr_facts
@@ -301,7 +306,58 @@ Qed.
 
 Section ITREE.
 
-Context {E E0: Type -> Type} {wE: with_Error E E0}.
+Context
+  {E E0: Type -> Type}
+  {wE : with_Error E E0}
+  {rE : RndEvent syscall_state -< E}
+.
+
+Lemma lutt_iresult T (s : estate) (r : exec T) R :
+  (forall v, r = ok v -> R v) ->
+  core_logics.lutt
+    (preInv (iE0 := trivial_invEvent E0) (iEr := invErrT))
+    (postInv (iE0 := trivial_invEvent E0))
+    R (iresult s r).
+Proof.
+  move=> hR; rewrite /iresult; case: r hR => [v | e] /= hR.
+  + by apply core_logics.lutt_Ret; exact: hR.
+  apply core_logics.lutt_Vis => //=.
+  by rewrite /preInv /=; case: mfun1.
+Qed.
+
+Lemma lexec_syscall_mem_equiv m o :
+  khoare (iE0 := trivial_invEvent E0) (iEr := invErrT)
+    (fun s => mem_equiv m (lmem s))
+    (fun s => lexec_syscall s o)
+    (fun s => mem_equiv m (lmem s)).
+Proof.
+  move=> s hmem.
+  rewrite /lexec_syscall /=.
+  apply core_logics.lutt_bind with PredT; first exact: lutt_iresult.
+  move=> ves _.
+  apply core_logics.lutt_bind with (fun fs' : fstate => mem_equiv m (fmem fs')).
+  { rewrite /fexec_syscall /=.
+    apply core_logics.lutt_bind with PredT; first exact: lutt_iresult.
+    move=> len _.
+    apply core_logics.lutt_bind with PredT.
+    { apply core_logics.lutt_Vis.
+      + by rewrite /preInv /=; case: mfun1.
+      by move=> > _; apply core_logics.lutt_Ret. }
+    move=> scsbytes _.
+    apply core_logics.lutt_bind with (fun scsmvs => mem_equiv m scsmvs.1.2).
+    { apply: lutt_iresult => -[[scs' m'] vres] /= heq.
+      exact: mem_equiv_trans hmem (exec_syscall_storeS heq). }
+    by move=> scsmvs /= hscsmvs; apply core_logics.lutt_Ret. }
+  move=> fs' hfs'.
+  apply core_logics.lutt_bind with (fun s' : lstate => mem_equiv m (lmem s')).
+  { rewrite /lset_fstate /upd_estate.
+    apply: lutt_iresult => s' /=; t_xrbindP => e' heq <-.
+    apply: mem_equiv_trans hfs' _.
+    split.
+    + exact: write_lvals_stack_stable heq.
+    exact: write_lvals_validw heq. }
+  by move=> s' hs'; apply core_logics.lutt_Ret.
+Qed.
 
 Lemma ilsem_mem_equiv lp cond m :
   khoare (iE0 := trivial_invEvent E0) (iEr := invErrT)
@@ -313,7 +369,9 @@ Proof.
   rewrite /while_body => s hmem /=.
   case: ifP => _; last by apply core_logics.lutt_Ret.
   apply core_logics.lutt_bind with (fun s => mem_equiv m (lmem s)); last by move=> *; apply core_logics.lutt_Ret.
-  rewrite /istep; case heq: step => [s' | e] /=.
+  rewrite /istep; case: next_is_syscall => [o|].
+  - exact: lexec_syscall_mem_equiv hmem.
+  case heq: step => [s' | e] /=.
   + apply core_logics.lutt_Ret.
     by apply: mem_equiv_trans (lsem1_mem_equiv heq).
   apply core_logics.lutt_Vis => //=.

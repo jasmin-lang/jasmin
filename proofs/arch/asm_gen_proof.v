@@ -2041,7 +2041,12 @@ Qed.
 
 Section ITREE.
 
-Context {E E0: Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0: Type -> Type}
+  {wE: with_Error E E0}
+  {rE0 : EventRels E0}
+  {rE : RndEvent syscall_state -< E}
+.
 
 Definition wf_endpc (endpc endpc' : funname * nat) :=
    endpc.1 = endpc'.1 /\
