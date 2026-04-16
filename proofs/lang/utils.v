@@ -1591,6 +1591,21 @@ Proof.
   by rewrite (Z.odd_pow _ _ hn).
 Qed.
 
+(* Variant of [natlike_ind] with conclusion about all integers, not just non-negative ones.
+   In some places, to apply [natlike_ind], one has to first do a case analysis.
+   This case analysis is factored out in this lemma. *)
+Lemma natlike_ind_full (P : Z -> Prop) :
+  (forall x, x <= 0 -> P x) -> (forall x, 0 <= x -> P x -> P (Z.succ x)) ->
+  forall x, P x.
+Proof.
+  move=> hneg ih x.
+  case: (Z.nonpos_nonneg_cases x); move: x.
+  - apply hneg.
+  - apply natlike_ind.
+    + by apply hneg.
+    by apply ih.
+Qed.
+
 (* ** Some Extra tactics
  * -------------------------------------------------------------------- *)
 
@@ -1739,15 +1754,13 @@ Qed.
 
 Lemma in_ziota (p z i:Z) : (i \in ziota p z) = ((p <=? i) && (i <? p + z)).
 Proof.
-  case: (ZleP 0 z) => hz.
-  + move: p; pattern z; apply natlike_ind => [ p | {}z {}hz hrec p| //].
-    + by rewrite ziota0 in_nil; case: andP => // -[/ZleP ? /ZltP ?]; Lia.lia.
-    rewrite ziotaS_cons // in_cons; case: eqP => [-> | ?] /=.
-    + by rewrite Z.leb_refl /=; symmetry; apply /ZltP; Lia.lia.
-    by rewrite hrec; apply Bool.eq_iff_eq_true;split=> /andP [/ZleP ? /ZltP ?];
-      (apply /andP;split;[apply /ZleP| apply /ZltP]); Lia.lia.
-  rewrite ziota_neg;last Lia.lia.
-  rewrite in_nil;symmetry;apply /negP => /andP [/ZleP ? /ZltP ?]; Lia.lia.
+  move: p; pattern z; apply natlike_ind_full => {z} [ z hz p | z hz hrec p ].
+  + rewrite ziota_neg // in_nil; symmetry; apply /negP => /andP [/ZleP ? /ZltP ?].
+    by Lia.lia.
+  rewrite ziotaS_cons // in_cons; case: eqP => [-> | ?] /=.
+  + by rewrite Z.leb_refl /=; symmetry; apply /ZltP; Lia.lia.
+  by rewrite hrec; apply Bool.eq_iff_eq_true;split=> /andP [/ZleP ? /ZltP ?];
+    (apply /andP;split;[apply /ZleP| apply /ZltP]); Lia.lia.
 Qed.
 
 Lemma size_ziota p z: size (ziota p z) = Z.to_nat z.
