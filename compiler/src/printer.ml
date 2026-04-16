@@ -350,7 +350,8 @@ let pp_gmdecl pp_var pp_size fmt = function
     F.fprintf fmt "%a"
       (pp_var_decl pp_var pp_size) pp
   | Fun pp ->
-    F.fprintf fmt "@[fn f @[(%a)@] -> @[(%a);@]"
+    F.fprintf fmt "@[fn %s @[(%a)@] -> @[(%a);@]"
+      pp.name.fn_name
       (pp_list ",@ " (pp_gtype pp_size)) pp.fs_tyin
       (pp_list ",@ " (pp_gtype pp_size)) pp.fs_tyout
 
@@ -424,6 +425,7 @@ let pp_var ~debug =
     else
       fun fmt x -> F.fprintf fmt "%s" x.v_name
 
+(* FIXME
 let rec pp_module_summary ~debug pd msfsz asmOp fmt ms =
   let pp_int fmt i = Format.fprintf fmt "%i" i in
   let pp_glob_decl fmt (x, _) =
@@ -439,7 +441,7 @@ let rec pp_module_summary ~debug pd msfsz asmOp fmt ms =
     (pp_list "@ " (pp_gmdecl pp_pvar (pp_int))) ms.params
     (pp_list "@ " pp_glob_decl) ms.globs
     (pp_list "@ " (pp_modapp)) ms.renames
-    (pp_list "@ " (pp_module_summary ~debug pd msfsz asmOp)) ms.imodules
+    (pp_list "@ " (pp_module_summary ~debug pd msfsz asmOp)) ms.imodules *)
 
 let pp_dvar ~debug fmt x =
   let pp_dloc fmt d =

@@ -369,6 +369,7 @@ let get_param_decls subst =
         let subst_v = psubst_v !subst in
         let subst_ty = psubst_ty subst_v in
         let fs = {
+          fs with
             Mprog.fs_tyin = List.map subst_ty fs.fs_tyin;
             fs_tyout = List.map subst_ty fs.fs_tyout;
           } in
@@ -387,27 +388,37 @@ let rec psubst_mprog prog =
    | [] -> []
    | Mprog.MdFunctor fd :: items -> 
     let params =  get_param_decls subst fd.functorparams in
-    let funcs,globs,renames,imodules =  psubst_mbody subst fd.functorbody in
-    {Mprog.name = fd.functorname; params; funcs; globs; renames; imodules} :: psubst_mprog items
+    let globs,modules,funs =  psubst_mbody subst fd.functorbody in
+    {Mprog.name = fd.functorname; params; globs; modules; funs} :: psubst_mprog items
    | _ -> hierror "expecting module, incorrect syntax"
 
 and psubst_mbody subst mbody =
   let rec aux =
     function
-     | [] -> [], [], [], []
+     | [] -> [], [], []
      | Mprog.MdFunctor fd :: items ->
-        let funcs,globs,renames,imodules = aux items in
-        let mitems = psubst_mprog [Mprog.MdFunctor fd] in
-        funcs,globs,renames,imodules @ mitems 
+        let globs,modules,funs = aux items in
+        let mitems = [Mprog.MsMod (psubst_mprog [Mprog.MdFunctor fd] |> List.hd)] in
+        globs,modules @ mitems, funs
      | MdModApp ma :: items ->
-        let funcs,globs,renames,imodules = aux items in
+        let globs,modules,funs = aux items in
         let args = get_args subst ma.ma_args in
+        let vs, fs = List.fold_left (fun (vs,fs) arg -> match arg with
+          | Mprog.MaParam _ 
+          | MaGlob _ -> (vs @ [arg],fs)
+          | MaFun _ -> vs, fs @ [arg]) ([],[]) args in
         let ma = { ma with ma_args = args; } in
-        funcs,globs,renames@[ma],imodules
+        let globs,modules,funs = 
+          if vs <> [] || fs = [] then globs, modules@[Mprog.MsClone ma] , funs 
+          else globs,modules,funs
+        in
+        if fs<>[] then globs, modules, funs@[Mprog.MsModApp ma]
+        else globs,modules, funs
      | MdItem mi :: items ->
-        let funcs,globs,renames,imodules = aux items in
+        let globs,modules,funs = aux items in
         let globsi, funcsi = psubst_item subst [mi] in
-        funcs @ funcsi, globs @ globsi , renames, imodules
+        let funcsi = List.map (fun f -> Mprog.MsFun f) funcsi in
+        globs @ globsi , modules, funs @ funcsi
      in 
   aux mbody
 
@@ -506,7 +517,7 @@ let isubst_params subst =
     | Fun fs ->
       let fs_tyin = List.map isubst_ty fs.fs_tyin in
       let fs_tyout = List.map isubst_ty fs.fs_tyout in
-      Fun {fs_tyin;fs_tyout}
+      Fun {fs with fs_tyin;fs_tyout}
 
 let isubst_arg subst =
     function
@@ -520,18 +531,25 @@ let rec isubst_mprog : (pexpr_, 'info, 'asm) Mprog.module_summary list -> (int, 
   let subst : expr Mpv.t ref = ref Mpv.empty in
   match mprog with
   | [] -> []
-  | minfo::modules ->
+  | minfo::ms ->
      let globs =  List.map (fun g -> isubst_glob g subst) minfo.Mprog.globs in
-     let funcs = List.map (isubst_item subst) minfo.funcs in 
      let params = List.map (isubst_params subst) minfo.params in
-     let renames = List.map (fun mapp -> 
+     let funs = List.map (
+      function 
+      | Mprog.MsFun f -> Mprog.MsFun (isubst_item subst f)
+      | MsModApp mapp -> 
         let ma_args = List.map (isubst_arg subst) mapp.Mprog.ma_args in
-        {mapp with ma_args}
-     ) minfo.renames in
-
-     let imodules = isubst_mprog minfo.imodules in
-     let modules = isubst_mprog modules in
-     {minfo with globs; funcs;params;renames; imodules} :: modules
+        MsModApp {mapp with ma_args}
+      ) minfo.funs in 
+     let modules = List.map (
+      function
+      | Mprog.MsMod m -> Mprog.MsMod (isubst_mprog [m] |> List.hd)
+      | MsClone mapp -> 
+        let ma_args = List.map (isubst_arg subst) mapp.Mprog.ma_args in
+        MsClone {mapp with ma_args}
+     ) minfo.modules in
+     let ms = isubst_mprog ms in
+     {minfo with globs; funs;params; modules} :: ms
   
 
 let remove_params_modular : ('info, 'asm) Mprog.mpprog -> (int, 'info, 'asm) Mprog.module_summary list =
