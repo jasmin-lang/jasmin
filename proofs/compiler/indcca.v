@@ -152,7 +152,7 @@ Section GAME.
 
   Definition valid (t : trace) : bool :=
     let '(lq, lg, ct) := t in
-    [&& ct \notin lg & (size lq + size lg + 2 <= Q)%N ].
+    [&& ct \notin lg & (size lq + size lg <= Q)%N ].
 
   Definition advantage : R :=
     `| \P_[ dgame ] (fun '(b, t) => b && valid t) - 1/2 |.
