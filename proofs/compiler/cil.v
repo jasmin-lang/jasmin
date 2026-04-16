@@ -344,6 +344,13 @@ Definition is_submitguess (x : Xch) : option bool :=
   | _ => fun _ => None
   end p.
 
+
+(* Attention: The order in which elements are take from the trace
+   is reverse to the order in which they are put in the trace.
+   The trace should be reversed before the check or log should
+   do append
+ *)
+
 (* Check that the trace follows the INDCCA game *)
 Definition indcca_trace
   (t : trace) : option (bool * seq ctxt * seq ctxt * ctxt) :=
