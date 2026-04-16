@@ -500,13 +500,10 @@ Module WArray.
       else Mz.get a k.
   Proof.
     rewrite /set_sub_data.
-    have [hneg|hpos] := Z.nonpos_nonneg_cases (arr_size ws len).
+    elim /natlike_ind_full: (arr_size ws len) a => [ {}len hneg | {}len hpos ih ] data.
     + rewrite ziota_neg //=.
       by case: ifPn => //; rewrite !zify; lia.
-    elim /natlike_ind: (arr_size ws len) a;
-      last by apply hpos.
-    + move=> data; rewrite ziota0 /=; case: andP => // -[]; rewrite !zify; lia.
-    move=> sz hsz ih data; rewrite ziotaS_cat // foldr_cat Z.add_0_l /= ih.
+    rewrite ziotaS_cat // foldr_cat Z.add_0_l /= ih.
     case: ifPn; rewrite !zify => h3; case: ifPn; rewrite !zify => h4 //.
     + nia.
     + case heq: (Mz.get t) => [w|].
@@ -577,13 +574,10 @@ Module WArray.
       else None.
   Proof.
     rewrite /get_sub_data -(Mz.get0 u8 k).
-    have [hneg|hpos] := Z.nonpos_nonneg_cases (arr_size ws len).
+    elim /natlike_ind_full: (arr_size ws len) (Mz.empty u8) => [ {}len hneg | {}len hpos ih ] b.
     + rewrite ziota_neg //=.
       by case: ifPn => //; rewrite !zify; lia.
-    elim /natlike_ind: (arr_size ws len) (Mz.empty u8);
-      last by apply hpos.
-    + move => b; rewrite ziota0 /=; case: andP => //; rewrite !zify; lia.
-    move=> sz hsz ih b; rewrite ziotaS_cat // foldr_cat Z.add_0_l /= ih.
+    rewrite ziotaS_cat // foldr_cat Z.add_0_l /= ih.
     case: ifPn; rewrite !zify => h3; case: ifPn; rewrite !zify => h4 //.
     + nia.
     + case heq: (Mz.get a) => [w|].
