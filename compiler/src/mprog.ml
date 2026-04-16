@@ -15,7 +15,8 @@ type 'len module_app =
     ma_args : 'len moduleargs; }
 
 type 'len funsig =
-  { (*FIXME: add name?*)
+  {
+    name : funname;
     fs_tyin : 'len gty list;
     fs_tyout : 'len gty list;
   }
@@ -44,11 +45,18 @@ type ('len,'info,'asm) gmprog = ('len,'info,'asm) gmodule_item list
 type ('info, 'asm) mpprog = (pexpr_,'info,'asm) gmprog
 
 
-type ('len,'info, 'asm) module_summary = {
+type ('len,'info,'asm) ms_funs =
+  | MsFun of ('len,'info, 'asm) gfunc
+  | MsModApp of 'len module_app
+
+type ('len,'info,'asm) ms_modules =
+  | MsMod of ('len,'info, 'asm) module_summary
+  | MsClone of 'len module_app
+
+and ('len,'info, 'asm) module_summary = {
   name : string;
   params : 'len mparamdecl list;
-  funcs : ('len, 'info, 'asm) gfunc list;
   globs : ('len gvar * 'len ggexpr) list;
-  renames : 'len module_app list;
-  imodules : ('len,'info,'asm) module_summary list;
+  modules: ('len,'info,'asm) ms_modules list;
+  funs : ('len, 'info, 'asm) ms_funs list;
 }

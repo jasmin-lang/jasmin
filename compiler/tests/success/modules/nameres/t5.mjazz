@@ -32,5 +32,10 @@ fn inc(reg u64 x) -> reg u64 {
   return x;
 }
 
-module A2 = M2(n,y);
-module A3 = M2(n,(64u) 5);
+
+module A2 = M2(n,inc);
+
+fn inc2(reg u64 x) -> reg u64 {
+  x += 1;
+  return x;
+}
