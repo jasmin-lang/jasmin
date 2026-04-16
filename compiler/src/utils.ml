@@ -390,6 +390,7 @@ type warning =
   | UnusedVar (* -wunusedvar *)
   | SCTchecker
   | Linter
+  | NonTrivialAlignment
   | Deprecated
   | Experimental
   | Always
@@ -406,6 +407,7 @@ let default_warnings =
       Experimental;
       PedanticPretyping;
       Linter;
+      NonTrivialAlignment;
     ]
 
 let all_warnings = ExtraAssignment :: UseLea :: IntroduceArrayCopy :: KeptRenaming :: default_warnings

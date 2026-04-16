@@ -89,3 +89,14 @@
   warning: the variable g is already declared at "warning/common/bug_1347.jazz", line 2 (6-7)
   "warning/common/bug_1347.jazz", line 8 (20-21)
   warning: the variable C::x is already declared at "warning/common/bug_1347.jazz", line 7 (20-21)
+
+  $ ../jasminc warning/common/non-trivial-alignment.jazz
+  "warning/common/non-trivial-alignment.jazz", line 6 (31-32)
+  warning: argument p is used with 32-bit alignment
+
+  $ ../jasminc -only-trivial-alignment warning/common/non-trivial-alignment.jazz
+  "warning/common/non-trivial-alignment.jazz", line 6 (31-32)
+  warning: argument p is used with 32-bit alignment
+  "warning/common/non-trivial-alignment.jazz", line 11 (30-31)
+  warning: argument p is used with 32-bit alignment
+

@@ -1,0 +1,14 @@
+inline fn load(reg ptr u32[1] p) -> reg u32 {
+  reg u32 r = p[0];
+  return r;
+}
+
+export fn strict(reg ptr u8[4] p) -> reg u32 {
+  reg u32 r = load(p);
+  return r;
+}
+
+export fn weak(reg ptr u32[1] p) -> reg u32 {
+  reg u32 r = load(p);
+  return r;
+}

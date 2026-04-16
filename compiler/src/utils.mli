@@ -158,6 +158,7 @@ type warning =
   | UnusedVar
   | SCTchecker
   | Linter
+  | NonTrivialAlignment
   | Deprecated
   | Experimental
   | Always

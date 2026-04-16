@@ -1,11 +1,11 @@
 fn store(reg ptr u64[8] a) -> reg ptr u16[4*8] {
   reg u256 zero = #set0_256();
-  a[0] = 0;
-  a[:u8 0] = 0;
-  a[:u32 0] = 0;
-  a[:u64 0] = 0;
-  a[:u128 0] = zero;
-  a[:u256 0] = zero;
+  a[#unaligned 0] = 0;
+  a[#unaligned:u8 0] = 0;
+  a[#unaligned:u32 0] = 0;
+  a[#unaligned:u64 0] = 0;
+  a[#unaligned:u128 0] = zero;
+  a[#unaligned:u256 0] = zero;
 
   a.[0] = 0;
   a.[:u8 0] = 0;
@@ -25,12 +25,12 @@ fn load(reg ptr u128[4] a) -> reg u8 {
   reg u128 x128;
   reg u256 x256;
 
-  x8   = a[:u8   0];
-  x16  = a[:u16  0];
-  x32  = a[:u32  0];
-  x64  = a[:u64  0];
-  x128 = a[:u128 0];
-  x256 = a[:u256 0];
+  x8   = a[#unaligned:u8   0];
+  x16  = a[#unaligned:u16  0];
+  x32  = a[#unaligned:u32  0];
+  x64  = a[#unaligned:u64  0];
+  x128 = a[#unaligned:u128 0];
+  x256 = a[#unaligned:u256 0];
 
   x128 ^= x256;
   y64 = x128;
