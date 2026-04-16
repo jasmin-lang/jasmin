@@ -13,9 +13,6 @@ let z_of_nat n =
 let int_of_nat n = Z.to_int (z_of_nat n)
 let nat_of_int i = BinInt.Z.to_nat (cz_of_int i)
 
-let pos_of_int i = pos_of_z (Z.of_int i)
-let int_of_pos p = Z.to_int (z_of_pos p)
-
 let word_of_z sz z = Word0.wrepr sz (cz_of_z z)
 let int64_of_z z = word_of_z W.U64 z
 let int32_of_z z = word_of_z W.U32 z

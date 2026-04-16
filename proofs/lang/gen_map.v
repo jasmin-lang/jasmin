@@ -683,28 +683,12 @@ Module DMmake (K:CmpType) (E:CompuEqDec with Definition t := K.t).
 End DMmake.
 
 (* --------------------------------------------------------------------------
- ** Map of positive
+ ** Map of Z
  * -------------------------------------------------------------------------- *)
 
 From Coq Require Import ZArith.
-
-Module CmpPos.
-
-  Definition t : eqType := positive.
-
-  Definition cmp : t -> t -> comparison := Pos.compare.
-
-  Lemma cmpO : Cmp cmp.
-  Proof. apply positiveO. Qed.
-
-End CmpPos.
-
-Module Mp := Mmake CmpPos.
-
-(* --------------------------------------------------------------------------
- ** Map of Z
- * -------------------------------------------------------------------------- *)
 From mathcomp Require Import word_ssrZ.
+
 Module CmpZ.
 
   Definition t : eqType := Z.
@@ -767,9 +751,3 @@ Module Smake (T:CmpType).
   Module Ordered := MkMOrdT T.
   Include (MSetAVL.Make Ordered).
 End Smake.
-
-Module PosSet.
-  Module Sp  := Smake CmpPos.
-  Module SpP := MSetEqProperties.EqProperties Sp.
-  Module SpD := MSetDecide.WDecide Sp.
-End PosSet.
