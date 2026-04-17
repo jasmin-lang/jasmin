@@ -55,22 +55,23 @@ Context {R : realType}.
 Notation distr := (distr R).
 Notation Rnd := (Rnd (R := R)).
 
-Section MAIN.
-
-Section CIL.
-
-Class OracleSystem :=
+(* An oracle system interface fixes the oracle names and their memory/IO
+   signature but not the oracles' implementation. Two oracle systems that
+   share an interface can be compared for equivalence. *)
+Class OracleSystemInterface :=
   {
     Mo : choiceType; (* Oracle memories. *)
     No : choiceType; (* Oracle names. *)
     In : No -> choiceType; (* Oracle input types. *)
     Out : No -> choiceType; (* Oracle output types. *)
-    Oo : (* Oracle implementation. *)
-      forall (o : No), In o -> Mo -> itree Rnd (Out o * Mo);
     mi : Mo; (* Initial oracle memory. *)
   }.
 
-Context {O : OracleSystem}.
+Section MAIN.
+
+Section CIL.
+
+Context {I : OracleSystemInterface}.
 
 (* An exchange: the name of an oracle, an input to that oracle, and the output
    returned by that oracle. *)
@@ -87,8 +88,6 @@ Variant Exch : Type -> Type :=
    It may be stateful, probabilistic, and almost-surely terminating. *)
 Class Adversary := { Aa : itree (Exch +' Rnd) unit; }.
 
-Context {A : Adversary}.
-
 (* Get the latest oracle memory, or the initial memory if there is no trace. *)
 Definition get_Mo E `{stateE trace -< E} : itree E Mo :=
   let* t := get in Ret (head mi [seq x.2 | x <- t ]).
@@ -100,6 +99,15 @@ Definition mk {o : No} (m : Mo) (i : In o) (r : Out o) : Xch * Mo :=
 Definition log E `{stateE trace -< E}
   (m : Mo) (o : No) (i : In o) (r : Out o) : itree E unit :=
   let* t := get in put (mk m i r :: t).
+
+(* An oracle system is an implementation for each oracle in the interface. *)
+Class OracleSystem :=
+  {
+    Oo : forall (o : No), In o -> Mo -> itree Rnd (Out o * Mo);
+  }.
+
+Context {O : OracleSystem}.
+Context {A : Adversary}.
 
 (* Oracle query handler.
    This
@@ -135,9 +143,65 @@ End CIL.
 
 End MAIN.
 
-Arguments Exchange {_}.
-Arguments interact : clear implicits.
-Arguments pwin : clear implicits.
+Arguments Exchange {I}.
+Arguments interact {I}.
+Arguments dinteract {I}.
+Arguments pwin {I}.
+Arguments OracleSystem : clear implicits.
+
+(* -------------------------------------------------------------------------- *)
+(* Equivalence of oracle systems sharing an interface. *)
+
+Section EQUIV.
+
+Context {I : OracleSystemInterface}.
+
+(* Two oracle systems implementing the same interface are equivalent when, on
+   every oracle name, input, and memory, their implementations produce
+   equivalent ITrees (up to silent steps). *)
+Definition equivalent (O1 O2 : OracleSystem I) : Prop :=
+  forall (o : No) (i : In o) (m : Mo),
+    eutt eq (O1.(Oo) i m) (O2.(Oo) i m).
+
+Lemma equivalent_handle_Exch (O1 O2 : OracleSystem I) :
+  equivalent O1 O2 ->
+  forall T (e : Exch T),
+    eutt eq
+      (handle_Exch (O := O1) (T := T) e)
+      (handle_Exch (O := O2) (T := T) e).
+Proof.
+move=> hO T [o i]; rewrite /handle_Exch.
+apply: eqit_bind'; first reflexivity.
+move=> m m' heq; rewrite heq.
+apply: eqit_bind'; first exact: eutt_translate_gen (hO o i m').
+move=> r1 r2 heq'; rewrite heq'; reflexivity.
+Qed.
+
+Lemma equivalent_interact (O1 O2 : OracleSystem I) (A : Adversary) :
+  equivalent O1 O2 ->
+  eutt eq (interact O1 A) (interact O2 A).
+Proof.
+move=> hO; rewrite /interact.
+apply: (eqit_bind' eq); last by move=> ?? ->; reflexivity.
+set ds := interp _ _; set dt := interp _ _.
+suff -> : eutt eq ds dt by reflexivity.
+apply/eutt_interp; last reflexivity.
+move=> ??; apply/Proper_Case_Handler; last reflexivity.
+move=> T e; exact: equivalent_handle_Exch hO T e.
+Qed.
+
+Lemma equivalent_dinteract (O1 O2 : OracleSystem I) (A : Adversary) :
+  equivalent O1 O2 ->
+  dinteract O1 A =1 dinteract O2 A.
+Proof. move=> /equivalent_interact h; exact/dinterp_eutt/h. Qed.
+
+Theorem equivalent_pwin
+  (O1 O2 : OracleSystem I) (A : Adversary) (W : WinningCondition) :
+  equivalent O1 O2 ->
+  pwin O1 A W = pwin O2 A W.
+Proof. move=> /equivalent_dinteract h; rewrite /pwin; exact: eq_mu_pr h. Qed.
+
+End EQUIV.
 
 (* -------------------------------------------------------------------------- *)
 (* Instantiation for INDCCA. *)
@@ -262,15 +326,17 @@ Let _Oo (x : oracle_name) : _In x -> _Mo -> itree Rnd (_Out x * _Mo) :=
   | OSubmitGuess => _Oo_SubmitGuess
   end.
 
-Instance INDCCA : OracleSystem :=
+Instance INDCCA_I : OracleSystemInterface :=
   {|
     Mo := _Mo;
     No := oracle_name;
     In := _In;
     Out := _Out;
-    Oo := _Oo;
     mi := _mi;
   |}.
+
+Instance INDCCA : OracleSystem INDCCA_I :=
+  {| Oo := _Oo; |}.
 
 Definition is_genkey (x : Xch) : option pkey :=
   let 'existT o (_, p) := x in
@@ -340,7 +406,8 @@ Let _win (t : trace) : bool :=
 
 Instance W : WinningCondition := {| win := _win; |}.
 
-Definition indcca_adv (A : Adversary) : R := `| pwin INDCCA A W - 1/2 |.
+Definition indcca_adv (A : Adversary) : R :=
+  `| pwin INDCCA A W - 1/2 |.
 
 End INSTANCE.
 

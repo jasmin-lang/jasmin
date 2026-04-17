@@ -33,6 +33,19 @@ From ITree Require Import
 Import ITree.
 
 Require Import
+  rutt_extras
+  xrutt
+  xrutt_facts
+  it_exec
+.
+Require Import
+  it_sems_core
+  psem
+  psem_facts
+  relational_logic
+  hoare_logic
+.
+Require Import
   compiler
   core_logics
   distr_extra
@@ -50,12 +63,6 @@ Require Import
   sem_params_of_arch_extra
 .
 Require Import
-  rutt_extras
-  xrutt
-  xrutt_facts
-  it_exec
-.
-Require Import
   arch_params_proof
   stack_alloc_proof_1
   stack_alloc_proof_2
@@ -65,20 +72,11 @@ Require Import
 Require allocation.
 
 Require Import
-  it_sems_core
-  psem
-  psem_facts
-  relational_logic
-  hoare_logic
-.
-Require Import
   cil
   dinterp
 .
 
 Import Order.TTheory.
-
-(* TODO remove *) Require end_to_end_indcca.
 
 #[local] Open Scope ring_scope.
 #[local] Open Scope Z.
@@ -299,25 +297,29 @@ Definition _OoT (o : _No) (i : _In o) (m : _Mo) : itree Rnd (_Out o * _Mo) :=
   if ofs' is ESok fs' then Ret (unmkfsS fs')
   else Ret ([::], mI) (* absurd *).
 
-Instance Source : OracleSystem :=
+Instance SourceI : OracleSystemInterface :=
   {|
     Mo := _Mo;
     No := _No;
     In := _In;
     Out := _Out;
-    Oo := _OoS;
     mi := mS;
   |}.
 
-Instance Target : OracleSystem :=
+Instance Source : OracleSystem SourceI :=
+  {| Oo := _OoS; |}.
+
+Instance TargetI : OracleSystemInterface :=
   {|
     Mo := _Mo;
     No := _No;
     In := _In;
     Out := _Out;
-    Oo := _OoT;
     mi := mT;
   |}.
+
+Instance Target : OracleSystem TargetI :=
+  {| Oo := _OoT; |}.
 
 End DEFS.
 End MAIN.

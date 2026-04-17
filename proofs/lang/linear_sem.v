@@ -434,6 +434,10 @@ Definition istep (s: lstate) : itree E lstate :=
   if next_is_syscall s is Some o then lexec_syscall s o
   else iresult (to_estate s) (step s).
 
+(* This is the kind of semantics we want at assembly level. We could use the
+   mixed-step version as a definition of linear, but then we would need to
+   switch in the proof of asm_gen. It is more natural to switch here since the
+   source has calls anyways. *)
 Definition ilsem (cond : lstate -> bool) (s:lstate) :=
   while cond istep s.
 
