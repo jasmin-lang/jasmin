@@ -1,0 +1,8 @@
+export fn main(reg u64 a) -> reg u64 {
+  #[force_regalloc=RAX, force_regalloc=RCX] reg u64 x;
+  reg u64 r;
+  x = 1;
+  x += a;
+  r = x;
+  return r;
+}
