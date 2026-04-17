@@ -1,0 +1,8 @@
+export fn main(reg u32 a) -> reg u32 {
+  #[force_regalloc=r4, force_regalloc=r5] reg u32 x;
+  reg u32 r;
+  x = 1;
+  x += a;
+  r = x;
+  return r;
+}

@@ -1,0 +1,11 @@
+export fn main() -> reg u64 {
+  reg u64 hi lo d;
+  hi = 0;
+  lo = 7;
+  d = 2;
+  #[force_regalloc_conflict=RAX] reg u64 q;
+  reg u64 r;
+  ?{RAX=q, RDX=r} = #DIV(hi, lo, d);
+  q ^= r;
+  return q;
+}
