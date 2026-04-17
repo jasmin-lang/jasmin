@@ -1604,19 +1604,12 @@ Proof.
   t_xrbindP=> ves hves [[scs m] vs] ho; t_xrbindP=> s hw ?; subst ls' => /=.
   rewrite ok_fd /=; split => //.
   case: (hloeq) ho => /= -> -> _ _ _ _ _ _ ho.
-  have [xs' hxs'] := (eval_syscall_spec2 ho).
+  have [xs' hxs' [hscs1 hmem1 hvres]] := eval_syscall_spec2 ho.
   rewrite hxs' /=.
   eexists; first reflexivity.
   exists (lfd_body fd) => //.
-  have [hex hpr hrip] := eval_syscall_spec1 hxs'.
-  move: hex; rewrite (exec_syscallPs_eq ho); last first.
-  - move: hves => {vs hw ho}.
-    elim: (take (size (syscall_sig_s sc).(scs_tin)) call_reg_args) ves
-        => [ | r rs ih] /= _vs.
-    + by move=> [<-].
-    t_xrbindP => v hv vs /ih ? <-; constructor => //.
-    by apply : getreg hloeq hv.
-  move=> [???]; subst scs m vs.
+  have [hpr hrip _] := eval_syscall_preserves hxs'.
+  move: hw; rewrite -hscs1 -hmem1 hvres => hw.
   split => //=; last by apply: asm_pos_incr ok_i hac heq hip.
   rewrite to_estate_of_estate.
   case: hloeq => /= hscs hmem hgetrip hdisjrip hreg hregx hxreg hflag.
