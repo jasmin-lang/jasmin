@@ -128,18 +128,21 @@ Definition preserved_registerb (r : asm_typed_reg) (m0 m1 : asmmem) :=
 (* FIXME we need to generalize this *)
 Class asm_syscall_sem := {
   eval_syscall : syscall_t -> asmmem -> exec asmmem;
-  eval_syscall_spec1 :
-    forall o s1 s2,
-      eval_syscall o s1 = ok s2 ->
-      let vargs := map (fun r => Vword (s1.(asm_reg) r)) (take (size (syscall_sig_s o).(scs_tin)) call_reg_args) in
-      let vres  := map (fun r => Vword (s2.(asm_reg) r)) (take (size (syscall_sig_s o).(scs_tout)) call_reg_ret) in
-      [/\ exec_syscall_s s1.(asm_scs) s1.(asm_mem) o vargs = ok (s2.(asm_scs), s2.(asm_mem), vres),
-          (forall r, r \in callee_saved -> preserved_register r s1 s2) &
-          s1.(asm_rip) = s2.(asm_rip)];
   eval_syscall_spec2 :
     forall o s1 vargs scs m vres,
       exec_syscall_s s1.(asm_scs) s1.(asm_mem) o vargs = ok (scs, m, vres) ->
-      exists s2, eval_syscall o s1 = ok s2;
+      exists2 s2, eval_syscall o s1 = ok s2
+                & [/\ s2.(asm_scs) = scs,
+                      s2.(asm_mem) = m &
+                      vres = [seq Vword (s2.(asm_reg) r)
+                             | r <- take (size (syscall_sig_s o).(scs_tout)) call_reg_ret]];
+  eval_syscall_preserves :
+    forall o s1 s2,
+      eval_syscall o s1 = ok s2 ->
+      [/\ forall r, r \in callee_saved -> preserved_register r s1 s2
+        , s1.(asm_rip) = s2.(asm_rip)
+        & stack_stable s1.(asm_mem) s2.(asm_mem)
+      ];
 }.
 
 Context {asm_scsem : asm_syscall_sem}.
@@ -581,8 +584,8 @@ Proof.
     by case: decode_label => // ? /eval_JMP_invariant <-.
   - by rewrite /eval_op /exec_instr_op; t_xrbindP => ? ? ? /mem_write_vals_invariant -> <-.
   - t_xrbindP => m hm <-.
-    have /= [h1 h2 h3]:= eval_syscall_spec1 hm; split => //.
-    by have [] := exec_syscallSs h1.
+    have /= [_ hrip hss] := eval_syscall_preserves hm.
+    by split.
   - by move=> [<-].
   by move=> _ [<-].
 Qed.
