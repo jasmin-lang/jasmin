@@ -415,7 +415,7 @@ Context
 .
 
 Definition next_is_syscall (s : lstate) : option syscall_t :=
-  if find_instr s is Some {| li_i := Lsyscall o; |} then Some o else None.
+  let%opt i := find_instr s in is_syscall i.
 
 Definition lset_fstate (xs : seq var) (s : lstate) (fs : fstate) : exec lstate :=
   Let e := upd_estate true [::] (to_lvals xs) fs (to_estate s) in

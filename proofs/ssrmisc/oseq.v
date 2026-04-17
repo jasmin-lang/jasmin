@@ -35,9 +35,27 @@ by rewrite (nth_map x0) //; apply: (iffP eqP) => [<-|[]].
 Qed.
 
 (* -------------------------------------------------------------------- *)
+Lemma onthP' {T : Type} (x0 : T) s i v :
+  onth s i = Some v <-> [/\ i < size s & nth x0 s i = v ].
+Proof.
+rewrite onth_nth; split.
+- case: (ltnP i (size s)) => h; last by rewrite nth_default ?size_map.
+  by rewrite (nth_map x0) // => -[->].
+- by case=> lt_is <-; rewrite (nth_map x0).
+Qed.
+
+(* -------------------------------------------------------------------- *)
 Lemma onth_default {T : Type} (s : seq T) i :
   i >= size s -> onth s i = None.
 Proof. by move=> le_si; rewrite onth_nth nth_default ?size_map. Qed.
+
+(* -------------------------------------------------------------------- *)
+Lemma onth_sizeE {T : Type} (s : seq T) i : isSome (onth s i) = (i < size s).
+Proof.
+rewrite onth_nth -(size_map Some); case: (boolP (_ < _)).
+- apply/all_nthP; by rewrite all_map (eq_all (a2 := predT)) // all_predT.
+by rewrite -leqNgt => /(nth_default _) ->.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma onth_sizeP {T : eqType} (x0 : T) s i v : i < size s ->

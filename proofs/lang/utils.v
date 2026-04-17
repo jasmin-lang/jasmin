@@ -1901,6 +1901,11 @@ Proof.
   by apply (nth_not_default h).
 Qed.
 
+Lemma onth_cat_l {T} (s1 s2 : seq T) n x :
+  onth s1 n = Some x ->
+  onth (s1 ++ s2) n = Some x.
+Proof. by rewrite onth_cat => h; rewrite (onth_size h). Qed.
+
 Lemma all_behead {A} {p : A -> bool} {xs : seq A} :
   all p xs -> all p (behead xs).
 Proof.

@@ -1,5 +1,3 @@
-From Paco Require Import paco.
-
 From ITree Require Import
   ITree
   ITreeFacts
@@ -13,6 +11,7 @@ From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 
 Require Import
+  oseq
   while
   label
   psem
@@ -23,6 +22,7 @@ Require Import
   linear_facts.
 Require Import seq_extra compiler_util relational_logic.
 Require Export stack_zeroization.
+Require xrutt_facts.
 
 Section WITH_PARAMS.
 
@@ -63,6 +63,11 @@ Record h_stack_zeroization_params (szp : stack_zeroization_params) :=
       szp.(szp_cmd) szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
       label_in_lcmd cmd = [::];
 
+    hszp_cmd_no_syscall :
+      forall szs rspn lbl ws_align ws stk_max cmd vars,
+        szp.(szp_cmd) szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
+        all (fun i => ~~ isSome (is_syscall i)) cmd;
+
     hszp_cmdP :
       forall szs rspn lbl ws_align ws stk_max cmd vars,
         szp.(szp_cmd) szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
@@ -77,6 +82,7 @@ Context
   (szs_of_fn : funname -> option (stack_zero_strategy * wsize)).
 
 Notation szp_cmd := (szp_cmd szparams).
+Notation stack_zeroization_lfd_body := (stack_zeroization_lfd_body szparams).
 Notation stack_zeroization_lfd := (stack_zeroization_lfd szparams szs_of_fn).
 Notation stack_zeroization_lprog := (stack_zeroization_lprog szparams szs_of_fn).
 
@@ -90,18 +96,25 @@ Proof.
   by t_xrbindP=> lp_funs _ <-.
 Qed.
 
-Lemma stack_zeroization_lprog_get_fundef lp lp' :
+Lemma stack_zeroization_lprog_get_fundef_aux lp lp' fn :
   stack_zeroization_lprog lp = ok lp' ->
-  forall fn lfd,
+  if get_fundef lp.(lp_funcs) fn is Some lfd then
+    exists2 lfd',
+      stack_zeroization_lfd lp.(lp_rsp) fn lfd = ok lfd' &
+      get_fundef lp'.(lp_funcs) fn = Some lfd'
+  else get_fundef lp'.(lp_funcs) fn = None.
+Proof.
+rewrite /stack_zeroization_lprog.
+by t_xrbindP=> lp_funs /(get_map_cfprog_name_gen_aux fn) + <- /=.
+Qed.
+
+Lemma stack_zeroization_lprog_get_fundef lp lp' fn lfd :
+  stack_zeroization_lprog lp = ok lp' ->
   get_fundef lp.(lp_funcs) fn = Some lfd ->
   exists2 lfd',
     stack_zeroization_lfd lp.(lp_rsp) fn lfd = ok lfd' &
     get_fundef lp'.(lp_funcs) fn = Some lfd'.
-Proof.
-  rewrite /stack_zeroization_lprog.
-  t_xrbindP=> lp_funs hmap <- /= fn lfd' hget.
-  by apply (get_map_cfprog_name_gen hmap hget).
-Qed.
+Proof. by move=> /(stack_zeroization_lprog_get_fundef_aux fn) /[swap] ->. Qed.
 
 Lemma stack_zeroization_lfd_invariants rspn fn lfd lfd' :
   stack_zeroization_lfd rspn fn lfd = ok lfd' ->
@@ -125,32 +138,36 @@ Proof.
   by t_xrbindP=> _ _ <- /=.
 Qed.
 
-(* oseq.onthP: why eqType ?? *)
-Lemma onth_cat_l T (s1 s2 : seq T) n x :
-  oseq.onth s1 n = Some x ->
-  oseq.onth (s1 ++ s2) n = Some x.
+Lemma find_instrP_aux lp lp' s :
+  stack_zeroization_lprog lp = ok lp' ->
+  if find_instr lp s is Some i then find_instr lp' s = Some i
+  else
+    if find_instr lp' s is Some i then
+      exists c xs szs l ws ws' z n,
+        [/\ szp_cmd szs (lp_rsp lp) l ws ws' z = ok (c, xs)
+          & onth c n = Some i
+        ]
+    else True.
 Proof.
-  elim: s1 n => //= x1 s1 ih n.
-  by case: n.
+move=> /(stack_zeroization_lprog_get_fundef_aux (lfn s)); rewrite /find_instr.
+case: get_fundef => [fd|-> //] [fd' + ->].
+rewrite /stack_zeroization_lfd.
+case: szs_of_fn => [[szs ws] | [<-]]; last by case: onth.
+case: andb => [|[<-]]; last by case: onth.
+rewrite /stack_zeroization_lfd_body.
+t_xrbindP=> _ _ _ [c xs] hc; t_xrbindP=> _ _ <- /=.
+case h: onth => [i|]; first exact: onth_cat_l h.
+case h': onth => [i'|//].
+exists c, xs, szs, (next_lfd_lbl fd), (lfd_align fd), ws, (lfd_stk_max fd),
+  (lpc s - size (lfd_body fd)).
+by rewrite hc -h' onth_cat -onth_sizeE h.
 Qed.
 
 Lemma find_instrP lp lp' s i :
   stack_zeroization_lprog lp = ok lp' ->
   find_instr lp s = Some i ->
   find_instr lp' s = Some i.
-Proof.
-  move=> hzerolp.
-  rewrite /find_instr.
-  case hlfd: get_fundef => [lfd|//].
-  have [lfd' hzero ->] := stack_zeroization_lprog_get_fundef hzerolp hlfd.
-  move: hzero; rewrite /stack_zeroization_lfd.
-  case: szs_of_fn => [[??]|]; last by move=> [<-].
-  case: andb; last by move=> [<-].
-  rewrite /stack_zeroization_lfd_body.
-  t_xrbindP=> _ _ _ [cmd vars] _.
-  t_xrbindP=> _ _ <- /=.
-  by apply: onth_cat_l.
-Qed.
+Proof. by move=> /(find_instrP_aux s) /[swap] ->. Qed.
 
 Lemma get_label_after_pcP lp lp' s lbl :
   stack_zeroization_lprog lp = ok lp' ->
@@ -454,6 +471,17 @@ Let pre s1 s2 :=
 Let post s1 s2 :=
   s1 = s2 /\ ~endpc lp fn s1.
 
+Lemma next_is_syscallP s : next_is_syscall lp s = next_is_syscall lp' s.
+Proof.
+have := find_instrP_aux s pp'; rewrite /next_is_syscall.
+case: find_instr => [i -> //|].
+case: find_instr => [i'|//] [c [xs [szs [l [ws [ws' [z [n []]]]]]]]].
+move=> /(hszp_cmd_no_syscall hszparams) /all_nthP h.
+set li := {| li_ii := dummy_instr_info; li_i := Lret |}.
+move: (h li n) => /[swap] /(onthP' li) [-> ->] /(_ erefl).
+by case: is_syscall.
+Qed.
+
 Lemma istack_zeroization_lprog_lsem :
   wkequiv pre (ilsem lp (endpc lp fn)) (ilsem lp' (fun s => endpc lp fn s && endpc lp' fn s)) post.
 Proof.
@@ -468,6 +496,25 @@ Proof.
     by have := lt_nm_n (size (lfd_body lfd)) (size cmd); rewrite -heq hlt.
   apply xrutt_facts.xrutt_bind with pre; last first.
   + by move=> s1 s2 hpre'; apply xrutt.xrutt_Ret; constructor.
+  rewrite /istep next_is_syscallP; case: next_is_syscall => [o|].
+  + apply: xrutt_facts.xrutt_refl.
+  + apply: (xrutt_facts.xrutt_weaken
+      (EE1 := core_logics.errcutoff (is_error wE))
+      (EE2 := core_logics.nocutoff)
+      (REv := EPreRel)
+      (RAns := EPostRel)
+      (RR := eq)
+    ) => //.
+    + move=> s' _ <-; split=> //.
+
+    ; last
+    apply: xrutt_facts.xrutt_refl.
+
+  Search (xrutt.xrutt _ _ _ _ _ ?x ?x).
+
+  wkequiv pre (lexec_syscall s o) (lexec_syscall s o) post.
+
+  - admit.
   apply wkequiv_iresult with (P:= pre); last by split.
   move=> {hpre hpc}s _ s' [<- hpre] hstep; exists s'.
   + by apply: stack_zeroization_lprog_lsem1 pp' hstep.
