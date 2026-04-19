@@ -421,7 +421,7 @@ Definition lset_fstate (xs : seq var) (s : lstate) (fs : fstate) : exec lstate :
   Let e := upd_estate true [::] (to_lvals xs) fs (to_estate s) in
   ok (lset_estate' s e).
 
-Definition lexec_syscall (s : lstate) (o : syscall_t) : itree E lstate :=
+Definition lexec_syscall (o : syscall_t) (s : lstate) : itree E lstate :=
   let sig := syscall_sig o in
   let e := to_estate s in
   ves <- iresult e (get_vars true s.(lvm) sig.(scs_vin));;
@@ -431,7 +431,7 @@ Definition lexec_syscall (s : lstate) (o : syscall_t) : itree E lstate :=
   Ret (lnext_pc s').
 
 Definition istep (s: lstate) : itree E lstate :=
-  if next_is_syscall s is Some o then lexec_syscall s o
+  if next_is_syscall s is Some o then lexec_syscall o s
   else iresult (to_estate s) (step s).
 
 (* This is the kind of semantics we want at assembly level. We could use the
@@ -582,10 +582,10 @@ apply/eutt_eq_bind => ?; rewrite translate_bind translate_iresult.
 apply/eutt_eq_bind => ?; rewrite translate_ret; reflexivity.
 Qed.
 
-Lemma translate_lexec_syscall E' s o :
+Lemma translate_lexec_syscall E' o s :
   eutt eq
-    (translate inr1 (lexec_syscall s o))
-    (lexec_syscall (E := E' +' E) s o).
+    (translate inr1 (lexec_syscall o s))
+    (lexec_syscall (E := E' +' E) o s).
 Proof.
 rewrite /lexec_syscall translate_bind translate_iresult.
 apply/eutt_eq_bind => ?; rewrite translate_bind.

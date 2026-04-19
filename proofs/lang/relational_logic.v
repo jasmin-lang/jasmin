@@ -259,6 +259,18 @@ Proof.
   by move=> r1 r2; apply h'.
 Qed.
 
+Lemma wkequiv_io_read {I1 I2 T1 T2 O1 O2}
+  (R : rel_io I1 I2 T1 T2)
+  (P : rel I1 I2)
+  (Q : rel_io I1 I2 O1 O2) F1 F2 F1' F2' :
+  wkequiv_io P F1 F2 R ->
+  (forall i1 i2, P i1 i2 -> wkequiv (R i1 i2) (F1' i1) (F2' i2) (Q i1 i2)) ->
+  wkequiv_io P (fun i => t <- F1 i;; F1' i t) (fun i => t <- F2 i;; F2' i t) Q.
+Proof.
+move=> h h' i1 i2 hP; apply: (xrutt_bind (RR := R i1 i2)); first exact: h.
+by move=> r1 r2 hR; apply/(h' _ _ hP)/hR.
+Qed.
+
 Lemma wkequiv_bind {I1 I2 T1 T2 O1 O2}
   (R : rel T1 T2)
   (P : rel I1 I2)
@@ -2434,11 +2446,9 @@ Proof.
   by rewrite /subevent /= /resum /rndE_syscall mid12.
 Qed.
 
-Lemma fs_uincl_eq_syscall (P: estate -> estate -> Prop) o :
-  forall s1 s2, P s1 s2 ->
+Lemma fs_uincl_eq_syscall o s1 s2 :
   wkequiv fs_uincl (fexec_syscall s1 o) (fexec_syscall s2 o) eq.
 Proof.
-  rewrite /fexec_syscall => s1 s2 hP.
   apply wkequiv_read with eq.
   + apply wkequiv_iresult => fs1 fs2 len [?? hu1] hex.
     by exists len => //; apply: exec_syscall_argP hu1 hex.
@@ -2458,22 +2468,18 @@ Proof.
   by move=> ? _ <- ?? [???]; apply xrutt_Ret.
 Qed.
 
-Lemma fs_uincl_syscall (P: estate -> estate -> Prop) o :
-  forall s1 s2, P s1 s2 ->
+Lemma fs_uincl_syscall o s1 s2 :
   wkequiv fs_uincl (fexec_syscall s1 o) (fexec_syscall s2 o) fs_uincl.
 Proof.
-  move=> s1 s2 hP; apply wkequiv_weaken with fs_uincl eq => //.
-  + by move=> > _ <-; split => //; apply List_Forall2_refl.
-  apply: fs_uincl_eq_syscall hP.
+apply wkequiv_weaken with fs_uincl eq => //; last exact: fs_uincl_eq_syscall.
+by move=> > _ <-; split => //; apply List_Forall2_refl.
 Qed.
 
-Lemma eq_syscall (P: estate -> estate -> Prop) o :
-  forall s1 s2, P s1 s2 ->
+Lemma eq_syscall o s1 s2 :
   wkequiv eq (fexec_syscall s1 o) (fexec_syscall s2 o) eq.
 Proof.
-  move=> s1 s2 hP; apply wkequiv_weaken with fs_uincl eq => //.
-  + by move=> > <-; split => //; apply List_Forall2_refl.
-  apply: fs_uincl_eq_syscall hP.
+apply wkequiv_weaken with fs_uincl eq => //; last exact: fs_uincl_eq_syscall.
+by move=> > <-; split => //; apply List_Forall2_refl.
 Qed.
 
 Context (p1 p2 : prog) (ev1 ev2: extra_val_t).
@@ -2490,7 +2496,7 @@ Lemma wequiv_syscall_rel_uincl {cu: Checker_uincl p1 p2 (ce:=ce)} d de d' ii1 xs
 Proof.
   move=> hes hxs.
   eapply wequiv_syscall_rel_uincl_core; eauto.
-  apply fs_uincl_syscall.
+  move=> ++ _; exact: fs_uincl_syscall.
 Qed.
 
 Lemma wequiv_syscall_rel_eq {cu: Checker_eq p1 p2 (ce:=ce)} d de d' ii1 xs1 sc es1 ii2 xs2 es2 :
@@ -2501,9 +2507,9 @@ Lemma wequiv_syscall_rel_eq {cu: Checker_eq p1 p2 (ce:=ce)} d de d' ii1 xs1 sc e
 Proof.
   move=> hes hxs.
   eapply wequiv_syscall_rel_eq_core; eauto.
-  move=> s1 s2 hP; apply wkequiv_weaken with fs_uincl eq => //.
-  + by move=> > <-; split => //; apply List_Forall2_refl.
-  apply: fs_uincl_eq_syscall hP.
+  move=> s1 s2 _; apply wkequiv_weaken with fs_uincl eq => //;
+    last exact: fs_uincl_eq_syscall.
+  by move=> > <-; split => //; apply List_Forall2_refl.
 Qed.
 
 End SYSCALL.

@@ -1490,7 +1490,7 @@ apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
   - by move=> > [-> _].
   - by move=> > [-> _].
   - split=> //. exact: EnvP.le_refl.
-  exact: eq_syscall.
+  move=> > _; exact: eq_syscall.
 
 (* Assert *)
 by move=> > /= [<-] [<- <-]; apply wequiv_assert => //.

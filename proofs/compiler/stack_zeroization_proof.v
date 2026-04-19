@@ -20,9 +20,9 @@ Require Import
   linear_util
   linear_sem
   linear_facts.
-Require Import seq_extra compiler_util relational_logic.
+Require Import seq_extra compiler_util relational_logic core_logics.
 Require Export stack_zeroization.
-Require xrutt_facts.
+Require Import xrutt xrutt_facts.
 
 Section WITH_PARAMS.
 
@@ -451,8 +451,34 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE0 : EventRels E0}
-  {rE : RndEvent syscall_state -< E}
+  {rndE0 : RndEvent syscall_state -< E0}
+  {rndE0_refl : RndE0_refl rE0}
 .
+
+Lemma lexec_syscall_in_bound lp o s lfd :
+  get_fundef (lp_funcs lp) (lfn s) = Some lfd ->
+  lpc s < size (lfd_body lfd) ->
+  lutt
+    (fun _ _ => True)
+    (fun _ _ _ => True)
+    (fun s' =>
+      if get_fundef (lp_funcs lp) (lfn s') is Some lfd' then
+        lpc s' <= size (lfd_body lfd')
+      else True)
+    (lexec_syscall o s).
+Proof.
+move=> hget hpc.
+apply: (lutt_bind (R := PredT)) => [|vs _]; first exact/lutt_true.
+apply: (lutt_bind (R := PredT)) => [|fs _]; first exact/lutt_true.
+set R := fun s' => [/\ lpc s' = lpc s & lfn s' = lfn s ].
+apply: (lutt_bind (R := R)) => [|s' [hpc' hfn']].
+- (* TODO how to do this properly? *)
+  apply: (lutt_weaken (Q := R) _ _ _ (lutt_iresult _ _)) => //.
+  + move=> T e x _ _; rewrite /postInv; case: (mfun1 e) => // h.
+    by inversion h; subst T.
+  by move=> s'; rewrite /lset_fstate; t_xrbindP=> ? _ <-.
+apply lutt_Ret; by rewrite /= hfn' hget hpc'.
+Qed.
 
 Section EXPORT.
 
@@ -471,7 +497,7 @@ Let pre s1 s2 :=
 Let post s1 s2 :=
   s1 = s2 /\ ~endpc lp fn s1.
 
-Lemma next_is_syscallP s : next_is_syscall lp s = next_is_syscall lp' s.
+Lemma next_is_syscallP s : next_is_syscall lp' s = next_is_syscall lp s.
 Proof.
 have := find_instrP_aux s pp'; rewrite /next_is_syscall.
 case: find_instr => [i -> //|].
@@ -488,35 +514,35 @@ Proof.
   apply wkequiv_iter.
   rewrite /while_body => s _ [<-] hpre.
   case: ifPn => hpc /=; last first.
-  + by apply xrutt.xrutt_Ret; constructor; split => //; apply /negP.
+  + by apply xrutt_Ret; constructor; split => //; apply /negP.
   have -> : endpc lp' fn s.
   + move: hpc; rewrite /endpc hget hget' /= size_cat; case: eqP => //.
     move=> h; have := hpre (sym_eq h).
     rewrite leq_eqVlt => /orP [->// | ] hlt _; apply /eqP => heq.
     by have := lt_nm_n (size (lfd_body lfd)) (size cmd); rewrite -heq hlt.
-  apply xrutt_facts.xrutt_bind with pre; last first.
-  + by move=> s1 s2 hpre'; apply xrutt.xrutt_Ret; constructor.
-  rewrite /istep next_is_syscallP; case: next_is_syscall => [o|].
-  + apply: xrutt_facts.xrutt_refl.
-  + apply: (xrutt_facts.xrutt_weaken
+  apply xrutt_bind with pre; last first.
+  + by move=> s1 s2 hpre'; apply xrutt_Ret; constructor.
+  rewrite /istep next_is_syscallP; case h: next_is_syscall => [o|].
+  + move: h; apply: obindP => i + _; apply: obindP => lfds hgets hpcs.
+    have {}hpcs := onth_size hpcs.
+    apply: (xrutt_weaken
       (EE1 := core_logics.errcutoff (is_error wE))
       (EE2 := core_logics.nocutoff)
-      (REv := EPreRel)
-      (RAns := EPostRel)
-      (RR := eq)
-    ) => //.
-    + move=> s' _ <-; split=> //.
-
-    ; last
-    apply: xrutt_facts.xrutt_refl.
-
-  Search (xrutt.xrutt _ _ _ _ _ ?x ?x).
-
-  wkequiv pre (lexec_syscall s o) (lexec_syscall s o) post.
-
-  - admit.
+    ); last apply: (lutt_xrutt_trans_l
+         (REv := EPreRel)
+         (RAns := EPostRel)
+         (RR := fun s1' s2' =>
+                  [/\ s1' = s2', lfn s1' = lfn s & lpc s1' = (lpc s).+1 ]))
+         (lexec_syscall_in_bound o hgets hpcs)
+         (eq_lsyscall o erefl).
+    - done.
+    - done.
+    - by move=> > [] _.
+    - done.
+    - rewrite /pre /= => s1 _ [] /[swap] -[<-] -> -> h; split=> // ?; subst fn.
+      by rewrite hget in h.
   apply wkequiv_iresult with (P:= pre); last by split.
-  move=> {hpre hpc}s _ s' [<- hpre] hstep; exists s'.
+  move=> {hpre hpc h}s _ s' [<- hpre] hstep; exists s'.
   + by apply: stack_zeroization_lprog_lsem1 pp' hstep.
   split => // ?; subst fn.
   by apply: step_in_bound hstep.
@@ -556,9 +582,9 @@ Proof.
     case: szs_of_fn => [ [szs ws]| [<-]]; last by auto.
     case: andP; last by move=> ? [<-]; auto.
     by move=> []? /ZltP??; right; exists szs, ws.
-  + move=> [? hszs]; subst lfd'. apply xrutt_facts.xrutt_bind with (fun _ _ => lfd_export lfd).
+  + move=> [? hszs]; subst lfd'. apply xrutt_bind with (fun _ _ => lfd_export lfd).
     + by apply rutt_iresult; t_xrbindP => ->; exists tt.
-    move=> _ _ hexport; apply xrutt_facts.xrutt_bind with eq.
+    move=> _ _ hexport; apply xrutt_bind with eq.
     + have /(_ [::]):= istack_zeroization_lprog_lsem hzerolp hlfd _ hpre1.
       have heq : (fun s0 : lstate => endpc lp fn s0 && endpc lp' fn s0) =1 endpc lp' fn.
       + move=> s2 /=; rewrite /endpc hlfd hlfd'.
@@ -567,11 +593,11 @@ Proof.
       have h : get_fundef (lp_funcs lp') fn = Some (map_lfundef (cat^~ [::]) lfd).
       + by rewrite hlfd'; case: (lfd) => > /=; rewrite /map_lfundef /= cats0.
       move=> /(_ h).
-      by apply xrutt_facts.xrutt_weaken => // ?? [].
+      by apply xrutt_weaken => // ?? [].
     move=> r _ <-.
-    apply xrutt_facts.xrutt_bind with eq.
+    apply xrutt_bind with eq.
     + by apply rutt_iresult => ? ->; eauto.
-    move=> _ _ _; apply xrutt.xrutt_Ret; split => //.
+    move=> _ _ _; apply xrutt_Ret; split => //.
     rewrite /match_mem_zero_export.
     case: szs_of_fn hszs => [_|//].
     move=> /andP; rewrite hexport /= => /ZltP/Z.le_ngt ?.
@@ -580,18 +606,18 @@ Proof.
   rewrite /match_mem_zero_export /stack_zeroization_lfd_body => -[szs[ws [-> hexport hlt]]].
   t_xrbindP=> halign1 halign2 hle [cmd vars] hcmd.
   t_xrbindP=> /Sv_memP rsp_nin hdisj hmap; subst lfd' => /=.
-  apply xrutt_facts.xrutt_bind with eq.
-  + by rewrite hexport; apply xrutt.xrutt_Ret.
+  apply xrutt_bind with eq.
+  + by rewrite hexport; apply xrutt_Ret.
   move=> _ _ _; rewrite {2}/ilsem.
   rewrite (split_while (endpc lp fn)).
   rewrite bind_bind.
-  apply xrutt_facts.xrutt_bind with (fun s1' s2' =>
+  apply xrutt_bind with (fun s1' s2' =>
     [/\ s1' = s2', mem_equiv (lmem s1) (lmem s1') & ~ endpc lp fn s1']).
   + have h1 := istack_zeroization_lprog_lsem hzerolp hlfd hlfd' hpre1.
     have hpreh : mem_equiv (lmem s1) (lmem s1) by done.
     have h2 := [elaborate ilsem_mem_equiv lp (endpc lp fn) hpreh].
     have := core_logics.lutt_xrutt_trans_l h2 h1.
-    apply xrutt_facts.xrutt_weaken => //.
+    apply xrutt_weaken => //.
     + by move=> > [].
     + move=> T1 T2 e1 t1 e2 t2 + _ [].
       rewrite /core_logics.errcutoff /is_error /preInv /EPreRel /EPostRel /postInv /=.
@@ -610,7 +636,7 @@ Proof.
   + by move=> p hb; rewrite -hvalid_eq; apply hvalid.
   have hbody: lfd_body (map_lfundef (cat^~ cmd) lfd) = lfd_body lfd ++ cmd by done.
   case: allP => hall; last first.
-  + rewrite /iresult /= bind_throw; apply xrutt.xrutt_CutL => //.
+  + rewrite /iresult /= bind_throw; apply xrutt_CutL => //.
     by rewrite /core_logics.errcutoff /is_error /subevent /resum /fromErr mid12.
   have {}hrsp: (lvm s2).[vid (lp_rsp lp)] = Vword ptr.
   + have <- // : (evm s).[vid (lp_rsp lp)] = (lvm s2).[vid (lp_rsp lp)].
@@ -628,7 +654,7 @@ Proof.
     apply heqvm'.
     have [/disjointP hd _] := disjoint_union (disjoint_sym hdisj).
     by apply/hd/Sv_elemsP.
-  rewrite bind_ret_l; apply xrutt.xrutt_Ret; split => //=.
+  rewrite bind_ret_l; apply xrutt_Ret; split => //=.
   apply (eq_ex_disjoint_eq_on heqvm').
   by have [_ /disjoint_sym ?] := disjoint_union (disjoint_sym hdisj).
 Qed.

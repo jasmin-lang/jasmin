@@ -870,7 +870,7 @@ Section PROOF.
       + move=> > [] [h1 h2 h3] hval; split => //.
         by apply/valid_pi_with_scs/valid_pi_remove_m.
       + by rewrite /check_lvals /= /check_lvals_pi heq.
-      by apply fs_uincl_syscall.
+      by move=> > _; apply fs_uincl_syscall.
     + case => msg e ii d _ /ok_inj<-.
       by apply wequiv_noassert.
     + move=> e c1 c2 hc1 hc2 ii d di /=; t_xrbindP => di1 /hc1{}hc1 di2 /hc2{}hc2 <- /=.

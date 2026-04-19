@@ -1153,7 +1153,7 @@ Module RGP. Section PROOFS.
     + move=> xs o es ii d dc_ /=; t_xrbindP => xs' hxs' es' hes' <- /=.
       apply wequiv_syscall_rel_uincl_core_R with (checker_valid ii) d d => //.
       + by move=> > []. + by move=> > [?????].
-      by move=> ?? hP; apply: fs_uincl_syscall hP.
+      by move=> > _; apply: fs_uincl_syscall.
     + move=> e c1 c2 hc1 hc2 ii d dc_ /=; t_xrbindP.
       move=> e' he' dc1 /hc1{}hc1 dc2 /hc2{}hc2 <- /=.
       apply wequiv_if_rel_uincl_R with (checker_valid ii) d dc1.1 dc2.1 => //.

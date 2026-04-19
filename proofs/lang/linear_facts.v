@@ -18,6 +18,7 @@ Require Import
   sem_one_varmap
   hoare_logic
 .
+Require Import xrutt xrutt_facts.
 
 Section WITH_PARAMS.
 
@@ -309,9 +310,12 @@ Section ITREE.
 Context
   {E E0: Type -> Type}
   {wE : with_Error E E0}
-  {rE : RndEvent syscall_state -< E}
+  {rE0 : EventRels E0}
+  {rndE0 : RndEvent syscall_state -< E0}
+  {rndE0_refl : RndE0_refl rE0}
 .
 
+(* TODO first hypothesis is weird *)
 Lemma lutt_iresult T (s : estate) (r : exec T) R :
   (forall v, r = ok v -> R v) ->
   core_logics.lutt
@@ -328,14 +332,13 @@ Qed.
 Lemma lexec_syscall_mem_equiv m o :
   khoare (iE0 := trivial_invEvent E0) (iEr := invErrT)
     (fun s => mem_equiv m (lmem s))
-    (fun s => lexec_syscall s o)
+    (lexec_syscall o)
     (fun s => mem_equiv m (lmem s)).
 Proof.
-  move=> s hmem.
-  rewrite /lexec_syscall /=.
+  move=> s hmem; rewrite /lexec_syscall /=.
   apply core_logics.lutt_bind with PredT; first exact: lutt_iresult.
   move=> ves _.
-  apply core_logics.lutt_bind with (fun fs' : fstate => mem_equiv m (fmem fs')).
+  apply core_logics.lutt_bind with (fun fs' => mem_equiv m (fmem fs')).
   { rewrite /fexec_syscall /=.
     apply core_logics.lutt_bind with PredT; first exact: lutt_iresult.
     move=> len _.
@@ -376,6 +379,26 @@ Proof.
     by apply: mem_equiv_trans (lsem1_mem_equiv heq).
   apply core_logics.lutt_Vis => //=.
   by rewrite /preInv /= /Subevent.subevent /= /CategoryOps.resum /= /fromErr mid12.
+Qed.
+
+(* TODO this would work with uincl but currently we only need eq. *)
+Lemma eq_lsyscall o :
+  wkequiv_io
+    eq
+    (lexec_syscall o) (lexec_syscall o)
+    (fun s1 _ s1' s2' =>
+       [/\ s1' = s2', lfn s1' = lfn s1 & lpc s1' = (lpc s1).+1 ]).
+Proof.
+apply: (wkequiv_io_read (R := fun _ _ => eq)) => [|s _ <-].
++ apply: wkequiv_iresult => ? _ vs <- ->; by exists vs.
+apply: (wkequiv_io_read (R := fun _ _ => eq)) => [|s' _ _].
++ move=> s' _ <-; exact: eq_syscall.
+apply: (wkequiv_read
+  (R := fun s1' s2' => [/\ s1' = s2', lfn s1' = lfn s & lpc s1' = lpc s ])
+) => [|s'' _ [<- <- <-]].
++ apply: wkequiv_iresult => fs _ s'' <- h; exists s'' => //; move: h.
+  by rewrite /lset_fstate; t_xrbindP => ? _ <-.
+by move=> _ _ _; apply: xrutt_Ret.
 Qed.
 
 End ITREE.
