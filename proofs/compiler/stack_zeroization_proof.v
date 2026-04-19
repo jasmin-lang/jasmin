@@ -50,7 +50,7 @@ Definition sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars : Prop :=
   valid_between (lmem ls) top stk_max ->
   exists m' vm',
     [/\ let: ls' := setpc (lset_mem_vm ls m' vm') (size lc + size cmd) in
-        lsem_n lp (endpc lp fn) ls ls'
+        lsem_n lp (and_not_syscall lp (endpc lp fn)) ls ls'
       , lvm ls =[\ vars ] vm'
       , validw (lmem ls) =3 validw m'
       , zero_between m' top stk_max
@@ -63,6 +63,7 @@ Record h_stack_zeroization_params (szp : stack_zeroization_params) :=
       szp.(szp_cmd) szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
       label_in_lcmd cmd = [::];
 
+    (* TODO can be deduced from [sz_cmd_spec] *)
     hszp_cmd_no_syscall :
       forall szs rspn lbl ws_align ws stk_max cmd vars,
         szp.(szp_cmd) szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
@@ -577,7 +578,7 @@ Proof.
           [/\ szs_of_fn fn = Some (szs, ws)
             , lfd_export lfd
             , (0 < lfd_stk_max lfd)%Z
-            & stack_zeroization_lfd_body szparams (lp_rsp lp) lfd szs ws = ok lfd'].
+            & stack_zeroization_lfd_body (lp_rsp lp) lfd szs ws = ok lfd'].
   + move: hzero; rewrite /stack_zeroization_lfd.
     case: szs_of_fn => [ [szs ws]| [<-]]; last by auto.
     case: andP; last by move=> ? [<-]; auto.
@@ -634,7 +635,6 @@ Proof.
     let: p := (align_word (lfd_align lfd) ptr - wrepr Uptr n)%R in
     valid_between (lmem s2) p n.
   + by move=> p hb; rewrite -hvalid_eq; apply hvalid.
-  have hbody: lfd_body (map_lfundef (cat^~ cmd) lfd) = lfd_body lfd ++ cmd by done.
   case: allP => hall; last first.
   + rewrite /iresult /= bind_throw; apply xrutt_CutL => //.
     by rewrite /core_logics.errcutoff /is_error /subevent /resum /fromErr mid12.
@@ -645,8 +645,17 @@ Proof.
     hszp_cmdP
       hszparams hcmd rsp_nin hlt halign2 hle (next_lfd_lblP (lfd := lfd)) hlin
       (ls := s2) erefl (sym_eq hsz) enough_stk' hrsp hvalid'.
-  have /= := [elaborate lsem_n_ilsem hsem'].
-  rewrite /ilsem => ->.
+
+  have := [elaborate
+    lsem_n_ilsem (and_not_syscall_not_syscall (P := _) (cond := _)) hsem'
+  ].
+
+  rewrite (eq_ilsem _ (cond2 := endpc lp' (lfn s2))); first last.
+  - rewrite /and_not_syscall => s'; case: (boolP (endpc _ _ _)) => //.
+    rewrite /endpc.
+
+
+  rewrite /ilsem. => ->.
   rewrite unfold_while /endpc /= eqxx hlfd' /= size_cat eqxx /= !bind_ret_l /=.
   have -> /= : (all (fun x : var => value_eqb (evm s).[x] vm''.[x]) (Sv.elements callee_saved)).
   + apply /allP => x hx.

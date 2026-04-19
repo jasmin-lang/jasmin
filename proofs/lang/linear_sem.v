@@ -450,30 +450,39 @@ Definition ilsem_exportcall (fn: funname) (es:estate) :=
   _ <- iresult (to_estate s') (assert (all (fun x => value_eqb (evm es).[x] vm'.[x]) (Sv.elements callee_saved)) ErrSemUndef);;
   Ret (to_estate s').
 
-(*
-Lemma i_lsem_body cond s :
+(* TODO fail rather than stop executing *)
+Definition cond_not_syscall (cond : pred lstate) : Prop :=
+  forall s, cond s -> ~~ isSome (next_is_syscall s).
+
+Definition and_not_syscall (cond : pred lstate) (s : lstate) : bool :=
+  cond s && ~~ next_is_syscall s.
+
+Lemma and_not_syscall_not_syscall cond :
+  cond_not_syscall (and_not_syscall cond).
+Proof. by move=> ? /andP []. Qed.
+
+Lemma i_lsem_body (cond : pred lstate) s :
+  cond_not_syscall cond ->
   while_body cond istep s ≅ iresult (to_estate s) (lsem_body cond s).
 Proof.
-  rewrite /while_body /lsem_body; case: ifP => h /=; last reflexivity.
-  rewrite /istep.
-  case: step => [s' | ] /=.
-  + rewrite bind_ret_l; reflexivity.
-  move=> e; apply bind_throw.
+move=> h; rewrite /while_body /lsem_body; case: ifP => h'; last reflexivity.
+rewrite /istep; move: (h _ h'); case: next_is_syscall => // _.
+case: step => [s'|] /=.
++ rewrite bind_ret_l; reflexivity.
+by move=> e; apply bind_throw.
 Qed.
 
-Lemma i_lsem_body_n cond n s :
+Lemma i_lsem_body_n (cond : pred lstate) n s :
+  cond_not_syscall cond ->
   iter_n (while_body cond istep) n s ≈
     err_result (pair^~ tt) (lsem_body_n cond n.+1 s).
 Proof.
-  rewrite /=; elim: n s => /= [ | n hn] s.
-  + rewrite i_lsem_body. case: (lsem_body cond s) => [ins | e] /=; last by reflexivity.
-    case: ins; reflexivity.
-  rewrite i_lsem_body; case: lsem_body => [ ins| e] /=;
-    last by rewrite bind_throw; reflexivity.
-  rewrite bind_ret_l; case: ins => s' /=; last reflexivity.
-  apply/eqit_Tau_l/hn.
+move=> h; rewrite /=; elim: n s => /= [|n hn] s; rewrite i_lsem_body //.
++ case: lsem_body => [[]|?]; reflexivity.
+case: lsem_body => [i|e] /=; last by rewrite bind_throw; reflexivity.
+rewrite bind_ret_l; case: i => s' /=; last reflexivity.
+exact/eqit_Tau_l/hn.
 Qed.
-*)
 
 Lemma unfold_lsem cond s :
   ilsem cond s ≈
@@ -489,17 +498,16 @@ Proof.
   apply eqit_Tau_l; reflexivity.
 Qed.
 
-(*
 Lemma lsem_n_ilsem s2 s1 cond :
+  cond_not_syscall cond ->
   lsem_n cond s1 s2 ->
   ilsem cond s1 ≈ ilsem cond s2.
 Proof.
-  move=> [n]; elim: n s1 => [ | n ih] s1 /=; t_xrbindP.
+  move=> h [n]; elim: n s1 => [ | n ih] s1 /=; t_xrbindP.
   + by move=> <-; reflexivity.
   move=> [ s1' | //] hstep /ih <-.
-  rewrite unfold_lsem i_lsem_body hstep /= bind_ret_l; reflexivity.
+  rewrite unfold_lsem i_lsem_body // hstep /= bind_ret_l; reflexivity.
 Qed.
-*)
 
 Lemma eq_ilsem cond1 cond2 s:
   cond1 =1 cond2 ->
