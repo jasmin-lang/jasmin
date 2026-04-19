@@ -1234,7 +1234,6 @@ Definition linear_l2r_fd (fn: funname) (fd: sfundef) : (plinfo * lfundef) :=
     ; lfd_align_args := sf_align_args e
     |}).
 
-
 (* The datatype that defines the Intermediate language. NOTE: LLeafL
    is not used, whereas we could probably use a node built out of a
    sequential list wrt linear_fd (TODO). *)
@@ -1283,6 +1282,49 @@ Inductive LTree (fn0: funname) : plinfo -> plinfo -> Type :=
           (lcm1: LTreeList (incrP2 pl1) pl2)
           (la_lbl2: LTreeList (S n2, next_lbl lbl3) (incrPL1 (incrL1 pl2))),
    LTree pl0 (incrPL1 (incrL1 pl2))                  
+| LWhileTNode : forall pl0 pl1 pl2 
+                       (ii: instr_info) (a: expr.align), 
+   let n0 := fst pl0 in
+   let lbl0 := snd pl0 in
+   let n00 := if does_align ii a then S n0 else n0 in  
+   let lbl2 := snd pl2 in
+   let lbl3 := next_lbl lbl2 in 
+   forall (la_lbl1_and_align: LTreeList (n0, lbl2) (S n00, lbl3))
+          (lcm1: LTreeList (S n00, lbl0) pl1)
+          (lcm2: LTreeList pl1 pl2)
+          (la_goto1: LTreeList pl2 (incrPL1 pl2)),
+   LTree pl0 (incrPL1 pl2)            
+| LWhileFNode : forall pl0 pl1 (lcm1: LTreeList pl0 pl1),
+   LTree pl0 pl1    
+| LWhileNode : forall pl0 pl1 pl2
+                      (ii: instr_info) (a: expr.align) (e: fexpr), 
+   let n0 := fst pl0 in
+   let lbl0 := snd pl0 in
+   let n00 := if does_align ii a then S n0 else n0 in
+   let n1 := fst pl1 in 
+   let n2 := fst pl2 in 
+   let lbl2 := snd pl2 in
+   let lbl3 := next_lbl lbl2 in 
+   let lbl4 := next_lbl lbl3 in 
+   forall (la_goto2_and_align: LTreeList (n0, lbl2) (S n00, lbl2))
+          (la_lbl3: LTreeList (S n00, lbl2) (S (S n00), lbl4))
+          (lcm2: LTreeList (S (S n00), lbl0) pl1)
+          (la_lbl2: LTreeList pl1 (S n1, lbl3))
+          (lcm1: LTreeList (incrP1 pl1) pl2)
+          (la_cond3: LTreeList pl2 (S n2, lbl4)),
+   LTree pl0 (S n2, lbl4)  
+| LCallNode : forall pl0 nb na,
+   let n0 := fst pl0 in
+   let lbl0 := snd pl0 in
+   let lbl1 := next_lbl lbl0 in
+   let nbE := n0 + nb in
+   let naS := S (S nbE) in
+   forall (fn': funname)
+          (la_before: LTreeList pl0 (nbE, lbl0))
+          (la_before: LTreeList (naS, lbl0) (naS + na, lbl0)),
+     forall (la_call: LTreeList (nbE, lbl0) (S nbE, lbl0))
+            (la_ret: LTreeList (S nbE, lbl0) (naS, lbl1)),
+     LTree pl0 (naS + na, lbl1)        
 
 (*
 | LIf1Node : forall pl0 pl1 (ii: instr_info) (e: fexpr), 
@@ -1373,6 +1415,10 @@ Fixpoint imed_cmd_aux
            let: pl2 := projT1 X2 in 
            existT _ pl2 (@LListCons fn0 pl0 pl1 pl2  
                                     (projT2 X1) (projT2 X2)) end.
+
+Definition LLT (fn0: funname) (pl0 pl1: plinfo) :
+  linstr -> LTreeList fn0 pl0 pl1. 
+Admitted. 
 
 (* The translation from Source to Intermediate.  NOTE: we could have
    defined this using linear_i instead, but then we should have
