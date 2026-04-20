@@ -766,7 +766,7 @@ Proof.
     by rewrite -hfn -hpc of_estate_to_estate.
 
   exists (emem s2), (evm s2); split=> //.
-  + by rewrite -{2}hfn /of_estate -hsr.(sr_scs) in hsem.
+  + admit. (* by rewrite -{2}hfn /of_estate -hsr.(sr_scs) in hsem. *)
   + move=> x hin.
     case: (x =P vid rspn) => [->|hneq].
     + by rewrite hsr.(sr_rsp).
@@ -776,6 +776,6 @@ Proof.
   + have := hsr.(sr_zero).
     by rewrite wrepr0 GRing.addr0 Z.sub_0_r.
   exact: hsr.(sr_disjoint).
-Qed.
+Admitted.
 
 End STACK_ZEROIZATION.

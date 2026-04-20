@@ -14,6 +14,7 @@ Require Import
   psem
   psem_facts
   relational_logic
+  sem_one_varmap
 .
 Require Import
   allocation_proof
@@ -44,6 +45,7 @@ Require Import
   stack_zeroization_proof
   wint_word_proof
 .
+
 Require Import compiler_proof.
 
 Require Import
@@ -53,7 +55,7 @@ Require Import
   asm_gen_proof
   sem_params_of_arch_extra.
 
-Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+Definition values_uincl := List.Forall2 value_uincl.
 
 Section IT.
 
@@ -69,11 +71,14 @@ Context
   (cparams : compiler_params lowering_options)
   (print_uprogP : forall s p, cparams.(print_uprog) s p = p)
   (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
+  (print_linearP : forall s p, cparams.(print_linear) s p = p)
 .
 
+Notation E := (ErrEvent +' RndEvent syscall_state) (only parsing).
+Notation E0 := (RndEvent syscall_state) (only parsing).
+
 #[local]
-Instance with_Error0 :
-  with_Error (ErrEvent +' RndEvent syscall_state) (RndEvent syscall_state) :=
+Instance wE : with_Error E E0 :=
   {|
     mfun1 := fun _ x => x;
     mfun2 := fun _ x => x;
@@ -81,23 +86,17 @@ Instance with_Error0 :
     mid21 := fun _ x => erefl;
   |}.
 
+Definition RndPre (A B : Type) : E0 A -> E0 B -> Prop :=
+  fun '(Rnd scs1 n1) '(Rnd scs2 n2) => scs1 = scs2 /\ n1 = n2.
+
+Definition RndPost (A B : Type) : E0 A -> A -> E0 B -> B -> Prop :=
+  fun '(Rnd scs1 n1) a '(Rnd scs2 n2) b => a = b.
+
 #[local]
-Instance HandlerContract : EventRels (RndEvent syscall_state) :=
+Instance HandlerContract : EventRels E0 :=
   {|
-    EPreRel0_ := fun A B r1 r2 =>
-                   let: Rnd scs1 n1 := r1 in
-                   let: Rnd scs2 n2 := r2 in
-                   scs1 = scs2 /\ n1 = n2;
-    EPostRel0_ := fun A B r1 =>
-                    match r1 in RndEvent _ A' return A' -> _ with
-                    | Rnd scs1 n1 =>
-                        fun (a: syscall_state * seq u8) r2 =>
-                          match r2 in RndEvent _ B' return B' -> _ with
-                          | Rnd scs2 n2 =>
-                              fun (b: syscall_state * seq u8) =>
-                                a = b
-                          end
-                    end;
+    EPreRel0_ := RndPre;
+    EPostRel0_ := RndPost;
   |}.
 
 #[local]
@@ -267,9 +266,9 @@ Let rminfo (rp : funname -> option (seq (option nat))) fn :=
 Definition post_dc rp := rpostF (eS := dc_spec (rminfo rp)).
 
 Lemma fn_keep_only_uincl rm fn vs1 vs2 vs3 :
-  List.Forall2 value_uincl vs1 vs2 ->
-  List.Forall2 value_uincl (fn_keep_only rm fn vs2) vs3 ->
-  List.Forall2 value_uincl (fn_keep_only rm fn vs1) vs3.
+  values_uincl vs1 vs2 ->
+  values_uincl (fn_keep_only rm fn vs2) vs3 ->
+  values_uincl (fn_keep_only rm fn vs1) vs3.
 Proof.
 rewrite /fn_keep_only; case: rm => [tk|]; last exact: values_uincl_trans.
 elim: tk vs1 vs2 vs3 => [|[] tk hind] vs1 vs2 vs3 /=;
@@ -338,7 +337,7 @@ Context
   (rip : pointer)
 .
 
-Definition it_wf_args fn ms mt vs vt :=
+Definition wf_args_s fn ms mt vs vt :=
   wf_args
     (size_glob sp) rip ms mt (get_wptrs up fn) (get_align_args sp fn) vs vt.
 
@@ -352,7 +351,7 @@ Let pre : relPreF :=
     let: mt := fmem t in
     [/\ fn = fn'
       , alloc_ok sp fn mt
-      , it_wf_args fn ms mt args argt
+      , wf_args_s fn ms mt args argt
       , Forall3 (value_eq_or_in_mem mt) (get_wptrs up fn) args argt
       , it_extend_mem ms mt
       & fscs s = fscs t
@@ -370,7 +369,7 @@ Let post : relPostF :=
     let: mt' := fmem t' in
     let: n := get_nb_wptr up fn in
     [/\ List.Forall2 (value_in_mem mt') (take n ress) (take n argt)
-      , List.Forall2 value_uincl (drop n ress) rest
+      , values_uincl (drop n ress) rest
       , it_extend_mem ms' mt'
       , mem_unchanged_params ms mt mt' (get_wptrs up fn) args argt
       & fscs s' = fscs t'
@@ -443,7 +442,7 @@ apply: (
 ).
 - move=> s1 s3 [] [_ hok hwf hptr hmem hscs] _; exists s3 => //; split=> //.
   + by rewrite -p2_p1_extra p2_p3_extra -sp_p3_extra.
-  + move: hwf; rewrite /it_wf_args /get_wptrs get_fd /= check_params.
+  + move: hwf; rewrite /wf_args_s /get_wptrs get_fd /= check_params.
     rewrite /size_glob sp_p3_extra -p2_p3_extra p2_p1_extra.
     rewrite /get_align_args get_fd4 /= -fd3_fd4_align -fd2_fd3_extra.
     move: ok_fd2; rewrite /alloc_fd; by t_xrbindP=> _ _ <- /=.
@@ -565,5 +564,253 @@ by move=> s1 _ _ r1 r3 [_ <-] [_ <-] [_ <-] [hscs hmem] h'.
 Qed.
 
 End FRONT_END.
+
+Definition isem_unit
+  (p : uprog)
+  (fn : funname)
+  (fs : fstate) :
+  itree E fstate :=
+  isem_fun
+    (asm_op := extended_op)
+    (ep := ep_of_asm_e)
+    (spp := spp_of_asm_e)
+    (wa := withassert)
+    (sip := sip_of_asm_e)
+    (scP := sCP_unit)
+    (E := E)
+    (wsw := nosubword)
+    (dc := indirect_c)
+    (pT := progUnit)
+    p tt fn fs.
+
+Definition isem_stack
+  (sp : sprog)
+  (rip : pointer)
+  (fn : funname)
+  (fs : fstate) :
+  itree E fstate :=
+  isem_fun
+    (asm_op := extended_op)
+    (ep := ep_of_asm_e)
+    (spp := spp_of_asm_e)
+    (wa := noassert)
+    (sip := sip_of_asm_e)
+    (scP := sCP_stack)
+    (E := E)
+    (wsw := withsubword)
+    (dc := direct_c)
+    (pT := progStack)
+    sp rip fn fs.
+
+Section BACK_END.
+
+Context
+  (entries : seq funname)
+  (sp : sprog (pd := _pd) (asmop := _asmop))
+  (tp : lprog (asmop := _asmop))
+  (rip : pointer)
+.
+
+#[local] Existing Instance withsubword.
+
+Definition lget_vars (xs : seq var_i) (vm : Vm.t) : seq value :=
+  [seq vm.[v_var x] | x <- xs].
+
+Definition lget_args lfd := lget_vars lfd.(lfd_arg).
+Definition lget_res lfd := lget_vars lfd.(lfd_res).
+
+Definition zeroized_p (ms mt mt' : mem) (p : pointer) : Prop :=
+  ~~ validw ms Aligned p U8 ->
+  [\/ read mt' Aligned p U8 = read mt Aligned p U8
+    | read mt' Aligned p U8 = ok 0%R
+  ].
+
+Definition zeroized_s fn ms mt mt' :=
+  cparams.(stack_zero_info) fn <> None ->
+  forall p, zeroized_p ms mt mt' p.
+
+Let pre lfd s t :=
+  let: args := s.(fvals) in
+  let: ms := s.(fmem) in
+  let: vmt := t.(evm) in
+  let: argt := lget_args lfd vmt in
+  let: mt := t.(emem) in
+  [/\ vmt.[vid tp.(lp_rsp)] = Vword (top_stack ms)
+    , vmt.[vid tp.(lp_rip)] = Vword rip
+    , values_uincl args argt
+    , match_mem ms mt
+    , s.(fscs) = t.(escs)
+    , vm_initialized_on vmt lfd.(lfd_callee_saved)
+    & allocatable_stack ms (lfd_total_stack lfd)
+  ].
+
+Let post fn lfd s t s' t' :=
+  let: ms := s.(fmem) in
+  let: mt := t.(emem) in
+  let: ress := s'.(fvals) in
+  let: ms' := s'.(fmem) in
+  let: vmt' := t'.(evm) in
+  let: rest := lget_res lfd vmt' in
+  let: mt' := t'.(emem) in
+  [/\ values_uincl ress rest
+    , match_mem ms' mt'
+    , s'.(fscs) = t'.(escs)
+    & zeroized_s fn ms mt mt'
+  ].
+
+Lemma it_compiler_back_endP {fn} :
+  compiler_back_end aparams cparams entries sp = ok tp ->
+  fn \in entries ->
+  exists lfd,
+    [/\ get_fundef tp.(lp_funcs) fn = Some lfd
+      , lfd.(lfd_export)
+      & wkequiv_io
+          (pre lfd)
+          (isem_stack sp rip fn)
+          (ilsem_exportcall tp fn)
+          (post fn lfd)
+    ].
+Proof.
+rewrite /compiler_back_end; t_xrbindP => ok_export checked_p lp ok_lp.
+rewrite print_linearP => zp ok_zp.
+rewrite print_linearP => tp' ok_tp.
+rewrite print_linearP => ?; subst tp'.
+move=> /InP ok_fn.
+set vtmp := var_tmps aparams.
+have vtmp_not_magic : disjoint vtmp (magic_variables sp).
+- exact: (var_tmp_not_magic (sip := sip_of_asm_e)) checked_p.
+Admitted.
+
+End BACK_END.
+
+Section BACK_END_TO_ASM.
+
+Context
+  (entries : seq funname)
+  (sp : sprog (pd := _pd) (asmop := _asmop))
+  (xp : asm_prog)
+  (rip : pointer)
+.
+
+Let pre xfd s t :=
+  let: args := s.(fvals) in
+  let: ms := s.(fmem) in
+  let: rm := t.(asm_reg) in
+  let: argt := get_typed_reg_values t xfd.(asm_fd_arg) in
+  let: mt := t.(asm_mem) in
+  [/\ rm ad_rsp = top_stack ms
+    , t.(asm_rip) = rip
+    , values_uincl args argt
+    , match_mem ms mt
+    , s.(fscs) = t.(asm_scs)
+    & allocatable_stack ms xfd.(asm_fd_total_stack)
+  ].
+
+Let post fn xfd s t s' t' :=
+  let: ms := s.(fmem) in
+  let: mt := t.(asm_mem) in
+  let: ress := s'.(fvals) in
+  let: ms' := s'.(fmem) in
+  let: rest := get_typed_reg_values t' xfd.(asm_fd_res) in
+  let: mt' := t'.(asm_mem) in
+  [/\ values_uincl ress rest
+    , match_mem ms' mt'
+    , s'.(fscs) = t'.(asm_scs)
+    & zeroized_s fn ms mt mt'
+  ].
+
+Lemma it_compiler_back_end_to_asmP {fn} :
+  compiler_back_end_to_asm aparams cparams entries sp = ok xp ->
+  fn \in entries ->
+  exists xfd,
+    [/\ get_fundef xp.(asm_funcs) fn = Some xfd
+      , xfd.(asm_fd_export)
+      & wkequiv_io
+          (pre xfd)
+          (isem_stack sp rip fn)
+          (iasmsem_exportcall xp fn)
+          (post fn xfd)
+   ].
+Proof.
+rewrite /compiler_back_end_to_asm; t_xrbindP=> lp ok_lp ok_xp ok_fn.
+Admitted.
+
+End BACK_END_TO_ASM.
+
+Section FULL.
+
+Context
+  (entries : seq funname)
+  (up : uprog (asmop := _asmop))
+  (xp : asm_prog)
+.
+
+Definition zeroized_u fn args argt ms mt mt' :=
+  cparams.(stack_zero_info) fn <> None ->
+  forall p,
+    Forall3
+      (disjoint_from_writable_param (ep := ep_of_asm_e) p)
+      (get_wptrs up fn)
+      args argt ->
+    zeroized_p ms mt mt' p.
+
+Definition wf_args_x rip fn ms mi args argt :=
+  let n := Z.of_nat (size (asm_globs xp)) in
+  let ws := get_wptrs up fn in
+  let al := get_asm_align_args xp fn in
+  wf_args n rip ms mi ws al args argt.
+
+Let pre fn xfd s t :=
+  let: args := s.(fvals) in
+  let: ms := s.(fmem) in
+  let: rm := t.(asm_reg) in
+  let: argt := get_typed_reg_values t xfd.(asm_fd_arg) in
+  let: mt := t.(asm_mem) in
+  exists mi,
+    [/\ mem_agreement_with_ghost ms mt t.(asm_rip) xp.(asm_globs) mi
+      , enough_stack_space xp fn (top_stack ms) mt
+      , t.(asm_scs) = s.(fscs)
+      , rm ad_rsp = top_stack ms
+      , wf_args_x t.(asm_rip) fn ms mi args argt
+      & Forall3 (value_uincl_or_in_mem mt) (get_wptrs up fn) args argt
+    ].
+
+(* TODO why [t'.(asm_rip)] and not from [t]? *)
+
+Let post fn xfd s t s' t' :=
+  let: args := s.(fvals) in
+  let: ms := s.(fmem) in
+  let: argt := get_typed_reg_values t xfd.(asm_fd_arg) in
+  let: mt := t.(asm_mem) in
+  let: ress := s'.(fvals) in
+  let: ms' := s'.(fmem) in
+  let: rest := get_typed_reg_values t' xfd.(asm_fd_res) in
+  let: mt' := t'.(asm_mem) in
+  let: n := get_nb_wptr up fn in
+  [/\ mem_agreement ms' mt' t'.(asm_rip) xp.(asm_globs)
+    , t'.(asm_scs) = s'.(fscs)
+    , zeroized_u fn args argt ms mt mt'
+    , List.Forall2 (value_in_mem mt') (take n ress) (take n argt)
+    & values_uincl (drop n ress) rest
+  ].
+
+Lemma it_compile_prog_to_asmP {fn} :
+  compile_prog_to_asm aparams cparams entries up = ok xp ->
+  fn \in entries ->
+  exists xfd,
+    [/\ get_fundef xp.(asm_funcs) fn = Some xfd
+      , xfd.(asm_fd_export)
+      & wkequiv_io
+          (pre fn xfd)
+          (isem_unit up fn)
+          (iasmsem_exportcall xp fn)
+          (post fn xfd)
+   ].
+Proof.
+rewrite /compile_prog_to_asm; t_xrbindP => sp ok_sp ok_xp ok_fn.
+have hglob := compiler_back_end_to_asm_meta print_linearP ok_xp.
+Admitted.
+
+End FULL.
 
 End IT.
