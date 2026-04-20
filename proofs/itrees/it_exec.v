@@ -68,8 +68,8 @@ Section ExecT.
 
 End ExecT.
 
-Section ExecTLaws.
 
+Section ExecTLaws.
 
 Definition execS_rel {X} (R : relation X) (Re : relation error_data) :
    relation (execS X) :=
@@ -149,6 +149,7 @@ Qed.
   Qed.
 
 End ExecTLaws.
+
 
 Definition interp_exec {E M}
            {FM : Functor.Functor M} {MM : Monad M}

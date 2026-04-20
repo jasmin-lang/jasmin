@@ -25,7 +25,7 @@ From ITree Require Import
      Interp.RecursionFacts
      Interp.TranslateFacts.
 
-Require Import FunctionalExtensionality.
+From Stdlib Require Import FunctionalExtensionality.
 
 Require Import tfam_iso. 
 
@@ -638,6 +638,78 @@ Proof.
 Qed.   
 
 End InlineOK2.
+
+
+(* minor generalization (with h) of ITree library bind_iter *)
+Lemma bind_iter' {E A B C D} (f : A -> itree E (A + B))
+  (g : D -> itree E (D + C)) (h: B -> D)
+  : forall x,
+    (ITree.bind (ITree.iter f x) (fun b => (ITree.iter g) (h b)))
+      ≈ 
+      ITree.iter (fun ad =>
+       match ad with
+       | inl a => ITree.map inl
+                    (ITree.map (fun ab => match ab with
+                                  | inl a => inl a
+                                  | inr b => inr (h b) end) (f a))
+       | inr d => ITree.map (bimap inr (id_ _)) (g d)
+       end) (inl x).
+Proof.
+  einit. ecofix CIH. intros.
+  rewrite !unfold_iter.
+  rewrite bind_map.
+  rewrite bind_bind.
+  ebind; econstructor.
+  instantiate (1:= fun (ab: A + B) (ad: A + D) =>
+                     match (ab, ad) with
+                     | (inl a1, inl a2) => eq a1 a2
+                     | (inr b, inr d) => eq (h b) d
+                     | _ => False
+                     end).
+  { generalize (f x).
+    clear x.
+    unfold ITree.map; simpl.
+    ginit; gcofix CIH.
+    intro t.
+    rewrite (itree_eta t); simpl.
+    remember (observe t) as ofx.
+    destruct ofx; simpl.
+    rewrite bind_ret_l.
+    { destruct r0; try reflexivity.
+      gstep; red.
+      econstructor; auto.
+      gstep; red.
+      econstructor; auto.
+    }
+    { rewrite bind_tau.
+      gstep; red. econstructor.
+      gfinal. left.
+      eapply CIH.
+    }
+    { rewrite bind_vis; simpl.
+      gstep; red. econstructor.
+      intros v; unfold Datatypes.id; simpl.
+      gfinal. left.
+      eapply CIH.
+    }  
+  }
+  intros [a1 | b] [a2 | d] hh.
+  inversion hh; subst. clear H.
+  - rewrite bind_tau. etau.
+  - intuition.
+  - intuition.
+  - rewrite bind_ret_l; setoid_rewrite tau_euttge.
+    rewrite hh.
+    clear hh.
+    revert d. ecofix CIH'. intros.
+    rewrite !unfold_iter.
+    rewrite bind_map.
+    ebind; econstructor; try reflexivity.
+    intros [d' | c] _ []; cbn. 
+    + etau. 
+    + reflexivity.  
+Qed.
+
 
 (*
 Lemma rassoc_free_right_interp_lemma T h (t: itree (D1 +' E) T) :

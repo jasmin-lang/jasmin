@@ -75,3 +75,18 @@ Definition is_error {E E0 : Type -> Type}
   | inl1 _ => true
   | inr1 _ => false
   end.
+
+(**)
+
+Definition mk_error_data {S: Type} (s: S) (e: error) : error_data :=
+  (e, tt).
+
+Definition mk_error {S: Type} (s: S) : error_data :=
+  mk_error_data s ErrType.
+
+Definition iresult {E} `{ErrEvent -< E} {T} {S}
+  (F : exec T) (s: S) : itree E T :=
+  err_result (mk_error_data s) F.
+
+Definition plain_err : error_data := (ErrType, tt).
+

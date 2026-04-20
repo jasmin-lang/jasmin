@@ -218,4 +218,6 @@ itrees/equiv_extras.v
 itrees/lutt_extras.v
 itrees/safety_extras.v
 itrees/interp_commute_basic.v
+itrees/while_extras.v
+
 compiler/linearization_ext.v
