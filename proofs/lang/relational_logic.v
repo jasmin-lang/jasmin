@@ -2625,6 +2625,73 @@ Qed.
 
 End TRANSITIVITY.
 
+Section WKEQUIV_TRANS.
+
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE12 : EventRels E0} {rE23 : EventRels E0} {rE13 : EventRels E0}
+  {rE_trans : EventRels_trans rE12 rE23 rE13}.
+
+Lemma wkequiv_io_trans {I1 I2 I3 O1 O2 O3}
+  (P12 : rel I1 I2) (P23 : rel I2 I3) (P13 : rel I1 I3)
+  (Q12 : rel_io I1 I2 O1 O2) (Q23 : rel_io I2 I3 O2 O3) (Q13 : rel_io I1 I3 O1 O3)
+  (F1 : ktree E I1 O1) (F2 : ktree E I2 O2) (F3 : ktree E I3 O3) :
+  (forall i1 i3,
+     P13 i1 i3 -> exists2 i2, P12 i1 i2 & P23 i2 i3) ->
+  (forall i1 i2 i3 o1 o3,
+     P12 i1 i2 -> P23 i2 i3 ->
+     rcompose (Q12 i1 i2) (Q23 i2 i3) o1 o3 -> Q13 i1 i3 o1 o3) ->
+  wkequiv_io (rE0 := rE12) P12 F1 F2 Q12 ->
+  wkequiv_io (rE0 := rE23) P23 F2 F3 Q23 ->
+  wkequiv_io (rE0 := rE13) P13 F1 F3 Q13.
+Proof.
+  move=> hpre hpost h12 h23 i1 i3 hP13.
+  have [i2 hP12 hP23] := hpre _ _ hP13.
+  apply xrutt_weaken with
+    (errcutoff (is_error wE)) nocutoff
+    (prcompose (EPreRel (rE0 := rE12)) (EPreRel (rE0 := rE23)))
+    (pocompose (EPreRel (rE0 := rE12)) (EPreRel (rE0 := rE23))
+       (EPostRel (rE0 := rE12)) (EPostRel (rE0 := rE23)))
+    (rcompose (Q12 i1 i2) (Q23 i2 i3)) => //.
+  + move=> T1 T3 e1 e3 [T2 e2]; rewrite /EPreRel.
+    case: (mfun1 e1) (mfun1 e2) (mfun1 e3) => [err1 | e0_1] /= [err2 | e0_2] //= [err3 | e0_3] //.
+    apply ERpre_trans.
+  + move=> T1 T3 e1 t1 e3 t3. rewrite /errcutoff /nocutoff /is_error => herr _ _ hh.
+    move=> T2 e2; move: hh; rewrite /EPreRel /EPostRel.
+    case: (mfun1 e1) herr => //.
+    move=> e0_1 _. case: (mfun1 e2) => //= e0_2.
+    case: (mfun1 e3) => //= e0_3.
+    by move=> ???; apply ERpost_trans.
+  + by move=> r1 r2; apply: hpost hP12 hP23.
+  have := h23 _ _ hP23; have := h12 _ _ hP12.
+  apply xrutt_facts.xrutt_trans.
+  move=> T1 T2 e1 e2 /sum_prerelP h.
+  dependent destruction h => /=.
+  + by rewrite /errcutoff /= /is_error -x0.
+  by rewrite /errcutoff /is_error -x.
+Qed.
+
+End WKEQUIV_TRANS.
+
+Section WKEQUIV_EUTT.
+
+Context {E E0 : Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+
+Lemma wkequiv_io_eutt_r {I1 I2 O1 O2}
+  (P : rel I1 I2) (Q : rel_io I1 I2 O1 O2)
+  (F1 : ktree E I1 O1) (F2 F2' : ktree E I2 O2) :
+  (forall i2, F2 i2 ≈ F2' i2) ->
+  wkequiv_io (rE0 := rE0) P F1 F2  Q ->
+  wkequiv_io (rE0 := rE0) P F1 F2' Q.
+Proof.
+  move=> heq h i1 i2 hP.
+  rewrite -(heq i2).
+  by apply h.
+Qed.
+
+End WKEQUIV_EUTT.
+
 Notation pre_eq := (rpreF (eS := eq_spec)).
 Notation post_eq := (rpostF (eS := eq_spec)).
 

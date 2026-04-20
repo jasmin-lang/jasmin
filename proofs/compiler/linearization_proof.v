@@ -1,4 +1,12 @@
 (* ** Imports and settings *)
+From ITree Require Import
+  ITree
+  ITreeFacts
+  Basics.HeterogeneousRelations
+  Interp.Recursion
+  Eq.Rutt
+  Eq.RuttFacts.
+
 From Coq
 Require Import Setoid Morphisms Lia.
 
@@ -14,6 +22,8 @@ Require Import seq_extra.
 Require Import constant_prop constant_prop_proof.
 Require Import fexpr fexpr_sem fexpr_facts.
 Require Export linearization linear_sem linear_facts.
+Require Import core_logics relational_logic it_sems_core.
+Require Import sem_params.
 Import Memory.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
@@ -4900,6 +4910,74 @@ Section PROOF.
     - by rewrite /= Export.
     exact: res_lres.
   Qed.
+
+  Section IT.
+
+    Context
+      {E E0 : Type -> Type}
+      {wE : with_Error E E0}
+      {rE0 : EventRels E0}
+      {rE : RndEvent syscall_state -< E}.
+
+    Definition lget_vars (xs : seq var_i) (vm : Vm.t) : seq value :=
+      [seq vm.[v_var x] | x <- xs].
+    Definition lget_args (lfd : lfundef) := lget_vars lfd.(lfd_arg).
+    Definition lget_res  (lfd : lfundef) := lget_vars lfd.(lfd_res).
+
+    Context (gd : pointer).
+
+    Let pre (fd : sfundef) (lfd : lfundef) (s : fstate) (t : estate) : Prop :=
+      let: args := s.(fvals) in
+      let: ms := s.(fmem) in
+      let: vmt := t.(evm) in
+      let: argt := lget_args lfd vmt in
+      let: mt := t.(emem) in
+      [/\ vmt.[vid (lp_rsp p')] = Vword (top_stack ms)
+        , match_mem ms mt
+        , List.Forall2 value_uincl args argt
+        , vmt.[vid (lp_rip p')] = Vword gd
+        , vm_initialized_on vmt lfd.(lfd_callee_saved)
+        , s.(fscs) = t.(escs)
+        & (fd.(f_extra).(sf_stk_max)
+            + wsize_size fd.(f_extra).(sf_align) - 1
+            <= wunsigned (top_stack ms))%Z
+        ].
+
+    Let post (fd : sfundef) (lfd : lfundef) (s : fstate) (t : estate) (s' : fstate) (t' : estate) : Prop :=
+      let: ms := s.(fmem) in
+      let: mt := t.(emem) in
+      let: ress := s'.(fvals) in
+      let: ms' := s'.(fmem) in
+      let: vmt' := t'.(evm) in
+      let: rest := lget_res lfd vmt' in
+      let: mt' := t'.(emem) in
+      [/\ vmt'.[vid (lp_rsp p')] = Vword (top_stack ms)
+        , match_mem ms' mt'
+        , target_mem_unchanged
+            ms (align_top_stack (top_stack ms) fd.(f_extra))
+            fd.(f_extra).(sf_stk_max) mt mt'
+        , List.Forall2 value_uincl ress rest
+        & s'.(fscs) = t'.(escs)
+        ].
+
+    Lemma it_linear_exportcallP {fn} :
+      exists fd lfd,
+        [/\ get_fundef p.(p_funcs) fn = Some fd
+          , get_fundef p'.(lp_funcs) fn = Some lfd
+          , lfd.(lfd_export)
+          & wkequiv_io (pre fd lfd)
+              (isem_fun
+                 (asm_op := asm_op) (wsw := withsubword) (dc := direct_c)
+                 (ep := ep) (spp := spp) (wa := noassert) (sip := sip)
+                 (pT := progStack) (scP := sCP_stack)
+                 (E := E)
+                 p gd fn)
+              (ilsem_exportcall p' fn)
+              (post fd lfd)
+        ].
+    Proof. Admitted.
+
+  End IT.
 
 End PROOF.
 
