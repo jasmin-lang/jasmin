@@ -646,17 +646,16 @@ Proof.
       hszparams hcmd rsp_nin hlt halign2 hle (next_lfd_lblP (lfd := lfd)) hlin
       (ls := s2) erefl (sym_eq hsz) enough_stk' hrsp hvalid'.
 
-  have := [elaborate
+  have h := [elaborate
     lsem_n_ilsem (and_not_syscall_not_syscall (P := _) (cond := _)) hsem'
   ].
-
-  rewrite (eq_ilsem _ (cond2 := endpc lp' (lfn s2))); first last.
-  - rewrite /and_not_syscall => s'; case: (boolP (endpc _ _ _)) => //.
-    rewrite /endpc.
-
-
-  rewrite /ilsem. => ->.
-  rewrite unfold_while /endpc /= eqxx hlfd' /= size_cat eqxx /= !bind_ret_l /=.
+  rewrite -[while _ _ _]/(ilsem _ _ _) -(subpred_ilsem (p := and_not_syscall lp' (endpc lp' (lfn s2))) (q := endpc lp' (lfn s2))); last first.
+  - rewrite h /ilsem /while unfold_iter {1}/while_body.
+    rewrite /and_not_syscall {2}/endpc {1}/setpc {1}/lset_mem_vm /= eqxx.
+    rewrite hlfd' size_cat eqxx bind_ret_l; apply lutt_Ret.
+    by rewrite /endpc /setpc /lset_mem_vm /= eqxx hlfd' size_cat eqxx.
+  - by move=> ? /andP [].
+  rewrite h /ilsem unfold_while /endpc /and_not_syscall /= eqxx hlfd' /= size_cat eqxx /= !bind_ret_l /=.
   have -> /= : (all (fun x : var => value_eqb (evm s).[x] vm''.[x]) (Sv.elements callee_saved)).
   + apply /allP => x hx.
     have <- : (lvm s2).[x] = vm''.[x]; last by apply hall.

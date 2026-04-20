@@ -4,6 +4,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From ITree Require Import
   Basics
   ITree
+  ITreeFacts
 .
 
 Require Import
@@ -16,6 +17,7 @@ Require Import
   psem
   psem_facts
   sem_one_varmap
+  core_logics
   hoare_logic
 .
 Require Import xrutt xrutt_facts.
@@ -400,6 +402,29 @@ apply: (wkequiv_read
   by rewrite /lset_fstate; t_xrbindP => ? _ <-.
 by move=> _ _ _; apply: xrutt_Ret.
 Qed.
+
+Lemma subpred_ilsem lp p q s :
+  subpred p q ->
+  lutt (fun _ => PredT) (fun _ => relT) (fun s => ~~ (q s)) (ilsem lp p s) ->
+  eutt eq (ilsem lp p s) (ilsem lp q s).
+Proof.
+set RR := fun s1 s2 =>
+  [/\ s1 = s2
+    & lutt (fun _ => PredT) (fun _ => relT) (fun s => ~~ (q s)) (ilsem lp p s1)
+  ].
+move=> hsub h; apply: (eutt_iter' RR) => // {h}s _ [] <-.
+rewrite /ilsem /while unfold_iter {-2}/while_body /=.
+case: (boolP (p s)) => hp.
+- rewrite (hsub _ hp); rewrite bind_bind.
+  setoid_rewrite bind_ret_l; setoid_rewrite tau_eutt => h.
+  apply: (eutt_clo_bind _ (UU := RR)) => [|s' _ [<- {}h]]; last first.
+  + apply eutt_Ret; by constructor.
+  admit.
+  (* might work by unfolding everything: one case is Ret and the other Vis,
+     we can invert lutt there *)
+rewrite bind_ret_l => /(lutt_Ret _ _ (fun s => ~~ (q s))) /negPf ->.
+apply eutt_Ret; by constructor.
+Admitted.
 
 End ITREE.
 
