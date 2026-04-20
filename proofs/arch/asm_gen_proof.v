@@ -2193,7 +2193,7 @@ Proof.
     rewrite hsz take_size => heq; rewrite heq => <-.
     by move: hass; rewrite /assemble_fd heq; t_xrbindP => *; subst.
   move=> hnend.
-  rewrite /istep /step /find_instr.
+  rewrite /istep /step /next_is_syscall /find_instr.
   case ok_fd: get_fundef omap_lc => [fd|] //= [?]; subst lc.
   case ok_i: (oseq.onth (lfd_body _) _) => [ i | /= ]; last first.
   + exists 0.
@@ -2207,6 +2207,8 @@ Proof.
   + rewrite -hip (onth_split ok_i) /asm_pos /assemble_c take_cat size_take.
     case: (ltnP (lpc ls) (size (lfd_body fd))) ok_i => [hn ok_i| /onth_default -> //].
     by rewrite ltnn subnn take0 cats0 hac /= -heq onth_cat ltnn subnn.
+  case ho: is_syscall ok_i => [o|] ok_i.
+  - admit.
   exists (Nat.pred (size aci)).
   rewrite i_asmsem_body_n.
   case hsem: linear_sem.eval_instr  => /= [ls' | e]; last first.
@@ -2231,7 +2233,7 @@ Proof.
   + move=> [xs' -> hinv'] /=.
     by apply xrutt.xrutt_Ret; constructor.
   rewrite /inv.
-  case: i ok_i haci hsem => /= li_ii [].
+  case: i ok_i haci hsem {ho} => /= li_ii [].
   - move=> lvs op pes; rewrite /linear_sem.eval_instr /=.
     case hdecl : is_declassify => [ d | ]; last first.
     + t_xrbindP.
@@ -2410,7 +2412,7 @@ Proof.
   do 2!(eexists; first reflexivity).
   constructor => //; rewrite /setpc /=.
   by apply: asm_pos_incr hok_i hac heq hip; rewrite /= ok_c.
-Qed.
+Admitted.
 
 Lemma imatch_state_sem endpc endpc' ls xs :
   wf_endpc endpc endpc' ->

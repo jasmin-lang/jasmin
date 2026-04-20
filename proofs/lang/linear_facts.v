@@ -419,12 +419,11 @@ case: (boolP (p s)) => hp.
   setoid_rewrite bind_ret_l; setoid_rewrite tau_eutt => h.
   apply: (eutt_clo_bind _ (UU := RR)) => [|s' _ [<- {}h]]; last first.
   + apply eutt_Ret; by constructor.
-  admit.
-  (* might work by unfolding everything: one case is Ret and the other Vis,
-     we can invert lutt there *)
+  apply: (lutt_eutt_self (PEv := fun _ => PredT) (PAns := fun _ => relT)) => //.
+  exact: lutt_inv_bind h.
 rewrite bind_ret_l => /(lutt_Ret _ _ (fun s => ~~ (q s))) /negPf ->.
 apply eutt_Ret; by constructor.
-Admitted.
+Qed.
 
 End ITREE.
 

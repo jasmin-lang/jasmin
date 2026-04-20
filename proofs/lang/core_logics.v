@@ -190,6 +190,51 @@ Proof.
   move=> he hr; apply lutt_Vis => // r /hr; apply lutt_Ret.
 Qed.
 
+Lemma lutt_inv_bind (T1 T2 : Type) (Q : T2 -> Prop)
+    (t : itree E T1) (k : T1 -> itree E T2) :
+  lutt Q (ITree.bind t k) ->
+  lutt (fun r => lutt Q (k r)) t.
+Proof.
+  move=> h; exists t; revert t h.
+  pcofix CIH => t h.
+  destruct (observe t) as [rv | t'' | A e k0] eqn:ht.
+  - have hkr : lutt Q (k rv).
+    { rewrite (itree_eta t) ht in h.
+      have heq : ITree.bind (Ret rv) k ≈ k rv by apply eq_sub_eutt, bind_ret_l.
+      exact (proj1 (lutt_Proper erefl heq) h). }
+    pstep; red; rewrite ht; econstructor; exact (conj hkr erefl).
+  - have ht'' : lutt Q (ITree.bind t'' k).
+    { rewrite (itree_eta t) ht in h.
+      have heq : ITree.bind (Tau t'') k ≈ Tau (ITree.bind t'' k) by apply eq_sub_eutt, bind_tau.
+      exact (proj2 (lutt_Tau _ _) (proj1 (lutt_Proper erefl heq) h)). }
+    pstep; red; rewrite ht; econstructor; right; exact (CIH t'' ht'').
+  - have hvis : lutt Q (Vis e (fun rv => ITree.bind (k0 rv) k)).
+    { rewrite (itree_eta t) ht in h.
+      have heq : ITree.bind (Vis e k0) k ≈ Vis e (fun rv => ITree.bind (k0 rv) k) by apply eq_sub_eutt, bind_vis.
+      exact (proj1 (lutt_Proper erefl heq) h). }
+    have [hPEv hcont] := lutt_inv_Vis hvis.
+    pstep; red; rewrite ht; constructor.
+    + by split => //; exists erefl.
+    + move=> a b [hPAns /(_ erefl) ->]; right; exact (CIH (k0 a) (hcont a hPAns)).
+Qed.
+
+Lemma lutt_eutt_self (T : Type) (Q : T -> Prop) (t : itree E T) :
+  (forall T' (e : E T') (r : T'), PEv e -> PAns e r) ->
+  lutt Q t ->
+  eutt (fun r1 r2 => r1 = r2 /\ Q r1) t t.
+Proof.
+  move=> hPAns [t' hrutt].
+  apply rutt2eutt.
+  apply: rutt_weaken (rutt_eq_trans_refl hrutt).
+  - move=> T1 T2 e1 e2 [_ [h_eq ->]].
+    exists (esym h_eq); destruct h_eq; rewrite -!eq_rect_eq; reflexivity.
+  - move=> T1 T2 e1 u1 e2 u2 [hPEv [h_eq ->]] hjm.
+    split; [exact (hPAns _ e1 u1 hPEv)|].
+    destruct h_eq; move=> h; rewrite -eq_rect_eq.
+    exact (esym (JMeq_eq hjm)).
+  - move=> r1 r2 [hQ <-]; exact (conj erefl hQ).
+Qed.
+
 End LOGIC.
 
 Lemma eutt_rutt {E : Type -> Type} {R1 R2 : Type}
