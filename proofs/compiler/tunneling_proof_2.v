@@ -11,6 +11,7 @@ From Coq Require Import ZArith.
 From Coq Require Import Utf8.
 
 Require Import expr_facts compiler_util label linear linear_sem linear_facts it_sems_core_defs relational_logic.
+Require Import while.
 Require Import psem.
 Require Import sem_params.
 Import word_ssrZ.
@@ -309,7 +310,7 @@ Lemma find_instrE s :
   match find_instr p s with
   | Some i =>
     exists2 fd, get_fundef (lp_funcs p) (lfn s) = Some fd &
-        let uf := (tunnel_plan (lfn s) LUF.empty (lfd_body fd)) in
+        let: uf := (tunnel_plan (lfn s) LUF.empty (lfd_body fd)) in
         find_instr p' s = Some (tunnel_bore (lfn s) uf i)
   | None => find_instr p' s = None
   end.
@@ -384,45 +385,50 @@ Qed.
 
 Lemma tunnel_cmd endpc s :
   wfend endpc ->
-  eqit eq true true (ilsem p' (untilpc endpc) s) (ilsem p (untilpc endpc) s).
+  eutt eq (ilsem p' (untilpc endpc) s) (ilsem p (untilpc endpc) s).
 Proof.
-  move=> hend.
-  apply while.eqit_iter_n with eq => //.
-  move=> {}s _ <-.
-  setoid_rewrite i_lsem_body_n; setoid_rewrite i_lsem_body.
-  rewrite /lsem_body /untilpc; case: eqP.
-  + move=> ->; exists 0; rewrite /= /lsem_body eqxx /=.
-    by apply eqit_Ret; constructor.
-  move=> /eqP/negPf hne; rewrite /step.
-  have := find_instrE s.
-  case hi : find_instr => [[ii i] | /=]; last first.
-  + move=> ->; exists 0.
-    rewrite /= /lsem_body /untilpc hne /step /= hi /=; reflexivity.
-  move=> [fd hget] ->.
-  have huf := tunnel_plan_wf hend p_wf hget.
-  rewrite /= in huf; move: (tunnel_plan _ _ _) huf => uf huf.
+  move=> hend; apply eqit_iter_n with eq => // {}s _ <-.
+  rewrite /= {1}/while_body /untilpc; case: eqP => [|/eqP/negPf] hpc /=.
+  + exists 2; rewrite /while_body /= hpc eqxx bind_ret_l.
+    by apply eutt_Ret; constructor.
+
+  (*
+  *)
+
+  rewrite /istep /next_is_syscall /step /while_body.
+  case hi: find_instr (find_instrE s) => [[ii i] | /=]; last first.
+  + move=> hi'; exists 0; rewrite /= hpc /= hi hi' !bind_throw; reflexivity.
+
+  move=> [fd hget].
+  have /= := tunnel_plan_wf hend p_wf hget.
+  move: (tunnel_plan _ _ _) => uf huf.
   move/andP: p_wf => -[_ /allInP] /= /(_ _ (get_fundef_in' hget)) /= /andP [_ hall].
-  case: i hi;
-   try by move=> > hi; exists 0; rewrite /= /lsem_body hne /step /= hi /=;
-          rewrite ?eval_instr_eq ?Let_Let /=; reflexivity.
-  + move=> [fn' r] /=; case: eqP; last first.
-    + move=> _; exists 0; rewrite /= /lsem_body hne /step /= hi /=.
-      rewrite eval_instr_eq Let_Let /=; reflexivity.
+  case: i hi => /=.
+  (* Most cases are left untouched. All these except the syscall case need
+     [eval_instr_eq] to relate [p] and [p']. The syscall case doesn't need it
+     because [lexec_syscall] doesn't depend on the program. *)
+  1-6,8: move=> > hi hi'; exists 0; rewrite /= hpc /= hi hi' ?eval_instr_eq;
+    reflexivity.
+  + move=> [fn' r] /= hi; case: eqP => +; last first.
+    + move=> _ hi'; exists 0; rewrite /= hi hi' hpc eval_instr_eq; reflexivity.
     have := huf r; rewrite /path_to0.
     case: (r =P LUF.find uf r).
-    + move=> <-; exists 0; rewrite /= /lsem_body hne /step /= hi /=.
-      rewrite eval_instr_eq Let_Let /=; reflexivity.
-    move=> hr [ // | hp] ? hfindi; subst fn'.
-    rewrite eval_instr_eq.
+    + move=> <- _ _ hi'; exists 0; rewrite /= hi hi' hpc eval_instr_eq.
+      reflexivity.
+    move=> hr [// | hp] ? hi'; subst fn'.
+    rewrite hi' eval_instr_eq /=.
     have [pc heval]: exists pc, eval_jump p (lfn s, r) s = ok (setcpc s (lfn s) pc).
     + rewrite /eval_jump hget /=.
-      have := find_instr_goto_targets hget hall hfindi.
+      have := find_instr_goto_targets hget hall hi.
       rewrite /= eqxx andbT /= => /labels_of_find [pc ->] /=; by eauto.
-    have [n [s3 hsem hev]]:= hp _ _ heval.
-    exists n.+1 => /=.
-    rewrite {2}/lsem_body hne /= /step hfindi.
-    rewrite /eval_instr /li_i heval hev /=.
-    rewrite /= in hsem; rewrite hsem /=; reflexivity.
+    have [n [s3 hsem hev]] := hp _ _ heval.
+    exists n.+1; rewrite /= hpc hi /= bind_bind.
+    rewrite {1 2}/eval_instr /li_i heval hev !bind_ret_l tau_eutt.
+    rewrite /= in hsem.
+    Search lsem_body.
+
+    apply: (eutt_clo_bind _ (UU := eq)).
+    rewrite /= in hsem. rewrite hsem /=; reflexivity.
   move=> f r hfindi /=.
   have := huf r; rewrite /path_to0.
   case: (r =P LUF.find uf r).
