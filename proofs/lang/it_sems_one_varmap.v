@@ -61,12 +61,12 @@ Context
 Section SEM_C.
 
 Context {E E0} {wE : with_Error E E0}
-        (sem_i: sprog -> instr -> estate -> itree E (Sv.t * estate))
+        (sem_i: sprog -> instr -> estate empty_env -> itree E (Sv.t * estate empty_env))
         (p : prog).
 
 (* folding instruction semantics on commands *)
 
-Fixpoint isem_cmd_ (c: cmd) : Sv.t * estate -> itree E (Sv.t * estate) :=
+Fixpoint isem_cmd_ (c: cmd) : Sv.t * estate empty_env -> itree E (Sv.t * estate empty_env) :=
   fun ks =>
    match c with
    | [::] => Ret ks
@@ -77,40 +77,40 @@ Fixpoint isem_cmd_ (c: cmd) : Sv.t * estate -> itree E (Sv.t * estate) :=
 Local Notation continue_loop s := (ret (inl s)).
 Local Notation exit_loop s := (ret (inr s)).
 
-Definition isem_while_round (c1 : cmd) (e : pexpr) (c2 : cmd) (s : Sv.t * estate) :
-    itree E (Sv.t * estate + Sv.t * estate) :=
+Definition isem_while_round (c1 : cmd) (e : pexpr) (c2 : cmd) (s : Sv.t * estate empty_env) :
+    itree E (Sv.t * estate empty_env + Sv.t * estate empty_env) :=
   s <- isem_cmd_ c1 s;;
   b <- isem_cond p e s.2;;
   if b then s <- isem_cmd_ c2 s;; continue_loop s
   else exit_loop s.
 
-Definition isem_while_loop (c1 : cmd) (e:pexpr) (c2: cmd) (s : Sv.t * estate) :
-    itree E (Sv.t * estate) :=
+Definition isem_while_loop (c1 : cmd) (e:pexpr) (c2: cmd) (s : Sv.t * estate empty_env) :
+    itree E (Sv.t * estate empty_env) :=
   ITree.iter (isem_while_round c1 e c2) s.
 
 End SEM_C.
 
-Definition sem_syscall (p : prog) (o : syscall_t) (s : estate) :=
+Definition sem_syscall (p : prog) (o : syscall_t) (s : estate empty_env) :=
   Let ves := get_vars true s.(evm) (syscall_sig o).(scs_vin) in
   Let fs := fexec_syscall (scP:= sCP_stack) o (mk_fstate ves s) in
   let s:= with_vm s (vm_after_syscall s.(evm)) in
   upd_estate true (p_globs p) (to_lvals (syscall_sig o).(scs_vout)) fs s.
 
 Notation add_fv fv :=
-  (Result.map (aT:=estate) (rT:=Sv.t * estate) (fun (s:estate) => (fv, s))).
+  (Result.map (aT:=estate empty_env) (rT:=Sv.t * estate empty_env) (fun (s:estate empty_env) => (fv, s))).
 
 (* semantics of instructions, abstracting on function calls (through
    sem_fun) *)
 
 Variant recCallK : Type -> Type :=
- | RecCallK (f:funname) (fs: estate) : recCallK (Sv.t * estate).
+ | RecCallK (f:funname) (fs: estate empty_env) : recCallK (Sv.t * estate empty_env).
 
 Class sem_FunK (E : Type -> Type) :=
-  { sem_funK : sprog -> funname -> estate -> itree E (Sv.t * estate) }.
+  { sem_funK : sprog -> funname -> estate empty_env -> itree E (Sv.t * estate empty_env) }.
 
 (* recCall trigger *)
-Definition rec_callK {E : Type -> Type} (f : funname) (fs : estate) :
-   itree (recCallK +' E) (Sv.t * estate) :=
+Definition rec_callK {E : Type -> Type} (f : funname) (fs : estate empty_env) :
+   itree (recCallK +' E) (Sv.t * estate empty_env) :=
   trigger_inl1 (RecCallK f fs).
 
 #[global]
@@ -126,7 +126,7 @@ Context {E E0} {wE : with_Error E E0} {sem_F : sem_FunK E}.
 Let vrsp (p:sprog) : var := vid p.(p_extra).(sp_rsp).
 Let vgd (p:sprog) : var := vid p.(p_extra).(sp_rip).
 
-Definition valid_RSP p m vm :=
+Definition valid_RSP p m (vm : Vm.t empty_env) :=
   value_eqb vm.[vrsp p] (Vword (top_stack m)).
 
 Definition saved_stack_valid_init (p:sprog) fd :=
@@ -141,7 +141,7 @@ Definition saved_stack_valid_final (p:sprog) fd (k:Sv.t) :=
   | _ => true
   end.
 
-Definition initialize_funcall (p:sprog) f (fs:estate) :=
+Definition initialize_funcall (p:sprog) f (fs:estate empty_env) :=
  Let _ := assert [&& top_stack_aligned f fs.(emem)
                    & valid_RSP p fs.(emem) fs.(evm)] ErrSemUndef in
  Let m1 :=
@@ -174,8 +174,8 @@ Definition writefun_RA (p:sprog) (fn: funname) :=
   | Some fd => Sv.union (ra_undef fd var_tmp) (ra_vm_return fd.(f_extra))
   end.
 
-Fixpoint isem_i(p : sprog) (i : instr) (s : estate) :
-    itree E (Sv.t * estate) :=
+Fixpoint isem_i (p : sprog) (i : instr) (s : estate empty_env) :
+    itree E (Sv.t * estate empty_env) :=
   let: (MkI ii i) := i in
   ks <- isem_ir p i s;;
   _ <- iresult
@@ -183,7 +183,7 @@ Fixpoint isem_i(p : sprog) (i : instr) (s : estate) :
                     , valid_RSP p (emem ks.2) (evm ks.2)
                     & disjoint ks.1 (magic_variables p)]) ErrSemUndef);;
   Ret ks
-with isem_ir (p : sprog) (i : instr_r) (s : estate) : itree E (Sv.t * estate) :=
+with isem_ir (p : sprog) (i : instr_r) (s : estate empty_env) : itree E (Sv.t * estate empty_env) :=
   match i with
   | Cassgn x tg ty e => iresult (add_fv (vrv x) (sem_assgn p x tg ty e s))
 
@@ -226,7 +226,7 @@ Definition finalize_funcall p f ks2 :=
   ok (Sv.union k k', s2).
 
 Definition isem_fun_body (p : prog)
-   (fn : funname) (fs : estate) :=
+   (fn : funname) (fs : estate empty_env) :=
    fd <- ioget ErrSemUndef (get_fundef (p_funcs p) fn);;
    iresult (assert (saved_stack_valid_init p fd) ErrSemUndef);;
    s1 <- iresult (Result.map_err (fun _ => ErrSemUndef) (initialize_funcall p fd fs));;
@@ -242,21 +242,21 @@ End SEM_I.
 Section REC.
 Context {E E0} {wE : with_Error E E0}.
 
-Definition isem_ir_rec (p : sprog) (i : instr_r) (s : estate)
-  : itree (recCallK +' E) (Sv.t * estate) :=
+Definition isem_ir_rec (p : sprog) (i : instr_r) (s : estate empty_env)
+  : itree (recCallK +' E) (Sv.t * estate empty_env) :=
   isem_ir (sem_F := sem_funK_rec E) p i s.
 
-Definition isem_i_rec (p : sprog) (i : instr) (s : estate)
-  : itree (recCallK +' E) (Sv.t * estate) :=
+Definition isem_i_rec (p : sprog) (i : instr) (s : estate empty_env)
+  : itree (recCallK +' E) (Sv.t * estate empty_env) :=
   isem_i (sem_F := sem_funK_rec E) p i s.
 
 
-Definition isem_cmd_rec (p : sprog) (c : cmd) (s : estate)
-  : itree (recCallK +' E) (Sv.t * estate) :=
+Definition isem_cmd_rec (p : sprog) (c : cmd) (s : estate empty_env)
+  : itree (recCallK +' E) (Sv.t * estate empty_env) :=
   isem_cmd (sem_F := sem_funK_rec E) p c s.
 
 Definition isem_fun_rec (p : sprog)
-   (fn : funname) (fs : estate) : itree (recCallK +' E) (Sv.t * estate) :=
+   (fn : funname) (fs : estate empty_env) : itree (recCallK +' E) (Sv.t * estate empty_env) :=
   isem_fun_body (sem_F := sem_funK_rec E) p fn fs.
 
 (* handler of recCallK events *)
@@ -268,7 +268,7 @@ Definition handle_recCallK {sem_F : funname -> sem_FunK (recCallK +' E)}
    | RecCallK fn fs => isem_fun_body (sem_F:=sem_F fn) p fn fs
    end.
 
-Definition isem_fun_def {sem_F : funname -> sem_FunK (recCallK +' E)} (p : sprog) (fn : funname) (fs : estate) : itree E (Sv.t * estate) :=
+Definition isem_fun_def {sem_F : funname -> sem_FunK (recCallK +' E)} (p : sprog) (fn : funname) (fs : estate empty_env) : itree E (Sv.t * estate empty_env) :=
   mrec (handle_recCallK (sem_F := sem_F) p) (RecCallK fn fs).
 
 (* This is the semantics we want to use for the proof of merge_varmaps *)
@@ -412,7 +412,7 @@ Proof.
   move=> ?; rewrite interp_ret; reflexivity.
 Qed.
 
-Definition isem_exportcall (p:sprog) (gd: @extra_val_t progStack) fn (s:estate) :=
+Definition isem_exportcall (p:sprog) (gd: @extra_val_t progStack) fn (s:estate empty_env) :=
   fd <-ioget ErrType (get_fundef p.(p_funcs) fn);;
   let vrsp : var := vid p.(p_extra).(sp_rsp) in
   let vgd : var := vid p.(p_extra).(sp_rip) in
@@ -429,7 +429,7 @@ Definition isem_exportcall (p:sprog) (gd: @extra_val_t progStack) fn (s:estate) 
                       ErrSemUndef);;
   Ret s2.
 
-Definition isem_exportcall_check (p:sprog) (gd: @extra_val_t progStack) fn (s:estate) :=
+Definition isem_exportcall_check (p:sprog) (gd: @extra_val_t progStack) fn (s:estate empty_env) :=
   fd <-ioget ErrType (get_fundef p.(p_funcs) fn);;
   let vrsp : var := vid p.(p_extra).(sp_rsp) in
   let vgd : var := vid p.(p_extra).(sp_rip) in

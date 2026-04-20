@@ -25,6 +25,7 @@ Context {pT: progT} {sCP: semCallParams}.
 Section IT_REMOVE_INIT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context (env : Uint63.int -> Z).
 
 Context (is_reg_array: var -> bool) (p : prog) (ev: extra_val_t).
 Notation gd := (p_globs p).
@@ -33,20 +34,20 @@ Notation p' := (remove_init_prog is_reg_array p).
 
 Let Pi i :=
   let im := remove_init_i is_reg_array i in
-  wequiv_rec p p' ev ev uincl_spec (st_uincl tt) [::i] im (st_uincl tt).
+  wequiv_rec (env:=env) p p' ev ev uincl_spec (st_uincl tt) [::i] im (st_uincl tt).
 
 Let Pi_r i := forall ii, Pi (MkI ii i).
 
 Let Pc c :=
   let cm := remove_init_c is_reg_array c in
-  wequiv_rec p p' ev ev uincl_spec (st_uincl tt) c cm (st_uincl tt).
+  wequiv_rec (env:=env) p p' ev ev uincl_spec (st_uincl tt) c cm (st_uincl tt).
 
-#[local] Lemma checker_st_uinclP : Checker_uincl p p' checker_st_uincl.
+#[local] Lemma checker_st_uinclP : Checker_uincl p p' (checker_st_uincl env).
 Proof. by apply checker_st_uinclP. Qed.
 
 #[local] Hint Resolve checker_st_uinclP : core.
 
-Lemma it_remove_init_fdP fn : wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+Lemma it_remove_init_fdP fn : wiequiv_f env p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
  apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
  exists (remove_init_fd is_reg_array fd).
@@ -62,9 +63,9 @@ Proof.
  + by apply wequiv_nil.
  + by move=> > hi hc /=; rewrite -cat1s; apply wequiv_cat with (st_uincl tt).
  + move=> x tg ty e ii.
-   have h : wequiv_rec p p' ev ev uincl_spec
+   have h : wequiv_rec (env:=env) p p' ev ev uincl_spec
              (st_uincl tt) [:: MkI ii (Cassgn x tg ty e)] [:: MkI ii (Cassgn x tg ty e)] (st_uincl tt).
-   + apply wequiv_assgn_rel_uincl with checker_st_uincl tt => //.
+   + apply wequiv_assgn_rel_uincl with (checker_st_uincl env) tt => //.
    case: is_array_initP => // -[wse [len ?]]; subst e.
    case: ifP => // hx.
    apply wequiv_assign_left => s1 s1' s2 hu.
@@ -87,13 +88,13 @@ Proof.
     move=> k w; rewrite (WArray.set_sub_get8 ht1) /=; case: ifP => ?.
     + by rewrite WArray.get_empty; case: ifP.
     by apply hu.
-  + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
-  + by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with checker_st_uincl tt.
+  + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with (checker_st_uincl env) tt.
+  + by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with (checker_st_uincl env) tt.
   + by move=> a ii; apply wequiv_noassert.
-  + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
-  + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
-  + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
-  move=> xs fn es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt => //.
+  + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with (checker_st_uincl env) tt tt tt.
+  + by move=> > hc ii; apply wequiv_for_rel_uincl with (checker_st_uincl env) tt tt.
+  + by move=> > ?? ii; apply wequiv_while_rel_uincl with (checker_st_uincl env) tt.
+  move=> xs fn es ii; apply wequiv_call_rel_uincl with (checker_st_uincl env) tt => //.
  move=> ???; exact/wequiv_fun_rec.
 Qed.
 
@@ -103,24 +104,26 @@ End Section.
 
 Section IT.
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context (env : Uint63.int -> Z).
 
 (* TODO : do we really need the instances ? *)
 Lemma it_remove_init_fdPu is_reg_array (p : uprog) ev fn :
-  wiequiv_f p (remove_init_prog is_reg_array p) ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+  wiequiv_f env p (remove_init_prog is_reg_array p) ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof. apply it_remove_init_fdP. Qed.
 
 Lemma it_remove_init_fdPs is_reg_array (p : sprog) ev fn :
-  wiequiv_f p (remove_init_prog is_reg_array p) ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+  wiequiv_f env p (remove_init_prog is_reg_array p) ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof. apply it_remove_init_fdP. Qed.
 
 End IT.
 
-Definition undef_except (X:Sv.t) vm :=
-  forall x, ~Sv.In x X ->  vm.[x] = undef_addr (eval_atype (vtype x)).
+Definition undef_except env (X:Sv.t) (vm : Vm.t env) :=
+  forall x, ~Sv.In x X -> vm.[x] = undef_addr (eval_atype env (vtype x)).
 
 Section IT_ADD_INIT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context (env : Uint63.int -> Z).
 
 Context (p : uprog) (ev:unit).
 
@@ -130,7 +133,7 @@ Notation p' := (add_init_prog p).
 
 (* two states are related wrt varset I iff they are extensionally
 equal and undefined except for I *)
-Definition undef_vm_eq (I : Sv.t) (vm1 vm2 : Vm.t) :=
+Definition undef_vm_eq (I : Sv.t) (vm1 vm2 : Vm.t env) :=
   undef_except I vm1 /\  (vm1 =1 vm2)%vm.
 
 Definition cmpl_inv (I : Sv.t) := st_rel undef_vm_eq I.
@@ -165,7 +168,7 @@ Proof.
   apply ih.
   + by move=> z hz; apply hdisj; rewrite in_cons hz orbT.
   rewrite /add_init_aux.
-  case heq: vtype => [||len|] //; case:ifP => _ //.
+  case heq: vtype => [||ws len|] //; case: len heq => // leq heq; case:ifP => _ //.
   rewrite -(cat0s c) -cat1s.
   apply wequiv_cat with (cmpl_inv I) => //.
   apply wequiv_assign_right => s t h.
@@ -187,7 +190,7 @@ Lemma it_aux I ii1 ii i :
 Proof.
   apply add_init_auxP; first by apply/Sv.is_empty_spec; SvD.fsetdec.
   apply wkequivP' => s t.
-  have h := [elaborate wequiv_rec_st_eq (p:=p) (p':=p') ev ev erefl [:: MkI ii i]].
+  have h := [elaborate wequiv_rec_st_eq (env:=env) (p:=p) (p':=p') ev ev erefl [:: MkI ii i]].
   have /(_ s) {h} := wequiv_write1 h.
   apply wkequiv_weaken => //.
   + by move=> s1 s2 [ [-> ->] [?? []]].
@@ -197,7 +200,7 @@ Proof.
   rewrite write_c_cons write_c_nil write_Ii; SvD.fsetdec.
 Qed.
 
-Lemma it_add_init_callP fn : wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+Lemma it_add_init_callP fn : wiequiv_f env p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
  apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
  exists (add_init_fd fd).

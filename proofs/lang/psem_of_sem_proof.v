@@ -27,25 +27,25 @@ Notation estate_s := (estate (wsw:= withsubword)).
 
 Notation estate_sim := (st_eq (wsw1:=nosubword) (wsw2:=withsubword) tt).
 
-Lemma estate_sim_scs e e' scs :
+Lemma estate_sim_scs env (e : estate_n env) (e' : estate_s env) scs :
   estate_sim e e' ->
   estate_sim (with_scs e scs) (with_scs e' scs).
 Proof. by case => *; constructor. Qed.
 
-Lemma estate_sim_mem e e' m :
+Lemma estate_sim_mem env (e : estate_n env) e' m :
   estate_sim e e' ->
   estate_sim (with_mem e m) (with_mem e' m).
 Proof. by case => *; constructor. Qed.
 
-Lemma vmap0_sim : (Vm.init (wsw:= nosubword) =1 Vm.init (wsw:= withsubword))%vm.
+Lemma vmap0_sim env : (Vm.init (wsw:= nosubword) env =1 Vm.init (wsw:= withsubword) env)%vm.
 Proof. by move=> x; rewrite !Vm.initP. Qed.
 
-Lemma get_var_sim (vm : vmap_n) (vm' : vmap_s) :
+Lemma get_var_sim env (vm : vmap_n env) (vm' : vmap_s env) :
   (vm =1 vm')%vm →
   ∀ x, get_var true vm x = get_var true vm' x.
 Proof. by move=> heq x; rewrite /get_var heq. Qed.
 
-Lemma get_gvar_sim gd (vm : vmap_n) (vm' : vmap_s) :
+Lemma get_gvar_sim env gd (vm : vmap_n env) (vm' : vmap_s env) :
   (vm =1 vm')%vm →
   ∀ x, get_gvar true gd vm x = get_gvar true gd vm' x.
 Proof.
@@ -62,9 +62,9 @@ Proof.
   by move=> [ws' [-> ]] /=.
 Qed.
 
-Lemma vmap_set_sim (vm : vmap_n) (vm' : vmap_s) x v:
+Lemma vmap_set_sim env (vm : vmap_n env) (vm' : vmap_s env) x v:
   (vm =1 vm')%vm →
-  truncatable true (wsw:=nosubword) (eval_atype (vtype x)) v →
+  truncatable true (wsw:=nosubword) (eval_atype env (vtype x)) v →
   (vm.[x <- v] =1 vm'.[x <- v])%vm.
 Proof.
   move => hvm hv y; rewrite !Vm.setP.
@@ -80,7 +80,7 @@ Proof.
   by move=> [ws' [-> _ _]] /=.
 Qed.
 
-Lemma set_var_sim (vm1 : vmap_n) (vm1' : vmap_s) x v vm2 :
+Lemma set_var_sim env (vm1 : vmap_n env) (vm1' : vmap_s env) x v vm2 :
   (vm1 =1 vm1')%vm →
   set_var true vm1 x v = ok vm2 →
   ∃ vm2',
@@ -94,7 +94,7 @@ Qed.
 
 Section SEM_PEXPR_SIM.
 
-  Context s s' (hs: estate_sim s s').
+  Context env (s : estate_n env) s' (hs: estate_sim s s').
 
   Let P e : Prop :=
     ∀ v,
@@ -123,13 +123,13 @@ Section SEM_PEXPR_SIM.
 
 End SEM_PEXPR_SIM.
 
-Definition sem_pexpr_sim s e v s' h :=
-  (@sem_pexpr_s_sim s s' h).1 e v.
+Definition sem_pexpr_sim env s e v s' h :=
+  (@sem_pexpr_s_sim env s s' h).1 e v.
 
-Definition sem_pexprs_sim s es vs s' h :=
-  (@sem_pexpr_s_sim s s' h).2 es vs.
+Definition sem_pexprs_sim env s es vs s' h :=
+  (@sem_pexpr_s_sim env s s' h).2 es vs.
 
-Lemma write_var_sim s1 x v s2 s1' :
+Lemma write_var_sim env (s1 : estate_n env) x v s2 s1' :
   estate_sim s1 s1' →
   write_var true x v s1 = ok s2 →
   ∃ s2', estate_sim s2 s2' ∧ write_var true x v s1' = ok s2'.
@@ -139,7 +139,7 @@ case: (set_var_sim hvm hw) => vm' [hvm' ->].
 by eexists; split; split.
 Qed.
 
-Corollary write_vars_sim s1 xs vs s2 s1' :
+Corollary write_vars_sim env (s1 : estate_n env) xs vs s2 s1' :
   estate_sim s1 s1' →
   write_vars true xs vs s1 = ok s2 →
   ∃ s2', estate_sim s2 s2' ∧ write_vars true xs vs s1' = ok s2'.
@@ -149,7 +149,7 @@ elim: xs vs s1 s1' s2.
 by move => x xs ih [] // v vs s1 s1' s3 hss'1 /=; apply: rbindP => s2 /(write_var_sim hss'1) [s2'] [hss'2 ->] /(ih _ _ _ _ hss'2).
 Qed.
 
-Lemma write_lval_sim s1 x v s2 s1' :
+Lemma write_lval_sim env (s1 : estate_n env) x v s2 s1' :
   estate_sim s1 s1' →
   write_lval true gd x v s1 = ok s2 →
   ∃ s2', estate_sim s2 s2' ∧ write_lval true gd x v s1' = ok s2'.
@@ -174,7 +174,7 @@ case => vm' [] h /= -> <- /=.
 by eexists; split; split.
 Qed.
 
-Corollary write_lvals_sim s1 xs vs s2 s1' :
+Corollary write_lvals_sim env (s1 : estate_n env) xs vs s2 s1' :
   estate_sim s1 s1' →
   write_lvals true gd s1 xs vs = ok s2 →
   ∃ s2', estate_sim s2 s2' ∧ write_lvals true gd s1' xs vs = ok s2'.
@@ -188,11 +188,12 @@ Qed.
 Section IT_SEM.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context (env : env_t).
 
 Lemma wdb_ok_eq_true wdb1 wdb2: wdb_ok wdb1 wdb2 -> wdb1 /\ wdb2.
 Proof. by case => -[-> ->]. Qed.
 
-Lemma checker_st_uinclP : Checker_eq p p (checker_st_eq (wsw1:=nosubword) (wsw2:=withsubword)).
+Lemma checker_st_uinclP : Checker_eq p p (checker_st_eq (wsw1:=nosubword) (wsw2:=withsubword) env).
 Proof.
   constructor.
   + move=> _ _ [] es1 es2 [] /wdb_ok_eq_true [-> ->] <- s1 s2 vs1 hsim he.
@@ -208,19 +209,19 @@ Lemma it_psem_call :
     exec_syscall (wsw:= withsubword) scs1 mem1 o ves = ok (scs2, mem2, vs)) ->
 
   (forall fd scs mem s,
-    init_state (f_extra fd) (p_extra p) ev {| escs := scs; emem := mem; evm := Vm.init |} = ok s ->
+    init_state (f_extra fd) (p_extra p) ev {| escs := scs; emem := mem; evm := Vm.init env |} = ok s ->
     exists2 s',
-      init_state (f_extra fd) (p_extra p) ev {| escs := scs; emem := mem; evm := Vm.init |} = ok s' &
+      init_state (f_extra fd) (p_extra p) ev {| escs := scs; emem := mem; evm := Vm.init env |} = ok s' &
       estate_sim s s') ->
 
   (forall fd mem, finalize (wsw:= nosubword) (f_extra fd) mem = finalize (wsw:= withsubword) (f_extra fd) mem) ->
 
   forall fn,
-    wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+    wiequiv_f env (wsw1:=nosubword) (wsw2:=withsubword) p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
   move=> hsyscall hinitstate hfinal fn.
   apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd ->; exists fd => // s1 hinit.
-  have : exists2 s2 : estate_s, initialize_funcall p ev fd fs = ok s2 & estate_sim s1 s2.
+  have : exists2 s2 : estate_s env, initialize_funcall env p ev fd fs = ok s2 & estate_sim s1 s2.
   + move: hinit; rewrite /initialize_funcall.
     t_xrbindP => > -> s1' /hinitstate [s2'] /= -> hs hw.
     have [s2'' [] /=]:= write_vars_sim hs hw; eauto.
@@ -230,25 +231,25 @@ Proof.
     t_xrbindP => vs.
     rewrite /get_var_is (mapM_ext (λ (x : var_i) _, get_var_sim hvm x)) hfinal hscs hmem => -> /=.
     by move=> ? -> <- /=; eauto.
-  set Pi_ := fun (i:instr) => wequiv_rec (wsw1:= nosubword) (wsw2:= withsubword)
+  set Pi_ := fun (i:instr) => wequiv_rec (wsw1:= nosubword) (wsw2:= withsubword) (env:=env)
                   p p ev ev eq_spec estate_sim [::i] [::i] estate_sim.
   set Pr_ := fun (i:instr_r) => forall ii, Pi_ (MkI ii i).
-  set Pc_ := fun (c:cmd) => wequiv_rec (wsw1:= nosubword) (wsw2:= withsubword)
+  set Pc_ := fun (c:cmd) => wequiv_rec (wsw1:= nosubword) (wsw2:= withsubword) (env:=env)
                             p p ev ev eq_spec estate_sim c c estate_sim.
   move=> {fn fs hinit h1 h2 s1 s2 hfinal hinitstate}.
   apply (cmd_rect (Pr := Pr_) (Pi:=Pi_) (Pc:=Pc_)) => // {fd}.
   + by apply wequiv_nil.
   + by move=> i c; apply wequiv_cons.
-  + by move=> >;apply wequiv_assgn_rel_eq with checker_st_eq tt.
-  + by move=> >; apply wequiv_opn_rel_eq with checker_st_eq tt.
-  + move=> ????; apply wequiv_syscall_rel_eq_core with checker_st_eq tt => //.
+  + by move=> >;apply wequiv_assgn_rel_eq with (checker_st_eq env) tt.
+  + by move=> >; apply wequiv_opn_rel_eq with (checker_st_eq env) tt.
+  + move=> ????; apply wequiv_syscall_rel_eq_core with (checker_st_eq env) tt => //.
     move=> [???] [???] ? [<- <- <-]; rewrite /fexec_syscall /=.
     by t_xrbindP => -[[??]?] /= /hsyscall -> [<-] /=; eauto.
   + by move=> a ii; apply wequiv_noassert.
-  + by move=> > hc1 hc2 ii; apply wequiv_if_rel_eq with checker_st_eq tt tt tt.
-  + by move=> > hc ii; apply wequiv_for_rel_eq with checker_st_eq tt tt.
-  + by move=> > hc hc' ii; apply wequiv_while_rel_eq with checker_st_eq tt.
-  move=> ????; apply wequiv_call_rel_eq with checker_st_eq tt => //.
+  + by move=> > hc1 hc2 ii; apply wequiv_if_rel_eq with (checker_st_eq env) tt tt tt.
+  + by move=> > hc ii; apply wequiv_for_rel_eq with (checker_st_eq env) tt tt.
+  + by move=> > hc hc' ii; apply wequiv_while_rel_eq with (checker_st_eq env) tt.
+  move=> ????; apply wequiv_call_rel_eq with (checker_st_eq env) tt => //.
   by move=> ?? <-; apply: wequiv_fun_rec.
 Qed.
 
@@ -265,9 +266,10 @@ Context
   {sip : SemInstrParams asm_op syscall_state}.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context (env : env_t).
 
 Lemma it_psem_call_u (p:uprog) ev fn :
-  wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+  wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) env p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
   apply (it_psem_call (sCP := fun wsw => sCP_unit (wsw := wsw))) => //=.
   move=> _ ??? [<-]; eexists; eauto.
@@ -275,15 +277,15 @@ Proof.
 Qed.
 
 Lemma it_psem_call_s (p:sprog) ev fn :
-  wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+  wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) env p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
   apply (it_psem_call (sCP := fun wsw => sCP_stack (wsw := wsw))) => //=.
   clear.
   move=> fd scs mem s.
   rewrite /init_stk_state; t_xrbindP => mem' -> hw.
   have hsim : st_eq (wsw1:= nosubword) (wsw2:= withsubword) tt
-                 {| escs := scs; emem := mem'; evm := Vm.init |}
-                 {| escs := scs; emem := mem'; evm := Vm.init |}.
+                 {| escs := scs; emem := mem'; evm := Vm.init env |}
+                 {| escs := scs; emem := mem'; evm := Vm.init env |}.
   + by split => //= ?; rewrite !Vm.initP.
   have [s' [hsim' hw']] := write_vars_sim hsim hw.
   by exists s'.

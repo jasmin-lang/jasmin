@@ -84,11 +84,11 @@ Section WITH_PARAMS.
     #[local]
     Notation p' := (insert_renaming_prog insert_renaming_p p).
 
-    Lemma write_vars_defined vs' xs vs s0 s1 :
-      mapM2 ErrType dc_truncate_val (map eval_atype [seq vtype (v_var x) | x <- xs ]) vs' = ok vs ->
+    Lemma write_vars_defined env vs' xs vs (s0 s1 : estate env) :
+      mapM2 ErrType dc_truncate_val (map (eval_atype env) [seq vtype (v_var x) | x <- xs ]) vs' = ok vs ->
       write_vars true xs vs s0 = ok s1 →
       ∀ y, all (λ x : var_i, v_var x != y) xs = false →
-       ∃ v v', [/\ truncate_val (eval_atype (vtype y)) v' = ok v &
+       ∃ v v', [/\ truncate_val (eval_atype env (vtype y)) v' = ok v &
                 get_var true (evm s1) y = ok v ].
     Proof.
       clear.
@@ -116,6 +116,7 @@ Section WITH_PARAMS.
       {E E0: Type → Type}
         {wE: with_Error E E0}
         {rE: EventRels E0}.
+    Context (env : Uint63.int -> Z).
 
     Context (insert_renaming_p: fun_info → bool).
     Context (p: prog) (ev: extra_val_t).
@@ -123,42 +124,42 @@ Section WITH_PARAMS.
     #[local]
     Notation p' := (insert_renaming_prog insert_renaming_p p).
 
-    Let Pi (i: instr) := wequiv_rec p p' ev ev uincl_spec (st_uincl tt) [:: i ] [:: i ] (st_uincl tt).
+    Let Pi (i: instr) := wequiv_rec (env:=env) p p' ev ev uincl_spec (st_uincl tt) [:: i ] [:: i ] (st_uincl tt).
 
     Let Pi_r (i: instr_r) := ∀ ii, Pi (MkI ii i).
 
-    Let Pc (c: cmd) := wequiv_rec p p' ev ev uincl_spec (st_uincl tt) c c (st_uincl tt).
+    Let Pc (c: cmd) := wequiv_rec (env:=env) p p' ev ev uincl_spec (st_uincl tt) c c (st_uincl tt).
 
-    #[local] Lemma checker_st_uinclP : Checker_uincl p p' checker_st_uincl.
+    #[local] Lemma checker_st_uinclP : Checker_uincl p p' (checker_st_uincl env).
     Proof. by apply checker_st_uinclP. Qed.
 
     #[local] Hint Resolve checker_st_uinclP : core.
 
     Lemma it_insert_renaming_rec (fd: fundef) :
-      (∀ ii1 ii2 fn1 fn2, wequiv_f_rec p p' ev ev uincl_spec pre_incl ii1 ii2 fn1 fn2 post_incl) →
-      wequiv (rE0 := relEvent_recCall uincl_spec) p p' ev ev (st_uincl tt) (f_body fd) (f_body fd) (st_uincl tt).
+      (∀ ii1 ii2 fn1 fn2, wequiv_f_rec env p p' ev ev uincl_spec pre_incl ii1 ii2 fn1 fn2 post_incl) →
+      wequiv (env:=env) (rE0 := relEvent_recCall uincl_spec) p p' ev ev (st_uincl tt) (f_body fd) (f_body fd) (st_uincl tt).
     Proof.
       move => hrec.
       apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)).
       - done.
       - by apply wequiv_nil.
       - by move => i c; apply (wequiv_cons (R := st_uincl tt)).
-      - by move => x tg ty e ii; apply wequiv_assgn_rel_uincl with checker_st_uincl tt.
-      - by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
-      - by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with checker_st_uincl tt.
+      - by move => x tg ty e ii; apply wequiv_assgn_rel_uincl with (checker_st_uincl env) tt.
+      - by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with (checker_st_uincl env) tt.
+      - by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with (checker_st_uincl env) tt.
       - by move=> a ii; apply wequiv_noassert.
-      - by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
-      - by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
-      - by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
-      move=> xs fn es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt => //.
+      - by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with (checker_st_uincl env) tt tt tt.
+      - by move=> > hc ii; apply wequiv_for_rel_uincl with (checker_st_uincl env) tt tt.
+      - by move=> > ?? ii; apply wequiv_while_rel_uincl with (checker_st_uincl env) tt.
+      move=> xs fn es ii; apply wequiv_call_rel_uincl with (checker_st_uincl env) tt => //.
       by move=> ???; apply hrec.
     Qed.
 
-    Definition st_uincl_at_init fd s t :=
-      st_uincl tt s t ∧ ∃ fs, initialize_funcall p ev fd fs = ok s.
+    Definition st_uincl_at_init fd (s : estate env) t :=
+      st_uincl tt s t ∧ ∃ fs, initialize_funcall env p ev fd fs = ok s.
 
     Theorem it_insert_renaming_callP fn :
-      wiequiv_f p p' ev ev pre_incl fn fn post_incl.
+      wiequiv_f env p p' ev ev pre_incl fn fn post_incl.
     Proof.
       apply wequiv_fun_ind' => {} fn _ fs ft [] <- hfsu fd hget.
       exists (insert_renaming_fd insert_renaming_p fd).

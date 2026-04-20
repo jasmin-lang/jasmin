@@ -22,13 +22,14 @@ Section REMOVE_ASSERT.
   Proof using remove_assert_ok. by rewrite -remove_assert_ok. Qed.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context (env : env_t).
 
-  #[local] Notation st_eq := (st_rel (λ _ : unit, eq) tt).
+  #[local] Notation st_eq := (st_rel (env:=env) (λ _ : unit, eq) tt).
 
-  Lemma st_rel_eq d s1 s2 : st_rel (λ _ : unit, eq) d s1 s2 → s1 = s2.
+  Lemma st_rel_eq d s1 s2 : st_rel (env:=env) (λ _ : unit, eq) d s1 s2 → s1 = s2.
   Proof. by case: s1 s2 => ??? [] ??? [] /= <- <- <-. Qed.
 
-  Program Instance checker_ra_eq : Checker_e (st_rel (λ _ : unit, eq)) :=
+  Program Instance checker_ra_eq : Checker_e (st_rel (env:=env) (λ _ : unit, eq)) :=
     {| check_es _ x y _ := x = y; check_lvals _ x y _ := x = y; |}.
 
   Instance checker_ra_eqP : Checker_eq p p' checker_ra_eq.
@@ -49,7 +50,7 @@ Section REMOVE_ASSERT.
       wequiv_rec (wa1:=withassert) (wa2:=noassert) p p' ev ev eq_spec st_eq c (remove_assert_c remove_assert_i c) st_eq.
 
   Lemma it_remove_assert_progP fn :
-    wiequiv_f (wa1 := withassert) (wa2 := noassert) p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+    wiequiv_f env (wa1 := withassert) (wa2 := noassert) p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof using remove_assert_ok.
     apply wequiv_fun_ind_wa => {fn}.
     move=> fn _ fs ft [<- <-] fd hget.

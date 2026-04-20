@@ -28,7 +28,7 @@ Notation gd := (p_globs p).
 
 Section E.
 
-  Context (s:estate) (vm:Vm.t) (hincl : evm s <=1 vm) (wdb : bool).
+  Context env (s:estate env) (vm:Vm.t env) (hincl : evm s <=1 vm) (wdb : bool).
 
   Let s' := with_vm s vm.
 
@@ -105,12 +105,12 @@ Section E.
            rewrite (wrepr_add, wrepr_mul, wrepr_sub) !wrepr_int_of_word.
       1-2: by move=> > -> > -> /= > -> <- /=; (eexists; first reflexivity) => /=.
       + move=> > -> w2 -> /= > /wint_of_intP /= [-> _] <-; (eexists; first reflexivity).
-        rewrite /zlsl /sem_shl /sem_shift; case: ifPn => /ZleP ?.
+        rewrite /zlsl /sem_shl /sem_shift /sem_op_typed.zlsl; case: ifPn => /ZleP ?.
         + by rewrite wrepr_mul wrepr_int_of_word GRing.mulrC wshl_sem.
         by have := wunsigned_range w2; Lia.lia.
       + rewrite /mk_sem_wishift; case: si => /= w1 -> w2 -> > /=;
         move=> /wint_of_intP [-> ?] <-;  (eexists; first reflexivity) => /=;
-        rewrite /sem_sar /sem_shr /sem_shift ?wsar_alt /wsar_naive ?wshr_alt /wshr_naive /zasr /zlsl;
+        rewrite /sem_sar /sem_shr /sem_shift ?wsar_alt /wsar_naive ?wshr_alt /wshr_naive /zasr /zlsl /sem_op_typed.zasr /sem_op_typed.zlsl;
         have [h _ ] := wunsigned_range w2;
         (case: ZleP;
         [ case/Zle_lt_or_eq: h; first Lia.lia;
@@ -142,7 +142,7 @@ Section E.
 
 End E.
 
-Lemma wi2w_lvalP wdb lv s s' vm v1 v2 :
+Lemma wi2w_lvalP env wdb lv (s s' : estate env) vm v1 v2 :
   evm s <=1 vm ->
   value_uincl v1 v2 ->
   write_lval wdb gd lv v1 s = ok s' ->
@@ -181,7 +181,7 @@ Proof.
   by apply write_var_uincl.
 Qed.
 
-Lemma wi2w_lvalsP wdb lvs s s' vm vs1 vs2 :
+Lemma wi2w_lvalsP env wdb lvs (s s' : estate env) vm vs1 vs2 :
   evm s <=1 vm ->
   values_uincl vs1 vs2 ->
   write_lvals wdb gd s lvs vs1 = ok s' ->
@@ -201,6 +201,7 @@ Let p' := wi2w_prog_internal p.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context (env : env_t).
 
 Definition check_es_wi2w (d : unit) es1 es2 (d' : unit) :=
   es2 = [seq wi2w_e i | i <- es1].
@@ -210,10 +211,10 @@ Definition check_lvals_wi2w (d : unit) xs1 xs2 (d':unit) :=
 
 Lemma check_esP_R_wi2w d es1 es2 d' :
   check_es_wi2w d es1 es2 d' →
-  ∀ s1 s2, st_uincl d s1 s2 → st_uincl d' s1 s2.
+  ∀ (s1 s2 : estate env), st_uincl d s1 s2 → st_uincl d' s1 s2.
 Proof. by move=> _; apply st_rel_weaken. Qed.
 
-Definition checker_wi2w : Checker_e st_uincl :=
+Definition checker_wi2w : Checker_e (st_uincl (env:=env)) :=
   {| relational_logic.check_es := check_es_wi2w
    ; relational_logic.check_lvals := check_lvals_wi2w
    ; relational_logic.check_esP_rel := check_esP_R_wi2w
@@ -231,15 +232,15 @@ Qed.
 #[local] Hint Resolve checker_wi2wP : core.
 
 Let Pi i :=
-  wequiv_rec p p' ev ev uincl_spec (st_uincl tt) [::i] [::wi2w_i i] (st_uincl tt).
+  wequiv_rec (env:=env) p p' ev ev uincl_spec (st_uincl tt) [::i] [::wi2w_i i] (st_uincl tt).
 
 Let Pi_r i := forall ii, Pi (MkI ii i).
 
 Let Pc c :=
-  wequiv_rec p p' ev ev uincl_spec (st_uincl tt) c (map wi2w_i c) (st_uincl tt).
+  wequiv_rec (env:=env) p p' ev ev uincl_spec (st_uincl tt) c (map wi2w_i c) (st_uincl tt).
 
 Lemma it_wi2w_call_internalP fn :
-  wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+  wiequiv_f env p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
   exists (wi2w_fun fd).
@@ -271,14 +272,15 @@ End Internal.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} (rE0_trans : EventRels_trans rE0 rE0 rE0).
+Context (env : env_t).
 
 Lemma it_wi2w_progP (p' : uprog) fn :
   wi2w_prog remove_wint_annot dead_vars_fd p = ok p' →
-  wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+  wiequiv_f env p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof using rE0_trans.
   rewrite /wi2w_prog; t_xrbindP => ok_pv <-.
-  have := [elaborate it_alloc_call_uprogP ev (p_globs p) ok_pv (fn:= fn)].
-  have := [elaborate it_wi2w_call_internalP (fn:=fn)].
+  have := [elaborate it_alloc_call_uprogP env ev (p_globs p) ok_pv (fn:= fn)].
+  have := [elaborate it_wi2w_call_internalP env (fn:=fn)].
   apply wiequiv_f_trans => //.
   + by move=> fs1 fs2 hpre; exists fs1 => //; split => //; split => //; apply List_Forall2_refl.
   move=> ??? fr1 fr3 _ _ [fr2] [heq1 heq2 hu1] [heq3 heq4 hu2]; split.

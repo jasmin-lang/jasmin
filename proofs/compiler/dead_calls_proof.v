@@ -199,6 +199,7 @@ Section PROOF.
   Section IT.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context (env : Uint63.int -> Z).
 
   Definition dc_spec :=
    {|
@@ -208,21 +209,21 @@ Section PROOF.
 
   Let Pi (i:instr) :=
     def_incl (i_Calls i) ->
-    wequiv_rec p p' ev ev dc_spec (st_eq tt) [::i] [::i] (st_eq tt).
+    wequiv_rec (env:=env) p p' ev ev dc_spec (st_eq tt) [::i] [::i] (st_eq tt).
 
   Let Pi_r i := forall ii, Pi (MkI ii i).
 
   Let Pc (c:cmd) :=
     def_incl (c_Calls c) ->
-    wequiv_rec p p' ev ev dc_spec (st_eq tt) c c (st_eq tt).
+    wequiv_rec (env:=env) p p' ev ev dc_spec (st_eq tt) c c (st_eq tt).
 
-  #[local] Lemma _checker_st_eqP : Checker_eq p p' checker_st_eq.
+  #[local] Lemma _checker_st_eqP : Checker_eq p p' (checker_st_eq env).
   Proof. by apply checker_st_eqP. Qed.
 
   #[local] Hint Resolve _checker_st_eqP : core.
 
   Lemma it_dead_calls_callP fn :
-    wiequiv_f p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
+    wiequiv_f env p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
   Proof using pfxp.
     apply wequiv_fun_ind => {}fn _ fs _ [<- <- hin] fd hfd; exists fd => //.
     + by apply get_dead_calls.
@@ -232,22 +233,22 @@ Section PROOF.
     + by move=> ??; apply wequiv_nil.
     + move=> > hi hc; rewrite CallsE => /def_incl_union [??].
       by apply wequiv_cons with (st_eq tt); [apply hi | apply hc].
-    + by move=> > _; apply wequiv_assgn_rel_eq with checker_st_eq tt.
-    + by move=> > _; apply wequiv_opn_rel_eq with checker_st_eq tt.
-    + by move=> > _; apply wequiv_syscall_rel_eq with checker_st_eq tt.
+    + by move=> > _; apply wequiv_assgn_rel_eq with (checker_st_eq env) tt.
+    + by move=> > _; apply wequiv_opn_rel_eq with (checker_st_eq env) tt.
+    + by move=> > _; apply wequiv_syscall_rel_eq with (checker_st_eq env) tt.
     + by move=> > _; apply wequiv_noassert.
     + move=> > hc1 hc2 ii; rewrite !CallsE => /def_incl_union [??].
-      apply wequiv_if_rel_eq with checker_st_eq tt tt tt => //.
+      apply wequiv_if_rel_eq with (checker_st_eq env) tt tt tt => //.
       + by apply hc1.
       by apply hc2.
     + move=> > hc ii; rewrite !CallsE => ?.
-      by apply wequiv_for_rel_eq with checker_st_eq tt tt => //; apply hc.
+      by apply wequiv_for_rel_eq with (checker_st_eq env) tt tt => //; apply hc.
     + move=> > hc hc' ii; rewrite !CallsE => /def_incl_union [??].
-      apply wequiv_while_rel_eq with checker_st_eq tt => //.
+      apply wequiv_while_rel_eq with (checker_st_eq env) tt => //.
       + by apply hc.
       by apply hc'.
     + move=> >; rewrite !CallsE => hfin.
-      apply wequiv_call_rel_eq with checker_st_eq tt => //.
+      apply wequiv_call_rel_eq with (checker_st_eq env) tt => //.
       move=> ???; apply: wequiv_fun_rec; split => //.
       by move: hfin; rewrite /def_incl; SfD.fsetdec.
     move=> n hn; apply: pfxp.
@@ -282,11 +283,12 @@ Qed.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context (env : Uint63.int -> Z).
 
 Lemma it_dead_calls_errP (s : Sf.t) (p p': prog) :
   dead_calls_err s p = ok p' →
   ∀ f ev, Sf.In f s →
-  wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) f f (rpostF (eS := eq_spec)).
+  wiequiv_f env p p' ev ev (rpreF (eS := eq_spec)) f f (rpostF (eS := eq_spec)).
 Proof.
 rewrite /dead_calls_err.
 case: ifP => // /SfD.F.subset_2 pfx [] <- f ev hin fs _ [_ <-].
@@ -297,7 +299,7 @@ Qed.
 Theorem it_dead_calls_err_seqP (s : seq funname) (p p': prog) :
   dead_calls_err_seq s p = ok p' →
   ∀ f ev, f \in s →
-  wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) f f (rpostF (eS := eq_spec)).
+  wiequiv_f env p p' ev ev (rpreF (eS := eq_spec)) f f (rpostF (eS := eq_spec)).
 Proof.
   rewrite /dead_calls_err_seq.
   move=> h f ev fins; apply: (it_dead_calls_errP h).

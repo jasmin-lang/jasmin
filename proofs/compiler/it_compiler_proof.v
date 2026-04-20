@@ -475,7 +475,7 @@ Definition isem_unit
     (wsw := nosubword)
     (dc := indirect_c)
     (pT := progUnit)
-    p tt fn fs.
+    empty_env p tt fn fs.
 
 Definition isem_stack
   (sp : sprog)
@@ -494,7 +494,7 @@ Definition isem_stack
     (wsw := withsubword)
     (dc := direct_c)
     (pT := progStack)
-    sp rip fn fs.
+    empty_env sp rip fn fs.
 
 Definition isem_linear (lp : lprog) :=
   ilsem_exportcall lp (wE := with_Error0).
@@ -517,29 +517,29 @@ Lemma it_inliningP {to_keep p p' ev fn} :
   fn \in to_keep ->
   inlining cparams to_keep p = ok p' ->
   wiequiv_f (dc1 := indirect_c) (dc2 := indirect_c)
-    p p' ev ev pre_incl fn fn post_incl.
+    empty_env p p' ev ev pre_incl fn fn post_incl.
 Proof using print_uprogP.
 rewrite /inlining; t_xrbindP=> hfn p0 hp0 p1.
 rewrite !print_uprogP => hp1 ?; subst p'.
 apply: wiequiv_f_trans_UU_UU; first exact: it_inline_call_errP hp0.
-apply: it_sem_refl_EE_UU; exact: (it_dead_calls_err_seqP hp1 _ hfn).
+apply: it_sem_refl_EE_UU; exact: (it_dead_calls_err_seqP _ hp1 _ hfn).
 Qed.
 
 Lemma it_postprocessP {dc : DirectCall} (p p' : uprog) fn ev :
   dead_code_prog (ap_is_move_op aparams) (const_prop_prog p) false = ok p' ->
   wiequiv_f (dc1 := dc) (dc2 := dc)
-    p p' ev ev pre_incl fn fn post_incl.
+    empty_env p p' ev ev pre_incl fn fn post_incl.
 Proof using haparams.
 move=> hp'.
 apply: wiequiv_f_trans_UU_UU; first exact: it_const_prop_callP.
 apply: it_sem_refl_EU_UU.
-exact: (it_dead_code_callPu (sip:=sip_of_asm_e) (hap_is_move_opP haparams) ev hp' (fn := fn)).
+exact: (it_dead_code_callPu (sip:=sip_of_asm_e) (hap_is_move_opP haparams) empty_env ev hp' (fn := fn)).
 Qed.
 
 Lemma it_unrollP {dc : DirectCall} (fn : funname) (p p' : prog) ev :
   unroll_loop (ap_is_move_op aparams) p = ok p' ->
   wiequiv_f (dc1 := dc) (dc2 := dc)
-    p p' ev ev pre_incl fn fn post_incl.
+    empty_env p p' ev ev pre_incl fn fn post_incl.
 Proof using haparams.
 rewrite /unroll_loop; t_xrbindP; elim: loop_counter p => [// | n hind] /= p pu hpu.
 case hu: unroll_prog => [pu' []]; last first.
@@ -554,12 +554,12 @@ Qed.
 Lemma it_live_range_splittingP {dc : DirectCall} (p p': uprog) fn ev :
   live_range_splitting aparams cparams p = ok p' ->
   wiequiv_f (dc1 := dc) (dc2 := dc)
-    p p' ev ev pre_eq fn fn post_incl.
+    empty_env p p' ev ev pre_eq fn fn post_incl.
 Proof using haparams print_uprogP.
 rewrite /live_range_splitting; t_xrbindP.
 rewrite !print_uprogP => ok_p' pa ok_pa; rewrite print_uprogP => ?; subst pa.
 move: p ok_p' ok_pa => [fs gd ep] /= ok_p' ok_pa.
-apply: wiequiv_f_trans_UU_EU; first exact: (it_alloc_call_uprogP _ _ ok_p').
+apply: wiequiv_f_trans_UU_EU; first exact: (it_alloc_call_uprogP _ _ _ ok_p').
 apply: (
   wkequiv_io_weaken
     (P := pre_incl fn fn)
@@ -567,7 +567,7 @@ apply: (
 ) => //.
 - move=> ? _ [_ <-]; split=> //; split=> //; exact: values_uincl_refl.
 apply: it_sem_refl_EU_UU.
-exact: (it_dead_code_callPu (sip:=sip_of_asm_e) (hap_is_move_opP haparams) ev ok_pa (fn := fn)).
+exact: (it_dead_code_callPu (sip:=sip_of_asm_e) (hap_is_move_opP haparams) empty_env ev ok_pa (fn := fn)).
 Qed.
 
 Lemma it_compiler_first_part {entries p p' ev fn} :
@@ -577,7 +577,7 @@ Lemma it_compiler_first_part {entries p p' ev fn} :
     (wa1 := withassert) (wa2 := noassert)
     (wsw1 := nosubword) (wsw2 := withsubword)
     (dc1 := indirect_c) (dc2 := direct_c)
-    p p' ev ev pre_eq fn fn post_incl.
+    empty_env p p' ev ev pre_eq fn fn post_incl.
 Proof using haparams print_uprogP.
 rewrite /compiler_first_part; t_xrbindP => paw.
 rewrite print_uprogP => ok_paw pa0.
@@ -598,8 +598,8 @@ apply: (wiequiv_f_trans_EE_EU (wsw2:=nosubword) (dc2:=indirect_c)).
 apply: (wiequiv_f_trans_EE_EU (wsw2:= withsubword) (dc2:=indirect_c)).
 + exact: it_psem_call_u.
 
-apply: wiequiv_f_trans_UU_EU; first exact (it_wi2w_progP _ _ ok_paw).
-apply: wiequiv_f_trans_UU_EU; first exact: (it_insert_renaming_callP (insert_renaming cparams)).
+apply: wiequiv_f_trans_UU_EU; first exact (it_wi2w_progP _ _ _ ok_paw).
+apply: wiequiv_f_trans_UU_EU; first exact: (it_insert_renaming_callP _ (insert_renaming cparams)).
 apply: wiequiv_f_trans_UU_EU; first exact: (it_array_copy_fdP _ ok_pa0).
 apply: wiequiv_f_trans_EE_EU; first exact: it_add_init_callP.
 apply: wiequiv_f_trans_EE_EU; first exact: (it_lower_spill_fdP _ ok_pb).
@@ -607,26 +607,27 @@ apply: wiequiv_f_trans_UU_EU.
 apply: [elaborate it_inliningP (ev := ev) ok_fn ok_pa ].
 apply: wiequiv_f_trans_UU_EU; first exact: it_unrollP ok_pc.
 apply: wiequiv_f_trans_EE_EU;
-  first exact: (it_dead_calls_err_seqP ok_pd _ ok_fn).
+  first exact: (it_dead_calls_err_seqP _ ok_pd _ ok_fn).
 apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_pe.
-apply: wiequiv_f_trans_UU_EU; first exact: (it_remove_init_fdPu is_reg_array).
+apply: wiequiv_f_trans_UU_EU; first exact: (it_remove_init_fdPu _ is_reg_array).
 apply: wiequiv_f_trans_EE_EU.
-- apply: (wkequiv_io_weaken (P := rpreF (eS := mra_spec _) fn fn)) => //;
+- apply: (wkequiv_io_weaken (P := rpreF (eS := mra_spec _ _) fn fn)) => //;
     last exact: (it_makeReferenceArguments_callP _ ok_pf).
   by move=> ???? [_ <-] [<-].
 apply: wiequiv_f_trans_UU_EU; first exact: it_indirect_to_direct.
-apply: wiequiv_f_trans_EE_EU; first exact: (it_expand_callP ok_pg ok_fn).
+apply: wiequiv_f_trans_EE_EU; first exact: (it_expand_callP ok_pg _ ok_fn).
 apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_ph.
 apply: wiequiv_f_trans_EU_EU; first exact: RGP.it_remove_globP ok_pi.
-apply: wiequiv_f_trans_EE_EU; first exact: (it_load_constants_progP ok_plc).
+apply: wiequiv_f_trans_EE_EU; first exact: (it_load_constants_progP _ ok_plc).
 apply: wiequiv_f_trans_EE_EU; first exact:
   (hlop_lower_callP
     (hap_hlop haparams)
+    _
     (warning cparams)
     ok_fvars).
 apply: wiequiv_f_trans_UU_EU; first exact: (it_pi_callP _ ok_pj).
 apply: wiequiv_f_trans_EE_EU;
-  first exact: (it_lower_call_export (hap_hshp haparams) _ ok_pp ok_fn).
+  first exact: (it_lower_call_export _ (hap_hshp haparams) _ ok_pp ok_fn).
 
 apply: wkequiv_io_weaken; last exact: wiequiv_f_eq.
 1-3: done.
@@ -674,7 +675,7 @@ Qed.
 Lemma it_compiler_third_part {rp fn} :
   compiler_third_part aparams cparams rp p = ok p' ->
   wiequiv_f (scP1 := sCP_stack) (scP2 := sCP_stack)
-    p p' ev ev pre_eq fn fn (post_dc rp).
+    empty_env p p' ev ev pre_eq fn fn (post_dc rp).
 Proof using haparams print_sprogP.
 rewrite /compiler_third_part; t_xrbindP=> pa ok_pa.
 rewrite !print_sprogP.
@@ -686,7 +687,7 @@ apply: (
     (rpreF23 := pre_eq) (rpostF23 := post_incl)
     _ _
     (it_dead_code_tokeep_callPs
-       (sip := sip_of_asm_e) (hap_is_move_opP haparams) _ ok_pa)
+       (sip := sip_of_asm_e) (hap_is_move_opP haparams) _ _ ok_pa)
 ).
 - exact: rpreF_trans_eq_eq_eq.
 - move=> s1 s2 _ r1 r3 _ [_ <-] [r2 [?? hvals2] [?? hvals3]].
@@ -698,7 +699,7 @@ apply: (
     (scP1 := sCP_stack) (scP2 := sCP_stack) (scP3 := sCP_stack)
     (rpreF23 := pre_eq) (rpostF23 := post_incl)
     _ _
-    (it_alloc_callP_sprogP _ _ ok_pb (fn:= fn))
+    (it_alloc_callP_sprogP _ _ _ ok_pb (fn:= fn))
 ).
 - exact: rpreF_trans_eq_uincl_eq.
 - exact: rpostF_trans_uincl_eq_uincl_uincl.
@@ -708,13 +709,13 @@ apply: (
     (rpreF23 := pre_incl) (rpostF23 := post_incl)
     _ _
     (it_dead_code_callPs
-       (sip := sip_of_asm_e) (hap_is_move_opP haparams) _ ok_p')
+       (sip := sip_of_asm_e) (hap_is_move_opP haparams) _ _ ok_p')
        ).
 - move=> s1 s2 [_ <-]; exists s1 => //; split=> //; exact: fs_uinclR.
 - move=> s1 _ s3 r1 r3 [_ <-] _ [r2 [?? hvals2] [?? hvals3]].
   split; only 1,2: congruence.
   exact: values_uincl_trans hvals2 hvals3.
-exact: (it_sem_uincl_f (sCP := sCP_stack) p' ev (fn := fn)).
+exact: (it_sem_uincl_f (sCP := sCP_stack) _ p' ev (fn := fn)).
 Qed.
 
 End THIRD_PART.
@@ -778,7 +779,7 @@ Lemma it_compiler_front_endP {ev fn} :
     (wsw1 := nosubword) (wsw2 := withsubword)
     (wa1 := withassert) (wa2 := noassert)
     (dc1 := indirect_c) (dc2 := direct_c)
-    up sp ev rip rpreF fn fn rpostF.
+    empty_env up sp ev rip rpreF fn fn rpostF.
 Proof using haparams print_uprogP print_sprogP.
 rewrite /compiler_front_end; t_xrbindP=> p1 ok_p1 check_p1 p2 ok_p2 p3.
 rewrite print_sprogP => ok_p3 p4.
@@ -829,7 +830,7 @@ apply: (
     _ _
     (it_alloc_progP
        (hap_hshp haparams) (hap_hsap haparams) (hap_is_move_opP haparams)
-       ok_p2 ev (rip := rip))
+       empty_env ok_p2 ev (rip := rip))
 ).
 - move=> s1 s3 [] [_ hok hwf hptr hmem hscs] _; exists s3 => //; split=> //.
   + by rewrite -p2_p1_extra p2_p3_extra -sp_p3_extra.
@@ -947,7 +948,7 @@ apply: (
 apply: (
   wiequiv_f_trans
     _ _
-    (hlap_lower_addressP (hap_hlap haparams) ok_p3)
+    (hlap_lower_addressP (hap_hlap haparams) empty_env ok_p3)
     (it_compiler_third_part ok_sp)
 ).
 - exact: rpreF_trans_eq_eq_eq.
@@ -982,7 +983,7 @@ Definition zeroized_s fn ms mt mt' :=
   cparams.(stack_zero_info) fn <> None ->
   forall p, zeroized_p ms mt mt' p.
 
-Definition lget_vars (xs : seq var_i) (vm : Vm.t) : seq value :=
+Definition lget_vars (xs : seq var_i) (vm : Vm.t empty_env) : seq value :=
   [seq vm.[v_var x] | x <- xs].
 Definition lget_args (lfd : lfundef) := lget_vars lfd.(lfd_arg).
 Definition lget_res  (lfd : lfundef) := lget_vars lfd.(lfd_res).
@@ -1001,7 +1002,7 @@ Definition back_end_pre lfd s t :=
     , vm_initialized_on vmt lfd.(lfd_callee_saved)
     & allocatable_stack ms (lfd_total_stack lfd) ].
 
-Definition back_end_post fn lfd s t s' t' :=
+Definition back_end_post fn lfd s (t : estate empty_env) s' t' :=
   let: ms := s.(fmem) in
   let: mt := t.(emem) in
   let: ress := s'.(fvals) in
@@ -1015,7 +1016,7 @@ Definition back_end_post fn lfd s t s' t' :=
     & zeroized_s fn ms mt mt' ].
 
 Definition ovm_post'
-  (fn : funname) (i1 : fstate) (i2 : estate) (o1 : fstate) (o2 : estate) :=
+  (fn : funname) (i1 : fstate) (i2 : estate empty_env) (o1 : fstate) (o2 : estate empty_env) :=
   [/\ ovm_post sp fn o1 o2
     & validw i2.(emem) =3 validw o2.(emem) ].
 
@@ -1048,7 +1049,7 @@ move=> rsp_tp_sp rip_tp_sp rsp_tp_lp rip_tp_lp al_tfd_sfd al_tfd_lfd exp_tfd
   exp_tfd_lfd cs_tfd_lfd stkmax_tfd_sfd stkmax_tfd_lfd args_tfd_sfd get_sfd
   get_lfd [hrsp hrip] uvals mmem hscs init alloc.
 set vs' := lget_args tfd i3.(evm) in uvals.
-set i2 := with_vm (estate0 i1) i3.(evm).
+set i2 := with_vm (estate0 empty_env i1) i3.(evm).
 exists i2.
 - split=> //.
   rewrite get_sfd /=; exists vs'; split; last exact: uvals.
@@ -1066,7 +1067,7 @@ rewrite /lin_sz_pre /lin_pre get_sfd get_lfd; split; first split=> //.
 rewrite /lfd_total_stack -stkmax_tfd_lfd -al_tfd_lfd -exp_tfd_lfd; exact: alloc.
 Qed.
 
-Lemma get_var_is_eq_on wdb s vm vm' xs :
+Lemma get_var_is_eq_on wdb s (vm vm' : Vm.t empty_env) xs :
   Sv.Subset (sv_of_list v_var xs) s ->
   vm =[s] vm' ->
   get_var_is wdb vm xs = get_var_is wdb vm' xs.
@@ -1077,14 +1078,14 @@ rewrite /= (get_var_eq_on _ _ hvm); last by clear -hxs; SvD.fsetdec.
 by rewrite ih //; clear -hxs; SvD.fsetdec.
 Qed.
 
-Lemma trans_post_ovm_lin_alloc lfd i2 :
+Lemma trans_post_ovm_lin_alloc lfd (i2 : estate empty_env) :
   lfd_export lfd ->
   allocatable_stack (emem i2) (lfd_total_stack lfd) ->
   allocatable_stack
     i2.(emem) (lfd.(lfd_stk_max) + wsize_size lfd.(lfd_align) - 1).
 Proof. by rewrite /allocatable_stack /lfd_total_stack => ->. Qed.
 
-Lemma trans_post_ovm_lin_alloc' lfd i2 :
+Lemma trans_post_ovm_lin_alloc' lfd (i2 : estate empty_env) :
   let: ts_i2 := top_stack i2.(emem) in
   allocatable_stack (emem i2)
     (lfd_stk_max lfd + wsize_size lfd.(lfd_align) - 1) ->
@@ -1112,7 +1113,7 @@ move=> /and4P [/ZleP stk_sz_pos /ZleP stk_extra_sz_pos _ /ZleP
 split=> //; exact: frame_size_bound stk_sz_pos stk_extra_sz_pos.
 Qed.
 
-Lemma trans_post_ovm_lin_alloc''' lp fn sfd lfd i2 :
+Lemma trans_post_ovm_lin_alloc''' lp fn sfd lfd (i2 : estate empty_env) :
   let: ts_i2 := top_stack i2.(emem) in
   let: sl_i2 := stack_limit i2.(emem) in
   let: sm_lfd := lfd.(lfd_stk_max) in
@@ -1134,7 +1135,7 @@ move: alloc alloc''; rewrite /allocatable_stack.
 by t_lia.
 Qed.
 
-Lemma trans_post_ovm_lin_bottom_instack lfd i2 :
+Lemma trans_post_ovm_lin_bottom_instack lfd (i2 : estate empty_env) :
   let: ts_i2 := top_stack i2.(emem) in
   let: sl_i2 := stack_limit i2.(emem) in
   let: sm_lfd := lfd.(lfd_stk_max) in
@@ -1357,7 +1358,7 @@ set var_tmps := (X in isem_exportcall_check X) in wovm.
 have {}wovm : [elaborate
   wkequiv_io
     (ovm_pre sp rip fn)
-    (it_sems_core.isem_fun sp rip fn)
+    (it_sems_core.isem_fun empty_env sp rip fn)
     (isem_exportcall_check var_tmps sp rip fn)
     (ovm_post' fn) ].
 - move=> i1 i2 pre.
@@ -1366,9 +1367,9 @@ have {}wovm : [elaborate
       (preInv (iE0 := trivial_invEvent _) (iEr := trivial_invErr))
       (postInv (iE0 := trivial_invEvent _))
       (fun o1 => validw i1.(fmem) =3 validw o1.(fmem))
-      (it_sems_core.isem_fun sp rip fn i1).
+      (it_sems_core.isem_fun empty_env sp rip fn i1).
   - have := [elaborate
-      sem_fun_mem_equiv_sprog sp rip (fn := fn) dummy_instr_info (i := i1) I
+      sem_fun_mem_equiv_sprog empty_env sp rip (fn := fn) dummy_instr_info (i := i1) I
     ].
     by apply: lutt_weaken => // ? [].
   have := lutt_xrutt_trans_l valid (wovm _ _ pre).
@@ -1600,7 +1601,7 @@ exists xfd; split => //.
 set rip_id := mk_ptr (lp_rip lp).
 apply: (
   wkequiv_io_trans
-    (P23 := fun (ls : estate) (xm : asmmem) =>
+    (P23 := fun (ls : estate empty_env) (xm : asmmem) =>
       vm_initialized_on (evm ls)
         [seq var_of_asm_typed_reg i | i <- arch_decl.callee_saved]
       /\ lom_eqv rip_id ls xm)
@@ -1828,7 +1829,7 @@ have hvalidw_u :=
     (sip := sip_of_asm_e)
     (wsw := nosubword)
     (dc := indirect_c)
-    up tt (fn := fn)] dummy_instr_info fs I.
+    empty_env up tt (fn := fn)] dummy_instr_info fs I.
 have {}h_fe := lutt_xrutt_trans_l hvalidw_u h_fe.
 clear hvalidw_u.
 
@@ -1840,7 +1841,7 @@ have hvalidw :=
     (sip := sip_of_asm_e)
     (wsw := withsubword)
     (dc := direct_c)
-    sp (asm_rip xm) (fn := fn)] dummy_instr_info fs_sp I.
+    empty_env sp (asm_rip xm) (fn := fn)] dummy_instr_info fs_sp I.
 have {}h_fe := lutt_xrutt_trans_r hvalidw h_fe.
 clear hvalidw.
 

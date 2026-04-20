@@ -427,7 +427,7 @@ Record instr_desc_t := {
   id_eq_size    : (size id_in == size id_tin) && (size id_out == size id_tout);
   id_str_jas    : unit -> string;
   id_check_dest : all2 check_arg_dest id_out id_tout;
-  id_safe       : seq safe_cond;
+  id_safe       : seq (safe_cond Z);
   (* Whether the instruction has data operand independent timing, i.e. belongs
      to the DOIT (Intel) / DIT (ARM) subsets of instructions. *)
   id_doit       : doit_t;
