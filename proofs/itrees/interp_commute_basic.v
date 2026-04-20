@@ -13,13 +13,11 @@ From ITree Require Import
      Exception.
 Import Basics.Monads.
 
-Require Import Program.Equality.
+From Stdlib Require Import List Program.Equality.
 
 From Paco Require Import paco.
 
 Require Import tfam_iso eutt_extras rec_facts lutt_extras.
-
-Require Import List.
 
 Import MonadNotation.
 Local Open Scope monad_scope.

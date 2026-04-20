@@ -207,3 +207,15 @@ lang/waes.v
 lang/warray_.v
 lang/word.v
 lang/wsize.v
+
+itrees/relaxed_xrutt.v
+itrees/gradual_rec.v
+itrees/tfam_iso.v
+itrees/eutt_extras.v
+itrees/exec_extras.v
+itrees/it_exec_sem.v
+itrees/equiv_extras.v 
+itrees/lutt_extras.v
+itrees/safety_extras.v
+itrees/interp_commute_basic.v
+compiler/linearization_ext.v
