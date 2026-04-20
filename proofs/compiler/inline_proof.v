@@ -147,11 +147,11 @@ Section SUBSET.
 
 End SUBSET.
 
-Lemma assgn_tuple_Lvar (p:uprog) (ev:unit) ii (xs:seq var_i) flag tys es vs vs' s s' :
+Lemma assgn_tuple_Lvar env (p:uprog) (ev:unit) ii (xs:seq var_i) flag tys es vs vs' (s s' : estate env) :
   let xs := map Lvar xs in
   disjoint (vrvs xs) (read_es es) ->
   sem_pexprs true (p_globs p) s es = ok vs ->
-  mapM2 ErrType dc_truncate_val (map eval_atype tys) vs = ok vs' ->
+  mapM2 ErrType dc_truncate_val (map (eval_atype env) tys) vs = ok vs' ->
   write_lvals true (p_globs p) s xs vs' = ok s' ->
   esem p ev (assgn_tuple ii xs flag tys es) s = ok s'.
 Proof.
@@ -169,11 +169,11 @@ Proof.
   apply: (eq_ex_disjoint_eq_on (vrvP_var Hw)); apply /disjointP; clear -Hempty; SvD.fsetdec.
 Qed.
 
-Lemma assgn_tuple_Pvar (p:uprog) ev ii xs flag tys rxs vs vs' s s' :
+Lemma assgn_tuple_Pvar env (p:uprog) ev ii xs flag tys rxs vs vs' (s s' : estate env) :
   let es := map Plvar rxs in
   disjoint (vrvs xs) (read_es es) ->
   get_var_is true (evm s) rxs = ok vs ->
-  mapM2 ErrType dc_truncate_val (map eval_atype tys) vs = ok vs' ->
+  mapM2 ErrType dc_truncate_val (map (eval_atype env) tys) vs = ok vs' ->
   write_lvals true (p_globs p) s xs vs' = ok s' ->
   esem p ev (assgn_tuple ii xs flag tys es) s = ok s'.
 Proof.
@@ -213,6 +213,7 @@ Qed.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context (env : Uint63.int -> Z).
 
 Section FD.
 
@@ -238,7 +239,7 @@ Definition do_inline caller iinfo (callee:funname) :=
   (caller == fn) && ii_is_inline iinfo.
 
 Notation wequiv_rec :=
- (wequiv (rE0:=relEvent_recCall uincl_spec)
+ (wequiv (env:=env) (rE0:=relEvent_recCall uincl_spec)
     (sem_F1 := sem_fun_inline do_inline fn) (sem_F2 := sem_fun_rec E) ).
 
 Let Pi i :=
@@ -249,15 +250,15 @@ Let Pc c :=
   forall X1 X2 c', inline_c (inline_i' pfuncs2) c X2 = ok (X1, c') ->
   wequiv_rec p1 p2 ev ev (st_uincl_on X1) c c' (st_uincl_on X2).
 
-Lemma checker_st_uincl_onP_ : Checker_uincl p1 p2 checker_st_uincl_on.
+Lemma checker_st_uincl_onP_ : Checker_uincl p1 p2 (checker_st_uincl_on env).
 Proof. by apply checker_st_uincl_onP. Qed.
 #[local] Hint Resolve checker_st_uincl_onP_ : core.
 
 Lemma it_inline_fd_aux fn' :
-  wiequiv_f p1 p2 ev ev (rpreF (eS:=uincl_spec)) fn' fn' (rpostF (eS:=uincl_spec)).
+  wiequiv_f env p1 p2 ev ev (rpreF (eS:=uincl_spec)) fn' fn' (rpostF (eS:=uincl_spec)).
 Proof using uniq_funname inline_fd_ok.
   move=> fs1 fs2 hpre.
-  rewrite (isem_call_inline p1 ev do_inline).
+  rewrite (isem_call_inline env p1 ev do_inline).
   move: fs1 fs2 hpre.
   apply wequiv_fun_ind => fn1 _ fs1 fs2 [<- hu] fd1 hfd1.
   have : if fn1 == fn then fd1 = fd /\ get_fundef (p_funcs p2) fn1 = Some fd' else get_fundef (p_funcs p2) fn1 = Some fd1.
@@ -278,8 +279,8 @@ Proof using uniq_funname inline_fd_ok.
     + by apply fs_uincl_finalize.
     move=> {fs1 fs2 hu s1 s1' hinit hinit' hus1} s t.
     have h: forall ii fn fs,
-            Eqit.eutt eq (sem_fun (sem_Fun := sem_fun_inline do_inline fn1) p1 ev ii fn fs)
-                         (sem_fun (sem_Fun := sem_fun_rec E) p1 ev ii fn fs).
+            Eqit.eutt eq (sem_fun (sem_Fun := sem_fun_inline do_inline fn1) env p1 ev ii fn fs)
+                         (sem_fun (sem_Fun := sem_fun_rec E) env p1 ev ii fn fs).
     + move=> ii fn2 fs /=; rewrite /do_inline; case: eqP => //= ?; reflexivity.
     rewrite (isem_cmd_ext h) => {h}.
     by move: s t; apply it_sem_uincl_aux => // ?????; apply: wequiv_fun_rec.
@@ -299,7 +300,7 @@ Proof using uniq_funname inline_fd_ok.
   exists s1' => //.
   exists (st_uincl_on X1), (st_uincl_on X2); split => //;
     first (by case hus1 => ?? h; split); last first.
-  + have := [elaborate fs_uincl_on_finalize (fd:=fd) (fd':= with_body fd c') erefl erefl erefl].
+  + have := [elaborate fs_uincl_on_finalize (env:=env) (fd:=fd) (fd':= with_body fd c') erefl erefl erefl].
     by apply wrequiv_weaken => //; apply st_rel_weaken => ??; rewrite /X2 vars_l_read_es.
   clear fs1 fs2 hu hfd1 hinit hinit' s1 s1' hus1 fn'.
   move: (f_body fd) X1 X2 c' hc'.
@@ -310,20 +311,20 @@ Proof using uniq_funname inline_fd_ok.
     move=> [X c'] /hc{}hc [X' i'] /= /hi{}hi ? <-; subst X'.
     by rewrite -cat1s; apply wequiv_cat with (st_uincl_on X).
   + move=> x tg ty e ii X1 X2 _ [? <-].
-    apply wequiv_assgn_rel_uincl with checker_st_uincl_on X1 => //=; subst X1; split => //.
+    apply wequiv_assgn_rel_uincl with (checker_st_uincl_on env) X1 => //=; subst X1; split => //.
     + by rewrite /read_es /= read_eE !read_writeE; clear; SvD.fsetdec.
     + by rewrite !read_writeE; clear; SvD.fsetdec.
     by rewrite /read_rvs !read_writeE /= read_rvE; clear; SvD.fsetdec.
   + move=> xs tg o es ii X1 X2 _ [? <-].
-    by apply wequiv_opn_rel_uincl with checker_st_uincl_on X1 => //=; subst X1; split => //;
+    by apply wequiv_opn_rel_uincl with (checker_st_uincl_on env) X1 => //=; subst X1; split => //;
       rewrite !read_writeE; clear; SvD.fsetdec.
   + move=> xs o es ii X1 X2 _ [? <-].
-    by apply wequiv_syscall_rel_uincl with checker_st_uincl_on X1 => //=; subst X1; split => //;
+    by apply wequiv_syscall_rel_uincl with (checker_st_uincl_on env) X1 => //=; subst X1; split => //;
       rewrite !read_writeE; clear; SvD.fsetdec.
   + by move=> ? ii ??? _; apply wequiv_noassert.
   + move=> e c1 c2 hc1 hc2 ii X1 X2 c_; t_xrbindP.
     move=> [X11 c1'] /hc1{}hc1 [X12 c2'] /hc2{}hc2 ? <-.
-    apply wequiv_if_rel_uincl with checker_st_uincl_on X1 X2 X2 => //=; subst X1.
+    apply wequiv_if_rel_uincl with (checker_st_uincl_on env) X1 X2 X2 => //=; subst X1.
     + by split => //=; rewrite /read_es /= !read_eE; clear; SvD.fsetdec.
     + apply: wequiv_weaken hc1 => //=; apply st_rel_weaken => ??; apply uincl_onI.
       by rewrite read_eE; clear; SvD.fsetdec.
@@ -333,7 +334,7 @@ Proof using uniq_funname inline_fd_ok.
     move=> [X' c'] /[dup] /inline_c_subset /= hX' /hc{}hc ? <- /=.
     apply wequiv_weaken with (st_uincl_on X1) (st_uincl_on X1) => //.
     + by subst X1; apply st_rel_weaken => ??; apply uincl_onI; clear; SvD.fsetdec.
-    apply wequiv_for_rel_uincl with checker_st_uincl_on X1 X'; subst X1 => //=.
+    apply wequiv_for_rel_uincl with (checker_st_uincl_on env) X1 X'; subst X1 => //=.
     + by split => //=; rewrite /read_es /= !read_eE !read_writeE; clear; clear; SvD.fsetdec.
     by split => //; rewrite ?hX' !read_writeE /read_rvs /=; clear; clear; SvD.fsetdec.
   + move=> al c1 e ii' c2 hc1 hc2 ii X1 X2 c_; t_xrbindP.
@@ -341,7 +342,7 @@ Proof using uniq_funname inline_fd_ok.
     move=> [Xc2 c2']  /[dup] /inline_c_subset /= hXc2 /hc2{}hc2 ? <-.
     apply wequiv_weaken with (st_uincl_on X1) (st_uincl_on X1) => //.
     + by subst X1; apply st_rel_weaken => ??; apply uincl_onI; clear; SvD.fsetdec.
-    apply wequiv_while_rel_uincl with checker_st_uincl_on X1; subst X1 => //=.
+    apply wequiv_while_rel_uincl with (checker_st_uincl_on env) X1; subst X1 => //=.
     + by split => //; rewrite /read_es /= read_eE !read_writeE; clear; SvD.fsetdec.
     + apply: wequiv_weaken hc1 => //; apply st_rel_weaken => ??; apply uincl_onI.
       by rewrite hXc1 !read_writeE; clear; SvD.fsetdec.
@@ -350,7 +351,7 @@ Proof using uniq_funname inline_fd_ok.
   move=> xs f es ii X1 X2 c_.
   case: ifP => hinline; last first.
   + move=> [? <-].
-    apply wequiv_call_rel_uincl with checker_st_uincl_on X1; subst X1 => //=.
+    apply wequiv_call_rel_uincl with (checker_st_uincl_on env) X1; subst X1 => //=.
     + by split => //; rewrite !read_writeE; clear; SvD.fsetdec.
     + by split => //; rewrite !read_writeE; clear; SvD.fsetdec.
     move=> i1 i2 h; rewrite /= /do_inline eqxx hinline /=.
@@ -390,7 +391,7 @@ Proof using uniq_funname inline_fd_ok.
   rewrite (write_vars_lvals _ (p_globs p1)) in hws.
   have [|/= vm2 hws' huincl] := writes_uincl (vm1:=evm t) _ huvs' hws.
   + by apply vm_uincl_init.
-  have heqt: (with_vm (estate0 (mk_fstate vs s)) (evm t)) = t.
+  have heqt: (with_vm (estate0 env (mk_fstate vs s)) (evm t)) = t.
   + by move: hpre => /st_relP [-> /=].
   rewrite heqt in hws'.
   have hdisje : disjoint (vrvs [seq Lvar i | i <- f_params ffd]) (read_es es).
@@ -400,10 +401,10 @@ Proof using uniq_funname inline_fd_ok.
   have /(esem_i_bodyP (sem_F := sem_fun_rec E)) h := assgn_tuple_Lvar ev (ii_with_location ii) AT_rename hdisje hes' htr' hws'.
   rewrite {}h /=.
   rewrite ITree.Eq.Eqit.bind_ret_l isem_cmd_cat.
-  have := [elaborate it_eq_cmdP_rec(p:=p1) (p':=p2) ev ev erefl (extend_iinfo_cmd_eq_cmd ii ((f_body ffd)))].
+  have := [elaborate it_eq_cmdP_rec (env:=env) (p:=p1) (p':=p2) ev ev erefl (extend_iinfo_cmd_eq_cmd ii ((f_body ffd)))].
   move=> /wequiv_write2 -/(_ (with_vm s1 vm2)) h.
   apply xrutt_facts.xrutt_bind with
-    (fun s2 s3 : estate => evm (with_vm s1 vm2) =[\write_c (extend_iinfo_cmd extend_iinfo ii (f_body ffd))] evm s3 /\ st_uincl tt s2 s3).
+    (fun s2 s3 : estate env => evm (with_vm s1 vm2) =[\write_c (extend_iinfo_cmd extend_iinfo ii (f_body ffd))] evm s3 /\ st_uincl tt s2 s3).
   + by apply h.
   move=> s' t' [heqex {}huincl].
   rewrite ITree.Eq.Eqit.bind_bind.
@@ -462,8 +463,8 @@ Lemma inline_fd_consP (pfuncs1 pfuncs0 pfuncs2 pfuncs: ufun_decls) :
   let p2 := {|p_funcs := pfuncs0 ++ pfuncs; p_globs := p_globs p; p_extra := p_extra p |} in
   uniq [seq x.1 | x <- p_funcs p1] ->
   uniq [seq x.1 | x <- p_funcs p2] /\
-  ((forall fn, wiequiv_f p p1 ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec))) ->
-   (forall fn, wiequiv_f p p2 ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec)))).
+  ((forall fn, wiequiv_f env p p1 ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec))) ->
+   (forall fn, wiequiv_f env p p2 ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec)))).
 Proof using rE_trans.
   elim: pfuncs1 pfuncs0 pfuncs2 pfuncs => /= [ | [fn1 fd1] pfuncs1 hrec] pfuncs0 pfuncs2 pfuncs.
   + by move=> [->].
@@ -485,7 +486,7 @@ Qed.
 
 Lemma it_inline_call_errP p' fn :
   inline_prog_err extend_iinfo p = ok p' ->
-  wiequiv_f p p' ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+  wiequiv_f env p p' ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof using rE_trans.
   rewrite /inline_prog_err; case: ifP => //; t_xrbindP => huniq pfuncs h <-.
   have /(_ [::]) /= := inline_fd_consP h.

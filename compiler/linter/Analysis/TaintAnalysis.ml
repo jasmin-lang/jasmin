@@ -174,7 +174,8 @@ let check_func (context : signatures) (liveness : Sv.t Miloc.t) fd :
         (fun y ->
           match y.v_kind with
           | Stack _ | Reg _ -> true
-          | Const | Inline | Global -> false)
+          | Const | Inline | Global -> false
+          | Length -> assert false)
         d
     in
     if not (Sv.is_empty ys) then errors := error ~kind x ys loc :: !errors

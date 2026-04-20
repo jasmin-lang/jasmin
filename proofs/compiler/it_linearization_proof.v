@@ -626,7 +626,7 @@ Proof using lload_correct ladd_imm_correct.
     by apply /negP => /mapP [x hin heqx]; apply hnin2; exists x => //; rewrite heqx; case: (x).
   have [vm2' {}hf heqx]: exists2 vm2',
       foldM
-         (λ '(x, ofs) (vm1 : Vm.t),
+         (λ '(x, ofs) (vm1 : Vm.t empty_env),
             Let ws := match vtype x with
                       | aword ws => ok ws
                       | _ => Error ErrType
@@ -1512,7 +1512,7 @@ Section PROOF.
   Qed.
 
   Section MATCH_MEM_SEM_PEXPR.
-    Context (scs: syscall_state_t) sp (m m': mem) (vm: Vm.t) (M: match_mem_gen sp m m').
+    Context (scs: syscall_state_t) sp (m m': mem) (vm: Vm.t empty_env) (M: match_mem_gen sp m m').
     Let P (e: pexpr) : Prop :=
       ∀ v,
         sem_pexpr true [::] {| escs := scs; emem := m ; evm := vm |} e = ok v →
@@ -1548,7 +1548,7 @@ Section PROOF.
 
   End MATCH_MEM_SEM_PEXPR.
 
-  Lemma match_mem_gen_write_lval sp scs1 m1 vm1 m1' scs2 m2 vm2 x v :
+  Lemma match_mem_gen_write_lval sp scs1 m1 (vm1:Vm.t empty_env) m1' scs2 m2 vm2 x v :
     match_mem_gen sp m1 m1' →
     write_lval true [::] x v {| escs := scs1; emem := m1 ; evm := vm1 |} = ok {| escs := scs2; emem := m2 ; evm := vm2 |} →
     exists2 m2',
@@ -1565,7 +1565,7 @@ Section PROOF.
     all: by exists m1'.
   Qed.
 
-  Lemma match_mem_gen_write_lvals sp scs1 m1 vm1 m1' scs2 m2 vm2 xs vs :
+  Lemma match_mem_gen_write_lvals sp scs1 m1 (vm1:Vm.t empty_env) m1' scs2 m2 vm2 xs vs :
     match_mem_gen sp m1 m1' →
     write_lvals true [::] {| escs := scs1; emem := m1 ; evm := vm1 |} xs vs = ok {| escs := scs2; emem := m2 ; evm := vm2 |} →
     exists2 m2',
@@ -1595,7 +1595,7 @@ Section PROOF.
   (* Define where/how the return address is passed by the caller to the callee *)
   Definition value_of_ra
     (m: mem)
-    (vm: Vm.t)
+    (vm: Vm.t empty_env)
     (ra: return_address_location)
     (target: option (remote_label * lcmd * nat))
     : Prop :=
@@ -1677,7 +1677,7 @@ Section PROOF.
     by apply /negP; apply hnv.
   Qed.
 
-  Lemma write_lval_mem_unchanged x v v' s s' t t' sp :
+  Lemma write_lval_mem_unchanged x v v' (s s' t t' : estate empty_env) sp :
     write_lval true [::] x v s = ok s' →
     write_lval true [::] x v' t = ok t' →
     escs s = escs t →
@@ -1706,7 +1706,7 @@ Section PROOF.
     subst; reflexivity.
   Qed.
 
-  Lemma write_lvals_mem_unchanged xs vs vs' s s' t t' sp :
+  Lemma write_lvals_mem_unchanged xs vs vs' (s s' t t' : estate empty_env) sp :
     values_uincl vs vs' →
     write_lvals true [::] s xs vs = ok s' →
     write_lvals true [::] t xs vs' = ok t' →
@@ -1729,7 +1729,7 @@ Section PROOF.
     by rewrite -(write_lval_validw ok_vm).
   Qed.
 
-  Lemma preserved_metadata_write_lvals xs vs vs' s s' t t' sp :
+  Lemma preserved_metadata_write_lvals xs vs vs' (s s' t t' : estate empty_env) sp :
     values_uincl vs vs' →
     write_lvals true [::] s xs vs = ok s' →
     write_lvals true [::] t xs vs' = ok t' →
@@ -1992,7 +1992,7 @@ Proof.
   by rewrite -catA.
 Qed.
 
-Lemma check_bool_sem_fexpr vm e v :
+Lemma check_bool_sem_fexpr env (vm : Vm.t env) e v :
   check_bool e ->
   sem_fexpr vm e = ok v ->
   exists b, v = Vbool b.
@@ -2016,7 +2016,7 @@ Proof.
   move=> > _; t_xrbindP => *; subst; case: ifP => _; eexists; reflexivity.
 Qed.
 
-Lemma sem_fexpr_fnot vm e :
+Lemma sem_fexpr_fnot env (vm : Vm.t env) e :
   check_bool e ->
   sem_fexpr vm (fnot e) = sem_fexpr vm (Fapp1 Onot e).
 Proof.
@@ -2806,7 +2806,7 @@ End ILSTEPS_END.
     if is_RAstack_None_return ra then (sp + wrepr _ (wsize_size Uptr))%R else sp.
 
   (* Precondition for function *)
-  Definition preF (fn1 fn2 : funname) (s1 : estate) (ls1 : lstate) :=
+  Definition preF (fn1 fn2 : funname) (s1 : estate empty_env) (ls1 : lstate) :=
     let m1 := lmem ls1 in
     let vm1 := lvm ls1 in
     [/\ fn1 = fn2
@@ -2827,7 +2827,7 @@ End ILSTEPS_END.
             , vm_initialized_on vm1 callee_saved
             & if is_RAnone ra then m0 = emem s1 else True]].
 
-  Definition postF (fn1 fn2 : funname) (s1 : estate) (ls1 : lstate) (ks2 : Sv.t* estate) (ls2 : lstate) :=
+  Definition postF (fn1 fn2 : funname) (s1 : estate empty_env) (ls1 : lstate) (ks2 : Sv.t * estate empty_env) (ls2 : lstate) :=
     let m1 := lmem ls1 in
     let vm1 := lvm ls1 in
     let m2 := lmem ls2 in
@@ -2861,7 +2861,7 @@ End ILSTEPS_END.
   Definition PostF {T1 T2} (d1 : recCallK T1) (t1: T1) (d2 : CallE T2) (t2: T2) : Prop :=
     match d1 in recCallK T1_ return T1_ -> T2 -> Prop with
     | RecCallK fn1 s1 =>
-      match d2 in mix_to_small_steps.CallE _ _ T2_ return Sv.t * estate -> T2_ -> Prop with
+      match d2 in mix_to_small_steps.CallE _ _ T2_ return Sv.t * estate empty_env -> T2_ -> Prop with
       | mix_to_small_steps.Call fn2 ls1 => postF fn1 fn2 s1 ls1
       end
     end t1 t2.
@@ -2876,7 +2876,7 @@ End ILSTEPS_END.
 
   Context (fn : funname).
 
-  Definition inv_c (P : lcmd) (s : estate) (ls : lstate) :=
+  Definition inv_c (P : lcmd) (s : estate empty_env) (ls : lstate) :=
     let sp := top_stack (emem s) in
     [/\ match_mem_gen (top_stack m0) s (lmem ls)
       , escs s = lscs ls
@@ -2887,7 +2887,7 @@ End ILSTEPS_END.
       , source_mem_split s sp
       & max_bound_sub fn sp].
 
-  Definition inv_ir (P : lcmd) (s : estate) (ls : lstate) :=
+  Definition inv_ir (P : lcmd) (s : estate empty_env) (ls : lstate) :=
     let sp := top_stack (emem s) in
     [/\ match_mem_gen (top_stack m0) s (lmem ls)
       , escs s = lscs ls
@@ -2896,7 +2896,7 @@ End ILSTEPS_END.
       , lfn ls = fn
       & (evm s).[vrsp] = Vword sp].
 
-  Definition post_ir (P : lcmd) (s1 : estate) (ls1 : lstate) (ks2 : Sv.t * estate) (ls2 : lstate) :=
+  Definition post_ir (P : lcmd) (s1 : estate empty_env) (ls1 : lstate) (ks2 : Sv.t * estate empty_env) (ls2 : lstate) :=
     [/\ match_mem_gen (top_stack m0) ks2.2 (lmem ls2)
       , escs ks2.2 = lscs ls2
       , evm ks2.2 <=1 lvm ls2
@@ -2907,7 +2907,7 @@ End ILSTEPS_END.
       , preserved_metadata s1 (lmem ls1) (lmem ls2)
       & target_mem_unchanged (lmem ls1) (lmem ls2)].
 
-  Definition post_c (P : lcmd) (ks1 : Sv.t * estate) (ls1 : lstate) (ks2 : Sv.t * estate) (ls2 : lstate) :=
+  Definition post_c (P : lcmd) (ks1 : Sv.t * estate empty_env) (ls1 : lstate) (ks2 : Sv.t * estate empty_env) (ls2 : lstate) :=
     [/\ inv_c P ks2.2 ls2
       , (disjoint ks1.1 (magic_variables p) -> disjoint ks2.1 (magic_variables p))
       , Sv.Subset ks1.1 ks2.1
@@ -2917,7 +2917,7 @@ End ILSTEPS_END.
       , preserved_metadata ks1.2 (lmem ls1) (lmem ls2)
       & target_mem_unchanged (lmem ls1) (lmem ls2)].
 
-  Definition post_i P (s1 : estate) (ls1 : lstate) (ks2 : Sv.t * estate) (ls2 : lstate) :=
+  Definition post_i P (s1 : estate empty_env) (ls1 : lstate) (ks2 : Sv.t * estate empty_env) (ls2 : lstate) :=
     post_c P (Sv.empty, s1) ls1 ks2 ls2.
 
   Let Pi (i:instr) :=  ∀ lbl lbli P li Q,
@@ -3034,7 +3034,7 @@ End ILSTEPS_END.
   Lemma check_rexprsP ii es u :
     allM (check_rexpr ii) es = ok u →
     exists2 rs, oseq.omap rexpr_of_pexpr es = Some rs &
-    ∀ s vs, sem_pexprs true [::] s es = ok vs → sem_rexprs s rs = ok vs.
+    ∀ (s:estate empty_env) vs, sem_pexprs true [::] s es = ok vs → sem_rexprs s rs = ok vs.
   Proof.
     case: u; elim: es.
     - by move => _; exists [::].
@@ -3047,7 +3047,7 @@ End ILSTEPS_END.
   Lemma check_lexprsP ii xs u :
     allM (check_lexpr ii) xs = ok u →
     exists2 ds, oseq.omap lexpr_of_lval xs = Some ds &
-    ∀ s vs s', write_lvals true [::] s xs vs = ok s' → write_lexprs ds vs s = ok s'.
+    ∀ (s:estate empty_env) vs s', write_lvals true [::] s xs vs = ok s' → write_lexprs ds vs s = ok s'.
   Proof.
     case: u; elim: xs.
     - by move => _; exists [::].
@@ -3092,7 +3092,7 @@ End ILSTEPS_END.
     have /= := wunsigned_range sp; lia.
   Qed.
 
-  Lemma vm_after_syscall_uincl vm1 vm2 :
+  Lemma vm_after_syscall_uincl (vm1 vm2 : Vm.t empty_env) :
     vm1 <=1 vm2 ->
     vm_after_syscall vm1 <=1 vm_after_syscall vm2.
   Proof.
@@ -3121,7 +3121,7 @@ End ILSTEPS_END.
     have [[[ _ rm' ] _ ] -> /= [] <- <-]:= mk_forall_exP h happ; by eexists.
   Qed.
 
-  Lemma syscall_killP vm : vm =[\syscall_kill] vm_after_syscall vm.
+  Lemma syscall_killP (vm:Vm.t empty_env) : vm =[\syscall_kill] vm_after_syscall vm.
   Proof. by move=> x /Sv_memP /negPf; rewrite /vm_after_syscall kill_varsE => ->. Qed.
 
   Lemma fill_mem_mem_unchanged m1 m2 m1' m2' ptr bytes :
@@ -3373,7 +3373,7 @@ End ILSTEPS_END.
 
   Notation sv_of_ra := (fun ra => sv_of_option (ovar_of_ra ra)) (only parsing).
 
-  Lemma killed_on_entry_uincl vm vm' (w : word Uptr) s ra :
+  Lemma killed_on_entry_uincl (vm vm':Vm.t empty_env) (w : word Uptr) (s : estate empty_env) ra :
     vm.[vrsp] = Vword w ->
     vm' =[\ Sv.add vrsp (sv_of_ra ra) ] vm ->
     s <=1 vm' ->
@@ -3463,7 +3463,7 @@ End ILSTEPS_END.
     have hgetrsp : get_var true (to_estate ls1) vrsp = ok (Vword (top_stack (CM:= (@CM (@_pd syscall_state ep))) s1)).
     + by rewrite /get_var vm2_rsp.
     have [vm2_b [hsem_before heqvm2 hvm2_b_rsp]] :
-      exists (vm2_b:Vm.t),
+      exists (vm2_b:Vm.t empty_env),
         [/\ sem_fopns_args (to_estate ls1) before_ops = ok (with_vm (to_estate ls1) vm2_b)
           , (lvm ls1) =[\ Sv.add vrsp Stmp] vm2_b
           & vm2_b.[vrsp] = Vword (top_stack (emem s1) - wrepr Uptr sz_before)].
@@ -3631,7 +3631,7 @@ End ILSTEPS_END.
       rewrite /rastack_after /ra /sp_alloc_ra.
       by case: (sf_return_address (f_extra fd')) => [|??|?[?|//]??] /=; rewrite wrepr0 GRing.addr0.
     have [vm2'_b [hsem_after heqvm2' hvm2'_b_rsp]] :
-      exists (vm2'_b:Vm.t),
+      exists (vm2'_b:Vm.t empty_env),
         [/\ sem_fopns_args (to_estate ls2) after_ops = ok {| escs := lscs ls2; emem := lmem ls2; evm := vm2'_b|},
              (lvm ls2) =[\ Sv.add vrsp Stmp] vm2'_b  &
              vm2'_b.[vrsp] = Vword ts].
@@ -3831,7 +3831,7 @@ End ILSTEPS_END.
     move: x => [[|||ws'] xname] //= [<- <-]; eauto.
   Qed.
 
-  Lemma read_after_spill top al vm m1 to_spill m2 lo hi :
+  Lemma read_after_spill top al (vm:Vm.t empty_env) m1 to_spill m2 lo hi :
     (wunsigned top + hi < wbase Uptr)%Z →
     (0 <= lo)%Z →
     all_disjoint_aligned_between liparams
@@ -3886,7 +3886,7 @@ End ILSTEPS_END.
     by move => _ /ih2.
   Qed.
 
-  Lemma eval_uincl_kill_vars_incl X1 X2 vm1 vm2 z:
+  Lemma eval_uincl_kill_vars_incl X1 X2 (vm1 vm2 : Vm.t empty_env) z:
     Sv.Subset X1 X2 ->
     value_uincl (kill_vars X1 vm1).[z] vm2.[z] ->
     value_uincl (kill_vars X2 vm1).[z] vm2.[z].
@@ -3897,7 +3897,7 @@ End ILSTEPS_END.
     by apply/compat_value_uincl_undef/Vm.getP.
   Qed.
 
-  Lemma vm_uincl_kill_vars_set_incl X1 X2 vm1 vm2 x v1 v2:
+  Lemma vm_uincl_kill_vars_set_incl X1 X2 (vm1 vm2 : Vm.t empty_env) x v1 v2:
     Sv.Subset X1 X2 ->
     value_uincl v2 v1 ->
     (kill_vars X1 vm1).[x <- v1] <=1 vm2 ->
@@ -3909,7 +3909,7 @@ End ILSTEPS_END.
     by rewrite !Vm.setP_neq //; apply eval_uincl_kill_vars_incl.
   Qed.
 
-  Lemma vm_uincl_kill_vars X1 vm1 :
+  Lemma vm_uincl_kill_vars X1 (vm1 : Vm.t empty_env) :
     kill_vars X1 vm1 <=1 vm1.
   Proof.
     move=> x; rewrite kill_varsE.
@@ -3917,7 +3917,7 @@ End ILSTEPS_END.
     by apply/compat_value_uincl_undef/Vm.getP.
   Qed.
 
-  Lemma vm_uincl_after_alloc_stack fd m m' vm0 vm1 vm2 :
+  Lemma vm_uincl_after_alloc_stack fd m m' (vm0 vm1 vm2 : Vm.t empty_env) :
     let: ts := top_stack m in
     let: sf_sz := (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))%Z in
     let: al := sf_align (f_extra fd) in
@@ -3971,7 +3971,7 @@ End ILSTEPS_END.
     all: clear -hne hnin; SvD.fsetdec.
   Qed.
 
-  Lemma can_push (fd : sfundef) to_save lo hi vm1  s1 m1' m1 :
+  Lemma can_push (fd : sfundef) to_save lo hi (vm1 : Vm.t empty_env) (s1 : estate empty_env) m1' m1 :
     alloc_stack (emem s1) (sf_align (f_extra fd)) (sf_stk_sz (f_extra fd)) (sf_stk_ioff (f_extra fd))
          (sf_stk_extra_sz (f_extra fd)) = ok m1'
     → (0 <= sf_stk_sz (f_extra fd))%Z
@@ -4431,8 +4431,8 @@ Qed.
         have is_ok_vm1_vm2 :
           forall x,
             Sv.mem x (sv_of_list fst (sf_to_save (f_extra fd)))
-            -> is_ok (get_var true (lvm t1) x >>= of_val (eval_atype (vtype x)))
-            -> is_ok (get_var true vm2 x >>= of_val (eval_atype (vtype x))).
+            -> is_ok (get_var true (lvm t1) x >>= of_val (eval_atype empty_env (vtype x)))
+            -> is_ok (get_var true vm2 x >>= of_val (eval_atype empty_env (vtype x))).
         + move=> x hx ok_x.
           case: (SvP.MP.In_dec x (Sv.add var_tmp (Sv.add var_tmp2 (Sv.add vrsp vflags)))) => hin;
             last by rewrite /get_var (hvm2 _ hin).
@@ -5123,7 +5123,7 @@ Qed.
 
   End STACK.
 
-  Definition lin_pre (gd : word Uptr) fn (s : estate) (ls : estate) :=
+  Definition lin_pre (gd : word Uptr) fn (s : estate empty_env) (ls : estate empty_env) :=
     match get_fundef p.(p_funcs) fn, get_fundef p'.(lp_funcs) fn with
     | Some fd, Some lfd =>
       let vm := evm s in
@@ -5140,14 +5140,14 @@ Qed.
     | _, _ => true
     end.
 
-  Definition lin_post_res (fd : sfundef) (lfd : lfundef) vm' lvm' :=
+  Definition lin_post_res (fd : sfundef) (lfd : lfundef) (vm' lvm' : Vm.t empty_env) :=
     forall res,
       get_var_is false vm' fd.(f_res) = ok res ->
       exists2 res',
         get_var_is false lvm' lfd.(lfd_res) = ok res'
         & values_uincl res res'.
 
-  Definition lin_post fn (s ls :estate) (s' ls':estate) :=
+  Definition lin_post fn (s ls : estate empty_env) (s' ls' : estate empty_env) :=
     match get_fundef p.(p_funcs) fn, get_fundef p'.(lp_funcs) fn with
     | Some fd, Some lfd =>
       let m := emem s in

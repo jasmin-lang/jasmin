@@ -38,8 +38,8 @@ Context
   {sCP : semCallParams}.
 
 Definition truncate_args
-  (op : sopn) (vargs : seq value) : exec (seq value) :=
-  mapM2 ErrType truncate_val (map eval_atype (sopn_tout op)) vargs.
+  env (op : sopn) (vargs : seq value) : exec (seq value) :=
+  mapM2 ErrType truncate_val (map (eval_atype env) (sopn_tout op)) vargs.
 
 Definition cast_op tin1 tin2 tout1 tout2 (h1 : tin1 = tin2) (h2 : tout1 = tout2)
   (f : sem_lprod tin1 (exec (sem_ltuple tout1))) :
@@ -55,20 +55,20 @@ Proof.
   elim: ts vs F => [ | t ts hrec] [ | v vs] //= F; case: of_val => //=.
 Qed.
 
-Lemma exec_sopn_conditional mn sf osk b vargs vprev vres0 vres1 :
+Lemma exec_sopn_conditional env mn sf osk b vargs vprev vres0 vres1 :
   let opts :=
     {| set_flags := sf; is_conditional := false; has_shift := osk; |}
   in
   let op := Oarm (ARM_op mn opts) in
-  truncate_args op vprev = ok vres1
-  -> exec_sopn op vargs = ok vres0
+  truncate_args env op vprev = ok vres1
+  -> exec_sopn env op vargs = ok vres0
   -> exec_sopn
+       env
        (Oarm (ARM_op mn (set_is_conditional opts)))
        (vargs ++ Vbool b :: vprev)
        = ok (if b then vres0 else vres1).
 Proof.
   rewrite /= /exec_sopn /= /set_is_conditional /= /sem_sopn /= /sopn_sem /= /sopn_sem_ /=.
-  t_xrbindP.
   set fflags := {| set_flags := sf; is_conditional := false; has_shift := osk |}.
   set tflags := {| set_flags := sf; is_conditional := true; has_shift := osk |}.
   have : id_valid (mn_desc fflags mn) = id_valid (mn_desc tflags mn) /\
@@ -78,11 +78,12 @@ Proof.
   + by rewrite /fflags /tflags; case: mn; case sf; case osk => [s | ]; split => //;
          exists erefl, erefl.
   move=> [-> [hin [hout hcast]]].
+  t_xrbindP=> + _ -> <-.
   rewrite /semi_to_atype /=.
   move: (computational_eq _) (computational_eq _) (computational_eq _) (computational_eq _) => e1 e2 e3 e4.
   rewrite <- e1, <- e2, <- e3, <- e4; clear e1 e2 e3 e4.
-  rewrite /truncate_args -map_comp -(eq_map atype_of_ltypeP) /= /sopn_tout /=.
-  move=> htr _ -> <- res hres <- /=.
+  rewrite /truncate_args -map_comp -(eq_map (atype_of_ltypeP env)) /= /sopn_tout /=.
+  move=> htr res hres <- /=.
   move: (id_tin (mn_desc fflags mn)) (id_tin (mn_desc tflags mn))
         (id_tout (mn_desc fflags mn)) (id_tout (mn_desc tflags mn))
         (id_semi (mn_desc fflags mn)) (id_semi (mn_desc tflags mn))
@@ -113,8 +114,8 @@ Qed.
 
 (* TODO_ARM: Is this the best way of expressing the [write_val] condition? *)
 Lemma sem_i_conditional
-  {dc : DirectCall} (p : prog)
-  ev s0 s1 mn sf osk ii lvs tag args c prev vargs b vprev vprev' vres :
+  {dc : DirectCall} env (p : prog)
+  ev (s0 s1 : estate env) mn sf osk ii lvs tag args c prev vargs b vprev vprev' vres :
   let opts :=
     {| set_flags := sf; is_conditional := false; has_shift := osk; |}
   in
@@ -122,8 +123,8 @@ Lemma sem_i_conditional
   sem_pexprs true (p_globs p) s0 args = ok vargs
   -> sem_pexpr true (p_globs p) s0 c = ok (Vbool b)
   -> sem_pexprs true (p_globs p) s0 prev = ok vprev
-  -> truncate_args aop vprev = ok vprev'
-  -> exec_sopn aop vargs = ok vres
+  -> truncate_args env aop vprev = ok vprev'
+  -> exec_sopn env aop vargs = ok vres
   -> (if b
       then write_lvals true (p_globs p) s0 lvs vres = ok s1
       else write_lvals true (p_globs p) s0 lvs vprev' = ok s1)

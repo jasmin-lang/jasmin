@@ -502,7 +502,7 @@ Qed.
 
 #[local] Existing Instance withsubword.
 
-Definition sz_pre lp lfd (s1 s2 : estate) :=
+Definition sz_pre lp lfd (s1 s2 : estate empty_env) :=
   exists ptr,
     let: bottom := (align_word lfd.(lfd_align) ptr - wrepr _ lfd.(lfd_stk_max))%R in
     [/\ (evm s1).[vid (lp_rsp lp)] = @Vword Uptr ptr
@@ -511,7 +511,7 @@ Definition sz_pre lp lfd (s1 s2 : estate) :=
       & valid_between (emem s1) bottom (lfd_stk_max lfd)
     ].
 
-Definition sz_post lp fn lfd (s1 s2 s1' s2' : estate) :=
+Definition sz_post lp fn lfd (s1 s2 s1' s2' : estate empty_env) :=
   exists ptr,
     let: bottom := (align_word lfd.(lfd_align) ptr - wrepr _ lfd.(lfd_stk_max))%R in
     [/\ (evm s1).[vid (lp_rsp lp)] = @Vword Uptr ptr

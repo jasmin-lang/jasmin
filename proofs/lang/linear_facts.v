@@ -462,11 +462,11 @@ Proof.
   rewrite (step_mix_ilsteps C) //; last by simpl_size; lia.
   rewrite /eval_instr /=.
   rewrite -2!Let_Let.
-  have -> : Let a := Let x := fexpr_sem.sem_rexprs (to_estate ls) es in exec_sopn o x in
+  have -> : Let a := Let x := fexpr_sem.sem_rexprs (to_estate ls) es in exec_sopn empty_env o x in
             fexpr_sem.write_lexprs xs a (to_estate ls)
             =
             Let args := fexpr_sem.sem_rexprs (to_estate ls) es in
-            (Let res := exec_sopn o args in fexpr_sem.write_lexprs xs res (to_estate ls)).
+            (Let res := exec_sopn empty_env o args in fexpr_sem.write_lexprs xs res (to_estate ls)).
   + by rewrite !Let_Let.
   case: (Let _ := fexpr_sem.sem_rexprs _ _ in _) => [s1 | err] /=; last reflexivity.
   move: C; rewrite -addSnnS -cat_rcons => C.

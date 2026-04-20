@@ -19,11 +19,12 @@ Section PROOF.
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
     {sip : SemInstrParams asm_op syscall_state}
+    (env : Uint63.int -> Z)
     (gd : glob_decls).
 
   (* ---------------------------------------------------------- *)
 
-  Definition sem_lea sz vm l : exec (word sz) :=
+  Definition sem_lea sz (vm : Vm.t env) l : exec (word sz) :=
     Let base :=
       oapp (fun (x:var_i) => get_var true vm x >>= to_word sz) (ok 0%R) l.(lea_base) in
     Let offset :=

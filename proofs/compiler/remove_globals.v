@@ -9,7 +9,7 @@ Require Import expr compiler_util.
 Definition type_of_glob_value (gv: glob_value) : atype :=
   match gv with
   | Gword ws _ => aword ws
-  | Garr p _ => aarr U8 p
+  | Garr n _ => aarr U8 (ALConst n)
   end.
 
 Local Open Scope seq_scope.
@@ -61,8 +61,24 @@ Section REMOVE.
     | _, _ => false
     end.
 
+  Fixpoint has_no_var (al : array_length) :=
+    match al with
+    | ALConst _ => true
+    | ALVar _ _ => false
+    | ALNeg al => has_no_var al
+    | ALAdd al1 al2 | ALSub al1 al2 | ALMul al1 al2
+    | ALDiv _ al1 al2 | ALMod _ al1 al2
+    | ALShl al1 al2 | ALShr al1 al2 => has_no_var al1 && has_no_var al2
+    end.
+
+  Definition ty_has_no_var ty :=
+    match ty with
+    | abool | aint | aword _ => true
+    | aarr _ al => has_no_var al
+    end.
+
   Definition check (gv: glob_value) (gd: glob_decl) : bool :=
-    (convertible (type_of_glob_value gv) (vtype gd.1)) && (check_data gd.2 gv).
+    [&& convertible (type_of_glob_value gv) (vtype gd.1), ty_has_no_var (vtype gd.1) & check_data gd.2 gv].
 
   Definition find_glob ii (xi: var_i) (gd: glob_decls) (gv: glob_value) :=
     let test gd := if check gv gd then Some gd.1 else None in
@@ -88,7 +104,7 @@ Section REMOVE.
 
   Definition array_from_cells ii x (len: Z) (cells: pexprs) : result pp_error_loc (WArray.array len) :=
     Let bytes := evaluate_bytes ii x cells in
-    match sem_opN (Oarray len) bytes >>= to_arr len with
+    match sem_opN empty_env (Oarray len) bytes >>= to_arr len with
     | Ok array => Ok _ array
     | Error _ => Error (rm_glob_error_gen ii x [:: pp_s "cannot fill the array"])
     end.
@@ -280,7 +296,7 @@ Section REMOVE.
                   ok (Mvar.set env x g, [::])
                 else Error (rm_glob_error ii xi)
               | PappN (Oarray len) cells =>
-                  if convertible (vtype x) (aarr U8 len) then
+                  if convertible (vtype x) (aarr U8 (ALConst len)) then
                     Let array := array_from_cells ii x len cells in
                     Let g := find_glob ii xi gd (Garr array) in
                     ok (Mvar.set env x g, [::])

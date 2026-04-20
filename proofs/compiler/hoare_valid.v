@@ -38,35 +38,36 @@ Context
   {iE0 : InvEvent E0}
   {pT : progT}
   {scP : semCallParams}
+  (env : env_t)
   {p : prog (pT := pT)}
   {ev : extra_val_t}
   {spec : HoareSpec}
 .
 
-Lemma hoare_fun_rec ii fn : hoare_f_rec p ev spec preF ii fn postF.
+Lemma hoare_fun_rec ii fn : hoare_f_rec env p ev spec preF ii fn postF.
 Proof. by move=> fs hpre /=; apply lutt_trigger. Qed.
 
 Definition hoare_io_rec P c Q :=
-  hoare_io (wa := wa) (iE0 := invEvent_recCall spec) p ev P c Q.
+  hoare_io (wa := wa) (iE0 := invEvent_recCall spec) (env := env) p ev P c Q.
 
 Let hoare_io_fun_body_hyp_rec Pf fn Qf Qerr :=
-    [/\ forall fs e, Pf fn fs -> Qerr fs e -> rInvErr (estate0 fs) e
+    [/\ forall fs e, Pf fn fs -> Qerr fs e -> rInvErr (estate0 env fs) e
       & match get_fundef (p_funcs p) fn with
         | None => forall fs, Qerr fs ErrType
         | Some fd =>
-          [/\ forall fs e, Pf fn fs -> sem_pre p fn fs = Error e -> invErr e
-            , forall fs fr e, Pf fn fs -> Qf fn fs fr -> sem_post p fn fs.(fvals) fr = Error e -> invErr e
+          [/\ forall fs e, Pf fn fs -> sem_pre env p fn fs = Error e -> invErr e
+            , forall fs fr e, Pf fn fs -> Qf fn fs fr -> sem_post env p fn fs.(fvals) fr = Error e -> invErr e
             & exists P Q,
-              [/\ rhoare_io (Pf fn) (initialize_funcall p ev fd) P Qerr
+              [/\ rhoare_io (Pf fn) (initialize_funcall env p ev fd) P Qerr
                 , forall fs, Pf fn fs -> hoare_io_rec (P fs) fd.(f_body) Q
-                , forall fs s s' e, Pf fn fs -> Q s s' -> Qerr fs e -> rInvErr (estate0 fs) e
+                , forall fs s s' e, Pf fn fs -> Q s s' -> Qerr fs e -> rInvErr (estate0 env fs) e
                 & forall fs s,
                     Pf fn fs -> P fs s -> rhoare (Q s) (finalize_funcall fd) (Qf fn fs) (Qerr fs)]]
         end].
 
 Lemma hoare_io_fun_body Pf fn Qf Qerr :
   hoare_io_fun_body_hyp_rec Pf fn Qf Qerr ->
-  hoare_f_body (wa := wa) (iE0 := invEvent_recCall spec) (iEr := iEr) p ev Pf fn Qf.
+  hoare_f_body (wa := wa) (iE0 := invEvent_recCall spec) (iEr := iEr) env p ev Pf fn Qf.
 Proof.
   move=> hf; rewrite /hoare_f_body /isem_fun_body.
   apply khoare_ioP => fs hPf. have [/(_ _ _ hPf) herr {}hf] := hf.
@@ -106,7 +107,7 @@ Qed.
 
 Lemma ihoare_io_fun Qerr fn ii :
   (forall fn, hoare_io_fun_body_hyp_rec preF fn postF Qerr) ->
-  hoare_f_ii (sem_F := sem_fun_full (wa := wa)) p ev preF ii fn postF.
+  hoare_f_ii (sem_F := sem_fun_full (wa := wa)) env p ev preF ii fn postF.
 Proof.
 move=> h fs hpre.
 apply: (interp_mrec_lutt (DPEv := preD spec) (DPAns := postD spec)).
@@ -140,6 +141,7 @@ Context
 Context
   {pT : progT}
   {scP : semCallParams}
+  (env : env_t)
   {p : prog (pT := pT)}
   {ev : extra_val_t}
 .
@@ -157,7 +159,7 @@ Notation ihoare_io_rec := (hoare_io_rec (wa := wa) (p := p) (ev := ev)).
 
 Section IND.
 
-Let post s s' := mem_equiv (emem s) (emem s').
+Let post (s s' : estate env) := mem_equiv (emem s) (emem s').
 Let Pc c := ihoare_io_rec PredT c post.
 Let Pi i := ihoare_io_rec PredT [::i] post.
 Let Pi_r ir := forall ii, Pi (MkI ii ir).
@@ -263,11 +265,11 @@ by move=> ?? [? hv]; split=> [|???]; symmetry=> //; rewrite hv.
 Qed.
 
 Lemma sem_fun_mem_equiv fn ii :
-  (forall s1 s2 m2 ef,
+  (forall (s1 s2 : estate env) m2 ef,
       init_state ef p.(p_extra) ev s1 = ok s2 ->
       mem_equiv (emem s2) m2 ->
       mem_equiv (emem s1) (finalize ef m2)) ->
-  hoare_f_ii (sem_F := sem_fun_full) p ev
+  hoare_f_ii (sem_F := sem_fun_full) env p ev
     relT
     ii fn
     (fun _ fs fs' => mem_equiv (fmem fs) (fmem fs')).
@@ -275,7 +277,7 @@ Proof.
 move=> h; apply: (ihoare_io_fun (spec := spec) (Qerr := relT)) => {}fn.
 split=> //; case hget: get_fundef => [fd|//]; split=> //.
 exists
-  (fun fs s => initialize_funcall p ev fd fs = ok s),
+  (fun fs s => initialize_funcall env p ev fd fs = ok s),
   (fun s s' => mem_equiv (emem s) (emem s'));
   split=> //.
 - move=> fs _; by case: initialize_funcall.
@@ -300,20 +302,21 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {E E0: Type -> Type}
   {wE: with_Error E E0}
+  (env : env_t)
 .
 
 #[local] Existing Instance trivial_invErr.
 #[local] Existing Instance trivial_invEvent.
 
 Lemma sem_fun_mem_equiv_uprog (p : uprog) ev fn ii :
-  hoare_f_ii (sem_F := sem_fun_full) p ev
+  hoare_f_ii (sem_F := sem_fun_full) env p ev
     relT
     ii fn
     (fun _ fs fs' => mem_equiv (fmem fs) (fmem fs')).
 Proof. by apply sem_fun_mem_equiv => s1 s2 m2 ef /= [<-]. Qed.
 
 Lemma sem_fun_mem_equiv_sprog (p : sprog) ev fn ii :
-  hoare_f_ii (sem_F := sem_fun_full) p ev
+  hoare_f_ii (sem_F := sem_fun_full) env p ev
     relT
     ii fn
     (fun _ fs fs' => mem_equiv (fmem fs) (fmem fs')).

@@ -50,25 +50,25 @@ Notation labels := label_in_lprog.
 Record lstate := Lstate
   { lscs : syscall_state_t;
     lmem : mem;
-    lvm  : Vm.t;
+    lvm  : Vm.t empty_env;
     lfn : funname;
     lpc  : nat; }.
 
-Definition to_estate (s:lstate) : estate := Estate s.(lscs) s.(lmem) s.(lvm).
-Definition of_estate (s:estate) fn pc := Lstate s.(escs) s.(emem) s.(evm) fn pc.
+Definition to_estate (s:lstate) : estate empty_env := Estate s.(lscs) s.(lmem) s.(lvm).
+Definition of_estate (s:estate empty_env) fn pc := Lstate s.(escs) s.(emem) s.(evm) fn pc.
 Definition setpc (s:lstate) pc :=  Lstate s.(lscs) s.(lmem) s.(lvm) s.(lfn) pc.
 Definition setc (s:lstate) fn := Lstate s.(lscs) s.(lmem) s.(lvm) fn s.(lpc).
 Definition setcpc (s:lstate) fn pc := Lstate s.(lscs) s.(lmem) s.(lvm) fn pc.
-Definition lset_estate' (ls : lstate) (s : estate) : lstate :=
+Definition lset_estate' (ls : lstate) (s : estate empty_env) : lstate :=
   Eval hnf in of_estate s ls.(lfn) ls.(lpc).
 Definition lset_estate
-  (ls : lstate) (scs : syscall_state) (m : mem) (vm : Vm.t) : lstate :=
+  (ls : lstate) (scs : syscall_state) (m : mem) (vm : Vm.t empty_env) : lstate :=
   Eval hnf in lset_estate' ls {| escs := scs; emem := m; evm := vm; |}.
-Definition lset_mem_vm (ls : lstate) (m : mem) (vm : Vm.t) : lstate :=
+Definition lset_mem_vm (ls : lstate) (m : mem) (vm : Vm.t empty_env) : lstate :=
   Eval hnf in lset_estate ls (lscs ls) m vm.
 Definition lset_mem (ls : lstate) (m : mem) : lstate :=
   Eval hnf in lset_mem_vm ls m (lvm ls).
-Definition lset_vm (ls : lstate) (vm : Vm.t) : lstate :=
+Definition lset_vm (ls : lstate) (vm : Vm.t empty_env) : lstate :=
   Eval hnf in lset_mem_vm ls (lmem ls) vm.
 Definition lnext_pc (ls : lstate) : lstate :=
   Eval hnf in setpc ls (lpc ls).+1.
@@ -110,10 +110,10 @@ Definition get_label_after_pc (s:lstate) :=
     else type_error
   else type_error.
 
-Definition sem_fopn_args (p : fopn_args) (s: estate) :=
+Definition sem_fopn_args (p : fopn_args) (s: estate empty_env) :=
   let: (xs,o,es) := p in
   Let args := sem_rexprs s es in
-  Let res := exec_sopn o args in
+  Let res := exec_sopn empty_env o args in
   write_lexprs xs res s.
 
 Definition sem_fopns_args := foldM sem_fopn_args.
@@ -126,7 +126,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   | Lopn xs o es =>
     let s := to_estate s1 in
     Let args := sem_rexprs s es in
-    Let res := exec_sopn o args in
+    Let res := exec_sopn empty_env o args in
     Let s' := write_lexprs xs res s in
     ok (lnext_pc (lset_estate' s1 s'))
   | Lsyscall o =>
@@ -285,7 +285,7 @@ Local Open Scope monad_scope.
 Definition ilsem (cond : lstate -> bool) (s:lstate) :=
   while cond istep s.
 
-Definition ilsem_exportcall (fn: funname) (es:estate) :=
+Definition ilsem_exportcall (fn: funname) (es:estate empty_env) :=
   let s := (ls_export_initial (escs es) (emem es) (evm es) fn) in
   fd <-ioget ErrType (get_fundef P.(lp_funcs) fn);;
   _ <- iresult (assert (lfd_export fd) ErrSemUndef);;
@@ -398,7 +398,7 @@ Definition mix_ilsem_fun (fn : funname) (ls : lstate) : itree E lstate :=
 Definition mix_ilsem cond s :=
   interp_mrec handle_call (mix_ilsteps cond s).
 
-Definition mix_ilsem_exportcall (fn: funname) (es:estate) :=
+Definition mix_ilsem_exportcall (fn: funname) (es:estate empty_env) :=
   let s := (ls_export_initial (escs es) (emem es) (evm es) fn) in
   fd <-ioget ErrType (get_fundef P.(lp_funcs) fn);;
   _ <- iresult (assert (lfd_export fd) ErrSemUndef);;

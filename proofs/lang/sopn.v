@@ -35,6 +35,21 @@ Variant doit_t :=
   | DOIT
   | NOT_DOIT.
 
+Definition map_safe_cond {A B} (f : A -> B) c :=
+  match c with
+  | NotZero ws n => NotZero ws n
+  | X86Division ws sg => X86Division ws sg
+  | InRangeMod32 ws z1 z2 n => InRangeMod32 ws z1 z2 n
+  | ULt ws n z => ULt ws n z
+  | UGe ws z n => UGe ws z n
+  | UaddLe ws n1 n2 z => UaddLe ws n1 n2 z
+  | AllInit ws len n => AllInit ws (f len) n
+  | ScFalse => ScFalse
+  end.
+
+Definition eval_safe_cond env c :=
+  map_safe_cond (fun al => eval env al) c.
+
 Record instruction_desc := mkInstruction {
   str      : unit -> string;
   tin      : list atype;
@@ -42,17 +57,17 @@ Record instruction_desc := mkInstruction {
   tout     : list atype;
   i_out    : seq arg_desc;
   conflicts: seq (arg_position * arg_position);
-  semi     : sem_prod (map eval_atype tin) (exec (sem_tuple (map eval_atype tout)));
-  semu     : forall vs vs' v,
+  semi     : forall env, sem_prod (map (eval_atype env) tin) (exec (sem_tuple (map (eval_atype env) tout)));
+  semu     : forall env vs vs' v,
                 values_uincl vs vs' ->
-                app_sopn_v semi vs = ok v ->
-                exists2 v', app_sopn_v semi vs' = ok v' & values_uincl v v';
+                app_sopn_v (semi env) vs = ok v ->
+                exists2 v', app_sopn_v (semi env) vs' = ok v' & values_uincl v v';
   (* This field allows to ensure the validity of the instruction,
      it is usefull when the its name allows to encode more instructions than the real existing one.
      See field id_valid in arch/arch_decl.v
   *)
   i_valid  : bool;
-  i_safe   : seq safe_cond;
+  i_safe   : seq (safe_cond array_length);
   (* Whether the operator has data operand independent timing, i.e. it is
      implemented using only DOIT (Intel) / DIT (ARM) instructions.
      See field id_doit in arch/arch_decl.v.
@@ -62,12 +77,12 @@ Record instruction_desc := mkInstruction {
   (* Extra properties ensuring that previous information are consistent *)
   i_safe_wf    : all (fun sc => ssrnat.leq (sc_needed_args sc) (size tin)) i_safe;
     (* id_semi does not generates type error *)
-  i_semi_errty : i_valid -> sem_forall (fun r => r <> Error ErrType) (map eval_atype tin) semi;
+  i_semi_errty : i_valid -> forall env, sem_forall (fun r => r <> Error ErrType) (map (eval_atype env) tin) (semi env);
     (* safety condition are sufficient to ensure that no error are raised *)
-  i_semi_safe  : i_valid -> interp_safe_cond_ty i_safe semi;
+  i_semi_safe  : i_valid -> forall env, interp_safe_cond_ty (map (eval_safe_cond env) i_safe) (semi env);
 }.
 
-Arguments semu _ [vs vs' v] _ _.
+Arguments semu _ _ [vs vs' v] _ _.
 
 Notation mk_instr_desc str tin i_in tout i_out semi safe valid doit semi_errty semi_safe :=
   {| str          := str;
@@ -76,8 +91,8 @@ Notation mk_instr_desc str tin i_in tout i_out semi safe valid doit semi_errty s
      tout         := tout;
      i_out        := i_out;
      conflicts    := [::];
-     semi         := semi;
-     semu         := @vuincl_app_sopn_v (map eval_atype tin) (map eval_atype tout) semi refl_equal;
+     semi         := fun env => semi env;
+     semu         := fun env => @vuincl_app_sopn_v (map (eval_atype env) tin) (map (eval_atype env) tout) (semi env) refl_equal;
      i_safe       := safe;
      i_valid      := valid;
      i_doit       := doit;
@@ -87,9 +102,9 @@ Notation mk_instr_desc str tin i_in tout i_out semi safe valid doit semi_errty s
   |}.
 
 Notation mk_instr_desc_safe str tin i_in tout i_out semi valid doit :=
-  (mk_instr_desc str tin i_in tout i_out (sem_prod_ok (map eval_atype tin) semi) [::] valid doit
-     (fun _ => (@sem_prod_ok_error _ (map eval_atype tin) semi ErrType))
-     (fun _ => (@sem_prod_ok_safe _ (map eval_atype tin) semi)))
+  (mk_instr_desc str tin i_in tout i_out (fun env => sem_prod_ok (map (eval_atype env) tin) semi) [::] valid doit
+     (fun _ env => (@sem_prod_ok_error _ (map (eval_atype env) tin) semi ErrType))
+     (fun _ env => (@sem_prod_ok_safe _ (map (eval_atype env) tin) semi)))
   (only parsing).
 
 (* -------------------------------------------------------------------- *)
@@ -227,21 +242,21 @@ Proof.
   move/wP: h1 => [t2 ->] /=; apply hrec.
 Qed.
 
-Definition Ocopy_instr ws p :=
+Definition Ocopy_instr ws len :=
   {| str      := pp_sz "copy" ws;
-     tin      := [:: aarr ws p];
+     tin      := [:: aarr ws (ALConst len)];
      i_in     := [:: E 1];
-     tout     := [:: aarr ws p];
+     tout     := [:: aarr ws (ALConst len)];
      i_out    := [:: E 0];
      conflicts:= [::];
-     semi     := @WArray.copy ws p;
-     semu     := @vuincl_copy ws p;
+     semi     := fun env => @WArray.copy ws len;
+     semu     := fun env => @vuincl_copy ws len;
+     i_safe   := [:: AllInit ws (ALConst len) 0];
      i_valid  := true;
      i_doit   := DOIT;
-     i_safe   := [:: AllInit ws p 0];
      i_safe_wf    := refl_equal;
-     i_semi_errty := fun _ => (@array_copy_errty ws p);
-     i_semi_safe  := fun _ => (@array_copy_safe ws p);
+     i_semi_errty := fun _ env => (@array_copy_errty ws len);
+     i_semi_safe  := fun _ env => (@array_copy_safe ws len);
   |}.
 
 Definition declassify_semi ty : sem_prod [:: ty ] (exec (sem_tuple [::])) := fun=> ok tt.
@@ -260,40 +275,40 @@ Proof.
 Qed.
 
 Definition Odeclassify_instr ty :=
-  let cty := eval_atype ty in
+  let cty env := eval_atype env ty in
   {| str      := pp_s (string_of_pseudo_operator (Odeclassify ty));
     tin      := [:: ty ];
     i_in     := [:: E 0 ];
     tout     := [:: ];
     i_out    := [:: ];
     conflicts:= [::];
-    semi     := fun=> ok tt;
-    semu     := @declassify_semu cty;
+    semi     := fun env => declassify_semi (cty env);
+    semu     := fun env => @declassify_semu (cty env);
     i_safe   := [:: ];
     i_valid  := true;
     i_doit   := DOIT;
     i_safe_wf    := refl_equal;
-    i_semi_errty := fun _ => (@sem_prod_ok_error _ [:: cty ] _ ErrType);
-    i_semi_safe  := fun _ => (@sem_prod_ok_safe _ [:: cty ] _);
+    i_semi_errty := fun _ env => (@sem_prod_ok_error _ [:: cty env ] _ ErrType);
+    i_semi_safe  := fun _ env => (@sem_prod_ok_safe _ [:: cty env ] _);
   |}.
 
 Definition Odeclassify_mem_instr len :=
   let ty := aword Uptr in
-  let cty := eval_atype ty in
+  let cty env := eval_atype env ty in
   {| str      := pp_s (string_of_pseudo_operator (Odeclassify_mem len));
     tin      := [:: ty ];
     i_in     := [:: E 0 ];
     tout     := [:: ];
     i_out    := [:: ];
     conflicts:= [::];
-    semi     := fun=> ok tt;
-    semu     := @declassify_semu cty;
+    semi     := fun env => declassify_semi (cty env);
+    semu     := fun env => @declassify_semu (cty env);
     i_safe   := [:: ];
     i_valid  := true;
     i_doit   := DOIT;
     i_safe_wf    := refl_equal;
-    i_semi_errty := fun _ => (@sem_prod_ok_error _ [:: cty ] _ ErrType);
-    i_semi_safe  := fun _ => (@sem_prod_ok_safe _ [:: cty ] _);
+    i_semi_errty := fun _ env => (@sem_prod_ok_error _ [:: cty env ] _ ErrType);
+    i_semi_safe  := fun _ env => (@sem_prod_ok_safe _ [:: cty env ] _);
   |}.
 
 Definition Onop_instr :=
@@ -349,42 +364,42 @@ Proof.
 Qed.
 
 Definition Ospill_instr o (tys:seq atype) :=
-  let ctys := map eval_atype tys in
-  let semi := spill_semi ctys in
+  let ctys env := map (eval_atype env) tys in
+  let semi env := spill_semi (ctys env) in
   {| str      := (fun _ => string_of_pseudo_operator (Ospill o tys));
      tin      := tys;
      i_in     := mapi (fun i _ => E i) tys;
      tout     := [:: ];
      i_out    := [:: ];
      conflicts:= [::];
-     semi     := sem_prod_ok ctys semi;
-     semu     := @spill_semu ctys;
+     semi     := fun env => sem_prod_ok (ctys env) (semi env);
+     semu     := fun env => @spill_semu (ctys env);
      i_safe   := [:: ];
      i_valid  := true;
      i_doit   := DOIT;
      i_safe_wf    := refl_equal;
-     i_semi_errty := fun _ => (@sem_prod_ok_error _ ctys semi ErrType);
-     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ ctys semi);
+     i_semi_errty := fun _ env => (@sem_prod_ok_error _ (ctys env) (semi env) ErrType);
+     i_semi_safe  := fun _ env => (@sem_prod_ok_safe _ (ctys env) (semi env));
   |}.
 
 Definition Oswap_instr ty :=
-  let cty := eval_atype ty in
-  let ctys := [:: cty; cty] in
-  let semi := @swap_semi cty in
+  let cty env := eval_atype env ty in
+  let ctys env := [:: cty env; cty env] in
+  let semi env := @swap_semi (cty env) in
   {| str    := (fun _ => "swap"%string);
      tin    := [:: ty; ty];
      i_in   := [:: E 0; E 1]; (* this info is relevant *)
      tout   := [:: ty; ty];
      i_out  := [:: E 0; E 1]; (* this info is relevant *)
      conflicts:= [::];
-     semi   := sem_prod_ok ctys semi;
-     semu   := @swap_semu cty;
+     semi   := fun env => sem_prod_ok (ctys env) (semi env);
+     semu   := fun env => @swap_semu (cty env);
      i_safe := [::];
      i_valid := true;
      i_doit := DOIT;
      i_safe_wf    := refl_equal;
-     i_semi_errty := fun _ => (@sem_prod_ok_error _ ctys semi ErrType);
-     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ ctys semi);
+     i_semi_errty := fun _ env => (@sem_prod_ok_error _ (ctys env) (semi env) ErrType);
+     i_semi_safe  := fun _ env => (@sem_prod_ok_safe _ (ctys env) (semi env));
   |}.
 
 Definition pseudo_op_get_instr_desc (o : pseudo_operator) : instruction_desc :=
@@ -478,23 +493,23 @@ Qed.
 
 Definition SLHprotect_ptr_str := "protect_ptr"%string.
 Definition SLHprotect_ptr_instr ws n :=
-  let tin := [:: aarr ws n; ty_msf ] in
-  let ctin := map eval_atype tin in
-  let semi := @se_protect_ptr_sem (arr_size ws n) in
+  let tin := [:: aarr ws (ALConst n); ty_msf ] in
+  let ctin env := map (eval_atype env) tin in
+  let semi env := @se_protect_ptr_sem (arr_size ws n) in
   {| str      := pp_s SLHprotect_ptr_str;
      tin      := tin;
      i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
-     tout     := [:: aarr ws n ];
+     tout     := [:: aarr ws (ALConst n) ];
      i_out    := [:: E 2 ]; (* this info is irrelevant *)
      conflicts:=[::];
-     semi     := sem_prod_ok ctin semi;
-     semu     := @protect_ptr_semu (arr_size ws n);
+     semi     := fun env => sem_prod_ok (ctin env) (semi env);
+     semu     := fun env => @protect_ptr_semu (arr_size ws n);
      i_safe   := [::];
      i_valid  := true;
      i_doit   := DOIT;
      i_safe_wf    := refl_equal;
-     i_semi_errty := fun _ => (@sem_prod_ok_error _ ctin semi ErrType);
-     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ ctin semi);
+     i_semi_errty := fun _ env => (@sem_prod_ok_error _ (ctin env) (semi env) ErrType);
+     i_semi_safe  := fun _ env => (@sem_prod_ok_safe _ (ctin env) (semi env));
   |}.
 
 Lemma protect_ptr_fail_semu n vs vs' v:
@@ -533,19 +548,19 @@ Definition SLHprotect_ptr_fail_str := "protect_ptr_fail"%string.
 Definition SLHprotect_ptr_fail_instr ws n :=
   let len := arr_size ws n in
   {| str      := pp_s SLHprotect_ptr_fail_str;
-     tin      := [:: aarr ws n; ty_msf ];
+     tin      := [:: aarr ws (ALConst n); ty_msf ];
      i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
-     tout     := [:: aarr ws n ];
+     tout     := [:: aarr ws (ALConst n) ];
      i_out    := [:: E 2 ]; (* this info is irrelevant *)
      conflicts:=[::];
-     semi     := @se_protect_ptr_fail_sem len;
-     semu     := @protect_ptr_fail_semu len;
+     semi     := fun env => @se_protect_ptr_fail_sem len;
+     semu     := fun env => @protect_ptr_fail_semu len;
      i_safe   := [:: ScFalse]; (* See remark on protect_ptr_fail_safe *)
      i_valid  := true;
      i_doit   := DOIT;
      i_safe_wf    := refl_equal;
-     i_semi_errty := fun _ => (@protect_ptr_fail_errty len);
-     i_semi_safe  := fun _ => (@protect_ptr_fail_safe len);
+     i_semi_errty := fun _ env => (@protect_ptr_fail_errty len);
+     i_semi_safe  := fun _ env => (@protect_ptr_fail_safe len);
   |}.
 
 Definition slh_op_instruction_desc  (o : slh_op) : instruction_desc :=

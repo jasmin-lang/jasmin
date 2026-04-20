@@ -29,35 +29,35 @@ Section GLOB_DEFS.
 
 Context (wdb : bool) (gd: glob_decls).
 
-Definition eqok_w (e1 e2:pexpr) st :=
+Definition eqok_w env (e1 e2:pexpr) (st:estate env) :=
   forall v, sem_pexpr wdb gd st e1 = ok v -> sem_pexpr wdb gd st e2 = ok v.
 
-Definition eqok (e1 e2:pexpr) st :=
+Definition eqok env (e1 e2:pexpr) (st:estate env) :=
   forall v, sem_pexpr wdb gd st e1 = ok v ->
     exists v', sem_pexpr wdb gd st e2 = ok v' /\ value_uincl v v'.
 
-Lemma eqok_weaken e1 e2 st : eqok_w e1 e2 st -> eqok e1 e2 st.
+Lemma eqok_weaken env e1 e2 (st:estate env) : eqok_w e1 e2 st -> eqok e1 e2 st.
 Proof. by move=> h v /h h';exists v. Qed.
 
 Notation "e1 '=[' st ']' e2" := (eqok e1 e2 st)
  (at level 70, e2 at next level, no associativity,
   format "'[hv ' e1  =[ st ]  '/'  e2 ']'").
 
-Definition eeq_w (e1 e2:pexpr) := forall rho, eqok_w e1 e2 rho.
-Definition eeq (e1 e2:pexpr) := forall rho, e1 =[rho] e2.
+Definition eeq_w (e1 e2:pexpr) := forall env (rho:estate env), eqok_w e1 e2 rho.
+Definition eeq (e1 e2:pexpr) := forall env (rho:estate env), e1 =[rho] e2.
 
 Notation "e1 '=E' e2" := (eeq e1 e2) (at level 70, no associativity).
 
 Lemma eeq_w_refl : Reflexive (@eeq_w).
-Proof. by move=> ???;eauto. Qed.
+Proof. by move=> ????;eauto. Qed.
 
 Lemma eeq_refl : Reflexive (@eeq).
-Proof. by move=> ??? ->;eauto. Qed.
+Proof. by move=> ???? ->;eauto. Qed.
 
 Hint Resolve eeq_refl eeq_w_refl : core.
 
 Lemma eeq_weaken e1 e2 : eeq_w e1 e2 -> e1 =E e2.
-Proof. by move=> h ?;apply eqok_weaken;apply h. Qed.
+Proof. by move=> h ??;apply eqok_weaken;apply h. Qed.
 
 (* -------------------------------------------------------- *)
 
@@ -66,21 +66,21 @@ Proof.
   apply: eeq_weaken.
   elim: e=> //=;try auto; first by move=> ???.
   + case; auto.
-    move=> e _ rho v /=; t_xrbindP => ?? -> /sem_sop1I /= [b] [nb] [] /to_boolI -> [<-] ->.
+    move=> e _ env rho v /=; t_xrbindP => ?? -> /sem_sop1I /= [b] [nb] [] /to_boolI -> [<-] ->.
     move=> /sem_sop1I /= [b'] [nb'] [] [<-] [<-] ->.
     by rewrite negbK.
-  + case; auto => e1 hrec1 e2 hrec2 rho v /=;
+  + case; auto => e1 hrec1 e2 hrec2 env rho v /=;
     t_xrbindP => ? ? he1 ? he2 /sem_sop2I /= [b1 [b2 [b]]] [] /to_boolI ? /to_boolI
       ? [] ?? /sem_sop1I /= [?] [?] [] /to_boolI h [?]; subst; case: h => ?; subst;
-      have := hrec1 rho _; have := hrec2 rho _;
+      have := hrec1 env rho _; have := hrec2 env rho _;
       rewrite /= he1 he2 /sem_sop1 /= => /(_ _ erefl) -> /(_ _ erefl) -> -> /=; rewrite /sem_sop2 /=.
     + by rewrite -negb_and.
     by rewrite negb_or.
-  move=> t e _ e1 hrec1 e2 hrec2 rho v /=.
+  move=> t e _ e1 hrec1 e2 hrec2 env rho v /=.
   t_xrbindP => v' be ve he /to_boolI ?; subst.
   move=> tve1 ve1 he1 hte1 tve2 ve2 he2 hte2 ?; subst v'.
   move=> /sem_sop1I /= [b] [?] [] /to_boolI h [?] ?; subst.
-  have := hrec1 rho _; have := hrec2 rho _;
+  have := hrec1 env rho _; have := hrec2 env rho _;
   rewrite he /= he1 he2 /= /sem_sop1 /=.
   have [b1 [b2 [??]]]: exists (b1 b2: bool), tve1 = b1 /\ tve2 = b2.
   + case: (be) h => ?; subst.
@@ -97,7 +97,7 @@ Qed.
 
 Lemma sneg_intP e : Papp1 (Oneg Op_int) e =E sneg_int e.
 Proof.
-apply: eeq_weaken; case: e => // [ z s v [] <- // | [] ] // [] // e s v /=; t_xrbindP => ? ? -> /=.
+apply: eeq_weaken; case: e => // [ z env s v [] <- // | [] ] // [] // e env s v /=; t_xrbindP => ? ? -> /=.
 rewrite /sem_sop1 /=; t_xrbindP => ? /to_intI -> <- /= ? [<-] <-.
 by rewrite Z.opp_involutive.
 Qed.
@@ -110,7 +110,7 @@ Lemma e2intP e z :
    e2int e = ok z -> e = Pconst z.
 Proof. by case: e => //= ? [->]. Qed.
 
-Lemma of_exprP rho t e v :
+Lemma of_exprP env (rho : estate env) t e v :
   of_expr t e = ok v ->
   Let x := sem_pexpr wdb gd rho e in of_val t x = ok v.
 Proof.
@@ -118,17 +118,27 @@ Proof.
   by rewrite /e2word; case heq : is_wconst => [w' | ] // [<-]; apply is_wconstP.
 Qed.
 
-Lemma to_exprP rho t (v:sem_t t) e : to_expr v = ok e -> sem_pexpr wdb gd rho e = ok (to_val v).
+Lemma to_exprP env (rho : estate env) t (v:sem_t t) e : to_expr v = ok e -> sem_pexpr wdb gd rho e = ok (to_val v).
 Proof.
   case: t v => //= [b | z | ws w] [<-] //=.
   by rewrite /sem_sop1 /= wrepr_unsigned.
+Qed.
+
+(* For the moment, there is no op1 manipulating arrays, so any [env] gives the same result. *)
+(* FIXME: move *)
+Lemma sem_sop1_any_env env1 env2 : sem_sop1 env1 =1 sem_sop1 env2.
+Proof.
+  case => //.
+  + by case.
+  by move=> sg [].
 Qed.
 
 Lemma ssem_sop1P o e : Papp1 o e =E ssem_sop1 o e.
 Proof.
   rewrite /ssem_sop1.
   case heq : of_expr => [ v | ] //=.
-  apply: eeq_weaken => rho v' /[dup]h1 /=.
+  apply: eeq_weaken => env rho v' /[dup]h1 /=.
+  rewrite (sem_sop1_any_env _ empty_env).
   rewrite /= -Let_Let (of_exprP rho heq) /=;t_xrbindP => ? -> ? /=; subst.
   by case heq' : to_expr => [e' | //]; apply to_exprP.
 Qed.
@@ -144,10 +154,10 @@ Qed.
 Lemma sandP e1 e2 : Papp2 Oand e1 e2 =E sand e1 e2.
 Proof.
   apply: eeq_weaken; rewrite /sand.
-  case: is_boolP => [b1 rho v /=| {}e1].
+  case: is_boolP => [b1 env rho v /=| {}e1].
   + apply: rbindP=> v2' /= He2;apply:rbindP=> ? [<-].
     by apply: rbindP => b2 /to_boolI Hb2 [<-];subst v2';case:b1.
-  case: is_boolP => [b2 rho v /=|{}e2];last by auto using eeq_refl.
+  case: is_boolP => [b2 env rho v /=|{}e2];last by auto using eeq_refl.
   apply: rbindP => v1 Hv1;apply:rbindP=> b1 /to_boolI ?;subst v1 => /= -[<-].
   by case:b2;rewrite ?andbT ?andbF.
 Qed.
@@ -155,10 +165,10 @@ Qed.
 Lemma sorP e1 e2 : Papp2 Oor e1 e2 =E sor e1 e2.
 Proof.
   apply: eeq_weaken; rewrite /sor.
-  case: is_boolP => [b1 rho v /=| {}e1].
+  case: is_boolP => [b1 env rho v /=| {}e1].
   + apply: rbindP=> v2' /= He2;apply:rbindP=> ? [<-].
     by apply: rbindP => b2 /to_boolI Hb2 [<-];subst v2';case:b1.
-  case: is_boolP => [b2 rho v /=|{}e2];last by auto using eeq_refl.
+  case: is_boolP => [b2 env rho v /=|{}e2];last by auto using eeq_refl.
   apply: rbindP => v1 Hv1;apply:rbindP=> b1 /to_boolI ?;subst v1 => /= -[<-].
   by case:b2;rewrite ?orbT ?orbF.
 Qed.
@@ -166,7 +176,7 @@ Qed.
 Lemma sadd_intP e1 e2 : Papp2 (Oadd Op_int) e1 e2 =E sadd_int e1 e2.
 Proof.
   apply: eeq_weaken; rewrite /sadd_int; case: (is_constP e1) => [n1| {}e1];
-    case: (is_constP e2) => [n2| {}e2] rho v //=.
+    case: (is_constP e2) => [n2| {}e2] env rho v //=.
   + apply: rbindP => v2 Hv2; rewrite /sem_sop2 /=.
     apply: rbindP => z2 /to_intI ? /=;subst v2=> [<-].
     by case: eqP => [-> // | /= _];rewrite Hv2.
@@ -181,16 +191,16 @@ Local Opaque add_word.
 rewrite /sadd_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
-+ move => s v /=; rewrite /sem_sop2 /sem_sop1 /=.
++ move => env s v /=; rewrite /sem_sop2 /sem_sop1 /=.
   have! := (is_wconstP wdb gd s h2).
   have! := (is_wconstP wdb gd s h1).
   by t_xrbindP => *; clarify; rewrite wrepr_unsigned;eauto.
-+ case: eqP => // hz s v /=; rewrite /sem_sop2 /=.
++ case: eqP => // hz env s v /=; rewrite /sem_sop2 /=.
   have! := (is_wconstP wdb gd s h1).
   t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 <-; clarify.
   case: (to_wordI k6) => sz' [w' [? /truncate_word_uincl ?]]; subst.
   by rewrite add_wordE GRing.add0r k4;eauto.
-case: eqP => // hz s v /=; rewrite /sem_sop2 /=.
+case: eqP => // hz env s v /=; rewrite /sem_sop2 /=.
 have! := (is_wconstP wdb gd s h2).
 t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 <-; clarify.
 case: (to_wordI k5) => sz' [w' [? /truncate_word_uincl ?]]; subst.
@@ -205,7 +215,7 @@ Lemma ssub_intP e1 e2 : Papp2 (Osub Op_int) e1 e2 =E ssub_int e1 e2.
 Proof.
   apply: eeq_weaken; rewrite /ssub_int.
   case: (is_constP e1) => [n1| {}e1];
-    case: (is_constP e2) => [n2| {}e2] rho v //=.
+    case: (is_constP e2) => [n2| {}e2] env rho v //=.
   apply: rbindP => v1 Hv1;rewrite /sem_sop2 /=.
   apply: rbindP => z1 /to_intI ? /=;subst v1=> [<-].
   by case: eqP => [-> | /= _];rewrite Hv1 ?Z.sub_0_r.
@@ -217,11 +227,11 @@ Local Opaque sub_word.
 rewrite /ssub_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
-+ move => s v /=; rewrite /sem_sop2 /sem_sop1 /=.
++ move => env s v /=; rewrite /sem_sop2 /sem_sop1 /=.
   have! := (is_wconstP wdb gd s h2).
   have! := (is_wconstP wdb gd s h1).
   by t_xrbindP => *; clarify; rewrite wrepr_unsigned;eauto.
-case: eqP => // hz s v /=; rewrite /sem_sop2 /=.
+case: eqP => // hz env s v /=; rewrite /sem_sop2 /=.
 have! := (is_wconstP wdb gd s h2).
 t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 <-; clarify.
 case: (to_wordI k5) => sz' [w' [? /truncate_word_uincl ?]]; subst.
@@ -236,7 +246,7 @@ Lemma smul_intP e1 e2 : Papp2 (Omul Op_int) e1 e2 =E smul_int e1 e2.
 Proof.
   apply: eeq_weaken; rewrite /smul_int.
   case: (is_constP e1) => [n1| {}e1];
-    case: (is_constP e2) => [n2| {}e2] rho v //=.
+    case: (is_constP e2) => [n2| {}e2] env rho v //=.
   + apply: rbindP => v2 Hv2. rewrite /sem_sop2 /=.
     apply: rbindP => z2 /to_intI ?;subst v2.
     case:eqP => [-> //|_]; case:eqP => [-> | _ /=];last by rewrite Hv2.
@@ -254,18 +264,18 @@ Local Opaque mul_word.
 rewrite /smul_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
-+ move => s v /=; rewrite /sem_sop2 /sem_sop1 /=.
++ move => env s v /=; rewrite /sem_sop2 /sem_sop1 /=.
   have! := (is_wconstP wdb gd s h2).
   have! := (is_wconstP wdb gd s h1).
   by t_xrbindP => *; clarify; rewrite wrepr_unsigned;eauto.
-+ case: eqP => hn1; [| case: eqP => hn2]; move => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
++ case: eqP => hn1; [| case: eqP => hn2]; move => env s v /=; rewrite /sem_sop2 /sem_sop1 /=;
   have! := (is_wconstP wdb gd s h1);
   t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
   - by rewrite wrepr0 mul_wordE GRing.mul0r;eauto.
   - case: (to_wordI k6) => {k6} sz' [w] [? /truncate_word_uincl]; subst.
     by rewrite k4 mul_wordE GRing.mul1r; eauto.
   by rewrite k4 /= k6 /= wrepr_unsigned truncate_word_u /=;eexists;split;eauto => /=.
-case: eqP => hn1; [| case: eqP => hn2]; move => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
+case: eqP => hn1; [| case: eqP => hn2]; move => env s v /=; rewrite /sem_sop2 /sem_sop1 /=;
 have! := (is_wconstP wdb gd s h2);
 t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
 - by rewrite wrepr0 mul_wordE GRing.mulr0;eauto.
@@ -280,7 +290,7 @@ Proof. by case: ty; eauto using smul_intP, smul_wP. Qed.
 
 Lemma s_eqP ty e1 e2 : Papp2 (Oeq ty) e1 e2 =E s_eq ty e1 e2.
 Proof.
-  rewrite /s_eq;case:ifP => [ /eq_exprP Hs s v /=| _ ].
+  rewrite /s_eq;case:ifP => [ /eq_exprP Hs env s v /=| _ ].
   + rewrite Hs;case: sem_pexpr => //= ve.
     rewrite /sem_sop2; case: ty => [ | sz ] /=; t_xrbindP => ? -> ? [<-] <-;
     (eexists; split; first reflexivity).
@@ -292,7 +302,7 @@ Proof.
     case: (is_constP e2) => [n2| {}e2] rho v //=.
   move => sz.
   case h1: is_wconst => [ n1 | ] //.
-  case h2: is_wconst => [ n2 | ] // s v;
+  case h2: is_wconst => [ n2 | ] // env s v;
   rewrite /= /sem_sop2;
   t_xrbindP => v1 k1 v2 k2 w1' /to_wordI [sz1 [w1 [? hle1]]]
                   w2' /to_wordI [sz2 [w2 [? hle2]]] ? /= [] ? ?;subst.
@@ -305,18 +315,18 @@ Qed.
 Lemma sbeqP e1 e2 : Papp2 Obeq e1 e2 =E sbeq e1 e2.
 Proof.
   rewrite /sbeq; apply eeq_weaken.
-  case: (is_boolP e1) => [b1 | {}e1]; case: (is_boolP e2) => [b2 | {}e2] // rho v.
+  case: (is_boolP e1) => [b1 | {}e1]; case: (is_boolP e2) => [b2 | {}e2] // env rho v.
   + by rewrite /= /sem_sop2 /= => -[<-].
   + rewrite /= /sem_sop2 /=; t_xrbindP => v2 he2 b2 /to_boolI ??; subst; rewrite eq_sym.
     case: b1; first by rewrite eqb_id.
     rewrite eqbF_neg.
-    have []:= @snotP e2 rho (~~b2).
+    have []:= @snotP e2 env rho (~~b2).
     + by rewrite /= he2.
     by move=> v [] -> /value_uinclE ->.
   rewrite /= /sem_sop2 /=; t_xrbindP => v1 he1 b1 /to_boolI ??; subst.
   case: b2; first by rewrite eqb_id.
   rewrite eqbF_neg.
-  have []:= @snotP e1 rho (~~b1).
+  have []:= @snotP e1 env rho (~~b1).
   + by rewrite /= he1.
   by move=> v [] -> /value_uinclE ->.
 Qed.
@@ -324,7 +334,7 @@ Qed.
 Lemma sneqP ty e1 e2 : Papp2 (Oneq ty) e1 e2 =E sneq ty e1 e2.
 Proof.
   rewrite /sneq /s_eq.
-  case:ifP => [ /eq_exprP Hs s v /=| _ ].
+  case:ifP => [ /eq_exprP Hs env s v /=| _ ].
   + rewrite Hs;case: sem_pexpr => //= ve.
     rewrite /sem_sop2; case: ty => [ | sz ] /=; t_xrbindP => ? -> ? [<-] <-;
     (eexists; split; first reflexivity).
@@ -336,7 +346,7 @@ Proof.
     case: (is_constP e2) => [n2| {}e2] rho v //=.
   move => sz.
   case h1: is_wconst => [ n1 | ] //.
-  case h2: is_wconst => [ n2 | ] // s v;
+  case h2: is_wconst => [ n2 | ] // env s v;
   rewrite /= /sem_sop2;
   t_xrbindP => v1 k1 v2 k2 w1' /to_wordI [sz1 [w1 [? hle1]]]
                   w2' /to_wordI [sz2 [w2 [? hle2]]] ? /= [] ? ?;subst.
@@ -346,7 +356,7 @@ Proof.
   done.
 Qed.
 
-Lemma is_cmp_constP s ty e z :
+Lemma is_cmp_constP env (s : estate env) ty e z :
   is_cmp_const ty e = Some z →
   match ty with
   | Cmp_int => e = Pconst z
@@ -373,19 +383,19 @@ Qed.
 Ltac is_cmp_const s :=
   match goal with
   | |- context[ is_cmp_const ?ty ?e ] =>
-    case: is_cmp_const (@is_cmp_constP s ty e);
+    case: is_cmp_const (@is_cmp_constP _ s ty e);
     [ let n := fresh in move => n /(_ _ erefl); move: n | ]
   end.
 
 Lemma sltP ty e1 e2 : Papp2 (Olt ty) e1 e2 =E slt ty e1 e2.
 Proof.
-  rewrite /slt;case:ifP => [ /eq_exprP Hs s v /=| _ ].
+  rewrite /slt;case:ifP => [ /eq_exprP Hs env s v /=| _ ].
   + rewrite Hs;apply: rbindP => v' -> /=.
     rewrite /sem_sop2; case: ty => [ | sg sz ] /=; t_xrbindP => ? -> ? [<-] <-;
     (eexists; split; first reflexivity).
     - by rewrite Z.ltb_irrefl.
     by rewrite wlt_irrefl.
-  apply: eeq_weaken => s.
+  apply: eeq_weaken => env s.
   is_cmp_const s; last by move => _; exact: eeq_w_refl.
   move => n1 h1.
   is_cmp_const s; last by move => _; exact: eeq_w_refl.
@@ -399,13 +409,13 @@ Qed.
 
 Lemma sleP ty e1 e2 : Papp2 (Ole ty) e1 e2 =E sle ty e1 e2.
 Proof.
-  rewrite /sle; case:ifP => [ /eq_exprP Hs s v /=| _ ].
+  rewrite /sle; case:ifP => [ /eq_exprP Hs env s v /=| _ ].
   + rewrite Hs;apply: rbindP => v' -> /=.
     rewrite /sem_sop2; case: ty => [ | sg sz ] /=; t_xrbindP => ? -> ? [<-] <-;
     (eexists; split; first reflexivity).
     - by rewrite Z.leb_refl.
     by rewrite wle_refl.
-  apply: eeq_weaken => s.
+  apply: eeq_weaken => env s.
   is_cmp_const s; last by move => _; exact: eeq_w_refl.
   move => n1 h1.
   is_cmp_const s; last by move => _; exact: eeq_w_refl.
@@ -419,13 +429,13 @@ Qed.
 
 Lemma sgtP ty e1 e2 : Papp2 (Ogt ty) e1 e2 =E sgt ty e1 e2.
 Proof.
-  rewrite /sgt;case:ifP => [ /eq_exprP Hs s v /=| _ ].
+  rewrite /sgt;case:ifP => [ /eq_exprP Hs env s v /=| _ ].
   + rewrite Hs;apply: rbindP => v' -> /=.
     rewrite /sem_sop2; case: ty => [ | sg sz ] /=; t_xrbindP => ? -> ? [<-] <-;
     (eexists; split; first reflexivity).
     - by rewrite Z.gtb_ltb Z.ltb_irrefl.
     by rewrite wlt_irrefl.
-  apply: eeq_weaken => s.
+  apply: eeq_weaken => env s.
   is_cmp_const s; last by move => _; exact: eeq_w_refl.
   move => n1 h1.
   is_cmp_const s; last by move => _; exact: eeq_w_refl.
@@ -439,13 +449,13 @@ Qed.
 
 Lemma sgeP ty e1 e2 : Papp2 (Oge ty) e1 e2 =E sge ty e1 e2.
 Proof.
-  rewrite /sge; case:ifP => [ /eq_exprP Hs s v /=| _ ].
+  rewrite /sge; case:ifP => [ /eq_exprP Hs env s v /=| _ ].
   + rewrite Hs;apply: rbindP => v' -> /=.
     rewrite /sem_sop2; case: ty => [ | sg sz ] /=; t_xrbindP => ? -> ? [<-] <-;
     (eexists; split; first reflexivity).
     - by rewrite Z.geb_leb Z.leb_refl.
     by rewrite wle_refl.
-  apply: eeq_weaken => s.
+  apply: eeq_weaken => env s.
   is_cmp_const s; last by move => _; exact: eeq_w_refl.
   move => n1 h1.
   is_cmp_const s; last by move => _; exact: eeq_w_refl.
@@ -457,12 +467,21 @@ Proof.
     rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= ok_w1 ok_w2 /= Z.geb_leb word_ssrZ.lezE.
 Qed.
 
+(* For the moment, there is no op2 manipulating arrays, so any [env] gives the same result. *)
+(* FIXME: move *)
+Lemma sem_sop2_any_env env1 env2 : sem_sop2 env1 =1 sem_sop2 env2.
+Proof.
+  case => //; try (by case); try (by move=> ? []).
+  by move=> ?? [].
+Qed.
+
 Lemma ssem_sop2P o e1 e2 : Papp2 o e1 e2 =E ssem_sop2 o e1 e2.
 Proof.
   rewrite /ssem_sop2.
   case heq1 : (of_expr _ e1) => [ v1 | ] //=.
   case heq2 : (of_expr _ e2) => [ v2 | ] //=.
-  apply: eeq_weaken => rho v' /[dup]h1 /=.
+  apply: eeq_weaken => env rho v' /[dup]h1 /=.
+  rewrite (sem_sop2_any_env _ empty_env).
   rewrite /sem_sop2 /=.
   move: (of_exprP rho heq1) (of_exprP rho heq2).
   t_xrbindP => ? -> he1 ? -> he2 ? [<-] ? [<-]; rewrite he1 he2 => ?[<-] ?[<-] ? -> ? /=; subst v'.
@@ -475,7 +494,7 @@ Proof.
                       s_eqP, sneqP, sltP, sleP, sgtP, sgeP, ssem_sop2P.
 Qed.
 
-Lemma app_sopnP T0 ts o es x s :
+Lemma app_sopnP env T0 ts o es x (s : estate env) :
   @app_sopn T0 ts o es = ok x ->
   sem_pexprs wdb gd s es >>= values.app_sopn ts o = ok x.
 Proof.
@@ -488,14 +507,22 @@ Proof.
   by rewrite hval.
 Qed.
 
-Lemma s_opNP op s es :
+(* For the moment, this is true, but is this future proof? *)
+(* FIXME: move *)
+Lemma sem_opN_any_env env1 env2 : sem_opN env1 =1 sem_opN env2.
+Proof.
+  by case => // [ ws pe | len ]; rewrite /sem_opN /=; rewrite -> !map_nseq.
+Qed.
+
+Lemma s_opNP env op (s : estate env) es :
   sem_pexpr wdb gd s (s_opN op es) = sem_pexpr wdb gd s (PappN op es).
 Proof.
 
 Opaque app_sopn values.app_sopn.
   rewrite /s_opN.
   case: op => [ sz' pe | // | c ];
-  case h: app_sopn => [r | //].
+  case h: app_sopn => [r | //];
+  rewrite /= (sem_opN_any_env _ empty_env).
   + rewrite /= /sem_sop1 /= wrepr_unsigned /sem_opN /=.
     by rewrite -Let_Let (app_sopnP _ h).
 
@@ -512,23 +539,23 @@ Definition vconst c :=
   | Cword sz z => Vword z
   end.
 
-Definition valid_cpm (vm: Vm.t)  (m:cpm) :=
+Definition valid_cpm env (vm: Vm.t env) (m:cpm) :=
   forall x n, Mvar.get m x = Some n -> vm.[x] = vconst n.
 
-Lemma valid_cpm_empty vm :
+Lemma valid_cpm_empty env (vm : Vm.t env) :
   valid_cpm vm empty_cpm.
 Proof. move=> x n. by rewrite Mvar.get0. Qed.
 
-Definition eqoks e1 e2 st :=
+Definition eqoks e1 e2 env (st : estate env) :=
   ∀ vs, sem_pexprs wdb gd st e1 = ok vs → exists2 vs', sem_pexprs wdb gd st e2 = ok vs' & values_uincl vs vs'.
 
-Definition valid_globs (globs: globals) : Prop :=
+Definition valid_globs env (globs: globals) : Prop :=
   if globs is Some f then
-    ∀ x gv v, f x = Some gv → get_global gd x = ok v → v = gv2val gv
+    ∀ x gv v, f x = Some gv → get_global env gd x = ok v → v = gv2val gv
   else True.
 
 Section CONST_PROP_EP.
-  Context (globs: globals) (s:estate) m (Hvalid: valid_cpm (evm s) m) (Gvalid: valid_globs globs).
+  Context env (globs: globals) (s:estate env) m (Hvalid: valid_cpm (evm s) m) (Gvalid: valid_globs env globs).
   Let P e : Prop := e =[s] const_prop_e globs m e.
   Let Q es : Prop := eqoks es (map (const_prop_e globs m) es) s.
 
@@ -605,16 +632,16 @@ Section CONST_PROP_EP.
 
 End CONST_PROP_EP.
 
-Definition const_prop_eP globs e s m h g :=
-  (@const_prop_e_esP globs s m h g).1 e.
+Definition const_prop_eP env globs e s m h g :=
+  (@const_prop_e_esP env globs s m h g).1 e.
 
-Definition const_prop_esP globs es s m h g :=
-  (@const_prop_e_esP globs s m h g).2 es.
+Definition const_prop_esP env globs es s m h g :=
+  (@const_prop_e_esP env globs s m h g).2 es.
 
-Definition empty_const_prop_eP e s :=
-  const_prop_eP (e := e) (s := s) (valid_cpm_empty _) (I : valid_globs None).
+Definition empty_const_prop_eP env e s :=
+  const_prop_eP (env := env) (e := e) (s := s) (valid_cpm_empty _) (I : valid_globs env None).
 
-Lemma remove_cpm1P x v m s1 s1' :
+Lemma remove_cpm1P env x v m (s1 s1' : estate env) :
   write_var wdb x v s1 = ok s1' ->
   valid_cpm (evm s1) m ->
   valid_cpm (evm s1') (Mvar.remove m x).
@@ -624,18 +651,18 @@ Proof.
 Qed.
 
 (* is this future proof? *)
-Lemma wsize_of_atypeP ty ws :
-  eval_atype ty = cword ws ->
+Lemma wsize_of_atypeP env ty ws :
+  eval_atype env ty = cword ws ->
   wsize_of_atype ty = ws.
 Proof.
   by case: ty => //= _ [->].
 Qed.
 
-Lemma add_cpmP s1 s1' m x e tag ty v1 v v' :
+Lemma add_cpmP env (s1 s1' : estate env) m x e tag ty v1 v v' :
   wdb ->
   sem_pexpr wdb gd s1 e = ok v1 ->
   value_uincl v v1 ->
-  truncate_val (eval_atype ty) v = ok v' ->
+  truncate_val (eval_atype env ty) v = ok v' ->
   write_lval wdb gd x v' s1 = ok s1' ->
   valid_cpm (evm s1') m ->
   valid_cpm (evm s1') (add_cpm m x tag ty e).
@@ -669,7 +696,7 @@ Proof.
   by rewrite zero_extend_wrepr.
 Qed.
 
-Lemma merge_cpmP rho m1 m2 :
+Lemma merge_cpmP env (rho : Vm.t env) m1 m2 :
   valid_cpm rho m1 \/ valid_cpm rho m2 ->
   valid_cpm rho (merge_cpm m1 m2).
 Proof.
@@ -679,9 +706,9 @@ Proof.
   by move=> ? [] ?;do 2 subst;elim: Hv => Hv;apply Hv.
 Qed.
 
-Lemma const_prop_rvP globs s1 s2 m x v:
+Lemma const_prop_rvP env globs (s1 s2 : estate env) m x v:
   valid_cpm (evm s1) m ->
-  valid_globs globs ->
+  valid_globs env globs ->
   write_lval wdb gd x v s1 = Ok error s2 ->
   valid_cpm (evm s2) (const_prop_rv globs m x).1 /\
   write_lval wdb gd (const_prop_rv globs m x).2 v s1 = ok s2.
@@ -689,17 +716,17 @@ Proof.
   case:x => [ii t | x | al sz vi p | al aa sz x p | aa sz len x p] /= Hv Gv; t_xrbindP.
   + by move=> H; have [??]:= write_noneP H; subst s2.
   + by move=> H;split=>//;apply: remove_cpm1P H Hv.
-  + by move=> > /(@const_prop_eP globs p _ _ Hv Gv) [? [-> ]]
+  + by move=> > /(@const_prop_eP env globs p _ _ Hv Gv) [? [-> ]]
       /[swap] /to_wordI [? [? [-> /word_uincl_truncate h]]]
       /value_uinclE [? [? [-> /h{h} /= ->]]] ? -> ? /= -> /= <-.
   all: by apply: on_arr_varP;rewrite /on_arr_var => n t Htx -> /=;
-    t_xrbindP => > /(@const_prop_eP globs p _ _ Hv Gv) [? [-> ]] /[swap] /to_intI ->
+    t_xrbindP => > /(@const_prop_eP env globs p _ _ Hv Gv) [? [-> ]] /[swap] /to_intI ->
       /value_uinclE -> ? -> ? /= -> /= h; split; first apply: remove_cpm1P h Hv.
 Qed.
 
-Lemma const_prop_rvsP globs s1 s2 m x v:
+Lemma const_prop_rvsP env globs (s1 s2 : estate env) m x v:
   valid_cpm (evm s1) m ->
-  valid_globs globs ->
+  valid_globs env globs ->
   write_lvals wdb gd s1 x v = Ok error s2 ->
   valid_cpm (evm s2) (const_prop_rvs globs m x).1 /\
   write_lvals wdb gd s1 (const_prop_rvs globs m x).2 v = ok s2.
@@ -733,7 +760,7 @@ Lemma get_remove_cpm m xs x n:
   Mvar.get m x = Some n /\ ~Sv.In x xs.
 Proof. by move=> H;have := remove_cpm_spec m xs x;rewrite H. Qed.
 
-Lemma valid_cpm_rm rho1 rho2 xs m:
+Lemma valid_cpm_rm env (rho1 rho2 : Vm.t env) xs m:
   rho1 =[\ xs] rho2 ->
   valid_cpm rho1 m ->
   valid_cpm rho2 (remove_cpm m xs).
@@ -934,8 +961,8 @@ Section PROPER.
 
 End PROPER.
 
-Lemma valid_cpm_m :
-  Proper (eq ==> @Mvar_eq const_v ==> iff) valid_cpm.
+Lemma valid_cpm_m env :
+  Proper (eq ==> @Mvar_eq const_v ==> iff) (valid_cpm (env:=env)).
 Proof.
   move=> s? <- m m' Hm;split => H z n Hget;apply H.
   by rewrite Hm. by rewrite -Hm.
@@ -944,6 +971,7 @@ Qed.
 Section IT_PROOF.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context (env : Uint63.int -> Z).
 
 Variable (p:prog) (ev:extra_val_t).
 Notation gd := (p_globs p).
@@ -959,16 +987,16 @@ Proof.
   by case: xs => // x' [] // [] -> -> ->.
 Qed.
 
-Lemma valid_without_globals : valid_globs gd None.
+Lemma valid_without_globals : valid_globs gd env None.
 Proof. by []. Qed.
 
-Definition valid_uincl (m : cpm) (vm1 vm2 : Vm.t) :=
+Definition valid_uincl env (m : cpm) (vm1 vm2 : Vm.t env) :=
   valid_cpm vm1 m /\ vm1 <=1 vm2.
 
-Definition cmpl_inv (m : cpm) := st_rel valid_uincl m.
+Definition cmpl_inv env (m : cpm) := st_rel (valid_uincl (env:=env)) m.
 
 Lemma const_prop_ePe m wdb e :
-  wrequiv (cmpl_inv m) ((sem_pexpr wdb gd)^~ e)
+  wrequiv (cmpl_inv (env:=env) m) ((sem_pexpr wdb gd)^~ e)
     ((sem_pexpr wdb (p_globs p'))^~ (const_prop_e None m e)) value_uincl.
 Proof.
   move=> s t v /st_relP [-> /=] [hval hvm].
@@ -978,7 +1006,7 @@ Proof.
 Qed.
 
 Lemma const_prop_esPe m wdb es :
-  wrequiv (cmpl_inv m) ((sem_pexprs wdb gd)^~ es)
+  wrequiv (cmpl_inv (env:=env) m) ((sem_pexprs wdb gd)^~ es)
     ((sem_pexprs wdb (p_globs p'))^~ [seq const_prop_e None m i | i <- es]) values_uincl.
 Proof.
   move=> s t vs /st_relP [-> /=] [hval hvm].
@@ -989,8 +1017,8 @@ Qed.
 
 Lemma const_prop_rvsPe m wdb xs vs1 vs2 :
   values_uincl vs1 vs2 ->
-  wrequiv (cmpl_inv m) (fun s => write_lvals wdb (p_globs p) s xs vs1)
-                       (fun s => write_lvals wdb (p_globs p') s (const_prop_rvs None m xs).2 vs2)
+  wrequiv (cmpl_inv (env:=env) m) (fun s => write_lvals wdb (p_globs p) s xs vs1)
+                                  (fun s => write_lvals wdb (p_globs p') s (const_prop_rvs None m xs).2 vs2)
           (cmpl_inv (const_prop_rvs None m xs).1).
 Proof.
   move=> hu s t s' /st_relP [-> /=] [hval hvm] hw.
@@ -1002,18 +1030,18 @@ Qed.
 Let Pi i :=
   forall m,
     let mi := const_prop_i gd m i in
-    wequiv_rec p p' ev ev uincl_spec (cmpl_inv m) [::i] mi.2 (cmpl_inv mi.1).
+    wequiv_rec (env:=env) p p' ev ev uincl_spec (cmpl_inv m) [::i] mi.2 (cmpl_inv mi.1).
 
 Let Pi_r i := forall ii, Pi (MkI ii i).
 
 Let Pc c :=
   forall m,
     let mc := const_prop (const_prop_i gd) m c in
-    wequiv_rec p p' ev ev uincl_spec (cmpl_inv m) c mc.2 (cmpl_inv mc.1).
+    wequiv_rec (env:=env) p p' ev ev uincl_spec (cmpl_inv m) c mc.2 (cmpl_inv mc.1).
 
 Lemma const_prop_sem_cond m e b :
   is_bool (const_prop_e None m e) = Some b ->
-  ∀ (s1 s2 : estate) (v : bool), cmpl_inv m s1 s2 → sem_cond gd e s1 = ok v → v = b.
+  ∀ (s1 s2 : estate env) (v : bool), cmpl_inv m s1 s2 → sem_cond gd e s1 = ok v → v = b.
 Proof.
   move=> heq s1 s2 b' /st_relP [-> /=] [hval hvm].
   rewrite /sem_cond; t_xrbindP => v he /to_boolI ?; subst v.
@@ -1021,11 +1049,11 @@ Proof.
   by move: heq; case: is_boolP => // _ [->] /= [_ [[<-]]].
 Qed.
 
-Lemma valid_uincl_remove m X vm1 vm2 :
+Lemma valid_uincl_remove m X (vm1 vm2 : Vm.t env) :
   valid_uincl m vm1 vm2 → valid_uincl (remove_cpm m X) vm1 vm2.
 Proof. by move=> [hval hu]; split => //; apply: valid_cpm_rm hval. Qed.
 
-Lemma cmpl_inv_remove m X s1 s2 :
+Lemma cmpl_inv_remove m X (s1 s2 : estate env) :
   cmpl_inv m s1 s2 → cmpl_inv (remove_cpm m X) s1 s2.
 Proof. apply/st_rel_weaken/valid_uincl_remove. Qed.
 
@@ -1034,7 +1062,7 @@ Lemma remove_cpm_write c c2 X m mc P P' :
   Sv.Subset (write_c c) X ->
   (forall s1 s2, P s1 s2 -> cmpl_inv m' s1 s2 /\ P' s1 s2) ->
   wequiv_rec p p' ev ev uincl_spec P' c c2 (cmpl_inv mc) ->
-  wequiv_rec p p' ev ev uincl_spec P c c2 (fun s1 s2 => cmpl_inv m' s1 s2 /\ cmpl_inv mc s1 s2).
+  wequiv_rec (env:=env) p p' ev ev uincl_spec P c c2 (fun s1 s2 => cmpl_inv m' s1 s2 /\ cmpl_inv mc s1 s2).
 Proof.
   move=> m' hsub hPP' /wequiv_write1 hc.
   apply wkequivP' => s1_ s2_.
@@ -1051,7 +1079,7 @@ Lemma remove_cpm_write1 c c2 X m mc P P':
   Sv.Subset (write_c c) X ->
   (forall s1 s2, P s1 s2 -> cmpl_inv m' s1 s2 /\ P' s1 s2) ->
   wequiv_rec p p' ev ev uincl_spec P' c c2 (cmpl_inv mc) ->
-  wequiv_rec p p' ev ev uincl_spec P c c2 (fun s1 s2 => cmpl_inv m' s1 s2).
+  wequiv_rec (env:=env) p p' ev ev uincl_spec P c c2 (fun s1 s2 => cmpl_inv m' s1 s2).
 Proof.
   move=> m' hsub hPP' hc.
   move: (remove_cpm_write hsub hPP' hc); apply wequiv_weaken => //; intuition.
@@ -1066,10 +1094,10 @@ Definition check_lvals_cp m xs1 xs2 m' :=
 
 Lemma check_esP_R_cp d es1 es2 d' :
   check_es_cp d es1 es2 d' →
-  ∀ s1 s2, st_rel valid_uincl d s1 s2 → st_rel valid_uincl d' s1 s2.
+  ∀ s1 s2, st_rel (valid_uincl (env:=env)) d s1 s2 → st_rel (valid_uincl (env:=env)) d' s1 s2.
 Proof. by move=> [<- _]; apply st_rel_weaken. Qed.
 
-Definition checker_cp : Checker_e (st_rel valid_uincl) :=
+Definition checker_cp : Checker_e (st_rel (valid_uincl (env:=env))) :=
   {| check_es := check_es_cp
    ; check_lvals := check_lvals_cp
    ; check_esP_rel := check_esP_R_cp
@@ -1083,7 +1111,7 @@ Proof.
 Qed.
 #[local] Hint Resolve checker_cpP : core.
 
-Lemma it_const_prop_callP fn : wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+Lemma it_const_prop_callP fn : wiequiv_f env p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
 Local Opaque opp_word.
   apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
@@ -1097,7 +1125,7 @@ Local Opaque opp_word.
         , f_params fd = f_params (const_prop_fun gd fd)
         & f_res fd = f_res (const_prop_fun gd fd)
        ] by done.
-  have : exists2 t1, initialize_funcall p' ev (const_prop_fun gd fd) ft = ok t1 &
+  have : exists2 t1, initialize_funcall env p' ev (const_prop_fun gd fd) ft = ok t1 &
                        cmpl_inv empty_cpm s1 t1.
   + by have [t h1 []] := fs_uincl_initialize (p':=p') hin hex hpar erefl hfsu hinit; exists t.
   move=> [t1 ht1 hinv]; exists t1 => //.
@@ -1118,7 +1146,7 @@ Local Opaque opp_word.
     case hrv : const_prop_rv => [m' x'] /=.
     apply wequiv_assgn_core.
     move=> s t s' hm; rewrite /sem_assgn; t_xrbindP => v he v' htr hwr.
-    have Gv : valid_globs gd globs.
+    have Gv : valid_globs gd env globs.
     + subst globs; case tag => //.
       clear => x gv v; rewrite /get_global /get_global_value => ->.
       by case: ifP => // _ /ok_inj <-.
@@ -1199,7 +1227,7 @@ Local Opaque opp_word.
     have := hc m'; case: const_prop => mc c2 /= {}hc.
     have := hc' mc; case: const_prop => mc' c2' /= {}hc'.
     set C := (X in wequiv_rec p p' ev ev uincl_spec _ _ X _).
-    suff : [elaborate wequiv_rec p p' ev ev uincl_spec (cmpl_inv m') [:: MkI ii (Cwhile a c e ii' c')] C (cmpl_inv mc)].
+    suff : [elaborate wequiv_rec (env:=env) p p' ev ev uincl_spec (cmpl_inv m') [:: MkI ii (Cwhile a c e ii' c')] C (cmpl_inv mc)].
     + by apply wequiv_weaken => //; apply cmpl_inv_remove.
     have [[he ->]{C} | ->{C}] :
        (is_bool (const_prop_e None mc e) = Some false /\ C = c2) \/
@@ -1216,7 +1244,7 @@ Local Opaque opp_word.
      wequiv_rec p p' ev ev uincl_spec (λ s1 s2, cmpl_inv m' s1 s2)
        [:: MkI ii (Cwhile a c e ii' c')]
        [:: MkI ii (Cwhile a c2 (const_prop_e None mc e) ii' c2')]
-       (fun s1 s2 => cmpl_inv m' s1 s2 /\ cmpl_inv mc s1 s2)].
+       (fun s1 s2 => cmpl_inv (env:=env) m' s1 s2 /\ cmpl_inv mc s1 s2)].
     + by apply wkequiv_weaken => //; intuition.
     apply wequiv_while_uincl => //.
     + eapply wrequiv_weaken; last (by apply const_prop_ePe); intuition.

@@ -25,16 +25,16 @@ Context (p:prog) (ev:extra_val_t).
 
 Section EXPR.
 
-  Context (wdb : bool) (gd : glob_decls) (s : estate).
+  Context env (wdb : bool) (gd : glob_decls) (s : estate env).
 
   Let P e : Prop := forall v, sem_pexpr true gd s e = ok v -> sem_pexpr wdb gd s e = ok v.
 
   Let Q es : Prop := forall vs, sem_pexprs true gd s es = ok vs -> sem_pexprs wdb gd s es = ok vs.
 
-  Lemma get_var_weak vm x v : get_var true vm x = ok v → get_var wdb vm x = ok v.
+  Lemma get_var_weak (vm:Vm.t env) x v : get_var true vm x = ok v → get_var wdb vm x = ok v.
   Proof. by move => /get_varP []; rewrite /get_var /= => -> -> _; rewrite orbT. Qed.
 
-  Lemma get_gvar_weak vm (x : gvar) v : get_gvar true gd vm x = ok v → get_gvar wdb gd vm x = ok v.
+  Lemma get_gvar_weak (vm:Vm.t env) (x : gvar) v : get_gvar true gd vm x = ok v → get_gvar wdb gd vm x = ok v.
   Proof. rewrite /get_gvar; case: ifP => // _; apply get_var_weak. Qed.
 
   Lemma sem_pexpr_weak_and : (∀ e, P e) ∧ (∀ es, Q es).
@@ -70,7 +70,7 @@ Section EXPR.
   Lemma DB_weak v : DB true v -> DB wdb v.
   Proof. by rewrite /DB /= => ->; rewrite orbT. Qed.
 
-  Lemma set_var_weak vm x v vm' : set_var true vm x v = ok vm' -> set_var wdb vm x v = ok vm'.
+  Lemma set_var_weak (vm:Vm.t env) x v vm' : set_var true vm x v = ok vm' -> set_var wdb vm x v = ok vm'.
   Proof. by rewrite /set_var; t_xrbindP => /DB_weak -> /truncatable_weak -> <-. Qed.
 
   Lemma write_var_weak x v s' : write_var true x v s = ok s' → write_var wdb x v s = ok s'.
@@ -90,13 +90,13 @@ Section EXPR.
 
 End EXPR.
 
-Lemma write_vars_weak wdb s xs vs s' : write_vars true xs vs s = ok s' → write_vars wdb xs vs s = ok s'.
+Lemma write_vars_weak env wdb (s:estate env) xs vs s' : write_vars true xs vs s = ok s' → write_vars wdb xs vs s = ok s'.
 Proof.
   elim: xs vs s => [ | x xs hrec] [ | v vs] //= s.
   by t_xrbindP => > /(write_var_weak wdb) -> /= /hrec.
 Qed.
 
-Lemma write_lvals_weak wdb gd s s' xs vs :
+Lemma write_lvals_weak env wdb gd (s s' : estate env) xs vs :
   write_lvals true gd s xs vs = ok s' → write_lvals wdb gd s xs vs = ok s'.
 Proof.
   elim: xs vs s => [ | x xs hrec] [ | v vs] //= s.
@@ -114,16 +114,17 @@ Qed.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context (env : env_t).
 
 Let Pi i :=
-  wequiv_rec (dc1:=indirect_c) (dc2:=direct_c) p p ev ev uincl_spec (st_uincl tt) [::i] [::i] (st_uincl tt).
+  wequiv_rec (dc1:=indirect_c) (dc2:=direct_c) (env:=env) p p ev ev uincl_spec (st_uincl tt) [::i] [::i] (st_uincl tt).
 
 Let Pi_r i := forall ii, Pi (MkI ii i).
 
 Let Pc c :=
-  wequiv_rec (dc1:=indirect_c) (dc2:=direct_c) p p ev ev uincl_spec (st_uincl tt) c c (st_uincl tt).
+  wequiv_rec (dc1:=indirect_c) (dc2:=direct_c) (env:=env) p p ev ev uincl_spec (st_uincl tt) c c (st_uincl tt).
 
-Lemma checker_st_uinclP_ : Checker_uincl (dc1:=indirect_c) (dc2:=direct_c) p p checker_st_uincl.
+Lemma checker_st_uinclP_ : Checker_uincl (dc1:=indirect_c) (dc2:=direct_c) p p (checker_st_uincl env).
 Proof.
   constructor.
   + move=> wdb1 wdb2 d es1 es2 d' + <-; case => -[-> ->].
@@ -137,7 +138,7 @@ Qed.
 
 Lemma it_indirect_to_direct fn :
   wiequiv_f (dc1:=indirect_c) (dc2:=direct_c)
-    p p ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+    env p p ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] [hscs hmem hu] fd hget.
   exists fd => // s.
@@ -165,15 +166,15 @@ Proof.
   + by apply wequiv_nil.
   + move=> i c hi hc.
     by apply wequiv_cons with (st_uincl tt).
-  + by move=> x tg ty e ii; apply wequiv_assgn_rel_uincl with checker_st_uincl tt.
-  + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
-  + move=> xs sc es ii; apply wequiv_syscall_rel_uincl_core with checker_st_uincl tt => //.
+  + by move=> x tg ty e ii; apply wequiv_assgn_rel_uincl with (checker_st_uincl env) tt.
+  + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with (checker_st_uincl env) tt.
+  + move=> xs sc es ii; apply wequiv_syscall_rel_uincl_core with (checker_st_uincl env) tt => //.
     by apply fs_uincl_syscall.
   + by move=> >; apply wequiv_noassert.
-  + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
-  + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
-  + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
-  move=> xs fn es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt => //.
+  + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with (checker_st_uincl env) tt tt tt.
+  + by move=> > hc ii; apply wequiv_for_rel_uincl with (checker_st_uincl env) tt tt.
+  + by move=> > ?? ii; apply wequiv_while_rel_uincl with (checker_st_uincl env) tt.
+  move=> xs fn es ii; apply wequiv_call_rel_uincl with (checker_st_uincl env) tt => //.
   by move=> ???; apply: wequiv_fun_rec.
 Qed.
 

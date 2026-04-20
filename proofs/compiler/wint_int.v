@@ -206,12 +206,12 @@ Fixpoint wi2i_e (e0:pexpr) : cexec (safety_cond * pexpr) :=
 
   end.
 
-Definition wi2i_lvar (ety : extended_type Z) (x : var_i) : cexec var_i :=
+Definition wi2i_lvar (ety : extended_type) (x : var_i) : cexec var_i :=
   Let _ := assert (esubtype (etype_of_var m x) ety)
                   (E.ierror_lv (Lvar x)) in
   wi2i_vari x.
 
-Definition wi2i_lv (ety : extended_type Z) (lv : lval) : cexec (safety_cond * lval) :=
+Definition wi2i_lv (ety : extended_type) (lv : lval) : cexec (safety_cond * lval) :=
   let s := sign_of_etype ety in
   match lv with
   | Lnone vi ty =>
@@ -264,8 +264,8 @@ Fixpoint wi2i_eassert (e:eassert) : cexec (safety_cond * eassert) :=
     ok ([::], Pis_var_init x)
 
   | Pis_mem_init e1 e2 =>
-    Let _ := assert [&& etype_of_expr m e1 == ETword _ None Uptr
-                      & etype_of_expr m e2 == ETint _] (E.ierror_s "ill typed is_mem_init") in
+    Let _ := assert [&& etype_of_expr m e1 == ETword None Uptr
+                      & etype_of_expr m e2 == ETint] (E.ierror_s "ill typed is_mem_init") in
     Let e1 := wi2i_e e1 in
     Let e2 := wi2i_e e2 in
     ok (e1.1 ++ e2.1, Pis_mem_init e1.2 e2.2)
@@ -279,7 +279,7 @@ Definition wi2i_a_and (a : assertion) :=
   Let e := wi2i_eassert a.2 in
   ok (a.1, aands (rcons (map Pexpr e.1) e.2)).
 
-Context (sigs : funname -> option (list (extended_type Z) * list (extended_type Z))).
+Context (sigs : funname -> option (list extended_type * list extended_type)).
 
 Definition get_sig f :=
   match sigs f with
@@ -377,7 +377,7 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
     ok (b.1, Cif b.2 c1 c2)
 
   | Cfor x (dir, e1, e2) c =>
-    Let _ := assert [&& in_FV_var x, vtype x == aint, etype_of_expr m e1 == ETint _ & etype_of_expr m e2 == ETint _]
+    Let _ := assert [&& in_FV_var x, vtype x == aint, etype_of_expr m e1 == ETint & etype_of_expr m e2 == ETint]
                 (E.ierror_s "invalid loop counter") in
     Let e1 := wi2i_e e1 in
     Let e2 := wi2i_e e2 in

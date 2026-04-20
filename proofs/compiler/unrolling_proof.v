@@ -43,23 +43,24 @@ Section PROOF.
     by move => ->.
   Qed.
 
-  Lemma write_var_Z i (z: Z) s s' :
+  Lemma write_var_Z env i (z: Z) (s s' : estate env) :
     write_var true i z s = ok s' ->
-    eval_atype (vtype i) = cint.
+    eval_atype env (vtype i) = cint.
   Proof. by case: i => - [[] x]. Qed.
 
   Section IT.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context (env : Uint63.int -> Z).
 
   Let Pi (i:instr) :=
-    wequiv_rec p p' ev ev eq_spec (st_eq tt) [::i] (unroll_i i).1 (st_eq tt).
+    wequiv_rec (env:=env) p p' ev ev eq_spec (st_eq tt) [::i] (unroll_i i).1 (st_eq tt).
 
   Let Pi_r i := forall ii, Pi (MkI ii i).
 
-  Let Pc (c:cmd) := wequiv_rec p p' ev ev eq_spec (st_eq tt) c (unroll_cmd unroll_i c).1 (st_eq tt).
+  Let Pc (c:cmd) := wequiv_rec (env:=env) p p' ev ev eq_spec (st_eq tt) c (unroll_cmd unroll_i c).1 (st_eq tt).
 
-  #[local] Lemma _checker_st_eqP : Checker_eq p p' checker_st_eq.
+  #[local] Lemma _checker_st_eqP : Checker_eq p p' (checker_st_eq env).
   Proof. by apply checker_st_eqP; rewrite p'_globs. Qed.
   #[local] Hint Resolve _checker_st_eqP : core.
 
@@ -70,7 +71,7 @@ Section PROOF.
   Ltac surjpairing := repeat surjpair1.
 
   Lemma it_unroll_callP fn :
-    wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+    wiequiv_f env p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof.
     apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hfd.
     exists (unroll_fun (fn, fd)).1.2.
@@ -84,16 +85,16 @@ Section PROOF.
     apply (cmd_rect (Pi:=Pi) (Pr:=Pi_r) (Pc:=Pc)) => //; rewrite /Pi_r /Pi /Pc.
     + by apply wequiv_nil.
     + by move=> > hi hc /=; surjpairing; rewrite /= -cat1s; apply wequiv_cat with (st_eq tt).
-    + by move=> ????? /=; apply wequiv_assgn_rel_eq with checker_st_eq tt.
-    + by move=> ????? /=; apply wequiv_opn_rel_eq with checker_st_eq tt.
-    + by move=> ???? /=; apply wequiv_syscall_rel_eq with checker_st_eq tt.
+    + by move=> ????? /=; apply wequiv_assgn_rel_eq with (checker_st_eq env) tt.
+    + by move=> ????? /=; apply wequiv_opn_rel_eq with (checker_st_eq env) tt.
+    + by move=> ???? /=; apply wequiv_syscall_rel_eq with (checker_st_eq env) tt.
     + by move=> ?? /=; apply wequiv_noassert.
-    + by move=> > ??? /=; surjpairing; apply wequiv_if_rel_eq with checker_st_eq tt tt tt.
+    + by move=> > ??? /=; surjpairing; apply wequiv_if_rel_eq with (checker_st_eq env) tt tt tt.
     + move=> i d lo hi c hc ii /=; surjpairing.
-      case: is_constP => [{}lo | {}lo]; last by apply wequiv_for_rel_eq with checker_st_eq tt tt.
-      case: is_constP => [{}hi | {}hi]; last by apply wequiv_for_rel_eq with checker_st_eq tt tt.
+      case: is_constP => [{}lo | {}lo]; last by apply wequiv_for_rel_eq with (checker_st_eq env) tt tt.
+      case: is_constP => [{}hi | {}hi]; last by apply wequiv_for_rel_eq with (checker_st_eq env) tt tt.
       rewrite /wequiv_rec /wequiv.
-      apply (wkequiv_eutt_l (F1 := fun s => isem_for_loop isem_i_body p ev i c (wrange d lo hi) s)).
+      apply (wkequiv_eutt_l (F1 := fun s => isem_for_loop (isem_i_body (env:=env)) p ev i c (wrange d lo hi) s)).
       + move=> s1 _ _ /=; rewrite /isem_bound /sem_bound /=.
         rewrite ITree.Eq.Eqit.bind_ret_l ITree.Eq.Eqit.bind_ret_r; reflexivity.
       elim: wrange => [ | j js hjs] /=.
@@ -111,8 +112,8 @@ Section PROOF.
                       [eta isem_cmd_ p' ev (flatten [seq assgn ii i (Pconst n) :: c' | n <- js])])).
       + move=> _ s2 _; rewrite isem_cmd_cat; reflexivity.
       by apply wkequiv_bind with (st_eq tt).
-    + by move=> > hc hc' ii /=; surjpairing; apply wequiv_while_rel_eq with checker_st_eq tt.
-    move=> ???? /=; surjpairing; apply wequiv_call_rel_eq with checker_st_eq tt => //.
+    + by move=> > hc hc' ii /=; surjpairing; apply wequiv_while_rel_eq with (checker_st_eq env) tt.
+    move=> ???? /=; surjpairing; apply wequiv_call_rel_eq with (checker_st_eq env) tt => //.
     by move=> ???; apply: wequiv_fun_rec.
   Qed.
 
