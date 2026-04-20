@@ -39,10 +39,11 @@ Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  (env : Uint63.int -> Z)
   (wdb : bool)
   (gd : glob_decls).
 
-Lemma fexpr_of_pexprP s e f v :
+Lemma fexpr_of_pexprP (s : estate env) e f v :
   fexpr_of_pexpr e = Some f →
   sem_pexpr true gd s e = ok v →
   sem_fexpr (evm s) f = ok v.
@@ -70,7 +71,7 @@ Proof.
   all: exact: B.
 Qed.
 
-Lemma rexpr_of_pexprP s e r v :
+Lemma rexpr_of_pexprP (s : estate env) e r v :
   rexpr_of_pexpr e = Some r →
   sem_pexpr true gd s e = ok v →
   sem_rexpr (emem s) (evm s) r = ok v.
@@ -81,7 +82,7 @@ Proof.
   by move => _ /obindI[] f [] /fexpr_of_pexprP ok_f /Some_inj <-{r} /ok_f.
 Qed.
 
-Lemma lexpr_of_lvalP x d s v s' :
+Lemma lexpr_of_lvalP x d (s : estate env) v s' :
   lexpr_of_lval x = Some d →
   write_lval true gd x v s = ok s' →
   write_lexpr d v s = ok s'.
@@ -92,7 +93,7 @@ Proof.
   by t_xrbindP => > /ok_a -> /= -> /= > -> /= > -> <-.
 Qed.
 
-Lemma free_vars_recP vm2 vm1 s f :
+Lemma free_vars_recP (vm2 vm1 : Vm.t env) s f :
   vm1 =[free_vars_rec s f] vm2 ->
   sem_fexpr vm1 f = sem_fexpr vm2 f.
 Proof.
@@ -107,12 +108,12 @@ Proof.
   rewrite (hf2 _ heq) (hf1 (free_vars_rec s fb)) ?(hfb s) //; apply: eq_onI heq; SvD.fsetdec.
 Qed.
 
-Lemma free_varsP vm2 vm1 f :
+Lemma free_varsP (vm2 vm1 : Vm.t env) f :
   vm1 =[free_vars f] vm2 ->
   sem_fexpr vm1 f = sem_fexpr vm2 f.
 Proof. apply free_vars_recP. Qed.
 
-Lemma free_vars_rP vm2 vm1 r m:
+Lemma free_vars_rP (vm2 vm1 : Vm.t env) r m:
   vm1 =[free_vars_r r] vm2 ->
   sem_rexpr m vm1 r = sem_rexpr m vm2 r.
 Proof.
@@ -120,7 +121,7 @@ Proof.
   rewrite (free_vars_recP heq); SvD.fsetdec.
 Qed.
 
-Lemma write_lexpr_stack_stable e v s1 s2 :
+Lemma write_lexpr_stack_stable e v (s1 s2 : estate env) :
   write_lexpr e v s1 = ok s2 ->
   stack_stable (emem s1) (emem s2).
 Proof.
@@ -131,7 +132,7 @@ Proof.
   by reflexivity.
 Qed.
 
-Lemma write_lexprs_stack_stable es vs s1 s2 :
+Lemma write_lexprs_stack_stable es vs (s1 s2 : estate env) :
   write_lexprs es vs s1 = ok s2 ->
   stack_stable (emem s1) (emem s2).
 Proof.
@@ -140,7 +141,7 @@ Proof.
   by t_xrbindP=> s1' /write_lexpr_stack_stable -> /ih.
 Qed.
 
-Lemma write_lexpr_validw e v s1 s2 :
+Lemma write_lexpr_validw e v (s1 s2 : estate env) :
   write_lexpr e v s1 = ok s2 ->
   validw (emem s1) =3 validw (emem s2).
 Proof.
@@ -151,7 +152,7 @@ Proof.
   by move=> ??; reflexivity.
 Qed.
 
-Lemma write_lexprs_validw es vs s1 s2 :
+Lemma write_lexprs_validw es vs (s1 s2 : estate env) :
   write_lexprs es vs s1 = ok s2 ->
   validw (emem s1) =3 validw (emem s2).
 Proof.

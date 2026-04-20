@@ -88,8 +88,10 @@ Lemma exec_getrandom_s_core_validw scs m p len rscs rm rp :
   validw m =3 validw rm.
 Proof. by rewrite /exec_getrandom_s_core; t_xrbindP => rm' /fill_mem_validw_eq hf ? <- ?. Qed.
 
+Definition empty_env : Uint63.int -> Z := fun _ => 0.
+
 Definition sem_syscall (o:syscall_t) :
-     syscall_state_t -> mem -> sem_prod (map eval_atype (syscall_sig_s o).(scs_tin)) (exec (syscall_state_t * mem * sem_tuple (map eval_atype (syscall_sig_s o).(scs_tout)))) := 
+     syscall_state_t -> mem -> sem_prod (map (eval_atype empty_env) (syscall_sig_s o).(scs_tin)) (exec (syscall_state_t * mem * sem_tuple (map (eval_atype empty_env) (syscall_sig_s o).(scs_tout)))) := 
   match o with
   | RandomBytes _ _ => exec_getrandom_s_core
   end.
@@ -99,7 +101,7 @@ Definition exec_syscall_s (scs : syscall_state_t) (m : mem) (o:syscall_t) vs : e
   Let: (scs', m', t) := app_sopn _ (semi scs m) vs in
   ok (scs', m', list_ltuple t).
 
-Lemma syscall_sig_s_noarr o : all is_not_carr (map eval_atype (syscall_sig_s o).(scs_tin)).
+Lemma syscall_sig_s_noarr o : all is_not_carr (map (eval_atype empty_env) (syscall_sig_s o).(scs_tin)).
 Proof. by case: o. Qed.
 
 Lemma exec_syscallPs_eq scs m o vargs vargs' rscs rm vres :

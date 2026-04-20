@@ -66,7 +66,7 @@ Proof. by case: o => // -[] // ?? [-> ->]. Qed.
 
 Opaque arr_size.
 
-Lemma get_sourceP ii es src pfx s vm ves :
+Lemma get_sourceP env ii es src pfx s (vm : Vm.t env) ves :
   get_source fresh_var_ident X ii es = ok (src, pfx) →
   sem_pexprs true gd s es = ok ves →
   Sv.Subset (read_es es) X →
@@ -130,8 +130,8 @@ Proof.
   by rewrite /get_gvar /= /get_var /= Vm.setP_eq /= eqxx.
 Qed.
 
-Lemma array_copyP ii (dst: var_i) ws n src s vm1 (t t': WArray.array (arr_size ws n)) :
-  convertible (vtype dst) (aarr ws n) →
+Lemma array_copyP env ii (dst: var_i) ws n src s (vm1 : Vm.t env) (t t': WArray.array (arr_size ws n)) :
+  convertible (vtype dst) (aarr ws (ALConst n)) →
   not_tmp (read_gvar src) →
   evm s <=[X] vm1 →
   get_gvar true gd vm1 src = ok (Varr t) →
@@ -145,7 +145,7 @@ Proof.
   move: t t'.
   set len := arr_size _ _.
 Opaque esem.
-  case: dst => -[] ty dst dsti t t' /convertible_eval_atype /= hty hsub hvm ok_t hcopy.
+  case: dst => -[] ty dst dsti t t' /convertible_eval_atype /(_ env) /= hty hsub hvm ok_t hcopy.
   set x := {| vtype := _ |}.
   rewrite /array_copy.
   set i := {| v_var := {| vtype := aint |} |}.
@@ -223,7 +223,7 @@ Transparent esem.
     { rewrite /= /sem_assgn /=.
       rewrite /= get_gvar_neq // -eq_globs.
       move: hv => /= => -> /=.
-      rewrite (@get_gvar_eq _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget) /=.
+      rewrite (@get_gvar_eq _ _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget) /=.
       rewrite /truncate_val /= truncate_word_u /= write_var_eq_type //.
       rewrite /mk_lvar /= /get_gvar get_var_eq /= cmp_le_refl orbT //.
       rewrite /truncate_val /= truncate_word_u /=.
@@ -257,7 +257,7 @@ Qed.
 
 Opaque array_copy.
 
-Lemma get_targetP ii xs dst sfx s1 len (t' t'': WArray.array len) s2 vm1 :
+Lemma get_targetP env ii xs dst sfx s1 len (t' t'': WArray.array len) s2 (vm1 : Vm.t env) :
   get_target fresh_var_ident X ii xs = ok (dst, sfx) →
   write_lvals true gd s1 xs [:: Varr t'] = ok s2 →
   Sv.Subset (read_rvs xs) X →
@@ -306,14 +306,14 @@ Proof.
   by rewrite -eq_globs ok_ofs' /= WArray.castK /= hset' /= hw'.
 Qed.
 
-Lemma esem_array_copy ii xs es ws n sx sc tx tc s s' vm vs vs' :
+Lemma esem_array_copy env ii xs es ws n sx sc tx tc s s' (vm : Vm.t env) vs vs' :
   Sv.Subset (Sv.union (Sv.union (read_rvs xs) (vrvs xs)) (read_es es)) X ->
   get_source fresh_var_ident X ii es = ok (sx, sc) ->
   get_target fresh_var_ident X ii xs = ok (tx, tc) ->
-  convertible (vtype tx) (aarr ws n) ->
+  convertible (vtype tx) (aarr ws (ALConst n)) ->
   evm s <=[X] vm ->
   sem_pexprs true gd s es = ok vs ->
-  exec_sopn (sopn_copy ws n) vs = ok vs' ->
+  exec_sopn env (sopn_copy ws n) vs = ok vs' ->
   write_lvals true gd s xs vs' = ok s' ->
   exists2 vm2,
     esem p2 ev (sc ++ array_copy fresh_var_ident fi ii tx ws n sx ++ tc) (with_vm s vm) = ok (with_vm s' vm2) &
@@ -337,23 +337,23 @@ End FUNCTION.
 
 Section SEM.
 
-Let Pi s1 (i1:instr) s2 :=
+Let Pi env (s1 : estate env) (i1:instr) s2 :=
   forall fi X, not_tmp fi X -> Sv.Subset (vars_I i1) X ->
   forall i2, array_copy_i fresh_var_ident fi X i1 = ok i2 ->
   forall vm1, evm s1 <=[X] vm1 ->
   exists2 vm2, evm s2 <=[X] vm2 &
       sem p2 ev (with_vm s1 vm1) i2 (with_vm s2 vm2).
 
-Let Pi_r s1 (i:instr_r) s2 := forall ii, Pi s1 (MkI ii i) s2.
+Let Pi_r env (s1 : estate env) (i:instr_r) s2 := forall ii, Pi s1 (MkI ii i) s2.
 
-Let Pc s1 (c1:cmd) s2 :=
+Let Pc env (s1 : estate env) (c1:cmd) s2 :=
   forall fi X, not_tmp fi X -> Sv.Subset (vars_c c1) X ->
   forall c2, array_copy_c X (array_copy_i fresh_var_ident fi) c1 = ok c2 ->
   forall vm1, evm s1 <=[X] vm1 ->
   exists2 vm2, evm s2 <=[X] vm2  &
     sem p2 ev (with_vm s1 vm1) c2 (with_vm s2 vm2).
 
-Let Pfor (i:var_i) vs s1 c1 s2 :=
+Let Pfor env (i:var_i) vs (s1 : estate env) c1 s2 :=
   forall fi X, not_tmp fi X -> Sv.Subset (Sv.add i (vars_c c1)) X ->
   forall c2, array_copy_c X (array_copy_i fresh_var_ident fi) c1 = ok c2 ->
   forall vm1, evm s1 <=[X] vm1  ->
@@ -365,11 +365,11 @@ Let Pfun sc1 m1 fn vargs sc2 m2 vres :=
   exists2 vres', sem_call p2 ev sc1 m1 fn vargs' sc2 m2 vres' & List.Forall2 value_uincl vres vres'.
 
 Local Lemma Hskip : sem_Ind_nil Pc.
-Proof. move=> s fi X _ _ c2 [] <- vm1 hvm1; exists vm1 => //; constructor. Qed.
+Proof. move=> env s fi X _ _ c2 [] <- vm1 hvm1; exists vm1 => //; constructor. Qed.
 
 Local Lemma Hcons : sem_Ind_cons p1 ev Pc Pi.
 Proof.
-  move=> s1 s2 s3 i1 c1 _ Hi _ Hc /= fi X; rewrite vars_c_cons => freshX hsub c.
+  move=> env s1 s2 s3 i1 c1 _ Hi _ Hc /= fi X; rewrite vars_c_cons => freshX hsub c.
   rewrite /array_copy_c /=; t_xrbindP => _ i2 hi1 c2 hc2 <- <- /=.
   move=> vm1 /Hi -/(_ _ freshX _ _ hi1) []; first by clear -hsub; SvD.fsetdec.
   move=> vm2 /Hc -/(_ _ freshX _ (flatten c2)) []; first by clear -hsub; SvD.fsetdec.
@@ -378,11 +378,11 @@ Proof.
 Qed.
 
 Local Lemma HmkI : sem_Ind_mkI p1 ev Pi_r Pi.
-Proof. move=> ii i s1 s2 _; apply. Qed.
+Proof. move=> env ii i s1 s2 _; apply. Qed.
 
 Local Lemma Hassgn : sem_Ind_assgn p1 Pi_r.
 Proof.
-  move=> s1 s2 x tag ty e v v' he htr hw ii fi X; rewrite vars_I_assgn /vars_lval => freshX hsub /= _ [<-] vm1 hvm1.
+  move=> env s1 s2 x tag ty e v v' he htr hw ii fi X; rewrite vars_I_assgn /vars_lval => freshX hsub /= _ [<-] vm1 hvm1.
   have [|v1 hv1 uv1]:= sem_pexpr_uincl_on (vm2:= vm1) _ he; first by apply: uincl_onI hvm1;clear -hsub;SvD.fsetdec.
   have [v1' hv1' uv1']:= value_uincl_truncate uv1 htr.
   have [|vm2 hvm2 hw']:= write_lval_uincl_on _ uv1' hw hvm1; first by clear -hsub; SvD.fsetdec.
@@ -393,7 +393,7 @@ Qed.
 
 Local Lemma Hopn : sem_Ind_opn p1 Pi_r.
 Proof.
-  move => s1 s2 tg o xs es; rewrite /sem_sopn; t_xrbindP => vs ves hves ho hw ii.
+  move => env s1 s2 tg o xs es; rewrite /sem_sopn; t_xrbindP => vs ves hves ho hw ii.
   move=> fi X; rewrite vars_I_opn /vars_lvals => freshX hsub /=.
   case: is_copy (@is_copyP o); last first.
   + move=> _ _ [<-] vm1 hvm1.
@@ -411,7 +411,7 @@ Qed.
 
 Local Lemma Hsyscall : sem_Ind_syscall p1 Pi_r.
 Proof.
-  move=> s1 scs m s2 o xs es ves vs he hsys hw ii fi X; rewrite vars_I_syscall /vars_lvals => freshX hsub /= _ [<-] vm1 hvm1.
+  move=> env s1 scs m s2 o xs es ves vs he hsys hw ii fi X; rewrite vars_I_syscall /vars_lvals => freshX hsub /= _ [<-] vm1 hvm1.
   have [|v1 hv1 uv1]:= sem_pexprs_uincl_on (vm2:= vm1) _ he; first by apply: uincl_onI hvm1;clear -hsub;SvD.fsetdec.
   have [vs' hsys' uv1'] := exec_syscallP hsys uv1.
   have [|vm2 hvm2 hw']:= write_lvals_uincl_on _ uv1' hw hvm1; first by clear -hsub; SvD.fsetdec.
@@ -421,7 +421,7 @@ Qed.
 
 Local Lemma Hif_true : sem_Ind_if_true p1 ev Pc Pi_r.
 Proof.
-  move => s1 s2 e c1 c2 he _ hc ii fi X; rewrite vars_I_if => freshX hsub c /=.
+  move => env s1 s2 e c1 c2 he _ hc ii fi X; rewrite vars_I_if => freshX hsub c /=.
   t_xrbindP => c1' hc1 c2' hc2 <- vm1 hvm1.
   have [|v hv /value_uinclE ?]:= sem_pexpr_uincl_on (uincl_onI _ hvm1) he; first by clear -hsub; SvD.fsetdec.
   subst v; have [| vm2 h1 h2] := hc _ _ freshX _ _ hc1 vm1 hvm1; first by clear -hsub; SvD.fsetdec.
@@ -430,7 +430,7 @@ Qed.
 
 Local Lemma Hif_false : sem_Ind_if_false p1 ev Pc Pi_r.
 Proof.
-  move => s1 s2 e c1 c2 he _ hc ii fi X; rewrite vars_I_if => freshX hsub c /=.
+  move => env s1 s2 e c1 c2 he _ hc ii fi X; rewrite vars_I_if => freshX hsub c /=.
   t_xrbindP => c1' hc1 c2' hc2 <- vm1 hvm1.
   have [|v hv /value_uinclE ?]:= sem_pexpr_uincl_on (uincl_onI _ hvm1) he; first by clear -hsub; SvD.fsetdec.
   subst v; have [| vm2 h1 h2]:= hc _ _ freshX _ _ hc2 vm1 hvm1; first by clear -hsub; SvD.fsetdec.
@@ -439,7 +439,7 @@ Qed.
 
 Local Lemma Hwhile_true : sem_Ind_while_true p1 ev Pc Pi_r.
 Proof.
-  move => s1 s2 s3 s4 a c e ei c' _ hc he _ hc' _ hw ii.
+  move => env s1 s2 s3 s4 a c e ei c' _ hc he _ hc' _ hw ii.
   move=> fi X; rewrite vars_I_while => freshX hsub c2 /=.
   t_xrbindP => c1 hc1 c1' hc1' <- vm1 hvm1.
   have [|vm2 hvm2 hc_] := hc _ _ freshX _ _ hc1 vm1 hvm1; first by clear -hsub; SvD.fsetdec.
@@ -452,7 +452,7 @@ Qed.
 
 Local Lemma Hwhile_false : sem_Ind_while_false p1 ev Pc Pi_r.
 Proof.
-  move => s1 s2 a c e ei c' _ hc he ii.
+  move => env s1 s2 a c e ei c' _ hc he ii.
   move=> fi X; rewrite vars_I_while => freshX hsub c2 /=.
   t_xrbindP => c1 hc1 c1' hc1' <- vm1 hvm1.
   have [|vm2 hvm2 hc_] := hc _ _ freshX _ _ hc1 vm1 hvm1; first by clear -hsub; SvD.fsetdec.
@@ -462,7 +462,7 @@ Qed.
 
 Local Lemma Hfor : sem_Ind_for p1 ev Pi_r Pfor.
 Proof.
-  move => s1 s2 i d lo hi c vlo vhi hlo hhi _ hfor ii.
+  move => env s1 s2 i d lo hi c vlo vhi hlo hhi _ hfor ii.
   move=> fi X; rewrite vars_I_for => freshX hsub c2 /=.
   t_xrbindP => c' hc <- vm1 hvm1 /=.
   have [|vlo' hlo' /value_uinclE ?]:= sem_pexpr_uincl_on (uincl_onI _ hvm1) hlo; first by clear -hsub; SvD.fsetdec.
@@ -472,11 +472,11 @@ Proof.
 Qed.
 
 Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
-Proof. move=> s i c fi X freshX hsub ?? vm1 hvm1; exists vm1 => //; constructor. Qed.
+Proof. move=> env s i c fi X freshX hsub ?? vm1 hvm1; exists vm1 => //; constructor. Qed.
 
 Local Lemma Hfor_cons : sem_Ind_for_cons p1 ev Pc Pfor.
 Proof.
-  move=> s1 s1' s2 s3 i w ws c hi _ hc _ hfor fi X freshX hsub ? heq vm1 hvm1.
+  move=> env s1 s1' s2 s3 i w ws c hi _ hc _ hfor fi X freshX hsub ? heq vm1 hvm1.
   have [vm2 hi' hvm2]:= write_var_uincl_on (value_uincl_refl w) hi hvm1.
   have [||vm3 hvm3 hc']:= hc _ _ freshX _ _ heq vm2 (uincl_onI _ hvm2).
   + by clear -hsub; SvD.fsetdec. + by clear; SvD.fsetdec.
@@ -486,7 +486,7 @@ Qed.
 
 Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
 Proof.
-  move=> s1 scs2 m2 s2 xs fn args vargs vs he _ hfun hw ii.
+  move=> env s1 scs2 m2 s2 xs fn args vargs vs he _ hfun hw ii.
   move=> fi X; rewrite vars_I_call /vars_lvals => _ hsub _ [<-] vm1 hvm1.
   have [|vargs' he' uvars]:= sem_pexprs_uincl_on (uincl_onI _ hvm1) he; first by clear -hsub; SvD.fsetdec.
   have [vs' hfun' uvs']:= hfun _ uvars.
@@ -561,27 +561,28 @@ End SEM.
 Section IT.
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context (env : Uint63.int -> Z).
 
 Let Pi (i1 : instr) :=
   forall fi X, not_tmp fi X -> Sv.Subset (vars_I i1) X ->
   forall i2, array_copy_i fresh_var_ident fi X i1 = ok i2 ->
-  wequiv_rec p1 p2 ev ev uincl_spec (st_uincl_on X) [::i1] i2 (st_uincl_on X).
+  wequiv_rec p1 p2 ev ev uincl_spec (st_uincl_on (env:=env) X) [::i1] i2 (st_uincl_on (env:=env) X).
 
 Let Pi_r (i : instr_r) := forall ii, Pi (MkI ii i).
 
 Let Pc (c1 : cmd) :=
   forall fi X, not_tmp fi X -> Sv.Subset (vars_c c1) X ->
   forall c2, array_copy_c X (array_copy_i fresh_var_ident fi) c1 = ok c2 ->
-  wequiv_rec p1 p2 ev ev uincl_spec (st_uincl_on X) c1 c2 (st_uincl_on X).
+  wequiv_rec p1 p2 ev ev uincl_spec (st_uincl_on (env:=env) X) c1 c2 (st_uincl_on (env:=env) X).
 
-#[local] Lemma checker_st_uincl_onP : Checker_uincl p1 p2 checker_st_uincl_on.
+#[local] Lemma checker_st_uincl_onP : Checker_uincl p1 p2 (checker_st_uincl_on env).
 Proof. apply/checker_st_uincl_onP/eq_globs. Qed.
 #[local] Hint Resolve checker_st_uincl_onP : core.
 
 Lemma eq_extra : p_extra p1 = p_extra p2.
 Proof. by move: Hp;rewrite /array_copy_prog; t_xrbindP => ?? <-. Qed.
 
-Lemma it_array_copy_fdP fn : wiequiv_f p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+Lemma it_array_copy_fdP fn : wiequiv_f env p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd1 hget.
   have [fd2 hcopy ->] := all_checked hget; exists fd2 => //.
@@ -628,13 +629,13 @@ Proof.
     apply (hc _ _ freshX); first by clear -hsub; SvD.fsetdec.
     by rewrite /array_copy_c hc2.
   + move=> ????? fi X; rewrite vars_I_assgn /vars_lval => freshX hsub _ [<-].
-    apply wequiv_assgn_rel_uincl with checker_st_uincl_on X => //.
+    apply wequiv_assgn_rel_uincl with (checker_st_uincl_on env) X => //.
     + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
     by split => //; rewrite /read_rvs /= ?read_rvE; clear -hsub; SvD.fsetdec.
   + move=> xs tg o es ii fi X; rewrite vars_I_opn /vars_lvals /= => freshX hsub i2.
     case heq: is_copy => [ [ws n] | ]; last first.
     + move=> [<-].
-      apply wequiv_opn_rel_uincl with checker_st_uincl_on X => //.
+      apply wequiv_opn_rel_uincl with (checker_st_uincl_on env) X => //.
       + by split => //; clear -hsub; SvD.fsetdec.
       by split => //; clear -hsub; SvD.fsetdec.
     t_xrbindP => -[sx sc] hgets /=.
@@ -645,31 +646,31 @@ Proof.
     have [vm2 ??]:= esem_array_copy freshX hsub hgets hgett htx hu hes hcopy hxs.
     by exists (with_vm s' vm2).
   + move=> ???? fi X; rewrite vars_I_syscall /vars_lvals /= => freshX hsub _ [<-].
-    apply wequiv_syscall_rel_uincl with checker_st_uincl_on X => //.
+    apply wequiv_syscall_rel_uincl with (checker_st_uincl_on env) X => //.
     + by split => //; clear -hsub; SvD.fsetdec.
     by split => //; clear -hsub; SvD.fsetdec.
   + move=> ?? fi X freshX hsub ??.
     by apply wequiv_noassert.
   + move=> e c1 c2 hc1 hc2 ii fi X; rewrite vars_I_if => freshX hsub i2 /=.
     t_xrbindP => c1' hc1' c2' hc2' <-.
-    apply wequiv_if_rel_uincl with checker_st_uincl_on X X X => //.
+    apply wequiv_if_rel_uincl with (checker_st_uincl_on env) X X X => //.
     + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
     + by apply (hc1 _ _ freshX) => //; clear -hsub; SvD.fsetdec.
     by apply (hc2 _ _ freshX) => //; clear -hsub; SvD.fsetdec.
   + move=> > hc ii fi X; rewrite vars_I_for => freshX hsub i2 /=.
     t_xrbindP => c' hc' <-.
-    apply wequiv_for_rel_uincl with checker_st_uincl_on X X => //.
+    apply wequiv_for_rel_uincl with (checker_st_uincl_on env) X X => //.
     + by split => //; rewrite /read_es /= !read_eE; clear -hsub; SvD.fsetdec.
     + by split => //; rewrite /read_rvs /=; clear; SvD.fsetdec.
     by apply (hc _ _ freshX) => //; clear -hsub; SvD.fsetdec.
   + move=> > hc hc' ii fi X; rewrite vars_I_while => freshX hsub i2 /=.
     t_xrbindP => c2 hc2 c2' hc2' <-.
-    apply wequiv_while_rel_uincl with checker_st_uincl_on X => //.
+    apply wequiv_while_rel_uincl with (checker_st_uincl_on env) X => //.
     + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
     + by apply (hc _ _ freshX) => //; clear -hsub; SvD.fsetdec.
     by apply (hc' _ _ freshX) => //; clear -hsub; SvD.fsetdec.
   move=> ???? fi X; rewrite vars_I_call /vars_lvals => freshX hsub _ /= [<-].
-  apply wequiv_call_rel_uincl with checker_st_uincl_on X => //.
+  apply wequiv_call_rel_uincl with (checker_st_uincl_on env) X => //.
   + by split => //; clear -hsub; SvD.fsetdec.
   + by split => //; clear -hsub; SvD.fsetdec.
   by move=> ???; apply: wequiv_fun_rec.

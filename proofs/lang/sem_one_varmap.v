@@ -29,23 +29,23 @@ The semantic predicates are indexed by a set of variables which is *precisely* t
 
 #[local] Existing Instance withsubword.
 
-Definition kill_var (x: var) (vm: Vm.t) : Vm.t :=
-  vm.[x <- undef_addr (eval_atype (vtype x))].
+Definition kill_var env (x: var) (vm: Vm.t env) : Vm.t env :=
+  vm.[x <- undef_addr (eval_atype env (vtype x))].
 
-Notation kill_vars := (Sv.fold kill_var).
+Notation kill_vars := (Sv.fold (kill_var (env:=_))).
 
-Definition vm_after_syscall {ovm_i : one_varmap_info} (vm:Vm.t) :=
+Definition vm_after_syscall {ovm_i : one_varmap_info} env (vm:Vm.t env) :=
   kill_vars syscall_kill vm.
 
-Lemma kill_varE vm y x :
-  (kill_var x vm).[y] = if x == y then undef_addr (eval_atype (vtype y)) else vm.[y].
+Lemma kill_varE env (vm : Vm.t env) y x :
+  (kill_var x vm).[y] = if x == y then undef_addr (eval_atype env (vtype y)) else vm.[y].
 Proof.
   rewrite /kill_var Vm.setP; case: eqP => // ?; subst y.
   by rewrite vm_truncate_val_undef.
 Qed.
 
-Lemma kill_varsE vm xs x :
-  (kill_vars xs vm).[x] = if Sv.mem x xs then undef_addr (eval_atype (vtype x)) else vm.[x].
+Lemma kill_varsE env (vm : Vm.t env) xs x :
+  (kill_vars xs vm).[x] = if Sv.mem x xs then undef_addr (eval_atype env (vtype x)) else vm.[x].
 Proof.
   rewrite Sv_elems_eq Sv.fold_spec.
   elim: (Sv.elements xs) vm => // {xs} f xs ih vm /=.
@@ -61,6 +61,7 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
   {ovm_i : one_varmap_info}
+  (env : Uint63.int -> Z)
   (p : sprog)
   (var_tmp : Sv.t).
 
@@ -87,10 +88,10 @@ Definition ra_valid fd (k: Sv.t) : bool :=
 Definition ra_undef_none (ss: saved_stack) (tmp: Sv.t) :=
   Sv.union (Sv.union tmp vflags) (savedstackreg ss).
 
-Definition ra_undef_vm_none (ss: saved_stack) (tmp: Sv.t) vm : Vm.t :=
+Definition ra_undef_vm_none (ss: saved_stack) (tmp: Sv.t) vm : Vm.t env :=
   kill_vars (ra_undef_none ss tmp) vm.
 
-Definition ra_undef_vm fd vm (tmp: Sv.t) : Vm.t :=
+Definition ra_undef_vm fd vm (tmp: Sv.t) : Vm.t env :=
   kill_vars (ra_undef fd tmp) vm.
 
 Definition saved_stack_valid fd (k: Sv.t) : bool :=
@@ -102,21 +103,21 @@ Definition top_stack_aligned fd m : bool :=
   is_RAnone (fd.(f_extra).(sf_return_address))
   || is_align (top_stack m) fd.(f_extra).(sf_align).
 
-Definition set_RSP m vm : Vm.t :=
+Definition set_RSP m vm : Vm.t env :=
   vm.[vrsp <- Vword (top_stack m)].
 #[global] Arguments set_RSP _ _%_vm_scope.
 
-Definition valid_RSP m (vm: Vm.t) : Prop :=
+Definition valid_RSP m (vm: Vm.t env) : Prop :=
   vm.[vrsp] = Vword (top_stack m).
 
 Remark valid_set_RSP m vm :
   valid_RSP m (set_RSP m vm).
 Proof. by rewrite /valid_RSP Vm.setP_eq vm_truncate_val_eq. Qed.
 
-Definition kill_tmp_call f s :=
+Definition kill_tmp_call f (s : estate env) :=
   with_vm s (kill_vars (fd_tmp_call p f) (evm s)).
 
-Inductive sem : Sv.t → estate → cmd → estate → Prop :=
+Inductive sem : Sv.t → estate env → cmd → estate env → Prop :=
 | Eskip s :
     sem Sv.empty s [::] s
 

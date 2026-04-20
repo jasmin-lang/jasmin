@@ -6,14 +6,14 @@ Section SEM_EXPR.
 (* Semantic of expressions *)
 
   Context {wsw : WithSubWord} {pd: PointerData}.
-  Context (m: mem) (vm: Vm.t).
+  Context (env : Uint63.int -> Z) (m: mem) (vm: Vm.t env).
 
   Fixpoint sem_fexpr (e: fexpr) : exec value :=
     match e with
     | Fconst z => ok (Vint z)
     | Fvar x => get_var true vm x
-    | Fapp1 op a => Let v := sem_fexpr a in sem_sop1 op v
-    | Fapp2 op a b=> Let v := sem_fexpr a in Let w := sem_fexpr b in sem_sop2 op v w
+    | Fapp1 op a => Let v := sem_fexpr a in sem_sop1 env op v
+    | Fapp2 op a b=> Let v := sem_fexpr a in Let w := sem_fexpr b in sem_sop2 env op v w
     | Fif a b c => Let u := sem_fexpr a >>= to_bool in Let v := sem_fexpr b >>= to_bool in Let w := sem_fexpr c >>= to_bool in ok (Vbool (if u then v else w))
     end.
 
@@ -29,9 +29,10 @@ Section SEM.
 
 Context
   {wsw : WithSubWord} {syscall_state : Type}
-  {ep : EstateParams syscall_state}.
+  {ep : EstateParams syscall_state}
+  (env : Uint63.int -> Z).
 
-Definition write_lexpr e v (s: estate) : exec estate :=
+Definition write_lexpr e v (s: estate env) : exec (estate env) :=
   match e with
   | Store al ws a =>
       Let p := sem_fexpr (evm s) a >>= to_pointer in
@@ -43,7 +44,7 @@ Definition write_lexpr e v (s: estate) : exec estate :=
       ok (with_vm s vm)
   end.
 
-Definition sem_rexprs (s: estate) := mapM (sem_rexpr s.(emem) s.(evm)).
+Definition sem_rexprs (s: estate env) := mapM (sem_rexpr s.(emem) s.(evm)).
 Definition write_lexprs := fold2 ErrType write_lexpr.
 
 End SEM.
