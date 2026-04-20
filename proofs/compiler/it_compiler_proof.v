@@ -37,6 +37,7 @@ Require Import
   remove_globals_proof
   stack_alloc_proof_2
   tunneling_proof
+  tunneling_proof_2
   linearization_proof
   merge_varmaps_proof
   psem_of_sem_proof
@@ -679,6 +680,131 @@ move=> /InP ok_fn.
 set vtmp := var_tmps aparams.
 have vtmp_not_magic : disjoint vtmp (magic_variables sp).
 - exact: (var_tmp_not_magic (sip := sip_of_asm_e)) checked_p.
+
+(* Linearization provides fd (sprog) and lfd_lp (lp-level). *)
+have [fd [lfd_lp [get_sfd get_lfd_lp lp_export w_lin]]] :=
+  it_linear_exportcallP (hap_hlip haparams) vtmp_not_magic ok_lp rip (fn := fn).
+
+(* Stack zeroization: zfd has same structural fields as lfd_lp. *)
+have [zfd ok_zfd get_zfd] :=
+  [elaborate stack_zeroization_lprog_get_fundef ok_zp get_lfd_lp ].
+have [inv_info inv_align inv_tyin inv_arg inv_tyout inv_res inv_export
+     inv_cs inv_stkmax [inv_framesize inv_align_args]] :=
+  [elaborate stack_zeroization_lfd_invariants ok_zfd ].
+
+(* Tunneling: tunnel_lfundef fn zfd is the final lfd. *)
+have! get_tfd := (get_fundef_tunnel_program ok_tp get_zfd).
+have! [rip_eq [rsp_eq [globs_eq _]]] := (tunnel_program_invariants ok_tp).
+have! [rip_eq' rsp_eq' _] := (stack_zeroization_lprog_invariants ok_zp).
+
+(* Conclude the existential. *)
+exists (tunneling.tunnel_lfundef fn zfd).
+split.
+- exact: get_tfd.
+- by rewrite /= -inv_export.
+
+(* Reduce via tunneling: replace [ilsem_exportcall tp fn] by its
+   eutt-equivalent [ilsem_exportcall zp fn]. *)
+apply: wkequiv_io_eutt_r (tunnel_funcs ok_tp fn) _.
+
+apply: (wkequiv_io_trans _ _ w_lin); cycle 2.
+- apply: (istack_zeroization_lprogP_new (hap_hszp haparams) _ ok_zp get_lfd_lp).
+  + (* Sv.In (vid (lp_rsp lp)) callee_saved: architecture-level fact
+       that RSP is a callee-saved register.  Needs extending
+       h_architecture_params or h_asm_gen_params with a dedicated
+       hypothesis. *)
+    admit.
+- (* pre decomposition *)
+  move=> fs s [] hrsp hrip hargs hm hscs hinit halloc.
+  exists s.
+  + split=> //.
+    - by rewrite rsp_eq' rsp_eq hrsp.
+    - by rewrite /linearization_proof.lget_args inv_arg.
+    - by rewrite rip_eq' rip_eq hrip.
+    - by rewrite inv_cs.
+    (* sf_stk_max bound from allocatable_stack *)
+    move: halloc.
+    rewrite /allocatable_stack /lfd_total_stack /tunneling.tunnel_lfundef /=.
+    rewrite -inv_export -inv_stkmax -inv_align lp_export /=.
+    have! hlfd_stk := (get_fundef_p' ok_lp get_sfd).
+    rewrite get_lfd_lp in hlfd_stk.
+    injection hlfd_stk => {}hlfd_stk.
+    rewrite hlfd_stk /=.
+    have /= := [elaborate (wunsigned_range (stack_limit (fmem fs)))].
+    by Lia.lia.
+  exists (top_stack (fmem fs)); split=> //.
+  + by rewrite rsp_eq' rsp_eq hrsp.
+  + (* lfd_stk_max + wsize_size - 1 <= wunsigned top_stack *)
+    move: halloc.
+    rewrite /allocatable_stack /lfd_total_stack /tunneling.tunnel_lfundef /=.
+    rewrite -inv_export -inv_stkmax -inv_align lp_export /=.
+    have /= := [elaborate (wunsigned_range (stack_limit (fmem fs)))].
+    by Lia.lia.
+  (* valid_between: derived from match_mem + allocatable_stack *)
+  rewrite /valid_between.
+  have align_range : (wunsigned (top_stack (fmem fs)) - wsize_size (lfd_align lfd_lp) <
+   wunsigned (align_word (lfd_align lfd_lp) (top_stack (fmem fs))) <=
+   wunsigned (top_stack (fmem fs)))%Z.
+  - have /= := [elaborate (align_word_range (lfd_align lfd_lp) (top_stack (fmem fs)))]. by [].
+  have top_range : (0 <= wunsigned (top_stack (fmem fs)) < wbase Uptr)%Z.
+  - have /= := [elaborate (wunsigned_range (top_stack (fmem fs)))]. by [].
+  have stk_range : (0 <= wunsigned (stack_limit (fmem fs)) < wbase Uptr)%Z.
+  - have /= := [elaborate (wunsigned_range (stack_limit (fmem fs)))]. by [].
+  have halloc' :
+    (0 <= lfd_stk_max lfd_lp + wsize_size (lfd_align lfd_lp) - 1 <=
+     wunsigned (top_stack (fmem fs)) - wunsigned (stack_limit (fmem fs)))%Z.
+  - move: halloc; rewrite /allocatable_stack /lfd_total_stack /tunneling.tunnel_lfundef /=.
+    by rewrite -inv_export -inv_stkmax -inv_align lp_export /=.
+  have! hlfd_stk := (get_fundef_p' ok_lp get_sfd).
+  rewrite get_lfd_lp in hlfd_stk.
+  injection hlfd_stk => {}hlfd_stk.
+  have stk_max_eq : lfd_stk_max lfd_lp = sf_stk_max (f_extra fd).
+  - by rewrite hlfd_stk.
+  have! := (linearization_proof.checked_prog ok_lp get_sfd).
+  rewrite /check_fd /=; t_xrbindP=> _ _ _ _ ok_stk_sz _ _ _.
+  case/and4P: ok_stk_sz => /ZleP stk_sz_pos /ZleP stk_extra_sz_pos _ /ZleP stk_frame_le_max.
+  have hfb := frame_size_bound stk_sz_pos stk_extra_sz_pos.
+  have lfd_stk_pos : (0 <= lfd_stk_max lfd_lp)%Z.
+  - rewrite stk_max_eq.
+    eapply Z.le_trans; last exact stk_frame_le_max.
+    eapply Z.le_trans; last exact hfb. Lia.lia.
+  have H6''' :
+    (0 <= wunsigned (align_word (lfd_align lfd_lp) (top_stack (fmem fs))) - lfd_stk_max lfd_lp < wbase Uptr)%Z.
+  - split.
+    + Lia.lia.
+    + have upper : (wunsigned (align_word (lfd_align lfd_lp) (top_stack (fmem fs))) < wbase Uptr)%Z.
+      * eapply Z.le_lt_trans; last exact (proj2 top_range).
+        apply align_range.
+      Lia.lia.
+  have bottom_instack:
+    zbetween
+      (stack_limit (fmem fs))
+      (wunsigned (top_stack (fmem fs)) - wunsigned (stack_limit (fmem fs)))
+      (align_word (lfd_align lfd_lp) (top_stack (fmem fs))
+       - wrepr Uptr (lfd_stk_max lfd_lp))%R
+      (lfd_stk_max lfd_lp).
+  - rewrite /zbetween !zify.
+    rewrite wunsigned_sub //. by Lia.lia.
+  move=> pr /(zbetween_trans bottom_instack).
+  rewrite -/(between _ _ _ _) -pointer_range_between => hpr.
+  apply hm.(valid_stk).
+  apply /pointer_rangeP.
+  apply: pointer_range_incl_r hpr.
+  exact: top_stack_below_root.
+
+(* post composition: combine linearization post with stack-zero post *)
+(* Target post: values_uincl, match_mem, fscs_eq, zeroized_s *)
+move=> i1 i2 i3 o1 o3 [hrsp hmem hargs hrip hinit hscs hbound]
+                      [ptr [hrsp_eq heq hle hvalid_btw]]
+                      [o2 [hrsp_o2 hmem_o2 tmu hvals_o2 hscs_o2]
+                         [ptr' [hrsp_eq' hscs_eq hvm_eq hmmz]]].
+subst i3.
+(* TODO: combine to derive (1) values_uincl on (lget_res tunnel_lfd o3.evm)
+   using inv_res and hvm_eq; (2) match_mem o1.fmem o3.emem combining hmem_o2
+   and match_mem_zero_export; (3) fscs_eq chain; (4) zeroized_s from
+   match_mem_zero_export via case analysis on stack_zero_info fn. *)
+admit.
+
 Admitted.
 
 End BACK_END.

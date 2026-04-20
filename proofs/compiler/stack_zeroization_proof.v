@@ -667,6 +667,41 @@ Proof.
   by have [_ /disjoint_sym ?] := disjoint_union (disjoint_sym hdisj).
 Qed.
 
+#[local] Existing Instance withsubword.
+
+Let pre lp lfd (s1 s2 : estate) :=
+  exists ptr,
+    let: bottom := (align_word lfd.(lfd_align) ptr - wrepr _ lfd.(lfd_stk_max))%R in
+    [/\ (evm s1).[vid (lp_rsp lp)] = @Vword Uptr ptr
+      , s1 = s2
+      , (lfd.(lfd_stk_max) + wsize_size lfd.(lfd_align) - 1 <= wunsigned ptr)%Z
+      & valid_between (emem s1) bottom (lfd_stk_max lfd)
+    ].
+
+Let pos lp fn lfd (s1 s2 s1' s2' : estate) :=
+  exists ptr,
+    let: bottom := (align_word lfd.(lfd_align) ptr - wrepr _ lfd.(lfd_stk_max))%R in
+    [/\ (evm s1).[vid (lp_rsp lp)] = @Vword Uptr ptr
+      , escs s1' = escs s2'
+      , (evm s1') =[sv_of_list v_var lfd.(lfd_res)] (evm s2')
+      & match_mem_zero_export (emem s1') (emem s2') bottom lfd.(lfd_stk_max) (szs_of_fn fn)
+    ].
+
+Lemma istack_zeroization_lprogP_new lp lp' fn lfd :
+  Sv.In (vid (lp_rsp lp)) callee_saved ->
+  stack_zeroization_lprog lp = ok lp' ->
+  get_fundef lp.(lp_funcs) fn = Some lfd ->
+  wkequiv_io
+    (pre lp lfd)
+    (ilsem_exportcall lp fn)
+    (ilsem_exportcall lp' fn)
+    (pos lp fn lfd).
+Proof.
+  move=> hin hzerolp hlfd s1 _ [ptr [hrsp <- enough_stk hvalid]].
+  have := istack_zeroization_lprogP hin hzerolp hlfd enough_stk (And3 erefl hvalid hrsp).
+  apply: xrutt_weaken => // o1 o2 [hscs hvm hmatch]; exists ptr; split => //.
+Qed.
+
 End ITREE.
 
 End STACK_ZEROIZATION.
