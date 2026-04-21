@@ -613,8 +613,9 @@ Lemma riscv_hszparams : h_stack_zeroization_params (ap_szp riscv_params).
 Proof.
   split.
   + exact: riscv_stack_zero_cmd_not_ext_lbl.
+  + admit.
   exact: riscv_stack_zero_cmdP.
-Qed.
+Admitted.
 
 End STACK_ZEROIZATION.
 

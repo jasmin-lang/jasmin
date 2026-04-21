@@ -514,3 +514,9 @@ Qed.
 End REDUCTION.
 
 End REAL.
+
+Arguments Exchange {I}.
+Arguments interact {_ I}.
+Arguments dinteract {_ I}.
+Arguments pwin {_ I}.
+Arguments OracleSystem {_} _.

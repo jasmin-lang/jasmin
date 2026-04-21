@@ -138,7 +138,7 @@ rewrite /wf_arg; case: nth => // b [p' [-> h]]; exists p'; split=> //.
 exact: write_wseq_wf_ptr_arg.
 Qed.
 
-Lemma write_wseq_it_wf_args {gsz rip ms mt p bytes wptrs vs vt ws} :
+Lemma write_wseq_wf_args_s {gsz rip ms mt p bytes wptrs vs vt ws} :
   wf_args gsz rip ms mt wptrs ws vs vt ->
   wf_args gsz rip ms (write_wseq mt p bytes) wptrs ws vs vt.
 Proof. move=> h i; exact: write_wseq_wf_arg (h i). Qed.
@@ -172,8 +172,8 @@ Instance sc_sem : syscall.syscall_sem unit :=
   {| syscall.get_random := fun _ _ => (tt, [::]); |}.
 
 Definition E := ErrEvent +' RndEvent unit.
-Existing Instance with_Error0.
-Existing Instance RndE00.
+#[local] Existing Instance wE.
+#[local] Existing Instance RndE00.
 
 Definition handleE : RndEvent unit ~> itree (dinterp.Rnd (R := R)) :=
   fun _ '(Rnd _ len) =>
@@ -400,7 +400,7 @@ End SEM.
     usage, typically shouldn't be called "safety" but a different requirement
     on the compiler theorem to apply). *)
 
-Definition safe_uprog fn fs := safe (is_error (with_Error0)) (isemS p fn fs).
+Definition safe_uprog fn fs := safe (is_error wE) (isemS p fn fs).
 
 Definition val_is_def (v : value) : bool :=
   if v is Varr _ a then arr_is_def a else is_defined v.
@@ -431,7 +431,7 @@ Record ok_fun fn ufd sfd ms mt args argt :=
       (0 <= total_stack sfd <= stk_sz)%Z;
 
     (* The arguments are well formed. *)
-    ok_fun_args : it_wf_args p q rip fn ms mt args argt;
+    ok_fun_args : wf_args_s p q rip fn ms mt args argt;
 
     (* The return address is not on the stack or in a register. *)
     ok_fun_ra : is_RAnone (sf_return_address (f_extra sfd));
@@ -586,7 +586,7 @@ Proof.
 move=> hfn hfd hsafe hdef hpre.
 apply/simple_rutt_eutt/(EPreRel_safe_xrutt_rutt hsafe).
 apply: (lutt_xrutt_trans_l'
-  (REv := EPreRel_safe (is_error with_Error0) REeq)
+  (REv := EPreRel_safe (is_error wE) REeq)
   (RAns := RAeq)
   (RR := fun s' t' => all val_is_def (fvals s') /\ rpostF fn fn s t s' t'));
   cycle -2.
@@ -665,7 +665,7 @@ split=> //.
   rewrite /allocatable_stack -(ss_top_stack (a := mt));
     last exact: write_wseq_stack_stable.
   rewrite -(ss_limit (m := mt)) //; exact: write_wseq_stack_stable.
-- exact: write_wseq_it_wf_args wf_args.
+- exact: write_wseq_wf_args_s wf_args.
 - constructor; last constructor; last constructor; last by constructor.
   + exists pct; split=> //= i w; by rewrite WArray.get_empty -fun_if.
   + exists pmsg; split=> //= i w; by rewrite WArray.get_empty -fun_if.
@@ -727,7 +727,7 @@ split=> //.
   - transitivity (write_wseq mt psk sk); exact: write_wseq_stack_stable.
   rewrite -(ss_limit (m := mt)) //.
   transitivity (write_wseq mt psk sk); exact: write_wseq_stack_stable.
-- exact/write_wseq_it_wf_args/(write_wseq_it_wf_args wf_args).
+- exact/write_wseq_wf_args_s/(write_wseq_wf_args_s wf_args).
 - constructor; last constructor; last constructor; last by constructor.
   + exists pmsg; split=> //= i w; by rewrite WArray.get_empty -fun_if.
   + exists pct; split=> //= i w hw.

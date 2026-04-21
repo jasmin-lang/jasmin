@@ -102,8 +102,10 @@ Section CHOICEOF.
 
   #[export] HB.instance Definition choiceof_eqType :=
     hasDecEq.Build choiceof (compareP choiceof_comparable).
+
   #[export] HB.instance Definition choiceof_choiceType :=
     boolp.gen_choiceMixin choiceof.
+
 End CHOICEOF.
 
 Notation "{ 'choice' T }" := (choiceof T)
@@ -181,10 +183,7 @@ End WSEQ_EP.
 
 Section MAIN.
 
-Context
-  {R : realType}
-  (advmem : Type) (* Adversary's memory. *)
-.
+Context {R : realType}.
 
 Notation distr := (distr R).
 Notation Rnd := (Rnd (R := R)).
@@ -193,8 +192,9 @@ Instance sc_sem : syscall.syscall_sem unit :=
   {| syscall.get_random := fun _ _ => (tt, [::]); |}.
 
 Definition E := ErrEvent +' RndEvent unit.
-Existing Instance with_Error0.
-Existing Instance RndE00.
+
+#[local] Existing Instance wE.
+#[local] Existing Instance RndE00.
 
 Definition handleE : Handler (RndEvent unit) Rnd :=
   fun _ '(it_sems_core.Rnd _ len) =>
@@ -217,38 +217,42 @@ Context
   (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
 .
 
-(* Not all of the implicits are always needed. *)
-Let isemS (p : uprog) :=
-  isem_fun
-    (asm_op := extended_op)
-    (ep := ep_of_asm_e)
-    (spp := spp_of_asm_e)
-    (wa := withassert)
-    (sip := sip_of_asm_e)
-    (scP := sCP_unit)
-    (E := E)
-    (wsw := nosubword)
-    (dc := indirect_c)
-    (pT := progUnit)
-    p tt.
-
-Let isemT (q : asm_prog) :=
+Definition isem_asm (q : asm_prog) :=
   iasmsem_exportcall
-    (asm_d := _asm asm_e)
+    (asm_d := _asm)
     (call_conv := call_conv)
-    (sc_sem :=
+    (asm_scsem := asm_scsem)
     (E := E)
+    (wE := wE)
     q.
 
 Section DEFS.
 
 Context
   (p : uprog)
+  (q : asm_prog)
   (entries : seq funname)
   (mI : mem)
+  (ripI : pointer)
+  (rmI : regmap)
+  (rxmI : regxmap)
+  (xrmI : xregmap)
+  (rfmI : rflagmap)
 .
 
-Definition _Mo : choiceType := {choice mem}.
+(* Source needs a memory, target needs all the rest except syscall_state. *)
+Definition _Mo : choiceType := {choice asmmem}.
+
+Definition _mi : _Mo :=
+  {|
+    asm_rip := ripI;
+    asm_scs := tt;
+    asm_mem := mI;
+    asm_reg := rmI;
+    asm_regx := rxmI;
+    asm_xreg := xrmI;
+    asm_flag := rfmI;
+  |}.
 
 Record export_funname :=
   {
@@ -274,7 +278,7 @@ Admitted.
 Definition wseq_of_val (v : value) : wseq.
 Admitted.
 
-Definition mkfsS (fn : funname) (m : mem) (args : seq wseq) : fstate :=
+Definition mkfs (fn : funname) (m : mem) (args : seq wseq) : fstate :=
   let vs :=
     if get_fundef (p_funcs p) fn is Some fd then
       [seq val_of_wseq p.1 p.2 | p <- zip (f_tyin fd) args ]
@@ -285,26 +289,50 @@ Definition mkfsS (fn : funname) (m : mem) (args : seq wseq) : fstate :=
 Definition unmkfsS (fs : fstate) : seq wseq * mem :=
   ([seq wseq_of_val v | v <- fs.(fvals) ], fs.(fmem)).
 
+Definition xm_with_mem (mem : mem) (m : asmmem) : asmmem :=
+  {|
+    asm_rip := m.(asm_rip);
+    asm_scs := m.(asm_scs);
+    asm_mem := mem;
+    asm_reg := m.(asm_reg);
+    asm_regx := m.(asm_regx);
+    asm_xreg := m.(asm_xreg);
+    asm_flag := m.(asm_flag);
+  |}.
+
+Definition xm_write
+  (m : asmmem) (xs : seq asm_typed_reg) (args : seq wseq) : exec asmmem.
+Admitted.
+
+Definition mkxm (fn : funname) (m : asmmem) (args : seq wseq) : asmmem :=
+  if get_fundef (asm_funcs q) fn is Some xfd then
+    if xm_write m xfd.(asm_fd_arg) args is Ok m' then m'
+    else _mi (* absurd *)
+  else _mi. (* absurd *)
+
 (* TODO Why doesn't [|>] work for [translateE]? *)
 Definition _OoS (o : _No) (i : _In o) (m : _Mo) : itree Rnd (_Out o * _Mo) :=
-  let fs := mkfsS o m i in
-  let* ofs' := translateE (isemS p o fs |> interp_Err) in
-  if ofs' is ESok fs' then Ret (unmkfsS fs')
-  else Ret ([::], mI) (* absurd *).
+  let fs := mkfs o m.(asm_mem) i in
+  let* ofs' := translateE (isem_unit p o fs |> interp_Err) in
+  if ofs' is ESok fs' then
+    let (r, m') := unmkfsS fs' in
+    Ret (r, xm_with_mem m' m)
+  else Ret ([::], _mi) (* absurd *).
 
 Definition _OoT (o : _No) (i : _In o) (m : _Mo) : itree Rnd (_Out o * _Mo) :=
-  let fs := mkfsT o m i in
-  let* ofs' := translateE (isemT q o fs |> interp_Err) in
-  if ofs' is ESok fs' then Ret (unmkfsS fs')
-  else Ret ([::], mI) (* absurd *).
+  let xm := mkxm o m i in
+  let* ofs' := translateE (isem_asm q o xm |> interp_Err) in
+  if ofs' is ESok fs' then Ret ([::], _mi) (* absurd *)
+  else Ret ([::], _mi) (* absurd *).
 
+(* TODO one interface for this program, move up *)
 Instance SourceI : OracleSystemInterface :=
   {|
     Mo := _Mo;
     No := _No;
     In := _In;
     Out := _Out;
-    mi := mS;
+    mi := _mi;
   |}.
 
 Instance Source : OracleSystem SourceI :=
@@ -316,7 +344,7 @@ Instance TargetI : OracleSystemInterface :=
     No := _No;
     In := _In;
     Out := _Out;
-    mi := mT;
+    mi := _mi;
   |}.
 
 Instance Target : OracleSystem TargetI :=
