@@ -433,6 +433,67 @@ Qed.
 
 End BACK_END.
 
+Lemma lget_vars_vmap_of_asm_mem
+  (xs : seq var_i) (ys : seq asm_typed_reg) sp_ptr rip_id rsp_id xm :
+  mapM typed_reg_of_vari xs = ok ys ->
+  lget_vars xs (vmap_of_asm_mem sp_ptr rip_id rsp_id xm)
+  = get_typed_reg_values xm ys.
+Proof.
+elim: xs ys => [|x xs ih] ys /=.
++ by move=> [<-].
+t_xrbindP=> r ok_r ys' /ih {}ih ?; subst ys.
+rewrite /= -ih; congr cons.
+rewrite /typed_reg_of_vari in ok_r.
+case: x ok_r => x xi /= ok_r.
+by rewrite (asm_typed_reg_of_varI ok_r) get_var_vmap_of_asm_mem.
+Qed.
+
+Lemma lget_vars_uincl_asm ripv ls xm xs ys :
+  lom_eqv ripv ls xm ->
+  mapM typed_reg_of_vari xs = ok ys ->
+  values_uincl (lget_vars xs (evm ls)) (get_typed_reg_values xm ys).
+Proof.
+move=> LM; elim: xs ys => [|x xs ih] ys /=.
++ by move=> [<-]; constructor.
+t_xrbindP=> r ok_r ys' /ih {}ih ?; subst ys => /=.
+apply: List.Forall2_cons; last exact: ih.
+rewrite /typed_reg_of_vari in ok_r.
+case: x ok_r => x xi /= ok_r.
+rewrite (asm_typed_reg_of_varI ok_r).
+case: LM => /= _ _ _ _ R RX X F.
+case: r ok_r => r _ /=.
++ exact: R r.
++ exact: RX r.
++ exact: X r.
+have Fr := F r.
+rewrite /of_rbool; case: (asm_flag xm r) Fr => // b /=;
+  by case: ((evm ls).[to_var r]).
+Qed.
+
+Lemma vm_init_vmap_of_asm_mem_is_typed_reg sp_ptr rip_id rsp_id xm xs :
+  all is_typed_reg xs ->
+  vm_initialized_on (vmap_of_asm_mem sp_ptr rip_id rsp_id xm) xs.
+Proof.
+elim: xs => [|x xs ih] //= /andP [hx /ih{}ih].
+apply/andP; split => //.
+move: hx; rewrite /is_typed_reg; move=> /andP [hnb /is_okP [r ok_r]].
+rewrite /get_var (asm_typed_reg_of_varI ok_r) get_var_vmap_of_asm_mem.
+case: r ok_r hnb => /= r ok_r hnb; try by rewrite truncate_word_u.
+by move: hnb; rewrite (asm_typed_reg_of_varI ok_r) /=.
+Qed.
+
+Lemma vm_init_vmap_of_asm_mem_callee_saved sp_ptr rip_id rsp_id xm rs :
+  all (fun r => ~~ is_ABReg r) rs ->
+  vm_initialized_on
+    (vmap_of_asm_mem sp_ptr rip_id rsp_id xm)
+    [seq var_of_asm_typed_reg r | r <- rs].
+Proof.
+elim: rs => [|r rs ih] //= /andP [hnb /ih{}ih].
+apply/andP; split => //.
+rewrite /get_var get_var_vmap_of_asm_mem.
+move: hnb; case: r => //= ?; by rewrite truncate_word_u.
+Qed.
+
 Section BACK_END_TO_ASM.
 
 Context
@@ -440,6 +501,10 @@ Context
   (sp : sprog (pd := _pd) (asmop := _asmop))
   (xp : asm_prog)
   (rip : pointer)
+  (* TODO: discharge this obligation in the enclosing section/theorem once
+     [it_compiler_back_endP] is proved and the compiler guarantees it. *)
+  (rsp_in_callee_saved :
+     Sv.In (vid sp.(p_extra).(sp_rsp)) one_varmap.callee_saved)
 .
 
 Let pre xfd s t :=
@@ -483,7 +548,71 @@ Lemma it_compiler_back_end_to_asmP {fn} :
    ].
 Proof.
 rewrite /compiler_back_end_to_asm; t_xrbindP=> lp ok_lp ok_xp ok_fn.
-Admitted.
+have [lfd [get_lfd lfd_export w_be]] :=
+  it_compiler_back_endP (tp := lp) rip rsp_in_callee_saved ok_lp ok_fn.
+have [disj_rip ok_lp_rsp ok_globs ok_funcs] := assemble_progP ok_xp.
+have [xfd ok_get_xfd ok_xfd] := ok_get_fundef ok_xp get_lfd.
+case/assemble_fdI: (ok_xfd) =>
+  rsp_not_arg ok_callee_saved_lfd
+  [] xbody [] xargs [] xres
+  [] ok_xbody ok_xargs ok_xres hxfd ok_call_conv.
+exists xfd; split => //.
++ by rewrite hxfd /=.
+set rip_id := mk_ptr (lp_rip lp).
+apply: (
+  wkequiv_io_trans
+    (P23 := fun (ls : estate) (xm : asmmem) =>
+      vm_initialized_on (evm ls)
+        [seq var_of_asm_typed_reg i | i <- arch_decl.callee_saved]
+      /\ lom_eqv rip_id ls xm)
+    (Q23 := fun _ _ ls' xm' => lom_eqv rip_id ls' xm')
+    _ _
+    w_be
+    _
+).
+- (* hpre: build intermediate estate from asmmem *)
+  move=> fs xm [hrsp hrip hargs hmm hscs hstk].
+  have Meq :=
+    lom_eqv_estate_of_asm_mem (top_stack (fmem fs)) (lp_rsp lp) xm disj_rip.
+  exists (estate_of_asm_mem (top_stack (fmem fs)) (lp_rip lp) (lp_rsp lp) xm)
+    => /=.
+  + split => /=.
+    * rewrite -hrsp -ok_lp_rsp.
+      exact:
+        (get_var_vmap_of_asm_mem
+           _ (lp_rip lp) (to_ident ad_rsp) xm (ARReg ad_rsp)).
+    * rewrite -hrip; by case: Meq.
+    * rewrite /lget_args (lget_vars_vmap_of_asm_mem
+        (top_stack (fmem fs)) (lp_rip lp) (lp_rsp lp) xm ok_xargs).
+      by move: hargs; rewrite hxfd /=.
+    * exact: hmm.
+    * exact: hscs.
+    * exact: (vm_init_vmap_of_asm_mem_is_typed_reg
+        (top_stack (fmem fs)) (lp_rip lp) (lp_rsp lp) xm
+        ok_callee_saved_lfd).
+    * by move: hstk; rewrite hxfd /=.
+  split.
+  + exact:
+      (vm_init_vmap_of_asm_mem_callee_saved
+         (top_stack (fmem fs)) (lp_rip lp) (lp_rsp lp) xm
+         callee_saved_not_bool).
+  exact: Meq.
+- (* hpost: combine the back-end post and the lom_eqv bridge *)
+  move=> fs ls xm fs' xm' _ [_ Meq] [ls' [hvals hmm' hscs' hzero] Meq'].
+  split.
+  + rewrite hxfd /=.
+    apply: (values_uincl_trans hvals).
+    exact: (lget_vars_uincl_asm Meq' ok_xres).
+  + by case: Meq' => /= _ <- _ _ _ _ _ _; exact: hmm'.
+  + case: Meq' => /= heq_scs _ _ _ _ _ _ _.
+    by rewrite hscs' heq_scs.
+  case: Meq  => /= _ heq_mem  _ _ _ _ _ _.
+  case: Meq' => /= _ heq_mem' _ _ _ _ _ _.
+  by rewrite -heq_mem -heq_mem'.
+(* bridge step: iasm_gen_exportcall *)
+move=> ls xm [hvm_init Meq].
+exact: (iasm_gen_exportcall (hap_hagp haparams) ok_xp fn hvm_init Meq).
+Qed.
 
 End BACK_END_TO_ASM.
 
