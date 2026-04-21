@@ -360,57 +360,76 @@ split.
   by apply hmem_o2.(valid_stk).
 - by rewrite hscs_o2 hscs_eq.
 
-(* zeroized_s: similar to match_mem, requires allocatable_stack info
-   to reason about bottom range within stack region. *)
-  move=> hi; move: hmmz; rewrite /match_mem_zero_export.
-  case hszs: stack_zero_info => [[szs ows]|] //= hmmz pr hnvalid.
-  case hb: (between bottom (lfd_stk_max lfd_lp) pr U8).
-    + by right; rewrite (hmmz.(read_zero) hb).
-    left; rewrite -hmmz.(read_untouched); last first.
-    + apply not_between_U8_disjoint_zrange => //.
-      by apply /negP /negPf.
-
-      (*
-    rewrite (U' _ hnvalid) //.
-    have! := (linearization_proof.checked_prog ok_lp get_fd).
-    rewrite /check_fd /=; t_xrbindP=> _ _ _ _ ok_stk_sz _ _ _.
-    case/and4P: ok_stk_sz => /ZleP stk_sz_pos /ZleP stk_extra_sz_pos _ /ZleP stk_frame_le_max.
-    rewrite /align_top_stack align_top_aligned; cycle 1.
-    + by clear -stk_sz_pos stk_extra_sz_pos; Lia.lia.
-    + have := frame_size_bound stk_sz_pos stk_extra_sz_pos.
-      have! := (wunsigned_range (top_stack m)).
-      have /= := wsize_size_pos (sf_align (f_extra fd)).
-      clear -stk_sz_pos stk_extra_sz_pos stk_frame_le_max H6'.
-      by Lia.lia.
-    + move: ok_zfd; rewrite /stack_zeroization_lfd hszs Export /=.
-      case: ZltP => [_|hle0].
-      + rewrite /stack_zeroization_lfd_body; t_xrbindP=> halign _ _ _ _ _.
-        move: Export halign.
-        have := [elaborate (get_fundef_p' ok_lp get_fd)].
-        rewrite get_lfd => -[->] /=.
-        by rewrite /frame_size => ->.
-      move=> _.
-      have -> //: (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd) = 0)%Z.
-      move: Export stk_frame_le_max hle0.
-      have := [elaborate (get_fundef_p' ok_lp get_fd)].
-      rewrite get_lfd => -[->] /=.
-      rewrite /frame_size => ->.
-      by clear -stk_sz_pos stk_extra_sz_pos; Lia.lia.
-    rewrite pointer_range_between.
-    move/negP: hb H6'''; rewrite /bottom.
-    have := [elaborate (get_fundef_p' ok_lp get_fd)].
-    rewrite get_lfd => -[->] /= hb H6'''.
-    rewrite wunsigned_sub //.
-    by rewrite Z.sub_add_distr Z.sub_diag Z.sub_0_l Z.opp_involutive.
-  - have <- //: [seq vm'.[x.(v_var)] | x <- lfd_res lfd]
-                = [seq zvm'.[x.(v_var)] | x <- lfd_res lfd].
-    apply map_ext.
-    move=> x hin; apply heqvm.
-    apply /sv_of_listP /in_map.
-    by exists x.
-*)
-
-Admitted.
+(* zeroized_s *)
+move=> hi; move: hmmz; rewrite /match_mem_zero_export.
+case hszs: stack_zero_info => [[szs ows]|] //= hmm pr hnvalid.
+case hb: (between bottom (lfd_stk_max lfd_lp) pr U8).
++ by right; rewrite (hmm.(read_zero) hb).
+left; rewrite -hmm.(read_untouched); last first.
++ apply not_between_U8_disjoint_zrange => //.
+  by apply /negP /negPf.
+rewrite -tmu //.
+- by apply/negP.
+(* ~ pointer_range (sp0 - wrepr max0) sp0 pr *)
+move: ok_zfd; rewrite /stack_zeroization_lfd hszs.
+have lp_export' : lfd_export lfd_lp && (0 <? lfd_stk_max lfd_lp)%Z =
+                  (0 <? lfd_stk_max lfd_lp)%Z
+  by rewrite lp_export.
+rewrite lp_export' /=.
+case: ZltP => [Hmaxpos | Hmaxnpos]; last first.
+{ (* lfd_stk_max = 0: range is empty *)
+  move=> _.
+  have Hmax0 : sf_stk_max (f_extra fd) = 0%Z.
+  { rewrite -stk_max_eq. apply: Z.le_antisymm lfd_stk_pos.
+    by apply/Z.nlt_ge/Hmaxnpos. }
+  rewrite Hmax0 wrepr0 GRing.subr0.
+  rewrite /pointer_range; move=> /andP [/ZleP Ha /ZltP Hb]; lia. }
+rewrite /stack_zeroization_lfd_body; t_xrbindP => halign _ _ _ _ _.
+have hexp : is_RAnone (sf_return_address (f_extra fd)) by move: lp_export; rewrite hlfd_stk /=.
+have Hframe_eq : lfd_frame_size lfd_lp = (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))%Z.
+  by rewrite hlfd_stk /= /frame_size hexp.
+have Hsum_nn : (0 <= sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))%Z
+  := Z.add_nonneg_nonneg _ _ stk_sz_pos stk_extra_sz_pos.
+have Hws : (0 < wsize_size (sf_align (f_extra fd)))%Z := wsize_size_pos _.
+have Hmax_le_top : (sf_stk_max (f_extra fd) <= wunsigned (top_stack (fmem i1)))%Z.
+  apply: (Z.le_trans _ (lfd_stk_max lfd_lp + wsize_size (lfd_align lfd_lp) - 1)%Z _ _ hle).
+  rewrite stk_max_eq.
+  generalize (wsize_size_pos (lfd_align lfd_lp)). clear. intros. lia.
+have Hsum_le_top : (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd) <=
+                    wunsigned (top_stack (fmem i1)))%Z.
+  apply: (Z.le_trans _ _ _ hfb).
+  apply: (Z.le_trans _ _ _ stk_frame_le_max Hmax_le_top).
+have Hrng : (0 <= wunsigned (top_stack (fmem i1)) -
+             (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)) < wbase Uptr)%Z.
+  split.
+  - generalize Hsum_le_top. clear. intros. lia.
+  - generalize top_range Hsum_nn. clear. intros. lia.
+have Halign_final :
+  is_align (Pointer := WArray.PointerZ)
+    (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))%Z (sf_align (f_extra fd)).
+  by move: halign; rewrite Hframe_eq align_eq.
+rewrite /align_top_stack ([elaborate align_top_aligned Hsum_nn Hrng Halign_final]).
+rewrite pointer_range_between.
+rewrite -align_eq.
+have Hbottom_eq :
+  (align_word (lfd_align lfd_lp) (top_stack (fmem i1)) -
+   wrepr Uptr (sf_stk_max (f_extra fd)))%R = bottom.
+  by rewrite /bottom stk_max_eq.
+rewrite Hbottom_eq.
+have Hsize_eq :
+  (wunsigned (align_word (lfd_align lfd_lp) (top_stack (fmem i1))) -
+   wunsigned bottom)%Z = lfd_stk_max lfd_lp.
+  rewrite /bottom wunsigned_sub; last first.
+  - split; first exact: (proj1 H6''').
+    apply: (Z.le_lt_trans _ (wunsigned (top_stack (fmem i1)))); last exact (proj2 top_range).
+    apply: (Z.le_trans _ (wunsigned (align_word (lfd_align lfd_lp) (top_stack (fmem i1))))).
+    + generalize lfd_stk_pos. clear. intros. lia.
+    + apply (proj2 align_range).
+  generalize (wunsigned (align_word (lfd_align lfd_lp) (top_stack (fmem i1)))) (lfd_stk_max lfd_lp).
+  clear. intros. lia.
+rewrite Hsize_eq.
+by apply/negP; rewrite hb.
+Qed.
 
 End BACK_END.
 
