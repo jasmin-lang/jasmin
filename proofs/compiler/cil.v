@@ -37,7 +37,6 @@ From ITree Require Import
 
 Require Import distr_extra dinterp.
 Require Import rutt_extras oseq utils.
-Require indcca.
 
 #[local] Open Scope order_scope.
 #[local] Open Scope ring_scope.
@@ -143,6 +142,7 @@ End CIL.
 
 End MAIN.
 
+Arguments Oo {_ _} _ _ _.
 Arguments Exchange {I}.
 Arguments interact {I}.
 Arguments dinteract {I}.
@@ -161,7 +161,7 @@ Context {I : OracleSystemInterface}.
    equivalent ITrees (up to silent steps). *)
 Definition equivalent (O1 O2 : OracleSystem I) : Prop :=
   forall (o : No) (i : In o) (m : Mo),
-    eutt eq (O1.(Oo) i m) (O2.(Oo) i m).
+    eutt eq (O1.(Oo) o i m) (O2.(Oo) o i m).
 
 Lemma equivalent_handle_Exch (O1 O2 : OracleSystem I) :
   equivalent O1 O2 ->
@@ -195,7 +195,7 @@ Lemma equivalent_dinteract (O1 O2 : OracleSystem I) (A : Adversary) :
   dinteract O1 A =1 dinteract O2 A.
 Proof. move=> /equivalent_interact h; exact/dinterp_eutt/h. Qed.
 
-Theorem equivalent_pwin
+Lemma equivalent_pwin
   (O1 O2 : OracleSystem I) (A : Adversary) (W : WinningCondition) :
   equivalent O1 O2 ->
   pwin O1 A W = pwin O2 A W.
@@ -203,56 +203,117 @@ Proof. move=> /equivalent_dinteract h; rewrite /pwin; exact: eq_mu_pr h. Qed.
 
 End EQUIV.
 
+Arguments equivalent_pwin {_ _ _ _ _} _.
+
 (* -------------------------------------------------------------------------- *)
 (* Instantiation for INDCCA. *)
 
 (* Oracle names for IND-CCA instantiation. *)
 
-#[only(eqbOK)] derive
-Variant oracle_name : Type :=
-| OGenKey
-| ODecap
-| OGetChallenge
-| OSubmitGuess
-.
-
-HB.instance Definition _ := hasDecEq.Build oracle_name oracle_name_eqb_OK.
-
-Definition oracle_names := [:: OGenKey; ODecap; OGetChallenge; OSubmitGuess ].
-
-Definition oracle_name_pickle (x : oracle_name) : nat :=
-  find (fun y => x == y) oracle_names.
-
-Definition oracle_name_unpickle (n : nat) : option oracle_name :=
-  onth oracle_names n.
-
-Lemma oracle_name_pickleK : pcancel oracle_name_pickle oracle_name_unpickle.
-Proof. by case. Qed.
-
-HB.instance Definition _ := PCanIsCountable oracle_name_pickleK.
-
-Lemma oracle_name_fin_axiom : Finite.axiom oracle_names.
-Proof. by case. Qed.
-
-HB.instance Definition _ := isFinite.Build oracle_name oracle_name_fin_axiom.
-
 Section INSTANCE.
 
-Context
-  {pkey skey : choiceType}
-  {ctxt : choiceType}
-  {msg : finType}
-  {C : indcca.Challenger
-      (R := R) (pkey := pkey) (skey := skey) (ctxt := ctxt) (msg := msg)}
-  (Q : nat)
-  (dummy_ct : ctxt) (* Malformed interactions return dummies. *)
-  (dummy_msg : msg) (* Malformed interactions return dummies. *)
+#[only(eqbOK)] derive
+Variant kem_oracle_name : Type :=
+| OGenKey
+| OEncap
+| ODecap
 .
 
-(* Oracle memory:
+HB.instance Definition _ := hasDecEq.Build kem_oracle_name kem_oracle_name_eqb_OK.
+
+Definition kem_oracle_names := [:: OGenKey; OEncap; ODecap ].
+
+Definition kem_oracle_name_pickle (x : kem_oracle_name) : nat :=
+  find (fun y => x == y) kem_oracle_names.
+
+Definition kem_oracle_name_unpickle (n : nat) : option kem_oracle_name :=
+  onth kem_oracle_names n.
+
+Lemma kem_oracle_name_pickleK : pcancel kem_oracle_name_pickle kem_oracle_name_unpickle.
+Proof. by case. Qed.
+
+HB.instance Definition _ := PCanIsCountable kem_oracle_name_pickleK.
+
+Lemma kem_oracle_name_fin_axiom : Finite.axiom kem_oracle_names.
+Proof. by case. Qed.
+
+HB.instance Definition _ := isFinite.Build kem_oracle_name kem_oracle_name_fin_axiom.
+
+(* -------------------------------------------------------------------------- *)
+(* KEMs *)
+
+Class KEMParams :=
+  {
+    pkey : choiceType;
+    skey : choiceType;
+    ctxt : choiceType;
+    msg : finType;
+    dummy_ct : ctxt; (* Malformed interactions return dummies. *)
+    dummy_msg : msg; (* Malformed interactions return dummies. *)
+  }.
+
+Context {KEMP : KEMParams}.
+
+Definition flip : itree Rnd bool := trigger (GetRnd (dunif bool)).
+Definition rnd_msg : itree Rnd msg := trigger (GetRnd (dunif msg)).
+
+(* KEM interface for source and target programs. *)
+Instance KEM : OracleSystemInterface :=
+  {|
+    No := kem_oracle_name;
+    In := fun x =>
+      match x with
+      | OGenKey => unit
+      | OEncap => pkey
+      | ODecap => skey * ctxt
+      end%type;
+    Out := fun x =>
+      match x with
+      | OGenKey => pkey * skey
+      | OEncap => ctxt * msg
+      | ODecap => msg
+      end%type;
+    mi := tt;
+  |}.
+
+(* -------------------------------------------------------------------------- *)
+(* IND-CCA *)
+
+Context
+  {K : OracleSystem KEM}
+  (Q : nat).
+
+#[only(eqbOK)] derive
+Variant cca_oracle_name : Type :=
+| OInit
+| OQuery
+| OGetChallenge
+| OFinalize
+.
+
+HB.instance Definition _ := hasDecEq.Build cca_oracle_name cca_oracle_name_eqb_OK.
+
+Definition cca_oracle_names := [:: OInit; OQuery; OGetChallenge; OFinalize ].
+
+Definition cca_oracle_name_pickle (x : cca_oracle_name) : nat :=
+  find (fun y => x == y) cca_oracle_names.
+
+Definition cca_oracle_name_unpickle (n : nat) : option cca_oracle_name :=
+  onth cca_oracle_names n.
+
+Lemma cca_oracle_name_pickleK : pcancel cca_oracle_name_pickle cca_oracle_name_unpickle.
+Proof. by case. Qed.
+
+HB.instance Definition _ := PCanIsCountable cca_oracle_name_pickleK.
+
+Lemma cca_oracle_name_fin_axiom : Finite.axiom cca_oracle_names.
+Proof. by case. Qed.
+
+HB.instance Definition _ := isFinite.Build cca_oracle_name cca_oracle_name_fin_axiom.
+
+(* IND-CCA Oracle memory:
    - keys: the result of GenKey
-   - bit: the sampled bit
-*)
+   - bit: the sampled bit *)
 Record _Mo :=
   {
     mo_keys : option (pkey * skey);
@@ -276,60 +337,61 @@ HB.instance Definition _ := Choice.copy _Mo (can_type pickle__MoK).
 Definition mo_with_bit (m : _Mo) (b : bool) : _Mo :=
   {| mo_keys := mo_keys m; mo_bit := Some b; |}.
 
-Let _mi : _Mo := {| mo_keys := None; mo_bit := None; |}.
+Definition _mi : _Mo := {| mo_keys := None; mo_bit := None; |}.
 
-Let _In (x : oracle_name) : choiceType :=
+Definition _In (x : cca_oracle_name) : choiceType :=
   match x with
-  | OGenKey => unit
-  | ODecap => ctxt
+  | OInit => unit
+  | OQuery => ctxt
   | OGetChallenge => unit
-  | OSubmitGuess => bool
+  | OFinalize => bool
   end.
 
-Let _Out (x : oracle_name) : choiceType :=
+Definition _Out (x : cca_oracle_name) : choiceType :=
   match x with
-  | OGenKey => pkey
-  | ODecap => msg
+  | OInit => pkey
+  | OQuery => msg
   | OGetChallenge => ctxt * msg
-  | OSubmitGuess => unit
+  | OFinalize => unit
   end%type.
 
-Let _Oo_GenKey (_ : unit) (_ : _Mo) : itree Rnd (pkey * _Mo) :=
-  let* (pk, sk) := C.(indcca.GenKey) in
+Definition _Oo_Init (_ : unit) (_ : _Mo) : itree Rnd (pkey * _Mo) :=
+  let* ((pk, sk), _) := Oo OGenKey tt tt in
   let mo := {| mo_keys := Some (pk, sk); mo_bit := None; |} in
   Ret (pk, mo).
 
-Let _Oo_Decap (ct : ctxt) (mo : _Mo) : itree Rnd (msg * _Mo) :=
+Definition _Oo_Query (ct : ctxt) (mo : _Mo) : itree Rnd (msg * _Mo) :=
   if mo_keys mo is Some (_, sk) then
-    let* m := C.(indcca.Decap) sk ct in
+    let* (m, _) := Oo ODecap (sk, ct) tt in
     Ret (m, mo)
   else Ret (dummy_msg, mo).
 
-Let _Oo_GetChallenge
+Definition _Oo_GetChallenge
   (_ : unit) (mo : _Mo) : itree Rnd ((ctxt * msg) * _Mo) :=
   if mo_keys mo is Some (pk, _) then
-    let* (ct, m0) := C.(indcca.Encap) pk in
-    let* m1 := indcca.rnd_msg in
-    let* b := indcca.flip in
+    let* ((ct, m0), _) := Oo OEncap pk tt in
+    let* m1 := rnd_msg in
+    let* b := flip in
     let mb := if b then m1 else m0 in
     Ret ((ct, mb), mo_with_bit mo b)
   else Ret ((dummy_ct, dummy_msg), mo).
 
-Let _Oo_SubmitGuess (g : bool) (_ : _Mo) : itree Rnd (unit * _Mo) :=
+Definition _Oo_Finalize (g : bool) (_ : _Mo) : itree Rnd (unit * _Mo) :=
   Ret (tt, _mi).
 
-Let _Oo (x : oracle_name) : _In x -> _Mo -> itree Rnd (_Out x * _Mo) :=
+Definition _Oo
+  (x : cca_oracle_name) : _In x -> _Mo -> itree Rnd (_Out x * _Mo) :=
   match x return _In x -> _Mo -> itree Rnd (_Out x * _Mo) with
-  | OGenKey => _Oo_GenKey
-  | ODecap => _Oo_Decap
+  | OInit => _Oo_Init
+  | OQuery => _Oo_Query
   | OGetChallenge => _Oo_GetChallenge
-  | OSubmitGuess => _Oo_SubmitGuess
+  | OFinalize => _Oo_Finalize
   end.
 
 Instance INDCCA_I : OracleSystemInterface :=
   {|
     Mo := _Mo;
-    No := oracle_name;
+    No := cca_oracle_name;
     In := _In;
     Out := _Out;
     mi := _mi;
@@ -338,12 +400,22 @@ Instance INDCCA_I : OracleSystemInterface :=
 Instance INDCCA : OracleSystem INDCCA_I :=
   {| Oo := _Oo; |}.
 
-Definition is_genkey (x : Xch) : option pkey :=
+Definition is_init (x : Xch) : option pkey :=
   let 'existT o (_, p) := x in
   match o as a return Out a -> option pkey with
-  | OGenKey => Some
+  | OInit => Some
   | _ => fun _ => None
   end p.
+
+Definition is_query (x : Xch) : option (ctxt * msg) :=
+  let 'existT o p := x in
+  match o as a return In a * Out a -> option (ctxt * msg) with
+  | OQuery => Some
+  | _ => fun _ => None
+  end p.
+
+Definition is_query_ct (ct : ctxt) (x : Xch) : bool :=
+  if is_query x is Some (ct', _) then ct == ct' else false.
 
 Definition is_getchallenge (x : Xch) : option (ctxt * msg) :=
   let 'existT o (_, p) := x in
@@ -352,20 +424,10 @@ Definition is_getchallenge (x : Xch) : option (ctxt * msg) :=
   | _ => fun _ => None
   end p.
 
-Definition is_decap (x : Xch) : option (ctxt * msg) :=
-  let 'existT o p := x in
-  match o as a return In a * Out a -> option (ctxt * msg) with
-  | ODecap => Some
-  | _ => fun _ => None
-  end p.
-
-Definition is_decap_ct (ct : ctxt) (x : Xch) : bool :=
-  if is_decap x is Some (ct', _) then ct == ct' else false.
-
-Definition is_submitguess (x : Xch) : option bool :=
+Definition is_finalize (x : Xch) : option bool :=
   let 'existT o (p, _) := x in
   match o as a return In a -> option bool with
-  | OSubmitGuess => Some
+  | OFinalize => Some
   | _ => fun _ => None
   end p.
 
@@ -377,11 +439,11 @@ Definition destruct_trace
 
   (* First query is to [GenKey]. *)
   let%opt ((x, _), t) := uncons t in
-  let%opt _ := oassert (isSome (is_genkey x)) in
+  let%opt _ := oassert (isSome (is_init x)) in
 
   (* Many queries to [Decap]. *)
-  let: (qs, t) := split_after (fun x => isSome (is_decap x.1)) t in
-  let qs := pmap (fun x => ssrfun.omap fst (is_decap x.1)) qs in
+  let: (qs, t) := split_after (fun x => isSome (is_query x.1)) t in
+  let qs := pmap (fun x => ssrfun.omap fst (is_query x.1)) qs in
 
   (* Next query is to [GetChallenge]. *)
   let%opt ((x, m), t) := uncons t in
@@ -389,19 +451,19 @@ Definition destruct_trace
   let%opt b := mo_bit m in (* Challenge bit. *)
 
   (* Many queries to [Decap]. *)
-  let: (qs', t) := split_after (fun x => isSome (is_decap x.1)) t in
-  let qs' := pmap (fun x => ssrfun.omap fst (is_decap x.1)) qs' in
+  let: (qs', t) := split_after (fun x => isSome (is_query x.1)) t in
+  let qs' := pmap (fun x => ssrfun.omap fst (is_query x.1)) qs' in
 
-  (* Last query is to [SubmitGuess]. *)
+  (* Last query is to [Finalize]. *)
   let%opt ((x, _), t) := uncons t in
-  let%opt g := is_submitguess x in (* Guess bit. *)
+  let%opt g := is_finalize x in (* Guess bit. *)
   let%opt _ := oassert (nilp t) in
 
   Some (g == b, rev qs, rev qs', ct).
 
 Let _win (t : trace) : bool :=
   if destruct_trace t is Some  (b, qs, qs', ct) then
-    [&& b & indcca.valid Q (qs, qs', ct) ]
+    [&& b, ct \notin qs' & size qs + size qs' <= Q ]%N
   else false.
 
 Instance W : WinningCondition := {| win := _win; |}.
@@ -410,5 +472,36 @@ Definition indcca_adv (A : Adversary) : R :=
   `| pwin INDCCA A W - 1/2 |.
 
 End INSTANCE.
+
+Arguments INDCCA {_} _.
+Arguments indcca_adv {_} _ _ _.
+
+Section REDUCTION.
+
+Context {KEMP : KEMParams}.
+
+Definition reduction (K K' : OracleSystem KEM) : Prop :=
+  forall A Q, indcca_adv K Q A = indcca_adv K' Q A.
+
+Context (K K' : OracleSystem KEM).
+
+Lemma equivalent_INDCCA :
+  equivalent K K' ->
+  equivalent (INDCCA K) (INDCCA K').
+Proof.
+move=> h; case=> [[] m | ct m | [] m | g m] /=; last reflexivity.
+- by apply: (eqit_bind' eq) => [|? _ <-]; [exact/h|reflexivity].
+- rewrite /_Oo_Query; case: (mo_keys m) => [[pk sk] |]; last reflexivity.
+  by apply: (eqit_bind' eq) => [|? _ <-]; [exact/h|reflexivity].
+rewrite /_Oo_GetChallenge; case: (mo_keys m) => [[pk sk] |]; last reflexivity.
+by apply: (eqit_bind' eq) => [|? _ <-]; [exact/h|reflexivity].
+Qed.
+
+Theorem indcca_adv_equiv : equivalent K K' -> reduction K K'.
+Proof.
+move=> /equivalent_INDCCA/equivalent_pwin h A Q; by rewrite /indcca_adv h.
+Qed.
+
+End REDUCTION.
 
 End REAL.
