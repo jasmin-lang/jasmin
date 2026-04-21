@@ -29,35 +29,35 @@ Section GLOB_DEFS.
 
 Context (wdb : bool) (gd: glob_decls).
 
-Definition eqok_w (e1 e2:pexpr) st :=
+Definition eqok_w env (e1 e2:pexpr) (st:estate env) :=
   forall v, sem_pexpr wdb gd st e1 = ok v -> sem_pexpr wdb gd st e2 = ok v.
 
-Definition eqok (e1 e2:pexpr) st :=
+Definition eqok env (e1 e2:pexpr) (st:estate env) :=
   forall v, sem_pexpr wdb gd st e1 = ok v ->
     exists v', sem_pexpr wdb gd st e2 = ok v' /\ value_uincl v v'.
 
-Lemma eqok_weaken e1 e2 st : eqok_w e1 e2 st -> eqok e1 e2 st.
+Lemma eqok_weaken env e1 e2 (st:estate env) : eqok_w e1 e2 st -> eqok e1 e2 st.
 Proof. by move=> h v /h h';exists v. Qed.
 
 Notation "e1 '=[' st ']' e2" := (eqok e1 e2 st)
  (at level 70, e2 at next level, no associativity,
   format "'[hv ' e1  =[ st ]  '/'  e2 ']'").
 
-Definition eeq_w (e1 e2:pexpr) := forall rho, eqok_w e1 e2 rho.
-Definition eeq (e1 e2:pexpr) := forall rho, e1 =[rho] e2.
+Definition eeq_w (e1 e2:pexpr) := forall env (rho:estate env), eqok_w e1 e2 rho.
+Definition eeq (e1 e2:pexpr) := forall env (rho:estate env), e1 =[rho] e2.
 
 Notation "e1 '=E' e2" := (eeq e1 e2) (at level 70, no associativity).
 
 Lemma eeq_w_refl : Reflexive (@eeq_w).
-Proof. by move=> ???;eauto. Qed.
+Proof. by move=> ????;eauto. Qed.
 
 Lemma eeq_refl : Reflexive (@eeq).
-Proof. by move=> ??? ->;eauto. Qed.
+Proof. by move=> ???? ->;eauto. Qed.
 
 Hint Resolve eeq_refl eeq_w_refl : core.
 
 Lemma eeq_weaken e1 e2 : eeq_w e1 e2 -> e1 =E e2.
-Proof. by move=> h ?;apply eqok_weaken;apply h. Qed.
+Proof. by move=> h ??;apply eqok_weaken;apply h. Qed.
 
 (* -------------------------------------------------------- *)
 
@@ -66,21 +66,21 @@ Proof.
   apply: eeq_weaken.
   elim: e=> //=;try auto; first by move=> ???.
   + case; auto.
-    move=> e _ rho v /=; t_xrbindP => ?? -> /sem_sop1I /= [b] [nb] [] /to_boolI -> [<-] ->.
+    move=> e _ env rho v /=; t_xrbindP => ?? -> /sem_sop1I /= [b] [nb] [] /to_boolI -> [<-] ->.
     move=> /sem_sop1I /= [b'] [nb'] [] [<-] [<-] ->.
     by rewrite negbK.
-  + case; auto => e1 hrec1 e2 hrec2 rho v /=;
+  + case; auto => e1 hrec1 e2 hrec2 env rho v /=;
     t_xrbindP => ? ? he1 ? he2 /sem_sop2I /= [b1 [b2 [b]]] [] /to_boolI ? /to_boolI
       ? [] ?? /sem_sop1I /= [?] [?] [] /to_boolI h [?]; subst; case: h => ?; subst;
-      have := hrec1 rho _; have := hrec2 rho _;
+      have := hrec1 env rho _; have := hrec2 env rho _;
       rewrite /= he1 he2 /sem_sop1 /= => /(_ _ erefl) -> /(_ _ erefl) -> -> /=; rewrite /sem_sop2 /=.
     + by rewrite -negb_and.
     by rewrite negb_or.
-  move=> t e _ e1 hrec1 e2 hrec2 rho v /=.
+  move=> t e _ e1 hrec1 e2 hrec2 env rho v /=.
   t_xrbindP => v' be ve he /to_boolI ?; subst.
   move=> tve1 ve1 he1 hte1 tve2 ve2 he2 hte2 ?; subst v'.
   move=> /sem_sop1I /= [b] [?] [] /to_boolI h [?] ?; subst.
-  have := hrec1 rho _; have := hrec2 rho _;
+  have := hrec1 env rho _; have := hrec2 env rho _;
   rewrite he /= he1 he2 /= /sem_sop1 /=.
   have [b1 [b2 [??]]]: exists (b1 b2: bool), tve1 = b1 /\ tve2 = b2.
   + case: (be) h => ?; subst.
@@ -97,7 +97,7 @@ Qed.
 
 Lemma sneg_intP e : Papp1 (Oneg Op_int) e =E sneg_int e.
 Proof.
-apply: eeq_weaken; case: e => // [ z s v [] <- // | [] ] // [] // e s v /=; t_xrbindP => ? ? -> /=.
+apply: eeq_weaken; case: e => // [ z env s v [] <- // | [] ] // [] // e env s v /=; t_xrbindP => ? ? -> /=.
 rewrite /sem_sop1 /=; t_xrbindP => ? /to_intI -> <- /= ? [<-] <-.
 by rewrite Z.opp_involutive.
 Qed.
@@ -110,7 +110,7 @@ Lemma e2intP e z :
    e2int e = ok z -> e = Pconst z.
 Proof. by case: e => //= ? [->]. Qed.
 
-Lemma of_exprP rho t e v :
+Lemma of_exprP env (rho : estate env) t e v :
   of_expr t e = ok v ->
   Let x := sem_pexpr wdb gd rho e in of_val t x = ok v.
 Proof.
@@ -118,7 +118,7 @@ Proof.
   by rewrite /e2word; case heq : is_wconst => [w' | ] // [<-]; apply is_wconstP.
 Qed.
 
-Lemma to_exprP rho t (v:sem_t t) e : to_expr v = ok e -> sem_pexpr wdb gd rho e = ok (to_val v).
+Lemma to_exprP env (rho : estate env) t (v:sem_t t) e : to_expr v = ok e -> sem_pexpr wdb gd rho e = ok (to_val v).
 Proof.
   case: t v => //= [b | z | ws w] [<-] //=.
   by rewrite /sem_sop1 /= wrepr_unsigned.
@@ -128,8 +128,8 @@ Lemma ssem_sop1P o e : Papp1 o e =E ssem_sop1 o e.
 Proof.
   rewrite /ssem_sop1.
   case heq : of_expr => [ v | ] //=.
-  apply: eeq_weaken => rho v' /[dup]h1 /=.
-  rewrite /= -Let_Let (of_exprP rho heq) /=;t_xrbindP => ? -> ? /=; subst.
+  apply: eeq_weaken => env rho v' /[dup]h1 /=.
+  rewrite /= -Let_Let. rewrite (of_exprP rho heq). /=;t_xrbindP => ? -> ? /=; subst.
   by case heq' : to_expr => [e' | //]; apply to_exprP.
 Qed.
 

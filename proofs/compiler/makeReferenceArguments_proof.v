@@ -23,19 +23,19 @@ Context
   (p : prog)
   (ev : extra_val_t).
 
-Lemma sem_nilI s1 s2 (P : estate -> estate -> Prop) :
+Lemma sem_nilI env (s1 s2 : estate env) (P : estate env -> estate env -> Prop) :
   P s2 s2 -> sem p ev s1 [::] s2 -> P s1 s2.
 Proof. by move=> ? /semE <-. Qed.
 
-Lemma sem_consI s1 i c s2 (P : estate -> instr -> cmd -> estate -> Prop) :
+Lemma sem_consI env (s1 : estate env) i c s2 (P : estate env -> instr -> cmd -> estate env -> Prop) :
   (forall s3, sem_I p ev s1 i s3 -> sem p ev s3 c s2 -> P s1 i c s2) ->
   sem p ev s1 (i::c) s2 -> P s1 i c s2.
 Proof. by move=> h /semE [s3 [] /h]. Qed.
 
 Section SemInversionSeq1.
-  Context (s1 : estate) (i : instr) (s2 : estate).
+  Context env (s1 : estate env) (i : instr) (s2 : estate env).
   Context
-    (P : estate -> instr -> estate -> Prop).
+    (P : estate env -> instr -> estate env -> Prop).
 
   Hypothesis Hi :
     (sem_I p ev s1 i s2 -> P s1 i s2).
@@ -107,7 +107,7 @@ Context
 
   Hypothesis Hp : makereference_prog fresh_reg_ptr p = ok p'.
 
-  Inductive sem_pis ii : estate -> seq pseudo_instr -> values -> estate -> Prop :=
+  Inductive sem_pis env ii : estate env -> seq pseudo_instr -> values -> estate env -> Prop :=
    | SPI_nil : forall s, sem_pis s [::] [::] s
    | SPI_lv  : forall s1 s2 s3 lv pis v vs,
      write_lval true (p_globs p') lv v s1 = ok s2 ->
@@ -118,7 +118,7 @@ Context
      sem_pis s2 pis vs s3 ->
      sem_pis s1 (PI_i lv ty y :: pis) vs s3.
 
-  Lemma sem_pisE ii s1 pis vs s3 :
+  Lemma sem_pisE env ii (s1 : estate env) pis vs s3 :
     sem_pis ii s1 pis vs s3 →
     match pis with
     | [::] => vs = [::] ∧ s3 = s1
@@ -153,9 +153,9 @@ Context
      is_reg_ptr_lval fresh_reg_ptr b ii ctr x ty lv = Some y -> vtype y = ty.
   Proof. by case: lv => //= [? | _ _ _ ? _]; case: ifP => // _ [<-]. Qed.
 
-  Lemma make_pseudo_codeP ii X ctr xtys lvs pis s1 s2 vm1 vs vst:
+  Lemma make_pseudo_codeP env ii X ctr xtys lvs pis (s1 s2 : estate env) vm1 vs vst:
     make_pseudo_epilogue fresh_reg_ptr ii X ctr xtys lvs = ok pis ->
-    mapM2 ErrType dc_truncate_val (map eval_atype (map snd xtys)) vs = ok vst ->
+    mapM2 ErrType dc_truncate_val (map (eval_atype env) (map snd xtys)) vs = ok vst ->
     Sv.Subset (Sv.union (read_rvs lvs) (vrvs lvs)) X ->
     write_lvals true (p_globs p) s1 lvs vst = ok s2 ->
     evm s1 =[X] vm1 ->
@@ -203,7 +203,7 @@ Context
     exists vm2 => //; econstructor; eauto; econstructor; eauto.
   Qed.
 
-  Lemma swapableP ii pis lvs vs c s1 s2:
+  Lemma swapableP env ii pis lvs vs c (s1 s2 : estate env) :
     swapable ii pis = ok (lvs, c) ->
     sem_pis ii s1 pis vs s2 ->
     exists s1' vm2,
@@ -257,7 +257,7 @@ Context
       apply: on_arr_varP => sz t htyx hget.
       rewrite /write_var.
       t_xrbindP=>  zi vi he hvi t1 -> t1' hsub vms3 hset ?; subst s3; rewrite /on_arr_var.
-      rewrite (@get_var_eq_on _ _ (Sv.singleton x) (evm s1)); first last.
+      rewrite (@get_var_eq_on _ _ _ (Sv.singleton x) (evm s1)); first last.
       + by move=> z hz; have := vrvsP hw3; rewrite !evm_with_vm => -> //; SvD.fsetdec.
       + by SvD.fsetdec.
       rewrite hget /=.
@@ -281,12 +281,19 @@ Context
     by move=> x; rewrite (heqvm x) // (heqvm4 x).
   Qed.
 
-  Lemma make_prologueP X ii s:
+  Lemma test ty1 ty2 b :
+    convertible ty1 ty2 →
+    ∀ env : int → Z, geval_atype b env ty1 = geval_atype b env ty2.
+  Proof.
+    move=> hc env. apply convertible_eval_atype. done.
+  Qed.
+
+  Lemma make_prologueP env X ii s:
      forall xfty ctr args Y pl args',
        make_prologue fresh_reg_ptr ii Y ctr xfty args = ok (pl, args') ->
        Sv.Subset X Y ->
        Sv.Subset (read_es args) X ->
-     forall vargs vm1,
+     forall vargs (vm1 : Vm.t env),
        sem_pexprs true (p_globs p) s args = ok vargs ->
        evm s =[X] vm1 ->
      exists vm2, [/\
@@ -310,22 +317,31 @@ Context
     move=> /Sv_memP hnin [c args'] hmk [<- <-]{_pl _args'}.
     pose vm1' := vm1.[y <- va]; rewrite esem_cons /=.
     have [-> /= htva hdef] : [/\ sem_assgn p' y AT_rename ty a (with_vm s vm1) = ok (with_vm s vm1'),
-                                 eval_atype (vtype y) = type_of_val va & is_defined va].
+                                 exists b, geval_atype b env (vtype y) = type_of_val va & is_defined va].
     + rewrite /sem_assgn -(eq_on_sem_pexpr _ _ (s:= s)) //=; last first.
       + by apply: eq_onI heqvm.
       rewrite -(make_referenceprog_globs Hp) hva /=.
-      have [-> /= hty hdb hdef] : [/\
-        truncate_val (eval_atype ty) va = ok va,
-        eval_atype (vtype y) = type_of_val va,
+      have: 
+        exists b, [/\
+        truncate_val (eval_atype env ty) va = ok va,
+        geval_atype b env (vtype y) = type_of_val va,
         DB true va & is_defined va].
       + move=> {haX hX}; case: a E hva => //=.
-        + move=> xe; case: ifP => // /and4P=> -[ _ /is_aarrP [ws [len hlen]] hc _] [<-] hget /=.
-          have : type_of_val va = carr (arr_size ws len).
+        + move=> xe; case: ifP => // /and4P=> -[ _ /is_aarrP [ws [len hlen]] hc ?] [<-] hget /=.
+          have : type_of_val va = geval_atype (is_lvar xe) env (aarr ws len).
           + by rewrite (type_of_get_gvar_not_word _ hget) hlen.
-          by move=> /type_of_valI [t ->]; rewrite (convertible_eval_atype hc) hlen /truncate_val /= WArray.castK.
+          move=> /= /type_of_valI [t ->].
+          exists (is_lvar xe).
+          rewrite (test _ hc) hlen /truncate_val /=. WArray.castK /=.
+          done. (*
+          rewrite (convertible_eval_atype hc). convertible geval_atype
+           rewrite (convertible_eval_atype hc) hlen /truncate_val /=. WArray.castK.
+          by move=> /type_of_valI [t ->]; rewrite (convertible_eval_atype hc) hlen /truncate_val /= WArray.castK. *)
         move=> a ws len xe e; case: ifP => // /andP [_ hc] [<-] /=.
         apply on_arr_gvarP; t_xrbindP => ?? _ _ ?? _ _ ? _ <-.
-        by rewrite (convertible_eval_atype hc) /truncate_val /= WArray.castK.
+        exists true. (* ?? *) rewrite (test _ hc) /truncate_val /= WArray.castK /=. done.
+(*         by rewrite (convertible_eval_atype hc) /truncate_val /= WArray.castK. *)
+      move=> [? [h1 h2 h3 h4]]. rewrite h1. rewrite write_var_eq_type.
       by rewrite write_var_eq_type.
     have [||vm2 [h1 h2 h3]]:= ih _ _ _ _ _ hmk _ hasX _ vm1' hvargs.
     + by SvD.fsetdec.

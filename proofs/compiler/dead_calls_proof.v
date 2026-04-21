@@ -198,27 +198,27 @@ Section PROOF.
 
   Section SEM.
 
-  Let Pi s (i:instr) s' :=
+  Let Pi env (s : estate env) (i:instr) s' :=
     def_incl (i_Calls i) -> sem_I p' ev s i s'.
 
-  Let Pi_r s (i:instr_r) s' :=
+  Let Pi_r env (s : estate env) (i:instr_r) s' :=
     def_incl (i_Calls_r i) -> sem_i p' ev s i s'.
 
-  Let Pc s (c:cmd) s' :=
+  Let Pc env (s : estate env) (c:cmd) s' :=
     def_incl (c_Calls c) -> sem p' ev s c s'.
 
-  Let Pfor (i:var_i) vs s c s' :=
+  Let Pfor env (i:var_i) vs (s : estate env) c s' :=
     def_incl (c_Calls c) -> sem_for p' ev i vs s c s'.
 
   Let Pfun scs1 m1 fn vargs scs2 m2 vres :=
     def_incl (Sf.singleton fn) -> sem_call p' ev scs1 m1 fn vargs scs2 m2 vres.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
-  Proof. move=> s _; exact: Eskip. Qed.
+  Proof. move=> env s _; exact: Eskip. Qed.
 
   Local Lemma Hcons : sem_Ind_cons p ev Pc Pi.
   Proof.
-    move=> s1 s2 s3 i c Hsi Hi Hsc Hc Hincl.
+    move=> env s1 s2 s3 i c Hsi Hi Hsc Hc Hincl.
     rewrite CallsE in Hincl.
     move: Hincl=> /def_incl_union [Hincli Hinclc].
     exact: (Eseq (Hi Hincli) (Hc Hinclc)).
@@ -226,31 +226,31 @@ Section PROOF.
 
   Local Lemma HmkI : sem_Ind_mkI p ev Pi_r Pi.
   Proof.
-    move=> ii i s1 s2 Hs Hi Hincl.
+    move=> env ii i s1 s2 Hs Hi Hincl.
     apply: EmkI.
     exact: (Hi Hincl).
   Qed.
 
   Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
   Proof.
-    move => s1 s2 x tag ty e v v' hv hv' hw _.
+    move => env s1 s2 x tag ty e v v' hv hv' hw _.
     by apply: Eassgn;eauto.
   Qed.
 
   Local Lemma Hopn : sem_Ind_opn p Pi_r.
   Proof.
-    move=> s1 s2 t o xs es H _; by apply: Eopn; eauto.
+    move=> env s1 s2 t o xs es H _; by apply: Eopn; eauto.
   Qed.
 
   Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.
   Proof.
-    move=> s1 scs m s2 o xs es ves vs he ho hw H.
+    move=> env s1 scs m s2 o xs es ves vs he ho hw H.
     by apply: Esyscall; eauto.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 e c1 c2 H Hsi Hc Hincl.
+    move=> env s1 s2 e c1 c2 H Hsi Hc Hincl.
     rewrite CallsE in Hincl.
     move: Hincl=> /def_incl_union [Hincl1 Hincl2].
     apply: (Eif_true (P:=p') _ H).
@@ -259,7 +259,7 @@ Section PROOF.
 
   Local Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 e c1 c2 H Hsi Hc Hincl.
+    move=> env s1 s2 e c1 c2 H Hsi Hc Hincl.
     rewrite CallsE in Hincl.
     move: Hincl=> /def_incl_union [Hincl1 Hincl2].
     apply: (Eif_false (P:=p') _ H).
@@ -268,7 +268,7 @@ Section PROOF.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 a c e ei c' Hs1 Hc1 H Hs2 Hc2 Hsw Hiw Hinclw.
+    move=> env s1 s2 s3 s4 a c e ei c' Hs1 Hc1 H Hs2 Hc2 Hsw Hiw Hinclw.
     rewrite CallsE in Hinclw.
     have /def_incl_union [Hincl Hincl'] := Hinclw.
     exact: (Ewhile_true (Hc1 Hincl) H (Hc2 Hincl') (Hiw Hinclw)).
@@ -276,7 +276,7 @@ Section PROOF.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 a c e ei c' Hs1 Hc1 H Hinclw.
+    move=> env s1 s2 a c e ei c' Hs1 Hc1 H Hinclw.
     rewrite CallsE in Hinclw.
     have /def_incl_union [Hincl Hincl'] := Hinclw.
     exact: (Ewhile_false _ _ _ (Hc1 Hincl) H).
@@ -284,7 +284,7 @@ Section PROOF.
 
   Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
   Proof.
-    move=> s1 s2 i d lo hi c vlo vhi Hlo Hhi Hsf Hf Hincl.
+    move=> env s1 s2 i d lo hi c vlo vhi Hlo Hhi Hsf Hf Hincl.
     rewrite CallsE in Hincl.
     apply: (Efor (P:= p') Hlo Hhi).
     exact: (Hf Hincl).
@@ -292,18 +292,18 @@ Section PROOF.
 
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
   Proof.
-    move=> s i c Hincl; exact: EForDone.
+    move=> env s i c Hincl; exact: EForDone.
   Qed.
 
   Local Lemma Hfor_cons : sem_Ind_for_cons p ev Pc Pfor.
   Proof.
-    move=> s1 s1' s2 s3 i w ws c H Hsc Hc Hsf Hf Hincl.
+    move=> env s1 s1' s2 s3 i w ws c H Hsc Hc Hsf Hf Hincl.
     exact: (EForOne H (Hc Hincl) (Hf Hincl)).
   Qed.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 scs2 m2 s2 xs fn args vargs vs Hargs Hcall Hfun Hres Hincl.
+    move=> env s1 scs2 m2 s2 xs fn args vargs vs Hargs Hcall Hfun Hres Hincl.
     econstructor; eauto.
   Qed.
 
@@ -350,6 +350,7 @@ Section PROOF.
   Section IT.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context (env : Uint63.int -> Z).
 
   Definition dc_spec :=
    {|
@@ -359,21 +360,21 @@ Section PROOF.
 
   Let Pi (i:instr) :=
     def_incl (i_Calls i) ->
-    wequiv_rec p p' ev ev dc_spec (st_eq tt) [::i] [::i] (st_eq tt).
+    wequiv_rec (env:=env) p p' ev ev dc_spec (st_eq tt) [::i] [::i] (st_eq tt).
 
   Let Pi_r i := forall ii, Pi (MkI ii i).
 
   Let Pc (c:cmd) :=
     def_incl (c_Calls c) ->
-    wequiv_rec p p' ev ev dc_spec (st_eq tt) c c (st_eq tt).
+    wequiv_rec (env:=env) p p' ev ev dc_spec (st_eq tt) c c (st_eq tt).
 
-  #[local] Lemma _checker_st_eqP : Checker_eq p p' checker_st_eq.
+  #[local] Lemma _checker_st_eqP : Checker_eq p p' (checker_st_eq env).
   Proof. by apply checker_st_eqP. Qed.
 
   #[local] Hint Resolve _checker_st_eqP : core.
 
   Lemma it_dead_calls_callP fn :
-    wiequiv_f p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
+    wiequiv_f env p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
   Proof.
     apply wequiv_fun_ind => {}fn _ fs _ [<- <- hin] fd hfd; exists fd => //.
     + by apply get_dead_calls.
@@ -383,22 +384,22 @@ Section PROOF.
     + by move=> ??; apply wequiv_nil.
     + move=> > hi hc; rewrite CallsE => /def_incl_union [??].
       by apply wequiv_cons with (st_eq tt); [apply hi | apply hc].
-    + by move=> > _; apply wequiv_assgn_rel_eq with checker_st_eq tt.
-    + by move=> > _; apply wequiv_opn_rel_eq with checker_st_eq tt.
-    + by move=> > _; apply wequiv_syscall_rel_eq with checker_st_eq tt.
+    + by move=> > _; apply wequiv_assgn_rel_eq with (checker_st_eq env) tt.
+    + by move=> > _; apply wequiv_opn_rel_eq with (checker_st_eq env) tt.
+    + by move=> > _; apply wequiv_syscall_rel_eq with (checker_st_eq env) tt.
     + by move=> > _; apply wequiv_noassert.
     + move=> > hc1 hc2 ii; rewrite !CallsE => /def_incl_union [??].
-      apply wequiv_if_rel_eq with checker_st_eq tt tt tt => //.
+      apply wequiv_if_rel_eq with (checker_st_eq env) tt tt tt => //.
       + by apply hc1.
       by apply hc2.
     + move=> > hc ii; rewrite !CallsE => ?.
-      by apply wequiv_for_rel_eq with checker_st_eq tt tt => //; apply hc.
+      by apply wequiv_for_rel_eq with (checker_st_eq env) tt tt => //; apply hc.
     + move=> > hc hc' ii; rewrite !CallsE => /def_incl_union [??].
-      apply wequiv_while_rel_eq with checker_st_eq tt => //.
+      apply wequiv_while_rel_eq with (checker_st_eq env) tt => //.
       + by apply hc.
       by apply hc'.
     + move=> >; rewrite !CallsE => hfin.
-      apply wequiv_call_rel_eq with checker_st_eq tt => //.
+      apply wequiv_call_rel_eq with (checker_st_eq env) tt => //.
       move=> ???; apply: wequiv_fun_rec; split => //.
       by move: hfin; rewrite /def_incl; SfD.fsetdec.
     move=> n hn; apply: pfxp.
@@ -457,11 +458,12 @@ Qed.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context (env : Uint63.int -> Z).
 
 Lemma it_dead_calls_errP (s : Sf.t) (p p': prog) :
   dead_calls_err s p = ok p' →
   ∀ f ev, Sf.In f s →
-  wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) f f (rpostF (eS := eq_spec)).
+  wiequiv_f env p p' ev ev (rpreF (eS := eq_spec)) f f (rpostF (eS := eq_spec)).
 Proof.
 rewrite /dead_calls_err.
 case: ifP => // /SfD.F.subset_2 pfx [] <- f ev hin fs _ [_ <-].
@@ -472,7 +474,7 @@ Qed.
 Theorem it_dead_calls_err_seqP (s : seq funname) (p p': prog) :
   dead_calls_err_seq s p = ok p' →
   ∀ f ev, f \in s →
-  wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) f f (rpostF (eS := eq_spec)).
+  wiequiv_f env p p' ev ev (rpreF (eS := eq_spec)) f f (rpostF (eS := eq_spec)).
 Proof.
   rewrite /dead_calls_err_seq.
   move=> h f ev fins; apply: (it_dead_calls_errP h).

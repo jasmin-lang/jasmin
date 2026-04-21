@@ -84,19 +84,19 @@ Section WITH_PARAMS.
     #[local]
     Notation p' := (insert_renaming_prog insert_renaming_p p).
 
-    Let Pi s (i: instr) s' :=
+    Let Pi env (s : estate env) (i: instr) s' :=
           ∀ vm, evm s <=1 vm →
           exists2 vm', evm s' <=1 vm' &
           sem_I p' ev (with_vm s vm) i (with_vm s' vm').
 
-    Let Pi_r s (i: instr_r) s' := ∀ ii, Pi s (MkI ii i) s'.
+    Let Pi_r env (s : estate env) (i: instr_r) s' := ∀ ii, Pi s (MkI ii i) s'.
 
-    Let Pc s (c: cmd) s' :=
+    Let Pc env (s : estate env) (c: cmd) s' :=
           ∀ vm, evm s <=1 vm →
           exists2 vm', evm s' <=1 vm' &
           sem p' ev (with_vm s vm) c (with_vm s' vm').
 
-    Let Pfor (i: var_i) vs s c s' :=
+    Let Pfor env (i: var_i) vs (s : estate env) c s' :=
           ∀ vm, evm s <=1 vm →
           exists2 vm', evm s' <=1 vm' &
           sem_for p' ev i vs (with_vm s vm) c (with_vm s' vm').
@@ -106,11 +106,11 @@ Section WITH_PARAMS.
           exists2 vres', List.Forall2 value_uincl vres vres' &
           sem_call p' ev scs1 m1 fn vargs' scs2 m2 vres'.
 
-    Lemma write_vars_defined vs' xs vs s0 s1 :
-      mapM2 ErrType dc_truncate_val (map eval_atype [seq vtype (v_var x) | x <- xs ]) vs' = ok vs ->
+    Lemma write_vars_defined env vs' xs vs (s0 s1 : estate env) :
+      mapM2 ErrType dc_truncate_val (map (eval_atype env) [seq vtype (v_var x) | x <- xs ]) vs' = ok vs ->
       write_vars true xs vs s0 = ok s1 →
       ∀ y, all (λ x : var_i, v_var x != y) xs = false →
-       ∃ v v', [/\ truncate_val (eval_atype (vtype y)) v' = ok v &
+       ∃ v v', [/\ truncate_val (eval_atype env (vtype y)) v' = ok v &
                 get_var true (evm s1) y = ok v ].
     Proof.
       clear.
@@ -130,8 +130,8 @@ Section WITH_PARAMS.
       by exists v, v'.
     Qed.
 
-    Lemma insert_renaming_prologue ii (xs: seq var_i) va' va s0 s :
-      mapM2 ErrType dc_truncate_val [seq eval_atype i | i <- [seq vtype (v_var x) | x <- xs]] va = ok va' →
+    Lemma insert_renaming_prologue env ii (xs: seq var_i) va' va (s0 s : estate env) :
+      mapM2 ErrType dc_truncate_val [seq eval_atype env i | i <- [seq vtype (v_var x) | x <- xs]] va = ok va' →
       write_vars true xs va' s0 = ok s →
       ∀ vm, evm s <=1 vm →
       exists2 vm', vm <=1 vm' & sem p' ev (with_vm s vm) (rename_vars ii xs) (with_vm s vm').
@@ -173,8 +173,8 @@ Section WITH_PARAMS.
       exact: ih.
     Qed.
 
-    Lemma insert_renaming_epilogue ii (xs: seq var_i) vr vr' s :
-      mapM2 ErrType dc_truncate_val [seq eval_atype i | i <- [seq vtype x.(v_var) | x <- xs ] ] vr = ok vr' →
+    Lemma insert_renaming_epilogue env ii (xs: seq var_i) vr vr' (s : estate env) :
+      mapM2 ErrType dc_truncate_val [seq eval_atype env i | i <- [seq vtype x.(v_var) | x <- xs ] ] vr = ok vr' →
       ∀ vm, evm s <=1 vm →
       get_var_is true vm xs = ok vr →
       ∃ vm' vr', [/\ vm  <=1 vm', sem p' ev (with_vm s vm) (rename_vars ii xs) (with_vm s vm'), get_var_is true vm' xs = ok vr' &
@@ -219,68 +219,68 @@ Section WITH_PARAMS.
     Proof.
       apply: (@sem_call_Ind _ _ _ _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun); clear.
       - by move => * > *; eexists; last constructor.
-      - move => s1 s2 s3 i c _ hi _ hc vm1 hvm1.
+      - move => env s1 s2 s3 i c _ hi _ hc vm1 hvm1.
         case: (hi vm1 hvm1) => vm2 hvm2 {}hi.
         case: (hc vm2 hvm2) => vm3 hvm3 {}hc.
         exists vm3; first by [].
         by econstructor; eauto.
       - done.
-      - move => s1 s2 x tg ty e v v1 ok_v ok_v1 ok_s2 ii vm hvm.
+      - move => env s1 s2 x tg ty e v v1 ok_v ok_v1 ok_s2 ii vm hvm.
         case: (sem_pexpr_uincl hvm ok_v) => v' ok_v' vv'.
         case: (value_uincl_truncate vv' ok_v1) => v1' ok_v1' v1v1'.
         case: (write_uincl hvm v1v1' ok_s2) => vm' ok_s2' hvm'.
         exists vm'; first by [].
         by constructor; econstructor; eauto.
-      - move => s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => vs vs1 ok_vs ok_vs1 ok_s2 ii vm hvm.
+      - move => env s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => vs vs1 ok_vs ok_vs1 ok_s2 ii vm hvm.
         case: (sem_pexprs_uincl hvm ok_vs) => vs' ok_vs' vsvs'.
         case: (vuincl_exec_opn vsvs' ok_vs1) => vs1' ok_vs1' vs1vs1'.
         case: (writes_uincl hvm vs1vs1' ok_s2) => vm' ok_s2' hvm'.
         exists vm'; first by [].
         constructor; econstructor; eauto.
         by rewrite /sem_sopn ok_vs' /= ok_vs1'.
-      - move => s1 scs m s2 op xs es ves vs ok_ves ok_vs ok_s2 ii vm hvm.
+      - move => env s1 scs m s2 op xs es ves vs ok_ves ok_vs ok_s2 ii vm hvm.
         case: (sem_pexprs_uincl hvm ok_ves) => ves' {}ok_ves ves_ves'.
         case: (exec_syscallP ok_vs ves_ves') => vs' {}ok_vs vs_vs'.
         have /= /(_ _ hvm) := writes_uincl _ vs_vs' ok_s2.
         case => vm' {}ok_s2 s2_vm'.
         exists vm'; first exact s2_vm'.
         by constructor; econstructor; eauto.
-      - move => s1 s2 e c1 c2 ok_e _ hc ii vm hvm.
+      - move => env s1 s2 e c1 c2 ok_e _ hc ii vm hvm.
         case: (sem_pexpr_uincl hvm ok_e) => - [] // ? {}ok_e /= ?; subst.
         case: (hc vm hvm) => vm' s2_vm' {}hc.
         exists vm'; first exact s2_vm'.
         by constructor; econstructor; eauto.
-      - move => s1 s2 e c1 c2 ok_e _ hc ii vm hvm.
+      - move => env s1 s2 e c1 c2 ok_e _ hc ii vm hvm.
         case: (sem_pexpr_uincl hvm ok_e) => - [] // ? {}ok_e /= ?; subst.
         case: (hc vm hvm) => vm' s2_vm' {}hc.
         exists vm'; first exact s2_vm'.
         by constructor; econstructor; eauto.
-      - move => s1 s2 s3 s4 aa c e ei c' _ hc ok_e _ hc' _ ih ii vm hvm.
+      - move => env s1 s2 s3 s4 aa c e ei c' _ hc ok_e _ hc' _ ih ii vm hvm.
         case: (hc vm hvm) => vm2 s2_vm2 {}hc.
         case: (sem_pexpr_uincl s2_vm2 ok_e) => - [] // ? {}ok_e /= ?; subst.
         case: (hc' vm2 s2_vm2) => vm3 s3_vm3 {}hc'.
         case: (ih ii vm3 s3_vm3) => vm4 s4_vm4 /sem_IE {}ih.
         exists vm4; first exact: s4_vm4.
         by constructor; econstructor; eauto.
-      - move => s1 s2 aa c e ei c' _ hc ok_e ii vm hvm.
+      - move => env s1 s2 aa c e ei c' _ hc ok_e ii vm hvm.
         case: (hc vm hvm) => vm2 s2_vm2 {}hc.
         case: (sem_pexpr_uincl s2_vm2 ok_e) => - [] // ? {}ok_e /= ?; subst.
         exists vm2; first exact: s2_vm2.
         by constructor; econstructor; eauto.
-      - move => s1 s2 i d lo hi c vlo vhi ok_vlo ok_vhi _ hfor ii vm hvm.
+      - move => env s1 s2 i d lo hi c vlo vhi ok_vlo ok_vhi _ hfor ii vm hvm.
         case: (sem_pexpr_uincl hvm ok_vlo) => - [] // vlo' {} ok_vlo /= ?; subst vlo'.
         case: (sem_pexpr_uincl hvm ok_vhi) => - [] // vhi' {} ok_vhi /= ?; subst vhi'.
         case: (hfor vm hvm) => vm2 s2_vm2 {} hfor.
         exists vm2; first exact: s2_vm2.
         by constructor; econstructor; eauto.
-      - by move => s i c vm hvm; exists vm; last constructor.
-      - move => s1 s2 s3 s4 i w ws c ok_s2 _ hc _ ih vm hvm.
+      - by move => env s i c vm hvm; exists vm; last constructor.
+      - move => env s1 s2 s3 s4 i w ws c ok_s2 _ hc _ ih vm hvm.
         case: (write_var_uincl hvm (erefl : value_uincl w w) ok_s2) => vm2 {} ok_s2 s2_vm2.
         case: (hc vm2 s2_vm2) => vm3 s3_vm3 {} hc.
         case: (ih vm3 s3_vm3) => vm4 s4_vm4 {} ih.
         exists vm4; first exact: s4_vm4.
         by econstructor; eauto.
-      - move => s1 scs m2 s2 xs fn args vargs vs ok_vargs _ ih ok_s2 ii vm1 s1_vm1.
+      - move => env s1 scs m2 s2 xs fn args vargs vs ok_vargs _ ih ok_s2 ii vm1 s1_vm1.
         case: (sem_pexprs_uincl s1_vm1 ok_vargs) => vargs' {} ok_vargs vargs_vargs'.
         case: (ih _ vargs_vargs') => vs' vs_vs' {} ih.
         have /= /(_ _ s1_vm1) := writes_uincl _ vs_vs' ok_s2.
@@ -323,7 +323,7 @@ Section WITH_PARAMS.
       case: (mapM2_dc_truncate_val ok_vr1 vrvr') => vr1' ok_vr1' vr1vr1'.
       rewrite wt_res in ok_vr1'.
       have := insert_renaming_epilogue (ret_info_of_fun_info (f_info fd)).
-      move => /(_ _ _ _ _ ok_vr1' _ hvm2 ok_vr')[] vm3 [] vr'' [] vm2_vm3 epilogue ok_vr'' vr'_vr''.
+      move => /(_ _ _ _ _ _ ok_vr1' _ hvm2 ok_vr')[] vm3 [] vr'' [] vm2_vm3 epilogue ok_vr'' vr'_vr''.
       case: (mapM2_dc_truncate_val ok_vr1' vr'_vr'') => vr1'' ok_vr1'' vr1'_vr1''.
       exists vr1''.
       - exact: Forall2_trans value_uincl_trans vr1vr1' vr1'_vr1''.
@@ -351,6 +351,7 @@ Section WITH_PARAMS.
       {E E0: Type → Type}
         {wE: with_Error E E0}
         {rE: EventRels E0}.
+    Context (env : Uint63.int -> Z).
 
     Context (insert_renaming_p: fun_info → bool).
     Context (p: prog) (ev: extra_val_t).
@@ -358,42 +359,42 @@ Section WITH_PARAMS.
     #[local]
     Notation p' := (insert_renaming_prog insert_renaming_p p).
 
-    Let Pi (i: instr) := wequiv_rec p p' ev ev uincl_spec (st_uincl tt) [:: i ] [:: i ] (st_uincl tt).
+    Let Pi (i: instr) := wequiv_rec (env:=env) p p' ev ev uincl_spec (st_uincl tt) [:: i ] [:: i ] (st_uincl tt).
 
     Let Pi_r (i: instr_r) := ∀ ii, Pi (MkI ii i).
 
-    Let Pc (c: cmd) := wequiv_rec p p' ev ev uincl_spec (st_uincl tt) c c (st_uincl tt).
+    Let Pc (c: cmd) := wequiv_rec (env:=env) p p' ev ev uincl_spec (st_uincl tt) c c (st_uincl tt).
 
-    #[local] Lemma checker_st_uinclP : Checker_uincl p p' checker_st_uincl.
+    #[local] Lemma checker_st_uinclP : Checker_uincl p p' (checker_st_uincl env).
     Proof. by apply checker_st_uinclP. Qed.
 
     #[local] Hint Resolve checker_st_uinclP : core.
 
     Lemma it_insert_renaming_rec (fd: fundef) :
-      (∀ ii1 ii2 fn1 fn2, wequiv_f_rec p p' ev ev uincl_spec pre_incl ii1 ii2 fn1 fn2 post_incl) →
-      wequiv (rE0 := relEvent_recCall uincl_spec) p p' ev ev (st_uincl tt) (f_body fd) (f_body fd) (st_uincl tt).
+      (∀ ii1 ii2 fn1 fn2, wequiv_f_rec env p p' ev ev uincl_spec pre_incl ii1 ii2 fn1 fn2 post_incl) →
+      wequiv (env:=env) (rE0 := relEvent_recCall uincl_spec) p p' ev ev (st_uincl tt) (f_body fd) (f_body fd) (st_uincl tt).
     Proof.
       move => hrec.
       apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)).
       - done.
       - by apply wequiv_nil.
       - by move => i c; apply (wequiv_cons (R := st_uincl tt)).
-      - by move => x tg ty e ii; apply wequiv_assgn_rel_uincl with checker_st_uincl tt.
-      - by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
-      - by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with checker_st_uincl tt.
+      - by move => x tg ty e ii; apply wequiv_assgn_rel_uincl with (checker_st_uincl env) tt.
+      - by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with (checker_st_uincl env) tt.
+      - by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with (checker_st_uincl env) tt.
       - by move=> a ii; apply wequiv_noassert.
-      - by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
-      - by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
-      - by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
-      move=> xs fn es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt => //.
+      - by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with (checker_st_uincl env) tt tt tt.
+      - by move=> > hc ii; apply wequiv_for_rel_uincl with (checker_st_uincl env) tt tt.
+      - by move=> > ?? ii; apply wequiv_while_rel_uincl with (checker_st_uincl env) tt.
+      move=> xs fn es ii; apply wequiv_call_rel_uincl with (checker_st_uincl env) tt => //.
       by move=> ???; apply hrec.
     Qed.
 
-    Definition st_uincl_at_init fd s t :=
-      st_uincl tt s t ∧ ∃ fs, initialize_funcall p ev fd fs = ok s.
+    Definition st_uincl_at_init fd (s : estate env) t :=
+      st_uincl tt s t ∧ ∃ fs, initialize_funcall env p ev fd fs = ok s.
 
     Theorem it_insert_renaming_callP fn :
-      wiequiv_f p p' ev ev pre_incl fn fn post_incl.
+      wiequiv_f env p p' ev ev pre_incl fn fn post_incl.
     Proof.
       apply wequiv_fun_ind' => {} fn _ fs ft [] <- hfsu fd hget.
       exists (insert_renaming_fd insert_renaming_p fd).

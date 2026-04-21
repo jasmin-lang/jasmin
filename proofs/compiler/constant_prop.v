@@ -50,10 +50,13 @@ Definition to_expr (t:ctype) : sem_t t -> exec pexpr :=
   | cword sz => fun w => ok (wconst w)
   end.
 
+(* FIXME: merge with syscall_sem and move *)
+Definition empty_env : Uint63.int -> Z := fun _ => 0.
+
 Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr :=
   let r :=
     Let x := of_expr _ e in
-    Let v := sem_sop1_typed o x in
+    Let v := sem_sop1_typed empty_env o x in
     to_expr v in
   match r with
   | Ok e => e
@@ -64,7 +67,7 @@ Definition ssem_sop2 (o: sop2) (e1 e2: pexpr) : pexpr :=
   let r :=
     Let x1 := of_expr _ e1 in
     Let x2 := of_expr _ e2 in
-    Let v  := sem_sop2_typed o x1 x2 in
+    Let v  := sem_sop2_typed empty_env o x1 x2 in
     to_expr v in
   match r with
   | Ok e => e
@@ -288,7 +291,7 @@ Definition app_sopn := app_sopn of_expr.
 Arguments app_sopn {A} ts _ _.
 
 Definition s_opN (op:opN) (es:pexprs) : pexpr :=
-  match op, app_sopn _ (sem_opN_typed op) es with
+  match op, app_sopn _ (sem_opN_typed empty_env op) es with
   | Opack ws _, Ok w => Papp1 (Oword_of_int ws) (Pconst (wunsigned w))
   | Ocombine_flags _, Ok b => Pbool b
   | _, _ => PappN op es

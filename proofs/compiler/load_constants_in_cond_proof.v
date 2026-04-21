@@ -38,7 +38,7 @@ Section BODY.
 
 Context (X : Sv.t).
 
-Lemma process_constantP_aux wdb ii n ws e c e' W s v :
+Lemma process_constantP_aux env wdb ii n ws e c e' W (s : estate env) v :
   process_constant fresh_reg ii n ws e = (c, e', W) ->
   sem_pexpr wdb gd s e = ok v ->
   exists vm,
@@ -63,7 +63,7 @@ Proof.
   by rewrite /get_gvar /= get_var_set /= ?cmp_le_refl !orbT //= eqxx.
 Qed.
 
-Lemma process_constantP wdb ii n ws e c e' W s v vm :
+Lemma process_constantP env wdb ii n ws e c e' W s v (vm : Vm.t env) :
   process_constant fresh_reg ii n ws e = (c, e', W) ->
   sem_pexpr wdb gd s e = ok v ->
   Sv.Subset (read_e e) X ->
@@ -84,7 +84,7 @@ Proof.
   by move/disjointP: hdisj; apply.
 Qed.
 
-Lemma process_conditionP wdb ii e c e' s v vm:
+Lemma process_conditionP env wdb ii e c e' s v (vm : Vm.t env) :
   process_condition fresh_reg X ii e = ok (c, e') ->
   sem_pexpr wdb gd s e = ok v ->
   Sv.Subset (read_e e) X ->
@@ -100,7 +100,7 @@ Proof.
    → sem_pexpr wdb gd s e = ok v
    → Sv.Subset (read_e e) X
    → evm s =[X] vm
-   → ∃ vm' : Vm.t,
+   → ∃ vm' : Vm.t env,
       [/\ esem p' ev [seq MkI ii i | i <- c] (with_vm s vm) = ok (with_vm s vm'),
           evm s =[X] vm'
           & sem_pexpr wdb gd' (with_vm s vm') e' = ok v].
@@ -137,22 +137,22 @@ End BODY.
 
 Section SEM.
 
-Let Pi s1 (i:instr) s2:=
+Let Pi env (s1 : estate env) (i:instr) s2:=
   forall (X:Sv.t) c', load_constants_i fresh_reg X i = ok c' ->
   Sv.Subset (Sv.union (read_I i) (write_I i)) X ->
   forall vm1, evm s1 =[X] vm1 ->
   exists2 vm2, evm s2 =[X] vm2 & sem p' ev (with_vm s1 vm1) c' (with_vm s2 vm2).
 
-Let Pi_r s1 (i:instr_r) s2 :=
+Let Pi_r env (s1 : estate env) (i:instr_r) s2 :=
   forall ii, Pi s1 (MkI ii i) s2.
 
-Let Pc s1 (c:cmd) s2:=
+Let Pc env (s1 : estate env) (c:cmd) s2:=
   forall (X:Sv.t) c', load_constants_c (load_constants_i fresh_reg X) c = ok c' ->
   Sv.Subset (Sv.union (read_c c) (write_c c)) X ->
   forall vm1, evm s1 =[X] vm1 ->
   exists2 vm2, evm s2 =[X] vm2 & sem p' ev (with_vm s1 vm1) c' (with_vm s2 vm2).
 
-Let Pfor (i:var_i) vs s1 c s2 :=
+Let Pfor env (i:var_i) vs (s1 : estate env) c s2 :=
   forall X c',
   load_constants_c (load_constants_i fresh_reg X) c = ok c' ->
   Sv.Subset (Sv.add i (Sv.union (read_c c) (write_c c))) X ->
@@ -164,12 +164,12 @@ Let Pfun scs m fn vargs scs' m' vres :=
 
 Local Lemma Hskip : sem_Ind_nil Pc.
 Proof.
-  by move=> s X _ [<-] hs vm1 hvm1; exists vm1 => //; constructor.
+  by move=> env s X _ [<-] hs vm1 hvm1; exists vm1 => //; constructor.
 Qed.
 
 Local Lemma Hcons : sem_Ind_cons p ev Pc Pi.
 Proof.
-  move=> s1 s2 s3 i c _ hi _ hc X c'; rewrite /load_constants_c /=.
+  move=> env s1 s2 s3 i c _ hi _ hc X c'; rewrite /load_constants_c /=.
   t_xrbindP => lc ci {}/hi hi cc hcc <- <-.
   rewrite read_c_cons write_c_cons => hsub vm1 hvm1.
   have [|vm2 hvm2 hs2]:= hi _ vm1 hvm1; first by SvD.fsetdec.
@@ -180,11 +180,11 @@ Proof.
 Qed.
 
 Local Lemma HmkI : sem_Ind_mkI p ev Pi_r Pi.
-Proof. by move=> ii i s1 s2 _ Hi X c' /Hi. Qed.
+Proof. by move=> env ii i s1 s2 _ Hi X c' /Hi. Qed.
 
 Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
 Proof.
-  move=> s1 s2 x t ty e v v' he htr hw ii X c' [<-].
+  move=> env s1 s2 x t ty e v v' he htr hw ii X c' [<-].
   rewrite read_Ii /write_I /write_I_rec vrv_recE read_i_assgn => hsub vm1 hvm1.
   move: he; rewrite (read_e_eq_on_empty _ _ (vm := vm1)); last first.
   + by apply: eq_onI hvm1; rewrite read_eE; SvD.fsetdec.
@@ -197,7 +197,7 @@ Qed.
 
 Local Lemma Hopn : sem_Ind_opn p Pi_r.
 Proof.
-  move=> s1 s2 t o xs es He ii X c' /=.
+  move=> env s1 s2 t o xs es He ii X c' /=.
   move => /ok_inj <- {c'}.
   rewrite read_Ii read_i_opn /write_I /write_I_rec vrvs_recE => hsub vm1 hvm1.
   move: He; rewrite -eq_globs /sem_sopn Let_Let.
@@ -213,7 +213,7 @@ Qed.
 
 Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.
 Proof.
-  move=> s1 scs m s2 o xs es ves vs hes ho hw ii X c /= [<-]{c}.
+  move=> env s1 scs m s2 o xs es ves vs hes ho hw ii X c /= [<-]{c}.
   rewrite read_Ii read_i_syscall write_Ii write_i_syscall => hsub vm1 hvm1.
   have h : evm s1 =[read_es es] evm (with_vm s1 vm1).
   + by apply: eq_onI hvm1; SvD.fsetdec.
@@ -230,7 +230,7 @@ Qed.
 
 Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 e c1 c2 He Hs Hc ii X c' /=.
+  move=> env s1 s2 e c1 c2 He Hs Hc ii X c' /=.
   t_xrbindP => -[prologue e'] he; t_xrbindP => c1' hc1' c2' hc2' <-.
   rewrite !(read_Ii, write_Ii) !(read_i_if, write_i_if) => le_X.
   move=> vm1 eq_s1_vm1.
@@ -246,7 +246,7 @@ Qed.
 
 Local Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 e c1 c2 He Hs Hc ii X c' /=.
+  move=> env s1 s2 e c1 c2 He Hs Hc ii X c' /=.
   t_xrbindP => -[prologue e'] he; t_xrbindP => c1' hc1' c2' hc2' <-.
   rewrite !(read_Ii, write_Ii) !(read_i_if, write_i_if) => le_X.
   move=> vm1 eq_s1_vm1.
@@ -262,7 +262,7 @@ Qed.
 
 Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 s3 s4 a c e info c' sem_s1_s2 H_s1_s2.
+  move=> env s1 s2 s3 s4 a c e info c' sem_s1_s2 H_s1_s2.
   move=> sem_s2_e sem_s2_s3 H_s2_s3 sem_s3_s4 H_s3_s4.
   move=> ii X c'' /=; t_xrbindP => -[prologue e'] he.
   t_xrbindP => d dE d' d'E {c''}<-.
@@ -285,7 +285,7 @@ Qed.
 
 Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 a c e info c' sem_s1_s2 H_s1_s2 sem_s2_e.
+  move=> env s1 s2 a c e info c' sem_s1_s2 H_s1_s2 sem_s2_e.
   move=> ii X c'' /=; t_xrbindP => -[prologue e'] he.
   t_xrbindP => d dE d' d'E {c''}<-.
   rewrite !(read_Ii, write_Ii) !(read_i_while, write_i_while).
@@ -301,13 +301,13 @@ Qed.
 
 Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
 Proof.
-  move => s1 x c X c' Hc le_X vm1 eq_s1_vm1.
+  move => env s1 x c X c' Hc le_X vm1 eq_s1_vm1.
   by exists vm1 => //; constructor.
 Qed.
 
 Local Lemma Hfor_cons : sem_Ind_for_cons p ev Pc Pfor.
 Proof.
-  move => s1 s2 s3 s4 x w ws c eq_s2 sem_s2_s3 H_s2_s3 H_s3_s4 Pfor_s3_s4 X c'.
+  move => env s1 s2 s3 s4 x w ws c eq_s2 sem_s2_s3 H_s2_s3 H_s3_s4 Pfor_s3_s4 X c'.
   move => eq_c' le_X vm1 eq_s1_vm1.
   case : (write_var_eq_on eq_s2 eq_s1_vm1) => vm2 eq_write eq_s2_vm2.
   case : (H_s2_s3 X _ eq_c' _ vm2).
@@ -322,7 +322,7 @@ Qed.
 
 Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
 Proof.
-  move=> s1 s2 x d lo hi c vlo vhi cpl_lo cpl_hi cpl_for sem_s1_s2.
+  move=> env s1 s2 x d lo hi c vlo vhi cpl_lo cpl_hi cpl_for sem_s1_s2.
   move=> ii X c' /=; t_xrbindP=> {} c' c'E <-.
   rewrite !(read_Ii, write_Ii) !(read_i_for, write_i_for).
   move=> le_X vm1 eq_s1_vm1.
@@ -339,7 +339,7 @@ Qed.
 
 Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s1 scs m s2 lv fn args vargs aout eval_args h1 h2 h3.
+  move=> env s1 scs m s2 lv fn args vargs aout eval_args h1 h2 h3.
   move=> ii' X c' /= [<-]; rewrite !(read_Ii, write_Ii).
   rewrite !(read_i_call, write_i_call) => le_X vm1 eq_s1_vm1.
   have h : evm s1 =[read_es args] evm (with_vm s1 vm1).
@@ -354,6 +354,7 @@ Proof.
 Qed.
 
 Lemma eq_extra : p_extra p = p_extra p'.
+Proof.
   move : Hp; rewrite /load_constants_prog.
   by t_xrbindP => y Hmap <-.
 Qed.
@@ -405,13 +406,14 @@ End SEM.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context (env : Uint63.int -> Z).
 
-Lemma checker_st_eq_onP_ : Checker_eq p p' checker_st_eq_on.
+Lemma checker_st_eq_onP_ : Checker_eq p p' (checker_st_eq_on env).
 Proof. by apply checker_st_eq_onP; rewrite eq_globs. Qed.
 #[local] Hint Resolve checker_st_eq_onP_ : core.
 
 Lemma it_load_constants_progP_aux fn:
-  wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+  wiequiv_f env p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
   apply wequiv_fun_ind => {}fn _ fs _ [<-] <- fd hget.
   move: Hp; rewrite /load_constants_prog; t_xrbindP => funcs Hmap hp'.
@@ -432,11 +434,11 @@ Proof.
   move: X c' hc' => X; move: (f_body fd) => {fd}.
   set Pi := fun i =>
     forall c', load_constants_i fresh_reg X i = ok c' -> Sv.Subset (read_I i) X ->
-    wequiv_rec p p' ev ev eq_spec (st_eq_on X) [::i] c' (st_eq_on X).
+    wequiv_rec (env:=env) p p' ev ev eq_spec (st_eq_on X) [::i] c' (st_eq_on X).
   set Pi_r := fun i => forall ii, Pi (MkI ii i).
   set Pc := fun c =>
     forall c', load_constants_c (load_constants_i fresh_reg X) c = ok c' -> Sv.Subset (read_c c) X ->
-    wequiv_rec p p' ev ev eq_spec (st_eq_on X) c c' (st_eq_on X).
+    wequiv_rec (env:=env) p p' ev ev eq_spec (st_eq_on X) c c' (st_eq_on X).
   apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; subst Pi_r Pi Pc => /=.
   + by move=> c_ [<-] _; apply wequiv_nil.
   + move=> i c hi hc c_.
@@ -447,14 +449,14 @@ Proof.
     apply hc; last by SvD.fsetdec.
     by rewrite /load_constants_c hmap.
   + move=> x tg ty e ii _ [<-]; rewrite !read_writeE => hsub.
-    apply wequiv_assgn_rel_eq with checker_st_eq_on X => //.
+    apply wequiv_assgn_rel_eq with (checker_st_eq_on env) X => //.
     + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
     split => //; first by SvD.fsetdec.
     by rewrite /read_rvs /= read_rvE; SvD.fsetdec.
   + move=> xs tg o es ii _ [<-]; rewrite !read_writeE => hsub.
-    by apply wequiv_opn_rel_eq with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
+    by apply wequiv_opn_rel_eq with (checker_st_eq_on env) X => //=; split=> //; SvD.fsetdec.
   + move=> xs sc es ii _ [<-]; rewrite !read_writeE => hsub.
-    by apply wequiv_syscall_rel_eq with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
+    by apply wequiv_syscall_rel_eq with (checker_st_eq_on env) X => //=; split=> //; SvD.fsetdec.
   + by move=> *; apply wequiv_noassert.
   + move=> e c1 c2 hc1 hc2 ii c_; t_xrbindP.
     move=> [c e'] hcond; t_xrbindP => c1' hc1' c2' hc2' <-; rewrite !read_writeE => hsub.
@@ -466,7 +468,7 @@ Proof.
       by eexists; split;eauto.
     by move=> []; [apply hc1 | apply hc2] => //; SvD.fsetdec.
   + move=> x dir lo hi c hc ii c_; t_xrbindP => c' hc' <-; rewrite !read_writeE => hsub.
-    apply wequiv_for_rel_eq with checker_st_eq_on X X => //.
+    apply wequiv_for_rel_eq with (checker_st_eq_on env) X X => //.
     + by split => //; rewrite /read_es /= !read_eE; SvD.fsetdec.
     + by split => //; rewrite /read_rvs /=; SvD.fsetdec.
     by apply hc => //; SvD.fsetdec.
@@ -480,7 +482,7 @@ Proof.
       by eexists; split;eauto.
     by apply hc2 => //; SvD.fsetdec.
   move=> xs fn es ii _ [<-]; rewrite !read_writeE => hsub.
-  apply wequiv_call_rel_eq with checker_st_eq_on X => //.
+  apply wequiv_call_rel_eq with (checker_st_eq_on env) X => //.
   + by split => //; SvD.fsetdec.
   + by split => //; SvD.fsetdec.
   by move=> ???; apply: wequiv_fun_rec.
@@ -505,11 +507,12 @@ Qed.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context (env : Uint63.int -> Z).
 
 Lemma it_load_constants_progP p p' doit:
   load_constants_prog fresh_reg doit p = ok p' →
   ∀ (ev : extra_val_t) (fn : funname),
-  wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+  wiequiv_f env p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
 case: doit; last by move=> [<-] ??; apply wiequiv_f_eq.
 by move=> ???; apply it_load_constants_progP_aux.
