@@ -244,6 +244,8 @@ HB.instance Definition _ := isFinite.Build kem_oracle_name kem_oracle_name_fin_a
 
 Class KEMParams :=
   {
+    M : choiceType;
+    M0 : M;
     pkey : choiceType;
     skey : choiceType;
     ctxt : choiceType;
@@ -273,7 +275,7 @@ Instance KEM : OracleSystemInterface :=
       | OEncap => ctxt * msg
       | ODecap => msg
       end%type;
-    mi := tt;
+    mi := M0;
   |}.
 
 (* -------------------------------------------------------------------------- *)
@@ -318,16 +320,17 @@ Record _Mo :=
   {
     mo_keys : option (pkey * skey);
     mo_bit : option bool;
+    mo_mem : M;
   }.
 
 (* Isomorphic definition to prove that [_Mo] is a [choiceType]. *)
-Let _Mo_choice : Type := option (pkey * skey) * option bool.
+Let _Mo_choice : Type := option (pkey * skey) * option bool * M.
 
 Let pickle__Mo (m : _Mo) : _Mo_choice :=
-  (mo_keys m, mo_bit m).
+  (mo_keys m, mo_bit m, mo_mem m).
 
 Let unpickle__Mo (mk : _Mo_choice) : _Mo :=
-  {| mo_keys := mk.1; mo_bit := mk.2; |}.
+  {| mo_keys := mk.1.1; mo_bit := mk.1.2; mo_mem := mk.2; |}.
 
 Lemma pickle__MoK : cancel pickle__Mo unpickle__Mo.
 Proof. by case. Qed.
@@ -335,9 +338,13 @@ Proof. by case. Qed.
 HB.instance Definition _ := Choice.copy _Mo (can_type pickle__MoK).
 
 Definition mo_with_bit (m : _Mo) (b : bool) : _Mo :=
-  {| mo_keys := mo_keys m; mo_bit := Some b; |}.
+  {| mo_keys := mo_keys m; mo_bit := Some b; mo_mem := mo_mem m; |}.
 
-Definition _mi : _Mo := {| mo_keys := None; mo_bit := None; |}.
+Definition mo_with_mem (m : _Mo) (mem : M) : _Mo :=
+  {| mo_keys := mo_keys m; mo_bit := mo_bit m; mo_mem := mem; |}.
+
+Definition _mi : _Mo :=
+  {| mo_keys := None; mo_bit := None; mo_mem := M0; |}.
 
 Definition _In (x : cca_oracle_name) : choiceType :=
   match x with
@@ -355,25 +362,27 @@ Definition _Out (x : cca_oracle_name) : choiceType :=
   | OFinalize => unit
   end%type.
 
-Definition _Oo_Init (_ : unit) (_ : _Mo) : itree Rnd (pkey * _Mo) :=
-  let* ((pk, sk), _) := Oo OGenKey tt tt in
-  let mo := {| mo_keys := Some (pk, sk); mo_bit := None; |} in
+Definition _Oo_Init (_ : unit) (m : _Mo) : itree Rnd (pkey * _Mo) :=
+  let* ((pk, sk), m') := Oo OGenKey tt (mo_mem m) in
+  let mo :=
+    {| mo_keys := Some (pk, sk); mo_bit := None; mo_mem := m'; |}
+  in
   Ret (pk, mo).
 
 Definition _Oo_Query (ct : ctxt) (mo : _Mo) : itree Rnd (msg * _Mo) :=
   if mo_keys mo is Some (_, sk) then
-    let* (m, _) := Oo ODecap (sk, ct) tt in
-    Ret (m, mo)
+    let* (m, mem') := Oo ODecap (sk, ct) (mo_mem mo) in
+    Ret (m, mo_with_mem mo mem')
   else Ret (dummy_msg, mo).
 
 Definition _Oo_GetChallenge
   (_ : unit) (mo : _Mo) : itree Rnd ((ctxt * msg) * _Mo) :=
   if mo_keys mo is Some (pk, _) then
-    let* ((ct, m0), _) := Oo OEncap pk tt in
+    let* ((ct, m0), mem') := Oo OEncap pk (mo_mem mo) in
     let* m1 := rnd_msg in
     let* b := flip in
     let mb := if b then m1 else m0 in
-    Ret ((ct, mb), mo_with_bit mo b)
+    Ret ((ct, mb), mo_with_bit (mo_with_mem mo mem') b)
   else Ret ((dummy_ct, dummy_msg), mo).
 
 Definition _Oo_Finalize (g : bool) (_ : _Mo) : itree Rnd (unit * _Mo) :=
