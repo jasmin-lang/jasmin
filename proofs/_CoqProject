@@ -30,6 +30,8 @@ compiler/indcca.v
 compiler/sufcma.v
 compiler/end_to_end.v
 compiler/end_to_end_indcca.v
+compiler/it_compiler_proof.v
+compiler/it_compiler_proof_2.v
 
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
@@ -73,7 +75,6 @@ compiler/array_init_proof.v
 compiler/compiler_util.v
 compiler/compiler.v
 compiler/compiler_proof.v
-compiler/it_compiler_proof.v
 compiler/constant_prop.v
 compiler/constant_prop_proof.v
 compiler/dead_calls.v

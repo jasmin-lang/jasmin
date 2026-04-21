@@ -4938,9 +4938,12 @@ Section PROOF.
         , vmt.[vid (lp_rip p')] = Vword gd
         , vm_initialized_on vmt lfd.(lfd_callee_saved)
         , s.(fscs) = t.(escs)
-        & (fd.(f_extra).(sf_stk_max)
+        , (fd.(f_extra).(sf_stk_max)
             + wsize_size fd.(f_extra).(sf_align) - 1
             <= wunsigned (top_stack ms))%Z
+        & allocatable_stack ms
+            (fd.(f_extra).(sf_stk_max)
+              + wsize_size fd.(f_extra).(sf_align) - 1)
         ].
 
     Let post (fd : sfundef) (lfd : lfundef) (s : fstate) (t : estate) (s' : fstate) (t' : estate) : Prop :=
@@ -4957,7 +4960,11 @@ Section PROOF.
             ms (align_top_stack (top_stack ms) fd.(f_extra))
             fd.(f_extra).(sf_stk_max) mt mt'
         , List.Forall2 value_uincl ress rest
-        & s'.(fscs) = t'.(escs)
+        , s'.(fscs) = t'.(escs)
+        , stack_stable ms ms'
+        & allocatable_stack ms
+            (fd.(f_extra).(sf_stk_max)
+              + wsize_size fd.(f_extra).(sf_align) - 1)
         ].
 
     Lemma it_linear_exportcallP {fn} :
