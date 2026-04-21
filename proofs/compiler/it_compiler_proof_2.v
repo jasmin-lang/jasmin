@@ -501,10 +501,6 @@ Context
   (sp : sprog (pd := _pd) (asmop := _asmop))
   (xp : asm_prog)
   (rip : pointer)
-  (* TODO: discharge this obligation in the enclosing section/theorem once
-     [it_compiler_back_endP] is proved and the compiler guarantees it. *)
-  (rsp_in_callee_saved :
-     Sv.In (vid sp.(p_extra).(sp_rsp)) one_varmap.callee_saved)
 .
 
 Let pre xfd s t :=
@@ -548,9 +544,15 @@ Lemma it_compiler_back_end_to_asmP {fn} :
    ].
 Proof.
 rewrite /compiler_back_end_to_asm; t_xrbindP=> lp ok_lp ok_xp ok_fn.
+have [disj_rip ok_lp_rsp ok_globs ok_funcs] := assemble_progP ok_xp.
+have [_ meta_rsp _] := compiler_back_end_meta print_linearP ok_lp.
+have rsp_in_callee_saved :
+    Sv.In (vid sp.(p_extra).(sp_rsp)) one_varmap.callee_saved.
+- rewrite -meta_rsp -ok_lp_rsp.
+  apply/sv_of_listP.
+  exact: (map_f var_of_asm_typed_reg callee_saved_has_rsp).
 have [lfd [get_lfd lfd_export w_be]] :=
   it_compiler_back_endP (tp := lp) rip rsp_in_callee_saved ok_lp ok_fn.
-have [disj_rip ok_lp_rsp ok_globs ok_funcs] := assemble_progP ok_xp.
 have [xfd ok_get_xfd ok_xfd] := ok_get_fundef ok_xp get_lfd.
 case/assemble_fdI: (ok_xfd) =>
   rsp_not_arg ok_callee_saved_lfd
