@@ -131,6 +131,31 @@ Section SEM_I.
 
 Context {E E0} {wE : with_Error E E0} {sem_F : sem_FunK E}.
 
+Let vrsp (p:sprog) : var := vid p.(p_extra).(sp_rsp).
+
+Definition valid_RSP p m vm :=
+  value_eqb vm.[vrsp p] (Vword (top_stack m)).
+
+Definition initialize_funcall (p:sprog) f (fs:estate) :=
+ Let _ := assert (top_stack_aligned f fs.(emem) &&
+                  valid_RSP p fs.(emem) fs.(evm)) ErrSemUndef in
+ Let m1 :=
+   alloc_stack fs.(emem)
+      f.(f_extra).(sf_align)
+      f.(f_extra).(sf_stk_sz)
+      f.(f_extra).(sf_stk_ioff)
+      f.(f_extra).(sf_stk_extra_sz) in
+ let vm1 := ra_undef_vm f fs.(evm) var_tmp in
+ ok {| escs := fs.(escs); emem := m1; evm := set_RSP p m1 vm1; |}.
+
+Definition is_init_state_ok (p:sprog) fn fs :=
+  match get_fundef (p_funcs p) fn with
+  | Some fd =>
+      Let _ := assert (disjoint (ra_vm (f_extra fd) Sv.empty) (magic_variables p)) ErrSemUndef in
+      Let _ := initialize_funcall (p:sprog) fd fs in ok tt
+  | None => Error ErrSemUndef
+  end.
+
 Fixpoint isem_i(p : sprog) (i : instr) (s : estate) :
     itree E (Sv.t * estate) :=
   let: (MkI ii i) := i in
@@ -155,8 +180,10 @@ with isem_ir (p : sprog) (i : instr_r) (s : estate) : itree E (Sv.t * estate) :=
     isem_while_loop isem_i p c1 e c2 (Sv.empty, s)
 
   | Ccall xs fn args =>
-    let fi := s in
+    let fi := kill_tmp_call p fn s in
+    iresult s (is_init_state_ok p fn fi);;
     fs <- sem_funK p fn fi;;
+    iresult s (assert (valid_RSP p (emem fi) (evm fs.2)) ErrSemUndef);;
     Ret (Sv.union fs.1 (fd_tmp_call p fn), kill_tmp_call p fn fs.2)
 
   | Cassert _ => Exception.throw (ErrSemUndef, tt)
@@ -165,23 +192,6 @@ with isem_ir (p : sprog) (i : instr_r) (s : estate) : itree E (Sv.t * estate) :=
 
 Definition isem_cmd (p:sprog) c s :=
   isem_cmd_ isem_i p c (Sv.empty, s).
-
-Let vrsp (p:sprog) : var := vid p.(p_extra).(sp_rsp).
-
-Definition valid_RSP p m vm :=
-  value_eqb vm.[vrsp p] (Vword (top_stack m)).
-
-Definition initialize_funcall (p:sprog) f (fs:estate) :=
- Let _ := assert (top_stack_aligned f fs.(emem) &&
-                  valid_RSP p fs.(emem) fs.(evm)) ErrSemUndef in
- Let m1 :=
-   alloc_stack fs.(emem)
-      f.(f_extra).(sf_align)
-      f.(f_extra).(sf_stk_sz)
-      f.(f_extra).(sf_stk_ioff)
-      f.(f_extra).(sf_stk_extra_sz) in
- let vm1 := ra_undef_vm f fs.(evm) var_tmp in
- ok {| escs := fs.(escs); emem := m1; evm := set_RSP p m1 vm1; |}.
 
 Definition finalize_funcall p f ks2 :=
   let (k, s2') := (ks2.1, ks2.2) in

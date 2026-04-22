@@ -494,10 +494,16 @@ Definition is_call (s : lstate) :=
     else None
   else None.
 
+Definition check_call (s s'' : lstate) :=
+  (lfn s'' == lfn s) && (lpc s'' == (lpc s).+2). (* We jump the call and the label after the call *)
+
 Definition mix_ilstep s :=
   s' <- istep (E:=CallE funname lstate +' E) s;;
   match is_call s with
-  | Some fn => trigger_inl1 (Call fn s')
+  | Some fn =>
+    s'' <- trigger_inl1 (Call fn s');;
+    if check_call s s'' then Ret s''
+    else throw (ErrSemUndef, tt)
   | None => Ret s'
   end.
 
@@ -524,7 +530,7 @@ Definition mix_ilsem_exportcall (fn: funname) (es:estate) :=
   _ <- iresult (to_estate s') (assert (all (fun x => value_eqb (evm es).[x] vm'.[x]) (Sv.elements callee_saved)) ErrSemUndef);;
   Ret (to_estate s').
 
-Lemma mix_ilsteps_eq cond s : mix_ilsteps cond s ≈ mix_steps istep is_call cond s.
+Lemma mix_ilsteps_eq cond s : mix_ilsteps cond s ≈ mix_steps istep is_call check_call cond s.
 Proof.
   apply eutt_iter' with eq => // {}s _ <-.
   rewrite /while_body; case: ifP => _.
@@ -540,9 +546,10 @@ Proof.
 Qed.
 
 Lemma mix_ilsem_ilsem fn s :
-  mix_ilsem (endpc fn) s ≈ ilsem (endpc fn) s.
+  xrutt.xrutt (core_logics.errcutoff (is_error wE)) core_logics.nocutoff rutt_extras.RPre_eq rutt_extras.RPost_eq
+    eq (mix_ilsem (endpc fn) s) (ilsem (endpc fn) s).
 Proof.
-  have -> : mix_ilsem (endpc fn) s ≈ mix_sem istep in_fn is_call (endpc fn) s.
+  have -> : mix_ilsem (endpc fn) s ≈ mix_sem istep in_fn is_call check_call (endpc fn) s.
   + apply Proper_interp_mrec.
     + by move=> _ [] fn' {}s /=; apply mix_ilsteps_eq.
     by apply mix_ilsteps_eq.
@@ -552,6 +559,20 @@ Proof.
   + apply eqit_Ret; split => //; case: is_call => // ?? /andP [] /eqP ->.
     by rewrite /endpc eqxx; case: eqP => // ->.
   apply eqit_Vis => -[].
+Qed.
+
+Lemma unfold_mix_ilsteps cond s :
+  mix_ilsteps cond s ≈
+    (ins <- while_body cond mix_ilstep s;;
+     match ins with
+     | inl s' => mix_ilsteps cond s'
+     | inr s'  => Ret s'
+     end)%itree.
+Proof.
+  rewrite {1}/mix_ilsteps {1}/while unfold_iter.
+  apply eqit_bind; first reflexivity.
+  move=> [] s'; last reflexivity.
+  apply eqit_Tau_l; reflexivity.
 Qed.
 
 End MIX_STEP.

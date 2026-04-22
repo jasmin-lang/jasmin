@@ -364,7 +364,7 @@ Definition Pc (c:cmd) :=
     wkequiv_io
       (fun s1 kt1 => merged_vmap_inv I s1 kt1.2)
       (it_sems_core.isem_cmd_ (sem_F:=sem_F1) p global_data c)
-      (it_sems_one_varmap.isem_cmd_ (it_sems_one_varmap.isem_i (sem_F:=sem_F2)) p c)
+      (it_sems_one_varmap.isem_cmd_ (it_sems_one_varmap.isem_i var_tmps (sem_F:=sem_F2)) p c)
       (fun s1 kt1 s2 kt2 =>
          [/\ merged_vmap_inv O s2 kt2.2
            , evm kt1.2 =[\ write_c c] evm kt2.2
@@ -377,7 +377,7 @@ Definition Pi (i:instr) :=
     wkequiv_io
       (merged_vmap_inv I)
       (it_sems_core.isem_i_body (sem_F:=sem_F1) p global_data i)
-      (it_sems_one_varmap.isem_i (sem_F:=sem_F2) p i)
+      (it_sems_one_varmap.isem_i var_tmps (sem_F:=sem_F2) p i)
       (fun s1 t1 s2 kt2 =>
          [/\ merged_vmap_inv O s2 kt2.2
            , evm t1 =[\ write_I i] evm kt2.2
@@ -390,7 +390,7 @@ Definition Pi_r (i:instr_r) :=
     wkequiv_io
       (merged_vmap_inv I)
       (it_sems_core.isem_i_body (sem_F:=sem_F1) p global_data (MkI ii i))
-      (it_sems_one_varmap.isem_ir (sem_F:=sem_F2) p i)
+      (it_sems_one_varmap.isem_ir var_tmps (sem_F:=sem_F2) p i)
       (fun s1 t1 s2 kt2 =>
          [/\ merged_vmap_inv O s2 kt2.2
            , evm t1 =[\ write_i i] evm kt2.2
@@ -753,31 +753,61 @@ Proof.
   case hes : sem_pexprs => [vs | e]; last first.
   + rewrite /= bind_throw; apply xrutt.xrutt_CutL.
     by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
-  have hinvu : merged_vmap_inv (Sv.union I (tmp_call (f_extra fd))) s1 t1.
-  + by apply: subset_merged_vmap_inv hinv1; clear; SvD.fsetdec.
+  have hinvu : merged_vmap_inv (Sv.union I (tmp_call (f_extra fd))) s1 (kill_tmp_call p f t1).
+  + case: hinv1 => sim hstable; split.
+    + rewrite /kill_tmp_call /fd_tmp_call hget.
+      by apply: match_estate_kill sim.
+    case: hstable=> hsta hrsp hvgd hali; split => //=.
+    + by rewrite kill_vars_tmp_call_rsp.
+    by rewrite kill_vars_tmp_call_rip.
   have [ves' hves' uves]:= check_esP hches (mvi_match hinvu) hes.
   have hgetv := sem_pexprs_get_vars (all2_get_pvar halles) hves'.
   rewrite /iresult /isem_pre /isem_post /= !bind_ret_l.
   setoid_rewrite bind_ret_l.
-  have /(hcall ii) hf: preF f f (mk_fstate vs s1) t1.
-  + rewrite /preF /=.
-    case: hinvu => -[] <- hmem heqex []; rewrite -hmem.
-    move=> hstable -> -> hali; split => //.
-    rewrite hget; exists ves'; split => //.
+  have [htop hval /(hcall ii) hf /=] :
+     [/\ top_stack_aligned fd (emem s1)
+       , valid_RSP p (emem s1) (kill_vars (fd_tmp_call p f) (evm t1))
+       & preF f f (mk_fstate vs s1) (kill_tmp_call p f t1)].
+  + rewrite /preF /valid_RSP /=.
+    case: hinvu => -[] <- /= hmem heqex []; rewrite -hmem hget.
+    move=> hstable -> ->.
+    rewrite /kill_tmp_call /fd_tmp_call hget -hmem value_eqb_refl // => hali.
+    have -> : top_stack_aligned fd (emem s1).
     + by rewrite /top_stack_aligned (is_align_m hal hali) orbT.
+    split => //; split => //.
+    exists ves'; split => //.
     elim: (f_params fd) (ves') hgetv => //=.
-    by move=> x xs' hrec ?; t_xrbindP => ? /hrec -> <-.
-  apply (xrutt_facts.xrutt_bind hf).
+    move=> x xs' hrec ?; t_xrbindP => ? /hrec -> <- /=.
+    by rewrite /fd_tmp_call hget.
+  rewrite /is_init_state_ok /it_sems_one_varmap.is_init_state_ok hget.
+  case heq : init_state => [s' | err] /=; last first.
+  + rewrite bind_throw; apply xrutt.xrutt_CutL.
+    by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /subevent /resum /fromErr /= mid12.
+  move: heq; rewrite /init_state /= /init_stk_state /estate0 /=; t_xrbindP => m' ok_m' ?.
+  rewrite /it_sems_one_varmap.initialize_funcall.
+  rewrite -(mvm_mem (mvi_match hinvu)) ok_m' /= htop hval.
+  have -> /= : disjoint (ra_vm (f_extra fd) Sv.empty) (magic_variables p).
+  + have [_] := checkP ok_p hget.
+    rewrite /check_fd; t_xrbindP => k _ _ _ _ + _ _ _.
+    move=> /disjoint_union [_]; rewrite hget.
+    move=> /disjoint_union [] /disjoint_union [] + _ _.
+    rewrite /ra_vm; case: sf_return_address => //.
+    by apply: disjoint_w; clear;SvD.fsetdec.
+  rewrite !bind_ret_l; apply (xrutt_facts.xrutt_bind hf).
   move=> s2 kt2 [] /= hscs hmem; rewrite hget => -[res'] [hsub' hget' heqex hstable hrsp hgd hu].
   rewrite /upd_estate.
   case hws : write_lvals => [s3 | e] /=; last first.
   + apply xrutt.xrutt_CutL.
     by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
+  rewrite /valid_RSP hrsp (ss_top_stack hstable) hmem value_eqb_refl //= bind_ret_l.
   apply xrutt.xrutt_Ret => /=; split; last first.
   + by rewrite /writefun_ra_call; move: hsub'; clear; SvD.fsetdec.
   + rewrite /writefun_ra_call => x hx.
     have /Sv_memP/negbTE hn : ¬ Sv.In x (fd_tmp_call p f) by SvD.fsetdec.
-    by rewrite kill_varsE hn; apply heqex; move: hx; clear; SvD.fsetdec.
+    rewrite kill_varsE hn.
+    have ? : ¬ Sv.In x (writefun_ra p var_tmps wrf f).
+    + by move: hx; clear; SvD.fsetdec.
+    by rewrite -heqex // kill_varsE hn.
   split.
   + split.
     + by rewrite (write_lvals_escs hws).
@@ -787,6 +817,7 @@ Proof.
     move=> /Sv_memP /negbTE hntc; case: (Sv_memP y (sv_of_list v_var (f_res fd))); last first.
     + move=> hx; rewrite -(vrvsP hws) /=; last by rewrite (vrvs_vars (all2_get_lvar hallxs)).
       rewrite -heqex; last by SvD.fsetdec.
+      rewrite kill_varsE /fd_tmp_call hget hntc.
       by apply (mvm_vmap (mvi_match hinv1)); SvD.fsetdec.
     rewrite -Sv.mem_spec sv_of_listE => /= x_result.
     move: hu (f_res fd) x_result (all2_get_lvar hallxs) hget' (hallxs) (with_scs (with_mem s1 (fmem s2)) (fscs s2)) hws; clear.
@@ -902,7 +933,7 @@ Proof.
   rewrite /it_sems_one_varmap.initialize_funcall.
   rewrite -hmem hal /valid_RSP hrsp value_eqb_refl //=.
   rewrite ok_m' /= bind_ret_l.
-  set t1' := (t1' in it_sems_one_varmap.isem_cmd _ _ t1').
+  set t1' := (t1' in it_sems_one_varmap.isem_cmd _ _ _ t1').
   have hfun : ∀ (ii1 : instr_info) (fn1 fn2 : funname),
       wkequiv_io (preF fn1 fn2)
         (sem_fun (sem_Fun:= sem_fun_rec _) p global_data ii1 fn1)

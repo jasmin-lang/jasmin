@@ -1,4 +1,13 @@
-From Coq Require Import Relations.
+From Coq Require Import Relations Lia Utf8.
+
+From ITree Require Import
+  ITree
+  ITreeFacts
+  Basics.HeterogeneousRelations
+  Interp.Recursion
+  Eq.Rutt
+  Eq.RuttFacts.
+
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 
 Require Import
@@ -13,6 +22,12 @@ Require Import
   sem_one_varmap
   hoare_logic
 .
+
+Notation nify := (addnE, rwR2 (@leP), rwR2 (@andP), rwR1 (@negP)).
+
+Ltac simpl_size :=
+  do ?(rewrite !(size_cat, size_rcons) /=);
+  rewrite /= ?nify.
 
 Section WITH_PARAMS.
 
@@ -383,25 +398,151 @@ Proof.
   by rewrite (leq_trans hs hle) /= (leq_trans hlt he).
 Qed.
 
-Lemma sem_fopns_args_lsem_n lp fn P Q ii lc s1 s2 :
-  sem_fopns_args s1 lc = ok s2 ->
-  is_linear_of lp fn (P ++ map (li_of_fopn_args ii) lc ++ Q) ->
-  let pcs := size P in
-  let pce := size P + size lc in
-  lsem_n lp (pc_between fn pcs pce) (of_estate s1 fn pcs) (of_estate s2 fn pce).
+
+(* ----------------------------------------------------------------------- *)
+(* Some properties about the compilation scheme and mix_ilstep             *)
+
+Context {E E0: Type -> Type} {wE: with_Error E E0}.
+Context (lp : lprog).
+
+Lemma mix_ilsteps_0 p1 cond ls : ~~cond ls -> mix_ilsteps p1 cond ls ≅ Ret ls.
+Proof. by rewrite /mix_ilsteps while.unfold_while => /negbTE ->; reflexivity. Qed.
+
+Definition pc_between_c fn (P l : lcmd) :=
+  pc_between fn (size P) (size P + size l).
+
+Lemma mix_ilsteps_split pcs' pce' pcs pce fn ls :
+  pcs <= pcs' -> pce' <= pce ->
+  mix_ilsteps lp (pc_between fn pcs pce) ls ≅
+  ITree.bind (mix_ilsteps lp (pc_between fn pcs' pce') ls)
+       (mix_ilsteps lp (pc_between fn pcs pce)).
 Proof.
-  elim: lc P s1 => /= [ | [[xs o] es] lc hrec] P s1.
-  + by move=> [<-] _; rewrite addn0; apply lsem_n_0.
-  rewrite /sem_fopn_args; t_xrbindP=> s1' evs hes rvs hex hw hsem hlin.
-  apply: lsem_n_step.
-  + by rewrite /pc_between /= eqxx leqnn /= -addSnnS ltn_addr.
-  + rewrite /lsem1/step -{1}(addn0 (size P)).
-    have  /(_ (of_estate s1 fn (size P + 0)) 0) := find_instr_skip hlin.
-    rewrite /of_estate /setpc /= /eval_instr => -> //=.
-    by rewrite to_estate_of_estate hes /= hex /= hw /=; reflexivity.
-  move: hlin; rewrite -addSnnS -cat_rcons => hlin.
-  have := hrec _ _ hsem hlin; rewrite size_rcons.
-  by apply: lsem_n_weak => s; apply pc_between_weak.
+  move=> h1 h2; apply while.split_while_imp.
+  rewrite /pc_between => i.
+  case: ifP => // _ /andP [h1' h2'].
+  by rewrite (leq_trans h1 h1') (leq_trans h2' h2).
+Qed.
+
+Lemma mix_ilsteps_split_c P' Q' P Q fn ls :
+  size P <= size P' -> size P' + size Q' <= size P + size Q ->
+  mix_ilsteps lp (pc_between_c fn P Q) ls ≅
+  ITree.bind (mix_ilsteps lp (pc_between_c fn P' Q') ls)
+       (mix_ilsteps lp (pc_between_c fn P Q)).
+Proof. by move=> h1 h2; apply mix_ilsteps_split. Qed.
+
+Lemma mix_ilsteps_b0 fn ls pcs pce :
+  lfn ls = fn ->
+  lpc ls = pce ->
+  mix_ilsteps lp (pc_between fn pcs pce) ls ≅ Ret ls.
+Proof.
+  move=> hfn hpc; apply mix_ilsteps_0.
+  rewrite /pc_between hfn hpc eqxx ?nify; lia.
+Qed.
+
+Definition is_Lcall i := if i is Lcall _ d then Some d.1 else None.
+
+(* FIXME: move this *)
+Lemma onth_nth_size {T: Type} (x0: T) s i :
+  i < size s ->
+  oseq.onth s i = Some (nth x0 s i).
+Proof.
+  elim: i s => [ | i ih] [ | x s] //=; apply ih.
+Qed.
+
+Notation Lilabel := (linear.Llabel InternalLabel).
+Definition dummy_linstr := MkLI dummy_instr_info Lalign.
+
+Lemma step_mix_ilsteps_eq_itree fn P Q pcs pce ls  :
+  is_linear_of lp fn (P ++ Q) ->
+  lfn ls = fn -> lpc ls = size P ->
+  pcs <= size P < pce ->
+  0 < size Q ->
+  mix_ilsteps lp (pc_between fn pcs pce) ls ≅
+  match eval_instr lp (nth dummy_linstr Q 0) ls with
+  | Ok ls2 =>
+    if is_Lcall (li_i (nth dummy_linstr Q 0)) is Some fn' then
+       ITree.bind (trigger_inl1 (mix_to_small_steps.Call fn' ls2))
+        (λ ls3, if check_call ls ls3 then Tau (mix_ilsteps lp (pc_between fn pcs pce) ls3)
+                else Exception.throw (ErrSemUndef, tt))
+    else Tau (mix_ilsteps lp (pc_between fn pcs pce) ls2)
+  | Error e => Exception.throw (e, tt)
+  end.
+Proof.
+  rewrite {1}/mix_ilsteps while.unfold_while => C hfn hpc hsz h0Q.
+  have -> : pc_between fn pcs pce ls.
+  + rewrite /pc_between.
+    case: ifP => // _; by rewrite hpc.
+  rewrite {1}/mix_ilstep /istep /is_call /step.
+  rewrite (find_instr_skip0 C) => //.
+  rewrite (onth_nth_size dummy_linstr) //.
+  case: eval_instr => [ls2 | e] /=; last by rewrite !bind_throw; reflexivity.
+  rewrite bind_ret_l; case: li_i => /= *;
+   try by rewrite bind_ret_l; reflexivity.
+  rewrite bind_bind; apply eqit_bind; first reflexivity.
+  move=> ?; case: ifP => _.
+  + rewrite bind_ret_l; reflexivity.
+  rewrite bind_throw; reflexivity.
+Qed.
+
+Lemma step_mix_ilsteps fn P Q pcs pce ls  :
+  is_linear_of lp fn (P ++ Q) ->
+  lfn ls = fn -> lpc ls = size P ->
+  pcs <= size P < pce ->
+  0 < size Q ->
+  mix_ilsteps lp (pc_between fn pcs pce) ls ≈
+  match eval_instr lp (nth dummy_linstr Q 0) ls with
+  | Ok ls2 =>
+    if is_Lcall (li_i (nth dummy_linstr Q 0)) is Some fn' then
+       ITree.bind (trigger_inl1 (mix_to_small_steps.Call fn' ls2))
+        (λ ls3, if check_call ls ls3 then mix_ilsteps lp (pc_between fn pcs pce) ls3
+                else Exception.throw (ErrSemUndef, tt))
+    else mix_ilsteps lp (pc_between fn pcs pce) ls2
+  | Error e => Exception.throw (e, tt)
+  end.
+Proof.
+  move=> C hfn hpc hsz h0Q; rewrite (step_mix_ilsteps_eq_itree C) //.
+  case: eval_instr => [ls' | ?]; last reflexivity.
+  case: is_Lcall; last by apply eqit_Tau_l; reflexivity.
+  move=> fn'; apply eqit_bind; first reflexivity.
+  move=> ls''; case: ifP => _; last reflexivity.
+  by apply eqit_Tau_l; reflexivity.
+Qed.
+
+Lemma sem_fopns_args_mix_ilsteps fn P Q ii lc pcs pce ls :
+  is_linear_of lp fn (P ++ map (li_of_fopn_args ii) lc ++ Q) ->
+  lfn ls = fn ->
+  lpc ls = size P ->
+  pcs = size P ->
+  pce = size P + size lc ->
+  mix_ilsteps lp (pc_between fn pcs pce) ls ≈
+    match sem_fopns_args (to_estate ls) lc with
+    | Ok s' => Ret (of_estate s' fn pce)
+    | Error err => Exception.throw (err, tt)
+    end.
+Proof.
+  move=> + ? + ??; subst fn pcs pce.
+  elim: lc P ls => /= [ | [[xs o] es] lc hrec] P ls.
+  + rewrite addn0 => _ <-; rewrite mix_ilsteps_0.
+    + rewrite of_estate_to_estate; reflexivity.
+    rewrite /pc_between /= eqxx; simpl_size; lia.
+  rewrite /sem_fopn_args => C hpc.
+  rewrite (step_mix_ilsteps C) //; last by simpl_size; lia.
+  rewrite /eval_instr /=.
+  rewrite -2!Let_Let.
+  have -> : Let a := Let x := fexpr_sem.sem_rexprs (to_estate ls) es in exec_sopn o x in
+            fexpr_sem.write_lexprs xs a (to_estate ls)
+            =
+            Let args := fexpr_sem.sem_rexprs (to_estate ls) es in
+            (Let res := exec_sopn o args in fexpr_sem.write_lexprs xs res (to_estate ls)).
+  + by rewrite !Let_Let.
+  case: (Let _ := fexpr_sem.sem_rexprs _ _ in _) => [s1 | err] /=; last reflexivity.
+  move: C; rewrite -addSnnS -cat_rcons => C.
+  rewrite (mix_ilsteps_split (pcs' := (size P).+1) (pce' := (size P).+1 + size lc)) //.
+  have := hrec _  (lnext_pc (lset_estate' ls s1)) C; rewrite size_rcons => ->; last first.
+  + by rewrite /lnext_pc /= hpc.
+  have -> : (to_estate (lnext_pc (lset_estate' ls s1))) = s1 by case: (s1).
+  case: sem_fopns_args => [s2 | err]; last by rewrite bind_throw; reflexivity.
+  rewrite bind_ret_l mix_ilsteps_b0 //; reflexivity.
 Qed.
 
 End WITH_PARAMS.

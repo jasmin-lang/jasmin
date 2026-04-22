@@ -190,6 +190,18 @@ Definition isem_while_loop (c1 : cmd) (e:pexpr) (c2: cmd) (s : estate) :
 
 End SEM_C.
 
+Definition estate0 (fs : fstate) :=
+  Estate fs.(fscs) fs.(fmem) Vm.init.
+
+Definition is_init_state_ok (p:prog) ev (fn:funname) (fs:fstate) :=
+  match get_fundef (p_funcs p) fn with
+  | Some fd =>
+    let sinit := estate0 fs in
+    Let _ := init_state fd.(f_extra) (p_extra p) ev sinit in
+    ok tt
+  | None => Error ErrSemUndef
+  end.
+
 Class sem_Fun (E : Type -> Type) :=
   { sem_fun : prog -> extra_val_t -> instr_info -> funname -> fstate -> itree E fstate }.
 
@@ -203,6 +215,8 @@ Context {E E0} {wE : with_Error E E0} {sem_F : sem_Fun E }.
 
 (* semantics of instructions, abstracting on function calls (through
    sem_fun) *)
+
+
 Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
     itree E estate :=
   let: (MkI ii i) := i in
@@ -230,6 +244,7 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
     vargs <- isem_pexprs  (~~direct_call) (p_globs p) args s;;
     let fi := mk_fstate vargs s in
     isem_pre p s fn fi;;
+    iresult s (is_init_state_ok p ev fn fi);;
     fs <- sem_fun p ev ii fn fi ;;
     isem_post p s fn vargs fs;;
     iresult s (upd_estate (~~direct_call) (p_globs p) xs fs s)
@@ -259,9 +274,6 @@ Proof.
   rewrite -/isem_cmd_ isem_cmd_cat; rewrite !bind_bind.
   apply eutt_eq_bind => {}s /= ; rewrite bind_ret_l !bind_ret_r tau_eutt; reflexivity.
 Qed.
-
-Definition estate0 (fs : fstate) :=
-  Estate fs.(fscs) fs.(fmem) Vm.init.
 
 Definition initialize_funcall (p : prog) (ev : extra_val_t) (fd : fundef) (fs : fstate) : exec estate :=
   let sinit := estate0 fs in
@@ -417,6 +429,7 @@ Proof.
     by apply eqit_bind; [apply hc' | reflexivity].
   move=> xs f es ii s /=.
   apply eqit_bind; first reflexivity.
+  move=> ?; apply eqit_bind; first reflexivity.
   move=> ?; apply eqit_bind; first reflexivity.
   move=> ?; apply eqit_bind; first by apply sem_F_ext.
   move=> ?; apply eqit_bind; first reflexivity.
@@ -574,6 +587,8 @@ Proof.
   move=> vs; rewrite interp_bind; apply eqit_bind.
   + by apply interp_iresult.
   move => ?;rewrite interp_bind;apply eqit_bind.
+  + by apply interp_iresult.
+  move => ?;rewrite interp_bind;apply eqit_bind.
   + rewrite interp_mrecursive; reflexivity.
   move => ?;rewrite interp_bind;apply eqit_bind.
   + by apply interp_iresult.
@@ -706,6 +721,9 @@ Proof.
     rewrite /isem_pexprs interp_cond_iresult; apply eutt_eq_bind => ?.
     rewrite interp_bind; apply eutt_eq_bind'.
     + by apply interp_cond_iresult.
+    move=> _. rewrite interp_bind.
+    rewrite interp_cond_iresult. apply eutt_eq_bind'.
+    + reflexivity.
     move=> _; rewrite interp_bind; apply eutt_eq_bind'.
     + rewrite /ctx_cond /cond /Handler.case_ /rec_call /F.
       setoid_rewrite interp_trigger; reflexivity.

@@ -11,7 +11,7 @@ Import word_ssrZ.
 Import ssrring.
 Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts low_memory.
 Require Import seq_extra.
-Require Import constant_prop constant_prop_proof.
+Require Import constant_prop.
 Require Import fexpr fexpr_sem fexpr_facts.
 Require Export linearization linear_sem linear_facts.
 Import Memory.
@@ -2302,12 +2302,70 @@ Section PROOF.
 
   Let Lilabel := linear.Llabel InternalLabel.
 
+Lemma check_bool_sem_fexpr vm e v :
+  check_bool e ->
+  sem_fexpr vm e = ok v ->
+  exists b, v = Vbool b.
+Proof.
+  case: e => //=.
+  + move=> x /eqP hty hget.
+    have := type_of_get_var hget; rewrite hty /= => /subctypeE.
+    move=> /type_of_valI [hundef | ].
+    + by have {hget} /(_ cbool erefl):= get_var_undef hget.
+    by move=> [b ->]; exists b.
+  + move=> o1 e1 hty.
+    have {}hty : (type_of_op1 o1).2 = abool.
+    + by case: o1 hty => // > /eqP.
+    t_xrbindP => v1 _ /sem_sop1I [_] [+] [_ _ ->].
+    by rewrite hty => b; exists b.
+  + move=> o2 e1 e2 hty.
+    have {}hty : (type_of_op2 o2).2 = abool.
+    + by case: o2 hty => // > /eqP.
+    t_xrbindP => v1 _ v2 _ /sem_sop2I [?] [?] [+] [_ _ _ ->].
+    by rewrite hty => b; exists b.
+  move=> > _; t_xrbindP => *; subst; case: ifP => _; eexists; reflexivity.
+Qed.
+
+Lemma sem_fexpr_snot vm e :
+  check_bool e ->
+  sem_fexpr vm (fnot e) = sem_fexpr vm (Fapp1 Onot e).
+Proof.
+  elim e => //=.
+  + move=> o1 e1 _.
+    case: o1 => // hch1.
+    case heq1 : sem_fexpr => [v1 |] //=.
+    have [b ->] := check_bool_sem_fexpr hch1 heq1.
+    by rewrite /sem_sop1 /= negbK.
+  + move=> o2 e1 he1 e2 he2.
+    case: o2 => //=.
+    + move=> /andP [hch1 hch2]; rewrite he1 // he2 // /sem_sop1 /sem_sop2 /=.
+      case heq1 : (sem_fexpr _ e1) => [v1 |] //=.
+      have [b1 -> /=] := check_bool_sem_fexpr hch1 heq1.
+      case heq2 : sem_fexpr => [v2 |] //=.
+      have [b2 -> /=] := check_bool_sem_fexpr hch2 heq2.
+      by rewrite negb_and.
+    move=> /andP [hch1 hch2]; rewrite he1 // he2 // /sem_sop1 /sem_sop2 /=.
+    case heq1 : (sem_fexpr _ e1) => [v1 |] //=.
+    have [b1 -> /=] := check_bool_sem_fexpr hch1 heq1.
+    case heq2 : sem_fexpr => [v2 |] //=.
+    have [b2 -> /=] := check_bool_sem_fexpr hch2 heq2.
+    by rewrite negb_or.
+  move=> e0 _ e1 he1 e2 he2 /andP [hch1 hch2].
+  rewrite he1 // he2 // /sem_sop1 /=.
+  case: (Let _ := sem_fexpr _ e0 in _) => //= b0.
+  case: (sem_fexpr _ e1) => //= v1.
+  case: (to_bool v1) => //= b1.
+  case: (sem_fexpr _ e2) => //= v2.
+  case: (to_bool v2) => //= b2.
+  by case: b0.
+Qed.
+
   Local Lemma Hif_true : sem_Ind_if_true p var_tmps Pc Pi_r.
   Proof.
     move => ii k s1 s2 e c1 c2; rewrite p_globs_nil => ok_e E1 Hc1 fn lbl /checked_iE[] fd ok_fd /=.
-    t_xrbindP => /check_fexprP[] f ok_f chk_c1 _.
+    t_xrbindP => chk_b /check_fexprP[] f ok_f chk_c1 _.
     rewrite /to_fexpr ok_f.
-    case: c1 E1 Hc1 chk_c1 => [ | i1 c1 ] E1 Hc1 chk_c1; last case: c2 => [ | i2 c2 ].
+    case: c1 E1 Hc1 chk_c1 => [ | i1 c1 ] E1 Hc1 chk_c1; last case: c2 chk_b => [ | i2 c2 ] chk_b.
     + case/semE: E1 => hk ?; subst s2.
       rewrite /= linear_c_nil; case: (linear_c fn) (valid_c fn c2 (next_lbl lbl)) => lbl2 lc2.
       rewrite /next_lbl => - [L V].
@@ -2323,12 +2381,10 @@ Section PROOF.
       rewrite /= find_labelE /is_label /= eqxx /= /setcpc /= addn0.
       by rewrite size_cat /= size_cat /= !addn1 !addnS -hpc -hfn.
     + rewrite linear_c_nil.
-      case: (to_fexpr_snot ok_f) => nf ok_nf.
-      rewrite ok_nf.
       case: (linear_c fn) (Hc1 fn (next_lbl lbl)) => lbl1 lc1.
       rewrite /checked_c ok_fd chk_c1 => /(_ erefl) S.
       move=> ls m1 vm1 P Q M1 X1 D C1 hpc hfn sp hsp1 S1 MAX1.
-      set P' := rcons P (MkLI ii (Lcond nf lbl)).
+      set P' := rcons P (MkLI ii (Lcond (fnot f) lbl)).
       have D' : disjoint_labels (next_lbl lbl) lbl1 P'.
       - rewrite /P' -cats1; apply: disjoint_labels_cat; last by [].
         apply: disjoint_labels_wL _ D; rewrite /next_lbl; lia.
@@ -2342,10 +2398,11 @@ Section PROOF.
       have [ b /(match_mem_gen_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
       exists m2 vm2 => //.
       apply: (lsem_trans3 _ E).
-      - have /= := snot_spec ok_e'.
-        rewrite ok_e' => /(fexpr_of_pexprP ok_nf) {} ok_e'.
+      - have := sem_fexpr_snot vm1 chk_b.
+        have := fexpr_of_pexprP ok_f ok_e'.
+        rewrite /= /to_fexpr ok_f /sem_sop1 => -> /= ok_fnot.
         apply: (eval_lsem_step1 C1) => //.
-        by rewrite /eval_instr /= hfn (eval_jumpE C1) ok_e'.
+        by rewrite /eval_instr /= hfn (eval_jumpE C1) ok_fnot.
       rewrite catA in C'.
       apply: (eval_lsem_step1 C') => //.
       by rewrite /P' -cats1 -!catA !size_cat /= size_cat /= !addnS addn0.
@@ -2394,9 +2451,9 @@ Section PROOF.
   Local Lemma Hif_false : sem_Ind_if_false p var_tmps Pc Pi_r.
   Proof.
     move => ii k s1 s2 e c1 c2; rewrite p_globs_nil => ok_e E2 Hc2 fn lbl /checked_iE[] fd ok_fd /=.
-    t_xrbindP => /check_fexprP[] f ok_f _ chk_c2.
+    t_xrbindP => chk_b /check_fexprP[] f ok_f _ chk_c2.
     rewrite /to_fexpr ok_f.
-    case: c1 => [ | i1 c1 ]; last case: c2 E2 Hc2 chk_c2 => [ | i2 c2 ].
+    case: c1 => [ | i1 c1 ]; last case: c2 chk_b E2 Hc2 chk_c2 => [ | i2 c2 ] chk_b.
     + rewrite linear_c_nil.
       case: (linear_c fn) (Hc2 fn (next_lbl lbl)) => lbl2 lc2.
       rewrite /checked_c ok_fd chk_c2 => /(_ erefl) S.
@@ -2422,17 +2479,16 @@ Section PROOF.
       apply: (eval_lsem_step1 C') => //.
       by rewrite /P' -cats1 -!catA !size_cat /= size_cat /= !addnS !addn0 -hpc.
     + case/semE => hk ? _ _; subst s2.
-      case: (to_fexpr_snot ok_f) => nf ok_nf.
-      rewrite ok_nf.
       rewrite linear_c_nil; case: (linear_c fn) (valid_c fn (i1 :: c1) (next_lbl lbl)) => lbl1 lc1.
       rewrite /next_lbl => - [L V].
       move=> ls m1 vm1 P Q M1 X1 D C hpc hfn.
       have [ b /(match_mem_gen_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
       exists m1 vm1 => //.
-      have /= := snot_spec ok_e'.
-      rewrite ok_e' => /(fexpr_of_pexprP ok_nf) {} ok_e'.
+      have := sem_fexpr_snot vm1 chk_b.
+      have := fexpr_of_pexprP ok_f ok_e'.
+      rewrite /= /to_fexpr ok_f /sem_sop1 => -> /= ok_fnot.
       apply: (eval_lsem_step1 C) => //.
-      rewrite /eval_instr /= hfn (eval_jumpE C) ok_e' /=.
+      rewrite /eval_instr /= hfn (eval_jumpE C) ok_fnot /=.
       rewrite find_label_cat_hd; last by apply: D; lia.
       rewrite find_labelE /= -catA find_label_cat_hd; last first.
       - apply: (valid_has_not_label V); left; rewrite /next_lbl; lia.
@@ -3086,7 +3142,7 @@ Section PROOF.
     have := get_fundef_p' ok_fd'.
     set lfd' := linear_fd _ fd'.
     move => ok_lfd'.
-    move: linear_eq; rewrite /= ok_fd' fn'_neq_fn.
+    move: linear_eq. rewrite /= ok_fd' fn'_neq_fn.
     move: (checked_prog ok_fd') => /=; rewrite /check_fd /frame_size.
     t_xrbindP=> chk_body ok_to_save _ _ ok_stk_sz ok_ret_addr ok_save_stack _ A.
     have ok_body' : is_linear_of fn' (lfd_body lfd'.2).
@@ -3102,7 +3158,7 @@ Section PROOF.
 
     have h := encode_label_dom small_dom_p' lbl_valid.
     case ok_ptr: encode_label h => [ ptr | // ] _.
-    case/sem_callE: (exec_call) => ? m s' k'; rewrite ok_fd' => /Some_inj <- ra_sem ok_ss sp_aligned T ok_m exec_cbody T' s2_eq hk.
+    case/sem_callE: (exec_call) => ? m s' k'; rewrite ok_fd' => /Some_inj <- ra_sem _ sp_aligned T ok_m exec_cbody T' s2_eq hk.
     move: ok_stk_sz sp_aligned A {ok_save_stack};
       rewrite /top_stack_aligned (negbTE ok_ra) /= => ok_stk_sz sp_aligned [??]; subst lbli li.
     have s1_rsp : (evm s1).[vrsp] = Vword (top_stack (emem s1)).
@@ -3126,7 +3182,7 @@ Section PROOF.
       | Some x => v_var (vid (sp_rsp (p_extra p))) ≠ v_var x
       | None => True
       end.
-    + move: T; rewrite /valid_RSP /kill_tmp_call /= kill_varsE.
+    + move: T. rewrite /valid_RSP /kill_tmp_call /= kill_varsE.
       case: Sv_memP => // + _.
       rewrite /tmpi_of_ra /fd_tmp_call /tmp_of_ra /tmp_call ok_fd'.
       by case: sf_return_address => // [_ | _ _ _] [?|] //=; clear; SvD.fsetdec.
@@ -3222,7 +3278,7 @@ Section PROOF.
                    (sf_stk_sz (f_extra fd') + sf_stk_extra_sz (f_extra fd')))%R ptr = ok m1' &
                          match_mem_gen (top_stack m0) (kill_tmp_call p fn' s1) m1'.
       + apply: mm_write_invalid.
-        * by have /= := MAX _ ok_fd; lia.
+        * have /= := MAX _ ok_fd; lia.
         * exact: M.
         1-2: cycle -1.
         * apply: (is_align_m sf_align_for_ptr); exact: do_align_is_align.
@@ -3290,7 +3346,7 @@ Section PROOF.
     + by exists fd' => //=; rewrite (negbTE ok_ra).
     + move=> fd''; rewrite ok_fd' => -[?]; subst fd''.
       rewrite (negbTE ok_ra).
-      by move: (MAX _ ok_fd) => /=; lia.
+      move: (MAX _ ok_fd) => /=; lia.
     + by rewrite (negbTE ok_ra).
     move=> m2' vm2' /= h3 heq_vm hsub_vm' hpres hmatch' U'.
     set ts := top_stack (M := Memory.M) s1.
@@ -4489,7 +4545,7 @@ Section PROOF.
           exact: rt_refl.
         (* ra_call = Some _ *)
         (* TODO this should be a lemma it is used elsewhere (above)*)
-        have [m1s ok_m1s M']: 
+        have [m1s ok_m1s M']:
           exists2 m1s,
             write m1 Aligned rsp retptr = ok m1s &
             match_mem_gen (top_stack m0) s1 m1s.
