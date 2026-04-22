@@ -631,7 +631,7 @@ Definition zeroized_s fn ms mt mt' :=
   cparams.(stack_zero_info) fn <> None ->
   forall p, zeroized_p ms mt mt' p.
 
-Let pre lfd s t :=
+Let back_end_pre lfd s t :=
   let: args := s.(fvals) in
   let: ms := s.(fmem) in
   let: vmt := t.(evm) in
@@ -646,7 +646,7 @@ Let pre lfd s t :=
     & allocatable_stack ms (lfd_total_stack lfd)
   ].
 
-Let post fn lfd s t s' t' :=
+Let back_end_post fn lfd s t s' t' :=
   let: ms := s.(fmem) in
   let: mt := t.(emem) in
   let: ress := s'.(fvals) in
@@ -667,10 +667,10 @@ Lemma it_compiler_back_endP {fn} :
     [/\ get_fundef tp.(lp_funcs) fn = Some lfd
       , lfd.(lfd_export)
       & wkequiv_io
-          (pre lfd)
+          (back_end_pre lfd)
           (isem_stack sp rip fn)
           (ilsem_exportcall tp fn)
-          (post fn lfd)
+          (back_end_post fn lfd)
     ].
 Proof.
 rewrite /compiler_back_end; t_xrbindP => ok_export checked_p lp ok_lp.
@@ -1041,7 +1041,7 @@ Context
   (rip : pointer)
 .
 
-Let pre xfd s t :=
+Definition back_end_to_asm_pre xfd s t :=
   let: args := s.(fvals) in
   let: ms := s.(fmem) in
   let: rm := t.(asm_reg) in
@@ -1055,7 +1055,7 @@ Let pre xfd s t :=
     & allocatable_stack ms xfd.(asm_fd_total_stack)
   ].
 
-Let post fn xfd s t s' t' :=
+Definition back_end_to_asm_post fn xfd s t s' t' :=
   let: ms := s.(fmem) in
   let: mt := t.(asm_mem) in
   let: ress := s'.(fvals) in
@@ -1075,10 +1075,10 @@ Lemma it_compiler_back_end_to_asmP {fn} :
     [/\ get_fundef xp.(asm_funcs) fn = Some xfd
       , xfd.(asm_fd_export)
       & wkequiv_io
-          (pre xfd)
+          (back_end_to_asm_pre xfd)
           (isem_stack sp rip fn)
           (iasmsem_exportcall xp fn)
-          (post fn xfd)
+          (back_end_to_asm_post fn xfd)
    ].
 Proof.
 rewrite /compiler_back_end_to_asm; t_xrbindP=> lp ok_lp ok_xp ok_fn.
