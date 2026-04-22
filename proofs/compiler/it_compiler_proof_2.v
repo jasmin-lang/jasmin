@@ -252,8 +252,10 @@ have/(FE _ tt) h_fe :
                 [size_glob sp] and via sfd/xfd alignment identity for
                 [get_align_args sp fn]. *)
   - by rewrite hsp_mem; exact: hsp_eqinmem. (* Forall3 (value_eq_or_in_mem (fmem fs_sp)) ... *)
-  - admit. (* it_extend_mem (fmem fs) (fmem fs_sp)
-             <- hmga.(ma_extend_mem) with sp_globs rewritten via meta. *)
+  - have this := hmga.(ma_extend_mem).
+    rewrite (compiler_back_end_to_asm_meta print_linearP ok_xp) -hsp_mem
+      in this.
+    exact: this.
   by rewrite hsp_scs. (* fscs fs = fscs fs_sp  <- STEP 1 hsp_scs. *)
 
 (* ======================================================================= *)
@@ -282,7 +284,7 @@ have /BE h_be : back_end_to_asm_pre (asm_rip xm) xfd fs_sp xm.
   - exact: hsp_uincl. (* values_uincl (fvals fs_sp) argt — STEP 1 output *)
   - admit. (* match_mem (fmem fs_sp) (asm_mem xm)
              <- hmga.(ma_match_mem) + hsp_mem. *)
-  - admit. (* fscs fs_sp = asm_scs xm  <- hsp_scs + hscs_eq. *)
+  - by rewrite hsp_scs hscs_eq.
   admit. (* allocatable_stack (fmem fs_sp) (asm_fd_total_stack xfd)
              <- hesp + ma_stack_range (mirrors compiler_proof.v:1297-1299). *)
 
