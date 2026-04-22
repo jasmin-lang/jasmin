@@ -277,8 +277,7 @@ have/(FE _ tt) h_fe :
 have /BE h_be : back_end_to_asm_pre (asm_rip xm) xfd fs_sp xm.
 - (* BE's precondition: 6 conjuncts below (one admit per missing piece). *)
   split.
-  - admit. (* asm_reg xm ad_rsp = top_stack (fmem fs_sp)
-             <- hrsp_eq + ma_stack_stable. *)
+  - by rewrite hsp_mem -(ss_top_stack hmga.(ma_stack_stable)).
   - reflexivity. (* asm_rip xm = asm_rip xm *)
   - exact: hsp_uincl. (* values_uincl (fvals fs_sp) argt — STEP 1 output *)
   - admit. (* match_mem (fmem fs_sp) (asm_mem xm)
