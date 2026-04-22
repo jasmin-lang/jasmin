@@ -241,9 +241,12 @@ have/(FE _ tt) h_fe :
 - (* FE's precondition: 6 conjuncts below (one admit per missing piece). *)
   split.
   - reflexivity. (* fn = fn *)
-  - admit. (* alloc_ok sp fn (fmem fs_sp)
-             <- enough_stack_space_alloc_ok ok_xp ok_fn _ hesp, with the
-                stack-range premise from hmga.(ma_stack_range). *)
+  - (* alloc_ok sp fn (fmem fs_sp) *)
+    have h4 : enough_stack_space xp fn (top_stack mi) (asm_mem xm).
+    + by rewrite -(ss_top_stack hmga.(ma_stack_stable)).
+    have halloc :=
+      enough_stack_space_alloc_ok print_linearP ok_xp ok_fn hmga.(ma_stack_range) h4.
+    by rewrite hsp_mem.
   - admit. (* wf_args_s fn (fmem fs) (fmem fs_sp) (fvals fs) (fvals fs_sp)
              <- hwfa rewritten via [compiler_back_end_to_asm_meta] for
                 [size_glob sp] and via sfd/xfd alignment identity for
