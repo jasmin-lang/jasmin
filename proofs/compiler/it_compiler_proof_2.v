@@ -138,7 +138,7 @@ Lemma it_compile_prog_to_asmP {fn} :
 Proof.
 rewrite /compile_prog_to_asm; t_xrbindP => sp ok_sp ok_xp ok_fn.
 (* Extract xfd independently of rip; print_linearP is needed by the lemma. *)
-have [_ [xfd [_ get_xfd xfd_export _]]] :=
+have [sfd [xfd [get_sfd get_xfd xfd_export align_args_eq]]] :=
   compiler_back_end_to_asm_get_fundef print_linearP ok_xp ok_fn.
 exists xfd; split => //.
 (* Unfold wkequiv_io: fix a source state fs and asm state xm,
@@ -170,12 +170,15 @@ subst xfd2.
 (*     - Forall3 (fun o v v' => o <> None -> v = v') wptrs (fvals fs) va2  *)
 (*       (needed later for [ptr_eq_mem_unchanged_params]).                 *)
 (* ======================================================================= *)
-have [fs_sp [hsp_mem hsp_scs hsp_eqinmem hsp_uincl]] :
+have [fs_sp [hsp_mem hsp_scs hsp_eqinmem hsp_uincl hsp_ptr_eq]] :
   exists fs_sp : @fstate extended_op _ ep_of_asm_e sip_of_asm_e,
     [/\ fmem fs_sp = mi
       , fscs fs_sp = fscs fs
       , Forall3 (value_eq_or_in_mem mi) (get_wptrs up fn) (fvals fs) (fvals fs_sp)
-      & values_uincl (fvals fs_sp) (get_typed_reg_values xm (asm_fd_arg xfd))
+      , values_uincl (fvals fs_sp) (get_typed_reg_values xm (asm_fd_arg xfd))
+      & Forall3 (fun o v v' => isSome o -> v = v')
+                (get_wptrs up fn) (fvals fs_sp)
+                (get_typed_reg_values xm (asm_fd_arg xfd))
     ].
 - (* Transfer hfuim from mt = asm_mem xm to mi *)
   have [hsize1 hsize2] := Forall3_size hfuim.
@@ -213,6 +216,12 @@ have [fs_sp [hsp_mem hsp_scs hsp_eqinmem hsp_uincl]] :
       case: wptr h => [writable h | h] /=.
       * exact: value_uincl_refl.
       * exact: h.
+  + (* hsp_ptr_eq: at pointer positions, fvals fs_sp = argt *)
+    elim: hfuim_mi => /=.
+    - by constructor.
+    - move=> wptr v v' wptrs' vs argt' _ _ ih.
+      constructor; last exact: ih.
+      by case: wptr.
 
 (* ======================================================================= *)
 (* STEP 2: apply FE at (asm_rip xm, tt) to obtain an xrutt refinement      *)
@@ -247,10 +256,31 @@ have/(FE _ tt) h_fe :
     have halloc :=
       enough_stack_space_alloc_ok print_linearP ok_xp ok_fn hmga.(ma_stack_range) h4.
     by rewrite hsp_mem.
-  - admit. (* wf_args_s fn (fmem fs) (fmem fs_sp) (fvals fs) (fvals fs_sp)
-             <- hwfa rewritten via [compiler_back_end_to_asm_meta] for
-                [size_glob sp] and via sfd/xfd alignment identity for
-                [get_align_args sp fn]. *)
+  - (* wf_args_s fn (fmem fs) (fmem fs_sp) (fvals fs) (fvals fs_sp) *)
+    rewrite /wf_args_s hsp_mem /size_glob.
+    rewrite -(compiler_back_end_to_asm_meta print_linearP ok_xp).
+    rewrite /get_align_args get_sfd /= align_args_eq.
+    move=> i; move: (hwfa i); rewrite /wf_args_x /get_asm_align_args get_xfd /= /wf_arg.
+    case hptr: (nth None (get_wptrs up fn) i) => [writable|//].
+    move=> [p [hargt_p hargptr]].
+    have hi := nth_not_default hptr ltac:(discriminate).
+    have hfssp_i : nth (Vbool true) (fvals fs_sp) i =
+                   nth (Vbool true) (get_typed_reg_values xm (asm_fd_arg xfd)) i.
+    + have := Forall3_nth hsp_ptr_eq None (Vbool true) (Vbool true) hi.
+      by rewrite hptr /= => /(_ isT).
+    exists p; split; first by rewrite hfssp_i.
+    case: hargptr => halign hover hvalid hfresh hwng hdisj.
+    split => //.
+    move=> hw j vaj pj neq_ij hsome_j hvaj hfssp_j.
+    move: hsome_j; case hptr_j: (nth None (get_wptrs up fn) j) => [writablej|//] _.
+    have hj := nth_not_default hptr_j ltac:(discriminate).
+    have hfssp_j_eq : nth (Vbool true) (fvals fs_sp) j =
+                      nth (Vbool true) (get_typed_reg_values xm (asm_fd_arg xfd)) j.
+    + have := Forall3_nth hsp_ptr_eq None (Vbool true) (Vbool true) hj.
+      by rewrite hptr_j /= => /(_ isT).
+    apply: (hdisj hw _ _ _ neq_ij _ hvaj _).
+    + by rewrite hptr_j.
+    + by rewrite -hfssp_j_eq; exact: hfssp_j.
   - by rewrite hsp_mem; exact: hsp_eqinmem. (* Forall3 (value_eq_or_in_mem (fmem fs_sp)) ... *)
   - have this := hmga.(ma_extend_mem).
     rewrite (compiler_back_end_to_asm_meta print_linearP ok_xp) -hsp_mem
@@ -282,11 +312,17 @@ have /BE h_be : back_end_to_asm_pre (asm_rip xm) xfd fs_sp xm.
   - by rewrite hsp_mem -(ss_top_stack hmga.(ma_stack_stable)).
   - reflexivity. (* asm_rip xm = asm_rip xm *)
   - exact: hsp_uincl. (* values_uincl (fvals fs_sp) argt — STEP 1 output *)
-  - admit. (* match_mem (fmem fs_sp) (asm_mem xm)
-             <- hmga.(ma_match_mem) + hsp_mem. *)
+  - rewrite hsp_mem; exact: hmga.(ma_match_mem).
   - by rewrite hsp_scs hscs_eq.
-  admit. (* allocatable_stack (fmem fs_sp) (asm_fd_total_stack xfd)
-             <- hesp + ma_stack_range (mirrors compiler_proof.v:1297-1299). *)
+  (* allocatable_stack (fmem fs_sp) (asm_fd_total_stack xfd)
+     mirrors compiler_proof.v:1297-1299 *)
+  rewrite /allocatable_stack hsp_mem.
+  have hrange := hmga.(ma_stack_range).
+  have hstk /= := hesp xfd get_xfd.
+  rewrite (ss_top_stack hmga.(ma_stack_stable)) in hstk.
+  split; first by apply: hstk.1.
+  apply: Z.le_trans; first exact: hstk.2.
+  apply Z.sub_le_mono_l; exact: hrange.
 
 (* ======================================================================= *)
 (* STEP 4: chain [h_fe] and [h_be] via transitivity of xrutt               *)
