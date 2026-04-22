@@ -332,13 +332,23 @@ have /BE h_be : back_end_to_asm_pre (asm_rip xm) xfd fs_sp xm.
 apply: xrutt_weaken_v1;
   last apply: (xrutt_trans _ h_fe h_be).
 - (* EE1 impl: errcutoff (is_error wE) ⊆ errcutoff (is_error wE). *)
-  admit.
+  done.
 - (* EE2 impl: nocutoff ⊆ nocutoff. *)
-  admit.
+  done.
 - (* REv impl: EPreRel ⊆ prcompose EPreRel EPreRel (via EventRels_trans). *)
-  admit.
+  move=> T1 T3 e1 e3 [T2 e2]; rewrite /EPreRel.
+  case: (mfun1 e1) (mfun1 e2) (mfun1 e3) => [err1|e0_1] /=
+    [err2|e0_2] //= [err3|e0_3] //.
+  case: e0_1 e0_2 e0_3 => [scs1 n1] [scs2 n2] [scs3 n3] /=.
+  by move=> [-> ->] [-> ->].
 - (* RAns rev impl: pocompose EPreRel EPreRel EPostRel EPostRel ⊆ EPostRel.*)
-  admit.
+  move=> T1 T2 e1 t1 e2 t2 hpost T3 e3 hpre13 hpre32.
+  rewrite /EPreRel /EPostRel in hpost hpre13 hpre32 *.
+  case: e1 t1 hpost hpre13 => [[]|e0_1] t1 //.
+  move=> /= hpost hpre13.
+  case: e3 hpre13 hpre32 => [err3|e0_3] //= hpre13 hpre32.
+  case: e2 hpost hpre32 => [err2|e0_2] //= hpost hpre32.
+  exact: (ERpost_trans hpre13 hpre32 hpost).
 - (* RR impl: reduce [rcompose rpostF back_end_to_asm_post] to [post].
      Destructure the intermediate fs_sp' and the two posts:
      - h_fe_post : [/\ Forall2 value_in_mem (take n ress) (take n argt),
