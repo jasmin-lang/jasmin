@@ -46,10 +46,10 @@ Definition gv2val (gd:glob_value) :=
   | Garr p a   => Varr a
   end.
 
-Definition get_global gd g : exec value :=
+Definition get_global env gd g : exec value :=
   if get_global_value gd g is Some ga then
     let v := gv2val ga in
-    if type_of_val v == eval_atype empty_env (vtype g) then ok v
+    if type_of_val v == eval_atype env (vtype g) then ok v
     else type_error
   else type_error.
 
@@ -76,7 +76,7 @@ Arguments Estate {syscall_state}%_type_scope {ep} _ _ _ _%_vm_scope.
 
 Definition get_gvar env (wdb : bool) (gd : glob_decls) (vm : Vm.t env) (x : gvar) :=
   if is_lvar x then get_var wdb vm x.(gv)
-  else get_global gd x.(gv).
+  else get_global env gd x.(gv).
 
 Definition get_var_is env wdb (vm : Vm.t env) := mapM (fun x => get_var wdb vm (v_var x)).
 

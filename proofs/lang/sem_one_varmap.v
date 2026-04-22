@@ -53,6 +53,8 @@ Proof.
   by case: eqP => //= ->; case: ifP => // _; case: vm.[_] => // _; case: pundef_addr.
 Qed.
 
+(* Claim: after stack_alloc, no longer array_length vars, so we can use empty_env everywhere. Is this really true? *)
+
 Section SEM.
 
 Context
@@ -61,7 +63,6 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
   {ovm_i : one_varmap_info}
-  (env : Uint63.int -> Z)
   (p : sprog)
   (var_tmp : Sv.t).
 
@@ -88,10 +89,10 @@ Definition ra_valid fd (k: Sv.t) : bool :=
 Definition ra_undef_none (ss: saved_stack) (tmp: Sv.t) :=
   Sv.union (Sv.union tmp vflags) (savedstackreg ss).
 
-Definition ra_undef_vm_none (ss: saved_stack) (tmp: Sv.t) vm : Vm.t env :=
+Definition ra_undef_vm_none (ss: saved_stack) (tmp: Sv.t) vm : Vm.t empty_env :=
   kill_vars (ra_undef_none ss tmp) vm.
 
-Definition ra_undef_vm fd vm (tmp: Sv.t) : Vm.t env :=
+Definition ra_undef_vm fd vm (tmp: Sv.t) : Vm.t empty_env :=
   kill_vars (ra_undef fd tmp) vm.
 
 Definition saved_stack_valid fd (k: Sv.t) : bool :=
@@ -103,21 +104,21 @@ Definition top_stack_aligned fd m : bool :=
   is_RAnone (fd.(f_extra).(sf_return_address))
   || is_align (top_stack m) fd.(f_extra).(sf_align).
 
-Definition set_RSP m vm : Vm.t env :=
+Definition set_RSP m vm : Vm.t empty_env :=
   vm.[vrsp <- Vword (top_stack m)].
 #[global] Arguments set_RSP _ _%_vm_scope.
 
-Definition valid_RSP m (vm: Vm.t env) : Prop :=
+Definition valid_RSP m (vm: Vm.t empty_env) : Prop :=
   vm.[vrsp] = Vword (top_stack m).
 
 Remark valid_set_RSP m vm :
   valid_RSP m (set_RSP m vm).
 Proof. by rewrite /valid_RSP Vm.setP_eq vm_truncate_val_eq. Qed.
 
-Definition kill_tmp_call f (s : estate env) :=
+Definition kill_tmp_call f (s : estate empty_env) :=
   with_vm s (kill_vars (fd_tmp_call p f) (evm s)).
 
-Inductive sem : Sv.t → estate env → cmd → estate env → Prop :=
+Inductive sem : Sv.t → estate empty_env → cmd → estate empty_env → Prop :=
 | Eskip s :
     sem Sv.empty s [::] s
 
@@ -126,16 +127,16 @@ Inductive sem : Sv.t → estate env → cmd → estate env → Prop :=
     sem kc s2 c s3 →
     sem (Sv.union ki kc) s1 (i :: c) s3
 
-with sem_I : Sv.t → estate → instr → estate → Prop :=
+with sem_I : Sv.t → estate empty_env → instr → estate empty_env → Prop :=
 | EmkI ii k i s1 s2:
     sem_i ii k s1 i s2 →
     disjoint k magic_variables →
     sem_I k s1 (MkI ii i) s2
 
-with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
+with sem_i : instr_info → Sv.t → estate empty_env → instr_r → estate empty_env → Prop :=
 | Eassgn ii s1 s2 (x:lval) tag ty e v v' :
     sem_pexpr true gd s1 e = ok v →
-    truncate_val (eval_atype ty) v = ok v' →
+    truncate_val (eval_atype empty_env ty) v = ok v' →
     write_lval true gd x v' s1 = ok s2 →
     sem_i ii (vrv x) s1 (Cassgn x tag ty e) s2
 
@@ -177,7 +178,7 @@ with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
     s2' = kill_tmp_call f s2 ->
     sem_i ii (Sv.union k (fd_tmp_call p f)) s1 (Ccall res f args) s2'
 
-with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :=
+with sem_call : instr_info → Sv.t → estate empty_env → funname → estate empty_env → Prop :=
 | EcallRun ii k s1 s2 fn f m1 s2' :
     get_fundef (p_funcs p) fn = Some f →
     ra_valid f k →
@@ -200,8 +201,8 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
     let k' := Sv.union (ra_undef f var_tmp) (ra_vm_return f.(f_extra)) in
     sem_call ii (Sv.union k k') s1 fn s2.
 
-Variant sem_export_call_conclusion (scs: syscall_state_t) (m: mem) (fd: sfundef) (args: values) (vm: Vm.t) (scs': syscall_state_t) (m': mem) (res: values) : Prop :=
-  | SemExportCallConclusion (m1: mem) (k: Sv.t) (m2: mem) (vm2: Vm.t) (res':values) of
+Variant sem_export_call_conclusion (scs: syscall_state_t) (m: mem) (fd: sfundef) (args: values) (vm: Vm.t empty_env) (scs': syscall_state_t) (m': mem) (res: values) : Prop :=
+  | SemExportCallConclusion (m1: mem) (k: Sv.t) (m2: mem) (vm2: Vm.t empty_env) (res':values) of
     saved_stack_valid fd k &
     Sv.Subset (Sv.inter callee_saved (Sv.union k (ra_undef fd var_tmp))) (sv_of_list fst fd.(f_extra).(sf_to_save)) &
     alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_ioff) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
@@ -257,7 +258,7 @@ Lemma sem_iE ii k s i s' :
   match i with
   | Cassgn x tag ty e =>
     k = vrv x ∧
-    exists2 v', sem_pexpr true gd s e >>= truncate_val (eval_atype ty) = ok v' & write_lval true gd x v' s = ok s'
+    exists2 v', sem_pexpr true gd s e >>= truncate_val (eval_atype empty_env ty) = ok v' & write_lval true gd x v' s = ok s'
   | Copn xs t o es => k = vrvs xs ∧ sem_sopn gd o s xs es = ok s'
   | Csyscall xs o es => 
     k = Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) /\  
@@ -317,16 +318,16 @@ Qed.
 (* Induction principle *)
 Section SEM_IND.
   Variables
-    (Pc   : Sv.t → estate → cmd → estate → Prop)
-    (Pi : Sv.t → estate → instr → estate → Prop)
-    (Pi_r : instr_info → Sv.t → estate → instr_r → estate → Prop)
-    (Pfun : instr_info → Sv.t → estate → funname → estate → Prop).
+    (Pc   : Sv.t → estate empty_env → cmd → estate empty_env → Prop)
+    (Pi : Sv.t → estate empty_env → instr → estate empty_env → Prop)
+    (Pi_r : instr_info → Sv.t → estate empty_env → instr_r → estate empty_env → Prop)
+    (Pfun : instr_info → Sv.t → estate empty_env → funname → estate empty_env → Prop).
 
   Definition sem_Ind_nil : Prop :=
-    ∀ (s : estate), Pc Sv.empty s [::] s.
+    ∀ (s : estate empty_env), Pc Sv.empty s [::] s.
 
   Definition sem_Ind_cons : Prop :=
-    ∀ (ki kc: Sv.t) (s1 s2 s3 : estate) (i : instr) (c : cmd),
+    ∀ (ki kc: Sv.t) (s1 s2 s3 : estate empty_env) (i : instr) (c : cmd),
       sem_I ki s1 i s2 → Pi ki s1 i s2 →
       sem kc s2 c s3 → Pc kc s2 c s3 →
       Pc (Sv.union ki kc) s1 (i :: c) s3.
@@ -337,7 +338,7 @@ Section SEM_IND.
   .
 
   Definition sem_Ind_mkI : Prop :=
-    ∀ (ii : instr_info) (k: Sv.t) (i : instr_r) (s1 s2 : estate),
+    ∀ (ii : instr_info) (k: Sv.t) (i : instr_r) (s1 s2 : estate empty_env),
       sem_i ii k s1 i s2 →
       Pi_r ii k s1 i s2 →
       disjoint k magic_variables →
@@ -346,19 +347,19 @@ Section SEM_IND.
   Hypothesis HmkI : sem_Ind_mkI.
 
   Definition sem_Ind_assgn : Prop :=
-    ∀ (ii: instr_info) (s1 s2 : estate) (x : lval) (tag : assgn_tag) ty (e : pexpr) v v',
+    ∀ (ii: instr_info) (s1 s2 : estate empty_env) (x : lval) (tag : assgn_tag) ty (e : pexpr) v v',
       sem_pexpr true gd s1 e = ok v →
-      truncate_val (eval_atype ty) v = ok v' →
+      truncate_val (eval_atype empty_env ty) v = ok v' →
       write_lval true gd x v' s1 = ok s2 →
       Pi_r ii (vrv x) s1 (Cassgn x tag ty e) s2.
 
   Definition sem_Ind_opn : Prop :=
-    ∀ (ii: instr_info) (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs),
+    ∀ (ii: instr_info) (s1 s2 : estate empty_env) t (o : sopn) (xs : lvals) (es : pexprs),
       sem_sopn gd o s1 xs es = ok s2 →
       Pi_r ii (vrvs xs) s1 (Copn xs t o es) s2.
 
   Definition sem_Ind_syscall : Prop :=
-    ∀ (ii: instr_info) (s1 s2 : estate) (o : syscall_t) (xs : lvals) (es : pexprs) scs m ves vs,
+    ∀ (ii: instr_info) (s1 s2 : estate empty_env) (o : syscall_t) (xs : lvals) (es : pexprs) scs m ves vs,
       get_vars true s1.(evm) (syscall_sig o).(scs_vin) = ok ves ->
       exec_syscall (semCallParams:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
       write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |}
@@ -366,17 +367,17 @@ Section SEM_IND.
       Pi_r ii (Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout)))) s1 (Csyscall xs o es) s2.
 
   Definition sem_Ind_if_true : Prop :=
-    ∀ (ii: instr_info) (k: Sv.t) (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
+    ∀ (ii: instr_info) (k: Sv.t) (s1 s2 : estate empty_env) (e : pexpr) (c1 c2 : cmd),
     sem_pexpr true gd s1 e = ok (Vbool true) →
     sem k s1 c1 s2 → Pc k s1 c1 s2 → Pi_r ii k s1 (Cif e c1 c2) s2.
 
   Definition sem_Ind_if_false : Prop :=
-    ∀ (ii: instr_info) (k: Sv.t) (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
+    ∀ (ii: instr_info) (k: Sv.t) (s1 s2 : estate empty_env) (e : pexpr) (c1 c2 : cmd),
     sem_pexpr true gd s1 e = ok (Vbool false) →
     sem k s1 c2 s2 → Pc k s1 c2 s2 → Pi_r ii k s1 (Cif e c1 c2) s2.
 
   Definition sem_Ind_while_true : Prop :=
-    ∀ (ii: instr_info) (k k' krec: Sv.t) (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (ei : instr_info) (c' : cmd),
+    ∀ (ii: instr_info) (k k' krec: Sv.t) (s1 s2 s3 s4 : estate empty_env) a (c : cmd) (e : pexpr) (ei : instr_info) (c' : cmd),
     sem k s1 c s2 → Pc k s1 c s2 →
     sem_pexpr true gd s2 e = ok (Vbool true) →
     sem k' s2 c' s3 → Pc k' s2 c' s3 →
@@ -385,7 +386,7 @@ Section SEM_IND.
     Pi_r ii (Sv.union (Sv.union k k') krec) s1 (Cwhile a c e ei c') s4.
 
   Definition sem_Ind_while_false : Prop :=
-    ∀ (ii: instr_info) (k: Sv.t) (s1 s2 : estate) a (c : cmd) (e : pexpr) (ei: instr_info) (c' : cmd),
+    ∀ (ii: instr_info) (k: Sv.t) (s1 s2 : estate empty_env) a (c : cmd) (e : pexpr) (ei: instr_info) (c' : cmd),
     sem k s1 c s2 →
     Pc k s1 c s2 →
     sem_pexpr true gd s2 e = ok (Vbool false) →
@@ -402,13 +403,13 @@ Section SEM_IND.
   .
 
   Definition sem_Ind_call : Prop :=
-    ∀ (ii: instr_info) (k: Sv.t) (s1 s2: estate) res fn args,
+    ∀ (ii: instr_info) (k: Sv.t) (s1 s2: estate empty_env) res fn args,
       sem_call ii k (kill_tmp_call fn s1) fn s2 →
       Pfun ii k (kill_tmp_call fn s1) fn s2 →
       Pi_r ii (Sv.union k (fd_tmp_call p fn)) s1 (Ccall res fn args) (kill_tmp_call fn s2).
 
   Definition sem_Ind_proc : Prop :=
-    ∀ (ii: instr_info) (k: Sv.t) (s1 s2: estate) (fn: funname) fd m1 s2',
+    ∀ (ii: instr_info) (k: Sv.t) (s1 s2: estate empty_env) (fn: funname) fd m1 s2',
       get_fundef (p_funcs p) fn = Some fd →
       ra_valid fd k →
       saved_stack_valid fd k →
@@ -429,14 +430,14 @@ Section SEM_IND.
     (Hcall: sem_Ind_call)
     (Hproc: sem_Ind_proc).
 
-  #[local] Lemma sem_Ind_call' (ii: instr_info) (k: Sv.t) (s1 s2 s2': estate) res fn args :
+  #[local] Lemma sem_Ind_call' (ii: instr_info) (k: Sv.t) (s1 s2 s2': estate empty_env) res fn args :
       sem_call ii k (kill_tmp_call fn s1) fn s2 →
       s2' = kill_tmp_call fn s2 ->
       Pfun ii k (kill_tmp_call fn s1) fn s2 →
       Pi_r ii (Sv.union k (fd_tmp_call p fn)) s1 (Ccall res fn args) s2'.
   Proof. move=> h3 -> h4; apply: Hcall h3 h4. Qed.
 
-  Fixpoint sem_Ind (k: Sv.t) (s1 : estate) (c : cmd) (s2 : estate) (s: sem k s1 c s2) {struct s} :
+  Fixpoint sem_Ind (k: Sv.t) (s1 : estate empty_env) (c : cmd) (s2 : estate empty_env) (s: sem k s1 c s2) {struct s} :
     Pc k s1 c s2 :=
     match s in sem k s1 c s2 return Pc k s1 c s2 with
     | Eskip s0 => Hnil s0
@@ -444,7 +445,7 @@ Section SEM_IND.
         @Hcons ki kc s1 s2 s3 i c s0 (@sem_I_Ind ki s1 i s2 s0) s4 (@sem_Ind kc s2 c s3 s4)
     end
 
-  with sem_i_Ind (ii: instr_info) (k: Sv.t) (e : estate) (i : instr_r) (e0 : estate) (s : sem_i ii k e i e0) {struct s} :
+  with sem_i_Ind (ii: instr_info) (k: Sv.t) (e : estate empty_env) (i : instr_r) (e0 : estate empty_env) (s : sem_i ii k e i e0) {struct s} :
     Pi_r ii k e i e0 :=
     match s in sem_i ii k s1 i s2 return Pi_r ii k s1 i s2 with
     | @Eassgn ii s1 s2 x tag ty e1 v v' h1 h2 h3 => @Hasgn ii s1 s2 x tag ty e1 v v' h1 h2 h3
@@ -464,12 +465,12 @@ Section SEM_IND.
          (@sem_call_Ind ii k (kill_tmp_call fn s1) fn s2 exec)
     end
 
-  with sem_I_Ind (k: Sv.t) (s1 : estate) (i : instr) (s2 : estate) (s : sem_I k s1 i s2) {struct s} : Pi k s1 i s2 :=
+  with sem_I_Ind (k: Sv.t) (s1 : estate empty_env) (i : instr) (s2 : estate empty_env) (s : sem_I k s1 i s2) {struct s} : Pi k s1 i s2 :=
     match s in sem_I k e1 i0 e2 return Pi k e1 i0 e2 with
     | @EmkI ii k i s1 s2 exec pm => @HmkI ii k i s1 s2 exec (@sem_i_Ind ii k _ i s2 exec) pm
     end
 
-  with sem_call_Ind (ii: instr_info) (k: Sv.t) (s1: estate) (fn: funname) (s2: estate) (s: sem_call ii k s1 fn s2) {struct s} : Pfun ii k s1 fn s2 :=
+  with sem_call_Ind (ii: instr_info) (k: Sv.t) (s1: estate empty_env) (fn: funname) (s2: estate empty_env) (s: sem_call ii k s1 fn s2) {struct s} : Pfun ii k s1 fn s2 :=
     match s with
     | @EcallRun ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_rsp ok_m1 exec ok_rsp' ok_s2 =>
 

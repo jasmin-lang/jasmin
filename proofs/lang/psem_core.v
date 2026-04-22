@@ -130,9 +130,9 @@ Qed.
 (* ** Global access
  * -------------------------------------------------------------------- *)
 
-Lemma get_globalI gd g v :
-  get_global gd g = ok v →
-  exists gv : glob_value, [/\ get_global_value gd g = Some gv, v = gv2val gv & type_of_val v = eval_atype empty_env (vtype g)].
+Lemma get_globalI env gd g v :
+  get_global env gd g = ok v →
+  exists gv : glob_value, [/\ get_global_value gd g = Some gv, v = gv2val gv & type_of_val v = eval_atype env (vtype g)].
 Proof.
   rewrite /get_global; case: get_global_value => // gv.
   by case:eqP => // <- [<-];exists gv.
@@ -184,19 +184,15 @@ End ESTATE_UTILS.
 
 (* ** Starting lemmas
  * ------------------------------------------------------------------- *)
-Lemma type_of_get_global gd g v :
-  get_global gd g = ok v -> type_of_val v = eval_atype empty_env (vtype g).
+Lemma type_of_get_global env gd g v :
+  get_global env gd g = ok v -> type_of_val v = eval_atype env (vtype g).
 Proof. by move=> /get_globalI [?[]]. Qed.
 
-Lemma get_global_defined gd x v : get_global gd x = ok v -> is_defined v.
+Lemma get_global_defined env gd x v : get_global env gd x = ok v -> is_defined v.
 Proof. by move=> /get_globalI [gv [_ -> _]]; case: gv. Qed.
 
-Definition geval_atype is_local env ty :=
-  let env := if is_local then env else empty_env in
-  eval_atype env ty.
-
 Lemma get_gvar_compat env wdb gd (vm : Vm.t env) x v : get_gvar wdb gd vm x = ok v ->
-   (~~wdb || is_defined v) /\ compat_val (geval_atype (is_lvar x) env (vtype x.(gv))) v.
+   (~~wdb || is_defined v) /\ compat_val (eval_atype env (vtype x.(gv))) v.
 Proof.
   rewrite /get_gvar;case:ifP => ? heq.
   + by apply: get_var_compat heq.
@@ -224,19 +220,19 @@ Proof. by move=> -> /=; rewrite truncate_word_u. Qed.
 (* Remark compat_type b = if b then subtype else eq *)
 Lemma type_of_get_gvar env x gd (vm : Vm.t env) v :
   get_gvar true gd vm x = ok v ->
-  compat_ctype sw_allowed (type_of_val v) (geval_atype (is_lvar x) env (vtype x.(gv))).
+  compat_ctype sw_allowed (type_of_val v) (eval_atype env (vtype x.(gv))).
 Proof. by move=> /get_gvar_compat [/=hd]; rewrite /compat_val hd orbF. Qed.
 
 Lemma type_of_get_gvar_sub env x gd (vm : Vm.t env) v :
   get_gvar true gd vm x = ok v ->
-  subctype (type_of_val v) (geval_atype (is_lvar x) env (vtype x.(gv))).
+  subctype (type_of_val v) (eval_atype env (vtype x.(gv))).
 Proof. by move=> /type_of_get_gvar /compat_ctype_subctype. Qed.
 
 (* We have a more precise result in the non-word cases. *)
 Lemma type_of_get_gvar_not_word env gd (vm : Vm.t env) x v :
   (sw_allowed -> ~ is_aword x.(gv).(vtype)) ->
   get_gvar true gd vm x = ok v ->
-  type_of_val v = geval_atype (is_lvar x) env x.(gv).(vtype).
+  type_of_val v = eval_atype env x.(gv).(vtype).
 Proof.
   move=> hnword; rewrite /get_gvar; case: ifP => ?.
   + by apply: type_of_get_var_not_word.
@@ -256,7 +252,7 @@ Proof.
 Qed.
 
 Lemma on_arr_gvarP env A (f : forall n, WArray.array n -> exec A) wdb v gd (s : Vm.t env) x P:
-  (forall n t, geval_atype (is_lvar x) env (vtype x.(gv)) = carr n ->
+  (forall n t, eval_atype env (vtype x.(gv)) = carr n ->
                get_gvar wdb gd s x = ok (@Varr n t) ->
                f n t = ok v -> P) ->
   on_arr_var (get_gvar wdb gd s x) f = ok v -> P.
@@ -267,7 +263,7 @@ Proof.
   by apply: H.
 Qed.
 
-Lemma get_gvar_glob env wdb gd x (vm : Vm.t env) : is_glob x -> get_gvar wdb gd vm x = get_global gd (gv x).
+Lemma get_gvar_glob env wdb gd x (vm : Vm.t env) : is_glob x -> get_gvar wdb gd vm x = get_global env gd (gv x).
 Proof. by rewrite /get_gvar /is_lvar /is_glob => /eqP ->. Qed.
 
 Lemma get_gvar_nglob env wdb gd x (vm : Vm.t env) : ~~is_glob x -> get_gvar wdb gd vm x = get_var wdb vm (gv x).

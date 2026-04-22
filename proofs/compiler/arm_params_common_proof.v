@@ -237,7 +237,7 @@ Proof.
   move=> hc hor hget; rewrite -sem_fopns_equiv.
   have := [elaborate ARMFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small) (neutral:= Some 0%Z)
              (@ARMFopn_coreP.add_sem_fopn_args _ _) (@ARMFopn_coreP.addi_sem_fopn_args _ _)].
-  move=> /(_ _ xi xi y imm s w) [] //.
+  move=> /(_ _ xi xi y imm _ s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
   by apply: eq_exI heq; clear; SvD.fsetdec.
@@ -257,7 +257,7 @@ Proof.
   move=> hor hget; rewrite -sem_fopns_equiv.
   have := [elaborate ARMFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small) (neutral:= Some 0%Z)
               (@ARMFopn_coreP.sub_sem_fopn_args _ _) (@ARMFopn_coreP.subi_sem_fopn_args _ _)].
-  move=> /(_ _ xi xi y imm s w) [] //.
+  move=> /(_ _ xi xi y imm _ s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
   apply: eq_exI heq; rewrite /xi /=; SvD.fsetdec.
@@ -278,7 +278,7 @@ Proof.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
   have := [elaborate ARMFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small) (neutral:= Some 0%Z)
              (@ARMFopn_coreP.add_sem_fopn_args _ _) (@ARMFopn_coreP.addi_sem_fopn_args _ _)].
-  move=> /(_ _ tmp xi xi imm s w) [] //.
+  move=> /(_ _ tmp xi xi imm _ s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   + by right => h; rewrite h in hne.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
@@ -300,7 +300,7 @@ Proof.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
   have := [elaborate ARMFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small) (neutral:= Some 0%Z)
               (@ARMFopn_coreP.sub_sem_fopn_args _ _) (@ARMFopn_coreP.subi_sem_fopn_args _ _)].
-  move=> /(_ _ tmp xi xi imm s w) [] //.
+  move=> /(_ _ tmp xi xi imm _ s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   + by right => h; rewrite h in hne.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
@@ -322,10 +322,10 @@ Context
 
 #[local] Existing Instance withsubword.
 
-Lemma store_mn_of_wsizeP ws ws' mn (w : word ws) (w' : word ws') :
+Lemma store_mn_of_wsizeP env ws ws' mn (w : word ws) (w' : word ws') :
   store_mn_of_wsize ws = Some mn
   -> truncate_word ws w' = ok w
-  -> exec_sopn (Oarm (ARM_op mn default_opts)) [:: Vword w' ]
+  -> exec_sopn env (Oarm (ARM_op mn default_opts)) [:: Vword w' ]
      = ok [:: Vword w ].
 Proof.
   case: ws w => w // [?]; subst mn.

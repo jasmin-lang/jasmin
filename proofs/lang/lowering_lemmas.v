@@ -15,9 +15,10 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}.
+Context (env : env_t).
 
 (* State equality up to a set of variables. *)
-Definition st_eq_ex ys s1 s2 := (st_rel eq_ex ys s1 s2).
+Definition st_eq_ex ys (s1 s2 : estate env) := (st_rel (eq_ex (env:=env)) ys s1 s2).
 
 (* FIXME syscall : why it is needed to redeclare it here *)
 (* note that in utils, it is CMorphisms.Proper, here it is Morpisms.Proper *)
@@ -27,22 +28,22 @@ Instance and3_iff_morphism :
 Proof. apply and3_iff_morphism. Qed.
 (* END FIXME syscall *)
 
-Lemma eeq_excR xs s :
+Lemma eeq_excR xs (s : estate env) :
   st_eq_ex xs s s.
 Proof. done. Qed.
 
-Lemma eeq_excS xs s0 s1 :
+Lemma eeq_excS xs (s0 s1 : estate env) :
   st_eq_ex xs s0 s1
   -> st_eq_ex xs s1 s0.
 Proof. by rewrite /st_eq_ex /st_rel => -[-> -> ->]. Qed.
 
-Lemma eeq_excT xs s0 s1 s2 :
+Lemma eeq_excT xs (s0 s1 s2 : estate env) :
   st_eq_ex xs s0 s1
   -> st_eq_ex xs s1 s2
   -> st_eq_ex xs s0 s2.
 Proof. by rewrite /st_eq_ex /st_rel => -[-> -> ->]. Qed.
 
-Lemma eeq_exc_disjoint xs ys s0 s1 :
+Lemma eeq_exc_disjoint xs ys (s0 s1 : estate env) :
   disjoint xs ys
   -> st_eq_ex ys s0 s1
   -> st_eq_on xs s0 s1.
@@ -54,7 +55,7 @@ Proof.
   SvD.fsetdec.
 Qed.
 
-Lemma eeq_exc_sem_pexprs wdb gd xs es v s0 s1 :
+Lemma eeq_exc_sem_pexprs wdb gd xs es v (s0 s1 : estate env) :
   disjoint (read_es es) xs
   -> st_eq_ex xs s0 s1
   -> sem_pexprs wdb gd s0 es = ok v
@@ -68,7 +69,7 @@ Proof.
   by rewrite -(surj_estate s1).
 Qed.
 
-Lemma eeq_exc_sem_pexpr wdb gd xs e v s0 s1 :
+Lemma eeq_exc_sem_pexpr wdb gd xs e v (s0 s1 : estate env) :
   disjoint (read_e e) xs
   -> st_eq_ex xs s0 s1
   -> sem_pexpr wdb gd s0 e = ok v
@@ -87,7 +88,7 @@ Proof.
   by t_xrbindP => ? ? <-.
 Qed.
 
-Lemma eeq_exc_write_lvals wdb gd xs s0 s1 s0' ls vs :
+Lemma eeq_exc_write_lvals wdb gd xs (s0 s1 s0' : estate env) ls vs :
   disjoint (vars_lvals ls) xs
   -> st_eq_ex xs s0 s0'
   -> write_lvals wdb gd s0 ls vs = ok s1
@@ -123,7 +124,7 @@ Proof.
     exact: hvm.
 Qed.
 
-Lemma eeq_exc_write_lval wdb gd xs s0 s1 s0' l v :
+Lemma eeq_exc_write_lval wdb gd xs (s0 s1 s0' : estate env) l v :
   disjoint (vars_lval l) xs
   -> st_eq_ex xs s0 s0'
   -> write_lval wdb gd l v s0 = ok s1
@@ -146,7 +147,7 @@ Proof.
   by t_xrbindP => ? ? <-.
 Qed.
 
-Lemma eeq_exc_get_gvar wdb gd s0 s1 (x : gvar) vs :
+Lemma eeq_exc_get_gvar wdb gd (s0 s1 : estate env) (x : gvar) vs :
   ~~ Sv.mem (gv x) vs
   -> st_eq_ex vs s0 s1
   -> get_gvar wdb gd (evm s0) x = get_gvar wdb gd (evm s1) x.
@@ -160,7 +161,7 @@ Qed.
 
 Lemma read_es_st_eq_ex gd wdb es X :
   disjoint (read_es es) X ->
-  wrequiv (st_rel eq_ex X) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) eq.
+  wrequiv (st_rel (eq_ex (env:=env)) X) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) eq.
 Proof.
   move=> hdisj s t v hst he; exists v => //.
   by apply (eeq_exc_sem_pexprs hdisj hst he).

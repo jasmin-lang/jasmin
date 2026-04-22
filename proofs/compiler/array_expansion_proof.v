@@ -368,7 +368,7 @@ Local Opaque wsize_size.
   move=> /and4P [] /eqP ? /eqP ? /eqP ? hloc ? _ hrec vs z; subst ws ws' len es => /=.
   have vai := valid hga.
 
-  apply: on_arr_gvarP; rewrite /geval_atype hloc (convertible_eval_atype vai.(x_ty)) => len1 t [?]; subst len1.
+  apply: on_arr_gvarP; rewrite (convertible_eval_atype vai.(x_ty)) => len1 t [?]; subst len1.
   rewrite /get_gvar hloc => /get_varP [hgx _ _]; t_xrbindP => st hst ?; subst z.
   move=> ? /hrec[? hex +] <-; rewrite /sem_pexprs mapM_cat hex /= => -> /=.
   rewrite expand_vP /=; eexists; eauto.

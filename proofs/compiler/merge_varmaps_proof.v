@@ -23,7 +23,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {LC : LoopCounter}.
 
-Lemma init_stk_stateI fex pex gd s s' :
+Lemma init_stk_stateI fex pex gd (s s' : estate empty_env) :
   pex.(sp_rip) != pex.(sp_rsp) →
   init_stk_state fex pex gd s = ok s' →
   [/\
@@ -32,7 +32,7 @@ Lemma init_stk_stateI fex pex gd s s' :
     alloc_stack s.(emem) fex.(sf_align) fex.(sf_stk_sz) fex.(sf_stk_ioff) fex.(sf_stk_extra_sz) = ok (emem s'),
     (evm s').[vid pex.(sp_rsp)] = Vword (top_stack (emem s')) &
     forall (x:var), x <> vid pex.(sp_rip) -> x <> vid pex.(sp_rsp) ->
-              (evm s').[x] = Vm.init.[x]].
+              (evm s').[x] = (Vm.init empty_env).[x]].
 Proof.
   move => /eqP checked_sp_rip.
   apply: rbindP => m ok_m [<-] /=; split => //.
@@ -104,7 +104,7 @@ Lemma var_tmp_not_magic :
   disjoint var_tmps (magic_variables p).
 Proof. by move: ok_p; rewrite /check; t_xrbindP. Qed.
 
-Record merged_vmap_precondition (W: Sv.t) (sz: wsize) (m: mem) (vm: Vm.t) : Prop :=
+Record merged_vmap_precondition (W: Sv.t) (sz: wsize) (m: mem) (vm: Vm.t empty_env) : Prop :=
   MVP {
       mvp_not_written: disjoint W (magic_variables p);
       mvp_top_stack: vm.[vrsp] = Vword (top_stack m);
@@ -135,7 +135,7 @@ Proof.
   by rewrite /check_fd /=; t_xrbindP => ? _ _ _ _ _ _ /disjoint_sym.
 Qed.
 
-Lemma kill_vars_tmp_call_rsp fn vm :
+Lemma kill_vars_tmp_call_rsp fn (vm : Vm.t empty_env) :
   (kill_vars (fd_tmp_call p fn) vm).[vrsp] = vm.[vrsp].
 Proof.
   rewrite kill_varsE; case: ifP => // /Sv_memP.
@@ -144,7 +144,7 @@ Proof.
   rewrite /magic_variables /vrsp /=; SvD.fsetdec.
 Qed.
 
-Lemma kill_vars_tmp_call_rip fn vm :
+Lemma kill_vars_tmp_call_rip fn (vm : Vm.t empty_env) :
   (kill_vars (fd_tmp_call p fn) vm).[vgd] = vm.[vgd].
 Proof.
   rewrite kill_varsE; case: ifP => // /Sv_memP.
@@ -253,25 +253,73 @@ Section LEMMA.
   Notation sem_c := (sem_one_varmap.sem p var_tmps).
   Notation sem_call := (sem_one_varmap.sem_call p var_tmps).
 
-  Record match_estate (D: Sv.t) (s t: estate) : Prop :=
+Section Section.
+
+  Context {wsw1 wsw2 : WithSubWord} (env1 env2 : Uint63.int -> Z).
+  Section A.
+  Context (R:value -> value -> Prop).
+
+  Definition vm_rel' (P : var -> Prop) (vm1 : @Vm.t wsw1 env1) (vm2 : @Vm.t wsw2 env2) :=
+    forall x, P x -> R (Vm.get vm1 x) (Vm.get vm2 x).
+  End A.
+  
+  
+  #[export] Instance vm_rel_impl' :
+    Proper (subrelation ==>
+            pointwise_lifting (Basics.flip Basics.impl) (Tcons var Tnil) ==>
+            @eq (Vm.t env1) ==> @eq (Vm.t env2) ==> Basics.impl) vm_rel'.
+  Proof. by move=> R1 R2 hR P1 P2 hP vm1 ? <- vm2 ? <- h x hx; apply/hR/h/hP. Qed.
+
+  #[export] Instance vm_rel_m' :
+    Proper (relation_equivalence ==>
+            pointwise_lifting iff (Tcons var Tnil) ==>
+            @eq (Vm.t env1) ==> @eq (Vm.t env2) ==> iff) vm_rel'.
+  Proof.
+    move=> R1 R2 hR P1 P2 hP vm1 ? <- vm2 ? <-; split; apply vm_rel_impl' => //.
+    1,3: by move=> ??;apply hR.
+    1,2: by move=> x /=; case: (hP x).
+  Qed.
+
+  Definition uincl_ex' (X:Sv.t) := vm_rel' value_uincl (fun x => ~Sv.In x X).
+  
+  
+  #[export] Instance uincl_ex_impl' :
+    Proper (Sv.Subset ==> @eq (Vm.t env1) ==> @eq (Vm.t env2) ==> Basics.impl) uincl_ex'.
+  Proof. by move=> s1 s2 hS; apply vm_rel_impl' => // x hnx hx; apply/hnx/hS. Qed.
+
+  #[export] Instance uincl_ex_m' :
+    Proper (Sv.Equal ==> @eq (Vm.t env1) ==> @eq (Vm.t env2) ==> iff) uincl_ex'.
+  Proof. by move=> s1 s2 hS; apply vm_rel_m' => // x; rewrite hS. Qed.
+
+  Lemma vm_relI' R (P1 P2 : var -> Prop) vm1 vm2 :
+    (forall x, P1 x -> P2 x) ->
+    vm_rel' R P2 vm1 vm2 -> vm_rel' R P1 vm1 vm2.
+  Proof. by move=> h hvm v /h hv; apply hvm. Qed.
+
+  Lemma uincl_exI' s1 s2 (vm1 : @Vm.t wsw1 env1) (vm2 : Vm.t env2) :
+    Sv.Subset s2 s1 -> uincl_ex' s2 vm1 vm2 -> uincl_ex' s1 vm1 vm2.
+  Proof. move=> h1; apply vm_relI'; SvD.fsetdec. Qed.
+End Section.
+
+  Record match_estate env (D: Sv.t) (s : estate env) (t : estate empty_env) : Prop :=
     MVM {
       mvm_scs  : escs s = escs t;
       mvm_mem  : emem s = emem t;
-      mvm_vmap : s.(evm) <=[\D] t.(evm);
+      mvm_vmap : uincl_ex' D s.(evm) t.(evm);
     }.
 
-  Instance match_estate_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) match_estate.
-  Proof. 
+  Instance match_estate_m env : Proper (Sv.Equal ==> eq ==> eq ==> iff) (match_estate (env:=env)).
+  Proof.
     by move => x y x_eq_y s _ <- t _ <-; split => - [] ?; rewrite ?x_eq_y => ?; constructor => //; rewrite x_eq_y.
   Qed.
 
-  Lemma match_estateI X X' s t :
+  Lemma match_estateI env X X' (s : estate env) t :
     Sv.Subset X X' →
     match_estate X s t →
     match_estate X' s t.
-  Proof. by move => hle [?? hvm]; split => //; apply: uincl_exI hle hvm. Qed.
+  Proof. by move => hle [?? hvm]; split => //; apply: uincl_exI' hle hvm. Qed.
 
-  Let Pc (s1: estate) (c: cmd) (s2: estate) : Prop :=
+  Let Pc env (s1: estate env) (c: cmd) (s2: estate env) : Prop :=
     ∀ sz I O t1,
       check_cmd sz I c = ok O →
       merged_vmap_precondition (write_c c) sz s1.(emem) t1.(evm) →
@@ -282,7 +330,7 @@ Section LEMMA.
           Sv.Subset k (write_c c) &
         match_estate O s2 t2.
 
-  Let Pi (s1: estate) (i: instr) (s2: estate) : Prop :=
+  Let Pi env (s1: estate env) (i: instr) (s2: estate env) : Prop :=
     ∀ sz I O t1,
       check_instr sz I i = ok O →
       merged_vmap_precondition (write_I i) sz s1.(emem) t1.(evm) →
@@ -295,12 +343,12 @@ Section LEMMA.
 
   Local Lemma Hnil: sem_Ind_nil Pc.
   Proof.
-    move => s sz I _ t [<-] /= pre sim; exists t => //; exists Sv.empty => //; constructor.
+    move => env s sz I _ t [<-] /= pre sim; exists t => //; exists Sv.empty => //; constructor.
   Qed.
 
   Local Lemma Hcons: sem_Ind_cons p global_data Pc Pi.
   Proof.
-    move => s1 s2 s3 i c exec_i hi exec_c hc sz I O t1 /=; t_xrbindP => D ok_i ok_c ok_W sim1.
+    move => env s1 s2 s3 i c exec_i hi exec_c hc sz I O t1 /=; t_xrbindP => D ok_i ok_c ok_W sim1.
     have ok_W1 : merged_vmap_precondition (write_I i) sz (emem s1) (evm t1).
     - split.
       2: exact: (mvp_top_stack ok_W).
@@ -328,7 +376,7 @@ Section LEMMA.
     by SvD.fsetdec.
   Qed.
 
-  Let Pi_r (s1: estate) (i: instr_r) (s2: estate) : Prop :=
+  Let Pi_r env (s1: estate env) (i: instr_r) (s2: estate env) : Prop :=
     ∀ sz ii I O t1,
       check_instr_r sz ii I i = ok O →
       merged_vmap_precondition (write_i i) sz s1.(emem) t1.(evm) →
@@ -341,7 +389,7 @@ Section LEMMA.
 
   Lemma HmkI : sem_Ind_mkI p global_data Pi_r Pi.
   Proof.
-    move => ii i s1 s2 exec_i h sz I O t1 /check_instrP ok_i ok_W sim.
+    move => env ii i s1 s2 exec_i h sz I O t1 /check_instrP ok_i ok_W sim.
     move: (mvp_not_written ok_W).
     rewrite {1}/write_I write_I_recE -/write_i => dis.
     have [ t2 [] k texec_i hk sim' ] := h sz ii I O _ ok_i ok_W sim.
@@ -355,13 +403,13 @@ Section LEMMA.
   Qed.
 
   (* TODO: move this *)
-  Lemma with_vm_m x y :
+  Lemma with_vm_m env (x y : estate env) :
     escs x = escs y →
     emem x = emem y →
-    forall vm, with_vm x vm = with_vm y vm.
+    forall (vm : Vm.t env), with_vm x vm = with_vm y vm.
   Proof. by case: x y => scs m vm [] scs' m' vm' /= -> ->. Qed.
 
-  Lemma check_eP wdb ii I e s t v u : check_e ii I e = ok u ->
+  Lemma check_eP env wdb ii I e (s : estate env) t v u : check_e ii I e = ok u ->
     match_estate I s t ->
     sem_pexpr wdb (p_globs p) s e = ok v ->
     exists2 v', sem_pexpr wdb (p_globs p) t e = ok v' & value_uincl v v'.

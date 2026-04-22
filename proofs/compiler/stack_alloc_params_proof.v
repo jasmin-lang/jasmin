@@ -21,7 +21,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}.
 
 Definition mov_ofs_correct (mov_ofs : lval → assgn_tag → mov_kind → pexpr → pexpr → option instr_r) :=
-  forall (P' : sprog) ev s1 e w ofs pofs x tag mk ii ins s2,
+  forall env (P' : sprog) ev (s1 : estate env) e w ofs pofs x tag mk ii ins s2,
     p_globs P' = [::]
     -> sem_pexpr true [::] s1 e >>= to_pointer = ok w
     -> sem_pexpr true [::] s1 ofs >>= to_pointer = ok pofs
@@ -30,13 +30,13 @@ Definition mov_ofs_correct (mov_ofs : lval → assgn_tag → mov_kind → pexpr 
     -> exists2 vm2, esem_i P' ev (MkI ii ins) s1 = ok (with_vm s2 vm2) & evm s2 =1 vm2.
 
 Definition immediate_correct (immediate : var_i → Z → instr_r) :=
-  forall (P' : sprog) w s ii (x: var_i) z,
+  forall env (P' : sprog) w (s : estate env) ii (x: var_i) z,
     vtype x = aword Uptr ->
     esem_i P' w (MkI ii (immediate x z)) s = ok
       (with_vm s (evm s).[x <- Vword (wrepr Uptr z)]).
 
 Definition swap_correct (swap : assgn_tag → var_i → var_i → var_i → var_i → instr_r) :=
-  forall (P' : sprog) rip s ii tag (x y z w : var_i) (pz pw: pointer),
+  forall env (P' : sprog) rip (s : estate env) ii tag (x y z w : var_i) (pz pw: pointer),
     convertible (vtype x) spointer -> convertible (vtype y) spointer -> 
     convertible (vtype z) spointer -> convertible (vtype w) spointer -> 
     (evm s).[z] = Vword pz ->

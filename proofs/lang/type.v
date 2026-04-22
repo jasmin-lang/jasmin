@@ -384,9 +384,12 @@ Proof. by move=> ?; rewrite arr_sizeE; apply Z.mul_pos_pos. Qed.
 
 Opaque arr_size.
 
+Definition env_t := Uint63.int -> Z.
+Definition empty_env : env_t := fun _ => 0%Z.
+
 Section EVAL.
 
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 (* FIXME: duplicated from sem_op_typed *)
 Definition zlsl (x i : Z) : Z :=
@@ -612,13 +615,13 @@ Proof.
   by move=> /eqP ->.
 Qed.
 
-Fixpoint eval_mono (env : Uint63.int -> Z) (mono : list (Uint63.int * Ident.ident)) : Z :=
+Fixpoint eval_mono (env : env_t) (mono : list (Uint63.int * Ident.ident)) : Z :=
   match mono with
   | [::] => 1
   | x :: mono => env x.1 * eval_mono env mono
   end.
 
-Fixpoint eval_expand (env : Uint63.int -> Z) terms : Z :=
+Fixpoint eval_expand (env : env_t) terms : Z :=
   match terms with
   | [::] => 0
   | (count, mono) :: terms =>

@@ -307,7 +307,7 @@ Proof.
   move => /(valid_disjoint_labels) - /(_ lbl (lbl + 1)%positive) V R; apply: V; lia.
 Qed.
 
-Lemma snot_spec gd s e b :
+Lemma snot_spec env gd (s:estate env) e b :
   sem_pexpr true gd s e = ok (Vbool b) →
   sem_pexpr true gd s (snot e) = sem_pexpr true gd s (Papp1 Onot e).
 Proof.
@@ -320,7 +320,7 @@ elim: e b => //.
   apply: (f_equal (@Ok _ _)); rewrite /= ?negb_and ?negb_or.
 move => st p hp e1 he1 e2 he2 b /=.
 t_xrbindP => bp vp -> /= -> trv1 v1 h1 htr1 trv2 v2 h2 htr2 /= h.
-have : exists (b1 b2:bool), eval_atype st = cbool /\ sem_pexpr true gd s e1 = ok (Vbool b1) /\ sem_pexpr true gd s e2 = ok (Vbool b2).
+have : exists (b1 b2:bool), eval_atype env st = cbool /\ sem_pexpr true gd s e1 = ok (Vbool b1) /\ sem_pexpr true gd s e2 = ok (Vbool b2).
 + rewrite h1 h2;case: bp h => ?;subst.
   + move: htr2.
     have [-> ->]:= truncate_valI htr1.
@@ -657,7 +657,7 @@ Proof.
     by apply /negP => /mapP [x hin heqx]; apply hnin2; exists x => //; rewrite heqx; case: (x).
   have [vm2' {}hf heqx]: exists2 vm2',
       foldM
-         (λ '(x, ofs) (vm1 : Vm.t),
+         (λ '(x, ofs) (vm1 : Vm.t empty_env),
             Let ws := match vtype x with
                       | aword ws => ok ws
                       | _ => Error ErrType
@@ -1559,7 +1559,7 @@ Section PROOF.
   Qed.
 
   Section MATCH_MEM_SEM_PEXPR.
-    Context (scs: syscall_state_t) sp (m m': mem) (vm: Vm.t) (M: match_mem_gen sp m m').
+    Context (scs: syscall_state_t) sp (m m': mem) (vm: Vm.t empty_env) (M: match_mem_gen sp m m').
     Let P (e: pexpr) : Prop :=
       ∀ v,
         sem_pexpr true [::] {| escs := scs; emem := m ; evm := vm |} e = ok v →
@@ -1595,7 +1595,7 @@ Section PROOF.
 
   End MATCH_MEM_SEM_PEXPR.
 
-  Lemma match_mem_gen_write_lval sp scs1 m1 vm1 m1' scs2 m2 vm2 x v :
+  Lemma match_mem_gen_write_lval sp scs1 m1 (vm1:Vm.t empty_env) m1' scs2 m2 vm2 x v :
     match_mem_gen sp m1 m1' →
     write_lval true [::] x v {| escs := scs1; emem := m1 ; evm := vm1 |} = ok {| escs := scs2; emem := m2 ; evm := vm2 |} →
     exists2 m2',
@@ -1612,7 +1612,7 @@ Section PROOF.
     all: by exists m1'.
   Qed.
 
-  Lemma match_mem_gen_write_lvals sp scs1 m1 vm1 m1' scs2 m2 vm2 xs vs :
+  Lemma match_mem_gen_write_lvals sp scs1 m1 (vm1:Vm.t empty_env) m1' scs2 m2 vm2 xs vs :
     match_mem_gen sp m1 m1' →
     write_lvals true [::] {| escs := scs1; emem := m1 ; evm := vm1 |} xs vs = ok {| escs := scs2; emem := m2 ; evm := vm2 |} →
     exists2 m2',
@@ -1642,7 +1642,7 @@ Section PROOF.
   (* Define where/how the return address is passed by the caller to the callee *)
   Definition value_of_ra
     (m: mem)
-    (vm: Vm.t)
+    (vm: Vm.t empty_env)
     (ra: return_address_location)
     (target: option (remote_label * lcmd * nat))
     : Prop :=
@@ -1724,7 +1724,7 @@ Section PROOF.
     by apply /negP; apply hnv.
   Qed.
 
-  Lemma write_lval_mem_unchanged x v v' s s' t t' sp :
+  Lemma write_lval_mem_unchanged x v v' (s s' t t' : estate empty_env) sp :
     write_lval true [::] x v s = ok s' →
     write_lval true [::] x v' t = ok t' →
     escs s = escs t →
@@ -1753,7 +1753,7 @@ Section PROOF.
     subst; reflexivity.
   Qed.
 
-  Lemma write_lvals_mem_unchanged xs vs vs' s s' t t' sp :
+  Lemma write_lvals_mem_unchanged xs vs vs' (s s' t t' : estate empty_env) sp :
     List.Forall2 value_uincl vs vs' →
     write_lvals true [::] s xs vs = ok s' →
     write_lvals true [::] t xs vs' = ok t' →
@@ -1776,7 +1776,7 @@ Section PROOF.
     by rewrite -(write_lval_validw ok_vm).
   Qed.
 
-  Lemma preserved_metadata_write_lvals xs vs vs' s s' t t' sp :
+  Lemma preserved_metadata_write_lvals xs vs vs' (s s' t t' : estate empty_env) sp :
     List.Forall2 value_uincl vs vs' →
     write_lvals true [::] s xs vs = ok s' →
     write_lvals true [::] t xs vs' = ok t' →
@@ -1906,7 +1906,7 @@ Section PROOF.
     (at level 200, x name, p0 at level 200, right associativity) :
     type_scope.
 
-  Let Pi (k: Sv.t) (s1: estate) (i: instr) (s2: estate) : Prop :=
+  Let Pi (k: Sv.t) (s1: estate empty_env) (i: instr) (s2: estate empty_env) : Prop :=
     ∀ fn lbl,
       checked_i fn i →
       let: (lbli, li) := linear_i fn i lbl [::] in
@@ -1931,7 +1931,7 @@ Section PROOF.
            & match_mem_gen (top_stack m0) s2 m2
            & target_mem_unchanged m1 m2.
 
-  Let Pi_r (ii: instr_info) (k: Sv.t) (s1: estate) (i: instr_r) (s2: estate) : Prop :=
+  Let Pi_r (ii: instr_info) (k: Sv.t) (s1: estate empty_env) (i: instr_r) (s2: estate empty_env) : Prop :=
     ∀ fn lbl,
       checked_i fn (MkI ii i) →
       let: (lbli, li) := linear_i fn (MkI ii i) lbl [::] in
@@ -1956,7 +1956,7 @@ Section PROOF.
           & match_mem_gen (top_stack m0) s2 m2
           & target_mem_unchanged m1 m2.
 
-  Let Pc (k: Sv.t) (s1: estate) (c: cmd) (s2: estate) : Prop :=
+  Let Pc (k: Sv.t) (s1: estate empty_env) (c: cmd) (s2: estate empty_env) : Prop :=
     ∀ fn lbl,
       checked_c fn c →
       let: (lblc, lc) := linear_c fn c lbl [::] in
@@ -2026,7 +2026,7 @@ Section PROOF.
     (sp : word Uptr) (ra : return_address_location) : word Uptr :=
     if is_RAstack_None_return ra then (sp + wrepr _ (wsize_size Uptr))%R else sp.
 
-  Let Pfun (ii: instr_info) (k: Sv.t) (s1: estate) (fn: funname) (s2: estate) : Prop :=
+  Let Pfun (ii: instr_info) (k: Sv.t) (s1: estate empty_env) (fn: funname) (s2: estate empty_env) : Prop :=
     ∀ ls m1 vm1 body ra lret sp callee_saved,
       match_mem_gen (top_stack m0) s1 m1 →
       (kill_vars (killed_on_entry ra) s1).[vrsp <- Vword sp] <=1 vm1 →
@@ -2096,7 +2096,7 @@ Section PROOF.
     rewrite -!catA => E K X H M U.
     exists m3 vm3 => //.
     + exact: lsem_trans Ei E.
-    + apply (@eq_exT _ vm2).
+    + apply (@eq_exT _ _ vm2).
       + apply: eq_exI Ki.
         exact: Sv_Subset_union_left.
       apply: eq_exI K.
@@ -2125,7 +2125,7 @@ Section PROOF.
   Lemma check_rexprsP ii es u :
     allM (check_rexpr ii) es = ok u →
     exists2 rs, oseq.omap rexpr_of_pexpr es = Some rs &
-    ∀ s vs, sem_pexprs true [::] s es = ok vs → sem_rexprs s rs = ok vs.
+    ∀ (s:estate empty_env) vs, sem_pexprs true [::] s es = ok vs → sem_rexprs s rs = ok vs.
   Proof.
     case: u; elim: es.
     - by move => _; exists [::].
@@ -2138,7 +2138,7 @@ Section PROOF.
   Lemma check_lexprsP ii xs u :
     allM (check_lexpr ii) xs = ok u →
     exists2 ds, oseq.omap lexpr_of_lval xs = Some ds &
-    ∀ s vs s', write_lvals true [::] s xs vs = ok s' → write_lexprs ds vs s = ok s'.
+    ∀ (s:estate empty_env) vs s', write_lvals true [::] s xs vs = ok s' → write_lexprs ds vs s = ok s'.
   Proof.
     case: u; elim: xs.
     - by move => _; exists [::].
@@ -2179,7 +2179,7 @@ Section PROOF.
     by have := wunsigned_range sp; lia.
   Qed.
 
-  Lemma vm_after_syscall_uincl vm1 vm2 :
+  Lemma vm_after_syscall_uincl (vm1 vm2 : Vm.t empty_env) :
     vm1 <=1 vm2 ->
     vm_after_syscall vm1 <=1 vm_after_syscall vm2.
   Proof.
@@ -2208,7 +2208,7 @@ Section PROOF.
     have [[[ _ rm' ] _ ] -> /= [] <- <-]:= mk_forall_exP h happ; by eexists.
   Qed.
 
-  Lemma syscall_killP vm : vm =[\syscall_kill] vm_after_syscall vm.
+  Lemma syscall_killP (vm:Vm.t empty_env) : vm =[\syscall_kill] vm_after_syscall vm.
   Proof. by move=> x /Sv_memP /negPf; rewrite /vm_after_syscall kill_varsE => ->. Qed.
 
   Lemma fill_mem_mem_unchanged m1 m2 m1' m2' ptr bytes :
@@ -3047,7 +3047,7 @@ Section PROOF.
 
   Notation sv_of_ra := (fun ra => sv_of_option (ovar_of_ra ra)) (only parsing).
 
-  Lemma killed_on_entry_uincl vm vm' (w : word Uptr) s ra :
+  Lemma killed_on_entry_uincl (vm vm':Vm.t empty_env) (w : word Uptr) s ra :
     vm.[vrsp] = Vword w ->
     vm' =[\ Sv.add vrsp (sv_of_ra ra) ] vm ->
     s <=1 vm' ->
@@ -3131,7 +3131,7 @@ Section PROOF.
       rewrite /tmpi_of_ra /fd_tmp_call /tmp_of_ra /tmp_call ok_fd'.
       by case: sf_return_address => // [_ | _ _ _] [?|] //=; clear; SvD.fsetdec.
     have [vm2_b [hsem_before heqvm2 hvm2_b_rsp]] :
-      exists (vm2_b:Vm.t),
+      exists (vm2_b:Vm.t empty_env),
         [/\ lsem p' (Lstate (escs s1) m1 vm2 fn (size P))
               (Lstate (escs s1) m1 vm2_b fn (size P + size before)),
              vm2 =[\ Sv.add vrsp Stmp] vm2_b  &
@@ -3301,7 +3301,7 @@ Section PROOF.
       rewrite /rastack_after /ra.
       by case sf_return_address => [|??|?[?|//]??] /=; rewrite wrepr0 GRing.addr0.
     have [vm2'_b [hsem_after heqvm2' hvm2'_b_rsp]] :
-      exists (vm2'_b:Vm.t),
+      exists (vm2'_b:Vm.t empty_env),
         [/\ lsem p' (Lstate (escs s2) m2' vm2' fn (size P + size before).+2)
               (Lstate (escs s2) m2' vm2'_b fn ((size P + size before).+2 + size after)),
              vm2' =[\ Sv.add vrsp Stmp] vm2'_b  &
@@ -3511,7 +3511,7 @@ Section PROOF.
     move: x => [[|||ws'] xname] //= [<- <-]; eauto.
   Qed.
 
-  Lemma read_after_spill top al vm m1 to_spill m2 lo hi :
+  Lemma read_after_spill top al (vm:Vm.t empty_env) m1 to_spill m2 lo hi :
     (wunsigned top + hi < wbase Uptr)%Z →
     (0 <= lo)%Z →
     all_disjoint_aligned_between liparams
@@ -3566,7 +3566,7 @@ Section PROOF.
     by move => _ /ih2.
   Qed.
 
-  Lemma eval_uincl_kill_vars_incl X1 X2 vm1 vm2 z:
+  Lemma eval_uincl_kill_vars_incl X1 X2 (vm1 vm2 : Vm.t empty_env) z:
     Sv.Subset X1 X2 ->
     value_uincl (kill_vars X1 vm1).[z] vm2.[z] ->
     value_uincl (kill_vars X2 vm1).[z] vm2.[z].
@@ -3577,7 +3577,7 @@ Section PROOF.
     by apply/compat_value_uincl_undef/Vm.getP.
   Qed.
 
-  Lemma vm_uincl_kill_vars_set_incl X1 X2 vm1 vm2 x v1 v2:
+  Lemma vm_uincl_kill_vars_set_incl X1 X2 (vm1 vm2 : Vm.t empty_env) x v1 v2:
     Sv.Subset X1 X2 ->
     value_uincl v2 v1 ->
     (kill_vars X1 vm1).[x <- v1] <=1 vm2 ->
@@ -3589,7 +3589,7 @@ Section PROOF.
     by rewrite !Vm.setP_neq //; apply eval_uincl_kill_vars_incl.
   Qed.
 
-  Lemma vm_uincl_kill_vars X1 vm1 :
+  Lemma vm_uincl_kill_vars X1 (vm1 : Vm.t empty_env) :
     kill_vars X1 vm1 <=1 vm1.
   Proof.
     move=> x; rewrite kill_varsE.
@@ -3651,7 +3651,7 @@ Section PROOF.
     all: SvD.fsetdec.
   Qed.
 
-  Lemma can_push (fd : sfundef) to_save lo hi vm1  s1 m1' m1 :
+  Lemma can_push (fd : sfundef) to_save lo hi (vm1 : Vm.t empty_env) (s1 : estate empty_env) m1' m1 :
     alloc_stack (emem s1) (sf_align (f_extra fd)) (sf_stk_sz (f_extra fd)) (sf_stk_ioff (f_extra fd))
          (sf_stk_extra_sz (f_extra fd)) = ok m1'
     → (0 <= sf_stk_sz (f_extra fd))%Z
@@ -4086,8 +4086,8 @@ Section PROOF.
         have is_ok_vm1_vm2 :
           forall x,
             Sv.mem x (sv_of_list fst (sf_to_save (f_extra fd)))
-            -> is_ok (get_var true vm1 x >>= of_val (eval_atype (vtype x)))
-            -> is_ok (get_var true vm2 x >>= of_val (eval_atype (vtype x))).
+            -> is_ok (get_var true vm1 x >>= of_val (eval_atype empty_env (vtype x)))
+            -> is_ok (get_var true vm2 x >>= of_val (eval_atype empty_env (vtype x))).
         + move=> x hx ok_x.
           case: (SvP.MP.In_dec x (Sv.add var_tmp (Sv.add var_tmp2 (Sv.add vrsp vflags)))) => hin;
             last by rewrite /get_var (hvm2 _ hin).

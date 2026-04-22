@@ -50,9 +50,6 @@ Definition to_expr (t:ctype) : sem_t t -> exec pexpr :=
   | cword sz => fun w => ok (wconst w)
   end.
 
-(* FIXME: merge with syscall_sem and move *)
-Definition empty_env : Uint63.int -> Z := fun _ => 0.
-
 Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr :=
   let r :=
     Let x := of_expr _ e in

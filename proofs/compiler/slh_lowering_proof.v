@@ -188,11 +188,11 @@ Section H_SH_PARAMS.
 
   Definition spec_shp_lower
     (lower : lvals -> slh_op -> pexprs -> option copn_args) : Prop :=
-    forall s s' gd lvs slho es args res lvs' op' es',
+    forall env (s s' : estate env) gd lvs slho es args res lvs' op' es',
       lower lvs slho es = Some (lvs', op', es')
       -> not_misspeculating_args slho args
       -> sem_pexprs true gd s es = ok args
-      -> exec_sopn (Oslh slho) args = ok res
+      -> exec_sopn env (Oslh slho) args = ok res
       -> write_lvals true gd s lvs res = ok s'
       -> sem_sopn gd op' s lvs' es' = ok s'.
 
@@ -281,32 +281,32 @@ Context
   {LC : LoopCounter}
 .
 
-Definition wf_vars (msf_vars: Sv.t) (vm:Vm.t) :=
+Definition wf_vars env (msf_vars: Sv.t) (vm:Vm.t env) :=
   forall x,
     Sv.mem x msf_vars
     -> [/\ vm.[ x ] = @Vword msf_size 0%R
-         & eval_atype (vtype x) = cty_msf
+         & eval_atype env (vtype x) = cty_msf
        ].
 
-Definition wf_cond (oe : option pexpr) (gd : glob_decls) (s : estate) : Prop :=
+Definition wf_cond env (oe : option pexpr) (gd : glob_decls) (s : estate env) : Prop :=
   if oe is Some c then sem_pexpr true gd s c = ok (Vbool true) /\ ~~ use_mem c
   else true.
 
-Definition wf_env (env : Env.t) (gd : glob_decls) (s : estate) :=
-  [/\ wf_vars (Env.msf_vars env) (evm s)
-    & wf_cond (Env.cond env) gd s
+Definition wf_env env (senv : Env.t) (gd : glob_decls) (s : estate env) :=
+  [/\ wf_vars (Env.msf_vars senv) (evm s)
+    & wf_cond (Env.cond senv) gd s
   ].
 
-Lemma wf_varsI msf1 msf2 vm :
+Lemma wf_varsI env msf1 msf2 (vm : Vm.t env) :
   Sv.Subset msf2 msf1 ->
   wf_vars msf1 vm ->
   wf_vars msf2 vm.
 Proof. move=> hI h x /Sv_memP hx; apply/h/Sv_memP; SvD.fsetdec. Qed.
 
-Lemma wf_env_le env0 env1 gd s :
-  Env.le env0 env1
-  -> wf_env env1 gd s
-  -> wf_env env0 gd s.
+Lemma wf_env_le env senv0 senv1 gd (s : estate env) :
+  Env.le senv0 senv1
+  -> wf_env senv1 gd s
+  -> wf_env senv0 gd s.
 Proof.
   move=> /andP [hc /Sv.subset_spec hI] [hwfvars hwfcond]; split.
   + by apply: wf_varsI hwfvars.
@@ -315,12 +315,12 @@ Proof.
   by rewrite (eq_expr_use_mem heq) (eq_exprP _ _ _ heq).
 Qed.
 
-Lemma wf_env_empty gd s :
+Lemma wf_env_empty env gd (s : estate env) :
   wf_env Env.empty gd s.
 Proof. done. Qed.
 
-Lemma wf_env_initial_write_var wdb gd s s' x :
-  eval_atype (vtype (v_var x)) = cty_msf
+Lemma wf_env_initial_write_var env wdb gd (s s' : estate env) x :
+  eval_atype env (vtype (v_var x)) = cty_msf
   -> write_var wdb x (@Vword msf_size 0) s = ok s'
   -> wf_env (Env.initial (Some (v_var x))) gd s'.
 Proof.
@@ -328,11 +328,11 @@ Proof.
   by rewrite (get_write_var_word hty hwrite).
 Qed.
 
-Lemma wf_env_update_cond env cond gd s :
-  wf_env env gd s
+Lemma wf_env_update_cond env senv cond gd (s : estate env) :
+  wf_env senv gd s
   -> sem_pexpr true gd s cond = ok (Vbool true)
   -> ~~ use_mem cond
-  -> wf_env (Env.update_cond env cond) gd s.
+  -> wf_env (Env.update_cond senv cond) gd s.
 Proof.
   move=> [hwfvars hwfcond] hsemcond hmem.
   split=> //.
@@ -342,7 +342,7 @@ Proof.
   by subst v.
 Qed.
 
-Lemma wf_cond_restrict s s' gd X cond:
+Lemma wf_cond_restrict env (s s' : estate env) gd X cond:
   evm s =[\ X]  evm s'->
   wf_cond cond gd s ->
   wf_cond (Env.restrict_cond cond X) gd s'.
@@ -384,12 +384,12 @@ Proof.
   by eexists _, _; reflexivity.
 Qed.
 
-Lemma wf_env_after_SLHmove_Lvar wdb env gd s s' vi x :
+Lemma wf_env_after_SLHmove_Lvar env wdb senv gd (s s' : estate env) vi x :
   let: xi := {| v_var := x; v_info := vi; |} in
-  wf_env env gd s
-  -> eval_atype (vtype x) = cty_msf
+  wf_env senv gd s
+  -> eval_atype env (vtype x) = cty_msf
   -> write_var wdb xi (@Vword msf_size 0) s = ok s'
-  -> wf_env (Env.after_SLHmove env (Some x)) gd s'.
+  -> wf_env (Env.after_SLHmove senv (Some x)) gd s'.
 Proof.
   move=> [hwfvars hwfcond] hty hwrite; rewrite /Env.after_SLHmove; split => /=.
   - move=> y /Sv_memP hy; case: (x =P y) => [<- | hxy].
@@ -402,17 +402,17 @@ Proof.
   exact: (vrvP_var hwrite).
 Qed.
 
-Lemma wf_env_after_SLHmove wdb env gd s s' ii lv ox :
-  wf_env env gd s
+Lemma wf_env_after_SLHmove env wdb senv gd (s s' : estate env) ii lv ox :
+  wf_env senv gd s
   -> check_lv_msf ii lv = ok ox
   -> write_lval wdb gd lv (@Vword msf_size 0) s = ok s'
-  -> wf_env (Env.after_SLHmove env ox) gd s'.
+  -> wf_env (Env.after_SLHmove senv ox) gd s'.
 Proof.
   move=> [hwfvars hwfcond].
   case: ox => [x|] /check_lv_msfP.
   - move=> [[? ->] hx].
     move /convertible_eval_atype in hx.
-    exact: (wf_env_after_SLHmove_Lvar _ hx).
+    exact: (wf_env_after_SLHmove_Lvar _ (hx env)).
   move=> [? [? ->]] /write_noneP [? _]; subst s'.
   split=> /=.
   - move=> x. rewrite Sv_union_empty. exact: hwfvars.
@@ -421,7 +421,7 @@ Proof.
   by case: disjoint.
 Qed.
 
-Lemma wf_vars_diff vm vm' msf X:
+Lemma wf_vars_diff env (vm vm' : Vm.t env) msf X:
   vm =[\X] vm' ->
   wf_vars msf vm ->
   wf_vars (Sv.diff msf X) vm'.
@@ -434,40 +434,40 @@ Qed.
 (* Reducing this lemma to the [after_assign_vars] case is not so
    straightforward, since everything is modulo [eq_expr] and [Sv.Equal], so we
    need to prove several [Proper] instances. *)
-Lemma wf_env_after_assign_var wdb env gd s s' x v :
-  wf_env env gd s
+Lemma wf_env_after_assign_var env wdb senv gd (s s' : estate env) x v :
+  wf_env senv gd s
   -> write_var wdb (ep := ep) x v s = ok s'
-  -> wf_env (Env.after_assign_var env x) gd s'.
+  -> wf_env (Env.after_assign_var senv x) gd s'.
 Proof.
   rewrite /Env.after_assign_var => -[hwfvars hwfcond] /vrvP_var heq.
   split => /=; last by apply: wf_cond_restrict hwfcond.
-  apply: (@wf_varsI (Sv.diff (Env.msf_vars env) (Sv.singleton x))); first SvD.fsetdec.
+  apply: (@wf_varsI env (Sv.diff (Env.msf_vars senv) (Sv.singleton x))); first SvD.fsetdec.
   by apply: wf_vars_diff hwfvars.
 Qed.
 
-Lemma wf_env_after_assign_vars wdb env gd s s' lvs vs :
-  wf_env env gd s
+Lemma wf_env_after_assign_vars env wdb senv gd (s s' : estate env) lvs vs :
+  wf_env senv gd s
   -> write_lvals wdb gd s lvs vs = ok s'
-  -> wf_env (Env.after_assign_vars env (vrvs lvs)) gd s'.
+  -> wf_env (Env.after_assign_vars senv (vrvs lvs)) gd s'.
 Proof.
   rewrite /Env.after_assign_vars => -[hwfvars hwfcond] /vrvsP hwrite.
   split => /=; last by apply: wf_cond_restrict hwfcond.
   by apply: wf_vars_diff hwfvars.
 Qed.
 
-Lemma wf_env_after_assign_vars1 wdb env gd s s' lv v :
-  wf_env env gd s
+Lemma wf_env_after_assign_vars1 env wdb senv gd (s s' : estate env) lv v :
+  wf_env senv gd s
   -> write_lval wdb gd lv v s = ok s'
-  -> wf_env (Env.after_assign_vars env (vrv lv)) gd s'.
+  -> wf_env (Env.after_assign_vars senv (vrv lv)) gd s'.
 Proof.
   move=> hwf hw.
-  have := @wf_env_after_assign_vars wdb env gd s s' [::lv] [::v] hwf.
+  have := @wf_env_after_assign_vars env wdb senv gd s s' [::lv] [::v] hwf.
   by rewrite /= hw; apply.
 Qed.
 
-Lemma wf_is_cond env c gd s :
-  wf_env env gd s ->
-  Env.is_cond env c ->
+Lemma wf_is_cond env senv c gd (s : estate env) :
+  wf_env senv gd s ->
+  Env.is_cond senv c ->
   sem_pexpr true gd s (constant_prop.empty_const_prop_e c) = ok (Vbool true).
 Proof.
   move=> [_ hwf] /orP [].
@@ -498,18 +498,18 @@ Notation lower_cmd := (lower_cmd shparams).
 Section LOWER_SLHO.
 
   Notation lower_slho_correct slho :=
-    (forall s s' ii lvs es args res env env',
-      wf_env env (p_globs p') s
-      -> check_slho ii lvs slho es env = ok env'
+    (forall env (s s' : estate env) ii lvs es args res senv senv',
+      wf_env senv (p_globs p') s
+      -> check_slho ii lvs slho es senv = ok senv'
       -> sem_pexprs true (p_globs p') s es = ok args
-      -> exec_sopn (Oslh slho) args = ok res
+      -> exec_sopn env (Oslh slho) args = ok res
       -> write_lvals true (p_globs p') s lvs res = ok s'
-      -> not_misspeculating_args slho args /\ wf_env env' (p_globs p') s')
+      -> not_misspeculating_args slho args /\ wf_env senv' (p_globs p') s')
     (only parsing).
 
-  Lemma check_e_msfP wdb env s ii e t:
-    wf_env env (p_globs p') s ->
-    check_e_msf ii env e = ok t ->
+  Lemma check_e_msfP env wdb senv (s : estate env) ii e t:
+    wf_env senv (p_globs p') s ->
+    check_e_msf ii senv e = ok t ->
     sem_pexpr wdb (p_globs p') s e = ok (@Vword msf_size 0).
   Proof.
     move=> [hwfvars _]; case: e => //=; t_xrbindP => x /andP [/hwfvars [his _]].
@@ -521,7 +521,7 @@ Section LOWER_SLHO.
      or empty it. *)
   Lemma lower_SLHinit : lower_slho_correct SLHinit.
   Proof.
-    move=> s s' ii lvs es args res env env' _.
+    move=> env s s' ii lvs es args res senv senv' _.
     rewrite /exec_sopn /=.
     case: args => //=; t_xrbindP=> ox hx <- _ <-.
     case: lvs ox hx => //= lv.
@@ -533,13 +533,13 @@ Section LOWER_SLHO.
     exact: (wf_env_initial_write_var _ _ hw).
   Qed.
 
-  Lemma lower_SLHmove_exec_sopn_aux ii env lvs ox w t s s' :
-    wf_env env (p_globs p') s ->
+  Lemma lower_SLHmove_exec_sopn_aux env ii senv lvs ox w t (s s' : estate env) :
+    wf_env senv (p_globs p') s ->
     check_lv_msf ii (nth (Lnone dummy_var_info aint) lvs 0) = ok ox ->
     to_word msf_size (@Vword msf_size 0) = ok w ->
-    sopn_sem_ (Oslh SLHmove) w = ok t ->
+    sopn_sem_ (Oslh SLHmove) env w = ok t ->
     write_lvals true (p_globs p') s lvs [:: Vword t ] = ok s' ->
-    wf_env (Env.after_SLHmove env ox) (p_globs p') s'.
+    wf_env (Env.after_SLHmove senv ox) (p_globs p') s'.
   Proof.
     move=> hwf hx.
     rewrite /to_word truncate_word_u => -[?] [?]; subst w t.
@@ -553,7 +553,7 @@ Section LOWER_SLHO.
      the same as [msf], or to empty. *)
   Lemma lower_SLHupdate : lower_slho_correct SLHupdate.
   Proof.
-    move=> s s' ii lvs es args res env env' hwf.
+    move=> env s s' ii lvs es args res senv senv' hwf.
     rewrite /exec_sopn /=.
     case: args => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] //.
     case: es => //= e1; t_xrbindP => -[] //= e2; t_xrbindP.
@@ -572,7 +572,7 @@ Section LOWER_SLHO.
      same as [msf], or leave the MSF variables as before. *)
   Lemma lower_SLHmove : lower_slho_correct SLHmove.
   Proof.
-    move=> s s' ii lvs es args res env env'.
+    move=> env s s' ii lvs es args res senv senv'.
     rewrite /exec_sopn /=.
     case: args => //; t_xrbindP => v [] //= hwf.
     case: es => //= e1; t_xrbindP => es /(check_e_msfP _ hwf) ->.
@@ -585,7 +585,7 @@ Section LOWER_SLHO.
      [wf_env_vars]: we remove [x] from the MSF variables. *)
   Lemma lower_SLHprotect ws : lower_slho_correct (SLHprotect ws).
   Proof.
-    move=> s s' ii lvs es args res env env' hwf.
+    move=> env s s' ii lvs es args res senv senv' hwf.
     rewrite /exec_sopn /=; t_xrbindP.
     case: args => //=; t_xrbindP => v1 [] //=; t_xrbindP => v2 [] //=.
     case: es => //=; t_xrbindP => e1 [] //= e2; t_xrbindP.
@@ -599,7 +599,7 @@ Section LOWER_SLHO.
 
   Lemma lower_SLHprotect_ptr ws sz : lower_slho_correct (SLHprotect_ptr ws sz).
   Proof.
-    move=> s s' ii lvs es args res env env' hwf.
+    move=> env s s' ii lvs es args res senv senv' hwf.
     rewrite /exec_sopn /=; t_xrbindP.
     case: args => //=; t_xrbindP => v1 [] //=; t_xrbindP => v2 [] //=.
     case: es => //=; t_xrbindP => e1 [] //= e2; t_xrbindP.
@@ -613,7 +613,7 @@ Section LOWER_SLHO.
   Lemma lower_SLHprotect_ptr_fail ws sz :
     lower_slho_correct (SLHprotect_ptr_fail ws sz).
   Proof.
-    move=> s s' ii lvs es args res env env' hwf.
+    move=> env s s' ii lvs es args res senv senv' hwf.
     rewrite /exec_sopn /=; t_xrbindP => henv.
     case: args => //=; t_xrbindP => v1 [] //=; t_xrbindP => v2 [] //=.
     case: es => //= e1; t_xrbindP.
@@ -622,23 +622,23 @@ Section LOWER_SLHO.
     move=> v1' he1 _ v2' he2 _ <- <- ? [?]; subst v1' v2'.
     move=> t1 t2 hv1 msf hmsf.
     rewrite /sopn_sem /sopn_sem_ /= /se_protect_ptr_fail_sem; t_xrbindP => /eqP ???;
-      subst t2 msf res env'.
+      subst t2 msf res senv'.
     case: lvs => //= lv; t_xrbindP => -[] //= s'' hw [?]; subst s''.
     split => //; apply: wf_env_after_assign_vars1; eauto.
   Qed.
 
-  Lemma lower_slhoP s s' ii lvs slho es args res op' lvs' es' env env' :
-    wf_env env (p_globs p') s
-    -> check_slho ii lvs slho es env = ok env'
+  Lemma lower_slhoP env (s s' : estate env) ii lvs slho es args res op' lvs' es' senv senv' :
+    wf_env senv (p_globs p') s
+    -> check_slho ii lvs slho es senv = ok senv'
     -> shp_lower shparams lvs slho es = Some (lvs', op', es')
     -> sem_pexprs true (p_globs p') s es = ok args
-    -> exec_sopn (Oslh slho) args = ok res
+    -> exec_sopn env (Oslh slho) args = ok res
     -> write_lvals true (p_globs p') s lvs res = ok s'
     -> sem_sopn (p_globs p') op' s lvs' es' = ok s'
-       /\ wf_env env' (p_globs p') s'.
+       /\ wf_env senv' (p_globs p') s'.
   Proof.
     move=> hwf hcheck hlower hsemes hexec hwrite.
-    have : not_misspeculating_args slho args /\ wf_env env' (p_globs p') s';
+    have : not_misspeculating_args slho args /\ wf_env senv' (p_globs p') s';
       last first.
     + by move=> [h ?];
          split => //;
@@ -668,16 +668,16 @@ Section LOWER_SLHO.
     by case: t ht.
   Qed.
 
-  Lemma check_f_argP wdb s ii e ty env v t:
-    wf_env env (p_globs p') s
-    -> check_f_arg ii env e ty = ok t
+  Lemma check_f_argP env wdb (s : estate env) ii e ty senv v t:
+    wf_env senv (p_globs p') s
+    -> check_f_arg ii senv e ty = ok t
     -> sem_pexpr wdb (p_globs p') s e = ok v
     -> slh_t_spec v ty.
   Proof. by case: ty => //= hwf /(check_e_msfP _ hwf) -> [->]. Qed.
 
-  Lemma check_f_argsP wdb s ii env es vs tys t:
-    wf_env env (p_globs p') s
-    -> check_f_args ii env es tys = ok t
+  Lemma check_f_argsP env wdb (s : estate env) ii senv es vs tys t:
+    wf_env senv (p_globs p') s
+    -> check_f_args ii senv es tys = ok t
     -> sem_pexprs wdb (p_globs p') s es = ok vs
     -> List.Forall2 slh_t_spec vs tys.
   Proof.
@@ -688,54 +688,54 @@ Section LOWER_SLHO.
     constructor => //; apply: hrec hces hes.
   Qed.
 
-  Lemma check_f_lvP wdb ii env env' lv ty s s' v:
-    wf_env env (p_globs p') s
-    -> check_f_lv ii env lv ty = ok env'
+  Lemma check_f_lvP env wdb ii senv senv' lv ty (s s' : estate env) v:
+    wf_env senv (p_globs p') s
+    -> check_f_lv ii senv lv ty = ok senv'
     -> slh_t_spec v ty
     -> write_lval wdb (p_globs p') lv v s = ok s'
-    -> wf_env env' (p_globs p') s'.
+    -> wf_env senv' (p_globs p') s'.
   Proof.
     case: ty => /=; t_xrbindP.
     + by move=> hwf <- _; apply: wf_env_after_assign_vars1.
-    move=> hwf x hchk ? ? hwrite; subst env' v.
+    move=> hwf x hchk ? ? hwrite; subst senv' v.
     exact: (wf_env_after_SLHmove hwf hchk hwrite).
   Qed.
 
-  Lemma check_f_lvsP wdb ii env env' lvs tys s s' vs:
-    wf_env env (p_globs p') s
-    -> check_f_lvs ii env lvs tys = ok env'
+  Lemma check_f_lvsP env wdb ii senv senv' lvs tys (s s' : estate env) vs:
+    wf_env senv (p_globs p') s
+    -> check_f_lvs ii senv lvs tys = ok senv'
     -> List.Forall2 slh_t_spec vs tys
     -> write_lvals wdb (p_globs p') s lvs vs = ok s'
-    -> wf_env env' (p_globs p') s'.
+    -> wf_env senv' (p_globs p') s'.
   Proof.
     move=> hwf hc hall.
-    elim: hall s env lvs hwf hc => {vs tys} [ | v ty vs tys hv _ hrec] s env [] //=.
+    elim: hall s senv lvs hwf hc => {vs tys} [ | v ty vs tys hv _ hrec] s senv [] //=.
     + by move=> ? [<-] [<-].
-    t_xrbindP => lv lvs hwf env1 hc hcs s1 hw hws.
+    t_xrbindP => lv lvs hwf senv1 hc hcs s1 hw hws.
     apply: hrec hcs hws; apply: check_f_lvP hwf hc hv hw.
   Qed.
 
-  Lemma size_init_fun_env env env' xs tys stys :
-    init_fun_env env xs tys stys = ok env' ->
+  Lemma size_init_fun_env senv senv' xs tys stys :
+    init_fun_env senv xs tys stys = ok senv' ->
     size tys = size stys.
   Proof.
-    elim: xs tys stys env => [|x xs hind] [|ty tys] [|sty stys] env //=.
+    elim: xs tys stys senv => [|x xs hind] [|ty tys] [|sty stys] senv //=.
     by t_xrbindP=> ? _ /hind ->.
   Qed.
 
-  Lemma init_envP wdb env env' xs ttys tys vs vs' s s':
+  Lemma init_envP env wdb senv senv' xs ttys tys vs vs' (s s' : estate env) :
     List.Forall2 slh_t_spec vs' tys
-    -> init_fun_env env xs ttys tys = ok env'
-    -> mapM2 ErrType dc_truncate_val (map eval_atype ttys) vs' = ok vs
+    -> init_fun_env senv xs ttys tys = ok senv'
+    -> mapM2 ErrType dc_truncate_val (map (eval_atype env) ttys) vs' = ok vs
     -> write_vars wdb xs vs s = ok s'
-    -> wf_env env (p_globs p') s
-    -> wf_env env' (p_globs p') s'.
+    -> wf_env senv (p_globs p') s
+    -> wf_env senv' (p_globs p') s'.
   Proof.
     move => hall.
-    elim: hall env s xs ttys vs => {vs' tys} [ | v' ty vs' tys hv _ hrec] env s [ |x xs] [ | t ttys] //=.
+    elim: hall senv s xs ttys vs => {vs' tys} [ | v' ty vs' tys hv _ hrec] senv s [ |x xs] [ | t ttys] //=.
     + by move=> _ [<-] [<-] [<-].
-    t_xrbindP => _ env1 hx hinit v hv' vs hvs' <-; t_xrbindP => s1 hw1 hw hwf.
-    apply: (hrec env1 s1 xs ttys vs hinit hvs' hw).
+    t_xrbindP => _ senv1 hx hinit v hv' vs hvs' <-; t_xrbindP => s1 hw1 hw hwf.
+    apply: (hrec senv1 s1 xs ttys vs hinit hvs' hw).
     case: ty hx hv; t_xrbindP.
     + by move=> <- _; apply: wf_env_after_assign_var hwf hw1.
     move=> /andP [hx ht] /= <- ?; subst v'.
@@ -743,14 +743,14 @@ Section LOWER_SLHO.
     + move: hv'; rewrite (convertible_eval_atype ht).
       by rewrite /dc_truncate_val /truncate_val /= truncate_word_u /=; case: ifP => _ [<-].
     move /convertible_eval_atype in hx.
-    exact: (wf_env_after_SLHmove_Lvar (vi := v_info x) hwf hx hw1).
+    exact: (wf_env_after_SLHmove_Lvar (vi := v_info x) hwf (hx env) hw1).
   Qed.
 
-  Lemma check_resP wdb env xs ttys tys vs vs' s t:
-    wf_env env (p_globs p') s ->
-    check_res env xs ttys tys = ok t ->
+  Lemma check_resP env wdb senv xs ttys tys vs vs' (s : estate env) t :
+    wf_env senv (p_globs p') s ->
+    check_res senv xs ttys tys = ok t ->
     get_var_is wdb (evm s) xs = ok vs ->
-    mapM2 ErrType dc_truncate_val (map eval_atype ttys) vs = ok vs' ->
+    mapM2 ErrType dc_truncate_val (map (eval_atype env) ttys) vs = ok vs' ->
     List.Forall2 slh_t_spec vs' tys.
   Proof.
     move=> hwf; elim: xs ttys tys vs vs' t => [ | x xs hrec] [| t ttys] [ | ty tys] //=; t_xrbindP.
@@ -778,46 +778,46 @@ Definition hp_body := let 'And3 x _ _ := lower_pP in x.
 Definition hp_globs := let 'And3 _ x _ := lower_pP in x.
 Definition hp_extra := let 'And3 _ _ x := lower_pP in x.
 
-Lemma check_forP ii x check_c n env env_fix :
-  check_for ii x check_c n env = ok env_fix
-  -> exists env0,
-       [/\ check_c (Env.after_assign_var env_fix x) = ok env0
-         , Env.le env_fix env
-         & Env.le env_fix env0
+Lemma check_forP ii x check_c n senv senv_fix :
+  check_for ii x check_c n senv = ok senv_fix
+  -> exists senv0,
+       [/\ check_c (Env.after_assign_var senv_fix x) = ok senv0
+         , Env.le senv_fix senv
+         & Env.le senv_fix senv0
        ].
 Proof.
-  elim: n env env_fix => [//|n hind] env env_fix /=.
-  t_xrbindP=> env0 hcheck.
+  elim: n senv senv_fix => [//|n hind] senv senv_fix /=.
+  t_xrbindP=> senv0 hcheck.
   case: ifP => hle.
-  - by move=> [?]; subst env_fix; exists env0; rewrite EnvP.le_refl.
+  - by move=> [?]; subst senv_fix; exists senv0; rewrite EnvP.le_refl.
   clear - hind.
-  move=> /hind [env1 [hcheck hle0 hle1]].
-  exists env1; split => //.
-  by apply: (EnvP.le_trans hle0); case: (EnvP.meet_le env env0).
+  move=> /hind [senv1 [hcheck hle0 hle1]].
+  exists senv1; split => //.
+  by apply: (EnvP.le_trans hle0); case: (EnvP.meet_le senv senv0).
 Qed.
 
-Lemma check_whileP ii cond check_c0 check_c1 n env env' :
-  check_while ii cond check_c0 check_c1 n env = ok env'
-  -> exists env_fix env0 env1,
-      [/\ check_c0 env_fix = ok env0
-        , check_c1 (Env.update_cond env0 cond) = ok env1
-        , Env.le env_fix env1
-        , Env.le env_fix env
-        & env' = Env.update_cond env0 (enot cond)
+Lemma check_whileP ii cond check_c0 check_c1 n senv senv' :
+  check_while ii cond check_c0 check_c1 n senv = ok senv'
+  -> exists senv_fix senv0 senv1,
+      [/\ check_c0 senv_fix = ok senv0
+        , check_c1 (Env.update_cond senv0 cond) = ok senv1
+        , Env.le senv_fix senv1
+        , Env.le senv_fix senv
+        & senv' = Env.update_cond senv0 (enot cond)
       ].
 Proof.
-  elim: n env env' => [//|n hind] env env' /=.
-  t_xrbindP=> env0 hcheck0 env1 hcheck1.
+  elim: n senv senv' => [//|n hind] senv senv' /=.
+  t_xrbindP=> senv0 hcheck0 senv1 hcheck1.
   case: ifP => hle.
-  - move=> [<-]; exists env, env0, env1.
+  - move=> [<-]; exists senv, senv0, senv1.
     by rewrite hcheck0 hcheck1 EnvP.le_refl hle.
   clear hle.
   move=>
     /hind
-    [env_fix [env0' [env1' [hcheck0' hcheck1' hle hmeet ?]]]];
-    subst env'.
-  exists env_fix, env0', env1'; split => //.
-  by apply: (EnvP.le_trans hmeet); case: (EnvP.meet_le env env1).
+    [senv_fix [senv0' [senv1' [hcheck0' hcheck1' hle hmeet ?]]]];
+    subst senv'.
+  exists senv_fix, senv0', senv1'; split => //.
+  by apply: (EnvP.le_trans hmeet); case: (EnvP.meet_le senv senv1).
 Qed.
 
 End CHECK_PROOF.
@@ -840,34 +840,34 @@ Notation lower_slho := (lower_slho shparams).
 Notation lower_i := (lower_i shparams).
 Notation lower_cmd := (lower_cmd shparams).
 
-Let Pc (s : estate) (c : cmd) (s' : estate) : Prop :=
-  forall env env' c',
-    wf_env env (p_globs p) s
-    -> check_cmd fun_info env c = ok env'
+Let Pc env (s : estate env) (c : cmd) (s' : estate env) : Prop :=
+  forall senv senv' c',
+    wf_env senv (p_globs p) s
+    -> check_cmd fun_info senv c = ok senv'
     -> lower_cmd c = ok c'
-    -> sem p' ev s c' s' /\ wf_env env' (p_globs p') s'.
+    -> sem p' ev s c' s' /\ wf_env senv' (p_globs p') s'.
 
-Let Pi_r (s : estate) (ir : instr_r) (s' : estate) : Prop :=
-  forall ii env env' i',
-    wf_env env (p_globs p) s
-    -> check_i fun_info (MkI ii ir) env = ok env'
+Let Pi_r env (s : estate env) (ir : instr_r) (s' : estate env) : Prop :=
+  forall ii senv senv' i',
+    wf_env senv (p_globs p) s
+    -> check_i fun_info (MkI ii ir) senv = ok senv'
     -> lower_i (MkI ii ir) = ok i'
-    -> sem_I p' ev s i' s' /\ wf_env env' (p_globs p') s'.
+    -> sem_I p' ev s i' s' /\ wf_env senv' (p_globs p') s'.
 
-Let Pi (s : estate) (i : instr) (s' : estate) : Prop :=
-  forall env env' i',
-    wf_env env (p_globs p) s
-    -> check_i fun_info i env = ok env'
+Let Pi env (s : estate env) (i : instr) (s' : estate env) : Prop :=
+  forall senv senv' i',
+    wf_env senv (p_globs p) s
+    -> check_i fun_info i senv = ok senv'
     -> lower_i i = ok i'
-    -> sem_I p' ev s i' s' /\ wf_env env' (p_globs p') s'.
+    -> sem_I p' ev s i' s' /\ wf_env senv' (p_globs p') s'.
 
-Let Pfor (x : var_i) (rg : seq Z) (s : estate) (c : cmd) (s' : estate) : Prop :=
-  forall env env' c',
-    wf_env env (p_globs p) s
-    -> check_cmd fun_info (Env.after_assign_var env x) c = ok env'
+Let Pfor env (x : var_i) (rg : seq Z) (s : estate env) (c : cmd) (s' : estate env) : Prop :=
+  forall senv senv' c',
+    wf_env senv (p_globs p) s
+    -> check_cmd fun_info (Env.after_assign_var senv x) c = ok senv'
     -> lower_cmd c = ok c'
-    -> Env.le env env'
-    -> sem_for p' ev x rg s c' s' /\ wf_env env (p_globs p') s'.
+    -> Env.le senv senv'
+    -> sem_for p' ev x rg s c' s' /\ wf_env senv (p_globs p') s'.
 
 Let Pfun
   (scs : syscall_state)
@@ -884,8 +884,8 @@ Let Pfun
 
 Lemma Hnil : sem_Ind_nil Pc.
 Proof.
-  move=> s.
-  move=> env env' c' hwf [?] [?]; subst env c'.
+  move=> env s.
+  move=> senv senv' c' hwf [?] [?]; subst senv c'.
   rewrite (hp_globs hp).
   split; last exact: hwf.
   exact: Eskip.
@@ -893,8 +893,8 @@ Qed.
 
 Lemma Hcons : sem_Ind_cons p ev Pc Pi.
 Proof.
-  move=> s0 s1 s2 i c _ hi _ hc env env' cs hwf /=.
-  t_xrbindP => env0 hchecki hcheckc i' hloweri c' hlowerc <-.
+  move=> env s0 s1 s2 i c _ hi _ hc senv senv' cs hwf /=.
+  t_xrbindP => senv0 hchecki hcheckc i' hloweri c' hlowerc <-.
   have [hsem0 hwf0] := hi _ _ _ hwf hchecki hloweri.
   rewrite (hp_globs hp) in hwf0.
   have [hsemc' hwf'] := hc _ _ _ hwf0 hcheckc hlowerc.
@@ -903,20 +903,20 @@ Qed.
 
 Lemma HmkI : sem_Ind_mkI p ev Pi_r Pi.
 Proof.
-  move=> ii ir s s' hsemi hi.
-  move=> env env' c hwf hchecki hloweri.
+  move=> env ii ir s s' hsemi hi.
+  move=> senv senv' c hwf hchecki hloweri.
   exact: (hi _ _ _ _ hwf hchecki hloweri).
 Qed.
 
-(* The resulting environment is well-formed because we start with [env]
-   well-formed and apply [after_assign_var] to get [env'], which is well formed
+(* The resulting environment is well-formed because we start with [senv]
+   well-formed and apply [after_assign_var] to get [senv'], which is well formed
    by [wf_env_after_assign_write_lval].
 
    The semantics doesn't change because the instruction is the same. *)
 Lemma Hassgn : sem_Ind_assgn p Pi_r.
 Proof.
-  move=> s s' lv tg ty e v v' hseme htruncv hwritev'.
-  move=> ii env env' c hwf hcheck [?]; subst c.
+  move=> env s s' lv tg ty e v v' hseme htruncv hwritev'.
+  move=> ii senv senv' c hwf hcheck [?]; subst c.
 
   split.
 
@@ -926,7 +926,7 @@ Proof.
     rewrite (hp_globs hp). exact: hwritev'.
 
   clear hseme htruncv.
-  move: hcheck => [?]; subst env'.
+  move: hcheck => [?]; subst senv'.
   rewrite write_lvals_write_lval in hwritev'.
   rewrite (hp_globs hp).
   rewrite -[vrv lv]/(vrvs [:: lv ]).
@@ -934,14 +934,14 @@ Proof.
 Qed.
 
 (* If the operation is not a [Oslh], the resulting environment is well
-   formed because we start with [env] well-formed, apply [after_assign_vars],
-   and get [env'] which is well-formed by [wf_env_after_assign_write_lvals].
+   formed because we start with [senv] well-formed, apply [after_assign_vars],
+   and get [senv'] which is well-formed by [wf_env_after_assign_write_lvals].
    The semantics does not change because the instruction is the same.
 
    If it is, then we simply apply [lower_slhoP]. *)
 Lemma Hopn : sem_Ind_opn p Pi_r.
 Proof.
-  move=> s s' tg op lvs es hsem ii env env' c hwf hchecki hloweri.
+  move=> env s s' tg op lvs es hsem ii senv senv' c hwf hchecki hloweri.
 
   rewrite -(hp_globs hp) in hsem.
   rewrite -(hp_globs hp) in hwf.
@@ -971,7 +971,7 @@ Proof.
     have [hs hw]:= lower_slhoP hshparams hwf hcheck hlower hsemes hexec hwrite.
     by split => //; do 2!constructor.
 
-  all: move=> [?] [?] hexec; subst env' c.
+  all: move=> [?] [?] hexec; subst senv' c.
   all: split; last exact: (wf_env_after_assign_vars hwf hwrite).
   all: constructor; apply: Eopn.
   all: by rewrite /sem_sopn hsemes /= hexec /= hwrite.
@@ -981,8 +981,8 @@ Qed.
    The semantics does not change because the instruction is the same. *)
 Lemma Hsyscall : sem_Ind_syscall p Pi_r.
 Proof.
-  move=> s scs m s' o lvs es args res hsemes hexec hwrite.
-  move=> ii env env' c _ [?] [?]; subst env' c.
+  move=> env s scs m s' o lvs es args res hsemes hexec hwrite.
+  move=> ii senv senv' c _ [?] [?]; subst senv' c.
 
   clear - hp hexec hsemes hwrite.
   split; last exact: wf_env_empty.
@@ -994,8 +994,8 @@ Proof.
   exact: hwrite.
 Qed.
 
-(* The resulting environment is well-formed because we start with [env]
-   well-formed, then apply [update_cond] and [check_cmd c0] to get [env0],
+(* The resulting environment is well-formed because we start with [senv]
+   well-formed, then apply [update_cond] and [check_cmd c0] to get [senv0],
    which is well-formed because of [wf_env_update_cond] and inductive hypothesis
    [hc0].
    Then we apply [after_if] which is well formed by [wf_env_after_if].
@@ -1004,14 +1004,14 @@ Qed.
    hypothesis [hc0]. *)
 Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
 Proof.
-  move=> s s' cond c0 c1 hsemcond _ hc0 ii env env' c hwf /=.
-  t_xrbindP=> hmem env0 hcheck0 env1 _ ? irs c0' hlower0 c1' _ ? ?; subst irs c env'.
+  move=> env s s' cond c0 c1 hsemcond _ hc0 ii senv senv' c hwf /=.
+  t_xrbindP=> hmem senv0 hcheck0 senv1 _ ? irs c0' hlower0 c1' _ ? ?; subst irs c senv'.
 
   have hwf' := wf_env_update_cond hwf hsemcond hmem.
   have [hsem0 hwf0] := hc0 _ _ _ hwf' hcheck0 hlower0.
 
   clear - hp hsem0 hwf0 hsemcond.
-  split; last by apply: wf_env_le hwf0;case: (EnvP.meet_le env0 env1).
+  split; last by apply: wf_env_le hwf0;case: (EnvP.meet_le senv0 senv1).
 
   constructor.
   apply: (Eif_true _ _ hsem0).
@@ -1022,17 +1022,17 @@ Qed.
 (* This is analogous to [Hif_true]. *)
 Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
 Proof.
-  move=> s s' cond c0 c1 hsemcond _ hc1 ii env env' c hwf /=.
-  t_xrbindP =>  hmem env0 _ env1 hcheck1 ? irs c0' _ c1' hlower1 ? ?; subst irs c env'.
+  move=> env s s' cond c0 c1 hsemcond _ hc1 ii senv senv' c hwf /=.
+  t_xrbindP =>  hmem senv0 _ senv1 hcheck1 ? irs c0' _ c1' hlower1 ? ?; subst irs c senv'.
 
   have hwf' :
-    wf_env (Env.update_cond env (enot cond)) (p_globs p) s.
+    wf_env (Env.update_cond senv (enot cond)) (p_globs p) s.
   - apply: (wf_env_update_cond hwf) => //. by rewrite /= hsemcond.
 
   have [hsem1 hwf1] := hc1 _ _ _ hwf' hcheck1 hlower1.
 
   clear - hp hsem1 hwf1 hsemcond.
-  split; last by apply: wf_env_le hwf1;case: (EnvP.meet_le env0 env1).
+  split; last by apply: wf_env_le hwf1;case: (EnvP.meet_le senv0 senv1).
 
   constructor.
   apply: (Eif_false _ _ hsem1).
@@ -1041,22 +1041,22 @@ Proof.
 Qed.
 
 (* The resulting environment is well-formed because from [check_whileP] we know
-   that we have a fixed point [env*] which is well-formed, since it's smaller
-   than [env], which is well-formed by hypothesis.
-   Then we apply [check_cmd c0] to get [env0] which by the inductive hypothesis
+   that we have a fixed point [senv*] which is well-formed, since it's smaller
+   than [senv], which is well-formed by hypothesis.
+   Then we apply [check_cmd c0] to get [senv0] which by the inductive hypothesis
    [hc0] is well-formed.
-   We then apply [update_cond] and [check_cmd c1] to get [env1], which is also
+   We then apply [update_cond] and [check_cmd c1] to get [senv1], which is also
    well-formed by [wf_env_update_cond] and the inductive hypothesis [hc1].
 
    The semantics does not change, it's a direct application of the inductive
    hypothesis [hind]. *)
 Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
 Proof.
-  move=> s0 s1 s2 s3 al c0 cond cond_info c1 hsem0 hc0 hsemcond hsem1 hc1 _ hind.
-  move=> ii env env' c hwf hcheck hlower.
+  move=> env s0 s1 s2 s3 al c0 cond cond_info c1 hsem0 hc0 hsemcond hsem1 hc1 _ hind.
+  move=> ii senv senv' c hwf hcheck hlower.
   move: hcheck (hlower) => /=.
-  t_xrbindP => hmem /check_whileP [env_fix [env0 [env1 [hcheck0 hcheck1 hle1 hle ?]]]].
-  rewrite /= -!/(lower_cmd _) => irs c0' hlower0 c1' hlower1 ??; subst c irs env'.
+  t_xrbindP => hmem /check_whileP [senv_fix [senv0 [senv1 [hcheck0 hcheck1 hle1 hle ?]]]].
+  rewrite /= -!/(lower_cmd _) => irs c0' hlower0 c1' hlower1 ??; subst c irs senv'.
 
   have hwffix := wf_env_le hle hwf.
   have [hsem0' hwf0] := hc0 _ _ _ hwffix hcheck0 hlower0.
@@ -1070,8 +1070,8 @@ Proof.
   rewrite (hp_globs hp) in hwf1.
   have hwffix := wf_env_le hle1 hwf1.
   have hcheck :
-    check_i fun_info (MkI ii (Cwhile al c0 cond cond_info c1)) env_fix
-    = ok (Env.update_cond env0 (enot cond)).
+    check_i fun_info (MkI ii (Cwhile al c0 cond cond_info c1)) senv_fix
+    = ok (Env.update_cond senv0 (enot cond)).
   - by rewrite /= hmem /= loop_counterP /= hcheck0 /= hcheck1 /= hle1.
 
   have [hsem hwf0'] := hind _ _ _ _ hwffix hcheck hlower.
@@ -1088,9 +1088,9 @@ Qed.
 (* This is similar to [Hwhile_true], but we never apply [check_cmd c0]. *)
 Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
 Proof.
-  move=> s s' al c0 cond cond_info c1 hsem hc hsemcond ii env env' c hwf /=.
-  t_xrbindP => hmem /check_whileP [env_fix [env0 [env1 [hcheck0 _ _ hle ?]]]].
-  move=> irs c0' hlower0 c1' _ ??; subst c irs env'.
+  move=> env s s' al c0 cond cond_info c1 hsem hc hsemcond ii senv senv' c hwf /=.
+  t_xrbindP => hmem /check_whileP [senv_fix [senv0 [senv1 [hcheck0 _ _ hle ?]]]].
+  move=> irs c0' hlower0 c1' _ ??; subst c irs senv'.
 
   have hwffix := wf_env_le hle hwf.
   have [hsem0' hwf0] := hc _ _ _ hwffix hcheck0 hlower0.
@@ -1105,19 +1105,19 @@ Proof.
 Qed.
 
 (* The resulting environment is well-formed because from [check_forP] we know
-   that it is a fixed point, and that it is smaller than [env] and that [env0]
-   (the result of applying [check_cmd c] to [env*]).
-   It is well-formed on the initial state because it is smaller than [env],
+   that it is a fixed point, and that it is smaller than [senv] and that [senv0]
+   (the result of applying [check_cmd c] to [senv*]).
+   It is well-formed on the initial state because it is smaller than [senv],
    which is well-formed by hypothesis.
    The induction hypothesis [hind] then tells us that it is also well-formed on
-   the final state, because it is smaller than [env0].
+   the final state, because it is smaller than [senv0].
 
    The semantics does not change, it's a direct application of the inductive
    hypothesis [hind]. *)
 Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
 Proof.
-  move=> s s' x d xstart xend c vstart vend hsemstart hsemend _ hind.
-  move=> ii env env_fix c' hwf /= /check_forP [env0 [hcheck hle hle0]].
+  move=> env s s' x d xstart xend c vstart vend hsemstart hsemend _ hind.
+  move=> ii senv senv_fix c' hwf /= /check_forP [senv0 [hcheck hle hle0]].
   rewrite /= -/(lower_cmd _).
   t_xrbindP=> irs c0 hlower ? ?; subst irs c'.
 
@@ -1131,16 +1131,16 @@ Qed.
 
 Lemma Hfor_nil : sem_Ind_for_nil Pfor.
 Proof.
-  move=> s x c.
-  move=> env env_fix c' hwf _ _ hle.
+  move=> env s x c.
+  move=> senv senv_fix c' hwf _ _ hle.
   split; last by rewrite (hp_globs hp).
   exact: EForDone.
 Qed.
 
 Lemma Hfor_cons : sem_Ind_for_cons p ev Pc Pfor.
 Proof.
-  move=> s0 s1 s2 s3 x n rg c hwrite _ hc hsem hind.
-  move=> env env_fix c' hwf hcheck hlower hle.
+  move=> env s0 s1 s2 s3 x n rg c hwrite _ hc hsem hind.
+  move=> senv senv_fix c' hwf hcheck hlower hle.
 
   have hwf' := wf_env_after_assign_var hwf hwrite.
   have [hsem0 hwf0] := hc _ _ _ hwf' hcheck hlower.
@@ -1157,8 +1157,8 @@ Qed.
 
 Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s scs2 m2 s' lvs fn args vargs vargs' hsemargs _ hrec hwrite.
-  move=> ? env env' c hwf /=.
+  move=> env s scs2 m2 s' lvs fn args vargs vargs' hsemargs _ hrec hwrite.
+  move=> ? senv senv' c hwf /=.
   case heq: fun_info => [tin tout]; t_xrbindP => t hargs hres <-.
   move: hrec; rewrite /Pfun heq => /(_ (check_f_argsP hwf hargs hsemargs)) [h1 h2].
   split; first by constructor; econstructor; eauto; rewrite (hp_globs hp).
@@ -1177,7 +1177,7 @@ Proof.
   have [fd' + hget]:= get_map_cfprog_name_gen hmap hf.
   rewrite /lower_fd /check_fd /= /Pfun.
   case hinfo : fun_info => [tin tout]; t_xrbindP.
-  move=> env1 hcp env2 hcb hcr _ c' hc ? hall; subst fd'.
+  move=> senv1 hcp senv2 hcb hcr _ c' hc ? hall; subst fd'.
   have [| hsem' hwf2]:= hrec _ _ _ _ hcb hc.
   + by apply: (init_envP hall hcp htargs hwargs); apply wf_env_empty.
   split; last by apply: check_resP hwf2 hcr hrres htres.
@@ -1231,6 +1231,7 @@ Context
   {E E0: Type -> Type}
   {wE : with_Error E E0}
   {rE : EventRels E0}
+  (env : env_t)
   (shparams : sh_params)
   (hshparams : h_sh_params shparams)
   (fun_info : funname -> seq slh_t * seq slh_t)
@@ -1265,26 +1266,26 @@ case: fd; case: fd'; rewrite /lower_fd.
 by t_xrbindP=> /= > -> ? -> // *; subst.
 Qed.
 
-Definition st_eq (env : Env.t) (s t : estate) : Prop :=
-  s = t /\ wf_env env (p_globs p) s.
+Definition st_eq (senv : Env.t) (s t : estate env) : Prop :=
+  s = t /\ wf_env senv (p_globs p) s.
 
-Lemma env_le_st_eq env env' s t :
-  Env.le env env' ->
-  st_eq env' s t ->
-  st_eq env s t.
+Lemma env_le_st_eq senv senv' s t :
+  Env.le senv senv' ->
+  st_eq senv' s t ->
+  st_eq senv s t.
 Proof. by move=> /wf_env_le h [-> /h {}h]. Qed.
 
-Definition check_es_env (env : Env.t) (es es' : seq pexpr) (env' : Env.t) :=
-  es = es' /\ Env.le env' env.
+Definition check_es_env (senv : Env.t) (es es' : seq pexpr) (senv' : Env.t) :=
+  es = es' /\ Env.le senv' senv.
 
-Definition check_lvals_env (env : Env.t) (xs xs' : seq lval) (env' : Env.t) :=
-  xs = xs' /\ Env.le env' (Env.after_assign_vars env (vrvs xs)).
+Definition check_lvals_env (senv : Env.t) (xs xs' : seq lval) (senv' : Env.t) :=
+  xs = xs' /\ Env.le senv' (Env.after_assign_vars senv (vrvs xs)).
 
-Lemma check_es_envP env es es' env' :
-  check_es_env env es es' env' ->
+Lemma check_es_envP senv es es' senv' :
+  check_es_env senv es es' senv' ->
   forall s t,
-    st_eq env s t ->
-    st_eq env' s t.
+    st_eq senv s t ->
+    st_eq senv' s t.
 Proof. move=> [_ hle] s t. exact: env_le_st_eq hle. Qed.
 
 #[local]
@@ -1301,7 +1302,7 @@ Proof.
 split.
 - rewrite hp_globs => _ _ _ _ _ _ /wdb_ok_eq <- [<- _] _ _ vs [<- _] ->.
   by exists vs.
-rewrite hp_globs => ? _ env xs _ env' /wdb_ok_eq <- [<- hle] vs s _ s' [<- hchk]
+rewrite hp_globs => ? _ senv xs _ senv' /wdb_ok_eq <- [<- hle] vs s _ s' [<- hchk]
   hwrite.
 exists s' => //; split=> //; apply: (wf_env_le hle).
 exact: wf_env_after_assign_vars hchk hwrite.
@@ -1323,26 +1324,26 @@ Instance slh_spec : EquivSpec :=
   |}.
 
 Let Pi i : Prop :=
-  forall env env' i',
-    check_i fun_info i env = ok env' ->
+  forall senv senv' i',
+    check_i fun_info i senv = ok senv' ->
     lower_i i = ok i' ->
-    wequiv_rec_i p p' ev ev slh_spec (st_eq env) i i' (st_eq env').
+    wequiv_rec_i p p' ev ev slh_spec (st_eq senv) i i' (st_eq senv').
 
 Let Pi_r i : Prop :=
-  forall ii env env' i' ii',
-    check_i fun_info (MkI ii i) env = ok env' ->
+  forall ii senv senv' i' ii',
+    check_i fun_info (MkI ii i) senv = ok senv' ->
     lower_i (MkI ii i) = ok (MkI ii' i') ->
     wequiv_rec_ir
-      p p' ev ev slh_spec (st_eq env) i ii i' ii' (st_eq env').
+      p p' ev ev slh_spec (st_eq senv) i ii i' ii' (st_eq senv').
 
 Let Pc c : Prop :=
-  forall env env' c',
-    check_cmd fun_info env c = ok env' ->
+  forall senv senv' c',
+    check_cmd fun_info senv c = ok senv' ->
     lower_cmd c = ok c' ->
-    wequiv_rec p p' ev ev slh_spec (st_eq env) c c' (st_eq env').
+    wequiv_rec p p' ev ev slh_spec (st_eq senv) c c' (st_eq senv').
 
 Lemma it_lower_opn xs tg op es : Pi_r (Copn xs tg op es).
-move=> ii env env' i' ii' /=; case: is_OslhP => [slho|?] /=; last first.
+move=> ii senv senv' i' ii' /=; case: is_OslhP => [slho|?] /=; last first.
 - move=> [<-] [<- <-]; apply wequiv_opn_eq.
   + rewrite hp_globs; move=> s _ vs [<- _] ->; by exists vs.
   rewrite hp_globs => vs s _ s' [<- hwf] hwrite.
@@ -1370,31 +1371,31 @@ Qed.
 
 Lemma lower_it_if e c1 c2 : Pc c1 -> Pc c2 -> Pi_r (Cif e c1 c2).
 Proof.
-move=> hc1 hc2 ii env env' /=; t_xrbindP=> _ _ hmeme env1 hchk1 env2 hchk2 <- _
+move=> hc1 hc2 ii senv senv' /=; t_xrbindP=> _ _ hmeme senv1 hchk1 senv2 hchk2 <- _
   c1' hc1' c2' hc2' <- <- <-.
 apply wequiv_if_full.
 - rewrite hp_globs => s _ v [<- hwf] ->. by exists v.
 move=> b; apply (
   wequiv_weaken
-    (P2 := st_eq (Env.update_cond env (if b then e else enot e)))
-    (Q2 := st_eq (if b then env1 else env2))
+    (P2 := st_eq (Env.update_cond senv (if b then e else enot e)))
+    (Q2 := st_eq (if b then senv1 else senv2))
 ).
 - move=> s _ [[<- hwf] /sem_cond_sem_pexpr hseme _]; split=> //.
   apply: (wf_env_update_cond hwf); by case: b hseme => //= ->.
-- move=> ??; apply: env_le_st_eq; by case: b (EnvP.meet_le env1 env2) => -[].
+- move=> ??; apply: env_le_st_eq; by case: b (EnvP.meet_le senv1 senv2) => -[].
 case: b; [exact: hc1 hchk1 hc1' | exact: hc2 hchk2 hc2'].
 Qed.
 
 Lemma lower_it_for i dir lo hi c : Pc c -> Pi_r (Cfor i (dir, lo, hi) c).
-move=> hc ii env env' /=; t_xrbindP=> _ _ /check_forP [env0 [hchk hle hle0]] _
+move=> hc ii senv senv' /=; t_xrbindP=> _ _ /check_forP [senv0 [hchk hle hle0]] _
   c' hc' <- <- <-.
 apply
-  (wequiv_for_rel_eq_R (dhi := env) (di := Env.after_assign_var env' i)) => //.
+  (wequiv_for_rel_eq_R (dhi := senv) (di := Env.after_assign_var senv' i)) => //.
 - split=> //; exact: EnvP.le_refl.
 - move=> ??; exact: env_le_st_eq.
-- split=> //. by have [] := EnvP.after_assign_var_after_assign_vars env' i.
+- split=> //. by have [] := EnvP.after_assign_var_after_assign_vars senv' i.
   apply (
-    wequiv_weaken (P2 := st_eq (Env.after_assign_var env' i)) (Q2 := st_eq env0)
+    wequiv_weaken (P2 := st_eq (Env.after_assign_var senv' i)) (Q2 := st_eq senv0)
   ) => //.
 - move=> ??; exact: env_le_st_eq hle0.
 exact: hc hchk hc'.
@@ -1403,18 +1404,18 @@ Qed.
 Lemma lower_it_while al c1 e ii0 c2 :
   Pc c1 -> Pc c2 -> Pi_r (Cwhile al c1 e ii0 c2).
 Proof.
-  move=> hc1 hc2 ii env env' /=; t_xrbindP=> _ _ hmeme /check_whileP
-    [env_fix [env1 [env2 [hcheck1 hcheck2 hle2 hle -> {env'}]]]] _ c1' hc1' c2'
+  move=> hc1 hc2 ii senv senv' /=; t_xrbindP=> _ _ hmeme /check_whileP
+    [senv_fix [senv1 [senv2 [hcheck1 hcheck2 hle2 hle -> {senv'}]]]] _ c1' hc1' c2'
     hc2' <- <- <-.
 have {hcheck1 hc1'} {}hc1 := hc1 _ _ _ hcheck1 hc1'.
 have {hcheck2 hc2'} {}hc2 := hc2 _ _ _ hcheck2 hc2'.
 eapply wequiv_weaken;
-  last apply (wequiv_while_full (I := st_eq env_fix) (I' := st_eq env1)) => //.
+  last apply (wequiv_while_full (I := st_eq senv_fix) (I' := st_eq senv1)) => //.
 - move=> ??; exact: env_le_st_eq hle.
 - move=> s _ [[<- hwf] /sem_cond_sem_pexpr hseme _]; split=> //.
   apply: wf_env_update_cond => //=; by rewrite hseme.
 - rewrite hp_globs => s _ b [<- _] ->; by exists b.
-  eapply (wequiv_weaken (P2 := st_eq (Env.update_cond env1 e)));
+  eapply (wequiv_weaken (P2 := st_eq (Env.update_cond senv1 e)));
     only 3: exact: hc2.
 - move=> s _ [[<- hwf] /sem_cond_sem_pexpr hseme _]; split=> //.
   exact: wf_env_update_cond.
@@ -1423,7 +1424,7 @@ Qed.
 
 Lemma lower_it_call xs fn es : Pi_r (Ccall xs fn es).
 Proof.
-move=> ii env env' /=; rewrite (surjective_pairing (fun_info _)).
+move=> ii senv senv' /=; rewrite (surjective_pairing (fun_info _)).
 t_xrbindP=> _ _ ? hchkes hchkxs <- <-; apply (
   wequiv_call
     (Pf := rpreF)
@@ -1441,12 +1442,12 @@ case: Env.cond hvars => [c|//] [hsemc hmem]; split=> //.
 by rewrite (use_memP _ (s2 := s) _ _ hmem).
 Qed.
 
-Lemma it_lower_code c c' env env' :
-  check_cmd fun_info env c = ok env' ->
+Lemma it_lower_code c c' senv senv' :
+  check_cmd fun_info senv c = ok senv' ->
   lower_cmd c = ok c' ->
-  wequiv_rec p p' ev ev slh_spec (st_eq env) c c' (st_eq env').
+  wequiv_rec p p' ev ev slh_spec (st_eq senv) c c' (st_eq senv').
 Proof.
-apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
+apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c senv senv' c' => //;
   [ | | |
   | exact: it_lower_opn
   |
@@ -1457,26 +1458,26 @@ apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
   | move=> ???; exact: lower_it_call ].
 
 (* MkI *)
-- move=> i ii hi env env' [ii' i'] hchecki hloweri. exact: hi hchecki hloweri.
+- move=> i ii hi senv senv' [ii' i'] hchecki hloweri. exact: hi hchecki hloweri.
 
 (* Skip *)
-- move=> s env env' [?] [?]; subst env env'; by apply wequiv_nil.
+- move=> s senv senv' [?] [?]; subst senv senv'; by apply wequiv_nil.
 
 (* Seq *)
-- move=> i c hi hc env env' [|i' c' /=]; first by move=> _ /size_mapM.
-  t_xrbindP=> envi hchki hchk i0 hloweri c0 hlowerc ??; subst i0 c0.
-  apply (wequiv_cons (R := st_eq envi)); [exact: hi | exact: hc].
+- move=> i c hi hc senv senv' [|i' c' /=]; first by move=> _ /size_mapM.
+  t_xrbindP=> senvi hchki hchk i0 hloweri c0 hlowerc ??; subst i0 c0.
+  apply (wequiv_cons (R := st_eq senvi)); [exact: hi | exact: hc].
 
 (* Assignment *)
-- move=> x tg ty e ii env _ _ _ [<-] [<- <-].
-  apply (wequiv_assgn_rel_eq _ _ (de := env)) => //; split=> //;
+- move=> x tg ty e ii senv _ _ _ [<-] [<- <-].
+  apply (wequiv_assgn_rel_eq _ _ (de := senv)) => //; split=> //;
     exact: EnvP.le_refl.
 
 (* Syscall *)
-+ move=> xs o es ii env _ _ _ [<-] [<- <-]; apply (
++ move=> xs o es ii senv _ _ _ [<-] [<- <-]; apply (
     wequiv_syscall_rel_eq_core_R
       _ _
-      (de := env)
+      (de := senv)
       (de' := Env.after_assign_vars Env.empty (vrvs xs))
   ) => //.
   - by move=> > [-> _].
@@ -1488,19 +1489,19 @@ apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
 by move=> > /= [<-] [<- <-]; apply wequiv_assert => //.
 Qed.
 
-Lemma it_lower_call {fn} : wiequiv_f p p' ev ev rpreF fn fn rpostF.
+Lemma it_lower_call {fn} : wiequiv_f env p p' ev ev rpreF fn fn rpostF.
 Proof.
 apply: wequiv_fun_ind => {}fn _ fs _ [<- <- htin] fd
   /(get_map_cfprog_name_gen hp_body) [] fd' /lower_fdP [].
 rewrite /check_fd /= (surjective_pairing (fun_info _)).
-t_xrbindP=> env henv env' hchk htout _ _ htyin hparams hlower htyout hret hextra
+t_xrbindP=> senv henv senv' hchk htout _ _ htyin hparams hlower htyout hret hextra
   hget.
 exists fd' => // => s hs; exists s.
 
 (* Initialize *)
 - by rewrite /initialize_funcall hp_extra htyin hparams hextra.
 
-exists (st_eq env), (st_eq env'); split => //.
+exists (st_eq senv), (st_eq senv'); split => //.
 (* Precondition *)
 - split=> //.
   move: hs; rewrite /initialize_funcall; t_xrbindP=> args hargs s0 hs0 hwrite.
@@ -1521,7 +1522,7 @@ Qed.
 
 Lemma it_lower_call_export {fn} :
   fn \in entries ->
-  wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
+  wiequiv_f env p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
 Proof.
 move: hp; rewrite /lower_slh_prog; t_xrbindP=> /allP h _ _ _ /h {}h.
 apply: wkequiv_io_weaken it_lower_call => //.

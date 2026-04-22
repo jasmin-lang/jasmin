@@ -61,7 +61,8 @@ End E.
 Definition size_of (t:atype) :=
   match t with
   | aword sz => wsize_size sz
-  | aarr ws n => arr_size ws n
+  | aarr ws (ALConst n) => arr_size ws n
+  | aarr _ _ => 1%Z (* should not happend *)
   | abool | aint => 1%Z
   end.
 
