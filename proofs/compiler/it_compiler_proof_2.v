@@ -177,7 +177,42 @@ have [fs_sp [hsp_mem hsp_scs hsp_eqinmem hsp_uincl]] :
       , Forall3 (value_eq_or_in_mem mi) (get_wptrs up fn) (fvals fs) (fvals fs_sp)
       & values_uincl (fvals fs_sp) (get_typed_reg_values xm (asm_fd_arg xfd))
     ].
-- admit.
+- (* Transfer hfuim from mt = asm_mem xm to mi *)
+  have [hsize1 hsize2] := Forall3_size hfuim.
+  have hfuim_mi :
+    Forall3 (value_uincl_or_in_mem mi) (get_wptrs up fn) (fvals fs)
+      (get_typed_reg_values xm (asm_fd_arg xfd)).
+  + apply: (nth_Forall3 None (Vbool true) (Vbool true) hsize1 hsize2) => i hi.
+    have := Forall3_nth hfuim None (Vbool true) (Vbool true) hi.
+    case ok_writable: (nth None (get_wptrs up fn) i) => [writable|//].
+    move=> [pr [ok_pr hread]]; rewrite ok_pr.
+    exists pr; split; first by reflexivity.
+    move=> off w /[dup] /get_val_byte_bound hoff /hread ok_w.
+    move: (hwfa i); rewrite /wf_arg ok_writable ok_pr.
+    move=> [_ [[<-] hargp]].
+    rewrite -ok_w; apply (match_mem_read_incl_mem hmga.(ma_match_mem)).
+    apply hargp.(wap_valid).
+    by apply (between_byte hargp.(wap_no_overflow) (zbetween_refl _ _) hoff).
+  (* Construct fs_sp with va2 = map3 (ptr → argt, non-ptr → src) *)
+  exists {| fscs := fscs fs; fmem := mi
+          ; fvals := map3 (fun o v v' => if o is Some _ then v' else v)
+                          (get_wptrs up fn) (fvals fs)
+                          (get_typed_reg_values xm (asm_fd_arg xfd)) |}.
+  split => /=.
+  + reflexivity.
+  + reflexivity.
+  + elim: hfuim_mi => /=.
+    - by constructor.
+    - move=> wptr v v' wptrs' vs argt' h _ ih.
+      constructor; last exact: ih.
+      by case: wptr h.
+  + elim: hfuim_mi => /=.
+    - by constructor.
+    - move=> wptr v v' wptrs' vs argt' h _ ih.
+      constructor; last exact: ih.
+      case: wptr h => [writable h | h] /=.
+      * exact: value_uincl_refl.
+      * exact: h.
 
 (* ======================================================================= *)
 (* STEP 2: apply FE at (asm_rip xm, tt) to obtain an xrutt refinement      *)
