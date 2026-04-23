@@ -3047,7 +3047,7 @@ Section PROOF.
 
   Notation sv_of_ra := (fun ra => sv_of_option (ovar_of_ra ra)) (only parsing).
 
-  Lemma killed_on_entry_uincl (vm vm':Vm.t empty_env) (w : word Uptr) s ra :
+  Lemma killed_on_entry_uincl (vm vm':Vm.t empty_env) (w : word Uptr) (s : estate empty_env) ra :
     vm.[vrsp] = Vword w ->
     vm' =[\ Sv.add vrsp (sv_of_ra ra) ] vm ->
     s <=1 vm' ->
@@ -3597,7 +3597,7 @@ Section PROOF.
     by apply/compat_value_uincl_undef/Vm.getP.
   Qed.
 
-  Lemma vm_uincl_after_alloc_stack fd m m' vm0 vm1 vm2 :
+  Lemma vm_uincl_after_alloc_stack fd m m' (vm0 vm1 vm2 : Vm.t empty_env) :
     let: ts := top_stack m in
     let: sf_sz := (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))%Z in
     let: al := sf_align (f_extra fd) in

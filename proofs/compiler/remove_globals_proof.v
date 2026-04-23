@@ -8,10 +8,10 @@ Import Utf8.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
-Definition gd_incl (gd1 gd2: glob_decls) :=
-  forall g v, get_global gd1 g = ok v -> get_global gd2 g = ok v.
+Definition gd_incl env (gd1 gd2: glob_decls) :=
+  forall g v, get_global env gd1 g = ok v -> get_global env gd2 g = ok v.
 
-Lemma gd_inclT gd3 gd1 gd2 :  gd_incl gd1 gd3 -> gd_incl gd3 gd2 -> gd_incl gd1 gd2.
+Lemma gd_inclT env gd3 gd1 gd2 : gd_incl env gd1 gd3 -> gd_incl env gd3 gd2 -> gd_incl env gd1 gd2.
 Proof. by move=> h1 h2 g v /h1 /h2. Qed.
 
 Module INCL. Section INCL.
@@ -25,8 +25,8 @@ Module INCL. Section INCL.
     {sip : SemInstrParams asm_op syscall_state}.
 
   Section INCL_E.
-    Context (env : Uint63.int -> Z).
-    Context (wdb : bool) (gd1 gd2 : glob_decls) (s : estate env) (hincl : gd_incl gd1 gd2).
+    Context (env : env_t).
+    Context (wdb : bool) (gd1 gd2 : glob_decls) (s : estate env) (hincl : gd_incl env gd1 gd2).
     Let P e : Prop :=
       ∀ v, sem_pexpr wdb gd1 s e = ok v → sem_pexpr wdb gd2 s e = ok v.
     Let Q es : Prop :=
@@ -63,7 +63,7 @@ Module INCL. Section INCL.
     (@gd_incl_e_es env wdb gd1 gd2 s h).2 es vs.
 
   Lemma gd_incl_wl env wdb gd1 gd2 x v (s1 s2:estate env) :
-    gd_incl gd1 gd2 ->
+    gd_incl env gd1 gd2 ->
     write_lval wdb gd1 x v s1 = ok s2 ->
     write_lval wdb gd2 x v s1 = ok s2.
   Proof.
@@ -76,7 +76,7 @@ Module INCL. Section INCL.
   Qed.
 
   Lemma gd_incl_wls env wdb gd1 gd2 xs vs (s1 s2 : estate env) :
-    gd_incl gd1 gd2 ->
+    gd_incl env gd1 gd2 ->
     write_lvals wdb gd1 s1 xs vs = ok s2 ->
     write_lvals wdb gd2 s1 xs vs = ok s2.
   Proof.
@@ -88,7 +88,7 @@ Module INCL. Section INCL.
 
   Notation gd := (P1.(p_globs)).
 
-  Hypothesis hincl : gd_incl gd gd2.
+  Hypothesis hincl : forall env, gd_incl env gd gd2.
 
   Let P2 := {| p_globs := gd2; p_funcs := P1.(p_funcs); p_extra := P1.(p_extra) |}.
 
@@ -115,40 +115,40 @@ Module INCL. Section INCL.
 
   Local Lemma Hasgn : sem_Ind_assgn P1 Pi_r.
   Proof.
-    move=> env ???????? /(gd_incl_e hincl) h1 h2 /(gd_incl_wl hincl) h3.
+    move=> env ???????? /(gd_incl_e (hincl (env:=env))) h1 h2 /(gd_incl_wl (hincl (env:=env))) h3.
     apply: Eassgn;eauto.
   Qed.
 
   Local Lemma Hopn : sem_Ind_opn P1 Pi_r.
   Proof.
     move=> env ??????;rewrite /sem_sopn.
-    t_xrbindP => ?? /(gd_incl_es hincl) h1 h2 /(gd_incl_wls hincl) h3.
+    t_xrbindP => ?? /(gd_incl_es (hincl (env:=env))) h1 h2 /(gd_incl_wls (hincl (env:=env))) h3.
     by econstructor;eauto;rewrite /sem_sopn h1 /= h2.
   Qed.
 
   Local Lemma Hsyscall : sem_Ind_syscall P1 Pi_r.
   Proof.
-    move=> env s1 scs m s2 o xs es ves vs /(gd_incl_es hincl)hes ho /(gd_incl_wls hincl) hw.
+    move=> env s1 scs m s2 o xs es ves vs /(gd_incl_es (hincl (env:=env))) hes ho /(gd_incl_wls (hincl (env:=env))) hw.
     econstructor; eauto.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true P1 ev Pc Pi_r.
-  Proof. by move=> env ????? /(gd_incl_e hincl) h1 ? h2; apply Eif_true. Qed.
+  Proof. by move=> env ????? /(gd_incl_e (hincl (env:=env))) h1 ? h2; apply Eif_true. Qed.
 
   Local Lemma Hif_false : sem_Ind_if_false P1 ev Pc Pi_r.
-  Proof. by move=> env ????? /(gd_incl_e hincl) h1 ? h2; apply Eif_false. Qed.
+  Proof. by move=> env ????? /(gd_incl_e (hincl (env:=env))) h1 ? h2; apply Eif_false. Qed.
 
   Local Lemma Hwhile_true : sem_Ind_while_true P1 ev Pc Pi_r.
   Proof.
-    move=> env ?????????? h1 /(gd_incl_e hincl) h2 ? h3 ? h4; apply: Ewhile_true; eauto.
+    move=> env ?????????? h1 /(gd_incl_e (hincl (env:=env))) h2 ? h3 ? h4; apply: Ewhile_true; eauto.
   Qed.
 
   Local Lemma Hwhile_false : sem_Ind_while_false P1 ev Pc Pi_r.
-  Proof. move=> env ???????? h1 /(gd_incl_e hincl) ?; apply: Ewhile_false; eauto. Qed.
+  Proof. move=> env ???????? h1 /(gd_incl_e (hincl (env:=env))) ?; apply: Ewhile_false; eauto. Qed.
 
   Local Lemma Hfor : sem_Ind_for P1 ev Pi_r Pfor.
   Proof.
-    move=> env ????????? /(gd_incl_e hincl) h1 /(gd_incl_e hincl) h2 h3.
+    move=> env ????????? /(gd_incl_e (hincl (env:=env))) h1 /(gd_incl_e (hincl (env:=env))) h2 h3.
     apply: Efor;eauto.
   Qed.
 
@@ -160,7 +160,7 @@ Module INCL. Section INCL.
 
   Local Lemma Hcall : sem_Ind_call P1 ev Pi_r Pfun.
   Proof.
-    move=> env ????????? /(gd_incl_es hincl) h1 ? h2 /(gd_incl_wls hincl) h3.
+    move=> env ????????? /(gd_incl_es (hincl (env:=env))) h1 ? h2 /(gd_incl_wls (hincl (env:=env))) h3.
     econstructor;eauto.
   Qed.
 
@@ -223,8 +223,8 @@ Module INCL. Section INCL.
   Lemma checker_ginclP : Checker_eq P1 P2 checker_equal.
   Proof.
     constructor.
-    + move=> > /wdb_ok_eq <- <- ??? /st_equalP -> /gd_incl_es -/(_ _ hincl) ->; eexists; eauto.
-    by move=> > /wdb_ok_eq <- <- ???? /st_equalP -> /gd_incl_wls -/(_ _ hincl) ->; eexists; eauto.
+    + move=> > /wdb_ok_eq <- <- ??? /st_equalP -> /gd_incl_es -/(_ _ (hincl (env:=env))) ->; eexists; eauto.
+    by move=> > /wdb_ok_eq <- <- ???? /st_equalP -> /gd_incl_wls -/(_ _ (hincl (env:=env))) ->; eexists; eauto.
   Qed.
   #[local] Hint Resolve checker_ginclP : core.
 
@@ -270,24 +270,25 @@ Section PROOFS.
   Let Pi (i:instr) :=
     forall gd1 gd2,
       extend_glob_i i gd1 = ok gd2 ->
-      gd_incl gd1 gd2.
+      forall env, gd_incl env gd1 gd2.
 
   Let Pr (i:instr_r) := forall ii, Pi (MkI ii i).
 
   Let Pc (c:cmd) :=
     forall gd1 gd2,
       foldM extend_glob_i gd1 c = ok gd2 ->
-      gd_incl gd1 gd2.
+      forall env, gd_incl env gd1 gd2.
 
   Local Lemma Hmk  : forall i ii, Pr i -> Pi (MkI ii i).
   Proof. move=> ?? h;apply h. Qed.
 
   Local Lemma Hnil : Pc [::].
-  Proof. by move=> ?? [<-]. Qed.
+  Proof. by move=> ?? [<-] env. Qed.
 
   Local Lemma Hcons: forall i c, Pi i -> Pc c -> Pc (i::c).
   Proof.
-    by move=> i c hi hc gd1 gd2 /=;t_xrbindP => gd3 /hi h1 /hc; apply: gd_inclT.
+    move=> i c hi hc gd1 gd2 /=;t_xrbindP => gd3 /hi{}hi /hc{}hc env.
+    by apply (gd_inclT (hi env) (hc env)).
   Qed.
 
   (* TODO: Move *)
@@ -306,12 +307,12 @@ Section PROOFS.
   Qed.
 
   Lemma add_glob_gd_incl ii x gd1 gv gd2 :
-      add_glob ii x gd1 gv = ok gd2 →
-      gd_incl gd1 gd2.
+    add_glob ii x gd1 gv = ok gd2 →
+    forall env, gd_incl env gd1 gd2.
   Proof.
     rewrite /add_glob.
-    case:ifPn => hhas1; first by move=> [<-].
-    case:ifPn => // /hasPP hhas2 [<-] g v.
+    case:ifPn => hhas1; first by move=> [<-] env.
+    case:ifPn => // /hasPP hhas2 [<-] env g v.
     rewrite /get_global /get_global_value /=.
     case:eqP => heq //;subst g.
     case ha : assoc => [|// ].
@@ -320,25 +321,26 @@ Section PROOFS.
 
   Local Lemma Hasgn: forall x tg ty e, Pr (Cassgn x tg ty e).
   Proof.
-    move=> [ii ty|x|al ws x e|al aa ws x e|aa ws len x e] ?? e1 ??? //=. 1,3-5: by move=> [<-].
+    move=> [ii ty|x|al ws x e|al aa ws x e|aa ws len x e] ?? e1 ??? //= + env. 1,3-5: by move=> [<-].
     case: ifP => ?; last by move=> [<-].
     case: e1 => // [ [] // w [] // z | [] // len es ]; last t_xrbindP => array _.
-    all: exact: add_glob_gd_incl.
+    all: by move=> /add_glob_gd_incl; apply.
   Qed.
 
   Local Lemma Hopn : forall xs t o es, Pr (Copn xs t o es).
-  Proof. by move=> xs t o es ii gd1 gd2 /= [<-]. Qed.
+  Proof. by move=> xs t o es ii gd1 gd2 /= [<-] env. Qed.
 
   Local Lemma Hsyscall : forall xs o es, Pr (Csyscall xs o es).
-  Proof. by move=> xs o es ii gd1 gd2 /= [<-]. Qed.
+  Proof. by move=> xs o es ii gd1 gd2 /= [<-] env. Qed.
 
   Local Lemma Hassert : forall a, Pr (Cassert a).
-  Proof. by move=> a ii gd1 gd2 /= [<-]. Qed.
+  Proof. by move=> a ii gd1 gd2 /= [<-] env. Qed.
 
   Local Lemma Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
     move=> e c1 c2 hc1 hc2 ii gd1 gd2 /=.
-    by t_xrbindP => gd3 /hc1 h1 /hc2; apply: gd_inclT.
+    t_xrbindP => gd3 /hc1{}hc1 /hc2{}hc2 env.
+    by apply (gd_inclT (hc1 env) (hc2 env)).
   Qed.
 
   Local Lemma Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
@@ -347,15 +349,16 @@ Section PROOFS.
   Local Lemma Hwhile : forall a c e ei c', Pc c -> Pc c' -> Pr (Cwhile a c e ei c').
   Proof.
     move=> a c e ei c' hc hc' ii gd1 gd2 /=.
-    by t_xrbindP => gd3 /hc h1 /hc'; apply gd_inclT.
+    t_xrbindP => gd3 /hc{}hc /hc'{}hc' env.
+    by apply (gd_inclT (hc env) (hc' env)).
   Qed.
 
   Local Lemma Hcall: forall xs f es, Pr (Ccall xs f es).
-  Proof. by move=> xs f es ii gd1 gd2 /= [<-]. Qed.
+  Proof. by move=> xs f es ii gd1 gd2 /= [<-] env. Qed.
 
   Local Lemma extend_glob_cP c gd1 gd2 :
     foldM extend_glob_i gd1 c = ok gd2 ->
-    gd_incl gd1 gd2.
+    forall env, gd_incl env gd1 gd2.
   Proof.
     exact: (cmd_rect Hmk Hnil Hcons Hasgn Hopn Hsyscall Hassert Hif Hfor Hwhile Hcall).
   Qed.
@@ -364,11 +367,12 @@ End PROOFS.
 
 Lemma extend_glob_progP P gd' :
   extend_glob_prog P = ok gd' ->
-  gd_incl (p_globs P) gd'.
+  forall env, gd_incl env (p_globs P) gd'.
 Proof.
   rewrite /extend_glob_prog.
-  elim: (p_funcs P) (p_globs P) => /= [gd [<-] // | fd fds hrec gd].
-  by t_xrbindP => gd1 /extend_glob_cP h1 /hrec; apply: gd_inclT.
+  elim: (p_funcs P) (p_globs P) => /= [gd [<-] env // | fd fds hrec gd].
+  t_xrbindP => gd1 /extend_glob_cP h1 /hrec{}hrec env.
+  by apply (gd_inclT (h1 env) (hrec env)).
 Qed.
 
 End ASM_OP.
@@ -407,7 +411,7 @@ Module RGP. Section PROOFS.
         (forall x g,
            Mvar.get m x = Some g ->
            exists2 gv,
-           get_global gd g = ok gv & value_uincl (evm s1).[x] gv) ].
+           get_global env gd g = ok gv & value_uincl (evm s1).[x] gv) ].
 
   Lemma vm_uincl_valid env m (s : estate env) vm s' :
     valid m (with_vm s vm) s' →
@@ -637,16 +641,33 @@ Module RGP. Section PROOFS.
     by case: h => ? _; subst; congr carr; rewrite arr_sizeE Z.mul_1_l.
   Qed.
 
-  Lemma find_globP ii xi gv g :
+  Lemma has_no_var_any_env al :
+    has_no_var al ->
+    forall env1 env2, eval env1 al = eval env2 al.
+  Proof.
+    elim: al => [z|n x|al ih|al1 ih1 al2 ih2|al1 ih1 al2 ih2|al1 ih1 al2 ih2|sg al1 ih1 al2 ih2|sg al1 ih1 al2 ih2|al1 ih1 al2 ih2|al1 ih1 al2 ih2] //=;
+      first (by move=> /ih{}ih env1 env2; rewrite (ih env1 env2));
+      by move=> /andP [/ih1{}ih1 /ih2{}ih2] env1 env2; rewrite (ih1 env1 env2) (ih2 env1 env2).
+  Qed.
+
+  Lemma ty_has_no_var_any_env ty :
+    ty_has_no_var ty ->
+    forall env1 env2, eval_atype env1 ty = eval_atype env2 ty.
+  Proof.
+    case: ty => //= ws al h env1 env2.
+    by rewrite (has_no_var_any_env h env1 env2).
+  Qed.
+
+  Lemma find_globP env ii xi gv g :
     find_glob ii xi gd gv = ok g ->
-    exists2 gv', get_global gd g = ok (gv2val gv') & value_uincl (gv2val gv) (gv2val gv').
+    exists2 gv', get_global env gd g = ok (gv2val gv') & value_uincl (gv2val gv) (gv2val gv').
   Proof.
     rewrite /find_glob /get_global /get_global_value.
-    elim: gd uniq_gd => //= -[g' gv'] gd hrec /andP /= [hg' huniq]; case: ifPn => /= /andP.
-    + case => /= ok_type ok_data /ok_inj ?; subst g'.
+    elim: gd uniq_gd => //= -[g' gv'] gd hrec /andP /= [hg' huniq]; case: ifPn => /= /and3P.
+    + case => /= ok_type ok_no_var ok_data /ok_inj ?; subst g'.
       rewrite eq_refl /=.
       have [ -> h ] := check_dataP empty_env ok_type ok_data.
-      rewrite eq_refl.
+      rewrite (ty_has_no_var_any_env ok_no_var env empty_env) eq_refl.
       by eexists; first reflexivity.
     move=> hn /(hrec huniq) hget {hrec}.
     case: eqP => heq //; subst g'.
@@ -774,7 +795,7 @@ Module RGP. Section PROOFS.
     * by move=> y gy;rewrite Mvar.setP; case:eqP => [<- // | ?]; apply hm2.
     move=> y gy;rewrite Mvar.setP Vm.setP //; case:eqP => [|/eqP hneq]; last by apply hm3.
     move=> ?[?]; subst.
-    case: (find_globP hfind) => gv' -> hgv.
+    case: (find_globP env hfind) => gv' -> hgv.
     eexists; first reflexivity.
     exact: value_uincl_trans htr hgv.
   Qed.

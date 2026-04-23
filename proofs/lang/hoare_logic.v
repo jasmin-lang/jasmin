@@ -1086,7 +1086,7 @@ Proof.
     + by move=> s; rewrite write_i_if; apply eq_exI; case: b; SvD.fsetdec.
     by case: b.
   + move=> i d lo hi c hc ii s0.
-    set P := (fun s => evm s0 =[\ Sv.add i (write_c c)] evm s).
+    set P := (fun (s : estate env) => evm s0 =[\ Sv.add i (write_c c)] evm s).
     apply hoare_weaken1 with P P.
     + by move=> _ ->.
     + by move=> s; apply eq_exI; rewrite write_Ii write_i_for; SvD.fsetdec.
@@ -1097,7 +1097,7 @@ Proof.
     apply: hoare_weaken1 (hc s1) => //.
     by move=> s2 hs2; apply (eq_exT hs1); apply: eq_exI hs2; SvD.fsetdec.
   + move=> a c e inf c' hc hc' ii s0.
-    set P := (fun s => evm s0 =[\ Sv.union (write_c c) (write_c c') ] evm s).
+    set P := (fun (s : estate env) => evm s0 =[\ Sv.union (write_c c) (write_c c') ] evm s).
     apply hoare_weaken1 with P P.
     + by move=> _ ->.
     + by move=> s; apply eq_exI; rewrite write_Ii write_i_while; SvD.fsetdec.

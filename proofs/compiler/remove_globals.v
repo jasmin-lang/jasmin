@@ -61,8 +61,24 @@ Section REMOVE.
     | _, _ => false
     end.
 
+  Fixpoint has_no_var (al : array_length) :=
+    match al with
+    | ALConst _ => true
+    | ALVar _ _ => false
+    | ALNeg al => has_no_var al
+    | ALAdd al1 al2 | ALSub al1 al2 | ALMul al1 al2
+    | ALDiv _ al1 al2 | ALMod _ al1 al2
+    | ALShl al1 al2 | ALShr al1 al2 => has_no_var al1 && has_no_var al2
+    end.
+
+  Definition ty_has_no_var ty :=
+    match ty with
+    | abool | aint | aword _ => true
+    | aarr _ al => has_no_var al
+    end.
+
   Definition check (gv: glob_value) (gd: glob_decl) : bool :=
-    (convertible (type_of_glob_value gv) (vtype gd.1)) && (check_data gd.2 gv).
+    [&& convertible (type_of_glob_value gv) (vtype gd.1), ty_has_no_var (vtype gd.1) & check_data gd.2 gv].
 
   Definition find_glob ii (xi: var_i) (gd: glob_decls) (gv: glob_value) :=
     let test gd := if check gv gd then Some gd.1 else None in

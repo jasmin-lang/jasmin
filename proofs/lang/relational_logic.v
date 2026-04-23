@@ -1828,7 +1828,7 @@ End EQ.
 
 End ST_REL.
 
-Notation _vm_eq := (fun (_:unit) => vm_eq (wsw1:=wsw1) (wsw2:=wsw2) (env:=env)).
+Notation _vm_eq := (fun (_:unit) => vm_eq (wsw1:=wsw1) (wsw2:=wsw2) (env1:=env) (env2:=env)).
 Definition st_eq := st_rel _vm_eq.
 
 Definition check_es_st_eq (_:unit) (es1 es2 : pexprs) (_:unit) := es1 = es2.
@@ -1854,7 +1854,7 @@ Definition checker_a_st_eq : Checker_a (st_rel _vm_eq) :=
   {| check_a := check_a_st_eq
    ; check_aP_rel := check_aP_st_eq |}.
 
-Notation _vm_uincl := (fun (_:unit) => vm_uincl (wsw1:=wsw1) (wsw2:=wsw2) (env:=env)).
+Notation _vm_uincl := (fun (_:unit) => vm_uincl (wsw1:=wsw1) (wsw2:=wsw2) (env1:=env) (env2:=env)).
 Definition st_uincl := st_rel _vm_uincl.
 
 Lemma check_esP_R_st_uincl (d : unit) (es1 es2 : pexprs) (d' : unit) :

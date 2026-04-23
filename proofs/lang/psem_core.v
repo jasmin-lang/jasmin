@@ -626,14 +626,14 @@ Proof.
   by apply: get_var_eq_on; SvD.fsetdec.
 Qed.
 
-Lemma on_arr_var_eq_on env wdb (s' : estate env) X s A x (f: ∀ n, WArray.array n → exec A) :
+Lemma on_arr_var_eq_on env wdb (s' : estate env) X (s : estate env) A x (f: ∀ n, WArray.array n → exec A) :
    evm s =[X] evm s' -> Sv.In x X ->
    on_arr_var (get_var wdb (evm s) x) f = on_arr_var (get_var wdb (evm s') x) f.
 Proof.
   by move=> Heq Hin;rewrite /on_arr_var;rewrite (get_var_eq_on _ Hin Heq).
 Qed.
 
-Lemma on_arr_gvar_eq_on env wdb (s' : estate env) gd X s A x (f: ∀ n, WArray.array n → exec A) :
+Lemma on_arr_gvar_eq_on env wdb (s' : estate env) gd X (s : estate env) A x (f: ∀ n, WArray.array n → exec A) :
    evm s =[X] evm s' -> Sv.Subset (read_gvar x) X ->
    on_arr_var (get_gvar wdb gd (evm s) x) f = on_arr_var (get_gvar wdb gd (evm s') x) f.
 Proof.
@@ -714,7 +714,7 @@ Lemma read_es_eq_on_empty env wdb gd es s (vm : Vm.t env) :
   -> sem_pexprs wdb gd s es = sem_pexprs wdb gd (with_vm s vm) es.
 Proof. exact: read_es_eq_on. Qed.
 
-Corollary eq_on_sem_pexpr env wdb (s' : estate env) gd s e :
+Corollary eq_on_sem_pexpr env wdb (s' : estate env) gd (s : estate env) e :
   emem s = emem s' →
   evm s =[read_e e] evm s' →
   sem_pexpr wdb gd s e = sem_pexpr wdb gd s' e.
@@ -723,7 +723,7 @@ Proof.
   by case: s' eq_mem => /= > <-.
 Qed.
 
-Corollary eq_on_sem_pexprs env wdb (s' : estate env) gd s es :
+Corollary eq_on_sem_pexprs env wdb (s' : estate env) gd (s : estate env) es :
   emem s = emem s' →
   evm s =[read_es es] evm s' →
   sem_pexprs wdb gd s es = sem_pexprs wdb gd s' es.
@@ -732,7 +732,7 @@ Proof.
   by case: s' eq_mem => /= > <-.
 Qed.
 
-Lemma eq_on_sem_eassert env (s' : estate env) gd s e :
+Lemma eq_on_sem_eassert env (s' : estate env) gd (s : estate env) e :
   emem s = emem s' →
   evm s =[read_eassert e] evm s' →
   sem_eassert gd s e = sem_eassert gd s' e.

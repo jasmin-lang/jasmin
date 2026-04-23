@@ -102,7 +102,7 @@ Context (gd : glob_decls).
 
 Section SCFC.
 
-Context (s : estate).
+Context env (s : estate env).
 
 Lemma snotE wdb e b:
   sem_pexpr wdb gd s e = ok (Vbool b) ->
@@ -184,7 +184,7 @@ Qed.
 
 Lemma scfcP wdb c es vs v :
   sem_pexprs wdb gd s es = ok vs
-  -> sem_opN (Ocombine_flags c) vs = ok v
+  -> sem_opN env (Ocombine_flags c) vs = ok v
   -> sem_pexpr wdb gd s (scfc c es) = ok v.
 Proof.
   move=> h.
@@ -204,18 +204,18 @@ Qed.
 
 End SCFC.
 
-Record valid_pi (s : estate) (pi : pimap) :=
+Record valid_pi env (s : estate env) (pi : pimap) :=
   { vpi_ok :
      forall x c,
        Mvar.get pi x = Some c ->
        exists2 v', sem_pexpr true gd s c.(pi_def) = ok v' & value_uincl (evm s).[x] v' }.
 
-Lemma valid_pi_empty s : valid_pi s piempty.
+Lemma valid_pi_empty env (s : estate env) : valid_pi s piempty.
 Proof. by constructor => ??; rewrite Mvar.get0. Qed.
 
 Section Expr.
 
-Context (s : estate) (pi : pimap) (hvalid : valid_pi s pi) (wdb : bool).
+Context env (s : estate env) (pi : pimap) (hvalid : valid_pi s pi) (wdb : bool).
 
 Let P e : Prop :=
   forall v, sem_pexpr wdb gd s e = ok v ->
@@ -277,7 +277,7 @@ Lemma pi_esP es vs :
     List.Forall2 value_uincl vs vs'.
 Proof. case: pi_eP_and => _ h; apply h. Qed.
 
-Context (vm:Vm.t) (hu: evm s <=1 vm).
+Context (vm:Vm.t env) (hu: evm s <=1 vm).
 
 Lemma pi_eP_uincl e v :
   sem_pexpr wdb gd s e = ok v ->
@@ -299,7 +299,7 @@ Qed.
 End Expr.
 
 
-Lemma write_var_valid_pi wdb s s' pi x v :
+Lemma write_var_valid_pi env wdb (s s' : estate env) pi x v :
   valid_pi s pi ->
   write_var wdb x v s = ok s' ->
   valid_pi s' (remove pi x) /\
@@ -316,7 +316,7 @@ Proof.
   by apply/eqP => ?; subst z; apply hnin; rewrite h /= pi_fv_ok.
 Qed.
 
-Lemma valid_pi_remove_m s pi m :
+Lemma valid_pi_remove_m env (s : estate env) pi m :
   valid_pi s pi ->
   valid_pi (with_mem s m) (remove_m pi).
 Proof.
@@ -329,7 +329,7 @@ Proof.
   by rewrite hm.
 Qed.
 
-Lemma pi_lvP wdb pi s s' x v :
+Lemma pi_lvP env wdb pi (s s' : estate env) x v :
   valid_pi s pi ->
   write_lval wdb gd x v s = ok s' ->
   valid_pi s' (pi_lv pi x).1 /\
@@ -359,7 +359,7 @@ Proof.
   by apply write_var_valid_pi.
 Qed.
 
-Lemma pi_lvsP wdb pi s s' xs vs :
+Lemma pi_lvsP env wdb pi (s s' : estate env) xs vs :
   valid_pi s pi ->
   write_lvals wdb gd s xs vs = ok s' ->
   valid_pi s' (pi_lvs pi xs).1 /\
@@ -373,7 +373,7 @@ Proof.
   by rewrite /= hw1.
 Qed.
 
-Lemma pi_lvP_uincl wdb pi s vm s' x v v':
+Lemma pi_lvP_uincl env wdb pi (s : estate env) vm s' x v v':
   evm s <=1 vm -> value_uincl v v' ->
   valid_pi s pi ->
   write_lval wdb gd x v s = ok s' ->
@@ -387,7 +387,7 @@ Proof.
   by have [vm' hw'' hu']:= write_uincl hu huv hw'; exists vm'.
 Qed.
 
-Lemma pi_lvsP_uincl wdb pi s vm s' xs vs vs':
+Lemma pi_lvsP_uincl env wdb pi (s : estate env) vm s' xs vs vs':
   evm s <=1 vm -> List.Forall2 value_uincl vs vs' ->
   valid_pi s pi ->
   write_lvals wdb gd s xs vs = ok s' ->
@@ -437,13 +437,13 @@ Section PROOF.
     by move=> ->; left; exists x0.
   Qed.
 
-  Lemma valid_pi_with_scs s pi scs : valid_pi gd s pi -> valid_pi gd (with_scs s scs) pi.
+  Lemma valid_pi_with_scs env (s : estate env) pi scs : valid_pi gd s pi -> valid_pi gd (with_scs s scs) pi.
   Proof.
     move=> [] h; constructor => m c h1.
     by have := h _ _ h1; rewrite -sem_pexpr_with_scs.
   Qed.
 
-  Lemma valid_pi_incl s pi1 pi2 : incl pi1 pi2 -> valid_pi gd s pi2 -> valid_pi gd s pi1.
+  Lemma valid_pi_incl env (s : estate env) pi1 pi2 : incl pi1 pi2 -> valid_pi gd s pi2 -> valid_pi gd s pi1.
   Proof.
     move=> hincl hv; constructor => x c hg.
     have [c' [hg' heq]] := inclP hincl hg.
@@ -499,12 +499,12 @@ Section PROOF.
     by apply/(incl_trans h3)/incl_merge_l.
   Qed.
 
-  Lemma Hassgn_aux s1 s2 ii x tag ty e pi pi2 vm1:
+  Lemma Hassgn_aux env (s1 s2 : estate env) ii x tag ty e pi pi2 vm1:
     pi_i pi (MkI ii (Cassgn x tag ty e)) = ok pi2 →
     sem_assgn p1 x tag ty e s1 = ok s2 ->
     evm s1 <=1 vm1 →
     valid_pi gd s1 pi →
-    ∃ vm2 : Vm.t,
+    ∃ vm2 : Vm.t env,
       [/\ evm s2 <=1  vm2, valid_pi gd s2 pi2.1 & esem_i p2 ev pi2.2 (with_vm s1 vm1) = ok (with_vm s2 vm2)].
   Proof.
     rewrite /= /sem_assgn.
@@ -539,7 +539,7 @@ Section PROOF.
 
   Section SEM.
 
-  Let Pi s1 (i1:instr) s2:=
+  Let Pi env (s1 : estate env) (i1:instr) s2:=
     forall pi pi2 vm1,
       pi_i pi i1 = ok pi2 ->
       evm s1 <=1 vm1 -> valid_pi gd s1 pi ->
@@ -547,10 +547,10 @@ Section PROOF.
       [/\ evm s2 <=1 vm2, valid_pi gd s2 pi2.1
         & sem_I p2 ev (with_vm s1 vm1) pi2.2 (with_vm s2 vm2)].
 
-  Let Pi_r s1 (i1:instr_r) s2 :=
+  Let Pi_r env (s1 : estate env) (i1:instr_r) s2 :=
     forall ii, Pi s1 (MkI ii i1) s2.
 
-  Let Pc s1 (c1:cmd) s2:=
+  Let Pc env (s1 : estate env) (c1:cmd) s2:=
     forall pi pc2 vm1,
       pi_c pi_i pi c1 = ok pc2 ->
       evm s1 <=1 vm1 -> valid_pi gd s1 pi ->
@@ -558,7 +558,7 @@ Section PROOF.
       [/\ evm s2 <=1 vm2, valid_pi gd s2 pc2.1
         & sem p2 ev (with_vm s1 vm1) pc2.2 (with_vm s2 vm2) ].
 
-  Let Pfor (i1:var_i) vs s1 c1 s2 :=
+  Let Pfor env (i1:var_i) vs (s1 : estate env) c1 s2 :=
     forall pi pc2 vm1,
       pi_c pi_i (remove pi i1) c1 = ok pc2 -> incl pi pc2.1 ->
       evm s1 <=1 vm1 -> valid_pi gd s1 pi ->
@@ -571,11 +571,11 @@ Section PROOF.
     exists2 vres', List.Forall2 value_uincl vres vres' & sem_call p2 ev scs m fn vargs' scs' m' vres'.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
-  Proof. move=> s pi pic2 vm1 [<-] ??; exists vm1; split => //; constructor. Qed.
+  Proof. move=> env s pi pic2 vm1 [<-] ??; exists vm1; split => //; constructor. Qed.
 
   Local Lemma Hcons : sem_Ind_cons p1 ev Pc Pi.
   Proof.
-    move=> s1 s2 s3 i c _ hi _ hc pi pc vm1 /=; t_xrbindP.
+    move=> env s1 s2 s3 i c _ hi _ hc pi pc vm1 /=; t_xrbindP.
     move=> pi2 hpi2 pc2 hpc2 <- hu hv.
     have [vm2 [hu2 hv2 hsi]]:= hi _ _ _ hpi2 hu hv.
     have [vm3 [hu3 hv3 hsc]] := hc _ _ _ hpc2 hu2 hv2.
@@ -584,13 +584,13 @@ Section PROOF.
 
   Local Lemma HmkI : sem_Ind_mkI p1 ev Pi_r Pi.
   Proof.
-    move=> ii i s1 s2 _ hi pi pi2 vm1 hpi2 hu hv.
+    move=> env ii i s1 s2 _ hi pi pi2 vm1 hpi2 hu hv.
     have [vm' [???]] := hi _ _ _ _ hpi2 hu hv; exists vm'; split => //; constructor.
   Qed.
 
   Local Lemma Hassgn : sem_Ind_assgn p1 Pi_r.
   Proof.
-    move => s1 s2 x tag ty e v v' he htr hwr ii pi pi2 vm1 hpi hu hval.
+    move => env s1 s2 x tag ty e v v' he htr hwr ii pi pi2 vm1 hpi hu hval.
     have [|vm2 [hu' hval' /esem_i_sem ?]] := Hassgn_aux (s2:=s2) hpi _ hu hval.
     + by rewrite /sem_assgn he /= htr.
     by exists vm2.
@@ -598,7 +598,7 @@ Section PROOF.
 
   Local Lemma Hopn : sem_Ind_opn p1 Pi_r.
   Proof.
-    move => s1 s2 t o xs es.
+    move => env s1 s2 t o xs es.
     rewrite /sem_sopn; t_xrbindP => vs ves hes ho hws ii pi pi2 vm1 /=.
     case heq: pi_lvs => [pi0 xs0] [<-] hu hv /=.
     have [ves' hes' hues]:= pi_esP_uincl hv hu hes.
@@ -610,7 +610,7 @@ Section PROOF.
 
   Local Lemma Hsyscall : sem_Ind_syscall p1 Pi_r.
   Proof.
-    move => s1 scs m s2 o xs es ves vs hes ho hw ii pi pi2 vm1 /=.
+    move => env s1 scs m s2 o xs es ves vs hes ho hw ii pi pi2 vm1 /=.
     case heq: pi_lvs => [pi0 xs0] [<-] hu hv /=.
     have [ves' hes' hues]:= pi_esP_uincl hv hu hes.
     have [vs' ho' hus] := exec_syscallP ho hues.
@@ -622,7 +622,7 @@ Section PROOF.
 
   Local Lemma Hif_true : sem_Ind_if_true p1 ev Pc Pi_r.
   Proof.
-    move => s1 s2 e c1 c2 he _ hc ii pi pi2 vm /=.
+    move => env s1 s2 e c1 c2 he _ hc ii pi pi2 vm /=.
     t_xrbindP=> pc1 hpc1 pc2 hpc2 ? hu hv; subst pi2.
     have [vm' [hu' hv' hs]]:= hc _ _ _ hpc1 hu hv.
     exists vm'; split => //=.
@@ -633,7 +633,7 @@ Section PROOF.
 
   Local Lemma Hif_false : sem_Ind_if_false p1 ev Pc Pi_r.
   Proof.
-    move => s1 s2 e c1 c2 he _ hc ii pi pi2 vm /=.
+    move => env s1 s2 e c1 c2 he _ hc ii pi pi2 vm /=.
     t_xrbindP=> pc1 hpc1 pc2 hpc2 ? hu hv; subst pi2.
     have [vm' [hu' hv' hs]]:= hc _ _ _ hpc2 hu hv.
     exists vm'; split => //=.
@@ -644,7 +644,7 @@ Section PROOF.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p1 ev Pc Pi_r.
   Proof.
-    move => s1 s2 s3 s4 a c1 e ei c2 _ hc1 he _ hc2 _ hw ii pi pi2 vm1.
+    move => env s1 s2 s3 s4 a c1 e ei c2 _ hc1 he _ hc2 _ hw ii pi pi2 vm1.
     move=> /pi_i_whileP [pi1 [pi3 [c1' [c2' [hc1_ hc2_ hw_ hpi2 [hi1 hi2]]]]]] hu hv.
     rewrite hpi2 in hw_ |- *.
     have hv1 := valid_pi_incl hi2 hv.
@@ -659,7 +659,7 @@ Section PROOF.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p1 ev Pc Pi_r.
   Proof.
-    move => s1 s2 a c1 e ei c2 _ hc1 he ii pi pi2 vm1.
+    move => env s1 s2 a c1 e ei c2 _ hc1 he ii pi pi2 vm1.
     move=> /pi_i_whileP [pi1 [pi3 [c1' [c2' [hc1_ hc2_ hw_ hpi2 [hi1 hi2]]]]]] hu hv.
     rewrite hpi2 in hw_ |- *.
     have hv1 := valid_pi_incl hi2 hv.
@@ -671,7 +671,7 @@ Section PROOF.
 
   Local Lemma Hfor : sem_Ind_for p1 ev Pi_r Pfor.
   Proof.
-    move => s1 s2 i d lo hi c vlo vhi he1 he2 _ hfor ii pi pi2 vm1 /=.
+    move => env s1 s2 i d lo hi c vlo vhi he1 he2 _ hfor ii pi pi2 vm1 /=.
     t_xrbindP => -[pi' c'] /= /loop_forP [pi3] [hpic hi1 hi2] ?; subst pi2 => /= hu hv.
     have hv' := valid_pi_incl hi2 hv.
     have [/= vm2 [hu2 hv2 hs]]:= hfor _ _ _ hpic hi1 hu hv'.
@@ -683,13 +683,13 @@ Section PROOF.
 
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
   Proof.
-    move=> s i c pi pi2 vm1 _ hincl hu hv.
+    move=> env s i c pi pi2 vm1 _ hincl hu hv.
     by exists vm1; split => //; constructor.
   Qed.
 
   Local Lemma Hfor_cons : sem_Ind_for_cons p1 ev Pc Pfor.
   Proof.
-    move=> s1 s1' s2 s3 i w ws c hwi _ hc _ hfor pi pi2 vm1 hc_ hincl hu hv.
+    move=> env s1 s1' s2 s3 i w ws c hwi _ hc _ hfor pi pi2 vm1 hc_ hincl hu hv.
     have [{}hv {}hwi]:= write_var_valid_pi hv hwi.
     have [vm1' hwi' hu']:= write_var_uincl hu (value_uincl_refl _) hwi.
     have [vm2 [hu2 hv2 hs2]] := hc _ _ _ hc_ hu' hv.
@@ -699,7 +699,7 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
   Proof.
-    move=> s1 scs m2 s2 xs fn args vargs vs hargs _ hf hwr ii pi pi2 vm1 /=.
+    move=> env s1 scs m2 s2 xs fn args vargs vs hargs _ hf hwr ii pi pi2 vm1 /=.
     case heq : pi_lvs => [pi' xs'] [<-] hu hv.
     have [vargs' hargs' hus]:= pi_esP_uincl hv hu hargs.
     have [vs' hvs' hc]:= hf _ hus.
@@ -759,9 +759,10 @@ Section PROOF.
   Section IT.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context (env : env_t).
 
   Definition st_pi pi s1 s2 :=
-    st_uincl tt s1 s2 /\ valid_pi gd s1 pi.
+    st_uincl (env:=env) tt s1 s2 /\ valid_pi gd s1 pi.
 
   Definition check_es_pi pi es1 es2 pi' :=
     pi = pi' /\ es2 = pi_es pi es1.
@@ -827,7 +828,7 @@ Section PROOF.
   Lemma st_pi_incl d d' : incl d' d -> ∀ s1 s2, st_pi d s1 s2 → st_pi d' s1 s2.
   Proof. by move=> hincl s1 s2 [hu hval]; split => //; apply: valid_pi_incl hval. Qed.
 
-  Lemma it_pi_callP fn : wiequiv_f p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+  Lemma it_pi_callP fn : wiequiv_f env p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
   Proof.
     apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd1 hget.
     have [fd2 hfun ->] := all_checked hget.

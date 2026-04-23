@@ -253,73 +253,28 @@ Section LEMMA.
   Notation sem_c := (sem_one_varmap.sem p var_tmps).
   Notation sem_call := (sem_one_varmap.sem_call p var_tmps).
 
-Section Section.
-
-  Context {wsw1 wsw2 : WithSubWord} (env1 env2 : Uint63.int -> Z).
-  Section A.
-  Context (R:value -> value -> Prop).
-
-  Definition vm_rel' (P : var -> Prop) (vm1 : @Vm.t wsw1 env1) (vm2 : @Vm.t wsw2 env2) :=
-    forall x, P x -> R (Vm.get vm1 x) (Vm.get vm2 x).
-  End A.
-  
-  
-  #[export] Instance vm_rel_impl' :
-    Proper (subrelation ==>
-            pointwise_lifting (Basics.flip Basics.impl) (Tcons var Tnil) ==>
-            @eq (Vm.t env1) ==> @eq (Vm.t env2) ==> Basics.impl) vm_rel'.
-  Proof. by move=> R1 R2 hR P1 P2 hP vm1 ? <- vm2 ? <- h x hx; apply/hR/h/hP. Qed.
-
-  #[export] Instance vm_rel_m' :
-    Proper (relation_equivalence ==>
-            pointwise_lifting iff (Tcons var Tnil) ==>
-            @eq (Vm.t env1) ==> @eq (Vm.t env2) ==> iff) vm_rel'.
-  Proof.
-    move=> R1 R2 hR P1 P2 hP vm1 ? <- vm2 ? <-; split; apply vm_rel_impl' => //.
-    1,3: by move=> ??;apply hR.
-    1,2: by move=> x /=; case: (hP x).
-  Qed.
-
-  Definition uincl_ex' (X:Sv.t) := vm_rel' value_uincl (fun x => ~Sv.In x X).
-  
-  
-  #[export] Instance uincl_ex_impl' :
-    Proper (Sv.Subset ==> @eq (Vm.t env1) ==> @eq (Vm.t env2) ==> Basics.impl) uincl_ex'.
-  Proof. by move=> s1 s2 hS; apply vm_rel_impl' => // x hnx hx; apply/hnx/hS. Qed.
-
-  #[export] Instance uincl_ex_m' :
-    Proper (Sv.Equal ==> @eq (Vm.t env1) ==> @eq (Vm.t env2) ==> iff) uincl_ex'.
-  Proof. by move=> s1 s2 hS; apply vm_rel_m' => // x; rewrite hS. Qed.
-
-  Lemma vm_relI' R (P1 P2 : var -> Prop) vm1 vm2 :
-    (forall x, P1 x -> P2 x) ->
-    vm_rel' R P2 vm1 vm2 -> vm_rel' R P1 vm1 vm2.
-  Proof. by move=> h hvm v /h hv; apply hvm. Qed.
-
-  Lemma uincl_exI' s1 s2 (vm1 : @Vm.t wsw1 env1) (vm2 : Vm.t env2) :
-    Sv.Subset s2 s1 -> uincl_ex' s2 vm1 vm2 -> uincl_ex' s1 vm1 vm2.
-  Proof. move=> h1; apply vm_relI'; SvD.fsetdec. Qed.
-End Section.
-
-  Record match_estate env (D: Sv.t) (s : estate env) (t : estate empty_env) : Prop :=
+  Record match_estate (D: Sv.t) (s t : estate empty_env) : Prop :=
     MVM {
       mvm_scs  : escs s = escs t;
       mvm_mem  : emem s = emem t;
-      mvm_vmap : uincl_ex' D s.(evm) t.(evm);
+      mvm_vmap : s.(evm) <=[\D] t.(evm);
     }.
 
-  Instance match_estate_m env : Proper (Sv.Equal ==> eq ==> eq ==> iff) (match_estate (env:=env)).
+  Instance match_estate_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) match_estate.
   Proof.
     by move => x y x_eq_y s _ <- t _ <-; split => - [] ?; rewrite ?x_eq_y => ?; constructor => //; rewrite x_eq_y.
   Qed.
 
-  Lemma match_estateI env X X' (s : estate env) t :
+  Lemma match_estateI X X' s t :
     Sv.Subset X X' →
     match_estate X s t →
     match_estate X' s t.
-  Proof. by move => hle [?? hvm]; split => //; apply: uincl_exI' hle hvm. Qed.
+  Proof. by move => hle [?? hvm]; split => //; apply: uincl_exI hle hvm. Qed.
 
   Let Pc env (s1: estate env) (c: cmd) (s2: estate env) : Prop :=
+    forall (henv : env = empty_env),
+    let s1 := ecast i (estate i) henv s1 in
+    let s2 := ecast i (estate i) henv s2 in
     ∀ sz I O t1,
       check_cmd sz I c = ok O →
       merged_vmap_precondition (write_c c) sz s1.(emem) t1.(evm) →
@@ -331,6 +286,9 @@ End Section.
         match_estate O s2 t2.
 
   Let Pi env (s1: estate env) (i: instr) (s2: estate env) : Prop :=
+    forall (henv : env = empty_env),
+    let s1 := ecast i (estate i) henv s1 in
+    let s2 := ecast i (estate i) henv s2 in
     ∀ sz I O t1,
       check_instr sz I i = ok O →
       merged_vmap_precondition (write_I i) sz s1.(emem) t1.(evm) →
@@ -343,12 +301,14 @@ End Section.
 
   Local Lemma Hnil: sem_Ind_nil Pc.
   Proof.
-    move => env s sz I _ t [<-] /= pre sim; exists t => //; exists Sv.empty => //; constructor.
+    move => env s henv /=; subst env.
+    by move => sz I _ t [<-] /= pre sim; exists t => //; exists Sv.empty => //; constructor.
   Qed.
 
   Local Lemma Hcons: sem_Ind_cons p global_data Pc Pi.
   Proof.
-    move => env s1 s2 s3 i c exec_i hi exec_c hc sz I O t1 /=; t_xrbindP => D ok_i ok_c ok_W sim1.
+    move => env s1 s2 s3 i c exec_i hi exec_c hc henv /=; subst env.
+    move => sz I O t1 /=; t_xrbindP => D ok_i ok_c ok_W sim1.
     have ok_W1 : merged_vmap_precondition (write_I i) sz (emem s1) (evm t1).
     - split.
       2: exact: (mvp_top_stack ok_W).
@@ -356,7 +316,7 @@ End Section.
       2: exact: (mvp_stack_aligned ok_W).
       by move: (mvp_not_written ok_W); rewrite write_c_cons; apply: disjoint_w;
         move: (write_I i) (write_c c) (* SvD.fsetdec faster *); SvD.fsetdec.
-    have [t2 [ki texec_i hki] sim2] := hi _ _ _ _ ok_i ok_W1 sim1. 
+    have [t2 [ki texec_i hki] sim2] := hi erefl _ _ _ _ ok_i ok_W1 sim1. 
     have ok_W2 : merged_vmap_precondition (write_c c) sz (emem s2) (evm t2).
     - have [ not_written_gd not_written_rsp ] := not_written_magic (mvp_not_written ok_W1).
       split.
@@ -369,7 +329,7 @@ End Section.
         move: vgd (write_I i) hki not_written_gd; clear. (* SvD.fsetdec faster *)
         by SvD.fsetdec.
       by rewrite -(ss_top_stack (sem_I_stack_stable_sprog exec_i)) (mvp_stack_aligned ok_W).
-    have [t3 [kc texec_c hkc] sim3]:= hc _ _ _ _ ok_c ok_W2 sim2.
+    have [t3 [kc texec_c hkc] sim3]:= hc erefl _ _ _ _ ok_c ok_W2 sim2.
     exists t3 => //; exists (Sv.union ki kc); first by econstructor; eauto.
     rewrite write_c_cons.
     move: (write_I i) hki (write_c c) hkc. (* SvD.fsetdec faster *)
@@ -377,6 +337,9 @@ End Section.
   Qed.
 
   Let Pi_r env (s1: estate env) (i: instr_r) (s2: estate env) : Prop :=
+    forall (henv : env = empty_env),
+    let s1 := ecast i (estate i) henv s1 in
+    let s2 := ecast i (estate i) henv s2 in
     ∀ sz ii I O t1,
       check_instr_r sz ii I i = ok O →
       merged_vmap_precondition (write_i i) sz s1.(emem) t1.(evm) →
@@ -389,10 +352,11 @@ End Section.
 
   Lemma HmkI : sem_Ind_mkI p global_data Pi_r Pi.
   Proof.
-    move => env ii i s1 s2 exec_i h sz I O t1 /check_instrP ok_i ok_W sim.
+    move => env ii i s1 s2 exec_i h henv /=; subst env.
+    move => sz I O t1 /check_instrP ok_i ok_W sim.
     move: (mvp_not_written ok_W).
     rewrite {1}/write_I write_I_recE -/write_i => dis.
-    have [ t2 [] k texec_i hk sim' ] := h sz ii I O _ ok_i ok_W sim.
+    have [ t2 [] k texec_i hk sim' ] := h erefl sz ii I O _ ok_i ok_W sim.
     exists t2 => //.
     eexists.
     - econstructor.
@@ -409,7 +373,7 @@ End Section.
     forall (vm : Vm.t env), with_vm x vm = with_vm y vm.
   Proof. by case: x y => scs m vm [] scs' m' vm' /= -> ->. Qed.
 
-  Lemma check_eP env wdb ii I e (s : estate env) t v u : check_e ii I e = ok u ->
+  Lemma check_eP wdb ii I e s t v u : check_e ii I e = ok u ->
     match_estate I s t ->
     sem_pexpr wdb (p_globs p) s e = ok v ->
     exists2 v', sem_pexpr wdb (p_globs p) t e = ok v' & value_uincl v v'.
@@ -466,7 +430,8 @@ End Section.
 
   Lemma Hassgn: sem_Ind_assgn p Pi_r.
   Proof.
-    move => s1 s2 x tg ty e v v' ok_v ok_v' ok_s2 sz ii I O t1.
+    move => env s1 s2 x tg ty e v v' ok_v ok_v' ok_s2 henv /=; subst env.
+    move => sz ii I O t1.
     rewrite /check_instr_r; t_xrbindP => hce hlv hpre hsim.
     have [w ok_w vw]:= check_eP hce hsim ok_v.
     have [w' ok_w' vw'] := value_uincl_truncate vw ok_v'.
@@ -477,7 +442,8 @@ End Section.
 
   Lemma Hopn: sem_Ind_opn p Pi_r.
   Proof.
-    move => s1 s2 tg op xs es eval_op sz ii I O t1.
+    move => env s1 s2 tg op xs es eval_op henv /=; subst env.
+    move => sz ii I O t1.
     rewrite /check_instr_r; t_xrbindP => hce hlv hpre hsim.
     move: eval_op;  rewrite /sem_sopn; t_xrbindP => rs vs ok_vs ok_rs ok_s2.
     have [w ok_w vw] := check_esP hce hsim ok_vs.
@@ -489,7 +455,8 @@ End Section.
 
   Lemma Hif_true: sem_Ind_if_true p global_data Pc Pi_r.
   Proof.
-    move => s1 s2 e c1 c2 eval_e exec_c1 ih sz ii I O t1.
+    move => env s1 s2 e c1 c2 eval_e exec_c1 ih henv /=; subst env.
+    move => sz ii I O t1.
     rewrite /check_instr_r -/check_instr; t_xrbindP => hce O1 hcc1 O2 hcc2 <- pre hsim.
     have [v' hse' /value_uinclE ?]:= check_eP hce hsim eval_e; subst v'.
     have pre1 : merged_vmap_precondition (write_c c1) sz (emem s1) (evm t1).
@@ -499,7 +466,7 @@ End Section.
       2: exact: mvp_stack_aligned pre.
       move: (mvp_not_written pre); rewrite write_i_if.
       by apply: disjoint_w; move: (write_c c1) (write_c c2); clear (* SvD.fsetdec faster *); SvD.fsetdec.
-    have [t2 [k hs1 hsub] hsim']:= ih _ _ _ _ hcc1 pre1 hsim.
+    have [t2 [k hs1 hsub] hsim']:= ih erefl _ _ _ _ hcc1 pre1 hsim.
     exists t2; last by apply: match_estateI hsim'; clear (* SvD.fsetdec faster *); SvD.fsetdec.
     exists k; first by apply sem_one_varmap.Eif_true.
     by rewrite write_i_if;
@@ -508,7 +475,8 @@ End Section.
 
   Lemma Hif_false: sem_Ind_if_false p global_data Pc Pi_r.
   Proof.
-    move => s1 s2 e c1 c2 eval_e exec_c1 ih sz ii I O t1.
+    move => env s1 s2 e c1 c2 eval_e exec_c1 ih henv /=; subst env.
+    move => sz ii I O t1.
     rewrite /check_instr_r -/check_instr; t_xrbindP => hce O1 hcc1 O2 hcc2 <- pre hsim.
     have [v' hse' /value_uinclE ?]:= check_eP hce hsim eval_e; subst v'.
     have pre1 : merged_vmap_precondition (write_c c2) sz (emem s1) (evm t1).
@@ -518,7 +486,7 @@ End Section.
       2: exact: mvp_stack_aligned pre.
       move: (mvp_not_written pre); rewrite write_i_if.
       by apply: disjoint_w; move: (write_c c1) (write_c c2); clear (* SvD.fsetdec faster *); SvD.fsetdec.
-    have [t2 [k hs1 hsub] hsim']:= ih _ _ _ _ hcc2 pre1 hsim.
+    have [t2 [k hs1 hsub] hsim']:= ih erefl _ _ _ _ hcc2 pre1 hsim.
     exists t2; last by apply: match_estateI hsim'; clear (* SvD.fsetdec faster *); SvD.fsetdec.
     exists k; first by apply sem_one_varmap.Eif_false.
     by rewrite write_i_if;
@@ -527,14 +495,15 @@ End Section.
 
   Lemma Hwhile_true: sem_Ind_while_true p global_data Pc Pi_r.
   Proof.
-    move => s1 s2 s3 s4 a c e ei c' sexec ih he sexec' ih' sexec_loop rec sz ii I O t1 /check_instr_r_CwhileP.
+    move => env s1 s2 s3 s4 a c e ei c' sexec ih he sexec' ih' sexec_loop rec henv; subst env.
+    move => s1' s2' sz ii I O t1 /check_instr_r_CwhileP; subst s1' s2'.
     case: is_falseP; first by move => ?; subst e.
     move => _ [D1] [D2] [ check_c check_e check_c' checked [X Y] ] pre sim.
     have pre1 : merged_vmap_precondition (write_c c) sz (emem s1) (evm t1).
     - apply: merged_vmap_preconditionI pre.
       rewrite write_i_while; move: (write_c c) (write_c c') (* SvD.fsetdec faster *); SvD.fsetdec.
     have sim' : match_estate D1 s1 t1 by apply: match_estateI sim.
-    have {ih} [ t2 [k texec_c hk ] sim2 ] := ih _ _ _ _ check_c pre1 sim'.
+    have {ih} [ t2 [k texec_c hk ] sim2 ] := ih erefl _ _ _ _ check_c pre1 sim'.
     have pre2 : merged_vmap_precondition (write_c c') sz (emem s2) (evm t2).
     - have [ hgd hrsp ] := not_written_magic (mvp_not_written pre1).
       split.
@@ -549,8 +518,8 @@ End Section.
         by SvD.fsetdec.
       rewrite -(ss_top_stack (sem_stack_stable_sprog sexec)).
       exact: mvp_stack_aligned pre1.
-    have [t3 [ k' texec_c' hk' ] sim3] := ih' _ _ _ _ check_c' pre2 sim2.
-    case: (rec sz ii D1 O t3 checked).
+    have [t3 [ k' texec_c' hk' ] sim3] := ih' erefl _ _ _ _ check_c' pre2 sim2.
+    case: (rec erefl sz ii D1 O t3 checked).
     - have [ hgd hrsp ] := not_written_magic (mvp_not_written pre2).
       split.
       + exact: mvp_not_written pre.
@@ -580,7 +549,8 @@ End Section.
 
   Lemma Hwhile_false: sem_Ind_while_false p global_data Pc Pi_r.
   Proof.
-    move => s1 s2 a c e ei c' _ ih he sz ii I O t1 /check_instr_r_CwhileP checked pre sim.
+    move => env s1 s2 a c e ei c' _ ih he henv; subst env.
+    move=> s1' s2' sz ii I O t1 /check_instr_r_CwhileP checked pre sim; subst s1' s2'.
     have pre1 : merged_vmap_precondition (write_c c) sz (emem s1) (evm t1).
     - apply: merged_vmap_preconditionI pre.
       rewrite write_i_while.
@@ -589,7 +559,7 @@ End Section.
     case: is_falseP checked.
     { (* Condition is litteral “false” *)
       move => ? checked; subst e.
-      have [ t2 [ k texec hk ] sim2 ] := ih sz I O t1 checked pre1 sim.
+      have [ t2 [ k texec hk ] sim2 ] := ih erefl sz I O t1 checked pre1 sim.
       exists t2; last exact: sim2.
       eexists.
       + constructor; first exact: texec.
@@ -600,7 +570,7 @@ End Section.
     }
     move => _ [D1] [D2] [ check_c check_e check_c' checked [h1 h2] ].
     have sim' : match_estate D1 s1 t1 by apply: match_estateI sim.
-    have [ t2 [ k texec hk ] sim2 ] := ih _ _ _ _ check_c pre1 sim'.
+    have [ t2 [ k texec hk ] sim2 ] := ih erefl _ _ _ _ check_c pre1 sim'.
     exists t2 => //.
     eexists.
     - constructor; first exact: texec.
@@ -610,7 +580,7 @@ End Section.
     by SvD.fsetdec.
   Qed.
 
-  Let Pfor (_: var_i) (_: seq Z) (_: estate) (_: cmd) (_: estate) : Prop :=
+  Let Pfor env (_: var_i) (_: seq Z) (_: estate env) (_: cmd) (_: estate env) : Prop :=
     True.
 
   Lemma Hfor: sem_Ind_for p global_data Pi_r Pfor.
@@ -675,7 +645,8 @@ End Section.
   Lemma Hcall: sem_Ind_call p global_data Pi_r Pfun.
   Proof.
     move=>
-      s1 scs2 m2 s2 xs fn args vargs vs ok_vargs sexec ih ok_s2 sz ii I O t1.
+      env s1 scs2 m2 s2 xs fn args vargs vs ok_vargs sexec ih ok_s2 henv /=; subst env.
+    move=> sz ii I O t1.
     rewrite /check_instr_r /=; case heq : get_fundef => [ fd | //].
     t_xrbindP => hces hal hargs hres htmp hxs pre sim.
     have simU := match_estate_kill (tmp_call (f_extra fd)) sim.
@@ -722,7 +693,8 @@ End Section.
 
   Lemma Hsyscall : sem_Ind_syscall p Pi_r.
   Proof.
-    move=> s1 scs m s2 o xs es ves vs hes ho hw sz ii I O t1.
+    move=> env s1 scs m s2 o xs es ves vs hes ho hw henv /=; subst env.
+    move=> sz ii I O t1.
     rewrite /check_instr_r; t_xrbindP => hces hargs hres <- pre sim.
     have [ves' hves' uves]:= check_esP hces sim hes.
     have hes' : get_vars true (evm t1) (syscall_sig o).(scs_vin) = ok ves'.
@@ -862,7 +834,7 @@ End Section.
       + rewrite Vm.setP_eq -(write_vars_eq_ex ok_s1) ?vrsp_v ?vm_truncate_val_eq //.
         by case: (not_written_magic checked_params).
       rewrite Vm.setP_neq; last by rewrite eq_sym.
-      have huninit : ¬ Sv.In z params → z ≠ vgd → (evm s1).[z] = undef_addr (eval_atype (vtype z)).
+      have huninit : ¬ Sv.In z params → z ≠ vgd → (evm s1).[z] = undef_addr (eval_atype empty_env (vtype z)).
       + move => h zgd; rewrite -(write_vars_eq_ex ok_s1) // hvmap0 //; last by apply/eqP.
         by apply Vm.initP.
       have hz : value_uincl (evm s1).[z] tvm1.[z].
@@ -899,7 +871,7 @@ End Section.
       by rewrite {1}/top_stack ok_free.(fss_frames) ok_free.(fss_root) -(sem_stack_stable_sprog sexec).(ss_root)
          -(sem_stack_stable_sprog sexec).(ss_frames) -(write_vars_memP ok_s1) ok_alloc.(ass_root) ok_alloc.(ass_frames).
 
-    have [ t2 [ k texec hk ] sim2 ] := ih _ _ _ t1' checked_body pre1 sim1.
+    have [ t2 [ k texec hk ] sim2 ] := ih erefl _ _ _ t1' checked_body pre1 sim1.
     have [tres ok_tres res_uincl] :
       let: vm := set_RSP p (free_stack (emem t2)) (kill_vars (ra_vm_return fd.(f_extra)) (evm t2)) in
       exists2 tres,

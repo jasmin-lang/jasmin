@@ -18,7 +18,7 @@ Context
 Context (env : env_t).
 
 (* State equality up to a set of variables. *)
-Definition st_eq_ex ys (s1 s2 : estate env) := (st_rel (eq_ex (env:=env)) ys s1 s2).
+Definition st_eq_ex ys (s1 s2 : estate env) := (st_rel (eq_ex (env1:=env) (env2:=env)) ys s1 s2).
 
 (* FIXME syscall : why it is needed to redeclare it here *)
 (* note that in utils, it is CMorphisms.Proper, here it is Morpisms.Proper *)
@@ -161,7 +161,7 @@ Qed.
 
 Lemma read_es_st_eq_ex gd wdb es X :
   disjoint (read_es es) X ->
-  wrequiv (st_rel (eq_ex (env:=env)) X) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) eq.
+  wrequiv (st_rel (eq_ex (env1:=env) (env2:=env)) X) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) eq.
 Proof.
   move=> hdisj s t v hst he; exists v => //.
   by apply (eeq_exc_sem_pexprs hdisj hst he).

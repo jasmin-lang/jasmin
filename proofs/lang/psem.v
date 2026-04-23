@@ -514,13 +514,13 @@ Context
 Variable P : prog.
 Variable ev : extra_val_t.
 
-Let Pc env (s1 : estate env) c s2 := s1.(evm) =[\ write_c c] s2.(evm).
+Let Pc env (s1 : estate env) c (s2 : estate env) := s1.(evm) =[\ write_c c] s2.(evm).
 
-Let Pi_r env (s1 : estate env) i s2 := s1.(evm) =[\ write_i i] s2.(evm).
+Let Pi_r env (s1 : estate env) i (s2 : estate env) := s1.(evm) =[\ write_i i] s2.(evm).
 
-Let Pi env (s1 : estate env) i s2 := s1.(evm) =[\ write_I i] s2.(evm).
+Let Pi env (s1 : estate env) i (s2 : estate env) := s1.(evm) =[\ write_I i] s2.(evm).
 
-Let Pfor env x (_ : seq Z) (s1 : estate env) c s2 :=
+Let Pfor env x (_ : seq Z) (s1 : estate env) c (s2 : estate env) :=
   s1.(evm) =[\ (Sv.union (Sv.singleton x) (write_c c))] s2.(evm).
 
 Let Pfun
@@ -927,7 +927,7 @@ Context
   {sCP : semCallParams}.
 Context (env : Uint63.int -> Z).
 
-Definition st_eq_on X := st_rel (eq_on (env:=env)) X.
+Definition st_eq_on X := st_rel (eq_on (env1:=env) (env2:=env)) X.
 
 Lemma read_es_st_eq_on gd wdb es X :
   Sv.Subset (read_es es) X ->
@@ -965,10 +965,10 @@ Definition check_lvals_st_eq_on (X:Sv.t) (xs1 xs2 : lvals) (X':Sv.t) :=
   [/\ Sv.Subset X' (Sv.union (vrvs xs1) X), xs1 = xs2 & Sv.Subset (read_rvs xs1) X].
 
 Lemma check_esP_R_st_eq_on X es1 es2 X':
-  check_es_st_eq_on X es1 es2 X' → ∀ s1 s2, st_rel (eq_on (env:=env)) X s1 s2 → st_rel (eq_on (env:=env)) X' s1 s2.
+  check_es_st_eq_on X es1 es2 X' → ∀ s1 s2, st_rel (eq_on (env1:=env) (env2:=env)) X s1 s2 → st_rel (eq_on (env1:=env) (env2:=env)) X' s1 s2.
 Proof. by move=> [h _ _]; apply st_rel_weaken => vm1 vm2; apply eq_onI. Qed.
 
-Definition checker_st_eq_on : Checker_e (st_rel (eq_on (env:=env))) :=
+Definition checker_st_eq_on : Checker_e (st_rel (eq_on (env1:=env) (env2:=env))) :=
   {| check_es := check_es_st_eq_on;
      check_lvals := check_lvals_st_eq_on;
      check_esP_rel := check_esP_R_st_eq_on |}.
@@ -977,14 +977,14 @@ Definition check_a_st_eq_on (X:Sv.t) (e1 e2 : eassert) (X':Sv.t) :=
   [/\ Sv.Subset X' X, e1 = e2 & Sv.Subset (read_eassert e1) X].
 
 Lemma check_aP_st_eq_on X e1 e2 X':
-  check_a_st_eq_on X e1 e2 X' → ∀ s1 s2, st_rel (eq_on (env:=env)) X s1 s2 → st_rel (eq_on (env:=env)) X' s1 s2.
+  check_a_st_eq_on X e1 e2 X' → ∀ s1 s2, st_rel (eq_on (env1:=env) (env2:=env)) X s1 s2 → st_rel (eq_on (env1:=env) (env2:=env)) X' s1 s2.
 Proof. by move=> [h _ _]; apply st_rel_weaken => vm1 vm2; apply eq_onI. Qed.
 
-Definition checker_a_st_eq_on : Checker_a (st_rel (eq_on (env:=env))) :=
+Definition checker_a_st_eq_on : Checker_a (st_rel (eq_on (env1:=env) (env2:=env))) :=
   {| check_a := check_a_st_eq_on
    ; check_aP_rel := check_aP_st_eq_on |}.
 
-Definition st_uincl_on X := st_rel (uincl_on (env:=env)) X.
+Definition st_uincl_on X := st_rel (uincl_on (env1:=env) (env2:=env)) X.
 
 Lemma read_es_st_uincl_on gd wdb es X :
   Sv.Subset (read_es es) X ->
@@ -1008,10 +1008,10 @@ Proof.
 Qed.
 
 Lemma check_esP_R_st_uincl_on X es1 es2 X':
-  check_es_st_eq_on X es1 es2 X' → ∀ s1 s2, st_rel (uincl_on (env:=env)) X s1 s2 → st_rel (uincl_on (env:=env)) X' s1 s2.
+  check_es_st_eq_on X es1 es2 X' → ∀ s1 s2, st_rel (uincl_on (env1:=env) (env2:=env)) X s1 s2 → st_rel (uincl_on (env1:=env) (env2:=env)) X' s1 s2.
 Proof. by move=> [h _ _]; apply st_rel_weaken => ??; apply uincl_onI. Qed.
 
-Definition checker_st_uincl_on : Checker_e (st_rel (uincl_on (env:=env))) :=
+Definition checker_st_uincl_on : Checker_e (st_rel (uincl_on (env1:=env) (env2:=env))) :=
   {| check_es := check_es_st_eq_on;
      check_lvals := check_lvals_st_eq_on;
      check_esP_rel := check_esP_R_st_uincl_on |}.
@@ -1045,7 +1045,7 @@ Proof.
   constructor; rewrite -eq_globs.
   + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- [? <- ?]; apply read_es_st_eq_on.
   move=> wdb ? d xs1 xs2 d' /wdb_ok_eq <- [hsub <- ?] vs.
-  apply wrequiv_weaken with (st_rel (eq_on (env:=env)) d) (st_rel (eq_on (env:=env)) (Sv.union (vrvs xs1) d)) => //.
+  apply wrequiv_weaken with (st_rel (eq_on (env1:=env) (env2:=env)) d) (st_rel (eq_on (env1:=env) (env2:=env)) (Sv.union (vrvs xs1) d)) => //.
   + by apply st_rel_weaken => ??; apply eq_onI.
   by apply write_lvals_st_eq_on.
 Qed.
@@ -1064,7 +1064,7 @@ Proof.
   constructor; rewrite -eq_globs.
   + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- [? <- ?]; apply read_es_st_uincl_on.
   move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- [hsub <- ?] vs1 vs2 hu.
-  apply wrequiv_weaken with (st_rel (uincl_on (env:=env)) d) (st_rel (uincl_on (env:=env)) (Sv.union (vrvs xs1) d)) => //.
+  apply wrequiv_weaken with (st_rel (uincl_on (env1:=env) (env2:=env)) d) (st_rel (uincl_on (env1:=env) (env2:=env)) (Sv.union (vrvs xs1) d)) => //.
   + by apply st_rel_weaken => ??; apply uincl_onI.
   by apply: write_lvals_st_uincl_on hu.
 Qed.
@@ -1946,10 +1946,10 @@ Definition check_es_eq_cmd (_:unit) es1 es2 (_:unit) : Prop := all2 eq_expr es1 
 Definition check_lvals_eq_cmd (_:unit) lvs1 lvs2 (_:unit) : Prop := all2 eq_lval lvs1 lvs2.
 
 Lemma check_esP_R_st_eq_cmd (d:unit) es1 es2 (d':unit) :
-  check_es_eq_cmd d es1 es2 d' → ∀ s1 s2, st_rel (λ _ : unit, vm_uincl (env:=env)) d s1 s2 → st_rel (λ _ : unit, vm_uincl (env:=env)) d' s1 s2.
+  check_es_eq_cmd d es1 es2 d' → ∀ s1 s2, st_rel (λ _ : unit, vm_uincl (env1:=env) (env2:=env)) d s1 s2 → st_rel (λ _ : unit, vm_uincl (env1:=env) (env2:=env)) d' s1 s2.
 Proof. by move=> ?; apply st_rel_weaken. Qed.
 
-Definition checker_eq_cmd : Checker_e (st_rel (λ _ : unit, vm_uincl (env:=env))) :=
+Definition checker_eq_cmd : Checker_e (st_rel (λ _ : unit, vm_uincl (env1:=env) (env2:=env))) :=
   {| check_es := check_es_eq_cmd;
      check_lvals := check_lvals_eq_cmd;
      check_esP_rel := check_esP_R_st_eq_cmd |}.

@@ -26,17 +26,17 @@ Section REMOVE_ASSERT.
 
   Section SEM.
 
-  Let Pi s1 (i: instr) s2 :=
+  Let Pi env (s1 : estate env) (i: instr) s2 :=
     forall c, remove_assert_i i = c ->
     sem p' ev s1 c s2.
 
-  Let Pi_r s1 (i: instr_r) s2 := forall ii, Pi s1 (MkI ii i) s2.
+  Let Pi_r env (s1 : estate env) (i: instr_r) s2 := forall ii, Pi s1 (MkI ii i) s2.
 
-  Let Pc s1 (c: cmd) s2 :=
+  Let Pc env (s1 : estate env) (c: cmd) s2 :=
     forall c', remove_assert_c remove_assert_i c = c' ->
     sem p' ev s1 c' s2.
 
-  Let Pfor (i: var_i) vs s1 c s2 :=
+  Let Pfor env (i: var_i) vs (s1 : estate env) c s2 :=
     forall c', remove_assert_c remove_assert_i c = c' ->
     sem_for p' ev i vs s1 c' s2.
 
@@ -44,11 +44,11 @@ Section REMOVE_ASSERT.
     sem_call p' ev scs m fn vargs scs' m' vres.
 
   Local Lemma Rnil : sem_Ind_nil Pc.
-  Proof. move=> s _ <-; constructor. Qed.
+  Proof. by move=> env s _ <-; constructor. Qed.
 
   Local Lemma Rcons : sem_Ind_cons p ev Pc Pi.
   Proof.
-    move=> s1 s2 s3 i c _ Hi _ Hc c' /= <-; apply: sem_app.
+    move=> env s1 s2 s3 i c _ Hi _ Hc c' /= <-; apply: sem_app.
     + exact: Hi.
     exact: Hc.
   Qed.
@@ -58,25 +58,25 @@ Section REMOVE_ASSERT.
 
   Local Lemma Rasgn : sem_Ind_assgn p Pi_r.
   Proof.
-    move=> s1 s2 x tag ty e v v' he htr hw ii c' /= <-.
+    move=> env s1 s2 x tag ty e v v' he htr hw ii c' /= <-.
     by apply: sem_seq1; constructor; econstructor; eauto; rewrite eq_globs.
   Qed.
 
   Local Lemma Ropn : sem_Ind_opn p Pi_r.
   Proof.
-    move=> s1 s2 t o xs es; rewrite /sem_sopn; t_xrbindP => ?? he hex hw ii _ <-.
+    move=> env s1 s2 t o xs es; rewrite /sem_sopn; t_xrbindP => ?? he hex hw ii _ <-.
     by apply: sem_seq1; constructor;econstructor;eauto; rewrite /sem_sopn eq_globs he /= hex.
   Qed.
 
   Local Lemma Rsyscall : sem_Ind_syscall p Pi_r.
   Proof.
-    move=> s1 scs m s2 o xs es ves vs he hex hw ii _ <-.
+    move=> env s1 scs m s2 o xs es ves vs he hex hw ii _ <-.
     by apply: sem_seq1; constructor; econstructor; eauto; rewrite eq_globs.
   Qed.
 
   Local Lemma Rif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 e c1 c2 he _ hc ii _ <-.
+    move=> env s1 s2 e c1 c2 he _ hc ii _ <-.
     apply sem_seq1; constructor; apply Eif_true.
     + by rewrite eq_globs.
     exact: hc.
@@ -84,7 +84,7 @@ Section REMOVE_ASSERT.
 
   Local Lemma Rif_false : sem_Ind_if_false p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 e c1 c2 he _ hc ii _ <-.
+    move=> env s1 s2 e c1 c2 he _ hc ii _ <-.
     apply sem_seq1; constructor; apply Eif_false.
     + by rewrite eq_globs.
     exact: hc.
@@ -92,7 +92,7 @@ Section REMOVE_ASSERT.
 
   Local Lemma Rwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 a c e ei c' _ Hc he _ Hc' _ hw ii _ <-.
+    move=> env s1 s2 s3 s4 a c e ei c' _ Hc he _ Hc' _ hw ii _ <-.
     apply sem_seq1; constructor; eapply Ewhile_true; eauto.
     + by rewrite eq_globs.
     have /sem_seq1_iff /sem_IE := hw ii _ erefl.
@@ -101,28 +101,28 @@ Section REMOVE_ASSERT.
 
   Local Lemma Rwhile_false : sem_Ind_while_false p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 a c e ei c' _ Hc he ii _ <-.
+    move=> env s1 s2 a c e ei c' _ Hc he ii _ <-.
     apply sem_seq1; constructor; eapply Ewhile_false; eauto.
     by rewrite eq_globs.
   Qed.
 
   Local Lemma Rfor : sem_Ind_for p ev Pi_r Pfor.
   Proof.
-    move=> s1 s2 i d lo hi c vlo vhi hlo hhi _ hfor ii _ <-.
+    move=> env s1 s2 i d lo hi c vlo vhi hlo hhi _ hfor ii _ <-.
     by apply sem_seq1; constructor; econstructor; eauto; rewrite eq_globs.
   Qed.
 
   Local Lemma Rfor_nil : sem_Ind_for_nil Pfor.
-  Proof. move=> s i c c' hc'. constructor. Qed.
+  Proof. move=> env s i c c' hc'. constructor. Qed.
 
   Local Lemma Rfor_cons : sem_Ind_for_cons p ev Pc Pfor.
   Proof.
-    move=> s1 s1' s2 s3 i w ws c hw _ hc _ hfor c' hcc'; econstructor; eauto.
+    move=> env s1 s1' s2 s3 i w ws c hw _ hc _ hfor c' hcc'; econstructor; eauto.
   Qed.
 
   Local Lemma Rcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 scs2 m2 s2 xs fn es vargs vres hargs _ hfun hw ii _ <-.
+    move=> env s1 scs2 m2 s2 xs fn es vargs vres hargs _ hfun hw ii _ <-.
     by apply: sem_seq1; constructor; econstructor; eauto; rewrite eq_globs.
   Qed.
 
@@ -163,13 +163,14 @@ Section REMOVE_ASSERT.
   Section IT.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context (env : env_t).
 
-  #[local] Notation st_eq := (st_rel (λ _ : unit, eq) tt).
+  #[local] Notation st_eq := (st_rel (env:=env) (λ _ : unit, eq) tt).
 
-  Lemma st_rel_eq d s1 s2 : st_rel (λ _ : unit, eq) d s1 s2 → s1 = s2.
+  Lemma st_rel_eq d s1 s2 : st_rel (env:=env) (λ _ : unit, eq) d s1 s2 → s1 = s2.
   Proof. by case: s1 s2 => ??? [] ??? [] /= <- <- <-. Qed.
 
-  Program Instance checker_ra_eq : Checker_e (st_rel (λ _ : unit, eq)) :=
+  Program Instance checker_ra_eq : Checker_e (st_rel (env:=env) (λ _ : unit, eq)) :=
     {| check_es _ x y _ := x = y; check_lvals _ x y _ := x = y; |}.
 
   Instance checker_ra_eqP : Checker_eq p p' checker_ra_eq.
@@ -190,7 +191,7 @@ Section REMOVE_ASSERT.
       wequiv_rec (wa1:=withassert) (wa2:=noassert) p p' ev ev eq_spec st_eq c (remove_assert_c remove_assert_i c) st_eq.
 
   Lemma it_remove_assert_progP fn :
-    wiequiv_f (wa1 := withassert) (wa2 := noassert) p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+    wiequiv_f env (wa1 := withassert) (wa2 := noassert) p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof.
     apply wequiv_fun_ind_wa => {fn}.
     move=> fn _ fs ft [<- <-] fd hget.
