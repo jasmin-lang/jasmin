@@ -365,9 +365,7 @@ apply: xrutt_weaken_v1;
                it_extend_mem, BE-post's match_mem, and stack_stable
                transitivity (mirrors compiler_proof.v:1303-1315). *)
     admit.
-  + rewrite hscs_eq hsp_scs. (* (2) asm_scs xm' = fscs fs'
-            <- transitivity of fscs equalities in both posts. *)
-    admit.
+  + by have [_ _ <- _] := h_be_post; have [_ _ _ _ <-] := h_fe_post.
   + (* (3) zeroized_u fn (fvals fs) argt (fmem fs) (asm_mem xm) (asm_mem xm')
             <- case split on validw (fmem fs) pr:
                  valid   -> mem_unchanged_params (FE post) +
