@@ -217,74 +217,6 @@ Definition ACntrI (Sem: L -> itree E L) (NoExit: L -> bool) :
   L -> itree E L := ITree.iter (ACntr Sem NoExit).
 (* Notation ACntrI Sem NoExit := (ITree.iter (ACntr Sem NoExit)). *)
 
-Notation stack := (list lpoint).
-Notation AP := (lpoint * stack)%type.
-
-(* body with stack: could work with linear and intermediate *)
-Definition TCntr (Sem: lpoint -> itree E lpoint) (NoExit: AP -> bool) :
-  AP -> itree E (AP + AP) :=   
-  fun ap0 => let '(l0, stk0) := ap0 in
-             let '(fn0, n0) := l0 in
-    if NoExit ap0
-    (* l0 is not a return *)                   
-    then l1 <- Sem l0 ;;
-         match l1 with
-         (* l0 was a function call: push and exit *) 
-         | (fn1, 0) => Ret (inr (l1, (fn0, S n0) :: stk0))   
-         (* l0 is a local instruction: continue *)  
-         | _ => Ret (inl (l1, stk0))               
-         end
-    (* l0 should be a return: if so pop and exit *)       
-    else match stk0 with
-         | nil => throw err
-         | l2 :: stk1 => if l2 == l0 then Ret (inr (l0, stk1)) else throw err               
-         end.
-
-Definition TCntrI (Sem: lpoint -> itree E lpoint) (NoExit: AP -> bool) :
-  AP -> itree E AP := ITree.iter (TCntr Sem NoExit).
-
-(* mix-step: to use TCntrI; in order to use it with intermediate, the
-   trigger must be outsourced; need to have two distinct handlers *)
-Definition MCntr (ISem: AP -> itree E AP) (NoExit: AP -> bool) :
-  AP -> itree (LCall +' E) (AP + AP) := fun ap0 =>
-    if NoExit ap0
-    (* the program does not stop *)                   
-    then match ap0 with
-         (* l0 came from a function call: exec the function (or the
-            trigger; the stack is basically forgotten by the call, but
-            needs to be popped) and continue from the return label *)           
-         | ((fn1, 0), (s :: sl)) => l1 <- trigger_inl1 (Call fn1) ;; Ret (inl (l1, sl))
-         | ((_, 0), nil) => throw err                                                                 
-         (* l0 must be a return: popping has already been done *)  
-         | _ => ap1 <- translate inr1 (ISem ap0) ;; Ret (inl ap1)      
-         end
-    (* program stops *)       
-    else Ret (inr ap0). 
-
-Definition MCntrI (ISem: AP -> itree E AP) (NoExit: AP -> bool) :
-  AP -> itree (LCall +' E) AP := ITree.iter (MCntr ISem NoExit).
-
-(* for small-step - NOT NEEDED: use ACntr instead *)
-(*
-Definition GCntr (ISem: AP -> itree E AP) (NoExit: AP -> bool) :
-  AP -> itree E (AP + AP) := fun ap0 =>
-    if NoExit ap0
-    (* the program does not stop *)                   
-    then ap1 <- ISem ap0 ;; Ret (inl ap1)   
-    (* program stops *)       
-    else Ret (inr ap0). 
-*)
-
-(* Basic idea: have two versions of intermediate, plain one and one
-with MCntrI (in the latter, TCntrI will take the place of LCntrI as
-function-level iterator). prove them equivalent. Have a version of the
-linear semantics with TCntrI as function-level iterator and MCntrI as
-top level one. Try prove that equivalent to the analogous intermediate
-semantics. Then prove that this is equivalent to the linear semantics
-with TCntr and ACntr. Finally prove this equivalent to the linear
-semantics with LCntr and ACntr. *)
-
-
 (* 'abstract' semantics of linear instruction *)
 Definition ALSem (Sem: linstr -> L -> itree E L)
   (TryFnd: L -> option linstr) : L -> itree E L :=
@@ -306,6 +238,7 @@ Definition SCntrI
    ITree.iter (SCntr Sem TryFnd NoExit).
 
 
+(** Lemmas *)
 Lemma Cntr_range1_simpl (Sem: L -> itree E L)
   (NoExit1 NoExit2: L -> bool)  
   (DC12: forall x, NoExit1 x -> NoExit2 x -> False) (l1: L) :
@@ -623,21 +556,77 @@ Qed.
 End AbsIterators.
 
 
-Definition halt_pred (l: lpoint) : option bool :=
-  let fn := fst l in
-  let lbl := snd l in
-  let plc := lfenv fn in
-  match plc with
-  | Some lc => Some (is_final lc lbl) 
-  | _ => None
-  end.             
+Notation stack := (list lpoint).
+Notation AP := (lpoint * stack)%type.
 
-Definition not_possible (fn: funname) (n: nat) : bool :=
-  let lc := lfenv fn in
-  match lc with
-  | Some lc => if (length lc < n) then true else false 
-  | _ => true
-  end.             
+(* body with stack: could work with linear and intermediate *)
+Definition TCntr (Sem: lpoint -> itree E lpoint) (NoExit: lpoint -> bool) :
+  AP -> itree E (AP + AP) :=   
+  fun ap0 => let '(l0, stk0) := ap0 in
+             let '(fn0, n0) := l0 in
+    if NoExit l0
+    (* l0 is not a return *)                   
+    then l1 <- Sem l0 ;;
+         match l1 with
+         (* l0 was a function call: push and exit *) 
+         | (fn1, 0) => Ret (inr (l1, (fn0, S n0) :: stk0))   
+         (* l0 is a local instruction: continue *)  
+         | _ => Ret (inl (l1, stk0))               
+         end
+    (* l0 should be a return: if so pop and exit *)       
+    else match stk0 with
+         | nil => throw err
+         | l2 :: stk1 => if l2 == l0 then Ret (inr (l0, stk1)) else throw err 
+         end.
+
+Definition TCntrI (Sem: lpoint -> itree E lpoint) (NoExit: lpoint -> bool) :
+  AP -> itree E AP := ITree.iter (TCntr Sem NoExit).
+
+(* mix-step: to use TCntrI; in order to use it with intermediate, the
+   trigger must be outsourced from that semantics; might need to have
+   two distinct handlers *)
+Definition MCntr (ISem: AP -> itree E AP) (NoExit: AP -> bool) :
+  AP -> itree (LCall +' E) (AP + AP) := fun ap0 =>
+    if NoExit ap0
+    (* the program does not stop *)                   
+    then match ap0 with
+         (* l0 came from a function call: exec the function (or the
+            trigger; the stack is basically forgotten by the call, but
+            here needs to be popped) and continue from the RA *)           
+         | ((fn1, 0), (s :: sl)) =>
+             l1 <- trigger_inl1 (Call fn1) ;;
+             if s == l1 then Ret (inl (l1, sl)) else throw err
+         | ((_, 0), nil) => throw err                            
+         (* l0 must be a return: popping has already been done *)  
+         | _ => ap1 <- translate inr1 (ISem ap0) ;; Ret (inl ap1)      
+         end
+    (* program stops *)       
+    else Ret (inr ap0). 
+
+Definition MCntrI (ISem: AP -> itree E AP) (NoExit: AP -> bool) :
+  AP -> itree (LCall +' E) AP := ITree.iter (MCntr ISem NoExit).
+
+(* for small-step - NOT NEEDED: use ACntr instead *)
+(*
+Definition GCntr (ISem: AP -> itree E AP) (NoExit: AP -> bool) :
+  AP -> itree E (AP + AP) := fun ap0 =>
+    if NoExit ap0
+    (* the program does not stop *)                   
+    then ap1 <- ISem ap0 ;; Ret (inl ap1)   
+    (* program stops *)       
+    else Ret (inr ap0). 
+*)
+
+(* Basic idea: have two versions of intermediate, plain one and one
+with MCntrI (in the latter, TCntrI will take the place of LCntrI as
+function-level iterator). prove them equivalent. Have a version of the
+linear semantics with TCntrI as function-level iterator and MCntrI as
+top level one. Try prove that equivalent to the analogous intermediate
+semantics. Then prove that this is equivalent to the linear semantics
+with TCntr and ACntr. Finally prove this equivalent to the linear
+semantics with LCntr and ACntr. *)
+
+(** LOCAL ITERATORS *)
 
 Definition not_locally_possible (fn fn0: funname) (n: nat) : bool :=
   ((fn == fn0) == false) || 
@@ -655,13 +644,20 @@ Definition loc_possible (fn fn0: funname) (n: nat) : bool :=
   | _ => false 
   end.             
 
+Definition halt_pred (l: lpoint) : option bool :=
+  let fn := fst l in
+  let lbl := snd l in
+  let plc := lfenv fn in
+  match plc with
+  | Some lc => Some (is_final lc lbl) 
+  | _ => None
+  end.             
+
 Definition find_linstr_in_fun (lp : lpoint) : option linstr :=
   match lfenv (fst lp) with
   | Some lc => find_linstr lc (snd lp)
   | _ => None
   end.                         
-
-(***** LOCAL ITERATORS *)
 
 (* the 'local' iteration body for the Intermediate semantics. nS and
    nE are the start and end points in the fn linear code wrt to which
@@ -677,6 +673,10 @@ Definition LACntr_weak (Sem: lpoint -> itree E lpoint)
        funname check redundant. *)
     (fun '(fn0, n0) =>
        (fn == fn0) && (nS <= n0) && (n0 < nE) && (0 < n0)).
+
+Definition LocCond  (fn: funname) (nS nE: nat) : lpoint -> bool :=
+  fun '(fn0, n0) =>
+       (loc_possible fn fn0 nE) && (nS <= n0) && (n0 < nE) && (0 < n0).     
 
 Definition LACntr (Sem: lpoint -> itree E lpoint)
   (fn: funname) (nS nE: nat) :
@@ -716,6 +716,41 @@ Definition GCntr (Sem: linstr -> lpoint -> itree E lpoint) :
 
 Definition GCntrI (Sem: linstr -> lpoint -> itree E lpoint) :
   lpoint -> itree E lpoint := ITree.iter (GCntr Sem).
+
+
+(*** ABSTRACT SEMANTICS (either linear or intermediate) *)
+
+(* with linear sem, funlocal version of the small-step semantics. here
+   the exit condition is the global one *)
+Definition funlocal_sem {code_length: funname -> nat}
+  (Sem: lpoint -> itree E lpoint) (NoExit: lpoint -> bool) :
+  lpoint -> itree E lpoint :=
+  fun l0 => let fn := fst l0 in 
+     ACntrI (ACntrI Sem (LocCond fn 0 (code_length fn))) NoExit l0.     
+
+(* with linear sem, funlocal version of the small-step semantics with
+   stack *)
+Definition funlocal_stack_sem {code_length: funname -> nat}
+  (Sem: lpoint -> itree E lpoint) (NoExit: AP -> bool) :
+  AP -> itree E AP :=
+  fun ap0 => let fn := fst (fst ap0) in 
+     ACntrI (TCntrI Sem (LocCond fn 0 (code_length fn))) NoExit ap0.        
+
+(* with intermediate sem, mixstep semantics with stack - before LCall
+   interpretation *)
+Definition mixstep_stack_sem {code_length: funname -> nat}
+  (Sem: lpoint -> itree E lpoint) (NoExit: AP -> bool) :
+  AP -> itree (LCall +' E) AP :=
+  fun ap0 => let fn := fst (fst ap0) in 
+     MCntrI (TCntrI Sem (LocCond fn 0 (code_length fn))) NoExit ap0.   
+
+(* the mixstep semantics without stack corresponds to the intermediate
+   semantics without top-level iterator *)
+
+
+
+
+(*** CONCRETE SEMANTICS *)
 
 (* the core semantics of linear instructions, based on linstr_sem *)
 Definition isem_li_core (i : linstr) (s: LState) : itree E LState :=

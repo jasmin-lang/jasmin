@@ -2022,6 +2022,42 @@ Proof.
   by case: mfun1 => // ?; case: mfun1.
 Qed.
 
+Section Weaken2.
+
+Context (E1 E2 RC1 RC2: Type -> Type)
+        (RC_PreD : prerel RC1 RC2) (RC_PostD : postrel RC1 RC2). 
+
+Lemma xrutt_weaken_aux2 post
+  (sem1 : itree (RC1 +' E) fstate) (sem2 : itree (RC2 +' E) fstate) :
+  xrutt (errcutoff (is_error (FIso_suml RC1 (Err:=ErrEvent)))) nocutoff
+      (sum_prerelF RC_PreD EPreRel)
+      (sum_postrelF RC_PostD EPostRel)
+      post sem1 sem2 -> 
+  xrutt (@EE_MR _ (@errcutoff _ (is_error wE)) RC1) (@EE_MR _ nocutoff RC2)
+      (sum_prerel RC_PreD EPreRel) (sum_postrel RC_PostD EPostRel)
+      post sem1 sem2.
+Proof.
+  intro H. eapply xrutt_weaken in H; eauto.
+  - unfold EE_MR, errcutoff, is_error.
+    intros A [e1 | e1]; simpl; try intuition.
+    destruct (mfun1 e1); simpl; auto.
+  - intros T1 T2 e1 e2 H0.
+    destruct e1 as [e1 | e1]; simpl.
+    + destruct e2 as [e2 | e2]; simpl.
+      * econstructor; eauto.
+      * unfold sum_prerelF in H0; simpl in *.
+        destruct (mfun1 e2); simpl; intuition.
+    + destruct e2 as [e2 | e2]; simpl; eauto.
+      * unfold sum_prerelF in H0; simpl in *.
+        destruct (mfun1 e1); simpl; intuition.
+      * econstructor; eauto.
+  - intros T1 T2 e1 t1 e2 t2 H0 H1 H2 H3.
+    dependent destruction H3; simpl in *; eauto.
+Qed.    
+      
+End Weaken2.
+
+
 Notation isem_fun_def1 := (isem_fun_def (wsw:=wsw1) (wa:=wa1) (dc:=dc1) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT1) (scP:= scP1) (sem_F:=sem_F1)).
 
 Notation isem_fun_def2 := (isem_fun_def (wsw:=wsw2) (wa:=wa2) (dc:=dc2) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT2) (scP:= scP2) (sem_F:=sem_F2)).
