@@ -729,25 +729,70 @@ Definition funlocal_sem {code_length: funname -> nat}
      ACntrI (ACntrI Sem (LocCond fn 0 (code_length fn))) NoExit l0.     
 
 (* with linear sem, funlocal version of the small-step semantics with
-   stack *)
-Definition funlocal_stack_sem {code_length: funname -> nat}
+   stack. note: here ACntrI only redirects the flow, pushing and
+   popping is done by TCntrI.  *)
+Definition funlocal_stack_sem (code_length: funname -> nat)
   (Sem: lpoint -> itree E lpoint) (NoExit: AP -> bool) :
   AP -> itree E AP :=
   fun ap0 => let fn := fst (fst ap0) in 
      ACntrI (TCntrI Sem (LocCond fn 0 (code_length fn))) NoExit ap0.        
 
-(* with intermediate sem, mixstep semantics with stack - before LCall
-   interpretation *)
-Definition mixstep_stack_sem {code_length: funname -> nat}
+(* with intermediate and linear sem, mixstep semantics with stack -
+   before LCall interpretation. *)
+Definition mixstep_stack_sem (code_length: funname -> nat)
   (Sem: lpoint -> itree E lpoint) (NoExit: AP -> bool) :
   AP -> itree (LCall +' E) AP :=
   fun ap0 => let fn := fst (fst ap0) in 
      MCntrI (TCntrI Sem (LocCond fn 0 (code_length fn))) NoExit ap0.   
 
+Lemma funlocal_mixstep_eq (CL: funname -> nat)
+  (Sem: lpoint -> itree E lpoint) (NoExit: AP -> bool)
+  (hnd: LCall ~> itree (LCall +' E))
+  (ap0: AP) :
+  eutt eq (interp_mrec hnd (mixstep_stack_sem CL Sem NoExit ap0))
+          (funlocal_stack_sem CL Sem NoExit ap0). 
+Proof.
+  unfold funlocal_stack_sem, mixstep_stack_sem; simpl.
+  unfold MCntrI, ACntrI.
+  revert ap0.
+  einit. ecofix SELF. intro ap0.
+  setoid_rewrite unfold_iter. 
+  unfold MCntr, ACntr; simpl.
+  
+  destruct (NoExit ap0) eqn: was_c0; simpl.
+
+  2: { setoid_rewrite bind_ret_l.
+       reflexivity.
+     }
+
+  destruct ap0; simpl.
+  destruct l; simpl.
+
+  Admitted. 
+     
+
 (* the mixstep semantics without stack corresponds to the intermediate
    semantics without top-level iterator *)
 
+(* 
+   - should be covered by split_join_lemma -
+   local mixstep intermediate ~ mixstep intermediate 
 
+   - can't be proved without intermediate -
+   mixstep intermediate ~ mixtep_stack intermediate
+
+   - should be almost trivial -
+   mixstep_stack intermediate ~ mixstep_stack linear 
+
+   - 1 should be provable regardless of linear -
+   mixstep_stack linear ~ funlocal_stack linear
+
+   - 2 should be provable regardless of linear -
+   funlocal_stack linear ~ funlocal linear 
+
+   - should be almost trivial -
+   funlocal linear ~ global linear    
+*)
 
 
 (*** CONCRETE SEMANTICS *)
