@@ -346,6 +346,7 @@ Definition mo_with_mem (m : _Mo) (mem : M) : _Mo :=
 Definition _mi : _Mo :=
   {| mo_keys := None; mo_bit := None; mo_mem := M0; |}.
 
+(* Oracle input types. *)
 Definition _In (x : cca_oracle_name) : choiceType :=
   match x with
   | OInit => unit
@@ -354,6 +355,7 @@ Definition _In (x : cca_oracle_name) : choiceType :=
   | OFinalize => bool
   end.
 
+(* Oracle output types. *)
 Definition _Out (x : cca_oracle_name) : choiceType :=
   match x with
   | OInit => pkey
@@ -388,6 +390,7 @@ Definition _Oo_GetChallenge
 Definition _Oo_Finalize (g : bool) (_ : _Mo) : itree Rnd (unit * _Mo) :=
   Ret (tt, _mi).
 
+(* Oracle implementation. *)
 Definition _Oo
   (x : cca_oracle_name) : _In x -> _Mo -> itree Rnd (_Out x * _Mo) :=
   match x return _In x -> _Mo -> itree Rnd (_Out x * _Mo) with
@@ -441,7 +444,10 @@ Definition is_finalize (x : Xch) : option bool :=
   end p.
 
 (* Return the same as the IND-CCA game, thus we can use the same winning
-   condition. *)
+   condition.
+   Attention: The order in which elements are take from the trace
+   is reverse to the order in which they are put in the trace.
+   The trace is reversed before the check or log should do append. *)
 Definition destruct_trace
   (t : trace) : option (bool * seq ctxt * seq ctxt * ctxt) :=
   let t := rev t in (* Oldest first. *)
