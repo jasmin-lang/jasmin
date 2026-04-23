@@ -247,8 +247,7 @@ have [fs_sp [hsp_mem hsp_scs hsp_eqinmem hsp_uincl hsp_ptr_eq]] :
    [FE _ tt] to obtain the xrutt refinement [h_fe]. *)
 have/(FE _ tt) h_fe :
   rpreF (eS := FrontEndEquiv up sp (asm_rip xm)) fn fn fs fs_sp.
-- (* FE's precondition: 6 conjuncts below (one admit per missing piece). *)
-  split.
+- split.
   - reflexivity. (* fn = fn *)
   - (* alloc_ok sp fn (fmem fs_sp) *)
     have h4 : enough_stack_space xp fn (top_stack mi) (asm_mem xm).
@@ -307,8 +306,7 @@ have/(FE _ tt) h_fe :
 (* Prove BE's precondition [back_end_to_asm_pre (asm_rip xm) xfd fs_sp xm],
    then feed it through [BE] to obtain the xrutt refinement [h_be]. *)
 have /BE h_be : back_end_to_asm_pre (asm_rip xm) xfd fs_sp xm.
-- (* BE's precondition: 6 conjuncts below (one admit per missing piece). *)
-  split.
+- split.
   - by rewrite hsp_mem -(ss_top_stack hmga.(ma_stack_stable)).
   - reflexivity. (* asm_rip xm = asm_rip xm *)
   - exact: hsp_uincl. (* values_uincl (fvals fs_sp) argt — STEP 1 output *)
@@ -367,7 +365,7 @@ apply: xrutt_weaken_v1;
                it_extend_mem, BE-post's match_mem, and stack_stable
                transitivity (mirrors compiler_proof.v:1303-1315). *)
     admit.
-  + (* (2) asm_scs xm' = fscs fs'
+  + rewrite hscs_eq hsp_scs. (* (2) asm_scs xm' = fscs fs'
             <- transitivity of fscs equalities in both posts. *)
     admit.
   + (* (3) zeroized_u fn (fvals fs) argt (fmem fs) (asm_mem xm) (asm_mem xm')
