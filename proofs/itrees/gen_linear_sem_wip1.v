@@ -754,6 +754,7 @@ Lemma funlocal_mixstep_eq (CL: funname -> nat)
 Proof.
   unfold funlocal_stack_sem, mixstep_stack_sem; simpl.
   unfold MCntrI, ACntrI.
+  set TCN := (TCntrI _).
   revert ap0.
   einit. ecofix SELF. intro ap0.
   setoid_rewrite unfold_iter. 
@@ -765,9 +766,9 @@ Proof.
        reflexivity.
      }
 
-  destruct ap0; simpl.
-  destruct l; simpl.
-
+  destruct ap0 as [[fn0 l0] stk0]; simpl.
+  destruct l0; simpl.
+  { destruct stk0; simpl.
   Admitted. 
      
 
