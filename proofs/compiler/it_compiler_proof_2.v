@@ -277,18 +277,13 @@ have/(FE _ tt) h_fe : front_end_pre up sp (asm_rip xm) fn fn fs fs_sp.
   by rewrite hsp_scs. (* fscs fs = fscs fs_sp  <- STEP 1 hsp_scs. *)
 
 have hvalidw :=
-  [elaborate hoare_f_body_validw_stable
+  [elaborate sem_fun_mem_equiv_sprog
     (asm_op := extended_op)
     (ep := ep_of_asm_e)
     (spp := spp_of_asm_e)
-    (wa := noassert)
     (sip := sip_of_asm_e)
-    (scP := sCP_stack)
     (wsw := withsubword)
     (dc := direct_c)
-    (pT := progStack)
-    (iE0 := trivial_invEvent _)
-    (iEr := trivial_invErr)
     sp (asm_rip xm) (fn := fn)] dummy_instr_info fs_sp I.
 have {}h_fe := lutt_xrutt_trans_r hvalidw h_fe.
 clear hvalidw.
@@ -327,7 +322,7 @@ apply: xrutt_weaken_v1;
   + admit.
   + by have [_ _ <- _] := h_be_post; have [_ [_ _ _ _ <-]] := h_fe_post.
   + move=> hszs pr hdisj /negP hnvalid.
-    have [hvw [_ _ _ U _]] := h_fe_post.
+    have [[_ hvw] [_ _ _ U _]] := h_fe_post.
     have [_ m2 _ hzsp] := h_be_post.
     have [_ mi2 _ _] := hmga.
     have hpr := hzsp hszs pr.
