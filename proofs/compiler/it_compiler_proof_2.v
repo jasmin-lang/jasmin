@@ -18,6 +18,7 @@ Require Import
   compiler_util
   psem
   psem_facts
+  core_logics
   relational_logic
   sem_one_varmap
 .
@@ -31,7 +32,9 @@ Require Import
   psem_of_sem_proof
 .
 
-Require Import xrutt_facts.
+Require Import
+  xrutt
+  xrutt_facts.
 Require Import
   compiler_proof
   it_compiler_proof
@@ -44,6 +47,8 @@ Require Import
   asm_gen_proof
   sem_params_of_arch_extra
 .
+
+Require Import hoare_valid.
 
 Section IT.
 
@@ -94,7 +99,7 @@ Definition wf_args_x rip fn ms mi args argt :=
   let al := get_asm_align_args xp fn in
   wf_args n rip ms mi ws al args argt.
 
-Let pre fn xfd s t :=
+Definition full_pre fn xfd s t :=
   let: args := s.(fvals) in
   let: ms := s.(fmem) in
   let: rm := t.(asm_reg) in
@@ -111,7 +116,7 @@ Let pre fn xfd s t :=
 
 (* TODO why [t'.(asm_rip)] and not from [t]? *)
 
-Let post fn xfd s t s' t' :=
+Definition full_post fn xfd s t s' t' :=
   let: args := s.(fvals) in
   let: ms := s.(fmem) in
   let: argt := get_typed_reg_values t xfd.(asm_fd_arg) in
@@ -128,6 +133,9 @@ Let post fn xfd s t s' t' :=
     & values_uincl (drop n ress) rest
   ].
 
+
+
+
 Lemma it_compile_prog_to_asmP {fn} :
   compile_prog_to_asm aparams cparams entries up = ok xp ->
   fn \in entries ->
@@ -135,10 +143,10 @@ Lemma it_compile_prog_to_asmP {fn} :
     [/\ get_fundef xp.(asm_funcs) fn = Some xfd
       , xfd.(asm_fd_export)
       & wkequiv_io
-          (pre fn xfd)
+          (full_pre fn xfd)
           (isem_unit up fn)
           (iasmsem_exportcall xp fn)
-          (post fn xfd)
+          (full_post fn xfd)
    ].
 Proof.
 rewrite /compile_prog_to_asm; t_xrbindP => sp ok_sp ok_xp ok_fn.
@@ -154,7 +162,7 @@ case: hpre => mi [hmga hesp hscs_eq hrsp_eq hwfa hfuim].
    FE: haparams explicit; entries/up/sp/fn inferred from ok_sp/ok_fn
 .
    BE: all section vars explicit; rip := asm_rip xm. *)
-have FE := it_compiler_front_endP haparams print_uprogP print_sprogP print_linearP ok_sp ok_fn.
+have FE := it_compiler_front_endP haparams print_uprogP print_sprogP ok_sp ok_fn.
 
 have [xfd2 [get_xfd2 _ BE]] :=
   it_compiler_back_end_to_asmP haparams print_linearP (asm_rip xm) ok_xp ok_fn.
@@ -178,7 +186,7 @@ subst xfd2.
 (*     - Forall3 (fun o v v' => o <> None -> v = v') wptrs (fvals fs) va2  *)
 (*       (needed later for [ptr_eq_mem_unchanged_params]).                 *)
 (* ======================================================================= *)
-have [fs_sp [hsp_mem hsp_scs hsp_eqinmem hsp_uincl hsp_ptr_eq]] :
+have [fs_sp [? hsp_scs hsp_eqinmem hsp_uincl hsp_ptr_eq]] :
   exists fs_sp : @fstate extended_op _ ep_of_asm_e sip_of_asm_e,
     [/\ fmem fs_sp = mi
       , fscs fs_sp = fscs fs
@@ -231,40 +239,15 @@ have [fs_sp [hsp_mem hsp_scs hsp_eqinmem hsp_uincl hsp_ptr_eq]] :
       constructor; last exact: ih.
       by case: wptr.
 
-(* ======================================================================= *)
-(* STEP 2: apply FE at (asm_rip xm, tt) to obtain an xrutt refinement      *)
-(*         [isem_unit up fn fs] ~ [isem_stack sp (asm_rip xm) fn fs_sp].   *)
-(*                                                                         *)
-(*   Discharging FE's precondition [rpreF fn fn fs fs_sp] requires:        *)
-(*     - alloc_ok sp fn (fmem fs_sp)                                       *)
-(*         <- enough_stack_space_alloc_ok ok_xp ok_fn _ hesp,              *)
-(*            with the stack-range premise from hmga.(ma_stack_range).    *)
-(*     - wf_args_s fn (fmem fs) (fmem fs_sp) (fvals fs) (fvals fs_sp)      *)
-(*         <- hwfa rewritten via [compiler_back_end_to_asm_meta] for       *)
-(*            [size_glob sp] and via sfd/xfd alignment identity for        *)
-(*            [get_align_args sp fn].                                      *)
-(*     - Forall3 (value_eq_or_in_mem (fmem fs_sp))                         *)
-(*              (get_wptrs up fn) (fvals fs) (fvals fs_sp)                 *)
-(*         <- STEP 1 output.                                               *)
-(*     - it_extend_mem (fmem fs) (fmem fs_sp)                              *)
-(*         <- hmga.(ma_extend_mem) with sp_globs rewritten via meta.       *)
-(*     - fscs fs = fscs fs_sp                                              *)
-(*         <- STEP 1 output (hscs_sp, reversed).                           *)
-(* ======================================================================= *)
-(* Prove FE's precondition [rpreF fn fn fs fs_sp], then feed it through
-   [FE _ tt] to obtain the xrutt refinement [h_fe]. *)
-have/(FE _ _ tt) h_fe :
-  rpreF (eS := FrontEndEquiv up sp (asm_rip xm)) fn fn fs fs_sp.
+subst mi.
+have/(FE _ tt) h_fe : front_end_pre up sp (asm_rip xm) fn fn fs fs_sp.
 - split.
-  - reflexivity. (* fn = fn *)
-  - (* alloc_ok sp fn (fmem fs_sp) *)
-    have h4 : enough_stack_space xp fn (top_stack mi) (asm_mem xm).
-    + by rewrite -(ss_top_stack hmga.(ma_stack_stable)).
-    have halloc :=
-      enough_stack_space_alloc_ok print_linearP ok_xp ok_fn hmga.(ma_stack_range) h4.
-    by rewrite hsp_mem.
-  - (* wf_args_s fn (fmem fs) (fmem fs_sp) (fvals fs) (fvals fs_sp) *)
-    rewrite /wf_args_s hsp_mem /size_glob.
+  - reflexivity.
+
+  - apply: [elaborate enough_stack_space_alloc_ok print_linearP ok_xp ok_fn hmga.(ma_stack_range)].
+    by rewrite -(ss_top_stack hmga.(ma_stack_stable)).
+
+  - rewrite /wf_args_s /size_glob.
     rewrite -(compiler_back_end_to_asm_meta print_linearP ok_xp).
     rewrite /get_align_args get_sfd /= align_args_eq.
     move=> i; move: (hwfa i); rewrite /wf_args_x /get_asm_align_args get_xfd /= /wf_arg.
@@ -288,41 +271,38 @@ have/(FE _ _ tt) h_fe :
     apply: (hdisj hw _ _ _ neq_ij _ hvaj _).
     + by rewrite hptr_j.
     + by rewrite -hfssp_j_eq; exact: hfssp_j.
-  - by rewrite hsp_mem; exact: hsp_eqinmem. (* Forall3 (value_eq_or_in_mem (fmem fs_sp)) ... *)
-  - have this := hmga.(ma_extend_mem).
-    rewrite (compiler_back_end_to_asm_meta print_linearP ok_xp) -hsp_mem
-      in this.
-    exact: this.
+  - exact: hsp_eqinmem. (* Forall3 (value_eq_or_in_mem (fmem fs_sp)) ... *)
+  - have := hmga.(ma_extend_mem).
+    by rewrite (compiler_back_end_to_asm_meta print_linearP ok_xp).
   by rewrite hsp_scs. (* fscs fs = fscs fs_sp  <- STEP 1 hsp_scs. *)
 
-(* ======================================================================= *)
-(* STEP 3: apply BE at (fs_sp, xm) to obtain an xrutt refinement           *)
-(*         [isem_stack sp (asm_rip xm) fn fs_sp] ~                         *)
-(*         [iasmsem_exportcall xp fn xm].                                  *)
-(*                                                                         *)
-(*   Discharging BE's precondition requires:                               *)
-(*     - asm_reg xm ad_rsp = top_stack (fmem fs_sp)                        *)
-(*         <- hrsp_eq (= top_stack (fmem fs)) +                            *)
-(*            ss_top_stack hmga.(ma_stack_stable).                         *)
-(*     - asm_rip xm = asm_rip xm                      <- erefl.            *)
-(*     - values_uincl (fvals fs_sp) argt              <- STEP 1 output.    *)
-(*     - match_mem (fmem fs_sp) (asm_mem xm)          <- hmga.(ma_match_mem). *)
-(*     - fscs fs_sp = asm_scs xm                      <- STEP 1 + hscs_eq. *)
-(*     - allocatable_stack (fmem fs_sp) (asm_fd_total_stack xfd)           *)
-(*         <- hesp + ma_stack_range (mirrors compiler_proof.v:1297-1299). *)
-(* ======================================================================= *)
-(* Prove BE's precondition [back_end_to_asm_pre (asm_rip xm) xfd fs_sp xm],
-   then feed it through [BE] to obtain the xrutt refinement [h_be]. *)
+have hvalidw :=
+  [elaborate hoare_f_body_validw_stable
+    (asm_op := extended_op)
+    (ep := ep_of_asm_e)
+    (spp := spp_of_asm_e)
+    (wa := noassert)
+    (sip := sip_of_asm_e)
+    (scP := sCP_stack)
+    (wsw := withsubword)
+    (dc := direct_c)
+    (pT := progStack)
+    (iE0 := trivial_invEvent _)
+    (iEr := trivial_invErr)
+    sp (asm_rip xm) (fn := fn)] dummy_instr_info fs_sp I.
+have {}h_fe := lutt_xrutt_trans_r hvalidw h_fe.
+clear hvalidw.
+
 have /BE h_be : back_end_to_asm_pre (asm_rip xm) xfd fs_sp xm.
 - split.
-  - by rewrite hsp_mem -(ss_top_stack hmga.(ma_stack_stable)).
+  - by rewrite -(ss_top_stack hmga.(ma_stack_stable)).
   - reflexivity. (* asm_rip xm = asm_rip xm *)
   - exact: hsp_uincl. (* values_uincl (fvals fs_sp) argt — STEP 1 output *)
-  - rewrite hsp_mem; exact: hmga.(ma_match_mem).
+  - exact: hmga.(ma_match_mem).
   - by rewrite hsp_scs hscs_eq.
   (* allocatable_stack (fmem fs_sp) (asm_fd_total_stack xfd)
      mirrors compiler_proof.v:1297-1299 *)
-  rewrite /allocatable_stack hsp_mem.
+  rewrite /allocatable_stack.
   have hrange := hmga.(ma_stack_range).
   have hstk /= := hesp xfd get_xfd.
   rewrite (ss_top_stack hmga.(ma_stack_stable)) in hstk.
@@ -330,236 +310,42 @@ have /BE h_be : back_end_to_asm_pre (asm_rip xm) xfd fs_sp xm.
   apply: Z.le_trans; first exact: hstk.2.
   apply Z.sub_le_mono_l; exact: hrange.
 
-(* ======================================================================= *)
-(* STEP 4: chain [h_fe] and [h_be] via transitivity of xrutt               *)
-(*         (proofs/itrees/xrutt_facts.v:910), then weaken the composed     *)
-(*         post to [FULL.post].                                            *)
-(* ======================================================================= *)
 apply: xrutt_weaken_v1;
   last apply: (xrutt_trans _ h_fe h_be).
-- (* EE1 impl: errcutoff (is_error wE) ⊆ errcutoff (is_error wE). *)
-  done.
-- (* EE2 impl: nocutoff ⊆ nocutoff. *)
-  done.
-- (* REv impl: EPreRel ⊆ prcompose EPreRel EPreRel (via EventRels_trans). *)
-  move=> T1 T3 e1 e3 [T2 e2]; rewrite /EPreRel.
-  case: (mfun1 e1) (mfun1 e2) (mfun1 e3) => [err1|e0_1] /=
-    [err2|e0_2] //= [err3|e0_3] //.
-  case: e0_1 e0_2 e0_3 => [scs1 n1] [scs2 n2] [scs3 n3] /=.
-  by move=> [-> ->] [-> ->].
-- (* RAns rev impl: pocompose EPreRel EPreRel EPostRel EPostRel ⊆ EPostRel.*)
-  move=> T1 T2 e1 t1 e2 t2 hpost T3 e3 hpre13 hpre32.
-  rewrite /EPreRel /EPostRel in hpost hpre13 hpre32 *.
-  case: e1 t1 hpost hpre13 => [[]|e0_1] t1 //.
-  move=> /= hpost hpre13.
-  case: e3 hpre13 hpre32 => [err3|e0_3] //= hpre13 hpre32.
-  case: e2 hpost hpre32 => [err2|e0_2] //= hpost hpre32.
-  exact: (ERpost_trans hpre13 hpre32 hpost).
-- (* RR impl: reduce [rcompose rpostF back_end_to_asm_post] to [post].
-     Destructure the intermediate fs_sp' and the two posts:
-     - h_fe_post : [/\ Forall2 value_in_mem (take n ress) (take n argt),
-                     values_uincl (drop n ress) (fvals fs_sp'),
-                     it_extend_mem (fmem fs') (fmem fs_sp'),
-                     mem_unchanged_params ..., fscs fs' = fscs fs_sp' ]
-     - h_be_post : [/\ values_uincl (fvals fs_sp')
-                         (get_typed_reg_values xm' ...),
-                     match_mem (fmem fs_sp') (asm_mem xm'),
-                     fscs fs_sp' = asm_scs xm',
-                     zeroized_s fn (fmem fs_sp) (asm_mem xm) (asm_mem xm') ] *)
-  move=> fs' xm' [] fs_sp' h_fe_post h_be_post.
+- done.
+- done.
+- by move=> T1 T3 [e1|[scs1 n1]] [e3|[scs3 n3]] [T2 [e2|[scs2 n2]]] // [] // _
+    [-> ->] [-> ->].
+- move=> T1 T2 e1 t1 e2 t2 hpost T3 e3 [hpre3 hpre13] hpre32.
+  case: e1 t1 hpost hpre13 => [[]|e1] t1 // hpost hpre13.
+  case: e2 hpost hpre32 => [err2|e2] //= hpost hpre32.
+  case: e3 hpre3 hpre13 hpre32 => [err3|e3] //= hpre3 hpre13 hpre32.
+  have [e3' ??] := HandlerContract_trans.(ERpost_trans) hpre13 hpre32 hpost.
+  by exists e3'.
+- move=> fs' xm' [] fs_sp' h_fe_post h_be_post.
   split.
-  + (* (1) mem_agreement (fmem fs') (asm_mem xm') (asm_rip xm') (asm_globs xp)
-            <- combine hmga.(ma_extend_mem) transported across FE-post's
-               it_extend_mem, BE-post's match_mem, and stack_stable
-               transitivity (mirrors compiler_proof.v:1303-1315). *)
-    admit.
-  + by have [_ _ <- _] := h_be_post; have [_ _ _ _ _ _ <-] := h_fe_post.
-  + (* (3) zeroized_u fn (fvals fs) argt (fmem fs) (asm_mem xm) (asm_mem xm')
-
-     This mirrors compiler_proof.v:1316-1326 (non-IT version). Both posts must
-     first be destructured exactly as in admit (4):
-       case: h_fe_post => hfe1 hfe2 hfe3 hfe4 hfe5.  (* 5 conjuncts — FrontEndEquiv.post *)
-       case: h_be_post => hbe1 hbe2 hbe3 hbe4.        (* 4 conjuncts — back_end_to_asm_post *)
-     After these, the relevant fields are:
-       hfe3 : extend_mem (fmem fs') (fmem fs_sp') (asm_rip xm)
-                (sp_globs (p_extra sp))                      (* = it_extend_mem *)
-       hfe4 : mem_unchanged_params
-                (fmem fs) (fmem fs_sp) (fmem fs_sp')
-                (get_wptrs up fn) (fvals fs) (fvals fs_sp)
-                (* fully: forall p, validw (fmem fs_sp) p -> ~ validw (fmem fs) p ->
-                    Forall3 (disjoint_from_writable_param p) wptrs (fvals fs)
-                      (fvals fs_sp) -> read (fmem fs_sp) p = read (fmem fs_sp') p *)
-       hbe2 : match_mem (fmem fs_sp') (asm_mem xm')
-       hbe4 : zeroized_s cparams fn (fmem fs_sp) (asm_mem xm) (asm_mem xm')
-              (* = stack_zero_info cparams fn <> None ->
-                     forall p, ~~ validw (fmem fs_sp) Aligned p U8 ->
-                     read (asm_mem xm') p = read (asm_mem xm) p \/
-                     read (asm_mem xm') p = ok 0%R *)
-       hmga.(ma_match_mem) : match_mem mi (asm_mem xm)
-       hsp_mem              : fmem fs_sp = mi
-       hsp_ptr_eq           : Forall3 (fun o v v' => o -> v = v')
-                                (get_wptrs up fn) (fvals fs_sp) argt
-     where argt := get_typed_reg_values xm (asm_fd_arg xfd).
-
-     Unfold and introduce:
-       rewrite /zeroized_u /zeroized_p => hszs pr hdisj hnvalid_fs.
-     giving
-       hdisj : Forall3 (disjoint_from_writable_param pr)
-                 (get_wptrs up fn) (fvals fs) argt
-       hnvalid_fs : ~~ validw (fmem fs) Aligned pr U8
-     and goal
-       read (asm_mem xm') pr = read (asm_mem xm) pr \/
-       read (asm_mem xm') pr = ok 0%R.
-
-     Split on [validw (fmem fs_sp) Aligned pr U8] (not on [validw (fmem fs)] —
-     we already know the latter is false):
-
-       case: (@idP (validw (fmem fs_sp) Aligned pr U8)); last first.
-
-     --- INVALID CASE [~~ validw (fmem fs_sp) pr] -----------------------------
-       After [move=> /negP hnvalid_sp], apply hbe4 directly:
-         by apply: (hbe4 hszs pr hnvalid_sp).
-       (This is the IT analog of [by apply hzero.] in compiler_proof.v:1326.)
-
-     --- VALID CASE [hvalid_sp : validw (fmem fs_sp) pr] ----------------------
-       Choose [left]. Goal becomes
-         read (asm_mem xm') pr = read (asm_mem xm) pr.
-
-       Step V1 — Convert hdisj (uses argt) into one that uses [fvals fs_sp]:
-         have hdisj_sp :
-           Forall3 (disjoint_from_writable_param pr)
-             (get_wptrs up fn) (fvals fs) (fvals fs_sp).
-         - have [hsz1 _] := Forall3_size hsp_ptr_eq.
-           have [hsz1' _] := Forall3_size hdisj.
-           apply: (nth_Forall3 None (Vbool true) (Vbool true) hsz1' hsz1)
-             => i hi.
-           have := Forall3_nth hdisj None (Vbool true) (Vbool true) hi.
-           have := Forall3_nth hsp_ptr_eq None (Vbool true) (Vbool true) hi.
-           case: (nth None (get_wptrs up fn) i) => [writable|] /=;
-             last by move=> _.
-           by move=> /(_ isT) ->.
-         (The [disjoint_from_writable_param pr o v1 v2] relation uses [v2] only
-          when [o = Some true], and at those positions hsp_ptr_eq gives
-          [v2 = fvals fs_sp`_i]; otherwise the relation ignores v2.)
-
-       Step V2 — mem_unchanged_params (hfe4):
-         have hne_fs : ~ validw (fmem fs) Aligned pr U8 by apply/negP.
-         have hread_sp_sp' :
-           read (fmem fs_sp) Aligned pr U8 =
-           read (fmem fs_sp') Aligned pr U8.
-         - exact: hfe4 hvalid_sp hne_fs hdisj_sp.
-
-       Step V3 — match_mem source read transport (hmga.(ma_match_mem)):
-         have hvalid_mi : validw mi Aligned pr U8 by rewrite -hsp_mem.
-         have hread_mi_xm :
-           read mi Aligned pr U8 = read (asm_mem xm) Aligned pr U8.
-         - exact: (match_mem_read_incl_mem hmga.(ma_match_mem) hvalid_mi).
-
-       Step V4 — match_mem target read transport (hbe2):
-         This step is the IT analog of [match_mem_read_incl_mem m2 hvalid'] in
-         compiler_proof.v:1324, where [hvalid' : validw mi' pr] comes from
-         [rewrite (sem_call_validw_stable_sprog sp_call) in hvalid].
-
-         In the IT setting there is no sem_call to extract the sp-level
-         validity-stability fact from. Neither FrontEndEquiv.post nor
-         back_end_to_asm_post currently exposes it. Checked alternatives that
-         do NOT work:
-           - [em_valid hfe3] is one-directional
-             [validw (fmem fs') p || between rip globs p -> validw (fmem fs_sp') p]
-             and there is no converse lemma in scope.
-           - [stack_stable_validw] does not exist in the library.
-           - [match_mem_read_incl_mem hbe2] requires validity on the source
-             [fmem fs_sp'], which is the very thing we are trying to obtain.
-           - [mm_read_ok hbe2] would need [read (fmem fs_sp') pr = ok v],
-             which requires the same forward direction
-             [validw m p -> exists v, read m p = ok v] that also does not
-             exist as a standalone lemma.
-
-         The cleanest fix is a structural one — extend the FE post in
-         it_compiler_proof.v:402-418 with the validity-stability invariant
-         that the non-IT [sem_call_validw_stable_sprog] supplies:
-
-           Let post : relPostF :=
-             fun fn _ s t s' t' =>
-               ...existing 5 conjuncts...
-               /\ validw (fmem s) =2 validw (fmem s')
-               /\ validw (fmem t) =2 validw (fmem t').
-
-         (The sp-side equality is what this step needs; the uprog side
-         mirrors the non-IT proof uniformly.) Re-proving
-         [it_compiler_front_endP] with this addition should be straightforward:
-         each sub-pass of the FE already has sem_validw_stable_* style
-         lemmas (sem_call_validw_stable_sprog, sem_validw_stable_uprog, etc.)
-         — they just need to be threaded through [wiequiv_f_trans] the same
-         way the existing 5 invariants are.
-
-         Assuming that change is made, unpack the new 6th/7th fields
-         (say hfe6 : validw (fmem fs) =2 validw (fmem fs'),
-              hfe7 : validw (fmem fs_sp) =2 validw (fmem fs_sp')), then:
-
-           have hvalid_sp' : validw (fmem fs_sp') Aligned pr U8 by rewrite -hfe7.
-           have hread_sp'_xm' :
-             read (fmem fs_sp') Aligned pr U8 =
-             read (asm_mem xm') Aligned pr U8.
-           - exact: (match_mem_read_incl_mem hbe2 hvalid_sp').
-
-       Step V5 — assemble. With all three read equalities
-         hread_mi_xm   : read mi pr         = read (asm_mem xm) pr
-         hread_sp_sp'  : read (fmem fs_sp) pr = read (fmem fs_sp') pr
-           (and hsp_mem rewrites fmem fs_sp ↔ mi)
-         hread_sp'_xm' : read (fmem fs_sp') pr = read (asm_mem xm') pr
-       compose by [by rewrite -hread_sp'_xm' -hread_sp_sp' hsp_mem hread_mi_xm.]
-       or equivalently [by rewrite -hread_mi_xm -hsp_mem hread_sp_sp'
-                            hread_sp'_xm'.] (any symmetric composition closes).
-
-     Alternative if modifying the FE post is too invasive: instead feed BE's
-     zeroized_s information back with more care — note that in the INVALID
-     case we already succeed, so the only remaining obligation is to rule out
-     the case [validw (fmem fs_sp) pr /\ ~~ validw (fmem fs_sp') pr]. That
-     combination never arises during sp-level execution (it would mean the
-     program un-validated a live address), so it could alternatively be
-     discharged by adding just
-         validw (fmem fs_sp) =2 validw (fmem fs_sp')
-     as a single extra conjunct to back_end_to_asm_pre/post chain (at the
-     linearization/merge_varmaps proof boundary). Either structural change
-     suffices — pick whichever fits the rest of the refactor of
-     it_compiler_proof.v best. *)
-    case: h_fe_post => hfe1 hfe2 hfe3 hfe4 hfe5 hfe6 hfe7.
-    case: h_be_post => hbe1 hbe2 hbe3 hbe4.
-    rewrite /zeroized_u /zeroized_p => hszs pr hdisj hnvalid_fs.
-    case: (@idP (validw (fmem fs_sp) Aligned pr U8)); last first.
-    - move=> /negP hnvalid_sp.
-      by apply: (hbe4 hszs pr hnvalid_sp).
-    - move=> hvalid_sp. left.
-      have hdisj_sp :
-        Forall3 (disjoint_from_writable_param pr)
-          (get_wptrs up fn) (fvals fs) (fvals fs_sp).
-      + have [hsz1 _] := Forall3_size hsp_ptr_eq.
-        have [hsz1' _] := Forall3_size hdisj.
-        apply: (nth_Forall3 None (Vbool true) (Vbool true) hsz1' hsz1) => i hi.
-        have := Forall3_nth hdisj None (Vbool true) (Vbool true) hi.
-        have := Forall3_nth hsp_ptr_eq None (Vbool true) (Vbool true) hi.
-        case: (nth None (get_wptrs up fn) i) => [writable|] /=;
-          last by move=> _.
-        by move=> /(_ isT) ->.
-      have hne_fs : ~ validw (fmem fs) Aligned pr U8 by apply/negP.
-      have hread_sp_sp' :
-        read (fmem fs_sp) Aligned pr U8 = read (fmem fs_sp') Aligned pr U8.
-      + exact: hfe4 hvalid_sp hne_fs hdisj_sp.
-      have hvalid_mi : validw mi Aligned pr U8 by rewrite -hsp_mem.
-      have hread_mi_xm :
-        read mi Aligned pr U8 = read (asm_mem xm) Aligned pr U8.
-      + exact: (match_mem_read_incl_mem hmga.(ma_match_mem) hvalid_mi).
-      have hvalid_sp' : validw (fmem fs_sp') Aligned pr U8.
-      + by rewrite -(hfe6 Aligned pr U8).
-      have hread_sp'_xm' :
-        read (fmem fs_sp') Aligned pr U8 = read (asm_mem xm') Aligned pr U8.
-      + exact: (match_mem_read_incl_mem hbe2 hvalid_sp').
-      by rewrite -hread_sp'_xm' -hread_sp_sp' hsp_mem hread_mi_xm.
-  + (* (4) List.Forall2 (value_in_mem (asm_mem xm'))
-                        (take n (fvals fs')) (take n argt)
-            <- Forall2_impl + mm_read_ok from BE post's match_mem. *)
-    case: h_fe_post => hfe1 hfe2 hfe3 hfe4 hfe5 hfe6 hfe7.
+  + admit.
+  + by have [_ _ <- _] := h_be_post; have [_ [_ _ _ _ <-]] := h_fe_post.
+  + move=> hszs pr hdisj /negP hnvalid.
+    have [hvw [_ _ _ U _]] := h_fe_post.
+    have [_ m2 _ hzsp] := h_be_post.
+    have [_ mi2 _ _] := hmga.
+    have hpr := hzsp hszs pr.
+    case: (boolP (validw (fmem fs_sp) Aligned pr U8)) => [hvalid | /hpr //].
+    left.
+    rewrite
+      -(match_mem_read_incl_mem mi2 hvalid) -(match_mem_read_incl_mem m2).
+    - rewrite (U _ hvalid hnvalid) //.
+      have [hsz1 _] := Forall3_size hsp_ptr_eq.
+      have [hsz1' _] := Forall3_size hdisj.
+      apply: (nth_Forall3 None (Vbool true) (Vbool true) hsz1' hsz1) => i hi.
+      have := Forall3_nth hdisj None (Vbool true) (Vbool true) hi.
+      have := Forall3_nth hsp_ptr_eq None (Vbool true) (Vbool true) hi.
+      case: (nth None (get_wptrs up fn) i) => [writable|] /=;
+        last by move=> _.
+      by move=> /(_ isT) ->.
+    rewrite -hvw; exact: hvalid.
+  + have [_ [hfe1 hfe2 hfe3 hfe4 hfe5]] := h_fe_post.
     case: h_be_post => hbe1 hbe2 hbe3 hbe4.
     have [hsz1 hsz2] := Forall3_size hsp_ptr_eq.
     have heq_take : take (get_nb_wptr up fn) (fvals fs_sp) =
@@ -578,15 +364,11 @@ apply: xrutt_weaken_v1;
     apply: Forall2_impl hfe1 => v1 v2 [pr [-> hread]].
     exists pr; split; first by reflexivity.
     move=> off w /hread; exact: mm_read_ok hbe2.
-  (* (5) values_uincl (drop n (fvals fs'))
-                      (get_typed_reg_values xm' (asm_fd_res xfd))
-          <- values_uincl_trans on FE post's drop-n uincl and BE post's
-             values_uincl. *)
-  move: h_fe_post h_be_post => [_ hfe_uincl _ _ _ _ _] [hbe_uincl _ _ _].
+  move: h_fe_post h_be_post => [_ [_ hfe_uincl _ _ _]] [hbe_uincl _ _ _].
   exact: values_uincl_trans hfe_uincl hbe_uincl.
 (* CND (from xrutt_trans): for e1 ~ e2 under [prcompose EPreRel EPreRel],
    if e2 is a cut event (errcutoff), then e1 is a cut event. *)
-by move=> T1 T2 [?|n1] [?|n2].
+by move=> T1 T2 [?|n1] [?|n2] [].
 Admitted.
 
 End FULL.

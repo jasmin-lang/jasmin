@@ -386,7 +386,7 @@ Definition wf_args_s fn ms mt vs vt :=
 
 Definition it_extend_mem ms mt := extend_mem ms mt rip (sp_globs (p_extra sp)).
 
-Let pre : relPreF :=
+Definition front_end_pre : relPreF :=
   fun fn fn' s t =>
     let: args := fvals s in
     let: argt := fvals t in
@@ -400,7 +400,7 @@ Let pre : relPreF :=
       & fscs s = fscs t
     ].
 
-Let post : relPostF :=
+Definition front_end_post : relPostF :=
   fun fn _ s t s' t' =>
     let: args := fvals s in
     let: argt := fvals t in
@@ -415,16 +415,14 @@ Let post : relPostF :=
       , values_uincl (drop n ress) rest
       , it_extend_mem ms' mt'
       , mem_unchanged_params ms mt mt' (get_wptrs up fn) args argt
-      , validw ms =3 validw ms'
-      , validw mt =3 validw mt'
       & fscs s' = fscs t'
     ].
 
 #[local]
 Instance FrontEndEquiv : EquivSpec :=
   {|
-    rpreF_ := pre;
-    rpostF_ := post;
+    rpreF_ := front_end_pre;
+    rpostF_ := front_end_post;
   |}.
 
 Lemma it_compiler_front_endP {ev fn} :
@@ -454,18 +452,20 @@ rewrite /= all2_map -eqseq_all => /eqP check_params check_return h.
 apply: (
   wiequiv_f_trans
     (scP1 := sCP_unit) (scP2 := sCP_unit) (scP3 := sCP_stack)
-    (rpreF23 := pre) (rpostF23 := post)
+    (rpreF23 := front_end_pre) (rpostF23 := front_end_post)
     _ _
     (it_compiler_first_part ok_p1 ok_fn)
 ).
 - move=> s1 ? [? _]; by exists s1.
 - move=> s1 _ s3 r1 r3 [_ <-] [_ halloc hwf hptr hmem hscs] [] r2
-    [hscs1 hmem1 hval1] [] hptr' hres hmem' hparams hvs hvt hscs'.
-  split=> //; only 3,4,5: congruence.
+    [hscs1 hmem1 hval1] [] hptr' hres hmem' hparams hscs'.
+  split=> //.
   + apply: Forall2_trans hptr'; first exact: value_uincl_value_in_mem_trans.
     exact: (Forall2_take hval1).
-  apply: Forall2_trans hres; first exact: value_uincl_trans.
-  exact: (Forall2_drop hval1).
+  + apply: Forall2_trans hres; first exact: value_uincl_trans.
+    exact: (Forall2_drop hval1).
+  + congruence.
+  congruence.
 
 apply: (wequiv_fun_get (scP1 := sCP_unit) (scP2 := sCP_stack)) => /= fd1
   get_fd1.
@@ -596,9 +596,7 @@ apply: (
   - rewrite hn -vr2_wf -hmem2; exact: vr2_inmem.
   - rewrite hn vr2_eq -rminfo_vr2; exact: vr_vr1.
   - by rewrite -hmem2 /it_extend_mem sp_p3_extra -p2_p3_extra p2_p1_extra.
-  - by rewrite /get_wptrs get_fd /= check_params -hmem2.
-  - admit.
-  admit.
+  by rewrite /get_wptrs get_fd /= check_params -hmem2.
 
 apply: (
   wiequiv_f_trans
@@ -608,7 +606,7 @@ apply: (
 ).
 - exact: rpreF_trans_eq_eq_eq.
 by move=> s1 _ _ r1 r3 [_ <-] [_ <-] [_ <-] [hscs hmem] h'.
-Admitted.
+Qed.
 
 End FRONT_END.
 

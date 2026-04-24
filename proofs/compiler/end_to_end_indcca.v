@@ -656,7 +656,8 @@ Lemma pre_Encap pk apk :
 Proof.
 move=> hpk.
 have [ok_ufd_encap ok_sfd_encap ok_alloc wf_args ok_ra] := ok_encap apk.
-move: (wf_args 2%N); rewrite /= /wf_arg /get_wptrs ok_ufd_encap /=.
+move: (wf_args 2%N).
+rewrite /= /front_end_pre /wf_arg /get_wptrs ok_ufd_encap /=.
 have [var_pk [var_ct [var_msg [-> _ _ /= -> -> ->]]]] := sig_encap.
 move=> [_ [[<-] [_ hov hv hdisj _ _]]].
 split=> //.
@@ -716,7 +717,7 @@ move=> hsk hct.
 have [ok_ufd_decap ok_sfd_decap ok_alloc wf_args ok_ra] :=
   ok_decap ask act.
 move: (wf_args 1%N) (wf_args 2%N);
-  rewrite /= /wf_arg /get_wptrs ok_ufd_decap /=.
+  rewrite /= /front_end_pre /wf_arg /get_wptrs ok_ufd_decap /=.
 have [var_sk [var_ct [var_msg [-> _ _ /= -> -> ->]]]] := sig_decap.
 move=> [_ [[<-] [_ ct_ov ct_v ct_disj _ _]]]
   [_ [[<-] [_ sk_ov sk_v sk_disj _ _]]].
