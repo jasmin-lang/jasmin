@@ -154,8 +154,10 @@ case: hpre => mi [hmga hesp hscs_eq hrsp_eq hwfa hfuim].
 .
    BE: all section vars explicit; rip := asm_rip xm. *)
 have FE := it_compiler_front_endP haparams print_uprogP print_sprogP ok_sp ok_fn.
+
 have [xfd2 [get_xfd2 _ BE]] :=
   it_compiler_back_end_to_asmP haparams print_linearP (asm_rip xm) ok_xp ok_fn.
+
 have heq_xfd : xfd2 = xfd by move: get_xfd2; rewrite get_xfd => [[->]].
 subst xfd2.
 
@@ -519,7 +521,8 @@ apply: xrutt_weaken_v1;
                       (get_typed_reg_values xm' (asm_fd_res xfd))
           <- values_uincl_trans on FE post's drop-n uincl and BE post's
              values_uincl. *)
-  admit.
+  move: h_fe_post h_be_post => [_ hfe_uincl _ _ _] [hbe_uincl _ _ _].
+  exact: values_uincl_trans hfe_uincl hbe_uincl.
 (* CND (from xrutt_trans): for e1 ~ e2 under [prcompose EPreRel EPreRel],
    if e2 is a cut event (errcutoff), then e1 is a cut event. *)
 by move=> T1 T2 [?|n1] [?|n2].
