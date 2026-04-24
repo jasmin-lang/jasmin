@@ -1,3 +1,7 @@
+Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
+
 From Coq Require Import Lia.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 From mathcomp Require Import fintype finfun ssralg.
@@ -492,7 +496,25 @@ apply: xrutt_weaken_v1;
   + (* (4) List.Forall2 (value_in_mem (asm_mem xm'))
                         (take n (fvals fs')) (take n argt)
             <- Forall2_impl + mm_read_ok from BE post's match_mem. *)
-    admit.
+    case: h_fe_post => hfe1 hfe2 hfe3 hfe4 hfe5.
+    case: h_be_post => hbe1 hbe2 hbe3 hbe4.
+    have [hsz1 hsz2] := Forall3_size hsp_ptr_eq.
+    have heq_take : take (get_nb_wptr up fn) (fvals fs_sp) =
+                    take (get_nb_wptr up fn)
+                         (get_typed_reg_values xm (asm_fd_arg xfd)).
+    { apply: (@eq_from_nth _ (Vbool true)).
+      - by rewrite !size_take -hsz1 hsz2.
+      - move=> i; rewrite size_take ltn_min => /andP [hlt_n hlt_wptr].
+        rewrite -hsz1 in hlt_wptr.
+        rewrite nth_take // nth_take //.
+        apply: (Forall3_nth hsp_ptr_eq None (Vbool true) (Vbool true)
+                            hlt_wptr).
+        have hbf := before_find None hlt_n.
+        by case: (nth None (get_wptrs up fn) i) hbf. }
+    rewrite -heq_take.
+    apply: Forall2_impl hfe1 => v1 v2 [pr [-> hread]].
+    exists pr; split; first by reflexivity.
+    move=> off w /hread; exact: mm_read_ok hbe2.
   (* (5) values_uincl (drop n (fvals fs'))
                       (get_typed_reg_values xm' (asm_fd_res xfd))
           <- values_uincl_trans on FE post's drop-n uincl and BE post's
