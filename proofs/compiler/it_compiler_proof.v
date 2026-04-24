@@ -1,6 +1,7 @@
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+Set Uniform Inductive Parameters.
 
 From Coq Require Import Lia Uint63.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
@@ -414,6 +415,8 @@ Let post : relPostF :=
       , values_uincl (drop n ress) rest
       , it_extend_mem ms' mt'
       , mem_unchanged_params ms mt mt' (get_wptrs up fn) args argt
+      , validw ms =3 validw ms'
+      , validw mt =3 validw mt'
       & fscs s' = fscs t'
     ].
 
@@ -457,8 +460,8 @@ apply: (
 ).
 - move=> s1 ? [? _]; by exists s1.
 - move=> s1 _ s3 r1 r3 [_ <-] [_ halloc hwf hptr hmem hscs] [] r2
-    [hscs1 hmem1 hval1] [] hptr' hres hmem' hparams hscs'.
-  split=> //; only 3,4: congruence.
+    [hscs1 hmem1 hval1] [] hptr' hres hmem' hparams hvs hvt hscs'.
+  split=> //; only 3,4,5: congruence.
   + apply: Forall2_trans hptr'; first exact: value_uincl_value_in_mem_trans.
     exact: (Forall2_take hval1).
   apply: Forall2_trans hres; first exact: value_uincl_trans.
@@ -593,7 +596,9 @@ apply: (
   - rewrite hn -vr2_wf -hmem2; exact: vr2_inmem.
   - rewrite hn vr2_eq -rminfo_vr2; exact: vr_vr1.
   - by rewrite -hmem2 /it_extend_mem sp_p3_extra -p2_p3_extra p2_p1_extra.
-  by rewrite /get_wptrs get_fd /= check_params -hmem2.
+  - by rewrite /get_wptrs get_fd /= check_params -hmem2.
+  - admit.
+  admit.
 
 apply: (
   wiequiv_f_trans
@@ -603,7 +608,7 @@ apply: (
 ).
 - exact: rpreF_trans_eq_eq_eq.
 by move=> s1 _ _ r1 r3 [_ <-] [_ <-] [_ <-] [hscs hmem] h'.
-Qed.
+Admitted.
 
 End FRONT_END.
 
