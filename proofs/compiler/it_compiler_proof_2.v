@@ -146,7 +146,8 @@ exists xfd; split => //.
 move=> fs xm hpre.
 case: hpre => mi [hmga hesp hscs_eq hrsp_eq hwfa hfuim].
 (* Specialise FE and BE at rip := asm_rip xm (input-dependent).
-   FE: haparams explicit; entries/up/sp/fn inferred from ok_sp/ok_fn.
+   FE: haparams explicit; entries/up/sp/fn inferred from ok_sp/ok_fn
+.
    BE: all section vars explicit; rip := asm_rip xm. *)
 have FE := it_compiler_front_endP haparams print_uprogP print_sprogP ok_sp ok_fn.
 have [xfd2 [get_xfd2 _ BE]] :=
@@ -367,11 +368,126 @@ apply: xrutt_weaken_v1;
     admit.
   + by have [_ _ <- _] := h_be_post; have [_ _ _ _ <-] := h_fe_post.
   + (* (3) zeroized_u fn (fvals fs) argt (fmem fs) (asm_mem xm) (asm_mem xm')
-            <- case split on validw (fmem fs) pr:
-                 valid   -> mem_unchanged_params (FE post) +
-                            match_mem_read_incl_mem on BE post's match_mem
-                            (mirrors compiler_proof.v:1318-1324).
-                 invalid -> direct from zeroized_s (BE post). *)
+     PLAN:
+       After [move=> hszs pr hdisj hnvalid], we have:
+         hnvalid : ~~ validw (fmem fs) pr
+         hdisj   : Forall3 (disjoint_from_writable_param pr)
+                     (get_wptrs up fn) (fvals fs) argt
+       Destructure:
+         have [hfe1 hfe2 hfe3 hfe4 hfe5 hfe6 hfe7] := h_fe_post.
+         have [hbe1 hbe2 hbe3 hbe4 hbe5 hbe6] := h_be_post.
+       (hfe fields for rpostF, hbe fields for back_end_to_asm_post)
+       Do [case: (@idP (validw mi Aligned pr U8))].
+
+       INVALID CASE (~~ validw mi pr = ~~ validw (fmem fs_sp) pr by hsp_mem):
+         hbe4 : zeroized_s fn (fmem fs_sp) (asm_mem xm) (asm_mem xm')
+         zeroized_p (fmem fs_sp) ms mt mt' p = ~~ validw (fmem fs_sp) p →
+                       read mt' p = read mt p ∨ read mt' p = ok 0%R
+         Choose [right], rewrite [<- hsp_mem] in hnvalid to get
+           ~~ validw mi pr → same as ~~ validw (fmem fs_sp) pr
+         Apply: exact/(hbe4 hszs pr)/(negbTE (negbNE _))
+         Or more concretely: apply (hbe4 hszs pr); rewrite hsp_mem; exact hninvalid.
+
+       VALID CASE (hvalid : validw mi pr):
+         Available hypotheses after destructuring:
+           hfe3 : it_extend_mem sp (asm_rip xm) (fmem fs') (fmem fs_sp')
+                = extend_mem (fmem fs') (fmem fs_sp') (asm_rip xm) (sp_globs (p_extra sp))
+           hfe4 : mem_unchanged_params (fmem fs) mi (fmem fs_sp')
+                    (get_wptrs up fn) (fvals fs) (fvals fs_sp)
+           hfe7 : stack_stable (fmem fs_sp) (fmem fs_sp')
+           hbe2 : match_mem (fmem fs_sp') (asm_mem xm')
+           hbe4 : zeroized_s cparams fn (fmem fs_sp) (asm_mem xm) (asm_mem xm')
+           hbe6 : stack_stable (asm_mem xm) (asm_mem xm')
+           hmga : mem_agreement_with_ghost (fmem fs) (asm_mem xm) (asm_rip xm)
+                    (asm_globs xp) mi
+             .ma_extend_mem : extend_mem (fmem fs) mi (asm_rip xm) (asm_globs xp)
+             .ma_match_mem  : match_mem mi (asm_mem xm)
+             .ma_stack_stable : stack_stable (fmem fs) mi
+
+         Step 1 - convert hdisj to use fvals fs_sp instead of argt:
+           disjoint_from_writable_param p wptr v1 v2 depends on v2 only when
+           wptr = Some true. For those positions, hsp_ptr_eq gives
+           fvals fs_sp = argt. So [Forall3_impl] + case on wptr gives:
+             hdisj_sp : Forall3 (disjoint_from_writable_param pr)
+                          (get_wptrs up fn) (fvals fs) (fvals fs_sp)
+
+         Step 2 - from hfe4 (mem_unchanged_params):
+           [hfe4 hvalid hnvalid hdisj_sp : read mi pr = read (fmem fs_sp') pr]
+           (here mi = fmem fs_sp by hsp_mem; valid in mi, not valid in fmem fs)
+
+         Step 3 - from hmga.(ma_match_mem) : match_mem mi (asm_mem xm):
+           [match_mem_read_incl_mem hmga.(ma_match_mem) hvalid :
+              read mi pr = read (asm_mem xm) pr]
+           (match_mem_read_incl_mem : match_mem m m' → validw m p →
+              read m Aligned p U8 = read m' Aligned p U8)
+           Proof: uses read_incl_mem + stack_region_is_free to discharge the
+             non-stack-region condition. Since validw mi pr holds,
+             stack_region_is_free gives ~~ (stack_limit mi ≤ pr < top_stack mi).
+
+         Step 4 - need read (asm_mem xm') pr = read (fmem fs_sp') pr via hbe2.
+           This is the STUCK POINT. Two options, both need more investigation:
+
+           Option A: prove validw (fmem fs_sp') pr from validw mi pr.
+             - stack_region_is_free shows pr is NOT in stack region of mi.
+             - Confirmed: NO stack_stable_validw lemma exists in the library.
+               Search (stack_stable _ _ -> forall _, validw...) = no results.
+               Search (stack_stable _ _ -> validw _ = _) = no results.
+             - hfe3 : extend_mem (fmem fs') (fmem fs_sp') rip data, so
+               em_valid hfe3 : validw (fmem fs') pr || between rip data pr
+                             → validw (fmem fs_sp') pr
+               But how to get validw (fmem fs') pr or between rip data pr?
+             - em_valid is ONE-DIRECTIONAL only (confirmed from Print extend_mem).
+               No em_validE (biconditional) lemma found.
+             - KEY INSIGHT TO EXPLORE: from hmga.ma_extend_mem and validw mi pr
+               and ~~ validw (fmem fs) pr, it follows semantically that pr must
+               be a global data address (between rip (asm_globs xp) pr), because
+               extend_mem (fmem fs) mi rip (asm_globs xp) is constructed by
+               alloc_glob which adds EXACTLY the global range. If there is a
+               converse of em_valid, i.e.:
+                 validw mi pr → validw (fmem fs) pr || between rip globs pr
+               (which would be provable from the implementation), then with
+               ~~ validw (fmem fs) pr we'd get between rip (asm_globs xp) pr.
+               Then since sp_globs (p_extra sp) = asm_globs xp (global data
+               is preserved across compilation), em_valid hfe3 would give
+               validw (fmem fs_sp') pr.
+               ACTION: search for the converse em_valid lemma, or look at
+               how extend_mem is constructed in the memory model (alloc_glob).
+
+           Option B: prove read (fmem fs_sp') pr = ok v.
+             - read (fmem fs_sp') pr = read mi pr (from Step 2 symm)
+             - So need read mi pr = ok v (i.e., read succeeds on valid address).
+             - Search (validw _ _ _ _ -> read _ _ _ _ = ok _) = no results.
+               Search (validw _ _ _ _ -> read _ _ _ _ = _) shows only
+               {ass,fss}_read_old8 and match_mem_read_incl_mem (same memory,
+               different direction) — no forward validw→read=ok lemma.
+             - readV : read = ok → validw (WRONG direction; confirmed).
+             - POSSIBLE APPROACH: use mm_read_ok which needs read = ok v as
+               hypothesis. mm_read_ok : match_mem_gen sp m m' →
+                 read m al a s = ok v → read m' al a s = ok v.
+               But we need read (fmem fs_sp') pr = ok v first, which needs
+               the same forward direction.
+
+           NEXT STEPS (in priority order):
+           1. Search for an inverse em_valid lemma:
+                Search (extend_mem _ _ _ _ -> validw _ _ _ _ ->
+                        validw _ _ _ _ || between _ _ _ _).
+              Or look at alloc_glob definition in
+                proofs/lang/memory_model.v or similar.
+           2. Check if sp_globs (p_extra sp) = asm_globs xp is provable
+              from ok_sp / ok_xp.
+           3. If no converse exists, look at match_mem_gen.read_incl_mem
+              and try to use the structure differently:
+              read_incl_mem hbe2 : ~ (stack_limit (fmem fs_sp') ≤ pr <
+                top_stack (fmem fs_sp')) → validw (fmem fs_sp') pr →
+                read (fmem fs_sp') pr = read (asm_mem xm') pr.
+              The first condition follows from stack_region_is_free applied
+              to (fmem fs_sp') IF we already know validw (fmem fs_sp') pr.
+              This is circular, but read_incl_stk might help for stack
+              addresses.
+         Combine (once Step 4 is resolved): choose [left];
+           read (asm_mem xm') pr = read (fmem fs_sp') pr  (Step 4)
+                                 = read mi pr              (Step 2 symm)
+                                 = read (asm_mem xm) pr.   (Step 3) *)
     admit.
   + (* (4) List.Forall2 (value_in_mem (asm_mem xm'))
                         (take n (fvals fs')) (take n argt)
