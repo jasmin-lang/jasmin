@@ -518,6 +518,11 @@ Definition handle_call (T : Type) (c : CallE funname lstate T) :=
   | Call fn s => mix_ilsteps (in_fn fn) s
   end.
 
+(* intepreter of recCall events for functions, giving us the recursive
+   semantics of functions *)
+Definition mix_ilsem_fun (fn : funname) (ls : lstate) : itree E lstate :=
+  mrec handle_call (Call fn ls).
+
 Definition mix_ilsem cond s :=
   interp_mrec handle_call (mix_ilsteps cond s).
 
@@ -525,7 +530,7 @@ Definition mix_ilsem_exportcall (fn: funname) (es:estate) :=
   let s := (ls_export_initial (escs es) (emem es) (evm es) fn) in
   fd <-ioget (ErrType, tt) (get_fundef P.(lp_funcs) fn);;
   _ <- iresult (to_estate s) (assert (lfd_export fd) ErrSemUndef);;
-  s' <- mix_ilsem (endpc fn) s;;
+  s' <- mix_ilsem_fun fn s;;
   let vm' := s'.(lvm) in
   _ <- iresult (to_estate s') (assert (all (fun x => value_eqb (evm es).[x] vm'.[x]) (Sv.elements callee_saved)) ErrSemUndef);;
   Ret (to_estate s').

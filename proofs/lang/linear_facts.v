@@ -388,7 +388,7 @@ Qed.
 
 Definition pc_between fn pcs pce (s:lstate) :=
   if lfn s == fn then pcs <= lpc s < pce
-  else true.
+  else false.
 
 Lemma pc_between_weak fn pcs1 pce1 pcs2 pce2 s :
   pcs2 <= pcs1 -> pce1 <= pce2 ->
@@ -470,8 +470,7 @@ Lemma step_mix_ilsteps_eq_itree fn P Q pcs pce ls  :
 Proof.
   rewrite {1}/mix_ilsteps while.unfold_while => C hfn hpc hsz h0Q.
   have -> : pc_between fn pcs pce ls.
-  + rewrite /pc_between.
-    case: ifP => // _; by rewrite hpc.
+  + by rewrite /pc_between hfn eqxx hpc.
   rewrite {1}/mix_ilstep /istep /is_call /step.
   rewrite (find_instr_skip0 C) => //.
   rewrite (onth_nth_size dummy_linstr) //.

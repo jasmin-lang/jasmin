@@ -3406,7 +3406,7 @@ Qed.
       + by subst x; rewrite vm2_rsp hvm2'_b_rsp.
       rewrite -heqvm2'; last by move: x_notin_k x_neq_rsp; clear; SvD.fsetdec.
       rewrite -heq_vm; last first.
-      + move: x_notin_k x_neq_rsp; rewrite hk /ra_vm /ra /=; clear.
+      + move: x_notin_k x_neq_rsp. rewrite hk /ra_vm /ra /=; clear.
         by case: sf_return_address => [ | r ? | [ r | ] ???] /=; SvD.fsetdec.
       rewrite heqvm2; last by clear -x_neq_rsp x_notin_k; SvD.fsetdec.
       apply heq_vm'.
@@ -4688,7 +4688,7 @@ Qed.
           + apply: lsem_step2.
             + apply: (eval_lsem1 ok_body) => //.
               apply: (spec_lload hliparams) => //=.
-              * by rewrite /get_var ok_rsp2; reflexivity.
+              * rewrite /get_var ok_rsp2; reflexivity.
               rewrite wrepr0 GRing.addr0 hreadf.
               exact: hreadi.
             move: ok_body; rewrite /Q -[[:: _; _]]cat1s catA => ok_body.

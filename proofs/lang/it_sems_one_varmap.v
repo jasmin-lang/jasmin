@@ -132,19 +132,33 @@ Section SEM_I.
 Context {E E0} {wE : with_Error E E0} {sem_F : sem_FunK E}.
 
 Let vrsp (p:sprog) : var := vid p.(p_extra).(sp_rsp).
+Let vgd (p:sprog) : var := vid p.(p_extra).(sp_rip).
 
 Definition valid_RSP p m vm :=
   value_eqb vm.[vrsp p] (Vword (top_stack m)).
 
+Definition saved_stack_valid_init (p:sprog) fd :=
+  match sf_save_stack (f_extra fd) with
+  | SavedStackReg r => [&& r != vgd p & r != vrsp p]
+  | _ => true
+  end.
+
+Definition saved_stack_valid_final (p:sprog) fd (k:Sv.t) :=
+  match sf_save_stack (f_extra fd) with
+  | SavedStackReg r => ~~ Sv.mem r k
+  | _ => true
+  end.
+
 Definition initialize_funcall (p:sprog) f (fs:estate) :=
- Let _ := assert (top_stack_aligned f fs.(emem) &&
-                  valid_RSP p fs.(emem) fs.(evm)) ErrSemUndef in
+ Let _ := assert [&& top_stack_aligned f fs.(emem)
+                   & valid_RSP p fs.(emem) fs.(evm)] ErrSemUndef in
  Let m1 :=
-   alloc_stack fs.(emem)
+   Result.map_err (fun _ => ErrSemUndef)
+      (alloc_stack fs.(emem)
       f.(f_extra).(sf_align)
       f.(f_extra).(sf_stk_sz)
       f.(f_extra).(sf_stk_ioff)
-      f.(f_extra).(sf_stk_extra_sz) in
+      f.(f_extra).(sf_stk_extra_sz)) in
  let vm1 := ra_undef_vm f fs.(evm) var_tmp in
  ok {| escs := fs.(escs); emem := m1; evm := set_RSP p m1 vm1; |}.
 
@@ -156,11 +170,20 @@ Definition is_init_state_ok (p:sprog) fn fs :=
   | None => Error ErrSemUndef
   end.
 
+ Definition writefun_RA (p:sprog) (fn: funname) :=
+   match get_fundef (p_funcs p) fn with
+   | None => Sv.empty
+   | Some fd => Sv.union (ra_undef fd var_tmp) (ra_vm_return fd.(f_extra))
+   end.
+
 Fixpoint isem_i(p : sprog) (i : instr) (s : estate) :
     itree E (Sv.t * estate) :=
   let: (MkI ii i) := i in
   ks <- isem_ir p i s;;
-  _ <- iresult (ks.2) (assert (is_stack_stable (emem s) (emem ks.2) && disjoint ks.1 (magic_variables p)) ErrSemUndef);;
+  _ <- iresult (ks.2)
+         (assert ([&& is_stack_stable (emem s) (emem ks.2)
+                    , valid_RSP p (emem ks.2) (evm ks.2)
+                    & disjoint ks.1 (magic_variables p)]) ErrSemUndef);;
   Ret ks
 with isem_ir (p : sprog) (i : instr_r) (s : estate) : itree E (Sv.t * estate) :=
   match i with
@@ -183,7 +206,7 @@ with isem_ir (p : sprog) (i : instr_r) (s : estate) : itree E (Sv.t * estate) :=
     let fi := kill_tmp_call p fn s in
     iresult s (is_init_state_ok p fn fi);;
     fs <- sem_funK p fn fi;;
-    iresult s (assert (valid_RSP p (emem fi) (evm fs.2)) ErrSemUndef);;
+    iresult s (assert (valid_RSP p (emem fi) (evm fs.2) && Sv.subset (writefun_RA p fn) fs.1) ErrSemUndef);;
     Ret (Sv.union fs.1 (fd_tmp_call p fn), kill_tmp_call p fn fs.2)
 
   | Cassert _ => Exception.throw (ErrSemUndef, tt)
@@ -196,7 +219,7 @@ Definition isem_cmd (p:sprog) c s :=
 Definition finalize_funcall p f ks2 :=
   let (k, s2') := (ks2.1, ks2.2) in
   Let _ := assert [&& ra_valid p f k
-                    , saved_stack_valid p f k
+                    , saved_stack_valid_final p f k
                     & valid_RSP p s2'.(emem) s2'.(evm)] ErrSemUndef in
   let m2 := free_stack s2'.(emem) in
   let vm2 := kill_vars (ra_vm_return f.(f_extra)) s2'.(evm) in
@@ -207,6 +230,7 @@ Definition finalize_funcall p f ks2 :=
 Definition isem_fun_body (p : prog)
    (fn : funname) (fs : estate) :=
    fd <- ioget (ErrType, tt) (get_fundef (p_funcs p) fn);;
+   iresult fs (assert (saved_stack_valid_init p fd) ErrSemUndef);;
    s1 <- iresult fs (initialize_funcall p fd fs);;
    ks2 <- isem_cmd p fd.(f_body) s1;;
    ks3 <- iresult ks2.2 (finalize_funcall p fd ks2);;
@@ -261,6 +285,23 @@ Instance sem_fun_full : sem_FunK E | 100 :=
 Definition isem_cmd_full (p : prog) (c : cmd) (s : estate) : itree E (Sv.t * estate) :=
   isem_cmd (sem_F := sem_fun_full) p c s.
 
+Definition isem_exportcall1 (p:sprog) (gd: @extra_val_t progStack) fn (s:estate) :=
+  fd <-ioget (ErrType, tt) (get_fundef p.(p_funcs) fn);;
+  let vrsp : var := vid p.(p_extra).(sp_rsp) in
+  let vgd : var := vid p.(p_extra).(sp_rip) in
+  let vm := s.(evm) in
+  _ <- iresult s (assert [&& is_RAnone fd.(f_extra).(sf_return_address)
+                           , disjoint (sv_of_list fst fd.(f_extra).(sf_to_save)) (sv_of_list v_var fd.(f_res))
+                           , ~~ Sv.mem vrsp (sv_of_list v_var fd.(f_res))
+                           & value_eqb vm.[vgd] (Vword gd)]
+                          ErrSemUndef);;
+  ks2 <- isem_fun p fn s;;
+  let (k, s2) := (ks2.1, ks2.2) in
+  _ <- iresult s2 (assert (Sv.subset (Sv.inter callee_saved (Sv.union k (ra_undef fd var_tmp)))
+                                     (sv_of_list fst fd.(f_extra).(sf_to_save)))
+                      ErrSemUndef);;
+  Ret s2.
+
 Definition isem_exportcall (p:sprog) (gd: @extra_val_t progStack) fn (s:estate) :=
   fd <-ioget (ErrType, tt) (get_fundef p.(p_funcs) fn);;
   let vrsp : var := vid p.(p_extra).(sp_rsp) in
@@ -271,6 +312,12 @@ Definition isem_exportcall (p:sprog) (gd: @extra_val_t progStack) fn (s:estate) 
                            , ~~ Sv.mem vrsp (sv_of_list v_var fd.(f_res))
                            & value_eqb vm.[vgd] (Vword gd)]
                           ErrSemUndef);;
+ _ <- iresult s (Result.map_err (fun _ => ErrSemUndef)
+        (alloc_stack s.(emem)
+          fd.(f_extra).(sf_align)
+          fd.(f_extra).(sf_stk_sz)
+          fd.(f_extra).(sf_stk_ioff)
+          fd.(f_extra).(sf_stk_extra_sz)));;
   ks2 <- isem_fun p fn s;;
   let (k, s2) := (ks2.1, ks2.2) in
   _ <- iresult s2 (assert (Sv.subset (Sv.inter callee_saved (Sv.union k (ra_undef fd var_tmp)))
