@@ -226,18 +226,40 @@ Definition isem_asm (q : asm_prog) :=
     (wE := wE)
     q.
 
+Definition val_of_wseq (t : atype) (a : wseq) : value.
+Proof using. Admitted.
+
+Definition wseq_of_val (v : value) : wseq.
+Proof using. Admitted.
+
+Definition xm_with_mem (mem : mem) (m : asmmem) : asmmem :=
+  {|
+    asm_rip := m.(asm_rip);
+    asm_scs := m.(asm_scs);
+    asm_mem := mem;
+    asm_reg := m.(asm_reg);
+    asm_regx := m.(asm_regx);
+    asm_xreg := m.(asm_xreg);
+    asm_flag := m.(asm_flag);
+  |}.
+
 Section DEFS.
+
+Class JazzIParams :=
+  {
+    entries : seq funname;
+    mI : mem;
+    ripI : pointer;
+    rmI : regmap;
+    rxmI : regxmap;
+    xrmI : xregmap;
+    rfmI : rflagmap;
+  }.
 
 Context
   (p : uprog)
   (q : asm_prog)
-  (entries : seq funname)
-  (mI : mem)
-  (ripI : pointer)
-  (rmI : regmap)
-  (rxmI : regxmap)
-  (xrmI : xregmap)
-  (rfmI : rflagmap)
+  {JP : JazzIParams}
 .
 
 (* Source needs a memory, target needs all the rest except syscall_state. *)
@@ -272,11 +294,17 @@ Definition _In (o : _No) : choiceType := seq wseq.
 
 Definition _Out (o : _No) : choiceType := seq wseq.
 
-Definition val_of_wseq (t : atype) (a : wseq) : value.
-Admitted.
+Instance JazzI : OracleSystemInterface :=
+  {|
+    Mo := _Mo;
+    No := _No;
+    In := _In;
+    Out := _Out;
+    mi := _mi;
+  |}.
 
-Definition wseq_of_val (v : value) : wseq.
-Admitted.
+(* -------------------------------------------------------------------------- *)
+(* Source oracle system *)
 
 Definition mkfs (fn : funname) (m : mem) (args : seq wseq) : fstate :=
   let vs :=
@@ -289,27 +317,6 @@ Definition mkfs (fn : funname) (m : mem) (args : seq wseq) : fstate :=
 Definition unmkfsS (fs : fstate) : seq wseq * mem :=
   ([seq wseq_of_val v | v <- fs.(fvals) ], fs.(fmem)).
 
-Definition xm_with_mem (mem : mem) (m : asmmem) : asmmem :=
-  {|
-    asm_rip := m.(asm_rip);
-    asm_scs := m.(asm_scs);
-    asm_mem := mem;
-    asm_reg := m.(asm_reg);
-    asm_regx := m.(asm_regx);
-    asm_xreg := m.(asm_xreg);
-    asm_flag := m.(asm_flag);
-  |}.
-
-Definition xm_write
-  (m : asmmem) (xs : seq asm_typed_reg) (args : seq wseq) : exec asmmem.
-Admitted.
-
-Definition mkxm (fn : funname) (m : asmmem) (args : seq wseq) : asmmem :=
-  if get_fundef (asm_funcs q) fn is Some xfd then
-    if xm_write m xfd.(asm_fd_arg) args is Ok m' then m'
-    else _mi (* absurd *)
-  else _mi. (* absurd *)
-
 (* TODO Why doesn't [|>] work for [translateE]? *)
 Definition _OoS (o : _No) (i : _In o) (m : _Mo) : itree Rnd (_Out o * _Mo) :=
   let fs := mkfs o m.(asm_mem) i in
@@ -319,36 +326,109 @@ Definition _OoS (o : _No) (i : _In o) (m : _Mo) : itree Rnd (_Out o * _Mo) :=
     Ret (r, xm_with_mem m' m)
   else Ret ([::], _mi) (* absurd *).
 
+Instance Source : OracleSystem JazzI := {| Oo := _OoS; |}.
+
+(* -------------------------------------------------------------------------- *)
+(* Target oracle system *)
+
+Definition xm_write
+  (m : asmmem) (xs : seq asm_typed_reg) (args : seq wseq) : exec asmmem.
+Proof using. Admitted.
+
+Definition mkxm (fn : funname) (m : asmmem) (args : seq wseq) : asmmem :=
+  if get_fundef (asm_funcs q) fn is Some xfd then
+    rdflt _mi (xm_write m xfd.(asm_fd_arg) args)
+  else _mi. (* absurd *)
+
 Definition _OoT (o : _No) (i : _In o) (m : _Mo) : itree Rnd (_Out o * _Mo) :=
   let xm := mkxm o m i in
   let* ofs' := translateE (isem_asm q o xm |> interp_Err) in
   if ofs' is ESok fs' then Ret ([::], _mi) (* absurd *)
   else Ret ([::], _mi) (* absurd *).
 
-(* TODO one interface for this program, move up *)
-Instance SourceI : OracleSystemInterface :=
-  {|
-    Mo := _Mo;
-    No := _No;
-    In := _In;
-    Out := _Out;
-    mi := _mi;
-  |}.
+Instance Target : OracleSystem JazzI := {| Oo := _OoT; |}.
 
-Instance Source : OracleSystem SourceI :=
-  {| Oo := _OoS; |}.
+(* -------------------------------------------------------------------------- *)
+(* Proof. *)
 
-Instance TargetI : OracleSystemInterface :=
-  {|
-    Mo := _Mo;
-    No := _No;
-    In := _In;
-    Out := _Out;
-    mi := _mi;
-  |}.
-
-Instance Target : OracleSystem TargetI :=
-  {| Oo := _OoT; |}.
+Lemma equivalent_compiler : equivalent Source Target.
+Proof using. Admitted.
 
 End DEFS.
+
+Context
+  {JP : JazzIParams}
+  (msgbytes : positive)
+  (fn_genkey fn_encap fn_decap : funname)
+  (export_genkey : fn_genkey \in entries)
+  (export_encap : fn_encap \in entries)
+  (export_decap : fn_decap \in entries)
+.
+
+Notation OracleSystem := (OracleSystem (R := R)) (only parsing).
+
+#[local] Instance KEMP_of_JP : KEMParams :=
+  {|
+    M := _Mo;
+    M0 := _mi;
+    pkey := wseq;
+    skey := wseq;
+    ctxt := wseq;
+    msg := wvec msgbytes;
+    dummy_ct := [::];
+    dummy_msg := dummy_wvec msgbytes;
+  |}.
+
+Definition efn_kg : export_funname := {| _export := export_genkey; |}.
+Definition efn_encap : export_funname := {| _export := export_encap; |}.
+Definition efn_decap : export_funname := {| _export := export_decap; |}.
+
+(* The KEM induced by a Jasmin program. *)
+
+Section JKEM.
+
+  Context (P : OracleSystem JazzI).
+
+  Notation InK := (@In KEM) (only parsing).
+  Notation OutK := (@Out KEM) (only parsing).
+
+  Let Oo_JKEM_GenKey
+    (i : InK OGenKey) (m : M) : itree Rnd (OutK OGenKey * M) :=
+    let* (rs, m') := @Oo _ _ P efn_kg [::] m in
+    if rs is [:: pk; sk ] then Ret ((pk, sk), m')
+    else Ret (([::], [::]), m). (* absurd *)
+
+  Let Oo_JKEM_Encap
+    (i : InK OEncap) (m : M) : itree Rnd (OutK OEncap * M) :=
+    let* (rs, m') := @Oo _ _ P efn_encap [:: i ] m in
+    if rs is [:: ct; msg ] then Ret ((ct, mkwvec _ msg), m')
+    else Ret ((dummy_ct, dummy_msg), m). (* absurd *)
+
+  Let Oo_JKEM_Decap
+    (i : InK ODecap) (m : M) : itree Rnd (OutK ODecap * M) :=
+    let* (rs, m') := @Oo _ _ P efn_decap [:: i.1; i.2 ] m in
+    if rs is [:: msg ] then Ret (mkwvec _ msg, m')
+    else Ret (dummy_msg, m). (* absurd *)
+
+  Definition _Oo_KEM
+    (o : kem_oracle_name) : InK o -> M -> itree Rnd (OutK o * M) :=
+    match o with
+    | OGenKey => Oo_JKEM_GenKey
+    | OEncap => Oo_JKEM_Encap
+    | ODecap => Oo_JKEM_Decap
+    end.
+
+  Instance KEM_of_Jazz : OracleSystem KEM := {| Oo := fun o i => _Oo_KEM i; |}.
+
+End JKEM.
+
+Lemma equivalent_JKEM P Q :
+  equivalent P Q ->
+  equivalent (KEM_of_Jazz P) (KEM_of_Jazz Q).
+Proof. move=> h [] /= i m; rewrite h; reflexivity. Qed.
+
+Theorem end_to_end p q :
+  reduction (KEM_of_Jazz (Source p)) (KEM_of_Jazz (Target q)).
+Proof. exact/indcca_adv_equiv/equivalent_JKEM/equivalent_compiler. Qed.
+
 End MAIN.
