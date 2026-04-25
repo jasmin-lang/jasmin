@@ -9,6 +9,8 @@ From ITree Require Import
   Basics
   ITree
   ITreeFacts
+  Eq.Rutt
+  Eq.RuttFacts
 .
 
 Require Import
@@ -20,8 +22,10 @@ Require Import
 .
 
 Require Import
+  rutt_extras
   xrutt
-  xrutt_facts.
+  xrutt_facts
+.
 
 Section HOARE.
 
@@ -57,20 +61,18 @@ Definition hoare_io_rec P c Q :=
   hoare_io (iE0 := invEvent_recCall spec) p ev P c Q.
 
 Let hoare_io_fun_body_hyp_rec Pf fn Qf Qerr :=
-  forall fs,
-    Pf fn fs ->
-    [/\ forall e, Qerr e -> rInvErr (estate0 fs) e
+    [/\ forall fs e, Pf fn fs -> Qerr fs e -> rInvErr (estate0 fs) e
       & match get_fundef (p_funcs p) fn with
-        | None => Qerr ErrType
+        | None => forall fs, Qerr fs ErrType
         | Some fd =>
-          [/\ sem_pre p  fn fs = ok tt
-            , forall fr, Qf fn fs fr -> sem_post p fn fs.(fvals) fr = ok tt
-            & exists (P : Pred_c) (Q : Pred_io estate estate),
-              [/\ rhoare (Pf fn) (initialize_funcall p ev fd) P Qerr
-                , hoare_io_rec P fd.(f_body) Q
-                , forall s s' e, Q s s' -> Qerr e -> rInvErr (estate0 fs) e
-                & forall s,
-                    P s -> rhoare (Q s) (finalize_funcall fd) (Qf fn fs) Qerr]]
+          [/\ forall fs, Pf fn fs -> sem_pre p fn fs = ok tt
+            , forall fs fr, Pf fn fs -> Qf fn fs fr -> sem_post p fn fs.(fvals) fr = ok tt
+            & exists P Q,
+              [/\ rhoare_io (Pf fn) (initialize_funcall p ev fd) P Qerr
+                , forall fs, Pf fn fs -> hoare_io_rec (P fs) fd.(f_body) Q
+                , forall fs s s' e, Pf fn fs -> Q s s' -> Qerr fs e -> rInvErr (estate0 fs) e
+                & forall fs s,
+                    Pf fn fs -> P fs s -> rhoare (Q s) (finalize_funcall fd) (Qf fn fs) (Qerr fs)]]
         end].
 
 Lemma hoare_io_fun_body Pf fn Qf Qerr :
@@ -78,7 +80,7 @@ Lemma hoare_io_fun_body Pf fn Qf Qerr :
   hoare_f_body (iE0 := invEvent_recCall spec) (iEr := iEr) p ev Pf fn Qf.
 Proof.
   move=> hf; rewrite /hoare_f_body /isem_fun_body.
-  apply khoare_ioP => fs hPf; have [herr {}hf] := hf _ hPf.
+  apply khoare_ioP => fs hPf. have [/(_ _ _ hPf) herr {}hf] := hf.
   apply khoare_read with (fun fd => get_fundef (p_funcs p) fn = Some fd).
   + rewrite /kget_fundef => ??.
     case: get_fundef hf => /= [fd | ] h; [apply lutt_Ret | apply lutt_Vis] => //.
@@ -89,18 +91,17 @@ Proof.
     rewrite /isem_pre Pre => //=.
     by apply lutt_Ret.
   move => _ _.
-  apply khoare_read with P.
+  apply khoare_read with (P fs).
   + move=> _ ->; have := hinit _ hPf.
     case: initialize_funcall => [s | e] h; [apply lutt_Ret | apply lutt_Vis] => //.
     by rewrite preInv_Throw; apply herr.
-    move => s1 hs1.
+  move => s1 hs1.
   eapply khoare_read.
-  + move => s hpre'.
-    by apply: hbody.
+  + move => s hpre'; exact: (hbody _ hPf) hs1.
   move => s hQ.
   eapply khoare_read.
   + move => s' hpre'.
-    apply: (khoare_iresult (P := Q s1) (Q := Qf fn fs) (Qerr := Qerr)) => //.
+    apply: (khoare_iresult (P := Q s1) (Q := Qf fn fs) (Qerr := Qerr fs)) => //.
     + move=> ?? _; exact: herr.
     exact: hfin hs1.
   move => s' hQf.
@@ -167,6 +168,8 @@ Context
   |}.
 
 Notation ihoare_io_rec := (hoare_io_rec (p := p) (ev := ev)).
+
+Section IND.
 
 Let post s s' := mem_equiv (emem s) (emem s').
 Let Pc c := ihoare_io_rec PredT c post.
@@ -267,11 +270,7 @@ apply: (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c} //; subst Pc Pi Pi_r.
   apply: hoare_call; only 5: exact: hoare_fun_rec.
 Admitted.
 
-Let MemEquivSpec fs : HoareSpec :=
-  {|
-    preF_ := fun _ => eq fs;
-    postF_ := fun _ fs fs' => mem_equiv (fmem fs) (fmem fs');
-  |}.
+End IND.
 
 Lemma mem_equiv_equiv : Equivalence mem_equiv.
 Proof.
@@ -289,24 +288,19 @@ Lemma sem_fun_mem_equiv fn ii :
     ii fn
     (fun _ fs fs' => mem_equiv (fmem fs) (fmem fs')).
 Proof using.
-move=> h fs _.
-apply: (ihoare_io_fun (spec := MemEquivSpec fs) (Qerr := PredT) _ _ erefl) =>
-  {}fn _ <-; split=> //.
-case hget: get_fundef => [fd|//]; split=> //.
+move=> h; apply: (ihoare_io_fun (spec := spec) (Qerr := relT)) => {}fn.
+split=> //; case hget: get_fundef => [fd|//]; split=> //.
 exists
-  (fun s => initialize_funcall p ev fd fs = ok s),
+  (fun fs s => initialize_funcall p ev fd fs = ok s),
   (fun s s' => mem_equiv (emem s) (emem s'));
   split=> //.
-- move=> _ <-; by case: initialize_funcall.
-- apply:
-    (khoare_io_weaken (P := PredT) (Q := post)) => //.
-  - admit.
-  - admit. (* isem_cmd_mem_equiv *)
-move=> s hi s' hpost; case hf: finalize_funcall => [fs''|//].
-move: hi hf; rewrite /initialize_funcall /finalize_funcall.
-t_xrbindP=> _ _ s0 hi /write_vars_memP hw _ _ _ _ <- /= {fs''}.
-apply: (h _ _ _ _ hi); rewrite hw; exact: hpost.
-Admitted.
+- move=> fs _; by case: initialize_funcall.
+- move=> fs _; apply: khoare_io_weaken (isem_cmd_mem_equiv _) => //.
+move=> fs s _ hp s' hq; case hf: finalize_funcall => [fs''|//].
+move: hp hf; rewrite /initialize_funcall /finalize_funcall.
+t_xrbindP=> vs _ s0 /h {}h /write_vars_memP heq _ _ _ _ <- /= {fs''}.
+by apply/h; rewrite heq; apply/hq.
+Qed.
 
 End PROOF.
 
