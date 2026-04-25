@@ -21,7 +21,7 @@ From ITree Require Import
 From mathcomp Require Import word_ssrZ ssreflect ssrfun ssrbool eqtype.
 
 Require Import rutt_extras it_exec exec_extras eutt_extras
-  tfam_iso equiv_extras lutt_extras core_logics.
+  tfam_iso equiv_extras lutt_extras axiom_extras core_logics.
 Require Import it_exec_sem.
 
 Import Monads.

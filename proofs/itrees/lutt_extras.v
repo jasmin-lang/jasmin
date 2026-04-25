@@ -21,7 +21,7 @@ From ITree Require Import
 From mathcomp Require Import word_ssrZ ssreflect ssrfun ssrbool eqtype.
 
 Require Import rutt_extras it_exec exec_extras eutt_extras
-               equiv_extras tfam_iso core_logics.
+               equiv_extras tfam_iso core_logics axiom_extras.
 (* 
 Require Import expr psem_defs oseq compiler_util.
 Require Import core_logics.
@@ -31,7 +31,7 @@ Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
 
-
+(*
 (*********** GENERAL **********************************************)
 
 (*** lemmas closely related to rutt weakening. This section should be
@@ -197,8 +197,9 @@ Proof.
 Qed.
 
 End AxSec.
-
+*)
   
+(*********** GENERAL **********************************************)
 
 (*** lemmas about translate and eqit *)
 Section TranslEqitSec.
@@ -625,7 +626,7 @@ Qed.
   
 End FreeHSec2.  
 
-
+      
 (****** SPECIFIC **************************************************)
 
 (* True as a predicate*)

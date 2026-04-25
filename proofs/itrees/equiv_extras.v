@@ -20,12 +20,11 @@ From ITree Require Import
 
 From mathcomp Require Import word_ssrZ ssreflect ssrfun ssrbool eqtype.
 
-Require Import rutt_extras xrutt xrutt_facts.
+Require Import rutt_extras xrutt xrutt_facts. 
 
 Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
-
 
 (** basic lemmas about simple_rutt (equivalent to eutt) *)
 
