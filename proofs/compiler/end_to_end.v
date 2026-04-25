@@ -356,6 +356,11 @@ Proof using. Admitted.
 
 End DEFS.
 
+(* -------------------------------------------------------------------------- *)
+(* Instantiation to KEMs and IND-CCA. *)
+
+Section INSTANTIATION.
+
 Context
   {JP : JazzIParams}
   (msgbytes : positive)
@@ -383,9 +388,8 @@ Definition efn_kg : export_funname := {| _export := export_genkey; |}.
 Definition efn_encap : export_funname := {| _export := export_encap; |}.
 Definition efn_decap : export_funname := {| _export := export_decap; |}.
 
-(* The KEM induced by a Jasmin program. *)
-
 Section JKEM.
+  (* The KEM induced by a Jasmin program. *)
 
   Context (P : OracleSystem JazzI).
 
@@ -430,5 +434,7 @@ Proof. move=> h [] /= i m; rewrite h; reflexivity. Qed.
 Theorem end_to_end p q :
   reduction (KEM_of_Jazz (Source p)) (KEM_of_Jazz (Target q)).
 Proof. exact/indcca_adv_equiv/equivalent_JKEM/equivalent_compiler. Qed.
+
+End INSTANTIATION.
 
 End MAIN.
