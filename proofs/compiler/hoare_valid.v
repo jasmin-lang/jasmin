@@ -120,25 +120,14 @@ move=> h fs hpre.
 apply: (interp_mrec_lutt (DPEv := preD spec) (DPAns := postD spec)).
 - move=> {hpre fn fs} A [{}ii fn fs] /= hpre.
   have := hoare_io_fun_body (h fn) hpre.
-  (* wrong iE0 *)
-Admitted.
-
-(*
-Lemma sem_fun_full_unfold ii fn fs :
-  eutt eq
-    (sem_fun_full.(sem_fun) p ev ii fn fs)
-    (isem_fun_body (sem_F := sem_fun_full) p ev fn fs).
-Proof.
-rewrite /= /isem_fun /isem_fun_def mrec_as_interp interp_bind interp_ioget.
-apply: eutt_eq_bind => fd /=; rewrite interp_bind /= interp_iresult.
-apply: eutt_eq_bind => _; rewrite interp_bind /= interp_iresult.
-apply: eutt_eq_bind => s; rewrite interp_bind /isem_cmd_ -interp_isem_cmd.
-apply: eutt_eq_bind => s'; rewrite interp_bind interp_iresult.
-apply: eutt_eq_bind => fs'; rewrite interp_bind interp_iresult.
-apply: eutt_eq_bind => _; rewrite interp_ret.
-reflexivity.
+  apply lutt_weaken.
+  - apply weak_pre.
+  - apply weak_post.
+  - done.
+have := hoare_io_fun_body (h fn) hpre.
+apply: lutt_weaken => //; first exact: weak_pre.
+exact: weak_post.
 Qed.
-*)
 
 End PROOF.
 End HOARE.
