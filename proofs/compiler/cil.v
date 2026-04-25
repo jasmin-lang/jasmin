@@ -1,5 +1,6 @@
-From elpi.apps Require Import derive.std.
+From Coq Require Import JMeq RelationClasses.
 From HB Require Import structures.
+From elpi.apps Require Import derive.std.
 
 From mathcomp Require Import
   ssreflect
@@ -33,6 +34,8 @@ From ITree Require Import
   State
   Events.StateFacts
   Interp.TranslateFacts
+  Eq.Rutt
+  Eq.RuttFacts
 .
 
 Require Import distr_extra dinterp.
@@ -156,25 +159,68 @@ Section EQUIV.
 
 Context {I : OracleSystemInterface}.
 
+Class EqMemInv :=
+  {
+    inv_mo : Mo -> Mo -> Prop;
+    inv_mo_refl : Reflexive inv_mo;
+  }.
+
+Context {EqInv : EqMemInv}.
+
+#[export] Existing Instance inv_mo_refl.
+
+Definition inv_eq {X} (a b : X * Mo) : Prop :=
+  a.1 = b.1 /\ inv_mo a.2 b.2.
+
 (* Two oracle systems implementing the same interface are equivalent when, on
    every oracle name, input, and memory, their implementations produce
    equivalent ITrees (up to silent steps). *)
 Definition equivalent (O1 O2 : OracleSystem I) : Prop :=
-  forall (o : No) (i : In o) (m : Mo),
-    eutt eq (O1.(Oo) o i m) (O2.(Oo) o i m).
+  forall (o : No) (i : In o) (m1 m2 : Mo),
+    inv_mo m1 m2 ->
+    eutt inv_eq (O1.(Oo) o i m1) (O2.(Oo) o i m2).
+
+(* TODO Something other than JMeq? *)
+Definition REv_inv
+  A B (e1 : (stateE trace +' Rnd) A) (e2 : (stateE trace +' Rnd) B) : Prop :=
+  match e1, e2 with
+  | inl1 Get, inl1 Get => True
+  | inl1 (Put t1), inl1 (Put t2) => List.Forall2 inv_eq t1 t2
+  | inr1 r1, inr1 r2 => JMeq r1 r2
+  | _, _ => False
+  end.
+
+Definition RAns_inv
+  A B
+  (e1 : (stateE trace +' Rnd) A)
+  (a : A)
+  (e2 : (stateE trace +' Rnd) B)
+  (b : B) :
+  Prop :=
+  match e1, e2 with
+  | inl1 Get, inl1 Get => JMeq a b
+  | inl1 (Put t1), inl1 (Put t2) => True
+  | inr1 r1, inr1 r2 => JMeq a b
+  | _, _ => False
+  end.
 
 Lemma equivalent_handle_Exch (O1 O2 : OracleSystem I) :
   equivalent O1 O2 ->
   forall T (e : Exch T),
-    eutt eq
+    rutt
+      REv_inv
+      RAns_inv
+      eq
       (handle_Exch (O := O1) (T := T) e)
       (handle_Exch (O := O2) (T := T) e).
 Proof.
 move=> hO T [o i]; rewrite /handle_Exch.
-apply: eqit_bind'; first reflexivity.
+apply: (rutt_bind _ _ eq).
+
 move=> m m' heq; rewrite heq.
-apply: eqit_bind'; first exact: eutt_translate_gen (hO o i m').
-move=> r1 r2 heq'; rewrite heq'; reflexivity.
+apply: eqit_bind'.
+- apply: eutt_translate_gen (hO o i m' m' _); reflexivity.
+move=> [r m1] [_ m2] [/= <- hm].
 Qed.
 
 Lemma equivalent_interact (O1 O2 : OracleSystem I) (A : Adversary) :

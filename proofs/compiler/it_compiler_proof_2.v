@@ -133,9 +133,6 @@ Definition full_post fn xfd s t s' t' :=
     & values_uincl (drop n ress) rest
   ].
 
-
-
-
 Lemma it_compile_prog_to_asmP {fn} :
   compile_prog_to_asm aparams cparams entries up = ok xp ->
   fn \in entries ->

@@ -204,17 +204,17 @@ Definition handleE : Handler (RndEvent unit) Rnd :=
 Definition translateE : itree (RndEvent unit) ~> itree Rnd :=
   fun _ t => interp handleE t.
 
+Lemma eutt_translateE T (RR : T -> T -> Prop) :
+  Proper (eutt RR ==> eutt RR) (translateE (T := T)).
+Proof. exact: eutt_interp'. Qed.
+
+Search eutt interp.
+
 Context
   {reg regx xreg rflag cond asm_op extra_op : Type}
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {call_conv : calling_convention}
   {asm_scsem : asm_syscall_sem}
-  {lowering_options : Type}
-  (aparams : architecture_params lowering_options)
-  (haparams : h_architecture_params aparams)
-  (cparams : compiler_params lowering_options)
-  (print_uprogP : forall s p, cparams.(print_uprog) s p = p)
-  (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
 .
 
 Definition isem_asm (q : asm_prog) :=
@@ -314,16 +314,21 @@ Definition mkfs (fn : funname) (m : mem) (args : seq wseq) : fstate :=
   in
   {| fscs := tt; fmem := m; fvals := vs; |}.
 
-Definition unmkfsS (fs : fstate) : seq wseq * mem :=
+Definition unmkfs (fs : fstate) : seq wseq * mem :=
   ([seq wseq_of_val v | v <- fs.(fvals) ], fs.(fmem)).
+
+Definition isem_unit_res
+  (o : _No) (i : _In o) (m : _Mo) : itree E (_Out o * _Mo) :=
+  let fs := mkfs o m.(asm_mem) i in
+  let* fs' := isem_unit p o fs in
+  let (r, m') := unmkfs fs' in
+  Ret (r, xm_with_mem m' m).
+Arguments isem_unit_res : clear implicits.
 
 (* TODO Why doesn't [|>] work for [translateE]? *)
 Definition _OoS (o : _No) (i : _In o) (m : _Mo) : itree Rnd (_Out o * _Mo) :=
-  let fs := mkfs o m.(asm_mem) i in
-  let* ofs' := translateE (isem_unit p o fs |> interp_Err) in
-  if ofs' is ESok fs' then
-    let (r, m') := unmkfsS fs' in
-    Ret (r, xm_with_mem m' m)
+  let* ores := translateE (isem_unit_res o i m |> interp_Err) in
+  if ores is ESok res then Ret res
   else Ret ([::], _mi) (* absurd *).
 
 Instance Source : OracleSystem JazzI := {| Oo := _OoS; |}.
@@ -331,19 +336,33 @@ Instance Source : OracleSystem JazzI := {| Oo := _OoS; |}.
 (* -------------------------------------------------------------------------- *)
 (* Target oracle system *)
 
-Definition xm_write
+Definition xm_writes
   (m : asmmem) (xs : seq asm_typed_reg) (args : seq wseq) : exec asmmem.
 Proof using. Admitted.
 
 Definition mkxm (fn : funname) (m : asmmem) (args : seq wseq) : asmmem :=
   if get_fundef (asm_funcs q) fn is Some xfd then
-    rdflt _mi (xm_write m xfd.(asm_fd_arg) args)
+    rdflt _mi (xm_writes m xfd.(asm_fd_arg) args)
   else _mi. (* absurd *)
 
-Definition _OoT (o : _No) (i : _In o) (m : _Mo) : itree Rnd (_Out o * _Mo) :=
+Definition xm_read (m : asmmem) (x : asm_typed_reg) : value.
+Admitted.
+
+Definition xget_res (fn : funname) (m : asmmem) : seq wseq :=
+  if get_fundef (asm_funcs q) fn is Some xfd then
+    [seq wseq_of_val (xm_read m x) | x <- xfd.(asm_fd_res) ]
+  else [::]. (* absurd *)
+
+Definition isem_asm_res
+  (o : _No) (i : _In o) (m : _Mo) : itree E (_Out o * _Mo) :=
   let xm := mkxm o m i in
-  let* ofs' := translateE (isem_asm q o xm |> interp_Err) in
-  if ofs' is ESok fs' then Ret ([::], _mi) (* absurd *)
+  let* xm' := isem_asm q o xm in
+  Ret (xget_res o xm', xm').
+Arguments isem_asm_res : clear implicits.
+
+Definition _OoT (o : _No) (i : _In o) (m : _Mo) : itree Rnd (_Out o * _Mo) :=
+  let* ores := translateE (isem_asm_res o i m |> interp_Err) in
+  if ores is ESok res then Ret res
   else Ret ([::], _mi) (* absurd *).
 
 Instance Target : OracleSystem JazzI := {| Oo := _OoT; |}.
@@ -351,8 +370,41 @@ Instance Target : OracleSystem JazzI := {| Oo := _OoT; |}.
 (* -------------------------------------------------------------------------- *)
 (* Proof. *)
 
+Context
+  {lowering_options : Type}
+  (aparams : architecture_params lowering_options)
+  (haparams : h_architecture_params aparams)
+  (cparams : compiler_params lowering_options)
+  (print_uprogP : forall s p, cparams.(print_uprog) s p = p)
+  (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
+  (print_linearP : forall s p, cparams.(print_linear) s p = p)
+  (hcomp : compile_prog_to_asm aparams cparams entries p = ok q)
+.
+
+(* TODO needs to be weaker *)
+Definition inv_mo : _Mo -> _Mo -> Prop := eq.
+
+Lemma inv_mo_refl : Reflexive inv_mo.
+Proof. done. Qed.
+
+Lemma eutt_isem_res o i m m' :
+  inv_mo m m' ->
+  eutt inv_eq (isem_unit_res o i m) (isem_asm_res o i m').
+Proof. Admitted.
+
 Lemma equivalent_compiler : equivalent Source Target.
-Proof using. Admitted.
+Proof.
+move=> [fn hfn] /= i m.
+have [xfd [hgetq _ heq]] :=
+  [elaborate it_compile_prog_to_asmP
+    haparams print_uprogP print_sprogP print_linearP hcomp hfn].
+(* TODO we could prove that we always get OK instead of using exec_rel *)
+apply: (eutt_clo_bind _ (UU := exec_rel inv_eq)).
+- exact/eutt_translateE/interp_exec_eutt/eutt_isem_res/inv_mo_refl.
+move=> [[rs ms]|?] [[rt mt]|?] //=; last reflexivity.
+rewrite /inv_eq /inv_mo => -[/= ? ?]; subst rt mt.
+reflexivity.
+Qed.
 
 End DEFS.
 
