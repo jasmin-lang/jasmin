@@ -146,22 +146,22 @@ Lemma find_instrP_aux lp lp' s :
     if find_instr lp' s is Some i then
       exists c xs szs l ws ws' z n,
         [/\ szp_cmd szs (lp_rsp lp) l ws ws' z = ok (c, xs)
-          & onth c n = Some i
+          & oseq.onth c n = Some i
         ]
     else True.
 Proof.
 move=> /(stack_zeroization_lprog_get_fundef_aux (lfn s)); rewrite /find_instr.
 case: get_fundef => [fd|-> //] [fd' + ->].
 rewrite /stack_zeroization_lfd.
-case: szs_of_fn => [[szs ws] | [<-]]; last by case: onth.
-case: andb => [|[<-]]; last by case: onth.
+case: szs_of_fn => [[szs ws] | [<-]]; last by case: oseq.onth.
+case: andb => [|[<-]]; last by case: oseq.onth.
 rewrite /stack_zeroization_lfd_body.
 t_xrbindP=> _ _ _ [c xs] hc; t_xrbindP=> _ _ <- /=.
-case h: onth => [i|]; first exact: onth_cat_l h.
-case h': onth => [i'|//].
+case h: oseq.onth => [i|]; first exact: onth_cat_l h.
+case h': oseq.onth => [i'|//].
 exists c, xs, szs, (next_lfd_lbl fd), (lfd_align fd), ws, (lfd_stk_max fd),
   (lpc s - size (lfd_body fd)).
-by rewrite hc -h' onth_cat -onth_sizeE h.
+by rewrite hc -h' oseq.onth_cat -oseq.onth_sizeE h.
 Qed.
 
 Lemma find_instrP lp lp' s i :
