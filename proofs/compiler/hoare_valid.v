@@ -75,7 +75,7 @@ Let hoare_io_fun_body_hyp_rec Pf fn Qf Qerr :=
 
 Lemma hoare_io_fun_body Pf fn Qf Qerr :
   hoare_io_fun_body_hyp_rec Pf fn Qf Qerr ->
-  hoare_f_body (iE0 := iE0) (iEr := iEr) p ev Pf fn Qf.
+  hoare_f_body (iE0 := invEvent_recCall spec) (iEr := iEr) p ev Pf fn Qf.
 Proof.
   move=> hf; rewrite /hoare_f_body /isem_fun_body.
   apply khoare_ioP => fs hPf; have [herr {}hf] := hf _ hPf.
@@ -96,12 +96,12 @@ Proof.
     move => s1 hs1.
   eapply khoare_read.
   + move => s hpre'.
-    have := hbody _ hs1. admit.
+    by apply: hbody.
   move => s hQ.
   eapply khoare_read.
   + move => s' hpre'.
-    apply: khoare_iresult hQerr.
-    + move=> ? e _. exact: herr.
+    apply: (khoare_iresult (P := Q s1) (Q := Qf fn fs) (Qerr := Qerr)) => //.
+    + move=> ?? _; exact: herr.
     exact: hfin hs1.
   move => s' hQf.
   apply khoare_read with PredT.
@@ -110,7 +110,7 @@ Proof.
     by apply lutt_Ret.
   move => ????; subst.
   by apply lutt_Ret.
-Admitted.
+Qed.
 
 Lemma ihoare_io_fun Qerr fn ii :
   (forall fn, hoare_io_fun_body_hyp_rec preF fn postF Qerr) ->
