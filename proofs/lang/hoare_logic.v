@@ -858,7 +858,7 @@ Proof.
 Qed.
 
 Lemma ihoare_fun Qerr :
-  ((forall ii fn, hoare_f_rec preF ii fn postF) ->
+  ((forall ii fn, hoare_f_rec preF ii fn postF) -> (* hypothesis is a tautology *)
    forall fn, hoare_fun_body_hyp_rec preF fn postF Qerr) ->
   forall fn, ihoare_f p ev preF fn postF.
 Proof.
@@ -1009,7 +1009,7 @@ Definition whoare_fun_body_hyp_rec Pf fn Qf :=
         & rhoare Q (finalize_funcall fd) (Qf fn fs) PredT]].
 
 Lemma iwhoare_fun :
-  ((forall ii fn, whoare_f_rec preF ii fn postF) ->
+  ((forall ii fn, whoare_f_rec preF ii fn postF) -> (* hypothesis is a tautology *)
    forall fn, whoare_fun_body_hyp_rec preF fn postF) ->
   forall fn, iwhoare_f p ev preF fn postF.
 Proof.
