@@ -25,7 +25,9 @@
 -R ssrmisc Jasmin
 -R itrees Jasmin
 
+compiler/rutt_translate.v
 compiler/cil.v
+compiler/alternative_cil.v
 compiler/indcca.v
 compiler/sufcma.v
 compiler/end_to_end.v
@@ -33,6 +35,7 @@ compiler/end_to_end_indcca.v
 compiler/it_compiler_proof.v
 compiler/it_compiler_proof_2.v
 compiler/hoare_valid.v
+compiler/state_facts.v
 
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
