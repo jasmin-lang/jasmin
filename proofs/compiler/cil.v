@@ -1,6 +1,5 @@
-From Coq Require Import JMeq RelationClasses.
-From HB Require Import structures.
 From elpi.apps Require Import derive.std.
+From HB Require Import structures.
 
 From mathcomp Require Import
   ssreflect
@@ -34,8 +33,6 @@ From ITree Require Import
   State
   Events.StateFacts
   Interp.TranslateFacts
-  Eq.Rutt
-  Eq.RuttFacts
 .
 
 Require Import distr_extra dinterp.
@@ -145,12 +142,12 @@ End CIL.
 
 End MAIN.
 
-Arguments Oo {_ _} _ _ _.
-Arguments Exchange {I}.
-Arguments interact {I}.
-Arguments dinteract {I}.
-Arguments pwin {I}.
-Arguments OracleSystem : clear implicits.
+#[global] Arguments Oo {I O} _ _ _ : rename.
+#[global] Arguments Exchange {I}.
+#[global] Arguments interact {I}.
+#[global] Arguments dinteract {I}.
+#[global] Arguments pwin {I}.
+#[global] Arguments OracleSystem : clear implicits.
 
 (* -------------------------------------------------------------------------- *)
 (* Equivalence of oracle systems sharing an interface. *)
@@ -159,68 +156,25 @@ Section EQUIV.
 
 Context {I : OracleSystemInterface}.
 
-Class EqMemInv :=
-  {
-    inv_mo : Mo -> Mo -> Prop;
-    inv_mo_refl : Reflexive inv_mo;
-  }.
-
-Context {EqInv : EqMemInv}.
-
-#[export] Existing Instance inv_mo_refl.
-
-Definition inv_eq {X} (a b : X * Mo) : Prop :=
-  a.1 = b.1 /\ inv_mo a.2 b.2.
-
 (* Two oracle systems implementing the same interface are equivalent when, on
    every oracle name, input, and memory, their implementations produce
    equivalent ITrees (up to silent steps). *)
 Definition equivalent (O1 O2 : OracleSystem I) : Prop :=
-  forall (o : No) (i : In o) (m1 m2 : Mo),
-    inv_mo m1 m2 ->
-    eutt inv_eq (O1.(Oo) o i m1) (O2.(Oo) o i m2).
-
-(* TODO Something other than JMeq? *)
-Definition REv_inv
-  A B (e1 : (stateE trace +' Rnd) A) (e2 : (stateE trace +' Rnd) B) : Prop :=
-  match e1, e2 with
-  | inl1 Get, inl1 Get => True
-  | inl1 (Put t1), inl1 (Put t2) => List.Forall2 inv_eq t1 t2
-  | inr1 r1, inr1 r2 => JMeq r1 r2
-  | _, _ => False
-  end.
-
-Definition RAns_inv
-  A B
-  (e1 : (stateE trace +' Rnd) A)
-  (a : A)
-  (e2 : (stateE trace +' Rnd) B)
-  (b : B) :
-  Prop :=
-  match e1, e2 with
-  | inl1 Get, inl1 Get => JMeq a b
-  | inl1 (Put t1), inl1 (Put t2) => True
-  | inr1 r1, inr1 r2 => JMeq a b
-  | _, _ => False
-  end.
+  forall (o : No) (i : In o) (m : Mo),
+    eutt eq (O1.(Oo) o i m) (O2.(Oo) o i m).
 
 Lemma equivalent_handle_Exch (O1 O2 : OracleSystem I) :
   equivalent O1 O2 ->
   forall T (e : Exch T),
-    rutt
-      REv_inv
-      RAns_inv
-      eq
+    eutt eq
       (handle_Exch (O := O1) (T := T) e)
       (handle_Exch (O := O2) (T := T) e).
 Proof.
 move=> hO T [o i]; rewrite /handle_Exch.
-apply: (rutt_bind _ _ eq).
-
+apply: eqit_bind'; first reflexivity.
 move=> m m' heq; rewrite heq.
-apply: eqit_bind'.
-- apply: eutt_translate_gen (hO o i m' m' _); reflexivity.
-move=> [r m1] [_ m2] [/= <- hm].
+apply: eqit_bind'; first exact: eutt_translate_gen (hO o i m').
+move=> r1 r2 heq'; rewrite heq'; reflexivity.
 Qed.
 
 Lemma equivalent_interact (O1 O2 : OracleSystem I) (A : Adversary) :
@@ -249,7 +203,7 @@ Proof. move=> /equivalent_dinteract h; rewrite /pwin; exact: eq_mu_pr h. Qed.
 
 End EQUIV.
 
-Arguments equivalent_pwin {_ _ _ _ _} _.
+#[global] Arguments equivalent_pwin {_ _ _ _ _} _.
 
 (* -------------------------------------------------------------------------- *)
 (* Instantiation for INDCCA. *)
@@ -361,7 +315,8 @@ HB.instance Definition _ := isFinite.Build cca_oracle_name cca_oracle_name_fin_a
 
 (* IND-CCA Oracle memory:
    - keys: the result of GenKey
-   - bit: the sampled bit *)
+   - bit: the sampled bit
+   - mem: KEM memory *)
 Record _Mo :=
   {
     mo_keys : option (pkey * skey);
@@ -412,9 +367,7 @@ Definition _Out (x : cca_oracle_name) : choiceType :=
 
 Definition _Oo_Init (_ : unit) (m : _Mo) : itree Rnd (pkey * _Mo) :=
   let* ((pk, sk), m') := Oo OGenKey tt (mo_mem m) in
-  let mo :=
-    {| mo_keys := Some (pk, sk); mo_bit := None; mo_mem := m'; |}
-  in
+  let mo := {| mo_keys := Some (pk, sk); mo_bit := None; mo_mem := m'; |} in
   Ret (pk, mo).
 
 Definition _Oo_Query (ct : ctxt) (mo : _Mo) : itree Rnd (msg * _Mo) :=
@@ -455,8 +408,7 @@ Instance INDCCA_I : OracleSystemInterface :=
     mi := _mi;
   |}.
 
-Instance INDCCA : OracleSystem INDCCA_I :=
-  {| Oo := _Oo; |}.
+Instance INDCCA : OracleSystem INDCCA_I := {| Oo := _Oo; |}.
 
 Definition is_init (x : Xch) : option pkey :=
   let 'existT o (_, p) := x in
@@ -534,14 +486,14 @@ Definition indcca_adv (A : Adversary) : R :=
 
 End INSTANCE.
 
-Arguments INDCCA {_} _.
-Arguments indcca_adv {_} _ _ _.
+#[global] Arguments INDCCA {_} _.
+#[global] Arguments indcca_adv {_} _ _ _.
 
 Section REDUCTION.
 
 Context {KEMP : KEMParams}.
 
-Definition reduction (K K' : OracleSystem KEM) : Prop :=
+Definition indcca_reduction (K K' : OracleSystem KEM) : Prop :=
   forall A Q, indcca_adv K Q A = indcca_adv K' Q A.
 
 Context (K K' : OracleSystem KEM).
@@ -558,7 +510,7 @@ rewrite /_Oo_GetChallenge; case: (mo_keys m) => [[pk sk] |]; last reflexivity.
 by apply: (eqit_bind' eq) => [|? _ <-]; [exact/h|reflexivity].
 Qed.
 
-Theorem indcca_adv_equiv : equivalent K K' -> reduction K K'.
+Theorem indcca_adv_equiv : equivalent K K' -> indcca_reduction K K'.
 Proof.
 move=> /equivalent_INDCCA/equivalent_pwin h A Q; by rewrite /indcca_adv h.
 Qed.
@@ -567,8 +519,8 @@ End REDUCTION.
 
 End REAL.
 
-Arguments Exchange {I}.
-Arguments interact {_ I}.
-Arguments dinteract {_ I}.
-Arguments pwin {_ I}.
-Arguments OracleSystem {_} _.
+#[global] Arguments Exchange {I}.
+#[global] Arguments interact {_ I}.
+#[global] Arguments dinteract {_ I}.
+#[global] Arguments pwin {_ I}.
+#[global] Arguments OracleSystem {_} _.

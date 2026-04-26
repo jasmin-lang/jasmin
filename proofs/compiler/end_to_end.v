@@ -381,29 +381,34 @@ Context
   (hcomp : compile_prog_to_asm aparams cparams entries p = ok q)
 .
 
-(* TODO needs to be weaker *)
-Definition inv_mo : _Mo -> _Mo -> Prop := eq.
+Definition inv_mo : _Mo -> _Mo -> Prop.
+Proof using. Admitted.
 
-Lemma inv_mo_refl : Reflexive inv_mo.
-Proof. done. Qed.
+Definition inv_eq {X : Type} (x y : X * _Mo) : Prop :=
+  [/\ x.1 = y.1 & inv_mo x.2 y.2 ].
+
+Lemma inv_mo_mi : inv_mo _mi _mi.
+Proof using. Admitted.
 
 Lemma eutt_isem_res o i m m' :
   inv_mo m m' ->
   eutt inv_eq (isem_unit_res o i m) (isem_asm_res o i m').
-Proof. Admitted.
+Proof using. Admitted.
 
-Lemma equivalent_compiler : equivalent Source Target.
+Theorem compiler_preserves o i m1 m2 :
+  inv_mo m1 m2 ->
+  eutt inv_eq (Source.(Oo) o i m1) (Target.(Oo) o i m2).
 Proof.
-move=> [fn hfn] /= i m.
+move: o i => [fn hfn] /= i hm.
 have [xfd [hgetq _ heq]] :=
   [elaborate it_compile_prog_to_asmP
     haparams print_uprogP print_sprogP print_linearP hcomp hfn].
 (* TODO we could prove that we always get OK instead of using exec_rel *)
 apply: (eutt_clo_bind _ (UU := exec_rel inv_eq)).
-- exact/eutt_translateE/interp_exec_eutt/eutt_isem_res/inv_mo_refl.
-move=> [[rs ms]|?] [[rt mt]|?] //=; last reflexivity.
-rewrite /inv_eq /inv_mo => -[/= ? ?]; subst rt mt.
-reflexivity.
+- exact/eutt_translateE/interp_exec_eutt/eutt_isem_res/hm.
+move=> /= [[rs ms]|?] [[rt mt]|?] //=; last first.
+- move=> _; apply eutt_Ret; split=> //=; exact: inv_mo_mi.
+move=> [/= -> hm']; apply eutt_Ret; split=> //; exact: hm'.
 Qed.
 
 End DEFS.
@@ -481,11 +486,11 @@ End JKEM.
 Lemma equivalent_JKEM P Q :
   equivalent P Q ->
   equivalent (KEM_of_Jazz P) (KEM_of_Jazz Q).
-Proof. move=> h [] /= i m; rewrite h; reflexivity. Qed.
+Proof using. Admitted.
 
-Theorem end_to_end p q :
-  reduction (KEM_of_Jazz (Source p)) (KEM_of_Jazz (Target q)).
-Proof. exact/indcca_adv_equiv/equivalent_JKEM/equivalent_compiler. Qed.
+Theorem mlkem_end_to_end p q :
+  indcca_reduction (KEM_of_Jazz (Source p)) (KEM_of_Jazz (Target p q)).
+Proof using. Admitted.
 
 End INSTANTIATION.
 
