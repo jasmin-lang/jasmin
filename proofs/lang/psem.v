@@ -652,10 +652,9 @@ Let Pc c := wequiv p p' ev ev' (st_eq tt) c c (st_eq tt).
 
 Lemma wequiv_st_eq c :
   (forall ii f, wequiv_f_ii p p' ev ev' (λ (_ _ : funname), eq) ii ii f f (λ (_ _ : funname) (_ _ : fstate), eq)) ->
-  (∀ f fs, is_init_state_ok p ev f fs = ok tt → is_init_state_ok p' ev' f fs = ok tt) ->
   Pc c.
 Proof.
-  move=> hf hinit; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
+  move=> hf; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
   + by apply wequiv_nil.
   + by move=> *; apply wequiv_cons with (st_eq tt).
   + by move=> >;apply wequiv_assgn_rel_eq with checker_st_eq tt.
@@ -731,11 +730,9 @@ Section REC.
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
-Lemma wequiv_rec_st_eq c :
-  (∀ (f : funname) (fs : fstate), is_init_state_ok p ev f fs = ok tt → is_init_state_ok p' ev' f fs = ok tt) ->
-  wequiv_rec p p' ev ev' eq_spec (st_eq tt) c c (st_eq tt).
+Lemma wequiv_rec_st_eq c : wequiv_rec p p' ev ev' eq_spec (st_eq tt) c c (st_eq tt).
 Proof.
-  move=> hinit; apply wequiv_st_eq => //.
+  apply wequiv_st_eq => //.
   by move=> ii f s t <-; apply xrutt_facts.xrutt_trigger.
 Qed.
 
@@ -1089,11 +1086,10 @@ Let Pc c :=
 Lemma it_read_cP_aux c X :
   (forall ii fn,
      wequiv_f_ii p p' ev ev' (λ (_ _ : funname), eq) ii ii fn fn (λ _ _  _ _, eq)) ->
-  (∀ fn fs, is_init_state_ok p ev fn fs = ok tt → is_init_state_ok p' ev' fn fs = ok tt) ->
   Sv.Subset (read_c c) X ->
   wequiv p p' ev ev' (st_eq_on X) c c (st_eq_on X).
 Proof.
-  move=> hfn hinit; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c X}.
+  move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c X}.
   + by move=> i ii hi X; apply hi.
   + by move=> ii X; apply wequiv_nil.
   + move=> i c hi hc X; rewrite read_c_cons => hsub.
@@ -1128,7 +1124,6 @@ Proof.
   apply wequiv_call_rel_eq with checker_st_eq_on X => //.
   + by split => //; SvD.fsetdec.
   + by split => //; SvD.fsetdec.
-  apply hinit.
 Qed.
 
 End FUN.
@@ -1138,11 +1133,10 @@ Section REC.
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 Lemma it_read_cP_rec X c :
-  (∀ (fn : funname) (fs : fstate), is_init_state_ok p ev fn fs = ok tt → is_init_state_ok p' ev' fn fs = ok tt) ->
   Sv.Subset (read_c c) X ->
   wequiv_rec p p' ev ev' eq_spec (st_eq_on X) c c (st_eq_on X).
 Proof.
-  move=> hinit; apply it_read_cP_aux => //.
+  apply it_read_cP_aux => //.
   by move=> ii f s t <-; apply xrutt_facts.xrutt_trigger.
 Qed.
 
@@ -1545,10 +1539,9 @@ Let Pc c :=
 Lemma it_sem_uincl_aux c :
   (forall ii fn,
      wequiv_f_ii p p' ev ev' (λ (_ _ : funname), fs_uincl) ii ii fn fn (λ _ _  _ _, fs_uincl)) ->
-  (∀ fn fs1 fs2, fs_uincl fs1 fs2 → is_init_state_ok p ev fn fs1 = ok tt → is_init_state_ok p' ev' fn fs2 = ok tt) ->
   wequiv p p' ev ev' (st_uincl tt) c c (st_uincl tt).
 Proof.
-  move=> hfn hinit; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
+  move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
   + by move=> i ii hi X; apply hi.
   + by move=> ii X; apply wequiv_nil.
   + move=> i c hi hc.
@@ -1561,7 +1554,6 @@ Proof.
   + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
   + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
   move=> xs fn es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt => //.
-  apply hinit.
 Qed.
 
 End PROG.
@@ -1632,12 +1624,6 @@ Proof.
   by eexists; eauto.
 Qed.
 
-Lemma fs_uincl_is_init fn fs1 fs2 :
-  fs_uincl fs1 fs2 → is_init_state_ok p ev fn fs1 = ok tt → is_init_state_ok p ev fn fs2 = ok tt.
-Proof.
-  by move=> [h1 h2 _]; rewrite /is_init_state_ok /estate0 h1 h2.
-Qed.
-
 Lemma it_sem_uincl_f fn :
   wiequiv_f p p ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
@@ -1645,8 +1631,7 @@ apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] hu fd ->.
 exists fd => // s /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu.
 exists t => //; exists (st_uincl tt), (st_uincl tt); split=> //.
 + apply it_sem_uincl_aux => //.
-  + move=> ii fn' fs1' fs2' h; exact/wequiv_fun_rec.
-  by apply fs_uincl_is_init.
+  move=> ii fn' fs1' fs2' h; exact/wequiv_fun_rec.
 exact/fs_uincl_finalize.
 Qed.
 
@@ -1654,8 +1639,7 @@ Lemma it_sem_uincl c :
   wiequiv p p ev ev (st_uincl tt) c c (st_uincl tt).
 Proof.
  apply it_sem_uincl_aux => //.
- + by move=> ? fn ?? h; apply it_sem_uincl_f.
- apply fs_uincl_is_init.
+ by move=> ? fn ?? h; apply it_sem_uincl_f.
 Qed.
 
 End REFL.
@@ -1669,10 +1653,9 @@ Context (eq_globs: p_globs p = p_globs p').
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 Lemma it_sem_uincl_rec c :
-  (forall fn fs1 fs2, fs_uincl fs1 fs2 → is_init_state_ok p ev fn fs1 = ok tt → is_init_state_ok p' ev' fn fs2 = ok tt) ->
   wequiv_rec p p' ev ev' uincl_spec (st_uincl tt) c c (st_uincl tt).
 Proof.
-  move=> hinit; apply it_sem_uincl_aux => //.
+  apply it_sem_uincl_aux => //.
   by move=> ii f s t hu; apply xrutt_facts.xrutt_trigger.
 Qed.
 
@@ -1936,11 +1919,10 @@ Let Pc c :=
 Lemma it_eq_cmdP_aux c :
   (forall ii ii' fn,
      wequiv_f_ii p p' ev ev' (λ (_ _ : funname), fs_uincl) ii ii' fn fn (λ _ _  _ _, fs_uincl)) ->
-  (∀ fn fs1 fs2, fs_uincl fs1 fs2 → is_init_state_ok p ev fn fs1 = ok tt → is_init_state_ok p' ev' fn fs2 = ok tt) ->
   forall c', eq_cmd c c' ->
   wequiv p p' ev ev' (st_uincl tt) c c' (st_uincl tt).
 Proof.
-  move=> hfn hinit; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c}.
+  move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c}.
   + by move=> i ii hi [??] /= ?; apply hi.
   + by move=> [|//] _; apply wequiv_nil.
   + move=> i c hi hc [//|i' c'] /= /andP [/hi{}hi /hc{}hc].
@@ -1969,7 +1951,6 @@ Proof.
     by rewrite /= /check_es_eq_cmd /= andbT.
   move=> xs fn es [] //= xs' fn' es' /andP[] /andP[] heq1 /eqP -> heq2 ??.
   apply wequiv_call_rel_uincl with checker_eq_cmd tt => //.
-  apply hinit.
 Qed.
 
 End PROG.
@@ -1983,11 +1964,10 @@ Context (eq_globs: p_globs p = p_globs p').
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 Lemma it_eq_cmdP_rec c c' :
-  (∀ fn fs1 fs2, fs_uincl fs1 fs2 → is_init_state_ok p ev fn fs1 = ok tt → is_init_state_ok p' ev' fn fs2 = ok tt) ->
   eq_cmd c c' ->
   wequiv_rec p p' ev ev' uincl_spec (st_uincl tt) c c' (st_uincl tt).
 Proof.
-  move=> hinit; apply it_eq_cmdP_aux => //.
+  apply it_eq_cmdP_aux => //.
   by move=> ii ii' f s t hu; apply xrutt_facts.xrutt_trigger.
 Qed.
 

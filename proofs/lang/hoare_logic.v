@@ -670,7 +670,6 @@ Lemma hoare_call (Pf : PreF) (Qf : PostF) Rv P Q Qerr ii xs fn es :
   rhoare P (fun s => sem_pexprs (~~ direct_call) (p_globs p) s es) Rv Qerr ->
   (forall s vs, P s -> Rv vs -> Pf fn (mk_fstate vs s)) ->
   (forall vs, Rv vs -> rhoare PredT (fun s => sem_pre p fn (mk_fstate vs s)) PredT Qerr) ->
-  (forall vs, Rv vs -> rhoare PredT (fun s => is_init_state_ok p ev fn (mk_fstate vs s)) PredT Qerr) ->
   hoare_f_ii Pf ii fn Qf ->
   (forall vs fs fr,
       Rv vs ->
@@ -682,7 +681,7 @@ Lemma hoare_call (Pf : PreF) (Qf : PostF) Rv P Q Qerr ii xs fn es :
     rhoare P (upd_estate (~~ direct_call) (p_globs p) xs fr) Q Qerr) ->
   hoare P [:: MkI ii (Ccall xs fn es)] Q.
 Proof.
-  move=> herr hes hPPf hpre hinit hCall hpost hPQf; rewrite /hoare /isem_cmd_ /=.
+  move=> herr hes hPPf hpre hCall hpost hPQf; rewrite /hoare /isem_cmd_ /=.
   apply khoare_bind with Q; last by apply khoare_ret.
   apply khoare_read with Rv.
   + by apply (khoare_iresult herr) => >; apply: hes.
@@ -694,13 +693,6 @@ Proof.
       exact: herr.
     move => s [] heq hpre'; subst.
     by apply: (hpre _ hvs).
-  move => _ _.
-  apply khoare_read with PredT.
-  + apply khoare_iresult with Qerr.
-    + move => s e [] heq;subst.
-      exact: herr.
-    move => s [] heq hpre'; subst.
-    by apply: (hinit _ hvs).
   move => _ _.
   apply khoare_read with (Qf fn fs).
   + by move=> _ [-> hP]; apply/hCall/hPPf.
@@ -965,8 +957,7 @@ Lemma whoare_call (Pf : PreF) (Qf : PostF) Rv P Q ii xs fn es :
 Proof.
   move=> h1 h2 h3. apply hoare_call with Rv => //.
   + by move=> * ?; case: sem_pre.
-  + by move=> * ? ; case: is_init_state_ok.
-  + by move=> * ? ; case: sem_post.
+  by move=> * ? ; case: sem_post.
 Qed.
 
 End WHOARE_CORE.

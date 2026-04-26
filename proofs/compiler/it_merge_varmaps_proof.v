@@ -781,13 +781,8 @@ Proof.
     elim: (f_params fd) (ves') hgetv => //=.
     move=> x xs' hrec ?; t_xrbindP => ? /hrec -> <- /=.
     by rewrite /fd_tmp_call hget.
-  rewrite /is_init_state_ok /it_sems_one_varmap.is_init_state_ok hget.
-  case heq : init_state => [s' | err] /=; last first.
-  + rewrite bind_throw; apply xrutt.xrutt_CutL.
-    by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /subevent /resum /fromErr /= mid12.
-  move: heq; rewrite /init_state /= /init_stk_state /estate0 /=; t_xrbindP => m' ok_m' ?.
-  rewrite /it_sems_one_varmap.initialize_funcall.
-  rewrite -(mvm_mem (mvi_match hinvu)) ok_m' /= htop hval.
+
+  rewrite /is_disjoint_magic hget.
   have -> /= : disjoint (ra_vm (f_extra fd) Sv.empty) (magic_variables p).
   + have [_] := checkP ok_p hget.
     rewrite /check_fd; t_xrbindP => k _ _ _ _ + _ _ _.
@@ -849,7 +844,7 @@ Lemma merge_varmaps_funP fn1 fn2 :
   wkequiv_io
     (preF fn1 fn2)
     (sem_fun (sem_Fun := sem_fun_full) p global_data dummy_instr_info fn1)
-    (sem_funK (sem_FunK := it_sems_one_varmap.sem_fun_full var_tmps) p fn2)
+    (it_sems_one_varmap.isem_fun var_tmps p fn2)
     (postF fn1 fn2).
 Proof.
   move=> fs1 t1 hpre /=.
@@ -1119,76 +1114,6 @@ Proof.
   by rewrite /writefun_ra hget => -[+ _]; clear; SvD.fsetdec.
 Qed.
 
-Lemma merge_varmaps_export_call1P fn:
-  is_export p fn →
-  wkequiv
-    (fun fs t =>
-      [/\ fscs fs = escs t
-        , fmem fs = emem t
-        & let m := fmem fs in
-          let tvm1 := evm t in
-          let args := fvals fs in
-          match get_fundef (p_funcs p) fn with
-          | Some fd =>
-             ∃ (args' : seq value),
-               [/\ tvm1.[vrsp] = Vword (top_stack m)
-                 , tvm1.[vgd] = Vword global_data
-                 , get_var_is false tvm1 (f_params fd) = ok args'
-                 & List.Forall2 value_uincl args args']
-          | None => true
-          end])
-    (isem_fun p global_data fn)
-    (it_sems_one_varmap.isem_exportcall1 var_tmps p global_data fn)
-    (fun fs' t' =>
-      [/\ fscs fs' = escs t'
-        , fmem fs' = emem t'
-        & let m' := fmem fs' in
-          let res := fvals fs' in
-          let tvm2 := evm t' in
-          match get_fundef (p_funcs p) fn with
-          | Some fd =>
-            ∃ (res' : seq value),
-              get_var_is false tvm2 (f_res fd) = ok res' /\
-              List.Forall2 value_uincl res res'
-          | None => false
-          end]).
-Proof.
-  case => fd ok_fd Export fs t; rewrite ok_fd /= => -[] hscs hmem /= [args'] [ hrsp hvgd hargs huargs].
-  rewrite /isem_exportcall1.
-  case: (checkP ok_p ok_fd)=> _ok_wrf.
-  rewrite /check_fd; t_xrbindP => D.
-  rewrite /top_stack_aligned Export.
-  set ID := (ID in check_c _ ID _).
-  set DF := Sv.union _ D.
-  set results := sv_of_list v_var (f_res fd).
-  set params := sv_of_list v_var (f_params fd).
-  move => checked_body hdisj checked_params RSP_not_result preserved_magic checked_save_stack tmp_call_magic.
-  t_xrbindP => to_save_not_result ok_callee_saved ok_params.
-  have /merge_varmaps_funP hsem : preF fn fn fs t.
-  + rewrite /preF ok_fd; split => //.
-    exists args'; split => //.
-    by rewrite /top_stack_aligned Export.
-  rewrite ok_fd /= bind_ret_l.
-  rewrite RSP_not_result Export to_save_not_result hvgd value_eqb_refl //= bind_ret_l.
-  rewrite -(bind_ret_r (isem_fun p global_data fn fs)).
-  apply (xrutt_facts.xrutt_bind hsem).
-  move=> s rt [hscs' hmem']; rewrite ok_fd => /= -[vres'] [hsub hsubk hget' hex hstable hrsp' hvgd' hures].
-  have -> : Sv.subset (Sv.inter callee_saved (Sv.union rt.1 (ra_undef fd var_tmps)))
-              (sv_of_list fst (sf_to_save (f_extra fd))).
-  + apply /Sv.subset_spec.
-    move/Sv.subset_spec: ok_callee_saved hsub.
-    rewrite /writefun_ra ok_fd.
-    move: (ra_vm_return _) => W.
-    move: (sv_of_list _ _) => C.
-    move: (ra_undef _ _) => X.
-    by clear; SvD.fsetdec.
-  by rewrite /= bind_ret_l; apply xrutt.xrutt_Ret; split => //; exists vres'; split.
-Qed.
-
-Lemma interp_throw T e :
-  interp (mrecursive (handle_recCallK var_tmps p)) (Exception.throw (X:=T) e) ≈ Exception.throw e.
-Proof. rewrite interp_vis bind_trigger; apply eqit_Vis => -[]. Qed.
-
 Lemma merge_varmaps_export_callP fn:
   is_export p fn →
   wkequiv
@@ -1223,14 +1148,81 @@ Lemma merge_varmaps_export_callP fn:
           | None => false
           end]).
 Proof.
-  move=> /merge_varmaps_export_call1P => h fs s /h.
-  have -> // : isem_exportcall1 var_tmps p global_data fn s ≈ isem_exportcall var_tmps p global_data fn s.
-  rewrite /isem_exportcall1 /isem_exportcall.
+  case => fd ok_fd Export fs t; rewrite ok_fd /= => -[] hscs hmem /= [args'] [ hrsp hvgd hargs huargs].
+  rewrite /isem_exportcall.
+  case: (checkP ok_p ok_fd)=> _ok_wrf.
+  rewrite /check_fd; t_xrbindP => D.
+  rewrite /top_stack_aligned Export.
+  set ID := (ID in check_c _ ID _).
+  set DF := Sv.union _ D.
+  set results := sv_of_list v_var (f_res fd).
+  set params := sv_of_list v_var (f_params fd).
+  move => checked_body hdisj checked_params RSP_not_result preserved_magic checked_save_stack tmp_call_magic.
+  t_xrbindP => to_save_not_result ok_callee_saved ok_params.
+  have /merge_varmaps_funP hsem : preF fn fn fs t.
+  + rewrite /preF ok_fd; split => //.
+    exists args'; split => //.
+    by rewrite /top_stack_aligned Export.
+  rewrite ok_fd /= bind_ret_l.
+  rewrite RSP_not_result Export to_save_not_result hvgd value_eqb_refl //= bind_ret_l.
+  rewrite -(bind_ret_r (isem_fun p global_data fn fs)).
+  apply (xrutt_facts.xrutt_bind hsem).
+  move=> s rt [hscs' hmem']; rewrite ok_fd => /= -[vres'] [hsub hsubk hget' hex hstable hrsp' hvgd' hures].
+  have -> : Sv.subset (Sv.inter callee_saved (Sv.union rt.1 (ra_undef fd var_tmps)))
+              (sv_of_list fst (sf_to_save (f_extra fd))).
+  + apply /Sv.subset_spec.
+    move/Sv.subset_spec: ok_callee_saved hsub.
+    rewrite /writefun_ra ok_fd.
+    move: (ra_vm_return _) => W.
+    move: (sv_of_list _ _) => C.
+    move: (ra_undef _ _) => X.
+    by clear; SvD.fsetdec.
+  by rewrite /= bind_ret_l; apply xrutt.xrutt_Ret; split => //; exists vres'; split.
+Qed.
+
+Lemma merge_varmaps_export_call_checkP fn:
+  is_export p fn →
+  wkequiv
+    (fun fs t =>
+      [/\ fscs fs = escs t
+        , fmem fs = emem t
+        & let m := fmem fs in
+          let tvm1 := evm t in
+          let args := fvals fs in
+          match get_fundef (p_funcs p) fn with
+          | Some fd =>
+             ∃ (args' : seq value),
+               [/\ tvm1.[vrsp] = Vword (top_stack m)
+                 , tvm1.[vgd] = Vword global_data
+                 , get_var_is false tvm1 (f_params fd) = ok args'
+                 & List.Forall2 value_uincl args args']
+          | None => true
+          end])
+    (isem_fun p global_data fn)
+    (it_sems_one_varmap.isem_exportcall_check var_tmps p global_data fn)
+    (fun fs' t' =>
+      [/\ fscs fs' = escs t'
+        , fmem fs' = emem t'
+        & let m' := fmem fs' in
+          let res := fvals fs' in
+          let tvm2 := evm t' in
+          match get_fundef (p_funcs p) fn with
+          | Some fd =>
+            ∃ (res' : seq value),
+              get_var_is false tvm2 (f_res fd) = ok res' /\
+              List.Forall2 value_uincl res res'
+          | None => false
+          end]).
+Proof.
+  move=> /merge_varmaps_export_callP => h fs s /h.
+  have -> // : isem_exportcall var_tmps p global_data fn s ≈ isem_exportcall_check var_tmps p global_data fn s.
+  rewrite /isem_exportcall /isem_exportcall_check.
   case ok_fd : (get_fundef (p_funcs p) fn) => [fd | ] /=; last first.
   + rewrite !bind_throw; reflexivity.
   rewrite !bind_ret_l.
   apply eqit_bind => [|_]; first reflexivity.
-  rewrite /it_sems_one_varmap.isem_fun /it_sems_one_varmap.isem_fun_def.
+  rewrite isem_fun_isem_fun_check.
+  rewrite /isem_fun_check /it_sems_one_varmap.isem_fun_def.
   setoid_rewrite mrec_as_interp.
   rewrite /= /it_sems_one_varmap.isem_fun_body.
   rewrite /it_sems_one_varmap.initialize_funcall ok_fd /=.
@@ -1238,6 +1230,9 @@ Proof.
   case: alloc_stack => [m | err] /=.
   + rewrite bind_ret_l; reflexivity.
   rewrite bind_throw.
+  set F := (mrecursive _ ).
+  have interp_throw : forall T e, interp F (Exception.throw (X:=T) e) ≈ Exception.throw e.
+  + by move=> T e; rewrite interp_vis bind_trigger; apply eqit_Vis => -[].
   case: saved_stack_valid_init => /=; last first.
   + rewrite bind_throw interp_throw bind_throw; reflexivity.
   rewrite bind_ret_l.

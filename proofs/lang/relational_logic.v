@@ -1142,9 +1142,6 @@ Lemma wequiv_call_core_wa (Pf : relPreF) (Qf : relPostF) Rv P Q ii1 xs1 fn1 es1 
      sem_pre2 p2 fn2 (mk_fstate vs2 s2) = ok tt) ->
   (forall s1 s2 vs1 vs2,
      P s1 s2 -> Rv vs1 vs2 -> Pf fn1 fn2 (mk_fstate vs1 s1) (mk_fstate vs2 s2)) ->
-  (forall fs1 fs2, Pf fn1 fn2 fs1 fs2 ->
-     is_init_state_ok1 p1 ev1 fn1 fs1 = ok tt ->
-     is_init_state_ok2 p2 ev2 fn2 fs2 = ok tt) ->
   wequiv_f_ii Pf ii1 ii2 fn1 fn2 Qf ->
   (forall fs1 fs2 fr1 fr2,
      Pf fn1 fn2 fs1 fs2 -> Qf fn1 fn2 fs1 fs2 fr1 fr2 ->
@@ -1161,7 +1158,7 @@ Lemma wequiv_call_core_wa (Pf : relPreF) (Qf : relPostF) Rv P Q ii1 xs1 fn1 es1 
       Q) ->
   wequiv P [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] Q.
 Proof.
-  move=> hes hpre hPPf hinit hCall hpost hPQf; rewrite /wequiv /isem_cmd_ /=.
+  move=> hes hpre hPPf hCall hpost hPQf; rewrite /wequiv /isem_cmd_ /=.
   apply wkequiv_bind with Q; last by apply wkequiv_ret.
   apply wkequiv_read with Rv.
   + by apply wkequiv_iresult.
@@ -1170,10 +1167,6 @@ Proof.
   set fs1 := mk_fstate vs1 s1; set fs2 := mk_fstate vs2 s2.
   apply wkequiv_read with (fun u1 u2 => sem_pre1 p1 fn1 fs1 = ok tt /\ sem_pre2 p2 fn2 fs2 = ok tt).
   + by apply wkequiv_iresult => _ _ [] [-> ->] he; have ?:= hpre _ _ _ _ hP hvs he; exists tt.
-  move=> _ _ [hpre1 hpre2].
-  apply wkequiv_read with (fun u1 u2 => true).
-  + apply wkequiv_iresult => _ _ [] [-> ->] he.
-    by have h := hinit _ _ (hPPf _ _ _ _ hP hvs); exists tt => //; apply h.
   move=> _ _ _; apply wkequiv_read with (Qf fn1 fn2 fs1 fs2).
   + by move=> _ _ [-> ->]; apply/hCall/hPPf.
   move=> fr1 fr2 hQf.
@@ -1194,9 +1187,6 @@ Lemma wequiv_call_wa (Pf : relPreF) (Qf : relPostF) Rv P Q ii1 xs1 fn1 es1 ii2 x
      sem_pre2 p2 fn2 (mk_fstate vs2 s2) = ok tt) ->
   (forall s1 s2 vs1 vs2,
      P s1 s2 -> Rv vs1 vs2 -> Pf fn1 fn2 (mk_fstate vs1 s1) (mk_fstate vs2 s2)) ->
-  (forall fs1 fs2, Pf fn1 fn2 fs1 fs2 ->
-     is_init_state_ok1 p1 ev1 fn1 fs1 = ok tt ->
-     is_init_state_ok2 p2 ev2 fn2 fs2 = ok tt) ->
   (forall fs1 fs2 fr1 fr2,
      Pf fn1 fn2 fs1 fs2 -> Qf fn1 fn2 fs1 fs2 fr1 fr2 ->
     sem_post1 p1 fn1 fs1.(fvals) fr1 = ok () ->
@@ -1208,7 +1198,7 @@ Lemma wequiv_call_wa (Pf : relPreF) (Qf : relPostF) Rv P Q ii1 xs1 fn1 es1 ii2 x
               (upd_estate (~~ (@direct_call dc2)) (p_globs p2) xs2 fr2) Q) ->
   wequiv P [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] Q.
 Proof.
-  move=> hes hpre hPPf hinit hpost hCall hPQf.
+  move=> hes hpre hPPf hpost hCall hPQf.
   apply wequiv_call_core_wa with Pf Qf Rv => //.
   move=> > hPf hQf; apply wrequiv_weaken with P Q => //.
   + by move=> > [].
@@ -1223,9 +1213,6 @@ Lemma wequiv_call_eq_wa P Q ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
      sem_pre2 p2 fn2 (mk_fstate vs s2) = ok tt) ->
   (forall s1 s2 vs,
      P s1 s2 -> rpreF (eS:=eq_spec) fn1 fn2 (mk_fstate vs s1) (mk_fstate vs s2)) ->
-  (forall fs1 fs2, rpreF (eS:=eq_spec) fn1 fn2 fs1 fs2 ->
-     is_init_state_ok1 p1 ev1 fn1 fs1 = ok tt ->
-     is_init_state_ok2 p2 ev2 fn2 fs2 = ok tt) ->
   wequiv_f_ii (rpreF (eS:=eq_spec)) ii1 ii2 fn1 fn2 (rpostF (eS:=eq_spec)) ->
   (forall vs fr,
     sem_post1 p1 fn1 vs fr = ok () ->
@@ -1235,7 +1222,7 @@ Lemma wequiv_call_eq_wa P Q ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
               (upd_estate (~~ (@direct_call dc2)) (p_globs p2) xs2 fs) Q) ->
   wequiv P [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] Q.
 Proof.
-  move=> he hpre hfs hinit hfn hpost hupd.
+  move=> he hpre hfs hfn hpost hupd.
   apply wequiv_call_wa with (Pf:=rpreF (eS:=eq_spec)) (Qf:= rpostF (eS:=eq_spec)) (Rv:=eq) => //.
   + by move=> s1 s2 vs1 vs2 hP ->; apply hpre.
   + by move=> s1 s2 vs1 _ hP <-; apply hfs.
@@ -1565,20 +1552,17 @@ Lemma wequiv_call_rel_uincl_R_wa d de de' d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
   check_lvals de' xs1 xs2 d' →
   (∀ s1 s2 vs1 vs2, R d s1 s2 → List.Forall2 value_uincl vs1 vs2 →
      sem_pre1 p1 fn1 (mk_fstate vs1 s1) = ok () → sem_pre2 p2 fn2 (mk_fstate vs2 s2) = ok ()) →
-  (∀ fs1 fs2, fs_uincl fs1 fs2 →
-     is_init_state_ok1 p1 ev1 fn1 fs1 = ok () → is_init_state_ok2 p2 ev2 fn2 fs2 = ok ()) →
   wequiv_f_ii (fun _ _ => fs_uincl) ii1 ii2 fn1 fn2 (fun _ _ _ _ => fs_uincl) →
   (∀ vs1 vs2 fr1 fr2,
     List.Forall2 value_uincl vs1 vs2 → fs_uincl fr1 fr2 →
     sem_post1 p1 fn1 vs1 fr1 = ok () → sem_post2 p2 fn2 vs2 fr2 = ok ()) →
   wequiv (R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (R d').
 Proof.
-  move=> hsm hwith hes hxs hpre hinit hf hpost.
+  move=> hsm hwith hes hxs hpre hf hpost.
   apply wequiv_call_wa with (fun _ _ => fs_uincl) (fun _ _ _ _ => fs_uincl) (List.Forall2 value_uincl).
   + by apply: ucheck_esP hes.
   + by apply hpre.
   + by rewrite /mk_fstate; move=> > /hsm [-> ->] ?.
-  + by apply hinit.
   + by move=> > [_ _]; apply hpost.
   + by apply hf.
   move=> fs1 fs2 fr1 fr2 _ [hscs hmem hu]; rewrite /upd_estate.
@@ -1727,18 +1711,16 @@ Lemma wequiv_call_rel_eq_R_wa d de de' d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
   check_lvals de' xs1 xs2 d' →
   (∀ s1 s2 vs, R d s1 s2 →
      sem_pre1 p1 fn1 (mk_fstate vs s1) = ok () → sem_pre2 p2 fn2 (mk_fstate vs s2) = ok ()) →
-  (∀ fs, is_init_state_ok1 p1 ev1 fn1 fs = ok () → is_init_state_ok2 p2 ev2 fn2 fs = ok ()) →
   wequiv_f_ii (fun _ _ => eq) ii1 ii2 fn1 fn2 (fun _ _ _ _ => eq) →
   (∀ vs fr,
     sem_post1 p1 fn1 vs fr = ok () → sem_post2 p2 fn2 vs fr = ok ()) →
   wequiv (R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (R d').
 Proof.
-  move=> hsm hwith hes hxs hpre hinit hf hpost.
+  move=> hsm hwith hes hxs hpre hf hpost.
   apply wequiv_call_wa with (fun _ _ => eq) (fun _ _ _ _ => eq) eq.
   + by apply: echeck_esP hes.
   + by move=> > hR <-; apply hpre.
   + by rewrite /mk_fstate; move=> > /hsm [-> ->] ->.
-  + by move=> > <-; apply hinit.
   + by move=> > <- <-; apply hpost.
   + by apply hf.
   move=> > h1 <-; rewrite /upd_estate.
@@ -1804,9 +1786,6 @@ Lemma wequiv_call_rel_uincl_wa d de d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
   (∀ s1 s2 vs1 vs2,
      st_rel R d s1 s2 → Forall2 value_uincl vs1 vs2 →
      sem_pre1 p1 fn1 (mk_fstate vs1 s1) = ok () → sem_pre2 p2 fn2 (mk_fstate vs2 s2) = ok ()) →
-  (∀ fs1 fs2,
-     fs_uincl fs1 fs2 →
-     is_init_state_ok1 p1 ev1 fn1 fs1 = ok () → is_init_state_ok2 p2 ev2 fn2 fs2 = ok ()) →
   wequiv_f_ii (fun _ _ => fs_uincl) ii1 ii2 fn1 fn2 (fun _ _ _ _ => fs_uincl) →
   (∀ vs1 vs2 fr1 fr2,
      List.Forall2 value_uincl vs1 vs2 → fs_uincl fr1 fr2 →
@@ -1865,7 +1844,6 @@ Lemma wequiv_call_rel_eq_wa d de d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
   (∀ s1 s2 vs,
      st_rel R d s1 s2 →
      sem_pre1 p1 fn1 (mk_fstate vs s1) = ok () → sem_pre2 p2 fn2 (mk_fstate vs s2) = ok ()) →
-  (∀ fs, is_init_state_ok1 p1 ev1 fn1 fs = ok () → is_init_state_ok2 p2 ev2 fn2 fs = ok ()) →
   wequiv_f_ii (fun _ _ => eq) ii1 ii2 fn1 fn2 (fun _ _ _ _ => eq) →
   (∀ vs fr,
      sem_post1 p1 fn1 vs fr = ok () → sem_post2 p2 fn2 vs fr = ok ()) →
@@ -2221,34 +2199,25 @@ Lemma wequiv_call (Pf : relPreF) (Qf : relPostF) Rv P Q ii1 xs1 fn1 es1 ii2 xs2 
             (fun s => sem_pexprs (~~ (@direct_call dc2)) (p_globs p2) s es2) Rv ->
   (forall s1 s2 vs1 vs2,
      P s1 s2 -> Rv vs1 vs2 -> Pf fn1 fn2 (mk_fstate vs1 s1) (mk_fstate vs2 s2)) ->
-  (forall fs1 fs2,
-     Pf fn1 fn2 fs1 fs2 ->
-     is_init_state_ok p1 ev1 fn1 fs1 = ok () → is_init_state_ok p2 ev2 fn2 fs2 = ok ()) ->
   wequiv_f_ii p1 p2 ev1 ev2 Pf ii1 ii2 fn1 fn2 Qf ->
   (forall fs1 fs2 fr1 fr2,
     Pf fn1 fn2 fs1 fs2 -> Qf fn1 fn2 fs1 fs2 fr1 fr2 ->
     wrequiv P (upd_estate (~~ (@direct_call dc1)) (p_globs p1) xs1 fr1)
               (upd_estate (~~ (@direct_call dc2)) (p_globs p2) xs2 fr2) Q) ->
   wequiv p1 p2 ev1 ev2 P [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] Q.
-Proof.
-  move=> hes hPf hinit hf; apply: (wequiv_call_wa hes _ hPf hinit _ hf) => //.
-Qed.
+Proof. by  move=> hes hPf hf; apply: (wequiv_call_wa hes _ hPf _ hf). Qed.
 
 Lemma wequiv_call_eq P Q ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
   wrequiv P (fun s => sem_pexprs (~~ (@direct_call dc1)) (p_globs p1) s es1)
             (fun s => sem_pexprs (~~ (@direct_call dc2)) (p_globs p2) s es2) eq ->
   (forall s1 s2 vs,
      P s1 s2 -> rpreF (eS:=eq_spec) fn1 fn2 (mk_fstate vs s1) (mk_fstate vs s2)) ->
-  (∀ fs, is_init_state_ok p1 ev1 fn1 fs = ok () → is_init_state_ok p2 ev2 fn2 fs = ok ()) →
   wequiv_f_ii p1 p2 ev1 ev2 (rpreF (eS:=eq_spec)) ii1 ii2 fn1 fn2 (rpostF (eS:=eq_spec)) ->
   (forall fs,
     wrequiv P (upd_estate (~~ (@direct_call dc1)) (p_globs p1) xs1 fs)
               (upd_estate (~~ (@direct_call dc2)) (p_globs p2) xs2 fs) Q) ->
   wequiv p1 p2 ev1 ev2 P [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] Q.
-Proof.
-  move=> hes hPf hinit hf; apply: (wequiv_call_eq_wa hes _ hPf _ hf) => //.
-  move=> fs1 fs2 [? <-]; apply hinit.
-Qed.
+Proof. by move=> hes hPf hf; apply: (wequiv_call_eq_wa hes _ hPf hf). Qed.
 
 Lemma wequiv_call_rel_uincl_R
   {D : Type} [R : D → estate1 → estate2 → Prop] {ce : Checker_e R} {cu : Checker_uincl p1 p2 (R:=R)}
@@ -2258,13 +2227,11 @@ Lemma wequiv_call_rel_uincl_R
      R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
   check_es d es1 es2 de →
   check_lvals de' xs1 xs2 d' →
-  (∀ fs1 fs2, fs_uincl fs1 fs2 →
-     is_init_state_ok p1 ev1 fn1 fs1 = ok () → is_init_state_ok p2 ev2 fn2 fs2 = ok ()) →
   wequiv_f_ii p1 p2 ev1 ev2 (fun _ _ => fs_uincl) ii1 ii2 fn1 fn2 (fun _ _ _ _ => fs_uincl) →
   wequiv p1 p2 ev1 ev2 (R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (R d').
 Proof.
-  move=> hscm hde' hes hxs hinit hf.
-  by apply: (wequiv_call_rel_uincl_R_wa (cu:=cu) hscm hde' hes hxs _ _ hf).
+  move=> hscm hde' hes hxs hf.
+  by apply: (wequiv_call_rel_uincl_R_wa (cu:=cu) hscm hde' hes hxs _ hf).
 Qed.
 
 Lemma wequiv_call_rel_eq_R
@@ -2275,12 +2242,11 @@ Lemma wequiv_call_rel_eq_R
      R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
   check_es d es1 es2 de →
   check_lvals de' xs1 xs2 d' →
-  (∀ fs, is_init_state_ok p1 ev1 fn1 fs= ok () → is_init_state_ok p2 ev2 fn2 fs = ok ()) →
   wequiv_f_ii p1 p2 ev1 ev2 (fun _ _ => eq) ii1 ii2 fn1 fn2 (fun _ _ _ _ => eq) →
   wequiv p1 p2 ev1 ev2 (R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (R d').
 Proof.
-  move=> hscm hde' hes hxs hinit hf.
-  by apply: (wequiv_call_rel_eq_R_wa (cu:=cu) hscm hde' hes hxs _ _ hf).
+  move=> hscm hde' hes hxs hf.
+  by apply: (wequiv_call_rel_eq_R_wa (cu:=cu) hscm hde' hes hxs _ hf).
 Qed.
 
 Lemma wequiv_call_rel_uincl
@@ -2288,13 +2254,11 @@ Lemma wequiv_call_rel_uincl
   d de d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
   check_es d es1 es2 de →
   check_lvals de xs1 xs2 d' →
-  (∀ fs1 fs2, fs_uincl fs1 fs2 →
-     is_init_state_ok p1 ev1 fn1 fs1 = ok () → is_init_state_ok p2 ev2 fn2 fs2 = ok ()) →
   wequiv_f_ii p1 p2 ev1 ev2 (fun _ _ => fs_uincl) ii1 ii2 fn1 fn2 (fun _ _ _ _ => fs_uincl) →
   wequiv p1 p2 ev1 ev2 (st_rel R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (st_rel R d').
 Proof.
-  move=> hes hxs hinit hf.
-  by apply: (wequiv_call_rel_uincl_wa (cu:=cu) hes hxs _ _ hf).
+  move=> hes hxs hf.
+  by apply: (wequiv_call_rel_uincl_wa (cu:=cu) hes hxs _ hf).
 Qed.
 
 Lemma wequiv_call_rel_eq
@@ -2302,12 +2266,11 @@ Lemma wequiv_call_rel_eq
   d de d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
   check_es d es1 es2 de →
   check_lvals de xs1 xs2 d' →
-  (∀ fs, is_init_state_ok p1 ev1 fn1 fs= ok () → is_init_state_ok p2 ev2 fn2 fs = ok ()) →
   wequiv_f_ii p1 p2 ev1 ev2 (fun _ _ => eq) ii1 ii2 fn1 fn2 (fun _ _ _ _ => eq) →
   wequiv p1 p2 ev1 ev2 (st_rel R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (st_rel R d').
 Proof.
-  move=> hes hxs hinit hf.
-  by apply: (wequiv_call_rel_eq_wa (cu:=cu) hes hxs _ _ hf).
+  move=> hes hxs hf.
+  by apply: (wequiv_call_rel_eq_wa (cu:=cu) hes hxs _ hf).
 Qed.
 
 End WEQUIV_CORE.

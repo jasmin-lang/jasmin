@@ -244,7 +244,6 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
     vargs <- isem_pexprs  (~~direct_call) (p_globs p) args s;;
     let fi := mk_fstate vargs s in
     isem_pre p s fn fi;;
-    iresult s (is_init_state_ok p ev fn fi);;
     fs <- sem_fun p ev ii fn fi ;;
     isem_post p s fn vargs fs;;
     iresult s (upd_estate (~~direct_call) (p_globs p) xs fs s)
@@ -430,7 +429,6 @@ Proof.
   move=> xs f es ii s /=.
   apply eqit_bind; first reflexivity.
   move=> ?; apply eqit_bind; first reflexivity.
-  move=> ?; apply eqit_bind; first reflexivity.
   move=> ?; apply eqit_bind; first by apply sem_F_ext.
   move=> ?; apply eqit_bind; first reflexivity.
   move=> ?; reflexivity.
@@ -587,8 +585,6 @@ Proof.
   move=> vs; rewrite interp_bind; apply eqit_bind.
   + by apply interp_iresult.
   move => ?;rewrite interp_bind;apply eqit_bind.
-  + by apply interp_iresult.
-  move => ?;rewrite interp_bind;apply eqit_bind.
   + rewrite interp_mrecursive; reflexivity.
   move => ?;rewrite interp_bind;apply eqit_bind.
   + by apply interp_iresult.
@@ -721,10 +717,7 @@ Proof.
     rewrite /isem_pexprs interp_cond_iresult; apply eutt_eq_bind => ?.
     rewrite interp_bind; apply eutt_eq_bind'.
     + by apply interp_cond_iresult.
-    move=> _. rewrite interp_bind.
-    rewrite interp_cond_iresult. apply eutt_eq_bind'.
-    + reflexivity.
-    move=> _; rewrite interp_bind; apply eutt_eq_bind'.
+    move=> _. rewrite interp_bind; apply eutt_eq_bind'.
     + rewrite /ctx_cond /cond /Handler.case_ /rec_call /F.
       setoid_rewrite interp_trigger; reflexivity.
     move=> ?; rewrite interp_bind; apply eutt_eq_bind'.
