@@ -187,8 +187,8 @@ Lemma write_lvals_mem_equiv wdb gd xs vs s s' :
 Proof. by move=> /[dup] /write_lvals_validw ? /write_lvals_stack_stable ?. Qed.
 
 Lemma isem_cmd_mem_equiv c : Pc c.
-Proof using.
-apply: (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c} //; subst Pc Pi Pi_r.
+Proof.
+apply: (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c} //; subst Pc Pi.
 - by move=> s _; apply lutt_Ret.
 - move=> i c /= /hoare_ioP hi hc; apply/hoare_ioP => s _.
   apply: (hoare_cons (R := post s)) => //; first exact: hi.
@@ -222,13 +222,17 @@ apply: (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c} //; subst Pc Pi Pi_r.
         - move=> [].
     move=> t1 _.
     apply: (lutt_bind (R := fun _ => True)).
-    + apply: lutt_trigger => //. admit.
+          + apply: lutt_trigger => //.
+            rewrite /preInv.
+            by case : mfun1 => //= [] [] //= [].
     move=> [scs bytes] _.
     apply: (lutt_bind (R := fun scsmvs => mem_equiv (emem s') scsmvs.1.2)).
     + rewrite /iresult /err_result /mk_fstate /=.
       case he: exec_syscall_store => [[[scs' m'] vres]|e] /=.
       * by apply lutt_Ret; exact: exec_syscall_storeS he.
-      * apply lutt_Vis => /=. admit.
+      * apply lutt_Vis => /=.
+        rewrite /preInv.
+        by case : mfun1 => //= [] [] //= [].
       done.
     move=> [[scs' m'] vres] hRo.
     by apply lutt_Ret.
@@ -266,9 +270,23 @@ apply: (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c} //; subst Pc Pi Pi_r.
   - exact: rhoare_true.
   - move=> s0 hs0; apply: lutt_weaken (hc' s0 I) => // r;
       exact: mem_equiv_trans hs0.
-- move=> xs fn es ii; apply/hoare_ioP => s _.
-  apply: hoare_call; only 5: exact: hoare_fun_rec.
-Admitted.
+  - move=> xs fn es ii; apply/hoare_ioP => s _.
+    apply: (hoare_call'
+            (Qerr := fun _ => True)
+            (* (Pf:= fun fn fs => (emem s) = (fmem fs)) *)
+            (Rv:= fun vs => preF fn (mk_fstate vs s))
+              )  => //=;
+            only 3: exact: hoare_fun_rec.
+     + exact: rhoare_true.
+     + by move => ?? ->.
+     + move=> fs fr H1 H2.
+       apply wrhoareP => i o []  -> [] ? Hfs.
+       rewrite /upd_estate => //=.
+       case h: write_lvals => [s''|e] //= [] <-.
+       apply: mem_equiv_trans (write_lvals_mem_equiv h).
+       apply: mem_equiv_trans H2.
+       by rewrite Hfs.
+Qed.
 
 End IND.
 
