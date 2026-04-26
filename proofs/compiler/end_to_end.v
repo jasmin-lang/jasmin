@@ -208,8 +208,6 @@ Lemma eutt_translateE T (RR : T -> T -> Prop) :
   Proper (eutt RR ==> eutt RR) (translateE (T := T)).
 Proof. exact: eutt_interp'. Qed.
 
-Search eutt interp.
-
 Context
   {reg regx xreg rflag cond asm_op extra_op : Type}
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
@@ -346,7 +344,7 @@ Definition mkxm (fn : funname) (m : asmmem) (args : seq wseq) : asmmem :=
   else _mi. (* absurd *)
 
 Definition xm_read (m : asmmem) (x : asm_typed_reg) : value.
-Admitted.
+Proof using. Admitted.
 
 Definition xget_res (fn : funname) (m : asmmem) : seq wseq :=
   if get_fundef (asm_funcs q) fn is Some xfd then
@@ -390,10 +388,30 @@ Definition inv_eq {X : Type} (x y : X * _Mo) : Prop :=
 Lemma inv_mo_mi : inv_mo _mi _mi.
 Proof using. Admitted.
 
-Lemma eutt_isem_res o i m m' :
-  inv_mo m m' ->
-  eutt inv_eq (isem_unit_res o i m) (isem_asm_res o i m').
+Definition post_isem : funname -> mem -> asmmem -> fstate -> asmmem -> Prop.
 Proof using. Admitted.
+
+Lemma post_isemP fn ms mt fs xm :
+  inv_mo ms mt ->
+  post_isem fn (asm_mem ms) mt fs xm ->
+  inv_eq
+    ([seq wseq_of_val v | v <- fvals fs], xm_with_mem (fmem fs) ms)
+    (xget_res fn xm, xm).
+Proof using. Admitted.
+
+Lemma eutt_isem_post fn ms mt i :
+  eutt (post_isem fn (asm_mem ms) mt)
+    (isem_unit p fn (mkfs fn (asm_mem ms) i))
+    (isem_asm q fn (mkxm fn mt i)).
+Proof using. Admitted.
+
+Lemma eutt_isem_res o i ms mt :
+  inv_mo ms mt ->
+  eutt inv_eq (isem_unit_res o i ms) (isem_asm_res o i mt).
+Proof.
+move=> hm; apply: eutt_clo_bind; first exact: eutt_isem_post.
+move=> fs xm h; apply eutt_Ret; exact/(post_isemP hm h).
+Qed.
 
 Theorem compiler_preserves o i m1 m2 :
   inv_mo m1 m2 ->
@@ -489,7 +507,7 @@ Lemma equivalent_JKEM P Q :
 Proof using. Admitted.
 
 Theorem mlkem_end_to_end p q :
-  indcca_reduction (KEM_of_Jazz (Source p)) (KEM_of_Jazz (Target p q)).
+  indcca_reduction (KEM_of_Jazz (Source p)) (KEM_of_Jazz (Target q)).
 Proof using. Admitted.
 
 End INSTANTIATION.
