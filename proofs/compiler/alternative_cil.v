@@ -229,11 +229,14 @@ move: e => [o i]; apply: rutt_bind; first exact: ruttO_get_Mo.
 move=> m1 m2 h; apply: (rutt_bind _ _ inv_eq).
 - apply:
     (rutt_translate_gen
-       (REv := fun A B e1 e2 => JMeq e1 e2)
+       (REv := fun A B (e1 : Rnd A) (e2 : Rnd B) =>
+                 exists p : A = B, eq_rect A Rnd e1 B p = e2)
        (RAns := fun A B e1 a e2 b => JMeq a b)).
-  - move=> A B [X1 mu1] [X2 mu2] /= {}h; exact h.
+  - done.
   - by move=> A B [X1 mu1] [X2 mu2].
-  apply: gen_eutt_rutt (inv_mo_Oo _ h) => // ??; exact: JMeq_eq.
+  apply: gen_eutt_rutt (inv_mo_Oo _ h) => [u e | u e a b];
+    first by exists (erefl u).
+  exact: JMeq_eq.
 move=> [r {}m1] [_ {}m2] [/= <- {}h].
 apply: rutt_bind; first exact: ruttO_log.
 move=> _ _ _; exact/rutt_Ret.

@@ -4,6 +4,7 @@ Unset Printing Implicit Defensive.
 Set Uniform Inductive Parameters.
 
 From Coq Require Import JMeq.
+From Coq Require Import Program.Equality.
 
 From mathcomp Require Import
   ssreflect
@@ -59,7 +60,7 @@ Definition REv_inv (A B : Type) (e1 : E1 A) (e2 : E2 B) : Prop :=
   match e1, e2 with
   | inl1 Get, inl1 Get => True
   | inl1 (Put s1), inl1 (Put s2) => state_inv s1 s2
-  | inr1 e1, inr1 e2 => JMeq e1 e2
+  | inr1 e1, inr1 e2 => exists p : A = B, eq_rect A E e1 B p = e2
   | _, _ => False
   end.
 
@@ -259,7 +260,7 @@ Definition RR_run_state
  * INCREMENTAL IMPLEMENTATION (rocq-mcp)
  * ============================================================================
  *
- * Workspace: /home/sao/data/gdrive/phd/nosync/jasmin/distr/proofs
+ * Workspace: /home/sao/data/gdrive/phd/nosync/jasmin/cil/proofs
  *
  * 1. mcp__rocq-mcp__rocq_start
  *      file=compiler/state_facts.v
@@ -292,6 +293,59 @@ Lemma rutt_inv_run_state R1 R2 s1 s2 RR (t1 : itree E1 R1) (t2 : itree E2 R2) :
   eutt (RR_run_state RR) (run_state t1 s1) (run_state t2 s2).
 Proof.
 move=> hi h.
-Admitted.
+move: s1 s2 hi t1 t2 h.
+einit. ecofix CIHLL.
+intros s1 s2 hi t1 t2 h.
+unfold run_state.
+rewrite !unfold_interp_state.
+apply paco2.paco2_unfold in h; [| eauto with paco].
+red in h.
+hinduction h before CIHLLL; intros; cbn.
+- eret. by split.
+- etau. ebase. right.
+  apply CIHLLL; [exact hi|].
+  destruct H as [H|H]; [exact H | contradiction].
+- destruct e1 as [se1|ee1], e2 as [se2|ee2].
+  + dependent destruction se1; dependent destruction se2; cbn in H.
+    * rewrite bind_ret_l. rewrite bind_ret_l.
+      etau. ebase. right.
+      apply CIHLLL; [exact hi|].
+      destruct (H0 s1 s2 hi) as [h|h]; [exact h|contradiction].
+    * contradiction.
+    * contradiction.
+    * rewrite bind_ret_l. rewrite bind_ret_l.
+      etau. ebase. right.
+      apply CIHLLL; [exact H|].
+      destruct (H0 tt tt I) as [h|h]; [exact h|contradiction].
+  + destruct se1; contradiction.
+  + contradiction.
+  + destruct H as [p heq]. destruct p. cbn in heq. subst ee2. cbn.
+    setoid_rewrite bind_vis. setoid_rewrite bind_ret_l. cbn.
+    apply euttG_vis. intros v. etau. ebase. right.
+    apply CIHLLH; [exact hi|].
+    destruct (H0 v v JMeq_refl) as [h|h]; [exact h|contradiction].
+- apply euttG_transD.
+  eapply Eqit.eqit_trans_clo_intro with
+    (t1' := _interp_state (case_ (h_state S1) pure_state) (observe t0) s1)
+    (t2' := _interp_state (case_ (h_state S2) pure_state) ot2 s2)
+    (RR1 := eq) (RR2 := eq).
+  + apply eqit_Tau_l.
+    eapply eqit_mon; last apply unfold_interp_state; by [].
+  + reflexivity.
+  + exact (IHh CIHLLH s1 s2 hi).
+  + move=> x x' y ->; tauto.
+  + move=> x y y' ->; tauto.
+- apply euttG_transD.
+  eapply Eqit.eqit_trans_clo_intro with
+    (t1' := _interp_state (case_ (h_state S1) pure_state) ot1 s1)
+    (t2' := _interp_state (case_ (h_state S2) pure_state) (observe t0) s2)
+    (RR1 := eq) (RR2 := eq).
+  + reflexivity.
+  + apply eqit_Tau_l.
+    eapply eqit_mon; last apply unfold_interp_state; by [].
+  + exact (IHh CIHLLH s1 s2 hi).
+  + move=> x x' y ->; tauto.
+  + move=> x y y' ->; tauto.
+Qed.
 
 End STATE.
