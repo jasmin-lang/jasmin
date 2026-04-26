@@ -388,22 +388,78 @@ Definition inv_eq {X : Type} (x y : X * _Mo) : Prop :=
 Lemma inv_mo_mi : inv_mo _mi _mi.
 Proof using. Admitted.
 
-Definition post_isem : funname -> mem -> asmmem -> fstate -> asmmem -> Prop.
-Proof using. Admitted.
+Definition post_isem
+  (fn : funname) (ms mt : asmmem) (fs' : fstate) (xm' : asmmem) : Prop :=
+  exists xfd i,
+    let: fs := mkfs fn ms.(asm_mem) i in
+    let: xm := mkxm fn mt i in
+    [/\ get_fundef q.(asm_funcs) fn = Some xfd
+      , full_pre p q fn xfd fs xm
+      & full_post cparams p q fn xfd fs xm fs' xm' ].
 
 Lemma post_isemP fn ms mt fs xm :
   inv_mo ms mt ->
-  post_isem fn (asm_mem ms) mt fs xm ->
+  post_isem fn ms mt fs xm ->
   inv_eq
     ([seq wseq_of_val v | v <- fvals fs], xm_with_mem (fmem fs) ms)
     (xget_res fn xm, xm).
 Proof using. Admitted.
 
+Definition safe_uprog (fn : funname) (fs : fstate) : Prop :=
+  safe (is_error wE) (isem_unit p fn fs).
+
+Definition val_is_def (v : value) : bool :=
+  if v is Varr _ a then arr_is_def a else is_defined v.
+
+Definition res_defined fn fs :=
+  lutt
+    (E := E)
+    (fun T e => True)
+    (fun T e r => True)
+    (fun fs => all val_is_def (fvals fs))
+    (isem_unit p fn fs).
+
+Lemma correct_comp fn :
+  fn \in entries ->
+  exists2 xfd,
+    get_fundef q.(asm_funcs) fn = Some xfd
+    & forall s t,
+        safe_uprog fn s ->
+        res_defined fn s ->
+        full_pre p q fn xfd s t ->
+        eutt
+          (full_post cparams p q fn xfd s t)
+          (isem_unit p fn s) (isem_asm q fn t).
+Proof using. Admitted.
+
+(* TODO missing hypotheses *)
+Lemma inv_mo_full_pre fn xfd i ms mt :
+  get_fundef (asm_funcs q) fn = Some xfd ->
+  inv_mo ms mt ->
+  full_pre p q fn xfd (mkfs fn ms.(asm_mem) i) (mkxm fn mt i).
+Proof using. Admitted.
+
+Context
+  (p_safe : forall fn m i, fn \in entries -> safe_uprog fn (mkfs fn m i))
+  (p_def : forall fn m i, fn \in entries -> res_defined fn (mkfs fn m i))
+.
+
 Lemma eutt_isem_post fn ms mt i :
-  eutt (post_isem fn (asm_mem ms) mt)
+  fn \in entries ->
+  inv_mo ms mt ->
+  eutt (post_isem fn ms mt)
     (isem_unit p fn (mkfs fn (asm_mem ms) i))
     (isem_asm q fn (mkxm fn mt i)).
-Proof using. Admitted.
+Proof.
+move=> hexp hm.
+have [xfd hgetq h] := correct_comp hexp.
+have hpre := inv_mo_full_pre i hgetq hm.
+apply: eutt_subrel; last first.
+- apply: h; first exact: p_safe hexp.
+  + exact: p_def hexp.
+  exact: hpre.
+move=> fs xm hpost; by exists xfd, i.
+Qed.
 
 Lemma eutt_isem_res o i ms mt :
   inv_mo ms mt ->
