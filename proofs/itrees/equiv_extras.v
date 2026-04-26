@@ -488,3 +488,112 @@ Qed.
 
 End IrrStrength.
 
+
+Section RHandlerSwitch.
+
+Context {E D} (hnd0 hnd1: D ~> itree (D +' E)).
+Context (hnd_hyp: forall T (e: D T),
+           eqit eq true false (interp_mrec hnd0 (hnd0 e))
+                              (interp_mrec hnd0 (hnd1 e))).
+
+Inductive invarHS : forall T, itree E T -> itree E T -> Prop :=
+  | BASE_HS T (t0: itree (D +' E) T) :
+       invarHS (@interp_mrec D E hnd0 T t0)
+               (@interp_mrec D E hnd1 T t0)
+  | CALL_HS T T0 (t0: itree (D +' E) T0) (k1 k2: T0 -> itree E T) :
+    (forall x, invarHS (k1 x) (k2 x)) ->
+     invarHS (ITree.bind (@interp_mrec D E hnd0 T0 t0) k1)
+             (ITree.bind (@interp_mrec D E hnd1 T0 t0) k2).
+
+Lemma invarHS_rec_handler_switch T (t1 t2: itree E T) :
+  @invarHS T t1 t2 -> eutt eq t1 t2.
+Proof.
+  revert t1 t2.
+  ginit. gcofix CIH.
+  induction 1.
+  setoid_rewrite unfold_interp_mrec.
+  remember (observe t0) as ot0.
+  destruct ot0; simpl.
+  { gstep; red. econstructor; auto. }
+  { gstep; red. econstructor.
+    gfinal; left; eapply CIH.
+    econstructor 1.
+  }
+  { destruct e; simpl.
+    - gstep; red. econstructor.
+      setoid_rewrite interp_mrec_bind.
+      guclo eqit_clo_trans.
+      econstructor 1 with (RR1 := eq).
+      + instantiate (1:= (ITree.bind (interp_mrec hnd0 (hnd1 d))
+                            (fun x : X => interp_mrec hnd0 (k x)))).
+        eapply eqit_bind; try reflexivity.
+        eapply hnd_hyp.       
+      + reflexivity.
+      + gfinal; left; eapply CIH.
+        econstructor.
+        intros x. econstructor.
+
+      + intros x x' y H H0. inversion H0; subst; auto.
+      + intros x y y' H H0. inversion H0; subst; auto.
+
+    - gstep; red. econstructor. 
+      intros v; unfold Datatypes.id; simpl.
+      gstep; red. econstructor.
+      gfinal; left; eapply CIH.
+      econstructor 1.
+   }          
+   { setoid_rewrite unfold_interp_mrec.
+    remember (observe t0) as ot0.
+    destruct ot0; simpl.
+    { setoid_rewrite bind_ret_l.
+      eapply H0.
+      eapply CIH.
+    }  
+    { setoid_rewrite bind_tau.
+      gstep; red. econstructor.
+      gfinal; left; eapply CIH.
+      econstructor 2.
+      eapply H.
+    }  
+    { destruct e; simpl.
+      - setoid_rewrite bind_tau.
+        gstep; red. econstructor.
+        setoid_rewrite interp_mrec_bind.
+        setoid_rewrite bind_bind.   
+        guclo eqit_clo_trans.
+        econstructor 1 with (RR1:= eq).
+        + instantiate (1:= (ITree.bind (interp_mrec hnd0 (hnd1 d))
+                (fun r0 : X => ITree.bind (interp_mrec hnd0 (k r0)) k1))). 
+          eapply eqit_bind; try reflexivity.
+          eapply hnd_hyp.
+        + reflexivity.
+        + gfinal; left; eapply CIH.
+          econstructor 2.
+          intros x; econstructor 2; eauto.
+        + intros x x' y H1 H2. inversion H2; subst; auto.
+        + intros x y y' H1 H2. inversion H2; subst; auto.
+      - setoid_rewrite bind_vis.
+        gstep; red; econstructor.
+        intros v; unfold Datatypes.id; simpl.
+        guclo eqit_clo_trans.
+        econstructor.
+        + setoid_rewrite tau_euttge; reflexivity.
+        + setoid_rewrite tau_euttge; reflexivity.
+        + gfinal; left; eapply CIH.
+          econstructor 2; eapply H.
+        + intros x x' y H1 H2. inversion H2; subst; auto.
+        + intros x y y' H1 H2. inversion H2; subst; auto.      
+    }
+  }  
+Qed.
+
+Lemma rec_handler_switch T (t0: itree (D +' E) T) :
+  eutt eq (@interp_mrec D E hnd0 T t0)
+          (@interp_mrec D E hnd1 T t0).
+Proof.
+  eapply invarHS_rec_handler_switch.
+  econstructor.
+Qed.  
+
+End RHandlerSwitch.  
+

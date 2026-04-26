@@ -186,6 +186,13 @@ Proof.
   eapply bisimulation_is_eq; eapply bind_vis; auto.
 Qed.
 
+Lemma bind_tau_Eq (E : Type -> Type) (R U : Type)
+  (t : itree E U) (k : U -> itree E R) :
+         ITree.bind (Tau t) k = Tau (ITree.bind t k).
+Proof.
+  eapply bisimulation_is_eq; eapply bind_tau; auto.
+Qed.
+  
 Lemma translate_id_Eq {E R} (t : itree E R) : translate (id_ _) t = t.
 Proof.
   eapply bisimulation_is_eq; eapply translate_id; auto.
