@@ -1,4 +1,4 @@
-From Coq Require Import Lia.
+From Coq Require Import Lia JMeq.
 From HB Require Import structures.
 
 From mathcomp Require Import
@@ -379,6 +379,10 @@ Context
   (hcomp : compile_prog_to_asm aparams cparams entries p = ok q)
 .
 
+Lemma export_funname_in_entries o : _fn o \in entries.
+Proof. by case: o. Qed.
+#[local] Hint Resolve export_funname_in_entries : core.
+
 Definition inv_mo : _Mo -> _Mo -> Prop.
 Proof using. Admitted.
 
@@ -405,12 +409,21 @@ Lemma post_isemP fn ms mt fs xm :
     (xget_res fn xm, xm).
 Proof using. Admitted.
 
+(* TODO we can also make export_fundef carry this *)
+Context
+  (p_entries_ok :
+    forall fn, fn \in entries -> exists fd, get_fundef (p_funcs p) fn = Some fd)
+.
+
+(* MOVE *)
 Definition safe_uprog (fn : funname) (fs : fstate) : Prop :=
   safe (is_error wE) (isem_unit p fn fs).
 
+(* MOVE *)
 Definition val_is_def (v : value) : bool :=
   if v is Varr _ a then arr_is_def a else is_defined v.
 
+(* MOVE *)
 Definition res_defined fn fs :=
   lutt
     (E := E)
@@ -419,6 +432,15 @@ Definition res_defined fn fs :=
     (fun fs => all val_is_def (fvals fs))
     (isem_unit p fn fs).
 
+(* MOVE *)
+Let REeq {E : Type -> Type} A1 A2 (e1: E A1) (e2: E A2) :=
+  exists h : A2 = A1, e1 = eq_rect A2 E e2 A1 h.
+
+(* MOVE *)
+Let RAeq {E : Type -> Type} A1 A2 (e1: E A1) (a1: A1) (e2: E A2) (a2: A2) :=
+  JMeq a1 a2.
+
+(* MOVE *)
 Lemma correct_comp fn :
   fn \in entries ->
   exists2 xfd,
@@ -430,7 +452,39 @@ Lemma correct_comp fn :
         eutt
           (full_post cparams p q fn xfd s t)
           (isem_unit p fn s) (isem_asm q fn t).
-Proof using. Admitted.
+Proof.
+move=> hfn; have [fd hfd] := p_entries_ok hfn.
+have [xfd [hxfd _ heq]] := [elaborate
+  it_compile_prog_to_asmP
+    haparams print_uprogP print_sprogP print_linearP hcomp hfn ].
+exists xfd; first exact: hxfd.
+move=> s t hsafe hdef hpre.
+apply/simple_rutt_eutt/(EPreRel_safe_xrutt_rutt hsafe).
+apply: (lutt_xrutt_trans_l'
+  (REv := EPreRel_safe (is_error wE) REeq)
+  (RAns := RAeq)
+  (RR := fun s' t' =>
+           [/\ all val_is_def (fvals s')
+             & full_post cparams p q fn xfd s t s' t' ]));
+  cycle -2.
+- exact: (isem_fun_finalize (wa := withassert) (scP := sCP_unit)) hfd.
+- apply: (lutt_xrutt_trans_l'
+    (REv := EPreRel (rE0 := HandlerContract))
+    (RAns := EPostRel (rE0 := HandlerContract))
+    (RR := full_post cparams p q fn xfd s t)
+  ); cycle -2.
+  + exact: hdef.
+  + exact: heq hpre.
+  + move=> T1 T2 [|[[] n1]]; first by left.
+    move=> [//|[[] _]] _ [_ <-]; right; by exists erefl.
+  + move=> T1 T2 [//|e1] r1 [//|e2] r2 _ _ [] _.
+    destruct e1 as [[] n1]; destruct e2 as [[] n2].
+    by move=> /(JMeq_eq (x := r1)) <-.
+  done.
+- done.
+- done.
+by move=> s' t' hfin [].
+Qed.
 
 (* TODO missing hypotheses *)
 Lemma inv_mo_full_pre fn xfd i ms mt :
@@ -439,6 +493,7 @@ Lemma inv_mo_full_pre fn xfd i ms mt :
   full_pre p q fn xfd (mkfs fn ms.(asm_mem) i) (mkxm fn mt i).
 Proof using. Admitted.
 
+(* TODO we could force these into the type of queries *)
 Context
   (p_safe : forall fn m i, fn \in entries -> safe_uprog fn (mkfs fn m i))
   (p_def : forall fn m i, fn \in entries -> res_defined fn (mkfs fn m i))
@@ -451,12 +506,12 @@ Lemma eutt_isem_post fn ms mt i :
     (isem_unit p fn (mkfs fn (asm_mem ms) i))
     (isem_asm q fn (mkxm fn mt i)).
 Proof.
-move=> hexp hm.
-have [xfd hgetq h] := correct_comp hexp.
-have hpre := inv_mo_full_pre i hgetq hm.
+move=> hfn hm.
+have [xfd [hxfd heq]] := correct_comp hfn.
+have hpre := inv_mo_full_pre i hxfd hm.
 apply: eutt_subrel; last first.
-- apply: h; first exact: p_safe hexp.
-  + exact: p_def hexp.
+- apply: heq; first exact: p_safe hfn.
+  + exact: p_def hfn.
   exact: hpre.
 move=> fs xm hpost; by exists xfd, i.
 Qed.
@@ -465,7 +520,7 @@ Lemma eutt_isem_res o i ms mt :
   inv_mo ms mt ->
   eutt inv_eq (isem_unit_res o i ms) (isem_asm_res o i mt).
 Proof.
-move=> hm; apply: eutt_clo_bind; first exact: eutt_isem_post.
+move=> hm; apply: eutt_clo_bind; first exact: eutt_isem_post hm.
 move=> fs xm h; apply eutt_Ret; exact/(post_isemP hm h).
 Qed.
 
