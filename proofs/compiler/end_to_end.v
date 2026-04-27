@@ -262,12 +262,6 @@ Definition isem_asm (q : asm_prog) :=
     (wE := wE)
     q.
 
-Definition val_of_wseq (t : atype) (a : wseq) : value.
-Proof using. Admitted.
-
-Definition wseq_of_val (v : value) : wseq.
-Proof using. Admitted.
-
 Definition xm_with_mem (mem : mem) (m : asmmem) : asmmem :=
   {|
     asm_rip := m.(asm_rip);
@@ -346,6 +340,13 @@ Instance JazzI : OracleSystemInterface :=
 (* -------------------------------------------------------------------------- *)
 (* Source oracle system *)
 
+Definition wseq_of_val (v : value) : wseq :=
+  match v with
+  | Varr _ a => wseq_of_arr a
+  | Vword _ w => split_vec 8 w
+  | _ => [::]
+  end.
+
 Definition unmkfs (fs : fstate) : seq wseq * mem :=
   ([seq wseq_of_val v | v <- fs.(fvals) ], fs.(fmem)).
 
@@ -355,13 +356,14 @@ Definition isem_unit_res
   let* fs' := isem_unit p o fs in
   let (r, m') := unmkfs fs' in
   Ret (r, xm_with_mem m' m).
-Arguments isem_unit_res : clear implicits.
+
+#[global] Arguments isem_unit_res : clear implicits.
 
 (* TODO Why doesn't [|>] work for [translateE]? *)
 Definition _OoS (o : _No) (i : _In o) (m : _Mo) : itree Rnd (_Out o * _Mo) :=
   let* ores := translateE (isem_unit_res o i m |> interp_Err) in
   if ores is ESok res then Ret res
-  else Ret ([::], _mi) (* absurd *).
+  else Ret ([::], _mi). (* absurd *)
 
 Instance Source : OracleSystem JazzI :=
   {|
