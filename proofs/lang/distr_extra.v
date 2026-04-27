@@ -98,6 +98,13 @@ move=> h hE. rewrite !pr_exp !__admitted__exp_dlet.
 move=> mu'. exact: summable_pr.
 Qed.
 
+Lemma pr_dlet' T (mu : distr R T) E :
+  \P_[mu] E = \P_[\dlet_(x <- mu) dunit (E x)%:R ] id.
+Proof.
+rewrite -dmarginE pr_dmargin.
+congr \P_[mu] _; apply/funext => x /=; by case: (E x).
+Qed.
+
 Lemma eq_mu_pr {T} (mu1 mu2 : distr R T) A :
   mu1 =1 mu2 ->
   \P_[mu1] A = \P_[mu2] A.

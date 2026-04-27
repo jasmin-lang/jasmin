@@ -45,7 +45,7 @@ From ITree Require Import
 .
 
 Require Import distr_extra dinterp.
-Require Import rutt_extras oseq utils rutt_translate state_facts.
+Require Import rutt_extras oseq utils rutt_translate state_facts rutt_interp.
 
 #[local] Open Scope order_scope.
 #[local] Open Scope ring_scope.
@@ -246,7 +246,17 @@ Lemma ruttO_interp_handle_Exch {A : Adversary} :
   ruttO (fun _ _ => True)
     (interp (case_ (handle_Exch (O := O1)) inr_) Aa)
     (interp (case_ (handle_Exch (O := O2)) inr_) Aa).
-Proof using. Admitted.
+Proof.
+apply: (
+  rutt_weaken
+     (REv := REv_inv inv_trace)
+     (RAns := RAns_inv inv_trace)
+     (RR := eq)
+) => //.
+apply: rutt_interp_h => T [[o i] | r] /=; first exact: ruttO_handle_Exch.
+apply: rutt_trigger; first by exists erefl.
+move=> v1 v2 /=; exact: JMeq_eq.
+Qed.
 
 Lemma eutt_interact A : eutt inv_trace (interact O1 A) (interact O2 A).
 Proof.
@@ -257,9 +267,9 @@ apply: rutt_inv_run_state => //; exact/ruttO_interp_handle_Exch.
 Qed.
 
 Definition inv_mo_win (W : WinningCondition) : Prop :=
-  forall A (mu1 : distr trace1) (mu2 : distr trace2),
+  forall (mu1 : distr trace1) (mu2 : distr trace2),
     deqX (R := R) inv_trace mu1 mu2 ->
-    \P_[dinteract O1 A] win = \P_[dinteract O2 A] win.
+    \P_[mu1] win = \P_[mu2] win.
 
 Lemma equivalent_pwin A W :
   inv_mo_win W ->
@@ -565,24 +575,307 @@ Definition reduction (K K' : OracleSystem KEM) : Prop :=
 
 Context (K K' : OracleSystem KEM).
 
-(*
-Lemma equivalent_INDCCA :
-  equivalent K K' ->
-  equivalent (INDCCA K) (INDCCA K').
+Definition indcca_inv_mo (kem_inv_mo : M -> M -> Prop) (m1 m2 : _Mo) : Prop :=
+  [/\ mo_keys m1 = mo_keys m2
+    , mo_bit m1 = mo_bit m2
+    & kem_inv_mo (mo_mem m1) (mo_mem m2) ].
+
+(* ===== PROOF PLAN FOR indcca_inv_mo_win =====
+
+GOAL
+----
+  forall mu1 mu2 : distr (trace (I := INDCCA_I)),
+    deqX (R := R) (List.Forall2 (eqR (indcca_inv_mo kem_inv_mo))) mu1 mu2 ->
+    \P_[mu1] _win = \P_[mu2] _win
+
+where
+  - trace = seq (Xch * _Mo)
+  - Xch   = { o : cca_oracle_name & (_In o * _Out o)%type }
+  - _Mo   = record with fields mo_keys, mo_bit, mo_mem
+  - eqR R (x1,m1) (x2,m2) := x1 = x2 /\ R m1 m2
+  - indcca_inv_mo kem_inv_mo m1 m2 :=
+        [/\ mo_keys m1 = mo_keys m2,
+            mo_bit  m1 = mo_bit  m2   (* key fact: bit is preserved *)
+          & kem_inv_mo (mo_mem m1) (mo_mem m2) ]
+  - deqX RR mu1 mu2 :=
+        forall X Y, (forall x y, RR x y -> X x = Y y) ->
+        \P_[mu1] X = \P_[mu2] Y
+    (definition in distr_extra.v, line ~39)
+  - _win Q t := if destruct_trace t is Some (b, qs, qs', ct) then
+                  [&& b, ct \notin qs' & size qs + size qs' <= Q]
+                else false
+
+OVERVIEW
+--------
+The key observation is that _win reads from the trace only:
+  (a) the Xch parts (oracle name + I/O) of every element, and
+  (b) mo_bit of the _Mo stored at the GetChallenge element.
+Both are preserved by eqR (indcca_inv_mo kem_inv_mo).
+
+TOP-LEVEL PROOF
+---------------
+  move=> mu1 mu2 h.
+  apply: h => t1 t2 hinv.    (* deqX applied with X = Y = _win *)
+  (* hinv : List.Forall2 (eqR (indcca_inv_mo kem_inv_mo)) t1 t2 *)
+  (* goal : _win t1 = _win t2 *)
+  ...
+
+Note on `apply: h`: deqX is universally quantified over predicates X Y
+satisfying the pointwise condition; applying it with X = Y = _win leaves
+the subgoal `forall t1 t2, hinv -> _win t1 = _win t2`.
+
+The old partial proof (pr_dlet' / eq_mu_pr) is WRONG: eq_mu_pr requires
+mu1 =1 mu2 (pointwise equal distributions), not just deqX-related.
+Replace the proof body entirely.
+
+STEP 1 — DEFINE PROJECTED TRACE TYPE
+-------------------------------------
+Define:
+  Let proj_el (e : Xch * _Mo) : Xch * option bool := (e.1, mo_bit e.2).
+
+Note: proj_el preserves the first component, i.e., (proj_el e).1 = e.1.
+
+STEP 2 — DEFINE destruct_trace_proj
+-------------------------------------
+Define a copy of destruct_trace for projected traces (type seq (Xch * option bool)).
+The only change: replace `let%opt b := mo_bit m` with `let%opt b := b`
+(the memory slot already holds the option bool directly).
+
+  Let destruct_trace_proj (t : seq (Xch * option bool))
+      : option (bool * seq ctxt * seq ctxt * ctxt) :=
+    let t := rev t in
+    let%opt ((x, _), t) := uncons t in
+    let%opt _ := oassert (isSome (is_init x)) in
+    let: (qs, t) := split_after (fun x => isSome (is_query x.1)) t in
+    let qs := pmap (fun x => ssrfun.omap fst (is_query x.1)) qs in
+    let%opt ((x, b), t) := uncons t in          (* b : option bool directly *)
+    let%opt (ct, _) := is_getchallenge x in
+    let%opt b := b in                           (* NO mo_bit call here *)
+    let: (qs', t) := split_after (fun x => isSome (is_query x.1)) t in
+    let qs' := pmap (fun x => ssrfun.omap fst (is_query x.1)) qs' in
+    let%opt ((x, _), t) := uncons t in
+    let%opt g := is_finalize x in
+    let%opt _ := oassert (nilp t) in
+    Some (g == b, rev qs, rev qs', ct).
+
+STEP 3 — AUXILIARY LEMMA: split_after commutes with map proj_el
+----------------------------------------------------------------
+State and prove BEFORE indcca_inv_mo_win:
+
+  Lemma split_after_proj_el (p : pred (Xch (I := INDCCA_I)))
+      (t : seq (Xch * _Mo)) :
+    split_after (fun x => p x.1) (map proj_el t) =
+      (map proj_el (fst (split_after (fun x => p x.1) t)),
+       map proj_el (snd (split_after (fun x => p x.1) t))).
+
+Proof: by induction on t.
+  - t = [::]: both sides ([::], [::]), trivial.
+  - t = e :: t':
+      LHS head: split_after (fun x => p x.1) (proj_el e :: map proj_el t')
+        = if p (proj_el e).1 then ... else ...
+        = if p e.1 then ...                    (* since (proj_el e).1 = e.1 *)
+      Apply IH to get the split of map proj_el t', substitute, match RHS.
+
+STEP 4 — AUXILIARY LEMMA: destruct_trace factors through map proj_el
+----------------------------------------------------------------------
+State and prove BEFORE indcca_inv_mo_win:
+
+  Lemma factor_destruct_trace (t : trace (I := INDCCA_I)) :
+    destruct_trace t = destruct_trace_proj (map proj_el t).
+
+Proof: Unfold both definitions and rewrite step by step using:
+  (a) map_rev (MathComp): map proj_el (rev t) = rev (map proj_el t)
+      Search to find the name; likely `map_rev` in ssrfun/seq.
+  (b) uncons (map proj_el t): case split.
+      - t = [::]: uncons [::] = None; both sides None.
+      - t = e :: t': uncons (proj_el e :: map proj_el t') = Some (proj_el e, map proj_el t').
+      In destruct_trace_proj, the first uncons gives (x, _) with x = (proj_el e).1 = e.1. ✓
+  (c) split_after: use split_after_proj_el (Step 3).
+  (d) pmap: use pmap_map (MathComp):
+        pmap (fun x => g x.1) (map proj_el t)
+          = pmap (fun x => g (proj_el x).1) t   [pmap_map]
+          = pmap (fun x => g x.1) t              [(proj_el x).1 = x.1]
+      Search for `pmap_map` or check with `Search (pmap _ (map _ _))`.
+  (e) mo_bit: at GetChallenge step, after uncons the projected trace gives
+      (x, b) where b = (proj_el (x0, m)).2 = mo_bit m. Then `let%opt b := b`
+      in destruct_trace_proj gives the same b as `let%opt b := mo_bit m`. ✓
+  (f) nilp: nilp (map proj_el t) = nilp t, since size_map preserves size.
+  (g) rev of qs, qs': map_rev again.
+
+The proof unfolds both sides and rewrites until they are definitionally equal.
+It may help to prove it by structural induction on the shape that the
+bind-chain explores (the rev of t), but a direct rewrite proof also works.
+
+STEP 5 — AUXILIARY LEMMA: Forall2 implies map proj_el equality
+---------------------------------------------------------------
+State and prove BEFORE indcca_inv_mo_win:
+
+  Lemma Forall2_proj_el t1 t2 :
+    List.Forall2 (eqR (indcca_inv_mo kem_inv_mo)) t1 t2 ->
+    map proj_el t1 = map proj_el t2.
+
+Proof: by induction on the Forall2 (using List_Forall2_inv from utils.v line 981,
+or plain induction + List.Forall2_cons):
+  - Base (both [::]):  map proj_el [::] = [::], trivially.
+  - Step: given eqR (indcca_inv_mo kem_inv_mo) (x1, m1) (x2, m2) at the head:
+      * heq  : x1 = x2       (from eqR, first component)
+      * hinv : indcca_inv_mo kem_inv_mo m1 m2
+              = [/\ mo_keys m1 = mo_keys m2, mo_bit m1 = mo_bit m2 & ...]
+      * hbit : mo_bit m1 = mo_bit m2    (second conjunct of indcca_inv_mo)
+    Therefore:
+        proj_el (x1, m1) = (x1, mo_bit m1) = (x2, mo_bit m2) = proj_el (x2, m2)
+    By IH: map proj_el t1' = map proj_el t2'.
+    Conclude: map proj_el ((x1,m1) :: t1') = map proj_el ((x2,m2) :: t2').
+
+To extract hbit from hinv: `move: hinv => [_ hbit _]` or `hinv.2` depending
+on how [/\ P, Q & R] destructures. In SSReflect, `[/\ P, Q & R]` is And3
+and the projections are `hinv.1, hinv.2, hinv.3` or `let: And3 p q r := hinv`.
+Actually use `case: hinv => _ hbit _` or `move/and3P: hinv => [_ hbit _]`.
+Better: `case: hinv => [hkeys hbit hmem]`.
+
+STEP 6 — MAIN PROOF
+--------------------
+  Proof.
+  move=> mu1 mu2 h.
+  apply: h => t1 t2 hinv.
+  rewrite /_win !factor_destruct_trace.
+  congr (if _ is Some _ then _ else _).   (* or just `by rewrite ...` *)
+  exact: congr1 _ (Forall2_proj_el hinv).
+  Qed.
+
+Or more directly:
+  Proof.
+  move=> mu1 mu2 h.
+  apply: h => t1 t2 hinv.
+  by rewrite /_win !factor_destruct_trace (Forall2_proj_el hinv).
+  Qed.
+
+The rewrite `!factor_destruct_trace` rewrites both `destruct_trace t1` and
+`destruct_trace t2` into `destruct_trace_proj (map proj_el t1)` and
+`destruct_trace_proj (map proj_el t2)`, and then `(Forall2_proj_el hinv)`
+identifies `map proj_el t1 = map proj_el t2`, completing the proof.
+
+SUMMARY OF NEW LEMMAS (all in Section REDUCTION, before indcca_inv_mo_win)
+---------------------------------------------------------------------------
+  Let proj_el (e : Xch * _Mo) : Xch * option bool := (e.1, mo_bit e.2).
+
+  Let destruct_trace_proj (t : seq (Xch * option bool)) : option (...) := ...
+
+  Lemma split_after_proj_el p t : ...   (* Step 3 *)
+  Lemma factor_destruct_trace t : ...   (* Step 4 *)
+  Lemma Forall2_proj_el t1 t2 : ...     (* Step 5 *)
+
+EXISTING LEMMAS TO LOOK UP (Search in rocq-mcp with the file in scope)
+-----------------------------------------------------------------------
+  - map_rev        : map f (rev s) = rev (map f s)    [MathComp seq]
+  - pmap_map       : pmap f (map g s) = pmap (f ∘ g) s [MathComp seq]
+  - List_Forall2_inv : inversion for Forall2            [lang/utils.v:981]
+  - List.Forall2_cons : constructor for Forall2          [Coq stdlib]
+  Use `Search (map _ (rev _))` and `Search (pmap _ (map _ _))` to confirm names.
+
+===== END PROOF PLAN ===== *)
+
+Let proj_el (e : Xch (I := INDCCA_I) * _Mo)
+    : Xch (I := INDCCA_I) * option bool := (e.1, mo_bit e.2).
+
+Let destruct_trace_proj
+    (t : seq (Xch (I := INDCCA_I) * option bool))
+    : option (bool * seq ctxt * seq ctxt * ctxt) :=
+  let t := rev t in
+  let%opt ((x, _), t) := uncons t in
+  let%opt _ := oassert (isSome (is_init x)) in
+  let: (qs, t) := split_after (fun x => isSome (is_query x.1)) t in
+  let qs := pmap (fun x => ssrfun.omap fst (is_query x.1)) qs in
+  let%opt ((x, b), t) := uncons t in
+  let%opt (ct, _) := is_getchallenge x in
+  let%opt b := b in
+  let: (qs', t) := split_after (fun x => isSome (is_query x.1)) t in
+  let qs' := pmap (fun x => ssrfun.omap fst (is_query x.1)) qs' in
+  let%opt ((x, _), t) := uncons t in
+  let%opt g := is_finalize x in
+  let%opt _ := oassert (nilp t) in
+  Some (g == b, rev qs, rev qs', ct).
+
+Lemma split_after_proj_el {A}
+    (f : Xch (I := INDCCA_I) -> option A)
+    (t : seq (Xch (I := INDCCA_I) * _Mo)) :
+  split_after (fun x : Xch * option bool => isSome (f x.1))
+              [seq proj_el e | e <- t] =
+    ([seq proj_el e | e <- (split_after (fun x : Xch * _Mo => isSome (f x.1)) t).1],
+     [seq proj_el e | e <- (split_after (fun x : Xch * _Mo => isSome (f x.1)) t).2]).
 Proof.
-move=> h; case=> [[] m | ct m | [] m | g m] /=; last reflexivity.
-- by apply: (eqit_bind' eq) => [|? _ <-]; [exact/h|reflexivity].
-- rewrite /_Oo_Query; case: (mo_keys m) => [[pk sk] |]; last reflexivity.
-  by apply: (eqit_bind' eq) => [|? _ <-]; [exact/h|reflexivity].
-rewrite /_Oo_GetChallenge; case: (mo_keys m) => [[pk sk] |]; last reflexivity.
-by apply: (eqit_bind' eq) => [|? _ <-]; [exact/h|reflexivity].
+elim: t => [|[x m] t ih] //=.
+case: (isSome (f x)) => /=; last done.
+by rewrite ih; case: (split_after _ t).
+Qed.
+
+Lemma pmap_proj_el {A} (f : Xch (I := INDCCA_I) -> option A)
+    (s : seq (Xch (I := INDCCA_I) * _Mo)) :
+  pmap (fun x : Xch * option bool => f x.1) [seq proj_el e | e <- s] =
+  pmap (fun x : Xch * _Mo => f x.1) s.
+Proof. by elim: s => [|[x m] s ih] //=; rewrite ih. Qed.
+
+Lemma factor_destruct_trace (t : trace (I := INDCCA_I)) :
+  destruct_trace t = destruct_trace_proj [seq proj_el e | e <- t].
+Proof.
+rewrite /destruct_trace /destruct_trace_proj -map_rev.
+move: (rev t) => s.
+case: s => [|[x0 m0] s1] //=.
+rewrite split_after_proj_el.
+case: (split_after (fun x => isSome (is_query x.1)) s1) => [qs s2] /=.
+rewrite (pmap_proj_el (fun x => ssrfun.omap fst (is_query x))).
+case: s2 => [|[x1 m1] s3] //=.
+rewrite split_after_proj_el.
+case: (split_after (fun x => isSome (is_query x.1)) s3) => [qs' s4] /=.
+rewrite (pmap_proj_el (fun x => ssrfun.omap fst (is_query x))).
+case: s4 => [|[x2 m2] s5] //=.
+by case: s5.
+Qed.
+
+Lemma indcca_inv_mo_win Q kem_inv_mo :
+  inv_mo_win (I := INDCCA_I) (indcca_inv_mo kem_inv_mo) (W Q).
+Proof.
+move=> mu1 mu2 h.
+apply: h => t1 t2 hinv.
+rewrite /W /win !factor_destruct_trace.
+have hproj : [seq proj_el e | e <- t1] = [seq proj_el e | e <- t2].
+{ move: hinv; elim=> [| [x1 m1] [x2 m2] t1' t2' [heq hinv] _ ih] //.
+  case: hinv => [_ hbit _].
+  congr (_ :: _); [by rewrite /proj_el heq hbit | exact ih]. }
+by rewrite hproj.
+Qed.
+
+Lemma equivalent_INDCCA kem_inv_mo :
+  is_inv_mo K K' kem_inv_mo ->
+  is_inv_mo (INDCCA K) (INDCCA K') (indcca_inv_mo kem_inv_mo).
+Proof.
+move=> heq; split.
+- split=> //=; exact: heq.(inv_mo_mi).
+case.
+- move=> [] [mk mb m1] [_ _ m2] [/= <- <- hm].
+  apply: (eutt_clo_bind _ (UU := eqR kem_inv_mo));
+    first exact: heq.(inv_mo_Oo) hm.
+  by move=> [[pk sk] m1'] [_ m2'] [/= <- hm']; apply eutt_Ret.
+- move=> ct [mk mb m1] [_ _ m2] [/= <- <- hm].
+  rewrite /_Oo_Query; case: mk => [[pk sk]|] /=; last by apply eutt_Ret.
+  apply: (eutt_clo_bind _ (UU := eqR kem_inv_mo));
+    first exact: (heq.(inv_mo_Oo) (o := ODecap) (_, _) hm).
+  by move=> [r m1'] [_ m2'] [/= <- hm']; apply eutt_Ret.
+- move=> [] [mk mb m1] [_ _ m2] [/= <- <- hm].
+  rewrite /_Oo_GetChallenge; case: mk => [[pk sk]|] /=; last by apply eutt_Ret.
+  apply: (eutt_clo_bind _ (UU := eqR kem_inv_mo));
+    first exact: (heq.(inv_mo_Oo) (o := OEncap) _ hm).
+  move=> [[ct m0] m1'] [[_ _] m2'] [[/= <- <-] hm'].
+  by apply: eutt_eq_bind => ?; apply: eutt_eq_bind => ?; apply eutt_Ret.
+move=> g [mk mb m1] [_ _ m2] [/= <- <- hm].
+apply eutt_Ret; split=> //; split=> //=; exact: heq.(inv_mo_mi).
 Qed.
 
 Theorem indcca_adv_equiv : equivalent K K' -> reduction K K'.
 Proof.
-move=> /equivalent_INDCCA/equivalent_pwin h A Q; by rewrite /indcca_adv h.
+move=> [inv_mo /equivalent_INDCCA heq] A Q.
+congr (`| _ - 1/2 |); exact/(equivalent_pwin (InvMo := heq))/indcca_inv_mo_win.
 Qed.
-*)
 
 End REDUCTION.
 
