@@ -53,7 +53,7 @@ Definition path_to fn endpc l l' :=
     eval_jump p (fn, l) s1 = ok s2 ->
     exists n,
       exists2 s3,
-        lsem_body_n p (untilpc endpc) n.+1 s2 = ok (inl s3)
+        lsem_body_n p (and_not_syscall p (untilpc endpc)) n.+1 s2 = ok (inl s3)
       & eval_jump p (fn, l') s1 = ok s3.
 
 Definition path_to0 fn endpc l l' :=
@@ -240,10 +240,10 @@ Proof.
       have [hj hsz hfindi]:= eval_jump_label2 s1 hget hu hcat.
       rewrite hj => -[?]; subst s2.
       exists 0; exists (setcpc s1 fn (size lc1).+2).
-      + rewrite /= /lsem_body /= /untilpc; case: eqP.
+      + rewrite /= /lsem_body /= /and_not_syscall /untilpc; case: eqP.
         + move=> ?; subst endpc.
           by move: hend; rewrite /wfend /= hget.
-        by rewrite /step hfindi.
+        by rewrite /next_is_syscall /step hfindi.
       rewrite -cat_rcons in hcat.
       by have := eval_jump_label s1 hget hu hcat; rewrite size_rcons.
     case: eqP => hfl; last by apply hwf.
@@ -260,10 +260,10 @@ Proof.
     move: hgoto; rewrite -hcat /goto_targets pmap_cat /= all_cat /=.
     move=> /and3P [_ + _]; rewrite eqxx /= hcat => /labels_of_find [pc hpc].
     exists (setcpc s1 fn pc.+1).
-    + rewrite /= /lsem_body /untilpc /=; case: eqP.
+    + rewrite /= /lsem_body /and_not_syscall /untilpc /=; case: eqP.
       + move=> ?; subst endpc.
         by move: hend; rewrite /wfend /= hget.
-      by rewrite /step hfindi /= /eval_instr /= hget /= hpc /=.
+      by rewrite /next_is_syscall /step hfindi /= /eval_instr /= hget /= hpc /=.
     by rewrite hget /= hpc.
   case: eqP => hfl; last by apply hwf.
   apply path_to0_trans with l1; first by rewrite -hfl; apply hwf.
