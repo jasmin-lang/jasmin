@@ -992,6 +992,26 @@ Lemma List_Forall3_inv A B C (R : A -> B -> C -> Prop) l1 l2 l3 :
   end.
 Proof. by case. Qed.
 
+Lemma Forall2_map
+  A B A' B'
+  (P : A -> B -> Prop) (Q : A' -> B' -> Prop)
+  (f : A -> A') (g : B -> B') s1 s2 :
+  (forall a b, P a b -> Q (f a) (g b)) ->
+  List.Forall2 P s1 s2 ->
+  List.Forall2 Q [seq f x | x <- s1] [seq g x | x <- s2].
+Proof.
+move=> hpq.
+elim: s1 s2 => [|a s1 hi] [|b s2] /List_Forall2_inv // [/hpq ? /hi ?].
+by constructor.
+Qed.
+
+Lemma Forall2_eq A (s1 s2 : seq A) :
+  List.Forall2 eq s1 s2 ->
+  s1 = s2.
+Proof.
+by elim: s1 s2 => [|a s1 hi] [|b s2] /List_Forall2_inv // [/= -> /hi ->].
+Qed.
+
 (* Transitivity of Forall *)
 (* -------------------------------------------------------------- *)
 

@@ -403,6 +403,8 @@ apply: (wkequiv_read
 by move=> _ _ _; apply: xrutt_Ret.
 Qed.
 
+(* TODO use the [split_while] corollary in linearization branch on while lemma
+   to break while loop *)
 Lemma subpred_ilsem lp p q s :
   subpred p q ->
   lutt (fun _ => PredT) (fun _ => relT) (fun s => ~~ (q s)) (ilsem lp p s) ->

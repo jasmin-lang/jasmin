@@ -611,6 +611,7 @@ Section ITREE.
 
 Context {E E0} {wE : with_Error E E0}.
 
+(* TODO catch syscall here? *)
 Definition ifetch_and_eval (s: asm_state) : itree E asm_state :=
   err_result (fun e => (e, tt)) (fetch_and_eval s).
 

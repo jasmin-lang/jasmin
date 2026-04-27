@@ -4934,7 +4934,7 @@ Section PROOF.
       let: mt := t.(emem) in
       [/\ vmt.[vid (lp_rsp p')] = Vword (top_stack ms)
         , match_mem ms mt
-        , List.Forall2 value_uincl args argt
+        , List.Forall2 value_uincl args argt (* TODO varmap will take an estate isntead of fstate, update *)
         , vmt.[vid (lp_rip p')] = Vword gd
         , vm_initialized_on vmt lfd.(lfd_callee_saved)
         , s.(fscs) = t.(escs)

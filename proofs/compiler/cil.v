@@ -1,3 +1,9 @@
+Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
+Set Uniform Inductive Parameters.
+
+From Coq Require Import JMeq.
 From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 
@@ -32,6 +38,7 @@ From ITree Require Import
   RuttFacts
   State
   Events.StateFacts
+  Subevent
   Interp.TranslateFacts
 .
 
@@ -54,16 +61,15 @@ Context {R : realType}.
 Notation distr := (distr R).
 Notation Rnd := (Rnd (R := R)).
 
-(* An oracle system interface fixes the oracle names and their memory/IO
-   signature but not the oracles' implementation. Two oracle systems that
-   share an interface can be compared for equivalence. *)
+(* Two oracle systems that share an interface can be compared for
+   equivalence. *)
 Class OracleSystemInterface :=
   {
     Mo : choiceType; (* Oracle memories. *)
+    mi : Mo; (* Initial oracle memory. *)
     No : choiceType; (* Oracle names. *)
     In : No -> choiceType; (* Oracle input types. *)
     Out : No -> choiceType; (* Oracle output types. *)
-    mi : Mo; (* Initial oracle memory. *)
   }.
 
 Section MAIN.
@@ -72,12 +78,15 @@ Section CIL.
 
 Context {I : OracleSystemInterface}.
 
+(* An oracle system is an implementation for each oracle in the interface. *)
+Class OracleSystem :=
+  {
+    Oo : forall (o : No), In o -> Mo -> itree Rnd (Out o * Mo);
+  }.
+
 (* An exchange: the name of an oracle, an input to that oracle, and the output
    returned by that oracle. *)
 Definition Xch := { o : No & (In o * Out o)%type }.
-
-(* A trace is a sequence of exchanges and intermediate memories. *)
-Definition trace := seq (Xch * Mo).
 
 (* Exchange event that the adversary triggers. *)
 Variant Exch : Type -> Type :=
@@ -86,6 +95,11 @@ Variant Exch : Type -> Type :=
 (* The adversary is an arbitrary computation that triggers exchange events.
    It may be stateful, probabilistic, and almost-surely terminating. *)
 Class Adversary := { Aa : itree (Exch +' Rnd) unit; }.
+
+Context {O : OracleSystem}.
+
+(* A trace is a sequence of exchanges and intermediate memories. *)
+Definition trace := seq (Xch * Mo).
 
 (* Get the latest oracle memory, or the initial memory if there is no trace. *)
 Definition get_Mo E `{stateE trace -< E} : itree E Mo :=
@@ -99,13 +113,6 @@ Definition log E `{stateE trace -< E}
   (m : Mo) (o : No) (i : In o) (r : Out o) : itree E unit :=
   let* t := get in put (mk m i r :: t).
 
-(* An oracle system is an implementation for each oracle in the interface. *)
-Class OracleSystem :=
-  {
-    Oo : forall (o : No), In o -> Mo -> itree Rnd (Out o * Mo);
-  }.
-
-Context {O : OracleSystem}.
 Context {A : Adversary}.
 
 (* Oracle query handler.
@@ -142,8 +149,13 @@ End CIL.
 
 End MAIN.
 
-#[global] Arguments Oo {I O} _ _ _ : rename.
+#[global] Arguments Mo {I} : rename.
+#[global] Arguments In {I} _ : rename.
+#[global] Arguments Out {I} _ : rename.
+#[global] Arguments mi {I} : rename.
+#[global] Arguments Oo {_ O} _ _ _ : rename.
 #[global] Arguments Exchange {I}.
+#[global] Arguments log {_ _ _} _ _ _ _.
 #[global] Arguments interact {I}.
 #[global] Arguments dinteract {I}.
 #[global] Arguments pwin {I}.
@@ -154,52 +166,111 @@ End MAIN.
 
 Section EQUIV.
 
-Context {I : OracleSystemInterface}.
+Context
+  {I : OracleSystemInterface}
+  (O1 O2 : OracleSystem I)
+.
 
-(* Two oracle systems implementing the same interface are equivalent when, on
-   every oracle name, input, and memory, their implementations produce
-   equivalent ITrees (up to silent steps). *)
-Definition equivalent (O1 O2 : OracleSystem I) : Prop :=
-  forall (o : No) (i : In o) (m : Mo),
-    eutt eq (O1.(Oo) o i m) (O2.(Oo) o i m).
+(* Notations for clarity. *)
+Notation Mo1 := (Mo (I := I)).
+Notation Mo2 := (Mo (I := I)).
+Notation trace1 := (trace (I := I)).
+Notation trace2 := (trace (I := I)).
+Notation E1 := (stateE trace1 +' Rnd).
+Notation E2 := (stateE trace2 +' Rnd).
 
-Lemma equivalent_handle_Exch (O1 O2 : OracleSystem I) :
-  equivalent O1 O2 ->
-  forall T (e : Exch T),
-    eutt eq
-      (handle_Exch (O := O1) (T := T) e)
-      (handle_Exch (O := O2) (T := T) e).
+Definition eqR {X A B} (R : A -> B -> Prop) (a : X * A) (b : X * B) : Prop :=
+  a.1 = b.1 /\ R a.2 b.2.
+
+Class is_inv_mo (inv_mo : Mo1 -> Mo2 -> Prop) :=
+  {
+    inv_mo_mi : inv_mo mi mi;
+    inv_mo_Oo :
+      forall o i m1 m2,
+        inv_mo m1 m2 ->
+        eutt (eqR inv_mo) (O1.(Oo) o i m1) (O2.(Oo) o i m2);
+  }.
+
+Definition equivalent : Prop := exists inv_mo, is_inv_mo inv_mo.
+
+Context
+  (inv_mo : Mo1 -> Mo2 -> Prop)
+  {InvMo : is_inv_mo inv_mo}
+.
+
+Notation inv_eq := (eqR inv_mo) (only parsing).
+
+Definition inv_trace : trace1 -> trace2 -> Prop := List.Forall2 inv_eq.
+
+Notation ruttO := (rutt_inv (E := Rnd) inv_trace) (only parsing).
+
+Lemma ruttO_get_Mo : ruttO inv_mo get_Mo get_Mo.
 Proof.
-move=> hO T [o i]; rewrite /handle_Exch.
-apply: eqit_bind'; first reflexivity.
-move=> m m' heq; rewrite heq.
-apply: eqit_bind'; first exact: eutt_translate_gen (hO o i m').
-move=> r1 r2 heq'; rewrite heq'; reflexivity.
+apply: rutt_bind; first exact: rutt_inv_get.
+move=> [|[e1 m1] t1] [|[e2 m2] t2] /List_Forall2_inv //.
+- move=> _; apply/rutt_Ret; exact: inv_mo_mi.
+move=> [[/= _ h] _]; exact/rutt_Ret/h.
 Qed.
 
-Lemma equivalent_interact (O1 O2 : OracleSystem I) (A : Adversary) :
-  equivalent O1 O2 ->
-  eutt eq (interact O1 A) (interact O2 A).
+Lemma ruttO_log o i r m1 m2 :
+  inv_mo m1 m2 ->
+  ruttO (fun _ _ => True) (log m1 o i r) (log m2 o i r).
 Proof.
-move=> hO; rewrite /interact.
-apply: (eqit_bind' eq); last by move=> ?? ->; reflexivity.
-set ds := interp _ _; set dt := interp _ _.
-suff -> : eutt eq ds dt by reflexivity.
-apply/eutt_interp; last reflexivity.
-move=> ??; apply/Proper_Case_Handler; last reflexivity.
-move=> T e; exact: equivalent_handle_Exch hO T e.
+move=> hm; apply: rutt_bind; first exact: rutt_inv_get.
+move=> t1 t2 ht; apply: rutt_trigger => //=; exact: List.Forall2_cons ht.
 Qed.
 
-Lemma equivalent_dinteract (O1 O2 : OracleSystem I) (A : Adversary) :
-  equivalent O1 O2 ->
-  dinteract O1 A =1 dinteract O2 A.
-Proof. move=> /equivalent_interact h; exact/dinterp_eutt/h. Qed.
+Lemma ruttO_handle_Exch T (e : Exch T) :
+  ruttO eq (handle_Exch (O := O1) e) (handle_Exch (O := O2) e).
+Proof.
+move: e => [o i]; apply: rutt_bind; first exact: ruttO_get_Mo.
+move=> m1 m2 h; apply: (rutt_bind _ _ inv_eq).
+- apply:
+    (rutt_translate_gen
+       (REv := fun A B (e1 : Rnd A) (e2 : Rnd B) =>
+                 exists p : A = B, eq_rect A Rnd e1 B p = e2)
+       (RAns := fun A B e1 a e2 b => JMeq a b)).
+  - done.
+  - by move=> A B [X1 mu1] [X2 mu2].
+  apply: gen_eutt_rutt (inv_mo_Oo _ h) => [u e | u e a b];
+    first by exists (erefl u).
+  exact: JMeq_eq.
+move=> [r {}m1] [_ {}m2] [/= <- {}h].
+apply: rutt_bind; first exact: ruttO_log.
+move=> _ _ _; exact/rutt_Ret.
+Qed.
 
-Lemma equivalent_pwin
-  (O1 O2 : OracleSystem I) (A : Adversary) (W : WinningCondition) :
-  equivalent O1 O2 ->
+Lemma ruttO_interp_handle_Exch {A : Adversary} :
+  ruttO (fun _ _ => True)
+    (interp (case_ (handle_Exch (O := O1)) inr_) Aa)
+    (interp (case_ (handle_Exch (O := O2)) inr_) Aa).
+Proof.
+apply: (
+  rutt_weaken
+     (REv := REv_inv inv_trace)
+     (RAns := RAns_inv inv_trace)
+     (RR := eq)
+) => //.
+apply: rutt_interp_h => T [[o i] | r] /=; first exact: ruttO_handle_Exch.
+apply: rutt_trigger; first by exists erefl.
+move=> v1 v2 /=; exact: JMeq_eq.
+Qed.
+
+Lemma eutt_interact A : eutt inv_trace (interact O1 A) (interact O2 A).
+Proof.
+apply: (eutt_clo_bind _ (UU := RR_run_state inv_trace (fun _ _ => True)));
+  last first.
+- move=> [t1 []] [t2 []] [/= h _]; apply eutt_Ret; exact: h.
+apply: rutt_inv_run_state => //; exact/ruttO_interp_handle_Exch.
+Qed.
+
+Definition inv_mo_win (W : WinningCondition) : Prop :=
+  forall t1 t2, inv_trace t1 t2 -> win t1 = win t2.
+
+Lemma equivalent_pwin A W :
+  inv_mo_win W ->
   pwin O1 A W = pwin O2 A W.
-Proof. move=> /equivalent_dinteract h; rewrite /pwin; exact: eq_mu_pr h. Qed.
+Proof. move=> /eutt_deqX h; exact/h/eutt_interact. Qed.
 
 End EQUIV.
 
@@ -441,13 +512,17 @@ Definition is_finalize (x : Xch) : option bool :=
   | _ => fun _ => None
   end p.
 
+Definition Xch_b : Type := Xch * option bool.
+
+Definition proj_xch (e : Xch * _Mo) : Xch_b := (e.1, mo_bit e.2).
+
 (* Return the same as the IND-CCA game, thus we can use the same winning
    condition.
-   Attention: The order in which elements are take from the trace
-   is reverse to the order in which they are put in the trace.
-   The trace is reversed before the check or log should do append. *)
+   The order in which elements are take from the trace is reverse to the order
+   in which they are put in the trace. The trace is reversed before the check or
+   log should do append. *)
 Definition destruct_trace
-  (t : trace) : option (bool * seq ctxt * seq ctxt * ctxt) :=
+    (t : seq Xch_b) : option (bool * seq ctxt * seq ctxt * ctxt) :=
   let t := rev t in (* Oldest first. *)
 
   (* First query is to [GenKey]. *)
@@ -459,9 +534,9 @@ Definition destruct_trace
   let qs := pmap (fun x => ssrfun.omap fst (is_query x.1)) qs in
 
   (* Next query is to [GetChallenge]. *)
-  let%opt ((x, m), t) := uncons t in
+  let%opt ((x, b), t) := uncons t in
   let%opt (ct, _) := is_getchallenge x in (* Challenge ciphertext. *)
-  let%opt b := mo_bit m in (* Challenge bit. *)
+  let%opt b := b in (* Challenge bit. *)
 
   (* Many queries to [Decap]. *)
   let: (qs', t) := split_after (fun x => isSome (is_query x.1)) t in
@@ -475,7 +550,7 @@ Definition destruct_trace
   Some (g == b, rev qs, rev qs', ct).
 
 Let _win (t : trace) : bool :=
-  if destruct_trace t is Some  (b, qs, qs', ct) then
+  if destruct_trace [seq proj_xch e | e <- t] is Some (b, qs, qs', ct) then
     [&& b, ct \notin qs' & size qs + size qs' <= Q ]%N
   else false.
 
@@ -498,21 +573,52 @@ Definition indcca_reduction (K K' : OracleSystem KEM) : Prop :=
 
 Context (K K' : OracleSystem KEM).
 
-Lemma equivalent_INDCCA :
-  equivalent K K' ->
-  equivalent (INDCCA K) (INDCCA K').
+Definition indcca_inv_mo (kem_inv_mo : M -> M -> Prop) (m1 m2 : _Mo) : Prop :=
+  [/\ mo_keys m1 = mo_keys m2
+    , mo_bit m1 = mo_bit m2
+    & kem_inv_mo (mo_mem m1) (mo_mem m2) ].
+
+Lemma eqR_indcca_inv_mo_proj_xch {P} a b :
+  eqR (indcca_inv_mo P) a b -> proj_xch a = proj_xch b.
+Proof. by move: a b => [e [k b ?]] [_ [_ _ ?]] [/= <-] [/= <- <- _]. Qed.
+
+Lemma indcca_inv_mo_win Q kem_inv_mo :
+  inv_mo_win (I := INDCCA_I) (indcca_inv_mo kem_inv_mo) (W Q).
 Proof.
-move=> h; case=> [[] m | ct m | [] m | g m] /=; last reflexivity.
-- by apply: (eqit_bind' eq) => [|? _ <-]; [exact/h|reflexivity].
-- rewrite /_Oo_Query; case: (mo_keys m) => [[pk sk] |]; last reflexivity.
-  by apply: (eqit_bind' eq) => [|? _ <-]; [exact/h|reflexivity].
-rewrite /_Oo_GetChallenge; case: (mo_keys m) => [[pk sk] |]; last reflexivity.
-by apply: (eqit_bind' eq) => [|? _ <-]; [exact/h|reflexivity].
+by move=> tr1 tr2 /(Forall2_map eqR_indcca_inv_mo_proj_xch) /Forall2_eq /= ->.
+Qed.
+
+Lemma equivalent_INDCCA kem_inv_mo :
+  is_inv_mo K K' kem_inv_mo ->
+  is_inv_mo (INDCCA K) (INDCCA K') (indcca_inv_mo kem_inv_mo).
+Proof.
+move=> heq; split.
+- split=> //=; exact: heq.(inv_mo_mi).
+case.
+- move=> [] [mk mb m1] [_ _ m2] [/= <- <- hm].
+  apply: (eutt_clo_bind _ (UU := eqR kem_inv_mo));
+    first exact: heq.(inv_mo_Oo) hm.
+  by move=> [[pk sk] m1'] [_ m2'] [/= <- hm']; apply eutt_Ret.
+- move=> ct [mk mb m1] [_ _ m2] [/= <- <- hm].
+  rewrite /_Oo_Query; case: mk => [[pk sk]|] /=; last by apply eutt_Ret.
+  apply: (eutt_clo_bind _ (UU := eqR kem_inv_mo));
+    first exact: (heq.(inv_mo_Oo) (o := ODecap) (_, _) hm).
+  by move=> [r m1'] [_ m2'] [/= <- hm']; apply eutt_Ret.
+- move=> [] [mk mb m1] [_ _ m2] [/= <- <- hm].
+  rewrite /_Oo_GetChallenge; case: mk => [[pk sk]|] /=; last by apply eutt_Ret.
+  apply: (eutt_clo_bind _ (UU := eqR kem_inv_mo));
+    first exact: (heq.(inv_mo_Oo) (o := OEncap) _ hm).
+  move=> [[ct m0] m1'] [[_ _] m2'] [[/= <- <-] hm'].
+  by apply: eutt_eq_bind => ?; apply: eutt_eq_bind => ?; apply eutt_Ret.
+move=> g [mk mb m1] [_ _ m2] [/= <- <- hm].
+apply eutt_Ret; split=> //; split=> //=; exact: heq.(inv_mo_mi).
 Qed.
 
 Theorem indcca_adv_equiv : equivalent K K' -> indcca_reduction K K'.
 Proof.
-move=> /equivalent_INDCCA/equivalent_pwin h A Q; by rewrite /indcca_adv h.
+move=> [inv_mo /equivalent_INDCCA heq] A Q.
+rewrite /indcca_adv (equivalent_pwin (InvMo := heq)) //.
+exact/indcca_inv_mo_win.
 Qed.
 
 End REDUCTION.
