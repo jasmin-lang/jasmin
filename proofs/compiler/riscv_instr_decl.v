@@ -403,7 +403,7 @@ Definition riscv_NEG_instr : instr_desc_t :=
       id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
     |}.
 
-Definition prim_NEG := ("NEG"%string, primM NOT).
+Definition prim_NEG := ("NEG"%string, primM NEG).
 
 
 (* Loads *)
