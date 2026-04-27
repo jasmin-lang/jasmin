@@ -43,12 +43,13 @@ Section READ_WRITE.
 
   Context {pd : PointerData}.
 
-  Definition read8 m p i := CoreMem.read m Aligned (p + wrepr Uptr i)%R U8.
+  Definition read8 (m : mem) (p : pointer) (i : Z) : exec u8 :=
+    CoreMem.read m Aligned (p + wrepr Uptr i)%R U8.
 
-  Definition write8 m p i (b : u8) :=
+  Definition write8 (m : mem) (p : pointer) (i : Z) (b : u8) : exec mem :=
     CoreMem.write m Aligned (p + wrepr Uptr i)%R b.
 
-  Definition read_wseq m p len : wseq :=
+  Definition read_wseq (m : mem) (p : pointer) (len : positive) : wseq :=
     rdflt [::] (mapM (read8 m p) (ziota 0 len)).
 
   Definition write_wseq m p (bs : wseq) : mem :=

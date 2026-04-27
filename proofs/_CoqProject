@@ -160,6 +160,7 @@ itrees/rutt_extras.v
 itrees/while.v
 itrees/xrutt.v
 itrees/eqit_facts.v
+itrees/equiv_extras.v
 itrees/xrutt_facts.v
 lang/core_logics.v
 lang/expr.v

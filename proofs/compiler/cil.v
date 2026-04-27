@@ -184,38 +184,38 @@ Notation WinCond2 := (WinningCondition (O := O2)).
 Definition eqR {X A B} (R : A -> B -> Prop) (a : X * A) (b : X * B) : Prop :=
   a.1 = b.1 /\ R a.2 b.2.
 
-Class is_inv_mo (inv_mo : Mo1 -> Mo2 -> Prop) :=
+Class is_sim (sim : Mo1 -> Mo2 -> Prop) :=
   {
-    inv_mo_mi : inv_mo O1.(mi) O2.(mi);
-    inv_mo_Oo :
+    sim_mi : sim O1.(mi) O2.(mi);
+    sim_Oo :
       forall o i m1 m2,
-        inv_mo m1 m2 ->
-        eutt (eqR inv_mo) (O1.(Oo) o i m1) (O2.(Oo) o i m2);
+        sim m1 m2 ->
+        eutt (eqR sim) (O1.(Oo) o i m1) (O2.(Oo) o i m2);
   }.
 
-Definition simulating : Prop := exists inv_mo, is_inv_mo inv_mo.
+Definition simulating : Prop := exists sim, is_sim sim.
 
 Context
-  (inv_mo : Mo1 -> Mo2 -> Prop)
-  {InvMo : is_inv_mo inv_mo}
+  (sim : Mo1 -> Mo2 -> Prop)
+  {InvMo : is_sim sim}
 .
 
-Notation inv_eq := (eqR inv_mo) (only parsing).
+Notation inv_eq := (eqR sim) (only parsing).
 
 Definition inv_trace : trace1 -> trace2 -> Prop := List.Forall2 inv_eq.
 
 Notation ruttO := (rutt_inv (E := Rnd) inv_trace) (only parsing).
 
-Lemma ruttO_get_Mo : ruttO inv_mo get_Mo get_Mo.
+Lemma ruttO_get_Mo : ruttO sim get_Mo get_Mo.
 Proof.
 apply: rutt_bind; first exact: rutt_inv_get.
 move=> [|[e1 m1] t1] [|[e2 m2] t2] /List_Forall2_inv //.
-- move=> _; apply/rutt_Ret; exact: inv_mo_mi.
+- move=> _; apply/rutt_Ret; exact: sim_mi.
 move=> [[/= _ h] _]; exact/rutt_Ret/h.
 Qed.
 
 Lemma ruttO_log o i r m1 m2 :
-  inv_mo m1 m2 ->
+  sim m1 m2 ->
   ruttO (fun _ _ => True) (log m1 o i r) (log m2 o i r).
 Proof.
 move=> hm; apply: rutt_bind; first exact: rutt_inv_get.
@@ -234,7 +234,7 @@ move=> m1 m2 h; apply: (rutt_bind _ _ inv_eq).
        (RAns := fun A B e1 a e2 b => JMeq a b)).
   - done.
   - by move=> A B [X1 mu1] [X2 mu2].
-  apply: gen_eutt_rutt (inv_mo_Oo _ h) => [u e | u e a b];
+  apply: gen_eutt_rutt (sim_Oo _ h) => [u e | u e a b];
     first by exists (erefl u).
   exact: JMeq_eq.
 move=> [r {}m1] [_ {}m2] [/= <- {}h].
@@ -266,18 +266,18 @@ apply: (eutt_clo_bind _ (UU := RR_run_state inv_trace (fun _ _ => True)));
 apply: rutt_inv_run_state => //; exact/ruttO_interp_handle_Exch.
 Qed.
 
-Definition inv_mo_win (W1 : WinCond1) (W2 : WinCond2) : Prop :=
+Definition sim_win (W1 : WinCond1) (W2 : WinCond2) : Prop :=
   forall t1 t2, inv_trace t1 t2 -> W1.(win) t1 = W2.(win) t2.
 
 Lemma simulating_pwin A (W1 : WinCond1) (W2 : WinCond2) :
-  inv_mo_win W1 W2 ->
+  sim_win W1 W2 ->
   pwin O1 A W1 = pwin O2 A W2.
 Proof. move=> /eutt_deqX h; exact/h/eutt_interact. Qed.
 
 End SIM.
 
 #[global] Arguments simulating_pwin {_ _ _ _ _} _ {_ _} _.
-#[global] Arguments is_inv_mo {_} _ _ _.
+#[global] Arguments is_sim {_} _ _ _.
 
 (* -------------------------------------------------------------------------- *)
 (* Instantiation for INDCCA. *)
@@ -581,55 +581,55 @@ Notation KMo2 := (Mo (O := K2)).
 Notation INDMo1 := (_Mo (K := K1)).
 Notation INDMo2 := (_Mo (K := K2)).
 
-Definition indcca_inv_mo
-  (kem_inv_mo : KMo1 -> KMo2 -> Prop) (m1 : INDMo1) (m2 : INDMo2) : Prop :=
+Definition indcca_sim
+  (kem_sim : KMo1 -> KMo2 -> Prop) (m1 : INDMo1) (m2 : INDMo2) : Prop :=
   [/\ mo_keys m1 = mo_keys m2
     , mo_bit m1 = mo_bit m2
-    & kem_inv_mo (mo_mem m1) (mo_mem m2) ].
+    & kem_sim (mo_mem m1) (mo_mem m2) ].
 
-Lemma eqR_indcca_inv_mo_proj_xch {P} a b :
-  eqR (indcca_inv_mo P) a b -> proj_xch a = proj_xch b.
+Lemma eqR_indcca_sim_proj_xch {P} a b :
+  eqR (indcca_sim P) a b -> proj_xch a = proj_xch b.
 Proof. by move: a b => [e [k b ?]] [_ [_ _ ?]] [/= <-] [/= <- <- _]. Qed.
 
-Lemma indcca_inv_mo_win {Q kem_inv_mo} :
-  inv_mo_win
+Lemma indcca_sim_win {Q kem_sim} :
+  sim_win
     (O1 := INDCCA K1) (O2 := INDCCA K2)
-    (indcca_inv_mo kem_inv_mo)
+    (indcca_sim kem_sim)
     (W Q) (W Q).
 Proof.
-by move=> tr1 tr2 /(Forall2_map eqR_indcca_inv_mo_proj_xch) /Forall2_eq /= ->.
+by move=> tr1 tr2 /(Forall2_map eqR_indcca_sim_proj_xch) /Forall2_eq /= ->.
 Qed.
 
-Lemma simulating_INDCCA kem_inv_mo :
-  is_inv_mo K1 K2 kem_inv_mo ->
-  is_inv_mo (INDCCA K1) (INDCCA K2) (indcca_inv_mo kem_inv_mo).
+Lemma simulating_INDCCA kem_sim :
+  is_sim K1 K2 kem_sim ->
+  is_sim (INDCCA K1) (INDCCA K2) (indcca_sim kem_sim).
 Proof.
-move=> heq; split.
-- split=> //=; exact: heq.(inv_mo_mi).
+move=> hsim; split.
+- split=> //=; exact: hsim.(sim_mi).
 case.
 - move=> [] [mk mb m1] [_ _ m2] [/= <- <- hm].
-  apply: (eutt_clo_bind _ (UU := eqR kem_inv_mo));
-    first exact: heq.(inv_mo_Oo) hm.
+  apply: (eutt_clo_bind _ (UU := eqR kem_sim));
+    first exact: hsim.(sim_Oo) hm.
   by move=> [[pk sk] m1'] [_ m2'] [/= <- hm']; apply eutt_Ret.
 - move=> ct [mk mb m1] [_ _ m2] [/= <- <- hm].
   rewrite /_Oo_Query; case: mk => [[pk sk]|] /=; last by apply eutt_Ret.
-  apply: (eutt_clo_bind _ (UU := eqR kem_inv_mo));
-    first exact: (heq.(inv_mo_Oo) (o := ODecap) (_, _) hm).
+  apply: (eutt_clo_bind _ (UU := eqR kem_sim));
+    first exact: (hsim.(sim_Oo) (o := ODecap) (_, _) hm).
   by move=> [r m1'] [_ m2'] [/= <- hm']; apply eutt_Ret.
 - move=> [] [mk mb m1] [_ _ m2] [/= <- <- hm].
   rewrite /_Oo_GetChallenge; case: mk => [[pk sk]|] /=; last by apply eutt_Ret.
-  apply: (eutt_clo_bind _ (UU := eqR kem_inv_mo));
-    first exact: (heq.(inv_mo_Oo) (o := OEncap) _ hm).
+  apply: (eutt_clo_bind _ (UU := eqR kem_sim));
+    first exact: (hsim.(sim_Oo) (o := OEncap) _ hm).
   move=> [[ct m0] m1'] [[_ _] m2'] [[/= <- <-] hm'].
   by apply: eutt_eq_bind => ?; apply: eutt_eq_bind => ?; apply eutt_Ret.
 move=> g [mk mb m1] [_ _ m2] [/= <- <- hm].
-apply eutt_Ret; split=> //; split=> //=; exact: heq.(inv_mo_mi).
+apply eutt_Ret; split=> //; split=> //=; exact: hsim.(sim_mi).
 Qed.
 
 Theorem sim_indcca_adv : simulating K1 K2 -> indcca_reduction K1 K2.
 Proof.
-move=> [inv_mo /simulating_INDCCA heq] A Q.
-by rewrite /indcca_adv (simulating_pwin (InvMo := heq) A indcca_inv_mo_win).
+move=> [sim /simulating_INDCCA hsim] A Q.
+by rewrite /indcca_adv (simulating_pwin (InvMo := hsim) A indcca_sim_win).
 Qed.
 
 End REDUCTION.
