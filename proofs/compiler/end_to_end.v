@@ -338,11 +338,9 @@ Definition _Out (o : _No) : choiceType := seq wseq.
 
 Instance JazzI : OracleSystemInterface :=
   {|
-    Mo := _Mo;
     No := _No;
     In := _In;
     Out := _Out;
-    mi := _mi;
   |}.
 
 (* -------------------------------------------------------------------------- *)
@@ -365,7 +363,12 @@ Definition _OoS (o : _No) (i : _In o) (m : _Mo) : itree Rnd (_Out o * _Mo) :=
   if ores is ESok res then Ret res
   else Ret ([::], _mi) (* absurd *).
 
-Instance Source : OracleSystem JazzI := {| Oo := _OoS; |}.
+Instance Source : OracleSystem JazzI :=
+  {|
+    Mo := _Mo;
+    Oo := _OoS;
+    mi := _mi;
+  |}.
 
 (* -------------------------------------------------------------------------- *)
 (* Target oracle system *)
@@ -399,7 +402,12 @@ Definition _OoT (o : _No) (i : _In o) (m : _Mo) : itree Rnd (_Out o * _Mo) :=
   if ores is ESok res then Ret res
   else Ret ([::], _mi) (* absurd *).
 
-Instance Target : OracleSystem JazzI := {| Oo := _OoT; |}.
+Instance Target : OracleSystem JazzI :=
+  {|
+    Mo := _Mo;
+    Oo := _OoT;
+    mi := _mi;
+  |}.
 
 (* -------------------------------------------------------------------------- *)
 (* Proof. *)
@@ -612,8 +620,6 @@ Definition msg0 := mkwvec msgbytes [::].
 
 #[local] Instance KEMP_of_JP : KEMParams :=
   {|
-    M := _Mo;
-    M0 := _mi;
     pkey := wvec pkbytes;
     skey := wvec skbytes;
     ctxt := wvec ctbytes;
@@ -634,8 +640,8 @@ Section JKEM.
 
   Context (J : OracleSystem (JazzI p)).
 
-  Notation InK := (@In KEM) (only parsing).
-  Notation OutK := (@Out KEM) (only parsing).
+  Notation InK := (In (I := KEM)).
+  Notation OutK := (Out (I := KEM)).
 
   Definition vi_GenKey : valid_input p efn_kg :=
     {| vi_safe := genkey_ok.1; vi_def := genkey_ok.2; |}.
@@ -645,42 +651,45 @@ Section JKEM.
   Admitted.
 
   Let Oo_JKEM_GenKey
-    (i : InK OGenKey) (m : M) : itree Rnd (OutK OGenKey * M) :=
+    (i : InK OGenKey) (m : Mo) : itree Rnd (OutK OGenKey * Mo) :=
     let* (rs, m') := J.(Oo) efn_kg vi_GenKey m in
     if rs is [:: pk; sk ] then Ret ((mkwvec _ pk, mkwvec _ sk), m')
     else Ret ((pk0, sk0), m). (* absurd *)
 
   Let Oo_JKEM_Encap
-    (i : InK OEncap) (m : M) : itree Rnd (OutK OEncap * M) :=
+    (i : InK OEncap) (m : Mo) : itree Rnd (OutK OEncap * Mo) :=
     let* (rs, m') := J.(Oo) efn_encap (vi_Encap i) m in
     if rs is [:: ct; msg ] then Ret ((mkwvec _ ct, mkwvec _ msg), m')
     else Ret ((ct0, msg0), m). (* absurd *)
 
   Let Oo_JKEM_Decap
-    (i : InK ODecap) (m : M) : itree Rnd (OutK ODecap * M) :=
+    (i : InK ODecap) (m : Mo) : itree Rnd (OutK ODecap * Mo) :=
     let* (rs, m') := J.(Oo) efn_decap (vi_Decap i) m in
     if rs is [:: msg ] then Ret (mkwvec _ msg, m')
     else Ret (msg0, m). (* absurd *)
 
   Definition _Oo_KEM
-    (o : kem_oracle_name) : InK o -> M -> itree Rnd (OutK o * M) :=
+    (o : kem_oracle_name) : InK o -> Mo -> itree Rnd (OutK o * Mo) :=
     match o with
     | OGenKey => Oo_JKEM_GenKey
     | OEncap => Oo_JKEM_Encap
     | ODecap => Oo_JKEM_Decap
     end.
 
-  Instance KEM_of_Jazz : OracleSystem KEM := {| Oo := fun o i => _Oo_KEM i; |}.
+  Instance KEM_of_Jazz : OracleSystem KEM :=
+    {|
+      Mo := Mo;
+      Oo := fun o i => _Oo_KEM i;
+      mi := mi;
+    |}.
 
 End JKEM.
 
-(* WRONG *)
-Lemma equivalent_JKEM P Q :
-  equivalent P Q ->
-  equivalent (KEM_of_Jazz P) (KEM_of_Jazz Q).
+Lemma simulating_JKEM P Q :
+  simulating P Q ->
+  simulating (KEM_of_Jazz P) (KEM_of_Jazz Q).
 Proof using. Admitted.
 
-(* WRONG *)
 Theorem mlkem_end_to_end q :
   indcca_reduction (KEM_of_Jazz (Source p)) (KEM_of_Jazz (Target p q)).
 Proof using. Admitted.

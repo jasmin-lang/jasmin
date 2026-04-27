@@ -65,8 +65,6 @@ Notation Rnd := (Rnd (R := R)).
    equivalence. *)
 Class OracleSystemInterface :=
   {
-    Mo : choiceType; (* Oracle memories. *)
-    mi : Mo; (* Initial oracle memory. *)
     No : choiceType; (* Oracle names. *)
     In : No -> choiceType; (* Oracle input types. *)
     Out : No -> choiceType; (* Oracle output types. *)
@@ -81,6 +79,8 @@ Context {I : OracleSystemInterface}.
 (* An oracle system is an implementation for each oracle in the interface. *)
 Class OracleSystem :=
   {
+    Mo : choiceType; (* Oracle memories. *)
+    mi : Mo; (* Initial oracle memory. *)
     Oo : forall (o : No), In o -> Mo -> itree Rnd (Out o * Mo);
   }.
 
@@ -149,22 +149,22 @@ End CIL.
 
 End MAIN.
 
-#[global] Arguments Mo {I} : rename.
+#[global] Arguments Mo {_ O} : rename.
+#[global] Arguments mi {_ O} : rename.
 #[global] Arguments In {I} _ : rename.
 #[global] Arguments Out {I} _ : rename.
-#[global] Arguments mi {I} : rename.
 #[global] Arguments Oo {_ O} _ _ _ : rename.
 #[global] Arguments Exchange {I}.
-#[global] Arguments log {_ _ _} _ _ _ _.
-#[global] Arguments interact {I}.
-#[global] Arguments dinteract {I}.
-#[global] Arguments pwin {I}.
+#[global] Arguments log {_ _ _ _} _ _ _ _.
+#[global] Arguments interact {_} _ _.
+#[global] Arguments dinteract {_} _ _.
+#[global] Arguments pwin {_} _ _ _.
 #[global] Arguments OracleSystem : clear implicits.
 
 (* -------------------------------------------------------------------------- *)
-(* Equivalence of oracle systems sharing an interface. *)
+(* Simulation of oracle systems sharing an interface. *)
 
-Section EQUIV.
+Section SIM.
 
 Context
   {I : OracleSystemInterface}
@@ -172,26 +172,28 @@ Context
 .
 
 (* Notations for clarity. *)
-Notation Mo1 := (Mo (I := I)).
-Notation Mo2 := (Mo (I := I)).
-Notation trace1 := (trace (I := I)).
-Notation trace2 := (trace (I := I)).
+Notation Mo1 := (Mo (O := O1)).
+Notation Mo2 := (Mo (O := O2)).
+Notation trace1 := (trace (O := O1)).
+Notation trace2 := (trace (O := O2)).
 Notation E1 := (stateE trace1 +' Rnd).
 Notation E2 := (stateE trace2 +' Rnd).
+Notation WinCond1 := (WinningCondition (O := O1)).
+Notation WinCond2 := (WinningCondition (O := O2)).
 
 Definition eqR {X A B} (R : A -> B -> Prop) (a : X * A) (b : X * B) : Prop :=
   a.1 = b.1 /\ R a.2 b.2.
 
 Class is_inv_mo (inv_mo : Mo1 -> Mo2 -> Prop) :=
   {
-    inv_mo_mi : inv_mo mi mi;
+    inv_mo_mi : inv_mo O1.(mi) O2.(mi);
     inv_mo_Oo :
       forall o i m1 m2,
         inv_mo m1 m2 ->
         eutt (eqR inv_mo) (O1.(Oo) o i m1) (O2.(Oo) o i m2);
   }.
 
-Definition equivalent : Prop := exists inv_mo, is_inv_mo inv_mo.
+Definition simulating : Prop := exists inv_mo, is_inv_mo inv_mo.
 
 Context
   (inv_mo : Mo1 -> Mo2 -> Prop)
@@ -264,17 +266,18 @@ apply: (eutt_clo_bind _ (UU := RR_run_state inv_trace (fun _ _ => True)));
 apply: rutt_inv_run_state => //; exact/ruttO_interp_handle_Exch.
 Qed.
 
-Definition inv_mo_win (W : WinningCondition) : Prop :=
-  forall t1 t2, inv_trace t1 t2 -> win t1 = win t2.
+Definition inv_mo_win (W1 : WinCond1) (W2 : WinCond2) : Prop :=
+  forall t1 t2, inv_trace t1 t2 -> W1.(win) t1 = W2.(win) t2.
 
-Lemma equivalent_pwin A W :
-  inv_mo_win W ->
-  pwin O1 A W = pwin O2 A W.
+Lemma simulating_pwin A (W1 : WinCond1) (W2 : WinCond2) :
+  inv_mo_win W1 W2 ->
+  pwin O1 A W1 = pwin O2 A W2.
 Proof. move=> /eutt_deqX h; exact/h/eutt_interact. Qed.
 
-End EQUIV.
+End SIM.
 
-#[global] Arguments equivalent_pwin {_ _ _ _ _} _.
+#[global] Arguments simulating_pwin {_ _ _ _ _} _ {_ _} _.
+#[global] Arguments is_inv_mo {_} _ _ _.
 
 (* -------------------------------------------------------------------------- *)
 (* Instantiation for INDCCA. *)
@@ -315,8 +318,6 @@ HB.instance Definition _ := isFinite.Build kem_oracle_name kem_oracle_name_fin_a
 
 Class KEMParams :=
   {
-    M : choiceType;
-    M0 : M;
     pkey : choiceType;
     skey : choiceType;
     ctxt : choiceType;
@@ -346,7 +347,6 @@ Instance KEM : OracleSystemInterface :=
       | OEncap => ctxt * msg
       | ODecap => msg
       end%type;
-    mi := M0;
   |}.
 
 (* -------------------------------------------------------------------------- *)
@@ -392,11 +392,11 @@ Record _Mo :=
   {
     mo_keys : option (pkey * skey);
     mo_bit : option bool;
-    mo_mem : M;
+    mo_mem : K.(Mo);
   }.
 
 (* Isomorphic definition to prove that [_Mo] is a [choiceType]. *)
-Let _Mo_choice : Type := option (pkey * skey) * option bool * M.
+Let _Mo_choice : Type := option (pkey * skey) * option bool * K.(Mo).
 
 Let pickle__Mo (m : _Mo) : _Mo_choice :=
   (mo_keys m, mo_bit m, mo_mem m).
@@ -412,11 +412,11 @@ HB.instance Definition _ := Choice.copy _Mo (can_type pickle__MoK).
 Definition mo_with_bit (m : _Mo) (b : bool) : _Mo :=
   {| mo_keys := mo_keys m; mo_bit := Some b; mo_mem := mo_mem m; |}.
 
-Definition mo_with_mem (m : _Mo) (mem : M) : _Mo :=
+Definition mo_with_mem (m : _Mo) (mem : K.(Mo)) : _Mo :=
   {| mo_keys := mo_keys m; mo_bit := mo_bit m; mo_mem := mem; |}.
 
 Definition _mi : _Mo :=
-  {| mo_keys := None; mo_bit := None; mo_mem := M0; |}.
+  {| mo_keys := None; mo_bit := None; mo_mem := K.(mi); |}.
 
 (* Oracle input types. *)
 Definition _In (x : cca_oracle_name) : choiceType :=
@@ -472,14 +472,17 @@ Definition _Oo
 
 Instance INDCCA_I : OracleSystemInterface :=
   {|
-    Mo := _Mo;
     No := cca_oracle_name;
     In := _In;
     Out := _Out;
-    mi := _mi;
   |}.
 
-Instance INDCCA : OracleSystem INDCCA_I := {| Oo := _Oo; |}.
+Instance INDCCA : OracleSystem INDCCA_I :=
+  {|
+    Mo := _Mo;
+    mi := _mi;
+    Oo := _Oo;
+  |}.
 
 Definition is_init (x : Xch) : option pkey :=
   let 'existT o (_, p) := x in
@@ -571,9 +574,15 @@ Context {KEMP : KEMParams}.
 Definition indcca_reduction (K K' : OracleSystem KEM) : Prop :=
   forall A Q, indcca_adv K Q A = indcca_adv K' Q A.
 
-Context (K K' : OracleSystem KEM).
+Context (K1 K2 : OracleSystem KEM).
 
-Definition indcca_inv_mo (kem_inv_mo : M -> M -> Prop) (m1 m2 : _Mo) : Prop :=
+Notation KMo1 := (Mo (O := K1)).
+Notation KMo2 := (Mo (O := K2)).
+Notation INDMo1 := (_Mo (K := K1)).
+Notation INDMo2 := (_Mo (K := K2)).
+
+Definition indcca_inv_mo
+  (kem_inv_mo : KMo1 -> KMo2 -> Prop) (m1 : INDMo1) (m2 : INDMo2) : Prop :=
   [/\ mo_keys m1 = mo_keys m2
     , mo_bit m1 = mo_bit m2
     & kem_inv_mo (mo_mem m1) (mo_mem m2) ].
@@ -582,15 +591,18 @@ Lemma eqR_indcca_inv_mo_proj_xch {P} a b :
   eqR (indcca_inv_mo P) a b -> proj_xch a = proj_xch b.
 Proof. by move: a b => [e [k b ?]] [_ [_ _ ?]] [/= <-] [/= <- <- _]. Qed.
 
-Lemma indcca_inv_mo_win Q kem_inv_mo :
-  inv_mo_win (I := INDCCA_I) (indcca_inv_mo kem_inv_mo) (W Q).
+Lemma indcca_inv_mo_win {Q kem_inv_mo} :
+  inv_mo_win
+    (O1 := INDCCA K1) (O2 := INDCCA K2)
+    (indcca_inv_mo kem_inv_mo)
+    (W Q) (W Q).
 Proof.
 by move=> tr1 tr2 /(Forall2_map eqR_indcca_inv_mo_proj_xch) /Forall2_eq /= ->.
 Qed.
 
-Lemma equivalent_INDCCA kem_inv_mo :
-  is_inv_mo K K' kem_inv_mo ->
-  is_inv_mo (INDCCA K) (INDCCA K') (indcca_inv_mo kem_inv_mo).
+Lemma simulating_INDCCA kem_inv_mo :
+  is_inv_mo K1 K2 kem_inv_mo ->
+  is_inv_mo (INDCCA K1) (INDCCA K2) (indcca_inv_mo kem_inv_mo).
 Proof.
 move=> heq; split.
 - split=> //=; exact: heq.(inv_mo_mi).
@@ -614,11 +626,10 @@ move=> g [mk mb m1] [_ _ m2] [/= <- <- hm].
 apply eutt_Ret; split=> //; split=> //=; exact: heq.(inv_mo_mi).
 Qed.
 
-Theorem indcca_adv_equiv : equivalent K K' -> indcca_reduction K K'.
+Theorem sim_indcca_adv : simulating K1 K2 -> indcca_reduction K1 K2.
 Proof.
-move=> [inv_mo /equivalent_INDCCA heq] A Q.
-rewrite /indcca_adv (equivalent_pwin (InvMo := heq)) //.
-exact/indcca_inv_mo_win.
+move=> [inv_mo /simulating_INDCCA heq] A Q.
+by rewrite /indcca_adv (simulating_pwin (InvMo := heq) A indcca_inv_mo_win).
 Qed.
 
 End REDUCTION.
@@ -626,7 +637,7 @@ End REDUCTION.
 End REAL.
 
 #[global] Arguments Exchange {I}.
-#[global] Arguments interact {_ I}.
-#[global] Arguments dinteract {_ I}.
-#[global] Arguments pwin {_ I}.
+#[global] Arguments interact {_ _} _ _.
+#[global] Arguments dinteract {_ _} _ _.
+#[global] Arguments pwin {_ _} _ _ _.
 #[global] Arguments OracleSystem {_} _.
