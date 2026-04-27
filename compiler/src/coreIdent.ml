@@ -16,7 +16,6 @@ type base_ty =
   | Bool
   | Int              (* Unbounded integer for pexpr *)
   | U   of wsize (* U(n): unsigned n-bit integer *)
-  [@@deriving compare,sexp]
 
 type 'len gty =
   | Bty of base_ty

@@ -447,6 +447,7 @@ let rec pp_pitem fmt pi =
      F.fprintf fmt eol;
      closebrace fmt ()
   | PTypeAlias (id,ty) -> pp_typealias fmt id ty (**)
+  | Err _ -> assert false
 
 let pp_info fmt =
   F.fprintf fmt "@[<v>@[%% The produced LATEX snippet is meant to be included in a@]@ ";

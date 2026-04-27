@@ -13,18 +13,29 @@ let parse_error ?msg loc =
 type arr_access = Warray_.arr_access
 
 type sign = [ `Unsigned | `Signed ]
+[@@deriving show]
 
 type vesize = [`W1 | `W2 | `W4 | `W8 | `W16 | `W32 | `W64 | `W128]
+[@@deriving show]
 type vsize   = [ `V2 | `V4 | `V8 | `V16 | `V32 ]
+[@@deriving show]
+
+type wsize = Wsize.wsize =
+  | U8 | U16 | U32 | U64 | U128 | U256
+  [@@deriving show]
 
 type wsign = [ `Word of sign option | `WInt of sign]
+[@@deriving show]
 type swsize  = wsize * wsign
+[@@deriving show]
 type svsize  = vsize * sign * vesize
+[@@deriving show]
 
 type castop1 = CSS of swsize | CVS of svsize
 type castop = castop1 L.located option
 
 type int_representation = string
+[@@deriving show]
 let parse_int (i: int_representation) : Z.t =
   let s = String.filter (( <> ) '_') i in
   Z.of_string s
@@ -330,7 +341,29 @@ type pitem =
   | Prequire of (pident option * prequire list)
   | PNamespace of pident * pitem L.located list
   | PTypeAlias of pident * ptype
+  | Err of Mastic.Error.t
+
+let pp_pitem fmt pitem =
+  match pitem with
+  | PFundef _ -> Format.fprintf fmt "PFundef"
+  | PParam _ -> Format.fprintf fmt "PParam"
+  | PGlobal _ -> Format.fprintf fmt "PGlobal"
+  | Pexec _ -> Format.fprintf fmt "Pexec"
+  | Prequire _ -> Format.fprintf fmt "Prequire"
+  | PNamespace _ -> Format.fprintf fmt "PNamespace"
+  | PTypeAlias _ -> Format.fprintf fmt "PTypeAlias"
+  | Err _ -> Format.fprintf fmt "Err"
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list
+
+open Mastic
+type Error.t_ += Pitem of pitem
+let (Error.Registered { of_token; build_token; is_err }) =
+  Error.register "pitem"
+    { pp = pp_pitem;
+      match_ast = (function Err x -> Some x | _ -> None);
+      build_ast = (fun x -> Err x);
+      match_error = (function Pitem x -> Some x | _ -> None);
+      build_error = (fun x -> Pitem x) }
 

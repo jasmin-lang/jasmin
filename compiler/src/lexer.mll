@@ -226,6 +226,7 @@ rule main = parse
 
   | _ as c  { invalid_char (L.of_lexbuf lexbuf) c }
   | eof     { EOF }
+  | _ as x { ERROR_TOKEN Mastic.Error.(mkLexError (loc (String.make 1 x) lexbuf.lex_start_p lexbuf.lex_curr_p)) }
 
 (* -------------------------------------------------------------------- *)
 and comment lvl = parse
