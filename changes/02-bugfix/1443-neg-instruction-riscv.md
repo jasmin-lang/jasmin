@@ -1,0 +1,3 @@
+- Emit neg instruction instead of not instruction when the `#NEG` intrinsic is
+  used on RISC-V.
+  ([PR 1443](https://github.com/jasmin-lang/jasmin/pull/1443)).
