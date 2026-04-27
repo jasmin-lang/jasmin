@@ -91,6 +91,31 @@ Import Order.TTheory.
 
 #[local] Notation "x |> f" := (f x) (only parsing, at level 25).
 
+Section MOVE.
+
+Context
+  {reg regx xreg rflag cond asm_op extra_op syscall_state : Type}
+  {sc_sem : syscall.syscall_sem syscall_state}
+  {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
+  {call_conv : calling_convention}
+  {asm_scsem : asm_syscall_sem}
+.
+
+Definition safe_uprog (p : uprog) (fn : funname) (fs : fstate) : Prop :=
+  safe (is_error wE) (isem_unit p fn fs).
+
+Definition val_is_def (v : value) : bool :=
+  if v is Varr _ a then arr_is_def a else is_defined v.
+
+Definition res_defined (p : uprog) (fn : funname) (fs : fstate) : Prop :=
+  lutt
+    (fun T e => True)
+    (fun T e r => True)
+    (fun fs => all val_is_def (fvals fs))
+    (isem_unit p fn fs).
+
+End MOVE.
+
 Section CHOICEOF.
 
   Context (T : Type).
@@ -191,7 +216,7 @@ Notation Rnd := (Rnd (R := R)).
 Instance sc_sem : syscall.syscall_sem unit :=
   {| syscall.get_random := fun _ _ => (tt, [::]); |}.
 
-Definition E := ErrEvent +' RndEvent unit.
+Notation E := (ErrEvent +' RndEvent unit).
 
 #[local] Existing Instance wE.
 #[local] Existing Instance RndE00.
@@ -214,6 +239,19 @@ Context
   {call_conv : calling_convention}
   {asm_scsem : asm_syscall_sem}
 .
+
+Definition mkfs (m : mem) (vs : values) : fstate :=
+  {| fscs := tt; fmem := m; fvals := vs; |}.
+
+Definition safe_on p fn m vs :=
+  forall m',
+    mem_equiv m m' ->
+    safe_uprog p fn (mkfs m' vs).
+
+Definition res_defined_on p fn m vs :=
+  forall m',
+    mem_equiv m m' ->
+    res_defined p fn (mkfs m' vs).
 
 Definition isem_asm (q : asm_prog) :=
   iasmsem_exportcall
@@ -274,21 +312,27 @@ Definition _mi : _Mo :=
     asm_flag := rfmI;
   |}.
 
-Record export_funname :=
+Record export_fn :=
   {
     _fn :> funname;
-    _export : _fn \in entries;
+    efn_export : _fn \in entries;
+    efn_fd : fundef;
+    efn_fd_ok : get_fundef (p_funcs p) _fn = Some efn_fd;
   }.
 
-Definition _No : choiceType := {choice export_funname}.
+Definition _No : choiceType := {choice export_fn}.
 
-(* TODO Do we want to restrict the number of arguments?
-  if get_fundef (p_funcs p) o is Some fd then
-    {choice ltuple (nseq (size (f_tyin fd)) wseq)}
-  else void.
-  or use [sem_t]?
-*)
-Definition _In (o : _No) : choiceType := seq wseq.
+(* Safety should be proven assuming only that the shape coincides with initial
+   memory. *)
+Record valid_input o :=
+  {
+    _args :> values;
+    vi_safe : safe_on p o mI _args;
+    vi_def : res_defined_on p o mI _args;
+    (* for each array, give me an address with enough space *)
+  }.
+
+Definition _In (o : _No) : choiceType := {choice valid_input o}.
 
 Definition _Out (o : _No) : choiceType := seq wseq.
 
@@ -304,20 +348,12 @@ Instance JazzI : OracleSystemInterface :=
 (* -------------------------------------------------------------------------- *)
 (* Source oracle system *)
 
-Definition mkfs (fn : funname) (m : mem) (args : seq wseq) : fstate :=
-  let vs :=
-    if get_fundef (p_funcs p) fn is Some fd then
-      [seq val_of_wseq p.1 p.2 | p <- zip (f_tyin fd) args ]
-    else [::] (* absurd *)
-  in
-  {| fscs := tt; fmem := m; fvals := vs; |}.
-
 Definition unmkfs (fs : fstate) : seq wseq * mem :=
   ([seq wseq_of_val v | v <- fs.(fvals) ], fs.(fmem)).
 
 Definition isem_unit_res
   (o : _No) (i : _In o) (m : _Mo) : itree E (_Out o * _Mo) :=
-  let fs := mkfs o m.(asm_mem) i in
+  let fs := mkfs m.(asm_mem) i in
   let* fs' := isem_unit p o fs in
   let (r, m') := unmkfs fs' in
   Ret (r, xm_with_mem m' m).
@@ -335,10 +371,10 @@ Instance Source : OracleSystem JazzI := {| Oo := _OoS; |}.
 (* Target oracle system *)
 
 Definition xm_writes
-  (m : asmmem) (xs : seq asm_typed_reg) (args : seq wseq) : exec asmmem.
+  (m : asmmem) (xs : seq asm_typed_reg) (args : values) : exec asmmem.
 Proof using. Admitted.
 
-Definition mkxm (fn : funname) (m : asmmem) (args : seq wseq) : asmmem :=
+Definition mkxm (fn : funname) (m : asmmem) (args : values) : asmmem :=
   if get_fundef (asm_funcs q) fn is Some xfd then
     rdflt _mi (xm_writes m xfd.(asm_fd_arg) args)
   else _mi. (* absurd *)
@@ -379,9 +415,19 @@ Context
   (hcomp : compile_prog_to_asm aparams cparams entries p = ok q)
 .
 
+(* TODO can these be automatic? *)
+
 Lemma export_funname_in_entries o : _fn o \in entries.
-Proof. by case: o. Qed.
-#[local] Hint Resolve export_funname_in_entries : core.
+Proof. exact: efn_export o. Qed.
+
+Lemma export_funname_get_fundef o :
+  get_fundef p.(p_funcs) (_fn o) = Some (efn_fd o).
+Proof. exact: efn_fd_ok o. Qed.
+
+#[local] Hint Resolve
+  export_funname_in_entries
+  export_funname_get_fundef
+  : core.
 
 Definition inv_mo : _Mo -> _Mo -> Prop.
 Proof using. Admitted.
@@ -392,10 +438,15 @@ Definition inv_eq {X : Type} (x y : X * _Mo) : Prop :=
 Lemma inv_mo_mi : inv_mo _mi _mi.
 Proof using. Admitted.
 
+Lemma inv_mo_mem_equiv_mi ms mt :
+  inv_mo ms mt ->
+  mem_equiv mI ms.(asm_mem).
+Proof using. Admitted.
+
 Definition post_isem
   (fn : funname) (ms mt : asmmem) (fs' : fstate) (xm' : asmmem) : Prop :=
   exists xfd i,
-    let: fs := mkfs fn ms.(asm_mem) i in
+    let: fs := mkfs ms.(asm_mem) i in
     let: xm := mkxm fn mt i in
     [/\ get_fundef q.(asm_funcs) fn = Some xfd
       , full_pre p q fn xfd fs xm
@@ -409,29 +460,6 @@ Lemma post_isemP fn ms mt fs xm :
     (xget_res fn xm, xm).
 Proof using. Admitted.
 
-(* TODO we can also make export_fundef carry this *)
-Context
-  (p_entries_ok :
-    forall fn, fn \in entries -> exists fd, get_fundef (p_funcs p) fn = Some fd)
-.
-
-(* MOVE *)
-Definition safe_uprog (fn : funname) (fs : fstate) : Prop :=
-  safe (is_error wE) (isem_unit p fn fs).
-
-(* MOVE *)
-Definition val_is_def (v : value) : bool :=
-  if v is Varr _ a then arr_is_def a else is_defined v.
-
-(* MOVE *)
-Definition res_defined fn fs :=
-  lutt
-    (E := E)
-    (fun T e => True)
-    (fun T e r => True)
-    (fun fs => all val_is_def (fvals fs))
-    (isem_unit p fn fs).
-
 (* MOVE *)
 Let REeq {E : Type -> Type} A1 A2 (e1: E A1) (e2: E A2) :=
   exists h : A2 = A1, e1 = eq_rect A2 E e2 A1 h.
@@ -441,19 +469,20 @@ Let RAeq {E : Type -> Type} A1 A2 (e1: E A1) (a1: A1) (e2: E A2) (a2: A2) :=
   JMeq a1 a2.
 
 (* MOVE *)
-Lemma correct_comp fn :
+Lemma correct_comp fn fd :
   fn \in entries ->
+  get_fundef p.(p_funcs) fn = Some fd ->
   exists2 xfd,
     get_fundef q.(asm_funcs) fn = Some xfd
     & forall s t,
-        safe_uprog fn s ->
-        res_defined fn s ->
+        safe_uprog p fn s ->
+        res_defined p fn s ->
         full_pre p q fn xfd s t ->
         eutt
           (full_post cparams p q fn xfd s t)
           (isem_unit p fn s) (isem_asm q fn t).
 Proof.
-move=> hfn; have [fd hfd] := p_entries_ok hfn.
+move=> hfn hfd.
 have [xfd [hxfd _ heq]] := [elaborate
   it_compile_prog_to_asmP
     haparams print_uprogP print_sprogP print_linearP hcomp hfn ].
@@ -468,11 +497,7 @@ apply: (lutt_xrutt_trans_l'
              & full_post cparams p q fn xfd s t s' t' ]));
   cycle -2.
 - exact: (isem_fun_finalize (wa := withassert) (scP := sCP_unit)) hfd.
-- apply: (lutt_xrutt_trans_l'
-    (REv := EPreRel (rE0 := HandlerContract))
-    (RAns := EPostRel (rE0 := HandlerContract))
-    (RR := full_post cparams p q fn xfd s t)
-  ); cycle -2.
+- apply: lutt_xrutt_trans_l'; cycle -2.
   + exact: hdef.
   + exact: heq hpre.
   + move=> T1 T2 [|[[] n1]]; first by left.
@@ -490,28 +515,25 @@ Qed.
 Lemma inv_mo_full_pre fn xfd i ms mt :
   get_fundef (asm_funcs q) fn = Some xfd ->
   inv_mo ms mt ->
-  full_pre p q fn xfd (mkfs fn ms.(asm_mem) i) (mkxm fn mt i).
+  full_pre p q fn xfd (mkfs ms.(asm_mem) i) (mkxm fn mt i).
 Proof using. Admitted.
 
-(* TODO we could force these into the type of queries *)
-Context
-  (p_safe : forall fn m i, fn \in entries -> safe_uprog fn (mkfs fn m i))
-  (p_def : forall fn m i, fn \in entries -> res_defined fn (mkfs fn m i))
-.
-
-Lemma eutt_isem_post fn ms mt i :
+Lemma eutt_isem_post fn fd ms mt i :
   fn \in entries ->
+  get_fundef p.(p_funcs) fn = Some fd ->
+  safe_uprog p fn (mkfs ms.(asm_mem) i) ->
+  res_defined p fn (mkfs ms.(asm_mem) i) ->
   inv_mo ms mt ->
   eutt (post_isem fn ms mt)
-    (isem_unit p fn (mkfs fn (asm_mem ms) i))
+    (isem_unit p fn (mkfs (asm_mem ms) i))
     (isem_asm q fn (mkxm fn mt i)).
 Proof.
-move=> hfn hm.
-have [xfd [hxfd heq]] := correct_comp hfn.
+move=> hfn hfd hsafe hdef hm.
+have [xfd hxfd heq] := correct_comp hfn hfd.
 have hpre := inv_mo_full_pre i hxfd hm.
 apply: eutt_subrel; last first.
-- apply: heq; first exact: p_safe hfn.
-  + exact: p_def hfn.
+- apply: heq; first exact: hsafe.
+  + exact: hdef.
   exact: hpre.
 move=> fs xm hpost; by exists xfd, i.
 Qed.
@@ -520,7 +542,10 @@ Lemma eutt_isem_res o i ms mt :
   inv_mo ms mt ->
   eutt inv_eq (isem_unit_res o i ms) (isem_asm_res o i mt).
 Proof.
-move=> hm; apply: eutt_clo_bind; first exact: eutt_isem_post hm.
+move=> hm; apply: eutt_clo_bind.
+- apply: eutt_isem_post => //.
+  + exact/vi_safe/inv_mo_mem_equiv_mi/hm.
+  exact/vi_def/inv_mo_mem_equiv_mi/hm.
 move=> fs xm h; apply eutt_Ret; exact/(post_isemP hm h).
 Qed.
 
@@ -528,10 +553,10 @@ Theorem compiler_preserves o i m1 m2 :
   inv_mo m1 m2 ->
   eutt inv_eq (Source.(Oo) o i m1) (Target.(Oo) o i m2).
 Proof.
-move: o i => [fn hfn] /= i hm.
-have [xfd [hgetq _ heq]] :=
-  [elaborate it_compile_prog_to_asmP
-    haparams print_uprogP print_sprogP print_linearP hcomp hfn].
+move=> hm.
+have [xfd [hgetq _ heq]] := [elaborate
+  it_compile_prog_to_asmP haparams print_uprogP print_sprogP print_linearP
+    hcomp (efn_export o)].
 (* TODO we could prove that we always get OK instead of using exec_rel *)
 apply: (eutt_clo_bind _ (UU := exec_rel inv_eq)).
 - exact/eutt_translateE/interp_exec_eutt/eutt_isem_res/hm.
@@ -549,56 +574,93 @@ Section INSTANTIATION.
 
 Context
   {JP : JazzIParams}
-  (msgbytes : positive)
+  (pkbytes skbytes ctbytes msgbytes : positive)
   (fn_genkey fn_encap fn_decap : funname)
+  (fd_genkey fd_encap fd_decap : ufundef)
   (export_genkey : fn_genkey \in entries)
   (export_encap : fn_encap \in entries)
   (export_decap : fn_decap \in entries)
+  (p : uprog)
+  (fd_genkey_ok : get_fundef (p_funcs p) fn_genkey = Some fd_genkey)
+  (fd_encap_ok : get_fundef (p_funcs p) fn_encap = Some fd_encap)
+  (fd_decap_ok : get_fundef (p_funcs p) fn_decap = Some fd_decap)
+  (genkey_ok :
+    let: pk := WArray.empty pkbytes in
+    let: sk := WArray.empty skbytes in
+    safe_on p fn_genkey mI [:: Varr pk; Varr sk ]
+    /\ res_defined_on p fn_genkey mI [:: Varr pk; Varr sk ])
+  (encap_ok :
+    forall (pk : WArray.array pkbytes) (msg : WArray.array msgbytes),
+      arr_is_def pk ->
+      arr_is_def msg ->
+      safe_on p fn_encap mI [:: Varr pk; Varr msg ]
+      /\ res_defined_on p fn_encap mI [:: Varr pk; Varr msg ])
+  (decap_ok :
+    forall (sk : WArray.array skbytes) (ct : WArray.array ctbytes),
+      arr_is_def sk ->
+      arr_is_def ct ->
+      safe_on p fn_decap mI [:: Varr sk; Varr ct ]
+      /\ res_defined_on p fn_decap mI [:: Varr sk; Varr ct ])
 .
 
 Notation OracleSystem := (OracleSystem (R := R)) (only parsing).
+
+Definition pk0 := mkwvec pkbytes [::].
+Definition sk0 := mkwvec skbytes [::].
+Definition ct0 := mkwvec ctbytes [::].
+Definition msg0 := mkwvec msgbytes [::].
 
 #[local] Instance KEMP_of_JP : KEMParams :=
   {|
     M := _Mo;
     M0 := _mi;
-    pkey := wseq;
-    skey := wseq;
-    ctxt := wseq;
+    pkey := wvec pkbytes;
+    skey := wvec skbytes;
+    ctxt := wvec ctbytes;
     msg := wvec msgbytes;
-    dummy_ct := [::];
-    dummy_msg := dummy_wvec msgbytes;
+    dummy_ct := ct0;
+    dummy_msg := msg0;
   |}.
 
-Definition efn_kg : export_funname := {| _export := export_genkey; |}.
-Definition efn_encap : export_funname := {| _export := export_encap; |}.
-Definition efn_decap : export_funname := {| _export := export_decap; |}.
+Definition efn_kg : export_fn p :=
+  {| efn_export := export_genkey; efn_fd_ok := fd_genkey_ok; |}.
+Definition efn_encap : export_fn p :=
+  {| efn_export := export_encap; efn_fd_ok := fd_encap_ok; |}.
+Definition efn_decap : export_fn p :=
+  {| efn_export := export_decap; efn_fd_ok := fd_decap_ok; |}.
 
 Section JKEM.
   (* The KEM induced by a Jasmin program. *)
 
-  Context (P : OracleSystem JazzI).
+  Context (J : OracleSystem (JazzI p)).
 
   Notation InK := (@In KEM) (only parsing).
   Notation OutK := (@Out KEM) (only parsing).
 
+  Definition vi_GenKey : valid_input p efn_kg :=
+    {| vi_safe := genkey_ok.1; vi_def := genkey_ok.2; |}.
+  Definition vi_Encap (i : InK OEncap) : valid_input p efn_encap.
+  Admitted.
+  Definition vi_Decap (i : InK ODecap) : valid_input p efn_decap.
+  Admitted.
+
   Let Oo_JKEM_GenKey
     (i : InK OGenKey) (m : M) : itree Rnd (OutK OGenKey * M) :=
-    let* (rs, m') := @Oo _ _ P efn_kg [::] m in
-    if rs is [:: pk; sk ] then Ret ((pk, sk), m')
-    else Ret (([::], [::]), m). (* absurd *)
+    let* (rs, m') := J.(Oo) efn_kg vi_GenKey m in
+    if rs is [:: pk; sk ] then Ret ((mkwvec _ pk, mkwvec _ sk), m')
+    else Ret ((pk0, sk0), m). (* absurd *)
 
   Let Oo_JKEM_Encap
     (i : InK OEncap) (m : M) : itree Rnd (OutK OEncap * M) :=
-    let* (rs, m') := @Oo _ _ P efn_encap [:: i ] m in
-    if rs is [:: ct; msg ] then Ret ((ct, mkwvec _ msg), m')
-    else Ret ((dummy_ct, dummy_msg), m). (* absurd *)
+    let* (rs, m') := J.(Oo) efn_encap (vi_Encap i) m in
+    if rs is [:: ct; msg ] then Ret ((mkwvec _ ct, mkwvec _ msg), m')
+    else Ret ((ct0, msg0), m). (* absurd *)
 
   Let Oo_JKEM_Decap
     (i : InK ODecap) (m : M) : itree Rnd (OutK ODecap * M) :=
-    let* (rs, m') := @Oo _ _ P efn_decap [:: i.1; i.2 ] m in
+    let* (rs, m') := J.(Oo) efn_decap (vi_Decap i) m in
     if rs is [:: msg ] then Ret (mkwvec _ msg, m')
-    else Ret (dummy_msg, m). (* absurd *)
+    else Ret (msg0, m). (* absurd *)
 
   Definition _Oo_KEM
     (o : kem_oracle_name) : InK o -> M -> itree Rnd (OutK o * M) :=
@@ -612,13 +674,15 @@ Section JKEM.
 
 End JKEM.
 
+(* WRONG *)
 Lemma equivalent_JKEM P Q :
   equivalent P Q ->
   equivalent (KEM_of_Jazz P) (KEM_of_Jazz Q).
 Proof using. Admitted.
 
-Theorem mlkem_end_to_end p q :
-  indcca_reduction (KEM_of_Jazz (Source p)) (KEM_of_Jazz (Target q)).
+(* WRONG *)
+Theorem mlkem_end_to_end q :
+  indcca_reduction (KEM_of_Jazz (Source p)) (KEM_of_Jazz (Target p q)).
 Proof using. Admitted.
 
 End INSTANTIATION.
