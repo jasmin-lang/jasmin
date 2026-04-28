@@ -419,7 +419,26 @@ Proof.
     have [n [s3 hsem hev]] := hp _ _ heval.
     exists n.+1; rewrite /= hpc hi /= bind_bind.
     rewrite {1 2}/eval_instr /li_i heval hev !bind_ret_l tau_eutt.
-    admit.
+    have := [elaborate i_lsem_body_n n (setcpc s (lfn s) pc) (and_not_syscall_not_syscall (P := p) (cond := (untilpc endpc)))].
+    rewrite hsem /= => {}hsem; move: hsem; clear.
+    rewrite /while_body /and_not_syscall /untilpc.
+    elim: n (setcpc s (lfn s) pc) => [ | n ih ] s' /=.
+    + case: eqP => /= hend.
+      + by move/(@eutt_inv_Ret _ _ _ _).
+      rewrite -/(next_is_syscall p _) /istep.
+      case: next_is_syscall => [ a | ] /=.
+      + by move/(@eutt_inv_Ret _ _ _ _).
+      move => ->; reflexivity.
+    case: eqP => /= hend.
+    + by rewrite bind_ret_l => /(@eutt_inv_Ret _ _ _ _).
+    rewrite -/(next_is_syscall p _) {1}/istep.
+    case: next_is_syscall => [ a | ] /=.
+    + by rewrite bind_ret_l => /(@eutt_inv_Ret _ _ _ _).
+    rewrite -/(step p _) !bind_bind.
+    case: step => [ s'' | err ]; last first.
+    + rewrite !bind_throw /= => ->; reflexivity.
+    rewrite !bind_ret_l tau_eutt => /ih ->.
+    apply: eqit_Tau_r; reflexivity.
   move=> f r hi /=.
   have := huf r; rewrite /path_to0.
   case: (r =P LUF.find uf r).
