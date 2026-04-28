@@ -427,6 +427,7 @@ Definition lexec_syscall (o : syscall_t) (s : lstate) : itree E lstate :=
   ves <- iresult e (get_vars true s.(lvm) sig.(scs_vin));;
   let fs := {| fscs := s.(lscs); fmem := s.(lmem); fvals := ves; |} in
   fs' <- fexec_syscall (scP := sCP_stack) e o fs;;
+  let s := lset_vm s (vm_after_syscall s.(lvm)) in
   s' <- iresult e (lset_fstate sig.(scs_vout) s fs');;
   Ret (lnext_pc s').
 

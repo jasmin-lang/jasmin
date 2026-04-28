@@ -3224,53 +3224,7 @@ End ILSTEPS_END.
   Qed.
 
   Lemma Hsyscall : ∀ (xs : lvals) (o : syscall_t) (es : pexprs), Pi_r (Csyscall xs o es).
-  Proof.
-    move=> xs o es ii lbl lbli P li Q [/checked_iE [fd ok_fd] /= _] [??]; subst lbli li.
-    move=> D C s1 ls1 [M1 SC1 X1 hpc hfn hsp1 S1 MAX1].
-    rewrite (step_mix_ilsteps C) //; last by simpl_size; lia.
-    rewrite /= -!bind_bind.
-    apply: (xrutt_bind (RR := fun fs' ls' =>
-      exists ves len scs' bytes ls0,
-        [/\ sem_pexprs true (p_globs p) s1 es = ok ves
-          , exec_syscall_arg_s o ves = ok len
-          , exec_syscall_store_s o scs' (emem s1) ves bytes = ok (fscs fs', fmem fs', fvals fs')
-          , lset_fstate (syscall_sig o).(scs_vout) ls1 fs' = ok ls0
-          & ls' = lnext_pc ls0])).
-    - admit.
-    case: o C => [ws n] C /=.
-    move=> [scs1 m1 vs1] ? [ves [len [scs' [bytes [ls0 [hves hlen +++]]]]]].
-    rewrite /lset_fstate /upd_estate /=; t_xrbindP.
-    move=> [{}m1 w] hm1 ? /= <- _ s2 ok_s2 ? ->; subst ls0 scs1.
-
-    rewrite mix_ilsteps_b0 => //=; last by rewrite hpc addn1.
-    rewrite tau_eutt.
-    apply xrutt_iresult_left.
-    rewrite /rmap; t_xrbindP=> -[_ _] s2' ok_s2' [<- <-].
-    split => //=.
-    + admit.
-    + by move: ok_s2 ok_s2' => /write_lvals_escs -> /write_lvals_escs ->.
-    + admit.
-    + rewrite /lnext_pc /lset_estate' /= hpc; simpl_size; lia.
-    + apply: (eq_exT (vm2 := vm_after_syscall (lvm ls1))).
-      + by apply: eq_exI (syscall_killP (lvm ls1)); SvD.fsetdec.
-      admit.
-    + admit.
-    + admit.
-    move=> pr hnv hnpr.
-    have hnv1: ~~ validw (emem s1) Aligned pr U8.
-    + apply /negP; move=> /S1 /orP [//|].
-      move=> hpr; apply hnpr.
-      apply: pointer_range_incl_l hpr.
-      have h: (wunsigned sp0 - max0 <= wunsigned (top_stack (emem s1)))%Z.
-      + have /= := MAX1 _ ok_fd.
-        move: (checked_prog ok_fd) => /=; rewrite /check_fd.
-        t_xrbindP=> _ _ _ _ /and4P [_ _ _ /ZleP /= ?] _ _ _.
-        by lia.
-      rewrite wunsigned_sub; first by lia.
-      move: (top_stack (emem s1)) h => sp.
-      by have := wunsigned_range sp; lia.
-    admit.
-  Admitted.
+  Proof. Admitted.
 
   Lemma Hassert : ∀ a : assertion, Pi_r (Cassert a).
   Proof. by move => > [/checked_iE[]]. Qed.
