@@ -661,8 +661,15 @@ Proof.
       exists ves' => //=.
     move=> vs ves' uves //=.
     rewrite bind_bind.
-    apply : (xrutt_bind (RR := fun fs fs' => fs_uincl fs fs' /\ stack_stable (emem t1) (fmem fs))).
-    - rewrite /fexec_syscall //=.
+    apply : (xrutt_bind (RR := fun fs fs' =>  stack_stable (emem t1) (fmem fs) /\ fs_uincl fs fs')).
+    -        (* apply: xrutt_weaken; cycle 5. *)
+      (* apply lutt_xrutt_trans_r. *)
+      (* admit. *)
+      (* Arguments fexec_syscall: clear implicits. *)
+      (* have truc := (fs_uincl_syscall o s1 t1 (i1 :=mk_fstate vs s1) (i2 := (mk_fstate ves' t1)) (rndE0_refl:=rndE0_refl)). *)
+      (* apply truc. *)
+
+      rewrite /fexec_syscall //=.
       apply : (xrutt_bind (RR := eq)).
       apply xrutt_iresult.
        - move => v1 hv1.
@@ -670,7 +677,7 @@ Proof.
          by apply: (exec_syscall_argPs uves).
       move => _ len ->.
       apply : (xrutt_bind (RR := eq)).
-       - admit.
+       - apply xrutt_trigger. admit. admit.
       move =>  _ scb ->.
       apply : (xrutt_bind (RR := eq)).
        - apply xrutt_iresult.
@@ -680,44 +687,48 @@ Proof.
          apply (exec_syscall_storePs uves hv1).
       move =>  _ scm ->.
       apply xrutt_Ret.
-      split;[ apply fs_uinclR |].
+      split;[ | apply fs_uinclR ].
+      
       admit.
    move => fs fs' [hu h].
    rewrite -(bind_ret_r (iresult s1 (upd_estate true (p_globs p) xs fs s1))).
    apply : (xrutt_bind (RR := fun a b => exists X': Sv.t, merged_vmap_inv X' a b /\
-    Sv.Equal X' (Sv.diff (Sv.union I syscall_kill) (vrvs (to_lvals (scs_vout (syscall_sig o))))) /\
-          evm t1 =[\syscall_kill] evm b )) => //=.
+      Sv.Equal X' (Sv.diff (Sv.union I syscall_kill) (vrvs (to_lvals (scs_vout (syscall_sig o))))) /\
+      evm t1 =[\Sv.union syscall_kill (vrvs (to_lvals (scs_vout (syscall_sig o))))] evm b
+          (* evm t1 =[\syscall_kill] evm b  *))) => //=.
      - apply xrutt_iresult.
        move => s2 ok_s2.
-    case: hu => /= ?? hu. (* ; subst scs' mem'. *)
-    move: hsub; rewrite {1}vrvs_recE {1}Sv_union_empty => hsub.
-    have [hkill {}hsub] := SvSubset_and hsub.
-    have hinv' : merged_vmap_inv (Sv.union I syscall_kill)
-             (with_scs (with_mem s1 (fmem fs)) (fscs fs))
-             (with_scs (with_mem (with_vm t1 (vm_after_syscall (evm t1))) (fmem fs)) (fscs fs)).
-    + case: hinv1 => hst1 hmerge; split.
-      + case: hst1 => ?? hvmap; split => //= z hz.
+       case: hu => /= hfscs hfmem hu.
+       move: hsub; rewrite {1}vrvs_recE {1}Sv_union_empty => hsub.
+       have [hkill {}hsub] := SvSubset_and hsub.
+       have hinv' : merged_vmap_inv (Sv.union I syscall_kill)
+                      (with_scs (with_mem s1 (fmem fs)) (fscs fs))
+                      (with_scs (with_mem (with_vm t1 (vm_after_syscall (evm t1))) (fmem fs)) (fscs fs)).
+         + case: hinv1 => hst1 hmerge; split.
+         + case: hst1 => ?? hvmap; split => //= z hz.
         rewrite /vm_after_syscall kill_varsE.
-        case: Sv_memP.
-        + by move=> ?; exfalso; apply hz; SvD.fsetdec.
-        by move=> hz'; apply: hvmap; SvD.fsetdec.
-      apply: (merge_vmap_stable_trans hkill hmerge) => //=.
-      move=> x hx; rewrite /vm_after_syscall kill_varsE.
-      by case: Sv_memP.
-    have ok_s2':= get_lvar_write_lvals (all2_get_lvar hallxs) ok_s2.
-    have [X' hch heq]:= [elaborate get_lvar_check_lvs ii (Sv.union I syscall_kill) (all2_get_lvar hallxs)].
-    have [t2 hw /= hinv''] := check_lvsP hsub hch hinv' ok_s2' hu.
-    exists t2 => //=.
-    admit.
-    exists X'; split => //=.
-    split => //=.
-    admit.
+         case: Sv_memP.
+          + by move=> ?; exfalso; apply hz; SvD.fsetdec.
+          by move=> hz'; apply: hvmap; SvD.fsetdec.
+         apply: (merge_vmap_stable_trans hkill hmerge) => //=.
+         move=> x hx; rewrite /vm_after_syscall kill_varsE.
+         by case: Sv_memP.
+       have ok_s2':= get_lvar_write_lvals (all2_get_lvar hallxs) ok_s2.
+       have [X' hch heq]:= [elaborate get_lvar_check_lvs ii (Sv.union I syscall_kill) (all2_get_lvar hallxs)].
+       have [t2 hw /= hinv''] := check_lvsP hsub hch hinv' ok_s2' hu.
+       exists t2 => //=.
+       - by rewrite /upd_estate -hw hfmem hfscs.
+       exists X'; split => //=.
+       split => //=.
+       have /= h1 := vrvsP hw.
+       apply: eq_exT; last by apply: eq_exI h1; SvD.fsetdec.
+       apply: (eq_exI (s2:= syscall_kill));first by SvD.fsetdec.
+       by move=> y /= /Sv_memP /negPf; rewrite /vm_after_syscall kill_varsE => ->.
    move => s2' s2 [X' [hinv'' [heq h1]]].
    apply xrutt_Ret => //=.
     split => //=.
     + by apply: subset_merged_vmap_inv hinv''; rewrite heq.
-    + rewrite vrvs_recE Sv_union_empty.
-      by apply: (eq_exI (s2:= syscall_kill));first by SvD.fsetdec.
+    + by rewrite vrvs_recE Sv_union_empty.
       by rewrite vrvs_recE Sv_union_empty /=; apply SvD.F.Subset_refl.
       (* if *)
   + move=> e c1 c2 hc1 hc2 ii I O.

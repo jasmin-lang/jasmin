@@ -2511,21 +2511,30 @@ Context
   {dc: DirectCall}.
 
 Context
-  {E E0 : Type -> Type}
-  {sem_F1 sem_F2 : sem_Fun E}
-  {wE : with_Error E E0}
-  {rE0 : EventRels E0}
-  {rndE0 : RndEvent syscall_state -< E0}
+  {El Er E0l E0r : Type -> Type}
+  {sem_F1 : sem_Fun El}
+  {sem_F2 : sem_Fun Er}
+  {wEl : with_Error El E0l}
+  {wEr : with_Error Er E0r}
+  {rE0 : EventRels2 E0l E0r}
+  {rndE0l : RndEvent syscall_state -< E0l}
+  {rndE0r : RndEvent syscall_state -< E0r}
   {rndE0_refl : RndE0_refl2 rE0}
 .
 
 Lemma mfun1_Rnd scs len:
-   mfun1 (subevent (syscall_state_t * seq (ssralg.GRing.ComRing.sort u8)) (Rnd scs len)) =
+   mfun1 (E2:= (ErrEvent +' E0l)) (subevent (H:= rndE(rndE0:=rndE0l)) (syscall_state_t * seq (ssralg.GRing.ComRing.sort u8)) (Rnd scs len)) =
    inr1 (subevent (syscall_state_t * seq (ssralg.GRing.ComRing.sort u8)) (Rnd scs len)).
-Proof. by rewrite /subevent /= /resum /rndE_syscall mid12. Qed.
+Proof. by  rewrite /subevent /= /resum /rndE_syscall mid12. Qed.
+
+Lemma mfun1_Rnd' scs len:
+   mfun1 (E2:= (ErrEvent +' E0r)) (subevent (H:= rndE(rndE0:=rndE0r)) (syscall_state_t * seq (ssralg.GRing.ComRing.sort u8)) (Rnd scs len)) =
+   inr1 (subevent (syscall_state_t * seq (ssralg.GRing.ComRing.sort u8)) (Rnd scs len)).
+Proof. by  rewrite /subevent /= /resum /rndE_syscall mid12. Qed.
+
 
 Lemma fs_uincl_eq_syscall o s1 s2 :
-  wkequiv fs_uincl (fexec_syscall s1 o) (fexec_syscall s2 o) eq.
+  wkequiv (rE0:=rE0) fs_uincl (fexec_syscall (wE:=wEl) (rE:=rndE(rndE0:=rndE0l))  s1 o) (fexec_syscall (wE:=wEr) (rE:=rndE(rndE0:=rndE0r)) s2 o) eq.
 Proof.
   apply wkequiv_read with eq.
   + apply wkequiv_iresult => fs1 fs2 len [?? hu1] hex.
@@ -2534,9 +2543,9 @@ Proof.
   apply wkequiv_read with eq.
   + move=> fs1 fs2 [<- _ _].
     apply xrutt_Vis.
-    + rewrite /EPreRel /sum_prerelF /= mfun1_Rnd.
-      by apply rE0_rnd_pre_refl.
-    move=> ??; rewrite {1}/EPostRel /sum_postrelF mfun1_Rnd.
+  +  rewrite /EPreRel /sum_prerelF /=. rewrite  !mfun1_Rnd. rewrite  !mfun1_Rnd'.
+      apply rE0_rnd_pre_refl.
+    move=> ??; rewrite {1}/EPostRel /sum_postrelF mfun1_Rnd mfun1_Rnd'.
     by move=> h; rewrite (rE0_rnd_post_refl h); apply xrutt_Ret.
   move=> ? _ <-.
   apply wkequiv_read with eq.
@@ -2547,18 +2556,42 @@ Proof.
 Qed.
 
 Lemma fs_uincl_syscall o s1 s2 :
-  wkequiv fs_uincl (fexec_syscall s1 o) (fexec_syscall s2 o) fs_uincl.
+    wkequiv (rE0:=rE0) fs_uincl (fexec_syscall (wE:=wEl) (rE:=rndE(rndE0:=rndE0l))  s1 o) (fexec_syscall (wE:=wEr) (rE:=rndE(rndE0:=rndE0r)) s2 o) fs_uincl.
 Proof.
 apply wkequiv_weaken with fs_uincl eq => //; last exact: fs_uincl_eq_syscall.
 by move=> > _ <-; split => //; apply List_Forall2_refl.
 Qed.
 
 Lemma eq_syscall o s1 s2 :
-  wkequiv eq (fexec_syscall s1 o) (fexec_syscall s2 o) eq.
+    wkequiv (rE0:=rE0) eq (fexec_syscall (wE:=wEl) (rE:=rndE(rndE0:=rndE0l))  s1 o) (fexec_syscall (wE:=wEr) (rE:=rndE(rndE0:=rndE0r)) s2 o) eq.
 Proof.
 apply wkequiv_weaken with fs_uincl eq => //; last exact: fs_uincl_eq_syscall.
 by move=> > <-; split => //; apply List_Forall2_refl.
 Qed.
+
+End SYSCALL.
+
+Section SYSCALL.
+
+  Context
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {asm_op: Type}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT : progT}
+  {wsw : WithSubWord}
+  {scP : semCallParams (wsw:= wsw) (pT := pT)}
+  {dc: DirectCall}.
+
+Context
+  {E E0 : Type -> Type}
+  {sem_F1 sem_F2 : sem_Fun E}
+  {wE : with_Error E E0}
+  {rE0 : EventRels E0}
+  {rndE0 : RndEvent syscall_state -< E0}
+  {rndE0_refl : RndE0_refl rE0}
+.
 
 Context (p1 p2 : prog) (ev1 ev2: extra_val_t).
 
