@@ -383,6 +383,44 @@ Proof.
   by case: X => //= r /andP[->].
 Qed.
 
+Lemma tunnel_cmd_aux endpc n s s' :
+  lsem_body_n p (and_not_syscall p (untilpc endpc)) n.+1 s = ok (inl s') →
+  eqit (sum_rel eq eq) true true (Ret (inl s'))
+    (iter_n
+       (λ i : lstate,
+          if endpc != (lfn i, lpc i)
+          then
+           ITree.bind
+             match let%opt i0 := find_instr p i in is_syscall i0 with
+             | Some o => lexec_syscall o i
+             | None => iresult (to_estate i) (step p i)
+             end (λ i' : lstate, Ret (inl i'))
+          else Ret (inr i))
+       n s).
+Proof.
+  move => hsem.
+  have := [elaborate i_lsem_body_n n s (and_not_syscall_not_syscall (P := p) (cond := (untilpc endpc)))].
+  rewrite hsem /= => {}hsem; move: hsem; clear.
+  rewrite /while_body /and_not_syscall /untilpc.
+  elim: n s => [ | n ih ] si /=.
+  + case: eqP => /= hend.
+    + by move/(@eutt_inv_Ret _ _ _ _).
+    rewrite -/(next_is_syscall p _) /istep.
+    case: next_is_syscall => [ a | ] /=.
+    + by move/(@eutt_inv_Ret _ _ _ _).
+    move => ->; reflexivity.
+  case: eqP => /= hend.
+  + by rewrite bind_ret_l => /(@eutt_inv_Ret _ _ _ _).
+  rewrite -/(next_is_syscall p _) {1}/istep.
+  case: next_is_syscall => [ a | ] /=.
+  + by rewrite bind_ret_l => /(@eutt_inv_Ret _ _ _ _).
+  rewrite !bind_bind.
+  case: step => [ sj | err ]; last first.
+  + rewrite !bind_throw /= => ->; reflexivity.
+  rewrite !bind_ret_l tau_eutt => /ih ->.
+  apply: eqit_Tau_r; reflexivity.
+Qed.
+
 Lemma tunnel_cmd endpc s :
   wfend endpc ->
   eutt eq (ilsem p' (untilpc endpc) s) (ilsem p (untilpc endpc) s).
@@ -419,26 +457,7 @@ Proof.
     have [n [s3 hsem hev]] := hp _ _ heval.
     exists n.+1; rewrite /= hpc hi /= bind_bind.
     rewrite {1 2}/eval_instr /li_i heval hev !bind_ret_l tau_eutt.
-    have := [elaborate i_lsem_body_n n (setcpc s (lfn s) pc) (and_not_syscall_not_syscall (P := p) (cond := (untilpc endpc)))].
-    rewrite hsem /= => {}hsem; move: hsem; clear.
-    rewrite /while_body /and_not_syscall /untilpc.
-    elim: n (setcpc s (lfn s) pc) => [ | n ih ] s' /=.
-    + case: eqP => /= hend.
-      + by move/(@eutt_inv_Ret _ _ _ _).
-      rewrite -/(next_is_syscall p _) /istep.
-      case: next_is_syscall => [ a | ] /=.
-      + by move/(@eutt_inv_Ret _ _ _ _).
-      move => ->; reflexivity.
-    case: eqP => /= hend.
-    + by rewrite bind_ret_l => /(@eutt_inv_Ret _ _ _ _).
-    rewrite -/(next_is_syscall p _) {1}/istep.
-    case: next_is_syscall => [ a | ] /=.
-    + by rewrite bind_ret_l => /(@eutt_inv_Ret _ _ _ _).
-    rewrite -/(step p _) !bind_bind.
-    case: step => [ s'' | err ]; last first.
-    + rewrite !bind_throw /= => ->; reflexivity.
-    rewrite !bind_ret_l tau_eutt => /ih ->.
-    apply: eqit_Tau_r; reflexivity.
+    exact: tunnel_cmd_aux.
   move=> f r hi /=.
   have := huf r; rewrite /path_to0.
   case: (r =P LUF.find uf r).
@@ -451,15 +470,17 @@ Proof.
     have := find_instr_goto_targets hget hall hi.
     rewrite /= eqxx andbT /= => /labels_of_find [pc ->] /=; by eauto.
   have [n [s3 hsem hev]]:= hp _ _ heval.
-  case heq: (Let x := _ in values.to_bool x) => [ [] | e /=]; last first.
+  case heq: (Let x := fexpr_sem.sem_fexpr (lvm s) f in values.to_bool x) => [ [] | e /=]; last first.
   + exists 0; rewrite /= /lsem_body hpc /step /= hi /eval_instr /li_i.
     rewrite heq /=; reflexivity.
   + exists 0; rewrite /= /lsem_body hpc /step /= hi /eval_instr /li_i.
     rewrite heq /=; reflexivity.
   exists n.+1; rewrite /= hpc hi /= bind_bind.
   rewrite {1 2}/eval_instr /li_i heq heval !bind_ret_l tau_eutt.
-  admit.
-Admitted.
+  move: hev; rewrite /eval_jump hget /= => ->.
+  rewrite bind_ret_l.
+  exact: tunnel_cmd_aux.
+Qed.
 
 Lemma tunnel_funcs fn s :
   eqit eq true true (ilsem_exportcall p fn s) (ilsem_exportcall p' fn s).
