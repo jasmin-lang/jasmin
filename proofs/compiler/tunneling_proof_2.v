@@ -391,7 +391,7 @@ Proof.
   rewrite /= {1}/while_body /untilpc; case: eqP => [|/eqP/negPf] hpc /=.
   + exists 2; rewrite /while_body /= hpc eqxx bind_ret_l.
     by apply eutt_Ret; constructor.
-  rewrite /istep /next_is_syscall /step /while_body.
+  rewrite /istep /next_is_Lsyscall /step /while_body.
   case hi: find_instr (find_instrE s) => [[ii i] | /=]; last first.
   + move=> hi'; exists 0; rewrite /= hpc /= hi hi' !bind_throw; reflexivity.
   move=> [fd hget].

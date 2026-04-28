@@ -2193,7 +2193,7 @@ Proof.
     rewrite hsz take_size => heq; rewrite heq => <-.
     by move: hass; rewrite /assemble_fd heq; t_xrbindP => *; subst.
   move=> hnend.
-  rewrite /istep /step /next_is_syscall /find_instr.
+  rewrite /istep /step /next_is_Lsyscall /find_instr.
   case ok_fd: get_fundef omap_lc => [fd|] //= [?]; subst lc.
   case ok_i: (oseq.onth (lfd_body _) _) => [ i | /= ]; last first.
   + exists 0.
@@ -2207,7 +2207,7 @@ Proof.
   + rewrite -hip (onth_split ok_i) /asm_pos /assemble_c take_cat size_take.
     case: (ltnP (lpc ls) (size (lfd_body fd))) ok_i => [hn ok_i| /onth_default -> //].
     by rewrite ltnn subnn take0 cats0 hac /= -heq onth_cat ltnn subnn.
-  case ho: is_syscall ok_i => [o|] ok_i.
+  case ho: is_Lsyscall ok_i => [o|] ok_i.
   - admit.
   exists (Nat.pred (size aci)).
   rewrite i_asmsem_body_n.

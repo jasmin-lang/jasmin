@@ -414,8 +414,8 @@ Context
   {rE : RndEvent syscall_state -< E}
 .
 
-Definition next_is_syscall (s : lstate) : option syscall_t :=
-  let%opt i := find_instr s in is_syscall i.
+Definition next_is_Lsyscall (s : lstate) : option syscall_t :=
+  let%opt i := find_instr s in is_Lsyscall i.
 
 Definition lset_fstate (xs : seq var) (s : lstate) (fs : fstate) : exec lstate :=
   Let e := upd_estate true [::] (to_lvals xs) fs (to_estate s) in
@@ -431,7 +431,7 @@ Definition lexec_syscall (o : syscall_t) (s : lstate) : itree E lstate :=
   Ret (lnext_pc s').
 
 Definition istep (s: lstate) : itree E lstate :=
-  if next_is_syscall s is Some o then lexec_syscall o s
+  if next_is_Lsyscall s is Some o then lexec_syscall o s
   else iresult (to_estate s) (step s).
 
 (* This is the kind of semantics we want at assembly level. We could use the
@@ -452,10 +452,10 @@ Definition ilsem_exportcall (fn: funname) (es:estate) :=
 
 (* TODO fail rather than stop executing *)
 Definition cond_not_syscall (cond : pred lstate) : Prop :=
-  forall s, cond s -> ~~ isSome (next_is_syscall s).
+  forall s, cond s -> ~~ isSome (next_is_Lsyscall s).
 
 Definition and_not_syscall (cond : pred lstate) (s : lstate) : bool :=
-  cond s && ~~ next_is_syscall s.
+  cond s && ~~ next_is_Lsyscall s.
 
 Lemma and_not_syscall_not_syscall cond :
   cond_not_syscall (and_not_syscall cond).
@@ -466,7 +466,7 @@ Lemma i_lsem_body (cond : pred lstate) s :
   while_body cond istep s ≅ iresult (to_estate s) (lsem_body cond s).
 Proof.
 move=> h; rewrite /while_body /lsem_body; case: ifP => h'; last reflexivity.
-rewrite /istep; move: (h _ h'); case: next_is_syscall => // _.
+rewrite /istep; move: (h _ h'); case: next_is_Lsyscall => // _.
 case: step => [s'|] /=.
 + rewrite bind_ret_l; reflexivity.
 by move=> e; apply bind_throw.
@@ -618,7 +618,7 @@ Lemma translate_istep E' s :
     (translate inr1 (istep s))
     (istep (E := E' +' E) s).
 Proof.
-rewrite /istep /iresult /=; case: next_is_syscall => [o|];
+rewrite /istep /iresult /=; case: next_is_Lsyscall => [o|];
   [ exact: translate_lexec_syscall | exact: translate_err_result ].
 Qed.
 
@@ -642,7 +642,7 @@ Proof.
     + by move=> _ [] fn' {}s /=; apply mix_ilsteps_eq.
     by apply mix_ilsteps_eq.
   have -> : ilsem (endpc fn) s ≈ ss_sem istep (endpc fn) s by reflexivity.
-  apply: mix_sem_ss_sem => {}s; rewrite /istep; case: next_is_syscall => [o|].
+  apply: mix_sem_ss_sem => {}s; rewrite /istep; case: next_is_Lsyscall => [o|].
   - apply: eutt_eq_bind => vs; apply: eutt_eq_bind => fs /=.
     apply: eutt_eq_bind => s'; apply eqit_Ret.
     split => //; case: is_call => // ?? /andP [] /eqP ->.

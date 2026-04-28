@@ -18,6 +18,7 @@ Import word_ssrZ.
 Import psem.
 Import merge_varmaps.
 Import compiler_util.
+Require Import xrutt xrutt_facts.
 
 Import Monads.
 Import MonadNotation.
@@ -331,7 +332,9 @@ Context {E_l E0_l : Type -> Type} {wE_l: with_Error E_l E0_l}
   {E_r E0_r : Type -> Type} {wE_r: with_Error E_r E0_r}
   {rndE0_l : RndEvent syscall_state -< E0_l}
   {rndE0_r : RndEvent syscall_state -< E0_r}
-        {rE0 : EventRels2 E0_l E0_r}.
+  {rE0 : EventRels2 E0_l E0_r}
+  {rndE0_refl : RndE0_refl2 rE0}
+.
 
 Context (sem_F1 : sem_Fun (pT:= progStack) E_l)
         (sem_F2 : sem_FunK E_r).
@@ -645,49 +648,54 @@ Proof.
     have [t2 hw /= hinv'] := check_lvsP hsub hx hinv1 ok_s2 vw'.
     rewrite hw; exists (vrvs xs, t2) => //=; split => //.
     by apply: (vrvsP hw).
+
   (* syscall *)
-  + admit. (* move=> xs o es ii I O. *)
-    (* rewrite /write_i /= => hsub; t_xrbindP => he halles hallxs <- s1 t1 hinv1. *)
-    (* apply xrutt_iresult => s2; rewrite /sem_syscall /upd_estate. *)
-    (* t_xrbindP => vs ok_v fs ok_fs ok_s2. *)
-    (* rewrite /it_sems_one_varmap.sem_syscall. *)
-    (* have [ves' hves' uves]:= check_esP he (mvi_match hinv1) ok_v. *)
-    (* have -> /= := sem_pexprs_get_vars (all2_get_pvar halles) hves'. *)
-    (* have hfsu : fs_uincl (mk_fstate vs s1) (mk_fstate ves' t1). *)
-    (* + split => //. *)
-    (*   + by apply (mvm_scs (mvi_match hinv1)). *)
-    (*   by apply (mvm_mem (mvi_match hinv1)). *)
-    (* have [fs' h hu]:= fs_uincl_syscall hfsu ok_fs. *)
-    (* rewrite h /=; move: h; rewrite /fexec_syscall /exec_syscall /=; t_xrbindP. *)
-    (* move=> [[scs' mem'] vs'] h [?]; subst fs'. *)
-    (* have [hstable _ {h}]:= exec_syscallSs h; rewrite /upd_estate /=. *)
-    (* case: hu => /= ?? hu; subst scs' mem'. *)
-    (* move: hsub; rewrite {1}vrvs_recE {1}Sv_union_empty => hsub. *)
-    (* have [hkill {}hsub] := SvSubset_and hsub. *)
-    (* have hinv' : merged_vmap_inv (Sv.union I syscall_kill) *)
-    (*          (with_scs (with_mem s1 (fmem fs)) (fscs fs)) *)
-    (*          (with_scs (with_mem (with_vm t1 (vm_after_syscall (evm t1))) (fmem fs)) (fscs fs)). *)
-    (* + case: hinv1 => hst1 hmerge; split. *)
-    (*   + case: hst1 => ?? hvmap; split => //= z hz. *)
-    (*     rewrite /vm_after_syscall kill_varsE. *)
-    (*     case: Sv_memP. *)
-    (*     + by move=> ?; exfalso; apply hz; SvD.fsetdec. *)
-    (*     by move=> hz'; apply: hvmap; SvD.fsetdec. *)
-    (*   apply: (merge_vmap_stable_trans hkill hmerge) => //=. *)
-    (*   move=> x hx; rewrite /vm_after_syscall kill_varsE. *)
-    (*   by case: Sv_memP. *)
-    (* have {}ok_s2:= get_lvar_write_lvals (all2_get_lvar hallxs) ok_s2. *)
-    (* have [X' hch heq]:= [elaborate get_lvar_check_lvs ii (Sv.union I syscall_kill) (all2_get_lvar hallxs)]. *)
-    (* have [t2 hw /= hinv''] := check_lvsP hsub hch hinv' ok_s2 hu. *)
-    (* rewrite hw; eexists; first reflexivity. *)
-    (* split => //=. *)
-    (* + by apply: subset_merged_vmap_inv hinv''; rewrite heq. *)
-    (* + rewrite vrvs_recE Sv_union_empty. *)
-    (*   have /= h1 := vrvsP hw. *)
-    (*   apply: eq_exT; last by apply: eq_exI h1; SvD.fsetdec. *)
-    (*   apply: (eq_exI (s2:= syscall_kill));first by SvD.fsetdec. *)
-    (*   by move=> y /= /Sv_memP /negPf; rewrite /vm_after_syscall kill_varsE => ->. *)
-    (* by rewrite vrvs_recE Sv_union_empty /=; apply SvD.F.Subset_refl. *)
+  + move=> xs o es ii I O.
+    rewrite /write_i /= => hsub; t_xrbindP => he halles hallxs <- s1 t1 hinv1.
+    apply: (xrutt_bind (RR := List.Forall2 value_uincl)).
+    - apply xrutt_iresult => vs ok_v.
+      have [ves' -> uves]:= check_esP he (mvi_match hinv1) ok_v.
+      by exists ves'.
+    move=> vs ves' uves.
+    have hfsu: fs_uincl (mk_fstate vs s1) (mk_fstate ves' t1).
+    + split => //.
+      + by apply (mvm_scs (mvi_match hinv1)).
+      by apply (mvm_mem (mvi_match hinv1)).
+    apply: (xrutt_bind (RR := fun fsS fsT =>
+      fs_uincl fsS fsT /\ stack_stable (emem t1) (fmem fsT))).
+    - admit. (* have := fs_uincl_syscall _ _ _ hfsu. with rndE0_refl *)
+    move=> fs [_ _ vs'] /= [[/= <- <- hu] hstable].
+
+    move: hsub; rewrite {1}vrvs_recE {1}Sv_union_empty => hsub.
+    have [hkill {}hsub] := SvSubset_and hsub.
+    have hinv' : merged_vmap_inv (Sv.union I syscall_kill)
+             (with_scs (with_mem s1 (fmem fs)) (fscs fs))
+             (with_scs (with_mem (with_vm t1 (vm_after_syscall (evm t1))) (fmem fs)) (fscs fs)).
+    + case: hinv1 => hst1 hmerge; split.
+      + case: hst1 => ?? hvmap; split => //= z hz.
+        rewrite /vm_after_syscall kill_varsE.
+        case: Sv_memP.
+        + by move=> ?; exfalso; apply hz; SvD.fsetdec.
+        by move=> hz'; apply: hvmap; SvD.fsetdec.
+      apply: (merge_vmap_stable_trans hkill hmerge) => //=.
+      move=> x hx; rewrite /vm_after_syscall kill_varsE.
+      by case: Sv_memP.
+    apply xrutt_iresult => s ok_s2.
+    have {}ok_s2:= get_lvar_write_lvals (all2_get_lvar hallxs) ok_s2.
+    have [X' hch heq]:= [elaborate get_lvar_check_lvs ii (Sv.union I syscall_kill) (all2_get_lvar hallxs)].
+    have [/= t2 hw /= hinv''] := check_lvsP hsub hch hinv' ok_s2 hu.
+    rewrite /upd_estate /=.
+
+    rewrite hw; eexists; first reflexivity.
+    split => //=.
+    + by apply: subset_merged_vmap_inv hinv''; rewrite heq.
+    + rewrite vrvs_recE Sv_union_empty.
+      have /= h1 := vrvsP hw.
+      apply: eq_exT; last by apply: eq_exI h1; SvD.fsetdec.
+      apply: (eq_exI (s2:= syscall_kill));first by SvD.fsetdec.
+      by move=> y /= /Sv_memP /negPf; rewrite /vm_after_syscall kill_varsE => ->.
+    by rewrite vrvs_recE Sv_union_empty /=; apply SvD.F.Subset_refl.
+
   (* if *)
   + move=> e c1 c2 hc1 hc2 ii I O.
     rewrite {1}write_i_if /=; t_xrbindP => hsub hche O1 hch1 O2 hch2 <- s1 t1 hinv1 /=.

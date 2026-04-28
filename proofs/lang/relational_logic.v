@@ -462,25 +462,31 @@ Definition eq_spec : EquivSpec :=
   {| rpreF_ := fun (fn1 fn2 : funname) (fs1 fs2 : fstate) => fn1 = fn2 /\ fs1 = fs2
    ; rpostF_ := fun (fn1 fn2 : funname) (fs1 fs2 fr1 fr2: fstate) => fr1 = fr2 |}.
 
-Context (spec : EquivSpec) {E0: Type -> Type}.
+Section ONE.
+  Context (spec : EquivSpec) {E0: Type -> Type}.
 
-Definition RPreD {T1 T2} (d1 : recCall T1)
-                         (d2 : recCall T2) : Prop :=
-  match d1, d2 with
-  | RecCall _ fn1 fs1, RecCall _ fn2 fs2 => rpreF fn1 fn2 fs1 fs2
-  end.
+  Definition RPreD {T1 T2} (d1 : recCall T1)
+                           (d2 : recCall T2) : Prop :=
+    match d1, d2 with
+    | RecCall _ fn1 fs1, RecCall _ fn2 fs2 => rpreF fn1 fn2 fs1 fs2
+    end.
 
-Definition RPostD {T1 T2} (d1 : recCall T1) (t1: T1) (d2 : recCall T2) (t2: T2) : Prop :=
-  match d1 in recCall T1_ return T1_ -> T2 -> Prop with
-  | RecCall _ fn1 fs1 =>
-    match d2 in recCall T2_ return fstate -> T2_ -> Prop with
-    | RecCall _ fn2 fs2 => rpostF fn1 fn2 fs1 fs2
-    end
-  end t1 t2.
+  Definition RPostD {T1 T2} (d1 : recCall T1) (t1: T1) (d2 : recCall T2) (t2: T2) : Prop :=
+    match d1 in recCall T1_ return T1_ -> T2 -> Prop with
+    | RecCall _ fn1 fs1 =>
+      match d2 in recCall T2_ return fstate -> T2_ -> Prop with
+      | RecCall _ fn2 fs2 => rpostF fn1 fn2 fs1 fs2
+      end
+    end t1 t2.
+End ONE.
 
-Instance relEvent_recCall {rE0 : EventRels E0} : EventRels (recCall +' E0) :=
-  {| EPreRel0_  := sum_prerelF (@RPreD) EPreRel0
-   ; EPostRel0_ := sum_postrelF (@RPostD) EPostRel0
+Instance relEvent_recCall
+  (spec : EquivSpec)
+  {E0_l E0_r : Type -> Type}
+  {rE0 : EventRels2 E0_l E0_r} :
+  EventRels2 (recCall +' E0_l) (recCall +' E0_r):=
+  {| EPreRel0_  := sum_prerelF (@RPreD spec) EPreRel0
+   ; EPostRel0_ := sum_postrelF (@RPostD spec) EPostRel0
   |}.
 
 End TR_MutualRec.
@@ -2448,31 +2454,75 @@ Context
   {scP : semCallParams (wsw:= wsw) (pT := pT)}
   {dc: DirectCall}.
 
+Class RndE0_refl2
+  {E0_l E0_r : Type -> Type}
+  (rE0 : EventRels2 E0_l E0_r)
+  {rndE0_l : RndEvent syscall_state -< E0_l}
+  {rndE0_r : RndEvent syscall_state -< E0_r} :=
+  {
+    rE0_rnd_pre_refl :
+      forall scs len,
+        EPreRel0_ (rndE0_l _ (Rnd scs len)) (rndE0_r _ (Rnd scs len));
 
-Class RndE0_refl {E0 : Type -> Type} (rE0 : EventRels E0) {rndE0 : RndEvent syscall_state -< E0} :=
-  { rE0_rnd_pre_refl : forall scs len, EPreRel0_ (rndE0 _ (Rnd scs len)) (rndE0 _ (Rnd scs len))
-  ; rE0_rnd_post_refl : forall scs len bytes1 bytes2,
-       EPostRel0_ (rndE0 _ (Rnd scs len)) bytes1 (rndE0 _ (Rnd scs len)) bytes2 -> bytes1 = bytes2 }.
+    rE0_rnd_post_refl :
+      forall scs len bytes1 bytes2,
+         EPostRel0_
+           (rndE0_l _ (Rnd scs len)) bytes1
+           (rndE0_r _ (Rnd scs len)) bytes2 ->
+         bytes1 = bytes2;
+  }.
 
-Context {E E0 : Type -> Type} {sem_F1 sem_F2 : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}
-        {rndE0 : RndEvent syscall_state -< E0} {rndE0_refl : RndE0_refl rE0}.
+Context
+  {E E0_l E0_r : Type -> Type}
+  {sem_F1 sem_F2 : sem_Fun E}
+  {wE_l : with_Error E E0_l}
+  {wE_r : with_Error E E0_r}
+  {rE0 : EventRels2 E0_l E0_r}
+  {rndE0_l : RndEvent syscall_state -< E0_l}
+  {rndE0_r : RndEvent syscall_state -< E0_r}
+  {rndE0_refl : RndE0_refl2 rE0}
+.
 
 #[local] Instance rndE_syscall : RndEvent syscall_state -< E :=
-  λ (T : Type) (re : RndEvent syscall_state T), mfun2 (inr1 (rndE0 re)).
+  λ (T : Type) (re : RndEvent syscall_state T), mfun2 (inr1 (rndE0_l re)).
 
-#[global] Instance RndE0_recall (eS: EquivSpec) : RndE0_refl (relEvent_recCall eS).
+#[global] Instance RndE0_recall (eS: EquivSpec) : RndE0_refl2 (relEvent_recCall eS).
 Proof.
   constructor.
   + by move=> scs len; rewrite /EPreRel0_ /= /resum; apply rE0_rnd_pre_refl.
-  move=> scs len bytes1 bytes2; rewrite /EPostRel0_ /= /resum; apply rE0_rnd_post_refl.
+  by move=> scs len bytes1 bytes2; rewrite /EPostRel0_ /= /resum; apply rE0_rnd_post_refl.
 Qed.
+
+End SYSCALL.
+
+Notation RndE0_refl rE0 := (RndE0_refl2 rE0).
+
+Section SYSCALL.
+
+Context
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {asm_op: Type}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT : progT}
+  {wsw : WithSubWord}
+  {scP : semCallParams (wsw:= wsw) (pT := pT)}
+  {dc: DirectCall}.
+
+Context
+  {E E0 : Type -> Type}
+  {sem_F1 sem_F2 : sem_Fun E}
+  {wE : with_Error E E0}
+  {rE0 : EventRels E0}
+  {rndE0 : RndEvent syscall_state -< E0}
+  {rndE0_refl : RndE0_refl2 rE0}
+.
 
 Lemma mfun1_Rnd scs len:
    mfun1 (subevent (syscall_state_t * seq (ssralg.GRing.ComRing.sort u8)) (Rnd scs len)) =
    inr1 (subevent (syscall_state_t * seq (ssralg.GRing.ComRing.sort u8)) (Rnd scs len)).
-Proof.
-  by rewrite /subevent /= /resum /rndE_syscall mid12.
-Qed.
+Proof. by rewrite /subevent /= /resum /rndE_syscall mid12. Qed.
 
 Lemma fs_uincl_eq_syscall o s1 s2 :
   wkequiv fs_uincl (fexec_syscall s1 o) (fexec_syscall s2 o) eq.
@@ -2487,7 +2537,7 @@ Proof.
     + rewrite /EPreRel /sum_prerelF /= mfun1_Rnd.
       by apply rE0_rnd_pre_refl.
     move=> ??; rewrite {1}/EPostRel /sum_postrelF mfun1_Rnd.
-    by move=> /rE0_rnd_post_refl ->; apply xrutt_Ret.
+    by move=> h; rewrite (rE0_rnd_post_refl h); apply xrutt_Ret.
   move=> ? _ <-.
   apply wkequiv_read with eq.
   + apply wkequiv_iresult => fs1 fs2 [[scs m] vs] [? <- hu] hex.

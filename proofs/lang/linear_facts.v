@@ -1,20 +1,19 @@
 From Coq Require Import Relations Lia Utf8.
 
 From ITree Require Import
+  Basics
   ITree
   ITreeFacts
   Basics.HeterogeneousRelations
   Interp.Recursion
   Eq.Rutt
-  Eq.RuttFacts.
+  Eq.RuttFacts
+  Events.Exception
+  Interp.Recursion
+  MonadState
+.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
-
-From ITree Require Import
-  Basics
-  ITree
-  ITreeFacts
-.
 
 Require Import
   while
@@ -29,7 +28,11 @@ Require Import
   core_logics
   hoare_logic
 .
-Require Import xrutt xrutt_facts.
+Require Import xrutt xrutt_facts equiv_extras.
+
+Import Basics.Monads.
+Import MonadNotation.
+#[local] Open Scope monad_scope.
 
 Notation nify := (addnE, rwR2 (@leP), rwR2 (@andP), rwR1 (@negP)).
 
@@ -389,7 +392,7 @@ Proof.
   rewrite /while_body => s hmem /=.
   case: ifP => _; last by apply core_logics.lutt_Ret.
   apply core_logics.lutt_bind with (fun s => mem_equiv m (lmem s)); last by move=> *; apply core_logics.lutt_Ret.
-  rewrite /istep; case: next_is_syscall => [o|].
+  rewrite /istep; case: next_is_Lsyscall => [o|].
   - exact: lexec_syscall_mem_equiv hmem.
   case heq: step => [s' | e] /=.
   + apply core_logics.lutt_Ret.
@@ -560,31 +563,50 @@ Qed.
 Notation Lilabel := (linear.Llabel InternalLabel).
 Definition dummy_linstr := MkLI dummy_instr_info Lalign.
 
+Lemma is_Lsyscall_rP i o : reflect (i = Lsyscall o) (is_Lsyscall_r i == Some o).
+Proof.
+case: i => >; try by constructor. by apply: (iffP idP) => [|-> //] /eqP [->].
+Qed.
+
+Lemma is_Lsyscall_rE i o : (i = Lsyscall o) <-> (is_Lsyscall_r i = Some o).
+Proof.
+split; first by move=> /is_Lsyscall_rP /eqP.
+by move=> /eqP /is_Lsyscall_rP.
+Qed.
+
 Lemma step_mix_ilsteps_eq_itree fn P Q pcs pce ls  :
+  let: li := li_i (nth dummy_linstr Q 0) in
   is_linear_of lp fn (P ++ Q) ->
-  lfn ls = fn -> lpc ls = size P ->
+  lfn ls = fn ->
+  lpc ls = size P ->
   pcs <= size P < pce ->
   0 < size Q ->
   mix_ilsteps lp (pc_between fn pcs pce) ls ≅
-  match eval_instr lp (nth dummy_linstr Q 0) ls with
-  | Ok ls2 =>
-    if is_Lcall (li_i (nth dummy_linstr Q 0)) is Some fn' then
-       ITree.bind (trigger_inl1 (mix_to_small_steps.Call fn' ls2))
-        (λ ls3, if check_call ls ls3 then Tau (mix_ilsteps lp (pc_between fn pcs pce) ls3)
-                else Exception.throw (ErrSemUndef, tt))
-    else Tau (mix_ilsteps lp (pc_between fn pcs pce) ls2)
-  | Error e => Exception.throw (e, tt)
-  end.
+    if is_Lsyscall_r li is Some o then
+      ITree.bind
+        (lexec_syscall o ls)
+        (fun ls2 => Tau (mix_ilsteps lp (pc_between fn pcs pce) ls2))
+    else
+      match eval_instr lp (nth dummy_linstr Q 0) ls with
+      | Ok ls2 =>
+          if is_Lcall li is Some fn' then
+            ITree.bind (trigger_inl1 (mix_to_small_steps.Call fn' ls2))
+              (λ ls3, if check_call ls ls3 then Tau (mix_ilsteps lp (pc_between fn pcs pce) ls3)
+                      else throw (ErrSemUndef, tt))
+          else Tau (mix_ilsteps lp (pc_between fn pcs pce) ls2)
+      | Error e => throw (e, tt)
+      end.
 Proof.
   rewrite {1}/mix_ilsteps while.unfold_while => C hfn hpc hsz h0Q.
   have -> : pc_between fn pcs pce ls.
   + by rewrite /pc_between hfn eqxx hpc.
-  rewrite {1}/mix_ilstep /istep /is_call /step.
+  rewrite {1}/mix_ilstep /istep /is_call /step /next_is_Lsyscall.
   rewrite (find_instr_skip0 C) => //.
-  rewrite (onth_nth_size dummy_linstr) //.
-  case : next_is_syscall => [a |].
-  - rewrite /lexec_syscall.
-    admit.
+  rewrite (onth_nth_size dummy_linstr) // /is_Lsyscall.
+  case h: is_Lsyscall_r => [o|].
+  - move: h => /is_Lsyscall_rE ->.
+    rewrite bind_bind; apply: eqit_bind; first reflexivity.
+    move=> ls'; rewrite bind_ret_l; reflexivity.
   case: eval_instr => [ls2 | e] /=; last by rewrite !bind_throw; reflexivity.
   rewrite bind_ret_l; case: li_i => /= *;
    try by rewrite bind_ret_l; reflexivity.
@@ -592,26 +614,33 @@ Proof.
   move=> ?; case: ifP => _.
   + rewrite bind_ret_l; reflexivity.
   rewrite bind_throw; reflexivity.
-Admitted.
+Qed.
 
 Lemma step_mix_ilsteps fn P Q pcs pce ls  :
+  let: li := li_i (nth dummy_linstr Q 0) in
   is_linear_of lp fn (P ++ Q) ->
   lfn ls = fn -> lpc ls = size P ->
   pcs <= size P < pce ->
   0 < size Q ->
   mix_ilsteps lp (pc_between fn pcs pce) ls ≈
+    if is_Lsyscall_r li is Some o then
+      ITree.bind
+        (lexec_syscall o ls)
+        (fun ls2 => Tau (mix_ilsteps lp (pc_between fn pcs pce) ls2))
+    else
   match eval_instr lp (nth dummy_linstr Q 0) ls with
   | Ok ls2 =>
-    if is_Lcall (li_i (nth dummy_linstr Q 0)) is Some fn' then
+    if is_Lcall li is Some fn' then
        ITree.bind (trigger_inl1 (mix_to_small_steps.Call fn' ls2))
         (λ ls3, if check_call ls ls3 then mix_ilsteps lp (pc_between fn pcs pce) ls3
-                else Exception.throw (ErrSemUndef, tt))
+                else throw (ErrSemUndef, tt))
     else mix_ilsteps lp (pc_between fn pcs pce) ls2
-  | Error e => Exception.throw (e, tt)
+  | Error e => throw (e, tt)
   end.
 Proof.
   move=> C hfn hpc hsz h0Q; rewrite (step_mix_ilsteps_eq_itree C) //.
   case: eval_instr => [ls' | ?]; last reflexivity.
+  case: is_Lsyscall_r => [o|]; first reflexivity.
   case: is_Lcall; last by apply eqit_Tau_l; reflexivity.
   move=> fn'; apply eqit_bind; first reflexivity.
   move=> ls''; case: ifP => _; last reflexivity.

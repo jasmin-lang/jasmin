@@ -187,6 +187,13 @@ Definition writefun_RA (p:sprog) (fn: funname) :=
   | Some fd => Sv.union (ra_undef fd var_tmp) (ra_vm_return fd.(f_extra))
   end.
 
+Definition sem_syscall (p : prog) (o : syscall_t) (s : estate) : itree E estate :=
+  let: sig := syscall_sig o in
+  ves <- iresult s (get_vars true s.(evm) sig.(scs_vin)) ;;
+  fs <- fexec_syscall (scP:= sCP_stack) s o (mk_fstate ves s) ;;
+  let s := with_vm s (vm_after_syscall s.(evm)) in
+  iresult s (upd_estate true (p_globs p) (to_lvals sig.(scs_vout)) fs s).
+
 Fixpoint isem_i(p : sprog) (i : instr) (s : estate) :
     itree E (Sv.t * estate) :=
   let: (MkI ii i) := i in
@@ -204,9 +211,8 @@ with isem_ir (p : sprog) (i : instr_r) (s : estate) : itree E (Sv.t * estate) :=
 
   | Csyscall xs o es =>
       let fv := Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) in
-      vs <- @isem_pexprs withsubword syscall_state ep spp E E0 wE true (p_globs p) es s;;
-      fs <- fexec_syscall s o (mk_fstate vs s);;
-      iresult s (add_fv fv  (upd_estate true (p_globs p) xs fs s))
+      s' <- sem_syscall p o s ;;
+      Ret (fv, s')
 
   | Cif e c1 c2 =>
     b <- isem_cond p e s;;
@@ -353,6 +359,12 @@ Proof.
     1-2: by move=> *; apply F_iresult.
     + move => *.
       rewrite interp_bind //.
+      apply: (eutt_clo_bind _ (UU := eq)).
+      - rewrite !interp_bind F_iresult.
+        apply: eutt_eq_bind => vs.
+        rewrite !interp_bind.
+
+
       rewrite /isem_pexprs F_iresult.
       apply eqit_bind; first reflexivity.
       move => ?. rewrite interp_bind.
