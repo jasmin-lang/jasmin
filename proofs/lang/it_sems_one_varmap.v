@@ -357,28 +357,21 @@ Proof.
     + move=> ?; rewrite interp_ret; reflexivity.
     + move=> i c hi hc s; rewrite !interp_bind hi; setoid_rewrite hc; reflexivity.
     1-2: by move=> *; apply F_iresult.
-    + move => *.
-      rewrite interp_bind //.
-      apply: (eutt_clo_bind _ (UU := eq)).
-      - rewrite !interp_bind F_iresult.
-        apply: eutt_eq_bind => vs.
-        rewrite !interp_bind.
-
-
-      rewrite /isem_pexprs F_iresult.
-      apply eqit_bind; first reflexivity.
-      move => ?. rewrite interp_bind.
-      rewrite /fexec_syscall interp_bind F_iresult.
-      apply eutt_eq_bind'.
-      + apply eutt_eq_bind';first reflexivity .
-        move=> ?; rewrite interp_bind.
-        apply eutt_eq_bind'.
-        setoid_rewrite interp_trigger; reflexivity.
-        move=> ?; rewrite interp_bind.
-        apply eutt_eq_bind'.
-        rewrite  F_iresult; reflexivity.
-        move => ?. rewrite interp_ret;reflexivity.
-        move => ?. rewrite  F_iresult; reflexivity.
+    + move => *; rewrite interp_bind //.
+      apply: eutt_eq_bind'; [| move => ?; rewrite interp_ret;reflexivity].
+      rewrite !interp_bind F_iresult /sem_syscall.
+      apply: eutt_eq_bind => ?.
+      rewrite interp_bind.
+      apply: eutt_eq_bind';[ | move => ?; rewrite F_iresult; reflexivity].
+      rewrite !interp_bind F_iresult.
+      apply: eutt_eq_bind => ? //=.
+      rewrite interp_bind.
+      setoid_rewrite interp_trigger => //=.
+      apply: eutt_eq_bind => ?.
+      rewrite interp_bind F_iresult => //=.
+      apply: eutt_eq_bind => ?.
+      rewrite interp_ret.
+      reflexivity.
     + by move=> *; apply F_throw.
     + move=> e c1 c2 hc1 hc2 s; rewrite interp_bind F_iresult; apply eqit_bind; first reflexivity.
       by move=> []; [apply hc1 | apply hc2].
@@ -432,22 +425,21 @@ Proof.
   + move=> ?; rewrite interp_ret; reflexivity.
   + move=> i c hi hc s; rewrite !interp_bind hi; setoid_rewrite hc; reflexivity.
     1-2: by move=> *; apply F_iresult.
-        + move => *.
-      rewrite interp_bind //.
-      rewrite /isem_pexprs F_iresult.
-      apply eqit_bind; first reflexivity.
-      move => ?. rewrite interp_bind.
-      rewrite /fexec_syscall interp_bind F_iresult.
-      apply eutt_eq_bind'.
-      + apply eutt_eq_bind';first reflexivity .
-        move=> ?; rewrite interp_bind.
-        apply eutt_eq_bind'.
-        setoid_rewrite interp_trigger; reflexivity.
-        move=> ?; rewrite interp_bind.
-        apply eutt_eq_bind'.
-        rewrite  F_iresult; reflexivity.
-        move => ?. rewrite interp_ret;reflexivity.
-        move => ?. rewrite  F_iresult; reflexivity.
+     + move => *; rewrite interp_bind //.
+      apply: eutt_eq_bind'; [| move => ?; rewrite interp_ret;reflexivity].
+      rewrite !interp_bind F_iresult /sem_syscall.
+      apply: eutt_eq_bind => ?.
+      rewrite interp_bind.
+      apply: eutt_eq_bind';[ | move => ?; rewrite F_iresult; reflexivity].
+      rewrite !interp_bind F_iresult.
+      apply: eutt_eq_bind => ? //=.
+      rewrite interp_bind.
+      setoid_rewrite interp_trigger => //=.
+      apply: eutt_eq_bind => ?.
+      rewrite interp_bind F_iresult => //=.
+      apply: eutt_eq_bind => ?.
+      rewrite interp_ret.
+      reflexivity.
   + by move=> *; apply F_throw.
   + move=> e c1 c2 hc1 hc2 s; rewrite interp_bind F_iresult; apply eqit_bind; first reflexivity.
     by move=> []; [apply hc1 | apply hc2].
