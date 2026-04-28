@@ -101,6 +101,13 @@ Context
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {call_conv : calling_convention}
   {asm_scsem : asm_syscall_sem}
+  {lowering_options : Type}
+  (aparams : architecture_params lowering_options)
+  (haparams : h_architecture_params aparams)
+  (cparams : compiler_params lowering_options)
+  (print_uprogP : forall s p, cparams.(print_uprog) s p = p)
+  (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
+  (print_linearP : forall s p, cparams.(print_linear) s p = p)
 .
 
 Definition safe_uprog (p : uprog) (fn : funname) (fs : fstate) : Prop :=
@@ -115,6 +122,56 @@ Definition res_defined (p : uprog) (fn : funname) (fs : fstate) : Prop :=
     (fun T e r => True)
     (fun fs => all val_is_def (fvals fs))
     (isem_unit p fn fs).
+
+Let REeq {E : Type -> Type} A1 A2 (e1: E A1) (e2: E A2) :=
+  exists h : A2 = A1, e1 = eq_rect A2 E e2 A1 h.
+
+Let RAeq {E : Type -> Type} A1 A2 (e1: E A1) (a1: A1) (e2: E A2) (a2: A2) :=
+  JMeq a1 a2.
+
+Lemma correct_comp entries p q fn fd :
+  compile_prog_to_asm aparams cparams entries p = ok q ->
+  fn \in entries ->
+  get_fundef p.(p_funcs) fn = Some fd ->
+  exists2 xfd,
+    get_fundef q.(asm_funcs) fn = Some xfd
+    & forall s t,
+        safe_uprog p fn s ->
+        res_defined p fn s ->
+        full_pre p q fn xfd s t ->
+        eutt
+          (full_post cparams p q fn xfd s t)
+          (isem_unit p fn s) (isem_asm q fn t).
+Proof.
+move=> hcomp hfn hfd.
+have [xfd [hxfd _ heq]] := [elaborate
+  it_compile_prog_to_asmP
+    haparams print_uprogP print_sprogP print_linearP hcomp hfn ].
+exists xfd; first exact: hxfd.
+move=> s t hsafe hdef hpre.
+apply/simple_rutt_eutt/(EPreRel_safe_xrutt_rutt hsafe).
+apply: (lutt_xrutt_trans_l'
+  (REv := EPreRel_safe (is_error wE) REeq)
+  (RAns := RAeq)
+  (RR := fun s' t' =>
+           [/\ all val_is_def (fvals s')
+             & full_post cparams p q fn xfd s t s' t' ]));
+  cycle -2.
+- exact:
+    (isem_fun_finalize (wa := withassert) (scP := sCP_unit) (wE := wE)) hfd.
+- apply: lutt_xrutt_trans_l'; cycle -2.
+  + exact: hdef.
+  + exact: heq hpre.
+  + move=> T1 T2 [|[scs1 n1]]; first by left.
+    move=> [|[scs2 n2]]; first by left.
+    by move=> _ [??]; subst scs2 n2; right; exists erefl.
+  + move=> T1 T2 [//|[scs1 n1]] r1 [//|[scs2 n2]] r2 _ _ _ [??]; subst scs2 n2.
+    by move=> /(JMeq_eq (x := r1)) <-.
+  done.
+- done.
+- done.
+by move=> s' t' hfin [].
+Qed.
 
 End MOVE.
 
@@ -250,15 +307,6 @@ Definition res_defined_on p fn m vs :=
   forall m',
     mem_equiv m m' ->
     res_defined p fn (mkfs m' vs).
-
-Definition isem_asm (q : asm_prog) :=
-  iasmsem_exportcall
-    (asm_d := _asm)
-    (call_conv := call_conv)
-    (asm_scsem := asm_scsem)
-    (E := E)
-    (wE := wE)
-    q.
 
 Definition xm_with_mem (mem : mem) (m : asmmem) : asmmem :=
   {|
@@ -479,19 +527,19 @@ Proof. exact: efn_fd_ok o. Qed.
   export_funname_get_fundef
   : core.
 
-Definition sim : MoS -> MoT -> Prop.
-Proof using. Admitted.
+Definition sim (ms : MoS) (mt : MoT) : Prop :=
+  mem_equiv mS ms. (* TODO missing *)
 
 Definition inv_eq {X : Type} : X * MoS -> X * MoT -> Prop :=
   eqR (X := X) sim.
 
 Lemma sim_mS_xmT : sim mS xmT.
-Proof using. Admitted.
+Proof. done. Qed.
 
 Lemma sim_mem_equiv_mi ms mt :
   sim ms mt ->
   mem_equiv mS ms.
-Proof using. Admitted.
+Proof. done. Qed.
 
 Definition post_isem
   (fn : funname)
@@ -514,58 +562,10 @@ Lemma post_isemP fn ptrs ms mt fs xm :
   inv_eq
     ([seq wseq_of_val v | v <- fvals fs], fmem fs)
     (xget_res fn xm ptrs, xm).
-Proof using. Admitted.
-
-(* MOVE *)
-Let REeq {E : Type -> Type} A1 A2 (e1: E A1) (e2: E A2) :=
-  exists h : A2 = A1, e1 = eq_rect A2 E e2 A1 h.
-
-(* MOVE *)
-Let RAeq {E : Type -> Type} A1 A2 (e1: E A1) (a1: A1) (e2: E A2) (a2: A2) :=
-  JMeq a1 a2.
-
-(* MOVE *)
-Lemma correct_comp fn fd :
-  fn \in entries ->
-  get_fundef p.(p_funcs) fn = Some fd ->
-  exists2 xfd,
-    get_fundef q.(asm_funcs) fn = Some xfd
-    & forall s t,
-        safe_uprog p fn s ->
-        res_defined p fn s ->
-        full_pre p q fn xfd s t ->
-        eutt
-          (full_post cparams p q fn xfd s t)
-          (isem_unit p fn s) (isem_asm q fn t).
 Proof.
-move=> hfn hfd.
-have [xfd [hxfd _ heq]] := [elaborate
-  it_compile_prog_to_asmP
-    haparams print_uprogP print_sprogP print_linearP hcomp hfn ].
-exists xfd; first exact: hxfd.
-move=> s t hsafe hdef hpre.
-apply/simple_rutt_eutt/(EPreRel_safe_xrutt_rutt hsafe).
-apply: (lutt_xrutt_trans_l'
-  (REv := EPreRel_safe (is_error wE) REeq)
-  (RAns := RAeq)
-  (RR := fun s' t' =>
-           [/\ all val_is_def (fvals s')
-             & full_post cparams p q fn xfd s t s' t' ]));
-  cycle -2.
-- exact: (isem_fun_finalize (wa := withassert) (scP := sCP_unit)) hfd.
-- apply: lutt_xrutt_trans_l'; cycle -2.
-  + exact: hdef.
-  + exact: heq hpre.
-  + move=> T1 T2 [|[[] n1]]; first by left.
-    move=> [//|[[] _]] _ [_ <-]; right; by exists erefl.
-  + move=> T1 T2 [//|e1] r1 [//|e2] r2 _ _ [] _.
-    destruct e1 as [[] n1]; destruct e2 as [[] n2].
-    by move=> /(JMeq_eq (x := r1)) <-.
-  done.
-- done.
-- done.
-by move=> s' t' hfin [].
-Qed.
+move=> hm [xfd [vs [hxfd hpre hpost]]]; split=> /=.
+- have [_ _ _] := hpost.
+Admitted.
 
 (* TODO missing hypotheses *)
 Lemma sim_full_pre fn xfd i ptrs ms mt :
@@ -585,7 +585,8 @@ Lemma eutt_isem_post fn fd ms mt i ptrs :
     (isem_asm q fn (mkxm fn mt i ptrs)).
 Proof.
 move=> hfn hfd hsafe hdef hm.
-have [xfd hxfd heq] := correct_comp hfn hfd.
+have [xfd hxfd heq] :=
+  correct_comp haparams print_uprogP print_sprogP print_linearP hcomp hfn hfd.
 have hpre := sim_full_pre i ptrs hxfd hm.
 apply: eutt_subrel; last first.
 - apply: heq; first exact: hsafe.
@@ -709,8 +710,8 @@ Section JKEM.
     Varr (rdflt (WArray.empty _) (WArray.fill n (wseq_of_wvec s))).
 
   (* MOVE *)
-  Lemma fill_ok (n : positive) bytes :
-    Pos.to_nat n = size bytes ->
+  Lemma size_ok_fill_ok (n : positive) bytes :
+    size bytes = Pos.to_nat n ->
     exists a, WArray.fill n bytes = ok a.
   Proof.
   move=> h; rewrite /WArray.fill -h eqxx /=.
@@ -721,13 +722,23 @@ Section JKEM.
   by case: WArray.fill_aux => // [[z a] ?] /=; exists z, a.
   Qed.
 
+  Lemma fill_ok_get len l a k :
+    WArray.fill len l = ok a ->
+    [&& 0 <=? k & k <? len ] ->
+    read a Aligned k U8 = ok (nth 0%R l (Z.to_nat k)).
+  Proof. by move=> /WArray.fill_get8 /(_ k) /[swap] ->. Qed.
+
   Lemma arr_is_def_mk_arr (n : positive) (s : wvec n) :
     arr_is_def (rdflt (WArray.empty _) (WArray.fill n (wseq_of_wvec s))).
-  Proof using.
-    have : Pos.to_nat n = size (s : wseq) by admit.
-    move=> /fill_ok [a h]; rewrite h /=.
-    rewrite /arr_is_def.
-  Admitted.
+  Proof.
+    have [a h] := size_ok_fill_ok (size_wseq_of_wvec s).
+    rewrite h; apply/allP => /= i hi.
+    suff: exists w, WArray.get8 a i = ok w by move=> /valid_getP/andP [].
+    have := fill_ok_get (k := i) h.
+    rewrite -in_ziota hi => /(_ isT).
+    rewrite /read /= is_align8 /= add_0; t_xrbindP=> ? w -> _ _.
+    by exists w.
+  Qed.
 
   Definition vi_Encap (i : InK OEncap) : valid_input p efn_encap :=
     {|
@@ -774,7 +785,7 @@ Section JKEM.
   Instance KEM_of_Jazz : OracleSystem KEM :=
     {|
       Mo := Mo;
-      Oo := fun o i => _Oo_KEM i;
+      Oo := fun _ i => _Oo_KEM i; (* needs lambda to typecheck *)
       mi := mi;
     |}.
 

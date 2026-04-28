@@ -104,7 +104,8 @@ Definition isem_unit
     (wa := withassert)
     (sip := sip_of_asm_e)
     (scP := sCP_unit)
-    (E := E)
+    (wE := wE)
+    (rE := rndE)
     (wsw := nosubword)
     (dc := indirect_c)
     (pT := progUnit)
@@ -123,11 +124,24 @@ Definition isem_stack
     (wa := noassert)
     (sip := sip_of_asm_e)
     (scP := sCP_stack)
-    (E := E)
+    (wE := wE)
+    (rE := rndE)
     (wsw := withsubword)
     (dc := direct_c)
     (pT := progStack)
     sp rip fn fs.
+
+Definition isem_linear (lp : lprog) :=
+  ilsem_exportcall lp (wE := wE) (rE := rndE).
+
+Definition isem_asm (xp : asm_prog) :=
+  iasmsem_exportcall
+    (asm_d := _asm)
+    (call_conv := call_conv)
+    (asm_scsem := asm_scsem)
+    (wE := wE)
+    (*rE := rndE*)
+    xp.
 
 Definition RndPre (A B : Type) : E0 A -> E0 B -> Prop :=
   fun '(Rnd scs1 n1) '(Rnd scs2 n2) => scs1 = scs2 /\ n1 = n2.
@@ -676,7 +690,7 @@ Lemma it_compiler_back_endP {fn} :
       & wkequiv_io
           (back_end_pre lfd)
           (isem_stack sp rip fn)
-          (ilsem_exportcall tp fn)
+          (isem_linear tp fn)
           (back_end_post fn lfd)
     ].
 Proof.
@@ -1084,7 +1098,7 @@ Lemma it_compiler_back_end_to_asmP {fn} :
       & wkequiv_io
           (back_end_to_asm_pre xfd)
           (isem_stack sp rip fn)
-          (iasmsem_exportcall xp fn)
+          (isem_asm xp fn)
           (back_end_to_asm_post fn xfd)
    ].
 Proof.
