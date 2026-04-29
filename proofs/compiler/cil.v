@@ -498,9 +498,6 @@ Definition is_query (x : Xch) : option (ctxt * msg) :=
   | _ => fun _ => None
   end p.
 
-Definition is_query_ct (ct : ctxt) (x : Xch) : bool :=
-  if is_query x is Some (ct', _) then ct == ct' else false.
-
 Definition is_getchallenge (x : Xch) : option (ctxt * msg) :=
   let 'existT o (_, p) := x in
   match o as a return Out a -> option (ctxt * msg) with
