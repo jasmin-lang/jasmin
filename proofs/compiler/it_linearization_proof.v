@@ -2987,7 +2987,7 @@ End ILSTEPS_END.
       (mix_ilsteps p' (pc_between_c fn P li))
       (post_i (P ++ li)).
 
-  Let Pi_r (i:instr_r) := ∀ ii lbl lbli P li Q,
+  Definition Pi_r (i:instr_r) := ∀ ii lbl lbli P li Q,
     pre_i fn (MkI ii i) lbl lbli P li Q →
     wkequiv_io
       (inv_c P)
