@@ -11,7 +11,7 @@
 , enableFramePointers ? false
 }:
 
-with pkgs;
+# with pkgs;
 
 let inherit (lib) optionals; in
 
