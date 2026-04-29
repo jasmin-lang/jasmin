@@ -55,6 +55,22 @@ type tyerror =
   | StringError of string
 
 exception TyError of L.t * tyerror
+exception TyErrorList of (L.t * tyerror) list
+
+(* Error resilience: accumulate errors instead of stopping at first one *)
+type error_accumulator = (L.t * tyerror) list option
+
+let with_accumulator (acc : error_accumulator) f x default =
+  match f x with 
+    | exception (TyError (loc, err) as e) ->
+        begin
+          match acc with
+        | Some acc -> Some ((loc, err) :: acc), default
+        | None -> raise e
+        end
+    | y -> acc, y
+
+
 
 let string_error fmt =
   let buf  = Buffer.create 127 in
@@ -568,6 +584,19 @@ end  = struct
   end
 
 end
+
+(* Fold with error accumulation for items in the AST *)
+let fold_items_with_errors (items : 'a list) 
+    (acc_env : error_accumulator * 'asm Env.env)
+    (tt_one : error_accumulator * 'asm Env.env -> 'a -> error_accumulator * 'asm Env.env) 
+    : error_accumulator * 'asm Env.env =
+  List.fold_left (fun acc_env item ->
+    try tt_one acc_env item
+    with TyError (loc, err) as e ->
+      match acc_env with
+      | (Some acc, env) -> Some ((loc, err) :: acc), env
+      | (None, _) -> raise e
+  ) acc_env items
 
 (* -------------------------------------------------------------------- *)
 let tt_pointer dfl_writable (p:S.ptr) : W.reference =
@@ -2608,31 +2637,32 @@ let tt_typealias arch_info env id ty =
   Env.TypeAlias.push env id alias
 
 (* -------------------------------------------------------------------- *)
-let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
+let rec tt_item arch_info (acc, (env : 'asm Env.env)) pt : error_accumulator * 'asm Env.env =
   match L.unloc pt with
-  | S.PParam  pp -> tt_param  arch_info.pd env (L.loc pt) pp
-  | S.PFundef pf -> tt_fundef arch_info env (L.loc pt) pf
-  | S.PGlobal pg -> tt_global arch_info.pd env (L.loc pt) pg
-  | S.Pexec   pf ->
+  | S.PParam  pp -> with_accumulator acc (tt_param arch_info.pd env (L.loc pt)) pp env
+  | S.PFundef pf -> with_accumulator acc (fun () -> tt_fundef arch_info env (L.loc pt) pf) () env
+  | S.PGlobal pg -> with_accumulator acc (fun () -> tt_global arch_info.pd env (L.loc pt) pg) () env
+  | S.Pexec   pf -> with_accumulator acc (fun () ->
     Env.Exec.push (L.loc pt)
       (fst (tt_fun env pf.pex_name)).P.f_name
       (List.map (fun (x, y) -> S.parse_int x, S.parse_int y) pf.pex_mem)
-      env
+      env) () env
   | S.Prequire (from, fs) ->
-    List.fold_left (tt_file_loc arch_info from) env fs
+    List.fold_left (tt_file_loc arch_info from) (acc, env) fs
   | S.PNamespace (ns, items) ->
      let env = Env.enter_namespace env ns in
-     let env = List.fold_left (tt_item arch_info) env items in
+     let acc, env = fold_items_with_errors items (acc, env) (tt_item arch_info) in
      let env = Env.exit_namespace env in
-     env
-  | S.PTypeAlias (id,ty) -> tt_typealias arch_info env id ty
+     acc, env
+  | S.PTypeAlias (id,ty) -> with_accumulator acc (fun () -> tt_typealias arch_info env id ty) () env
 
-and tt_file_loc arch_info from env fname =
-  fst (tt_file arch_info env from (Some (L.loc fname)) (L.unloc fname))
+and tt_file_loc arch_info from (acc, env) fname =
+  let acc, env, _ = tt_file arch_info (acc, env) from (Some (L.loc fname)) (L.unloc fname) in
+  acc, env
 
-and tt_file arch_info env from loc fname =
+and tt_file arch_info (acc, env) from loc fname =
   match Env.enter_file env from loc fname with
-  | None -> env, []
+  | None -> acc, env, []
   | Some(env, fname) ->
     let ast   = Parseio.parse_program ~name:fname in
     let ast =
@@ -2641,13 +2671,18 @@ and tt_file arch_info env from loc fname =
         let loc = Option.map_default (fun l -> Lone l) Lnone loc in
         hierror ~loc ~kind:"typing" "error reading file %S (%s)" fname err
     in
-    let env   = List.fold_left (tt_item arch_info) env ast in
-    Env.exit_file env, ast
+    let acc, env = fold_items_with_errors ast (acc, env) (tt_item arch_info) in
+    let env = Env.exit_file env in
+    acc, env, ast
 
 (* -------------------------------------------------------------------- *)
 let tt_program arch_info (env : 'asm Env.env) (fname : string) =
-  let env, ast = tt_file arch_info env None None fname in
-  env, Env.decls env, ast
+  let acc = Some [] in
+  let acc, env, ast = tt_file arch_info (acc, env) None None fname in
+  match acc with
+  | None -> env, Env.decls env, ast
+  | Some [] -> env, Env.decls env, ast
+  | Some acc -> raise (TyErrorList acc)
 
 (* FIXME :
    - Les fonctions exportees doivent pas avoir de tableau en argument,

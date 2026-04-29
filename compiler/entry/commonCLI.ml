@@ -62,9 +62,8 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
     try Compile.parse_file Arch.arch_info ~idirs file with
     | Annot.AnnotationError (loc, code) ->
         hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
-    | Pretyping.TyError (loc, code) ->
-        hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror
-          code
+    | Pretyping.TyErrorList l ->
+        hierror_list ~kind:"typing error" Pretyping.pp_tyerror l
     | Syntax.ParseError (loc, msg) ->
         hierror ~loc:(Lone loc) ~kind:"parse error" "%s" (Option.default "" msg)
   in
