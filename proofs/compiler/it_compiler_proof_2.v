@@ -166,22 +166,6 @@ have [xfd2 [get_xfd2 _ BE]] :=
 have heq_xfd : xfd2 = xfd by move: get_xfd2; rewrite get_xfd => [[->]].
 subst xfd2.
 
-(* ======================================================================= *)
-(* construct the intermediate sp-level fstate [fs_sp] that bridges *)
-(*         the uincl_or_in_mem precondition (FULL.pre) with the            *)
-(*         eq_or_in_mem precondition expected by FE.                       *)
-(*                                                                         *)
-(*   va2   := map3 (fun o v v' => if o is Some _ then v' else v)           *)
-(*                  (get_wptrs up fn) (fvals fs) argt                      *)
-(*   fs_sp := {| fscs := fscs fs; fmem := mi; fvals := va2 |}              *)
-(*                                                                         *)
-(*   Mirrors the [va2] trick in compiler_proof.v:683                       *)
-(*   [compiler_front_endP_uincl]. Key outputs:                             *)
-(*     - Forall3 (value_eq_or_in_mem mi) wptrs (fvals fs) va2              *)
-(*     - values_uincl va2 argt                                             *)
-(*     - Forall3 (fun o v v' => o <> None -> v = v') wptrs (fvals fs) va2  *)
-(*       (needed later for [ptr_eq_mem_unchanged_params]).                 *)
-(* ======================================================================= *)
 have [fs_sp [? hsp_scs hsp_eqinmem hsp_uincl hsp_ptr_eq]] :
   exists fs_sp : @fstate extended_op _ ep_of_asm_e sip_of_asm_e,
     [/\ fmem fs_sp = mi

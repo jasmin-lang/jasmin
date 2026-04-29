@@ -50,6 +50,39 @@ Lemma iasmsem_exportcall_invariantP
        (fun T (_ : E T) (_ : T) => True)
        (fun xm' => asmsem_invariant xm xm')
        (iasmsem_exportcall xp fn xm).
-Proof. Admitted.
+Proof.
+  rewrite /iasmsem_exportcall.
+  apply: (lutt_bind (R := fun _ => True)).
+  - exact: lutt_true.
+  move=> fd _.
+  apply: (lutt_bind (R := fun _ => True)).
+  - exact: lutt_true.
+  move=> _ _.
+  apply: (lutt_bind (R := fun _ => True)).
+  - exact: lutt_true.
+  move=> _ _.
+  apply: (lutt_bind (R := fun s' => asmsem_invariant xm s'.(asm_m))).
+  - apply: (lutt_iter (I := fun s => asmsem_invariant xm s.(asm_m))).
+    + move=> s hI.
+      rewrite /iasmsem_body.
+      case: eqP => _.
+      * cbn; apply lutt_Ret; exact: hI.
+      * apply: (lutt_bind (R := fun s' => asmsem_invariant xm s'.(asm_m))).
+        -- rewrite /ifetch_and_eval /err_result.
+           case h: (fetch_and_eval xp s) => [s' | e].
+           ++ apply lutt_Ret.
+              exact: Build_asmsem_invariant
+                (eq_trans (asmsem_invariant_rip hI)
+                   (asmsem_invariant_rip (asmsem1_invariant h)))
+                (stack_stable_trans (asmsem_invariant_stack_stable hI)
+                   (asmsem_invariant_stack_stable (asmsem1_invariant h))).
+           ++ apply: lutt_Vis => //; case.
+        -- move=> s' hs'; cbn; apply lutt_Ret; exact: hs'.
+    + done.
+  move=> t1 hs'.
+  apply: (lutt_bind (R := fun _ => True)).
+  - exact: lutt_true.
+  move=> _ _; apply lutt_Ret; exact: hs'.
+Qed.
 
 End WITH_PARAMS.
