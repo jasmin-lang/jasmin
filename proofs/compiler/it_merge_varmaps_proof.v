@@ -320,6 +320,7 @@ Definition PostF {T1 T2} (d1 : recCall T1) (t1: T1) (d2 : recCallK T2) (t2: T2) 
     end
   end t1 t2.
 
+
 #[local] Instance relEvent_recCall {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} :
     EventRels2 (Sum.sum1 recCall E0) (Sum.sum1 recCallK E0) :=
   {| EPreRel0_  := sum_prerelF (@PreF) EPreRel0
@@ -662,14 +663,42 @@ Proof.
     move=> vs ves' uves //=.
     rewrite bind_bind.
     apply : (xrutt_bind (RR := fun fs fs' =>  stack_stable (emem t1) (fmem fs) /\ fs_uincl fs fs')).
-    -        (* apply: xrutt_weaken; cycle 5. *)
-      (* apply lutt_xrutt_trans_r. *)
-      (* admit. *)
-      (* Arguments fexec_syscall: clear implicits. *)
-      (* have truc := (fs_uincl_syscall o s1 t1 (i1 :=mk_fstate vs s1) (i2 := (mk_fstate ves' t1)) (rndE0_refl:=rndE0_refl)). *)
-      (* apply truc. *)
+    - apply: xrutt_weaken;
+        [ move => ?? h; apply h | move => ?? h; apply h | | | move => ??  h; apply h |].
+       - move => ?? a b h.
+         have truc : True /\ EPreRel a b.
+          - apply h.
+         apply truc.
+       - move => ?? a b c d ???  h.
+         have truc : True /\ EPostRel a b c d.
+          - by idtac.
+         apply truc.
+      apply: lutt_xrutt_trans_l.
 
-      rewrite /fexec_syscall //=.
+
+    rewrite /fexec_syscall.
+    apply: (lutt_bind (R := fun _ => True)).
+    + rewrite /iresult /err_result /=.
+      case: exec_syscall_arg_s => [len|e] /=.
+      * by apply lutt_Ret.
+      * apply lutt_Vis => //=.
+    move=> t0 _.
+    apply: (lutt_bind (R := fun _ => True)).
+          + apply: lutt_trigger => //.
+    move=> [scs bytes] _.
+    apply: (lutt_bind (R := fun scsmvs => stack_stable (emem t1) scsmvs.1.2)).
+    + rewrite /iresult /err_result /mk_fstate /=.
+      case he': exec_syscall_store_s => [[[scs't1] vres]|e] /=.
+      * apply lutt_Ret => //=.
+        have [??] :=  exec_syscall_storeSs he'.
+        by move: hinv1 => [[ ?<-] _ _].
+      * apply lutt_Vis => /=.
+        by rewrite /preInv.
+      done.
+    move=> [[scs' m'] vres] hRo.
+    by apply lutt_Ret.
+
+    rewrite /fexec_syscall //=.
       apply : (xrutt_bind (RR := eq)).
       apply xrutt_iresult.
        - move => v1 hv1.
@@ -677,7 +706,16 @@ Proof.
          by apply: (exec_syscall_argPs uves).
       move => _ len ->.
       apply : (xrutt_bind (RR := eq)).
-       - apply xrutt_trigger. admit. admit.
+       - apply xrutt_trigger.
+       - rewrite /EPreRel //=.
+         rewrite !mid12 //=.
+         move : hinv1 => [[<-?] ? _].
+         apply rE0_rnd_pre_refl.
+       - rewrite /EPostRel //=.
+         move => ??.
+         rewrite !mid12 //=.
+         move : hinv1 => [[<-?] ? _].
+         apply rE0_rnd_post_refl.
       move =>  _ scb ->.
       apply : (xrutt_bind (RR := eq)).
        - apply xrutt_iresult.
@@ -687,10 +725,8 @@ Proof.
          apply (exec_syscall_storePs uves hv1).
       move =>  _ scm ->.
       apply xrutt_Ret.
-      split;[ | apply fs_uinclR ].
-      
-      admit.
-   move => fs fs' [hu h].
+      apply fs_uinclR.
+   move => fs fs' [h hu].
    rewrite -(bind_ret_r (iresult s1 (upd_estate true (p_globs p) xs fs s1))).
    apply : (xrutt_bind (RR := fun a b => exists X': Sv.t, merged_vmap_inv X' a b /\
       Sv.Equal X' (Sv.diff (Sv.union I syscall_kill) (vrvs (to_lvals (scs_vout (syscall_sig o))))) /\
@@ -878,12 +914,21 @@ Proof.
   + by rewrite /kill_tmp_call /= kill_vars_tmp_call_rsp -hmem.
   + by rewrite /kill_tmp_call /= kill_vars_tmp_call_rip.
   by rewrite /= -(ss_top_stack hstable).
-Admitted.
+Qed.
 
 End CMD.
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0}
-  {rndE0 : RndEvent syscall_state -< E0} {rE0 : EventRels E0}.
+  {rndE0 : RndEvent syscall_state -< E0} {rE0 : EventRels E0}
+  {rndE0_refl : RndE0_refl rE0}
+.
+
+#[local] Instance RndE0_recall_ovm : RndE0_refl2 (relEvent_recCall).
+Proof.
+  constructor.
+  + by move=> scs len; rewrite /EPreRel0_ /= /resum; apply rE0_rnd_pre_refl.
+  by move=> scs len bytes1 bytes2; rewrite /EPostRel0_ /= /resum; apply rE0_rnd_post_refl.
+Qed.
 
 Lemma merge_varmaps_funP fn1 fn2 :
   wkequiv_io
@@ -1046,119 +1091,119 @@ Proof.
       by case: Sv_memP => // h [[] ]; SvD.fsetdec.
     rewrite (alloc_stack_top_stack ok_m').
     exact: do_align_is_align.
-    have := merge_varmaps_cmdP hfun (m0:=emem s0') (sz:=sf_align (f_extra fd)) hdisj_w hsub checked_body.
-    Admitted.
-(*   move=> /(_ s1 (Sv.empty, t1') hpre). *)
-(*   set post := (post in xrutt.xrutt _ _ _ _ post _ _) => hbody. *)
-(*   apply (xrutt_facts.xrutt_bind (RR:=post)). *)
-(*   + apply: xrutt_facts.xrutt_weaken hbody => //. *)
-(*     + move=> t e1; rewrite /errcutoff /xrutt_facts.EE_MR /= /is_error; case: e1 => // /= e. *)
-(*       by case: mfun1 => //. *)
-(*     + move=> T1 T2 [e1 | e1] [e2 | e2]; rewrite /EPreRel //= => h; apply sum_prerelP => //=. *)
-(*       + by move: h; case: mfun1. *)
-(*       + by move: h; case: mfun1. *)
-(*       by move: h; case: mfun1 => // ?; case: mfun1. *)
-(*     rewrite /errcutoff /nocutoff /is_error. *)
-(*     move=> ?? [] // ? ? [] // ? /=?. *)
-(*     + by move=> _ _ hpre_ /sum_postrelP //=. *)
-(*     + by move=> _ _ hpre_ /sum_postrelP //=. *)
-(*     + by move=> _ _ hpre_ /sum_postrelP /=. *)
-(*     move=> hh _ hpre_ /sum_postrelP /=. *)
-(*     rewrite /EPostRel /=; case: mfun1 hh => //; case: mfun1 => //. *)
-(*   move=> s2 kt2 hpost. setoid_rewrite bind_ret_l. rewrite bind_ret_r. *)
-(*   case hfin: finalize_funcall => [s3 | e ] /=; last first. *)
-(*   + apply xrutt.xrutt_CutL. *)
-(*     by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /subevent /resum /fromErr /= mid12. *)
-(*   rewrite /it_sems_one_varmap.finalize_funcall. *)
-(*   case: hpost => hmerge hex hk. *)
-(*   have -> /= : ra_valid p fd kt2.1. *)
-(*   + move: hvalra. *)
-(*     rewrite /valid_writefun /write_fd /ra_valid /=. *)
-(*     case: sf_return_address ra_neq_magic checked_ra => //. *)
-(*     + move => ra _ /and3P [] -> -> -> /= [] _ hra ?? /Sv.subset_spec ok_wrf. *)
-(*       apply/Sv_memP => hin; apply: hra; apply: ok_wrf. *)
-(*       by move: hk hin; clear; SvD.fsetdec. *)
-(*     move=> ra_call ra_return _ _ /andP [hcall hreturn] _ _. *)
-(*     apply /andP; split. *)
-(*     + by case: ra_call hcall => [ra_call|//] /and3P[] -> -> _. *)
-(*     by case: ra_return hreturn => [ra_return|//] /and3P[] -> -> _. *)
-(*   have -> /= : saved_stack_valid_final p fd kt2.1. *)
-(*   + move: hvalra. *)
-(*     rewrite /valid_writefun /write_fd /saved_stack_valid_final /=. *)
-(*     case: sf_save_stack checked_save_stack => // r; t_xrbindP => _ /Sv_memP r_not_written /Sv_memP. *)
-(*     rewrite Sv.union_spec => ? /Sv.subset_spec ?; apply/Sv_memP. *)
-(*     SvD.fsetdec. *)
-(*   have -> /= : valid_RSP p (emem kt2.2) (evm kt2.2). *)
-(*   + by rewrite /valid_RSP; case: hmerge => ? [] _ -> _ _; apply value_eqb_refl. *)
-(*   rewrite bind_ret_l /=. *)
-(*   case: hmerge => -[hscs' hmem' hvm'] [hstable hrsp' hgd' hal']. *)
-(*   have hstable1 : stack_stable (emem t1) (free_stack (emem kt2.2)). *)
-(*   + rewrite -hmem. *)
-(*     have A := Memory.alloc_stackP ok_m'. *)
-(*     have B := hstable. *)
-(*     have C := Memory.free_stackP (emem kt2.2). *)
-(*     split. *)
-(*     - by rewrite -(ass_root A) (ss_root B) (fss_root C). *)
-(*     - by rewrite -(ass_limit A) (ss_limit B) (fss_limit C). *)
-(*     by rewrite (fss_frames C) -(ss_frames B) (ass_frames A). *)
-(*   move/stack_stableP: (hstable1); rewrite -hmem => -> /=. *)
-(*   rewrite bind_ret_l. *)
-(*   apply xrutt.xrutt_Ret; rewrite /postF /=. *)
-(*   move: hfin; rewrite /finalize_funcall; t_xrbindP. *)
-(*   move=> vres ok_vres vres' ok_vres' ?; subst s3 => /=. *)
-(*   split => //. *)
-(*   + by rewrite /finalize_stk_mem hmem'. *)
-(*   have [tres ok_tres res_uincl] : *)
-(*     let: vm := (set_RSP p (free_stack (emem kt2.2)) (kill_vars (ra_vm_return (f_extra fd)) (evm kt2.2))) in *)
-(*     exists2 tres, *)
-(*       get_var_is false vm (f_res fd) = ok tres & List.Forall2 value_uincl vres' tres. *)
-(*   - have : forall x, (x \in [seq (v_var i) | i <- f_res fd]) -> ~ Sv.In x DF. *)
-(*     + move=> x hx; have /Sv_memP: Sv.mem x res by rewrite /res sv_of_listE. *)
-(*       by move /Sv.is_empty_spec: hdisj; SvD.fsetdec. *)
-(*     move: ok_vres'; rewrite /dc_truncate_val /= => /mapM2_id ?; subst vres'. *)
-(*     move: hvm' ok_vres RSP_not_result. *)
-(*     rewrite /res sv_of_listE /=; clear. *)
-(*     move: (evm s2) (evm kt2.2) (free_stack _) => vm vm' m {s2 kt2} hvm. *)
-(*     elim: vres (f_res fd) => [ | v vres ih ] [] //=; t_xrbindP => //. *)
-(*     + by move => _ _ _; exists [::]. *)
-(*     move => x xs vx hvxs <- ?; rewrite inE negb_or => /andP [ hne hnin] h; subst vx. *)
-(*     have {ih} [ | tres -> /= res_uincl ] := ih _ hvxs hnin. *)
-(*     + by move=> ? h1; apply h; rewrite inE h1 orbT. *)
-(*     have ex : value_uincl vm.[x] (set_RSP p m (kill_vars (ra_vm_return fd.(f_extra)) vm')).[x]. *)
-(*     + rewrite /set_RSP Vm.setP_neq //. *)
-(*       have := h x; rewrite inE eqxx => /(_ erefl). *)
-(*       rewrite Sv.union_spec => /Decidable.not_or [hra hD]. *)
-(*       rewrite kill_varsE; case: Sv_memP => // _. *)
-(*       by apply: hvm. *)
-(*     by eexists; first reflexivity; constructor. *)
-(*   rewrite hget; exists tres. *)
-(*   split => //. *)
-(*   + rewrite /writefun_ra hget. *)
-(*     move: hvalra; rewrite /valid_writefun /write_fd /= => /Sv.subset_spec. *)
-(*     by move: hk; clear; SvD.fsetdec. *)
-(*   + by rewrite /writefun_RA hget; clear; SvD.fsetdec. *)
-(*   + rewrite /writefun_ra hget => r hr; rewrite /set_RSP Vm.setP. *)
-(*     case: eqP. *)
-(*     - move => ?; subst. *)
-(*       have ok_free := Memory.free_stackP (emem kt2.2). *)
-(*       rewrite /top_stack (fss_root ok_free) -(ss_root hstable) (fss_frames ok_free) -(ss_frames hstable) /=. *)
-(*       have ok_alloc:= Memory.alloc_stackP ok_m'. *)
-(*       rewrite (ass_frames ok_alloc) (ass_root ok_alloc) /= -/(top_stack (emem s1)) cmp_le_refl. *)
-(*       exact: hrsp. *)
-(*     move => /eqP r_neq_rsp. *)
-(*     rewrite kill_varsE. *)
-(*     case: Sv_memP; first by SvD.fsetdec. *)
-(*     move=> _; rewrite -(hex r). *)
-(*     + rewrite /= /set_RSP Vm.setP_neq // /ra_undef_vm kill_varsE. *)
-(*       by case: Sv_memP => //; SvD.fsetdec. *)
-(*     move: hvalra hr; rewrite /valid_writefun /= /write_fd /= => /Sv.subset_spec. *)
-(*     by clear; SvD.fsetdec. *)
-(*   + by rewrite Vm.setP_eq /= cmp_le_refl hmem'. *)
-(*   rewrite Vm.setP_neq; last by rewrite eq_sym vgd_neq_vrsp. *)
-(*   rewrite kill_varsE; case: Sv_memP => //. *)
-(*   have := not_written_magic preserved_magic. *)
-(*   by rewrite /writefun_ra hget => -[+ _]; clear; SvD.fsetdec. *)
-(* Qed. *)
+    have truc := merge_varmaps_cmdP  hfun (m0:=emem s0') (sz:=sf_align (f_extra fd)) hdisj_w hsub checked_body.
+    have  := (truc _ _ (RndE0_recall_ovm)).
+  move=> /(_ s1 (Sv.empty, t1') hpre).
+  set post := (post in xrutt.xrutt _ _ _ _ post _ _) => hbody.
+  apply (xrutt_facts.xrutt_bind (RR:=post)).
+  + apply: xrutt_facts.xrutt_weaken hbody => //.
+    + move=> t e1; rewrite /errcutoff /xrutt_facts.EE_MR /= /is_error; case: e1 => // /= e.
+      by case: mfun1 => //.
+    + move=> T1 T2 [e1 | e1] [e2 | e2]; rewrite /EPreRel //= => h; apply sum_prerelP => //=.
+      + by move: h; case: mfun1.
+      + by move: h; case: mfun1.
+      by move: h; case: mfun1 => // ?; case: mfun1.
+    rewrite /errcutoff /nocutoff /is_error.
+    move=> ?? [] // ? ? [] // ? /=?.
+    + by move=> _ _ hpre_ /sum_postrelP //=.
+    + by move=> _ _ hpre_ /sum_postrelP //=.
+    + by move=> _ _ hpre_ /sum_postrelP /=.
+    move=> hh _ hpre_ /sum_postrelP /=.
+    rewrite /EPostRel /=; case: mfun1 hh => //; case: mfun1 => //.
+  move=> s2 kt2 hpost. setoid_rewrite bind_ret_l. rewrite bind_ret_r.
+  case hfin: finalize_funcall => [s3 | e ] /=; last first.
+  + apply xrutt.xrutt_CutL.
+    by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /subevent /resum /fromErr /= mid12.
+  rewrite /it_sems_one_varmap.finalize_funcall.
+  case: hpost => hmerge hex hk.
+  have -> /= : ra_valid p fd kt2.1.
+  + move: hvalra.
+    rewrite /valid_writefun /write_fd /ra_valid /=.
+    case: sf_return_address ra_neq_magic checked_ra => //.
+    + move => ra _ /and3P [] -> -> -> /= [] _ hra ?? /Sv.subset_spec ok_wrf.
+      apply/Sv_memP => hin; apply: hra; apply: ok_wrf.
+      by move: hk hin; clear; SvD.fsetdec.
+    move=> ra_call ra_return _ _ /andP [hcall hreturn] _ _.
+    apply /andP; split.
+    + by case: ra_call hcall => [ra_call|//] /and3P[] -> -> _.
+    by case: ra_return hreturn => [ra_return|//] /and3P[] -> -> _.
+  have -> /= : saved_stack_valid_final p fd kt2.1.
+  + move: hvalra.
+    rewrite /valid_writefun /write_fd /saved_stack_valid_final /=.
+    case: sf_save_stack checked_save_stack => // r; t_xrbindP => _ /Sv_memP r_not_written /Sv_memP.
+    rewrite Sv.union_spec => ? /Sv.subset_spec ?; apply/Sv_memP.
+    SvD.fsetdec.
+  have -> /= : valid_RSP p (emem kt2.2) (evm kt2.2).
+  + by rewrite /valid_RSP; case: hmerge => ? [] _ -> _ _; apply value_eqb_refl.
+  rewrite bind_ret_l /=.
+  case: hmerge => -[hscs' hmem' hvm'] [hstable hrsp' hgd' hal'].
+  have hstable1 : stack_stable (emem t1) (free_stack (emem kt2.2)).
+  + rewrite -hmem.
+    have A := Memory.alloc_stackP ok_m'.
+    have B := hstable.
+    have C := Memory.free_stackP (emem kt2.2).
+    split.
+    - by rewrite -(ass_root A) (ss_root B) (fss_root C).
+    - by rewrite -(ass_limit A) (ss_limit B) (fss_limit C).
+    by rewrite (fss_frames C) -(ss_frames B) (ass_frames A).
+  move/stack_stableP: (hstable1); rewrite -hmem => -> /=.
+  rewrite bind_ret_l.
+  apply xrutt.xrutt_Ret; rewrite /postF /=.
+  move: hfin; rewrite /finalize_funcall; t_xrbindP.
+  move=> vres ok_vres vres' ok_vres' ?; subst s3 => /=.
+  split => //.
+  + by rewrite /finalize_stk_mem hmem'.
+  have [tres ok_tres res_uincl] :
+    let: vm := (set_RSP p (free_stack (emem kt2.2)) (kill_vars (ra_vm_return (f_extra fd)) (evm kt2.2))) in
+    exists2 tres,
+      get_var_is false vm (f_res fd) = ok tres & List.Forall2 value_uincl vres' tres.
+  - have : forall x, (x \in [seq (v_var i) | i <- f_res fd]) -> ~ Sv.In x DF.
+    + move=> x hx; have /Sv_memP: Sv.mem x res by rewrite /res sv_of_listE.
+      by move /Sv.is_empty_spec: hdisj; SvD.fsetdec.
+    move: ok_vres'; rewrite /dc_truncate_val /= => /mapM2_id ?; subst vres'.
+    move: hvm' ok_vres RSP_not_result.
+    rewrite /res sv_of_listE /=; clear.
+    move: (evm s2) (evm kt2.2) (free_stack _) => vm vm' m {s2 kt2} hvm.
+    elim: vres (f_res fd) => [ | v vres ih ] [] //=; t_xrbindP => //.
+    + by move => _ _ _; exists [::].
+    move => x xs vx hvxs <- ?; rewrite inE negb_or => /andP [ hne hnin] h; subst vx.
+    have {ih} [ | tres -> /= res_uincl ] := ih _ hvxs hnin.
+    + by move=> ? h1; apply h; rewrite inE h1 orbT.
+    have ex : value_uincl vm.[x] (set_RSP p m (kill_vars (ra_vm_return fd.(f_extra)) vm')).[x].
+    + rewrite /set_RSP Vm.setP_neq //.
+      have := h x; rewrite inE eqxx => /(_ erefl).
+      rewrite Sv.union_spec => /Decidable.not_or [hra hD].
+      rewrite kill_varsE; case: Sv_memP => // _.
+      by apply: hvm.
+    by eexists; first reflexivity; constructor.
+  rewrite hget; exists tres.
+  split => //.
+  + rewrite /writefun_ra hget.
+    move: hvalra; rewrite /valid_writefun /write_fd /= => /Sv.subset_spec.
+    by move: hk; clear; SvD.fsetdec.
+  + by rewrite /writefun_RA hget; clear; SvD.fsetdec.
+  + rewrite /writefun_ra hget => r hr; rewrite /set_RSP Vm.setP.
+    case: eqP.
+    - move => ?; subst.
+      have ok_free := Memory.free_stackP (emem kt2.2).
+      rewrite /top_stack (fss_root ok_free) -(ss_root hstable) (fss_frames ok_free) -(ss_frames hstable) /=.
+      have ok_alloc:= Memory.alloc_stackP ok_m'.
+      rewrite (ass_frames ok_alloc) (ass_root ok_alloc) /= -/(top_stack (emem s1)) cmp_le_refl.
+      exact: hrsp.
+    move => /eqP r_neq_rsp.
+    rewrite kill_varsE.
+    case: Sv_memP; first by SvD.fsetdec.
+    move=> _; rewrite -(hex r).
+    + rewrite /= /set_RSP Vm.setP_neq // /ra_undef_vm kill_varsE.
+      by case: Sv_memP => //; SvD.fsetdec.
+    move: hvalra hr; rewrite /valid_writefun /= /write_fd /= => /Sv.subset_spec.
+    by clear; SvD.fsetdec.
+  + by rewrite Vm.setP_eq /= cmp_le_refl hmem'.
+  rewrite Vm.setP_neq; last by rewrite eq_sym vgd_neq_vrsp.
+  rewrite kill_varsE; case: Sv_memP => //.
+  have := not_written_magic preserved_magic.
+  by rewrite /writefun_ra hget => -[+ _]; clear; SvD.fsetdec.
+Qed.
 
 Lemma merge_varmaps_export_callP fn:
   is_export p fn →
