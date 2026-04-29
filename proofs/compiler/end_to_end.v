@@ -69,7 +69,6 @@ Require Import
   stack_alloc_proof_2
   compiler_proof
   it_compiler_proof
-  it_compiler_proof_2
   asm_gen_proof
 .
 Require allocation.
