@@ -243,7 +243,7 @@ Proof.
       + rewrite /= /lsem_body /= /and_not_syscall /untilpc; case: eqP.
         + move=> ?; subst endpc.
           by move: hend; rewrite /wfend /= hget.
-        by rewrite /next_is_syscall /step hfindi.
+        by rewrite /next_is_Lsyscall /step hfindi.
       rewrite -cat_rcons in hcat.
       by have := eval_jump_label s1 hget hu hcat; rewrite size_rcons.
     case: eqP => hfl; last by apply hwf.
@@ -263,7 +263,7 @@ Proof.
     + rewrite /= /lsem_body /and_not_syscall /untilpc /=; case: eqP.
       + move=> ?; subst endpc.
         by move: hend; rewrite /wfend /= hget.
-      by rewrite /next_is_syscall /step hfindi /= /eval_instr /= hget /= hpc /=.
+      by rewrite /next_is_Lsyscall /step hfindi /= /eval_instr /= hget /= hpc /=.
     by rewrite hget /= hpc.
   case: eqP => hfl; last by apply hwf.
   apply path_to0_trans with l1; first by rewrite -hfl; apply hwf.
@@ -391,7 +391,7 @@ Lemma tunnel_cmd_aux endpc n s s' :
           if endpc != (lfn i, lpc i)
           then
            ITree.bind
-             match let%opt i0 := find_instr p i in is_syscall i0 with
+             match let%opt i0 := find_instr p i in is_Lsyscall i0 with
              | Some o => lexec_syscall o i
              | None => iresult (to_estate i) (step p i)
              end (λ i' : lstate, Ret (inl i'))
@@ -405,14 +405,14 @@ Proof.
   elim: n s => [ | n ih ] si /=.
   + case: eqP => /= hend.
     + by move/(@eutt_inv_Ret _ _ _ _).
-    rewrite -/(next_is_syscall p _) /istep.
-    case: next_is_syscall => [ a | ] /=.
+    rewrite -/(next_is_Lsyscall p _) /istep.
+    case: next_is_Lsyscall => [ a | ] /=.
     + by move/(@eutt_inv_Ret _ _ _ _).
     move => ->; reflexivity.
   case: eqP => /= hend.
   + by rewrite bind_ret_l => /(@eutt_inv_Ret _ _ _ _).
-  rewrite -/(next_is_syscall p _) {1}/istep.
-  case: next_is_syscall => [ a | ] /=.
+  rewrite -/(next_is_Lsyscall p _) {1}/istep.
+  case: next_is_Lsyscall => [ a | ] /=.
   + by rewrite bind_ret_l => /(@eutt_inv_Ret _ _ _ _).
   rewrite !bind_bind.
   case: step => [ sj | err ]; last first.
@@ -429,7 +429,7 @@ Proof.
   rewrite /= {1}/while_body /untilpc; case: eqP => [|/eqP/negPf] hpc /=.
   + exists 2; rewrite /while_body /= hpc eqxx bind_ret_l.
     by apply eutt_Ret; constructor.
-  rewrite /istep /next_is_syscall /step /while_body.
+  rewrite /istep /next_is_Lsyscall /step /while_body.
   case hi: find_instr (find_instrE s) => [[ii i] | /=]; last first.
   + move=> hi'; exists 0; rewrite /= hpc /= hi hi' !bind_throw; reflexivity.
   move=> [fd hget].

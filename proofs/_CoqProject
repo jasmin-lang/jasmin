@@ -87,6 +87,9 @@ compiler/inline.v
 compiler/inline_proof.v
 compiler/insert_renaming.v
 compiler/insert_renaming_proof.v
+compiler/it_linearization_proof.v
+compiler/it_linearization_syscall.v
+compiler/it_merge_varmaps_proof.v
 compiler/jasmin_compiler.v
 compiler/lea.v
 compiler/lea_proof.v
@@ -177,6 +180,7 @@ lang/ident.v
 lang/itree_safety_facts.v
 lang/it_sems_core.v
 lang/it_sems_core_defs.v
+lang/it_sems_one_varmap.v
 lang/linear.v
 lang/linear_facts.v
 lang/linear_sem.v

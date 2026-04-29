@@ -35,8 +35,11 @@ Definition is_label (lbl: label) (i: linstr) : bool :=
   | _ => false
   end.
 
-Definition is_syscall (i : linstr) : option syscall_t :=
-  if i.(li_i) is Lsyscall s then Some s else None.
+Definition is_Lsyscall_r (i : linstr_r) : option syscall_t :=
+  if i is Lsyscall s then Some s else None.
+
+Definition is_Lsyscall (i : linstr) : option syscall_t :=
+  is_Lsyscall_r i.(li_i).
 
 (* -------------------------------------------------------------------- *)
 Definition find_label (lbl : label) (c : seq linstr) :=

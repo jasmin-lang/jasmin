@@ -1016,18 +1016,16 @@ Proof. by apply hoare_while. Qed.
 Lemma whoare_call (Pf : PreF) (Qf : PostF) Rv P Q ii xs fn es :
   rhoare P (fun s => sem_pexprs (~~ direct_call) (p_globs p) s es) Rv PredT ->
   (forall s vs, P s -> Rv vs -> Pf fn (mk_fstate vs s)) ->
-  (forall vs, Rv vs -> rhoare PredT (fun s => sem_pre p fn (mk_fstate vs s)) PredT PredT) ->
   whoare_f p ev Pf ii fn Qf ->
-  (forall vs fs fr,
-      Rv vs ->
-      whoare_f p ev Pf ii fn Qf -> Qf fn fs fr ->
-      rhoare PredT
-        (fun _:estate => sem_post p fn vs fr) PredT PredT) ->
   (forall fs fr,
     Pf fn fs -> Qf fn fs fr ->
     rhoare P (upd_estate (~~ direct_call) (p_globs p) xs fr) Q PredT) ->
   whoare p ev P [:: MkI ii (Ccall xs fn es)] Q.
-Proof. by apply hoare_call. Qed.
+Proof.
+  move=> h1 h2 h3. apply hoare_call with Rv => //.
+  + by move=> * ?; case: sem_pre.
+  by move=> * ? ; case: sem_post.
+Qed.
 
 End WHOARE_CORE.
 

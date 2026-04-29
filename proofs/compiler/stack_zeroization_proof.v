@@ -67,7 +67,7 @@ Record h_stack_zeroization_params (szp : stack_zeroization_params) :=
     hszp_cmd_no_syscall :
       forall szs rspn lbl ws_align ws stk_max cmd vars,
         szp.(szp_cmd) szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
-        all (fun i => ~~ isSome (is_syscall i)) cmd;
+        all (fun i => ~~ isSome (is_Lsyscall i)) cmd;
 
     hszp_cmdP :
       forall szs rspn lbl ws_align ws stk_max cmd vars,
@@ -498,15 +498,15 @@ Let pre s1 s2 :=
 Let post s1 s2 :=
   s1 = s2 /\ ~endpc lp fn s1.
 
-Lemma next_is_syscallP s : next_is_syscall lp' s = next_is_syscall lp s.
+Lemma next_is_LsyscallP s : next_is_Lsyscall lp' s = next_is_Lsyscall lp s.
 Proof.
-have := find_instrP_aux s pp'; rewrite /next_is_syscall.
+have := find_instrP_aux s pp'; rewrite /next_is_Lsyscall.
 case: find_instr => [i -> //|].
 case: find_instr => [i'|//] [c [xs [szs [l [ws [ws' [z [n []]]]]]]]].
 move=> /(hszp_cmd_no_syscall hszparams) /all_nthP h.
 set li := {| li_ii := dummy_instr_info; li_i := Lret |}.
 move: (h li n) => /[swap] /(onthP' li) [-> ->] /(_ erefl).
-by case: is_syscall.
+by case: is_Lsyscall.
 Qed.
 
 Lemma istack_zeroization_lprog_lsem :
@@ -523,7 +523,7 @@ Proof.
     by have := lt_nm_n (size (lfd_body lfd)) (size cmd); rewrite -heq hlt.
   apply xrutt_bind with pre; last first.
   + by move=> s1 s2 hpre'; apply xrutt_Ret; constructor.
-  rewrite /istep next_is_syscallP; case h: next_is_syscall => [o|].
+  rewrite /istep next_is_LsyscallP; case h: next_is_Lsyscall => [o|].
   + move: h; apply: obindP => i + _; apply: obindP => lfds hgets hpcs.
     have {}hpcs := onth_size hpcs.
     apply: (xrutt_weaken
@@ -583,9 +583,9 @@ Proof.
     case: szs_of_fn => [ [szs ws]| [<-]]; last by auto.
     case: andP; last by move=> ? [<-]; auto.
     by move=> []? /ZltP??; right; exists szs, ws.
-  + move=> [? hszs]; subst lfd'. apply xrutt_bind with (fun _ _ => lfd_export lfd).
-    + by apply rutt_iresult; t_xrbindP => ->; exists tt.
-    move=> _ _ hexport; apply xrutt_bind with eq.
+  + move=> [? hszs]; subst lfd'. apply xrutt_facts.xrutt_bind with (fun _ _ => lfd_export lfd).
+    + by apply xrutt_iresult; t_xrbindP => ->; exists tt.
+    move=> _ _ hexport; apply xrutt_facts.xrutt_bind with eq.
     + have /(_ [::]):= istack_zeroization_lprog_lsem hzerolp hlfd _ hpre1.
       have heq : (fun s0 : lstate => endpc lp fn s0 && endpc lp' fn s0) =1 endpc lp' fn.
       + move=> s2 /=; rewrite /endpc hlfd hlfd'.
@@ -596,9 +596,9 @@ Proof.
       move=> /(_ h).
       by apply xrutt_weaken => // ?? [].
     move=> r _ <-.
-    apply xrutt_bind with eq.
-    + by apply rutt_iresult => ? ->; eauto.
-    move=> _ _ _; apply xrutt_Ret; split => //.
+    apply xrutt_facts.xrutt_bind with eq.
+    + by apply xrutt_iresult => ? ->; eauto.
+    move=> _ _ _; apply xrutt.xrutt_Ret; split => //.
     rewrite /match_mem_zero_export.
     case: szs_of_fn hszs => [_|//].
     move=> /andP; rewrite hexport /= => /ZltP/Z.le_ngt ?.

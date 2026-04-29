@@ -502,3 +502,31 @@ hinduction h before CIHLLL; intros; cbn.
 Qed.
 
 End STATE.
+
+Definition RPre_eq {E : Type -> Type} T1 T2 (e1 : E T1) (e2 : E T2) :=
+  exists (h : T1 = T2), e2 = eq_rect T1 E e1 T2 h.
+
+Definition RPost_eq {E : Type -> Type} T1 T2 (e1 : E T1) (t1 : T1) (e2 : E T2) (t2 : T2) :=
+   forall (h : T1 = T2), t2 = eq_rect T1 id t1 T2 h.
+
+Lemma gen_rutt_eutt {E : Type -> Type} {R1 R2 : Type}
+  (RR : R1 -> R2 -> Prop)
+  t1 t2 :
+  rutt (E1 := E) (E2 := E) RPre_eq RPost_eq RR t1 t2 ->
+  eutt RR t1 t2.
+Proof.
+  revert t1 t2; pcofix CIH.
+  intros t1 t2 H; pstep; red; punfold H; red in H.
+  induction H.
+  - econstructor; eauto.
+  - econstructor; eauto.
+  - pclearbot; right; eapply CIH; auto.
+  - destruct H; subst B e2; simpl.
+    econstructor; eauto.
+    intros v; right; eapply CIH.
+    have H1 : RPost_eq e1 v (eq_rect A E e1 A erefl) v.
+    - intros Heq; rewrite (UIP_refl _ _ Heq); simpl; reflexivity.
+    specialize (H0 v v H1); pclearbot; auto.
+  - econstructor; eauto.
+  - econstructor; eauto.
+Qed.

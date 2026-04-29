@@ -72,16 +72,16 @@ Import ITreeNotations.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 
-Require Import while.
+Require Import while it_sems_core_defs core_logics.
 
 Section PARAMS.
 Context (funname : Type).
 Context (lstate : Type).
-Context {E:Type -> Type}.
+Context {E E0:Type -> Type} {wE : with_Error E E0}.
 Context (istep : lstate -> itree E lstate).
 Context (fun_cond : funname -> lstate -> bool).
 Context (is_call : lstate -> option funname).
-
+Context (check_after_call : lstate -> lstate -> bool).
 
 (* Small step semantics without stack and without call events *)
 (* This is the semantics we want after linearization *)
@@ -263,11 +263,83 @@ Proof.
   etau.
 Qed.
 
+(***************************************************************************** *)
+(* We now define a mix-step semantics,
+   which check extra condition after call events, this allows to enforce some invariant in
+   the semantics *)
+
+Definition mix_chk_stk_step (s:stk_lstate) : itree (CallE +' E) (stk_lstate + lstate) :=
+  match s.(stk) with
+  | [::] => Ret (inr s.(st))
+  | cond :: conds =>
+    if cond s.(st) then
+      (st' <- translate inr1 (istep s.(st));;
+       if is_call s.(st) is Some fn then
+         st'' <- trigger_inl1 (Call fn st');;
+         if check_after_call s.(st) st'' then Ret (inl {| st:= st''; stk := s.(stk) |})
+         else Exception.throw (utils.ErrSemUndef, tt)
+       else Ret (inl {| st:= st'; stk := s.(stk) |}))%itree
+    else Ret (inl {| st := s.(st); stk := conds |})
+  end.
+
+Definition mix_chk_stk_steps : ktree (CallE +' E) stk_lstate lstate :=
+  ITree.iter mix_chk_stk_step.
+
+Definition handle_call_chk_stk : CallE ~> itree (CallE +' E) :=
+  fun T (c:CallE T) =>
+    match c in CallE T0 return itree (CallE +' E) T0 with
+    | Call fn st0 => mix_chk_stk_steps {| st := st0; stk := [:: fun_cond fn] |}
+    end.
+
+Definition mix_chk_stk_steps_sem (s:stk_lstate) : itree E lstate :=
+  interp_mrec handle_call_chk_stk (mix_chk_stk_steps s).
+
+Lemma mix_chk_stk_mix_stk_steps s :
+  xrutt.xrutt (xrutt_facts.EE_MR (errcutoff (is_error wE)) (D:=CallE)) (xrutt_facts.EE_MR nocutoff (D:=CallE))
+    (HeterogeneousRelations.sum_prerel rutt_extras.RPre_eq rutt_extras.RPre_eq)
+    (HeterogeneousRelations.sum_postrel rutt_extras.RPost_eq rutt_extras.RPost_eq) eq (mix_chk_stk_steps s)
+    (mix_stk_steps s).
+Proof.
+  rewrite /mix_chk_stk_steps /mix_stk_steps.
+  apply xrutt_facts.xrutt_iter with eq => // {}s _ <-.
+  rewrite /mix_chk_stk_step /mix_stk_step.
+  case: stk.
+  + by apply xrutt.xrutt_Ret; constructor.
+  move=> cond conds; case: ifP => _; last by apply xrutt.xrutt_Ret; constructor.
+  apply xrutt_facts.xrutt_bind with eq.
+  + apply xrutt_facts.xrutt_refl => //.
+    + by move=> T [] e _ _; constructor; exists refl_equal.
+    by move=> T [] e t1 t2 _ _ /sum_postrelP /= ->.
+  move=> s1 _ <-.
+  case: is_call; last by apply xrutt.xrutt_Ret; constructor.
+  move=> fn. rewrite !bind_trigger; apply xrutt.xrutt_Vis.
+  + by constructor; exists refl_equal.
+  move=> s2 _ /sum_postrelP /= -> /=.
+  case: ifP => _; first by apply xrutt.xrutt_Ret; constructor.
+  apply xrutt.xrutt_CutL.
+  by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /Subevent.subevent /resum /fromErr /= mid12.
+Qed.
+
+Lemma mix_chk_stk_mix_stk_sem (s:stk_lstate) :
+  xrutt.xrutt (errcutoff (is_error wE)) nocutoff rutt_extras.RPre_eq rutt_extras.RPost_eq
+  eq (mix_chk_stk_steps_sem s) (mix_stk_steps_sem s).
+Proof.
+  apply xrutt_facts.interp_mrec_xrutt with (RPreInv:= rutt_extras.RPre_eq) (RPostInv:= rutt_extras.RPost_eq).
+  + move=> R1 R2 d1 d2 [??]; subst R2 d2.
+    case: d1 => fn {} s /=.
+    apply: xrutt_facts.xrutt_weaken (mix_chk_stk_mix_stk_steps {| st := s; stk := [:: fun_cond fn] |}) => //.
+    by move=> ? _ <- h ; rewrite (Eqdep.EqdepTheory.UIP_refl _ _ h).
+  apply mix_chk_stk_mix_stk_steps.
+Qed.
+
 (* The mix step semantics we want for the proof of linearization *)
 
 Definition mix_step (s:lstate) : itree (CallE +' E) lstate :=
   s' <- translate inr1 (istep s);;
-  if is_call s is Some fn then trigger_inl1 (Call fn s')
+  if is_call s is Some fn then
+    (s'' <- trigger_inl1 (Call fn s');;
+    if check_after_call s s'' then Ret s''
+    else Exception.throw (utils.ErrSemUndef, tt))%itree
   else Ret s'.
 
 Definition mix_steps cond (s:lstate) : itree (CallE +' E) lstate :=
@@ -282,12 +354,12 @@ Definition handle_call : CallE ~> itree (CallE +' E) :=
 Definition mix_sem cond (s:lstate) :=
   interp_mrec handle_call (mix_steps cond s).
 
-Lemma mix_stk_steps_mix_steps cond s :
-  mix_stk_steps {| st := s; stk := [:: cond] |} ≈ mix_steps cond s.
+Lemma mix_steps_mix_chk_stk_steps cond s :
+  mix_steps cond s ≈ mix_chk_stk_steps {| st := s; stk := [:: cond] |}.
 Proof.
   move: s; einit; ecofix CIH => s.
-  rewrite /mix_stk_steps /mix_steps unfold_iter unfold_while.
-  rewrite {1}/mix_stk_step /= {1} /mix_step.
+  rewrite /mix_chk_stk_steps /mix_steps unfold_iter unfold_while.
+  rewrite {1}/mix_chk_stk_step /= {1}/mix_step.
   case: ifP => _; last first.
   + rewrite bind_ret_l unfold_iter /mix_stk_step /= bind_ret_l.
     setoid_rewrite tau_euttge; eret.
@@ -296,16 +368,19 @@ Proof.
   move=> s' _ <-.
   case: is_call => [fn|].
   + rewrite !bind_bind !bind_trigger.
-    by setoid_rewrite bind_ret_l; evis.
+    evis => s''.
+    case: ifP => _.
+    + by setoid_rewrite bind_ret_l; etau.
+    rewrite !bind_throw; reflexivity.
   rewrite !bind_ret_l; etau.
 Qed.
 
-Lemma mix_stk_mix_sem cond (s:lstate) :
-  mix_stk_steps_sem {| st := s; stk := [::cond] |} ≈ mix_sem cond s.
+Lemma mix_sem_mix_chk_stk_steps_sem cond (s:lstate) :
+  mix_sem cond s  ≈ mix_chk_stk_steps_sem {| st := s; stk := [::cond] |}.
 Proof.
-  apply Proper_interp_mrec; last by apply mix_stk_steps_mix_steps.
+  apply Proper_interp_mrec; last by apply mix_steps_mix_chk_stk_steps.
   move=> _ [] fn {}s.
-  rewrite /handle_call_stk /handle_call; apply mix_stk_steps_mix_steps.
+  rewrite /handle_call_stk /handle_call; apply mix_steps_mix_chk_stk_steps.
 Qed.
 
 Lemma mix_sem_ss_sem (cond : lstate -> bool) :
@@ -313,11 +388,17 @@ Lemma mix_sem_ss_sem (cond : lstate -> bool) :
       eutt (fun s1 s2 => s1 = s2 /\
               if is_call s is Some fn then (forall ls, fun_cond fn ls -> cond ls)
               else True) (istep s) (istep s)) ->
-  forall s, mix_sem cond s ≈ ss_sem cond s.
+  forall s,
+    xrutt.xrutt (errcutoff (is_error wE)) nocutoff rutt_extras.RPre_eq rutt_extras.RPost_eq
+     eq
+     (mix_sem cond s) (ss_sem cond s).
 Proof.
   move=> hstep s.
-  rewrite -mix_stk_mix_sem mix_stk_steps_ss_stk_sem.
-  apply (ss_stk_sem_ss_sem hstep); constructor.
+  rewrite mix_sem_mix_chk_stk_steps_sem.
+  have {2}->: s = st {| st := s; stk := [:: cond] |} by done.
+  rewrite -ss_stk_sem_ss_sem //; last by constructor.
+  rewrite -mix_stk_steps_ss_stk_sem.
+  apply mix_chk_stk_mix_stk_sem.
 Qed.
 
 End PARAMS.
