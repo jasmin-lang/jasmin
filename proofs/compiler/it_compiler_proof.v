@@ -18,6 +18,7 @@ Require Import
   compiler_util
   psem
   psem_facts
+  core_logics
   relational_logic
   sem_one_varmap
 .
