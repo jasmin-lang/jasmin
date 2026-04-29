@@ -27,6 +27,8 @@ Require Import fexpr fexpr_sem fexpr_facts.
 Require Export linearization linear_sem linear_facts core_logics relational_logic.
 Require Import xrutt xrutt_facts.
 
+Require Import linearization_proof.
+
 Import Memory.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
@@ -360,156 +362,6 @@ Notation allocate_stack_frame := (lip_allocate_stack_frame liparams).
 Notation free_stack_frame := (lip_free_stack_frame liparams).
 Notation setup_register := (lip_set_up_sp_register liparams).
 
-Let sf_correct f (op : word Uptr -> word Uptr -> word Uptr) :=
- forall sp_rsp tmp s ts sz,
-    let: rspi := vid sp_rsp in
-    let: lcmd := f rspi tmp sz in
-    let: ts' := Vword (op ts (wrepr Uptr sz)) in
-    let: X  := if tmp is Some x then Sv.singleton (v_var x) else Sv.empty in
-    (if tmp is Some x then (v_var rspi) <> (v_var x) /\ convertible (vtype x) (aword Uptr) else True)
-    -> get_var true (evm s) rspi = ok (Vword ts)
-    -> exists vm',
-       [/\ sem_fopns_args s lcmd = ok (with_vm s vm'),
-           evm s =[\ Sv.add rspi X ] vm'
-           & vm'.[rspi] = ts' ].
-
-Let sf_correct1 f (op : word Uptr -> word Uptr -> word Uptr) :=
- forall P Q lp sp_rsp tmp fn s ii ts sz,
-    let: rspi := vid sp_rsp in
-    let: lcmd := map (li_of_fopn_args ii) (f rspi tmp sz) in
-    let: ts' := Vword (op ts (wrepr Uptr sz)) in
-    let: X  := if tmp is Some x then Sv.singleton (v_var x) else Sv.empty in
-    is_linear_of lp fn (P ++ lcmd ++ Q)
-    -> (if tmp is Some x then (v_var rspi) <> (v_var x) /\ convertible (vtype x) (aword Uptr) else True)
-    -> get_var true (evm s) rspi = ok (Vword ts)
-    -> exists vm',
-     let: ls := of_estate s fn (size P) in
-     let: ls' :=
-       {|
-         lscs := lscs ls;
-         lmem := lmem ls;
-         lvm := vm';
-         lfn := fn;
-         lpc := size P + size lcmd;
-       |}
-     in
-     [/\ lsem_n lp (pc_between fn (lpc ls) (lpc ls')) ls ls'
-       , evm s =[\ Sv.add rspi X ] vm'
-       & vm'.[rspi] = ts'
-     ].
-
-Definition allocate_stack_frame_correct :=
-  Eval hnf in sf_correct allocate_stack_frame (fun x y => x - y)%R.
-
-Definition free_stack_frame_correct :=
-  Eval hnf in sf_correct free_stack_frame (fun x y => x + y)%R.
-
-Definition lmove_correct :=
-  forall (xd xs : var_i) w ws (w':word ws) s,
-    vtype xd = aword Uptr -> convertible (vtype xs) (aword Uptr) ->
-    get_var true (evm s) xs = ok (Vword w') ->
-    truncate_word Uptr w' = ok w ->
-    sem_fopn_args (lip_lmove liparams xd xs) s = ok (with_vm s (evm s).[xd <- Vword w]).
-
-Definition lstore_correct_aux lip_check_ws lip_lstore :=
-  forall (xd xs : var_i) ofs ws (w: word ws) wp s m,
-    convertible (vtype xs) (aword ws) ->
-    lip_check_ws ws ->
-    (get_var true (evm s) xd >>= to_word Uptr) = ok wp ->
-    (get_var true (evm s) xs >>= to_word ws) = ok w ->
-    write (emem s) Aligned (wp + wrepr Uptr ofs)%R w = ok m ->
-    sem_fopn_args (lip_lstore xd ofs xs) s = ok (with_mem s m).
-
-Definition lstore_correct := lstore_correct_aux (lip_check_ws liparams) (lip_lstore liparams).
-
-Definition lload_correct_aux lip_check_ws lip_lload :=
-  forall (xd xs : var_i) ofs ws wp s w vm,
-    convertible (vtype xd) (aword ws) ->
-    lip_check_ws ws ->
-    (get_var true (evm s) xs >>= to_word Uptr) = ok wp ->
-    read (emem s) Aligned (wp + wrepr Uptr ofs)%R ws = ok w ->
-    set_var true (evm s) xd (Vword w) = ok vm ->
-    sem_fopn_args (lip_lload xd xs ofs) s = ok (with_vm s vm).
-
-Definition lload_correct := lload_correct_aux (lip_check_ws liparams) (lip_lload liparams).
-
-Definition set_up_sp_register_correct :=
-  forall vrsp r tmp ts al sz s,
-    let: ts' := align_word al (ts - wrepr Uptr sz) in
-    let: lcmd := lip_set_up_sp_register liparams vrsp sz al r tmp in
-    let: k := Sv.add (v_var r) (Sv.add tmp (Sv.add vrsp vflags)) in
-    get_var true (evm s) vrsp = ok (Vword ts) ->
-    vtype vrsp = aword Uptr -> convertible (vtype r) (aword Uptr) -> vtype tmp = aword Uptr ->
-    v_var tmp <> vrsp ->
-    v_var r <> vrsp ->
-    v_var r <> tmp ->
-    exists vm,
-      [/\ sem_fopns_args s lcmd = ok (with_vm s vm)
-        , vm =[\ k ] evm s
-        , get_var true vm vrsp = ok (Vword ts')
-        , get_var true vm r = ok (Vword ts)
-        & forall x,
-            Sv.In x vflags ->
-            ~ is_defined vm.[x] ->
-            (evm s).[x] = vm.[x]
-      ].
-
-Definition lstores_correct_aux lip_check_ws lip_tmp2 lip_lstores :=
-  forall rspi to_save s top m2,
-  let tmp2 := vid lip_tmp2  in
-  let m1 := emem s in
-  let vm1 := evm s in
-  let lcmd := lip_lstores rspi to_save in
-  ~~ Sv.mem tmp2 (sv_of_list fst to_save) ->
-  v_var tmp2 <> v_var rspi ->
-  get_var true vm1 rspi >>= to_word Uptr = ok top ->
-  foldM (λ '(x, ofs) m,
-     Let: ws := if vtype x is aword ws then ok ws else Error ErrType in
-     Let _ := assert (lip_check_ws ws) ErrType in
-     Let: v := get_var true vm1 x >>= to_word ws in
-     write m Aligned (top + wrepr Uptr ofs)%R v) m1 to_save = ok m2 ->
-  exists2 vm2,
-      sem_fopns_args s lcmd = ok (with_mem (with_vm s vm2) m2)
-      & vm1 =[\Sv.singleton tmp2] vm2.
-
-Definition lstores_correct := lstores_correct_aux (lip_check_ws liparams) (lip_tmp2 liparams) (lip_lstores liparams).
-
-Definition lloads_correct_aux lip_check_ws lip_tmp2 lip_lloads :=
-  forall rspi to_save ofs s top vm2,
-  let tmp2 := vid lip_tmp2 in
-  let to_restore := to_save ++ [:: (v_var rspi, ofs)] in
-  let m1 := emem s in
-  let vm1 := evm s in
-  let lcmd := lip_lloads rspi to_save ofs in
-  ~~ Sv.mem rspi (sv_of_list fst to_save) ->
-  ~~ Sv.mem tmp2 (sv_of_list fst to_save) ->
-  v_var tmp2 <> v_var rspi ->
-  get_var true vm1 rspi >>= to_word Uptr = ok top ->
-  foldM (λ '(x, ofs) vm1,
-     Let: ws := if vtype x is aword ws then ok ws else Error ErrType in
-     Let _ := assert (lip_check_ws ws) ErrType in
-     Let w := read m1 Aligned (top + wrepr Uptr ofs)%R ws in
-     set_var true vm1 x (Vword w)) vm1 to_restore = ok vm2 ->
-  exists2 vm,
-    sem_fopns_args s lcmd = ok (with_vm s vm) &
-    vm2 =[\Sv.singleton tmp2] vm.
-
-Definition lloads_correct := lloads_correct_aux (lip_check_ws liparams) (lip_tmp2 liparams) (lip_lloads liparams).
-
-Record h_linearization_params :=
-  {
-    spec_lip_allocate_stack_frame : allocate_stack_frame_correct;
-    spec_lip_free_stack_frame : free_stack_frame_correct;
-    spec_lip_set_up_sp_register : set_up_sp_register_correct;
-    spec_lip_lmove   : lmove_correct;
-    spec_lip_lstore  : lstore_correct;
-    spec_lip_lload   : lload_correct;
-    spec_lip_lstores : lstores_correct;
-    spec_lip_lloads  : lloads_correct;
-    spec_lip_tmp     : lip_tmp liparams <> lip_tmp2 liparams;
-    spec_lip_check_ws: lip_check_ws liparams Uptr;
-  }.
-
 (* FIXME: move this *)
 Lemma lset_estate_same ls : lset_estate' ls (to_estate ls) = ls.
 Proof. by case: ls. Qed.
@@ -685,7 +537,7 @@ End DEFAULT.
 
 Section HLIPARAMS.
   Context
-    (hliparams : h_linearization_params).
+    (hliparams : h_linearization_params liparams).
 
   Lemma spec_lmove {lp ii ls} {x y:var_i} (w : word Uptr) :
     vtype x = aword Uptr ->
@@ -1355,208 +1207,6 @@ Section PROOF.
   Local Coercion emem : estate >-> mem.
   Local Coercion evm : estate >-> Vm.t.
 
-  (** Relation between source and target memories
-      - There is a well-aligned valid block in the target
-   *)
-  Record match_mem_gen (sp:word Uptr) (m m': mem) : Prop :=
-    MM {
-       read_incl_mem : ∀ p,
-         ~ (wunsigned (stack_limit m) <= wunsigned p < wunsigned sp)%Z ->
-         validw m Aligned p U8 -> read m Aligned p U8 = read m' Aligned p U8
-     ; read_incl_stk : ∀ p w,
-         (wunsigned (stack_limit m) <= wunsigned p < wunsigned sp)%Z ->
-         read m Aligned p U8 = ok w -> read m' Aligned p U8 = ok w
-     ; valid_incl : ∀ p, validw m Aligned p U8 → validw m' Aligned p U8
-     ; valid_stk  : ∀ p,
-         (wunsigned (stack_limit m) <= wunsigned p < wunsigned(stack_root m))%Z
-       → validw m' Aligned p U8
-      }.
-
-  Definition match_mem m m' := match_mem_gen (top_stack m) m m'.
-
-  (* We can give a simpler read_incl_mem for match_mem. *)
-  Lemma match_mem_read_incl_mem m m' :
-    match_mem m m' ->
-    forall p, validw m Aligned p U8 ->
-    read m Aligned p U8 = read m' Aligned p U8.
-  Proof.
-    move=> hmm pr hvalid.
-    apply hmm.(read_incl_mem) => // hb.
-    by have /negP := stack_region_is_free hb.
-  Qed.
-
-  Lemma mm_free sp m1 m1' :
-    match_mem_gen sp m1 m1' →
-    match_mem_gen sp (free_stack m1) m1'.
-  Proof.
-    case => Hrm Hrstk Hvm Hsm; split.
-    (* read mem *)
-    + move=> p1 hb Hv.
-      rewrite -(free_stackP _).(fss_read_old8) //.
-      apply Hrm.
-      + by move: hb; rewrite (free_stackP _).(fss_limit).
-      by move: Hv; rewrite (free_stackP _).(fss_valid) => /andP [+ _].
-    (* read stk *)
-    + move=> p1 w1 hb Hr.
-      apply Hrstk.
-      + by move: hb; rewrite (free_stackP _).(fss_limit).
-      rewrite -Hr. apply: fss_read_old; [ exact: free_stackP | exact: readV Hr ].
-    (* valid *)
-    + move=> p1 Hv.
-      assert (Hs := free_stackP). move: (Hs m1)=> Hm1. move: (Hs m1')=> Hm1'.
-      have Heq := (fss_valid Hm1). have Heq' := (fss_valid Hm1').
-      apply Hvm. rewrite Heq in Hv. move: Hv. move=>/andP [] Hv1 Hv2.
-      apply Hv1.
-    (* stack *)
-    assert (Hs := free_stackP). move: (Hs m1)=> Hm1. move: (Hs m1')=> Hm1'.
-    have Heq := (fss_valid Hm1).
-    move=> p1 Hs'. apply Hsm. have <- := fss_root Hm1. by have <- := fss_limit Hm1.
-  Qed.
-
-  Lemma mm_read_ok : ∀ sp m m' al a s v,
-    match_mem_gen sp m m' →
-    read m al a s = ok v →
-    read m' al a s = ok v.
-  Proof.
-    move=> sp m m' al p'' s v [] Hrm Hrstk Hvm Hsm Hr.
-    have [_ Hread] := read_read8 Hr.
-    rewrite -Hr; apply eq_read => al' i Hi.
-    rewrite !(read8_alignment Aligned) {al'}.
-    have := Hread i Hi; rewrite (read8_alignment Aligned) => {}Hread.
-    case:
-      (boolP
-        ((wunsigned (stack_limit m) <=? wunsigned (add p'' i))
-        && (wunsigned (add p'' i) <? wunsigned sp))%Z);
-      rewrite !zify => hb.
-    + by rewrite Hread; apply Hrstk.
-    by symmetry; apply (Hrm _ hb (readV Hread)).
-  Qed.
-
-  Lemma mm_write : ∀ sp m1 m1' al p s (w:word s) m2,
-    match_mem_gen sp m1 m1' →
-    write m1 al p w = ok m2 →
-    exists2 m2', write m1' al p w = ok m2' & match_mem_gen sp m2 m2'.
-  Proof.
-    move=> sp m1 m1' al p'' sz w m2 Hm Hw.
-    case: Hm=> Hrm Hrstk Hvm Hsm.
-    have /(writeV w) [m2' Hw']: validw m1' al p'' sz.
-    + have /validwP [Ha Hvalid] := (write_validw Hw).
-      apply /validwP; split=> // i Hi.
-      rewrite (validw8_alignment Aligned); apply Hvm.
-      by rewrite (validw8_alignment al); apply Hvalid.
-    exists m2' => //.
-    constructor.
-    (* read mem *)
-    + move=> p1 hb Hv.
-      apply: (read_write_any_mem _ Hw Hw').
-      apply Hrm.
-      + by move: hb; rewrite (write_mem_stable Hw).(ss_limit).
-      by rewrite -(write_validw_eq Hw).
-    (* read stk *)
-    + move=> p1 w1 hb.
-      have -> := write_read8 Hw Aligned p1.
-      have -> /= := write_read8 Hw' Aligned p1.
-      case: ifP=> // _.
-      apply Hrstk.
-      by move: hb; rewrite (write_mem_stable Hw).(ss_limit).
-    (* valid *)
-    + move=> p1 Hv.
-      rewrite (write_validw_eq Hw').
-      apply Hvm.
-      by rewrite -(write_validw_eq Hw).
-    (* stack *)
-    move=> p1 H.
-    rewrite (write_validw_eq Hw').
-    apply Hsm.
-    by have [-> -> _] := (write_mem_stable Hw).
-  Qed.
-
-  Lemma mm_alloc sp m1 m1' al sz ioff es' m2 :
-    (wunsigned (top_stack m1) <= wunsigned sp)%Z ->
-    match_mem_gen sp m1 m1' →
-    alloc_stack m1 al sz ioff es' = ok m2 →
-    match_mem_gen sp m2 m1'.
-  Proof.
-    move=> hle.
-    case => Hrm Hrstk Hvm Hs /alloc_stackP ass.
-    have heq := ass_add_ioff ass; case: ass => Hvr Hve Hveq Ha Hs' hioff Hs'' Hsr Hsl Hf.
-    constructor.
-    (* read mem *)
-    + move=> p1 hb.
-      rewrite Hveq => /orP [Hv|hb'].
-      + rewrite -(Hvr p1 Hv).
-        apply: Hrm Hv.
-        by rewrite -Hsl.
-      exfalso; apply hb; move: hb'; rewrite /between /zbetween !zify wsize8.
-      rewrite heq Hsl.
-      have := [elaborate top_stack_below_root _ m1]; rewrite -/(top_stack _).
-      by lia.
-    (* read stk *)
-    + move=> p1 w1 hb /[dup] Hr1.
-      move: (Hve p1) (Hvr p1).
-      have -> := readV Hr1.
-      case: validw.
-      * move => _ <- //; apply Hrstk.
-        by rewrite -Hsl.
-      by move => ->.
-    (* valid *)
-    + move => p1; rewrite Hveq => /orP[]; first exact: Hvm.
-      move => range; apply: Hs; move: range; rewrite !zify => - [] lo.
-      change (wsize_size U8) with 1%Z.
-      generalize (top_stack_below_root _ m1); rewrite -/(top_stack m1).
-      lia.
-    (* stack *)
-    move=> p1 Hs'''. apply Hs. by rewrite -Hsr -Hsl.
-  Qed.
-
-  Lemma mm_write_invalid sp m m1' a s (w: word s) :
-    (wunsigned (top_stack m) <= wunsigned sp)%Z ->
-    match_mem_gen sp m m1' →
-    (wunsigned (stack_limit m) <= wunsigned a ∧ wunsigned a + wsize_size s <= wunsigned (top_stack m))%Z →
-    is_align a s →
-    exists2 m2', write m1' Aligned a w = ok m2' & match_mem_gen sp m m2'.
-  Proof.
-    move=> hle.
-    case => Hrm Hrstk Hvm Hs Hs' al.
-    have /(writeV w) [m' ok_m']: validw m1' Aligned a s.
-    - apply/validwP; split; first exact: al.
-      move => k [] klo khi; apply: Hs.
-      have a_range := wunsigned_range a.
-      assert (r_range := wunsigned_range (stack_root m)).
-      generalize (top_stack_below_root _ m); rewrite -/(top_stack m) => R.
-      by rewrite wunsigned_add; lia.
-    exists m'; first exact: ok_m'.
-    split.
-    (* read mem *)
-    - move => p1 hb Hv.
-      rewrite (CoreMem.writeP_neq _ ok_m'); first exact: Hrm.
-      move => i j [] i_low i_hi; change (wsize_size U8) with 1%Z => j_range.
-      have ? : j = 0%Z by lia.
-      subst j => { j_range }.
-      rewrite add_0 => ?; subst p1.
-      apply hb.
-      have a_range := wunsigned_range a.
-      assert (r_range := wunsigned_range (stack_root m)).
-      generalize (top_stack_below_root _ m); rewrite -/(top_stack m) => R.
-      by rewrite wunsigned_add; lia.
-    (* read stk *)
-    - move => p1 w1 hb Hr.
-      rewrite (CoreMem.writeP_neq _ ok_m'); first exact: Hrstk.
-      move => i j [] i_low i_hi; change (wsize_size U8) with 1%Z => j_range.
-      have ? : j = 0%Z by lia.
-      subst j => { j_range }.
-      rewrite add_0 => ?; subst p1.
-      apply/negP: (readV Hr).
-      apply: stack_region_is_free.
-      rewrite -/(top_stack m) wunsigned_add; first lia.
-      have := wunsigned_range a.
-      generalize (wunsigned_range (top_stack m)).
-      by lia.
-    1-2: move => b; rewrite (CoreMem.write_validw_eq ok_m').
-    - exact/Hvm.
-    exact/Hs.
-  Qed.
-
   Section MATCH_MEM_SEM_PEXPR.
     Context (scs: syscall_state_t) sp (m m': mem) (vm: Vm.t) (M: match_mem_gen sp m m').
     Let P (e: pexpr) : Prop :=
@@ -1637,44 +1287,6 @@ Section PROOF.
     else
       is_align (top_stack m) e.(sf_align) ∧
       let sz := stack_frame_allocation_size e in ptr = (top_stack m - wrepr Uptr sz)%R.
-
-  (* Define where/how the return address is passed by the caller to the callee *)
-  Definition value_of_ra
-    (m: mem)
-    (vm: Vm.t)
-    (ra: return_address_location)
-    (target: option (remote_label * lcmd * nat))
-    : Prop :=
-    match ra, target with
-    | RAnone, None => True
-    | RAreg ra _, Some ((caller, lbl), cbody, pc) =>
-      [/\ is_linear_of caller cbody,
-          find_label lbl cbody = ok pc,
-          (caller, lbl) \in label_in_lprog p' &
-          exists2 ptr,
-            encode_label (label_in_lprog p') (caller, lbl) = Some ptr &
-            vm.[ra] = Vword ptr
-      ]
-
-   | RAstack (Some ra) _ _ _ , Some ((caller, lbl), cbody, pc) =>
-      [/\ is_linear_of caller cbody,
-          find_label lbl cbody = ok pc,
-          (caller, lbl) \in label_in_lprog p' &
-          exists2 ptr,
-            encode_label (label_in_lprog p') (caller, lbl) = Some ptr &
-            vm.[ra] = Vword ptr
-      ]
-
-    | RAstack None _ ofs _, Some ((caller, lbl), cbody, pc) =>
-      [/\ is_linear_of caller cbody,
-          find_label lbl cbody = ok pc,
-          (caller, lbl) \in label_in_lprog p' &
-          exists2 ptr, encode_label (label_in_lprog p') (caller, lbl) = Some ptr &
-          exists2 sp, vm.[ vrsp ] = Vword sp & read m Aligned (sp + wrepr Uptr ofs)%R Uptr = ok ptr
-      ]
-
-    | _, _ => False
-    end.
 
   (* Export functions save and restore the contents of “to-save” registers. *)
   Definition is_callee_saved_of (fn: funname) (s: seq var) : Prop :=
@@ -2878,7 +2490,7 @@ End ILSTEPS_END.
           [/\ is_linear_of fn1 body
             , is_ra_of fn1 ra
             , (kill_vars (killed_on_entry ra) s1).[vrsp <- Vword sp] <=1 vm1
-            , value_of_ra m1 vm1 ra lret
+            , value_of_ra p p' m1 vm1 ra lret
             , if lret is Some (caller, _, _) then fn1 != caller.1 else true
             , lpc ls1 = if lret is Some _ then 1 else 0
             , is_sp_for_call fn1 s1 sp
@@ -2895,7 +2507,7 @@ End ILSTEPS_END.
     forall body ra lret sp callee_saved,
        is_linear_of fn1 body ->
        is_ra_of fn1 ra ->
-       value_of_ra m1 vm1 ra lret ->
+       value_of_ra p p' m1 vm1 ra lret ->
        is_sp_for_call fn1 s1 sp ->
        is_callee_saved_of fn1 callee_saved ->
        let: ssaved := sv_of_list id callee_saved in
@@ -3501,7 +3113,7 @@ End ILSTEPS_END.
       [/\ match_mem_gen (top_stack m0) (kill_tmp_call p f s1) m'
         , vm'.[vrsp] = Vword s
         , vm2_b =[\ Sv.add vrsp (killed_on_entry ra) ] vm'
-        , value_of_ra m' vm' ra o
+        , value_of_ra p p' m' vm' ra o
         , preserved_metadata (kill_tmp_call p f s1) (lmem ls1) m'
         , target_mem_unchanged (lmem ls1) m'
         & eval_instr p' licall ls = ok ls'
@@ -5163,6 +4775,8 @@ Qed.
       [/\ lvm'.[vid (lp_rsp p')] = Vword (top_stack m)
         , match_mem m' lm'
         , target_mem_unchanged m (align_top_stack (top_stack m) fd.(f_extra)) fd.(f_extra).(sf_stk_max) lm lm'
+        , escs s' = escs ls'
+        , stack_stable s.(emem) s'.(emem)
         & forall res,   get_var_is false  vm' fd.(f_res) = ok res →
           exists2 res', get_var_is false lvm' lfd.(lfd_res) = ok res' &
              List.Forall2 value_uincl res res']

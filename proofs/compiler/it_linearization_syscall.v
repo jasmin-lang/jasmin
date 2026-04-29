@@ -30,6 +30,7 @@ Require Import fexpr fexpr_sem fexpr_facts.
 Require Export linearization linear_sem linear_facts core_logics relational_logic.
 Require Import xrutt xrutt_facts.
 
+Require Import linearization_proof.
 (* The parent file: provides all the helper lemmas
    (match_mem_gen_*, preserved_metadata_*, exec_syscall_*, vm_after_syscall_*,
     syscall_killP, etc.) used in the body of [Hsyscall]. *)
