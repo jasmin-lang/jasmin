@@ -585,19 +585,6 @@ end  = struct
 
 end
 
-(* Fold with error accumulation for items in the AST *)
-let fold_items_with_errors (items : 'a list) 
-    (acc_env : error_accumulator * 'asm Env.env)
-    (tt_one : error_accumulator * 'asm Env.env -> 'a -> error_accumulator * 'asm Env.env) 
-    : error_accumulator * 'asm Env.env =
-  List.fold_left (fun acc_env item ->
-    try tt_one acc_env item
-    with TyError (loc, err) as e ->
-      match acc_env with
-      | (Some acc, env) -> Some ((loc, err) :: acc), env
-      | (None, _) -> raise e
-  ) acc_env items
-
 (* -------------------------------------------------------------------- *)
 let tt_pointer dfl_writable (p:S.ptr) : W.reference =
   match p with
@@ -2703,7 +2690,7 @@ let rec tt_item arch_info (acc, (env : 'asm Env.env)) pt : error_accumulator * '
     List.fold_left (tt_file_loc arch_info from) (acc, env) fs
   | S.PNamespace (ns, items) ->
      let env = Env.enter_namespace env ns in
-     let acc, env = fold_items_with_errors items (acc, env) (tt_item arch_info) in
+     let acc, env = List.fold_left (tt_item arch_info) (acc, env) items in
      let env = Env.exit_namespace env in
      acc, env
   | S.PTypeAlias (id,ty) -> with_accumulator acc (fun () -> tt_typealias arch_info env id ty) () env
@@ -2723,7 +2710,7 @@ and tt_file arch_info (acc, env) from loc fname =
         let loc = Option.map_default (fun l -> Lone l) Lnone loc in
         hierror ~loc ~kind:"typing" "error reading file %S (%s)" fname err
     in
-    let acc, env = fold_items_with_errors ast (acc, env) (tt_item arch_info) in
+    let acc, env = List.fold_left (tt_item arch_info) (acc, env) ast in
     let env = Env.exit_file env in
     acc, env, ast
 
