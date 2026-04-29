@@ -2,17 +2,17 @@ open Prog
 
 type modulename = Name.t
 
-type 'len modulearg =
+type ('len,'info, 'asm) modulearg =
   | MaParam of 'len gexpr
   | MaGlob  of 'len gexpr
-  | MaFun   of funname
+  | MaFun   of ('len,'info, 'asm) gfunc
 
-type 'len moduleargs = 'len modulearg list
+type ('len,'info, 'asm) moduleargs = ('len,'info, 'asm) modulearg list
 
-type 'len module_app =
+type ('len,'info, 'asm) module_app =
   { ma_name : modulename;
     ma_func : modulename;
-    ma_args : 'len moduleargs; }
+    ma_args : ('len,'info, 'asm) moduleargs; }
 
 type 'len funsig =
   {
@@ -37,7 +37,7 @@ type ('len,'info,'asm) functor_def =
 and  ('len,'info,'asm) gmodule_item =
   | MdItem of ('len,'info,'asm) gmod_item
   | MdFunctor of ('len,'info,'asm) functor_def
-  | MdModApp  of 'len module_app
+  | MdModApp  of ('len,'info, 'asm) module_app
 
 type ('len,'info,'asm) gmprog = ('len,'info,'asm) gmodule_item list
    (* first declaration occur at the end (i.e reverse order) *)
@@ -47,11 +47,11 @@ type ('info, 'asm) mpprog = (pexpr_,'info,'asm) gmprog
 
 type ('len,'info,'asm) ms_funs =
   | MsFun of ('len,'info, 'asm) gfunc
-  | MsModApp of 'len module_app
+  | MsModApp of ('len,'info, 'asm) module_app
 
 type ('len,'info,'asm) ms_modules =
   | MsMod of ('len,'info, 'asm) module_summary
-  | MsClone of 'len module_app
+  | MsClone of ('len,'info, 'asm) module_app
 
 and ('len,'info, 'asm) module_summary = {
   name : string;

@@ -110,7 +110,7 @@ module MEnv = struct
     ; mi_ast: (S.pitem L.located) list
     ; mi_decls : (P.pexpr_, unit, 'asm) M.gmodule_item list
     ; mi_opened: M.modulename list
-    ; mi_instances : ((P.pexpr_ M.modulearg list)*(M.modulename list)*M.modulename) list
+    ; mi_instances : (((P.pexpr_,unit, 'asm) M.modulearg list)*(M.modulename list)*M.modulename) list
     }
 
   let functor_from_modinfo modname modinfo =
@@ -262,9 +262,9 @@ let pp_pprog ~debug fmt p =
       in st, p::ps
 
 
-  let push_ground_modparam _ (st: 'asm Env.store) mparam arg =
-    match mparam, arg with
-    | Mprog.MaParam x, Mprog.Param x' ->  
+  let push_ground_modparam _ (st: 'asm Env.store) arg mparam =
+    match arg,mparam with
+    | Mprog.MaParam x, Mprog.Param x' -> 
       let ty = P.gety_of_gty x'.v_ty in
       let new_name = match BatString.split_on_string ~by:"::" x'.v_name with
         | [] -> x'.v_name
@@ -280,19 +280,11 @@ let pp_pprog ~debug fmt p =
       in
       let x' = P.PV.mk (new_name) W.Const x'.v_ty (x'.v_dloc) [] in
       Env.Vars.push_global st (x', ty, P.GEword (x))
-    | Mprog.MaFun f, Fun _ ->
-      (*
+    | Mprog.MaFun f, Fun f' ->
       let fs_tin = f'.fs_tyin |> List.map P.gety_of_gty in
       let fs_tout = f'.fs_tyout |> List.map P.gety_of_gty in
       (*FIXME: confirm if function types match*)
-      *)
-      let name = match BatString.split_on_string ~by:"::" f.fn_name with (*FIXME - refactor this logic *)
-        | [] -> f.fn_name
-        | names -> List.hd (List.rev names) 
-      in
-      let pfs,fs = Env.Funs.find name st |> Option.get in
-      let f = Option.get pfs.f_pfunc in
-      let st = Env.Funs.push st f fs in
+      let st = Env.Funs.push st f { fs_tin ; fs_tout } in
       st
     |_, _ ->
       rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Type error: wrong type of module argument")
@@ -301,14 +293,14 @@ let pp_pprog ~debug fmt p =
     function
     | [],_ 
     | _, [] -> st, []
-    | x::xs, a::args ->
-      let st, p = push_ground_modparam pd st x a
-      in let st, ps = push_ground_modparams pd st (xs,args)
+    | a::args, p::params ->
+      let st, p = push_ground_modparam pd st a p
+      in let st, ps = push_ground_modparams pd st (args,params)
       in st, p::ps
 
-  let enter_ground_module pd modname mparams args menv =
+  let enter_ground_module pd modname args mparams menv =
     let menv = upd_store (Env.enter_namespace modname) menv in
-    let st, plist = push_ground_modparams pd menv.me_store (mparams,args)
+    let st, plist = push_ground_modparams pd menv.me_store (args,mparams)
     in if !Glob_options.debug
       then (Printf.eprintf "\nENTER ground %s #mparams %d,%d \n%!" (L.unloc modname) (List.length mparams) (List.length plist));
     { menv with 
@@ -643,6 +635,7 @@ let mt_margs pd menv _ mparams margs =
       st, MaGlob e, []
     | M.Fun pf, S.PEVar v ->
       let func,_ = tt_fun v st
+      in let f = Option.get func.f_pfunc
       in let tres, targs = f_sig func
       in if !Glob_options.debug
       then (Printf.eprintf "\nTC FNarg %s (%d,%d) (%d,%d) \n%!"
@@ -658,14 +651,15 @@ let mt_margs pd menv _ mparams margs =
         | None ->
           let doit m =
             { m with Env.gb_funs = Map.add name (func, {fs_tin; fs_tout}) m.Env.gb_funs }
-          in let s_bindings =
+          in
+          let s_bindings =
                match st.s_bindings with
                | [], bot -> [], doit bot
                | (_, _, true) :: _, _ -> assert false 	(* opened namespaces are readonly *)
                | (ns, top, false) :: stack, bot ->
                  (ns, doit top, false) :: stack, bot
           in { st with s_bindings },
-             M.MaFun func.f_name, []
+             M.MaFun f, []
         | Some fd ->
           Env.err_duplicate_fun name (func, ()) fd
       end
@@ -688,13 +682,6 @@ let has_instance insts args =
   | Some (_,mnames,iname) -> Some (mnames,iname)
   | None -> None
 
-let print_margs fmt (args:P.pexpr_ M.moduleargs) =
-  let pp_arg fmt = function
-    | M.MaParam e -> Format.fprintf fmt "param(%a);" (Printer.pp_pexpr ~debug:true) e
-    | M.MaGlob e -> Format.fprintf fmt "glob(%a);" (Printer.pp_pexpr ~debug:true) e
-    | M.MaFun f -> Format.fprintf fmt "fun(%s);" f.fn_name
-  in
-  Format.fprintf fmt "[%a]" (pp_list "" pp_arg) args
 
 let rename_module_bindings _ full_name _ modfunc (st:'asm Env.global_bindings) =
   let rename_value v =
@@ -1098,14 +1085,12 @@ let rec add_suffix_instr new_vars new_funcs suffix (instr:('len,'info,'asm) P.gi
       let name = replace_with_suffix suffix fname.fn_name in
       match Map.find_opt name new_funcs with
       | Some fname' -> 
-
         P.Ccall (lvs',fname',es')
       | None -> P.Ccall (lvs',fname,es')
     in
     { instr with i_desc }
 
 let add_suffix_item new_vars new_funcs (suffix:string*string) item =
-  if fst suffix = snd suffix then new_vars,new_funcs,item else  
   match item with 
   | P.MIfun f ->
       let new_vars', f_args = List.fold_left (fun (nv, args) arg ->
@@ -1114,13 +1099,13 @@ let add_suffix_item new_vars new_funcs (suffix:string*string) item =
             ) (new_vars, []) f.f_args in
       let f_tyin = List.map (fun ty -> change_ty new_vars' suffix ty) f.f_tyin in
       let f_tyout = List.map (fun ty -> change_ty new_vars' suffix ty ) f.f_tyout in
-      let f_body = List.map (add_suffix_instr new_vars' new_funcs suffix) f.f_body in
-      let _, f_ret = List.fold_left (fun (nv, rets) v ->
+      let new_vars', f_ret = List.fold_left (fun (nv, rets) v ->
             let v' = L.unloc v in
             let nv', v' = get_new_gvar nv suffix v' in
             let v' = L.mk_loc (L.loc v) v' in
             (nv', rets @ [v'])
             ) (new_vars', []) f.f_ret in
+      let f_body = List.map (add_suffix_instr new_vars' new_funcs suffix) f.f_body in
       let new_name = replace_with_suffix suffix f.f_name.P.fn_name in
       let f' = {f with P.f_name = P.F.mk (new_name); f_args;f_tyin;f_tyout;f_ret;f_body} in
       let new_funcs = Map.add new_name f'.P.f_name new_funcs in
@@ -1206,7 +1191,7 @@ let instantiate_pprog menv =
                   let name = replace_with_suffix suffix_mod (fs.name.fn_name) in
                   let fname = P.F.mk name in
                   let new_funcs = Map.add name fname new_funcs in
-                  let f =  match Env.Funs.find fn.fn_name menv.me_store with
+                  let f =  match Env.Funs.find fn.f_name.fn_name menv.me_store with
                   | Some (pfs,_) -> 
                     begin match pfs.Env.f_pfunc with
                     | Some pf -> pf
