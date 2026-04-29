@@ -257,7 +257,6 @@ type hierror = {
   err_internal : bool;                     (* whether the error is unexpected                  *)
 }
 exception HiError of hierror
-exception HiErrorList of hierror list
 
 (* We fetch from [i_loc] the locations coming from the inlining pass *)
 let add_iloc e i_loc =
@@ -340,19 +339,6 @@ let hierror ~loc ?funname ~kind ?sub_kind ?(internal=false) =
         err_internal = internal;
       } in
       raise (HiError err))
-
-let hierror_list ?funname ~kind ?sub_kind ?(internal=false) pp l =
-  let l = List.map (fun (loc, msg) ->
-    let err = {
-      err_msg = (fun fmt ->Format.fprintf fmt "%a" pp msg);
-      err_loc = Lone loc;
-      err_funname = funname;
-      err_kind = kind;
-      err_sub_kind = sub_kind;
-      err_internal = internal;
-    } in
-    err) l in
-  raise (HiErrorList l)
 
 (* -------------------------------------------------------------------- *)
 (** Splits a time in seconds into hours, minutes, seconds, and centiseconds.

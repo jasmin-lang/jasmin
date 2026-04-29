@@ -216,8 +216,9 @@ let parse arch_info ctxt fname =
       let _env, pprog, _ast = Compile.parse_file arch_info fname in
       pprog
     with
-    | Pretyping.TyErrorList _ ->
-        assert false
+    | Pretyping.TyError (loc, msg) ->
+        hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror
+          msg
     | Syntax.ParseError (loc, msg) ->
         hierror ~loc:(Lone loc) ~kind:"parsing" "%s: %s" ctxt
           (Option.default "parse error" msg)

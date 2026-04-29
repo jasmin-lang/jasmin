@@ -20,10 +20,11 @@ let load_file name =
     let open Pretyping in
     try
       name
-      |> tt_file Arch.arch_info (Some [], Env.empty) None None
+      |> tt_file Arch.arch_info (None, Env.empty) None None
       |> fun (_, env, _)-> Env.decls env
       |> Compile.preprocess Arch.pointer_data Arch.msf_size Arch.asmOp
-    with TyErrorList _ ->      
+    with TyError (loc, e) ->
+      Format.eprintf "%a: %a@." Location.pp_loc loc pp_tyerror e;
       assert false
   in
   (funnames prog, Conv.cuprog_of_prog prog)

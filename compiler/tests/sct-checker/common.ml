@@ -12,12 +12,13 @@ let load_file name =
   let open Pretyping in
   match
     name
-    |> tt_file Arch.arch_info (Some [], Env.empty) None None
+    |> tt_file Arch.arch_info (None, Env.empty) None None
     |> fun (_, env, _)-> Env.decls env
     |> Compile.preprocess Arch.pointer_data Arch.msf_size Arch.asmOp
     |> Compile.do_spill_unspill Arch.asmOp
   with
-  | exception TyErrorList _ ->
+  | exception TyError (loc, e) ->
+      Format.eprintf "%a: %a@." Location.pp_loc loc pp_tyerror e;
       assert false
   | exception Syntax.ParseError (loc, None) ->
       Format.eprintf "Parse error: %a@." Location.pp_loc loc;

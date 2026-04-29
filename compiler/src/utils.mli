@@ -132,8 +132,6 @@ type hierror = {
   err_internal : bool;                     (* whether the error is unexpected                  *)
 }
 exception HiError of hierror
-exception HiErrorList of hierror list
-
 
 val add_iloc : hierror -> Location.i_loc -> hierror
 val pp_hierror : Format.formatter -> hierror -> unit
@@ -144,13 +142,6 @@ val hierror :
       loc:error_loc -> ?funname:string -> kind:string
    -> ?sub_kind:string -> ?internal:bool
    -> ('a, Format.formatter, unit, 'b) format4 -> 'a
-
-val hierror_list :
-    ?funname:string -> kind:string
-    -> ?sub_kind:string -> ?internal:bool
-    -> (Format.formatter -> 'a -> unit)
-    -> (Location.t * 'a) list
-    -> 'b
 
 (* -------------------------------------------------------------------- *)
 val pp_now  : Format.formatter -> unit

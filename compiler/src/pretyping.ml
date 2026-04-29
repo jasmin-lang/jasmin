@@ -56,7 +56,6 @@ type tyerror =
   | StringError of string
 
 exception TyError of L.t * tyerror
-exception TyErrorList of (L.t * tyerror) list
 
 (* Error resilience: accumulate errors instead of stopping at first one *)
 type error_accumulator = (L.t * tyerror) list option
@@ -2734,7 +2733,7 @@ let tt_program arch_info (env : 'asm Env.env) (fname : string) =
   let acc, env, ast = tt_file arch_info (acc, env) None None fname in
   let () =
   match acc with
-  | None | Some []-> ()
+  | None -> ()
   | Some acc -> 
     let h_errors = List.map (fun (loc, msg) ->
     let err = {

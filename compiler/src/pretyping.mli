@@ -1,6 +1,6 @@
 type tyerror
 
-exception TyErrorList of (Location.t * tyerror) list
+exception TyError of Location.t * tyerror
 
 (* Error resilience types *)
 type error_accumulator = (Location.t * tyerror) list option

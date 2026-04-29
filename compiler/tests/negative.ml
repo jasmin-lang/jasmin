@@ -60,7 +60,7 @@ let config path =
 (* Some statistics *)
 type counters = {
   mutable annot : int;
-  pretyping : int;
+  mutable pretyping : int;
   mutable parsing : int;
   mutable typing : int;
   mutable hi : int;
@@ -90,8 +90,9 @@ let check_file_on_arch path errors arch =
     | Annot.AnnotationError (loc, code) ->
         printf "%a: %t" Location.pp_loc loc code;
         counters.annot <- counters.annot + 1
-    | Pretyping.TyErrorList _ ->
-      assert false
+    | Pretyping.TyError (loc, code) ->
+        printf "%a: %a\n\n" Location.pp_loc loc Pretyping.pp_tyerror code;
+        counters.pretyping <- counters.pretyping + 1
     | Syntax.ParseError (loc, msg) ->
         printf "%a: %s\n\n" Location.pp_loc loc
           (Option.default "parse error" msg);

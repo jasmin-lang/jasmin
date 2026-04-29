@@ -125,7 +125,8 @@ let main () =
     let env, pprog, _ast =
       try Compile.parse_file Arch.arch_info ~idirs:!Glob_options.idirs infile
       with
-      | Pretyping.TyErrorList l -> hierror_list ~kind:"typing error" Pretyping.pp_tyerror l
+      | Pretyping.TyError (loc, code) ->
+          hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
       | Syntax.ParseError (loc, msg) ->
           let msg =
             match msg with
@@ -270,10 +271,6 @@ let main () =
 
   | Utils.HiError e ->
     Format.eprintf "%a@." pp_hierror e;
-    exit 1
-
-  | Utils.HiErrorList l ->
-    List.iter (fun e -> Format.eprintf "%a@." pp_hierror e) l;
     exit 1
 
   | UsageError ->
