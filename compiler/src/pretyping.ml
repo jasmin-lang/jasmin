@@ -2,6 +2,7 @@
 open Utils
 open FunctionAnnotations
 open Operators
+open Glob_options
 module Path = BatPathGen.OfString
 module F = Format
 module L = Location
@@ -2058,7 +2059,7 @@ let rec tt_assert pd env pe =
     P.Pand (tt_assert pd env pe1, tt_assert pd env pe2)
   | _ -> P.Pexpr (tt_expr_bool pd env pe)
 
-let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
+let rec tt_instr arch_info acc (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : error_accumulator * 'asm Env.env * (unit, 'asm) P.pinstr list  =
   let annot = pannot_to_annotations pannot in
   let mk_i ?(annot=annot) instr =
     { P.i_desc = instr; P.i_loc = L.of_loc pi; P.i_info = (); P.i_annot = annot} in
@@ -2233,74 +2234,111 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
 
   match L.unloc pi with
   | S.PIdecl (ty, vds) ->
+    let acc, env =
+     with_accumulator acc (fun() ->
      List.fold (fun env v ->
          let var = tt_vardecl (fun _ -> true) arch_info.pd env ((annot, ty), v) in
          Env.Vars.push_local env (L.unloc var))
        env
-       vds, []
+       vds) () env in
+    acc, env, []
 
   | S.PIdeclinit (ty,vds) ->
-    List.fold (fun (env, acc) v ->
+    let acc, (env, s) =
+    with_accumulator acc (fun() ->
+    List.fold (fun (env, cmd_acc) v ->
         let env, cmd = tt_annot_decl env v (annot, ty) in
-        env, acc @ cmd)
+        env, cmd_acc @ cmd)
       (env, [])
-      vds
+      vds) () (env, []) in
+    acc, env, s
 
   | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
+    let acc, (env, s) =
+    with_accumulator acc (fun() ->
     let x, xty = tt_var `AllVar env x in
     let xi = (L.mk_loc lc x) in
-    env, [mk_i (arr_init (xi, xty))]
+    env, [mk_i (arr_init (xi, xty))]) () (env, []) in
+    acc, env, s
 
-  | S.PIAssign (ls, eqop, pe, ocp) -> env, tt_assign env env ls eqop pe ocp
+  | S.PIAssign (ls, eqop, pe, ocp) -> 
+    let acc, s = with_accumulator acc (fun() -> tt_assign env env ls eqop pe ocp) () [] in
+    acc, env, s
 
   | PIAssert (msg, pe) ->
-     let e  = tt_assert arch_info.pd env pe in
-     env, [mk_i (P.Cassert (L.unloc msg, e))]
+    let acc, s  = with_accumulator acc (fun() -> 
+      let e = tt_assert arch_info.pd env pe in
+      [mk_i (P.Cassert (L.unloc msg, e))]
+    ) () [] in
+    acc, env, s
 
   | PIIf (cp, st, sf) ->
-      let c  = tt_expr_bool arch_info.pd env cp in
-      let st = tt_block arch_info env st in
-      let sf = Option.map_default (tt_block arch_info env) [] sf in
-      env, [mk_i (P.Cif (c, st, sf))]
+      let acc, o_c  = with_accumulator acc (fun() ->
+              Some(tt_expr_bool arch_info.pd env cp)) () None in
+      let acc, st = tt_block arch_info acc env st in
+      let acc, sf = Option.map_default (tt_block arch_info acc env) (acc, []) sf in
+      let s =
+      match o_c with
+      | None -> []
+      | Some c -> [mk_i (P.Cif (c, st, sf))]
+      in acc, env, s
 
   | PIFor ({ pl_loc = lx } as x, (d, i1, i2), s) ->
-      let i1   = tt_expr_int arch_info.pd env i1 in
-      let i2   = tt_expr_int arch_info.pd env i2 in
-      let vx, xty = tt_var `AllVar env x in
-      check_ty_eq ~loc:lx ~from:xty ~to_:P.etint;
-      let s    = tt_block arch_info env s in
+      let make_index () =
+        let i1   = tt_expr_int arch_info.pd env i1 in
+        let i2   = tt_expr_int arch_info.pd env i2 in
+        let vx, xty = tt_var `AllVar env x in
+        check_ty_eq ~loc:lx ~from:xty ~to_:P.etint;
+        Some (i1, i2, vx) in
+      let acc, o_index = with_accumulator acc make_index () None in
+      let acc, s = tt_block arch_info acc env s in
       let d    = match d with `Down -> E.DownTo | `Up -> E.UpTo in
-      env, [mk_i (P.Cfor (L.mk_loc lx vx, (d, i1, i2), s))]
-
+      let s =
+        match o_index with 
+        | Some (i1, i2, vx) -> 
+              [mk_i (P.Cfor (L.mk_loc lx vx, (d, i1, i2), s))]
+        | None -> []
+       in
+      acc, env, s
+      
   | PIWhile (s1, e, s2) ->
-      let c  = tt_expr_bool arch_info.pd env e in
-      let s1 = Option.map_default (tt_block arch_info env) [] s1 in
-      let s2 = Option.map_default (tt_block arch_info env) [] s2 in
-      let a =
-        Option.map_default (fun () -> E.Align) E.NoAlign (Annot.ensure_uniq1 "align" Annot.none annot) in
-      let annot = Annot.consume "align" annot in
-      env, [mk_i ~annot (P.Cwhile (a, s1, c, ((L.of_loc e, []), ()), s2))]
+      let acc, c  = with_accumulator acc (fun() -> Some (tt_expr_bool arch_info.pd env e)) () None in
+      let acc, s =
+        match c with
+        | None -> acc, []
+        | Some c ->
+          let acc, s1 = Option.map_default (tt_block arch_info acc env) (acc, []) s1 in
+          let acc, s2 = Option.map_default (tt_block arch_info acc env) (acc, []) s2 in
+          let a =
+            Option.map_default (fun () -> E.Align) E.NoAlign (Annot.ensure_uniq1 "align" Annot.none annot) in
+            let annot = Annot.consume "align" annot in
+            acc, [mk_i ~annot (P.Cwhile (a, s1, c, ((L.of_loc e, []), ()), s2))]
+          in
+          acc, env, s
+          
 
 (* -------------------------------------------------------------------- *)
-and tt_block arch_info env (pb : S.pblock) =
-  snd (tt_cmd arch_info env (L.unloc pb))
+and tt_block arch_info acc env (pb : S.pblock) =
+  let acc, _, cmd =
+    tt_cmd arch_info acc env (L.unloc pb) in
+    acc, cmd
 
-and tt_cmd arch_info env c =
+and tt_cmd arch_info acc env c =
   match c with
-  | [] -> env, []
+  | [] -> acc, env, []
   | i::c ->
-    let env, i = tt_instr arch_info env i in
-    let env, c = tt_cmd arch_info env c in
-    env, i @ c
+    let acc, env, i = tt_instr arch_info acc env i in
+    let acc, env, c = tt_cmd arch_info acc env c in
+    acc, env, i @ c
 
 (* -------------------------------------------------------------------- *)
-let tt_funbody arch_info env (pb : S.pfunbody) =
-  let env, bdy = tt_cmd arch_info env pb.S.pdb_instr in
+let tt_funbody arch_info acc env (pb : S.pfunbody) =
+  let acc, env, bdy = tt_cmd arch_info acc env pb.S.pdb_instr in
   let ret_loc = L.loc pb.pdb_ret in
   let ret =
     let for1 x = L.mk_loc (L.loc x) (tt_var `AllVar env x) in
     List.map for1 (Option.default [] (L.unloc pb.pdb_ret)) in
-  (bdy, ret_loc, ret)
+  acc, (bdy, ret_loc, ret)
 
 
 (* -------------------------------------------------------------------- *)
@@ -2541,51 +2579,66 @@ let tt_contract arch_info env0 f_ret dfl_mut pf =
   in
   (annot, f_contract)
 
+let rec opt_list_to_list_opt l =
+  match l with
+  | [] -> Some []
+  | x :: xs ->
+      match x, opt_list_to_list_opt xs with
+      | Some x, Some xs -> Some (x :: xs)
+      | _ -> None
+
 (* -------------------------------------------------------------------- *)
-let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env =
+let tt_fundef arch_info (acc, (env0 : 'asm Env.env)) loc (pf : S.pfundef) : error_accumulator * 'asm Env.env =
   let env = Env.Vars.clear_locals env0 in
-  if is_combine_flags pf.pdf_name then
-    rs_tyerror ~loc:(L.loc pf.pdf_name) (string_error "invalid function name");
+  let check_function_name () = 
+    if is_combine_flags pf.pdf_name then
+      rs_tyerror ~loc:(L.loc pf.pdf_name) (string_error "invalid function name") in
+  let acc, () = with_accumulator acc (check_function_name) () () in
   let inret = Option.map_default (List.map L.unloc) [] (L.unloc pf.pdf_body.pdb_ret) in
   let dfl_mut x = List.mem x inret in
 
-  let envb, args =
-    let env, args = List.map_fold (tt_annot_paramdecls dfl_mut arch_info.pd) env pf.pdf_args in
+  let acc, envb, args =
+  let (acc, env), args = List.map_fold (fun (acc, env) arg -> 
+    let acc, (env, arg) =
+    with_accumulator acc (fun () -> tt_annot_paramdecls dfl_mut arch_info.pd env arg) ()  (env, []) in
+    (acc, env), arg) (acc, env) pf.pdf_args in
     let env = add_known_implicits arch_info env pf.pdf_body.pdb_instr in
-    env, List.flatten args in
-  let fs_tout = Option.map_default (List.map (tt_type arch_info.pd env |- snd |- snd)) [] pf.pdf_rty in
+    acc, env, List.flatten args in
+  let acc, fs_tout = Option.map_default (List.map_fold (fun acc rty -> with_accumulator acc (fun () -> Some (tt_type arch_info.pd env (snd (snd rty)))) () None) acc) (acc, []) pf.pdf_rty in
   let ret_annot = Option.map_default (List.map fst) [] pf.pdf_rty in
   let ret_annot = List.map pannot_to_annotations ret_annot in
-  let body, ret_loc, xret = tt_funbody arch_info envb pf.pdf_body in
+  let acc, (body, ret_loc, xret) = tt_funbody arch_info acc envb pf.pdf_body in
   let f_args = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) args in
   let fs_tin = List.map (fun x -> snd (L.unloc x)) args in
   let f_ret = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) xret in
-  let f_cc = tt_call_conv loc f_args f_ret pf.pdf_cc in
-  let annot, f_contract = tt_contract arch_info env0 f_ret dfl_mut pf in
+  let acc, f_cc = with_accumulator acc (fun () -> Some (tt_call_conv loc f_args f_ret pf.pdf_cc)) () None in
+  let acc, o_contract = with_accumulator acc (fun () -> Some(tt_contract arch_info env0 f_ret dfl_mut pf)) () None in
   let name = L.unloc pf.pdf_name in
-  let fdef =
-    { P.f_loc   = loc;
-      P.f_annot = process_f_annot loc name f_cc annot;
-      P.f_contract;
-      P.f_cc    = f_cc;
-      P.f_info  = ();
-      P.f_name  = P.F.mk name;
-      P.f_tyin  = List.map P.gty_of_gety fs_tin;
-      P.f_args  = List.map L.unloc f_args;
-      P.f_body  = body;
-      P.f_tyout = List.map P.gty_of_gety fs_tout;
-      P.f_ret_info = { ret_annot; ret_loc };
-      P.f_ret   = f_ret; } in
-
-  check_return_statement ~loc fdef.P.f_name fs_tout
-    (List.map (fun x -> L.loc x, snd (L.unloc x)) xret);
-
-  warn_unused_variables envb fdef;
-
+  let f_name = P.F.mk name in  
   let return_storage = Option.map_default (List.map (fst |- snd)) [] pf.pdf_rty in
-  check_return_storage ~loc fdef.P.f_name return_storage f_ret;
-
-  Env.Funs.push env0 fdef {fs_tin; fs_tout}
+  let acc, () = with_accumulator acc (fun () -> check_return_storage ~loc f_name return_storage f_ret) () () in
+  let acc, env =
+  match opt_list_to_list_opt fs_tout, f_cc, o_contract with
+    | Some(fs_tout), Some(f_cc), Some(annot, f_contract) ->
+      let acc, () = with_accumulator acc (fun () -> check_return_statement ~loc f_name fs_tout
+      (List.map (fun x -> L.loc x, snd (L.unloc x)) xret)) () () in
+      let fdef =
+      { P.f_loc   = loc;
+        P.f_annot = process_f_annot loc name f_cc annot;
+        P.f_contract;
+        P.f_cc    = f_cc;
+        P.f_info  = ();
+        P.f_name  = P.F.mk name;
+        P.f_tyin  = List.map P.gty_of_gety fs_tin;
+        P.f_args  = List.map L.unloc f_args;
+        P.f_body  = body;
+        P.f_tyout = List.map P.gty_of_gety fs_tout;
+        P.f_ret_info = { ret_annot; ret_loc };
+        P.f_ret   = f_ret; } in
+      warn_unused_variables envb fdef;
+      acc, Env.Funs.push env0 fdef {fs_tin; fs_tout}
+  | _ -> acc, env0
+  in acc, env
 
 (* -------------------------------------------------------------------- *)
 let tt_global_def pd env (gd:S.gpexpr) =
@@ -2640,7 +2693,7 @@ let tt_typealias arch_info env id ty =
 let rec tt_item arch_info (acc, (env : 'asm Env.env)) pt : error_accumulator * 'asm Env.env =
   match L.unloc pt with
   | S.PParam  pp -> with_accumulator acc (tt_param arch_info.pd env (L.loc pt)) pp env
-  | S.PFundef pf -> with_accumulator acc (fun () -> tt_fundef arch_info env (L.loc pt) pf) () env
+  | S.PFundef pf -> tt_fundef arch_info (acc, env) (L.loc pt) pf
   | S.PGlobal pg -> with_accumulator acc (fun () -> tt_global arch_info.pd env (L.loc pt) pg) () env
   | S.Pexec   pf -> with_accumulator acc (fun () ->
     Env.Exec.push (L.loc pt)
@@ -2677,12 +2730,23 @@ and tt_file arch_info (acc, env) from loc fname =
 
 (* -------------------------------------------------------------------- *)
 let tt_program arch_info (env : 'asm Env.env) (fname : string) =
-  let acc = Some [] in
+  let acc = if !collect_errors then Some [] else None in
   let acc, env, ast = tt_file arch_info (acc, env) None None fname in
+  let () =
   match acc with
-  | None -> env, Env.decls env, ast
-  | Some [] -> env, Env.decls env, ast
-  | Some acc -> raise (TyErrorList acc)
+  | None | Some []-> ()
+  | Some acc -> 
+    let h_errors = List.map (fun (loc, msg) ->
+    let err = {
+      err_msg = (fun fmt ->Format.fprintf fmt "%a" pp_tyerror msg);
+      err_loc = Lone loc;
+      err_funname = None;
+      err_kind = "typing";
+      err_sub_kind = None;
+      err_internal = false;
+    } in
+    err) acc in List.iter (fun e -> Format.eprintf "%a@." pp_hierror e) h_errors in
+    env, Env.decls env, ast
 
 (* FIXME :
    - Les fonctions exportees doivent pas avoir de tableau en argument,

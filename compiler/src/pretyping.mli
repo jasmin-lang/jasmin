@@ -67,10 +67,11 @@ val tt_param :
 
 val tt_fundef :
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
+  error_accumulator *
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
   Location.t ->
   Syntax.pfundef ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
+  error_accumulator * ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
 
 val tt_global :
   Wsize.wsize -> 'asm Env.env -> 'a -> Syntax.pglobal -> 'asm Env.env
