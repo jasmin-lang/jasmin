@@ -27,7 +27,7 @@ Require Import
   xrutt_facts
 .
 
-Section HOARE.
+Section IND_PPL.
 
 Context
   {wa : WithAssert}
@@ -42,11 +42,6 @@ Context
   {rE : RndEvent syscall_state -< E}
   {iEr : InvErr}
   {iE0 : InvEvent E0}
-.
-
-Section PROOF.
-
-Context
   {pT : progT}
   {scP : semCallParams}
   {p : prog (pT := pT)}
@@ -58,15 +53,15 @@ Lemma hoare_fun_rec ii fn : hoare_f_rec p ev spec preF ii fn postF.
 Proof. by move=> fs hpre /=; apply lutt_trigger. Qed.
 
 Definition hoare_io_rec P c Q :=
-  hoare_io (iE0 := invEvent_recCall spec) p ev P c Q.
+  hoare_io (wa := wa) (iE0 := invEvent_recCall spec) p ev P c Q.
 
 Let hoare_io_fun_body_hyp_rec Pf fn Qf Qerr :=
     [/\ forall fs e, Pf fn fs -> Qerr fs e -> rInvErr (estate0 fs) e
       & match get_fundef (p_funcs p) fn with
         | None => forall fs, Qerr fs ErrType
         | Some fd =>
-          [/\ forall fs, Pf fn fs -> sem_pre p fn fs = ok tt
-            , forall fs fr, Pf fn fs -> Qf fn fs fr -> sem_post p fn fs.(fvals) fr = ok tt
+          [/\ forall fs e, Pf fn fs -> sem_pre p fn fs = Error e -> invErr (mk_error_data (estate0 fs) e)
+            , forall fs fr e, Pf fn fs -> Qf fn fs fr -> sem_post p fn fs.(fvals) fr = Error e -> invErr (mk_error_data (estate0 fs) e)
             & exists P Q,
               [/\ rhoare_io (Pf fn) (initialize_funcall p ev fd) P Qerr
                 , forall fs, Pf fn fs -> hoare_io_rec (P fs) fd.(f_body) Q
@@ -77,7 +72,7 @@ Let hoare_io_fun_body_hyp_rec Pf fn Qf Qerr :=
 
 Lemma hoare_io_fun_body Pf fn Qf Qerr :
   hoare_io_fun_body_hyp_rec Pf fn Qf Qerr ->
-  hoare_f_body (iE0 := invEvent_recCall spec) (iEr := iEr) p ev Pf fn Qf.
+  hoare_f_body (wa := wa) (iE0 := invEvent_recCall spec) (iEr := iEr) p ev Pf fn Qf.
 Proof.
   move=> hf; rewrite /hoare_f_body /isem_fun_body.
   apply khoare_ioP => fs hPf. have [/(_ _ _ hPf) herr {}hf] := hf.
@@ -88,8 +83,8 @@ Proof.
   move=> fd hfd; move: hf; rewrite hfd => -[Pre Post [P] [Q] [hinit hbody hQerr hfin]].
   apply khoare_read with PredT.
   + move => ? ?; subst.
-    rewrite /isem_pre Pre => //=.
-    by apply lutt_Ret.
+    rewrite /isem_pre; case hpre: sem_pre => [[]|e]; first by apply lutt_Ret.
+    by apply: lutt_Vis => //=; rewrite preInv_Throw; apply: Pre hPf hpre.
   move => _ _.
   apply khoare_read with (P fs).
   + move=> _ ->; have := hinit _ hPf.
@@ -106,17 +101,17 @@ Proof.
     exact: hfin hs1.
   move => s' hQf.
   apply khoare_read with PredT.
-  + move => ? ?; subst.
-    rewrite /isem_post Post => //=.
-    by apply lutt_Ret.
+  + move=> ? ?; subst.
+    rewrite /isem_post; case hpost: sem_post => [[]|e]; first by apply lutt_Ret.
+    by apply: lutt_Vis => //=; rewrite preInv_Throw; apply: Post hPf hQf hpost.
   move => ????; subst.
   by apply lutt_Ret.
 Qed.
 
 Lemma ihoare_io_fun Qerr fn ii :
   (forall fn, hoare_io_fun_body_hyp_rec preF fn postF Qerr) ->
-  hoare_f_ii (sem_F := sem_fun_full) p ev preF ii fn postF.
-Proof using.
+  hoare_f_ii (sem_F := sem_fun_full (wa := wa)) p ev preF ii fn postF.
+Proof.
 move=> h fs hpre.
 apply: (interp_mrec_lutt (DPEv := preD spec) (DPAns := postD spec)).
 - move=> {hpre fn fs} A [{}ii fn fs] /= hpre.
@@ -130,10 +125,9 @@ apply: lutt_weaken => //; first exact: weak_pre.
 exact: weak_post.
 Qed.
 
-End PROOF.
-End HOARE.
+End IND_PPL.
 
-Section HOARE.
+Section MEMEQ.
 
 Context
   {wa : WithAssert}
@@ -148,8 +142,6 @@ Context
   {rE : RndEvent syscall_state -< E}
 .
 
-Section PROOF.
-
 Context
   {pT : progT}
   {scP : semCallParams}
@@ -159,7 +151,6 @@ Context
 
 #[local] Existing Instance trivial_invErr.
 #[local] Existing Instance trivial_invEvent.
-#[local] Existing Instance noassert.
 
 #[local] Instance spec : HoareSpec :=
   {|
@@ -167,7 +158,7 @@ Context
     postF_ := fun _ fs fs' => mem_equiv (fmem fs) (fmem fs');
   |}.
 
-Notation ihoare_io_rec := (hoare_io_rec (p := p) (ev := ev)).
+Notation ihoare_io_rec := (hoare_io_rec (wa := wa) (p := p) (ev := ev)).
 
 Section IND.
 
@@ -243,7 +234,8 @@ apply: (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c} //; subst Pc Pi.
       exact: write_lvals_mem_equiv h.
     + done.
 - move=> a ii; apply/hoare_ioP => s _.
-  by apply: (hoare_assert ev ii (Qerr := rInvErr s)) => //.
+  apply: (hoare_assert ev ii (Qerr := rInvErr s)) => // _ -> //.
+  by case: sem_assert.
 - move=> e c1 c2 hc1 hc2 ii; apply/hoare_ioP => s _.
   apply: (hoare_if ii (Qerr := rInvErr s)) => //.
   - by move=> * /=; case: sem_cond.
@@ -273,19 +265,19 @@ apply: (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c} //; subst Pc Pi.
   - move=> xs fn es ii; apply/hoare_ioP => s _.
     apply: (hoare_call'
             (Qerr := fun _ => True)
-            (* (Pf:= fun fn fs => (emem s) = (fmem fs)) *)
             (Rv:= fun vs => preF fn (mk_fstate vs s))
-              )  => //=;
-            only 3: exact: hoare_fun_rec.
+            )  => //=; only 4: exact: hoare_fun_rec.
      + exact: rhoare_true.
      + by move => ?? ->.
-     + move=> fs fr H1 H2.
-       apply wrhoareP => i o []  -> [] ? Hfs.
-       rewrite /upd_estate => //=.
-       case h: write_lvals => [s''|e] //= [] <-.
-       apply: mem_equiv_trans (write_lvals_mem_equiv h).
-       apply: mem_equiv_trans H2.
-       by rewrite Hfs.
+     + by move=> ? _ ? _; case: sem_pre.
+     + by move=> ??? _  _ _ ?; case: sem_post.
+     move=> fs fr H1 H2.
+     apply wrhoareP => i o []  -> [] ? Hfs.
+     rewrite /upd_estate => //=.
+     case h: write_lvals => [s''|e] //= [] <-.
+     apply: mem_equiv_trans (write_lvals_mem_equiv h).
+     apply: mem_equiv_trans H2.
+     by rewrite Hfs.
 Qed.
 
 End IND.
@@ -320,18 +312,32 @@ t_xrbindP=> vs _ s0 /h {}h /write_vars_memP heq _ _ _ _ <- /= {fs''}.
 by apply/h; rewrite heq; apply/hq.
 Qed.
 
-End PROOF.
+End MEMEQ.
+
+Section INSTANCES.
+
+Context
+  {wa : WithAssert}
+  {wsw:WithSubWord}
+  {dc:DirectCall}
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
+  {E E0: Type -> Type}
+  {wE: with_Error E E0}
+  {rE : RndEvent syscall_state -< E}
+.
 
 #[local] Existing Instance trivial_invErr.
 #[local] Existing Instance trivial_invEvent.
-#[local] Existing Instance noassert.
 
 Lemma sem_fun_mem_equiv_uprog (p : uprog) ev fn ii :
   hoare_f_ii (sem_F := sem_fun_full) p ev
     relT
     ii fn
     (fun _ fs fs' => mem_equiv (fmem fs) (fmem fs')).
-Proof. by apply: sem_fun_mem_equiv => s1 s2 m2 ef /= [<-]. Qed.
+Proof. by apply sem_fun_mem_equiv => s1 s2 m2 ef /= [<-]. Qed.
 
 Lemma sem_fun_mem_equiv_sprog (p : sprog) ev fn ii :
   hoare_f_ii (sem_F := sem_fun_full) p ev
@@ -339,7 +345,7 @@ Lemma sem_fun_mem_equiv_sprog (p : sprog) ev fn ii :
     ii fn
     (fun _ fs fs' => mem_equiv (fmem fs) (fmem fs')).
 Proof.
-apply: sem_fun_mem_equiv => s1 s2 m2 ef /=.
+apply sem_fun_mem_equiv => s1 s2 m2 ef /=.
 rewrite /init_stk_state /finalize_stk_mem.
 t_xrbindP=> m1 /Memory.alloc_stackP hass /=.
 do 2!rewrite write_var_eq_type //=; move=> [<-] /= [hss hvalid].
@@ -349,4 +355,4 @@ split.
 by apply (alloc_free_validw_stable hass hss hvalid).
 Qed.
 
-End HOARE.
+End INSTANCES.

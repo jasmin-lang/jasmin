@@ -114,8 +114,6 @@ Definition full_pre fn xfd s t :=
       & Forall3 (value_uincl_or_in_mem mt) (get_wptrs up fn) args argt
     ].
 
-(* TODO why [t'.(asm_rip)] and not from [t]? *)
-
 Definition full_post fn xfd s t s' t' :=
   let: args := s.(fvals) in
   let: ms := s.(fmem) in
@@ -168,7 +166,7 @@ have heq_xfd : xfd2 = xfd by move: get_xfd2; rewrite get_xfd => [[->]].
 subst xfd2.
 
 (* ======================================================================= *)
-(* STEP 1: construct the intermediate sp-level fstate [fs_sp] that bridges *)
+(* construct the intermediate sp-level fstate [fs_sp] that bridges *)
 (*         the uincl_or_in_mem precondition (FULL.pre) with the            *)
 (*         eq_or_in_mem precondition expected by FE.                       *)
 (*                                                                         *)
@@ -273,6 +271,19 @@ have/(FE _ tt) h_fe : front_end_pre up sp (asm_rip xm) fn fn fs fs_sp.
     by rewrite (compiler_back_end_to_asm_meta print_linearP ok_xp).
   by rewrite hsp_scs. (* fscs fs = fscs fs_sp  <- STEP 1 hsp_scs. *)
 
+have hvalidw_u :=
+  [elaborate sem_fun_mem_equiv_uprog
+    (wa := withassert)
+    (asm_op := extended_op)
+    (ep := ep_of_asm_e)
+    (spp := spp_of_asm_e)
+    (sip := sip_of_asm_e)
+    (wsw := nosubword)
+    (dc := indirect_c)
+    up tt (fn := fn)] dummy_instr_info fs I.
+have {}h_fe := lutt_xrutt_trans_l hvalidw_u h_fe.
+clear hvalidw_u.
+
 have hvalidw :=
   [elaborate sem_fun_mem_equiv_sprog
     (asm_op := extended_op)
@@ -316,6 +327,227 @@ apply: xrutt_weaken_v1;
   by exists e3'.
 - move=> fs' xm' [] fs_sp' h_fe_post h_be_post.
   split.
+  (* =====================================================================
+     PLAN: prove `mem_agreement (fmem fs') (asm_mem xm') (asm_rip xm')
+                                (asm_globs xp)`
+     -----------------------------------------------------------------
+     This is the IT analogue of compiler_proof.v:1303-1315. The non-IT
+     proof picks the SP-level intermediate memory `mi'` as the witness
+     and chains:
+       - extend_mem (post-FE)
+       - match_mem (post-BE)
+       - stack_stable (uprog) ; stack_stable (initial) ; stack_stable (sprog)
+       - stack_range (rewritten via ss_limit and asmsem_invariant_ss)
+     The witness here is `fmem fs_sp'`. Three pieces are missing in the
+     IT setting and must be added by structural changes BEFORE filling
+     this admit:
+       (S1) source-side stack-stable     : stack_stable (fmem fs)  (fmem fs')
+       (S2) sprog-side stack-stable      : already in h_fe_post (mem_equiv part)
+       (S3) asm-side rip + stack-stable  : asm_rip xm = asm_rip xm'
+                                           /\ stack_stable (asm_mem xm)
+                                                           (asm_mem xm')
+
+     STRUCTURAL CHANGE A (in this file, it_compiler_proof_2.v)
+     ---------------------------------------------------------
+     Add the source-side mem_equiv to h_fe via lutt_xrutt_trans_l.
+     Just BEFORE the existing block that adds the sprog mem_equiv
+     (currently lines 277-285), insert:
+
+         have hvalidw_u :=
+           [elaborate sem_fun_mem_equiv_uprog
+             (asm_op := extended_op)
+             (ep := ep_of_asm_e)
+             (spp := spp_of_asm_e)
+             (sip := sip_of_asm_e)
+             (wsw := nosubword)
+             (dc := indirect_c)
+             up tt (fn := fn)] dummy_instr_info fs I.
+         have {}h_fe := lutt_xrutt_trans_l hvalidw_u h_fe.
+         clear hvalidw_u.
+
+     `sem_fun_mem_equiv_uprog : forall (p : uprog) ev fn ii,
+        hoare_f_ii (sem_F := sem_fun_full) p ev relT ii fn
+                   (fun _ fs fs' => mem_equiv (fmem fs) (fmem fs'))`
+     lives in proofs/compiler/hoare_valid.v:329 and supplies the lutt.
+     The instance arguments mirror those of the existing
+     sem_fun_mem_equiv_sprog block, except [wsw := nosubword] and
+     [dc := indirect_c] (uprog side of the FE).
+
+     Order convention used by all destructures below: trans_l is run
+     BEFORE trans_r, so the final h_fe post is
+       (fun r1 r2 => mem_equiv (fmem fs_sp) (fmem r2)         (* outer  *)
+                  /\ mem_equiv (fmem fs)    (fmem r1)         (* middle *)
+                  /\ rpostF fn fn fs fs_sp r1 r2).            (* inner  *)
+     If you reverse the order (trans_r before trans_l), swap
+     `hmem_u`/`hmem_s` in the proof script below; the underscored
+     destructures are not affected.
+
+     STRUCTURAL CHANGE B (in proofs/compiler/it_compiler_proof.v)
+     -----------------------------------------------------------
+     State (and `Admitted.`) the IT analogue of `asmsem_invariantP`
+     (proofs/arch/arch_sem.v:601, which says `asmsem s s' -> s ≡ s'`).
+     This is a stand-alone `lutt` statement about `iasmsem_exportcall`
+     — exactly parallel to `sem_fun_mem_equiv_sprog` /
+     `sem_fun_mem_equiv_uprog`, but on the asm itree:
+
+         Lemma iasmsem_exportcall_invariantP
+           {E E0} {wE : with_Error E E0}
+           (xp : asm_prog) (fn : funname) (xm : asmmem) :
+           lutt
+             (errcutoff (is_error wE)) nocutoff
+             (fun T1 T2 (e1 : E T1) (e2 : E T2) => True)   (* PEv *)
+             (fun T1 T2 (e1 : E T1) _ (e2 : E T2) _ => True)(* PAns *)
+             (fun xm' => asm_rip xm = asm_rip xm'
+                       /\ stack_stable (asm_mem xm) (asm_mem xm'))
+             (iasmsem_exportcall xp fn xm).
+         Proof. Admitted.
+
+     (PEv/PAns shapes mirror those expected by `lutt_xrutt_trans_r`.
+      Use the same `errcutoff (is_error wE)`/`nocutoff` cut policy as
+      h_be. If elaboration complains about implicit arguments to
+      `lutt`, copy the section instances `wE`, `RndE00`, etc. as the
+      sprog/uprog blocks do.)
+
+     `iasmsem_exportcall` is defined at proofs/arch/arch_sem.v:727. The
+     proof (left admitted here) is the IT lifting of `asmsem_invariantP`
+     plus the trivial fact that `iasmsem_exportcall` only changes the
+     state through `iasmsem`, which itself preserves
+     `asmsem_invariant`. Concretely it would unfold the four `bind`s in
+     `iasmsem_exportcall`, push the lutt through each `err_result`/`ioget`
+     (via `lutt_bind` and `lutt_err_result`), and finish by reducing the
+     `iasmsem` step to `asmsem_invariantP`. None of that is needed to
+     consume the lemma below.
+
+     STRUCTURAL CHANGE C (in this file, it_compiler_proof_2.v)
+     ---------------------------------------------------------
+     Just AFTER the existing `back_end_to_asm_pre`/`/BE h_be` block
+     finishes (currently around line 304, right before
+     `apply: xrutt_weaken_v1; ...`), thread the new lutt into h_be:
+
+         have hinv :=
+           [elaborate iasmsem_exportcall_invariantP
+             (* fill in the same instance package as the sprog block:
+                wE, etc. *)
+             xp fn xm].
+         have {}h_be := lutt_xrutt_trans_r hinv h_be.
+         clear hinv.
+
+     After this, h_be has post
+       (fun r1 r2 => (asm_rip xm = asm_rip r2
+                      /\ stack_stable (asm_mem xm) (asm_mem r2))
+                  /\ back_end_to_asm_post cparams fn xfd fs_sp xm r1 r2).
+
+     Definitions of `back_end_to_asm_post` (it_compiler_proof.v:1079)
+     and `it_compiler_back_end_to_asmP` (it_compiler_proof.v:1092)
+     remain UNCHANGED.
+
+     STRUCTURAL CHANGE D (destructure updates in this file)
+     -----------------------------------------------------
+     Once changes A and C are in place, h_fe_post grows one outer
+     pair (uprog mem_equiv via trans_l) and h_be_post grows one outer
+     pair (asm invariant via trans_r). Update the existing patterns
+     (line numbers refer to current file state, before edits):
+
+       L320:  [_ _ <- _]              ~> [_ [_ _ <- _]]
+              [_ [_ _ _ _ <-]]        ~> [_ [_ [_ _ _ _ <-]]]
+       L322:  [[_ hvw] [_ _ _ U _]]   ~> [_ [[_ hvw] [_ _ _ U _]]]
+       L323:  [_ m2 _ hzsp]           ~> [_ [_ m2 _ hzsp]]
+       L340:  [_ [hfe1 hfe2 hfe3 hfe4 hfe5]]
+                ~> [_ [_ [hfe1 hfe2 hfe3 hfe4 hfe5]]]
+       L341:  case: h_be_post => hbe1 hbe2 hbe3 hbe4
+                ~> case: h_be_post => [hbe_inv [hbe1 hbe2 hbe3 hbe4]]
+                   (or `=> _ [hbe1 hbe2 hbe3 hbe4]` if the asm-inv
+                   pair is not needed in that subgoal).
+       L359:  [_ [_ hfe_uincl _ _ _]] ~> [_ [_ [_ hfe_uincl _ _ _]]]
+              [hbe_uincl _ _ _]       ~> [_ [hbe_uincl _ _ _]]
+
+     PROOF FOR THE ADMIT (assuming A,B,C,D applied)
+     ----------------------------------------------
+     Replace the `+ admit.` with the following ssreflect proof.
+     Variable hints used below:
+       hmga    : mem_agreement_with_ghost (fmem fs) (asm_mem xm)
+                                          (asm_rip xm) (asm_globs xp)
+                                          (fmem fs_sp)
+       h_fe_post : mem_equiv (fmem fs)    (fmem fs')        (* via L_l *)
+                /\ mem_equiv (fmem fs_sp) (fmem fs_sp')     (* via L_r *)
+                /\ [/\ Forall2 in_mem ; values_uincl
+                     ; it_extend_mem (fmem fs') (fmem fs_sp')   (* uses asm_rip xm
+                                                                  and sp_globs *)
+                     ; mem_unchanged_params ; fscs eq  ]
+       h_be_post : (asm_rip xm = asm_rip xm'                  (* from C *)
+                    /\ stack_stable (asm_mem xm) (asm_mem xm'))
+                /\ [/\ values_uincl
+                     ; match_mem (fmem fs_sp') (asm_mem xm')
+                     ; fscs eq
+                     & zeroized_s ]
+       it_extend_mem ms mt = extend_mem ms mt rip (sp_globs (p_extra sp))
+                                                         (rip = asm_rip xm)
+       compiler_back_end_to_asm_meta print_linearP ok_xp
+         : asm_globs xp = sp_globs (p_extra sp).
+
+     Proof script:
+
+         have [hmem_s [hmem_u [hfe_im _ hext _ _]]] := h_fe_post.
+         have [[hrip_eq hss_xm] [_ hmm _ _]] := h_be_post.
+         have hglobs := compiler_back_end_to_asm_meta print_linearP ok_xp.
+         (* hglobs : asm_globs xp = sp_globs (p_extra sp) *)
+         exists (fmem fs_sp'); split.
+         - (* extend_mem (fmem fs') (fmem fs_sp') (asm_rip xm') (asm_globs xp) *)
+           rewrite -hrip_eq hglobs.
+           (* goal: extend_mem (fmem fs') (fmem fs_sp') (asm_rip xm)
+                               (sp_globs (p_extra sp))                     *)
+           exact: hext.            (* it_extend_mem in disguise *)
+         - (* match_mem (fmem fs_sp') (asm_mem xm') *)
+           exact: hmm.
+         - (* stack_stable (fmem fs') (fmem fs_sp') *)
+           apply: stack_stable_trans (proj1 hmem_s).
+           (* now: stack_stable (fmem fs') (fmem fs_sp) *)
+           apply: stack_stable_trans hmga.(ma_stack_stable).
+           (* now: stack_stable (fmem fs') (fmem fs)    *)
+           by symmetry; exact: (proj1 hmem_u).
+         - (* wunsigned (stack_limit (fmem fs_sp')) <=
+              wunsigned (top_stack (asm_mem xm'))      *)
+           rewrite -(ss_limit (proj1 hmem_s)).
+           (* stack_limit (fmem fs_sp') = stack_limit (fmem fs_sp) *)
+           rewrite -(ss_top_stack hss_xm).
+           (* top_stack (asm_mem xm') = top_stack (asm_mem xm) *)
+           exact: hmga.(ma_stack_range).
+
+     Notes / pitfalls:
+       * `mem_equiv` from syscall_sem.v unfolds to
+           `stack_stable m m' /\ validw m =3 validw m'`.
+         Use `proj1` to extract stack_stable.
+       * `stack_stable_trans` and `Equivalence stack_stable` come from
+         the standard library of memory facts; if `transitivity (fmem
+         fs)` etc. are simpler in your goal shape, use them instead.
+       * `it_extend_mem` is just `extend_mem ms mt rip (sp_globs ...)`
+         under the section's `rip := asm_rip xm`. After the two
+         rewrites (rip via hrip_eq, globs via hglobs), the goal is
+         judgmentally the third conjunct of `front_end_post`.
+       * `back_end_to_asm_post` and `it_compiler_back_end_to_asmP` are
+         NOT modified. The asm invariant is added by composing h_be
+         with a stand-alone admitted lutt, exactly mirroring the way
+         sprog/uprog mem_equiv are added to h_fe.
+
+     SCOPE OF FILE EDITS
+       proofs/compiler/it_compiler_proof.v   : add stand-alone lemma
+                                               iasmsem_exportcall_invariantP
+                                               (Admitted). No other
+                                               edits — back_end_to_asm_post
+                                               and it_compiler_back_end_to_asmP
+                                               stay untouched.
+       proofs/compiler/it_compiler_proof_2.v : add lutt_xrutt_trans_l
+                                               block (A), add
+                                               lutt_xrutt_trans_r block
+                                               for the asm invariant
+                                               (C), update
+                                               destructures (D),
+                                               replace `+ admit.` by
+                                               the script above.
+       Do NOT touch any other file. Do NOT change `full_post` (the rip
+       is `t'.(asm_rip)` per the design choice, and the proof bridges
+       it via `hrip_eq` from the asm invariant lutt).
+     ===================================================================== *)
   + admit.
   + by have [_ _ <- _] := h_be_post; have [_ [_ _ _ _ <-]] := h_fe_post.
   + move=> hszs pr hdisj /negP hnvalid.
