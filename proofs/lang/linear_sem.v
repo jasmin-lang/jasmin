@@ -672,6 +672,49 @@ Proof using.
   case: ifP => hend; last by apply eutt_Ret; auto.
   apply HasPost.eutt_post_bind_eq with (λ i, lfn i = fn); last first.
   + by move => u hu; apply eutt_Ret; left.
+  apply HasPost.has_post_bind with (λ r, is_call i = None → lfn r = fn).
+  + rewrite /istep; case hsyscall: next_is_Lsyscall => [ o | ].
+    + rewrite /lexec_syscall /bind /= -!bind_bind.
+      apply HasPost.has_post_bind with (λ i, lfn i = fn); last first.
+      + by move => u hu; apply eutt_Ret.
+      apply HasPost.has_post_bind with (λ i, True).
+      + exact: HasPost.has_post_True.
+      move => u _; rewrite /lset_fstate.
+      case: upd_estate => e /=; first by apply eutt_Ret.
+      by apply eqit_Vis.
+    move: hsyscall; rewrite /is_call /next_is_Lsyscall /step.
+    case: find_instr => [ [] ii a | ] hsyscall; last by apply eqit_Vis.
+    {
+    rewrite /eval_instr; case: a hsyscall => //=.
+    + move => *.
+      case: sem_rexprs => ? /=; last by apply eqit_Vis.
+      case: exec_sopn => ? /=; last by apply eqit_Vis.
+      case: write_lexprs => ? /=; last by apply eqit_Vis.
+      by apply eqit_Ret.
+    + move => *.
+      apply HasPost.has_post_weaken with (λ _, True); last by [].
+      exact: HasPost.has_post_True.
+    + admit. (* FIXME: Lret *)
+    + by move => _; apply eqit_Ret.
+    + by move => > _; apply eqit_Ret.
+    + admit. (* FIXME: Lgoto *)
+    + admit. (* FIXME: Ligoto *)
+    + move => *.
+      case: rencode_label => ? /=; last by apply eqit_Vis.
+      case: set_var => ? /=; last by apply eqit_Vis.
+      by apply eqit_Ret.
+    + move => *.
+      case: (Let _ := sem_fexpr _ _ in _) => b /=; last by apply eqit_Vis.
+      case: b; last by apply eqit_Ret.
+      case: get_fundef => * /=; last by apply eqit_Vis.
+      case: find_label => ? /=; last by apply eqit_Vis.
+      by apply eqit_Ret.
+    }
+  move => j hj; case hcall: is_call => [ fn' | ]; last by apply eutt_Ret; auto.
+  apply HasPost.has_post_bind with (λ i, True).
+  + exact: HasPost.has_post_True.
+  move => k _; case: ifP; last  by move => _; apply eqit_Vis.
+  case/andP => /eqP ? _; apply  eutt_Ret; congruence.
 Admitted.
 
 Lemma mix_ilsem_exportcall_ilsem_exportcall fn s :
