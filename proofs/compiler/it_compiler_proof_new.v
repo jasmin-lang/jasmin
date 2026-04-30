@@ -72,6 +72,8 @@ Require Import hoare_valid.
 Require Import xrutt xrutt_facts.
 
 Require Import it_compiler_proof.
+Require Import it_compiler_proof_2.
+Require Import linearization_composition.
 
 
 Section IT.
@@ -82,6 +84,7 @@ Context
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {call_conv : calling_convention}
   {asm_scsem : asm_syscall_sem}
+  {it_asm_scsem : it_asm_syscall_sem}
   {lowering_options : Type}
   (aparams : architecture_params lowering_options)
   (haparams : h_architecture_params aparams)
@@ -103,13 +106,12 @@ Existing Instance HandlerContract_trans.
 Notation it_compiler_front_endP :=
   (it_compiler_front_endP haparams print_uprogP print_sprogP).
 
-(*
 Section BACK_END.
 
 Context
   (entries : seq funname)
-  (sp : sprog (pd := _pd) (asmop := _asmop))
-  (tp : lprog (asmop := _asmop))
+  (sp : sprog (pd := @_pd _ ep_of_asm_e) (asmop := @_asmop _ _ sip_of_asm_e))
+  (tp : lprog (asmop := @_asmop _ _ sip_of_asm_e))
   (rip : pointer)
   (rsp_in_callee_saved : Sv.In (vid sp.(p_extra).(sp_rsp)) one_varmap.callee_saved)
   (callee_saved_not_arr :
@@ -221,9 +223,12 @@ split.
    eutt-equivalent [ilsem_exportcall zp fn]. *)
 apply: wkequiv_io_eutt_r (tunnel_funcs ok_tp fn) _.
 
-(* use w_ovm *)
-
+apply: (wkequiv_io_trans _ _ w_ovm); cycle 2.
 apply: (wkequiv_io_trans _ _ w_lin); cycle 2.
+move=> i1 i2 hi.
+Arguments mix_ilsem_exportcall : clear implicits.
+apply (xrutt_trans _ (mix_ilsem_exportcall_ilsem_exportcall (ep := ep_of_asm_e)  (ovm_i := ovm_i) (spp := spp_of_asm_e) (sip := sip_of_asm_e) (rE := rndE) (wE := wE) lp fn i1)).
+
 - apply: (istack_zeroization_lprogP_new (hap_hszp haparams) _ ok_zp get_lfd_lp).
   + have hrsp_eq : lp_rsp lp = sp_rsp sp.(p_extra)
       by move: ok_lp; rewrite /linear_prog; t_xrbindP => _ _ _ <-.

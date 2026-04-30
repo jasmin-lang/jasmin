@@ -2623,7 +2623,7 @@ Proof.
   do 2!(eexists; first reflexivity).
   constructor => //; rewrite /setpc /=.
   by apply: asm_pos_incr hok_i hac heq hip; rewrite /= ok_c.
-Admitted.
+Qed.
 
 Lemma imatch_state_sem endpc endpc' ls xs :
   wf_endpc endpc endpc' ->

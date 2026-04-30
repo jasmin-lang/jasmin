@@ -15,6 +15,7 @@ From Coq Require Import ZArith Utf8.
 Import Relations.
 Require oseq.
 Require Import while it_sems_core psem fexpr_sem compiler_util label one_varmap linear sem_one_varmap mix_to_small_steps.
+Require Import xrutt xrutt_facts equiv_extras rutt_extras.
 
 Import Memory.
 
@@ -653,6 +654,39 @@ Proof.
     by rewrite /endpc eqxx; case: eqP => // ->.
   apply eqit_Vis => -[].
 Qed.
+
+#[local] Instance EqRels : EventRels E0 :=
+  {| EPreRel0_  := rutt_extras.RPre_eq;
+    EPostRel0_ := rutt_extras.RPost_eq;
+  |}.
+
+Lemma mix_ilsem_exportcall_ilsem_exportcall fn s :
+  xrutt.xrutt
+    (core_logics.errcutoff (is_error wE)) core_logics.nocutoff
+    rutt_extras.RPre_eq rutt_extras.RPost_eq
+    eq
+    (mix_ilsem_exportcall fn s) (ilsem_exportcall fn s).
+Proof.
+rewrite /mix_ilsem_exportcall /ilsem_exportcall.
+apply: (xrutt_bind (RR := eq)).
+- case: get_fundef => [fd|] /=; first by apply xrutt_Ret.
+  apply: xrutt_Vis => //=; by exists erefl.
+move=> fd _ <-.
+apply: (xrutt_bind (RR := eq)).
+- case: lfd_export => /=; first by apply xrutt_Ret.
+  apply: xrutt_Vis => //=; by exists erefl.
+move=> [] [] _.
+apply: (xrutt_bind (RR := eq)).
+- have := [elaborate mix_ilsem_ilsem fn (ls_export_initial (escs s) (emem s) (evm s) fn) ].
+  rewrite /mix_ilsem /mix_ilsem_fun.
+  rewrite interp_mrec_as_interp mrec_as_interp.
+  admit.
+move=> s' _ <-.
+apply: (xrutt_bind (RR := eq)).
+- case: all => /=; first by apply xrutt_Ret.
+  apply: xrutt_Vis => //=; by exists erefl.
+by move=> [] [] _; apply xrutt_Ret.
+Admitted.
 
 Lemma unfold_mix_ilsteps cond s :
   mix_ilsteps cond s ≈
