@@ -225,14 +225,14 @@ apply: wkequiv_io_eutt_r (tunnel_funcs ok_tp fn) _.
 
 apply: (wkequiv_io_trans _ _ w_ovm); cycle 2.
 apply: (wkequiv_io_trans _ _ w_lin); cycle 2.
-move=> i1 i2 hi.
-Arguments mix_ilsem_exportcall : clear implicits.
-apply (xrutt_trans _ (mix_ilsem_exportcall_ilsem_exportcall (ep := ep_of_asm_e)  (ovm_i := ovm_i) (spp := spp_of_asm_e) (sip := sip_of_asm_e) (rE := rndE) (wE := wE) lp fn i1)).
 
-- apply: (istack_zeroization_lprogP_new (hap_hszp haparams) _ ok_zp get_lfd_lp).
-  + have hrsp_eq : lp_rsp lp = sp_rsp sp.(p_extra)
-      by move: ok_lp; rewrite /linear_prog; t_xrbindP => _ _ _ <-.
-    by rewrite hrsp_eq.
+move=> i1 i2 ?.
+apply: xrutt_weaken; cycle 5.
+apply: (xrutt_trans (t3 := ilsem_exportcall (sip := sip_of_asm_e) zp fn i2) _ (mix_ilsem_exportcall_ilsem_exportcall (ep := ep_of_asm_e)  (ovm_i := ovm_i) (spp := spp_of_asm_e) (sip := sip_of_asm_e) (rE := rndE) (wE := wE) lp fn i1)); cycle 1.
+apply: (istack_zeroization_lprogP_new (hap_hszp haparams) _ ok_zp get_lfd_lp).
++ have hrsp_eq : lp_rsp lp = sp_rsp sp.(p_extra)
+    by move: ok_lp; rewrite /linear_prog; t_xrbindP => _ _ _ <-.
+  by rewrite hrsp_eq.
 - (* pre decomposition *)
   move=> fs s [] hrsp hrip hargs hm hscs hinit halloc.
   have halloc_lin :

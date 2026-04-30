@@ -452,7 +452,6 @@ Definition ilsem_exportcall (fn: funname) (es:estate) :=
   _ <- iresult (to_estate s') (assert (all (fun x => value_eqb (evm es).[x] vm'.[x]) (Sv.elements callee_saved)) ErrSemUndef);;
   Ret (to_estate s').
 
-(* TODO fail rather than stop executing *)
 Definition cond_not_syscall (cond : pred lstate) : Prop :=
   forall s, cond s -> ~~ isSome (next_is_Lsyscall s).
 
@@ -660,6 +659,13 @@ Qed.
     EPostRel0_ := rutt_extras.RPost_eq;
   |}.
 
+Lemma mix_ilsteps_in_fn s fn :
+  lfn s = fn ->
+  eutt eq
+    (mix_ilsteps (in_fn fn) s)
+    (mix_ilsteps (endpc fn) s).
+Proof using. Admitted.
+
 Lemma mix_ilsem_exportcall_ilsem_exportcall fn s :
   xrutt.xrutt
     (core_logics.errcutoff (is_error wE)) core_logics.nocutoff
@@ -676,17 +682,16 @@ apply: (xrutt_bind (RR := eq)).
 - case: lfd_export => /=; first by apply xrutt_Ret.
   apply: xrutt_Vis => //=; by exists erefl.
 move=> [] [] _.
-apply: (xrutt_bind (RR := eq)).
-- have := [elaborate mix_ilsem_ilsem fn (ls_export_initial (escs s) (emem s) (evm s) fn) ].
-  rewrite /mix_ilsem /mix_ilsem_fun.
-  rewrite interp_mrec_as_interp mrec_as_interp.
-  admit.
-move=> s' _ <-.
-apply: (xrutt_bind (RR := eq)).
-- case: all => /=; first by apply xrutt_Ret.
-  apply: xrutt_Vis => //=; by exists erefl.
-by move=> [] [] _; apply xrutt_Ret.
-Admitted.
+apply: (xrutt_bind (RR := eq)); last first.
+- move=> s' _ <-; apply: (xrutt_bind (RR := eq)).
+  - case: all => /=; first by apply xrutt_Ret.
+    apply: xrutt_Vis => //=; by exists erefl.
+  by move=> [] [] _; apply xrutt_Ret.
+rewrite /mix_ilsem_fun /mrec /=.
+move: I; rewrite interp_mrec_as_interp mix_ilsteps_in_fn //
+  -interp_mrec_as_interp => _.
+exact: mix_ilsem_ilsem.
+Qed.
 
 Lemma unfold_mix_ilsteps cond s :
   mix_ilsteps cond s ≈
