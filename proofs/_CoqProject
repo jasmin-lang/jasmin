@@ -33,6 +33,7 @@ compiler/end_to_end_indcca.v
 compiler/it_compiler_proof.v
 compiler/it_compiler_proof_2.v
 compiler/it_compiler_proof_new.v
+compiler/linearization_composition.v
 compiler/hoare_valid.v
 arch/asm_invariant.v
 

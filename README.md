@@ -1,5 +1,5 @@
 This is a copy of the Jasmin project extend with the work corresponding
-to the paper “The Jasmin Compiler Preserves Cryptographic Security”
+to the paper "KEM-IND-CCA-Preserving Compilation of Jasmin ML-KEM."
 
 
 # Download, installation, and sanity-testing instructions

@@ -30,6 +30,7 @@ Require Import
   arch_sem
 .
 Require Export it_sems_core_defs.
+Require Import it_sems_core. 
 
 Section WITH_PARAMS.
 
@@ -40,9 +41,13 @@ Context
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {call_conv : calling_convention}
   {asm_scsem : asm_syscall_sem}
+  {it_asm_scsem : it_asm_syscall_sem}
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
+  {rE : RndEvent syscall_state_t -< E}
 .
+
+#[local] Existing Instance asmsem_invariant_Equiv.
 
 Lemma iasmsem_exportcall_invariantP
   (xp : asm_prog) (fn : funname) (xm : asmmem) :
@@ -64,18 +69,28 @@ Proof.
   apply: (lutt_bind (R := fun s' => asmsem_invariant xm s'.(asm_m))).
   - apply: (lutt_iter (I := fun s => asmsem_invariant xm s.(asm_m))).
     + move=> s hI.
-      rewrite /iasmsem_body.
-      case: eqP => _.
+      rewrite /iasmsem_body /while.while_body.
+      case: ifP => _; last first.
       * cbn; apply lutt_Ret; exact: hI.
       * apply: (lutt_bind (R := fun s' => asmsem_invariant xm s'.(asm_m))).
         -- rewrite /ifetch_and_eval /err_result.
-           case h: (fetch_and_eval xp s) => [s' | e].
-           ++ apply lutt_Ret.
-              exact: Build_asmsem_invariant
-                (eq_trans (asmsem_invariant_rip hI)
-                   (asmsem_invariant_rip (asmsem1_invariant h)))
-                (stack_stable_trans (asmsem_invariant_stack_stable hI)
-                   (asmsem_invariant_stack_stable (asmsem1_invariant h))).
+           case hsc: asm_next_is_syscall => [o|].
+           - apply: (lutt_bind (lutt_true _)) => z _.
+             apply: (lutt_bind (lutt_true _)) => -[scs bytes] _.
+             case hsc': put_syscall_ans => [xm'|]; last first.
+             apply: (lutt_bind (R := asmsem_invariant xm));
+               first exact: lutt_Vis.
+             move=> xm' h'; by apply lutt_Ret.
+           - apply: (lutt_bind (R := asmsem_invariant xm)).
+             - apply lutt_Ret.
+               have [_ hrip hstk] := put_syscall_preserves hsc'.
+               by etransitivity; first exact: hI.
+           move=> xm'' hxm'; apply lutt_Ret.
+           by etransitivity; first exact: hxm'.
+         case h: (fetch_and_eval xp s) => [s' | e].
+         ++ apply lutt_Ret.
+              etransitivity; first exact: hI.
+              exact: asmsem1_invariant h.
            ++ apply: lutt_Vis => //; case.
         -- move=> s' hs'; cbn; apply lutt_Ret; exact: hs'.
     + done.

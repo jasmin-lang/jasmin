@@ -36,6 +36,8 @@ Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then
 #[local] Existing Instance withsubword.
 #[local] Opaque eval_jump.
 
+#[local] Existing Instance target_mem_unchanged_equiv.
+
 Section WITH_PARAMS.
 
 Context
@@ -1438,70 +1440,6 @@ Section PROOF.
   Qed.
 
   (* Valid memory is either valid in the source or on the stack *)
-  Definition source_mem_split m sp :=
-    forall p, validw m Aligned p U8 -> validw m0 Aligned p U8 || pointer_range sp sp0 p.
-
-  (* The end of the stack frame after allocating + aligning *)
-  Definition align_top sp ws sz :=
-    (top_stack_after_alloc sp ws sz + wrepr _ sz)%R.
-
-  Definition align_top_stack top e :=
-    align_top top e.(sf_align) (e.(sf_stk_sz) + e.(sf_stk_extra_sz)).
-
-  (* One interesting property of [align_top] is that, if [sz] is [ws]-aligned,
-     it is the same as just performing a [ws]-alignment. *)
-  Lemma align_top_aligned top ws sz :
-    (0 <= sz)%Z ->
-    (0 <= wunsigned top - sz < wbase Uptr)%Z ->
-    is_align sz ws ->
-    align_top top ws sz = align_word ws top.
-  Proof.
-    move=> hpos hb hal.
-    rewrite /align_top /top_stack_after_alloc.
-    apply wunsigned_inj.
-    rewrite wunsigned_add; last first.
-    + have := align_word_range ws (top + wrepr Uptr (- sz)).
-      rewrite wrepr_opp wunsigned_sub //.
-      have := wunsigned_range top.
-      have := wunsigned_range (align_word ws (top - wrepr Uptr sz)).
-      by lia.
-    rewrite !align_wordE wrepr_opp wunsigned_sub //.
-    rewrite Zminus_mod.
-    move/eqP: hal; rewrite WArray.p_to_zE => ->.
-    rewrite Z.sub_0_r Zmod_mod.
-    by lia.
-  Qed.
-
-  (* If [fn] is the export function, [sp0] is [sp] after allocating + aligning.
-     Otherwise, we know only that [sp] is smaller than [sp0]. *)
-  Definition max_bound fn (sp:pointer) :=
-    forall fd, get_fundef p.(p_funcs) fn = Some fd ->
-    let max := fd.(f_extra).(sf_stk_max) in
-    (max <= max0)%Z /\
-    (if is_RAnone fd.(f_extra).(sf_return_address) then
-      sp0 = align_top_stack sp fd.(f_extra)
-    else (0 <= wunsigned sp0 - wunsigned sp)%Z) /\
-    (wunsigned sp0 - wunsigned sp <= max0 - max)%Z.
-
-  Definition max_bound_sub fn (sp:pointer) :=
-    forall fd, get_fundef p.(p_funcs) fn = Some fd ->
-    let max := (fd.(f_extra).(sf_stk_max) - frame_size fd.(f_extra))%Z in
-    (0 <= wunsigned sp0 - wunsigned sp <= max0 - max)%Z.
-
-  (* The memory that is both not valid in the source and not in the stack
-      is unmodified. This is needed to prove the pass zeroing the stack. *)
-  Definition target_mem_unchanged m m' :=
-    forall p, ~ validw m0 Aligned p U8 -> ~ pointer_range (sp0 - wrepr _ max0) sp0 p ->
-    read m Aligned p U8 = read m' Aligned p U8.
-
-  Instance target_mem_unchanged_equiv : Equivalence target_mem_unchanged.
-  Proof.
-    split; first by [].
-    - by move => x y xy ptr hnv hnpr; rewrite xy.
-    move => x y z xy yz ptr hnv pr.
-    by rewrite xy; first exact: yz.
-  Qed.
-
 
 Context {E E0: Type -> Type} {wE: with_Error E E0} {rndE0 : RndEvent syscall_state -< E0}.
 
@@ -2484,8 +2422,8 @@ End ILSTEPS_END.
       , escs s1 = lscs ls1
       , match_mem_gen (top_stack m0) s1 m1
       , lfn ls1 = fn1
-      , source_mem_split s1 (top_stack (emem s1))
-      , max_bound fn1 (top_stack (emem s1))
+      , source_mem_split m0 sp0 s1 (top_stack (emem s1))
+      , max_bound p sp0 max0 fn1 (top_stack (emem s1))
       & exists body ra lret sp callee_saved,
           [/\ is_linear_of fn1 body
             , is_ra_of fn1 ra
@@ -2520,7 +2458,7 @@ End ILSTEPS_END.
          , stack_stable (emem s1) (emem s2)
          , preserved_metadata s1 m1 m2
          , match_mem_gen (top_stack m0) s2 m2
-         & target_mem_unchanged m1 m2].
+         & target_mem_unchanged m0 sp0 max0 m1 m2].
 
   Notation CallE := (mix_to_small_steps.CallE funname lstate).
 
@@ -2555,8 +2493,8 @@ End ILSTEPS_END.
       , lpc ls = size P
       , lfn ls = fn
       , (evm s).[vrsp] = Vword sp
-      , source_mem_split s sp
-      & max_bound_sub fn sp].
+      , source_mem_split m0 sp0 s sp
+      & max_bound_sub p sp0 max0 fn sp ].
 
   Definition inv_ir (P : lcmd) (s : estate) (ls : lstate) :=
     let sp := top_stack (emem s) in
@@ -2576,7 +2514,7 @@ End ILSTEPS_END.
       , lvm ls1 =[\ ks2.1 ] lvm ls2
       , validw (emem s1) =3 validw (emem ks2.2)
       , preserved_metadata s1 (lmem ls1) (lmem ls2)
-      & target_mem_unchanged (lmem ls1) (lmem ls2)].
+      & target_mem_unchanged m0 sp0 max0 (lmem ls1) (lmem ls2)].
 
   Definition post_c (P : lcmd) (ks1 : Sv.t * estate) (ls1 : lstate) (ks2 : Sv.t * estate) (ls2 : lstate) :=
     [/\ inv_c P ks2.2 ls2
@@ -2586,7 +2524,7 @@ End ILSTEPS_END.
       , validw (emem ks1.2) =3 validw (emem ks2.2)
       , stack_stable (CM:= (@CM (@_pd syscall_state ep))) ks1.2 ks2.2
       , preserved_metadata ks1.2 (lmem ls1) (lmem ls2)
-      & target_mem_unchanged (lmem ls1) (lmem ls2)].
+      & target_mem_unchanged m0 sp0 max0 (lmem ls1) (lmem ls2)].
 
   Definition post_i P (s1 : estate) (ls1 : lstate) (ks2 : Sv.t * estate) (ls2 : lstate) :=
     post_c P (Sv.empty, s1) ls1 ks2 ls2.
@@ -2980,7 +2918,7 @@ End ILSTEPS_END.
     zbetween (sp0 - wrepr Uptr max0) max0 top sz ->
     between top sz pr ws ->
     write m1 al pr w = ok m2 ->
-    target_mem_unchanged m1 m2.
+    target_mem_unchanged m0 sp0 max0 m1 m2.
   Proof.
     move=> hb1 hb2 ok_m2.
     move=> pr' hnv hnpr.
@@ -3115,7 +3053,7 @@ End ILSTEPS_END.
         , vm2_b =[\ Sv.add vrsp (killed_on_entry ra) ] vm'
         , value_of_ra p p' m' vm' ra o
         , preserved_metadata (kill_tmp_call p f s1) (lmem ls1) m'
-        , target_mem_unchanged (lmem ls1) m'
+        , target_mem_unchanged m0 sp0 max0 (lmem ls1) m'
         & eval_instr p' licall ls = ok ls'
       ].
     + rewrite /eval_instr /= /ra /get_label_after_pc /setpc /=.
@@ -3600,9 +3538,9 @@ End ILSTEPS_END.
     → (hi <= sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))%Z
     → let top := top_stack_after_alloc (top_stack (emem s1)) (sf_align (f_extra fd))
                       (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)) in
-    (∀ al (s : word Uptr) (w : wsize) (s0 : word w) (m m0 : low_memory.mem),
+    (∀ al (s : word Uptr) (w : wsize) (s0 : word w) (m m3 : low_memory.mem),
           between top (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)) s w
-          → write m al s s0 = ok m0 → target_mem_unchanged m m0)
+          → write m al s s0 = ok m3 → target_mem_unchanged m0 sp0 max0 m m3)
     → vm_initialized_on vm1 [seq i.1 | i <- to_save]
     → all_disjoint_aligned_between liparams lo hi (sf_align (f_extra fd)) to_save = ok tt
     → ∀ m2 : low_memory.mem,
@@ -3610,7 +3548,7 @@ End ILSTEPS_END.
         (* Maybe this lemma is used only with m = m0 *)
         → (wunsigned (top_stack (emem s1)) <= wunsigned (top_stack m0))%Z
         → match_mem_gen (top_stack m0) s1 m2
-        → target_mem_unchanged m1 m2
+        → target_mem_unchanged m0 sp0 max0 m1 m2
         → (sf_stk_sz (f_extra fd) <= lo)%Z
         → ∃ m3 : low_memory.mem,
             [/\ foldM (λ '(x, ofs) m,
@@ -3620,7 +3558,7 @@ End ILSTEPS_END.
                 write m Aligned (top + wrepr Uptr ofs)%R v) m2 to_save = ok m3
               , preserved_metadata s1 m2 m3
               , match_mem_gen (top_stack m0) s1 m3
-              & target_mem_unchanged m2 m3].
+              & target_mem_unchanged m0 sp0 max0 m2 m3].
   Proof.
     move=> ok_m1' stk_sz_pos stk_extra_sz_pos hle_rsp top spill_unchanged.
     have can_spill := mm_can_write_after_alloc _ ok_m1' stk_sz_pos stk_extra_sz_pos.
@@ -3652,8 +3590,9 @@ End ILSTEPS_END.
     rewrite topE => acc [] ok_acc Hacc ACC.
     have Hacc' : preserved_metadata s1 m1 acc.
     * transitivity m2; assumption.
-    have Uacc: target_mem_unchanged m2 acc.
+    have Uacc: target_mem_unchanged m0 sp0 max0 m2 acc.
     + apply: spill_unchanged ok_acc.
+      rewrite /target_mem_unchanged.
       rewrite /between /zbetween !zify.
       rewrite wunsigned_add; first by lia.
       have := (alloc_stackP ok_m1').(ass_above_limit); rewrite topE.
@@ -3661,7 +3600,7 @@ End ILSTEPS_END.
       have := [elaborate (wunsigned_range (top_stack (emem s1)))].
       have := wsize_size_pos ws.
       by lia.
-    have Uacc': target_mem_unchanged m1 acc.
+    have Uacc': target_mem_unchanged m0 sp0 max0 m1 acc.
     + transitivity m2; assumption.
     have ofs_lo': (sf_stk_sz (f_extra fd) <= ofs + wsize_size ws)%Z.
     * move: (sf_stk_sz _) sz'_le_lo ofs_lo (wsize_size_pos ws) => /=; lia.
@@ -4482,7 +4421,7 @@ Qed.
           read mi Aligned rsp Uptr = ok retptr,
           match_mem_gen (top_stack m0) s1 mi,
           preserved_metadata s1 (lmem t1) mi &
-          target_mem_unchanged (lmem t1) mi].
+          target_mem_unchanged m0 sp0 max0 (lmem t1) mi].
       + case: ra_call EQ ra_call_ty ok_ra { X} @P2 ok_body {ok_fd'}
           => [ra_call|] EQ ra_call_ty ok_ra P2 ok_body; last first.
         + (* ra_call = None, easy case: mi = m1 *)

@@ -31,6 +31,7 @@ Require Export asm_gen.
 Require Import relational_logic.
 Import Utf8.
 Import oseq.
+Require Import xrutt xrutt_facts equiv_extras.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
@@ -2041,11 +2042,17 @@ Qed.
 
 Section ITREE.
 
+Import Monads.
+Import MonadNotation.
+Local Open Scope monad_scope.
+
 Context
+  {it_asm_scsem : it_asm_syscall_sem}
   {E E0: Type -> Type}
   {wE: with_Error E E0}
   {rE0 : EventRels E0}
-  {rE : RndEvent syscall_state -< E}
+  {rE : RndEvent syscall_state -< E0}
+  {rndE0_refl : RndE0_refl rE0}
 .
 
 Definition wf_endpc (endpc endpc' : funname * nat) :=
@@ -2060,13 +2067,10 @@ Definition inv ls xs :=
       ssrfun.omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc
     & match_state rip ls lc xs.
 
-Import Monads.
-Import MonadNotation.
-Local Open Scope monad_scope.
-
 Lemma imatch_state_step1 endpc' xs ls' i :
   onth (asm_c xs) (asm_ip xs) = Some i →
   (endpc' == (asm_f xs, asm_ip xs)) = false →
+  ~~ isSome (asm_next_is_syscall xs) ->
   (exists2 xs' : asm_state,
        eval_instr p' (asmi_i i) xs = ok xs' &
        exists2 lc' : lcmd,
@@ -2076,8 +2080,8 @@ Lemma imatch_state_step1 endpc' xs ls' i :
         exists2 lc' : lcmd,
           ssrfun.omap lfd_body (get_fundef (lp_funcs p) (lfn ls')) = Some lc' & match_state rip ls' lc' xs'.
 Proof.
-  move=> hnth hend [xs' hev hinv]; exists xs' => //.
-  by rewrite /= /asmsem_body hend /fetch_and_eval hnth hev.
+  move=> hnth hend hsc [xs' hev hinv]; exists xs' => //.
+  by rewrite /= /asmsem_body /asm_endpc hend /fetch_and_eval hnth hev hsc /=.
 Qed.
 
 Lemma istep_AsmOp endpc' fd  ii ac0 ac1 c c' ls s xm xm' :
@@ -2133,10 +2137,10 @@ Proof.
            [seq {| asmi_ii := ii; asmi_i := AsmOp x.1 x.2 |} | x <- c' ++ (op, args) :: c] ++ flatten ac1;
          asm_ip := size (flatten ac0) + size (rcons c' (op, args))
        |}).
-  + rewrite /asmsem_body /=.
+  + rewrite /asmsem_body /asm_endpc /=.
     rewrite hpc; last first.
     + by rewrite size_map size_cat /= addnA leq_addr /= addnS ltnS leq_addr.
-    rewrite /fetch_and_eval /=.
+    rewrite /fetch_and_eval /= /asm_next_is_syscall.
     rewrite onth_cat lt_nm_n sub_nmn map_cat /=.
     rewrite -!catA onth_cat size_map ltnn subnn /=.
     by rewrite heval /st_update_next /= size_rcons addnS.
@@ -2168,6 +2172,197 @@ Proof.
   apply: (hagp_assemble_extra_sz hagparams) h.
 Qed.
 
+Lemma it_match_state_SysCall_eval fd ls ii sc ac0 ac1 xs :
+  let: li := MkLI ii (Lsyscall sc) in
+  lom_eqv rip (to_estate ls) (asm_m xs) ->
+  get_fundef (lp_funcs p) (lfn ls) = Some fd ->
+  lfn ls = asm_f xs ->
+  assemble_c agparams rip (lfd_body fd) = ok (asm_c xs) ->
+  mapM (assemble_i agparams rip) (take (lpc ls) (lfd_body fd)) = ok ac0 ->
+  flatten ac0 ++ [:: {| asmi_ii := ii ; asmi_i := SysCall sc |} ] ++ flatten ac1 = asm_c xs ->
+  asm_pos rip (lpc ls) (lfd_body fd) = asm_ip xs ->
+  onth (asm_c xs) (asm_ip xs) = onth ({| asmi_ii := ii ; asmi_i := SysCall sc |} :: flatten ac1) 0 ->
+  onth (lfd_body fd) (lpc ls) = Some li ->
+  xrutt
+    (core_logics.errcutoff (is_error wE)) core_logics.nocutoff
+    EPreRel EPostRel
+    inv
+    (lexec_syscall sc ls)
+    (asm_exec_syscall sc xs).
+Proof.
+  move=> hloeq ok_fd hfn hass hac heq hip hnth ok_i.
+  apply: xrutt_bind_iresult_left => ves hves /=.
+
+  have uves : List.Forall2 value_uincl ves
+      [seq Vword (asm_reg xs r)
+         | r <- take (size (scs_tin (syscall_sig_s sc))) call_reg_args].
+  - move: hves => /mapM_Forall2; rewrite /scs_vin /=.
+    elim: (take (size (scs_tin (syscall_sig_s sc))) call_reg_args) ves =>
+        [|r rs hi] [|v ves] /List_Forall2_inv //= [hr hrs].
+      constructor; last exact: hi hrs.
+      by apply: getreg hloeq hr.
+
+  rewrite /fexec_syscall /asm_exec_syscall /= bind_bind.
+  apply: (xrutt_bind (RR := fun n1 n2 =>
+    n1 = n2 /\ exec_syscall_arg_s sc [seq Vword (asm_reg xs r)
+         | r <- take (size (scs_tin (syscall_sig_s sc)))
+                  call_reg_args] = ok n1)).
+  - apply: (xrutt_iresult _ (to_estate ls)).
+    + move=> z hex; rewrite /get_syscall_args.
+      by rewrite (exec_syscall_argPs uves hex); exists z.
+    move=> n _ [<- hex]; rewrite bind_bind.
+    have [<- _ _ _ _ _ _ _] /= := hloeq.
+    apply: (xrutt_bind (RR := eq)).
+    - apply: xrutt_trigger.
+      rewrite -!mfun1_Rnd !mid21 /EPreRel /= !mfun1_Rnd.
+      exact: rE0_rnd_pre_refl.
+    - move=> [scs1 bytes1] [scs2 bytes2].
+      rewrite -!mfun1_Rnd !mid21 /EPostRel /= !mfun1_Rnd => h.
+      exact: [elaborate rE0_rnd_post_refl h ].
+    move=> [scs' bytes] [_ _] [<- <-].
+    apply (xrutt_bind (RR := fun (fs : fstate (ep := ep_of_asm_e) (sip := sip_of_asm_e)) xm' =>
+      [/\ fscs fs = asm_scs xm'
+        , fmem fs = asm_mem xm'
+        , fvals fs = [seq Vword (asm_reg xm' r)
+                     | r <- take (size (scs_tout (syscall_sig_s sc))) call_reg_ret]
+        & put_syscall_ans sc scs' bytes xs = ok xm' ])).
+    - apply: xrutt_bind_iresult_left => -[[scs'' m'] vres'] /= hst.
+      have := exec_syscall_storePs uves hst.
+      have [/= _ -> _ _ _ _ _ _] := hloeq.
+      move=> /(put_syscall_ans_spec hex) [xm' [-> hscs'' ??]]; subst m' vres'.
+      by apply xrutt_Ret.
+    move=> [_ _ _] xs' [/= -> -> -> hput].
+    apply: xrutt_bind_iresult_left => ls'.
+    rewrite /lset_fstate /upd_estate /=; t_xrbindP=> s hw ?; subst ls'.
+    apply xrutt_Ret.
+  rewrite /lnext_pc /st_update_next /=.
+  rewrite /with_scs /= in hw.
+  have [hpr hrip _] := put_syscall_preserves hput.
+
+  rewrite /inv /= ok_fd; exists (lfd_body fd) => //.
+  split => //=; last by apply: asm_pos_incr ok_i hac heq hip.
+  rewrite /to_estate /=.
+
+  case: hloeq => /= hscs hmem hgetrip hdisjrip hreg hregx hxreg hflag.
+  set R := vrvs (to_lvals (syscall_sig sc).(scs_vout)).
+  set X := Sv.union syscall_kill R.
+
+  have heqx: evm s =[\ X ] lvm ls.
+  - rewrite /X; apply: (eq_exT (vm2 := vm_after_syscall (lvm ls))).
+    + apply: eq_exI; last by apply eq_exS; apply: vrvsP hw => /=. SvD.fsetdec.
+    apply: (eq_exI (s2:= syscall_kill)); first SvD.fsetdec.
+    by move=> z /Sv_memP/negPf hz; rewrite /vm_after_syscall kill_varsE hz.
+
+  have hres:
+    forall r,
+      Sv.In (to_var r) R ->
+      value_uincl (evm s).[to_var r] (Vword (asm_reg xs' r)).
+  - move=> r.
+    rewrite /R vrvs_to_lvals => /sv_of_listP.
+    rewrite mem_map; last exact: inj_to_var.
+    have! h :=
+      (take_uniq (size (scs_tout (syscall_sig_s sc))) call_reg_ret_uniq).
+    move: hw r.
+    elim:
+      (take (size (syscall_sig_s sc).(scs_tout)) call_reg_ret)
+      {| evm := vm_after_syscall (lvm ls); |} h
+      => //= r rs ih s1 /andP [hnin huniq] hw r0.
+    rewrite (in_cons (T:= @ceqT_eqType _ _)) => /orP [];
+      last by apply: (ih _ huniq hw).
+    move=> /eqP ?; subst r0.
+    have h: ~ Sv.In (to_var r) (vrvs (to_lvals [seq to_var i | i <- rs])).
+    + rewrite vrvs_to_lvals.
+      move=> /sv_of_listP /(mapP (T1:= @ceqT_eqType _ _)) [r'] hr' h.
+      have ? := inj_to_var h; subst r'.
+      by rewrite hr' in hnin.
+    have [<-] := get_var_eq_ex false h (vrvsP hw).
+    by rewrite Vm.setP_eq /= cmp_le_refl.
+
+  have hkill :
+    forall x,
+      Sv.In x syscall_kill ->
+      ~ Sv.In x R ->
+      ~~ is_aarr (vtype x) ->
+      (evm s).[x] = undef_addr (eval_atype (vtype x)).
+  - move=> x /Sv_memP hin hnin.
+    have [<-] := get_var_eq_ex false hnin (vrvsP hw).
+    rewrite /get_var kill_varsE hin; by case: (vtype x).
+
+  constructor=> //=.
+  - by rewrite (write_lvals_escs hw).
+
+  - by apply: write_lvals_emem hw; apply: get_lvar_to_lvals.
+
+  - rewrite heqx /X; first by rewrite hgetrip hrip.
+    case: assemble_progP => -[] hripr hriprx hripxr hripf _ _ _.
+    move=> /Sv.union_spec [] hin.
+    + have := SvP.MP.FM.diff_1 hin.
+      rewrite /= /all_vars !Sv.union_spec => -[ | [ | []]] /sv_of_listP
+        /(mapP (T1:= @ceqT_eqType _ _)) => -[r _ hr];
+        [elim: (hripr r)|elim: (hriprx r)|elim: (hripxr r)|elim: (hripf r)];
+        by rewrite hr.
+    move: hin.
+    rewrite /R /= vrvs_to_lvals.
+    move=> /sv_of_listP /(mapP (T1:= @ceqT_eqType _ _)) [r _] hr.
+    by elim: (hripr r); rewrite hr.
+
+  - move=> r.
+    case: (Sv_memP (to_var r) R) => hinR; first by apply hres.
+    case: (Sv_memP (to_var r) syscall_kill) => hinK.
+    + by rewrite (hkill _ hinK hinR) /=.
+    move: (hinK); rewrite /syscall_kill => hnin.
+    have : Sv.In (to_var r) one_varmap.callee_saved.
+    + by have := reg_in_all r; SvD.fsetdec.
+    rewrite /one_varmap.callee_saved /= => /sv_of_listP /mapP [x] /hpr.
+    move=> h /to_var_typed_reg ?; subst x.
+    rewrite -h heqx // /X.
+    SvD.fsetdec.
+
+  - move=> r.
+    have hinR : ~ Sv.In (to_var r) R.
+    + rewrite /R /= vrvs_to_lvals => /sv_of_listP.
+      move=> /(mapP (T1 := @ceqT_eqType _ _)) [x _] /(@sym_eq var).
+      exact: to_var_reg_neq_regx.
+    case: (Sv_memP (to_var r) syscall_kill) => hinK.
+    + by have /(_ erefl) -> /= := hkill _ hinK hinR.
+    move: (hinK); rewrite /syscall_kill => hnin.
+    have : Sv.In (to_var r) one_varmap.callee_saved.
+    + have := regx_in_all r; SvD.fsetdec.
+    rewrite /one_varmap.callee_saved /= => /sv_of_listP /mapP [x] /hpr.
+    move=> h /to_var_typed_regx ?; subst x.
+    rewrite -h heqx // /X.
+    SvD.fsetdec.
+
+  - move=> r.
+    have hinR : ~ Sv.In (to_var r) R.
+    + rewrite /R /= vrvs_to_lvals => /sv_of_listP.
+      move=> /(mapP (T1 := @ceqT_eqType _ _)) [x _] /(@sym_eq var).
+      exact: to_var_reg_neq_xreg.
+    case: (Sv_memP (to_var r) syscall_kill) => hinK.
+    + by have /(_ erefl) -> /= := hkill _ hinK hinR.
+    move: (hinK); rewrite /syscall_kill => hnin.
+    have : Sv.In (to_var r) one_varmap.callee_saved.
+    + have := xreg_in_all r. SvD.fsetdec.
+    rewrite /one_varmap.callee_saved /= => /sv_of_listP /mapP [x] /hpr.
+    move=> h /to_var_typed_xreg ?; subst x.
+    rewrite -h heqx // /X.
+    SvD.fsetdec.
+
+  move=> r.
+  have hinR : ~Sv.In (to_var r) R.
+  + rewrite /R /= vrvs_to_lvals => /sv_of_listP.
+    by move=> /(mapP (T1 := @ceqT_eqType _ _)) [x _].
+  have hnc: ~ Sv.In (to_var r) one_varmap.callee_saved.
+  + move=>
+      /= /sv_of_listP /mapP [] f /(allP callee_saved_not_bool) h
+      /to_var_typed_flag ?.
+    by subst f.
+  have hinK : Sv.In (to_var r) syscall_kill.
+  + by rewrite /syscall_kill Sv.diff_spec;split => //; apply flag_in_all.
+  have /(_ erefl) -> /= := hkill _ hinK hinR.
+  by case: (asm_flag _ _).
+Qed.
+
 Lemma imatch_state_step endpc endpc' ls xs :
   wf_endpc endpc endpc' ->
   inv ls xs ->
@@ -2181,7 +2376,7 @@ Proof.
   move=> hwfend [lc omap_lc] ms.
   rewrite /while_body /untilpc.
   case: eqP.
-  + move=> heq; exists 0; rewrite /= /iasmsem_body.
+  + move=> heq; exists 0; rewrite /= /iasmsem_body /asm_endpc /while_body /=.
     suff -> : endpc' == (asm_f xs, asm_ip xs).
     + by apply xrutt.xrutt_Ret; constructor; exists lc.
     subst endpc; apply /eqP.
@@ -2207,14 +2402,8 @@ Proof.
   + rewrite -hip (onth_split ok_i) /asm_pos /assemble_c take_cat size_take.
     case: (ltnP (lpc ls) (size (lfd_body fd))) ok_i => [hn ok_i| /onth_default -> //].
     by rewrite ltnn subnn take0 cats0 hac /= -heq onth_cat ltnn subnn.
-  case ho: is_Lsyscall ok_i => [o|] ok_i.
-  - admit.
   exists (Nat.pred (size aci)).
-  rewrite i_asmsem_body_n.
-  case hsem: linear_sem.eval_instr  => /= [ls' | e]; last first.
-  + rewrite bind_throw; apply xrutt.xrutt_CutL.
-    by rewrite /core_logics.errcutoff /is_error /subevent /resum /fromErr mid12.
-  rewrite bind_ret_l.
+
   have hpc : forall pc, asm_ip xs <= pc < asm_ip xs + size aci -> (endpc' == (asm_f xs, pc)) = false.
   + move=> pc hpc.
     case: eqP => //= ?; subst endpc'.
@@ -2227,14 +2416,30 @@ Proof.
     move /andP: hpc => [/leP h3 /ltP h4].
     move: h1 h2 h3 h4; rewrite /addn.
     Lia.lia.
+
+  case ho: is_Lsyscall ok_i => [sc|] ok_i.
+  - case: i ho ok_i haci => [ii []] // _ [->] ok_i [?]; subst aci.
+    rewrite /=.
+    rewrite /iasmsem_body /while_body /asm_endpc.
+    rewrite hpc /=; last by rewrite leqnn addn1 ltnSn.
+    rewrite /ifetch_and_eval /asm_next_is_syscall hnth /=.
+    apply: (xrutt_facts.xrutt_bind (RR := inv)); last first.
+    - move=> ls' xs' h; apply xrutt.xrutt_Ret; by constructor.
+      exact:
+        it_match_state_SysCall_eval hloeq ok_fd heqf hass hac heq hip hnth ok_i.
+  case hsem: linear_sem.eval_instr  => /= [ls' | e]; last first.
+  + rewrite bind_throw; apply xrutt.xrutt_CutL.
+    by rewrite /core_logics.errcutoff /is_error /subevent /resum /fromErr mid12.
+  rewrite bind_ret_l.
+
   suff : [elaborate
             exists2 xs', asmsem_body_n p' endpc' (size aci).-1 xs = ok (inl xs')
                        & inv ls' xs'].
-  + move=> [xs' -> hinv'] /=.
+  + move=> [xs' /i_asmsem_body_n -> hinv'] /=.
     by apply xrutt.xrutt_Ret; constructor.
   rewrite /inv.
-  case: i ok_i haci hsem {ho} => /= li_ii [].
-  - move=> lvs op pes; rewrite /linear_sem.eval_instr /=.
+  case: i ho ok_i haci hsem => /= li_ii [] //=.
+  - move=> lvs op pes _; rewrite /linear_sem.eval_instr /=.
     case hdecl : is_declassify => [ d | ]; last first.
     + t_xrbindP.
       move=> honth c hopc ? args ok_args res ok_res m hw ?; subst aci ls'.
@@ -2266,6 +2471,7 @@ Proof.
       case: lvs honth => // honth [?] ?; subst.
       apply (imatch_state_step1 hnth) => /=.
       + by apply hpc; rewrite /= leqnn addn1 ltnSn.
+      + by rewrite /asm_next_is_syscall hnth.
       exists (st_update_next xs xs) => //.
       rewrite ok_fd; eexists; first reflexivity.
       constructor => //.
@@ -2278,6 +2484,7 @@ Proof.
     case: lvs honth => // honth [?] ?; subst.
     apply (imatch_state_step1 hnth) => /=.
     + by apply hpc; rewrite /= leqnn addn1 ltnSn.
+    + by rewrite /asm_next_is_syscall hnth.
     exists (st_update_next xs xs) => //.
     rewrite ok_fd; eexists; first reflexivity.
     constructor => //.
@@ -2285,18 +2492,13 @@ Proof.
     rewrite take_cat size_take.
     rewrite (onth_size honth) -(addn1 (lpc _)) lt_nm_n sub_nmn /= take0 assemble_c_cat.
     by move: hip; rewrite /asm_pos /assemble_c hac /= h0 /= size_cat /= addn1 => ->.
-
-  - move=> sc ok_i [?] hev; subst aci.
-    apply (imatch_state_step1 (ls' := ls') hnth) => /=.
-    + by apply hpc; rewrite /= leqnn addn1 ltnSn.
-    by have [_ ] := match_state_SysCall_eval hloeq ok_fd heqf hass hac heq hip hnth ok_i hev.
-
-  - move=> [xlr | ] r ok_i.
+  - move=> [xlr | ] r _ ok_i.
     + case heqlr: to_reg => [lr /= | //] [?]; subst aci.
       rewrite /linear_sem.eval_instr => /=; t_xrbindP => l hgetpc.
       t_xrbindP=> ptr /o2rP ptr_eq vm hset hjump.
       apply (imatch_state_step1 (ls' := ls') hnth) => /=.
       + by apply hpc; rewrite /= leqnn addn1 ltnSn.
+      + by rewrite /asm_next_is_syscall hnth.
       rewrite /return_address_from.
       have /= := assemble_get_label_after_pc hass ok_i _ heqf hip _ hgetpc.
       rewrite heqlr ok_fd /= => /(_ _ erefl erefl) [] _ ->.
@@ -2313,6 +2515,7 @@ Proof.
     t_xrbindP=> ptr /o2rP ptr_eq m1 hm1 /= => hjump.
     apply (imatch_state_step1 (ls' := ls') hnth) => /=.
     + by apply hpc; rewrite /= leqnn addn1 ltnSn.
+    + by rewrite /asm_next_is_syscall hnth.
     rewrite /return_address_from.
     have /= := assemble_get_label_after_pc hass ok_i _ heqf hip _ hgetpc.
     rewrite ok_fd /= => /(_ _ erefl erefl) [] _ ->.
@@ -2329,10 +2532,12 @@ Proof.
       by have [ ->] := to_var_rsp.
     move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ ad_rsp erefl).
     by case=> *; constructor => //.
-  - move=> hok_i [?]; subst aci; rewrite /linear_sem.eval_instr /=.
+
+  - move=> _ hok_i [?]; subst aci; rewrite /linear_sem.eval_instr /=.
     t_xrbindP=> wsp vsp hsp htow_sp ptr ok_ptr r /o2rP ptr_eq hjump.
     apply (imatch_state_step1 (ls' := ls') hnth) => /=.
     + by apply hpc; rewrite /= leqnn addn1 ltnSn.
+    + by rewrite /asm_next_is_syscall hnth.
     rewrite /eval_POP truncate_word_u /=.
     rewrite to_var_rsp in hsp.
     have -> := var_of_regP_eq hloeq hsp htow_sp.
@@ -2349,39 +2554,44 @@ Proof.
       by have [ ->] := to_var_rsp.
     move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ ad_rsp erefl).
     by case=> *; constructor => //.
-  - move=> hok_i [?] [?]; subst aci ls'.
+  - move=> _ hok_i [?] [?]; subst aci ls'.
     apply (imatch_state_step1 (ls' := (setpc ls (lpc ls).+1)) hnth) => /=.
     + by apply hpc; rewrite /= leqnn addn1 ltnSn.
+    + by rewrite /asm_next_is_syscall hnth.
     eexists; first reflexivity.
     rewrite ok_fd /=; eexists; first eauto.
     constructor => //; rewrite /setpc /=.
     by apply: asm_pos_incr hok_i hac heq hip.
-  - move=> k lbl hok_i [?] [?]; subst aci ls'.
+  - move=> k lbl _ hok_i [?] [?]; subst aci ls'.
     apply (imatch_state_step1 (ls' := (setpc ls (lpc ls).+1)) hnth) => /=.
     + by apply hpc; rewrite /= leqnn addn1 ltnSn.
+    + by rewrite /asm_next_is_syscall hnth.
     eexists; first reflexivity.
     rewrite ok_fd /=; eexists; first eauto.
     constructor => //; rewrite /setpc /=.
     by apply: asm_pos_incr hok_i hac heq hip.
-  - move=> r hok_i [?] hi; subst aci.
+  - move=> r _ hok_i [?] hi; subst aci.
     apply (imatch_state_step1 (ls' := ls') hnth) => /=.
     + by apply hpc; rewrite /= leqnn addn1 ltnSn.
+    + by rewrite /asm_next_is_syscall hnth.
     by apply: eval_jumpP; last by apply hi.
-  - rewrite /linear_sem.eval_instr /=; t_xrbindP=> e hok_i ok_e.
+  - rewrite /linear_sem.eval_instr /=; t_xrbindP=> e _ hok_i ok_e.
     move => d ok_d ? ptr v ok_v /to_wordI[? [? [? /word_uincl_truncate hptr]]]; subst.
     move=> r /o2rP ptr_eq.
     change reg_size with Uptr in ptr => hdec.
     apply (imatch_state_step1 (ls' := ls') hnth) => /=.
     + by apply hpc; rewrite /= leqnn addn1 ltnSn.
+    + by rewrite /asm_next_is_syscall hnth.
     move: hdec.
     have [v' -> /value_uinclE /= [? [? [-> /hptr /= ->]]]] := eval_assemble_word hloeq ok_e ok_d ok_v.
     rewrite -assemble_prog_labels /= ptr_eq.
     by apply eval_jumpP.
-  - move => x lbl hok_i.
+  - move => x lbl _ hok_i.
     case ok_r_x': (of_var x) => [r|//]; have ok_r_x := of_varI ok_r_x'.
     move=> /= [?] hev; subst aci.
     apply (imatch_state_step1 (ls' := ls') hnth) => /=.
     + by apply hpc; rewrite /= leqnn addn1 ltnSn.
+    + by rewrite /asm_next_is_syscall hnth.
     move: hev; rewrite /linear_sem.eval_instr /=.
     rewrite heqf -assemble_prog_labels.
     t_xrbindP=> ptr /o2rP -> vm ok_vm <-{ls'}.
@@ -2393,13 +2603,14 @@ Proof.
       by rewrite /write_var ok_vm.
     by apply: asm_pos_incr hok_i hac heq hip => /=; rewrite ok_r_x'.
   rewrite /linear_sem.eval_instr => /=.
-  t_xrbindP => cnd lbl hok_i cndt ok_c ? b v ok_v ok_b; subst aci.
+  t_xrbindP => cnd lbl _ hok_i cndt ok_c ? b v ok_v ok_b; subst aci.
   case: hloeq => eqscs eqm hrip hd eqr eqrx eqx eqf.
   have [v' ok_v' hvv'] := hagp_eval_assemble_cond hagparams eqr eqf ok_c ok_v.
   case: v ok_v ok_b hvv' => // [ b' | [] // ] ok_b [?]; subst b'.
   rewrite ok_fd /=; case: v' ok_v' => // b1 ok_v' ? h; subst b1.
   apply (imatch_state_step1 (ls' := ls') hnth) => /=.
   + by apply hpc; rewrite /= leqnn addn1 ltnSn.
+  + by rewrite /asm_next_is_syscall hnth.
   move: h.
   rewrite /eval_Jcc; case: b ok_b ok_v' => ok_b ok_v';
     rewrite /eval_cond_mem /=;
