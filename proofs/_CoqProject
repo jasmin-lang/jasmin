@@ -91,7 +91,6 @@ compiler/inline_proof.v
 compiler/insert_renaming.v
 compiler/insert_renaming_proof.v
 compiler/it_linearization_proof.v
-compiler/it_linearization_syscall.v
 compiler/it_merge_varmaps_proof.v
 compiler/jasmin_compiler.v
 compiler/lea.v
