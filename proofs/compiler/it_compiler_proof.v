@@ -80,6 +80,7 @@ Context
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {call_conv : calling_convention}
   {asm_scsem : asm_syscall_sem}
+  {it_asm_scsem : it_asm_syscall_sem}
   {lowering_options : Type}
   (aparams : architecture_params lowering_options)
   (haparams : h_architecture_params aparams)
@@ -970,8 +971,7 @@ have Halign_final :
   is_align (Pointer := WArray.PointerZ)
     (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))%Z (sf_align (f_extra fd)).
   by move: halign; rewrite Hframe_eq align_eq.
-rewrite /align_top_stack.
-have := ([elaborate align_top_aligned Hsum_nn Hrng Halign_final]).
+rewrite /align_top_stack ([elaborate align_top_aligned Hsum_nn Hrng Halign_final]).
 rewrite pointer_range_between.
 rewrite -align_eq.
 have Hbottom_eq :
@@ -1401,7 +1401,7 @@ have hinv :=
     (asm_scsem := asm_scsem)
     (wE := wE)
     xp fn xm.
-have {}h_be := lutt_xrutt_trans_r (hinv _) h_be.
+have {}h_be := [elaborate lutt_xrutt_trans_r (hinv _ _) h_be ].
 clear hinv.
 
 apply: xrutt_weaken_v1;
