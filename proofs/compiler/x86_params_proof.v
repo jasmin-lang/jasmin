@@ -956,9 +956,9 @@ Lemma x86_hszparams : h_stack_zeroization_params (ap_szp x86_params).
 Proof.
   split.
   + exact: x86_stack_zero_cmd_no_ext_lbl.
-  + admit.
+  + exact: x86_stack_zero_cmd_no_syscall.
   exact: x86_stack_zero_cmdP.
-Admitted.
+Qed.
 
 End STACK_ZEROIZATION.
 

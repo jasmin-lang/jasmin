@@ -669,7 +669,7 @@ Qed.
 
 #[local] Existing Instance withsubword.
 
-Let pre lp lfd (s1 s2 : estate) :=
+Definition sz_pre lp lfd (s1 s2 : estate) :=
   exists ptr,
     let: bottom := (align_word lfd.(lfd_align) ptr - wrepr _ lfd.(lfd_stk_max))%R in
     [/\ (evm s1).[vid (lp_rsp lp)] = @Vword Uptr ptr
@@ -678,7 +678,7 @@ Let pre lp lfd (s1 s2 : estate) :=
       & valid_between (emem s1) bottom (lfd_stk_max lfd)
     ].
 
-Let pos lp fn lfd (s1 s2 s1' s2' : estate) :=
+Definition sz_pos lp fn lfd (s1 s2 s1' s2' : estate) :=
   exists ptr,
     let: bottom := (align_word lfd.(lfd_align) ptr - wrepr _ lfd.(lfd_stk_max))%R in
     [/\ (evm s1).[vid (lp_rsp lp)] = @Vword Uptr ptr
@@ -692,10 +692,10 @@ Lemma istack_zeroization_lprogP_new lp lp' fn lfd :
   stack_zeroization_lprog lp = ok lp' ->
   get_fundef lp.(lp_funcs) fn = Some lfd ->
   wkequiv_io
-    (pre lp lfd)
+    (sz_pre lp lfd)
     (ilsem_exportcall lp fn)
     (ilsem_exportcall lp' fn)
-    (pos lp fn lfd).
+    (sz_pos lp fn lfd).
 Proof.
   move=> hin hzerolp hlfd s1 _ [ptr [hrsp <- enough_stk hvalid]].
   have := istack_zeroization_lprogP hin hzerolp hlfd enough_stk (And3 erefl hvalid hrsp).
