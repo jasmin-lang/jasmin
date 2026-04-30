@@ -876,8 +876,8 @@ Context
   (xget_resP :
     forall xfd o (i : valid_input p q o) fs xm,
       get_fundef q.(asm_funcs) o = Some xfd ->
-      values_match p o xfd (mkxm q o xmT i (mkiptrs i)) fs xm ->
-      cast_vals [seq type_of_val v | v <- fvals fs] (fvals fs) = xget_res o xm (mkiptrs i))
+      values_match p o xfd (mkxm q o xmT i (vi_ptrs i)) fs xm ->
+      cast_vals [seq type_of_val v | v <- fvals fs] (fvals fs) = xget_res o xm (vi_ptrs i))
 .
 
 (* The main result for ML-KEM. *)
