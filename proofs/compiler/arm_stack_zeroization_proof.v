@@ -73,7 +73,7 @@ Lemma store_zero_eval_instr lp ii ws e (ls:lstate) (w1 w2 : word Uptr) m' :
   get_var true (lvm ls) rspi = ok (Vword w1) ->
   sem_fexpr (lvm ls) e >>= to_word Uptr = ok w2 ->
   write (lmem ls) Aligned (w1 + w2)%R (sz:=ws) 0 = ok m' ->
-  let i := MkLI ii (store_zero rspi ws e) in
+  let: i := MkLI ii (store_zero rspi ws e) in
   eval_instr lp i ls = ok (lnext_pc (lset_mem ls m')).
 Proof.
   move=> ws_small hvzero hrsp.
@@ -187,20 +187,17 @@ Proof.
   + by rewrite addn0.
   + apply: ARMFopnP.mov_eval_instr.
     by rewrite /get_var hrsp /=.
-  rewrite /lnext_pc /=; apply: (lsem_n_eval_lin_sc (n:=1) hbody');
-   [ by rewrite /next_is_Lsyscall (find_instr_skip hbody') | done | by rewrite addnC | done | | ].
+  rewrite /lnext_pc /= -addn1; apply: (lsem_n_eval_lin_sc (n:=1) hbody');
+   [ by rewrite /next_is_Lsyscall (find_instr_skip hbody') | done | done | done | | ].
   + by apply: ARMFopnP.li_eval_instr => //.
-  rewrite /lnext_pc /=; apply: (lsem_n_eval_lin_sc (n:=2) hbody') => //=; first by rewrite /next_is_Lsyscall (find_instr_skip hbody').
-  + by rewrite addnC.
+  rewrite /lnext_pc /= -addnS; apply: (lsem_n_eval_lin_sc (n:=2) hbody') => //=; first by rewrite /next_is_Lsyscall (find_instr_skip hbody').
   + apply: ARMFopnP.align_eval_instr.
     rewrite /= get_var_neq; last by move=> /esym /(@inj_to_var _ _ _ _ _ _).
     by rewrite get_var_eq.
-  rewrite /lnext_pc /=; apply: (lsem_n_eval_lin_sc (n:=3) hbody') => //=; first by rewrite /next_is_Lsyscall (find_instr_skip hbody').
-  + by rewrite addnC.
+  rewrite /lnext_pc /= -addnS; apply: (lsem_n_eval_lin_sc (n:=3) hbody') => //=; first by rewrite /next_is_Lsyscall (find_instr_skip hbody').
   + apply: ARMFopnP.mov_eval_instr.
     by rewrite get_var_eq.
-  rewrite /lnext_pc /=; apply: (lsem_n_eval_lin_sc (n:=4) hbody') => //=; first by rewrite /next_is_Lsyscall (find_instr_skip hbody').
-  + by rewrite addnC.
+  rewrite /lnext_pc /= -addnS; apply: (lsem_n_eval_lin_sc (n:=4) hbody') => //=; first by rewrite /next_is_Lsyscall (find_instr_skip hbody').
   + apply: ARMFopnP.sub_eval_instr => /=.
     * rewrite get_var_eq /=; last by []. reflexivity.
     rewrite get_var_neq;
@@ -208,10 +205,10 @@ Proof.
       rewrite !in_cons /= -h eqxx /= ?orbT.
     rewrite get_var_neq; last by move=> /esym /(@inj_to_var _ _ _ _ _ _).
     by rewrite get_var_eq.
-  rewrite /lnext_pc /=; apply: (lsem_n_eval_lin_sc (n:=5) hbody');
-   [ by rewrite /next_is_Lsyscall (find_instr_skip hbody') | done | by rewrite addnC | done | | ].
+  rewrite /lnext_pc /= -addnS; apply: (lsem_n_eval_lin_sc (n:=5) hbody');
+   [ by rewrite /next_is_Lsyscall (find_instr_skip hbody') | done | done | done | | ].
   + by rewrite ARMFopnP.movi_eval_instr //; left.
-  rewrite /lnext_pc /= addnC; apply lsem_n_0.
+  rewrite /lnext_pc /= -addnS; apply lsem_n_0.
   split=> /=.
   + do 4 (rewrite Vm.setP_neq;
       last by [
@@ -301,8 +298,9 @@ Proof.
         /of_estate /= /lnext_pc /= -addnS.
       reflexivity.
     apply: (lsem_n_eval_lin_sc1 (n:=2) hbody) => //=.
-    + by rewrite /next_is_Lsyscall (find_instr_skip hbody).
-    + apply: store_zero_eval_instr => //=.
+    + by rewrite /next_is_Lsyscall (find_instr_skip hbody) /=
+         /is_Lsyscall /is_Lsyscall_r /store_zero; case: store_mn_of_wsize.
+    rewrite [in RHS]addnS; apply: store_zero_eval_instr => //=.
       + do 5 (rewrite (@get_var_neq _ _ _ vzero);
           last by [|move=> /(@inj_to_var _ _ _ _ _ _)]).
         by rewrite /get_var hsr.(sr_vzero).
@@ -783,8 +781,8 @@ Proof.
     rewrite /stack_zero_loop !all_cat /sz_init /sz_loop /restore_sp /=.
     by rewrite store_zero_no_syscall.
   + move=> [<- _].
-    rewrite /stack_zero_unrolled !all_cat /sz_init /restore_sp /= /sz_unrolled cats0 all_map /=.
-    by apply /allP => off _; exact: store_zero_no_syscall.
+    rewrite /stack_zero_unrolled !all_cat /sz_init /restore_sp /= /sz_unrolled all_map /= andbT.
+   apply /allP => off _; exact: store_zero_no_syscall.
 Qed.
 
 Lemma arm_stack_zero_cmdP szs rspn lbl ws_align ws stk_max cmd vars :

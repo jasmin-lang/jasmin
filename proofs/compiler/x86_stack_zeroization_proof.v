@@ -1368,7 +1368,7 @@ Qed.
 
 Lemma x86_stack_zero_cmd_no_syscall szs rspn lbl ws_align ws stk_max cmd vars :
   x86_stack_zero_cmd szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
-  all (fun i : linstr => ~~ is_Lsyscall i) cmd.
+  all [pred i | ~~ is_Lsyscall i] cmd.
 Proof.
   rewrite /x86_stack_zero_cmd.
   case: szs.

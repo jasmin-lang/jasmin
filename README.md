@@ -51,17 +51,40 @@ make
 
 # List of claims in the paper supported by this artifact
 
-## About the ITree implementation
+## Game-Based Security Definitions
 
-The Itree implementation of Jasmin can be found in `lang/it_sems_core.v`.
-The definition of xrutt can be found in `itrees/xrutt.v`.
+The definition of oracle systems is in `proofs/compiler/cil.v`. The KEM-IND-CCA
+definition is at the end of the file.
 
-## About RHL and HL
+The probabilistic semantics of ITrees (and thus of cryptographic games) is in
+`proofs/lang/dinterp.v`. In this file, `dinterp_eutt` corresponds to Theorem
+2.1.
 
-- Theorem (4 Modular Verification) in the paper corresponds to lemmas
-`wequiv_fun_ind` in `/proof/lang/relational_logic.v`.
+## Jasmin Semantics
 
-- In the following we indicate the locations of the Relational Hoare Logic rules from the paper:
+The syntax of Jasmin is in `proofs/lang/expr.v`. The semantics is in
+`proofs/lang/it_sems_core.v`.
+
+The definition of game-based security for Jasmin programs is in
+`proofs/compiler/end_to_end.v` (the `Source` instance). The definition for
+assembly programs is in the same file (the `Target` instance). The instantiation
+to KEMs is `KEM_of_Jazz` for either.
+
+## Correctness and KEM-IND-CCA Preservation
+
+The compiler correctness statement is `correct_comp` in
+`proofs/compiler/end_to_end.v`. This is an instantiation of the more general
+preservation result `it_compile_prog_to_asmP` in
+`proofs/compiler/it_compiler_proof.v`.
+
+The general security preservation theorem is `compiler_preserves` in
+`proofs/compiler/end_to_end.v`, and its instantiation to KEM-IND-CCA is
+`mlkem_end_to_end` in the same file.
+
+## Relational Hoare Logic
+
+The implementation of the logic is in `proofs/lang/relational_logic.v`.
+Equivalence up-to-cutoff is defined as `xrutt` in `proofs/itrees/xrutt.v`.
 
  + rule SKIP in the paper corresponds to lemmas
  `wequiv_nil` in `/proof/lang/relational_logic.v`.
@@ -80,8 +103,9 @@ The definition of xrutt can be found in `itrees/xrutt.v`.
  + rule CONSEQ is inlined in each rule.
  + rule TRANS in the paper corresponds to lemmas
  `wequiv_trans` in `/proof/lang/relational_logic.v`.
+ + rule REC is `wequiv_fun_ind`
 
-## About Compiler pass proofs
+## Compiler Passes and Proofs
 
 - Int Word: `proofs/compiler/wint_word_proof.v`: compiler pass proof is in the IT sections
 - Array Copy: `proofs/compiler/array_copy_proof.v`: compiler pass proof is in the IT sections
@@ -111,14 +135,8 @@ The definition of xrutt can be found in `itrees/xrutt.v`.
 - Register Renaming: `proofs/compiler/allocation_proof.v`: compiler pass proof is in the IT sections
 
 
-## About cryptographic security
-
-- The generic definitions on distributions are in `proofs/compiler/distr.v`.
-- The generic formalization is in `proofs/compiler/adv.v`.
-- The instantiation to Jasmin is in `proofs/compiler/end_to_end.v`.
-
 <!-- ------------------------------------------------------------------------------- -->
-<!-- Old Readme -->
+<!-- Original Readme -->
 <!-- ------------------------------------------------------------------------------- -->
 
 # Jasmin
