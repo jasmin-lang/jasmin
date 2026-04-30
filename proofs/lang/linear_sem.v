@@ -665,7 +665,14 @@ Lemma mix_ilsteps_in_fn s fn :
   eutt eq
     (mix_ilsteps (in_fn fn) s)
     (mix_ilsteps (endpc fn) s).
-Proof using. Admitted.
+Proof using.
+  rewrite /mix_ilsteps /while /while_body => hfn.
+  apply eutt_iter' with (λ i j, lfn i = fn /\ i = j) => // i _ [] {}hfn <-.
+  rewrite /in_fn hfn eqxx /=.
+  case: ifP => hend; last by apply eutt_Ret; auto.
+  apply HasPost.eutt_post_bind_eq with (λ i, lfn i = fn); last first.
+  + by move => u hu; apply eutt_Ret; left.
+Admitted.
 
 Lemma mix_ilsem_exportcall_ilsem_exportcall fn s :
   xrutt.xrutt
