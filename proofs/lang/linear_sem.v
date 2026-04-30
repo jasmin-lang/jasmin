@@ -90,11 +90,13 @@ Therefore, [lsem s] represents all states reachable from [s].
 A maximal execution (i.e., terminated without error) is caracterized by the fact that
 the reached state has no instruction left to execute.
 *)
-Definition eval_jump d s :=
+Definition eval_jump b d s :=
   let: (fn, lbl) := d in
   Let body :=
     if get_fundef (lp_funcs P) fn is Some fd then
-      ok (lfd_body fd)
+      if (lfn s == fn) || b then
+        ok (lfd_body fd)
+      else type_error
     else type_error
   in
   Let pc := find_label lbl body in
@@ -149,12 +151,12 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     Let lbl := get_label_after_pc s1 in
     Let p := rencode_label labels (lfn s1, lbl) in
     Let m := write s1.(lmem) Aligned nsp p in
-    eval_jump d (lset_mem_vm s1 m vm)
+    eval_jump true d (lset_mem_vm s1 m vm)
   | Lcall (Some r) d =>
     Let lbl := get_label_after_pc s1 in
     Let p := rencode_label labels (lfn s1, lbl) in
     Let vm := set_var true s1.(lvm) r (Vword p) in
-    eval_jump d (lset_vm s1 vm)
+    eval_jump true d (lset_vm s1 vm)
   | Lret =>
     let vrsp := v_var (vid (lp_rsp P)) in
     Let sp := get_var true s1.(lvm) vrsp >>= to_pointer in
@@ -162,14 +164,14 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     Let p  := read s1.(lmem) Aligned sp Uptr in
     Let vm := set_var true s1.(lvm) vrsp (Vword nsp) in
     Let d := rdecode_label labels p in
-    eval_jump d (lset_vm s1 vm)
+    eval_jump true d (lset_vm s1 vm)
   | Lalign   => ok (lnext_pc s1)
   | Llabel _ _ => ok (lnext_pc s1)
-  | Lgoto d => eval_jump d s1
+  | Lgoto d => eval_jump false d s1
   | Ligoto e =>
     Let p := sem_rexpr s1.(lmem) s1.(lvm) e >>= to_pointer in
     Let d := rdecode_label labels p in
-    eval_jump d s1
+    eval_jump false d s1
   | LstoreLabel x lbl =>
     Let p := rencode_label labels (lfn s1, lbl) in
     Let vm := set_var true s1.(lvm) x (Vword p) in
@@ -177,7 +179,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   | Lcond e lbl =>
     Let b := sem_fexpr s1.(lvm) e >>= to_bool in
     if b then
-      eval_jump (s1.(lfn),lbl) s1
+      eval_jump false (s1.(lfn),lbl) s1
     else ok (lnext_pc s1)
   end.
 
@@ -659,7 +661,6 @@ Qed.
     EPostRel0_ := rutt_extras.RPost_eq;
   |}.
 
-
 Lemma mix_ilsteps_in_fn s fn :
   lfn s = fn ->
   eutt eq
@@ -694,11 +695,40 @@ Proof using.
     + move => *.
       apply HasPost.has_post_weaken with (λ _, True); last by [].
       exact: HasPost.has_post_True.
-    + admit. (* FIXME: Lret *)
+    + move => * //=.
+      case: get_var => * /=; last by apply eqit_Vis.
+      case: to_pointer => * /=; last by apply eqit_Vis.
+      case: read => * /=; last by apply eqit_Vis.
+      case: rdecode_label => a3 /=; last by apply eqit_Vis.
+      case a3 => f ?.
+      rewrite /eval_jump => //=.
+      case: get_fundef => * /=; last by apply eqit_Vis.
+      case: ifP => -/orP =>  h /=;last by apply eqit_Vis.
+      case: find_label => ? /=; last by apply eqit_Vis.
+      apply eqit_Ret => //= _.
+      (* Similar approach as for the call *)
+      admit.
     + by move => _; apply eqit_Ret.
     + by move => > _; apply eqit_Ret.
-    + admit. (* FIXME: Lgoto *)
-    + admit. (* FIXME: Ligoto *)
+    + move => [] * /=.
+      rewrite /eval_jump => //=.
+      case: get_fundef => * /=; last by apply eqit_Vis.
+      case: ifP => -/orP =>  h /=;last by apply eqit_Vis.
+      case: find_label => ? /=; last by apply eqit_Vis.
+      apply eqit_Ret => //= _.
+      case h => //= /eqP <-.
+      by rewrite -hfn.
+    + move => * /=.
+      case: (Let _ := sem_rexpr _ _ _ in _) => ? /=; last by apply eqit_Vis.
+      case: rdecode_label => h * /=; last by apply eqit_Vis.
+      rewrite /eval_jump => //=.
+      case h => //= {h} ??.
+      case: get_fundef => * /=; last by apply eqit_Vis.
+      case: ifP => -/orP =>  h /=;last by apply eqit_Vis.
+      case: find_label => ? /=; last by apply eqit_Vis.
+      apply eqit_Ret => //= _.
+      case h => //= /eqP <-.
+      by rewrite -hfn.
     + move => *.
       case: rencode_label => ? /=; last by apply eqit_Vis.
       case: set_var => ? /=; last by apply eqit_Vis.
@@ -707,6 +737,7 @@ Proof using.
       case: (Let _ := sem_fexpr _ _ in _) => b /=; last by apply eqit_Vis.
       case: b; last by apply eqit_Ret.
       case: get_fundef => * /=; last by apply eqit_Vis.
+      case: ifP => ? /=;last by apply eqit_Vis.
       case: find_label => ? /=; last by apply eqit_Vis.
       by apply eqit_Ret.
     }
@@ -714,7 +745,7 @@ Proof using.
   apply HasPost.has_post_bind with (λ i, True).
   + exact: HasPost.has_post_True.
   move => k _; case: ifP; last  by move => _; apply eqit_Vis.
-  case/andP => /eqP ? _; apply  eutt_Ret; congruence.
+  case/andP => /eqP ? _; apply  eutt_Ret. ; congruence.
 Admitted.
 
 Lemma mix_ilsem_exportcall_ilsem_exportcall fn s :
