@@ -25,6 +25,10 @@ Require Import
 Require Export arm_stack_zeroization.
 Import seq_extra.
 
+Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
+
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
 (* FIXME: We should use the higher-level [eval_lsem] lemmas. *)
@@ -92,6 +96,8 @@ Context (le_ws_ws_align : (ws <= ws_align)%CMP).
 Context (ptr : pointer).
 Context (hstack : (stk_max <= wunsigned (align_word ws_align ptr))%Z).
 Let top := (align_word ws_align ptr - wrepr Uptr stk_max)%R.
+
+Notation nscendpc := (and_not_syscall lp (endpc lp fn)) (only parsing).
 
 #[local]
 Lemma top_aligned : is_align top ws.
@@ -162,7 +168,7 @@ Lemma sz_initP (s1 : estate) :
   valid_between (emem s1) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
-    lsem_n lp (endpc lp fn) (of_estate s1 fn (size pre)) (of_estate s2 fn (size pre + size (sz_init rspi ws_align stk_max))) /\
+    lsem_n lp nscendpc (of_estate s1 fn (size pre)) (of_estate s2 fn (size pre + size (sz_init rspi ws_align stk_max))) /\
     state_rel_loop sz_init_vars s1 s2 stk_max top.
 Proof.
   move=> hvalid hrsp.
@@ -176,21 +182,25 @@ Proof.
   move=> hbody'.
 
   eexists (Estate _ _ _); split=> /=.
-  apply: (lsem_n_eval_lin (n:=0) hbody') => //=.
+  apply: (lsem_n_eval_lin_sc (n:=0) hbody') => //=.
+  + by rewrite /next_is_Lsyscall (find_instr_skip0 hbody').
   + by rewrite addn0.
   + apply: ARMFopnP.mov_eval_instr.
     by rewrite /get_var hrsp /=.
-  rewrite /lnext_pc /=; apply: (lsem_n_eval_lin (n:=1) hbody');
-   [ done | by rewrite addnC | done | | ].
+  rewrite /lnext_pc /=; apply: (lsem_n_eval_lin_sc (n:=1) hbody');
+   [ by rewrite /next_is_Lsyscall (find_instr_skip hbody') | done | by rewrite addnC | done | | ].
   + by apply: ARMFopnP.li_eval_instr => //.
-  rewrite /lnext_pc /=; apply: (lsem_n_eval_lin (n:=2) hbody') => //=; first by rewrite addnC.
+  rewrite /lnext_pc /=; apply: (lsem_n_eval_lin_sc (n:=2) hbody') => //=; first by rewrite /next_is_Lsyscall (find_instr_skip hbody').
+  + by rewrite addnC.
   + apply: ARMFopnP.align_eval_instr.
     rewrite /= get_var_neq; last by move=> /esym /(@inj_to_var _ _ _ _ _ _).
     by rewrite get_var_eq.
-  rewrite /lnext_pc /=; apply: (lsem_n_eval_lin (n:=3) hbody') => //=; first by rewrite addnC.
+  rewrite /lnext_pc /=; apply: (lsem_n_eval_lin_sc (n:=3) hbody') => //=; first by rewrite /next_is_Lsyscall (find_instr_skip hbody').
+  + by rewrite addnC.
   + apply: ARMFopnP.mov_eval_instr.
     by rewrite get_var_eq.
-  rewrite /lnext_pc /=; apply: (lsem_n_eval_lin (n:=4) hbody') => //=; first by rewrite addnC.
+  rewrite /lnext_pc /=; apply: (lsem_n_eval_lin_sc (n:=4) hbody') => //=; first by rewrite /next_is_Lsyscall (find_instr_skip hbody').
+  + by rewrite addnC.
   + apply: ARMFopnP.sub_eval_instr => /=.
     * rewrite get_var_eq /=; last by []. reflexivity.
     rewrite get_var_neq;
@@ -198,8 +208,8 @@ Proof.
       rewrite !in_cons /= -h eqxx /= ?orbT.
     rewrite get_var_neq; last by move=> /esym /(@inj_to_var _ _ _ _ _ _).
     by rewrite get_var_eq.
-  rewrite /lnext_pc /=; apply: (lsem_n_eval_lin (n:=5) hbody');
-   [ done | by rewrite addnC | done | | ].
+  rewrite /lnext_pc /=; apply: (lsem_n_eval_lin_sc (n:=5) hbody');
+   [ by rewrite /next_is_Lsyscall (find_instr_skip hbody') | done | by rewrite addnC | done | | ].
   + by rewrite ARMFopnP.movi_eval_instr //; left.
   rewrite /lnext_pc /= addnC; apply lsem_n_0.
   split=> /=.
@@ -255,7 +265,7 @@ Lemma loop_bodyP vars s1 s2 n :
   state_rel_loop vars s1 s2 n top ->
   (0 < n)%Z ->
   exists s3,
-    [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size pre + 1))
+    [/\ lsem_n lp nscendpc (of_estate s2 fn (size pre + 1))
                 (of_estate s3 fn (size pre + 3)),
         s3.(evm).[vzf] = Vbool (ZF_of_word (wrepr U32 n - wrepr U32 (wsize_size ws)))
       & state_rel_loop vars s1 s3 (n - wsize_size ws) top].
@@ -284,12 +294,14 @@ Proof.
     by rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
   eexists (Estate _ _ _); split=> /=.
-  + apply: (lsem_n_eval_lin (n:=1) hbody) => //=.
+  + apply: (lsem_n_eval_lin_sc (n:=1) hbody) => //=.
+    + by rewrite /next_is_Lsyscall (find_instr_skip hbody).
     + rewrite /eval_instr /=
         /get_var hsr.(srl_off) /= /exec_sopn /= !truncate_word_u /= add_wordE wsub_wnot1
         /of_estate /= /lnext_pc /= -addnS.
       reflexivity.
-    apply: (lsem_n_eval_lin (n:=2) hbody) => //=.
+    apply: (lsem_n_eval_lin_sc1 (n:=2) hbody) => //=.
+    + by rewrite /next_is_Lsyscall (find_instr_skip hbody).
     + apply: store_zero_eval_instr => //=.
       + do 5 (rewrite (@get_var_neq _ _ _ vzero);
           last by [|move=> /(@inj_to_var _ _ _ _ _ _)]).
@@ -300,7 +312,6 @@ Proof.
         by rewrite /get_var hsr.(sr_rsp); reflexivity.
       + rewrite get_var_eq //= truncate_word_u; reflexivity.
       exact: hm'.
-    by rewrite /lnext_pc /= -!addnS; apply lsem_n_0.
   + do 3 (rewrite Vm.setP_neq;
       last by [|apply /eqP => /(@inj_to_var _ _ _ _ _ _)]).
     by rewrite Vm.setP_eq.
@@ -359,7 +370,7 @@ Lemma loopP vars s1 s2 n :
   state_rel_loop vars s1 s2 n top ->
   (0 < n)%Z ->
   exists s3,
-    [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size pre + 1))
+    [/\ lsem_n lp nscendpc (of_estate s2 fn (size pre + 1))
                 (of_estate s3 fn (size pre + 4))
       & state_rel_loop vars s1 s3 0 top].
 Proof.
@@ -381,7 +392,8 @@ Proof.
   + subst k.
     move: hn; rewrite Z.mul_1_l => ?; subst n.
     exists s3; split.
-    + apply: (lsem_n_step_end hsem3).
+    + apply: (lsem_n_step_end_sc hsem3).
+      + by rewrite /next_is_Lsyscall (find_instr_skip hbody).
       by rewrite /lsem1 /step (find_instr_skip hbody) /= /eval_instr /=
          /get_var /= hzf3 /= GRing.addrN /ZF_of_word /= /setpc /=
          /lnext_pc /= -addnS.
@@ -391,7 +403,8 @@ Proof.
   have [s4 [hsem4 hsr4]] := ih _ _ hsr3 hlt3 hn3.
   exists s4; split=> //.
   apply: (lsem_n_trans hsem3).
-  apply: (lsem_n_eval_lin (n:=3) hbody) => //=; last by apply hsem4.
+  apply: (lsem_n_eval_lin_sc (n:=3) hbody) => //=; last by apply hsem4.
+  + by rewrite /next_is_Lsyscall (find_instr_skip hbody).
   rewrite /eval_instr /=.
   rewrite /get_var /= hzf3 /=.
   have ->: ~~ ZF_of_word (wrepr U32 n - wrepr U32 (wsize_size ws)).
@@ -415,14 +428,15 @@ Lemma sz_loopP vars s1 s2 n :
   state_rel_loop vars s1 s2 n top ->
   (0 < n)%Z ->
   exists s3,
-    [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size pre))
+    [/\ lsem_n lp nscendpc (of_estate s2 fn (size pre))
                 (of_estate s3 fn (size pre + size (sz_loop rspi lbl ws)))
       & state_rel_loop vars s1 s3 0 top].
 Proof.
   move=> hsubset hsr hlt.
   have [s3 [hsem3 hsr3]] := loopP hsubset hsr hlt.
   exists s3; split=> //.
-  apply: (lsem_n_eval_lin (n:=0) hbody) => //=.
+  apply: (lsem_n_eval_lin_sc (n:=0) hbody) => //=.
+  + by rewrite /next_is_Lsyscall (find_instr_skip0 hbody).
   + by rewrite addn0.
   rewrite /lnext_pc -addn1; apply hsem3.
 Qed.
@@ -443,14 +457,16 @@ Context (rsp_nin : ~ Sv.In rspi restore_sp_vars).
 Lemma restore_spP vars (s1 s2 : estate) :
   state_rel_unrolled vars s1 s2 0 top ->
   exists s3,
-    lsem_n lp (endpc lp fn)
+    lsem_n lp nscendpc
       (of_estate s2 fn (size pre))
       (of_estate s3 fn (size pre + size (restore_sp rspi))) /\
     state_rel_unrolled vars s1 s3 0 ptr.
 Proof.
   move=> hsr.
   eexists (Estate _ _ _); split=> /=.
-  + apply: (lsem_n_eval_lin1 (n:=0) hbody) => //=; first by rewrite addn0.
+  + apply: (lsem_n_eval_lin_sc1 (n:=0) hbody) => //=.
+    + by rewrite /next_is_Lsyscall (find_instr_skip0 hbody).
+    + by rewrite addn0.
     rewrite addn1; apply: ARMFopnP.mov_eval_instr.
     by rewrite /get_var /= hsr.(sr_vsaved) /=; reflexivity.
   case: hsr => hscs hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound.
@@ -473,11 +489,18 @@ Context (hsmall : (ws <= U32)%CMP).
 Context (pre pos : seq linstr).
 Context (hbody : is_linear_of lp fn (pre ++ sz_unrolled rspi ws stk_max ++ pos)).
 
+Lemma sz_unrolled_no_syscall :
+  all [pred i | ~~ isSome (is_Lsyscall i)] (sz_unrolled rspi ws stk_max).
+Proof.
+  rewrite /sz_unrolled all_map /=; apply /allP => off _.
+  by rewrite /is_Lsyscall /is_Lsyscall_r /store_zero; case: store_mn_of_wsize.
+Qed.
+
 Lemma unrolled_bodyP vars s1 s2 n :
   state_rel_unrolled vars s1 s2 (stk_max - Z.of_nat n * wsize_size ws) top ->
   (Z.of_nat n < stk_max / wsize_size ws)%Z ->
   exists s3,
-    [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size pre + n))
+    [/\ lsem_n lp nscendpc (of_estate s2 fn (size pre + n))
                 (of_estate s3 fn (size pre + n.+1))
       & state_rel_unrolled vars s1 s3 (stk_max - Z.of_nat n.+1 * wsize_size ws) top].
 Proof.
@@ -504,7 +527,12 @@ Local Opaque wsize_size Z.of_nat.
     by rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
   eexists (Estate _ _ _); split.
-  + apply: (lsem_n_eval_lin1 (n:= n) hbody) => //.
+  + apply: (lsem_n_eval_lin_sc1 (n:= n) hbody) => //.
+    + rewrite /next_is_Lsyscall (find_instr_skip hbody) oseq.onth_cat size_map size_rev size_ziota.
+      have hlt'': n < Z.to_nat (stk_max / wsize_size ws) by apply /ltP; lia.
+      rewrite hlt''.
+      case h: oseq.onth => [i|//].
+      exact: oseq.all_onth sz_unrolled_no_syscall h.
     + rewrite oseq.onth_cat !size_map size_rev size_ziota.
       have hlt'': n < Z.to_nat (stk_max / wsize_size ws) by apply /ltP; lia.
       rewrite hlt''.
@@ -568,7 +596,7 @@ Qed.
 Lemma sz_unrolledP vars s1 s2 :
   state_rel_unrolled vars s1 s2 stk_max top ->
   exists s3,
-    [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size pre))
+    [/\ lsem_n lp nscendpc (of_estate s2 fn (size pre))
                 (of_estate s3 fn (size pre + size (sz_unrolled rspi ws stk_max)))
       & state_rel_unrolled vars s1 s3 0 top].
 Proof.
@@ -616,7 +644,7 @@ Lemma stack_zero_loopP (s1 : estate) :
   valid_between (emem s1) top stk_max ->
   (evm s1).[rspi] = Vword ptr ->
   exists s2,
-    [/\ lsem_n lp (endpc lp fn) (of_estate s1 fn (size pre))
+    [/\ lsem_n lp nscendpc (of_estate s1 fn (size pre))
                 (of_estate s2 fn (size pre + size (stack_zero_loop rspi lbl ws_align ws stk_max)))
       & state_rel_unrolled stack_zero_loop_vars s1 s2 0 ptr].
 Proof.
@@ -674,7 +702,7 @@ Lemma stack_zero_unrolledP (s1 : estate) :
   valid_between (emem s1) top stk_max ->
   (evm s1).[rspi] = Vword ptr ->
   exists s2,
-    [/\ lsem_n lp (endpc lp fn) (of_estate s1 fn (size pre))
+    [/\ lsem_n lp nscendpc (of_estate s1 fn (size pre))
                 (of_estate s2 fn (size pre + size (stack_zero_unrolled rspi ws_align ws stk_max)))
       & state_rel_unrolled stack_zero_unrolled_vars s1 s2 0 ptr].
 Proof.
@@ -721,6 +749,12 @@ Lemma store_zero_no_ext_lbl ii rsp ws off :
   get_label (MkLI ii (store_zero rsp ws off)) = None.
 Proof. by rewrite /store_zero; case: store_mn_of_wsize. Qed.
 
+Lemma store_zero_no_syscall ii rsp ws off :
+  ~~ isSome (is_Lsyscall (MkLI ii (store_zero rsp ws off))).
+Proof.
+  by rewrite /is_Lsyscall /is_Lsyscall_r /store_zero; case: store_mn_of_wsize.
+Qed.
+
 Lemma arm_stack_zero_cmd_not_ext_lbl szs rspn lbl ws_align ws stk_max cmd vars :
   stack_zeroization_cmd szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
   label_in_lcmd cmd = [::].
@@ -738,6 +772,21 @@ Proof.
     by elim: rev => [//|?? ih] /=; rewrite store_zero_no_ext_lbl.
 Qed.
 
+Lemma arm_stack_zero_cmd_no_syscall szs rspn lbl ws_align ws stk_max cmd vars :
+  stack_zeroization_cmd szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
+  all (fun i : linstr => ~~ isSome (is_Lsyscall i)) cmd.
+Proof.
+  rewrite /stack_zeroization_cmd.
+  t_xrbindP=> _.
+  case: szs => //.
+  + move=> [<- _].
+    rewrite /stack_zero_loop !all_cat /sz_init /sz_loop /restore_sp /=.
+    by rewrite store_zero_no_syscall.
+  + move=> [<- _].
+    rewrite /stack_zero_unrolled !all_cat /sz_init /restore_sp /= /sz_unrolled cats0 all_map /=.
+    by apply /allP => off _; exact: store_zero_no_syscall.
+Qed.
+
 Lemma arm_stack_zero_cmdP szs rspn lbl ws_align ws stk_max cmd vars :
   stack_zeroization_cmd szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
   stack_zeroization_proof.sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars.
@@ -746,7 +795,7 @@ Proof.
     /negP hlabel hbody ls ptr hfn hpc hstack hrsp top hvalid.
   have [s2 [hsem hsr]]: [elaborate
     exists s2,
-      lsem_n lp (endpc lp fn) ls (of_estate s2 fn (size lc + size cmd))
+      lsem_n lp (and_not_syscall lp (endpc lp fn)) ls (of_estate s2 fn (size lc + size cmd))
       /\ state_rel_unrolled
           rspn ws_align ws stk_max ptr vars (to_estate ls) s2 0 ptr].
   + move: hcmd; rewrite /stack_zeroization_cmd.
@@ -766,7 +815,7 @@ Proof.
     by rewrite -hfn -hpc of_estate_to_estate.
 
   exists (emem s2), (evm s2); split=> //.
-  + admit. (* by rewrite -{2}hfn /of_estate -hsr.(sr_scs) in hsem. *)
+  + by rewrite -{2}hfn /of_estate -hsr.(sr_scs) in hsem.
   + move=> x hin.
     case: (x =P vid rspn) => [->|hneq].
     + by rewrite hsr.(sr_rsp).
@@ -776,6 +825,6 @@ Proof.
   + have := hsr.(sr_zero).
     by rewrite wrepr0 GRing.addr0 Z.sub_0_r.
   exact: hsr.(sr_disjoint).
-Admitted.
+Qed.
 
 End STACK_ZEROIZATION.
