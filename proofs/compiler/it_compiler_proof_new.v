@@ -72,7 +72,6 @@ Require Import hoare_valid.
 Require Import xrutt xrutt_facts.
 
 Require Import it_compiler_proof.
-Require Import it_compiler_proof_2.
 Require Import linearization_composition.
 
 
@@ -781,15 +780,39 @@ have w_sz :=
     (wE := wE) (rndE0_refl := RndE0Refl)
     (hap_hszp haparams)  _ ok_zp get_lfd_lp.
 
-apply: (wkequiv_io_trans _ _ w_ovm); cycle 2.
-apply: (wkequiv_io_trans (P23 := sz_pre lp (linear_fd (ap_lip aparams) sp fn fd).2) _ _ w_lin); cycle 2.
-apply: (wkequiv_io_trans (P12 := eq) (P23 := sz_pre lp (linear_fd (ap_lip aparams) sp fn fd).2) _ _ _ (w_sz _)); cycle 2.
+set lfd_lp := (linear_fd (ap_lip aparams) sp fn fd).2.
+set szf := (fun fn0 : funname =>
+  match stack_zero_info cparams fn0 with
+  | Some (szs, ows) =>
+      Some (szs, match ows with
+                 | Some ws => ws
+                 | None => match get_fundef (lp_funcs lp) fn0 with
+                           | Some lfd0 => lfd_align lfd0
+                           | None => U8
+                           end
+                 end)
+  | None => None
+  end).
+apply: (wkequiv_io_trans
+  (P23 := fun (i2 i3 : estate) =>
+    preF_export sp lp rip fn i2 i3 /\ sz_pre lp lfd_lp i3 i3)
+  (Q23 := fun (i2 i3 : estate) (o2 o3 : estate) =>
+    exists o3', postF_export sp lp fn i2 i3 o2 o3'
+             /\ sz_pos szf lp fn lfd_lp i3 i3 o3' o3)
+  _ _ w_ovm); cycle 2.
+apply: (wkequiv_io_trans
+  (P23 := sz_pre lp lfd_lp)
+  (Q23 := sz_pos szf lp fn lfd_lp)
+  _ _ w_lin); cycle 2.
+apply: (wkequiv_io_trans
+  (P12 := eq) (P23 := sz_pre lp lfd_lp)
+  (Q12 := fun _ _ => eq)
+  _ _ _ (w_sz _)); cycle 2.
 move=> s _ <-.
 apply: (xrutt_weaken_v1
   (EE1 := errcutoff (is_error wE)) (EE2 := nocutoff)
   (EE1' := errcutoff (is_error wE)) (EE2' := nocutoff)); cycle 5.
 exact: mix_ilsem_exportcall_ilsem_exportcall.
-
 - done.
 - done.
 - move=> T1 T2 [e1|e1] [e2|e2] => //= -[?]; subst T1 => //= -[->].
@@ -797,10 +820,14 @@ exact: mix_ilsem_exportcall_ilsem_exportcall.
 - move=> T1 T2 [[e1]|[scs1 n1]] // [scs1' a1] [[e2]|[scs2 n2]] // [scs2' a2].
   move=> [<- <-] a.
   by rewrite (Eqdep.EqdepTheory.UIP_refl _ _ a).
-all: cycle 1.
+- done.
 - rewrite (lp_rspE (sip := sip_of_asm_e) ok_lp); exact: rsp_in_callee_saved.
 - by move=> i1 i3 ?; exists i1.
-all: cycle 1.
+- by move=> i1 _ i3 o1 o3 <- hpresz [_ <-] hpossz.
+- move=> i1 i3 [hpreovm hpresz].
+  admit.
+- by move=> i1 i2 i3 o1 o3 _ [w [_ ? _ _]] [r ??]; subst i2; exists r.
+- admit.
 Admitted.
 
 End BACK_END.
@@ -925,7 +952,7 @@ have rsp_in_callee_saved :
   exact: (map_f var_of_asm_typed_reg callee_saved_has_rsp).
 have cs_not_arr :
   forall x, Sv.In x one_varmap.callee_saved -> ~ is_aarr (vtype x).
-- admit.
+- move=> x /sv_of_listP. admit.
 
 have [lfd [get_lfd lfd_export w_be]] :=
   it_compiler_back_endP (tp := lp) rip rsp_in_callee_saved cs_not_arr ok_lp

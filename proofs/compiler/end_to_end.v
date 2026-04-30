@@ -80,8 +80,6 @@ Require Import
 
 Import Order.TTheory.
 
-Require Import it_compiler_proof_2.
-
 #[local] Open Scope ring_scope.
 #[local] Open Scope Z.
 #[local] Open Scope order_scope.

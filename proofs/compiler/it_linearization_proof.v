@@ -87,126 +87,10 @@ Context (lload_correct : lload_correct_aux lip_check_ws lip_lload).
 Context (ladd_imm_correct : ladd_imm_correct_aux lip_add_imm).
 
 
-Lemma lstores_dfl_correct : lstores_correct_aux lip_check_ws lip_tmp2 (lstores_dfl lip_lstore).
-Proof.
-  move=> rspi to_save s top m2 /= _ _ hget hf.
-  have -> := lstores_dfl_correct1 lstore_correct hget hf.
-  by exists (evm s) => //; rewrite with_vm_same.
-Qed.
 
-Lemma lstores_imm_dfl_correct :
-  lstores_correct_aux lip_check_ws lip_tmp2 (lstores_imm_dfl lip_tmp2 lip_lstore lip_add_imm lip_imm_small).
-Proof.
-  move=> rspi to_save s top m2 /= hnin hne hget hf.
-  rewrite /lstores_imm_dfl.
-  case: ifP => _; first by apply: lstores_dfl_correct hget hf.
-  move/Sv_memP/sv_of_listP:hnin => hnin.
-  set tmp2 := (VarI {| vtype := aword Uptr; vname := lip_tmp2 |} dummy_var_info).
-  move: (head _ _).2 => ofs0.
-  rewrite sem_fopns_args_cat.
-  have [vm2 [-> heq hget' /=]]:= ladd_imm_correct (x1:=tmp2) ofs0 erefl hne hget.
-  exists vm2; last by apply eq_exS.
-  have hget1 : get_var true (evm (with_vm s vm2)) tmp2 >>= to_word Uptr = ok (top + wrepr Uptr ofs0)%R.
-  + by rewrite hget' /= truncate_word_u.
-  apply: (lstores_dfl_correct1 lstore_correct hget1) => {hget1}.
-  elim: to_save s hnin heq hget hget' hf => //= -[x ofs] to_save ih s hnin heq hget hget'.
-  case heqt: vtype => [|||ws] //=; t_xrbindP.
-  move=> m -> w v hgetx hwx hw hf /=.
-  rewrite (get_var_eq_ex _ _ heq); last first.
-  + by move=> /Sv.singleton_spec ?; subst x; rewrite mem_head in hnin.
-  rewrite hgetx /= hwx /= -GRing.addrA -wrepr_add.
-  have -> : (ofs0 + (ofs - ofs0))%Z =ofs%Z by ring.
-  rewrite hw /=; apply: (ih (with_mem s m)) => //.
-  by move: hnin; rewrite in_cons negb_or => /andP [].
-Qed.
 
-Lemma lloads_aux_correct rspi to_restore s top vm2 :
-    let m1 := emem s in
-    let vm1 := evm s in
-    let lcmd := lloads_aux lip_lload rspi to_restore in
-    ~~ Sv.mem rspi (sv_of_list fst to_restore) ->
-    get_var true vm1 rspi >>= to_word Uptr = ok top ->
-    foldM (λ '(x, ofs) vm1,
-       Let: ws := if vtype x is aword ws then ok ws else Error ErrType in
-       Let _ := assert (lip_check_ws ws) ErrType in
-       Let w := read m1 Aligned (top + wrepr Uptr ofs)%R ws in
-       set_var true vm1 x (Vword w)) vm1 to_restore = ok vm2 ->
-     sem_fopns_args s lcmd = ok (with_vm s vm2) /\ get_var true vm2 rspi >>= to_word Uptr = ok top.
-Proof.
-  rewrite /= => /Sv_memP/sv_of_listP.
-  elim: to_restore s => /=.
-  + by move=> s _ ? [<-]; rewrite with_vm_same.
-  move=> [x ofs] to_restore ih s /= hnin hget.
-  case heqt: vtype => [|||ws] //=; t_xrbindP.
-  move=> vm1 hchk w hread hset hf.
-  rewrite (lload_correct (xd := VarI x dummy_var_info) _ hchk hget hread hset);
-    last by rewrite heqt; apply convertible_refl.
-  apply: ih => //.
-  + by move: hnin; rewrite in_cons negb_or => /andP [].
-  rewrite -(get_var_eq_ex _ _ (set_var_eq_ex hset)) //.
-  by move=> /Sv.singleton_spec ?; subst x; rewrite mem_head in hnin.
-Qed.
 
-Lemma lloads_dfl_correct :
-  lloads_correct_aux lip_check_ws lip_tmp2 (lloads_dfl lip_lload).
-Proof.
-  move=> rspi to_rest ofs s top vm2 /= hnin hnin2 hne hget.
-  rewrite /lloads_dfl foldM_cat; t_xrbindP => vm1 hf.
-  rewrite /=; case heqt: vtype => [|||ws] //=; t_xrbindP.
-  move=> vm2' hchk w hread hset ?; subst vm2'.
-  have [+ hget2]:= lloads_aux_correct hnin hget hf.
-  rewrite /lloads_aux map_cat sem_fopns_args_cat => -> /=.
-  rewrite
-    (lload_correct
-      (xd := VarI rspi dummy_var_info) (s:= with_vm s vm1)
-      _ hchk hget2 hread hset);
-    last by rewrite heqt; apply convertible_refl.
-  by exists vm2.
-Qed.
 
-Lemma lloads_imm_dfl_correct :
-  lloads_correct_aux lip_check_ws lip_tmp2 (lloads_imm_dfl lip_tmp2 lip_lload lip_add_imm lip_imm_small).
-Proof.
-  move=> rspi to_rest ofs s top vm2 /= hnin hnin2 hne hget hf.
-  rewrite /lloads_imm_dfl; case: ifP => _.
-  + by apply: lloads_dfl_correct hnin hnin2 hne hget hf.
-  rewrite sem_fopns_args_cat; move: _.2 => ofs0.
-  set tmp2 := (VarI {| vtype := aword Uptr; vname := lip_tmp2 |} dummy_var_info).
-  have [vm1 [-> heq hget' /=]]:= ladd_imm_correct (x1:=tmp2) ofs0 erefl hne hget.
-  set to_restore := map _ _.
-  have hnin2': v_var tmp2 \notin (map fst to_restore).
-  + rewrite /to_restore !map_cat mem_cat in_cons in_nil /=.
-    move/eqP/negbTE: hne => ->; rewrite !orbF -map_comp.
-    move/Sv_memP/sv_of_listP: hnin2 => /mapP hnin2.
-    by apply /negP => /mapP [x hin heqx]; apply hnin2; exists x => //; rewrite heqx; case: (x).
-  have [vm2' {}hf heqx]: exists2 vm2',
-      foldM
-         (λ '(x, ofs) (vm1 : Vm.t),
-            Let ws := match vtype x with
-                      | aword ws => ok ws
-                      | _ => Error ErrType
-                      end
-            in (assert (lip_check_ws ws) ErrType >>
-                Let w := read (emem s) Aligned ((top + wrepr Uptr ofs0) + wrepr Uptr ofs)%R ws in set_var true vm1 x (Vword w)))
-         vm1 to_restore = ok vm2' & vm2 =[\Sv.singleton tmp2] vm2'.
-  + move: hnin2'; rewrite /to_restore => {to_restore hget hnin hne hget' hnin2}.
-    elim: (to_rest ++ [:: (v_var rspi, ofs)]) s vm1 heq hf => /=.
-    + by move=> s vm1 heqx [<-] _; exists vm1 => //; apply eq_exS.
-    move=> [x {}ofs] to_restore ih s vm1 heqx.
-    case heqt: vtype => [|||ws] //=; t_xrbindP.
-    move=> vm1' -> /= w hread hset hf hnin2.
-    rewrite -GRing.addrA -wrepr_add.
-    have -> : (ofs0 + (ofs - ofs0))%Z =ofs%Z by ring.
-    rewrite hread /= set_var_eq_type //=; last by rewrite heqt.
-    apply: (ih (with_vm s vm1')) => //=.
-    + move=> z hz; move/set_varP: hset => [] _ _ ->.
-      by rewrite !Vm.setP heqt vm_truncate_val_eq //; case: eqP => // _; apply heqx.
-    by move: hnin2; rewrite negb_or => /andP [].
-  have /(_ tmp2) []:= lloads_aux_correct (s:= with_vm s vm1) _ _ hf.
-  + by apply/Sv_memP/sv_of_listP.
-  + by rewrite hget' /= truncate_word_u.
-  by move=> -> _; exists vm2'.
-Qed.
 
 End DEFAULT.
 
@@ -214,18 +98,6 @@ Section HLIPARAMS.
   Context
     (hliparams : h_linearization_params liparams).
 
-  Lemma spec_lmove {lp ii ls} {x y:var_i} (w : word Uptr) :
-    vtype x = aword Uptr ->
-    convertible (vtype y) (aword Uptr) ->
-    get_var true (lvm ls) (v_var y) = ok (Vword w) ->
-    let li := lmove liparams ii x y in
-    let s := to_estate ls in
-    eval_instr lp li ls = ok (lnext_pc (lset_estate' ls (with_vm s (evm s).[x <- Vword w]))).
-  Proof.
-    move=> htx hty hget /=; rewrite -(lset_estate_same ls).
-    apply sem_fopn_args_eval_instr.
-    by rewrite (spec_lip_lmove hliparams (s:= to_estate ls) htx hty hget (truncate_word_u w)).
-  Qed.
 
   Lemma spec_lstore {lp ii ls m ofs} {x y:var_i} {wx ws' wy'} {wy : word ws'} :
     convertible (vtype y) (aword Uptr) ->
@@ -3785,9 +3657,11 @@ Qed.
         rewrite (step_mix_ilsteps ok_body) //=; last by simpl_size;lia.
         have hgetr2 : get_var true (lvm ls2) (mk_var_i {| vtype := stty; vname := saved_stack|}) = ok (Vword (top_stack (emem s1))).
         + rewrite  -(get_var_eq_ex _ saved_stack_not_written K2); exact: hgetr.
-        rewrite (@spec_lmove _ hliparams p' _ ls2
-                  (vid (sp_rsp (p_extra p))) (mk_var_i {| vtype := stty; vname := saved_stack|}) _
-                  erefl hc hgetr2).
+        rewrite (spec_lmove (liparams := liparams) hliparams
+                  (lp := p') (ls := ls2)
+                  (x := vid (sp_rsp (p_extra p)))
+                  (y := mk_var_i {| vtype := stty; vname := saved_stack|})
+                  (w := top_stack (emem s1)) erefl hc hgetr2).
         rewrite mix_ilsteps_b0 => //; last by rewrite /lnext_pc /= hpc2 addn1.
         rewrite bind_ret_l mix_ilsteps_0; last first.
         + by rewrite /in_fn /endpc /lnext_pc /= hfn2 eqxx ok_fd' /= hpc2 catA !size_cat /Q /= addn1 eqxx.
