@@ -28,6 +28,7 @@ Require Import
   while.
 
 Require Export it_sems_core_defs.
+Require Import it_sems_core. 
 
 (* -------------------------------------------------------------------- *)
 
@@ -606,33 +607,88 @@ Proof.
 Qed.
 
 
+Class it_asm_syscall_sem := {
+  put_syscall_ans :
+    syscall_t -> syscall_state_t -> seq u8 -> asmmem -> exec asmmem;
+
+  put_syscall_ans_spec :
+    forall o s1 len scs scs' bytes m vres,
+      let: sig := syscall_sig_s o in
+      let: params := take (size sig.(scs_tin)) call_reg_args in
+      let: vargs := [seq Vword (s1.(asm_reg) r) | r <- params ] in
+      let: rets := take (size sig.(scs_tout)) call_reg_ret in
+      exec_syscall_arg_s o vargs = ok len ->
+      exec_syscall_store_s o scs s1.(asm_mem) vargs bytes = ok (scs', m, vres) ->
+      exists s2,
+        let: vres' := [seq Vword (s2.(asm_reg) r) | r <- rets ] in
+        [/\ put_syscall_ans o scs bytes s1 = ok s2
+          , s2.(asm_scs) = scs'
+          , s2.(asm_mem) = m
+          & vres = vres'
+        ];
+
+  put_syscall_preserves :
+    forall o scs bytes s1 s2,
+      put_syscall_ans o scs bytes s1 = ok s2 ->
+      [/\ forall r, r \in callee_saved -> preserved_register r s1 s2
+        , s1.(asm_rip) = s2.(asm_rip)
+        & stack_stable s1.(asm_mem) s2.(asm_mem) ];
+}.
+
 (* ITree based Semantics *)
 Section ITREE.
-
-Context {E E0} {wE : with_Error E E0}.
-
-(* TODO catch syscall here? *)
-Definition ifetch_and_eval (s: asm_state) : itree E asm_state :=
-  err_result (fun e => (e, tt)) (fetch_and_eval s).
-
-Local Notation continue_loop s := (ret (inl s)).
-Local Notation exit_loop s := (ret (inr s)).
 
 Import MonadNotation.
 Local Open Scope monad_scope.
 
-Definition iasmsem_body (endpc : funname * nat) (s:asm_state) :=
-  if endpc == (s.(asm_f), s.(asm_ip)) then exit_loop s
-  else
-    s <- ifetch_and_eval s;;
-    continue_loop s.
+Context
+  {it_asm_scsem : it_asm_syscall_sem}
+  {E E0}
+  {wE : with_Error E E0}
+  {rE : RndEvent syscall_state_t -< E}
+.
+
+Definition asm_is_syscall (i : asm_i) : option syscall_t :=
+  if i.(asmi_i) is SysCall s then Some s else None.
+
+Definition asm_next_is_syscall (s : asm_state) : option syscall_t :=
+  let%opt i := oseq.onth s.(asm_c) s.(asm_ip) in asm_is_syscall i.
+
+Definition get_syscall_args (s: asmmem) (o : syscall_t) : result error Z :=
+  let sig := syscall_sig_s o in
+  let params := take (size sig.(scs_tin)) call_reg_args in
+  let vargs := [seq Vword (s.(asm_reg) r) | r <- params ] in
+  exec_syscall_arg_s o vargs.
+
+Definition asm_exec_syscall
+  (o : syscall_t) (s : asm_state) : itree E asm_state :=
+  let: m := s.(asm_m) in
+  len <- err_result (fun e => (e, tt)) (get_syscall_args m o) ;;
+  scs_rb <- trigger (Rnd m.(asm_scs) len) ;;
+  m' <- err_result (fun e => (e, tt)) (put_syscall_ans o scs_rb.1 scs_rb.2 m) ;;
+  Ret (st_update_next m' s).
+
+Definition ifetch_and_eval (s: asm_state) : itree E asm_state :=
+  if asm_next_is_syscall s is Some o then asm_exec_syscall o s.(asm_m)
+  else err_result (fun e => (e, tt)) (fetch_and_eval s).
+
+Definition asm_endpc (endpc : funname * nat) (s : asm_state) : bool :=
+  endpc != (s.(asm_f), s.(asm_ip)).
+
+Definition iasmsem_body_ (cont : pred asm_state) (s:asm_state) :=
+  while_body cont ifetch_and_eval s.
+
+Definition iasmsem_body endpc := while_body (asm_endpc endpc) ifetch_and_eval.
 
 Definition iasmsem (endpc : funname * nat) (s:asm_state) :=
   ITree.iter (iasmsem_body endpc) s.
 
 Definition asmsem_body endpc s :=
   if endpc == (asm_f s, asm_ip s) then ok (inr s)
-  else Let s0 := fetch_and_eval s in ok (inl s0).
+  else
+    Let _ := assert (~~ isSome (asm_next_is_syscall s)) ErrType in
+    Let s0 := fetch_and_eval s in
+    ok (inl s0).
 
 Fixpoint asmsem_body_n endpc n s :=
   Let ins := asmsem_body endpc s in
@@ -658,27 +714,36 @@ Lemma asmsem_body_nE endpc n s :
   end.
 Proof. by case: n. Qed.
 
-Lemma i_asmsem_body endpc s :
-  iasmsem_body endpc s ≅ err_result (pair^~ tt) (asmsem_body endpc s).
+Definition asm_cond_not_syscall (cond : pred asm_state) : Prop :=
+  forall s, cond s -> ~~ isSome (asm_next_is_syscall s).
+
+Definition asm_and_not_syscall (cond : pred asm_state) (s : asm_state) : bool :=
+  cond s && ~~ asm_next_is_syscall s.
+
+Lemma and_not_syscall_not_syscall x :
+  asm_cond_not_syscall (asm_and_not_syscall x).
+Proof. by move=> ? /andP []. Qed.
+
+Lemma i_asmsem_body endpc s s' :
+  asmsem_body endpc s = ok s' ->
+  iasmsem_body endpc s ≅ Ret s'.
 Proof.
-  rewrite /iasmsem_body /ifetch_and_eval /asmsem_body; case: eqP => h /=.
-  + reflexivity.
-  case: fetch_and_eval => [s' | ] /=.
-  + rewrite bind_ret_l; reflexivity.
-  move=> e; apply bind_throw.
+rewrite /iasmsem_body /ifetch_and_eval /asmsem_body /while_body /asm_endpc.
+case: eqP => _ /=.
+- move=> [->]; reflexivity.
+t_xrbindP=> + {}s' -> <-; case: asm_next_is_syscall => [//|] _.
+rewrite /= bind_ret_l; reflexivity.
 Qed.
 
-Lemma i_asmsem_body_n endpc n s :
-    (iter_n (iasmsem_body endpc) n s) ≈
-    (err_result (pair^~ tt) (asmsem_body_n endpc n s)).
+Lemma i_asmsem_body_n endpc n s s' :
+  asmsem_body_n endpc n s = ok s' ->
+  iter_n (iasmsem_body endpc) n s ≈ Ret s'.
 Proof.
-  elim: n s => /= [ | n hn] s.
-  + rewrite i_asmsem_body; case: asmsem_body => [ ins|] /=; reflexivity.
-  rewrite i_asmsem_body; case: asmsem_body => [ ins|] /=.
-  + rewrite bind_ret_l; case: ins => s' /=; last reflexivity.
-    by apply eqit_Tau_l; apply hn.
-  move=> e; rewrite /Exception.throw /= bind_vis.
-  apply eqit_Vis; case.
+  elim: n s => /= [ | n hn] s; t_xrbindP.
+  + move=> ins /i_asmsem_body -> ->; reflexivity.
+  move=> ins /i_asmsem_body ->; rewrite bind_ret_l; case: ins => ins.
+  + move=> /hn ->; rewrite tau_eutt; reflexivity.
+  move=> [->]; reflexivity.
 Qed.
 
 End ITREE.
@@ -719,7 +784,11 @@ Variant asmsem_exportcall
 
 Section ITREE.
 
-Context {E E0} {wE : with_Error E E0}.
+Context
+  {it_asm_scsem : it_asm_syscall_sem}
+  {E E0} {wE : with_Error E E0}
+  {rE : RndEvent syscall_state_t -< E}
+.
 
 Import MonadNotation.
 Local Open Scope monad_scope.
