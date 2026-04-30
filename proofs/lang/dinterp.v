@@ -1,7 +1,5 @@
 (* Two probabilistic interpretations of ITrees.
-   One uses the distribution monad and [iter] (can't use [interp] because of
-   universe clashes).
-   The other directly constructs a distribution from the ITree. *)
+   It constructs a distribution from the ITree. *)
 
 From Coq Require Import Classical.
 From mathcomp Require Import ssreflect ssrbool ssrfun ssrnat ssralg ssrnum.
@@ -44,87 +42,6 @@ Definition unif_rV {T : finType} (n : nat) : itree Rnd 'rV[T]_n :=
   trigger (GetRnd (dunif 'rV[T]_n)).
 
 End RND.
-
-(* -------------------------------------------------------------------------- *)
-(* Distribution monad using ITrees *)
-
-Section ITREE.
-
-Context {R : realType}.
-
-Section DistrMonad.
-
-Import Structures.Functor Structures.Monad Basics.Basics.
-
-Set Universe Polymorphism.
-
-Definition DistrM (A : Type) : Type := {distr {classic A} / R}.
-
-Let distr_fmap A B (f : A -> B) (d : DistrM A) :=
-  dmargin (T := {classic A}) (U := {classic B}) f d.
-
-#[global]
-Instance Functor_DistrM : Functor DistrM := { fmap := distr_fmap; }.
-
-Definition distrD A (mu : distr R A) :=
-  dmargin (T := A) (U := {classic A}) id mu.
-Let dunitD A a : DistrM A := dunit (T := {classic A}) a.
-Let dbindD A B mu f := dlet (R := R) (T := {classic A}) (U := {classic B}) f mu.
-
-Notation "\dletD_ ( i <- d ) E" := (dbindD d (fun i => E))
-  (at level 36, E at level 36, i, d at level 50,
-     format "'[' \dletD_ ( i  <-  d ) '/  '  E ']'").
-
-#[global]
-Instance Monad_DistrM : Monad DistrM := { ret := dunitD; bind := dbindD; }.
-
-Fixpoint iter_n I A (step : I -> DistrM (I + A)) (i : I) (n : nat) : DistrM A :=
-  match n with
-  | 0 => dnull (T := {classic A})
-  | S n' =>
-    \dletD_(lr <- step i)
-      match lr with
-      | inl i' => iter_n step i' n'
-      | inr a  => dunitD a
-      end
-  end.
-
-#[global]
-Instance MonadIter_DistrM : MonadIter DistrM :=
-  fun A I step i => \dlim_(n) iter_n step i n.
-
-End DistrMonad.
-
-(* -------------------------------------------------------------------------- *)
-(* Interpretation of Rnd events as distributions *)
-
-Section DINTERP.
-
-Import ITree Structures.Functor Structures.Monad Basics.Basics.
-
-Definition handle_Rnd : forall T, Rnd (R := R) T -> DistrM T :=
-  fun _ e => let 'GetRnd _ mu := e in distrD mu.
-
-End DINTERP.
-
-End ITREE.
-
-Import ITree.ITree Structures.Functor Structures.Monad Basics.Basics.
-
-(* The bypass is apparently needed and rules out many lemmas from ITrees and
-   mathcomp. *)
-#[bypass_check(universes)]
-Definition dinterp_itree
-{R : realType} {T} (t : itree (Rnd (R := R)) T) : DistrM (R := R) T :=
-  iter (M := DistrM (R := R))
-    (fun t0 =>
-      match observe t0 with
-      | RetF r => ret (m := DistrM (R := R)) (inr r)
-      | TauF t => ret (m := DistrM (R := R)) (inl t)
-      | VisF _ e k =>
-          fmap (F := DistrM (R := R))
-            (fun x => inl (k x)) (handle_Rnd (R := R) e)
-      end) t.
 
 (* -------------------------------------------------------------------------- *)
 (* Direct interpretation of itrees as distributions *)
