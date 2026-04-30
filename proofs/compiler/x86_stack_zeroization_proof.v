@@ -136,37 +136,6 @@ Context (hbody : is_linear_of lp fn (lc ++ loop_small_cmd rspn lbl ws_align ws s
 Context (rsp_nin : ~ Sv.In rspi loop_small_vars).
 (* FIXME: rename bottom into top/top_max in other files *)
 
-Lemma lsem_n_eval_lin_sc n i s2 s1 s3 c1 c2 :
-  is_linear_of lp fn (c1 ++ c2) ->
-  ~~ isSome (next_is_Lsyscall lp s1) ->
-  lfn s1 = fn ->
-  lpc s1 = size c1 + n ->
-  oseq.onth c2 n = Some i ->
-  eval_instr lp i s1 = ok s2 ->
-  lsem_n lp nscendpc s2 s3 ->
-  lsem_n lp nscendpc s1 s3.
-Proof.
-  move=> hlin hsc hfn hpc hi hev; apply lsem_n_step => //; last first.
-  - by rewrite /step (find_instr_skip' hlin hpc) // hi.
-  rewrite /and_not_syscall hsc andbT.
-  rewrite /endpc hfn eqxx hpc; have [lfd -> ->] := hlin.
-  have := onth_size hi.
-  by rewrite size_cat -(ltn_add2l (size c1)) ltn_neqAle => /andP [].
-Qed.
-
-Lemma lsem_n_eval_lin_sc1 n i s1 s2 c1 c2 :
-  is_linear_of lp fn (c1 ++ c2) ->
-  ~~ isSome (next_is_Lsyscall lp s1) ->
-  lfn s1 = fn ->
-  lpc s1 = size c1 + n ->
-  oseq.onth c2 n = Some i ->
-  eval_instr lp i s1 = ok s2 ->
-  lsem_n lp nscendpc s1 s2.
-Proof.
-  move=> hlin hsc hfn hpc hi hev.
-  exact/(lsem_n_eval_lin_sc hlin hsc hfn hpc hi hev)/lsem_n_0.
-Qed.
-
 Lemma loop_small_bodyP s1 s2 n :
   state_rel_loop_small loop_small_vars s1 s2 n top ->
   (0 < n)%Z ->
@@ -788,12 +757,6 @@ Context (hsmall : (ws <= U64)%CMP).
 Context (hbody : is_linear_of lp fn (lc ++ unrolled_small_cmd rspn ws_align ws stk_max)).
 Context (rsp_nin : ~ Sv.In rspi unrolled_small_vars).
 
-Lemma all_onth X p (s : seq X) i x :
-  all p s ->
-  oseq.onth s i = Some x ->
-  p x.
-Proof. move=> /allInP h ho; exact: h (onth_In ho). Qed.
-
 Lemma unrolled_small_cmd_no_syscall :
   all
     [pred i | ~~ isSome (is_Lsyscall i)]
@@ -836,7 +799,7 @@ Local Opaque wsize_size Z.of_nat.
   + apply: (lsem_n_eval_lin_sc1 (n:= (3+n)) hbody) => //=.
     + rewrite -addnA /next_is_Lsyscall (find_instr_skip hbody).
       case h: oseq.onth => [i|//].
-      exact: all_onth unrolled_small_cmd_no_syscall h.
+      exact: oseq.all_onth unrolled_small_cmd_no_syscall h.
     + by rewrite addnA.
     + rewrite onth_map.
       rewrite oseq.onth_cat !size_map size_rev size_ziota.
@@ -1004,7 +967,7 @@ Proof.
   + apply: (lsem_n_eval_lin_sc1 (n:= (3 + Z.to_nat (stk_max / wsize_size ws))) hbody) => //=.
     + rewrite -addnA /next_is_Lsyscall (find_instr_skip hbody).
       case h: oseq.onth => [i|//].
-      exact: all_onth unrolled_small_cmd_no_syscall h.
+      exact: oseq.all_onth unrolled_small_cmd_no_syscall h.
     + by rewrite addnA.
     + rewrite onth_map.
       rewrite oseq.onth_cat !size_map size_rev size_ziota.
@@ -1091,7 +1054,7 @@ Local Opaque wsize_size Z.of_nat.
   + apply: (lsem_n_eval_lin_sc1 (n:= 4+n) hbody) => //=.
     + rewrite -addnA /next_is_Lsyscall (find_instr_skip hbody).
       case h: oseq.onth => [i|//].
-      exact: all_onth unrolled_large_cmd_no_syscall h.
+      exact: oseq.all_onth unrolled_large_cmd_no_syscall h.
     + by rewrite addnA.
     + rewrite onth_map.
       rewrite oseq.onth_cat !size_map size_rev size_ziota.
@@ -1268,7 +1231,7 @@ Proof.
   + apply: (lsem_n_eval_lin_sc1 (n:=4 + Z.to_nat (stk_max / wsize_size ws)) hbody) => //=.
     + rewrite -addnA /next_is_Lsyscall (find_instr_skip hbody).
       case h: oseq.onth => [i|//].
-      exact: all_onth unrolled_large_cmd_no_syscall h.
+      exact: oseq.all_onth unrolled_large_cmd_no_syscall h.
     + by rewrite addnA.
     + rewrite onth_map.
       rewrite oseq.onth_cat !size_map size_rev size_ziota.
@@ -1345,22 +1308,6 @@ Proof.
     by case: ifPn => _ [<- _].
   rewrite /x86_stack_zero_unrolled.
   by case: ifPn => _ [<- _] /=; elim: rev.
-Qed.
-
-Lemma lsem_n_step_end_sc lp fn s2 s1 s3 :
-  lsem_n lp (and_not_syscall lp (endpc lp fn)) s1 s2 ->
-  ~~ isSome (next_is_Lsyscall lp s2) ->
-  step lp s2 = ok s3 ->
-  lsem_n lp (and_not_syscall lp (endpc lp fn)) s1 s3.
-Proof.
-  move=> hsem hsc hstep.
-  apply: (lsem_n_trans hsem).
-  apply: (lsem_n_step _ hstep); last exact: lsem_n_0.
-  move: hstep; rewrite /step /and_not_syscall /endpc /find_instr hsc.
-  case: eqP => [->|//]; case: get_fundef => [lfd|//].
-  case h: oseq.onth => [i|//] _.
-  have := onth_size h.
-  by rewrite ltn_neqAle => /andP [-> _].
 Qed.
 
 Lemma x86_stack_zero_cmdP szs rspn lbl ws_align ws stk_max cmd vars :

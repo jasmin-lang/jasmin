@@ -106,7 +106,6 @@ Existing Instance HandlerContract_trans.
 Notation it_compiler_front_endP :=
   (it_compiler_front_endP haparams print_uprogP print_sprogP).
 
-(*
 Section BACK_END.
 
 Context

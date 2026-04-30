@@ -508,6 +508,52 @@ Proof.
   by rewrite (leq_trans hs hle) /= (leq_trans hlt he).
 Qed.
 
+Lemma lsem_n_eval_lin_sc lp fn n i s2 s1 s3 c1 c2 :
+  is_linear_of lp fn (c1 ++ c2) ->
+  ~~ isSome (next_is_Lsyscall lp s1) ->
+  lfn s1 = fn ->
+  lpc s1 = size c1 + n ->
+  oseq.onth c2 n = Some i ->
+  eval_instr lp i s1 = ok s2 ->
+  lsem_n lp (and_not_syscall lp (endpc lp fn)) s2 s3 ->
+  lsem_n lp (and_not_syscall lp (endpc lp fn)) s1 s3.
+Proof.
+  move=> hlin hsc hfn hpc hi hev; apply lsem_n_step => //; last first.
+  - by rewrite /step (find_instr_skip' hlin hpc) // hi.
+  rewrite /and_not_syscall hsc andbT.
+  rewrite /endpc hfn eqxx hpc; have [lfd -> ->] := hlin.
+  have := onth_size hi.
+  by rewrite size_cat -(ltn_add2l (size c1)) ltn_neqAle => /andP [].
+Qed.
+
+Lemma lsem_n_eval_lin_sc1 lp fn n i s1 s2 c1 c2 :
+  is_linear_of lp fn (c1 ++ c2) ->
+  ~~ isSome (next_is_Lsyscall lp s1) ->
+  lfn s1 = fn ->
+  lpc s1 = size c1 + n ->
+  oseq.onth c2 n = Some i ->
+  eval_instr lp i s1 = ok s2 ->
+  lsem_n lp (and_not_syscall lp (endpc lp fn)) s1 s2.
+Proof.
+  move=> hlin hsc hfn hpc hi hev.
+  exact/(lsem_n_eval_lin_sc hlin hsc hfn hpc hi hev)/lsem_n_0.
+Qed.
+
+Lemma lsem_n_step_end_sc lp fn s2 s1 s3 :
+  lsem_n lp (and_not_syscall lp (endpc lp fn)) s1 s2 ->
+  ~~ isSome (next_is_Lsyscall lp s2) ->
+  step lp s2 = ok s3 ->
+  lsem_n lp (and_not_syscall lp (endpc lp fn)) s1 s3.
+Proof.
+  move=> hsem hsc hstep.
+  apply: (lsem_n_trans hsem).
+  apply: (lsem_n_step _ hstep); last exact: lsem_n_0.
+  move: hstep; rewrite /step /and_not_syscall /endpc /find_instr hsc.
+  case: eqP => [->|//]; case: get_fundef => [lfd|//].
+  case h: oseq.onth => [i|//] _.
+  have := onth_size h.
+  by rewrite ltn_neqAle => /andP [-> _].
+Qed.
 
 (* ----------------------------------------------------------------------- *)
 (* Some properties about the compilation scheme and mix_ilstep             *)

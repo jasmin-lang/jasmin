@@ -79,6 +79,15 @@ Lemma onth_cat T (s1 s2 : seq T) n :
   onth (s1 ++ s2) n = (if n < size s1 then onth s1 n else onth s2 (n - size s1)).
 Proof. by rewrite !onth_nth map_cat nth_cat size_map. Qed.
 
+
+Lemma all_onth X p (s : seq X) i x :
+  all p s ->
+  oseq.onth s i = Some x ->
+  p x.
+Proof.
+by move=> /all_nthP - /(_ x i) /[swap] /onthP' - /(_ x) [] -> -> /(_ isT).
+Qed.
+
 (* -------------------------------------------------------------------- *)
 Section OSeq.
 Context {T : Type}.
