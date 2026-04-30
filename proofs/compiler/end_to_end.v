@@ -455,19 +455,19 @@ Section DEFS.
 
 Class JazzIParams :=
   {
-    entries : seq funname;
-    mS : mem;
-    mT : mem;
-    ripT : pointer;
-    rmT : regmap;
-    rxmT : regxmap;
-    xrmT : xregmap;
-    rfmT : rflagmap;
+    entries : seq funname; (* API *)
+    mS : mem; (* Initial source memory *)
+    mT : mem; (* Initial target memory *)
+    ripT : pointer; (* Initial target RIP *)
+    rmT : regmap; (* Initial target register map *)
+    rxmT : regxmap; (* Initial target MMX map *)
+    xrmT : xregmap; (* Initial target XMM map *)
+    rfmT : rflagmap; (* Initial target flag map *)
   }.
 
 Context
-  (p : uprog)
-  (q : asm_prog)
+  (p : uprog) (* source program (Jasmin) *)
+  (q : asm_prog) (* target program (assembly) *)
   {JP : JazzIParams}
 .
 
@@ -489,27 +489,29 @@ Definition mkxm
     rdflt xmT (xm_writes xm' xfd.(asm_fd_arg) args ptrs)
   else xmT. (* absurd *)
 
+(* Oracles are function names from the API. *)
 Record export_fn :=
   {
-    _fn :> funname;
-    efn_export : _fn \in entries;
-    efn_fd : fundef;
+    _fn :> funname; (* function name *)
+    efn_export : _fn \in entries; (* the function is in the API *)
+    efn_fd : fundef; (* the function definition *)
+    (* the function is defined in the source program *)
     efn_fd_ok : get_fundef (p_funcs p) _fn = Some efn_fd;
   }.
 
 Definition JNo : choiceType := {choice export_fn}.
 
-(* Safety should be proven assuming only that the shape coincides with initial
-   memory. *)
+(* Oracle inputs *)
 Record valid_input o :=
   {
-    _args :> values;
-    vi_safe : safe_on p o mS _args;
+    _args :> values; (* inputs *)
+    vi_safe : safe_on p o mS _args; (* inputs are safe *)
+    (* safety also requires defined results *)
     vi_def : res_defined_on p o mS _args;
-    vi_ptrs : seq pointer;
+    vi_ptrs : seq pointer; (* pointers for array inputs *)
 
     (* We only allow inputs where:
-       - Pointers need to be valid
+       - Pointers are valid
        - There is enough stack space in xmT *)
     vi_ptrs_ok :
       forall xfd,
@@ -533,6 +535,7 @@ Instance JazzI : OracleSystemInterface :=
 
 Definition MoS : choiceType := {choice mem}.
 
+(* Source programs take inputs as lists of values *)
 Definition unmkfs (fs : fstate) : seq wseq * mem :=
   let: tys := [seq type_of_val v | v <- fs.(fvals) ] in
   (cast_vals tys fs.(fvals), fs.(fmem)).
@@ -546,6 +549,13 @@ Definition isem_unit_res
 
 #[global] Arguments isem_unit_res : clear implicits.
 
+(* Source semantics:
+   - Allows assertions
+   - Call by value
+   - No subword casting
+   - Every function call sets a fresh environment with arguments
+   - Can sample randomness
+   - Allows nontermination *)
 Definition OoS (o : JNo) (i : JIn o) (m : MoS) : itree Rnd (JOut o * MoS) :=
   let* ores := to_Rnd (isem_unit_res o i m |> interp_Err) in
   if ores is ESok (rs, _) then Ret (rs, mS)
@@ -563,7 +573,11 @@ Instance Source : OracleSystem JazzI :=
 
 Definition MoT : choiceType := {choice asmmem}.
 
-(* We assume a function to read from target states. *)
+(* We assume a function to read from target states.
+   This function models what information reaches the adversary as an oracle
+   output (rather than part of the state).
+   [values_match] means that values are equal pointwise, so we ask that the
+   extracted information contains only these values. *)
 Context
   (xget_res : funname -> asmmem -> seq pointer -> seq wseq)
   (xget_resP :
@@ -579,6 +593,13 @@ Definition isem_asm_res
   Ret (xget_res o xm' (vi_ptrs i), xmT).
 Arguments isem_asm_res : clear implicits.
 
+(* Assembly semantics:
+   - Does not allow assertions
+   - Share state, call by reference
+   - Subword casting
+   - Function calls are merely changes to the program counter
+   - Can sample randomness
+   - Allows nontermination *)
 Definition OoT (o : JNo) (i : JIn o) (m : MoT) : itree Rnd (JOut o * MoT) :=
   let* ores := to_Rnd (isem_asm_res o i m |> interp_Err) in
   if ores is ESok res then Ret res
@@ -605,8 +626,6 @@ Context
   (hcomp : compile_prog_to_asm aparams cparams entries p = ok q)
 .
 
-(* TODO can these be automatic? *)
-
 Lemma export_funname_in_entries o : _fn o \in entries.
 Proof. exact: efn_export o. Qed.
 
@@ -619,6 +638,7 @@ Proof. exact: efn_fd_ok o. Qed.
   export_funname_get_fundef
   : core.
 
+(* We always start from the initial memories *)
 Definition sim (ms : MoS) (mt : MoT) : Prop :=
   ms = mS /\ mt = xmT.
 
@@ -681,6 +701,8 @@ move=> fs xm [xfd [hxfd hpre [hma hscs hz hargs]]]; apply eutt_Ret.
 split=> //=; exact: xget_resP hxfd hargs.
 Qed.
 
+(* Security preservation: the source and target oracle systems are in
+   simulation *)
 Theorem compiler_preserves : simulating Source Target.
 Proof.
 exists sim; split; first exact: sim_mS_xmT.
@@ -688,7 +710,6 @@ move=> o i m1 m2 hm.
 have [xfd [hgetq _ heq]] := [elaborate
   it_compile_prog_to_asmP haparams print_uprogP print_sprogP print_linearP
     hcomp (efn_export o)].
-(* TODO we could prove that we always get OK instead of using exec_rel *)
 apply (eutt_clo_bind _ (UU := exec_rel eq_sim)).
 - apply/eutt_interp_RR/interp_exec_eutt_gen/eutt_isem_res/hm.
 move=> /= [[rs ms]|?] [[rt mt]|?] //=; last first.
@@ -726,6 +747,10 @@ Definition dummys := WArray.empty skbytes.
 Definition dummyc := WArray.empty ctbytes.
 Definition dummym := WArray.empty msgbytes.
 
+(* ML-KEM's implementation involves the three algorithms.
+   The signatures take arrays (readable and writable) and return the writable
+   ones.
+   As usual, we ask that the source program is safe on valid inputs. *)
 Context
   (fd_genkey_ok : get_fundef (p_funcs p) fn_genkey = Some fd_genkey)
   (fd_encap_ok : get_fundef (p_funcs p) fn_encap = Some fd_encap)
@@ -748,7 +773,6 @@ Context
 .
 
 Notation OracleSystem := (OracleSystem (R := R)) (only parsing).
-
 
 #[local] Instance KEMP_of_JP : KEMParams :=
   {|
@@ -775,27 +799,30 @@ Section JKEM.
   Notation InK := (In (I := KEM)).
   Notation OutK := (Out (I := KEM)).
 
+  (* We parameterize over how the inputs are written to memory, requiring, e.g.,
+     that writing with a public key succeeds (i.e., the pointer points to
+     allocated memory) *)
   Context
-    (vi_GenKey : valid_input p q efn_kg)
-    (vi_Encap : InK OEncap  -> valid_input p q efn_encap)
-    (vi_Decap : InK ODecap -> valid_input p q efn_decap)
+    (mkiGenKey : valid_input p q efn_kg)
+    (mkiEncap : InK OEncap -> valid_input p q efn_encap)
+    (mkiDecap : InK ODecap -> valid_input p q efn_decap)
   .
 
   Let Oo_JKEM_GenKey
     (i : InK OGenKey) (m : Mo) : itree Rnd (OutK OGenKey * Mo) :=
-    let* (rs, m') := J.(Oo) efn_kg vi_GenKey m in
+    let* (rs, m') := J.(Oo) efn_kg mkiGenKey m in
     if rs is [:: pk; sk ] then Ret ((mkwvec _ pk, mkwvec _ sk), m')
     else Ret ((pk0, sk0), m). (* absurd *)
 
   Let Oo_JKEM_Encap
     (i : InK OEncap) (m : Mo) : itree Rnd (OutK OEncap * Mo) :=
-    let* (rs, m') := J.(Oo) efn_encap (vi_Encap i) m in
+    let* (rs, m') := J.(Oo) efn_encap (mkiEncap i) m in
     if rs is [:: ct; msg ] then Ret ((mkwvec _ ct, mkwvec _ msg), m')
     else Ret ((ct0, msg0), m). (* absurd *)
 
   Let Oo_JKEM_Decap
     (i : InK ODecap) (m : Mo) : itree Rnd (OutK ODecap * Mo) :=
-    let* (rs, m') := J.(Oo) efn_decap (vi_Decap i) m in
+    let* (rs, m') := J.(Oo) efn_decap (mkiDecap i) m in
     if rs is [:: msg ] then Ret (mkwvec _ msg, m')
     else Ret (msg0, m). (* absurd *)
 
@@ -816,11 +843,12 @@ Section JKEM.
 
 End JKEM.
 
-Lemma simulating_JKEM P Q vi_gk vi_enc vi_dec :
+(* Two programs in simulation induce KEMs in simulation. *)
+Lemma simulating_JKEM P Q mkigk mkienc mkidec :
   simulating P Q ->
   simulating
-    (KEM_of_Jazz P vi_gk vi_enc vi_dec)
-    (KEM_of_Jazz Q vi_gk vi_enc vi_dec).
+    (KEM_of_Jazz P mkigk mkienc mkidec)
+    (KEM_of_Jazz Q mkigk mkienc mkidec).
 Proof.
 move=> [sim hsim]; exists sim; split; first exact/hsim.(sim_mi).
 move=> [[] | pk | [sk ct]] m1 m2 hm.
@@ -848,14 +876,15 @@ Context
   (xget_resP :
     forall xfd o (i : valid_input p q o) fs xm,
       get_fundef q.(asm_funcs) o = Some xfd ->
-      values_match p o xfd (mkxm q o xmT i (vi_ptrs i)) fs xm ->
-      cast_vals [seq type_of_val v | v <- fvals fs] (fvals fs) = xget_res o xm (vi_ptrs i))
+      values_match p o xfd (mkxm q o xmT i (mkiptrs i)) fs xm ->
+      cast_vals [seq type_of_val v | v <- fvals fs] (fvals fs) = xget_res o xm (mkiptrs i))
 .
 
-Theorem mlkem_end_to_end vi_gk vi_enc vi_dec :
+(* The main result for ML-KEM. *)
+Theorem mlkem_end_to_end mkigk mkienc mkidec :
   indcca_reduction
-    (KEM_of_Jazz (Source p q) vi_gk vi_enc vi_dec)
-    (KEM_of_Jazz (Target p q xget_res) vi_gk vi_enc vi_dec).
+    (KEM_of_Jazz (Source p q) mkigk mkienc mkidec)
+    (KEM_of_Jazz (Target p q xget_res) mkigk mkienc mkidec).
 Proof.
 apply/sim_indcca_adv/simulating_JKEM.
 exact: (compiler_preserves

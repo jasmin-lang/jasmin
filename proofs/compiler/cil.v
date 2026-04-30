@@ -364,7 +364,8 @@ Variant cca_oracle_name : Type :=
 | OFinalize
 .
 
-HB.instance Definition _ := hasDecEq.Build cca_oracle_name cca_oracle_name_eqb_OK.
+HB.instance Definition _ :=
+  hasDecEq.Build cca_oracle_name cca_oracle_name_eqb_OK.
 
 Definition cca_oracle_names := [:: OInit; OQuery; OGetChallenge; OFinalize ].
 
@@ -374,7 +375,8 @@ Definition cca_oracle_name_pickle (x : cca_oracle_name) : nat :=
 Definition cca_oracle_name_unpickle (n : nat) : option cca_oracle_name :=
   onth cca_oracle_names n.
 
-Lemma cca_oracle_name_pickleK : pcancel cca_oracle_name_pickle cca_oracle_name_unpickle.
+Lemma cca_oracle_name_pickleK :
+  pcancel cca_oracle_name_pickle cca_oracle_name_unpickle.
 Proof. by case. Qed.
 
 HB.instance Definition _ := PCanIsCountable cca_oracle_name_pickleK.
@@ -382,7 +384,8 @@ HB.instance Definition _ := PCanIsCountable cca_oracle_name_pickleK.
 Lemma cca_oracle_name_fin_axiom : Finite.axiom cca_oracle_names.
 Proof. by case. Qed.
 
-HB.instance Definition _ := isFinite.Build cca_oracle_name cca_oracle_name_fin_axiom.
+HB.instance Definition _ :=
+  isFinite.Build cca_oracle_name cca_oracle_name_fin_axiom.
 
 (* IND-CCA Oracle memory:
    - keys: the result of GenKey

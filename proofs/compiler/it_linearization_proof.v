@@ -31,6 +31,11 @@ Require Import linearization_proof.
 
 Import Memory.
 
+Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
+Set Warnings "-notation-overridden,-extraction-reserved-identifier,-extraction-opaque-accessed,-ambiguous-paths,-redundant-canonical-projection,-projection-no-head-constant,-postfix-notation-not-level-1,-deprecated-since-mathcomp-2.4.0,-deprecated-since-mathcomp-2.5.0,-deprecated-from-Coq,-deprecated-dirpath-Coq,-deprecated-reference-since-9.1,-rewrite-rw".
+
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
 #[local] Existing Instance withsubword.
@@ -47,310 +52,11 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {ovm_i : one_varmap_info}.
 
-(* TODO: move and also move low_memory.wunsigned_sub_small *)
-Lemma wunsigned_sub_small (p: pointer) (n: Z) :
-  (0 <= n < wbase Uptr →
-   wunsigned (p - wrepr Uptr n) <= wunsigned p →
-   wunsigned (p - wrepr Uptr n) = wunsigned p - n)%Z.
-Proof.
-  move=> n_range.
-  rewrite wunsigned_sub_if wunsigned_repr_small //.
-  case: ZleP => //.
-  by lia.
-Qed.
 
-Lemma wunsigned_top_stack_after_aligned_alloc m e m' :
-  (0 <= sf_stk_sz e →
-   0 <= sf_stk_extra_sz e →
-   stack_frame_allocation_size e < wbase Uptr →
-   is_align (top_stack m) (sf_align e) →
-   alloc_stack m (sf_align e) (sf_stk_sz e) (sf_stk_ioff e) (sf_stk_extra_sz e) = ok m' →
-  wunsigned (top_stack m) = wunsigned (top_stack m') + stack_frame_allocation_size e)%Z.
-Proof.
-  move => sz_pos extra_pos sf_noovf sp_align ok_m'.
-  rewrite (alloc_stack_top_stack ok_m') (top_stack_after_aligned_alloc _ sp_align) -/(stack_frame_allocation_size _) wrepr_opp wunsigned_sub.
-  - lia.
-  have sf_pos : (0 <= stack_frame_allocation_size e)%Z.
-  - rewrite /stack_frame_allocation_size.
-    have := round_ws_range (sf_align e) (sf_stk_sz e + sf_stk_extra_sz e).
-    lia.
-  assert (top_stack_range := wunsigned_range (top_stack m)).
-  split; last lia.
-  rewrite Z.le_0_sub.
-  exact: (aligned_alloc_no_overflow sz_pos extra_pos sf_noovf sp_align ok_m').
-Qed.
 
 Local Open Scope seq_scope.
 
-Lemma map_li_of_fopn_args_label_in_lcmd ii args :
-  label_in_lcmd (map (li_of_fopn_args ii) args) = [::].
-Proof. by elim: args => [|[]]. Qed.
 
-Lemma set_up_sp_register_label_in_lcmd liparams ii x sf_sz al y tmp:
-  label_in_lcmd (set_up_sp_register liparams ii x sf_sz al y tmp) = [::].
-Proof. apply map_li_of_fopn_args_label_in_lcmd. Qed.
-
-Lemma map_li_of_fopn_args_has_label lbl ii args :
-  has (is_label lbl) (map (li_of_fopn_args ii) args) = false.
-Proof. by elim: args => [|[]]. Qed.
-
-Lemma set_up_sp_register_has_label lbl liparams ii x sf_sz al y tmp:
-  has (is_label lbl) (set_up_sp_register liparams ii x sf_sz al y tmp) = false.
-Proof. apply map_li_of_fopn_args_has_label. Qed.
-
-Lemma align_bind ii a p1 l :
-  (let: (lbl, lc) := align ii a p1 in (lbl, lc ++ l)) =
-  align ii a (let: (lbl, lc) := p1 in (lbl, lc ++ l)).
-Proof. by case: p1 a => lbl lc []. Qed.
-
-Section CAT.
-
-  Context
-    (liparams : linearization_params)
-    (p : sprog).
-
-  Let linear_i := linear_i liparams p.
-
-  Let Pi (i:instr) :=
-    forall fn lbl tail,
-     linear_i fn i lbl tail =
-     let: (lbl, lc) := linear_i fn i lbl [::] in (lbl, lc ++ tail).
-
-  Let Pr (i:instr_r) :=
-    forall ii, Pi (MkI ii i).
-
-  Let Pc (c:cmd) :=
-    forall fn lbl tail,
-     linear_c (linear_i fn) c lbl tail =
-     let: (lbl, lc) := linear_c (linear_i fn) c lbl [::] in (lbl, lc ++ tail).
-
-  Let Pf (fd:sfundef) := True.
-
-  #[ local ]
-  Lemma cat_mkI: forall i ii, Pr i -> Pi (MkI ii i).
-  Proof. by []. Qed.
-
-  #[ local ]
-  Lemma cat_skip : Pc [::].
-  Proof. by []. Qed.
-
-  #[ local ]
-  Lemma cat_seq : forall i c,  Pi i -> Pc c -> Pc (i::c).
-  Proof.
-    move=> i c Hi Hc fn lbl l /=.
-    by rewrite Hc; case: linear_c => lbl1 lc1; rewrite Hi (Hi _ lbl1 lc1); case: linear_i => ??; rewrite catA.
-  Qed.
-
-  #[ local ]
-  Lemma cat_assgn : forall x tg ty e, Pr (Cassgn x tg ty e).
-  Proof. by move => x tg [] // sz e ii lbl c /=; case: assert. Qed.
-
-  #[ local ]
-  Lemma cat_opn : forall xs t o es, Pr (Copn xs t o es).
-  Proof.
-    move => xs tg op es ii fn lbl tl /=.
-    by do 2 (case: oseq.omap => // ?).
-  Qed.
-
-  #[ local ]
-  Lemma cat_syscall : forall xs o es, Pr (Csyscall xs o es).
-  Proof. by []. Qed.
-
-  #[ local ]
-  Lemma cat_assert : forall a, Pr (Cassert a).
-  Proof. by []. Qed.
-
-  #[ local ]
-  Lemma cat_if   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
-  Proof.
-    move=> e c1 c2 Hc1 Hc2 ii fn lbl l /=.
-    case Heq1: (c1)=> [|i1 l1].
-    + by rewrite Hc2 (Hc2 _ _ [:: _]); case: linear_c => lbl1 lc1; rewrite cats1 /= cat_rcons.
-    rewrite -Heq1=> {Heq1 i1 l1};case Heq2: (c2)=> [|i2 l2].
-    + by rewrite Hc1 (Hc1 _ _ [::_]); case: linear_c => lbl1 lc1; rewrite cats1 /= cat_rcons.
-    rewrite -Heq2=> {Heq2 i2 l2}.
-    rewrite Hc1 (Hc1 _ _ [::_]); case: linear_c => lbl1 lc1.
-    rewrite Hc2 (Hc2 _ _ [::_ & _]); case: linear_c => lbl2 lc2.
-    by rewrite /= !cats1 /= -!cat_rcons catA.
-  Qed.
-
-  #[ local ]
-  Lemma cat_for : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir, lo, hi) c).
-  Proof. by []. Qed.
-
-  #[ local ]
-  Lemma cat_while : forall a c e ei c', Pc c -> Pc c' -> Pr (Cwhile a c e ei c').
-  Proof.
-    move=> a c e ei c' Hc Hc' ii fn lbl l /=.
-    case: is_bool => [ [] | ].
-    + rewrite Hc' (Hc' _ _ [:: _]) align_bind; f_equal; case: linear_c => lbl1 lc1.
-      by rewrite Hc (Hc _ _ (_ ++ _)); case: linear_c => lbl2 lc2; rewrite !catA cats1 -cat_rcons.
-    + by apply Hc.
-    case: c' Hc' => [ _ | i c' ].
-    + by rewrite Hc (Hc _ _ [:: _]) align_bind; case: linear_c => lbl1 lc1; rewrite /= cats1 cat_rcons.
-    move: (i :: c') => { i }c' Hc'.
-    rewrite Hc (Hc _ _ [:: _]); case: linear_c => lbl1 lc1.
-    rewrite Hc' (Hc' _ _ (_ :: _)); case: linear_c => lbl2 lc2.
-    rewrite /=. f_equal. f_equal.
-    by case: a; rewrite /= cats1 -catA /= cat_rcons.
-  Qed.
-
-  #[ local ]
-  Lemma cat_call : forall xs f es, Pr (Ccall xs f es).
-  Proof.
-    move=> xs fn es ii fn' lbl tail /=.
-    case: get_fundef => // fd; case: is_RAnoneP => //.
-    by case: sf_return_address => // [ ra ? | ra_call ra_return ra_ofs ? ] _; rewrite cats0 -catA.
-  Qed.
-
-  Lemma linear_i_nil fn i lbl tail :
-     linear_i fn i lbl tail =
-     let: (lbl, lc) := linear_i fn i lbl [::] in (lbl, lc ++ tail).
-  Proof.
-    exact:
-      (instr_Rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_assert cat_if cat_for cat_while cat_call).
-  Qed.
-
-  Lemma linear_c_nil fn c lbl tail :
-     linear_c (linear_i fn) c lbl tail =
-     let: (lbl, lc) := linear_c (linear_i fn) c lbl [::] in (lbl, lc ++ tail).
-  Proof.
-    exact:
-      (cmd_rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_assert cat_if cat_for cat_while cat_call).
-  Qed.
-
-End CAT.
-
-(* Predicate describing valid labels occurring inside instructions:
-    “valid_labels fn lo hi i” expresses that labels in instruction “i” are within the range [lo; hi[
-    and that remote labels to a function other than “fn” are always 1.
-*)
-Definition valid_labels (fn: funname) (lo hi: label) (i: linstr) : bool :=
-  match li_i i with
-  | Lopn _ _ _
-  | Lsyscall _
-  | Lalign
-  | Ligoto _
-  | Lret
-    => true
-  | Llabel _ lbl
-  | LstoreLabel _ lbl
-  | Lcond _ lbl
-    => (lo <=? lbl) && (lbl <? hi)
-  | Lgoto (fn', lbl) | Lcall _ (fn', lbl) =>
-    if fn' == fn then (lo <=? lbl) && (lbl <? hi) else lbl == 1
-  end%positive.
-
-Definition valid (fn: funname) (lo hi: label) (lc: lcmd) : bool :=
-  all (valid_labels fn lo hi) lc.
-
-Lemma valid_cat fn min max lc1 lc2 :
-  valid fn min max (lc1 ++ lc2) = valid fn min max lc1 && valid fn min max lc2.
-Proof. exact: all_cat. Qed.
-
-Lemma valid_add_align fn lbl1 lbl2 ii a c :
-  valid fn lbl1 lbl2 (add_align ii a c) = valid fn lbl1 lbl2 c.
-Proof. by case: a. Qed.
-
-Lemma valid_le_min min2 fn min1 max lc :
-  (min1 <=? min2)%positive ->
-  valid fn min2 max lc ->
-  valid fn min1 max lc.
-Proof.
-  move => /Pos_leb_trans h; apply: sub_all; rewrite /valid_labels => -[_/=] [] // => [ _ [fn' lbl] | k lbl | [ fn' lbl ] | _ lbl | _ lbl ].
-  1,3: case: ifP => // _.
-  all: by case/andP => /h ->.
-Qed.
-
-Lemma valid_le_max max1 fn max2 min lc :
-  (max1 <=? max2)%positive ->
-  valid fn min max1 lc ->
-  valid fn min max2 lc.
-Proof.
-  move => /Pos_lt_leb_trans h; apply: sub_all; rewrite /valid_labels => -[_/=] [] // => [ _ [fn' lbl] | k lbl | [ fn' lbl ] | _ lbl | _ lbl ].
-  1,3: case: ifP => // _.
-  all: by case/andP => -> /h.
-Qed.
-
-(** Disjoint labels: all labels in “c” are below “lo” or above “hi”. *)
-Definition disjoint_labels (lo hi: label) (c: lcmd) : Prop :=
-  ∀ lbl, (lo <= lbl < hi)%positive → ~~ has (is_label lbl) c.
-
-Arguments disjoint_labels _%_positive _%_positive _.
-
-Lemma disjoint_labels_cat lo hi P Q :
-  disjoint_labels lo hi P →
-  disjoint_labels lo hi Q →
-  disjoint_labels lo hi (P ++ Q).
-Proof.
-  by move => p q lbl r; rewrite has_cat negb_or (p _ r) (q _ r).
-Qed.
-
-Lemma disjoint_labels_w lo' hi' lo hi P :
-  (lo' <= lo)%positive →
-  (hi <= hi')%positive →
-  disjoint_labels lo' hi' P →
-  disjoint_labels lo hi P.
-Proof. move => L H k lbl ?; apply: k; lia. Qed.
-
-Lemma disjoint_labels_wL lo' lo hi P :
-  (lo' <= lo)%positive →
-  disjoint_labels lo' hi P →
-  disjoint_labels lo hi P.
-Proof. move => L; apply: (disjoint_labels_w L); lia. Qed.
-
-Lemma disjoint_labels_wH hi' lo hi P :
-  (hi <= hi')%positive →
-  disjoint_labels lo hi' P →
-  disjoint_labels lo hi P.
-Proof. move => H; apply: (disjoint_labels_w _ H); lia. Qed.
-
-Lemma valid_disjoint_labels fn A B C D P :
-  valid fn A B P →
-  (D <= A)%positive ∨ (B <= C)%positive →
-  disjoint_labels C D P.
-Proof.
-  move => V U lbl [L H]; apply/negP => K.
-  have {V K} [i _ /andP[] ] := all_has V K.
-  case: i => ii [] // k lbl' /andP[] /Pos.leb_le a /Pos.ltb_lt b /eqP ?; subst lbl'.
-  lia.
-Qed.
-
-Lemma valid_has_not_label fn A B P lbl :
-  valid fn A B P →
-  (lbl < A ∨ B <= lbl)%positive →
-  ~~ has (is_label lbl) P.
-Proof.
-  move => /(valid_disjoint_labels) - /(_ lbl (lbl + 1)%positive) V R; apply: V; lia.
-Qed.
-
-Lemma snot_spec gd s e b :
-  sem_pexpr true gd s e = ok (Vbool b) →
-  sem_pexpr true gd s (snot e) = sem_pexpr true gd s (Papp1 Onot e).
-Proof.
-elim: e b => //.
-- by case => // e _ b; rewrite /= /sem_sop1 /=; t_xrbindP => z -> b' /to_boolI -> _ /=;
-  rewrite negbK.
-- by case => // e1 He1 e2 He2 b /=; t_xrbindP => v1 h1 v2 h2 /sem_sop2I [b1 [b2 [b3]]] []
-  /to_boolI hb1 /to_boolI hb2 [?] ?; subst v1 v2 b3;
-  rewrite /= (He1 _ h1) (He2 _ h2) /= h1 h2;
-  apply: (f_equal (@Ok _ _)); rewrite /= ?negb_and ?negb_or.
-move => st p hp e1 he1 e2 he2 b /=.
-t_xrbindP => bp vp -> /= -> trv1 v1 h1 htr1 trv2 v2 h2 htr2 /= h.
-have : exists (b1 b2:bool), eval_atype st = cbool /\ sem_pexpr true gd s e1 = ok (Vbool b1) /\ sem_pexpr true gd s e2 = ok (Vbool b2).
-+ rewrite h1 h2;case: bp h => ?;subst.
-  + move: htr2.
-    have [-> ->]:= truncate_valI htr1.
-    by rewrite /truncate_val; t_xrbindP => /= b2 /to_boolI -> ?; eauto.
-  move: htr1.
-  have [-> ->]:= truncate_valI htr2.
-  by rewrite /truncate_val; t_xrbindP => /= b1 /to_boolI -> ?;eauto.
-move=> [b1 [b2 [-> []/[dup]hb1 /he1 -> /[dup]hb2 /he2 ->]]] /=.
-by rewrite hb1 hb2 /=; case bp.
-Qed.
-
-Lemma add_align_nil ii a c : add_align ii a c = add_align ii a [::] ++ c.
-Proof. by case: a. Qed.
 
 
 Section LINEARIZATION_PARAMS.
@@ -364,9 +70,6 @@ Notation allocate_stack_frame := (lip_allocate_stack_frame liparams).
 Notation free_stack_frame := (lip_free_stack_frame liparams).
 Notation setup_register := (lip_set_up_sp_register liparams).
 
-(* FIXME: move this *)
-Lemma lset_estate_same ls : lset_estate' ls (to_estate ls) = ls.
-Proof. by case: ls. Qed.
 
 Section DEFAULT.
 
@@ -381,43 +84,13 @@ Context (lstore_correct : lstore_correct_aux lip_check_ws lip_lstore).
 
 Context (lload_correct : lload_correct_aux lip_check_ws lip_lload).
 
-Definition ladd_imm_correct_aux :=
-  forall (x1 x2:var_i) s (w: word Uptr) ofs,
-    vtype x1 = aword Uptr -> v_var x1 <> v_var x2 ->
-    get_var true (evm s) x2 >>= to_word Uptr = ok w ->
-    exists vm,
-       [/\ sem_fopns_args s (lip_add_imm x1 x2 ofs) = ok (with_vm s vm)
-         , vm =[\ Sv.singleton x1 ] evm s
-         & get_var true vm x1 = ok (Vword (w + wrepr Uptr ofs)%R)
-       ].
+Context (ladd_imm_correct : ladd_imm_correct_aux lip_add_imm).
 
-Context (ladd_imm_correct : ladd_imm_correct_aux).
-
-Lemma lstores_dfl_correct1 rspi to_save s top m2:
-  let m1 := emem s in
-  let vm1 := evm s in
-  let lcmd := lstores_dfl lip_lstore rspi to_save in
-  Let x := get_var true vm1 rspi in to_pointer x = ok top
-  → foldM (λ '(x, ofs) (m : low_memory.mem),
-      Let ws := if vtype x is aword ws then ok ws else Error ErrType in
-      Let _ := assert (lip_check_ws ws) ErrType in
-      Let v := Let x := get_var true vm1 x in to_word ws x in write m Aligned (top + wrepr Uptr ofs)%R v) m1 to_save =
-    ok m2
-  → sem_fopns_args s lcmd = ok (with_mem s m2) .
-Proof.
-  elim: to_save s => /= [ | [x ofs] to_save ih] s hget.
-  + by move=> [<-]; rewrite with_mem_same.
-  t_xrbindP; case heq: vtype => [|||ws]// m' _ [<-] hchk w v hgetx htow hw hf.
-  have := lstore_correct (xd:= rspi) (xs:= VarI x dummy_var_info) _ hchk hget _ hw.
-  rewrite heq => /(_ (convertible_refl _)) ->.
-  + by have /= -> := ih (with_mem s m') hget hf.
-  by rewrite hgetx /= htow.
-Qed.
 
 Lemma lstores_dfl_correct : lstores_correct_aux lip_check_ws lip_tmp2 (lstores_dfl lip_lstore).
 Proof.
   move=> rspi to_save s top m2 /= _ _ hget hf.
-  have -> := lstores_dfl_correct1 hget hf.
+  have -> := lstores_dfl_correct1 lstore_correct hget hf.
   by exists (evm s) => //; rewrite with_vm_same.
 Qed.
 
@@ -435,7 +108,7 @@ Proof.
   exists vm2; last by apply eq_exS.
   have hget1 : get_var true (evm (with_vm s vm2)) tmp2 >>= to_word Uptr = ok (top + wrepr Uptr ofs0)%R.
   + by rewrite hget' /= truncate_word_u.
-  apply: (lstores_dfl_correct1 hget1) => {hget1}.
+  apply: (lstores_dfl_correct1 lstore_correct hget1) => {hget1}.
   elim: to_save s hnin heq hget hget' hf => //= -[x ofs] to_save ih s hnin heq hget hget'.
   case heqt: vtype => [|||ws] //=; t_xrbindP.
   move=> m -> w v hgetx hwx hw hf /=.
