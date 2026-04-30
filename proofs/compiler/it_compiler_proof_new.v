@@ -103,6 +103,7 @@ Existing Instance HandlerContract_trans.
 Notation it_compiler_front_endP :=
   (it_compiler_front_endP haparams print_uprogP print_sprogP).
 
+(*
 Section BACK_END.
 
 Context
@@ -116,12 +117,6 @@ Context
 .
 
 #[local] Existing Instance withsubword.
-
-Definition lget_vars (xs : seq var_i) (vm : Vm.t) : seq value :=
-  [seq vm.[v_var x] | x <- xs].
-
-Definition lget_args lfd := lget_vars lfd.(lfd_arg).
-Definition lget_res lfd := lget_vars lfd.(lfd_res).
 
 Definition zeroized_p (ms mt mt' : mem) (p : pointer) : Prop :=
   ~~ validw ms Aligned p U8 ->
@@ -971,5 +966,6 @@ by move=> T1 T2 [?|n1] [?|n2] [_ [_ ?]].
 Qed.
 
 End FULL.
+*)
 
 End IT.

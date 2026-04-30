@@ -102,6 +102,7 @@ Context
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {call_conv : calling_convention}
   {asm_scsem : asm_syscall_sem}
+  {it_asm_scsem : it_asm_syscall_sem}
   {lowering_options : Type}
   (aparams : architecture_params lowering_options)
   (haparams : h_architecture_params aparams)
@@ -393,6 +394,7 @@ Context
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {call_conv : calling_convention}
   {asm_scsem : asm_syscall_sem}
+  {it_asm_scsem : it_asm_syscall_sem}
 .
 
 Definition mkfs (m : mem) (vs : values) : fstate :=
