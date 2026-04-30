@@ -98,37 +98,6 @@ Section HLIPARAMS.
   Context
     (hliparams : h_linearization_params liparams).
 
-
-  Lemma spec_lstore {lp ii ls m ofs} {x y:var_i} {wx ws' wy'} {wy : word ws'} :
-    convertible (vtype y) (aword Uptr) ->
-    get_var true (lvm ls) y = ok (Vword wy) ->
-    truncate_word Uptr wy = ok wy' ->
-    get_var true (lvm ls) x = ok (Vword wx) ->
-    write (lmem ls) Aligned (wx + wrepr Uptr ofs)%R wy' = ok m ->
-    let: li := lstore liparams ii x ofs y in
-    eval_instr lp li ls = ok (lnext_pc (lset_mem ls m)).
-  Proof.
-    move=> hty hgy htr hgx hw /=.
-    apply sem_fopn_args_eval_instr => /=.
-    apply: (spec_lip_lstore hliparams (s:= to_estate ls) hty (spec_lip_check_ws hliparams) _ _ hw).
-    + by rewrite hgx /= truncate_word_u.
-    by rewrite hgy /= htr.
-  Qed.
-
-  Lemma spec_lload {lp ii ls ofs} {x y:var_i} {wx wy} :
-    convertible (vtype x) (aword Uptr) ->
-    get_var true (lvm ls) y = ok (Vword wy) ->
-    read (lmem ls) Aligned (wy + wrepr Uptr ofs)%R Uptr = ok wx ->
-    let: li := lload liparams ii x y ofs in
-    eval_instr lp li ls = ok (lnext_pc (lset_vm ls ls.(lvm).[x <- Vword wx])).
-  Proof.
-    move=> hty hgy hread /=.
-    apply sem_fopn_args_eval_instr => /=.
-    apply: (spec_lip_lload hliparams (s:= to_estate ls) hty (spec_lip_check_ws hliparams) _ hread).
-    + by rewrite hgy /= truncate_word_u.
-    by apply set_var_eq_type => //; rewrite (convertible_eval_atype hty).
-  Qed.
-
   Lemma set_up_sp_register_ok {E E0: Type -> Type} {wE: with_Error E E0}
     {rndE0 : RndEvent syscall_state -< E0}
     ii lp sp_rsp ls r tmp ts al sz P Q :
@@ -525,47 +494,6 @@ Section NUMBER_OF_LABELS.
   Qed.
 
 End NUMBER_OF_LABELS.
-
-Section CHECK_SOME.
-
-  Lemma check_SomeP E e A B c m a u :
-    @check_Some E e A B c m a = ok u →
-    ∃ b, c a = Some b.
-  Proof. by move=> /assertP /isSomeP. Qed.
-
-  Lemma check_fexprP ii e u :
-    check_fexpr ii e = ok u →
-    ∃ f, fexpr_of_pexpr e = Some f.
-    Proof. exact: check_SomeP. Qed.
-
-  Lemma check_rexprP ii e u :
-    check_rexpr ii e = ok u →
-    ∃ r, rexpr_of_pexpr e = Some r.
-    Proof. exact: check_SomeP. Qed.
-
-  Lemma check_lexprP ii x u :
-    check_lexpr ii x = ok u →
-    ∃ l, lexpr_of_lval x = Some l.
-    Proof. exact: check_SomeP. Qed.
-
-End CHECK_SOME.
-
-Lemma to_fexpr_snot e f :
-  fexpr_of_pexpr e = Some f →
-  ∃ nf, fexpr_of_pexpr (snot e) = Some nf.
-Proof.
-  elim: e f => //=.
-  - by move => > _; eexists.
-  - by case => x [] // > _; eexists.
-  - move => op ? _ ? /oseq.obindI[] b [] hb.
-    by case: op => *; rewrite /= hb /=; eauto.
-  - move => op ? ih1 ? ih2 ? /oseq.obindI[] a [] ha /oseq.obindI[] b [] hb _.
-    case: (ih1 _ ha) => ? {} ih1.
-    case: (ih2 _ hb) => ? {} ih2.
-    by case: op => *; rewrite /= ?(ha, hb, ih2, ih1) /=; eauto.
-  case => // ? A ? B ? C ? /oseq.obindI[] a [] {}A /oseq.obindI[] b [] /B[] ? {}B /oseq.obindI[] c [] /C[] ? {}C _.
-  by rewrite A B C /=; eauto.
-Qed.
 
 Section PROOF.
 
