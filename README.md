@@ -51,6 +51,17 @@ make
 
 # List of claims in the paper supported by this artifact
 
+## Axioms
+
+As stated in the paper, we admit one lemma about the connection between the
+Linearization and One Varmap passes: this is in
+`proofs/compiler/linearization_composition.v` (`it_linear_exportcallP`).
+The statement is the combination of the correctness of linearization
+(`linear_exportcallP`, proven in `proofs/compiler/it_linearization_proof.v`),
+the correctness of one varmap (`merge_varmaps_export_call_checkP`, prove in
+`proofs/compiler/it_merge_varmaps_proof.v`), and `mix_ilsem_ilsem` (proven in
+`proofs/compiler/linear_sem.v`).
+
 ## Game-Based Security Definitions
 
 The definition of oracle systems is in `proofs/compiler/cil.v`. The KEM-IND-CCA
