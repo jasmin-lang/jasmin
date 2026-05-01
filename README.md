@@ -51,7 +51,7 @@ make
 
 # List of claims in the paper supported by this artifact
 
-## Axioms
+## Admitted lemmas
 
 As stated in the paper, we admit one lemma about the connection between the
 Linearization and One Varmap passes: this is in
