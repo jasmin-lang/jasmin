@@ -118,33 +118,40 @@ Equivalence up-to-cutoff is defined as `xrutt` in `proofs/itrees/xrutt.v`.
 
 ## Compiler Passes and Proofs
 
-- Int Word: `proofs/compiler/wint_word_proof.v`: compiler pass proof is in the IT sections
-- Array Copy: `proofs/compiler/array_copy_proof.v`: compiler pass proof is in the IT sections
-- Array Initialization: `proofs/compiler/array_init_proof.v`: compiler pass proof is in the IT sections
-- Spilling: `proofs/compiler/lower_spill_proof.v`: compiler pass proof is in the IT sections
-- Inlining: `proofs/compiler/inline_proof.v`: compiler pass proof is in the IT sections
-- Function Pruning: `proofs/compiler/dead_calls_proof.v`: compiler pass proof is in the IT sections
-- Constant Propagation: `proofs/compiler/const_prop_proof.v`: compiler pass proof is in the IT sections
-- Dead Code Elimination: `proofs/compiler/dead_code_prooof.v`: compiler pass proof is in the IT sections
-- Unrolling: `proofs/compiler/unrolling_proof.v`: compiler pass proof is in the IT sections
+Front-End:
+- Int Word: `proofs/compiler/wint_word_proof.v`: the proofs are in the section `IT`.
+- Array Copy: `proofs/compiler/array_copy_proof.v`: the proofs are in the section `IT`.
+- Array Initialization: `proofs/compiler/array_init_proof.v`: the proofs are in the section `IT`.
+- Spilling: `proofs/compiler/lower_spill_proof.v`: the proofs are in the section `IT`.
+- Inlining: `proofs/compiler/inline_proof.v`: the proofs are in the section `IT`.
+- Function Pruning: `proofs/compiler/dead_calls_proof.v`: the proofs are in the section `IT`.
+- Constant Propagation: `proofs/compiler/const_prop_proof.v`: the proofs are in the section `IT`.
+- Dead Code Elimination: `proofs/compiler/dead_code_prooof.v`: the proofs are in the section `IT`.
+- Unrolling: `proofs/compiler/unrolling_proof.v`: the proofs are in the section `IT`.
 - Remove Array Initialization:
-  + `proofs/compiler/array_init_proof`: compiler pass proof is in the IT sections
-  + `proofs/compiler/array_expansion_proof`: compiler pass proof is in the IT sections
-- Reference Arguments: `proofs/compiler/makeReferenceArguments_proof.v`: compiler pass proof is in the IT sections
-- Register Array Expansion: `proofs/compiler/array_expansion_proof.v`: compiler pass proof is in the IT sections
-- Remove Globals: `proofs/compiler/remove_globals_proof.v`: compiler pass proof is in the IT sections
-- Load Immediates: `proofs/compiler/load_constant_in_cond.v`: compiler pass proof is in the IT sections
-- x86-64 Instruction Selection: `proofs/compiler/x86_lowering_proof.v`: compiler pass proof is in the IT sections
-- ARMv7 Instruction Selection : `proofs/compiler/arm_lowering_proof.v`: compiler pass proof is in the IT sections
-- RISC-V Instruction Selection: `proofs/compiler/riscv_lowering_proof.v`: compiler pass proof is in the IT sections
-- SLH Instruction Selection: `proofs/compiler/slh_lowering_proof.v`: compiler pass proof is in the IT sections
-- Inline Propagation: `proofs/compiler/inline_proof.v`: compiler pass proof is in the IT sections
+  + `proofs/compiler/array_init_proof`: the proofs are in the section `IT`.
+  + `proofs/compiler/array_expansion_proof`: the proofs are in the section `IT`.
+- Reference Arguments: `proofs/compiler/makeReferenceArguments_proof.v`: the proofs are in the section `IT`.
+- Register Array Expansion: `proofs/compiler/array_expansion_proof.v`: the proofs are in the section `IT`.
+- Remove Globals: `proofs/compiler/remove_globals_proof.v`: the proofs are in the section `IT`.
+- Load Immediates: `proofs/compiler/load_constant_in_cond.v`: the proofs are in the section `IT`.
+- x86-64 Instruction Selection: `proofs/compiler/x86_lowering_proof.v`: the proofs are in the section `IT`.
+- ARMv7 Instruction Selection : `proofs/compiler/arm_lowering_proof.v`: the proofs are in the section `IT`.
+- RISC-V Instruction Selection: `proofs/compiler/riscv_lowering_proof.v`: the proofs are in the section `IT`.
+- SLH Instruction Selection: `proofs/compiler/slh_lowering_proof.v`: the proofs are in the section `IT`.
+- Inline Propagation: `proofs/compiler/inline_proof.v`: the proofs are in the section `IT`.
 - Stack Allocation:
-   + `proofs/compiler/stack_alloc_proof_1.v`: compiler pass proof is in the IT sections
-   + `proofs/compiler/stack_alloc_proof_2.v`: compiler pass proof is in the IT sections
-- Lower Addresses: `proofs/compiler/riscv_lower_addressing_proof.v`: compiler pass proof is in the IT sections
-- Register Renaming: `proofs/compiler/allocation_proof.v`: compiler pass proof is in the IT sections
+   + `proofs/compiler/stack_alloc_proof_1.v`: the proofs are in the section `IT`.
+   + `proofs/compiler/stack_alloc_proof_2.v`: the proofs are in the section `IT`.
+- Lower Addresses: `proofs/compiler/riscv_lower_addressing_proof.v`: the proofs are in the section `IT`.
+- Register Renaming: `proofs/compiler/allocation_proof.v`: the proofs are in the section `IT`.
 
+Back-End:
+- One Varmap : `prood/compiler/it_merge_varmap_proof.v`
+- Linearization : `proofs/compiler/it_linearization_proofs.v`
+- Stack Zeroization : `proofs/compiler/stack_zeroization_proof.v`: the proofs are in the section `IT`.
+- Tunneling : `proofs/compiler/tunneling_proof_2.v`
+- Assembly Generation : `proofs/arch/asm_gen_proof.v`: the proofs are in the section `IT`.
 
 <!-- ------------------------------------------------------------------------------- -->
 <!-- Original Readme -->
