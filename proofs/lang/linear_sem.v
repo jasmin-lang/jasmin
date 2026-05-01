@@ -638,11 +638,13 @@ Lemma mix_ilsem_ilsem fn s :
   xrutt.xrutt (core_logics.errcutoff (is_error wE)) core_logics.nocutoff rutt_extras.RPre_eq rutt_extras.RPost_eq
     eq (mix_ilsem (endpc fn) s) (ilsem (endpc fn) s).
 Proof.
+  move: I.
   have -> : mix_ilsem (endpc fn) s ≈ mix_sem istep in_fn is_call check_call (endpc fn) s.
   + apply Proper_interp_mrec.
     + by move=> _ [] fn' {}s /=; apply mix_ilsteps_eq.
     by apply mix_ilsteps_eq.
   have -> : ilsem (endpc fn) s ≈ ss_sem istep (endpc fn) s by reflexivity.
+  move=> _.
   apply: mix_sem_ss_sem => {}s; rewrite /istep; case: next_is_Lsyscall => [o|].
   - apply: eutt_eq_bind => vs; apply: eutt_eq_bind => fs /=.
     apply: eutt_eq_bind => s'; apply eqit_Ret.
@@ -658,90 +660,6 @@ Qed.
   {| EPreRel0_  := rutt_extras.RPre_eq;
     EPostRel0_ := rutt_extras.RPost_eq;
   |}.
-
-Lemma mix_ilsteps_in_fn s fn :
-  lfn s = fn ->
-  eutt eq
-    (mix_ilsteps (in_fn fn) s)
-    (mix_ilsteps (endpc fn) s).
-Proof using.
-  rewrite /mix_ilsteps /while /while_body => hfn.
-  apply eutt_iter' with (λ i j, lfn i = fn /\ i = j) => // i _ [] {}hfn <-.
-  rewrite /in_fn hfn eqxx /=.
-  case: ifP => hend; last by apply eutt_Ret; auto.
-  apply HasPost.eutt_post_bind_eq with (λ i, lfn i = fn); last first.
-  + by move => u hu; apply eutt_Ret; left.
-  apply HasPost.has_post_bind with (λ r, is_call i = None → lfn r = fn).
-  + rewrite /istep; case hsyscall: next_is_Lsyscall => [ o | ].
-    + rewrite /lexec_syscall /bind /= -!bind_bind.
-      apply HasPost.has_post_bind with (λ i, lfn i = fn); last first.
-      + by move => u hu; apply eutt_Ret.
-      apply HasPost.has_post_bind with (λ i, True).
-      + exact: HasPost.has_post_True.
-      move => u _; rewrite /lset_fstate.
-      case: upd_estate => e /=; first by apply eutt_Ret.
-      by apply eqit_Vis.
-    move: hsyscall; rewrite /is_call /next_is_Lsyscall /step.
-    case: find_instr => [ [] ii a | ] hsyscall; last by apply eqit_Vis.
-    {
-    rewrite /eval_instr; case: a hsyscall => //=.
-    + move => *.
-      case: sem_rexprs => ? /=; last by apply eqit_Vis.
-      case: exec_sopn => ? /=; last by apply eqit_Vis.
-      case: write_lexprs => ? /=; last by apply eqit_Vis.
-      by apply eqit_Ret.
-    + move => *.
-      apply HasPost.has_post_weaken with (λ _, True); last by [].
-      exact: HasPost.has_post_True.
-    + admit. (* FIXME: Lret *)
-    + by move => _; apply eqit_Ret.
-    + by move => > _; apply eqit_Ret.
-    + admit. (* FIXME: Lgoto *)
-    + admit. (* FIXME: Ligoto *)
-    + move => *.
-      case: rencode_label => ? /=; last by apply eqit_Vis.
-      case: set_var => ? /=; last by apply eqit_Vis.
-      by apply eqit_Ret.
-    + move => *.
-      case: (Let _ := sem_fexpr _ _ in _) => b /=; last by apply eqit_Vis.
-      case: b; last by apply eqit_Ret.
-      case: get_fundef => * /=; last by apply eqit_Vis.
-      case: find_label => ? /=; last by apply eqit_Vis.
-      by apply eqit_Ret.
-    }
-  move => j hj; case hcall: is_call => [ fn' | ]; last by apply eutt_Ret; auto.
-  apply HasPost.has_post_bind with (λ i, True).
-  + exact: HasPost.has_post_True.
-  move => k _; case: ifP; last  by move => _; apply eqit_Vis.
-  case/andP => /eqP ? _; apply  eutt_Ret; congruence.
-Admitted.
-
-Lemma mix_ilsem_exportcall_ilsem_exportcall fn s :
-  xrutt.xrutt
-    (core_logics.errcutoff (is_error wE)) core_logics.nocutoff
-    rutt_extras.RPre_eq rutt_extras.RPost_eq
-    eq
-    (mix_ilsem_exportcall fn s) (ilsem_exportcall fn s).
-Proof.
-rewrite /mix_ilsem_exportcall /ilsem_exportcall.
-apply: (xrutt_bind (RR := eq)).
-- case: get_fundef => [fd|] /=; first by apply xrutt_Ret.
-  apply: xrutt_Vis => //=; by exists erefl.
-move=> fd _ <-.
-apply: (xrutt_bind (RR := eq)).
-- case: lfd_export => /=; first by apply xrutt_Ret.
-  apply: xrutt_Vis => //=; by exists erefl.
-move=> [] [] _.
-apply: (xrutt_bind (RR := eq)); last first.
-- move=> s' _ <-; apply: (xrutt_bind (RR := eq)).
-  - case: all => /=; first by apply xrutt_Ret.
-    apply: xrutt_Vis => //=; by exists erefl.
-  by move=> [] [] _; apply xrutt_Ret.
-rewrite /mix_ilsem_fun /mrec /=.
-move: I; rewrite interp_mrec_as_interp mix_ilsteps_in_fn //
-  -interp_mrec_as_interp => _.
-exact: mix_ilsem_ilsem.
-Qed.
 
 Lemma unfold_mix_ilsteps cond s :
   mix_ilsteps cond s ≈

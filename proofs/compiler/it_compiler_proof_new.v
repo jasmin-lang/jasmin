@@ -912,11 +912,19 @@ rewrite -hmem2 in mm3.
 split.
 - (* values_uincl *)
   rewrite /lget_res /lget_vars /= -inv_res.
-  suff heq : [seq (evm o3).[v_var x] | x <- lfd_res lfd_lp]
-           = [seq (evm r2).[v_var x] | x <- lfd_res lfd_lp].
-  + rewrite heq /= fdexp; exact: uvs'.
-  apply map_ext => x hin.
-  symmetry. admit. (* apply: hvm3. by apply /sv_of_listP /in_map; exists x.*)
+  have hgvr2 := get_var_is_allow_undefined (evm r2) (f_res fd).
+  have [res' hgvo3' huvv'] := hz _ hgvr2.
+  have hres'eq : res' = [seq (evm o3').[v_var x] | x <- lfd_res lfd_lp].
+  { have hh := get_var_is_allow_undefined (evm o3') (lfd_res lfd_lp).
+    rewrite hgvo3' in hh. by case: hh. }
+  subst res'.
+  have heq : [seq (evm o3').[v_var x] | x <- lfd_res lfd_lp]
+           = [seq (evm o3).[v_var x] | x <- lfd_res lfd_lp].
+  { apply map_ext => x hx.
+    apply: hvm3.
+    by apply /sv_of_listP /in_map; exists x. }
+  rewrite -heq.
+  exact: values_uincl_trans uvs' huvv'.
 
 - (* match_mem: combine hmem_o2 (match_mem fmem_o1 / emem_o2) with
      hmmz (match_mem_zero_export emem_o2 / emem_o3) *)
