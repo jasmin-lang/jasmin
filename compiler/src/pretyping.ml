@@ -2694,6 +2694,7 @@ let rec tt_item arch_info (acc, (env : 'asm Env.env)) pt : error_accumulator * '
      let env = Env.exit_namespace env in
      acc, env
   | S.PTypeAlias (id,ty) -> with_accumulator acc (fun () -> tt_typealias arch_info env id ty) () env
+  | S.Err e -> Format.eprintf "error! %a@." Mastic.Error.pp e; Format.eprintf "dropping current definition...@."; acc, env
 
 and tt_file_loc arch_info from (acc, env) fname =
   let acc, env, _ = tt_file arch_info (acc, env) from (Some (L.loc fname)) (L.unloc fname) in

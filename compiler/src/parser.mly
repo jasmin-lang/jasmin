@@ -5,6 +5,7 @@
 %}
 
 %token EOF
+%token <Mastic.Error.t> ERROR_TOKEN
 
 %token LBRACKET
 %token RBRACKET
@@ -533,6 +534,7 @@ top:
     { Syntax.PTypeAlias (name, ty)}
 | NAMESPACE name = ident LBRACE pfs = loc(top)* RBRACE
     { Syntax.PNamespace (name, pfs) }
+| e = ERROR_TOKEN; { Syntax.of_token e }
 (* -------------------------------------------------------------------- *)
 module_:
 | pfs=loc(top)* EOF
