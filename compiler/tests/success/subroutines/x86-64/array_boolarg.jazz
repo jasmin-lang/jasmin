@@ -1,0 +1,28 @@
+param int N = 8;
+
+fn zero(reg ptr u64[N] t, reg bool b) -> reg u64, reg ptr u64[N] {
+  inline int i;
+  reg u64 sum tmp;
+  for i = 0 to N {
+    t[i] = 0;
+    sum = i;
+    tmp = sum if b;
+    t[i] = tmp;
+  }
+  sum = 0;
+  for i = 0 to N {
+    sum += t[i];
+  }
+  return sum, t;
+}
+
+export
+fn main(reg u64 x) -> reg u64 {
+  reg u64 result;
+  reg bool b;
+  _, _, _, _, b = #TEST(x, x);
+
+  stack u64[N] s;
+  result, s = zero(s, b);
+  return result;
+}
