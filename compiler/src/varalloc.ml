@@ -360,13 +360,13 @@ let alloc_local_stack size slots atbl =
 
 (* --------------------------------------------------- *)
 let get_returned_params ~funname (alias: Alias.alias) args =
+  let arg_slices = List.map (fun arg -> if is_ptr arg.v_kind then Some (Alias.normalize_var alias arg) else None) args in
   List.map (fun xr ->
       let x = L.unloc xr in
       if is_ptr x.v_kind then
         let c = Alias.normalize_var alias x in
-        let arg_slices = List.map (Alias.normalize_var alias) args in
-        match List.index_of c arg_slices with
-        | None ->
+        match fst (List.findi (fun _ slice -> Some c = slice) arg_slices) with
+        | exception Not_found ->
            let msg =
              if List.mem c.in_var args
              then "a strict sub-slice of a parameter"
@@ -377,7 +377,7 @@ let get_returned_params ~funname (alias: Alias.alias) args =
              (Printer.pp_var ~debug:false) x
              msg
              Alias.pp_slice c
-        | i -> i
+        | i -> Some i
       else None
     )
 
