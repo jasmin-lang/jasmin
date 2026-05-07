@@ -17,7 +17,7 @@ let inherit (lib) optionals; in
 
 let coqPackages =
   if coqMaster then
-    let elpi-version = "3.6.1"; in
+    let elpi-version = "3.7.1"; in
     let rocqPackages = pkgs.rocqPackages.overrideScope (self: super: {
       rocq-core = super.rocq-core.override { version = "master"; };
       rocq-elpi = super.rocq-elpi.override { version = "master"; inherit elpi-version; };
