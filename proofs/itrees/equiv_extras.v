@@ -587,7 +587,7 @@ Proof.
   }  
 Qed.
 
-Lemma rec_handler_switch T (t0: itree (D +' E) T) :
+Lemma interp_mrec_handler_switch T (t0: itree (D +' E) T) :
   eutt eq (@interp_mrec D E hnd0 T t0)
           (@interp_mrec D E hnd1 T t0).
 Proof.
@@ -595,5 +595,44 @@ Proof.
   econstructor.
 Qed.  
 
+Lemma interp_mrecursive_trigger (h: D ~> itree (D +' E)) R
+  (t0: itree D R) :
+  interp (fun (T : Type) (e : D T) =>
+            interp (mrecursive h) (ITree.trigger (inl1 e))) t0 ≈
+  interp (fun (T : Type) (e : D T) => interp (mrecursive h)
+                                        (h _ e)) t0.
+Proof.  
+  eapply eutt_interp; try reflexivity.
+  intros T e.
+  setoid_rewrite interp_trigger.
+  setoid_rewrite <- interp_mrec_as_interp; reflexivity.
+Qed.
+
+Lemma interp_mrecursive_interp {R}
+  (H: forall (t : itree (D +' E) R),
+     interp (mrecursive hnd0) t ≈ interp (mrecursive hnd1) t)
+         (t0: itree D R) :
+  interp (mrecursive hnd0) (interp hnd0 t0)
+  ≈ interp (mrecursive hnd1) (interp hnd1 t0).
+Proof.
+  specialize (H (translate inl1 t0)).
+  setoid_rewrite translate_to_interp in H.
+  setoid_rewrite interp_interp in H.
+  setoid_rewrite interp_interp.
+  setoid_rewrite <- interp_mrecursive_trigger; auto.
+Qed.
+    
+Lemma mrec_handler_switch_aux {R} (H: forall (t : itree (D +' E) R),
+      eutt eq (@interp_mrec D E hnd0 _ t)
+              (@interp_mrec D E hnd1 _ t)) (d: D R) :
+  eutt eq (mrec hnd0 d) (mrec hnd1 d).
+Proof.
+  setoid_rewrite interp_mrec_as_interp.
+  setoid_rewrite <- interp_trigger.
+  setoid_rewrite interp_mrec_as_interp in H.
+  generalize (ITree.trigger d) as t0.
+  eapply interp_mrecursive_interp; auto.
+Qed.
+  
 End RHandlerSwitch.  
 
