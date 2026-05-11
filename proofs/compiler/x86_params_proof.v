@@ -52,7 +52,7 @@ Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem sysca
 
 Section STACK_ALLOC.
 
-Lemma lea_ptrP P' s1 ii e i x tag ofs w s2 pofs :
+Lemma lea_ptrP env P' (s1 : estate env) ii e i x tag ofs w s2 pofs :
   P'.(p_globs) = [::]
   -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
   -> (Let i' := sem_pexpr true [::] s1 ofs in to_pointer i') = ok pofs
@@ -66,7 +66,7 @@ Proof.
   by rewrite /exec_sopn /= truncate_word_u /= hx.
 Qed.
 
-Lemma x86_mov_ofsP_aux P' s1 e i x tag ofs w mk s2 ii ins pofs :
+Lemma x86_mov_ofsP_aux env P' (s1 : estate env) e i x tag ofs w mk s2 ii ins pofs :
   p_globs P' = [::]
   -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
   -> (Let i' := sem_pexpr true [::] s1 ofs in to_pointer i') = ok pofs
@@ -87,7 +87,7 @@ Qed.
 
 Lemma x86_mov_ofsP : mov_ofs_correct x86_saparams.(sap_mov_ofs).
 Proof.
-  move=> P' ev s1 e w ofs pofs x tag mk ii ins s2.
+  move=> env P' ev s1 e w ofs pofs x tag mk ii ins s2.
   move=> heq he ok_pofs hmov hw; exists (evm s2) => //.
   rewrite with_vm_same.
   apply: x86_mov_ofsP_aux heq he ok_pofs hmov hw.
@@ -95,7 +95,7 @@ Qed.
 
 Lemma x86_immediateP : immediate_correct x86_saparams.(sap_immediate).
 Proof.
-  move=> P' ev s ii x z.
+  move=> env P' ev s ii x z.
   case: x => - [] [] // [] // x xi _ /=.
   apply: (mov_wsP (pT := progStack) (p1:= P') dummy_instr_info AT_none _ (cmp_le_refl _)); last reflexivity.
   by rewrite /= truncate_word_u.
@@ -103,7 +103,7 @@ Qed.
 
 Lemma x86_swapP : swap_correct x86_saparams.(sap_swap).
 Proof.
-  move=> P' rip s ii tag x y z w pz pw.
+  move=> env P' rip s ii tag x y z w pz pw.
   move=> hxty hyty hzty hwty hz hw.
   rewrite /= /sem_sopn /= /get_gvar /= /get_var /= hz hw /=.
   rewrite /exec_sopn /= !truncate_word_u /= /write_var /set_var /=.
@@ -124,8 +124,8 @@ Definition x86_hsaparams : h_stack_alloc_params (ap_sap x86_params) :=
 
 Section LINEARIZATION.
 
-Definition vm_op_align
-  (vm : Vm.t) (x : var) (ws : wsize) (w : word ws) : Vm.t :=
+Definition vm_op_align env
+  (vm : Vm.t env) (x : var) (ws : wsize) (w : word ws) : Vm.t env :=
   vm
     .[to_var OF <- false]
     .[to_var CF <- false]
@@ -208,9 +208,13 @@ Lemma x86_lassign_correct s x ws e (w : word ws) s':
 Proof.
   move=> /=; t_xrbindP => v -> /= hv hwr.
   rewrite /exec_sopn /=.
-  case: ifP => /= h; rewrite hv /= /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
-  + by rewrite /x86_MOV /= /size_8_64 h /= hwr.
-  by rewrite /x86_VMOVDQ (wsize_nle_u64_size_128_256 h) /= hwr.
+  case: ifP => /= h; rewrite hv /= /sopn_sem /sopn_sem_ /=.
+  + rewrite /size_8_64 h /=.
+    rewrite /semi_to_atype computational_eq_refl.
+    by rewrite /x86_MOV /= hwr.
+  rewrite (wsize_nle_u64_size_128_256 h) /=.
+  rewrite /semi_to_atype computational_eq_refl.
+  by rewrite /x86_VMOVDQ /= hwr.
 Qed.
 
 Lemma x86_lmove_correct : lmove_correct x86_liparams.
@@ -225,7 +229,7 @@ Qed.
 Lemma x86_lstore_correct : lstore_correct_aux x86_check_ws x86_lstore.
 Proof.
   move=> xd xs ofs ws w wp s m htxs _ hgetd hgets hwr.
-  rewrite /x86_lstore (wsize_of_atypeP (convertible_eval_atype htxs)).
+  rewrite /x86_lstore (wsize_of_atypeP (convertible_eval_atype htxs empty_env)).
   apply: x86_lassign_correct => /=; first by apply hgets.
   move: hgetd; t_xrbindP => ? hgetd hto.
   by rewrite hgetd /= /sem_sop2 /= hto /= !truncate_word_u /= truncate_word_u /= hwr.
@@ -237,7 +241,7 @@ Proof. apply/lstores_dfl_correct/x86_lstore_correct. Qed.
 Lemma x86_lload_correct : lload_correct_aux (lip_check_ws x86_liparams) x86_lload.
 Proof.
   move=> xd xs ofs ws top s w vm hc hcheck; t_xrbindP => ? hgets hto hread hset.
-  rewrite /x86_lload (wsize_of_atypeP (convertible_eval_atype hc)).
+  rewrite /x86_lload (wsize_of_atypeP (convertible_eval_atype hc empty_env)).
   apply: x86_lassign_correct => /=.
   + rewrite hgets /= /sem_sop2 /= hto /=.
     by rewrite !truncate_word_u /= truncate_word_u /= hread /= truncate_word_u.
@@ -298,7 +302,7 @@ Proof.
   + by move=> _ ? _ [<-].
   + move=> _ ? _ [<-] _ fd ->; by exists fd.
   + by move=> _ ? _ [<-].
-  move=> ???? _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
+  move=> ???? env _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -490,7 +494,7 @@ Qed.
 
 Lemma assemble_extra_concat128 rip ii lvs args m xs ys m' s ops ops' :
   sem_rexprs m args = ok xs ->
-  exec_sopn (Oasm (ExtOp Oconcat128)) xs = ok ys ->
+  exec_sopn empty_env (Oasm (ExtOp Oconcat128)) xs = ok ys ->
   write_lexprs lvs ys m = ok m' ->
   to_asm ii Oconcat128 lvs args = ok ops ->
   mapM (fun '(op0, ls, rs) => assemble_asm_op x86_agparams rip ii op0 ls rs) ops = ok ops' ->
@@ -662,10 +666,12 @@ Proof.
     t_xrbindP => _ _ /set_varP [hdb1 htr1 ->] <- _ _ /set_varP [hdb2 htr2 ->] <- <- _ hne <- <- /=.
     t_xrbindP => -[op' asm_args] hass <- hlow /=.
     assert (h1 := assemble_asm_opI hass); case: h1 => hca hcd hidc -> /= {hass}.
-    have hex: exec_sopn (Oasm (BaseOp (None, MULX_lo_hi sz))) xs = ok [:: Vword whilo.2; Vword whilo.1].
-    + rewrite /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
+    have hex: exec_sopn empty_env (Oasm (BaseOp (None, MULX_lo_hi sz))) xs = ok [:: Vword whilo.2; Vword whilo.1].
+    + rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
+      rewrite hsz32_64 /=.
+      rewrite /semi_to_atype computational_eq_refl.
       case: (xs) hwhilo => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] // w1 -> w2 ->.
-      by rewrite /x86_MULX /x86_MULX_lo_hi hsz32_64 /= => -[<-].
+      by rewrite /x86_MULX /x86_MULX_lo_hi /= => -[<-].
     have hw' :
        write_lexprs [:: LLvar lo; LLvar hi] [:: Vword whilo.2; Vword whilo.1] m =
        ok (with_vm m ((evm m).[lo <- Vword whilo.2]).[hi <- Vword whilo.1]).
@@ -685,9 +691,9 @@ Proof.
     assert (h1 := assemble_asm_opI hass); case: h1 => hca hcd hidc -> /= {hass}.
     case: xs hargs hwhi => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] // hargs w1 hv1 w2 hv2.
     rewrite /x86_MULX_hi; t_xrbindP => hwhi; pose wlo := (wumul w1 w2).2.
-    have hex: exec_sopn (Oasm (BaseOp (None, MULX_lo_hi sz))) [:: v1; v2] = ok [:: Vword wlo; Vword whi].
-    + by rewrite /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl
-        hval hv1 hv2 /= /x86_MULX_lo_hi /= -hwhi /wlo /wmulhu /wumul /=.
+    have hex: exec_sopn empty_env (Oasm (BaseOp (None, MULX_lo_hi sz))) [:: v1; v2] = ok [:: Vword wlo; Vword whi].
+    + by rewrite /exec_sopn /sopn_sem /sopn_sem_ /= hval /= /semi_to_atype computational_eq_refl
+        hv1 hv2 /= /x86_MULX_lo_hi /= -hwhi /wlo /wmulhu /wumul /=.
     have hw' :
        write_lexprs [:: LLvar hi; LLvar hi] [:: Vword wlo; Vword whi] m =
        ok (with_vm m ((evm m).[hi <- Vword wlo]).[hi <- Vword whi]).
@@ -746,8 +752,9 @@ Opaque cat.
     + case: xs => // vw; t_xrbindP => -[] // vmsf; t_xrbindP => // -[] // hes _ _ <- tr w hw wmsf hmsf.
       rewrite /se_protect_small_sem /x86_OR => -[?] ? hws ? hmap hlo; subst tr ys ops.
       apply: (assemble_opsP eval_assemble_cond hmap erefl _ hlo).
-      by rewrite /= hes /exec_sopn /= hw hmsf /= /sopn_sem /sopn_sem_ /= /semi_to_atype !computational_eq_refl
-        /x86_OR /size_8_64 Hws /= hws.
+      by rewrite /= hes /exec_sopn /= hw hmsf /= /sopn_sem /sopn_sem_ /=
+        /size_8_64 Hws /= /semi_to_atype !computational_eq_refl
+        /x86_OR /= hws.
     (* MMX *)
     case: xs => // vw.
     t_xrbindP => -[] // vmsf; t_xrbindP => // -[] // hes _ /eqP ? <- tr w hw wmsf hmsf.
@@ -867,8 +874,10 @@ Transparent cat.
       + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v1)).
       + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v2)).
       apply/(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v3)) => //.
-    by rewrite /exec_sopn /= truncate_word_u hw /= /sopn_sem /sopn_sem_ /= /semi_to_atype !computational_eq_refl
-      /x86_VPOR /size_128_256 Hws' /= (wsize_ge_U256 ws) /=.
+    by rewrite /exec_sopn /= truncate_word_u hw /= /sopn_sem /sopn_sem_ /=
+      /size_128_256 Hws' /= (wsize_ge_U256 ws) /=
+      /semi_to_atype !computational_eq_refl
+      /x86_VPOR.
   exists s' => //; apply: lom_eqv_ext hlo4 => z /=.
   rewrite /vm4; case: (to_var yr =P z) => [ | /eqP] ?;first by subst z; rewrite !Vm.setP_eq.
   rewrite Vm.setP_neq // Vm.setP_neq // /vm3 /m2 /vm2 /m1 /vm1 /m0 /vm0 /vm1' /=.
@@ -913,7 +922,7 @@ End ASM_GEN.
 Lemma x86_spec_shp_lower :
   spec_shp_lower (shp_lower x86_shparams).
 Proof.
-  move=> s s' gd lvs slho es args res lvs' op' es'.
+  move=> env s s' gd lvs slho es args res lvs' op' es'.
   case: slho => [||| ws ||] //=;
     last (case: (boolP (_ <= _)%CMP) => hws;
             first case: (boolP (is_mmx_protect _ _)) => hmmx);
@@ -965,9 +974,9 @@ End STACK_ZEROIZATION.
 (* ------------------------------------------------------------------------ *)
 (* Shared hypotheses. *)
 
-Definition x86_is_move_opP op vx v :
+Definition x86_is_move_opP env op vx v :
   ap_is_move_op x86_params op
-  -> exec_sopn (Oasm op) [:: vx ] = ok v
+  -> exec_sopn env (Oasm op) [:: vx ] = ok v
   -> List.Forall2 value_uincl v [:: vx ].
 Proof.
   case: op => [[[|] [] ws] | []] // _.

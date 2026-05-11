@@ -60,7 +60,7 @@ Section STACK_ALLOC.
 
 Lemma riscv_mov_ofsP : mov_ofs_correct riscv_saparams.(sap_mov_ofs).
 Proof.
-  move=> P' ev s1 e w ofs pofs x tag mk ii ins s2 P'_globs.
+  move=> env P' ev s1 e w ofs pofs x tag mk ii ins s2 P'_globs.
   t_xrbindP=> ve ok_ve ok_w vofs ok_vofs ok_pofs.
   rewrite /sap_mov_ofs /= /riscv_mov_ofs.
   case: mk.
@@ -145,14 +145,14 @@ Qed.
 
 Lemma riscv_immediateP : immediate_correct riscv_saparams.(sap_immediate).
 Proof.
-  move=> P' ev s ii x z.
+  move=> env P' ev s ii x z.
   case: x => - [] [] // [] // x xi _ /=.
   by rewrite /sem_sopn /= /exec_sopn /= truncate_word_u.
 Qed.
 
 Lemma riscv_swapP : swap_correct riscv_saparams.(sap_swap).
 Proof.
-  move=> P' ev s ii tag x y z w pz pw hxty hyty hzty hwty hz hw.
+  move=> env P' ev s ii tag x y z w pz pw hxty hyty hzty hwty hz hw.
   rewrite /= /sem_sopn /= /get_gvar /= /get_var /= hz hw /=.
   rewrite /exec_sopn /= !truncate_word_u /= /write_var /set_var /=.
   rewrite (convertible_eval_atype hxty) (convertible_eval_atype hyty) //=.
@@ -388,7 +388,7 @@ Qed.
 Lemma eval_assemble_cond_Onot get c v v0 v1 :
   value_of_bool (riscv_eval_cond (get) c) = ok v1
   -> value_uincl v0 v1
-  -> sem_sop1 Onot v0 = ok v
+  -> sem_sop1 empty_env Onot v0 = ok v
   -> exists2 v',
        value_of_bool (riscv_eval_cond (get) (condt_not c)) = ok v'
        & value_uincl v v'.
@@ -405,7 +405,7 @@ Proof.
   Transparent riscv_eval_cond.
 Qed.
 
-Lemma assemble_cond_argP ii e or vm v rr :
+Lemma assemble_cond_argP ii e or (vm:Vm.t empty_env) v rr :
   (forall r, value_uincl vm.[to_var r] (Vword (rr r))) ->
   assemble_cond_arg ii e = ok or ->
   sem_fexpr vm e = ok v ->
@@ -419,16 +419,16 @@ Proof.
 Qed.
 
 Lemma assemble_cond_app2P_aux ck v1 v2 op2 v w1 w2 :
-  sem_sop2 op2 v1 v2 = ok v ->
+  sem_sop2 empty_env op2 v1 v2 = ok v ->
   value_uincl v1 (Vword w1) ->
   value_uincl v2 (Vword w2) ->
   forall (eq1 : type_of_op2 op2 = (aword U32, aword U32, abool)),
-  ecast t (let t := t in _) eq1 (sem_sop2_typed op2) w1 w2 = ok (sem_cond_kind ck w1 w2) ->
+  ecast t (let t := t in _) eq1 (sem_sop2_typed empty_env op2) w1 w2 = ok (sem_cond_kind ck w1 w2) ->
   value_uincl v (Vbool (sem_cond_kind ck w1 w2)).
 Proof.
   move=> ok_v hincl1 hincl2 eq1.
   move: ok_v.
-  rewrite /sem_sop2 /=; move: (sem_sop2_typed op2).
+  rewrite /sem_sop2 /=; move: (sem_sop2_typed empty_env op2).
   rewrite -> eq1 => /= sem_sop2_typed ok_v.
 
   move: ok_v.
@@ -443,7 +443,7 @@ Qed.
 
 Lemma assemble_cond_app2P op2 ck swap v1 v2 v w1 w2 :
   assemble_cond_app2 op2 = Some (ck, swap) ->
-  sem_sop2 op2 v1 v2 = ok v ->
+  sem_sop2 empty_env op2 v1 v2 = ok v ->
   value_uincl v1 (Vword w1) ->
   value_uincl v2 (Vword w2) ->
   let: (w1, w2) := if swap then (w2, w1) else (w1, w2) in
@@ -457,11 +457,11 @@ Proof.
   + move=> [] // sg [] // [<- <-] ok_v hincl1 hincl2.
     by apply: (assemble_cond_app2P_aux ok_v hincl1 hincl2).
   + move=> [] // sg [] // [<- <-] ok_v hincl1 hincl2.
-    have {}ok_v: sem_sop2 (Oge (Cmp_w sg U32)) v2 v1 = ok v.
+    have {}ok_v: sem_sop2 empty_env (Oge (Cmp_w sg U32)) v2 v1 = ok v.
     + by move: ok_v; rewrite /sem_sop2 /=; t_xrbindP=> _ -> _ -> /= ->.
     by apply: (assemble_cond_app2P_aux ok_v hincl2 hincl1).
   + move=> [] // sg [] // [<- <-] ok_v hincl1 hincl2.
-    have {}ok_v: sem_sop2 (Olt (Cmp_w sg U32)) v2 v1 = ok v.
+    have {}ok_v: sem_sop2 empty_env (Olt (Cmp_w sg U32)) v2 v1 = ok v.
     + by move: ok_v; rewrite /sem_sop2 /=; t_xrbindP=> _ -> _ -> /= ->.
     by apply: (assemble_cond_app2P_aux ok_v hincl2 hincl1).
   move=> [] // sg [] // [<- <-] ok_v hincl1 hincl2.
@@ -619,13 +619,15 @@ End STACK_ZEROIZATION.
 (* ------------------------------------------------------------------------ *)
 (* Shared hypotheses. *)
 
-Definition riscv_is_move_opP op vx v :
+Definition riscv_is_move_opP env op vx v :
   ap_is_move_op riscv_params op
-  -> exec_sopn (Oasm op) [:: vx ] = ok v
+  -> exec_sopn env (Oasm op) [:: vx ] = ok v
   -> List.Forall2 value_uincl v [:: vx ].
 Proof.
   case: op => // -[[] // op] /= hop.
   rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
+  apply: rbindP => semi.
+  apply: rbindP => _ _ [<-] {semi}.
   rewrite /semi_to_atype.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
@@ -638,11 +640,11 @@ Proof.
       ok [:: Vword wx]) = ok v.
   + case: op hop ok_v => //=.
     + by t_xrbindP=> _ ?? -> <- <- /=.
-    + t_xrbindP=> sg [] //= _ _ _ <- _ w -> [<-] <- /=.
+    + t_xrbindP=> sg [] //= _ _ w -> <- <- /=.
       case: sg => /=.
       + by rewrite sign_extend_u.
       by rewrite zero_extend_u.
-    t_xrbindP=> ws _ _ hcmp <- _ w -> [<-] <- /=.
+    t_xrbindP=> ws _ _ w -> <- <- /=.
     by rewrite zero_extend_u.
   t_xrbindP=> ws' _ w' /to_wordI [ws [w [-> htr]]] <-.
   constructor=> //=.

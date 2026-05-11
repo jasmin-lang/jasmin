@@ -98,7 +98,7 @@ Proof.
   by rewrite GRing.addrN.
 Qed.
 
-Record state_rel_unrolled vars s1 s2 n (p:word Uptr) := {
+Record state_rel_unrolled vars (s1 s2 : estate empty_env) n (p:word Uptr) := {
   sr_scs : s1.(escs) = s2.(escs);
   sr_mem : mem_equiv s1.(emem) s2.(emem);
   sr_mem_valid : forall p, between top stk_max p U8 -> validw s2.(emem) Aligned p U8;
@@ -152,7 +152,7 @@ Context (pre pos : seq linstr).
 Context (hbody : is_linear_of lp fn (pre ++ sz_init rspi ws_align stk_max ++ pos)).
 Context (rsp_nin : ~ Sv.In rspi sz_init_vars).
 
-Lemma sz_initP (s1 : estate) :
+Lemma sz_initP s1 :
   valid_between (emem s1) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
@@ -288,7 +288,7 @@ Proof.
       by rewrite /of_estate /lnext_pc /=.
     apply: (lsem_n_eval_lin (n:=3) hbody) => //=; first by rewrite (addnS _ 2).
     + apply: store_zero_eval_instr => //=.
-      + do 2 (rewrite (@get_var_neq _ _ _ vzero);
+      + do 2 (rewrite (@get_var_neq _ _ _ _ vzero);
           last by [|move=> /(@inj_to_var _ _ _ _ _ _)]).
         by rewrite /get_var hsr.(sr_vzero).
       + rewrite get_var_eq //= truncate_word_u; reflexivity.
@@ -439,7 +439,7 @@ Context (pre pos : seq linstr).
 Context (hbody : is_linear_of lp fn (pre ++ restore_sp rspi ++ pos)).
 Context (rsp_nin : ~ Sv.In rspi restore_sp_vars).
 
-Lemma restore_spP vars (s1 s2 : estate) :
+Lemma restore_spP vars s1 s2 :
   state_rel_unrolled vars s1 s2 0 top ->
   exists s3,
     lsem_n lp (endpc lp fn)
@@ -613,7 +613,7 @@ Context (hlabel : ~~ has (is_label lbl) pre).
 Lemma sz_init_no_lbl : ~~ has (is_label lbl) (sz_init rspi ws_align stk_max).
 Proof. done. Qed.
 
-Lemma stack_zero_loopP (s1 : estate) :
+Lemma stack_zero_loopP s1 :
   valid_between (emem s1) top stk_max ->
   (evm s1).[rspi] = Vword ptr ->
   exists s2,
@@ -672,7 +672,7 @@ Context (pre pos : seq linstr).
 Context (hbody : is_linear_of lp fn (pre ++ stack_zero_unrolled rspi ws_align ws stk_max ++ pos)).
 Context (rsp_nin : ~ Sv.In rspi stack_zero_unrolled_vars).
 
-Lemma stack_zero_unrolledP (s1 : estate) :
+Lemma stack_zero_unrolledP s1 :
   valid_between (emem s1) top stk_max ->
   (evm s1).[rspi] = Vword ptr ->
   exists s2,

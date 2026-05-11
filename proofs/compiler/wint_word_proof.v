@@ -28,7 +28,7 @@ Notation gd := (p_globs p).
 
 Section E.
 
-  Context (s:estate) (vm:Vm.t) (hincl : evm s <=1 vm) (wdb : bool).
+  Context env (s:estate env) (vm:Vm.t env) (hincl : evm s <=1 vm) (wdb : bool).
 
   Let s' := with_vm s vm.
 
@@ -105,12 +105,12 @@ Section E.
            rewrite (wrepr_add, wrepr_mul, wrepr_sub) !wrepr_int_of_word.
       1-2: by move=> > -> > -> /= > -> <- /=; (eexists; first reflexivity) => /=.
       + move=> > -> w2 -> /= > /wint_of_intP /= [-> _] <-; (eexists; first reflexivity).
-        rewrite /zlsl /sem_shl /sem_shift; case: ifPn => /ZleP ?.
+        rewrite /zlsl /sem_shl /sem_shift /sem_op_typed.zlsl; case: ifPn => /ZleP ?.
         + by rewrite wrepr_mul wrepr_int_of_word GRing.mulrC wshl_sem.
         by have := wunsigned_range w2; Lia.lia.
       + rewrite /mk_sem_wishift; case: si => /= w1 -> w2 -> > /=;
         move=> /wint_of_intP [-> ?] <-;  (eexists; first reflexivity) => /=;
-        rewrite /sem_sar /sem_shr /sem_shift ?wsar_alt /wsar_naive ?wshr_alt /wshr_naive /zasr /zlsl;
+        rewrite /sem_sar /sem_shr /sem_shift ?wsar_alt /wsar_naive ?wshr_alt /wshr_naive /zasr /zlsl /sem_op_typed.zasr /sem_op_typed.zlsl;
         have [h _ ] := wunsigned_range w2;
         (case: ZleP;
         [ case/Zle_lt_or_eq: h; first Lia.lia;
@@ -142,7 +142,7 @@ Section E.
 
 End E.
 
-Lemma wi2w_lvalP wdb lv s s' vm v1 v2 :
+Lemma wi2w_lvalP env wdb lv (s s' : estate env) vm v1 v2 :
   evm s <=1 vm ->
   value_uincl v1 v2 ->
   write_lval wdb gd lv v1 s = ok s' ->
@@ -181,7 +181,7 @@ Proof.
   by apply write_var_uincl.
 Qed.
 
-Lemma wi2w_lvalsP wdb lvs s s' vm vs1 vs2 :
+Lemma wi2w_lvalsP env wdb lvs (s s' : estate env) vm vs1 vs2 :
   evm s <=1 vm ->
   List.Forall2 value_uincl vs1 vs2 ->
   write_lvals wdb gd s lvs vs1 = ok s' ->
@@ -206,22 +206,22 @@ Proof. done. Qed.
 
 Section SEM.
 
-Let Pi_r s (i:instr_r) s' :=
+Let Pi_r env (s : estate env) (i:instr_r) s' :=
   forall vm, evm s <=1 vm ->
     exists2 vm', sem_i p' ev (with_vm s vm) (wi2w_ir i) (with_vm s' vm') &
                  evm s' <=1 vm'.
 
-Let Pi s (i:instr) s' :=
+Let Pi env (s : estate env) (i:instr) s' :=
   forall vm, evm s <=1 vm ->
     exists2 vm', sem_I p' ev (with_vm s vm) (wi2w_i i) (with_vm s' vm') &
                  evm s' <=1 vm'.
 
-Let Pc s (c:cmd) s' :=
+Let Pc env (s : estate env) (c:cmd) s' :=
   forall vm, evm s <=1 vm ->
     exists2 vm', sem p' ev (with_vm s vm) (map wi2w_i c) (with_vm s' vm') &
                  evm s' <=1 vm'.
 
-Let Pfor (i:var_i) vs s c s' :=
+Let Pfor env (i:var_i) vs (s : estate env) c s' :=
  forall vm, evm s <=1 vm ->
     exists2 vm', sem_for p' ev i vs (with_vm s vm) (map wi2w_i c) (with_vm s' vm') &
                  evm s' <=1 vm'.
@@ -233,22 +233,22 @@ Let Pfun scs1 m1 fn vargs scs2 m2 vres :=
      sem_call p' ev scs1 m1 fn vargs' scs2 m2 vres'.
 
 Local Lemma Hskip : sem_Ind_nil Pc.
-Proof. move=> s vm; exists vm => //; constructor. Qed.
+Proof. move=> env s vm; exists vm => //; constructor. Qed.
 
 Local Lemma Hcons : sem_Ind_cons p ev Pc Pi.
 Proof.
-  move=> s1 s2 s3 i c _ hi _ hc vm hu1.
+  move=> env s1 s2 s3 i c _ hi _ hc vm hu1.
   have [? h1 hu2] := hi _ hu1.
   have [vm' h2 hu3] := hc _ hu2.
   exists vm' => //; apply: Eseq h1 h2.
 Qed.
 
 Local Lemma HmkI : sem_Ind_mkI p ev Pi_r Pi.
-Proof. move=> ii i s1 s2 _ hi vm hu; have [vm' ??] := hi _ hu; exists vm' => //; constructor. Qed.
+Proof. move=> env ii i s1 s2 _ hi vm hu; have [vm' ??] := hi _ hu; exists vm' => //; constructor. Qed.
 
 Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
 Proof.
-  move=> s1 s2 x t ty e v v' he htr hw vm hu.
+  move=> env s1 s2 x t ty e v v' he htr hw vm hu.
   have [v1 he1 hu1] := wi2w_eP hu he.
   have [v1' htr1 hu2] := value_uincl_truncate hu1 htr.
   have [vm' hw' hu'] := wi2w_lvalP hu hu2 hw.
@@ -257,7 +257,7 @@ Qed.
 
 Local Lemma Hopn : sem_Ind_opn p Pi_r.
 Proof.
-  move => s1 s2 t o xs es; rewrite /sem_sopn; t_xrbindP => vr ve hes hex hws vm hu.
+  move => env s1 s2 t o xs es; rewrite /sem_sopn; t_xrbindP => vr ve hes hex hws vm hu.
   have [vs' hes' hu1] := wi2w_esP hu hes.
   have [vr' hex' hu2] := vuincl_exec_opn hu1 hex.
   have [vm' hw' hu'] := wi2w_lvalsP hu hu2 hws.
@@ -267,7 +267,7 @@ Qed.
 
 Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.
 Proof.
-  move=> s1 scs m s2 o xs es ves vs hes ho hws vm hu.
+  move=> env s1 scs m s2 o xs es ves vs hes ho hws vm hu.
   have [vs' hes' hu1] := wi2w_esP hu hes.
   have [vr' hex' hu2] := exec_syscallP ho hu1.
   have /(_ _ hu) [vm' hw' hu'] := wi2w_lvalsP _ hu2 hws.
@@ -276,7 +276,7 @@ Qed.
 
 Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 e c1 c2 he _ hc vm hu.
+  move=> env s1 s2 e c1 c2 he _ hc vm hu.
   have [v1 he1 /value_uinclE ?] := wi2w_eP hu he; subst v1.
   have [vm' h1 h2] := hc _ hu.
   by exists vm' => //; apply: Eif_true h1.
@@ -284,7 +284,7 @@ Qed.
 
 Local Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 e c1 c2 he _ hc vm hu.
+  move=> env s1 s2 e c1 c2 he _ hc vm hu.
   have [v1 he1 /value_uinclE ?] := wi2w_eP hu he; subst v1.
   have [vm' h1 h2] := hc _ hu.
   by exists vm' => //; apply: Eif_false h1.
@@ -292,7 +292,7 @@ Qed.
 
 Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 s3 s4 a c e ei c' _ hc he _ hc' _ hwh vm hu.
+  move=> env s1 s2 s3 s4 a c e ei c' _ hc he _ hc' _ hwh vm hu.
   have [vm1 hc1 hu1]:= hc _ hu.
   have [v1 he1 /value_uinclE ?] := wi2w_eP hu1 he; subst v1.
   have [vm2 hc2 hu2] := hc' _ hu1.
@@ -302,7 +302,7 @@ Qed.
 
 Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 a c e ei c' _ hc he vm hu.
+  move=> env s1 s2 a c e ei c' _ hc he vm hu.
   have [vm' hc1 hu1]:= hc _ hu.
   have [v1 he1 /value_uinclE ?] := wi2w_eP hu1 he; subst v1.
   by exists vm' => //; apply: Ewhile_false.
@@ -310,7 +310,7 @@ Qed.
 
 Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
 Proof.
-  move=> s1 s2 i d lo hi c vlo vhi hlo hhi _ hfor vm hu.
+  move=> env s1 s2 i d lo hi c vlo vhi hlo hhi _ hfor vm hu.
   have [? hlo' /value_uinclE ?] := wi2w_eP hu hlo.
   have [? hhi' /value_uinclE ?] := wi2w_eP hu hhi; subst.
   have [vm' h hu'] := hfor _ hu.
@@ -318,11 +318,11 @@ Proof.
 Qed.
 
 Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
-Proof. move=> s i c vm hu; exists vm => //; apply EForDone. Qed.
+Proof. move=> env s i c vm hu; exists vm => //; apply EForDone. Qed.
 
 Local Lemma Hfor_cons : sem_Ind_for_cons p ev Pc Pfor.
 Proof.
-  move=> s1 s1' s2 s3 i w ws c hw _ hc _ hfor vm hu.
+  move=> env s1 s1' s2 s3 i w ws c hw _ hc _ hfor vm hu.
   have [vm1 hw' hu1] := [elaborate write_var_uincl hu (value_uincl_refl w) hw].
   have [vm2 hs1 hu2] := hc _ hu1.
   have [vm' hs2 hu'] := hfor _ hu2.
@@ -331,7 +331,7 @@ Qed.
 
 Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s1 scs2 m2 s2 xs fn args vargs vs hes _ hf hws vm hu.
+  move=> env s1 scs2 m2 s2 xs fn args vargs vs hes _ hf hws vm hu.
   have [vs' hes' hu1] := wi2w_esP hu hes.
   have [vr hu2 h] := hf _ hu1.
   rewrite /= in hws.
@@ -391,6 +391,7 @@ End SEM.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context (env : env_t).
 
 Definition check_es_wi2w (d : unit) es1 es2 (d' : unit) :=
   es2 = [seq wi2w_e i | i <- es1].
@@ -400,10 +401,10 @@ Definition check_lvals_wi2w (d : unit) xs1 xs2 (d':unit) :=
 
 Lemma check_esP_R_wi2w d es1 es2 d' :
   check_es_wi2w d es1 es2 d' →
-  ∀ s1 s2, st_uincl d s1 s2 → st_uincl d' s1 s2.
+  ∀ (s1 s2 : estate env), st_uincl d s1 s2 → st_uincl d' s1 s2.
 Proof. by move=> _; apply st_rel_weaken. Qed.
 
-Definition checker_wi2w : Checker_e st_uincl :=
+Definition checker_wi2w : Checker_e (st_uincl (env:=env)) :=
   {| relational_logic.check_es := check_es_wi2w
    ; relational_logic.check_lvals := check_lvals_wi2w
    ; relational_logic.check_esP_rel := check_esP_R_wi2w
@@ -421,15 +422,15 @@ Qed.
 #[local] Hint Resolve checker_wi2wP : core.
 
 Let Pi i :=
-  wequiv_rec p p' ev ev uincl_spec (st_uincl tt) [::i] [::wi2w_i i] (st_uincl tt).
+  wequiv_rec (env:=env) p p' ev ev uincl_spec (st_uincl tt) [::i] [::wi2w_i i] (st_uincl tt).
 
 Let Pi_r i := forall ii, Pi (MkI ii i).
 
 Let Pc c :=
-  wequiv_rec p p' ev ev uincl_spec (st_uincl tt) c (map wi2w_i c) (st_uincl tt).
+  wequiv_rec (env:=env) p p' ev ev uincl_spec (st_uincl tt) c (map wi2w_i c) (st_uincl tt).
 
 Lemma it_wi2w_call_internalP fn :
-  wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+  wiequiv_f env p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
   exists (wi2w_fun fd).
@@ -475,14 +476,15 @@ Qed.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} (rE0_trans : EventRels_trans rE0 rE0 rE0).
+Context (env : env_t).
 
 Lemma it_wi2w_progP (p' : uprog) fn :
   wi2w_prog remove_wint_annot dead_vars_fd p = ok p' →
-  wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+  wiequiv_f env p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   rewrite /wi2w_prog; t_xrbindP => ok_pv <-.
-  have := [elaborate it_alloc_call_uprogP ev (p_globs p) ok_pv (fn:= fn)].
-  have := [elaborate it_wi2w_call_internalP (fn:=fn)].
+  have := [elaborate it_alloc_call_uprogP env ev (p_globs p) ok_pv (fn:= fn)].
+  have := [elaborate it_wi2w_call_internalP env (fn:=fn)].
   apply wiequiv_f_trans => //.
   + by move=> fs1 fs2 hpre; exists fs1 => //; split => //; split => //; apply List_Forall2_refl.
   move=> ??? fr1 fr3 _ _ [fr2] [heq1 heq2 hu1] [heq3 heq4 hu2]; split.
