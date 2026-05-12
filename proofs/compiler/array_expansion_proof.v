@@ -137,7 +137,7 @@ Local Notation gd := (p_globs p1).
 
 Section Expr.
 
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 Context (m : t) (valid : wf_t m).
 
 Section WDB.
@@ -662,7 +662,7 @@ Qed.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Definition vs_expand_flat expd vs1 vs2 :=
   exists2 vs1', expand_vs expd vs1 = ok vs1' & vs2 = flatten vs1'.
@@ -844,7 +844,7 @@ End Step1.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Lemma it_expand_callP f :
   f \in entries ->
