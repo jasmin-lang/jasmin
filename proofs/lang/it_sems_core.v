@@ -188,7 +188,7 @@ Definition estate0 env (fs : fstate) :=
   Estate fs.(fscs) fs.(fmem) (Vm.init env).
 
 Class sem_Fun (E : Type -> Type) :=
-  { sem_fun : (Uint63.int -> Z) -> prog -> extra_val_t -> instr_info -> funname -> fstate -> itree E fstate }.
+  { sem_fun : env_t -> prog -> extra_val_t -> instr_info -> funname -> fstate -> itree E fstate }.
 
 #[global]
 Instance sem_fun_rec (E : Type -> Type) : sem_Fun (recCall +' E) | 0 :=
@@ -373,7 +373,7 @@ Section SEM_F.
 Context {E E0} {wE : with_Error E E0}.
 
 Section EXTEQ.
-Context (sem_F1 sem_F2: sem_Fun E) (env : Uint63.int -> Z) (p:prog) (ev:extra_val_t) .
+Context (sem_F1 sem_F2: sem_Fun E) (env : env_t) (p:prog) (ev:extra_val_t) .
 Hypothesis sem_F_ext : forall ii fn fs,
   sem_fun (sem_Fun := sem_F1) env p ev ii fn fs ≈ sem_fun (sem_Fun := sem_F2) env p ev ii fn fs.
 
@@ -488,7 +488,7 @@ Definition err_sem_fun env (p : prog) (ev : extra_val_t) (fn : funname)
 Section CoreLemmas.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0}.
-Context (env : Uint63.int -> Z) (p : prog) (ev : extra_val_t).
+Context (env : env_t) (p : prog) (ev : extra_val_t).
 
 Notation interp_rec := (interp (mrecursive (handle_recCall env p ev))).
 

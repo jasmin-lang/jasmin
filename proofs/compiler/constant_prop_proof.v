@@ -971,7 +971,7 @@ Qed.
 Section IT_PROOF.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Variable (p:prog) (ev:extra_val_t).
 Notation gd := (p_globs p).

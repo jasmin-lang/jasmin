@@ -434,7 +434,7 @@ End Section.
 
 Module Type VM.
 
-  Parameter t : forall {wsw:WithSubWord}, (Uint63.int -> Z) -> Type.
+  Parameter t : forall {wsw:WithSubWord}, env_t -> Type.
 
   Parameter init : forall {wsw:WithSubWord} env, t env.
 
@@ -460,7 +460,7 @@ End VM.
 Module Vm : VM.
   Section Section.
 
-  Context {wsw: WithSubWord} (env : Uint63.int -> Z).
+  Context {wsw: WithSubWord} (env : env_t).
 
   Definition wf (data: Mvar.t value) :=
     forall x v, Mvar.get data x = Some v -> compat_val (eval_atype env (vtype x)) v.
@@ -513,7 +513,7 @@ Open Scope vm_scope.
 
 Section GET_SET.
 
-Context {wsw: WithSubWord} (env : Uint63.int -> Z).
+Context {wsw: WithSubWord} (env : env_t).
 
 Lemma vm_truncate_val_get x (vm : Vm.t env) :
   vm_truncate_val (eval_atype env (vtype x)) vm.[x] = vm.[x].
@@ -641,7 +641,7 @@ Ltac t_vm_get :=
 
 Section REL.
 
-  Context {wsw1 wsw2 : WithSubWord} (env1 env2 : Uint63.int -> Z).
+  Context {wsw1 wsw2 : WithSubWord} (env1 env2 : env_t).
 
   Section Section.
 
@@ -762,7 +762,7 @@ Notation "vm1 '<=[\' s ']' vm2" := (uincl_ex s vm1 vm2)
   format "'[hv ' vm1  <=[\ s ] '/'  vm2 ']'") : vm_scope.
 
 Section REL_EQUIV.
-  Context {wsw : WithSubWord} (env : Uint63.int -> Z).
+  Context {wsw : WithSubWord} (env : env_t).
 
   Lemma vm_rel_refl R P : Reflexive R -> Reflexive (vm_rel (env1:=env) (env2:=env) R P).
   Proof. by move=> h x v _. Qed.

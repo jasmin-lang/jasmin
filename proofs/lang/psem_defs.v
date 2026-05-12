@@ -62,7 +62,7 @@ Context {wsw:WithSubWord}.
 Record estate
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
-  (env : Uint63.int -> Z) := Estate
+  (env : env_t) := Estate
   {
     escs : syscall_state;
     emem : mem;
@@ -98,7 +98,7 @@ Section ESTATE_UTILS.
 Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
-  (env : Uint63.int -> Z).
+  (env : env_t).
 
 Definition with_vm (s:estate env) (vm : Vm.t env) :=
   {| escs := s.(escs); emem := s.(emem); evm := vm |}.
@@ -117,7 +117,7 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  (env : Uint63.int -> Z)
+  (env : env_t)
   (wdb : bool)
   (gd : glob_decls).
 
@@ -210,7 +210,7 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  (env : Uint63.int -> Z)
+  (env : env_t)
   (gd : glob_decls).
 
 Fixpoint sem_eassert (s : estate env) (e : eassert) : exec bool :=
@@ -247,7 +247,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {asmop : asmOp asm_op}
-  (env : Uint63.int -> Z).
+  (env : env_t).
 
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=
   Let semi := sopn_sem o in
