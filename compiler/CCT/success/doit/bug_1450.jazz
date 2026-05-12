@@ -1,0 +1,8 @@
+#[ct = "a × b → public"]
+export fn main(reg u32 x y) -> reg u8 {
+  reg u8 r = 0;
+  reg bool b = x <s y;
+  #declassify(b);
+  if b { r = 1; }
+  return r;
+}

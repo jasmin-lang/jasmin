@@ -69,8 +69,8 @@ let parse_and_check arch call_conv idirs =
       nowarning ();
       add_warning Deprecated ());
     let compile =
-      if doit && compile < Compiler.PropagateInline then
-        Compiler.PropagateInline
+      if doit && compile < Compiler.LowerInstruction then
+        Compiler.LowerInstruction
       else compile
     in
     match check ~doit infer ct_list speculative compile file print with
