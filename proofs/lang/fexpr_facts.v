@@ -39,7 +39,7 @@ Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  (env : Uint63.int -> Z)
+  (env : env_t)
   (wdb : bool)
   (gd : glob_decls).
 

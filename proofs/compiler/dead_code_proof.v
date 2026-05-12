@@ -579,7 +579,7 @@ Section PROOF.
 
   Section IT.
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-  Context (env : Uint63.int -> Z).
+  Context (env : env_t).
 
   #[local] Lemma checker_st_uincl_onP : Checker_uincl p p' (checker_st_uincl_on env).
   Proof. apply/checker_st_uincl_onP/eq_globs. Qed.
@@ -767,7 +767,7 @@ End SEM.
 
 Section IT.
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Lemma it_dead_code_tokeep_callPu (p p': uprog) do_nop onfun fn ev:
   dead_code_prog_tokeep is_move_op do_nop onfun p = ok p' ->

@@ -351,7 +351,7 @@ Section WITH_PARAMS.
       {E E0: Type → Type}
         {wE: with_Error E E0}
         {rE: EventRels E0}.
-    Context (env : Uint63.int -> Z).
+    Context (env : env_t).
 
     Context (insert_renaming_p: fun_info → bool).
     Context (p: prog) (ev: extra_val_t).

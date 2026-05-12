@@ -244,7 +244,7 @@ End REMOVE_INIT.
 Section IT_REMOVE_INIT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Context (is_reg_array: var -> bool) (p : prog) (ev: extra_val_t).
 Notation gd := (p_globs p).
@@ -338,7 +338,7 @@ Proof. apply remove_init_fdP. Qed.
 
 Section IT.
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 (* TODO : do we really need the instances ? *)
 Lemma it_remove_init_fdPu is_reg_array (p : uprog) ev fn :
@@ -618,7 +618,7 @@ End ADD_INIT.
 Section IT_ADD_INIT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Context (p : uprog) (ev:unit).
 

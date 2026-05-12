@@ -350,7 +350,7 @@ Section PROOF.
   Section IT.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-  Context (env : Uint63.int -> Z).
+  Context (env : env_t).
 
   Definition dc_spec :=
    {|
@@ -458,7 +458,7 @@ Qed.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Lemma it_dead_calls_errP (s : Sf.t) (p p': prog) :
   dead_calls_err s p = ok p' →

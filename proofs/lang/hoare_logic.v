@@ -435,7 +435,7 @@ Section HOARE_CORE.
 
 Context {E E0: Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {iE0 : InvEvent E0} {iEr : InvErr}.
 
-Context (env : Uint63.int -> Z) (p : prog) (ev: extra_val_t).
+Context (env : env_t) (p : prog) (ev: extra_val_t).
 
 (* Hoare triples with relational post-conditions on itree semantics,
    based on khoare triples *)
@@ -772,7 +772,7 @@ Section TRIVIAL.
 
 Context {E E0: Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0}.
 
-Context (env : Uint63.int -> Z) (p : prog) (ev: extra_val_t).
+Context (env : env_t) (p : prog) (ev: extra_val_t).
 
 #[local] Existing Instance trivial_invErr.
 #[local] Existing Instance trivial_invEvent.
@@ -797,7 +797,7 @@ Section HOARE_FUN.
 
 Context {E E0: Type -> Type} {wE: with_Error E E0} {iE0 : InvEvent E0} {iEr : InvErr}.
 
-Context (env : Uint63.int -> Z) (p : prog) (ev: extra_val_t) (spec : HoareSpec).
+Context (env : env_t) (p : prog) (ev: extra_val_t) (spec : HoareSpec).
 
 Definition hoare_f_rec Pf ii fn Qf :=
   hoare_f_ii (iE0 := invEvent_recCall spec) env p ev Pf ii fn Qf.
@@ -870,7 +870,7 @@ Section WHOARE_CORE.
 
 Context {E E0: Type -> Type}  {sem_F : sem_Fun E} {wE: with_Error E E0} {iE0 : InvEvent E0}.
 
-Context (env : Uint63.int -> Z) (p : prog) (ev: extra_val_t).
+Context (env : env_t) (p : prog) (ev: extra_val_t).
 
 Lemma whoare_assgn (Rv Rtr: Pred_v) (P Q : Pred_c env) ii x tg ty e :
   rhoare P (fun s => sem_pexpr true (p_globs p) s e) Rv PredT ->
@@ -971,7 +971,7 @@ Section WHOARE_FUN.
 
 Context {E E0: Type -> Type} {wE: with_Error E E0} {iE0 : InvEvent E0}.
 
-Context (env : Uint63.int -> Z) (p : prog) (ev: extra_val_t) (spec : HoareSpec).
+Context (env : env_t) (p : prog) (ev: extra_val_t) (spec : HoareSpec).
 
 Definition whoare_f_rec Pf ii fn Qf :=
   hoare_f_ii (iE0 := invEvent_recCall spec) (iEr := invErrT) env p ev Pf ii fn Qf.
@@ -1032,7 +1032,7 @@ Context
 
 Context {E E0: Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0}.
 
-Context (env : Uint63.int -> Z) (p : prog) (ev : extra_val_t).
+Context (env : env_t) (p : prog) (ev : extra_val_t).
 
 #[local] Existing Instance trivial_invErr.
 #[local] Existing Instance trivial_invEvent.

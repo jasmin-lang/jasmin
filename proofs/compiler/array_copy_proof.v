@@ -561,7 +561,7 @@ End SEM.
 Section IT.
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Let Pi (i1 : instr) :=
   forall fi X, not_tmp fi X -> Sv.Subset (vars_I i1) X ->

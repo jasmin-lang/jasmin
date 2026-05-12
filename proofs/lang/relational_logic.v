@@ -402,7 +402,7 @@ Context
   {scP1 : semCallParams (wsw:= wsw1) (pT := pT1)}
   {scP2 : semCallParams (wsw:= wsw2) (pT := pT2)}
   {dc1 dc2: DirectCall}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Notation prog1 := (prog (pT := pT1)).
 Notation prog2 := (prog (pT := pT2)).
@@ -2333,7 +2333,7 @@ Qed.
 
 Context {E E0 : Type -> Type} {sem_F1 sem_F2 : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
-Context (env : Uint63.int -> Z) (p1 p2 : prog) (ev1 ev2: extra_val_t).
+Context (env : env_t) (p1 p2 : prog) (ev1 ev2: extra_val_t).
 
 Context {D : Type}
         {R : D -> Vm.t env -> Vm.t env -> Prop}
@@ -2403,7 +2403,7 @@ Context
   {sem_F3 : sem_Fun (sip := sip) (pT := pT3) E}
   {rE_trans : EventRels_trans rE12 rE23 rE13}
 .
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Notation prog1 := (prog (pT := pT1)).
 Notation prog2 := (prog (pT := pT2)).

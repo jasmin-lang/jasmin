@@ -678,7 +678,7 @@ Section PROOF.
   Section IT.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-  Context (env : Uint63.int -> Z).
+  Context (env : env_t).
 
   Definition st_eq_alloc (r : M.t) := st_rel (eq_alloc (env:=env)) r.
 
@@ -879,7 +879,7 @@ Qed.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Lemma it_alloc_call_uprogP dead_vars_fd ev gd ep1 p1 ep2 p2
   (H: check_prog init_alloc_uprog check_f_extra_u dead_vars_fd ep1 p1 ep2 p2 = ok tt) fn:
@@ -952,7 +952,7 @@ Qed.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Lemma it_alloc_callP_sprogP dead_vars_fd ev gd ep1 p1 ep2 p2
   (H: check_prog init_alloc_sprog check_f_extra_s dead_vars_fd ep1 p1 ep2 p2 = ok tt) fn :

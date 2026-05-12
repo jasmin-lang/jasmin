@@ -6,7 +6,7 @@ Section SEM_EXPR.
 (* Semantic of expressions *)
 
   Context {wsw : WithSubWord} {pd: PointerData}.
-  Context (env : Uint63.int -> Z) (m: mem) (vm: Vm.t env).
+  Context (env : env_t) (m: mem) (vm: Vm.t env).
 
   Fixpoint sem_fexpr (e: fexpr) : exec value :=
     match e with
@@ -30,7 +30,7 @@ Section SEM.
 Context
   {wsw : WithSubWord} {syscall_state : Type}
   {ep : EstateParams syscall_state}
-  (env : Uint63.int -> Z).
+  (env : env_t).
 
 Definition write_lexpr e v (s: estate env) : exec (estate env) :=
   match e with

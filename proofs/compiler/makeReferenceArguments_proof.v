@@ -697,7 +697,7 @@ Context
   Section IT.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-  Context (env : Uint63.int -> Z).
+  Context (env : env_t).
 
   #[local] Lemma checker_st_eq_onP : Checker_eq p p' (checker_st_eq_on env).
   Proof. apply/checker_st_eq_onP/eq_globs. Qed.

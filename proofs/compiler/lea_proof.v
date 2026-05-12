@@ -19,7 +19,7 @@ Section PROOF.
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
     {sip : SemInstrParams asm_op syscall_state}
-    (env : Uint63.int -> Z)
+    (env : env_t)
     (gd : glob_decls).
 
   (* ---------------------------------------------------------- *)

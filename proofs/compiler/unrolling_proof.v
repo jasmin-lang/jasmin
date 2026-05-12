@@ -214,7 +214,7 @@ Section PROOF.
   Section IT.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-  Context (env : Uint63.int -> Z).
+  Context (env : env_t).
 
   Let Pi (i:instr) :=
     wequiv_rec (env:=env) p p' ev ev eq_spec (st_eq tt) [::i] (unroll_i i).1 (st_eq tt).

@@ -613,7 +613,7 @@ Section AUX.
    instances of the typeclasses involved. *)
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0} {sem_F : sem_Fun (pT:=progUnit) E}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Lemma convertible_assgn_tuple tys1 tys2 :
   all2 convertible tys1 tys2 ->
@@ -630,7 +630,7 @@ Qed.
 End AUX.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Section FD.
 

@@ -587,7 +587,7 @@ Context
   {pT : progT}
   {scP : semCallParams (wsw:= wsw) (pT := pT)}
   {dc: DirectCall}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Lemma st_eq_refl d (s : estate env) : st_eq d s s.
 Proof. by split. Qed.
@@ -925,7 +925,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
   {sCP : semCallParams}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Definition st_eq_on X := st_rel (eq_on (env1:=env) (env2:=env)) X.
 
@@ -1497,7 +1497,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
   {sCP : semCallParams}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Lemma read_es_st_uincl d gd wdb es :
   wrequiv (st_uincl (env:=env) d) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) (List.Forall2 value_uincl).
@@ -1934,7 +1934,7 @@ End SEM.
 
 Section IT.
 
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Section PROG.
 
@@ -2172,7 +2172,7 @@ Notation prog2 := (prog (pT := pT2)).
 Notation prog3 := (prog (pT := pT3)).
 
 Context
-  (env : Uint63.int -> Z)
+  (env : env_t)
   {p1 : prog1} {p2 : prog2} {p3 : prog3}
   {ev1 : extra_val_t (progT := pT1)}
   {ev2 : extra_val_t (progT := pT2)}

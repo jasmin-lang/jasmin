@@ -194,7 +194,7 @@ Module INCL. Section INCL.
   Section IT.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-  Context (env : Uint63.int -> Z).
+  Context (env : env_t).
 
   Notation st_equal := (st_rel (env:=env) (fun _ : unit => eq)).
 
@@ -433,7 +433,7 @@ Module RGP. Section PROOFS.
   Qed.
 
   Section REMOVE_GLOB_E.
-    Context (env : Uint63.int -> Z) (wdb : bool) (m: venv) (ii: instr_info) (s1 s2: estate env) (hvalid: valid m s1 s2).
+    Context (env : env_t) (wdb : bool) (m: venv) (ii: instr_info) (s1 s2: estate env) (hvalid: valid m s1 s2).
 
     Let Pe e : Prop :=
       ∀ e' v,
@@ -1084,7 +1084,7 @@ Module RGP. Section PROOFS.
   Section IT.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-  Context (env : Uint63.int -> Z).
+  Context (env : env_t).
 
   Definition check_es_valid ii (d:venv) (es1 es2 : pexprs) (d':venv) :=
     d = d' /\ mapM (remove_glob_e ii d) es1 = ok es2.

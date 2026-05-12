@@ -690,7 +690,7 @@ End SEM.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : Uint63.int -> Z).
+Context (env : env_t).
 
 Definition st_ve S senv := st_rel (env:=env) (valid_env S) senv.
 
