@@ -556,6 +556,7 @@ end = struct
           | Wsize.Global (* likely unused as global variables are not in venv.vars *)
           | Stack _ -> true
           | Const | Inline | Reg _ -> false
+          | Length -> assert false
         in
         let ty =
           match Mv.find x vtype with
@@ -1288,6 +1289,7 @@ let init_constraint fenv f =
         | (Stack (Pointer _) | Reg (_, Pointer _)) -> Indirect(Env.fresh2 env, Env.fresh2 env)
         | Inline -> Env.dpublic env
         | Global -> Env.dpublic env (* unsure *)
+        | Length -> assert false
         end
       | Some ty -> (* this partly has the same role as Env.init_ty. Remove one occurence? *)
         begin match x.v_kind, ty with

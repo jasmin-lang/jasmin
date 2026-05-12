@@ -102,7 +102,7 @@ HB.instance Definition _ := hasDecEq.Build ctype ctype_eqb_OK.
  * -------------------------------------------------------------------- *)
 
 Definition bvar_cmp x1 x2 :=
-  Lex (Uint63.compare x1.1 x2.1) (Ident.Mid.K.cmp x1.2 x2.2).
+  Lex (Sint63.compare x1.1 x2.1) (Ident.Mid.K.cmp x1.2 x2.2).
   (* for some reason, this works while the more natural [Tident.cmp i1 i2]
      produces ill-typed OCaml code *)
   (* I think it's just because this adds Obj.magic at extraction, so this
@@ -157,12 +157,12 @@ Fixpoint array_length_cmp al1 al2 :=
   | ALShr _ _, _ => Gt
   end.
 
-Instance intO : Cmp Uint63.compare.
+Instance intO : Cmp Sint63.compare.
 Proof.
   constructor.
-  + by move=> n1 n2; rewrite !Uint63.compare_spec; apply cmp_sym.
-  + by move=> n1 n2 n3 c; rewrite !Uint63.compare_spec; apply cmp_ctrans.
-  by move=> n1 n2; rewrite Uint63.compare_spec => /cmp_eq /Uint63.to_Z_inj.
+  + by move=> n1 n2; rewrite !Sint63.compare_spec; apply cmp_sym.
+  + by move=> n1 n2 n3 c; rewrite !Sint63.compare_spec; apply cmp_ctrans.
+  by move=> n1 n2; rewrite Sint63.compare_spec => /cmp_eq /Sint63.to_Z_inj.
 Qed.
 
 Existing Instance Ident.Mid.K.cmpO.

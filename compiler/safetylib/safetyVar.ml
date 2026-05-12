@@ -34,7 +34,7 @@ type mvar =
 (* Must the variable [v] be handled as a weak variable. *)
 let weak_update v = 
   let weak_update_kind = function
-    | Const -> assert false     (* should not happen *)
+    | Const | Length -> assert false     (* should not happen *)
     | Stack _
     | Reg _
     | Inline

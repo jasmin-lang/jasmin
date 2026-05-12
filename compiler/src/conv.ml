@@ -34,13 +34,16 @@ let cty_of_ty = function
   | Bty Bool      -> T.Coq_abool
   | Bty Int       -> T.Coq_aint
   | Bty (U sz)   -> T.Coq_aword(sz)
-  | Arr (sz, len) -> T.Coq_aarr (sz, cz_of_int len)
+  | Arr (sz, len) -> T.Coq_aarr (sz, ALConst (cz_of_int len))
 
 let ty_of_cty = function
   | T.Coq_abool  ->  Bty Bool
   | T.Coq_aint   ->  Bty Int
   | T.Coq_aword sz -> Bty (U sz)
-  | T.Coq_aarr (sz, len) -> Arr (sz, int_of_cz len)
+  | T.Coq_aarr (sz, len) ->
+      match len with
+      | ALConst len -> Arr (sz, int_of_cz len)
+      | _ -> assert false
 
 (* ------------------------------------------------------------------------ *)
 

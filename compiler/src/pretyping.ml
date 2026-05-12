@@ -671,9 +671,10 @@ let check_return_storage ~loc fname =
         | `Direct, W.Pointer _
         -> rs_tyerror ~loc (InvalidSignatureStorage(fname, sto, (L.unloc y).v_name, (L.unloc y).v_kind))
       )
-      (* Global should never be returned, it is checked before this function is called in tt_fundef *)
+      (* Global and Length must never be returned, it is checked before this function is called in tt_fundef *)
       | _ , W.Global -> assert false
       | `Global , _ -> assert false
+      | _, Length -> assert false
 
       (* Invalid type rule *)
       | `Reg _,   (W.Stack _ | W.Inline  | W.Const)
@@ -1087,17 +1088,23 @@ let cast_int loc os e ety =
 
 
 (* -------------------------------------------------------------------- *)
-let conv_ty : BinNums.coq_Z T.extended_type -> P.epty = function
+let conv_ty : T.extended_type -> P.epty = function
     | T.ETbool       -> P.etbool
     | T.ETint        -> P.etint
     | T.ETword(s,ws) -> P.ETword(s,ws)
-    | T.ETarr (ws, n) -> P.ETarr (ws, PE (P.cnst (Conv.z_of_cz n)))
+    | T.ETarr (ws, n) ->
+        match n with
+        | ALConst n -> P.ETarr (ws, PE (P.cnst (Conv.z_of_cz n)))
+        | _ -> assert false
 
 let conv_cty : T.atype -> P.epty = function
     | T.Coq_abool    -> P.etbool
     | T.Coq_aint     -> P.etint
     | T.Coq_aword ws -> P.etw ws
-    | T.Coq_aarr (ws, n) -> P.ETarr (ws, PE (P.cnst (Conv.z_of_cz n)))
+    | T.Coq_aarr (ws, n) ->
+        match n with
+        | ALConst n -> P.ETarr (ws, PE (P.cnst (Conv.z_of_cz n)))
+        | _ -> assert false
 
 let type_of_op2 op =
   let (ty1, ty2), tyo = E.etype_of_op2 op in

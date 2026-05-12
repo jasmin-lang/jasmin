@@ -422,11 +422,12 @@ let safe_opn pd asmOp safe opn es =
          let n = Papp1 (E.uint_of_word sz, n) in
          let n = Papp2 (Omod (Unsigned, Op_int), n, Pconst (Z.of_int 32)) in
          [ InRange(Pconst (Conv.z_of_cz lo), Pconst (Conv.z_of_cz hi), n) ]
-      | Wsize.AllInit(ws, p, i) ->
+      | Wsize.AllInit(ws, len, i) ->
+        let len = match len with | Type.ALConst len -> len | _ -> assert false in
         let e = List.nth es (Conv.int_of_nat i) in
         let y = match e with Pvar y -> y | _ -> assert false in
         List.flatten
-          (List.init (Conv.int_of_cz p) (fun i -> init_get y Warray_.AAscale ws (Pconst (Z.of_int i)) 1))
+          (List.init (Conv.int_of_cz len) (fun i -> init_get y Warray_.AAscale ws (Pconst (Z.of_int i)) 1))
       | NotZero (sz, n) ->
         [ notZero(sz, List.nth es (Conv.int_of_nat n)) ]
 
