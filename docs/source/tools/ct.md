@@ -264,8 +264,8 @@ are indeed public.
 
 In order to know what assembly instructions are emitted by the compiler, the
 checker has to run after instruction selection. More specifically, using the
-`--doit` mode makes verification occur after the [“Propagate
-Inline”](../compiler/passes/propagate_inline) compilation pass (or any further
+`--doit` mode makes verification occur after the [“Instruction
+selection”](../compiler/passes/inst_select) compilation pass (or any further
 pass specified by the `--after` argument).
 
 For instance, the following program is accepted by the type-checker, but rejected in “doit” mode,
