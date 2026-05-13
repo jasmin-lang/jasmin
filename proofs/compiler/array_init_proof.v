@@ -168,7 +168,7 @@ Proof.
   apply ih.
   + by move=> z hz; apply hdisj; rewrite in_cons hz orbT.
   rewrite /add_init_aux.
-  case heq: vtype => [||ws len|] //; case: len heq => // leq heq; case:ifP => _ //.
+  case heq: vtype => [||ws len|] //; case:ifP => _ //.
   rewrite -(cat0s c) -cat1s.
   apply wequiv_cat with (cmpl_inv I) => //.
   apply wequiv_assign_right => s t h.

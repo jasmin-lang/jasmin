@@ -64,7 +64,7 @@ Fixpoint etype_of_expr (e:pexpr) : extended_type :=
   match e with
   | Pconst _ => tint
   | Pbool _ => tbool
-  | Parr_init ws len => tarr ws (ALConst len)
+  | Parr_init ws len => tarr ws len
   | Pvar x => etype_of_gvar x
   | Pget al aa ws x e => tword ws
   | Psub al ws len x e => tarr ws len

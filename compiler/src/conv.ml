@@ -85,7 +85,7 @@ let gvari_of_cgvari v =
 let rec cexpr_of_expr = function
   | Pconst z          -> C.Pconst (cz_of_z z)
   | Pbool  b          -> C.Pbool  b
-  | Parr_init (ws, n) -> C.Parr_init (ws, cz_of_int n)
+  | Parr_init (ws, n) -> C.Parr_init (ws, ALConst (cz_of_int n))
   | Pvar x            -> C.Pvar (cgvari_of_gvari x)
   | Pget (al, aa,ws, x,e) -> C.Pget (al, aa, ws, cgvari_of_gvari x, cexpr_of_expr e)
   | Psub (aa,ws,len, x,e) ->
@@ -102,7 +102,11 @@ let rec cexpr_of_expr = function
 let rec expr_of_cexpr = function
   | C.Pconst z          -> Pconst (z_of_cz z)
   | C.Pbool  b          -> Pbool  b
-  | C.Parr_init (ws, n) -> Parr_init (ws, int_of_cz n)
+  | C.Parr_init (ws, n) ->
+      begin match n with
+      | ALConst n -> Parr_init (ws, int_of_cz n)
+      | _ -> assert false
+      end
   | C.Pvar x            -> Pvar (gvari_of_cgvari x)
   | C.Pget (al, aa,ws, x,e) -> Pget (al, aa, ws, gvari_of_cgvari x, expr_of_cexpr e)
   | C.Psub (aa,ws,len,x,e) ->

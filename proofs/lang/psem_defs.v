@@ -126,7 +126,7 @@ Fixpoint sem_pexpr (s:estate env) (e : pexpr) : exec value :=
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
   | Parr_init ws n =>
-    let len := arr_size ws n in
+    let len := arr_size ws (eval env n) in
     ok (Varr (WArray.empty len))
   | Pvar v => get_gvar wdb gd s.(evm) v
   | Pget al aa ws x e =>
