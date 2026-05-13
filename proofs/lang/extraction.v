@@ -52,8 +52,6 @@ Extract Constant ident.Cident.tag     => "CoreIdent.Cident.tag".
 Extract Constant ident.Cident.id_name => "CoreIdent.Cident.id_name".
 Extract Constant ident.Cident.id_kind => "CoreIdent.Cident.id_kind".
 
-Extract Constant ident.Cident.spill_to_mmx => "CoreIdent.Cident.spill_to_mmx".
-
 Set Extraction Output Directory "lang/ocaml".
 
 Extraction Blacklist String List Nat Uint63 Utils Var Array.

@@ -56,9 +56,14 @@ let warn_extra_fd pd msfsize asmOp (_, fd) = List.iter (warn_extra_i pd msfsize 
 
 (* -------------------------------------------------------------------- *)
 
+let spill_to_mmx v =
+  Annot.ensure_uniq1 "spill_to_mmx" Annot.none (v.Var0.Var.vname).v_annot
+  |> Option.is_some
+
+
 let do_spill_unspill asmop ?(debug = false) cp =
   let p = Conv.cuprog_of_prog cp in
-  match Lower_spill.spill_uprog asmop Compiler.default_LoopCounter Conv.fresh_var_ident p with
+  match Lower_spill.spill_uprog asmop Compiler.default_LoopCounter Conv.fresh_var_ident spill_to_mmx p with
   | Utils0.Error msg -> Error (Conv.error_of_cerror (Printer.pp_err ~debug) msg)
   | Utils0.Ok p -> Ok (Conv.prog_of_cuprog p)
 
@@ -418,6 +423,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.warning;
       Compiler.lowering_opt = Arch.lowering_opt;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
+      Compiler.spill_to_mmx;
       Compiler.slh_info;
       Compiler.stack_zero_info = szs_of_fn;
       Compiler.dead_vars_ufd;
