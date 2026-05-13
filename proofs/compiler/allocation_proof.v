@@ -112,7 +112,7 @@ Section CHECK_EP.
 
   Lemma check_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
   Proof.
-  Local Opaque arr_size.
+  Local Opaque arr_size convertible.
     apply: pexprs_ind_pair; split; subst P Q => /=.
     - case => // r _ vm1 _ [<-] h; split => // scs m _ [<-] /=; eauto.
     - move => e1 he1 es1 hes1 [] // e2 es2 r re vm1 err; t_xrbindP => r' ok_r' ok_re h.
@@ -124,7 +124,8 @@ Section CHECK_EP.
       eexists; split; first reflexivity. by constructor.
     - by move => z1 [] // z2 r re vm1; t_xrbindP => /eqP <- -> ?; split=> // ??? [] <-; exists z1.
     - by move => b1 [] // b2 r re vm1; t_xrbindP => /eqP <- -> ?; split=> // ??? [] <-; exists b1.
-    - by move => ws1 n1 [] // ws2 n2 r re vm1; t_xrbindP=> /eqP -> <- ?; split => //= ??? [<-]; eauto.
+    - move => ws1 n1 [] // ws2 n2 r re vm1;
+        t_xrbindP=> /convertible_eval_atype /(_ env) /= [] -> <- ?; split => //= ??? [<-]; eauto.
     - move => x1 [] // x2 r re vm1.
       by move=> /check_gvP Hv /(Hv env wdb gd) [Hea H].
     - move => al1 aa1 sz1 x1 e1 He1 [] // al2 aa2 sz2 x2 e2 r re vm1.
@@ -175,7 +176,7 @@ Section CHECK_EP.
     move=> ?? /Hs1 [?[-> /=]] /value_uincl_truncate H/H{H} [? -> ?].
     move=> ?? /Hs2 [?[-> /=]] /value_uincl_truncate H/H{H} [? -> ?] <- /=.
     by eexists;split;eauto;case: (b).
-  Local Transparent arr_size.
+  Local Transparent arr_size convertible.
   Qed.
 
 End CHECK_EP.

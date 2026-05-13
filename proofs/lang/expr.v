@@ -262,7 +262,7 @@ Definition is_glob (x:gvar) := x.(gs) == Sglob.
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
-| Parr_init : wsize -> Z → pexpr
+| Parr_init : wsize -> array_length → pexpr
 | Pvar   :> gvar -> pexpr
 | Pget   : aligned -> arr_access -> wsize -> gvar -> pexpr -> pexpr
 | Psub   : arr_access -> wsize -> array_length -> gvar -> pexpr -> pexpr

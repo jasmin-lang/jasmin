@@ -66,7 +66,7 @@ Definition array_copy ii (x: var_i) (ws: wsize) (n: Z) (y: gvar) :=
     if eq_gvar (mk_lvar x) y
     || is_ptr x
     then Copn [::] AT_none sopn_nop [::]
-    else Cassgn (Lvar x) AT_none (aarr ws (ALConst n)) (Parr_init ws n) in
+    else Cassgn (Lvar x) AT_none (aarr ws (ALConst n)) (Parr_init ws (ALConst n)) in
   [:: MkI ii pre;
       MkI ii
         (Cfor i (UpTo, Pconst 0, Pconst n)
