@@ -27,6 +27,7 @@ Section ASM_OP.
 
 Context `{asmop : asmOp}.
 Context (fresh_var_ident: v_kind -> instr_info -> int -> string -> atype -> Ident.ident).
+Context (spill_to_mmx : var -> bool).
 
 Definition to_spill_e s e :=
   match e with
@@ -187,8 +188,8 @@ Definition init_map fi (s:Sv.t) :=
     let n := vname x in
     let k :=
       match Ident.id_kind n with
-      | Reg (_, r) => 
-          if Ident.spill_to_mmx n then Reg(Extra, r)
+      | Reg (_, r) =>
+          if spill_to_mmx x then Reg(Extra, r)
           else Stack r
       | _ => Stack Direct (* This is a dummy value, pretyping ensure this never appen *)
       end in

@@ -18,8 +18,9 @@ Context
   {pT  : progT}
   {sCP : semCallParams}
   (fresh_var_ident : v_kind -> instr_info -> int -> string -> atype -> Ident.ident)
+  (spill_to_mmx : var -> bool)
   (p p' : prog) (ev : extra_val_t)
-  (spill_prog_ok : spill_prog fresh_var_ident p = ok p').
+  (spill_prog_ok : spill_prog fresh_var_ident spill_to_mmx p = ok p').
 
 Notation gd := (p_globs p).
 
@@ -322,7 +323,7 @@ Proof.
 Qed.
 
 Lemma init_map_ty fi toS x sx :
-  let: (m, _) := init_map fresh_var_ident fi toS in
+  let: (m, _) := init_map fresh_var_ident spill_to_mmx fi toS in
   Mvar.get m x = Some sx -> vtype x = vtype sx.
 Proof.
   have : Mvar.get (Mvar.empty var) x = Some sx -> vtype x = vtype sx by done.
@@ -388,7 +389,7 @@ Proof.
 Qed.
 
 Lemma lower_get_spillP fi toS X m count :
-  init_map fresh_var_ident fi toS = (m, count) ->
+  init_map fresh_var_ident spill_to_mmx fi toS = (m, count) ->
   let get_spill := lower_spill.get_spill m in
   (check_map m X).1 ->
   ∀ (ii : instr_info) (x sx : var), get_spill ii x = ok sx → vtype x = vtype sx ∧ ¬ Sv.In sx X.
@@ -405,7 +406,7 @@ Lemma lower_get_spill_ii m :
 Proof. by rewrite /lower_spill.get_spill => ii x sx hx ii'; case: Mvar.get hx. Qed.
 
 Lemma lower_get_spill_inj fi toS X m count :
-  init_map fresh_var_ident fi toS = (m, count) ->
+  init_map fresh_var_ident spill_to_mmx fi toS = (m, count) ->
   let get_spill := lower_spill.get_spill m in
   (check_map m X).1 ->
   ∀ (ii ii' : instr_info) (x x' sx : var), get_spill ii x = ok sx → get_spill ii' x' = ok sx → x = x'.
@@ -626,7 +627,7 @@ Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
 Proof.
   move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' hfun htra hinit hw hsc hc hres hfull ??.
   rewrite /Pfun; subst scs2 m2.
-  have spillok : map_cfprog_name (spill_fd fresh_var_ident) (p_funcs p) = ok (p_funcs p').
+  have spillok : map_cfprog_name (spill_fd fresh_var_ident spill_to_mmx) (p_funcs p) = ok (p_funcs p').
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
   have [f' hf'1 hf'2] := get_map_cfprog_name_gen spillok hfun.
   case: f hfun htra hinit hw hsc hc hres hfull hf'1 hf'2 =>
@@ -720,7 +721,7 @@ Lemma it_lower_spill_fdP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
   apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
-  have spillok : map_cfprog_name (spill_fd fresh_var_ident) (p_funcs p) = ok (p_funcs p').
+  have spillok : map_cfprog_name (spill_fd fresh_var_ident spill_to_mmx) (p_funcs p) = ok (p_funcs p').
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
   have [fd' hfd'1 hfd'2] := get_map_cfprog_name_gen spillok hget.
   exists fd' => // {hget hfd'2}.

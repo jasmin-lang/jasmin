@@ -190,6 +190,7 @@ Record compiler_params
   lowering_opt     : lowering_options;
   insert_renaming  : fun_info -> bool;
   fresh_var_ident  : v_kind -> instr_info -> int -> string -> atype -> Ident.ident;
+  spill_to_mmx     : var -> bool;
   slh_info         : _uprog → funname → seq slh_t * seq slh_t;
   stack_zero_info  : funname -> option (stack_zero_strategy * option wsize);
   dead_vars_ufd    : _ufun_decl -> instr_info -> Sv.t;
@@ -277,6 +278,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
   Let p :=
     spill_prog
       (fresh_var_ident cparams)
+      (spill_to_mmx cparams)
       p in
   let p := cparams.(print_uprog) LowerSpill p in
 
