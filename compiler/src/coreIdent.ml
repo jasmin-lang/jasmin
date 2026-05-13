@@ -109,11 +109,6 @@ module Cident = struct
   let id_name (x: t) : Name.t = x.v_name
   let id_kind (x: t) : v_kind = x.v_kind
 
-  let spill_to_mmx (x:t) =
-    match Annot.ensure_uniq1 "spill_to_mmx" Annot.none x.v_annot with
-    | Some () -> true
-    | None    -> false
-
 end
 
 (* ------------------------------------------------------------------------ *)

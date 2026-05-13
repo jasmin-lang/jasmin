@@ -113,8 +113,6 @@ module Cident : sig
   val tag : var -> Uint63.t
   val id_name : t -> Name.t
   val id_kind : t -> v_kind
-
-  val spill_to_mmx : t -> bool
 end
 
 (* -------------------------------------------------------------------- *)
