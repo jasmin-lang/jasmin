@@ -215,7 +215,7 @@ Definition expand_param (m : t) ex (e : pexpr) : cexec _ :=
       Let _ := assert (aa == AAscale) (reg_error (gv x) "(the default scale must be used)") in
       Let i := o2r (reg_error (gv x) "(the index is not a constant)") (is_const e) in
       Let ai := o2r (reg_error (gv x) "(not a reg array)") (Mvar.get m.(sarrs) (gv x)) in
-      Let _ := assert [&& ws == ai_ty ai, ws' == ws, len == len' & is_lvar x]
+      Let _ := assert [&& ws == ai_ty ai, ws' == ws, len' == ALConst len & is_lvar x]
                       (reg_error (gv x) "(type mismatch)") in
       let elems := take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai)) in
       let vi := v_info (gv x) in
@@ -241,7 +241,7 @@ Definition expand_return m ex x :=
       Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
       Let i := o2r (reg_error x "(the index is not a constant)") (is_const e) in
       Let ai := o2r (reg_error x "(not a reg array)") (Mvar.get m.(sarrs) x) in
-      Let _ := assert [&& ws == ai_ty ai, ws' == ws & len == len']
+      Let _ := assert [&& ws == ai_ty ai, ws' == ws & len' == ALConst len]
                       (reg_error x "(type mismatch)") in
       let vi := v_info x in
       let elems := take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai)) in

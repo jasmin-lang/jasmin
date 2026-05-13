@@ -365,7 +365,7 @@ Local Opaque wsize_size.
   t_xrbindP=> /eqP ?; subst aa.
   case: is_constP=> // i ? [<-].
   move=> a hga.
-  move=> /and4P [] /eqP ? /eqP ? /eqP ? hloc ? _ hrec vs z; subst ws ws' len es => /=.
+  move=> /and4P [] /eqP ? /eqP ? /eqP ? hloc ? _ hrec vs z; subst ws ws' len' es => /=.
   have vai := valid hga.
 
   apply: on_arr_gvarP; rewrite (convertible_eval_atype vai.(x_ty)) => len1 t [?]; subst len1.
@@ -469,28 +469,28 @@ Proof.
     by rewrite in_ziota (zindex_bound _ hva) hin (convertible_eval_atype (x_ty hva)) vm_truncate_val_eq.
   move => aa ws' len' x e xs2; t_xrbindP => /eqP ?; subst aa.
   case: is_constP => // i _ [<-] ai hga; have hva:= valid hga.
-  move=> /and3P []/eqP ? /eqP ? /eqP ? <- va vs' s1'; subst a ws' len.
+  move=> /and3P []/eqP ? /eqP ? /eqP ? <- va vs' s1'; subst a ws' len'.
   have /= := Vm.getP (evm s1) x; rewrite (convertible_eval_atype hva.(x_ty)) => /compat_valEl [a heqx]; rewrite heqx.
   t_xrbindP => sa /to_arrI -> ra hra /write_varP [] -> _ _.
   rewrite expand_vP => -[?]; subst vs'.
   have := WArray.set_sub_bound hra.
   have [ltws le0len]:= (wsize_size_pos (ai_ty ai), len_pos hva).
   rewrite /arr_size /mk_scale /=.
-  move=> hb; have [{hb} h0i hilen'] : (0 <= i /\ i + len' <= ai_len ai)%Z by nia.
+  move=> hb; have [{hb} h0i hilen'] : (0 <= i /\ i + len <= ai_len ai)%Z by nia.
   have -> := wf_take_drop (v_var x) hva h0i hilen'.
   rewrite -map_comp /comp.
   have [vm2 ] := wf_write_get s2 ra hva h0i hilen'.
-  rewrite {1 2}(ziota_shift i len') -!map_comp /comp.
+  rewrite {1 2}(ziota_shift i len) -!map_comp /comp.
   have -> :
-   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) ra (i + x0))) | x0 <- ziota 0 len'] =
-   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) sa i0)) | i0 <- ziota 0 len'].
+   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) ra (i + x0))) | x0 <- ziota 0 len] =
+   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) sa i0)) | i0 <- ziota 0 len].
   + apply eq_in_map => j; rewrite in_ziota => /andP [] /ZleP ? /ZltP ?.
     rewrite (WArray.set_sub_get hra).
-    have -> : (i <=? i + j)%Z && (i + j <? i + len')%Z; last by do 3!f_equal; ring.
+    have -> : (i <=? i + j)%Z && (i + j <? i + len)%Z; last by do 3!f_equal; ring.
     by apply/andP; split; [apply/ZleP|apply/ZltP]; nia.
   move=> -> hvm2; eexists; eauto.
   have hybound: forall y,
-        (i <=? zindex y (ai_elems ai))%Z && (zindex y (ai_elems ai) <? i + len')%Z ->
+        (i <=? zindex y (ai_elems ai))%Z && (zindex y (ai_elems ai) <? i + len)%Z ->
         (y \in ai_elems ai).
   + move=> y => /andP [/ZleP ? /ZltP ?]; rewrite -(zindex_bound y hva).
     by apply/andP; split; [apply/ZleP|apply/ZltP]; nia.

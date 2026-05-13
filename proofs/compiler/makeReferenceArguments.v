@@ -29,7 +29,7 @@ Definition is_reg_ptr_expr doit ii ctr id ty e :=
       Some (with_id x'.(gv).(v_info) ii ctr id ty)
     else None
   | Psub _ ws len x' _ =>
-    if doit && (convertible ty (aarr ws (ALConst len))) then
+    if doit && (convertible ty (aarr ws len)) then
       Some (with_id x'.(gv).(v_info) ii ctr id ty)
     else None
   | _      => None

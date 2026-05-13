@@ -2235,7 +2235,7 @@ Proof.
       case: vpky hkindy => [vpky|//] hkindy.
       t_xrbindP=> -[sry' statusy'] /(get_gsub_region_statusP hkindy) hgvalidy.
       t_xrbindP=> -[table1'' e1] /get_symbolic_of_pexprP hsym.
-      t_xrbindP=> -[sry'' statusy''] hsub.
+      t_xrbindP=> len' /get_symbolic_of_alP hlen' -[sry'' statusy''] hsub.
       t_xrbindP=> _ _ _ _ <- <- <- _ _ _.
       have hsubset := symbolic_of_pexpr_subset_vars hsym hvars1.
       have hsubset' := symbolic_of_pexpr_subset_read hsym hvars1.
@@ -2246,7 +2246,8 @@ Proof.
           by apply (check_gvalid_wf_vars_zone hvarsz1 hgvalidy).
         + have := @mk_ofs_int_vars aa ws e1.
           by clear -hsubset'; SvD.fsetdec.
-        rewrite /read_e /=.
+        have := @mk_len_int_vars ws len'.
+        have := symbolic_of_al_read_e hlen'.
         by clear; SvD.fsetdec.
       + apply: sub_region_status_at_ofs_wf_vars_status hsub.
         apply (subset_vars_wf_vars_status hsubset).
@@ -2283,7 +2284,7 @@ Proof.
     case: get_local => [_|//].
     t_xrbindP=> -[srx statusx] /get_sub_region_statusP [hsrx ->].
     t_xrbindP=> -[table1'' e1] /get_symbolic_of_pexprP hsym.
-    t_xrbindP=> -[srx' statusx'] hsub.
+    t_xrbindP=> len' /get_symbolic_of_alP hlen' -[srx' statusx'] hsub.
     rewrite /set_move_sub.
     t_xrbindP=> _ _ lenx hlenx <- <- <- _.
     have hsubset2 := symbolic_of_pexpr_subset_vars hsym hvars1'.
@@ -2300,7 +2301,8 @@ Proof.
       + by apply (subset_vars_wf_vars_status hsubset2).
       + have := @mk_ofs_int_vars aa ws e1.
         by clear -hsubset'; SvD.fsetdec.
-      + rewrite /read_e /=.
+      + have := @mk_len_int_vars ws len'.
+        have := symbolic_of_al_read_e hlen'.
         by clear; SvD.fsetdec.
       move=> ??.
       apply (subset_vars_wf_vars_status hsubset2).
@@ -3030,16 +3032,17 @@ Lemma wf_rmap_scs env pmap Slots Addr Writable Align vars rmap vme (s1 s2 : esta
   wf_rmap pmap Slots Addr Writable Align P vars rmap vme (with_scs s1 scs) (with_scs s2 scs).
 Proof. by case. Qed.
 
-Lemma sub_region_cleared_sub_region_at_ofs env Slots Writable Align (vme : Vm.t env) rmap sr ty ofs ofsi ty2 :
+Lemma sub_region_cleared_sub_region_at_ofs env Slots Writable Align (vme : Vm.t env) rmap sr ty ofs ofsi len ty2 :
   wf_sub_region Slots Writable Align vme sr ty ->
   sem_sexpr vme ofs >>= to_int = ok ofsi ->
+  sem_sexpr vme len >>= to_int = ok (csize_of ty2) ->
   0 <= ofsi /\ ofsi + csize_of ty2 <= csize_of ty ->
   sub_region_cleared rmap vme sr ->
-  sub_region_cleared rmap vme (sub_region_at_ofs sr ofs (Sconst (csize_of ty2))).
+  sub_region_cleared rmap vme (sub_region_at_ofs sr ofs len).
 Proof.
-  move=> hwf ok_ofsi hofsi hcleared.
+  move=> hwf ok_ofsi ok_leni hofsi hcleared.
   have [cs ok_cs wf_cs] := hwf.(wfsr_zone).
-  have [cs' [ok_cs' _ hsub]] := sub_zone_at_ofsP ok_cs wf_cs ok_ofsi hofsi.
+  have [cs' [ok_cs' _ hsub]] := sub_zone_at_ofsP ok_cs wf_cs ok_ofsi ok_leni hofsi.
   move=> x off /hcleared [srx [hsrx hdisj]].
   exists srx; split=> //=.
   rewrite ok_cs'.
@@ -3991,6 +3994,9 @@ Proof.
     have hvs' := valid_state_incl (alloc_call_args_aux_incl hcargsx) hwfst1 hvarss1 hvs.
     have ok_0: sem_sexpr vme (Sconst 0) >>= to_int = ok 0.
     + by [].
+    have ok_leni: forall i,
+      sem_sexpr vme (Sconst (size_val (nth (Vbool true) vargs1 i))) >>= to_int = ok (size_val (nth (Vbool true) vargs1 i)).
+    + by [].
     have hbound: forall i, 0 <= 0 /\ 0 + size_val (nth (Vbool true) vargs1 i) <= size_val (nth (Vbool true) vargs1 i).
     + by move=> ?; lia.
     apply (valid_state_holed_rmap hwfsl.(wfsl_no_overflow) hwfsl.(wfsl_disjoint) hpmap hvs'
@@ -4000,7 +4006,7 @@ Proof.
       rewrite hlin => -[k [sr' [-> hsr' ->]]] /=.
       split.
       + have [hwf' _] := Forall3_nth haddr None (Vbool true) (Vbool true) (nth_not_default hsr' ltac:(discriminate)) _ _ hsr'.
-        by apply (sub_region_at_ofs_wf hwf' ok_0 (hbound _)).
+        by apply (sub_region_at_ofs_wf hwf' ok_0 (ok_leni _) (hbound _)).
       by apply (Forall_nth (alloc_call_args_aux_writable hcargsx) None (nth_not_default hsr' ltac:(discriminate)) _ hsr').
     + move=> p hvalid1 hvalid2 hdisj'.
       symmetry; apply hunch => //.
@@ -4020,12 +4026,12 @@ Proof.
       apply.
       + apply /InP /hlin.
         by exists i, sr.
-      rewrite (sub_region_addr_offset hwf' ok_0 (hbound _) ok_addr).
+      rewrite (sub_region_addr_offset hwf' ok_0 (ok_leni _) (hbound _) ok_addr).
       by rewrite wrepr0 GRing.addr0.
     apply List.Forall_forall => -[sr ty] /InP /hlin [i [sr' [-> hsr' ->]]].
     have hcleared := Forall2_nth hclear None (Vbool true) (nth_not_default hsr' ltac:(discriminate)) _ hsr'.
     have [hwf' _] := Forall3_nth haddr None (Vbool true) (Vbool true) (nth_not_default hsr' ltac:(discriminate)) _ _ hsr'.
-    by apply (sub_region_cleared_sub_region_at_ofs hwf' ok_0 (hbound _) hcleared).
+    by apply (sub_region_cleared_sub_region_at_ofs hwf' ok_0 (ok_leni _) (hbound _) hcleared).
   have {}hvs' :
     valid_state pmap glob_size rsp rip Slots Addr Writable Align P table0 rmap1 vme m0
       (with_scs (with_mem s1 m1) scs2) (with_scs (with_mem s2 m2) scs2).
@@ -4644,6 +4650,9 @@ Proof.
     have hvs' := valid_state_incl (alloc_call_args_aux_incl hcargsx) hwfst1 hvarss1 hvs.
     have ok_0: sem_sexpr vme (Sconst 0) >>= to_int = ok 0.
     + by [].
+    have ok_leni: forall i,
+      sem_sexpr vme (Sconst (size_val (nth (Vbool true) vargs1 i))) >>= to_int = ok (size_val (nth (Vbool true) vargs1 i)).
+    + by [].
     have hbound: forall i, 0 <= 0 /\ 0 + size_val (nth (Vbool true) vargs1 i) <= size_val (nth (Vbool true) vargs1 i).
     + by move=> ?; lia.
     apply (valid_state_holed_rmap hwf_Slots.(wfsl_no_overflow) hwf_Slots.(wfsl_disjoint) hwf_pmap hvs'
@@ -4652,7 +4661,7 @@ Proof.
       rewrite hlin => -[k [sr' [-> hsr' ->]]] /=.
       split.
       + have [hwf' _] := Forall3_nth haddr None (Vbool true) (Vbool true) (nth_not_default hsr' ltac:(discriminate)) _ _ hsr'.
-        by apply (sub_region_at_ofs_wf hwf' ok_0 (hbound _)).
+        by apply (sub_region_at_ofs_wf hwf' ok_0 (ok_leni _) (hbound _)).
       by apply (Forall_nth (alloc_call_args_aux_writable hcargsx) None (nth_not_default hsr' ltac:(discriminate)) _ hsr').
     + move=> p hvalid1 hvalid2 hdisj'.
       symmetry; apply hunch => //.
@@ -4672,12 +4681,12 @@ Proof.
       apply.
       + apply /InP /hlin.
         by exists i, sr.
-      rewrite (sub_region_addr_offset hwf' ok_0 (hbound _) ok_addr).
+      rewrite (sub_region_addr_offset hwf' ok_0 (ok_leni _) (hbound _) ok_addr).
       by rewrite wrepr0 GRing.addr0.
     apply List.Forall_forall => -[sr ty] /InP /hlin [i [sr' [-> hsr' ->]]].
     have hcleared := Forall2_nth hclear None (Vbool true) (nth_not_default hsr' ltac:(discriminate)) _ hsr'.
     have [hwf' _] := Forall3_nth haddr None (Vbool true) (Vbool true) (nth_not_default hsr' ltac:(discriminate)) _ _ hsr'.
-    by apply (sub_region_cleared_sub_region_at_ofs hwf' ok_0 (hbound _) hcleared).
+    by apply (sub_region_cleared_sub_region_at_ofs hwf' ok_0 (ok_leni _) (hbound _) hcleared).
   have {}hvs' :
     valid_state pmap glob_size rsp rip Slots Addr Writable Align P table0 rmap1 vme m0
       (with_scs (with_mem s1 m1) scs2) (with_scs (with_mem s2 m2) scs2).
