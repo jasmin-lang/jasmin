@@ -211,11 +211,12 @@ Definition expand_param (m : t) ex (e : pexpr) : cexec _ :=
     | Psub aa ws' len' x e =>
       Let i := o2r (reg_error (gv x) "(the index is not a constant)") (is_const e) in
       Let ai := o2r (reg_error (gv x) "(not a reg array)") (Mvar.get m.(sarrs) (gv x)) in
+
       Let _ := assert (aa == AAscale) (reg_error (gv x) "(the default scale must be used)") in
       Let _ := assert (ai.(ai_ty) == ws') (reg_error (gv x) "(the default scale must be used)") in
-      Let _ := assert ((0 <=? i) && (i + len' <=? ai.(ai_len)))%Z (reg_error (gv x) "(the sub-array overflows)") in
-      Let _ := assert [&& ws' == ws, len == len' & is_lvar x]
+      Let _ := assert [&& ws' == ws, len' == ALConst len & is_lvar x]
                       (reg_error (gv x) "(type mismatch)") in
+      Let _ := assert ((0 <=? i) && (i + len <=? ai.(ai_len)))%Z (reg_error (gv x) "(the sub-array overflows)") in
       let elems := take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai)) in
       let vi := v_info (gv x) in
       ok (map (fun v => Pvar (mk_lvar (VarI v vi))) elems)
@@ -241,9 +242,9 @@ Definition expand_return m ex x :=
       Let ai := o2r (reg_error x "(not a reg array)") (Mvar.get m.(sarrs) x) in
       Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
       Let _ := assert (ai.(ai_ty) == ws') (reg_error x "(the default scale must be used)") in
-      Let _ := assert ((0 <=? i) && (i + len' <=? ai.(ai_len)))%Z (reg_error x "(the sub-array overflows)") in
-      Let _ := assert [&& ws' == ws & len == len']
+      Let _ := assert [&& ws' == ws & len' == ALConst len]
                       (reg_error x "(type mismatch)") in
+      Let _ := assert ((0 <=? i) && (i + len <=? ai.(ai_len)))%Z (reg_error x "(the sub-array overflows)") in
       let vi := v_info x in
       let elems := take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai)) in
       ok (map (fun v => Lvar (VarI v vi)) elems)
