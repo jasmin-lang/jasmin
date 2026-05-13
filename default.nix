@@ -21,6 +21,7 @@ let coqPackages =
     let rocqPackages = pkgs.rocqPackages.overrideScope (self: super: {
       rocq-core = super.rocq-core.override { version = "master"; };
       rocq-elpi = super.rocq-elpi.override { version = "master"; inherit elpi-version; };
+      micromega-plugin = super.micromega-plugin.override { version = "master"; };
       stdlib = super.stdlib.override { version = "master"; };
     });
     in
