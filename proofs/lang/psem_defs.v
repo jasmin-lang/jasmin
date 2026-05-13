@@ -136,6 +136,7 @@ Fixpoint sem_pexpr (s:estate env) (e : pexpr) : exec value :=
       ok (Vword w)
   | Psub aa ws len x e =>
     Let (n, t) := wdb, gd, s.[x] in
+    let len := eval env len in
     Let i := sem_pexpr s e >>= to_int in
     Let t' := WArray.get_sub aa ws len t i in
     ok (Varr t')
@@ -192,6 +193,7 @@ Definition write_lval (l : lval) (v : value) (s : estate env) : exec (estate env
     write_var x (@to_val (carr n) t) s
   | Lasub aa ws len x i =>
     Let (n,t) := wdb, s.[x] in
+    let len := eval env len in
     Let i := sem_pexpr s i >>= to_int in
     Let t' := to_arr (arr_size ws len) v in
     Let t := @WArray.set_sub n aa ws len t i t' in
