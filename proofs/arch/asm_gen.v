@@ -256,14 +256,13 @@ Definition assemble_word_load (is_input: bool) rip ii al (sz: wsize) (e: rexpr) 
   | Rexpr (Fvar x) =>
     xreg_of_var ii x
   | Load al' sz' e' =>
+    let op := (if is_input then "Load" else "Store")%string in
     Let _ := assert (sz == sz')
-                    (E.werror ii e "invalid Load size") in
-    let msg :=
-      ("invalid "
-      ++ (if is_input then "Load" else "Store")
-      ++ " alignment constraint")%string
+                    (E.werror ii e ("invalid " ++ op ++ " size")) in
+    Let _ := assert
+               (aligned_le al al')
+               (E.werror ii e ("invalid " ++ op ++ " alignment constraint"))
     in
-    Let _ := assert (aligned_le al al') (E.werror ii e msg) in
     Let w := addr_of_fexpr rip ii Uptr e' in
     ok (Addr w)
   | _ => Error (E.werror ii e "invalid rexpr for word")
@@ -281,7 +280,16 @@ Definition assemble_word (is_input: bool) (k:addr_kind) rip ii (sz:wsize) (e: re
 Definition arg_of_rexpr (is_input: bool) k rip ii (ty: ltype) (e: rexpr) :=
   match ty with
   | lbool =>
-      Let e := if e is Rexpr f then ok f else Error (E.werror ii e "not able to assemble a load expression of type bool") in
+      Let e :=
+        if e is Rexpr f then ok f
+        else
+          let msg :=
+            ("not able to assemble a "
+            ++ (if is_input then "load" else "store")
+            ++ " expression of type bool")%string
+          in
+          Error (E.werror ii e msg)
+      in
       Let c := assemble_cond ii e in ok (Condt c)
   | lword sz => assemble_word is_input k rip ii sz e
   end.
