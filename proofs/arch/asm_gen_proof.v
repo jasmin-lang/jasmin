@@ -300,9 +300,9 @@ Variant check_sopn_argI rip ii args e : arg_desc -> ltype -> Prop :=
        is_implicit i e
     -> check_sopn_argI (ADImplicit i) ty
 
-| CSA_Explicit k n o a a' ty :
+| CSA_Explicit is_input k n o a a' ty :
        onth args n = Some a
-    -> arg_of_rexpr agparams k rip ii ty e = ok a'
+    -> arg_of_rexpr agparams is_input k rip ii ty e = ok a'
     -> compat_imm ty a a'
     -> check_oreg o a
     -> check_sopn_argI (ADExplicit k n o) ty.
@@ -314,7 +314,7 @@ Proof.
 case: sp => -[i|k n o] ty; first by apply: CSA_Implicit.
 rewrite /check_sopn_arg /=; case Enth: onth => [a|] //.
 case E: arg_of_rexpr => [a'|] // /andP[??].
-by apply: (CSA_Explicit (a := a) (a' := a')).
+by apply: (CSA_Explicit (is_input := true) (a := a) (a' := a')).
 Qed.
 
 Lemma var_of_flagP rip m s f v ty vt:
@@ -391,7 +391,7 @@ Proof.
   + move=> i {}ty /is_implicitP[] vi -> vt /=.
     case: i => /= [f | r]; first by apply: var_of_flagP eqm.
     by apply: var_of_regP eqm.
-  move=> k n o a a' [ | ws] //= ->.
+  move=> is_input k n o a a' [ | ws] //= ->.
   + case: e; first by [].
     t_xrbindP => e _ <- c hac <-.
     rewrite /compat_imm orbF => /eqP <- -> /= b hb.
@@ -1278,10 +1278,10 @@ Qed.
 (* -------------------------------------------------------------------- *)
 (* Assembling machine words. *)
 
-Lemma eval_assemble_word ii al sz e a s xs v :
+Lemma eval_assemble_word is_input ii al sz e a s xs v :
   lom_eqv rip s xs
   -> is_not_app1 e
-  -> assemble_word_load agparams rip ii al sz e = ok a
+  -> assemble_word_load agparams is_input rip ii al sz e = ok a
   -> sem_rexpr s.(emem) s.(evm) e = ok v
   -> exists2 v',
        eval_asm_arg (AK_mem al) xs a (lword sz) = ok v'
