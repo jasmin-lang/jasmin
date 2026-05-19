@@ -1,0 +1,4 @@
+export fn load_vmovdqa(reg u64 p) -> reg u128 {
+  reg u128 v = #VMOVDQA_128([:u128 p]);
+  return v;
+}
