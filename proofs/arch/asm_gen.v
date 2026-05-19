@@ -243,7 +243,7 @@ Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
   else if to_regx x is Some r then ok (Regx r)
   else Error (E.verror false "Not a (x)register" ii x).
 
-Definition assemble_word_load rip ii al (sz: wsize) (e: rexpr) :=
+Definition assemble_word_load (is_input: bool) rip ii al (sz: wsize) (e: rexpr) :=
   match e with
   | Rexpr (Fapp1 (Oword_of_int sz') (Fconst z)) =>
     let w := wrepr sz' z in
@@ -256,30 +256,42 @@ Definition assemble_word_load rip ii al (sz: wsize) (e: rexpr) :=
   | Rexpr (Fvar x) =>
     xreg_of_var ii x
   | Load al' sz' e' =>
+    let op := (if is_input then "Load" else "Store")%string in
     Let _ := assert (sz == sz')
-                    (E.werror ii e "invalid Load size") in
-    Let _ := assert (aligned_le al al')
-                    (E.werror ii e "invalid Load alignment constraint") in
+                    (E.werror ii e ("invalid " ++ op ++ " size")) in
+    Let _ := assert
+               (aligned_le al al')
+               (E.werror ii e ("invalid " ++ op ++ " alignment constraint"))
+    in
     Let w := addr_of_fexpr rip ii Uptr e' in
     ok (Addr w)
   | _ => Error (E.werror ii e "invalid rexpr for word")
   end.
 
-Definition assemble_word (k:addr_kind) rip ii (sz:wsize) (e: rexpr) :=
+Definition assemble_word (is_input: bool) (k:addr_kind) rip ii (sz:wsize) (e: rexpr) :=
   match k with
-  | AK_mem al => assemble_word_load rip ii al sz e
+  | AK_mem al => assemble_word_load is_input rip ii al sz e
   | AK_compute =>
     Let f := if e is Rexpr f then ok f else Error (E.werror ii e "invalid rexpr for LEA") in
     Let w := addr_of_fexpr rip ii sz f in
     ok (Addr w)
   end.
 
-Definition arg_of_rexpr k rip ii (ty: ltype) (e: rexpr) :=
+Definition arg_of_rexpr (is_input: bool) k rip ii (ty: ltype) (e: rexpr) :=
   match ty with
   | lbool =>
-      Let e := if e is Rexpr f then ok f else Error (E.werror ii e "not able to assemble a load expression of type bool") in
+      Let e :=
+        if e is Rexpr f then ok f
+        else
+          let msg :=
+            ("not able to assemble a "
+            ++ (if is_input then "load" else "store")
+            ++ " expression of type bool")%string
+          in
+          Error (E.werror ii e msg)
+      in
       Let c := assemble_cond ii e in ok (Condt c)
-  | lword sz => assemble_word k rip ii sz e
+  | lword sz => assemble_word is_input k rip ii sz e
   end.
 
 Definition rexpr_of_lexpr (lv: lexpr) : rexpr :=
@@ -306,7 +318,7 @@ Definition is_implicit (i: implicit_arg) (e: rexpr) : bool :=
   end.
 *)
 
-Definition compile_arg rip ii (ade: (arg_desc * ltype) * rexpr) (m: nmap asm_arg) : cexec (nmap asm_arg) :=
+Definition compile_arg (is_input: bool) rip ii (ade: (arg_desc * ltype) * rexpr) (m: nmap asm_arg) : cexec (nmap asm_arg) :=
   let ad := ade.1 in
   let e := ade.2 in
   match ad.1 with
@@ -316,7 +328,7 @@ Definition compile_arg rip ii (ade: (arg_desc * ltype) * rexpr) (m: nmap asm_arg
              (E.internal_error ii "(compile_arg) bad implicit register") in
     ok m
   | ADExplicit k n o =>
-    Let a := arg_of_rexpr k rip ii ad.2 e in
+    Let a := arg_of_rexpr is_input k rip ii ad.2 e in
     Let _ :=
       assert (check_oreg o a)
              (E.internal_error ii "(compile_arg) bad forced register") in
@@ -328,8 +340,14 @@ Definition compile_arg rip ii (ade: (arg_desc * ltype) * rexpr) (m: nmap asm_arg
     end
   end.
 
-Definition compile_args rip ii adts (es: rexprs) (m: nmap asm_arg) :=
-  foldM (compile_arg rip ii) m (zip adts es).
+Definition compile_args (is_input: bool) rip ii adts (es: rexprs) (m: nmap asm_arg) :=
+  foldM (compile_arg is_input rip ii) m (zip adts es).
+
+Definition compile_in_args rip ii adts es m :=
+  compile_args true rip ii adts es m.
+
+Definition compile_out_args rip ii adts lx m :=
+  compile_args false rip ii adts [seq rexpr_of_lexpr l | l <- lx] m.
 
 Definition compat_imm ty a' a :=
   (a == a') || match ty, a, a' with
@@ -343,7 +361,7 @@ Definition check_sopn_arg rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_d
   | ADExplicit k n o =>
     match onth loargs n with
     | Some a =>
-      if arg_of_rexpr k rip ii adt.2 x is Ok a' then compat_imm adt.2 a a' && check_oreg o a
+      if arg_of_rexpr true k rip ii adt.2 x is Ok a' then compat_imm adt.2 a a' && check_oreg o a
       else false
     | None => false
     end
@@ -356,7 +374,7 @@ Definition check_sopn_dest rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_
     match onth loargs n with
     | Some a =>
       if k is AK_mem al then
-      if arg_of_rexpr (AK_mem al) rip ii adt.2 x is Ok a' then (a == a') && check_oreg o a
+      if arg_of_rexpr false (AK_mem al) rip ii adt.2 x is Ok a' then (a == a') && check_oreg o a
       else false
       else false
     | None => false
@@ -365,9 +383,8 @@ Definition check_sopn_dest rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_
 
 Definition assemble_asm_op_aux rip ii op (outx : lexprs) (inx : rexprs) :=
   let id := instr_desc op in
-  Let m := compile_args rip ii (zip id.(id_in) id.(id_tin)) inx (nempty _) in
-  let eoutx := map rexpr_of_lexpr outx in
-  Let m := compile_args rip ii (zip id.(id_out) id.(id_tout)) eoutx m in
+  Let m := compile_in_args rip ii (zip id.(id_in) id.(id_tin)) inx (nempty _) in
+  Let m := compile_out_args rip ii (zip id.(id_out) id.(id_tout)) outx m in
   match oseq.omap (nget m) (iota 0 id.(id_nargs)) with
   | None => Error (E.internal_error ii "compile_arg : assert false nget")
   | Some asm_args => ok asm_args
@@ -543,7 +560,7 @@ Definition assemble_declassify rip ii d es :=
       | Some lty => ok lty
       | None => Error (E.internal_error ii "declassify array")
       end in
-    Let a := arg_of_rexpr (AK_mem Unaligned) rip ii lty e in
+    Let a := arg_of_rexpr true (AK_mem Unaligned) rip ii lty e in
     ok (Declassify_val lty a)
 
   | Odeclassify_mem len, [:: Rexpr e] =>
@@ -580,7 +597,7 @@ Definition assemble_i (rip : var) (i : linstr) : cexec (seq asm_i) :=
 
   | Ligoto e =>
       Let _ := assert (is_not_app1 e) (E.werror ii e "Ligoto/JMPI") in
-      Let arg := assemble_word (AK_mem Aligned) rip ii Uptr e in
+      Let arg := assemble_word true (AK_mem Aligned) rip ii Uptr e in
       ok [:: mk (JMPI arg) ]
 
   | LstoreLabel x lbl =>
