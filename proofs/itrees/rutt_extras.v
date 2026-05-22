@@ -530,3 +530,165 @@ Proof.
   - econstructor; eauto.
   - econstructor; eauto.
 Qed.
+
+
+Local Notation nocutoff := (fun (E : Type -> Type) (T : Type) =>
+                      fun (e: E T) => false).
+
+Lemma xrutt2rutt {E1 E2 : Type -> Type} {R1 R2 : Type}
+  (REv : forall A B, E1 A -> E2 B -> Prop)
+  (RAns : forall A B, E1 A -> A -> E2 B -> B -> Prop)                 
+  (RR : R1 -> R2 -> Prop) t1 t2:
+  xrutt (@nocutoff E1) (@nocutoff E2) REv RAns RR t1 t2
+  -> rutt REv RAns RR t1 t2. 
+Proof.
+  revert t1 t2.
+  ginit. gcofix CIH.
+  intros t1 t2 H.
+  punfold H; red in H.
+  setoid_rewrite itree_eta.
+  remember (observe t1) as ot1.
+  remember (observe t2) as ot2.
+  hinduction H before CIH.
+  { intros. gstep; red. econstructor; auto. }
+  { intros. gstep; red. econstructor.
+    pclearbot.
+    gfinal; left. eapply CIH. auto.
+  }
+  { intros. gstep; red. econstructor; eauto.
+    pclearbot. intros.
+    gfinal; left. eapply CIH; eauto.
+    eapply H2; auto.
+  }
+  { congruence. }
+  { congruence. }
+  { intros.
+    gclo. econstructor; auto_ctrans_eq; try reflexivity.
+    setoid_rewrite <- itree_eta.
+    eapply tau_euttge.
+  }
+  { intros.
+    gclo. econstructor; auto_ctrans_eq; try reflexivity.
+    setoid_rewrite <- itree_eta.
+    eapply tau_euttge.
+  }
+Qed.    
+
+Lemma rutt2xrutt {E1 E2 : Type -> Type} {R1 R2 : Type}
+  (P1: forall A, E1 A -> bool)
+  (P2: forall A, E2 A -> bool)
+  (REv : forall A B, E1 A -> E2 B -> Prop)
+  (RAns : forall A B, E1 A -> A -> E2 B -> B -> Prop)
+  (RR : R1 -> R2 -> Prop) t1 t2:
+  rutt REv RAns RR t1 t2 -> 
+  xrutt P1 P2 REv RAns RR t1 t2.
+Proof.
+  revert t1 t2.
+  ginit. gcofix CIH.
+  intros t1 t2 H.
+  punfold H; red in H.
+  setoid_rewrite itree_eta.
+  remember (observe t1) as ot1.
+  remember (observe t2) as ot2.
+  hinduction H before CIH.
+  { intros. gstep; red. econstructor; auto. }
+  { intros. gstep; red. econstructor.
+    pclearbot.
+    gfinal; left. eapply CIH. auto.
+  }
+  { intros. gstep; red.
+    destruct (P1 _ e1) eqn: w_e1.
+    - eapply EqCutL; eauto.
+    destruct (P2 _ e2) eqn: w_e2.
+    - eapply EqCutR; eauto.
+    econstructor; eauto.
+    pclearbot. intros.
+    gfinal; left. eapply CIH; eauto.
+    eapply H0; auto.
+  }
+  { intros.
+    gclo. econstructor; auto_ctrans_eq; try reflexivity.
+    setoid_rewrite <- itree_eta.
+    eapply tau_euttge.
+  }
+  { intros.
+    gclo. econstructor; auto_ctrans_eq; try reflexivity.
+    setoid_rewrite <- itree_eta.
+    eapply tau_euttge.
+  }
+Qed.    
+
+Lemma RPre_eq_compose_lemma {E: Type -> Type} :
+  forall T1 T2 (e1 : E T1) (e2 : E T2),
+  prcompose (@RPre_eq E) (@RPre_eq E) e1 e2 -> RPre_eq e1 e2.
+Proof.
+  intros T1 T2 e1 e2 H.
+  inversion H; subst.
+  unfold RPre_eq in *.
+  dependent destruction REL1.
+  dependent destruction REL2.
+  dependent destruction x.
+  dependent destruction x0.
+  dependent destruction H0.
+  exists erefl; auto.
+Qed.  
+
+Lemma RPost_eq_compose_lemma {E: Type -> Type} :
+  forall T1 T2 e1 (t1: T1) e2 (t2: T2) ,
+    RPost_eq e1 t1 e2 t2 ->
+    pocompose (@RPre_eq E) (@RPre_eq E) (@RPost_eq E) (@RPost_eq E) e1 t1 e2 t2.
+Proof.
+  unfold RPost_eq, pocompose; simpl.
+  intros T1 T2 e1 t1 e2 t2 H T0 e0 P1 P2.
+  inversion P1; subst.
+  inversion P2; subst.
+  specialize (H erefl); simpl in *.
+  inversion H; subst.
+  exists t1; intro h; dependent destruction h; simpl; auto.
+Qed.  
+    
+Lemma plain_xrutt_trans {E: Type -> Type} {R1 R2 R3 : Type}
+  (EE: forall X, E X -> bool)
+  (RR12 : R1 -> R2 -> Prop)
+  (RR23 : R2 -> R3 -> Prop)
+  t1 t2 t3 :
+  forall (INL : xrutt (@EE) (@nocutoff E) RPre_eq RPost_eq RR12 t1 t2)
+         (INR : xrutt (@EE) (@nocutoff E) RPre_eq RPost_eq RR23 t2 t3),
+    xrutt (@EE) (@nocutoff E) RPre_eq RPost_eq (rcompose RR12 RR23) t1 t3.
+Proof.
+  intros.
+  eapply xrutt_weaken_v1.
+  - intros. eexact H.
+  - instantiate (1:= nocutoff E). intros; eauto.  
+  - intros. eapply RPre_eq_compose_lemma; eauto.
+  - intros. eapply RPost_eq_compose_lemma; eauto.
+  - intros. eexact H.
+  eapply xrutt_trans with (EE2 := EE).
+  - intros; eauto.
+    inversion H; subst; simpl in *. auto.
+  - eexact INL.
+  - exact INR.  
+Qed.  
+
+Lemma plain_xrutt_trans_eq {E: Type -> Type} {R : Type}
+  (EE: forall X, E X -> bool)
+  t1 t2 t3 :
+  forall (INL : xrutt (@EE) (@nocutoff E) RPre_eq RPost_eq (@eq R) t1 t2)
+         (INR : xrutt (@EE) (@nocutoff E) RPre_eq RPost_eq eq t2 t3),
+    xrutt (@EE) (@nocutoff E) RPre_eq RPost_eq eq t1 t3.
+Proof.
+  intros.
+  eapply xrutt_weaken_v1.
+  - intros. eexact H.
+  - instantiate (1:= nocutoff E). intros; eauto.  
+  - intros. eapply RPre_eq_compose_lemma; eauto.
+  - intros. eapply RPost_eq_compose_lemma; eauto.
+  - instantiate (1:= rcompose (@eq R) (@eq R)). intros.
+    inversion H; subst; auto.
+  eapply xrutt_trans with (EE2 := EE).
+  - intros; eauto.
+    inversion H; subst; simpl in *. auto.
+  - eexact INL.
+  - exact INR.  
+Qed.  
+
