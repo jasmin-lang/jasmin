@@ -55,11 +55,7 @@ let rec warn_extra_i pd msfsize asmOp i =
 let warn_extra_fd pd msfsize asmOp (_, fd) = List.iter (warn_extra_i pd msfsize asmOp) fd.f_body
 
 (* -------------------------------------------------------------------- *)
-
-let spill_to_mmx v =
-  Annot.ensure_uniq1 "spill_to_mmx" Annot.none (v.Var0.Var.vname).v_annot
-  |> Option.is_some
-
+let spill_to_mmx x = spill_to_mmx x.Var0.Var.vname
 
 let do_spill_unspill asmop ?(debug = false) cp =
   let p = Conv.cuprog_of_prog cp in
