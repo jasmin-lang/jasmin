@@ -76,6 +76,10 @@ let is_regx x =
   | Reg (Extra, _) -> true
   | _ -> false
 
+let spill_to_mmx v =
+  Annot.ensure_uniq1 "spill_to_mmx" Annot.none v.v_annot
+  |> Option.is_some
+
 (* ------------------------------------------------------------------------ *)
 
 type 'len glval =
