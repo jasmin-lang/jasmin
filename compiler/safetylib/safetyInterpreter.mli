@@ -13,6 +13,7 @@ end
 module AbsAnalyzer (Arch : SafetyArch.SafetyArch) (PW : ExportWrap with type extended_op = Arch.extended_op) : sig
   val analyze :
     ?fmt:Format.formatter ->
+    safety_param:string option ->
     unit ->
     bool
   (** Analyze the main function, prints the results to the given formatter

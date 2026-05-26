@@ -14,23 +14,24 @@ open Jasmin_checksafety
 
 (** Specific configuration for some example programs. *)
 let config path =
-  Glob_options.safety_param :=
-    List.assoc_opt path
-      [
-        ("fail/x86-64/loop2.jazz", "poly1305>in;");
-        ("fail/arm-m4/loop2.jazz", "poly1305>in;");
-        ("fail/risc-v/loop2.jazz", "poly1305>in;");
-        ("success/x86-64/loop3.jazz", "poly1305>in;");
-        ("success/arm-m4/loop3.jazz", "poly1305>in;");
-        ("success/risc-v/loop3.jazz", "poly1305>in;");
-        ("fail/x86-64/popcnt.jazz", "off_by_one>;");
-      ]
+  List.assoc_opt path
+    [
+      ("fail/x86-64/loop2.jazz", "poly1305>in;");
+      ("fail/arm-m4/loop2.jazz", "poly1305>in;");
+      ("fail/risc-v/loop2.jazz", "poly1305>in;");
+      ("success/x86-64/loop3.jazz", "poly1305>in;");
+      ("success/arm-m4/loop3.jazz", "poly1305>in;");
+      ("success/risc-v/loop3.jazz", "poly1305>in;");
+      ("fail/x86-64/popcnt.jazz", "off_by_one>;");
+    ]
 
 (* taken from main_compiler.ml *)
 module type ArchWithAnalyze = sig
   module A : Arch_full.Arch
+
   val analyze :
     ?fmt:Format.formatter ->
+    safety_param:string option ->
     (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
     (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
     (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) prog ->
@@ -49,7 +50,7 @@ let load_file arch_info pointer_data msf_size asmOp name =
       (Option.default "parse error" msg);
     assert false
 
-let load_and_analyze ~fmt expect path arch =
+let load_and_analyze ~fmt ~safety_param expect path arch =
   let (module P : ArchWithAnalyze) =
     match arch with
     | X86_64 ->
@@ -85,10 +86,10 @@ let load_and_analyze ~fmt expect path arch =
         let () =
           Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
         in
-        let safe = P.analyze ~fmt fd fd p in
-        if (safe <> expect) then begin
-          Format.eprintf "File %s: the program is %s, while it was expected to be %s@."
-            path
+        let safe = P.analyze ~fmt ~safety_param fd fd p in
+        if safe <> expect then begin
+          Format.eprintf
+            "File %s: the program is %s, while it was expected to be %s@." path
             (if expect then "unsafe" else "safe")
             (if expect then "safe" else "unsafe");
           assert false
@@ -96,8 +97,8 @@ let load_and_analyze ~fmt expect path arch =
     fds
 
 let doit ~fmt expect archs path () =
-  config path;
-  List.iter (load_and_analyze ~fmt expect path) archs
+  let safety_param = config path in
+  List.iter (load_and_analyze ~fmt ~safety_param expect path) archs
 
 let () =
   let fmt = Format.std_formatter in

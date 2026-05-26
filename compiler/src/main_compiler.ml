@@ -55,7 +55,7 @@ let check_safety_p pd msf_size asmOp analyze s (p : (_, 'asm) Prog.prog) source_
           let source_f_decl = List.find (fun source_f_decl ->
               f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
             ) (snd source_p) in
-          analyze source_f_decl f_decl p && res
+          analyze ~safety_param:!Glob_options.safety_param source_f_decl f_decl p && res
         else res)
       true
       (List.rev (snd p)) in
@@ -65,6 +65,7 @@ let check_safety_p pd msf_size asmOp analyze s (p : (_, 'asm) Prog.prog) source_
 module type ArchWithAnalyze = sig
   module A : Arch_full.Arch
   val analyze :
+    safety_param:string option ->
     (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
     (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
     (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) prog ->
