@@ -2032,11 +2032,11 @@ module AbsAnalyzer (Arch : SafetyArch.SafetyArch) (EW : ExportWrap with type ext
           | [ps] -> (None, parse_pt_rels ps)
           | _ -> raise (Failure "-safetyparam ill-formed (too many '>' ?)"))
 
-  let analyze ?(fmt=Format.err_formatter) () =
+  let analyze ?(fmt=Format.err_formatter) ~safety_param () =
     try
     let ps_assoc = Option.map_default parse_params
         [ None, [ { relationals = None; pointers = None } ]]
-        !Glob_options.safety_param in
+        safety_param in
 
     let ps = try List.assoc (Some EW.main.f_name.fn_name) ps_assoc with
       | Not_found -> try List.assoc None ps_assoc with
