@@ -268,16 +268,16 @@ checker has to run after instruction selection. More specifically, using the
 selection”](../compiler/passes/inst_select) compilation pass (or any further
 pass specified by the `--after` argument).
 
-For instance, the following program is accepted by the type-checker, but rejected in “doit” mode,
-as the rotation instructions (on x86_64) are not listed as DOIT.
+For instance, the following program is accepted by the type-checker, but
+rejected in “doit” mode, as the “Count the Number of Leading Zero Bits”
+instructions (on `x86_64`) are not listed as DOIT.
 
 ~~~
 #[ct="secret → secret"]
 export
-fn rotate(reg u32 x) -> reg u32 {
-  x = x;
-  x >>r= 1;
-  return x;
+fn lzcnt (reg u64 x) -> reg u64 {
+   ?{}, x = #LZCNT(x);
+   return x;
 }
 ~~~
 

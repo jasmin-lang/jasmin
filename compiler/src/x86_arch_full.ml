@@ -66,7 +66,7 @@ module X86_core = struct
     | BLENDV (VE8, _) -> true
     | BLENDV _ -> false (* Not DOIT *)
     | BSR _ -> false (* Not DOIT *)
-    | BSWAP _ -> false (* Not DOIT *)
+    | BSWAP _ -> true
     | BT _ -> true
     | BTR _ -> true
     | BTS _ -> true
@@ -74,6 +74,7 @@ module X86_core = struct
     | CLFLUSH -> false (* Not DOIT *)
     | CMOVcc _ -> true
     | CMP _ -> true
+    | CQO U64 -> true
     | CQO _ -> false (* Not DOIT *)
     | DEC _ -> true
     | DIV _ -> false (* Not DOIT *)
@@ -113,9 +114,9 @@ module X86_core = struct
     | RCR _ -> false (* Not DOIT *)
     | RDTSC _ -> false (* Not DOIT *)
     | RDTSCP _ -> false (* Not DOIT *)
-    | ROL _ -> false (* Not DOIT *)
-    | RORX _ -> false (* Not DOIT *)
-    | ROR _ -> false (* Not DOIT *)
+    | ROL _ -> true
+    | RORX _ -> true
+    | ROR _ -> true
     | SAL _ -> false (* Not DOIT *)
     | SAR _ -> true
     | SARX _ -> false (* Not DOIT *)
@@ -126,10 +127,10 @@ module X86_core = struct
     | SHA256MSG2 -> true
     | SHA256RNDS2 -> true
     | SHL _ -> true
-    | SHLD _ -> false (* Not DOIT *)
+    | SHLD _ -> true
     | SHLX _ -> true
     | SHR _ -> true
-    | SHRD _ -> false (* Not DOIT *)
+    | SHRD _ -> true
     | SHRX _ -> true
     | STC -> false (* Not DOIT *)
     | SUB _ -> true
