@@ -259,13 +259,27 @@ Proof.
   case: i => [ii []] //=.
   + case=> [p|].
     * rewrite (label_in_lprogP hzerolp).
-      t_xrbindP=> r lbl /(get_label_after_pcP hzerolp) -> /= w' -> /= vm ->.
-      exact: eval_jumpP.
-    t_xrbindP=> r w v.
+      t_xrbindP=> r nexp lbl /(get_label_after_pcP hzerolp) -> /= w' -> /= vm ->.
+      move=> heval.
+      suff -> : ~~ fn_is_export lp' r.1 by apply: eval_jumpP hzerolp heval.
+      move: r nexp heval => [fn l].
+      rewrite /fn_is_export /eval_jump /=.
+      case okr: get_fundef (stack_zeroization_lprog_get_fundef_aux fn hzerolp)
+           => [fd|]; last by move=> ->.
+      move=> [] lfd /stack_zeroization_lfd_invariants.
+      by move=> [_ _ _ _ _ _ -> _ _ _ -> ->].
+    t_xrbindP=> r nexp w v.
     have [_ <- _] := stack_zeroization_lprog_invariants hzerolp.
     rewrite (label_in_lprogP hzerolp).
     move=> -> /= -> /= lbl /(get_label_after_pcP hzerolp) -> /= w' -> /= m ->.
-    exact: eval_jumpP.
+    move=> heval.
+    suff -> : ~~ fn_is_export lp' r.1 by apply: eval_jumpP hzerolp heval.
+    move: r nexp heval => [fn l].
+    rewrite /fn_is_export /eval_jump /=.
+    case okr: get_fundef (stack_zeroization_lprog_get_fundef_aux fn hzerolp)
+         => [fd|]; last by move=> ->.
+    move=> [] lfd /stack_zeroization_lfd_invariants.
+    by move=> [_ _ _ _ _ _ -> _ _ _ -> ->].
   + t_xrbindP=> w v.
     have [_ <- _] := stack_zeroization_lprog_invariants hzerolp.
     rewrite (label_in_lprogP hzerolp).

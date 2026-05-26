@@ -1860,7 +1860,7 @@ Proof.
 
   - move=> [xlr | ] r ok_i.
     + case heqlr: to_reg => [lr /= | //] [?]; subst aci.
-      rewrite /linear_sem.eval_instr => /=; t_xrbindP => l hgetpc.
+      rewrite /linear_sem.eval_instr => /=; t_xrbindP => _ l hgetpc.
       t_xrbindP=> ptr /o2rP ptr_eq vm hset hjump.
       apply (match_state_step1 (ls' := ls') hnth) => /=.
       rewrite /return_address_from.
@@ -1874,7 +1874,7 @@ Proof.
       have {}heqlr := of_varI heqlr.
       by move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ _ heqlr).
     move=> [?]; subst aci.
-    rewrite /linear_sem.eval_instr => /=; t_xrbindP=> wsp vsp hsp htow_sp l hgetpc.
+    rewrite /linear_sem.eval_instr => /=; t_xrbindP=> _ wsp vsp hsp htow_sp l hgetpc.
     rewrite heqf.
     t_xrbindP=> ptr /o2rP ptr_eq m1 hm1 /= => hjump.
     apply (match_state_step1 (ls' := ls') hnth) => /=.
@@ -2494,7 +2494,7 @@ Proof.
     by move: hip; rewrite /asm_pos /assemble_c hac /= h0 /= size_cat /= addn1 => ->.
   - move=> [xlr | ] r _ ok_i.
     + case heqlr: to_reg => [lr /= | //] [?]; subst aci.
-      rewrite /linear_sem.eval_instr => /=; t_xrbindP => l hgetpc.
+      rewrite /linear_sem.eval_instr => /=; t_xrbindP => _ l hgetpc.
       t_xrbindP=> ptr /o2rP ptr_eq vm hset hjump.
       apply (imatch_state_step1 (ls' := ls') hnth) => /=.
       + by apply hpc; rewrite /= leqnn addn1 ltnSn.
@@ -2510,7 +2510,7 @@ Proof.
       have {}heqlr := of_varI heqlr.
       by move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ _ heqlr).
     move=> [?]; subst aci.
-    rewrite /linear_sem.eval_instr => /=; t_xrbindP=> wsp vsp hsp htow_sp l hgetpc.
+    rewrite /linear_sem.eval_instr => /=; t_xrbindP=> _ wsp vsp hsp htow_sp l hgetpc.
     rewrite heqf.
     t_xrbindP=> ptr /o2rP ptr_eq m1 hm1 /= => hjump.
     apply (imatch_state_step1 (ls' := ls') hnth) => /=.

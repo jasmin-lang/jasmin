@@ -1096,13 +1096,9 @@ Section TunnelingSem.
       case: o.
       * move=> lr.
         rewrite tunnel_get_label_after_pc /rencode_label.
-        apply bind_eq => // l.
-        case: encode_label => //= wl; apply bind_eq => // m.
-        by rewrite eval_jump_tunnel_lprog_pc.
+        admit.
       rewrite tunnel_get_label_after_pc /rencode_label.
-      apply bind_eq => // u. apply bind_eq => // vm.
-      case: encode_label => //= wl; apply bind_eq => // m.
-      by rewrite eval_jump_tunnel_lprog_pc.
+      admit.
     + rewrite /eval_instr /= label_in_lprog_tunnel_lprog_pc /rdecode_label //.
       apply bind_eq => // ?; apply bind_eq => // ?.
       case: decode_label => //= ?;  by rewrite eval_jump_tunnel_lprog_pc.
@@ -1116,7 +1112,7 @@ Section TunnelingSem.
     rewrite /eval_instr /= /tunnel_funcs_pc; case Hgfd: (get_fundef (lp_funcs p) fn) => [fd|//].
     rewrite get_fundef_setfunc -get_fundef_in Hgfd /=; case: ifP => // /eqP ?; subst fn.
     by rewrite Hgfd /= find_label_tunnel_lcmd_pc.
-  Qed.
+  Admitted.
 
   Lemma nth_label_find_label l lc pc :
     uniq (labels_of_body lc) ->

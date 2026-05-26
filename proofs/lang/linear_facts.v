@@ -239,8 +239,8 @@ Opaque eval_jump.
     + exact: write_lvals_stack_stable hw.
     exact: write_lvals_validw hw.
   + move=> [p|].
-    + by t_xrbindP=> _ _ _ _ _ _ _ /eval_jump_mem_eq /= <-.
-    t_xrbindP=> ??? _ _ _ _ w _ ? hw /eval_jump_mem_eq /= <-.
+    + by t_xrbindP=> _ _ _ _ _ _ _ _ /eval_jump_mem_eq /= <-.
+    t_xrbindP=> ??? _ _ _ _ _ w _ ? hw /eval_jump_mem_eq /= <-.
     split.
     + exact: Memory.write_mem_stable hw.
     by move=> ???; rewrite (write_validw_eq hw).

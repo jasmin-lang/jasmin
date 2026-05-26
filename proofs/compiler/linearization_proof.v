@@ -3153,6 +3153,8 @@ Qed.
     have := get_fundef_p' ok_fd'.
     set lfd' := linear_fd _ fd'.
     move => ok_lfd'.
+    have fn'_not_export : ~~ fn_is_export p' fn'.
+    - by rewrite /fn_is_export ok_lfd' /lfd' /= (negbTE ok_ra).
     move: linear_eq. rewrite /= ok_fd' fn'_neq_fn.
     move: (checked_prog ok_fd') => /=; rewrite /check_fd /frame_size.
     t_xrbindP=> chk_body ok_to_save _ _ ok_stk_sz ok_ret_addr ok_save_stack _ A.
@@ -3270,9 +3272,9 @@ Qed.
           split => //.
           rewrite ok_ptr; exists ptr => //; rewrite Vm.setP_eq vm_truncate_val_eq //.
           by rewrite (convertible_eval_atype hty).
-        rewrite /= set_var_truncate //=.
+        rewrite fn'_not_export /= set_var_truncate //=.
         move: ok_ret_addr => /andP[] hty _.
-        by rewrite (convertible_eval_atype hty).
+        by rewrite  (convertible_eval_atype hty).
       (* RAstack (Some x) ofs _ *)
       + case/and5P: ok_ret_addr => ok_ret_addr _ _ _ _.
         exists m1, vm2_b.[x <- Vword ptr]; split => //.
@@ -3281,7 +3283,7 @@ Qed.
         + split => //.
           rewrite ok_ptr; exists ptr => //; rewrite Vm.setP_eq vm_truncate_val_eq //.
           by rewrite (convertible_eval_atype ok_ret_addr).
-        by rewrite /= set_var_truncate //= (convertible_eval_atype ok_ret_addr).
+        by rewrite fn'_not_export /= set_var_truncate //= (convertible_eval_atype ok_ret_addr).
       (* RAstack None ofs _ *)
       move: ok_ret_addr => /and5P [] _ _ /eqP ? /eqP hioff sf_align_for_ptr; subst ofs.
       have [m' ok_m' M']:
@@ -3328,7 +3330,7 @@ Qed.
           by have /= := (alloc_stackP ok_m).(ass_ioff); lia.
         move: ok_m'; rewrite -(alloc_stack_top_stack ok_m).
         by apply (target_mem_unchanged_store hb1 hb2).
-
+      rewrite fn'_not_export /=.
       set s_ := (top_stack (emem s1) - wrepr Uptr (sz - wsize_size Uptr))%R; rewrite lp_rspE.
       have -> /= : Let x := get_var true vm2_b vrsp in to_pointer x = ok s_.
       + by rewrite /get_var hvm2_b_rsp /= truncate_word_u.
