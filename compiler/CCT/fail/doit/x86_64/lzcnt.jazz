@@ -1,0 +1,7 @@
+#[ct="secret → secret"]
+export
+fn lzcnt (reg u64 x) -> reg u64 {
+   ?{}, x = #LZCNT(x);
+   return x;
+}
+

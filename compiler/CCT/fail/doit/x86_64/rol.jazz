@@ -1,7 +1,7 @@
-// This is CT in the ordinary sense, but not DOIT as ROL is not DOIT.
+// This is CT in the ordinary sense, but not DOIT as RCL is not DOIT.
 #[ct="secret -> secret"]
 export fn rol(reg u32 x) -> reg u32 {
-  x <<r = 5;
-  x = x;
+  reg bool cf = #STC();
+  ?{}, x = #RCL_32(x, 5, cf);
   return x;
 }
