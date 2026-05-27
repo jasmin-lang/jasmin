@@ -197,7 +197,7 @@ Pick a branch or tag that corresponds to your needs:
 The dependencies of the Coq development are as follows:
 
   - [Coq](https://coq.inria.fr/) at version 8.20
-  - The [Mathematical Components](https://math-comp.github.io/) library, at version 2.2 (only the following sub-libraries are required: ssreflect, fingroup, algebra, algebra-tactics)
+  - The [Mathematical Components](https://math-comp.github.io/) library, at version 2.2 (only the following sub-libraries are required: ssreflect, fingroup, algebra)
   - The [mathcomp-word](https://github.com/jasmin-lang/coqword) library, at version 3.2
   - The [Interaction Trees](https://github.com/DeepSpec/InteractionTrees) library, at version 5.2.1
 

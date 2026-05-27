@@ -37,7 +37,6 @@ depends: [
   "coq-elpi" {>= "2.5.1"}
   "coq-mathcomp-ssreflect" {>= "2.0" & < "2.6~"}
   "coq-mathcomp-algebra"
-  "coq-mathcomp-algebra-tactics"
   "coq-mathcomp-word" {>= "3.4"}
   "coq-paco"
   "coq-itree"
