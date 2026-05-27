@@ -25,19 +25,6 @@ let config path =
       ("fail/x86-64/popcnt.jazz", "off_by_one>;");
     ]
 
-(* taken from main_compiler.ml *)
-module type ArchWithAnalyze = sig
-  module A : Arch_full.Arch
-
-  val analyze :
-    ?fmt:Format.formatter ->
-    safety_param:string option ->
-    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
-    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
-    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) prog ->
-    bool
-end
-
 let load_file arch_info pointer_data msf_size asmOp name =
   try
     let open Pretyping in
@@ -51,32 +38,7 @@ let load_file arch_info pointer_data msf_size asmOp name =
     assert false
 
 let load_and_analyze ~fmt ~safety_param expect path arch =
-  let (module P : ArchWithAnalyze) =
-    match arch with
-    | X86_64 ->
-       (module struct
-          module C = (val CoreArchFactory.core_arch_x86 ~use_lea:!Glob_options.lea ~use_set0:!Glob_options.set0 Linux)
-          module A = Arch_full.Arch_from_Core_arch (C)
-          module Safety = SafetyMain.Make (Jasmin_checksafety.X86_safety.X86_safety (A))
-          let analyze = Safety.analyze
-        end)
-    | ARM_M4 ->
-       (module struct
-          module C = CoreArchFactory.Core_arch_ARM
-          module A = Arch_full.Arch_from_Core_arch (C)
-          open Jasmin_checksafety
-          module Safety = SafetyMain.Make (Jasmin_checksafety.Arm_safety.Arm_safety (A))
-          let analyze = Safety.analyze
-        end)
-    | RISCV ->
-       (module struct
-          module C = CoreArchFactory.Core_arch_RISCV
-          module A = Arch_full.Arch_from_Core_arch (C)
-          open Jasmin_checksafety
-          module Safety = SafetyMain.Make (Jasmin_checksafety.Riscv_safety.Riscv_safety (A))
-          let analyze = Safety.analyze
-        end)
-  in
+  let (module P) = SafetyMain.get_arch_with_analyze arch Linux in
   let module Arch = P.A in
   Format.fprintf fmt "File %s (on arch %s):@." path (architecture_to_string arch);
   let ((_, fds) as p) = load_file Arch.arch_info Arch.pointer_data Arch.msf_size Arch.asmOp path in

@@ -55,55 +55,19 @@ let check_safety_p pd msf_size asmOp analyze s (p : (_, 'asm) Prog.prog) source_
           let source_f_decl = List.find (fun source_f_decl ->
               f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
             ) (snd source_p) in
-          analyze ~safety_param:!Glob_options.safety_param source_f_decl f_decl p && res
+          analyze ?fmt:None ~safety_param:!Glob_options.safety_param source_f_decl f_decl p && res
         else res)
       true
       (List.rev (snd p)) in
   if not is_safe then exit(2)
 
 (* -------------------------------------------------------------------- *)
-module type ArchWithAnalyze = sig
-  module A : Arch_full.Arch
-  val analyze :
-    safety_param:string option ->
-    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
-    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
-    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) prog ->
-    bool
-end
-
-
 let main () =
 
   try
     let infile = parse() in
 
-    let (module P : ArchWithAnalyze) =
-      match !target_arch with
-      | X86_64 ->
-         (module struct
-            module C = (val CoreArchFactory.core_arch_x86 ~use_lea:!lea ~use_set0:!set0 !call_conv)
-            module A = Arch_full.Arch_from_Core_arch (C)
-            module Safety = SafetyMain.Make (Jasmin_checksafety.X86_safety.X86_safety (A))
-            let analyze = Safety.analyze ?fmt:None
-          end)
-      | ARM_M4 ->
-         (module struct
-            module C = CoreArchFactory.Core_arch_ARM
-            module A = Arch_full.Arch_from_Core_arch (C)
-            open Jasmin_checksafety
-            module Safety = SafetyMain.Make (Jasmin_checksafety.Arm_safety.Arm_safety (A))
-            let analyze = Safety.analyze ?fmt:None
-          end)
-      | RISCV ->
-         (module struct
-            module C = CoreArchFactory.Core_arch_RISCV
-            module A = Arch_full.Arch_from_Core_arch (C)
-            open Jasmin_checksafety
-            module Safety = SafetyMain.Make (Jasmin_checksafety.Riscv_safety.Riscv_safety (A))
-            let analyze = Safety.analyze ?fmt:None
-          end)
-    in
+    let (module P) = SafetyMain.get_arch_with_analyze !target_arch !call_conv in
     let module Arch = P.A in
 
     if !safety_makeconfigdoc <> None
