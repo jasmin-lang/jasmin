@@ -2074,10 +2074,17 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
         match xs with
         | [x] ->
           let loc, x, oty = tt_lvalue arch_info.pd env_lhs x in
-          let ty =
+          let x, ty =
             match oty with
-            | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
-            | Some ty -> ty in
+            | Some ty -> x, ty
+            | None ->
+               (* No destination: create a variable to hold the returned pointer, using the type of the argument *)
+               match tt_exprs arch_info.pd env_lhs args with
+               | (_, ty) :: _ ->
+                  (fun _ -> Lvar (L.mk_loc loc P.(GV.mk "bytes" (Reg (Normal, Pointer Constant)) (gty_of_gety ty) loc []))),
+                  ty
+               | [] -> x, P.(ETarr (U8, PE (Pconst Z.zero))) (* this will fail a few lines below in tt_exprs_cast *)
+          in
           loc, x ty, ty
         | _ ->
           rs_tyerror ~loc:(L.loc pi)
