@@ -956,12 +956,6 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
         | _ -> None) f_args in
     AbsDom.assign_sexpr ~force:true abs None ves
 
-  let bound_warning gv ws fmt =
-    Format.fprintf fmt
-      "We assume, as in the source program, that only the lower %d \
-       bits of [%a] are initially set"
-      (int_of_ws ws) (Printer.pp_var ~debug:false) gv
-
   let bound_warning_user gv min max fmt =
     Format.fprintf fmt
       "Input variable [%a] assumed to be initially in [%a; %a]"
@@ -991,35 +985,23 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
       Some (Interval.of_mpqf min max, bound_warning_user gv min max)
     with Not_found -> None
 
-  (* We set bounds for the arguments, according to the register sizes
-     in the source program. E.g., if a U32 register variable is
-     allocated to a U64 register, then we assume that it contains a
-     value in [0; 2^32 - 1].  We print a warning at the end of the
-     analysis, to make this assumption clear. *)
-  let set_bounds f_args source_f_args abs =
-    assert (List.length f_args = List.length source_f_args);
+  (* We set bounds for the arguments, according to their declared type *)
+  let set_bounds f_args abs =
     let abs, warns =
-      List.fold_left2 (fun (abs, warns) v source_v ->
-          let gv_ws, warn = match v, source_v with
-            | Mlocal (Avar gv), Mlocal (Avar source_gv) ->
-              begin match gv.v_ty, source_gv.v_ty with
-                | Bty (U ws), Bty (U ws') ->
-                  if ws = ws'
-                  then Some (gv, ws), None
-                  else
-                    let () = assert (int_of_ws ws > int_of_ws ws') in
-                    Some (gv, ws'), Some (bound_warning gv ws')
-
-                | _ -> None, None end
-            | _ -> None, None in
+      List.fold_left (fun (abs, warns) v ->
+          let gv_ws = match v with
+            | Mlocal (Avar gv) ->
+              begin match gv.v_ty with
+                | Bty (U ws) -> Some (gv, ws)
+                | _ -> None  end
+            | _ -> None in
 
           if gv_ws <> None then
             let gv, ws = oget gv_ws in
             let ws_i = int_of_ws ws in
             let int, warn = match input_range_bound gv ws_i with
-              | None -> word_interval Unsigned ws_i, warn
+              | None -> word_interval Unsigned ws_i, None
 
-              (* overwrites the previous warning *)
               | Some (int, warn) -> int, Some warn
             in
             let z_sexpr = Mtexpr.cst (Coeff.Interval int)
@@ -1031,7 +1013,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
             (AbsDom.assign_sexpr abs None [v,z_sexpr], warns)
           else (abs, warns))
-        (abs, []) f_args source_f_args
+        (abs, []) f_args
     in
     abs, warns
 

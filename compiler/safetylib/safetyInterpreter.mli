@@ -3,8 +3,6 @@ open Jasmin
 module type ExportWrap = sig
   type extended_op
 
-  (* main function, before any compilation pass *)
-  val main_source : (unit, extended_op) Prog.func
   val main : (unit, extended_op) Prog.func
   val prog : (unit, extended_op) Prog.prog
 end

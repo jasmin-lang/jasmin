@@ -35,7 +35,7 @@ let parse () =
   | infile :: s :: _ -> raise CLI_errors.(CLIerror (RedundantInputFile (infile, s)))
 
 (* -------------------------------------------------------------------- *)
-let check_safety_p pd msf_size asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
+let check_safety_p pd msf_size asmOp analyze s (p : (_, 'asm) Prog.prog) =
   let () = if SafetyConfig.sc_print_program () then
       let s1,s2 = Glob_options.print_strings s in
       Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
@@ -52,10 +52,7 @@ let check_safety_p pd msf_size asmOp analyze s (p : (_, 'asm) Prog.prog) source_
           let () = Format.eprintf "@[<v>Analyzing function %s@]@."
               f_decl.f_name.fn_name in
 
-          let source_f_decl = List.find (fun source_f_decl ->
-              f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
-            ) (snd source_p) in
-          analyze ?fmt:None ~safety_param:!Glob_options.safety_param source_f_decl f_decl p && res
+          analyze ?fmt:None ~safety_param:!Glob_options.safety_param f_decl p && res
         else res)
       true
       (List.rev (snd p)) in
@@ -140,9 +137,6 @@ let main () =
         )
     end;
 
-    (* The source program, before any compilation pass. *)
-    let source_prog = prog in
-
     (* This function is called after each compilation pass.
         - Check program safety (and exit) if the time has come
         - Pretty-print the program
@@ -157,7 +151,6 @@ let main () =
           P.analyze
           s
           p
-          source_prog
         |> fun () -> exit 0
       else
         eprint s (Printer.pp_prog ~debug Arch.pointer_data Arch.msf_size Arch.asmOp) p

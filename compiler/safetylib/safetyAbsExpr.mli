@@ -64,7 +64,7 @@ module AbsExpr (Arch: SafetyArch.SafetyArch) (AbsDom : SafetyInterfaces.AbsNumBo
   val set_zeros : mvar list -> AbsDom.t -> AbsDom.t
 
   val set_bounds :
-    mvar list -> mvar list -> AbsDom.t ->
+    mvar list -> AbsDom.t ->
     AbsDom.t * (Format.formatter -> unit) list
 
   val apply_glob : global_decl list -> AbsDom.t -> AbsDom.t
