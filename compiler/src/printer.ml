@@ -77,7 +77,7 @@ let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
 let pp_glv ~debug pp_len pp_var fmt =
   let pp_ge = pp_ge ~debug in
   function
-  | Lnone (_, ty) -> F.fprintf fmt "_ /* %a */" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
+  | Lnone (_, ty) -> F.fprintf fmt "_ /* %a */" (pp_gtype pp_len) ty
   | Lvar x  -> pp_gvar_i pp_var fmt x
   | Lmem (al, ws, _, e) ->
     pp_mem_access (pp_ge pp_len pp_var) fmt al (Some ws) e
