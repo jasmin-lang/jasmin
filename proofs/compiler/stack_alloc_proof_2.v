@@ -9,7 +9,6 @@ From mathcomp Require Import word_ssrZ.
 From Coq Require Import Uint63.
 Require Import psem psem_facts compiler_util.
 Require Export stack_alloc stack_alloc_proof_1.
-From mathcomp Require Import ring.
 From Coq Require Import Utf8 Lia.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
@@ -50,22 +49,22 @@ Notation gd := (p_globs P).
 Lemma ztakeP (A:Type) z (l l1 l2:list A) :
   ztake z l = Some(l1, l2) -> l = l1 ++ l2 /\ size l1 = Z.to_nat z.
 Proof.
+Local Opaque Pos.to_nat.
   case: z => //= [ [<- <-] // | p ].
   case heq: (ptake p [::] l) => [ [r l2']| //].
   move=> [<- <- {l1 l2}].
-  suff : rev [::] ++ l = rev r ++ l2' ∧ size (rev r) = (Pos.to_nat p + size (@nil A))%nat.
-  + by rewrite /= addn0.
+  suff : rev [::] ++ l = rev r ++ l2' ∧ size (rev r) = (Pos.to_nat p + size (@nil A))%coq_nat.
+  + by rewrite /= Nat.add_0_r.
   elim: p [::] l r l2' heq => /= [p hp | p hp | ] acc l r l2.
   + case: l => // x l.
     case: ptake (hp (x::acc) l) => // -[r1 l21] /(_ _ _ erefl) [h1 h2] /hp [h3 h4].
     rewrite -cat_rcons -rev_cons h1 h3 h4 -(size_rev r1) h2; split => //=.
-    rewrite Pos2Nat.inj_xI.
-    change ((Pos.to_nat p + (Pos.to_nat p + (size acc).+1))%nat = ((2 * Pos.to_nat p).+1 + size acc)%nat); ring.
+    by rewrite Pos2Nat.inj_xI; lia.
   + case: ptake (hp acc l) => // -[r1 l21] /(_ _ _ erefl) [h1 h2] /hp [h3 h4].
     rewrite h1 h3 h4 -(size_rev r1) h2; split => //=.
-    rewrite Pos2Nat.inj_xO.
-    change ((Pos.to_nat p + (Pos.to_nat p + (size acc)))%nat = ((2 * Pos.to_nat p) + size acc)%nat); ring.
+    by rewrite Pos2Nat.inj_xO; lia.
   by case: l => // x l [<- <-]; rewrite rev_cons cat_rcons size_rcons size_rev.
+Local Transparent Pos.to_nat.
 Qed.
 
 Lemma check_globP data gv tt :
