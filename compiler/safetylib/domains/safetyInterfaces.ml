@@ -12,7 +12,6 @@ open SafetyPreanalysis
 (*---------------------------------------------------------------*)
 module type ProgWrap = sig
   type extended_op
-  val main_source : (unit, extended_op) Prog.func
   val main : (minfo, extended_op) Prog.func
   val prog : (minfo, extended_op) Prog.prog
   val param : analyzer_param

@@ -547,7 +547,6 @@ module AbsInterpreter (PW : ProgWrap with type extended_op = Arch.extended_op) :
   val analyze : unit -> analyse_res
 end = struct
 
-  let source_main_decl = PW.main_source
   let main_decl,prog = PW.main, PW.prog
 
   let () = Prof.reset_all ()
@@ -639,8 +638,8 @@ end = struct
      *   env fun_decls *)
     env
 
-  let init_state : (unit, 'asm) func -> (minfo, 'asm) func -> (minfo, 'asm) prog -> astate * warnings =
-    fun main_source main_decl (glob_decls, fun_decls) ->
+  let init_state : (minfo, 'asm) func -> (minfo, 'asm) prog -> astate * warnings =
+    fun main_decl (glob_decls, fun_decls) ->
       let mem_locs = List.map (fun x -> MemLoc x) main_decl.f_args in
       let env = init_env (glob_decls, fun_decls) mem_locs in
       let it = ItMap.empty in
@@ -653,7 +652,6 @@ end = struct
         if f_args = [] then [dummy_mvar] else f_args
       in
       let f_args        = comp_f_args main_decl in
-      let source_f_args = comp_f_args main_source in
 
       let f_in_args = List.map in_cp_var f_args
       and m_locs = List.map (fun mloc -> MmemRange mloc ) env.m_locs in
@@ -664,7 +662,7 @@ end = struct
                 |> AbsExpr.set_zeros (f_args @ m_locs)
                 (* We use the function location as location of the initial
                    assignment of the main procedure's arguments. *)
-                |> AbsExpr.set_bounds f_args source_f_args in
+                |> AbsExpr.set_bounds f_args in
 
       (* We apply the global declarations *)
       let abs = AbsExpr.apply_glob glob_decls abs in
@@ -1959,7 +1957,7 @@ end = struct
           raise UserInterupt) in
       let old_handler = Sys.signal Sys.sigint hndl in
 
-      let state, warnings = init_state source_main_decl main_decl prog in
+      let state, warnings = init_state main_decl prog in
 
       (* We abstractly evaluate the main function *)
       let final_st = aeval_gstmt main_decl.f_body state in
@@ -1986,9 +1984,6 @@ end
 module type ExportWrap = sig
   type extended_op
 
-  (* main function, before any compilation pass *)
-  val main_source : (unit, extended_op) Prog.func
-
   val main : (unit, extended_op) Prog.func
   val prog : (unit, extended_op) Prog.prog
 end
@@ -1997,8 +1992,6 @@ module AbsAnalyzer (Arch : SafetyArch.SafetyArch) (EW : ExportWrap with type ext
 
   module EW = struct
     type extended_op = Arch.extended_op
-
-    let main_source = EW.main_source
 
     (* We ensure that all variable names are unique *)
     let main,prog = MkUniq.mk_uniq EW.main EW.prog

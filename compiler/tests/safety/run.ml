@@ -48,7 +48,7 @@ let load_and_analyze ~fmt ~safety_param expect path arch =
         let () =
           Format.fprintf fmt "@[<v>Analyzing function %s@]" fd.f_name.fn_name
         in
-        let safe = P.analyze ~fmt ~safety_param fd fd p in
+        let safe = P.analyze ~fmt ~safety_param fd p in
         if safe <> expect then begin
           Format.eprintf
             "File %s: the program is %s, while it was expected to be %s@." path

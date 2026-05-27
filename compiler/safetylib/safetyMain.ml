@@ -7,15 +7,13 @@ module Make (Arch : SafetyArch.SafetyArch) : sig
     ?fmt:Format.formatter ->
     safety_param:string option ->
     (unit, Arch.extended_op) func ->
-    (unit, Arch.extended_op) func ->
     (unit, Arch.extended_op) prog ->
     bool
 end = struct
-  let analyze ?fmt ~safety_param source_f_decl f_decl p =
+  let analyze ?fmt ~safety_param f_decl p =
     let module PW = struct
       type extended_op = Arch.extended_op
 
-      let main_source = source_f_decl
       let main = f_decl
       let prog = p
     end in
@@ -29,7 +27,6 @@ module type ArchWithAnalyze = sig
   val analyze :
     ?fmt:Format.formatter ->
     safety_param:string option ->
-    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
     (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
     (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) prog ->
     bool
