@@ -29,7 +29,6 @@ let coqPackages =
       coq = super.coq.override { version = "master"; inherit rocqPackages; };
       inherit (rocqPackages) stdlib;
       mathcomp = super.mathcomp.override { version = "master"; };
-      mathcomp-algebra-tactics = super.mathcomp-algebra-tactics.override { version = "master"; };
       mathcomp-zify = super.mathcomp-zify.override { version = "master"; };
       coq-elpi = super.coq-elpi.override { version = "master"; inherit elpi-version; };
       hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
@@ -84,7 +83,6 @@ stdenv.mkDerivation {
     ++ optionals coqDeps [
       coqPackages.coq
       mathcomp-word
-      coqPackages.mathcomp-algebra-tactics
       coqPackages.ITree
     ]
     ++ optionals testDeps ([ curl.bin oP.apron.out llvmPackages.bintools-unwrapped ] ++ (with python3Packages; [ python pyyaml ]))
