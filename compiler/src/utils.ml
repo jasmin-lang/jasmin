@@ -340,7 +340,6 @@ let hierror ~loc ?funname ~kind ?sub_kind ?(internal=false) =
       } in
       raise (HiError err))
 
-
 (* -------------------------------------------------------------------- *)
 (** Splits a time in seconds into hours, minutes, seconds, and centiseconds.
   Number of hours must be below one hundred. *)

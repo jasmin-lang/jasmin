@@ -12,8 +12,8 @@ let load_file name =
   let open Pretyping in
   match
     name
-    |> tt_file Arch.arch_info Env.empty None None
-    |> fst |> Env.decls
+    |> tt_file Arch.arch_info (None, Env.empty) None None
+    |> fun (_, env, _)-> Env.decls env
     |> Compile.preprocess Arch.pointer_data Arch.msf_size Arch.asmOp
     |> Compile.do_spill_unspill Arch.asmOp
   with
