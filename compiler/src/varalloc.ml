@@ -274,7 +274,7 @@ let init_slots pd stack_pointers alias coloring fv =
   !slots, lalloc
 
 (* --------------------------------------------------- *)
-let all_alignment pd (ctbl: alignment) alias params lalloc : param_info option list * wsize Hv.t =
+let all_alignment ~is_export pd (ctbl: alignment) alias params lalloc : param_info option list * wsize Hv.t =
 
   let get_align c =
     try Hv.find ctbl c.Alias.in_var
@@ -291,6 +291,20 @@ let all_alignment pd (ctbl: alignment) alias params lalloc : param_info option l
         | _ | exception Not_found -> assert false in
       let pi_writable = w = Writable in
       let pi_align = get_align c in
+      (* Check that the assumed alignment for array arguments to export functions does not exceed some bound.
+         The bound is U8 (no assumption allowed) when “only_trivial_alignment” is set.
+         Otherwise, the declared size of the array cells is used as the assumed alignment bound. *)
+      if is_export then begin
+          match x.v_ty with
+          | Arr (ws, _) ->
+             let strict = !Glob_options.only_trivial_alignment in
+             let ws = if strict then U8 else ws in
+             if wsize_cmp ws pi_align.ac_strict == Lt then
+               warning NonTrivialAlignment (L.i_loc0 x.v_dloc) "argument %a is used with %a-bit alignment"
+                 (Printer.pp_var ~debug:false) x
+                 PrintCommon.pp_wsize pi_align.ac_strict
+          | _ -> assert false
+        end;
       Some { pi_ptr; pi_writable; pi_align }
     | _ -> assert false in
   let params = List.map doparam params in
@@ -415,7 +429,7 @@ let alloc_stack_fd callstyle pd get_info gtbl fd =
   in
   let sao_return = get_returned_params ~funname:fd.f_name.fn_name alias fd.f_args fd.f_ret in
 
-  let sao_params, atbl = all_alignment pd ctbl alias fd.f_args lalloc in
+  let sao_params, atbl = all_alignment ~is_export:(FInfo.is_export fd.f_cc) pd ctbl alias fd.f_args lalloc in
 
   let ra_on_stack =
     match fd.f_cc with 

@@ -12,7 +12,7 @@ export fn checked(reg u32 a) -> reg u32 {
 #[safety = { ensures = is_arr_init(x, 0, 32) } ]
 export fn set_zero(reg ptr u8[4] x) -> reg ptr u8[4] {
   reg u32 zero = 0;
-  x[:u32 0] = zero;
+  x[#unaligned:u32 0] = zero;
   return x;
 }
 
