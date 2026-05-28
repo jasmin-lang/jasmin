@@ -1,8 +1,3 @@
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-Set Uniform Inductive Parameters.
-
 From Coq Require Import Lia Uint63.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 From mathcomp Require Import fintype finfun ssralg.
@@ -47,8 +42,8 @@ Require Import
   tunneling_proof
   tunneling_proof_2
   linearization_proof
-  linearization_composition
-  merge_varmaps_proof
+  it_linearization_proof
+  it_merge_varmaps_proof
   psem_of_sem_proof
   slh_lowering_proof
   direct_call_proof
@@ -150,7 +145,7 @@ Definition isem_asm (xp : asm_prog) :=
     (call_conv := call_conv)
     (asm_scsem := asm_scsem)
     (wE := wE)
-    (*rE := rndE*)
+    (rE := rndE)
     xp.
 
 Definition RndPre (A B : Type) : E0 A -> E0 B -> Prop :=
@@ -177,9 +172,9 @@ Proof. by constructor. Qed.
 Instance HandlerContract_trans :
   EventRels_trans HandlerContract HandlerContract HandlerContract.
 Proof.
-  constructor.
-  - by move => T1 T2 T3 [scs1 n1] [scs2 n2] [scs3 n3] [-> ->] [-> ->].
-  - move => ??? [??] [??] [??] ?? [] -> -> [] -> -> -> /=; eauto.
+constructor.
+- by move => T1 T2 T3 [scs1 n1] [scs2 n2] [scs3 n3] [-> ->] [-> ->].
+by move => ??? [??] [??] [??] ?? [] -> -> [] -> -> -> /=; eauto.
 Qed.
 
 Section FIRST_PART.
@@ -268,18 +263,21 @@ rewrite !print_uprogP => ok_fvars pj ok_pj pp.
 rewrite !print_uprogP => ok_pp <- {p'} ok_fn.
 
 apply: (wiequiv_f_trans_EE_EU (wsw2:=nosubword) (dc2:=indirect_c)).
-+ by apply: (it_remove_assert_progP (dc:=indirect_c) (sip:=sip_of_asm_e) (pT:=progUnit) (wsw:=nosubword) ev).
++ by apply: (it_remove_assert_progP
+  (dc := indirect_c) (sip := sip_of_asm_e) (pT := progUnit)
+  (wsw := nosubword) ev).
 
 apply: (wiequiv_f_trans_EE_EU (wsw2:= withsubword) (dc2:=indirect_c)).
 + exact: it_psem_call_u.
 
 apply: wiequiv_f_trans_UU_EU; first exact (it_wi2w_progP _ _ ok_paw).
-apply: wiequiv_f_trans_UU_EU; first exact: (it_insert_renaming_callP (insert_renaming cparams)).
+apply: wiequiv_f_trans_UU_EU;
+  first exact: (it_insert_renaming_callP (insert_renaming cparams)).
 apply: wiequiv_f_trans_UU_EU; first exact: (it_array_copy_fdP _ ok_pa0).
 apply: wiequiv_f_trans_EE_EU; first exact: it_add_init_callP.
 apply: wiequiv_f_trans_EE_EU; first exact: (it_lower_spill_fdP _ ok_pb).
 apply: wiequiv_f_trans_UU_EU.
-apply [elaborate it_inliningP (ev := ev) ok_fn ok_pa ].
+apply: [elaborate it_inliningP (ev := ev) ok_fn ok_pa ].
 apply: wiequiv_f_trans_UU_EU; first exact: it_unrollP ok_pc.
 apply: wiequiv_f_trans_EE_EU;
   first exact: (it_dead_calls_err_seqP ok_pd _ ok_fn).
@@ -294,12 +292,9 @@ apply: wiequiv_f_trans_EE_EU; first exact: (it_expand_callP ok_pg ok_fn).
 apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_ph.
 apply: wiequiv_f_trans_EU_EU; first exact: RGP.it_remove_globP ok_pi.
 apply: wiequiv_f_trans_EE_EU; first exact: (it_load_constants_progP ok_plc).
-apply: wiequiv_f_trans_EE_EU; first exact:
-  (hlop_it_lower_callP
-    (hap_hlop haparams)
-    (lowering_opt cparams)
-    (warning cparams)
-    ok_fvars).
+apply: wiequiv_f_trans_EE_EU;
+  first exact: (hlop_it_lower_callP
+    (hap_hlop haparams) (lowering_opt cparams) (warning cparams) ok_fvars).
 apply: wiequiv_f_trans_UU_EU; first exact: (it_pi_callP _ ok_pj).
 apply: wiequiv_f_trans_EE_EU;
   first exact: (it_lower_call_export (hap_hshp haparams) _ ok_pp ok_fn).
@@ -638,8 +633,8 @@ Section BACK_END.
 
 Context
   (entries : seq funname)
-  (sp : sprog (pd := _pd) (asmop := _asmop))
-  (tp : lprog (asmop := _asmop))
+  (sp : sprog (pd := @_pd _ ep_of_asm_e) (asmop := @_asmop _ _ sip_of_asm_e))
+  (tp : lprog (asmop := @_asmop _ _ sip_of_asm_e))
   (rip : pointer)
   (rsp_in_callee_saved : Sv.In (vid sp.(p_extra).(sp_rsp)) one_varmap.callee_saved)
 .
@@ -656,7 +651,12 @@ Definition zeroized_s fn ms mt mt' :=
   cparams.(stack_zero_info) fn <> None ->
   forall p, zeroized_p ms mt mt' p.
 
-Let back_end_pre lfd s t :=
+Definition lget_vars (xs : seq var_i) (vm : Vm.t) : seq value :=
+  [seq vm.[v_var x] | x <- xs].
+Definition lget_args (lfd : lfundef) := lget_vars lfd.(lfd_arg).
+Definition lget_res  (lfd : lfundef) := lget_vars lfd.(lfd_res).
+
+Definition back_end_pre lfd s t :=
   let: args := s.(fvals) in
   let: ms := s.(fmem) in
   let: vmt := t.(evm) in
@@ -671,7 +671,7 @@ Let back_end_pre lfd s t :=
     & allocatable_stack ms (lfd_total_stack lfd)
   ].
 
-Let back_end_post fn lfd s t s' t' :=
+Definition back_end_post fn lfd s t s' t' :=
   let: ms := s.(fmem) in
   let: mt := t.(emem) in
   let: ress := s'.(fvals) in
@@ -684,6 +684,33 @@ Let back_end_post fn lfd s t s' t' :=
     , s'.(fscs) = t'.(escs)
     & zeroized_s fn ms mt mt'
   ].
+
+Lemma trans_pre_ovm_lin lp fn zfd i1 i3 :
+  back_end_pre (tunnel_lfundef fn zfd) i1 i3 ->
+  exists2 i2, ovm_pre sp rip fn i1 i2 & lin_pre sp lp rip fn i2 i3.
+Proof. Admitted.
+
+Lemma trans_post_ovm_lin lp fn zfd i1 i2 i3 o1 o3 :
+  ovm_pre sp rip fn i1 i2 ->
+  lin_pre sp lp rip fn i2 i3 ->
+  rcompose (ovm_post sp fn) (lin_post sp lp fn i2 i3) o1 o3 ->
+  back_end_post fn (tunnel_lfundef fn zfd) i1 i3 o1 o3.
+Proof. Admitted.
+
+Lemma trans_pre_lin_sz lp fn lfd i1 i3 :
+  lin_pre sp lp rip fn i1 i3 ->
+  exists2 i2, lin_pre sp lp rip fn i1 i2 & sz_pre lp lfd i2 i3.
+Proof. Admitted.
+
+Lemma trans_post_lin_sz szs_of_fn lp fn lfd i1 i2 i3 o1 o3 :
+  lin_pre sp lp rip fn i1 i2 ->
+  sz_pre lp lfd i2 i3 ->
+  rcompose (lin_post sp lp fn i1 i2)
+    (sz_post szs_of_fn lp fn lfd i2 i3) o1 o3 ->
+  lin_post sp lp fn i1 i3 o1 o3.
+Proof. Admitted.
+
+Require Import it_sems_one_varmap .
 
 Lemma it_compiler_back_endP {fn} :
   compiler_back_end aparams cparams entries sp = ok tp ->
@@ -698,300 +725,79 @@ Lemma it_compiler_back_endP {fn} :
           (back_end_post fn lfd)
     ].
 Proof.
+move=> /[dup] /(compiler_back_end_meta print_linearP)
+  [rip_tp_sp rsp_tp_sp gd_tp_sp].
 rewrite /compiler_back_end; t_xrbindP => ok_export checked_p lp ok_lp.
 rewrite print_linearP => zp ok_zp.
 rewrite print_linearP => tp' ok_tp.
 rewrite print_linearP => ?; subst tp'.
 move=> /InP ok_fn.
+
+move: ok_export; rewrite /check_export /= => /allMP h.
+have := h _ ok_fn; case hfd: get_fundef => [fd|//].
+t_xrbindP=> exp_fd.
+
 set vtmp := var_tmps aparams.
 have vtmp_not_magic : disjoint vtmp (magic_variables sp).
-- exact: (var_tmp_not_magic (sip := sip_of_asm_e)) checked_p.
+- exact: [elaborate var_tmp_not_magic] checked_p.
 
-(* Linearization provides fd (sprog) and lfd_lp (lp-level). *)
-have [fd [lfd_lp [get_sfd get_lfd_lp lp_export w_lin]]] :=
-  it_linear_exportcallP (hap_hlip haparams) sp lp rip (fn := fn).
+have get_lfd := [elaborate get_fundef_p' ok_lp hfd].
+set lfd := (X in _ = Some X) in get_lfd.
 
-(* Stack zeroization: zfd has same structural fields as lfd_lp. *)
+have hexp : is_export sp fn by exists fd => //; apply/is_RAnoneP/exp_fd.
+
+(* Merge varmaps. *)
+have wovm := [elaborate
+  merge_varmaps_export_call_checkP
+    (p := sp) (global_data := rip) (fn := fn) checked_p hexp ] .
+set var_tmps := (X in isem_exportcall_check X) in wovm.
+
+(* Linearization *)
+have cs_not_arr :
+  forall x, Sv.In x one_varmap.callee_saved -> ~ is_aarr (vtype x).
+- by move=> x /sv_of_listP /mapP [/= r _ ->]; case: r.
+have wlin := [elaborate
+  linear_exportcallP
+    (hap_hlip haparams) vtmp_not_magic ok_lp cs_not_arr
+    (gd := rip) (fn := fn) ].
+
+(* Stack zeroization *)
 have [zfd ok_zfd get_zfd] :=
-  [elaborate stack_zeroization_lprog_get_fundef ok_zp get_lfd_lp ].
-have [inv_info inv_align inv_tyin inv_arg inv_tyout inv_res inv_export
-     inv_cs inv_stkmax [inv_framesize inv_align_args]] :=
-  [elaborate stack_zeroization_lfd_invariants ok_zfd ].
+  [elaborate stack_zeroization_lprog_get_fundef ok_zp get_lfd ].
+have [rip_lp_zp rsp_lp_zp _] := [elaborate
+  stack_zeroization_lprog_invariants ok_zp].
+have [_ _ _ _ _ _ exp_zfd _ _ _] := [elaborate
+  stack_zeroization_lfd_invariants ok_zfd].
+set szs_of_fn := (X in stack_zeroization_lfd _ X) in ok_zfd.
 
-(* Tunneling: tunnel_lfundef fn zfd is the final lfd. *)
-have! get_tfd := (get_fundef_tunnel_program ok_tp get_zfd).
-have! [rip_eq [rsp_eq [globs_eq _]]] := (tunnel_program_invariants ok_tp).
-have! [rip_eq' rsp_eq' _] := (stack_zeroization_lprog_invariants ok_zp).
+have :=
+  istack_zeroization_lprogP_new
+    (wE := wE) (rndE0_refl := RndE0Refl)
+    (hap_hszp haparams) _ ok_zp get_lfd.
+rewrite ([elaborate lp_rspE ok_lp]) -/szs_of_fn => /(_ rsp_in_callee_saved) wsz.
 
-(* Conclude the existential. *)
-exists (tunneling.tunnel_lfundef fn zfd).
-split.
+(* Tunneling *)
+have get_tfd := [elaborate get_fundef_tunnel_program ok_tp get_zfd].
+have [rip_zp_tp [rsp_zp_tp [globs_zp_tp _]]] := [elaborate
+  tunnel_program_invariants ok_tp].
+
+exists (tunnel_lfundef fn zfd); split.
 - exact: get_tfd.
-- by rewrite /= -inv_export.
-
-(* Reduce via tunneling: replace [ilsem_exportcall tp fn] by its
-   eutt-equivalent [ilsem_exportcall zp fn]. *)
+- by rewrite /= -exp_zfd /= exp_fd.
 apply: wkequiv_io_eutt_r (tunnel_funcs ok_tp fn) _.
 
-apply: (wkequiv_io_trans _ _ w_lin); cycle 2.
-- apply: (istack_zeroization_lprogP_new (hap_hszp haparams) _ ok_zp get_lfd_lp).
-  + have hrsp_eq : lp_rsp lp = sp_rsp sp.(p_extra)
-      by move: ok_lp; rewrite /linear_prog; t_xrbindP => _ _ _ <-.
-    by rewrite hrsp_eq.
-- (* pre decomposition *)
-  move=> fs s [] hrsp hrip hargs hm hscs hinit halloc.
-  have halloc_lin :
-    allocatable_stack (fmem fs)
-      (sf_stk_max (f_extra fd) + wsize_size (sf_align (f_extra fd)) - 1).
-  - move: halloc; rewrite /allocatable_stack /lfd_total_stack /tunneling.tunnel_lfundef /=.
-    rewrite -inv_export -inv_stkmax -inv_align lp_export /=.
-    have! hlfd_stk := (get_fundef_p' ok_lp get_sfd).
-    rewrite get_lfd_lp in hlfd_stk.
-    injection hlfd_stk => {}hlfd_stk.
-    rewrite hlfd_stk /=.
-    by [].
-  have hle_top :
-    (sf_stk_max (f_extra fd) + wsize_size (sf_align (f_extra fd)) - 1
-      <= wunsigned (top_stack (fmem fs)))%Z.
-  - move: halloc_lin; rewrite /allocatable_stack.
-    have /= := [elaborate (wunsigned_range (stack_limit (fmem fs)))].
-    lia.
-  exists s.
-  + split.
-    - by rewrite rsp_eq' rsp_eq hrsp.
-    - exact: hm.
-    - by rewrite /linearization_composition.lget_args inv_arg.
-    - by rewrite rip_eq' rip_eq hrip.
-    - by rewrite inv_cs.
-    - exact: hscs.
-    - exact: hle_top.
-    exact: halloc_lin.
-  exists (top_stack (fmem fs)).
-  have align_range : (wunsigned (top_stack (fmem fs)) - wsize_size (lfd_align lfd_lp) <
-   wunsigned (align_word (lfd_align lfd_lp) (top_stack (fmem fs))) <=
-   wunsigned (top_stack (fmem fs)))%Z.
-  - have /= := [elaborate (align_word_range (lfd_align lfd_lp) (top_stack (fmem fs)))]. by [].
-  have top_range : (0 <= wunsigned (top_stack (fmem fs)) < wbase Uptr)%Z.
-  - have /= := [elaborate (wunsigned_range (top_stack (fmem fs)))]. by [].
-  have stk_range : (0 <= wunsigned (stack_limit (fmem fs)) < wbase Uptr)%Z.
-  - have /= := [elaborate (wunsigned_range (stack_limit (fmem fs)))]. by [].
-  have halloc' :
-    (0 <= lfd_stk_max lfd_lp + wsize_size (lfd_align lfd_lp) - 1 <=
-     wunsigned (top_stack (fmem fs)) - wunsigned (stack_limit (fmem fs)))%Z.
-  - move: halloc; rewrite /allocatable_stack /lfd_total_stack /tunneling.tunnel_lfundef /=.
-    by rewrite -inv_export -inv_stkmax -inv_align lp_export /=.
-  have! hlfd_stk := (get_fundef_p' ok_lp get_sfd).
-  rewrite get_lfd_lp in hlfd_stk.
-  injection hlfd_stk => {}hlfd_stk.
-  have stk_max_eq : lfd_stk_max lfd_lp = sf_stk_max (f_extra fd).
-  - by rewrite hlfd_stk.
-  have! := (linearization_proof.checked_prog ok_lp get_sfd).
-  rewrite /check_fd /=; t_xrbindP=> _ _ _ _ ok_stk_sz _ _ _.
-  case/and4P: ok_stk_sz => /ZleP stk_sz_pos /ZleP stk_extra_sz_pos _ /ZleP stk_frame_le_max.
-  have hfb := frame_size_bound stk_sz_pos stk_extra_sz_pos.
-  have lfd_stk_pos : (0 <= lfd_stk_max lfd_lp)%Z.
-  - rewrite stk_max_eq.
-    eapply Z.le_trans; last exact stk_frame_le_max.
-    eapply Z.le_trans; last exact hfb. lia.
-  have H6''' :
-    (0 <= wunsigned (align_word (lfd_align lfd_lp) (top_stack (fmem fs))) - lfd_stk_max lfd_lp < wbase Uptr)%Z.
-  - split.
-    + lia.
-    + have upper : (wunsigned (align_word (lfd_align lfd_lp) (top_stack (fmem fs))) < wbase Uptr)%Z.
-      * eapply Z.le_lt_trans; last exact (proj2 top_range).
-        apply align_range.
-      lia.
-  have bottom_instack:
-    zbetween
-      (stack_limit (fmem fs))
-      (wunsigned (top_stack (fmem fs)) - wunsigned (stack_limit (fmem fs)))
-      (align_word (lfd_align lfd_lp) (top_stack (fmem fs))
-       - wrepr Uptr (lfd_stk_max lfd_lp))%R
-      (lfd_stk_max lfd_lp).
-  - rewrite /zbetween !zify.
-    rewrite wunsigned_sub //. lia.
-  split=> //.
-  + by rewrite rsp_eq' rsp_eq hrsp.
-  + move: halloc.
-    rewrite /allocatable_stack /lfd_total_stack /tunneling.tunnel_lfundef /=.
-    rewrite -inv_export -inv_stkmax -inv_align lp_export /=.
-    have /= := [elaborate (wunsigned_range (stack_limit (fmem fs)))].
-    lia.
-  rewrite /valid_between.
-  move=> pr /(zbetween_trans bottom_instack).
-  rewrite -/(between _ _ _ _) -pointer_range_between => hpr.
-  apply hm.(valid_stk).
-  apply /pointer_rangeP.
-  apply: pointer_range_incl_r hpr.
-  exact: top_stack_below_root.
+apply: (wkequiv_io_trans
+  (P23 := lin_pre sp lp rip fn) (Q23 := lin_post sp lp fn)
+  _ _ wovm).
+- exact: trans_pre_ovm_lin.
+- exact: trans_post_ovm_lin.
 
-(* post composition: combine linearization post with stack-zero post *)
-(* Target post: values_uincl, match_mem, fscs_eq, zeroized_s *)
-move=> i1 i2 i3 o1 o3
-  [hrsp hmem hargs hrip hinit hscs hbound]
-  halloc
-  [ptr [hrsp_eq heq hle hvalid_btw]]
-  [o2
-     [hrsp_o2 hmem_o2 tmu hvals_o2 hscs_o2 hss halloc_lin]
-     [ptr' [hrsp_eq' hscs_eq hvm_eq hmmz]]
-  ].
-subst i3.
-move: hrsp_eq hrsp_eq'; rewrite hrsp => -[] ?; subst ptr => -[] ?; subst ptr'.
-set bottom : pointer := (align_word (lfd_align lfd_lp) (top_stack (fmem i1))
-               - wrepr Uptr (lfd_stk_max lfd_lp))%R.
-have! hlfd_stk := (get_fundef_p' ok_lp get_sfd).
-rewrite get_lfd_lp in hlfd_stk.
-injection hlfd_stk => {}hlfd_stk.
-have stk_max_eq : lfd_stk_max lfd_lp = sf_stk_max (f_extra fd)
-  by rewrite hlfd_stk.
-have align_eq : lfd_align lfd_lp = sf_align (f_extra fd)
-  by rewrite hlfd_stk.
-have! := (linearization_proof.checked_prog ok_lp get_sfd).
-rewrite /check_fd /=; t_xrbindP=> _ _ _ _ ok_stk_sz _ _ _.
-case/and4P: ok_stk_sz => /ZleP stk_sz_pos /ZleP stk_extra_sz_pos _ /ZleP stk_frame_le_max.
-have hfb := frame_size_bound stk_sz_pos stk_extra_sz_pos.
-have lfd_stk_pos : (0 <= lfd_stk_max lfd_lp)%Z.
-- rewrite stk_max_eq.
-  eapply Z.le_trans; last exact stk_frame_le_max.
-  eapply Z.le_trans; last exact hfb. lia.
-have top_range : (0 <= wunsigned (top_stack (fmem i1)) < wbase Uptr)%Z
-  by have /= := [elaborate (wunsigned_range (top_stack (fmem i1)))].
-have stk_range : (0 <= wunsigned (stack_limit (fmem i1)) < wbase Uptr)%Z
-  by have /= := [elaborate (wunsigned_range (stack_limit (fmem i1)))].
-have align_range : (wunsigned (top_stack (fmem i1)) - wsize_size (lfd_align lfd_lp) <
- wunsigned (align_word (lfd_align lfd_lp) (top_stack (fmem i1))) <=
- wunsigned (top_stack (fmem i1)))%Z
-  by have /= := [elaborate (align_word_range (lfd_align lfd_lp) (top_stack (fmem i1)))].
-have halloc_lp :
-  (0 <= lfd_stk_max lfd_lp + wsize_size (lfd_align lfd_lp) - 1 <=
-   wunsigned (top_stack (fmem i1)) - wunsigned (stack_limit (fmem i1)))%Z.
-- have := wsize_size_pos (lfd_align lfd_lp).
-  have heq1 := stk_max_eq.
-  have heq2 := align_eq.
-  move: halloc_lin.
-  by rewrite /allocatable_stack heq1 heq2.
-have H6''' :
-  (0 <= wunsigned (align_word (lfd_align lfd_lp) (top_stack (fmem i1))) - lfd_stk_max lfd_lp < wbase Uptr)%Z.
-- split; first lia.
-  have upper : (wunsigned (align_word (lfd_align lfd_lp) (top_stack (fmem i1))) < wbase Uptr)%Z.
-  + by eapply Z.le_lt_trans; [apply align_range | apply (proj2 top_range)].
-  lia.
-have bottom_instack:
-  zbetween
-    (stack_limit (fmem i1))
-    (wunsigned (top_stack (fmem i1)) - wunsigned (stack_limit (fmem i1)))
-    bottom
-    (lfd_stk_max lfd_lp).
-- rewrite /bottom /zbetween !zify.
-  rewrite wunsigned_sub //. lia.
-have no_overflow_bottom : no_overflow bottom (lfd_stk_max lfd_lp).
-- move: bottom_instack; rewrite /no_overflow /zbetween !zify.
-  lia.
-split.
-- (* values_uincl *)
-  rewrite /lget_res /lget_vars /= -inv_res.
-  suff heq : [seq (evm o3).[v_var x] | x <- lfd_res lfd_lp]
-           = [seq (evm o2).[v_var x] | x <- lfd_res lfd_lp].
-  + by rewrite heq; exact: hvals_o2.
-  apply map_ext => x hin.
-  symmetry; apply: hvm_eq.
-  by apply /sv_of_listP /in_map; exists x.
-- (* match_mem: combine hmem_o2 (match_mem fmem_o1 / emem_o2) with
-     hmmz (match_mem_zero_export emem_o2 / emem_o3) *)
-  move: hmmz; rewrite /match_mem_zero_export -/bottom /=.
-  case: (cparams.(stack_zero_info) fn) => [[szs ows]|] /=; last first.
-  + by move=> <-.
-  move=> hmm; split.
-  + move=> pr hb hval.
-    have := hmem_o2.(read_incl_mem) hb hval.
-    rewrite hmm.(read_untouched) //.
-    apply: not_between_U8_disjoint_zrange => //.
-    move=> /(zbetween_trans bottom_instack).
-    rewrite -/(between _ _ _ _) -pointer_range_between => /pointer_rangeP hpr.
-    apply: hb.
-    by rewrite -(ss_limit hss) -(ss_top_stack hss).
-  + move=> pr w hb ok_w.
-    (* hb says pr is in stack region of (fmem o1), but such pr is not valid,
-       contradicting readV ok_w *)
-    exfalso; apply/negP/(stack_region_is_free (m := fmem o1) (p := pr)).
-    * by rewrite (readV ok_w).
-    move: hb; rewrite /pointer_range.
-    by rewrite -/(top_stack _); lia.
-  + by move=> pr /hmem_o2.(valid_incl); rewrite hmm.(valid_eq).
-  move=> pr.
-  rewrite -hmm.(valid_eq).
-  by apply hmem_o2.(valid_stk).
-- by rewrite hscs_o2 hscs_eq.
-
-(* zeroized_s *)
-move=> hi; move: hmmz; rewrite /match_mem_zero_export.
-case hszs: stack_zero_info => [[szs ows]|] //= hmm pr hnvalid.
-case hb: (between bottom (lfd_stk_max lfd_lp) pr U8).
-+ by right; rewrite (hmm.(read_zero) hb).
-left; rewrite -hmm.(read_untouched); last first.
-+ apply not_between_U8_disjoint_zrange => //.
-  by apply /negP /negPf.
-rewrite -tmu //.
-- by apply/negP.
-(* ~ pointer_range (sp0 - wrepr max0) sp0 pr *)
-move: ok_zfd; rewrite /stack_zeroization_lfd hszs.
-have lp_export' : lfd_export lfd_lp && (0 <? lfd_stk_max lfd_lp)%Z =
-                  (0 <? lfd_stk_max lfd_lp)%Z
-  by rewrite lp_export.
-rewrite lp_export' /=.
-case: ZltP => [Hmaxpos | Hmaxnpos]; last first.
-{ (* lfd_stk_max = 0: range is empty *)
-  move=> _.
-  have Hmax0 : sf_stk_max (f_extra fd) = 0%Z.
-  { rewrite -stk_max_eq. apply: Z.le_antisymm lfd_stk_pos.
-    by apply/Z.nlt_ge/Hmaxnpos. }
-  rewrite Hmax0 wrepr0 GRing.subr0.
-  rewrite /pointer_range; move=> /andP [/ZleP Ha /ZltP Hb]; lia. }
-rewrite /stack_zeroization_lfd_body; t_xrbindP => halign _ _ _ _ _.
-have hexp : is_RAnone (sf_return_address (f_extra fd)) by move: lp_export; rewrite hlfd_stk /=.
-have Hframe_eq : lfd_frame_size lfd_lp = (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))%Z.
-  by rewrite hlfd_stk /= /frame_size hexp.
-have Hsum_nn : (0 <= sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))%Z
-  := Z.add_nonneg_nonneg _ _ stk_sz_pos stk_extra_sz_pos.
-have Hws : (0 < wsize_size (sf_align (f_extra fd)))%Z := wsize_size_pos _.
-have Hmax_le_top : (sf_stk_max (f_extra fd) <= wunsigned (top_stack (fmem i1)))%Z.
-  apply: (Z.le_trans _ (lfd_stk_max lfd_lp + wsize_size (lfd_align lfd_lp) - 1)%Z _ _ hle).
-  rewrite stk_max_eq.
-  generalize (wsize_size_pos (lfd_align lfd_lp)). clear. intros. lia.
-have Hsum_le_top : (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd) <=
-                    wunsigned (top_stack (fmem i1)))%Z.
-  apply: (Z.le_trans _ _ _ hfb).
-  apply: (Z.le_trans _ _ _ stk_frame_le_max Hmax_le_top).
-have Hrng : (0 <= wunsigned (top_stack (fmem i1)) -
-             (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)) < wbase Uptr)%Z.
-  split.
-  - generalize Hsum_le_top. clear. intros. lia.
-  - generalize top_range Hsum_nn. clear. intros. lia.
-have Halign_final :
-  is_align (Pointer := WArray.PointerZ)
-    (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))%Z (sf_align (f_extra fd)).
-  by move: halign; rewrite Hframe_eq align_eq.
-rewrite /align_top_stack ([elaborate align_top_aligned Hsum_nn Hrng Halign_final]).
-rewrite pointer_range_between.
-rewrite -align_eq.
-have Hbottom_eq :
-  (align_word (lfd_align lfd_lp) (top_stack (fmem i1)) -
-   wrepr Uptr (sf_stk_max (f_extra fd)))%R = bottom.
-  by rewrite /bottom stk_max_eq.
-rewrite Hbottom_eq.
-have Hsize_eq :
-  (wunsigned (align_word (lfd_align lfd_lp) (top_stack (fmem i1))) -
-   wunsigned bottom)%Z = lfd_stk_max lfd_lp.
-  rewrite /bottom wunsigned_sub; last first.
-  - split; first exact: (proj1 H6''').
-    apply: (Z.le_lt_trans _ (wunsigned (top_stack (fmem i1)))); last exact (proj2 top_range).
-    apply: (Z.le_trans _ (wunsigned (align_word (lfd_align lfd_lp) (top_stack (fmem i1))))).
-    + generalize lfd_stk_pos. clear. intros. lia.
-    + apply (proj2 align_range).
-  generalize (wunsigned (align_word (lfd_align lfd_lp) (top_stack (fmem i1)))) (lfd_stk_max lfd_lp).
-  clear. intros. lia.
-rewrite Hsize_eq.
-by apply/negP; rewrite hb.
+apply: (wkequiv_io_trans
+  (P23 := sz_pre lp lfd) (Q23 := sz_post szs_of_fn lp fn lfd)
+  _ _ wlin).
+- exact: trans_pre_lin_sz.
+- exact: trans_post_lin_sz.
+exact: wsz.
 Qed.
 
 End BACK_END.
@@ -1114,8 +920,13 @@ have rsp_in_callee_saved :
 - rewrite -meta_rsp -ok_lp_rsp.
   apply/sv_of_listP.
   exact: (map_f var_of_asm_typed_reg callee_saved_has_rsp).
+have cs_not_arr :
+  forall x, Sv.In x one_varmap.callee_saved -> ~ is_aarr (vtype x).
+- move=> x /sv_of_listP /mapP [/= r _ ->]; by case: r.
+
 have [lfd [get_lfd lfd_export w_be]] :=
-  it_compiler_back_endP (tp := lp) rip rsp_in_callee_saved ok_lp ok_fn.
+  it_compiler_back_endP (tp := lp) rip rsp_in_callee_saved ok_lp
+    ok_fn.
 have [xfd ok_get_xfd ok_xfd] := ok_get_fundef ok_xp get_lfd.
 case/assemble_fdI: (ok_xfd) =>
   rsp_not_arg ok_callee_saved_lfd
@@ -1135,8 +946,7 @@ apply: (
     w_be
     _
 ).
-- (* hpre: build intermediate estate from asmmem *)
-  move=> fs xm [hrsp hrip hargs hmm hscs hstk].
+- move=> fs xm [hrsp hrip hargs hmm hscs hstk].
   have Meq :=
     lom_eqv_estate_of_asm_mem (top_stack (fmem fs)) (lp_rsp lp) xm disj_rip.
   exists (estate_of_asm_mem (top_stack (fmem fs)) (lp_rip lp) (lp_rsp lp) xm)
@@ -1162,8 +972,7 @@ apply: (
          (top_stack (fmem fs)) (lp_rip lp) (lp_rsp lp) xm
          callee_saved_not_bool).
   exact: Meq.
-- (* hpost: combine the back-end post and the lom_eqv bridge *)
-  move=> fs ls xm fs' xm' _ [_ Meq] [ls' [hvals hmm' hscs' hzero] Meq'].
+- move=> fs ls xm fs' xm' _ [_ Meq] [ls' [hvals hmm' hscs' hzero] Meq'].
   split.
   + rewrite hxfd /=.
     apply: (values_uincl_trans hvals).
@@ -1174,7 +983,6 @@ apply: (
   case: Meq  => /= _ heq_mem  _ _ _ _ _ _.
   case: Meq' => /= _ heq_mem' _ _ _ _ _ _.
   by rewrite -heq_mem -heq_mem'.
-(* bridge step: iasm_gen_exportcall *)
 move=> ls xm [hvm_init Meq].
 exact: (iasm_gen_exportcall (hap_hagp haparams) ok_xp fn hvm_init Meq).
 Qed.
@@ -1273,8 +1081,7 @@ have [fs_sp [? hsp_scs hsp_eqinmem hsp_uincl hsp_ptr_eq]] :
                 (get_wptrs up fn) (fvals fs_sp)
                 (get_typed_reg_values xm (asm_fd_arg xfd))
     ].
-- (* Transfer hfuim from mt = asm_mem xm to mi *)
-  have [hsize1 hsize2] := Forall3_size hfuim.
+- have [hsize1 hsize2] := Forall3_size hfuim.
   have hfuim_mi :
     Forall3 (value_uincl_or_in_mem mi) (get_wptrs up fn) (fvals fs)
       (get_typed_reg_values xm (asm_fd_arg xfd)).
@@ -1289,7 +1096,6 @@ have [fs_sp [? hsp_scs hsp_eqinmem hsp_uincl hsp_ptr_eq]] :
     rewrite -ok_w; apply (match_mem_read_incl_mem hmga.(ma_match_mem)).
     apply hargp.(wap_valid).
     by apply (between_byte hargp.(wap_no_overflow) (zbetween_refl _ _) hoff).
-  (* Construct fs_sp with va2 = map3 (ptr → argt, non-ptr → src) *)
   exists {| fscs := fscs fs; fmem := mi
           ; fvals := map3 (fun o v v' => if o is Some _ then v' else v)
                           (get_wptrs up fn) (fvals fs)
@@ -1309,8 +1115,7 @@ have [fs_sp [? hsp_scs hsp_eqinmem hsp_uincl hsp_ptr_eq]] :
       case: wptr h => [writable h | h] /=.
       * exact: value_uincl_refl.
       * exact: h.
-  + (* hsp_ptr_eq: at pointer positions, fvals fs_sp = argt *)
-    elim: hfuim_mi => /=.
+  + elim: hfuim_mi => /=.
     - by constructor.
     - move=> wptr v v' wptrs' vs argt' _ _ ih.
       constructor; last exact: ih.
@@ -1385,8 +1190,6 @@ have /BE h_be : back_end_to_asm_pre (asm_rip xm) xfd fs_sp xm.
   - exact: hsp_uincl. (* values_uincl (fvals fs_sp) argt — STEP 1 output *)
   - exact: hmga.(ma_match_mem).
   - by rewrite hsp_scs hscs_eq.
-  (* allocatable_stack (fmem fs_sp) (asm_fd_total_stack xfd)
-     mirrors compiler_proof.v:1297-1299 *)
   rewrite /allocatable_stack.
   have hrange := hmga.(ma_stack_range).
   have hstk /= := hesp xfd get_xfd.
@@ -1395,13 +1198,13 @@ have /BE h_be : back_end_to_asm_pre (asm_rip xm) xfd fs_sp xm.
   apply: Z.le_trans; first exact: hstk.2.
   apply Z.sub_le_mono_l; exact: hrange.
 
-have hinv :=
+have hinv := [elaborate
   iasmsem_exportcall_invariantP
     (call_conv := call_conv)
     (asm_scsem := asm_scsem)
     (wE := wE)
-    xp fn xm.
-have {}h_be := [elaborate lutt_xrutt_trans_r (hinv _ _) h_be ].
+    xp fn xm].
+have {}h_be := lutt_xrutt_trans_r hinv h_be.
 clear hinv.
 
 apply: xrutt_weaken_v1;

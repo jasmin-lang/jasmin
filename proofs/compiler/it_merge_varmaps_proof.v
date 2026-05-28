@@ -1271,39 +1271,43 @@ Proof.
   by rewrite /= bind_ret_l; apply xrutt.xrutt_Ret; split => //; exists vres'; split.
 Qed.
 
+Definition ovm_pre fn fs t :=
+  [/\ fscs fs = escs t
+    , fmem fs = emem t
+    & let m := fmem fs in
+      let tvm1 := evm t in
+      let args := fvals fs in
+      match get_fundef (p_funcs p) fn with
+      | Some fd =>
+         ∃ (args' : seq value),
+           [/\ tvm1.[vrsp] = Vword (top_stack m)
+             , tvm1.[vgd] = Vword global_data
+             , get_var_is false tvm1 (f_params fd) = ok args'
+             & List.Forall2 value_uincl args args']
+      | None => true
+      end].
+
+Definition ovm_post fn fs' t' :=
+  [/\ fscs fs' = escs t'
+    , fmem fs' = emem t'
+    & let m' := fmem fs' in
+      let res := fvals fs' in
+      let tvm2 := evm t' in
+      match get_fundef (p_funcs p) fn with
+      | Some fd =>
+        ∃ (res' : seq value),
+          get_var_is false tvm2 (f_res fd) = ok res' /\
+          List.Forall2 value_uincl res res'
+      | None => false
+      end].
+
 Lemma merge_varmaps_export_call_checkP fn:
   is_export p fn →
   wkequiv
-    (fun fs t =>
-      [/\ fscs fs = escs t
-        , fmem fs = emem t
-        & let m := fmem fs in
-          let tvm1 := evm t in
-          let args := fvals fs in
-          match get_fundef (p_funcs p) fn with
-          | Some fd =>
-             ∃ (args' : seq value),
-               [/\ tvm1.[vrsp] = Vword (top_stack m)
-                 , tvm1.[vgd] = Vword global_data
-                 , get_var_is false tvm1 (f_params fd) = ok args'
-                 & List.Forall2 value_uincl args args']
-          | None => true
-          end])
+    (ovm_pre fn)
     (isem_fun p global_data fn)
     (it_sems_one_varmap.isem_exportcall_check var_tmps p global_data fn)
-    (fun fs' t' =>
-      [/\ fscs fs' = escs t'
-        , fmem fs' = emem t'
-        & let m' := fmem fs' in
-          let res := fvals fs' in
-          let tvm2 := evm t' in
-          match get_fundef (p_funcs p) fn with
-          | Some fd =>
-            ∃ (res' : seq value),
-              get_var_is false tvm2 (f_res fd) = ok res' /\
-              List.Forall2 value_uincl res res'
-          | None => false
-          end]).
+    (ovm_post fn).
 Proof.
   move=> /merge_varmaps_export_callP => h fs s /h.
   have -> // : isem_exportcall var_tmps p global_data fn s ≈ isem_exportcall_check var_tmps p global_data fn s.

@@ -673,11 +673,6 @@ Proof.
   by apply eqit_Vis => -[].
 Qed.
 
-#[local] Instance EqRels : EventRels E0 :=
-  {| EPreRel0_  := rutt_extras.RPre_eq;
-    EPostRel0_ := rutt_extras.RPost_eq;
-  |}.
-
 Lemma unfold_mix_ilsteps cond s :
   mix_ilsteps cond s ≈
     (ins <- while_body cond mix_ilstep s;;

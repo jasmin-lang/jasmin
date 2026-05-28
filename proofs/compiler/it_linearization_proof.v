@@ -31,11 +31,6 @@ Require Import linearization_proof.
 
 Import Memory.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-Set Warnings "-notation-overridden,-extraction-reserved-identifier,-extraction-opaque-accessed,-ambiguous-paths,-redundant-canonical-projection,-projection-no-head-constant,-postfix-notation-not-level-1,-deprecated-since-mathcomp-2.4.0,-deprecated-since-mathcomp-2.5.0,-deprecated-from-Coq,-deprecated-dirpath-Coq,-deprecated-reference-since-9.1,-rewrite-rw".
-
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
 #[local] Existing Instance withsubword.
@@ -4461,7 +4456,7 @@ Qed.
 
   Context (callee_saved_not_arr : forall x, Sv.In x callee_saved -> ~is_aarr (vtype x)).
 
-  Lemma linear_exportcallP gd fn :
+  Lemma linear_exportcall_mixP gd fn :
     wkequiv_io
       (preF_export gd fn)
       (isem_exportcall_check var_tmps p gd fn)
@@ -4602,6 +4597,28 @@ Qed.
       by rewrite Export -heq => /sv_of_listP.
     move=> res; apply: (get_var_is_uincl_on vm2_vmo).
     by move=> x hx; apply/Sv_memP/sv_of_listP/in_map; exists x.
+  Qed.
+
+  (* TODO rename previous *)
+  Definition lin_pre := preF_export.
+  Definition lin_post := postF_export.
+
+  Lemma linear_exportcallP gd fn :
+    wkequiv_io
+      (lin_pre gd fn)
+      (isem_exportcall_check var_tmps p gd fn)
+      (ilsem_exportcall p' fn)
+      (lin_post fn).
+  Proof.
+  have wlin := [elaborate linear_exportcall_mixP] gd fn.
+  have wmix := [elaborate mix_ilsem_exportcall_ilsem_exportcall p' fn ].
+  apply: (wkequiv_io_trans
+    (rE23 := EqRels)
+    (P23 := eq) (Q23 := fun _ _ => eq)
+    _ _ wlin).
+  - by move=> i1 i3 ?; exists i3.
+  - by move=> i1 i2 _ o1 o3 _ <- [?? <-].
+  by move=> s _ <-; apply: (xrutt_EqRels _ (wmix _)).
   Qed.
 
 End PROOF.

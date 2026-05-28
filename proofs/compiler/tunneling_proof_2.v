@@ -18,7 +18,8 @@ Import word_ssrZ.
 
 Local Open Scope seq_scope.
 
-Require Import oseq seq_extra unionfind tunneling unionfind_proof.
+Require Export tunneling.
+Require Import oseq seq_extra unionfind unionfind_proof.
 Require Import linear_sem.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
