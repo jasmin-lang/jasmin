@@ -952,6 +952,9 @@ Proof.
     + move=> /= pr hb hval.
       have := M'.(read_incl_mem) hb hval.
       rewrite hmm.(read_untouched) //.
+
+      (* ------------------------------------------------- *)
+
       apply not_between_U8_disjoint_zrange => //.
       move=> /(zbetween_trans bottom_instack).
       rewrite -/(between _ _ _ _) -pointer_range_between => /pointer_rangeP.

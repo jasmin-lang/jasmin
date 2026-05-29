@@ -1274,9 +1274,9 @@ Qed.
 Definition ovm_pre fn fs t :=
   [/\ fscs fs = escs t
     , fmem fs = emem t
-    & let m := fmem fs in
-      let tvm1 := evm t in
-      let args := fvals fs in
+    & let: m := fmem fs in
+      let: tvm1 := evm t in
+      let: args := fvals fs in
       match get_fundef (p_funcs p) fn with
       | Some fd =>
          ∃ (args' : seq value),
@@ -1290,9 +1290,9 @@ Definition ovm_pre fn fs t :=
 Definition ovm_post fn fs' t' :=
   [/\ fscs fs' = escs t'
     , fmem fs' = emem t'
-    & let m' := fmem fs' in
-      let res := fvals fs' in
-      let tvm2 := evm t' in
+    & let: m' := fmem fs' in
+      let: res := fvals fs' in
+      let: tvm2 := evm t' in
       match get_fundef (p_funcs p) fn with
       | Some fd =>
         ∃ (res' : seq value),

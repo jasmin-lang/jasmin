@@ -4414,7 +4414,7 @@ Qed.
 
   End STACK.
 
-  Definition preF_export (gd:word Uptr) fn (s : estate) (ls : estate) :=
+  Definition lin_pre (gd : word Uptr) fn (s : estate) (ls : estate) :=
     match get_fundef p.(p_funcs) fn, get_fundef p'.(lp_funcs) fn with
     | Some fd, Some lfd =>
       let vm := evm s in
@@ -4424,14 +4424,21 @@ Qed.
       [/\ lvm.[vid (lp_rsp p')] = Vword (top_stack m)
         , lvm.[vid (lp_rip p')] = Vword gd
         , vm_initialized_on lvm (lfd_callee_saved lfd)
-        , (fd.(f_extra).(sf_stk_max) + wsize_size fd.(f_extra).(sf_align) - 1 <= wunsigned (top_stack m))%Z
+        , (0 <= fd.(f_extra).(sf_stk_max) + wsize_size fd.(f_extra).(sf_align) - 1 <= wunsigned (top_stack m))%Z
         , vm <=1 lvm
         , escs s = escs ls
         & match_mem m lm ]
     | _, _ => true
     end.
 
-  Definition postF_export fn (s ls :estate) (s' ls':estate) :=
+  Definition lin_post_res (fd : sfundef) (lfd : lfundef) vm' lvm' :=
+    forall res,
+      get_var_is false vm' fd.(f_res) = ok res ->
+      exists2 res',
+        get_var_is false lvm' lfd.(lfd_res) = ok res'
+        & List.Forall2 value_uincl res res'.
+
+  Definition lin_post fn (s ls :estate) (s' ls':estate) :=
     match get_fundef p.(p_funcs) fn, get_fundef p'.(lp_funcs) fn with
     | Some fd, Some lfd =>
       let m := emem s in
@@ -4445,9 +4452,7 @@ Qed.
         , target_mem_unchanged m (align_top_stack (top_stack m) fd.(f_extra)) fd.(f_extra).(sf_stk_max) lm lm'
         , escs s' = escs ls'
         , stack_stable s.(emem) s'.(emem)
-        & forall res,   get_var_is false  vm' fd.(f_res) = ok res →
-          exists2 res', get_var_is false lvm' lfd.(lfd_res) = ok res' &
-             List.Forall2 value_uincl res res']
+        & lin_post_res fd lfd vm' lvm' ]
     | _, _ => false
     end.
 
@@ -4458,13 +4463,13 @@ Qed.
 
   Lemma linear_exportcall_mixP gd fn :
     wkequiv_io
-      (preF_export gd fn)
+      (lin_pre gd fn)
       (isem_exportcall_check var_tmps p gd fn)
       (mix_ilsem_exportcall p' fn)
-      (postF_export fn).
+      (lin_post fn).
   Proof.
     have tmp : True. auto.
-    move=> s ls; rewrite /preF_export /postF_export.
+    move=> s ls; rewrite /lin_pre /lin_post.
     rewrite /isem_exportcall_check /mix_ilsem_exportcall.
     case ok_fd: get_fundef => [fd | ] /=; last first.
     + rewrite bind_throw => _.
@@ -4598,10 +4603,6 @@ Qed.
     move=> res; apply: (get_var_is_uincl_on vm2_vmo).
     by move=> x hx; apply/Sv_memP/sv_of_listP/in_map; exists x.
   Qed.
-
-  (* TODO rename previous *)
-  Definition lin_pre := preF_export.
-  Definition lin_post := postF_export.
 
   Lemma linear_exportcallP gd fn :
     wkequiv_io
