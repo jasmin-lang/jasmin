@@ -91,12 +91,43 @@ Class pointer_op (pointer: eqType) : Type := PointerOp {
 
 Context {Pointer: pointer_op pointer}.
 
+Fixpoint pos_is_aligned_to (p: positive) (n: nat) {struct n} : bool :=
+  if n is n.+1 then
+    (if p is p~0 then
+      pos_is_aligned_to p n
+    else false)%positive
+  else true.
+
+Lemma pos_is_aligned_toE p n :
+  pos_is_aligned_to p n = (mod_pow2 p n == 0)%N.
+Proof.
+  elim: n p => // n ih [] // p /=.
+  - by case: (_ p n).
+  rewrite ih.
+  by case: (_ p n).
+Qed.
+
+Definition is_aligned_to (z: Z) (n: nat) : bool :=
+  match z with
+  | Z0 => true
+  | Zpos p => pos_is_aligned_to p n
+  | Zneg _ => z mod 2 ^ Z.of_nat n == 0
+  end.
+
 Definition is_align (p: pointer) (sz: wsize) : bool :=
-  (p_to_z p mod wsize_size sz == 0)%Z.
+  is_aligned_to (p_to_z p) (wsize_log2 sz).
 
 Lemma is_alignE p sz :
   is_align p sz = (p_to_z p mod wsize_size sz == 0)%Z.
-Proof. by []. Qed.
+Proof.
+  rewrite /is_align; case: (p_to_z p) => // {} p;
+  rewrite /is_aligned_to wsize_size_is_pow2;
+    last done.
+  rewrite pos_is_aligned_toE.
+  suff : (p mod 2 ^ Z.of_nat (wsize_log2 sz)) = Z.of_N (mod_pow2 p (wsize_log2 sz)).
+  - case: eqP; case: eqP; lia.
+  by rewrite mod_pow2E N2Z.inj_mod /= shift_nat_correct Zpower_nat_Z Z.mul_1_r.
+Qed.
 
 Global Opaque is_align.
 
