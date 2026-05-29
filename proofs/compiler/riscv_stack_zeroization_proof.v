@@ -254,7 +254,7 @@ Proof.
   have hn: (0 < wsize_size ws <= n)%Z.
   + split=> //.
     have := hsr.(sr_aligned).
-    rewrite /is_align WArray.p_to_zE.
+    rewrite is_alignE WArray.p_to_zE.
     move=> /eqP /Z.mod_divide [//|m ?].
     have ? := wsize_size_pos ws.
     have: (0 < m)%Z; nia.
@@ -361,7 +361,7 @@ Proof.
   move=> hsubset hsr hlt.
   have [k hn]: (exists k, n = Z.of_nat k * wsize_size ws)%Z.
   + have := hsr.(sr_aligned).
-    rewrite /is_align WArray.p_to_zE.
+    rewrite is_alignE WArray.p_to_zE.
     move=> /eqP /Z.mod_divide [//|m ?].
     exists (Z.to_nat m).
     rewrite Z2Nat.id //.
@@ -521,7 +521,7 @@ Local Opaque wsize_size Z.of_nat.
       rewrite Z2Nat.id; last by lia.
       rewrite Z.mul_sub_distr_r.
       rewrite Z.mul_comm -(proj2 (Z.div_exact _ _ _)) //.
-      by move: halign; rewrite /is_align WArray.p_to_zE => /eqP.
+      by move: halign; rewrite is_alignE WArray.p_to_zE => /eqP.
     rewrite addnS.
     apply: store_zero_eval_instr => //=.
     + by rewrite /get_var hsr.(sr_vzero).
@@ -578,7 +578,7 @@ Proof.
     exists k, (stk_max = Z.of_nat k * wsize_size ws)%Z
            /\ k <= Z.to_nat (stk_max / wsize_size ws).
   + have := halign.
-    rewrite /is_align WArray.p_to_zE.
+    rewrite is_alignE WArray.p_to_zE.
     move=> /eqP /Z.mod_divide [//|m h].
     exists (Z.to_nat m).
     split.

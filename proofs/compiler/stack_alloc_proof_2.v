@@ -939,7 +939,7 @@ Proof.
     apply is_align_add.
     + apply: is_align_m rip_align.
       by apply wsize_ge_U256.
-    rewrite WArray.arr_is_align.
+    rewrite WArray.arr_is_align is_alignE.
     by apply /eqP; apply (init_map_align heq).
   + rewrite /Addr /Align !(pick_slot_locals hin).
     move /in_Slots_slots : hin.
@@ -948,7 +948,7 @@ Proof.
     apply is_align_add.
     + apply: is_align_m rsp_align.
       by apply (init_stack_layout_stack_align heq).
-    rewrite WArray.arr_is_align.
+    rewrite WArray.arr_is_align is_alignE.
     by apply /eqP; apply (init_stack_layout_align heq).
   rewrite /Addr /Align !(pick_slot_params hin).
   by apply wf_Slots_params.
@@ -1169,7 +1169,7 @@ Proof.
       + by apply in_Slots; right; left.
       + by rewrite /Writable (pick_slot_locals hin).
       + by rewrite /Align (pick_slot_locals hin) /Align_locals /Align_slots heq.
-      + by rewrite WArray.arr_is_align; apply /eqP.
+      + by rewrite WArray.arr_is_align is_alignE; apply /eqP.
       + by rewrite /Addr (pick_slot_locals hin) /Addr_locals /Offset_slots heq.
       + by apply SvD.F.add_1.
       move=> w sw ofsw wsw' zw wf.
