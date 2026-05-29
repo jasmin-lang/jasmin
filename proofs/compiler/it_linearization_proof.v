@@ -4424,7 +4424,7 @@ Qed.
       [/\ lvm.[vid (lp_rsp p')] = Vword (top_stack m)
         , lvm.[vid (lp_rip p')] = Vword gd
         , vm_initialized_on lvm (lfd_callee_saved lfd)
-        , (0 <= fd.(f_extra).(sf_stk_max) + wsize_size fd.(f_extra).(sf_align) - 1 <= wunsigned (top_stack m))%Z
+        , (fd.(f_extra).(sf_stk_max) + wsize_size fd.(f_extra).(sf_align) - 1 <= wunsigned (top_stack m))%Z
         , vm <=1 lvm
         , escs s = escs ls
         & match_mem m lm ]
