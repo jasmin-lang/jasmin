@@ -21,4 +21,4 @@
 (library
  (name jasminc)
  (modules main_compiler)
- (libraries jasmin jasmin_checksafety linter))
+ (libraries jasmin linter))
