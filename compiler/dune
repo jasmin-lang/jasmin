@@ -33,4 +33,11 @@
  (modules jasmin2ec)
  (modes byte exe)
  (libraries commonCLI))
+
+(executable
+ (public_name jasmin-checksafety)
+ (name jasmin_checksafety)
+ (modules jasmin_checksafety)
+ (modes byte exe)
+ (libraries commonCLI jasmin_checksafety))
 )
