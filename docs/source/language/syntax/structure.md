@@ -20,11 +20,11 @@ namespace Crypto {
 <program> ::= <top-level-item>*
 
 <top-level-item> ::= <require>
-                    | <param>
-                    | <type-alias>
-                    | <global>
-                    | <function>
-                    | <namespace>
+                   | <param>
+                   | <type-alias>
+                   | <global>
+                   | <function>
+                   | <namespace>
 ```
 
 ## Require
