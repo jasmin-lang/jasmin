@@ -452,7 +452,7 @@ fn gimli(reg ptr u32[12] state) -> reg ptr u32[12] {
 This program is safe, as long as the `state` argument points to a valid memory region of at least 48 bytes, aligned for 32-bit accesses.
 This is automatically proved by the safety checker, called as follows:
 
-    jasminc -checksafety gimli.jazz
+    jasmin-checksafety gimli.jazz
 
 The EasyCrypt model for constant-time verification can be obtained by calling `jasmin2ec` as follows:
 
