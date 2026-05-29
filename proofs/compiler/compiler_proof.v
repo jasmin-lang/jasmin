@@ -931,6 +931,8 @@ Proof.
   + move: bottom_instack; rewrite /no_overflow /zbetween !zify.
     have /= := [elaborate (wunsigned_range (top_stack m))].
     by Lia.lia.
+
+    (* missing *)
   have hvalid: ∀ pr, between bottom (lfd_stk_max lfd) pr U8 → validw tm Aligned pr U8.
   + move=> pr /(zbetween_trans bottom_instack).
     rewrite -/(between _ _ _ _) -pointer_range_between => hpr.
@@ -942,6 +944,7 @@ Proof.
     stack_zeroization_lprogP (hap_hszp haparams) ok_zp lp_call ok_rsp''
       get_lfd H6'' hvalid.
   move: hmm; rewrite get_lfd -/bottom => hmm.
+    (* /missing *)
 
   exists zvm', zm'; split; cycle 1.
   - move: hmm.
@@ -952,16 +955,17 @@ Proof.
     + move=> /= pr hb hval.
       have := M'.(read_incl_mem) hb hval.
       rewrite hmm.(read_untouched) //.
-
-      (* ------------------------------------------------- *)
-
       apply not_between_U8_disjoint_zrange => //.
       move=> /(zbetween_trans bottom_instack).
       rewrite -/(between _ _ _ _) -pointer_range_between => /pointer_rangeP.
       have ss := sem_call_stack_stable_sprog exec_p.
       rewrite ss.(ss_limit) (ss_top_stack ss).
       have := [elaborate top_stack_below_root _ m']; rewrite -/(top_stack _) /=.
-      by clear -hb; Lia.lia.
+      move: hb. clear.
+      Lia.lia.
+
+      (* ------------------------------------------------- *)
+
     + move=> pr w hb ok_w.
       have := M'.(read_incl_stk) hb ok_w.
       rewrite hmm.(read_untouched) //.

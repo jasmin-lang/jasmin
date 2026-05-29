@@ -811,8 +811,8 @@ split.
     + rewrite /sm_lfd stkmax_lfd_sfd.
       have := [elaborate it_linearization_proof.checked_prog ok_lp get_sfd].
       rewrite /check_fd /=; t_xrbindP=> _ _ _ _ ok_stk_sz _ _ _.
-      move/and4P: ok_stk_sz => [/ZleP stk_sz_pos /ZleP stk_extra_sz_pos _ /ZleP
-        stk_frame_le_max].
+      case/and4P: ok_stk_sz => /ZleP stk_sz_pos /ZleP stk_extra_sz_pos _ /ZleP
+        stk_frame_le_max.
       have := frame_size_bound stk_sz_pos stk_extra_sz_pos.
       move: stk_sz_pos stk_extra_sz_pos stk_frame_le_max.
       t_lia.
@@ -824,8 +824,7 @@ split.
   set bottom : pointer :=
     (align_word (lfd_align lfd) ts_i2 - wrepr Uptr sm_lfd)%R.
   have bottom_instack :
-    zbetween
-      (stack_limit i2.(emem)) (wunsigned ts_i2 - wunsigned sl_i2) bottom sm_lfd.
+    zbetween sl_i2 (wunsigned ts_i2 - wunsigned sl_i2) bottom sm_lfd.
   + rewrite /bottom /zbetween !zify.
     move: alloc; rewrite /allocatable_stack.
     have /= := [elaborate align_word_range lfd.(lfd_align) ts_i2].
@@ -842,27 +841,36 @@ split.
     rewrite mmz_o34.(read_untouched) // al_tfd_lfd stkmax_tfd_lfd -/bottom.
     apply not_between_U8_disjoint_zrange.
     * exact: no_overflow_bottom.
+    move=> /(zbetween_trans bottom_instack).
+    rewrite -/(between _ _ _ _) -pointer_range_between => /pointer_rangeP.
+    rewrite /sl_i2 /ts_i2 stkstbl.(ss_limit) (ss_top_stack stkstbl).
+    have := [elaborate top_stack_below_root _ o2.(emem)].
+    rewrite -/(top_stack _) /=; move: o2.(emem) hb.
+    t_lia.
+  +
     admit.
-  + admit.
   + admit.
   admit.
 - by rewrite scs_o12 scs_o23 scs_o34.
 admit.
 Admitted.
 
-Lemma trans_pre_lin_sz lp fn sfd lfd i1 i3 :
+Lemma trans_pre_lin_sz_lin_sz lp fn sfd lfd i1 i3 :
+  lfd.(lfd_stk_max) = sfd.(f_extra).(sf_stk_max) ->
+  lfd.(lfd_align) = sfd.(f_extra).(sf_align) ->
   get_fundef (p_funcs sp) fn = Some sfd ->
   get_fundef (lp_funcs lp) fn = Some lfd ->
-  lin_pre sp lp rip fn i1 i3 ->
+  lin_sz_pre lp fn lfd i1 i3 ->
   exists2 i2, lin_pre sp lp rip fn i1 i2 & sz_pre lp lfd i2 i3.
 Proof.
-move=> get_sfd get_lfd h; exists i3; first exact: h.
+move=> stkmax_lfd_sfd al_lfd_sfd get_sfd get_lfd [h alloc].
+exists i3; first exact: h.
 move: h; rewrite /lin_pre get_sfd get_lfd.
-move=> [hrsp hrip init alloc uvm hscs mmem].
+move=> [hrsp hrip init alloc' uvm hscs mmem].
 exists (top_stack (emem i1)); split.
 - exact: hrsp.
 - by [].
-- admit. (* alloc *)
+- by rewrite stkmax_lfd_sfd al_lfd_sfd; case: alloc'.
 move=> p hp.
 admit.
 Admitted.
@@ -979,7 +987,7 @@ apply: (wkequiv_io_trans
   (P12 := lin_pre sp lp rip fn) (Q12 := lin_post sp lp fn)
   (P23 := sz_pre lp lfd) (Q23 := sz_post szi lp fn lfd)
   _ _ wlin).
-- by move=> >; apply: trans_pre_lin_sz get_sfd get_lfd.
+- by move=> >; apply: trans_pre_lin_sz_lin_sz get_sfd get_lfd.
 - move=> >; apply: trans_post_lin_sz.
   + by rewrite al_zfd.
   + by rewrite stkmax_zfd.
