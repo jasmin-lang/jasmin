@@ -95,6 +95,7 @@ ocaml:
     - compiler/jasmin2tex
     - compiler/jasmin2ec
     - compiler/jasminc
+    - compiler/jasmin-checksafety
     - compiler/jasmin-ct
 
 eclib:
