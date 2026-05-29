@@ -89,11 +89,48 @@ Class pointer_op (pointer: eqType) : Type := PointerOp {
 
 Context {Pointer: pointer_op pointer}.
 
-Definition is_align (p:pointer) (sz:wsize) :=
-  (p_to_z p mod wsize_size sz == 0)%Z.
+Fixpoint pos_is_aligned_to (p: positive) (n: nat) {struct n} : bool :=
+  if n is n.+1 then
+    (if p is p~0 then
+      pos_is_aligned_to p n
+    else false)%positive
+  else true.
+
+Lemma pos_is_aligned_toE p n :
+  pos_is_aligned_to p n = (mod_pow2 p n == 0)%N.
+Proof.
+  elim: n p => // n ih [] // p /=.
+  - by case: (_ p n).
+  rewrite ih.
+  by case: (_ p n).
+Qed.
+
+Definition is_aligned_to (z: Z) (n: nat) : bool :=
+  match z with
+  | Z0 => true
+  | Zpos p => pos_is_aligned_to p n
+  | Zneg _ => z mod 2 ^ Z.of_nat n == 0
+  end.
+
+Definition is_align (p: pointer) (sz: wsize) : bool :=
+  is_aligned_to (p_to_z p) (wsize_log2 sz).
+
+Lemma is_alignE p sz :
+  is_align p sz = (p_to_z p mod wsize_size sz == 0)%Z.
+Proof.
+  rewrite /is_align; case: (p_to_z p) => // {} p;
+  rewrite /is_aligned_to wsize_size_is_pow2;
+    last done.
+  rewrite pos_is_aligned_toE.
+  suff : (p mod 2 ^ Z.of_nat (wsize_log2 sz)) = Z.of_N (mod_pow2 p (wsize_log2 sz)).
+  - case: eqP; case: eqP; lia.
+  by rewrite mod_pow2E N2Z.inj_mod /= shift_nat_correct Zpower_nat_Z Z.mul_1_r.
+Qed.
+
+Global Opaque is_align.
 
 Lemma is_align8 p : is_align p U8.
-Proof. by rewrite /is_align Zmod_1_r. Qed.
+Proof. by rewrite is_alignE Zmod_1_r. Qed.
 
 Class coreMem (core_mem: Type) := CoreMem {
   get : core_mem -> pointer -> exec u8;
@@ -647,7 +684,7 @@ Proof.
 Qed.
 
 Lemma is_align_modE ptr sz : (wunsigned ptr mod wsize_size sz == 0)%Z = is_align ptr sz.
-Proof. by rewrite /is_align p_to_zE (rwP eqP). Qed.
+Proof. by rewrite is_alignE p_to_zE (rwP eqP). Qed.
 
 Lemma is_align_mod ptr sz : reflect (wunsigned ptr mod wsize_size sz = 0)%Z (is_align ptr sz).
 Proof. rewrite -is_align_modE; apply eqP. Qed.
@@ -670,6 +707,7 @@ Lemma is_align_m sz sz' (ptr: pointer) :
   is_align ptr sz →
   is_align ptr sz'.
 Proof.
+  rewrite !is_alignE.
   have wsnz s : wsize_size s ≠ 0.
   - by have := wsize_size_pos s.
   move => /wsize_size_le le /eqP /Z.mod_divide - /(_ (wsnz _)) /(Z.divide_trans _ _ _ le) {}le.
@@ -680,13 +718,13 @@ Lemma is_align_mul sz j : is_align (wrepr Uptr (wsize_size sz * j)) sz.
 Proof.
   have hn := wsize_size_pos sz.
   have hnz : wsize_size sz ≠ 0%Z by lia.
-  by rewrite /is_align p_to_zE wunsigned_repr mod_wbase_wsize_size Z.mul_comm Z_mod_mult.
+  by rewrite is_alignE p_to_zE wunsigned_repr mod_wbase_wsize_size Z.mul_comm Z_mod_mult.
 Qed.
 
 Lemma is_align_no_overflow ptr sz :
   is_align ptr sz → no_overflow ptr (wsize_size sz).
 Proof.
-  rewrite /no_overflow /is_align p_to_zE => /eqP ha; apply/ZleP.
+  rewrite /no_overflow is_alignE p_to_zE => /eqP ha; apply/ZleP.
   have hn := wsize_size_pos sz.
   have hnz : wsize_size sz ≠ 0%Z by lia.
   move: (wunsigned ptr) (wunsigned_range ptr) ha => {}ptr.
@@ -698,7 +736,7 @@ Qed.
 Notation do_align := align_word (only parsing).
 
 Lemma do_align_is_align sz p : is_align (do_align sz p) sz.
-Proof. apply align_word_aligned. Qed.
+Proof. rewrite is_alignE; apply align_word_aligned. Qed.
 
 Lemma is_align_array ptr sz j :
   is_align ptr sz → is_align (wrepr _ (wsize_size sz * j) + ptr)%R sz.
@@ -897,7 +935,7 @@ Lemma top_stack_after_aligned_alloc p ws sz :
   is_align p ws ->
   top_stack_after_alloc p ws sz = (p + wrepr Uptr (- round_ws ws sz))%R.
 Proof.
-  rewrite /is_align p_to_zE => /eqP hal.
+  rewrite is_alignE p_to_zE => /eqP hal.
   rewrite round_wsE.
   rewrite /top_stack_after_alloc.
   apply wunsigned_inj.

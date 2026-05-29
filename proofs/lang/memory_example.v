@@ -719,7 +719,7 @@ Module MemoryI : MemoryT.
     set x := (X in is_align X).
     have -> : x = align_word ws_stk (stk_root m - wrepr _ fs - (wrepr _ sz + wrepr _ sz')).
     + by rewrite /x; ssring.
-    rewrite /is_align p_to_zE; apply align_word_aligned.
+    rewrite is_alignE p_to_zE; apply align_word_aligned.
   Qed.
 
   Lemma ass_root m ws_stk sz ioff sz' m' :

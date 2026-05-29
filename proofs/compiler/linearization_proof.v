@@ -1842,7 +1842,7 @@ Section PROOF.
     is_align sz ws ->
     align_top top ws sz = align_word ws top.
   Proof.
-    move=> hpos hb hal.
+    rewrite is_alignE => hpos hb hal.
     rewrite /align_top /top_stack_after_alloc.
     apply wunsigned_inj.
     rewrite wunsigned_add; last first.
