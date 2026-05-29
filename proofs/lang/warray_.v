@@ -62,12 +62,12 @@ Module WArray.
   Context {pd: PointerData}.
 
   Lemma is_align_scale (p:pointer) ws : is_align (p * mk_scale AAscale ws)%Z ws.
-  Proof. by rewrite /is_align /mk_scale /= Z_mod_mult. Qed.
+  Proof. by rewrite is_alignE /mk_scale /= Z_mod_mult. Qed.
 
   Lemma arr_is_align i ws :
     is_align (wrepr Uptr i) ws = is_align i ws.
   Proof.
-    by rewrite /is_align [in RHS]p_to_zE memory_model.p_to_zE wunsigned_repr mod_wbase_wsize_size.
+    by rewrite !is_alignE [in RHS]p_to_zE memory_model.p_to_zE wunsigned_repr mod_wbase_wsize_size.
   Qed.
 
   Section CM.

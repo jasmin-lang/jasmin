@@ -1268,7 +1268,7 @@ Section EXPR.
     + apply (is_align_m halign).
       rewrite -hwf.(wfr_align).
       by apply (slot_align hwf.(wfr_slot)).
-    rewrite /is_align !p_to_zE.
+    rewrite !is_alignE !p_to_zE.
     have [cs ok_cs _] := hwf.(wfsr_zone).
     have := wunsigned_sub_region_addr hwf ok_cs.
     rewrite ok_w => -[_ [<-] ->].
