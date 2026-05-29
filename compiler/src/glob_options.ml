@@ -202,17 +202,17 @@ let options = [
     "-set0"     , Arg.Set set0          , " Use [xor x x] to set x to 0 (default is not)";
     "-noset0"   , Arg.Clear set0        , " Do not use set0 option";
     "-slice"    , Arg.String set_slice  , "[f] Keep function [f] and everything it needs";
-    "-checksafety", Arg.Unit set_checksafety, " Automatically check for safety";
+    "-checksafety", Arg.Unit set_checksafety, " Automatically check for safety (deprecated)";
     "-safetyparam", Arg.String set_safetyparam,
     " Parameter for automatic safety verification:\n    \
      format: \"f_1>param_1|f_2>param_2|...\" \
      where each param_i is of the form:\n    \
      pt_1,...,pt_n;len_1,...,len_k\n    \
      pt_1,...,pt_n: input pointers of f_i\n    \
-     len_1,...,len_k: input lengths of f_i";
-     "-safetyconfig", Arg.String set_safetyconfig, "[filename] Use filename (JSON) as configuration file for the safety checker";
-    "-safetymakeconfigdoc", Arg.String set_safety_makeconfigdoc, "[dir] Make the safety checker configuration docs in [dir]";
-    "-nocheckalignment", Arg.Set trust_aligned, " Do not report alignment issue as safety violations";
+     len_1,...,len_k: input lengths of f_i\n    (deprecated)";
+     "-safetyconfig", Arg.String set_safetyconfig, "[filename] Use filename (JSON) as configuration file for the safety checker (deprecated)";
+    "-safetymakeconfigdoc", Arg.String set_safety_makeconfigdoc, "[dir] Make the safety checker configuration docs in [dir] (deprecated)";
+    "-nocheckalignment", Arg.Set trust_aligned, " Do not report alignment issue as safety violations (deprecated)";
     "-wlea", Arg.Unit (add_warning UseLea), " Print warning when lea is used";
     "-wea", Arg.Unit (add_warning ExtraAssignment), " Print warning when extra assignment is introduced";
     "-winsertarraycopy", Arg.Unit (add_warning IntroduceArrayCopy), " Print warning when array copy is introduced";
