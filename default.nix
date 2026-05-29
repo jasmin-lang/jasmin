@@ -4,6 +4,8 @@
 , coqDeps ? !inCI
 , coqMaster ? false
 , ocamlDeps ? !inCI
+, pyDeps ? testDeps
+, runDeps ? testDeps
 , testDeps ? !inCI
 , devTools ? !inCI
 , ecRef ? ""
@@ -83,13 +85,16 @@ stdenv.mkDerivation {
       coqPackages.mathcomp-word
       coqPackages.ITree
     ]
-    ++ optionals testDeps ([ curl.bin oP.apron.out llvmPackages.bintools-unwrapped ] ++ (with python3Packages; [ python pyyaml ]))
+    ++ optionals runDeps [ curl.bin gmp oP.apron.out ]
+    ++ optionals pyDeps (with python3Packages; [ python pyyaml ])
+    ++ optionals testDeps [ llvmPackages.bintools-unwrapped ]
     ++ optionals ocamlDeps ([ dune ppl ] ++ (with oP; [
          ocaml findlib
          cmdliner
          angstrom
+         apron
          batteries
-         menhir menhirLib zarith apron yojson ]))
+         menhir menhirLib zarith yojson ]))
     ++ optionals devTools ([ coqPackages.coq-lsp ] ++ (with oP; [ merlin ocaml-lsp ]))
     ++ optionals ecDeps [ easycrypt z3.out ]
     ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
