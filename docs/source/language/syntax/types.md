@@ -4,7 +4,16 @@ Every variable in Jasmin has a type and a storage class.
 The type determines what values the variable can hold;
 the storage class determines where it lives at runtime (register, stack, etc.).
 
-## Scalar types
+## Types
+
+```
+<type> ::= "bool"
+         | "int"
+         | <word-type>
+         | <wint-type>
+         | <array-type>
+         | <ident>
+```
 
 ### Boolean
 
@@ -33,6 +42,10 @@ reg u64 x;
 stack u128 v;
 ```
 
+```
+<word-type> ::= "u8" | "u16" | "u32" | "u64" | "u128" | "u256"
+```
+
 Word types represent fixed-width bit vectors:
 
 | Type   | Width   |
@@ -59,6 +72,11 @@ reg ui64 x;
 reg si32 y;
 ```
 
+```
+<wint-type> ::= "ui8" | "ui16" | "ui32" | "ui64" | "ui128" | "ui256"
+              | "si8" | "si16" | "si32" | "si64" | "si128" | "si256"
+```
+
 Word-sized integers are bounded integers that are compiled to machine words.
 Unlike word types, arithmetic on word-sized integers follows integer semantics
 (e.g., overflow is undefined) rather than modular word semantics.
@@ -75,26 +93,7 @@ Unlike word types, arithmetic on word-sized integers follows integer semantics
 See the [semantics of scalar types](../semantics/scalar_types.md)
 for details on overflow behavior and conversion rules.
 
-### Summary
-
-```
-<type> ::= "bool"
-         | "int"
-         | <word-type>
-         | <wint-type>
-         | <array-type>
-         | <ident>
-
-<word-type> ::= "u8" | "u16" | "u32" | "u64" | "u128" | "u256"
-
-<wint-type> ::= "ui8" | "ui16" | "ui32" | "ui64" | "ui128" | "ui256"
-              | "si8" | "si16" | "si32" | "si64" | "si128" | "si256"
-```
-
-A `<type>` can also be an `<ident>` referring to a type alias
-(see [type aliases](structure.md#type-aliases)).
-
-## Array types
+### Array types
 
 ```
 stack u64[10] a;
@@ -105,9 +104,10 @@ stack u32[N] buf;   /* N is a param */
 An array type is written as a base type followed by a size in brackets:
 
 ```
-<array-type> ::= <type> "[" <expr> "]"
+<array-type> ::= (<word-type> | <ident>) "[" <expr> "]"
 ```
 
+The base type is either a word type or an alias to a word type.
 The size must be a compile-time constant expression
 (a literal, a `param`, or an expression involving only these).
 Arrays are fundamentally contiguous sequences of bytes in memory;
@@ -116,34 +116,18 @@ the element type determines the default access granularity.
 See the [semantics of arrays](../semantics/arrays.md) for details on
 access patterns and type punning.
 
-## SIMD vector sizes
+### Type aliases
 
-Pack expressions and some operator annotations use a *vector size* notation
-that specifies the number of lanes, signedness, and element width:
-
-```
-(4u64)[a, b, c, d]       /* 4 unsigned 64-bit lanes = 256 bits */
-(16u8)[0, 1, 2, ..., 15] /* 16 unsigned 8-bit lanes = 128 bits */
-x +4u64 y                /* parallel 4-lane 64-bit addition */
-```
-
-The notation is:
+A type alias (an ident) can be used anywhere a type is expected:
 
 ```
-<svsize> ::= <lane-count> <sign> <element-bits>
-
-<lane-count>   ::= "2" | "4" | "8" | "16" | "32"
-<sign>         ::= "u" | "s"
-<element-bits> ::= "1" | "2" | "4" | "8" | "16" | "32" | "64" | "128"
+type word = u64;
+reg word x;       /* equivalent to: reg u64 x */
 ```
 
-The total vector width is `<lane-count> * <element-bits>` and must match a
-supported word width.
-For example, `4u64` describes a 256-bit vector with four unsigned 64-bit elements;
-`16s8` describes a 128-bit vector with sixteen signed 8-bit elements.
-
-This notation appears in [pack expressions](expressions.md#pack-expressions)
-and as [operator annotations](expressions.md#binary-operators).
+Such aliases can be defined using `type` declarations
+(see [type aliases](structure.md#type-aliases)).
+Type aliases are resolved at parse time and do not introduce new types.
 
 ## Storage qualifiers
 
@@ -151,9 +135,11 @@ Every variable declaration must specify a storage class:
 
 ```
 reg u64 x;                /* register */
-stack u8[32] buf;         /* stack */
+stack u8[32] buf;         /* array in stack */
 inline int i;             /* compile-time constant */
 global u64 g;             /* global data */
+reg ptr u8[32] ptr;       /* pointer to array (the pointer lives in a register) */
+stack ptr u8[32] ptr;     /* pointer to array (the pointer lives in the stack) */
 ```
 
 ```
@@ -161,6 +147,9 @@ global u64 g;             /* global data */
             | "stack" <ptr>?
             | "inline"
             | "global"
+
+<ptr> ::= <writable>? "ptr"
+<writable> ::= "const" | "mut"
 ```
 
 ### `reg`
@@ -186,7 +175,7 @@ constants whose values are emitted as bytes in the `.data` section of the
 generated assembly. They are accessed via PC-relative addressing and cannot be
 modified at runtime.
 
-### Pointer qualifiers
+### `reg ptr` and `stack ptr`
 
 Register and stack variables can hold *pointers* to arrays:
 
@@ -197,26 +186,18 @@ reg mut ptr u64[10] p;       /* mutable pointer */
 stack ptr u64[10] sp;        /* stack pointer to array */
 ```
 
-```
-<ptr> ::= <writable>? "ptr"
-<writable> ::= "const" | "mut"
-```
-
 A pointer variable does not hold the array data itself; it holds a reference to
 an array that lives elsewhere (typically passed as a function argument).
 The `const` qualifier prevents writing through the pointer;
 `mut` explicitly marks it as writable (this is also the default when neither
 `const` nor `mut` is specified).
 
-## Type aliases
-
-Types can be given alternative names using `type` declarations
-(see [type aliases](structure.md#type-aliases)).
-A type alias can be used anywhere a type is expected:
-
-```
-type word = u64;
-reg word x;       /* equivalent to: reg u64 x */
-```
-
-Type aliases are resolved at parse time and do not introduce new types.
+:::{important}
+The storage modifiers can be seen as hints to the compiler.
+They do not carry any semantical meaning,
+actually they do not even appear in Jasmin's formal semantics.
+In particular, `reg ptr` and `stack ptr` are just arrays
+semantically-speaking.
+See the [semantics of arrays](../semantics/arrays.md)
+for more details on this.
+:::

@@ -29,8 +29,7 @@ Concrete examples always precede the grammar rules.
 
 The core Jasmin syntax is architecture-neutral. Architecture-specific features
 (intrinsic names, available register widths, alignment requirements) are noted
-inline where relevant. See the architecture-specific documentation for full
-details on each target.
+inline where relevant.
 
 :::{toctree}
 :maxdepth: 2

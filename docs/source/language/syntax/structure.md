@@ -48,7 +48,7 @@ of the `require` clause.
 The `from` variant searches for files in a named location. Named locations
 can be defined in two ways:
 
-- On the command line: `-I AES:actual/path/`
+- On the command line: `-I AES=actual/path/`
 - Via the environment variable `JASMINPATH`: `export JASMINPATH=AES=actual/path/`
 
 Multiple named paths can be specified by repeating `-I` or separating entries
@@ -57,8 +57,14 @@ with `:` in `JASMINPATH`.
 Both forms accept multiple file arguments:
 
 ```
+require "file1.jinc" "file2.jinc" "file3.jinc"
 from PATH require "file1.jinc" "file2.jinc" "file3.jinc"
 ```
+
+:::{note}
+An established practice is to name included files with a `.jinc` suffix.
+However, this is not mandatory. Any name (and thus any suffix) can be used.
+:::
 
 ## Parameters
 
@@ -71,11 +77,13 @@ param int BLOCK_SIZE = 4 * ROUNDS;
 <param> ::= "param" <type> <ident> "=" <expr> ";"
 ```
 
-A parameter is a named compile-time constant. Parameters can be used within
-types (e.g., as the size of an array), providing a limited form of genericity.
+A parameter is a named compile-time constant,
+defined in terms of literals and other parameters.
+Parameters can be used within types (e.g., as the size of an array),
+providing a limited form of genericity.
 
 Parameters are resolved by the compiler right after parsing. They do not appear
-in the formal (Coq) abstract syntax and have no formal semantics.
+in the formal (Rocq) abstract syntax and have no formal semantics.
 
 ## Type aliases
 
@@ -93,7 +101,8 @@ used anywhere a type is expected:
 
 ```
 reg word x;
-stack block buf;
+stack word[4] buf1;
+stack block buf2;
 ```
 
 Type aliases are resolved at parse time, like parameters. They cannot alias
@@ -127,6 +136,16 @@ The brace syntax allows initializing arrays element by element:
 ```
 u32[4] constants = { 0x61707865, 0x3320646e, 0x79622d32, 0x6b206574 };
 ```
+
+The string syntax can be used to initialize arrays of bytes:
+
+```
+u8[4] bytes = "abcd";
+```
+
+:::{caution}
+The strings are not automatically zero-terminated.
+:::
 
 ## Functions
 
@@ -202,6 +221,20 @@ Result types are declared after `->` and specify the storage and type
 (but not the name) of each result. The names of the returned values
 appear in the `return` statement at the end of the function body.
 
+:::{attention}
+The `return` statement can only reference variables, not expressions.
+:::
+
+Commas are used to separate result types and returned values.
+
+```
+fn min_max (reg u64 n m) -> reg u64, reg u64 {
+  reg u64 min max;
+  if (n < m) { min = n; max = m; } else { min = m; max = n; }
+  return min, max;
+}
+```
+
 A function with no results omits the `->`:
 
 ```
@@ -209,6 +242,8 @@ fn store(reg u64 p, reg u64 v) {
     [p] = v;
 }
 ```
+
+
 
 ### Safety contracts
 
@@ -219,7 +254,7 @@ Functions can be annotated with safety contracts for use with the
 #[safety = {
     args    = { x, y },
     res     = { r },
-    requires = x + y <u64 0xFFFFFFFFFFFFFFFF,
+    requires = x + y < 0xFFFFFFFFFFFFFFFF,
     ensures  = r == x + y
 }]
 fn add(reg u64 x, reg u64 y) -> reg u64 {
