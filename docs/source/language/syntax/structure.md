@@ -40,10 +40,10 @@ from AES require "aes.jinc"
             | "from" <ident> "require" <string>+
 ```
 
-A `require` clause includes the contents of another file.
+A require clause includes the contents of another file.
 Relative paths are resolved relative to the directory of the current file.
 The required file is treated as if its contents were placed at the location
-of the `require` clause.
+of the require clause.
 
 The `from` variant searches for files in a named location. Named locations
 can be defined in two ways:
