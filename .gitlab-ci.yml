@@ -83,7 +83,7 @@ coq-master:
 ocaml:
   stage: build
   variables:
-    EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true
+    EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true --arg safetyDeps true
   extends: .common
   needs:
   - coq-program
@@ -165,7 +165,7 @@ opam-from-tarball:
 check:
   stage: test
   variables:
-    EXTRA_NIX_ARGUMENTS: --arg testDeps true --arg ocamlDeps true
+    EXTRA_NIX_ARGUMENTS: --arg testDeps true --arg ocamlDeps true --arg safetyDeps true
   extends: .common
   needs:
   - coq-program
@@ -221,7 +221,7 @@ libjade:
     matrix:
       - PRIMITIVE: [ mldsa, mlkem, xmss ]
   variables:
-    EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true
+    EXTRA_NIX_ARGUMENTS: --arg testDeps true
   extends: .common
   needs:
   - coq-program
