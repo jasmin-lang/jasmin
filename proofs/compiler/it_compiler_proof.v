@@ -641,6 +641,7 @@ Context
 .
 
 #[local] Existing Instance withsubword.
+#[local] Existing Instance direct_c.
 
 Definition zeroized_p (ms mt mt' : mem) (p : pointer) : Prop :=
   ~~ validw ms Aligned p U8 ->
@@ -686,8 +687,10 @@ Definition back_end_post fn lfd s t s' t' :=
     & zeroized_s fn ms mt mt'
   ].
 
-Definition lin_post' lp fn i1 i2 o1 o2 :=
-  [/\ lin_post sp lp fn i1 i2 o1 o2 & validw i1.(emem) =3 validw o1.(emem) ].
+Definition ovm_post'
+  (fn : funname) (i1 : fstate) (i2 : estate) (o1 : fstate) (o2 : estate) :=
+  [/\ ovm_post sp fn o1 o2
+    & validw i2.(emem) =3 validw o2.(emem) ].
 
 Definition lin_sz_pre lp fn lfd i2 i3 :=
   [/\ lin_pre sp lp rip fn i2 i3
@@ -695,11 +698,8 @@ Definition lin_sz_pre lp fn lfd i2 i3 :=
 
 (* WARNING sz_post uses i3 twice. This might be incorrect, but it makes one of
    the proofs easy. Check if it's true. *)
-Definition lin_sz_post szi sp lp fn zfd (i1 i3 o1 o3 : estate) :=
-  exists o2,
-    [/\ lin_post sp lp fn i1 i3 o1 o2
-      , sz_post szi lp fn zfd i3 i3 o2 o3
-      & validw i1.(emem) =3 validw o1.(emem) ].
+Definition lin_sz_post szi sp lp fn zfd i1 i3 :=
+  rcompose (lin_post sp lp fn i1 i3) (sz_post szi lp fn zfd i3 i3).
 
 Ltac t_lia := clear; simpl; lia.
 
@@ -751,7 +751,7 @@ Proof.
 move=> + hvm; elim: xs => [//|x xs ih].
 rewrite sv_of_list_cons => hxs.
 rewrite /= (get_var_eq_on _ _ hvm); last SvD.fsetdec.
-rewrite ih //; SvD.fsetdec.
+by rewrite ih //; SvD.fsetdec.
 Qed.
 
 Lemma trans_post_ovm_lin_alloc lfd i2 :
@@ -843,12 +843,12 @@ Lemma trans_post_ovm_lin szi lp fn sfd lfd zfd tfd i1 i2 i3 o1 o4 :
   tfd.(lfd_stk_max) = lfd.(lfd_stk_max) ->
   ovm_pre sp rip fn i1 i2 ->
   lin_sz_pre lp fn lfd i2 i3 ->
-  rcompose (ovm_post sp fn) (lin_sz_post szi sp lp fn tfd i2 i3) o1 o4 ->
+  rcompose (ovm_post' fn i1 i2) (lin_sz_post szi sp lp fn tfd i2 i3) o1 o4 ->
   back_end_post fn tfd i1 i3 o1 o4.
 Proof.
 move=> ok_lp ok_zfd hszi get_sfd get_lfd exp_sfd al_lfd_sfd exp_lfd
   stkmax_lfd_sfd fs_lfd_sfd al_tfd_lfd res_tfd_lfd stkmax_tfd_lfd.
-move=> ++ [o2 + [o3 [++ valid]]].
+move=> ++ [o2 [+ valid] [o3 ++]].
 rewrite /ovm_pre /lin_sz_pre /lin_pre /ovm_post /lin_post /sz_post get_sfd
   get_lfd.
 move=> [scs_i12 mem_i12 -[vargs [rsp_sp rip_sp hvargs uvargs]]].
@@ -982,26 +982,18 @@ Lemma trans_post_lin_sz szi lp fn lfd tfd i1 i2 i4 o1 o3 :
   tfd.(lfd_res) = lfd.(lfd_res) ->
   lin_pre sp lp rip fn i1 i2 ->
   sz_pre lp lfd i2 i4 ->
-  rcompose (lin_post' lp fn i1 i2) (sz_post szi lp fn lfd i2 i4) o1 o3 ->
+  rcompose (lin_post sp lp fn i1 i2) (sz_post szi lp fn lfd i2 i4) o1 o3 ->
   lin_sz_post szi sp lp fn tfd i1 i4 o1 o3.
 Proof.
 move=> align_tfd stkmax_tfd res_tfd.
-move=> linpre [p [rsp_lp <- hp hvalid]] [o2 [linpost valid] szpost].
-exists o2; split=> //.
+move=> linpre [p [rsp_lp <- hp hvalid]] [o2 linpost szpost].
+exists o2; first exact: linpost.
 by rewrite /sz_post align_tfd stkmax_tfd res_tfd; apply: szpost.
 Qed.
 
-(* TODO lutt_xrutt_trans_l should be stated in weakened form...*)
-
-
-(* This is wrong, the [validw] condition should come from sp (carried through
-   ovm). I assume it at ovm for the moment. *)
-Lemma isem_exportcall_check_mem_equiv var_tmps fn i1 :
-  lutt
-    (fun _ => PredT) (fun _ => relT)
-    (fun o1 => mem_equiv (emem i1) (emem o1))
-    (isem_exportcall_check var_tmps sp rip fn i1).
-Proof using. Admitted.
+(* TODO
+   (1) introduce wkequiv-hoare lemmas like lutt_xrutt_trans_l
+   (2) lutt_xrutt_trans_l should be stated in weakened form *)
 
 Lemma it_compiler_back_endP {fn} :
   compiler_back_end aparams cparams entries sp = ok tp ->
@@ -1042,39 +1034,41 @@ have wovm := [elaborate
   merge_varmaps_export_call_checkP
     (p := sp) (global_data := rip) (fn := fn) checked_p hexp ] .
 set var_tmps := (X in isem_exportcall_check X) in wovm.
-
-(* Linearization *)
-(* This is wrong, the [validw] condition should come from sp (carried through
-   ovm) *)
-have wlin : [elaborate
+have {}wovm : [elaborate
   wkequiv_io
-    (lin_pre sp lp rip fn)
+    (ovm_pre sp rip fn)
+    (it_sems_core.isem_fun sp rip fn)
     (isem_exportcall_check var_tmps sp rip fn)
-    (ilsem_exportcall lp fn)
-    (lin_post' lp fn)].
-- move=> i1 i2 pre12.
-  have cs_not_arr :
-    forall x, Sv.In x one_varmap.callee_saved -> ~ is_aarr (vtype x).
-  + by move=> x /sv_of_listP /mapP [/= r _ ->]; case: r.
-  have wlin := [elaborate
-    linear_exportcallP
-      (hap_hlip haparams) vtmp_not_magic ok_lp cs_not_arr
-      (gd := rip) (fn := fn) ].
+    (ovm_post' fn) ].
+- move=> i1 i2 pre.
   have valid :
     lutt
-      (fun _ _ => True) (fun _ _ _ => True)
-      (fun o1 => validw i1.(emem) =3 validw o1.(emem))
-      (isem_exportcall_check var_tmps sp rip fn i1).
-  - by apply: (lutt_weaken _ _ _ (isem_exportcall_check_mem_equiv _ _ _))
-      => // ? [].
-  have {}wlin := lutt_xrutt_trans_l valid (wlin _ _ pre12).
+      (preInv (iE0 := trivial_invEvent _) (iEr := trivial_invErr))
+      (postInv (iE0 := trivial_invEvent _))
+      (fun o1 => validw i1.(fmem) =3 validw o1.(fmem))
+      (it_sems_core.isem_fun sp rip fn i1).
+  - have := [elaborate
+      sem_fun_mem_equiv_sprog sp rip (fn := fn) dummy_instr_info (i := i1) I
+    ].
+    by apply: lutt_weaken => // ? [].
+  have := lutt_xrutt_trans_l valid (wovm _ _ pre).
   apply:
     (xrutt_weaken_v2
-       (EE1 := errcutoff (is_error wE)) (EE2 := nocutoff)
-       _ _ _ _ _
-       wlin) => //.
+       (EE1 := errcutoff (is_error wE)) (EE2 := nocutoff) _ _ _ _ _) => //.
   + by move=> ???? [].
-  by move=> ?? [].
+  + by move=> ?? [].
+  move=> o1 o2 [{}valid post].
+  split; first exact: post.
+  by move: pre post => [_ <- _] [_ <- _]; apply: valid.
+
+(* Linearization *)
+have cs_not_arr :
+  forall x, Sv.In x one_varmap.callee_saved -> ~ is_aarr (vtype x).
++ by move=> x /sv_of_listP /mapP [/= r _ ->]; case: r.
+have wlin := [elaborate
+  linear_exportcallP
+    (hap_hlip haparams) vtmp_not_magic ok_lp cs_not_arr
+    (gd := rip) (fn := fn) ].
 
 (* Stack zeroization *)
 have [zfd ok_zfd get_zfd] :=
@@ -1103,7 +1097,7 @@ apply: wkequiv_io_eutt_r (tunnel_funcs ok_tp fn) _.
 
 (* OVM *)
 apply: (wkequiv_io_trans
-  (P12 := ovm_pre sp rip fn) (Q12 := fun _ _ => ovm_post sp fn)
+  (P12 := ovm_pre sp rip fn) (Q12 := ovm_post' fn)
   (P23 := lin_sz_pre lp fn lfd) (Q23 := lin_sz_post szi sp lp fn tfd)
   _ _ wovm).
 - move=> >.
@@ -1124,7 +1118,7 @@ apply: (wkequiv_io_trans
 
 (* Linearization *)
 apply: (wkequiv_io_trans
-  (P12 := lin_pre sp lp rip fn) (Q12 := lin_post' lp fn)
+  (P12 := lin_pre sp lp rip fn) (Q12 := lin_post sp lp fn)
   (P23 := sz_pre lp lfd) (Q23 := sz_post szi lp fn lfd)
   _ _ wlin).
 - by move=> >; apply: trans_pre_lin_sz_lin_sz get_sfd get_lfd.
