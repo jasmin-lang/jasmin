@@ -146,7 +146,7 @@ Definition pad0 (n : positive) (s : wseq) : wseq :=
 Lemma size_wseq_of_wvec n (v : wvec n) : size (wseq_of_wvec v) = n.
 Proof. by rewrite /wseq_of_wvec size_map size_enum_ord. Qed.
 
-(* TODO lia solves it in cil
+(* TODO lia used to solve it
 Lemma size_pad0 n s : size (pad0 n s) = n.
 Proof.
   rewrite /pad0 size_cat size_nseq size_take; case: ifP => ?; lia.

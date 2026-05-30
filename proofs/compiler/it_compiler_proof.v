@@ -61,7 +61,7 @@ Require Import
   asm_gen_proof
   sem_params_of_arch_extra.
 
-Require Import  asm_invariant .
+Require Import asm_invariant.
 
 Require Import hoare_valid.
 Require Import xrutt xrutt_facts.
@@ -149,6 +149,8 @@ Definition isem_asm (xp : asm_prog) :=
     (rE := rndE)
     xp.
 
+(* TODO maybe use [RPre_eq RPost_eq] or
+   [(EPreRel (rE0 := EqRels)) (EPostRel (rE0 := EqRels))]? *)
 Definition RndPre (A B : Type) : E0 A -> E0 B -> Prop :=
   fun '(Rnd scs1 n1) '(Rnd scs2 n2) => scs1 = scs2 /\ n1 = n2.
 
@@ -417,8 +419,7 @@ Definition front_end_pre : relPreF :=
       , wf_args_s fn ms mt args argt
       , Forall3 (value_eq_or_in_mem mt) (get_wptrs up fn) args argt
       , it_extend_mem ms mt
-      & fscs s = fscs t
-    ].
+      & fscs s = fscs t ].
 
 Definition front_end_post : relPostF :=
   fun fn _ s t s' t' =>
@@ -435,8 +436,7 @@ Definition front_end_post : relPostF :=
       , values_uincl (drop n ress) rest
       , it_extend_mem ms' mt'
       , mem_unchanged_params ms mt mt' (get_wptrs up fn) args argt
-      & fscs s' = fscs t'
-    ].
+      & fscs s' = fscs t' ].
 
 #[local]
 Instance FrontEndEquiv : EquivSpec :=
@@ -538,15 +538,13 @@ apply: (
   have hle1: n <= size fd.(f_params) by apply find_size.
   have [/esym size_vr1 /esym size_vr2] := Forall3_size vr2_wf.
   have [/esym size_va /esym size_va'] := Forall3_size heqinmem.
-  have /(f_equal size) := check_params; rewrite 2!size_map => /esym size_sao_params.
+  have /(f_equal size) := check_params.
+  rewrite 2!size_map => /esym size_sao_params.
   have hle2: n <= size vr.
   * have /(f_equal size) := check_return.
     rewrite size_cat size_map size_iota -size_vr1 => ->.
     exact: leq_addr.
 
-  (* [vr2_eqinmem] can be split into two thanks to [check_results]:
-     - the first [n] elements satisfy [value_in_mem];
-     - the other ones satisfy equality. *)
   have [vr2_inmem vr2_eq]:
     List.Forall2 (value_in_mem mi') (take n vr) (take n vr2) /\
       drop n vr1 = drop n vr2.
@@ -569,7 +567,6 @@ apply: (
     rewrite check_return nth_cat size_map size_iota lt_nm_n.
     by rewrite nth_nseq (ltn_sub2rE _ (leq_addr _ _)) -size_vr1 hi.
 
-    (* [vr2_wf] can be rewritten into an equality thanks to [check_results] *)
     have {}vr2_wf: take n vr2 = take n va'.
     + apply (eq_from_nth (x0 := Vbool true)).
     + rewrite size_takel; last by rewrite size_vr2 -size_vr1.
@@ -584,7 +581,6 @@ apply: (
       last by rewrite size_iota.
     by rewrite nth_iota //; case.
 
-    (* [fn_keep_only rminfo fn] is just [drop] thanks to [check_results] *)
     have rminfo_vr2: fn_keep_only rminfo fn vr2 = drop n vr2.
     + rewrite /fn_keep_only /rminfo /rp ok_fn.
       set k := size (sao_return (ao_stack_alloc (stackalloc cparams p1) fn)).
@@ -630,14 +626,18 @@ Qed.
 
 End FRONT_END.
 
+(* More stable than lia hopefully *)
+Ltac t_lia := clear; simpl; lia.
+
 Section BACK_END.
 
 Context
   (entries : seq funname)
-  (sp : sprog (pd := @_pd _ ep_of_asm_e) (asmop := @_asmop _ _ sip_of_asm_e))
-  (tp : lprog (asmop := @_asmop _ _ sip_of_asm_e))
+  (sp : sprog (pd := ep_of_asm_e.(_pd)) (asmop := sip_of_asm_e.(_asmop)))
+  (tp : lprog (asmop := sip_of_asm_e.(_asmop)))
   (rip : pointer)
-  (rsp_in_callee_saved : Sv.In (vid sp.(p_extra).(sp_rsp)) one_varmap.callee_saved)
+  (rsp_in_callee_saved :
+    Sv.In (vid sp.(p_extra).(sp_rsp)) one_varmap.callee_saved)
 .
 
 #[local] Existing Instance withsubword.
@@ -646,8 +646,7 @@ Context
 Definition zeroized_p (ms mt mt' : mem) (p : pointer) : Prop :=
   ~~ validw ms Aligned p U8 ->
   [\/ read mt' Aligned p U8 = read mt Aligned p U8
-    | read mt' Aligned p U8 = ok 0%R
-  ].
+    | read mt' Aligned p U8 = ok 0%R ].
 
 Definition zeroized_s fn ms mt mt' :=
   cparams.(stack_zero_info) fn <> None ->
@@ -670,8 +669,7 @@ Definition back_end_pre lfd s t :=
     , match_mem ms mt
     , s.(fscs) = t.(escs)
     , vm_initialized_on vmt lfd.(lfd_callee_saved)
-    & allocatable_stack ms (lfd_total_stack lfd)
-  ].
+    & allocatable_stack ms (lfd_total_stack lfd) ].
 
 Definition back_end_post fn lfd s t s' t' :=
   let: ms := s.(fmem) in
@@ -684,8 +682,7 @@ Definition back_end_post fn lfd s t s' t' :=
   [/\ values_uincl ress rest
     , match_mem ms' mt'
     , s'.(fscs) = t'.(escs)
-    & zeroized_s fn ms mt mt'
-  ].
+    & zeroized_s fn ms mt mt' ].
 
 Definition ovm_post'
   (fn : funname) (i1 : fstate) (i2 : estate) (o1 : fstate) (o2 : estate) :=
@@ -696,12 +693,9 @@ Definition lin_sz_pre lp fn lfd i2 i3 :=
   [/\ lin_pre sp lp rip fn i2 i3
     & allocatable_stack i2.(emem) (lfd_total_stack lfd) ].
 
-(* WARNING sz_post uses i3 twice. This might be incorrect, but it makes one of
-   the proofs easy. Check if it's true. *)
+(* WARNING sz_post uses i3 twice. *)
 Definition lin_sz_post szi sp lp fn zfd i1 i3 :=
   rcompose (lin_post sp lp fn i1 i3) (sz_post szi lp fn zfd i3 i3).
-
-Ltac t_lia := clear; simpl; lia.
 
 Lemma trans_pre_ovm_lin_sz lp fn sfd lfd tfd i1 i3 :
   tp.(lp_rsp) = sp.(p_extra).(sp_rsp) ->
@@ -961,9 +955,7 @@ move=> ok_lp al_lfd_sfd exp_lfd  stkmax_lfd_sfd get_sfd get_lfd [h alloc].
 exists i3; first exact: h.
 move: h; rewrite /lin_pre get_sfd get_lfd.
 move=> [hrsp hrip init alloc' uvm hscs mmem].
-exists (top_stack (emem i1)); split.
-- exact: hrsp.
-- by [].
+exists (top_stack (emem i1)); split=> //.
 - by rewrite stkmax_lfd_sfd al_lfd_sfd; apply: alloc'.
 have {}alloc := trans_post_ovm_lin_alloc exp_lfd alloc.
 have /= alloc'' := trans_post_ovm_lin_alloc' alloc.
@@ -1005,8 +997,7 @@ Lemma it_compiler_back_endP {fn} :
           (back_end_pre lfd)
           (isem_stack sp rip fn)
           (isem_linear tp fn)
-          (back_end_post fn lfd)
-    ].
+          (back_end_post fn lfd) ].
 Proof.
 move=> /[dup] /(compiler_back_end_meta print_linearP)
   [rip_tp_sp rsp_tp_sp gd_tp_sp].
@@ -1029,7 +1020,7 @@ set lfd := (X in _ = Some X) in get_lfd.
 
 have hexp : is_export sp fn by exists fd => //; apply/is_RAnoneP/exp_sfd.
 
-(* Merge varmaps. *)
+(* Merge varmaps + mem_equiv *)
 have wovm := [elaborate
   merge_varmaps_export_call_checkP
     (p := sp) (global_data := rip) (fn := fn) checked_p hexp ] .
@@ -1101,13 +1092,22 @@ apply: (wkequiv_io_trans
   (P23 := lin_sz_pre lp fn lfd) (Q23 := lin_sz_post szi sp lp fn tfd)
   _ _ wovm).
 - move=> >.
-  apply: (trans_pre_ovm_lin_sz rsp_tp_sp rip_tp_sp) get_sfd get_lfd => //.
+  (* Avoid [=> //] to track hypotheses more easily. *)
+  apply: (trans_pre_ovm_lin_sz rsp_tp_sp rip_tp_sp) get_sfd get_lfd.
   + by rewrite rsp_lp_zp rsp_zp_tp.
   + by rewrite rip_lp_zp rip_zp_tp.
-  + by rewrite /tfd -exp_zfd.
+  + by rewrite -al_zfd.
+  + by rewrite -al_zfd.
+  + by rewrite -exp_zfd.
+  + by rewrite -exp_zfd.
+  + by rewrite -cs_zfd.
+  + by rewrite -stkmax_zfd.
+  + by rewrite -stkmax_zfd.
+  by rewrite -arg_zfd.
+  (* Avoid [=> //] to track hypotheses more easily. *)
 - move=> >; apply: (trans_post_ovm_lin ok_lp ok_zfd _ get_sfd get_lfd).
   + by rewrite /szi; case: stack_zero_info => [[]|].
-  + exact: exp_sfd.
+  + by rewrite exp_sfd.
   + reflexivity.
   + reflexivity.
   + reflexivity.
@@ -1121,7 +1121,12 @@ apply: (wkequiv_io_trans
   (P12 := lin_pre sp lp rip fn) (Q12 := lin_post sp lp fn)
   (P23 := sz_pre lp lfd) (Q23 := sz_post szi lp fn lfd)
   _ _ wlin).
-- by move=> >; apply: trans_pre_lin_sz_lin_sz get_sfd get_lfd.
+  (* Avoid [=> //] to track hypotheses more easily. *)
+- move=> >; apply: (trans_pre_lin_sz_lin_sz ok_lp) get_sfd get_lfd.
+  + reflexivity.
+  + by rewrite /= exp_sfd.
+  + reflexivity.
+  (* Avoid [=> //] to track hypotheses more easily. *)
 - move=> >; apply: trans_post_lin_sz.
   + by rewrite al_zfd.
   + by rewrite stkmax_zfd.
@@ -1355,8 +1360,7 @@ Definition full_pre fn xfd s t :=
       , t.(asm_scs) = s.(fscs)
       , rm ad_rsp = top_stack ms
       , wf_args_x t.(asm_rip) fn ms mi args argt
-      & Forall3 (value_uincl_or_in_mem mt) (get_wptrs up fn) args argt
-    ].
+      & Forall3 (value_uincl_or_in_mem mt) (get_wptrs up fn) args argt ].
 
 Definition full_post fn xfd s t s' t' :=
   let: args := s.(fvals) in
@@ -1372,8 +1376,7 @@ Definition full_post fn xfd s t s' t' :=
     , t'.(asm_scs) = s'.(fscs)
     , zeroized_u fn args argt ms mt mt'
     , List.Forall2 (value_in_mem mt') (take n ress) (take n argt)
-    & values_uincl (drop n ress) rest
-  ].
+    & values_uincl (drop n ress) rest ].
 
 Lemma it_compile_prog_to_asmP {fn} :
   compile_prog_to_asm aparams cparams entries up = ok xp ->
@@ -1384,7 +1387,7 @@ Lemma it_compile_prog_to_asmP {fn} :
       & wkequiv_io
           (full_pre fn xfd)
           (isem_unit up fn)
-          (iasmsem_exportcall xp fn)
+          (isem_asm xp fn)
           (full_post fn xfd)
    ].
 Proof.
